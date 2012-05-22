@@ -121,8 +121,8 @@
       rlog12=1./(rlogs1-rlogs2)
       tmnht(1:ifull,1)=(t(1:ifull,2)*rlogs1-t(1:ifull,1)*rlogs2+
      &           (t(1:ifull,1)-t(1:ifull,2))*rlogh1)*rlog12
-      dnhsh(:,1)=(tmnht(1:ifull,1)+(tnhs(:,2)*rlogs1-tnhs(:,1)*rlogs2+
-     &           (tnhs(:,1)-tnhs(:,2))*rlogh1)*rlog12)/tmnht(1:ifull,1)
+      dnhsh(:,1)=1.+(tnhs(:,2)*rlogs1-tnhs(:,1)*rlogs2+
+     &           (tnhs(:,1)-tnhs(:,2))*rlogh1)*rlog12/tmnht(1:ifull,1)
 !     n.b. an approximate zh (in m) is quite adequate for this routine
       zh(1:ifull,1)=t(1:ifull,1)*delh(1)*dnhs(:,1)
       do k=2,kl-1
@@ -131,7 +131,7 @@
         !tmnht(iq,k) =(t(iq,k)+t(iq,k+1))*.5
         tmnht(iq,k)=ratha(k)*t(iq,k+1)+rathb(k)*t(iq,k)       ! MJT suggestion
         ! non-hydrostatic temperature correction at half level height
-        dnhsh(iq,k)=(tmnht(iq,k)+ratha(k)*tnhs(iq,k+1)
+        dnhsh(iq,k)=1.+(ratha(k)*tnhs(iq,k+1)
      &              +rathb(k)*tnhs(iq,k))/tmnht(iq,k)         ! MJT suggestion
        enddo     ! iq loop
       enddo      !  k loop
@@ -916,12 +916,14 @@ c     first do theta (then convert back to t)
 
       !--------------------------------------------------------------
       ! Temperature
-      if(nmaxpr==1.and.mydiag)
-     &  write (6,"('thet_inx',9f8.3/8x,9f8.3)") rhs(idjd,:)
-      rhs(:,1)=rhs(:,1)-(conflux/cp)*fg/(ps(1:ifull)*dnhs(:,1))
-      call trim(at,ct,rhs,0)   ! for t
-      if(nmaxpr==1.and.mydiag)
-     &  write (6,"('thet_out',9f8.3/8x,9f8.3)") rhs(idjd,:)
+      if (nvmix.ne.6) then
+       if(nmaxpr==1.and.mydiag)
+     &   write (6,"('thet_inx',9f8.3/8x,9f8.3)") rhs(idjd,:)
+       rhs(:,1)=rhs(:,1)-(conflux/cp)*fg/(ps(1:ifull)*dnhs(:,1))
+       call trim(at,ct,rhs,0)   ! for t
+       if(nmaxpr==1.and.mydiag)
+     &   write (6,"('thet_out',9f8.3/8x,9f8.3)") rhs(idjd,:)
+      end if
       do k=1,kl
         do iq=1,ifull
          t(iq,k)=rhs(iq,k)/sigkap(k)
@@ -937,34 +939,36 @@ c     first do theta (then convert back to t)
 
       !--------------------------------------------------------------
       ! Moisture
-      rhs=qg(1:ifull,:)
-      rhs(:,1)=rhs(:,1)-(conflux/hl)*eg/(ps(1:ifull)*dnhs(:,1))
-c     could add extra sfce moisture flux term for crank-nicholson
-      call trim(at,ct,rhs,0)    ! for qg
-      qg(1:ifull,:)=rhs
-      if(diag.and.mydiag)then
-       write(6,*)'vertmix rhs & qg after trim ',(rhs(idjd,k),k=1,kl)
-       write (6,"('qg ',9f7.3/(8x,9f7.3))")
-     &            (1000.*qg(idjd,k),k=1,kl)
-      endif
-
-      if (nvmix.eq.6.and.nlocal.gt.0) then
+      if (nvmix.ne.6) then
+       rhs=qg(1:ifull,:)
+       rhs(:,1)=rhs(:,1)-(conflux/hl)*eg/(ps(1:ifull)*dnhs(:,1))
+c      could add extra sfce moisture flux term for crank-nicholson
+       call trim(at,ct,rhs,0)    ! for qg
+       qg(1:ifull,:)=rhs
+       if(diag.and.mydiag)then
+        write(6,*)'vertmix rhs & qg after trim ',(rhs(idjd,k),k=1,kl)
+        write (6,"('qg ',9f7.3/(8x,9f7.3))")
+     &             (1000.*qg(idjd,k),k=1,kl)
+       endif
+      else if (nlocal.gt.0) then
        ! increase mixing to replace counter gradient term
        at=cq*at
        ct=cq*ct
-      end if ! ..else.. (nvmix.eq.6.and.nlocal.gt.0)
+      end if ! ..else.. (nvmix.eq.6)
 
       !--------------------------------------------------------------
       ! Cloud microphysics terms
       if(ldr.ne.0)then
-c       now do qfg
-        rhs=qfg(1:ifull,:)
-        call trim(at,ct,rhs,0)    ! for qfg
-        qfg(1:ifull,:)=rhs
-c       now do qlg
-        rhs=qlg(1:ifull,:)
-        call trim(at,ct,rhs,0)    ! for qlg
-        qlg(1:ifull,:)=rhs
+        if (nvmix.ne.6) then
+c         now do qfg
+          rhs=qfg(1:ifull,:)
+          call trim(at,ct,rhs,0)    ! for qfg
+          qfg(1:ifull,:)=rhs
+c         now do qlg
+          rhs=qlg(1:ifull,:)
+          call trim(at,ct,rhs,0)    ! for qlg
+          qlg(1:ifull,:)=rhs
+        end if
 !c       now do cfrac
 !        rhs=cfrac(1:ifull,:)
 !        call trim(at,ct,rhs,0)    ! for cfrac

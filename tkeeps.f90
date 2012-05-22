@@ -67,7 +67,8 @@ real, parameter :: d_1   = 0.35
 
 integer, parameter :: icm1   = 40       ! max iterations for calculating pblh
 real, parameter :: alpha     = 0.3      ! weight for updating pblh
-real, parameter :: maxdt     = 90.      ! max timestep for tke-eps
+real, parameter :: maxdts    = 300.     ! max timestep for split
+real, parameter :: maxdtt    = 90.      ! max timestep for tke-eps
 real, parameter :: mintke    = 1.E-8    ! min value for tke
 real, parameter :: mineps    = 1.E-10   ! min value for eps
 real, parameter :: minl      = 1.       ! min value for L (constraint on eps)
@@ -113,7 +114,7 @@ subroutine tkemix(kmo,theta,qg,qlg,qfg,cfrac,zi,wt0,wq0,ps,ustar,zz,zzh,sig,sigk
 implicit none
 
 integer, intent(in) :: diag,mode
-integer k,i,klcl,icount,jcount,ncount
+integer k,i,klcl,icount,jcount,kcount,mcount,ncount
 real, intent(in) :: dt,qgmin
 real, dimension(ifull,kl), intent(inout) :: theta,qg,qlg,qfg
 real, dimension(ifull,kl), intent(out) :: kmo
@@ -132,13 +133,13 @@ real, dimension(ifull,2:kl) :: aa,qq,pps,ppt,ppb
 real, dimension(ifull,kl-1) :: dz_fl   ! dz_fl(k)=0.5*(zz(k+1)-zz(k-1))
 real, dimension(ifull,kl-1) :: dz_hl   ! dz_hl(k)=zz(k+1)-zz(k)
 real, dimension(ifull) :: wstar,z_on_l,phim,hh,jj,dqsdt
-real, dimension(ifull) :: dum,wtv0,oldtke,oldeps
+real, dimension(ifull) :: dum,wtv0
 real, dimension(kl) :: w2up,ttup,tvup,thup,qvup
 real, dimension(kl) :: qupsat,pres,nn
 real, dimension(kl-1) :: wpv_flux
 real xp,ee,dtr,as,bs,cs,cm12,cm34,qlup
 real zht,dzht,zidry,zilcl,oldqupsat
-real ziold,tlc,qtc,w2c,mfc,fi,ddt
+real ziold,tlc,qtc,w2c,mfc,fi,ddts,ddtt
 logical sconv
 
 cm12=1./sqrt(cm0)
@@ -156,8 +157,7 @@ ff=cm34*tke(1:ifull,:)*sqrt(tke(1:ifull,:))/minl
 eps(1:ifull,:)=min(eps(1:ifull,:),ff)
 ff=max(ff*minl/maxl,mineps)
 eps(1:ifull,:)=max(eps(1:ifull,:),ff)
-oldtke=tke(1:ifull,1)
-oldeps=eps(1:ifull,1)
+
 
 
 ! Calculate dz at half levels
@@ -469,11 +469,7 @@ eps(1:ifull,1)=max(eps(1:ifull,1),ff(:,1))
 
 
 ! Update TKE and eps terms
-call updatekmo(thetahl,theta,zz,zzh)
-call updatekmo(thetavhl,thetav,zz,zzh)
 call updatekmo(qsathl,qsat,zz,zzh)
-call updatekmo(qlghl,qlg,zz,zzh)
-call updatekmo(qfghl,qfg,zz,zzh)
 pps(:,kl)=0.
 ppb(:,kl)=0.
 ppt=0.
@@ -481,22 +477,28 @@ ppt=0.
 ! Calculate shear term on full levels (see hordifg.f for calculation of horizontal shear)
 pps(:,2:kl-1)=km(:,2:kl-1)*shear(:,2:kl-1)
 
-! Calculate buoyancy term
-! saturated conditions from Durran and Klemp JAS 1982 (see also WRF)
-bb(:,2:kl-1)=-grav*km(:,2:kl-1)*(gg(:,2:kl-1)*((thetahl(:,2:kl-1)-thetahl(:,1:kl-2))/theta(:,2:kl-1)                     &
-           +lv*(qsathl(:,2:kl-1)-qsathl(:,1:kl-2))/(cp*temp(:,2:kl-1)))-qsathl(:,2:kl-1)-qlghl(:,2:kl-1)-qfghl(:,2:kl-1) &
-           +qsathl(:,1:kl-2)+qlghl(:,1:kl-2)+qfghl(:,1:kl-2))/dz_fl(:,2:kl-1)
-bb(:,2:kl-1)=bb(:,2:kl-1)+grav*(gg(:,2:kl-1)*(gamth(:,2:kl-1)/theta(:,2:kl-1)+lv*gamqv(:,2:kl-1)/(cp*temp(:,2:kl-1)))-gamqt(:,2:kl-1))
-! unsaturated
-cc(:,2:kl-1)=-grav*km(:,2:kl-1)*(thetavhl(:,2:kl-1)-thetavhl(:,1:kl-2))/(thetav(:,2:kl-1)*dz_fl(:,2:kl-1))
-cc(:,2:kl-1)=cc(:,2:kl-1)+grav*gamtv(:,2:kl-1)/thetav(:,2:kl-1)
-ppb(:,2:kl-1)=(1.-cfrac(:,2:kl-1))*cc(:,2:kl-1)+cfrac(:,2:kl-1)*bb(:,2:kl-1) ! cloud fraction weighted (e.g., Smith 1990)
 
-ncount=int(dt/(real(maxdt)+0.01))+1
-ddt=dt/real(ncount)
-qq(:,2:kl)=-ddt*rhoahl(:,1:kl-1)*rhoar(:,2:kl)/(dz_fl(:,2:kl)*dz_hl(:,1:kl-1))
-rr(:,2:kl)=-ddt*rhoahl(:,2:kl)*rhoar(:,2:kl)/(dz_fl(:,2:kl)*dz_hl(:,2:kl))
-do icount=1,ncount
+
+mcount=int(dt/(real(maxdts)+0.01))+1
+ddts=dt/real(mcount)
+do kcount=1,mcount
+
+  thetav=theta*(1.+0.61*qg-qlg-qfg)
+  call updatekmo(thetahl,theta,zz,zzh)
+  call updatekmo(thetavhl,thetav,zz,zzh)
+  call updatekmo(qlghl,qlg,zz,zzh)
+  call updatekmo(qfghl,qfg,zz,zzh)
+
+  ! Calculate buoyancy term
+  ! saturated conditions from Durran and Klemp JAS 1982 (see also WRF)
+  bb(:,2:kl-1)=-grav*km(:,2:kl-1)*(gg(:,2:kl-1)*((thetahl(:,2:kl-1)-thetahl(:,1:kl-2))/theta(:,2:kl-1)                     &
+             +lv*(qsathl(:,2:kl-1)-qsathl(:,1:kl-2))/(cp*temp(:,2:kl-1)))-qsathl(:,2:kl-1)-qlghl(:,2:kl-1)-qfghl(:,2:kl-1) &
+             +qsathl(:,1:kl-2)+qlghl(:,1:kl-2)+qfghl(:,1:kl-2))/dz_fl(:,2:kl-1)
+  bb(:,2:kl-1)=bb(:,2:kl-1)+grav*(gg(:,2:kl-1)*(gamth(:,2:kl-1)/theta(:,2:kl-1)+lv*gamqv(:,2:kl-1)/(cp*temp(:,2:kl-1)))-gamqt(:,2:kl-1))
+  ! unsaturated
+  cc(:,2:kl-1)=-grav*km(:,2:kl-1)*(thetavhl(:,2:kl-1)-thetavhl(:,1:kl-2))/(thetav(:,2:kl-1)*dz_fl(:,2:kl-1))
+  cc(:,2:kl-1)=cc(:,2:kl-1)+grav*gamtv(:,2:kl-1)/thetav(:,2:kl-1)
+  ppb(:,2:kl-1)=(1.-cfrac(:,2:kl-1))*cc(:,2:kl-1)+cfrac(:,2:kl-1)*bb(:,2:kl-1) ! cloud fraction weighted (e.g., Smith 1990)
 
   ! Calculate transport term on full levels
   do k=2,kl-1
@@ -506,88 +508,86 @@ do icount=1,ncount
     end where
   end do
 
-  ! eps vertical mixing (done here as we skip level 1, instead of using trim)
-  xp=real(icount)/real(ncount)
-  aa(:,2:kl)=ce0*kmo(:,1:kl-1)*qq(:,2:kl)
-  cc(:,2:kl)=ce0*kmo(:,2:kl)*rr(:,2:kl)
-  bb(:,2:kl)=1.-aa(:,2:kl)-cc(:,2:kl)+ddt*ce2*eps(1:ifull,2:kl)/tke(1:ifull,2:kl)
-  dd(:,2:kl)=eps(1:ifull,2:kl)+ddt*ce1*eps(1:ifull,2:kl)/tke(1:ifull,2:kl)*(pps(:,2:kl)+max(ppb(:,2:kl),0.)+max(ppt(:,2:kl),0.))
-  dd(:,2)=dd(:,2)-aa(:,2)*(oldeps+xp*(eps(1:ifull,1)-oldeps))
-  call thomas(epsnew(:,2:kl),aa(:,3:kl),bb(:,2:kl),cc(:,2:kl-1),dd(:,2:kl))
+  ncount=int(ddts/(real(maxdtt)+0.01))+1
+  ddtt=ddts/real(ncount)
+  qq(:,2:kl)=-ddtt*rhoahl(:,1:kl-1)*rhoar(:,2:kl)/(dz_fl(:,2:kl)*dz_hl(:,1:kl-1))
+  rr(:,2:kl)=-ddtt*rhoahl(:,2:kl)*rhoar(:,2:kl)/(dz_fl(:,2:kl)*dz_hl(:,2:kl))
+  do icount=1,ncount
 
-  ! TKE vertical mixing (done here as we skip level 1, instead of using trim)
-  aa(:,2:kl)=kmo(:,1:kl-1)*qq(:,2:kl)
-  cc(:,2:kl)=kmo(:,2:kl)*rr(:,2:kl)
-  bb(:,2:kl)=1.-aa(:,2:kl)-cc(:,2:kl)
-  dd(:,2:kl)=tke(1:ifull,2:kl)+ddt*(pps(:,2:kl)+ppb(:,2:kl)-epsnew(:,2:kl))
-  dd(:,2)=dd(:,2)-aa(:,2)*(oldtke+xp*(tke(1:ifull,1)-oldtke))
-  call thomas(tkenew(:,2:kl),aa(:,3:kl),bb(:,2:kl),cc(:,2:kl-1),dd(:,2:kl))
+    ! eps vertical mixing (done here as we skip level 1, instead of using trim)
+    aa(:,2:kl)=ce0*kmo(:,1:kl-1)*qq(:,2:kl)
+    cc(:,2:kl)=ce0*kmo(:,2:kl)*rr(:,2:kl)
+    bb(:,2:kl)=1.-aa(:,2:kl)-cc(:,2:kl)+ddtt*ce2*eps(1:ifull,2:kl)/tke(1:ifull,2:kl)
+    dd(:,2:kl)=eps(1:ifull,2:kl)+ddtt*ce1*eps(1:ifull,2:kl)/tke(1:ifull,2:kl)*(pps(:,2:kl)+max(ppb(:,2:kl),0.)+max(ppt(:,2:kl),0.))
+    dd(:,2)=dd(:,2)-aa(:,2)*eps(1:ifull,1)
+    call thomas(epsnew(:,2:kl),aa(:,3:kl),bb(:,2:kl),cc(:,2:kl-1),dd(:,2:kl))
 
-  tke(1:ifull,2:kl)=max(tkenew(:,2:kl),mintke)
-  ff(:,2:kl)=cm34*tke(1:ifull,2:kl)*sqrt(tke(1:ifull,2:kl))/minl
-  eps(1:ifull,2:kl)=min(epsnew(:,2:kl),ff(:,2:kl))
-  ff(:,2:kl)=max(ff(:,2:kl)*minl/maxl,mineps)
-  eps(1:ifull,2:kl)=max(eps(1:ifull,2:kl),ff(:,2:kl))
+    ! TKE vertical mixing (done here as we skip level 1, instead of using trim)
+    aa(:,2:kl)=kmo(:,1:kl-1)*qq(:,2:kl)
+    cc(:,2:kl)=kmo(:,2:kl)*rr(:,2:kl)
+    bb(:,2:kl)=1.-aa(:,2:kl)-cc(:,2:kl)
+    dd(:,2:kl)=tke(1:ifull,2:kl)+ddtt*(pps(:,2:kl)+ppb(:,2:kl)-epsnew(:,2:kl))
+    dd(:,2)=dd(:,2)-aa(:,2)*tke(1:ifull,1)
+    call thomas(tkenew(:,2:kl),aa(:,3:kl),bb(:,2:kl),cc(:,2:kl-1),dd(:,2:kl))
 
-  km=cm0*tke(1:ifull,:)*tke(1:ifull,:)/eps(1:ifull,:)
-  call updatekmo(kmo,km,zz,zzh) ! interpolate diffusion coeffs to half levels
+    tke(1:ifull,2:kl)=max(tkenew(:,2:kl),mintke)
+    ff(:,2:kl)=cm34*tke(1:ifull,2:kl)*sqrt(tke(1:ifull,2:kl))/minl
+    eps(1:ifull,2:kl)=min(epsnew(:,2:kl),ff(:,2:kl))
+    ff(:,2:kl)=max(ff(:,2:kl)*minl/maxl,mineps)
+    eps(1:ifull,2:kl)=max(eps(1:ifull,2:kl),ff(:,2:kl))
 
-end do
+    km=cm0*tke(1:ifull,:)*tke(1:ifull,:)/eps(1:ifull,:)
+    call updatekmo(kmo,km,zz,zzh) ! interpolate diffusion coeffs to half levels
 
+  end do
 
+  ! updating diffusion and non-local terms for qtot and thetal
+  call updategam(gamhl,gamtl,zz,zzh,zi)
+  aa(:,2:kl-1)=-ddts*kmo(:,1:kl-2)*rhoahl(:,1:kl-2)*rhoar(:,2:kl-1)/(dz_hl(:,1:kl-2)*dz_fl(:,2:kl-1))
+  cc(:,1:kl-2)=-ddts*kmo(:,1:kl-2)*rhoahl(:,1:kl-2)*rhoar(:,1:kl-2)/(dz_hl(:,1:kl-2)*dz_fl(:,1:kl-2))
+  bb(:,1)=1.-cc(:,1)
+  bb(:,2:kl-2)=1.-aa(:,2:kl-2)-cc(:,2:kl-2)
+  bb(:,kl-1)=1.-aa(:,kl-1)
+  dd(:,1)=thetal(:,1)-ddts*gamhl(:,1)*rhoahl(:,1)*rhoar(:,1)/dz_fl(:,1)+ddts*wt0*rhoahl(:,1)*rhoar(:,1)/dz_fl(:,1)
+  dd(:,2:kl-2)=thetal(:,2:kl-2)+ddts*(gamhl(:,1:kl-3)*rhoahl(:,1:kl-3)-gamhl(:,2:kl-2)*rhoahl(:,2:kl-2))*rhoar(:,2:kl-2)/dz_fl(:,2:kl-2)
+  dd(:,kl-1)=thetal(:,kl-1)+ddts*gamhl(:,kl-2)*rhoahl(:,kl-2)*rhoar(:,kl-1)/dz_fl(:,kl-1)
+  call thomas(thetal(:,1:kl-1),aa(:,2:kl-1),bb(:,1:kl-1),cc(:,1:kl-2),dd(:,1:kl-1))
 
-! Update thetal and qtot due to non-local terms (host model will update diffusion terms)
-! (Here we use quadratic interpolation to determine the explicit
-! counter gradient terms)
-call updategam(gamhl,gamtl,zz,zzh,zi)
-gamhl=gamhl*rhoahl
-thetal(:,1)=thetal(:,1)-dt*gamhl(:,1)*rhoar(:,1)/dz_fl(:,1)
-thetal(:,2:kl-2)=thetal(:,2:kl-2)+dt*(gamhl(:,1:kl-3)-gamhl(:,2:kl-2))*rhoar(:,2:kl-2)/dz_fl(:,2:kl-2)
-thetal(:,kl-1)=thetal(:,kl-1)+dt*gamhl(:,kl-2)*rhoar(:,kl-1)/dz_fl(:,kl-1)
+  call updategam(gamhl,gamqt,zz,zzh,zi)
+  dd(:,1)=qtot(:,1)-ddts*gamhl(:,1)*rhoahl(:,1)*rhoar(:,1)/dz_fl(:,1)+ddts*wq0*rhoahl(:,1)*rhoar(:,1)/dz_fl(:,1)
+  dd(:,2:kl-2)=qtot(:,2:kl-2)+ddts*(gamhl(:,1:kl-3)*rhoahl(:,1:kl-3)-gamhl(:,2:kl-2)*rhoahl(:,2:kl-2))*rhoar(:,2:kl-2)/dz_fl(:,2:kl-2)
+  dd(:,kl-1)=qtot(:,kl-1)+ddts*gamhl(:,kl-2)*rhoahl(:,kl-2)*rhoar(:,kl-1)/dz_fl(:,kl-1)
+  call thomas(qtot(:,1:kl-1),aa(:,2:kl-1),bb(:,1:kl-1),cc(:,1:kl-2),dd(:,1:kl-1))
 
-call updategam(gamhl,gamqt,zz,zzh,zi)
-gamhl=gamhl*rhoahl
-qtot(:,1)=qtot(:,1)-dt*gamhl(:,1)*rhoar(:,1)/dz_fl(:,1)
-qtot(:,2:kl-2)=qtot(:,2:kl-2)+dt*(gamhl(:,1:kl-3)-gamhl(:,2:kl-2))*rhoar(:,2:kl-2)/dz_fl(:,2:kl-2)
-qtot(:,kl-1)=qtot(:,kl-1)+dt*gamhl(:,kl-2)*rhoar(:,kl-1)/dz_fl(:,kl-1)
+  ! updating qlg and qfg terms as scalars
+  aa=cq*aa
+  cc=cq*cc
+  bb(:,1)=1.-cc(:,1)
+  bb(:,2:kl-2)=1.-aa(:,2:kl-2)-cc(:,2:kl-2)
+  bb(:,kl-1)=1.-aa(:,kl-1)
+  dd(:,1:kl-1)=qlg(:,1:kl-1)
+  call thomas(qlg(:,1:kl-1),aa(:,2:kl-1),bb(:,1:kl-1),cc(:,1:kl-2),dd(:,1:kl-1))
 
-! updating diffusion and non-local terms for qtot and thetal
-!call updategam(gamhl,gamtl,zz,zzh,zi)
-!cc(:,1)=-dt*kmo(:,1)*rhoahl(:,1)*rhoar(:,1)/(dz_hl(:,1)*dz_fl(:,1))
-!bb(:,1)=1.-cc(:,1)
-!dd(:,1)=thetal(:,1)-dt*gamhl(:,1)*rhoahl(:,1)*rhoar(:,1)/dz_fl(:,1)+dt*wt0*rhoahl(:,1)*rhoar(:,1)/dz_fl(:,1)
-!do k=2,kl-2
-!  aa(:,k)=-dt*kmo(:,k-1)*rhoahl(:,k-1)*rhoar(:,k)/(dz_hl(:,k-1)*dz_fl(:,k))
-!  cc(:,k)=-dt*kmo(:,k)*rhoahl(:,k)*rhoar(:,k)/(dz_hl(:,k)*dz_fl(:,k))
-!  bb(:,k)=1.-aa(:,k)-cc(:,k)
-!  dd(:,k)=thetal(:,k)+dt*(gamhl(:,k-1)*rhoahl(:,k-1)-gamhl(:,k)*rhoahl(:,k))*rhoar(:,k)/dz_fl(:,k)
-!end do
-!aa(:,kl-1)=-dt*kmo(:,kl-2)*rhoahl(:,kl-2)*rhoar(:,kl-1)/(dz_hl(:,kl-2)*dz_fl(:,kl-1))
-!bb(:,kl-1)=1.-aa(:,kl-1)
-!dd(:,kl-1)=thetal(:,kl-1)+dt*gamhl(:,kl-2)*rhoahl(:,kl-2)*rhoar(:,kl-1)/dz_fl(:,kl-1)
-!call thomas(thetal(:,1:kl-1),aa(:,2:kl-1),bb(:,1:kl-1),cc(:,1:kl-2),dd(:,1:kl-1))
-!
-!call updategam(gamhl,gamqt,zz,zzh,zi)
-!dd(:,1)=qtot(:,1)-dt*gamhl(:,1)*rhoahl(:,1)*rhoar(:,1)/dz_fl(:,1)+dt*wq0*rhoahl(:,1)*rhoar(:,1)/dz_fl(:,1)
-!do k=2,kl-2
-!  dd(:,k)=qtot(:,k)+dt*(gamhl(:,k-1)*rhoahl(:,k-1)-gamhl(:,k)*rhoahl(:,k))*rhoar(:,k)/dz_fl(:,k)
-!end do
-!dd(:,kl-1)=qtot(:,kl-1)+dt*gamhl(:,kl-2)*rhoahl(:,kl-2)*rhoar(:,kl-1)/dz_fl(:,kl-1)
-!call thomas(qtot(:,1:kl-1),aa(:,2:kl-1),bb(:,1:kl-1),cc(:,1:kl-2),dd(:,1:kl-1))
+  dd(:,1:kl-1)=qfg(:,1:kl-1)
+  call thomas(qfg(:,1:kl-1),aa(:,2:kl-1),bb(:,1:kl-1),cc(:,1:kl-2),dd(:,1:kl-1))
 
+  ! Convert back to theta and qg
+  qlfnet=qlg+qfg
+  qg=qtot-qlfnet
+  fice=qfg/max(qlfnet,1.E-12)
+  qlfx=max(min(qg,0.),-qlfnet)
+  qg=qg-qlfx
+  qlfnet=qlfnet+qlfx
+  qlg=(1.-fice)*qlfnet
+  qfg=fice*qlfnet
+  where (qg.gt.qsat)
+    qlg=qlg+qg-qsat
+    qg=qsat
+  end where
+  do k=1,kl
+    theta(:,k)=thetal(:,k)+sigkap(k)*(lv*qlg(:,k)+ls*qfg(:,k))/cp
+  end do
 
-
-! Convert back to theta and qg
-qlfnet=qlg+qfg
-qg=qtot-qlfnet
-fice=qfg/max(qlfnet,1.E-12)
-qlfx=max(min(qg,0.),-qlfnet)
-qg=qg-qlfx
-qlfnet=qlfnet+qlfx
-qlg=(1.-fice)*qlfnet
-qfg=fice*qlfnet
-do k=1,kl
-  theta(:,k)=thetal(:,k)+sigkap(k)*(lv*qlg(:,k)+ls*qfg(:,k))/cp
 end do
 
 return

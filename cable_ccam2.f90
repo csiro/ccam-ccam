@@ -702,6 +702,9 @@ select case(proglai)
     x=min(max(real(mtimer+monthstart)/real(1440.*imonth(jmonth)),0.),1.)
     veg%vlai=vl1+vl2*x+vl3*x*x ! LAI as a function of time
     veg%vlai=max(veg%vlai,0.1)
+    where (veg%iveg.ge.15.and.veg%iveg.le.17)
+      veg%vlai=0.
+    end where
   case(1)
     write(6,*) "ERROR: CASA CNP LAI not operational"
     stop
