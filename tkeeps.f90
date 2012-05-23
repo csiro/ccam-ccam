@@ -34,14 +34,14 @@ real, dimension(:,:), allocatable, save :: tke,eps
 ! model constants
 real, parameter :: b1      = 2.     ! Soares et al (2004) 1., Siebesma et al (2003) 2.
 real, parameter :: b2      = 1./3.  ! Soares et al (2004) 2., Siebesma et al (2003) 1./3.
-real, parameter :: be      = 7.     ! MJT suggestion be=10/sqrt(ce3)
-!real, parameter :: be      = 1.    ! Hurley (2007) 1., Soares et al (2004) 0.3
+real, parameter :: be      = 10.    ! Angevine (2005), 10., Hurley (2007) 1., Soares et al (2004) 0.3
 real, parameter :: cm0     = 0.09   ! Hurley (2007) 0.09, Duynkerke 1988 0.03
 real, parameter :: ce0     = 0.69   ! Hurley (2007) 0.69, Duynkerke 1988 0.42
 real, parameter :: ce1     = 1.46
 real, parameter :: ce2     = 1.83
 real, parameter :: ce3     = 0.45   ! Hurley (2007) 0.45, Dynkerke et al 1987 0.35
 real, parameter :: cq      = 2.5
+real, parameter :: cs0     = 0.7    ! MJT scale factor for entrainment and detrainment rates
 
 ! physical constants
 real, parameter :: grav  = 9.80616
@@ -109,7 +109,7 @@ end subroutine tkeinit
 ! mode=0 mass flux with moist convection
 ! mode=1 no mass flux
 
-subroutine tkemix(kmo,theta,qg,qlg,qfg,cfrac,zi,wt0,wq0,ps,ustar,zz,zzh,sig,sigkap,dt,qgmin,mode,diag)
+subroutine tkemix(kmo,theta,qg,qlg,qfg,cfrac,zi,wt0,wq0,ps,ustar,rhoas,zz,zzh,sig,sigkap,dt,qgmin,mode,diag)
 
 implicit none
 
@@ -121,14 +121,15 @@ real, dimension(ifull,kl), intent(out) :: kmo
 real, dimension(ifull,kl), intent(in) :: zz,cfrac
 real, dimension(ifull,kl-1), intent(in) :: zzh
 real, dimension(ifull), intent(inout) :: zi
-real, dimension(ifull), intent(in) :: wt0,wq0,ps,ustar
+real, dimension(ifull), intent(in) :: wt0,wq0,ps,ustar,rhoas
 real, dimension(kl), intent(in) :: sigkap,sig
 real, dimension(ifull,kl) :: km,templ,thetav,thetal,temp,qtot
-real, dimension(ifull,kl) :: gamtl,gamtv,gamth,gamqt,gamqv,gamhl
+real, dimension(ifull,kl) :: gamtl,gamtv,gamth,gamqt,gamqv
+real, dimension(ifull,kl) :: gamtlhl,gamqthl
 real, dimension(ifull,kl) :: tkenew,epsnew,qsat,bb,cc,dd,ff,gg,rr
 real, dimension(ifull,kl) :: mflx,tlup,qtup
 real, dimension(ifull,kl) :: thetavhl,thetahl,qsathl,qlghl,qfghl
-real, dimension(ifull,kl) :: qlfnet,qlfx,fice,rhoa,rhoar,rhoahl
+real, dimension(ifull,kl) :: qlfnet,qlfx,fice,rhoa,rhoahl
 real, dimension(ifull,2:kl) :: aa,qq,pps,ppt,ppb
 real, dimension(ifull,kl-1) :: dz_fl   ! dz_fl(k)=0.5*(zz(k+1)-zz(k-1))
 real, dimension(ifull,kl-1) :: dz_hl   ! dz_hl(k)=zz(k+1)-zz(k)
@@ -183,11 +184,7 @@ do k=1,kl
   dum=ps*sig(k)
   call getqsat(ifull,qsat(:,k),temp(:,k),dum)
   temp(:,k)=theta(:,k)/sigkap(k)  ! this is temp
-  ! prepare arrays for calculating buoyancy of saturated air
-  ! (i.e., related to the saturated adiabatic lapse rate)
-  gg(:,k)=(1.+lv*qsat(:,k)/(rd*temp(:,k)))/(1.+lv*lv*qsat(:,k)/(cp*rv*temp(:,k)*temp(:,k)))
   rhoa(:,k)=dum/(rd*temp(:,k))
-  rhoar(:,k)=1./rhoa(:,k)
 end do
 call updategam(rhoahl,rhoa,zz,zzh,zi)
 
@@ -228,9 +225,9 @@ if (mode.ne.1) then ! mass flux
         w2up=0.
         zht=zz(i,1)
         dzht=zht
-        ! Entrainment and detrainment rates (Angevine et al (2010))
-        ee=2./max(100.,zidry)
-        dtr=ee+0.05/max(zidry-zht,0.001)
+        ! Entrainment and detrainment rates (based on Angevine et al (2010), but scaled for CCAM)
+        ee=cs0*2./max(100.,zidry)
+        dtr=ee+cs0*0.05/max(zidry-zht,0.001)
         ! first level -----------------
         ! initial thermodynamic state
         tlup(i,1)=thetal(i,1)+be*wt0(i)/sqrt(tke(i,1))   ! Hurley 2007
@@ -262,7 +259,7 @@ if (mode.ne.1) then ! mass flux
           dzht=dz_hl(i,k-1)
           zht=zz(i,k)
           ! update detrainment (Angevine et al 2010)
-          dtr=ee+0.05/max(zidry-zht,0.001)
+          dtr=ee+cs0*0.05/max(zidry-zht,0.001)
           ! update thermodynamics of plume
           ! (use upwind as centred scheme requires vertical spacing less than 250m)
           tlup(i,k)=(tlup(i,k-1)+dzht*ee*thetal(i,k))/(1.+dzht*ee)
@@ -323,7 +320,7 @@ if (mode.ne.1) then ! mass flux
           zht=zz(i,klcl)
           xp=max(zi(i)-zilcl,0.1)
           xp=8.*min(zht-zilcl,xp)/xp-16./3.
-          dtr=max(0.9*ee+0.006/pi*(atan(xp)+0.5*pi),ee)                         ! detrainment rate in cloud
+          dtr=max(0.9*ee+cs0*0.006/pi*(atan(xp)+0.5*pi),ee)                     ! detrainment rate in cloud
           ! advect thetal,up and qtot,up
           tlup(i,klcl)=(tlc+dzht*ee*thetal(i,klcl))/(1.+dzht*ee)
           qtup(i,klcl)=(qtc+dzht*ee*qtot(i,klcl)  )/(1.+dzht*ee)
@@ -361,7 +358,7 @@ if (mode.ne.1) then ! mass flux
               ! update detrainment rate for cloudly air from Angevine et al 2010
               xp=max(zi(i)-zilcl,0.1)
               xp=8.*min(zht-zilcl,xp)/xp-16./3.
-              dtr=max(0.9*ee+0.006/pi*(atan(xp)+0.5*pi),ee)
+              dtr=max(0.9*ee+cs0*0.006/pi*(atan(xp)+0.5*pi),ee)
               ! update thermodynamics of plume
               tlup(i,k)=(tlup(i,k-1)+dzht*ee*thetal(i,k))/(1.+dzht*ee)
               qtup(i,k)=(qtup(i,k-1)+dzht*ee*qtot(i,k)  )/(1.+dzht*ee)
@@ -469,7 +466,8 @@ eps(1:ifull,1)=max(eps(1:ifull,1),ff(:,1))
 
 
 ! Update TKE and eps terms
-call updatekmo(qsathl,qsat,zz,zzh)
+call updategam(gamtlhl,gamtl,zz,zzh,zi)
+call updategam(gamqthl,gamqt,zz,zzh,zi)
 pps(:,kl)=0.
 ppb(:,kl)=0.
 ppt=0.
@@ -484,8 +482,19 @@ ddts=dt/real(mcount)
 do kcount=1,mcount
 
   thetav=theta*(1.+0.61*qg-qlg-qfg)
+  do k=1,kl
+    ! calculate saturated mixing ratio
+    temp(:,k)=thetal(:,k)/sigkap(k) ! this is templ
+    dum=ps*sig(k)
+    call getqsat(ifull,qsat(:,k),temp(:,k),dum)
+    temp(:,k)=theta(:,k)/sigkap(k)  ! this is temp
+    ! prepare arrays for calculating buoyancy of saturated air
+    ! (i.e., related to the saturated adiabatic lapse rate)
+    gg(:,k)=(1.+lv*qsat(:,k)/(rd*temp(:,k)))/(1.+lv*lv*qsat(:,k)/(cp*rv*temp(:,k)*temp(:,k)))
+  end do
   call updatekmo(thetahl,theta,zz,zzh)
   call updatekmo(thetavhl,thetav,zz,zzh)
+  call updatekmo(qsathl,qsat,zz,zzh)
   call updatekmo(qlghl,qlg,zz,zzh)
   call updatekmo(qfghl,qfg,zz,zzh)
 
@@ -503,15 +512,15 @@ do kcount=1,mcount
   ! Calculate transport term on full levels
   do k=2,kl-1
     where(wtv0.gt.0.)
-      ppt(:,k)=rhoar(:,k)*(kmo(:,k)*rhoahl(:,k)*(tke(1:ifull,k+1)-tke(1:ifull,k))/dz_hl(:,k) &
-                          -kmo(:,k-1)*rhoahl(:,k-1)*(tke(1:ifull,k)-tke(1:ifull,k-1))/dz_hl(:,k-1))/dz_fl(:,k)
+      ppt(:,k)=(kmo(:,k)*rhoahl(:,k)*(tke(1:ifull,k+1)-tke(1:ifull,k))/dz_hl(:,k) &
+               -kmo(:,k-1)*rhoahl(:,k-1)*(tke(1:ifull,k)-tke(1:ifull,k-1))/dz_hl(:,k-1))/(rhoa(:,k)*dz_fl(:,k))
     end where
   end do
 
   ncount=int(ddts/(real(maxdtt)+0.01))+1
   ddtt=ddts/real(ncount)
-  qq(:,2:kl)=-ddtt*rhoahl(:,1:kl-1)*rhoar(:,2:kl)/(dz_fl(:,2:kl)*dz_hl(:,1:kl-1))
-  rr(:,2:kl)=-ddtt*rhoahl(:,2:kl)*rhoar(:,2:kl)/(dz_fl(:,2:kl)*dz_hl(:,2:kl))
+  qq(:,2:kl)=-ddtt*rhoahl(:,1:kl-1)/(rhoa(:,2:kl)*dz_fl(:,2:kl)*dz_hl(:,1:kl-1))
+  rr(:,2:kl)=-ddtt*rhoahl(:,2:kl)/(rhoa(:,2:kl)*dz_fl(:,2:kl)*dz_hl(:,2:kl))
   do icount=1,ncount
 
     ! eps vertical mixing (done here as we skip level 1, instead of using trim)
@@ -542,48 +551,30 @@ do kcount=1,mcount
   end do
 
   ! updating diffusion and non-local terms for qtot and thetal
-  call updategam(gamhl,gamtl,zz,zzh,zi)
-  aa(:,2:kl-1)=-ddts*kmo(:,1:kl-2)*rhoahl(:,1:kl-2)*rhoar(:,2:kl-1)/(dz_hl(:,1:kl-2)*dz_fl(:,2:kl-1))
-  cc(:,1:kl-2)=-ddts*kmo(:,1:kl-2)*rhoahl(:,1:kl-2)*rhoar(:,1:kl-2)/(dz_hl(:,1:kl-2)*dz_fl(:,1:kl-2))
+  aa(:,2:kl-1)=-ddts*kmo(:,1:kl-2)*rhoahl(:,1:kl-2)/(rhoa(:,2:kl-1)*dz_hl(:,1:kl-2)*dz_fl(:,2:kl-1))
+  cc(:,1:kl-2)=-ddts*kmo(:,1:kl-2)*rhoahl(:,1:kl-2)/(rhoa(:,1:kl-2)*dz_hl(:,1:kl-2)*dz_fl(:,1:kl-2))
   bb(:,1)=1.-cc(:,1)
   bb(:,2:kl-2)=1.-aa(:,2:kl-2)-cc(:,2:kl-2)
   bb(:,kl-1)=1.-aa(:,kl-1)
-  dd(:,1)=thetal(:,1)-ddts*gamhl(:,1)*rhoahl(:,1)*rhoar(:,1)/dz_fl(:,1)+ddts*wt0*rhoahl(:,1)*rhoar(:,1)/dz_fl(:,1)
-  dd(:,2:kl-2)=thetal(:,2:kl-2)+ddts*(gamhl(:,1:kl-3)*rhoahl(:,1:kl-3)-gamhl(:,2:kl-2)*rhoahl(:,2:kl-2))*rhoar(:,2:kl-2)/dz_fl(:,2:kl-2)
-  dd(:,kl-1)=thetal(:,kl-1)+ddts*gamhl(:,kl-2)*rhoahl(:,kl-2)*rhoar(:,kl-1)/dz_fl(:,kl-1)
+  dd(:,1)=thetal(:,1)-ddts*gamtlhl(:,1)*rhoahl(:,1)/(rhoa(:,1)*dz_fl(:,1))+ddts*wt0*rhoas/(rhoa(:,1)*dz_fl(:,1))
+  dd(:,2:kl-2)=thetal(:,2:kl-2)+ddts*(gamtlhl(:,1:kl-3)*rhoahl(:,1:kl-3)-gamtlhl(:,2:kl-2)*rhoahl(:,2:kl-2))/(rhoa(:,2:kl-2)*dz_fl(:,2:kl-2))
+  dd(:,kl-1)=thetal(:,kl-1)+ddts*gamtlhl(:,kl-2)*rhoahl(:,kl-2)/(rhoa(:,kl-1)*dz_fl(:,kl-1))
   call thomas(thetal(:,1:kl-1),aa(:,2:kl-1),bb(:,1:kl-1),cc(:,1:kl-2),dd(:,1:kl-1))
 
-  call updategam(gamhl,gamqt,zz,zzh,zi)
-  dd(:,1)=qtot(:,1)-ddts*gamhl(:,1)*rhoahl(:,1)*rhoar(:,1)/dz_fl(:,1)+ddts*wq0*rhoahl(:,1)*rhoar(:,1)/dz_fl(:,1)
-  dd(:,2:kl-2)=qtot(:,2:kl-2)+ddts*(gamhl(:,1:kl-3)*rhoahl(:,1:kl-3)-gamhl(:,2:kl-2)*rhoahl(:,2:kl-2))*rhoar(:,2:kl-2)/dz_fl(:,2:kl-2)
-  dd(:,kl-1)=qtot(:,kl-1)+ddts*gamhl(:,kl-2)*rhoahl(:,kl-2)*rhoar(:,kl-1)/dz_fl(:,kl-1)
+  dd(:,1)=qtot(:,1)-ddts*gamqthl(:,1)*rhoahl(:,1)/(rhoa(:,1)*dz_fl(:,1))+ddts*wq0*rhoas/(rhoa(:,1)*dz_fl(:,1))
+  dd(:,2:kl-2)=qtot(:,2:kl-2)+ddts*(gamqthl(:,1:kl-3)*rhoahl(:,1:kl-3)-gamqthl(:,2:kl-2)*rhoahl(:,2:kl-2))/(rhoa(:,2:kl-2)*dz_fl(:,2:kl-2))
+  dd(:,kl-1)=qtot(:,kl-1)+ddts*gamqthl(:,kl-2)*rhoahl(:,kl-2)/(rhoa(:,kl-1)*dz_fl(:,kl-1))
   call thomas(qtot(:,1:kl-1),aa(:,2:kl-1),bb(:,1:kl-1),cc(:,1:kl-2),dd(:,1:kl-1))
-
-  ! updating qlg and qfg terms as scalars
-  aa=cq*aa
-  cc=cq*cc
-  bb(:,1)=1.-cc(:,1)
-  bb(:,2:kl-2)=1.-aa(:,2:kl-2)-cc(:,2:kl-2)
-  bb(:,kl-1)=1.-aa(:,kl-1)
-  dd(:,1:kl-1)=qlg(:,1:kl-1)
-  call thomas(qlg(:,1:kl-1),aa(:,2:kl-1),bb(:,1:kl-1),cc(:,1:kl-2),dd(:,1:kl-1))
-
-  dd(:,1:kl-1)=qfg(:,1:kl-1)
-  call thomas(qfg(:,1:kl-1),aa(:,2:kl-1),bb(:,1:kl-1),cc(:,1:kl-2),dd(:,1:kl-1))
 
   ! Convert back to theta and qg
   qlfnet=qlg+qfg
   qg=qtot-qlfnet
   fice=qfg/max(qlfnet,1.E-12)
-  qlfx=max(min(qg,0.),-qlfnet)
+  qlfx=max(min(qg,0.),-qlfnet) ! fix any missing qg
   qg=qg-qlfx
   qlfnet=qlfnet+qlfx
   qlg=(1.-fice)*qlfnet
   qfg=fice*qlfnet
-  where (qg.gt.qsat)
-    qlg=qlg+qg-qsat
-    qg=qsat
-  end where
   do k=1,kl
     theta(:,k)=thetal(:,k)+sigkap(k)*(lv*qlg(:,k)+ls*qfg(:,k))/cp
   end do
@@ -755,6 +746,9 @@ select case(interpmode)
     where (gamin(:,1)*gamin(:,2).le.0..or.gamhl(:,1)*gamin(:,1).le.0.)
       gamhl(:,1)=gamin(:,1)+(zhl(:,1)-zz(:,1))/(zz(:,2)-zz(:,1))*(gamin(:,2)-gamin(:,1))
     end where
+    where (zi.lt.zhl(:,1))
+      gamhl(:,1)=0.
+    end where
     do k=2,kl-1
       gamhl(:,k)=gamin(:,k)+(zhl(:,k)-zz(:,k))/(zz(:,k+1)-zz(:,k-1))*                  &
                  ((zz(:,k)-zz(:,k-1))*(gamin(:,k+1)-gamin(:,k))/(zz(:,k+1)-zz(:,k))    &
@@ -764,6 +758,9 @@ select case(interpmode)
                  -(gamin(:,k)-gamin(:,k-1))/(zz(:,k)-zz(:,k-1)))
       where (gamin(:,k)*gamin(:,k+1).le.0..or.gamhl(:,k)*gamin(:,k).le.0.)
         gamhl(:,k)=gamin(:,k)+(zhl(:,k)-zz(:,k))/(zz(:,k+1)-zz(:,k))*(gamin(:,k+1)-gamin(:,k))
+      end where
+      where (zi.lt.zhl(:,k))
+        gamhl(:,k)=0.
       end where
     end do
   case DEFAULT

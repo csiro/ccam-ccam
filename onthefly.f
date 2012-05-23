@@ -1095,7 +1095,7 @@ c       incorporate other target land mask effects
         !unpack field capacity into volumetric soil moisture
         if (any(wb(:,:).gt.10.)) then
           if (mydiag) write(6,*) "Unpacking wetfrac to wb",wb(idjd,1)
-          wb(:,:)=max(wb(:,:)-20.,0.)
+          wb(:,:)=wb(:,:)-20.
           do iq=1,ifull
             isoil=isoilm(iq)
             wb(iq,:)=(1.-wb(iq,:))*swilt(isoil)+wb(iq,:)*sfc(isoil)

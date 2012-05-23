@@ -73,7 +73,7 @@
       real, dimension(ifull,kl-1) :: dnhsh,zh
       real, dimension(ifull) :: dqtot,csq,dvmod,dz,dzr,fm,fh,sqmxl
       real, dimension(ifull) :: x,zhv,theeb,sigsp,wt0,wq0,rrhoa
-      real, dimension(ifull) :: ou,ov,iu,iv
+      real, dimension(ifull) :: ou,ov,iu,iv,rhoas
       real, dimension(kl) :: sighkap,sigkap,delons,delh
       real, dimension(:), allocatable, save :: prcpv
 
@@ -814,20 +814,21 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
        end do ! k  loop
        zg=zg+phi_nh/grav ! add non-hydrostatic component
        rrhoa=rdry*t(1:ifull,1)/(sig(1)*ps(1:ifull))
+       rhoas=1./rrhoa
        wq0=eg*rrhoa/hl
        wt0=fg*rrhoa/cp
        select case(nlocal)
         case(0) ! no counter gradient
          call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),
      &             qfg(1:ifull,:),cfrac,pblh,wt0,wq0,
-     &             ps(1:ifull),ustar,zg,zh,sig,sigkap,dt,
-     &             qgmin,1,0)
+     &             ps(1:ifull),ustar,rhoas,zg,zh,sig,sigkap,
+     &             dt,qgmin,1,0)
          rkh=rkm
         case(1,2,3,4,5,6) ! KCN counter gradient method
          call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),
      &             qfg(1:ifull,:),cfrac,pblh,wt0,wq0,
-     &             ps(1:ifull),ustar,zg,zh,sig,sigkap,dt,
-     &             qgmin,1,0)
+     &             ps(1:ifull),ustar,rhoas,zg,zh,sig,sigkap,
+     &             dt,qgmin,1,0)
          rkh=rkm
          uav(1:ifull,:)=av_vmod*u(1:ifull,:)
      &                 +(1.-av_vmod)*savu(1:ifull,:)
@@ -837,8 +838,8 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
         case(7) ! mass-flux counter gradient
          call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),
      &             qfg(1:ifull,:),cfrac,pblh,wt0,wq0,
-     &             ps(1:ifull),ustar,zg,zh,sig,sigkap,dt,
-     &             qgmin,0,0)
+     &             ps(1:ifull),ustar,rhoas,zg,zh,sig,sigkap,
+     &             dt,qgmin,0,0)
          rkh=rkm
         case DEFAULT
           write(6,*) "ERROR: Unknown nlocal option for nvmix=6"
@@ -959,16 +960,14 @@ c      could add extra sfce moisture flux term for crank-nicholson
       !--------------------------------------------------------------
       ! Cloud microphysics terms
       if(ldr.ne.0)then
-        if (nvmix.ne.6) then
-c         now do qfg
-          rhs=qfg(1:ifull,:)
-          call trim(at,ct,rhs,0)    ! for qfg
-          qfg(1:ifull,:)=rhs
-c         now do qlg
-          rhs=qlg(1:ifull,:)
-          call trim(at,ct,rhs,0)    ! for qlg
-          qlg(1:ifull,:)=rhs
-        end if
+c       now do qfg
+        rhs=qfg(1:ifull,:)
+        call trim(at,ct,rhs,0)    ! for qfg
+        qfg(1:ifull,:)=rhs
+c       now do qlg
+        rhs=qlg(1:ifull,:)
+        call trim(at,ct,rhs,0)    ! for qlg
+        qlg(1:ifull,:)=rhs
 !c       now do cfrac
 !        rhs=cfrac(1:ifull,:)
 !        call trim(at,ct,rhs,0)    ! for cfrac
