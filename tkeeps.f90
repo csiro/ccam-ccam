@@ -34,14 +34,14 @@ real, dimension(:,:), allocatable, save :: tke,eps
 ! model constants
 real, parameter :: b1      = 2.     ! Soares et al (2004) 1., Siebesma et al (2003) 2.
 real, parameter :: b2      = 1./3.  ! Soares et al (2004) 2., Siebesma et al (2003) 1./3.
-real, parameter :: be      = 10.    ! Angevine (2005), 10., Hurley (2007) 1., Soares et al (2004) 0.3
+real, parameter :: be      = 7.     ! Angevine (2005), 7., Hurley (2007) 1., Soares et al (2004) 0.3
 real, parameter :: cm0     = 0.09   ! Hurley (2007) 0.09, Duynkerke 1988 0.03
 real, parameter :: ce0     = 0.69   ! Hurley (2007) 0.69, Duynkerke 1988 0.42
 real, parameter :: ce1     = 1.46
 real, parameter :: ce2     = 1.83
 real, parameter :: ce3     = 0.45   ! Hurley (2007) 0.45, Dynkerke et al 1987 0.35
 real, parameter :: cq      = 2.5
-real, parameter :: cs0     = 0.7    ! MJT scale factor for entrainment and detrainment rates
+real, parameter :: cs0     = 0.6    ! MJT scale factor for entrainment and detrainment rates
 
 ! physical constants
 real, parameter :: grav  = 9.80616

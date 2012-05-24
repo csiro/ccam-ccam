@@ -23,7 +23,7 @@ real, dimension(:,:), allocatable, save :: oldu1,oldu2,oldv1,oldv2
 integer, parameter :: salfilt=0    ! additional salinity filter (0=off, 1=Katzfey)
 integer, parameter :: usetide=1    ! tidal forcing (0=off, 1=on)
 integer, parameter :: icemode=2    ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
-integer, parameter :: basinmd=1    ! basin mode (0=soil, 1=global)
+integer, parameter :: basinmd=1    ! basin mode (0=soil, 1=global, 2=remove, 3=pile-up)
 integer, parameter :: nf     =2    ! power for horizontal diffusion reduction factor
 real, parameter :: k_smag=0.4      ! horizontal diffusion (2. in Griffies (2000), 0.7-1. in POM (Mellor 2004))
 real, parameter :: delphi=200.     ! horizontal diffusion reduction factor gradient
@@ -477,6 +477,8 @@ select case(basinmd)
         newwat(iq)=0.
       end if
     end do
+  case(3)
+    ! pile-up water
   case default
     write(6,*) "ERROR: Unsupported basinmd ",basinmd
     stop
