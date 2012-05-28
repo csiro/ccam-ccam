@@ -963,6 +963,7 @@ c      could add extra sfce moisture flux term for crank-nicholson
       !--------------------------------------------------------------
       ! Cloud microphysics terms
       if(ldr.ne.0)then
+       if (nvmix.ne.6) then
 c       now do qfg
         rhs=qfg(1:ifull,:)
         call trim(at,ct,rhs,0)    ! for qfg
@@ -972,19 +973,22 @@ c       now do qlg
         call trim(at,ct,rhs,0)    ! for qlg
         qlg(1:ifull,:)=rhs
         if (ncloud.gt.0) then
-c         now do qrg
-          rhs=qrg(1:ifull,:)
-          call trim(at,ct,rhs,0)    ! for qrg
-          qrg(1:ifull,:)=rhs
-c         now do cfrac
-          rhs=cfrac(1:ifull,:)
-          call trim(at,ct,rhs,0)    ! for cfrac
-          cfrac(1:ifull,:)=min(max(rhs,0.),1.)
-c         now do cffall
-          rhs=cffall(1:ifull,:)
-          call trim(at,ct,rhs,0)    ! for cffall
-          cffall(1:ifull,:)=min(max(rhs,0.),1.)
+c        now do cfrac
+         rhs=cfrac(1:ifull,:)
+         call trim(at,ct,rhs,0)    ! for cfrac
+         cfrac(1:ifull,:)=min(max(rhs,0.),1.)
         end if
+       end if
+       if (ncloud.gt.0) then
+c       now do qrg
+        rhs=qrg(1:ifull,:)
+        call trim(at,ct,rhs,0)    ! for qrg
+        qrg(1:ifull,:)=rhs
+c       now do cffall
+        rhs=cffall(1:ifull,:)
+        call trim(at,ct,rhs,0)    ! for cffall
+        cffall(1:ifull,:)=min(max(rhs,0.),1.)
+       end if
       endif    ! (ldr.ne.0)
       
       !--------------------------------------------------------------
