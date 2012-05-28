@@ -426,11 +426,13 @@
 !     &       pslb(iw(idjd)),pslb(ie(idjd)),pslb(is(idjd)),pslb(in(idjd))
 !        endif
 
+        ! Removed by MJT for conservation
 !       ensure qb big enough, but not too big in top levels (from Sept '04)
-        qb(1:ifull,:)=max(qb(1:ifull,:),qgmin)
-        do k=kl-2,kl
-          qb(1:ifull,k)=min(qb(1:ifull,k),10.*qgmin)
-        enddo
+        qb(1:ifull,:)=max(qb(1:ifull,:),0.)
+        !qb(1:ifull,:)=max(qb(1:ifull,:),qgmin)
+        !do k=kl-2,kl
+        !  qb(1:ifull,k)=min(qb(1:ifull,k),10.*qgmin)
+        !enddo
 
       end if ! ((mtimer>mtimeb).or.firstcall)
 
@@ -772,9 +774,9 @@
           diffu(:,kbotdav:ktopdav)=qd(1:ifull,kbotdav:ktopdav)
         end if
         qg(1:ifull,kbotdav:ktopdav)=max(qg(1:ifull,kbotdav:ktopdav)
-     &   +diffu(:,kbotdav:ktopdav),qgmin)
+     &   +diffu(:,kbotdav:ktopdav),0.)
         qgsav(:,kbotdav:ktopdav)=max(qgsav(:,kbotdav:ktopdav)
-     &   +diffu(:,kbotdav:ktopdav),qgmin)
+     &   +diffu(:,kbotdav:ktopdav),0.)
       end if
 
       return

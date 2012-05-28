@@ -25,6 +25,9 @@ real, parameter :: grav     = 9.80616     ! Acceleration due to gravity
 real, parameter :: stefbo   = 5.67e-8     ! Stefan-Boltzmann constant
 real, parameter :: rdry     = 287.04      ! Gas constant for dry air
 real, parameter :: rhow     = 1000.       ! Density of water
+real, parameter :: lv       = 2.5104e6
+real, parameter :: lf       = 3.36e5
+real, parameter :: ls       = lv+lf
 real, parameter :: pi       = 3.1415927   ! pi
 real, parameter :: csolar   = 1365        ! Solar constant in W/m^2
 real, parameter :: siglow   = 0.68        ! sigma level for top of low cloud (diagnostic)
@@ -60,6 +63,7 @@ use infile
 use latlong_m
 use microphys_rad_mod, only: microphys_sw_driver,microphys_lw_driver,lwemiss_calc,microphys_rad_init
 use mlo
+use nharrs_m
 use nsibd_m
 use ozoneread
 use pbl_m
@@ -94,7 +98,7 @@ real, dimension(imax) :: sgvis,sgdnvisdir,sgdnvisdif,sgdnnirdir,sgdnnirdif
 real, dimension(imax) :: dprf,dumfbeam
 real, dimension(imax,kl) :: duo3n,rhoa
 real, dimension(imax) :: cuvrf_dir,cirrf_dir,cuvrf_dif,cirrf_dif
-real, dimension(imax,kl) :: p2,cd2,dumcf,dumql,dumqf,dumt
+real, dimension(imax,kl) :: p2,cd2,dumcf,dumql,dumqf,dumt,tnhs
 real, dimension(kl+1) :: sigh
 real(kind=8), dimension(kl+1,2) :: pref
 real r1,dlt,alp,slag,dhr,fjd
@@ -606,12 +610,17 @@ do j=1,jl,imax/il
     enddo
 
     ! Prepare SEA-ESF arrays ----------------------------------------
+    tnhs(:,1)=phi_nh(istart:iend,1)/bet(1)
+    do k=2,kl
+      ! representing non-hydrostatic term as a correction to air temperature
+      tnhs(:,k)=(phi_nh(istart:iend,k)-phi_nh(istart:iend,k-1)-betm(k)*tnhs(:,k-1))/bet(k)
+    end do
     do k=1,kl
       kr=kl+1-k
       dumt(:,k)=t(istart:iend,k)
       p2(:,k)=ps(istart:iend)*sig(k)
       call getqsat(imax,qsat,dumt(:,k),p2(:,k))
-      Atmos_input%deltaz(:,1,kr) =(-dsig(k)/sig(k))*rdry*dumt(:,k)/grav
+      Atmos_input%deltaz(:,1,kr) =(-dsig(k)/sig(k))*rdry*(dumt(:,k)+tnhs(:,k))/grav
       Atmos_input%rh2o(:,1,kr)   =max(qg(istart:iend,k),2.E-7)
       Atmos_input%temp(:,1,kr)   =min(max(dumt(:,k),100.),370.)      
       Atmos_input%press(:,1,kr)  =p2(:,k)
@@ -620,7 +629,7 @@ do j=1,jl,imax/il
     Atmos_input%temp(:,1,kl+1)  = min(max(tss(istart:iend),100.),370.)
     Atmos_input%press(:,1,kl+1) = ps(istart:iend)
     Atmos_input%pflux(:,1,1  )  = 0.
-    Atmos_input%tflux(:,1,1  )  = Atmos_input%temp (:,1,1  )
+    Atmos_input%tflux(:,1,1  )  = Atmos_input%temp(:,1,1)
     do k=1,kl-1
       kr=kl+1-k
       Atmos_input%pflux(:,1,kr) = rathb(k)*p2(:,k)+ratha(k)*p2(:,k+1)

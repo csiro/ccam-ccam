@@ -69,8 +69,8 @@
       real, dimension(ifull,kl) :: betatt,betaqt,rhs,delthet,thebas
       real, dimension(ifull,kl) :: cu,thee,qs,uav,vav,au,ct,gt
       real, dimension(ifull,kl) :: guv,ri,rkm,rkh,rk_shal,zg
-      real, dimension(ifull,kl) :: tnhs,dnhs
-      real, dimension(ifull,kl-1) :: dnhsh,zh
+      real, dimension(ifull,kl) :: tnhs,dnhs,zh
+      real, dimension(ifull,kl-1) :: dnhsh
       real, dimension(ifull) :: dqtot,csq,dvmod,dz,dzr,fm,fh,sqmxl
       real, dimension(ifull) :: x,zhv,theeb,sigsp,wt0,wq0,rrhoa
       real, dimension(ifull) :: ou,ov,iu,iv,rhoas
@@ -124,7 +124,7 @@
       dnhsh(:,1)=1.+(tnhs(:,2)*rlogs1-tnhs(:,1)*rlogs2+
      &           (tnhs(:,1)-tnhs(:,2))*rlogh1)*rlog12/tmnht(1:ifull,1)
 !     n.b. an approximate zh (in m) is quite adequate for this routine
-      zh(1:ifull,1)=t(1:ifull,1)*delh(1)*dnhs(:,1)
+      zh(:,1)=t(1:ifull,1)*delh(1)*dnhs(:,1)
       do k=2,kl-1
        do iq=1,ifull
         zh(iq,k)=zh(iq,k-1)+t(iq,k)*delh(k)*dnhs(iq,k)
@@ -135,6 +135,7 @@
      &              +rathb(k)*tnhs(iq,k))/tmnht(iq,k)         ! MJT suggestion
        enddo     ! iq loop
       enddo      !  k loop
+      zh(:,kl)=zh(:,kl-1)+t(1:ifull,kl)*delh(kl)*dnhs(:,kl)   ! MJT suggestion
       do k=1,kl
         rhs(:,k)=t(1:ifull,k)*sigkap(k)  ! rhs is theta here
       enddo      !  k loop
@@ -821,14 +822,14 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
         case(0) ! no counter gradient
          call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),
      &             qfg(1:ifull,:),cfrac,pblh,wt0,wq0,
-     &             ps(1:ifull),ustar,rhoas,zg,zh,sig,sigkap,
-     &             dt,qgmin,1,0)
+     &             ps(1:ifull),ustar,rhoas,zg,zh,sig,
+     &             sigkap,dt,qgmin,1,0)
          rkh=rkm
         case(1,2,3,4,5,6) ! KCN counter gradient method
          call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),
      &             qfg(1:ifull,:),cfrac,pblh,wt0,wq0,
-     &             ps(1:ifull),ustar,rhoas,zg,zh,sig,sigkap,
-     &             dt,qgmin,1,0)
+     &             ps(1:ifull),ustar,rhoas,zg,zh,sig,
+     &             sigkap,dt,qgmin,1,0)
          rkh=rkm
          uav(1:ifull,:)=av_vmod*u(1:ifull,:)
      &                 +(1.-av_vmod)*savu(1:ifull,:)
@@ -838,8 +839,8 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
         case(7) ! mass-flux counter gradient
          call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),
      &             qfg(1:ifull,:),cfrac,pblh,wt0,wq0,
-     &             ps(1:ifull),ustar,rhoas,zg,zh,sig,sigkap,
-     &             dt,qgmin,0,0)
+     &             ps(1:ifull),ustar,rhoas,zg,zh,sig,
+     &             sigkap,dt,qgmin,0,0)
          rkh=rkm
         case DEFAULT
           write(6,*) "ERROR: Unknown nlocal option for nvmix=6"
@@ -951,11 +952,13 @@ c      could add extra sfce moisture flux term for crank-nicholson
         write (6,"('qg ',9f7.3/(8x,9f7.3))")
      &             (1000.*qg(idjd,k),k=1,kl)
        endif
-      else if (nlocal.gt.0) then
-       ! increase mixing to replace counter gradient term
-       at=cq*at
-       ct=cq*ct
-      end if ! ..else.. (nvmix.eq.6)
+      end if ! (nvmix.eq.6)
+
+      if (nvmix.eq.6.and.nlocal.gt.0) then
+        ! increase mixing to replace counter gradient term
+        at=cq*at
+        ct=cq*ct
+      end if
 
       !--------------------------------------------------------------
       ! Cloud microphysics terms
@@ -968,20 +971,22 @@ c       now do qlg
         rhs=qlg(1:ifull,:)
         call trim(at,ct,rhs,0)    ! for qlg
         qlg(1:ifull,:)=rhs
-!c       now do cfrac
-!        rhs=cfrac(1:ifull,:)
-!        call trim(at,ct,rhs,0)    ! for cfrac
-!        cfrac(1:ifull,:)=min(max(rhs,0.),1.)
-c       now do qrg
-        rhs=qrg(1:ifull,:)
-        call trim(at,ct,rhs,0)    ! for qrg
-        qrg(1:ifull,:)=rhs
-c       now do cffall
-        rhs=cffall(1:ifull,:)
-        call trim(at,ct,rhs,0)    ! for cffall
-        cffall(1:ifull,:)=min(max(rhs,0.),1.)
+        if (ncloud.gt.0) then
+c         now do qrg
+          rhs=qrg(1:ifull,:)
+          call trim(at,ct,rhs,0)    ! for qrg
+          qrg(1:ifull,:)=rhs
+c         now do cfrac
+          rhs=cfrac(1:ifull,:)
+          call trim(at,ct,rhs,0)    ! for cfrac
+          cfrac(1:ifull,:)=min(max(rhs,0.),1.)
+c         now do cffall
+          rhs=cffall(1:ifull,:)
+          call trim(at,ct,rhs,0)    ! for cffall
+          cffall(1:ifull,:)=min(max(rhs,0.),1.)
+        end if
       endif    ! (ldr.ne.0)
-
+      
       !--------------------------------------------------------------
       ! Aerosols
       if (abs(iaero)==2) then
