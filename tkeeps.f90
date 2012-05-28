@@ -207,6 +207,9 @@ do kcount=1,mcount
   gamtv=0.
   gamth=0.
   gamqv=0.
+  gamql=0.
+  gamqf=0.
+  gamcf=0.
   thup=theta
   qvup=qg
   qlup=qlg
@@ -467,7 +470,7 @@ do kcount=1,mcount
         gamqv(i,:)=mflx(i,:)*(qvup(i,:)-qg(i,:))
         gamql(i,:)=mflx(i,:)*(qlup(i,:)-qlg(i,:))
         gamqf(i,:)=mflx(i,:)*(qfup(i,:)-qfg(i,:))
-        gamtv(i,:)=gamth(i,:)+theta(i,:)*0.61*(gamqv(i,:)-gamql(i,:)-gamqf(i,:))
+        gamtv(i,:)=gamth(i,:)+theta(i,:)*(0.61*gamqv(i,:)-gamql(i,:)-gamqf(i,:))
         gamcf(i,:)=mflx(i,:)*(cfup(i,:)-cfrac(i,:))
       else                   ! stable
         !wpv_flux is calculated at half levels
@@ -626,7 +629,7 @@ do kcount=1,mcount
   dd(:,2:kl-1)=cfrac(:,2:kl-1)+ddts*(gamhl(:,1:kl-2)*rhoahl(:,1:kl-2)-gamhl(:,2:kl-1)*rhoahl(:,2:kl-1))/(rhoa(:,2:kl-1)*dz_fl(:,2:kl-1))
   dd(:,kl)=cfrac(:,kl)+ddts*gamhl(:,kl-1)*rhoahl(:,kl-1)/(rhoa(:,kl)*dz_fl(:,kl))
   call thomas(cfrac(:,1:kl),aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
-  cfrac=min(max(cfrac,0.),0.)
+  cfrac=min(max(cfrac,0.),1.)
   where (qlg+qfg.gt.1.E-12)
     cfrac=max(cfrac,1.E-6)
   end where
