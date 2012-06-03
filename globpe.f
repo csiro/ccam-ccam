@@ -180,10 +180,10 @@
       data comment/' '/,comm/' '/,irest/1/,jalbfix/1/,nalpha/1/
       data mexrest/6/,mins_rad/60/,nwrite/0/,nsnowout/999999/
 
-#ifdef stacklimit
+!#ifdef stacklimit
       ! For linux only
       call setstacklimit(-1)
-#endif
+!#endif
 
       !--------------------------------------------------------------
       ! INITALISE MPI ROUTINES
