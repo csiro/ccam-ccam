@@ -31,7 +31,7 @@ MODULE albedo_module
       if (.not. allocated(c1)) &
          allocate( c1(mp,nrb), rhoch(mp,nrb) )
 
-      ! MJT bug fix --------------------------------------------------
+      ! MJT bug fix -------------------------------------------------
       !if(cable_runtime%um) &
          call surface_albedosn(ssoil, veg, met, soil)
 
@@ -152,15 +152,11 @@ MODULE albedo_module
 
 !jhan:incurrent code in coupled model soil%albsoil(mp)    
     soil%albsoilf = soil%albsoil(:,1)
-    ! MJT - IGBP replace CSIRO
-    !where( veg%iveg == 16 )
-    where( veg%iveg == 17 )
+    where( veg%iveg == 16 )
       soil%albsoilf = -0.022*( min(275., max(260.,met%tk) ) - 260.) + 0.45
     end where
 !jhan:Eva has added this
-    ! MJT - IGBP replace CSIRO
-    !where(ssoil%snowd > 1. .and. veg%iveg == 16 ) soil%albsoilf = 0.85
-    where(ssoil%snowd > 1. .and. veg%iveg == 17 ) soil%albsoilf = 0.85
+    where(ssoil%snowd > 1. .and. veg%iveg == 16 ) soil%albsoilf = 0.85
     sfact = 0.68
     WHERE (soil%albsoilf <= 0.14)
        sfact = 0.5

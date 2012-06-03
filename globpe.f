@@ -160,7 +160,7 @@
      &    smoistfile,soil2file,radonemfile,
      &    co2_00,radon_00,surf_00,co2_12,radon_12,surf_12,
      &    laifile,albnirfile,urbanfile,bathfile,vegprev,vegnext,
-     &    cnsdir,salfile,oxidantfile
+     &    cnsdir,salfile,oxidantfile,casafile,phenfile
       namelist/kuonml/alflnd,alfsea
      &        ,cldh_lnd,cldm_lnd,cldl_lnd
      &        ,cldh_sea,cldm_sea,cldl_sea
@@ -180,10 +180,10 @@
       data comment/' '/,comm/' '/,irest/1/,jalbfix/1/,nalpha/1/
       data mexrest/6/,mins_rad/60/,nwrite/0/,nsnowout/999999/
 
-!#ifdef stacklimit
+#ifdef stacklimit
       ! For linux only
       call setstacklimit(-1)
-!#endif
+#endif
 
       !--------------------------------------------------------------
       ! INITALISE MPI ROUTINES
@@ -2097,7 +2097,7 @@ c     initialize file names to something
      &          ,scrnfile/' '/,tmaxfile/' '/,tminfile/' '/,trcfil/' '/
      &    ,laifile/' '/,albnirfile/' '/,urbanfile/' '/,bathfile/' '/
      &    ,vegprev/' '/,vegnext/' '/,cnsdir/' '/,salfile/' '/
-     &    ,oxidantfile/' '/
+     &    ,oxidantfile/' '/,casafile/' '/,phenfile/' '/
       data climcdf/'clim.cdf'/
       data monfil/'monthly.cdf'/,scrfcdf/'scrave.cdf'/
 c     floating point:
@@ -2145,7 +2145,7 @@ c     stuff from insoil  for soilv.h
      *             800.e-6, 1.e-6, 34.e-6, 7.e-6, 1.3e-6, 2.5e-6/  ! ksat
       data sucs/-.106, -.591, -.405, -.348, -.153, -.49, -.299,
      &          -.356, -.153, -.218, -.478, -.405, -.63/           ! phisat (m)
-      data rhos/7*2600., 1300.,  910., 4*2600./      ! soil density
+      data rhos/7*2600., 1300.,  910., 4*2600. /     ! soil density
       data  css/7* 850., 1920., 2100., 4*850./       ! heat capacity
 
       data zse/.022, .058, .154, .409, 1.085, 2.872/ ! layer thickness

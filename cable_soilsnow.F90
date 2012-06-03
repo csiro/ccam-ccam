@@ -761,9 +761,7 @@ CONTAINS
 
     !   Scaling  runoff to kg/m^2/s to match rest of the model
     ssoil%sinfil = 0.0
-    ! MJT - CCAM has own lake scheme
-!    where  ( veg%iveg == 16 ) ! CSIRO - MJT
-    where  ( veg%iveg == 17 ) ! IGBP - MJT
+    where  ( veg%iveg == 16 ) ! CSIRO
       ssoil%sinfil = min( ssoil%rnof1, ssoil%wb_lake + max(0.,canopy%segg))
       ssoil%rnof1 = max( 0.0, ssoil%rnof1 - ssoil%sinfil )
       ssoil%wb_lake = ssoil%wb_lake - ssoil%sinfil
@@ -1858,9 +1856,7 @@ endif  ! if(.NOT.cable_runtime_coupled)
         ! Note that veg types here are based on IGBP classification (BP mar2011)
 !        WHERE (.NOT.(veg%iveg==2.OR.veg%iveg==7.OR.veg%iveg==8.OR.veg%iveg==9))
 !        WHERE (.NOT.veg%iveg==2)
-        ! MJT - use IGBP instead of CSIRO types
-        !WHERE (.NOT.(veg%iveg == 2 .OR. veg%iveg == 7 ))
-        WHERE (.NOT.veg%iveg==2)
+        WHERE (.NOT.(veg%iveg == 2 .OR. veg%iveg == 7 ))
 !                     .OR.((veg%iveg <=5 .OR. veg%iveg ==8) )))
 !                     .OR.((veg%iveg <=5 .OR. veg%iveg ==8) &
 !                          .AND. patch(:)%latitude > -24.0 &
@@ -1924,9 +1920,7 @@ endif  ! if(.NOT.cable_runtime_coupled)
         ! other forests and woody savannas in the tropics
         ! Note that veg types here are based on IGBP classification (BP mar2011)
         !        WHERE (.NOT.(veg%iveg == 1 .OR. veg%iveg == 6 ))
-        ! MJT - use IGBP instead of CSIRO types
-        !WHERE (.NOT.(veg%iveg == 2 .OR. veg%iveg == 7 ))
-        WHERE (.NOT.(veg%iveg == 2))
+        WHERE (.NOT.(veg%iveg == 2 .OR. veg%iveg == 7 ))
            hr_perTime(:,k,j) = 0.0
            hr_perTime(:,j,k) = 0.0
         ENDWHERE

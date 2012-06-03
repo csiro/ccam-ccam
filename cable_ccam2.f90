@@ -13,24 +13,57 @@ module cable_ccam
 !   since the input files can be modified at runtime (not all months are loaded
 !   at once), then we can support evolving/dynamic vegetation, etc.
 
-! ivegt   type
-! 1       Evergreen Needleleaf Forest
-! 2       Evergreen Broadleaf Forest
-! 3       Deciduous Needleaf Forest
-! 4       Deciduous Broadleaf Forest
-! 5       Mixed Forest
-! 6       Closed Shrublands
-! 7       Open Shrublands
-! 8       Woody Savannas
-! 9       Savannas
-! 10      Grasslands
-! 11      Permanent Wetlands
-! 12      Croplands
-! 13      Urban and Built-up
-! 14      Cropland/Natural Vegetation Mosaic
-! 15      Snow and Ice
-! 16      Barren or Sparsely Vegetated
-! 17      Water Bodies
+! ivegt   IGBP type                             CSIRO PFT
+! 1       Evergreen Needleleaf Forest           1.  Evergreen Needleleaf
+! 2       Evergreen Broadleaf Forest            1.  Evergreen Broadleaf
+! 3       Deciduous Needleaf Forest             1.  Deciduous Needleaf
+! 4       Deciduous Broadleaf Forest            1.  Deciduous Broadleaf
+! 5       Mixed Forest                          1.  Broadlead Deciduous                              when lat<-25 or lat>25
+!                                               0.5 Evergreen Needleaf      0.5 Broadlead Deciduous  when -25<lat<25
+! 6       Closed Shrublands                     0.8 Shrub                   0.2 (Grass)
+! 7       Open Shrublands                       0.2 Shrub                   0.8 (Grass)
+! 8       Woody Savannas                        0.6 (Grass)                 0.4 Evergreen Needleleaf when lat<-40 or lat>40
+!                                               0.6 (Grass)                 0.4 Evergreen Broadleaf  when -40<lat<40
+! 9       Savannas                              0.9 (Grass)                 0.1 Evergreen Needleleaf when lat<-40 or lat>40
+!                                               0.9 (Grass)                 0.1 Evergreen Broadleaf  when -40<lat<40
+! 10      Grasslands                            1.  (Grass)
+! 11      Permanent Wetlands                    1.  Wetland
+! 12      Croplands                             1.  (Crop)
+! 13      Urban and Built-up                    1.  Urban
+! 14      Cropland/Natural Vegetation Mosaic    1.  (Crop)
+! 15      Snow and Ice                          1.  Ice
+! 16      Barren or Sparsely Vegetated          1.  Barren
+! 17      Water Bodies                          1.  Lakes
+
+! where:
+!   (Grass)   0.9  C3 0.1  C4 0. Tundra   40<lat<50 or -50<lat<-40
+!             0.8  C3 0.2  C4 0. Tundra   30<lat<40 or -40<lat<-30
+!             0.5  C3 0.5  C4 0. Tundra   25<lat<30 or -30<lat<-25
+!             0.05 C3 0.95 C4 0. Tundra  -25<lat<25
+!             0.   C3 0.   C4 1. Tundra   lat<-50 or lat>50
+
+!   (Crop)    0.7 C3  0.3 C4   -30<lat<30
+!             0.9 C3  0.1 C4   30<lat<40 or -40<lat<-30
+!             1.  C3  0.  C4   lat<-40   or lat>40
+
+! CSIRO PFT index
+! 1  Evergreen Needleleaf
+! 2  Evergreen Broadleaf
+! 3  Deciduous Needleaf
+! 4  Deciduous Broadleaf
+! 5  Shrub
+! 6  C3 grass
+! 7  C4 grass
+! 8  Tundra
+! 9  C3 crop
+! 10 C4 crop
+! 11 Wetland
+! 12 Not used
+! 13 Not used
+! 14 Barren
+! 15 Urban
+! 16 Lakes
+! 17 Ice
   
 ! isoilm  type
 ! 0       water/ocean
@@ -69,7 +102,7 @@ integer, parameter :: hruffmethod    = 1 ! Method for max hruff
 integer, parameter :: CO2forcingtype = 2 ! CO2 input source (1 constant, 2 use radiation CO2 forcing, 3 interactive tracer)
 integer, parameter :: proglai        = 0 ! 0 prescribed LAI, 1 prognostic LAI 
 integer, dimension(:), allocatable, save :: cmap
-integer, dimension(5,2), save :: pind  
+integer, dimension(9,2), save :: pind  
 real, dimension(:), allocatable, save :: sv,vl1,vl2,vl3
 type (air_type), save :: air
 type (bgc_pool_type), save :: bgc
@@ -178,7 +211,7 @@ rough%hruff=max(0.01,veg%hc-1.2*ssoil%snowd/max(ssoil%ssdnn,100.))
 select case(hruffmethod)
   case(0) ! hruff is mixed in a tile (find max hruff for tile)
     hruff_grmx=0.01
-    do nb=1,5
+    do nb=1,9
       if (pind(nb,1).le.mp) then
         hruff_grmx(cmap(pind(nb,1):pind(nb,2)))=max( &
           hruff_grmx(cmap(pind(nb,1):pind(nb,2))),rough%hruff(pind(nb,1):pind(nb,2)))
@@ -374,7 +407,7 @@ else
   glai=0.
 end if
  
-do nb=1,5
+do nb=1,9
   if (pind(nb,1).le.mp) then
     do k=1,ms
       tgg(cmap(pind(nb,1):pind(nb,2)),k)=tgg(cmap(pind(nb,1):pind(nb,2)),k) &
@@ -517,7 +550,7 @@ where (land.and.tmps.ge.0.5) ! tmps is average isflag
 elsewhere
   isflag=0
 endwhere
-do nb=1,5 ! update snow (diagnostic only)
+do nb=1,9 ! update snow (diagnostic only)
   if (pind(nb,1).le.mp) then      
     do k=1,3
       where (ssoil%isflag(pind(nb,1):pind(nb,2)).lt.isflag(cmap(pind(nb,1):pind(nb,2))).and.k.eq.1)          ! pack 1-layer into 3-layer
@@ -643,7 +676,7 @@ frd=0.
 frp=0.
 frs=0.
   
-do nb=1,5
+do nb=1,9
   if (pind(nb,1).le.mp) then
     where (veg%iveg(pind(nb,1):pind(nb,2)).eq.mvegt)
       fpn(cmap(pind(nb,1):pind(nb,2)))=fpn(cmap(pind(nb,1):pind(nb,2))) &
@@ -702,20 +735,19 @@ select case(proglai)
     x=min(max(real(mtimer+monthstart)/real(1440.*imonth(jmonth)),0.),1.)
     veg%vlai=vl1+vl2*x+vl3*x*x ! LAI as a function of time
     veg%vlai=max(veg%vlai,0.1)
-    where (veg%iveg.ge.15.and.veg%iveg.le.17)
-      veg%vlai=0.
-    end where
   case(1)
-    write(6,*) "ERROR: CASA CNP LAI not operational"
-    stop
-    !veg%vlai=max(casamet%glai,0.1)
+    if (icycle.eq.0) then
+      write(6,*) "ERROR: CASA CNP LAI not operational"
+      stop
+    end if
+    veg%vlai=casamet%glai
   case default
     write(6,*) "ERROR: Unknown proglai option ",proglai
     stop
 end select
 
 sigmf=0.
-do nb=1,5
+do nb=1,9
   if (pind(nb,1).le.mp) then
     sigmf(cmap(pind(nb,1):pind(nb,2)))=sigmf(cmap(pind(nb,1):pind(nb,2))) &
       +sv(pind(nb,1):pind(nb,2))*(1.-exp(-vextkn*veg%vlai(pind(nb,1):pind(nb,2))))
@@ -749,8 +781,8 @@ include 'parm.h'
 include 'soilv.h'
 
 integer(i_d), dimension(ifull,5) :: ivs
-integer(i_d) iq,n,k,ipos,isoil
-integer jyear,jmonth,jday,jhour,jmin,mins
+integer(i_d) iq,n,k,ipos,isoil,iv
+integer jyear,jmonth,jday,jhour,jmin,mins,ncount
 real(r_1) :: totdepth
 real(r_1), dimension(mxvt,ms) :: froot2
 real(r_1), dimension(ifull,5) :: svs,vlin,vlinprev,vlinnext
@@ -761,7 +793,7 @@ real(r_1), dimension(mxvt,ncs) :: tcsoil
 real(r_1), dimension(mxvt)   :: canst1,dleaf,ejmax,frac4,hc,rp20
 real(r_1), dimension(mxvt)   :: rpcoef,shelrb,vcmax,xfang
 real(r_1), dimension(mxvt)   :: tminvj,tmaxvj,vbeta
-real(r_1), dimension(mxvt)   :: extkn,rootbeta,vegcf
+real(r_1), dimension(mxvt)   :: extkn,rootbeta,vegcf,c4frac
 real(r_1), dimension(mxvt,2) :: taul,refl  
 real(r_1), dimension(mxvt)   :: leafage,woodage,frootage,metage
 real(r_1), dimension(mxvt)   :: strage,cwdage,micage,slowage,passage
@@ -773,13 +805,14 @@ real(r_1), dimension(mxvt)   :: cleaf,cwood,cfroot,cmet,cstr,ccwd,cmic,cslow,cpa
 real(r_1), dimension(mxvt)   :: nwood,nfroot,nmet,nstr,ncwd,nmic,nslow,npass,xpleaf,xpwood
 real(r_1), dimension(mxvt)   :: xpfroot,xpmet,xpstr,xpcwd,xpmic,xpslow,xppass,clabileage
 real(r_1), dimension(mxvt,mplant) :: ratiocnplant
-real(r_1), dimension(mxvt,msoil) :: ratiocnsoil,ratiocnsoilmax,ratiocnsoilmin
-real(r_1), dimension(12) :: xkmlabp,xpsorbmax,xfPleach
+real(r_1), dimension(mxvt,msoil)  :: ratiocnsoil,ratiocnsoilmax,ratiocnsoilmin
+real(r_1), dimension(12)       :: xkmlabp,xpsorbmax,xfPleach
 real(r_1), dimension(12,msoil) :: rationpsoil
-real(r_1), dimension(ifull) :: dumr
-real, dimension(ifull) :: albsoil,c4frac
+real, dimension(ifull)   :: albsoil
 real, dimension(ifull,2) :: albsoilsn
-real fjd  
+real, dimension(ifull,mxvt)     :: newgrid
+real, dimension(ifull,mxvt,0:2) :: newlai
+real fjd,fc3,fc4,ftu,fg3,fg4,clat,nsum
 character(len=*), intent(in) :: fveg,fvegprev,fvegnext,fphen,casafile
 
 if (myid==0) write(6,*) "Initialising CABLE"
@@ -792,37 +825,38 @@ end if
 ! redefine rhos
 rhos=(/ 1600.,1595.,1381.,1373.,1476.,1521.,1373.,1537.,1455.,2600.,2600.,2600.,2600. /)
 
-hc=(/ 17.,35.,15.5,20.,19.25,0.6,0.6,7.0426,8.,0.567,0.5,0.55,6.017,0.55,0.2,0.2,0.2 /)
-xfang=(/ 0.01,0.1,0.01,0.25,0.125,0.,0.,-0.14,-0.01,-0.3,0.,0.,-0.17,0.,0.01,0.01,0. /)
-dleaf=(/ 0.055,0.1,0.04,0.15,0.1,0.1,0.1,0.232,0.129,0.3,0.3,0.3,0.242,0.3,0.03,0.03,0.03 /)
+hc=(/ 17.,35.,15.5,20.,0.6,0.567,0.567,0.567,0.55,0.55,0.567,0.2,6.017,0.2,0.2,0.2,0.2 /)
+xfang=(/ 0.01,0.1,0.01,0.25,0.01,-0.3,-0.3,-0.3,-0.3,-0.3,-0.3,0.1,0.,0.,0.,0.,0. /)
+dleaf=(/ 0.055,0.1,0.04,0.15,0.1,0.3,0.3,0.3,0.3,0.3,0.3,0.3,0.242,0.03,0.03,0.03,0.03 /)
 canst1=0.1
 shelrb=2.
 extkn=0.001 ! new definition for nitrogen (CABLE v1.9b)
-refl(:,1)=(/ 0.062,0.076,0.062,0.092,0.069,0.100,0.100,0.091,0.075,0.107,0.107,0.101,0.097,0.101,0.159,0.159,0.159 /)
-refl(:,2)=(/ 0.302,0.350,0.302,0.380,0.336,0.400,0.400,0.414,0.347,0.469,0.469,0.399,0.396,0.399,0.305,0.305,0.305 /)
-taul(:,1)=(/ 0.050,0.050,0.050,0.050,0.050,0.054,0.054,0.062,0.053,0.070,0.070,0.067,0.062,0.067,0.026,0.026,0.026 /)
-taul(:,2)=(/ 0.100,0.250,0.100,0.250,0.158,0.240,0.240,0.221,0.166,0.250,0.250,0.225,0.232,0.250,0.126,0.126,0.126 /)
-vegcf=(/ 0.91, 1.95, 0.73, 1.50, 1.55, 0.60, 2.05, 2.80, 2.75, 2.75, 0.00, 2.80, 0.00, 2.80, 0.00, 0.40, 0.40 /)
-vcmax=(/ 65.2E-6,65.E-6,70.E-6,85.0E-6,80.E-6,20.E-6,20.E-6,10.E-6,20.E-6,10.E-6,50.E-6,80.E-6,1.E-6,80.E-6, &
+refl(:,1)=(/ 0.043,0.053,0.050,0.064,0.120,0.099,0.080,0.058,0.080,0.050,0.060,0.031,0.051,0.175,0.079,0.079,0.159 /)
+refl(:,2)=(/ 0.211,0.245,0.242,0.266,0.480,0.423,0.320,0.171,0.320,0.200,0.191,0.105,0.172,0.336,0.153,0.153,0.305 /)
+taul(:,1)=(/ 0.035,0.035,0.040,0.035,0.060,0.063,0.080,0.040,0.080,0.050,0.041,0.013,0.033,0.029,0.013,0.013,0.026 /)
+taul(:,2)=(/ 0.120,0.250,0.120,0.250,0.192,0.200,0.165,0.124,0.165,0.125,0.081,0.110,0.181,0.126,0.063,0.063,0.063 /)
+vegcf=(/ 9., 14., 9., 8., 5., 7., 7., 5., 7., 1., 7., 1., 1., 1., 1., 1., 1. /)
+vcmax=(/ 40.E-6,55.E-6,40.E-6,60.E-6,40.E-6,60.E-6,10.E-6,40.E-6,80.E-6,80.E-6,60.E-6,17.E-6,1.E-6,17.E-6, &
          17.E-6,17.E-6,17.E-6 /)
 ejmax=2.*vcmax
-rp20=(/ 3.3039,1.1342,3.2879,1.4733,2.3704,5.,5.,1.05,2.,0.8037,1.,3.,1.,3.,0.1,0.1,0.1 /)
+rp20=(/ 3.,0.6,3.,2.2,1.,1.5,2.8,2.5,1.5,1.,1.5,1.,1.,1.,1.,1.,1. /)
 rpcoef=0.0832
-rs20=(/ 1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,0.,0.,0. /)
-tminvj=(/ -15.,-15.,5.,5.,5.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15. /)
-tmaxvj=(/ -10.,-10.,10.,15.,10.,-10.,-10.,-10.,-10.,-10.,-10.,-10.,-10.,-10.,-10.,-10.,-10. /)
-vbeta=(/ 2.,2.,2.,2.,2.,4.,4.,4.,4.,4.,2.,2.,2.,2.,4.,4.,4. /)
-rootbeta=(/ 0.943,0.962,0.966,0.961,0.966,0.914,0.964,0.972,0.943,0.943,0.961,0.961,0.961,0.961,0.961,0.975,0.975 /)
-tcplant(:,1)=(/ 200.  ,300.  ,200.  ,300.  ,200.  ,150. ,150. ,250. ,250. ,250. ,250.,150.,0.1,150.,0.,1.,0. /)
-tcplant(:,2)=(/ 10217.,16833.,5967. ,12000.,10217.,5000.,5000.,5247.,5247.,0.   ,0.  ,0.  ,0. ,0.  ,0.,0.,0. /)
-tcplant(:,3)=(/ 876.  ,1443. ,511.  ,1029. ,876.  ,500. ,500. ,1124.,1124.,500. ,500.,607.,0.1,607.,0.,1.,0. /)
-tcsoil(:,1)=(/ 184.   ,303.  ,107.  ,216.  ,184.  ,100. ,100. ,275. ,275. ,275. ,275.,149.,0.1,149.,0.,1.,0. /)
-tcsoil(:,2)=(/ 367.   ,606.  ,214.  ,432.  ,367.  ,250. ,250. ,314. ,314. ,314. ,314.,300.,0.1,300.,0.,1.,0. /)
+rs20=(/ 1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,0.,1.,0.,0.,0.,0. /)
+tminvj=(/ -15.,-15., 5., 5.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15. /)
+tmaxvj=(/ -10.,-10.,10.,15.,-10.,-10.,-10.,-10.,-10.,-10.,-10.,-10.,-10.,-10.,-10.,-10.,-10. /)
+vbeta=(/ 2.,2.,2.,2.,4.,4.,4.,4.,2.,2.,4.,4.,2.,4.,4.,4.,4. /)
+rootbeta=(/ 0.943,0.962,0.966,0.961,0.964,0.943,0.943,0.943,0.961,0.961,0.943,0.975,0.961,0.961,0.961,0.961,0.961 /)
+tcplant(:,1)=(/ 200.  ,300.  ,200.  ,300.  ,159.  ,250. ,250. ,250. ,150. ,150. ,250.,1.  ,0.1,0.  ,1.,1.,0. /)
+tcplant(:,2)=(/ 10217.,16833.,5967. ,12000.,5000. ,0.   ,0.   ,0.   ,0.   ,0.   ,0.  ,0.  ,0. ,0.  ,0.,0.,0. /)
+tcplant(:,3)=(/ 876.  ,1443. ,511.  ,1029. ,500.  ,500. ,500. ,500. ,607. ,607. ,500.,1.  ,0.1,0.  ,1.,1.,0. /)
+tcsoil(:,1)=(/ 184.   ,303.  ,107.  ,216.  ,100.  ,275. ,275. ,275. ,149. ,149. ,275.,1.  ,0.1,1.  ,1.,1.,1. /)
+tcsoil(:,2)=(/ 367.   ,606.  ,214.  ,432.  ,250.  ,314. ,314. ,314. ,300. ,300. ,314.,1.  ,0.1,1.  ,1.,1.,1. /)
 ratecp(1)=1.
 ratecp(2)=0.03
 ratecp(3)=0.14
 ratecs(1)=2.
 ratecs(2)=0.5
+c4frac=(/ 0.,0.,0.,0.,0.,0.,1.,0.,0.,1.,0.,0.,0.,0.,0.,0.,0. /)
 
 ! read CABLE biome and LAI data
 if (myid==0) then
@@ -849,24 +883,225 @@ albvisdif=0.08
 albnirdir=0.08
 albnirdif=0.08
 zolnd=0.
-vlai=0.
 cplant=0.
 csoil=0.
 pind=ifull+1
 mvtype=mxvt
 mstype=mxst
 
-! calculate length of CABLE vectors
+if (myid==0) write(6,*) "Mapping IGBP classes to CSIRO PFTs"
 mp=0
-mland=0
+newgrid=0.
+newlai=0.
 do iq=1,ifull
   if (land(iq)) then
-    mp=mp+count(svs(iq,:).gt.0.)
-    mland=mland+1
+    clat=rlatt(iq)*180./pi
+    call getgrass(fg3,fg4,ftu,clat)
+    call getcrop(fc3,fc4,clat)
+    do n=1,5
+      select case (ivs(iq,n))
+        case (1,2,3,4,11)
+          newgrid(iq,ivs(iq,n))=newgrid(iq,ivs(iq,n))+svs(iq,n)
+          newlai(iq,ivs(iq,n),0)=newlai(iq,ivs(iq,n),0)+svs(iq,n)*vlinprev(iq,n)
+          newlai(iq,ivs(iq,n),1)=newlai(iq,ivs(iq,n),1)+svs(iq,n)*vlin(iq,n)
+          newlai(iq,ivs(iq,n),2)=newlai(iq,ivs(iq,n),2)+svs(iq,n)*vlinnext(iq,n)
+        case (5)
+          if (clat.lt.-25..or.clat.gt.25.) then
+            newgrid(iq,4)=newgrid(iq,4)+svs(iq,n)
+            newlai(iq,4,0)=newlai(iq,4,0)+svs(iq,n)*vlinprev(iq,n)
+            newlai(iq,4,1)=newlai(iq,4,1)+svs(iq,n)*vlin(iq,n)
+            newlai(iq,4,2)=newlai(iq,4,2)+svs(iq,n)*vlinnext(iq,n)
+          else
+            newgrid(iq,1)=newgrid(iq,1)+svs(iq,n)*0.5
+            newlai(iq,1,0)=newlai(iq,1,0)+svs(iq,n)*0.5*vlinprev(iq,n)
+            newlai(iq,1,1)=newlai(iq,1,1)+svs(iq,n)*0.5*vlin(iq,n)
+            newlai(iq,1,2)=newlai(iq,1,2)+svs(iq,n)*0.5*vlinnext(iq,n)
+            newgrid(iq,4)=newgrid(iq,4)+svs(iq,n)*0.5
+            newlai(iq,4,0)=newlai(iq,4,0)+svs(iq,n)*0.5*vlinprev(iq,n)
+            newlai(iq,4,1)=newlai(iq,4,1)+svs(iq,n)*0.5*vlin(iq,n)
+            newlai(iq,4,2)=newlai(iq,4,2)+svs(iq,n)*0.5*vlinnext(iq,n)
+          end if
+        case (6)
+          newgrid(iq,5)=newgrid(iq,5)+svs(iq,n)*0.8
+          newlai(iq,5,0)=newlai(iq,5,0)+svs(iq,n)*0.8*vlinprev(iq,n)
+          newlai(iq,5,1)=newlai(iq,5,1)+svs(iq,n)*0.8*vlin(iq,n)
+          newlai(iq,5,2)=newlai(iq,5,2)+svs(iq,n)*0.8*vlinnext(iq,n)
+          if (fg3.gt.0.) then
+            newgrid(iq,6)=newgrid(iq,6)+svs(iq,n)*0.2*fg3
+            newlai(iq,6,0)=newlai(iq,6,0)+svs(iq,n)*0.2*fg3*vlinprev(iq,n)
+            newlai(iq,6,1)=newlai(iq,6,1)+svs(iq,n)*0.2*fg3*vlin(iq,n)
+            newlai(iq,6,2)=newlai(iq,6,2)+svs(iq,n)*0.2*fg3*vlinnext(iq,n)
+          end if
+          if (fg4.gt.0.) then
+            newgrid(iq,7)=newgrid(iq,7)+svs(iq,n)*0.2*fg4
+            newlai(iq,7,0)=newlai(iq,7,0)+svs(iq,n)*0.2*fg4*vlinprev(iq,n)
+            newlai(iq,7,1)=newlai(iq,7,1)+svs(iq,n)*0.2*fg4*vlin(iq,n)
+            newlai(iq,7,2)=newlai(iq,7,2)+svs(iq,n)*0.2*fg4*vlinnext(iq,n)
+          end if
+          if (ftu.gt.0.) then
+            newgrid(iq,8)=newgrid(iq,8)+svs(iq,n)*0.2*ftu
+            newlai(iq,8,0)=newlai(iq,8,0)+svs(iq,n)*0.2*ftu*vlinprev(iq,n)
+            newlai(iq,8,1)=newlai(iq,8,1)+svs(iq,n)*0.2*ftu*vlin(iq,n)
+            newlai(iq,8,2)=newlai(iq,8,2)+svs(iq,n)*0.2*ftu*vlinnext(iq,n)
+          end if
+        case (7)
+          newgrid(iq,5)=newgrid(iq,5)+svs(iq,n)*0.2
+          newlai(iq,5,0)=newlai(iq,5,0)+svs(iq,n)*0.2*vlinprev(iq,n)
+          newlai(iq,5,1)=newlai(iq,5,1)+svs(iq,n)*0.2*vlin(iq,n)
+          newlai(iq,5,2)=newlai(iq,5,2)+svs(iq,n)*0.2*vlinnext(iq,n)
+          if (fg3.gt.0.) then
+            newgrid(iq,6)=newgrid(iq,6)+svs(iq,n)*0.8*fg3
+            newlai(iq,6,0)=newlai(iq,6,0)+svs(iq,n)*0.8*fg3*vlinprev(iq,n)
+            newlai(iq,6,1)=newlai(iq,6,1)+svs(iq,n)*0.8*fg3*vlin(iq,n)
+            newlai(iq,6,2)=newlai(iq,6,2)+svs(iq,n)*0.8*fg3*vlinnext(iq,n)
+          end if
+          if (fg4.gt.0.) then
+            newgrid(iq,7)=newgrid(iq,7)+svs(iq,n)*0.8*fg4
+            newlai(iq,7,0)=newlai(iq,7,0)+svs(iq,n)*0.8*fg4*vlinprev(iq,n)
+            newlai(iq,7,1)=newlai(iq,7,1)+svs(iq,n)*0.8*fg4*vlin(iq,n)
+            newlai(iq,7,2)=newlai(iq,7,2)+svs(iq,n)*0.8*fg4*vlinnext(iq,n)
+          end if
+          if (ftu.gt.0.) then
+            newgrid(iq,8)=newgrid(iq,8)+svs(iq,n)*0.8*ftu
+            newlai(iq,8,0)=newlai(iq,8,0)+svs(iq,n)*0.8*ftu*vlinprev(iq,n)
+            newlai(iq,8,1)=newlai(iq,8,1)+svs(iq,n)*0.8*ftu*vlin(iq,n)
+            newlai(iq,8,2)=newlai(iq,8,2)+svs(iq,n)*0.8*ftu*vlinnext(iq,n)
+          end if
+        case (8)
+          if (clat.lt.-40..or.clat.gt.40.) then
+            newgrid(iq,1)=newgrid(iq,1)+svs(iq,n)*0.4
+            newlai(iq,1,0)=newlai(iq,1,0)+svs(iq,n)*0.4*vlinprev(iq,n)
+            newlai(iq,1,1)=newlai(iq,1,1)+svs(iq,n)*0.4*vlin(iq,n)
+            newlai(iq,1,2)=newlai(iq,1,2)+svs(iq,n)*0.4*vlinnext(iq,n)
+          else
+            newgrid(iq,2)=newgrid(iq,2)+svs(iq,n)*0.4
+            newlai(iq,2,0)=newlai(iq,2,0)+svs(iq,n)*0.4*vlinprev(iq,n)
+            newlai(iq,2,1)=newlai(iq,2,1)+svs(iq,n)*0.4*vlin(iq,n)
+            newlai(iq,2,2)=newlai(iq,2,2)+svs(iq,n)*0.4*vlinnext(iq,n)
+          end if
+          if (fg3.gt.0.) then
+            newgrid(iq,6)=newgrid(iq,6)+svs(iq,n)*0.6*fg3
+            newlai(iq,6,0)=newlai(iq,6,0)+svs(iq,n)*0.6*fg3*vlinprev(iq,n)
+            newlai(iq,6,1)=newlai(iq,6,1)+svs(iq,n)*0.6*fg3*vlin(iq,n)
+            newlai(iq,6,2)=newlai(iq,6,2)+svs(iq,n)*0.6*fg3*vlinnext(iq,n)
+          end if
+          if (fg4.gt.0.) then
+            newgrid(iq,7)=newgrid(iq,7)+svs(iq,n)*0.6*fg4
+            newlai(iq,7,0)=newlai(iq,7,0)+svs(iq,n)*0.6*fg4*vlinprev(iq,n)
+            newlai(iq,7,1)=newlai(iq,7,1)+svs(iq,n)*0.6*fg4*vlin(iq,n)
+            newlai(iq,7,2)=newlai(iq,7,2)+svs(iq,n)*0.6*fg4*vlinnext(iq,n)
+          end if
+          if (ftu.gt.0.) then
+            newgrid(iq,8)=newgrid(iq,8)+svs(iq,n)*0.6*ftu
+            newlai(iq,8,0)=newlai(iq,8,0)+svs(iq,n)*0.6*ftu*vlinprev(iq,n)
+            newlai(iq,8,1)=newlai(iq,8,1)+svs(iq,n)*0.6*ftu*vlin(iq,n)
+            newlai(iq,8,2)=newlai(iq,8,2)+svs(iq,n)*0.6*ftu*vlinnext(iq,n)
+          end if
+        case (9)
+          if (clat.lt.-40..or.clat.gt.40.) then
+            newgrid(iq,1)=newgrid(iq,1)+svs(iq,n)*0.1
+            newlai(iq,1,0)=newlai(iq,1,0)+svs(iq,n)*0.1*vlinprev(iq,n)
+            newlai(iq,1,1)=newlai(iq,1,1)+svs(iq,n)*0.1*vlin(iq,n)
+            newlai(iq,1,2)=newlai(iq,1,2)+svs(iq,n)*0.1*vlinnext(iq,n)
+          else
+            newgrid(iq,2)=newgrid(iq,2)+svs(iq,n)*0.1
+            newlai(iq,2,0)=newlai(iq,2,0)+svs(iq,n)*0.1*vlinprev(iq,n)
+            newlai(iq,2,1)=newlai(iq,2,1)+svs(iq,n)*0.1*vlin(iq,n)
+            newlai(iq,2,2)=newlai(iq,2,2)+svs(iq,n)*0.1*vlinnext(iq,n)
+          end if
+          if (fg3.gt.0.) then
+            newgrid(iq,6)=newgrid(iq,6)+svs(iq,n)*0.9*fg3
+            newlai(iq,6,0)=newlai(iq,6,0)+svs(iq,n)*0.9*fg3*vlinprev(iq,n)
+            newlai(iq,6,1)=newlai(iq,6,1)+svs(iq,n)*0.9*fg3*vlin(iq,n)
+            newlai(iq,6,2)=newlai(iq,6,2)+svs(iq,n)*0.9*fg3*vlinnext(iq,n)
+          end if
+          if (fg4.gt.0.) then
+            newgrid(iq,7)=newgrid(iq,7)+svs(iq,n)*0.9*fg4
+            newlai(iq,7,0)=newlai(iq,7,0)+svs(iq,n)*0.9*fg4*vlinprev(iq,n)
+            newlai(iq,7,1)=newlai(iq,7,1)+svs(iq,n)*0.9*fg4*vlin(iq,n)
+            newlai(iq,7,2)=newlai(iq,7,2)+svs(iq,n)*0.9*fg4*vlinnext(iq,n)
+          end if
+          if (ftu.gt.0.) then
+            newgrid(iq,8)=newgrid(iq,8)+svs(iq,n)*0.9*ftu
+            newlai(iq,8,0)=newlai(iq,8,0)+svs(iq,n)*0.9*ftu*vlinprev(iq,n)
+            newlai(iq,8,1)=newlai(iq,8,1)+svs(iq,n)*0.9*ftu*vlin(iq,n)
+            newlai(iq,8,2)=newlai(iq,8,2)+svs(iq,n)*0.9*ftu*vlinnext(iq,n)
+          end if
+        case (10)
+          if (fg3.gt.0.) then
+            newgrid(iq,6)=newgrid(iq,6)+svs(iq,n)*fg3
+            newlai(iq,6,0)=newlai(iq,6,0)+svs(iq,n)*fg3*vlinprev(iq,n)
+            newlai(iq,6,1)=newlai(iq,6,1)+svs(iq,n)*fg3*vlin(iq,n)
+            newlai(iq,6,2)=newlai(iq,6,2)+svs(iq,n)*fg3*vlinnext(iq,n)
+          end if
+          if (fg4.gt.0.) then
+            newgrid(iq,7)=newgrid(iq,7)+svs(iq,n)*fg4
+            newlai(iq,7,0)=newlai(iq,7,0)+svs(iq,n)*fg4*vlinprev(iq,n)
+            newlai(iq,7,1)=newlai(iq,7,1)+svs(iq,n)*fg4*vlin(iq,n)
+            newlai(iq,7,2)=newlai(iq,7,2)+svs(iq,n)*fg4*vlinnext(iq,n)
+          end if
+          if (ftu.gt.0.) then
+            newgrid(iq,8)=newgrid(iq,8)+svs(iq,n)*ftu
+            newlai(iq,8,0)=newlai(iq,8,0)+svs(iq,n)*ftu*vlinprev(iq,n)
+            newlai(iq,8,1)=newlai(iq,8,1)+svs(iq,n)*ftu*vlin(iq,n)
+            newlai(iq,8,2)=newlai(iq,8,2)+svs(iq,n)*ftu*vlinnext(iq,n)
+          end if
+        case (12,14)
+          if (fc3.gt.0.) then
+            newgrid(iq,9)=newgrid(iq,9)+svs(iq,n)*fc3
+            newlai(iq,9,0)=newlai(iq,9,0)+svs(iq,n)*fc3*vlinprev(iq,n)
+            newlai(iq,9,1)=newlai(iq,9,1)+svs(iq,n)*fc3*vlin(iq,n)
+            newlai(iq,9,2)=newlai(iq,9,2)+svs(iq,n)*fc3*vlinnext(iq,n)
+          end if
+          if (fc4.gt.0.) then
+            newgrid(iq,10)=newgrid(iq,10)+svs(iq,n)*fc4
+            newlai(iq,10,0)=newlai(iq,10,0)+svs(iq,n)*fc4*vlinprev(iq,n)
+            newlai(iq,10,1)=newlai(iq,10,1)+svs(iq,n)*fc4*vlin(iq,n)
+            newlai(iq,10,2)=newlai(iq,10,2)+svs(iq,n)*fc4*vlinnext(iq,n)
+          end if
+        case (13)
+          newgrid(iq,15)=newgrid(iq,15)+svs(iq,n)
+          newlai(iq,15,0)=newlai(iq,15,0)+svs(iq,n)*vlinprev(iq,n)
+          newlai(iq,15,1)=newlai(iq,15,1)+svs(iq,n)*vlin(iq,n)
+          newlai(iq,15,2)=newlai(iq,15,2)+svs(iq,n)*vlinnext(iq,n)
+        case (15)
+          newgrid(iq,17)=newgrid(iq,17)+svs(iq,n)
+          newlai(iq,17,0)=newlai(iq,17,0)+svs(iq,n)*vlinprev(iq,n)
+          newlai(iq,17,1)=newlai(iq,17,1)+svs(iq,n)*vlin(iq,n)
+          newlai(iq,17,2)=newlai(iq,17,2)+svs(iq,n)*vlinnext(iq,n)
+        case (16)
+          newgrid(iq,14)=newgrid(iq,14)+svs(iq,n)
+          newlai(iq,14,0)=newlai(iq,14,0)+svs(iq,n)*vlinprev(iq,n)
+          newlai(iq,14,1)=newlai(iq,14,1)+svs(iq,n)*vlin(iq,n)
+          newlai(iq,14,2)=newlai(iq,14,2)+svs(iq,n)*vlinnext(iq,n)
+        case (17)
+          newgrid(iq,16)=newgrid(iq,16)+svs(iq,n)
+          newlai(iq,16,0)=newlai(iq,16,0)+svs(iq,n)*vlinprev(iq,n)
+          newlai(iq,16,1)=newlai(iq,16,1)+svs(iq,n)*vlin(iq,n)
+          newlai(iq,16,2)=newlai(iq,16,2)+svs(iq,n)*vlinnext(iq,n)
+        case DEFAULT
+          write(6,*) "ERROR: Land-type/lsmask mismatch at myid,iq,ivs,land=",myid,iq,ivs(iq,n),land(iq)
+          stop
+      end select
+    end do
+    where (newgrid(iq,:).gt.0.)
+      newlai(iq,:,0)=newlai(iq,:,0)/newgrid(iq,:)
+      newlai(iq,:,1)=newlai(iq,:,1)/newgrid(iq,:)
+      newlai(iq,:,2)=newlai(iq,:,2)/newgrid(iq,:)
+    end where
+    nsum=sum(newgrid(iq,:))
+    if (nsum.gt.0.) newgrid(iq,:)=newgrid(iq,:)/nsum
+    ipos=count(newgrid(iq,:).gt.0.)
+    if (ipos.gt.9) then
+      write(6,*) "ERROR: Too many CABLE tiles"
+      stop
+    end if
+    mp=mp+ipos
   end if
 end do
-  
+
 ! if CABLE is present on this processor, then start allocating arrays
+if (myid==0) write(6,*) "Allocating CABLE and CASA CNP arrays"
 if (mp.gt.0) then
   
   allocate(sv(mp),cmap(mp))
@@ -915,38 +1150,41 @@ if (mp.gt.0) then
 
   ! pack biome data into CABLE vector
   ! prepare LAI arrays for temporal interpolation (PWCB)  
+  ! now up to 9 PFT tiles from 5 IGBP classes (need correct order for vectorisation)
   ipos=0
-  do n=1,5
-    dumr=rlatt(:)*180./pi
-    call getc4(ifull,ivs(:,n),dumr,c4frac)
+  do n=1,9
     pind(n,1)=ipos+1
     do iq=1,ifull
-      if (land(iq).and.(svs(iq,n).gt.0.)) then
-        ipos=ipos+1
-        if (ivs(iq,n).lt.1) then
-          write(6,*) "ERROR: Land-type/lsmask mismatch at myid,iq=",myid,iq
-          stop
-        end if
-        cmap(ipos)=iq
-        sv(ipos)=svs(iq,n)
-        veg%iveg(ipos)=ivs(iq,n)
-        soil%isoilm(ipos)=isoilm(iq)
-        veg%frac4(ipos)=c4frac(iq)
-        if (fvegprev.ne.' '.and.fvegnext.ne.' ') then
-          vlin(iq,n)=vlin(iq,n)+vlinprev(iq,n)
-          vlinnext(iq,n)=vlinnext(iq,n)+vlin(iq,n)
-          vl1(ipos)=0.5*vlin(iq,n)
-          vl2(ipos)=4.*vlin(iq,n)-5.*vlinprev(iq,n)-vlinnext(iq,n)
-          vl3(ipos)=1.5*(vlinnext(iq,n)+3.*vlinprev(iq,n)-3.*vlin(iq,n))
-        else
-          vl1(ipos)=vlin(iq,n)
-          vl2(ipos)=0.
-          vl3(ipos)=0.
-        end if
-        if (veg%iveg(ipos).eq.15.or.veg%iveg(ipos).eq.16) then
-          vl1(ipos)=0.001
-          vl2(ipos)=0.
-          vl3(ipos)=0.
+      if (land(iq)) then
+        ncount=0
+        do iv=1,mxvt
+          if (newgrid(iq,iv).gt.0.) then
+            ncount=ncount+1
+            if (ncount.eq.n) exit
+          end if
+        end do
+        if (ncount.eq.n) then
+          ipos=ipos+1
+          cmap(ipos)=iq
+          sv(ipos)=newgrid(iq,iv)
+          veg%iveg(ipos)=iv
+          soil%isoilm(ipos)=isoilm(iq)
+          if (fvegprev.ne.' '.and.fvegnext.ne.' ') then
+            newlai(iq,iv,1)=newlai(iq,iv,1)+newlai(iq,iv,0)
+            newlai(iq,iv,2)=newlai(iq,iv,2)+newlai(iq,iv,1)
+            vl1(ipos)=0.5*newlai(iq,iv,1)
+            vl2(ipos)=4.*newlai(iq,iv,1)-5.*newlai(iq,iv,0)-newlai(iq,iv,2)
+            vl3(ipos)=1.5*(newlai(iq,iv,2)+3.*newlai(iq,iv,0)-3.*newlai(iq,iv,1))
+          else
+            vl1(ipos)=newlai(iq,iv,1)
+            vl2(ipos)=0.
+            vl3(ipos)=0.
+          end if
+          if (veg%iveg(ipos).eq.14.or.veg%iveg(ipos).eq.16.or.veg%iveg(ipos).eq.17) then
+            vl1(ipos)=0.001
+            vl2(ipos)=0.
+            vl3(ipos)=0.
+          end if
         end if
       end if
     end do
@@ -981,15 +1219,18 @@ if (mp.gt.0) then
   veg%extkn     = extkn(veg%iveg)
   veg%rs20      = rs20(veg%iveg)
   veg%vegcf     = vegcf(veg%iveg)
-  !veg%wai       = wai(veg%iveg)
+  veg%frac4     = c4frac(veg%iveg)
+  !veg%wai      = wai(veg%iveg)
   do k=1,ms
     veg%froot(:,k)=froot2(veg%iveg,k)
   end do
 
+
   ! Calculate LAI and veg fraction diagnostics
   call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
   call setlai(sigmf,jyear,jmonth,jday,jhour,jmin)
-  do n=1,5
+  vlai=0.
+  do n=1,9
     if (pind(n,1).le.mp) then
       vlai(cmap(pind(n,1):pind(n,2)))=vlai(cmap(pind(n,1):pind(n,2))) &
                                       +sv(pind(n,1):pind(n,2))*veg%vlai(pind(n,1):pind(n,2))
@@ -1024,7 +1265,7 @@ if (mp.gt.0) then
   where (land)
     albsoil(:)=0.5*sum(albvisnir,2)
   end where
-  where ((albsoil.le.0.14).and.land)
+  where (albsoil.le.0.14.and.land)
     !sfact=0.5 for alb <= 0.14
     albsoilsn(:,1)=(1.00/1.50)*albsoil(:)
     albsoilsn(:,2)=(2.00/1.50)*albsoil(:)
@@ -1096,15 +1337,15 @@ if (mp.gt.0) then
   
   if (icycle==0) then
     ! Initialise CABLE carbon pools
-    do k=1,ncp
-      where (land)
-        cplant(:,k)=tcplant(ivegt,k)
-      end where
-    end do
-    do k=1,ncs
-      where (land)        
-        csoil(:,k)=tcsoil(ivegt,k)
-      end where
+    do n=1,9
+      do k=1,ncp
+        cplant(cmap(pind(n,1):pind(n,2)),k)=cplant(cmap(pind(n,1):pind(n,2)),k) &
+          +sv(pind(n,1):pind(n,2))*tcplant(veg%iveg(pind(n,1):pind(n,2)),k)
+      end do
+      do k=1,ncs
+        csoil(cmap(pind(n,1):pind(n,2)),k)=csoil(cmap(pind(n,1):pind(n,2)),k)   &
+	  +sv(pind(n,1):pind(n,2))*tcsoil(veg%iveg(pind(n,1):pind(n,2)),k)
+      end do
     end do
   else
     ! CASA CNP
@@ -1115,9 +1356,9 @@ if (mp.gt.0) then
     
     call casa_readpoint(casafile) ! read point sources
 
-    leafage =(/ 2.0,1.5,1.0,1.0,1.4,1.4,1.0,1.0,1.0,0.8,1.0,     0.8,1.0,1.0,1.0,1.0,1.0 /)
-    woodage =(/ 70.,60.,80.,40.,63.,63.,40.,40.,40.,1.0,1.0,     1.0,1.0,1.0,1.0,1.0,1.0 /)
-    frootage=(/ 18.,10.,10.,10.,12.,12.,5.0,5.0,5.0,3.0,1.0,0.884227,1.0,1.0,1.0,1.0,1.0 /)
+    leafage =(/ 2.0,1.5,1.0,1.0,1.0,0.8,0.8,1.0,     0.8,     0.8,1.0,1.0,1.0,1.0,1.0,1.0,1.0 /)
+    woodage =(/ 70.,60.,80.,40.,40.,1.0,1.0,1.0,     1.0,     1.0,1.0,1.0,1.0,5.0,1.0,1.0,1.0 /)
+    frootage=(/ 18.,10.,10.,10.,5.0,3.0,3.0,3.0,0.884227,0.884227,1.0,1.0,1.0,4.0,1.0,1.0,1.0 /)
     metage=0.04
     strage=0.23
     cwdage=0.824
@@ -1126,27 +1367,27 @@ if (mp.gt.0) then
     passage=222.22
     clabileage=0.2
 
-    xfherbivore   =(/ 0.068,0.406,0.068,0.134,0.169,0.169,0.022,0.022,0.022,0.109,0.000,0.140,0.000,0.000,0.000,0.000,0.000 /)
-    xxkleafcoldmax=(/   0.2,  0.1,  0.1,  0.6, 0.25, 0.25,   1.,   1.,   1.,  0.2,  0.1,  0.3,  0.1,  0.1,  0.1,  0.1,  0.1 /)
-    xxkleafdrymax =(/   0.1,  0.1,  0.1,   1.,0.325,0.325,  0.1,  0.1,  0.1,  0.1,  0.1,  0.1,  0.1,  0.1,  0.1,  0.1,  0.1 /)
-    xratioNPleafmin =(/ 10.92308,15.95339,9.254839,12.73848,12.21745,12.21745,12.07217,12.07217,12.07217,13.51374,13.,15.12262,10.,10.,10.,10.,10. /)
-    xratioNPleafmax =(/ 12.07288, 17.6327,10.22903,14.07938,13.50350,13.50350,12.07217,12.07217,12.07217,14.93733,13.,16.71447,10.,10.,10.,10.,10. /)
-    xratioNPwoodmin =(/ 20.30167,15.89425,17.48344,19.08018,18.18989,18.18989,22.46035,22.46035,22.46035,     15.,15.,   20.52,15.,15.,15.,15.,15. /)
-    xratioNPwoodmax =(/ 22.43869,17.56733, 19.3238,21.08862,20.10461,20.10461, 24.8246, 24.8246, 24.8246,     15.,15.,   20.52,15.,15.,15.,15.,15. /)
-    xratioNPfrootmin=(/ 20.29341,15.87155,17.39767, 19.0601,18.15568,18.15568,22.39464,22.39464,22.39464,15.63498,15.,22.69109,15.,15.,15.,15.,15. /)
-    xratioNPfrootmax=(/ 22.42955,17.54224,  19.229,21.06643,20.06681,20.06681,24.86138,24.86138,24.86138,17.28077,15.,25.07962,15.,15.,15.,15.,15. /)
+    xfherbivore   =(/ 0.068,0.406,0.068,0.134,0.022,0.109,0.109,0.109,0.140,0.140,0.000,0.000,0.000,0.010,0.000,0.000,0.000 /)
+    xxkleafcoldmax=(/   0.2,  0.1,  0.1,  0.6,   1.,  0.2,  0.2,  0.2,  0.3,  0.3,  0.1,  0.1,  0.1,  0.1,  0.1,  0.1,  0.1 /)
+    xxkleafdrymax =(/   0.1,  0.1,  0.1,   1.,  0.1,  0.1,  0.1,  0.1,  0.1,  0.1,  0.1,  0.1,  0.1,  0.1,  0.1,  0.1,  0.1 /)
+    xratioNPleafmin =(/ 10.92308,15.95339,9.254839,12.73848,12.07217,13.51473,   14.05,12.57800,15.12262,10.,13.,10.,10., 16.2336,10.,10.,10. /)
+    xratioNPleafmax =(/ 12.07288, 17.6327,10.22903,14.07938,13.34292,14.93733,15.52895,  13.902,16.71447,10.,13.,10.,10., 17.9424,10.,10.,10. /)
+    xratioNPwoodmin =(/ 20.30167,15.89425,17.48344,19.08018,22.46035,     15.,     15.,   15.96,   20.52,15.,15.,15.,15., 17.5275,15.,15.,15. /)
+    xratioNPwoodmax =(/ 22.43869,17.56733, 19.3238,21.08862, 24.8246,     15.,     15.,   17.64,   20.52,15.,15.,15.,15., 19.3725,15.,15.,15. /)
+    xratioNPfrootmin=(/ 20.29341,15.87155,17.39767, 19.0601,22.49363,15.63498,16.08255,14.49241,22.69109,15.,15.,15.,15.,22.13268,15.,15.,15. /)
+    xratioNPfrootmax=(/ 22.42955,17.54224,  19.229,21.06643,24.86138,17.28077,17.77545,16.01793,25.07962,15.,15.,15.,15.,24.46244,15.,15.,15. /)
     xfNminloss=0.05
     xfNminleach=0.05
-    xnfixrate=(/ 0.08,2.6,0.21,1.64,1.13,1.13,0.37,0.37,0.37,0.95,0.,4.,0.,0.,0.,0.,0. /)
+    xnfixrate=(/ 0.08,2.6,0.21,1.64,0.37,0.95,0.95,0.95,4.,4.,0.,0.,0.,0.35,0.,0.,0. /)
     xnsoilmin=1000.
     
     
-    ratiocnplant(:,1)=(/  49.8, 23.1, 59.3, 31.4, 40.9, 40.9, 37.6, 37.6, 37.6,34.8, 30.,21.6, 40., 30., 40., 30., 40. /)
-    ratiocnplant(:,2)=(/ 238.1,134.9,243.8,156.2,193.3,193.3,142.1,142.1,142.1,150.,150.,150.,150.,150.,150.,150.,135. /)
-    ratiocnplant(:,3)=(/  73.7, 61.2,  75., 63.2, 68.3, 68.3, 67.1, 67.1, 67.1,64.5, 71.,60.7, 71., 71., 71., 71., 71. /)
+    ratiocnplant(:,1)=(/  49.8, 23.1, 59.3, 31.4, 37.6, 34.8,  44., 49.2, 21.6, 25., 30., 30., 30., 50., 40., 40., 40. /)
+    ratiocnplant(:,2)=(/ 238.1,134.9,243.8,156.2,142.1, 150., 150.,147.3, 150.,125.,150.,150.,150.,150.,150.,135.,150. /)
+    ratiocnplant(:,3)=(/  73.7, 61.2,  75., 63.2, 67.1, 64.5, 62.7,  69., 60.7, 71., 71., 71., 71., 71., 71., 71., 71. /)
     ratiocnsoil(:,1)=8.
-    ratiocnsoil(:,2)=(/ 16.1,12.8,24.8, 30.,20.7,20.7,19.3,19.3,19.3,13.1,13.1,13.2, 20.,13.1, 20.,31.1, 20. /)
-    ratiocnsoil(:,3)=(/ 16.1,12.8,24.8, 30.,20.7,20.7,19.3,19.3,19.3,13.1,13.1,13.2, 20.,13.1, 20.,31.1, 20. /)
+    ratiocnsoil(:,2)=(/ 16.1,12.8,24.8, 30.,19.3,13.1,13.1,13.1,13.2,13.2,13.1,13.1,13.1,26.8, 20., 20., 20. /)
+    ratiocnsoil(:,3)=(/ 16.1,12.8,24.8, 30.,19.3,13.1,13.1,13.1,13.2,13.2,13.1,13.1,13.1,26.8, 20., 20., 20. /)
     ratiocnsoilmin(:,1)=3.
     ratiocnsoilmin(:,2)=12.
     ratiocnsoilmin(:,3)=7.
@@ -1155,36 +1396,36 @@ if (mp.gt.0) then
     ratiocnsoilmax(:,3)=15.
      
     ! Initial values for CNP pools over 3*plant, 3*litter and 3*soil (=27 pools in total)
-    cleaf =(/ 384.6037,    273.,96.59814,150.2638,226.1164,226.1164,     88.,     88.,     88.,137.1714,0.,    160.,0.,0.,0.,0.,0. /)
-    cwood =(/ 7865.396,  11451.,5683.402,10833.74,8958.385,8958.385,    372.,    372.,    372.,      0.,0.,      0.,0.,0.,0.,0.,0. /)
-    cfroot=(/     250.,   2586.,    220.,    220.,    819.,    819.,    140.,    140.,    140.,    263.,0.,    240.,0.,0.,0.,0.,0. /)
-    cmet  =(/ 6.577021,44.63457,7.127119,10.97797,17.32917,17.32917,3.229374,3.229374,3.229374,28.57245,0.,28.57245,0.,0.,0.,0.,0. /)
-    cstr  =(/ 209.1728,433.7626,277.7733,312.5492,308.3145,308.3145,39.44449,39.44449,39.44449,50.91091,0.,50.91091,0.,0.,0.,0.,0. /)
-    ccwd  =(/ 606.0255,1150.765,776.7331,888.5864,855.5233,855.5233,111.5864,111.5864,111.5864,      0.,0.,      0.,0.,0.,0.,0.,0. /) 
-    cmic  =(/  528.664,11.37765,597.0785,405.5554,385.6689,385.6689,168.0451,168.0451,168.0451,425.6431,0.,512.3247,0.,0.,0.,0.,0. /)
-    cslow =(/ 13795.94,311.8092,16121.12,11153.25,10345.53,10345.53,4465.478,4465.478,4465.478,5694.437,0.,6855.438,0.,0.,0.,0.,0. /)
-    cpass =(/ 4425.396,13201.81,5081.802,5041.192, 5937.55, 5937.55,1386.477,1386.477,1386.477, 4179.92,0.,5032.137,0.,0.,0.,0.,0. /)
-    nleaf =(/ 7.541249,     9.9,1.609969,3.756594,5.701953,5.701953,2.933333,2.933333,2.933333,4.572381,0.,5.333333,0.,0.,0.,0.,0. /)
-    nwood =(/ 31.46159,    102.,22.73361,80.24989,59.11127,59.11127,2.755555,2.755555,2.755555,      0.,0.,      0.,0.,0.,0.,0.,0. /)
-    nfroot=(/ 6.097561,     38.,5.365854,5.365854,13.70732,13.70732,3.414634,3.414634,3.414634,6.414634,0.,5.853659,0.,0.,0.,0.,0. /)
-    nmet  =(/ 0.064481, 0.74391,0.059393,0.137225,0.251252,0.251252,0.053823,0.053823,0.053823,0.476208,0.,0.476208,0.,0.,0.,0.,0. /)
-    nstr  =(/ 1.394485,2.891751,1.851822,2.083661, 2.05543, 2.05543,0.262963,0.262963,0.262963,0.339406,0.,0.339406,0.,0.,0.,0.,0. /)
-    ncwd  =(/ 2.424102,8.524183,3.106932,6.581996,5.159303,5.159303,0.826566,0.826566,0.826566,      0.,0.,      0.,0.,0.,0.,0.,0. /)
-    nmic  =(/  52.8664,1.137765,59.70785,40.55554,38.56689,38.56689,16.80451,16.80451,16.80451,42.56431,0.,51.23247,0.,0.,0.,0.,0. /)
-    nslow =(/ 919.7293,20.78728,1074.741,743.5501,689.7019,689.7019,297.6985,297.6985,297.6985,379.6291,0.,457.0292,0.,0.,0.,0.,0. /)
-    npass =(/ 295.0264,880.1209,338.7868,336.0795,462.5034,462.5034, 92.4318, 92.4318, 92.4318,278.6613,0.,335.4758,0.,0.,0.,0.,0. /)
-    xpleaf =(/ 0.191648,   0.415,0.115988,0.135453,0.214522,0.214522,0.022821,0.022821,0.022821, 0.15125,0., 0.15125,0.,0.,0.,0.,0. /)
-    xpwood =(/ 0.953979,    5.88, 0.64438,2.424778,2.476034,2.476034,      0.,      0.,      0.,      0.,0.,      0.,0.,0.,0.,0.,0. /)
-    xpfroot=(/ 0.076659,    1.95,0.080548,0.141097,0.562076,0.562076,0.037083,0.037083,0.037083, 0.15125,0., 0.15125,0.,0.,0.,0.,0. /)
-    xpmet  =(/ 0.004385,0.029756,0.004751,0.007319,0.011553,0.011553,0.002153,0.002153,0.002153,0.019048,0.,0.019048,0.,0.,0.,0.,0. /)
-    xpstr  =(/ 0.069724,0.144588,0.092591,0.104183,0.102772,0.102772,0.013148,0.013148,0.013148, 0.01697,0., 0.01697,0.,0.,0.,0.,0. /)
-    xpcwd  =(/ 0.101004,0.191794,0.129456,0.148095,0.142587,0.142587,0.018598,0.018598,0.018598,      0.,0.,      0.,0.,0.,0.,0.,0. /)
-    xpmic  =(/ 6.872632, 0.14791,7.762021, 5.27222,5.013696,5.013696,2.184586,2.184586,2.184586,5.533361,0.,6.661522,0.,0.,0.,0.,0. /)
-    xpslow =(/ 119.5648,2.702347,139.7164,96.66152,89.66127,89.66127,38.70081,38.70081,38.70081,49.35178,0., 59.4138,0.,0.,0.,0.,0. /)
-    xppass =(/ 38.35343,114.4157,44.04228,43.69033,60.12544,60.12544,12.01613,12.01613,12.01613,36.22598,0.,43.61185,0.,0.,0.,0.,0. /)
-    xplab =(/  26.737, 19.947, 29.107, 30.509, 26.575, 26.575, 23.206, 23.206, 23.206, 25.538, 0., 27.729, 0., 0., 0.103, 0., 0. /)
-    xpsorb=(/  126.73, 92.263,134.639,132.012,121.411,121.411, 173.47, 173.47, 173.47,186.207, 0.,155.518, 0., 0., 1.176, 0., 0. /)
-    xpocc =(/ 138.571,120.374, 138.22,148.083,136.312,136.312,114.496,114.496,114.496,145.163, 0.,158.884, 0., 0., 0.688, 0., 0. /)
+    cleaf  =(/ 384.6037,    273.,96.59814,150.2638,     88.,137.1714,137.1714,137.1714,    160.,    160.,0.,0.,0.,      0.,0.,0.,0. /)
+    cwood  =(/ 7865.396,  11451.,5683.402,10833.74,    372.,      0.,      0.,      0.,      0.,      0.,0.,0.,0.,      0.,0.,0.,0. /)
+    cfroot =(/     250.,   2586.,    220.,    220.,    140.,    263.,    263.,    263.,    240.,    240.,0.,0.,0.,      0.,0.,0.,0. /)
+    cmet   =(/ 6.577021,44.63457,7.127119,10.97797,3.229374,28.57245,28.57245,28.57245,28.57245,28.57245,0.,0.,0.,1.457746,0.,0.,0. /)
+    cstr   =(/ 209.1728,433.7626,277.7733,312.5492,39.44449,50.91091,50.91091,50.91091,50.91091,50.91091,0.,0.,0.,4.956338,0.,0.,0. /)
+    ccwd   =(/ 606.0255,1150.765,776.7331,888.5864,111.5864,      0.,      0.,      0.,      0.,      0.,0.,0.,0.,28.44085,0.,0.,0. /) 
+    cmic   =(/  528.664,11.37765,597.0785,405.5554,168.0451,425.6431,425.6431,425.6431,512.4247,512.4247,0.,0.,0.,57.77585,0.,0.,0. /)
+    cslow  =(/ 13795.94,311.8092,16121.12,11153.25,4465.478,5694.437,5694.437,5694.437,6855.438,6855.438,0.,0.,0.,1325.052,0.,0.,0. /)
+    cpass  =(/ 4425.396,13201.81,5081.802,5041.192,1386.477, 4179.92, 4179.92, 4179.92,5032.137,5032.137,0.,0.,0.,517.1719,0.,0.,0. /)
+    nleaf  =(/ 7.541249,     9.9,1.609969,3.756594,2.933333,4.572381,4.572381,4.572381,5.333333,5.333333,0.,0.,0.,     0.5,0.,0.,0. /)
+    nwood  =(/ 31.46159,    102.,22.73361,80.24989,2.755555,      0.,      0.,      0.,      0.,      0.,0.,0.,0.,0.125926,0.,0.,0. /)
+    nfroot =(/ 6.097561,     38.,5.365854,5.365854,3.414634,6.414634,6.414634,6.414634,5.853659,5.853659,0.,0.,0.,1.536585,0.,0.,0. /)
+    nmet   =(/ 0.064481, 0.74391,0.059393,0.137225,0.053823,0.476208,0.476208,0.476208,0.476208,0.476208,0.,0.,0.,0.018222,0.,0.,0. /)
+    nstr   =(/ 1.394485,2.891751,1.851822,2.083661,0.262963,0.339406,0.339406,0.339406,0.339406,0.339406,0.,0.,0.,0.033042,0.,0.,0. /)
+    ncwd   =(/ 2.424102,8.524183,3.106932,6.581996,0.826566,      0.,      0.,      0.,      0.,      0.,0.,0.,0.,0.210673,0.,0.,0. /)
+    nmic   =(/  52.8664,1.137765,59.70785,40.55554,16.80451,42.56431,42.56431,42.56431,51.24247,51.24247,0.,0.,0.,5.777585,0.,0.,0. /)
+    nslow  =(/ 919.7293,20.78728,1074.741,743.5501,297.6985,379.6291,379.6291,379.6291,457.0292,457.0292,0.,0.,0.,88.33682,0.,0.,0. /)
+    npass  =(/ 295.0264,880.1209,338.7868,336.0795, 92.4318,278.6613,278.6613,278.6613,335.4758,335.4758,0.,0.,0.,34.47813,0.,0.,0. /)
+    xpleaf =(/ 0.191648,   0.415,0.115988,0.135453,0.022821, 0.15125, 0.15125, 0.15125, 0.15125, 0.15125,0.,0.,0.,   0.007,0.,0.,0. /)
+    xpwood =(/ 0.953979,    5.88, 0.64438,2.424778,      0.,      0.,      0.,      0.,      0.,      0.,0.,0.,0.,      0.,0.,0.,0. /)
+    xpfroot=(/ 0.076659,    1.95,0.080548,0.141097,0.037083, 0.15125, 0.15125, 0.15125, 0.15125, 0.15125,0.,0.,0., 0.00875,0.,0.,0. /)
+    xpmet  =(/ 0.004385,0.029756,0.004751,0.007319,0.002153,0.019048,0.019048,0.019048,0.019048,0.019048,0.,0.,0.,0.000972,0.,0.,0. /)
+    xpstr  =(/ 0.069724,0.144588,0.092591,0.104183,0.013148, 0.01697, 0.01697, 0.01697, 0.01697, 0.01697,0.,0.,0.,0.001652,0.,0.,0. /)
+    xpcwd  =(/ 0.101004,0.191794,0.129456,0.148095,0.018598,      0.,      0.,      0.,      0.,      0.,0.,0.,0.,      0.,0.,0.,0. /)
+    xpmic  =(/ 6.872632, 0.14791,7.762021, 5.27222,2.184586,5.533361,5.533361,5.533361,6.661522,6.661522,0.,0.,0.,0.751086,0.,0.,0. /)
+    xpslow =(/ 119.5648,2.702347,139.7164,96.66152,38.70081,49.35178,49.35178,49.35178, 59.4138, 59.4138,0.,0.,0.,11.48379,0.,0.,0. /)
+    xppass =(/ 38.35343,114.4157,44.04228,43.69033,12.01613,36.22598,36.22598,36.22598,43.61185,43.61185,0.,0.,0.,4.482157,0.,0.,0. /)
+    xplab  =(/   26.737,  19.947,  29.107,  30.509,  23.206,  25.538,  25.538,  25.538,  27.729,  27.729,0.,0.,0.,  21.038,0.,0.,0.103 /)
+    xpsorb =(/   126.73,  92.263, 134.639, 132.012,  173.47, 186.207, 186.207, 186.207, 155.518, 155.518,0.,0.,0.,  255.79,0.,0.,1.176 /)
+    xpocc  =(/  138.571, 120.374,  138.22, 148.083, 114.496, 145.163, 145.163, 145.163, 158.884, 158.884,0.,0.,0., 108.897,0.,0.,0.688 /)
  
     xkmlabp  =(/ 74.5408, 68.1584,  77.952,64.41918,64.41918,70.5856, 64.5888,54.1692, 9.7704, 28.29,  63.963,  32.402 /)
     xpsorbmax=(/ 745.408,788.0815,1110.816, 744.847, 744.847,816.146,746.8081,722.256,293.112,311.19,373.1175,615.6381 /)
@@ -1193,37 +1434,37 @@ if (mp.gt.0) then
     rationpsoil(:,2)=(/ 5.,5.,5.,15.,5.,5.,5.,5.,7.,7.,7.,7. /)
     rationpsoil(:,3)=(/ 5.,5.,5.,15.,5.,5.,5.,5.,7.,7.,7.,7. /)
  
-    casabiome%ivt2     =(/   3,  3,  3,  3,  3,  3,  2,  2,  2,  1,  0,  1,  0,  1,  0,  1,  0 /)
-    casabiome%kroot    =(/ 5.5,3.9,5.5,3.9,4.7,4.7,2.0,2.0,2.0,5.5,5.5,5.5,2.0,5.5,5.5,5.5,5.5 /)
-    casabiome%rootdepth=(/ 1.5,1.5,1.5,1.5,1.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,1.5 /)
-    casabiome%kuptake  =(/ 2.0,1.9,2.0,2.0,2.0,2.0,1.8,1.8,1.8,2.0,1.6,1.6,1.8,1.8,1.8,1.8,1.8 /)
-    casabiome%krootlen =(/ 14.87805,14.38596,14.02597,18.94737,15.55933,15.55933,32.30769,32.30769,32.30769,84., &
-                           0.,120.5,0.,0.,0.,0.,0. /)
+    casabiome%ivt2     =(/   3,  3,  3,  3,  2,  1,  1,  2,  1,  1,  0,  0,  0,  1,  0,  0,  0 /)
+    casabiome%kroot    =(/ 5.5,3.9,5.5,3.9,2.0,5.5,5.5,5.5,5.5,5.5,5.5,5.5,5.5,2.0,2.0,5.5,5.5 /)
+    casabiome%rootdepth=(/ 1.5,1.5,1.5,1.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,1.5,0.5 /)
+    casabiome%kuptake  =(/ 2.0,1.9,2.0,2.0,1.8,2.0,2.0,2.0,1.6,1.6,1.6,1.8,1.8,1.8,1.8,1.8,1.8 /)
+    casabiome%krootlen =(/ 14.87805,14.38596,14.02597,18.94737,32.30769,84.,84.,84.,120.5,120.5, &
+                           0.,0.,0.,30.76923,0.,0.,0. /)
     casabiome%kminN=2
     casabiome%kuplabP=0.5
-    casabiome%fracnpptoP(:,leaf) =(/ 0.25,0.20,0.40,0.35,0.30,0.30,0.35,0.35,0.35,0.35,0.50,0.50,0.50,0.50,0.50,0.50,0.60 /)
-    casabiome%fracnpptoP(:,wood) =(/ 0.40,0.35,0.30,0.25,0.33,0.33,0.25,0.25,0.25,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.40 /)
-    casabiome%fracnpptoP(:,xroot)=(/ 0.35,0.45,0.30,0.40,0.38,0.38,0.40,0.40,0.40,0.65,0.50,0.50,0.50,0.50,0.50,0.50,0.00 /) 
+    casabiome%fracnpptoP(:,leaf) =(/ 0.25,0.20,0.40,0.35,0.35,0.35,0.35,0.50,0.50,0.50,0.50,0.50,0.50,0.25,0.50,0.60,0.50 /)
+    casabiome%fracnpptoP(:,wood) =(/ 0.40,0.35,0.30,0.25,0.25,0.00,0.00,0.10,0.00,0.00,0.00,0.00,0.00,0.25,0.00,0.40,0.00 /)
+    casabiome%fracnpptoP(:,xroot)=(/ 0.35,0.45,0.30,0.40,0.40,0.65,0.65,0.40,0.50,0.50,0.50,0.50,0.50,0.50,0.50,0.00,0.50 /) 
     casabiome%rmplant(:,leaf)    =0.1
-    casabiome%rmplant(:,wood)    =(/ 2.0,1.0,1.5,0.8,1.3,1.3,0.5,0.5,0.5,0.5,1.0,2.0,1.0,1.0,1.0,1.0,1.0 /)
-    casabiome%rmplant(:,xroot)   =(/ 10.,2.0,7.5,2.5,5.5,5.5,4.5,4.5,4.5,4.5,10.,25.,10.,10.,10.,10.,10. /)
+    casabiome%rmplant(:,wood)    =(/ 2.0,1.0,1.5,0.8,0.5,0.5,0.4,1.8,2.0,1.0,1.0,1.0,1.0,2.0,1.0,1.0,1.0 /)
+    casabiome%rmplant(:,xroot)   =(/ 10.,2.0,7.5,2.5,4.5,4.5,4.0,15.,25.,10.,10.,10.,10.,10.,10.,10.,10. /)
     casabiome%ftransNPtoL(:,leaf) =0.5
     casabiome%ftransNPtoL(:,wood) =0.95
     casabiome%ftransNPtoL(:,xroot)=0.9
-    casabiome%fracligninplant(:,leaf) =(/ 0.25,0.20,0.20,0.20,0.21,0.21,0.20,0.20,0.20,0.10,0.15,0.10,0.15,0.15,0.10,0.15,0.25 /)
+    casabiome%fracligninplant(:,leaf) =(/ 0.25,0.20,0.20,0.20,0.20,0.10,0.10,0.10,0.10,0.10,0.15,0.15,0.15,0.15,0.15,0.25,0.10 /)
     casabiome%fracligninplant(:,wood) =0.4
-    casabiome%fracligninplant(:,xroot)=(/ 0.25,0.20,0.20,0.20,0.21,0.21,0.20,0.20,0.20,0.10,0.15,0.10,0.15,0.15,0.10,0.15,0.25 /)
-    casabiome%glaimax=(/ 7.,7.,7.,7.,7.,7.,3.,3.,3.,3., 5.,6., 6., 5.,0., 5., 1. /)
-    casabiome%glaimin=(/ 1.,1.,.5,.5,.8,.8,.1,.1,.1,.1,.05,.1,.05,.05,0.,.05,.05 /)
-    phen%TKshed=(/ 268.,260.,263.15,268.15,264.83,264.83,277.15,277.15,277.15,275.15,277.15,278.15,277.15,277.15,283.15,277.15,277.15 /)
+    casabiome%fracligninplant(:,xroot)=(/ 0.25,0.20,0.20,0.20,0.20,0.10,0.10,0.10,0.10,0.10,0.15,0.15,0.15,0.15,0.15,0.25,0.10 /)
+    casabiome%glaimax=(/ 7.,7.,7.,7.,3.,3.,3.,3.,6.,6., 5., 5., 5., 1.,6., 1.,0. /)
+    casabiome%glaimin=(/ 1.,1.,.5,.5,.1,.1,.1,.1,.1,.1,.05,.05,.05,.05,0.,.05,0. /)
+    phen%TKshed=(/ 268.,260.,263.15,268.15,277.15,275.15,275.15,275.15,278.15,278.15,277.15,277.15,277.15,277.15,277.15,277.15,283.15 /)
     casabiome%xkleafcoldexp=3.
     casabiome%xkleafdryexp=3.
-    casabiome%ratioNCplantmin(:,leaf) =(/     0.02,    0.04,0.016667,0.028571, 0.02631, 0.02631,   0.025,   0.025,   0.025,0.026316,0.033333,    0.04,   0.025,   0.025,   0.025,   0.025,   0.025 /)
-    casabiome%ratioNCplantmax(:,leaf) =(/    0.024,   0.048,    0.02,0.034286,0.031572,0.031572,    0.03,    0.03,    0.03,0.031579,    0.04,   0.048,    0.03,    0.03,    0.03,    0.03,    0.03 /)
-    casabiome%ratioNCplantmin(:,wood) =(/    0.004,0.006667,   0.004,0.005714,0.005095,0.005095,0.006667,0.006667,0.006667,0.006667,0.006667,   0.008,0.006667,0.006667,0.006667,0.006667,0.007407 /)
-    casabiome%ratioNCplantmax(:,wood) =(/   0.0048,   0.008,  0.0048,0.006857,0.006114,0.006114,   0.008,   0.008,   0.008,   0.008,   0.008,  0.0096,   0.008,   0.008,   0.008,   0.008,0.008889 /)
-    casabiome%ratioNCplantmin(:,xroot)=(/ 0.012821,0.014706,0.012821,0.014085,0.013608,0.013608,0.014085,0.014085,0.014085,0.014085,0.014085,0.014085,0.014085,0.014085,0.014085,0.014085,0.014085 /)
-    casabiome%ratioNCplantmax(:,xroot)=(/ 0.015385,0.017647,0.015385,0.016901, 0.01633, 0.01633,0.016901,0.016901,0.016901,0.016901,0.016901,0.016901,0.016901,0.016901,0.016901,0.016901,0.016901 /)
+    casabiome%ratioNCplantmin(:,leaf) =(/     0.02,    0.04,0.016667,0.028571,   0.025, 0.02631,    0.02,    0.02,    0.04,    0.04,0.033333,   0.025,   0.025,0.018182,   0.025,   0.025,   0.025 /)
+    casabiome%ratioNCplantmax(:,leaf) =(/    0.024,   0.048,    0.02,0.034286,    0.03,0.031572,   0.024,   0.024,   0.048,   0.048,    0.04,    0.03,    0.03,0.022222,    0.03,    0.03,    0.03 /)
+    casabiome%ratioNCplantmin(:,wood) =(/    0.004,0.006667,   0.004,0.005714,0.006667,0.006667,0.006667,0.006667,   0.008,   0.008,0.006667,0.006667,0.006667,0.006667,0.006667,0.007307,0.006667 /)
+    casabiome%ratioNCplantmax(:,wood) =(/   0.0048,   0.008,  0.0048,0.006857,   0.008,   0.008,   0.008,   0.008,  0.0096,  0.0096,   0.008,   0.008,   0.008,   0.008,   0.008,0.008889,   0.008 /)
+    casabiome%ratioNCplantmin(:,xroot)=(/ 0.012821,0.014706,0.012821,0.014085,0.014085,0.014085,0.014085,0.014085,0.014085,0.014085,0.014085,0.014085,0.014085,0.014085,0.014085,0.014085,0.014085 /)
+    casabiome%ratioNCplantmax(:,xroot)=(/ 0.015385,0.017647,0.015385,0.016901,0.016901,0.016901,0.016901,0.016901,0.016901,0.016901,0.016901,0.016901,0.016901,0.016901,0.016901,0.016901,0.016901 /)
     casabiome%ftransPPtoL(:,leaf)=0.5
     casabiome%ftransPPtoL(:,wood)=0.95
     casabiome%ftransPPtoL(:,xroot)=0.9
@@ -1324,6 +1565,48 @@ if (mp.gt.0) then
     casaflux%crgplant = 0.
     casaflux%crmplant = 0.
     casaflux%clabloss = 0.
+
+    cplant=0.
+    clitter=0.
+    csoil=0.
+    niplant=0.
+    nilitter=0.
+    nisoil=0.
+    pplant=0.
+    plitter=0.
+    psoil=0.
+    glai=0.
+    do n=1,9
+      if (pind(n,1).le.mp) then
+        do k=1,mplant
+          cplant(cmap(pind(n,1):pind(n,2)),k)=cplant(cmap(pind(n,1):pind(n,2)),k) &
+                                          +sv(pind(n,1):pind(n,2))*casapool%cplant(pind(n,1):pind(n,2),k)
+          niplant(cmap(pind(n,1):pind(n,2)),k)=niplant(cmap(pind(n,1):pind(n,2)),k) &
+                                          +sv(pind(n,1):pind(n,2))*casapool%nplant(pind(n,1):pind(n,2),k)
+          pplant(cmap(pind(n,1):pind(n,2)),k)=pplant(cmap(pind(n,1):pind(n,2)),k) &
+                                          +sv(pind(n,1):pind(n,2))*casapool%pplant(pind(n,1):pind(n,2),k)
+        end do
+        do k=1,mlitter
+          clitter(cmap(pind(n,1):pind(n,2)),k)=clitter(cmap(pind(n,1):pind(n,2)),k) &
+                                          +sv(pind(n,1):pind(n,2))*casapool%clitter(pind(n,1):pind(n,2),k)
+          nilitter(cmap(pind(n,1):pind(n,2)),k)=nilitter(cmap(pind(n,1):pind(n,2)),k) &
+                                          +sv(pind(n,1):pind(n,2))*casapool%nlitter(pind(n,1):pind(n,2),k)
+          plitter(cmap(pind(n,1):pind(n,2)),k)=plitter(cmap(pind(n,1):pind(n,2)),k) &
+                                        +sv(pind(n,1):pind(n,2))*casapool%plitter(pind(n,1):pind(n,2),k)
+        end do
+        do k=1,msoil
+          csoil(cmap(pind(n,1):pind(n,2)),k)=csoil(cmap(pind(n,1):pind(n,2)),k) &
+                                          +sv(pind(n,1):pind(n,2))*casapool%csoil(pind(n,1):pind(n,2),k)
+          nisoil(cmap(pind(n,1):pind(n,2)),k)=nisoil(cmap(pind(n,1):pind(n,2)),k) &
+                                          +sv(pind(n,1):pind(n,2))*casapool%nsoil(pind(n,1):pind(n,2),k)
+          psoil(cmap(pind(n,1):pind(n,2)),k)=psoil(cmap(pind(n,1):pind(n,2)),k) &
+                                          +sv(pind(n,1):pind(n,2))*casapool%psoil(pind(n,1):pind(n,2),k)
+        end do
+        glai(cmap(pind(n,1):pind(n,2)))=glai(cmap(pind(n,1):pind(n,2))) &
+                                     +sv(pind(n,1):pind(n,2))*casamet%glai(pind(n,1):pind(n,2))
+      end if
+    end do
+
   end if ! icycle>0
 
 end if
@@ -1334,41 +1617,57 @@ return
 end subroutine loadcbmparm
 
 ! *************************************************************************************
-! define C4 crops.  Since we do not have a high-resolution dataset, instead we
-! diagnose C4 crops from biome and location.
-subroutine getc4(ifull,ivegt,rlatt,c4frac)
+! define grasses
+subroutine getgrass(fc3,fc4,ftu,clat)
   
 implicit none
-  
-integer, intent(in) :: ifull
-integer, dimension(ifull), intent(in) :: ivegt
-real, dimension(ifull), intent(in) :: rlatt
-real, dimension(ifull), intent(out) :: c4frac
 
-where ((ivegt.eq.7).and.(rlatt.ge.-30.).and.(rlatt.le.30.))
-  c4frac=0.95
-elsewhere ((ivegt.eq.8).and.(rlatt.ge.-30.).and.(rlatt.le.0.))
-  c4frac=0.5
-elsewhere ((ivegt.eq.8).and.(rlatt.ge.0.).and.(rlatt.le.20.))
-  c4frac=0.8
-elsewhere ((ivegt.eq.8).and.(rlatt.ge.20.).and.(rlatt.le.30.))
-  c4frac=0.5
-elsewhere (ivegt.eq.9)
-  c4frac=0.75
-elsewhere ((ivegt.eq.10).and.(rlatt.ge.-30.).and.(rlatt.le.-20.))
-  c4frac=0.5
-elsewhere ((ivegt.eq.10).and.(rlatt.ge.-20.).and.(rlatt.le.20.))
-  c4frac=0.95
-elsewhere ((ivegt.eq.10).and.(rlatt.ge.20.).and.(rlatt.le.35.))
-  c4frac=0.5
-elsewhere ((ivegt.eq.12).and.(rlatt.ge.0.).and.(rlatt.le.40.))
-  c4frac=0.3
-elsewhere
-  c4frac=0.
-end where
+real, intent(in) :: clat
+real, intent(out) :: fc3,fc4,ftu
+
+if (abs(clat).gt.50.) then
+  fc3=0.
+  fc4=0.
+else if (abs(clat).gt.40.) then
+  fc3=0.9
+  fc4=0.1
+else if (abs(clat).gt.30.) then
+  fc3=0.8
+  fc4=0.2
+else if (abs(clat).gt.25.) then
+  fc3=0.5
+  fc4=0.5
+else
+  fc3=0.05
+  fc4=0.95
+end if
+
+ftu=1.-fc3-fc4
   
 return
-end subroutine getc4
+end subroutine getgrass
+
+! *************************************************************************************
+! define crops
+subroutine getcrop(fc3,fc4,clat)
+  
+implicit none
+
+real, intent(in) :: clat
+real, intent(out) :: fc3,fc4
+
+if (abs(clat).gt.40.) then
+  fc3=1.
+else if (abs(clat).gt.30.) then
+  fc3=0.9
+else
+  fc3=0.7
+end if
+
+fc4=1.-fc3
+  
+return
+end subroutine getcrop
 
 ! *************************************************************************************
 ! Load CABLE biome and LAI data
@@ -1492,10 +1791,10 @@ include 'parm.h'
 integer k,n,ierr,ierr2,idv
 real, dimension(ifull) :: dat
 real totdepth
-character(len=9) vname
+character(len=11) vname
   
 if (io_in.eq.1) then
-  if (myid.eq.0) idv = ncvid(ncid,"tgg1_1",ierr)
+  if (myid.eq.0) idv = ncvid(ncid,"tgg1_9",ierr)
   call MPI_Bcast(ierr,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr2)    
 else
   ierr=1
@@ -1546,19 +1845,12 @@ if (ierr.ne.0) then
         casapool%psoil(:,k)=psoil(cmap,k)
       end do
       casamet%glai=glai(cmap)
-      ! may need the following fields if allowing prognostic LAI to feedback into CABLE
-      !phen%phase=
-      !casapool%clabile=
-      !casapool%nsoilmin=
-      !casapool%psoillab=
-      !casapool%psoilsorb=
-      !casapool%psoilocc=
     end if
   end if
 else
   ! Located CABLE tile data
   if (myid==0) write(6,*) "Use tiled data to initialise CABLE"
-  do n=1,5
+  do n=1,9
     do k=1,ms
       write(vname,'("tgg",I1.1,"_",I1.1)') k,n
       call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
@@ -1810,14 +2102,14 @@ integer, intent(in) :: idnc,iarch
 integer k,n,ierr
 integer, dimension(3), intent(in) :: idim  
 real, dimension(ifull) :: dat
-character(len=9) vname
+character(len=11) vname
 character(len=40) lname
 logical, intent(in) :: local
   
 if (myid.eq.0) then
   write(6,*) "Storing CABLE tile data"
   call ncredf(idnc,ierr)
-  do n=1,5
+  do n=1,9
     do k=1,ms
       write(lname,'("Soil temperature lev ",I1.1," tile ",I1.1)') k,n
       write(vname,'("tgg",I1.1,"_",I1.1)') k,n
@@ -1954,7 +2246,7 @@ if (myid.eq.0) then
   call attrib(idnc,idim,3,vname,lname,'none',0.,1.3,0,-1)
   call ncendf(idnc,ierr)
 end if
-do n=1,5
+do n=1,9
   do k=1,ms
     dat=tgg(:,k)
     if (pind(n,1).le.mp) then      
@@ -2119,6 +2411,8 @@ call histwrt3(albvisnir(:,2),vname,idnc,iarch,local,.true.)
 return
 end subroutine savetile 
 
+! *************************************************************************************
+! Water inflow from river routing
 subroutine cableinflow(iqin,inflow)
   
 implicit none
@@ -2131,7 +2425,7 @@ real yy
   
 xx(:)=inflow
 inflow=0.
-do n=1,5
+do n=1,9
   iq=-1
   do i=pind(n,1),pind(n,2)
     if (cmap(i).eq.iqin) then
@@ -2169,7 +2463,7 @@ include 'mpif.h'
 include 'netcdf.inc'
 include 'parmgeom.h'
   
-integer ncstatus,ncid,varid,tilg
+integer ncstatus,ncid,varid,tilg,iq
 integer, dimension(2) :: spos,npos
 real tlat,tlon,tschmidt
 real, dimension(:), allocatable :: dumg
@@ -2213,7 +2507,7 @@ if (myid==0) then
   ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
   call ncmsg('sorder',ncstatus)
   call ccmpi_distribute(duma,dumg)
-  casamet%isorder=duma(cmap)
+  casamet%isorder=nint(duma(cmap))
   write(6,*) "Loading N deposition rate"
   ncstatus = nf_inq_varid(ncid,'ndep',varid)
   call ncmsg('ndep',ncstatus)
@@ -2247,7 +2541,7 @@ if (myid==0) then
   call ncmsg('CASA_readpoint',ncstatus)
 else
   call ccmpi_distribute(duma)
-  casamet%isorder=duma(cmap)
+  casamet%isorder=nint(duma(cmap))
   call ccmpi_distribute(duma)
   casaflux%Nmindep=duma(cmap)/365.*1.E-3  
   call ccmpi_distribute(duma)
@@ -2258,14 +2552,14 @@ else
   casaflux%Pwea=duma(cmap)/365.
 end if
 
-where (veg%iveg==12)
+where (veg%iveg==9.or.veg%iveg==10) ! crops
   ! P fertilizer =13 Mt P globally in 1994
   casaflux%Pdep=casaflux%Pdep+0.7/365.
   ! N fertilizer =86 Mt N globally in 1994
   casaflux%Nminfix=casaflux%Nminfix+4.3/365.
 end where
 
-if (any(casamet%isorder.le.0.or.casamet%isorder.gt.12)) then
+if (any(casamet%isorder.lt.1.or.casamet%isorder.gt.12)) then
   write(6,*) "ERROR: Invalid isorder in ",trim(casafile)
   stop
 end if
@@ -2283,39 +2577,13 @@ implicit none
 include 'newmpar.h'
 include 'mpif.h'
 
-integer, parameter :: csirovt=17 ! number of CSIRO functional plant types
 integer, parameter :: nphen=8 ! was 10(IGBP). changed by Q.Zhang @01/12/2011
 integer np,nx,ilat,ierr,ivp
-integer, dimension(271,csirovt) :: greenup,fall,phendoy1
+integer, dimension(271,mxvt) :: greenup,fall,phendoy1
 integer, dimension(nphen) :: greenupx,fallx,xphendoy1
 integer, dimension(nphen) :: ivtx
-integer, dimension(mxvt) :: igbp2csiromap
 real, dimension(271) :: xlat
 character(len=*), intent(in) :: fphen
-
-! CSIRO types (only 3 to 10 have a non-trivial leaf phenology, others are set to steady LAI)
-!1  evergreen_needleleaf
-!2  evergreen_broadleaf  (same leaf phenology as 1)
-!3  deciduous_needleleaf
-!4  deciduous_broadleaf
-!5  shrub
-!6  C3 grassland
-!7  C4 grassland (same leaf phenology as 6)
-!8  Tundra       (same leaf phenology as 6)
-!9  C3 cropland
-!10 C4 cropland  (same leaf phenology as 9)
-!11 wetland
-!12 empty
-!13 empty
-!14 barren
-!15 urban
-!16 lakes
-!17 ice
-
-! note - igbp 5 and 6 should be a mixture of csiro 1,2,3,4
-!        Here we use a evergreen proxy for igbp 5 and 6
-igbp2csiromap=(/ 1,2,3,4,2,2,5,5,5,8,11,9,15,13,17,12,16 /)
-
 
 ! initilize for evergreen PFTs
 greenup = -50
@@ -2328,7 +2596,7 @@ if (myid==0) then
   read(87,*)
   read(87,*) ivtx
   do ilat=271,1,-1
-    read(87,*) xlat(ilat),greenup,fallx,xphendoy1 
+    read(87,*) xlat(ilat),greenupx,fallx,xphendoy1 
     do nx=1,nphen
       greenup(ilat,ivtx) = greenupx
       fall(ilat,ivtx)    = fallx
@@ -2337,14 +2605,14 @@ if (myid==0) then
   end do
   close(87)
 end if
-call MPI_Bcast(greenup,271*csirovt,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-call MPI_Bcast(fall,271*csirovt,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-call MPI_Bcast(phendoy1,271*csirovt,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+call MPI_Bcast(greenup,271*mxvt,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+call MPI_Bcast(fall,271*mxvt,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+call MPI_Bcast(phendoy1,271*mxvt,MPI_REAL,0,MPI_COMM_WORLD,ierr)
 
 do np=1,mp
   ilat=(rad%latitude(np)+55.25)/0.5+1
   ilat=min(271,max(1,ilat))
-  ivp=igbp2csiromap(veg%iveg(np))
+  ivp=veg%iveg(np)
   phen%phase(np)      = phendoy1(ilat,ivp)
   phen%doyphase(np,1) = greenup(ilat,ivp)          ! DOY for greenup
   phen%doyphase(np,2) = phen%doyphase(np,1)+14     ! DOY for steady LAI

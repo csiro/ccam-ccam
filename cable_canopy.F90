@@ -570,7 +570,7 @@ module canopy_module
 !         if( cable_runtime%um) then
                swilt_eff = soil%swilt/2.0    
 !         else
-!              swilt_eff = soil%swilt
+!               swilt_eff = soil%swilt    
 !         endif
          !jhan:NB %evapfbl
          !frescale = soil%zse(1) * 1000.  - ssoil%evapfbl(:,1) * air%rlam / dels         
@@ -975,7 +975,7 @@ end subroutine within_canopy
 !         if( cable_runtime%um) then
                swilt_eff = soil%swilt/2.0
 !         else
-!              swilt_eff = soil%swilt
+!               swilt_eff = soil%swilt
 !         endif
 
          ! Calculate fraction of canopy which is wet:
@@ -989,11 +989,8 @@ end subroutine within_canopy
                if( ssoil%wbice(j,1) > 0. ) &
                    ssoil%wetfac(j) = ssoil%wetfac(j)*max(0.5,1.-min(0.2,(ssoil%wbice(j,1)/ssoil%wb(j,1))**2))
                if ( ssoil%snowd(j) > 0.1) ssoil%wetfac(j) = 0.9
-               ! MJT - IGBP replace CSIRO
-               !if ( veg%iveg(j) == 16 .and. met%tk(j) >= tfrz + 5.) ssoil%wetfac(j) = 1.0
-               !if ( veg%iveg(j) == 16 .and. met%tk(j) < tfrz + 5.) ssoil%wetfac(j) = 0.7
-               if ( veg%iveg(j) == 17 .and. met%tk(j) >= tfrz + 5.) ssoil%wetfac(j) = 1.0
-               if ( veg%iveg(j) == 17 .and. met%tk(j) < tfrz + 5.) ssoil%wetfac(j) = 0.7
+               if ( veg%iveg(j) == 16 .and. met%tk(j) >= tfrz + 5.) ssoil%wetfac(j) = 1.0
+               if ( veg%iveg(j) == 16 .and. met%tk(j) < tfrz + 5.) ssoil%wetfac(j) = 0.7
             enddo 
             
     

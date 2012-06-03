@@ -373,9 +373,12 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
           if(ldr.ne.0)then
              call ints(qlg,intsch,nface,xg,yg,4)
              call ints(qfg,intsch,nface,xg,yg,4)
-             call ints(qrg,intsch,nface,xg,yg,4)
-             !call ints(cffrac,intsch,nface,xg,yg,4)
-             call ints(cffall,intsch,nface,xg,yg,4)
+             if (ncloud.gt.0) then
+               call ints(qrg,intsch,nface,xg,yg,4)
+               !call ints(cffrac,intsch,nface,xg,yg,4)
+               call ints(cffall,intsch,nface,xg,yg,4)
+               cffall=min(max(cffall,0.),1.)
+             end if
           endif                 ! ldr.ne.0
           if(ngas>0.or.nextout>=4)then
 	     if(nmaxpr==1.and.mydiag)then
@@ -400,8 +403,8 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
 	     endif
           endif  ! (ngas>0.or.nextout>=4)
           if(nvmix.eq.6)then                       ! MJT tke
-             call ints(tke,intsch,nface,xg,yg,2)   ! MJT tke
-             call ints(eps,intsch,nface,xg,yg,2)   ! MJT tke
+             call ints(tke,intsch,nface,xg,yg,3)   ! MJT tke
+             call ints(eps,intsch,nface,xg,yg,3)   ! MJT tke
           endif                 ! nvmix.eq.6       ! MJT tke
           if (abs(iaero)==2) then                        ! MJT aerosols
             do l=1,naero                                 ! MJT aerosols
@@ -410,7 +413,7 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
           end if                                         ! MJT aerosols
        endif     ! mspec==1
        if(nh.ne.0)then
-        call ints(h_nh,intsch,nface,xg,yg,2) ! 2?
+        call ints(h_nh,intsch,nface,xg,yg,3)
        endif  ! (nh.ne.0)
 
       if(m>=6)then

@@ -56,18 +56,16 @@ SUBROUTINE casa_xnp(xnplimit,xNPuptake,veg,casabiome,casapool,casaflux,casamet)
   REAL(r_2), DIMENSION(mp,mplant) :: Preqmax, Preqmin, PtransPtoP
   REAL(r_2), DIMENSION(mp)        :: totPreqmax,totPreqmin
 
-! MJT - use IGBP instead of CSIRO types in CCAM
 ! reorder xnpmax to CSIRO type by Q.Zhang on 02/02/2011
-!  data xnpmax/1.510856726,1.27916225,1.591076159,1.186066584,1.358075681, &
-!              1.45621905,1.45621905,1.45621905,1.210382326,1.210382326, &
-!              1.45621905,1.365993164,1.210382326,1.0,1.399652677,1.0,1.0/
+  data xnpmax/1.510856726,1.27916225,1.591076159,1.186066584,1.358075681, &
+              1.45621905,1.45621905,1.45621905,1.210382326,1.210382326, &
+              1.45621905,1.365993164,1.210382326,1.0,1.399652677,1.0,1.0/
 
-! MJT - use IGBP instead of CSIRO types in CCAM
 ! comment out IGBP xnpmax by Q.Zhang on 02/02/2011
-  data xnpmax/1.510856726,1.27916225,1.591076159,1.42066584,1.422381577,  &
-              1.422381577,1.358075681,1.303616589,1.259345709,1.45621905, &
-              1.45621905,1.210382326,1.210382326,1.210382326,1.399652677, &
-              1.365993164,1.0/
+!  data xnpmax/1.510856726,1.27916225,1.591076159,1.42066584,1.422381577,  &
+!              1.422381577,1.358075681,1.303616589,1.259345709,1.45621905, &
+!              1.45621905,1.210382326,1.210382326,1.210382326,1.399652677, &
+!              1.365993164,1.0/
 
 !  data xnpmax/1.704157915,1.340437397,1.891451696,1.663696963,1.721120997, &
 !              1.422381577,1.427608017,1.191800718,1.189404926,1.786772008, &
@@ -483,10 +481,9 @@ SUBROUTINE casa_xratesoil(xklitter,xksoil,veg,soil,casamet)
   ! data xkoptsoil/0.28113,0.2553,1.15865,0.298998,0.10343498, &
   !                0.25652738,0.25652738,0.25652738,10.0,10.0,1.0,0.01,0.5,1.0,0.5,1.0,1.0/
 
-! MJT - use IGBP instead of CSIRO types in CCAM
   ! comment out xkoptsoil defined by IGBP classification. Q.Zhang @ 02/02/2011
-    data xkoptsoil/0.28113,0.2553,1.15865,0.298998,0.495,0.5, &
-                   0.10343498,0.46494,0.168633,0.25652738,1.0,10.0,0.5,0.5,0.5,0.01,1.0/
+  !  data xkoptsoil/0.28113,0.2553,1.15865,0.298998,0.495,0.5, &
+  !                 0.10343498,0.46494,0.168633,0.25652738,1.0,10.0,0.5,0.5,0.5,0.01,1.0/
                    
 !  ! test new parameters
 !  ! set c3 grass, crop and barren as 0.5652738 (Q.Zhang 23/05/2011)
@@ -494,11 +491,10 @@ SUBROUTINE casa_xratesoil(xklitter,xksoil,veg,soil,casamet)
 !                  0.5652738,0.25652738,0.25652738,0.5652738, &
 !                  0.25652738,1.0,0.652738,0.5,1.0,0.5,1.0,1.0/
 
-! MJT - use IGBP instead of CSIRO types in CCAM
 !  change from the above on 4 aug 2011 by ypwang, calibrated by ypw using igbp soil c (CNP cycle simulation only)
-!   data xkoptsoil/0.33,0.60,0.15,0.60,0.16, &
-!                  0.40,0.30,0.20,0.20, &
-!                  0.25,1.0,0.65,0.5,2.0,0.5,1.0,1.0/
+   data xkoptsoil/0.33,0.60,0.15,0.60,0.16, &
+                  0.40,0.30,0.20,0.20, &
+                  0.25,1.0,0.65,0.5,2.0,0.5,1.0,1.0/
 
 
 
@@ -521,10 +517,8 @@ SUBROUTINE casa_xratesoil(xklitter,xksoil,veg,soil,casamet)
     xktemp(npt)  = q10soil**(0.1*(tsavg(npt)-TKzeroC-35.0))
     xkwater(npt) = ((fwps(npt)-wfpscoefb)/(wfpscoefa-wfpscoefb))**wfpscoefe    &
                * ((fwps(npt)-wfpscoefc)/(wfpscoefa-wfpscoefc))**wfpscoefd
-    ! MJT use IGBP instead of CSIRO
-    !IF (veg%iveg(npt) == cropland .OR. veg%iveg(npt) == croplnd2) &
-    !           xkwater(npt)=1.0
-    IF (veg%iveg(npt) == 12) xkwater(npt)=1.0
+    IF (veg%iveg(npt) == cropland .OR. veg%iveg(npt) == croplnd2) &
+               xkwater(npt)=1.0
     xklitter(npt) = xkoptlitter(veg%iveg(npt)) * xktemp(npt) * xkwater(npt)
     xksoil(npt)   = xkoptsoil(veg%iveg(npt))   * xktemp(npt) * xkwater(npt)
   END IF
@@ -660,9 +654,7 @@ SUBROUTINE casa_coeffsoil(xklitter,xksoil,veg,soil,casabiome,casaflux,casamet)
     casaflux%kpocc(:)          = xksoil(:) * xkpocc
 
 
-    ! MJT use IGBP instead of CSIRO types
-    !WHERE(veg%iveg==cropland)      ! for cultivated land type
-    WHERE(veg%iveg==12)      ! for cultivated land type
+    WHERE(veg%iveg==cropland)      ! for cultivated land type
        casaflux%ksoil(:,mic)  = casaflux%ksoil(:,mic) * 1.25
        casaflux%ksoil(:,slow) = casaflux%ksoil(:,slow)* 1.5
        casaflux%ksoil(:,pass) = casaflux%ksoil(:,pass)* 1.5 
@@ -840,21 +832,19 @@ SUBROUTINE casa_delsoil(veg,casapool,casaflux,casamet)
 
   data xkpsorb/0.67,0.75,0.50,0.54,0.78,0.87,0.71,0.77,0.99,0.77,0.99,0.77/
 
-! MJT - use IGBP instead of CSIRO types in CCAM
 !  add prodptase and costNpup defined by CSIRO type. Q.Zhang @ 02/02/2011
-!  data prodptase/0.5, 0.2,  0.5, 0.5,  0.5, 0.5, 0.5, 0.5, 0.5, 0.5, &
-!                 0.5, 4.0,  0.5, 0.5,  0.5, 0.5, 0.5/
-!
-!  data costNpup/40.0, 25.0, 40.0, 40.0, 40.0, 40.0, 40.0, 40.0, 40.0, 40.0, 40.0, &
-!                40.0, 40.0, 40.0, 40.0, 40.0, 40.0/
+  data prodptase/0.5, 0.2,  0.5, 0.5,  0.5, 0.5, 0.5, 0.5, 0.5, 0.5, &
+                 0.5, 4.0,  0.5, 0.5,  0.5, 0.5, 0.5/
 
-! MJT - use IGBP instead of CSIRO types in CCAM
+  data costNpup/40.0, 25.0, 40.0, 40.0, 40.0, 40.0, 40.0, 40.0, 40.0, 40.0, 40.0, &
+                40.0, 40.0, 40.0, 40.0, 40.0, 40.0/
+
 !  comment out prodptase and costNpup defined by IGBP classification. Q.Zhang @02/02/2011
-   data prodptase/1.6, 1.04, 1.6, 1.6, 0.64, 0.8, 1.6, 1.6, 0.81, 1.6, &
-                  0.8, 0.30, 0.8, 0.8, 0.8,  1.6, 0.8/
-
-   data costNpup/40.0, 25.0, 40.0, 40.0, 40.0, 40.0, 40.0, 25.0, 25.0, 40.0, 40.0, 40.0, 40.0, &
-                 40.0, 40.0, 40.0, 40.0/
+!   data prodptase/1.6, 1.04, 1.6, 1.6, 0.64, 0.8, 1.6, 1.6, 0.81, 1.6, &
+!                  0.8, 0.30, 0.8, 0.8, 0.8,  1.6, 0.8/
+!
+!   data costNpup/40.0, 25.0, 40.0, 40.0, 40.0, 40.0, 40.0, 25.0, 25.0, 40.0, 40.0, 40.0, 40.0, &
+!                 40.0, 40.0, 40.0, 40.0/
 
   INTEGER i,j,jj,k,kk,kkk,n,iv,npt,nL,nS,nSS,nland
    
@@ -1175,26 +1165,14 @@ SUBROUTINE casa_xkN(xkNlimiting,casapool,casaflux,casamet,veg)
 !                150.0,150.0,100.0, 20.0,20.0, 20.0, 20.0, 20.0,20.0/
   real(r_2) maxfinelitter(17),maxcwd(17)
 
-! MJT - use IGBP instead of CSIRO types in CCAM
-!  data maxfinelitter/1524.0, 384.0, 1527.0, 887.0, 157.0, &
-!                      361.0, 225.0,  913.0, 660.0, 100.0, &
-!                      100.0, 100.0,  100.0,  83.0, 100.0, &
-!                      100.0, 100.0/
-!  data maxcwd/1795.0, 613.0, 1918.0, 1164.0, 107.0,  &
-!               420.0, 228.0,  573.0,  811.0, 100.0,  &
-!               100.0, 100.0,  100.0,   23.0, 100.0,  &
-!               100.0, 100.0/
-
-! MJT - use IGBP instead of CSIRO types in CCAM
-  data maxfinelitter/1524.0, 384.0, 1527.0, 887.0,1080.0, &
-                     1080.0, 157.0,  157.0, 157.0, 361.0, &
-                      100.0, 660.0,  100.0, 100.0, 100.0, &
+  data maxfinelitter/1524.0, 384.0, 1527.0, 887.0, 157.0, &
+                      361.0, 225.0,  913.0, 660.0, 100.0, &
+                      100.0, 100.0,  100.0,  83.0, 100.0, &
                       100.0, 100.0/
-  data maxcwd/1795.0, 613.0, 1918.0, 1164.0,1372.0,  &
-              1372.0, 107.0,  107.0,  107.0, 420.0,  &
-               100.0, 811.0,  100.0,  100.0, 100.0,  &
+  data maxcwd/1795.0, 613.0, 1918.0, 1164.0, 107.0,  &
+               420.0, 228.0,  573.0,  811.0, 100.0,  &
+               100.0, 100.0,  100.0,   23.0, 100.0,  &
                100.0, 100.0/
-
 
   xkNlimiting  = 1.0
 !  set N mineral N fluxes to zero

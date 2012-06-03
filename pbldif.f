@@ -8,6 +8,7 @@
       use extraout_m !ustar
       use map_m
       use morepbl_m  !fg,eg
+      use nharrs_m
       use sigs_m     !sig,sigmh
       use soil_m     !land
       implicit none
@@ -114,6 +115,8 @@ C
       real term                 ! intermediate calculation
       real fac                  ! interpolation factor
 c     real pblmin               ! min pbl height due to mechanical mixing
+      real tnhs(ifull,kl)       ! Non-hydrostatic term represented as temperature adjustment
+      real dnhs(ifull,kl)       ! Correction for non-hydrostatic tempertuare
 
 c     logical unstbl(il)        ! pts w/unstbl pbl (positive virtual ht flx)
 C------------------------------Commons----------------------------------
@@ -156,12 +159,23 @@ C****************************************************************
      .           (bet(k)*t(iq,k)+betm(k)*t(iq,k-1))/grav
        enddo        ! iq loop
       enddo         ! k  loop
+      ! Non-hydrostatic terms
+      zg(:,:)=zg(:,:)+phi_nh(:,:)/grav
+      tnhs(:,1)=phi_nh(:,1)/bet(1)
+      do k=2,kl
+        ! representing non-hydrostatic term as a correction to air temperature
+        tnhs(:,k)=(phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:,k-1))/bet(k)
+      end do
+      do k=1,kl
+        ! scale factor to convert air temperature to pertubed air temperature
+        dnhs(:,k)=(t(1:ifull,k)+tnhs(:,k))/t(1:ifull,k)
+      end do
       cgh(:,:)=0.   ! 3D
       cgq(:,:)=0.   ! 3D
       if(ktau==1.and.myid==0) then
         print *,'in pbldif nrkmin,npblmin: ',nrkmin,npblmin 
       end if
-
+      
 C Compute kinematic surface fluxes
          do iq=1,ifull
            pmid=ps(iq)*sigmh(1) 
@@ -421,7 +435,7 @@ c but reverts to Louis stable treatment for nlocal=-1
 C     update theta and qtg due to counter gradient
       do k=2,kmax-1
          do iq=1,ifull
-            delsig = (sigmh(k+1)-sigmh(k))
+            delsig = (sigmh(k+1)-sigmh(k))*dnhs(iq,k)
             tmp1 = ztodtgor/delsig
             sigotbk=sigmh(k+1)/(0.5*(t(iq,k+1) + t(iq,k)))
             sigotbkm1=sigmh(k)/(0.5*(t(iq,k-1) + t(iq,k)))
@@ -436,7 +450,7 @@ C     update theta and qtg due to counter gradient
       end do
       k=1
       do iq=1,ifull
-         delsig = (sigmh(k+1)-sigmh(k))
+         delsig = (sigmh(k+1)-sigmh(k))*dnhs(iq,k)
          tmp1 = ztodtgor/delsig
          sigotbk=sigmh(k+1)/(0.5*(t(iq,k+1) + t(iq,k)))
          theta(iq,k) = theta(iq,k) + tmp1*

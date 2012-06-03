@@ -1673,31 +1673,32 @@ c      "extra" outputs
           call histwrt3(csoil(:,1),'csoil1',idnc,iarch,local,.true.)
           call histwrt3(csoil(:,2),'csoil2',idnc,iarch,local,.true.)
          else
+          lwrite=mod(ktau,nperday)==0.or.ktau==ntau ! only write once per day
           do k=1,mplant
             write(vname,'("cplant",I1.1)') k
-            call histwrt3(cplant(:,k),vname,idnc,iarch,local,.true.)
+            call histwrt3(cplant(:,k),vname,idnc,iarch,local,lwrite)
             write(vname,'("nplant",I1.1)') k
-            call histwrt3(niplant(:,k),vname,idnc,iarch,local,.true.)
+            call histwrt3(niplant(:,k),vname,idnc,iarch,local,lwrite)
             write(vname,'("pplant",I1.1)') k
-            call histwrt3(pplant(:,k),vname,idnc,iarch,local,.true.)
+            call histwrt3(pplant(:,k),vname,idnc,iarch,local,lwrite)
           end do
           do k=1,mlitter
             write(vname,'("clitter",I1.1)') k
-            call histwrt3(clitter(:,k),vname,idnc,iarch,local,.true.)
+            call histwrt3(clitter(:,k),vname,idnc,iarch,local,lwrite)
             write(vname,'("nlitter",I1.1)') k
-            call histwrt3(nilitter(:,k),vname,idnc,iarch,local,.true.)
+            call histwrt3(nilitter(:,k),vname,idnc,iarch,local,lwrite)
             write(vname,'("plitter",I1.1)') k
-            call histwrt3(plitter(:,k),vname,idnc,iarch,local,.true.)
+            call histwrt3(plitter(:,k),vname,idnc,iarch,local,lwrite)
           end do
           do k=1,msoil
             write(vname,'("csoil",I1.1)') k
-            call histwrt3(csoil(:,k),vname,idnc,iarch,local,.true.)
+            call histwrt3(csoil(:,k),vname,idnc,iarch,local,lwrite)
             write(vname,'("nsoil",I1.1)') k
-            call histwrt3(nisoil(:,k),vname,idnc,iarch,local,.true.)
+            call histwrt3(nisoil(:,k),vname,idnc,iarch,local,lwrite)
             write(vname,'("psoil",I1.1)') k
-            call histwrt3(psoil(:,k),vname,idnc,iarch,local,.true.)
+            call histwrt3(psoil(:,k),vname,idnc,iarch,local,lwrite)
           end do
-          call histwrt3(glai,'glai',idnc,iarch,local,.true.)
+          call histwrt3(glai,'glai',idnc,iarch,local,lwrite)
          end if
         end if
         if (nextout>=1.and.itype.ne.-1) then

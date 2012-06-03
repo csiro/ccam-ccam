@@ -37,6 +37,7 @@ c     has jlm nhorx option as last digit of nhor, e.g. -157
       include 'const_phys.h'
       include 'kuocom.h'
       include 'parm.h'
+      include 'parmdyn.h'
  
       real, dimension(ifull+iextra,kl) :: uc, vc, wc, ee, ff, xfact,
      &                                    yfact, t_kh
@@ -439,6 +440,31 @@ c       do t diffusion based on potential temperature ff
      &                   yfact(iq,k)+yfact(isv(iq),k))
            end do              !  iq loop
         end do
+        ! non-hydrostatic
+        if (nh.ne.0.and.nhorps.ne.-3) then
+          ee(1:ifull,1)=phi_nh(:,1)/bet(1)
+          do k=2,kl
+            ! representing non-hydrostatic term as a correction to air temperature
+            ee(1:ifull,k)=(phi_nh(:,k)-phi_nh(:,k-1)
+     &              -betm(k)*ee(1:ifull,k-1))/bet(k)
+          end do        
+          call bounds(ee)
+          do k=1,kl
+            ff(1:ifull,k) = ( ee(1:ifull,k)/em(1:ifull)**2 +
+     &        xfact(1:ifull,k)*ee(ie,k) +
+     &        xfact(iwu,k)*ee(iw,k) +
+     &        yfact(1:ifull,k)*ee(in,k) +
+     &        yfact(isv,k)*ee(is,k) ) /
+     &        ( 1./em(1:ifull)**2 +
+     &          xfact(1:ifull,k) + xfact(iwu,k) +
+     &          yfact(1:ifull,k) + yfact(isv,k) )
+          end do
+          phi_nh(:,1)=bet(1)*ff(1:ifull,1)
+          do k=2,kl
+            phi_nh(:,k)=phi_nh(:,k-1)+bet(k)*ff(1:ifull,k)
+     &                            +betm(k)*ff(1:ifull,k-1)
+          end do
+        end if
         ! cloud microphysics
         if (ldr.ne.0.and.ncloud.ne.0) then
           ee(1:ifull,:)=qlg(1:ifull,:)
