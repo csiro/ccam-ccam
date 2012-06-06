@@ -133,6 +133,7 @@ real, dimension(ifull,2:kl) :: aa,qq,pps,ppt,ppb
 real, dimension(ifull,kl)   :: dz_fl   ! dz_fl(k)=0.5*(zz(k+1)-zz(k-1))
 real, dimension(ifull,kl-1) :: dz_hl   ! dz_hl(k)=zz(k+1)-zz(k)
 real, dimension(ifull) :: wstar,z_on_l,phim,wtv0,dum
+real, dimension(ifull) :: tkeold,epsold
 real, dimension(kl)   :: w2up,ttup,tvup,tlup,qtup
 real, dimension(kl)   :: qupsat,pres,nn
 real, dimension(kl-1) :: wpv_flux
@@ -201,6 +202,8 @@ do kcount=1,mcount
   wtv0=wt0+theta(:,1)*0.61*wq0
   !wtl0=wt0
   !wqt0=wq0
+  tkeold=tke(1:ifull,1)
+  epsold=eps(1:ifull,1)
 
 
 
@@ -245,8 +248,13 @@ do kcount=1,mcount
           zht=zz(i,1)
           dzht=zht
           ! Entrainment and detrainment rates (based on Angevine et al (2010), but scaled for CCAM)
-          ee=2./max(100.,zidry)
-          dtr=ee+0.05/max(zidry-zht,0.001)
+          !ee=0.002                                    ! Angevine (2005)
+          !ee=2./max(100.,zidry)                       ! Angevine et al (2010)
+	  !ee=1./max(zht,1.)                           ! Siebesma et al (2003)
+	  !ee=0.5*(1./max(zht,1.)+1./max(zi-zht,1.))   ! Soares et al (2004)
+	  ee=1./max(100.,zidry) ! MJT suggestion
+          !dtr=ee+0.05/max(zidry-zht,1.)               ! Angevine (2005)
+          dtr=ee+0.025/max(zidry-zht,1.) ! MJT suggestion
           ! first level -----------------
           ! initial thermodynamic state
           ! split thetal and qtot into components (conservation is maintained)
@@ -291,8 +299,8 @@ do kcount=1,mcount
           do k=2,kl-1
             dzht=dz_hl(i,k-1)
             zht=zz(i,k)
-            ! update detrainment (Angevine et al 2010)
-            dtr=ee+0.05/max(zidry-zht,0.001)
+            ! update detrainment
+            dtr=ee+0.025/max(zidry-zht,0.001)
             ! update thermodynamics of plume
             ! split thetal and qtot into components (conservation is maintained)
             ! (use upwind as centred scheme requires vertical spacing less than 250m)
@@ -369,7 +377,7 @@ do kcount=1,mcount
             zht=zz(i,klcl)
             xp=max(zi(i)-zilcl,0.1)
             xp=8.*min(zht-zilcl,xp)/xp-16./3.
-            dtr=max(0.9*ee+0.006/pi*(atan(xp)+0.5*pi),ee)                     ! detrainment rate in cloud
+            dtr=max(0.9*ee+0.003/pi*(atan(xp)+0.5*pi),ee)
             ! advect thetal,up and qtot,up
             thup(i,klcl)=(thc+dzht*ee*theta(i,klcl) )/(1.+dzht*ee)
             qvup(i,klcl)=(qvc+dzht*ee*qg(i,klcl)    )/(1.+dzht*ee)
@@ -421,7 +429,7 @@ do kcount=1,mcount
                 ! update detrainment rate for cloudly air from Angevine et al 2010
                 xp=max(zi(i)-zilcl,0.1)
                 xp=8.*min(zht-zilcl,xp)/xp-16./3.
-                dtr=max(0.9*ee+0.006/pi*(atan(xp)+0.5*pi),ee)
+                dtr=max(0.9*ee+0.003/pi*(atan(xp)+0.5*pi),ee)
                 ! update thermodynamics of plume
                 thup(i,k)=(thup(i,k-1)+dzht*ee*theta(i,k) )/(1.+dzht*ee)
                 qvup(i,k)=(qvup(i,k-1)+dzht*ee*qg(i,k)    )/(1.+dzht*ee)
@@ -523,7 +531,7 @@ do kcount=1,mcount
 
   ! calculate tke and eps at 1st level
   z_on_l=-vkar*zz(:,1)*grav*wtv0/(thetav(:,1)*max(ustar*ustar*ustar,1.E-20))
-  !z_on_l=min(z_on_l,10.)
+  z_on_l=min(z_on_l,10.)
   where (z_on_l.lt.0.)
     phim=(1.-16.*z_on_l)**(-0.25)
   elsewhere !(z_on_l.le.0.4)
@@ -545,9 +553,14 @@ do kcount=1,mcount
   ! prepare arrays for calculating buoyancy of saturated air
   ! (i.e., related to the saturated adiabatic lapse rate)
   qq(:,2:kl)=(1.+lv*qsat(:,2:kl)/(rd*temp(:,2:kl)))/(1.+lv*lv*qsat(:,2:kl)/(cp*rv*temp(:,2:kl)*temp(:,2:kl)))
-  dd=qlg/max(cfrac,1.E-6) ! in-cloud value
-  ff=qfg/max(cfrac,1.E-6) ! in-cloud value
-  rr=qrg/max(cfrac,1.E-6) ! in-cloud value assuming maximum overlap
+  dd=0.
+  ff=0.
+  rr=0.
+  where (cfrac.gt.1.E-6)
+    dd=qlg/cfrac ! in-cloud value
+    ff=qfg/cfrac ! in-cloud value
+    rr=qrg/cfrac ! in-cloud value assuming maximum overlap
+  end where
   qgnc=max((qg-cfrac*qsat)/max(1.-cfrac,1.E-5),qgmin)
   thetavnc=theta*(1.+0.61*qgnc)
   call updatekmo(thetahl,theta,zz,zzh)
@@ -582,6 +595,7 @@ do kcount=1,mcount
   qq(:,2:kl)=-ddtt*rhoahl(:,1:kl-1)/(rhoa(:,2:kl)*dz_fl(:,2:kl)*dz_hl(:,1:kl-1))
   rr(:,2:kl-1)=-ddtt*rhoahl(:,2:kl-1)/(rhoa(:,2:kl-1)*dz_fl(:,2:kl-1)*dz_hl(:,2:kl-1))
   do icount=1,ncount
+    xp=real(icount)/real(ncount)
 
     ! eps vertical mixing (done here as we skip level 1, instead of using trim)
     aa(:,2:kl)=ce0*kmo(:,1:kl-1)*qq(:,2:kl)
@@ -590,7 +604,7 @@ do kcount=1,mcount
     bb(:,kl)=1.-aa(:,kl)+ddtt*ce2*eps(1:ifull,kl)/tke(1:ifull,kl)
     dd(:,2:kl)=eps(1:ifull,2:kl)+ddtt*ce1*eps(1:ifull,2:kl)/tke(1:ifull,2:kl) &
                 *(pps(:,2:kl)+max(ppb(:,2:kl),0.)+max(ppt(:,2:kl),0.))
-    dd(:,2)=dd(:,2)-aa(:,2)*eps(1:ifull,1)
+    dd(:,2)=dd(:,2)-aa(:,2)*(epsold+xp*(eps(1:ifull,1)-epsold))
     call thomas(epsnew(:,2:kl),aa(:,3:kl),bb(:,2:kl),cc(:,2:kl-1),dd(:,2:kl),kl-1)
 
     ! TKE vertical mixing (done here as we skip level 1, instead of using trim)
@@ -599,7 +613,7 @@ do kcount=1,mcount
     bb(:,2:kl-1)=1.-aa(:,2:kl-1)-cc(:,2:kl-1)
     bb(:,kl)=1.-aa(:,kl)
     dd(:,2:kl)=tke(1:ifull,2:kl)+ddtt*(pps(:,2:kl)+ppb(:,2:kl)-epsnew(:,2:kl))
-    dd(:,2)=dd(:,2)-aa(:,2)*tke(1:ifull,1)
+    dd(:,2)=dd(:,2)-aa(:,2)*(tkeold+xp*(tke(1:ifull,1)-tkeold))
     call thomas(tkenew(:,2:kl),aa(:,3:kl),bb(:,2:kl),cc(:,2:kl-1),dd(:,2:kl),kl-1)
 
     tke(1:ifull,2:kl)=max(tkenew(:,2:kl),mintke)

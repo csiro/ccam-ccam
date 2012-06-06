@@ -582,6 +582,7 @@ c-------Beljaars and Holtslag (1991) heat function
         es = establ(tss(iq))
         qsttg(iq)= .622*es/(ps(iq)-es)
       enddo
+      qsttg=wetfac*qsttg+(1.-wetfac)*min(qsttg,qg(1:ifull,1))
       
       call scrncalc(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,zoh,
      &              tss,t(1:ifull,1),qsttg,qg(1:ifull,1),umag,

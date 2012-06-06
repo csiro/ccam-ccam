@@ -502,8 +502,6 @@ do nb=1,9
                                       +sv(pind(nb,1):pind(nb,2))*canopy%cduv(pind(nb,1):pind(nb,2))
     cdtq(cmap(pind(nb,1):pind(nb,2)))=cdtq(cmap(pind(nb,1):pind(nb,2))) &
                                       +sv(pind(nb,1):pind(nb,2))*canopy%cdtq(pind(nb,1):pind(nb,2))
-    ustar(cmap(pind(nb,1):pind(nb,2)))=ustar(cmap(pind(nb,1):pind(nb,2))) &
-                                      +sv(pind(nb,1):pind(nb,2))*canopy%us(pind(nb,1):pind(nb,2))
     wetfac(cmap(pind(nb,1):pind(nb,2)))=wetfac(cmap(pind(nb,1):pind(nb,2))) &
                                       +sv(pind(nb,1):pind(nb,2))*ssoil%wetfac(pind(nb,1):pind(nb,2))
     tmps(cmap(pind(nb,1):pind(nb,2)))=tmps(cmap(pind(nb,1):pind(nb,2))) &
@@ -522,6 +520,7 @@ do nb=1,9
   end if
 end do
 where (land)
+  ustar=sqrt(cduv)*vmod
   zo=max(zmin*exp(-sqrt(1./zo)),zobgin)
   cduv=cduv*vmod     ! cduv is Cd*vmod in CCAM
   tscrn=tscrn+273.16 ! convert from degC to degK
@@ -896,8 +895,33 @@ newlai=0.
 do iq=1,ifull
   if (land(iq)) then
     clat=rlatt(iq)*180./pi
-    call getgrass(fg3,fg4,ftu,clat)
-    call getcrop(fc3,fc4,clat)
+    ! grass
+    if (abs(clat).gt.50.) then
+      fg3=0.
+      fg4=0.
+    else if (abs(clat).gt.40.) then
+      fg3=0.9
+      fg4=0.1
+    else if (abs(clat).gt.30.) then
+      fg3=0.8
+      fg4=0.2
+    else if (abs(clat).gt.25.) then
+      fg3=0.5
+      fg4=0.5
+    else
+      fg3=0.05
+      fg4=0.95
+    end if
+    ftu=1.-fg3-fg4
+    ! crops
+    if (abs(clat).gt.40.) then
+      fc3=1.
+    else if (abs(clat).gt.30.) then
+      fc3=0.9
+    else
+      fc3=0.7
+    end if
+    fc4=1.-fc3
     do n=1,5
       select case (ivs(iq,n))
         case (1,2,3,4,11)
@@ -1615,59 +1639,6 @@ if (myid==0) write(6,*) "Finished defining CABLE and CASA CNP arrays"
 
 return
 end subroutine loadcbmparm
-
-! *************************************************************************************
-! define grasses
-subroutine getgrass(fc3,fc4,ftu,clat)
-  
-implicit none
-
-real, intent(in) :: clat
-real, intent(out) :: fc3,fc4,ftu
-
-if (abs(clat).gt.50.) then
-  fc3=0.
-  fc4=0.
-else if (abs(clat).gt.40.) then
-  fc3=0.9
-  fc4=0.1
-else if (abs(clat).gt.30.) then
-  fc3=0.8
-  fc4=0.2
-else if (abs(clat).gt.25.) then
-  fc3=0.5
-  fc4=0.5
-else
-  fc3=0.05
-  fc4=0.95
-end if
-
-ftu=1.-fc3-fc4
-  
-return
-end subroutine getgrass
-
-! *************************************************************************************
-! define crops
-subroutine getcrop(fc3,fc4,clat)
-  
-implicit none
-
-real, intent(in) :: clat
-real, intent(out) :: fc3,fc4
-
-if (abs(clat).gt.40.) then
-  fc3=1.
-else if (abs(clat).gt.30.) then
-  fc3=0.9
-else
-  fc3=0.7
-end if
-
-fc4=1.-fc3
-  
-return
-end subroutine getcrop
 
 ! *************************************************************************************
 ! Load CABLE biome and LAI data
