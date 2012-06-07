@@ -581,6 +581,12 @@ c Remove small amounts of cloud
             qfg(mg,k)=0.
             cifr(mg,k)=0.
           endif
+          if(qrg(mg,k).lt.1e-10.or.cffall(mg,k).lt.1e-5)then
+            qtg(mg,k)=qtg(mg,k)+qrg(mg,k)
+            ttg(mg,k)=ttg(mg,k)-hlcp*qrg(mg,k)
+            qrg(mg,k)=0.
+            cffall(mg,k)=0.
+          endif
         enddo
       enddo
 

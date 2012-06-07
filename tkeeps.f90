@@ -250,9 +250,9 @@ do kcount=1,mcount
           ! Entrainment and detrainment rates (based on Angevine et al (2010), but scaled for CCAM)
           !ee=0.002                                    ! Angevine (2005)
           !ee=2./max(100.,zidry)                       ! Angevine et al (2010)
-	  !ee=1./max(zht,1.)                           ! Siebesma et al (2003)
-	  !ee=0.5*(1./max(zht,1.)+1./max(zi-zht,1.))   ! Soares et al (2004)
-	  ee=1./max(100.,zidry) ! MJT suggestion
+          !ee=1./max(zht,1.)                           ! Siebesma et al (2003)
+          !ee=0.5*(1./max(zht,1.)+1./max(zi-zht,1.))   ! Soares et al (2004)
+          ee=1./max(100.,zidry) ! MJT suggestion
           !dtr=ee+0.05/max(zidry-zht,1.)               ! Angevine (2005)
           dtr=ee+0.025/max(zidry-zht,1.) ! MJT suggestion
           ! first level -----------------
@@ -600,8 +600,8 @@ do kcount=1,mcount
     ! eps vertical mixing (done here as we skip level 1, instead of using trim)
     aa(:,2:kl)=ce0*kmo(:,1:kl-1)*qq(:,2:kl)
     cc(:,2:kl-1)=ce0*kmo(:,2:kl-1)*rr(:,2:kl-1)
-    bb(:,2:kl-1)=1.-aa(:,2:kl-1)-cc(:,2:kl-1)+ddtt*ce2*eps(1:ifull,2:kl-1)/tke(1:ifull,2:kl-1)
-    bb(:,kl)=1.-aa(:,kl)+ddtt*ce2*eps(1:ifull,kl)/tke(1:ifull,kl)
+    bb(:,2:kl)=ddtt*ce2*eps(1:ifull,2:kl)/tke(1:ifull,2:kl)
+    bb(:,2)=bb(:,2)-aa(:,2)
     dd(:,2:kl)=eps(1:ifull,2:kl)+ddtt*ce1*eps(1:ifull,2:kl)/tke(1:ifull,2:kl) &
                 *(pps(:,2:kl)+max(ppb(:,2:kl),0.)+max(ppt(:,2:kl),0.))
     dd(:,2)=dd(:,2)-aa(:,2)*(epsold+xp*(eps(1:ifull,1)-epsold))
@@ -610,8 +610,8 @@ do kcount=1,mcount
     ! TKE vertical mixing (done here as we skip level 1, instead of using trim)
     aa(:,2:kl)=kmo(:,1:kl-1)*qq(:,2:kl)
     cc(:,2:kl-1)=kmo(:,2:kl-1)*rr(:,2:kl-1)
-    bb(:,2:kl-1)=1.-aa(:,2:kl-1)-cc(:,2:kl-1)
-    bb(:,kl)=1.-aa(:,kl)
+    bb(:,2)=-aa(:,2)
+    bb(:,3:kl)=0.
     dd(:,2:kl)=tke(1:ifull,2:kl)+ddtt*(pps(:,2:kl)+ppb(:,2:kl)-epsnew(:,2:kl))
     dd(:,2)=dd(:,2)-aa(:,2)*(tkeold+xp*(tke(1:ifull,1)-tkeold))
     call thomas(tkenew(:,2:kl),aa(:,3:kl),bb(:,2:kl),cc(:,2:kl-1),dd(:,2:kl),kl-1)
@@ -627,55 +627,60 @@ do kcount=1,mcount
 
   end do
 
-
-
   ! updating diffusion and non-local terms for qtot and thetal
   aa(:,2:kl)=-ddts*kmo(:,1:kl-1)*rhoahl(:,1:kl-1)/(rhoa(:,2:kl)*dz_hl(:,1:kl-1)*dz_fl(:,2:kl))
   cc(:,1:kl-1)=-ddts*kmo(:,1:kl-1)*rhoahl(:,1:kl-1)/(rhoa(:,1:kl-1)*dz_hl(:,1:kl-1)*dz_fl(:,1:kl-1))
-  bb(:,1)=1.-cc(:,1)
-  bb(:,2:kl-1)=1.-aa(:,2:kl-1)-cc(:,2:kl-1)
-  bb(:,kl)=1.-aa(:,kl)
+  bb(:,1:kl)=0.
 
   ! first update non-local terms and phase transistions
   call updategam(gamhl,gamth,zz,zzh,zi)
   dd(:,1)=theta(:,1)-ddts*gamhl(:,1)*rhoahl(:,1)/(rhoa(:,1)*dz_fl(:,1))+ddts*wt0*rhoas/(rhoa(:,1)*dz_fl(:,1))
   dd(:,2:kl-1)=theta(:,2:kl-1)+ddts*(gamhl(:,1:kl-2)*rhoahl(:,1:kl-2)-gamhl(:,2:kl-1)*rhoahl(:,2:kl-1))/(rhoa(:,2:kl-1)*dz_fl(:,2:kl-1))
   dd(:,kl)=theta(:,kl)+ddts*gamhl(:,kl-1)*rhoahl(:,kl-1)/(rhoa(:,kl)*dz_fl(:,kl))
-  call thomas(theta(:,1:kl),aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
+  call thomas(theta,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
   
   call updategam(gamhl,gamqv,zz,zzh,zi)
   dd(:,1)=qg(:,1)-ddts*gamhl(:,1)*rhoahl(:,1)/(rhoa(:,1)*dz_fl(:,1))+ddts*wq0*rhoas/(rhoa(:,1)*dz_fl(:,1))
   dd(:,2:kl-1)=qg(:,2:kl-1)+ddts*(gamhl(:,1:kl-2)*rhoahl(:,1:kl-2)-gamhl(:,2:kl-1)*rhoahl(:,2:kl-1))/(rhoa(:,2:kl-1)*dz_fl(:,2:kl-1))
   dd(:,kl)=qg(:,kl)+ddts*gamhl(:,kl-1)*rhoahl(:,kl-1)/(rhoa(:,kl)*dz_fl(:,kl))
-  call thomas(qg(:,1:kl),aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
-  qg=max(qg,0.)
+  call thomas(qg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
 
   call updategam(gamhl,gamql,zz,zzh,zi)
   dd(:,1)=qlg(:,1)-ddts*gamhl(:,1)*rhoahl(:,1)/(rhoa(:,1)*dz_fl(:,1))
   dd(:,2:kl-1)=qlg(:,2:kl-1)+ddts*(gamhl(:,1:kl-2)*rhoahl(:,1:kl-2)-gamhl(:,2:kl-1)*rhoahl(:,2:kl-1))/(rhoa(:,2:kl-1)*dz_fl(:,2:kl-1))
   dd(:,kl)=qlg(:,kl)+ddts*gamhl(:,kl-1)*rhoahl(:,kl-1)/(rhoa(:,kl)*dz_fl(:,kl))
-  call thomas(qlg(:,1:kl),aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
-  qlg=max(qlg,0.)
+  call thomas(qlg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
 
   call updategam(gamhl,gamqf,zz,zzh,zi)
   dd(:,1)=qfg(:,1)-ddts*gamhl(:,1)*rhoahl(:,1)/(rhoa(:,1)*dz_fl(:,1))
   dd(:,2:kl-1)=qfg(:,2:kl-1)+ddts*(gamhl(:,1:kl-2)*rhoahl(:,1:kl-2)-gamhl(:,2:kl-1)*rhoahl(:,2:kl-1))/(rhoa(:,2:kl-1)*dz_fl(:,2:kl-1))
   dd(:,kl)=qfg(:,kl)+ddts*gamhl(:,kl-1)*rhoahl(:,kl-1)/(rhoa(:,kl)*dz_fl(:,kl))
-  call thomas(qfg(:,1:kl),aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
-  qfg=max(qfg,0.)
+  call thomas(qfg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
 
   call updategam(gamhl,gamqr,zz,zzh,zi)
   dd(:,1)=qrg(:,1)-ddts*gamhl(:,1)*rhoahl(:,1)/(rhoa(:,1)*dz_fl(:,1))
   dd(:,2:kl-1)=qrg(:,2:kl-1)+ddts*(gamhl(:,1:kl-2)*rhoahl(:,1:kl-2)-gamhl(:,2:kl-1)*rhoahl(:,2:kl-1))/(rhoa(:,2:kl-1)*dz_fl(:,2:kl-1))
   dd(:,kl)=qrg(:,kl)+ddts*gamhl(:,kl-1)*rhoahl(:,kl-1)/(rhoa(:,kl)*dz_fl(:,kl))
-  call thomas(qrg(:,1:kl),aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
+  call thomas(qrg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
+
+  ! account for phase transitions
+  do k=1,kl
+    rr(:,k)=theta(:,k)-sigkap(k)*(lv*(qlg(:,k)+qrg(:,k))+ls*qfg(:,k))/cp ! thetal
+  end do
+  qq=qg+qlg+qfg+qrg ! qtot
+  qlg=max(qlg,0.)
+  qfg=max(qfg,0.)
   qrg=max(qrg,0.)
+  qg=qq-qlg-qfg-qrg
+  do k=1,kl
+    theta(:,k)=rr(:,k)+sigkap(k)*(lv*(qlg(:,k)+qrg(:,k))+ls*qfg(:,k))/cp
+  end do
 
   call updategam(gamhl,gamcf,zz,zzh,zi)
   dd(:,1)=cfrac(:,1)-ddts*gamhl(:,1)*rhoahl(:,1)/(rhoa(:,1)*dz_fl(:,1))
   dd(:,2:kl-1)=cfrac(:,2:kl-1)+ddts*(gamhl(:,1:kl-2)*rhoahl(:,1:kl-2)-gamhl(:,2:kl-1)*rhoahl(:,2:kl-1))/(rhoa(:,2:kl-1)*dz_fl(:,2:kl-1))
   dd(:,kl)=cfrac(:,kl)+ddts*gamhl(:,kl-1)*rhoahl(:,kl-1)/(rhoa(:,kl)*dz_fl(:,kl))
-  call thomas(cfrac(:,1:kl),aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
+  call thomas(cfrac,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
   cfrac=min(max(cfrac,0.),1.)
   where (qlg+qfg.gt.1.E-12)
     cfrac=max(cfrac,1.E-6)
@@ -685,7 +690,7 @@ do kcount=1,mcount
   dd(:,1)=cfrain(:,1)-ddts*gamhl(:,1)*rhoahl(:,1)/(rhoa(:,1)*dz_fl(:,1))
   dd(:,2:kl-1)=cfrain(:,2:kl-1)+ddts*(gamhl(:,1:kl-2)*rhoahl(:,1:kl-2)-gamhl(:,2:kl-1)*rhoahl(:,2:kl-1))/(rhoa(:,2:kl-1)*dz_fl(:,2:kl-1))
   dd(:,kl)=cfrain(:,kl)+ddts*gamhl(:,kl-1)*rhoahl(:,kl-1)/(rhoa(:,kl)*dz_fl(:,kl))
-  call thomas(cfrain(:,1:kl),aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
+  call thomas(cfrain,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
   cfrain=min(max(cfrain,0.),1.)
   where (qrg.gt.1.E-12)
     cfrain=max(cfrain,1.E-6)
@@ -699,20 +704,23 @@ end subroutine tkemix
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Tri-diagonal solver (array version)
 
-subroutine thomas(out,aa,bbi,cc,ddi,klin)
+subroutine thomas(out,aa,xtr,cc,ddi,klin)
 
 implicit none
 
 integer, intent(in) :: klin
 real, dimension(ifull,2:klin), intent(in) :: aa
-real, dimension(ifull,1:klin), intent(in) :: bbi,ddi
+real, dimension(ifull,1:klin), intent(in) :: xtr,ddi
 real, dimension(ifull,1:klin-1), intent(in) :: cc
 real, dimension(ifull,1:klin), intent(out) :: out
 real, dimension(ifull,1:klin) :: bb,dd
 real, dimension(ifull) :: n
 integer k
 
-bb=bbi
+bb=xtr
+bb(:,1)=1.-cc(:,1)+bb(:,1)
+bb(:,2:klin-1)=1.-aa(:,2:klin-1)-cc(:,2:klin-1)+bb(:,2:klin-1)
+bb(:,klin)=1.-aa(:,klin)+bb(:,klin)
 dd=ddi
 
 do k=2,klin
@@ -791,39 +799,10 @@ subroutine updatekmo(kmo,km,zz,zhl)
 
 implicit none
 
-integer k
 real, dimension(ifull,kl), intent(in) :: km,zz,zhl
 real, dimension(ifull,kl), intent(out) :: kmo
-integer, parameter :: interpmode = 0 ! 0=linear, 1=quadratic
 
-select case(interpmode)
-  case(0)
-    kmo(:,1:kl-1)=km(:,1:kl-1)+(zhl(:,1:kl-1)-zz(:,1:kl-1))/(zz(:,2:kl)-zz(:,1:kl-1))*(km(:,2:kl)-km(:,1:kl-1))
-  case(1)
-    kmo(:,1)=km(:,2)+(zhl(:,1)-zz(:,2))/(zz(:,3)-zz(:,1))*               &
-               ((zz(:,2)-zz(:,1))*(km(:,3)-km(:,2))/(zz(:,3)-zz(:,2))    &
-               +(zz(:,3)-zz(:,2))*(km(:,2)-km(:,1))/(zz(:,2)-zz(:,1)))   &
-             +(zhl(:,1)-zz(:,2))**2/(zz(:,3)-zz(:,1))*                   &
-               ((km(:,3)-km(:,2))/(zz(:,3)-zz(:,2))                      &
-               -(km(:,2)-km(:,1))/(zz(:,2)-zz(:,1)))
-    where (kmo(:,1).lt.0.)
-      kmo(:,1)=km(:,1)+(zhl(:,1)-zz(:,1))/(zz(:,2)-zz(:,1))*(km(:,2)-km(:,1))
-    end where
-    do k=2,kl-1
-      kmo(:,k)=km(:,k)+(zhl(:,k)-zz(:,k))/(zz(:,k+1)-zz(:,k-1))*                 &
-                 ((zz(:,k)-zz(:,k-1))*(km(:,k+1)-km(:,k))/(zz(:,k+1)-zz(:,k))    &
-                 +(zz(:,k+1)-zz(:,k))*(km(:,k)-km(:,k-1))/(zz(:,k)-zz(:,k-1)))   &
-               +(zhl(:,k)-zz(:,k))**2/(zz(:,k+1)-zz(:,k-1))*                     &
-                 ((km(:,k+1)-km(:,k))/(zz(:,k+1)-zz(:,k))                        &
-                 -(km(:,k)-km(:,k-1))/(zz(:,k)-zz(:,k-1)))
-      where (kmo(:,k).lt.0.)
-        kmo(:,k)=km(:,k)+(zhl(:,k)-zz(:,k))/(zz(:,k+1)-zz(:,k))*(km(:,k+1)-km(:,k))
-      end where
-    end do
-  case DEFAULT
-    write(6,*) "ERROR: Unknown interpmode ",interpmode
-    stop
-end select
+kmo(:,1:kl-1)=km(:,1:kl-1)+(zhl(:,1:kl-1)-zz(:,1:kl-1))/(zz(:,2:kl)-zz(:,1:kl-1))*(km(:,2:kl)-km(:,1:kl-1))
 ! These terms are never used
 kmo(:,kl)=0.
 
@@ -841,43 +820,16 @@ integer k
 real, dimension(ifull), intent(in) :: zi
 real, dimension(ifull,kl), intent(in) :: gamin,zz,zhl
 real, dimension(ifull,kl), intent(out) :: gamhl
-integer, parameter :: interpmode = 0 ! 0=linear, 1=quadratic
+
+! Here we use linear interpolation so that qtot=qg+qlg+qfg+qrg still holds after interpolation
 
 gamhl=0.
-select case(interpmode)
-  case(0)
-    gamhl(:,1:kl-1)=gamin(:,1:kl-1)+(zhl(:,1:kl-1)-zz(:,1:kl-1))/(zz(:,2:kl)-zz(:,1:kl-1))*(gamin(:,2:kl)-gamin(:,1:kl-1))
-    do k=1,kl-1
-      where (gamin(:,k).eq.0..or.gamin(:,k+1).eq.0..or.zi.lt.zhl(:,k))
-        gamhl(:,k)=0.
-      end where
-    end do
-  case(1)
-    gamhl(:,1)=gamin(:,2)+(zhl(:,1)-zz(:,2))/(zz(:,3)-zz(:,1))*                &
-               ((zz(:,2)-zz(:,1))*(gamin(:,3)-gamin(:,2))/(zz(:,3)-zz(:,2))    &
-               +(zz(:,3)-zz(:,2))*(gamin(:,2)-gamin(:,1))/(zz(:,2)-zz(:,1)))   &
-             +(zhl(:,1)-zz(:,2))**2/(zz(:,3)-zz(:,1))*                         &
-               ((gamin(:,3)-gamin(:,2))/(zz(:,3)-zz(:,2))                      &
-               -(gamin(:,2)-gamin(:,1))/(zz(:,2)-zz(:,1)))
-    where (gamin(:,1).eq.0..or.gamin(:,2).eq.0..or.zi.lt.zhl(:,1))
-      gamhl(:,1)=0.
-    end where
-    do k=2,kl-1
-      gamhl(:,k)=gamin(:,k)+(zhl(:,k)-zz(:,k))/(zz(:,k+1)-zz(:,k-1))*                  &
-                 ((zz(:,k)-zz(:,k-1))*(gamin(:,k+1)-gamin(:,k))/(zz(:,k+1)-zz(:,k))    &
-                 +(zz(:,k+1)-zz(:,k))*(gamin(:,k)-gamin(:,k-1))/(zz(:,k)-zz(:,k-1)))   &
-               +(zhl(:,k)-zz(:,k))**2/(zz(:,k+1)-zz(:,k-1))*                           &
-                 ((gamin(:,k+1)-gamin(:,k))/(zz(:,k+1)-zz(:,k))                        &
-                 -(gamin(:,k)-gamin(:,k-1))/(zz(:,k)-zz(:,k-1)))
-      where (gamin(:,k).eq.0..or.gamin(:,k+1).eq.0..or.zi.lt.zhl(:,k))
-        gamhl(:,k)=0.
-      end where
-    end do
-  case DEFAULT
-    write(6,*) "ERROR: Unknown interpmode ",interpmode
-    stop
-end select
-
+gamhl(:,1:kl-1)=gamin(:,1:kl-1)+(zhl(:,1:kl-1)-zz(:,1:kl-1))/(zz(:,2:kl)-zz(:,1:kl-1))*(gamin(:,2:kl)-gamin(:,1:kl-1))
+do k=1,kl-1
+  where (zi.lt.zhl(:,k))
+    gamhl(:,k)=0.
+  end where
+end do
 
 return
 end subroutine updategam
