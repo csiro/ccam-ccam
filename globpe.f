@@ -311,7 +311,7 @@
       if (mod(nproc,6).ne.0.and.mod(6,nproc).ne.0) then
         write(6,*) "ERROR: nproc must be a multiple of 6 or"
         write(6,*) "a factor of 6"
-        stop
+        call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
       end if
       nxp=max(1,nint(sqrt(real(nproc)/6.)))
       nyp=nproc/nxp
@@ -325,7 +325,7 @@
       if (nxp.eq.0) then
         write(6,*) "ERROR: Invalid number of processors for this grid"
         write(6,*) "Try increasing or decreasing nproc"
-        stop
+        call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
       end if
       ifull_g=il_g*jl_g
       ijk_g=il_g*jl_g*kl
@@ -373,8 +373,10 @@
       nud_hrs=abs(nud_hrs)  ! just for people with old -ves in namelist
       if (nudu_hrs==0) nudu_hrs=nud_hrs
 !     for 6-hourly output of sint_ave etc, want 6*60 = N*mins_rad      
-      if ((nrad==4.or.nrad==5).and.mod(6*60,mins_rad).ne.0)
-     &  stop 'prefer 6*60 = N*mins_rad '
+      if ((nrad==4.or.nrad==5).and.mod(6*60,mins_rad).ne.0) then
+        write(6,*) 'prefer 6*60 = N*mins_rad '
+        call MPI_Abort(MPI_COMM_WORLD,-1,ierr)	
+      end if
 
 
       ! **** do namelist fixes above this ***
@@ -479,15 +481,26 @@
         endif
 
         write (6, cardin)
-        if(nllp==0.and.nextout>=4)stop 'need nllp=3 for nextout>=4'
+        if(nllp==0.and.nextout>=4) then
+	  write(6,*) 'need nllp=3 for nextout>=4'
+          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)	  
+	end if
         write (6, skyin)
         write (6, datafile)
         write(6, kuonml)
       end if ! myid=0
-      if (newtop>2) stop 'newtop>2 no longer allowed'
-      if (mfix_qg>0.and.(nkuo==4.or.nvad==44))
-     &        stop 'nkuo=4,nvad=44: mfix_qg>0 not allowed'
-      if (mfix>3) stop 'mfix >3 not allowed now'
+      if (newtop>2) then
+        write(6,*) 'newtop>2 no longer allowed'
+        call MPI_Abort(MPI_COMM_WORLD,-1,ierr)	
+      end if
+      if (mfix_qg>0.and.(nkuo==4.or.nvad==44)) then
+        write(6,*) 'nkuo=4,nvad=44: mfix_qg>0 not allowed'
+        call MPI_Abort(MPI_COMM_WORLD,-1,ierr)	
+      end if
+      if (mfix>3) then
+        write(6,*) 'mfix >3 not allowed now'
+        call MPI_Abort(MPI_COMM_WORLD,-1,ierr)	
+      end if
 
 
       !--------------------------------------------------------------
@@ -871,7 +884,8 @@
         call outfile(20,rundate,nmi,nwrite,iaero)  ! which calls outcdf
         if(newtop<0) then
           if (myid==0) write(6,*) 'newtop<0 requires a stop here'
-          stop  ! just for outcdf to plot zs  & write fort.22
+          ! just for outcdf to plot zs  & write fort.22
+          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
         end if
       endif    ! (nmi==0.and.nwt.ne.0)
 
@@ -1846,6 +1860,7 @@
       implicit none
       
       include 'newmpar.h'   ! Grid parameters
+      include 'mpif.h'      ! MPI parameters
       include 'parm.h'      ! Model configuration
       include 'parmgeom.h'  ! Coordinate data
             
@@ -1859,7 +1874,7 @@
       if( ifullx /= ifull ) then
         write(6,*) "Error, readint only works with ifull"
         write(6,*) "called with", ifullx
-        stop
+        call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
       end if
       if ( myid == 0 ) then
         write(6,*) 'reading data via readint from ',filename
@@ -1870,7 +1885,10 @@
           write(6,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
           if(ilx.ne.il_g.or.jlx.ne.jl_g.or.rlong0x.ne.rlong0.
      &         or.rlat0x.ne.rlat0.or.schmidtx.ne.schmidt)
-     &         stop 'wrong data file supplied'
+     &         then
+            write(6,*) 'wrong data file supplied'
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)	    
+	  end if
           read(87,*) glob2d
           close(87)
         else if ( ierr < 0 ) then ! Error, so really unformatted file
@@ -1880,7 +1898,8 @@
           read(87) glob2d
           close(87)
         else ! ierr > 0
-          stop 'End of file occurred in readint'
+          write(6,*) 'End of file occurred in readint'
+          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)	  
         end if
         call ccmpi_distribute(itss, glob2d)
         write(6,*) trim(header), glob2d(id+(jd-1)*il_g)
@@ -1898,6 +1917,7 @@
       implicit none
       
       include 'newmpar.h'   ! Grid parameters
+      include 'mpif.h'      ! MPI parameters      
       include 'parm.h'      ! Model configuration
       include 'parmgeom.h'  ! Coordinate data
 
@@ -1912,7 +1932,7 @@
       if( ifullx /= ifull ) then
         write(6,*) "Error, readreal only works with ifull"
         write(6,*) "called with", ifullx
-        stop
+        call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
       end if
       if ( myid == 0 ) then
         write(6,*) 'reading data via readreal from ',trim(filename)
@@ -1923,7 +1943,10 @@
           write(6,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
           if(ilx.ne.il_g.or.jlx.ne.jl_g.or.rlong0x.ne.rlong0.
      &         or.rlat0x.ne.rlat0.or.schmidtx.ne.schmidt)
-     &         stop 'wrong data file supplied'
+     &         then
+            write(6,*) 'wrong data file supplied'
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+	  end if
           read(87,*) glob2d
           close(87)
         else if ( ierr < 0 ) then ! Error, so really unformatted file
@@ -1934,7 +1957,7 @@
           close(87)
         else
           write(6,*) "error in readreal",trim(filename),ierr
-          stop
+          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
         end if
         call ccmpi_distribute(tss, glob2d)
         write(6,*) trim(header), glob2d(id+(jd-1)*il_g)

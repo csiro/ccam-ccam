@@ -1073,11 +1073,11 @@ c       For time varying surface fields
         
         ! MICROPHYSICS ----------------------------------------------
         if(ldr.ne.0)then
-         call attrib(idnc,dim,4,'qfg','Frozen water','kg/kg',0.,.02,
+         call attrib(idnc,dim,4,'qfg','Frozen water','kg/kg',0.,.065,
      &               0,itype)
-         call attrib(idnc,dim,4,'qlg','Liquid water','kg/kg',0.,.02,
+         call attrib(idnc,dim,4,'qlg','Liquid water','kg/kg',0.,.065,
      &               0,itype)
-         call attrib(idnc,dim,4,'qrg','Rain','kg/kg',0.,.02,
+         call attrib(idnc,dim,4,'qrg','Rain','kg/kg',0.,.065,
      &               0,itype)
     !     call attrib(idnc,dim,4,'qsg','Snow','kg/kg',0.,.02,
     ! &               0,itype)
