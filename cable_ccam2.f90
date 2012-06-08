@@ -1216,6 +1216,11 @@ if (mp.gt.0) then
     veg%froot(:,k)=froot2(veg%iveg,k)
   end do
 
+  ! MJT special case for woody savannas
+  where (veg%iveg.eq.2.and.ivegt(cmap).eq.8)
+    veg%hc=17.
+  end where
+
 
   ! Calculate LAI and veg fraction diagnostics
   call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
