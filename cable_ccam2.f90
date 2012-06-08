@@ -168,6 +168,17 @@ integer jyear,jmonth,jday,jhour,jmin
 integer k,mins,nb,iq,j
 integer(i_d) :: idoy
 
+cansto=0.
+fwet=0.
+fnee=0.
+fpn=0.
+frd=0.
+frp=0.
+frpw=0.
+frpr=0.
+frs=0.
+vlai=0.
+
 ! abort calculation if no land points on this processor  
 if (mp.le.0) return
 
@@ -368,22 +379,12 @@ eg(iperm(1:ipland))=0.
 ga(iperm(1:ipland))=0.
 epot(iperm(1:ipland))=0.
 tss(iperm(1:ipland))=0.
-cansto=0.
-fwet=0.
-fnee=0.
-fpn=0.
-frd=0.
-frp=0.
-frpw=0.
-frpr=0.
-frs=0.
 zo(iperm(1:ipland))=0.
 cduv(iperm(1:ipland))=0.
 cdtq(iperm(1:ipland))=0.
 ustar(iperm(1:ipland))=0.
 wetfac(iperm(1:ipland))=0.
 tmps=0. ! average isflag
-vlai=0.
       
 ! screen and 10m diagnostics - rhscrn calculated in sflux.f
 tscrn(iperm(1:ipland))=0.
@@ -2363,7 +2364,7 @@ implicit none
 integer, intent(in) :: iqin
 integer n,iq,i
 real, intent(inout) :: inflow
-real, dimension(5) :: xx
+real, dimension(9) :: xx
 real yy
   
 xx(:)=inflow

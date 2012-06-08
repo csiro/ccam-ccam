@@ -17,6 +17,9 @@ implicit none
 integer, intent(in) :: ifull,iextra,kl
 
 allocate(cansto(ifull),vlai(ifull),fwet(ifull))
+cansto=0.
+vlai=0.
+fwet=0.
 
 return
 end subroutine vegpar_init
