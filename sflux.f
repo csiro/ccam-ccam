@@ -823,7 +823,7 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
      &                  tss,t(1:ifull,1),qsttg,qg(1:ifull,1),           ! land
      &                  sqrt(u(1:ifull,1)*u(1:ifull,1)+                 ! land
      &                       v(1:ifull,1)*v(1:ifull,1)),                ! land
-     &                  ps(1:ifull),.not.land,azmin,sig(1))              ! land
+     &                  ps(1:ifull),.not.land,azmin,sig(1))             ! land
            end if                                                       ! land
         case(6,7)                                                       ! cable
          if (myid==0.and.nmaxpr==1) then                                ! cable
@@ -834,8 +834,7 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
          ! update remaining diagnostic arrays                           ! cable
          do ip=1,ipland                                                 ! cable
            iq=iperm(ip)                                                 ! cable
-           factch(iq)=sqrt(7.4)                                         ! cable
-           zoh(iq)=zo(iq)/(factch(iq)*factch(iq))                       ! cable
+           factch(iq)=sqrt(zo(iq)/zoh(iq))                              ! cable
            es = establ(tss(iq))                                         ! cable
            qsttg(iq)= .622*es/(ps(iq)-es)                               ! cable
            rhscrn(iq)=100.*qgscrn(iq)/qsttg(iq)                         ! cable

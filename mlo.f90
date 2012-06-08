@@ -584,15 +584,17 @@ integer, intent(in) :: mode,diag
 real, dimension(ifull), intent(out) :: zoh
 real, dimension(ifull), intent(in) :: zmin
 real, dimension(wfull) :: a_zmin
-real, dimension(wfull) :: workb
+real, dimension(wfull) :: workb,workc
 
 zoh=0.
 if (wfull.eq.0) return
 select case(mode)
   case(0)
     a_zmin=pack(zmin,wpack)
-    workb=(1.-i_fracice)/log(a_zmin/p_zoh)**2+i_fracice/log(a_zmin/p_zohice)**2
-    zoh=unpack(a_zmin*exp(-1./sqrt(workb)),wpack,zoh)
+    workb=(1.-i_fracice)/(log(a_zmin/p_zo)*log(a_zmin/p_zoh))+i_fracice/(log(a_zmin/p_zoice)*log(a_zmin/p_zohice))
+    workc=(1.-i_fracice)/log(a_zmin/p_zo)**2+i_fracice/log(a_zmin/p_zoice)**2
+    workc=sqrt(workc)
+    zoh=unpack(a_zmin*exp(-workc/workb),wpack,zoh)
   case(1)
     workb=(1.-i_fracice)*p_taux+i_fracice*p_tauxica
     zoh=unpack(workb,wpack,zoh)

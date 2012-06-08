@@ -144,7 +144,7 @@ use sigs_m
 use soil_m
 use soilsnow_m
 use vegpar_m
-use work2_m, only : qsttg,zo,theta,vmod
+use work2_m, only : qsttg,zo,zoh,theta,vmod
 use work3_m, only : ga
 use zenith_m
   
@@ -522,6 +522,7 @@ end do
 where (land)
   ustar=sqrt(cduv)*vmod
   zo=max(zmin*exp(-sqrt(1./zo)),zobgin)
+  zoh=0.1*zo
   cduv=cduv*vmod     ! cduv is Cd*vmod in CCAM
   tscrn=tscrn+273.16 ! convert from degC to degK
   tss=tss**0.25
@@ -950,47 +951,35 @@ do iq=1,ifull
           newlai(iq,5,0)=newlai(iq,5,0)+svs(iq,n)*0.8*vlinprev(iq,n)
           newlai(iq,5,1)=newlai(iq,5,1)+svs(iq,n)*0.8*vlin(iq,n)
           newlai(iq,5,2)=newlai(iq,5,2)+svs(iq,n)*0.8*vlinnext(iq,n)
-          if (fg3.gt.0.) then
-            newgrid(iq,6)=newgrid(iq,6)+svs(iq,n)*0.2*fg3
-            newlai(iq,6,0)=newlai(iq,6,0)+svs(iq,n)*0.2*fg3*vlinprev(iq,n)
-            newlai(iq,6,1)=newlai(iq,6,1)+svs(iq,n)*0.2*fg3*vlin(iq,n)
-            newlai(iq,6,2)=newlai(iq,6,2)+svs(iq,n)*0.2*fg3*vlinnext(iq,n)
-          end if
-          if (fg4.gt.0.) then
-            newgrid(iq,7)=newgrid(iq,7)+svs(iq,n)*0.2*fg4
-            newlai(iq,7,0)=newlai(iq,7,0)+svs(iq,n)*0.2*fg4*vlinprev(iq,n)
-            newlai(iq,7,1)=newlai(iq,7,1)+svs(iq,n)*0.2*fg4*vlin(iq,n)
-            newlai(iq,7,2)=newlai(iq,7,2)+svs(iq,n)*0.2*fg4*vlinnext(iq,n)
-          end if
-          if (ftu.gt.0.) then
-            newgrid(iq,8)=newgrid(iq,8)+svs(iq,n)*0.2*ftu
-            newlai(iq,8,0)=newlai(iq,8,0)+svs(iq,n)*0.2*ftu*vlinprev(iq,n)
-            newlai(iq,8,1)=newlai(iq,8,1)+svs(iq,n)*0.2*ftu*vlin(iq,n)
-            newlai(iq,8,2)=newlai(iq,8,2)+svs(iq,n)*0.2*ftu*vlinnext(iq,n)
-          end if
+          newgrid(iq,6)=newgrid(iq,6)+svs(iq,n)*0.2*fg3
+          newlai(iq,6,0)=newlai(iq,6,0)+svs(iq,n)*0.2*fg3*vlinprev(iq,n)
+          newlai(iq,6,1)=newlai(iq,6,1)+svs(iq,n)*0.2*fg3*vlin(iq,n)
+          newlai(iq,6,2)=newlai(iq,6,2)+svs(iq,n)*0.2*fg3*vlinnext(iq,n)
+          newgrid(iq,7)=newgrid(iq,7)+svs(iq,n)*0.2*fg4
+          newlai(iq,7,0)=newlai(iq,7,0)+svs(iq,n)*0.2*fg4*vlinprev(iq,n)
+          newlai(iq,7,1)=newlai(iq,7,1)+svs(iq,n)*0.2*fg4*vlin(iq,n)
+          newlai(iq,7,2)=newlai(iq,7,2)+svs(iq,n)*0.2*fg4*vlinnext(iq,n)
+          newgrid(iq,8)=newgrid(iq,8)+svs(iq,n)*0.2*ftu
+          newlai(iq,8,0)=newlai(iq,8,0)+svs(iq,n)*0.2*ftu*vlinprev(iq,n)
+          newlai(iq,8,1)=newlai(iq,8,1)+svs(iq,n)*0.2*ftu*vlin(iq,n)
+          newlai(iq,8,2)=newlai(iq,8,2)+svs(iq,n)*0.2*ftu*vlinnext(iq,n)
         case (7)
           newgrid(iq,5)=newgrid(iq,5)+svs(iq,n)*0.2
           newlai(iq,5,0)=newlai(iq,5,0)+svs(iq,n)*0.2*vlinprev(iq,n)
           newlai(iq,5,1)=newlai(iq,5,1)+svs(iq,n)*0.2*vlin(iq,n)
           newlai(iq,5,2)=newlai(iq,5,2)+svs(iq,n)*0.2*vlinnext(iq,n)
-          if (fg3.gt.0.) then
-            newgrid(iq,6)=newgrid(iq,6)+svs(iq,n)*0.8*fg3
-            newlai(iq,6,0)=newlai(iq,6,0)+svs(iq,n)*0.8*fg3*vlinprev(iq,n)
-            newlai(iq,6,1)=newlai(iq,6,1)+svs(iq,n)*0.8*fg3*vlin(iq,n)
-            newlai(iq,6,2)=newlai(iq,6,2)+svs(iq,n)*0.8*fg3*vlinnext(iq,n)
-          end if
-          if (fg4.gt.0.) then
-            newgrid(iq,7)=newgrid(iq,7)+svs(iq,n)*0.8*fg4
-            newlai(iq,7,0)=newlai(iq,7,0)+svs(iq,n)*0.8*fg4*vlinprev(iq,n)
-            newlai(iq,7,1)=newlai(iq,7,1)+svs(iq,n)*0.8*fg4*vlin(iq,n)
-            newlai(iq,7,2)=newlai(iq,7,2)+svs(iq,n)*0.8*fg4*vlinnext(iq,n)
-          end if
-          if (ftu.gt.0.) then
-            newgrid(iq,8)=newgrid(iq,8)+svs(iq,n)*0.8*ftu
-            newlai(iq,8,0)=newlai(iq,8,0)+svs(iq,n)*0.8*ftu*vlinprev(iq,n)
-            newlai(iq,8,1)=newlai(iq,8,1)+svs(iq,n)*0.8*ftu*vlin(iq,n)
-            newlai(iq,8,2)=newlai(iq,8,2)+svs(iq,n)*0.8*ftu*vlinnext(iq,n)
-          end if
+          newgrid(iq,6)=newgrid(iq,6)+svs(iq,n)*0.8*fg3
+          newlai(iq,6,0)=newlai(iq,6,0)+svs(iq,n)*0.8*fg3*vlinprev(iq,n)
+          newlai(iq,6,1)=newlai(iq,6,1)+svs(iq,n)*0.8*fg3*vlin(iq,n)
+          newlai(iq,6,2)=newlai(iq,6,2)+svs(iq,n)*0.8*fg3*vlinnext(iq,n)
+          newgrid(iq,7)=newgrid(iq,7)+svs(iq,n)*0.8*fg4
+          newlai(iq,7,0)=newlai(iq,7,0)+svs(iq,n)*0.8*fg4*vlinprev(iq,n)
+          newlai(iq,7,1)=newlai(iq,7,1)+svs(iq,n)*0.8*fg4*vlin(iq,n)
+          newlai(iq,7,2)=newlai(iq,7,2)+svs(iq,n)*0.8*fg4*vlinnext(iq,n)
+          newgrid(iq,8)=newgrid(iq,8)+svs(iq,n)*0.8*ftu
+          newlai(iq,8,0)=newlai(iq,8,0)+svs(iq,n)*0.8*ftu*vlinprev(iq,n)
+          newlai(iq,8,1)=newlai(iq,8,1)+svs(iq,n)*0.8*ftu*vlin(iq,n)
+          newlai(iq,8,2)=newlai(iq,8,2)+svs(iq,n)*0.8*ftu*vlinnext(iq,n)
         case (8)
           if (clat.lt.-40..or.clat.gt.40.) then
             newgrid(iq,1)=newgrid(iq,1)+svs(iq,n)*0.4
@@ -1003,24 +992,18 @@ do iq=1,ifull
             newlai(iq,2,1)=newlai(iq,2,1)+svs(iq,n)*0.4*vlin(iq,n)
             newlai(iq,2,2)=newlai(iq,2,2)+svs(iq,n)*0.4*vlinnext(iq,n)
           end if
-          if (fg3.gt.0.) then
-            newgrid(iq,6)=newgrid(iq,6)+svs(iq,n)*0.6*fg3
-            newlai(iq,6,0)=newlai(iq,6,0)+svs(iq,n)*0.6*fg3*vlinprev(iq,n)
-            newlai(iq,6,1)=newlai(iq,6,1)+svs(iq,n)*0.6*fg3*vlin(iq,n)
-            newlai(iq,6,2)=newlai(iq,6,2)+svs(iq,n)*0.6*fg3*vlinnext(iq,n)
-          end if
-          if (fg4.gt.0.) then
-            newgrid(iq,7)=newgrid(iq,7)+svs(iq,n)*0.6*fg4
-            newlai(iq,7,0)=newlai(iq,7,0)+svs(iq,n)*0.6*fg4*vlinprev(iq,n)
-            newlai(iq,7,1)=newlai(iq,7,1)+svs(iq,n)*0.6*fg4*vlin(iq,n)
-            newlai(iq,7,2)=newlai(iq,7,2)+svs(iq,n)*0.6*fg4*vlinnext(iq,n)
-          end if
-          if (ftu.gt.0.) then
-            newgrid(iq,8)=newgrid(iq,8)+svs(iq,n)*0.6*ftu
-            newlai(iq,8,0)=newlai(iq,8,0)+svs(iq,n)*0.6*ftu*vlinprev(iq,n)
-            newlai(iq,8,1)=newlai(iq,8,1)+svs(iq,n)*0.6*ftu*vlin(iq,n)
-            newlai(iq,8,2)=newlai(iq,8,2)+svs(iq,n)*0.6*ftu*vlinnext(iq,n)
-          end if
+          newgrid(iq,6)=newgrid(iq,6)+svs(iq,n)*0.6*fg3
+          newlai(iq,6,0)=newlai(iq,6,0)+svs(iq,n)*0.6*fg3*vlinprev(iq,n)
+          newlai(iq,6,1)=newlai(iq,6,1)+svs(iq,n)*0.6*fg3*vlin(iq,n)
+          newlai(iq,6,2)=newlai(iq,6,2)+svs(iq,n)*0.6*fg3*vlinnext(iq,n)
+          newgrid(iq,7)=newgrid(iq,7)+svs(iq,n)*0.6*fg4
+          newlai(iq,7,0)=newlai(iq,7,0)+svs(iq,n)*0.6*fg4*vlinprev(iq,n)
+          newlai(iq,7,1)=newlai(iq,7,1)+svs(iq,n)*0.6*fg4*vlin(iq,n)
+          newlai(iq,7,2)=newlai(iq,7,2)+svs(iq,n)*0.6*fg4*vlinnext(iq,n)
+          newgrid(iq,8)=newgrid(iq,8)+svs(iq,n)*0.6*ftu
+          newlai(iq,8,0)=newlai(iq,8,0)+svs(iq,n)*0.6*ftu*vlinprev(iq,n)
+          newlai(iq,8,1)=newlai(iq,8,1)+svs(iq,n)*0.6*ftu*vlin(iq,n)
+          newlai(iq,8,2)=newlai(iq,8,2)+svs(iq,n)*0.6*ftu*vlinnext(iq,n)
         case (9)
           if (clat.lt.-40..or.clat.gt.40.) then
             newgrid(iq,1)=newgrid(iq,1)+svs(iq,n)*0.1
@@ -1033,56 +1016,40 @@ do iq=1,ifull
             newlai(iq,2,1)=newlai(iq,2,1)+svs(iq,n)*0.1*vlin(iq,n)
             newlai(iq,2,2)=newlai(iq,2,2)+svs(iq,n)*0.1*vlinnext(iq,n)
           end if
-          if (fg3.gt.0.) then
-            newgrid(iq,6)=newgrid(iq,6)+svs(iq,n)*0.9*fg3
-            newlai(iq,6,0)=newlai(iq,6,0)+svs(iq,n)*0.9*fg3*vlinprev(iq,n)
-            newlai(iq,6,1)=newlai(iq,6,1)+svs(iq,n)*0.9*fg3*vlin(iq,n)
-            newlai(iq,6,2)=newlai(iq,6,2)+svs(iq,n)*0.9*fg3*vlinnext(iq,n)
-          end if
-          if (fg4.gt.0.) then
-            newgrid(iq,7)=newgrid(iq,7)+svs(iq,n)*0.9*fg4
-            newlai(iq,7,0)=newlai(iq,7,0)+svs(iq,n)*0.9*fg4*vlinprev(iq,n)
-            newlai(iq,7,1)=newlai(iq,7,1)+svs(iq,n)*0.9*fg4*vlin(iq,n)
-            newlai(iq,7,2)=newlai(iq,7,2)+svs(iq,n)*0.9*fg4*vlinnext(iq,n)
-          end if
-          if (ftu.gt.0.) then
-            newgrid(iq,8)=newgrid(iq,8)+svs(iq,n)*0.9*ftu
-            newlai(iq,8,0)=newlai(iq,8,0)+svs(iq,n)*0.9*ftu*vlinprev(iq,n)
-            newlai(iq,8,1)=newlai(iq,8,1)+svs(iq,n)*0.9*ftu*vlin(iq,n)
-            newlai(iq,8,2)=newlai(iq,8,2)+svs(iq,n)*0.9*ftu*vlinnext(iq,n)
-          end if
+          newgrid(iq,6)=newgrid(iq,6)+svs(iq,n)*0.9*fg3
+          newlai(iq,6,0)=newlai(iq,6,0)+svs(iq,n)*0.9*fg3*vlinprev(iq,n)
+          newlai(iq,6,1)=newlai(iq,6,1)+svs(iq,n)*0.9*fg3*vlin(iq,n)
+          newlai(iq,6,2)=newlai(iq,6,2)+svs(iq,n)*0.9*fg3*vlinnext(iq,n)
+          newgrid(iq,7)=newgrid(iq,7)+svs(iq,n)*0.9*fg4
+          newlai(iq,7,0)=newlai(iq,7,0)+svs(iq,n)*0.9*fg4*vlinprev(iq,n)
+          newlai(iq,7,1)=newlai(iq,7,1)+svs(iq,n)*0.9*fg4*vlin(iq,n)
+          newlai(iq,7,2)=newlai(iq,7,2)+svs(iq,n)*0.9*fg4*vlinnext(iq,n)
+          newgrid(iq,8)=newgrid(iq,8)+svs(iq,n)*0.9*ftu
+          newlai(iq,8,0)=newlai(iq,8,0)+svs(iq,n)*0.9*ftu*vlinprev(iq,n)
+          newlai(iq,8,1)=newlai(iq,8,1)+svs(iq,n)*0.9*ftu*vlin(iq,n)
+          newlai(iq,8,2)=newlai(iq,8,2)+svs(iq,n)*0.9*ftu*vlinnext(iq,n)
         case (10)
-          if (fg3.gt.0.) then
-            newgrid(iq,6)=newgrid(iq,6)+svs(iq,n)*fg3
-            newlai(iq,6,0)=newlai(iq,6,0)+svs(iq,n)*fg3*vlinprev(iq,n)
-            newlai(iq,6,1)=newlai(iq,6,1)+svs(iq,n)*fg3*vlin(iq,n)
-            newlai(iq,6,2)=newlai(iq,6,2)+svs(iq,n)*fg3*vlinnext(iq,n)
-          end if
-          if (fg4.gt.0.) then
-            newgrid(iq,7)=newgrid(iq,7)+svs(iq,n)*fg4
-            newlai(iq,7,0)=newlai(iq,7,0)+svs(iq,n)*fg4*vlinprev(iq,n)
-            newlai(iq,7,1)=newlai(iq,7,1)+svs(iq,n)*fg4*vlin(iq,n)
-            newlai(iq,7,2)=newlai(iq,7,2)+svs(iq,n)*fg4*vlinnext(iq,n)
-          end if
-          if (ftu.gt.0.) then
-            newgrid(iq,8)=newgrid(iq,8)+svs(iq,n)*ftu
-            newlai(iq,8,0)=newlai(iq,8,0)+svs(iq,n)*ftu*vlinprev(iq,n)
-            newlai(iq,8,1)=newlai(iq,8,1)+svs(iq,n)*ftu*vlin(iq,n)
-            newlai(iq,8,2)=newlai(iq,8,2)+svs(iq,n)*ftu*vlinnext(iq,n)
-          end if
+          newgrid(iq,6)=newgrid(iq,6)+svs(iq,n)*fg3
+          newlai(iq,6,0)=newlai(iq,6,0)+svs(iq,n)*fg3*vlinprev(iq,n)
+          newlai(iq,6,1)=newlai(iq,6,1)+svs(iq,n)*fg3*vlin(iq,n)
+          newlai(iq,6,2)=newlai(iq,6,2)+svs(iq,n)*fg3*vlinnext(iq,n)
+          newgrid(iq,7)=newgrid(iq,7)+svs(iq,n)*fg4
+          newlai(iq,7,0)=newlai(iq,7,0)+svs(iq,n)*fg4*vlinprev(iq,n)
+          newlai(iq,7,1)=newlai(iq,7,1)+svs(iq,n)*fg4*vlin(iq,n)
+          newlai(iq,7,2)=newlai(iq,7,2)+svs(iq,n)*fg4*vlinnext(iq,n)
+          newgrid(iq,8)=newgrid(iq,8)+svs(iq,n)*ftu
+          newlai(iq,8,0)=newlai(iq,8,0)+svs(iq,n)*ftu*vlinprev(iq,n)
+          newlai(iq,8,1)=newlai(iq,8,1)+svs(iq,n)*ftu*vlin(iq,n)
+          newlai(iq,8,2)=newlai(iq,8,2)+svs(iq,n)*ftu*vlinnext(iq,n)
         case (12,14)
-          if (fc3.gt.0.) then
-            newgrid(iq,9)=newgrid(iq,9)+svs(iq,n)*fc3
-            newlai(iq,9,0)=newlai(iq,9,0)+svs(iq,n)*fc3*vlinprev(iq,n)
-            newlai(iq,9,1)=newlai(iq,9,1)+svs(iq,n)*fc3*vlin(iq,n)
-            newlai(iq,9,2)=newlai(iq,9,2)+svs(iq,n)*fc3*vlinnext(iq,n)
-          end if
-          if (fc4.gt.0.) then
-            newgrid(iq,10)=newgrid(iq,10)+svs(iq,n)*fc4
-            newlai(iq,10,0)=newlai(iq,10,0)+svs(iq,n)*fc4*vlinprev(iq,n)
-            newlai(iq,10,1)=newlai(iq,10,1)+svs(iq,n)*fc4*vlin(iq,n)
-            newlai(iq,10,2)=newlai(iq,10,2)+svs(iq,n)*fc4*vlinnext(iq,n)
-          end if
+          newgrid(iq,9)=newgrid(iq,9)+svs(iq,n)*fc3
+          newlai(iq,9,0)=newlai(iq,9,0)+svs(iq,n)*fc3*vlinprev(iq,n)
+          newlai(iq,9,1)=newlai(iq,9,1)+svs(iq,n)*fc3*vlin(iq,n)
+          newlai(iq,9,2)=newlai(iq,9,2)+svs(iq,n)*fc3*vlinnext(iq,n)
+          newgrid(iq,10)=newgrid(iq,10)+svs(iq,n)*fc4
+          newlai(iq,10,0)=newlai(iq,10,0)+svs(iq,n)*fc4*vlinprev(iq,n)
+          newlai(iq,10,1)=newlai(iq,10,1)+svs(iq,n)*fc4*vlin(iq,n)
+          newlai(iq,10,2)=newlai(iq,10,2)+svs(iq,n)*fc4*vlinnext(iq,n)
         case (13)
           newgrid(iq,15)=newgrid(iq,15)+svs(iq,n)
           newlai(iq,15,0)=newlai(iq,15,0)+svs(iq,n)*vlinprev(iq,n)
@@ -2259,7 +2226,7 @@ do n=1,9
   dat=snowd
   if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%snowd(pind(n,1):pind(n,2))
   write(vname,'("snd_",I1.1)') n
-  call histwrt3(dat,vname,idnc,iarch,local,.true.)  ! long write    
+  call histwrt3(dat,vname,idnc,iarch,local,.true.)
   dat=snage
   if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%snage(pind(n,1):pind(n,2))
   write(vname,'("snage_",I1.1)') n
