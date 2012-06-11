@@ -348,7 +348,7 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
       ! -------------------------------------------------------------
       ! Use TAPM approach to screen diagnostics
       subroutine scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,zoh,
-     &                   tsu,temp,smixr,qg,umag,ps,land,zmin,sig)
+     &                   zoq,tsu,temp,smixr,qg,umag,ps,land,zmin,sig)
      
       implicit none
 
@@ -356,12 +356,12 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
       integer pfull
       real, dimension(ifull), intent(inout) :: qgscrn,tscrn,uscrn,u10
       real, dimension(ifull), intent(inout) :: rhscrn
-      real, dimension(ifull), intent(in) :: zo,zoh,tsu,temp,smixr
+      real, dimension(ifull), intent(in) :: zo,zoh,zoq,tsu,temp,smixr
       real, dimension(ifull), intent(in) :: qg,umag,ps,zmin
       real, intent(in) :: sig
       real, dimension(ifull) :: qgscrn_pack,tscrn_pack
       real, dimension(ifull) :: uscrn_pack,u10_pack
-      real, dimension(ifull) :: rhscrn_pack,zo_pack,zoh_pack
+      real, dimension(ifull) :: rhscrn_pack,zo_pack,zoh_pack,zoq_pack
       real, dimension(ifull) :: stemp_pack,temp_pack
       real, dimension(ifull) :: smixr_pack,mixr_pack
       real, dimension(ifull) :: umag_pack,ps_pack,zmin_pack
@@ -373,6 +373,7 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
 
       zo_pack(1:pfull)=pack(zo,.not.land)
       zoh_pack(1:pfull)=pack(zoh,.not.land)
+      zoq_pack(1:pfull)=pack(zoq,.not.land)
       stemp_pack(1:pfull)=pack(tsu,.not.land)
       temp_pack(1:pfull)=pack(temp,.not.land)
       smixr_pack(1:pfull)=pack(smixr,.not.land)
@@ -384,10 +385,11 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
       call scrncalc(pfull,qgscrn_pack(1:pfull),tscrn_pack(1:pfull),
      &              uscrn_pack(1:pfull),u10_pack(1:pfull),
      &              rhscrn_pack(1:pfull),zo_pack(1:pfull),
-     &              zoh_pack(1:pfull),stemp_pack(1:pfull),
-     &              temp_pack(1:pfull),smixr_pack(1:pfull),
-     &              mixr_pack(1:pfull),umag_pack(1:pfull),
-     &              ps_pack(1:pfull),zmin_pack,sig)
+     &              zoh_pack(1:pfull),zoh_pack(1:pfull),
+     &              stemp_pack(1:pfull),temp_pack(1:pfull),
+     &              smixr_pack(1:pfull),mixr_pack(1:pfull),
+     &              umag_pack(1:pfull),ps_pack(1:pfull),zmin_pack,
+     &              sig)
 
       qgscrn=unpack(qgscrn_pack(1:pfull),.not.land,qgscrn)
       tscrn=unpack(tscrn_pack(1:pfull),.not.land,tscrn)
@@ -399,7 +401,7 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
       end subroutine scrnocn
       
       subroutine scrncalc(pfull,qscrn,tscrn,uscrn,u10,rhscrn,zo,zoh,
-     &                    stemp,temp,smixr,mixr,umag,ps,zmin,sig)
+     &                    zoq,stemp,temp,smixr,mixr,umag,ps,zmin,sig)
       
       implicit none
 
@@ -411,15 +413,16 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
       integer ic,iq
       real, dimension(pfull), intent(out) :: qscrn,tscrn,uscrn,u10
       real, dimension(pfull), intent(out) :: rhscrn
-      real, dimension(pfull), intent(in) :: zo,zoh,stemp,temp,umag
+      real, dimension(pfull), intent(in) :: zo,zoh,zoq,stemp,temp,umag
       real, dimension(pfull), intent(in) :: smixr,mixr,ps,zmin
-      real, dimension(pfull) :: lzom,lzoh,thetav,sthetav
+      real, dimension(pfull) :: lzom,lzoh,lzoq,thetav,sthetav
       real, dimension(pfull) :: thetavstar,z_on_l,z0_on_l,zt_on_l
       real, dimension(pfull) :: pm0,ph0,pm1,ph1,integralm,integralh
       real, dimension(pfull) :: ustar,qstar,z10_on_l
       real, dimension(pfull) :: neutral,neutral10,pm10
-      real, dimension(pfull) :: integralm10
+      real, dimension(pfull) :: integralm10,zq_on_l,integralq
       real, dimension(pfull) :: esatb,qsatb,tstar,umagn
+      real, dimension(pfull) :: pq0,pq1
       real, intent(in) :: sig
       real scrp
       integer, parameter ::  nc     = 5
@@ -439,6 +442,7 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
       ! Roughness length for heat
       lzom=log(zmin/zo)
       lzoh=log(zmin/zoh)
+      lzoq=log(zmin/zoq)
 
       ! Dyer and Hicks approach 
       thetavstar=vkar*(thetav-sthetav)/lzoh
@@ -448,15 +452,19 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
         z_on_l=min(z_on_l,10.)
         z0_on_l  = z_on_l*zo/zmin
         zt_on_l  = z_on_l*zoh/zmin
+        zq_on_l  = z_on_l*zoq/zmin
         where (z_on_l.lt.0.)
           pm0     = (1.-16.*z0_on_l)**(-0.25)
           ph0     = (1.-16.*zt_on_l)**(-0.5)
+          pq0     = (1.-16.*zq_on_l)**(-0.5)
           pm1     = (1.-16.*z_on_l)**(-0.25)
           ph1     = (1.-16.*z_on_l)**(-0.5)
+          pq1     = ph1
           integralm = lzom-2.*log((1.+1./pm1)/(1.+1./pm0))
      &                -log((1.+1./pm1**2)/(1.+1./pm0**2))
      &                +2.*(atan(1./pm1)-atan(1./pm0))
           integralh = lzoh-2.*log((1.+1./ph1)/(1.+1./ph0))
+          integralq = lzoq-2.*log((1.+1./pq1)/(1.+1./pq0))
         elsewhere
           !--------------Beljaars and Holtslag (1991) momentum & heat            
           pm0 = -(a_1*z0_on_l+b_1*(z0_on_l-(c_1/d_1))*exp(-d_1*z0_on_l)
@@ -469,14 +477,19 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
           ph1 = -((1.+(2./3.)*a_1*z_on_l)**1.5
      &          +b_1*(z_on_l-(c_1/d_1))*exp(-d_1*z_on_l)
      &          +b_1*c_1/d_1-1.)
+          pq0 = -((1.+(2./3.)*a_1*zq_on_l)**1.5
+     &          +b_1*(zq_on_l-(c_1/d_1))*exp(-d_1*zq_on_l)
+     &          +b_1*c_1/d_1-1.)
+          pq1 = ph1
           integralm = lzom-(pm1-pm0)    
-          integralh = lzoh-(ph1-ph0)         
+          integralh = lzoh-(ph1-ph0)
+          integralq = lzoq-(pq1-pq0)
         endwhere
         thetavstar=vkar*(thetav-sthetav)/integralh
         ustar     =vkar*umagn/integralm
       end do
       tstar=vkar*(temp-stemp)/integralh
-      qstar=vkar*(mixr-smixr)/integralh
+      qstar=vkar*(mixr-smixr)/integralq
       
       ! estimate screen diagnostics
       z_on_l=vkar*zmin*grav*thetavstar/(thetav*ustar**2)
@@ -495,6 +508,7 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
         pm1     = (1.-16.*z_on_l)**(-0.25)
         integralh = neutral
      &              -2.*log((1.+1./ph1)/(1.+1./ph0))
+        integralq = integralh
         integralm = neutral-2.*log((1.+1./pm1)/(1.+1./pm0))
      &                -log((1.+1./pm1**2)/(1.+1./pm0**2))
      &                +2.*(atan(1./pm1)-atan(1./pm0))
@@ -516,11 +530,12 @@ c-------Beljaars and Holtslag (1991) heat function
         pm1  = -(a_1*z_on_l+b_1*(z_on_l-(c_1/d_1))*exp(-d_1*z_on_l)
      &         +b_1*c_1/d_1)
         integralh = neutral-(ph1-ph0)
+        integralq = integralh
         integralm = neutral-(pm1-pm0)
         integralm10 = neutral10-(pm1-pm10)
       endwhere
       tscrn = temp-tstar*integralh/vkar
-      qscrn = mixr-qstar*integralh/vkar
+      qscrn = mixr-qstar*integralq/vkar
       qscrn = max(qscrn,qgmin)
       do iq=1,pfull
         esatb(iq) = establ(tscrn(iq))
@@ -556,7 +571,7 @@ c-------Beljaars and Holtslag (1991) heat function
       
       integer iq
       real es
-      real, dimension(ifull) :: umag,zminx
+      real, dimension(ifull) :: umag,zminx,smixr
       real, dimension(ifull) :: ou,ov,atu,atv,iu,iv
       real, dimension(ifull) :: au,av
       real, parameter :: vkar = 0.4
@@ -582,10 +597,10 @@ c-------Beljaars and Holtslag (1991) heat function
         es = establ(tss(iq))
         qsttg(iq)= .622*es/(ps(iq)-es)
       enddo
-      qsttg=wetfac*qsttg+(1.-wetfac)*min(qsttg,qg(1:ifull,1))
+      smixr=wetfac*qsttg+(1.-wetfac)*min(qsttg,qg(1:ifull,1))
       
       call scrncalc(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,zoh,
-     &              tss,t(1:ifull,1),qsttg,qg(1:ifull,1),umag,
+     &              zoq,tss,t(1:ifull,1),smixr,qg(1:ifull,1),umag,
      &              ps(1:ifull),zminx,sig(1))
      
       atu=au*uscrn/umag+ou

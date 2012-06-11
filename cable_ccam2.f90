@@ -11,7 +11,7 @@ module cable_ccam
 !   when tracers are active
 ! - The code assumes only one month at a time is integrated in RCM mode.  However,
 !   since the input files can be modified at runtime (not all months are loaded
-!   at once), then we can support evolving/dynamic vegetation, etc.
+!   at once), then we can support off-line evolving/dynamic vegetation, etc.
 
 ! ivegt   IGBP type                             CSIRO PFT
 ! 1       Evergreen Needleleaf Forest           1.  Evergreen Needleleaf
@@ -45,6 +45,9 @@ module cable_ccam
 !   (Crop)    0.7 C3  0.3 C4   -30<lat<30
 !             0.9 C3  0.1 C4   30<lat<40 or -40<lat<-30
 !             1.  C3  0.  C4   lat<-40   or lat>40
+
+! *** NOTE MJT SPECIAL
+! The PFT evergreen broadleaf's canopy height is reduced for woody savannas for improved roughness length
 
 ! CSIRO PFT index
 ! 1  Evergreen Needleleaf
@@ -99,7 +102,6 @@ private
 public sib4,loadcbmparm,loadtile,savetile,cableinflow,cbmemiss
 
 integer, parameter :: hruffmethod    = 1 ! Method for max hruff
-integer, parameter :: CO2forcingtype = 2 ! CO2 input source (1 constant, 2 use radiation CO2 forcing, 3 interactive tracer)
 integer, parameter :: proglai        = 0 ! 0 prescribed LAI, 1 prognostic LAI 
 integer, dimension(:), allocatable, save :: cmap
 integer, dimension(9,2), save :: pind  
@@ -144,7 +146,7 @@ use sigs_m
 use soil_m
 use soilsnow_m
 use vegpar_m
-use work2_m, only : qsttg,zo,zoh,theta,vmod
+use work2_m, only : qsttg,zo,zoh,zoq,theta,vmod,wetfac
 use work3_m, only : ga
 use zenith_m
   
@@ -159,7 +161,6 @@ include 'parm.h'
 ! for calculation of zenith angle
 real fjd,r1,dlt,slag,dhr,alp,x,esatf
 real, dimension(ifull) :: coszro2,taudar2,tmps,hruff_grmx,atmco2
-real, dimension(ifull) :: wetfac
 real, dimension(mp) :: swdwn,deltat
 real(r_2), dimension(mp) :: xKNlimiting,xkleafcold,xkleafdry
 real(r_2), dimension(mp) :: xkleaf,xnplimit,xNPuptake,xklitter
@@ -380,10 +381,12 @@ ga(iperm(1:ipland))=0.
 epot(iperm(1:ipland))=0.
 tss(iperm(1:ipland))=0.
 zo(iperm(1:ipland))=0.
+zoh(iperm(1:ipland))=0.
 cduv(iperm(1:ipland))=0.
 cdtq(iperm(1:ipland))=0.
 ustar(iperm(1:ipland))=0.
 wetfac(iperm(1:ipland))=0.
+rsmin(iperm(1:ipland))=0.
 tmps=0. ! average isflag
       
 ! screen and 10m diagnostics - rhscrn calculated in sflux.f
@@ -499,12 +502,17 @@ do nb=1,9
                                       +sv(pind(nb,1):pind(nb,2))*canopy%frs(pind(nb,1):pind(nb,2))
     zo(cmap(pind(nb,1):pind(nb,2)))=zo(cmap(pind(nb,1):pind(nb,2))) &
                                       +sv(pind(nb,1):pind(nb,2))/log(zmin/max(rough%z0m(pind(nb,1):pind(nb,2)),zobgin))**2
+    zoh(cmap(pind(nb,1):pind(nb,2)))=zoh(cmap(pind(nb,1):pind(nb,2))) &
+                                      +sv(pind(nb,1):pind(nb,2))/(log(zmin/max(rough%z0m(pind(nb,1):pind(nb,2)),zobgin)) &
+                                                             *log(10.*zmin/max(rough%z0m(pind(nb,1):pind(nb,2)),zobgin)))
     cduv(cmap(pind(nb,1):pind(nb,2)))=cduv(cmap(pind(nb,1):pind(nb,2))) &
                                       +sv(pind(nb,1):pind(nb,2))*canopy%cduv(pind(nb,1):pind(nb,2))
     cdtq(cmap(pind(nb,1):pind(nb,2)))=cdtq(cmap(pind(nb,1):pind(nb,2))) &
                                       +sv(pind(nb,1):pind(nb,2))*canopy%cdtq(pind(nb,1):pind(nb,2))
     wetfac(cmap(pind(nb,1):pind(nb,2)))=wetfac(cmap(pind(nb,1):pind(nb,2))) &
                                       +sv(pind(nb,1):pind(nb,2))*ssoil%wetfac(pind(nb,1):pind(nb,2))
+    rsmin(cmap(pind(nb,1):pind(nb,2)))=rsmin(cmap(pind(nb,1):pind(nb,2))) &
+                                      +sv(pind(nb,1):pind(nb,2))*canopy%gswx_T(pind(nb,1):pind(nb,2))
     tmps(cmap(pind(nb,1):pind(nb,2)))=tmps(cmap(pind(nb,1):pind(nb,2))) &
                                       +sv(pind(nb,1):pind(nb,2))*real(ssoil%isflag(pind(nb,1):pind(nb,2)))
     vlai(cmap(pind(nb,1):pind(nb,2)))=vlai(cmap(pind(nb,1):pind(nb,2))) &
@@ -522,11 +530,13 @@ do nb=1,9
 end do
 where (land)
   ustar=sqrt(cduv)*vmod
-  zo=max(zmin*exp(-sqrt(1./zo)),zobgin)
-  zoh=0.1*zo
+  zoh=max(zmin*exp(-sqrt(zo)/zoh),0.1*zobgin)
+  zoq=zoh
+  zo=max(zmin*exp(-1./sqrt(zo)),zobgin)
   cduv=cduv*vmod     ! cduv is Cd*vmod in CCAM
   tscrn=tscrn+273.16 ! convert from degC to degK
   tss=tss**0.25
+  rsmin=1./rsmin
 end where
 do iq=1,ifull
   if (land(iq)) then
@@ -621,35 +631,39 @@ use radisw_m, only : rrco2,ssolar,rrvco2
 use tracermodule, only : tractype,tracname
 use tracers_m
 
+use cc_mpi, only : myid
+
 implicit none
 
 include 'newmpar.h'
+include 'parm.h'
 
 integer ico2,igas
 real, dimension(ifull), intent(out) :: atmco2
 
-! replace these options when 3d CO2 is fed to the radiation scheme
-select case (CO2forcingtype)
-  case (1)    ! constant
-    atmco2 = 360.
-  case (2)    ! from radiative CO2 forcings
-    atmco2 = 1.E6*rrvco2
-  case (3)    ! use interactive tracers
-    ico2=0
-    do igas=1,ngas
-      if (trim(tractype(igas)).eq.'online') then
-        if (trim(tracname(igas)).eq.'cbmnep') then
-          ico2=igas
-          exit
-        end if
-      end if
-    end do
-    if (ico2.le.0) then
-      write(6,*) "ERROR: Cannot locate co2 in tracers"
-      stop
+ico2=0
+do igas=1,ngas
+  if (trim(tractype(igas)).eq.'online') then
+    if (trim(tracname(igas)).eq.'cbmnep') then
+      ico2=igas
+      exit
     end if
-    atmco2 = tr(1:ifull,1,ico2)
-end select
+  end if
+end do
+if (ico2.gt.0) then
+  atmco2 = tr(1:ifull,1,ico2) ! use interactive tracers
+  if (any(atmco2.lt.0.)) ico2=0
+end if
+if (ico2.eq.0) then
+  atmco2 = 1.E6*rrvco2        ! from radiative CO2 forcings
+end if
+if (myid==0.and.ktau==1) then
+  if (ico2.eq.0) then
+    write(6,*) "CABLE using prescribed CO2 from radiative forcings"
+  else
+    write(6,*) "CABLE using prognostic CO2 from tracer"
+  end if
+end if
 
 return
 end subroutine setco2for
@@ -738,7 +752,7 @@ select case(proglai)
     veg%vlai=max(veg%vlai,0.1)
   case(1)
     if (icycle.eq.0) then
-      write(6,*) "ERROR: CASA CNP LAI not operational"
+      write(6,*) "ERROR: CASA CNP LAI is not operational"
       stop
     end if
     veg%vlai=casamet%glai
@@ -782,9 +796,10 @@ include 'parm.h'
 include 'soilv.h'
 
 integer(i_d), dimension(ifull,5) :: ivs
-integer(i_d) iq,n,k,ipos,isoil,iv
-integer jyear,jmonth,jday,jhour,jmin,mins,ncount
-real(r_1) :: totdepth
+integer(i_d) iq,n,k,ipos,isoil,iv,ncount
+integer jyear,jmonth,jday,jhour,jmin,mins
+real(r_1) totdepth,fc3,fc4,ftu,fg3,fg4,clat,nsum
+real fjd
 real(r_1), dimension(mxvt,ms) :: froot2
 real(r_1), dimension(ifull,5) :: svs,vlin,vlinprev,vlinnext
 real(r_1), dimension(ncp) :: ratecp
@@ -809,11 +824,10 @@ real(r_1), dimension(mxvt,mplant) :: ratiocnplant
 real(r_1), dimension(mxvt,msoil)  :: ratiocnsoil,ratiocnsoilmax,ratiocnsoilmin
 real(r_1), dimension(12)       :: xkmlabp,xpsorbmax,xfPleach
 real(r_1), dimension(12,msoil) :: rationpsoil
-real, dimension(ifull)   :: albsoil
-real, dimension(ifull,2) :: albsoilsn
-real, dimension(ifull,mxvt)     :: newgrid
-real, dimension(ifull,mxvt,0:2) :: newlai
-real fjd,fc3,fc4,ftu,fg3,fg4,clat,nsum
+real(r_1), dimension(ifull)   :: albsoil
+real(r_1), dimension(ifull,2) :: albsoilsn
+real(r_1), dimension(ifull,mxvt)     :: newgrid
+real(r_1), dimension(ifull,mxvt,0:2) :: newlai
 character(len=*), intent(in) :: fveg,fvegprev,fvegnext,fphen,casafile
 
 if (myid==0) write(6,*) "Initialising CABLE"
@@ -1334,6 +1348,7 @@ if (mp.gt.0) then
   
   if (icycle==0) then
     ! Initialise CABLE carbon pools
+    if (myid==0) write(6,*) "Using CABLE carbon cycle"
     do n=1,9
       do k=1,ncp
         cplant(cmap(pind(n,1):pind(n,2)),k)=cplant(cmap(pind(n,1):pind(n,2)),k) &
@@ -1341,11 +1356,12 @@ if (mp.gt.0) then
       end do
       do k=1,ncs
         csoil(cmap(pind(n,1):pind(n,2)),k)=csoil(cmap(pind(n,1):pind(n,2)),k)   &
-	  +sv(pind(n,1):pind(n,2))*tcsoil(veg%iveg(pind(n,1):pind(n,2)),k)
+          +sv(pind(n,1):pind(n,2))*tcsoil(veg%iveg(pind(n,1):pind(n,2)),k)
       end do
     end do
   else
     ! CASA CNP
+    if (myid==0) write(6,*) "Using CASA CNP"
     call alloc_casavariable(casabiome,casapool,casaflux,casamet,casabal,mp)
     call alloc_phenvariable(phen,mp)
     
@@ -1377,7 +1393,6 @@ if (mp.gt.0) then
     xfNminleach=0.05
     xnfixrate=(/ 0.08,2.6,0.21,1.64,0.37,0.95,0.95,0.95,4.,4.,0.,0.,0.,0.35,0.,0.,0. /)
     xnsoilmin=1000.
-    
     
     ratiocnplant(:,1)=(/  49.8, 23.1, 59.3, 31.4, 37.6, 34.8,  44., 49.2, 21.6, 25., 30., 30., 30., 50., 40., 40., 40. /)
     ratiocnplant(:,2)=(/ 238.1,134.9,243.8,156.2,142.1, 150., 150.,147.3, 150.,125.,150.,150.,150.,150.,150.,135.,150. /)

@@ -589,18 +589,24 @@ real, dimension(wfull) :: workb,workc
 zoh=0.
 if (wfull.eq.0) return
 select case(mode)
-  case(0)
+  case(0) ! zoh
     a_zmin=pack(zmin,wpack)
     workb=(1.-i_fracice)/(log(a_zmin/p_zo)*log(a_zmin/p_zoh))+i_fracice/(log(a_zmin/p_zoice)*log(a_zmin/p_zohice))
     workc=(1.-i_fracice)/log(a_zmin/p_zo)**2+i_fracice/log(a_zmin/p_zoice)**2
     workc=sqrt(workc)
     zoh=unpack(a_zmin*exp(-workc/workb),wpack,zoh)
-  case(1)
+  case(1) ! taux
     workb=(1.-i_fracice)*p_taux+i_fracice*p_tauxica
     zoh=unpack(workb,wpack,zoh)
-  case(2)
+  case(2) ! tauy
     workb=(1.-i_fracice)*p_tauy+i_fracice*p_tauyica
     zoh=unpack(workb,wpack,zoh)
+  case(3) ! zoq
+    a_zmin=pack(zmin,wpack)
+    workb=(1.-i_fracice)/(log(a_zmin/p_zo)*log(a_zmin/p_zoq))+i_fracice/(log(a_zmin/p_zoice)*log(a_zmin/p_zoqice))
+    workc=(1.-i_fracice)/log(a_zmin/p_zo)**2+i_fracice/log(a_zmin/p_zoice)**2
+    workc=sqrt(workc)
+    zoh=unpack(a_zmin*exp(-workc/workb),wpack,zoh)
   case default
     write(6,*) "ERROR: Invalid mode ",mode
     stop

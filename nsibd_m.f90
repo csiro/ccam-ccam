@@ -21,11 +21,12 @@ integer, intent(in) :: ifull,iextra,kl,nsib
 
 allocate(ivegt(ifull),isoilm(ifull))
 allocate(sigmf(ifull),sigmu(ifull))
+allocate(rsmin(ifull))
 sigmf=0.
 sigmu=0.
+rsmin=995.
 if (nsib.eq.3.or.nsib.eq.5) then
-  allocate(rsmin(ifull),tgf(ifull))
-  rsmin=0.
+  allocate(tgf(ifull))
   tgf=293.
 end if
 
@@ -38,8 +39,9 @@ implicit none
 
 deallocate(ivegt,isoilm)
 deallocate(sigmf,sigmu)
-if (allocated(rsmin)) then
-  deallocate(rsmin,tgf)
+deallocate(rsmin)
+if (allocated(tgf)) then
+  deallocate(tgf)
 end if
 
 return

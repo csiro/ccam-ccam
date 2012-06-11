@@ -305,6 +305,7 @@ c         so eg (& epan) and fg  (also aft) then indept of zo           ! sea
         eg(iq)=conw*fh(iq)*(qsttg(iq)-qg(iq,1))                         ! sea
         rnet(iq)=sgsave(iq)-rgsave(iq)-stefbo*tpan(iq)**4               ! sea
         zoh(iq)=zo(iq)/(factch(iq)*factch(iq))                          ! sea
+        zoq(iq)=zoh(iq)                                                 ! sea
 c       cduv is now drag coeff *vmod                                    ! sea
         cduv(iq) =af(iq)*fm                                             ! sea
         ustar(iq) = sqrt(vmod(iq)*cduv(iq))                             ! sea
@@ -453,6 +454,7 @@ c       no snow on the ice assumed for now                              ! sice
         zo(iq) =fracice(iq)*zoice  + (1.-fracice(iq))*zo(iq)            ! sice
         factch(iq)=fracice(iq)*factchice + (1.-fracice(iq))*factch(iq)  ! sice
         zoh(iq)=zo(iq)/(factch(iq)*factch(iq))                          ! sice
+        zoq(iq)=zoh(iq)                                                 ! sice
         cduv(iq) =fracice(iq)*af(iq)*fm + (1.-fracice(iq))*cduv(iq)     ! sice
         ustar(iq) = sqrt(vmod(iq)*cduv(iq))                             ! sice
 c       N.B. potential evaporation is now eg+eg2                        ! sice
@@ -556,6 +558,7 @@ c       Surface stresses taux, tauy: diagnostic only - unstag now       ! sice
      &               watbdy(1:ifull)/dt,0,.true.)                       ! MLO
         call mloscrnout(tscrn,qgscrn,uscrn,u10,0)                       ! MLO
         call mloextra(0,zoh,azmin,0)                                    ! MLO
+        call mloextra(3,zoq,azmin,0)                                    ! MLO
         call mloextra(1,taux,azmin,0)                                   ! MLO
         call mloextra(2,tauy,azmin,0)                                   ! MLO
         do k=1,ms                                                       ! MLO
@@ -668,6 +671,7 @@ c            Now heat ; allow for smaller zo via aft and factch         ! land
            taftfhg(iq)=aftlandg*fhbg ! value used for ntaft=3 (may need improving)
                                                                         ! land
            zoh(iq)=zo(iq)/(factch(iq)*factch(iq))                       ! land
+           zoq(iq)=zoh(iq)                                              ! land
 c          cduv is now drag coeff *vmod                                 ! land
            cduv(iq) =af(iq)*fm                                          ! land
            ustar(iq) = sqrt(vmod(iq)*cduv(iq))                          ! land
@@ -820,7 +824,7 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
      .              bprm,cms,chs,chnsea,nalpha)                         ! land
            else                                                         ! land
              call scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,zoh,   ! land
-     &                  tss,t(1:ifull,1),qsttg,qg(1:ifull,1),           ! land
+     &                  zoq,tss,t(1:ifull,1),qsttg,qg(1:ifull,1),       ! land
      &                  sqrt(u(1:ifull,1)*u(1:ifull,1)+                 ! land
      &                       v(1:ifull,1)*v(1:ifull,1)),                ! land
      &                  ps(1:ifull),.not.land,azmin,sig(1))             ! land
@@ -847,7 +851,7 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
            ! update ocean diagnostics                                   ! cable
            smixr=wetfac*qsttg+(1.-wetfac)*min(qsttg,qg(1:ifull,1))      ! cable
            call scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,zoh,     ! cable
-     &                  tss,t(1:ifull,1),smixr,qg(1:ifull,1),           ! cable
+     &                  zoq,tss,t(1:ifull,1),smixr,qg(1:ifull,1),       ! cable
      &                  sqrt(u(1:ifull,1)*u(1:ifull,1)+                 ! cable
      &                       v(1:ifull,1)*v(1:ifull,1)),                ! cable
      &                  ps(1:ifull),land,azmin,sig(1))                  ! cable
@@ -856,7 +860,7 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
          ! The following patch overrides CABLE screen level diagnostics ! cable
          if (nsib.eq.7) then                                            ! cable
            call scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,zoh,     ! cable
-     &                tss,t(1:ifull,1),smixr,qg(1:ifull,1),             ! cable
+     &                zoq,tss,t(1:ifull,1),smixr,qg(1:ifull,1),         ! cable
      &                sqrt(u(1:ifull,1)*u(1:ifull,1)+                   ! cable
      &                     v(1:ifull,1)*v(1:ifull,1)),                  ! cable
      &                ps(1:ifull),.not.land,azmin,sig(1))               ! cable
@@ -901,6 +905,7 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
         zoh(iperm(1:ipland))=zo(iperm(1:ipland))                        ! urban
      &                      /factch(iperm(1:ipland))**2                 ! urban
         call atebzo(zo,zoh,0)                                           ! urban
+        zoq(iperm(1:ipland))=zoh(iperm(1:ipland))                       ! urban
         factch(iperm(1:ipland))=sqrt(zo(iperm(1:ipland))                ! urban
      &                      /zoh(iperm(1:ipland)))                      ! urban
         ! calculate ustar                                               ! urban

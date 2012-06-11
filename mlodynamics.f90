@@ -23,7 +23,7 @@ real, dimension(:,:), allocatable, save :: oldu1,oldu2,oldv1,oldv2
 integer, parameter :: salfilt=0    ! additional salinity filter (0=off, 1=Katzfey)
 integer, parameter :: usetide=1    ! tidal forcing (0=off, 1=on)
 integer, parameter :: icemode=2    ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
-integer, parameter :: basinmd=1    ! basin mode (0=soil, 1=global, 2=remove, 3=pile-up)
+integer, parameter :: basinmd=1    ! basin mode (0=soil, 1=redistribute, 2=remove, 3=pile-up)
 integer, parameter :: nf     =2    ! power for horizontal diffusion reduction factor
 real, parameter :: k_smag=0.4      ! horizontal diffusion (2. in Griffies (2000), 0.7-1. in POM (Mellor 2004))
 real, parameter :: delphi=200.     ! horizontal diffusion reduction factor gradient
@@ -565,7 +565,7 @@ integer, parameter :: llmax=300    ! iterations for calculating surface height
 real, parameter :: tol  = 2.E-3    ! Tolerance for GS solver (water)
 real, parameter :: itol = 2.       ! Tolerance for GS solver (ice)
 real, parameter :: sal  = 0.948    ! SAL parameter for tidal forcing
-real, parameter :: eps  = 0.       ! Off-centring term
+real, parameter :: eps  = 0.1      ! Off-centring term
 
 ! new z levels for including free surface eta (effectively sigma-depth levels)
 ! newz=-eta+oldz*(1+eta/maxdepth)
@@ -754,7 +754,7 @@ end if
 ndum=max(1.+neta/dd,mindep/dd)
 do ii=1,wlev
   depdum(:,ii)=gosig(ii)*dd(1:ifull)*ndum(1:ifull)
-  dzdum(:,ii)=gosigh(ii)*dd(1:ifull)*ndum(1:ifull)
+  dzdum(:,ii)=godsig(ii)*dd(1:ifull)*ndum(1:ifull)
 end do
 
 ! Estimate vertical velocity at time t
@@ -812,9 +812,9 @@ end do
 !  iip=min(ii+1,wlev)
 !  iim=max(ii-1,1)
 !  drhobardzu=(rhobar(1:ifull,iip)+rhobar(ie,iip)-rhobar(1:ifull,iim)-rhobar(ie,iim))          &
-!            /max(dep(1:ifull,iip)+dep(ie,iip)-dep(1:ifull,iim)-dep(ie,iim),1.E-8/real(wlev))
+!            /(dep(1:ifull,iip)+dep(ie,iip)-dep(1:ifull,iim)-dep(ie,iim))
 !  drhobardzv=(rhobar(1:ifull,iip)+rhobar(in,iip)-rhobar(1:ifull,iim)-rhobar(in,iim))          &
-!            /max(dep(1:ifull,iip)+dep(in,iip)-dep(1:ifull,iim)-dep(in,iim),1.E-8/real(wlev))
+!            /(dep(1:ifull,iip)+dep(in,iip)-dep(1:ifull,iim)-dep(in,iim))
 !  tnu=0.5*( rhobar(in,ii)+drhobardzu*((1.-gosig(ii))*neta(in) -gosig(ii)*dd(in) ) &
 !          +rhobar(ine,ii)+drhobardzu*((1.-gosig(ii))*neta(ine)-gosig(ii)*dd(ine)))
 !  tsu=0.5*( rhobar(is,ii)+drhobardzu*((1.-gosig(ii))*neta(is) -gosig(ii)*dd(is) ) &
@@ -832,7 +832,7 @@ end do
 !                                                     -gosig(ii)*(dd(in)-dd(1:ifull))))*emv(1:ifull)/ds
 !  drhobardyv(:,ii)=drhobardyv(:,ii)*eev(1:ifull)
 !end do
-! method 3: Use POM stencil with potential temperature and salinity Jacobians (see Shchepetkin and McWilliams 2003)
+! method 2: Use potential temperature and salinity Jacobians (see Shchepetkin and McWilliams 2003)
 call bounds(dalpha)
 call bounds(dbeta)
 call bounds(nt,corner=.true.)
@@ -976,7 +976,7 @@ ndum(1:ifull)=odum
 call bounds(ndum,corner=.true.)
 do ii=1,wlev
   depdum(:,ii)=gosig(ii)*dd(1:ifull)*ndum(1:ifull)
-  dzdum(:,ii)=gosigh(ii)*dd(1:ifull)*ndum(1:ifull)
+  dzdum(:,ii)=godsig(ii)*dd(1:ifull)*ndum(1:ifull)
 end do
 call mloexpdensity(rho(1:ifull,:),dalpha,dbeta,nt(1:ifull,:),ns(1:ifull,:),depdum,dzdum,pice(1:ifull),0)
 call bounds(rho)
@@ -989,7 +989,7 @@ do ii=1,wlev
 end do
 
 ! update normalised density gradients
-! method 3
+! method 2
 call bounds(dalpha)
 call bounds(dbeta)
 call bounds(nt,corner=.true.)
@@ -1289,7 +1289,7 @@ end do
 odum=max(1.+neta(1:ifull)/dd(1:ifull),mindep/dd(1:ifull))
 do ii=1,wlev
   depdum(:,ii)=gosig(ii)*dd(1:ifull)*odum
-  dzdum(:,ii)=gosigh(ii)*dd(1:ifull)*odum
+  dzdum(:,ii)=godsig(ii)*dd(1:ifull)*odum
 end do
 call mlovadv(0.5*dt,nw,nu(1:ifull,:),nv(1:ifull,:),ns(1:ifull,:),nt(1:ifull,:),depdum, &
              dzdum,wtr(1:ifull),2)
@@ -2934,6 +2934,7 @@ real, dimension(ifull+iextra,wlev) :: nt,ns
 real, dimension(ifull,wlev) :: absu,bbsu,absv,bbsv
 real, dimension(ifull,wlev) :: dntdxu,dntdxv,dntdyu,dntdyv
 real, dimension(ifull,wlev) :: dnsdxu,dnsdxv,dnsdyu,dnsdyv
+integer, parameter :: rhogradmeth = 1 ! Density gradient method (0 = finite difference, 1 = local interpolation, 2 = pom stencil)
 
 nt=min(max(273.1,nti),373.)
 ns=min(max(0.,nsi),50.)
@@ -2945,8 +2946,20 @@ do ii=1,wlev
   bbsv(:,ii)=0.5*(betabar(1:ifull,ii)+betabar(in,ii))
 end do
 
-call seekdelta(nt,neta,oeu,oev,stwgt,dntdxu,dntdyu,dntdxv,dntdyv)
-call seekdelta(ns,neta,oeu,oev,stwgt,dnsdxu,dnsdyu,dnsdxv,dnsdyv)
+select case(rhogradmeth)
+  case(0) ! finite difference
+    call finitedelta(nt,neta,oeu,oev,stwgt,dntdxu,dntdyu,dntdxv,dntdyv)
+    call finitedelta(ns,neta,oeu,oev,stwgt,dnsdxu,dnsdyu,dnsdxv,dnsdyv)
+  case(1) ! local interpolation
+    call seekdelta(nt,neta,oeu,oev,stwgt,dntdxu,dntdyu,dntdxv,dntdyv)
+    call seekdelta(ns,neta,oeu,oev,stwgt,dnsdxu,dnsdyu,dnsdxv,dnsdyv)
+  case(2) ! POM stencil
+    call pomdelta(nt,neta,oeu,oev,stwgt,dntdxu,dntdyu,dntdxv,dntdyv)
+    call pomdelta(ns,neta,oeu,oev,stwgt,dnsdxu,dnsdyu,dnsdxv,dnsdyv)
+  case default
+    write(6,*) "ERROR: Invalid choice of rhogradmeth ",rhogradmeth
+    stop
+end select
 
 drhobardxu=-absu*dntdxu+bbsu*dnsdxu
 drhobardxv=-absv*dntdxv+bbsv*dnsdxv
@@ -2957,13 +2970,77 @@ return
 end subroutine tsjacobi
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Calculate gradients using a finite difference method
+
+subroutine finitedelta(rhobar,neta,oeu,oev,stwgt,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
+
+use indices_m
+use map_m
+use mlo, only : wlev,mindep
+
+implicit none
+
+include 'newmpar.h'
+include 'parm.h'
+
+integer ii
+real, dimension(ifull+iextra,wlev), intent (in) :: rhobar
+real, dimension(ifull,2), intent(in) :: stwgt
+real, dimension(ifull+iextra), intent(in) :: neta
+real, dimension(ifull), intent(in) :: oeu,oev
+real, dimension(ifull,wlev), intent(out) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
+real, dimension(ifull) :: drhobardzu,drhobardzv,tnu,tsu,tev,twv
+real, dimension(ifull+iextra,0:wlev) :: rhobarhl,dephladj
+real xp
+
+! set-up level depths
+dephladj(:,0)=0.
+do ii=1,wlev
+  dephladj(:,ii)=gosigh(ii)*max(dd(:)+neta(:),mindep)
+end do
+
+! estimate rhobar at half levels
+rhobarhl(:,0)=rhobar(:,1)
+do ii=1,wlev-1
+  xp=gosigh(ii)-gosig(ii)
+  rhobarhl(:,ii)=rhobar(:,ii)+xp*(rhobar(:,ii+1)-rhobar(:,ii))/(gosig(ii+1)-gosig(ii))
+end do
+rhobarhl(:,wlev)=rhobar(:,wlev)
+
+do ii=1,wlev
+  drhobardzu=(rhobarhl(1:ifull,ii)+rhobarhl(ie,ii)-rhobarhl(1:ifull,ii-1)-rhobarhl(ie,ii-1))          &
+            /(dephladj(1:ifull,ii)+dephladj(ie,ii)-dephladj(1:ifull,ii-1)-dephladj(ie,ii-1))
+  drhobardzv=(rhobarhl(1:ifull,ii)+rhobarhl(in,ii)-rhobarhl(1:ifull,ii-1)-rhobarhl(in,ii-1))          &
+            /(dephladj(1:ifull,ii)+dephladj(in,ii)-dephladj(1:ifull,ii-1)-dephladj(in,ii-1))
+  tnu=0.5*( rhobar(in,ii)+drhobardzu*((1.-gosig(ii))*neta(in) -gosig(ii)*dd(in) ) &
+          +rhobar(ine,ii)+drhobardzu*((1.-gosig(ii))*neta(ine)-gosig(ii)*dd(ine)))
+  tsu=0.5*( rhobar(is,ii)+drhobardzu*((1.-gosig(ii))*neta(is) -gosig(ii)*dd(is) ) &
+          +rhobar(ise,ii)+drhobardzu*((1.-gosig(ii))*neta(ise)-gosig(ii)*dd(ise)))
+  tev=0.5*( rhobar(ie,ii)+drhobardzv*((1.-gosig(ii))*neta(ie) -gosig(ii)*dd(ie) ) &
+          +rhobar(ien,ii)+drhobardzv*((1.-gosig(ii))*neta(ien)-gosig(ii)*dd(ien)))
+  twv=0.5*( rhobar(iw,ii)+drhobardzv*((1.-gosig(ii))*neta(iw) -gosig(ii)*dd(iw) ) &
+          +rhobar(iwn,ii)+drhobardzv*((1.-gosig(ii))*neta(iwn)-gosig(ii)*dd(iwn)))
+  drhobardxu(:,ii)=(rhobar(ie,ii)-rhobar(1:ifull,ii)+drhobardzu*((1.-gosig(ii))*(neta(ie)-neta(1:ifull)) &
+                                                     -gosig(ii)*(dd(ie)-dd(1:ifull))))*emu(1:ifull)/ds
+  drhobardxu(:,ii)=drhobardxu(:,ii)*eeu(1:ifull)                                                   
+  drhobardyu(:,ii)=stwgt(1:ifull,1)*0.5*(tnu-tsu)*emu(1:ifull)/ds
+  drhobardxv(:,ii)=stwgt(1:ifull,2)*0.5*(tev-twv)*emv(1:ifull)/ds
+  drhobardyv(:,ii)=(rhobar(in,ii)-rhobar(1:ifull,ii)+drhobardzv*((1.-gosig(ii))*(neta(in)-neta(1:ifull)) &
+                                                     -gosig(ii)*(dd(in)-dd(1:ifull))))*emv(1:ifull)/ds
+  drhobardyv(:,ii)=drhobardyv(:,ii)*eev(1:ifull)
+end do
+
+return
+end subroutine finitedelta
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate gradients using an interpolation method
 
 subroutine seekdelta(rhobar,neta,oeu,oev,stwgt,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
 
 use indices_m
 use map_m
-use mlo, only : wlev
+use mlo, only : wlev,mindep
 
 implicit none
 
@@ -2974,6 +3051,7 @@ integer iqw,ii
 integer sdi,sde,sdw,sdn,sds,sdne,sdse,sden,sdwn
 real ddux,ddvy,ri,re,rw,rn,rs,rne,rse,ren,rwn
 real mxi,mxe,mxw,mxn,mxs,mxne,mxse,mxen,mxwn
+real drhobardzu,drhobardzv
 real, dimension(wlev) :: ddi,dde,ddw,ddn,dds,ddne,ddse,dden,ddwn
 real, dimension(wlev) :: ssi,sse,ssw,ssn,sss,ssne,ssse,ssen,sswn
 real, dimension(ifull+iextra,wlev), intent (in) :: rhobar
@@ -2981,6 +3059,22 @@ real, dimension(ifull,2), intent(in) :: stwgt
 real, dimension(ifull+iextra), intent(in) :: neta
 real, dimension(ifull), intent(in) :: oeu,oev
 real, dimension(ifull,wlev), intent(out) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
+real, dimension(ifull+iextra,0:wlev) :: rhobarhl,dephladj
+real xp
+
+! set-up level depths
+dephladj(:,0)=0.
+do ii=1,wlev
+  dephladj(:,ii)=gosigh(ii)*max(dd(:)+neta(:),mindep)
+end do
+
+! estimate rhobar at half levels
+rhobarhl(:,0)=rhobar(:,1)
+do ii=1,wlev-1
+  xp=gosigh(ii)-gosig(ii)
+  rhobarhl(:,ii)=rhobar(:,ii)+xp*(rhobar(:,ii+1)-rhobar(:,ii))/(gosig(ii+1)-gosig(ii))
+end do
+rhobarhl(:,wlev)=rhobar(:,wlev)
 
 do iqw=1,ifull
   mxi=dd(iqw)
@@ -2989,9 +3083,9 @@ do iqw=1,ifull
   ssi=rhobar(iqw,:)
   sse=rhobar(ie(iqw),:)
   ssn=rhobar(in(iqw),:)
-  ddi=gosigh(:)*mxi
-  dde=gosigh(:)*mxe
-  ddn=gosigh(:)*mxn
+  ddi=gosig(:)*mxi
+  dde=gosig(:)*mxe
+  ddn=gosig(:)*mxn
   if (eeu(iqw).gt.0.5) then ! water
     sdi=2
     sde=2
@@ -3005,18 +3099,24 @@ do iqw=1,ifull
     sss=rhobar(is(iqw),:)
     ssne=rhobar(ine(iqw),:)
     ssse=rhobar(ise(iqw),:)
-    dds=gosigh(:)*mxs
-    ddne=gosigh(:)*mxne
-    ddse=gosigh(:)*mxse
+    dds=gosig(:)*mxs
+    ddne=gosig(:)*mxne
+    ddse=gosig(:)*mxse
     do ii=1,wlev
       ! process staggered u locations
+      ! estimate vertical gradient
+      drhobardzu=(rhobarhl(iqw,ii)+rhobarhl(ie(iqw),ii)-rhobarhl(iqw,ii-1)-rhobarhl(ie(iqw),ii-1))          &
+                /(dephladj(iqw,ii)+dephladj(ie(iqw),ii)-dephladj(iqw,ii-1)-dephladj(ie(iqw),ii-1))
       ! use scaled depths (i.e., assume neta is small compared to dd)
-      ddux=gosigh(ii)*ddu(iqw) ! seek depth
+      ddux=gosig(ii)*ddu(iqw) ! seek depth
       if (mxi.lt.ddux.or.mxe.lt.ddux) then
         drhobardxu(iqw,ii)=0. ! assume zero gradient for bathymetry
       else
         call seekval(ri,ssi(:),ddi(:),ddux,sdi)
         call seekval(re,sse(:),dde(:),ddux,sde)
+        ! the following terms correct for neglecting neta in the above intepolation of depths
+        ri=ri+drhobardzu*(1.-gosig(ii))*neta(iqw)
+        re=re+drhobardzu*(1.-gosig(ii))*neta(ie(iqw))
         drhobardxu(iqw,ii)=eeu(iqw)*(re-ri)*emu(iqw)/ds
       end if
       if (mxn.lt.ddux.or.mxne.lt.ddux.or.mxs.lt.ddux.or.mxse.lt.ddux) then
@@ -3026,6 +3126,11 @@ do iqw=1,ifull
         call seekval(rne,ssne(:),ddne(:),ddux,sdne)
         call seekval(rs,sss(:),dds(:),ddux,sds)
         call seekval(rse,ssse(:),ddse(:),ddux,sdse)
+        ! the following terms correct for neglecting neta in the above interpolation of depths
+        rn=rn+drhobardzu*(1.-gosig(ii))*neta(in(iqw))
+        rne=rne+drhobardzu*(1.-gosig(ii))*neta(ine(iqw))
+        rs=rs+drhobardzu*(1.-gosig(ii))*neta(is(iqw))
+        rse=rse+drhobardzu*(1.-gosig(ii))*neta(ise(iqw))
         drhobardyu(iqw,ii)=stwgt(iqw,1)*0.25*(rn+rne-rs-rse)*emu(iqw)/ds
       end if
     end do
@@ -3046,17 +3151,22 @@ do iqw=1,ifull
     ssw=rhobar(iw(iqw),:)
     ssen=rhobar(ien(iqw),:)
     sswn=rhobar(iwn(iqw),:)
-    ddw=gosigh(:)*mxw
-    dden=gosigh(:)*mxen
-    ddwn=gosigh(:)*mxwn
+    ddw=gosig(:)*mxw
+    dden=gosig(:)*mxen
+    ddwn=gosig(:)*mxwn
     do ii=1,wlev
       ! now process staggered v locations
-      ddvy=gosigh(ii)*ddv(iqw) ! seek depth
+      ! estimate vertical gradient
+      drhobardzv=(rhobarhl(iqw,ii)+rhobarhl(in(iqw),ii)-rhobarhl(iqw,ii-1)-rhobarhl(in(iqw),ii-1))          &
+                /(dephladj(iqw,ii)+dephladj(in(iqw),ii)-dephladj(iqw,ii-1)-dephladj(in(iqw),ii-1))
+      ddvy=gosig(ii)*ddv(iqw) ! seek depth
       if (mxi.lt.ddvy.or.mxn.lt.ddvy) then
         drhobardyv(iqw,ii)=0. ! assume zero gradient for bathymetry
       else
         call seekval(ri,ssi(:),ddi(:),ddvy,sdi)
         call seekval(rn,ssn(:),ddn(:),ddvy,sdn)
+        ri=ri+drhobardzu*(1.-gosig(ii))*neta(iqw)
+        rn=rn+drhobardzu*(1.-gosig(ii))*neta(in(iqw))
         drhobardyv(iqw,ii)=eev(iqw)*(rn-ri)*emv(iqw)/ds
       end if
       if (mxe.lt.ddvy.or.mxen.lt.ddvy.or.mxw.lt.ddvy.or.mxwn.lt.ddvy) then
@@ -3066,6 +3176,10 @@ do iqw=1,ifull
         call seekval(ren,ssen(:),dden(:),ddvy,sden)
         call seekval(rw,ssw(:),ddw(:),ddvy,sdw)
         call seekval(rwn,sswn(:),ddwn(:),ddvy,sdwn)
+        re=re+drhobardzu*(1.-gosig(ii))*neta(ie(iqw))
+        ren=ren+drhobardzu*(1.-gosig(ii))*neta(ien(iqw))
+        rw=rw+drhobardzu*(1.-gosig(ii))*neta(iw(iqw))
+        rwn=rwn+drhobardzu*(1.-gosig(ii))*neta(iwn(iqw))
         drhobardxv(iqw,ii)=stwgt(iqw,2)*0.25*(re+ren-rw-rwn)*emv(iqw)/ds
       end if
     end do
@@ -3094,15 +3208,98 @@ real xp
 do nindx=sindx,wlev
   if (ddin(nindx).ge.ddseek) exit
 end do
-sindx=nindx
+sindx=min(nindx,wlev)
 
-xp=(ddseek-ddin(sindx-1))/(ddin(sindx)-ddin(sindx))
+xp=(ddseek-ddin(sindx-1))/(ddin(sindx)-ddin(sindx-1))
 xp=max(min(xp,1.),0.)
 
 rout=ssin(sindx-1)+xp*(ssin(sindx)-ssin(sindx-1))
 
 return
 end subroutine seekval
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! POM style stencil for density gradient
+
+subroutine pomdelta(rhobar,neta,oeu,oev,stwgt,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
+
+use indices_m
+use map_m
+use mlo, only : wlev,mindep
+
+implicit none
+
+include 'newmpar.h'
+include 'parm.h'
+
+integer ii
+real, dimension(ifull+iextra,wlev), intent (in) :: rhobar
+real, dimension(ifull,2), intent(in) :: stwgt
+real, dimension(ifull+iextra), intent(in) :: neta
+real, dimension(ifull), intent(in) :: oeu,oev
+real, dimension(ifull,wlev), intent(out) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
+real, dimension(ifull+iextra,0:wlev) :: rhobarhl,dephladj
+real xp
+real, dimension(ifull) :: rho1,rho2,rho3,rho4,z1,z2,z3,z4
+
+! set-up level depths
+dephladj(:,0)=0.
+do ii=1,wlev
+  dephladj(:,ii)=gosigh(ii)*max(dd(:)+neta(:),mindep)
+end do
+
+! estimate rhobar at half levels
+rhobarhl(:,0)=rhobar(:,1)
+do ii=1,wlev-1
+  xp=gosigh(ii)-gosig(ii)
+  rhobarhl(:,ii)=rhobar(:,ii)+xp*(rhobar(:,ii+1)-rhobar(:,ii))/(gosig(ii+1)-gosig(ii))
+end do
+rhobarhl(:,wlev)=rhobar(:,wlev)
+
+! calculate gradients
+do ii=1,wlev
+  rho1=rhobarhl(ie,ii-1)
+  rho2=rhobarhl(ie,ii)
+  rho3=rhobarhl(1:ifull,ii-1)
+  rho4=rhobarhl(1:ifull,ii)
+  z1=dephladj(ie,ii-1)
+  z2=dephladj(ie,ii)
+  z3=dephladj(1:ifull,ii-1)
+  z4=dephladj(1:ifull,ii)
+  drhobardxu(:,ii)=0.5*((rho1+rho2-rho3-rho4)-(rho2-rho1+rho4-rho3)*(z1+z2-z3-z4)/(z2-z1+z4-z3))*emu(1:ifull)/ds
+  drhobardxu(:,ii)=drhobardxu(:,ii)*eeu(1:ifull) 
+  rho1=0.5*(rhobarhl(in,ii-1)+rhobarhl(ine,ii-1))
+  rho2=0.5*(rhobarhl(in,ii)+rhobarhl(ine,ii))
+  rho3=0.5*(rhobarhl(is,ii-1)+rhobarhl(ise,ii-1))
+  rho4=0.5*(rhobarhl(is,ii)+rhobarhl(ise,ii))
+  z1=0.5*(dephladj(in,ii-1)+dephladj(ine,ii-1))
+  z2=0.5*(dephladj(in,ii)+dephladj(ine,ii))
+  z3=0.5*(dephladj(is,ii-1)+dephladj(ise,ii-1))
+  z4=0.5*(dephladj(is,ii)+dephladj(ise,ii))
+  drhobardyu(:,ii)=stwgt(:,1)*0.25*((rho1+rho2-rho3-rho4)-(rho2-rho1+rho4-rho3)*(z1+z2-z3-z4)/(z2-z1+z4-z3))*emu(1:ifull)/ds
+  rho1=0.5*(rhobarhl(ie,ii-1)+rhobarhl(ien,ii-1))
+  rho2=0.5*(rhobarhl(ie,ii)+rhobarhl(ien,ii))
+  rho3=0.5*(rhobarhl(iw,ii-1)+rhobarhl(iwn,ii-1))
+  rho4=0.5*(rhobarhl(iw,ii)+rhobarhl(iwn,ii))
+  z1=0.5*(dephladj(ie,ii-1)+dephladj(ien,ii-1))
+  z2=0.5*(dephladj(ie,ii)+dephladj(ien,ii))
+  z3=0.5*(dephladj(iw,ii-1)+dephladj(iwn,ii-1))
+  z4=0.5*(dephladj(iw,ii)+dephladj(iwn,ii))
+  drhobardxv(:,ii)=stwgt(:,2)*0.25*((rho1+rho2-rho3-rho4)-(rho2-rho1+rho4-rho3)*(z1+z2-z3-z4)/(z2-z1+z4-z3))*emv(1:ifull)/ds
+  rho1=rhobarhl(in,ii-1)
+  rho2=rhobarhl(in,ii)
+  rho3=rhobarhl(1:ifull,ii-1)
+  rho4=rhobarhl(1:ifull,ii)
+  z1=dephladj(in,ii-1)
+  z2=dephladj(in,ii)
+  z3=dephladj(1:ifull,ii-1)
+  z4=dephladj(1:ifull,ii)
+  drhobardyv(:,ii)=0.5*((rho1+rho2-rho3-rho4)-(rho2-rho1+rho4-rho3)*(z1+z2-z3-z4)/(z2-z1+z4-z3))*emv(1:ifull)/ds
+  drhobardyv(:,ii)=drhobardyv(:,ii)*eev(1:ifull) 
+end do
+
+return
+end subroutine pomdelta
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate tidal potential

@@ -1008,14 +1008,10 @@
 !        presetting wb when no soil moisture available initially
         iyr=kdate/10000
         imo=(kdate-10000*iyr)/100
-	if (nsib==6.or.nsib==7) then
-	 where (land)
-	  wb(:,ms)=0.5*(swilt(isoilm)+sfc(isoilm))
-	 end where
-	else
-         do iq=1,ifull
+        do iq=1,ifull
           if(land(iq))then
            iveg=ivegt(iq)
+           if (nsib==6.or.nsib==7) iveg=1
            isoil=isoilm(iq)
            rlonx=rlongg(iq)*180./pi
            rlatx=rlatt(iq)*180./pi
@@ -1032,11 +1028,11 @@
            if(abs(rlatx)<18.)wb(iq,ms)=sfc(isoilm(iq)) ! tropics
 !          following jlm subtropics from Aug 2003 (.1/.9), (.6, .4)
            if(rlatx<20..and.rlatx>8.)
-     .       wb(iq,ms)=(.35-.5*fracsum(imo))*swilt(isoilm(iq))+   ! NH
-     .                 (.65+.5*fracsum(imo))*sfc(isoilm(iq))
+     &       wb(iq,ms)=(.35-.5*fracsum(imo))*swilt(isoilm(iq))+   ! NH
+     &                 (.65+.5*fracsum(imo))*sfc(isoilm(iq))
            if(rlatx>-16..and.rlatx<-8.)
-     .       wb(iq,ms)=(.35+.5*fracsum(imo))*swilt(isoilm(iq))+   ! SH
-     .                 (.65-.5*fracsum(imo))*sfc(isoilm(iq))
+     &       wb(iq,ms)=(.35+.5*fracsum(imo))*swilt(isoilm(iq))+   ! SH
+     &                 (.65-.5*fracsum(imo))*sfc(isoilm(iq))
            if(rlatx>-32..and.
      &        rlatx<-22..and.
      &        rlonx>117..and.rlonx<146.) then
@@ -1050,8 +1046,7 @@
               endif
             endif
           endif    ! (land(iq))\
-         enddo     ! iq loop
-        end if ! (nsib==6.or.nsib==7)
+        enddo     ! iq loop
         do k=1,ms-1
          wb(:,k)=wb(:,ms)
         enddo    !  k loop
@@ -1063,9 +1058,10 @@
         enddo   ! iq loop
 
         if ( mydiag ) then
-           iveg=ivegt(idjd)
-           isoil=isoilm(idjd)
-	 if (isoil.gt.0) then
+         iveg=ivegt(idjd)
+         if (nsib==6.or.nsib==7) iveg=1
+         isoil=isoilm(idjd)
+         if (isoil.gt.0) then
            write(6,*)'isoil,iveg,month,fracsum,rlatt: ',
      &                isoil,iveg,imo,fracsum(imo),rlatt(idjd)
            fracs=sign(1.,rlatt(idjd))*fracsum(imo) ! +ve for local summer
@@ -1775,7 +1771,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
 
       !--------------------------------------------------------------
       ! UPDATE BIOSPHERE DATA (nsib)
-      if (nsib.eq.6.or.nsib.eq.7) then
+      if (nsib==6.or.nsib==7) then
         ! Load CABLE data
         if (myid==0) write(6,*) 'Importing CABLE data'
         call loadtile
@@ -1784,35 +1780,36 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
 
       !-----------------------------------------------------------------
       ! UPDATE MIXED LAYER OCEAN DATA (nmlo)
-      if (nmlo.ne.0.and.abs(nmlo).le.9) then
+      if (nmlo/=0.and.abs(nmlo)<9) then
         if (any(ocndwn(:,1).gt.0.5)) then
           if (myid==0) write(6,*) 'Importing MLO data'
         else
           if (myid==0) write(6,*) 'Using MLO defaults'
           ocndwn(:,2)=0.
           do k=1,wlev
-    !        call mloexpdep(0,depth,k,0)
-    !        ! This polynomial fit is from MOM3, based on Levitus
-    !        where (depth.lt.2000.)
-    !        mlodwn(:,k,1)=18.4231944+273.16
-    ! &        -0.43030662E-1*depth(:)
-    ! &        +0.607121504E-4*depth(:)**2
-    ! &        -0.523806281E-7*depth(:)**3
-    ! &        +0.272989082E-10*depth(:)**4
-    ! &        -0.833224666E-14*depth(:)**5
-    ! &        +0.136974583E-17*depth(:)**6
-    ! &        -0.935923382E-22*depth(:)**7
-    !        mlodwn(:,k,1)=mlodwn(:,k,1)*tss/(18.4231944+273.16)     
-    !        elsewhere
-    !        mlodwn(:,k,1)=275.16
-    !        end where
-    !        mlodwn(:,k,1)=max(mlodwn(:,k,1),271.2)	    
-            mlodwn(:,k,1)=max(tss,271.2)
+            call mloexpdep(0,depth,k,0)
+            ! This polynomial fit is from MOM3, based on Levitus
+            where (depth.lt.2000.)
+            mlodwn(:,k,1)=18.4231944
+     &        -0.43030662E-1*depth(:)
+     &        +0.607121504E-4*depth(:)**2
+     &        -0.523806281E-7*depth(:)**3
+     &        +0.272989082E-10*depth(:)**4
+     &        -0.833224666E-14*depth(:)**5
+     &        +0.136974583E-17*depth(:)**6
+     &        -0.935923382E-22*depth(:)**7
+            mlodwn(:,k,1)=mlodwn(:,k,1)*(tss-273.16)/18.4231944+273.16
+            elsewhere
+            mlodwn(:,k,1)=275.16
+            end where
+            mlodwn(:,k,1)=max(mlodwn(:,k,1),271.2)
+            ! This is simply using the surface temperature
+            ! mlodwn(:,k,1)=max(tss,271.2)
             mlodwn(:,k,2)=34.72
             mlodwn(:,k,3:4)=0.
-            !where (zs(1:ifull).gt.1.) ! lakes?
-            !  mlodwn(:,k,2)=0.
-            !end where
+            where (zs(1:ifull).gt.1.) ! lakes?
+              mlodwn(:,k,2)=0.
+            end where
           end do
           micdwn(:,1)=tss
           micdwn(:,2)=tss

@@ -917,9 +917,9 @@ c       incorporate other target land mask effects
           call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
      &                   ucc,6*ik*ik)
           if (ier.ne.0) then
-	    if (k.eq.1) then
-	      ucc=tss_a
-	    else if (k.le.3) then
+            if (k.eq.1) then
+              ucc=tss_a
+            else if (k.le.3) then
               call histrd1(ncid,iarchi,ier,'tgg2',ik,6*ik,
      &                 ucc,6*ik*ik)
               if (ier.ne.0) then
@@ -1052,7 +1052,7 @@ c       incorporate other target land mask effects
           call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
      &                   ucc,6*ik*ik)
           if (ier.eq.0) then
-            ucc=ucc+20.
+            ucc=ucc+20. ! flag for fraction of field capacity
           else
             write(vname,'("wb",I1.1)') k
             call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
@@ -1101,11 +1101,6 @@ c       incorporate other target land mask effects
             wb(iq,:)=(1.-wb(iq,:))*swilt(isoil)+wb(iq,:)*sfc(isoil)
           end do
           if (mydiag) write(6,*) "giving wb",wb(idjd,1)
-	else
-	  do k=1,ms
-	    wb(:,k)=max(wb(:,k),swilt(isoilm))
-	    wb(:,k)=min(wb(:,k),ssat(isoilm))
-	  end do
         end if
 
         !--------------------------------------------------

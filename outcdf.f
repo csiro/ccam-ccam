@@ -467,16 +467,14 @@ c       For time invariant surface fields
      &              itype)
         lname = 'Urban fraction'
         call attrib(idnc,idim,2,'sigmu',lname,'none',0.,3.25,0,itype)
-        if (nsib.le.3.or.nsib.eq.5) then
-          lname = 'Rsmin'
-          call attrib(idnc,idim,2,'rsmin',lname,'none',0.,200.,0,itype)
-        end if
         lname = 'Soil type'
         call attrib(idnc,idim,2,'soilt',lname,'none',0.,65.,0,itype)
         lname = 'Vegetation type'
         call attrib(idnc,idim,2,'vegt',lname,'none',0.,65.,0,itype)
 
 c       For time varying surface fields
+        lname = 'Rsmin'
+        call attrib(idnc,idim,3,'rsmin',lname,'none',0.,1000.,0,itype)
         lname = 'Vegetation fraction'
         call attrib(idnc,idim,3,'sigmf',lname,'none',0.,3.25,0,itype)
         lname ='Scaled Log Surface pressure'
@@ -543,7 +541,7 @@ c       For time varying surface fields
           call attrib(idnc,idim,2,'ocndepth',lname,'m',0.,32500.,0,
      &                itype)
           lname = 'water surface height'
-          call attrib(idnc,idim,3,'ocheight',lname,'m',-32.5,32.5,0,
+          call attrib(idnc,idim,3,'ocheight',lname,'m',-65.,65.,0,
      &                itype)          
           lname = 'Snow temperature lev 1'
           call attrib(idnc,idim,3,'tggsn1',lname,'K',100.,425.,0,
@@ -1322,9 +1320,6 @@ c      set time to number of minutes since start
         call histwrt3(em,'map',idnc,iarch,local,.true.)
         call histwrt3(f,'cor',idnc,iarch,local,.true.)
         call histwrt3(sigmu,'sigmu',idnc,iarch,local,.true.)
-        if (nsib.eq.3.or.nsib.eq.5) then
-          call histwrt3(rsmin,'rsmin',idnc,iarch,local,.true.)
-        end if
         aa(:)=isoilm(:)
         call histwrt3(aa,'soilt',idnc,iarch,local,.true.)
         aa(:)=ivegt(:)
@@ -1347,6 +1342,7 @@ c      set time to number of minutes since start
 
       ! BASIC -------------------------------------------------------
       lwrite=ktau>0
+      call histwrt3(rsmin,'rsmin',idnc,iarch,local,lwrite)
       call histwrt3(sigmf,'sigmf',idnc,iarch,local,.true.)
       call histwrt3(psl,'psf',idnc,iarch,local,.true.)
       call mslp(aa,psl,zs,t(1:ifull,:))
