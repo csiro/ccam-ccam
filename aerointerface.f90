@@ -492,7 +492,7 @@ else
 end if
 
 ! calculate transfer velocity
-call getvt(vt,zg(:,1))
+vt=cdtq
 
 ! update prognostic aerosols
 call aldrcalc(dt,sig,sigh,dsig,zg,cansto,mcmax,wg,pblh,ps,  &
@@ -553,88 +553,5 @@ end select
 
 return
 end subroutine aerodrop
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! This subroutine computes the transfer velocity
-subroutine getvt(vt,zmin)
-      
-use arrays_m   ! for ps,t,qg,u,v
-use pbl_m      ! for tss
-use sigs_m     ! for sig
-use work2_m    ! for wetfac,zo
-      
-implicit none
-
-include 'const_phys.h'      
-include 'newmpar.h'
-include 'parm.h'
-      
-integer ic,iq
-real, dimension(ifull), intent(out) :: vt
-real, dimension(ifull), intent(in) :: zmin
-real, dimension(ifull) :: smixr,thetav,thetavstar,tvs
-real, dimension(ifull) :: integralh,lzom,lzoh
-real, dimension(ifull) :: z_on_l,zt_on_l,ph0,ph1
-real, dimension(ifull) :: integralm,z0_on_l,pm0,pm1,ustar,umag
-real scrp
-integer, parameter ::  nc     = 5
-real, parameter    ::  vkar   = 0.4
-real, parameter    ::  a_1    = 1.
-real, parameter    ::  b_1    = 2./3.
-real, parameter    ::  c_1    = 5.
-real, parameter    ::  d_1    = 0.35
-real, parameter    ::  z0     = 1.5
-real, parameter    ::  z10    = 10.
-
-! calculate qsat at surface
-smixr=wetfac*qsttg+(1.-wetfac)*min(qsttg,qg(:,1))
-
-! calculate thetav at surface and 1st model level
-scrp=sig(1)**(rdry/cp)
-thetav=t(1:ifull,1)*(1.+0.61*qg(1:ifull,1))/scrp
-tvs=tss*(1.+0.61*smixr)
-      
-! calculate wind speed at first model level
-umag=sqrt(u(1:ifull,1)*u(1:ifull,1)+v(1:ifull,1)*v(1:ifull,1))
-umag=max(umag,vmodmin)
-
-! Roughness length for momentum and heat (i.e., log(zmin/z0m) and log(zmin/z0h))
-lzom=log(zmin/zo)
-lzoh=log(zmin/zoh)
-
-! Dyer and Hicks approach 
-thetavstar=vkar*(thetav-tvs)/lzoh ! 1st guess
-ustar     =vkar*umag/lzom         ! 1st guess
-do ic=1,nc
-  z_on_l=vkar*zmin*grav*thetavstar/(thetav*ustar**2)
-  z_on_l=min(z_on_l,10.)
-  z0_on_l  = z_on_l*exp(-lzom)
-  zt_on_l  = z_on_l*exp(-lzoh)
-  where (z_on_l.lt.0.)
-    pm0     = (1.-16.*z0_on_l)**(-0.25)
-    pm1     = (1.-16.*z_on_l)**(-0.25)
-    ph0     = (1.-16.*zt_on_l)**(-0.5)
-    ph1     = (1.-16.*z_on_l)**(-0.5)
-    integralm = lzom-2.*log((1.+1./pm1)/(1.+1./pm0))      &
-                -log((1.+1./pm1**2)/(1.+1./pm0**2))       &
-                +2.*(atan(1./pm1)-atan(1./pm0))
-    integralh = lzoh-2.*log((1.+1./ph1)/(1.+1./ph0))
-  elsewhere
-    !--------------Beljaars and Holtslag (1991) momentum & heat            
-    pm0 = -(a_1*z0_on_l+b_1*(z0_on_l-(c_1/d_1))*exp(-d_1*z0_on_l)+b_1*c_1/d_1)
-    pm1 = -(a_1*z_on_l+b_1*(z_on_l-(c_1/d_1))*exp(-d_1*z_on_l)+b_1*c_1/d_1)
-    ph0 = -((1.+(2./3.)*a_1*zt_on_l)**1.5+b_1*(zt_on_l-(c_1/d_1))*exp(-d_1*zt_on_l)+b_1*c_1/d_1-1.)
-    ph1 = -((1.+(2./3.)*a_1*z_on_l)**1.5+b_1*(z_on_l-(c_1/d_1))*exp(-d_1*z_on_l)+b_1*c_1/d_1-1.)
-    integralm = lzom-(pm1-pm0)    
-    integralh = lzoh-(ph1-ph0)         
-  endwhere
-  thetavstar=vkar*(thetav-tvs)/integralh
-  ustar     =vkar*umag/integralm
-end do
-      
-vt=vkar*ustar/integralh
-      
-return
-end subroutine getvt
 
 end module aerointerface

@@ -501,10 +501,10 @@ do nb=1,9
     frs(cmap(pind(nb,1):pind(nb,2)))=frs(cmap(pind(nb,1):pind(nb,2))) &
                                       +sv(pind(nb,1):pind(nb,2))*canopy%frs(pind(nb,1):pind(nb,2))
     zo(cmap(pind(nb,1):pind(nb,2)))=zo(cmap(pind(nb,1):pind(nb,2))) &
-                                      +sv(pind(nb,1):pind(nb,2))/log(zmin/max(rough%z0m(pind(nb,1):pind(nb,2)),zobgin))**2
+                                      +sv(pind(nb,1):pind(nb,2))/log(zmin/rough%z0m(pind(nb,1):pind(nb,2)))**2
     zoh(cmap(pind(nb,1):pind(nb,2)))=zoh(cmap(pind(nb,1):pind(nb,2))) &
-                                      +sv(pind(nb,1):pind(nb,2))/(log(zmin/max(rough%z0m(pind(nb,1):pind(nb,2)),zobgin)) &
-                                                             *log(10.*zmin/max(rough%z0m(pind(nb,1):pind(nb,2)),zobgin)))
+                                      +sv(pind(nb,1):pind(nb,2))/(log(zmin/rough%z0m(pind(nb,1):pind(nb,2))) &
+                                                             *log(10.*zmin/rough%z0m(pind(nb,1):pind(nb,2))))
     cduv(cmap(pind(nb,1):pind(nb,2)))=cduv(cmap(pind(nb,1):pind(nb,2))) &
                                       +sv(pind(nb,1):pind(nb,2))*canopy%cduv(pind(nb,1):pind(nb,2))
     cdtq(cmap(pind(nb,1):pind(nb,2)))=cdtq(cmap(pind(nb,1):pind(nb,2))) &
@@ -530,10 +530,11 @@ do nb=1,9
 end do
 where (land)
   ustar=sqrt(cduv)*vmod
-  zoh=max(zmin*exp(-sqrt(zo)/zoh),0.1*zobgin)
+  zoh=zmin*exp(-sqrt(zo)/zoh)
   zoq=zoh
-  zo=max(zmin*exp(-1./sqrt(zo)),zobgin)
+  zo=zmin*exp(-1./sqrt(zo))
   cduv=cduv*vmod     ! cduv is Cd*vmod in CCAM
+  cdtq=cdtq*vmod
   tscrn=tscrn+273.16 ! convert from degC to degK
   tss=tss**0.25
   rsmin=1./rsmin

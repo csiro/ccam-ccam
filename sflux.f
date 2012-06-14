@@ -308,6 +308,7 @@ c         so eg (& epan) and fg  (also aft) then indept of zo           ! sea
         zoq(iq)=zoh(iq)                                                 ! sea
 c       cduv is now drag coeff *vmod                                    ! sea
         cduv(iq) =af(iq)*fm                                             ! sea
+        cdtq(iq) =aft(iq)*fh(iq)                                        ! sea
         ustar(iq) = sqrt(vmod(iq)*cduv(iq))                             ! sea
 c       Surface stresses taux, tauy: diagnostic only - unstaggered now  ! sea
         taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                               ! sea
@@ -456,6 +457,7 @@ c       no snow on the ice assumed for now                              ! sice
         zoh(iq)=zo(iq)/(factch(iq)*factch(iq))                          ! sice
         zoq(iq)=zoh(iq)                                                 ! sice
         cduv(iq) =fracice(iq)*af(iq)*fm + (1.-fracice(iq))*cduv(iq)     ! sice
+        cdtq(iq) =fracice(iq)*aft(iq)*fh(iq)+(1.-fracice(iq))*cdtq(iq)  ! sice
         ustar(iq) = sqrt(vmod(iq)*cduv(iq))                             ! sice
 c       N.B. potential evaporation is now eg+eg2                        ! sice
         epot(iq) =fracice(iq)*epotice + (1.-fracice(iq))*epot(iq)       ! sice
@@ -588,6 +590,7 @@ c       Surface stresses taux, tauy: diagnostic only - unstag now       ! sice
           sno=sno+conds                                                 ! MLO
           ! This cduv accounts for a moving surface                     ! MLO
           cduv=sqrt(ustar*ustar*cduv) ! cduv=cd*vmod                    ! MLO
+          cdtq=cdtq*vmod                                                ! MLO
         elsewhere                                                       ! MLO
           fg=rho*chnsea*cp*fhd*(tpan-theta)                             ! MLO
           ga=sgsave-rgsave-5.67e-8*tpan**4-panfg*fg                     ! MLO
@@ -674,6 +677,7 @@ c            Now heat ; allow for smaller zo via aft and factch         ! land
            zoq(iq)=zoh(iq)                                              ! land
 c          cduv is now drag coeff *vmod                                 ! land
            cduv(iq) =af(iq)*fm                                          ! land
+           cdtq(iq) =aft(iq)*fh(iq)                                     ! land
            ustar(iq) = sqrt(vmod(iq)*cduv(iq))                          ! land
 c          Surface stresses taux, tauy: diagnostic only - unstaggered now   
            taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                            ! land

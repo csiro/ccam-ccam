@@ -2825,13 +2825,15 @@ include 'mpif.h'
 include 'newmpar.h'
 
 integer, intent(in) :: cnum
-integer its,its_g,ii,l,iq,ierr
+integer its,its_g,ii,l,iq,ierr,pos
 real, intent(in) :: dtin
-real dtnew
+real dtnew,dtnewmin
 real, dimension(ifull,0:wlev), intent(in) :: ww
 real, dimension(ifull,wlev), intent(in) :: depdum,dzdum
 real, dimension(ifull,wlev), intent(inout) :: uu,vv,ss,tt
 logical, dimension(ifull), intent(in) :: wtr
+
+dtnewmin=1.E9
 
 ! reduce time step to ensure stability
 dtnew=dtin
@@ -2839,6 +2841,10 @@ do iq=1,ifull
   if (wtr(iq)) then
     do ii=1,wlev
       dtnew=min(dtnew,0.3*dzdum(iq,ii)/max(abs(ww(iq,ii)),1.E-12))
+      if (dtnew<dtnewmin) then
+        pos=iq
+	dtnewmin=dtnew
+      end if
     end do
   end if
 end do
@@ -2846,7 +2852,14 @@ its=int(dtin/dtnew)+1
 call MPI_AllReduce(its,its_g,1,MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD, ierr )
 dtnew=dtin/real(its_g)
 
-if (its_g.gt.100.and.myid.eq.0) write(6,*) "MLOVERT cnum,its_g",cnum,its_g
+if (its_g.gt.100.and.myid.eq.0) then
+  write(6,*) "MLOVERT cnum,its_g",cnum,its_g
+end if
+if (its.gt.100) then
+  write(6,*) "myid,iq ",myid,pos
+  write(6,*) "ww ",ww(pos,:)
+  write(6,*) "dz ",dzdum(pos,:)
+end if
 
 tt=tt-290.
 ss=ss-34.72
@@ -3165,8 +3178,8 @@ do iqw=1,ifull
       else
         call seekval(ri,ssi(:),ddi(:),ddvy,sdi)
         call seekval(rn,ssn(:),ddn(:),ddvy,sdn)
-        ri=ri+drhobardzu*(1.-gosig(ii))*neta(iqw)
-        rn=rn+drhobardzu*(1.-gosig(ii))*neta(in(iqw))
+        ri=ri+drhobardzv*(1.-gosig(ii))*neta(iqw)
+        rn=rn+drhobardzv*(1.-gosig(ii))*neta(in(iqw))
         drhobardyv(iqw,ii)=eev(iqw)*(rn-ri)*emv(iqw)/ds
       end if
       if (mxe.lt.ddvy.or.mxen.lt.ddvy.or.mxw.lt.ddvy.or.mxwn.lt.ddvy) then
@@ -3176,10 +3189,10 @@ do iqw=1,ifull
         call seekval(ren,ssen(:),dden(:),ddvy,sden)
         call seekval(rw,ssw(:),ddw(:),ddvy,sdw)
         call seekval(rwn,sswn(:),ddwn(:),ddvy,sdwn)
-        re=re+drhobardzu*(1.-gosig(ii))*neta(ie(iqw))
-        ren=ren+drhobardzu*(1.-gosig(ii))*neta(ien(iqw))
-        rw=rw+drhobardzu*(1.-gosig(ii))*neta(iw(iqw))
-        rwn=rwn+drhobardzu*(1.-gosig(ii))*neta(iwn(iqw))
+        re=re+drhobardzv*(1.-gosig(ii))*neta(ie(iqw))
+        ren=ren+drhobardzv*(1.-gosig(ii))*neta(ien(iqw))
+        rw=rw+drhobardzv*(1.-gosig(ii))*neta(iw(iqw))
+        rwn=rwn+drhobardzv*(1.-gosig(ii))*neta(iwn(iqw))
         drhobardxv(iqw,ii)=stwgt(iqw,2)*0.25*(re+ren-rw-rwn)*emv(iqw)/ds
       end if
     end do
