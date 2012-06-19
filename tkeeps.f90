@@ -123,7 +123,7 @@ real, dimension(ifull), intent(in) :: wt0,wq0,ps,ustar,rhoas
 real, dimension(kl), intent(in) :: sigkap,sig
 real, dimension(ifull,kl) :: km,thetav,thetal,temp,qsat
 real, dimension(ifull,kl) :: gamtv,gamth,gamqv,gamql,gamqf
-real, dimension(ifull,kl) :: gamqr,gamcf,gamcr,gamqs,gamhl
+real, dimension(ifull,kl) :: gamqr,gamcf,gamcr,gamhl
 real, dimension(ifull,kl) :: qgnc,thetavnc
 real, dimension(ifull,kl) :: tkenew,epsnew,bb,cc,dd,ff,rr
 real, dimension(ifull,kl) :: rhoa,rhoahl,mflx,thup,thetavhl,thetahl
@@ -186,7 +186,7 @@ ppt(:,kl)=0.
 
 
 
-mcount=int(dt/(real(maxdts)+0.01))+1
+mcount=int(dt/(maxdts+0.01))+1
 ddts=dt/real(mcount)
 do kcount=1,mcount
 
@@ -212,7 +212,6 @@ do kcount=1,mcount
   ! is approximately constant in the plume (i.e., volume conserving)
   mflx=0.
   gamtv=0.
-  gamqs=0.
   gamth=0.
   gamqv=0.
   gamql=0.
@@ -503,7 +502,6 @@ do kcount=1,mcount
         gamqf(i,:)=mflx(i,:)*(qfup(i,:)-qfg(i,:))
         gamqr(i,:)=mflx(i,:)*(qrup(i,:)-qrg(i,:))
         gamtv(i,:)=gamth(i,:)+theta(i,:)*(0.61*gamqv(i,:)-gamql(i,:)-gamqf(i,:)-gamqr(i,:))
-        gamqs(i,:)=mflx(i,:)*(qupsat(:)-qsat(i,:))
         gamcf(i,:)=mflx(i,:)*(cfup(i,:)-cfrac(i,:))
         gamcr(i,:)=mflx(i,:)*(crup(i,:)-cfrain(i,:))
       else                   ! stable
@@ -561,8 +559,8 @@ do kcount=1,mcount
     ff=qfg/cfrac ! in-cloud value
     rr=qrg/cfrac ! in-cloud value assuming maximum overlap
   end where
-  qgnc=max((qg-cfrac*qsat)/max(1.-cfrac,1.E-5),qgmin)
-  thetavnc=theta*(1.+0.61*qgnc)
+  qgnc=max((qg-cfrac*qsat)/max(1.-cfrac,1.E-5),qgmin) ! outside cloud value
+  thetavnc=theta*(1.+0.61*qgnc)                       ! outside cloud value
   call updatekmo(thetahl,theta,zz,zzh)
   call updatekmo(thetavhl,thetavnc,zz,zzh)
   call updatekmo(qshl,qsat,zz,zzh) ! assume qg is saturated in cloud
@@ -575,10 +573,10 @@ do kcount=1,mcount
   bb(:,2:kl-1)=-grav*km(:,2:kl-1)*(qq(:,2:kl-1)*((thetahl(:,2:kl-1)-thetahl(:,1:kl-2))/theta(:,2:kl-1)                          &
            +lv*(qshl(:,2:kl-1)-qshl(:,1:kl-2))/(cp*temp(:,2:kl-1)))-qshl(:,2:kl-1)-qlhl(:,2:kl-1)-qfhl(:,2:kl-1)-qrhl(:,2:kl-1) &
            +qshl(:,1:kl-1)+qlhl(:,1:kl-2)+qfhl(:,1:kl-2)+qrhl(:,1:kl-2))/dz_fl(:,2:kl-1)
-  bb(:,2:kl-1)=bb(:,2:kl-1)+grav*(qq(:,2:kl-1)*(gamth(:,2:kl-1)/theta(:,2:kl-1)+lv*gamqs(:,2:kl-1)/(cp*temp(:,2:kl-1)))         &
-           -gamqs(:,2:kl-1)-(gamql(:,2:kl-1)+gamqf(:,2:kl-1)+gamqr(:,2:kl-1))/max(cfrac,1.E-6))
+  bb(:,2:kl-1)=bb(:,2:kl-1)+grav*(qq(:,2:kl-1)*(gamth(:,2:kl-1)/theta(:,2:kl-1)+lv*gamqv(:,2:kl-1)/(cp*temp(:,2:kl-1)))         &
+           -gamqv(:,2:kl-1)-gamql(:,2:kl-1)-gamqf(:,2:kl-1)-gamqr(:,2:kl-1))
   ! unsaturated
-  cc(:,2:kl-1)=-grav*km(:,2:kl-1)*(thetavhl(:,2:kl-1)-thetavhl(:,1:kl-2))/(thetav(:,2:kl-1)*dz_fl(:,2:kl-1))
+  cc(:,2:kl-1)=-grav*km(:,2:kl-1)*(thetavhl(:,2:kl-1)-thetavhl(:,1:kl-2))/(thetavnc(:,2:kl-1)*dz_fl(:,2:kl-1))
   cc(:,2:kl-1)=cc(:,2:kl-1)+grav*gamtv(:,2:kl-1)/thetav(:,2:kl-1)
   ppb(:,2:kl-1)=(1.-cfrac(:,2:kl-1))*cc(:,2:kl-1)+cfrac(:,2:kl-1)*bb(:,2:kl-1) ! cloud fraction weighted (e.g., Smith 1990)
 
@@ -590,7 +588,7 @@ do kcount=1,mcount
 
 
   ! Update TKE and eps terms
-  ncount=int(ddts/(real(maxdtt)+0.01))+1
+  ncount=int(ddts/(maxdtt+0.01))+1
   ddtt=ddts/real(ncount)
   qq(:,2:kl)=-ddtt*rhoahl(:,1:kl-1)/(rhoa(:,2:kl)*dz_fl(:,2:kl)*dz_hl(:,1:kl-1))
   rr(:,2:kl-1)=-ddtt*rhoahl(:,2:kl-1)/(rhoa(:,2:kl-1)*dz_fl(:,2:kl-1)*dz_hl(:,2:kl-1))

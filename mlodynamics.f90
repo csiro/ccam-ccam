@@ -2825,15 +2825,12 @@ include 'mpif.h'
 include 'newmpar.h'
 
 integer, intent(in) :: cnum
-integer its,its_g,ii,l,iq,ierr,pos
+integer its,its_g,ii,l,iq,ierr
 real, intent(in) :: dtin
-real dtnew,dtnewmin
 real, dimension(ifull,0:wlev), intent(in) :: ww
 real, dimension(ifull,wlev), intent(in) :: depdum,dzdum
 real, dimension(ifull,wlev), intent(inout) :: uu,vv,ss,tt
 logical, dimension(ifull), intent(in) :: wtr
-
-dtnewmin=1.E9
 
 ! reduce time step to ensure stability
 dtnew=dtin
@@ -2841,10 +2838,6 @@ do iq=1,ifull
   if (wtr(iq)) then
     do ii=1,wlev
       dtnew=min(dtnew,0.3*dzdum(iq,ii)/max(abs(ww(iq,ii)),1.E-12))
-      if (dtnew<dtnewmin) then
-        pos=iq
-	dtnewmin=dtnew
-      end if
     end do
   end if
 end do
@@ -2854,11 +2847,6 @@ dtnew=dtin/real(its_g)
 
 if (its_g.gt.100.and.myid.eq.0) then
   write(6,*) "MLOVERT cnum,its_g",cnum,its_g
-end if
-if (its.gt.100) then
-  write(6,*) "myid,iq ",myid,pos
-  write(6,*) "ww ",ww(pos,:)
-  write(6,*) "dz ",dzdum(pos,:)
 end if
 
 tt=tt-290.

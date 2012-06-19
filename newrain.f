@@ -157,7 +157,7 @@ C Local work arrays and variables
       real tk
       real Wliq
       real cfla,dqla,qla
-      real cftemp,qrgtemp,mixrain,alph
+      real alph
       real rhorin,rhorout
       real cffluxin,cffluxout
 
@@ -353,36 +353,21 @@ c Call frozen precipitation routine
      &             slopes)            !Outputs
 
       ! Set up prognostic rain - MJT
-      ! The following is based on LDR flux divergence calculation
-      ! (see icefall.f).  LDR's original scheme can be recovered
-      ! by setting fout=1 and fthru=1 or using ncloud.le.1.
+      ! The following has been modified according to LDR's flux divergence calculation
+      ! (see icefall.f).  LDR's original scheme can be recovered by setting fout=1 and
+      ! fthru=1 or using ncloud<=1.
 
-      vr=0.1
       do k=nl-1,1,-1
         do mg=1,ln2
           rhodz=rhoa(mg,k)*dz(mg,k)
-c Add flux of rain due to autoconversion to qrg
+          ! Add flux of rain due to autoconversion to qrg
           qrg(mg,k)=qrg(mg,k)+fluxa(mg,k)/rhodz
           rhor(mg,k)=qrg(mg,k)*rhoa(mg,k)
           cfrain(mg,k)=max(cfrain(mg,k),cffall(mg,k)) ! max overlap autoconversion and rain from previous time step
-          cftemp=cfrain(mg,k)+cfmelt(mg,k)-cfrain(mg,k)*cfmelt(mg,k)
-          qrgtemp=qrg(mg,k)+fluxm(mg,k)/rhodz/real(njumps)
-          vr(mg,k)=vr(mg,k+1)
-          if (cftemp>0.) then
-            mixrain=qrgtemp/max(cftemp,1.e-6)
-            !Vr=11.3*Fr**(1./9.)/sqrt(rhoa(mg,k))  !Actual fall speed
-            !vr(mg,k)=max(15.3*mixrain**0.125/(rhoa(mg,k)**0.4375), ! This version is equal to the above line from LDR
-            vr(mg,k)=max(15.3*mixrain**0.125/sqrt(rhoa(mg,k)),
-     &                   0.1)
-          end if
-          ! Set up the parameters for the flux-divergence calculation
-          alph=delt*vr(mg,k)/dz(mg,k)
-          fout(mg,k)=1.-exp(-alph) !analytical
-          fthru(mg,k)=1.-fout(mg,k)/alph !analytical
         end do
       end do
       
-      if (ncloud.le.1) then
+      if (ncloud<=1) then
         fout=1.
         fthru=1.
       end if
@@ -522,6 +507,17 @@ c and convective (ccra).
      &                rdclfr(mg)+mxclfr(mg)-rdclfr(mg)*mxclfr(mg)) !rnd overlap the mx and rd rain fractions
             ccra(mg)=max(ccra(mg),ccrain(mg,k)) !always max overlap for convective rainfall - MJT
             fracr(mg,k)=clfra(mg)
+
+            ! Calculate rain fall speed (MJT)
+            if (ncloud>1) then
+              rhorin=fluxrain(mg)/dz(mg,k)
+              vr(mg,k)=15.3*((rhor(mg,k)+rhorin)
+     &           /clfra(mg))**0.125/sqrt(rhoa(mg,k))
+              vr(mg,k)=max(vr(mg,k),0.1)
+              alph=delt*vr(mg,k)/dz(mg,k)
+              fout(mg,k)=1.-exp(-alph) !analytical
+              fthru(mg,k)=1.-fout(mg,k)/alph !analytical
+            end if
 
 c Compute fluxes into the box
             cffluxin=clfra(mg)-cfrain(mg,k)

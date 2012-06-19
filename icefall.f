@@ -139,6 +139,7 @@ c     real qaggi(ln2,nl)
       real sublflux
       real tc
       real tk
+      real viin
       parameter (ntest=0)  ! 0=off, 1=on
  
 C Start code : ----------------------------------------------------------
@@ -275,9 +276,9 @@ c          following max gives vi2=.1 for qfg=cifr=0
 c Set up the Rate constant for snow sublimation
           
           Tk=ttg(mg,k)
-          pk=100*prf(mg,k)
+          pk=100.*prf(mg,k)
           es=qsg(mg,k)*pk/epsil
-          Aprpr=(hls/(rKa*Tk))*(hls/(rvap*Tk)-1)
+          Aprpr=(hls/(rKa*Tk))*(hls/(rvap*Tk)-1.)
           Bprpr=rvap*Tk/((Dva/pk)*es)
           curly=0.65*slopes(mg,k)**2+0.493*slopes(mg,k)!Factor in curly brackets
      &         *sqrt(slopes(mg,k)*vi2(mg,k+1)*rhoa(mg,k)/um)
@@ -366,12 +367,32 @@ c Compute the sublimation of ice falling from level k+1 into level k
 
             fsclr=(1.-cifr(mg,k)-clfr(mg,k))*fluxice(mg)
             if(fluxice(mg)>0.and.qtg(mg,k)<qsg(mg,k))then ! sublime snow
-
+              ! Re-calculate rate of snow sublimation (MJT)
+              if (ncloud>1) then
+                rhoiin=fluxice(mg)/dz(mg,k)
+                viin=0.1
+                if (cifra(mg)>0.) then
+                  viin=3.23*(rhoiin/cifra(mg))**0.17 ! from ldr==1 above
+                  viin=max(viin,0.1)
+                end if
+                ! Set up the Rate constant for snow sublimation
+                Tk=ttg(mg,k)
+                pk=100.*prf(mg,k)
+                es=qsg(mg,k)*pk/epsil
+                Aprpr=(hls/(rKa*Tk))*(hls/(rvap*Tk)-1.)
+                Bprpr=rvap*Tk/((Dva/pk)*es)
+                curly=0.65*slopes(mg,k)**2+0.493*slopes(mg,k)!Factor in curly brackets
+     &               *sqrt(slopes(mg,k)*viin*rhoa(mg,k)/um)
+                if (nevapls==-1.or.(nevapls==-2.and.condx(mg)>0.
+     &           .and.k<=ktsav(mg))) curly=0.
+                ! Define the rate constant for sublimation of snow, omitting factor rhoi
+                Csbsav(mg,k)=4*curly/(rhoa(mg,k)*qsg(mg,k)*(Aprpr+Bprpr)
+     &            *pi*viin*rhosno)              
+              end if
               Csb=Csbsav(mg,k)*fluxice(mg)/delt !LDR
               bf=1.+0.5*Csb*delt*(1.+gam(mg,k))
               dqs=max(0.,delt*(Csb/bf)*(qsg(mg,k)-qtg(mg,k)))
               dqs=min(dqs,(qsg(mg,k)-qtg(mg,k))/(1.+gam(mg,k))) !Don't supersat.
-
               sublflux=min(dqs*rhoa(mg,k)*dz(mg,k),fsclr)
               fluxice(mg)=fluxice(mg)-sublflux
               fsclr=fsclr-sublflux
@@ -416,6 +437,18 @@ c (since subl occurs only outside cloud), so add sublflux back to fluxice.
             cifra(mg)=max(0.01,
      &        mxclfr(mg)+rdclfr(mg)-mxclfr(mg)*rdclfr(mg)) !rnd overlap the mx and rd ice fractions
 
+            ! Re-calculate ice fall speed (MJT)
+            if (ncloud>1) then
+              rhoiin=fluxice(mg)/dz(mg,k)
+              vi2(mg,k)=0.1
+              if (cifra(mg)>0.) then
+                vi2(mg,k)=3.23*((rhoi(mg,k)+rhoiin)/cifra(mg))**0.17 ! from ldr==1 above
+                vi2(mg,k)=max(vi2(mg,k),0.1)
+              end if
+              alph=delt*vi2(mg,k)/dz(mg,k)
+              fout(mg,k)=1.-exp(-alph) !analytical
+              fthru(mg,k)=1.-fout(mg,k)/alph !analytical
+            end if
 
 c Compute fluxes into the box
             

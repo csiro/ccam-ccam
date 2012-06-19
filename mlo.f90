@@ -1195,7 +1195,7 @@ do iqw=1,wfull
   dnumhdz(iqw)=min(num(iqw,mixind_hl(iqw)+1)-num(iqw,mixind_hl(iqw)),0.)/(dz_hl(iqw,mixind_hl(iqw)+1)*d_zcr(iqw))
   dnushdz(iqw)=min(nus(iqw,mixind_hl(iqw)+1)-nus(iqw,mixind_hl(iqw)),0.)/(dz_hl(iqw,mixind_hl(iqw)+1)*d_zcr(iqw))
   !dwm1ds and dws1ds are now multipled by 1/(mixdepth*wx1*wx1)
-  dwm1ds(iqw)=-5.*max(p_bf(iqw),0.)/max(d_ustar(iqw)**4,1.E-20)
+  dwm1ds(iqw)=-5.*max(p_bf(iqw),0.)/d_ustar(iqw)**4
   dws1ds(iqw)=dwm1ds(iqw)
 end do
 
@@ -1445,7 +1445,7 @@ sig=dep/mixdp                       ! stable
 where (bf.le.0..and.sig.gt.epsilon) ! unstable
   sig=epsilon
 end where
-uuu=max(d_ustar**3,1.E-20)
+uuu=d_ustar**3
 invl=vkar*bf      ! invl = ustar**3/L or L=ustar**3/(vkar*bf)
 zeta=sig*mixdp*invl
 zeta=min(zeta,uuu) ! MJT suggestion
