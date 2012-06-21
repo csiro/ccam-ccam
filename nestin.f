@@ -2361,13 +2361,6 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         else
           call ccmpi_gather(diff(:,1:kd))
         end if
-        print *,"diff ",maxval(diff),maxval(diff,diff.lt.miss-1.),
-     &    minval(diff),sum(diff)
-        if (myid==0) then
-          print *,"diff_g ",maxval(diff_g),
-     &      maxval(diff_g,diff_g.lt.miss-.1),
-     &      minval(diff_g),sum(diff_g)
-        end if
       end if
 
       if (nud_sss.ne.0) then
@@ -2475,14 +2468,6 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         else
           diff(:,1:kd)=diff_g(1:ifull,1:kd)
         end if
-        print *,"disflag ",disflag
-        print *,"diff ",maxval(diff),maxval(diff,diff.lt.miss-1.),
-     &    minval(diff),sum(diff)
-        if (myid==0) then
-          print *,"diff_g ",maxval(diff_g),
-     &      maxval(diff_g,diff_g.lt.miss-.1),
-     &      minval(diff_g),sum(diff_g)
-        end if
         ! correct temp pertubation to minimise change in buoyancy
         if (tempfix.eq.1.and.kd.eq.1) then
           if (ktopmlo.ne.1) then
@@ -2520,9 +2505,6 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             old=old+diff(:,kb)*10./real(mloalpha)
             old=max(old,271.)
             call mloimport(0,old,k,0)
-              print *,"old ",k,maxval(old),
-     &                       minval(old),
-     &                       sum(old)
           end do
           do k=kc+1,kbotmlo
             old=sstb(:,ka)
@@ -2981,8 +2963,6 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
           diff_g=reshape(zz(1:iy),(/ifull_g,kd/))
         end if
         landg=abs(diff_g(:,1)-miss).lt.0.1
-        print *,"diffg1 ",maxval(diff_g(:,1)),
-     &          maxval(diff_g(:,1),.not.landg)
       end if
       if (nud_sss.ne.0) then
         if (myid.eq.0) then
@@ -3017,9 +2997,6 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
      &                 ierr)
         landg=abs(diffh_g(:,1)-miss).lt.0.1
       end if
-
-        print *,"diffg2 ",maxval(diff_g(:,1)),
-     &          maxval(diff_g(:,1),.not.landg)
       
       if (ns.gt.ne) return
       if (myid==0.and.nmaxpr==1) write(6,*) "MLO Start 1D filter"
@@ -3248,9 +3225,6 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       diffv_g(:,:)=zpv(:,:)
       diffw_g(:,:)=zpw(:,:)
       diffh_g(:,1)=zph(:)
-      
-              print *,"diffg9 ",maxval(diff_g(:,1)),
-     &          maxval(diff_g(:,1),.not.landg)
 
       return
       end subroutine mlospechost
