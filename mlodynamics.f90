@@ -273,7 +273,12 @@ end do
 ! update scalar variables
 do i=0,1
 
-  gg=0.
+  select case(i)
+    case(0)
+      gg=290.
+    case(1)
+      gg=34.72
+  end select
   do k=1,wlev
     call mloexport(i,gg(1:ifull,k),k,0)
   end do
@@ -295,6 +300,7 @@ do i=0,1
   select case(i)
     case(0)
       ff=ff+290.
+      print *,"ff ",maxval(ff(:,1)),minval(ff(:,1)),sum(ff(:,1))
     case(1)
       ff=ff+34.72
       where (ff.lt.0.1)
@@ -697,6 +703,10 @@ oeu(1:ifull)=0.5*(neta(1:ifull)+neta(ie)) ! depth at staggered coordinate
 oev(1:ifull)=0.5*(neta(1:ifull)+neta(in)) ! depth at staggered coordinate
 call boundsuv(oeu,oev)
 
+print *,"nt1 ",maxval(nt(1:ifull,1)),minval(nt(1:ifull,1)),sum(nt(1:ifull,1))
+print *,"nu1 ",maxval(nu(1:ifull,1)),minval(nu(1:ifull,1)),sum(nu(1:ifull,1))
+print *,"nv1 ",maxval(nv(1:ifull,1)),minval(nv(1:ifull,1)),sum(nv(1:ifull,1))
+
 totits=0
 itotits=0
 
@@ -787,6 +797,10 @@ end do
 ! Vertical advection (first call for 0.5*dt)
 call mlovadv(0.5*dt,nw,nu(1:ifull,:),nv(1:ifull,:),ns(1:ifull,:),nt(1:ifull,:),depdum, &
              dzdum,wtr(1:ifull),1)
+
+print *,"nt2 ",maxval(nt(1:ifull,1)),minval(nt(1:ifull,1)),sum(nt(1:ifull,1))
+print *,"nu2 ",maxval(nu(1:ifull,1)),minval(nu(1:ifull,1)),sum(nu(1:ifull,1))
+print *,"nv2 ",maxval(nv(1:ifull,1)),minval(nv(1:ifull,1)),sum(nv(1:ifull,1))
 
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: density EOS 1"
@@ -965,6 +979,9 @@ ns(1:ifull,:)=ns(1:ifull,:)+34.72
 where (ns(1:ifull,:).lt.0.1)
   ns(1:ifull,:)=0.
 end where
+print *,"nt3 ",maxval(nt(1:ifull,1)),minval(nt(1:ifull,1)),sum(nt(1:ifull,1))
+print *,"nu3 ",maxval(nu(1:ifull,1)),minval(nu(1:ifull,1)),sum(nu(1:ifull,1))
+print *,"nv3 ",maxval(nv(1:ifull,1)),minval(nv(1:ifull,1)),sum(nv(1:ifull,1))
 
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: density EOS 2"
@@ -978,7 +995,7 @@ do ii=1,wlev
   depdum(:,ii)=gosig(ii)*dd(1:ifull)*ndum(1:ifull)
   dzdum(:,ii)=godsig(ii)*dd(1:ifull)*ndum(1:ifull)
 end do
-call mloexpdensity(rho(1:ifull,:),dalpha,dbeta,nt(1:ifull,:),ns(1:ifull,:),depdum,dzdum,pice(1:ifull),0)
+call mloexpdensity(rho(1:ifull,:),dalpha(1:ifull,:),dbeta(1:ifull,:),nt(1:ifull,:),ns(1:ifull,:),depdum,dzdum,pice(1:ifull),0)
 call bounds(rho)
 rhobar(:,1)=(rho(:,1)-1030.)*godsig(1)
 do ii=2,wlev
@@ -987,6 +1004,9 @@ end do
 do ii=1,wlev
   rhobar(:,ii)=rhobar(:,ii)/gosigh(ii)+1030.
 end do
+
+print *,"dalpha ",sum(dalpha(1:ifull,:))
+print *,"dbeta ",sum(dbeta(1:ifull,:))
 
 ! update normalised density gradients
 ! method 2
@@ -1011,6 +1031,8 @@ do ii=1,wlev
   drhobardyu(:,ii)=drhobardyu(:,ii)/gosigh(ii)
   drhobardyv(:,ii)=drhobardyv(:,ii)/gosigh(ii)
 end do
+
+print *,"drhobardxu ",sum(drhobardxu)
 
 ! FREE SURFACE CALCULATION ----------------------------------------
 
@@ -1243,6 +1265,8 @@ detadxv=stwgt(1:ifull,2)*0.5*(tev-twv)*emv(1:ifull)/ds
 detadyv=(neta(in)-neta(1:ifull))*emv(1:ifull)/ds
 
 ! Update currents once neta is calculated
+print *,"kku,llu,mmu,nnu ",sum(kku(:,1)),sum(llu(:,1)),sum(mmu(:,1)),sum(nnu(:,1))
+print *,"oeu,detadxu,detadyu ",sum(oeu(1:ifull)),sum(detadxu),sum(detadyu)
 do ii=1,wlev
   ! update currents (staggered)
   nu(1:ifull,ii)=kku(:,ii)+llu(:,ii)*oeu(1:ifull)+mmu(:,ii)*detadxu+nnu(:,ii)*detadyu
@@ -1254,6 +1278,9 @@ if (myid==0.and.nmaxpr==1) then
 end if
 
 ! Update vertical velocity at (approximately) t+1
+print *,"nu3z ",maxval(nu(1:ifull,1)),minval(nu(1:ifull,1)),sum(nu(1:ifull,1))
+print *,"nv3z ",maxval(nv(1:ifull,1)),minval(nv(1:ifull,1)),sum(nv(1:ifull,1))
+print *,"neta3z ",maxval(neta(1:ifull)),minval(neta(1:ifull)),sum(neta(1:ifull))
 cou(1:ifull,1)=nu(1:ifull,1)*godsig(1) ! staggered
 cov(1:ifull,1)=nv(1:ifull,1)*godsig(1)
 do ii=2,wlev
@@ -1283,7 +1310,11 @@ do ii=1,wlev-1
       *em(1:ifull)*em(1:ifull)/ds
   inp=-(dou(:,ii)*sju(:,1)+dov(:,ii)*sjv(:,1))
   nw(:,ii)=((sdiv-sinp/(1.+eps))*gosigh(ii)-div+inp/(1.+eps))*ee(1:ifull)
+  print *,"ii,div,inp,nw ",ii,sum(div),sum(inp),sum(nw(:,ii))
 end do
+
+print *,"nt3z ",maxval(nt(1:ifull,1)),minval(nt(1:ifull,1)),sum(nt(1:ifull,1))
+print *,"nw ",maxval(nw),minval(nw),sum(nw)
 
 ! Vertical advection (second call)
 odum=max(1.+neta(1:ifull)/dd(1:ifull),mindep/dd(1:ifull))
@@ -1291,9 +1322,13 @@ do ii=1,wlev
   depdum(:,ii)=gosig(ii)*dd(1:ifull)*odum
   dzdum(:,ii)=godsig(ii)*dd(1:ifull)*odum
 end do
+print *,"depdum ",maxval(depdum),minval(depdum),sum(depdum)
+print *,"dzdum ",maxval(dzdum),minval(dzdum),sum(dzdum)
 call mlovadv(0.5*dt,nw,nu(1:ifull,:),nv(1:ifull,:),ns(1:ifull,:),nt(1:ifull,:),depdum, &
              dzdum,wtr(1:ifull),2)
 
+
+print *,"nt4 ",maxval(nt(1:ifull,1)),minval(nt(1:ifull,1)),sum(nt(1:ifull,1))
 
 ! UPDATE ICE DYNAMICS ---------------------------------------------
 ! Here we start by calculating the ice velocity and then advecting
@@ -1602,6 +1637,7 @@ if (myid==0.and.(ktau.le.100.or.maxglobseta.gt.tol.or.maxglobip.gt.itol)) then
   write(6,*) "MLODYNAMICS ",totits,maxglobseta,itotits,maxglobip
 end if
 
+print *,"nt9 ",maxval(nt(1:ifull,1)),minval(nt(1:ifull,1)),sum(nt(1:ifull,1))
 do ii=1,wlev
   call mloimport(0,nt(1:ifull,ii),ii,0)
   call mloimport(1,ns(1:ifull,ii),ii,0)
@@ -2827,6 +2863,7 @@ include 'newmpar.h'
 integer, intent(in) :: cnum
 integer its,its_g,ii,l,iq,ierr
 real, intent(in) :: dtin
+real dtnew
 real, dimension(ifull,0:wlev), intent(in) :: ww
 real, dimension(ifull,wlev), intent(in) :: depdum,dzdum
 real, dimension(ifull,wlev), intent(inout) :: uu,vv,ss,tt
@@ -2845,9 +2882,7 @@ its=int(dtin/dtnew)+1
 call MPI_AllReduce(its,its_g,1,MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD, ierr )
 dtnew=dtin/real(its_g)
 
-if (its_g.gt.100.and.myid.eq.0) then
-  write(6,*) "MLOVERT cnum,its_g",cnum,its_g
-end if
+if (its_g.gt.100.and.myid.eq.0) write(6,*) "MLOVERT cnum,its_g",cnum,its_g
 
 tt=tt-290.
 ss=ss-34.72

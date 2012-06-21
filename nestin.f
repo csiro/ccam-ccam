@@ -428,7 +428,6 @@
 
         ! Removed by MJT for conservation
 !       ensure qb big enough, but not too big in top levels (from Sept '04)
-        qb(1:ifull,:)=max(qb(1:ifull,:),0.)
         !qb(1:ifull,:)=max(qb(1:ifull,:),qgmin)
         !do k=kl-2,kl
         !  qb(1:ifull,k)=min(qb(1:ifull,k),10.*qgmin)
@@ -751,16 +750,12 @@
         end if
         t(1:ifull,kbotdav:ktopdav)=t(1:ifull,kbotdav:ktopdav)
      &   +diffu(:,kbotdav:ktopdav)
-        diffv(:,kbotdav)=bet(kbotdav)*diffu(:,kbotdav)
-        phi(:,kbotdav)=phi(:,kbotdav)+diffv(:,kbotdav)
-        do k=kbotdav+1,ktopdav
-          diffv(:,k)=diffv(:,k-1)+bet(k)*diffu(:,k)
-     &      +betm(k)*diffu(:,k-1)
-          phi(:,k)=phi(:,k)+diffv(:,k)
+        phi(:,1)=bet(1)*t(1:ifull,1)
+        do k=2,kl
+          phi(:,k)=phi(:,k-1)+bet(k)*t(1:ifull,k)
+     &                      +betm(k)*t(1:ifull,k-1)
         end do
-        do k=ktopdav+1,kl
-          phi(:,k)=phi(:,k)+diffv(:,ktopdav)
-        end do
+        phi=phi+phi_nh
       end if
       if (nud_q.gt.0) then
         if (disflag) then
@@ -2366,6 +2361,13 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         else
           call ccmpi_gather(diff(:,1:kd))
         end if
+        print *,"diff ",maxval(diff),maxval(diff,diff.lt.miss-1.),
+     &    minval(diff),sum(diff)
+        if (myid==0) then
+          print *,"diff_g ",maxval(diff_g),
+     &      maxval(diff_g,diff_g.lt.miss-.1),
+     &      minval(diff_g),sum(diff_g)
+        end if
       end if
 
       if (nud_sss.ne.0) then
@@ -2420,6 +2422,11 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             diffu_g(:,k)=ax_g*x_g+bx_g*xx_g
             diffv_g(:,k)=ay_g*x_g+by_g*xx_g
             diffw_g(:,k)=az_g*x_g+bz_g*xx_g
+            where (abs(x_g-miss).lt.0.1)
+              diffu_g(:,k)=miss
+              diffv_g(:,k)=miss
+              diffw_g(:,k)=miss
+            end where
           end do
         else
           call ccmpi_gather(diff(:,1:kd))
@@ -2468,6 +2475,14 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         else
           diff(:,1:kd)=diff_g(1:ifull,1:kd)
         end if
+        print *,"disflag ",disflag
+        print *,"diff ",maxval(diff),maxval(diff,diff.lt.miss-1.),
+     &    minval(diff),sum(diff)
+        if (myid==0) then
+          print *,"diff_g ",maxval(diff_g),
+     &      maxval(diff_g,diff_g.lt.miss-.1),
+     &      minval(diff_g),sum(diff_g)
+        end if
         ! correct temp pertubation to minimise change in buoyancy
         if (tempfix.eq.1.and.kd.eq.1) then
           if (ktopmlo.ne.1) then
@@ -2505,6 +2520,9 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             old=old+diff(:,kb)*10./real(mloalpha)
             old=max(old,271.)
             call mloimport(0,old,k,0)
+              print *,"old ",k,maxval(old),
+     &                       minval(old),
+     &                       sum(old)
           end do
           do k=kc+1,kbotmlo
             old=sstb(:,ka)
@@ -2963,6 +2981,8 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
           diff_g=reshape(zz(1:iy),(/ifull_g,kd/))
         end if
         landg=abs(diff_g(:,1)-miss).lt.0.1
+        print *,"diffg1 ",maxval(diff_g(:,1)),
+     &          maxval(diff_g(:,1),.not.landg)
       end if
       if (nud_sss.ne.0) then
         if (myid.eq.0) then
@@ -2997,6 +3017,9 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
      &                 ierr)
         landg=abs(diffh_g(:,1)-miss).lt.0.1
       end if
+
+        print *,"diffg2 ",maxval(diff_g(:,1)),
+     &          maxval(diff_g(:,1),.not.landg)
       
       if (ns.gt.ne) return
       if (myid==0.and.nmaxpr==1) write(6,*) "MLO Start 1D filter"
@@ -3225,6 +3248,9 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       diffv_g(:,:)=zpv(:,:)
       diffw_g(:,:)=zpw(:,:)
       diffh_g(:,1)=zph(:)
+      
+              print *,"diffg9 ",maxval(diff_g(:,1)),
+     &          maxval(diff_g(:,1),.not.landg)
 
       return
       end subroutine mlospechost
