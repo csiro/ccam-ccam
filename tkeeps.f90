@@ -625,35 +625,42 @@ do kcount=1,mcount
   ! Update TKE and eps terms
   ncount=int(ddts/(maxdtt+0.01))+1
   ddtt=ddts/real(ncount)
-  qq(:,2:kl)=-ddtt*rhoahl(:,1:kl-1)/(rhoa(:,2:kl)*dz_fl(:,2:kl)*dz_hl(:,1:kl-1))
+  qq(:,2:kl-1)=-ddtt*rhoahl(:,1:kl-2)/(rhoa(:,2:kl-1)*dz_fl(:,2:kl-1)*dz_hl(:,1:kl-2))
   rr(:,2:kl-1)=-ddtt*rhoahl(:,2:kl-1)/(rhoa(:,2:kl-1)*dz_fl(:,2:kl-1)*dz_hl(:,2:kl-1))
+  ! top boundary condition to avoid unphysical behaviour at the top of the model
+  tke(1:ifull,kl)=mintke
+  eps(1:ifull,kl)=mineps
   do icount=1,ncount
     xp=real(icount)/real(ncount)
 
     ! eps vertical mixing (done here as we skip level 1, instead of using trim)
-    aa(:,2:kl)=ce0*kmo(:,1:kl-1)*qq(:,2:kl)
+    aa(:,2:kl-1)=ce0*kmo(:,1:kl-2)*qq(:,2:kl-1)
     cc(:,2:kl-1)=ce0*kmo(:,2:kl-1)*rr(:,2:kl-1)
-    bb(:,2:kl)=ddtt*ce2*eps(1:ifull,2:kl)/tke(1:ifull,2:kl)
+    bb(:,2:kl-1)=ddtt*ce2*eps(1:ifull,2:kl-1)/tke(1:ifull,2:kl-1)
     bb(:,2)=bb(:,2)-aa(:,2)
-    dd(:,2:kl)=eps(1:ifull,2:kl)+ddtt*ce1*eps(1:ifull,2:kl)/tke(1:ifull,2:kl) &
-                *(pps(:,2:kl)+max(ppb(:,2:kl),0.)+max(ppt(:,2:kl),0.))
+    bb(:,kl-1)=bb(:,kl-1)-cc(:,kl-1)
+    dd(:,2:kl-1)=eps(1:ifull,2:kl-1)+ddtt*ce1*eps(1:ifull,2:kl-1)/tke(1:ifull,2:kl-1) &
+                *(pps(:,2:kl-1)+max(ppb(:,2:kl-1),0.)+max(ppt(:,2:kl-1),0.))
     dd(:,2)=dd(:,2)-aa(:,2)*(epsold+xp*(eps(1:ifull,1)-epsold))
-    call thomas(epsnew(:,2:kl),aa(:,3:kl),bb(:,2:kl),cc(:,2:kl-1),dd(:,2:kl),kl-1)
+    dd(:,kl-1)=dd(:,kl-1)-cc(:,kl-1)*mineps
+    call thomas(epsnew(:,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1),kl-2)
 
     ! TKE vertical mixing (done here as we skip level 1, instead of using trim)
-    aa(:,2:kl)=kmo(:,1:kl-1)*qq(:,2:kl)
+    aa(:,2:kl-1)=kmo(:,1:kl-2)*qq(:,2:kl-1)
     cc(:,2:kl-1)=kmo(:,2:kl-1)*rr(:,2:kl-1)
     bb(:,2)=-aa(:,2)
-    bb(:,3:kl)=0.
-    dd(:,2:kl)=tke(1:ifull,2:kl)+ddtt*(pps(:,2:kl)+ppb(:,2:kl)-epsnew(:,2:kl))
+    bb(:,3:kl-2)=0.
+    bb(:,kl-1)=-cc(:,kl-1)
+    dd(:,2:kl-1)=tke(1:ifull,2:kl-1)+ddtt*(pps(:,2:kl-1)+ppb(:,2:kl-1)-epsnew(:,2:kl-1))
     dd(:,2)=dd(:,2)-aa(:,2)*(tkeold+xp*(tke(1:ifull,1)-tkeold))
-    call thomas(tkenew(:,2:kl),aa(:,3:kl),bb(:,2:kl),cc(:,2:kl-1),dd(:,2:kl),kl-1)
+    dd(:,kl-1)=dd(:,kl-1)-cc(:,kl-1)*mintke
+    call thomas(tkenew(:,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1),kl-2)
 
-    tke(1:ifull,2:kl)=max(tkenew(:,2:kl),mintke)
-    ff(:,2:kl)=cm34*tke(1:ifull,2:kl)*sqrt(tke(1:ifull,2:kl))/minl
-    eps(1:ifull,2:kl)=min(epsnew(:,2:kl),ff(:,2:kl))
-    ff(:,2:kl)=max(ff(:,2:kl)*minl/maxl,mineps)
-    eps(1:ifull,2:kl)=max(eps(1:ifull,2:kl),ff(:,2:kl))
+    tke(1:ifull,2:kl-1)=max(tkenew(:,2:kl-1),mintke)
+    ff(:,2:kl-1)=cm34*tke(1:ifull,2:kl-1)*sqrt(tke(1:ifull,2:kl-1))/minl
+    eps(1:ifull,2:kl-1)=min(epsnew(:,2:kl-1),ff(:,2:kl-1))
+    ff(:,2:kl-1)=max(ff(:,2:kl-1)*minl/maxl,mineps)
+    eps(1:ifull,2:kl-1)=max(eps(1:ifull,2:kl-1),ff(:,2:kl-1))
     
     km=cm0*tke(1:ifull,:)*tke(1:ifull,:)/eps(1:ifull,:)
     call updatekmo(kmo,km,zz,zzh) ! interpolate diffusion coeffs to half levels

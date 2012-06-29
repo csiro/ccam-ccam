@@ -2846,7 +2846,7 @@ its=int(dtin/dtnew)+1
 call MPI_AllReduce(its,its_g,1,MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD, ierr )
 dtnew=dtin/real(its_g)
 
-if (its_g.gt.100.and.myid.eq.0) write(6,*) "MLOVERT cnum,its_g",cnum,its_g
+if (its_g.gt.500.and.myid.eq.0) write(6,*) "MLOVERT cnum,its_g",cnum,its_g
 
 tt=tt-290.
 ss=ss-34.72
