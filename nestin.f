@@ -195,10 +195,11 @@
         end if
 
 !       ensure qb big enough, but not too big in top levels (from Sept '04)
-        qb(1:ifull,:)=max(qb(1:ifull,:),qgmin)
-        do k=kl-2,kl
-         qb(1:ifull,k)=min(qb(1:ifull,k),10.*qgmin)
-        enddo
+        qb(1:ifull,:)=max(qb(1:ifull,:),0.)
+        !qb(1:ifull,:)=max(qb(1:ifull,:),qgmin)
+        !do k=kl-2,kl
+        ! qb(1:ifull,k)=min(qb(1:ifull,k),10.*qgmin)
+        !enddo
 
 !       following is useful if troublesome data is read in
         if(mod(ktau,nmaxpr)==0.or.ktau==2.or.diag)then
@@ -2876,7 +2877,6 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       real, dimension(ifull_g,kd), intent(inout) :: diffw_g
       real cq
       
-      ! eventually will be replaced with mbd once full ocean coupling is complete
       cq=sqrt(4.5)*.1*real(max(nud_sst,nud_sss,nud_ouv,nud_sfh,mbd))
      &   /(pi*schmidt)
       

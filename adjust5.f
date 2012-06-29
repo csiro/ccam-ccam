@@ -623,7 +623,7 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
       ! Moisture conservation
       if (mfix_qg.ne.0.and.mspec==1) then
         do k=1,kl
-          qg(:,k)=max(qg(:,k),qgmin-qfg(:,k)-qlg(:,k))
+          qg(:,k)=max(qg(:,k),qgmin-qfg(:,k)-qlg(:,k),0.)
         end do
         call massfix(mfix_qg,qg(1:ifull,:),qgsav(1:ifull,:),
      &               ps(1:ifull),ps_sav(1:ifull),wts(1:ifull))

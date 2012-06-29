@@ -644,10 +644,11 @@
         endif   ! (newtop>=1)
 
 !       ensure qg etc big enough, but not too big in top levels (from Sept '04)
-        qg(1:ifull,:)=max(qg(1:ifull,:),qgmin)
-        do k=kl-2,kl
-         qg(1:ifull,k)=min(qg(1:ifull,k),10.*qgmin)
-        enddo
+        qg(1:ifull,:)=max(qg(1:ifull,:),0.)
+        !qg(1:ifull,:)=max(qg(1:ifull,:),qgmin)
+        !do k=kl-2,kl
+        ! qg(1:ifull,k)=min(qg(1:ifull,k),10.*qgmin)
+        !enddo
         ps(1:ifull)=1.e5*exp(psl(1:ifull))
 
       else
@@ -1807,9 +1808,9 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
             ! mlodwn(:,k,1)=max(tss,271.2)
             mlodwn(:,k,2)=34.72
             mlodwn(:,k,3:4)=0.
-            where (zs(1:ifull).gt.1.) ! lakes?
-              mlodwn(:,k,2)=0.
-            end where
+            !where (zs(1:ifull).gt.1.) ! lakes?
+            !  mlodwn(:,k,2)=0.
+            !end where
           end do
           micdwn(:,1)=tss
           micdwn(:,2)=tss

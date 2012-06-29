@@ -657,7 +657,7 @@
       call sbar_init(ifull,iextra,kl)
       call screen_init(ifull,iextra,kl)
       call sigs_init(ifull,iextra,kl)
-      call soil_init(ifull,iextra,kl,nrad,nsib)
+      call soil_init(ifull,iextra,kl,iaero,nsib)
       call soilsnow_init(ifull,iextra,kl,ms,nsib)
       call tbar2d_init(ifull,iextra,kl)
       call unn_init(ifull,iextra,kl)
@@ -1161,12 +1161,9 @@
       endif    !  (mspec==2) 
       if(mfix_qg==0.or.mspec==2)then
         qfg(1:ifull,:)=max(qfg(1:ifull,:),0.) 
-        qlg(1:ifull,:)=max(qlg(1:ifull,:),0.) 
-        do k=1,kl
-         do iq=1,ifull
-          if(qfg(iq,k)+qlg(iq,k)<qgmin)qg(iq,k)=max(qg(iq,k),qgmin)
-         enddo
-        enddo
+        qlg(1:ifull,:)=max(qlg(1:ifull,:),0.)
+	qg(1:ifull,:)=max(qg(1:ifull,:),qgmin-qlg(1:ifull,:)
+     &                   -qfg(1:ifull,:),0.) 
       endif  ! (mfix_qg==0.or.mspec==2)
 79    dt=dtin                    ! ****** end of introductory time loop
       mspeca=1

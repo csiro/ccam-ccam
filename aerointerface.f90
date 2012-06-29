@@ -415,8 +415,8 @@ integer, save :: sday=-9999
 real dhr,fjd,sfjd,r1,dlt,alp,slag
 real, dimension(ifull) :: coszro,taudar
 real, dimension(ifull,kl) :: oxout,zg,clcon,pccw,rhoa
-real, dimension(ifull) :: dxy,mcmax,cldcon,wg
-real, dimension(ifull) :: vt
+real, dimension(ifull,kl) :: tnhs,dz
+real, dimension(ifull) :: dxy,cldcon,wg
 real, dimension(kl+1) :: sigh
 
 ! timer calculations
@@ -450,21 +450,26 @@ end if
 ! set-up input data fields ------------------------------------------------
 sigh(1:kl) = sigmh(1:kl) ! store half-levels
 sigh(kl+1) = 0.
+
+! Non-hydrostatic terms
+tnhs(:,1)=phi_nh(:,1)/bet(1)
+do k=2,kl
+  ! representing non-hydrostatic term as a correction to air temperature
+  tnhs(:,k)=(phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:,k-1))/bet(k)
+end do
+
 zg(:,1)=bet(1)*t(1:ifull,1)/grav
 do k=2,kl
   zg(:,k)=zg(:,k-1)+(bet(k)*t(1:ifull,k)+betm(k)*t(1:ifull,k-1))/grav ! height above surface in meters
 end do
 zg=zg+phi_nh/grav
-dxy=ds*ds/(em*em)       ! grid spacing in m**2
-mcmax=0.1*max(vlai,0.1) ! maximum water stored in canopy (kg/m**2)
 do k=1,kl
-  rhoa(:,k)=ps*sig(k)/(rdry*t(:,k)) !density of air (kg/m**3)
+  dz(:,k)=-rdry*dsig(k)*(t(1:ifull,k)+tnhs(:,k))/(grav*sig(k))
 end do
-where (land)
-  wg=wetfac ! soil moisture as a fraction of field capacity
-elsewhere
-  wg=1.
-end where
+dxy=ds*ds/(em*em)       ! grid spacing in m**2
+do k=1,kl
+  rhoa(1:ifull,k)=ps*sig(k)/(rdry*t(1:ifull,k)) !density of air (kg/m**3)
+end do
 
 ! estimate convective cloud fraction
 ! from leoncld.f
@@ -491,26 +496,23 @@ else
   end do
 end if
 
-! calculate transfer velocity
-vt=cdtq
+wg=min(max(wetfac,0.),1.)
 
 ! update prognostic aerosols
-call aldrcalc(dt,sig,sigh,dsig,zg,cansto,mcmax,wg,pblh,ps,  &
-              tss,t(1:ifull,:),condx,condc,snowd,sgsave,fg, &
-              eg,u10,ustar,zo,land,fracice,sigmf,           &
-              qlg(1:ifull,:),qfg(1:ifull,:),cfrac,clcon,    &
-              pccw,dxy,rhoa,vt,ppfprec,ppfmelt,ppfsnow,     &
-              ppfconv,ppfevap,ppfsubl,pplambs,ppmrate,      &
+call aldrcalc(dt,sig,sigh,dsig,zg,dz,cansto,fwet,wg,pblh,ps,   &
+              tss,t(1:ifull,:),condx,condc,snowd,sgsave,fg,    &
+              eg,u10,ustar,zo,land,fracice,sigmf,              &
+              qlg(1:ifull,:),qfg(1:ifull,:),cfrac,clcon,       &
+              pccw,dxy,rhoa,cdtq,ppfprec,ppfmelt,ppfsnow,      &
+              ppfconv,ppfevap,ppfsubl,pplambs,ppmrate,         &
               ppmaccr,ppfstay,ppqfsed,pprscav,zdayfac)
 
 ! store sulfate for LH+SF radiation scheme.  SEA-ESF radiation scheme imports prognostic aerosols in seaesfrad.f90.
 ! Factor 1.e3 to convert to g/m2, x 3 to get sulfate from sulfur
-if (nrad.eq.4) then
-  so4t(:)=0.
-  do k=1,kl
-    so4t(:)=so4t(:)+3.e3*xtg(:,k,3)*(-ps(:)*dsig(k))/grav
-  enddo
-end if
+so4t(:)=0.
+do k=1,kl
+  so4t(:)=so4t(:)+3.e3*xtg(:,k,3)*(-ps(:)*dsig(k))/grav
+enddo
 
 return
 end subroutine aerocalc

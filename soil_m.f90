@@ -15,16 +15,16 @@ logical, dimension(:), allocatable, save :: land
 
 contains
 
-subroutine soil_init(ifull,iextra,kl,nrad,nsib)
+subroutine soil_init(ifull,iextra,kl,iaero,nsib)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl,nrad,nsib
+integer, intent(in) :: ifull,iextra,kl,iaero,nsib
 
 allocate(zolnd(ifull),albsav(ifull),albnirsav(ifull))
 allocate(albvisdif(ifull),albnirdif(ifull),albvisdir(ifull),albnirdir(ifull))
 allocate(land(ifull))
-if (nrad.eq.4) then
+if (iaero.ne.0) then
   allocate(so4t(ifull))
 end if
 if (nsib.eq.3.or.nsib.eq.5) then

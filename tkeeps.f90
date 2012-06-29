@@ -65,9 +65,9 @@ real, parameter :: d_1   = 0.35
 !real, parameter :: cc1 = 0.3 ! Luhar low wind
 
 integer, parameter :: icm1   = 40       ! max iterations for calculating pblh
-real, parameter :: alpha     = 0.3      ! weight for updating pblh
+real, parameter :: alpha     = 0.9      ! weight for updating pblh
 real, parameter :: maxdts    = 300.     ! max timestep for split
-real, parameter :: maxdtt    = 90.      ! max timestep for tke-eps
+real, parameter :: maxdtt    = 100.     ! max timestep for tke-eps
 real, parameter :: mintke    = 1.E-8    ! min value for tke
 real, parameter :: mineps    = 1.E-10   ! min value for eps
 real, parameter :: minl      = 1.       ! min value for L (constraint on eps)
@@ -133,12 +133,12 @@ real, dimension(ifull,2:kl) :: aa,qq,pps,ppt,ppb
 real, dimension(ifull,kl)   :: dz_fl   ! dz_fl(k)=0.5*(zz(k+1)-zz(k-1))
 real, dimension(ifull,kl-1) :: dz_hl   ! dz_hl(k)=zz(k+1)-zz(k)
 real, dimension(ifull) :: wstar,z_on_l,phim,wtv0,dum
-real, dimension(ifull) :: tkeold,epsold
+real, dimension(ifull) :: tkeold,epsold,zidry
 real, dimension(kl)   :: w2up,ttup,tvup,tlup,qtup
 real, dimension(kl)   :: qupsat,pres,nn
 real, dimension(kl-1) :: wpv_flux
 real xp,ee,dtr,as,bs,cs,cm12,cm34,qcup
-real zht,dzht,zidry,zilcl,nnc
+real zht,dzht,zidryold,zilcl,nnc
 real ziold,thc,qvc,qlc,qfc,qrc,cfc,crc,w2c,mfc,ddtt,ddts
 real lx,templ,fice,qxup,txup
 logical sconv
@@ -183,6 +183,7 @@ pps(:,2:kl-1)=km(:,2:kl-1)*shear(:,2:kl-1)
 pps(:,kl)=0.
 ppb(:,kl)=0.
 ppt(:,kl)=0.
+zidry=zi
 
 
 
@@ -237,8 +238,8 @@ do kcount=1,mcount
         ttup=temp(i,:)
         qtup=qg(i,:)+qlg(i,:)+qfg(i,:)+qrg(i,:)
         qupsat=qsat(i,:)
-        zidry=zi(i)
         ziold=zi(i)
+        zidryold=zidry(i)
         zilcl=zz(i,kl)
         do icount=1,icm1
           klcl=kl+1
@@ -247,13 +248,13 @@ do kcount=1,mcount
           zht=zz(i,1)
           dzht=zht
           ! Entrainment and detrainment rates (based on Angevine et al (2010), but scaled for CCAM)
-          !ee=0.002                                    ! Angevine (2005)
-          !ee=2./max(100.,zidry)                       ! Angevine et al (2010)
-          !ee=1./max(zht,1.)                           ! Siebesma et al (2003)
-          !ee=0.5*(1./max(zht,1.)+1./max(zi-zht,1.))   ! Soares et al (2004)
-          ee=1./max(100.,zidry) ! MJT suggestion
-          !dtr=ee+0.05/max(zidry-zht,1.)               ! Angevine (2005)
-          dtr=ee+0.025/max(zidry-zht,1.) ! MJT suggestion
+          !ee=0.002                                     ! Angevine (2005)
+          !ee=2./max(100.,zidry(i))                     ! Angevine et al (2010)
+          !ee=1./max(zht,1.)                            ! Siebesma et al (2003)
+          !ee=0.5*(1./max(zht,1.)+1./max(zi(i)-zht,1.)) ! Soares et al (2004)
+          ee=1./max(100.,zidry(i)) ! MJT suggestion
+          !dtr=ee+0.05/max(zidry(i)-zht,1.)             ! Angevine (2005)
+          dtr=ee+0.025/max(zidry(i)-zht,1.) ! MJT suggestion
           ! first level -----------------
           ! initial thermodynamic state
           ! split thetal and qtot into components (conservation is maintained)
@@ -299,7 +300,7 @@ do kcount=1,mcount
             dzht=dz_hl(i,k-1)
             zht=zz(i,k)
             ! update detrainment
-            dtr=ee+0.025/max(zidry-zht,0.001)
+            dtr=ee+0.025/max(zidry(i)-zht,0.001)
             ! update thermodynamics of plume
             ! split thetal and qtot into components (conservation is maintained)
             ! (use upwind as centred scheme requires vertical spacing less than 250m)
@@ -337,7 +338,7 @@ do kcount=1,mcount
                 zilcl=xp+zz(i,k-1)
                 klcl=k
                 ! use dry convection to advect to lcl
-                dtr=ee+0.05/max(zidry-zilcl,0.001)
+                dtr=ee+0.05/max(zidry(i)-zilcl,0.001)
                 nnc=nn(k-1)+xp*(nn(k)-nn(k-1))/dzht
                 thc=(thup(i,k-1)+xp*ee*theta(i,k) )/(1.+xp*ee)
                 qvc=(qvup(i,k-1)+xp*ee*qg(i,k)    )/(1.+xp*ee)
@@ -357,10 +358,10 @@ do kcount=1,mcount
               cs=w2up(k-1)
               xp=0.5*(-bs-sqrt(bs*bs-4.*as*cs))/as
               xp=min(max(xp,0.),dzht)
-              zidry=xp+zz(i,k-1)
+              zidry(i)=xp+zz(i,k-1)
               mflx(i,k)=0.
               if (sconv) then
-                if (zidry.lt.zilcl) then
+                if (zidry(i).lt.zilcl) then
                   sconv=.false.
                   klcl=kl+1
                 end if
@@ -385,15 +386,29 @@ do kcount=1,mcount
             qrup(i,klcl)=(qrc+dzht*ee*qrg(i,klcl)   )/(1.+dzht*ee)
             cfup(i,klcl)=(cfc+dzht*ee*cfrac(i,klcl) )/(1.+dzht*ee)
             crup(i,klcl)=(crc+dzht*ee*cfrain(i,klcl))/(1.+dzht*ee)
-            ! estimate saturated mixing ratio
+            ! calculate conserved variables
             tlup(klcl)=thup(i,klcl)-(lv*(qlup(i,klcl)+qrup(i,klcl))+ls*qfup(i,klcl))/cp  ! thetal,up
             qtup(klcl)=qvup(i,klcl)+qlup(i,klcl)+qfup(i,klcl)+qrup(i,klcl)               ! qtot,up
             templ=tlup(klcl)/sigkap(klcl)                                                ! templ,up
-            ! use bisection to estimate saturated air temperature
-            bb(i,1)=124.
-            cc(i,1)=373.
-            do while ((cc(i,1)-bb(i,1)).gt.0.1)
-              ttup(klcl)=0.5*(bb(i,1)+cc(i,1))
+            ! estimate saturated air temperature
+            ! (tried dqs/dT but it failed to converge)
+            cc(i,1)=373. ! guess C
+            call getqsat(1,qupsat(klcl),cc(i,1),pres(klcl))
+            qxup=min(qtup(klcl),qupsat(klcl))
+            qcup=qtup(klcl)-qxup
+            fice=0.
+            lx=lv
+            cc(i,2)=cc(i,1)-templ-lx*qcup/cp ! error C
+            bb(i,1)=min(templ,372.) ! guess B
+            call getqsat(1,qupsat(klcl),bb(i,1),pres(klcl))
+            qxup=min(qtup(klcl),qupsat(klcl))
+            qcup=qtup(klcl)-qxup
+            fice=min(max(273.16-bb(i,1),0.),40.)/40.
+            lx=lv+lf*fice
+            bb(i,2)=bb(i,1)-templ-lx*qcup/cp ! error B
+            do while (abs(bb(i,2)).gt.0.1.and.abs(cc(i,2)).gt.0.1)
+              !ttup(klcl)=0.5*(bb(i,1)+cc(i,1)) ! bisection
+              ttup(klcl)=(cc(i,2)*bb(i,1)-bb(i,2)*cc(i,1))/(cc(i,2)-bb(i,2)) ! false position
               call getqsat(1,qupsat(klcl),ttup(klcl),pres(klcl))
               qxup=min(qtup(klcl),qupsat(klcl))
               qcup=qtup(klcl)-qxup
@@ -401,8 +416,10 @@ do kcount=1,mcount
               lx=lv+lf*fice
               if (templ+lx*qcup/cp.gt.ttup(klcl)) then
                 bb(i,1)=ttup(klcl)
+                bb(i,2)=ttup(klcl)-templ-lx*qcup/cp
               else
                 cc(i,1)=ttup(klcl)
+                cc(i,2)=ttup(klcl)-templ-lx*qcup/cp
               end if
             end do
             ttup(klcl)=templ+lx*qcup/cp                                           ! temp,up
@@ -437,15 +454,28 @@ do kcount=1,mcount
                 qrup(i,k)=(qrup(i,k-1)+dzht*ee*qrg(i,k)   )/(1.+dzht*ee)
                 cfup(i,k)=(cfup(i,k-1)+dzht*ee*cfrac(i,k) )/(1.+dzht*ee)
                 crup(i,k)=(crup(i,k-1)+dzht*ee*cfrain(i,k))/(1.+dzht*ee)
-                ! estimate saturated mixing ratio
+                ! calculate conserved variables
                 tlup(k)=thup(i,k)-(lv*(qlup(i,k)+qrup(i,k))+ls*qfup(i,k))/cp  ! thetal,up
                 qtup(k)=qvup(i,k)+qlup(i,k)+qfup(i,k)+qrup(i,k)               ! qtot,up
                 templ=tlup(k)/sigkap(k)                                       ! templ,up
-                ! use bisection to estimate saturated air temperature
-                bb(i,1)=124.
-                cc(i,1)=373.
-                do while ((cc(i,1)-bb(i,1)).gt.0.1)
-                  ttup(k)=0.5*(bb(i,1)+cc(i,1))
+                ! estimate saturated air temperature
+                cc(i,1)=373. ! guess C
+                call getqsat(1,qupsat(k),cc(i,1),pres(k))
+                qxup=min(qtup(k),qupsat(k))
+                qcup=qtup(k)-qxup
+                fice=0.
+                lx=lv
+                cc(i,2)=cc(i,1)-templ-lx*qcup/cp ! error C
+                bb(i,1)=min(templ,372.) ! guess B
+                call getqsat(1,qupsat(k),bb(i,1),pres(k))
+                qxup=min(qtup(k),qupsat(k))
+                qcup=qtup(k)-qxup
+                fice=min(max(273.16-bb(i,1),0.),40.)/40.
+                lx=lv+lf*fice
+                bb(i,2)=bb(i,1)-templ-lx*qcup/cp ! error B
+                do while (abs(bb(i,2)).gt.0.1.and.abs(cc(i,2)).gt.0.1)
+                  !ttup(k)=0.5*(bb(i,1)+cc(i,1)) ! bisection
+                  ttup(k)=(cc(i,2)*bb(i,1)-bb(i,2)*cc(i,1))/(cc(i,2)-bb(i,2)) ! false position
                   call getqsat(1,qupsat(k),ttup(k),pres(k))
                   qxup=min(qtup(k),qupsat(k))
                   qcup=qtup(k)-qxup
@@ -453,8 +483,10 @@ do kcount=1,mcount
                   lx=lv+lf*fice
                   if (templ+lx*qcup/cp.gt.ttup(k)) then
                     bb(i,1)=ttup(k)
+                    bb(i,2)=ttup(k)-templ-lx*qcup/cp
                   else
                     cc(i,1)=ttup(k)
+                    cc(i,2)=ttup(k)-templ-lx*qcup/cp
                   end if
                 end do
                 ttup(k)=templ+lx*qcup/cp                               ! temp,up
@@ -480,11 +512,13 @@ do kcount=1,mcount
               end do
             end if
           else
-            zi(i)=zidry
+            zi(i)=zidry(i)
           end if
 
           ! update boundary layer height
           zi(i)=alpha*zi(i)+(1.-alpha)*ziold
+          zidry(i)=alpha*zidry(i)+(1.-alpha)*zidryold
+          zidry(i)=min(zi(i),zidry(i))
 
           ! update surface boundary conditions
           wstar(i)=(grav*zi(i)*wtv0(i)/thetav(i,1))**(1./3.)
@@ -494,6 +528,7 @@ do kcount=1,mcount
           ! check for convergence
           if (abs(zi(i)-ziold).lt.1.) exit
           ziold=zi(i)
+          zidryold=zidry(i)
         end do
         ! update explicit counter gradient terms
         gamth(i,:)=mflx(i,:)*(thup(i,:)-theta(i,:))
@@ -555,18 +590,18 @@ do kcount=1,mcount
   ff=0.
   rr=0.
   where (cfrac.gt.1.E-6)
-    dd=qlg/cfrac ! in-cloud value
-    ff=qfg/cfrac ! in-cloud value
-    rr=qrg/cfrac ! in-cloud value assuming maximum overlap
+    dd=qlg/cfrac ! inside cloud value
+    ff=qfg/cfrac ! inside cloud value
+    rr=qrg/cfrac ! inside cloud value
   end where
-  qgnc=max((qg-cfrac*qsat)/max(1.-cfrac,1.E-5),qgmin) ! outside cloud value
+  qgnc=max((qg-cfrac*qsat)/max(1.-cfrac,1.E-6),qgmin) ! outside cloud value
   thetavnc=theta*(1.+0.61*qgnc)                       ! outside cloud value
   call updatekmo(thetahl,theta,zz,zzh)
-  call updatekmo(thetavhl,thetavnc,zz,zzh)
-  call updatekmo(qshl,qsat,zz,zzh) ! assume qg is saturated in cloud
-  call updatekmo(qlhl,dd,zz,zzh)
-  call updatekmo(qfhl,ff,zz,zzh)
-  call updatekmo(qrhl,rr,zz,zzh)
+  call updatekmo(thetavhl,thetavnc,zz,zzh)            ! outside cloud value
+  call updatekmo(qshl,qsat,zz,zzh)                    ! assume qg is saturated inside cloud
+  call updatekmo(qlhl,dd,zz,zzh)                      ! inside cloud value
+  call updatekmo(qfhl,ff,zz,zzh)                      ! inside cloud value
+  call updatekmo(qrhl,rr,zz,zzh)                      ! inside cloud value
 
   ! Calculate buoyancy term
   ! saturated conditions from Durran and Klemp JAS 1982 (see also WRF)
@@ -665,11 +700,17 @@ do kcount=1,mcount
   do k=1,kl
     rr(:,k)=theta(:,k)-sigkap(k)*(lv*(qlg(:,k)+qrg(:,k))+ls*qfg(:,k))/cp ! thetal
   end do
-  qq=qg+qlg+qfg+qrg ! qtot
+  qq=max(qg+qlg+qfg+qrg,qgmin) ! qtot
   qlg=max(qlg,0.)
   qfg=max(qfg,0.)
   qrg=max(qrg,0.)
-  qg=qq-qlg-qfg-qrg
+  qg=max(qg,0.)
+  ff=max(qg+qlg+qfg+qrg,qgmin)
+  qq=qq/ff
+  qg=qg*qq
+  qlg=qlg*qq
+  qfg=qfg*qq
+  qrg=qrg*qq
   do k=1,kl
     theta(:,k)=rr(:,k)+sigkap(k)*(lv*(qlg(:,k)+qrg(:,k))+ls*qfg(:,k))/cp
   end do

@@ -2623,7 +2623,11 @@ contains
       
       ! MJT error check
       do iproc=0,nproc-1
-        call checksize(dslen(iproc),bnds(iproc)%len,"Deptssync")
+        if (dslen(iproc)>bnds(iproc)%len) then
+	  write(6,*) "ERROR in deptsync myid,iproc,dslen,bnds%len,neighbour ", &
+	    myid,iproc,dslen(iproc),bnds(iproc)%len,neighbour(iproc)
+          call checksize(dslen(iproc),bnds(iproc)%len,"Deptssync")
+	end if	
       end do
 
 !     In this case the length of each buffer is unknown and will not

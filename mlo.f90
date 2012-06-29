@@ -1867,7 +1867,7 @@ p_cdq=afq*fq
 ! turn off lake evaporation when minimum depth is reached
 ! fg should be replaced with bare ground value
 d_wavail=depth_hl(:,wlev+1)+d_neta-minwater
-egmax=max(1000.*lv*d_wavail/(dt*max(i_fracice,fracbreak)),0.)
+egmax=max(1000.*lv*d_wavail/(dt*max(1.-i_fracice,0.01)),0.)
 
 ! explicit estimate of fluxes
 ! (replace with implicit scheme if water becomes too shallow)
@@ -1877,7 +1877,7 @@ p_taux=rho*p_cd*vmagn*atu
 p_tauy=rho*p_cd*vmagn*atv
 
 ! update free surface after evaporation
-d_neta=d_neta-0.001*dt*i_fracice*p_eg/lv
+d_neta=d_neta-0.001*dt*(1.-i_fracice)*p_eg/lv
 
 return
 end subroutine fluxcalc

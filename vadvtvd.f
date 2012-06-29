@@ -120,7 +120,7 @@ c      qg
 
        !--------------------------------------------------------------
        ! MJT tke
-       if(nvmix.eq.6)then
+       if(nvmix==6)then
         call vadvsub(eps(1:ifull,:),tfact,0)
         call vadvsub(tke(1:ifull,:),tfact,0)
        endif      ! if(nvmix.eq.6)

@@ -157,9 +157,9 @@ end subroutine aldrloaderod
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Main routine
 
-subroutine aldrcalc(dt,sig,sigh,dsig,zz,mc,mcmax,wg,pblh,prf,ts,ttg,rcondx,condc,snowd,sg,fg,eg,v10m, &
-                    ustar,zo,land,sicef,tsigmf,qlg,qfg,cfrac,clcon,pccw,dxy,rhoa,vt,ppfprec,ppfmelt,  &
-                    ppfsnow,ppfconv,ppfevap,ppfsubl,pplambs,ppmrate,ppmaccr,ppfstay,ppqfsed,pprscav,  &
+subroutine aldrcalc(dt,sig,sigh,dsig,zz,dz,mc,fwet,wg,pblh,prf,ts,ttg,rcondx,condc,snowd,sg,fg,eg,v10m,  &
+                    ustar,zo,land,sicef,tsigmf,qlg,qfg,cfrac,clcon,pccw,dxy,rhoa,vt,ppfprec,ppfmelt,     &
+                    ppfsnow,ppfconv,ppfevap,ppfsubl,pplambs,ppmrate,ppmaccr,ppfstay,ppqfsed,pprscav,     &
                     zdayfac)
 
 implicit none
@@ -169,7 +169,7 @@ real, dimension(kl), intent(in) :: sig         ! Sigma levels
 real, dimension(kl), intent(in) :: dsig        ! Sigma level width
 real, dimension(kl+1), intent(in) :: sigh      ! Sigma half levels
 real, dimension(ifull), intent(in) :: mc       ! Water on leaf
-real, dimension(ifull), intent(in) :: mcmax    ! Max water on leaf
+real, dimension(ifull), intent(in) :: fwet     ! Fraction of water on leaf
 real, dimension(ifull), intent(in) :: wg       ! Soil moisture fraction of field capacity
 real, dimension(ifull), intent(in) :: prf      ! Surface pressure
 real, dimension(ifull), intent(in) :: ts       ! Surface temperture
@@ -189,6 +189,7 @@ real, dimension(ifull), intent(in) :: dxy      ! area of grid box
 real, dimension(ifull), intent(in) :: vt       ! transfer velocity
 real, dimension(ifull), intent(in) :: zdayfac  ! scale factor for day length
 real, dimension(ifull,kl), intent(in) :: zz    ! Height of vertical level (meters)
+real, dimension(ifull,kl), intent(in) :: dz
 real, dimension(ifull,kl), intent(in) :: ttg   ! Air temperature
 real, dimension(ifull,kl), intent(in) :: qlg   ! liquid water mixing ratio
 real, dimension(ifull,kl), intent(in) :: qfg   ! frozen water mixing ratio
@@ -204,14 +205,14 @@ real, dimension(ifull,naero) :: conwd          ! Diagnostic only: Convective wet
 real, dimension(ifull,naero) :: xtem
 real, dimension(ifull,kl,naero) :: xte,xtm1,pxtm1,xtu
 real, dimension(ifull,kl+1) :: aphp1
-real, dimension(ifull,kl) :: dz,pclcon
+real, dimension(ifull,kl) :: pclcon
 real, dimension(ifull,kl) :: prhop1,ptp1,pfevap,pfsubl,plambs
 real, dimension(ifull,kl) :: pclcover,pcfcover,pmlwc,pmiwc
 real, dimension(ifull) :: so2em,so4em,dmsem,bem,oem,bbem
 real, dimension(ifull) :: so2dd,so4dd
 real, dimension(ifull) :: so2wd,so4wd,dustwd
 real, dimension(ifull) :: so2oh,so2h2,so2o3,dmsoh,dmsn3
-real, dimension(ifull) :: v10n
+real, dimension(ifull) :: v10n,dumsnowd
 real, dimension(ifull) :: veff,vefn,dustdd,duste
 real, dimension(kl) :: isig
 real rrate,wstar3,vgust_free,vgust_deep,cstrat
@@ -220,15 +221,9 @@ real, parameter :: beta=0.65
 integer mg,nt,k
 
 xtg=max(xtg,0.)
-
-dz(:,1)=0.5*(zz(:,2)+zz(:,1))
-do k=2,kl-1
-  dz(:,k)=0.5*(zz(:,k+1)-zz(:,k-1))
-end do
-dz(:,kl)=zz(:,kl)-zz(:,kl-1)
-
 conwd=0.
 v10n=ustar*log(10./zo)/vkar
+dumsnowd=1.E-3*snowd
 
 ! Calculate sub-grid Vgust
 ! Mesoscale enhancement follows Redelsperger et al. (2000), J. Climate 13, 402-421.
@@ -263,7 +258,7 @@ do k=1,kl
 enddo
 ! Emission and dry deposition (sulfur cycle and carbonaceous aerosols)
 call xtemiss(dt, xtm1, rhoa(:,1), ts, sicef, vefn, aphp1,                 & !Inputs
-             land, tsigmf, 1.e-3*snowd, mcmax, mc, wg, isig,              & !Inputs
+             land, tsigmf, dumsnowd, fwet, mc, wg, isig,                  & !Inputs
              xte, xtem, so2dd, so4dd, so2em, dmsem, so4em, bem, oem, bbem)  !Outputs
 do k=1,kl
   xtg(1:ifull,k,:)=max(xtg(1:ifull,k,:)+xte(:,kl+1-k,:)*dt,0.)
@@ -273,7 +268,7 @@ enddo
 ! Calculate the settling of large dust particles
 dustdd(:)=0.
 do k=1,kl
-  aphp1(:,k)=prf(:)*sig(k)/100. ! hPa
+  aphp1(:,k)=prf(:)*sig(k)*0.01 ! hPa
 end do
 call dsettling(dt,ttg,dz,aphp1(:,1:kl),                     & !Inputs
                xtg(1:ifull,:,itracdu:itracdu+ndust-1),dustdd) !In and out
@@ -401,7 +396,7 @@ end subroutine aldrcalc
 ! xt emiss
 
 SUBROUTINE XTEMISS(ztmst, PXTM1, P1MXTM1, TSM1M, SEAICEM, G3X01, APHP1,          & !Inputs
-                   LOLAND, PFOREST, PSNOW, PWLMX, WLM1M, WSM1M, sig,             & !Inputs
+                   LOLAND, PFOREST, PSNOW, fwet, WLM1M, WSM1M, sig,              & !Inputs
                    XTE, PXTEMS, so2dd, so4dd, so2em, dmsem, so4em, bem, oem, bbem) !Outputs
 !
 !    THIS ROUTINE CALCULATES THE LOWER BOUNDARY CONDITIONS
@@ -438,7 +433,7 @@ LOGICAL LOLAND(ifull)       !Land flag
 REAL PFOREST(ifull)         !Fractional vegetation cover
 REAL PSNOW(ifull)           !Snow depth [m]
 ! Land-surface details needed to specify dry deposition velocity
-REAL PWLMX(ifull)           !maximum skin reservoir content of plant [ditto]
+REAL fwet(ifull)            !skin reservoir content of plant [fraction of maximum]
 real WLM1M(ifull)           !skin reservoir content of plant [mm for CSIRO GCM, not m]
 real WSM1M(ifull)           !surface wetness [vol fraction for CSIRO GCM, not m]
 real sig(kl)                !sigma levels
@@ -508,25 +503,25 @@ iocna=idmst+1     ! Nat org
 ! make sure sig is inverted with kl as lowest level
 ! scale to CSIRO9 18 levels
 ! jk2 is top of level=1, bottom of level=2
-pos=maxloc(sig,sig.le.0.990)
+pos=maxloc(sig,sig.le.0.990) ! 100m
 jk2=pos(1)
 ! jk3 is top of level=2, bottom of level=3
-pos=maxloc(sig,sig.le.0.965)
+pos=maxloc(sig,sig.le.0.965) ! 300m
 jk3=pos(1)
 ! jk4 is top of level=3, bottom of level=4
-pos=maxloc(sig,sig.le.0.925)
+pos=maxloc(sig,sig.le.0.925) ! 600m
 jk4=pos(1)
 ! jk5 is top of level=4, bottom of level=5
-pos=maxloc(sig,sig.le.0.870)
+pos=maxloc(sig,sig.le.0.870) ! 1,150m
 jk5=pos(1)
 ! jk6 is top of level=5, bottom of level=6
-pos=maxloc(sig,sig.le.0.800)
+pos=maxloc(sig,sig.le.0.800) ! 1,800m
 jk6=pos(1)
 ! jk8 is top of level=7, bottom of level=8
-pos=maxloc(sig,sig.le.0.650)
+pos=maxloc(sig,sig.le.0.650) ! 3,500m
 jk8=pos(1)
 ! jk9 is top of level=8, bottom of level=9
-pos=maxloc(sig,sig.le.0.500)
+pos=maxloc(sig,sig.le.0.500) ! 5,500m
 jk9=pos(1)
 
 ! --------------------------------------------------------------
@@ -749,7 +744,7 @@ DO JL=1,ifull
       ELSE
 !            - WET/DRY -
 !               - COMPLETELY WET -
-        IF((WLM1M(JL)/PWLMX(JL)).GE.0.01.OR.WSM1M(JL).EQ.1.) THEN
+        IF(fwet(JL).GE.0.01.OR.WSM1M(JL).EQ.1.) THEN
           ZVD2NOF=0.8E-2
           ZVD4NOF=0.2E-2
         ELSE
@@ -1995,7 +1990,7 @@ do k = 1, NDUST
 ! Determine the maximum time-step satisying the CFL condition:
 ! dt <= (dz)_min / v_settl
   dtmax = dzmin / vsettl
-  ndt_settl(k) = max( 1, int( TDT /dtmax) )
+  ndt_settl(k) = int( TDT /(dtmax+0.01))+1 ! MJT suggestion
   dt_settl(k) = tdt / ndt_settl(k)
         
   dtxvsettl(k) = dt_settl(k) * vsettl
@@ -2094,7 +2089,7 @@ real xtendo,xold
 real water(ifull)
 real ch_dust(ifull)
 
-real hsnow,g,tsrc,rhoa,u_ts0,cw,u_ts,srce,dsrc
+real hsnow,g,rhoa,u_ts0,cw,u_ts,srce,dsrc
 real airmas,cz1,veff,xtendd
 integer i,n,m,k
 
@@ -2107,10 +2102,9 @@ data ipoint/3,2,2,2/ !,3,2,2,2,12*0/ !Pointer to the 3 classes (sand, silt, clay
 data frac_s/0.1,0.25,0.25,0.25/ !,16*0./
 
 ! Start code : ----------------------------------------------------------
+water=1.
 where (land)
   water=0.       ! fraction of water in each grid box
-elsewhere
-  water=1.
 end where
 Ch_dust = 1.e-9  ! Transfer coeff for type natural source (kg*s2/m5)
 
@@ -2130,7 +2124,6 @@ do n = 1, ndust
   g=grav*1.e2
   ! Pointer to the 3 classes considered in the source data files
   m=ipoint(n)
-  TSRC = 0.
   do k = 1, NDSRC
     ! No flux if wet soil 
     do i = 1, ifull
@@ -2168,7 +2161,8 @@ do n = 1, ndust
       a = dxdt
       b = Veff / cz1
       xold = xd(i,1,n)
-      xd(i,1,n) = (xold*(1.-0.5*b*tdt)+a*tdt)/(1.+0.5*b*tdt)
+      xd(i,1,n) = (xold+a*tdt)/(1.+b*tdt) ! MJT suggestion
+      !xd(i,1,n) = (xold*(1.-0.5*b*tdt)+a*tdt)/(1.+0.5*b*tdt)
       xd(i,1,n) = max (0.,xd(i,1,n))
       xtendd = (xd(i,1,n)-xold)/tdt - dxdt
       dustd(i) = dustd(i) - xtendd*airden(i)*dz1(i) !Diagnostic

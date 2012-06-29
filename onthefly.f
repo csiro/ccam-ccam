@@ -1791,7 +1791,7 @@ c       incorporate other target land mask effects
               call vertint(u_k,ssn(1:ifull,:,i-naero),5,kk,sigin)
             end if
           end do
-          if (nrad.eq.4) then
+          if (iaero.ne.0) then
             ! Factor 1.e3 to convert to g/m2, x 3 to get sulfate from sulfur
             so4t(:)=0.
             do k=1,kl
