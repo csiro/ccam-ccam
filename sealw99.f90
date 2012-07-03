@@ -272,7 +272,7 @@ real, parameter :: RADCON = ((1.0E+02*GRAV)/(1.0E+04*CP_AIR))*SECONDS_PER_DAY
 !     acomb         random "a" parameter for NBLY bands.
 !     bcomb         random "b" parameter for NBLY bands.
 !---------------------------------------------------------------------
-real, dimension (:), allocatable    ::  apcm, bpcm, atpcm, btpcm,&
+real, dimension (:), allocatable, save    ::  apcm, bpcm, atpcm, btpcm,&
                                         acomb, bcomb
 
 !-------------------------------------------------------------------
@@ -294,8 +294,8 @@ integer, dimension(NBLY_CKD-1)      ::  cld_indx_table
 !---------------------------------------------------------------------
 !
 !---------------------------------------------------------------------
-real, dimension (:),    allocatable    ::  c1b7, c2b7
-integer, dimension (:), allocatable    ::  cld_indx
+real, dimension (:),    allocatable, save    ::  c1b7, c2b7
+integer, dimension (:), allocatable, save    ::  cld_indx
 
 !---------------------------------------------------------------------
 !    miscellaneous variables.
@@ -3311,7 +3311,7 @@ type(lw_diagnostics_type), intent(inout) :: Lw_diagnostics
       integer ::  NBTRGE, NBLY
 
       ! gol124: allocate only if not done previously!
-      IF (.NOT. associated(Lw_diagnostics%flx1e1)) THEN
+      IF (.NOT. allocated(Lw_diagnostics%flx1e1)) THEN
 !---------------------------------------------------------------------
 !    allocate (and initialize where necessary) lw_diagnostics_type 
 !    component arrays.
@@ -3345,7 +3345,7 @@ type(lw_diagnostics_type), intent(inout) :: Lw_diagnostics
       Lw_diagnostics%flx1e1f   = 0.
 
       if (Rad_control%do_totcld_forcing) then
-        if (.NOT. associated(Lw_diagnostics%fluxncf )) then
+        if (.NOT. allocated(Lw_diagnostics%fluxncf )) then
           allocate ( Lw_diagnostics%fluxncf (ix, jx, kx+1, 6+NBTRGE) )
         endif
         Lw_diagnostics%fluxncf = 0.

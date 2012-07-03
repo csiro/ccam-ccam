@@ -269,9 +269,11 @@ type(lw_clouds_type),         intent(inout) :: Lw_clouds
 !--------------------------------------------------------------------
 !    allocate the components of the lw_clouds derived type variable.
 !--------------------------------------------------------------------
+      if (.not.allocated(Lw_clouds%taucld_rndlw)) then
       allocate (Lw_clouds%taucld_rndlw (IS:IE, JS:JE,KS:KE, NLWCLDB) )
       allocate (Lw_clouds%taunbl_mxolw (IS:IE, JS:JE,KS:KE, NLWCLDB) )
       allocate (Lw_clouds%taucld_mxolw (IS:IE, JS:JE,KS:KE, NLWCLDB) )
+      end if
 
 !----------------------------------------------------------------------
 !    define max overlap layer transmission function over layers KS,KE
@@ -851,9 +853,9 @@ type(lw_clouds_type), intent(inout)  :: Lw_clouds
 !--------------------------------------------------------------------
 !    deallocate the array components of Lw_clouds.
 !--------------------------------------------------------------------
-      deallocate (Lw_clouds%taucld_rndlw)
-      deallocate (Lw_clouds%taucld_mxolw)
-      deallocate (Lw_clouds%taunbl_mxolw)
+      !deallocate (Lw_clouds%taucld_rndlw)
+      !deallocate (Lw_clouds%taucld_mxolw)
+      !deallocate (Lw_clouds%taunbl_mxolw)
 
 !-------------------------------------------------------------------
 

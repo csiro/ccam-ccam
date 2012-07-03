@@ -38,8 +38,8 @@ c
       integer ncstatus,ncid,tt
       integer valident,yy,mm,iti,nn
       integer, dimension(4) :: spos,npos
-      real, dimension(:,:,:,:), allocatable :: o3dum
-      real, dimension(:), allocatable :: o3lon,o3lat
+      real, dimension(:,:,:,:), allocatable, save :: o3dum
+      real, dimension(:), allocatable, save :: o3lon,o3lat
       real, dimension(kl) :: sigma,sigin
       character*32 cdate
       real, parameter :: sigtol=1.e-3

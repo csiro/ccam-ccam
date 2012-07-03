@@ -220,7 +220,7 @@ real, dimension (NBLY_RSB)           :: betacm
 
 !---------------------------------------------------------------------
 
-real, allocatable, dimension (:,:)     ::             csfah2o
+real, allocatable, save, dimension (:,:)     ::             csfah2o
 
 !---------------------------------------------------------------------
 !   the values of the molecular weights of f11 and f12 are derived
@@ -841,15 +841,19 @@ logical,                   intent(in)            :: including_aerosols
 !    atmden   =  atmospheric density, in gm/cm**2, for each of the
 !                KMAX layers.
 !-------------------------------------------------------------------
+      if (.not.allocated(Optical%wk)) then
       allocate (Optical%wk       (ISRAD:IERAD, JSRAD:JERAD, KS:KE  ) )
       allocate (Optical%rh2os    (ISRAD:IERAD, JSRAD:JERAD, KS:KE  ) )
       allocate (Optical%rfrgn    (ISRAD:IERAD, JSRAD:JERAD, KS:KE  ) )
       allocate (Optical%tfac     (ISRAD:IERAD, JSRAD:JERAD, KS:KE  ) )
       allocate (Optical%avephi   (ISRAD:IERAD, JSRAD:JERAD, KS:KE+1) )
+      end if
 
       if (NBTRGE > 0) then
+        if (.not.allocated(Optical%avephif)) then
         allocate (Optical%avephif(ISRAD:IERAD, JSRAD:JERAD,    &
                                   KS:KE+1, NBTRGE) )
+        end if
       endif
 
 !---------------------------------------------------------------------
@@ -917,8 +921,10 @@ logical,                   intent(in)            :: including_aerosols
 !    allocate space for and then retrieve the aerosol mixing ratios and
 !    aerosol optical properties from the aerosol module.
 !--------------------------------------------------------------------
+        if (.not.allocated(Optical%totaerooptdep)) then
         allocate (Optical%totaerooptdep (ix,jx,kx+1, N_AEROSOL_BANDS))
         allocate (Optical%aerooptdep_KE_15 (ix, jx ) )
+        end if
         Optical%totaerooptdep = 0.                              
         Optical%aerooptdep_KE_15 = 0.           
       !endif ! MJT bug fix
@@ -2331,56 +2337,57 @@ logical,                   intent(in)            :: including_aerosols
 !--------------------------------------------------------------------
 !    deallocate the array elements of Optical.
 !--------------------------------------------------------------------
-       deallocate (Optical%empl1          )
-       deallocate (Optical%empl2          )
-       deallocate (Optical%var1           )
-       deallocate (Optical%var2           )
-       deallocate (Optical%avephi         )
-       deallocate (Optical%totphi         )
-       deallocate (Optical%emx1           )
-       deallocate (Optical%emx2           )
+
+       !deallocate (Optical%empl1          )
+       !deallocate (Optical%empl2          )
+       !deallocate (Optical%var1           )
+       !deallocate (Optical%var2           )
+       !deallocate (Optical%avephi         )
+       !deallocate (Optical%totphi         )
+       !deallocate (Optical%emx1           )
+       !deallocate (Optical%emx2           )
 
  
-       if (NBTRGE > 0) then
-         deallocate (Optical%avephif        )
-         deallocate (Optical%emx1f          )
-         deallocate (Optical%emx2f          )
-         deallocate (Optical%empl1f         )
-         deallocate (Optical%empl2f         )
-         deallocate (Optical%vrpfh2o        )
-         deallocate (Optical%tphfh2o         )
-       endif
+       !if (NBTRGE > 0) then
+       !  deallocate (Optical%avephif        )
+       !  deallocate (Optical%emx1f          )
+       !  deallocate (Optical%emx2f          )
+       !  deallocate (Optical%empl1f         )
+       !  deallocate (Optical%empl2f         )
+       !  deallocate (Optical%vrpfh2o        )
+       !  deallocate (Optical%tphfh2o         )
+       !endif
  
-       if (trim(Lw_control%continuum_form) == 'ckd2.1' .or.     &
-           trim(Lw_control%continuum_form) == 'ckd2.4' ) then
-         deallocate (Optical%xch2obd        )
-         deallocate (Optical%totch2obdwd    )
-         deallocate (Optical%xch2obdwd      )
-       else if (trim(Lw_control%continuum_form) == 'rsb' ) then
-         deallocate (Optical%cntval         )
-         deallocate (Optical%totvo2         )
-       endif
+       !if (trim(Lw_control%continuum_form) == 'ckd2.1' .or.     &
+       !    trim(Lw_control%continuum_form) == 'ckd2.4' ) then
+       !  deallocate (Optical%xch2obd        )
+       !  deallocate (Optical%totch2obdwd    )
+       !  deallocate (Optical%xch2obdwd      )
+       !else if (trim(Lw_control%continuum_form) == 'rsb' ) then
+       !  deallocate (Optical%cntval         )
+       !  deallocate (Optical%totvo2         )
+       !endif
  
-       deallocate (Optical%toto3          )
-       deallocate (Optical%tphio3         )
-       deallocate (Optical%var3           )
-       deallocate (Optical%var4           )
-       deallocate (Optical%wk             )
-       deallocate (Optical%rh2os          )
-       deallocate (Optical%rfrgn          )
-       deallocate (Optical%tfac           )
+       !deallocate (Optical%toto3          )
+       !deallocate (Optical%tphio3         )
+       !deallocate (Optical%var3           )
+       !deallocate (Optical%var4           )
+       !deallocate (Optical%wk             )
+       !deallocate (Optical%rh2os          )
+       !deallocate (Optical%rfrgn          )
+       !deallocate (Optical%tfac           )
 
-       if (Lw_control%do_cfc) then
-         deallocate (Optical%totf11         )
-         deallocate (Optical%totf12         )
-         deallocate (Optical%totf113         )
-         deallocate (Optical%totf22         )
-       endif
+       !if (Lw_control%do_cfc) then
+       !  deallocate (Optical%totf11         )
+       !  deallocate (Optical%totf12         )
+       !  deallocate (Optical%totf113         )
+       !  deallocate (Optical%totf22         )
+       !endif
 
-       if (including_aerosols) then
-         deallocate (Optical%totaerooptdep  )
-         deallocate (Optical%aerooptdep_KE_15  )
-       endif
+       !if (including_aerosols) then
+       !  deallocate (Optical%totaerooptdep  )
+       !  deallocate (Optical%aerooptdep_KE_15  )
+       !endif
 
 !-------------------------------------------------------------------
 
@@ -11208,12 +11215,14 @@ type(optical_path_type), intent(inout)    :: Optical
 !--------------------------------------------------------------------
 !
 !--------------------------------------------------------------------
+      if (.not.allocated(Optical%xch2obd)) then
       allocate (Optical%xch2obd    (ISRAD:IERAD, JSRAD:JERAD,    &
                                                           KS:KE  , 7) )
       allocate (Optical%totch2obdwd(ISRAD:IERAD, JSRAD:JERAD,    &
                                                           KS:KE+1   ) )
       allocate (Optical%xch2obdwd  (ISRAD:IERAD, JSRAD:JERAD,    &
                                                           KS:KE     ) )
+      end if
       Optical%xch2obd  = 0.                                           
       Optical%totch2obdwd = 0.                                        
       Optical%xch2obdwd  = 0.      
@@ -11348,10 +11357,12 @@ type(optical_path_type), intent(inout) ::  Optical
 !--------------------------------------------------------------------
 !
 !--------------------------------------------------------------------
+      if (.not.allocated(Optical%toto3)) then
       allocate (Optical%toto3 (ISRAD:IERAD, JSRAD:JERAD, KS:KE      +1))
       allocate (Optical%tphio3(ISRAD:IERAD, JSRAD:JERAD, KS:KE      +1))
       allocate (Optical%var3  (ISRAD:IERAD, JSRAD:JERAD, KS:KE        ))
       allocate (Optical%var4  (ISRAD:IERAD, JSRAD:JERAD, KS:KE        ))
+      end if
       Optical%toto3  = 0.
       Optical%tphio3 = 0.
       Optical%var3  = 0.
@@ -11450,8 +11461,10 @@ type(optical_path_type), intent(inout) :: Optical
 !---------------------------------------------------------------------
 !
 !---------------------------------------------------------------------
+      if (.not.allocated(Optical%cntval)) then
       allocate (Optical%cntval(ISRAD:IERAD, JSRAD:JERAD,   KS:KE+1   ))
       allocate (Optical%totvo2(ISRAD:IERAD, JSRAD:JERAD,   KS:KE+1   ))
+      end if
       Optical%cntval = 0.                                         
       Optical%totvo2 = 0.                                        
 
@@ -11596,6 +11609,7 @@ type(optical_path_type), intent(inout) ::  Optical
 !---------------------------------------------------------------------
 !
 !---------------------------------------------------------------------
+      if (.not.allocated(Optical%empl1)) then
       allocate (Optical%empl1  (ISRAD:IERAD, JSRAD:JERAD  , KS:KE+1   ))
       allocate (Optical%empl2  (ISRAD:IERAD, JSRAD:JERAD  , KS:KE+1   ))
       allocate (Optical%totphi (ISRAD:IERAD, JSRAD:JERAD  , KS:KE+1   ))
@@ -11603,6 +11617,7 @@ type(optical_path_type), intent(inout) ::  Optical
       allocate (Optical%var2   (ISRAD:IERAD, JSRAD:JERAD  , KS:KE     ))
       allocate (Optical%emx1   (ISRAD:IERAD, JSRAD:JERAD              ))
       allocate (Optical%emx2   (ISRAD:IERAD, JSRAD:JERAD              ))
+      end if
       Optical%empl1   = 0.
       Optical%empl2  =0.
       Optical%totphi  = 0.
@@ -11666,6 +11681,7 @@ type(optical_path_type), intent(inout) ::  Optical
 !
 !---------------------------------------------------------------------
       if (NBTRGE > 0) then
+        if (.not.allocated(Optical%empl1f)) then
         allocate ( Optical%empl1f (ISRAD:IERAD , JSRAD:JERAD ,    & 
                                                   KS:KE+1,  NBTRGE ) ) 
         allocate ( Optical%empl2f (ISRAD:IERAD , JSRAD:JERAD ,     &  
@@ -11678,6 +11694,7 @@ type(optical_path_type), intent(inout) ::  Optical
                                                             NBTRGE ) )
         allocate ( Optical%emx2f  (ISRAD:IERAD , JSRAD:JERAD ,   &
                                                             NBTRGE ) )
+        end if
         Optical%empl1f  = 0.
         Optical%empl2f  = 0.
         Optical%tphfh2o  = 0.
@@ -11838,6 +11855,7 @@ type(optical_path_type),    intent(inout)  :: Optical
 !----------------------------------------------------------------------
 !
 !----------------------------------------------------------------------
+      if (.not.allocated(Optical%totf11)) then
       allocate ( Optical%totf11 (size(density,1), size(density,2),    &
                                  size(density,3) ) )
       allocate ( Optical%totf12 (size(density,1), size(density,2),    &
@@ -11846,6 +11864,7 @@ type(optical_path_type),    intent(inout)  :: Optical
                                  size(density,3) ) )
       allocate ( Optical%totf22 (size(density,1), size(density,2),    &
                                  size(density,3) ) )
+      end if
       Optical%totf11  = 0.
       Optical%totf12  = 0.
       Optical%totf113 = 0.

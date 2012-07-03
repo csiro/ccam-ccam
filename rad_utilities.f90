@@ -98,9 +98,9 @@ public   aerosol_type
 !    family_members
 
 type aerosol_type
-     real, dimension(:,:,:,:),        pointer :: aerosol=>NULL()
-     logical, dimension(:,:),        pointer :: family_members=>NULL()
-     character(len=64), dimension(:), pointer :: aerosol_names=>NULL()
+     real, dimension(:,:,:,:),        allocatable :: aerosol
+     logical, dimension(:,:),        allocatable :: family_members
+     character(len=64), dimension(:), allocatable :: aerosol_names
 end type aerosol_type              
 
 !------------------------------------------------------------------
@@ -116,13 +116,13 @@ public   aerosol_diagnostics_type
 !    sw_heating_vlcno
  
 type aerosol_diagnostics_type
-     real, dimension(:,:,:),   pointer  :: sw_heating_vlcno=>NULL()
-     real, dimension(:,:,:,:,:), pointer  :: extopdep=>NULL(), &
-                                             absopdep=>NULL()
-     real, dimension(:,:,:,:), pointer  :: extopdep_vlcno=>NULL(), &
-                                           absopdep_vlcno=>NULL(), &
-                                           lw_extopdep_vlcno=>NULL(), &
-                                           lw_absopdep_vlcno=>NULL()
+     real, dimension(:,:,:),   allocatable  :: sw_heating_vlcno
+     real, dimension(:,:,:,:,:), allocatable  :: extopdep, &
+                                             absopdep
+     real, dimension(:,:,:,:), allocatable  :: extopdep_vlcno, &
+                                           absopdep_vlcno, &
+                                           lw_extopdep_vlcno, &
+                                           lw_absopdep_vlcno
  
 end type aerosol_diagnostics_type
  
@@ -139,28 +139,28 @@ public   aerosol_properties_type
 !    optical_index
 
 type aerosol_properties_type
-     real, dimension(:,:), pointer  :: aerextband=>NULL(),   &
-                                       aerssalbband=>NULL(), &
-                                       aerasymmband=>NULL(), &
-                                       aerextbandlw=>NULL(), &
-                                       aerssalbbandlw=>NULL(), &
-                                       aerextbandlw_cn=>NULL(), &
-                                       aerssalbbandlw_cn=>NULL()
-     real, dimension(:,:,:,:), pointer :: sw_ext=>NULL(), &
-                                          sw_ssa=>NULL(), &
-                                          sw_asy=>NULL(), &
-                                          lw_ext=>NULL(), &
-                                          lw_ssa=>NULL(), &
-                                          lw_asy=>NULL()
-     integer, dimension(:), pointer :: sulfate_index=>NULL()
-     integer, dimension(:), pointer :: optical_index=>NULL()
-     integer, dimension(:), pointer :: omphilic_index=>NULL()
-     integer, dimension(:), pointer :: bcphilic_index=>NULL()
-     integer, dimension(:), pointer :: seasalt1_index=>NULL()
-     integer, dimension(:), pointer :: seasalt2_index=>NULL()
-     integer, dimension(:), pointer :: seasalt3_index=>NULL()
-     integer, dimension(:), pointer :: seasalt4_index=>NULL()
-     integer, dimension(:), pointer :: seasalt5_index=>NULL()
+     real, dimension(:,:), allocatable  :: aerextband,   &
+                                       aerssalbband, &
+                                       aerasymmband, &
+                                       aerextbandlw, &
+                                       aerssalbbandlw, &
+                                       aerextbandlw_cn, &
+                                       aerssalbbandlw_cn
+     real, dimension(:,:,:,:), allocatable :: sw_ext, &
+                                          sw_ssa, &
+                                          sw_asy, &
+                                          lw_ext, &
+                                          lw_ssa, &
+                                          lw_asy
+     integer, dimension(:), allocatable :: sulfate_index
+     integer, dimension(:), allocatable :: optical_index
+     integer, dimension(:), allocatable :: omphilic_index
+     integer, dimension(:), allocatable :: bcphilic_index
+     integer, dimension(:), allocatable :: seasalt1_index
+     integer, dimension(:), allocatable :: seasalt2_index
+     integer, dimension(:), allocatable :: seasalt3_index
+     integer, dimension(:), allocatable :: seasalt4_index
+     integer, dimension(:), allocatable :: seasalt5_index
      integer                        :: sulfate_flag
      integer                        :: omphilic_flag
      integer                        :: bcphilic_flag
@@ -181,9 +181,9 @@ public astronomy_type
 !    rrsun
 
 type astronomy_type
-     real, dimension(:,:), pointer  :: solar=>NULL(),   &
-                                       cosz=>NULL(),  &
-                                       fracday=>NULL()
+     real, dimension(:,:), allocatable  :: solar,   &
+                                       cosz,  &
+                                       fracday
      real    :: rrsun
 end type astronomy_type
 
@@ -197,8 +197,8 @@ public astronomy_inp_type
 !                   distance 
 
 type astronomy_inp_type
-     real, dimension(:,:), pointer  :: zenith_angle=>NULL()
-     real, dimension(:,:), pointer  :: fracday=>NULL()
+     real, dimension(:,:), allocatable  :: zenith_angle
+     real, dimension(:,:), allocatable  :: fracday
      real                           :: rrsun
 end type astronomy_inp_type
 
@@ -228,25 +228,25 @@ public atmos_input_type
 !    psfc
 
 type atmos_input_type
-     real, dimension(:,:,:), pointer :: press=>NULL(),   &
-                                        temp=>NULL(), &
-                                        rh2o=>NULL(),  &
-                                        zfull=>NULL(),  &
-                                        pflux=>NULL(), &
-                                        tflux=>NULL(),  &
-                                        deltaz=>NULL(),  &
-                                        phalf=>NULL(),   &
-                                        rel_hum=>NULL(), &
-                                        cloudtemp=>NULL(),   &
-                                        clouddeltaz=>NULL(), &
-                                        cloudvapor=>NULL(), &
-                                        aerosoltemp=>NULL(), &
-                                        aerosolvapor=>NULL(), &
-                                        aerosolpress=>NULL(), &
-                                        aerosolrelhum=>NULL(), &
-                                        tracer_co2 => NULL()
-     real, dimension(:,:),   pointer :: tsfc=>NULL(),   &
-                                        psfc=>NULL()              
+     real, dimension(:,:,:), allocatable :: press,   &
+                                        temp, &
+                                        rh2o,  &
+                                        zfull,  &
+                                        pflux, &
+                                        tflux,  &
+                                        deltaz,  &
+                                        phalf,   &
+                                        rel_hum, &
+                                        cloudtemp,   &
+                                        clouddeltaz, &
+                                        cloudvapor, &
+                                        aerosoltemp, &
+                                        aerosolvapor, &
+                                        aerosolpress, &
+                                        aerosolrelhum, &
+                                        tracer_co2
+     real, dimension(:,:),   allocatable :: tsfc,   &
+                                        psfc              
      real                            :: g_rrvco2
 end type atmos_input_type
 
@@ -266,17 +266,17 @@ public cldrad_properties_type
 !    cvisrfsw
 
 type cldrad_properties_type
-     real, dimension(:,:,:,:,:), pointer :: cldext=>NULL(),   &
-                                          cldasymm=>NULL(), &
-                                          cldsct=>NULL()
-     real, dimension(:,:,:,:,:), pointer ::                   &
-                                          emmxolw=>NULL(), &
-                                          emrndlw=>NULL(),  &
-                                          abscoeff=>NULL(),  &
-                                          cldemiss=>NULL()
-     real, dimension(:,:,:), pointer ::   cirabsw=>NULL(), &
-                                          cirrfsw=>NULL(),   &
-                                          cvisrfsw=>NULL()
+     real, dimension(:,:,:,:,:), allocatable :: cldext,   &
+                                          cldasymm, &
+                                          cldsct
+     real, dimension(:,:,:,:,:), allocatable ::                   &
+                                          emmxolw, &
+                                          emrndlw,  &
+                                          abscoeff,  &
+                                          cldemiss
+     real, dimension(:,:,:), allocatable ::   cirabsw, &
+                                          cirrfsw,   &
+                                          cvisrfsw
 end type cldrad_properties_type
 
 !------------------------------------------------------------------
@@ -291,12 +291,12 @@ public cld_space_properties_type
 !    kbtmswkc
 
 type cld_space_properties_type
-     real, dimension(:,:,:),    pointer :: camtswkc=>NULL()        
-     real, dimension(:,:,:),    pointer :: cirabswkc=>NULL(),  &
-                                           cirrfswkc=>NULL(), &
-                                           cvisrfswkc=>NULL()
-     integer, dimension(:,:,:), pointer :: ktopswkc=>NULL(),   &
-                                           kbtmswkc=>NULL()
+     real, dimension(:,:,:),    allocatable :: camtswkc        
+     real, dimension(:,:,:),    allocatable :: cirabswkc,  &
+                                           cirrfswkc, &
+                                           cvisrfswkc
+     integer, dimension(:,:,:), allocatable :: ktopswkc,   &
+                                           kbtmswkc
 end type cld_space_properties_type
 
 !------------------------------------------------------------------
@@ -328,43 +328,43 @@ public cld_specification_type
 !    ice_cloud
 
 type cld_specification_type
-   real, dimension(:,:,:,:),  pointer :: tau=>NULL(),  &
-                                         camtsw_band=>NULL(), &
-                                         crndlw_band=>NULL(), &
-                                         lwp_lw_band=>NULL(), &
-                                         iwp_lw_band=>NULL(), &
-                                         lwp_sw_band=>NULL(), &
-                                         iwp_sw_band=>NULL(), &
-                                         reff_liq_lw_band=>NULL(),   &
-                                         reff_ice_lw_band=>NULL(), &
-                                         reff_liq_sw_band=>NULL(),   &
-                                         reff_ice_sw_band=>NULL()
-   real, dimension(:,:,:),    pointer :: lwp=>NULL(),   &
-                                         iwp=>NULL(),  &
-                                         reff_liq=>NULL(),   &
-                                         reff_ice=>NULL(), &
-                                         liq_frac=>NULL(), &
-                                         cloud_water=>NULL(), &
-                                         cloud_ice=>NULL(),  &
-                                         cloud_area=>NULL(), &
-					 cloud_droplet=>NULL(), &
-                                         reff_liq_micro=>NULL(),   &
-                                         reff_ice_micro=>NULL(),&
-                                         camtsw=>NULL(),   &
-                                         cmxolw=>NULL(),  &
-                                         crndlw=>NULL()
-   integer, dimension(:,:,:), pointer :: cld_thickness=>NULL()
-   integer, dimension(:,:,:,:), pointer :: cld_thickness_lw_band=>NULL()
-   integer, dimension(:,:,:,:), pointer :: cld_thickness_sw_band=>NULL()
-   integer, dimension(:,:),   pointer :: ncldsw=>NULL(),   &
-                                         nmxolw=>NULL(),&
-                                         nrndlw=>NULL()
-   integer, dimension(:,:,:), pointer :: ncldsw_band=>NULL(),   &
-                                         nrndlw_band=>NULL()
-   logical, dimension(:,:,:), pointer :: hi_cloud=>NULL(),   &
-                                         mid_cloud=>NULL(),  &
-                                         low_cloud=>NULL(),   &
-                                         ice_cloud=>NULL()
+   real, dimension(:,:,:,:),  allocatable :: tau,  &
+                                         camtsw_band, &
+                                         crndlw_band, &
+                                         lwp_lw_band, &
+                                         iwp_lw_band, &
+                                         lwp_sw_band, &
+                                         iwp_sw_band, &
+                                         reff_liq_lw_band,   &
+                                         reff_ice_lw_band, &
+                                         reff_liq_sw_band,   &
+                                         reff_ice_sw_band
+   real, dimension(:,:,:),    allocatable :: lwp,   &
+                                         iwp,  &
+                                         reff_liq,   &
+                                         reff_ice, &
+                                         liq_frac, &
+                                         cloud_water, &
+                                         cloud_ice,  &
+                                         cloud_area, &
+					 cloud_droplet, &
+                                         reff_liq_micro,   &
+                                         reff_ice_micro,&
+                                         camtsw,   &
+                                         cmxolw,  &
+                                         crndlw
+   integer, dimension(:,:,:), allocatable :: cld_thickness
+   integer, dimension(:,:,:,:), allocatable :: cld_thickness_lw_band
+   integer, dimension(:,:,:,:), allocatable :: cld_thickness_sw_band
+   integer, dimension(:,:),   allocatable :: ncldsw,   &
+                                         nmxolw,&
+                                         nrndlw
+   integer, dimension(:,:,:), allocatable :: ncldsw_band,   &
+                                         nrndlw_band
+   logical, dimension(:,:,:), allocatable :: hi_cloud,   &
+                                         mid_cloud,  &
+                                         low_cloud,   &
+                                         ice_cloud
 end type cld_specification_type
 
 !------------------------------------------------------------------
@@ -447,24 +447,24 @@ public fsrad_output_type
 !    npass
 
 type fsrad_output_type
-     real, dimension(:,:,:), pointer :: tdtsw=>NULL(), &
-                                        tdtlw=>NULL(),  &
-                                        tdtsw_clr=>NULL(),  &
-                                        tdtlw_clr=>NULL()
-     real, dimension(:,:),   pointer :: swdns=>NULL(),   &
-                                        swups=>NULL(),  &
-                                        lwups=>NULL(), &
-                                        lwdns=>NULL(), &
-                                        swin=>NULL(), &
-                                        swout=>NULL(), &
-                                        olr=>NULL(), &
-                                        swdns_clr=>NULL(),  &
-                                        swups_clr=>NULL(),  &
-                                        lwups_clr=>NULL(),&
-                                        lwdns_clr=>NULL(),   &
-                                        swin_clr=>NULL(),  &
-                                        swout_clr=>NULL(), &
-                                        olr_clr=>NULL()
+     real, dimension(:,:,:), allocatable :: tdtsw, &
+                                        tdtlw,  &
+                                        tdtsw_clr,  &
+                                        tdtlw_clr
+     real, dimension(:,:),   allocatable :: swdns,   &
+                                        swups,  &
+                                        lwups, &
+                                        lwdns, &
+                                        swin, &
+                                        swout, &
+                                        olr, &
+                                        swdns_clr,  &
+                                        swups_clr,  &
+                                        lwups_clr,&
+                                        lwdns_clr,   &
+                                        swin_clr,  &
+                                        swout_clr, &
+                                        olr_clr
      integer      :: npass
 end type fsrad_output_type
 
@@ -484,16 +484,16 @@ public gas_tf_type
 !    a2
 
 type gas_tf_type
-     real, dimension(:,:,:),   pointer :: tdav=>NULL(),   &
-                                          tlsqu=>NULL(),   &
-                                          tmpdiff=>NULL(),   &
-                                          tstdav=>NULL(),  &
-                                          co2nbl=>NULL(),   &
-                                          n2o9c=>NULL(),   &
-                                          tn2o17=>NULL()
-     real, dimension(:,:,:,:), pointer :: co2spnb=>NULL()
-     real, dimension(:,:),     pointer :: a1=>NULL(),    &
-                                          a2=>NULL()
+     real, dimension(:,:,:),   allocatable :: tdav,   &
+                                          tlsqu,   &
+                                          tmpdiff,   &
+                                          tstdav,  &
+                                          co2nbl,   &
+                                          n2o9c,   &
+                                          tn2o17
+     real, dimension(:,:,:,:), allocatable :: co2spnb
+     real, dimension(:,:),     allocatable :: a1,    &
+                                          a2
 end type gas_tf_type
 
 !------------------------------------------------------------------
@@ -555,10 +555,10 @@ public longwave_tables1_type
 !    cd
 
 type longwave_tables1_type
-    real, dimension(:,:), pointer  ::  vae=>NULL(),   &
-                                       td=>NULL(), &
-                                       md=>NULL(), &
-                                       cd=>NULL()
+    real, dimension(:,:), allocatable  ::  vae,   &
+                                       td, &
+                                       md, &
+                                       cd
 end type longwave_tables1_type
 
 !--------------------------------------------------------------------
@@ -571,10 +571,10 @@ public longwave_tables2_type
 !    cd
 
 type longwave_tables2_type
-    real, dimension(:,:,:), pointer  ::  vae=>NULL(),  &
-                                         td=>NULL(),  &
-                                         md=>NULL(),   &
-                                         cd=>NULL()
+    real, dimension(:,:,:), allocatable  ::  vae,  &
+                                         td,  &
+                                         md,   &
+                                         cd
 end type longwave_tables2_type
 
 !---------------------------------------------------------------------
@@ -585,8 +585,8 @@ public longwave_tables3_type
 !    td
 
 type longwave_tables3_type
-     real,  dimension(:,:), pointer    ::  vae=>NULL(),   &
-                                           td=>NULL()          
+     real,  dimension(:,:), allocatable    ::  vae,   &
+                                           td          
 end type longwave_tables3_type
 
 !---------------------------------------------------------------------
@@ -598,9 +598,9 @@ public lw_clouds_type
 !    taunbl_mxolw
 
 type lw_clouds_type
-     real, dimension(:,:,:,:),   pointer :: taucld_rndlw=>NULL(), &
-                                            taucld_mxolw=>NULL(), &
-                                            taunbl_mxolw=>NULL()
+     real, dimension(:,:,:,:),   allocatable :: taucld_rndlw, &
+                                            taucld_mxolw, &
+                                            taunbl_mxolw
 end type lw_clouds_type
 
 !------------------------------------------------------------------
@@ -619,16 +619,16 @@ public lw_diagnostics_type
 !    cts_outcf
 
 type lw_diagnostics_type
-     real, dimension(:,:),   pointer   :: flx1e1=>NULL(),  &
-                                          gxcts=>NULL()
-     real, dimension(:,:,:), pointer   :: flx1e1f=>NULL(),  &
-                                          excts=>NULL(),&
-                                          fctsg=>NULL()
-     real, dimension(:,:,:,:), pointer :: fluxn=>NULL(),   &
-                                          fluxncf=>NULL(),   &
-                                          exctsn=>NULL(),  &
-                                          cts_out=>NULL(), &
-                                          cts_outcf=>NULL()
+     real, dimension(:,:),   allocatable   :: flx1e1,  &
+                                          gxcts
+     real, dimension(:,:,:), allocatable   :: flx1e1f,  &
+                                          excts,&
+                                          fctsg
+     real, dimension(:,:,:,:), allocatable :: fluxn,   &
+                                          fluxncf,   &
+                                          exctsn,  &
+                                          cts_out, &
+                                          cts_outcf
 end type lw_diagnostics_type
 
 !-------------------------------------------------------------------
@@ -643,14 +643,14 @@ public lw_output_type
 !    netlw_special_clr
 
 type lw_output_type
-     real, dimension(:,:,:), pointer :: heatra=>NULL(), &
-                                        flxnet=>NULL(),  &
-                                        heatracf=>NULL(), &
-                                        flxnetcf=>NULL()
-     real, dimension(:,:,:), pointer   :: netlw_special=>NULL(), &
-                                          netlw_special_clr=>NULL(), &
-                                          bdy_flx=>NULL(), &
-                                          bdy_flx_clr=>NULL()
+     real, dimension(:,:,:), allocatable :: heatra, &
+                                        flxnet,  &
+                                        heatracf, &
+                                        flxnetcf
+     real, dimension(:,:,:), allocatable   :: netlw_special, &
+                                          netlw_special_clr, &
+                                          bdy_flx, &
+                                          bdy_flx_clr
 end type lw_output_type
 
 !------------------------------------------------------------------
@@ -664,11 +664,11 @@ public lw_table_type
 !    iband
 
 type lw_table_type
-     real, dimension(:),    pointer :: bdlocm=>NULL(),   &
-                                       bdhicm=>NULL(),  &
-                                       bandlo=>NULL(),  &
-                                       bandhi=>NULL()
-     integer, dimension(:), pointer :: iband=>NULL()
+     real, dimension(:),    allocatable :: bdlocm,   &
+                                       bdhicm,  &
+                                       bandlo,  &
+                                       bandhi
+     integer, dimension(:), allocatable :: iband
 end type lw_table_type
 
 !------------------------------------------------------------------
@@ -701,36 +701,36 @@ public microphysics_type
 !    sw_stoch_cldamt
 
 type microphysics_type
-   real, dimension(:,:,:), pointer :: conc_ice=>NULL(),   &
-                                      conc_drop=>NULL(),      &
-                                      size_ice=>NULL(),   &
-                                      size_drop=>NULL(),     &
-                                      size_snow=>NULL(),   &
-                                      conc_snow=>NULL(),     &
-                                      size_rain=>NULL(),     &
-                                      conc_rain=>NULL(),   &
-                                      cldamt=>NULL()
-real, dimension(:,:,:,:), pointer :: stoch_conc_ice=>NULL(),   &
-                                     stoch_conc_drop=>NULL(),  &
-                                     stoch_size_ice=>NULL(),   &
-                                     stoch_size_drop=>NULL(),  &
-                                     stoch_cldamt=>NULL() 
+   real, dimension(:,:,:), allocatable :: conc_ice,   &
+                                      conc_drop,      &
+                                      size_ice,   &
+                                      size_drop,     &
+                                      size_snow,   &
+                                      conc_snow,     &
+                                      size_rain,     &
+                                      conc_rain,   &
+                                      cldamt
+real, dimension(:,:,:,:), allocatable :: stoch_conc_ice,   &
+                                     stoch_conc_drop,  &
+                                     stoch_size_ice,   &
+                                     stoch_size_drop,  &
+                                     stoch_cldamt 
 !
 ! In practice, we allocate a single set of columns for the stochastic
 !   clouds, then point to sections of the larger array with the 
 !   lw_ and sw_type. 
 !   I.e. lw_stoch_conc_ice => stoch_conc_ice(:, :, :, 1:numLwBands)
 !
-real, dimension(:,:,:,:), pointer :: lw_stoch_conc_ice=>NULL(),   &
-                                     lw_stoch_conc_drop=>NULL(),  &
-                                     lw_stoch_size_ice=>NULL(),   &
-                                     lw_stoch_size_drop=>NULL(),  &
-                                     lw_stoch_cldamt=>NULL(),     &
-                                     sw_stoch_conc_ice=>NULL(),   &
-                                     sw_stoch_conc_drop=>NULL(),  &
-                                     sw_stoch_size_ice=>NULL(),   &
-                                     sw_stoch_size_drop=>NULL(),  &
-                                     sw_stoch_cldamt=>NULL()
+real, dimension(:,:,:,:), allocatable :: lw_stoch_conc_ice,   &
+                                     lw_stoch_conc_drop,  &
+                                     lw_stoch_size_ice,   &
+                                     lw_stoch_size_drop,  &
+                                     lw_stoch_cldamt,     &
+                                     sw_stoch_conc_ice,   &
+                                     sw_stoch_conc_drop,  &
+                                     sw_stoch_size_ice,   &
+                                     sw_stoch_size_drop,  &
+                                     sw_stoch_cldamt
 end type microphysics_type
 
 !-------------------------------------------------------------------
@@ -743,10 +743,10 @@ public microrad_properties_type
 !    abscoeff
 
 type microrad_properties_type
-   real, dimension(:,:,:,:), pointer :: cldext=>NULL(),  &
-                                        cldsct=>NULL(), &
-                                        cldasymm=>NULL(),    &
-                                        abscoeff=>NULL()
+   real, dimension(:,:,:,:), allocatable :: cldext,  &
+                                        cldsct, &
+                                        cldasymm,    &
+                                        abscoeff
 end type microrad_properties_type
 
 !--------------------------------------------------------------------
@@ -790,42 +790,42 @@ public optical_path_type
 !    aerooptdep_KE_15
 
 type optical_path_type
-     real, dimension (:,:,:,:), pointer :: empl1f=>NULL(),  &
-                                           empl2f=>NULL(),  &
-                                           vrpfh2o=>NULL(), &
-                                           xch2obd=>NULL(),  &
-                                           tphfh2o=>NULL(), &
-                                           avephif=>NULL(), &
-                                           totaerooptdep=>NULL()
-     real, dimension (:,:,:),   pointer :: empl1=>NULL(), &
-                                           empl2=>NULL(),  &
-                                           var1=>NULL(), &
-                                           var2=>NULL(), &
-                                           emx1f=>NULL(),   &
-                                           emx2f=>NULL(),   &
-                                           totvo2=>NULL(),  &
-                                           avephi=>NULL(),&
-                                           totch2obdwd=>NULL(), &
-                                           xch2obdwd=>NULL(), &
-                                           totphi=>NULL(),   &
-                                           cntval=>NULL(), &
-                                           toto3=>NULL(),   &
-                                           tphio3=>NULL(),  &
-                                           var3=>NULL(),  &
-                                           var4=>NULL(),        &
-                                           wk=>NULL(),         &
-                                           rh2os=>NULL(),  &
-                                           rfrgn=>NULL(),  &
-                                           tfac=>NULL(), &
-                                           totaerooptdep_15=>NULL(), &
-                                           totf11=>NULL(),   &
-                                           totf12=>NULL(),  &
-                                           totf113=>NULL(),   &
-                                           totf22=>NULL()
-      real, dimension (:,:), pointer    :: emx1=>NULL(),  &
-                                           emx2=>NULL(),  &
-                                           csfah2o=>NULL(), &
-                                           aerooptdep_KE_15=>NULL()
+     real, dimension (:,:,:,:), allocatable :: empl1f,  &
+                                           empl2f,  &
+                                           vrpfh2o, &
+                                           xch2obd,  &
+                                           tphfh2o, &
+                                           avephif, &
+                                           totaerooptdep
+     real, dimension (:,:,:),   allocatable :: empl1, &
+                                           empl2,  &
+                                           var1, &
+                                           var2, &
+                                           emx1f,   &
+                                           emx2f,   &
+                                           totvo2,  &
+                                           avephi,&
+                                           totch2obdwd, &
+                                           xch2obdwd, &
+                                           totphi,   &
+                                           cntval, &
+                                           toto3,   &
+                                           tphio3,  &
+                                           var3,  &
+                                           var4,        &
+                                           wk,         &
+                                           rh2os,  &
+                                           rfrgn,  &
+                                           tfac, &
+                                           totaerooptdep_15, &
+                                           totf11,   &
+                                           totf12,  &
+                                           totf113,   &
+                                           totf22
+      real, dimension (:,:), allocatable    :: emx1,  &
+                                           emx2,  &
+                                           csfah2o, &
+                                           aerooptdep_KE_15
 end type optical_path_type
 
 !------------------------------------------------------------------
@@ -914,7 +914,7 @@ public   radiative_gases_type
 !    time_varying_n2o
 
 type radiative_gases_type
-     real, dimension(:,:,:), pointer :: qo3=>NULL()
+     real, dimension(:,:,:), allocatable :: qo3
      real                            :: rrvch4, rrvn2o, rrvco2,    &
                                         rrvf11, rrvf12, rrvf113,  &
                                         rrvf22, rf11air, rf12air,  &
@@ -953,25 +953,25 @@ public rad_output_type
 !    coszen_angle
 
 type rad_output_type
-     real, dimension(:,:,:), pointer :: tdt_rad=>NULL(),  &
-                                        tdt_rad_clr=>NULL(), &
-                                        tdtsw=>NULL(),   &
-                                        tdtsw_clr=>NULL(),  &
-                                        tdtlw=>NULL()
-     real, dimension(:,:),   pointer :: flux_sw_surf=>NULL(), &
-                                        flux_sw_surf_dir=>NULL(), &
-                                        flux_sw_surf_dif=>NULL(), &
-                                        flux_sw_down_vis_dir=>NULL(), &
-                                        flux_sw_down_vis_dif=>NULL(), &
-                                       flux_sw_down_total_dir=>NULL(), &
-                                       flux_sw_down_total_dif=>NULL(), &
-                                  flux_sw_down_total_dir_clr=>NULL(), &
-                                  flux_sw_down_total_dif_clr=>NULL(), &
-                                        flux_sw_vis=>NULL(), &
-                                        flux_sw_vis_dir=>NULL(), &
-                                        flux_sw_vis_dif=>NULL(), &
-                                        flux_lw_surf=>NULL(), &
-                                        coszen_angle=>NULL()
+     real, dimension(:,:,:), allocatable :: tdt_rad,  &
+                                        tdt_rad_clr, &
+                                        tdtsw,   &
+                                        tdtsw_clr,  &
+                                        tdtlw
+     real, dimension(:,:),   allocatable :: flux_sw_surf, &
+                                        flux_sw_surf_dir, &
+                                        flux_sw_surf_dif, &
+                                        flux_sw_down_vis_dir, &
+                                        flux_sw_down_vis_dif, &
+                                       flux_sw_down_total_dir, &
+                                       flux_sw_down_total_dif, &
+                                  flux_sw_down_total_dir_clr, &
+                                  flux_sw_down_total_dif_clr, &
+                                        flux_sw_vis, &
+                                        flux_sw_vis_dir, &
+                                        flux_sw_vis_dif, &
+                                        flux_lw_surf, &
+                                        coszen_angle
 end type rad_output_type
 
 !-------------------------------------------------------------------
@@ -1024,13 +1024,13 @@ public solar_spectrum_type
 !    one_micron_indx_iz
 
 type solar_spectrum_type
-    real, dimension(:),    pointer   :: solarfluxtoa=>null()
-    real, dimension(:),    pointer   :: solflxband=>NULL()
-    real, dimension(:),    pointer   :: solflxbandref=>NULL()
-    real, dimension(:),    pointer   :: solflxband_lean_ann_1882=>NULL()
-    real, dimension(:),    pointer   :: solflxband_lean_ann_2000=>NULL()
-    real, dimension(:,:,:),pointer   :: solflxband_lean=>NULL()
-    integer, dimension(:), pointer   :: endwvnbands=>NULL()
+    real, dimension(:),    allocatable   :: solarfluxtoa
+    real, dimension(:),    allocatable   :: solflxband
+    real, dimension(:),    allocatable   :: solflxbandref
+    real, dimension(:),    allocatable   :: solflxband_lean_ann_1882
+    real, dimension(:),    allocatable   :: solflxband_lean_ann_2000
+    real, dimension(:,:,:),allocatable   :: solflxband_lean
+    integer, dimension(:), allocatable   :: endwvnbands
     integer         :: tot_wvnums
     integer         :: nbands
     integer         :: nfrqpts
@@ -1048,12 +1048,12 @@ public surface_type
 !    land
 
 type surface_type
-    real, dimension(:,:),   pointer ::  asfc=>NULL(),   &
-                                        land=>NULL(),  &
-                                        asfc_vis_dir=>NULL(), &
-                                        asfc_nir_dir=>NULL(), &
-                                        asfc_vis_dif=>NULL(), &
-                                        asfc_nir_dif=>NULL()
+    real, dimension(:,:),   allocatable ::  asfc,   &
+                                        land,  &
+                                        asfc_vis_dir, &
+                                        asfc_nir_dir, &
+                                        asfc_vis_dif, &
+                                        asfc_nir_dif
 end type surface_type
  
 !-------------------------------------------------------------------
@@ -1074,31 +1074,31 @@ public sw_output_type
 !    swup_special_clr
 
 type sw_output_type
-     real, dimension(:,:,:), pointer :: dfsw=>NULL(),   &
-                                        ufsw=>NULL(),  &
-                                        fsw=>NULL(),   &
-                                        hsw=>NULL(), &
-                                        dfswcf=>NULL(),   &
-                                        ufswcf=>NULL(),&
-                                        fswcf=>NULL(),  &
-                                        hswcf=>NULL()
-      real, dimension(:,:), pointer :: dfsw_vis_sfc=>NULL(),   &
-                                       ufsw_vis_sfc=>NULL()
-      real, dimension(:,:), pointer :: dfsw_dir_sfc=>NULL()
-      real, dimension(:,:), pointer :: dfsw_dir_sfc_clr=>NULL()
-      real, dimension(:,:), pointer :: dfsw_dif_sfc=>NULL(),   &
-                                       dfsw_dif_sfc_clr=>NULL(),   &
-                                       ufsw_dif_sfc=>NULL()
-      real, dimension(:,:), pointer :: dfsw_vis_sfc_dir=>NULL()
-      real, dimension(:,:), pointer :: dfsw_vis_sfc_dif=>NULL(),   &
-                                       ufsw_vis_sfc_dif=>NULL()
-      real, dimension(:,:,:), pointer   ::                       &
-                                        bdy_flx=>NULL(), &
-                                        bdy_flx_clr=>NULL(), &
-                                        swup_special=>NULL(), &
-                                        swup_special_clr=>NULL()
-     real, dimension(:,:,:), pointer   :: swdn_special=>NULL(), &
-                                          swdn_special_clr=>NULL()
+     real, dimension(:,:,:), allocatable :: dfsw,   &
+                                        ufsw,  &
+                                        fsw,   &
+                                        hsw, &
+                                        dfswcf,   &
+                                        ufswcf,&
+                                        fswcf,  &
+                                        hswcf
+      real, dimension(:,:), allocatable :: dfsw_vis_sfc,   &
+                                       ufsw_vis_sfc
+      real, dimension(:,:), allocatable :: dfsw_dir_sfc
+      real, dimension(:,:), allocatable :: dfsw_dir_sfc_clr
+      real, dimension(:,:), allocatable :: dfsw_dif_sfc,   &
+                                       dfsw_dif_sfc_clr,   &
+                                       ufsw_dif_sfc
+      real, dimension(:,:), allocatable :: dfsw_vis_sfc_dir
+      real, dimension(:,:), allocatable :: dfsw_vis_sfc_dif,   &
+                                       ufsw_vis_sfc_dif
+      real, dimension(:,:,:), allocatable   ::                       &
+                                        bdy_flx, &
+                                        bdy_flx_clr, &
+                                        swup_special, &
+                                        swup_special_clr
+     real, dimension(:,:,:), allocatable   :: swdn_special, &
+                                          swdn_special_clr
 end type sw_output_type
 
 !-------------------------------------------------------------------
@@ -3262,7 +3262,7 @@ subroutine lw_output_type_eq(lw_output_out,lw_output_in)
    lw_output_out%flxnet        = lw_output_in%flxnet
    lw_output_out%netlw_special = lw_output_in%netlw_special
    lw_output_out%bdy_flx       = lw_output_in%bdy_flx
-   if (ASSOCIATED(lw_output_in%heatracf))then
+   if (allocated(lw_output_in%heatracf))then
        lw_output_out%heatracf          = lw_output_in%heatracf
        lw_output_out%flxnetcf          = lw_output_in%flxnetcf
        lw_output_out%netlw_special_clr = lw_output_in%netlw_special_clr
@@ -3292,7 +3292,7 @@ subroutine sw_output_type_eq(sw_output_out,sw_output_in)
    sw_output_out%swdn_special     = sw_output_in%swdn_special
    sw_output_out%swup_special     = sw_output_in%swup_special
    sw_output_out%bdy_flx          = sw_output_in%bdy_flx
-   if (ASSOCIATED(sw_output_in%fswcf))then
+   if (allocated(sw_output_in%fswcf))then
        sw_output_out%fswcf            = sw_output_in%fswcf
        sw_output_out%dfswcf           = sw_output_in%dfswcf
        sw_output_out%ufswcf           = sw_output_in%ufswcf

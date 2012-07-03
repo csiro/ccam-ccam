@@ -152,10 +152,10 @@ real, parameter :: PSTD   = 1.013250E+06
 !      c2dm58  =  second temperature derivative of co2m58.
 !--------------------------------------------------------------------- 
 
-real, allocatable, dimension (:,:)       ::  co251, co258,     &    
+real, allocatable, save, dimension (:,:)       ::  co251, co258,     &    
                                              cdt51, cdt58,     &    
                                              c2d51, c2d58
-real, allocatable, dimension (:)         ::  co2m51, co2m58,   &    
+real, allocatable, save, dimension (:)         ::  co2m51, co2m58,   &    
                                              cdtm51, cdtm58,   &    
                                              c2dm51, c2dm58
 
@@ -170,7 +170,7 @@ real, allocatable, dimension (:)         ::  co2m51, co2m58,   &
 !                   with p(surface)=810 mb.
 !--------------------------------------------------------------------- 
 
-real, allocatable, dimension (:)         ::  co211, co218
+real, allocatable, save, dimension (:)         ::  co211, co218
 
 !--------------------------------------------------------------------- 
 !    the following arrays are co2 transmission functions and temperature
@@ -191,7 +191,7 @@ real, allocatable, dimension (:)         ::  co211, co218
 !        co2d2t15nbps8 = second temperature derivative of co215nbps8.
 !--------------------------------------------------------------------- 
 
-real, allocatable, dimension (:,:)       ::  co215nbps1,       &    
+real, allocatable, save,  dimension (:,:)       ::  co215nbps1,       &    
                                              co215nbps8,       &    
                                              co2dt15nbps1,     &    
                                              co2dt15nbps8,     &    
@@ -239,10 +239,10 @@ real, allocatable, dimension (:,:)       ::  co215nbps1,       &
 !                  functions for t0 profile with p(surface)=810 mb.
 !--------------------------------------------------------------------- 
   
-real, allocatable, dimension (:,:)       ::  ch451, ch458,     &    
+real, allocatable, save, dimension (:,:)       ::  ch451, ch458,     &    
                                              ch4dt51, ch4dt58, &    
                                              ch4d2t51, ch4d2t58
-real, allocatable, dimension (:,:)       ::  n2o51, n2o58,     &    
+real, allocatable, save, dimension (:,:)       ::  n2o51, n2o58,     &    
                                              n2odt51, n2odt58, &    
                                              n2od2t51, n2od2t58
 
@@ -270,7 +270,7 @@ real, allocatable, dimension (:,:)       ::  n2o51, n2o58,     &
 !--------------------------------------------------------------------- 
 !
   
-real, allocatable, dimension (:,:)       ::  n2o71, n2o78,     &    
+real, allocatable, save, dimension (:,:)       ::  n2o71, n2o78,     &    
                                              n2odt71, n2odt78, &    
                                              n2od2t71, n2od2t78
 
@@ -297,7 +297,7 @@ real, allocatable, dimension (:,:)       ::  n2o71, n2o78,     &
 !                  functions for t0 profile with p(surface)=810 mb.
 !--------------------------------------------------------------------- 
   
-real, allocatable, dimension (:,:)       ::  n2o91, n2o98,     &    
+real, allocatable, save, dimension (:,:)       ::  n2o91, n2o98,     &    
                                              n2odt91, n2odt98, &    
                                              n2od2t91, n2od2t98
 
@@ -307,7 +307,7 @@ real, allocatable, dimension (:,:)       ::  n2o91, n2o98,     &
 !    gtemp   =  weighting function for model pressure level 
 !               structure with p(surface)=1013.25 mb.
 !----------------------------------------------------------------------
-real, dimension (:),       allocatable   :: stemp, gtemp 
+real, dimension (:),       allocatable, save   :: stemp, gtemp 
 
 !----------------------------------------------------------------------
 !    define 4 coefficients (formerly in Id3).
@@ -329,7 +329,7 @@ real                  :: co2_amount_save, ch4_amount_save, &
                          n2o_amount_save
 integer               :: nstdlvls_save, kbegin_save, kend_save
 
-real, dimension(:), allocatable      :: pa_save, pd_save, plm_save
+real, dimension(:), allocatable, save      :: pa_save, pd_save, plm_save
 character(len=8), dimension(nvalids) :: valid_versions= 'v1.00'
 logical :: module_is_initialized = .false.  ! module is initialized ?
 
@@ -771,6 +771,7 @@ type(atmos_input_type), intent(in)    :: Atmos_input
 !---------------------------------------------------------------------
 !    allocate module variables
 !---------------------------------------------------------------------
+      if (.not.allocated(Gas_tf%a1)) then
       allocate (Gas_tf%a1      (ISRAD:IERAD, JSRAD:JERAD           ))
       allocate (Gas_tf%a2      (ISRAD:IERAD, JSRAD:JERAD           ))
       allocate (Gas_tf%tdav    (ISRAD:IERAD, JSRAD:JERAD,KSRAD:KERAD+1))
@@ -782,6 +783,7 @@ type(atmos_input_type), intent(in)    :: Atmos_input
       allocate (Gas_tf%tn2o17  (ISRAD:IERAD, JSRAD:JERAD,KSRAD:KERAD+1))
       allocate (Gas_tf%co2spnb (ISRAD:IERAD, JSRAD:JERAD,  &
                                                KSRAD:KERAD+1,  NBCO215))
+      end if
       Gas_tf%co2nbl  = 1.0                                         
       Gas_tf%co2spnb = 1.0                                           
       Gas_tf%n2o9c  = 0.                                          
@@ -2203,16 +2205,16 @@ type(gas_tf_type), intent(inout) :: Gas_tf
 !---------------------------------------------------------------------
 !    deallocate the array components of Gas_tf.
 !---------------------------------------------------------------------
-      deallocate (Gas_tf%tdav)
-      deallocate (Gas_tf%tlsqu         )
-      deallocate (Gas_tf%tmpdiff       )
-      deallocate (Gas_tf%tstdav        )
-      deallocate (Gas_tf%co2nbl        )
-      deallocate (Gas_tf%n2o9c         )
-      deallocate (Gas_tf%tn2o17        )
-      deallocate (Gas_tf%co2spnb       )
-      deallocate (Gas_tf%a1            )
-      deallocate (Gas_tf%a2            )
+      !deallocate (Gas_tf%tdav)
+      !deallocate (Gas_tf%tlsqu         )
+      !deallocate (Gas_tf%tmpdiff       )
+      !deallocate (Gas_tf%tstdav        )
+      !deallocate (Gas_tf%co2nbl        )
+      !deallocate (Gas_tf%n2o9c         )
+      !deallocate (Gas_tf%tn2o17        )
+      !deallocate (Gas_tf%co2spnb       )
+      !deallocate (Gas_tf%a1            )
+      !deallocate (Gas_tf%a2            )
 
 !--------------------------------------------------------------------
 
@@ -2745,7 +2747,7 @@ real, dimension(:), intent(in)    :: plm, pd
 !--------------------------------------------------------------------
 !   local variables:
 
-      real, dimension(:), allocatable  ::  press, altquad, tempquad, & 
+      real, dimension(:), allocatable, save  ::  press, altquad, tempquad, & 
                                            prsint, plmcgs,  tmpint
 
       real       ::  delzap = 0.5
@@ -3196,7 +3198,7 @@ real, dimension(:), intent(in)      :: pd, plm, pa
 !--------------------------------------------------------------------
 !  local variables:
 
-      real, dimension(:), allocatable :: pd_file, plm_file, pa_file
+      real, dimension(:), allocatable, save :: pd_file, plm_file, pa_file
 
       logical               :: valid=.false.
       integer               :: k, n

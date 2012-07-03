@@ -165,7 +165,7 @@ logical      ::  do_coupled_stratozone = .false. ! include the coupled
 !                absorption coefficient is assigned a non-scaled        
 !                (true) or pressure-scaled (false) gas amount           
 !---------------------------------------------------------------------
-real, dimension (:), allocatable    :: c1co2, c1co2str, c1o2, c1o2str, &
+real, dimension (:), allocatable, save    :: c1co2, c1co2str, c1o2, c1o2str, &
                                        c2co2, c2co2str, c2o2, c2o2str, &
                                        c3co2, c3co2str, c3o2, c3o2str, &
                                        c4co2, c4co2str, c4o2, c4o2str, &
@@ -178,8 +178,8 @@ real, dimension (:), allocatable    :: c1co2, c1co2str, c1o2, c1o2str, &
                                        powph2o, p0h2o
 real                                :: c1o2strschrun, c2o2strschrun, &
                                        c3o2strschrun, c4o2strschrun
-real, dimension (:), allocatable    :: kh2o, ko3, wtfreq
-logical, dimension(:), allocatable  :: strterm
+real, dimension (:), allocatable, save    :: kh2o, ko3, wtfreq
+logical, dimension(:), allocatable, save  :: strterm
 
 !---------------------------------------------------------------------
 !    quantities associated with solar spectral parameterization
@@ -203,10 +203,10 @@ logical, dimension(:), allocatable  :: strterm
 !---------------------------------------------------------------------
 real                                :: refquanray, solflxtotal
 integer                             :: firstrayband, nirbands
-integer, dimension (:), allocatable :: nfreqpts
-real,    dimension(:), allocatable  :: solflxband
-real,    dimension(:), allocatable  :: solflxbandref
-real, dimension(:), allocatable     :: wtstr, cosangstr
+integer, dimension (:), allocatable, save :: nfreqpts
+real,    dimension(:), allocatable, save  :: solflxband
+real,    dimension(:), allocatable, save  :: solflxbandref
+real, dimension(:), allocatable, save     :: wtstr, cosangstr
 real, dimension(4)                  :: wtstr_4 =      &
                                        (/0.347854845, 0.652145155,&
                                          0.347854845, 0.652145155/)
@@ -221,13 +221,13 @@ integer :: onepsix_band_indx
 !---------------------------------------------------------------------
 !    variables associated with rayleigh scattering
 !---------------------------------------------------------------------
-real, dimension (:), allocatable    :: betaddensitymol
+real, dimension (:), allocatable, save    :: betaddensitymol
 
 !----------------------------------------------------------------------
 !    variables associated with total optical path of species ? - smf
 !----------------------------------------------------------------------
 real                            :: toto2strmaxschrun
-real, dimension(:), allocatable :: totco2max, totco2strmax, &
+real, dimension(:), allocatable, save :: totco2max, totco2strmax, &
                                    toto2max, toto2strmax, &
                                    totch4max, totch4strmax, &
                                    totn2omax, totn2ostrmax
@@ -322,8 +322,8 @@ subroutine esfsw_driver_init
       real,    dimension(Solar_spect%nstreams)  :: ptstr 
       integer, dimension(0:Solar_spect%nbands) :: endwvnbands
 
-      integer, dimension(:), allocatable  :: nwvnsolar
-      real   , dimension(:), allocatable  :: solint   
+      integer, dimension(:), allocatable, save  :: nwvnsolar
+      real   , dimension(:), allocatable, save  :: solint   
 
       character(len=64)    :: file_name
       real, dimension(4)   :: ptstr_4 = (/-0.861136312,&

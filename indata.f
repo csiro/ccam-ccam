@@ -1772,7 +1772,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
 
       !--------------------------------------------------------------
       ! UPDATE BIOSPHERE DATA (nsib)
-      if (nsib==6.or.nsib==7) then
+      if (nsib.eq.6.or.nsib.eq.7) then
         ! Load CABLE data
         if (myid==0) write(6,*) 'Importing CABLE data'
         call loadtile
@@ -1781,7 +1781,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
 
       !-----------------------------------------------------------------
       ! UPDATE MIXED LAYER OCEAN DATA (nmlo)
-      if (nmlo/=0.and.abs(nmlo)<9) then
+      if (nmlo.ne.0.and.abs(nmlo).le.9) then
         if (any(ocndwn(:,1).gt.0.5)) then
           if (myid==0) write(6,*) 'Importing MLO data'
         else
@@ -1803,14 +1803,10 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
             elsewhere
             mlodwn(:,k,1)=275.16
             end where
-            mlodwn(:,k,1)=max(mlodwn(:,k,1),271.2)
             ! This is simply using the surface temperature
             ! mlodwn(:,k,1)=max(tss,271.2)
             mlodwn(:,k,2)=34.72
             mlodwn(:,k,3:4)=0.
-            !where (zs(1:ifull).gt.1.) ! lakes?
-            !  mlodwn(:,k,2)=0.
-            !end where
           end do
           micdwn(:,1)=tss
           micdwn(:,2)=tss
@@ -1835,6 +1831,8 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
         where (tss.gt.271.2.and.fracice.le.0.) ! Always use tss for top ocean layer
           mlodwn(:,1,1)=tss(:)                 ! This has no effect in a climate mode and
         endwhere                               ! ensures SST track analyses in a NWP mode
+        mlodwn(:,:,1)=max(mlodwn(:,:,1),270.)
+        mlodwn(:,:,2)=max(mlodwn(:,:,2),0.)
         call mloload(mlodwn,ocndwn(:,2),micdwn,0)
         deallocate(micdwn)
         do k=1,ms

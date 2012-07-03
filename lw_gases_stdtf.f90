@@ -97,12 +97,12 @@ namelist/lw_gases_stdtf_nml/ &
 !------- private data ------
 
 
-real,    dimension (:,:),   allocatable  ::                      &   
+real,    dimension (:,:),   allocatable, save  ::                      &   
                                             pressint_hiv_std_pt1,   & 
                                             pressint_lov_std_pt1,   & 
                                             pressint_hiv_std_pt2,   &
                                             pressint_lov_std_pt2
-integer, dimension (:,:),   allocatable  ::                      &   
+integer, dimension (:,:),   allocatable, save  ::                      &   
                                             indx_pressint_hiv_std_pt1, &
                                             indx_pressint_lov_std_pt1, &
                                             indx_pressint_hiv_std_pt2, &
@@ -121,20 +121,20 @@ integer, dimension (:,:),   allocatable  ::                      &
 !       sexp                gamma (see Eq. A6c)
 !       dop_core            core (see Eq. A6a)
 !----------------------------------------------------------------------
-real,    dimension (:),     allocatable  :: xa, ca, uexp, sexp, &
+real,    dimension (:),     allocatable, save  :: xa, ca, uexp, sexp, &
                                             press_lo, press_hi
-real,    dimension (:,:),   allocatable  :: pressint_hiv_std, &
+real,    dimension (:,:),   allocatable, save  :: pressint_hiv_std, &
                                             pressint_lov_std, &
                                             trns_std_hi, &
                                             trns_std_lo
-real,    dimension (:,:,:), allocatable  :: trns_std_hi_nf, &
+real,    dimension (:,:,:), allocatable, save  :: trns_std_hi_nf, &
                                             trns_std_lo_nf
 
 !---------------------------------------------------------------------
 !   pa          = pressure levels where line-by-line co2 transmission
 !                 functions have been calculated
 !---------------------------------------------------------------------
-real, dimension(:), allocatable   :: pa
+real, dimension(:), allocatable, save   :: pa
 
 !----------------------------------------------------------------------
 !    ch4 data
@@ -192,27 +192,27 @@ data do_lvlctscalc_co2_nf / .false., .true., .true., .true., .false./
 integer, dimension(nfreq_bands_sea_co2)   ::  ntbnd_co2
 data ntbnd_co2 / 3, 3, 3, 3, 1/
 
-real,  dimension (:,:), allocatable   :: dgasdt8_lvl, dgasdt10_lvl, &
+real,  dimension (:,:), allocatable, save   :: dgasdt8_lvl, dgasdt10_lvl, &
                                          d2gast8_lvl, d2gast10_lvl, &
                                          gasp10_lvl, gasp8_lvl,   &  
                                          dgasdt8_lyr, dgasdt10_lyr, &
                                          d2gast8_lyr, d2gast10_lyr, &
                                          gasp10_lyr, gasp8_lyr
-real,  dimension (:), allocatable :: dgasdt8_lvlcts, dgasdt10_lvlcts, &
+real,  dimension (:), allocatable, save :: dgasdt8_lvlcts, dgasdt10_lvlcts, &
                                      d2gast8_lvlcts, d2gast10_lvlcts, &
                                      gasp10_lvlcts, gasp8_lvlcts
 
-real,  dimension (:,:), allocatable   :: trns_interp_lyr_ps, &
+real,  dimension (:,:), allocatable, save   :: trns_interp_lyr_ps, &
                                          trns_interp_lyr_ps8, &
                                          trns_interp_lvl_ps, &
                                          trns_interp_lvl_ps8
-real,  dimension (:,:,:), allocatable :: trns_interp_lyr_ps_nf, &
+real,  dimension (:,:,:), allocatable, save :: trns_interp_lyr_ps_nf, &
                                          trns_interp_lyr_ps8_nf, &
                                          trns_interp_lvl_ps_nf, &
                                          trns_interp_lvl_ps8_nf
  
  
-real, dimension(:), allocatable  :: plm, plm8, pd, pd8
+real, dimension(:), allocatable, save  :: plm, plm8, pd, pd8
 
 !!$integer             :: k, kp, nf, nt
 integer             :: ndimkp, ndimk, nlev
@@ -503,6 +503,7 @@ subroutine lw_gases_stdtf_time_vary
 !---------------------------------------------------------------------
 !    allocate module variables.
 !---------------------------------------------------------------------
+        if (.not.allocated(xa)) then
         allocate (xa          (NSTDCO2LVLS) )
         allocate (ca          (NSTDCO2LVLS) )
         allocate (uexp        (NSTDCO2LVLS) )
@@ -544,6 +545,7 @@ subroutine lw_gases_stdtf_time_vary
         allocate (  d2gast10_lyr(KSRAD:KERAD+1,KSRAD:KERAD+1) )
         allocate (  gasp10_lyr(KSRAD:KERAD+1,KSRAD:KERAD+1) )
         allocate (  gasp8_lyr (KSRAD:KERAD+1,KSRAD:KERAD+1) )
+        end if
       endif
 
 !------------------------------------------------------------------
@@ -1370,47 +1372,47 @@ subroutine lw_gases_stdtf_dealloc
 !---------------------------------------------------------------------
 !
 !---------------------------------------------------------------------
-      deallocate (xa                )
-      deallocate (ca                )
-      deallocate (uexp              )
-      deallocate (sexp              )
-      deallocate (press_lo          )
-      deallocate (press_hi          )
-      deallocate (pressint_hiv_std  )
-      deallocate (pressint_lov_std  )
-      deallocate (trns_std_hi       )
-      deallocate (trns_std_lo       )
-      deallocate (trns_std_hi_nf    )
-      deallocate (trns_std_lo_nf    )
+      !deallocate (xa                )
+      !deallocate (ca                )
+      !deallocate (uexp              )
+      !deallocate (sexp              )
+      !deallocate (press_lo          )
+      !deallocate (press_hi          )
+      !deallocate (pressint_hiv_std  )
+      !deallocate (pressint_lov_std  )
+      !deallocate (trns_std_hi       )
+      !deallocate (trns_std_lo       )
+      !deallocate (trns_std_hi_nf    )
+      !deallocate (trns_std_lo_nf    )
 
-      deallocate (  trns_interp_lyr_ps )
-      deallocate (  trns_interp_lyr_ps8 )
-      deallocate (  trns_interp_lvl_ps )
-      deallocate (  trns_interp_lvl_ps8 )
+      !deallocate (  trns_interp_lyr_ps )
+      !deallocate (  trns_interp_lyr_ps8 )
+      !deallocate (  trns_interp_lvl_ps )
+      !deallocate (  trns_interp_lvl_ps8 )
  
-      deallocate (  trns_interp_lyr_ps_nf )
-      deallocate (  trns_interp_lyr_ps8_nf )
-      deallocate (  trns_interp_lvl_ps_nf )
-      deallocate (  trns_interp_lvl_ps8_nf )
+      !deallocate (  trns_interp_lyr_ps_nf )
+      !deallocate (  trns_interp_lyr_ps8_nf )
+      !deallocate (  trns_interp_lvl_ps_nf )
+      !deallocate (  trns_interp_lvl_ps8_nf )
 
-      deallocate (  dgasdt8_lvl )
-      deallocate (  dgasdt10_lvl )
-      deallocate (  d2gast8_lvl  )
-      deallocate (  d2gast10_lvl )
-      deallocate (  gasp10_lvl )
-      deallocate (  gasp8_lvl  )
-      deallocate (  dgasdt8_lvlcts  )
-      deallocate (  dgasdt10_lvlcts )
-      deallocate (  d2gast8_lvlcts  )
-      deallocate (  d2gast10_lvlcts )
-      deallocate (  gasp10_lvlcts )
-      deallocate (  gasp8_lvlcts  )
-      deallocate (  dgasdt8_lyr  )
-      deallocate (  dgasdt10_lyr )
-      deallocate (  d2gast8_lyr  )
-      deallocate (  d2gast10_lyr )
-      deallocate (  gasp10_lyr )
-      deallocate (  gasp8_lyr  )
+      !deallocate (  dgasdt8_lvl )
+      !deallocate (  dgasdt10_lvl )
+      !deallocate (  d2gast8_lvl  )
+      !deallocate (  d2gast10_lvl )
+      !deallocate (  gasp10_lvl )
+      !deallocate (  gasp8_lvl  )
+      !deallocate (  dgasdt8_lvlcts  )
+      !deallocate (  dgasdt10_lvlcts )
+      !deallocate (  d2gast8_lvlcts  )
+      !deallocate (  d2gast10_lvlcts )
+      !deallocate (  gasp10_lvlcts )
+      !deallocate (  gasp8_lvlcts  )
+      !deallocate (  dgasdt8_lyr  )
+      !deallocate (  dgasdt10_lyr )
+      !deallocate (  d2gast8_lyr  )
+      !deallocate (  d2gast10_lyr )
+      !deallocate (  gasp10_lyr )
+      !deallocate (  gasp8_lyr  )
 
 !--------------------------------------------------------------------
 
@@ -1932,6 +1934,48 @@ subroutine lw_gases_stdtf_end
       deallocate (pd, plm, pd8, plm8)
       deallocate (pa)
 
+      deallocate (xa                )
+      deallocate (ca                )
+      deallocate (uexp              )
+      deallocate (sexp              )
+      deallocate (press_lo          )
+      deallocate (press_hi          )
+      deallocate (pressint_hiv_std  )
+      deallocate (pressint_lov_std  )
+      deallocate (trns_std_hi       )
+      deallocate (trns_std_lo       )
+      deallocate (trns_std_hi_nf    )
+      deallocate (trns_std_lo_nf    )
+
+      deallocate (  trns_interp_lyr_ps )
+      deallocate (  trns_interp_lyr_ps8 )
+      deallocate (  trns_interp_lvl_ps )
+      deallocate (  trns_interp_lvl_ps8 )
+ 
+      deallocate (  trns_interp_lyr_ps_nf )
+      deallocate (  trns_interp_lyr_ps8_nf )
+      deallocate (  trns_interp_lvl_ps_nf )
+      deallocate (  trns_interp_lvl_ps8_nf )
+
+      deallocate (  dgasdt8_lvl )
+      deallocate (  dgasdt10_lvl )
+      deallocate (  d2gast8_lvl  )
+      deallocate (  d2gast10_lvl )
+      deallocate (  gasp10_lvl )
+      deallocate (  gasp8_lvl  )
+      deallocate (  dgasdt8_lvlcts  )
+      deallocate (  dgasdt10_lvlcts )
+      deallocate (  d2gast8_lvlcts  )
+      deallocate (  d2gast10_lvlcts )
+      deallocate (  gasp10_lvlcts )
+      deallocate (  gasp8_lvlcts  )
+      deallocate (  dgasdt8_lyr  )
+      deallocate (  dgasdt10_lyr )
+      deallocate (  d2gast8_lyr  )
+      deallocate (  d2gast10_lyr )
+      deallocate (  gasp10_lyr )
+      deallocate (  gasp8_lyr  )
+
 !--------------------------------------------------------------------
 !    mark the module as uninitialized.
 !--------------------------------------------------------------------
@@ -2184,7 +2228,7 @@ real, dimension(:,:), intent(out) :: approx
 !----------------------------------------------------------------------
 !  local variables
 
-       real, dimension(:,:), allocatable :: upathv
+       real, dimension(size(press_hi_app,1),size(press_hi_app,2)) :: upathv
 
        integer   :: k, kp, kp0
        integer   :: k1, k2
@@ -2201,7 +2245,7 @@ real, dimension(:,:), intent(out) :: approx
 !----------------------------------------------------------------------
       k1 = size(press_hi_app,1)       ! this corresponds to ndimkp
       k2 = size(press_hi_app,2)       ! this corresponds to ndimk
-      allocate (upathv(k1,k2) )
+      !allocate (upathv(k1,k2) )
  
       do k=nklo,nkhi
         if (do_triangle) then
@@ -2247,7 +2291,7 @@ real, dimension(:,:), intent(out) :: approx
 !---------------------------------------------------------------------
 !
 !---------------------------------------------------------------------
-        deallocate (upathv)
+        !deallocate (upathv)
  
 !---------------------------------------------------------------------
 
@@ -2313,7 +2357,7 @@ real, dimension(:,:), intent(out)   :: approx
 !--------------------------------------------------------------------
 !  local variables
       
-      real, dimension(:,:), allocatable  :: upathv
+      real, dimension(NSTDCO2LVLS,NSTDCO2LVLS) :: upathv
       integer         :: k, kp, kp0
 
 !--------------------------------------------------------------------
@@ -2326,7 +2370,7 @@ real, dimension(:,:), intent(out)   :: approx
 !---------------------------------------------------------------------
 !
 !---------------------------------------------------------------------
-      allocate (upathv (NSTDCO2LVLS,NSTDCO2LVLS) )
+      !allocate (upathv (NSTDCO2LVLS,NSTDCO2LVLS) )
       do k=1,NSTDCO2LVLS
         if (do_triangle) then
           kp0 = k + 1
@@ -2363,7 +2407,7 @@ real, dimension(:,:), intent(out)   :: approx
 !--------------------------------------------------------------------
 !
 !--------------------------------------------------------------------
-      deallocate (upathv)
+      !deallocate (upathv)
 
 !--------------------------------------------------------------------
 
@@ -2977,24 +3021,24 @@ character(len=*),     intent(in)  ::  gas_type
 !--------------------------------------------------------------------
 !  local variables
 
-      real, dimension(:,:),    allocatable :: trns_vmr
-      real, dimension(:,:),    allocatable :: approx_guess1,          &
+      real, dimension(:,:),    allocatable, save :: trns_vmr
+      real, dimension(:,:),    allocatable, save :: approx_guess1,          &
                                               approxint_guess1,       &
                                               error_guess1,           &
                                               errorint_guess1
-      real, dimension(:,:),    allocatable :: caintv, uexpintv,       &
+      real, dimension(:,:),    allocatable, save :: caintv, uexpintv,       &
                                               sexpintv, xaintv,       &
                                               press_hiv, press_lov
-      real, dimension(:,:),    allocatable :: pressint_lov, pressint_hiv
-      integer, dimension(:,:), allocatable :: indx_pressint_hiv,   &
+      real, dimension(:,:),    allocatable, save :: pressint_lov, pressint_hiv
+      integer, dimension(:,:), allocatable, save :: indx_pressint_hiv,   &
                                               indx_pressint_lov
-      real, dimension(:,:),    allocatable :: sexpnblv, uexpnblv,  &
+      real, dimension(:,:),    allocatable, save :: sexpnblv, uexpnblv,  &
                                               canblv, xanblv,      &
                                               pressnbl_lov,        &
                                               pressnbl_hiv,        &
                                               approxnbl_guess1,    &
                                               errornbl_guess1
-      integer, dimension(:,:), allocatable :: indx_pressnbl_hiv, &
+      integer, dimension(:,:), allocatable, save :: indx_pressnbl_hiv, &
                                               indx_pressnbl_lov
  
       real, dimension(7)    ::  wgt_lyr
@@ -3699,7 +3743,7 @@ real, dimension(:),     intent(out) :: ca, xa, sexp, uexp
 
 !-----------------------------------------------------------------
 !   local variables
-      real, dimension(:), allocatable    :: upath0, upatha, upathb,   &
+      real, dimension(:), allocatable, save    :: upath0, upatha, upathb,   &
                                             pam1, pam2, pa0, pr_hi, r, &
                                             rexp, f, f1, f2, fprime, &
                                             ftest1, ftest2, xx, xxlog,&
@@ -3977,9 +4021,9 @@ real, dimension (:), intent(out) :: cav, sexpv, xav, uexpv
 !-------------------------------------------------------------------
 !  local variables:
 
-      real,    dimension(:), allocatable :: caxa, ca_hi, prod_hi, &
+      real,    dimension(:), allocatable, save :: caxa, ca_hi, prod_hi, &
                                             sexp_hi, uexp_hi, xa_hi
-      integer, dimension(:), allocatable :: indx_press_hi, indx_press_lo
+      integer, dimension(:), allocatable, save :: indx_press_hi, indx_press_lo
 
       integer         :: k, kp, kpp
 
@@ -4154,8 +4198,8 @@ logical,                 intent(in)  :: do_triangle
 !-------------------------------------------------------------------
 !  local variables:
 
-      real, dimension(:),   allocatable :: caxa
-      real, dimension(:,:), allocatable :: sexp_hiv, uexp_hiv, ca_hiv, &
+      real, dimension(:),   allocatable, save :: caxa
+      real, dimension(:,:), allocatable, save :: sexp_hiv, uexp_hiv, ca_hiv, &
                                            prod_hiv, xa_hiv, d1kp,   &
                                            d2kp, bkp, akp, delp_hi
 
@@ -4437,8 +4481,8 @@ integer, dimension(:,:), intent(out)  :: indx_hiv, indx_lov
 !--------------------------------------------------------------------
 !  local variables:
 
-      real, dimension(:,:), allocatable   :: prod_hiv
-      real, dimension(:),   allocatable   :: d1kp, d2kp, bkp, akp, &
+      real, dimension(:,:), allocatable, save   :: prod_hiv
+      real, dimension(:),   allocatable, save   :: d1kp, d2kp, bkp, akp, &
                                              delp_hi, caxa
       integer         :: k, kp, kp0, kpp
  
@@ -4700,7 +4744,7 @@ real,    dimension(:,:), intent(out)  :: errorint
 !---------------------------------------------------------------------
 !  local variables:
 
-      real, dimension(:,:), allocatable   :: delp_lo, delp_hi, &
+      real, dimension(:,:), allocatable, save   :: delp_lo, delp_hi, &
                                              d1kp, d2kp, bkp, akp, fkp,&
                                              fkp1, fkp2
       integer        :: k, kp, kp0
@@ -4955,7 +4999,7 @@ real,    dimension(:,:), intent(out)  :: errorint
 !-------------------------------------------------------------------
 !   local variables:
 
-      real, dimension(:), allocatable :: delp_lo, delp_hi, d1kp, d2kp, &
+      real, dimension(:), allocatable, save :: delp_lo, delp_hi, d1kp, d2kp, &
                                          bkp, akp, fkp, d1kp1, d2kp1,  &
                                          bkp1, akp1, fkp1, d1kp2,   &
                                          d2kp2, bkp2, akp2, fkp2,   &
@@ -5284,7 +5328,7 @@ real,    dimension(:,:), intent(inout) :: trns_vmr
 !--------------------------------------------------------------------
 !  local variables:
 
-      real, dimension(:,:), allocatable :: approx_guess1,          &
+      real, dimension(:,:), allocatable, save :: approx_guess1,          &
                                            approxint_guess1,       &
                                            approxint_guess2,       &
                                            error_guess1,           &
@@ -5292,7 +5336,7 @@ real,    dimension(:,:), intent(inout) :: trns_vmr
                                            errorint_guess2,        &
                                            trans_guess1,           &
                                            trans_guess2
-      real, dimension(:,:), allocatable :: caintv, uexpintv,       &
+      real, dimension(:,:), allocatable, save :: caintv, uexpintv,       &
                                            sexpintv, xaintv,       &
                                            press_hiv, press_lov
       logical do_triangle
@@ -5586,7 +5630,7 @@ real,    dimension (:,:,:), intent(out)  :: trns_std_hi_nf,   &
       character(len=24) name_hi
       character(len=110) filename, ncname ! MJT
 
-      real, dimension(:,:), allocatable  :: trns_in
+      real, dimension(:,:), allocatable, save  :: trns_in
 
       integer        :: n, nt, nrec_inhi, inrad, nrec_inlo
       

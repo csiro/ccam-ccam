@@ -124,9 +124,13 @@ type(lw_output_type), dimension(1), save :: Lw_output
 type(sw_output_type), dimension(1), save :: Sw_output
 type(aerosol_diagnostics_type), save ::     Aerosol_diags
 type(lw_table_type), save ::                Lw_tables
-real(kind=8), dimension(:,:,:,:), allocatable :: r
+real(kind=8), dimension(:,:,:,:), allocatable, save :: r
 
 call start_log(radmisc_begin)
+
+if (nmaxpr==1.and.myid==0) then
+  write(6,*) "seaesfrad: Starting SEA-ESF radiation"
+end if
 
 ! Fix qgmin
 if (qgmin.gt.2.E-7) then
@@ -401,6 +405,11 @@ if ( first ) then
   
 end if  ! (first)
 
+if (nmaxpr==1.and.myid==0) then
+  write(6,*) "seaesfrad: Prepare SEA-ESF arrays"
+end if
+
+
 ! Prepare SEA-ESF arrays --------------------------------------------
 Rad_time%days   =int(fjd)
 Rad_time%seconds=mod(mins,1440)
@@ -425,6 +434,10 @@ swcount=0
 do j=1,jl,imax/il
   istart=1+(j-1)*il
   iend=istart+imax-1
+  
+  if (nmaxpr==1.and.myid==0) then
+    write(6,*) "seaesfrad: Main SEA-ESF loop for istart,iend ",istart,iend
+  end if
 
   ! Calculate zenith angle for the solarfit calculation.
   ! This call averages zenith angle just over this time step.
@@ -434,6 +447,11 @@ do j=1,jl,imax/il
 
   ! Call radiation --------------------------------------------------
   if ( odcalc ) then     ! Do the calculation
+  
+    if (nmaxpr==1.and.myid==0) then
+      write(6,*) "seaesfrad: Update radiation"
+    end if
+
 
     ! Average the zenith angle over the time (hours) between radiation
     ! calculations
@@ -698,6 +716,10 @@ do j=1,jl,imax/il
       end do
     end if
 
+    if (nmaxpr==1.and.myid==0) then
+      write(6,*) "seaesfrad: Calculate microphysics properties"
+    end if
+
     ! cfrac, qlrad and qfrad also include convective cloud as well as qfg and qlg
     dumcf=cfrac(istart:iend,:)
     dumql=qlrad(istart:iend,:)
@@ -738,6 +760,9 @@ do j=1,jl,imax/il
 
     call end_log(radmisc_end)
     call start_log(radlw_begin)
+    if (nmaxpr==1.and.myid==0) then
+      write(6,*) "seaesfrad: Longwave radiation"
+    end if
     call longwave_driver (1, imax, 1, 1, Rad_time, Atmos_input,  &
                           Rad_gases, Aerosol, Aerosol_props,     &
                           Cldrad_props, Cld_spec, Aerosol_diags, &
@@ -745,12 +770,19 @@ do j=1,jl,imax/il
     call end_log(radlw_end)
 
     call start_log(radsw_begin)
+    if (nmaxpr==1.and.myid==0) then
+      write(6,*) "seaesfrad: Shortwave radiation"
+    end if
     call shortwave_driver (1, imax, 1, 1, Atmos_input, Surface,      &
                            Astro, Aerosol, Aerosol_props, Rad_gases, &
                            Cldrad_props, Cld_spec, Sw_output,        &
                            Aerosol_diags, r)
     call end_log(radsw_end)
     call start_log(radmisc_begin)
+
+    if (nmaxpr==1.and.myid==0) then
+      write(6,*) "seaesfrad: Process SEA-ESF output"
+    end if
 
     ! store shortwave and fbeam data --------------------------------
     sgdn=Sw_output(1)%dfsw(:,1,kl+1)
@@ -846,6 +878,10 @@ do j=1,jl,imax/il
     ! cloud amounts for saving --------------------------------------
     cloudtot(istart:iend)=1.-(1.-cloudlo(istart:iend))*(1.-cloudmi(istart:iend))*(1.-cloudhi(istart:iend))
 
+    if (nmaxpr==1.and.myid==0) then
+      write(6,*) "seaesfrad: Calculate averages"
+    end if
+
     ! Use explicit indexing rather than array notation so that we can run
     ! over the end of the first index
     if(ktau>1)then ! averages not added at time zero
@@ -874,7 +910,11 @@ do j=1,jl,imax/il
     call atebfbeam(istart,imax,dumfbeam,0)
 
   end if  ! odcalc
-      
+
+  if (nmaxpr==1.and.myid==0) then
+    write(6,*) "seaesfrad: Solarfit"
+  end if
+
   ! Calculate the solar using the saved amplitude.
   sg(1:imax) = sgamp(istart:iend)*coszro2(1:imax)*taudar2(1:imax)
   if(ktau>1)then ! averages not added at time zero
@@ -894,12 +934,16 @@ do j=1,jl,imax/il
 
 end do  ! Row loop (j)  j=1,jl,imax/il
 
-if ( odcalc .and. nmaxpr.eq.1 ) then
-  write(6,*) "swcount,myid ",swcount,myid
+if ( odcalc .and. nmaxpr==1 ) then
+  write(6,*) "seaesfrad: swcount,myid ",swcount,myid
 end if
 
 ! Calculate net radiational cooling of atmosphere (K/s)
 t(1:ifull,:)=t(1:ifull,:)-dt*rtt(1:ifull,:)
+
+if (nmaxpr==1.and.myid==0) then
+  write(6,*) "seaesfrad: Finishing SEA-ESF radiation"
+end if
 
 call end_log(radmisc_end)
 
@@ -1234,7 +1278,7 @@ if (do_brenguier) then
 end if
 
 
-!reffi=0.
+reffi=0.
 Wice=0.
 where (qfg.gt.1.E-8.and.cfrac.gt.0.)
   Wice=rhoa*qfg/cfrac !kg/m**3
@@ -1296,14 +1340,14 @@ include 'mpif.h'
 
 integer n,nmodel,unit,num_wavenumbers,num_input_categories
 integer noptical,nivl3,nband,nw,ierr,na,ni
-integer, dimension(:), allocatable :: endaerwvnsf
-integer, dimension(:), allocatable :: nivl1aero,nivl2aero
+integer, dimension(:), allocatable, save :: endaerwvnsf
+integer, dimension(:), allocatable, save :: nivl1aero,nivl2aero
 real(kind=8) sumsol3
-real(kind=8), dimension(:,:), allocatable :: aeroextivl,aerossalbivl,aeroasymmivl
-real(kind=8), dimension(:,:), allocatable :: sflwwts,sflwwts_cn
-real(kind=8), dimension(:,:), allocatable :: solivlaero
-real(kind=8), dimension(:), allocatable :: aeroext_in,aerossalb_in,aeroasymm_in
-logical, dimension(:), allocatable :: found
+real(kind=8), dimension(:,:), allocatable, save :: aeroextivl,aerossalbivl,aeroasymmivl
+real(kind=8), dimension(:,:), allocatable, save :: sflwwts,sflwwts_cn
+real(kind=8), dimension(:,:), allocatable, save :: solivlaero
+real(kind=8), dimension(:), allocatable, save :: aeroext_in,aerossalb_in,aeroasymm_in
+logical, dimension(:), allocatable, save :: found
 character(len=64), dimension(naermodels) :: aerosol_optical_names
 character(len=64) :: name_in
 character(len=110) :: filename

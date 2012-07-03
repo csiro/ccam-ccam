@@ -81,8 +81,8 @@ c
       integer lendim, tracnamid
       integer surfdim,gridsurfid
       integer gridorderid, surforderid
-      integer, allocatable, dimension(:,:) :: templist
-      integer, allocatable, dimension(:) :: gridorder, surforder
+      integer, allocatable, save, dimension(:,:) :: templist
+      integer, allocatable, save, dimension(:) :: gridorder, surforder
       integer i,i1,k,ntop
       character*20 outfile
       character*8 chtemp
@@ -356,8 +356,8 @@ c
       use vegpar_m    ! rlai
       use vvel_m      ! vertical velocity
       implicit none
-      real, dimension(:,:), allocatable :: cts
-      real, dimension(:), allocatable :: vts
+      real, dimension(:,:), allocatable, save :: cts
+      real, dimension(:), allocatable, save :: vts
       integer ierr,start(3),count(3),n,iq,kount,m,jyear,mins
       integer ktau,ntau,k
       logical surfflux

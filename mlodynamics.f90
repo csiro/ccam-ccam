@@ -533,7 +533,7 @@ real, dimension(ifull+iextra) :: snu,sou,spu,squ,sru,snv,sov,spv,sqv,srv
 real, dimension(ifull+iextra) :: ibu,ibv,icu,icv,spnet,oeta,oeu,oev
 real, dimension(ifull) :: i_u,i_v,i_sto,rhobaru,rhobarv
 real, dimension(ifull) :: sdiv,sinp,div,inp,odiv,seta,w_e
-real, dimension(ifull) :: sdivb,divb,odivb,xps,yps
+real, dimension(ifull) :: sdivb,divb,odivb,xps
 real, dimension(ifull) :: tnu,tsu,tev,twv,rhou,rhov
 real, dimension(ifull) :: dpsdxu,dpsdyu,dpsdxv,dpsdyv
 real, dimension(ifull) :: dttdxu,dttdyu,dttdxv,dttdyv
@@ -542,7 +542,7 @@ real, dimension(ifull) :: dipdxu,dipdyu,dipdxv,dipdyv
 real, dimension(ifull) :: au,bu,cu,av,bv,cv,odum
 real, dimension(ifull) :: nip,ipmax,imu,imv
 real, dimension(ifull) :: sue,suw,svn,svs,snuw,snvs
-real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns,mps,qps
+real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns,mps
 real, dimension(ifull+iextra,wlev) :: cou,cov,cow,eou,eov
 real, dimension(ifull+iextra,wlev) :: rhobar,rho,dalpha,dbeta
 real, dimension(ifull+iextra,4) :: nit
@@ -550,7 +550,7 @@ real, dimension(ifull+iextra,2) :: stwgt
 real, dimension(ifull+iextra,1) :: sku,skv
 real, dimension(ifull,1) :: uiu,uiv,siu,siv,sju,sjv
 real, dimension(ifull,4) :: i_it
-real, dimension(ifull,wlev) :: w_u,w_v,w_t,w_s,dum,dz
+real, dimension(ifull,wlev) :: w_u,w_v,w_t,w_s,dum
 real, dimension(ifull,wlev) :: nuh,nvh,xg,yg,uau,uav,dou,dov,tau,tav
 real, dimension(ifull,wlev) :: kku,llu,mmu,nnu
 real, dimension(ifull,wlev) :: kkv,llv,mmv,nnv
@@ -628,11 +628,6 @@ call mloexpice(i_sto,8,0)
 call mloexpice(i_u,9,0)
 call mloexpice(i_v,10,0)
 
-! Calculate depth arrays
-do ii=1,wlev
-  dz(:,ii)=godsig(ii)*dd(1:ifull)
-end do
-
 ! estimate tidal forcing (assumes leap days)
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: Tides"
@@ -691,10 +686,11 @@ nit(1:ifull,:)=i_it
 nsto(1:ifull)=i_sto
 niu(1:ifull)=i_u
 niv(1:ifull)=i_v
+neta(1:ifull)=max(neta(1:ifull),-dd(1:ifull)+mindep)
 call bounds(neta,corner=.true.)
 oeta=neta
-oeu(1:ifull)=0.5*(neta(1:ifull)+neta(ie)) ! depth at staggered coordinate
-oev(1:ifull)=0.5*(neta(1:ifull)+neta(in)) ! depth at staggered coordinate
+oeu(1:ifull)=0.5*(neta(1:ifull)+neta(ie)) ! height at staggered coordinate
+oev(1:ifull)=0.5*(neta(1:ifull)+neta(in)) ! height at staggered coordinate
 call boundsuv(oeu,oev)
 
 totits=0
@@ -747,50 +743,15 @@ oldu1=nu(1:ifull,:)
 oldv1=nv(1:ifull,:)
 
 if (myid==0.and.nmaxpr==1) then
-  write(6,*) "mlohadv: water vertical advection 1"
+  write(6,*) "mlohadv: density EOS 1"
 end if
 
 ! Calculate adjusted depths
-ndum=max(1.+neta/dd,mindep/dd)
+odum=max(1.+neta(1:ifull)/dd(1:ifull),mindep/dd(1:ifull))
 do ii=1,wlev
-  depdum(:,ii)=gosig(ii)*dd(1:ifull)*ndum(1:ifull)
-  dzdum(:,ii)=godsig(ii)*dd(1:ifull)*ndum(1:ifull)
+  depdum(:,ii)=gosig(ii)*dd(1:ifull)*odum
+  dzdum(:,ii)=godsig(ii)*dd(1:ifull)*odum
 end do
-
-! Estimate vertical velocity at time t
-! nw is at half levels with nw(:,1) at the bottom of level 1
-! positive nw is moving downwards to the ocean bottom
-! For now, assume Boussinesq fluid and treat density in continuity equation as constant
-! true vertical velocity = nw-u*((1-sig)*deta/dx-sig*d(dd)/dx)-v*((1-sig)*deta/dy-sig*d(dd)/dy)-(1-sig)*deta/dt
-dou(:,1)=nu(1:ifull,1)*godsig(1)*ee(1:ifull) ! unstaggered at time t
-dov(:,1)=nv(1:ifull,1)*godsig(1)*ee(1:ifull)
-do ii=2,wlev
-  dou(:,ii)=(dou(:,ii-1)+nu(1:ifull,ii)*godsig(ii))*ee(1:ifull)
-  dov(:,ii)=(dov(:,ii-1)+nv(1:ifull,ii)*godsig(ii))*ee(1:ifull)
-end do
-call mlostaguv(dou,dov,cou(1:ifull,:),cov(1:ifull,:))
-call boundsuv(cou,cov)
-sju(:,1)=(oeu(1:ifull)/emu(1:ifull)-oeu(iwu)/emu(iwu))*em(1:ifull)*em(1:ifull)/ds ! unstaggered
-sjv(:,1)=(oev(1:ifull)/emv(1:ifull)-oev(isv)/emv(isv))*em(1:ifull)*em(1:ifull)/ds
-sdiv=(cou(1:ifull,wlev)*(ddu(1:ifull)+neta(1:ifull))/emu(1:ifull)-cou(iwu,wlev)*(ddu(iwu)+neta(1:ifull))/emu(iwu)  &
-     +cov(1:ifull,wlev)*(ddv(1:ifull)+neta(1:ifull))/emv(1:ifull)-cov(isv,wlev)*(ddv(isv)+neta(1:ifull))/emv(isv)) &
-     *em(1:ifull)*em(1:ifull)/ds
-sinp=-(dou(:,wlev)*sju(:,1)+dov(:,wlev)*sjv(:,1))
-do ii=1,wlev-1
-  div=(cou(1:ifull,ii)*(ddu(1:ifull)+neta(1:ifull))/emu(1:ifull)-cou(iwu,ii)*(ddu(iwu)+neta(1:ifull))/emu(iwu)  &
-      +cov(1:ifull,ii)*(ddv(1:ifull)+neta(1:ifull))/emv(1:ifull)-cov(isv,ii)*(ddv(isv)+neta(1:ifull))/emv(isv)) &
-      *em(1:ifull)*em(1:ifull)/ds
-  inp=-(dou(:,ii)*sju(:,1)+dov(:,ii)*sjv(:,1))
-  nw(:,ii)=((sdiv-sinp/(1.-eps))*gosigh(ii)-div+inp/(1.-eps))*ee(1:ifull)
-end do
-
-! Vertical advection (first call for 0.5*dt)
-call mlovadv(0.5*dt,nw,nu(1:ifull,:),nv(1:ifull,:),ns(1:ifull,:),nt(1:ifull,:),depdum, &
-             dzdum,wtr(1:ifull),1)
-
-if (myid==0.and.nmaxpr==1) then
-  write(6,*) "mlohadv: density EOS 1"
-end if
 
 ! Calculate normalised density rhobar (unstaggered at time t)
 ! (Assume free surface correction is small so that changes in the compression 
@@ -856,59 +817,7 @@ do ii=1,wlev
 end do
 
 if (myid==0.and.nmaxpr==1) then
-  write(6,*) "mlohadv: Advect contunity"
-end if
-
-! Advect continuity equation to tstar
-! Calculate velocity on C-grid for consistancy with iterative free surface calculation
-call mlostaguv(nu(1:ifull,:),nv(1:ifull,:),eou(1:ifull,:),eov(1:ifull,:))
-call boundsuv(eou,eov)
-dou(:,1)=nu(1:ifull,1)*godsig(1)*ee(1:ifull) ! unstaggered at time t
-dov(:,1)=nv(1:ifull,1)*godsig(1)*ee(1:ifull)
-cou(:,1)=eou(:,1)*godsig(1)*eeu
-cov(:,1)=eov(:,1)*godsig(1)*eev
-do ii=2,wlev
-  dou(:,ii)=(dou(:,ii-1)+nu(1:ifull,ii)*godsig(ii))*ee(1:ifull)
-  dov(:,ii)=(dov(:,ii-1)+nv(1:ifull,ii)*godsig(ii))*ee(1:ifull)
-  cou(:,ii)=(cou(:,ii-1)+eou(:,ii)*godsig(ii))*eeu
-  cov(:,ii)=(cov(:,ii-1)+eov(:,ii)*godsig(ii))*eev
-end do
-! sju and sjv have been previously calculated
-sdiv=(cou(1:ifull,wlev)*(ddu(1:ifull)+neta(1:ifull))/emu(1:ifull)-cou(iwu,wlev)*(ddu(iwu)+neta(1:ifull))/emu(iwu)  &
-     +cov(1:ifull,wlev)*(ddv(1:ifull)+neta(1:ifull))/emv(1:ifull)-cov(isv,wlev)*(ddv(isv)+neta(1:ifull))/emv(isv)) &
-     *em(1:ifull)*em(1:ifull)/ds
-sinp=-(dou(:,wlev)*sju(:,1)+dov(:,wlev)*sjv(:,1))
-do ii=1,wlev-1
-  div=(cou(1:ifull,ii)*(ddu(1:ifull)+neta(1:ifull))/emu(1:ifull)-cou(iwu,ii)*(ddu(iwu)+neta(1:ifull))/emu(iwu)  &
-      +cov(1:ifull,ii)*(ddv(1:ifull)+neta(1:ifull))/emv(1:ifull)-cov(isv,ii)*(ddv(isv)+neta(1:ifull))/emv(isv)) &
-      *em(1:ifull)*em(1:ifull)/ds
-  inp=-(dou(:,ii)*sju(:,1)+dov(:,ii)*sjv(:,1))
-  nw(:,ii)=((sdiv-sinp/(1.-eps))*gosigh(ii)-div+inp/(1.-eps))*ee(1:ifull)
-end do
-! compute contunity equation horizontal transport terms
-do ii=1,wlev
-  div=(eou(1:ifull,ii)*(ddu(1:ifull)+neta(1:ifull))/emu(1:ifull)-eou(iwu,ii)*(ddu(iwu)+neta(1:ifull))/emu(iwu)  &
-      +eov(1:ifull,ii)*(ddv(1:ifull)+neta(1:ifull))/emv(1:ifull)-eov(isv,ii)*(ddv(isv)+neta(1:ifull))/emv(isv)) &
-      *em(1:ifull)*em(1:ifull)/ds
-  div=div+(nw(:,ii)-nw(:,ii-1))/godsig(ii) ! nw is at half levels
-  mps(1:ifull,ii)=neta(1:ifull)-(1.-eps)*0.5*dt*div
-  qps(1:ifull,ii)=neta(1:ifull)
-end do
-call mlob2intsb(mps,nface,xg,yg,wtr)
-call mlob2intsb(qps,nface,xg,yg,wtr)
-! Integrate advected mps for use in neta calculation
-! yps is equal to neta at tstar
-xps=mps(1:ifull,1)*godsig(1)
-yps=qps(1:ifull,1)*godsig(1)
-do ii=2,wlev
-  xps=xps+mps(1:ifull,ii)*godsig(ii)
-  yps=yps+qps(1:ifull,ii)*godsig(ii)
-end do
-xps=xps*ee(1:ifull)
-yps=yps*ee(1:ifull)
-
-if (myid==0.and.nmaxpr==1) then
-  write(6,*) "mlohadv: advect currents"
+  write(6,*) "mlohadv: pressure gradient terms"
 end if
 
 ! Prepare pressure gradient terms at t=t and incorporate into velocity field
@@ -927,6 +836,65 @@ do ii=1,wlev
   uau(:,ii)=uau(:,ii)*ee(1:ifull)
   uav(:,ii)=uav(:,ii)*ee(1:ifull)
 end do
+
+if (myid==0.and.nmaxpr==1) then
+  write(6,*) "mlohadv: continuity equation"
+end if
+
+! Advect continuity equation to tstar
+! Calculate velocity on C-grid for consistancy with iterative free surface calculation
+! nw is at half levels with nw(:,1) at the bottom of level 1
+! positive nw is moving downwards to the ocean bottom
+! For now, assume Boussinesq fluid and treat density in continuity equation as constant
+! true vertical velocity = nw-u*((1-sig)*deta/dx-sig*d(dd)/dx)-v*((1-sig)*deta/dy-sig*d(dd)/dy)-(1-sig)*deta/dt
+call mlostaguv(nu(1:ifull,:),nv(1:ifull,:),eou(1:ifull,:),eov(1:ifull,:))
+call boundsuv(eou,eov)
+dou(:,1)=nu(1:ifull,1)*godsig(1)*ee(1:ifull) ! unstaggered at time t
+dov(:,1)=nv(1:ifull,1)*godsig(1)*ee(1:ifull)
+cou(:,1)=eou(:,1)*godsig(1)*eeu
+cov(:,1)=eov(:,1)*godsig(1)*eev
+do ii=2,wlev
+  dou(:,ii)=(dou(:,ii-1)+nu(1:ifull,ii)*godsig(ii))*ee(1:ifull)
+  dov(:,ii)=(dov(:,ii-1)+nv(1:ifull,ii)*godsig(ii))*ee(1:ifull)
+  cou(:,ii)=(cou(:,ii-1)+eou(:,ii)*godsig(ii))*eeu
+  cov(:,ii)=(cov(:,ii-1)+eov(:,ii)*godsig(ii))*eev
+end do
+sju(:,1)=(oeu(1:ifull)/emu(1:ifull)-oeu(iwu)/emu(iwu))*em(1:ifull)*em(1:ifull)/ds ! unstaggered
+sjv(:,1)=(oev(1:ifull)/emv(1:ifull)-oev(isv)/emv(isv))*em(1:ifull)*em(1:ifull)/ds
+sdiv=(cou(1:ifull,wlev)*(ddu(1:ifull)+neta(1:ifull))/emu(1:ifull)-cou(iwu,wlev)*(ddu(iwu)+neta(1:ifull))/emu(iwu)  &
+     +cov(1:ifull,wlev)*(ddv(1:ifull)+neta(1:ifull))/emv(1:ifull)-cov(isv,wlev)*(ddv(isv)+neta(1:ifull))/emv(isv)) &
+     *em(1:ifull)*em(1:ifull)/ds
+sinp=-(dou(:,wlev)*sju(:,1)+dov(:,wlev)*sjv(:,1))
+do ii=1,wlev-1
+  div=(cou(1:ifull,ii)*(ddu(1:ifull)+neta(1:ifull))/emu(1:ifull)-cou(iwu,ii)*(ddu(iwu)+neta(1:ifull))/emu(iwu)  &
+      +cov(1:ifull,ii)*(ddv(1:ifull)+neta(1:ifull))/emv(1:ifull)-cov(isv,ii)*(ddv(isv)+neta(1:ifull))/emv(isv)) &
+      *em(1:ifull)*em(1:ifull)/ds
+  inp=-(dou(:,ii)*sju(:,1)+dov(:,ii)*sjv(:,1))
+  nw(:,ii)=((sdiv-sinp)*gosigh(ii)-div+inp)*ee(1:ifull)
+end do
+! compute contunity equation horizontal transport terms
+do ii=1,wlev
+  div=(eou(1:ifull,ii)*(ddu(1:ifull)+neta(1:ifull))/emu(1:ifull)-eou(iwu,ii)*(ddu(iwu)+neta(1:ifull))/emu(iwu)  &
+      +eov(1:ifull,ii)*(ddv(1:ifull)+neta(1:ifull))/emv(1:ifull)-eov(isv,ii)*(ddv(isv)+neta(1:ifull))/emv(isv)) &
+      *em(1:ifull)*em(1:ifull)/ds
+  div=div+(nw(:,ii)-nw(:,ii-1))/godsig(ii) ! nw is at half levels
+  mps(1:ifull,ii)=neta(1:ifull)-(1.-eps)*0.5*dt*div
+end do
+
+if (myid==0.and.nmaxpr==1) then
+  write(6,*) "mlohadv: water vertical advection 1"
+end if
+
+! Vertical advection (first call for 0.5*dt)
+call mlovadv(0.5*dt,nw,uau,uav,ns(1:ifull,:),nt(1:ifull,:),mps(1:ifull,:), &
+             depdum,dzdum,wtr(1:ifull),1)
+
+if (myid==0.and.nmaxpr==1) then
+  write(6,*) "mlohadv: horizontal advection"
+end if
+
+! Advect continuity terms
+call mlob2intsb(mps,nface,xg,yg,wtr)
 
 ! Convert (u,v) to cartesian coordinates (U,V,W)
 do ii=1,wlev
@@ -951,10 +919,6 @@ do ii=1,wlev
   uav(:,ii)=uav(:,ii)*ee(1:ifull)
 end do
 
-if (myid==0.and.nmaxpr==1) then
-  write(6,*) "mlohadv: Advect theta and S"
-end if
-
 ! Horizontal advection for T,S to tstar
 nt(1:ifull,:)=nt(1:ifull,:)-290.
 ns(1:ifull,:)=ns(1:ifull,:)-34.72
@@ -967,17 +931,26 @@ where (ns(1:ifull,:).lt.0.1)
 end where
 
 if (myid==0.and.nmaxpr==1) then
+  write(6,*) "mlohadv: water vertical advection 2"
+end if
+
+! Vertical advection (second call for 0.5*dt)
+! use nw and depdum,dzdum from t=tau step
+call mlovadv(0.5*dt,nw,uau,uav,ns(1:ifull,:),nt(1:ifull,:),mps(1:ifull,:), &
+             depdum,dzdum,wtr(1:ifull),2)
+
+! Integrate advected mps
+xps=mps(1:ifull,1)*godsig(1)
+do ii=2,wlev
+  xps=xps+mps(1:ifull,ii)*godsig(ii)
+end do
+xps=xps*ee(1:ifull)
+
+if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: density EOS 2"
 end if
 
 ! Update normalised density rhobar (unstaggered at tstar)
-odum=max(1.+yps/dd(1:ifull),mindep/dd(1:ifull))
-ndum(1:ifull)=odum
-call bounds(ndum,corner=.true.)
-do ii=1,wlev
-  depdum(:,ii)=gosig(ii)*dd(1:ifull)*ndum(1:ifull)
-  dzdum(:,ii)=godsig(ii)*dd(1:ifull)*ndum(1:ifull)
-end do
 call mloexpdensity(rho(1:ifull,:),dalpha(1:ifull,:),dbeta(1:ifull,:),nt(1:ifull,:),ns(1:ifull,:),depdum,dzdum,pice(1:ifull),0)
 call bounds(rho)
 rhobar(:,1)=(rho(:,1)-1030.)*godsig(1)
@@ -1229,6 +1202,10 @@ where (.not.wtr(1:ifull))
   neta(1:ifull)=0.
 end where
 
+if (myid==0.and.nmaxpr==1) then
+  write(6,*) "mlohadv: update currents"
+end if
+
 call bounds(neta,corner=.true.)
 oeu(1:ifull)=0.5*(neta(1:ifull)+neta(ie))
 oev(1:ifull)=0.5*(neta(1:ifull)+neta(in))
@@ -1249,58 +1226,21 @@ do ii=1,wlev
   nv(1:ifull,ii)=kkv(:,ii)+llv(:,ii)*oev(1:ifull)+mmv(:,ii)*detadyv+nnv(:,ii)*detadxv
 end do
 
-if (myid==0.and.nmaxpr==1) then
-  write(6,*) "mlohadv: water vertical velocity 2"
-end if
-
-! Update vertical velocity at (approximately) t+1
-cou(1:ifull,1)=nu(1:ifull,1)*godsig(1) ! staggered
-cov(1:ifull,1)=nv(1:ifull,1)*godsig(1)
-do ii=2,wlev
-  cou(1:ifull,ii)=cou(1:ifull,ii-1)+nu(1:ifull,ii)*godsig(ii)
-  cov(1:ifull,ii)=cov(1:ifull,ii-1)+nv(1:ifull,ii)*godsig(ii)
-end do
-call boundsuv(cou,cov)
 ! use nu and nv for unstagged currents
 call mlounstaguv(nu(1:ifull,:),nv(1:ifull,:),uau,uav)
 nu(1:ifull,:)=uau
 nv(1:ifull,:)=uav
-dou(:,1)=nu(1:ifull,1)*godsig(1)*ee(1:ifull) ! unstaggered
-dov(:,1)=nv(1:ifull,1)*godsig(1)*ee(1:ifull)
-do ii=2,wlev
-  dou(:,ii)=(dou(:,ii-1)+nu(1:ifull,ii)*godsig(ii))*ee(1:ifull)
-  dov(:,ii)=(dov(:,ii-1)+nv(1:ifull,ii)*godsig(ii))*ee(1:ifull)
-end do
-sju(:,1)=(oeu(1:ifull)/emu(1:ifull)-oeu(iwu)/emu(iwu))*em(1:ifull)*em(1:ifull)/ds ! unstaggered
-sjv(:,1)=(oev(1:ifull)/emv(1:ifull)-oev(isv)/emv(isv))*em(1:ifull)*em(1:ifull)/ds
-sdiv=(cou(1:ifull,wlev)*(ddu(1:ifull)+neta(1:ifull))/emu(1:ifull)-cou(iwu,wlev)*(ddu(iwu)+neta(1:ifull))/emu(iwu)  &
-     +cov(1:ifull,wlev)*(ddv(1:ifull)+neta(1:ifull))/emv(1:ifull)-cov(isv,wlev)*(ddv(isv)+neta(1:ifull))/emv(isv)) &
-     *em(1:ifull)*em(1:ifull)/ds
-sinp=-(dou(:,wlev)*sju(:,1)+dov(:,wlev)*sjv(:,1))
-do ii=1,wlev-1
-  div=(cou(1:ifull,ii)*(ddu(1:ifull)+neta(1:ifull))/emu(1:ifull)-cou(iwu,ii)*(ddu(iwu)+neta(1:ifull))/emu(iwu)  &
-      +cov(1:ifull,ii)*(ddv(1:ifull)+neta(1:ifull))/emv(1:ifull)-cov(isv,ii)*(ddv(isv)+neta(1:ifull))/emv(isv)) &
-      *em(1:ifull)*em(1:ifull)/ds
-  inp=-(dou(:,ii)*sju(:,1)+dov(:,ii)*sjv(:,1))
-  nw(:,ii)=((sdiv-sinp/(1.+eps))*gosigh(ii)-div+inp/(1.+eps))*ee(1:ifull)
-end do
 
-! Vertical advection (second call)
-odum=max(1.+neta(1:ifull)/dd(1:ifull),mindep/dd(1:ifull))
-do ii=1,wlev
-  depdum(:,ii)=gosig(ii)*dd(1:ifull)*odum
-  dzdum(:,ii)=godsig(ii)*dd(1:ifull)*odum
-end do
-call mlovadv(0.5*dt,nw,nu(1:ifull,:),nv(1:ifull,:),ns(1:ifull,:),nt(1:ifull,:),depdum, &
-             dzdum,wtr(1:ifull),2)
-
+if (myid==0.and.nmaxpr==1) then
+  write(6,*) "mlohadv: water vertical velocity 2"
+end if
 
 ! UPDATE ICE DYNAMICS ---------------------------------------------
 ! Here we start by calculating the ice velocity and then advecting
 ! the various ice prognostic variables.
 
 if (myid==0.and.nmaxpr==1) then
-  write(6,*) "mlohadv: Ice fluid properties"
+  write(6,*) "mlohadv: Ice fluid dynamics"
 end if
 
 ! Update ice velocities
@@ -1577,6 +1517,10 @@ siv(:,1)=niv(1:ifull)
 call mlounstaguv(siu,siv,sju,sjv)
 niu(1:ifull)=sju(:,1)
 niv(1:ifull)=sjv(:,1)
+
+if (myid==0.and.nmaxpr==1) then
+  write(6,*) "mlohadv: conserve salinity"
+end if
   
 ! salinity conservation
 if (nud_sss.eq.0) then
@@ -1602,6 +1546,10 @@ if (myid==0.and.(ktau.le.100.or.maxglobseta.gt.tol.or.maxglobip.gt.itol)) then
   write(6,*) "MLODYNAMICS ",totits,maxglobseta,itotits,maxglobip
 end if
 
+if (myid==0.and.nmaxpr==1) then
+  write(6,*) "mlohadv: Export"
+end if
+
 do ii=1,wlev
   call mloimport(0,nt(1:ifull,ii),ii,0)
   call mloimport(1,ns(1:ifull,ii),ii,0)
@@ -1623,6 +1571,10 @@ where (wtr(1:ifull))
   sicedep=ndic(1:ifull)
   snowd=ndsn(1:ifull)*1000.
 end where
+
+if (myid==0.and.nmaxpr==1) then
+  write(6,*) "mlohadv: Finish"
+end if
 
 return
 end subroutine mlohadv
@@ -2814,7 +2766,7 @@ end subroutine mlounstaguv
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine performs vertical advection based on JLMs TVD scheme
 
-subroutine mlovadv(dtin,ww,uu,vv,ss,tt,depdum,dzdum,wtr,cnum)
+subroutine mlovadv(dtin,ww,uu,vv,ss,tt,mm,depdum,dzdum,wtr,cnum)
 
 use cc_mpi
 use mlo
@@ -2830,23 +2782,23 @@ real, intent(in) :: dtin
 real dtnew
 real, dimension(ifull,0:wlev), intent(in) :: ww
 real, dimension(ifull,wlev), intent(in) :: depdum,dzdum
-real, dimension(ifull,wlev), intent(inout) :: uu,vv,ss,tt
+real, dimension(ifull,wlev), intent(inout) :: uu,vv,ss,tt,mm
 logical, dimension(ifull), intent(in) :: wtr
 
 ! reduce time step to ensure stability
 dtnew=dtin
 do iq=1,ifull
   if (wtr(iq)) then
-    do ii=1,wlev
+    do ii=1,wlev-1
       dtnew=min(dtnew,0.3*dzdum(iq,ii)/max(abs(ww(iq,ii)),1.E-12))
     end do
   end if
 end do
 its=int(dtin/dtnew)+1
-call MPI_AllReduce(its,its_g,1,MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD, ierr )
+call MPI_AllReduce(its,its_g,1,MPI_INTEGER,MPI_MAX,MPI_COMM_WORLD,ierr)
 dtnew=dtin/real(its_g)
 
-if (its_g.gt.500.and.myid.eq.0) write(6,*) "MLOVERT cnum,its_g",cnum,its_g
+if (its_g.gt.100.and.myid.eq.0) write(6,*) "MLOVERT cnum,its_g",cnum,its_g
 
 tt=tt-290.
 ss=ss-34.72
@@ -2855,6 +2807,7 @@ do l=1,its_g
   call mlotvd(dtnew,ww,vv,depdum,dzdum)
   call mlotvd(dtnew,ww,ss,depdum,dzdum)
   call mlotvd(dtnew,ww,tt,depdum,dzdum)
+  call mlotvd(dtnew,ww,mm,depdum,dzdum)
 end do
 tt=tt+290.
 ss=ss+34.72

@@ -259,9 +259,10 @@ c**   onthefly; sometime can get rid of common/bigxy4
       real, dimension(dk*dk*6) :: psl_a,tss_a,fracice_a,
      &      snowd_a,sicedep_a,pmsl_a,  tss_l_a,tss_s_a
       real, dimension(dk*dk*6,3) :: tggsn_a
-       real, dimension(dk*dk*6) :: t_a_lev
+      real, dimension(dk*dk*6) :: t_a_lev
       real, parameter :: spval=999. ! missing value flag
       real, intent(in) ::  rlong0x, rlat0x, schmidtx
+      real rlongd,rlatd
 
       ! Used in the global interpolation
       real, dimension(ifg,4) :: xg4, yg4
@@ -783,6 +784,28 @@ c       incorporate other target land mask effects
       end if ! iotest
       if ( nproc==1 ) write(6,*)'after ints4 sicedep ',sicedep(idjd)
 
+      if (nspecial==44.or.nspecial==46) then
+       do iq=1,ifull
+        rlongd=rlongg(iq)*180./pi
+        rlatd=rlatt(iq)*180./pi
+        if (rlatd.ge.-43..and.rlatd.le.-30.) then
+         if (rlongd.ge.155..and.rlongd.le.170.) then
+          tss(iq)=tss(iq)+1.
+         end if
+        end if
+       end do
+      end if
+      if (nspecial==45.or.nspecial==46) then
+       do iq=1,ifull
+        rlongd=rlongg(iq)*180./pi
+        rlatd=rlatt(iq)*180./pi
+        if (rlatd.ge.-15..and.rlatd.le.-5.) then
+         if (rlongd.ge.150..and.rlongd.le.170.) then
+          tss(iq)=tss(iq)+1.
+         end if
+        end if
+       end do
+      end if
 
       ! read atmospheric fields for nested=0 or nested=1.and.nud.ne.0
 

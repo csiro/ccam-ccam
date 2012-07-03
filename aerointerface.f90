@@ -48,10 +48,10 @@ integer ncstatus,ncid,i,j,varid,tilg
 integer ierr,jyear,jmonth
 integer, dimension(2) :: spos,npos
 integer, dimension(4) :: sposs,nposs
-real, dimension(:), allocatable :: dumg
+real, dimension(:), allocatable, save :: dumg
 real, dimension(ifull) :: duma
-real, dimension(:,:,:,:), allocatable :: oxidantdum
-real, dimension(:), allocatable :: rlon,rlat
+real, dimension(:,:,:,:), allocatable, save :: oxidantdum
+real, dimension(:), allocatable, save :: rlon,rlat
 real tlat,tlon,tschmidt
 character(len=*), intent(in) :: aerofile,oxidantfile
 

@@ -313,7 +313,7 @@ data endsnowcldwvn / 2857, 4000, 5263, 7692, 14493, 57600 /
 !       nivl2snowcld   :  snow flake band index corresponding to the
 !                         highest wave number of spectral band n
 !----------------------------------------------------------------------
-integer, dimension(:), allocatable  :: nivl1liqcld,   &
+integer, dimension(:), allocatable, save  :: nivl1liqcld,   &
                                        nivl1icecld,   &
                                        nivl1icesolcld,   &
                                        nivl1raincld,  &
@@ -340,7 +340,7 @@ integer, dimension(:), allocatable  :: nivl1liqcld,   &
 !    solivlsnowcld    : solar flux in solar spectral band n and snow
 !                      flake band ni (fu, 1996)
 !---------------------------------------------------------------------
-real, dimension(:,:), allocatable  :: solivlicecld,   &
+real, dimension(:,:), allocatable, save  :: solivlicecld,   &
                                       solivlicesolcld, &
                                       solivlliqcld, &
                                       solivlraincld , &
@@ -349,7 +349,7 @@ real, dimension(:,:), allocatable  :: solivlicecld,   &
 !----------------------------------------------------------------------
 !   variables needed for random number seed:
 !----------------------------------------------------------------------
-real, dimension(:), allocatable  :: lats, lons ! lat and lon of columns
+real, dimension(:), allocatable, save  :: lats, lons ! lat and lon of columns
                                                ! in this processor's
                                                ! domain [ degrees ]
 
@@ -362,7 +362,7 @@ real                :: missing_value = -999.
 integer :: id_stoch_cell_cf_mean, id_stoch_meso_cf_mean, &
            id_stoch_lsc_cf_mean
  
-integer, dimension(:), allocatable :: id_stoch_cloud_type
+integer, dimension(:), allocatable, save :: id_stoch_cloud_type
 
 !-------------------------------------------------------------------
 !    logical variables:
@@ -2093,13 +2093,13 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
 !------------------------------------------------------------------
 !      type(randomNumberStream),   &
 !                   dimension(size(cldext,1), size(cldext,2)) :: streams
-!      real, dimension(:, :, :, :), allocatable    :: randomNumbers
+!      real, dimension(:, :, :, :), allocatable, save    :: randomNumbers
 !      integer :: nn, nSubCols
   
 !------------------------------------------------------------------
 !    diagnostics
 !------------------------------------------------------------------
-      integer, dimension(:, :, :, :), allocatable :: stoch_cloud_type
+      integer, dimension(:, :, :, :), allocatable, save :: stoch_cloud_type
       character(len=2) :: chvers
       logical :: used
 

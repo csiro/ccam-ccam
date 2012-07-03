@@ -85,19 +85,19 @@ namelist / longwave_tables_nml /  &
 !    define continuum coefficients over special bands, the choices 
 !    depend on model architecture. the program gasbnd is used.
 !--------------------------------------------------------------------
-real, dimension(:), allocatable :: afach4, afan2o
+real, dimension(:), allocatable, save :: afach4, afan2o
               
-real, dimension(:), allocatable :: fbdlo_12001400, fbdhi_12001400
-real, dimension(:), allocatable :: dummy_ch4n2o
+real, dimension(:), allocatable, save :: fbdlo_12001400, fbdhi_12001400
+real, dimension(:), allocatable, save :: dummy_ch4n2o
 
-real, dimension(:), allocatable :: bdlahcn, bdhahcn
+real, dimension(:), allocatable, save :: bdlahcn, bdhahcn
 
-real, dimension(:), allocatable :: bfach4, bfan2o             
+real, dimension(:), allocatable, save :: bfach4, bfan2o             
 
-real, dimension(:), allocatable :: dch4, dn2o, ech4, en2o
+real, dimension(:), allocatable, save :: dch4, dn2o, ech4, en2o
 real                            :: d171n2o, e171n2o
 
-real, dimension(:), allocatable :: acomb, bcomb, apcm, bpcm, atpcm,  &
+real, dimension(:), allocatable, save :: acomb, bcomb, apcm, bpcm, atpcm,  &
                                    btpcm, bdlocm, bdhicm
 
 integer, parameter              :: NTTABH2O   = 28
@@ -2009,9 +2009,9 @@ type(longwave_tables2_type), intent(inout)   :: tab1a, tab2a, tab3a
 !---------------------------------------------------------------------
 !  local variables:
 
-      real, dimension (:,:), allocatable   :: r1a, r2a, s2a, t3a,   &
+      real, dimension (:,:), allocatable, save   :: r1a, r2a, s2a, t3a,   &
                                               sum4a, sum6a, sum7a, sum8a
-      real, dimension(:,:,:),allocatable   :: suma, sumdbea, sum3a 
+      real, dimension(:,:,:),allocatable, save   :: suma, sumdbea, sum3a 
       real, dimension (NBLW)               :: alfanb, anb, arotnb,   &
                                               betanb, bnb, centnb, delnb
       real, dimension (30)                 :: cnusb, dnusb

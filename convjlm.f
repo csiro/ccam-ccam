@@ -314,18 +314,29 @@ c       if(qq(iq,k)+qlg(iq,k)+qfg(iq,k)>qs(iq,k))factr(iq)=1.
 c     enddo
 
 c      following defines kb_sav (as kkbb) for use by nbase=-12     
-        kkbb(:)=kl-1
-        do k=2,kl/2   ! 3 gives same answers
+        kkbb(:)=1
+       do k=2,kl/2   
+        if(nbase==-12)then
          do iq=1,ifull
 !         find tentative cloud base ! 
 !            (middle of k-1 level, uppermost level below pblh)
           if(phi(iq,k-1)<pblh(iq)*grav)kkbb(iq)=k-1
          enddo    ! iq loop
-        enddo     ! k loop
+       else  ! e.g. nbase=-13
+         do iq=1,ifull
+!         find tentative cloud base ! 
+!            (uppermost layer, with approx. bottom of layer below pblh)
+          if(.5*(phi(iq,k-1)+phi(iq,k))<pblh(iq)*grav)kkbb(iq)=k
+         enddo    ! iq loop
+        endif
+c        print *,'k,phi-,phi,pblh*g,kkbb',
+c    &      k,phi(idjd,k-1),phi(idjd,k),pblh(idjd)*grav,kkbb(idjd)        
+       enddo     ! k loop
       if(mbase==-7)then
        alfqarr(:)=1.
        do iq=1,ifull
          k=kkbb(iq)
+         es(iq,k)=establ(tt(iq,k))
          pk=ps(iq)*sig(k)
          qs(iq,k)=.622*es(iq,k)/max(pk-es(iq,k),1.)  
           if(land(iq))then
@@ -355,6 +366,7 @@ c*****************mbase=-12 to -16 not included here
        alfqarr(:)=alfqarrx(:)
        do iq=1,ifull
          k=kkbb(iq)
+         es(iq,k)=establ(tt(iq,k))
          pk=ps(iq)*sig(k)
          qs(iq,k)=.622*es(iq,k)/max(pk-es(iq,k),1.)  
         if(dpsldt(iq,1)<-omgtst(iq))then         
@@ -366,6 +378,8 @@ c*****************mbase=-12 to -16 not included here
           endif
         endif
        enddo 
+c      k=kkbb(idjd)
+c      print *,'qs,qg,alfqarr',qs(idjd,k),qg(idjd,k),alfqarr(idjd)  ! tst
       endif  ! mbase=-17
       if(mbase==-18)then ! similar to -17, over land and sea
        alfqarr(:)=alfqarrx(:)
@@ -377,9 +391,6 @@ c*****************mbase=-12 to -16 not included here
         endif
        enddo 
       endif  ! mbase=-18    
-      if(nmaxpr==1.and.mydiag)then
-      write(6,*) 'omgtst,dpsldt',omgtst(idjd),dpsldt(idjd,1)
-      endif
 
 !_____________________beginning of convective calculation loop________________
       do itn=1,iterconv
@@ -529,8 +540,8 @@ c       0 local max already found
        enddo     ! ******************** k loop ****************************
       else !  nbase=-12 and everything except -4
          do iq=1,ifull
-!         find tentative cloud base ! 
-!          (middle of k-1 level, uppermost level below pblh)
+!         prescribe tentative cloud base ! 
+!          (e.g. middle of k-1 level, uppermost level below pblh)
            k=kkbb(iq)+1
            kb_sav(iq)=k-1
            kt_sav(iq)=k
@@ -883,7 +894,7 @@ c    .       write(6,*) '-ve denom for iq,k = ',iq,k
      .                -alfqarr(iq)*hl*delq(iq,kb_sav(iq)) )   ! with real*4
           if(fluxt(iq,k)<convpsav(iq))then   ! rhcv removed June 2012
             convpsav(iq)=fluxt(iq,k)
-            kmin(iq)=k
+            kmin(iq)=k   ! level where fluxt is a minimum (diagnostic)
           endif    ! (fluxt(iq,k)<convpsav(iq))
           if(dels(iq,kb_sav(iq))+alfqarr(iq)*hl*delq(iq,kb_sav(iq))>0.)
      &             convpsav(iq)=0. 
@@ -937,16 +948,16 @@ c         write(6,*) 'delq(iq,k) ',delq(iq,k)
      .   (convpsav(iq)*dels(iq,k)*dsk(k)/cp,k=1,kl)
         convmax=0.
         nums=0
-        write(6,*) '      iq nums kb  kt    dsk   flb     flt   flux',
-     &         '  rhb  rht  rnrt    rnd'
+        write(6,*) '    ktau   iq nums  kb kt     dsk    flt  flux',
+     &         '  rhb  rht   rnrt    rnd'
         do iq=1,ifull     
          if(kt_sav(iq)-kb_sav(iq)==1)then
            nums=nums+1
            if(convpsav(iq)>convmax)then
 c          if(nums<20)then
              convmax=convpsav(iq)
-             write(6,"('bc  ',2i5,2i3,2x,2f7.3,f6.3,2f5.2,2f7.4)") 
-     .       iq,nums,kb_sav(iq),kt_sav(iq),
+             write(6,"('bc  ',3i5,2i3,2x,2f7.3,f6.3,2f5.2,2f7.4)") 
+     .       ktau,iq,nums,kb_sav(iq),kt_sav(iq),
      .       dsk(kb_sav(iq)),
      .       fluxt(iq,kt_sav(iq)),convpsav(iq),
      .       qq(iq,kb_sav(iq))/qs(iq,kb_sav(iq)),
@@ -963,8 +974,8 @@ c          if(nums<20)then
            if(convpsav(iq)>convmax)then
 c          if(nums<20)then
              convmax=convpsav(iq)
-             write(6,"('bcd	 ',2i5,2i3,2x,2f7.3,f6.3,2f5.2,2f7.4)") 
-     .       iq,nums,kb_sav(iq),kt_sav(iq),
+             write(6,"('bcd ',3i5,2i3,2x,2f7.3,f6.3,2f5.2,2f7.4)") 
+     .       ktau,iq,nums,kb_sav(iq),kt_sav(iq),
      .       dsk(kb_sav(iq)),
      .       fluxt(iq,kt_sav(iq)),convpsav(iq),
      .       qq(iq,kb_sav(iq))/qs(iq,kb_sav(iq)),
@@ -981,8 +992,8 @@ c          if(nums<20)then
            if(convpsav(iq)>convmax)then
 c          if(nums<20)then
              convmax=convpsav(iq)
-             write(6,"('bcde',2i5,2i3,2x,2f7.3,f6.3,2f5.2,2f7.4)") 
-     .       iq,nums,kb_sav(iq),kt_sav(iq),
+             write(6,"('bcde',3i5,2i3,2x,2f7.3,f6.3,2f5.2,2f7.4)") 
+     .       ktau,iq,nums,kb_sav(iq),kt_sav(iq),
      .       dsk(kb_sav(iq)),
      .       fluxt(iq,kt_sav(iq)),convpsav(iq),
      .       qq(iq,kb_sav(iq))/qs(iq,kb_sav(iq)),
@@ -1020,6 +1031,7 @@ c       this s and h does not yet include updated phi (or does it?)
      &              (1.+hlcp*dqsdt(iq,:)))/cp  
       endif
 
+      if(methdetr==0)qxcess(:)=detrain*rnrtcn(:)             ! e.g. .2* gives 20% detrainment
       if(sig_ct<0.)then  ! detrain for shallow clouds; only Jack uses sig_ct ~ -.8
         do iq=1,ifull
          if(sig(kt_sav(iq))>-sig_ct)then  
@@ -1376,7 +1388,10 @@ c      if(mydiag)print *,'methprec5 detrfactr,detrfactr(idjd)
        write (6,"('pblh,fldow,tdown,qdown,fluxq3',
      &             f8.2,f5.2,f7.2,3p2f8.3,1pf8.2)")
      &     pblh(iq),fldow(iq),tdown(iq),qdown(iq),fluxq(iq)
-       write(6,"('fluxt3',3p14f8.3)") fluxt(iq,kb_sav(iq)+1:kt_sav(iq))
+       write(6,"('ktau,kkbb,alfqarr,dpsldt8,-omgtst8',
+     &             i5,i3,f6.3,8pf9.3,f7.3)") 
+     &       ktau,kkbb(idjd),alfqarr(idjd),dpsldt(idjd,1),-omgtst(idjd)
+       write(6,"('fluxt3',3p14f10.3)") fluxt(iq,kb_sav(iq)+1:kt_sav(iq))
       endif
 c     if(ktau<=3.and.nmaxpr==1.and.mydiag)then
       if(nmaxpr==1.and.mydiag)then

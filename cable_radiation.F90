@@ -26,9 +26,7 @@ CONTAINS
       REAL(r_1), DIMENSION(mp)    :: xphi2 ! leaf angle parmameter 2
       INTEGER(i_d) :: ictr
       LOGICAL, DIMENSION(mp)    :: mask   ! select points for calculation
-      real, dimension(:,:), allocatable, save :: c1, rhoch
-
-         if(.not. allocated(c1) ) allocate( c1(mp,nrb), rhoch(mp,nrb) )
+      real, dimension(mp,nrb) :: c1, rhoch ! MJT suggestion
 
          cos3 = COS(pi180 * (/ 15.0, 45.0, 75.0 /))
 

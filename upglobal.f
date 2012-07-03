@@ -201,7 +201,8 @@
         write (6,"('pslx_b',3p9f8.4)") pslx(idjd,:)
         write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
         write (6,"(3p9f8.4)") 
-     &        ((pslx(ii+jj*il,nlv),ii=idjd-4,idjd+4),jj=2,-2,-1)
+     &        ((pslx(max(min(ii+jj*il,ifull),1),nlv),ii=idjd-4,idjd+4)
+     &        ,jj=2,-2,-1)
       endif
       if(mup.ne.0)then
         call ints_bl(dd,intsch,nface,xg,yg)  ! advection on all levels
@@ -393,26 +394,26 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
               write (6,"('xpre#',9f8.2)") diagvals(tr(:,nlv,ngas+3))
 !     &           ((tr(ii+jj*il,nlv,ngas+3),ii=idjd-1,idjd+1),jj=-1,1)
 	     endif
-            do ntr=1,ntrac
-             call ints(tr(1,1,ntr),intsch,nface,xg,yg,5)
-            enddo
+           do ntr=1,ntrac
+            call ints(tr(1,1,ntr),intsch,nface,xg,yg,5)
+           enddo
 	     if(nmaxpr==1.and.mydiag)then
               write (6,"('ylat#',9f8.2)") diagvals(tr(:,nlv,ngas+1))
               write (6,"('ylon#',9f8.2)") diagvals(tr(:,nlv,ngas+2))
               write (6,"('ypre#',9f8.2)") diagvals(tr(:,nlv,ngas+3))
 	     endif
           endif  ! (ngas>0.or.nextout>=4)
-          if(nvmix.eq.6)then                       ! MJT tke
-             call ints(tke,intsch,nface,xg,yg,3)   ! MJT tke
-             call ints(eps,intsch,nface,xg,yg,3)   ! MJT tke
-          endif                 ! nvmix.eq.6       ! MJT tke
-          if (abs(iaero)==2) then                        ! MJT aerosols
-            do l=1,naero                                 ! MJT aerosols
-              call ints(xtg(:,:,l),intsch,nface,xg,yg,5) ! MJT aerosols
-            end do                                       ! MJT aerosols
-          end if                                         ! MJT aerosols
+          if(nvmix==6)then
+             call ints(tke,intsch,nface,xg,yg,3)
+             call ints(eps,intsch,nface,xg,yg,3)
+          endif                 ! nvmix==6
+          if (abs(iaero)==2) then
+            do l=1,naero
+              call ints(xtg(:,:,l),intsch,nface,xg,yg,5)
+            end do
+          end if
        endif     ! mspec==1
-       if(nh.ne.0)then
+       if(nh/=0)then
         call ints(h_nh,intsch,nface,xg,yg,3)
        endif  ! (nh.ne.0)
 
