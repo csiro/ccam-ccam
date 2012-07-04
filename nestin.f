@@ -24,15 +24,6 @@
       ! kbotmlo      Shallowest water level to nudge
       ! mloalpha     Weight of water nudging strength
 
-      module nestinmod
-
-      implicit none
-
-      private
-      public nestin,nestinb,mlofilterhub
-
-      contains
-
       !--------------------------------------------------------------
       ! FAR-FIELD NUDGING AND RELAXIATION ROUTINES
       ! Called for nbd.ne.0
@@ -298,8 +289,8 @@
                 dumaa(:,1,1)=271.2
               end where
             end if
-            call mlonudge(dumaa(:,1:wl,1),dumaa(:,1:wl,2),
-     &                    dumaa(:,1:wl,3:4),ocndep(:,2),wl)
+            call mlonudge(dumaa(:,:,1),dumaa(:,:,2),
+     &                    dumaa(:,:,3:4),ocndep(:,2),wl)
           end if
         endif ! nmlo.eq.0 ..else..
       endif   ! namip.eq.0
@@ -512,8 +503,8 @@
                   sssb(:,1,1)=271.2
                 end where
               end if
-              call mlofilterhub(sssb(:,1:wl,1),sssb(:,1:wl,2),
-     &                          sssb(:,1:wl,3:4),ocndep(:,2),wl)
+              call mlofilterhub(sssb(:,:,1),sssb(:,:,2),
+     &                          sssb(:,:,3:4),ocndep(:,2),wl)
             end if
           end if ! (nmlo.eq.0)
         end if ! (namip.eq.0)
@@ -1722,7 +1713,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       
       do ipass=0,3
         me=maps(ipass)
-        call getiqa(igrd(1:me,1:il_g,ipass),me,ipass,ppass,il_g)
+        call getiqa(igrd(:,:,ipass),me,ipass,ppass,il_g)
 
         if (ipass.eq.3) then
           itag=itag+1
@@ -2168,7 +2159,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       implicit none
       
       integer, intent(in) :: ne,ipass,ppass,il_g
-      integer, dimension(:,:), intent(out) :: iq
+      integer, dimension(4*il_g,il_g), intent(out) :: iq
       integer sn,n,j,a,b,c
       
       do sn=1,ne,il_g
@@ -2326,8 +2317,8 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       integer, intent(in) :: wl
       integer k,ka,kb,kc,kd
       real, dimension(ifull), intent(in) :: sfh
-      real, dimension(:,:), intent(in) :: sstb,sssb
-      real, dimension(:,:,:), intent(in) :: suvb
+      real, dimension(ifull,wlev), intent(in) :: sstb,sssb
+      real, dimension(ifull,wlev,2), intent(in) :: suvb
       real, dimension(ifull_g,1) :: diffh_g
       real, dimension(ifull_g,wl) :: diff_g,diffs_g
       real, dimension(ifull_g,wl) :: diffu_g,diffv_g,diffw_g
@@ -3280,7 +3271,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       
       do ipass=0,3
         me=maps(ipass)
-        call getiqa(igrd(1:me,1:il_g,ipass),me,ipass,ppass,il_g)
+        call getiqa(igrd(:,:,ipass),me,ipass,ppass,il_g)
 
         if (ipass.eq.3) then
           itag=itag+1
@@ -3721,7 +3712,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       subroutine mlonudge(new,sssb,suvb,sfh,wl)
 
       use mlo, only : mloimport, ! Ocean physics and prognostic arrays
-     &  mloexport
+     &  mloexport,wlev
       
       implicit none
 
@@ -3731,8 +3722,8 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       integer, intent(in) :: wl
       integer k,ka,i
       real, dimension(ifull), intent(in) :: sfh
-      real, dimension(ifull,wl), intent(in) :: new,sssb
-      real, dimension(ifull,wl,2), intent(in) :: suvb
+      real, dimension(ifull,wlev), intent(in) :: new,sssb
+      real, dimension(ifull,wlev,2), intent(in) :: suvb
       real, dimension(ifull) :: old
       real wgt
       
@@ -3780,6 +3771,4 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       
       return
       end subroutine mlonudge
-      
-      end module nestinmod
       
