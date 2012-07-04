@@ -24,6 +24,15 @@
       ! kbotmlo      Shallowest water level to nudge
       ! mloalpha     Weight of water nudging strength
 
+      module nestinmod
+
+      implicit none
+
+      private
+      public nestin,nestinb,mlofilterhub
+
+      contains
+
       !--------------------------------------------------------------
       ! FAR-FIELD NUDGING AND RELAXIATION ROUTINES
       ! Called for nbd.ne.0
@@ -2159,7 +2168,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       implicit none
       
       integer, intent(in) :: ne,ipass,ppass,il_g
-      integer, dimension(ne,1:il_g), intent(out) :: iq
+      integer, dimension(:,:), intent(out) :: iq
       integer sn,n,j,a,b,c
       
       do sn=1,ne,il_g
@@ -2317,8 +2326,8 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       integer, intent(in) :: wl
       integer k,ka,kb,kc,kd
       real, dimension(ifull), intent(in) :: sfh
-      real, dimension(ifull,wl), intent(in) :: sstb,sssb
-      real, dimension(ifull,wl,2), intent(in) :: suvb
+      real, dimension(:,:), intent(in) :: sstb,sssb
+      real, dimension(:,:,:), intent(in) :: suvb
       real, dimension(ifull_g,1) :: diffh_g
       real, dimension(ifull_g,wl) :: diff_g,diffs_g
       real, dimension(ifull_g,wl) :: diffu_g,diffv_g,diffw_g
@@ -2877,6 +2886,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       real, dimension(ifull_g,kd), intent(inout) :: diffw_g
       real cq
       
+      ! eventually will be replaced with mbd once full ocean coupling is complete
       cq=sqrt(4.5)*.1*real(max(nud_sst,nud_sss,nud_ouv,nud_sfh,mbd))
      &   /(pi*schmidt)
       
@@ -3770,4 +3780,6 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       
       return
       end subroutine mlonudge
+      
+      end module nestinmod
       

@@ -3,6 +3,7 @@
       use cc_mpi
       use latlong_m
       use mlo, only : mloexport
+      use nestinmod, only : mlofilterhub
       use pbl_m       ! tss
       use permsurf_m  ! iperm etc
       use soil_m      ! ,tice, alb
@@ -25,7 +26,8 @@
       real, allocatable, save, dimension(:) :: asal, bsal, csal
       real, allocatable, save, dimension(:) :: res
       real, dimension(ifull) :: duma,sssb
-      real, dimension(ifull,2) :: dumb
+      real, dimension(ifull,1) :: dumb,dumd
+      real, dimension(ifull,1,2) :: dumc
       real fraciceb(ifull), x, c2, c3, c4
       integer, dimension(0:13) :: mdays
       integer iyr, imo, iday, iyr_m, imo_m, idjd_g, iq
@@ -230,6 +232,7 @@ c       c1=0.
       ! MJT mlo
       elseif (ktau.gt.0) then
         dumb=0.
+        dumc=0.
         if (nud_ouv.ne.0) then
           write(6,*) "ERROR: nud_ouv.ne.0 is not supported for"
           write(6,*) "       namip.ne.0"
@@ -249,7 +252,10 @@ c       c1=0.
             call mlonudge(duma,sssb,dumb,dumb(:,1),1)
           case(1)
             if (mod(mtimer,mlotime*60).eq.0) then
-              call mlofilterhub(duma,sssb,dumb,dumb(:,1),1)
+              dumb(:,1)=duma
+              dumd(:,1)=sssb
+              call mlofilterhub(dumb(:,1:1),dumd(:,1:1),dumc,
+     &                          dumc(:,1,1),1)
             end if
           case DEFAULT
             write(6,*) "ERROR: Unknown mlomode ",mlomode

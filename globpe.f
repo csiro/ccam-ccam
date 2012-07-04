@@ -34,6 +34,7 @@
       use mlo, only : mlodiag,wlev,mxd        ! Ocean physics and prognostic arrays
      &   ,mindep,minwater
       use morepbl_m                           ! Additional boundary layer diagnostics
+      use nestinmod                           ! Nudging
       use nharrs_m, only : nharrs_init        ! Non-hydrostatic atmosphere arrays
      &   ,lrestart
       use nlin_m                              ! Atmosphere non-linear dynamics
