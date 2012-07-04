@@ -60,8 +60,10 @@ c Local variables
       real qsg(ifullw,kl)     !Saturation mixing ratio
       real qcl(ifullw,kl)     !Vapour mixing ratio inside convective cloud
       real qenv(ifullw,kl)    !Vapour mixing ratio outside convective cloud
-      real tenv(ifullw,kl)    !Temperature outside convective cloud\
+      real tenv(ifullw,kl)    !Temperature outside convective cloud
       real tnhs(ifullw,kl)    !Non-hydrostatic temperature adjusement
+      real dumql(ifullw,kl),dumqf(ifullw,kl),dumqg(ifullw,kl)
+      real dumt(ifullw,kl),dumqr(ifullw,kl),dumcr(ifullw,kl)
 
 c These outputs are not used in this model at present
       real qevap(ifullw,kl)
@@ -197,24 +199,28 @@ c     before calling newcloud
       end if
       !------------------------------------------------------------------------
       tenv(:,:)=t(1:ifull,:) !Assume T is the same in and out of convective cloud
-      if(diag.and.mydiag)then  ! JLM
-         print *,'in leoncld before newcloud',ktau
-         write(6,*) 't',t(idjd,:)
-         write(6,*) 'qg',qg(idjd,:)
-         write(6,*) 'qlg',qlg(idjd,:)
-         write(6,*) 'qfg',qfg(idjd,:)
-         write(6,*) 'qenv',qenv(idjd,:)
-         write(6,*) 'qsg',qsg(idjd,:)
-         write(6,*) 'qcl',qcl(idjd,:)
-         write(6,*) 'clcon',clcon(idjd,:)
-         write(6,*) 'cldcon,kbase,ktop',
-     &               cldcon(idjd),kbase(idjd),ktop(idjd)
+!     if(diag.and.mydiag)then
+      if(nmaxpr==1.and.mydiag)then
+        print *,'before newcloud',ktau
+        write (6,"('t   ',9f8.2/4x,9f8.2)") t(idjd,:)
+        write (6,"('qg  ',3p9f8.3/4x,9f8.3)") qg(idjd,:)
+        write (6,"('qf  ',3p9f8.3/4x,9f8.3)") qfg(idjd,:)
+        write (6,"('ql  ',3p9f8.3/4x,9f8.3)") qlg(idjd,:)
+        write (6,"('qnv ',3p9f8.3/4x,9f8.3)") qenv(idjd,:)
+        write (6,"('qsg ',3p9f8.3/4x,9f8.3)") qsg(idjd,:)
+        write (6,"('qcl ',3p9f8.3/4x,9f8.3)") qcl(idjd,:)
+        write (6,"('clc ',9f8.3/4x,9f8.3)") clcon(idjd,:)
+        print *,'cldcon,kbase,ktop ',cldcon(idjd),kbase(idjd),ktop(idjd)
       endif
 
 c     Calculate cloud fraction and cloud water mixing ratios
+      dumql=qlg(1:ifull,:)
+      dumqf=qfg(1:ifull,:)
       call newcloud(dt,1,land,prf,kbase,ktop,rhoa,cdso4, !Inputs
-     &     tenv,qenv,qlg(1:ifull,:),qfg(1:ifull,:),   !In and out  t here is tenv
+     &     tenv,qenv,dumql,dumqf,   !In and out  t here is tenv
      &     cfrac,ccov,cfa,qca)   !Outputs
+      qlg(1:ifull,:)=dumql
+      qfg(1:ifull,:)=dumqf
 !     if(diag.and.mydiag)then
       if(nmaxpr==1.and.mydiag)then
         print *,'after newcloud',ktau
@@ -268,13 +274,25 @@ c         cfrac(iq,k)=min(1.,ccov(iq,k)+clcon(iq,k))
         enddo
       enddo
 
-c     Calculate precipitation and related processes      
+c     Calculate precipitation and related processes
+      dumt=t(1:ifull,:)
+      dumql=qlg(1:ifull,:)
+      dumqf=qfg(1:ifull,:)
+      dumqr=qrg(1:ifull,:)
+      dumqg=qg(1:ifull,:)
+      dumcr=cffall(1:ifull,:)
       call newrain(land,1,dt,fluxc,rhoa,dz,ccrain,prf,cdso4,  !Inputs
      &    cfa,qca,                                            !Inputs
-     &    t(1:ifull,:),qlg(1:ifull,:),qfg(1:ifull,:),qrg(1:ifull,:),
-     &    precs,qg(1:ifull,:),cfrac,cffall(1:ifull,:),ccov, !In and Out
+     &    dumt,dumql,dumqf,dumqr,
+     &    precs,dumqg,cfrac,dumcr,ccov, !In and Out
      &    preci,qevap,qsubl,qauto,qcoll,qaccr,fluxr,fluxi,  !Outputs
      &    fluxm,pfstay,pqfsed,slopes,prscav)     !Outputs
+      t(1:ifull,:)=dumt
+      qlg(1:ifull,:)=dumql
+      qfg(1:ifull,:)=dumqf
+      qrg(1:ifull,:)=dumqr
+      qg(1:ifull,:)=dumqg
+      cffall(1:ifull,:)=dumcr
       if(nmaxpr==1.and.mydiag)then
         print *,'after newrain',ktau
         write (6,"('t   ',9f8.2/4x,9f8.2)") t(idjd,:)

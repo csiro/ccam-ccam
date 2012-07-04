@@ -13,11 +13,11 @@ integer, save :: ifull,kl
 real, dimension(:,:,:), allocatable, save :: xtg     ! prognostic aerosols (see indexing below)
 real, dimension(:,:,:), allocatable, save :: xtgsav  ! save for mass conservation in semi-Lagrangian models
 real, dimension(:,:,:), allocatable, save :: xtusav  ! aerosol mixing ratio in convective cloud
-real, dimension(:,:), allocatable, save :: field     ! non-volcanic emissions
-real, dimension(:), allocatable, save :: vso2        ! volcanic emissions
 real, dimension(:,:,:), allocatable, save :: ssn     ! diagnostic sea salt
-real, dimension(:,:), allocatable, save :: zoxidant  ! oxidant fields
 real, dimension(:,:,:), allocatable, save :: erod    ! sand, clay and silt fraction that can erode
+real, dimension(:,:), allocatable, save :: field     ! non-volcanic emissions
+real, dimension(:,:), allocatable, save :: zoxidant  ! oxidant fields
+real, dimension(:), allocatable, save :: vso2        ! volcanic emissions
 
 ! parameters
 integer, parameter :: nsulf = 3
@@ -204,6 +204,7 @@ logical, dimension(ifull), intent(in) :: land  ! land/sea mask (t=land)
 real, dimension(ifull,naero) :: conwd          ! Diagnostic only: Convective wet deposition
 real, dimension(ifull,naero) :: xtem
 real, dimension(ifull,kl,naero) :: xte,xtm1,pxtm1,xtu
+real, dimension(ifull,kl,ndust) :: dumd
 real, dimension(ifull,kl+1) :: aphp1
 real, dimension(ifull,kl) :: pclcon
 real, dimension(ifull,kl) :: prhop1,ptp1,pfevap,pfsubl,plambs
@@ -270,12 +271,14 @@ dustdd(:)=0.
 do k=1,kl
   aphp1(:,k)=prf(:)*sig(k)*0.01 ! hPa
 end do
+dumd=xtg(1:ifull,:,itracdu:itracdu+ndust-1)
 call dsettling(dt,ttg,dz,aphp1(:,1:kl),                     & !Inputs
-               xtg(1:ifull,:,itracdu:itracdu+ndust-1),dustdd) !In and out
+               dumd,dustdd) !In and out
 ! Calculate dust emission and turbulent dry deposition at the surface
 duste(:)=0.
 call dustem(dt,rhoa(:,1),wg,Veff,dz(:,1),vt,snowd,dxy,land,             & !Inputs
-            xtg(1:ifull,:,itracdu:itracdu+ndust-1),dustdd,duste)          !In and out
+            dumd,dustdd,duste)          !In and out
+xtg(1:ifull,:,itracdu:itracdu+ndust-1)=dumd
 
 ! Decay of hydrophobic black and organic carbon into hydrophilic forms
 do k=1,kl
@@ -1945,7 +1948,7 @@ real dustd(ifull)     !Dry deposition flux out of lowest layer
 real tc(ifull,kl,ndust) !Dust mixing ratio (kg/kg)
 
 ! Local work arrays and variables
-integer ndt_settl(ndust)
+integer ndt_settl(ndust),pos(1)
 real dt_settl(ndust),dtxvsettl(ndust)
 real rhoa(ifull,kl)   !air density (kg/m3)
 real dcol1(ifull), dcol2(ifull)
@@ -1953,7 +1956,6 @@ real dcol1(ifull), dcol2(ifull)
 real dzmin,vsettl,dtmax,pres,c_stokes,corr,c_cun
 real vd_cor
 integer n,k,mg,l,i
-
 
 ! Start code : ----------------------------------------------------------
 
@@ -1990,7 +1992,7 @@ do k = 1, NDUST
 ! Determine the maximum time-step satisying the CFL condition:
 ! dt <= (dz)_min / v_settl
   dtmax = dzmin / vsettl
-  ndt_settl(k) = int( TDT /(dtmax+0.01))+1 ! MJT suggestion
+  ndt_settl(k) = int( TDT /(dtmax+0.01) )+1 ! MJT suggestion
   dt_settl(k) = tdt / ndt_settl(k)
         
   dtxvsettl(k) = dt_settl(k) * vsettl
@@ -2002,6 +2004,7 @@ do k = 1, NDUST
   do n = 1, ndt_settl(k)
 
 ! Solve at the model top (layer LMX)
+    pos=maxloc(tc(1:ifull,kl,1))
     l=kl
     do i = 1, ifull
       pres = prf(i,l)     !Looks like mb is correct units

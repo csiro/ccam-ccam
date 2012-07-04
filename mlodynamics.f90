@@ -556,6 +556,7 @@ real, dimension(ifull,wlev) :: kku,llu,mmu,nnu
 real, dimension(ifull,wlev) :: kkv,llv,mmv,nnv
 real, dimension(ifull,wlev) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
 real, dimension(ifull,wlev) :: depdum,dzdum
+real, dimension(ifull,wlev) :: dumt,dums,dumr,duma,dumb
 real, dimension(ifull,0:wlev) :: nw
 real*8, dimension(ifull,wlev) :: x3d,y3d,z3d
 logical, dimension(ifull+iextra) :: wtr
@@ -757,7 +758,12 @@ end do
 ! (Assume free surface correction is small so that changes in the compression 
 ! effect due to neta can be neglected.  Consequently, the neta dependence is 
 ! separable in the iterative loop)
-call mloexpdensity(rho(1:ifull,:),dalpha(1:ifull,:),dbeta(1:ifull,:),nt(1:ifull,:),ns(1:ifull,:),depdum,dzdum,pice(1:ifull),0)
+dumt=nt(1:ifull,:)
+dums=ns(1:ifull,:)
+call mloexpdensity(dumr,duma,dumb,dumt,dums,depdum,dzdum,pice(1:ifull),0)
+rho(1:ifull,:)=dumr
+dalpha(1:ifull,:)=duma
+dbeta(1:ifull,:)=dumb
 call bounds(rho)
 rhobar(:,1)=(rho(:,1)-1030.)*godsig(1)
 do ii=2,wlev
@@ -798,7 +804,8 @@ call bounds(dalpha)
 call bounds(dbeta)
 call bounds(nt,corner=.true.)
 call bounds(ns,corner=.true.)
-call tsjacobi(nt,ns,dalpha,dbeta,neta,oeu,oev,stwgt(1:ifull,:),drhobardxu,drhobardyu,drhobardxv,drhobardyv)
+dumt(:,1:2)=stwgt(1:ifull,:)
+call tsjacobi(nt,ns,dalpha,dbeta,neta,oeu,oev,dumt(:,1:2),drhobardxu,drhobardyu,drhobardxv,drhobardyv)
 drhobardxu(:,1)=drhobardxu(:,1)*godsig(1)
 drhobardxv(:,1)=drhobardxv(:,1)*godsig(1)
 drhobardyu(:,1)=drhobardyu(:,1)*godsig(1)
@@ -847,7 +854,11 @@ end if
 ! positive nw is moving downwards to the ocean bottom
 ! For now, assume Boussinesq fluid and treat density in continuity equation as constant
 ! true vertical velocity = nw-u*((1-sig)*deta/dx-sig*d(dd)/dx)-v*((1-sig)*deta/dy-sig*d(dd)/dy)-(1-sig)*deta/dt
-call mlostaguv(nu(1:ifull,:),nv(1:ifull,:),eou(1:ifull,:),eov(1:ifull,:))
+dumt=nu(1:ifull,:)
+dums=nv(1:ifull,:)
+call mlostaguv(dumt,dums,duma,dumb)
+eou(1:ifull,:)=duma
+eov(1:ifull,:)=dumb
 call boundsuv(eou,eov)
 dou(:,1)=nu(1:ifull,1)*godsig(1)*ee(1:ifull) ! unstaggered at time t
 dov(:,1)=nv(1:ifull,1)*godsig(1)*ee(1:ifull)
@@ -886,8 +897,14 @@ if (myid==0.and.nmaxpr==1) then
 end if
 
 ! Vertical advection (first call for 0.5*dt)
-call mlovadv(0.5*dt,nw,uau,uav,ns(1:ifull,:),nt(1:ifull,:),mps(1:ifull,:), &
+dums=ns(1:ifull,:)
+dumt=nt(1:ifull,:)
+duma=mps(1:ifull,:)
+call mlovadv(0.5*dt,nw,uau,uav,dums,dumt,duma, &
              depdum,dzdum,wtr(1:ifull),1)
+ns(1:ifull,:)=dums
+nt(1:ifull,:)=dumt
+mps(1:ifull,:)=duma
 
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: horizontal advection"
@@ -935,9 +952,15 @@ if (myid==0.and.nmaxpr==1) then
 end if
 
 ! Vertical advection (second call for 0.5*dt)
-! use nw and depdum,dzdum from t=tau step
-call mlovadv(0.5*dt,nw,uau,uav,ns(1:ifull,:),nt(1:ifull,:),mps(1:ifull,:), &
+! use explicit nw and depdum,dzdum from t=tau step (i.e., following JLM in CCAM atmospheric dynamics)
+dums=ns(1:ifull,:)
+dumt=nt(1:ifull,:)
+duma=mps(1:ifull,:)
+call mlovadv(0.5*dt,nw,uau,uav,dums,dumt,duma, &
              depdum,dzdum,wtr(1:ifull),2)
+ns(1:ifull,:)=dums
+nt(1:ifull,:)=dumt
+mps(1:ifull,:)=duma
 
 ! Integrate advected mps
 xps=mps(1:ifull,1)*godsig(1)
@@ -951,7 +974,12 @@ if (myid==0.and.nmaxpr==1) then
 end if
 
 ! Update normalised density rhobar (unstaggered at tstar)
-call mloexpdensity(rho(1:ifull,:),dalpha(1:ifull,:),dbeta(1:ifull,:),nt(1:ifull,:),ns(1:ifull,:),depdum,dzdum,pice(1:ifull),0)
+dumt=nt(1:ifull,:)
+dums=ns(1:ifull,:)
+call mloexpdensity(dumr,duma,dumb,dumt,dums,depdum,dzdum,pice(1:ifull),0)
+rho(1:ifull,:)=dumr
+dalpha(1:ifull,:)=duma
+dbeta(1:ifull,:)=dumb
 call bounds(rho)
 rhobar(:,1)=(rho(:,1)-1030.)*godsig(1)
 do ii=2,wlev
@@ -967,7 +995,8 @@ call bounds(dalpha)
 call bounds(dbeta)
 call bounds(nt,corner=.true.)
 call bounds(ns,corner=.true.)
-call tsjacobi(nt,ns,dalpha,dbeta,neta,oeu,oev,stwgt(1:ifull,:),drhobardxu,drhobardyu,drhobardxv,drhobardyv)
+dumt(:,1:2)=stwgt(1:ifull,:)
+call tsjacobi(nt,ns,dalpha,dbeta,neta,oeu,oev,dumt(:,1:2),drhobardxu,drhobardyu,drhobardxv,drhobardyv)
 drhobardxu(:,1)=drhobardxu(:,1)*godsig(1)
 drhobardxv(:,1)=drhobardxv(:,1)*godsig(1)
 drhobardyu(:,1)=drhobardyu(:,1)*godsig(1)
@@ -1008,7 +1037,9 @@ do ii=1,wlev
   uau(:,ii)=uau(:,ii)+0.5*dt*(1.+eps)*f(1:ifull)*snv(1:ifull)
   uav(:,ii)=uav(:,ii)-0.5*dt*(1.+eps)*f(1:ifull)*snu(1:ifull)
 end do
-call mlostaguv(uau,uav,cou(1:ifull,:),cov(1:ifull,:))
+call mlostaguv(uau,uav,duma,dumb)
+cou(1:ifull,:)=duma
+cov(1:ifull,:)=dumb
 odum=1./(1.+(1.+eps)*(1.+eps)*0.25*dt*dt*fu(1:ifull)*fu(1:ifull))
 siu(:,1)=-(1.+eps)*0.5*dt*odum
 do ii=1,wlev
@@ -1227,7 +1258,9 @@ do ii=1,wlev
 end do
 
 ! use nu and nv for unstagged currents
-call mlounstaguv(nu(1:ifull,:),nv(1:ifull,:),uau,uav)
+dumt=nu(1:ifull,:)
+dums=nv(1:ifull,:)
+call mlounstaguv(dumt,dums,uau,uav)
 nu(1:ifull,:)=uau
 nv(1:ifull,:)=uav
 

@@ -77,6 +77,8 @@
       real, dimension(ifull) :: neta,oldrunoff,newrunoff,rid,fhd
       real, dimension(ifull) :: fgf,rgg,fev,af,dirad,dfgdt,factch
       real, dimension(ifull) :: degdt,cie,aft,fh,ri,gamm,smixr,rho
+      real, dimension(ifull) :: dumsg,dumr,dumx,dums,dumw
+      logical, dimension(ifull) :: duml
 
       integer, parameter :: nblend=0  ! 0 for original non-blended, 1 for blended af
       integer, parameter :: ntss_sh=0 ! 0 for original, 3 for **3, 4 for **4
@@ -551,13 +553,17 @@ c       Surface stresses taux, tauy: diagnostic only - unstag now       ! sice
         end if                                                          ! MLO
                                                                         ! MLO
         ! Ocean mixing                                                  ! MLO
+        dumsg=sgsave(:)/(1.-swrsave*albvisnir(:,1)-                     ! MLO
+     &                 (1.-swrsave)*albvisnir(:,2))                     ! MLO
+        dumr=-rgsave                                                    ! MLO
+        dumx=condx/dt                                                   ! MLO
+        dums=conds/dt                                                   ! MLO
+        dumw=watbdy(1:ifull)/dt                                         ! MLO
         call mloeval(tss,zo,cduv,cdtq,fg,eg,wetfac,epot,epan,           ! MLO
-     &               fracice,sicedep,snowd,dt,azmin,azmin,sgsave(:)/    ! MLO
-     &               (1.-swrsave*albvisnir(:,1)-                        ! MLO
-     &               (1.-swrsave)*albvisnir(:,2)),                      ! MLO
-     &               -rgsave,condx/dt,conds/dt,uav,vav,t(1:ifull,1),    ! MLO
+     &               fracice,sicedep,snowd,dt,azmin,azmin,dumsg,        ! MLO
+     &               dumr,dumx,dums,uav,vav,t(1:ifull,1),               ! MLO
      &               qg(1:ifull,1),ps,f,swrsave,fbeamvis,fbeamnir,      ! MLO
-     &               watbdy(1:ifull)/dt,0,.true.)                       ! MLO
+     &               dumw,0,.true.)                                     ! MLO
         call mloscrnout(tscrn,qgscrn,uscrn,u10,0)                       ! MLO
         call mloextra(0,zoh,azmin,0)                                    ! MLO
         call mloextra(3,zoq,azmin,0)                                    ! MLO
@@ -827,11 +833,12 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
      .              qgscrn,tscrn,uscrn,u10,rhscrn,af,aft,ri,vmod,       ! land
      .              bprm,cms,chs,chnsea,nalpha)                         ! land
            else                                                         ! land
+             dumx=sqrt(u(1:ifull,1)*u(1:ifull,1)+                       ! land
+     &                       v(1:ifull,1)*v(1:ifull,1))                 ! land
+             duml=.not.land                                             ! land
              call scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,zoh,   ! land
      &                  zoq,tss,t(1:ifull,1),qsttg,qg(1:ifull,1),       ! land
-     &                  sqrt(u(1:ifull,1)*u(1:ifull,1)+                 ! land
-     &                       v(1:ifull,1)*v(1:ifull,1)),                ! land
-     &                  ps(1:ifull),.not.land,azmin,sig(1))             ! land
+     &                  dumx,ps(1:ifull),duml,azmin,sig(1))             ! land
            end if                                                       ! land
         case(6,7)                                                       ! cable
          if (myid==0.and.nmaxpr==1) then                                ! cable
@@ -854,20 +861,21 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
          if (nmlo.eq.0) then                                            ! cable
            ! update ocean diagnostics                                   ! cable
            smixr=wetfac*qsttg+(1.-wetfac)*min(qsttg,qg(1:ifull,1))      ! cable
+           dumx=sqrt(u(1:ifull,1)*u(1:ifull,1)+                         ! cable
+     &                       v(1:ifull,1)*v(1:ifull,1))                 ! cable
            call scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,zoh,     ! cable
      &                  zoq,tss,t(1:ifull,1),smixr,qg(1:ifull,1),       ! cable
-     &                  sqrt(u(1:ifull,1)*u(1:ifull,1)+                 ! cable
-     &                       v(1:ifull,1)*v(1:ifull,1)),                ! cable
-     &                  ps(1:ifull),land,azmin,sig(1))                  ! cable
+     &                  dumx,ps(1:ifull),land,azmin,sig(1))             ! cable
          end if                                                         ! cable
          smixr=wetfac*qsttg+(1.-wetfac)*min(qsttg,qg(1:ifull,1))        ! cable
          ! The following patch overrides CABLE screen level diagnostics ! cable
          if (nsib.eq.7) then                                            ! cable
+           dumx=sqrt(u(1:ifull,1)*u(1:ifull,1)+                         ! cable
+     &                       v(1:ifull,1)*v(1:ifull,1))                 ! cable
+           duml=.not.land                                               ! cable
            call scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,zoh,     ! cable
      &                zoq,tss,t(1:ifull,1),smixr,qg(1:ifull,1),         ! cable
-     &                sqrt(u(1:ifull,1)*u(1:ifull,1)+                   ! cable
-     &                     v(1:ifull,1)*v(1:ifull,1)),                  ! cable
-     &                ps(1:ifull),.not.land,azmin,sig(1))               ! cable
+     &                dumx,ps(1:ifull),duml,azmin,sig(1))               ! cable
          end if                                                         ! cable
          if (myid==0.and.nmaxpr==1) then                                ! cable
            write(6,*) "After CABLE"                                     ! cable
@@ -899,10 +907,13 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
          ! urban scheme has been updated                                ! urban
          runoff=runoff-newrunoff ! remove new runoff                    ! urban
          ! call aTEB                                                    ! urban
-         call atebcalc(fg,eg,tss,wetfac,newrunoff,dt,azmin              ! urban
-     &               ,sgsave/(1.-swrsave*albvisnir(:,1)-                ! urban
-     &               (1.-swrsave)*albvisnir(:,2)),-rgsave               ! urban
-     &               ,condx/dt,conds/dt,rho,t(1:ifull,1),qg(1:ifull,1)  ! urban
+         dumsg=sgsave/(1.-swrsave*albvisnir(:,1)-                       ! urban
+     &               (1.-swrsave)*albvisnir(:,2))                       ! urban
+         dumr=-rgsave                                                   ! urban
+         dumx=condx/dt                                                  ! urban
+         dums=conds/dt                                                  ! urban
+         call atebcalc(fg,eg,tss,wetfac,newrunoff,dt,azmin,dumsg,dumr   ! urban
+     &               ,dumx,dums,rho,t(1:ifull,1),qg(1:ifull,1)          ! urban
      &               ,ps(1:ifull),uzon,vmer,vmodmin,0)                  ! urban
         runoff=runoff+newrunoff ! add new runoff after including urban  ! urban
         ! here we blend zo with the urban part                          ! urban

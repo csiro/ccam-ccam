@@ -75,7 +75,8 @@
       real, dimension(ifull) :: dep, depth, duma, rlai
       real, dimension(ifull,2) :: ocndwn
       real, dimension(ifull,wlev,4) :: mlodwn
-      real, dimension(ifull,kl) :: dumb
+      real, dimension(ifull,kl) :: dumqg,dumqf,dumql,dumqr
+      real, dimension(ifull,kl) :: dumb,dumu,dumv
       real, dimension(ifull_g) :: glob2d,davt_g
       real rlonx,rlatx,alf
       real aamax, aamax_g, c, cent, 
@@ -559,10 +560,17 @@
         zss=zs(1:ifull)
         if (abs(io_in)==1) then
           call onthefly(0,kdate,ktime,psl(1:ifull),zss,tss,sicedep,
-     &         fracice,t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),
-     &         qg(1:ifull,:),tgg,wb,wbice,snowd,qfg(1:ifull,:),
-     &         qlg(1:ifull,:),qrg(1:ifull,:),tggsn,smass,ssdn,ssdnn,
+     &         fracice,dumb,dumu,dumv,
+     &         dumqg,tgg,wb,wbice,snowd,dumqf,
+     &         dumql,dumqr,tggsn,smass,ssdn,ssdnn,
      &         snage,isflag,iaero,mlodwn,ocndwn)
+          t(1:ifull,:)=dumb
+          u(1:ifull,:)=dumu
+          v(1:ifull,:)=dumv
+          qg(1:ifull,:)=dumqg
+          qfg(1:ifull,:)=dumqf
+          qlg(1:ifull,:)=dumql
+          qrg(1:ifull,:)=dumqr
         endif   ! (abs(io_in)==1)
         if(mydiag)then
           write(6,*)'ds,zss',ds,zss(idjd)
@@ -629,8 +637,12 @@
             write(6,"('100*psl#  in',9f8.2)") 100.*diagvals(psl)
             write(6,*)'now call retopo from indata'
           end if ! ( mydiag )
-          call retopo(psl(1:ifull),zss,zs(1:ifull),t(1:ifull,:),
-     &                qg(1:ifull,:))
+          dumb=t(1:ifull,:)
+          dumqg=qg(1:ifull,:)
+          call retopo(psl(1:ifull),zss,zs(1:ifull),dumb,
+     &                dumqg)
+          t(1:ifull,:)=dumb
+          qg(1:ifull,:)=dumqg
           if(nmaxpr==1.and.mydiag)then
               write(6,"('100*psl# out',9f8.2)") 100.*diagvals(psl)
           endif
@@ -1046,7 +1058,7 @@
                 wb(iq,ms)=swilt(isoilm(iq)) ! dry interior of Australia
               endif
             endif
-          endif    ! (land(iq))\
+          endif    ! (land(iq))
         enddo     ! iq loop
         do k=1,ms-1
          wb(:,k)=wb(:,ms)

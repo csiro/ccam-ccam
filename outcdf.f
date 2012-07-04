@@ -1345,7 +1345,8 @@ c      set time to number of minutes since start
       call histwrt3(rsmin,'rsmin',idnc,iarch,local,lwrite)
       call histwrt3(sigmf,'sigmf',idnc,iarch,local,.true.)
       call histwrt3(psl,'psf',idnc,iarch,local,.true.)
-      call mslp(aa,psl,zs,t(1:ifull,:))
+      tmpry=t(1:ifull,:)
+      call mslp(aa,psl,zs,tmpry)
       aa=aa/100.
       call histwrt3(aa,'pmsl',idnc,iarch,local,.true.)      
       call histwrt3(zo,'zolnd',idnc,iarch,local,.true.)
@@ -1573,12 +1574,15 @@ c      set time to number of minutes since start
           tr(iq,k,ngas+3)=tr(iq,k,ngas+3)-.01*ps(iq)*sig(k)  ! in hPa
          enddo
         enddo
-!       N.B. does not yet properly handle across Grenwich Meridion	   
-        call histwrt4(tr(1:ifull,:,ngas+1),'del_lat',idnc,iarch,local,
+!       N.B. does not yet properly handle across Grenwich Meridion
+        tmpry=tr(1:ifull,:,ngas+1)	   
+        call histwrt4(tmpry,'del_lat',idnc,iarch,local,
      &                .true.)
-        call histwrt4(tr(1:ifull,:,ngas+2),'del_lon',idnc,iarch,local,
+        tmpry=tr(1:ifull,:,ngas+2)
+        call histwrt4(tmpry,'del_lon',idnc,iarch,local,
      &                .true.)
-        call histwrt4(tr(1:ifull,:,ngas+3),'del_p',idnc,iarch,local,
+        tmpry=tr(1:ifull,:,ngas+3)
+        call histwrt4(tmpry,'del_p',idnc,iarch,local,
      &                .true.)
        endif  ! (nextout>=4.and.nllp==3)
        ! only write these once per avg period
@@ -1747,33 +1751,43 @@ c      "extra" outputs
       ! ATMOSPHERE DYNAMICS ------------------------------------------
       if(myid == 0 ) write(6,*) 'netcdf save of 3d variables'
       lwrite=ktau>0
-      call histwrt4(t(1:ifull,:),'temp',idnc,iarch,local,.true.)
-      call histwrt4(u(1:ifull,:),'u',idnc,iarch,local,.true.)
-      call histwrt4(v(1:ifull,:),'v',idnc,iarch,local,.true.)
+      tmpry=t(1:ifull,:)
+      call histwrt4(tmpry,'temp',idnc,iarch,local,.true.)
+      tmpry=u(1:ifull,:)
+      call histwrt4(tmpry,'u',idnc,iarch,local,.true.)
+      tmpry=v(1:ifull,:)
+      call histwrt4(tmpry,'v',idnc,iarch,local,.true.)
       do k=1,kl
        do iq=1,ifull
         tmpry(iq,k)=ps(iq)*dpsldt(iq,k)
        enddo
       enddo
       call histwrt4(tmpry,'omega',idnc,iarch,local,lwrite)
-      call histwrt4(qg(1:ifull,:),'mixr',idnc,iarch,local,.true.)
+      tmpry=qg(1:ifull,:)
+      call histwrt4(tmpry,'mixr',idnc,iarch,local,.true.)
       
       ! MICROPHYSICS ------------------------------------------------
       if(ldr.ne.0)then
-        call histwrt4(qfg(1:ifullw,:),'qfg',idnc,iarch,local,.true.)
-        call histwrt4(qlg(1:ifullw,:),'qlg',idnc,iarch,local,.true.)
-        call histwrt4(qrg(1:ifullw,:),'qrg',idnc,iarch,local,.true.)
+        tmpry=qfg(1:ifullw,:)
+        call histwrt4(tmpry,'qfg',idnc,iarch,local,.true.)
+        tmpry=qlg(1:ifullw,:)
+        call histwrt4(tmpry,'qlg',idnc,iarch,local,.true.)
+        tmpry=qrg(1:ifullw,:)
+        call histwrt4(tmpry,'qrg',idnc,iarch,local,.true.)
         !call histwrt4(qsg(1:ifullw,:),'qsg',idnc,iarch,local,.true.)
         !call histwrt4(qgrau(1:ifullw,:),'qgrau',idnc,iarch,local,.true.)
         call histwrt4(cfrac,'cfrac',idnc,iarch,local,.true.)
-        call histwrt4(cffall(1:ifullw,:),'cfrain',idnc,iarch,local,
+        tmpry=cffall(1:ifullw,:)
+        call histwrt4(tmpry,'cfrain',idnc,iarch,local,
      &                .true.)
       endif
       
       ! TURBULENT MIXING --------------------------------------------
       if (nvmix.eq.6.and.(nextout>=1.or.itype==-1))then
-        call histwrt4(tke(1:ifull,:),'tke',idnc,iarch,local,.true.)
-        call histwrt4(eps(1:ifull,:),'eps',idnc,iarch,local,.true.)
+        tmpry=tke(1:ifull,:)
+        call histwrt4(tmpry,'tke',idnc,iarch,local,.true.)
+        tmpry=eps(1:ifull,:)
+        call histwrt4(tmpry,'eps',idnc,iarch,local,.true.)
       end if
 
       ! TRACERS -----------------------------------------------------
@@ -1782,9 +1796,11 @@ c      "extra" outputs
        lwrite=lwrite.and.ktau>0
        do igas=1,ngas
         write(trnum,'(i3.3)') igas
-        call histwrt4(tr(1:ilt*jlt,:,igas)+trback_g(igas),'tr'//trnum,
+        tmpry=tr(1:ilt*jlt,:,igas)+trback_g(igas)
+        call histwrt4(tmpry,'tr'//trnum,
      &                idnc,iarch,local,.true.)
-        call histwrt4(traver(:,:,igas)+trback_g(igas),'trav'//trnum,
+        tmpry=traver(:,:,igas)+trback_g(igas)
+        call histwrt4(tmpry,'trav'//trnum,
      &                idnc,iarch,local,lwrite)
         ! rml 14/5/10 option to write out local time afternoon average
         if (writetrpm) then
@@ -1792,7 +1808,8 @@ c      "extra" outputs
           do k=1,klt
             trpm(:,k,igas) = trpm(:,k,igas)/float(npm)
           enddo
-          call histwrt4(trpm(:,:,igas)+trback_g(igas),'trpm'//trnum,
+          tmpry=trpm(:,:,igas)+trback_g(igas)
+          call histwrt4(tmpry,'trpm'//trnum,
      &                  idnc,iarch,local,.true.)
         endif
        enddo ! igas loop
@@ -1805,24 +1822,37 @@ c      "extra" outputs
 
       ! AEROSOLS ----------------------------------------------------
       if (iaero.le.-2.or.(iaero.ge.2.and.itype==-1)) then
-        call histwrt4(xtg(1:ifull,:,1),'dms',idnc,iarch,local,.true.)
-        call histwrt4(xtg(1:ifull,:,2),'so2',idnc,iarch,local,.true.)
-        call histwrt4(xtg(1:ifull,:,3),'so4',idnc,iarch,local,.true.)
-        call histwrt4(xtg(1:ifull,:,4),'bco',idnc,iarch,local,.true.)
-        call histwrt4(xtg(1:ifull,:,5),'bci',idnc,iarch,local,.true.)
-        call histwrt4(xtg(1:ifull,:,6),'oco',idnc,iarch,local,.true.)
-        call histwrt4(xtg(1:ifull,:,7),'oci',idnc,iarch,local,.true.)
-        call histwrt4(xtg(1:ifull,:,8),'dust1',idnc,iarch,local,
+        tmpry=xtg(1:ifull,:,1)
+        call histwrt4(tmpry,'dms',idnc,iarch,local,.true.)
+        tmpry=xtg(1:ifull,:,2)
+        call histwrt4(tmpry,'so2',idnc,iarch,local,.true.)
+        tmpry=xtg(1:ifull,:,3)
+        call histwrt4(tmpry,'so4',idnc,iarch,local,.true.)
+        tmpry=xtg(1:ifull,:,4)
+        call histwrt4(tmpry,'bco',idnc,iarch,local,.true.)
+        tmpry=xtg(1:ifull,:,5)
+        call histwrt4(tmpry,'bci',idnc,iarch,local,.true.)
+        tmpry=xtg(1:ifull,:,6)
+        call histwrt4(tmpry,'oco',idnc,iarch,local,.true.)
+        tmpry=xtg(1:ifull,:,7)
+        call histwrt4(tmpry,'oci',idnc,iarch,local,.true.)
+        tmpry=xtg(1:ifull,:,8)
+        call histwrt4(tmpry,'dust1',idnc,iarch,local,
      &                .true.)
-        call histwrt4(xtg(1:ifull,:,9),'dust2',idnc,iarch,local,
+        tmpry=xtg(1:ifull,:,9)
+        call histwrt4(tmpry,'dust2',idnc,iarch,local,
      &                .true.)
-        call histwrt4(xtg(1:ifull,:,10),'dust3',idnc,iarch,local,
+        tmpry=xtg(1:ifull,:,10)
+        call histwrt4(tmpry,'dust3',idnc,iarch,local,
      &                .true.)
-        call histwrt4(xtg(1:ifull,:,11),'dust4',idnc,iarch,local,
+        tmpry=xtg(1:ifull,:,11)
+        call histwrt4(tmpry,'dust4',idnc,iarch,local,
      &                .true.)
-        call histwrt4(ssn(1:ifull,:,1),'seasalt1',idnc,iarch,local,
+        tmpry=ssn(1:ifull,:,1)
+        call histwrt4(tmpry,'seasalt1',idnc,iarch,local,
      &                .true.)
-        call histwrt4(ssn(1:ifull,:,2),'seasalt2',idnc,iarch,local,
+        tmpry=ssn(1:ifull,:,2)
+        call histwrt4(tmpry,'seasalt2',idnc,iarch,local,
      &                .true.)
       end if
 
@@ -1833,7 +1863,8 @@ c      "extra" outputs
       if(itype==-1)then
        call histwrt4(phi_nh,'zgnhs',idnc,iarch,local,.true.)
        call histwrt4(sdot(1,2),'sdot',idnc,iarch,local,.true.)
-       call histwrt4(pslx(1:ifull,:),'pslx',idnc,iarch,local,.true.)
+       tmpry=pslx(1:ifull,:)
+       call histwrt4(tmpry,'pslx',idnc,iarch,local,.true.)
        call histwrt4(savu,'savu',idnc,iarch,local,.true.)
        call histwrt4(savv,'savv',idnc,iarch,local,.true.)
        call histwrt4(savu1,'savu1',idnc,iarch,local,.true.)
@@ -2226,6 +2257,10 @@ c     find variable index
       call ncmsg("histwrt4",ier)
 
       if(mod(ktau,nmaxpr)==0)then
+       if (any(globvar.eq.nf_fill_float)) then
+         write(6,'("histwrt4 ",a7,i4,a7)')
+     &              sname,iarch,"missing"
+       else
          varn = minval(globvar)
          varx = maxval(globvar)
          max_result = maxloc(globvar)
@@ -2236,6 +2271,7 @@ c     find variable index
          jmx = 1 + (iq-1)/il_g
          write(6,'("histwrt4 ",a7,i4,2f12.4,3i4,f12.4)')
      &     sname,iarch,varn,varx,imx,jmx,kmx,globvar(id+(jd-1)*il_g,nlv)
+       end if
       endif
 
       return

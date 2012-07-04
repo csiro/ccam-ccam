@@ -70,6 +70,7 @@
       real, dimension(ifull,kl) :: cu,thee,qs,uav,vav,au,ct,gt
       real, dimension(ifull,kl) :: guv,ri,rkm,rkh,rk_shal,zg
       real, dimension(ifull,kl) :: tnhs,dnhs,zh
+      real, dimension(ifull,kl) :: dumqg,dumql,dumqf,dumqr,dumcr
       real, dimension(ifull,kl-1) :: dnhsh
       real, dimension(ifull) :: dqtot,csq,dvmod,dz,dzr,fm,fh,sqmxl
       real, dimension(ifull) :: x,zhv,theeb,sigsp,wt0,wq0,rrhoa
@@ -820,18 +821,38 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
        wt0=fg*rrhoa/cp
        select case(nlocal)
         case(0) ! no counter gradient
-         call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),
-     &             qfg(1:ifull,:),qrg(1:ifull,:),cfrac,
-     &             cffall(1:ifull,:),pblh,wt0,wq0,
+         dumqg=qg(1:ifull,:)
+         dumql=qlg(1:ifull,:)
+         dumqf=qfg(1:ifull,:)
+         dumqr=qrg(1:ifull,:)
+         dumcr=cffall(1:ifull,:)
+         call tkemix(rkm,rhs,dumqg,dumql,
+     &             dumqf,dumqr,cfrac,
+     &             dumcr,pblh,wt0,wq0,
      &             ps(1:ifull),ustar,rhoas,zg,zh,sig,
      &             sigkap,dt,qgmin,1,0)
+         qg(1:ifull,:)=dumqg
+         qlg(1:ifull,:)=dumql
+         qfg(1:ifull,:)=dumqf
+         qrg(1:ifull,:)=dumqr
+         cffall(1:ifull,:)=dumcr
          rkh=rkm
         case(1,2,3,4,5,6) ! KCN counter gradient method
-         call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),
-     &             qfg(1:ifull,:),qrg(1:ifull,:),cfrac,
-     *             cffall(1:ifull,:),pblh,wt0,wq0,
+         dumqg=qg(1:ifull,:)
+         dumql=qlg(1:ifull,:)
+         dumqf=qfg(1:ifull,:)
+         dumqr=qrg(1:ifull,:)
+         dumcr=cffall(1:ifull,:)
+         call tkemix(rkm,rhs,dumqg,dumql,
+     &             dumqf,dumqr,cfrac,
+     *             dumcr,pblh,wt0,wq0,
      &             ps(1:ifull),ustar,rhoas,zg,zh,sig,
      &             sigkap,dt,qgmin,1,0)
+         qg(1:ifull,:)=dumqg
+         qlg(1:ifull,:)=dumql
+         qfg(1:ifull,:)=dumqf
+         qrg(1:ifull,:)=dumqr
+         cffall(1:ifull,:)=dumcr
          rkh=rkm
          uav(1:ifull,:)=av_vmod*u(1:ifull,:)
      &                 +(1.-av_vmod)*savu(1:ifull,:)
@@ -839,11 +860,21 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
      &                 +(1.-av_vmod)*savv(1:ifull,:)
          call pbldif(rhs,rkh,rkm,uav,vav)
         case(7) ! mass-flux counter gradient
-         call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),
-     &             qfg(1:ifull,:),qrg(1:ifull,:),cfrac,
-     &             cffall(1:ifull,:),pblh,wt0,wq0,
+         dumqg=qg(1:ifull,:)
+         dumql=qlg(1:ifull,:)
+         dumqf=qfg(1:ifull,:)
+         dumqr=qrg(1:ifull,:)
+         dumcr=cffall(1:ifull,:)
+         call tkemix(rkm,rhs,dumqg,dumql,
+     &             dumqf,dumqr,cfrac,
+     &             dumcr,pblh,wt0,wq0,
      &             ps(1:ifull),ustar,rhoas,zg,zh,sig,
      &             sigkap,dt,qgmin,0,0)
+         qg(1:ifull,:)=dumqg
+         qlg(1:ifull,:)=dumql
+         qfg(1:ifull,:)=dumqf
+         qrg(1:ifull,:)=dumqr
+         cffall(1:ifull,:)=dumcr
          rkh=rkm
         case DEFAULT
           write(6,*) "ERROR: Unknown nlocal option for nvmix=6"

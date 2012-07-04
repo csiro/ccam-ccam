@@ -2153,7 +2153,7 @@ integer iqi,nc0,nc1,nc2,nc3,ii
 logical, dimension(nice) :: pq0,pq1,pq2,pq3
 real, intent(in) :: dt
 real, dimension(nice) :: xxx,excess
-real, dimension(nice,0:2), intent(inout) :: ip_tn
+real, dimension(:,0:), intent(inout) :: ip_tn
 real, dimension(nice), intent(inout) :: ip_dic,ip_dsn,ip_fracice,ip_tsurf,ip_sto
 real, dimension(nice,0:2) :: it_tn
 real, dimension(nice) :: it_dic,it_dsn,it_fracice,it_tsurf,it_sto
@@ -2373,7 +2373,7 @@ real htup,htdown
 real, dimension(nc) :: con,rhin,fs,conb,tnew,qmax
 real, dimension(nc) :: subl,snmelt,dhb,isubl,ssubl,smax,sbrine
 real, dimension(nc,0:2) :: fl
-real, dimension(nc,0:2), intent(inout) :: it_tn
+real, dimension(:,0:), intent(inout) :: it_tn
 real, dimension(nc), intent(inout) :: it_dic,it_dsn,it_fracice,it_tsurf,it_sto
 real, dimension(nc), intent(inout) :: dt_ftop,dt_tb,dt_fb,dt_timelt,dt_salflx,dt_wtrflx,dt_wavail
 integer, dimension(nc), intent(inout) :: dt_nk
@@ -2548,7 +2548,7 @@ real htup,htdown
 real, dimension(nc) :: con,rhin,qmax,ftopadj
 real, dimension(nc) :: subl,simelt,sbrine,smax,dhb,tnew
 real, dimension(nc,0:2) :: fl
-real, dimension(nc,0:2), intent(inout) :: it_tn
+real, dimension(:,0:), intent(inout) :: it_tn
 real, dimension(nc), intent(inout) :: it_dic,it_dsn,it_fracice,it_tsurf,it_sto
 real, dimension(nc), intent(inout) :: dt_ftop,dt_tb,dt_fb,dt_timelt,dt_salflx,dt_wtrflx,dt_wavail
 integer, dimension(nc), intent(inout) :: dt_nk
@@ -2687,7 +2687,7 @@ integer, intent(in) :: nc,diag
 real, intent(in) :: dt
 real, dimension(nc) :: con,f0,tnew
 real, dimension(nc) :: subl,snmelt,smax,dhb,isubl,ssubl,ssnmelt,gamm
-real, dimension(nc,0:2), intent(inout) :: it_tn
+real, dimension(:,0:), intent(inout) :: it_tn
 real, dimension(nc), intent(inout) :: it_dic,it_dsn,it_fracice,it_tsurf,it_sto
 real, dimension(nc), intent(inout) :: dt_ftop,dt_tb,dt_fb,dt_timelt,dt_salflx,dt_wtrflx,dt_wavail
 integer, dimension(nc), intent(inout) :: dt_nk
@@ -2774,7 +2774,7 @@ integer, intent(in) :: nc,diag
 real, intent(in) :: dt
 real, dimension(nc) :: con,subl,simelt,smax,tnew
 real, dimension(nc) :: dhb,f0
-real, dimension(nc,0:2), intent(inout) :: it_tn
+real, dimension(:,0:), intent(inout) :: it_tn
 real, dimension(nc), intent(inout) :: it_dic,it_dsn,it_fracice,it_tsurf,it_sto
 real, dimension(nc), intent(inout) :: dt_ftop,dt_tb,dt_fb,dt_timelt,dt_salflx,dt_wtrflx,dt_wavail
 integer, dimension(nc), intent(inout) :: dt_nk

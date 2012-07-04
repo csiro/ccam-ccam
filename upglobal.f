@@ -38,6 +38,7 @@
       real*8 x3d(ifull,kl),y3d(ifull,kl),z3d(ifull,kl)
       integer idjdd
       real theta(ifull,kl), factr(kl)
+      real, dimension(ifull,kl) :: dumt,dumu,dumv
       integer ii,intsch, iq, jj,k, kk, ntr, ierr, its, nits, nvadh_pass
       integer iaero, l
       real denb, tempry, vdot1,
@@ -182,8 +183,14 @@
 	 nits=1+sdmx_g/nvadh
 	 nvadh_pass=nvadh*nits ! use - for nvadu
         do its=1,nits
-         call vadvtvd(tx(1:ifull,:),ux(1:ifull,:),vx(1:ifull,:),
-     &                nvadh_pass,iaero) 
+         dumt=tx(1:ifull,:)
+         dumu=ux(1:ifull,:)
+         dumv=vx(1:ifull,:)
+         call vadvtvd(dumt,dumu,dumv,
+     &                nvadh_pass,iaero)
+         tx(1:ifull,:)=dumt
+         ux(1:ifull,:)=dumu
+         vx(1:ifull,:)=dumv 
         enddo
         if( (diag.or.nmaxpr==1) .and. mydiag )then
           print *,'in upglobal after vadv1'
@@ -451,8 +458,14 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
             write (6,"('qg  ',3p9f8.3/4x,9f8.3)")   qg(idjd,:)
           endif
           do its=1,nits
-            call vadvtvd(tx(1:ifull,:),ux(1:ifull,:),vx(1:ifull,:),
-     &                   nvadh_pass,iaero) 
+            dumt=tx(1:ifull,:)
+            dumu=ux(1:ifull,:)
+            dumv=vx(1:ifull,:)
+            call vadvtvd(dumt,dumu,dumv,
+     &                   nvadh_pass,iaero)
+            tx(1:ifull,:)=dumt
+            ux(1:ifull,:)=dumu
+            vx(1:ifull,:)=dumv 
           enddo
           if( (diag.or.nmaxpr==1) .and. mydiag )then
             print *,'in upglobal after vadv2'

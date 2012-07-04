@@ -416,6 +416,7 @@ real dhr,fjd,sfjd,r1,dlt,alp,slag
 real, dimension(ifull) :: coszro,taudar
 real, dimension(ifull,kl) :: oxout,zg,clcon,pccw,rhoa
 real, dimension(ifull,kl) :: tnhs,dz
+real, dimension(ifull,kl) :: dumt,dumql,dumqf
 real, dimension(ifull) :: dxy,cldcon,wg
 real, dimension(kl+1) :: sigh
 
@@ -468,7 +469,7 @@ do k=1,kl
 end do
 dxy=ds*ds/(em*em)       ! grid spacing in m**2
 do k=1,kl
-  rhoa(1:ifull,k)=ps*sig(k)/(rdry*t(1:ifull,k)) !density of air (kg/m**3)
+  rhoa(:,k)=ps*sig(k)/(rdry*t(1:ifull,k)) !density of air (kg/m**3)
 end do
 
 ! estimate convective cloud fraction
@@ -499,10 +500,13 @@ end if
 wg=min(max(wetfac,0.),1.)
 
 ! update prognostic aerosols
+dumt=t(1:ifull,:)
+dumql=qlg(1:ifull,:)
+dumqf=qfg(1:ifull,:)
 call aldrcalc(dt,sig,sigh,dsig,zg,dz,cansto,fwet,wg,pblh,ps,   &
-              tss,t(1:ifull,:),condx,condc,snowd,sgsave,fg,    &
+              tss,dumt,condx,condc,snowd,sgsave,fg,            &
               eg,u10,ustar,zo,land,fracice,sigmf,              &
-              qlg(1:ifull,:),qfg(1:ifull,:),cfrac,clcon,       &
+              dumql,dumqf,cfrac,clcon,                         &
               pccw,dxy,rhoa,cdtq,ppfprec,ppfmelt,ppfsnow,      &
               ppfconv,ppfevap,ppfsubl,pplambs,ppmrate,         &
               ppmaccr,ppfstay,ppqfsed,pprscav,zdayfac)

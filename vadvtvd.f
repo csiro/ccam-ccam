@@ -24,6 +24,7 @@ c     variables; except extrap at bottom for qg and trace gases  Thu  06-19-1997
       include 'parmdyn.h'
       include 'parmvert.h' ! nthub,nimp,ntvd
       real tarr(ifull,kl),uarr(ifull,kl),varr(ifull,kl)
+      real dum(ifull,kl)
       real tfact
       integer num,iaero,nqq,npslx,nvadh_pass
       integer ntr,k
@@ -82,28 +83,45 @@ c     v
 
 c     h_nh
       if(nh.ne.0)then
-        call vadvsub(h_nh(1:ifull,:),tfact,0)
+        dum=h_nh(1:ifull,:)
+        call vadvsub(dum,tfact,0)
+        h_nh(1:ifull,:)=dum
       endif     ! (nh.ne.0)
 
 c     pslx
       if(npslx==1.and.nvad<=-4)then  ! handles -9 too
-        call vadvsub(pslx(1:ifull,:),tfact,0)
+        dum=pslx(1:ifull,:)
+        call vadvsub(dum,tfact,0)
+        pslx(1:ifull,:)=dum
       endif  ! (npslx==1.and.nvad==-4)
 
       if(mspec==1.and.abs(nvad).ne.9)then   ! advect qg and gases after preliminary step
 
 c      qg
-       call vadvsub(qg(1:ifull,:),tfact,nqq)
+       dum=qg(1:ifull,:)
+       call vadvsub(dum,tfact,nqq)
+       qg(1:ifull,:)=dum
        if( diag .and. mydiag )then
         write (6,"('qout',9f8.2/4x,9f8.2)") (1000.*qg(idjd,k),k=1,kl)
         write (6,"('qg# ',3p9f8.2)") diagvals(qg(:,nlv)) 
        endif
 
        if(ldr.ne.0)then
-        call vadvsub(qlg(1:ifull,:),tfact,0)
-        call vadvsub(qfg(1:ifull,:),tfact,0)
-        call vadvsub(qrg(1:ifull,:),tfact,0)
-        call vadvsub(cffall(1:ifull,:),tfact,0)
+        dum=qlg(1:ifull,:)
+        call vadvsub(dum,tfact,0)
+        qlg(1:ifull,:)=dum
+        dum=qfg(1:ifull,:)
+        call vadvsub(dum,tfact,0)
+        qfg(1:ifull,:)=dum
+        dum=qrg(1:ifull,:)
+        call vadvsub(dum,tfact,0)
+        qrg(1:ifull,:)=dum
+        !dum=cfrac(1:ifull,:)
+        !call vadvsub(dum,tfact,0)
+        !cfrac(1:ifull,:)=dum
+        dum=cffall(1:ifull,:)
+        call vadvsub(dum,tfact,0)
+        cffall(1:ifull,:)=dum
         if( diag .and. mydiag )then
          write (6,"('lout',9f8.2/4x,9f8.2)") (1000.*qlg(idjd,k),k=1,kl)
          write (6,"('qlg#',3p9f8.2)") diagvals(qlg(:,nlv)) 
@@ -114,15 +132,21 @@ c      qg
 
        if(ngas>0.or.nextout>=4)then
         do ntr=1,ntrac
-         call vadvsub(tr(1:ifull,:,ntr),tfact,0)
+         dum=tr(1:ifull,:,ntr)
+         call vadvsub(dum,tfact,0)
+         tr(1:ifull,:,ntr)=dum
         enddo      ! ntr loop
        endif      ! (nextout>=4)
 
        !--------------------------------------------------------------
        ! MJT tke
        if(nvmix==6)then
-        call vadvsub(eps(1:ifull,:),tfact,0)
-        call vadvsub(tke(1:ifull,:),tfact,0)
+        dum=eps(1:ifull,:)
+        call vadvsub(dum,tfact,0)
+        eps(1:ifull,:)=dum
+        dum=tke(1:ifull,:)
+        call vadvsub(dum,tfact,0)
+        tke(1:ifull,:)=dum
        endif      ! if(nvmix.eq.6)
        !--------------------------------------------------------------
 
@@ -130,7 +154,9 @@ c      qg
        ! MJT aerosols
        if (abs(iaero)==2) then
         do ntr=1,naero
-         call vadvsub(xtg(1:ifull,:,ntr),tfact,0)  
+         dum=xtg(1:ifull,:,ntr)
+         call vadvsub(dum,tfact,0)  
+         xtg(1:ifull,:,ntr)=dum
         end do
        end if
        !--------------------------------------------------------------

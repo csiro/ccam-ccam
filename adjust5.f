@@ -55,6 +55,7 @@
       real helm(ifull+iextra,kl),rhsl(ifull+iextra,kl),delps(ifull)
       real omgf(ifull,kl)
       real bb(ifull)
+      real, dimension(ifull,kl) :: dumu,dumv,dumc,dumd
 !     Save this so we can check whether initialisation needs to be redone
       real, save :: dtsave = 0.0
       real :: hdt, hdtds, sdmx, sdmx_g, sumx, qgminm, ratio, sumdiffb,
@@ -349,8 +350,11 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
      &               (v(iq,nlv),iq=idjd-3*its,idjd+3*its,its)
         endif
       else
-        call unstaguv(cc(1:ifull,:),dd(1:ifull,:),        
-     &              u(1:ifull,:),v(1:ifull,:)) ! usual
+        dumc=cc(1:ifull,:)
+        dumd=dd(1:ifull,:)
+        call unstaguv(dumc,dumd,dumu,dumv) ! usual
+        u(1:ifull,:)=dumu
+        v(1:ifull,:)=dumv
       endif
 
 !     vert. integ. div into e
@@ -625,8 +629,10 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
         do k=1,kl
           qg(:,k)=max(qg(:,k),qgmin-qfg(:,k)-qlg(:,k),0.)
         end do
-        call massfix(mfix_qg,qg(1:ifull,:),qgsav(1:ifull,:),
-     &               ps(1:ifull),ps_sav(1:ifull),wts(1:ifull))
+        dumc=qg(1:ifull,:)
+        call massfix(mfix_qg,dumc,qgsav,
+     &               ps(1:ifull),ps_sav,wts)
+        qg(1:ifull,:)=dumc
       endif       !  (mfix_qg.ne.0.and.mspec==1)
 
       !------------------------------------------------------------------------
@@ -637,12 +643,18 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
         qrg=max(qrg,0.)
         cfrac=min(max(cfrac,0.),1.)
         cffall=min(max(cffall,0.),1.)
-        call massfix(mfix_qg,qfg(1:ifull,:),qfgsav(1:ifull,:),
-     &               ps(1:ifull),ps_sav(1:ifull),wts(1:ifull))
-        call massfix(mfix_qg,qlg(1:ifull,:),qlgsav(1:ifull,:),
-     &               ps(1:ifull),ps_sav(1:ifull),wts(1:ifull))
-        call massfix(mfix_qg,qrg(1:ifull,:),qrgsav(1:ifull,:),
-     &               ps(1:ifull),ps_sav(1:ifull),wts(1:ifull))
+        dumc=qfg(1:ifull,:)
+        call massfix(mfix_qg,dumc,qfgsav,
+     &               ps(1:ifull),ps_sav,wts)
+        qfg(1:ifull,:)=dumc
+        dumc=qlg(1:ifull,:)
+        call massfix(mfix_qg,dumc,qlgsav,
+     &               ps(1:ifull),ps_sav,wts)
+        qlg(1:ifull,:)=dumc
+        dumc=qrg(1:ifull,:)
+        call massfix(mfix_qg,dumc,qrgsav,
+     &               ps(1:ifull),ps_sav,wts)
+        qrg(1:ifull,:)=dumc
       endif      !  (mfix_qg.ne0.and.mspec==1.and.ldr.ne.0)
 
       !------------------------------------------------------------------------
@@ -651,8 +663,11 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
         do ng=1,ngas
 !         rml 19/09/07 replace gasmin with tracmin
           tr(:,:,ng)=max(tr(:,:,ng),tracmin(ng))
-          call massfix(mfix_tr,tr(1:ifull,:,ng),trsav(1:ifull,:,ng),
-     &                 ps(1:ifull),ps_sav(1:ifull),wts(1:ifull))
+          dumc=tr(1:ifull,:,ng)
+          dumd=trsav(1:ifull,:,ng)
+          call massfix(mfix_tr,dumc,dumd,
+     &                 ps(1:ifull),ps_sav,wts)
+          tr(1:ifull,:,ng)=dumc
         end do
       endif       !  (mfix_tr.ne.0.and.mspec==1.and.ngas>0)
 
@@ -661,9 +676,12 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
       if (mfix_aero.ne.0.and.mspec==1.and.abs(iaero)==2) then
         xtg=max(xtg,0.)
         do ng=1,naero
-          call massfix(mfix_aero,xtg(1:ifull,:,ng),
-     &                 xtgsav(1:ifull,:,ng),ps(1:ifull),
-     &                 ps_sav(1:ifull),wts(1:ifull))
+          dumc=xtg(1:ifull,:,ng)
+          dumd=xtgsav(1:ifull,:,ng)
+          call massfix(mfix_aero,dumc,
+     &                 dumd,ps(1:ifull),
+     &                 ps_sav,wts)
+          xtg(1:ifull,:,ng)=dumc
         end do
       end if
       !--------------------------------------------------------------
@@ -815,12 +833,12 @@ c              print *,'iq,iw,iwn ',iq,iw(iq),iwn(iq)
       real delpos,delneg,ratio,alph_g
 
       if (mfix>0) then
-        do k=1,kl         
+        do k=1,kl
           s(:,k)=s(:,k)*ps
           ssav(:,k)=ssav(:,k)*pssav
         enddo    ! k  loop           
       else
-        do k=1,kl         
+        do k=1,kl
           s(:,k)=s(:,k)*ps*wts
           ssav(:,k)=ssav(:,k)*pssav*wts
         enddo    ! k  loop     
@@ -844,12 +862,12 @@ c              print *,'iq,iw,iwn ',iq,iw(iq),iwn(iq)
         enddo    ! k  loop
       end if ! (mfix==1) .. else ..
       if (mfix>0) then
-        do k=1,kl          
+        do k=1,kl
           s(1:ifull,k)=s(1:ifull,k)/ps
           ssav(1:ifull,k)=ssav(1:ifull,k)/pssav
         enddo    ! k  loop
       else
-        do k=1,kl          
+        do k=1,kl
           s(1:ifull,k)=s(1:ifull,k)/(ps*wts)
           ssav(1:ifull,k)=ssav(1:ifull,k)/(pssav*wts)
         enddo   ! k  loop            

@@ -43,7 +43,7 @@
      & t(ifull,kl),u(ifull,kl),v(ifull,kl),qg(ifull,kl),
      & tgg(ifull,ms),tggsn(ifull,3),smass(ifull,3),ssdn(ifull,3),
      & ssdnn(ifull),snage(ifull),qfg(ifull,kl),
-     & qlg(ifull,kl),qrg(1:ifull,kl),mlodwn(ifull,wlev,4),
+     & qlg(ifull,kl),qrg(ifull,kl),mlodwn(ifull,wlev,4),
      & ocndwn(ifull,2)
       real timer
       logical ltest,newfile
@@ -254,6 +254,7 @@ c**   onthefly; sometime can get rid of common/bigxy4
       real, dimension(ifull,ms) :: wb,wbice,tgg
       real, dimension(ifull,3) :: tggsn,smass,ssdn
       real, dimension(ifull,kl) :: t,u,v,qg,qfg,qlg,qrg
+      real, dimension(ifull,kl) :: dum
       real, dimension(ifull,kk) :: u_k,v_k
       integer, dimension(ifull) :: isflag
       real, dimension(dk*dk*6) :: psl_a,tss_a,fracice_a,
@@ -722,23 +723,10 @@ c***        but needed here for onthefly (different dims) 28/8/08
             tss_l_a(iq)=spval
           endif  !   (land_a(iq)) .. else ..
         enddo     ! iq loop
-        if(nproc==1.and.nmaxpr==1)then
-          write(6,*)'before fill tss ',tss_a(idjd2)
-          write(6,*)'before fill tss_l_a, tss_s_a ',
-     &                       tss_l_a(idjd2),tss_s_a(idjd2)
-          write(6,*)'before fill/ints4 sicedep ',sicedep_a(idjd2)
-        endif  ! (nproc==1.and.nmaxpr==1)
         call fill_cc(tss_l_a,spval,ik,0)
         call fill_cc(tss_s_a,spval,ik,0)
         call fill_cc(sicedep_a,spval,ik,0)
         call fill_cc(fracice_a,spval,ik,0)
-        if(nproc==1.and.nmaxpr==1)then
-          write(6,*)'after fill tss_l, tss_s ',tss_l_a(idjd2),
-     &            tss_s_a(idjd2)
-          write(6,*)'after fill sicedep ',sicedep_a(idjd2)
-          write(6,*)'before ints4 psl_a(idjd2),zss_a(idjd2) ',
-     .                        psl_a(idjd),zss_a(idjd2)
-        endif  ! (nproc==1.and.nmaxpr==1)
       endif   ! (myid==0)
 
       if (iotest) then
@@ -826,7 +814,7 @@ c       incorporate other target land mask effects
             call ccmpi_distribute(u_k(:,k))
           endif ! myid==0
         enddo  ! k loop
-        call vertint(u_k ,t(1:ifull,:), 1,kk,sigin)
+        call vertint(u_k ,t, 1,kk,sigin)
       else
         t=300.
       end if ! (nested==0.or.(nested==1.and.(nud_t.ne.0.or.nud_p.ne.0)))
@@ -857,8 +845,8 @@ c       incorporate other target land mask effects
             call ccmpi_distribute(v_k(:,k))
           endif ! myid==0
         enddo  ! k loop
-        call vertint(u_k ,u(1:ifull,:), 3,kk,sigin)
-        call vertint(v_k ,v(1:ifull,:), 4,kk,sigin)
+        call vertint(u_k ,u, 3,kk,sigin)
+        call vertint(v_k ,v, 4,kk,sigin)
       else
         u=0.
         v=0.
@@ -882,7 +870,7 @@ c       incorporate other target land mask effects
             call ccmpi_distribute(u_k(:,k))         
           endif ! myid==0
         enddo  ! k loop
-        call vertint(u_k,qg(1:ifull,:),2,kk,sigin)
+        call vertint(u_k,qg,2,kk,sigin)
       else
         qg=qgmin
       end if ! (nested==0.or.(nested==1.and.nud_q.ne.0))
@@ -1683,7 +1671,8 @@ c       incorporate other target land mask effects
              call doints4(ucc,u_k(:,k),nface4,xg4,yg4,nord,dk,ifg)
            end if ! iotest
           enddo  ! k loop
-          call vertint(u_k,cffall(1:ifull,:),5,kk,sigin)
+          call vertint(u_k,dum,5,kk,sigin)
+          cffall(1:ifull,:)=dum
         end if ! (nested.eq.0)
 
         !--------------------------------------------------
@@ -1704,7 +1693,8 @@ c       incorporate other target land mask effects
      &                     nord,dk,ifg)
             end if ! iotest
           end do
-          call vertint(u_k,tke(1:ifull,:),5,kk,sigin)  
+          call vertint(u_k,dum,5,kk,sigin)
+          tke(1:ifull,:)=dum
           do k=1,kk
             vcc=1.E-7 ! dummy for eps
             call histrd4s(ncid,iarchi,ier,'eps',ik,6*ik,k,
@@ -1720,7 +1710,8 @@ c       incorporate other target land mask effects
      &                     nord,dk,ifg)
             end if ! iotest
           end do
-          call vertint(v_k,eps(1:ifull,:),5,kk,sigin)
+          call vertint(v_k,dum,5,kk,sigin)
+          eps(1:ifull,:)=dum
         end if
 
         !------------------------------------------------------------
@@ -1743,7 +1734,8 @@ c       incorporate other target land mask effects
      &                       nord,dk,ifg)              
               end if ! iotest
             end do
-            call vertint(u_k,tr(1:ifull,:,igas),7,kk,sigin)
+            call vertint(u_k,dum,7,kk,sigin)
+            tr(1:ifull,:,igas)=dum
           enddo                       
         endif                         
 
@@ -1809,9 +1801,11 @@ c       incorporate other target land mask effects
               end if ! iotest
             end do
             if (i.le.naero) then
-              call vertint(u_k,xtg(1:ifull,:,i),5,kk,sigin)
+              call vertint(u_k,dum,5,kk,sigin)
+              xtg(1:ifull,:,i)=dum
             else
-              call vertint(u_k,ssn(1:ifull,:,i-naero),5,kk,sigin)
+              call vertint(u_k,dum,5,kk,sigin)
+              ssn(1:ifull,:,i-naero)=dum
             end if
           end do
           if (iaero.ne.0) then

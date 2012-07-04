@@ -111,6 +111,7 @@
       integer nn, i, j, mstn, nproc_in, ierr, nperhr, nscrn, nversion
       integer ierr2, kmax, isoth, nsig, lapsbot
       real, dimension(:,:), allocatable, save :: speed
+      real, dimension(:,:), allocatable, save :: dumc
       real, dimension(:), allocatable, save :: spare1,spare2
       real, dimension(:), allocatable, save :: spmean,div
       real, dimension(9) :: temparray, gtemparray
@@ -632,6 +633,7 @@
       ! INITIALISE LOCAL ARRAYS
       allocate(spare1(ifull),spare2(ifull))
       allocate(speed(ifull,kl))
+      allocate(dumc(ifull,kl))
       allocate(spmean(kl),div(kl))
       call arrays_init(ifull,iextra,kl)
       call carbpools_init(ifull,iextra,kl,nsib,ccycle)
@@ -1162,7 +1164,7 @@
       if(mfix_qg==0.or.mspec==2)then
         qfg(1:ifull,:)=max(qfg(1:ifull,:),0.) 
         qlg(1:ifull,:)=max(qlg(1:ifull,:),0.)
-	qg(1:ifull,:)=max(qg(1:ifull,:),qgmin-qlg(1:ifull,:)
+        qg(1:ifull,:)=max(qg(1:ifull,:),qgmin-qlg(1:ifull,:)
      &                   -qfg(1:ifull,:),0.) 
       endif  ! (mfix_qg==0.or.mspec==2)
 79    dt=dtin                    ! ****** end of introductory time loop
@@ -1223,7 +1225,9 @@
       end if
       select case(ldr)
         case(-2,-1,1,2)
-          call leoncld(cfrac,cffall(1:ifull,:),iaero) ! LDR microphysics scheme
+          dumc=cffall(1:ifull,:)
+          call leoncld(cfrac,dumc,iaero) ! LDR microphysics scheme
+          cffall(1:ifull,:)=dumc
       end select
       do k=1,kl
        riwp_ave(:)=riwp_ave(:)-qfrad(:,k)*dsig(k)*ps(1:ifull)/grav ! ice water path
