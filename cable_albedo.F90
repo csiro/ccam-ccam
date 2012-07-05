@@ -21,15 +21,12 @@ MODULE albedo_module
 
       INTEGER(i_d)            :: b    !rad. band 1=visible, 2=near-infrared, 3=long-wave
       LOGICAL, DIMENSION(mp)  :: mask ! select points for calculation
-      real, dimension(:,:), allocatable, save :: c1, rhoch
+      real, dimension(mp,nrb) :: c1, rhoch
       REAL(r_2), DIMENSION(mp)  :: dummy2
       REAL(r_2), DIMENSION(mp)  :: dummy
 
       if( cable_user%RUN_DIAG_LEVEL == 'BASIC' ) &    
          call cable_stat('surface_albedo')
-      
-      if (.not. allocated(c1)) &
-         allocate( c1(mp,nrb), rhoch(mp,nrb) )
 
       ! MJT bug fix -------------------------------------------------
       !if(cable_runtime%um) &

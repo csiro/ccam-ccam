@@ -783,13 +783,35 @@ c       incorporate other target land mask effects
         end if
        end do
       end if
-      if (nspecial==45.or.nspecial==46) then
+      if (nspecial==45.or.nspecial==46.or.nspecial==50) then
        do iq=1,ifull
         rlongd=rlongg(iq)*180./pi
         rlatd=rlatt(iq)*180./pi
         if (rlatd.ge.-15..and.rlatd.le.-5.) then
          if (rlongd.ge.150..and.rlongd.le.170.) then
           tss(iq)=tss(iq)+1.
+         end if
+        end if
+       end do
+      end if
+      if (nspecial==47.or.nspecial==49.or.nspecial==50) then
+       do iq=1,ifull
+        rlongd=rlongg(iq)*180./pi
+        rlatd=rlatt(iq)*180./pi
+        if (rlatd.ge.-43..and.rlatd.le.-30.) then
+         if (rlongd.ge.155..and.rlongd.le.170.) then
+          tss(iq)=tss(iq)-1.
+         end if
+        end if
+       end do
+      end if
+      if (nspecial==48.or.nspecial==49) then
+       do iq=1,ifull
+        rlongd=rlongg(iq)*180./pi
+        rlatd=rlatt(iq)*180./pi
+        if (rlatd.ge.-15..and.rlatd.le.-5.) then
+         if (rlongd.ge.150..and.rlongd.le.170.) then
+          tss(iq)=tss(iq)-1.
          end if
         end if
        end do

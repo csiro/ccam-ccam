@@ -50,18 +50,18 @@ module canopy_module
       REAL(r_1), DIMENSION(mp)  :: r_sc
       REAL(r_1), DIMENSION(mp)  :: zscl
 
-      real(r_1), dimension(:), pointer :: cansat ! max canopy intercept. (mm)
-      real(r_1), dimension(:), pointer :: dsx ! leaf surface vpd
-      real(r_1), dimension(:), pointer :: fwsoil ! soil water modifier of stom. cond
-      real(r_1), dimension(:), pointer :: tlfx ! leaf temp prev. iter (K)
-      real(r_1), dimension(:), pointer :: tlfy ! leaf temp (K)
-      real(r_2), dimension(:), pointer :: ecy ! lat heat fl dry big leaf
-      real(r_2), dimension(:), pointer :: hcy ! veg. sens heat
-      real(r_2), dimension(:), pointer :: rny ! net rad
-      real(r_2), dimension(:,:), pointer :: gbhu ! forcedConvectionBndryLayerCond
-      real(r_2), dimension(:,:), pointer :: gbhf ! freeConvectionBndryLayerCond
-      real(r_2), dimension(:,:), pointer :: csx ! leaf surface CO2 concentration
-      real(r_2), dimension(:), pointer :: ghwet  ! cond for heat for a wet canopy
+      real(r_1), dimension(mp) :: cansat ! max canopy intercept. (mm)
+      real(r_1), dimension(mp) :: dsx ! leaf surface vpd
+      real(r_1), dimension(mp) :: fwsoil ! soil water modifier of stom. cond
+      real(r_1), dimension(mp) :: tlfx ! leaf temp prev. iter (K)
+      real(r_1), dimension(mp) :: tlfy ! leaf temp (K)
+      real(r_2), dimension(mp) :: ecy ! lat heat fl dry big leaf
+      real(r_2), dimension(mp) :: hcy ! veg. sens heat
+      real(r_2), dimension(mp) :: rny ! net rad
+      real(r_2), dimension(mp,mf) :: gbhu ! forcedConvectionBndryLayerCond
+      real(r_2), dimension(mp,mf) :: gbhf ! freeConvectionBndryLayerCond
+      real(r_2), dimension(mp,mf) :: csx ! leaf surface CO2 concentration
+      real(r_2), dimension(mp) :: ghwet  ! cond for heat for a wet canopy
       REAL(r_1), DIMENSION(mp)            :: pwet
       REAL(r_1), DIMENSION(mp)            :: dq ! sat sp
       REAL(r_1), DIMENSION(mp)            :: xx1
@@ -70,7 +70,8 @@ module canopy_module
       !jhan:local temporary vars
       real(r_1), dimension(mp)  :: ftemp,z_eff,psim_arg, psim_1, psim_2, rlower_limit  
       real  :: rt_min
-      real(r_1), dimension(mp)  :: sum_rad_gradis 
+      real(r_1), dimension(mp)  :: sum_rad_gradis
+      real(r_1), dimension(mp) :: dum 
       
       !  rml temporary arrays to write out air temp when leaf temp goes crazy
       integer, dimension(1) :: temp1, temp2
@@ -84,12 +85,6 @@ module canopy_module
          !jhan:in UM interface. Mk3l to follow
          if( .NOT. cable_runtime%um) &
             canopy%cansto =  canopy%oldcansto
-
-         allocate(cansat(mp),gbhu(mp,mf))
-         allocate(dsx(mp), fwsoil(mp), tlfx(mp), tlfy(mp))
-         allocate(ecy(mp), hcy(mp), rny(mp))
-         allocate(gbhf(mp,mf), csx(mp,mf))
-         allocate(ghwet(mp))
 
          !jhan:never used
          !phenps = 1.0  
@@ -116,7 +111,8 @@ module canopy_module
      
          CALL define_air (met, air)
          
-         call qsatfjh(qstvair,met%tvair-tfrz,met%pmb)
+         dum=met%tvair-tfrz
+         call qsatfjh(qstvair,dum,met%pmb)
 
          met%dva = (qstvair - met%qvair) *  rmair/rmh2o * met%pmb * 100.0
          dsx = met%dva     ! init. leaf surface vpd
@@ -263,7 +259,8 @@ module canopy_module
             ! Saturation specific humidity at soil/snow surface temperature:
     
             !call qsatfjh(ssoil%qstss,ssoil%tss-tfrz,met%pmb)
-            call qsatfjh(ssoil%qstss,ssoil%tss-tfrz,met%pmb)
+            dum=ssoil%tss-tfrz
+            call qsatfjh(ssoil%qstss,dum,met%pmb)
 
             !if(cable_runtime%um) then
             dq = ssoil%qstss - met%qv
@@ -285,7 +282,8 @@ module canopy_module
 
          
             !if(cable_runtime%um) then
-            call qsatfjh(ssoil%qstss,ssoil%tss-tfrz,met%pmb)
+            dum=ssoil%tss-tfrz
+            call qsatfjh(ssoil%qstss,dum,met%pmb)
             dq = ssoil%qstss - met%qvair
             ssoil%potev =  Humidity_deficit_method(dq,ssoil%qstss ) 
             !else
@@ -353,9 +351,10 @@ module canopy_module
              + rad%fvlai(:,2)/max(LAI_THRESH,canopy%vlaiw(:))*canopy%gswx(:,2)
       !jhan:Evachanged
       canopy%gswx_T = max(1.e-05,canopy%gswx_T )
-             
+      
+      dum=canopy%zetar(:,niter) * rough%zref_uv/rough%zref_tq
       canopy%cdtq = canopy%cduv *(LOG(rough%zref_uv / rough%z0m) -          &
-        psim( canopy%zetar(:,niter) * rough%zref_uv/rough%zref_tq )) /      &
+        psim( dum)) /      &
        (LOG( rough%zref_uv /(0.1*rough%z0m) ) - psis(canopy%zetar(:,niter)) )
 
       ! Calculate screen temperature:
@@ -366,8 +365,9 @@ module canopy_module
        tstar = - canopy%fh / ( air%rho*capp*canopy%us)
        qstar = - canopy%fe / ( air%rho*air%rlam *canopy%us)
        zscrn = max(rough%z0m,2.0-rough%disp)
+       dum=canopy%zetar(:,iterplus) * zscrn / rough%zref_tq
        ftemp = ( log(rough%zref_tq/zscrn)- psis(canopy%zetar(:,iterplus)) + &
-            psis(canopy%zetar(:,iterplus) * zscrn / rough%zref_tq) ) /vonk
+            psis(dum)) /vonk
    
        ! Calculate screen temperature:
        canopy%tscrn = met%tk - tfrz - tstar * ftemp
@@ -481,12 +481,6 @@ module canopy_module
       bal%wetbal=canopy%fevw+canopy%fhvw-SUM(rad%rniso,2)*canopy%fwet &
            +capp*rmair*(tlfy-met%tk)*SUM(rad%gradis,2)*canopy%fwet  ! YP nov2009
   
-      DEALLOCATE(cansat,gbhu)
-      DEALLOCATE(dsx, fwsoil, tlfx, tlfy)
-      DEALLOCATE(ecy, hcy, rny)
-      DEALLOCATE(gbhf, csx)
-      DEALLOCATE(ghwet)
-
       CONTAINS
 
 
@@ -518,13 +512,15 @@ module canopy_module
       REAL(r_1), DIMENSION(mp) :: cc1 ! var for Penman-Monteith soil evap
       REAL(r_1), DIMENSION(mp) :: cc2 ! var for Penman-Monteith soil evap
       REAL(r_1), DIMENSION(mp) :: qsatfvar
+      real(r_1), dimension(mp) :: dum
       integer :: j
          ! Penman-Monteith formula
          sss=air%dsatdk
          cc1=sss/(sss+air%psyc )
          cc2=air%psyc /(sss+air%psyc )
          
-         call qsatfjh(qsatfvar,met%tvair-tfrz,met%pmb)
+         dum=met%tvair-tfrz
+         call qsatfjh(qsatfvar,dum,met%pmb)
 
          ssoilpotev = cc1 * (canopy%fns - ground_H_flux) + &
          cc2 * air%rho * air%rlam*(qsatfvar  - met%qvair)/ssoil%rtsoil
@@ -1091,18 +1087,16 @@ end subroutine within_canopy
     REAL(r_1), DIMENSION(mp)  :: gwwet  ! cond for water for a wet canopy
     REAL(r_1), DIMENSION(mp)  :: ghrwet ! wet canopy cond: heat & thermal rad
     REAL(r_1), DIMENSION(mp)  :: sum_gbh
+    real(r_1), dimension(mp,mf) :: dumcx1,dumcx2,dumdel ! MJT
 
 
 
       INTEGER(i_d)   :: i,j !loop counts - kdcorbin, 09/10
 
       !jhan:lower_limit = IS this doable outside stability loop
-      real(r_1), dimension(:,:), pointer :: gswmin ! min stomatal conductance
+      real(r_1), dimension(mp,mf) :: gswmin ! min stomatal conductance ! MJT
       real(r_1), dimension(mp,2)  ::  gsw_term, lower_limit2  ! local temp var 
       REAL(r_1), DIMENSION(mp,mf) :: frac42 ! 2D frac4
-
-
-      allocate( gswmin(mp,mf ))
 
       ! Soil water limitation on stomatal conductance:
       if( iter ==1) then
@@ -1263,10 +1257,13 @@ end subroutine within_canopy
             ENDIF
          ENDDO !i=1,mp
    
-         call photosynthesis(csx(:,:),SPREAD(cx1(:),2,mf), &
-                SPREAD(cx2(:),2,mf),gswmin(:,:),rdx(:,:), &
+         dumcx1=SPREAD(cx1(:),2,mf)
+         dumcx2=SPREAD(cx2(:),2,mf)
+         dumdel=SPREAD(abs_deltlf,2,mf)
+         call photosynthesis(csx(:,:),dumcx1, &
+                dumcx2,gswmin(:,:),rdx(:,:), &
                 vcmxt3(:,:),vcmxt4(:,:),vx3(:,:),vx4(:,:),xleuning(:,:), &
-                rad%fvlai(:,:),SPREAD(abs_deltlf,2,mf),anx(:,:))
+                rad%fvlai(:,:),dumdel,anx(:,:))
 
          DO i=1,mp
             IF (canopy%vlaiw(i) > LAI_THRESH .AND. abs_deltlf(i) > 0.1) Then

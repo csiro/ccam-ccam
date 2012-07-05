@@ -29,18 +29,15 @@ CONTAINS
     REAL(r_1), DIMENSION(mp) :: coef_cd ! total stress coeff. for veg (eq. 6)
     REAL(r_1), DIMENSION(mp) :: coef_cold  ! coeff. for cold stress (eq. 7)
     REAL(r_1), DIMENSION(mp) :: coef_drght ! coeff. for drought stress (eq. 8)
-    REAL(r_1), DIMENSION(:), ALLOCATABLE :: rw, tfcl, tvclst
+    REAL(r_1), DIMENSION(mvtype) :: rw, tfcl, tvclst
 !jhan:see earliervn for comment
-    REAL(r_1), DIMENSION(:), ALLOCATABLE :: trnl, trnr, trnsf, trnw
+    REAL(r_1), DIMENSION(mvtype) :: trnl, trnr, trnsf, trnw
 
     REAL(r_1), DIMENSION(mp) :: wbav ! water stress index 
 
       if( cable_user%RUN_DIAG_LEVEL == 'BASIC' ) &    
          call cable_stat('carbon_pl')
 
-    ALLOCATE( rw(mvtype), tfcl(mvtype), tvclst(mvtype) )
-
-    ALLOCATE( trnl(mvtype), trnr(mvtype), trnsf(mvtype), trnw(mvtype) )
     trnl = 3.17e-8
     trnr = 4.53e-9
     trnsf = 1.057e-10
@@ -136,9 +133,6 @@ CONTAINS
       bgc%csoil(:,1) = MAX(0.00, bgc%csoil(:,1))
       bgc%csoil(:,2) = MAX(0.00, bgc%csoil(:,2))
   
-    DEALLOCATE( rw, tfcl, tvclst )
-    DEALLOCATE( trnl, trnr, trnsf, trnw )
-
   END SUBROUTINE carbon_pl
 
   SUBROUTINE soilcarb( soil, ssoil, veg, bgc, met, canopy)
