@@ -528,10 +528,10 @@ integer, dimension(ifull,wlev) :: nface
 real alpha,maxloclseta,maxglobseta,maxloclip,maxglobip
 real delpos,delneg,alph_p,dumpp,dumpn,fjd
 real, dimension(ifull+iextra) :: neta,pice,imass
-real, dimension(ifull+iextra) :: nfracice,ndic,ndsn,nsto,niu,niv,ndum
+real, dimension(ifull+iextra) :: nfracice,ndic,ndsn,nsto,niu,niv,nis,ndum
 real, dimension(ifull+iextra) :: snu,sou,spu,squ,sru,snv,sov,spv,sqv,srv
 real, dimension(ifull+iextra) :: ibu,ibv,icu,icv,spnet,oeta,oeu,oev
-real, dimension(ifull) :: i_u,i_v,i_sto,rhobaru,rhobarv
+real, dimension(ifull) :: i_u,i_v,i_sto,i_sal,rhobaru,rhobarv
 real, dimension(ifull) :: sdiv,sinp,div,inp,odiv,seta,w_e
 real, dimension(ifull) :: sdivb,divb,odivb,xps
 real, dimension(ifull) :: tnu,tsu,tev,twv,rhou,rhov
@@ -605,6 +605,7 @@ i_it=273.16
 i_sto=0.
 i_u=0.
 i_v=0.
+i_sal=0.
 rho=0.
 nw=0.
 
@@ -628,6 +629,7 @@ call mloexpice(snowd,7,0)
 call mloexpice(i_sto,8,0)
 call mloexpice(i_u,9,0)
 call mloexpice(i_v,10,0)
+call mloexpice(i_sal,11,0)
 
 ! estimate tidal forcing (assumes leap days)
 if (myid==0.and.nmaxpr==1) then
@@ -687,6 +689,7 @@ nit(1:ifull,:)=i_it
 nsto(1:ifull)=i_sto
 niu(1:ifull)=i_u
 niv(1:ifull)=i_v
+nis(1:ifull)=i_sal
 neta(1:ifull)=max(neta(1:ifull),-dd(1:ifull)+mindep)
 call bounds(neta,corner=.true.)
 oeta=neta
@@ -900,8 +903,7 @@ end if
 dums=ns(1:ifull,:)
 dumt=nt(1:ifull,:)
 duma=mps(1:ifull,:)
-call mlovadv(0.5*dt,nw,uau,uav,dums,dumt,duma, &
-             depdum,dzdum,wtr(1:ifull),1)
+call mlovadv(0.5*dt,nw,uau,uav,dums,dumt,duma,depdum,dzdum,wtr(1:ifull),1)
 ns(1:ifull,:)=dums
 nt(1:ifull,:)=dumt
 mps(1:ifull,:)=duma
@@ -956,8 +958,7 @@ end if
 dums=ns(1:ifull,:)
 dumt=nt(1:ifull,:)
 duma=mps(1:ifull,:)
-call mlovadv(0.5*dt,nw,uau,uav,dums,dumt,duma, &
-             depdum,dzdum,wtr(1:ifull),2)
+call mlovadv(0.5*dt,nw,uau,uav,dums,dumt,duma,depdum,dzdum,wtr(1:ifull),2)
 ns(1:ifull,:)=dums
 nt(1:ifull,:)=dumt
 mps(1:ifull,:)=duma
@@ -973,7 +974,7 @@ if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: density EOS 2"
 end if
 
-! Update normalised density rhobar (unstaggered at tstar)
+! Approximate normalised density rhobar at t+1 (unstaggered, using T and S at t+1)
 dumt=nt(1:ifull,:)
 dums=ns(1:ifull,:)
 call mloexpdensity(dumr,duma,dumb,dumt,dums,depdum,dzdum,pice(1:ifull),0)
@@ -1240,7 +1241,6 @@ end if
 call bounds(neta,corner=.true.)
 oeu(1:ifull)=0.5*(neta(1:ifull)+neta(ie))
 oev(1:ifull)=0.5*(neta(1:ifull)+neta(in))
-call boundsuv(oeu,oev)
 tnu=0.5*(neta(in)+neta(ine))
 tsu=0.5*(neta(is)+neta(ise))
 tev=0.5*(neta(ie)+neta(ien))
@@ -1263,10 +1263,6 @@ dums=nv(1:ifull,:)
 call mlounstaguv(dumt,dums,uau,uav)
 nu(1:ifull,:)=uau
 nv(1:ifull,:)=uav
-
-if (myid==0.and.nmaxpr==1) then
-  write(6,*) "mlohadv: water vertical velocity 2"
-end if
 
 ! UPDATE ICE DYNAMICS ---------------------------------------------
 ! Here we start by calculating the ice velocity and then advecting
@@ -1465,6 +1461,22 @@ ndum(1:ifull)=odum
 ndum=max(ndum,0.)
 nsto(1:ifull)=ndum(1:ifull)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-10)
 
+! Horizontal advection for ice salinity
+ndum(1:ifull)=i_sal*fracice/(em(1:ifull)*em(1:ifull))
+call bounds(ndum)
+odum=ndum(1:ifull)
+odum=odum+max(min( 0.5*dt*(niu(iwu)*(ndum(1:ifull)+ndum(iw))    -abs(niu(iwu))*(ndum(1:ifull)-ndum(iw))    )*emu(iwu)/ds    , &
+          ndum(iw)*max(niu(iwu),0.)/spnet(iw))    ,ndum(1:ifull)*min(niu(iwu),0.)/spnet(1:ifull))
+odum=odum+max(min(-0.5*dt*(niu(1:ifull)*(ndum(1:ifull)+ndum(ie))+abs(niu(1:ifull))*(ndum(1:ifull)-ndum(ie)))*emu(1:ifull)/ds, &
+         -ndum(ie)*min(niu(1:ifull),0.)/spnet(ie)),-ndum(1:ifull)*max(niu(1:ifull),0.)/spnet(1:ifull))
+odum=odum+max(min( 0.5*dt*(niv(isv)*(ndum(1:ifull)+ndum(is))    -abs(niv(isv))*(ndum(1:ifull)-ndum(is))    )*emv(isv)/ds    , &
+          ndum(is)*max(niv(isv),0.)/spnet(is))    ,ndum(1:ifull)*min(niv(isv),0.)/spnet(1:ifull))
+odum=odum+max(min(-0.5*dt*(niv(1:ifull)*(ndum(1:ifull)+ndum(in))+abs(niv(1:ifull))*(ndum(1:ifull)-ndum(in)))*emv(1:ifull)/ds, &
+         -ndum(in)*min(niv(1:ifull),0.)/spnet(in)),-ndum(1:ifull)*max(niv(1:ifull),0.)/spnet(1:ifull))
+ndum(1:ifull)=odum
+ndum=max(ndum,0.)
+nis(1:ifull)=ndum(1:ifull)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-10)
+
 ! Horizontal advection for surface temperature
 ndum(1:ifull)=i_it(1:ifull,1)*fracice/(em(1:ifull)*em(1:ifull))
 call bounds(ndum)
@@ -1521,6 +1533,7 @@ where (nfracice(1:ifull).lt.1.E-4)
   ndic(1:ifull)=0.
   ndsn(1:ifull)=0.
   nsto(1:ifull)=0.
+  nis(1:ifull)=0.
   nit(1:ifull,1)=w_t(:,1)
   nit(1:ifull,2)=w_t(:,1)
   nit(1:ifull,3)=w_t(:,1)
@@ -1599,6 +1612,7 @@ call mloimpice(ndsn(1:ifull),7,0)
 call mloimpice(nsto(1:ifull),8,0)
 call mloimpice(niu(1:ifull),9,0)
 call mloimpice(niv(1:ifull),10,0)
+call mloimpice(nis(1:ifull),11,0)
 where (wtr(1:ifull))
   fracice=nfracice(1:ifull)
   sicedep=ndic(1:ifull)

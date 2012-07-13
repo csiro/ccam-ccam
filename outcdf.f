@@ -314,7 +314,7 @@ c       create the attributes of the header record of the file
       use liqwpar_m                             ! Cloud water mixing ratios
       use map_m                                 ! Grid map arrays
       use mlo, only : wlev,mlosave,mlodiag,     ! Ocean physics and prognostic arrays
-     &      micdwn,mloexpdep
+     &      mloexpdep
       use mlodynamics                           ! Ocean dynamics
       use morepbl_m                             ! Additional boundary layer diagnostics
       use nharrs_m                              ! Non-hydrostatic atmosphere arrays
@@ -368,6 +368,7 @@ c       create the attributes of the header record of the file
       real, dimension(ifull) :: aa,bb,cc
       real, dimension(ifull,kl) :: tmpry
       real, dimension(ifull,wlev,4) :: mlodwn
+      real, dimension(ifull,11) :: micdwn
       character(len=50) expdesc
       character(len=40) lname
       character(len=21) mnam,nnam
@@ -560,6 +561,9 @@ c       For time varying surface fields
           call attrib(idnc,idim,3,'uic',lname,'m/s',-65.,65.,0,itype)
           lname = 'y-component ice'
           call attrib(idnc,idim,3,'vic',lname,'m/s',-65.,65.,0,itype)
+          lname = 'Ice salinity'
+          call attrib(idnc,idim,3,'icesal',lname,'PSU',0.,130.,0,
+     &                itype)
           if (abs(nmlo).ge.2) then
             lname = 'Surface water'
             call attrib(idnc,idim,3,'swater',lname,'mm',0.,6.5E3,0,
@@ -1363,15 +1367,16 @@ c      set time to number of minutes since start
 
       ! MLO ---------------------------------------------------------      
       if (nmlo.ne.0) then
-        allocate(micdwn(ifull,10))
         mlodwn(:,:,1:2)=999.
         mlodwn(:,:,3:4)=0.
         micdwn=999.
         micdwn(:,9)=0.
         micdwn(:,10)=0.
+        micdwn(:,11)=0.
         aa=0. ! ocean depth
         bb=0. ! free surface height
         call mlosave(mlodwn,aa,bb,micdwn,0)
+        bb=min(max(bb,-65.),65.)
         do k=1,ms
           where (.not.land)
             tgg(:,k)=mlodwn(:,k,1)
@@ -1423,14 +1428,12 @@ c      set time to number of minutes since start
         call histwrt3(micdwn(:,8),'sto',idnc,iarch,local,.true.)
         call histwrt3(micdwn(:,9),'uic',idnc,iarch,local,.true.)
         call histwrt3(micdwn(:,10),'vic',idnc,iarch,local,.true.)
+        call histwrt3(micdwn(:,11),'icesal',idnc,iarch,local,.true.)
         if (abs(nmlo).ge.2) then
           call histwrt3(watbdy(1:ifull),'swater',idnc,iarch,local,
      &                  .true.)
         end if
       end if
-      if (nmlo.ne.0) then
-        deallocate(micdwn)
-      end if      
 
       ! SOIL --------------------------------------------------------
       !call histwrt3(wb(1,1),'wb1',idnc,iarch,local,.true.)

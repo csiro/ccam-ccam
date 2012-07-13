@@ -342,10 +342,10 @@
 #ifdef uniform_decomp
       npan=npanels+1
 !     This should use jpan rather than jl. Will be far too big.
-      iextra=(6*(il+jl)+24)*npan ! the *6 term is for extra vector row (e.g., inu,isu,iev,iwv)
+      iextra=(6*(il+jl)+24)*npan
 #else      
       npan=max(1,(npanels+1)/nproc)
-      iextra=6*(il+jl)+24*npan ! the *6 term is for extra vector row (e.g., inu,isu,iev,iwv)
+      iextra=6*(il+jl)+24*npan
 #endif
       ! nrows_rad is a subgrid step for radiation routines
       nrows_rad=il_g/6

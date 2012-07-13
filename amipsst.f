@@ -2,7 +2,7 @@
       use arrays_m    ! ts, t, u, v, psl, ps, zs
       use cc_mpi
       use latlong_m
-      use mlo, only : mloexport,wlev
+      use mlo, only : mloexport,mloexpmelt,wlev
       use pbl_m       ! tss
       use permsurf_m  ! iperm etc
       use soil_m      ! ,tice, alb
@@ -24,7 +24,7 @@
       real, allocatable, save, dimension(:) :: aice, bice, cice
       real, allocatable, save, dimension(:) :: asal, bsal, csal
       real, allocatable, save, dimension(:) :: res
-      real, dimension(ifull) :: sssb
+      real, dimension(ifull) :: sssb,timelt
       real, dimension(ifull,wlev) :: dumb,dumd
       real, dimension(ifull,wlev,2) :: dumc
       real fraciceb(ifull), x, c2, c3, c4
@@ -243,9 +243,10 @@ c       c1=0.
           write(6,*) "       namip.ne.0"
           stop
         end if
+        call mloexpmelt(timelt)
         dumb(:,1)=tgg(:,1)
         where(fraciceb.gt.0.)
-          dumb(:,1)=271.2
+          dumb(:,1)=timelt
         end where
         dumd(:,1)=sssb
         select case(mlomode)

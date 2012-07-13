@@ -59,7 +59,7 @@
       real, dimension(:), allocatable, save :: psla,pslb,tssa,tssb
       real, dimension(:), allocatable, save :: sicedepb,fraciceb
       real, dimension(:,:,:), allocatable, save :: sssa,sssb
-      real, dimension(ifull) :: zsb,duma
+      real, dimension(ifull) :: zsb,duma,timelt
       real, dimension(ifull,wlev,4) :: dumaa
       real, dimension(ifull,ms) :: dumg
       real, dimension(ifull,kl) :: dumv
@@ -284,9 +284,10 @@
      &                         MPI_COMM_WORLD,ierr)
             if (rdumg.lt.0.5) wl=1
             if (wl==1) then ! switch to 2D if 3D data is missing
+              call mloexpmelt(timelt)
               dumaa(:,1,1)=cona*tssa+conb*tssb
               where (fraciceb.gt.0.)
-                dumaa(:,1,1)=271.2
+                dumaa(:,1,1)=timelt
               end where
             end if
             call mlonudge(dumaa(:,:,1),dumaa(:,:,2),
@@ -332,7 +333,7 @@
       real, dimension(:), allocatable, save :: pslb,tssb,fraciceb
       real, dimension(:), allocatable, save :: sicedepb
       real, dimension(:,:,:), allocatable, save :: sssb
-      real, dimension(ifull) :: zsb,pslc,duma
+      real, dimension(ifull) :: zsb,pslc,duma,timelt
       real, dimension(ifull,ms) :: dumg
       real, dimension(ifull,kl) :: dumv
       real, dimension(ifull,kl) :: uc,vc,tc,qc
@@ -498,9 +499,10 @@
      &                           MPI_COMM_WORLD,ierr)
               if (rdumg.lt.0.5) wl=1
               if (wl==1) then ! switch to 2D data if 3D is missing
+                call mloexpmelt(timelt)
                 sssb(:,1,1)=tssb
                 where (fraciceb.gt.0.)
-                  sssb(:,1,1)=271.2
+                  sssb(:,1,1)=timelt
                 end where
               end if
               call mlofilterhub(sssb(:,:,1),sssb(:,:,2),

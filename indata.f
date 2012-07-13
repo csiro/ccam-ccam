@@ -465,7 +465,7 @@
       ! nmlo=1 mixed layer ocean (KPP)
       ! nmlo=2 same as 1, but with Smag horz diffusion and river routing
       ! nmlo=3 same as 2, but with horizontal and vertical advection
-      if (nmlo.ne.0.and.abs(nmlo).le.9) then
+      if (nmlo/=0.and.abs(nmlo)<=9) then
         call readreal(bathfile,dep,ifull)
         where (land)
           dep=0.
@@ -1371,7 +1371,7 @@ c     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
       ! snow and ice fixes
       snalb=.8
       do iq=1,ifull
-       if (nmlo.eq.0.or.abs(nmlo).gt.9) then
+       if (nmlo==0.or.abs(nmlo)>9) then
         if(.not.land(iq))then
 !        from June '03 tgg1	holds actual sea temp, tss holds net temp 
          tgg(iq,1)=max(271.3,tss(iq)) 
@@ -1384,7 +1384,7 @@ c     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
          albvisnir(iq,1)=.8*fracice(iq)+.1*(1.-fracice(iq))
          albvisnir(iq,2)=.5*fracice(iq)+.1*(1.-fracice(iq))
         endif   ! (sicedep(iq)>0.)
-       endif    ! (nmlo.eq.0.or.abs(nmlo).gt.9) 
+       endif    ! (nmlo==0.or.abs(nmlo)>9) 
        if(isoilm(iq)==9.and.(nsib==3.or.nsib==5))then
 !        also at beg. of month ensure cold deep temps over permanent ice
          do k=2,ms
@@ -1816,7 +1816,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
             mlodwn(:,k,1)=275.16
             end where
             ! This is simply using the surface temperature
-            ! mlodwn(:,k,1)=max(tss,271.2)
+            ! mlodwn(:,k,1)=max(tss,270.)
             mlodwn(:,k,2)=34.72
             mlodwn(:,k,3:4)=0.
           end do
@@ -1825,7 +1825,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
           micdwn(:,3)=tss
           micdwn(:,4)=tss
           micdwn(:,5:6)=0.
-          where (fracice.gt.0.)
+          where (fracice>0.)
             micdwn(:,1)=tss
             micdwn(:,2)=tss
             micdwn(:,3)=tss
@@ -1834,15 +1834,13 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
             micdwn(:,6)=1.
           end where
           micdwn(:,7:10)=0.
+          micdwn(:,11)=mlodwn(:,1,2)
           where (.not.land)
             fracice=micdwn(:,5)
             sicedep=micdwn(:,6)
             snowd=micdwn(:,7)*1000.
           end where          
         end if
-        where (tss.gt.271.2.and.fracice.le.0.) ! Always use tss for top ocean layer
-          mlodwn(:,1,1)=tss(:)                 ! This has no effect in a climate mode and
-        endwhere                               ! ensures SST track analyses in a NWP mode
         mlodwn(:,:,1)=max(mlodwn(:,:,1),270.)
         mlodwn(:,:,2)=max(mlodwn(:,:,2),0.)
         call mloload(mlodwn,ocndwn(:,2),micdwn,0)

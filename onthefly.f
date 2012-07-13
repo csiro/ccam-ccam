@@ -783,35 +783,13 @@ c       incorporate other target land mask effects
         end if
        end do
       end if
-      if (nspecial==45.or.nspecial==46.or.nspecial==50) then
+      if (nspecial==45.or.nspecial==46) then
        do iq=1,ifull
         rlongd=rlongg(iq)*180./pi
         rlatd=rlatt(iq)*180./pi
         if (rlatd.ge.-15..and.rlatd.le.-5.) then
          if (rlongd.ge.150..and.rlongd.le.170.) then
           tss(iq)=tss(iq)+1.
-         end if
-        end if
-       end do
-      end if
-      if (nspecial==47.or.nspecial==49.or.nspecial==50) then
-       do iq=1,ifull
-        rlongd=rlongg(iq)*180./pi
-        rlatd=rlatt(iq)*180./pi
-        if (rlatd.ge.-43..and.rlatd.le.-30.) then
-         if (rlongd.ge.155..and.rlongd.le.170.) then
-          tss(iq)=tss(iq)-1.
-         end if
-        end if
-       end do
-      end if
-      if (nspecial==48.or.nspecial==49) then
-       do iq=1,ifull
-        rlongd=rlongg(iq)*180./pi
-        rlatd=rlatt(iq)*180./pi
-        if (rlatd.ge.-15..and.rlatd.le.-5.) then
-         if (rlongd.ge.150..and.rlongd.le.170.) then
-          tss(iq)=tss(iq)-1.
          end if
         end if
        end do
@@ -989,7 +967,7 @@ c       incorporate other target land mask effects
         !--------------------------------------------------
         ! Read MLO sea-ice data
         if (nmlo.ne.0.and.abs(nmlo).le.9) then
-          if (.not.allocated(micdwn)) allocate(micdwn(ifull,10))
+          if (.not.allocated(micdwn)) allocate(micdwn(ifull,11))
           do k=1,8
             select case(k)
               case(1,2,3)
@@ -1060,6 +1038,25 @@ c       incorporate other target land mask effects
               call ccmpi_distribute(micdwn(:,10))
             endif ! myid==0
           end if ! iotest
+          ucc=0.
+          call histrd1(ncid,iarchi,ier,'icesal',ik,6*ik,ucc,
+     &                 6*ik*ik)
+          if (iotest) then
+            if (myid==0) then
+              call ccmpi_distribute(micdwn(:,11),ucc)
+            else
+              call ccmpi_distribute(micdwn(:,11))
+            end if
+          else
+            if (myid==0) then
+              where (land_a)
+                ucc=spval
+              end where
+              call fill_cc(ucc,spval,ik,0)
+            end if
+            call doints4(ucc,micdwn(:,11),nface4,xg4,yg4,nord,dk,
+     &             ifg)
+          end if
           if (abs(nmlo).ge.2.and.abs(nmlo).le.9) then
             ucc=0.
             call histrd1(ncid,iarchi,ier,'swater',ik,6*ik,ucc,

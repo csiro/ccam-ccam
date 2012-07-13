@@ -1493,7 +1493,7 @@ contains
       iext = 0
       do n=1,npan
 
-         !     Start with W edge, U,V values
+         !     Start with W edge, U values
          i = 1
          do j=1,jpan
             iqg = indg(i,j,n)
@@ -1517,7 +1517,7 @@ contains
             bnds(rproc)%uv_neg(bnds(rproc)%rlen_uv) = .false.
          end do
 
-         !     N edge (V,U)
+         !     N edge (V)
          j=jpan
          do i=1,ipan
             iqg = indg(i,j,n)
@@ -1539,7 +1539,7 @@ contains
             bnds(rproc)%uv_neg(bnds(rproc)%rlen_uv) = .false.
          end do
 
-         !     E edge, U,V
+         !     E edge, U
          i = ipan
          do j=1,jpan
             iqg = indg(i,j,n)
@@ -1560,7 +1560,7 @@ contains
             bnds(rproc)%uv_neg(bnds(rproc)%rlen_uv) = .false.
          end do
 
-         !     S edge, V,U
+         !     S edge, V
          j=1
          do i=1,ipan
             iqg = indg(i,j,n)
@@ -1771,6 +1771,7 @@ contains
             bnds(rproc)%uv_swap(bnds(rproc)%rlenx_uv) = swap
             bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = swap
          end do
+      
       end do ! n=1,npan
 
       if ( iext > iextra ) then
@@ -2623,11 +2624,7 @@ contains
       
       ! MJT error check
       do iproc=0,nproc-1
-        if (dslen(iproc)>bnds(iproc)%len) then
-	  write(6,*) "ERROR in deptsync myid,iproc,dslen,bnds%len,neighbour ", &
-	    myid,iproc,dslen(iproc),bnds(iproc)%len,neighbour(iproc)
-          call checksize(dslen(iproc),bnds(iproc)%len,"Deptssync")
-	end if	
+        call checksize(dslen(iproc),bnds(iproc)%len,"Deptssync")
       end do
 
 !     In this case the length of each buffer is unknown and will not

@@ -331,7 +331,7 @@ c Calculate qs and gam=(L/cp)*dqsdt,  at temperature tliq
           dqsdt=qs*hlrvap/tliq(mg,k)**2
 c         qvc(mg,k)=qs !Vapour mixing ratio in cloud
 
-          al=1/(1+(hlcp+fice(mg,k)*hlfcp)*dqsdt)    !Smith's notation
+          al=1./(1.+(hlcp+fice(mg,k)*hlfcp)*dqsdt)    !Smith's notation
           qc=qtot(mg,k)-qs
 
           delq=(1-rcrit(mg,k))*qs      !UKMO style (equivalent to above)
@@ -489,15 +489,15 @@ c         qsg(mg,k)=qsati(pk,ttg(mg,k)) !Ice value   ! moved to bottom
 
 c Vertically sub-grid cloud
 
-      if(nl.lt.18)then
-        do k=1,nl-1
-          do mg=1,ln2
-            if(cfrac(mg,k).gt.1.0e-2)then
-              ccov(mg,k)=cfrac(mg,k)**(2./3)
-            endif
-          enddo
-        enddo
-      else
+!      if(nl.lt.18)then
+!        do k=1,nl-1
+!          do mg=1,ln2
+!            if(cfrac(mg,k).gt.1.0e-2)then
+!              ccov(mg,k)=cfrac(mg,k)**(2./3)
+!            endif
+!          enddo
+!        enddo
+!      else
         do k=2,nl-1
           do mg=1,ln2
             if(cfrac(mg,k).gt.1.0e-2
@@ -507,7 +507,7 @@ c            ccov(mg,k)=cfrac(mg,k)**(2./3)
             endif
           enddo
         enddo
-      endif
+!      endif
      
       if(diag.and.mydiag)then
           write(6,*) 'at end of newcloud'
