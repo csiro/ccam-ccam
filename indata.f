@@ -1834,7 +1834,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
             micdwn(:,6)=1.
           end where
           micdwn(:,7:10)=0.
-          micdwn(:,11)=mlodwn(:,1,2)
+          micdwn(:,11)=10.
           where (.not.land)
             fracice=micdwn(:,5)
             sicedep=micdwn(:,6)
@@ -1843,6 +1843,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
         end if
         mlodwn(:,:,1)=max(mlodwn(:,:,1),270.)
         mlodwn(:,:,2)=max(mlodwn(:,:,2),0.)
+	micdwn(:,11)=max(micdwn(:,11),0.)
         call mloload(mlodwn,ocndwn(:,2),micdwn,0)
         deallocate(micdwn)
         do k=1,ms

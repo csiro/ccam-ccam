@@ -1462,7 +1462,7 @@ ndum=max(ndum,0.)
 nsto(1:ifull)=ndum(1:ifull)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-10)
 
 ! Horizontal advection for ice salinity
-ndum(1:ifull)=i_sal*fracice/(em(1:ifull)*em(1:ifull))
+ndum(1:ifull)=i_sal*fracice*sicedep/(em(1:ifull)*em(1:ifull))
 call bounds(ndum)
 odum=ndum(1:ifull)
 odum=odum+max(min( 0.5*dt*(niu(iwu)*(ndum(1:ifull)+ndum(iw))    -abs(niu(iwu))*(ndum(1:ifull)-ndum(iw))    )*emu(iwu)/ds    , &
@@ -1475,7 +1475,7 @@ odum=odum+max(min(-0.5*dt*(niv(1:ifull)*(ndum(1:ifull)+ndum(in))+abs(niv(1:ifull
          -ndum(in)*min(niv(1:ifull),0.)/spnet(in)),-ndum(1:ifull)*max(niv(1:ifull),0.)/spnet(1:ifull))
 ndum(1:ifull)=odum
 ndum=max(ndum,0.)
-nis(1:ifull)=ndum(1:ifull)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-10)
+nis(1:ifull)=ndum(1:ifull)*em(1:ifull)*em(1:ifull)/max(ndic(1:ifull)*nfracice(1:ifull),1.E-10)
 
 ! Horizontal advection for surface temperature
 ndum(1:ifull)=i_it(1:ifull,1)*fracice/(em(1:ifull)*em(1:ifull))
