@@ -72,7 +72,6 @@ real, parameter :: ric     = 0.3    ! Critical Ri for diagnosing mixed layer dep
 real, parameter :: epsilon = 0.1    ! Ratio of surface layer and mixed layer thickness
 real, parameter :: minsfc  = 0.5    ! Minimum thickness to average surface layer properties (m)
 real, parameter :: maxsal  = 50.    ! Maximum salinity used in density and melting point calculations (PSU)
-real, parameter :: icesal  = 10.    ! Maximum salinity for sea-ice
 ! radiation parameters
 real, parameter :: mu_1 = 23.       ! VIS depth (m) - Type I
 real, parameter :: mu_2 = 0.35      ! NIR depth (m) - Type I
@@ -107,6 +106,7 @@ real, parameter :: gammi=3.471e5          ! specific heat*depth (for ice)  (J m^
 real, parameter :: gamms=4.857e4          ! specific heat*depth (for snow) (J m^-2 K^-1)
 !real, parameter :: emisice=0.95          ! emissivity of ice
 real, parameter :: emisice=1.             ! emissivity of ice
+real, parameter :: icesal=10.             ! Maximum salinity for sea-ice
 ! stability function parameters
 real, parameter :: bprm=5.                ! 4.7 in rams
 real, parameter :: chs=2.6                ! 5.3 in rams
@@ -2089,21 +2089,21 @@ if (nice.gt.0) then
   d_nk=unpack(dp_nk(1:nice),cice,d_nk)
 end if
 
-! estimate density of water from ice melting
-call getrho1(i_sal,a_ps,d_ri,d_zcr)
-
 ! update ice velocities due to stress terms
 i_u=i_u+dt*(p_tauxica-d_tauxicw)/imass
 i_v=i_v+dt*(p_tauyica-d_tauyicw)/imass
 
 ! Remove excessive salinity from ice
-deld=0.
-where(i_sal.gt.0.)
-  deld=i_dic*max(1.-icesal/i_sal,0.)
-end where
+deld=i_dic*(1.-icesal/max(i_sal,icesal))
 d_salflxf=d_salflxf+deld*rhoic/dt
 d_salflxs=d_salflxs-deld*rhoic/dt
-i_sal=i_sal*(1.-deld/i_dic)
+where (i_dic.ge.icemin)
+  i_sal=i_sal*(1.-deld/i_dic)
+end where
+
+! estimate density of water from ice melting
+call getrho1(i_sal,a_ps,d_ri,d_zcr)
+
 
 ! update water boundary conditions
 d_wu0=d_wu0-ofracice*d_tauxicw/d_rho(:,1)
