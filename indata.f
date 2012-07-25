@@ -78,6 +78,7 @@
       real, dimension(ifull,kl) :: dumqg,dumqf,dumql,dumqr
       real, dimension(ifull,kl) :: dumb,dumu,dumv
       real, dimension(ifull_g) :: glob2d,davt_g
+      real, dimension(2*kl*kl+kl) :: dumc
       real rlonx,rlatx,alf
       real aamax, aamax_g, c, cent, 
      &     coslat, coslong, costh, den, diffb, diffg, dist,
@@ -153,11 +154,16 @@
       land(:)=.false.
       kdate=kdate_s
       ktime=ktime_s
+      sig(:)=0.
+      sigmh(:)=0.
+      tbar(:)=0.
+      emat=0.
+      einv=0.
+      bam=0.
 
       !--------------------------------------------------------------
       ! READ AND PROCESS ATMOSPHERE SIGMA LEVELS
       if (myid==0) then
-       bam(1)=114413.
        read(28,*)(sig(k),k=1,kl),(tbar(k),k=1,kl),(bam(k),k=1,kl)
      &  ,((emat(k,l),k=1,kl),l=1,kl),((einv(k,l),k=1,kl),l=1,kl)
      &  ,(qvec(k),k=1,kl),((tmat(k,l),k=1,kl),l=1,kl)
@@ -171,9 +177,13 @@
        write(6,*) 'bam: ',bam
       endif ! (myid==0)
 
-      call MPI_Bcast(sig,kl,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(sigmh,kl,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(tbar,kl,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      dumc(1:kl)=sig
+      dumc(kl+1:2*kl)=sigmh
+      dumc(2*kl+1:3*kl)=tbar
+      call MPI_Bcast(dumc(1:3*kl),3*kl,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      sig=dumc(1:kl)
+      sigmh=dumc(kl+1:2*kl)
+      tbar=dumc(2*kl+1:3*kl)
 
       do k=1,kl-1
        dsig(k)=sigmh(k+1)-sigmh(k)
@@ -245,12 +255,10 @@
         end if
        endif  ! (nh.ne.0)
       endif !myid==0
-    
+
       call MPI_Bcast(bam,kl,MPI_REAL,0,MPI_COMM_WORLD,ierr)
       call MPI_Bcast(emat,kl*kl,MPI_REAL,0,MPI_COMM_WORLD,ierr)
       call MPI_Bcast(einv,kl*kl,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      !call MPI_Bcast(qvec,kl,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      !call MPI_Bcast(tmat,kl*kl,MPI_REAL,0,MPI_COMM_WORLD,ierr)
 
 !     zmin here is approx height of the lowest level in the model
       zmin=-rdry*280.*log(sig(1))/grav
@@ -655,12 +663,7 @@
           endif 
         endif   ! (newtop>=1)
 
-!       ensure qg etc big enough, but not too big in top levels (from Sept '04)
         qg(1:ifull,:)=max(qg(1:ifull,:),0.)
-        !qg(1:ifull,:)=max(qg(1:ifull,:),qgmin)
-        !do k=kl-2,kl
-        ! qg(1:ifull,k)=min(qg(1:ifull,k),10.*qgmin)
-        !enddo
         ps(1:ifull)=1.e5*exp(psl(1:ifull))
 
       else
@@ -1843,7 +1846,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
         end if
         mlodwn(:,:,1)=max(mlodwn(:,:,1),270.)
         mlodwn(:,:,2)=max(mlodwn(:,:,2),0.)
-	micdwn(:,11)=max(micdwn(:,11),0.)
+        micdwn(:,11)=max(micdwn(:,11),0.)
         call mloload(mlodwn,ocndwn(:,2),micdwn,0)
         deallocate(micdwn)
         do k=1,ms

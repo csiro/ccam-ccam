@@ -557,9 +557,9 @@ c       For time varying surface fields
           call attrib(idnc,idim,3,'tggsn4',lname,'K',100.,425.,0,itype)
           lname = 'Ice heat store'
           call attrib(idnc,idim,3,'sto',lname,'J/m2',0.,1300.,0,itype)
-          lname = 'x-component ice'
+          lname = 'x-component ice velocity'
           call attrib(idnc,idim,3,'uic',lname,'m/s',-65.,65.,0,itype)
-          lname = 'y-component ice'
+          lname = 'y-component ice velocity'
           call attrib(idnc,idim,3,'vic',lname,'m/s',-65.,65.,0,itype)
           lname = 'Ice salinity'
           call attrib(idnc,idim,3,'icesal',lname,'PSU',0.,130.,0,
@@ -1372,7 +1372,6 @@ c      set time to number of minutes since start
         micdwn=999.
         micdwn(:,9)=0.
         micdwn(:,10)=0.
-        micdwn(:,11)=0.
         aa=0. ! ocean depth
         bb=0. ! free surface height
         call mlosave(mlodwn,aa,bb,micdwn,0)

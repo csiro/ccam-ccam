@@ -2094,16 +2094,16 @@ i_u=i_u+dt*(p_tauxica-d_tauxicw)/imass
 i_v=i_v+dt*(p_tauyica-d_tauyicw)/imass
 
 ! Remove excessive salinity from ice
-deld=i_dic*(1.-icesal/max(i_sal,icesal))
-d_salflxf=d_salflxf+deld*rhoic/dt
-d_salflxs=d_salflxs-deld*rhoic/dt
+deld=0.
 where (i_dic.ge.icemin)
+  deld=i_dic*(1.-icesal/max(i_sal,icesal))
   i_sal=i_sal*(1.-deld/i_dic)
 end where
+d_salflxf=d_salflxf+deld*rhoic/dt
+d_salflxs=d_salflxs-deld*rhoic/dt
 
 ! estimate density of water from ice melting
 call getrho1(i_sal,a_ps,d_ri,d_zcr)
-
 
 ! update water boundary conditions
 d_wu0=d_wu0-ofracice*d_tauxicw/d_rho(:,1)

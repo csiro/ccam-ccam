@@ -3,17 +3,17 @@
       ! CCAM interface for surface flux routines
       ! Includes standard land-surface scheme,
       ! prescribed SSTs and sea-ice, CABLE
-      ! interface and MLO interface
+      ! interface, urban interface and MLO
+      ! interface
       
-      ! nsib=3   Standard land-surface scheme with SIB and Gratz data
-      ! nsib=5   Standard land-surface scheme with MODIS data
-      ! nsib=6   CABLE land-surface scheme with CABLE diagnostics
-      ! nsib=7   CABLE land-surface scheme with CCAM diagnostics
-      ! nmlo=0   Prescriped SSTs and sea-ice with JLM skin enhancement
-      ! nmlo=1   1D mixed-layer-ocean model
-      ! nmlo=2   nmlo=1 plus river-routing and horiontal diffusion
-      ! nmlo=3   nmlo=2 plus 3D dynamics
-      ! nmlo>9   Use external PCOM ocean model
+      ! nsib=3              Standard land-surface scheme with SIB and Gratz data
+      ! nsib=5              Standard land-surface scheme with MODIS data
+      ! nsib=6              CABLE land-surface scheme with CABLE diagnostics
+      ! nsib=7              CABLE land-surface scheme with CCAM diagnostics
+      ! nmlo=0              Prescriped SSTs and sea-ice with JLM skin enhancement
+      ! nmlo>0 and mlo<=9   KPP ocean mixing
+      ! nmlo>9              Use external PCOM ocean model
+      ! nurban>0            Use urban scheme
       
       use arrays_m                       ! Atmosphere dyamics prognostic arrays
       use ateb                           ! Urban
@@ -491,61 +491,13 @@ c       Surface stresses taux, tauy: diagnostic only - unstag now       ! sice
        endif   ! (mydiag.and.nmaxpr==1)                                 ! sice
        call end_log(sfluxwater_end)                                     ! sice
 
-      elseif (abs(nmlo).ge.1.and.abs(nmlo).le.9) then                   ! MLO
-        ! abs(mlo) <= 1 Vertical mixing                                 ! MLO
-        ! abs(mlo) <= 2 + Horizontal diffusion                          ! MLO
-        ! abs(mlo) <= 3 + Advection                                     ! MLO
-                                                                        ! MLO
-        if (abs(nmlo).ge.2) then                                        ! MLO
-          ! make physic load balance explicit before MLO                ! MLO
-          ! dynamics or diffusion                                       ! MLO
-          call phys_loadbal                                             ! MLO
-          call end_log(phys_end)                                        ! MLO
-        end if                                                          ! MLO
-                                                                        ! MLO
-        if (abs(nmlo).ge.3) then                                        ! MLO
-          ! Ocean dynamics                                              ! MLO
-          call start_log(waterdynamics_begin)                           ! MLO
-          if (myid==0.and.nmaxpr==1) then                               ! MLO
-            write(6,*) "Before MLO dynamics"                            ! MLO
-          end if                                                        ! MLO
-          call mlohadv                                                  ! MLO
-          if (myid==0.and.nmaxpr==1) then                               ! MLO
-            write(6,*) "After MLO dynamics"                             ! MLO
-          end if                                                        ! MLO
-          call end_log(waterdynamics_end)                               ! MLO
-        end if                                                          ! MLO
-                                                                        ! MLO
-        if (abs(nmlo).ge.2) then                                        ! MLO
-          ! Ocean diffusion                                             ! MLO
-          call start_log(waterdiff_begin)                               ! MLO
-          if (myid==0.and.nmaxpr==1) then                               ! MLO
-            write(6,*) "Before MLO diffusion"                           ! MLO
-          end if                                                        ! MLO
-          call mlodiffusion                                             ! MLO
-          if (myid==0.and.nmaxpr==1) then                               ! MLO
-            write(6,*) "After MLO diffusion"                            ! MLO
-          end if                                                        ! MLO
-          call end_log(waterdiff_end)                                   ! MLO
-                                                                        ! MLO
-          ! River routing                                               ! MLO
-          call start_log(river_begin)                                   ! MLO
-          if (myid==0.and.nmaxpr==1) then                               ! MLO
-            write(6,*) "Before river"                                   ! MLO
-          end if                                                        ! MLO
-          call mlorouter                                                ! MLO
-          if (myid==0.and.nmaxpr==1) then                               ! MLO
-            write(6,*) "After river"                                    ! MLO
-          end if                                                        ! MLO
-          call end_log(river_end)                                       ! MLO
-          call start_log(phys_begin)                                    ! MLO
-        end if                                                          ! MLO
+      elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                       ! MLO
                                                                         ! MLO
         call start_log(watermix_begin)                                  ! MLO
         if (myid==0.and.nmaxpr==1) then                                 ! MLO
           write(6,*) "Before MLO mixing"                                ! MLO
         end if                                                          ! MLO
-        if (abs(nmlo).eq.1) then                                        ! MLO
+        if (abs(nmlo)==1) then                                          ! MLO
           ! Single column                                               ! MLO
           ! set free surface to zero when water is not conserved        ! MLO
           neta=0.                                                       ! MLO
@@ -615,7 +567,7 @@ c       Surface stresses taux, tauy: diagnostic only - unstag now       ! sice
         call end_log(watermix_end)                                      ! MLO
                                                                         ! MLO
       else                                                              ! PCOM
-        write(6,*) "ERROR: this option is for ocean model"              ! PCOM
+        write(6,*) "ERROR: this option is for PCOM ocean model"         ! PCOM
         stop                                                            ! PCOM
       end if                                                            ! PCOM
       !--------------------------------------------------------------      

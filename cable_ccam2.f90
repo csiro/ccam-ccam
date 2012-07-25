@@ -800,7 +800,7 @@ integer(i_d), dimension(ifull,5) :: ivs
 integer(i_d) iq,n,k,ipos,isoil,iv,ncount
 integer jyear,jmonth,jday,jhour,jmin,mins
 real(r_1) totdepth,fc3,fc4,ftu,fg3,fg4,clat,nsum
-real fjd
+real fjd,xp
 real(r_1), dimension(mxvt,ms) :: froot2
 real(r_1), dimension(ifull,5) :: svs,vlin,vlinprev,vlinnext
 real(r_1), dimension(ncp) :: ratecp
@@ -913,28 +913,50 @@ do iq=1,ifull
   if (land(iq)) then
     clat=rlatt(iq)*180./pi
     ! grass
-    if (abs(clat).gt.50.) then
+    if (abs(clat)>50.5) then
       fg3=0.
       fg4=0.
-    else if (abs(clat).gt.40.) then
+    else if (abs(clat)>49.5) then
+      xp=abs(clat)-49.5
+      fg3=(1.-xp)*0.9
+      fg4=(1.-xp)*0.1
+    else if (abs(clat)>40.5) then
       fg3=0.9
       fg4=0.1
-    else if (abs(clat).gt.30.) then
+    else if (abs(clat)>39.5) then
+      xp=abs(clat)-39.5
+      fg3=(1.-xp)*0.8+xp*0.9
+      fg4=(1.-xp)*0.2+xp*0.1
+    else if (abs(clat)>30.5) then
       fg3=0.8
       fg4=0.2
-    else if (abs(clat).gt.25.) then
+    else if (abs(clat)>29.5) then
+      xp=abs(clat)-29.5
+      fg3=(1.-xp)*0.5+xp*0.8
+      fg4=(1.-xp)*0.5+xp*0.2
+    else if (abs(clat)>25.5) then
       fg3=0.5
       fg4=0.5
+    else if (abs(clat)>24.5) then
+      xp=abs(clat)-24.5
+      fg3=(1.-xp)*0.05+xp*0.5
+      fg4=(1.-xp)*0.95+xp*0.5
     else
       fg3=0.05
       fg4=0.95
     end if
     ftu=1.-fg3-fg4
     ! crops
-    if (abs(clat).gt.40.) then
+    if (abs(clat)>40.5) then
       fc3=1.
-    else if (abs(clat).gt.30.) then
+    else if (abs(clat)>39.5) then
+      xp=abs(clat)-39.5
+      fc3=(1.-xp)*0.9+xp
+    else if (abs(clat)>30.5) then
       fc3=0.9
+    else if (abs(clat)>29.5) then
+      xp=abs(clat)-29.5
+      fc3=(1.-xp)*0.7+xp*0.9
     else
       fc3=0.7
     end if
@@ -947,11 +969,21 @@ do iq=1,ifull
           newlai(iq,ivs(iq,n),1)=newlai(iq,ivs(iq,n),1)+svs(iq,n)*vlin(iq,n)
           newlai(iq,ivs(iq,n),2)=newlai(iq,ivs(iq,n),2)+svs(iq,n)*vlinnext(iq,n)
         case (5)
-          if (clat.lt.-25..or.clat.gt.25.) then
+          if (abs(clat)>25.5) then
             newgrid(iq,4)=newgrid(iq,4)+svs(iq,n)
             newlai(iq,4,0)=newlai(iq,4,0)+svs(iq,n)*vlinprev(iq,n)
             newlai(iq,4,1)=newlai(iq,4,1)+svs(iq,n)*vlin(iq,n)
             newlai(iq,4,2)=newlai(iq,4,2)+svs(iq,n)*vlinnext(iq,n)
+          else if (abs(clat)>24.5) then
+            xp=abs(clat)-24.5
+            newgrid(iq,1)=newgrid(iq,1)+svs(iq,n)*0.5*(1.-xp)
+            newlai(iq,1,0)=newlai(iq,1,0)+svs(iq,n)*0.5*vlinprev(iq,n)*(1.-xp)
+            newlai(iq,1,1)=newlai(iq,1,1)+svs(iq,n)*0.5*vlin(iq,n)*(1.-xp)
+            newlai(iq,1,2)=newlai(iq,1,2)+svs(iq,n)*0.5*vlinnext(iq,n)*(1.-xp)
+            newgrid(iq,4)=newgrid(iq,4)+svs(iq,n)*0.5*(1.+xp)
+            newlai(iq,4,0)=newlai(iq,4,0)+svs(iq,n)*vlinprev(iq,n)*0.5*(1.+xp)
+            newlai(iq,4,1)=newlai(iq,4,1)+svs(iq,n)*vlin(iq,n)*0.5*(1.+xp)
+            newlai(iq,4,2)=newlai(iq,4,2)+svs(iq,n)*vlinnext(iq,n)*0.5*(1.+xp)
           else
             newgrid(iq,1)=newgrid(iq,1)+svs(iq,n)*0.5
             newlai(iq,1,0)=newlai(iq,1,0)+svs(iq,n)*0.5*vlinprev(iq,n)
@@ -997,11 +1029,21 @@ do iq=1,ifull
           newlai(iq,8,1)=newlai(iq,8,1)+svs(iq,n)*0.8*ftu*vlin(iq,n)
           newlai(iq,8,2)=newlai(iq,8,2)+svs(iq,n)*0.8*ftu*vlinnext(iq,n)
         case (8)
-          if (clat.lt.-40..or.clat.gt.40.) then
+          if (abs(clat)>40.5) then
             newgrid(iq,1)=newgrid(iq,1)+svs(iq,n)*0.4
             newlai(iq,1,0)=newlai(iq,1,0)+svs(iq,n)*0.4*vlinprev(iq,n)
             newlai(iq,1,1)=newlai(iq,1,1)+svs(iq,n)*0.4*vlin(iq,n)
             newlai(iq,1,2)=newlai(iq,1,2)+svs(iq,n)*0.4*vlinnext(iq,n)
+          else if (abs(clat)>39.5) then
+            xp=abs(clat)-39.5
+            newgrid(iq,1)=newgrid(iq,1)+svs(iq,n)*0.4*xp
+            newlai(iq,1,0)=newlai(iq,1,0)+svs(iq,n)*vlinprev(iq,n)*0.4*xp
+            newlai(iq,1,1)=newlai(iq,1,1)+svs(iq,n)*vlin(iq,n)*0.4*xp
+            newlai(iq,1,2)=newlai(iq,1,2)+svs(iq,n)*vlinnext(iq,n)*0.4*xp         
+            newgrid(iq,2)=newgrid(iq,2)+svs(iq,n)*0.4*(1.-xp)
+            newlai(iq,2,0)=newlai(iq,2,0)+svs(iq,n)*vlinprev(iq,n)*0.4*(1.-xp)
+            newlai(iq,2,1)=newlai(iq,2,1)+svs(iq,n)*vlin(iq,n)*0.4*(1.-xp)
+            newlai(iq,2,2)=newlai(iq,2,2)+svs(iq,n)*vlinnext(iq,n)*0.4*(1.-xp)
           else
             newgrid(iq,2)=newgrid(iq,2)+svs(iq,n)*0.4
             newlai(iq,2,0)=newlai(iq,2,0)+svs(iq,n)*0.4*vlinprev(iq,n)
@@ -1021,11 +1063,21 @@ do iq=1,ifull
           newlai(iq,8,1)=newlai(iq,8,1)+svs(iq,n)*0.6*ftu*vlin(iq,n)
           newlai(iq,8,2)=newlai(iq,8,2)+svs(iq,n)*0.6*ftu*vlinnext(iq,n)
         case (9)
-          if (clat.lt.-40..or.clat.gt.40.) then
+          if (abs(clat)>40.5) then
             newgrid(iq,1)=newgrid(iq,1)+svs(iq,n)*0.1
             newlai(iq,1,0)=newlai(iq,1,0)+svs(iq,n)*0.1*vlinprev(iq,n)
             newlai(iq,1,1)=newlai(iq,1,1)+svs(iq,n)*0.1*vlin(iq,n)
             newlai(iq,1,2)=newlai(iq,1,2)+svs(iq,n)*0.1*vlinnext(iq,n)
+          else if (abs(clat)>39.5) then
+            xp=abs(clat)-39.5
+            newgrid(iq,1)=newgrid(iq,1)+svs(iq,n)*0.1*xp
+            newlai(iq,1,0)=newlai(iq,1,0)+svs(iq,n)*vlinprev(iq,n)*0.1*xp
+            newlai(iq,1,1)=newlai(iq,1,1)+svs(iq,n)*vlin(iq,n)*0.1*xp
+            newlai(iq,1,2)=newlai(iq,1,2)+svs(iq,n)*vlinnext(iq,n)*0.1*xp
+            newgrid(iq,2)=newgrid(iq,2)+svs(iq,n)*0.1*(1.-xp)
+            newlai(iq,2,0)=newlai(iq,2,0)+svs(iq,n)*vlinprev(iq,n)*0.1*(1.-xp)
+            newlai(iq,2,1)=newlai(iq,2,1)+svs(iq,n)*vlin(iq,n)*0.1*(1.-xp)
+            newlai(iq,2,2)=newlai(iq,2,2)+svs(iq,n)*vlinnext(iq,n)*0.1*(1.-xp)
           else
             newgrid(iq,2)=newgrid(iq,2)+svs(iq,n)*0.1
             newlai(iq,2,0)=newlai(iq,2,0)+svs(iq,n)*0.1*vlinprev(iq,n)
@@ -1098,7 +1150,7 @@ do iq=1,ifull
     end where
     nsum=sum(newgrid(iq,:))
     if (nsum.gt.0.) newgrid(iq,:)=newgrid(iq,:)/nsum
-    ipos=count(newgrid(iq,:).gt.0.)
+    ipos=count(newgrid(iq,:)>0.)
     if (ipos.gt.9) then
       write(6,*) "ERROR: Too many CABLE tiles"
       stop
@@ -1109,7 +1161,7 @@ end do
 
 ! if CABLE is present on this processor, then start allocating arrays
 if (myid==0) write(6,*) "Allocating CABLE and CASA CNP arrays"
-if (mp.gt.0) then
+if (mp>0) then
   
   allocate(sv(mp),cmap(mp))
   allocate(vl1(mp),vl2(mp),vl3(mp))
@@ -1126,7 +1178,7 @@ if (mp.gt.0) then
   call alloc_cbm_var(veg, mp)
 
   ! soil parameters
-  soil%zse = zse ! soil layer thickness
+  soil%zse        = zse ! soil layer thickness
   soil%zshh(1)    = 0.5 * soil%zse(1)
   soil%zshh(ms+1) = 0.5 * soil%zse(ms)
   soil%zshh(2:ms) = 0.5 * (soil%zse(1:ms-1) + soil%zse(2:ms))

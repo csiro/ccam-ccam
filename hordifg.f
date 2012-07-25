@@ -132,13 +132,13 @@ c     above code independent of k
         end do
         call bounds(zgh)
 
+        ! weighted horizontal velocities
         uav(1:ifull,:)=av_vmod*u(1:ifull,:)
      &               +(1.-av_vmod)*savu(1:ifull,:)
         vav(1:ifull,:)=av_vmod*v(1:ifull,:)
      &               +(1.-av_vmod)*savv(1:ifull,:)
-
-        ! calculate horizontal gradients using JLM reduction factor
         call boundsuv(uav,vav,allvec=.true.)
+
         ! calculate vertical velocity in m/s
         do k=1,kl        
           ! omega=ps*dpsldt

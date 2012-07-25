@@ -33,6 +33,7 @@
       use map_m                               ! Grid map arrays
       use mlo, only : mlodiag,wlev,mxd        ! Ocean physics and prognostic arrays
      &   ,mindep,minwater
+      use mlodynamics                         ! Ocean dynamics
       use morepbl_m                           ! Additional boundary layer diagnostics
       use nharrs_m, only : nharrs_init        ! Non-hydrostatic atmosphere arrays
      &   ,lrestart
@@ -361,7 +362,6 @@
       ! some default values for unspecified parameters
       if (ia.lt.0) ia=il/2
       if (ib.lt.0) ib=ia+3
-      if (ntbar.lt.0) ntbar=kl/3
       if (ktopdav.lt.0) ktopdav=kl
       if (kbotmlo.lt.0) kbotmlo=ol
       if (ldr==0) mbase=0
@@ -713,6 +713,16 @@
       ! do not close ncid as onthefly.f expects each file to have
       ! separate ncid numbers.
 
+      if (ntbar.lt.0) then
+        ntbar=kl
+        do k=1,kl
+          if (sig(k).le.0.8) then
+            ntbar=k
+            exit
+          end if
+        end do
+      end if
+
       ! max/min diagnostics      
       call maxmin(u,' u',ktau,1.,kl)
       call maxmin(v,' v',ktau,1.,kl)
@@ -752,7 +762,7 @@
          if ( myid == 0 ) then
            ncid = ncopn(mesonest,0,ier )  ! 0 denotes read-only
            write(6,*)'ncid,ier,mesonest ',ncid,ier,mesonest
-           call ncmsg("Reading infile",ier)
+           call ncmsg("Reading mesonest",ier)
          endif ! myid == 0
       endif    ! (mbd.ne.0.or.nbd.ne.0)
 
@@ -905,11 +915,11 @@
         mspeca=2
         dt=dtin*.5
       endif
-      call gettin(0)             ! preserve initial mass & T fields; nmi too
+      call gettin(0)            ! preserve initial mass & T fields; nmi too
 
       nmaxprsav=nmaxpr
       nwtsav=nwt
-      hrs_dt = dtin/3600.      ! time step in hours
+      hrs_dt = dtin/3600.       ! time step in hours
       mins_dt = nint(dtin/60.)  ! time step in minutes
       mtimer_in=mtimer
       nstagin=nstag    ! -ve nstagin gives swapping & its frequency
@@ -931,9 +941,7 @@
          write(6,*) "Start of loop time ", timeval
       end if
       call log_on()
-#ifdef simple_timer
       call start_log(maincalc_begin)
-#endif
 
       do 88 kktau=1,ntau   ! ****** start of main time loop
       ktau=kktau
@@ -943,7 +951,7 @@
       mins_gmt=mod(mtimer+60*ktime/100,24*60)
 
       ! ***********************************************************************
-      ! START DYNAMICS AND NUDGING
+      ! START ATMOSPHERE DYNAMICS AND NUDGING
       ! ***********************************************************************
 
       ! NESTING ---------------------------------------------------------------
@@ -989,10 +997,9 @@
         vn(1:ifull,:)=0.
       endif   ! (nvsplit<3.or.ktau==1) .. elseif ..
 
-      call bounds(qg)
-      call bounds(psl)
       if(mup.ne.1.or.(ktau==1.and.mspec==mspeca.and..not.lrestart))
      &    then
+        call bounds(psl)
 !       updps called first step or to permit clean restart option      
         call updps(0) 
       endif
@@ -1175,9 +1182,56 @@
         vx(1:ifull,:)=v(1:ifull,:)   
       endif
 
-      ! horizontal diffusion
+      ! DIFFUSION -------------------------------------------------------------
       if (nhor<0) call hordifgt(iaero)  ! now not tendencies
       if (diag.and.mydiag) write(6,*) 'after hordifgt t ',t(idjd,:)
+
+      ! ***********************************************************************
+      ! START OCEAN DYNAMICS
+      ! ***********************************************************************
+
+      ! nmlo=0   Prescriped SSTs and sea-ice with JLM skin enhancement
+      ! nmlo=1   1D mixed-layer-ocean model
+      ! nmlo=2   nmlo=1 plus river-routing and horiontal diffusion
+      ! nmlo=3   nmlo=2 plus 3D dynamics
+      ! nmlo>9   Use external PCOM ocean model
+
+      ! DYNAMICS --------------------------------------------------------------
+      if (abs(nmlo)>=3) then
+        call start_log(waterdynamics_begin)
+        if (myid==0.and.nmaxpr==1) then
+          write(6,*) "Before MLO dynamics"
+        end if
+        call mlohadv
+        if (myid==0.and.nmaxpr==1) then
+          write(6,*) "After MLO dynamics"
+        end if
+        call end_log(waterdynamics_end)
+      end if
+
+      if (abs(nmlo)>=2) then
+        ! DIFFUSION ----------------------------------------------------------
+        call start_log(waterdiff_begin)
+        if (myid==0.and.nmaxpr==1) then
+          write(6,*) "Before MLO diffusion"
+        end if
+        call mlodiffusion
+        if (myid==0.and.nmaxpr==1) then
+          write(6,*) "After MLO diffusion"
+        end if
+        call end_log(waterdiff_end)
+
+        ! RIVER ROUTING ------------------------------------------------------
+        call start_log(river_begin)
+        if (myid==0.and.nmaxpr==1) then
+          write(6,*) "Before river"
+        end if
+        call mlorouter
+        if (myid==0.and.nmaxpr==1) then
+          write(6,*) "After river"
+        end if
+        call end_log(river_end)
+      end if
 
       ! ***********************************************************************
       ! START PHYSICS 
@@ -1223,12 +1277,12 @@
       if (myid==0.and.nmaxpr==1) then
         write(6,*) "Before cloud microphysics"
       end if
-      select case(ldr)
-        case(-2,-1,1,2)
-          dumc=cffall(1:ifull,:)
-          call leoncld(cfrac,dumc,iaero) ! LDR microphysics scheme
-          cffall(1:ifull,:)=dumc
-      end select
+      if (ldr/=0) then
+        ! LDR microphysics scheme
+        dumc=cffall(1:ifull,:)
+        call leoncld(cfrac,dumc,iaero)
+        cffall(1:ifull,:)=dumc
+      end if
       do k=1,kl
        riwp_ave(:)=riwp_ave(:)-qfrad(:,k)*dsig(k)*ps(1:ifull)/grav ! ice water path
        rlwp_ave(:)=rlwp_ave(:)-qlrad(:,k)*dsig(k)*ps(1:ifull)/grav ! liq water path
@@ -1245,45 +1299,40 @@
       call end_log(cloud_end)
 
       ! RADIATION -------------------------------------------------------------
+      
+      ! nrad=4 Fels-Schwarzkopf radiation
+      ! nrad=5 SEA-ESF radiation
+      
       if (myid==0.and.nmaxpr==1) then
         write(6,*) "Before radiation"
       end if
+      odcalc=mod(ktau,kountr)==0.or.ktau==1 ! ktau-1 better
+      nnrad=kountr
+      if (nhstest<0) then ! aquaplanet test -1 to -8  
+       mtimer_sav=mtimer
+       mtimer=mins_gmt     ! so radn scheme repeatedly works thru same day
+      end if    ! (nhstest<0)
       select case(nrad)
        case(4)
 !       Fels-Schwarzkopf radiation
-        odcalc=mod(ktau,kountr)==0 .or. ktau==1 ! ktau-1 better
-        nnrad=kountr
-        if (nhstest<0) then ! aquaplanet test -1 to -8  
-         mtimer_sav=mtimer
-         mtimer=mins_gmt     ! so radn scheme repeatedly works thru same day
-        end if    ! (nhstest<0)
-        call radrive (il*nrows_rad,odcalc,iaero)
-        if (nhstest<0) then ! aquaplanet test -1 to -8  
-          mtimer=mtimer_sav
-        end if    ! (nhstest<0)
-        if (nmaxpr==1) then
-          ! Account for load bal explicitly rather than implicitly in
-          ! the reduce in maxmin.
-          call phys_loadbal
-          call maxmin(slwa,'sl',ktau,.1,1)
-        end if
+        call radrive(il*nrows_rad,odcalc,iaero)
        case(5)
         ! GFDL SEA-EFS radiation
-        odcalc=mod(ktau,kountr)==0.or.ktau==1
-        nnrad=kountr
-        if (nhstest<0) then
-         mtimer_sav=mtimer
-         mtimer=mins_gmt
-        end if
         call seaesfrad(il*nrows_rad,odcalc,iaero)
-        if (nhstest<0) then
-          mtimer=mtimer_sav
-        end if
        case DEFAULT
 !       use preset slwa array (use +ve nrad)
         slwa(:)=-10*nrad  
 !       N.B. no rtt array for this nrad option
       end select
+      if (nhstest<0) then ! aquaplanet test -1 to -8  
+        mtimer=mtimer_sav
+      end if    ! (nhstest<0)
+      if (nmaxpr==1) then
+        ! Account for load bal explicitly rather than implicitly in
+        ! the reduce in maxmin.
+        call phys_loadbal
+        call maxmin(slwa,'sl',ktau,.1,1)
+      end if
       if (myid==0.and.nmaxpr==1) then
         write(6,*) "After radiation"
       end if

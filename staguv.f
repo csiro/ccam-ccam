@@ -22,6 +22,7 @@ c     use diag_m             ! for calls to maxmin
       real, dimension(ifull,kl), intent(out) :: uout, vout
       real, dimension(ifull+iextra,kl) :: ua, va, ud, vd,
      &                                    uin, vin
+      real, dimension(ifull,kl) :: ug, vg
       integer, parameter :: ntest=0    ! usually 0, 1 for test prints
       integer, parameter :: itnmax=3
       integer :: iq, itn, k, i, j
@@ -104,6 +105,8 @@ c          vout(iq,k)=.5*(vin(inv(iq),k)+vin(iq,k))
                va(iq,k)=vd(iq,k)-vd(inv(iq),k)/2. ! 1st guess
             end do
          end do
+         ug=ua(1:ifull,:)
+         vg=va(1:ifull,:)
 
          do itn=1,itnmax        ! each loop is a double iteration
 
@@ -111,9 +114,9 @@ c          vout(iq,k)=.5*(vin(inv(iq),k)+vin(iq,k))
             do k=1,kl
 !cdir nodep
                do iq=1,ifull
-                  uin(iq,k)=(ud(iq,k)-.5*ud(ieu(iq),k)
+                  uin(iq,k)=(ug(iq,k)
      &                 -ua(iwu(iq),k)/10. +ua(ieeu(iq),k)/4.)/.95
-                  vin(iq,k)=(vd(iq,k)-.5*vd(inv(iq),k)
+                  vin(iq,k)=(vg(iq,k)
      &                 -va(isv(iq),k)/10. +va(innv(iq),k)/4.)/.95
                end do
             end do
@@ -122,9 +125,9 @@ c          vout(iq,k)=.5*(vin(inv(iq),k)+vin(iq,k))
             do k=1,kl
 !cdir nodep
                do iq=1,ifull
-                  ua(iq,k)=(ud(iq,k)-.5*ud(ieu(iq),k)
+                  ua(iq,k)=(ug(iq,k)
      &                 -uin(iwu(iq),k)/10. +uin(ieeu(iq),k)/4.)/.95
-                  va(iq,k)=(vd(iq,k)-.5*vd(inv(iq),k)
+                  va(iq,k)=(vg(iq,k)
      &                 -vin(isv(iq),k)/10. +vin(innv(iq),k)/4.)/.95
                end do
             end do
@@ -132,7 +135,7 @@ c          vout(iq,k)=.5*(vin(inv(iq),k)+vin(iq,k))
          end do                  ! itn=1,itnmax
 
       else if ( nstag==4 ) then
-         call boundsuv(uin,vin)
+         call boundsuv(uin,vin,nrows=2)
          do k=1,kl
 !cdir nodep
             do iq=1,ifull       ! precalculate rhs terms
@@ -141,15 +144,17 @@ c          vout(iq,k)=.5*(vin(inv(iq),k)+vin(iq,k))
             enddo
          enddo
 
-         call boundsuv(ud,vd)
-
          do k=1,kl
 !cdir nodep
             do iq=1,ifull
-               ua(iq,k)=ud(iq,k)-ud(iwu(iq),k)/2. ! 1st guess
-               va(iq,k)=vd(iq,k)-vd(isv(iq),k)/2. ! 1st guess
+               ua(iq,k)=-0.05*uin(iwwu(iq),k)-0.4*uin(iwu(iq),k)
+     &                  +0.75*uin(iq,k)+0.5*uin(ieu(iq),k) ! 1st guess
+               va(iq,k)=-0.05*vin(issv(iq),k)-0.4*vin(isv(iq),k)
+     &                  +0.75*vin(iq,k)+0.5*vin(inv(iq),k) ! 1st guess
             enddo
          enddo
+         ug=ua(1:ifull,:)
+         vg=va(1:ifull,:)
 
          do itn=1,itnmax        ! each loop is a double iteration
             call boundsuv(ua,va,nrows=2)
@@ -157,9 +162,9 @@ c          vout(iq,k)=.5*(vin(inv(iq),k)+vin(iq,k))
             do k=1,kl
 !cdir nodep
                do iq=1,ifull
-                  uin(iq,k)=(ud(iq,k)-.5*ud(iwu(iq),k)
+                  uin(iq,k)=(ug(iq,k)
      &                 -ua(ieu(iq),k)/10. +ua(iwwu(iq),k)/4.)/.95
-                  vin(iq,k)=(vd(iq,k)-.5*vd(isv(iq),k)
+                  vin(iq,k)=(vg(iq,k)
      &                 -va(inv(iq),k)/10. +va(issv(iq),k)/4.)/.95
                enddo
             enddo
@@ -168,9 +173,9 @@ c          vout(iq,k)=.5*(vin(inv(iq),k)+vin(iq,k))
 !cdir nodep
             do k=1,kl
                do iq=1,ifull
-                  ua(iq,k)=(ud(iq,k)-.5*ud(iwu(iq),k)
+                  ua(iq,k)=(ug(iq,k)
      &                 -uin(ieu(iq),k)/10. +uin(iwwu(iq),k)/4.)/.95
-                  va(iq,k)=(vd(iq,k)-.5*vd(isv(iq),k)
+                  va(iq,k)=(vg(iq,k)
      &                 -vin(inv(iq),k)/10. +vin(issv(iq),k)/4.)/.95
                enddo
             end do
@@ -208,6 +213,7 @@ c     staggered u & v as input; unstaggered as output
       real, dimension(ifull,kl), intent(out) :: uout, vout
       real, dimension(ifull+iextra,kl) :: ua, va, ud, vd,
      &                                    uin, vin
+      real, dimension(ifull,kl) :: ug, vg
       integer, parameter :: itnmax=3
       integer :: iq, itn, k, num
       save num
@@ -257,6 +263,8 @@ c     staggered u & v as input; unstaggered as output
                va(iq,k)=vd(iq,k)-vd(isv(iq),k)/2. ! 1st guess
             end do
          end do
+         ug=ua(1:ifull,:)
+         vg=va(1:ifull,:)
 
          do itn=1,itnmax        ! each loop is a double iteration
 
@@ -264,9 +272,9 @@ c     staggered u & v as input; unstaggered as output
             do k=1,kl
 !cdir nodep
                do iq=1,ifull
-                  uin(iq,k)=(ud(iq,k)-.5*ud(iwu(iq),k)
+                  uin(iq,k)=(ug(iq,k)
      &                 -ua(ieu(iq),k)/10. +ua(iwwu(iq),k)/4.)/.95
-                  vin(iq,k)=(vd(iq,k)-.5*vd(isv(iq),k)
+                  vin(iq,k)=(vg(iq,k)
      &                 -va(inv(iq),k)/10. +va(issv(iq),k)/4.)/.95
                end do
             end do
@@ -275,9 +283,9 @@ c     staggered u & v as input; unstaggered as output
             do k=1,kl
 !cdir nodep
                do iq=1,ifull
-                  ua(iq,k)=(ud(iq,k)-.5*ud(iwu(iq),k)
+                  ua(iq,k)=(ug(iq,k)
      &                 -uin(ieu(iq),k)/10. +uin(iwwu(iq),k)/4.)/.95
-                  va(iq,k)=(vd(iq,k)-.5*vd(isv(iq),k)
+                  va(iq,k)=(vg(iq,k)
      &                 -vin(inv(iq),k)/10. +vin(issv(iq),k)/4.)/.95
                end do
             end do
@@ -285,7 +293,7 @@ c     staggered u & v as input; unstaggered as output
          end do                 ! itn=1,itnmax
 
       else if ( nstagu==4 ) then
-         call boundsuv(uin,vin)
+         call boundsuv(uin,vin,nrows=2)
          do k=1,kl
 !cdir nodep
             do iq=1,ifull       ! precalculate rhs terms
@@ -293,23 +301,27 @@ c     staggered u & v as input; unstaggered as output
                vd(iq,k)= vin(inv(iq),k)/10.+vin(iq,k)+vin(isv(iq),k)/2.
             enddo
          enddo
-         call boundsuv(ud,vd)
+
          do k=1,kl
 !cdir nodep
             do iq=1,ifull
-               ua(iq,k)=ud(iq,k)-ud(ieu(iq),k)/2. ! 1st guess
-               va(iq,k)=vd(iq,k)-vd(inv(iq),k)/2. ! 1st guess
+               ua(iq,k)=-0.05*uin(ieeu(iq),k)-0.4*uin(ieu(iq),k)
+     &                  +0.75*uin(iq,k)+0.5*uin(iwu(iq),k) ! 1st guess
+               va(iq,k)=-0.05*vin(innv(iq),k)-0.4*vin(inv(iq),k)
+     &                  +0.75*vin(iq,k)+0.5*vin(isv(iq),k) ! 1st guess
             enddo
          enddo
+         ug=ua(1:ifull,:)
+         vg=va(1:ifull,:)
 
          do itn=1,itnmax        ! each loop is a double iteration
             call boundsuv(ua,va,nrows=2)
             do k=1,kl
 !cdir nodep
                do iq=1,ifull
-                  uin(iq,k)=(ud(iq,k)-.5*ud(ieu(iq),k)
+                  uin(iq,k)=(ug(iq,k)
      &                 -ua(iwu(iq),k)/10. +ua(ieeu(iq),k)/4.)/.95
-                  vin(iq,k)=(vd(iq,k)-.5*vd(inv(iq),k)
+                  vin(iq,k)=(vg(iq,k)
      &                 -va(isv(iq),k)/10. +va(innv(iq),k)/4.)/.95
                enddo
             enddo
@@ -317,9 +329,9 @@ c     staggered u & v as input; unstaggered as output
             do k=1,kl
 !cdir nodep
                do iq=1,ifull
-                  ua(iq,k)=(ud(iq,k)-.5*ud(ieu(iq),k)
+                  ua(iq,k)=(ug(iq,k)
      &                 -uin(iwu(iq),k)/10. +uin(ieeu(iq),k)/4.)/.95
-                  va(iq,k)=(vd(iq,k)-.5*vd(inv(iq),k)
+                  va(iq,k)=(vg(iq,k)
      &                 -vin(isv(iq),k)/10. +vin(innv(iq),k)/4.)/.95
                enddo
             enddo
