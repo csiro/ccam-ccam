@@ -99,7 +99,7 @@ dumx(1:ifull,2)=dd(1:ifull)
 call bounds(dumx(:,1:2),corner=.true.)
 ee=dumx(:,1)
 dd=dumx(:,2)
-wtr=ee.gt.0.5
+wtr=ee>0.5
 
 ! Precompute weights for calculating staggered gradients
 allocate(stwgt(ifull+iextra,2))
@@ -144,9 +144,9 @@ end do
 do iq=1,ifull
   if (.not.land(iq)) then
     do ii=1,wlev
-      if (abs(sig(ii)*dd(iq)-dep(iq,ii)).gt.0.1.or.    &
-          abs(sigh(ii)*dd(iq)-dephl(iq,ii)).gt.0.1.or. &
-          abs(dsig(ii)*dd(iq)-dz(iq,ii)).gt.0.1) then
+      if (abs(sig(ii)*dd(iq)-dep(iq,ii))>0.1.or.    &
+          abs(sigh(ii)*dd(iq)-dephl(iq,ii))>0.1.or. &
+          abs(dsig(ii)*dd(iq)-dz(iq,ii))>0.1) then
         write(6,*) "ERROR: MLO not configured for sigma levels"
         call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
       end if
@@ -162,7 +162,7 @@ gosigh=gdumz(wlev+1:2*wlev)
 godsig=gdumz(2*wlev+1:3*wlev)
 
 ! dynamics save arrays
-if (abs(nmlo).ge.3) then
+if (abs(nmlo)>=3) then
   allocate(oldu1(ifull,wlev),oldv1(ifull,wlev))
   allocate(oldu2(ifull,wlev),oldv2(ifull,wlev))
   allocate(ipice(ifull+iextra))
@@ -206,7 +206,7 @@ real, dimension(ifull) :: cc,emi,nu,nv,nw,dedx,dedy
 logical, dimension(ifull+iextra) :: wtr
 
 hdif=dt*(k_smag/pi)**2
-wtr=ee.gt.0.5
+wtr=ee>0.5
 emi=1./em(1:ifull)**2
 
 u=0.
@@ -357,7 +357,7 @@ do i=0,1
       ff=ff+290.
     case(1)
       ff=ff+34.72
-      where (ff.lt.0.1)
+      where (ff<0.1)
         ff=0.
       end where
   end select
@@ -368,7 +368,7 @@ do i=0,1
 end do
   
 ! Jack Katzfey salinity filter
-if (salfilt.eq.1) then
+if (salfilt==1) then
   gg(1:ifull,:)=ff
   call bounds(gg)
   do k=1,wlev
@@ -461,7 +461,7 @@ end do
 ! outflow
 mslope=max(slope,0.)
 vel=0.35*sqrt(mslope/0.00005) ! from Miller et al (1994)
-where (mslope.gt.1.E-10)
+where (mslope>1.E-10)
   vel=min(max(vel,0.15),5.)
 elsewhere
   vel=0.
@@ -471,7 +471,7 @@ netvel(1:ifull)=sum(vel,2)
 call bounds(netvel)
 flow=0.
 do i=1,4
-  where (netvel(1:ifull).gt.0.)
+  where (netvel(1:ifull)>0.)
     flow(:,i)=watbdy(1:ifull)*max(-dt*vel(:,i)*idp(:,i),-vel(:,i)/netvel(1:ifull)) ! (kg/m^2)
   end where
 end do
@@ -480,14 +480,14 @@ newwat=newwat+sum(flow,2)
 ! inflow
 mslope=max(-slope,0.)
 vel=0.35*sqrt(mslope/0.00005) ! from Miller et al (1994)
-where (mslope.gt.1.E-10)
+where (mslope>1.E-10)
   vel=min(max(vel,0.15),5.)
 elsewhere
   vel=0.
 end where
 flow=0.
 do i=1,4
-  where (netvel(xp(:,i)).gt.0.)
+  where (netvel(xp(:,i))>0.)
     flow(:,i)=watbdy(xp(:,i))*min(dt*vel(:,i)*idp(:,i),vel(:,i)/netvel(xp(:,i))) ! (kg/m^2)
     flow(:,i)=flow(:,i)*em(1:ifull)*em(1:ifull)/(em(xp(:,i))*em(xp(:,i))) ! change in gridbox area
   end where
@@ -502,7 +502,7 @@ select case(basinmd)
     ! add water to soil moisture 
     if (nsib==6.or.nsib==7) then
       do iq=1,ifull
-        if (all(slope(iq,:).lt.-1.E-10).and.land(iq)) then
+        if (all(slope(iq,:)<-1.E-10).and.land(iq)) then
           ! runoff is inserted into soil moisture since CCAM has discrete land and sea points
           xx=watbdy(iq)
           call cableinflow(iq,xx)
@@ -511,7 +511,7 @@ select case(basinmd)
       end do
     else
       do iq=1,ifull
-        if (all(slope(iq,:).lt.-1.E-10).and.land(iq)) then
+        if (all(slope(iq,:)<-1.E-10).and.land(iq)) then
           ! runoff is inserted into soil moisture since CCAM has discrete land and sea points
           xx=watbdy(iq)
           yy=min(xx,(ssat(isoilm(iq))-wb(iq,ms))*1000.*zse(ms))
@@ -526,7 +526,7 @@ select case(basinmd)
     lssum=0.
     lwsum=0.
     do iq=1,ifull
-      if (all(slope(iq,:).lt.-1.E-10).and.land(iq)) then
+      if (all(slope(iq,:)<-1.E-10).and.land(iq)) then
         lssum=lssum+newwat(iq)/(em(iq)*em(iq)) ! kg of water / (ds*ds)
         newwat(iq)=0.
       elseif (.not.land(iq)) then
@@ -598,7 +598,7 @@ real, dimension(ifull+iextra) :: nfracice,ndic,ndsn,nsto,niu,niv,nis,ndum
 real, dimension(ifull+iextra) :: snu,sou,spu,squ,sru,snv,sov,spv,sqv,srv
 real, dimension(ifull+iextra) :: ibu,ibv,icu,icv,spnet,oeta,oeu,oev
 real, dimension(ifull) :: i_u,i_v,i_sto,i_sal,rhobaru,rhobarv
-real, dimension(ifull) :: sdiv,sinp,div,inp,odiv,seta,w_e
+real, dimension(ifull) :: sdiv,div,odiv,seta,w_e
 real, dimension(ifull) :: sdivb,divb,odivb,xps
 real, dimension(ifull) :: tnu,tsu,tev,twv,rhou,rhov
 real, dimension(ifull) :: dpsdxu,dpsdyu,dpsdxv,dpsdyv
@@ -618,7 +618,7 @@ real, dimension(ifull+iextra,1) :: sku,skv
 real, dimension(ifull,1) :: uiu,uiv,siu,siv,sju,sjv
 real, dimension(ifull,4) :: i_it
 real, dimension(ifull,wlev) :: w_u,w_v,w_t,w_s,dum
-real, dimension(ifull,wlev) :: nuh,nvh,xg,yg,uau,uav,dou,dov,tau,tav
+real, dimension(ifull,wlev) :: nuh,nvh,xg,yg,uau,uav,tau,tav
 real, dimension(ifull,wlev) :: kku,llu,mmu,nnu
 real, dimension(ifull,wlev) :: kkv,llv,mmv,nnv
 real, dimension(ifull,wlev) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
@@ -629,12 +629,12 @@ real*8, dimension(ifull,wlev) :: x3d,y3d,z3d
 logical, dimension(ifull+iextra) :: wtr
 logical lleap
 
-integer, parameter :: llmax=300    ! iterations for calculating surface height
-integer, parameter :: nxtrrho=1    ! Estimate rho at t+1
-real, parameter :: tol  = 2.E-3    ! Tolerance for GS solver (water)
-real, parameter :: itol = 2.E1     ! Tolerance for GS solver (ice)
-real, parameter :: sal  = 0.948    ! SAL parameter for tidal forcing
-real, parameter :: eps  = 0.1      ! Off-centring term
+integer, parameter :: llmax   = 300 ! iterations for calculating surface height
+integer, parameter :: nxtrrho = 1   ! Estimate rho at t+1
+real, parameter :: tol  = 2.E-3     ! Tolerance for GS solver (water)
+real, parameter :: itol = 2.E1      ! Tolerance for GS solver (ice)
+real, parameter :: sal  = 0.948     ! SAL parameter for tidal forcing
+real, parameter :: eps  = 0.1       ! Off-centring term
 
 ! new z levels for including free surface eta (effectively sigma-depth levels)
 ! newz=-eta+oldz*(1+eta/maxdepth)
@@ -652,7 +652,7 @@ if (myid==0.and.nmaxpr==1) then
 end if
 
 ! Define land/sea mask
-wtr=ee.gt.0.5
+wtr=ee>0.5
 
 ! Default values
 w_t=273.16
@@ -694,16 +694,16 @@ call mloexpice(i_sal,11,0)
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: Tides"
 end if
-if (usetide.eq.1) then
+if (usetide==1) then
   call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
   jstart=0
-  if (jyear.gt.1900) then
+  if (jyear>1900) then
     do tyear=1900,jyear-1
       call mloleap(tyear,lleap)
       if (lleap) jstart=jstart+1
       jstart=jstart+365
     end do
-  else if (jyear.lt.1900) then
+  else if (jyear<1900) then
     do tyear=1899,jyear,-1
       call mloleap(tyear,lleap)
       if (lleap) jstart=jstart-1
@@ -711,7 +711,7 @@ if (usetide.eq.1) then
     end do
   end if
   mins=mins+720 ! base time is 12Z 31 Dec 1899
-  if (leap.eq.0.and.jmonth.gt.2) mins=mins+1440 ! fix for leap==0
+  if (leap==0.and.jmonth>2) mins=mins+1440 ! fix for leap==0
   call mlotide(ndum(1:ifull),rlongg,rlatt,mins,jstart)
 else
   ndum(1:ifull)=0.
@@ -791,7 +791,7 @@ if (myid==0.and.nmaxpr==1) then
 end if
 
 ! save arrays
-if (ktau.eq.1.and..not.lrestart) then
+if (ktau==1.and..not.lrestart) then
   oldu1=nu(1:ifull,:)
   oldv1=nv(1:ifull,:)
   oldu2=nu(1:ifull,:)
@@ -915,28 +915,38 @@ eov(1:ifull,wlev+1)=oev(1:ifull)
 call boundsuv(eou,eov)
 oeu=eou(:,wlev+1)*eeu
 oev=eov(:,wlev+1)*eev
-dou(:,1)=nu(1:ifull,1)*godsig(1)*ee(1:ifull) ! unstaggered at time t
-dov(:,1)=nv(1:ifull,1)*godsig(1)*ee(1:ifull)
+!dou(:,1)=nu(1:ifull,1)*godsig(1)*ee(1:ifull) ! unstaggered at time t
+!dov(:,1)=nv(1:ifull,1)*godsig(1)*ee(1:ifull)
 cou(:,1)=eou(:,1)*godsig(1)*eeu
 cov(:,1)=eov(:,1)*godsig(1)*eev
 do ii=2,wlev
-  dou(:,ii)=(dou(:,ii-1)+nu(1:ifull,ii)*godsig(ii))*ee(1:ifull)
-  dov(:,ii)=(dov(:,ii-1)+nv(1:ifull,ii)*godsig(ii))*ee(1:ifull)
+  !dou(:,ii)=(dou(:,ii-1)+nu(1:ifull,ii)*godsig(ii))*ee(1:ifull)
+  !dov(:,ii)=(dov(:,ii-1)+nv(1:ifull,ii)*godsig(ii))*ee(1:ifull)
   cou(:,ii)=(cou(:,ii-1)+eou(:,ii)*godsig(ii))*eeu
   cov(:,ii)=(cov(:,ii-1)+eov(:,ii)*godsig(ii))*eev
 end do
-sju(:,1)=(oeu(1:ifull)/emu(1:ifull)-oeu(iwu)/emu(iwu))*em(1:ifull)*em(1:ifull)/ds ! unstaggered
-sjv(:,1)=(oev(1:ifull)/emv(1:ifull)-oev(isv)/emv(isv))*em(1:ifull)*em(1:ifull)/ds
-sdiv=(cou(1:ifull,wlev)*(ddu(1:ifull)+neta(1:ifull))/emu(1:ifull)-cou(iwu,wlev)*(ddu(iwu)+neta(1:ifull))/emu(iwu)  &
-     +cov(1:ifull,wlev)*(ddv(1:ifull)+neta(1:ifull))/emv(1:ifull)-cov(isv,wlev)*(ddv(isv)+neta(1:ifull))/emv(isv)) &
+!sju(:,1)=(oeu(1:ifull)/emu(1:ifull)-oeu(iwu)/emu(iwu))*em(1:ifull)*em(1:ifull)/ds ! unstaggered
+!sjv(:,1)=(oev(1:ifull)/emv(1:ifull)-oev(isv)/emv(isv))*em(1:ifull)*em(1:ifull)/ds
+!sdiv=(cou(1:ifull,wlev)*(ddu(1:ifull)+neta(1:ifull))/emu(1:ifull)-cou(iwu,wlev)*(ddu(iwu)+neta(1:ifull))/emu(iwu)  &
+!     +cov(1:ifull,wlev)*(ddv(1:ifull)+neta(1:ifull))/emv(1:ifull)-cov(isv,wlev)*(ddv(isv)+neta(1:ifull))/emv(isv)) &
+!     *em(1:ifull)*em(1:ifull)/ds
+!sinp=-(dou(:,wlev)*sju(:,1)+dov(:,wlev)*sjv(:,1))
+!do ii=1,wlev-1
+!  div=(cou(1:ifull,ii)*(ddu(1:ifull)+neta(1:ifull))/emu(1:ifull)-cou(iwu,ii)*(ddu(iwu)+neta(1:ifull))/emu(iwu)  &
+!      +cov(1:ifull,ii)*(ddv(1:ifull)+neta(1:ifull))/emv(1:ifull)-cov(isv,ii)*(ddv(isv)+neta(1:ifull))/emv(isv)) &
+!      *em(1:ifull)*em(1:ifull)/ds
+!  inp=-(dou(:,ii)*sju(:,1)+dov(:,ii)*sjv(:,1))
+!  nw(:,ii)=((sdiv-sinp)*gosigh(ii)-div+inp)*ee(1:ifull)
+!end do
+! These following lines are equivalent to those above
+sdiv=(cou(1:ifull,wlev)*(ddu(1:ifull)+oeu(1:ifull))/emu(1:ifull)-cou(iwu,wlev)*(ddu(iwu)+oeu(iwu))/emu(iwu)  &
+     +cov(1:ifull,wlev)*(ddv(1:ifull)+oev(1:ifull))/emv(1:ifull)-cov(isv,wlev)*(ddv(isv)+oev(isv))/emv(isv)) &
      *em(1:ifull)*em(1:ifull)/ds
-sinp=-(dou(:,wlev)*sju(:,1)+dov(:,wlev)*sjv(:,1))
 do ii=1,wlev-1
-  div=(cou(1:ifull,ii)*(ddu(1:ifull)+neta(1:ifull))/emu(1:ifull)-cou(iwu,ii)*(ddu(iwu)+neta(1:ifull))/emu(iwu)  &
-      +cov(1:ifull,ii)*(ddv(1:ifull)+neta(1:ifull))/emv(1:ifull)-cov(isv,ii)*(ddv(isv)+neta(1:ifull))/emv(isv)) &
+  div=(cou(1:ifull,ii)*(ddu(1:ifull)+oeu(1:ifull))/emu(1:ifull)-cou(iwu,ii)*(ddu(iwu)+oeu(iwu))/emu(iwu)  &
+      +cov(1:ifull,ii)*(ddv(1:ifull)+oev(1:ifull))/emv(1:ifull)-cov(isv,ii)*(ddv(isv)+oev(isv))/emv(isv)) &
       *em(1:ifull)*em(1:ifull)/ds
-  inp=-(dou(:,ii)*sju(:,1)+dov(:,ii)*sjv(:,1))
-  nw(:,ii)=((sdiv-sinp)*gosigh(ii)-div+inp)*ee(1:ifull)
+  nw(:,ii)=(sdiv*gosigh(ii)-div)*ee(1:ifull)
 end do
 ! compute contunity equation horizontal transport terms
 do ii=1,wlev
@@ -1154,7 +1164,7 @@ do ii=1,wlev
   !nu=kku+llu*etau+mmu*detadxu+nnu*detadyu (staggered)
   !nv=kkv+llv*etav+mmv*detadyv+nnv*detadxv (staggered)
 
-  if (usetide.eq.1) then
+  if (usetide==1) then
     llu(:,ii)=(bu*drhobardxu(:,ii)+cu*drhobardyu(:,ii))*grav*gosig(ii)
     mmu(:,ii)=bu*grav*(rhobaru+rhou*(1.-sal)*2./(1.+eps))
     nnu(:,ii)=cu*grav*(rhobaru+rhou*(1.-sal)*2./(1.+eps))
@@ -1302,7 +1312,7 @@ do ll=1,llmax
   au=-(1.+eps)*0.5*dt*sdiv
   bu=-(1.+(1.+eps)*0.5*dt*(div+odiv+sdivb))
   cu=xps-(1.+eps)*0.5*dt*(divb+odivb)
-  where (abs(au).gt.1.E-4)
+  where (abs(au)>1.E-4)
     seta=-neta(1:ifull)+0.5*(-bu-sqrt(bu*bu-4.*au*cu))/au
   elsewhere
     ! the following is a Talyor expansion of the above expression
@@ -1321,7 +1331,7 @@ do ll=1,llmax
   ! Break iterative loop when maximum error is below tol (expensive)
   maxloclseta=maxval(abs(seta))
   call MPI_AllReduce(maxloclseta,maxglobseta,1,MPI_REAL,MPI_MAX,MPI_COMM_WORLD,ierr)
-  if (maxglobseta.lt.tol.and.ll.gt.2) exit
+  if (maxglobseta<tol.and.ll>2) exit
 
   totits=totits+1
 end do
@@ -1428,7 +1438,7 @@ do ll=1,llmax
 
   ! update ice pressure to remove negative divergence
   ! (assume change in imass is small)
-  where (odum.ne.0..and.sicedep.gt.0.01)
+  where (odum.ne.0..and.sicedep>0.01)
     nip=((niu(1:ifull)/emu(1:ifull)-niu(iwu)/emu(iwu))*ds    &
         +ibu(1:ifull)*ipice(ie)+ibu(iwu)*ipice(iw)           &
         +snu(1:ifull)-snuw                                   &
@@ -1455,7 +1465,7 @@ do ll=1,llmax
   ipice(1:ifull)=alpha*nip+(1.-alpha)*ipice(1:ifull)
 
   call MPI_AllReduce(maxloclip,maxglobip,1,MPI_REAL,MPI_MAX,MPI_COMM_WORLD,ierr)
-  if (maxglobip.lt.itol.and.ll.gt.2) exit
+  if (maxglobip<itol.and.ll>2) exit
 
   itotits=itotits+1
 end do
@@ -1532,7 +1542,7 @@ do ii=3,4
 end do
 
 ! repair problems found after advection of ice
-where (nfracice(1:ifull).lt.1.E-4)
+where (nfracice(1:ifull)<1.E-4)
   nfracice(1:ifull)=0.
   ndic(1:ifull)=0.
   ndsn(1:ifull)=0.
@@ -1544,16 +1554,16 @@ where (nfracice(1:ifull).lt.1.E-4)
   nit(1:ifull,4)=w_t(:,1)
 end where
   
-where (ndsn(1:ifull).lt.1.E-3)
+where (ndsn(1:ifull)<1.E-3)
   nit(1:ifull,2)=nit(1:ifull,3)
 end where
 
 ! bad data patch
-if (any(nit(1:ifull,:).lt.160.)) then
+if (any(nit(1:ifull,:)<160.)) then
   write(6,*) "WARN: Bad ice data patch"
 end if
 do ii=1,4
-  where(nit(1:ifull,ii).lt.160.)
+  where(nit(1:ifull,ii)<160.)
     nit(1:ifull,1)=w_t(:,1)
     nit(1:ifull,2)=w_t(:,1)
     nit(1:ifull,3)=w_t(:,1)
@@ -1581,7 +1591,7 @@ if (nud_sss==0) then
   do ii=1,wlev
     where(wtr(1:ifull).and.ndum(1:ifull)>0.1)
       !dum(:,ii)=ns(1:ifull,ii)-w_s
-      dum(:,ii)=ns(1:ifull,ii)-34.72 ! assume no change in global salinity
+      dum(:,ii)=min(ns(1:ifull,ii),50.)-34.72 ! assume no change in global salinity
     end where
     odum=dum(:,ii)
     ! cannot use 3d version, since it is hardwired to atmosphere dsig
@@ -1591,11 +1601,11 @@ if (nud_sss==0) then
   end do
   call ccglobal_posneg(odum,delpos,delneg)
   alph_p = -delneg/max(delpos,1.E-20)
-  alph_p = min(sqrt(alph_p),alph_p)
+  alph_p = min(max(sqrt(alph_p),1.E-20),1.E20)
   do ii=1,wlev
     where(wtr(1:ifull).and.ndum(1:ifull)>0.1)
-      !ns(1:ifull,ii)=w_s+max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)    
-      ns(1:ifull,ii)=34.72+max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)
+      !ns(1:ifull,ii)=w_s+max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)
+      ns(1:ifull,ii)=34.72+max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/alph_p
     end where
   end do
 end if
@@ -1742,7 +1752,7 @@ integer, parameter :: nmaploop = 3
 
 !     if necessary, transform (x3d, y3d, z3d) to equivalent
 !     coordinates (xstr, ystr, zstr) on regular gnomonic panels
-if(schmidt.eq.1.)then
+if(schmidt==1.)then
    xstr=x3d
    ystr=y3d
    zstr=z3d
@@ -1764,23 +1774,23 @@ xd=xstr/denxyz
 yd=ystr/denxyz
 zd=zstr/denxyz
 
-where (abs(xstr-denxyz).lt.1.E-6)
+where (abs(xstr-denxyz)<1.E-6)
   nface(:)    =0
   xg(:) =      yd
   yg(:) =      zd
-elsewhere (abs(xstr+denxyz).lt.1.E-6)
+elsewhere (abs(xstr+denxyz)<1.E-6)
   nface(:)    =3
   xg(:) =     -zd
   yg(:) =     -yd
-elsewhere (abs(zstr-denxyz).lt.1.E-6)
+elsewhere (abs(zstr-denxyz)<1.E-6)
   nface(:)    =1
   xg(:) =      yd
   yg(:) =     -xd
-elsewhere (abs(zstr+denxyz).lt.1.E-6)
+elsewhere (abs(zstr+denxyz)<1.E-6)
   nface(:)    =4
   xg(:) =      xd
   yg(:) =     -yd
-elsewhere (abs(ystr-denxyz).lt.1.E-6)
+elsewhere (abs(ystr-denxyz)<1.E-6)
   nface(:)    =2
   xg(:) =     -zd
   yg(:) =     -xd
@@ -1945,8 +1955,8 @@ if(intsch==1)then
         sc(0,2) = sx(idel  ,jdel+2,n,k)
         sc(1,2) = sx(idel+1,jdel+2,n,k)
 
-        ncount=count(sc.gt.cxx+1.)
-        if (ncount.ge.12) then
+        ncount=count(sc>cxx+1.)
+        if (ncount>=12) then
           r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,0)-xxg*sc(-1,0)/3.) &
                -xxg*(1.+xxg)*sc(2,0)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(1,0))/2.
           r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,1)-xxg*sc(-1,1)/3.) &
@@ -1959,7 +1969,7 @@ if(intsch==1)then
                -yyg*(1.+yyg)*r(4)/3.)                &
                +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
         else
-          where (sc(0:1,0:1).lt.cxx+1.)
+          where (sc(0:1,0:1)<cxx+1.)
             sc(0:1,0:1)=0.
           end where
           aad=sc(1,1)-sc(0,1)-sc(1,0)+sc(0,0)
@@ -2009,8 +2019,8 @@ if(intsch==1)then
       sc(0,2) = sx(idel  ,jdel+2,n,k)
       sc(1,2) = sx(idel+1,jdel+2,n,k)
 
-      ncount=count(sc.gt.cxx+1.)
-      if (ncount.ge.12) then
+      ncount=count(sc>cxx+1.)
+      if (ncount>=12) then
         r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,0)-xxg*sc(-1,0)/3.) &
              -xxg*(1.+xxg)*sc(2,0)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(1,0))/2.
         r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,1)-xxg*sc(-1,1)/3.) &
@@ -2023,7 +2033,7 @@ if(intsch==1)then
              -yyg*(1.+yyg)*r(4)/3.)                &
              +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
       else
-        where (sc(0:1,0:1).lt.cxx+1.)
+        where (sc(0:1,0:1)<cxx+1.)
           sc(0:1,0:1)=0.
         end where       
         aad=sc(1,1)-sc(0,1)-sc(1,0)+sc(0,0)
@@ -2107,8 +2117,8 @@ else     ! if(intsch==1)then
         sc(2,0) = sx(idel+2,jdel  ,n,k)
         sc(2,1) = sx(idel+2,jdel+1,n,k)
         
-        ncount=count(sc.gt.cxx+1.)
-        if (ncount.ge.12) then
+        ncount=count(sc>cxx+1.)
+        if (ncount>=12) then
           r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(0,0)-yyg*sc(0,-1)/3.) &
                -yyg*(1.+yyg)*sc(0,2)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(0,1))/2.
           r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(1,0)-yyg*sc(1,-1)/3.) &
@@ -2121,7 +2131,7 @@ else     ! if(intsch==1)then
                -xxg*(1.+xxg)*r(4)/3.)          &
                +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
         else
-          where (sc(0:1,0:1).lt.cxx+1.)
+          where (sc(0:1,0:1)<cxx+1.)
             sc(0:1,0:1)=0.
           end where      
           aad=sc(1,1)-sc(0,1)-sc(1,0)+sc(0,0)
@@ -2170,8 +2180,8 @@ else     ! if(intsch==1)then
       sc(2,0) = sx(idel+2,jdel  ,n,k)
       sc(2,1) = sx(idel+2,jdel+1,n,k)
 
-      ncount=count(sc.gt.cxx+1.)
-      if (ncount.ge.12) then
+      ncount=count(sc>cxx+1.)
+      if (ncount>=12) then
         r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(0,0)-yyg*sc(0,-1)/3.) &
              -yyg*(1.+yyg)*sc(0,2)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(0,1))/2.
         r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(1,0)-yyg*sc(1,-1)/3.) &
@@ -2183,7 +2193,7 @@ else     ! if(intsch==1)then
              -xxg*(1.+xxg)*r(4)/3.)                &
              +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
       else
-        where (sc(0:1,0:1).lt.cxx+1.)
+        where (sc(0:1,0:1)<cxx+1.)
           sc(0:1,0:1)=0.
         end where       
         aad=sc(1,1)-sc(0,1)-sc(1,0)+sc(0,0)
@@ -2327,8 +2337,8 @@ if(intsch==1)then
         sc(0,2) = sx(idel  ,jdel+2,n,k)
         sc(1,2) = sx(idel+1,jdel+2,n,k)
 
-        ncount=count(sc.gt.cxx+1.)
-        if (ncount.ge.12) then
+        ncount=count(sc>cxx+1.)
+        if (ncount>=12) then
           r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,0)-xxg*sc(-1,0)/3.) &
                -xxg*(1.+xxg)*sc(2,0)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(1,0))/2.
           r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,1)-xxg*sc(-1,1)/3.) &
@@ -2394,8 +2404,8 @@ if(intsch==1)then
       sc(0,2) = sx(idel  ,jdel+2,n,k)
       sc(1,2) = sx(idel+1,jdel+2,n,k)
 
-      ncount=count(sc.gt.cxx+1.)
-      if (ncount.ge.12) then
+      ncount=count(sc>cxx+1.)
+      if (ncount>=12) then
         r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,0)-xxg*sc(-1,0)/3.) &
              -xxg*(1.+xxg)*sc(2,0)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(1,0))/2.
         r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,1)-xxg*sc(-1,1)/3.) &
@@ -2495,8 +2505,8 @@ else     ! if(intsch==1)then
         sc(2,0) = sx(idel+2,jdel  ,n,k)
         sc(2,1) = sx(idel+2,jdel+1,n,k)
         
-        ncount=count(sc.gt.cxx+1.)
-        if (ncount.ge.12) then
+        ncount=count(sc>cxx+1.)
+        if (ncount>=12) then
           r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(0,0)-yyg*sc(0,-1)/3.) &
                -yyg*(1.+yyg)*sc(0,2)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(0,1))/2.
           r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(1,0)-yyg*sc(1,-1)/3.) &
@@ -2561,8 +2571,8 @@ else     ! if(intsch==1)then
       sc(2,0) = sx(idel+2,jdel  ,n,k)
       sc(2,1) = sx(idel+2,jdel+1,n,k)
 
-      ncount=count(sc.gt.cxx+1.)
-      if (ncount.ge.12) then
+      ncount=count(sc>cxx+1.)
+      if (ncount>=12) then
         r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(0,0)-yyg*sc(0,-1)/3.) &
              -yyg*(1.+yyg)*sc(0,2)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(0,1))/2.
         r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(1,0)-yyg*sc(1,-1)/3.) &
@@ -2698,16 +2708,16 @@ end do
 do itn=1,itnmax        ! each loop is a double iteration
   call boundsuv(ua,va,nrows=2)
   do iq=1,ifull
-    if (eeu(iwu(iq)).gt.0.5.and.eeu(iq).gt.0.5) then
+    if (eeu(iwu(iq))>0.5.and.eeu(iq)>0.5) then
       uin(iq,:)=(ug(iq,:)-ua(ieu(iq),:)*0.1+ua(iwwu(iq),:)*0.25)/0.95
-    else if (eeu(iq).gt.0.5) then
+    else if (eeu(iq)>0.5) then
       uin(iq,:)=ud(iq,:)-ua(ieu(iq),:)*0.1 !-ua(iwu(iq),:)*0.5
     else
       uin(iq,:)=0.
     end if
-    if (eev(isv(iq)).gt.0.5.and.eev(iq).gt.0.5) then
+    if (eev(isv(iq))>0.5.and.eev(iq)>0.5) then
       vin(iq,:)=(vg(iq,:)-va(inv(iq),:)*0.1+va(issv(iq),:)*0.25)/0.95
-    else if (eev(iq).gt.0.5) then
+    else if (eev(iq)>0.5) then
       vin(iq,:)=vd(iq,:)-va(inv(iq),:)*0.1 !-va(isv(iq),:)*0.5
     else
       vin(iq,:)=0.
@@ -2715,16 +2725,16 @@ do itn=1,itnmax        ! each loop is a double iteration
   end do
   call boundsuv(uin,vin,nrows=2)
   do iq=1,ifull
-    if (eeu(iwu(iq)).gt.0.5.and.eeu(iq).gt.0.5) then
+    if (eeu(iwu(iq))>0.5.and.eeu(iq)>0.5) then
       ua(iq,:)=(ug(iq,:)-uin(ieu(iq),:)*0.1+uin(iwwu(iq),:)*0.25)/0.95
-    else if (eeu(iq).gt.0.5) then
+    else if (eeu(iq)>0.5) then
       ua(iq,:)=ud(iq,:)-uin(ieu(iq),:)*0.1 !-uin(iwu(iq),:)*0.5
     else
       ua(iq,:)=0.
     end if
-    if (eev(isv(iq)).gt.0.5.and.eev(iq).gt.0.5) then
+    if (eev(isv(iq))>0.5.and.eev(iq)>0.5) then
       va(iq,:)=(vg(iq,:)-vin(inv(iq),:)*0.1+vin(issv(iq),:)*0.25)/0.95
-    else if (eev(iq).gt.0.5) then
+    else if (eev(iq)>0.5) then
       va(iq,:)=vd(iq,:)-vin(inv(iq),:)*0.1 !-vin(isv(iq),:)*0.5
     else
       va(iq,:)=0.
@@ -2786,16 +2796,16 @@ end do
 do itn=1,itnmax        ! each loop is a double iteration
   call boundsuv(ua,va,nrows=2)
   do iq=1,ifull
-    if (ee(ie(iq)).gt.0.5.and.ee(iq).gt.0.5) then
+    if (ee(ie(iq))>0.5.and.ee(iq)>0.5) then
       uin(iq,:)=(ug(iq,:)-ua(iwu(iq),:)*0.1+ua(ieeu(iq),:)*0.25)/0.95
-    else if (ee(iq).gt.0.5) then
+    else if (ee(iq)>0.5) then
       uin(iq,:)=ud(iq,:)-ua(iwu(iq),:)*0.1 !-ua(ieu(iq),:)*0.5
     else
       uin(iq,:)=0.
     end if
-    if (ee(in(iq)).gt.0.5.and.ee(iq).gt.0.5) then
+    if (ee(in(iq))>0.5.and.ee(iq)>0.5) then
       vin(iq,:)=(vg(iq,:)-va(isv(iq),:)*0.1+va(innv(iq),:)*0.25)/0.95
-    else if (ee(iq).gt.0.5) then
+    else if (ee(iq)>0.5) then
       vin(iq,:)=vd(iq,:)-va(isv(iq),:)*0.1 !-va(inv(iq),:)*0.5
     else
       vin(iq,:)=0.
@@ -2803,16 +2813,16 @@ do itn=1,itnmax        ! each loop is a double iteration
   end do
   call boundsuv(uin,vin,nrows=2)
   do iq=1,ifull
-    if (ee(ie(iq)).gt.0.5.and.ee(iq).gt.0.5) then
+    if (ee(ie(iq))>0.5.and.ee(iq)>0.5) then
       ua(iq,:)=(ug(iq,:)-uin(iwu(iq),:)*0.1+uin(ieeu(iq),:)*0.25)/0.95
-    else if (ee(iq).gt.0.5) then
+    else if (ee(iq)>0.5) then
       ua(iq,:)=ud(iq,:)-uin(iwu(iq),:)*0.1 !-uin(ieu(iq),:)*0.5
     else
       ua(iq,:)=0.
     end if
-    if (ee(in(iq)).gt.0.5.and.ee(iq).gt.0.5) then
+    if (ee(in(iq))>0.5.and.ee(iq)>0.5) then
       va(iq,:)=(vg(iq,:)-vin(isv(iq),:)*0.1+vin(innv(iq),:)*0.25)/0.95
-    else if (ee(iq).gt.0.5) then
+    else if (ee(iq)>0.5) then
       va(iq,:)=vd(iq,:)-vin(isv(iq),:)*0.1 !-vin(inv(iq),:)*0.5
     else
       va(iq,:)=0.
@@ -2861,7 +2871,7 @@ its=int(dtin/dtnew)+1
 call MPI_AllReduce(its,its_g,1,MPI_INTEGER,MPI_MAX,MPI_COMM_WORLD,ierr)
 dtnew=dtin/real(its_g)
 
-if (its_g.gt.500.and.myid.eq.0) write(6,*) "MLOVERT cnum,its_g",cnum,its_g
+if (its_g>500.and.myid==0) write(6,*) "MLOVERT cnum,its_g",cnum,its_g
 
 tt=tt-290.
 ss=ss-34.72
@@ -2874,7 +2884,7 @@ do l=1,its_g
 end do
 tt=tt+290.
 ss=ss+34.72
-where (ss.lt.0.1)
+where (ss<0.1)
   ss=0.
 end where
 
@@ -2950,8 +2960,8 @@ real, dimension(ifull,wlev) :: dntdxu,dntdxv,dntdyu,dntdyv
 real, dimension(ifull,wlev) :: dnsdxu,dnsdxv,dnsdyu,dnsdyv
 integer, parameter :: rhogradmeth = 1 ! Density gradient method (0 = finite difference, 1 = local interpolation, 2 = pom stencil)
 
-nt=min(max(273.1,nti),373.)
-ns=min(max(0.,nsi),50.)
+nt=min(max(273.1,nti),373.)-290.
+ns=min(max(0.,nsi),50.)-34.72
 
 do ii=1,wlev
   absu(:,ii)=0.5*(alphabar(1:ifull,ii)+alphabar(ie,ii))
@@ -3096,7 +3106,7 @@ do iqw=1,ifull
   ddi=gosig(:)*mxi
   dde=gosig(:)*mxe
   ddn=gosig(:)*mxn
-  if (eeu(iqw).gt.0.5) then ! water
+  if (eeu(iqw)>0.5) then ! water
     sdi=2
     sde=2
     sdn=2
@@ -3119,7 +3129,7 @@ do iqw=1,ifull
                 /(dephladj(iqw,ii)+dephladj(ie(iqw),ii)-dephladj(iqw,ii-1)-dephladj(ie(iqw),ii-1))
       ! use scaled depths (i.e., assume neta is small compared to dd)
       ddux=gosig(ii)*ddu(iqw) ! seek depth
-      if (mxi.lt.ddux.or.mxe.lt.ddux) then
+      if (mxi<ddux.or.mxe<ddux) then
         drhobardxu(iqw,ii)=0. ! assume zero gradient for bathymetry
       else
         call seekval(ri,ssi(:),ddi(:),ddux,sdi)
@@ -3129,7 +3139,7 @@ do iqw=1,ifull
         re=re+drhobardzu*(1.-gosig(ii))*neta(ie(iqw))
         drhobardxu(iqw,ii)=eeu(iqw)*(re-ri)*emu(iqw)/ds
       end if
-      if (mxn.lt.ddux.or.mxne.lt.ddux.or.mxs.lt.ddux.or.mxse.lt.ddux) then
+      if (mxn<ddux.or.mxne<ddux.or.mxs<ddux.or.mxse<ddux) then
         drhobardyu(iqw,ii)=0. ! assume zero gradient for bathymetry
       else
         call seekval(rn,ssn(:),ddn(:),ddux,sdn)
@@ -3148,7 +3158,7 @@ do iqw=1,ifull
     drhobardxu(iqw,:)=0.
     drhobardyu(iqw,:)=0.
   end if
-  if (eev(iqw).gt.0.5) then ! water
+  if (eev(iqw)>0.5) then ! water
     sdi=2
     sdn=2
     sde=2
@@ -3170,7 +3180,7 @@ do iqw=1,ifull
       drhobardzv=(rhobarhl(iqw,ii)+rhobarhl(in(iqw),ii)-rhobarhl(iqw,ii-1)-rhobarhl(in(iqw),ii-1))          &
                 /(dephladj(iqw,ii)+dephladj(in(iqw),ii)-dephladj(iqw,ii-1)-dephladj(in(iqw),ii-1))
       ddvy=gosig(ii)*ddv(iqw) ! seek depth
-      if (mxi.lt.ddvy.or.mxn.lt.ddvy) then
+      if (mxi<ddvy.or.mxn<ddvy) then
         drhobardyv(iqw,ii)=0. ! assume zero gradient for bathymetry
       else
         call seekval(ri,ssi(:),ddi(:),ddvy,sdi)
@@ -3179,7 +3189,7 @@ do iqw=1,ifull
         rn=rn+drhobardzv*(1.-gosig(ii))*neta(in(iqw))
         drhobardyv(iqw,ii)=eev(iqw)*(rn-ri)*emv(iqw)/ds
       end if
-      if (mxe.lt.ddvy.or.mxen.lt.ddvy.or.mxw.lt.ddvy.or.mxwn.lt.ddvy) then
+      if (mxe<ddvy.or.mxen<ddvy.or.mxw<ddvy.or.mxwn<ddvy) then
         drhobardxv(iqw,ii)=0. ! assume zero gradient for bathymetry
       else
         call seekval(re,sse(:),dde(:),ddvy,sde)
@@ -3216,7 +3226,7 @@ real, dimension(wlev), intent(in) :: ssin,ddin
 real xp
 
 do nindx=sindx,wlev
-  if (ddin(nindx).ge.ddseek) exit
+  if (ddin(nindx)>=ddseek) exit
 end do
 sindx=min(nindx,wlev)
 
@@ -3404,11 +3414,11 @@ real, dimension(0:1,0:1), intent(inout) :: sc
 real, dimension(0:1,0:1) :: nc
 logical globc
 
-ncount=count(sc.gt.-990.)
+ncount=count(sc>-990.)
 
-if (ncount.ge.4) return
+if (ncount>=4) return
 
-if (ncount.le.0) then
+if (ncount<=0) then
   sc=sx
   return
 end if
@@ -3440,35 +3450,35 @@ real new
 logical, intent(inout) :: globc
 logical, intent(in) :: ln,le,ls,lw
 
-if (nc(i,j).gt.-990.) return
+if (nc(i,j)>-990.) return
 
 new=0.
 nec=0
 if (ln) then
-  if (sc(i,j-1).gt.-990.) then
+  if (sc(i,j-1)>-990.) then
     new=new+sc(i,j-1)
     nec=nec+1
   end if
 end if
 if (le) then
-  if (sc(i+1,j).gt.-990.) then
+  if (sc(i+1,j)>-990.) then
     new=new+sc(i+1,j)
     nec=nec+1
   end if
 end if
 if (ls) then
-  if (sc(i,j+1).gt.-990.) then
+  if (sc(i,j+1)>-990.) then
     new=new+sc(i,j+1)
     nec=nec+1
   end if
 end if
 if (lw) then
-  if (sc(i-1,j).gt.-990.) then
+  if (sc(i-1,j)>-990.) then
     new=new+sc(i-1,j)
     nec=nec+1
   end if
 end if
-if (nec.gt.0) then
+if (nec>0) then
   nc(i,j)=new/real(nec)
 else
   globc=.true.
@@ -3488,9 +3498,9 @@ integer, intent(in) :: tyear
 logical, intent(out) :: ttest
 
 ttest=.false.
-if (mod(tyear,4).eq.0)   ttest=.true.
-if (mod(tyear,100).eq.0) ttest=.false.
-if (mod(tyear,400).eq.0) ttest=.true.
+if (mod(tyear,4)==0)   ttest=.true.
+if (mod(tyear,100)==0) ttest=.false.
+if (mod(tyear,400)==0) ttest=.true.
 
 return
 end subroutine mloleap
@@ -3514,34 +3524,34 @@ real, dimension(ifull) :: odum,dumd
 
 dumd=dumc(1:ifull)
 odum=0.5*dt*(niu(iwu)*(dumc(1:ifull)+dumc(iw))    -abs(niu(iwu))*(dumc(1:ifull)-dumc(iw))    )*emu(iwu)/ds
-where (spnet(iw).gt.0.)
+where (spnet(iw)>0.)
   odum=min(odum,dumc(iw)*max(niu(iwu),0.)/spnet(iw))
 end where
-where (spnet(1:ifull).gt.0.)
+where (spnet(1:ifull)>0.)
   odum=max(odum,dumc(1:ifull)*min(niu(iwu),0.)/spnet(1:ifull))
 end where
 dumd=dumd+odum
 odum=-0.5*dt*(niu(1:ifull)*(dumc(1:ifull)+dumc(ie))+abs(niu(1:ifull))*(dumc(1:ifull)-dumc(ie)))*emu(1:ifull)/ds
-where (spnet(ie).gt.0.)
+where (spnet(ie)>0.)
   odum=min(odum,-dumc(ie)*min(niu(1:ifull),0.)/spnet(ie))
 end where
-where (spnet(1:ifull).gt.0.)
+where (spnet(1:ifull)>0.)
   odum=max(odum,-dumc(1:ifull)*max(niu(1:ifull),0.)/spnet(1:ifull))
 end where
 dumd=dumd+odum  
 odum=0.5*dt*(niv(isv)*(dumc(1:ifull)+dumc(is))    -abs(niv(isv))*(dumc(1:ifull)-dumc(is))    )*emv(isv)/ds
-where (spnet(is).gt.0.)
+where (spnet(is)>0.)
   odum=min(odum,dumc(is)*max(niv(isv),0.)/spnet(is))
 end where
-where (spnet(1:ifull).gt.0.)
+where (spnet(1:ifull)>0.)
   odum=max(odum,dumc(1:ifull)*min(niv(isv),0.)/spnet(1:ifull))
 end where
 dumd=dumd+odum
 odum=-0.5*dt*(niv(1:ifull)*(dumc(1:ifull)+dumc(in))+abs(niv(1:ifull))*(dumc(1:ifull)-dumc(in)))*emv(1:ifull)/ds
-where (spnet(in).gt.0.)
+where (spnet(in)>0.)
   odum=min(odum,-dumc(in)*min(niv(1:ifull),0.)/spnet(in))
 end where
-where (spnet(1:ifull).gt.0.)
+where (spnet(1:ifull)>0.)
   odum=max(odum,-dumc(1:ifull)*max(niv(1:ifull),0.)/spnet(1:ifull))
 end where
 dumd=dumd+odum
