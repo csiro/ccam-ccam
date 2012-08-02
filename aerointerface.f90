@@ -467,6 +467,7 @@ zg=zg+phi_nh/grav
 do k=1,kl
   dz(:,k)=-rdry*dsig(k)*(t(1:ifull,k)+tnhs(:,k))/(grav*sig(k))
 end do
+dz=max(0.1,dz)
 dxy=ds*ds/(em*em)       ! grid spacing in m**2
 do k=1,kl
   rhoa(:,k)=ps*sig(k)/(rdry*t(1:ifull,k)) !density of air (kg/m**3)
@@ -496,6 +497,14 @@ else
     end where
   end do
 end if
+
+! Convert from aerosol concentration outside convective cloud (used by CCAM)
+! to aerosol concentraion inside convective cloud
+do j=1,naero
+  where (clcon.gt.0.)
+    xtusav(:,:,j)=(xtg(1:ifull,:,j)-(1.-clcon)*xtusav(:,:,j))/clcon
+  end where
+end do
 
 wg=min(max(wetfac,0.),1.)
 

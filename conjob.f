@@ -823,8 +823,8 @@ c       reaching the next level (or the surface).
       !--------------------------------------------------------------
       ! MJT aerosols
       if (abs(iaero)==2) then
-        xtusav=0.
-        ! fscav=0. because there is no qlg in this convection scheme
+        xtusav=xtg(1:ifull,:,:) ! Outside convective cloud - fixed in aerointerface.f90
+        ! fscav=0. no scavenging in this convection scheme
         do ntr=1,naero
           ss(:,:)=xtg(1:ifull,:,ntr)
           do iq=1,ifull
@@ -835,9 +835,8 @@ c       reaching the next level (or the surface).
              fluxup=veldt*ss(iq,kb)
 !            remove aerosol from cloud base layer
              xtg(iq,kb,ntr)=xtg(iq,kb,ntr)-fluxup/dsk(kb)
-!            put flux of tke into top convective layer
+!            put flux of aerosol into top convective layer
              xtg(iq,kt,ntr)=xtg(iq,kt,ntr)+fluxup/dsk(kt)
-             xtusav(iq,:,ntr)=xtg(iq,:,ntr) ! MJT suggestion
              do k=kb+1,kt
               xtg(iq,k,ntr)=xtg(iq,k,ntr)-ss(iq,k)*veldt/dsk(k)
               xtg(iq,k-1,ntr)=xtg(iq,k-1,ntr)+ss(iq,k)*veldt/dsk(k-1)

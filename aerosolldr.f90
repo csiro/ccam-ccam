@@ -1931,7 +1931,7 @@ RETURN
 END subroutine xtwetdep
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! dsettling
+! Dust settling
 
 subroutine dsettling(tdt,tmp,delz,prf,tc,dustd)
 
@@ -1948,7 +1948,7 @@ real dustd(ifull)     !Dry deposition flux out of lowest layer
 real tc(ifull,kl,ndust) !Dust mixing ratio (kg/kg)
 
 ! Local work arrays and variables
-integer ndt_settl(ndust),pos(1)
+integer ndt_settl(ndust)
 real dt_settl(ndust),dtxvsettl(ndust)
 real rhoa(ifull,kl)   !air density (kg/m3)
 real dcol1(ifull), dcol2(ifull)
@@ -1992,7 +1992,7 @@ do k = 1, NDUST
 ! Determine the maximum time-step satisying the CFL condition:
 ! dt <= (dz)_min / v_settl
   dtmax = dzmin / vsettl
-  ndt_settl(k) = int( TDT /(dtmax+0.01) )+1 ! MJT suggestion
+  ndt_settl(k) = int( TDT /(dtmax+0.001) )+1 ! MJT suggestion
   dt_settl(k) = tdt / ndt_settl(k)
         
   dtxvsettl(k) = dt_settl(k) * vsettl
@@ -2004,7 +2004,6 @@ do k = 1, NDUST
   do n = 1, ndt_settl(k)
 
 ! Solve at the model top (layer LMX)
-    pos=maxloc(tc(1:ifull,kl,1))
     l=kl
     do i = 1, ifull
       pres = prf(i,l)     !Looks like mb is correct units

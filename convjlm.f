@@ -18,7 +18,7 @@
       use sigs_m
       use soil_m
       use soilsnow_m  ! for fracice
-      use tkeeps, only : tke,eps ! MJT
+      use tkeeps, only : tke,eps
       use tracers_m  ! ngas, nllp, ntrac
       use vvel_m
       implicit none
@@ -99,8 +99,6 @@ c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
       
       kcl_top=kl-2
       if (.not.allocated(upin)) then
-c        allocate(alfqarr(ifull))
-c        allocate(alfqarrx(ifull))
         allocate(timeconv(ifull))
         allocate(kb_saved(ifull))
         allocate(kt_saved(ifull))
@@ -119,7 +117,6 @@ c        allocate(alfqarrx(ifull))
       mpwr=nint(abs(entrain))
       
       if(ktau==1)then   !---------------------------------------------------------------------------
-c       pblh(:)=1000.   ! added May 2012
         kb_saved(:)=kl-1
         kt_saved(:)=kl-1
         detrainin=detrain
@@ -295,7 +292,7 @@ c     convective first, then possibly L/S rainfall
      &                      +betm(k)*tt(iq,k-1)
        enddo     ! iq loop
       enddo      ! k  loop
-      if(nh.ne.0)phi(:,:)=phi(:,:)+phi_nh(:,:)  ! add non-hydrostatic component - MJT
+      if(nh.ne.0)phi(:,:)=phi(:,:)+phi_nh(:,:)  ! add non-hydrostatic component
 
       if(convtime>10.)then       
 !       following increases convtime_eff for small grid lengths
@@ -1349,6 +1346,7 @@ c      if(mydiag)print *,'methprec5 detrfactr,detrfactr(idjd)
           xtgsto(iq)=xtg(iq,kt,3)
         end do
         call convscav(fscav,qqsto,qqrain,bliqu,ttsto,xtgsto,rho)
+        xtusav=xtg(1:ifull,:,:) ! Outside convective cloud - fixed in aerointerface.f90
         do ntr=1,naero
           s(:,1:kl-2)=xtg(1:ifull,1:kl-2,ntr)
           do iq=1,ifull
