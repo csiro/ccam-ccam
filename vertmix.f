@@ -1028,6 +1028,9 @@ c         now do cffall
           rhs=xtg(1:ifull,:,l)
           call trim(at,ct,rhs,0)
           xtg(1:ifull,:,l)=rhs
+          rhs=xtusav(:,:,l) ! Outside convective cloud - fixed in aerointerface.f90
+          call trim(at,ct,rhs,0)
+          xtusav(:,:,l)=rhs
         end do
       end if ! (abs(iaero)==2)
 
