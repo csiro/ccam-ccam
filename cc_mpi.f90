@@ -22,7 +22,7 @@ module cc_mpi
 
    public :: bounds, boundsuv, ccmpi_setup, ccmpi_distribute, ccmpi_gather, &
              ccmpi_distributer8,  &
-             indp, indg, deptsync, intssync, intssend, start_log, end_log,  &
+             indp, indg, deptsync, intssync, start_log, end_log,            &
              log_on, log_off, log_setup, phys_loadbal, ccglobal_posneg,     &
              ccglobal_sum, iq2iqg, indv_mpi, indglobal, readglobvar, writeglobvar
    public :: dpoints_t,dindex_t,sextra_t
@@ -109,7 +109,6 @@ module cc_mpi
    logical, dimension(0:npanels), public, save :: edge_w, edge_n, edge_s, edge_e
 
    ! Off processor departure points
-   integer, private, save :: maxsize
    type(dpoints_t), allocatable, dimension(:), public, save :: dpoints
    type(dpoints_t), allocatable, dimension(:), private, save :: dbuf
    type(dindex_t), allocatable, dimension(:), public, save :: dindex
@@ -217,9 +216,11 @@ contains
       call proc_setup(npanels,ifull)
       if ( nproc < npanels+1 ) then
          ! This is the maximum size, each face has 4 edges
-         maxbuflen = npan*4*(il_g+4)*3*max(kl,ol) !*3 for extra vector row (e.g., inu,isu,iev,iwv)
+         maxbuflen = npan*4*(il_g+4)*3*max(kl+1,ol+1) !*3 for extra vector row (e.g., inu,isu,iev,iwv)
+                                                      ! kl+1 and ol+1 for 2D + 3D packing
       else
-         maxbuflen = (max(ipan,jpan)+4)*3*max(kl,ol) !*3 for extra vector row (e.g., inu,isu,iev,iwv)
+         maxbuflen = (max(ipan,jpan)+4)*3*max(kl+1,ol+1) !*3 for extra vector row (e.g., inu,isu,iev,iwv)
+                                                         ! kl+1 and ol+1 for 2D + 3D packing
       end if
 #endif
 
@@ -232,12 +233,6 @@ contains
       allocate ( dslen(0:nproc-1), drlen(0:nproc-1) )
       dslen=0
       drlen=0
-      if ( nproc == 1 ) then
-         maxsize = 0 ! Not used in this case
-      else
-         ! 4 rows should be plenty (size is checked anyway).
-         maxsize = 4*max(ipan,jpan)*npan*max(kl,ol)
-      end if
       
       if ( myid == 0 ) then
          call ccmpi_distribute(wts,wts_g)
@@ -2014,7 +2009,7 @@ contains
    logical, dimension(maxbuflen) :: ldum
    
    do iproc=0,nproc-1
-     nlen=max(kl,ol)*max(bnds(iproc)%rlen2,bnds(iproc)%rlenx_uv,bnds(iproc)%slen2,bnds(iproc)%slenx_uv)
+     nlen=max(kl+1,ol+1)*max(bnds(iproc)%rlen2,bnds(iproc)%rlenx_uv,bnds(iproc)%slen2,bnds(iproc)%slenx_uv)
      if (nlen.lt.bnds(iproc)%len) then
        !write(6,*) "Reducing array size.  myid,iproc,nlen,len ",myid,iproc,nlen,bnds(iproc)%len
        bnds(iproc)%len=nlen
@@ -2575,6 +2570,7 @@ contains
       integer :: nreq, itag = 99, ierr,ierr2, rproc, sproc
       integer, dimension(2*nproc) :: ireq
       integer, dimension(MPI_STATUS_SIZE,2*nproc) :: status
+      integer, dimension(0:nproc-1) :: binlen
       integer :: count, ip, jp, xn, kx
       integer :: iq, k, idel, jdel, nf
 
@@ -2590,6 +2586,7 @@ contains
         end if
       end do
       kx=size(nface,2)
+      binlen=max(bnds(:)%len,1)
       do k=1,kx
          do iq=1,ifull
             nf = nface(iq,k) + noff ! Make this a local index
@@ -2615,7 +2612,7 @@ contains
 #endif
                ! Since nface is a small integer it can be exactly represented by a
                ! real. It's simpler to send like this than use a proper structure.
-               xn=max(min(dslen(iproc),bnds(iproc)%len),1)
+               xn=min(dslen(iproc),binlen(iproc))
                dbuf(iproc)%a(:,xn) = (/ real(nface(iq,k)), xg(iq,k), yg(iq,k), real(k) /)
                dindex(iproc)%a(:,xn) = (/ iq,k /)
             end if
@@ -2722,47 +2719,6 @@ contains
       call end_log(intssync_end)
 
    end subroutine intssync
-
-   subroutine intssend(s)
-      ! this is the opposite of intssync
-      real, dimension(:,:), intent(in) :: s
-      integer :: iproc
-      integer :: nreq, itag = 0, ierr, rproc, sproc
-      integer :: iq
-      integer, dimension(2*nproc) :: ireq
-      integer, dimension(MPI_STATUS_SIZE,2*nproc) :: status
-
-      do iproc=0,nproc-1
-         if ( iproc == myid ) then
-            cycle
-         end if
-         do iq=1,dslen(iproc)
-            dbuf(iproc)%b(iq) = s(dindex(iproc)%a(1,iq),dindex(iproc)%a(2,iq))
-         end do
-      end do
-
-      nreq = 0
-      do iproc = 1,nproc-1  !
-         sproc = modulo(myid+iproc,nproc)  ! Send to
-         rproc = modulo(myid-iproc,nproc)  ! Recv from
-         if ( dslen(sproc) /= 0 ) then
-            nreq = nreq + 1
-            call MPI_ISend( dbuf(sproc)%b, dslen(sproc), &
-                            MPI_REAL, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-         end if
-         if ( drlen(rproc) /= 0 ) then
-            nreq = nreq + 1
-            call MPI_IRecv( sextra(rproc)%a, drlen(rproc), &
-                 MPI_REAL, rproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-         end if
-      end do
-      if ( nreq > 0 ) then
-         call start_log(mpiwait_begin)
-         call MPI_Waitall(nreq,ireq,status,ierr)
-         call end_log(mpiwait_end)
-      end if
-
-   end subroutine intssend
 
    subroutine indv_mpi(iq, i, j, n)
       integer , intent(in) :: iq
@@ -3778,17 +3734,19 @@ contains
 
     end subroutine ccglobal_posneg2
     
-    subroutine ccglobal_posneg3 (array, delpos, delneg)
+    subroutine ccglobal_posneg3 (array, delpos, delneg, dsigin)
        ! Calculate global sums of positive and negative values of array
        use sigs_m
        use sumdd_m
        use xyzinfo_m
        include 'newmpar.h'
-       real, intent(in), dimension(ifull,kl) :: array
+       real, intent(in), dimension(:,:) :: array
+       real, intent(in), dimension(:), optional :: dsigin
        real, intent(out) :: delpos, delneg
        real :: delpos_l, delneg_l
+       real, dimension(size(array,2)) :: dsigx
        real, dimension(2) :: delarr, delarr_l
-       integer :: k, iq, ierr
+       integer :: k, iq, ierr, kx
 #ifdef sumdd
        complex, dimension(2) :: local_sum, global_sum
 !      Temporary array for the drpdr_local function
@@ -3797,17 +3755,23 @@ contains
 
        delpos_l = 0.
        delneg_l = 0.
+       kx=size(array,2)
+       if (present(dsigin)) then
+         dsigx=-dsigin
+       else
+         dsigx=dsig
+       end if
 #ifdef sumdd         
        local_sum = (0.,0.)
 #endif
-       do k=1,kl
+       do k=1,kx
           do iq=1,ifull
 #ifdef sumdd         
-             tmparr(iq)  = max(0.,-dsig(k)*array(iq,k)*wts(iq))
-             tmparr2(iq) = min(0.,-dsig(k)*array(iq,k)*wts(iq))
+             tmparr(iq)  = max(0.,-dsigx(k)*array(iq,k)*wts(iq))
+             tmparr2(iq) = min(0.,-dsigx(k)*array(iq,k)*wts(iq))
 #else
-             delpos_l = delpos_l + max(0.,-dsig(k)*array(iq,k)*wts(iq))
-             delneg_l = delneg_l + min(0.,-dsig(k)*array(iq,k)*wts(iq))
+             delpos_l = delpos_l + max(0.,-dsigx(k)*array(iq,k)*wts(iq))
+             delneg_l = delneg_l + min(0.,-dsigx(k)*array(iq,k)*wts(iq))
 #endif
           end do
 #ifdef sumdd

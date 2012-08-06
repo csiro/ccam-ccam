@@ -2142,14 +2142,17 @@ do n = 1, ndust
         ! Case of wet surface, no erosion
         u_ts=100.
       endif
-      SRCE=frac_s(n)*EROD(i,m,k)*DXY(i) ! (m2)
-      DSRC=(1.-snowa(i))*cw*Ch_dust(i)*SRCE*W10m(i)**2 * (W10m(i)-u_ts) ! (kg/s)
+      !SRCE=frac_s(n)*EROD(i,m,k)*DXY(i) ! (m2)
+      SRCE=frac_s(n)*EROD(i,m,k) ! (fraction) - MJT suggestion
+      DSRC=(1.-snowa(i))*cw*Ch_dust(i)*SRCE*W10m(i)**2 * (W10m(i)-u_ts) ! (kg/s/m2)
       dsrc = max ( 0., dsrc )
 
 ! Calculate dust mixing ratio tendency at first model level.
-      airmas = dxy(i) * dz1(i) * airden(i) ! kg
+      !airmas = dxy(i) * dz1(i) * airden(i) ! kg
+      airmas = dz1(i) * airden(i) ! kg/(m2) - MJT suggestion
       dxdt = DSRC / AIRMAS
-      duste(i) = duste(i) + dxdt*airden(i)*dz1(i)
+      !duste(i) = duste(i) + dxdt*airden(i)*dz1(i)      
+      duste(i) = duste(i) + dsrc ! MJT suggestion
 
 ! Calculate turbulent dry deposition at surface
 ! Use the tau-1 value of dust m.r. for now, but may modify this...

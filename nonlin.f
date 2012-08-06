@@ -34,6 +34,7 @@
       real aa(ifull,kl),bb(ifull,kl)
       real p(ifull+iextra,kl),phiv(ifull+iextra,kl),tv(ifull+iextra,kl)
       real ddpds(ifull,kl)
+      real duma(ifull+iextra,kl+1)
       integer iq, k, ng, ii, jj, its, nits, nvadh_pass, iaero
       real const_nh, contv, delneg, delpos, ratio
       real sumdiffb, sdmx, sdmx_g, spmax2,termlin
@@ -60,11 +61,11 @@
       endif  ! (epsp<-2.)
 
 !     *** following qgsav should be before first vadv call
-      qgsav(1:ifull,:)=qg(1:ifull,:)      ! for qg  conservation in adjust5
-      if(ldr.ne.0)then
-        qfgsav(1:ifull,:)=qfg(1:ifull,:)
-        qlgsav(1:ifull,:)=qlg(1:ifull,:)
-        qrgsav(1:ifull,:)=qrg(1:ifull,:)
+      qgsav=qg(1:ifull,:)      ! for qg  conservation in adjust5
+      if(ldr/=0)then
+        qfgsav=qfg(1:ifull,:)
+        qlgsav=qlg(1:ifull,:)
+        qrgsav=qrg(1:ifull,:)
       endif   ! (ldr.ne.0)
 
       if(ngas>=1)then
@@ -145,8 +146,12 @@
 !     do vertical advection in split mode
       if(nvad==4.or.nvad==9)then
         sdmx = maxval(abs(sdot))
+#ifdef sumdd
         call MPI_AllReduce(sdmx, sdmx_g, 1, MPI_REAL, MPI_MAX,
      &                     MPI_COMM_WORLD, ierr )
+#else
+        sdmx_g=sdmx
+#endif
         nits=1+sdmx_g/nvadh
         nvadh_pass=nvadh*nits
         if (mydiag.and.mod(ktau,nmaxpr)==0)
@@ -257,7 +262,7 @@ cx      enddo      ! k  loop
       ! update non-hydrostatic terms from Miller-White height equation
       if (nh.ne.0.and.(ktau.gt.knh.or.lrestart)) then
         phi=phi+phi_nh
-        if (abs(epsp).le.1.) then
+        if (abs(epsp)<=1.) then
           ! MJT exact treatment of constant epsp terms
           const_nh=2.*rdry/(dt*grav*grav*(1.-epsp*epsp))
         else
@@ -376,8 +381,11 @@ c       print *,'termx ',(t(iq,k)+contv*tvv)*dpsldt(iq,k)*roncp/sig(k)
 
       call bounds(p)
       call bounds(phiv)
-      call bounds(tv)
-      call bounds(psl)
+      duma(1:ifull,1:kl)=tv(1:ifull,:)
+      duma(1:ifull,kl+1)=psl(1:ifull)
+      call bounds(duma)
+      tv(:,1:kl)=duma(:,1:kl)
+      psl(:)=duma(:,kl+1)
 
       do k=1,kl
 !cdir nodep

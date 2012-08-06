@@ -178,8 +178,12 @@
       if(nvad==-4.and.nvadh.ne.3)then 
 !       N.B. this moved one is doing vadv on just extra pslx terms      
         sdmx = maxval(abs(sdot))
+#ifdef sumdd
         call MPI_AllReduce(sdmx, sdmx_g, 1, MPI_REAL, MPI_MAX, 
      &                     MPI_COMM_WORLD, ierr )
+#else
+        sdmx_g=sdmx
+#endif
 	 nits=1+sdmx_g/nvadh
 	 nvadh_pass=nvadh*nits ! use - for nvadu
         do its=1,nits
@@ -378,10 +382,10 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
 
        if(mspec==1.and.mup.ne.0)then   ! advect qg after preliminary step
           call ints(qg,intsch,nface,xg,yg,4)
-          if(ldr.ne.0)then
+          if(ldr/=0)then
              call ints(qlg,intsch,nface,xg,yg,4)
              call ints(qfg,intsch,nface,xg,yg,4)
-             if (ncloud.gt.0) then
+             if (ncloud>0) then
                call ints(qrg,intsch,nface,xg,yg,4)
                !call ints(cffrac,intsch,nface,xg,yg,4)
                call ints(cffall,intsch,nface,xg,yg,4)
@@ -445,8 +449,12 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
           sdot(:,2:kl)=sbar(:,:)
           if(nvadh==3)then  ! just done here after horiz adv
             sdmx = maxval(abs(sdot))
+#ifdef sumdd
             call MPI_AllReduce(sdmx, sdmx_g, 1, MPI_REAL, MPI_MAX, 
      &                         MPI_COMM_WORLD, ierr )
+#else
+            sdmx_g=sdmx
+#endif
             nits=1+sdmx_g   ! effectively takes nvadh=1  1/2/06
             nvadh_pass=nits ! use - for nvadu
           endif   ! (nvadh==3)

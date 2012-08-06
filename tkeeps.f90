@@ -1,7 +1,7 @@
 
 ! This module calculates the turblent kinetic energy and mixing for the boundary layer based on Hurley 2009
 ! (eddy dissipation) and Angevine et al 2010 (mass flux).  Specifically, this version is modified for
-! buoyancy within clouds.
+! clouds.
 
 ! Usual procedure
 
@@ -85,7 +85,7 @@ implicit none
 integer, intent(in) :: ifullin,iextrain,klin,diag
 real cm34
 
-if (diag.gt.0) write(6,*) "Initialise TKE-eps scheme"
+if (diag>0) write(6,*) "Initialise TKE-eps scheme"
 
 ifull=ifullin
 iextra=iextrain
@@ -146,7 +146,7 @@ logical sconv
 cm12=1./sqrt(cm0)
 cm34=sqrt(sqrt(cm0**3))
 
-if (diag.gt.0) write(6,*) "Update PBL mixing with TKE-eps turbulence closure"
+if (diag>0) write(6,*) "Update PBL mixing with TKE-eps turbulence closure"
 
 ! Here TKE and eps are on full levels to use CCAM advection routines
 ! Idealy we would reversibly stagger to vertical half-levels for this
@@ -166,33 +166,40 @@ dz_hl(:,1:kl-1)=zz(:,2:kl)-zz(:,1:kl-1)
 dz_fl(:,1)=zzh(:,1)
 dz_fl(:,2:kl)=zzh(:,2:kl)-zzh(:,1:kl-1)
 
-! Calculate air density - must use same theta for calculating dz
-do k=1,kl
-  temp(:,k)=theta(:,k)/sigkap(k)
-  rhoa(:,k)=ps(:)*sig(k)/(rd*temp(:,k))
-end do
-call updatekmo(rhoahl,rhoa,zz,zzh)
-
 ! Calculate first approximation to diffusion coeffs
 km=cm0*tke(1:ifull,:)*tke(1:ifull,:)/eps(1:ifull,:)
-call updatekmo(kmo,km,zz,zzh) ! interpolate diffusion coeffs to half levels
 
 ! Calculate shear term on full levels (see hordifg.f for calculation of horizontal shear)
 pps(:,2:kl-1)=km(:,2:kl-1)*shear(:,2:kl-1)
-
 pps(:,kl)=0.
 ppb(:,kl)=0.
 ppt(:,kl)=0.
 zidry=zi
 
+! Calculate air density - must use same theta for calculating dz
+do k=1,kl
+  temp(:,k)=theta(:,k)/sigkap(k)
+  rhoa(:,k)=ps(:)*sig(k)/(rd*temp(:,k))
+end do
+
+! interpolate to half levels
+call updatekmo(rhoahl,rhoa,zz,zzh)
+call updatekmo(kmo,km,zz,zzh)
 
 
+
+! Main loop to prevent time splitting errors with non-linear terms
 mcount=int(dt/(maxdts+0.01))+1
 ddts=dt/real(mcount)
 do kcount=1,mcount
 
   ! Set-up thermodynamic variables temp, theta_l, theta_v and surface fluxes
   thetav=theta*(1.+0.61*qg-qlg-qfg-qrg)
+  wtv0=wt0+theta(:,1)*0.61*wq0
+  !wtl0=wt0
+  !wqt0=wq0
+  tkeold=tke(1:ifull,1)
+  epsold=eps(1:ifull,1)
   do k=1,kl
     temp(:,k)=theta(:,k)/sigkap(k)
     thetal(:,k)=theta(:,k)-sigkap(k)*(lv*(qlg(:,k)+qrg(:,k))+ls*qfg(:,k))/cp
@@ -200,11 +207,6 @@ do kcount=1,mcount
     dum=ps*sig(k)
     call getqsat(ifull,qsat(:,k),temp(:,k),dum)
   end do
-  wtv0=wt0+theta(:,1)*0.61*wq0
-  !wtl0=wt0
-  !wqt0=wq0
-  tkeold=tke(1:ifull,1)
-  epsold=eps(1:ifull,1)
 
 
 
@@ -228,9 +230,9 @@ do kcount=1,mcount
   cfup=cfrac
   crup=cfrain
   wstar=(grav*zi*max(wtv0,0.)/thetav(:,1))**(1./3.)
-  if (mode.ne.1) then ! mass flux
+  if (mode/=1) then ! mass flux
     do i=1,ifull
-      if (wtv0(i).gt.0.) then ! unstable
+      if (wtv0(i)>0.) then ! unstable
         pres=ps(i)*sig ! pressure
         ! initial guess for plume state
         tvup=thetav(i,:)
@@ -252,9 +254,9 @@ do kcount=1,mcount
           !ee=2./max(100.,zidry(i))                     ! Angevine et al (2010)
           !ee=1./max(zht,1.)                            ! Siebesma et al (2003)
           !ee=0.5*(1./max(zht,1.)+1./max(zi(i)-zht,1.)) ! Soares et al (2004)
-          ee=1./max(100.,zidry(i)) ! MJT suggestion
+          ee=1./max(100.,zidry(i))                      ! MJT suggestion
           !dtr=ee+0.05/max(zidry(i)-zht,1.)             ! Angevine (2005)
-          dtr=ee+0.025/max(zidry(i)-zht,1.) ! MJT suggestion
+          dtr=ee+0.025/max(zidry(i)-zht,1.)             ! MJT suggestion
           ! first level -----------------
           ! initial thermodynamic state
           ! split thetal and qtot into components (conservation is maintained)
@@ -280,7 +282,7 @@ do kcount=1,mcount
           mflx(i,1)=0.1*sqrt(w2up(1))                                               ! Hurley 2007
           ! check for lcl
           sconv=.false.
-          if (qxup.ge.qupsat(1)) then
+          if (qxup>=qupsat(1)) then
             sconv=.true.
             zilcl=zz(i,1)
             klcl=2
@@ -327,7 +329,7 @@ do kcount=1,mcount
             mflx(i,k)=mflx(i,k-1)/(1.+dzht*(dtr-ee))
             ! check for lcl
             if (.not.sconv) then
-              if (qxup.ge.qupsat(k)) then
+              if (qxup>=qupsat(k)) then
                 ! estimate LCL when saturation occurs
                 as=ee*(qupsat(k)-qupsat(k-1))/dzht
                 bs=(qupsat(k)-qupsat(k-1))/dzht+ee*(qupsat(k-1)-qg(i,k)-qlg(i,k)-qlg(i,k)-qrg(i,k))
@@ -352,7 +354,7 @@ do kcount=1,mcount
               end if
             end if
             ! test if maximum plume height is reached
-            if (w2up(k).le.0.) then
+            if (w2up(k)<=0.) then
               as=2.*b2*(nn(k)-nn(k-1))/dzht
               bs=2.*b2*nn(k-1)
               cs=w2up(k-1)
@@ -361,7 +363,7 @@ do kcount=1,mcount
               zidry(i)=xp+zz(i,k-1)
               mflx(i,k)=0.
               if (sconv) then
-                if (zidry(i).lt.zilcl) then
+                if (zidry(i)<zilcl) then
                   sconv=.false.
                   klcl=kl+1
                 end if
@@ -371,7 +373,7 @@ do kcount=1,mcount
           end do
           
           ! shallow convection case
-          if (klcl.lt.kl) then
+          if (sconv) then
             ! advect from LCL to next model level
             dzht=zz(i,klcl)-zilcl
             zht=zz(i,klcl)
@@ -391,7 +393,7 @@ do kcount=1,mcount
             qtup(klcl)=qvup(i,klcl)+qlup(i,klcl)+qfup(i,klcl)+qrup(i,klcl)               ! qtot,up
             templ=tlup(klcl)/sigkap(klcl)                                                ! templ,up
             ! estimate saturated air temperature
-            ! (tried dqs/dT but it failed to converge)
+            ! (tried dqs/dT but it failed to converge, now use false position)
             cc(i,1)=373. ! guess C
             call getqsat(1,qupsat(klcl),cc(i,1),pres(klcl))
             qxup=min(qtup(klcl),qupsat(klcl))
@@ -406,7 +408,7 @@ do kcount=1,mcount
             fice=min(max(273.16-bb(i,1),0.),40.)/40.
             lx=lv+lf*fice
             bb(i,2)=bb(i,1)-templ-lx*qcup/cp ! error B
-            do while (abs(bb(i,2)).gt.0.1.and.abs(cc(i,2)).gt.0.1)
+            do while (abs(bb(i,2))>0.1.and.abs(cc(i,2))>0.1)
               !ttup(klcl)=0.5*(bb(i,1)+cc(i,1)) ! bisection
               ttup(klcl)=(cc(i,2)*bb(i,1)-bb(i,2)*cc(i,1))/(cc(i,2)-bb(i,2)) ! false position
               call getqsat(1,qupsat(klcl),ttup(klcl),pres(klcl))
@@ -414,7 +416,7 @@ do kcount=1,mcount
               qcup=qtup(klcl)-qxup
               fice=min(max(273.16-ttup(klcl),0.),40.)/40. ! MJT suggestion
               lx=lv+lf*fice
-              if (templ+lx*qcup/cp.gt.ttup(klcl)) then
+              if (templ+lx*qcup/cp>ttup(klcl)) then
                 bb(i,1)=ttup(klcl)
                 bb(i,2)=ttup(klcl)-templ-lx*qcup/cp
               else
@@ -429,7 +431,7 @@ do kcount=1,mcount
             w2up(klcl)=(w2c+2.*dzht*b2*nn(klcl))/(1.+2.*dzht*b1*ee)
             mflx(i,klcl)=mfc/(1.+dzht*(dtr-ee))
             ! check for plume top
-            if (w2up(klcl).le.0.) then
+            if (w2up(klcl)<=0.) then
               as=2.*b2*(nn(klcl)-nn(klcl-1))/dzht
               bs=2.*b2*nn(klcl-1)
               cs=w2up(klcl-1)
@@ -473,7 +475,7 @@ do kcount=1,mcount
                 fice=min(max(273.16-bb(i,1),0.),40.)/40.
                 lx=lv+lf*fice
                 bb(i,2)=bb(i,1)-templ-lx*qcup/cp ! error B
-                do while (abs(bb(i,2)).gt.0.1.and.abs(cc(i,2)).gt.0.1)
+                do while (abs(bb(i,2))>0.1.and.abs(cc(i,2))>0.1)
                   !ttup(k)=0.5*(bb(i,1)+cc(i,1)) ! bisection
                   ttup(k)=(cc(i,2)*bb(i,1)-bb(i,2)*cc(i,1))/(cc(i,2)-bb(i,2)) ! false position
                   call getqsat(1,qupsat(k),ttup(k),pres(k))
@@ -481,7 +483,7 @@ do kcount=1,mcount
                   qcup=qtup(k)-qxup
                   fice=min(max(273.16-ttup(k),0.),40.)/40. ! MJT suggestion
                   lx=lv+lf*fice
-                  if (templ+lx*qcup/cp.gt.ttup(k)) then
+                  if (templ+lx*qcup/cp>ttup(k)) then
                     bb(i,1)=ttup(k)
                     bb(i,2)=ttup(k)-templ-lx*qcup/cp
                   else
@@ -499,7 +501,7 @@ do kcount=1,mcount
                 ! update mass flux
                 mflx(i,k)=mflx(i,k-1)/(1.+dzht*(dtr-ee))
                 ! test if maximum plume height is reached
-                if (w2up(k).le.0.) then
+                if (w2up(k)<=0.) then
                   as=2.*b2*(nn(k)-nn(k-1))/dzht
                   bs=2.*b2*nn(k-1)
                   cs=w2up(k-1)
@@ -526,7 +528,7 @@ do kcount=1,mcount
           tke(i,1)=max(tke(i,1),mintke)
 
           ! check for convergence
-          if (abs(zi(i)-ziold).lt.1.) exit
+          if (abs(zi(i)-ziold)<1.) exit
           ziold=zi(i)
           zidryold=zidry(i)
         end do
@@ -545,12 +547,12 @@ do kcount=1,mcount
         !wpv_flux(1)=-kmo(i,1)*(thetav(i,2)-thetav(i,1))/dz_hl(i,1) !+gamt_hl(i,k)
         !do k=2,kl-1
         !  wpv_flux(k)=-kmo(i,k)*(thetav(i,k+1)-thetav(i,k))/dz_hl(i,k) !+gamt_hl(i,k)
-        !  if (wpv_flux(k)*wpv_flux(1).lt.0.) then
+        !  if (wpv_flux(k)*wpv_flux(1)<0.) then
         !    xp=(0.05*wpv_flux(1)-wpv_flux(k-1))/(wpv_flux(k)-wpv_flux(k-1))
         !    xp=min(max(xp,0.),1.)
         !    zi(i)=zzh(i,k-1)+xp*(zzh(i,k)-zzh(i,k-1))
         !    exit
-        !  else if (abs(wpv_flux(k)).lt.0.05*abs(wpv_flux(1))) then
+        !  else if (abs(wpv_flux(k))<0.05*abs(wpv_flux(1))) then
         !    xp=(0.05*abs(wpv_flux(1))-abs(wpv_flux(k-1)))/(abs(wpv_flux(k))-abs(wpv_flux(k-1)))
         !    xp=min(max(xp,0.),1.)
         !    zi(i)=zzh(i,k-1)+xp*(zzh(i,k)-zzh(i,k-1))
@@ -565,9 +567,9 @@ do kcount=1,mcount
   ! calculate tke and eps at 1st level
   z_on_l=-vkar*zz(:,1)*grav*wtv0/(thetav(:,1)*max(ustar*ustar*ustar,1.E-20))
   z_on_l=min(z_on_l,10.)
-  where (z_on_l.lt.0.)
+  where (z_on_l<0.)
     phim=(1.-16.*z_on_l)**(-0.25)
-  elsewhere !(z_on_l.le.0.4)
+  elsewhere !(z_on_l<=0.4)
     phim=1.+z_on_l*(a_1+b_1*exp(-d_1*z_on_l)*(1.+c_1-d_1*z_on_l)) ! Beljarrs and Holtslag (1991)
   !elsewhere
   !  phim=aa1*bb1*(z_on_l**bb1)*(1.+cc1/bb1*z_on_l**(1.-bb1)) ! Luhar (2007)
@@ -589,7 +591,7 @@ do kcount=1,mcount
   dd=0.
   ff=0.
   rr=0.
-  where (cfrac.gt.1.E-6)
+  where (cfrac>1.E-6)
     dd=qlg/cfrac ! inside cloud value
     ff=qfg/cfrac ! inside cloud value
     rr=qrg/cfrac ! inside cloud value
@@ -672,7 +674,7 @@ do kcount=1,mcount
   cc(:,1:kl-1)=-ddts*kmo(:,1:kl-1)*rhoahl(:,1:kl-1)/(rhoa(:,1:kl-1)*dz_hl(:,1:kl-1)*dz_fl(:,1:kl-1))
   bb(:,1:kl)=0.
 
-  ! first update non-local terms and phase transistions
+  ! update non-local terms
   call updategam(gamhl,gamth,zz,zzh,zi)
   dd(:,1)=theta(:,1)-ddts*gamhl(:,1)*rhoahl(:,1)/(rhoa(:,1)*dz_fl(:,1))+ddts*wt0*rhoas/(rhoa(:,1)*dz_fl(:,1))
   dd(:,2:kl-1)=theta(:,2:kl-1)+ddts*(gamhl(:,1:kl-2)*rhoahl(:,1:kl-2)-gamhl(:,2:kl-1)*rhoahl(:,2:kl-1))/(rhoa(:,2:kl-1)*dz_fl(:,2:kl-1))
@@ -707,13 +709,13 @@ do kcount=1,mcount
   do k=1,kl
     rr(:,k)=theta(:,k)-sigkap(k)*(lv*(qlg(:,k)+qrg(:,k))+ls*qfg(:,k))/cp ! thetal
   end do
-  qq=max(qg+qlg+qfg+qrg,qgmin) ! qtot
+  qq=max(qg+qlg+qfg+qrg,qgmin) ! qtot before phase transition
   qlg=max(qlg,0.)
   qfg=max(qfg,0.)
   qrg=max(qrg,0.)
   qg=max(qg,0.)
-  ff=max(qg+qlg+qfg+qrg,qgmin)
-  qq=qq/ff
+  ff=max(qg+qlg+qfg+qrg,qgmin) ! qtot after phase transition
+  qq=qq/ff                     ! scale factor for conservation
   qg=qg*qq
   qlg=qlg*qq
   qfg=qfg*qq
@@ -722,13 +724,14 @@ do kcount=1,mcount
     theta(:,k)=rr(:,k)+sigkap(k)*(lv*(qlg(:,k)+qrg(:,k))+ls*qfg(:,k))/cp
   end do
 
+  ! update cloud fraction terms
   call updategam(gamhl,gamcf,zz,zzh,zi)
   dd(:,1)=cfrac(:,1)-ddts*gamhl(:,1)*rhoahl(:,1)/(rhoa(:,1)*dz_fl(:,1))
   dd(:,2:kl-1)=cfrac(:,2:kl-1)+ddts*(gamhl(:,1:kl-2)*rhoahl(:,1:kl-2)-gamhl(:,2:kl-1)*rhoahl(:,2:kl-1))/(rhoa(:,2:kl-1)*dz_fl(:,2:kl-1))
   dd(:,kl)=cfrac(:,kl)+ddts*gamhl(:,kl-1)*rhoahl(:,kl-1)/(rhoa(:,kl)*dz_fl(:,kl))
   call thomas(cfrac,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
   cfrac=min(max(cfrac,0.),1.)
-  where (qlg+qfg.gt.1.E-12)
+  where (qlg+qfg>1.E-12)
     cfrac=max(cfrac,1.E-6)
   end where
 
@@ -738,7 +741,7 @@ do kcount=1,mcount
   dd(:,kl)=cfrain(:,kl)+ddts*gamhl(:,kl-1)*rhoahl(:,kl-1)/(rhoa(:,kl)*dz_fl(:,kl))
   call thomas(cfrain,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
   cfrain=min(max(cfrain,0.),1.)
-  where (qrg.gt.1.E-12)
+  where (qrg>1.E-12)
     cfrain=max(cfrain,1.E-6)
   end where
 
@@ -792,42 +795,46 @@ implicit none
 integer, intent(in) :: ilen
 real, dimension(ilen), intent(in) :: temp,ps
 real, dimension(ilen), intent(out) :: qsat
-real, dimension(0:220) :: table
+real, dimension(0:220), save :: table
 real, dimension(ilen) :: esatf,tdiff,rx
 integer, dimension(ilen) :: ix
+logical, save :: first=.true.
 
-table(0:4)=    (/ 1.e-9, 1.e-9, 2.e-9, 3.e-9, 4.e-9 /)                                !-146C
-table(5:9)=    (/ 6.e-9, 9.e-9, 13.e-9, 18.e-9, 26.e-9 /)                             !-141C
-table(10:14)=  (/ 36.e-9, 51.e-9, 71.e-9, 99.e-9, 136.e-9 /)                          !-136C
-table(15:19)=  (/ 0.000000188, 0.000000258, 0.000000352, 0.000000479, 0.000000648 /)  !-131C
-table(20:24)=  (/ 0.000000874, 0.000001173, 0.000001569, 0.000002090, 0.000002774 /)  !-126C
-table(25:29)=  (/ 0.000003667, 0.000004831, 0.000006340, 0.000008292, 0.00001081 /)   !-121C
-table(30:34)=  (/ 0.00001404, 0.00001817, 0.00002345, 0.00003016, 0.00003866 /)       !-116C
-table(35:39)=  (/ 0.00004942, 0.00006297, 0.00008001, 0.0001014, 0.0001280 /)         !-111C
-table(40:44)=  (/ 0.0001613, 0.0002026, 0.0002538, 0.0003170, 0.0003951 /)            !-106C
-table(45:49)=  (/ 0.0004910, 0.0006087, 0.0007528, 0.0009287, 0.001143 /)             !-101C
-table(50:55)=  (/ .001403, .001719, .002101, .002561, .003117, .003784 /)             !-95C
-table(56:63)=  (/ .004584, .005542, .006685, .008049, .009672,.01160,.01388,.01658 /) !-87C
-table(64:72)=  (/ .01977, .02353, .02796,.03316,.03925,.04638,.05472,.06444,.07577 /) !-78C
-table(73:81)=  (/ .08894, .1042, .1220, .1425, .1662, .1936, .2252, .2615, .3032 /)   !-69C
-table(82:90)=  (/ .3511, .4060, .4688, .5406, .6225, .7159, .8223, .9432, 1.080 /)    !-60C
-table(91:99)=  (/ 1.236, 1.413, 1.612, 1.838, 2.092, 2.380, 2.703, 3.067, 3.476 /)    !-51C
-table(100:107)=(/ 3.935,4.449, 5.026, 5.671, 6.393, 7.198, 8.097, 9.098 /)            !-43C
-table(108:116)=(/ 10.21, 11.45, 12.83, 14.36, 16.06, 17.94, 20.02, 22.33, 24.88 /)    !-34C
-table(117:126)=(/ 27.69, 30.79, 34.21, 37.98, 42.13, 46.69,51.70,57.20,63.23,69.85 /) !-24C 
-table(127:134)=(/ 77.09, 85.02, 93.70, 103.20, 114.66, 127.20, 140.81, 155.67 /)      !-16C
-table(135:142)=(/ 171.69, 189.03, 207.76, 227.96 , 249.67, 272.98, 298.00, 324.78 /)  !-8C
-table(143:150)=(/ 353.41, 383.98, 416.48, 451.05, 487.69, 526.51, 567.52, 610.78 /)   !0C
-table(151:158)=(/ 656.62, 705.47, 757.53, 812.94, 871.92, 934.65, 1001.3, 1072.2 /)   !8C
-table(159:166)=(/ 1147.4, 1227.2, 1311.9, 1401.7, 1496.9, 1597.7, 1704.4, 1817.3 /)   !16C
-table(167:174)=(/ 1936.7, 2063.0, 2196.4, 2337.3, 2486.1, 2643.0, 2808.6, 2983.1 /)   !24C
-table(175:182)=(/ 3167.1, 3360.8, 3564.9, 3779.6, 4005.5, 4243.0, 4492.7, 4755.1 /)   !32C
-table(183:190)=(/ 5030.7, 5320.0, 5623.6, 5942.2, 6276.2, 6626.4, 6993.4, 7377.7 /)   !40C
-table(191:197)=(/ 7780.2, 8201.5, 8642.3, 9103.4, 9585.5, 10089.0, 10616.0 /)         !47C
-table(198:204)=(/ 11166.0, 11740.0, 12340.0, 12965.0, 13617.0, 14298.0, 15007.0 /)    !54C
-table(205:211)=(/ 15746.0, 16516.0, 17318.0, 18153.0, 19022.0, 19926.0, 20867.0 /)    !61C
-table(212:218)=(/ 21845.0, 22861.0, 23918.0, 25016.0, 26156.0, 27340.0, 28570.0 /)    !68C
-table(219:220)=(/ 29845.0, 31169.0 /)                                                 !70C
+if (first) then
+  table(0:4)=    (/ 1.e-9, 1.e-9, 2.e-9, 3.e-9, 4.e-9 /)                                !-146C
+  table(5:9)=    (/ 6.e-9, 9.e-9, 13.e-9, 18.e-9, 26.e-9 /)                             !-141C
+  table(10:14)=  (/ 36.e-9, 51.e-9, 71.e-9, 99.e-9, 136.e-9 /)                          !-136C
+  table(15:19)=  (/ 0.000000188, 0.000000258, 0.000000352, 0.000000479, 0.000000648 /)  !-131C
+  table(20:24)=  (/ 0.000000874, 0.000001173, 0.000001569, 0.000002090, 0.000002774 /)  !-126C
+  table(25:29)=  (/ 0.000003667, 0.000004831, 0.000006340, 0.000008292, 0.00001081 /)   !-121C
+  table(30:34)=  (/ 0.00001404, 0.00001817, 0.00002345, 0.00003016, 0.00003866 /)       !-116C
+  table(35:39)=  (/ 0.00004942, 0.00006297, 0.00008001, 0.0001014, 0.0001280 /)         !-111C
+  table(40:44)=  (/ 0.0001613, 0.0002026, 0.0002538, 0.0003170, 0.0003951 /)            !-106C
+  table(45:49)=  (/ 0.0004910, 0.0006087, 0.0007528, 0.0009287, 0.001143 /)             !-101C
+  table(50:55)=  (/ .001403, .001719, .002101, .002561, .003117, .003784 /)             !-95C
+  table(56:63)=  (/ .004584, .005542, .006685, .008049, .009672,.01160,.01388,.01658 /) !-87C
+  table(64:72)=  (/ .01977, .02353, .02796,.03316,.03925,.04638,.05472,.06444,.07577 /) !-78C
+  table(73:81)=  (/ .08894, .1042, .1220, .1425, .1662, .1936, .2252, .2615, .3032 /)   !-69C
+  table(82:90)=  (/ .3511, .4060, .4688, .5406, .6225, .7159, .8223, .9432, 1.080 /)    !-60C
+  table(91:99)=  (/ 1.236, 1.413, 1.612, 1.838, 2.092, 2.380, 2.703, 3.067, 3.476 /)    !-51C
+  table(100:107)=(/ 3.935,4.449, 5.026, 5.671, 6.393, 7.198, 8.097, 9.098 /)            !-43C
+  table(108:116)=(/ 10.21, 11.45, 12.83, 14.36, 16.06, 17.94, 20.02, 22.33, 24.88 /)    !-34C
+  table(117:126)=(/ 27.69, 30.79, 34.21, 37.98, 42.13, 46.69,51.70,57.20,63.23,69.85 /) !-24C 
+  table(127:134)=(/ 77.09, 85.02, 93.70, 103.20, 114.66, 127.20, 140.81, 155.67 /)      !-16C
+  table(135:142)=(/ 171.69, 189.03, 207.76, 227.96 , 249.67, 272.98, 298.00, 324.78 /)  !-8C
+  table(143:150)=(/ 353.41, 383.98, 416.48, 451.05, 487.69, 526.51, 567.52, 610.78 /)   !0C
+  table(151:158)=(/ 656.62, 705.47, 757.53, 812.94, 871.92, 934.65, 1001.3, 1072.2 /)   !8C
+  table(159:166)=(/ 1147.4, 1227.2, 1311.9, 1401.7, 1496.9, 1597.7, 1704.4, 1817.3 /)   !16C
+  table(167:174)=(/ 1936.7, 2063.0, 2196.4, 2337.3, 2486.1, 2643.0, 2808.6, 2983.1 /)   !24C
+  table(175:182)=(/ 3167.1, 3360.8, 3564.9, 3779.6, 4005.5, 4243.0, 4492.7, 4755.1 /)   !32C
+  table(183:190)=(/ 5030.7, 5320.0, 5623.6, 5942.2, 6276.2, 6626.4, 6993.4, 7377.7 /)   !40C
+  table(191:197)=(/ 7780.2, 8201.5, 8642.3, 9103.4, 9585.5, 10089.0, 10616.0 /)         !47C
+  table(198:204)=(/ 11166.0, 11740.0, 12340.0, 12965.0, 13617.0, 14298.0, 15007.0 /)    !54C
+  table(205:211)=(/ 15746.0, 16516.0, 17318.0, 18153.0, 19022.0, 19926.0, 20867.0 /)    !61C
+  table(212:218)=(/ 21845.0, 22861.0, 23918.0, 25016.0, 26156.0, 27340.0, 28570.0 /)    !68C
+  table(219:220)=(/ 29845.0, 31169.0 /)                                                 !70C
+  first=.false.
+end if
 
 tdiff=min(max( temp-123.16, 0.), 219.)
 rx=tdiff-aint(tdiff)
@@ -872,7 +879,7 @@ real, dimension(ifull,kl), intent(out) :: gamhl
 gamhl=0.
 gamhl(:,1:kl-1)=gamin(:,1:kl-1)+(zhl(:,1:kl-1)-zz(:,1:kl-1))/(zz(:,2:kl)-zz(:,1:kl-1))*(gamin(:,2:kl)-gamin(:,1:kl-1))
 do k=1,kl-1
-  where (zi.lt.zhl(:,k))
+  where (zi<zhl(:,k))
     gamhl(:,k)=0.
   end where
 end do
@@ -889,7 +896,7 @@ implicit none
 
 integer, intent(in) :: diag
 
-if (diag.gt.0) write(6,*) "Terminate TKE-eps scheme"
+if (diag>0) write(6,*) "Terminate TKE-eps scheme"
 
 deallocate(tke,eps)
 deallocate(shear)

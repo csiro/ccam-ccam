@@ -467,7 +467,6 @@ zg=zg+phi_nh/grav
 do k=1,kl
   dz(:,k)=-rdry*dsig(k)*(t(1:ifull,k)+tnhs(:,k))/(grav*sig(k))
 end do
-dz=max(0.1,dz)
 dxy=ds*ds/(em*em)       ! grid spacing in m**2
 do k=1,kl
   rhoa(:,k)=ps*sig(k)/(rdry*t(1:ifull,k)) !density of air (kg/m**3)

@@ -592,7 +592,7 @@ integer jyear,jmonth,jday,jhour,jmin,mins
 integer tyear,jstart,iip,iim
 integer, dimension(ifull,wlev) :: nface
 real alpha,maxloclseta,maxglobseta,maxloclip,maxglobip
-real delpos,delneg,alph_p,dumpp,dumpn,fjd
+real delpos,delneg,alph_p,fjd
 real, dimension(ifull+iextra) :: neta,pice,imass
 real, dimension(ifull+iextra) :: nfracice,ndic,ndsn,nsto,niu,niv,nis,ndum
 real, dimension(ifull+iextra) :: snu,sou,spu,squ,sru,snv,sov,spv,sqv,srv
@@ -630,6 +630,7 @@ logical, dimension(ifull+iextra) :: wtr
 logical lleap
 
 integer, parameter :: llmax   = 300 ! iterations for calculating surface height
+integer, parameter :: llskip  = 5   ! iteration count before checking for convergence
 integer, parameter :: nxtrrho = 1   ! Estimate rho at t+1
 real, parameter :: tol  = 2.E-3     ! Tolerance for GS solver (water)
 real, parameter :: itol = 2.E1      ! Tolerance for GS solver (ice)
@@ -1329,9 +1330,11 @@ do ll=1,llmax
   neta(1:ifull)=alpha*seta+neta(1:ifull)
   
   ! Break iterative loop when maximum error is below tol (expensive)
-  maxloclseta=maxval(abs(seta))
-  call MPI_AllReduce(maxloclseta,maxglobseta,1,MPI_REAL,MPI_MAX,MPI_COMM_WORLD,ierr)
-  if (maxglobseta<tol.and.ll>2) exit
+  if (mod(ll,llskip)==0) then
+    maxloclseta=maxval(abs(seta))
+    call MPI_AllReduce(maxloclseta,maxglobseta,1,MPI_REAL,MPI_MAX,MPI_COMM_WORLD,ierr)
+    if (maxglobseta<tol) exit
+  end if
 
   totits=totits+1
 end do
@@ -1461,11 +1464,14 @@ do ll=1,llmax
       ! free drift
       nip=0.
   end select
-  maxloclip=maxval(abs(nip-ipice(1:ifull)))
+  seta=abs(nip-ipice(1:ifull))
   ipice(1:ifull)=alpha*nip+(1.-alpha)*ipice(1:ifull)
 
-  call MPI_AllReduce(maxloclip,maxglobip,1,MPI_REAL,MPI_MAX,MPI_COMM_WORLD,ierr)
-  if (maxglobip<itol.and.ll>2) exit
+  if (mod(ll,llskip)==0) then
+    maxloclip=maxval(seta)
+    call MPI_AllReduce(maxloclip,maxglobip,1,MPI_REAL,MPI_MAX,MPI_COMM_WORLD,ierr)
+    if (maxglobip<itol) exit
+  end if
 
   itotits=itotits+1
 end do
@@ -1593,14 +1599,10 @@ if (nud_sss==0) then
       !dum(:,ii)=ns(1:ifull,ii)-w_s
       dum(:,ii)=min(ns(1:ifull,ii),50.)-34.72 ! assume no change in global salinity
     end where
-    odum=dum(:,ii)
-    ! cannot use 3d version, since it is hardwired to atmosphere dsig
-    call ccglobal_posneg(odum,dumpp,dumpn)
-    delpos=delpos+dumpp*godsig(ii)
-    delneg=delneg+dumpn*godsig(ii)
   end do
-  call ccglobal_posneg(odum,delpos,delneg)
+  call ccglobal_posneg(dum,delpos,delneg,godsig)
   alph_p = -delneg/max(delpos,1.E-20)
+  !alph_p = min(sqrt(alph_p),alph_p)
   alph_p = min(max(sqrt(alph_p),1.E-20),1.E20)
   do ii=1,wlev
     where(wtr(1:ifull).and.ndum(1:ifull)>0.1)
@@ -1863,12 +1865,12 @@ ind(i,j,n)=i+(j-1)*ipan+(n-1)*ipan*jpan  ! *** for n=1,npan
 kx=size(nface,2)
 intsch=mod(ktau,2)
 cxx=-999.
-sx=cxx
-sc=cxx
+sx=cxx-1.
+sc=cxx-1.
 
 do iq=1,ifull
   if(.not.wtr(iq)) then
-    s(iq,:)=cxx
+    s(iq,:)=cxx-1.
   end if
 end do
 call bounds(s,nrows=2)
@@ -1955,8 +1957,9 @@ if(intsch==1)then
         sc(0,2) = sx(idel  ,jdel+2,n,k)
         sc(1,2) = sx(idel+1,jdel+2,n,k)
 
-        ncount=count(sc>cxx+1.)
+        ncount=count(sc>cxx)
         if (ncount>=12) then
+          ! bi-cubic interpolation
           r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,0)-xxg*sc(-1,0)/3.) &
                -xxg*(1.+xxg)*sc(2,0)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(1,0))/2.
           r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,1)-xxg*sc(-1,1)/3.) &
@@ -1969,7 +1972,8 @@ if(intsch==1)then
                -yyg*(1.+yyg)*r(4)/3.)                &
                +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
         else
-          where (sc(0:1,0:1)<cxx+1.)
+          ! bi-linear interpolation along coastline
+          where (sc(0:1,0:1)<=cxx)
             sc(0:1,0:1)=0.
           end where
           aad=sc(1,1)-sc(0,1)-sc(1,0)+sc(0,0)
@@ -1982,9 +1986,6 @@ if(intsch==1)then
   end do      ! iq loop
 
 ! Loop over points that need to be calculated for other processes
-
-  call intssend(s)
-
   do iproc=0,nproc-1
     if ( iproc == myid ) then
       cycle
@@ -2019,8 +2020,9 @@ if(intsch==1)then
       sc(0,2) = sx(idel  ,jdel+2,n,k)
       sc(1,2) = sx(idel+1,jdel+2,n,k)
 
-      ncount=count(sc>cxx+1.)
+      ncount=count(sc>cxx)
       if (ncount>=12) then
+        ! bi-cubic interpolation
         r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,0)-xxg*sc(-1,0)/3.) &
              -xxg*(1.+xxg)*sc(2,0)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(1,0))/2.
         r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,1)-xxg*sc(-1,1)/3.) &
@@ -2033,7 +2035,8 @@ if(intsch==1)then
              -yyg*(1.+yyg)*r(4)/3.)                &
              +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
       else
-        where (sc(0:1,0:1)<cxx+1.)
+        ! bi-linear interpolation
+        where (sc(0:1,0:1)<=cxx)
           sc(0:1,0:1)=0.
         end where       
         aad=sc(1,1)-sc(0,1)-sc(1,0)+sc(0,0)
@@ -2117,8 +2120,9 @@ else     ! if(intsch==1)then
         sc(2,0) = sx(idel+2,jdel  ,n,k)
         sc(2,1) = sx(idel+2,jdel+1,n,k)
         
-        ncount=count(sc>cxx+1.)
+        ncount=count(sc>cxx)
         if (ncount>=12) then
+          ! bi-cubic interpolation
           r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(0,0)-yyg*sc(0,-1)/3.) &
                -yyg*(1.+yyg)*sc(0,2)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(0,1))/2.
           r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(1,0)-yyg*sc(1,-1)/3.) &
@@ -2131,7 +2135,8 @@ else     ! if(intsch==1)then
                -xxg*(1.+xxg)*r(4)/3.)          &
                +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
         else
-          where (sc(0:1,0:1)<cxx+1.)
+          ! bi-linear interpolation
+          where (sc(0:1,0:1)<=cxx)
             sc(0:1,0:1)=0.
           end where      
           aad=sc(1,1)-sc(0,1)-sc(1,0)+sc(0,0)
@@ -2144,8 +2149,6 @@ else     ! if(intsch==1)then
   end do
 
 ! For other processes
-  call intssend(s)
-
   do iproc=0,nproc-1
     if ( iproc == myid ) then
       cycle
@@ -2180,8 +2183,9 @@ else     ! if(intsch==1)then
       sc(2,0) = sx(idel+2,jdel  ,n,k)
       sc(2,1) = sx(idel+2,jdel+1,n,k)
 
-      ncount=count(sc>cxx+1.)
+      ncount=count(sc>cxx)
       if (ncount>=12) then
+        ! bi-cubic interpolation
         r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(0,0)-yyg*sc(0,-1)/3.) &
              -yyg*(1.+yyg)*sc(0,2)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(0,1))/2.
         r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(1,0)-yyg*sc(1,-1)/3.) &
@@ -2193,7 +2197,8 @@ else     ! if(intsch==1)then
              -xxg*(1.+xxg)*r(4)/3.)                &
              +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
       else
-        where (sc(0:1,0:1)<cxx+1.)
+        ! bi-linear interpolation
+        where (sc(0:1,0:1)<=cxx)
           sc(0:1,0:1)=0.
         end where       
         aad=sc(1,1)-sc(0,1)-sc(1,0)+sc(0,0)
@@ -2252,8 +2257,8 @@ ind(i,j,n)=i+(j-1)*ipan+(n-1)*ipan*jpan  ! *** for n=1,npan
 kx=size(nface,2)
 intsch=mod(ktau,2)
 cxx=-999.
-sx=cxx
-sc=cxx
+sx=cxx-1.
+sc=cxx-1.
 do k=1,kx
   do iq=1,ifull
     ssav(iq,k)=s(iq,k)
@@ -2262,7 +2267,7 @@ end do
 
 do iq=1,ifull
   if (.not.wtr(iq)) then
-    s(iq,:)=cxx
+    s(iq,:)=cxx-1.
   end if
 end do
 call bounds(s,nrows=2)
@@ -2337,8 +2342,9 @@ if(intsch==1)then
         sc(0,2) = sx(idel  ,jdel+2,n,k)
         sc(1,2) = sx(idel+1,jdel+2,n,k)
 
-        ncount=count(sc>cxx+1.)
+        ncount=count(sc>cxx)
         if (ncount>=12) then
+          ! bi-cubic interpolation
           r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,0)-xxg*sc(-1,0)/3.) &
                -xxg*(1.+xxg)*sc(2,0)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(1,0))/2.
           r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,1)-xxg*sc(-1,1)/3.) &
@@ -2351,8 +2357,9 @@ if(intsch==1)then
                -yyg*(1.+yyg)*r(4)/3.)                &
                +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
         else
+          ! bi-linear interpolation
           scb=sc(0:1,0:1)
-          call lfill(scb,s(iq,k))
+          call lfill(scb,cxx)
           sc(0:1,0:1)=scb        
           aad=sc(1,1)-sc(0,1)-sc(1,0)+sc(0,0)
           aab=sc(1,0)-sc(0,0)
@@ -2367,9 +2374,6 @@ if(intsch==1)then
   end do     ! iq loop
 
 ! Loop over points that need to be calculated for other processes
-
-  call intssend(s)
-
   do iproc=0,nproc-1
     if ( iproc == myid ) then
       cycle
@@ -2404,8 +2408,9 @@ if(intsch==1)then
       sc(0,2) = sx(idel  ,jdel+2,n,k)
       sc(1,2) = sx(idel+1,jdel+2,n,k)
 
-      ncount=count(sc>cxx+1.)
+      ncount=count(sc>cxx)
       if (ncount>=12) then
+        ! bi-cubic interpolation
         r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,0)-xxg*sc(-1,0)/3.) &
              -xxg*(1.+xxg)*sc(2,0)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(1,0))/2.
         r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,1)-xxg*sc(-1,1)/3.) &
@@ -2418,8 +2423,9 @@ if(intsch==1)then
              -yyg*(1.+yyg)*r(4)/3.)                &
              +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
       else
+        ! bi-linear interpolation
         scb=sc(0:1,0:1)
-        call lfill(scb,sextra(iproc)%a(iq))
+        call lfill(scb,cxx)
         sc(0:1,0:1)=scb        
         aad=sc(1,1)-sc(0,1)-sc(1,0)+sc(0,0)
         aab=sc(1,0)-sc(0,0)
@@ -2505,8 +2511,9 @@ else     ! if(intsch==1)then
         sc(2,0) = sx(idel+2,jdel  ,n,k)
         sc(2,1) = sx(idel+2,jdel+1,n,k)
         
-        ncount=count(sc>cxx+1.)
+        ncount=count(sc>cxx)
         if (ncount>=12) then
+          ! bi-cubic interpolation
           r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(0,0)-yyg*sc(0,-1)/3.) &
                -yyg*(1.+yyg)*sc(0,2)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(0,1))/2.
           r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(1,0)-yyg*sc(1,-1)/3.) &
@@ -2519,8 +2526,9 @@ else     ! if(intsch==1)then
                -xxg*(1.+xxg)*r(4)/3.)          &
                +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
         else
+          ! bi-linear interpolation
           scb=sc(0:1,0:1)
-          call lfill(scb,s(iq,k))
+          call lfill(scb,cxx)
           sc(0:1,0:1)=scb        
           aad=sc(1,1)-sc(0,1)-sc(1,0)+sc(0,0)
           aab=sc(1,0)-sc(0,0)
@@ -2535,8 +2543,6 @@ else     ! if(intsch==1)then
   end do
 
 ! For other processes
-  call intssend(s)
-
   do iproc=0,nproc-1
     if ( iproc == myid ) then
       cycle
@@ -2571,8 +2577,9 @@ else     ! if(intsch==1)then
       sc(2,0) = sx(idel+2,jdel  ,n,k)
       sc(2,1) = sx(idel+2,jdel+1,n,k)
 
-      ncount=count(sc>cxx+1.)
+      ncount=count(sc>cxx)
       if (ncount>=12) then
+        ! bi-cubic interpolation
         r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(0,0)-yyg*sc(0,-1)/3.) &
              -yyg*(1.+yyg)*sc(0,2)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(0,1))/2.
         r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(1,0)-yyg*sc(1,-1)/3.) &
@@ -2584,8 +2591,9 @@ else     ! if(intsch==1)then
              -xxg*(1.+xxg)*r(4)/3.)                &
              +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
       else
+        ! bi-linear interpolation
         scb=sc(0:1,0:1)
-        call lfill(scb,sextra(iproc)%a(iq))
+        call lfill(scb,cxx)
         sc(0:1,0:1)=scb        
         aad=sc(1,1)-sc(0,1)-sc(1,0)+sc(0,0)
         aab=sc(1,0)-sc(0,0)
@@ -2608,6 +2616,10 @@ do iq=1,ifull
     s(iq,:)=ssav(iq,:)
   end if
 end do
+
+where (s(1:ifull,:)<cxx+10.)
+  s(1:ifull,:)=ssav
+end where
 
 return
 end subroutine mlob2intsb
@@ -2868,10 +2880,14 @@ do iq=1,ifull
   end if
 end do
 its=int(dtin/dtnew)+1
+#ifdef sumdd
 call MPI_AllReduce(its,its_g,1,MPI_INTEGER,MPI_MAX,MPI_COMM_WORLD,ierr)
-dtnew=dtin/real(its_g)
-
 if (its_g>500.and.myid==0) write(6,*) "MLOVERT cnum,its_g",cnum,its_g
+#else
+its_g=its
+if (its_g>500) write(6,*) "MLOVERT myid,cnum,its_g",myid,cnum,its_g
+#endif
+dtnew=dtin/real(its_g)
 
 tt=tt-290.
 ss=ss-34.72
@@ -3423,16 +3439,20 @@ if (ncount<=0) then
   return
 end if
 
-globc=.true.
 nc=sc
-do while(globc)
-  globc=.false.
+globc=.false.
+call trial(nc,sc,0,0,.false.,.true.,.true.,.false.,globc)
+call trial(nc,sc,1,0,.false.,.false.,.true.,.true.,globc)
+call trial(nc,sc,0,1,.true.,.true.,.false.,.false.,globc)
+call trial(nc,sc,1,1,.true.,.false.,.false.,.true.,globc)
+sc=nc
+if (globc) then
   call trial(nc,sc,0,0,.false.,.true.,.true.,.false.,globc)
   call trial(nc,sc,1,0,.false.,.false.,.true.,.true.,globc)
   call trial(nc,sc,0,1,.true.,.true.,.false.,.false.,globc)
   call trial(nc,sc,1,1,.true.,.false.,.false.,.true.,globc)
   sc=nc
-end do
+end if
 
 return
 end subroutine lfill
