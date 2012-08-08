@@ -327,7 +327,8 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
             enddo               !  iq loop
          endif                  ! (nhorx.ge.7.and.k.le.2*kl/3).or.nhorx.eq.1
       end do
-      call boundsuv(xfact,yfact)
+      call boundsuv(xfact,yfact) ! MJT - can use stag=-9 option which will
+                                 ! only update iwu and isv values
 
       if(nhorps.eq.0.or.nhorps.eq.-2)then ! for nhorps=-1,-3 don't diffuse u,v
          do k=1,kl

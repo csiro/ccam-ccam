@@ -356,7 +356,7 @@ module canopy_module
       canopy%cdtq = canopy%cduv *(LOG(rough%zref_uv / rough%z0m) -          &
         psim( dum)) /      &
        (LOG( rough%zref_uv /(0.1*rough%z0m) ) - psis(canopy%zetar(:,niter)) )
-
+       
       ! Calculate screen temperature:
       ! 1) original method from SCAM
 

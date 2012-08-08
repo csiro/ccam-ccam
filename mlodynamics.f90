@@ -1336,8 +1336,8 @@ do ll=1,llmax
     if (maxglobseta<tol) exit
   end if
 
-  totits=totits+1
 end do
+totits=ll
 
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: free surface conservation"
@@ -1473,8 +1473,8 @@ do ll=1,llmax
     if (maxglobip<itol) exit
   end if
 
-  itotits=itotits+1
 end do
+itotits=ll
 
 ! Update ice velocity with internal pressure terms
 call bounds(ipice,corner=.true.)
@@ -2700,25 +2700,22 @@ do k=1,kx
   uin(1:ifull,k)=u(:,k)*ee(1:ifull)
   vin(1:ifull,k)=v(:,k)*ee(1:ifull)
 end do
-call boundsuv(uin,vin,nrows=2)
+call boundsuv(uin,vin,stag=3)
 
 do k=1,kx
   ud(1:ifull,k)=uin(iwu,k)*0.1+uin(1:ifull,k)+uin(ieu,k)*0.5
   vd(1:ifull,k)=vin(isv,k)*0.1+vin(1:ifull,k)+vin(inv,k)*0.5
 end do
-!call boundsuv(ud,vd)
 
 do k=1,kx
-  !ug(:,k)=ud(1:ifull,k)-0.5*ud(iwu,k)
   ug(:,k)=-0.05*uin(iwwu,k)-0.4*uin(iwu,k)+0.75*uin(1:ifull,k)+0.5*uin(ieu,k)
-  !vg(:,k)=vd(1:ifull,k)-0.5*vd(isv,k)
   vg(:,k)=-0.05*vin(issv,k)-0.4*vin(isv,k)+0.75*vin(1:ifull,k)+0.5*vin(inv,k)
   ua(1:ifull,k)=ug(:,k)*eeu(1:ifull) ! 1st guess
   va(1:ifull,k)=vg(:,k)*eev(1:ifull) ! 1st guess
 end do
 
 do itn=1,itnmax        ! each loop is a double iteration
-  call boundsuv(ua,va,nrows=2)
+  call boundsuv(ua,va,stag=4)
   do iq=1,ifull
     if (eeu(iwu(iq))>0.5.and.eeu(iq)>0.5) then
       uin(iq,:)=(ug(iq,:)-ua(ieu(iq),:)*0.1+ua(iwwu(iq),:)*0.25)/0.95
@@ -2735,7 +2732,7 @@ do itn=1,itnmax        ! each loop is a double iteration
       vin(iq,:)=0.
     end if
   end do
-  call boundsuv(uin,vin,nrows=2)
+  call boundsuv(uin,vin,stag=4)
   do iq=1,ifull
     if (eeu(iwu(iq))>0.5.and.eeu(iq)>0.5) then
       ua(iq,:)=(ug(iq,:)-uin(ieu(iq),:)*0.1+uin(iwwu(iq),:)*0.25)/0.95
@@ -2788,25 +2785,22 @@ do k=1,kx
   uin(1:ifull,k)=u(:,k)*eeu(1:ifull)
   vin(1:ifull,k)=v(:,k)*eev(1:ifull)
 end do
-call boundsuv(uin,vin,nrows=2)
+call boundsuv(uin,vin,stag=7)
 
 do k=1,kx
   ud(1:ifull,k)=uin(ieu,k)*0.1+uin(1:ifull,k)+uin(iwu,k)*0.5
   vd(1:ifull,k)=vin(inv,k)*0.1+vin(1:ifull,k)+vin(isv,k)*0.5
 end do
-!call boundsuv(ud,vd)
 
 do k=1,kx
-  !ug(:,k)=ud(1:ifull,k)-0.5*ud(ieu,k)
   ug(:,k)=-0.05*uin(ieeu,k)-0.4*uin(ieu,k)+0.75*uin(1:ifull,k)+0.5*uin(iwu,k)
-  !vg(:,k)=vd(1:ifull,k)-0.5*vd(inv,k)
   vg(:,k)=-0.05*vin(innv,k)-0.4*vin(inv,k)+0.75*vin(1:ifull,k)+0.5*vin(isv,k)
   ua(1:ifull,k)=ug(:,k)*ee(1:ifull) ! 1st guess
   va(1:ifull,k)=vg(:,k)*ee(1:ifull) ! 1st guess
 end do
 
 do itn=1,itnmax        ! each loop is a double iteration
-  call boundsuv(ua,va,nrows=2)
+  call boundsuv(ua,va,stag=8)
   do iq=1,ifull
     if (ee(ie(iq))>0.5.and.ee(iq)>0.5) then
       uin(iq,:)=(ug(iq,:)-ua(iwu(iq),:)*0.1+ua(ieeu(iq),:)*0.25)/0.95
@@ -2823,7 +2817,7 @@ do itn=1,itnmax        ! each loop is a double iteration
       vin(iq,:)=0.
     end if
   end do
-  call boundsuv(uin,vin,nrows=2)
+  call boundsuv(uin,vin,stag=8)
   do iq=1,ifull
     if (ee(ie(iq))>0.5.and.ee(iq)>0.5) then
       ua(iq,:)=(ug(iq,:)-uin(iwu(iq),:)*0.1+uin(ieeu(iq),:)*0.25)/0.95

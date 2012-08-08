@@ -29,7 +29,7 @@ c     use diag_m             ! for calls to maxmin
 
       call start_log(stag_begin)
       if(nmaxpr==1.and.mydiag)then
-        print *,'  stag_ktau,nstag,nstagu',ktau,nstag,nstagu
+        write(6,*) '  stag_ktau,nstag,nstagu',ktau,nstag,nstagu
       endif
 
       ! Copying could be avoided if input arrays were dimensioned ifull+iextra
@@ -41,7 +41,7 @@ c     use diag_m             ! for calls to maxmin
       end do
       
       if(abs(nstag)<3)then
-        call boundsuv(uin,vin,nrows=2)
+        call boundsuv(uin,vin,stag=7)
         do k=1,kl
          do iq=1,ifull
           uout(iq,k)=(9.*(uin(ieu(iq),k)+uin(iq,k))
@@ -56,9 +56,9 @@ c          vout(iq,k)=.5*(vin(inv(iq),k)+vin(iq,k))
       endif  ! (nstag==0)
 
       if ( nstag==3 ) then
-         call boundsuv(uin,vin,nrows=2)
+         call boundsuv(uin,vin,stag=1)
          if(ntest==1)then
-           print *,'staguv diags'
+           write(6,*) 'staguv diags'
            write (6,"(2x,4i8,6x,4i8)") (i,i=1,4),(i,i=1,4)
            do j=93,96
             write (6,"(i4,4f8.3,6x,4f8.3)") j,(u(i+(j-1)*il,4),i=1,4),
@@ -97,7 +97,7 @@ c          vout(iq,k)=.5*(vin(inv(iq),k)+vin(iq,k))
             end do
          end do
 
-         call boundsuv(ud,vd)
+         call boundsuv(ud,vd,stag=-10)
          do k=1,kl
 !cdir nodep
             do iq=1,ifull
@@ -110,7 +110,7 @@ c          vout(iq,k)=.5*(vin(inv(iq),k)+vin(iq,k))
 
          do itn=1,itnmax        ! each loop is a double iteration
 
-            call boundsuv(ua,va,nrows=2)
+            call boundsuv(ua,va,stag=2)
             do k=1,kl
 !cdir nodep
                do iq=1,ifull
@@ -121,7 +121,7 @@ c          vout(iq,k)=.5*(vin(inv(iq),k)+vin(iq,k))
                end do
             end do
 
-            call boundsuv(uin,vin,nrows=2)
+            call boundsuv(uin,vin,stag=2)
             do k=1,kl
 !cdir nodep
                do iq=1,ifull
@@ -135,7 +135,7 @@ c          vout(iq,k)=.5*(vin(inv(iq),k)+vin(iq,k))
          end do                  ! itn=1,itnmax
 
       else if ( nstag==4 ) then
-         call boundsuv(uin,vin,nrows=2)
+         call boundsuv(uin,vin,stag=3)
          do k=1,kl
 !cdir nodep
             do iq=1,ifull       ! precalculate rhs terms
@@ -157,8 +157,7 @@ c          vout(iq,k)=.5*(vin(inv(iq),k)+vin(iq,k))
          vg=va(1:ifull,:)
 
          do itn=1,itnmax        ! each loop is a double iteration
-            call boundsuv(ua,va,nrows=2)
-
+            call boundsuv(ua,va,stag=4)
             do k=1,kl
 !cdir nodep
                do iq=1,ifull
@@ -169,7 +168,7 @@ c          vout(iq,k)=.5*(vin(inv(iq),k)+vin(iq,k))
                enddo
             enddo
 
-            call boundsuv(uin,vin,nrows=2)
+            call boundsuv(uin,vin,stag=4)
 !cdir nodep
             do k=1,kl
                do iq=1,ifull
@@ -182,7 +181,7 @@ c          vout(iq,k)=.5*(vin(inv(iq),k)+vin(iq,k))
          end do                 ! itn=1,itnmax
 	 
       else
-         print*, "Error, unsupported nstag option:", nstag
+         write(6,*) "Error, unsupported nstag option:", nstag
          stop
       end if
 
@@ -221,7 +220,7 @@ c     staggered u & v as input; unstaggered as output
 
       call start_log(stag_begin)
       if(nmaxpr==1.and.mydiag)then
-        print *,'unstag_ktau,nstag,nstagu',ktau,nstag,nstagu
+        write(6,*) 'unstag_ktau,nstag,nstagu',ktau,nstag,nstagu
       endif
       do k=1,kl
          do iq=1,ifull
@@ -231,7 +230,7 @@ c     staggered u & v as input; unstaggered as output
       end do
       
       if(abs(nstagu)<3)then
-        call boundsuv(uin,vin,nrows=2)
+        call boundsuv(uin,vin,stag=3)
         do k=1,kl
          do iq=1,ifull
           uout(iq,k)=(9.*(uin(iwu(iq),k)+uin(iq,k))
@@ -246,7 +245,7 @@ c     staggered u & v as input; unstaggered as output
       endif  ! (nstagu==0)
 
       if ( nstagu==3 ) then
-         call boundsuv(uin,vin,nrows=2)
+         call boundsuv(uin,vin,stag=5)
          do k=1,kl
 !cdir nodep
             do iq=1,ifull       ! precalculate rhs terms with iwwu2 & issv2
@@ -255,7 +254,7 @@ c     staggered u & v as input; unstaggered as output
             end do
          end do
 
-         call boundsuv(ud,vd)
+         call boundsuv(ud,vd,stag=-9)
          do k=1,kl
 !cdir nodep
             do iq=1,ifull
@@ -268,7 +267,7 @@ c     staggered u & v as input; unstaggered as output
 
          do itn=1,itnmax        ! each loop is a double iteration
 
-            call boundsuv(ua,va,nrows=2)
+            call boundsuv(ua,va,stag=6)
             do k=1,kl
 !cdir nodep
                do iq=1,ifull
@@ -279,7 +278,7 @@ c     staggered u & v as input; unstaggered as output
                end do
             end do
 
-            call boundsuv(uin,vin,nrows=2)
+            call boundsuv(uin,vin,stag=6)
             do k=1,kl
 !cdir nodep
                do iq=1,ifull
@@ -293,7 +292,7 @@ c     staggered u & v as input; unstaggered as output
          end do                 ! itn=1,itnmax
 
       else if ( nstagu==4 ) then
-         call boundsuv(uin,vin,nrows=2)
+         call boundsuv(uin,vin,stag=7)
          do k=1,kl
 !cdir nodep
             do iq=1,ifull       ! precalculate rhs terms
@@ -315,7 +314,7 @@ c     staggered u & v as input; unstaggered as output
          vg=va(1:ifull,:)
 
          do itn=1,itnmax        ! each loop is a double iteration
-            call boundsuv(ua,va,nrows=2)
+            call boundsuv(ua,va,stag=8)
             do k=1,kl
 !cdir nodep
                do iq=1,ifull
@@ -325,7 +324,7 @@ c     staggered u & v as input; unstaggered as output
      &                 -va(isv(iq),k)/10. +va(innv(iq),k)/4.)/.95
                enddo
             enddo
-            call boundsuv(uin,vin,nrows=2)
+            call boundsuv(uin,vin,stag=8)
             do k=1,kl
 !cdir nodep
                do iq=1,ifull
@@ -338,7 +337,7 @@ c     staggered u & v as input; unstaggered as output
          enddo                  ! itn=1,itnmax
       
       else
-         print*, "Error, unsupported nstagu option:", nstagu
+         write(6,*) "Error, unsupported nstagu option:", nstagu
          stop
       end if
 

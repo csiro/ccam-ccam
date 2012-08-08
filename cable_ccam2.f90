@@ -528,6 +528,7 @@ do nb=1,9
     !                                  +sv(pind(nb,1):pind(nb,2))*canopy%ua_10m(pind(nb,1):pind(nb,2))
   end if
 end do
+cdtq=max(cdtq,0.) ! MJT patch
 where (land)
   ustar=sqrt(cduv)*vmod
   zoh=zmin*exp(-sqrt(zo)/zoh)

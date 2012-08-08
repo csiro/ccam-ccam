@@ -474,8 +474,13 @@ c       For time invariant surface fields
         call attrib(idnc,idim,2,'vegt',lname,'none',0.,65.,0,itype)
 
 c       For time varying surface fields
-        lname = 'Rsmin'
-        call attrib(idnc,idim,3,'rsmin',lname,'none',0.,1000.,0,itype)
+        if (nsib==6.or.nsib==7) then
+          lname = 'Stomatal resistance'
+          call attrib(idnc,idim,3,'rs',lname,'none',0.,1000.,0,itype)
+        else
+          lname = 'Minimum stomatal resistance'
+          call attrib(idnc,idim,2,'rsmin',lname,'none',0.,1000.,0,itype)
+        end if
         lname = 'Vegetation fraction'
         call attrib(idnc,idim,3,'sigmf',lname,'none',0.,3.25,0,itype)
         lname ='Scaled Log Surface pressure'
@@ -1346,7 +1351,11 @@ c      set time to number of minutes since start
 
       ! BASIC -------------------------------------------------------
       lwrite=ktau>0
-      call histwrt3(rsmin,'rsmin',idnc,iarch,local,lwrite)
+      if (nsib==6.or.nsib==7) then
+        call histwrt3(rsmin,'rs',idnc,iarch,local,lwrite)
+      else if (ktau==0.or.itype==-1) then
+        call histwrt3(rsmin,'rsmin',idnc,iarch,local,.true.)
+      end if
       call histwrt3(sigmf,'sigmf',idnc,iarch,local,.true.)
       call histwrt3(psl,'psf',idnc,iarch,local,.true.)
       tmpry=t(1:ifull,:)
