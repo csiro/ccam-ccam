@@ -28,7 +28,7 @@ integer, parameter :: usetide=1    ! tidal forcing (0=off, 1=on)
 integer, parameter :: icemode=2    ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
 integer, parameter :: basinmd=1    ! basin mode (0=soil, 1=redistribute, 2=pile-up)
 integer, parameter :: nf     =2    ! power for horizontal diffusion reduction factor
-real, parameter :: k_smag=0.4      ! horizontal diffusion (2. in Griffies (2000), 0.7-1. in POM (Mellor 2004))
+real, parameter :: k_smag=2.       ! horizontal diffusion (2. in Griffies (2000), 0.7-1. in POM (Mellor 2004))
 real, parameter :: delphi=150.     ! horizontal diffusion reduction factor gradient
 real, parameter :: rhosn =330.     ! density snow (kg m^-3)
 real, parameter :: rhoic =900.     ! density ice  (kg m^-3)
@@ -92,6 +92,7 @@ do ii=2,wlev
   dephl(:,ii)=dephl(:,ii-1)+dz(:,ii)
 end do
 dd(1:ifull)=dephl(:,wlev)
+dd(1:ifull)=max(dd(1:ifull),1.E-8)
 
 ! update bounds values
 dumx(1:ifull,1)=ee(1:ifull)
@@ -99,7 +100,7 @@ dumx(1:ifull,2)=dd(1:ifull)
 call bounds(dumx(:,1:2),corner=.true.)
 ee=dumx(:,1)
 dd=dumx(:,2)
-wtr=ee>0.5
+wtr=ee>0.5.and.ee<1.5
 
 ! Precompute weights for calculating staggered gradients
 allocate(stwgt(ifull+iextra,2))
@@ -114,9 +115,14 @@ end where
 ! update staggered bounds values
 eeu(1:ifull)=ee(1:ifull)*ee(ie)
 eev(1:ifull)=ee(1:ifull)*ee(in)
-dd=max(dd,1.E-8)
 ddu(1:ifull)=0.5*(dd(1:ifull)+dd(ie))
 ddv(1:ifull)=0.5*(dd(1:ifull)+dd(in))
+where (eeu(1:ifull)==0)
+  ddu(1:ifull)=1.E-8
+end where
+where (eev(1:ifull)==0)
+  ddv(1:ifull)=1.E-8
+end where
 dumx(1:ifull,1)=eeu(1:ifull)
 dumy(1:ifull,1)=eev(1:ifull)
 dumx(1:ifull,2)=ddu(1:ifull)
@@ -156,7 +162,7 @@ end do
 dumz(1:wlev)=sig
 dumz(wlev+1:2*wlev)=sigh
 dumz(2*wlev+1:3*wlev)=dsig
-call MPI_Allreduce ( dumz, gdumz, 3*wlev, MPI_REAL, MPI_MAX, MPI_COMM_WORLD, ierr )
+call MPI_Allreduce(dumz,gdumz,3*wlev,MPI_REAL,MPI_MAX,MPI_COMM_WORLD,ierr)
 gosig=gdumz(1:wlev)
 gosigh=gdumz(wlev+1:2*wlev)
 godsig=gdumz(2*wlev+1:3*wlev)
@@ -228,11 +234,13 @@ do k=1,wlev-1
   uhl(:,k)=u(1:ifull,k)+xp*(u(1:ifull,k+1)-u(1:ifull,k))
   vhl(:,k)=v(1:ifull,k)+xp*(v(1:ifull,k+1)-v(1:ifull,k))
 end do
+! The following terms should be zero, but the linear interpolation
+! works better with this approximation
 uhl(:,wlev)=u(1:ifull,wlev)
 vhl(:,wlev)=v(1:ifull,wlev)
 
 ! vertical gradients
-depadj(1:ifull)=max(dd(1:ifull)+eta(1:ifull),mindep)
+depadj(1:ifull)=max(dd(1:ifull)+eta(1:ifull),minwater)
 dudz(:,1)=(uhl(:,1)-uhl(:,0))/(depadj(1:ifull)*gosigh(1))
 dvdz(:,1)=(vhl(:,1)-vhl(:,0))/(depadj(1:ifull)*gosigh(1))
 do k=2,wlev
@@ -241,8 +249,8 @@ do k=2,wlev
 end do
 
 ! calculate (appproximate) gradients
-dedx=0.5*(eta(ie)-eta(iw))*em(1:ifull)/ds
-dedy=0.5*(eta(in)-eta(is))*em(1:ifull)/ds
+dedx=0.5*(eta(ie)-eta(iw))*em(1:ifull)/ds*ee(ie)*ee(iw)*ee(1:ifull)
+dedy=0.5*(eta(in)-eta(is))*em(1:ifull)/ds*ee(in)*ee(is)*ee(1:ifull)
 do k=1,wlev
   dudx=0.5*(u(ieu,k)-u(iwu,k))*em(1:ifull)/ds+dudz(:,k)*(1.-gosig(k))*dedx
   dvdx=0.5*(v(iev,k)-v(iwv,k))*em(1:ifull)/ds+dvdz(:,k)*(1.-gosig(k))*dedx
@@ -630,7 +638,7 @@ logical, dimension(ifull+iextra) :: wtr
 logical lleap
 
 integer, parameter :: llmax   = 300 ! iterations for calculating surface height
-integer, parameter :: llskip  = 5   ! iteration count before checking for convergence
+integer, parameter :: llskip  = 1   ! iteration count before checking for convergence
 integer, parameter :: nxtrrho = 1   ! Estimate rho at t+1
 real, parameter :: tol  = 2.E-3     ! Tolerance for GS solver (water)
 real, parameter :: itol = 2.E1      ! Tolerance for GS solver (ice)
@@ -690,6 +698,7 @@ call mloexpice(i_sto,8,0)
 call mloexpice(i_u,9,0)
 call mloexpice(i_v,10,0)
 call mloexpice(i_sal,11,0)
+w_e=max(w_e,-dd(1:ifull)+minwater)*ee(1:ifull)
 
 ! estimate tidal forcing (assumes leap days)
 if (myid==0.and.nmaxpr==1) then
@@ -737,7 +746,6 @@ nsto(1:ifull)=i_sto
 niu(1:ifull)=i_u
 niv(1:ifull)=i_v
 nis(1:ifull)=i_sal
-neta(1:ifull)=max(neta(1:ifull),-dd(1:ifull)+mindep)
 
 totits=0
 itotits=0
@@ -778,9 +786,11 @@ twv=0.5*(ndum(iw)+ndum(iwn))
 dttdxu=(ndum(ie)-ndum(1:ifull))*emu(1:ifull)/ds ! staggered
 dttdyu=stwgt(1:ifull,1)*0.5*(tnu-tsu)*emu(1:ifull)/ds
 dttdxv=stwgt(1:ifull,2)*0.5*(tev-twv)*emv(1:ifull)/ds
-dttdyv=(ndum(in)-ndum(1:ifull))*emv(1:ifull)/ds  
+dttdyv=(ndum(in)-ndum(1:ifull))*emv(1:ifull)/ds
 ! save neta at t
 oeta=neta
+
+
 
 ! ADVECT WATER ----------------------------------------------------
 ! Water currents are advected using semi-Lagrangian advection
@@ -819,7 +829,7 @@ if (myid==0.and.nmaxpr==1) then
 end if
 
 ! Calculate adjusted depths and thicknesses
-odum=max(1.+neta(1:ifull)/dd(1:ifull),mindep/dd(1:ifull))
+odum=max(1.+neta(1:ifull)/dd(1:ifull),minwater/dd(1:ifull))
 do ii=1,wlev
   depdum(:,ii)=gosig(ii)*dd(1:ifull)*odum
   dzdum(:,ii)=godsig(ii)*dd(1:ifull)*odum
@@ -849,31 +859,6 @@ do ii=1,wlev
 end do
 
 ! Calculate normalised density gradients
-! method 1: calculate along sigma levels.
-!do ii=1,wlev
-!  iip=min(ii+1,wlev)
-!  iim=max(ii-1,1)
-!  drhobardzu=(rhobar(1:ifull,iip)+rhobar(ie,iip)-rhobar(1:ifull,iim)-rhobar(ie,iim))          &
-!            /(dep(1:ifull,iip)+dep(ie,iip)-dep(1:ifull,iim)-dep(ie,iim))
-!  drhobardzv=(rhobar(1:ifull,iip)+rhobar(in,iip)-rhobar(1:ifull,iim)-rhobar(in,iim))          &
-!            /(dep(1:ifull,iip)+dep(in,iip)-dep(1:ifull,iim)-dep(in,iim))
-!  tnu=0.5*( rhobar(in,ii)+drhobardzu*((1.-gosig(ii))*neta(in) -gosig(ii)*dd(in) ) &
-!          +rhobar(ine,ii)+drhobardzu*((1.-gosig(ii))*neta(ine)-gosig(ii)*dd(ine)))
-!  tsu=0.5*( rhobar(is,ii)+drhobardzu*((1.-gosig(ii))*neta(is) -gosig(ii)*dd(is) ) &
-!          +rhobar(ise,ii)+drhobardzu*((1.-gosig(ii))*neta(ise)-gosig(ii)*dd(ise)))
-!  tev=0.5*( rhobar(ie,ii)+drhobardzv*((1.-gosig(ii))*neta(ie) -gosig(ii)*dd(ie) ) &
-!          +rhobar(ien,ii)+drhobardzv*((1.-gosig(ii))*neta(ien)-gosig(ii)*dd(ien)))
-!  twv=0.5*( rhobar(iw,ii)+drhobardzv*((1.-gosig(ii))*neta(iw) -gosig(ii)*dd(iw) ) &
-!          +rhobar(iwn,ii)+drhobardzv*((1.-gosig(ii))*neta(iwn)-gosig(ii)*dd(iwn)))
-!  drhobardxu(:,ii)=(rhobar(ie,ii)-rhobar(1:ifull,ii)+drhobardzu*((1.-gosig(ii))*(neta(ie)-neta(1:ifull)) &
-!                                                     -gosig(ii)*(dd(ie)-dd(1:ifull))))*emu(1:ifull)/ds
-!  drhobardxu(:,ii)=drhobardxu(:,ii)*eeu(1:ifull)                                                   
-!  drhobardyu(:,ii)=stwgt(1:ifull,1)*0.5*(tnu-tsu)*emu(1:ifull)/ds
-!  drhobardxv(:,ii)=stwgt(1:ifull,2)*0.5*(tev-twv)*emv(1:ifull)/ds
-!  drhobardyv(:,ii)=(rhobar(in,ii)-rhobar(1:ifull,ii)+drhobardzv*((1.-gosig(ii))*(neta(in)-neta(1:ifull)) &
-!                                                     -gosig(ii)*(dd(in)-dd(1:ifull))))*emv(1:ifull)/ds
-!  drhobardyv(:,ii)=drhobardyv(:,ii)*eev(1:ifull)
-!end do
 ! method 2: Use potential temperature and salinity Jacobians (see Shchepetkin and McWilliams 2003)
 call tsjacobi(nt,ns,dalpha,dbeta,neta,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
 drhobardxu(:,1)=drhobardxu(:,1)*godsig(1)
@@ -907,39 +892,21 @@ dumt=nu(1:ifull,:)
 dums=nv(1:ifull,:)
 call mlostaguv(dumt,dums,duma,dumb)
 ! surface height at staggered coordinate
-oeu(1:ifull)=0.5*(neta(1:ifull)+neta(ie)) ! height at staggered coordinate
-oev(1:ifull)=0.5*(neta(1:ifull)+neta(in)) ! height at staggered coordinate
 eou(1:ifull,1:wlev)=duma
 eov(1:ifull,1:wlev)=dumb
+oeu(1:ifull)=0.5*(neta(1:ifull)+neta(ie))*eeu(1:ifull) ! height at staggered coordinate
+oev(1:ifull)=0.5*(neta(1:ifull)+neta(in))*eev(1:ifull) ! height at staggered coordinate
 eou(1:ifull,wlev+1)=oeu(1:ifull)
 eov(1:ifull,wlev+1)=oev(1:ifull)
 call boundsuv(eou,eov)
-oeu=eou(:,wlev+1)*eeu
-oev=eov(:,wlev+1)*eev
-!dou(:,1)=nu(1:ifull,1)*godsig(1)*ee(1:ifull) ! unstaggered at time t
-!dov(:,1)=nv(1:ifull,1)*godsig(1)*ee(1:ifull)
-cou(:,1)=eou(:,1)*godsig(1)*eeu
-cov(:,1)=eov(:,1)*godsig(1)*eev
+oeu=eou(:,wlev+1)
+oev=eov(:,wlev+1)
+cou(:,1)=eou(:,1)*godsig(1)
+cov(:,1)=eov(:,1)*godsig(1)
 do ii=2,wlev
-  !dou(:,ii)=(dou(:,ii-1)+nu(1:ifull,ii)*godsig(ii))*ee(1:ifull)
-  !dov(:,ii)=(dov(:,ii-1)+nv(1:ifull,ii)*godsig(ii))*ee(1:ifull)
-  cou(:,ii)=(cou(:,ii-1)+eou(:,ii)*godsig(ii))*eeu
-  cov(:,ii)=(cov(:,ii-1)+eov(:,ii)*godsig(ii))*eev
+  cou(:,ii)=(cou(:,ii-1)+eou(:,ii)*godsig(ii))
+  cov(:,ii)=(cov(:,ii-1)+eov(:,ii)*godsig(ii))
 end do
-!sju(:,1)=(oeu(1:ifull)/emu(1:ifull)-oeu(iwu)/emu(iwu))*em(1:ifull)*em(1:ifull)/ds ! unstaggered
-!sjv(:,1)=(oev(1:ifull)/emv(1:ifull)-oev(isv)/emv(isv))*em(1:ifull)*em(1:ifull)/ds
-!sdiv=(cou(1:ifull,wlev)*(ddu(1:ifull)+neta(1:ifull))/emu(1:ifull)-cou(iwu,wlev)*(ddu(iwu)+neta(1:ifull))/emu(iwu)  &
-!     +cov(1:ifull,wlev)*(ddv(1:ifull)+neta(1:ifull))/emv(1:ifull)-cov(isv,wlev)*(ddv(isv)+neta(1:ifull))/emv(isv)) &
-!     *em(1:ifull)*em(1:ifull)/ds
-!sinp=-(dou(:,wlev)*sju(:,1)+dov(:,wlev)*sjv(:,1))
-!do ii=1,wlev-1
-!  div=(cou(1:ifull,ii)*(ddu(1:ifull)+neta(1:ifull))/emu(1:ifull)-cou(iwu,ii)*(ddu(iwu)+neta(1:ifull))/emu(iwu)  &
-!      +cov(1:ifull,ii)*(ddv(1:ifull)+neta(1:ifull))/emv(1:ifull)-cov(isv,ii)*(ddv(isv)+neta(1:ifull))/emv(isv)) &
-!      *em(1:ifull)*em(1:ifull)/ds
-!  inp=-(dou(:,ii)*sju(:,1)+dov(:,ii)*sjv(:,1))
-!  nw(:,ii)=((sdiv-sinp)*gosigh(ii)-div+inp)*ee(1:ifull)
-!end do
-! These following lines are equivalent to those above
 sdiv=(cou(1:ifull,wlev)*(ddu(1:ifull)+oeu(1:ifull))/emu(1:ifull)-cou(iwu,wlev)*(ddu(iwu)+oeu(iwu))/emu(iwu)  &
      +cov(1:ifull,wlev)*(ddv(1:ifull)+oev(1:ifull))/emv(1:ifull)-cov(isv,wlev)*(ddv(isv)+oev(isv))/emv(isv)) &
      *em(1:ifull)*em(1:ifull)/ds
@@ -950,12 +917,14 @@ do ii=1,wlev-1
   nw(:,ii)=(sdiv*gosigh(ii)-div)*ee(1:ifull)
 end do
 ! compute contunity equation horizontal transport terms
+! (Note that the advection of dd is included in the divergence term)
 do ii=1,wlev
   div=(eou(1:ifull,ii)*(ddu(1:ifull)+neta(1:ifull))/emu(1:ifull)-eou(iwu,ii)*(ddu(iwu)+neta(1:ifull))/emu(iwu)  &
       +eov(1:ifull,ii)*(ddv(1:ifull)+neta(1:ifull))/emv(1:ifull)-eov(isv,ii)*(ddv(isv)+neta(1:ifull))/emv(isv)) &
       *em(1:ifull)*em(1:ifull)/ds
   div=div+(nw(:,ii)-nw(:,ii-1))/godsig(ii) ! nw is at half levels
   mps(1:ifull,ii)=neta(1:ifull)-(1.-eps)*0.5*dt*div
+  mps(1:ifull,ii)=mps(1:ifull,ii)*ee(1:ifull)
 end do
 
 if (myid==0.and.nmaxpr==1) then
@@ -1126,11 +1095,13 @@ call mlostaguv(uau,uav,duma,dumb)
 cou(1:ifull,:)=duma
 cov(1:ifull,:)=dumb
 odum=1./(1.+(1.+eps)*(1.+eps)*0.25*dt*dt*fu(1:ifull)*fu(1:ifull))
+odum=odum*eeu(1:ifull)
 siu(:,1)=-(1.+eps)*0.5*dt*odum
 do ii=1,wlev
   cou(1:ifull,ii)=cou(1:ifull,ii)*odum ! staggered
 end do
 odum=1./(1.+(1.+eps)*(1.+eps)*0.25*dt*dt*fv(1:ifull)*fv(1:ifull))
+odum=odum*eev(1:ifull)
 siv(:,1)=-(1.+eps)*0.5*dt*odum
 do ii=1,wlev
   cov(1:ifull,ii)=cov(1:ifull,ii)*odum ! staggered
@@ -1227,8 +1198,10 @@ end do
 imu=0.5*(imass(1:ifull)+imass(ie))
 imv=0.5*(imass(1:ifull)+imass(in))
 ! note missing 0.5 as ip is the average of t and t+1
-ibu(1:ifull)=-dt/(imu*(1.+(1.+eps)*(1.+eps)*0.25*dt*dt*fu(1:ifull)*fu(1:ifull)))*eeu(1:ifull)
-ibv(1:ifull)=-dt/(imv*(1.+(1.+eps)*(1.+eps)*0.25*dt*dt*fv(1:ifull)*fv(1:ifull)))*eev(1:ifull)
+ibu(1:ifull)=-dt/(imu*(1.+(1.+eps)*(1.+eps)*0.25*dt*dt*fu(1:ifull)*fu(1:ifull)))
+ibv(1:ifull)=-dt/(imv*(1.+(1.+eps)*(1.+eps)*0.25*dt*dt*fv(1:ifull)*fv(1:ifull)))
+ibu(1:ifull)=ibu(1:ifull)*eeu(1:ifull)
+ibv(1:ifull)=ibv(1:ifull)*eev(1:ifull)
 icu(1:ifull)= dt*fu(1:ifull)*ibu(1:ifull)
 icv(1:ifull)=-dt*fv(1:ifull)*ibv(1:ifull)
 
@@ -1266,7 +1239,6 @@ icv=dumd(:,7)
 odiv=(sou(1:ifull)/emu(1:ifull)-sou(iwu)/emu(iwu)  &
      +sov(1:ifull)/emv(1:ifull)-sov(isv)/emv(isv)) &
      *em(1:ifull)*em(1:ifull)/ds
-
 odivb=(sou(1:ifull)*ddu(1:ifull)/emu(1:ifull)-sou(iwu)*ddu(iwu)/emu(iwu)  &
       +sov(1:ifull)*ddv(1:ifull)/emv(1:ifull)-sov(isv)*ddv(isv)/emv(isv)) &
       *em(1:ifull)*em(1:ifull)/ds
@@ -1275,13 +1247,9 @@ sue=spu(1:ifull)*0.5/emu(1:ifull)-squ(1:ifull)/ds
 suw=spu(iwu)*0.5/emu(iwu)        +squ(iwu)/ds
 svn=spv(1:ifull)*0.5/emv(1:ifull)-sqv(1:ifull)/ds
 svs=spv(isv)*0.5/emv(isv)        +sqv(isv)/ds
-sdiv=(sue-suw+svn-svs)*em(1:ifull)*em(1:ifull)/ds
 
-sue=(spu(1:ifull)*0.5/emu(1:ifull)-squ(1:ifull)/ds)*ddu(1:ifull)
-suw=(spu(iwu)*0.5/emu(iwu)        +squ(iwu)/ds    )*ddu(iwu)
-svn=(spv(1:ifull)*0.5/emv(1:ifull)-sqv(1:ifull)/ds)*ddv(1:ifull)
-svs=(spv(isv)*0.5/emv(isv)        +sqv(isv)/ds    )*ddv(isv)
-sdivb=(sue-suw+svn-svs)*em(1:ifull)*em(1:ifull)/ds
+sdiv =(sue             -suw         +svn             -svs         )*em(1:ifull)*em(1:ifull)/ds
+sdivb=(sue*ddu(1:ifull)-suw*ddu(iwu)+svn*ddv(1:ifull)-svs*ddv(isv))*em(1:ifull)*em(1:ifull)/ds
 
 sue=spu(1:ifull)*0.5/emu(1:ifull)+squ(1:ifull)/ds
 suw=spu(iwu)*0.5/emu(iwu)        -squ(iwu)/ds
@@ -1323,11 +1291,9 @@ do ll=1,llmax
 
   ! The following expression limits the minimum depth to 1m
   ! (should not occur for typical eta values)
-  seta=max(seta,min(mindep-dd(1:ifull)-neta(1:ifull),0.)) ! this should become a land point
-  where (.not.wtr(1:ifull))
-    seta=0.
-  end where
-  neta(1:ifull)=alpha*seta+neta(1:ifull)
+  seta=max(seta,minwater-dd(1:ifull)-neta(1:ifull)) ! this should become a land point
+  seta=seta*ee(1:ifull)
+  neta(1:ifull)=alpha*seta+neta(1:ifull)*ee(1:ifull)
   
   ! Break iterative loop when maximum error is below tol (expensive)
   if (mod(ll,llskip)==0) then
@@ -1345,16 +1311,11 @@ end if
 
 ! volume conservation for water ---------------------------------------
 if (nud_sfh==0) then
-  odum=0.
-  where (wtr(1:ifull))
-    !odum=neta(1:ifull)-w_e
-    odum=neta(1:ifull) ! assume no change in global sea level
-  end where
+  odum=(neta(1:ifull)-w_e)*ee(1:ifull)
   call ccglobal_posneg(odum,delpos,delneg)
   alph_p = -delneg/max(delpos,1.E-20)
   alph_p = min(max(sqrt(alph_p),1.E-20),1.E20)
-  !neta(1:ifull)=w_e+max(0.,odum)*alph_p+min(0.,odum)/alph_p
-  neta(1:ifull)=max(0.,odum)*alph_p+min(0.,odum)/alph_p
+  neta(1:ifull)=w_e+max(0.,odum)*alph_p+min(0.,odum)/alph_p
 end if
 
 if (myid==0.and.nmaxpr==1) then
@@ -1387,6 +1348,8 @@ call mlounstaguv(dumt,dums,uau,uav)
 nu(1:ifull,:)=uau
 nv(1:ifull,:)=uav
 
+
+
 ! UPDATE ICE DYNAMICS ---------------------------------------------
 ! Here we start by calculating the ice velocity and then advecting
 ! the various ice prognostic variables.
@@ -1406,8 +1369,8 @@ uiu(:,1)=snu(1:ifull)+(1.+eps)*0.5*dt*f(1:ifull)*snv(1:ifull) ! unstaggered
 uiv(:,1)=snv(1:ifull)-(1.+eps)*0.5*dt*f(1:ifull)*snu(1:ifull)
 call mlostaguv(uiu,uiv,siu,siv)
 ! niu and niv hold the free drift solution (staggered).  Wind stress terms are updated in mlo.f90
-niu(1:ifull)=siu(:,1)/(1.+(1.+eps)*(1.+eps)*0.25*dt*dt*fu(1:ifull)*fu(1:ifull))*eeu(1:ifull) ! staggered
-niv(1:ifull)=siv(:,1)/(1.+(1.+eps)*(1.+eps)*0.25*dt*dt*fv(1:ifull)*fv(1:ifull))*eev(1:ifull)
+niu(1:ifull)=siu(:,1)/(1.+(1.+eps)*(1.+eps)*0.25*dt*dt*fu(1:ifull)*fu(1:ifull)) ! staggered
+niv(1:ifull)=siv(:,1)/(1.+(1.+eps)*(1.+eps)*0.25*dt*dt*fv(1:ifull)*fv(1:ifull))
 
 ! maximum pressure for cavitating fluid
 ipmax=27500.*ndic(1:ifull)*exp(-20.*(1.-nfracice(1:ifull)))
@@ -1486,8 +1449,8 @@ dipdxu=(ipice(ie)-ipice(1:ifull))*emu(1:ifull)/ds
 dipdyu=stwgt(1:ifull,1)*0.5*(tnu-tsu)*emu(1:ifull)/ds
 dipdxv=stwgt(1:ifull,2)*0.5*(tev-twv)*emv(1:ifull)/ds
 dipdyv=(ipice(in)-ipice(1:ifull))*emv(1:ifull)/ds
-niu(1:ifull)=(niu(1:ifull)+ibu(1:ifull)*dipdxu+icu(1:ifull)*dipdyu)*eeu(1:ifull)
-niv(1:ifull)=(niv(1:ifull)+ibv(1:ifull)*dipdyv+icv(1:ifull)*dipdxv)*eev(1:ifull)
+niu(1:ifull)=niu(1:ifull)+ibu(1:ifull)*dipdxu+icu(1:ifull)*dipdyu
+niv(1:ifull)=niv(1:ifull)+ibv(1:ifull)*dipdyv+icv(1:ifull)*dipdxv
 call boundsuv(niu,niv)
 
 ! Normalisation factor for conserving ice flow in and out of gridbox
@@ -1596,18 +1559,15 @@ if (nud_sss==0) then
   ndum(1:ifull)=sum(w_s(1:ifull,:),2)
   do ii=1,wlev
     where(wtr(1:ifull).and.ndum(1:ifull)>0.1)
-      !dum(:,ii)=ns(1:ifull,ii)-w_s
-      dum(:,ii)=min(ns(1:ifull,ii),50.)-34.72 ! assume no change in global salinity
+      dum(:,ii)=ns(1:ifull,ii)-w_s(:,ii)
     end where
   end do
   call ccglobal_posneg(dum,delpos,delneg,godsig)
   alph_p = -delneg/max(delpos,1.E-20)
-  !alph_p = min(sqrt(alph_p),alph_p)
-  alph_p = min(max(sqrt(alph_p),1.E-20),1.E20)
+  alph_p = min(sqrt(alph_p),alph_p)
   do ii=1,wlev
     where(wtr(1:ifull).and.ndum(1:ifull)>0.1)
-      !ns(1:ifull,ii)=w_s+max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)
-      ns(1:ifull,ii)=34.72+max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/alph_p
+      ns(1:ifull,ii)=w_s(:,ii)+max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)
     end where
   end do
 end if
@@ -1823,7 +1783,7 @@ do loop=1,nmaploop
     ri(iq)=real(i)+real(is)*((xg(iq)-xx4(i,j))*dyy-(yg(iq)-yy4(i,j))*dyx)/den(iq)
     rj(iq)=real(j)+real(js)*((yg(iq)-yy4(i,j))*dxx-(xg(iq)-xx4(i,j))*dxy)/den(iq)
   end do
-enddo  ! loop loop
+end do  ! loop loop
 !      expect xg, yg to range between .5 and il+.5
 xg=.25*(ri+3.) -.5  ! -.5 for stag; back to normal ri, rj defn
 yg=.25*(rj+3.) -.5  ! -.5 for stag
@@ -1864,14 +1824,14 @@ ind(i,j,n)=i+(j-1)*ipan+(n-1)*ipan*jpan  ! *** for n=1,npan
 
 kx=size(nface,2)
 intsch=mod(ktau,2)
-cxx=-999.
+cxx=-9999.
 sx=cxx-1.
 sc=cxx-1.
 
-do iq=1,ifull
-  if(.not.wtr(iq)) then
-    s(iq,:)=cxx-1.
-  end if
+do k=1,kx
+  where (.not.wtr(1:ifull))
+    s(1:ifull,k)=cxx-1.
+  end where
 end do
 call bounds(s,nrows=2)
 
@@ -2214,10 +2174,10 @@ endif                     ! (intsch==1) .. else ..
 
 call intssync(s)
 
-do iq=1,ifull
-  if (.not.wtr(iq)) then
-    s(iq,:)=0.
-  end if
+do k=1,kx
+  where (.not.wtr(1:ifull))
+    s(1:ifull,k)=0.
+  end where
 end do
 
 return
@@ -2226,7 +2186,7 @@ end subroutine mlob2ints
 ! This version is for scalars which is same as above, but
 ! missing land values are filled from non-trivial values
 ! instead of being set to zero
-subroutine mlob2intsb(s,nface,xg,yg,wtr)
+subroutine mlob2intsb(s,nface,xg,yg,wtr,bilinear)
 
 use cc_mpi
 use indices_m
@@ -2252,23 +2212,24 @@ real, dimension(4) :: r
 real xxg,yyg,aab,aac,aad
 real cmax,cmin,cxx
 logical, dimension(ifull+iextra), intent(in) :: wtr
+logical, intent(in), optional :: bilinear
+logical :: lmode
 ind(i,j,n)=i+(j-1)*ipan+(n-1)*ipan*jpan  ! *** for n=1,npan
+
+lmode=.true.
+if (present(bilinear)) lmode=.not.bilinear
 
 kx=size(nface,2)
 intsch=mod(ktau,2)
-cxx=-999.
+cxx=-9999. ! missing value flag
 sx=cxx-1.
 sc=cxx-1.
-do k=1,kx
-  do iq=1,ifull
-    ssav(iq,k)=s(iq,k)
-  end do
-end do
+ssav(1:ifull,:)=s(1:ifull,:)
 
-do iq=1,ifull
-  if (.not.wtr(iq)) then
-    s(iq,:)=cxx-1.
-  end if
+do k=1,kx
+  where (.not.wtr(1:ifull))
+    s(1:ifull,k)=cxx-1. ! missing value flag
+  end where
 end do
 call bounds(s,nrows=2)
 
@@ -2343,7 +2304,7 @@ if(intsch==1)then
         sc(1,2) = sx(idel+1,jdel+2,n,k)
 
         ncount=count(sc>cxx)
-        if (ncount>=12) then
+        if (ncount>=12.and.lmode) then
           ! bi-cubic interpolation
           r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,0)-xxg*sc(-1,0)/3.) &
                -xxg*(1.+xxg)*sc(2,0)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(1,0))/2.
@@ -2409,7 +2370,7 @@ if(intsch==1)then
       sc(1,2) = sx(idel+1,jdel+2,n,k)
 
       ncount=count(sc>cxx)
-      if (ncount>=12) then
+      if (ncount>=12.and.lmode) then
         ! bi-cubic interpolation
         r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,0)-xxg*sc(-1,0)/3.) &
              -xxg*(1.+xxg)*sc(2,0)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(1,0))/2.
@@ -2512,7 +2473,7 @@ else     ! if(intsch==1)then
         sc(2,1) = sx(idel+2,jdel+1,n,k)
         
         ncount=count(sc>cxx)
-        if (ncount>=12) then
+        if (ncount>=12.and.lmode) then
           ! bi-cubic interpolation
           r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(0,0)-yyg*sc(0,-1)/3.) &
                -yyg*(1.+yyg)*sc(0,2)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(0,1))/2.
@@ -2578,7 +2539,7 @@ else     ! if(intsch==1)then
       sc(2,1) = sx(idel+2,jdel+1,n,k)
 
       ncount=count(sc>cxx)
-      if (ncount>=12) then
+      if (ncount>=12.and.lmode) then
         ! bi-cubic interpolation
         r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(0,0)-yyg*sc(0,-1)/3.) &
              -yyg*(1.+yyg)*sc(0,2)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(0,1))/2.
@@ -2611,10 +2572,10 @@ endif                     ! (intsch==1) .. else ..
 
 call intssync(s)
 
-do iq=1,ifull
-  if (.not.wtr(iq)) then
-    s(iq,:)=ssav(iq,:)
-  end if
+do k=1,kx
+  where (.not.wtr(1:ifull))
+    s(1:ifull,k)=ssav(:,k)
+  end where
 end do
 
 where (s(1:ifull,:)<cxx+10.)
@@ -2705,9 +2666,6 @@ call boundsuv(uin,vin,stag=3)
 do k=1,kx
   ud(1:ifull,k)=uin(iwu,k)*0.1+uin(1:ifull,k)+uin(ieu,k)*0.5
   vd(1:ifull,k)=vin(isv,k)*0.1+vin(1:ifull,k)+vin(inv,k)*0.5
-end do
-
-do k=1,kx
   ug(:,k)=-0.05*uin(iwwu,k)-0.4*uin(iwu,k)+0.75*uin(1:ifull,k)+0.5*uin(ieu,k)
   vg(:,k)=-0.05*vin(issv,k)-0.4*vin(isv,k)+0.75*vin(1:ifull,k)+0.5*vin(inv,k)
   ua(1:ifull,k)=ug(:,k)*eeu(1:ifull) ! 1st guess
@@ -2790,9 +2748,6 @@ call boundsuv(uin,vin,stag=7)
 do k=1,kx
   ud(1:ifull,k)=uin(ieu,k)*0.1+uin(1:ifull,k)+uin(iwu,k)*0.5
   vd(1:ifull,k)=vin(inv,k)*0.1+vin(1:ifull,k)+vin(isv,k)*0.5
-end do
-
-do k=1,kx
   ug(:,k)=-0.05*uin(ieeu,k)-0.4*uin(ieu,k)+0.75*uin(1:ifull,k)+0.5*uin(iwu,k)
   vg(:,k)=-0.05*vin(innv,k)-0.4*vin(inv,k)+0.75*vin(1:ifull,k)+0.5*vin(isv,k)
   ua(1:ifull,k)=ug(:,k)*ee(1:ifull) ! 1st guess
@@ -2834,7 +2789,7 @@ do itn=1,itnmax        ! each loop is a double iteration
       va(iq,:)=0.
     end if
   end do
-enddo                  ! itn=1,itnmax
+end do                  ! itn=1,itnmax
       
 uout=ua(1:ifull,:)
 vout=va(1:ifull,:)
@@ -3010,7 +2965,7 @@ subroutine finitedelta(rhobar,neta,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
 
 use indices_m
 use map_m
-use mlo, only : wlev,mindep
+use mlo, only : wlev,minwater
 
 implicit none
 
@@ -3028,7 +2983,7 @@ real xp
 ! set-up level depths
 dephladj(:,0)=0.
 do ii=1,wlev
-  dephladj(:,ii)=gosigh(ii)*max(dd(:)+neta(:),mindep)
+  dephladj(:,ii)=gosigh(ii)*max(dd(:)+neta(:),minwater)
 end do
 
 ! estimate rhobar at half levels
@@ -3072,7 +3027,7 @@ subroutine seekdelta(rhobar,neta,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
 
 use indices_m
 use map_m
-use mlo, only : wlev,mindep
+use mlo, only : wlev,minwater
 
 implicit none
 
@@ -3095,7 +3050,7 @@ real xp
 ! set-up level depths
 dephladj(:,0)=0.
 do ii=1,wlev
-  dephladj(:,ii)=gosigh(ii)*max(dd(:)+neta(:),mindep)
+  dephladj(:,ii)=gosigh(ii)*max(dd(:)+neta(:),minwater)
 end do
 
 ! estimate rhobar at half levels
@@ -3255,7 +3210,7 @@ subroutine pomdelta(rhobar,neta,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
 
 use indices_m
 use map_m
-use mlo, only : wlev,mindep
+use mlo, only : wlev,minwater
 
 implicit none
 
@@ -3273,7 +3228,7 @@ real, dimension(ifull) :: rho1,rho2,rho3,rho4,z1,z2,z3,z4
 ! set-up level depths
 dephladj(:,0)=0.
 do ii=1,wlev
-  dephladj(:,ii)=gosigh(ii)*max(dd(:)+neta(:),mindep)
+  dephladj(:,ii)=gosigh(ii)*max(dd(:)+neta(:),minwater)
 end do
 
 ! estimate rhobar at half levels

@@ -221,7 +221,8 @@ contains
 #ifdef uniform_decomp
       call proc_setup_uniform(npanels,ifull)
       ! Faces may not line up properly so need extra factor here
-      maxbuflen = (max(ipan,jpan)+4)*3*max(kl,ol) * 8 * 2  !*3 for extra vector row (e.g., inu,isu,iev,iwv)
+      maxbuflen = (max(ipan,jpan)+4)*3*max(kl+1,ol+1) * 8 * 2  !*3 for extra vector row (e.g., inu,isu,iev,iwv)
+                                                               ! kl+1 and ol+1 for 2D + 3D packing
 #else
       call proc_setup(npanels,ifull)
       if ( nproc < npanels+1 ) then
@@ -727,8 +728,9 @@ contains
       integer :: n, nr, i, j, iq, iqx, count
       integer :: ierr,ierr2, itag = 0, iproc, rproc, sproc
       integer, dimension(MPI_STATUS_SIZE,2*nproc) :: status
+      integer, dimension(7,0:nproc-1) :: dums, dumr
       integer :: iqg
-      integer :: iext, iql, iloc, jloc, nloc
+      integer :: iext, iextu, iextv, iql, iloc, jloc, nloc
       logical :: swap
 
       ! Just set values that point to values within own processors region.
@@ -1497,7 +1499,8 @@ contains
 !     copied only if they have to be swapped.
 !     This only makes a difference on 1, 2 or 3 processors.
 
-      iext = 0
+      iextu = 0
+      iextv = 0
 
       ! save start of isv indices
       rsplit(:)%isvbg = 1
@@ -1512,15 +1515,15 @@ contains
             rproc = qproc(iqx)
             swap = edge_s(n-noff) .and. swap_s(n-noff)
             if ( rproc == myid .and. .not. swap ) cycle
-            call check_bnds_alloc(rproc, iext)
+            call check_bnds_alloc(rproc, iextv)
             bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1
             bnds(rproc)%request_list_uv(bnds(rproc)%rlen_uv) = -iqx
             rsplit(rproc)%iwufn = rsplit(rproc)%iwufn + 1
             ! Increment extended region index
-            iext = iext + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen_uv) = -iext
+            iextv = iextv + 1
+            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen_uv) = -iextv
             iql = indp(i,j,n)  !  Local index
-            isv(iql) = ifull+iext
+            isv(iql) = ifull+iextv
             bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
             bnds(rproc)%uv_neg(bnds(rproc)%rlen_uv) = .false.
          end do
@@ -1539,15 +1542,15 @@ contains
             ! Decide if u/v need to be swapped. My face is n-noff
             swap = edge_w(n-noff) .and. swap_w(n-noff)
             if ( rproc == myid .and. .not. swap ) cycle
-            call check_bnds_alloc(rproc, iext)
+            call check_bnds_alloc(rproc, iextu)
             bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1
             bnds(rproc)%request_list_uv(bnds(rproc)%rlen_uv) = iqx
             rsplit(rproc)%iwufn = rsplit(rproc)%iwufn + 1
             ! Increment extended region index
-            iext = iext + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen_uv) = iext
+            iextu = iextu + 1
+            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen_uv) = iextu
             iql = indp(i,j,n)  !  Local index
-            iwu(iql) = ifull+iext
+            iwu(iql) = ifull+iextu
             bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
             bnds(rproc)%uv_neg(bnds(rproc)%rlen_uv) = .false.
          end do
@@ -1567,16 +1570,16 @@ contains
             swap = edge_n(n-noff) .and. swap_n(n-noff)
             if ( rproc == myid .and. .not. swap ) cycle
             ! Add this point to request list
-            call check_bnds_alloc(rproc, iext)
+            call check_bnds_alloc(rproc, iextv)
             bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1
             ! to show that this is v rather than u, flip sign
             bnds(rproc)%request_list_uv(bnds(rproc)%rlen_uv) = -iqx
             rsplit(rproc)%ieufn = rsplit(rproc)%ieufn + 1
             ! Increment extended region index
-            iext = iext + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen_uv) = -iext
+            iextv = iextv + 1
+            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen_uv) = -iextv
             iql = indp(i,j,n)  !  Local index
-            inv(iql) = ifull+iext
+            inv(iql) = ifull+iextv
             bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
             bnds(rproc)%uv_neg(bnds(rproc)%rlen_uv) = .false.
          end do
@@ -1592,15 +1595,15 @@ contains
             swap = edge_e(n-noff) .and. swap_e(n-noff)
             if ( rproc == myid .and. .not. swap ) cycle
             ! Add this point to request list
-            call check_bnds_alloc(rproc, iext)
+            call check_bnds_alloc(rproc, iextu)
             bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1
             bnds(rproc)%request_list_uv(bnds(rproc)%rlen_uv) = iqx
             rsplit(rproc)%ieufn = rsplit(rproc)%ieufn + 1
             ! Increment extended region index
-            iext = iext + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen_uv) = iext
+            iextu = iextu + 1
+            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen_uv) = iextu
             iql = indp(i,j,n)  !  Local index
-            ieu(iql) = ifull+iext
+            ieu(iql) = ifull+iextu
             bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
             bnds(rproc)%uv_neg(bnds(rproc)%rlen_uv) = .false.
          end do
@@ -1627,15 +1630,15 @@ contains
             rproc = qproc(iqx)
             swap = edge_s(n-noff) .and. swap_s(n-noff)
             if ( rproc == myid .and. .not. swap ) cycle
-            call check_bnds_alloc(rproc,iext)
+            call check_bnds_alloc(rproc, iextv)
             bnds(rproc)%rlen2_uv = bnds(rproc)%rlen2_uv + 1
             bnds(rproc)%request_list_uv(bnds(rproc)%rlen2_uv) = -iqx
             rsplit(rproc)%iwwufn = rsplit(rproc)%iwwufn + 1
             ! Increment extended region index
-            iext = iext + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen2_uv) = -iext
+            iextv = iextv + 1
+            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen2_uv) = -iextv
             iql = indp(i,j,n)  !  Local index
-            issv(iql) = ifull+iext
+            issv(iql) = ifull+iextv
             bnds(rproc)%uv_swap(bnds(rproc)%rlen2_uv) = swap
             bnds(rproc)%uv_neg(bnds(rproc)%rlen2_uv) = .false.
          end do
@@ -1652,15 +1655,15 @@ contains
             swap = edge_w(n-noff) .and. swap_w(n-noff)
             if ( rproc == myid .and. .not. swap ) cycle
             ! Add this point to request list
-            call check_bnds_alloc(rproc,iext)
+            call check_bnds_alloc(rproc, iextu)
             bnds(rproc)%rlen2_uv = bnds(rproc)%rlen2_uv + 1
             bnds(rproc)%request_list_uv(bnds(rproc)%rlen2_uv) = iqx
             rsplit(rproc)%iwwufn = rsplit(rproc)%iwwufn + 1
             ! Increment extended region index
-            iext = iext + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen2_uv) = iext
+            iextu = iextu + 1
+            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen2_uv) = iextu
             iql = indp(i,j,n)  !  Local index
-            iwwu(iql) = ifull+iext
+            iwwu(iql) = ifull+iextu
             ! Decide if u/v need to be swapped. My face is n-noff
             bnds(rproc)%uv_swap(bnds(rproc)%rlen2_uv) = swap
             bnds(rproc)%uv_neg(bnds(rproc)%rlen2_uv) = .false.
@@ -1681,16 +1684,16 @@ contains
             swap = edge_n(n-noff) .and. swap_n(n-noff)
             if ( rproc == myid .and. .not. swap ) cycle
             ! Add this point to request list
-            call check_bnds_alloc(rproc,iext)
+            call check_bnds_alloc(rproc, iextv)
             bnds(rproc)%rlen2_uv = bnds(rproc)%rlen2_uv + 1
             ! to show that this is v rather than u, flip sign
             bnds(rproc)%request_list_uv(bnds(rproc)%rlen2_uv) = -iqx
             rsplit(rproc)%ieeufn = rsplit(rproc)%ieeufn + 1
             ! Increment extended region index
-            iext = iext + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen2_uv) = -iext
+            iextv = iextv + 1
+            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen2_uv) = -iextv
             iql = indp(i,j,n)  !  Local index
-            innv(iql) = ifull+iext
+            innv(iql) = ifull+iextv
             bnds(rproc)%uv_swap(bnds(rproc)%rlen2_uv) = swap
             bnds(rproc)%uv_neg(bnds(rproc)%rlen2_uv) = .false.
          end do
@@ -1706,15 +1709,15 @@ contains
             swap = edge_e(n-noff) .and. swap_e(n-noff)
             if ( rproc == myid .and. .not. swap ) cycle
             ! Add this point to request list
-            call check_bnds_alloc(rproc,iext)
+            call check_bnds_alloc(rproc, iextu)
             bnds(rproc)%rlen2_uv = bnds(rproc)%rlen2_uv + 1
             bnds(rproc)%request_list_uv(bnds(rproc)%rlen2_uv) = iqx
             rsplit(rproc)%ieeufn = rsplit(rproc)%ieeufn + 1
             ! Increment extended region index
-            iext = iext + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen2_uv) = iext
+            iextu = iextu + 1
+            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen2_uv) = iextu
             iql = indp(i,j,n)  !  Local index
-            ieeu(iql) = ifull+iext
+            ieeu(iql) = ifull+iextu
             bnds(rproc)%uv_swap(bnds(rproc)%rlen2_uv) = swap
             bnds(rproc)%uv_neg(bnds(rproc)%rlen2_uv) = .false.
          end do
@@ -1737,15 +1740,15 @@ contains
             rproc = qproc(iqx)
             swap = edge_s(n-noff) .and. swap_s(n-noff)
             if ( rproc == myid .and. .not. swap ) cycle
-            call check_bnds_alloc(rproc, iext)
+            call check_bnds_alloc(rproc, iextu)
             bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
             bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = iqx
             rsplit(rproc)%ievfn = rsplit(rproc)%ievfn + 1
             ! Increment extended region index
-            iext = iext + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlenx_uv) = iext
+            iextu = iextu + 1
+            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlenx_uv) = iextu
             iql = indp(i,j,n)  !  Local index
-            isu(iql) = ifull+iext
+            isu(iql) = ifull+iextu
             bnds(rproc)%uv_swap(bnds(rproc)%rlenx_uv) = swap
             bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = swap
          end do
@@ -1764,16 +1767,16 @@ contains
             ! Decide if u/v need to be swapped. My face is n-noff
             swap = edge_w(n-noff) .and. swap_w(n-noff)
             if ( rproc == myid .and. .not. swap ) cycle
-            call check_bnds_alloc(rproc, iext)
+            call check_bnds_alloc(rproc, iextv)
             bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
             ! to show that this is v rather than u, flip sign
             bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = -iqx
             rsplit(rproc)%ievfn = rsplit(rproc)%ievfn + 1
             ! Increment extended region index
-            iext = iext + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlenx_uv) = -iext
+            iextv = iextv + 1
+            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlenx_uv) = -iextv
             iql = indp(i,j,n)  !  Local index
-            iwv(iql) = ifull+iext
+            iwv(iql) = ifull+iextv
             bnds(rproc)%uv_swap(bnds(rproc)%rlenx_uv) = swap
             bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = swap
          end do
@@ -1789,15 +1792,15 @@ contains
             swap = edge_n(n-noff) .and. swap_n(n-noff)
             if ( rproc == myid .and. .not. swap ) cycle
             ! Add this point to request list
-            call check_bnds_alloc(rproc, iext)
+            call check_bnds_alloc(rproc, iextu)
             bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
             bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = iqx
             rsplit(rproc)%ievfn = rsplit(rproc)%ievfn + 1
             ! Increment extended region index
-            iext = iext + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlenx_uv) = iext
+            iextu = iextu + 1
+            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlenx_uv) = iextu
             iql = indp(i,j,n)  !  Local index
-            inu(iql) = ifull+iext
+            inu(iql) = ifull+iextu
             bnds(rproc)%uv_swap(bnds(rproc)%rlenx_uv) = swap
             bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = swap
          end do
@@ -1813,23 +1816,28 @@ contains
             swap = edge_e(n-noff) .and. swap_e(n-noff)
             if ( rproc == myid .and. .not. swap ) cycle
             ! Add this point to request list
-            call check_bnds_alloc(rproc, iext)
+            call check_bnds_alloc(rproc, iextv)
             bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
             ! to show that this is v rather than u, flip sign
             bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = -iqx
             rsplit(rproc)%ievfn = rsplit(rproc)%ievfn + 1
             ! Increment extended region index
-            iext = iext + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlenx_uv) = -iext
+            iextv = iextv + 1
+            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlenx_uv) = -iextv
             iql = indp(i,j,n)  !  Local index
-            iev(iql) = ifull+iext
+            iev(iql) = ifull+iextv
             bnds(rproc)%uv_swap(bnds(rproc)%rlenx_uv) = swap
             bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = swap
          end do
       end do
 
-      if ( iext > iextra ) then
-         write(6,*) "IEXT too large", iext, iextra
+      if ( iextu > iextra ) then
+         write(6,*) "IEXTU too large", iextu, iextra
+         call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+      end if
+
+      if ( iextv > iextra ) then
+         write(6,*) "IEXTV too large", iextv, iextra
          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
       end if
 
@@ -1884,137 +1892,52 @@ contains
          end if
       end do
 
-!     For rlen_uv and rlenx_uv, just communicate the lengths. The indices have 
+!     For rlen_uv and rlenx_uv, etc, just communicate the lengths. The indices have 
 !     already been taken care of.
+      ssplit(:)%iwufn = 0
+      ssplit(:)%ieufn = 0
+      ssplit(:)%iwwufn = 0
+      ssplit(:)%ieeufn = 0
       nreq = 0
       do iproc = 1,nproc-1  !
          ! Send and recv from same proc
          sproc = modulo(myid+iproc,nproc)  ! Send to
-         if (bnds(sproc)%rlen_uv > 0 ) then
+         if ( bnds(sproc)%rlenx_uv > 0 ) then
             nreq = nreq + 1
-            call MPI_ISend( bnds(sproc)%rlen_uv, 1, &
+            dums(1,sproc) = bnds(sproc)%rlen_uv
+            dums(2,sproc) = bnds(sproc)%rlen2_uv
+            dums(3,sproc) = rsplit(sproc)%iwufn
+            dums(4,sproc) = rsplit(sproc)%ieufn
+            dums(5,sproc) = rsplit(sproc)%iwwufn
+            dums(6,sproc) = rsplit(sproc)%ieeufn
+            dums(7,sproc) = rsplit(sproc)%ievfn
+            call MPI_ISend( dums(:,sproc), 7, &
                  MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
             nreq = nreq + 1
-            call MPI_IRecv( bnds(sproc)%slen_uv, 1, &
+            call MPI_IRecv( dumr(:,sproc), 7, &
                  MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end if
       end do
       if ( nreq > 0 ) then
          call MPI_Waitall(nreq,ireq,status,ierr)
       end if
-
-      nreq = 0
-      do iproc = 1,nproc-1  !
-         ! Send and recv from same proc
-         sproc = modulo(myid+iproc,nproc)  ! Send to
-         if (bnds(sproc)%rlenx_uv > 0 ) then
-            nreq = nreq + 1
-            call MPI_ISend( bnds(sproc)%rlen2_uv, 1, &
-                 MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-            nreq = nreq + 1
-            call MPI_IRecv( bnds(sproc)%slen2_uv, 1, &
-                 MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+      do iproc = 1,nproc-1
+         sproc = modulo(myid+iproc,nproc)
+         if ( bnds(sproc)%rlenx_uv > 0 ) then
+            bnds(sproc)%slen_uv  = dumr(1,sproc)
+            bnds(sproc)%slen2_uv = dumr(2,sproc)
+            ssplit(sproc)%iwufn  = dumr(3,sproc)
+            ssplit(sproc)%ieufn  = dumr(4,sproc)
+            ssplit(sproc)%iwwufn = dumr(5,sproc)
+            ssplit(sproc)%ieeufn = dumr(6,sproc)
+            ssplit(sproc)%ievfn  = dumr(7,sproc)
          end if
       end do
-      if ( nreq > 0 ) then
-         call MPI_Waitall(nreq,ireq,status,ierr)
-      end if
-
-      ! MJT - Send split list sizes
-      ssplit(:)%isvbg = 1
-
-      nreq = 0
-      do iproc = 1,nproc-1  !
-         ! Send and recv from same proc
-         sproc = modulo(myid+iproc,nproc)  ! Send to
-         if (bnds(sproc)%rlen_uv > 0 ) then
-            nreq = nreq + 1
-            call MPI_ISend( rsplit(sproc)%iwufn, 1, &
-                 MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-            nreq = nreq + 1
-            call MPI_IRecv( ssplit(sproc)%iwufn, 1, &
-                 MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-         end if
-      end do
-      if ( nreq > 0 ) then
-         call MPI_Waitall(nreq,ireq,status,ierr)
-      end if
-
-      ssplit(:)%invbg = ssplit(:)%iwufn + 1
-
-      nreq = 0
-      do iproc = 1,nproc-1  !
-         ! Send and recv from same proc
-         sproc = modulo(myid+iproc,nproc)  ! Send to
-         if (bnds(sproc)%rlen_uv > 0 ) then
-            nreq = nreq + 1
-            call MPI_ISend( rsplit(sproc)%ieufn, 1, &
-                 MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-            nreq = nreq + 1
-            call MPI_IRecv( ssplit(sproc)%ieufn, 1, &
-                 MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-         end if
-      end do
-      if ( nreq > 0 ) then
-         call MPI_Waitall(nreq,ireq,status,ierr)
-      end if
-
+      ssplit(:)%isvbg  = 1
+      ssplit(:)%invbg  = ssplit(:)%iwufn + 1
       ssplit(:)%issvbg = ssplit(:)%ieufn + 1
-
-      nreq = 0
-      do iproc = 1,nproc-1  !
-         ! Send and recv from same proc
-         sproc = modulo(myid+iproc,nproc)  ! Send to
-         if (bnds(sproc)%rlen_uv > 0 ) then
-            nreq = nreq + 1
-            call MPI_ISend( rsplit(sproc)%iwwufn, 1, &
-                 MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-            nreq = nreq + 1
-            call MPI_IRecv( ssplit(sproc)%iwwufn, 1, &
-                 MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-         end if
-      end do
-      if ( nreq > 0 ) then
-         call MPI_Waitall(nreq,ireq,status,ierr)
-      end if
-
       ssplit(:)%innvbg = ssplit(:)%iwwufn + 1
-
-      nreq = 0
-      do iproc = 1,nproc-1  !
-         ! Send and recv from same proc
-         sproc = modulo(myid+iproc,nproc)  ! Send to
-         if (bnds(sproc)%rlen_uv > 0 ) then
-            nreq = nreq + 1
-            call MPI_ISend( rsplit(sproc)%ieeufn, 1, &
-                 MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-            nreq = nreq + 1
-            call MPI_IRecv( ssplit(sproc)%ieeufn, 1, &
-                 MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-         end if
-      end do
-      if ( nreq > 0 ) then
-         call MPI_Waitall(nreq,ireq,status,ierr)
-      end if
-
-      ssplit(:)%isubg = ssplit(:)%ieeufn + 1
-
-      nreq = 0
-      do iproc = 1,nproc-1  !
-         ! Send and recv from same proc
-         sproc = modulo(myid+iproc,nproc)  ! Send to
-         if (bnds(sproc)%rlen_uv > 0 ) then
-            nreq = nreq + 1
-            call MPI_ISend( rsplit(sproc)%ievfn, 1, &
-                 MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-            nreq = nreq + 1
-            call MPI_IRecv( ssplit(sproc)%ievfn, 1, &
-                 MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-         end if
-      end do
-      if ( nreq > 0 ) then
-         call MPI_Waitall(nreq,ireq,status,ierr)
-      end if
+      ssplit(:)%isubg  = ssplit(:)%ieeufn + 1
 
       ! Only send the swap list once
       nreq = 0
@@ -3297,13 +3220,13 @@ contains
       if ( bnds(rproc)%len == 0 ) then
          ! Not allocated yet.
          len = maxbuflen
-         if (rproc.ne.myid) then                 ! MJT memory
+         if (rproc /= myid) then
            allocate ( bnds(rproc)%rbuf(len) )
            allocate ( bnds(rproc)%sbuf(len) )
            allocate ( bnds(rproc)%request_list(len) )
            allocate ( bnds(rproc)%send_list(len) )
            allocate ( bnds(rproc)%unpack_list(len) )
-         end if                                  ! MJT memory
+         end if
          allocate ( bnds(rproc)%request_list_uv(len) )
          allocate ( bnds(rproc)%send_list_uv(len) )
          allocate ( bnds(rproc)%unpack_list_uv(len) )
