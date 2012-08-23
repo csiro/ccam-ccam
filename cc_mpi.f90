@@ -155,6 +155,7 @@ module cc_mpi
    integer, public, save :: radmisc_begin,radmisc_end
    integer, public, save :: radsw_begin, radsw_end
    integer, public, save :: radlw_begin, radlw_end   
+   integer, public, save :: sfluxnet_begin, sfluxnet_end
    integer, public, save :: sfluxwater_begin, sfluxwater_end
    integer, public, save :: sfluxland_begin, sfluxland_end
    integer, public, save :: sfluxurban_begin, sfluxurban_end
@@ -170,7 +171,6 @@ module cc_mpi
    integer, public, save :: waterdynamics_begin, waterdynamics_end
    integer, public, save :: waterdiff_begin, waterdiff_end
    integer, public, save :: river_begin, river_end
-   integer, public, save :: watermix_begin, watermix_end
    integer, public, save :: mpiwait_begin, mpiwait_end
 #ifdef simple_timer
    public :: simple_timer_finalize
@@ -3032,9 +3032,12 @@ contains
          end do
       end do
       
-      ! MJT error check
+      ! Error check
       do iproc=0,nproc-1
-        call checksize(dslen(iproc),bnds(iproc)%len,"Deptssync")
+        if (dslen(iproc)>bnds(iproc)%len) then
+          write(6,*) "myid,iproc,neighbour,dslen,len ",myid,iproc,neighbour(iproc),dslen(iproc),bnds(iproc)%len
+          call checksize(dslen(iproc),bnds(iproc)%len,"Deptssync")
+        end if
       end do
 
 !     In this case the length of each buffer is unknown and will not
@@ -3333,11 +3336,12 @@ contains
          !  Try to factor this into two values are close as possible.
          !  nxproc is the smaller of the 2.
          nxproc = nint(sqrt(real(n)))
-         do nxproc = nint(sqrt(real(n))), 1, -1
-            ! This will always exit because it's trivially true for nxproc=1
-            if ( modulo(n,nxproc) == 0 ) exit
-         end do
          nyproc = n / nxproc
+         do nxproc = nint(sqrt(real(n))), 1, -1
+            nyproc = n / nxproc
+            if ( modulo(il_g,nxproc) == 0 .and. modulo(il_g,nyproc) == 0 .and. &
+                 nxproc*nyproc == n ) exit
+         end do
          if ( myid == 0 ) then
             write(6,*) "NXPROC, NYPROC", nxproc, nyproc
          end if
@@ -3772,6 +3776,9 @@ contains
       radlw_begin = MPE_Log_get_event_number()
       radlw_end = MPE_Log_get_event_number()      
       ierr = MPE_Describe_state(radlw_begin, radlw_end, "LW_Rad", "Yellow")
+      sfluxnet_begin = MPE_Log_get_event_number()
+      sfluxnet_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(sfluxnet_begin, sfluxnet_end, "Sflux_net", "Yellow")
       sfluxwater_begin = MPE_Log_get_event_number()
       sfluxwater_end = MPE_Log_get_event_number()
       ierr = MPE_Describe_state(sfluxwater_begin, sfluxwater_end, "Sflux_water", "Yellow")
@@ -3799,9 +3806,6 @@ contains
       river_begin = MPE_Log_get_event_number()
       river_end = MPE_Log_get_event_number()
       ierr = MPE_Describe_state(river_begin, river_end, "River", "Yellow")
-      watermix_begin = MPE_Log_get_event_number()
-      watermix_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(watermix_begin, watermix_end, "Watermix", "Yellow")
 #endif
 #ifdef vampir
       call vtfuncdef("Bounds", classhandle, bounds_begin, ierr)
@@ -3852,6 +3856,8 @@ contains
       radsw_end =  radsw_begin
       call vtfuncdef("LW_Rad", classhandle, radlw_begin, ierr)
       radlw_end =  radlw_begin      
+      call vtfuncdef("Sflux_net", classhandle, sfluxnet_begin, ierr)
+      sfluxnet_end =  sfluxnet_begin
       call vtfuncdef("Sflux_water", classhandle, sfluxwater_begin, ierr)
       sfluxwater_end =  sfluxwater_begin
       call vtfuncdef("Sflux_land", classhandle, sfluxland_begin, ierr)
@@ -3870,8 +3876,6 @@ contains
       waterdiff_end =  waterdiff_begin
       call vtfuncdef("River", classhandle, river_begin, ierr)
       river_end =  river_begin
-      call vtfuncdef("Watermix", classhandle, watermix_begin, ierr)
-      watermix_end =  watermix_begin
 #endif
 #ifdef simple_timer
 
@@ -3999,45 +4003,45 @@ contains
       radlw_end =  radlw_begin
       event_name(radlw_begin) = "LW_Rad"      
 
-      sfluxwater_begin = 32
+      sfluxnet_begin = 32
+      sfluxnet_end =  sfluxnet_begin
+      event_name(sfluxnet_begin) = "Sflux_net"
+      
+      sfluxwater_begin = 33
       sfluxwater_end =  sfluxwater_begin
       event_name(sfluxwater_begin) = "Sflux_water"
 
-      sfluxland_begin = 33
+      sfluxland_begin = 34
       sfluxland_end =  sfluxland_begin
       event_name(sfluxland_begin) = "Sflux_land"
 
-      sfluxurban_begin = 34
+      sfluxurban_begin = 35
       sfluxurban_end =  sfluxurban_begin
       event_name(sfluxurban_begin) = "Sflux_urban"
 
-      vertmix_begin = 35
+      vertmix_begin = 36
       vertmix_end =  vertmix_begin
       event_name(vertmix_begin) = "Vertmix"
 
-      aerosol_begin = 36
+      aerosol_begin = 37
       aerosol_end =  aerosol_begin
       event_name(aerosol_begin) = "Aerosol"
 
-      nestin_begin = 37
+      nestin_begin = 38
       nestin_end =  nestin_begin
       event_name(nestin_begin) = "Nestin"
 
-      waterdynamics_begin = 38
+      waterdynamics_begin = 39
       waterdynamics_end =  waterdynamics_begin
       event_name(waterdynamics_begin) = "Waterdynamics"
 
-      waterdiff_begin = 39
+      waterdiff_begin = 40
       waterdiff_end =  waterdiff_begin
       event_name(waterdiff_begin) = "Waterdiff"
 
-      river_begin = 40
+      river_begin = 41
       river_end =  river_begin
       event_name(river_begin) = "River"
-
-      watermix_begin = 41
-      watermix_end =  watermix_begin
-      event_name(watermix_begin) = "Watermix"
 
 #endif
    end subroutine log_setup

@@ -60,7 +60,7 @@
       real, save :: dtsave = 0.0
       real :: hdt, hdtds, sdmx, sdmx_g, sumx, qgminm, ratio, sumdiffb,
      &        alph_g
-      real dum ! MJT nhs
+      real dum
       integer :: its, k, l, nits, nvadh_pass, iq, ng, ierr, iaero
       integer, save :: precon_in
       real :: sumin, sumout, sumsav
@@ -478,8 +478,12 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
         if(nvad==4 .or. nvad==9 ) then
          if(mup==-3)call updps(1)
           sdmx = maxval(abs(sdot))
+#ifdef sumdd
           call MPI_AllReduce(sdmx, sdmx_g, 1, MPI_REAL, MPI_MAX,
      &                       MPI_COMM_WORLD, ierr )
+#else
+          sdmx_g=sdmx
+#endif
           nits=1+sdmx_g/nvadh
           nvadh_pass=nvadh*nits
           if (mydiag.and.mod(ktau,nmaxpr)==0)

@@ -328,10 +328,16 @@ c      unpack data
       end subroutine vertint
 
       subroutine datefix(kdate_r,ktime_r,mtimer_r)
+      implicit none
       include 'newmpar.h'
       include 'parm.h'
+      integer leap
       common/leap_yr/leap  ! 1 to allow leap years
-      integer mdays(12)
+      integer, intent(inout) :: kdate_r,ktime_r,mtimer_r
+      integer, dimension(12) :: mdays
+      integer iyr,imo,iday,ihr,imins
+      integer mtimerh,mtimerm,mtimer
+      integer minsday,minsyr
       data mdays/31,28,31,30,31,30,31,31,30,31,30,31/
       data minsday/1440/,minsyr/525600/
       if(kdate_r>=00600000.and.kdate_r<=00991231)then   ! old 1960-1999

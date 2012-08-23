@@ -112,6 +112,8 @@ c     eg is latent heat flux (was wv)
 c     dfgdt is dfgdt (was csen in surfupa/b)
 c     degdt is degdt (was ceva in surfupa/b)
 
+      call start_log(sfluxnet_begin)
+
       if (.not.allocated(plens).and.nmlo==0) then
         allocate(plens(ifull))
         plens=0.
@@ -167,8 +169,8 @@ c     using av_vmod (1. for no time averaging)
       if(ntsur.ne.7)vmod(:)=vmag(:)	! gives usual way
 
       !--------------------------------------------------------------
+      call start_log(sfluxwater_begin)
       if (nmlo.eq.0) then                                               ! sea
-       call start_log(sfluxwater_begin)                                 ! sea
        if(ntest==2.and.mydiag)write(6,*) 'before sea loop'              ! sea
 !       from June '03 use basic sea temp from tgg1 (so leads is sensible)      
 !       all sea points in this loop; also open water of leads           ! sea
@@ -489,11 +491,9 @@ c       Surface stresses taux, tauy: diagnostic only - unstag now       ! sice
           write(6,*) 'cie ',cie(iq)                                     ! sice
           write(6,*) 'eg,egice(fev),ustar ',eg(iq),fev(iq),ustar(iq)    ! sice
        endif   ! (mydiag.and.nmaxpr==1)                                 ! sice
-       call end_log(sfluxwater_end)                                     ! sice
 
       elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                       ! MLO
                                                                         ! MLO
-        call start_log(watermix_begin)                                  ! MLO
         if (myid==0.and.nmaxpr==1) then                                 ! MLO
           write(6,*) "Before MLO mixing"                                ! MLO
         end if                                                          ! MLO
@@ -564,12 +564,12 @@ c       Surface stresses taux, tauy: diagnostic only - unstag now       ! sice
         if (myid==0.and.nmaxpr==1) then                                 ! MLO
           write(6,*) "After MLO mixing"                                 ! MLO
         end if                                                          ! MLO
-        call end_log(watermix_end)                                      ! MLO
                                                                         ! MLO
       else                                                              ! PCOM
         write(6,*) "ERROR: this option is for PCOM ocean model"         ! PCOM
         stop                                                            ! PCOM
       end if                                                            ! PCOM
+      call end_log(sfluxwater_end)
       !--------------------------------------------------------------      
       call start_log(sfluxland_begin)                                   ! land
       select case(nsib)                                                 ! land
@@ -943,6 +943,7 @@ c***  end of surface updating loop
          write(47,'(2g13.4)') sqrt(u(iq,1)**2+v(iq,1)**2),eg(iq)
         enddo
       endif
+      call end_log(sfluxnet_end)
       return
       end
 

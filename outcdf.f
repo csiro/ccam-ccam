@@ -547,7 +547,7 @@ c       For time varying surface fields
           call attrib(idnc,idim,2,'ocndepth',lname,'m',0.,32500.,0,
      &                itype)
           lname = 'water surface height'
-          call attrib(idnc,idim,3,'ocheight',lname,'m',-65.,65.,0,
+          call attrib(idnc,idim,3,'ocheight',lname,'m',-130.,130.,0,
      &                itype)          
           lname = 'Snow temperature lev 1'
           call attrib(idnc,idim,3,'tggsn1',lname,'K',100.,425.,0,
@@ -1384,7 +1384,7 @@ c      set time to number of minutes since start
         aa=0. ! ocean depth
         bb=0. ! free surface height
         call mlosave(mlodwn,aa,bb,micdwn,0)
-        bb=min(max(bb,-65.),65.)
+        bb=min(max(bb,-130.),130.)
         do k=1,ms
           where (.not.land)
             tgg(:,k)=mlodwn(:,k,1)

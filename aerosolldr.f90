@@ -1081,10 +1081,9 @@ dmsn33d(:,:)=0.
 xte(:,:,:)=0.
 pcons2=1./(ptmst*grav)
 pdtime=0.5*ptmst
-where (sg(:).gt.0.)
+zrdayl(:)=0
+where (sg(:)>0.)
   zrdayl(:)=1
-elsewhere
-  zrdayl(:)=0
 end where
 
 ! Calculate xto, tracer mixing ratio outside convective updraughts
@@ -1100,7 +1099,7 @@ xto=max(0.,xto)
 !    CONSTANTS
 PQTMST=1./PTMST
 ZMIN=1.E-20
-if(nfastox.eq.0)then
+if(nfastox==0)then
    NITER=5  !Slow in-cloud oxidation
 else 
    NITER=1  !Fast
@@ -1134,15 +1133,13 @@ ZNAMAIR=1.E-03*ZAVO/ZMOLGAIR
 ZLWCMIN=1.E-07
 
 ! Calculate in-cloud ql
-where (pclcover(:,:).gt.zmin)
+zlwcic(:,:)=0.
+where (pclcover(:,:)>zmin)
   zlwcic(:,:)=pmlwc(:,:)/pclcover(:,:)
-elsewhere
-  zlwcic(:,:)=0.
 end where
-where (pcfcover(:,:).gt.zmin)
+ziwcic(:,:)=0.
+where (pcfcover(:,:)>zmin)
   ziwcic(:,:)=pmiwc(:,:)/pcfcover(:,:)
-elsewhere
-  ziwcic(:,:)=0.
 end where
 
 !  OXIDANT CONCENTRATIONS IN MOLECULE/CM**3
@@ -2149,9 +2146,9 @@ do n = 1, ndust
 
 ! Calculate dust mixing ratio tendency at first model level.
       !airmas = dxy(i) * dz1(i) * airden(i) ! kg
-      airmas = dz1(i) * airden(i) ! kg/(m2) - MJT suggestion
+      airmas = dz1(i) * airden(i) ! kg/m2 - MJT suggestion
       dxdt = DSRC / AIRMAS
-      !duste(i) = duste(i) + dxdt*airden(i)*dz1(i)      
+      !duste(i) = duste(i) + dxdt*airden(i)*dz1(i)
       duste(i) = duste(i) + dsrc ! MJT suggestion
 
 ! Calculate turbulent dry deposition at surface

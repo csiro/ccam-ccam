@@ -334,7 +334,7 @@
           enddo
         endif
 
-        land(1:ifull)=zsmask(1:ifull)>=0.5
+        land(:)=zsmask(1:ifull)>=0.5
  
       else                   ! aquaplanet test -1 to -8 or -22
         zs(:)=0.             ! or pgb from June 2003
@@ -477,8 +477,8 @@
         call readreal(bathfile,dep,ifull)
         where (land)
           dep=0.
-        else where
-          dep=max(dep,10.)
+        elsewhere
+          dep=max(dep,4.*minwater)
         end where
         if (myid==0) write(6,*) 'Initialising MLO'
         call mloinit(ifull,dep,0)
@@ -491,10 +491,10 @@
       ! nurban=0 no urban
       ! nurban=1 urban (save in restart file)
       ! nurban=-1 urban (save in history and restart files)
-      if (nurban.ne.0) then
+      if (nurban/=0) then
         call readreal(urbanfile,sigmu,ifull)
         sigmu(:)=0.01*sigmu(:)
-        where (.not.land(:))
+        where (.not.land(:).or.sigmu<0.05)
           sigmu(:)=0.
         end where
         if (myid==0) write(6,*) 'Initialising ateb urban scheme'
@@ -546,16 +546,16 @@
         endif ! (land(iq))
       enddo   ! iq loop
       ipland=indexl
-      indexi=ipland
+      indexi=ipland+1
       ipsea=ifull
       indexs=ipsea+1
       do iq=1,ifull
         if(.not.land(iq))then
           indexs=indexs-1     ! sea point
           iperm(indexs)=iq    ! sea point
-        endif  ! (sicedep(iq)>0.)
+        endif
       enddo   ! iq loop
-      ipsice=indexi
+      ipsice=indexs-1
       if (mydiag) write(6,*)'ipland,ipsea: ',ipland,ipsea
 
 
@@ -1352,7 +1352,10 @@ c     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
       
       ! sea-ice fixes
       do iq=1,ifull
-       if(fracice(iq)<.02)fracice(iq)=0.
+       if(fracice(iq)<.02) then
+         fracice(iq)=0.
+         sicedep(iq)=0.
+       end if
        if(land(iq))then
          sicedep(iq)=0.
          fracice(iq)=0.
@@ -1408,6 +1411,8 @@ c     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
         sigmf=0.
         where (land)
           sigmf(:)=max(0.01,min(0.98,1.-exp(-0.4*vlai(:))))
+        elsewhere
+          vlai=0.
         end where
        case(3)
         ! usual input with standard surface scheme
@@ -1787,7 +1792,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
 
       !--------------------------------------------------------------
       ! UPDATE BIOSPHERE DATA (nsib)
-      if (nsib.eq.6.or.nsib.eq.7) then
+      if (nsib==6.or.nsib==7) then
         ! Load CABLE data
         if (myid==0) write(6,*) 'Importing CABLE data'
         call loadtile
@@ -1796,8 +1801,8 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
 
       !-----------------------------------------------------------------
       ! UPDATE MIXED LAYER OCEAN DATA (nmlo)
-      if (nmlo.ne.0.and.abs(nmlo).le.9) then
-        if (any(ocndwn(:,1).gt.0.5)) then
+      if (nmlo/=0.and.abs(nmlo)<=9) then
+        if (any(ocndwn(:,1)>0.5)) then
           if (myid==0) write(6,*) 'Importing MLO data'
         else
           if (myid==0) write(6,*) 'Using MLO defaults'
@@ -1844,7 +1849,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
             snowd=micdwn(:,7)*1000.
           end where          
         end if
-        mlodwn(:,:,1)=max(mlodwn(:,:,1),270.)
+        mlodwn(:,:,1)=max(mlodwn(:,:,1),271.)
         mlodwn(:,:,2)=max(mlodwn(:,:,2),0.)
         micdwn(:,11)=max(micdwn(:,11),0.)
         call mloload(mlodwn,ocndwn(:,2),micdwn,0)
@@ -2099,24 +2104,24 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
       ! if cable, then the albedo is soil albedo only (converted to net albedo
       ! when cable is initialised)
       call readreal(albfile,albvisnir(:,1),ifull)
-      if (nsib.ge.4) then
+      if (nsib>=4) then
         call readreal(albnirfile,albvisnir(:,2),ifull)
       else
         albvisnir(:,2)=albvisnir(:,1)
       end if
-      if (nsib.le.5) then 
+      if (nsib<=5) then 
         call readreal(rsmfile,rsmin,ifull)  ! not used these days
         call readreal(zofile,zolnd,ifull)
       else
         zolnd=zobgin ! updated in cable_ccam2.f90
       end if
-      if (nsib.le.3) then
+      if (nsib<=3) then
         call readint(vegfile,ivegt,ifull)
       else
         ivegt=1 ! updated later
       end if
       call readint(soilfile,isoilm,ifull)
-      if(nsib.eq.5) then
+      if(nsib==5) then
         call readreal(laifile,vlai,ifull)
         vlai(:)=0.01*vlai(:)
       end if

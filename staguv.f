@@ -136,13 +136,6 @@ c          vout(iq,k)=.5*(vin(inv(iq),k)+vin(iq,k))
 
       else if ( nstag==4 ) then
          call boundsuv(uin,vin,stag=3)
-         do k=1,kl
-!cdir nodep
-            do iq=1,ifull       ! precalculate rhs terms
-               ud(iq,k)= uin(iwu(iq),k)/10.+uin(iq,k)+uin(ieu(iq),k)/2.
-               vd(iq,k)= vin(isv(iq),k)/10.+vin(iq,k)+vin(inv(iq),k)/2.
-            enddo
-         enddo
 
          do k=1,kl
 !cdir nodep
@@ -293,13 +286,6 @@ c     staggered u & v as input; unstaggered as output
 
       else if ( nstagu==4 ) then
          call boundsuv(uin,vin,stag=7)
-         do k=1,kl
-!cdir nodep
-            do iq=1,ifull       ! precalculate rhs terms
-               ud(iq,k)= uin(ieu(iq),k)/10.+uin(iq,k)+uin(iwu(iq),k)/2.
-               vd(iq,k)= vin(inv(iq),k)/10.+vin(iq,k)+vin(isv(iq),k)/2.
-            enddo
-         enddo
 
          do k=1,kl
 !cdir nodep

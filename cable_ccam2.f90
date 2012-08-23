@@ -103,6 +103,8 @@ public sib4,loadcbmparm,loadtile,savetile,cableinflow,cbmemiss
 
 integer, parameter :: hruffmethod    = 1 ! Method for max hruff
 integer, parameter :: proglai        = 0 ! 0 prescribed LAI, 1 prognostic LAI 
+real, parameter :: minfrac = 0.05 ! minimum non-zero tile fraction (improves load balancing)
+
 integer, dimension(:), allocatable, save :: cmap
 integer, dimension(9,2), save :: pind  
 real, dimension(:), allocatable, save :: sv,vl1,vl2,vl3
@@ -181,7 +183,7 @@ frs=0.
 vlai=0.
 
 ! abort calculation if no land points on this processor  
-if (mp.le.0) return
+if (mp<=0) return
 
 ! set meteorological forcing
 dhr = dt/3600.
@@ -224,7 +226,7 @@ select case(hruffmethod)
   case(0) ! hruff is mixed in a tile (find max hruff for tile)
     hruff_grmx=0.01
     do nb=1,9
-      if (pind(nb,1).le.mp) then
+      if (pind(nb,1)<=mp) then
         hruff_grmx(cmap(pind(nb,1):pind(nb,2)))=max( &
           hruff_grmx(cmap(pind(nb,1):pind(nb,2))),rough%hruff(pind(nb,1):pind(nb,2)))
       end if
@@ -279,7 +281,7 @@ select case (icycle)
     casaflux%cgpp = casaflux%cgpp + (-canopy%fpn+canopy%frday)*dt
     casaflux%crmplant(:,leaf) =casaflux%crmplant(:,leaf) + canopy%frday*dt
     ! run CASA CNP once per day
-    if (mod(ktau,nperday).eq.0) then
+    if (mod(ktau,nperday)==0) then
       casamet%tairk=casamet%tairk/real(nperday)
       casamet%tsoil=casamet%tsoil/real(nperday)
       casamet%moist=casamet%moist/real(nperday)
@@ -412,7 +414,7 @@ else
 end if
  
 do nb=1,9
-  if (pind(nb,1).le.mp) then
+  if (pind(nb,1)<=mp) then
     do k=1,ms
       tgg(cmap(pind(nb,1):pind(nb,2)),k)=tgg(cmap(pind(nb,1):pind(nb,2)),k) &
                                       +sv(pind(nb,1):pind(nb,2))*ssoil%tgg(pind(nb,1):pind(nb,2),k)
@@ -528,7 +530,7 @@ do nb=1,9
     !                                  +sv(pind(nb,1):pind(nb,2))*canopy%ua_10m(pind(nb,1):pind(nb,2))
   end if
 end do
-cdtq=max(cdtq,0.) ! MJT patch
+cdtq=max(cdtq,0.) ! MJT PATCH
 where (land)
   ustar=sqrt(cduv)*vmod
   zoh=zmin*exp(-sqrt(zo)/zoh)
@@ -558,22 +560,22 @@ ssdn(iperm(1:ipland),:)=0.
 ssdnn(iperm(1:ipland))=0.
 snowd(iperm(1:ipland))=0.
 snage(iperm(1:ipland))=0.
-where (land.and.tmps.ge.0.5) ! tmps is average isflag
+where (land.and.tmps>=0.5) ! tmps is average isflag
   isflag=1
 elsewhere
   isflag=0
 endwhere
 do nb=1,9 ! update snow (diagnostic only)
-  if (pind(nb,1).le.mp) then      
+  if (pind(nb,1)<=mp) then      
     do k=1,3
-      where (ssoil%isflag(pind(nb,1):pind(nb,2)).lt.isflag(cmap(pind(nb,1):pind(nb,2))).and.k.eq.1)          ! pack 1-layer into 3-layer
+      where (ssoil%isflag(pind(nb,1):pind(nb,2))<isflag(cmap(pind(nb,1):pind(nb,2))).and.k==1)          ! pack 1-layer into 3-layer
         tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k) &                          ! pack 1-layer into 3-layer
                                          +sv(pind(nb,1):pind(nb,2))*ssoil%tgg(pind(nb,1):pind(nb,2),1)       ! pack 1-layer into 3-layer
         smass(cmap(pind(nb,1):pind(nb,2)),k)=smass(cmap(pind(nb,1):pind(nb,2)),k) &                          ! pack 1-layer into 3-layer
                                          +sv(pind(nb,1):pind(nb,2))*0.05*ssoil%ssdn(pind(nb,1):pind(nb,2),1) ! pack 1-layer into 3-layer
         ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k) &                            ! pack 1-layer into 3-layer
                                          +sv(pind(nb,1):pind(nb,2))*ssoil%ssdn(pind(nb,1):pind(nb,2),1)      ! pack 1-layer into 3-layer
-      elsewhere (ssoil%isflag(pind(nb,1):pind(nb,2)).lt.isflag(cmap(pind(nb,1):pind(nb,2))).and.k.eq.2)      ! pack 1-layer into 3-layer
+      elsewhere (ssoil%isflag(pind(nb,1):pind(nb,2))<isflag(cmap(pind(nb,1):pind(nb,2))).and.k==2)      ! pack 1-layer into 3-layer
         tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k) &                          ! pack 1-layer into 3-layer
                                          +sv(pind(nb,1):pind(nb,2))*ssoil%tgg(pind(nb,1):pind(nb,2),1)       ! pack 1-layer into 3-layer
         smass(cmap(pind(nb,1):pind(nb,2)),k)=smass(cmap(pind(nb,1):pind(nb,2)),k) &                          ! pack 1-layer into 3-layer
@@ -581,7 +583,7 @@ do nb=1,9 ! update snow (diagnostic only)
                                          -0.05*ssoil%ssdn(pind(nb,1):pind(nb,2),1))*0.4                      ! pack 1-layer into 3-layer
         ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k) &                            ! pack 1-layer into 3-layer
                                          +sv(pind(nb,1):pind(nb,2))*ssoil%ssdn(pind(nb,1):pind(nb,2),1)      ! pack 1-layer into 3-layer
-      elsewhere (ssoil%isflag(pind(nb,1):pind(nb,2)).lt.isflag(cmap(pind(nb,1):pind(nb,2))).and.k.eq.3)      ! pack 1-layer into 3-layer
+      elsewhere (ssoil%isflag(pind(nb,1):pind(nb,2))<isflag(cmap(pind(nb,1):pind(nb,2))).and.k==3)      ! pack 1-layer into 3-layer
         tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k) &                          ! pack 1-layer into 3-layer
                                          +sv(pind(nb,1):pind(nb,2))*ssoil%tgg(pind(nb,1):pind(nb,2),1)       ! pack 1-layer into 3-layer
         smass(cmap(pind(nb,1):pind(nb,2)),k)=smass(cmap(pind(nb,1):pind(nb,2)),k) &                          ! pack 1-layer into 3-layer
@@ -589,14 +591,14 @@ do nb=1,9 ! update snow (diagnostic only)
                                          -0.05*ssoil%ssdn(pind(nb,1):pind(nb,2),1))*0.6                      ! pack 1-layer into 3-layer
         ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k) &                            ! pack 1-layer into 3-layer
                                          +sv(pind(nb,1):pind(nb,2))*ssoil%ssdn(pind(nb,1):pind(nb,2),1)      ! pack 1-layer into 3-layer
-      elsewhere (ssoil%isflag(pind(nb,1):pind(nb,2)).gt.isflag(cmap(pind(nb,1):pind(nb,2))).and.k.eq.1)      ! pack 3-layer into 1-layer
+      elsewhere (ssoil%isflag(pind(nb,1):pind(nb,2))>isflag(cmap(pind(nb,1):pind(nb,2))).and.k==1)      ! pack 3-layer into 1-layer
         tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k) &                          ! pack 3-layer into 1-layer
                                          +sv(pind(nb,1):pind(nb,2))*273.16                                   ! pack 3-layer into 1-layer
         smass(cmap(pind(nb,1):pind(nb,2)),k)=smass(cmap(pind(nb,1):pind(nb,2)),k) &                          ! pack 3-layer into 1-layer
                                          +sv(pind(nb,1):pind(nb,2))*ssoil%snowd(pind(nb,1):pind(nb,2))       ! pack 3-layer into 1-layer
         ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k) &                            ! pack 3-layer into 1-layer
                                          +sv(pind(nb,1):pind(nb,2))*ssoil%ssdnn(pind(nb,1):pind(nb,2))       ! pack 3-layer into 1-layer
-      elsewhere (ssoil%isflag(pind(nb,1):pind(nb,2)).gt.isflag(cmap(pind(nb,1):pind(nb,2))).and.k.ge.2)      ! pack 3-layer into 1-layer
+      elsewhere (ssoil%isflag(pind(nb,1):pind(nb,2))>isflag(cmap(pind(nb,1):pind(nb,2))).and.k>=2)      ! pack 3-layer into 1-layer
         tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k) &                          ! pack 3-layer into 1-layer
                                          +sv(pind(nb,1):pind(nb,2))*273.16                                   ! pack 3-layer into 1-layer
         ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k) &                            ! pack 3-layer into 1-layer
@@ -645,22 +647,22 @@ real, dimension(ifull), intent(out) :: atmco2
 
 ico2=0
 do igas=1,ngas
-  if (trim(tractype(igas)).eq.'online') then
-    if (trim(tracname(igas)).eq.'cbmnep') then
+  if (trim(tractype(igas))=='online') then
+    if (trim(tracname(igas))=='cbmnep') then
       ico2=igas
       exit
     end if
   end if
 end do
-if (ico2.gt.0) then
+if (ico2>0) then
   atmco2 = tr(1:ifull,1,ico2) ! use interactive tracers
-  if (any(atmco2.lt.0.)) ico2=0
+  if (any(atmco2<0.)) ico2=0
 end if
-if (ico2.eq.0) then
+if (ico2==0) then
   atmco2 = 1.E6*rrvco2        ! from radiative CO2 forcings
 end if
 if (myid==0.and.ktau==1) then
-  if (ico2.eq.0) then
+  if (ico2==0) then
     write(6,*) "CABLE using prescribed CO2 from radiative forcings"
   else
     write(6,*) "CABLE using prognostic CO2 from tracer"
@@ -683,7 +685,7 @@ integer nb
 real, dimension(ifull), intent(out) :: trsrc
 real, dimension(ifull) :: fpn,frd,frp,frs
   
-if (nsib.ne.6.and.nsib.ne.7) then
+if (nsib/=6.and.nsib/=7) then
   write(6,*) "ERROR: Attempted to read CABLE emissions with CABLE disabled"
   stop
 end if
@@ -694,8 +696,8 @@ frp=0.
 frs=0.
   
 do nb=1,9
-  if (pind(nb,1).le.mp) then
-    where (veg%iveg(pind(nb,1):pind(nb,2)).eq.mvegt)
+  if (pind(nb,1)<=mp) then
+    where (veg%iveg(pind(nb,1):pind(nb,2))==mvegt)
       fpn(cmap(pind(nb,1):pind(nb,2)))=fpn(cmap(pind(nb,1):pind(nb,2))) &
                                       +sv(pind(nb,1):pind(nb,2))*canopy%fpn(pind(nb,1):pind(nb,2))
       frd(cmap(pind(nb,1):pind(nb,2)))=frd(cmap(pind(nb,1):pind(nb,2))) &
@@ -742,10 +744,10 @@ common/leap_yr/leap  ! 1 to allow leap years
 select case(proglai)
   case(0)
     imonth = (/31,28,31,30,31,30,31,31,30,31,30,31/)
-    if (leap.eq.1) then
-      if (mod(jyear,4)  .eq.0) imonth(2)=29
-      if (mod(jyear,100).eq.0) imonth(2)=28
-      if (mod(jyear,400).eq.0) imonth(2)=29
+    if (leap==1) then
+      if (mod(jyear,4)  ==0) imonth(2)=29
+      if (mod(jyear,100)==0) imonth(2)=28
+      if (mod(jyear,400)==0) imonth(2)=29
     end if
 
     monthstart=1440*(jday-1) + 60*jhour + jmin ! mins from start month
@@ -753,7 +755,7 @@ select case(proglai)
     veg%vlai=vl1+vl2*x+vl3*x*x ! LAI as a function of time
     veg%vlai=max(veg%vlai,0.1)
   case(1)
-    if (icycle.eq.0) then
+    if (icycle==0) then
       write(6,*) "ERROR: CASA CNP LAI is not operational"
       stop
     end if
@@ -765,7 +767,7 @@ end select
 
 sigmf=0.
 do nb=1,9
-  if (pind(nb,1).le.mp) then
+  if (pind(nb,1)<=mp) then
     sigmf(cmap(pind(nb,1):pind(nb,2)))=sigmf(cmap(pind(nb,1):pind(nb,2))) &
       +sv(pind(nb,1):pind(nb,2))*(1.-exp(-vextkn*veg%vlai(pind(nb,1):pind(nb,2))))
   end if
@@ -799,6 +801,7 @@ include 'soilv.h'
 
 integer(i_d), dimension(ifull,5) :: ivs
 integer(i_d) iq,n,k,ipos,isoil,iv,ncount
+integer, dimension(1) :: pos
 integer jyear,jmonth,jday,jhour,jmin,mins
 real(r_1) totdepth,fc3,fc4,ftu,fg3,fg4,clat,nsum
 real fjd,xp
@@ -834,7 +837,7 @@ character(len=*), intent(in) :: fveg,fvegprev,fvegnext,fphen,casafile
 
 if (myid==0) write(6,*) "Initialising CABLE"
 
-if (cbm_ms.ne.ms) then
+if (cbm_ms/=ms) then
   write(6,*) "ERROR: CABLE and CCAM soil levels do not match"
   stop
 end if
@@ -1144,15 +1147,21 @@ do iq=1,ifull
           stop
       end select
     end do
-    where (newgrid(iq,:).gt.0.)
+    where (newgrid(iq,:)>0.)
       newlai(iq,:,0)=newlai(iq,:,0)/newgrid(iq,:)
       newlai(iq,:,1)=newlai(iq,:,1)/newgrid(iq,:)
       newlai(iq,:,2)=newlai(iq,:,2)/newgrid(iq,:)
     end where
+    do while (any(newgrid(iq,:)<minfrac.and.newgrid(iq,:)>0.))
+      pos=minloc(newgrid(iq,:),newgrid(iq,:)>0.)
+      newgrid(iq,pos(1))=0.
+      nsum=sum(newgrid(iq,:))
+      newgrid(iq,:)=newgrid(iq,:)/nsum
+    end do
     nsum=sum(newgrid(iq,:))
-    if (nsum.gt.0.) newgrid(iq,:)=newgrid(iq,:)/nsum
+    newgrid(iq,:)=newgrid(iq,:)/nsum
     ipos=count(newgrid(iq,:)>0.)
-    if (ipos.gt.9) then
+    if (ipos>9) then
       write(6,*) "ERROR: Too many CABLE tiles"
       stop
     end if
@@ -1218,18 +1227,18 @@ if (mp>0) then
       if (land(iq)) then
         ncount=0
         do iv=1,mxvt
-          if (newgrid(iq,iv).gt.0.) then
+          if (newgrid(iq,iv)>0.) then
             ncount=ncount+1
-            if (ncount.eq.n) exit
+            if (ncount==n) exit
           end if
         end do
-        if (ncount.eq.n) then
+        if (ncount==n) then
           ipos=ipos+1
           cmap(ipos)=iq
           sv(ipos)=newgrid(iq,iv)
           veg%iveg(ipos)=iv
           soil%isoilm(ipos)=isoilm(iq)
-          if (fvegprev.ne.' '.and.fvegnext.ne.' ') then
+          if (fvegprev/=' '.and.fvegnext/=' ') then
             newlai(iq,iv,1)=newlai(iq,iv,1)+newlai(iq,iv,0)
             newlai(iq,iv,2)=newlai(iq,iv,2)+newlai(iq,iv,1)
             vl1(ipos)=0.5*newlai(iq,iv,1)
@@ -1240,7 +1249,7 @@ if (mp>0) then
             vl2(ipos)=0.
             vl3(ipos)=0.
           end if
-          if (veg%iveg(ipos).eq.14.or.veg%iveg(ipos).eq.16.or.veg%iveg(ipos).eq.17) then
+          if (veg%iveg(ipos)==14.or.veg%iveg(ipos)==16.or.veg%iveg(ipos)==17) then
             vl1(ipos)=0.001
             vl2(ipos)=0.
             vl3(ipos)=0.
@@ -1251,7 +1260,7 @@ if (mp>0) then
     pind(n,2)=ipos
   end do
   
-  if (ipos.ne.mp) then
+  if (ipos/=mp) then
     write(6,*) "ERROR: Internal memory allocation error for CABLE set-up"
     stop
   end if
@@ -1286,7 +1295,7 @@ if (mp>0) then
   end do
 
   ! MJT special case for woody savannas
-  where (veg%iveg.eq.2.and.ivegt(cmap).eq.8)
+  where (veg%iveg==2.and.ivegt(cmap)==8)
     veg%hc=17.
   end where
 
@@ -1296,7 +1305,7 @@ if (mp>0) then
   call setlai(sigmf,jyear,jmonth,jday,jhour,jmin)
   vlai=0.
   do n=1,9
-    if (pind(n,1).le.mp) then
+    if (pind(n,1)<=mp) then
       vlai(cmap(pind(n,1):pind(n,2)))=vlai(cmap(pind(n,1):pind(n,2))) &
                                       +sv(pind(n,1):pind(n,2))*veg%vlai(pind(n,1):pind(n,2))
     end if
@@ -1330,11 +1339,11 @@ if (mp>0) then
   where (land)
     albsoil(:)=0.5*sum(albvisnir,2)
   end where
-  where (albsoil.le.0.14.and.land)
+  where (albsoil<=0.14.and.land)
     !sfact=0.5 for alb <= 0.14
     albsoilsn(:,1)=(1.00/1.50)*albsoil(:)
     albsoilsn(:,2)=(2.00/1.50)*albsoil(:)
-  elsewhere ((albsoil(:).le.0.2).and.land)
+  elsewhere ((albsoil(:)<=0.2).and.land)
     !sfact=0.62 for 0.14 < alb <= 0.20
     albsoilsn(:,1)=(1.24/1.62)*albsoil(:)
     albsoilsn(:,2)=(2.00/1.62)*albsoil(:)
@@ -1643,7 +1652,7 @@ if (mp>0) then
     psoil=0.
     glai=0.
     do n=1,9
-      if (pind(n,1).le.mp) then
+      if (pind(n,1)<=mp) then
         do k=1,mplant
           cplant(cmap(pind(n,1):pind(n,2)),k)=cplant(cmap(pind(n,1):pind(n,2)),k) &
                                           +sv(pind(n,1):pind(n,2))*casapool%cplant(pind(n,1):pind(n,2),k)
@@ -1704,10 +1713,10 @@ real rlong0x,rlat0x,schmidtx,dsx,ra,rb
 character(len=47) header  
 
 write(6,*) "Reading land-use data for CABLE"
-if (fvegprev.ne.' '.and.fvegnext.ne.' ') then
+if (fvegprev/=' '.and.fvegnext/=' ') then
   open(87,file=fvegprev,status='old')
   read(87,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
-  if(ilx.ne.il_g.or.jlx.ne.jl_g.or.rlong0x.ne.rlong0.or.rlat0x.ne.rlat0.or.schmidtx.ne.schmidt) stop 'wrong data file supplied'
+  if(ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) stop 'wrong data file supplied'
   do iq=1,ifull_g
     read(87,*) iad,ra,rb,ivsg(iq,1),svsg(iq,1),vling(iq,1),ivsg(iq,2),svsg(iq,2),vling(iq,2),ivsg(iq,3),svsg(iq,3),vling(iq,3), &
                ivsg(iq,4),svsg(iq,4),vling(iq,4),ivsg(iq,5),svsg(iq,5),vling(iq,5)
@@ -1718,7 +1727,7 @@ if (fvegprev.ne.' '.and.fvegnext.ne.' ') then
   end do
   open(87,file=fvegnext,status='old')
   read(87,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
-  if(ilx.ne.il_g.or.jlx.ne.jl_g.or.rlong0x.ne.rlong0.or.rlat0x.ne.rlat0.or.schmidtx.ne.schmidt) stop 'wrong data file supplied'
+  if(ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) stop 'wrong data file supplied'
   do iq=1,ifull_g
     read(87,*) iad,ra,rb,ivsg(iq,1),svsg(iq,1),vling(iq,1),ivsg(iq,2),svsg(iq,2),vling(iq,2),ivsg(iq,3),svsg(iq,3),vling(iq,3), &
                ivsg(iq,4),svsg(iq,4),vling(iq,4),ivsg(iq,5),svsg(iq,5),vling(iq,5)
@@ -1733,7 +1742,7 @@ else
 end if
 open(87,file=fveg,status='old')
 read(87,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
-if(ilx.ne.il_g.or.jlx.ne.jl_g.or.rlong0x.ne.rlong0.or.rlat0x.ne.rlat0.or.schmidtx.ne.schmidt) stop 'wrong data file supplied'
+if(ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) stop 'wrong data file supplied'
 do iq=1,ifull_g
   read(87,*) iad,ra,rb,ivsg(iq,1),svsg(iq,1),vling(iq,1),ivsg(iq,2),svsg(iq,2),vling(iq,2),ivsg(iq,3),svsg(iq,3),vling(iq,3), &
              ivsg(iq,4),svsg(iq,4),vling(iq,4),ivsg(iq,5),svsg(iq,5),vling(iq,5)
@@ -1762,7 +1771,7 @@ integer(i_d), dimension(ifull,5), intent(out) :: ivs
 integer n,iq
 real(r_1), dimension(ifull,5), intent(out) :: svs,vlinprev,vlin,vlinnext
 
-if (fvegprev.ne.' '.and.fvegnext.ne.' ') then
+if (fvegprev/=' '.and.fvegnext/=' ') then
   do n=1,5
     call ccmpi_distribute(vlinprev(:,n))
   end do
@@ -1806,17 +1815,17 @@ real, dimension(ifull) :: dat
 real totdepth
 character(len=11) vname
   
-if (io_in.eq.1) then
-  if (myid.eq.0) idv = ncvid(ncid,"tgg1_9",ierr)
+if (io_in==1) then
+  if (myid==0) idv = ncvid(ncid,"tgg1_9",ierr)
   call MPI_Bcast(ierr,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr2)    
 else
   ierr=1
 end if
   
 ! Cannot locate tile data, use diagnostic data instead
-if (ierr.ne.0) then
+if (ierr/=0) then
   if (myid==0) write(6,*) "Use gridbox averaged data to initialise CABLE"
-  if (mp.gt.0) then
+  if (mp>0) then
     do k = 1,ms
       ssoil%tgg(:,k) = tgg(cmap,k)
       ssoil%wb(:,k) = wb(cmap,k)
@@ -1867,112 +1876,112 @@ else
     do k=1,ms
       write(vname,'("tgg",I1.1,"_",I1.1)') k,n
       call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-      if (pind(n,1).le.mp) ssoil%tgg(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
+      if (pind(n,1)<=mp) ssoil%tgg(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
       write(vname,'("wb",I1.1,"_",I1.1)') k,n
       call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-      if (pind(n,1).le.mp) ssoil%wb(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
+      if (pind(n,1)<=mp) ssoil%wb(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
       write(vname,'("wbice",I1.1,"_",I1.1)') k,n
       call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-      if (pind(n,1).le.mp) ssoil%wbice(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
+      if (pind(n,1)<=mp) ssoil%wbice(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
     end do
     do k=1,3
       write(vname,'("tggsn",I1.1,"_",I1.1)') k,n
       call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-      if (pind(n,1).le.mp) ssoil%tggsn(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
+      if (pind(n,1)<=mp) ssoil%tggsn(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
       write(vname,'("smass",I1.1,"_",I1.1)') k,n
       call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-      if (pind(n,1).le.mp) ssoil%smass(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
+      if (pind(n,1)<=mp) ssoil%smass(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
       write(vname,'("ssdn",I1.1,"_",I1.1)') k,n
       call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-      if (pind(n,1).le.mp) ssoil%ssdn(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
+      if (pind(n,1)<=mp) ssoil%ssdn(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
     end do
     write(vname,'("sflag_",I1.1)') n
     call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-    if (pind(n,1).le.mp) ssoil%isflag(pind(n,1):pind(n,2))=nint(dat(cmap(pind(n,1):pind(n,2))))
+    if (pind(n,1)<=mp) ssoil%isflag(pind(n,1):pind(n,2))=nint(dat(cmap(pind(n,1):pind(n,2))))
     write(vname,'("snd_",I1.1)') n
     call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-    if (pind(n,1).le.mp) ssoil%snowd(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
+    if (pind(n,1)<=mp) ssoil%snowd(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
     write(vname,'("snage_",I1.1)') n
     call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-    if (pind(n,1).le.mp) ssoil%snage(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
+    if (pind(n,1)<=mp) ssoil%snage(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
     write(vname,'("rtsoil_",I1.1)') n
     call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-    if (pind(n,1).le.mp) ssoil%rtsoil(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
+    if (pind(n,1)<=mp) ssoil%rtsoil(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
     write(vname,'("cansto_",I1.1)') n
     call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-    if (pind(n,1).le.mp) canopy%cansto(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
+    if (pind(n,1)<=mp) canopy%cansto(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
     write(vname,'("pudsto_",I1.1)') n
     call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-    if (pind(n,1).le.mp) ssoil%pudsto(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
+    if (pind(n,1)<=mp) ssoil%pudsto(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
     write(vname,'("wetfac_",I1.1)') n
     call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-    if (pind(n,1).le.mp) ssoil%wetfac(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
+    if (pind(n,1)<=mp) ssoil%wetfac(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
     if (icycle==0) then
       do k=1,ncp
         write(vname,'("cplant",I1.1,"_",I1.1)') k,n
         call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-        if (pind(n,1).le.mp) bgc%cplant(pind(n,1):pind(n,2),k) = dat(cmap(pind(n,1):pind(n,2))) 
+        if (pind(n,1)<=mp) bgc%cplant(pind(n,1):pind(n,2),k) = dat(cmap(pind(n,1):pind(n,2))) 
       enddo
       do k=1,ncs
         write(vname,'("csoil",I1.1,"_",I1.1)') k,n
         call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-        if (pind(n,1).le.mp) bgc%csoil(pind(n,1):pind(n,2),k) = dat(cmap(pind(n,1):pind(n,2)))
+        if (pind(n,1)<=mp) bgc%csoil(pind(n,1):pind(n,2),k) = dat(cmap(pind(n,1):pind(n,2)))
       enddo
     else
       do k=1,mplant
         write(vname,'("cplant",I1.1,"_",I1.1)') k,n
         call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-        if (pind(n,1).le.mp) casapool%cplant(pind(n,1):pind(n,2),k) = dat(cmap(pind(n,1):pind(n,2)))
+        if (pind(n,1)<=mp) casapool%cplant(pind(n,1):pind(n,2),k) = dat(cmap(pind(n,1):pind(n,2)))
         write(vname,'("nplant",I1.1,"_",I1.1)') k,n
         call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-        if (pind(n,1).le.mp) casapool%nplant(pind(n,1):pind(n,2),k) = dat(cmap(pind(n,1):pind(n,2)))
+        if (pind(n,1)<=mp) casapool%nplant(pind(n,1):pind(n,2),k) = dat(cmap(pind(n,1):pind(n,2)))
         write(vname,'("pplant",I1.1,"_",I1.1)') k,n
         call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-        if (pind(n,1).le.mp) casapool%pplant(pind(n,1):pind(n,2),k) = dat(cmap(pind(n,1):pind(n,2)))
+        if (pind(n,1)<=mp) casapool%pplant(pind(n,1):pind(n,2),k) = dat(cmap(pind(n,1):pind(n,2)))
       end do
       do k=1,mlitter
         write(vname,'("clitter",I1.1,"_",I1.1)') k,n
         call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-        if (pind(n,1).le.mp) casapool%clitter(pind(n,1):pind(n,2),k) = dat(cmap(pind(n,1):pind(n,2)))
+        if (pind(n,1)<=mp) casapool%clitter(pind(n,1):pind(n,2),k) = dat(cmap(pind(n,1):pind(n,2)))
         write(vname,'("nlitter",I1.1,"_",I1.1)') k,n
         call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-        if (pind(n,1).le.mp) casapool%nlitter(pind(n,1):pind(n,2),k) = dat(cmap(pind(n,1):pind(n,2)))
+        if (pind(n,1)<=mp) casapool%nlitter(pind(n,1):pind(n,2),k) = dat(cmap(pind(n,1):pind(n,2)))
         write(vname,'("plitter",I1.1,"_",I1.1)') k,n
         call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-        if (pind(n,1).le.mp) casapool%plitter(pind(n,1):pind(n,2),k) = dat(cmap(pind(n,1):pind(n,2)))
+        if (pind(n,1)<=mp) casapool%plitter(pind(n,1):pind(n,2),k) = dat(cmap(pind(n,1):pind(n,2)))
       end do
       do k=1,msoil
         write(vname,'("csoil",I1.1,"_",I1.1)') k,n
         call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-        if (pind(n,1).le.mp) casapool%csoil(pind(n,1):pind(n,2),k) = dat(cmap(pind(n,1):pind(n,2)))
+        if (pind(n,1)<=mp) casapool%csoil(pind(n,1):pind(n,2),k) = dat(cmap(pind(n,1):pind(n,2)))
         write(vname,'("nsoil",I1.1,"_",I1.1)') k,n
         call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-        if (pind(n,1).le.mp) casapool%nsoil(pind(n,1):pind(n,2),k) = dat(cmap(pind(n,1):pind(n,2)))
+        if (pind(n,1)<=mp) casapool%nsoil(pind(n,1):pind(n,2),k) = dat(cmap(pind(n,1):pind(n,2)))
         write(vname,'("psoil",I1.1,"_",I1.1)') k,n
         call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-        if (pind(n,1).le.mp) casapool%psoil(pind(n,1):pind(n,2),k) = dat(cmap(pind(n,1):pind(n,2)))
+        if (pind(n,1)<=mp) casapool%psoil(pind(n,1):pind(n,2),k) = dat(cmap(pind(n,1):pind(n,2)))
       end do
       write(vname,'("glai_",I1.1)') n
       call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-      if (pind(n,1).le.mp) casamet%glai(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
+      if (pind(n,1)<=mp) casamet%glai(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
       write(vname,'("phenphase_",I1.1)') n
       call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-      if (pind(n,1).le.mp) phen%phase(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
+      if (pind(n,1)<=mp) phen%phase(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
       write(vname,'("clabile_",I1.1)') n
       call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-      if (pind(n,1).le.mp) casapool%clabile(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
+      if (pind(n,1)<=mp) casapool%clabile(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
       write(vname,'("nsoilmin_",I1.1)') n
       call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-      if (pind(n,1).le.mp) casapool%nsoilmin(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
+      if (pind(n,1)<=mp) casapool%nsoilmin(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
       write(vname,'("psoillab_",I1.1)') n
       call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-      if (pind(n,1).le.mp) casapool%psoillab(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
+      if (pind(n,1)<=mp) casapool%psoillab(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
       write(vname,'("psoilsorb_",I1.1)') n
       call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-      if (pind(n,1).le.mp) casapool%psoilsorb(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
+      if (pind(n,1)<=mp) casapool%psoilsorb(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
       write(vname,'("psoilocc_",I1.1)') n
       call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-      if (pind(n,1).le.mp) casapool%psoilocc(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
+      if (pind(n,1)<=mp) casapool%psoilocc(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
     end if
   end do
   ! albvisdir, albvisdif, albnirdir, albnirdif are used when nrad=5
@@ -1992,7 +2001,7 @@ else
 end if
   
 ! Some fixes for rounding errors
-if (mp.gt.0) then
+if (mp>0) then
 
   totdepth = 0.
   do k=1,ms
@@ -2010,7 +2019,7 @@ if (mp.gt.0) then
   ! overwritten by CABLE
   ssoil%osnowd=ssoil%snowd                                ! overwritten by CABLE
   bal%osnowd0=ssoil%snowd                                 ! overwritten by CABLE
-  where (ssoil%isflag.gt.0)
+  where (ssoil%isflag>0)
     ssoil%sdepth(:,1)=ssoil%smass(:,1)/ssoil%ssdn(:,1)    ! overwritten by CABLE
     ssoil%ssdnn=(ssoil%ssdn(:,1)*ssoil%smass(:,1)+ssoil%ssdn(:,2) &
          & *ssoil%smass(:,2)+ssoil%ssdn(:,3)*ssoil%smass(:,3))    &
@@ -2020,7 +2029,7 @@ if (mp.gt.0) then
     ssoil%ssdnn=max(120.,ssoil%ssdn(:,1))                 ! overwritten by CABLE
   end where
   do k=2,3
-    where (ssoil%isflag.gt.0)
+    where (ssoil%isflag>0)
       ssoil%sdepth(:,k)=ssoil%smass(:,k)/ssoil%ssdn(:,k)  ! overwritten by CABLE
     elsewhere
       ssoil%sdepth(:,k)=ssoil%sconds(:,1)                 ! overwritten by CABLE
@@ -2119,7 +2128,7 @@ character(len=11) vname
 character(len=40) lname
 logical, intent(in) :: local
   
-if (myid.eq.0) then
+if (myid==0) then
   write(6,*) "Storing CABLE tile data"
   call ncredf(idnc,ierr)
   do n=1,9
@@ -2262,19 +2271,19 @@ end if
 do n=1,9
   do k=1,ms
     dat=tgg(:,k)
-    if (pind(n,1).le.mp) then      
+    if (pind(n,1)<=mp) then      
       dat(cmap(pind(n,1):pind(n,2)))=ssoil%tgg(pind(n,1):pind(n,2),k)
     end if
     write(vname,'("tgg",I1.1,"_",I1.1)') k,n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=wb(:,k)
-    if (pind(n,1).le.mp) then  
+    if (pind(n,1)<=mp) then  
       dat(cmap(pind(n,1):pind(n,2)))=ssoil%wb(pind(n,1):pind(n,2),k)
     end if
     write(vname,'("wb",I1.1,"_",I1.1)') k,n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=wbice(:,k)
-    if (pind(n,1).le.mp) then  
+    if (pind(n,1)<=mp) then  
       dat(cmap(pind(n,1):pind(n,2)))=ssoil%wbice(pind(n,1):pind(n,2),k)
     end if
     write(vname,'("wbice",I1.1,"_",I1.1)') k,n
@@ -2282,128 +2291,128 @@ do n=1,9
   end do
   do k=1,3
     dat=tggsn(:,k)
-    if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%tggsn(pind(n,1):pind(n,2),k)
+    if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%tggsn(pind(n,1):pind(n,2),k)
     write(vname,'("tggsn",I1.1,"_",I1.1)') k,n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=smass(:,k)
-    if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%smass(pind(n,1):pind(n,2),k)
+    if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%smass(pind(n,1):pind(n,2),k)
     write(vname,'("smass",I1.1,"_",I1.1)') k,n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=ssdn(:,k)
-    if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%ssdn(pind(n,1):pind(n,2),k)
+    if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%ssdn(pind(n,1):pind(n,2),k)
     write(vname,'("ssdn",I1.1,"_",I1.1)') k,n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
   end do
   dat=real(isflag)
-  if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=real(ssoil%isflag(pind(n,1):pind(n,2)))
+  if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=real(ssoil%isflag(pind(n,1):pind(n,2)))
   write(vname,'("sflag_",I1.1)') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)
   dat=snowd
-  if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%snowd(pind(n,1):pind(n,2))
+  if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%snowd(pind(n,1):pind(n,2))
   write(vname,'("snd_",I1.1)') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)
   dat=snage
-  if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%snage(pind(n,1):pind(n,2))
+  if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%snage(pind(n,1):pind(n,2))
   write(vname,'("snage_",I1.1)') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)
   dat=100.
-  if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%rtsoil(pind(n,1):pind(n,2))
+  if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%rtsoil(pind(n,1):pind(n,2))
   write(vname,'("rtsoil_",I1.1)') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)   
   dat=cansto
-  if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=canopy%cansto(pind(n,1):pind(n,2))
+  if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=canopy%cansto(pind(n,1):pind(n,2))
   write(vname,'("cansto_",I1.1)') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)
   dat=0.
-  if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%pudsto(pind(n,1):pind(n,2))
+  if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%pudsto(pind(n,1):pind(n,2))
   write(vname,'("pudsto_",I1.1)') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)
   dat=0.
-  if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%wetfac(pind(n,1):pind(n,2))
+  if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%wetfac(pind(n,1):pind(n,2))
   write(vname,'("wetfac_",I1.1)') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)
   if (icycle==0) then
     do k=1,ncp
       dat=cplant(:,k)
-      if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=bgc%cplant(pind(n,1):pind(n,2),k)
+      if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=bgc%cplant(pind(n,1):pind(n,2),k)
       write(vname,'("cplant",I1.1,"_",I1.1)') k,n
       call histwrt3(dat,vname,idnc,iarch,local,.true.)    
     end do
     do k=1,ncs
       dat=csoil(:,k)
-      if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=bgc%csoil(pind(n,1):pind(n,2),k)
+      if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=bgc%csoil(pind(n,1):pind(n,2),k)
       write(vname,'("csoil",I1.1,"_",I1.1)') k,n
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
   else
     do k=1,mplant     
       dat=0.
-      if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=casapool%cplant(pind(n,1):pind(n,2),k)
+      if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=casapool%cplant(pind(n,1):pind(n,2),k)
       write(vname,'("cplant",I1.1,"_",I1.1)') k,n
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
       dat=0.
-      if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=casapool%nplant(pind(n,1):pind(n,2),k)
+      if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=casapool%nplant(pind(n,1):pind(n,2),k)
       write(vname,'("nplant",I1.1,"_",I1.1)') k,n
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
       dat=0.
-      if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=casapool%pplant(pind(n,1):pind(n,2),k)
+      if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=casapool%pplant(pind(n,1):pind(n,2),k)
       write(vname,'("pplant",I1.1,"_",I1.1)') k,n
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     do k=1,mlitter
       dat=0.
-      if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=casapool%clitter(pind(n,1):pind(n,2),k)
+      if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=casapool%clitter(pind(n,1):pind(n,2),k)
       write(vname,'("clitter",I1.1,"_",I1.1)') k,n
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
       dat=0.
-      if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=casapool%nlitter(pind(n,1):pind(n,2),k)
+      if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=casapool%nlitter(pind(n,1):pind(n,2),k)
       write(vname,'("nlitter",I1.1,"_",I1.1)') k,n
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
       dat=0.
-      if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=casapool%plitter(pind(n,1):pind(n,2),k)
+      if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=casapool%plitter(pind(n,1):pind(n,2),k)
       write(vname,'("plitter",I1.1,"_",I1.1)') k,n
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     do k=1,msoil
       dat=0.
-      if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=casapool%csoil(pind(n,1):pind(n,2),k)
+      if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=casapool%csoil(pind(n,1):pind(n,2),k)
       write(vname,'("csoil",I1.1,"_",I1.1)') k,n
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
       dat=0.
-      if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=casapool%nsoil(pind(n,1):pind(n,2),k)
+      if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=casapool%nsoil(pind(n,1):pind(n,2),k)
       write(vname,'("nsoil",I1.1,"_",I1.1)') k,n
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
       dat=0.
-      if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=casapool%psoil(pind(n,1):pind(n,2),k)
+      if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=casapool%psoil(pind(n,1):pind(n,2),k)
       write(vname,'("psoil",I1.1,"_",I1.1)') k,n
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     dat=0.
-    if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=casamet%glai(pind(n,1):pind(n,2))
+    if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=casamet%glai(pind(n,1):pind(n,2))
     write(vname,'("glai_",I1.1)') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0.
-    if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=phen%phase(pind(n,1):pind(n,2))
+    if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=phen%phase(pind(n,1):pind(n,2))
     write(vname,'("phenphase_",I1.1)') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0.
-    if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=casapool%clabile(pind(n,1):pind(n,2))
+    if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=casapool%clabile(pind(n,1):pind(n,2))
     write(vname,'("clabile_",I1.1)') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0.
-    if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=casapool%nsoilmin(pind(n,1):pind(n,2))
+    if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=casapool%nsoilmin(pind(n,1):pind(n,2))
     write(vname,'("nsoilmin_",I1.1)') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0.
-    if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=casapool%psoillab(pind(n,1):pind(n,2))
+    if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=casapool%psoillab(pind(n,1):pind(n,2))
     write(vname,'("psoillab_",I1.1)') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0.
-    if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=casapool%psoilsorb(pind(n,1):pind(n,2))
+    if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=casapool%psoilsorb(pind(n,1):pind(n,2))
     write(vname,'("psoilsorb_",I1.1)') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0.
-    if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=casapool%psoilocc(pind(n,1):pind(n,2))
+    if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=casapool%psoilocc(pind(n,1):pind(n,2))
     write(vname,'("psoilocc_",I1.1)') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
   end if
@@ -2441,14 +2450,14 @@ inflow=0.
 do n=1,9
   iq=-1
   do i=pind(n,1),pind(n,2)
-    if (cmap(i).eq.iqin) then
+    if (cmap(i)==iqin) then
       iq=i
       exit
-    elseif (cmap(i).gt.iqin) then
+    elseif (cmap(i)>iqin) then
       exit
     end if
   end do
-  if (iq.gt.0) then
+  if (iq>0) then
     yy=min(xx(n),(soil%ssat(iq)-ssoil%wb(iq,cbm_ms))*1000.*soil%zse(cbm_ms))
     ssoil%wb(iq,cbm_ms)=ssoil%wb(iq,cbm_ms)+yy/(1000.*soil%zse(cbm_ms))
     xx(n)=max(xx(n)-yy,0.)
@@ -2495,7 +2504,7 @@ if (myid==0) then
   call ncmsg('lon0',ncstatus)
   ncstatus=nf_get_att_real(ncid,nf_global,'schmidt0',tschmidt)
   call ncmsg('schmidt0',ncstatus)
-  if (rlong0.ne.tlon.or.rlat0.ne.tlat.or.schmidt.ne.tschmidt) then
+  if (rlong0/=tlon.or.rlat0/=tlat.or.schmidt/=tschmidt) then
     write(6,*) "ERROR: Grid mismatch for ",trim(casafile)
     write(6,*) "rlong0,rlat0,schmidt ",rlong0,rlat0,schmidt
     write(6,*) "tlon,tlat,tschmidt   ",tlon,tlat,tschmidt
@@ -2505,7 +2514,7 @@ if (myid==0) then
   call ncmsg('longitude',ncstatus)
   ncstatus = nf_inq_dimlen(ncid,varid,tilg)
   call ncmsg('longitude',ncstatus)
-  if (tilg.ne.il_g) then
+  if (tilg/=il_g) then
     write (6,*) "ERROR: Grid mismatch for ",trim(casafile)
     write (6,*) "il_g,tilg ",il_g,tilg
     stop
@@ -2572,7 +2581,7 @@ where (veg%iveg==9.or.veg%iveg==10) ! crops
   casaflux%Nminfix=casaflux%Nminfix+4.3/365.
 end where
 
-if (any(casamet%isorder.lt.1.or.casamet%isorder.gt.12)) then
+if (any(casamet%isorder<1.or.casamet%isorder>12)) then
   write(6,*) "ERROR: Invalid isorder in ",trim(casafile)
   stop
 end if

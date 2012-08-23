@@ -140,7 +140,7 @@ real, dimension(kl-1) :: wpv_flux
 real xp,ee,dtr,as,bs,cs,cm12,cm34,qcup
 real zht,dzht,zidryold,zilcl,nnc
 real ziold,thc,qvc,qlc,qfc,qrc,cfc,crc,w2c,mfc,ddtt,ddts
-real lx,templ,fice,qxup,txup
+real lx,templ,fice,qxup,txup,dqsdt,al
 logical sconv
 
 cm12=1./sqrt(cm0)
@@ -319,7 +319,6 @@ do kcount=1,mcount
             txup=tlup(k)                                                  ! theta,up after evaporation of ql,up and qf,up
             ttup(k)=txup/sigkap(k)                                        ! temp,up
             qxup=qtup(k)                                                  ! qv,up after evaporation of ql,up and qf,up
-            call getqsat(1,qupsat(k),ttup(k),pres(k))                     ! estimate of saturated mixing ratio in plume
             tvup(k)=txup+theta(i,k)*0.61*qxup                             ! thetav,up after evaporation of ql,up and qf,up
             ! calculate buoyancy
             nn(k)=grav*(tvup(k)-thetav(i,k))/thetav(i,k)
@@ -329,6 +328,7 @@ do kcount=1,mcount
             mflx(i,k)=mflx(i,k-1)/(1.+dzht*(dtr-ee))
             ! check for lcl
             if (.not.sconv) then
+              call getqsat(1,qupsat(k),ttup(k),pres(k))                   ! estimate of saturated mixing ratio in plume
               if (qxup>=qupsat(k)) then
                 ! estimate LCL when saturation occurs
                 as=ee*(qupsat(k)-qupsat(k-1))/dzht
@@ -362,15 +362,16 @@ do kcount=1,mcount
               xp=min(max(xp,0.),dzht)
               zidry(i)=xp+zz(i,k-1)
               mflx(i,k)=0.
-              if (sconv) then
-                if (zidry(i)<zilcl) then
-                  sconv=.false.
-                  klcl=kl+1
-                end if
-              end if
               exit
             end if
           end do
+
+          if (sconv) then
+            if (zidry(i)<zilcl) then
+              sconv=.false.
+              klcl=kl+1
+            end if
+          end if
           
           ! shallow convection case
           if (sconv) then
@@ -393,37 +394,15 @@ do kcount=1,mcount
             qtup(klcl)=qvup(i,klcl)+qlup(i,klcl)+qfup(i,klcl)+qrup(i,klcl)               ! qtot,up
             templ=tlup(klcl)/sigkap(klcl)                                                ! templ,up
             ! estimate saturated air temperature
-            ! (tried dqs/dT but it failed to converge, now use false position)
-            cc(i,1)=373. ! guess C
+            cc(i,1)=templ
             call getqsat(1,qupsat(klcl),cc(i,1),pres(klcl))
-            qxup=min(qtup(klcl),qupsat(klcl))
-            qcup=qtup(klcl)-qxup
-            fice=0.
-            lx=lv
-            cc(i,2)=cc(i,1)-templ-lx*qcup/cp ! error C
-            bb(i,1)=min(templ,372.) ! guess B
-            call getqsat(1,qupsat(klcl),bb(i,1),pres(klcl))
-            qxup=min(qtup(klcl),qupsat(klcl))
-            qcup=qtup(klcl)-qxup
-            fice=min(max(273.16-bb(i,1),0.),40.)/40.
+            qxup=qupsat(klcl)
+            fice=min(max(273.16-templ,0.),40.)/40.
             lx=lv+lf*fice
-            bb(i,2)=bb(i,1)-templ-lx*qcup/cp ! error B
-            do while (abs(bb(i,2))>0.1.and.abs(cc(i,2))>0.1)
-              !ttup(klcl)=0.5*(bb(i,1)+cc(i,1)) ! bisection
-              ttup(klcl)=(cc(i,2)*bb(i,1)-bb(i,2)*cc(i,1))/(cc(i,2)-bb(i,2)) ! false position
-              call getqsat(1,qupsat(klcl),ttup(klcl),pres(klcl))
-              qxup=min(qtup(klcl),qupsat(klcl))
-              qcup=qtup(klcl)-qxup
-              fice=min(max(273.16-ttup(klcl),0.),40.)/40. ! MJT suggestion
-              lx=lv+lf*fice
-              if (templ+lx*qcup/cp>ttup(klcl)) then
-                bb(i,1)=ttup(klcl)
-                bb(i,2)=ttup(klcl)-templ-lx*qcup/cp
-              else
-                cc(i,1)=ttup(klcl)
-                cc(i,2)=ttup(klcl)-templ-lx*qcup/cp
-              end if
-            end do
+            dqsdt=qupsat(klcl)*lx/(rv*templ*templ)
+            al=cp/(cp+lx*dqsdt)
+            qcup=qtup(klcl)-qupsat(klcl)
+            qcup=qcup*al
             ttup(klcl)=templ+lx*qcup/cp                                           ! temp,up
             txup=ttup(klcl)*sigkap(klcl)                                          ! theta,up after redistribution
             tvup(klcl)=txup+theta(i,klcl)*(1.61*qxup-qtup(klcl))                  ! thetav,up after redistribution
@@ -461,36 +440,15 @@ do kcount=1,mcount
                 qtup(k)=qvup(i,k)+qlup(i,k)+qfup(i,k)+qrup(i,k)               ! qtot,up
                 templ=tlup(k)/sigkap(k)                                       ! templ,up
                 ! estimate saturated air temperature
-                cc(i,1)=373. ! guess C
+                cc(i,1)=templ
                 call getqsat(1,qupsat(k),cc(i,1),pres(k))
-                qxup=min(qtup(k),qupsat(k))
-                qcup=qtup(k)-qxup
-                fice=0.
-                lx=lv
-                cc(i,2)=cc(i,1)-templ-lx*qcup/cp ! error C
-                bb(i,1)=min(templ,372.) ! guess B
-                call getqsat(1,qupsat(k),bb(i,1),pres(k))
-                qxup=min(qtup(k),qupsat(k))
-                qcup=qtup(k)-qxup
-                fice=min(max(273.16-bb(i,1),0.),40.)/40.
+                qxup=qupsat(k)
+                fice=min(max(273.16-templ,0.),40.)/40.
                 lx=lv+lf*fice
-                bb(i,2)=bb(i,1)-templ-lx*qcup/cp ! error B
-                do while (abs(bb(i,2))>0.1.and.abs(cc(i,2))>0.1)
-                  !ttup(k)=0.5*(bb(i,1)+cc(i,1)) ! bisection
-                  ttup(k)=(cc(i,2)*bb(i,1)-bb(i,2)*cc(i,1))/(cc(i,2)-bb(i,2)) ! false position
-                  call getqsat(1,qupsat(k),ttup(k),pres(k))
-                  qxup=min(qtup(k),qupsat(k))
-                  qcup=qtup(k)-qxup
-                  fice=min(max(273.16-ttup(k),0.),40.)/40. ! MJT suggestion
-                  lx=lv+lf*fice
-                  if (templ+lx*qcup/cp>ttup(k)) then
-                    bb(i,1)=ttup(k)
-                    bb(i,2)=ttup(k)-templ-lx*qcup/cp
-                  else
-                    cc(i,1)=ttup(k)
-                    cc(i,2)=ttup(k)-templ-lx*qcup/cp
-                  end if
-                end do
+                dqsdt=qupsat(k)*lx/(rv*templ*templ)
+                al=cp/(cp+lx*dqsdt)
+                qcup=qtup(k)-qupsat(k)
+                qcup=qcup*al
                 ttup(k)=templ+lx*qcup/cp                               ! temp,up
                 txup=ttup(k)*sigkap(k)                                 ! theta,up after redistribution
                 tvup(k)=txup+theta(i,k)*(1.61*qxup-qtup(k))            ! thetav,up after redistribution
@@ -528,7 +486,7 @@ do kcount=1,mcount
           tke(i,1)=max(tke(i,1),mintke)
 
           ! check for convergence
-          if (abs(zi(i)-ziold)<1.) exit
+          if (abs(zi(i)-ziold)<10.) exit
           ziold=zi(i)
           zidryold=zidry(i)
         end do
@@ -543,7 +501,6 @@ do kcount=1,mcount
         gamcr(i,:)=mflx(i,:)*(crup(i,:)-cfrain(i,:))
       else                   ! stable
         !wpv_flux is calculated at half levels
-        wstar(i)=0.
         !wpv_flux(1)=-kmo(i,1)*(thetav(i,2)-thetav(i,1))/dz_hl(i,1) !+gamt_hl(i,k)
         !do k=2,kl-1
         !  wpv_flux(k)=-kmo(i,k)*(thetav(i,k+1)-thetav(i,k))/dz_hl(i,k) !+gamt_hl(i,k)

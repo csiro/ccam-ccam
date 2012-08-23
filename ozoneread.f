@@ -233,6 +233,7 @@ c
       real, dimension(npts), intent(in) :: ps
       real, dimension(kl), intent(in) :: sig
       real, dimension(npts,kl), intent(out) :: duo3n
+      real, dimension(npts,kk) :: duma,dumb,dumc
 
       real, parameter :: rlag=14.8125
       real, parameter :: year=365.
@@ -243,8 +244,11 @@ c
       if (allocated(o3mth)) then ! CMIP5 ozone
       
         iend=istart+npts-1
-        call fieldinterpolate(duo3n,o3pre(istart:iend,:),
-     &         o3mth(istart:iend,:),o3nxt(istart:iend,:),o3pres,npts,
+	duma=o3pre(istart:iend,:)
+	dumb=o3mth(istart:iend,:)
+	dumc=o3nxt(istart:iend,:)
+        call fieldinterpolate(duo3n,duma,
+     &         dumb,dumc,o3pres,npts,
      &         kl,ii,jj,kk,mins,sig,ps)
 
         ! convert units from mol/mol to g/g

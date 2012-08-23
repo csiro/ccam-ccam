@@ -33,7 +33,7 @@
       integer, dimension(nihead) :: nahead
       integer, dimension(ifull) :: isflag
       integer kdate_r,ktime_r,nested,ier,ier2,ilen,itype,iaero
-      integer idv,mtimer,k
+      integer idv,mtimer,k,ierx,idvkd,idvkt,idvmt
       real, dimension(nrhead) :: ahead
       real, save :: rlong0x, rlat0x, schmidtx
 !     These are local arrays, not the versions in arrays.h
@@ -96,20 +96,22 @@
      &                        kdate_s,ktime_s
         ltest=.true.
         iarchi=iarchi-1
-        do while(ltest.and.iarchi.lt.maxarchi)
+        idvkd = ncvid(ncid,'kdate',ier)
+        idvkt = ncvid(ncid,'ktime',ier)
+        idvmt = ncvid(ncid,'mtimer',ierx)
+        if (ierx/=0) then
+          idvmt = ncvid(ncid,'timer',ier)
+        end if
+        do while(ltest.and.iarchi<maxarchi)
           iarchi=iarchi+1
-          idv = ncvid(ncid,'kdate',ier)
-          call ncvgt1(ncid,idv,iarchi,kdate_r,ier)
-          idv = ncvid(ncid,'ktime',ier)
-          call ncvgt1(ncid,idv,iarchi,ktime_r,ier)
-          idv = ncvid(ncid,'mtimer',ier)
-          if (ier.eq.0) then
-            call ncvgt1(ncid,idv,iarchi,mtimer,ier)
+          call ncvgt1(ncid,idvkd,iarchi,kdate_r,ier)
+          call ncvgt1(ncid,idvkt,iarchi,ktime_r,ier)
+          if (ierx==0) then
+            call ncvgt1(ncid,idvmt,iarchi,mtimer,ier)
             timer=mtimer/60.
           else
             timer=0.
-            idv = ncvid(ncid,'timer',ier)
-            call ncvgt1(ncid,idv,iarchi,timer,ier)
+            call ncvgt1(ncid,idvmt,iarchi,timer,ier)
             mtimer=nint(timer*60.)
           endif
           if (mtimer>0) then
@@ -118,7 +120,7 @@
           ltest=2400*(kdate_r-kdate_s)-1200*nsemble
      &              +(ktime_r-ktime_s)<0
         end do
-        if (nsemble.ne.0) then
+        if (nsemble/=0) then
           kdate_r=kdate_s
           ktime_r=ktime_s
         end if
@@ -132,7 +134,7 @@
       call MPI_Bcast(kdate_r,1,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
       call MPI_Bcast(ktime_r,1,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
       call MPI_Bcast(ncid   ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
-      newfile=ncid.ne.ncidold
+      newfile=ncid/=ncidold
       if (newfile) then
         call MPI_Bcast(ik   ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
         call MPI_Bcast(jk   ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ier)

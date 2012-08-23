@@ -153,7 +153,7 @@
      & ,m_fly,mstn,nqg,nurban,nmr,ktopdav,nud_sst,nud_sss
      & ,mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv
      & ,nud_sfh,bpyear,rescrn,helmmeth,nmlo,ol,mxd,mindep,minwater
-     & ,knh,ccycle
+     & ,ocnsmag,ocneps,knh,ccycle
       namelist/skyin/mins_rad,ndiur
       namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,
      &    hfile,icefile,mesonest,nmifile,o3file,radfile,restfile,
@@ -1486,7 +1486,7 @@
 !     This is the end of the physics. The next routine makes the load imbalance
 !     overhead explicit rather than having it hidden in one of the diagnostic
 !     calls.
-      call phys_loadbal
+      !call phys_loadbal ! Remove global MPI comms
       call end_log(phys_end)
 
       ! ***********************************************************************
@@ -1760,29 +1760,29 @@
 
       if(mod(ktau,nperavg)==0)then   
 !       produce some diags & reset most averages once every nperavg      
-        precavge=0.
-        evapavge=0.
-        do iq=1,ifull
-         precavge=precavge+precip(iq)*wts(iq)
-         evapavge=evapavge+evap(iq)*wts(iq)   ! in mm/day
-        enddo
-        pwatr=0.   ! in mm
-        do k=1,kl
-         do iq=1,ifull
-          qtot=qg(iq,k)+qlg(iq,k)+qfg(iq,k)
-          pwatr=pwatr-dsig(k)*wts(iq)*qtot*ps(iq)/grav
-         enddo
-        enddo
-        temparray(1:3) = (/ precavge, evapavge, pwatr /)
-        call MPI_Reduce ( temparray, gtemparray, 3, MPI_REAL, MPI_MAX,0,
-     &                  MPI_COMM_WORLD, ierr )
-        if ( myid == 0 ) then
-           precavge = gtemparray(1)
-           evapavge  = gtemparray(2)
-           pwatr    = gtemparray(3)
-           write(6,985) pwatr,precavge,evapavge ! MJT bug fix
-        end if
-985     format(' average pwatr,precc,prec,evap: ',4f7.3)
+!        precavge=0.
+!        evapavge=0.
+!        do iq=1,ifull
+!         precavge=precavge+precip(iq)*wts(iq)
+!         evapavge=evapavge+evap(iq)*wts(iq)   ! in mm/day
+!        enddo
+!        pwatr=0.   ! in mm
+!        do k=1,kl
+!         do iq=1,ifull
+!          qtot=qg(iq,k)+qlg(iq,k)+qfg(iq,k)
+!          pwatr=pwatr-dsig(k)*wts(iq)*qtot*ps(iq)/grav
+!         enddo
+!        enddo
+!        temparray(1:3) = (/ precavge, evapavge, pwatr /)
+!        call MPI_Reduce ( temparray, gtemparray, 3, MPI_REAL, MPI_MAX,0,
+!     &                  MPI_COMM_WORLD, ierr )
+!        if ( myid == 0 ) then
+!           precavge = gtemparray(1)
+!           evapavge  = gtemparray(2)
+!           pwatr    = gtemparray(3)
+!           write(6,985) pwatr,precavge,evapavge ! MJT bug fix
+!        end if
+!985     format(' average pwatr,precc,prec,evap: ',4f7.3)
 !       also zero most averaged fields every nperavg
         cbas_ave(:)=0.
         ctop_ave(:)=0.

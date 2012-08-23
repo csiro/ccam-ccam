@@ -24,16 +24,13 @@
       real, allocatable, save, dimension(:) :: aice, bice, cice
       real, allocatable, save, dimension(:) :: asal, bsal, csal
       real, allocatable, save, dimension(:) :: res
-      real, dimension(ifull) :: sssb,timelt
+      real, dimension(ifull) :: sssb,timelt,fraciceb
       real, dimension(ifull,wlev) :: dumb,dumd
       real, dimension(ifull,wlev,2) :: dumc
-      real fraciceb(ifull), x, c2, c3, c4
+      real x, c2, c3, c4, rat1, rat2
       integer, dimension(0:13) :: mdays
-      integer iyr, imo, iday, iyr_m, imo_m, idjd_g, iq
-      integer leap
-      save iyr,imo,iday,iyr_m,imo_m
-      real rat1, rat2
-      integer k
+      integer idjd_g, iq, leap, ierr, k
+      integer, save :: iyr, imo, iday
       integer, parameter :: mlomode = 1 ! (0=relax, 1=scale-select)
       integer, parameter :: mlotime = 6 ! scale-select period in hours
       common/leap_yr/leap  ! 1 to allow leap years
@@ -236,12 +233,12 @@ c       c1=0.
         if (nud_ouv.ne.0) then
           write(6,*) "ERROR: nud_ouv.ne.0 is not supported for"
           write(6,*) "       namip.ne.0"
-          stop
+          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
         end if
         if (nud_sfh.ne.0) then
           write(6,*) "ERROR: nud_sfh.ne.0 is not supported for"
           write(6,*) "       namip.ne.0"
-          stop
+          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
         end if
         call mloexpmelt(timelt)
         dumb(:,1)=tgg(:,1)
@@ -259,15 +256,13 @@ c       c1=0.
             end if
           case DEFAULT
             write(6,*) "ERROR: Unknown mlomode ",mlomode
-            stop
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
         end select
         do k=1,ms
           call mloexport(0,tgg(:,k),k,0)
         end do
       end if
       !--------------------------------------------------------------
-!      if (mydiag)print *,'ktau,sicedep,aice,bice,cice,fracice: ',
-!     & ktau,sicedep(idjd),aice(idjd),bice(idjd),cice(idjd),fracice(idjd)
       return
       end
       
@@ -275,21 +270,36 @@ c       c1=0.
      &                  namip,iyr,imo,idjd_g)
       
       use cc_mpi
+      use infile, only : ncmsg,datefix
       
       implicit none
       
       include 'newmpar.h'
       include 'filnames.h'  ! list of files
+      include 'mpif.h'      ! MPI parameters
+      include 'netcdf.inc'  ! Netcdf parameters
       include 'parmgeom.h'  ! rlong0,rlat0,schmidt      
+      
+      integer, parameter :: nihead=54
+      integer, parameter :: nrhead=14
       
       integer, intent(in) :: namip,iyr,imo,idjd_g
       integer imonth,iyear,il_in,jl_in,iyr_m,imo_m,ierr
+      integer varid,ncidx,iarchx,maxarchi,iernc
+      integer varidb,varidc
+      integer mtimer_r,kdate_r,ktime_r
+      integer, dimension(3) :: spos,npos
+      integer, dimension(nihead) :: nahead
       real, dimension(ifull), intent(out) :: ssta,sstb,sstc
       real, dimension(ifull), intent(out) :: aice,bice,cice
       real, dimension(ifull), intent(out) :: asal,bsal,csal
       real, dimension(ifull_g) :: ssta_g
+      real, dimension(nrhead) :: ahead
       real rlon_in,rlat_in,schmidt_in
+      real of,sc
+      logical ltest
       character*22 header
+      character*10 unitstr
 
       iyr_m=iyr
       imo_m=imo-1
@@ -297,150 +307,304 @@ c       c1=0.
         imo_m=12
         iyr_m=iyr-1
         if(namip==-1)iyr_m=0
-      endif      
-
-      open(unit=75,file=sstfile,status='old',form='formatted',
-     &     iostat=ierr)
-      if (ierr.ne.0) then
-        write(6,*) "ERROR: Cannot read AMIP sstfile ",trim(sstfile)
-        stop
-      end if
-	iyear=-999
-      imonth=-999	  
-	do while(iyr_m.ne.iyear.or.imo_m.ne.imonth)
-        write(6,*) 'about to read amipsst file'
-        read(75,*)
-     &    imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
-        write(6,'("reading sst ",i2,i5,2i4,2f6.1,f7.4,1x,a22)')
-     &    imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
+      endif
+      
+      ! check for netcdf file format
+      iernc=nf_open(sstfile,nf_nowrite,ncidx)
+      if (iernc==0) then
+        ! NETCDF
+        write(6,*) "Reading AMIP file in netcdf format"
+        ! check grid definition
+        ierr=nf_get_att_real(ncidx,nf_global,'int_header',nahead)
+        call ncmsg('int_header',ierr)
+        ierr=nf_get_att_real(ncidx,nf_global,'real_header',ahead)
+        call ncmsg('real_header',ierr)
+        il_in=nahead(1)
+        jl_in=nahead(2)
+        rlon_in   =ahead(5)
+        rlat_in   =ahead(6)
+        schmidt_in=ahead(7)
+        if(schmidt_in<=0..or.schmidt_in>1.)then
+          rlon_in   =ahead(6)
+          rlat_in   =ahead(7)
+          schmidt_in=ahead(8)
+        endif  ! (schmidtx<=0..or.schmidtx>1.)  
         if(il_g/=il_in.or.jl_g/=jl_in.or.rlong0/=rlon_in.or.
      &    rlat0/=rlat_in.or.schmidt/=schmidt_in)then
-          write(0,*) 'il_g,il_in,jl_g,jl_in,rlong0,rlon_in',
+          write(6,*) 'il_g,il_in,jl_g,jl_in,rlong0,rlon_in',
      &                il_g,il_in,jl_g,jl_in,rlong0,rlon_in
-          write(0,*) 'rlat0,rlat_in,schmidt,schmidt_in',
+          write(6,*) 'rlat0,rlat_in,schmidt,schmidt_in',
      &                rlat0,rlat_in,schmidt,schmidt_in
-          write(0,*) 'wrong amipsst file'
-          stop
+          write(6,*) 'wrong amipsst file'
+          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
         endif
+        ierr=nf_inq_dimid(ncidx,'time',varid)
+        call ncmsg('time',ierr)
+        ierr=nf_inq_dimlen(ncidx,varid,maxarchi)
+        call ncmsg('time',ierr)
+        ! search for required month
+        iarchx=0
+        iyear=-999
+        imonth=-999
+        ltest=.true.
+        ierr=nf_inq_varid(ncidx,'kdate',varid)
+        ierr=nf_inq_varid(ncidx,'ktime',varidb)
+        ierr=nf_inq_varid(ncidx,'mtimer',varidc)
+        do while (ltest.and.iarchx<maxarchi)
+          iarchx=iarchx+1
+          ierr=nf_get_var1_real(ncidx,varid,iarchx,kdate_r)
+          ierr=nf_get_var1_real(ncidx,varidb,iarchx,ktime_r)
+          ierr=nf_get_var1_real(ncidx,varidc,iarchx,mtimer_r)
+          call datefix(kdate_r,ktime_r,mtimer_r)
+          iyear=int(kdate_r/10000)
+          imonth=int((kdate_r-iyear*10000)/100)
+          ltest=iyr_m/=iyear.or.imo_m/=imonth
+        end do
+        if (ltest) then
+          write(6,*) "ERROR: Cannot locate year ",iyr_m
+          write(6,*) "       and month ",imo_m
+          write(6,*) "       in file ",trim(sstfile)
+          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+        end if
+        spos(1:2)=1
+        spos(3)=iarchx
+        npos(1)=il_g
+        npos(2)=6*il_g
+        npos(3)=1
+        ierr=nf_inq_varid(ncidx,'tos',varid)
+        call ncmsg('tos',ierr) 
+        ierr=nf_get_att_text(ncidx,varid,'units',unitstr)
+        call ncmsg('tos units',ierr)
+        ierr=nf_get_vara_real(ncidx,varid,spos,npos,ssta_g)
+        call ncmsg('SST previous',ierr) 
+        ierr=nf_get_att_real(ncidx,varid,'add_offset',of)
+        if (ierr/=0) of=0.
+        if (unitstr=='C') of=of+273.16
+        ierr=nf_get_att_real(ncidx,varid,'scale_factor',sc)
+        if (ierr/=0) sc=1.
+        ssta_g=sc*ssta_g+of        
+        call ccmpi_distribute(ssta, ssta_g)
+        spos(3)=spos(3)+1
+        ierr=nf_get_vara_real(ncidx,varid,spos,npos,ssta_g)
+        call ncmsg('SST current',ierr)        
+        ssta_g=sc*ssta_g+of  
+        call ccmpi_distribute(sstb, ssta_g)
+        spos(3)=spos(3)+1
+        ierr=nf_get_vara_real(ncidx,varid,spos,npos,ssta_g)
+        call ncmsg('SST next',ierr)        
+        ssta_g=sc*ssta_g+of  
+        call ccmpi_distribute(sstc, ssta_g)
+          
+      else
+        ! ASCII
+        open(unit=75,file=sstfile,status='old',form='formatted',
+     &       iostat=ierr)
+        if (ierr.ne.0) then
+          write(6,*) "ERROR: Cannot read AMIP sstfile ",trim(sstfile)
+          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+        end if
+        write(6,*) "Reading AMIP file in ASCII format"
+        iyear=-999
+        imonth=-999	  
+        do while(iyr_m/=iyear.or.imo_m/=imonth)
+          write(6,*) 'about to read amipsst file'
+          read(75,*)
+     &      imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
+          write(6,'("reading sst ",i2,i5,2i4,2f6.1,f7.4,1x,a22)')
+     &      imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
+          if(il_g/=il_in.or.jl_g/=jl_in.or.rlong0/=rlon_in.or.
+     &      rlat0/=rlat_in.or.schmidt/=schmidt_in)then
+            write(6,*) 'il_g,il_in,jl_g,jl_in,rlong0,rlon_in',
+     &                  il_g,il_in,jl_g,jl_in,rlong0,rlon_in
+            write(6,*) 'rlat0,rlat_in,schmidt,schmidt_in',
+     &                  rlat0,rlat_in,schmidt,schmidt_in
+            write(6,*) 'wrong amipsst file'
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+          endif
+          read(75,*) ssta_g
+          ssta_g(:)=ssta_g(:)*.01 -50. +273.16
+          write(6,*) 'want imo_m,iyr_m; ssta ',imo_m,iyr_m,
+     &      ssta_g(idjd_g)
+        end do
+        call ccmpi_distribute(ssta, ssta_g)
+
+        read(75,'(i2,i5,a22)') imonth,iyear,header
+        write(6,*) 'reading sstb data:',imonth,iyear,header
+        write(6,*) 'should agree with imo,iyr ',imo,iyr
+        if(iyr.ne.iyear.or.imo.ne.imonth)then
+          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+        end if
         read(75,*) ssta_g
         ssta_g(:)=ssta_g(:)*.01 -50. +273.16
-        write(6,*) 'want imo_m,iyr_m; ssta ',imo_m,iyr_m,ssta_g(idjd_g)
-      enddo
-	call ccmpi_distribute(ssta, ssta_g)
-
-      read(75,'(i2,i5,a22)') imonth,iyear,header
-      write(6,*) 'reading sstb data:',imonth,iyear,header
-      write(6,*) 'should agree with imo,iyr ',imo,iyr
-      if(iyr.ne.iyear.or.imo.ne.imonth)stop
-      read(75,*) ssta_g
-      ssta_g(:)=ssta_g(:)*.01 -50. +273.16
-      write(6,*) 'sstb(idjd) ',ssta_g(idjd_g)
-	call ccmpi_distribute(sstb, ssta_g)
+        write(6,*) 'sstb(idjd) ',ssta_g(idjd_g)
+        call ccmpi_distribute(sstb, ssta_g)
 	  
-c     extra read from Oct 08        
-      read(75,'(i2,i5,a22)') imonth,iyear,header
-      write(6,*) 'reading sstc data:',imonth,iyear,header
-      read(75,*) ssta_g
-      ssta_g(:)=ssta_g(:)*.01 -50. +273.16
-      write(6,*) 'sstc(idjd) ',ssta_g(idjd_g)
-      call ccmpi_distribute(sstc, ssta_g)
-      close(75)
+c       extra read from Oct 08        
+        read(75,'(i2,i5,a22)') imonth,iyear,header
+        write(6,*) 'reading sstc data:',imonth,iyear,header
+        read(75,*) ssta_g
+        ssta_g(:)=ssta_g(:)*.01 -50. +273.16
+        write(6,*) 'sstc(idjd) ',ssta_g(idjd_g)
+        call ccmpi_distribute(sstc, ssta_g)
+        close(75)
+      end if ! (iernc==0) .. else ..
   
       if(namip>=2)then   ! sice also read at middle of month
-        open(unit=76,file=icefile,status='old',form='formatted',
-     &       iostat=ierr)
-        if (ierr.ne.0) then
-          write(6,*) "ERROR: Cannot read AMIP icefile ",trim(icefile)
-          stop
-        end if
-	  iyear=-999
-	  imonth=-999	   
-	  do while(iyr_m.ne.iyear.or.imo_m.ne.imonth)
-          read(76,*)
-     &     imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
-          write(6,'("reading ice ",i2,i5,2i4,2f6.1,f6.3,a22)')
-     &     imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
-          if(il_g/=il_in.or.jl_g/=jl_in.or.rlong0/=rlon_in.or.
-     &      rlat0/=rlat_in.or.schmidt/=schmidt_in)then
-            write(0,*) 'il_g,il_in,jl_g,jl_in,rlong0,rlon_in',
-     &                  il_g,il_in,jl_g,jl_in,rlong0,rlon_in
-            write(0,*) 'rlat0,rlat_in,schmidt,schmidt_in',
-     &                  rlat0,rlat_in,schmidt,schmidt_in
-            write(0,*) 'wrong amipice file'
-            stop
-          endif
-          read(76,*) ssta_g
-          write(6,*) 'want imo_m,iyr_m; aice ',imo_m,iyr_m,
-     &                ssta_g(idjd_g)
-        enddo
-        call ccmpi_distribute(aice, ssta_g)
+        if (iernc==0) then
+          ! NETCDF
+          spos(3)=iarchx
+          ierr=nf_inq_varid(ncidx,'sic',varid)
+          call ncmsg('sic',ierr) 
+          ierr=nf_get_vara_real(ncidx,varid,spos,npos,ssta_g)
+          call ncmsg('SICE previous',ierr)
+          ierr=nf_get_att_real(ncidx,varid,'add_offset',of)
+          if (ierr/=0) of=0.
+          ierr=nf_get_att_real(ncidx,varid,'scale_factor',sc)
+          if (ierr/=0) sc=1.
+          ssta_g=sc*ssta_g+of  
+          call ccmpi_distribute(aice, ssta_g)
+          spos(3)=spos(3)+1
+          ierr=nf_get_vara_real(ncidx,varid,spos,npos,ssta_g)
+          call ncmsg('SICE current',ierr)
+          ssta_g=sc*ssta_g+of       
+          call ccmpi_distribute(bice, ssta_g)
+          spos(3)=spos(3)+1
+          ierr=nf_get_vara_real(ncidx,varid,spos,npos,ssta_g)
+          call ncmsg('SICE next',ierr)        
+          ssta_g=sc*ssta_g+of  
+          call ccmpi_distribute(cice, ssta_g)
+          
+        else
+          ! ASCII
+          open(unit=76,file=icefile,status='old',form='formatted',
+     &         iostat=ierr)
+          if (ierr.ne.0) then
+            write(6,*) "ERROR: Cannot read AMIP icefile ",trim(icefile)
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+          end if
+	    iyear=-999
+	    imonth=-999	   
+	    do while(iyr_m.ne.iyear.or.imo_m.ne.imonth)
+            read(76,*)
+     &       imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
+            write(6,'("reading ice ",i2,i5,2i4,2f6.1,f6.3,a22)')
+     &       imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
+            if(il_g/=il_in.or.jl_g/=jl_in.or.rlong0/=rlon_in.or.
+     &        rlat0/=rlat_in.or.schmidt/=schmidt_in)then
+              write(6,*) 'il_g,il_in,jl_g,jl_in,rlong0,rlon_in',
+     &                    il_g,il_in,jl_g,jl_in,rlong0,rlon_in
+              write(6,*) 'rlat0,rlat_in,schmidt,schmidt_in',
+     &                    rlat0,rlat_in,schmidt,schmidt_in
+              write(6,*) 'wrong amipice file'
+              call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+            endif
+            read(76,*) ssta_g
+            write(6,*) 'want imo_m,iyr_m; aice ',imo_m,iyr_m,
+     &                  ssta_g(idjd_g)
+          enddo
+          call ccmpi_distribute(aice, ssta_g)
 	   
-        read(76,'(i2,i5,a22)') imonth,iyear,header
-        write(6,*) 'reading b_sice data:',imonth,iyear,header
-        write(6,*) 'should agree with imo,iyr ',imo,iyr
-        if(iyr.ne.iyear.or.imo.ne.imonth)stop
-        read(76,*) ssta_g
-        write(6,*) 'bice(idjd) ',ssta_g(idjd_g)
-        call ccmpi_distribute(bice, ssta_g)
+          read(76,'(i2,i5,a22)') imonth,iyear,header
+          write(6,*) 'reading b_sice data:',imonth,iyear,header
+          write(6,*) 'should agree with imo,iyr ',imo,iyr
+          if(iyr.ne.iyear.or.imo.ne.imonth) then
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+          end if
+          read(76,*) ssta_g
+          write(6,*) 'bice(idjd) ',ssta_g(idjd_g)
+          call ccmpi_distribute(bice, ssta_g)
 	    	    
-c       extra cice read from Oct 08        
-        read(76,'(i2,i5,a22)') imonth,iyear,header
-        write(6,*) 'reading c_sice data:',imonth,iyear,header
-        read(76,*) ssta_g
-        write(6,*) 'cice(idjd) ',ssta_g(idjd_g)
-        call ccmpi_distribute(cice, ssta_g)
-        close(76)
-	    	    
+c         extra cice read from Oct 08        
+          read(76,'(i2,i5,a22)') imonth,iyear,header
+          write(6,*) 'reading c_sice data:',imonth,iyear,header
+          read(76,*) ssta_g
+          write(6,*) 'cice(idjd) ',ssta_g(idjd_g)
+          call ccmpi_distribute(cice, ssta_g)
+          close(76)
+	  end if ! (iernc==0) ..else..    	    
       endif   ! (namip>=2) 
 	if (namip>=5) then
-        open(unit=77,file=salfile,status='old',form='formatted',
-     &       iostat=ierr)
-        if (ierr.ne.0) then
-          write(6,*) "ERROR: Cannot read AMIP salfile ",trim(salfile)
-          stop
-        end if
-	  iyear=-999
-	  imonth=-999
-	  do while (iyr_m.ne.iyear.or.imo_m.ne.imonth)
-          read(77,*)
-     &     imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
-          write(6,'("reading sal ",i2,i5,2i4,2f6.1,f6.3,a22)')
-     &     imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
-          if(il_g/=il_in.or.jl_g/=jl_in.or.rlong0/=rlon_in.or.
-     &      rlat0/=rlat_in.or.schmidt/=schmidt_in)then
-            write(0,*) 'il_g,il_in,jl_g,jl_in,rlong0,rlon_in',
-     &                  il_g,il_in,jl_g,jl_in,rlong0,rlon_in
-            write(0,*) 'rlat0,rlat_in,schmidt,schmidt_in',
-     &                  rlat0,rlat_in,schmidt,schmidt_in
-            write(0,*) 'wrong sal file'
-            stop
-          endif
+	  if (iernc==0) then
+	    ! NETCDF
+          spos(3)=iarchx
+          ierr=nf_inq_varid(ncidx,'sss',varid)
+          call ncmsg('sss',ierr) 
+          ierr=nf_get_vara_real(ncidx,varid,spos,npos,ssta_g)
+          call ncmsg('SAL previous',ierr)
+          ierr=nf_get_att_real(ncidx,varid,'add_offset',of)
+          if (ierr/=0) of=0.
+          ierr=nf_get_att_real(ncidx,varid,'scale_factor',sc)
+          if (ierr/=0) sc=1.  
+          ssta_g=sc*ssta_g+of
+          call ccmpi_distribute(asal, ssta_g)
+          spos(3)=spos(3)+1
+          ierr=nf_get_vara_real(ncidx,varid,spos,npos,ssta_g)
+          call ncmsg('SAL current',ierr)
+          ssta_g=sc*ssta_g+of
+          call ccmpi_distribute(bsal, ssta_g)
+          spos(3)=spos(3)+1
+          ierr=nf_get_vara_real(ncidx,varid,spos,npos,ssta_g)
+          call ncmsg('SAL next',ierr)
+          ssta_g=sc*ssta_g+of        
+          call ccmpi_distribute(csal, ssta_g)
+          
+        else
+          ! ASCII
+          open(unit=77,file=salfile,status='old',form='formatted',
+     &         iostat=ierr)
+          if (ierr.ne.0) then
+            write(6,*) "ERROR: Cannot read AMIP salfile ",trim(salfile)
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+          end if
+	    iyear=-999
+	    imonth=-999
+	    do while (iyr_m.ne.iyear.or.imo_m.ne.imonth)
+            read(77,*)
+     &       imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
+            write(6,'("reading sal ",i2,i5,2i4,2f6.1,f6.3,a22)')
+     &       imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
+            if(il_g/=il_in.or.jl_g/=jl_in.or.rlong0/=rlon_in.or.
+     &        rlat0/=rlat_in.or.schmidt/=schmidt_in)then
+              write(6,*) 'il_g,il_in,jl_g,jl_in,rlong0,rlon_in',
+     &                    il_g,il_in,jl_g,jl_in,rlong0,rlon_in
+              write(6,*) 'rlat0,rlat_in,schmidt,schmidt_in',
+     &                    rlat0,rlat_in,schmidt,schmidt_in
+              write(6,*) 'wrong sal file'
+              call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+            endif
+            read(77,*) ssta_g
+            write(6,*) 'want imo_m,iyr_m; asal ',imo_m,iyr_m,
+     &                  ssta_g(idjd_g)
+          end do
+          call ccmpi_distribute(asal, ssta_g)
+	   
+          read(77,'(i2,i5,a22)') imonth,iyear,header
+          write(6,*) 'reading b_sal data:',imonth,iyear,header
+          write(6,*) 'should agree with imo,iyr ',imo,iyr
+          if(iyr.ne.iyear.or.imo.ne.imonth) then
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+          end if
           read(77,*) ssta_g
-          write(6,*) 'want imo_m,iyr_m; asal ',imo_m,iyr_m,
-     &                ssta_g(idjd_g)
-        end do
-        call ccmpi_distribute(asal, ssta_g)
+          write(6,*) 'bsal(idjd) ',ssta_g(idjd_g)
+          call ccmpi_distribute(bsal, ssta_g)
 	   
-        read(77,'(i2,i5,a22)') imonth,iyear,header
-        write(6,*) 'reading b_sal data:',imonth,iyear,header
-        write(6,*) 'should agree with imo,iyr ',imo,iyr
-        if(iyr.ne.iyear.or.imo.ne.imonth)stop
-        read(77,*) ssta_g
-        write(6,*) 'bsal(idjd) ',ssta_g(idjd_g)
-        call ccmpi_distribute(bsal, ssta_g)
-	   
-        read(77,'(i2,i5,a22)') imonth,iyear,header
-        write(6,*) 'reading c_sal data:',imonth,iyear,header
-        read(77,*) ssta_g
-        write(6,*) 'cice(idjd) ',ssta_g(idjd_g)
-        call ccmpi_distribute(csal, ssta_g)
-        close(77)
+          read(77,'(i2,i5,a22)') imonth,iyear,header
+          write(6,*) 'reading c_sal data:',imonth,iyear,header
+          read(77,*) ssta_g
+          write(6,*) 'cice(idjd) ',ssta_g(idjd_g)
+          call ccmpi_distribute(csal, ssta_g)
+          close(77)
 
+        end if ! (iernc==0) ..else..
 	else
 	  asal=0.
 	  bsal=0.
 	  csal=0.
 	endif
+
+      if (iernc==0) then
+        ierr=nf_close(ncidx)
+      end if
       
       return
       end subroutine amiprd
