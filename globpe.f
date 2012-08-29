@@ -1757,32 +1757,37 @@
         call log_on()
       endif    ! (ktau==ntau.or.mod(ktau,nwt)==0)
       if(nstn>0.and.nrotstn(1)>0.and.mod(mtimer,60)==0)call stationb
+      
+      ! buffer and write high frequency fields
+      if (surfile/=' ') call freqfile
 
       if(mod(ktau,nperavg)==0)then   
-!       produce some diags & reset most averages once every nperavg      
-!        precavge=0.
-!        evapavge=0.
-!        do iq=1,ifull
-!         precavge=precavge+precip(iq)*wts(iq)
-!         evapavge=evapavge+evap(iq)*wts(iq)   ! in mm/day
-!        enddo
-!        pwatr=0.   ! in mm
-!        do k=1,kl
-!         do iq=1,ifull
-!          qtot=qg(iq,k)+qlg(iq,k)+qfg(iq,k)
-!          pwatr=pwatr-dsig(k)*wts(iq)*qtot*ps(iq)/grav
-!         enddo
-!        enddo
-!        temparray(1:3) = (/ precavge, evapavge, pwatr /)
-!        call MPI_Reduce ( temparray, gtemparray, 3, MPI_REAL, MPI_MAX,0,
-!     &                  MPI_COMM_WORLD, ierr )
-!        if ( myid == 0 ) then
-!           precavge = gtemparray(1)
-!           evapavge  = gtemparray(2)
-!           pwatr    = gtemparray(3)
-!           write(6,985) pwatr,precavge,evapavge ! MJT bug fix
-!        end if
-!985     format(' average pwatr,precc,prec,evap: ',4f7.3)
+!       produce some diags & reset most averages once every nperavg
+        if (nmaxpr==1) then
+         precavge=0.
+         evapavge=0.
+         do iq=1,ifull
+          precavge=precavge+precip(iq)*wts(iq)
+          evapavge=evapavge+evap(iq)*wts(iq)   ! in mm/day
+         enddo
+         pwatr=0.   ! in mm
+         do k=1,kl
+          do iq=1,ifull
+           qtot=qg(iq,k)+qlg(iq,k)+qfg(iq,k)
+           pwatr=pwatr-dsig(k)*wts(iq)*qtot*ps(iq)/grav
+          enddo
+         enddo
+         temparray(1:3) = (/ precavge, evapavge, pwatr /)
+         call MPI_Reduce ( temparray, gtemparray, 3, MPI_REAL, MPI_MAX,
+     &                   0, MPI_COMM_WORLD, ierr )
+         if ( myid == 0 ) then
+            precavge = gtemparray(1)
+            evapavge  = gtemparray(2)
+            pwatr    = gtemparray(3)
+            write(6,985) pwatr,precavge,evapavge ! MJT bug fix
+         end if
+985      format(' average pwatr,precc,prec,evap: ',4f7.3)
+        end if
 !       also zero most averaged fields every nperavg
         cbas_ave(:)=0.
         ctop_ave(:)=0.

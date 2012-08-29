@@ -952,7 +952,7 @@ c     first do theta (then convert back to t)
 
       !--------------------------------------------------------------
       ! Temperature
-      if (nvmix.ne.6) then
+      if (nvmix/=6) then
        if(nmaxpr==1.and.mydiag)
      &   write (6,"('thet_inx',9f8.3/8x,9f8.3)") rhs(idjd,:)
        rhs(:,1)=rhs(:,1)-(conflux/cp)*fg/(ps(1:ifull)*dnhs(:,1))

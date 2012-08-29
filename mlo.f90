@@ -33,8 +33,8 @@ implicit none
 
 private
 public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlodiag,mloalb2,mloalb4, &
-       mloscrnout,mloextra,mloimpice,mloexpice,mloexpdep,mloexpdensity,mloexpmelt,wlev,micdwn,mxd,   &
-       mindep,minwater
+       mloscrnout,mloextra,mloimpice,mloexpice,mloexpdep,mloexpdensity,mloexpmelt,mloexpscalar,wlev, &
+       micdwn,mxd,mindep,minwater
 
 ! parameters
 integer, save :: wlev = 20
@@ -844,14 +844,14 @@ end subroutine mloexpdep
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Extract density
 
-subroutine mloexpdensity(odensity,alpha,beta,tt,ss,dep,ddz,pxtr,diag)
+subroutine mloexpdensity(odensity,alpha,beta,tt,ss,ddz,pxtr,diag)
 
 implicit none
 
 integer, intent(in) :: diag
 integer ii
 real, dimension(ifull), intent(in) :: pxtr
-real, dimension(ifull,wlev), intent(in) :: tt,ss,dep,ddz
+real, dimension(ifull,wlev), intent(in) :: tt,ss,ddz
 real, dimension(ifull,wlev), intent(out) :: odensity,alpha,beta
 real, dimension(ifull,wlev) :: rs,rho0
 
@@ -859,7 +859,7 @@ odensity=1030.
 alpha=0.
 beta=0.
 if (wfull==0) return
-call calcdensity(ifull,wlev,odensity,alpha,beta,rs,rho0,tt,ss,dep,ddz,pxtr)
+call calcdensity(ifull,wlev,odensity,alpha,beta,rs,rho0,tt,ss,ddz,pxtr)
 
 return
 end subroutine mloexpdensity
@@ -882,6 +882,43 @@ omelt=unpack(tmelt,wpack,omelt)
 
 return
 end subroutine mloexpmelt
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Extract scalars
+
+subroutine mloexpscalar(mode,ogamm,diag)
+
+implicit none
+
+integer, intent(in) :: mode,diag
+integer, dimension(wfull) :: nk
+real, dimension(ifull), intent(out) :: ogamm
+real, dimension(wfull) :: gamm
+
+ogamm=1.
+if (wfull==0) return
+
+select case(mode)
+  case(0)
+    nk=min(int(i_dic/himin),2)
+    where (nk>0.and.i_dsn>icemin) ! snow + 1-2 ice layers
+      gamm=gamms
+    elsewhere (nk>0.and.i_dsn<=icemin) ! no snow + 1-2 ice layers
+      gamm=gammi
+    elsewhere (nk<=0.and.i_dsn>icemin) ! snow + 1 ice layer
+      gamm=(gammi*max(i_dic,icemin)+gamms*i_dsn)/(max(i_dic,icemin)+i_dsn)
+    elsewhere  !(nk<=0.and.i_dsn<=icemin) ! no snow + 1 ice layer
+      gamm=gammi
+    end where
+  case default
+    write(6,*) "ERROR: Unknown mloexpscalar mode ",mode
+    stop
+end select
+
+ogamm=unpack(gamm,wpack,ogamm)
+
+return
+end subroutine mloexpscalar
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Pack atmospheric data for MLO eval
@@ -953,7 +990,7 @@ call iceflux(dt,a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,a_u,a_v,a_temp,a
 if (calcprog) then
   call mloice(dt,a_rnd,a_snd,a_ps,d_alpha,d_beta,d_b0,d_wu0,d_wv0,d_wt0,d_ws0,d_ftop,d_tb,d_fb,    &
               d_timelt,d_tauxicw,d_tauyicw,d_ustar,d_rho,d_rs,d_nk,d_neta,d_ndsn,d_ndic,d_nsto,    &
-              d_zcr,diag)
+              d_zcr,diag)                                                                            ! update ice
   call mlocalc(dt,a_f,d_rho,d_nsq,d_rad,d_alpha,d_beta,d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_zcr, &
                d_neta,diag)                                                                          ! update water
 end if 
@@ -1500,17 +1537,16 @@ implicit none
 
 integer ii
 real, dimension(wfull) :: rho0,pxtr
-real, dimension(wfull,wlev) :: d_depth,d_dz
+real, dimension(wfull,wlev) :: d_dz
 real, dimension(wfull,wlev), intent(inout) :: d_rho,d_rs,d_alpha,d_beta
 real, dimension(wfull), intent(in) :: a_ps
 real, dimension(wfull), intent(inout) :: d_zcr
 
 pxtr=a_ps+grav*i_fracice*(i_dic*rhoic+i_dsn*rhosn)
 do ii=1,wlev
-  d_depth(:,ii)=depth(:,ii)*d_zcr
   d_dz(:,ii)=dz(:,ii)*d_zcr
 end do
-call calcdensity(wfull,wlev,d_rho,d_alpha,d_beta,d_rs,rho0,w_temp,w_sal,d_depth,d_dz,pxtr)
+call calcdensity(wfull,wlev,d_rho,d_alpha,d_beta,d_rs,rho0,w_temp,w_sal,d_dz,pxtr)
 
 return
 end subroutine getrho
@@ -1524,16 +1560,15 @@ implicit none
 
 integer ii
 real, dimension(wfull) :: rho0,pxtr
-real, dimension(wfull,1) :: d_depth,d_dz,d_rs,d_alpha,d_beta,d_isal
+real, dimension(wfull,1) :: d_dz,d_rs,d_alpha,d_beta,d_isal
 real, dimension(wfull,1), intent(inout) :: d_rho
 real, dimension(wfull), intent(in) :: a_ps,salin
 real, dimension(wfull), intent(inout) :: d_zcr
 
 pxtr=a_ps+grav*i_fracice*(i_dic*rhoic+i_dsn*rhosn)
-d_depth(:,1)=depth(:,1)*d_zcr
 d_dz(:,1)=dz(:,1)*d_zcr
 d_isal(:,1)=salin
-call calcdensity(wfull,1,d_rho,d_alpha,d_beta,d_rs,rho0,w_temp,d_isal,d_depth,d_dz,pxtr)
+call calcdensity(wfull,1,d_rho,d_alpha,d_beta,d_rs,rho0,w_temp,d_isal,d_dz,pxtr)
 
 return
 end subroutine getrho1
@@ -1596,14 +1631,14 @@ end subroutine getwflux
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate density
 
-subroutine calcdensity(full,wlx,d_rho,d_alpha,d_beta,rs,rho0,tt,ss,dep,ddz,pxtr)
+subroutine calcdensity(full,wlx,d_rho,d_alpha,d_beta,rs,rho0,tt,ss,ddz,pxtr)
 
 implicit none
 
 integer, intent(in) :: full,wlx
 integer i,ii
 !integer, parameter :: nits=1 ! iterate for density (nits=1 recommended)
-real, dimension(full,wlx), intent(in) :: tt,ss,dep,ddz
+real, dimension(full,wlx), intent(in) :: tt,ss,ddz
 real, dimension(full,wlx), intent(out) :: d_rho,d_alpha,d_beta,rs
 real, dimension(full), intent(in) :: pxtr
 real, dimension(full), intent(out) :: rho0

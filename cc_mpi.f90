@@ -2969,6 +2969,9 @@ contains
    end subroutine boundsuv3
 
    subroutine deptsync(nface,xg,yg)
+   
+      use arrays_m
+   
       ! Different levels will have different winds, so the list of points is
       ! different on each level.
       ! xg ranges from 0.5 to il+0.5 on a face. A given processors range
@@ -3036,6 +3039,9 @@ contains
       do iproc=0,nproc-1
         if (dslen(iproc)>bnds(iproc)%len) then
           write(6,*) "myid,iproc,neighbour,dslen,len ",myid,iproc,neighbour(iproc),dslen(iproc),bnds(iproc)%len
+	  iq=dindex(iproc)%a(1,1)
+	  k=dindex(iproc)%a(2,1)
+	  write(6,*) "Example error iq,k,u,v ",iq,k,u(iq,k),v(iq,k)
           call checksize(dslen(iproc),bnds(iproc)%len,"Deptssync")
         end if
       end do

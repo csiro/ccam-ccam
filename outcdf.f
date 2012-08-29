@@ -24,7 +24,7 @@
       include 'kuocom.h'                    ! Convection parameters
       include 'netcdf.inc'                  ! Netcdf parameters
       include 'parm.h'                      ! Model configuration
-      include 'parmdyn.h'                   ! Dynamics parmaters
+      include 'parmdyn.h'                   ! Dynamics parameters
       include 'parmgeom.h'                  ! Coordinate data
       include 'parmhor.h'                   ! Horizontal advection parameters
       include 'parmvert.h'                  ! Vertical advection parameters
@@ -44,7 +44,7 @@
       integer icy, icm, icd, ich, icmi, ics, idv, ier, imode
       integer, save :: idnc=0, iarch=0, idnc0=0
       real, dimension(nrhead) :: ahead
-      character(len=80) cdffile
+      character(len=180) cdffile
       character(len=33) grdtim
       character(len=20) timorg
       character(len=8) rundate
@@ -68,7 +68,7 @@
         ! itype=1 outfile
         iarch=iarch+1
         if(local)then
-           write(cdffile,"(a,'.',i2.2)") trim(ofile), myid
+           write(cdffile,"(a,'.',i4.4)") trim(ofile), myid
         else
            cdffile=ofile
         endif
@@ -76,7 +76,7 @@
         ! itype=-1 restfile
         iarch=1
         if(local)then
-           write(cdffile,"(a,'.',i2.2)") trim(restfile), myid
+           write(cdffile,"(a,'.',i4.4)") trim(restfile), myid
         else
            cdffile=restfile
         endif
@@ -95,7 +95,7 @@
         ier=nf_create(cdffile,NF_NETCDF4,idnc)
 #endif
         write(6,*) 'idnc,ier=',idnc,ier
-        if (ier.ne.0) then
+        if (ier/=0) then
           write(6,*) "Error creating outfile"
           call ncmsg("Outcdf",ier)
         end if
@@ -284,7 +284,7 @@ c       create the attributes of the header record of the file
       if(myid==0.or.local)then
         call ncsnc(idnc,ier)
         call ncmsg("ncsnc",ier)
-        if(ktau.eq.ntau)then
+        if(ktau==ntau)then
           call ncclos(idnc,ier)
           write(6,*) "calling ncclos(idnc,ier) ",idnc,ier
         endif
@@ -1994,147 +1994,25 @@ c      "extra" outputs
 
       integer, intent(in) :: idnc, iarch
       real, dimension(ifull), intent(in) :: var
-      real, dimension(ifull) :: wvar
+      real, dimension(ifull,1) :: wvar
       character(len=*), intent(in) :: sname
       logical, intent(in) :: local,lwrite
 
-      if (lwrite) then
-        wvar=var
-      else
+      wvar(:,1)=var
+      if (.not.lwrite) then
         wvar=nf_fill_float
       endif
 
       if (local) then
-        call hw3l(wvar,sname,idnc,iarch)
+        call fw3l(wvar,sname,idnc,iarch,1)
       elseif (myid==0) then
-        call hw3a(wvar,sname,idnc,iarch)
+        call fw3a(wvar,sname,idnc,iarch,1)
       else
         call ccmpi_gather(wvar)
       endif
 
       return
       end subroutine histwrt3
-
-      subroutine hw3l(var,sname,idnc,iarch)
-
-      use infile, only : ncmsg ! Input file routines
-      
-      implicit none
-      
-      include 'newmpar.h'      ! Grid parameters
-      include 'netcdf.inc'     ! Netcdf parameters
-      
-      integer, intent(in) :: idnc,iarch
-      integer mid, vtype, ier
-      integer, dimension(3) :: start, count
-      integer*2, dimension(ifull) :: ipack
-      integer*2, parameter :: minv = -32500
-      integer*2, parameter :: maxv = 32500
-      integer*2, parameter :: missval = -32501
-      real, dimension(ifull), intent(in) :: var
-      real addoff, scale_f, pvar
-      character(len=*), intent(in) :: sname
-
-      start = (/ 1, 1, iarch /)
-      count = (/ il, jl, 1 /)
-      mid = ncvid(idnc,sname,ier)
-      ! Check variable type
-      ier = nf_inq_vartype(idnc, mid, vtype)
-      if(vtype == ncshort)then
-       if (all(var.gt.9.8E36)) then
-        ipack=missval
-       else
-        call ncagt(idnc,mid,'add_offset',addoff,ier)
-        call ncagt(idnc,mid,'scale_factor',scale_f,ier)
-        ipack=nint((var-addoff)/scale_f)
-        ipack=max(min(ipack,maxv),minv)
-       end if
-       call ncvpt(idnc, mid, start, count, ipack, ier)
-      else
-       call ncvpt(idnc, mid, start, count, var, ier)
-      endif
-      call ncmsg("histwrt3",ier)
-
-      return
-      end subroutine hw3l
-      
-      subroutine hw3a(var,sname,idnc,iarch)
-
-      use cc_mpi               ! CC MPI routines
-      use infile, only : ncmsg ! Input file routines
-
-      implicit none
-
-      include 'newmpar.h'      ! Grid parameters
-      include 'netcdf.inc'     ! Netcdf parameters
-      include 'parm.h'         ! Model configuration
-
-      integer, intent(in) :: idnc, iarch
-      integer mid, vtype, ier, iq
-      integer imn, imx, jmn, jmx
-      integer, dimension(3) :: start, count
-      integer*2, parameter :: minv = -32500
-      integer*2, parameter :: maxv = 32500
-      integer*2, parameter :: missval = -32501
-      integer*2, dimension(ifull_g) :: ipack
-      real, dimension(ifull), intent(in) :: var
-      real, dimension(ifull_g) :: globvar
-      real addoff, scale_f, pvar, varn, varx
-      character(len=*), intent(in) :: sname
-      
-      call ccmpi_gather(var, globvar)
-      start(1) = 1
-      start(2) = 1
-      start(3) = iarch
-      count(1) = il_g
-      count(2) = jl_g
-      count(3) = 1
-
-c     find variable index
-      mid = ncvid(idnc,sname,ier)
-
-!     Check variable type
-      ier = nf_inq_vartype(idnc, mid, vtype)
-      if(vtype == ncshort)then
-       if(all(globvar.gt.9.8e36))then
-        ipack=missval
-       else
-        call ncagt(idnc,mid,'add_offset',addoff,ier)
-        call ncagt(idnc,mid,'scale_factor',scale_f,ier)
-        ipack=nint((globvar-addoff)/scale_f)
-        ipack=max(min(ipack,maxv),minv)
-       endif
-       call ncvpt(idnc, mid, start, count, ipack, ier)
-      else
-       call ncvpt(idnc, mid, start, count, globvar, ier)
-      endif
-      call ncmsg("histwrt3",ier)
-
-      if(mod(ktau,nmaxpr)==0)then
-       if (any(globvar.eq.nf_fill_float)) then
-         write(6,'("histwrt3 ",a7,i4,a7)')
-     &              sname,iarch,"missing"
-       else
-         varn = minval(globvar)
-         varx = maxval(globvar)
-         ! This should work ???? but sum trick is more portable???
-         ! iq = minloc(globvar,dim=1)
-         iq = sum(minloc(globvar))
-         ! Convert this 1D index to 2D
-         imn = 1 + modulo(iq-1,il_g)
-         jmn = 1 + (iq-1)/il_g
-         iq = sum(maxloc(globvar))
-         ! Convert this 1D index to 2D
-         imx = 1 + modulo(iq-1,il_g)
-         jmx = 1 + (iq-1)/il_g
-         write(6,'("histwrt3 ",a7,i4,f12.4,2i4,f12.4,2i4,f12.4)')
-     &             sname,iarch,varn,imn,jmn,varx,imx,jmx,
-     &             globvar(id+(jd-1)*il_g)
-        end if
-      endif
-
-      return
-      end subroutine hw3a
 
       !--------------------------------------------------------------
       ! 4D NETCDF WRITE ARRAY ROUTINES
@@ -2287,3 +2165,491 @@ c     find variable index
 
       return
       end subroutine hw4a      
+
+      !--------------------------------------------------------------
+      ! HIGH FREQUENCY OUTPUT FILES
+      subroutine freqfile
+
+      use arrays_m                          ! Atmosphere dyamics prognostic arrays
+      use cc_mpi                            ! CC MPI routines
+      use infile, only : ncmsg              ! Input file routines
+      use parmhdff_m                        ! Horizontal diffusion parameters
+      use prec_m                            ! Precipitation
+      use screen_m                          ! Screen level diagnostics
+      use tracers_m                         ! Tracer data
+      
+      implicit none
+
+      include 'newmpar.h'                   ! Grid parameters
+      include 'dates.h'                     ! Date data
+      include 'filnames.h'                  ! Filenames
+      include 'kuocom.h'                    ! Convection parameters
+      include 'netcdf.inc'                  ! Netcdf parameters
+      include 'parm.h'                      ! Model configuration
+      include 'parmdyn.h'                   ! Dynamics parameters
+      include 'parmgeom.h'                  ! Coordinate data
+      include 'parmhor.h'                   ! Horizontal advection parameters
+      include 'parmvert.h'                  ! Vertical advection parameters
+
+      integer leap
+      common/leap_yr/leap                   ! Leap year (1 to allow leap years)
+      
+      integer, parameter :: freqvars = 4  ! number of variables to write
+      integer, parameter :: nihead   = 54
+      integer, parameter :: nrhead   = 14
+      integer, dimension(nihead) :: nahead
+      integer, dimension(3) :: adim
+      integer, dimension(1) :: start,ncount
+      integer ierr,ixp,iyp,old_mode
+      integer icy,icm,icd,ich,icmi,ics,ti
+      integer i,j,fiarch
+      integer, save :: fncid = -1
+      integer, save :: idnt = 0
+      real, dimension(:,:,:), allocatable, save :: freqstore
+      real, dimension(ifull) :: uas,vas,umag
+      real, dimension(il_g) :: xpnt
+      real, dimension(jl_g) :: ypnt
+      real, dimension(nrhead) :: ahead
+      double precision, dimension(nwt) :: tpnt
+      logical, save :: first = .true.
+      character(len=180) :: ffile
+      character(len=40) :: lname
+      character(len=33) :: grdtim
+      character(len=20) :: timorg
+      character(len=3), dimension(12) :: month
+
+      data month/'jan','feb','mar','apr','may','jun'
+     &          ,'jul','aug','sep','oct','nov','dec'/      
+
+      call start_log(outfile_begin)
+
+      ! allocate arrays and open new file
+      if (first) then
+        if (myid==0) then
+          write(6,*) "Initialise high frequency output"
+        end if
+        allocate(freqstore(ifull,nwt,freqvars))
+        if (localhist) then
+          write(ffile,"(a,'.',i4.4)") trim(surfile), myid
+        else
+          ffile=surfile
+        end if
+        if (myid==0.or.localhist) then
+#ifdef usenc3
+          ierr=nf_create(ffile,nf_clobber,fncid)
+#else
+          ierr=nf_create(ffile,NF_NETCDF4,fncid)
+#endif
+          call ncmsg('HFREQ open',ierr)
+          ! Turn off the data filling
+          ierr=nf_set_fill(fncid,nf_nofill,old_mode)
+          call ncmsg('HFREQ fill',ierr)
+          ! Create dimensions
+          if (localhist) then
+             ierr=nf_def_dim(fncid,'longitude',il,adim(1))
+             call ncmsg('HFREQ lognitude',ierr)
+             ierr=nf_def_dim(fncid,'latitude',jl,adim(2))
+             call ncmsg('HFREQ latitude',ierr)
+          else
+             ierr=nf_def_dim(fncid,'longitude',il_g,adim(1))
+             call ncmsg('HFREQ longitude',ierr)
+             ierr=nf_def_dim(fncid,'latitude',jl_g,adim(2))
+             call ncmsg('HFREQ latitude',ierr)
+          endif
+          ierr=nf_def_dim(fncid,'time',nf_unlimited,adim(3))
+          call ncmsg('HFREQ time',ierr)
+          ! Define coords.
+          ierr=nf_def_var(fncid,'longitude',nf_float,1,adim(1),ixp)
+          call ncmsg('HFREQ longitude',ierr)
+          ierr=nf_put_att_text(fncid,ixp,'point_spacing',4,'even')
+          call ncmsg('HFREQ longitude',ierr)
+          ierr=nf_put_att_text(fncid,ixp,'units',12,'degrees_east')
+          call ncmsg('HFREQ longitude',ierr)
+          ierr=nf_def_var(fncid,'latitude',nf_float,1,adim(2),iyp)
+          call ncmsg('HFREQ latitude',ierr)
+          ierr=nf_put_att_text(fncid,iyp,'point_spacing',4,'even')
+          call ncmsg('HFREQ latitude',ierr)
+          ierr=nf_put_att_text(fncid,iyp,'units',13,'degrees_north')
+          call ncmsg('HFREQ latitude',ierr)
+          ierr=nf_def_var(fncid,'time',nf_double,1,adim(3),idnt)
+          call ncmsg('HFREQ time',ierr)
+          ierr=nf_put_att_text(fncid,idnt,'point_spacing',4,'even')
+          call ncmsg('HFREQ time',ierr)
+          icy=kdate/10000
+          icm=max(1,min(12,(kdate-icy*10000)/100))
+          icd=max(1,min(31,(kdate-icy*10000-icm*100)))
+          if(icy<100)icy=icy+1900
+          ich=ktime/100
+          icmi=(ktime-ich*100)
+          ics=0
+          write(timorg,'(i2.2,"-",a3,"-",i4.4,3(":",i2.2))')
+     &                   icd,month(icm),icy,ich,icmi,ics
+          ierr=nf_put_att_text(fncid,idnt,'time_origin',20,timorg,ierr)
+          call ncmsg('HFREQ time',ierr)
+          write(grdtim,'("seconds since ",i4.4,"-",i2.2,"-",i2.2," ",
+     &         2(i2.2,":"),i2.2)') icy,icm,icd,ich,icmi,ics
+          ierr=nf_put_att_text(fncid,idnt,'units',33,grdtim,ierr)
+          call ncmsg('HFREQ time',ierr)
+          if (leap==0) then
+            ierr=nf_put_att_text(fncid,idnt,'calendar',6,'noleap',ierr)
+            call ncmsg('HFREQ time',ierr)
+          end if
+          ! header data
+          ahead(1)=ds
+          ahead(2)=0.  !difknbd
+          ahead(3)=0.  ! was rhkuo for kuo scheme
+          ahead(4)=0.  !du
+          ahead(5)=rlong0     ! needed by cc2hist
+          ahead(6)=rlat0      ! needed by cc2hist
+          ahead(7)=schmidt    ! needed by cc2hist
+          ahead(8)=0.  !stl2
+          ahead(9)=0.  !relaxt
+          ahead(10)=0.  !hourbd
+          ahead(11)=tss_sh
+          ahead(12)=vmodmin
+          ahead(13)=av_vmod
+          ahead(14)=epsp
+          nahead(1)=il_g       ! needed by cc2hist
+          nahead(2)=jl_g       ! needed by cc2hist
+          nahead(3)=kl         ! needed by cc2hist
+          nahead(4)=m
+          nahead(5)=0          ! nsd not used now
+          nahead(6)=io_in
+          nahead(7)=nbd
+          nahead(8)=0          ! not needed now  
+          nahead(9)=mex
+          nahead(10)=mup
+          nahead(11)=nem
+          nahead(12)=mtimer
+          nahead(13)=0.
+          nahead(14)=nint(dt)  ! needed by cc2hist
+          nahead(15)=0         ! not needed now 
+          nahead(16)=nhor
+          nahead(17)=nkuo
+          nahead(18)=khdif
+          nahead(19)=kl        ! needed by cc2hist (was kwt)
+          nahead(20)=0  !iaa
+          nahead(21)=0  !jaa
+          nahead(22)=nvad
+          nahead(23)=0       ! not needed now      
+          nahead(24)=0  !lbd
+          nahead(25)=nrun
+          nahead(26)=nrunx
+          nahead(27)=khor
+          nahead(28)=ksc
+          nahead(29)=kountr
+          nahead(30)=ndiur
+          nahead(31)=0  ! spare
+          nahead(32)=nhorps
+          nahead(33)=nsoil
+          nahead(34)=ms        ! needed by cc2hist
+          nahead(35)=ntsur
+          nahead(36)=nrad
+          nahead(37)=kuocb
+          nahead(38)=nvmix
+          nahead(39)=ntsea
+          nahead(40)=0  
+          nahead(41)=nextout
+          nahead(42)=ilt
+          nahead(43)=ntrac     ! needed by cc2hist
+          nahead(44)=nsib
+          nahead(45)=nrungcm
+          nahead(46)=ncvmix
+          nahead(47)=ngwd
+          nahead(48)=lgwd
+          nahead(49)=mup
+          nahead(50)=nritch_t
+          nahead(51)=ldr
+          nahead(52)=nevapls
+          nahead(53)=nevapcc
+          nahead(54)=nt_adv
+          ierr=nf_put_att_real(fncid,nf_global,'real_header',nf_float,
+     &                        nrhead,ahead)
+          call ncmsg('HFREQ real_header',ierr)
+          ierr=nf_put_att_int(fncid,nf_global,'int_header',nf_int,
+     &                        nihead,nahead)
+          call ncmsg('HFREQ int_header',ierr)
+          ! define variables
+          lname='x-component 10m wind'
+          call freqdefvar(fncid,'uas',lname,'m/s',adim,130.,-130.)
+          lname='y-component 10m wind'     
+          call freqdefvar(fncid,'vas',lname,'m/s',adim,130.,-130.)
+          lname='Screen temperature'     
+          call freqdefvar(fncid,'tscrn',lname,'K',adim,425.,100.)
+          lname='Precipitation'
+          call freqdefvar(fncid,'rnd',lname,'mm/day',adim,1300.,0.)
+          ! end definition mode
+          ierr=nf_enddef(fncid)
+          call ncmsg('HFREQ enddef',ierr)
+          if (localhist) then
+           ! Set these to global indices (relative to panel 0 in uniform decomp)
+           do i=1,ipan
+              xpnt(i) = float(i) + ioff(0)
+           end do
+           ierr=nf_put_vara_real(fncid,ixp,1,il,xpnt)
+           call ncmsg('HFREQ longitude',ierr)
+           do j=1,jl
+              ypnt(j) = float(j) + joff(0)
+           end do
+           ierr=nf_put_vara_real(fncid,iyp,1,jl,ypnt)
+           call ncmsg('HFREQ latitude',ierr)
+          else
+           do i=1,il_g
+              xpnt(i) = float(i)
+           end do
+           ierr=nf_put_vara_real(fncid,ixp,1,il_g,xpnt)
+           call ncmsg('HFREQ longitude',ierr)
+           do j=1,jl_g
+              ypnt(j) = float(j)
+           end do
+           ierr=nf_put_vara_real(fncid,iyp,1,jl_g,ypnt)
+           call ncmsg('HFREQ latitude',ierr)
+          end if
+        end if
+        first=.false.
+        if (myid==0) then
+          write(6,*) "Finished initialising high frequency output"
+        end if
+      end if
+      
+      ! store output
+      ti=mod(ktau,nwt)
+      if (ti==0) ti=nwt
+      umag=sqrt(u(1:ifull,1)*u(1:ifull,1)+v(1:ifull,1)*v(1:ifull,1))
+      uas=0.
+      vas=0.
+      where (umag>0.)
+        uas=u10*u(1:ifull,1)/umag
+        vas=u10*v(1:ifull,1)/umag
+      end where
+      freqstore(:,ti,1)=uas
+      freqstore(:,ti,2)=vas
+      freqstore(:,ti,3)=tscrn
+      freqstore(:,ti,4)=precip
+
+      ! wtite data to file
+      if (mod(ktau,nwt)==0) then
+        if (myid==0.or.localhist) then
+          write(6,*) "Write high frequency output"
+          do i=1,nwt
+            tpnt(i)=real(ktau-nwt+i,8)*real(dt,8)
+          end do
+          fiarch=ktau-nwt+1
+          start(1)=fiarch
+          ncount(1)=nwt
+          ierr=nf_put_vara_double(fncid,idnt,start,ncount,tpnt)
+          call ncmsg('HFREQ time',ierr)
+        end if
+        call freqwrite(fncid,'uas',fiarch,nwt,localhist,
+     &                 freqstore(:,:,1))
+        call freqwrite(fncid,'vas',fiarch,nwt,localhist,
+     &                 freqstore(:,:,2))
+        call freqwrite(fncid,'tscrn',fiarch,nwt,localhist,
+     &                 freqstore(:,:,3))
+        call freqwrite(fncid,'rnd',fiarch,nwt,localhist,
+     &                 freqstore(:,:,4))
+      end if
+     
+      ! close file at end of run
+      if (myid==0.or.localhist) then
+        if (ktau==ntau) then
+          ierr=nf_close(fncid)
+          call ncmsg('HFREQ close',ierr)
+        end if
+      end if
+      
+      call end_log(outfile_end)
+      
+      return
+      end subroutine freqfile
+      
+      subroutine freqwrite(fncid,cname,fiarch,istep,local,datain)
+
+      use cc_mpi               ! CC MPI routines
+      
+      implicit none
+      
+      include 'newmpar.h'      ! Grid parameters
+      
+      integer, intent(in) :: fncid,fiarch,istep
+      real, dimension(ifull,istep), intent(in) :: datain
+      logical, intent(in) :: local
+      character(len=*), intent(in) :: cname
+      
+      if (local) then
+        call fw3l(datain,cname,fncid,fiarch,istep)
+      elseif (myid==0) then
+        call fw3a(datain,cname,fncid,fiarch,istep)
+      else
+        call ccmpi_gather(datain)
+      endif
+     
+      return
+      end subroutine freqwrite
+
+      subroutine fw3l(var,sname,idnc,iarch,istep)
+
+      use infile, only : ncmsg ! Input file routines
+      
+      implicit none
+      
+      include 'newmpar.h'      ! Grid parameters
+      include 'netcdf.inc'     ! Netcdf parameters
+      
+      integer, intent(in) :: idnc,iarch,istep
+      integer mid, vtype, ier
+      integer, dimension(3) :: start, ncount
+      integer*2, dimension(ifull,istep) :: ipack
+      integer*2, parameter :: minv = -32500
+      integer*2, parameter :: maxv = 32500
+      integer*2, parameter :: missval = -32501
+      real, dimension(ifull,istep), intent(in) :: var
+      real addoff, scale_f, pvar
+      character(len=*), intent(in) :: sname
+
+      start = (/ 1, 1, iarch /)
+      ncount = (/ il, jl, istep /)
+      ier=nf_inq_varid(idnc,sname,mid)
+      ! Check variable type
+      ier = nf_inq_vartype(idnc, mid, vtype)
+      if(vtype == ncshort)then
+       if (all(var>9.8E36)) then
+        ipack=missval
+       else
+        ier=nf_get_att_real(idnc,mid,'add_offset',addoff)
+        ier=nf_get_att_real(idnc,mid,'scale_factor',scale_f)
+        ipack=nint((var-addoff)/scale_f)
+        ipack=max(min(ipack,maxv),minv)
+       end if
+       ier=nf_put_vara_int2(idnc,mid,start,ncount,ipack)
+      else
+       ier=nf_put_vara_real(idnc,mid,start,ncount,var)
+      endif
+      call ncmsg("histwrt3",ier)
+
+      return
+      end subroutine fw3l
+      
+      subroutine fw3a(var,sname,idnc,iarch,istep)
+
+      use cc_mpi               ! CC MPI routines
+      use infile, only : ncmsg ! Input file routines
+
+      implicit none
+
+      include 'newmpar.h'      ! Grid parameters
+      include 'netcdf.inc'     ! Netcdf parameters
+      include 'parm.h'         ! Model configuration
+
+      integer, intent(in) :: idnc, iarch, istep
+      integer mid, vtype, ier, iq
+      integer imn, imx, jmn, jmx
+      integer, dimension(3) :: start, ncount
+      integer*2, parameter :: minv = -32500
+      integer*2, parameter :: maxv = 32500
+      integer*2, parameter :: missval = -32501
+      integer*2, dimension(ifull_g,istep) :: ipack
+      real, dimension(ifull,istep), intent(in) :: var
+      real, dimension(ifull_g,istep) :: globvar
+      real addoff, scale_f, pvar, varn, varx
+      character(len=*), intent(in) :: sname
+      
+      call ccmpi_gather(var, globvar)
+      start(1) = 1
+      start(2) = 1
+      start(3) = iarch
+      ncount(1) = il_g
+      ncount(2) = jl_g
+      ncount(3) = istep
+
+c     find variable index
+      ier=nf_inq_varid(idnc,sname,mid)
+      call ncmsg(sname,ier)
+
+!     Check variable type
+      ier = nf_inq_vartype(idnc, mid, vtype)
+      call ncmsg("fw3a type",ier)
+      if(vtype == ncshort)then
+       if(all(globvar>9.8e36))then
+        ipack=missval
+       else
+        ier=nf_get_att_real(idnc,mid,'add_offset',addoff)
+        ier=nf_get_att_real(idnc,mid,'scale_factor',scale_f)
+        ipack=nint((globvar-addoff)/scale_f)
+        ipack=max(min(ipack,maxv),minv)
+       endif
+       ier=nf_put_vara_int2(idnc,mid,start,ncount,ipack)
+      else
+       ier=nf_put_vara_real(idnc,mid,start,ncount,globvar)
+      endif
+      call ncmsg("histwrt3",ier)
+
+      if(mod(ktau,nmaxpr)==0)then
+       if (any(globvar.eq.nf_fill_float)) then
+         write(6,'("histwrt3 ",a7,i4,a7)')
+     &              sname,iarch,"missing"
+       else
+         varn = minval(globvar(:,1))
+         varx = maxval(globvar(:,1))
+         ! This should work ???? but sum trick is more portable???
+         ! iq = minloc(globvar,dim=1)
+         iq = sum(minloc(globvar(:,1)))
+         ! Convert this 1D index to 2D
+         imn = 1 + modulo(iq-1,il_g)
+         jmn = 1 + (iq-1)/il_g
+         iq = sum(maxloc(globvar(:,1)))
+         ! Convert this 1D index to 2D
+         imx = 1 + modulo(iq-1,il_g)
+         jmx = 1 + (iq-1)/il_g
+         write(6,'("histwrt3 ",a7,i4,f12.4,2i4,f12.4,2i4,f12.4)')
+     &             sname,iarch,varn,imn,jmn,varx,imx,jmx,
+     &             globvar(id+(jd-1)*il_g,1)
+        end if
+      endif
+
+      return
+      end subroutine fw3a
+
+      subroutine freqdefvar(fncid,vname,lname,uname,adim,xmax,xmin)
+      
+      use infile, only : ncmsg              ! Input file routines
+      
+      implicit none
+      
+      include 'netcdf.inc'
+      
+      integer*2, parameter :: minv = -32500
+      integer*2, parameter :: maxv = 32500
+      integer*2, parameter :: missval = -32501
+      integer, dimension(3), intent(in) :: adim
+      integer, intent(in) :: fncid
+      integer ierr,vid
+      real, intent(in) :: xmax,xmin
+      real scalef,addoff
+      character(len=*), intent(in) :: vname
+      character(len=*), intent(in) :: lname
+      character(len=*), intent(in) :: uname
+      
+      ierr=nf_def_var(fncid,vname,nf_short,3,adim,vid)
+      call ncmsg('HFREQ defvar',ierr)
+      ierr=nf_put_att_text(fncid,vid,'long_name',len_trim(lname),lname)
+      call ncmsg('HFREQ defvar',ierr)
+      ierr=nf_put_att_text(fncid,vid,'units',len_trim(uname),uname)
+      call ncmsg('HFREQ defvar',ierr)
+      ierr=nf_put_att_int2(fncid,vid,'valid_min',nf_int2,1,minv)
+      call ncmsg('HFREQ defvar',ierr)
+      ierr=nf_put_att_int2(fncid,vid,'valid_max',nf_int2,1,minv)
+      call ncmsg('HFREQ defvar',ierr)
+      ierr=nf_put_att_int2(fncid,vid,'missing_value',nf_int2,1,missval)
+      call ncmsg('HFREQ defvar',ierr)
+      scalef=(xmax-xmin)/(real(maxv)-real(minv))
+      addoff=xmin-scalef*minv
+      ierr=nf_put_att_real(fncid,vid,'add_offset',nf_float,1,addoff)
+      call ncmsg('HFREQ defvar',ierr)
+      ierr=nf_put_att_real(fncid,vid,'scale_factor',nf_float,1,scalef)
+      call ncmsg('HFREQ defvar',ierr)      
+      ierr=nf_put_att_text(fncid,vid,'FORTRAN_format',5,'G11.4')
+      call ncmsg('HFREQ defvar',ierr)
+      
+      return
+      end subroutine freqdefvar

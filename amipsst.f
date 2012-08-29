@@ -90,6 +90,7 @@
          endif
         endif
       endif ! myid==0
+      fraciceb=0.
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!      
 !     Each day interpolate-in-time non-land sst's
       if (ktau==0) then
@@ -152,6 +153,19 @@ c      c1=0.
        if(namip==-1)print *,'later ktau,res,tss ',ktau,res(idjd),tss(iq)
        return
       endif  ! (namip==-1)
+      if(namip==1)then
+c       c1=0.
+        fraciceb=0.
+        do iq=1,ifull  
+         if(.not.land(iq))then
+           c2=ssta(iq)
+           c3=ssta(iq)+sstb(iq)
+           c4=c3+sstc(iq)          
+           tgg(iq,1)=.5*c3+(4.*c3-5.*c2-c4)*x+1.5*(c4+3.*c2-3.*c3)*x*x
+           if (tgg(iq,1)<272.) fraciceb(iq)=1.
+         endif      ! (.not.land(iq))
+        enddo
+      endif  ! (namip==1)
       if(namip>2)then
 c       c1=0.
         do iq=1,ifull  
@@ -194,7 +208,7 @@ c       c1=0.
         if(fraciceb(iq)<=.02)fraciceb(iq)=0.
       enddo
       
-      if (nmlo.eq.0) then ! MJT mlo
+      if (nmlo==0) then ! MJT mlo
        sicedep(:)=0. 
        if(ktau==0)then  ! will set sicedep in indata
         fracice(:)=fraciceb(:)

@@ -112,6 +112,8 @@ subroutine tkemix(kmo,theta,qg,qlg,qfg,qrg,cfrac,cfrain,zi,wt0,wq0,ps,ustar,rhoa
 
 implicit none
 
+include 'mpif.h'
+
 integer, intent(in) :: diag,mode
 integer k,i,klcl,icount,kcount,ncount,mcount
 real, intent(in) :: dt,qgmin
@@ -243,6 +245,8 @@ do kcount=1,mcount
         ziold=zi(i)
         zidryold=zidry(i)
         zilcl=zz(i,kl)
+        tke(i,1)=cm12*ustar(i)*ustar(i)+ce3*wstar(i)*wstar(i)
+        tke(i,1)=max(tke(i,1),mintke)
         do icount=1,icm1
           klcl=kl+1
           mflx(i,:)=0.
@@ -260,8 +264,8 @@ do kcount=1,mcount
           ! first level -----------------
           ! initial thermodynamic state
           ! split thetal and qtot into components (conservation is maintained)
-          thup(i,1)=theta(i,1)+be*wt0(i)/sqrt(tke(i,1))    ! Hurley 2007
-          qvup(i,1)=qg(i,1)+be*wq0(i)/sqrt(tke(i,1))       ! Hurley 2007
+          thup(i,1)=theta(i,1)+be*wt0(i)/sqrt(max(tke(i,1),1.E-4))    ! Hurley 2007
+          qvup(i,1)=qg(i,1)+be*wq0(i)/sqrt(max(tke(i,1),1.E-4))       ! Hurley 2007
           qlup(i,1)=qlg(i,1)
           qfup(i,1)=qfg(i,1)
           qrup(i,1)=qrg(i,1)
@@ -633,13 +637,15 @@ do kcount=1,mcount
 
   ! update non-local terms
   call updategam(gamhl,gamth,zz,zzh,zi)
-  dd(:,1)=theta(:,1)-ddts*gamhl(:,1)*rhoahl(:,1)/(rhoa(:,1)*dz_fl(:,1))+ddts*wt0*rhoas/(rhoa(:,1)*dz_fl(:,1))
+  dd(:,1)=theta(:,1)+ddts*wt0*rhoas/(rhoa(:,1)*dz_fl(:,1))
+  dd(:,1)=dd(:,1)-ddts*gamhl(:,1)*rhoahl(:,1)/(rhoa(:,1)*dz_fl(:,1))
   dd(:,2:kl-1)=theta(:,2:kl-1)+ddts*(gamhl(:,1:kl-2)*rhoahl(:,1:kl-2)-gamhl(:,2:kl-1)*rhoahl(:,2:kl-1))/(rhoa(:,2:kl-1)*dz_fl(:,2:kl-1))
   dd(:,kl)=theta(:,kl)+ddts*gamhl(:,kl-1)*rhoahl(:,kl-1)/(rhoa(:,kl)*dz_fl(:,kl))
   call thomas(theta,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
   
   call updategam(gamhl,gamqv,zz,zzh,zi)
-  dd(:,1)=qg(:,1)-ddts*gamhl(:,1)*rhoahl(:,1)/(rhoa(:,1)*dz_fl(:,1))+ddts*wq0*rhoas/(rhoa(:,1)*dz_fl(:,1))
+  dd(:,1)=qg(:,1)+ddts*wq0*rhoas/(rhoa(:,1)*dz_fl(:,1))  
+  dd(:,1)=dd(:,1)-ddts*gamhl(:,1)*rhoahl(:,1)/(rhoa(:,1)*dz_fl(:,1))
   dd(:,2:kl-1)=qg(:,2:kl-1)+ddts*(gamhl(:,1:kl-2)*rhoahl(:,1:kl-2)-gamhl(:,2:kl-1)*rhoahl(:,2:kl-1))/(rhoa(:,2:kl-1)*dz_fl(:,2:kl-1))
   dd(:,kl)=qg(:,kl)+ddts*gamhl(:,kl-1)*rhoahl(:,kl-1)/(rhoa(:,kl)*dz_fl(:,kl))
   call thomas(qg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
