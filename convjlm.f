@@ -66,6 +66,7 @@ c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
       integer ktmax(ifull),kbsav_ls(ifull),kb_sav(ifull),kt_sav(ifull)
       integer kkbb(ifull),kmin(ifull)
       integer iaero
+      integer, save :: k500
       real, dimension(:), allocatable, save ::  timeconv
       real, dimension(:,:), allocatable, save :: downex,upin,upin4
       real, dimension(:,:,:), allocatable, save :: detrarr
@@ -99,13 +100,17 @@ c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
       
       kcl_top=kl-2
       if (.not.allocated(upin)) then
+        k500=1
+        do while(sig(k500)>=0.6.and.k500<kl)
+          k500=k500+1
+        end do
         allocate(timeconv(ifull))
         allocate(kb_saved(ifull))
         allocate(kt_saved(ifull))
         allocate(upin(kl,kl))
         allocate(upin4(kl,kl))
         allocate(downex(kl,kl))
-        allocate(detrarr(kl,kl/2,kl))
+        allocate(detrarr(kl,k500,kl))
         detrarr(:,:,:)=1.e20  ! in case someone uses other than methprec=0,4,5,6,7,8
         if(methprec==0)detrarr(:,:,:)=0.
       end if
@@ -129,7 +134,7 @@ c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
         enddo
 c      precalculate detrainment arrays for various methprec
        if(methprec==4)then
-       do kb=1,kl/2
+       do kb=1,k500
        do kt=1,kl-1
         sumb=0.
         do k=kb+1,kt
@@ -144,7 +149,7 @@ c      precalculate detrainment arrays for various methprec
        enddo
        endif  ! (methprec==4)
        if(methprec==5)then
-       do kb=1,kl/2
+       do kb=1,k500
        do kt=1,kl-1
         sumb=0.
         do k=kb+1,kt
@@ -159,7 +164,7 @@ c      precalculate detrainment arrays for various methprec
        enddo
        endif  ! (methprec==5)
        if(methprec==6)then
-       do kb=1,kl/2
+       do kb=1,k500
        do kt=1,kl-1
         sumb=0.
         do k=kb+1,kt
@@ -173,7 +178,7 @@ c      precalculate detrainment arrays for various methprec
        enddo
        endif  ! (methprec==6)
        if(methprec==7)then
-       do kb=1,kl/2
+       do kb=1,k500
        do kt=1,kl-1
          frac=min(1.,(sig(kb)-sig(kt))/.6)
          nlayers=kt-kb
@@ -188,7 +193,7 @@ c      precalculate detrainment arrays for various methprec
        enddo   
        endif  ! (methprec==7)
        if(methprec==8)then
-       do kb=1,kl/2
+       do kb=1,k500
        do kt=1,kl-1
          nlayers=kt-kb
          sum=.5*nlayers*(nlayers+1)
@@ -222,7 +227,7 @@ c     precalculate below-base downdraft & updraft environmental contrib terms (k
        enddo
 c     precalculate below-base downdraft & updraft environmental contrib terms
       if(kscsea==-1.or.kscsea==-2)then   ! trying to be backward compatible for upin
-       do kb=1,kl/2
+       do kb=1,k500
         upin4(1,kb)=(1.-sigmh(1+1))/(1.-sigmh(kb+1))
         upin(1,kb)=upin4(1,kb)
         do k=2,kb
@@ -235,7 +240,7 @@ c     precalculate below-base downdraft & updraft environmental contrib terms
        enddo
       endif  ! kscsea==-1.or.kscsea==-2  
       if(kscsea<=-2)then   ! trying to be backward compatible for downex
-       do kb=1,kl/2
+       do kb=1,k500
         sum=0.
         do k=1,kb
          downex(k,kb)=dsig(k)
@@ -312,7 +317,7 @@ c     enddo
 
 c      following defines kb_sav (as kkbb) for use by nbase=-12     
         kkbb(:)=1
-       do k=2,kl/2   
+       do k=2,k500 
         if(nbase==-12)then
          do iq=1,ifull
 !         find tentative cloud base ! 

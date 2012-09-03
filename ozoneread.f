@@ -332,7 +332,7 @@ c
       else
         rang=(date-monlen(jmonth))/(monlen(jmonth+1)-monlen(jmonth))
       end if
-      if (rang.gt.1.1) then ! use 1.1 to give 10% tolerance
+      if (rang.gt.1.4) then ! use 1.1 to give 10% tolerance
         write(6,*) "WARN: fieldinterpolation is outside input range"
       end if
       

@@ -357,7 +357,7 @@ c       create the attributes of the header record of the file
      &  idoc                                    ! Output file dimension data
 
       integer i, idkdate, idktau, idktime, idmtimer, idnteg, idnter
-      integer idv, ier, iq, isoil, j, k, igas, idnc
+      integer idv, ier, iq, isoil, j, k, n, igas, idnc
       integer iarch, itype, iaero
       integer, dimension(4), intent(in) :: dim
       integer, dimension(3) :: idim
@@ -1253,11 +1253,15 @@ c       Leave define mode
         if(local)then
            ! Set these to global indices (relative to panel 0 in uniform decomp)
            do i=1,ipan
-              xpnt(i) = float(i) + ioff(0)
+              xpnt(i) = float(i) + ioff
            end do
            call ncvpt(idnc,ixp,1,il,xpnt,ier)
-           do j=1,jl
-              ypnt(j) = float(j) + joff(0)
+           i=1
+	   do n=1,npan
+             do j=1,jpan
+	       ypnt(i) = float(j) + joff + (n-noff)*il_g
+	       i=i+1
+	     end do
            end do
            call ncvpt(idnc,iyp,1,jl,ypnt,ier)
         else
@@ -2384,12 +2388,12 @@ c     find variable index
           if (localhist) then
            ! Set these to global indices (relative to panel 0 in uniform decomp)
            do i=1,ipan
-              xpnt(i) = float(i) + ioff(0)
+              xpnt(i) = float(i) + ioff
            end do
            ierr=nf_put_vara_real(fncid,ixp,1,il,xpnt)
            call ncmsg('HFREQ longitude',ierr)
            do j=1,jl
-              ypnt(j) = float(j) + joff(0)
+              ypnt(j) = float(j) + joff
            end do
            ierr=nf_put_vara_real(fncid,iyp,1,jl,ypnt)
            call ncmsg('HFREQ latitude',ierr)

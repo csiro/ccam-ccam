@@ -334,7 +334,7 @@
           enddo
         endif
 
-        land(:)=zsmask(1:ifull)>=0.5
+        land(1:ifull)=zsmask(1:ifull)>=0.5
  
       else                   ! aquaplanet test -1 to -8 or -22
         zs(:)=0.             ! or pgb from June 2003
@@ -546,16 +546,16 @@
         endif ! (land(iq))
       enddo   ! iq loop
       ipland=indexl
-      indexi=ipland+1
+      indexi=ipland
       ipsea=ifull
       indexs=ipsea+1
       do iq=1,ifull
         if(.not.land(iq))then
           indexs=indexs-1     ! sea point
           iperm(indexs)=iq    ! sea point
-        endif
+        endif  ! (sicedep(iq)>0.)
       enddo   ! iq loop
-      ipsice=indexs-1
+      ipsice=indexi
       if (mydiag) write(6,*)'ipland,ipsea: ',ipland,ipsea
 
 
@@ -733,12 +733,12 @@
             do i=1,ipan
               ! Need to add offsets to get proper face indices
               do n=1,npan
-                rad=sqrt((i+ioff(n-noff)-cent)**2
-     &                  +(j+joff(n-noff)-cent)**2)
-                radu=sqrt((i+ioff(n-noff)+.5-cent)**2
-     &                  +(j+joff(n-noff)-cent)**2)
-                radv=sqrt((i+ioff(n-noff)-cent)**2
-     &                  +(j+joff(n-noff)+.5-cent)**2)
+                rad=sqrt((i+ioff-cent)**2
+     &                  +(j+joff-cent)**2)
+                radu=sqrt((i+ioff+.5-cent)**2
+     &                  +(j+joff-cent)**2)
+                radv=sqrt((i+ioff-cent)**2
+     &                  +(j+joff+.5-cent)**2)
                 iq=indp(i,j,n)
                 u(iq,k)=uin*max(1.-radu/(.5*il_g),0.)
                 v(iq,k)=vin*max(1.-radv/(.5*il_g),0.)
@@ -2104,24 +2104,24 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
       ! if cable, then the albedo is soil albedo only (converted to net albedo
       ! when cable is initialised)
       call readreal(albfile,albvisnir(:,1),ifull)
-      if (nsib>=4) then
+      if (nsib.ge.4) then
         call readreal(albnirfile,albvisnir(:,2),ifull)
       else
         albvisnir(:,2)=albvisnir(:,1)
       end if
-      if (nsib<=5) then 
+      if (nsib.le.5) then 
         call readreal(rsmfile,rsmin,ifull)  ! not used these days
         call readreal(zofile,zolnd,ifull)
       else
         zolnd=zobgin ! updated in cable_ccam2.f90
       end if
-      if (nsib<=3) then
+      if (nsib.le.3) then
         call readint(vegfile,ivegt,ifull)
       else
         ivegt=1 ! updated later
       end if
       call readint(soilfile,isoilm,ifull)
-      if(nsib==5) then
+      if(nsib.eq.5) then
         call readreal(laifile,vlai,ifull)
         vlai(:)=0.01*vlai(:)
       end if

@@ -460,12 +460,11 @@ do j=1,jl,imax/il
     
     ! Set up ozone for this time and row
     if (amipo3) then
-      call o3set_amip ( rlatt(istart:iend), imax, mins,sigh, ps(istart:iend), Rad_gases%qo3(:,1,:) )
-      Rad_gases%qo3(:,1,:)=max(1.e-10,Rad_gases%qo3(:,1,:))
+      call o3set_amip ( rlatt(istart:iend), imax, mins,sigh, ps(istart:iend), duo3n )
     else
       call o3set(imax,istart,mins,duo3n,sig,ps(istart:iend))
-      Rad_gases%qo3(:,1,:) = max(1.e-10,duo3n)
     end if
+    Rad_gases%qo3(:,1,:)=max(1.e-10,duo3n)
 
     ! Set-up albedo
     ! Land albedo ---------------------------------------------------
@@ -1387,25 +1386,22 @@ if (myid==0) then
   !    the input file.
   !----------------------------------------------------------------------
   allocate (endaerwvnsf(num_wavenumbers) )
-  read (unit,* )
-  read (unit,* ) endaerwvnsf
- 
-  !----------------------------------------------------------------------
-  !    allocate module arrays to hold the specified sw properties for 
-  !    each parameterization bnad and each aerosol properties type.
-  !----------------------------------------------------------------------
   allocate (aeroextivl   (num_wavenumbers, naermodels), &
            aerossalbivl (num_wavenumbers, naermodels), &
            aeroasymmivl (num_wavenumbers, naermodels) )
-
-  !----------------------------------------------------------------------
-  !    allocate local working arrays.
-  !----------------------------------------------------------------------
   allocate (aeroext_in   (num_wavenumbers ),           &
           aerossalb_in (num_wavenumbers ),           &
           aeroasymm_in (num_wavenumbers ),           &
           found        (naermodels ) )
-
+  allocate ( nivl1aero  (Solar_spect%nbands) )
+  allocate ( nivl2aero  (Solar_spect%nbands) )
+  allocate ( solivlaero (Solar_spect%nbands, num_wavenumbers))
+  allocate (sflwwts (N_AEROSOL_BANDS, num_wavenumbers))
+  allocate (sflwwts_cn (N_AEROSOL_BANDS_CN, num_wavenumbers))           
+  
+  read (unit,* )
+  read (unit,* ) endaerwvnsf
+ 
   !----------------------------------------------------------------------
   !    match the names of optical property categories from input file with
   !    those specified in the namelist, and store the following data
@@ -1433,10 +1429,6 @@ if (myid==0) then
   end do
 
   close(unit)
-
-  allocate ( nivl1aero  (Solar_spect%nbands) )
-  allocate ( nivl2aero  (Solar_spect%nbands) )
-  allocate ( solivlaero (Solar_spect%nbands, num_wavenumbers))
 
   !---------------------------------------------------------------------
   !    define the solar weights and interval counters that are needed to  
@@ -1488,13 +1480,7 @@ if (myid==0) then
                    Aerosol_props%aerasymmband(:,nmodel))
   end do
 
-  deallocate (aeroext_in,aerossalb_in,aeroasymm_in,found)
-  deallocate (nivl1aero,nivl2aero,solivlaero)
-
   ! longwave optical models
-
-  allocate (sflwwts (N_AEROSOL_BANDS, num_wavenumbers))
-  allocate (sflwwts_cn (N_AEROSOL_BANDS_CN, num_wavenumbers))
 
   call lw_aerosol_interaction(num_wavenumbers,sflwwts,sflwwts_cn,endaerwvnsf)
   
@@ -1530,9 +1516,11 @@ if (myid==0) then
     end do
   end do
 
+  deallocate (sflwwts_cn,sflwwts)
+  deallocate (solivlaero,nivl2aero,nivl1aero) 
+  deallocate (found,aeroasymm_in,aerossalb_in,aeroext_in)
+  deallocate (aeroasymmivl,aerossalbivl,aeroextivl)
   deallocate (endaerwvnsf)
-  deallocate (sflwwts,sflwwts_cn)
-  deallocate (aeroextivl,aerossalbivl,aeroasymmivl)
 
 end if
 

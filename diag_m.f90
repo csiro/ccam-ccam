@@ -46,8 +46,8 @@ contains
          ! Check if whole region is on this processor
          n2 = (j2-1)/il_g
          if ( fproc(i2, j2-n2*il_g, n2) /= myid ) then
-           write(0,*)"Error, printa region covers more than one processor"
-           stop    
+           write(0,*)"Warning, printa region covers more than one processor"
+           return    
          end if
          ja=j1
          jb=min(ja+24,j2)
@@ -73,8 +73,8 @@ contains
             do j=ja,jb
                n = (j-1)/il_g ! Global n
                nlocal = n + noff
-               ilocal = i-ioff(n)
-               jlocal = j - n*il_g - joff(n)
+               ilocal = i-ioff
+               jlocal = j - n*il_g - joff
                write(unit=*,fmt="(f11.6)", advance="no")                &
      &              (a(indp(ilocal,jlocal,nlocal))-bias)*fact
             end do
@@ -296,8 +296,8 @@ contains
             jf = j - n*il_g ! Value on face
             if ( fproc(i, jf, n) == myid ) then
                nloc = n + noff
-               ilocal = i-ioff(n)
-               jlocal = j - n*il_g - joff(n)
+               ilocal = i-ioff
+               jlocal = j - n*il_g - joff
                res(iq) = a(indp(ilocal,jlocal,nloc))
             end if
          end do
@@ -322,8 +322,8 @@ contains
             jf = j - n*il_g ! Value on face
             if ( fproc(i, jf, n) == myid ) then
                nloc = n + noff
-               ilocal = i-ioff(n)
-               jlocal = j - n*il_g - joff(n)
+               ilocal = i-ioff
+               jlocal = j - n*il_g - joff
                res(iq) = a(indp(ilocal,jlocal,nloc))
             end if
          end do
@@ -348,8 +348,8 @@ contains
             jf = j - n*il_g ! Value on face
             if ( fproc(i, jf, n) == myid ) then
                nloc = n + noff
-               ilocal = i-ioff(n)
-               jlocal = j - n*il_g - joff(n)
+               ilocal = i-ioff
+               jlocal = j - n*il_g - joff
                res(iq) = a(indp(ilocal,jlocal,nloc))
             end if
          end do

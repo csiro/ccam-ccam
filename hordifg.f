@@ -78,19 +78,15 @@ c     in namelist khdif is fujio's a**2, e.g. 4.
 c     set up topography reduction factors for each type of location
 c     expect power nf to be about 1 or 2 (see data statement)
 
-      if (kmax.lt.0) then
+      if (kmax<0) then
         kmax=1
-        do k=2,kl
-          if (sig(k).ge.0.25) then
-            kmax=k
-          else
-            exit
-          end if
+        do while (sig(kmax)>=0.25.and.kmax<kl)
+          kmax=kmax+1
         end do
       end if
 
       delphi=1.e6  ! turns off reduction (can also use nhorx=4)
-      if(abs(nhor).ge.50)then
+      if(abs(nhor)>=50)then
          nhora=10*(abs(nhor)/10)    ! e.g. 150  for nhor=-157
          nhorx=abs(nhor)-nhora      ! e.g.   7  for nhor=-157
          delphi=nhora*grav
@@ -130,14 +126,12 @@ c     above code independent of k
         do k=1,kl-1
           zgh(1:ifull,k)=ratha(k)*zg(:,k+1)+rathb(k)*zg(:,k)
         end do
-        call bounds(zgh)
 
         ! weighted horizontal velocities
         uav(1:ifull,:)=av_vmod*u(1:ifull,:)
      &               +(1.-av_vmod)*savu(1:ifull,:)
         vav(1:ifull,:)=av_vmod*v(1:ifull,:)
      &               +(1.-av_vmod)*savv(1:ifull,:)
-        call boundsuv(uav,vav,allvec=.true.)
 
         ! calculate vertical velocity in m/s
         do k=1,kl        
@@ -146,6 +140,9 @@ c     above code independent of k
      &        *(-rdry/grav)*t(1:ifull,k)*(1.+0.61*qg(1:ifull,k)
      &        -qlg(1:ifull,k)-qfg(1:ifull,k))
         end do
+        
+        call bounds(zgh)
+        call boundsuv(uav,vav,allvec=.true.)
         call bounds(ww)
 
         do k=1,kl
@@ -189,6 +186,7 @@ c     above code independent of k
         dwdz(:,kl)=(r2-r1)/(zg(1:ifull,kl)-zgh(1:ifull,kl-1))
         
       end if   ! nhorjlm==0.or.nvmix==6
+      
       if (nhorjlm==1.or.nhorjlm==2.or.
      &    nhorps==0.or.nhorps==-2) then ! usual deformation for nhorjlm=1 or nhorjlm=2
         
@@ -267,7 +265,7 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
       ! Calculate horizontal diffusion based on prognostic TKE
       ! This can be combined with the diffusion coefficents above
       ! so as to operate over a large range of grid length scales
-      if (nvmix.eq.6) then
+      if (nvmix==6) then
         tke(1:ifull,:)=max(tke(1:ifull,:),mintke)
         eps(1:ifull,:)=min(eps(1:ifull,:),
      &                 (cm0**0.75)*tke(1:ifull,:)
@@ -281,7 +279,7 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
           t_kh(1:ifull,k)=max(tke(1:ifull,k)*tke(1:ifull,k)
      &    /eps(1:ifull,k)*hdif,t_kh(1:ifull,k))
         end do
-        if (nhorx.eq.1) then
+        if (nhorx==1) then
           do k=1,kl
             shear(:,k)=2.*((dudx(:,k)*sx_fact)**2
      &                    +(dvdy(:,k)*sy_fact)**2+dwdz(:,k)**2)
@@ -289,7 +287,7 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
      &              +(dudz(:,k)+dwdx(:,k)*sx_fact)**2
      &              +(dvdz(:,k)+dwdy(:,k)*sy_fact)**2
           end do
-        else if (nhorx.ge.7) then
+        else if (nhorx>=7) then
           do k=1,kmax
             shear(:,k)=2.*((dudx(:,k)*sx_fact)**2
      &                    +(dvdy(:,k)*sy_fact)**2+dwdz(:,k)**2)
@@ -320,7 +318,7 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
             yfact(iq,k) = (t_kh(in(iq),k)+t_kh(iq,k))*.5
          enddo
          !if((nhorx.ge.7.and.k.le.2*kl/3).or.nhorx.eq.1)then
-         if((nhorx.ge.7.and.k.le.kmax).or.nhorx.eq.1)then ! MJT smag
+         if((nhorx>=7.and.k<=kmax).or.nhorx==1)then ! MJT smag
             do iq=1,ifull
                xfact(iq,k) = xfact(iq,k)*tx_fact(iq)
                yfact(iq,k) = yfact(iq,k)*ty_fact(iq)
@@ -330,7 +328,7 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
       call boundsuv(xfact,yfact) ! MJT - can use stag=-9 option which will
                                  ! only update iwu and isv values
 
-      if(nhorps.eq.0.or.nhorps.eq.-2)then ! for nhorps=-1,-3 don't diffuse u,v
+      if(nhorps==0.or.nhorps==-2)then ! for nhorps=-1,-3 don't diffuse u,v
          do k=1,kl
             do iq=1,ifull
                emi=1./em(iq)**2
@@ -376,8 +374,8 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
           end do
       endif
 
-      ! MJT - apply horizontal diffusion to TKE and EPS terms
-      if (nvmix.eq.6) then
+      ! apply horizontal diffusion to TKE and EPS terms
+      if (nvmix==6) then
          ee(1:ifull,:)=tke(1:ifull,:)
          call bounds(ee)
          do k=1,kl
@@ -404,7 +402,7 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
          end do
       end if
        
-      if(nhorps.ne.-2)then   ! for nhorps=-2 don't diffuse T, qg
+      if(nhorps/=-2)then   ! for nhorps=-2 don't diffuse T, qg
 c       do t diffusion based on potential temperature ff
         do k=1,kl
           do iq=1,ifull
@@ -442,7 +440,10 @@ c       do t diffusion based on potential temperature ff
            end do              !  iq loop
         end do
         ! non-hydrostatic
-        if (nh.ne.0.and.nhorps.ne.-3) then
+        ! since hydrostatic geopotential is a function of air temperature,
+        ! then we apply diffusion to the non-hydrostatic component when
+        ! it is represented as a correction to air temperature
+        if (nh/=0.and.nhorps/=-3) then
           ee(1:ifull,1)=phi_nh(:,1)/bet(1)
           do k=2,kl
             ! representing non-hydrostatic term as a correction to air temperature
@@ -467,7 +468,7 @@ c       do t diffusion based on potential temperature ff
           end do
         end if
         ! cloud microphysics
-        if (ldr.ne.0.and.ncloud.ne.0) then
+        if (ldr/=0.and.ncloud/=0) then
           ee(1:ifull,:)=qlg(1:ifull,:)
           call bounds(ee)
           do k=1,kl
@@ -531,8 +532,8 @@ c       do t diffusion based on potential temperature ff
         end if                 ! (ldr.ne.0)
       endif                    ! (nhorps.ne.-2)
        
-      ! MJT aerosols
-      if (abs(iaero).eq.2) then
+      ! aerosols
+      if (abs(iaero)==2) then
         do l=1,naero
           ee(1:ifull,:)=xtg(1:ifull,:,l)
           call bounds(ee)

@@ -93,18 +93,18 @@ c           (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
 !             just set up for single processor
               if(nproc==1)then
                 n=1+jd/il
-		  jdel=jd+il-n*il
-	         print *,'qg,qlg,qfg for id,jd,n,jdel ',id,jd,n,jdel
-		  print *,'ipan,jpan,npan ',ipan,jpan,npan
-		  iq=idjd
-		  print *,'xg,yg,nface ',xg(iq,k),yg(iq,k),nface(iq,k)
-		  print *,'ioff,joff,noff ',ioff(n),joff(n),noff
-		  do j=jdel+2,jdel-2,-1
+                jdel=jd+il-n*il
+                print *,'qg,qlg,qfg for id,jd,n,jdel ',id,jd,n,jdel
+                print *,'ipan,jpan,npan ',ipan,jpan,npan
+                iq=idjd
+                print *,'xg,yg,nface ',xg(iq,k),yg(iq,k),nface(iq,k)
+                print *,'ioff,joff,noff ',ioff,joff,noff
+                do j=jdel+2,jdel-2,-1
                  write (6,"('qg#5 ',5f8.3)") 
      &            (1000.*sx(i,j,n,k),i=id-2,id+2)
                 enddo
               endif
-	     endif
+            endif
 
             if(nfield<mh_bs)then
                do iq=1,ifull    ! non Berm-Stan option
@@ -114,8 +114,8 @@ c           (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
                   jdel=int(yg(iq,k))
                   yyg=yg(iq,k)-jdel
                   ! Now make them proper indices in this processor's region
-                  idel = idel - ioff(nface(iq,k))
-                  jdel = jdel - joff(nface(iq,k))
+                  idel = idel - ioff
+                  jdel = jdel - joff
                   n = nface(iq,k) + noff ! Make this a local index
 #ifdef SX
                   ! For better vectorisation calculate all values
@@ -184,8 +184,8 @@ c                +x*(1+x)*(2-x)*c3}/2
                   jdel=int(yg(iq,k))
                   yyg=yg(iq,k)-jdel
                   ! Now make them proper indices in this processor's region
-                  idel = idel - ioff(nface(iq,k))
-                  jdel = jdel - joff(nface(iq,k))
+                  idel = idel - ioff
+                  jdel = jdel - joff
                   n = nface(iq,k) + noff ! Make this a local index
 #ifdef SX
                   ! For better vectorisation calculate all values
@@ -278,8 +278,8 @@ c                +x*(1+x)*(2-x)*c3}/2
                   jdel = int(dpoints(iproc)%a(3,iq))                    ! MJT memory
                   yyg = dpoints(iproc)%a(3,iq) - jdel                   ! MJT memory
                   k = nint(dpoints(iproc)%a(4,iq))                      ! MJT memory
-                  idel = idel - ioff(n-noff)
-                  jdel = jdel - joff(n-noff)
+                  idel = idel - ioff
+                  jdel = jdel - joff
                   c1 = sx(idel-1,jdel,n,k) ! manually unrolled loop
                   c2 = sx(idel  ,jdel,n,k)
                   c3 = sx(idel+1,jdel,n,k)
@@ -351,8 +351,8 @@ c                +x*(1+x)*(2-x)*c3}/2
                   jdel = int(dpoints(iproc)%a(3,iq))                    ! MJT memory
                   yyg = dpoints(iproc)%a(3,iq) - jdel                   ! MJT memory
                   k = nint(dpoints(iproc)%a(4,iq))                      ! MJT memory
-                  idel = idel - ioff(n-noff)
-                  jdel = jdel - joff(n-noff)
+                  idel = idel - ioff
+                  jdel = jdel - joff
                   c1 = sx(idel-1,jdel,n,k) ! manually unrolled loop
                   c2 = sx(idel  ,jdel,n,k)
                   c3 = sx(idel+1,jdel,n,k)
@@ -471,8 +471,8 @@ c          (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
                   jdel=int(yg(iq,k))
                   yyg=yg(iq,k)-jdel
                   ! Now make them proper indices in this processor's region
-                  idel = idel - ioff(nface(iq,k))
-                  jdel = jdel - joff(nface(iq,k))
+                  idel = idel - ioff
+                  jdel = jdel - joff
                   n = nface(iq,k) + noff ! Make this a local index
 #ifdef SX
                   ! For better vectorisation calculate all values
@@ -537,8 +537,8 @@ c               +y*(1+y)*(2-y)*c3}/2
                   jdel=int(yg(iq,k))
                   yyg=yg(iq,k)-jdel
                   ! Now make them proper indices in this processor's region
-                  idel = idel - ioff(nface(iq,k))
-                  jdel = jdel - joff(nface(iq,k))
+                  idel = idel - ioff
+                  jdel = jdel - joff
                   n = nface(iq,k) + noff ! Make this a local index
 #ifdef SX
                   ! For better vectorisation calculate all values
@@ -628,8 +628,8 @@ c                +y*(1+y)*(2-y)*c3}/2
                   jdel = int(dpoints(iproc)%a(3,iq))                    ! MJT memory
                   yyg = dpoints(iproc)%a(3,iq) - jdel                   ! MJT memory
                   k = nint(dpoints(iproc)%a(4,iq))                      ! MJT memory
-                  idel = idel - ioff(n-noff)
-                  jdel = jdel - joff(n-noff)
+                  idel = idel - ioff
+                  jdel = jdel - joff
                   c1 = sx(idel,jdel-1,n,k) ! manually unrolled loop
                   c2 = sx(idel,jdel  ,n,k)
                   c3 = sx(idel,jdel+1,n,k)
@@ -700,8 +700,8 @@ c               +y*(1+y)*(2-y)*c3}/2
                   jdel = int(dpoints(iproc)%a(3,iq))                    ! MJT memory
                   yyg = dpoints(iproc)%a(3,iq) - jdel                   ! MJT memory
                   k = nint(dpoints(iproc)%a(4,iq))                      ! MJT memory
-                  idel = idel - ioff(n-noff)
-                  jdel = jdel - joff(n-noff)
+                  idel = idel - ioff
+                  jdel = jdel - joff
                   c1 = sx(idel,jdel-1,n,k) ! manually unrolled loop
                   c2 = sx(idel,jdel  ,n,k)
                   c3 = sx(idel,jdel+1,n,k)
@@ -798,8 +798,8 @@ c                    but for bi-linear only need 0:il+1 &  0:il+1
             jdel=int(yg(iq,k))
             yyg=yg(iq,k)-jdel
             ! Now make them proper indices in this processor's region
-            idel = idel - ioff(nface(iq,k))
-            jdel = jdel - joff(nface(iq,k))
+            idel = idel - ioff
+            jdel = jdel - joff
             n = nface(iq,k) + noff ! Make this a local index
 #ifdef SX
             ! For better vectorisation calculate all values
@@ -842,8 +842,8 @@ c                    but for bi-linear only need 0:il+1 &  0:il+1
             jdel = int(dpoints(iproc)%a(3,iq))                          ! MJT memory
             yyg = dpoints(iproc)%a(3,iq) - jdel                         ! MJT memory
             k = nint(dpoints(iproc)%a(4,iq))                            ! MJT memory
-            idel = idel - ioff(n-noff)
-            jdel = jdel - joff(n-noff)
+            idel = idel - ioff
+            jdel = jdel - joff
             sextra(iproc)%a(iq) = yyg*( xxg*sx(idel+1,jdel+1,n,k)       ! MJT memory
      &                              +(1.-xxg)*sx(idel,jdel+1,n,k))
      &                   +(1.-yyg)*(      xxg*sx(idel+1,jdel,n,k)
