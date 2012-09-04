@@ -38,6 +38,7 @@ c
       integer ncstatus,ncid,tt
       integer valident,yy,mm,iti,nn
       integer, dimension(4) :: spos,npos
+      integer, dimension(3) :: dum
       real, dimension(:,:,:,:), allocatable, save :: o3dum
       real, dimension(:), allocatable, save :: o3lon,o3lat
       real, dimension(kl) :: sigma,sigin
@@ -170,11 +171,15 @@ c         o3dat are in the order DJF, MAM, JJA, SON
  1000     format(9f8.5)
         end if
         write(6,*) "Finished reading ozone data"
+        dum(1)=ii
+        dum(2)=jj
+        dum(3)=kk
       end if
-      call MPI_Bcast(ii,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(dum,3,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      ii=dum(1)
+      jj=dum(2)
+      kk=dum(3)
       if (ii.gt.0) then
-        call MPI_Bcast(jj,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-        call MPI_Bcast(kk,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
         if (myid.ne.0) then
           allocate(o3lon(ii),o3lat(jj),o3pres(kk))
           allocate(o3dum(ii,jj,kk,3))
@@ -189,7 +194,7 @@ c         o3dat are in the order DJF, MAM, JJA, SON
      &                ii,jj,kk)
         deallocate(o3dum,o3lat,o3lon)
       else
-        if (myid.ne.0) then
+        if (myid/=0) then
           allocate(dduo3n(37,kl),ddo3n2(37,kl))
           allocate(ddo3n3(37,kl),ddo3n4(37,kl))
         end if

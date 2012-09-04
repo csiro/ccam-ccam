@@ -1253,15 +1253,15 @@ c       Leave define mode
         if(local)then
            ! Set these to global indices (relative to panel 0 in uniform decomp)
            do i=1,ipan
-              xpnt(i) = float(i) + ioff
+              xpnt(i) = float(i) + ioff(0)
            end do
            call ncvpt(idnc,ixp,1,il,xpnt,ier)
            i=1
-	   do n=1,npan
+           do n=1,npan
              do j=1,jpan
-	       ypnt(i) = float(j) + joff + (n-noff)*il_g
-	       i=i+1
-	     end do
+               ypnt(i) = float(j) + joff(n-noff) + (n-noff)*il_g
+               i=i+1
+             end do
            end do
            call ncvpt(idnc,iyp,1,jl,ypnt,ier)
         else
@@ -2206,7 +2206,7 @@ c     find variable index
       integer, dimension(1) :: start,ncount
       integer ierr,ixp,iyp,old_mode
       integer icy,icm,icd,ich,icmi,ics,ti
-      integer i,j,fiarch
+      integer i,j,n,fiarch
       integer, save :: fncid = -1
       integer, save :: idnt = 0
       real, dimension(:,:,:), allocatable, save :: freqstore
@@ -2388,12 +2388,16 @@ c     find variable index
           if (localhist) then
            ! Set these to global indices (relative to panel 0 in uniform decomp)
            do i=1,ipan
-              xpnt(i) = float(i) + ioff
+              xpnt(i) = float(i) + ioff(0)
            end do
            ierr=nf_put_vara_real(fncid,ixp,1,il,xpnt)
            call ncmsg('HFREQ longitude',ierr)
-           do j=1,jl
-              ypnt(j) = float(j) + joff
+           i=1
+           do n=1,npan
+             do j=1,jpan
+               ypnt(i) = float(j) + joff(n-noff) + (n-noff)*il_g
+               i=i+1
+             end do
            end do
            ierr=nf_put_vara_real(fncid,iyp,1,jl,ypnt)
            call ncmsg('HFREQ latitude',ierr)

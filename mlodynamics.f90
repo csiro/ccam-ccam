@@ -1344,12 +1344,12 @@ end if
 ! volume conservation for water ---------------------------------------
 if (nud_sfh==0) then
   !odum=(neta(1:ifull)-w_e)*ee(1:ifull)
-  odum=neta(1:ifull)*ee(1:ifull)  
+  odum=neta(1:ifull)*ee(1:ifull)
   call ccglobal_posneg(odum,delpos,delneg)
   alph_p = -delneg/max(delpos,1.E-20)
   alph_p = min(max(sqrt(alph_p),1.E-20),1.E20)
   !neta(1:ifull)=w_e+max(0.,odum)*alph_p+min(0.,odum)/alph_p
-  neta(1:ifull)=max(0.,odum)*alph_p+min(0.,odum)/alph_p  
+  neta(1:ifull)=max(0.,odum)*alph_p+min(0.,odum)/alph_p
 end if
 
 if (myid==0.and.nmaxpr==1) then
@@ -1599,7 +1599,7 @@ if (nud_sss==0) then
   do ii=1,wlev
     where(wtr(1:ifull).and.ndum(1:ifull)>0.1)
       !dum(:,ii)=ns(1:ifull,ii)-w_s(:,ii)
-      dum(:,ii)=ns(1:ifull,ii)-34.72     
+      dum(:,ii)=ns(1:ifull,ii)-34.72
     end where
   end do
   call ccglobal_posneg(dum,delpos,delneg,godsig)
@@ -1608,7 +1608,7 @@ if (nud_sss==0) then
   do ii=1,wlev
     where(wtr(1:ifull).and.ndum(1:ifull)>0.1)
       !ns(1:ifull,ii)=w_s(:,ii)+max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)
-      ns(1:ifull,ii)=34.72+max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)      
+      ns(1:ifull,ii)=34.72+max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)
     end where
   end do
 end if
@@ -1939,8 +1939,8 @@ if(intsch==1)then
         jdel=int(yg(iq,k))
         yyg=yg(iq,k)-jdel
         ! Now make them proper indices in this processor's region
-        idel = idel - ioff
-        jdel = jdel - joff
+        idel = idel - ioff(nface(iq,k))
+        jdel = jdel - joff(nface(iq,k))
         n = nface(iq,k) + noff ! Make this a local index
         if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. &
              jdel > jpan .or. n < 1 .or. n > npan ) then
@@ -2007,8 +2007,8 @@ if(intsch==1)then
       jdel = int(dpoints(iproc)%a(3,iq))
       yyg = dpoints(iproc)%a(3,iq) - jdel
       k = nint(dpoints(iproc)%a(4,iq))
-      idel = idel - ioff
-      jdel = jdel - joff
+      idel = idel - ioff(n-noff)
+      jdel = jdel - joff(n-noff)
 
       sc(-1,0) = sx(idel-1,jdel,n,k)
       sc(0,0)  = sx(idel  ,jdel,n,k)
@@ -2102,8 +2102,8 @@ else     ! if(intsch==1)then
         jdel=int(yg(iq,k))
         yyg=yg(iq,k)-jdel
         ! Now make them proper indices in this processor's region
-        idel = idel - ioff
-        jdel = jdel - joff
+        idel = idel - ioff(nface(iq,k))
+        jdel = jdel - joff(nface(iq,k))
         n = nface(iq,k) + noff ! Make this a local index
         if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. &
              jdel > jpan .or. n < 1 .or. n > npan ) then
@@ -2170,8 +2170,8 @@ else     ! if(intsch==1)then
       jdel = int(dpoints(iproc)%a(3,iq))
       yyg = dpoints(iproc)%a(3,iq) - jdel
       k = nint(dpoints(iproc)%a(4,iq))
-      idel = idel - ioff
-      jdel = jdel - joff
+      idel = idel - ioff(n-noff)
+      jdel = jdel - joff(n-noff)
 
       sc(0,-1) = sx(idel,jdel-1,n,k)
       sc(0,0)  = sx(idel,jdel  ,n,k)
@@ -2325,8 +2325,8 @@ if(intsch==1)then
         jdel=int(yg(iq,k))
         yyg=yg(iq,k)-jdel
         ! Now make them proper indices in this processor's region
-        idel = idel - ioff
-        jdel = jdel - joff
+        idel = idel - ioff(nface(iq,k))
+        jdel = jdel - joff(nface(iq,k))
         n = nface(iq,k) + noff ! Make this a local index
         if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. &
              jdel > jpan .or. n < 1 .or. n > npan ) then
@@ -2396,8 +2396,8 @@ if(intsch==1)then
       jdel = int(dpoints(iproc)%a(3,iq))
       yyg = dpoints(iproc)%a(3,iq) - jdel
       k = nint(dpoints(iproc)%a(4,iq))
-      idel = idel - ioff
-      jdel = jdel - joff
+      idel = idel - ioff(n-noff)
+      jdel = jdel - joff(n-noff)
 
       sc(-1,0) = sx(idel-1,jdel,n,k)
       sc(0,0)  = sx(idel  ,jdel,n,k)
@@ -2494,8 +2494,8 @@ else     ! if(intsch==1)then
         jdel=int(yg(iq,k))
         yyg=yg(iq,k)-jdel
         ! Now make them proper indices in this processor's region
-        idel = idel - ioff
-        jdel = jdel - joff
+        idel = idel - ioff(nface(iq,k))
+        jdel = jdel - joff(nface(iq,k))
         n = nface(iq,k) + noff ! Make this a local index
         if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. &
              jdel > jpan .or. n < 1 .or. n > npan ) then
@@ -2565,8 +2565,8 @@ else     ! if(intsch==1)then
       jdel = int(dpoints(iproc)%a(3,iq))
       yyg = dpoints(iproc)%a(3,iq) - jdel
       k = nint(dpoints(iproc)%a(4,iq))
-      idel = idel - ioff
-      jdel = jdel - joff
+      idel = idel - ioff(n-noff)
+      jdel = jdel - joff(n-noff)
 
       sc(0,-1) = sx(idel,jdel-1,n,k)
       sc(0,0)  = sx(idel,jdel  ,n,k)

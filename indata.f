@@ -733,12 +733,12 @@
             do i=1,ipan
               ! Need to add offsets to get proper face indices
               do n=1,npan
-                rad=sqrt((i+ioff-cent)**2
-     &                  +(j+joff-cent)**2)
-                radu=sqrt((i+ioff+.5-cent)**2
-     &                  +(j+joff-cent)**2)
-                radv=sqrt((i+ioff-cent)**2
-     &                  +(j+joff+.5-cent)**2)
+                rad=sqrt((i+ioff(n-noff)-cent)**2
+     &                  +(j+joff(n-noff)-cent)**2)
+                radu=sqrt((i+ioff(n-noff)+.5-cent)**2
+     &                  +(j+joff(n-noff)-cent)**2)
+                radv=sqrt((i+ioff(n-noff)-cent)**2
+     &                  +(j+joff(n-noff)+.5-cent)**2)
                 iq=indp(i,j,n)
                 u(iq,k)=uin*max(1.-radu/(.5*il_g),0.)
                 v(iq,k)=vin*max(1.-radv/(.5*il_g),0.)

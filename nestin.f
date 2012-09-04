@@ -53,7 +53,8 @@
       integer, save :: num,mtimea,mtimeb
       integer iq,iaero,k,i,wl,ierr
       integer kdate_r,ktime_r,kdhour,kdmin,iabsdate
-      real timerm,cona,conb,rduma,rdumg
+      real timerm,cona,conb,rduma
+      real, save :: rdumg = -999.
       real, dimension(:,:), allocatable, save :: ta,ua,va,qa
       real, dimension(:,:), allocatable, save :: tb,ub,vb,qb,ocndep
       real, dimension(:), allocatable, save :: psla,pslb,tssa,tssb
@@ -279,9 +280,11 @@
             ! nudge mlo
             dumaa=cona*sssa+conb*sssb
             wl=wlev
-            rduma=maxval(ocndep(:,1)) ! check if 3D data exists
-            call MPI_AllReduce(rduma,rdumg,1,MPI_REAL,MPI_MAX,
-     &                         MPI_COMM_WORLD,ierr)
+            if (rdumg<-1.) then
+              rduma=maxval(ocndep(:,1)) ! check if 3D data exists
+              call MPI_AllReduce(rduma,rdumg,1,MPI_REAL,MPI_MAX,
+     &                           MPI_COMM_WORLD,ierr)
+            end if
             if (rdumg.lt.0.5) wl=1
             if (wl==1) then ! switch to 2D if 3D data is missing
               call mloexpmelt(timelt)
@@ -328,7 +331,8 @@
       integer, save :: mtimeb = -1
       integer kdate_r,ktime_r,iaero,wl,ierr
       integer iabsdate,iq,k,kdhour,kdmin
-      real ds_r,timeg_b,rduma,rdumg
+      real ds_r,timeg_b,rduma
+      real, save :: rdumg = -999.
       real, dimension(:,:), allocatable, save :: tb,ub,vb,qb,ocndep
       real, dimension(:), allocatable, save :: pslb,tssb,fraciceb
       real, dimension(:), allocatable, save :: sicedepb
@@ -494,9 +498,11 @@
             if (nud_sst.ne.0.or.nud_sss.ne.0.or.nud_ouv.ne.0.or.
      &          nud_sfh.ne.0) then
               wl=wlev
-              rduma=maxval(ocndep(:,1)) ! check for 3D data
-              call MPI_AllReduce(rduma,rdumg,1,MPI_REAL,MPI_MAX,
-     &                           MPI_COMM_WORLD,ierr)
+              if (rdumg<-1.) then
+                rduma=maxval(ocndep(:,1)) ! check for 3D data
+                call MPI_AllReduce(rduma,rdumg,1,MPI_REAL,MPI_MAX,
+     &                             MPI_COMM_WORLD,ierr)
+              end if
               if (rdumg.lt.0.5) wl=1
               if (wl==1) then ! switch to 2D data if 3D is missing
                 call mloexpmelt(timelt)

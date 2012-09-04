@@ -50,12 +50,13 @@ c*************************************************************************
       parameter(odiag=.false. )
       character name*(*)
       integer start(3),count(3),ifull
-      real  var(ifull)
+      real, intent(inout) :: var(ifull)
       real globvar(ik*jk), vmax, vmin, addoff, sf
       integer ierr, idv
 
       start = (/ 1, 1, iarchi /)
       count = (/ ik, jk, 1 /)
+      globvar=0.
 
 c     get variable idv
       idv = ncvid(ncid,name,ier)
@@ -101,17 +102,12 @@ c      unpack data
        endif
       endif ! ier
 
-      ! Have to return correct value of ier on all processes because it's 
-      ! used for initialisation in calling routine
-      call MPI_Bcast(ier,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       if(ifull==ik*jk)then
-       if(ier==0)then
-        var(:)=globvar(:)
-       endif
+       if (ier==0) then
+         var(:)=globvar(:)
+       end if
       else
-       if(ier==0)then
-        call ccmpi_distribute(var,globvar)
-       endif
+       call ccmpi_distribute(var,globvar)
       endif
       return    ! histrd1
       end subroutine hr1a  
@@ -162,6 +158,8 @@ c      unpack data
            
       start = (/ 1, 1, kk, iarchi /)
       count = (/   ik,   jk, 1, 1 /)
+      globvar=0.
+      
       idv = ncvid(ncid,name,ier)
       if(ier.ne.0)then
        if(kk.eq.1)then
@@ -201,15 +199,12 @@ c      unpack data
 
       ! Have to return correct value of ier on all processes because it's 
       ! used for initialisation in calling routine
-      call MPI_Bcast(ier,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierb)
       if(ifull==ik*jk)then  !  808
-       if(ier==0)then
+       if (ier==0) then
         var(:)=globvar(:)
        end if
       else
-       if(ier==0)then
         call ccmpi_distribute(var,globvar)
-       end if
       endif
 
       return
@@ -228,15 +223,13 @@ c      unpack data
       real, dimension(:), intent(inout) :: var ! may be dummy argument from myid.ne.0
       ! Have to return correct value of ier on all processes because it's 
       ! used for initialisation in calling routine
-      call MPI_Bcast(ier,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierb)
+      ier=0
       if(ifull.ne.ik*jk)then  !  808
-       if(ier==0)then
         if (size(var).ne.ifull) then
           write(6,*) "ERROR: Incorrect use of dummy var in histrd"
           call MPI_Abort(MPI_COMM_WORLD,-1,ier)
         end if
         call ccmpi_distribute(var)
-       endif
       endif
       return
       end subroutine hr4sb     

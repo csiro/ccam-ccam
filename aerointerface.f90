@@ -47,6 +47,7 @@ integer, intent(in) :: kdatein
 integer ncstatus,ncid,i,j,varid,tilg
 integer ierr,jyear,jmonth
 integer, dimension(2) :: spos,npos
+integer, dimension(3) :: idum
 integer, dimension(4) :: sposs,nposs
 real, dimension(:), allocatable, save :: dumg
 real, dimension(ifull) :: duma
@@ -96,16 +97,16 @@ if (myid==0) then
     write(6,*) "ERROR: Grid mismatch for ",trim(aerofile)
     write(6,*) "rlong0,rlat0,schmidt ",rlong0,rlat0,schmidt
     write(6,*) "tlon,tlat,tschmidt   ",tlon,tlat,tschmidt
-    stop
+    call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
   end if
   ncstatus = nf_inq_dimid(ncid,'longitude',varid)
   call ncmsg('longitude',ncstatus)
   ncstatus = nf_inq_dimlen(ncid,varid,tilg)
   call ncmsg('longitude',ncstatus)
-  if (tilg.ne.il_g) then
+  if (tilg/=il_g) then
     write (6,*) "ERROR: Grid mismatch for ",trim(aerofile)
     write (6,*) "il_g,tilg ",il_g,tilg
-    stop
+    call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
   end if
   ! load emission fields
   spos=1
@@ -266,9 +267,10 @@ if (myid==0) then
   ncstatus = nf_inq_dimlen(ncid,varid,ilev)
   call ncmsg('lev',ncstatus)
   write(6,*) "Found oxidant dimensions ",ilon,ilat,ilev
-  call MPI_Bcast(ilon,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-  call MPI_Bcast(ilat,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-  call MPI_Bcast(ilev,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+  idum(1)=ilon
+  idum(2)=ilat
+  idum(3)=ilev
+  call MPI_Bcast(idum,3,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
   allocate(oxidantprev(ifull,ilev,4))
   allocate(oxidantnow(ifull,ilev,4))
   allocate(oxidantnext(ifull,ilev,4))
@@ -352,9 +354,10 @@ else
     call aldrloaderod(i,1,duma)
   end do
   ! load oxidant fields
-  call MPI_Bcast(ilon,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-  call MPI_Bcast(ilat,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-  call MPI_Bcast(ilev,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+  call MPI_Bcast(idum,3,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+  ilon=idum(1)
+  ilat=idum(2)
+  ilev=idum(3)
   allocate(oxidantprev(ifull,ilev,4))
   allocate(oxidantnow(ifull,ilev,4))
   allocate(oxidantnext(ifull,ilev,4))
@@ -474,23 +477,22 @@ end do
 
 ! estimate convective cloud fraction
 ! from leoncld.f
+cldcon=0.
 where (ktsav<kl-1)
   cldcon=min(acon+bcon*log(1.+condc*86400./dt),0.8) !NCAR
-elsewhere
-  cldcon=0.
 end where
 clcon=0.
 pccw=0.
-if (nmr.ge.1) then
+if (nmr>=1) then
   do k=1,kl
-    where (k.le.ktsav.and.k.ge.kbsav+1)
+    where (k<=ktsav.and.k>=kbsav+1)
       clcon(:,k)=cldcon ! maximum overlap
       pccw(:,kl+1-k)=wlc/rhoa(:,k)
     end where
   end do
 else
   do k=1,kl
-    where (k.le.ktsav.and.k.ge.kbsav+1)
+    where (k<=ktsav.and.k>=kbsav+1)
       clcon(:,k)=1.-(1.-cldcon)**(1./real(ktsav-kbsav+2)) !Random overlap
       pccw(:,kl+1-k)=wlc/rhoa(:,k)      
     end where
@@ -498,9 +500,9 @@ else
 end if
 
 ! Convert from aerosol concentration outside convective cloud (used by CCAM)
-! to aerosol concentraion inside convective cloud
+! to aerosol concentration inside convective cloud
 do j=1,naero
-  where (clcon.gt.0.)
+  where (clcon>0.)
     xtusav(:,:,j)=(xtg(1:ifull,:,j)-(1.-clcon)*xtusav(:,:,j))/clcon
   end where
 end do

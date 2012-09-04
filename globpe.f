@@ -104,6 +104,7 @@
 
       integer, dimension(8) :: tvals1, tvals2
       integer, dimension(8) :: nper3hr
+      integer, dimension(5) :: idum
       integer iaero, ier, igas, ilx, io_nest, iq, irest, isoil, itr1
       integer itr2, jalbfix, jlx, jtr1, jtr2, k,k2, kktau, mexrest
       integer mins_dt, mins_gmt, mspeca, mtimer_in, nalpha, newsnow
@@ -116,6 +117,7 @@
       real, dimension(:), allocatable, save :: spare1,spare2
       real, dimension(:), allocatable, save :: spmean,div
       real, dimension(9) :: temparray, gtemparray
+      real, dimension(3) :: rdum
       real clhav, cllav, clmav, cltav, con, div_int, dsx, dtds, es
       real gke, hourst, hrs_dt, evapavge, precavge, preccavge, psavge
       real pslavge, pwater, rel_lat, rel_long, rlwup, spavge, pwatr
@@ -268,11 +270,10 @@
      &           ilx,jlx,rlong0,rlat0,schmidt,dsx,header
         il_g=ilx
       end if      ! (io_in<=4)
-      call MPI_Bcast(il_g,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(rlong0,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(rlat0,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(schmidt,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-
+      idum(1)=il_g
+      rdum(1)=rlong0
+      rdum(2)=rlat0
+      rdum(3)=schmidt
 
       !--------------------------------------------------------------
       ! READ EIGENV FILE TO DEFINE VERTICAL LEVELS
@@ -283,13 +284,22 @@
         kl=kmax
         write(6,*)'kl,ol,lapsbot,isoth,nsig: ',
      &             kl,ol,lapsbot,isoth,nsig
+        idum(2)=kl
+        idum(3)=lapsbot
+        idum(4)=isoth
+        idum(5)=nsig
       end if
-      call MPI_Bcast(kl,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(lapsbot,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(isoth,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(lapsbot,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(nsig,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-
+      
+      call MPI_Bcast(idum(1:5),5,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(rdum(1:3),3,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      il_g=idum(1)
+      kl=idum(2)
+      lapsbot=idum(3)
+      isoth=idum(4)
+      nsig=idum(5)
+      rlong0=rdum(1)
+      rlat0=rdum(2)
+      schmidt=rdum(3)
 
       !--------------------------------------------------------------
       ! DEFINE newmpar VARIABLES AND DEFAULTS
@@ -713,13 +723,10 @@
       ! do not close ncid as onthefly.f expects each file to have
       ! separate ncid numbers.
 
-      if (ntbar.lt.0) then
-        ntbar=kl
-        do k=1,kl
-          if (sig(k).le.0.8) then
-            ntbar=k
-            exit
-          end if
+      if (ntbar<0) then
+        ntbar=1
+        do while(sig(ntbar)>0.8.and.ntbar<kl)
+          ntbar=ntbar+1
         end do
       end if
 
@@ -1330,7 +1337,9 @@
       if (nmaxpr==1) then
         ! Account for load bal explicitly rather than implicitly in
         ! the reduce in maxmin.
+#ifdef loadbal
         call phys_loadbal
+#endif
         call maxmin(slwa,'sl',ktau,.1,1)
       end if
       if (myid==0.and.nmaxpr==1) then
@@ -1486,7 +1495,9 @@
 !     This is the end of the physics. The next routine makes the load imbalance
 !     overhead explicit rather than having it hidden in one of the diagnostic
 !     calls.
-      !call phys_loadbal ! Remove global MPI comms
+#ifdef loadbal
+      call phys_loadbal
+#endif
       call end_log(phys_end)
 
       ! ***********************************************************************

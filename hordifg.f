@@ -45,7 +45,7 @@ c     has jlm nhorx option as last digit of nhor, e.g. -157
       real, dimension(ifull) :: sx_fact,sy_fact
       real, dimension(ifull) :: r1,r2
       real, dimension(ifull+iextra,kl) :: ww,uav,vav
-      real, dimension(ifull+iextra,0:kl-1) :: zgh
+      real, dimension(ifull,0:kl-1) :: zgh
       real, dimension(ifull,kl) :: zg
       real, dimension(ifull,kl) :: dudx,dudy,dvdx,dvdy
       real, dimension(ifull,kl) :: dudz,dvdz
@@ -122,9 +122,9 @@ c     above code independent of k
         zg=zg+phi_nh/grav ! add non-hydrostatic component
 
         ! estimate height from geopotential at half levels
-        zgh(1:ifull,0)=zs(1:ifull)/grav
+        zgh(:,0)=zs(1:ifull)/grav
         do k=1,kl-1
-          zgh(1:ifull,k)=ratha(k)*zg(:,k+1)+rathb(k)*zg(:,k)
+          zgh(:,k)=ratha(k)*zg(:,k+1)+rathb(k)*zg(:,k)
         end do
 
         ! weighted horizontal velocities
@@ -141,7 +141,6 @@ c     above code independent of k
      &        -qlg(1:ifull,k)-qfg(1:ifull,k))
         end do
         
-        call bounds(zgh)
         call boundsuv(uav,vav,allvec=.true.)
         call bounds(ww)
 
@@ -157,33 +156,33 @@ c     above code independent of k
         ! calculate vertical gradients
         r1=uav(1:ifull,1)
         r2=ratha(1)*uav(1:ifull,2)+rathb(1)*uav(1:ifull,1)          
-        dudz(:,1)=(r2-r1)/(zgh(1:ifull,1)-zg(1:ifull,1))
+        dudz(:,1)=(r2-r1)/(zgh(:,1)-zg(1:ifull,1))
         r1=vav(1:ifull,1)
         r2=ratha(1)*vav(1:ifull,2)+rathb(1)*vav(1:ifull,1)
-        dvdz(:,1)=(r2-r1)/(zgh(1:ifull,1)-zg(1:ifull,1))
+        dvdz(:,1)=(r2-r1)/(zgh(:,1)-zg(1:ifull,1))
         r1=ww(1:ifull,1)
         r2=ratha(1)*ww(1:ifull,2)+rathb(1)*ww(1:ifull,1)          
-        dwdz(:,1)=(r2-r1)/(zgh(1:ifull,1)-zg(1:ifull,1))
+        dwdz(:,1)=(r2-r1)/(zgh(:,1)-zg(1:ifull,1))
         do k=2,kl-1
           r1=ratha(k-1)*uav(1:ifull,k)+rathb(k-1)*uav(1:ifull,k-1)
           r2=ratha(k)*uav(1:ifull,k+1)+rathb(k)*uav(1:ifull,k)          
-          dudz(:,k)=(r2-r1)/(zgh(1:ifull,k)-zgh(1:ifull,k-1))
+          dudz(:,k)=(r2-r1)/(zgh(:,k)-zgh(:,k-1))
           r1=ratha(k-1)*vav(1:ifull,k)+rathb(k-1)*vav(1:ifull,k-1)
           r2=ratha(k)*vav(1:ifull,k+1)+rathb(k)*vav(1:ifull,k)          
-          dvdz(:,k)=(r2-r1)/(zgh(1:ifull,k)-zgh(1:ifull,k-1))          
+          dvdz(:,k)=(r2-r1)/(zgh(:,k)-zgh(:,k-1))          
           r1=ratha(k-1)*ww(1:ifull,k)+rathb(k-1)*ww(1:ifull,k-1)
           r2=ratha(k)*ww(1:ifull,k+1)+rathb(k)*ww(1:ifull,k)          
-          dwdz(:,k)=(r2-r1)/(zgh(1:ifull,k)-zgh(1:ifull,k-1))
+          dwdz(:,k)=(r2-r1)/(zgh(:,k)-zgh(:,k-1))
         end do
         r1=ratha(kl-1)*uav(1:ifull,kl)+rathb(kl-1)*uav(1:ifull,kl-1)
         r2=uav(1:ifull,kl)          
-        dudz(:,kl)=(r2-r1)/(zg(1:ifull,kl)-zgh(1:ifull,kl-1))
+        dudz(:,kl)=(r2-r1)/(zg(1:ifull,kl)-zgh(:,kl-1))
         r1=ratha(kl-1)*vav(1:ifull,kl)+rathb(kl-1)*vav(1:ifull,kl-1)
         r2=vav(1:ifull,kl)          
-        dvdz(:,kl)=(r2-r1)/(zg(1:ifull,kl)-zgh(1:ifull,kl-1))          
+        dvdz(:,kl)=(r2-r1)/(zg(1:ifull,kl)-zgh(:,kl-1))          
         r1=ratha(kl-1)*ww(1:ifull,kl)+rathb(kl-1)*ww(1:ifull,kl-1)
         r2=ww(1:ifull,kl)          
-        dwdz(:,kl)=(r2-r1)/(zg(1:ifull,kl)-zgh(1:ifull,kl-1))
+        dwdz(:,kl)=(r2-r1)/(zg(1:ifull,kl)-zgh(:,kl-1))
         
       end if   ! nhorjlm==0.or.nvmix==6
       
@@ -325,8 +324,8 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
             enddo               !  iq loop
          endif                  ! (nhorx.ge.7.and.k.le.2*kl/3).or.nhorx.eq.1
       end do
-      call boundsuv(xfact,yfact) ! MJT - can use stag=-9 option which will
-                                 ! only update iwu and isv values
+      call boundsuv(xfact,yfact,stag=-9) ! MJT - can use stag=-9 option which will
+                                         ! only update iwu and isv values
 
       if(nhorps==0.or.nhorps==-2)then ! for nhorps=-1,-3 don't diffuse u,v
          do k=1,kl

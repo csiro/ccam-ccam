@@ -25,7 +25,6 @@
       real :: prsubc  ! =     upper boundary pressure (mb)
       real :: altubc  ! =     upper boundary altitude (km)
 
-      ! Allocate ozone arrays
       call o3amip_init
 
       !--------------------------------------------------------------
@@ -78,14 +77,8 @@
         enddo
         close(un)
       end if
-      call MPI_Bcast(o3vubc,1,MPI_REAL,0,MPI_COMM_WORLD,ierr) ! not needed
-      call MPI_Bcast(prsubc,1,MPI_REAL,0,MPI_COMM_WORLD,ierr) ! not needed
-      call MPI_Bcast(altubc,1,MPI_REAL,0,MPI_COMM_WORLD,ierr) ! not needed
       call MPI_Bcast(glat,jg,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(gprs,kg,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(galt,kg,MPI_REAL,0,MPI_COMM_WORLD,ierr)
       call MPI_Bcast(gpri,lg,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(gali,lg,MPI_REAL,0,MPI_COMM_WORLD,ierr)
       call MPI_Bcast(gdat,jg*kg*mo,MPI_REAL,0,MPI_COMM_WORLD,ierr)
       !--------------------------------------------------------------
 

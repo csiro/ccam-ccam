@@ -7,7 +7,6 @@
       use nlin_m             ! savs
       use savuvt_m
       use savuv1_m
-      use sbar_m
       use sigs_m
       use vecsuv_m
       use vvel_m, omgf => dpsldt

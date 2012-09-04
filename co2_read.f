@@ -31,6 +31,7 @@ c  was unit 15 for DARLAM, unit 17 for conformal-cubic
       real, parameter :: sigtol=1e-3
       real sigma(kl), sigin(kl)
       real rcn(35)
+      real, dimension(7) :: rdum
       integer, intent(in) :: jyear
       integer k,i,ierr,nlev,iyr
       integer, parameter :: lu=15
@@ -79,14 +80,22 @@ c  was unit 15 for DARLAM, unit 17 for conformal-cubic
           write(6,*) ' F113 mixing ratio is ', rrvf113*1e12,' pptv'
           write(6,*) ' F22  mixing ratio is ', rrvf22*1e12,' pptv'
           close(lu)
+          rdum(1)=rrvco2
+          rdum(2)=rrvch4
+          rdum(3)=rrvn2o
+          rdum(4)=rrvf11
+          rdum(5)=rrvf12
+          rdum(6)=rrvf113
+          rdum(7)=rrvf22
         end if
-        call MPI_Bcast(rrvco2,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-        call MPI_Bcast(rrvch4,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-        call MPI_Bcast(rrvn2o,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-        call MPI_Bcast(rrvf11,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-        call MPI_Bcast(rrvf12,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-        call MPI_Bcast(rrvf113,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-        call MPI_Bcast(rrvf22,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+        call MPI_Bcast(rdum(1:7),7,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+        rrvco2=rdum(1)
+        rrvch4=rdum(2)
+        rrvn2o=rdum(3)
+        rrvf11=rdum(4)
+        rrvf12=rdum(5)
+        rrvf113=rdum(6)
+        rrvf22=rdum(7)
         return
       end if
       !--------------------------------------------------------------

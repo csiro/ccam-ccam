@@ -73,8 +73,8 @@ contains
             do j=ja,jb
                n = (j-1)/il_g ! Global n
                nlocal = n + noff
-               ilocal = i-ioff
-               jlocal = j - n*il_g - joff
+               ilocal = i - ioff(n)
+               jlocal = j - n*il_g - joff(n)
                write(unit=*,fmt="(f11.6)", advance="no")                &
      &              (a(indp(ilocal,jlocal,nlocal))-bias)*fact
             end do
@@ -296,8 +296,8 @@ contains
             jf = j - n*il_g ! Value on face
             if ( fproc(i, jf, n) == myid ) then
                nloc = n + noff
-               ilocal = i-ioff
-               jlocal = j - n*il_g - joff
+               ilocal = i - ioff(n)
+               jlocal = j - n*il_g - joff(n)
                res(iq) = a(indp(ilocal,jlocal,nloc))
             end if
          end do
@@ -322,8 +322,8 @@ contains
             jf = j - n*il_g ! Value on face
             if ( fproc(i, jf, n) == myid ) then
                nloc = n + noff
-               ilocal = i-ioff
-               jlocal = j - n*il_g - joff
+               ilocal = i - ioff(n)
+               jlocal = j - n*il_g - joff(n)
                res(iq) = a(indp(ilocal,jlocal,nloc))
             end if
          end do
@@ -348,8 +348,8 @@ contains
             jf = j - n*il_g ! Value on face
             if ( fproc(i, jf, n) == myid ) then
                nloc = n + noff
-               ilocal = i-ioff
-               jlocal = j - n*il_g - joff
+               ilocal = i - ioff(n)
+               jlocal = j - n*il_g - joff(n)
                res(iq) = a(indp(ilocal,jlocal,nloc))
             end if
          end do
