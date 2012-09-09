@@ -18,9 +18,10 @@
       use sigs_m
       use soil_m
       use soilsnow_m  ! for fracice
-      use tkeeps, only : tke,eps
+      use tkeeps, only : tke,eps ! MJT
       use tracers_m  ! ngas, nllp, ntrac
       use vvel_m
+      use work2_m   ! for wetfac    JLM
       implicit none
       integer itn,iq,k,k13,k23
      .       ,khalf,khalfp,kt
@@ -273,8 +274,12 @@ c        alfqarrx reduces for finer resolution than 200 km grid
       if(mbase>0)cfraclim(:)=.0001*abs(mbase) ! mbase=1000 for 10%, 100 for 1%
 c     omgtst(iq)=1.e-8*tied_con  ! typical tied_con=10,20 for C48
       do iq=1,ifull
-c     typical tied_con=10,20 for C48, increasing for smaller ds      
-       omgtst(iq)=1.e-8*tied_con *sqrt(em(iq)*208498./ds) 
+c     typical tied_con=10,20 for C48, increasing for smaller ds  (i.e. 14, 28 for C96 100 km)
+       if(tied_con>0.)then    
+         omgtst(iq)=1.e-8*tied_con *sqrt(em(iq)*208498./ds)  
+       else
+          omgtst(iq)=-1.e-8*tied_con *sqrt(sqrt(em(iq)*208498./ds))  
+       endif
       enddo
 
 c     convective first, then possibly L/S rainfall
@@ -297,7 +302,7 @@ c     convective first, then possibly L/S rainfall
      &                      +betm(k)*tt(iq,k-1)
        enddo     ! iq loop
       enddo      ! k  loop
-      if(nh.ne.0)phi(:,:)=phi(:,:)+phi_nh(:,:)  ! add non-hydrostatic component
+      if(nh.ne.0)phi(:,:)=phi(:,:)+phi_nh(:,:)  ! add non-hydrostatic component - MJT
 
       if(convtime>10.)then       
 !       following increases convtime_eff for small grid lengths
@@ -317,7 +322,7 @@ c     enddo
 
 c      following defines kb_sav (as kkbb) for use by nbase=-12     
         kkbb(:)=1
-       do k=2,k500 
+       do k=2,k500   
         if(nbase==-12)then
          do iq=1,ifull
 !         find tentative cloud base ! 
@@ -363,19 +368,19 @@ c    &      k,phi(idjd,k-1),phi(idjd,k),pblh(idjd)*grav,kkbb(idjd)
         endif
        enddo 
       endif  ! mbase=-7      
-c*****************mbase=-12 to -16 not included here      
-      if(mbase==-17)then ! same as -14 & similar -6 with qg1
+c*****************mbase=-12 to -15 not included here      
+      if(mbase==-17)then ! qs over sea, max_qg over land
        alfqarr(:)=alfqarrx(:)
        do iq=1,ifull
          k=kkbb(iq)
-         es(iq,k)=establ(tt(iq,k))
-         pk=ps(iq)*sig(k)
-         qs(iq,k)=.622*es(iq,k)/max(pk-es(iq,k),1.)  
         if(dpsldt(iq,1)<-omgtst(iq))then         
           if(land(iq).or.fracice(iq)>0.)then
            alfqarr(iq)=alfqarrx(iq)*
      &                 max(qg(iq,1),qg(iq,2),qg(iq,k))/qg(iq,k)
          else
+           es(iq,k)=establ(tt(iq,k))
+           pk=ps(iq)*sig(k)
+           qs(iq,k)=.622*es(iq,k)/max(pk-es(iq,k),1.)  
            alfqarr(iq)=max(1.,qs(iq,k)/qg(iq,k))
           endif
         endif
@@ -383,7 +388,7 @@ c*****************mbase=-12 to -16 not included here
 c      k=kkbb(idjd)
 c      print *,'qs,qg,alfqarr',qs(idjd,k),qg(idjd,k),alfqarr(idjd)  ! tst
       endif  ! mbase=-17
-      if(mbase==-18)then ! similar to -17, over land and sea
+      if(mbase==-18)then !  max_qg over land over land and sea
        alfqarr(:)=alfqarrx(:)
        do iq=1,ifull
          k=kkbb(iq)
@@ -393,6 +398,40 @@ c      print *,'qs,qg,alfqarr',qs(idjd,k),qg(idjd,k),alfqarr(idjd)  ! tst
         endif
        enddo 
       endif  ! mbase=-18    
+      if(mbase==-19)then ! with wetfac over land and sea 
+       alfqarr(:)=alfqarrx(:)
+       do iq=1,ifull
+         k=kkbb(iq)
+        if(dpsldt(iq,1)<-omgtst(iq))then         
+         es(iq,1)=establ(tt(iq,1))
+         pk=ps(iq)*sig(1)
+         qs(iq,1)=.622*es(iq,1)/max(pk-es(iq,1),1.)  
+          alfqarr(iq)=alfqarrx(iq)*                 !  N.B. qs check done later with qbass
+     &               max(wetfac(iq)*qs(iq,1),qg(iq,2),qg(iq,k))/qg(iq,k)
+        endif
+       enddo 
+      endif  ! mbase=-19   
+      if(mbase==-20)then ! qs over sea, with wetfac over land 
+!                 expect -20 behaves very similar to -19
+       alfqarr(:)=alfqarrx(:)
+       do iq=1,ifull
+         k=kkbb(iq)
+        if(dpsldt(iq,1)<-omgtst(iq))then         
+          if(land(iq).or.fracice(iq)>0.)then
+            es(iq,1)=establ(tt(iq,1))
+            pk=ps(iq)*sig(1)
+            qs(iq,1)=.622*es(iq,1)/max(pk-es(iq,1),1.)  
+            alfqarr(iq)=alfqarrx(iq)*                 !  N.B. qs check done later with qbass
+     &               max(wetfac(iq)*qs(iq,1),qg(iq,2),qg(iq,k))/qg(iq,k)
+         else
+           es(iq,k)=establ(tt(iq,k))
+           pk=ps(iq)*sig(k)
+           qs(iq,k)=.622*es(iq,k)/max(pk-es(iq,k),1.)  
+           alfqarr(iq)=max(1.,qs(iq,k)/qg(iq,k))
+          endif
+        endif
+       enddo 
+      endif  ! mbase=-20   
 
 !_____________________beginning of convective calculation loop________________
       do itn=1,iterconv
@@ -1391,9 +1430,9 @@ c      if(mydiag)print *,'methprec5 detrfactr,detrfactr(idjd)
        write (6,"('pblh,fldow,tdown,qdown,fluxq3',
      &             f8.2,f5.2,f7.2,3p2f8.3,1pf8.2)")
      &     pblh(iq),fldow(iq),tdown(iq),qdown(iq),fluxq(iq)
-       write(6,"('ktau,kkbb,alfqarr,dpsldt8,-omgtst8',
-     &             i5,i3,f6.3,8pf9.3,f7.3)") 
-     &       ktau,kkbb(idjd),alfqarr(idjd),dpsldt(idjd,1),-omgtst(idjd)
+       write(6,"('ktau,kkbb,wetfac,alfqarr,dpsldt8,-omgtst8',
+     &             i5,i3,2f6.3,8pf9.3,f7.3)") ktau,kkbb(idjd),
+     &       wetfac(idjd),alfqarr(idjd),dpsldt(idjd,1),-omgtst(idjd)
        write(6,"('fluxt3',3p14f10.3)") fluxt(iq,kb_sav(iq)+1:kt_sav(iq))
       endif
 c     if(ktau<=3.and.nmaxpr==1.and.mydiag)then

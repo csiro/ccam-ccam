@@ -56,8 +56,8 @@
      &                                    nested,ktau
         ! turn OFF fatal netcdf errors; from here on
         call ncpopt(0)
-        if(ncid.ne.ncidold)then
-          if (ncidold.ne.-1) then
+        if(ncid/=ncidold)then
+          if (ncidold/=-1) then
             write(6,*) 'Closing old input file'
             ier = nf_close(ncidold)
             call ncmsg("Close input",ier)
@@ -81,9 +81,9 @@
           idv = ncdid(ncid,'time',ier)
           ier = nf_inq_dimlen(ncid,idv,maxarchi)
           ok=0
-          if (nmlo.ne.0.and.abs(nmlo).le.9) then
+          if (nmlo/=0.and.abs(nmlo)<=9) then
             idv = ncdid(ncid,'olev',ier)
-            if (ier.eq.0) then
+            if (ier==0) then
               ier = nf_inq_dimlen(ncid,idv,ok)
             else
               ok=0
@@ -160,7 +160,7 @@
         ncidold=ncid
       end if
 
-      if (ktime_r.lt.0) then
+      if (ktime_r<0) then
         if (nested==2) then
           if (myid==0) then
             write(6,*) "WARN: Cannot locate date/time in input file"
@@ -175,7 +175,7 @@
       ! Here we call ontheflyx with different automatic array
       ! sizes.  This means the arrays are correct for interpolation
       ! and file i/o on myid==0, as well as the arrays are smaller
-      ! on myid.ne.0 when they are not needed.  The code is still
+      ! on myid/=0 when they are not needed.  The code is still
       ! human readable since there is only one ontheflyx subroutine.
       if (myid==0) then
         call ontheflyx(nested,kdate_r,ktime_r,
@@ -232,6 +232,7 @@
       use vvel_m, only : dpsldt,sdot            ! Additional vertical velocity
       use xarrs_m, only : pslx                  ! Saved dynamic arrays
       use workglob_m                            ! Additional grid interpolation
+      use work2_m                               ! Diagnostic arrays
 
       implicit none
 
@@ -297,7 +298,7 @@ c**   onthefly; sometime can get rid of common/bigxy4
       logical iotest,newfile
 
       ! internal check (should not occur if code is written correctly)
-      if (myid==0.and.ik.ne.dk) then
+      if (myid==0.and.ik/=dk) then
         write(6,*) "ERROR: Incorrect automatic array size in onthefly"
         stop
       end if
@@ -310,9 +311,9 @@ c**   onthefly; sometime can get rid of common/bigxy4
       if (nud_p==0.and.nud_t==0.and.nud_q==0) nud_test=0
       
       ! Determine if interpolation is required
-      iotest=6*ik*ik.eq.ifull_g.and.abs(rlong0x-rlong0).lt.1.E-5.and.
-     &       abs(rlat0x-rlat0).lt.1.E-5.and.
-     &       abs(schmidtx-schmidt).lt.1.E-5
+      iotest=6*ik*ik==ifull_g.and.abs(rlong0x-rlong0)<1.E-5.and.
+     &       abs(rlat0x-rlat0)<1.E-5.and.
+     &       abs(schmidtx-schmidt)<1.E-5
       if (iotest) then
         io_in=1   ! no interpolation
       else
@@ -325,7 +326,7 @@ c**   onthefly; sometime can get rid of common/bigxy4
       ! Determine input grid coordinates and interpolation arrays
       if ( myid==0 ) then
         write(6,*) "Defining input file grid"
-        if (ifg.ne.ifull_g) then
+        if (ifg/=ifull_g) then
           write(6,*) "ERROR: Internal array allocation error"
           call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
         end if
@@ -412,16 +413,16 @@ c**   onthefly; sometime can get rid of common/bigxy4
         if (myid==0) then
           write(6,*) "Reading fixed fields"
           idv = ncvid(ncid,'lev',ier)
-          if (ier.eq.0) call ncvgt(ncid,idv,1,kk,sigin,ier)
-          if (ier.ne.0) then
+          if (ier==0) call ncvgt(ncid,idv,1,kk,sigin,ier)
+          if (ier/=0) then
             call ncagt(ncid,ncglobal,'sigma',sigin,ier)
           end if
-          if (ier.ne.0) then
+          if (ier/=0) then
             call ncagt(ncid,ncglobal,'sigma_lev',sigin,ier)
           end if
-          if (ier.ne.0) then
+          if (ier/=0) then
             idv = ncvid(ncid,'layer',ier)
-            if (ier.eq.0) call ncvgt(ncid,idv,1,kk,sigin,ier)
+            if (ier==0) call ncvgt(ncid,idv,1,kk,sigin,ier)
           end if
           write(6,'("sigin=",(9f7.4))') (sigin(k),k=1,kk)
         end if
@@ -439,7 +440,7 @@ c**   onthefly; sometime can get rid of common/bigxy4
         if (myid==0) then
           isoilm_a=nint(ucc)
         end if
-        if (nmlo.ne.0.and.abs(nmlo).le.9) then
+        if (nmlo/=0.and.abs(nmlo)<=9) then
           if (.not.allocated(ocndep_l)) allocate(ocndep_l(ifull))
           ucc=0.
           call histrd1(ncid,iarchi,ier,'ocndepth',ik,6*ik,ucc,
@@ -468,7 +469,7 @@ c**   onthefly; sometime can get rid of common/bigxy4
         write(6,*) "ERROR: sigin is undefined in onthefly"
         call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
       end if
-      if (nmlo.ne.0.and.abs(nmlo).le.9
+      if (nmlo/=0.and.abs(nmlo)<=9
      &    .and..not.allocated(ocndep_l)) then
         write(6,*) "ERROR: ocndep_l is undefined in onthefly"
         call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
@@ -486,11 +487,11 @@ c**   onthefly; sometime can get rid of common/bigxy4
 
       ! detemine the level below sig=0.9 (used to calculate psl)
       lev=0
-      do while(sig(lev+1).gt.0.9) ! nested grid
+      do while(sig(lev+1)>0.9) ! nested grid
         lev=lev+1
       end do
       levkk=0
-      do while(sigin(levkk+1).gt.0.9) ! host grid
+      do while(sigin(levkk+1)>0.9) ! host grid
         levkk=levkk+1
       end do      
       if (myid==0) write(6,*) "Ref height lev,levkk =",
@@ -514,9 +515,9 @@ c**   onthefly; sometime can get rid of common/bigxy4
 
       !--------------------------------------------------------------
       ! Begin reading host data for current time step
-      ! psf read when nested=0 or nested=1.and.nud_p.ne.0
+      ! psf read when nested=0 or nested=1.and.nud_p/=0
       psl_a=0.
-      if (nested==0.or.(nested==1.and.nud_test.ne.0)) then
+      if (nested==0.or.(nested==1.and.nud_test/=0)) then
         call histrd1(ncid,iarchi,ier,'psf',ik,6*ik,psl_a,6*ik*ik)
       endif 
       ! tsu always read
@@ -526,9 +527,9 @@ c**   onthefly; sometime can get rid of common/bigxy4
       ! set up land-sea mask from either soilt, tss or zss
       if(myid==0)then
         if(nemi==3)then 
-          land_a(:)=isoilm_a(:).gt.0
+          land_a(:)=isoilm_a(:)>0
           numneg=count(.not.land_a)
-          if (any(isoilm_a(:).lt.0)) nemi=2
+          if (any(isoilm_a(:)<0)) nemi=2
         end if
         if(nemi==2)then
           numneg=0
@@ -552,18 +553,18 @@ c**   onthefly; sometime can get rid of common/bigxy4
 
       !--------------------------------------------------------------
       ! Read ocean data for nudging (sea-ice is read below)
-      ! read when nested=0 or nested==1.and.nud.ne.0 or nested=2
-      if (nmlo.ne.0.and.abs(nmlo).le.9) then
+      ! read when nested=0 or nested==1.and.nud/=0 or nested=2
+      if (nmlo/=0.and.abs(nmlo)<=9) then
         ! fixed ocean depth
         ocndwn(:,1)=ocndep_l
         ! ocean potential temperature
         ! ocean temperature and soil temperature use the same arrays
         ! as no fractional land or sea cover is allowed in CCAM
         mlodwn(:,:,1)=293.
-        if ((nested.ne.1.or.nud_sst.ne.0).and.ok.gt.0) then
+        if ((nested/=1.or.nud_sst/=0).and.ok>0) then
           do k=1,ok
             ucc=max(abs(tss_a),271.)
-            if (k.le.ms) then
+            if (k<=ms) then
               write(vname,'("tgg",I1.1)') k
               call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
      &                     ucc,6*ik*ik)
@@ -593,10 +594,10 @@ c**   onthefly; sometime can get rid of common/bigxy4
             end if ! iotest
           end do
           call mloregrid(ok,ocndwn(:,1),mloin(:,:,1),mlodwn(:,:,1),0)
-        end if ! (nestesd.ne.1.or.nud_sst.ne.0) ..else..
+        end if ! (nestesd/=1.or.nud_sst/=0) ..else..
         ! ocean salinity
         mlodwn(:,:,2)=34.72
-        if ((nested.ne.1.or.nud_sss.ne.0).and.ok.gt.0) then
+        if ((nested/=1.or.nud_sss/=0).and.ok>0) then
           do k=1,ok
             ucc=34.72
             write(vname,'("sal",I2.2)') k
@@ -623,10 +624,10 @@ c**   onthefly; sometime can get rid of common/bigxy4
             end if ! iotest
           end do
           call mloregrid(ok,ocndwn(:,1),mloin(:,:,1),mlodwn(:,:,2),1)
-        end if ! (nestesd.ne.1.or.nud_sss.ne.0) ..else..
+        end if ! (nestesd/=1.or.nud_sss/=0) ..else..
         ! ocean currents
         mlodwn(:,:,3:4)=0.
-        if ((nested.ne.1.or.nud_ouv.ne.0).and.ok.gt.0) then
+        if ((nested/=1.or.nud_ouv/=0).and.ok>0) then
           do k=1,ok
             ucc=0.
             vcc=0.
@@ -666,10 +667,10 @@ c**   onthefly; sometime can get rid of common/bigxy4
           end do
           call mloregrid(ok,ocndwn(:,1),mloin(:,:,1),mlodwn(:,:,3),2)
           call mloregrid(ok,ocndwn(:,1),mloin(:,:,2),mlodwn(:,:,4),3)
-        end if ! (nestesd.ne.1.or.nud_ouv.ne.0) ..else..
+        end if ! (nestesd/=1.or.nud_ouv/=0) ..else..
         ! water surface height
         ocndwn(:,2)=0.
-        if (nested.ne.1.or.nud_sfh.ne.0) then
+        if (nested/=1.or.nud_sfh/=0) then
           ucc=0.
           call histrd1(ncid,iarchi,ier,'ocheight',ik,6*ik,ucc,
      &                 6*ik*ik)
@@ -688,7 +689,7 @@ c**   onthefly; sometime can get rid of common/bigxy4
             end if
             call doints4(ucc,ocndwn(:,2),nface4,xg4,yg4,nord,dk,ifg)
           end if ! iotest
-        end if ! (nested.ne.1.or.nud_sfh.ne.0) ..else..
+        end if ! (nested/=1.or.nud_sfh/=0) ..else..
       end if
       !--------------------------------------------------------------
 
@@ -706,7 +707,7 @@ c**   onthefly; sometime can get rid of common/bigxy4
             where(sicedep_a>0.)
               fracice_a=1.
             endwhere
-          endif  ! (ierr.ne.0)  fracice
+          endif  ! (ierr/=0)  fracice
         else     ! sicedep not read in
           if(ierr/=0)then  ! neither sicedep nor fracice read in
             sicedep_a(:)=0.  ! Oct 08
@@ -724,8 +725,8 @@ c***        but needed here for onthefly (different dims) 28/8/08
               sicedep_a=0.
               fracice_a=0.
             endwhere
-          endif  ! (ierr.ne.0)
-        endif    ! (ier.ne.0) .. else ..    for sicedep
+          endif  ! (ierr/=0)
+        endif    ! (ier/=0) .. else ..    for sicedep
   
         ! interpolate surface temperature and sea-ice
         do iq=1,ik*ik*6
@@ -792,8 +793,8 @@ c       incorporate other target land mask effects
        do iq=1,ifull
         rlongd=rlongg(iq)*180./pi
         rlatd=rlatt(iq)*180./pi
-        if (rlatd.ge.-43..and.rlatd.le.-30.) then
-         if (rlongd.ge.155..and.rlongd.le.170.) then
+        if (rlatd>=-43..and.rlatd<=-30.) then
+         if (rlongd>=155..and.rlongd<=170.) then
           tss(iq)=tss(iq)+1.
          end if
         end if
@@ -803,22 +804,22 @@ c       incorporate other target land mask effects
        do iq=1,ifull
         rlongd=rlongg(iq)*180./pi
         rlatd=rlatt(iq)*180./pi
-        if (rlatd.ge.-15..and.rlatd.le.-5.) then
-         if (rlongd.ge.150..and.rlongd.le.170.) then
+        if (rlatd>=-15..and.rlatd<=-5.) then
+         if (rlongd>=150..and.rlongd<=170.) then
           tss(iq)=tss(iq)+1.
          end if
         end if
        end do
       end if
 
-      ! read atmospheric fields for nested=0 or nested=1.and.nud.ne.0
+      ! read atmospheric fields for nested=0 or nested=1.and.nud/=0
 
       ! air temperature
-      ! read for nested=0 or nested=1.and.(nud_t.ne.0.or.nud_p.ne.0)
-      if (nested==0.or.(nested==1.and.nud_test.ne.0)) then
+      ! read for nested=0 or nested=1.and.(nud_t/=0.or.nud_p/=0)
+      if (nested==0.or.(nested==1.and.nud_test/=0)) then
         do k=1,kk
           call histrd4s(ncid,iarchi,ier,'temp',ik,6*ik,k,ucc,6*ik*ik) !     temperature
-          if (k.eq.levkk) t_a_lev=ucc ! store for psl calculation below
+          if (k==levkk) t_a_lev=ucc ! store for psl calculation below
           if (myid==0) then
             if (iotest) then
               call ccmpi_distribute(u_k(:,k), ucc)
@@ -833,10 +834,10 @@ c       incorporate other target land mask effects
         call vertint(u_k ,t, 1,kk,sigin)
       else
         t=300.
-      end if ! (nested==0.or.(nested==1.and.(nud_t.ne.0.or.nud_p.ne.0)))
+      end if ! (nested==0.or.(nested==1.and.(nud_t/=0.or.nud_p/=0)))
       ! winds
-      ! read for nested=0 or nested=1.and.nud_uv.ne.0
-      if (nested==0.or.(nested==1.and.nud_uv.ne.0)) then
+      ! read for nested=0 or nested=1.and.nud_uv/=0
+      if (nested==0.or.(nested==1.and.nud_uv/=0)) then
         do k=1,kk
           ! to reduce memory footprint, we now have to alternatively read
           ! u and v.  This is a bit inefficent for disk accessing,
@@ -866,15 +867,15 @@ c       incorporate other target land mask effects
       else
         u=0.
         v=0.
-      end if ! (nested==0.or.(nested==1.and.nud_uv.ne.0))
+      end if ! (nested==0.or.(nested==1.and.nud_uv/=0))
       ! mixing ratio
-      ! read for nested=0 or nested=1.and.nud_q.ne.0
-      if (nested==0.or.(nested==1.and.nud_q.ne.0)) then
+      ! read for nested=0 or nested=1.and.nud_q/=0
+      if (nested==0.or.(nested==1.and.nud_q/=0)) then
         do k=1,kk
           call histrd4s(ncid,iarchi,ier,'mixr',ik,6*ik,k,ucc,6*ik*ik)!     mixing ratio
-          if(ier.ne.0)then                                           !     mixing ratio
+          if(ier/=0)then                                           !     mixing ratio
             call histrd4s(ncid,iarchi,ier,'q',ik,6*ik,k,ucc,6*ik*ik) !     mixing ratio
-          endif  ! (ier.ne.0)                                        !     mixing ratio
+          endif  ! (ier/=0)                                        !     mixing ratio
           if (myid==0) then
             if (iotest) then
               call ccmpi_distribute(u_k(:,k), ucc)
@@ -889,11 +890,11 @@ c       incorporate other target land mask effects
         call vertint(u_k,qg,2,kk,sigin)
       else
         qg=qgmin
-      end if ! (nested==0.or.(nested==1.and.nud_q.ne.0))
+      end if ! (nested==0.or.(nested==1.and.nud_q/=0))
 
       ! re-grid surface pressure by mapping to MSLP, interpolating and then map to surface pressure
       ! requires psl_a, zss, zss_a, t and t_a_lev
-      if (nested==0.or.(nested==1.and.nud_test.ne.0)) then
+      if (nested==0.or.(nested==1.and.nud_test/=0)) then
         if (iotest) then
           if (myid==0) then
             call ccmpi_distribute(psl,psl_a)
@@ -924,15 +925,16 @@ c       incorporate other target land mask effects
 
       !--------------------------------------------------------------
       ! The following data is only read for initial conditions
-      if (nested.ne.1) then
+      if (nested/=1) then
 
         ! SNOW !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        snowd_a=0.
         call histrd1(ncid,iarchi,ier,'snd',ik,6*ik,snowd_a,6*ik*ik)
-        if (ier.ne.0) then
-          where (tss_a.lt.270.)
+        if (ier/=0) then
+          where (tss_a<270.)
             snowd_a=min(55.,5.*(271.-abs(tss_a)))
           end where
-          where (snowd_a.lt.0.001)
+          where (snowd_a<0.001)
             snowd_a=0.
           end where
         end if
@@ -943,20 +945,20 @@ c       incorporate other target land mask effects
           write(vname,'("tgg",I1.1)') k
           call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
      &                   ucc,6*ik*ik)
-          if (ier.ne.0) then
-            if (k.eq.1) then
+          if (ier/=0) then
+            if (k==1) then
               ucc=tss_a
-            else if (k.le.3) then
+            else if (k<=3) then
               call histrd1(ncid,iarchi,ier,'tgg2',ik,6*ik,
      &                 ucc,6*ik*ik)
-              if (ier.ne.0) then
+              if (ier/=0) then
                 call histrd1(ncid,iarchi,ier,'tb3',ik,6*ik,
      &                 ucc,6*ik*ik)
               end if
             else
               call histrd1(ncid,iarchi,ier,'tgg6',ik,6*ik,
      &                 ucc,6*ik*ik)
-              if (ier.ne.0) then
+              if (ier/=0) then
                 call histrd1(ncid,iarchi,ier,'tb2',ik,6*ik,
      &                 ucc,6*ik*ik)
               end if
@@ -982,7 +984,7 @@ c       incorporate other target land mask effects
 
         !--------------------------------------------------
         ! Read MLO sea-ice data
-        if (nmlo.ne.0.and.abs(nmlo).le.9) then
+        if (nmlo/=0.and.abs(nmlo)<=9) then
           if (.not.allocated(micdwn)) allocate(micdwn(ifull,11))
           do k=1,8
             select case(k)
@@ -1073,7 +1075,7 @@ c       incorporate other target land mask effects
             call doints4(ucc,micdwn(:,11),nface4,xg4,yg4,nord,dk,
      &             ifg)
           end if
-          if (abs(nmlo).ge.2.and.abs(nmlo).le.9) then
+          if (abs(nmlo)>=2.and.abs(nmlo)<=9) then
             ucc=0.
             call histrd1(ncid,iarchi,ier,'swater',ik,6*ik,ucc,
      &                   6*ik*ik)
@@ -1097,24 +1099,24 @@ c       incorporate other target land mask effects
           write(vname,'("wetfrac",I1.1)') k
           call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
      &                   ucc,6*ik*ik)
-          if (ier.eq.0) then
+          if (ier==0) then
             ucc=ucc+20. ! flag for fraction of field capacity
           else
             write(vname,'("wb",I1.1)') k
             call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
      &                     ucc,6*ik*ik)
-            if (ier.ne.0) then
-              if (k.le.2) then
+            if (ier/=0) then
+              if (k<=2) then
                 call histrd1(ncid,iarchi,ier,'wb2',ik,6*ik,ucc,
      &                 6*ik*ik)
-                if (ier.ne.0) then
+                if (ier/=0) then
                   call histrd1(ncid,iarchi,ier,'wfg',ik,6*ik,ucc,
      &                   6*ik*ik)
                 end if
               else
                 call histrd1(ncid,iarchi,ier,'wb6',ik,6*ik,ucc,
      &                 6*ik*ik)
-                if (ier.ne.0) then
+                if (ier/=0) then
                   call histrd1(ncid,iarchi,ier,'wfb',ik,6*ik,ucc,
      &                   6*ik*ik)
                 end if
@@ -1139,7 +1141,7 @@ c       incorporate other target land mask effects
           end if ! iotest
         end do
         !unpack field capacity into volumetric soil moisture
-        if (any(wb(:,:).gt.10.)) then
+        if (any(wb(:,:)>10.)) then
           if (mydiag) write(6,*) "Unpacking wetfrac to wb",wb(idjd,1)
           wb(:,:)=wb(:,:)-20.
           do iq=1,ifull
@@ -1149,9 +1151,33 @@ c       incorporate other target land mask effects
           if (mydiag) write(6,*) "giving wb",wb(idjd,1)
         end if
 
+        ! PH - Add wetfac to output for mbase=-19 option
+        if (nested/=0) then
+          ucc=0.1
+          call histrd1(ncid,iarchi,ier,'wetfac',ik,6*ik,ucc,6*ik*ik)
+          if (iotest) then
+            if (myid==0) then
+              call ccmpi_distribute(wetfac,ucc)
+            else
+              call ccmpi_distribute(wetfac)
+            end if
+          else
+            if (myid==0) then
+              where (.not.land_a(:))
+                ucc=spval
+              end where
+              call fill_cc(ucc,spval,ik,0)
+            end if
+            call doints4(ucc,wetfac,nface4,xg4,yg4,nord,dk,ifg)
+          end if ! iotest
+          where (.not.land)
+            wetfac=1.
+          end where
+        end if	
+
         !--------------------------------------------------
         ! Read 10m wind speeds for special sea roughness length calculations
-        if (nested.eq.0) then
+        if (nested==0) then
           call histrd1(ncid,iarchi,ier,'u10',ik,6*ik,ucc,6*ik*ik)
           if (ier/=0) ucc=-99.
           if (iotest) then
@@ -1171,7 +1197,7 @@ c       incorporate other target land mask effects
 
         !--------------------------------------------------
         ! Read boundary layer height for TKE-eps mixing
-        if (nvmix.eq.6.and.nested.eq.0) then
+        if (nvmix==6.and.nested==0) then
           ucc=1000. ! dummy for pbl
           call histrd1(ncid,iarchi,ier,'pblh',ik,6*ik,ucc,6*ik*ik)
           if (iotest) then
@@ -1188,8 +1214,8 @@ c       incorporate other target land mask effects
 
         !--------------------------------------------------
         ! Read CABLE/CASA aggregate C+N+P pools
-        if (nsib.eq.4.or.nsib.ge.6) then
-         if (ccycle.eq.0) then
+        if (nsib==4.or.nsib>=6) then
+         if (ccycle==0) then
           do k=1,ncp
             ucc=0.
             write(vname,'("cplant",I1.1)') k
@@ -1487,7 +1513,7 @@ c       incorporate other target land mask effects
 
         !--------------------------------------------------
         ! Read urban data
-        if (nurban.ne.0) then
+        if (nurban/=0) then
           if (.not.allocated(atebdwn)) allocate(atebdwn(ifull,24))
           do k=1,24
             ucc=999.
@@ -1583,7 +1609,7 @@ c       incorporate other target land mask effects
               end if
             else
               if (myid==0) then
-                where (.not.land_a.or.ucc.ge.399.)
+                where (.not.land_a.or.ucc>=399.)
                   ucc=spval
                 end where
                 call fill_cc(ucc,spval,ik,0)
@@ -1595,17 +1621,17 @@ c       incorporate other target land mask effects
         end if
         !--------------------------------------------------
 
-        if (nested.eq.0) then
+        if (nested==0) then
           lrestart=.true.
           ! OMEGA !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           ! only for restart - no interpolation
           dpsldt=-999.
-          if (kk.eq.kl.and.iotest) then
+          if (kk==kl.and.iotest) then
             do k=1,kk 
              ucc=-999. ! dummy
              call histrd4s(ncid,iarchi,ier,'omega',ik,6*ik,k,ucc,
      &                     6*ik*ik)
-             if (ier.ne.0) lrestart=.false.
+             if (ier/=0) lrestart=.false.
              if (myid==0) then
                call ccmpi_distribute(dpsldt(:,k),ucc)
              else
@@ -1618,7 +1644,7 @@ c       incorporate other target land mask effects
           end if
         end if
 
-        if (nested.eq.0) then
+        if (nested==0) then
           ! CLOUD FROZEN WATER !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           do k=1,kk 
            ucc=0. ! dummy for qfg
@@ -1732,11 +1758,11 @@ c       incorporate other target land mask effects
           enddo  ! k loop
           call vertint(u_k,dum,5,kk,sigin)
           cffall(1:ifull,:)=dum
-        end if ! (nested.eq.0)
+        end if ! (nested==0)
 
         !--------------------------------------------------
         ! TKE-eps data
-        if (nvmix.eq.6.and.nested.eq.0) then
+        if (nvmix==6.and.nested==0) then
           do k=1,kk
             ucc=1.5E-4 ! dummy for tke
             call histrd4s(ncid,iarchi,ier,'tke',ik,6*ik,k,
@@ -1800,7 +1826,7 @@ c       incorporate other target land mask effects
 
         !------------------------------------------------------------
         ! Aerosol data
-        if (abs(iaero).ge.2) then
+        if (abs(iaero)>=2) then
           do i=1,naero+2
             do k=1,kk
               ucc=0. ! dummy for aerosol
@@ -1860,13 +1886,13 @@ c       incorporate other target land mask effects
               end if ! iotest
             end do
             call vertint(u_k,dum,5,kk,sigin)
-            if (i.le.naero) then
+            if (i<=naero) then
               xtg(1:ifull,:,i)=dum
             else
               ssn(1:ifull,:,i-naero)=dum
             end if
           end do
-          if (iaero.ne.0) then
+          if (iaero/=0) then
             ! Factor 1.e3 to convert to g/m2, x 3 to get sulfate from sulfur
             so4t(:)=0.
             do k=1,kl
@@ -1875,16 +1901,16 @@ c       incorporate other target land mask effects
           end if
         end if
 
-        if (nested.eq.0) then
+        if (nested==0) then
           ! GEOPOTENTIAL !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           ! only for restart - no interpolation
           phi_nh=0.
-          if (kk.eq.kl.and.iotest) then
+          if (kk==kl.and.iotest) then
             do k=1,kk 
              ucc=0. ! dummy for gp NHS
              call histrd4s(ncid,iarchi,ier,'zgnhs',ik,6*ik,k,ucc,
      &                     6*ik*ik)
-             if (ier.ne.0) lrestart=.false.
+             if (ier/=0) lrestart=.false.
              if (myid==0) then
                call ccmpi_distribute(phi_nh(:,k),ucc)
              else
@@ -1898,13 +1924,13 @@ c       incorporate other target land mask effects
           ! SDOT !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           ! only for restart - no interpolation
           sdot=-999.
-          if (kk.eq.kl.and.iotest) then
+          if (kk==kl.and.iotest) then
             sdot(:,1)=0.
             do k=1,kk 
              ucc=-999. ! dummy
              call histrd4s(ncid,iarchi,ier,'sdot',ik,6*ik,k,ucc,
      &                     6*ik*ik)
-             if (ier.ne.0) lrestart=.false.
+             if (ier/=0) lrestart=.false.
              if (myid==0) then
                call ccmpi_distribute(sdot(:,k+1),ucc)
              else
@@ -1918,12 +1944,12 @@ c       incorporate other target land mask effects
           ! PSLX !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           ! only for restart - no interpolation
           pslx=-999.
-          if (kk.eq.kl.and.iotest) then
+          if (kk==kl.and.iotest) then
             do k=1,kk 
              ucc=-999. ! dummy
              call histrd4s(ncid,iarchi,ier,'pslx',ik,6*ik,k,ucc,
      &                     6*ik*ik)
-             if (ier.ne.0) lrestart=.false.
+             if (ier/=0) lrestart=.false.
              if (myid==0) then
                call ccmpi_distribute(pslx(1:ifull,k),ucc)
              else
@@ -1937,12 +1963,12 @@ c       incorporate other target land mask effects
           ! SAVU !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           ! only for restart - no interpolation
           savu=-999.
-          if (kk.eq.kl.and.iotest) then
+          if (kk==kl.and.iotest) then
             do k=1,kk 
              ucc=-999. ! dummy
              call histrd4s(ncid,iarchi,ier,'savu',ik,6*ik,k,ucc,
      &                     6*ik*ik)
-             if (ier.ne.0) lrestart=.false.
+             if (ier/=0) lrestart=.false.
              if (myid==0) then
                call ccmpi_distribute(savu(:,k),ucc)
              else
@@ -1956,12 +1982,12 @@ c       incorporate other target land mask effects
           ! SAVV !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           ! only for restart - no interpolation
           savv=-999.
-          if (kk.eq.kl.and.iotest) then
+          if (kk==kl.and.iotest) then
             do k=1,kk 
              ucc=-999. ! dummy
              call histrd4s(ncid,iarchi,ier,'savv',ik,6*ik,k,ucc,
      &                     6*ik*ik)
-             if (ier.ne.0) lrestart=.false.
+             if (ier/=0) lrestart=.false.
              if (myid==0) then
                call ccmpi_distribute(savv(:,k),ucc)
              else
@@ -1975,12 +2001,12 @@ c       incorporate other target land mask effects
           ! SAVU1 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           ! only for restart - no interpolation
           savu1=-999.
-          if (kk.eq.kl.and.iotest) then
+          if (kk==kl.and.iotest) then
             do k=1,kk 
              ucc=-999. ! dummy
              call histrd4s(ncid,iarchi,ier,'savu1',ik,6*ik,k,ucc,
      &                     6*ik*ik)
-             if (ier.ne.0) lrestart=.false.
+             if (ier/=0) lrestart=.false.
              if (myid==0) then
                call ccmpi_distribute(savu1(:,k),ucc)
              else
@@ -1994,12 +2020,12 @@ c       incorporate other target land mask effects
           ! SAVV1 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           ! only for restart - no interpolation
           savv1=-999.
-          if (kk.eq.kl.and.iotest) then
+          if (kk==kl.and.iotest) then
             do k=1,kk 
              ucc=-999. ! dummy
              call histrd4s(ncid,iarchi,ier,'savv1',ik,6*ik,k,ucc,
      &                     6*ik*ik)
-             if (ier.ne.0) lrestart=.false.
+             if (ier/=0) lrestart=.false.
              if (myid==0) then
                call ccmpi_distribute(savv1(:,k),ucc)
              else
@@ -2013,12 +2039,12 @@ c       incorporate other target land mask effects
           ! SAVU2 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           ! only for restart - no interpolation
           savu2=-999.
-          if (kk.eq.kl.and.iotest) then
+          if (kk==kl.and.iotest) then
             do k=1,kk 
              ucc=-999. ! dummy
              call histrd4s(ncid,iarchi,ier,'savu2',ik,6*ik,k,ucc,
      &                     6*ik*ik)
-             if (ier.ne.0) lrestart=.false.
+             if (ier/=0) lrestart=.false.
              if (myid==0) then
                call ccmpi_distribute(savu2(:,k),ucc)
              else
@@ -2032,12 +2058,12 @@ c       incorporate other target land mask effects
           ! SAVV2 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           ! only for restart - no interpolation
           savv2=-999.
-          if (kk.eq.kl.and.iotest) then
+          if (kk==kl.and.iotest) then
             do k=1,kk 
              ucc=-999. ! dummy
              call histrd4s(ncid,iarchi,ier,'savv2',ik,6*ik,k,ucc,
      &                     6*ik*ik)
-             if (ier.ne.0) lrestart=.false.
+             if (ier/=0) lrestart=.false.
              if (myid==0) then
                call ccmpi_distribute(savv2(:,k),ucc)
              else
@@ -2048,14 +2074,14 @@ c       incorporate other target land mask effects
             lrestart=.false.
           end if
           
-          if (abs(nmlo).ge.3.and.abs(nmlo).le.9) then
-           if (ok.eq.wlev.and.iotest) then
+          if (abs(nmlo)>=3.and.abs(nmlo)<=9) then
+           if (ok==wlev.and.iotest) then
             do k=1,ok
               ucc=0.
               write(vname,'("oldu1",I2.2)') k
               call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
      &                     ucc,6*ik*ik)
-              if (ier.ne.0) lrestart=.false.
+              if (ier/=0) lrestart=.false.
               if (myid==0) then
                 call ccmpi_distribute(oldu1(:,k),ucc)
               else
@@ -2065,7 +2091,7 @@ c       incorporate other target land mask effects
               write(vname,'("oldv1",I2.2)') k
               call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
      &                     ucc,6*ik*ik)
-              if (ier.ne.0) lrestart=.false.
+              if (ier/=0) lrestart=.false.
               if (myid==0) then
                 call ccmpi_distribute(oldv1(:,k),ucc)
               else
@@ -2075,7 +2101,7 @@ c       incorporate other target land mask effects
               write(vname,'("oldu2",I2.2)') k
               call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
      &                     ucc,6*ik*ik)
-              if (ier.ne.0) lrestart=.false.
+              if (ier/=0) lrestart=.false.
               if (myid==0) then
                 call ccmpi_distribute(oldu2(:,k),ucc)
               else
@@ -2085,7 +2111,7 @@ c       incorporate other target land mask effects
               write(vname,'("oldv2",I2.2)') k
               call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
      &                     ucc,6*ik*ik)
-              if (ier.ne.0) lrestart=.false.
+              if (ier/=0) lrestart=.false.
               if (myid==0) then
                 call ccmpi_distribute(oldv2(:,k),ucc)
               else
@@ -2095,7 +2121,7 @@ c       incorporate other target land mask effects
             ucc=0.
             call histrd1(ncid,iarchi,ier,'ipice',ik,6*ik,
      &                   ucc,6*ik*ik)
-            if (ier.ne.0) lrestart=.false.
+            if (ier/=0) lrestart=.false.
             if (myid==0) then
               call ccmpi_distribute(ipice,ucc)
             else
@@ -2111,7 +2137,7 @@ c       incorporate other target land mask effects
           call MPI_Bcast(dum6(1),1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
           lrestart=(dum6(1)==1)
           
-        end if ! (nested.eq.0)
+        end if ! (nested==0)
 
         ! SOIL ICE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         do k=1,ms
@@ -2137,7 +2163,7 @@ c       incorporate other target land mask effects
           end if ! iotest
         end do
 
-        if (nmlo==0.or.abs(nmlo).gt.9) then ! otherwise already read above
+        if (nmlo==0.or.abs(nmlo)>9) then ! otherwise already read above
           tggsn_a(:,:)= 280.
           call histrd1(ncid,iarchi,ier,'tggsn1',ik,6*ik,tggsn_a(:,1),
      &                 6*ik*ik)
@@ -2278,10 +2304,10 @@ c       incorporate other target land mask effects
         end if ! iotest
         isflag=nint(dum6)
         
-      endif    ! (nested.ne.1)
+      endif    ! (nested/=1)
 
       ! tgg holds file surface temperature when no MLO
-      if (nmlo==0.or.abs(nmlo).gt.9) then
+      if (nmlo==0.or.abs(nmlo)>9) then
         where (.not.land)
           tgg(:,1)=tss
         end where
@@ -2293,7 +2319,7 @@ c       incorporate other target land mask effects
       ktime_s=ktime_r+1
       qg(1:ifull,1:kl) = max(qg(1:ifull,1:kl),1.e-6)
 
-      if (myid==0.and.nested.eq.0) then
+      if (myid==0.and.nested==0) then
         write(6,*) "Final lrestart ",lrestart
       end if
 
@@ -2316,11 +2342,11 @@ c       incorporate other target land mask effects
       real, dimension(ifg) :: s_g
 
       if ( myid ==0 ) then
-         if (ifg.ne.ifull_g) then
+         if (ifg/=ifull_g) then
            write(6,*) "ERROR: Incorrect ifg in doints4"
            stop
          end if
-         if (ik.eq.0) then
+         if (ik==0) then
            write(6,*) "ERROR: Incorrect ik in doints4"
            stop
          end if
@@ -2621,7 +2647,7 @@ c     real b(ik*ik*6), a(ik*ik*6+iextra)
       data npanw/5,105,1,101,3,103/,npans/104,0,100,2,102,4/
       ind(i,j,n)=i+(j-1)*ik+n*ik*ik  ! *** for n=0,npanels
       
-      if (all(a_io.eq.value)) return
+      if (all(a_io==value)) return
       
        do iq=1,ik*ik*6
        in(iq)=iq+ik
@@ -2630,7 +2656,7 @@ c     real b(ik*ik*6), a(ik*ik*6+iextra)
        iw(iq)=iq-1
       enddo   ! iq loop
       do n=0,npanels
-      if(npann(n).lt.100)then
+      if(npann(n)<100)then
         do ii=1,ik
          in(ind(ii,ik,n))=ind(ii,1,npann(n))
         enddo    ! ii loop
@@ -2638,8 +2664,8 @@ c     real b(ik*ik*6), a(ik*ik*6+iextra)
         do ii=1,ik
          in(ind(ii,ik,n))=ind(1,ik+1-ii,npann(n)-100)
         enddo    ! ii loop
-      endif      ! (npann(n).lt.100)
-      if(npane(n).lt.100)then
+      endif      ! (npann(n)<100)
+      if(npane(n)<100)then
         do ii=1,ik
          ie(ind(ik,ii,n))=ind(1,ii,npane(n))
         enddo    ! ii loop
@@ -2647,8 +2673,8 @@ c     real b(ik*ik*6), a(ik*ik*6+iextra)
         do ii=1,ik
          ie(ind(ik,ii,n))=ind(ik+1-ii,1,npane(n)-100)
         enddo    ! ii loop
-      endif      ! (npane(n).lt.100)
-      if(npanw(n).lt.100)then
+      endif      ! (npane(n)<100)
+      if(npanw(n)<100)then
         do ii=1,ik
          iw(ind(1,ii,n))=ind(ik,ii,npanw(n))
         enddo    ! ii loop
@@ -2656,8 +2682,8 @@ c     real b(ik*ik*6), a(ik*ik*6+iextra)
         do ii=1,ik
          iw(ind(1,ii,n))=ind(ik+1-ii,ik,npanw(n)-100)
         enddo    ! ii loop
-      endif      ! (npanw(n).lt.100)
-      if(npans(n).lt.100)then
+      endif      ! (npanw(n)<100)
+      if(npans(n)<100)then
         do ii=1,ik
          is(ind(ii,1,n))=ind(ii,ik,npans(n))
         enddo    ! ii loop
@@ -2665,7 +2691,7 @@ c     real b(ik*ik*6), a(ik*ik*6+iextra)
         do ii=1,ik
          is(ind(ii,1,n))=ind(ik,ik+1-ii,npans(n)-100)
         enddo    ! ii loop
-      endif      ! (npans(n).lt.100)
+      endif      ! (npans(n)<100)
       enddo      ! n loop
           
       a(1:ik*ik*6) = a_io(:)
@@ -2682,19 +2708,19 @@ c808         call bounds(a)
             if(a(iq)==value)then
                neighb=0
                av=0.
-               if(a(in(iq)).ne.value)then
+               if(a(in(iq))/=value)then
                   neighb=neighb+1
                   av=av+a(in(iq))
                endif
-               if(a(ie(iq)).ne.value)then
+               if(a(ie(iq))/=value)then
                   neighb=neighb+1
                   av=av+a(ie(iq))
                endif
-               if(a(iw(iq)).ne.value)then
+               if(a(iw(iq))/=value)then
                   neighb=neighb+1
                   av=av+a(iw(iq))
                endif
-               if(a(is(iq)).ne.value)then
+               if(a(is(iq))/=value)then
                   neighb=neighb+1
                   av=av+a(is(iq))
                endif

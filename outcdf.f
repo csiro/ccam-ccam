@@ -606,6 +606,11 @@ c       For time varying surface fields
         lname = 'Wetness fraction layer 6'
         call attrib(idnc,idim,3,'wetfrac6',lname,'none',-6.5,6.5,0,
      &              itype)
+     
+        ! PH - Add wetfac to output for mbase=-19 option
+        lname = 'Surface wetness fraction'
+        call attrib(idnc,idim,3,'wetfac',lname,'none',-6.5,6.5,0,
+     &              itype)
 
         lname = 'Sea ice depth'
         call attrib(idnc,idim,3,'siced',lname,'m',0.,65.,0,-1)
@@ -1472,6 +1477,9 @@ c      set time to number of minutes since start
       aa(:)=(wb(:,6)-swilt(isoilm))/
      &      (sfc(isoilm)-swilt(isoilm))
       call histwrt3(aa,'wetfrac6',idnc,iarch,local,.true.)
+      
+      ! PH - Add wetfac to output for mbase=-19 option
+      call histwrt3(wetfac,'wetfac',idnc,iarch,local,.true.)
       
       ! SEAICE ------------------------------------------------------       
       call histwrt3(sicedep,'siced',idnc,iarch,local,.true.)

@@ -303,7 +303,7 @@ c       c1=0.
       integer varidb,varidc
       integer mtimer_r,kdate_r,ktime_r
       integer, dimension(3) :: spos,npos
-      integer, dimension(nihead) :: nahead
+      integer(kind=4), dimension(nihead) :: nahead
       real, dimension(ifull), intent(out) :: ssta,sstb,sstc
       real, dimension(ifull), intent(out) :: aice,bice,cice
       real, dimension(ifull), intent(out) :: asal,bsal,csal
@@ -329,7 +329,7 @@ c       c1=0.
         ! NETCDF
         write(6,*) "Reading AMIP file in netcdf format"
         ! check grid definition
-        ierr=nf_get_att_real(ncidx,nf_global,'int_header',nahead)
+        ierr=nf_get_att_int(ncidx,nf_global,'int_header',nahead)
         call ncmsg('int_header',ierr)
         ierr=nf_get_att_real(ncidx,nf_global,'real_header',ahead)
         call ncmsg('real_header',ierr)
@@ -366,9 +366,9 @@ c       c1=0.
         ierr=nf_inq_varid(ncidx,'mtimer',varidc)
         do while (ltest.and.iarchx<maxarchi)
           iarchx=iarchx+1
-          ierr=nf_get_var1_real(ncidx,varid,iarchx,kdate_r)
-          ierr=nf_get_var1_real(ncidx,varidb,iarchx,ktime_r)
-          ierr=nf_get_var1_real(ncidx,varidc,iarchx,mtimer_r)
+          ierr=nf_get_var1_int(ncidx,varid,iarchx,kdate_r)
+          ierr=nf_get_var1_int(ncidx,varidb,iarchx,ktime_r)
+          ierr=nf_get_var1_int(ncidx,varidc,iarchx,mtimer_r)
           call datefix(kdate_r,ktime_r,mtimer_r)
           iyear=int(kdate_r/10000)
           imonth=int((kdate_r-iyear*10000)/100)
@@ -393,7 +393,7 @@ c       c1=0.
         call ncmsg('SST previous',ierr) 
         ierr=nf_get_att_real(ncidx,varid,'add_offset',of)
         if (ierr/=0) of=0.
-        if (unitstr=='C') of=of+273.16
+        if (trim(unitstr)=='C') of=of+273.16
         ierr=nf_get_att_real(ncidx,varid,'scale_factor',sc)
         if (ierr/=0) sc=1.
         ssta_g=sc*ssta_g+of        
@@ -475,17 +475,20 @@ c       extra read from Oct 08
           if (ierr/=0) of=0.
           ierr=nf_get_att_real(ncidx,varid,'scale_factor',sc)
           if (ierr/=0) sc=1.
-          ssta_g=sc*ssta_g+of  
+          ssta_g=sc*ssta_g+of
+          ssta_g=100.*ssta_g  
           call ccmpi_distribute(aice, ssta_g)
           spos(3)=spos(3)+1
           ierr=nf_get_vara_real(ncidx,varid,spos,npos,ssta_g)
           call ncmsg('SICE current',ierr)
-          ssta_g=sc*ssta_g+of       
+          ssta_g=sc*ssta_g+of
+          ssta_g=100.*ssta_g       
           call ccmpi_distribute(bice, ssta_g)
           spos(3)=spos(3)+1
           ierr=nf_get_vara_real(ncidx,varid,spos,npos,ssta_g)
           call ncmsg('SICE next',ierr)        
-          ssta_g=sc*ssta_g+of  
+          ssta_g=sc*ssta_g+of
+          ssta_g=100.*ssta_g  
           call ccmpi_distribute(cice, ssta_g)
           
         else

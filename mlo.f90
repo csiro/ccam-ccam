@@ -1649,7 +1649,7 @@ real, parameter :: density = 1035.
 
 d_rho=density
 
-t = min(max(tt(:,1)-273.16,-2.),100.)
+t = min(max(tt(:,1)-273.16,-2.2),100.)
 s = min(max(ss(:,1),0.),maxsal) ! limit max salinity for equation of state
 t2 = t*t
 t3 = t2*t
@@ -1681,7 +1681,7 @@ drho0ds= (0.824493 - 4.0899e-3*t(:) + 7.6438e-5*t2(:) &
 !do i=1,nits
   ptot=pxtr*1.E-5
   do ii=1,wlx
-    t = min(max(tt(:,ii)-273.16,-2.),100.)
+    t = min(max(tt(:,ii)-273.16,-2.2),100.)
     s = min(max(ss(:,ii),0.),maxsal)
     p1   = ptot+grav*d_rho(:,ii)*0.5*ddz(:,ii)*1.E-5 ! hydrostatic approximation
     ptot = ptot+grav*d_rho(:,ii)*ddz(:,ii)*1.E-5

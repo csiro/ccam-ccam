@@ -41,13 +41,13 @@ c     has jlm nhorx option as last digit of nhor, e.g. -157
  
       real, dimension(ifull+iextra,kl) :: uc, vc, wc, ee, ff, xfact,
      &                                    yfact, t_kh
+      real, dimension(ifull+iextra,kl) :: dudx,dudy,dvdx,dvdy
       real, dimension(ifull) :: ptemp, tx_fact, ty_fact
       real, dimension(ifull) :: sx_fact,sy_fact
       real, dimension(ifull) :: r1,r2
       real, dimension(ifull+iextra,kl) :: ww,uav,vav
       real, dimension(ifull,0:kl-1) :: zgh
       real, dimension(ifull,kl) :: zg
-      real, dimension(ifull,kl) :: dudx,dudy,dvdx,dvdy
       real, dimension(ifull,kl) :: dudz,dvdz
       real, dimension(ifull,kl) :: dwdx,dwdy,dwdz
       integer, parameter :: nf=2
@@ -145,10 +145,10 @@ c     above code independent of k
         call bounds(ww)
 
         do k=1,kl
-          dudx(:,k)=0.5*(uav(ieu,k)-uav(iwu,k))*em(1:ifull)/ds
-          dudy(:,k)=0.5*(uav(inu,k)-uav(isu,k))*em(1:ifull)/ds
-          dvdx(:,k)=0.5*(vav(iev,k)-vav(iwv,k))*em(1:ifull)/ds
-          dvdy(:,k)=0.5*(vav(inv,k)-vav(isv,k))*em(1:ifull)/ds
+          dudx(1:ifull,k)=0.5*(uav(ieu,k)-uav(iwu,k))*em(1:ifull)/ds
+          dudy(1:ifull,k)=0.5*(uav(inu,k)-uav(isu,k))*em(1:ifull)/ds
+          dvdx(1:ifull,k)=0.5*(vav(iev,k)-vav(iwv,k))*em(1:ifull)/ds
+          dvdy(1:ifull,k)=0.5*(vav(inv,k)-vav(isv,k))*em(1:ifull)/ds
           dwdx(:,k)=0.5*(ww(ie,k)-ww(iw,k))*em(1:ifull)/ds
           dwdy(:,k)=0.5*(ww(in,k)-ww(is,k))*em(1:ifull)/ds
         end do
@@ -207,15 +207,26 @@ c     above code independent of k
       select case(nhorjlm)
        case(0)
          ! This is based on 2D Smagorinsky closure
+         call boundsuv(dudx,dvdy,allvec=.true.)
+         call boundsuv(dvdx,dudy,allvec=.true.)
          do k=1,kl
            hdif=dt*hdiff(k) ! N.B.  hdiff(k)=khdif*.1
            do iq=1,ifull
-             cc=(dudx(iq,k)-dvdy(iq,k))**2
-             cc=cc+(dudy(iq,k)+dvdx(iq,k))**2
-             t_kh(iq,k)=sqrt(cc)*hdif/(em(iq)*em(iq))  ! this one with em in D terms
+             !stagu
+             cc=((uav(ieu(iq),k)-uav(iq,k))*emu(iq)/ds
+     &          -0.5*(dvdy(iq,k)+dvdy(iev(iq),k)))**2
+     &         +((vav(iev(iq),k)-vav(iq,k))*emu(iq)/ds
+     &          +0.5*(dudy(iq,k)+dudy(iev(iq),k)))**2
+             xfact(iq,k)=sqrt(cc)*hdif/(emu(iq)*emu(iq))
+             !stagv
+             cc=(0.5*(dudx(iq,k)+dudx(inu(iq),k))
+     &          -(vav(inv(iq),k)-vav(iq,k))*emv(iq)/ds)**2
+     &         +(0.5*(dvdx(iq,k)+dvdx(inu(iq),k))
+     &          -(uav(inu(iq),k)-uav(iq,k))*emv(iq)/ds)**2
+             yfact(iq,k)=sqrt(cc)*hdif/(emv(iq)*emv(iq))
            end do
          end do
-      
+               
        case(1)
 c      jlm deformation scheme using 3D uc, vc, wc
          do k=1,kl
@@ -231,6 +242,13 @@ c      jlm deformation scheme using 3D uc, vc, wc
                t_kh(iq,k)= .5*sqrt(cc)*hdif/em(iq) ! this one without em in D terms
             enddo               !  iq loop
          enddo
+         call bounds(t_kh)
+         do k=1,kl
+            do iq=1,ifull
+               xfact(iq,k) = (t_kh(ie(iq),k)+t_kh(iq,k))*.5
+               yfact(iq,k) = (t_kh(in(iq),k)+t_kh(iq,k))*.5
+            end do
+         end do
 
        case(2)
 c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
@@ -250,6 +268,13 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
                t_kh(iq,k)= .5*sqrt(cc)*hdif/em(iq) ! this one without em in D terms
             enddo               !  iq loop
          enddo
+         call bounds(t_kh)
+         do k=1,kl
+            do iq=1,ifull
+               xfact(iq,k) = (t_kh(ie(iq),k)+t_kh(iq,k))*.5
+               yfact(iq,k) = (t_kh(in(iq),k)+t_kh(iq,k))*.5
+            end do
+         end do
 
        case(3)
          t_kh=0. ! no diffusion (i.e., for pure nvmix.eq.6)
@@ -275,55 +300,67 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
         eps(1:ifull,:)=max(eps(1:ifull,:),mineps)
         hdif=dt*cm0/(ds*ds)
         do k=1,kl
-          t_kh(1:ifull,k)=max(tke(1:ifull,k)*tke(1:ifull,k)
-     &    /eps(1:ifull,k)*hdif,t_kh(1:ifull,k))
+          t_kh(1:ifull,k)=tke(1:ifull,k)*tke(1:ifull,k)
+     &    /eps(1:ifull,k)*hdif
+        end do
+        call bounds(t_kh)
+        do k=1,kl
+          xfact(1:ifull,k)=max(xfact(1:ifull,k),
+     &      (t_kh(ie,k)+t_kh(1:ifull,k))*0.5)
+          yfact(1:ifull,k)=max(yfact(1:ifull,k),
+     &      (t_kh(in,k)+t_kh(1:ifull,k))*0.5)
         end do
         if (nhorx==1) then
           do k=1,kl
-            shear(:,k)=2.*((dudx(:,k)*sx_fact)**2
-     &                    +(dvdy(:,k)*sy_fact)**2+dwdz(:,k)**2)
-     &              +(dudy(:,k)*sy_fact+dvdx(:,k)*sx_fact)**2
+            shear(:,k)=2.*((dudx(1:ifull,k)*sx_fact)**2
+     &                    +(dvdy(1:ifull,k)*sy_fact)**2+dwdz(:,k)**2)
+     &              +(dudy(1:ifull,k)*sy_fact
+     &               +dvdx(1:ifull,k)*sx_fact)**2
      &              +(dudz(:,k)+dwdx(:,k)*sx_fact)**2
      &              +(dvdz(:,k)+dwdy(:,k)*sy_fact)**2
           end do
         else if (nhorx>=7) then
           do k=1,kmax
-            shear(:,k)=2.*((dudx(:,k)*sx_fact)**2
-     &                    +(dvdy(:,k)*sy_fact)**2+dwdz(:,k)**2)
-     &              +(dudy(:,k)*sy_fact+dvdx(:,k)*sx_fact)**2
+            shear(:,k)=2.*((dudx(1:ifull,k)*sx_fact)**2
+     &                    +(dvdy(1:ifull,k)*sy_fact)**2+dwdz(:,k)**2)
+     &              +(dudy(1:ifull,k)*sy_fact
+     &               +dvdx(1:ifull,k)*sx_fact)**2
      &              +(dudz(:,k)+dwdx(:,k)*sx_fact)**2
      &              +(dvdz(:,k)+dwdy(:,k)*sy_fact)**2
           end do
           do k=kmax+1,kl
-            shear(:,k)=2.*(dudx(:,k)**2+dvdy(:,k)**2+dwdz(:,k)**2)
-     &              +(dudy(:,k)+dvdx(:,k))**2
+            shear(:,k)=2.*(dudx(1:ifull,k)**2+dvdy(1:ifull,k)**2
+     &              +dwdz(:,k)**2)
+     &              +(dudy(1:ifull,k)+dvdx(1:ifull,k))**2
      &              +(dudz(:,k)+dwdx(:,k))**2
      &              +(dvdz(:,k)+dwdy(:,k))**2
           end do
         else
           do k=1,kl
-            shear(:,k)=2.*(dudx(:,k)**2+dvdy(:,k)**2+dwdz(:,k)**2)
-     &              +(dudy(:,k)+dvdx(:,k))**2
+            shear(:,k)=2.*(dudx(1:ifull,k)**2+dvdy(1:ifull,k)**2
+     &              +dwdz(:,k)**2)
+     &              +(dudy(1:ifull,k)+dvdx(1:ifull,k))**2
      &              +(dudz(:,k)+dwdx(:,k))**2
      &              +(dvdz(:,k)+dwdy(:,k))**2
           end do
         end if
       end if
 
-      call bounds(t_kh)
-      do k=1,kl
-         do iq=1,ifull
-            xfact(iq,k) = (t_kh(ie(iq),k)+t_kh(iq,k))*.5
-            yfact(iq,k) = (t_kh(in(iq),k)+t_kh(iq,k))*.5
-         enddo
-         !if((nhorx.ge.7.and.k.le.2*kl/3).or.nhorx.eq.1)then
-         if((nhorx>=7.and.k<=kmax).or.nhorx==1)then ! MJT smag
+      if (nhorx==1) then
+         do k=1,kl
             do iq=1,ifull
                xfact(iq,k) = xfact(iq,k)*tx_fact(iq)
                yfact(iq,k) = yfact(iq,k)*ty_fact(iq)
-            enddo               !  iq loop
-         endif                  ! (nhorx.ge.7.and.k.le.2*kl/3).or.nhorx.eq.1
-      end do
+            end do               !  iq loop
+         end do    
+      else if (nhorx>=7) then
+         do k=1,kmax
+            do iq=1,ifull
+               xfact(iq,k) = xfact(iq,k)*tx_fact(iq)
+               yfact(iq,k) = yfact(iq,k)*ty_fact(iq)
+            end do               !  iq loop
+         end do
+      end if
       call boundsuv(xfact,yfact,stag=-9) ! MJT - can use stag=-9 option which will
                                          ! only update iwu and isv values
 
