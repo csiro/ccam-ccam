@@ -3,6 +3,9 @@
       !   nested=0  Initial conditions
       !   nested=1  Nudging fields
       !   nested=2  Surface data recycling
+      
+      ! This version supports the parallel file routines contained
+      ! in infile.f.
        
       subroutine onthefly(nested,kdate_r,ktime_r,
      .                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
@@ -32,7 +35,7 @@
       integer, save :: ncidold=-1
       integer, dimension(nihead) :: nahead
       integer, dimension(ifull) :: isflag
-      integer, dimension(7) :: idum
+      integer, dimension(8) :: idum
       integer kdate_r,ktime_r,nested,ier,ier2,ilen,itype,iaero
       integer idv,mtimer,k,ierx,idvkd,idvkt,idvmt
       real, dimension(nrhead) :: ahead
@@ -50,6 +53,7 @@
      & ocndwn(ifull,2)
       logical ltest,newfile
 
+      call start_log(onthefly_begin)
       !--------------------------------------------------------------
       if ( myid==0 )then
         write(6,*) 'Entering onthefly for nested,ktau = ',
@@ -57,11 +61,6 @@
         ! turn OFF fatal netcdf errors; from here on
         call ncpopt(0)
         if(ncid/=ncidold)then
-          if (ncidold/=-1) then
-            write(6,*) 'Closing old input file'
-            ier = nf_close(ncidold)
-            call ncmsg("Close input",ier)
-          end if
           write(6,*) 'Reading new file metadata'
           iarchi=1
           call ncagt(ncid,ncglobal,'int_header',nahead,ier)
@@ -85,8 +84,6 @@
             idv = ncdid(ncid,'olev',ier)
             if (ier==0) then
               ier = nf_inq_dimlen(ncid,idv,ok)
-            else
-              ok=0
             end if
           end if
           write(6,*) "Found ik,jk,kk,ok ",ik,jk,kk,ok
@@ -138,12 +135,13 @@
         idum(5)=jk
         idum(6)=kk
         idum(7)=ok
+        idum(8)=iarchi
         rdum(1)=rlong0x
         rdum(2)=rlat0x
         rdum(3)=schmidtx
       endif  ! ( myid==0 )
 
-      call MPI_Bcast(idum(1:7),7,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
+      call MPI_Bcast(idum(1:8),8,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
       kdate_r=idum(1)
       ktime_r=idum(2)
       ncid=idum(3)
@@ -151,12 +149,19 @@
       jk=idum(5)
       kk=idum(6)
       ok=idum(7)
+      iarchi=idum(8)
       newfile=ncid/=ncidold
       if (newfile) then
         call MPI_Bcast(rdum(1:3),3,MPI_REAL,0,MPI_COMM_WORLD,ier)
         rlong0x=rdum(1)
         rlat0x=rdum(2)
         schmidtx=rdum(3)
+        if (ncidold/=-1) then
+          if (myid==0) then
+            write(6,*) 'Closing old input file'
+          end if
+          call histclose
+        end if
         ncidold=ncid
       end if
 
@@ -194,10 +199,16 @@
      &                    rlat0x,schmidtx,newfile)
       end if
 
+      call end_log(onthefly_end)
+
       return
       end
       
       ! Read data from netcdf file
+      
+      ! arrays are typically read as global and then distributed to
+      ! processor local arrays.  This allows for more flexibility
+      ! with diagnosed fields.
       subroutine ontheflyx(nested,kdate_r,ktime_r,
      &                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
      &                    tgg,wb,wbice,snowd,qfg,qlg,qrg,
@@ -252,50 +263,46 @@
       integer ik, kk, ok, idv, iaero, isoil, nud_test
       integer dk, ifg ! controls automatic array size
       integer lev,levkk,ier,ierr,igas
-      integer kdate_r, ktime_r, nemi, id2,jd2,idjd2,
-     &        nested, i, j, k, m, iq, ii, jj, np, numneg
-
-c**   xx4 & yy4 only used in indata & here, so no need to redefine after
-c**   onthefly; sometime can get rid of common/bigxy4
-      real, dimension(:), allocatable, save :: sigin,zss_a,ocndep_l
-      real*8 xx4(1+4*dk,1+4*dk),yy4(1+4*dk,1+4*dk)
+      integer kdate_r, ktime_r, nemi, id2,jd2,idjd2
+      integer nested, i, j, k, m, iq, ii, jj, np, numneg
+      integer, dimension(:,:), allocatable, save :: nface4
+      integer, dimension(ifull) :: isflag
+      integer, dimension(:), allocatable, save :: isoilm_a
+      real*8, dimension(1+4*dk,1+4*dk) :: xx4,yy4
       real*8, dimension(dk*dk*6):: z_a,x_a,y_a
-
-!     These are local arrays, not the versions in arrays.h
-!     Use in call to infile, so are dimensioned ifull rather than ifull_g
-      real, dimension(ifull) :: psl,zss,tss,fracice,
-     &                          snowd,sicedep,ssdnn,snage,dum6
-      real, dimension(ifull,2) :: ocndwn
       real, dimension(ifull,wlev,4) :: mlodwn
       real, dimension(ifull,ok,2) :: mloin
+      real, dimension(ifull,2) :: ocndwn
       real, dimension(ifull,ms) :: wb,wbice,tgg
       real, dimension(ifull,3) :: tggsn,smass,ssdn
       real, dimension(ifull,kl) :: t,u,v,qg,qfg,qlg,qrg
       real, dimension(ifull,kl) :: dum
       real, dimension(ifull,kk) :: u_k,v_k
-      integer, dimension(ifull) :: isflag
-      real, dimension(dk*dk*6) :: psl_a,tss_a,fracice_a,
-     &      snowd_a,sicedep_a,pmsl_a,  tss_l_a,tss_s_a
-      real, dimension(dk*dk*6,3) :: tggsn_a
-      real, dimension(dk*dk*6) :: t_a_lev
-      real, parameter :: spval=999. ! missing value flag
-      real, intent(in) ::  rlong0x, rlat0x, schmidtx
-      real rlongd,rlatd
-
-      ! Used in the global interpolation
-      real, dimension(ifg,4) :: xg4, yg4
-      integer, dimension(ifg,4) :: nface4
-      real, dimension(ifg) :: uct_g, vct_g
-      real rotpoles(3,3),rotpole(3,3)
-      real, dimension(dk*dk*6) :: ucc, vcc
+      real, dimension(ifull) :: psl,zss,tss,fracice
+      real, dimension(ifull) :: snowd,sicedep,ssdnn,snage,dum6
       real, dimension(ifull) :: tss_l, tss_s, pmsl
-      real, dimension(dk*dk*6):: axs_a,ays_a,azs_a,bxs_a,bys_a,bzs_a
-      real, dimension(dk*dk*6):: wts_a  ! not used here or defined in call setxyz
-      logical, dimension(dk*dk*6) :: land_a
-      integer, dimension(:), allocatable, save :: isoilm_a
+      real, dimension(:), allocatable, save :: sigin,zss_a,ocndep_l
+      real, dimension(:,:), allocatable, save :: xg4, yg4
+      real, dimension(ifg) :: uct_g, vct_g
+      real, dimension(dk*dk*6,3) :: tggsn_a
+      real, dimension(dk*dk*6) :: psl_a,tss_a,fracice_a
+      real, dimension(dk*dk*6) :: snowd_a,sicedep_a,pmsl_a
+      real, dimension(dk*dk*6) :: tss_l_a,tss_s_a
+      real, dimension(dk*dk*6) :: t_a_lev
+      real, dimension(dk*dk*6) :: ucc, vcc
+      real, dimension(:), allocatable, save :: axs_a,ays_a,azs_a
+      real, dimension(:), allocatable, save :: bxs_a,bys_a,bzs_a
+      real, dimension(dk*dk*6) :: wts_a  ! not used here or defined in call setxyz
+      real, dimension(3,3), save :: rotpoles,rotpole
+      real, intent(in) :: rlong0x, rlat0x, schmidtx
+      real rlongd,rlatd
       character*8 vname
       character*3 trnum
+      logical, dimension(dk*dk*6) :: land_a
       logical iotest,newfile
+
+      real, parameter :: spval=999.  ! missing value flag
+      real, parameter :: iotol=1.E-5 ! tolarance for iotest
 
       ! internal check (should not occur if code is written correctly)
       if (myid==0.and.ik/=dk) then
@@ -311,9 +318,9 @@ c**   onthefly; sometime can get rid of common/bigxy4
       if (nud_p==0.and.nud_t==0.and.nud_q==0) nud_test=0
       
       ! Determine if interpolation is required
-      iotest=6*ik*ik==ifull_g.and.abs(rlong0x-rlong0)<1.E-5.and.
-     &       abs(rlat0x-rlat0)<1.E-5.and.
-     &       abs(schmidtx-schmidt)<1.E-5
+      iotest=6*ik*ik==ifull_g.and.abs(rlong0x-rlong0)<iotol.and.
+     &       abs(rlat0x-rlat0)<iotol.and.
+     &       abs(schmidtx-schmidt)<iotol
       if (iotest) then
         io_in=1   ! no interpolation
       else
@@ -324,16 +331,24 @@ c**   onthefly; sometime can get rid of common/bigxy4
 
       !--------------------------------------------------------------
       ! Determine input grid coordinates and interpolation arrays
-      if ( myid==0 ) then
+      if ( myid==0 .and. newfile ) then
+        if (allocated(nface4)) then
+          deallocate(nface4,xg4,yg4)
+          deallocate(axs_a,ays_a,azs_a)
+          deallocate(bxs_a,bys_a,bzs_a)
+        end if
+        allocate(nface4(ifg,4),xg4(ifg,4),yg4(ifg,4))
+        allocate(axs_a(dk*dk*6),ays_a(dk*dk*6),azs_a(dk*dk*6))
+        allocate(bxs_a(dk*dk*6),bys_a(dk*dk*6),bzs_a(dk*dk*6))
         write(6,*) "Defining input file grid"
         if (ifg/=ifull_g) then
           write(6,*) "ERROR: Internal array allocation error"
           call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
         end if
-        if(m_fly==1)then
+        if (m_fly==1) then
           rlong4(:,1)=rlongg_g(:)*180./pi
           rlat4(:,1)=rlatt_g(:)*180./pi
-        endif
+        end if
 !       N.B. -ve ik in call setxyz preserves TARGET rlat4, rlong4     
 !       following setxyz call is for source data geom    ****   
         do iq=1,ik*ik*6
@@ -400,7 +415,7 @@ c**   onthefly; sometime can get rid of common/bigxy4
      .           ((wb(ii+(jj-1)*il,ms),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
           endif  ! (nested==0)
         endif
-      end if ! (myid==0)
+      end if ! (myid==0.and.newfile)
 
       
       ! special data read for new file
@@ -464,7 +479,7 @@ c**   onthefly; sometime can get rid of common/bigxy4
         end if
       endif
 
-      ! interal errors which should not occur if code is written correctly
+      ! internal errors which should not occur if code is written correctly
       if (.not.allocated(sigin)) then
         write(6,*) "ERROR: sigin is undefined in onthefly"
         call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
@@ -789,6 +804,7 @@ c       incorporate other target land mask effects
       end if ! iotest
       if ( nproc==1 ) write(6,*)'after ints4 sicedep ',sicedep(idjd)
 
+      ! to be depeciated !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       if (nspecial==44.or.nspecial==46) then
        do iq=1,ifull
         rlongd=rlongg(iq)*180./pi
@@ -811,6 +827,7 @@ c       incorporate other target land mask effects
         end if
        end do
       end if
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
       ! read atmospheric fields for nested=0 or nested=1.and.nud/=0
 
@@ -873,9 +890,9 @@ c       incorporate other target land mask effects
       if (nested==0.or.(nested==1.and.nud_q/=0)) then
         do k=1,kk
           call histrd4s(ncid,iarchi,ier,'mixr',ik,6*ik,k,ucc,6*ik*ik)!     mixing ratio
-          if(ier/=0)then                                           !     mixing ratio
+          if(ier/=0)then                                             !     mixing ratio
             call histrd4s(ncid,iarchi,ier,'q',ik,6*ik,k,ucc,6*ik*ik) !     mixing ratio
-          endif  ! (ier/=0)                                        !     mixing ratio
+          endif  ! (ier/=0)                                          !     mixing ratio
           if (myid==0) then
             if (iotest) then
               call ccmpi_distribute(u_k(:,k), ucc)
@@ -1620,27 +1637,71 @@ c       incorporate other target land mask effects
           end do
         end if
         !--------------------------------------------------
+        
+        !--------------------------------------------------
+        ! verify restart file
+        if (nested==0) then
+          if (myid==0) then
+            if (kk==kl.and.iotest) then
+              lrestart=.true.
+              idv = ncvid(ncid,"omega",ier)
+              if (ier/=0) lrestart=.false.
+              idv = ncvid(ncid,"zgnhs",ier)
+              if (ier/=0) lrestart=.false.
+              idv = ncvid(ncid,"sdot",ier)
+              if (ier/=0) lrestart=.false.
+              idv = ncvid(ncid,"pslx",ier)
+              if (ier/=0) lrestart=.false.
+              idv = ncvid(ncid,"savu",ier)
+              if (ier/=0) lrestart=.false.
+              idv = ncvid(ncid,"savv",ier)
+              if (ier/=0) lrestart=.false.
+              idv = ncvid(ncid,"savu1",ier)
+              if (ier/=0) lrestart=.false.
+              idv = ncvid(ncid,"savv1",ier)
+              if (ier/=0) lrestart=.false.
+              idv = ncvid(ncid,"savu2",ier)
+              if (ier/=0) lrestart=.false.
+              idv = ncvid(ncid,"savv2",ier)
+              if (ier/=0) lrestart=.false.
+              if (abs(nmlo)>=3.and.abs(nmlo)<=9) then
+                if (ok==wlev) then
+                  idv = ncvid(ncid,"oldu101",ier)
+                  if (ier/=0) lrestart=.false.
+                  idv = ncvid(ncid,"oldv101",ier)
+                  if (ier/=0) lrestart=.false.
+                  idv = ncvid(ncid,"oldu201",ier)
+                  if (ier/=0) lrestart=.false.
+                  idv = ncvid(ncid,"oldv201",ier)
+                  if (ier/=0) lrestart=.false.
+                  idv = ncvid(ncid,"ipice",ier)
+                  if (ier/=0) lrestart=.false.
+                else
+                  lrestart=.false.
+                end if
+              end if
+            else
+              lrestart=.false.
+            end if
+            i=0
+            if (lrestart) i=1
+          end if
+          call MPI_Bcast(i,1,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
+          lrestart=(i==1)
+        end if
+        !--------------------------------------------------
+        
 
         if (nested==0) then
-          lrestart=.true.
           ! OMEGA !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           ! only for restart - no interpolation
           dpsldt=-999.
-          if (kk==kl.and.iotest) then
+          if (lrestart) then
             do k=1,kk 
-             ucc=-999. ! dummy
-             call histrd4s(ncid,iarchi,ier,'omega',ik,6*ik,k,ucc,
-     &                     6*ik*ik)
-             if (ier/=0) lrestart=.false.
-             if (myid==0) then
-               call ccmpi_distribute(dpsldt(:,k),ucc)
-             else
-               call ccmpi_distribute(dpsldt(:,k))
-             end if
+             call histrd4s(ncid,iarchi,ier,'omega',ik,6*ik,k,
+     &                     dpsldt(:,k),ifull)
              dpsldt(:,k)=dpsldt(:,k)/(1.e5*exp(psl(1:ifull)))
             enddo  ! k loop
-          else
-            lrestart=.false.
           end if
         end if
 
@@ -1905,238 +1966,120 @@ c       incorporate other target land mask effects
           ! GEOPOTENTIAL !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           ! only for restart - no interpolation
           phi_nh=0.
-          if (kk==kl.and.iotest) then
+          if (lrestart) then
             do k=1,kk 
-             ucc=0. ! dummy for gp NHS
-             call histrd4s(ncid,iarchi,ier,'zgnhs',ik,6*ik,k,ucc,
-     &                     6*ik*ik)
-             if (ier/=0) lrestart=.false.
-             if (myid==0) then
-               call ccmpi_distribute(phi_nh(:,k),ucc)
-             else
-               call ccmpi_distribute(phi_nh(:,k))
-             end if
+             call histrd4s(ncid,iarchi,ier,'zgnhs',ik,6*ik,k,
+     &                     phi_nh(:,k),ifull)
             enddo  ! k loop
-          else
-            lrestart=.false.
           end if
 
           ! SDOT !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           ! only for restart - no interpolation
           sdot=-999.
-          if (kk==kl.and.iotest) then
+          if (lrestart) then
             sdot(:,1)=0.
             do k=1,kk 
-             ucc=-999. ! dummy
-             call histrd4s(ncid,iarchi,ier,'sdot',ik,6*ik,k,ucc,
-     &                     6*ik*ik)
-             if (ier/=0) lrestart=.false.
-             if (myid==0) then
-               call ccmpi_distribute(sdot(:,k+1),ucc)
-             else
-               call ccmpi_distribute(sdot(:,k+1))
-             end if
+             call histrd4s(ncid,iarchi,ier,'sdot',ik,6*ik,k,
+     &                     sdot(:,k+1),ifull)
             enddo  ! k loop
-          else
-            lrestart=.false.
           end if
 
           ! PSLX !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           ! only for restart - no interpolation
           pslx=-999.
-          if (kk==kl.and.iotest) then
+          if (lrestart) then
             do k=1,kk 
-             ucc=-999. ! dummy
-             call histrd4s(ncid,iarchi,ier,'pslx',ik,6*ik,k,ucc,
-     &                     6*ik*ik)
-             if (ier/=0) lrestart=.false.
-             if (myid==0) then
-               call ccmpi_distribute(pslx(1:ifull,k),ucc)
-             else
-               call ccmpi_distribute(pslx(1:ifull,k))
-             end if
+             call histrd4s(ncid,iarchi,ier,'pslx',ik,6*ik,k,
+     &                     pslx(1:ifull,k),ifull)
             enddo  ! k loop
-          else
-            lrestart=.false.
           end if
           
           ! SAVU !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           ! only for restart - no interpolation
           savu=-999.
-          if (kk==kl.and.iotest) then
+          if (lrestart) then
             do k=1,kk 
-             ucc=-999. ! dummy
-             call histrd4s(ncid,iarchi,ier,'savu',ik,6*ik,k,ucc,
-     &                     6*ik*ik)
-             if (ier/=0) lrestart=.false.
-             if (myid==0) then
-               call ccmpi_distribute(savu(:,k),ucc)
-             else
-               call ccmpi_distribute(savu(:,k))
-             end if
+             call histrd4s(ncid,iarchi,ier,'savu',ik,6*ik,k,
+     &                     savu(:,k),ifull)
             enddo  ! k loop
-          else
-            lrestart=.false.
           end if
           
           ! SAVV !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           ! only for restart - no interpolation
           savv=-999.
-          if (kk==kl.and.iotest) then
+          if (lrestart) then
             do k=1,kk 
-             ucc=-999. ! dummy
-             call histrd4s(ncid,iarchi,ier,'savv',ik,6*ik,k,ucc,
-     &                     6*ik*ik)
-             if (ier/=0) lrestart=.false.
-             if (myid==0) then
-               call ccmpi_distribute(savv(:,k),ucc)
-             else
-               call ccmpi_distribute(savv(:,k))
-             end if
+             call histrd4s(ncid,iarchi,ier,'savv',ik,6*ik,k,
+     &                     savv(:,k),ifull)
             enddo  ! k loop
-          else
-            lrestart=.false.
           end if
 
           ! SAVU1 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           ! only for restart - no interpolation
           savu1=-999.
-          if (kk==kl.and.iotest) then
+          if (lrestart) then
             do k=1,kk 
-             ucc=-999. ! dummy
-             call histrd4s(ncid,iarchi,ier,'savu1',ik,6*ik,k,ucc,
-     &                     6*ik*ik)
-             if (ier/=0) lrestart=.false.
-             if (myid==0) then
-               call ccmpi_distribute(savu1(:,k),ucc)
-             else
-               call ccmpi_distribute(savu1(:,k))
-             end if
+             call histrd4s(ncid,iarchi,ier,'savu1',ik,6*ik,k,
+     &                     savu1(:,k),ifull)
             enddo  ! k loop
-          else
-            lrestart=.false.
           end if
           
           ! SAVV1 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           ! only for restart - no interpolation
           savv1=-999.
-          if (kk==kl.and.iotest) then
+          if (lrestart) then
             do k=1,kk 
-             ucc=-999. ! dummy
-             call histrd4s(ncid,iarchi,ier,'savv1',ik,6*ik,k,ucc,
-     &                     6*ik*ik)
-             if (ier/=0) lrestart=.false.
-             if (myid==0) then
-               call ccmpi_distribute(savv1(:,k),ucc)
-             else
-               call ccmpi_distribute(savv1(:,k))
-             end if
+             call histrd4s(ncid,iarchi,ier,'savv1',ik,6*ik,k,
+     &                     savv1(:,k),ifull)
             enddo  ! k loop
-          else
-            lrestart=.false.
           end if
 
           ! SAVU2 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           ! only for restart - no interpolation
           savu2=-999.
-          if (kk==kl.and.iotest) then
+          if (lrestart) then
             do k=1,kk 
-             ucc=-999. ! dummy
-             call histrd4s(ncid,iarchi,ier,'savu2',ik,6*ik,k,ucc,
-     &                     6*ik*ik)
-             if (ier/=0) lrestart=.false.
-             if (myid==0) then
-               call ccmpi_distribute(savu2(:,k),ucc)
-             else
-               call ccmpi_distribute(savu2(:,k))
-             end if
+             call histrd4s(ncid,iarchi,ier,'savu2',ik,6*ik,k,
+     &                     savu2(:,k),ifull)
             enddo  ! k loop
-          else
-            lrestart=.false.
           end if
           
           ! SAVV2 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           ! only for restart - no interpolation
           savv2=-999.
-          if (kk==kl.and.iotest) then
+          if (lrestart) then
             do k=1,kk 
-             ucc=-999. ! dummy
-             call histrd4s(ncid,iarchi,ier,'savv2',ik,6*ik,k,ucc,
-     &                     6*ik*ik)
-             if (ier/=0) lrestart=.false.
-             if (myid==0) then
-               call ccmpi_distribute(savv2(:,k),ucc)
-             else
-               call ccmpi_distribute(savv2(:,k))
-             end if
+             call histrd4s(ncid,iarchi,ier,'savv2',ik,6*ik,k,
+     &                     savv2(:,k),ifull)
             enddo  ! k loop
-          else
-            lrestart=.false.
           end if
           
           if (abs(nmlo)>=3.and.abs(nmlo)<=9) then
-           if (ok==wlev.and.iotest) then
+           oldu1=0.
+           oldu2=0.
+           oldv1=0.
+           oldv2=0.
+           ipice=0.
+           if (lrestart) then
             do k=1,ok
-              ucc=0.
               write(vname,'("oldu1",I2.2)') k
               call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
-     &                     ucc,6*ik*ik)
-              if (ier/=0) lrestart=.false.
-              if (myid==0) then
-                call ccmpi_distribute(oldu1(:,k),ucc)
-              else
-                call ccmpi_distribute(oldu1(:,k))
-              end if
-              ucc=0.
+     &                     oldu1(:,k),ifull)
               write(vname,'("oldv1",I2.2)') k
               call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
-     &                     ucc,6*ik*ik)
-              if (ier/=0) lrestart=.false.
-              if (myid==0) then
-                call ccmpi_distribute(oldv1(:,k),ucc)
-              else
-                call ccmpi_distribute(oldv1(:,k))
-              end if
-              ucc=0.
+     &                     oldv1(:,k),ifull)
               write(vname,'("oldu2",I2.2)') k
               call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
-     &                     ucc,6*ik*ik)
-              if (ier/=0) lrestart=.false.
-              if (myid==0) then
-                call ccmpi_distribute(oldu2(:,k),ucc)
-              else
-                call ccmpi_distribute(oldu2(:,k))
-              end if
-              ucc=0.
+     &                     oldu2(:,k),ifull)
               write(vname,'("oldv2",I2.2)') k
               call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
-     &                     ucc,6*ik*ik)
-              if (ier/=0) lrestart=.false.
-              if (myid==0) then
-                call ccmpi_distribute(oldv2(:,k),ucc)
-              else
-                call ccmpi_distribute(oldv2(:,k))
-              end if
+     &                     oldv2(:,k),ifull)
             end do
-            ucc=0.
             call histrd1(ncid,iarchi,ier,'ipice',ik,6*ik,
-     &                   ucc,6*ik*ik)
-            if (ier/=0) lrestart=.false.
-            if (myid==0) then
-              call ccmpi_distribute(ipice,ucc)
-            else
-              call ccmpi_distribute(ipice)
-            end if
-           else
-            lrestart=.false.
+     &                   ipice(1:ifull),ifull)
            end if
           end if
-          
-          dum6(1)=0
-          if (lrestart) dum6(1)=1
-          call MPI_Bcast(dum6(1),1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-          lrestart=(dum6(1)==1)
-          
+       
         end if ! (nested==0)
 
         ! SOIL ICE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

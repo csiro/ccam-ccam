@@ -56,8 +56,9 @@
 
 
       ! The localhist variable controls whether the local file option
-      !  is used at all. In any case it's only used for the outfile.
-      local = localhist .and. itype == 1 ! Only for outfile
+      !  is used. In any case it's only used for the outfile.
+      !local = localhist .and. itype == 1 ! Only for outfile
+      local = localhist
 
       ocdim=0
 
@@ -83,25 +84,33 @@
         idnc=0
        endif ! ( itype==1)then
 
-       write(6,'("outcdf itype,idnc,iarch,cdffile=",3i5," ",a80)')
+       if (myid==0) then
+         write(6,'("outcdf itype,idnc,iarch,cdffile=",3i5," ",a80)')
      &                   itype,idnc,iarch,cdffile
+       end if
 
        ! Open new file
        if(iarch==1)then
-        write(6,*) 'nccre of ',cdffile
+        if (myid==0) then
+          write(6,*) 'nccre of ',cdffile
+        end if
 #ifdef usenc3
         idnc = nccre(cdffile, ncclob, ier)
 #else
         ier=nf_create(cdffile,NF_NETCDF4,idnc)
 #endif
-        write(6,*) 'idnc,ier=',idnc,ier
+        if (myid==0) then
+          write(6,*) 'idnc,ier=',idnc,ier
+        end if
         if (ier/=0) then
           write(6,*) "Error creating outfile"
           call ncmsg("Outcdf",ier)
         end if
         ! Turn off the data filling
         imode = ncsfil(idnc,ncnofill,ier)
-        write(6,*) 'imode=',imode
+        if (myid==0) then
+          write(6,*) 'imode=',imode
+        end if
         ! Create dimensions, lon, runtopo.shlat
         if(local)then
            xdim = ncddef(idnc, 'longitude', il, ier)
@@ -112,12 +121,14 @@
         endif
         zdim= ncddef(idnc, 'lev', kl, ier)
         msdim= ncddef(idnc, 'zsoil', ms, ier)
-        if (abs(nmlo).gt.0..and.abs(nmlo).le.9) then
+        if (abs(nmlo)>0..and.abs(nmlo)<=9) then
           ocdim= ncddef(idnc, 'olev', ol, ier)
         end if
         tdim= ncddef(idnc, 'time',ncunlim,ier)
-        write(6,*) "xdim,ydim,zdim,tdim"
-        write(6,*)  xdim,ydim,zdim,tdim
+        if (myid==0) then
+          write(6,*) "xdim,ydim,zdim,tdim"
+          write(6,*)  xdim,ydim,zdim,tdim
+        end if
 
         ! Define coords.
         ixp = ncvdef(idnc,'longitude',NCFLOAT,1,xdim,ier)
@@ -126,33 +137,47 @@
         iyp = ncvdef(idnc,'latitude',NCFLOAT,1,ydim,ier)
         call ncaptc(idnc,iyp,'point_spacing',NCCHAR,4,'even',ier)
         call ncaptc(idnc,iyp,'units',NCCHAR,13,'degrees_north',ier)
-        write(6,*) 'ixp,iyp=',ixp,iyp
+        if (myid==0) then
+          write(6,*) 'ixp,iyp=',ixp,iyp
+        end if
 
         idlev = ncvdef(idnc,'lev',NCFLOAT,1,zdim,ier)
         call ncaptc(idnc,idlev,'positive',NCCHAR,4,'down',ier)
         call ncaptc(idnc,idlev,'point_spacing',NCCHAR,6,'uneven',ier)
         call ncaptc(idnc,idlev,'units',NCCHAR,11,'sigma_level',ier)
         call ncaptc(idnc,idlev,'long_name',NCCHAR,11,'sigma_level',ier)
-        write(6,*) 'idlev=',idlev
+        if (myid==0) then
+          write(6,*) 'idlev=',idlev
+        end if
 
         idms = ncvdef(idnc,'zsoil',NCFLOAT,1,msdim,ier)
         call ncaptc(idnc,idms,'point_spacing',NCCHAR,6,'uneven',ier)
         call ncaptc(idnc,idms,'units',NCCHAR,1,'m',ier)
-        write(6,*) 'idms=',idms
+        if (myid==0) then
+          write(6,*) 'idms=',idms
+        end if
         
-        if (abs(nmlo).gt.0.and.abs(nmlo).le.9) then
+        if (abs(nmlo)>0.and.abs(nmlo)<=9) then
           idoc = ncvdef(idnc,'olev',NCFLOAT,1,ocdim,ier)
           call ncaptc(idnc,idoc,'point_spacing',NCCHAR,6,'uneven',ier)
           call ncaptc(idnc,idoc,'units',NCCHAR,11,'sigma_level',ier)
-          write(6,*) 'idoc=',idoc
+          if (myid==0) then
+            write(6,*) 'idoc=',idoc
+          end if
         end if
 
-        write(6,*) 'tdim,idnc=',tdim,idnc
+        if (myid==0) then
+          write(6,*) 'tdim,idnc=',tdim,idnc
+        end if
         idnt = ncvdef(idnc,'time',NCFLOAT,1,tdim,ier)
-        write(6,*) 'idnt=',idnt
+        if (myid==0) then
+          write(6,*) 'idnt=',idnt
+        end if
         call ncaptc(idnc,idnt,'point_spacing',NCCHAR,4,'even',ier)
 
-        write(6,*) 'kdate,ktime,ktau=',kdate,ktime,ktau
+        if (myid==0) then
+          write(6,*) 'kdate,ktime,ktau=',kdate,ktime,ktau
+        end if
         icy=kdate/10000
         icm=max(1,min(12,(kdate-icy*10000)/100))
         icd=max(1,min(31,(kdate-icy*10000-icm*100)))
@@ -160,17 +185,23 @@
         ich=ktime/100
         icmi=(ktime-ich*100)
         ics=0
-        write(6,*) icy,icm,icd,ich,icmi,ics
+        if (myid==0) then
+          write(6,*) icy,icm,icd,ich,icmi,ics
+        end if
         write(timorg,'(i2.2,"-",a3,"-",i4.4,3(":",i2.2))')
      &               icd,month(icm),icy,ich,icmi,ics
-        write(6,*) 'timorg=',timorg
+        if (myid==0) then
+          write(6,*) 'timorg=',timorg
+        end if
         call ncaptc(idnc,idnt,'time_origin',NCCHAR,20,timorg,ier)
 
         write(grdtim,'("minutes since ",i4.4,"-",i2.2,"-",i2.2," ",
      &       2(i2.2,":"),i2.2)') icy,icm,icd,ich,icmi,ics
-        write(6,*) 'grdtim=',grdtim
+        if (myid==0) then
+          write(6,*) 'grdtim=',grdtim
+        end if
         call ncaptc(idnc,idnt,'units',NCCHAR,33,grdtim,ier)
-        if (leap.eq.0) then
+        if (leap==0) then
           call ncaptc(idnc,idnt,'calendar',NCCHAR,6,'noleap',ier)
         end if
 
@@ -262,7 +293,9 @@ c       create the attributes of the header record of the file
         ahead(12)=vmodmin
         ahead(13)=av_vmod
         ahead(14)=epsp
-        write(6,*) "ahead=",ahead
+        if (myid==0) then
+          write(6,*) "ahead=",ahead
+        end if
         call ncapt(idnc,ncglobal,'int_header',nclong,nihead,nahead,ier)
         call ncmsg("int_header",ier)
         call ncapt(idnc,ncglobal,'real_header',ncfloat,nrhead,ahead,ier)
@@ -286,7 +319,9 @@ c       create the attributes of the header record of the file
         call ncmsg("ncsnc",ier)
         if(ktau==ntau)then
           call ncclos(idnc,ier)
-          write(6,*) "calling ncclos(idnc,ier) ",idnc,ier
+          if (myid==0) then
+            write(6,*) "calling ncclos(idnc,ier) ",idnc,ier
+          end if
         endif
       endif    ! (myid==0.or.local)
 
@@ -382,27 +417,39 @@ c       create the attributes of the header record of the file
      &        ,'JUL','AUG','SEP','OCT','NOV','DEC'/
 
       if(myid == 0 .or. local)then
-       write(6,*) 'openhist itype,iarch,idnc=',itype,iarch,idnc
+       if (myid==0) then
+        write(6,*) 'openhist itype,iarch,idnc=',itype,iarch,idnc
+       end if
 
 c      if this is the first archive, set up some global attributes
        if(iarch==1) then
-        write(6,*) 'dim=',dim
+        if (myid==0) then
+         write(6,*) 'dim=',dim
+        end if
         idim(1)=dim(1)
         idim(2)=dim(2)
         idim(3)=dim(4)
-        write(6,*) 'idim=',idim
+        if (myid==0) then
+         write(6,*) 'idim=',idim
+        end if
 
 c       Create global attributes
 c       Model run number
-        write(6,*) 'nrun=',nrun
+        if (myid==0) then
+         write(6,*) 'nrun=',nrun
+        end if
         call ncapt(idnc,ncglobal,'nrun',nclong,1,nrun,ier)
-        write(6,*) "nrun ier=",ier
+        if (myid==0) then
+         write(6,*) "nrun ier=",ier
+        end if
 
 c       Experiment description
         expdesc = 'CCAM model run'
         call ncaptc(idnc,ncglobal,'expdesc',ncchar,len_trim(expdesc),
      &              expdesc,ier)
-        write(6,*)"expdesc ier=",ier
+        if (myid==0) then
+         write(6,*)"expdesc ier=",ier
+        end if
 
 c       Model version
         call ncaptc(idnc,ncglobal,'version',ncchar,len_trim(version),
@@ -411,6 +458,8 @@ c       Model version
         if(local)then
            ier = nf_put_att_int(idnc,nf_global,"processor_num",nf_int,
      &                          1,myid)
+           ier = nf_put_att_int(idnc,nf_global,"nproc",nf_int,
+     &                          1,nproc)
 #ifdef uniform_decomp
            ier = nf_put_att_text(idnc,nf_global,"decomp",7,"uniform")
 #else
@@ -419,7 +468,9 @@ c       Model version
         endif           
 
 c       Sigma levels
-        write(6,*) 'sig=',sig
+        if (myid==0) then
+         write(6,*) 'sig=',sig
+        end if
         call ncapt(idnc,ncglobal,'sigma',ncfloat,kl,sig,ier)
 
         lname = 'year-month-day at start of run'
@@ -456,7 +507,9 @@ c       Sigma levels
         call ncaptc(idnc,idv,'positive',ncchar
      &             ,len_trim('down'),'down',ier)
 
-        write(6,*) 'define attributes of variables'
+        if (myid==0) then
+         write(6,*) 'define attributes of variables'
+        end if
 
 c       For time invariant surface fields
         lname = 'Surface geopotential'
@@ -523,8 +576,8 @@ c       For time varying surface fields
         lname = 'Soil temperature lev 6'
         call attrib(idnc,idim,3,'tgg6',lname,'K',100.,425.,0,itype)
  
-        if ((nmlo.lt.0.and.nmlo.ge.-9).or.
-     &      (nmlo.gt.0.and.nmlo.le.9.and.itype==-1)) then
+        if ((nmlo<0.and.nmlo>=-9).or.
+     &      (nmlo>0.and.nmlo<=9.and.itype==-1)) then
           do k=ms+1,wlev
            write(lname,'("soil/ocean temperature lev ",I2)') k
            write(vname,'("tgg",I2.2)') k
@@ -569,7 +622,7 @@ c       For time varying surface fields
           lname = 'Ice salinity'
           call attrib(idnc,idim,3,'icesal',lname,'PSU',0.,130.,0,
      &                itype)
-          if (abs(nmlo).ge.2) then
+          if (abs(nmlo)>=2) then
             lname = 'Surface water'
             call attrib(idnc,idim,3,'swater',lname,'mm',0.,6.5E3,0,
      &                  itype)
@@ -808,7 +861,7 @@ c       For time varying surface fields
         lname = 'Avg mean sea level pressure'
         call attrib(idnc,idim,3,'pmsl_ave',lname,'none',800.,1200.,0,
      &              itype)
-        if (nmlo.ne.0) then
+        if (abs(nmlo)>0.and.abs(nmlo)<=9) then
           lname = 'Avg mixed layer depth'
           call attrib(idnc,idim,3,'mixd_ave',lname,'m',0.,1300.,0,
      &              itype)
@@ -837,7 +890,9 @@ c       For time varying surface fields
         lname = 'y-component wind stress'
         call attrib(idnc,idim,3,'tauy',lname,'N/m2',-50.,50.,0,itype)
         if(nextout>=1) then
-          write(6,*) 'nextout=',nextout
+          if (myid==0) then
+            write(6,*) 'nextout=',nextout
+          end if
           lname = 'LW at TOA'
           call attrib(idnc,idim,3,'rtu_ave',lname,'W/m2',0.,800.,0,
      &                itype)
@@ -880,15 +935,15 @@ c       For time varying surface fields
           lname = 'friction velocity'
           call attrib(idnc,idim,3,'ustar',lname,'m/s',0.,10.,0,itype)
         endif     ! (nextout>=1)
-        if (nextout>=1.or.(nvmix.eq.6.and.itype==-1)) then
+        if (nextout>=1.or.(nvmix==6.and.itype==-1)) then
           lname = 'PBL depth'
           call attrib(idnc,idim,3,'pblh',lname,'m',0.,6500.,0,itype)
         end if
 
         ! CABLE -----------------------------------------------------
-        if (nsib.eq.6.or.nsib.eq.7) then
+        if (nsib==6.or.nsib==7) then
           if (nextout>=1.or.itype==-1) then
-           if (ccycle.eq.0) then
+           if (ccycle==0) then
             lname = 'Carbon leaf pool'
             call attrib(idnc,idim,3,'cplant1',lname,'gC/m2',0.,6500.,
      &                  0,itype)
@@ -1008,7 +1063,7 @@ c       For time varying surface fields
         end if
 
         ! URBAN -----------------------------------------------------
-        if (nurban.le.-1.or.(nurban.ge.1.and.itype==-1)) then
+        if (nurban<=-1.or.(nurban>=1.and.itype==-1)) then
          lname = 'roof temperature lev 1'
          call attrib(idnc,idim,3,'rooftgg1',lname,'K',100.,425.,0,itype)
          lname = 'roof temperature lev 2'
@@ -1084,7 +1139,7 @@ c       For time varying surface fields
         call attrib(idnc,dim,4,'mixr',lname,'kg/kg',0.,.05,0,itype)
         
         ! MICROPHYSICS ----------------------------------------------
-        if(ldr.ne.0)then
+        if(ldr/=0)then
          call attrib(idnc,dim,4,'qfg','Frozen water','kg/kg',0.,.065,
      &               0,itype)
          call attrib(idnc,dim,4,'qlg','Liquid water','kg/kg',0.,.065,
@@ -1132,7 +1187,7 @@ c       For time varying surface fields
         endif  ! (ntrac.gt.0)
 
         ! AEROSOL ---------------------------------------------------
-        if (iaero.le.-2.or.(iaero.ge.2.and.itype==-1)) then  
+        if (iaero<=-2.or.(iaero>=2.and.itype==-1)) then  
           call attrib(idnc,dim,4,'dms','Dimethyl sulfide'
      &              ,'kg/kg',0.,6.5E-7,0,itype)
           call attrib(idnc,dim,4,'so2','Sulfur dioxide'
@@ -1189,7 +1244,7 @@ c       For time varying surface fields
          lname= 'savv2'
          call attrib(idnc,dim,4,'savv2',lname,'m/s',-1.E2,1.E2,0,
      &               itype)
-         if (abs(nmlo).ge.3.and.abs(nmlo).le.9) then
+         if (abs(nmlo)>=3.and.abs(nmlo)<=9) then
            do k=1,wlev
              write(lname,'("oldu1 ",I2)') k
              write(vname,'("oldu1",I2.2)') k
@@ -1249,11 +1304,15 @@ c       For time varying surface fields
          lname = 'Snow flag'
          call attrib(idnc,idim,3,'sflag',lname,'none',0.,4.,0,itype)
         endif  ! (itype==-1)
-
-        write(6,*) 'finished defining attributes'
+        
+        if (myid==0) then
+          write(6,*) 'finished defining attributes'
+        end if
 c       Leave define mode
         call ncendf(idnc,ier)
-        write(6,*) 'leave define mode: ier=',ier
+        if (myid==0) then
+          write(6,*) 'leave define mode: ier=',ier
+        end if
 
         if(local)then
            ! Set these to global indices (relative to panel 0 in uniform decomp)
@@ -1306,8 +1365,10 @@ c       Leave define mode
         call ncvpt1(idnc,idv,1,dt,ier)
        endif ! iarch==1
 !      -----------------------------------------------------------      
-       write(6,*) 'outcdf processing kdate,ktime,ktau,mtimer: ',
-     &                               kdate,ktime,ktau,mtimer
+       if (myid==0) then
+         write(6,*) 'outcdf processing kdate,ktime,ktau,mtimer: ',
+     &                                 kdate,ktime,ktau,mtimer
+       end if
 c      set time to number of minutes since start 
        idv = ncvid(idnc,'time',ier)
        call ncvpt1(idnc,idv,iarch,real(mtimer),ier)
@@ -1324,9 +1385,11 @@ c      set time to number of minutes since start
        call ncvpt1(idnc,idv,iarch,kdate,ier)
        idv = ncvid(idnc,'ktime',ier)
        call ncvpt1(idnc,idv,iarch,ktime,ier)
-       write(6,*) 'kdate,ktime,ktau=',kdate,ktime,ktau
-       write(6,*) 'timer,timeg=',timer,timeg
-       write(6,*) 'now write out variables'
+       if (myid==0) then
+         write(6,*) 'kdate,ktime,ktau=',kdate,ktime,ktau
+         write(6,*) 'timer,timeg=',timer,timeg
+         write(6,*) 'now write out variables'
+       end if
       endif ! myid == 0 .or. local
 
       !**************************************************************
@@ -1348,7 +1411,7 @@ c      set time to number of minutes since start
       ! WRITE 3D VARIABLES (2D + Time)
       !**************************************************************
 
-      if(ktau>0.and.nwt.ne.nperday.and.itype.ne.-1)then
+      if(ktau>0.and.nwt/=nperday.and.itype/=-1)then
 !       scale up precip,precc,sno,runoff to mm/day (soon reset to 0 in globpe)
 !       but, don't scale up for restart file as just done in previous write
 !       ktau in next line in case ntau (& thus ktau) < nwt 
@@ -1936,249 +1999,6 @@ c      "extra" outputs
       end
 
       !--------------------------------------------------------------
-      ! DEFINE ATTRIBUTES
-      subroutine attrib(cdfid,dim,ndim,name,lname,units,xmin,xmax,
-     &                  daily,itype)
-
-      use infile, only : ncmsg ! Input file routines
-
-      implicit none
-
-      include 'netcdf.inc'     ! Netcdf parameters
-
-      integer, intent(in) :: cdfid,itype,ndim
-      integer, intent(in) :: daily
-      integer, dimension(3), intent(in) :: dim
-      integer ier, idv, vtype
-      integer*2, parameter :: minv = -32500
-      integer*2, parameter :: maxv = 32500
-      integer*2, parameter :: missval = -32501
-      real, intent(in) :: xmin,xmax
-      real scalef, addoff
-      character(len=*), intent(in) :: name
-      character(len=*), intent(in) :: lname
-      character(len=*), intent(in) :: units
-      
-      if (itype==1) then
-        vtype = ncshort
-      else
-        vtype = ncfloat
-      end if
-
-      idv = ncvdef(cdfid, name, vtype, ndim, dim, ier)
-      call ncmsg("attrib",ier)
-      call ncaptc(cdfid,idv,'long_name',ncchar,len_trim(lname),lname,
-     &            ier)
-      if(len_trim(units).ne.0)then
-        call ncaptc(cdfid,idv,'units',ncchar,len_trim(units),units,ier)
-      endif
-      if(vtype == ncshort)then
-        call ncapt(cdfid,idv,'valid_min'    ,ncshort,1,minv,ier)
-        call ncapt(cdfid,idv,'valid_max'    ,ncshort,1,maxv,ier)
-        call ncapt(cdfid,idv,'missing_value',ncshort,1,missval,ier)
-        scalef=(xmax-xmin)/(real(maxv)-real(minv))
-        addoff=xmin-scalef*minv
-        call ncapt(cdfid,idv,'add_offset',ncfloat,1,addoff,ier)
-        call ncapt(cdfid,idv,'scale_factor',ncfloat,1,scalef,ier)
-      endif
-      if(vtype == ncfloat)then
-        call ncapt(cdfid,idv,'missing_value',ncfloat,1,nf_fill_float,
-     &             ier)
-      endif
-      call ncaptc(cdfid,idv,'FORTRAN_format',ncchar,5,'G11.4',ier)
-      if(daily>0)then
-        call ncaptc(cdfid,idv,'valid_time',ncchar,5,'daily',ier) 
-      endif
-      
-      return
-      end
-      
-      !--------------------------------------------------------------
-      ! 3D NETCDF WRITE ARRAY ROUTINES
-      subroutine histwrt3(var,sname,idnc,iarch,local,lwrite)
-
-      use cc_mpi              ! CC MPI routines
-
-      implicit none
-
-      include 'newmpar.h'     ! Grid parameters
-      include 'netcdf.inc'    ! Netcdf parameters
-
-      integer, intent(in) :: idnc, iarch
-      real, dimension(ifull), intent(in) :: var
-      real, dimension(ifull,1) :: wvar
-      character(len=*), intent(in) :: sname
-      logical, intent(in) :: local,lwrite
-
-      wvar(:,1)=var
-      if (.not.lwrite) then
-        wvar=nf_fill_float
-      endif
-
-      if (local) then
-        call fw3l(wvar,sname,idnc,iarch,1)
-      elseif (myid==0) then
-        call fw3a(wvar,sname,idnc,iarch,1)
-      else
-        call ccmpi_gather(wvar)
-      endif
-
-      return
-      end subroutine histwrt3
-
-      !--------------------------------------------------------------
-      ! 4D NETCDF WRITE ARRAY ROUTINES
-      subroutine histwrt4(var,sname,idnc,iarch,local,lwrite)
-
-      use cc_mpi              ! CC MPI routines
-
-      implicit none
-
-      include 'newmpar.h'     ! Grid parameters
-      include 'netcdf.inc'    ! Netcdf parameters
-
-      integer, intent(in) :: idnc, iarch
-      real, dimension(ifull,kl), intent(in) :: var
-      real, dimension(ifull,kl) :: wvar
-      character(len=*), intent(in) :: sname
-      logical, intent(in) :: local,lwrite
-
-      if (lwrite) then
-        wvar=var
-      else
-        wvar=nf_fill_float
-      endif
-
-      if (local) then
-        call hw4l(wvar,sname,idnc,iarch)
-      elseif (myid==0) then
-        call hw4a(wvar,sname,idnc,iarch)
-      else
-        call ccmpi_gather(wvar)
-      endif
-
-      return
-      end subroutine histwrt4
-      
-      subroutine hw4l(var,sname,idnc,iarch)
-
-      use infile, only : ncmsg ! Input file routines
-
-      implicit none
-
-      include 'newmpar.h'      ! Grid parameters
-      include 'netcdf.inc'     ! Netcdf parameters
-
-      integer, intent(in) :: idnc, iarch
-      integer mid, vtype, ier
-      integer, dimension(4) :: start, count
-      integer*2, parameter :: minv=-32500
-      integer*2, parameter :: maxv=32500
-      integer*2, parameter :: missval=-32501
-      integer*2, dimension(ifull,kl) :: ipack
-      real, dimension(ifull,kl), intent(in) :: var
-      real addoff, scale_f, pvar
-      character(len=*), intent(in) :: sname
-
-      start = (/ 1, 1, 1, iarch /)
-      count = (/ il, jl, kl, 1 /)
-      mid = ncvid(idnc,sname,ier)
-!     Check variable type
-      ier = nf_inq_vartype(idnc, mid, vtype)
-      if(vtype == ncshort)then
-       if(all(var.gt.9.8e36))then
-        ipack=missval
-       else
-        call ncagt(idnc,mid,'add_offset',addoff,ier)
-        call ncagt(idnc,mid,'scale_factor',scale_f,ier)
-        ipack=nint((var-addoff)/scale_f)
-        ipack=max(min(ipack,maxv),minv)
-       endif
-       call ncvpt(idnc, mid, start, count, ipack, ier)
-      else
-       call ncvpt(idnc, mid, start, count, var, ier)
-      endif
-      call ncmsg("histwrt4",ier)
-
-      return
-      end subroutine hw4l      
-
-      subroutine hw4a(var,sname,idnc,iarch)
-
-      use cc_mpi              ! CC MPI routines
-      use infile, only : ncmsg ! Input file routines
-
-      implicit none
-
-      include 'newmpar.h'     ! Grid parameters
-      include 'netcdf.inc'    ! Netcdf parameters
-      include 'parm.h'        ! Model configuration
-
-      integer, intent(in) :: idnc, iarch
-      integer mid, vtype, ier, iq
-      integer imx, jmx, kmx
-      integer, dimension(4) :: start, count
-      integer, dimension(2) :: max_result
-      integer*2, parameter :: minv=-32500
-      integer*2, parameter :: maxv=32500
-      integer*2, parameter :: missval=-32501
-      integer*2, dimension(ifull_g,kl) :: ipack
-      real addoff, scale_f, pvar, varn, varx
-      real, dimension(ifull,kl), intent(in) :: var
-      real, dimension(ifull_g,kl) :: globvar
-      character(len=*), intent(in) :: sname
-      
-      call ccmpi_gather(var, globvar)
-      start(1) = 1
-      start(2) = 1
-      start(3) = 1
-      start(4) = iarch
-      count(1) = il_g
-      count(2) = jl_g
-      count(3) = kl
-      count(4) = 1
-
-c     find variable index
-      mid = ncvid(idnc,sname,ier)
-!     Check variable type
-      ier = nf_inq_vartype(idnc, mid, vtype)
-      if(vtype == ncshort)then
-       if(all(globvar.gt.9.8e36))then
-        ipack=missval
-       else
-        call ncagt(idnc,mid,'add_offset',addoff,ier)
-        call ncagt(idnc,mid,'scale_factor',scale_f,ier)
-        ipack=nint((globvar-addoff)/scale_f)
-        ipack=max(min(ipack,maxv),minv)
-       endif
-       call ncvpt(idnc, mid, start, count, ipack, ier)
-      else
-       call ncvpt(idnc, mid, start, count, globvar, ier)
-      endif
-      call ncmsg("histwrt4",ier)
-
-      if(mod(ktau,nmaxpr)==0)then
-       if (any(globvar.eq.nf_fill_float)) then
-         write(6,'("histwrt4 ",a7,i4,a7)')
-     &              sname,iarch,"missing"
-       else
-         varn = minval(globvar)
-         varx = maxval(globvar)
-         max_result = maxloc(globvar)
-         kmx = max_result(2)
-         iq = max_result(1)
-         ! Convert this 1D index to 2D
-         imx = 1 + modulo(iq-1,il_g)
-         jmx = 1 + (iq-1)/il_g
-         write(6,'("histwrt4 ",a7,i4,2f12.4,3i4,f12.4)')
-     &     sname,iarch,varn,varx,imx,jmx,kmx,globvar(id+(jd-1)*il_g,nlv)
-       end if
-      endif
-
-      return
-      end subroutine hw4a      
-
-      !--------------------------------------------------------------
       ! HIGH FREQUENCY OUTPUT FILES
       subroutine freqfile
 
@@ -2381,15 +2201,31 @@ c     find variable index
           ierr=nf_put_att_int(fncid,nf_global,'int_header',nf_int,
      &                        nihead,nahead)
           call ncmsg('HFREQ int_header',ierr)
+          if(localhist)then
+            ierr=nf_put_att_int(fncid,nf_global,"processor_num",nf_int,
+     &                          1,myid)
+            ierr=nf_put_att_int(fncid,nf_global,"nproc",nf_int,
+     &                          1,nproc)
+#ifdef uniform_decomp
+            ierr=nf_put_att_text(fncid,nf_global,"decomp",7,"uniform")
+#else
+            ierr=nf_put_att_text(fncid,nf_global,"decomp",4,"face")
+#endif
+          endif 
           ! define variables
           lname='x-component 10m wind'
-          call freqdefvar(fncid,'uas',lname,'m/s',adim,130.,-130.)
+          call attrib(fncid,adim,3,'uas',lname,'m/s',-130.,130.,
+     &                .false.,1)
           lname='y-component 10m wind'     
-          call freqdefvar(fncid,'vas',lname,'m/s',adim,130.,-130.)
+          call attrib(fncid,adim,3,'vas',lname,'m/s',-130.,130.,
+     &                .false.,1)
           lname='Screen temperature'     
-          call freqdefvar(fncid,'tscrn',lname,'K',adim,425.,100.)
+          call attrib(fncid,adim,3,'tscrn',lname,'m/s',100.,425.,
+     &                .false.,1)
           lname='Precipitation'
-          call freqdefvar(fncid,'rnd',lname,'mm/day',adim,1300.,0.)
+          call attrib(fncid,adim,3,'rnd',lname,'mm/day',0.,1300.,
+     &                .false.,1)
+
           ! end definition mode
           ierr=nf_enddef(fncid)
           call ncmsg('HFREQ enddef',ierr)
@@ -2479,6 +2315,97 @@ c     find variable index
       return
       end subroutine freqfile
       
+      !--------------------------------------------------------------
+      ! DEFINE ATTRIBUTES
+      subroutine attrib(cdfid,dim,ndim,name,lname,units,xmin,xmax,
+     &                  daily,itype)
+
+      use infile, only : ncmsg ! Input file routines
+
+      implicit none
+
+      include 'netcdf.inc'     ! Netcdf parameters
+
+      integer, intent(in) :: cdfid,itype,ndim
+      integer, intent(in) :: daily
+      integer, dimension(3), intent(in) :: dim
+      integer ier, idv, vtype
+      integer*2, parameter :: minv = -32500
+      integer*2, parameter :: maxv = 32500
+      integer*2, parameter :: missval = -32501
+      real, intent(in) :: xmin,xmax
+      real scalef, addoff
+      character(len=*), intent(in) :: name
+      character(len=*), intent(in) :: lname
+      character(len=*), intent(in) :: units
+      
+      if (itype==1) then
+        vtype = ncshort
+      else
+        vtype = ncfloat
+      end if
+
+      idv = ncvdef(cdfid, name, vtype, ndim, dim, ier)
+      call ncmsg("attrib",ier)
+      call ncaptc(cdfid,idv,'long_name',ncchar,len_trim(lname),lname,
+     &            ier)
+      if(len_trim(units).ne.0)then
+        call ncaptc(cdfid,idv,'units',ncchar,len_trim(units),units,ier)
+      endif
+      if(vtype == ncshort)then
+        call ncapt(cdfid,idv,'valid_min'    ,ncshort,1,minv,ier)
+        call ncapt(cdfid,idv,'valid_max'    ,ncshort,1,maxv,ier)
+        call ncapt(cdfid,idv,'missing_value',ncshort,1,missval,ier)
+        scalef=(xmax-xmin)/(real(maxv)-real(minv))
+        addoff=xmin-scalef*minv
+        call ncapt(cdfid,idv,'add_offset',ncfloat,1,addoff,ier)
+        call ncapt(cdfid,idv,'scale_factor',ncfloat,1,scalef,ier)
+      endif
+      if(vtype == ncfloat)then
+        call ncapt(cdfid,idv,'missing_value',ncfloat,1,nf_fill_float,
+     &             ier)
+      endif
+      call ncaptc(cdfid,idv,'FORTRAN_format',ncchar,5,'G11.4',ier)
+      if(daily>0)then
+        call ncaptc(cdfid,idv,'valid_time',ncchar,5,'daily',ier) 
+      endif
+      
+      return
+      end
+
+      !--------------------------------------------------------------
+      ! 3D NETCDF WRITE ARRAY ROUTINES
+      subroutine histwrt3(var,sname,idnc,iarch,local,lwrite)
+
+      use cc_mpi              ! CC MPI routines
+
+      implicit none
+
+      include 'newmpar.h'     ! Grid parameters
+      include 'netcdf.inc'    ! Netcdf parameters
+
+      integer, intent(in) :: idnc, iarch
+      real, dimension(ifull), intent(in) :: var
+      real, dimension(ifull,1) :: wvar
+      character(len=*), intent(in) :: sname
+      logical, intent(in) :: local,lwrite
+
+      wvar(:,1)=var
+      if (.not.lwrite) then
+        wvar=nf_fill_float
+      endif
+
+      if (local) then
+        call fw3l(wvar,sname,idnc,iarch,1)
+      elseif (myid==0) then
+        call fw3a(wvar,sname,idnc,iarch,1)
+      else
+        call ccmpi_gather(wvar)
+      endif
+
+      return
+      end subroutine histwrt3
+
       subroutine freqwrite(fncid,cname,fiarch,istep,local,datain)
 
       use cc_mpi               ! CC MPI routines
@@ -2511,6 +2438,7 @@ c     find variable index
       
       include 'newmpar.h'      ! Grid parameters
       include 'netcdf.inc'     ! Netcdf parameters
+      include 'parm.h'         ! Model configuration
       
       integer, intent(in) :: idnc,iarch,istep
       integer mid, vtype, ier
@@ -2534,14 +2462,26 @@ c     find variable index
        else
         ier=nf_get_att_real(idnc,mid,'add_offset',addoff)
         ier=nf_get_att_real(idnc,mid,'scale_factor',scale_f)
-        ipack=nint((var-addoff)/scale_f)
-        ipack=max(min(ipack,maxv),minv)
+        ipack=max(min(nint((var-addoff)/scale_f),maxv),minv)
        end if
        ier=nf_put_vara_int2(idnc,mid,start,ncount,ipack)
       else
        ier=nf_put_vara_real(idnc,mid,start,ncount,var)
       endif
-      call ncmsg("histwrt3",ier)
+      if (ier/=0) then
+        write(6,*) "ERROR: Cannot write ",sname
+        call ncmsg("histwrt3",ier)
+      end if
+
+      if(mod(ktau,nmaxpr)==0)then
+       if (any(var==nf_fill_float)) then
+         write(6,'("histwrt3 ",a7,i4,a7)')
+     &              sname,iarch,"missing"
+       else
+         write(6,'("histwrt3 ",a7,i4)')
+     &             sname,iarch
+        end if
+      endif
 
       return
       end subroutine fw3l
@@ -2591,14 +2531,16 @@ c     find variable index
        else
         ier=nf_get_att_real(idnc,mid,'add_offset',addoff)
         ier=nf_get_att_real(idnc,mid,'scale_factor',scale_f)
-        ipack=nint((globvar-addoff)/scale_f)
-        ipack=max(min(ipack,maxv),minv)
+        ipack=max(min(nint((globvar-addoff)/scale_f),maxv),minv)
        endif
        ier=nf_put_vara_int2(idnc,mid,start,ncount,ipack)
       else
        ier=nf_put_vara_real(idnc,mid,start,ncount,globvar)
       endif
-      call ncmsg("histwrt3",ier)
+      if (ier/=0) then
+        write(6,*) "ERROR: Cannot write ",sname
+        call ncmsg("histwrt3",ier)
+      end if
 
       if(mod(ktau,nmaxpr)==0)then
        if (any(globvar.eq.nf_fill_float)) then
@@ -2626,46 +2568,169 @@ c     find variable index
       return
       end subroutine fw3a
 
-      subroutine freqdefvar(fncid,vname,lname,uname,adim,xmax,xmin)
-      
-      use infile, only : ncmsg              ! Input file routines
-      
+      !--------------------------------------------------------------
+      ! 4D NETCDF WRITE ARRAY ROUTINES
+      subroutine histwrt4(var,sname,idnc,iarch,local,lwrite)
+
+      use cc_mpi              ! CC MPI routines
+
       implicit none
-      
-      include 'netcdf.inc'
-      
-      integer*2, parameter :: minv = -32500
-      integer*2, parameter :: maxv = 32500
-      integer*2, parameter :: missval = -32501
-      integer, dimension(3), intent(in) :: adim
-      integer, intent(in) :: fncid
-      integer ierr,vid
-      real, intent(in) :: xmax,xmin
-      real scalef,addoff
-      character(len=*), intent(in) :: vname
-      character(len=*), intent(in) :: lname
-      character(len=*), intent(in) :: uname
-      
-      ierr=nf_def_var(fncid,vname,nf_short,3,adim,vid)
-      call ncmsg('HFREQ defvar',ierr)
-      ierr=nf_put_att_text(fncid,vid,'long_name',len_trim(lname),lname)
-      call ncmsg('HFREQ defvar',ierr)
-      ierr=nf_put_att_text(fncid,vid,'units',len_trim(uname),uname)
-      call ncmsg('HFREQ defvar',ierr)
-      ierr=nf_put_att_int2(fncid,vid,'valid_min',nf_int2,1,minv)
-      call ncmsg('HFREQ defvar',ierr)
-      ierr=nf_put_att_int2(fncid,vid,'valid_max',nf_int2,1,minv)
-      call ncmsg('HFREQ defvar',ierr)
-      ierr=nf_put_att_int2(fncid,vid,'missing_value',nf_int2,1,missval)
-      call ncmsg('HFREQ defvar',ierr)
-      scalef=(xmax-xmin)/(real(maxv)-real(minv))
-      addoff=xmin-scalef*minv
-      ierr=nf_put_att_real(fncid,vid,'add_offset',nf_float,1,addoff)
-      call ncmsg('HFREQ defvar',ierr)
-      ierr=nf_put_att_real(fncid,vid,'scale_factor',nf_float,1,scalef)
-      call ncmsg('HFREQ defvar',ierr)      
-      ierr=nf_put_att_text(fncid,vid,'FORTRAN_format',5,'G11.4')
-      call ncmsg('HFREQ defvar',ierr)
-      
+
+      include 'newmpar.h'     ! Grid parameters
+      include 'netcdf.inc'    ! Netcdf parameters
+
+      integer, intent(in) :: idnc, iarch
+      real, dimension(ifull,kl), intent(in) :: var
+      real, dimension(ifull,kl) :: wvar
+      character(len=*), intent(in) :: sname
+      logical, intent(in) :: local,lwrite
+
+      if (lwrite) then
+        wvar=var
+      else
+        wvar=nf_fill_float
+      endif
+
+      if (local) then
+        call hw4l(wvar,sname,idnc,iarch)
+      elseif (myid==0) then
+        call hw4a(wvar,sname,idnc,iarch)
+      else
+        call ccmpi_gather(wvar)
+      endif
+
       return
-      end subroutine freqdefvar
+      end subroutine histwrt4
+      
+      subroutine hw4l(var,sname,idnc,iarch)
+
+      use infile, only : ncmsg ! Input file routines
+
+      implicit none
+
+      include 'newmpar.h'      ! Grid parameters
+      include 'netcdf.inc'     ! Netcdf parameters
+      include 'parm.h'         ! Model configuration
+
+      integer, intent(in) :: idnc, iarch
+      integer mid, vtype, ier
+      integer, dimension(4) :: start, count
+      integer*2, parameter :: minv=-32500
+      integer*2, parameter :: maxv=32500
+      integer*2, parameter :: missval=-32501
+      integer*2, dimension(ifull,kl) :: ipack
+      real, dimension(ifull,kl), intent(in) :: var
+      real addoff, scale_f, pvar
+      character(len=*), intent(in) :: sname
+
+      start = (/ 1, 1, 1, iarch /)
+      count = (/ il, jl, kl, 1 /)
+      mid = ncvid(idnc,sname,ier)
+!     Check variable type
+      ier = nf_inq_vartype(idnc, mid, vtype)
+      if(vtype == ncshort)then
+       if(all(var>9.8e36))then
+        ipack=missval
+       else
+        call ncagt(idnc,mid,'add_offset',addoff,ier)
+        call ncagt(idnc,mid,'scale_factor',scale_f,ier)
+        ipack=max(min(nint((var-addoff)/scale_f),maxv),minv)
+       endif
+       call ncvpt(idnc, mid, start, count, ipack, ier)
+      else
+       call ncvpt(idnc, mid, start, count, var, ier)
+      endif
+      if (ier/=0) then
+        write(6,*) "ERROR: Cannot write ",sname
+        call ncmsg("histwrt4",ier)
+      end if
+
+      if(mod(ktau,nmaxpr)==0)then
+       if (any(var==nf_fill_float)) then
+         write(6,'("histwrt4 ",a7,i4,a7)')
+     &              sname,iarch,"missing"
+       else
+         write(6,'("histwrt4 ",a7,i4)')
+     &     sname,iarch
+       end if
+      endif
+
+      return
+      end subroutine hw4l      
+
+      subroutine hw4a(var,sname,idnc,iarch)
+
+      use cc_mpi              ! CC MPI routines
+      use infile, only : ncmsg ! Input file routines
+
+      implicit none
+
+      include 'newmpar.h'     ! Grid parameters
+      include 'netcdf.inc'    ! Netcdf parameters
+      include 'parm.h'        ! Model configuration
+
+      integer, intent(in) :: idnc, iarch
+      integer mid, vtype, ier, iq
+      integer imx, jmx, kmx
+      integer, dimension(4) :: start, count
+      integer, dimension(2) :: max_result
+      integer*2, parameter :: minv=-32500
+      integer*2, parameter :: maxv=32500
+      integer*2, parameter :: missval=-32501
+      integer*2, dimension(ifull_g,kl) :: ipack
+      real addoff, scale_f, pvar, varn, varx
+      real, dimension(ifull,kl), intent(in) :: var
+      real, dimension(ifull_g,kl) :: globvar
+      character(len=*), intent(in) :: sname
+      
+      call ccmpi_gather(var, globvar)
+      start(1) = 1
+      start(2) = 1
+      start(3) = 1
+      start(4) = iarch
+      count(1) = il_g
+      count(2) = jl_g
+      count(3) = kl
+      count(4) = 1
+
+c     find variable index
+      mid = ncvid(idnc,sname,ier)
+!     Check variable type
+      ier = nf_inq_vartype(idnc, mid, vtype)
+      if(vtype == ncshort)then
+       if(all(globvar>9.8e36))then
+        ipack=missval
+       else
+        call ncagt(idnc,mid,'add_offset',addoff,ier)
+        call ncagt(idnc,mid,'scale_factor',scale_f,ier)
+        ipack=max(min(nint((globvar-addoff)/scale_f),maxv),minv)
+       endif
+       call ncvpt(idnc, mid, start, count, ipack, ier)
+      else
+       call ncvpt(idnc, mid, start, count, globvar, ier)
+      endif
+      if (ier/=0) then
+        write(6,*) "ERROR: Cannot write ",sname
+        call ncmsg("histwrt4",ier)
+      end if
+
+      if(mod(ktau,nmaxpr)==0)then
+       if (any(globvar==nf_fill_float)) then
+         write(6,'("histwrt4 ",a7,i4,a7)')
+     &              sname,iarch,"missing"
+       else
+         varn = minval(globvar)
+         varx = maxval(globvar)
+         max_result = maxloc(globvar)
+         kmx = max_result(2)
+         iq = max_result(1)
+         ! Convert this 1D index to 2D
+         imx = 1 + modulo(iq-1,il_g)
+         jmx = 1 + (iq-1)/il_g
+         write(6,'("histwrt4 ",a7,i4,2f12.4,3i4,f12.4)')
+     &     sname,iarch,varn,varx,imx,jmx,kmx,globvar(id+(jd-1)*il_g,nlv)
+       end if
+      endif
+
+      return
+      end subroutine hw4a      

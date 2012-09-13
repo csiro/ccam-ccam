@@ -387,6 +387,7 @@ c       c1=0.
         npos(3)=1
         ierr=nf_inq_varid(ncidx,'tos',varid)
         call ncmsg('tos',ierr) 
+        unitstr=''
         ierr=nf_get_att_text(ncidx,varid,'units',unitstr)
         call ncmsg('tos units',ierr)
         ierr=nf_get_vara_real(ncidx,varid,spos,npos,ssta_g)

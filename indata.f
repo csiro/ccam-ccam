@@ -14,6 +14,7 @@
       use extraout_m                           ! Additional diagnostics
       use gdrag_m                              ! Gravity wave drag
       use indices_m                            ! Grid index arrays
+      use infile                               ! Input file routines
       use latlong_m                            ! Lat/lon coordinates
       use liqwpar_m                            ! Cloud water mixing ratios
       use map_m                                ! Grid map arrays
@@ -441,7 +442,6 @@
       !**************************************************************
       !**************************************************************
 
-
       !--------------------------------------------------------------
       ! LAND SURFACE ERROR CHECKING
       if(nsib>=1)then   !  check here for soil & veg mismatches
@@ -557,7 +557,6 @@
       enddo   ! iq loop
       ipsice=indexi
       if (mydiag) write(6,*)'ipland,ipsea: ',ipland,ipsea
-
 
       !-----------------------------------------------------------------
       ! READ INITIAL CONDITIONS FROM IFILE (io_in)
@@ -1091,7 +1090,7 @@
       ! Soil recycling input
       if(nrungcm<=-3.and.nrungcm>=-5)then
        call ncpopt(0)
-       ncid = ncopn(surf_00,0,ier )
+       call histopen(ncid,surf_00)
        if (ier==0) then
         ! clobber ifile surface data with surfin surface data
         kdate_s=kdate_sav

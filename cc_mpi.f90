@@ -4,11 +4,11 @@ module cc_mpi
    include 'newmpar.h'
    include 'mpif.h'
 
-   integer, public :: myid ! Processor number
-   integer, public :: ipan, jpan
-   integer, dimension(0:npanels), public :: ioff, joff ! these can change on different panels
-   integer, public :: noff
-   integer, private :: nxproc, nyproc
+   integer, save, public :: myid ! Processor number
+   integer, save, public :: ipan, jpan
+   integer, save, dimension(0:npanels), public :: ioff, joff ! these can change on different panels
+   integer, save, public :: noff
+   integer, save, private :: nxproc, nyproc
 
    integer, public, allocatable, save, dimension(:,:,:) :: fproc
    integer, public, allocatable, save, dimension(:) :: qproc
@@ -24,7 +24,8 @@ module cc_mpi
              ccmpi_distributer8,  &
              indp, indg, deptsync, intssync, start_log, end_log,            &
              log_on, log_off, log_setup, phys_loadbal, ccglobal_posneg,     &
-             ccglobal_sum, iq2iqg, indv_mpi, indglobal, readglobvar, writeglobvar
+             ccglobal_sum, iq2iqg, indv_mpi, indglobal, readglobvar,        &
+             writeglobvar, face_set, uniform_set
    public :: dpoints_t,dindex_t,sextra_t
    private :: ccmpi_distribute2, ccmpi_distribute2i, ccmpi_distribute3,        &
               ccmpi_distribute2r8, ccmpi_gather2, ccmpi_gather3, checksize,    &
@@ -91,21 +92,20 @@ module cc_mpi
    end type bounds_info
    
    type dpoints_t
-     real, dimension(:,:), allocatable :: a
-     real, dimension(:), allocatable :: b
+      real, dimension(:,:), allocatable :: a
+      real, dimension(:), allocatable :: b
    end type dpoints_t
    type dindex_t
-     integer, dimension(:,:), allocatable :: a
+      integer, dimension(:,:), allocatable :: a
    end type dindex_t
    type sextra_t
-     real, dimension(:), allocatable :: a
+      real, dimension(:), allocatable :: a
    end type sextra_t
 
-   ! MJT - variables to speed up stag and diffusion calls
    type boundsplit
-     integer :: isubg, ievfn
-     integer :: isvbg, iwufn, invbg, ieufn
-     integer :: issvbg, iwwufn, innvbg, ieeufn
+      integer :: isubg, ievfn
+      integer :: isvbg, iwufn, invbg, ieufn
+      integer :: issvbg, iwwufn, innvbg, ieeufn
    end type boundsplit
 
    type(bounds_info), allocatable, dimension(:), save :: bnds
@@ -148,6 +148,7 @@ module cc_mpi
    integer, public, save :: physloadbal_begin, physloadbal_end
    integer, public, save :: phys_begin, phys_end
    integer, public, save :: outfile_begin, outfile_end
+   integer, public, save :: onthefly_begin, onthefly_end
    integer, public, save :: indata_begin, indata_end
    integer, public, save :: gwdrag_begin, gwdrag_end
    integer, public, save :: convection_begin, convection_end
@@ -174,7 +175,7 @@ module cc_mpi
    integer, public, save :: mpiwait_begin, mpiwait_end
 #ifdef simple_timer
    public :: simple_timer_finalize
-   integer, parameter :: nevents=41
+   integer, parameter :: nevents=42
    double precision, dimension(nevents), save :: tot_time = 0., start_time
    character(len=15), dimension(nevents), save :: event_name
 #endif 
@@ -358,10 +359,10 @@ contains
             slen = 0
 #ifdef uniform_decomp
             do n=1,npan
-              ! Panel range on the source processor
-              call proc_region(iproc,n-1,ipoff,jpoff,npoff)
+               ! Panel range on the source processor
+               call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,1)
 #else
-            call proc_region(iproc,0,ipoff,jpoff,npoff)
+            call proc_region(iproc,0,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,0)
             do n=1,npan
 #endif
                do j=1,jpan
@@ -425,10 +426,10 @@ contains
             slen = 0
 #ifdef uniform_decomp
             do n=1,npan
-              ! Panel range on the source processor
-              call proc_region(iproc,n-1,ipoff,jpoff,npoff)
+               ! Panel range on the source processor
+               call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,1)
 #else
-            call proc_region(iproc,0,ipoff,jpoff,npoff)
+            call proc_region(iproc,0,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,0)
             do n=1,npan
 #endif
                do j=1,jpan
@@ -492,10 +493,10 @@ contains
             slen = 0
 #ifdef uniform_decomp
             do n=1,npan
-              ! Panel range on the source processor
-              call proc_region(iproc,n-1,ipoff,jpoff,npoff)
+               ! Panel range on the source processor
+               call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,1)
 #else
-            call proc_region(iproc,0,ipoff,jpoff,npoff)
+            call proc_region(iproc,0,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,0)
             do n=1,npan
 #endif
                do j=1,jpan
@@ -564,10 +565,10 @@ contains
             slen = 0
 #ifdef uniform_decomp
             do n=1,npan
-              ! Panel range on the source processor
-              call proc_region(iproc,n-1,ipoff,jpoff,npoff)
+               ! Panel range on the source processor
+               call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,1)
 #else
-            call proc_region(iproc,0,ipoff,jpoff,npoff)
+            call proc_region(iproc,0,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,0)
             do n=1,npan
 #endif
                do j=1,jpan
@@ -632,13 +633,13 @@ contains
                         MPI_COMM_WORLD, status, ierr )
 #ifdef uniform_decomp
             do n=1,npan
-              ! Panel range on the source processor
-              call proc_region(iproc,n-1,ipoff,jpoff,npoff)
+               ! Panel range on the source processor
+               call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,1)
 #else
-            call proc_region(iproc,0,ipoff,jpoff,npoff)
+            call proc_region(iproc,0,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,0)
             do n=1,npan
 #endif
-              ! Use the face indices for unpacking
+               ! Use the face indices for unpacking
                do j=1,jpan
 !cdir nodep
                   do i=1,ipan
@@ -697,10 +698,10 @@ contains
                         MPI_COMM_WORLD, status, ierr )
 #ifdef uniform_decomp
             do n=1,npan
-              ! Panel range on the source processor
-              call proc_region(iproc,n-1,ipoff,jpoff,npoff)
+               ! Panel range on the source processor
+               call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,1)
 #else
-            call proc_region(iproc,0,ipoff,jpoff,npoff)
+            call proc_region(iproc,0,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,0)
             do n=1,npan
 #endif
               ! Use the face indices for unpacking
@@ -3228,11 +3229,11 @@ contains
          ! Not allocated yet.
          len = maxbuflen
          if (rproc /= myid) then
-           allocate ( bnds(rproc)%rbuf(len) )
-           allocate ( bnds(rproc)%sbuf(len) )
-           allocate ( bnds(rproc)%request_list(len) )
-           allocate ( bnds(rproc)%send_list(len) )
-           allocate ( bnds(rproc)%unpack_list(len) )
+            allocate ( bnds(rproc)%rbuf(len) )
+            allocate ( bnds(rproc)%sbuf(len) )
+            allocate ( bnds(rproc)%request_list(len) )
+            allocate ( bnds(rproc)%send_list(len) )
+            allocate ( bnds(rproc)%unpack_list(len) )
          end if
          allocate ( bnds(rproc)%request_list_uv(len) )
          allocate ( bnds(rproc)%send_list_uv(len) )
@@ -3310,62 +3311,18 @@ contains
       include 'parm.h'
 !     Routine to set up offsets etc.
       integer, intent(in) :: npanels, ifull
-      integer :: i, j, n, ierr,ierr2, iproc, nd, jdf, idjd_g
+      integer :: i, j, n, iproc, nd, jdf, idjd_g
 
-      !  Processor allocation
-      !  if  nproc <= npanels+1, then each gets a number of full panels
+      call face_set(ipan,jpan,noff,ioff,joff,npan,il_g,myid,nproc,nxproc,nyproc)
+
       if ( nproc <= npanels+1 ) then
-         if ( modulo(npanels+1,nproc) /= 0 ) then
-            write(6,*) "Error, number of processors must divide number of panels"
-            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-         end if
-!         npan = (npanels+1)/nproc
-         ipan = il_g
-         jpan = il_g
-         noff = 1 - myid*npan
-         ioff(:) = 0
-         joff(:) = 0
+
          do n=0,npanels
             fproc(:,:,n) = n/npan
             qproc(1+n*il_g**2:(n+1)*il_g**2) = n/npan
          end do
-      else  ! nproc >= npanels+1
-         if ( modulo (nproc, npanels+1) /= 0 ) then
-            write(6,*) "Error, number of processors must be a multiple of number of panels"
-            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-         end if
-!         npan = 1
-         n = nproc / (npanels+1)
-         !  n is the number of processors on each face
-         !  Try to factor this into two values are close as possible.
-         !  nxproc is the smaller of the 2.
-         nxproc = nint(sqrt(real(n)))
-         nyproc = n / nxproc
-         do nxproc = nint(sqrt(real(n))), 1, -1
-            nyproc = n / nxproc
-            if ( modulo(il_g,nxproc) == 0 .and. modulo(il_g,nyproc) == 0 .and. &
-                 nxproc*nyproc == n ) exit
-         end do
-         if ( myid == 0 ) then
-            write(6,*) "NXPROC, NYPROC", nxproc, nyproc
-         end if
-         if ( nxproc*nyproc /= n ) then
-            write(6,*) "Error in splitting up faces"
-            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-         end if
 
-         ! Still need to check that the processor distribution is compatible
-         ! with the grid.
-         if ( modulo(il_g,nxproc) /= 0 ) then
-            write(6,*) "Error, il not a multiple of nxproc", il_g, nxproc
-            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-         end if
-         if ( modulo(il_g,nyproc) /= 0 ) then
-            write(6,*) "Error, il not a multiple of nyproc", il_g, nyproc
-            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-         end if
-         ipan = il_g/nxproc
-         jpan = il_g/nyproc
+      else  ! nproc >= npanels+1
 
          iproc = 0
          qproc = -9999 ! Mask value so any points not set are obvious.
@@ -3386,20 +3343,6 @@ contains
             end do
          end do
 
-         ! Set offsets for this processor
-         call proc_region(myid,0,ioff(0),joff(0),noff)
-         ioff(1:npanels)=ioff(0)
-         joff(1:npanels)=joff(0)
-      end if
-
-!     Check that the values calculated here match those set as parameters
-      if ( ipan /= il ) then
-         write(6,*) "Error, parameter mismatch, ipan /= il", ipan, il
-         call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-      end if
-      if ( jpan*npan /= jl ) then
-         write(6,*) "Error, parameter mismatch, jpan*npan /= jl", jpan, npan, jl
-         call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
       end if
 
 !      ipfull = ipan*jpan*npan
@@ -3421,50 +3364,77 @@ contains
 
    end subroutine proc_setup
 
+   subroutine face_set(ipanx,jpanx,noffx,ioffx,joffx,npanx,il_gx,myidx,nprocx,nxprocx,nyprocx)
+      integer, intent(in) :: myidx,nprocx,npanx,il_gx
+      integer, intent(out) :: ipanx,jpanx,noffx,nxprocx,nyprocx
+      integer, dimension(0:npanels), intent(out) :: ioffx,joffx 
+      integer n,ierr
+
+      !  Processor allocation
+      !  if  nprocx <= npanels+1, then each gets a number of full panels
+      if ( nprocx <= npanels+1 ) then
+         if ( modulo(npanels+1,nprocx) /= 0 ) then
+            write(6,*) "Error, number of processors must divide number of panels"
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+         end if
+!         npanx = (npanels+1)/nprocx
+         ipanx = il_gx
+         jpanx = il_gx
+         noffx = 1 - myidx*npanx
+         ioffx(:) = 0
+         joffx(:) = 0
+         nxprocx = 1
+         nyprocx = 1
+      else  ! nprocx >= npanels+1
+         if ( modulo (nprocx, npanels+1) /= 0 ) then
+            write(6,*) "Error, number of processors must be a multiple of number of panels"
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+         end if
+!         npanx = 1
+         n = nprocx / (npanels+1)
+         !  n is the number of processors on each face
+         !  Try to factor this into two values are close as possible.
+         !  nxproc is the smaller of the 2.
+         nxprocx = nint(sqrt(real(n)))
+         nyprocx = n / nxprocx
+         do nxprocx = nint(sqrt(real(n))), 1, -1
+            nyprocx = n / nxprocx
+            if ( modulo(il_gx,nxprocx) == 0 .and. modulo(il_gx,nyprocx) == 0 .and. &
+                 nxprocx*nyprocx == n ) exit
+         end do
+         if ( nxprocx*nyprocx /= n ) then
+            write(6,*) "Error in splitting up faces"
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+         end if
+
+         ! Still need to check that the processor distribution is compatible
+         ! with the grid.
+         if ( modulo(il_gx,nxprocx) /= 0 ) then
+            write(6,*) "Error, il not a multiple of nxproc", il_gx, nxprocx
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+         end if
+         if ( modulo(il_gx,nyprocx) /= 0 ) then
+            write(6,*) "Error, il not a multiple of nyproc", il_gx, nyprocx
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+         end if
+         ipanx = il_gx/nxprocx
+         jpanx = il_gx/nyprocx
+
+         ! Set offsets for this processor
+         call proc_region(myidx,0,ioffx(0),joffx(0),noffx,nxprocx,nyprocx,ipanx,jpanx,npanx,il_gx,nprocx,0)
+         ioffx(1:npanels)=ioffx(0)
+         joffx(1:npanels)=joffx(0)
+      end if
+   
+   end subroutine face_set
+
    subroutine proc_setup_uniform(npanels,ifull)
       include 'parm.h'
 !     Routine to set up offsets etc for the uniform decomposition
       integer, intent(in) :: npanels, ifull
-      integer :: i, j, n, ierr,ierr2, iproc, nd, jdf, idjd_g
+      integer :: i, j, n, ierr, iproc, nd, jdf, idjd_g
 
-      if ( npan /= npanels+1 ) then
-         write(6,*) "Error: inconsistency in proc_setup_uniform"
-         write(6,*) "Check that correct version of newmpar.h was used"
-         stop
-      end if
-      !  Processor allocation: each processor gets a part of each panel
-      !  Try to factor nproc into two values are close as possible.
-      !  nxproc is the smaller of the 2.
-      nxproc = nint(sqrt(real(nproc)))
-      do nxproc = nint(sqrt(real(nproc))), 1, -1
-         ! This will always exit eventually because it's trivially true 
-         ! for nxproc=1
-         nyproc = nproc / nxproc
-         if ( modulo(nproc,nxproc) == 0 .and. &
-              modulo(il_g,nxproc) == 0  .and. &
-              modulo(il_g,nyproc) == 0 ) exit
-      end do
-      nyproc = nproc / nxproc
-      if ( myid == 0 ) then
-         write(6,*) "NXPROC, NYPROC", nxproc, nyproc, iextra
-      end if
-      if ( nxproc*nyproc /= nproc ) then
-         write(6,*) "Error in splitting up faces"
-         call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-      end if
-
-      ! Still need to check that the processor distribution is compatible
-      ! with the grid.
-      if ( modulo(il_g,nxproc) /= 0 ) then
-         write(6,*) "Error, il not a multiple of nxproc", il_g, nxproc
-         call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-      end if
-      if ( modulo(il_g,nyproc) /= 0 ) then
-         write(6,*) "Error, il not a multiple of nyproc", il_g, nyproc
-         call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-      end if
-      ipan = il_g/nxproc
-      jpan = il_g/nyproc
+      call uniform_set(ipan,jpan,noff,ioff,joff,npan,il_g,myid,nproc,nxproc,nyproc)
 
       !iproc = 0
       !qproc = -9999 ! Mask value so any points not set are obvious.
@@ -3550,15 +3520,10 @@ contains
          end do
       end do
       
-      if (any(qproc.lt.0)) then
-        write(6,*) "Error, incorrect assignment of processors to qproc"
-        call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+      if (any(qproc<0)) then
+         write(6,*) "Error, incorrect assignment of processors to qproc"
+         call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
       end if
-
-      ! Set offsets for this processor
-      do n=0,npanels
-        call proc_region(myid,n,ioff(n),joff(n),noff)
-      end do
 
 !     Check that the values calculated here match those set as parameters
       if ( ipan /= il ) then
@@ -3589,67 +3554,120 @@ contains
 
    end subroutine proc_setup_uniform
 
-   subroutine proc_region(procid,panid,ipoff,jpoff,npoff)
-      ! Calculate the offsets for a given processor
-      integer, intent(in) :: procid,panid
-      integer, intent(out) :: ipoff, jpoff, npoff
-      integer :: myface, mtmp
-
-#ifdef uniform_decomp
-      ! Set offsets for this processor (same on all faces)
-      !npoff = 1
-      !jpoff = (procid/nxproc) * jpan
-      !ipoff = modulo(procid,nxproc)*ipan
+   subroutine uniform_set(ipanx,jpanx,noffx,ioffx,joffx,npanx,il_gx,myidx,nprocx,nxprocx,nyprocx)
+      integer, intent(in) :: myidx, nprocx, npanx, il_gx
+      integer, intent(out) :: ipanx, jpanx, noffx, nxprocx, nyprocx
+      integer, dimension(0:npanels), intent(out) :: ioffx, joffx 
+      integer n, ierr
       
-      ! MJT suggested decomposition to improve load balance
-      npoff=1
-      select case(panid)
-        case(0)
-          jpoff = (procid/nxproc) * jpan
-          ipoff = modulo(procid,nxproc)*ipan
-          if (jpoff.ge.il_g/2) then
-            ipoff=il_g-ipoff-ipan
-          end if
-        case(1)
-          jpoff = (procid/nxproc) * jpan
-          ipoff = modulo(procid,nxproc)*ipan
-        case(2)
-          jpoff = (procid/nxproc) * jpan
-          ipoff = modulo(procid,nxproc)*ipan
-          if (ipoff.ge.il_g/2) then
-            jpoff=il_g-jpoff-jpan
-          end if
-        case(3)
-          jpoff = modulo(procid,nyproc)*jpan
-          ipoff = (procid/nyproc) * ipan
-          if (ipoff.ge.il_g/2) then
-            jpoff=il_g-jpoff-jpan
-          end if
-        case(4)
-          jpoff = modulo(procid,nyproc)*jpan
-          ipoff = (procid/nyproc) * ipan
-        case(5)
-          jpoff = modulo(procid,nyproc)*jpan
-          ipoff = (procid/nyproc) * ipan
-          if (jpoff.ge.il_g/2) then
-            ipoff=il_g-ipoff-ipan
-          end if        
+      if ( npanx /= npanels+1 ) then
+         write(6,*) "Error: inconsistency in proc_setup_uniform"
+         stop
+      end if
+      !  Processor allocation: each processor gets a part of each panel
+      !  Try to factor nproc into two values are close as possible.
+      !  nxproc is the smaller of the 2.
+      nxprocx = nint(sqrt(real(nprocx)))
+      do nxprocx = nint(sqrt(real(nprocx))), 1, -1
+         ! This will always exit eventually because it's trivially true 
+         ! for nxproc=1
+         nyprocx = nprocx / nxprocx
+         if ( modulo(nprocx,nxprocx) == 0 .and. &
+              modulo(il_gx,nxprocx) == 0  .and. &
+              modulo(il_gx,nyprocx) == 0 ) exit
+      end do
+      nyprocx = nprocx / nxprocx
+      if ( nxprocx*nyprocx /= nprocx ) then
+         write(6,*) "Error in splitting up faces"
+         call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+      end if
+
+      ! Still need to check that the processor distribution is compatible
+      ! with the grid.
+      if ( modulo(il_gx,nxprocx) /= 0 ) then
+         write(6,*) "Error, il not a multiple of nxproc", il_gx, nxprocx
+         call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+      end if
+      if ( modulo(il_gx,nyprocx) /= 0 ) then
+         write(6,*) "Error, il not a multiple of nyproc", il_gx, nyprocx
+         call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+      end if
+      ipanx = il_gx/nxprocx
+      jpanx = il_gx/nyprocx
+
+      ! Set offsets for this processor
+      do n=0,npanels
+         call proc_region(myidx,n,ioffx(n),joffx(n),noffx,nxprocx,nyprocx,ipanx,jpanx,npanx,il_gx,nprocx,1)
+      end do
+
+   end subroutine uniform_set
+
+   subroutine proc_region(procid,panid,ipoff,jpoff,npoff,nxprocx,nyprocx,ipanx,jpanx,npanx,il_gx,nprocx,dmode)
+      ! Calculate the offsets for a given processor
+      integer, intent(in) :: procid, panid, nxprocx, nyprocx, ipanx, jpanx, npanx, il_gx, nprocx, dmode
+      integer, intent(out) :: ipoff, jpoff, npoff
+      integer :: myface, mtmp, ierr
+
+      select case(dmode)
+         case(0)
+            if ( nprocx <= npanels+1 ) then
+               npoff = 1 - procid*npanx
+               ipoff = 0
+               jpoff = 0
+            else
+               myface = procid / (nxprocx*nyprocx)
+               npoff = 1 - myface
+               ! mtmp is the processor index on this face, 0:(nxprox*nyproc-1)
+               mtmp = procid - myface*(nxprocx*nyprocx)
+               jpoff = (mtmp/nxprocx) * jpanx
+               ipoff = modulo(mtmp,nxprocx) * ipanx
+            end if
+      
+         case(1)
+            ! Set offsets for this processor (same on all faces)
+            !npoff = 1
+            !jpoff = (procid/nxprocx) * jpanx
+            !ipoff = modulo(procid,nxprocx)*ipanx
+      
+            ! MJT suggested decomposition to improve load balance
+            npoff=1
+            select case(panid)
+               case(0)
+                  jpoff = (procid/nxprocx) * jpanx
+                  ipoff = modulo(procid,nxprocx) * ipanx
+                  if (jpoff>=il_gx/2) then
+                     ipoff=il_gx-ipoff-ipanx
+                  end if
+               case(1)
+                  jpoff = (procid/nxprocx) * jpanx
+                  ipoff = modulo(procid,nxprocx) * ipanx
+               case(2)
+                  jpoff = (procid/nxprocx) * jpanx
+                  ipoff = modulo(procid,nxprocx) * ipanx
+                  if (ipoff>=il_gx/2) then
+                     jpoff=il_gx-jpoff-jpanx
+                  end if
+               case(3)
+                  jpoff = modulo(procid,nyprocx) * jpanx
+                  ipoff = (procid/nyprocx) * ipanx
+                  if (ipoff>=il_gx/2) then
+                     jpoff=il_gx-jpoff-jpanx
+                  end if
+               case(4)
+                  jpoff = modulo(procid,nyprocx) * jpanx
+                  ipoff = (procid/nyprocx) * ipanx
+               case(5)
+                  jpoff = modulo(procid,nyprocx) * jpanx
+                  ipoff = (procid/nyprocx) * ipanx
+                  if (jpoff>=il_gx/2) then
+                     ipoff=il_gx-ipoff-ipanx
+                  end if        
+            end select
+         case default
+            write(6,*) "ERROR: Invalid decomposition ",dmode
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
       end select
      
-#else
-      if ( nproc <= npanels+1 ) then
-         npoff = 1 - procid*npan
-         ipoff = 0
-         jpoff = 0
-      else
-         myface = procid / (nxproc*nyproc)
-         npoff = 1 - myface
-         ! mtmp is the processor index on this face, 0:(nxprox*nyproc-1)
-         mtmp = procid - myface*(nxproc*nyproc)
-         jpoff = (mtmp/nxproc) * jpan
-         ipoff = modulo(mtmp,nxproc)*ipan
-      end if
-#endif
    end subroutine proc_region
 
    subroutine start_log ( event )
@@ -3759,6 +3777,9 @@ contains
       outfile_begin = MPE_Log_get_event_number()
       outfile_end = MPE_Log_get_event_number()
       ierr = MPE_Describe_state(outfile_begin, outfile_end, "Outfile", "Yellow")
+      onthefly_begin = MPE_Log_get_event_number()
+      onthefly_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(onthefly_begin, onthefly_end, "Onthefly", "Yellow")
       indata_begin = MPE_Log_get_event_number()
       indata_end = MPE_Log_get_event_number()
       ierr = MPE_Describe_state(indata_begin, indata_end, "Indata", "Yellow")
@@ -3846,6 +3867,8 @@ contains
       phys_end =  physloadbal_begin
       call vtfuncdef("Outfile", classhandle, outfile_begin, ierr)
       outfile_end =  outfile_begin
+      call vtfuncdef("Onthefly", classhandle, onthefly_begin, ierr)
+      onthefly_end =  onthefly_begin
       call vtfuncdef("Indata", classhandle, indata_begin, ierr)
       indata_end =  indata_begin
       call vtfuncdef("GWdrag", classhandle, gwdrag_begin, ierr)
@@ -3935,146 +3958,125 @@ contains
       outfile_end =  outfile_begin
       event_name(outfile_begin) = "Outfile"
 
-      bounds_begin = 14
+      onthefly_begin = 14
+      onthefly_end =  onthefly_begin
+      event_name(onthefly_begin) = "Onthefly"
+
+      bounds_begin = 15
       bounds_end = bounds_begin
       event_name(bounds_begin) = "Bounds"
 
-      boundsa_begin = 15
+      boundsa_begin = 16
       boundsa_end = boundsa_end
       event_name(boundsa_begin) = "BoundsA"
 
-      boundsb_begin = 16
+      boundsb_begin = 17
       boundsb_end = boundsb_begin
       event_name(boundsb_begin) = "BoundsB"
 
-      boundsuv_begin = 17
+      boundsuv_begin = 18
       boundsuv_end = boundsuv_begin
       event_name(boundsuv_begin) = "BoundsUV"
 
-      deptsync_begin = 18
+      deptsync_begin = 19
       deptsync_end = deptsync_begin
       event_name(deptsync_begin) = "Deptsync"
 
-      intssync_begin = 19
+      intssync_begin = 20
       intssync_end = intssync_begin
       event_name(intssync_begin) = "Intssync"
 
-      gather_begin = 20
+      gather_begin = 21
       gather_end = gather_begin
       event_name(gather_begin) = "Gather"
 
-      distribute_begin = 21
+      distribute_begin = 22
       distribute_end = distribute_begin
       event_name(distribute_begin) = "Distribute"
 
-      reduce_begin = 22
+      reduce_begin = 23
       reduce_end = reduce_begin
       event_name(reduce_begin) = "Reduce"
 
-      precon_begin = 23
+      precon_begin = 24
       precon_end = precon_begin
       event_name(precon_begin) = "Precon"
 
-      mpiwait_begin = 24
+      mpiwait_begin = 25
       mpiwait_end = mpiwait_begin
       event_name(mpiwait_begin) = "MPI_Wait"
 
-      indata_begin = 25
+      indata_begin = 26
       indata_end =  indata_begin
       event_name(indata_begin) = "Indata"
       
-      gwdrag_begin = 26
+      gwdrag_begin = 27
       gwdrag_end =  gwdrag_begin
       event_name(gwdrag_begin) = "GWdrag"
 
-      convection_begin = 27
+      convection_begin = 28
       convection_end =  convection_begin
       event_name(convection_begin) = "Convection"
 
-      cloud_begin = 28
+      cloud_begin = 29
       cloud_end =  cloud_begin
       event_name(cloud_begin) = "Cloud"
 
-      radmisc_begin = 29
+      radmisc_begin = 30
       radmisc_end =  radmisc_begin
       event_name(radmisc_begin) = "Misc_Rad"
       
-      radsw_begin = 30
+      radsw_begin = 31
       radsw_end =  radsw_begin
       event_name(radsw_begin) = "SW_Rad"
 
-      radlw_begin = 31
+      radlw_begin = 32
       radlw_end =  radlw_begin
       event_name(radlw_begin) = "LW_Rad"      
 
-      sfluxnet_begin = 32
+      sfluxnet_begin = 33
       sfluxnet_end =  sfluxnet_begin
       event_name(sfluxnet_begin) = "Sflux_net"
       
-      sfluxwater_begin = 33
+      sfluxwater_begin = 34
       sfluxwater_end =  sfluxwater_begin
       event_name(sfluxwater_begin) = "Sflux_water"
 
-      sfluxland_begin = 34
+      sfluxland_begin = 35
       sfluxland_end =  sfluxland_begin
       event_name(sfluxland_begin) = "Sflux_land"
 
-      sfluxurban_begin = 35
+      sfluxurban_begin = 36
       sfluxurban_end =  sfluxurban_begin
       event_name(sfluxurban_begin) = "Sflux_urban"
 
-      vertmix_begin = 36
+      vertmix_begin = 37
       vertmix_end =  vertmix_begin
       event_name(vertmix_begin) = "Vertmix"
 
-      aerosol_begin = 37
+      aerosol_begin = 38
       aerosol_end =  aerosol_begin
       event_name(aerosol_begin) = "Aerosol"
 
-      nestin_begin = 38
+      nestin_begin = 39
       nestin_end =  nestin_begin
       event_name(nestin_begin) = "Nestin"
 
-      waterdynamics_begin = 39
+      waterdynamics_begin = 40
       waterdynamics_end =  waterdynamics_begin
       event_name(waterdynamics_begin) = "Waterdynamics"
 
-      waterdiff_begin = 40
+      waterdiff_begin = 41
       waterdiff_end =  waterdiff_begin
       event_name(waterdiff_begin) = "Waterdiff"
 
-      river_begin = 41
+      river_begin = 42
       river_end =  river_begin
       event_name(river_begin) = "River"
 
 #endif
    end subroutine log_setup
    
-
-!   subroutine check_dims
-!!    Check that the dimensions defined in the newmpar and newmpar_gx file
-!!    match. A single routine can't include both of these because declarations
-!!    would conflict so return them from separate functions
-!      integer :: ierr,ierr2
-!      if ( .not. all(get_dims()==get_dims_gx()) ) then
-!         write(6,*) "Error, mismatch in newmpar.h and newmpar_gx.h"
-!         call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-!      end if
-!
-!   end subroutine check_dims
-   
-!   function get_dims() result(dims)
-!      include 'newmpar.h'
-!      integer, dimension(2) :: dims
-!      dims = (/ il_g, kl /)
-!   end function get_dims
-
-!   function get_dims_gx() result(dims)
-!      include 'newmpar_gx.h'
-!      integer, dimension(2) :: dims
-!      dims = (/ il, kl /)
-!   end function get_dims_gx
-
    subroutine phys_loadbal()
 !     This forces a sychronisation to make the physics load imbalance overhead
 !     explicit. 
@@ -4489,7 +4491,6 @@ contains
       end if
 
    end subroutine writeglobvar3
-
 
 end module cc_mpi
 

@@ -714,14 +714,14 @@
 
       !--------------------------------------------------------------
       ! READ INITIAL CONDITIONS
+      ncid=-1 ! initialise with no files open
+      call histopen(ncid,ifile)
       if (myid==0) then
-        ncid = ncopn ( ifile,0,ier ) ! 0 denotes read-only
-        write(6,*)'ncid,ier,ifile ',ncid,ier,ifile
+        write(6,*)'ncid,ifile ',ncid,ifile
         write(6,*)'calling indata; will read from file ',ifile
       end if
       call indata(hourst,newsnow,jalbfix,iaero,lapsbot,isoth,nsig)
-      ! do not close ncid as onthefly.f expects each file to have
-      ! separate ncid numbers.
+      ! onthefly.f will close ncid
 
       if (ntbar<0) then
         ntbar=1
@@ -764,14 +764,13 @@
 
       !--------------------------------------------------------------
       ! OPEN MESONEST FILE
-      if(mbd.ne.0.or.nbd.ne.0)then
+      if(mbd/=0.or.nbd/=0)then
          io_in=io_nest ! Needs to be seen by all processors
+         call histopen(ncid,mesonest)
          if ( myid == 0 ) then
-           ncid = ncopn(mesonest,0,ier )  ! 0 denotes read-only
-           write(6,*)'ncid,ier,mesonest ',ncid,ier,mesonest
-           call ncmsg("Reading mesonest",ier)
+           write(6,*)'ncid,mesonest ',ncid,mesonest
          endif ! myid == 0
-      endif    ! (mbd.ne.0.or.nbd.ne.0)
+      endif    ! (mbd/=0.or.nbd/=0)
 
 
       !--------------------------------------------------------------
@@ -1905,7 +1904,7 @@
          aa=3600*(tvals2(5)-tvals1(5)) + 
      &      60*(tvals2(6)-tvals1(6)) + (tvals2(7)-tvals1(7)) + 
      &      0.001 * (tvals2(8)-tvals1(8))
-         if (aa.le.0.) aa=aa+86400.
+         if (aa<=0.) aa=aa+86400.
          write(6,*) "Model time in main loop",aa
       end if
 #ifdef simple_timer
