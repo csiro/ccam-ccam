@@ -315,8 +315,8 @@ c       create the attributes of the header record of the file
       call openhist(iarch,itype,dim,local,idnc,iaero)
 
       if(myid==0.or.local)then
-        call ncsnc(idnc,ier)
-        call ncmsg("ncsnc",ier)
+        !call ncsnc(idnc,ier)
+        !call ncmsg("ncsnc",ier)
         if(ktau==ntau)then
           call ncclos(idnc,ier)
           if (myid==0) then
@@ -1046,7 +1046,7 @@ c       For time varying surface fields
      &                  13.,0,itype)
            end if
           end if
-          if (nextout>=1.and.itype.ne.-1) then
+          if (nextout>=1.and.itype/=-1) then
             lname = 'Avg Net CO2 flux'
             call attrib(idnc,idim,3,'fnee_ave',lname,'gC/m2/s',-3.25E-3,
      &                  3.25E-3,0,itype)
@@ -1157,7 +1157,7 @@ c       For time varying surface fields
         endif
         
         ! TURBULENT MIXING ------------------------------------------
-        if (nvmix.eq.6.and.(nextout>=1.or.itype==-1))then
+        if (nvmix==6.and.(nextout>=1.or.itype==-1))then
          call attrib(idnc,dim,4,'tke','Turbulent Kinetic Energy'
      &              ,'m2/s2',0.,65.,0,itype)
          call attrib(idnc,dim,4,'eps','Eddy dissipation rate'
@@ -1279,7 +1279,7 @@ c       For time varying surface fields
          call attrib(idnc,idim,3,'wbice5',lname,'m3/m3',0.,1.,0,itype)
          lname = 'Soil ice lev 6'
          call attrib(idnc,idim,3,'wbice6',lname,'m3/m3',0.,1.,0,itype)
-         if (nmlo.eq.0) then ! otherwise already defined above
+         if (nmlo==0) then ! otherwise already defined above
            lname = 'Snow temperature lev 1'
            call attrib(idnc,idim,3,'tggsn1',lname,'K',100.,425.,0,itype)
            lname = 'Snow temperature lev 2'
@@ -1355,7 +1355,7 @@ c       Leave define mode
         zsoil(6)=zse(1)+zse(2)+zse(3)+zse(4)+zse(5)+zse(6)*.5
         call ncvpt(idnc,idms,1,ms,zsoil,ier)
         
-        if (abs(nmlo).gt.0.and.abs(nmlo).le.9) then
+        if (abs(nmlo).gt.0.and.abs(nmlo)<=9) then
           call ncvpt(idnc,idoc,1,wlev,gosig,ier)
         end if
 
@@ -1419,7 +1419,7 @@ c      set time to number of minutes since start
         precc =precc *real(nperday)/min(nwt,max(1,ktau))     
         sno   =sno   *real(nperday)/min(nwt,max(1,ktau))     
         runoff=runoff*real(nperday)/min(nwt,max(1,ktau))    
-      endif   ! (ktau>0.and.nwt.ne.nperday.and.itype.ne.-1)
+      endif   ! (ktau>0.and.nwt/=nperday.and.itype/=-1)
 
       ! BASIC -------------------------------------------------------
       lwrite=ktau>0
@@ -1447,7 +1447,7 @@ c      set time to number of minutes since start
       call histwrt3(fwet,'fwet',idnc,iarch,local,lwrite)
 
       ! MLO ---------------------------------------------------------      
-      if (nmlo.ne.0) then
+      if (nmlo/=0) then
         mlodwn(:,:,1:2)=999.
         mlodwn(:,:,3:4)=0.
         micdwn=999.
@@ -1509,7 +1509,7 @@ c      set time to number of minutes since start
         call histwrt3(micdwn(:,9),'uic',idnc,iarch,local,.true.)
         call histwrt3(micdwn(:,10),'vic',idnc,iarch,local,.true.)
         call histwrt3(micdwn(:,11),'icesal',idnc,iarch,local,.true.)
-        if (abs(nmlo).ge.2) then
+        if (abs(nmlo)>=2) then
           call histwrt3(watbdy(1:ifull),'swater',idnc,iarch,local,
      &                  .true.)
         end if
@@ -1552,7 +1552,7 @@ c      set time to number of minutes since start
       lwrite=ktau>0
       call histwrt3(u10,'u10',idnc,iarch,local,.true.)
       
-      if(itype.ne.-1)then  ! these not written to restart file
+      if(itype/=-1)then  ! these not written to restart file
        lwrite=mod(ktau,nperday)==0.or.ktau==ntau ! only write once per day
        lwrite=lwrite.and.ktau>0
        aa=rndmax(:)*86400./dt ! scale up to mm/day
@@ -1706,7 +1706,7 @@ c      set time to number of minutes since start
        call histwrt3(tsu_ave,'tsu_ave',idnc,iarch,local,lwrite)
        call histwrt3(alb_ave,'alb_ave',idnc,iarch,local,lwrite)
        call histwrt3(psl_ave,'pmsl_ave',idnc,iarch,local,lwrite)
-       if (nmlo.ne.0) then
+       if (nmlo/=0) then
          call histwrt3(mixdep_ave,'mixd_ave',idnc,iarch,local,lwrite)
        end if
        lwrite=ktau>0
@@ -1742,15 +1742,15 @@ c      "extra" outputs
          call histwrt3(dpsdt,'dpsdt',idnc,iarch,local,lwrite)
          call histwrt3(ustar,'ustar',idnc,iarch,local,lwrite)
        endif   ! nextout>=1
-      endif    ! (ktau>0.and.itype.ne.-1)
+      endif    ! (ktau>0.and.itype/=-1)
       
       ! TURBULENT MIXING --------------------------------------------
-      if (nextout>=1.or.(nvmix.eq.6.and.itype.eq.-1)) then
+      if (nextout>=1.or.(nvmix==6.and.itype==-1)) then
        call histwrt3(pblh,'pblh',idnc,iarch,local,.true.)
       end if
 
       ! CABLE -------------------------------------------------------
-      if (nsib.eq.6.or.nsib.eq.7) then
+      if (nsib==6.or.nsib==7) then
         if (nextout>=1.or.itype==-1) then
          if (ccycle==0) then
           call histwrt3(cplant(:,1),'cplant1',idnc,iarch,local,.true.)
@@ -1787,7 +1787,7 @@ c      "extra" outputs
           call histwrt3(glai,'glai',idnc,iarch,local,lwrite)
          end if
         end if
-        if (nextout>=1.and.itype.ne.-1) then
+        if (nextout>=1.and.itype/=-1) then
           lwrite=mod(ktau,nperavg)==0.or.ktau==ntau
           lwrite=lwrite.and.ktau>0
           aa=fpn_ave+frp_ave+frs_ave
@@ -1799,7 +1799,7 @@ c      "extra" outputs
       endif   
 
       ! URBAN -------------------------------------------------------
-      if (nurban.le.-1.or.(nurban.ge.1.and.itype==-1)) then
+      if (nurban<=-1.or.(nurban>=1.and.itype==-1)) then
        allocate(atebdwn(ifull,24))
        atebdwn(:,:)=999. ! must be the same as spval in onthefly.f
        call atebsave(atebdwn,0)
@@ -1853,7 +1853,7 @@ c      "extra" outputs
       call histwrt4(tmpry,'mixr',idnc,iarch,local,.true.)
       
       ! MICROPHYSICS ------------------------------------------------
-      if(ldr.ne.0)then
+      if(ldr/=0)then
         tmpry=qfg(1:ifullw,:)
         call histwrt4(tmpry,'qfg',idnc,iarch,local,.true.)
         tmpry=qlg(1:ifullw,:)
@@ -1869,7 +1869,7 @@ c      "extra" outputs
       endif
       
       ! TURBULENT MIXING --------------------------------------------
-      if (nvmix.eq.6.and.(nextout>=1.or.itype==-1))then
+      if (nvmix==6.and.(nextout>=1.or.itype==-1))then
         tmpry=tke(1:ifull,:)
         call histwrt4(tmpry,'tke',idnc,iarch,local,.true.)
         tmpry=eps(1:ifull,:)
@@ -1907,7 +1907,7 @@ c      "extra" outputs
       endif  ! (ngasc>0)
 
       ! AEROSOLS ----------------------------------------------------
-      if (iaero.le.-2.or.(iaero.ge.2.and.itype==-1)) then
+      if (iaero<=-2.or.(iaero>=2.and.itype==-1)) then
         tmpry=xtg(1:ifull,:,1)
         call histwrt4(tmpry,'dms',idnc,iarch,local,.true.)
         tmpry=xtg(1:ifull,:,2)
@@ -1957,7 +1957,7 @@ c      "extra" outputs
        call histwrt4(savv1,'savv1',idnc,iarch,local,.true.)
        call histwrt4(savu2,'savu2',idnc,iarch,local,.true.)
        call histwrt4(savv2,'savv2',idnc,iarch,local,.true.)
-       if (abs(nmlo).ge.3.and.abs(nmlo).le.9) then
+       if (abs(nmlo)>=3.and.abs(nmlo)<=9) then
          do k=1,wlev
            write(vname,'("oldu1",I2.2)') k
            call histwrt3(oldu1(:,k),vname,idnc,iarch,local,.true.)
@@ -1976,7 +1976,7 @@ c      "extra" outputs
        call histwrt3(wbice(1,4),'wbice4',idnc,iarch,local,.true.)
        call histwrt3(wbice(1,5),'wbice5',idnc,iarch,local,.true.)
        call histwrt3(wbice(1,6),'wbice6',idnc,iarch,local,.true.)
-       if (nmlo.eq.0) then ! otherwise already written above
+       if (nmlo==0) then ! otherwise already written above
          call histwrt3(tggsn(1,1),'tggsn1',idnc,iarch,local,.true.)
          call histwrt3(tggsn(1,2),'tggsn2',idnc,iarch,local,.true.)
          call histwrt3(tggsn(1,3),'tggsn3',idnc,iarch,local,.true.)
@@ -1990,7 +1990,7 @@ c      "extra" outputs
        call histwrt3(snage,'snage',idnc,iarch,local,.true.)
        aa(:)=isflag(:)
        call histwrt3(aa,'sflag',idnc,iarch,local,.true.)
-       if (nsib.eq.4.or.nsib.eq.6.or.nsib.eq.7) then
+       if (nsib==6.or.nsib==7) then
          call savetile(idnc,local,idim,iarch)
        end if
       endif  ! (itype==-1)
@@ -2005,9 +2005,10 @@ c      "extra" outputs
       use arrays_m                          ! Atmosphere dyamics prognostic arrays
       use cc_mpi                            ! CC MPI routines
       use infile, only : ncmsg              ! Input file routines
+      use morepbl_m                         ! Additional boundary layer diagnostics
       use parmhdff_m                        ! Horizontal diffusion parameters
-      use prec_m                            ! Precipitation
       use screen_m                          ! Screen level diagnostics
+      use sigs_m                            ! Atmosphere sigma levels
       use tracers_m                         ! Tracer data
       
       implicit none
@@ -2026,17 +2027,21 @@ c      "extra" outputs
       integer leap
       common/leap_yr/leap                   ! Leap year (1 to allow leap years)
       
-      integer, parameter :: freqvars = 4  ! number of variables to write
+      integer, parameter :: freqvars = 5  ! number of variables to write
       integer, parameter :: nihead   = 54
       integer, parameter :: nrhead   = 14
       integer, dimension(nihead) :: nahead
-      integer, dimension(3) :: adim
+      integer, dimension(4) :: adim
+      integer, dimension(3) :: sdim
       integer, dimension(1) :: start,ncount
-      integer ierr,ixp,iyp,old_mode
+      integer ierr,ixp,iyp,izp,old_mode
       integer icy,icm,icd,ich,icmi,ics,ti
       integer i,j,n,fiarch
       integer, save :: fncid = -1
       integer, save :: idnt = 0
+      integer, save :: idkdate = 0
+      integer, save :: idktime = 0
+      integer, save :: idmtimer = 0
       real, dimension(:,:,:), allocatable, save :: freqstore
       real, dimension(ifull) :: uas,vas,umag
       real, dimension(il_g) :: xpnt
@@ -2088,7 +2093,9 @@ c      "extra" outputs
              ierr=nf_def_dim(fncid,'latitude',jl_g,adim(2))
              call ncmsg('HFREQ latitude',ierr)
           endif
-          ierr=nf_def_dim(fncid,'time',nf_unlimited,adim(3))
+          ierr=nf_def_dim(fncid,'lev',kl,adim(3))
+          call ncmsg('HFREQ lev def_dim',ierr)          
+          ierr=nf_def_dim(fncid,'time',nf_unlimited,adim(4))
           call ncmsg('HFREQ time',ierr)
           ! Define coords.
           ierr=nf_def_var(fncid,'longitude',nf_float,1,adim(1),ixp)
@@ -2103,7 +2110,15 @@ c      "extra" outputs
           call ncmsg('HFREQ latitude',ierr)
           ierr=nf_put_att_text(fncid,iyp,'units',13,'degrees_north')
           call ncmsg('HFREQ latitude',ierr)
-          ierr=nf_def_var(fncid,'time',nf_double,1,adim(3),idnt)
+          ierr=nf_def_var(fncid,'lev',nf_float,1,adim(3),izp)
+          call ncmsg('HFREQ lev def_var',ierr)
+          ierr=nf_put_att_text(fncid,izp,'positive',4,'down')
+          call ncmsg('HFREQ lev positive',ierr)
+          ierr=nf_put_att_text(fncid,izp,'point_spacing',6,'uneven')
+          call ncmsg('HFREQ lev point_spacing',ierr)
+          ierr=nf_put_att_text(fncid,izp,'units',11,'sigma_level')
+          call ncmsg('HFREQ lev units',ierr)
+          ierr=nf_def_var(fncid,'time',nf_double,1,adim(4),idnt)
           call ncmsg('HFREQ time',ierr)
           ierr=nf_put_att_text(fncid,idnt,'point_spacing',4,'even')
           call ncmsg('HFREQ time',ierr)
@@ -2126,6 +2141,12 @@ c      "extra" outputs
             ierr=nf_put_att_text(fncid,idnt,'calendar',6,'noleap',ierr)
             call ncmsg('HFREQ time',ierr)
           end if
+          ierr=nf_def_var(fncid,'kdate',nf_int,1,adim(4),idkdate)
+          call ncmsg('HFREQ kdate',ierr)
+          ierr=nf_def_var(fncid,'ktime',nf_int,1,adim(4),idktime)
+          call ncmsg('HFREQ ktime',ierr)
+          ierr=nf_def_var(fncid,'mtimer',nf_int,1,adim(4),idmtimer)
+          call ncmsg('HFREQ mtimer',ierr)
           ! header data
           ahead(1)=ds
           ahead(2)=0.  !difknbd
@@ -2213,17 +2234,22 @@ c      "extra" outputs
 #endif
           endif 
           ! define variables
+          sdim(1:2)=adim(1:2)
+          sdim(3)=adim(4)
           lname='x-component 10m wind'
-          call attrib(fncid,adim,3,'uas',lname,'m/s',-130.,130.,
+          call attrib(fncid,sdim,3,'uas',lname,'m/s',-130.,130.,
      &                .false.,1)
           lname='y-component 10m wind'     
-          call attrib(fncid,adim,3,'vas',lname,'m/s',-130.,130.,
+          call attrib(fncid,sdim,3,'vas',lname,'m/s',-130.,130.,
      &                .false.,1)
           lname='Screen temperature'     
-          call attrib(fncid,adim,3,'tscrn',lname,'m/s',100.,425.,
+          call attrib(fncid,sdim,3,'tscrn',lname,'m/s',100.,425.,
      &                .false.,1)
           lname='Precipitation'
-          call attrib(fncid,adim,3,'rnd',lname,'mm/day',0.,1300.,
+          call attrib(fncid,sdim,3,'rnd',lname,'mm/day',0.,1300.,
+     &                .false.,1)
+          lname='Snowfall'
+          call attrib(fncid,sdim,3,'sno',lname,'mm/day',0.,1300.,
      &                .false.,1)
 
           ! end definition mode
@@ -2257,6 +2283,8 @@ c      "extra" outputs
            ierr=nf_put_vara_real(fncid,iyp,1,jl_g,ypnt)
            call ncmsg('HFREQ latitude',ierr)
           end if
+          ierr=nf_put_vara_real(fncid,izp,1,kl,sig)
+          call ncmsg('HFREQ lev put_vara',ierr)
         end if
         first=.false.
         if (myid==0) then
@@ -2277,12 +2305,15 @@ c      "extra" outputs
       freqstore(:,ti,1)=uas
       freqstore(:,ti,2)=vas
       freqstore(:,ti,3)=tscrn
-      freqstore(:,ti,4)=precip
+      freqstore(:,ti,4)=condx*86400./dt
+      freqstore(:,ti,5)=conds*86400./dt
 
       ! wtite data to file
       if (mod(ktau,nwt)==0) then
         if (myid==0.or.localhist) then
-          write(6,*) "Write high frequency output"
+          if (myid==0) then
+            write(6,*) "Write high frequency output"
+          end if
           do i=1,nwt
             tpnt(i)=real(ktau-nwt+i,8)*real(dt,8)
           end do
@@ -2291,6 +2322,12 @@ c      "extra" outputs
           ncount(1)=nwt
           ierr=nf_put_vara_double(fncid,idnt,start,ncount,tpnt)
           call ncmsg('HFREQ time',ierr)
+          ierr=nf_put_vara_int(fncid,idkdate,start,ncount,kdate)
+          call ncmsg('HFREQ kdate',ierr)
+          ierr=nf_put_vara_int(fncid,idktime,start,ncount,ktime)
+          call ncmsg('HFREQ ktime',ierr)
+          ierr=nf_put_vara_int(fncid,idmtimer,start,ncount,mtimer)
+          call ncmsg('HFREQ mtimer',ierr)
         end if
         call freqwrite(fncid,'uas',fiarch,nwt,localhist,
      &                 freqstore(:,:,1))
@@ -2300,6 +2337,8 @@ c      "extra" outputs
      &                 freqstore(:,:,3))
         call freqwrite(fncid,'rnd',fiarch,nwt,localhist,
      &                 freqstore(:,:,4))
+        call freqwrite(fncid,'sno',fiarch,nwt,localhist,
+     &                 freqstore(:,:,5))
       end if
      
       ! close file at end of run
@@ -2349,7 +2388,7 @@ c      "extra" outputs
       call ncmsg("attrib",ier)
       call ncaptc(cdfid,idv,'long_name',ncchar,len_trim(lname),lname,
      &            ier)
-      if(len_trim(units).ne.0)then
+      if(len_trim(units)/=0)then
         call ncaptc(cdfid,idv,'units',ncchar,len_trim(units),units,ier)
       endif
       if(vtype == ncshort)then
@@ -2432,6 +2471,7 @@ c      "extra" outputs
 
       subroutine fw3l(var,sname,idnc,iarch,istep)
 
+      use cc_mpi, only : myid  ! CC MPI routines
       use infile, only : ncmsg ! Input file routines
       
       implicit none
@@ -2473,7 +2513,7 @@ c      "extra" outputs
         call ncmsg("histwrt3",ier)
       end if
 
-      if(mod(ktau,nmaxpr)==0)then
+      if(mod(ktau,nmaxpr)==0.and.myid==0)then
        if (any(var==nf_fill_float)) then
          write(6,'("histwrt3 ",a7,i4,a7)')
      &              sname,iarch,"missing"
@@ -2543,7 +2583,7 @@ c     find variable index
       end if
 
       if(mod(ktau,nmaxpr)==0)then
-       if (any(globvar.eq.nf_fill_float)) then
+       if (any(globvar==nf_fill_float)) then
          write(6,'("histwrt3 ",a7,i4,a7)')
      &              sname,iarch,"missing"
        else
@@ -2604,6 +2644,7 @@ c     find variable index
       
       subroutine hw4l(var,sname,idnc,iarch)
 
+      use cc_mpi, only : myid  ! CC MPI routines
       use infile, only : ncmsg ! Input file routines
 
       implicit none
@@ -2645,7 +2686,7 @@ c     find variable index
         call ncmsg("histwrt4",ier)
       end if
 
-      if(mod(ktau,nmaxpr)==0)then
+      if(mod(ktau,nmaxpr)==0.and.myid==0)then
        if (any(var==nf_fill_float)) then
          write(6,'("histwrt4 ",a7,i4,a7)')
      &              sname,iarch,"missing"

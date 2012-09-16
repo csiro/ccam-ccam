@@ -55,7 +55,7 @@
       use tbar2d_m, only : tbar2d_init        ! Atmosphere dynamics reference temperature
       use timeseries, only : write_ts         ! Tracer time series
       use tkeeps, only : tkeinit              ! TKE-EPS boundary layer
-      use tracermodule, only :init_tracer     ! Tracer routines
+      use tracermodule, only : init_tracer    ! Tracer routines
      &   ,trfiles,tracer_mass,unit_trout
      &   ,interp_tracerflux,tracerlist
       use tracers_m                           ! Tracer data
@@ -224,7 +224,7 @@
      &                      version,nproc 
         write(6,*) 'Using defaults for nversion = ',nversion
       end if
-      if(nversion.ne.0)call change_defaults(nversion)
+      if(nversion/=0)call change_defaults(nversion)
       read (99, cardin)
       npc     =max(npc,1)
       nperday =nint(24.*3600./dt)
@@ -235,7 +235,7 @@
       if (nwt==-99) nwt=nperday          ! set default nwt to 24 hours
       if (nperavg==-99) nperavg=nwt      ! set default nperavg to nwt
       if (nwrite==0) nwrite=nperday      ! only used for outfile IEEE
-      if (nmlo.ne.0.and.abs(nmlo).le.9) then
+      if (nmlo/=0.and.abs(nmlo)<=9) then
         ol=max(ol,1)
       else
         ol=0
@@ -250,8 +250,8 @@
       read (99, kuonml)
       ngas=0
       read(99, trfiles, iostat=ierr)         ! try reading tracer namelist.  If no
-      if (ierr.ne.0) rewind(99)              ! namelist is found, then disable
-      if (tracerlist.ne.'') call init_tracer ! tracers and rewind namelist.
+      if (ierr/=0) rewind(99)              ! namelist is found, then disable
+      if (tracerlist/='') call init_tracer ! tracers and rewind namelist.
 
       !--------------------------------------------------------------
       ! READ TOPOGRAPHY FILE TO DEFINE CONFORMAL CUBIC GRID
@@ -310,9 +310,9 @@
       end if
       nxp=nint(sqrt(real(nproc)))
       nyp=nproc/nxp
-      do while((mod(il_g,max(nxp,1)).ne.0.or.
-     &         mod(nproc,max(nxp,1)).ne.0.or.
-     &         mod(il_g,nyp).ne.0).and.nxp.gt.0)
+      do while((mod(il_g,max(nxp,1))/=0.or.
+     &         mod(nproc,max(nxp,1))/=0.or.
+     &         mod(il_g,nyp)/=0).and.nxp>0)
         nxp=nxp-1
         nyp=nproc/max(nxp,1)
       end do
@@ -320,21 +320,21 @@
       if (myid==0) then
         write(6,*) "Using face grid decomposition"
       end if
-      if (mod(nproc,6).ne.0.and.mod(6,nproc).ne.0) then
+      if (mod(nproc,6)/=0.and.mod(6,nproc)/=0) then
         write(6,*) "ERROR: nproc must be a multiple of 6 or"
         write(6,*) "a factor of 6"
         call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
       end if
       nxp=max(1,nint(sqrt(real(nproc)/6.)))
       nyp=nproc/nxp
-      do while((mod(il_g,max(nxp,1)).ne.0.or.
-     &         mod(nproc/6,max(nxp,1)).ne.0.or.
-     &         mod(jl_g,nyp).ne.0).and.nxp.gt.0)
+      do while((mod(il_g,max(nxp,1))/=0.or.
+     &         mod(nproc/6,max(nxp,1))/=0.or.
+     &         mod(jl_g,nyp)/=0).and.nxp>0)
         nxp=nxp-1
         nyp=nproc/max(nxp,1)
       end do
 #endif
-      if (nxp.eq.0) then
+      if (nxp==0) then
         write(6,*) "ERROR: Invalid number of processors for this grid"
         write(6,*) "Try increasing or decreasing nproc"
         call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
@@ -360,31 +360,31 @@
 #endif
       ! nrows_rad is a subgrid step for radiation routines
       nrows_rad=il_g/6
-      do while(mod(jl,nrows_rad).ne.0)
+      do while(mod(jl,nrows_rad)/=0)
         nrows_rad=nrows_rad-1
       end do
-      if (myid.eq.0) then
+      if (myid==0) then
         write(6,*) "il_g,jl_g,il,jl ",il_g,jl_g,il,jl
         write(6,*) "nxp,nyp         ",nxp,nyp
         write(6,*) "nrows_rad     = ",nrows_rad
       end if
       
       ! some default values for unspecified parameters
-      if (ia.lt.0) ia=il/2
-      if (ib.lt.0) ib=ia+3
-      if (ktopdav.lt.0) ktopdav=kl
-      if (kbotmlo.lt.0) kbotmlo=ol
+      if (ia<0) ia=il/2
+      if (ib<0) ib=ia+3
+      if (ktopdav<0) ktopdav=kl
+      if (kbotmlo<0) kbotmlo=ol
       if (ldr==0) mbase=0
       dsig4=max(dsig2+.01,dsig4)
       if(kbotu==0) kbotu=kbotdav
-      if(mbd.ne.0.and.nbd.ne.0)then
-        write(6,*) 'setting nbd=0 because mbd.ne.0'
+      if(mbd/=0.and.nbd/=0)then
+        write(6,*) 'setting nbd=0 because mbd/=0'
         nbd=0
       endif
       nud_hrs=abs(nud_hrs)  ! just for people with old -ves in namelist
       if (nudu_hrs==0) nudu_hrs=nud_hrs
 !     for 6-hourly output of sint_ave etc, want 6*60 = N*mins_rad      
-      if ((nrad==4.or.nrad==5).and.mod(6*60,mins_rad).ne.0) then
+      if ((nrad==4.or.nrad==5).and.mod(6*60,mins_rad)/=0) then
         write(6,*) 'prefer 6*60 = N*mins_rad '
         call MPI_Abort(MPI_COMM_WORLD,-1,ierr)	
       end if
@@ -405,6 +405,9 @@
      &            '   restol'
         write (6,'(i5,3i7,1x,3f8.3,g9.2)')nritch_t,nrot,ntbar,nxmap,
      &                                    epsp,epsu,epsf,restol
+        write(6,*)'Dynamics options C:'
+        write(6,*)'helmmeth mfix_aero mfix_tr'
+        write (6,'(i8,i10,i8)') helmmeth,mfix_aero,mfix_tr
         write(6,*)'Horizontal advection/interpolation options:'
         write(6,*)' ndept  nt_adv mh_bs  mhint '
         write (6,'(i5,11i7)') ndept,nt_adv,mh_bs,mhint
@@ -450,13 +453,19 @@
         write(6,*)'  acon   bcon   qgmin      rcm    rcrit_l rcrit_s'
         write (6,'(2f7.2,2e10.2,2f7.2)') acon,bcon,qgmin,rcm,
      &                                   rcrit_l,rcrit_s
-        write(6,*)'Radiation options:'
+        write(6,*)'Radiation options A:'
         write(6,*)' nrad  ndiur mins_rad kountr iaero  dt'
         write (6,'(i5,4i7,f10.2)') nrad,ndiur,mins_rad,kountr,iaero,dt
-        write(6,*)'Diagnostic cloud options:'
+        write(6,*)'Radiation options B:'
+        write(6,*)' nmr bpyear'
+        write (6,'(i4,i7)') nmr,bpyear
+        write(6,*)'Cloud options A:'
         write(6,*)'  ldr nclddia nstab_cld nrhcrit sigcll '
         write (6,'(i5,i6,2i9,1x,f8.2)') ldr,nclddia,nstab_cld,nrhcrit,
      &                                  sigcll
+        write(6,*)'Cloud options B:'
+        write(6,*)'  ncloud '
+        write (6,'(i5)') ncloud
         write(6,*)'Soil, canopy and PBL options A:'
         write(6,*)' jalbfix nalpha nbarewet newrough nglacier nrungcm',
      &            ' nsib  nsigmf'
@@ -467,25 +476,45 @@
         write(6,*)' ntaft ntsea ntsur av_vmod tss_sh vmodmin  zobgin',
      &            ' charnock chn10'
         write (6,'(i5,2i6,4f8.2,f8.3,f9.5)') ntaft,ntsea,ntsur,
-     &            av_vmod,tss_sh,vmodmin,zobgin,charnock,chn10    
-        if(mbd.ne.0.or.nbd.ne.0)then
-          write(6,*)'Nudging options:'
+     &            av_vmod,tss_sh,vmodmin,zobgin,charnock,chn10
+        write(6,*)'Soil, canopy and PBL options C:'
+        write(6,*)' nurban ccycle'
+        write (6,'(2i7)') nurban,ccycle
+        write(6,*)'Ocean/lake options:'
+        write(6,*)' nmlo  ol      mxd   mindep minwater  ocnsmag',
+     &            ' ocneps'
+        write (6,'(i5,i4,5f9.2)')
+     &          nmlo,ol,mxd,mindep,minwater,ocnsmag,ocneps
+        if(mbd/=0.or.nbd/=0)then
+          write(6,*)'Nudging options A:'
           write(6,*)' nbd    nud_p  nud_q  nud_t  nud_uv nud_hrs',
      &              ' nudu_hrs kbotdav  kbotu'
           write (6,'(i5,3i7,7i8)') 
      &      nbd,nud_p,nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs,kbotdav,kbotu
+          write(6,*)'Nudging options B:'
+          write(6,*)' mbd    ktopdav'
+          write (6,'(i5,i8)') 
+     &      mbd,ktopdav
+          write(6,*)'Nudging options C:'
+          write(6,*)' nud_sst nud_sss nud_ouv nud_sfh ktopmlo',
+     &              ' kbotmlo mloalpha'
+          write (6,'(6i8,i9)') 
+     &      nud_sst,nud_sss,nud_ouv,nud_sfh,ktopmlo,kbotmlo,mloalpha
         endif
-        write(6,*)'Special and test options:'
-        write(6,*)' mbd namip amipo3 newtop nhstest nplens nsemble',
+        write(6,*)'Special and test options A:'
+        write(6,*)' namip amipo3 newtop nhstest nplens nsemble',
      &            ' nspecial panfg panzo'
-        write (6,'(2i5,L7,4i7,i8,f9.1,f8.4)') mbd,namip,amipo3,
+        write (6,'(1i5,L7,4i7,i8,f9.1,f8.4)') namip,amipo3,
      &          newtop,nhstest,nplens,nsemble,nspecial,panfg,panzo
+        write(6,*)'Special and test options B:'
+        write(6,*)' knh rescrn'
+        write (6,'(i4,i7)') knh,rescrn
         write(6,*)'I/O options:'
         write(6,*)' m_fly  io_in io_nest io_out io_rest  nwt',
      &            '  nperavg   nscrn'
         write (6,'(i5,4i7,3i8)') 
      &        m_fly,io_in,io_nest,io_out,io_rest,nwt,nperavg,nscrn
-        if(ntrac.ne.0)then
+        if(ntrac/=0)then
           write(6,*)'Trace gas options:'
           write(6,*)' ngas   nllp   ntrac'
           write (6,'(i5,3i7)') ngas,nllp,ntrac
@@ -621,7 +650,7 @@
       
       !--------------------------------------------------------------
       ! DEALLOCATE ifull_g ARRAYS WHERE POSSIBLE
-      if (myid.ne.0) then
+      if (myid/=0) then
         deallocate(wts_g)
         deallocate(ax_g,bx_g,ay_g,by_g,az_g,bz_g)
         deallocate(emu_g,emv_g,f_g,fu_g,fv_g,dmdx_g,dmdy_g)
@@ -681,14 +710,14 @@
       call work3_init(ifull,iextra,kl,nsib)
       call work3f_init(ifull,iextra,kl)
       call xarrs_init(ifull,iextra,kl)
-      if (nvmix.eq.6) then
+      if (nvmix==6) then
         call tkeinit(ifull,iextra,kl,0)
       end if
-      if (ngas.gt.0) then
+      if (ngas>0) then
         call tracers_init(il,jl,kl,iextra)
       end if
       call work3sav_init(ifull,iextra,kl,ilt,jlt,klt,ngasmax) ! must occur after tracers_init
-      if (nbd.ne.0.and.nud_hrs.ne.0) then
+      if (nbd/=0.and.nud_hrs/=0) then
         call dava_init(ifull,iextra,kl)
         call davb_init(ifull,iextra,kl)
       end if
@@ -905,7 +934,7 @@
           ! just for outcdf to plot zs  & write fort.22
           call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
         end if
-      endif    ! (nmi==0.and.nwt.ne.0)
+      endif    ! (nmi==0.and.nwt/=0)
 
 
       !--------------------------------------------------------------
@@ -917,7 +946,7 @@
         write(6,*)'nper3hr,nper6hr .. ',nper3hr(:)
       end if
       mspeca=1
-      if(mex.ne.1.and..not.lrestart)then
+      if(mex/=1.and..not.lrestart)then
         mspeca=2
         dt=dtin*.5
       endif
@@ -962,7 +991,7 @@
 
       ! NESTING ---------------------------------------------------------------
       call start_log(nestin_begin)
-      if (nbd.ne.0) call nestin(iaero)
+      if (nbd/=0) call nestin(iaero)
       call end_log(nestin_end)
       
       ! TRACERS ---------------------------------------------------------------
@@ -1003,7 +1032,7 @@
         vn(1:ifull,:)=0.
       endif   ! (nvsplit<3.or.ktau==1) .. elseif ..
 
-      if(mup.ne.1.or.(ktau==1.and.mspec==mspeca.and..not.lrestart))
+      if(mup/=1.or.(ktau==1.and.mspec==mspeca.and..not.lrestart))
      &    then
         call bounds(psl)
 !       updps called first step or to permit clean restart option      
@@ -1074,8 +1103,8 @@
       if(ktau>2.and.epsp>1..and.epsp<2.)then ! 
         if (mydiag.and.ktau==3)write(6,*)'using epsp= ',epsp
         do iq=1,ifull
-         if((sign(1.,dpsdt(iq)).ne.sign(1.,dpsdtb(iq))).and.
-     &      (sign(1.,dpsdtbb(iq)).ne.sign(1.,dpsdtb(iq))))then
+         if((sign(1.,dpsdt(iq))/=sign(1.,dpsdtb(iq))).and.
+     &      (sign(1.,dpsdtbb(iq))/=sign(1.,dpsdtb(iq))))then
            epst(iq)=epsp-1.
          else
            epst(iq)=0.
@@ -1087,7 +1116,7 @@
         write(6,*)'savu,u,ubar ',ktau,savu(idjd,1),u(idjd,1),
      &                           ubar(idjd,1)
       endif
-      if(ktau==1.and..not.lrestart.and.mspec==1.and.mex.ne.1)then
+      if(ktau==1.and..not.lrestart.and.mspec==1.and.mex/=1)then
         u(1:ifull,:)=savu(1:ifull,:)  ! reset u,v to original values
         v(1:ifull,:)=savv(1:ifull,:)
       endif
@@ -1162,9 +1191,9 @@
       ! nesting now after mass fixers
       call start_log(nestin_begin)
       if (mspec==1) then
-        if (mbd.ne.0) then
+        if (mbd/=0) then
           call nestinb(iaero)
-        else if (nbd.ne.0) then
+        else if (nbd/=0) then
           call davies
         end if
       end if
@@ -1478,7 +1507,7 @@
       end if
 
       ! AEROSOLS --------------------------------------------------------------
-      if (abs(iaero).ge.2) then
+      if (abs(iaero)>=2) then
         call start_log(aerosol_begin)
          if (myid==0.and.nmaxpr==1) then
          write(6,*) "Before aerosols"
@@ -1507,7 +1536,7 @@
         call tracer_mass(ktau,ntau) !also updates average tracer array
         call write_ts(ktau,ntau,dt)
 !     rml 23/4/10 if final timestep write accumulated loss to tracer.stdout file
-        if (ktau.eq.ntau) then
+        if (ktau==ntau) then
           if (myid == 0) then
             write(unit_trout,*) 'Methane loss accumulated over month'
             write(unit_trout,*) ktau,acloss_g(:)
@@ -1743,7 +1772,7 @@
       end if    ! (ktau==ntau.or.mod(ktau,nperavg)==0)
       
       ! Update diagnostics for consistancy
-      if (rescrn.gt.0) then
+      if (rescrn>0) then
         call autoscrn
       end if
       
@@ -1875,14 +1904,14 @@
         capemax(:)=0.
         rnd_3hr(:,8)=0.       ! i.e. rnd24(:)=0.
         if(nextout>=4)call setllp ! from Nov 11, reset once per day
-        if(namip.ne.0)then ! not for last day, as day 1 of next month
+        if(namip/=0)then ! not for last day, as day 1 of next month
           if (myid==0)
      &     write(6,*)
      &    'amipsst called at end of day for ktau,mtimer,namip ',
      &                                      ktau,mtimer,namip
           call amipsst
         endif ! (namip>0)
-      elseif (namip.ne.0.and.nmlo.ne.0) then
+      elseif (namip/=0.and.nmlo/=0) then
         call amipsst
       endif   ! (mod(ktau,nperday)==0)
 
@@ -1948,8 +1977,8 @@
      &         ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
         if ( ierr == 0 ) then
           write(6,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
-          if(ilx.ne.il_g.or.jlx.ne.jl_g.or.rlong0x.ne.rlong0.
-     &         or.rlat0x.ne.rlat0.or.schmidtx.ne.schmidt)
+          if(ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.
+     &         or.rlat0x/=rlat0.or.schmidtx/=schmidt)
      &         then
             write(6,*) 'wrong data file supplied'
             call MPI_Abort(MPI_COMM_WORLD,-1,ierr)	    
@@ -2006,8 +2035,8 @@
      &         ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
         if ( ierr == 0 ) then
           write(6,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
-          if(ilx.ne.il_g.or.jlx.ne.jl_g.or.rlong0x.ne.rlong0.
-     &         or.rlat0x.ne.rlat0.or.schmidtx.ne.schmidt)
+          if(ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.
+     &         or.rlat0x/=rlat0.or.schmidtx/=schmidt)
      &         then
             write(6,*) 'wrong data file supplied'
             call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
@@ -2110,16 +2139,16 @@
      &     kdate_s/-1/,ktime_s/-1/,leap/0/,
      &     mbd/0/,nbd/0/,nbox/1/,kbotdav/4/,kbotu/0/,           
      &     nud_p/0/,nud_q/0/,nud_t/0/,nud_uv/1/,nud_hrs/24/,nudu_hrs/0/,
-     &     ktopdav/-1/,nud_sst/0/,nud_sss/0/,kbotmlo/-1/,ktopmlo/1/,
-     &     mloalpha/10/,nud_ouv/0/,nud_sfh/0/,knh/-1/
+     &     ktopdav/-1/
+      data nud_sst/0/,nud_sss/0/,nud_ouv/0/,nud_sfh/0/
+      data mloalpha/10/,kbotmlo/-1/,ktopmlo/1/
       
 !     Dynamics options A & B      
       data m/5/,mex/30/,mfix/3/,mfix_qg/1/,mup/1/,nh/0/,nonl/0/,npex/0/
       data nritch_t/300/,nrot/1/,nxmap/0/,
      &     epsp/-15./,epsu/0./,epsf/0./,precon/-2900/,restol/4.e-7/
-      data helmmeth/0/
-      data mfix_tr/0/,mfix_aero/0/
       data schmidt/1./,rlong0/0./,rlat0/90./,nrun/0/,nrunx/0/
+      data helmmeth/0/,mfix_tr/0/,mfix_aero/0/
 !     Horiz advection options
       data ndept/1/,nt_adv/7/,mh_bs/4/
 !     Horiz wind staggering options
@@ -2146,7 +2175,8 @@ c     data nstag/99/,nstagu/99/
      &     rcrit_l/.75/,rcrit_s/.85/ 
 !     Radiation options
       data nrad/4/,ndiur/1/,idcld/1/
-!     Diagnostic cloud options
+      data nmr/0/,bpyear/0./
+!     Cloud options
       data ldr/1/,nclddia/1/,nstab_cld/0/,nrhcrit/10/,sigcll/.95/ 
       data cldh_lnd/95./,cldm_lnd/85./,cldl_lnd/75./
       data cldh_sea/95./,cldm_sea/90./,cldl_sea/80./
@@ -2158,10 +2188,11 @@ c     data nstag/99/,nstagu/99/
      &     vmodmin/.2/,zobgin/.02/,charnock/.018/,chn10/.00125/
       data newsoilm/0/,newztsea/1/,newtop/1/,nem/2/                    
       data snmin/.11/  ! 1000. for 1-layer; ~.11 to turn on 3-layer snow
-      data nurban/0/,nmr/0/,bpyear/0./,rescrn/0/,ccycle/0/
+      data nurban/0/,ccycle/0/
 !     Special and test options
       data namip/0/,amipo3/.false./,nhstest/0/,nsemble/0/,nspecial/0/,
      &     panfg/4./,panzo/.001/,nplens/0/
+      data rescrn/0/,knh/-1/
 !     I/O options
       data m_fly/4/,io_in/1/,io_out/1/,io_rest/1/
       data nperavg/-99/,nwt/-99/

@@ -39,6 +39,7 @@
 /gdrag_m.f90 -text
 /histave_m.f90 -text
 /indices_m.f90 -text
+/infile.f90 -text
 /kdacom_m.f90 -text
 /kuocomb_m.f90 -text
 /latlong_m.f90 -text
@@ -60,7 +61,7 @@
 /nsibd_m.f90 -text
 /o3amip_m.f90 -text
 /optical_path.f90 -text
-/ozoneread.f -text
+/ozoneread.f90 -text
 /parmgeom.h -text
 /parmhdff_m.f90 -text
 /parmsurf.h -text

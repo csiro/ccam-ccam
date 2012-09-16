@@ -141,7 +141,7 @@ hordifg.o : aerosolldr.o arrays_m.o cc_mpi.o cfrac_m.o diag_m.o dpsdt_m.o indice
 hs_phys.o : arrays_m.o latlong_m.o nlin_m.o sigs_m.o newmpar.h parm.h 
 icefall.o : cc_mpi.o kuocomb_m.o morepbl_m.o const_phys.h cparams.h kuocom.h newmpar.h parm.h params.h
 ilu_m.o : cc_mpi.o indices_m.o newmpar.h
-indata.o : aerointerface.o arrays_m.o ateb.o bigxy4_m.o cable_ccam2.o cc_mpi.o dava_m.o diag_m.o epst_m.o extraout_m.o gdrag_m.o indices_m.o latlong_m.o liqwpar_m.o map_m.o mlo.o mlodynamics.o morepbl_m.o nsibd_m.o pbl_m.o permsurf_m.o sigs_m.o soil_m.o soilsnow_m.o timeseries.o tracermodule.o tracers_m.o vecs_m.o vecsuv_m.o vegpar_m.o xyzinfo_m.o const_phys.h darcdf.h dates.h filnames.h newmpar.h parm.h parmdyn.h parmgeom.h soilv.h stime.h trcom2.h
+indata.o : aerointerface.o arrays_m.o ateb.o bigxy4_m.o cable_ccam2.o cc_mpi.o dava_m.o diag_m.o epst_m.o extraout_m.o gdrag_m.o indices_m.o infile.o latlong_m.o liqwpar_m.o map_m.o mlo.o mlodynamics.o morepbl_m.o nsibd_m.o pbl_m.o permsurf_m.o sigs_m.o soil_m.o soilsnow_m.o timeseries.o tracermodule.o tracers_m.o vecs_m.o vecsuv_m.o vegpar_m.o xyzinfo_m.o const_phys.h darcdf.h dates.h filnames.h newmpar.h parm.h parmdyn.h parmgeom.h soilv.h stime.h trcom2.h
 infile.o : cc_mpi.o dates.h newmpar.h parm.h
 ints.o : cc_mpi.o indices_m.o newmpar.h parm.h parmhor.h
 latltoij.o : utilities.o const_phys.h newmpar.h parm.h parmdyn.h
