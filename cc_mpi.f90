@@ -140,6 +140,7 @@ module cc_mpi
    integer, public, save :: helm_begin, helm_end
    integer, public, save :: adjust_begin, adjust_end
    integer, public, save :: upglobal_begin, upglobal_end
+   integer, public, save :: hordifg_begin, hordifg_end
    integer, public, save :: depts_begin, depts_end
    integer, public, save :: deptsync_begin, deptsync_end
    integer, public, save :: intssync_begin, intssync_end
@@ -150,9 +151,11 @@ module cc_mpi
    integer, public, save :: outfile_begin, outfile_end
    integer, public, save :: onthefly_begin, onthefly_end
    integer, public, save :: indata_begin, indata_end
+   integer, public, save :: nestin_begin, nestin_end
    integer, public, save :: gwdrag_begin, gwdrag_end
    integer, public, save :: convection_begin, convection_end
    integer, public, save :: cloud_begin, cloud_end
+   integer, public, save :: radnet_begin,radnet_end
    integer, public, save :: radmisc_begin,radmisc_end
    integer, public, save :: radsw_begin, radsw_end
    integer, public, save :: radlw_begin, radlw_end   
@@ -162,7 +165,6 @@ module cc_mpi
    integer, public, save :: sfluxurban_begin, sfluxurban_end
    integer, public, save :: vertmix_begin, vertmix_end
    integer, public, save :: aerosol_begin, aerosol_end
-   integer, public, save :: nestin_begin, nestin_end
    integer, public, save :: model_begin, model_end
    integer, public, save :: maincalc_begin, maincalc_end
    integer, public, save :: gather_begin, gather_end
@@ -175,7 +177,7 @@ module cc_mpi
    integer, public, save :: mpiwait_begin, mpiwait_end
 #ifdef simple_timer
    public :: simple_timer_finalize
-   integer, parameter :: nevents=42
+   integer, parameter :: nevents=44
    double precision, dimension(nevents), save :: tot_time = 0., start_time
    character(len=15), dimension(nevents), save :: event_name
 #endif 
@@ -329,8 +331,7 @@ contains
       real, dimension(ifull_g), intent(in), optional :: a1
       integer :: i, j, n, iq, iqg, itag=0, iproc, ierr,ierr2, count
       integer, dimension(MPI_STATUS_SIZE) :: status
-!     Note ipfull = ipan*jpan*npan
-      real, dimension(ipan*jpan*npan) :: sbuf
+      real, dimension(ifull) :: sbuf
       integer :: npoff, ipoff, jpoff ! Offsets for target
       integer :: slen
 
@@ -377,15 +378,8 @@ contains
                             MPI_COMM_WORLD, ierr )
          end do
       else ! myid /= 0
-         call MPI_Recv( af, ipan*jpan*npan, MPI_REAL, 0, itag, &
+         call MPI_Recv( af, ifull, MPI_REAL, 0, itag, &
                         MPI_COMM_WORLD, status, ierr )
-         ! Check that the length is the expected value.
-         call MPI_Get_count(status, MPI_REAL, count, ierr)
-         if ( count /= ifull ) then
-            write(6,*) "Error, wrong length in ccmpi_distribute", myid, ifull, count
-            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-         end if
-
       end if
       call end_log(distribute_end)
    end subroutine ccmpi_distribute2
@@ -396,8 +390,7 @@ contains
       real*8, dimension(ifull_g), intent(in), optional :: a1
       integer :: i, j, n, iq, iqg, itag=0, iproc, ierr,ierr2, count
       integer, dimension(MPI_STATUS_SIZE) :: status
-!     Note ipfull = ipan*jpan*npan
-      real*8, dimension(ipan*jpan*npan) :: sbuf
+      real*8, dimension(ifull) :: sbuf
       integer :: npoff, ipoff, jpoff ! Offsets for target
       integer :: slen
 
@@ -444,15 +437,8 @@ contains
                             MPI_COMM_WORLD, ierr )
          end do
       else ! myid /= 0
-         call MPI_Recv( af, ipan*jpan*npan, MPI_DOUBLE_PRECISION, 0, itag, &
+         call MPI_Recv( af, ifull, MPI_DOUBLE_PRECISION, 0, itag, &
                         MPI_COMM_WORLD, status, ierr )
-         ! Check that the length is the expected value.
-         call MPI_Get_count(status, MPI_DOUBLE_PRECISION, count, ierr)
-         if ( count /= ifull ) then
-            write(6,*) "Error, wrong length in ccmpi_distribute", myid, ifull, count
-            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-         end if
-
       end if
       call end_log(distribute_end)
    end subroutine ccmpi_distribute2r8
@@ -463,8 +449,7 @@ contains
       integer, dimension(ifull_g), intent(in), optional :: a1
       integer :: i, j, n, iq, iqg, itag=0, iproc, ierr,ierr2, count
       integer, dimension(MPI_STATUS_SIZE) :: status
-!     Note ipfull = ipan*jpan*npan
-      integer, dimension(ipan*jpan*npan) :: sbuf
+      integer, dimension(ifull) :: sbuf
       integer :: npoff, ipoff, jpoff ! Offsets for target
       integer :: slen
 
@@ -511,15 +496,8 @@ contains
                             MPI_COMM_WORLD, ierr )
          end do
       else ! myid /= 0
-         call MPI_Recv( af, ipan*jpan*npan, MPI_INTEGER, 0, itag, &
+         call MPI_Recv( af, ifull, MPI_INTEGER, 0, itag, &
                         MPI_COMM_WORLD, status, ierr )
-         ! Check that the length is the expected value.
-         call MPI_Get_count(status, MPI_INTEGER, count, ierr)
-         if ( count /= ifull ) then
-            write(6,*) "Error, wrong length in ccmpi_distribute", myid, ifull, count
-            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-         end if
-
       end if
       call end_log(distribute_end)
    end subroutine ccmpi_distribute2i
@@ -528,17 +506,13 @@ contains
       ! Convert standard 1D arrays to face form and distribute to processors
       ! This is also used for tracers, so second dimension is not necessarily
       ! the number of levels
-      ! real, dimension(ifull,kl), intent(out) :: af
-      ! real, dimension(ifull_g,kl), intent(in), optional :: a1
       real, dimension(:,:), intent(out) :: af
       real, dimension(:,:), intent(in), optional :: a1
       integer :: i, j, n, iq, iqg, itag=0, iproc, ierr,ierr2, count
       integer, dimension(MPI_STATUS_SIZE) :: status
-!     Note ipfull = ipan*jpan*npan. Isn't this just ifull?
-!     Check?
-      real, dimension(ipan*jpan*npan,size(af,2)) :: sbuf
+      real, dimension(ifull,size(af,2)) :: sbuf
       integer :: npoff, ipoff, jpoff ! Offsets for target
-      integer :: slen
+      integer :: slen, kx
 
       call start_log(distribute_begin)
 !cdir iexpand(indp, indg)
@@ -546,6 +520,7 @@ contains
          write(6,*) "Error: ccmpi_distribute argument required on proc 0"
          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
       end if
+      kx=size(af,2)
       ! Copy internal region
       if ( myid == 0 ) then
          ! First copy own region
@@ -579,19 +554,12 @@ contains
                   end do
                end do
             end do
-            call MPI_SSend( sbuf, size(sbuf), MPI_REAL, iproc, itag, &
+            call MPI_SSend( sbuf, ifull*kx, MPI_REAL, iproc, itag, &
                             MPI_COMM_WORLD, ierr )
          end do
       else ! myid /= 0
-         call MPI_Recv( af, size(af), MPI_REAL, 0, itag, &
+         call MPI_Recv( af, ifull*kx, MPI_REAL, 0, itag, &
                         MPI_COMM_WORLD, status, ierr )
-         ! Check that the length is the expected value.
-         call MPI_Get_count(status, MPI_REAL, count, ierr)
-         if ( count /= size(af) ) then
-            write(6,*) "Error, wrong length in ccmpi_distribute", myid, size(af), count
-            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-         end if
-
       end if
       call end_log(distribute_end)
    end subroutine ccmpi_distribute3
@@ -629,7 +597,7 @@ contains
             end do
          end do
          do iproc=1,nproc-1
-            call MPI_Recv( abuf, ipan*jpan*npan, MPI_REAL, iproc, itag, &
+            call MPI_Recv( abuf, ifull, MPI_REAL, iproc, itag, &
                         MPI_COMM_WORLD, status, ierr )
 #ifdef uniform_decomp
             do n=1,npan
@@ -652,8 +620,7 @@ contains
             end do
          end do
       else
-         abuf = a
-         call MPI_SSend( abuf, ipan*jpan*npan, MPI_REAL, 0, itag, &
+         call MPI_SSend( a, ifull, MPI_REAL, 0, itag, &
                          MPI_COMM_WORLD, ierr )
       end if
 
@@ -672,7 +639,7 @@ contains
       integer, dimension(MPI_STATUS_SIZE) :: status
       real, dimension(ifull,size(a,2)) :: abuf
       integer :: ipoff, jpoff, npoff
-      integer :: i, j, n, iq, iqg
+      integer :: i, j, n, iq, iqg, kx
 
       call start_log(gather_begin)
 !cdir iexpand(indp, indg, ind)
@@ -681,6 +648,7 @@ contains
          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
       end if
 
+      kx=size(a,2)
       itag = itag + 1
       if ( myid == 0 ) then
          ! Use the face indices for unpacking
@@ -694,7 +662,7 @@ contains
             end do
          end do
          do iproc=1,nproc-1
-            call MPI_Recv( abuf, ipan*jpan*npan*size(a,2), MPI_REAL, iproc, itag, &
+            call MPI_Recv( abuf, ifull*kx, MPI_REAL, iproc, itag, &
                         MPI_COMM_WORLD, status, ierr )
 #ifdef uniform_decomp
             do n=1,npan
@@ -715,8 +683,7 @@ contains
             end do
          end do
       else
-         abuf = a
-         call MPI_SSend( abuf, ipan*jpan*npan*size(a,2), MPI_REAL, 0, itag, &
+         call MPI_SSend( a, ifull*kx, MPI_REAL, 0, itag, &
                          MPI_COMM_WORLD, ierr )
       end if
       call end_log(gather_end)
@@ -3753,6 +3720,9 @@ contains
       upglobal_begin = MPE_Log_get_event_number()
       upglobal_end = MPE_Log_get_event_number()
       ierr = MPE_Describe_state(upglobal_begin, upglobal_end, "Upglobal", "ForestGreen")
+      hordifg_begin = MPE_Log_get_event_number()
+      hordifg_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(hordifg_begin, hordifg_end, "Hordifg", "blue")
       depts_begin = MPE_Log_get_event_number()
       depts_end = MPE_Log_get_event_number()
       ierr = MPE_Describe_state(depts_begin, depts_end, "Depts", "pink1")
@@ -3783,6 +3753,9 @@ contains
       indata_begin = MPE_Log_get_event_number()
       indata_end = MPE_Log_get_event_number()
       ierr = MPE_Describe_state(indata_begin, indata_end, "Indata", "Yellow")
+      nestin_begin = MPE_Log_get_event_number()
+      nestin_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(nestin_begin, nestin_end, "Nestin", "Yellow")
       gwdrag_begin = MPE_Log_get_event_number()
       gwdrag_end = MPE_Log_get_event_number()
       ierr = MPE_Describe_state(gwdrag_begin, gwdrag_end, "GWdrag", "Yellow")
@@ -3792,15 +3765,18 @@ contains
       cloud_begin = MPE_Log_get_event_number()
       cloud_end = MPE_Log_get_event_number()
       ierr = MPE_Describe_state(cloud_begin, cloud_end, "Cloud", "Yellow")
+      radnet_begin = MPE_Log_get_event_number()
+      radnet_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(radnet_begin, radnet_end, "Rad_net", "Yellow")
       radmisc_begin = MPE_Log_get_event_number()
       radmisc_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(radmisc_begin, radmisc_end, "Misc_Rad", "Yellow")
+      ierr = MPE_Describe_state(radmisc_begin, radmisc_end, "Rad_misc", "Yellow")
       radsw_begin = MPE_Log_get_event_number()
       radsw_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(radsw_begin, radsw_end, "SW_Rad", "Yellow")      
+      ierr = MPE_Describe_state(radsw_begin, radsw_end, "Rad_SW", "Yellow")      
       radlw_begin = MPE_Log_get_event_number()
       radlw_end = MPE_Log_get_event_number()      
-      ierr = MPE_Describe_state(radlw_begin, radlw_end, "LW_Rad", "Yellow")
+      ierr = MPE_Describe_state(radlw_begin, radlw_end, "Rad_LW", "Yellow")
       sfluxnet_begin = MPE_Log_get_event_number()
       sfluxnet_end = MPE_Log_get_event_number()
       ierr = MPE_Describe_state(sfluxnet_begin, sfluxnet_end, "Sflux_net", "Yellow")
@@ -3819,9 +3795,6 @@ contains
       aerosol_begin = MPE_Log_get_event_number()
       aerosol_end = MPE_Log_get_event_number()
       ierr = MPE_Describe_state(aerosol_begin, aerosol_end, "Aerosol", "Yellow")
-      nestin_begin = MPE_Log_get_event_number()
-      nestin_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(nestin_begin, nestin_end, "Nestin", "Yellow")
       waterdynamics_begin = MPE_Log_get_event_number()
       waterdynamics_end = MPE_Log_get_event_number()
       ierr = MPE_Describe_state(waterdynamics_begin, waterdynamics_end, "Waterdynamics", "blue")
@@ -3851,6 +3824,8 @@ contains
       adjust_end = adjust_begin
       call vtfuncdef("Upglobal", classhandle, upglobal_begin, ierr)
       upglobal_end = upglobal_begin
+      call vtfuncdef("Hordifg", classhandle, hordifg_begin, ierr)
+      upglobal_end = hordifg_begin
       call vtfuncdef("Depts", classhandle, depts_begin, ierr)
       depts_end = depts_begin
       call vtfuncdef("Deptsync", classhandle, deptsync_begin, ierr)
@@ -3871,17 +3846,21 @@ contains
       onthefly_end =  onthefly_begin
       call vtfuncdef("Indata", classhandle, indata_begin, ierr)
       indata_end =  indata_begin
+      call vtfuncdef("Nestin", classhandle, nestin_begin, ierr)
+      nestin_end =  nestin_begin
       call vtfuncdef("GWdrag", classhandle, gwdrag_begin, ierr)
       gwdrag_end =  gwdrag_begin
       call vtfuncdef("Convection", classhandle, convection_begin, ierr)
       convection_end =  convection_begin
       call vtfuncdef("Cloud", classhandle, cloud_begin, ierr)
       cloud_end =  cloud_begin
-      call vtfuncdef("Misc_rad", classhandle, radmisc_begin, ierr)
+      call vtfuncdef("Rad_net", classhandle, radnet_begin, ierr)
+      radnet_end =  radnet_begin
+      call vtfuncdef("Rad_misc", classhandle, radmisc_begin, ierr)
       radmisc_end =  radmisc_begin
-      call vtfuncdef("SW_Rad", classhandle, radsw_begin, ierr)
+      call vtfuncdef("Rad_SW", classhandle, radsw_begin, ierr)
       radsw_end =  radsw_begin
-      call vtfuncdef("LW_Rad", classhandle, radlw_begin, ierr)
+      call vtfuncdef("Rad_LW", classhandle, radlw_begin, ierr)
       radlw_end =  radlw_begin      
       call vtfuncdef("Sflux_net", classhandle, sfluxnet_begin, ierr)
       sfluxnet_end =  sfluxnet_begin
@@ -3895,8 +3874,6 @@ contains
       vertmix_end =  vertmix_begin
       call vtfuncdef("Aerosol", classhandle, aerosol_begin, ierr)
       aerosol_end = aerosol_begin
-      call vtfuncdef("Nestin", classhandle, nestin_begin, ierr)
-      nestin_end =  nestin_begin
       call vtfuncdef("Waterdynamics", classhandle, waterdynamics_begin, ierr)
       waterdynamics_end =  waterdynamics_begin
       call vtfuncdef("Waterdiff", classhandle, waterdiff_begin, ierr)
@@ -3942,135 +3919,143 @@ contains
       upglobal_end = upglobal_begin
       event_name(upglobal_begin) = "Upglobal"
 
-      depts_begin = 10
+      hordifg_begin = 10
+      hordifg_end = hordifg_begin
+      event_name(hordifg_begin) = "Hordifg"
+
+      depts_begin = 11
       depts_end = depts_begin
       event_name(depts_begin) = "Depts"
 
-      stag_begin = 11
+      stag_begin = 12
       stag_end = stag_begin
       event_name(stag_begin) = "Stag"
 
-      toij_begin = 12
+      toij_begin = 13
       toij_end =  toij_begin
       event_name(toij_begin) = "Toij"
 
-      outfile_begin = 13
+      outfile_begin = 14
       outfile_end =  outfile_begin
       event_name(outfile_begin) = "Outfile"
 
-      onthefly_begin = 14
+      onthefly_begin = 15
       onthefly_end =  onthefly_begin
       event_name(onthefly_begin) = "Onthefly"
 
-      bounds_begin = 15
+      bounds_begin = 16
       bounds_end = bounds_begin
       event_name(bounds_begin) = "Bounds"
 
-      boundsa_begin = 16
+      boundsa_begin = 17
       boundsa_end = boundsa_end
       event_name(boundsa_begin) = "BoundsA"
 
-      boundsb_begin = 17
+      boundsb_begin = 18
       boundsb_end = boundsb_begin
       event_name(boundsb_begin) = "BoundsB"
 
-      boundsuv_begin = 18
+      boundsuv_begin = 19
       boundsuv_end = boundsuv_begin
       event_name(boundsuv_begin) = "BoundsUV"
 
-      deptsync_begin = 19
+      deptsync_begin = 20
       deptsync_end = deptsync_begin
       event_name(deptsync_begin) = "Deptsync"
 
-      intssync_begin = 20
+      intssync_begin = 21
       intssync_end = intssync_begin
       event_name(intssync_begin) = "Intssync"
 
-      gather_begin = 21
+      gather_begin = 22
       gather_end = gather_begin
       event_name(gather_begin) = "Gather"
 
-      distribute_begin = 22
+      distribute_begin = 23
       distribute_end = distribute_begin
       event_name(distribute_begin) = "Distribute"
 
-      reduce_begin = 23
+      reduce_begin = 24
       reduce_end = reduce_begin
       event_name(reduce_begin) = "Reduce"
 
-      precon_begin = 24
+      precon_begin = 25
       precon_end = precon_begin
       event_name(precon_begin) = "Precon"
 
-      mpiwait_begin = 25
+      mpiwait_begin = 26
       mpiwait_end = mpiwait_begin
       event_name(mpiwait_begin) = "MPI_Wait"
 
-      indata_begin = 26
+      indata_begin = 27
       indata_end =  indata_begin
       event_name(indata_begin) = "Indata"
+
+      nestin_begin = 28
+      nestin_end =  nestin_begin
+      event_name(nestin_begin) = "Nestin"
       
-      gwdrag_begin = 27
+      gwdrag_begin = 29
       gwdrag_end =  gwdrag_begin
       event_name(gwdrag_begin) = "GWdrag"
 
-      convection_begin = 28
+      convection_begin = 30
       convection_end =  convection_begin
       event_name(convection_begin) = "Convection"
 
-      cloud_begin = 29
+      cloud_begin = 31
       cloud_end =  cloud_begin
       event_name(cloud_begin) = "Cloud"
 
-      radmisc_begin = 30
+      radnet_begin = 32
+      radnet_end =  radnet_begin
+      event_name(radnet_begin) = "Rad_net"
+
+      radmisc_begin = 33
       radmisc_end =  radmisc_begin
-      event_name(radmisc_begin) = "Misc_Rad"
+      event_name(radmisc_begin) = "Rad_misc"
       
-      radsw_begin = 31
+      radsw_begin = 34
       radsw_end =  radsw_begin
-      event_name(radsw_begin) = "SW_Rad"
+      event_name(radsw_begin) = "Rad_SW"
 
-      radlw_begin = 32
+      radlw_begin = 35
       radlw_end =  radlw_begin
-      event_name(radlw_begin) = "LW_Rad"      
+      event_name(radlw_begin) = "Rad_LW"      
 
-      sfluxnet_begin = 33
+      sfluxnet_begin = 36
       sfluxnet_end =  sfluxnet_begin
       event_name(sfluxnet_begin) = "Sflux_net"
       
-      sfluxwater_begin = 34
+      sfluxwater_begin = 37
       sfluxwater_end =  sfluxwater_begin
       event_name(sfluxwater_begin) = "Sflux_water"
 
-      sfluxland_begin = 35
+      sfluxland_begin = 38
       sfluxland_end =  sfluxland_begin
       event_name(sfluxland_begin) = "Sflux_land"
 
-      sfluxurban_begin = 36
+      sfluxurban_begin = 39
       sfluxurban_end =  sfluxurban_begin
       event_name(sfluxurban_begin) = "Sflux_urban"
 
-      vertmix_begin = 37
+      vertmix_begin = 40
       vertmix_end =  vertmix_begin
       event_name(vertmix_begin) = "Vertmix"
 
-      aerosol_begin = 38
+      aerosol_begin = 41
       aerosol_end =  aerosol_begin
       event_name(aerosol_begin) = "Aerosol"
 
-      nestin_begin = 39
-      nestin_end =  nestin_begin
-      event_name(nestin_begin) = "Nestin"
-
-      waterdynamics_begin = 40
+      waterdynamics_begin = 42
       waterdynamics_end =  waterdynamics_begin
       event_name(waterdynamics_begin) = "Waterdynamics"
 
-      waterdiff_begin = 41
+      waterdiff_begin = 43
       waterdiff_end =  waterdiff_begin
       event_name(waterdiff_begin) = "Waterdiff"
 
-      river_begin = 42
+      river_begin = 44
       river_end =  river_begin
       event_name(river_begin) = "River"
 

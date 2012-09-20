@@ -133,13 +133,13 @@ if (nmaxpr==1.and.myid==0) then
 end if
 
 ! Fix qgmin
-if (qgmin.gt.2.E-7) then
+if (qgmin>2.E-7) then
   if (myid==0) write(6,*) "WARN: Adjust qgmin to 2.E-7 for nrad=5"
   qgmin=2.E-7
 end if
 
 ! Aerosol flag
-do_aerosol_forcing=abs(iaero).ge.2
+do_aerosol_forcing=abs(iaero)>=2
 
 ! set-up half levels ------------------------------------------------
 sigh(1:kl) = sigmh(1:kl)
@@ -198,10 +198,10 @@ if ( first ) then
   Lw_control%do_n2o_iz                   =.true.
   Lw_control%do_o3                       =.true.
   Lw_control%do_co2                      =.true.
-  Lw_control%do_ch4                      =rrvch4.gt.0.
-  Lw_control%do_n2o                      =rrvch4.gt.0.
+  Lw_control%do_ch4                      =rrvch4>0.
+  Lw_control%do_n2o                      =rrvch4>0.
   Lw_control%do_h2o                      =.true.
-  Lw_control%do_cfc                      =rrvch4.gt.0.
+  Lw_control%do_cfc                      =rrvch4>0.
   Rad_control%using_solar_timeseries_data=.false.
   Rad_control%do_totcld_forcing          =do_totcld_forcing
   Rad_control%rad_time_step              =kountr*dt
@@ -416,12 +416,12 @@ Rad_time%seconds=mod(mins,1440)
 Rad_time%ticks  =0
 
 ! error checking
-if (ldr.eq.0) then
-  write(6,*) "ERROR: SEA-ESF radiation requires ldr.ne.0"
+if (ldr==0) then
+  write(6,*) "ERROR: SEA-ESF radiation requires ldr/=0"
   call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
 end if
 
-if(mod(ifull,imax).ne.0)then
+if(mod(ifull,imax)/=0)then
   ! imax should be automatically set-up in globpe.f
   ! so an error here should indicate a bug in globpe.f
   write(6,*) 'nproc,il,jl,ifull,imax ',nproc,il,jl,ifull,imax
@@ -468,7 +468,7 @@ do j=1,jl,imax/il
 
     ! Set-up albedo
     ! Land albedo ---------------------------------------------------
-    if (nsib.eq.6.or.nsib.eq.7) then
+    if (nsib==6.or.nsib==7) then
       ! CABLE version
       where (land(istart:iend))
         cuvrf_dir(1:imax) = albvisdir(istart:iend) ! from cable (inc snow)
@@ -488,7 +488,7 @@ do j=1,jl,imax/il
       do i=1,imax
         iq=i+(j-1)*il
         if (land(iq)) then
-          if (snowd(iq).gt.0.) then
+          if (snowd(iq)>0.) then
             dnsnow=min(1.,.1*max(0.,snowd(iq)-osnowd(iq)))
             ttbg=real(isflag(iq))*tggsn(iq,1) + real(1-isflag(iq))*tgg(iq,1)
             ttbg=min(ttbg,273.1)
@@ -497,7 +497,7 @@ do j=1,jl,imax/il
             ar2 = 10.*ar1                     ! freezing of melt water
             exp_ar2=exp(ar2)                  ! e.g. exp(0 to -40)
             snr=snowd(iq)/max(ssdnn(iq),100.)
-            if(isoilm(iq).eq.9)then   ! fixes for Arctic & Antarctic
+            if(isoilm(iq)==9)then   ! fixes for Arctic & Antarctic
               ar3=.001
               dnsnow=max(dnsnow,.0015)
               snrat=min(1.,snr/(snr+.001))
@@ -506,7 +506,7 @@ do j=1,jl,imax/il
               snrat=min(1.,snr/(snr+.02))
             endif
             dtau=1.e-6*(exp_ar1+exp_ar2+ar3)*dt  ! <~.1 in a day
-            if(snowd(iq).le. 1.)then
+            if(snowd(iq)<= 1.)then
               snage(iq)=0.
             else
               snage(iq)=max(0.,(snage(iq) + dtau)*(1.-dnsnow))
@@ -516,7 +516,7 @@ do j=1,jl,imax/il
             fage = 1.-1./(1.+snage(iq))	 !age factor
             cczen=max(.17365, coszro(i))
             fzen=( 1.+1./2.)/(1.+2.*2.*cczen) -1./2.
-            if( cczen .gt. 0.5 ) fzen = 0.
+            if( cczen > 0.5 ) fzen = 0.
             fzenm = max ( fzen, 0. )
             alvd = alvo * (1.0-0.2*fage)
             alv = .4 * fzenm * (1.-alvd) + alvd
@@ -532,10 +532,10 @@ do j=1,jl,imax/il
     end if
 
     ! Water/Ice albedo --------------------------------------------
-    if (nmlo.eq.0) then
+    if (nmlo==0) then
       ! NCAR CCMS3.0 scheme (Briegleb et al, 1986,
       ! J. Clim. and Appl. Met., v. 27, 214-226)
-      where (.not.land(istart:iend).and.coszro(1:imax).ge.0.)
+      where (.not.land(istart:iend).and.coszro(1:imax)>=0.)
         cuvrf_dir(1:imax)=0.026/(coszro(1:imax)**1.7+0.065)                  &
           +0.15*(coszro(1:imax)-0.1)*(coszro(1:imax)-0.5)*(coszro(1:imax)-1.)
       elsewhere (.not.land(istart:iend))
@@ -550,7 +550,7 @@ do j=1,jl,imax/il
         cirrf_dir(1:imax)=0.45*fracice(istart:iend)+(1.-fracice(istart:iend))*cirrf_dir(1:imax)
         cirrf_dif(1:imax)=0.45*fracice(istart:iend)+(1.-fracice(istart:iend))*cirrf_dif(1:imax)
       end where
-    elseif (abs(nmlo).le.9) then
+    elseif (abs(nmlo)<=9) then
       ! MLO albedo ----------------------------------------------------
       call mloalb4(istart,imax,coszro,cuvrf_dir,cuvrf_dif,cirrf_dir,cirrf_dif,0)
     else
@@ -680,12 +680,12 @@ do j=1,jl,imax/il
     Cld_spec%camtsw=0.
     Cld_spec%crndlw=0.
     Cld_spec%cmxolw=0.
-    if (nmr.eq.0) then
+    if (nmr==0) then
       do i=1,imax ! random overlap
         iq=i+istart-1
         do k=1,kl
           kr=kl+1-k
-          if (cfrac(iq,k).gt.0.) then
+          if (cfrac(iq,k)>0.) then
             Cld_spec%camtsw(i,1,kr)=cfrac(iq,k) ! Max+Rnd overlap clouds for SW
             Cld_spec%crndlw(i,1,kr)=cfrac(iq,k) ! Rnd overlap for LW
           end if
@@ -696,14 +696,14 @@ do j=1,jl,imax/il
         iq=i+istart-1
         do k=1,kl
           kr=kl+1-k
-          if (cfrac(iq,k).gt.0.) then
+          if (cfrac(iq,k)>0.) then
             Cld_spec%camtsw(i,1,kr)=cfrac(iq,k) ! Max+Rnd overlap clouds for SW
             maxover=.false.
-            if (k.gt.1) then
-              if (cfrac(iq,k-1).gt.0.) maxover=.true.
+            if (k>1) then
+              if (cfrac(iq,k-1)>0.) maxover=.true.
             end if
             if (k.lt.kl) then
-              if (cfrac(iq,k+1).gt.0.) maxover=.true.
+              if (cfrac(iq,k+1)>0.) maxover=.true.
             end if
             if (maxover) then
               Cld_spec%cmxolw(i,1,kr)=cfrac(iq,k) ! Max overlap for LW
@@ -755,7 +755,7 @@ do j=1,jl,imax/il
    
     Astro%cosz(:,1)   =max(coszro,0.)
     Astro%fracday(:,1)=taudar
-    swcount=swcount+count(coszro.gt.0.)
+    swcount=swcount+count(coszro>0.)
 
     call end_log(radmisc_end)
     call start_log(radlw_begin)
@@ -800,17 +800,17 @@ do j=1,jl,imax/il
     sgdnnirdir=Sw_output(1)%dfsw_dir_sfc(:,1)-sgdnvisdir
     sgdnnirdif=Sw_output(1)%dfsw_dif_sfc(:,1)-sgdnvisdif
     
-    where (sgdn.gt.0.1)
+    where (sgdn>0.1)
       swrsave(istart:iend)=sgdnvis/sgdn
     elsewhere
       swrsave(istart:iend)=0.5
     end where
-    where (sgdnvis.gt.0.1)
+    where (sgdnvis>0.1)
       fbeamvis(istart:iend)=sgdnvisdir/sgdnvis
     elsewhere
       fbeamvis(istart:iend)=0.5
     end where
-    where (sgdnnir.gt.0.1)
+    where (sgdnnir>0.1)
       fbeamnir(istart:iend)=sgdnnirdir/sgdnnir
     elsewhere
       fbeamnir(istart:iend)=0.5
@@ -856,7 +856,7 @@ do j=1,jl,imax/il
     ! step) and use this value to get solar radiation at other times.
     ! Use the zenith angle and daylight fraction calculated in zenith
     ! to remove these factors.
-    where (coszro(1:imax)*taudar(1:imax).le.1.E-5)
+    where (coszro(1:imax)*taudar(1:imax)<=1.E-5)
       ! The sun isn't up at all over the radiation period so no 
       ! fitting need be done.
       sga(1:imax)=0.
@@ -883,7 +883,7 @@ do j=1,jl,imax/il
 
     ! Use explicit indexing rather than array notation so that we can run
     ! over the end of the first index
-    if(ktau>1)then ! averages not added at time zero
+    if(ktau>0)then ! averages not added at time zero
       if(j==1)koundiag=koundiag+1  
       sint_ave(istart:iend) = sint_ave(istart:iend) + sint(1:imax)
       sot_ave(istart:iend)  = sot_ave(istart:iend)  + sout(1:imax)
@@ -902,7 +902,7 @@ do j=1,jl,imax/il
                              +(1.-swrsave(istart:iend))*albvisnir(istart:iend,2)
       fbeam_ave(istart:iend)= fbeam_ave(istart:iend)+fbeamvis(istart:iend)*swrsave(istart:iend) &
                              +fbeamnir(istart:iend)*(1.-swrsave(istart:iend))
-    endif   ! (ktau>1)
+    endif   ! (ktau>0)
     
     ! Store fraction of direct radiation in urban scheme
     dumfbeam=fbeamvis(istart:iend)*swrsave(istart:iend)+fbeamnir(istart:iend)*(1.-swrsave(istart:iend))
@@ -916,13 +916,13 @@ do j=1,jl,imax/il
 
   ! Calculate the solar using the saved amplitude.
   sg(1:imax) = sgamp(istart:iend)*coszro2(1:imax)*taudar2(1:imax)
-  if(ktau>1)then ! averages not added at time zero
+  if(ktau>0)then ! averages not added at time zero
     sgn_ave(istart:iend)  = sgn_ave(istart:iend)  + sg(1:imax)
     where (sg(1:imax)/ ( 1. - swrsave(istart:iend)*albvisnir(istart:iend,1) &
-           -(1.-swrsave(istart:iend))*albvisnir(istart:iend,2) ).gt.120.)
+           -(1.-swrsave(istart:iend))*albvisnir(istart:iend,2) )>120.)
       sunhours(istart:iend)=sunhours(istart:iend)+86400.
     end where
-  endif  ! (ktau>1)
+  endif  ! (ktau>0)
       
   ! Set up the CC model radiation fields
   ! slwa is negative net radiational htg at ground
@@ -1225,7 +1225,7 @@ rhoa=prf/(rdry*ttg)
 ! Martin etal 1994, JAS 51, 1823-1842
 reffl=0.
 Wliq=0.
-where (qlg.gt.1.E-8.and.cfrac.gt.0.)
+where (qlg>1.E-8.and.cfrac>0.)
   Wliq=rhoa*qlg/cfrac !kg/m^3
   ! This is the Liu and Daum scheme for relative dispersion (Nature, 419, 580-581 and pers. comm.)
   !eps = 1.-0.7*exp(-0.008e-6*cdrop) !upper bound
@@ -1255,21 +1255,21 @@ end where
 !    this correction, 0.9*(2**(1./3.)) = 1.134, is applied only to 
 !    single layer liquid or mixed phase clouds.
 if (do_brenguier) then
-  if (nmr.eq.0) then
+  if (nmr==0) then
     !reffl=reffl*1.134
     reffl=reffl*1.2599
   else
-    where (cfrac(:,2).eq.0.)
+    where (cfrac(:,2)==0.)
       !reffl(:,1)=reffl(:,1)*1.134
       reffl(:,1)=reffl(:,1)*1.2599
     end where
     do k=2,kl-1
-      where (cfrac(:,k-1).eq.0..and.cfrac(:,k+1).eq.0.)
+      where (cfrac(:,k-1)==0..and.cfrac(:,k+1)==0.)
         !reffl(:,k)=reffl(:,k)*1.134
         reffl(:,k)=reffl(:,k)*1.2599
       end where
     end do
-    where (cfrac(:,kl-1).eq.0.)
+    where (cfrac(:,kl-1)==0.)
       !reffl(:,kl)=reffl(:,kl)*1.134
       reffl(:,kl)=reffl(:,kl)*1.2599
     end where  
@@ -1279,7 +1279,7 @@ end if
 
 reffi=0.
 Wice=0.
-where (qfg.gt.1.E-8.and.cfrac.gt.0.)
+where (qfg>1.E-8.and.cfrac>0.)
   Wice=rhoa*qfg/cfrac !kg/m**3
 !Lohmann et al.(1999)
 !  reffi=min(150.e-6,3.73e-4*Wice**0.216) 
@@ -1288,20 +1288,20 @@ end where
 !Donner et al (1997)
 do k=1,kl
   do iq=1,imax
-    if (qfg(iq,k).gt.1.E-8.and.cfrac(iq,k).gt.0.) then
-      if (ttg(iq,k).gt.248.16) then
+    if (qfg(iq,k)>1.E-8.and.cfrac(iq,k)>0.) then
+      if (ttg(iq,k)>248.16) then
         reffi(iq,k)=5.E-7*100.6
-      elseif (ttg(iq,k).gt.243.16) then
+      elseif (ttg(iq,k)>243.16) then
         reffi(iq,k)=5.E-7*80.8
-      elseif (ttg(iq,k).gt.238.16) then
+      elseif (ttg(iq,k)>238.16) then
         reffi(iq,k)=5.E-7*93.5
-      elseif (ttg(iq,k).gt.233.16) then
+      elseif (ttg(iq,k)>233.16) then
         reffi(iq,k)=5.E-7*63.9
-      elseif (ttg(iq,k).gt.228.16) then
+      elseif (ttg(iq,k)>228.16) then
         reffi(iq,k)=5.E-7*42.5
-      elseif (ttg(iq,k).gt.223.16) then
+      elseif (ttg(iq,k)>223.16) then
         reffi(iq,k)=5.E-7*39.9
-      elseif (ttg(iq,k).gt.218.16) then
+      elseif (ttg(iq,k)>218.16) then
         reffi(iq,k)=5.E-7*21.6
       else
         reffi(iq,k)=5.E-7*20.2
@@ -1318,10 +1318,10 @@ do k=1,kl
   coni(:,kr) =scale_factor*1000.*Wice(:,k)
 end do
 
-where (Rdrop.gt.0.)
+where (Rdrop>0.)
   Rdrop=min(max(Rdrop,8.4),33.2) ! constrain diameter to acceptable range (see microphys_rad.f90)
 endwhere
-where (Rice.gt.0.)
+where (Rice>0.)
   Rice=min(max(Rice,18.6),130.2)
 endwhere
 
@@ -1369,7 +1369,7 @@ if (myid==0) then
   filename=trim(cnsdir) // '/aerosol.optical.dat'
   unit=16
   open(unit,file=filename,iostat=ierr,status='old')
-  if (ierr.ne.0) then
+  if (ierr/=0) then
     write(6,*) "ERROR: Cannot open ",trim(filename)
     call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
   end if
@@ -1839,7 +1839,7 @@ real(kind=8), dimension(N_AEROSOL_BANDS_CN, num_wavenumbers), intent(out) :: sfl
         end if
         if ( nw == iendsfbands(nivl) ) then
           nivl = nivl + 1
-          if (do_band1 .and. nband .eq. 1 .and.   &
+          if (do_band1 .and. nband == 1 .and.   &
               iendsfbands(nivl-1) >= istartaerband_fr(1) .and.  &
               iendsfbands(nivl-1) < iendaerband_fr(1)) then
             nivl1aer_fr(nband) = nivl-1

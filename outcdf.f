@@ -278,7 +278,9 @@ c       create the attributes of the header record of the file
         nahead(52)=nevapls
         nahead(53)=nevapcc
         nahead(54)=nt_adv
-        write(6,'("nahead=",(20i4))') nahead
+        if (myid==0) then
+          write(6,'("nahead=",(20i4))') nahead
+        end if
         ahead(1)=ds
         ahead(2)=0.  !difknbd
         ahead(3)=0.  ! was rhkuo for kuo scheme
@@ -315,6 +317,7 @@ c       create the attributes of the header record of the file
       call openhist(iarch,itype,dim,local,idnc,iaero)
 
       if(myid==0.or.local)then
+        ! for testing
         !call ncsnc(idnc,ier)
         !call ncmsg("ncsnc",ier)
         if(ktau==ntau)then
@@ -937,7 +940,7 @@ c       For time varying surface fields
         endif     ! (nextout>=1)
         if (nextout>=1.or.(nvmix==6.and.itype==-1)) then
           lname = 'PBL depth'
-          call attrib(idnc,idim,3,'pblh',lname,'m',0.,6500.,0,itype)
+          call attrib(idnc,idim,3,'pblh',lname,'m',0.,13000.,0,itype)
         end if
 
         ! CABLE -----------------------------------------------------
@@ -1117,7 +1120,9 @@ c       For time varying surface fields
         end if
         
         ! STANDARD 3D VARIABLES -------------------------------------
-        write(6,*) '3d variables'
+        if (myid==0) then
+          write(6,*) '3d variables'
+        end if
         if(nextout>=4.and.nllp==3)then   ! N.B. use nscrn=1 for hourly output
           lname = 'Delta latitude'
           call attrib(idnc,dim,4,'del_lat',lname,'deg',-60.,60.,1,itype)
@@ -2000,6 +2005,9 @@ c      "extra" outputs
 
       !--------------------------------------------------------------
       ! HIGH FREQUENCY OUTPUT FILES
+      
+      ! Here we buffer high frequency output.  However, it may be
+      ! unnecessary if the netcdf library also buffers the output
       subroutine freqfile
 
       use arrays_m                          ! Atmosphere dyamics prognostic arrays

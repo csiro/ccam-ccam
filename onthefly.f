@@ -512,22 +512,6 @@
       if (myid==0) write(6,*) "Ref height lev,levkk =",
      &                                    lev,levkk
 
-      ! could slightly speed up code by also saving zss arrays
-      if (iotest) then
-        if (myid==0) then
-          call ccmpi_distribute(zss,zss_a)
-        else
-          call ccmpi_distribute(zss)
-        end if
-      else
-        if ( myid==0 ) then
-          call ints4(zss_a,uct_g, nface4,xg4,yg4,nord,ik)
-          call ccmpi_distribute(zss,uct_g)
-        else
-          call ccmpi_distribute(zss)
-        end if ! myid==0
-      end if ! iotest
-
       !--------------------------------------------------------------
       ! Begin reading host data for current time step
       ! psf read when nested=0 or nested=1.and.nud_p/=0
@@ -761,28 +745,45 @@ c***        but needed here for onthefly (different dims) 28/8/08
         call fill_cc(fracice_a,spval,ik,0)
       endif   ! (myid==0)
 
+      ! could slightly speed up code by also saving zss arrays
       if (iotest) then
         if (myid==0) then
+          
+        else
+          
+        end if
+      else
+        if ( myid==0 ) then
+
+        else
+        end if ! myid==0
+      end if ! iotest
+
+      if (iotest) then
+        if (myid==0) then
+          call ccmpi_distribute(zss,zss_a)
           call ccmpi_distribute(tss,tss_a)
           call ccmpi_distribute(sicedep,sicedep_a)
           call ccmpi_distribute(fracice,fracice_a)
         else
+          call ccmpi_distribute(zss)
           call ccmpi_distribute(tss)
           call ccmpi_distribute(sicedep)
           call ccmpi_distribute(fracice)
         end if
-c       incorporate other target land mask effects
+!       incorporate other target land mask effects
         where (land)
           sicedep=0.
           fracice=0.
         end where
       else
 !       The routine doints4 does the gather, calls ints4 and redistributes
+        call doints4(zss_a , zss,  nface4,xg4,yg4,nord,dk,ifg)
         call doints4(tss_l_a , tss_l,  nface4,xg4,yg4,nord,dk,ifg)
         call doints4(tss_s_a , tss_s,  nface4,xg4,yg4,nord,dk,ifg)
         call doints4(fracice_a , fracice,  nface4,xg4,yg4,nord,dk,ifg)
         call doints4(sicedep_a , sicedep,  nface4,xg4,yg4,nord,dk,ifg)
-c       incorporate other target land mask effects
+!       incorporate other target land mask effects
         do iq=1,ifull
           if(land(iq))then
             tss(iq)=tss_l(iq)

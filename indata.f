@@ -498,6 +498,9 @@
           sigmu(:)=0.
         end where
         if (myid==0) write(6,*) 'Initialising ateb urban scheme'
+        if (nmaxpr==1) then
+          write(6,*) "myid,urban ",myid,count(sigmu>0.)
+        end if
         call atebinit(ifull,sigmu(:),0)
       else
         sigmu(:)=0.

@@ -112,7 +112,10 @@ c     eg is latent heat flux (was wv)
 c     dfgdt is dfgdt (was csen in surfupa/b)
 c     degdt is degdt (was ceva in surfupa/b)
 
-      call start_log(sfluxnet_begin)
+      if (ktau==1.and.nmaxpr==1) then
+        write(6,*) "myid,land,sea ",myid,count(land),
+     &    ifull-count(land)
+      end if
 
       if (.not.allocated(plens).and.nmlo==0) then
         allocate(plens(ifull))
@@ -166,11 +169,11 @@ c     using av_vmod (1. for no time averaging)
       vav(:)=av_vmod*v(1:ifull,1)+(1.-av_vmod)*savv(:,1)  
       vmod(:)=sqrt(uav(:)**2+vav(:)**2)  ! i.e. vmod for tss_sh
       vmag(:)=max( vmod(:) , vmodmin) ! vmag used to calculate ri
-      if(ntsur.ne.7)vmod(:)=vmag(:)	! gives usual way
+      if(ntsur/=7)vmod(:)=vmag(:)	! gives usual way
 
       !--------------------------------------------------------------
       call start_log(sfluxwater_begin)
-      if (nmlo.eq.0) then                                               ! sea
+      if (nmlo==0) then                                                 ! sea
        if(ntest==2.and.mydiag)write(6,*) 'before sea loop'              ! sea
 !       from June '03 use basic sea temp from tgg1 (so leads is sensible)      
 !       all sea points in this loop; also open water of leads           ! sea
@@ -201,7 +204,7 @@ c     using av_vmod (1. for no time averaging)
            dtsol=0.             ! raw SST                               ! sea
            tpan(iq)=tgg(iq,1)   ! raw SST                               ! sea
          endif   ! (ntss_sh==0) .. else ..                              ! sea
-         if(nplens.ne.0)then                                            ! sea
+         if(nplens/=0)then                                              ! sea
 !         calculate running total (over last 24 h) of daily precip in mm  jlm
           plens(iq)=(1.-dt/86400.)*plens(iq)+condx(iq)  ! in mm/day     ! sea
 !         scale so that nplens m/s wind for 1/2 hr reduces effect by 1/1.2
@@ -209,7 +212,7 @@ c     using av_vmod (1. for no time averaging)
      .                     max(nplens*1800.,1.))      ! avoids Cray compiler bug
 !         produce a cooling of 4 K for an effective plens of 10 mm/day  ! sea
           tpan(iq)=tpan(iq)-min(.4*plens(iq) , 6.)                      ! sea
-         endif   !  (nplens.ne.0)                                       ! sea
+         endif   !  (nplens/=0)                                         ! sea
         if(ntsea==1.and.condx(iq)>.1)tpan(iq)=t(iq,2)                   ! sea
         if(ntsea==2.and.condx(iq)>.1)tpan(iq)=t(iq,1)                   ! sea
         if(ntsea==3.and.condx(iq)>.1)tpan(iq)=.5*(t(iq,2)+tgg(iq,1))    ! sea
@@ -569,6 +572,9 @@ c       Surface stresses taux, tauy: diagnostic only - unstag now       ! sice
         write(6,*) "ERROR: this option is for PCOM ocean model"         ! PCOM
         stop                                                            ! PCOM
       end if                                                            ! PCOM
+#ifdef loadbalall
+      call phys_loadbal
+#endif
       call end_log(sfluxwater_end)
       !--------------------------------------------------------------      
       call start_log(sfluxland_begin)                                   ! land
@@ -723,7 +729,7 @@ c                Now heat ; allow for smaller zo via aft and factch     ! land
             if (mydiag) write(6,*) 'before call scrnout'                ! land
             call maxmin(t,' t',ktau,1.,kl)                              ! land
           endif                                                         ! land
-          if(ntsur.ne.5)then    ! ntsur=6 is default from Mar '05       ! land
+          if(ntsur/=5)then    ! ntsur=6 is default from Mar '05         ! land
 c           preferred option to recalc cduv, ustar (gives better uscrn, u10)
             do iq=1,ifull                                               ! land
              afroot=vkar/log(zmin/zo(iq))! land formula is bit different above
@@ -779,7 +785,7 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
            ! However, it overwrites ocean points when using MLO.        ! land
            ! Therefore, we use scrnocn which can calculate screen       ! land
            ! level diagnostics for just ocean or just land points       ! land
-           if (nmlo.eq.0) then                                          ! land
+           if (nmlo==0) then                                            ! land
              smixr=wetfac*qsttg+(1.-wetfac)*min(qsttg,qg(1:ifull,1))    ! land
              call scrnout(zo,ustar,factch,wetfac,smixr,                 ! land
      .              qgscrn,tscrn,uscrn,u10,rhscrn,af,aft,ri,vmod,       ! land
@@ -810,7 +816,7 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
            tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                            ! cable
            sno(iq)=sno(iq)+conds(iq)                                    ! cable
          enddo   ! ip=1,ipland                                          ! cable
-         if (nmlo.eq.0) then                                            ! cable
+         if (nmlo==0) then                                              ! cable
            ! update ocean diagnostics                                   ! cable
            smixr=wetfac*qsttg+(1.-wetfac)*min(qsttg,qg(1:ifull,1))      ! cable
            dumx=sqrt(u(1:ifull,1)*u(1:ifull,1)+                         ! cable
@@ -821,7 +827,7 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
          end if                                                         ! cable
          smixr=wetfac*qsttg+(1.-wetfac)*min(qsttg,qg(1:ifull,1))        ! cable
          ! The following patch overrides CABLE screen level diagnostics ! cable
-         if (nsib.eq.7) then                                            ! cable
+         if (nsib==7) then                                              ! cable
            dumx=sqrt(u(1:ifull,1)*u(1:ifull,1)+                         ! cable
      &                       v(1:ifull,1)*v(1:ifull,1))                 ! cable
            duml=.not.land                                               ! cable
@@ -836,13 +842,16 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
           write(6,*) "ERROR: Unknown land-use option nsib=",nsib        ! land
           stop                                                          ! land
       end select                                                        ! land
+#ifdef loadbalall
+      call phys_loadbal                                                 ! land
+#endif
       call end_log(sfluxland_end)                                       ! land
       !----------------------------------------------------------
       call start_log(sfluxurban_begin)                                  ! urban
       if (myid==0.and.nmaxpr==1) then                                   ! urban
         write(6,*) "Before urban"                                       ! urban
       end if                                                            ! urban
-      if (nurban.ne.0) then                                             ! urban
+      if (nurban/=0) then                                               ! urban
          ! calculate zonal and meridonal winds                          ! urban
          zonx=                       -sin(rlat0*pi/180.)*y(:)           ! urban
          zony=sin(rlat0*pi/180.)*x(:)+cos(rlat0*pi/180.)*z(:)           ! urban
@@ -905,6 +914,9 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
       if (myid==0.and.nmaxpr==1) then                                   ! urban
         write(6,*) "After urban"                                        ! urban
       end if                                                            ! urban
+#ifdef loadbalall
+      call phys_loadbal                                                 ! urban
+#endif
       call end_log(sfluxurban_end)                                      ! urban
 c ----------------------------------------------------------------------
       evap(:)=evap(:)+dt*eg(:)/hl !time integ value in mm (wrong for snow)
@@ -943,7 +955,6 @@ c***  end of surface updating loop
          write(47,'(2g13.4)') sqrt(u(iq,1)**2+v(iq,1)**2),eg(iq)
         enddo
       endif
-      call end_log(sfluxnet_end)
       return
       end
 

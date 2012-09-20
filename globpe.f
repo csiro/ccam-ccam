@@ -1218,8 +1218,10 @@
       endif
 
       ! DIFFUSION -------------------------------------------------------------
+      call start_log(hordifg_begin)
       if (nhor<0) call hordifgt(iaero)  ! now not tendencies
       if (diag.and.mydiag) write(6,*) 'after hordifgt t ',t(idjd,:)
+      call end_log(hordifg_end)
 
       ! ***********************************************************************
       ! START OCEAN DYNAMICS
@@ -1282,6 +1284,9 @@
       if (myid==0.and.nmaxpr==1) then
         write(6,*) "After gwdrag"
       end if
+#ifdef loadbalall
+      call phys_loadbal
+#endif
       call end_log(gwdrag_end)
 
       ! CONVECTION ------------------------------------------------------------
@@ -1289,6 +1294,8 @@
       if (myid==0.and.nmaxpr==1) then
         write(6,*) "Before convection"
       end if
+      condx=0.
+      conds=0.
       select case(nkuo)
         case(5)
           call betts(t,qg,tn,land,ps) ! not called these days
@@ -1305,6 +1312,9 @@
       if (myid==0.and.nmaxpr==1) then
         write(6,*) "After convection"
       end if
+#ifdef loadbalall
+      call phys_loadbal
+#endif
       call end_log(convection_end)
 
       ! CLOUD MICROPHYSICS ----------------------------------------------------
@@ -1331,13 +1341,17 @@
       if (myid==0.and.nmaxpr==1) then
         write(6,*) "After cloud microphysics"
       end if
+#ifdef loadbalall
+      call phys_loadbal
+#endif
       call end_log(cloud_end)
 
       ! RADIATION -------------------------------------------------------------
       
       ! nrad=4 Fels-Schwarzkopf radiation
       ! nrad=5 SEA-ESF radiation
-      
+
+      call start_log(radnet_begin)
       if (myid==0.and.nmaxpr==1) then
         write(6,*) "Before radiation"
       end if
@@ -1373,6 +1387,11 @@
       if (myid==0.and.nmaxpr==1) then
         write(6,*) "After radiation"
       end if
+#ifdef loadbalall
+       call phys_loadbal
+#endif
+       call end_log(radnet_end)
+
 
       ! HELD & SUAREZ ---------------------------------------------------------
       if (ntsur<=1.or.nhstest==2) then ! Held & Suarez or no surf fluxes
@@ -1394,6 +1413,7 @@
          
        ! SURFACE FLUXES ---------------------------------------------
        ! (Includes ocean dynamics and mixing, as well as ice dynamics and thermodynamics)
+       call start_log(sfluxnet_begin)
        if (myid==0.and.nmaxpr==1) then
         write(6,*) "Before surface fluxes"
        end if
@@ -1404,6 +1424,10 @@
        if (myid==0.and.nmaxpr==1) then
         write(6,*) "After surface fluxes"
        end if
+#ifdef loadbalall
+       call phys_loadbal
+#endif
+       call end_log(sfluxnet_end)
        
        ! STATION OUTPUT ---------------------------------------------
        if (nstn>0.and.nrotstn(1)==0) call stationa ! write every time step
@@ -1500,6 +1524,9 @@
         call vertmix(iaero) 
         if(nmaxpr==1.and.mydiag)
      &    write (6,"('aft-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
+#ifdef loadbalall
+        call phys_loadbal
+#endif
         call end_log(vertmix_end)
       endif  ! (ntsur>=1)
       if (myid==0.and.nmaxpr==1) then
@@ -1516,6 +1543,9 @@
         if (myid==0.and.nmaxpr==1) then
          write(6,*) "After aerosols"
         end if
+#ifdef loadbalall
+        call phys_loadbal
+#endif
         call end_log(aerosol_end)
       end if
 
@@ -1820,12 +1850,12 @@
          call MPI_Reduce ( temparray, gtemparray, 3, MPI_REAL, MPI_MAX,
      &                   0, MPI_COMM_WORLD, ierr )
          if ( myid == 0 ) then
-            precavge = gtemparray(1)
-            evapavge  = gtemparray(2)
-            pwatr    = gtemparray(3)
-            write(6,985) pwatr,precavge,evapavge ! MJT bug fix
+          precavge = gtemparray(1)
+          evapavge  = gtemparray(2)
+          pwatr    = gtemparray(3)
+          write(6,985) pwatr,precavge,evapavge ! MJT bug fix
+985       format(' average pwatr,precc,prec,evap: ',4f7.3)
          end if
-985      format(' average pwatr,precc,prec,evap: ',4f7.3)
         end if
 !       also zero most averaged fields every nperavg
         cbas_ave(:)=0.

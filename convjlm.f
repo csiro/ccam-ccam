@@ -278,7 +278,7 @@ c     typical tied_con=10,20 for C48, increasing for smaller ds  (i.e. 14, 28 fo
        if(tied_con>0.)then    
          omgtst(iq)=1.e-8*tied_con *sqrt(em(iq)*208498./ds)  
        else
-          omgtst(iq)=-1.e-8*tied_con *sqrt(sqrt(em(iq)*208498./ds))  
+         omgtst(iq)=-1.e-8*tied_con *sqrt(sqrt(em(iq)*208498./ds))  
        endif
       enddo
 
@@ -302,7 +302,7 @@ c     convective first, then possibly L/S rainfall
      &                      +betm(k)*tt(iq,k-1)
        enddo     ! iq loop
       enddo      ! k  loop
-      if(nh.ne.0)phi(:,:)=phi(:,:)+phi_nh(:,:)  ! add non-hydrostatic component - MJT
+      if(nh/=0)phi(:,:)=phi(:,:)+phi_nh(:,:)  ! add non-hydrostatic component - MJT
 
       if(convtime>10.)then       
 !       following increases convtime_eff for small grid lengths
@@ -444,7 +444,7 @@ c      print *,'qs,qg,alfqarr',qs(idjd,k),qg(idjd,k),alfqarr(idjd)  ! tst
       convpsav(:)=0.
       dels(:,:)=1.e-20
       delq(:,:)=0.
-      if(nuvconv.ne.0)then 
+      if(nuvconv/=0)then 
         if(nuvconv<0)nuv=abs(nuvconv)  ! Oct 08 nuv=0 for nuvconv>0
         delu(:,:)=0.
         delv(:,:)=0.
@@ -686,7 +686,7 @@ c            splume(iq,k)=splume(iq,k-1)*(1.+entr(iq))+entrr*s(iq,k)
          enddo    ! iq loop
         enddo     ! k loop
       endif
-      if(nmaxpr==1.and.nevapcc.ne.0.and.mydiag)then
+      if(nmaxpr==1.and.nevapcc/=0.and.mydiag)then
 c       write (6,*) "idjd,itn",idjd,itn
 c       write (6,*) "kb_saved",kb_saved(idjd)
 c       write (6,*) "kt_saved",kt_saved(idjd)
@@ -795,7 +795,7 @@ c      fldow(iq)=(.5+sign(.5,totprec))*fldownn ! suppr. downdraft for totprec<0
          enddo
         endif    ! (kb_sav(iq)<kl)
        enddo     ! iq loop
-       if(itn==1.and.nevapcc.ne.0)then
+       if(itn==1.and.nevapcc/=0)then
          do iq=1,ifull
           alfqarr(iq)=min(alfqarr(iq),
      &                     qs(iq,kb_sav(iq))/qg(iq,kb_sav(iq)))
@@ -1208,7 +1208,6 @@ c        fluxt here denotes delt, phi denotes del_phi
             tt(iq,k)=tt(iq,k)+fluxt(iq,k)
            enddo    ! iq loop
         enddo     ! k loop
-        if(nh.ne.0)phi(:,:)=phi(:,:)+phi_nh(:,:)  ! add non-hydrostatic component - MJT
       endif       ! (ncvcloud==0) .. else ..
       
 !!!!!!!!!!!!!!!!!!!!! "deep" detrainment using detrain !!!!!v3!!!!!!    
@@ -1252,13 +1251,13 @@ c      if(mydiag)print *,'methprec5 detrfactr,detrfactr(idjd)
         enddo
         write(6,*) 'delq_av,delt_exp,rnd_exp ',
      .         delq_av,-delq_av*hl/cp,-delq_av*conrev(iq)
-        if(delt_av.ne.0.)write(6,*) 
+        if(delt_av/=0.)write(6,*) 
      &        'ktau,itn,kbsav,ktsav,delt_av,heatlev',
      .        ktau,itn,kb_sav(iq),kt_sav(iq),delt_av,heatlev/delt_av
       endif   ! (ntest>0.or.diag)
       
 !     update u & v using actual delu and delv (i.e. divided by dsk)
-7     if(nuvconv.ne.0.or.nuv>0)then
+7     if(nuvconv/=0.or.nuv>0)then
         if(ntest>0.and.mydiag)then
           write(6,*) 'u,v before convection'
           write (6,"('u  ',12f7.2/(3x,12f7.2))") u(idjd,:)
@@ -1275,11 +1274,11 @@ c      if(mydiag)print *,'methprec5 detrfactr,detrfactr(idjd)
           write (6,"('u  ',12f7.2/(3x,12f7.2))") u(idjd,:)
           write (6,"('v  ',12f7.2/(3x,12f7.2))") v(idjd,:)
         endif
-      endif     ! (nuvconv.ne.0)
+      endif     ! (nuvconv/=0)
 
 !     section for convective transport of trace gases (jlm 22/2/01)
       if(ngas>0)then
-!       if(iterconv.ne.1)stop 'need 1 for trace gases' ! should be OK now
+!       if(iterconv/=1)stop 'need 1 for trace gases' ! should be OK now
         do ntr=1,ngas
          do k=1,kl-2
           do iq=1,ifull
@@ -1306,7 +1305,7 @@ c      if(mydiag)print *,'methprec5 detrfactr,detrfactr(idjd)
       endif      ! (ngas>0)
       
       ! Convective transport of non-hydrostatic temperature correction - MJT
-      if (nh.ne.0) then
+      if (nh/=0) then
         ff(:,1)=phi_nh(:,1)/bet(1)
         do k=2,kl-2
           ! representing non-hydrostatic term as a correction to air temperature
@@ -1443,6 +1442,7 @@ c     if(ktau<=3.and.nmaxpr==1.and.mydiag)then
         do k=2,kl
          phi(iq,k)=phi(iq,k-1)+bet(k)*tt(iq,k)+betm(k)*tt(iq,k-1)
         enddo      ! k  loop
+        if(nh/=0)phi(:,:)=phi(:,:)+phi_nh(:,:)  ! add non-hydrostatic component - MJT
         do k=1,kl   
          s(iq,k)=cp*tt(iq,k)+phi(iq,k)  ! dry static energy
         enddo   ! k loop
@@ -1487,7 +1487,7 @@ c     if(ktau<=3.and.nmaxpr==1.and.mydiag)then
       enddo
 
 !     update qq, tt for evap of qliqw (qliqw arose from moistening)
-      if(ldr.ne.0)then
+      if(ldr/=0)then
 !       Leon's stuff here, e.g.
         do k=1,kl
           do iq=1,ifullw
@@ -1504,7 +1504,7 @@ c     if(ktau<=3.and.nmaxpr==1.and.mydiag)then
         qq(1:ifull,:)=qq(1:ifull,:)+qliqw(1:ifull,:)         
         tt(1:ifull,:)=tt(1:ifull,:)-hl*qliqw(1:ifull,:)/cp   ! evaporate it
         qliqw(1:ifull,:)=0.   ! just for final diags
-      endif  ! (ldr.ne.0)
+      endif  ! (ldr/=0)
 !______________________end of convective calculations_____________________
      
       if((ntest>0.or.diag).and.mydiag)then
@@ -1528,10 +1528,10 @@ c     if(ktau<=3.and.nmaxpr==1.and.mydiag)then
           write (6,"('k, rh, delt_av, heatlev',i5,f7.2,2f10.2)")
      .                k,100.*qq(iq,k)/qs(iq,k),delt_av,heatlev
          enddo
-         if(delt_av.ne.0.)write(6,*) 'ktau,delt_av-net,heatlev_net ',
+         if(delt_av/=0.)write(6,*) 'ktau,delt_av-net,heatlev_net ',
      .                             ktau,delt_av,heatlev/delt_av
       endif
-      if(ldr.ne.0)go to 8
+      if(ldr/=0)go to 8
 
 !_______________beginning of large-scale calculations (for ldr=0: rare setting)________
 !     check for grid-scale rainfall 
@@ -1630,7 +1630,7 @@ c           if(evapls>0.)write(6,*) 'iq,k,evapls ',iq,k,evapls
       precc(:)=precc(:)+condc(:)        
       condx(:)=condc(:)+.001*dt*rnrt(:) ! total precip for this timestep
       conds(:)=0.   ! MJT
-      precip(:)=precip(:)+condx(:)      
+      precip(:)=precip(:)+condx(:)
       t(1:ifull,:)=tt(1:ifull,:)             
 
       if(ntest>0.or.diag.or.(ktau<=2.and.nmaxpr==1))then
@@ -1642,6 +1642,7 @@ c           if(evapls>0.)write(6,*) 'iq,k,evapls ',iq,k,evapls
         do k=2,kl
          phi(iq,k)=phi(iq,k-1)+bet(k)*tt(iq,k)+betm(k)*tt(iq,k-1)
         enddo      ! k  loop
+        if(nh/=0)phi(:,:)=phi(:,:)+phi_nh(:,:)  ! add non-hydrostatic component - MJT
         do k=1,kl   
          es(iq,k)=establ(tt(iq,k))
          pk=ps(iq)*sig(k)

@@ -47,7 +47,7 @@
       use zenith_m
       include 'newmpar.h'
       parameter (ntest=0) ! N.B. usually j=1,7,13,19,...
-!        for diag prints set ntest=0
+!        for diag prints set ntest=1
 !        or, usefully can edit 'ntest.gt.0' to 'ktau.gt.nnn'
       integer ixin
       integer kcl_top       !max level for cloud top (conjob,radrive,vertmix)
@@ -170,7 +170,7 @@ c     Stuff from cldset
          allocate(hlwsav(ifull,kl),hswsav(ifull,kl))
          allocate(sgamp(ifull))
       
-         if(ntest.eq.1)print *,'id,jd,imax,idrad,jdrad0,jdrad ',
+         if(ntest==1)write(6,*)'id,jd,imax,idrad,jdrad0,jdrad ',
      .                          id,jd,imax,idrad,jdrad0,jdrad
          first = .false.
          call hconst
@@ -181,7 +181,7 @@ c     Stuff from cldset
 c           AMIP2 ozone
             call o3read_amip
             if (myid==0) then
-              write(6,*) 'AMIP2 ozone input'
+              write(6,*)'AMIP2 ozone input'
             end if
         else
 c          Stuff from o3set
@@ -226,13 +226,13 @@ C---------------------------------------------------------------------*
 
 !     Main loop over rows. imax/il is the number of rows done at once
       if(mod(ifull,imax).ne.0)then
-        print *,'nproc,il,jl,ifull,imax ',nproc,il,jl,ifull,imax
+        write(6,*)'nproc,il,jl,ifull,imax ',nproc,il,jl,ifull,imax
         stop 'illegal setting of imax in rdparm'
       endif
       do 100 j=1,jl,imax/il
       istart=1+(j-1)*il
       iend=istart+imax-1
-      if(ntest.eq.1)print *,'in radriv90 j = ',j
+      if(ntest==1)write(6,*)'in radriv90 j = ',j
 !     Calculate zenith angle for the solarfit calculation.
       if ( solarfit ) then
 !        This call averages zenith angle just over this time step.
@@ -266,23 +266,13 @@ c     Set up ozone for this time and row
      &                     sigh, ps(1+(j-1)*il:(j-1)*il+imax), qo3 )
          qo3(:,:)=max(1.e-10,qo3(:,:))    ! July 2008
       else
-         call o3set(imax,istart,mins,duo3n,sig,
-     &     ps(1+(j-1)*il:(j-1)*il+imax))
+         call o3set(imax,istart,mins,duo3n,sig,ps(1+(j-1)*il))
          do k=1,kl
             do i=1,imax
               qo3(i,k) = duo3n(i,k)
             end do
          end do
       end if
-      if(ntest.eq.1.and.mydiag)then
-        do i=1,imax
-          iq=i+(j-1)*il
-          if (iq.eq.idjd) then
-            write(6,*) "qo3 ",qo3(i,:)
-          end if
-	end do
-      end if
-
 
 !     Set up surface albedo. The input value is > 1 over ocean points where
 !     the zenith angle dependent formula should be used.
@@ -335,13 +325,13 @@ c	     Snow albedo is dependent on zenith angle and  snow age.
             aliro = 0.65        !alb. for near-infr. on a new snow
             fage = 1.-1./(1.+snage(iq))	 !age factor
 
-            if(ntest.eq.1.and.iq.eq.idjd.and.mydiag)then
-              print *,'ar1,ar2,snowd,ssdnn ',
-     .                 ar1,ar2,snowd(iq),ssdnn(iq)
-              print *,'exp_ar1,exp_ar2,ar3 ',
-     .                 exp_ar1,exp_ar2,ar3
-              print *,'dnsnow,snr,snrat,dtau,snage,fage ',
-     .                 dnsnow,snr,snrat,dtau,snage(iq),fage
+            if(ntest==1.and.iq==idjd.and.mydiag)then
+              write(6,*)'ar1,ar2,snowd,ssdnn ',
+     &                 ar1,ar2,snowd(iq),ssdnn(iq)
+              write(6,*)'exp_ar1,exp_ar2,ar3 ',
+     &                 exp_ar1,exp_ar2,ar3
+              write(6,*)'dnsnow,snr,snrat,dtau,snage,fage ',
+     &                 dnsnow,snr,snrat,dtau,snage(iq),fage
              endif
 
 c	     albedo zenith dependence
@@ -359,18 +349,18 @@ c                   where cs = 0.2, cn = 0.5, b = 2.0
 c	     cc=min(1.,snr/max(snr+2.*z0m(iq),0.02))
              cc=min(1.,snr/max(snr+zolnd(iq),0.02))
 
-             !alss = (1.-snrat)*albsav(iq) + snrat*talb ! canopy free surface albedo
-             if (nsib.eq.3) then           
+            !alss = (1.-snrat)*albsav(iq) + snrat*talb ! canopy free surface albedo
+            if (nsib==3) then
               cuvrf(i,1)=(1.-snrat)*cuvrf(i,1) + snrat*talb
               cirrf(i,1)=(1.-snrat)*cirrf(i,1) + snrat*talb
-	     else
+            else
               cuvrf(i,1)=(1.-snrat)*cuvrf(i,1) + snrat*alv
               cirrf(i,1)=(1.-snrat)*cirrf(i,1) + snrat*alir
-	    end if
-            if(ntest.gt.0.and.i.eq.idrad.and.j.eq.jdrad)then
-              print *,'i,j,land,sicedep,snowd,snrat ',
+            end if
+            if(ntest>0.and.i==idrad.and.j==jdrad)then
+              write(6,*)'i,j,land,sicedep,snowd,snrat ',
      .                 i,j,land(iq),sicedep(iq),snowd(iq),snrat
-              print *,'albsav,dnsnow,talb,cuvrf1 ',
+              write(6,*)'albsav,dnsnow,talb,cuvrf1 ',
      .                 albsav(iq),dnsnow,talb,cuvrf(i,1)
             endif
            endif          !  snowd(iq).gt.0.
@@ -379,7 +369,7 @@ c	     cc=min(1.,snr/max(snr+2.*z0m(iq),0.02))
       end if ! else nsib.eq.CABLE.or.nsib.eq.6.or.nsib.eq.7
 
       ! OCEAN/WATER -------------------------------------------------
-      if (nsib.eq.3) then
+      if (nsib==3) then
         where (.not.land(istart:iend))
           cuvrf(1:imax,1)=.65*fracice(istart:iend)+
      &       (1.-fracice(istart:iend))*.05/(coszro(1:imax)+0.15)
@@ -392,7 +382,7 @@ c	     cc=min(1.,snr/max(snr+2.*z0m(iq),0.02))
      &       (1.-fracice(istart:iend))*.05/(coszro(1:imax)+0.15)
           cirrf(1:imax,1)=.45*fracice(istart:iend)+
      &       (1.-fracice(istart:iend))*.05/(coszro(1:imax)+0.15)
-        end where      
+        end where
       end if
       
       ! MLO ---------------------------------------------------------
@@ -462,11 +452,6 @@ c     Calculate half level pressures and temperatures by linear interp
          temp2(i,lp1) = temp(i,lp1)
       end do ! i=1,imax
       
-      if(ndi<0.and.nmaxpr==1.and.idjd<=imax.and.mydiag)then
-        write(6,*) "press2 ",press2(idjd,:)
-	write(6,*) "temp2  ",temp2(idjd,:)
-      end if
-      
       if(ldr.ne.0)then  
 c       Stuff needed for cloud2 routine...    
         qccon(:,:)=0.
@@ -503,13 +488,13 @@ c         write(24,*)coszro2
           call cloud(cldoff,sig,j,rhg) ! jlm
         endif  ! (ldr.ne.0)
         if(ndi<0.and.nmaxpr==1)
-     &     print *,'before swr99 ktau,j,myid ',ktau,j,myid
+     &     write(6,*)'before swr99 ktau,j,myid ',ktau,j,myid
         call swr99(fsw,hsw,sg,ufsw,dfsw,press,press2,coszro,
      &             taudar,rh2o,rrco2,ssolar,qo3,nclds,
      &             ktopsw,kbtmsw,cirab,cirrf,cuvrf,camt,
      &             swrsave(istart:iend)) ! MJT cable
         if(ndi<0.and.nmaxpr==1)
-     &     print *,'after  swr99 ktau,j,myid ',ktau,j,myid
+     &     write(6,*)'after  swr99 ktau,j,myid ',ktau,j,myid
         do i=1,imax
           soutclr(i) = ufsw(i,1)*h1m3 ! solar out top
           sgclr(i)   = -fsw(i,lp1)*h1m3  ! solar absorbed at the surface
@@ -555,10 +540,10 @@ c       write(24,*)coszro2
       call spitter(imax,fjd,coszro,sgdn,fbeamvis(istart:iend))
       fbeamnir(istart:iend)=fbeamvis(istart:iend)
       
-      if(ntest.gt.0.and.j.eq.jdrad)then
-        print *,'idrad,j,sint,sout,soutclr,sg,cuvrf1 ',
-     .           idrad,j,sint(idrad),sout(idrad),soutclr(idrad),
-     .           sg(idrad),cuvrf(idrad,1)
+      if(ntest>0.and.j==jdrad)then
+        write(6,*)'idrad,j,sint,sout,soutclr,sg,cuvrf1 ',
+     &           idrad,j,sint(idrad),sout(idrad),soutclr(idrad),
+     &           sg(idrad),cuvrf(idrad,1)
 c       print *,'sint ',(sint(i),i=1,imax)
 c       print *,'sout ',(sout(i),i=1,imax)
 c       print *,'soutclr ',(soutclr(i),i=1,imax)
@@ -570,7 +555,7 @@ c       print *,'cuvrf ',(cuvrf(i),i=1,imax)
       call start_log(radlw_begin)
       call clo89
       if(ndi<0.and.nmaxpr==1)
-     &     print *,'before lwr88 ktau,j,myid ',ktau,j,myid
+     &     write(6,*)'before lwr88 ktau,j,myid ',ktau,j,myid
       call lwr88
       call end_log(radlw_end)
       call start_log(radmisc_begin)
@@ -642,7 +627,7 @@ c     cloud amounts for saving
 
 !     Use explicit indexing rather than array notation so that we can run
 !     over the end of the first index
-      if(ktau>1)then ! averages not added at time zero
+      if(ktau>0)then ! averages not added at time zero
         if(j==1)koundiag=koundiag+1  
         do i=1,imax
          iq=i+(j-1)*il
@@ -664,7 +649,7 @@ c     cloud amounts for saving
          fbeam_ave(iq)= fbeam_ave(iq)+fbeamvis(iq)*swrsave(iq)
      &                               +fbeamnir(iq)*(1.-swrsave(iq))
         end do
-      endif   ! (ktau>1)
+      endif   ! (ktau>0)
       
       end if  ! odcalc
       
@@ -680,16 +665,16 @@ c     cloud amounts for saving
           sg(i) = sgsave(iq)
          end do
       end if  ! (solarfit) .. else ..
-      if(ktau>1)then ! averages not added at time zero
+      if(ktau>0)then ! averages not added at time zero
        do i=1,imax
          iq=i+(j-1)*il
          sgn_ave(iq)  = sgn_ave(iq)  + sg(i)
          if (sg(i)/ ( 1. - swrsave(iq)*albvisnir(iq,1)
-     &            -(1.-swrsave(iq))*albvisnir(iq,2) ).gt.120.) then
+     &            -(1.-swrsave(iq))*albvisnir(iq,2) )>120.) then
            sunhours(iq)=sunhours(iq)+86400.
          end if
        end do
-      endif  ! (ktau>1)
+      endif  ! (ktau>0)
       
 ! Set up the CC model radiation fields
 c slwa is negative net radiational htg at ground
@@ -701,9 +686,9 @@ c slwa is negative net radiational htg at ground
          sgsave(iq) = sg(i)   ! this is the repeat after solarfit 26/7/02
       end do
       if(odcalc.and.ndi<0.and.nmaxpr==1.and.idjd<=imax.and.mydiag)then
-        print *,'bit after  lwr88 ktau,j,myid ',ktau,j,myid  
-        print *,'sum_rg ',sum(rg(:))     
-        print *,'slwa,sg,rgsave,rg,tss,grnflx ',slwa(idjd),sg(idjd),
+        write(6,*)'bit after  lwr88 ktau,j,myid ',ktau,j,myid  
+        write(6,*)'sum_rg ',sum(rg(:))     
+        write(6,*)'slwa,sg,rgsave,rg,tss,grnflx ',slwa(idjd),sg(idjd),
      &           rgsave(idjd),rg(idjd),tss(idjd),grnflx(idjd)
       endif
 
@@ -745,11 +730,11 @@ c       endif
       
  100  continue  ! Row loop (j)  j=1,jl,imax/il
       if(ntest>0.and.mydiag)then
-        print *,'rgsave,rtsave,sintsave ',
+        write(6,*)'rgsave,rtsave,sintsave ',
      .           rgsave(idjd),rtsave(idjd),sintsave(idjd)
-        print *,'sgsave,rtclsave,sgclsave ',
+        write(6,*)'sgsave,rtclsave,sgclsave ',
      .           sgsave(idjd),rtclsave(idjd),sgclsave(idjd)
-        print *,'alb ',albvisnir(idjd,1)
+        write(6,*)'alb ',albvisnir(idjd,1)
       endif
       if(nmaxpr==1.and.mydiag)then
         write (6,"('cfracr',9f8.3/6x,9f8.3)") cfrac(idjd,:)
