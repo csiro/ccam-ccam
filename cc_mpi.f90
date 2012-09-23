@@ -2912,22 +2912,21 @@ contains
 !cdir nodep
          do iq=1,recv_len
             ! request_list is same as send_list in this case
+            iqb=1+(iq-1)*kx
+            iqe=iq*kx
             if ( (bnds(myid)%request_list_uv(iq) > 0) .neqv. &
                      bnds(myid)%uv_swap(iq) ) then  ! haven't copied to send_swap yet
-               tmp(1+(iq-1)*kx:iq*kx) = u(abs(bnds(myid)%request_list_uv(iq)),:)
+               tmp(iqb:iqe) = u(abs(bnds(myid)%request_list_uv(iq)),:)
             else
-               tmp(1+(iq-1)*kx:iq*kx) = v(abs(bnds(myid)%request_list_uv(iq)),:)
+               tmp(iqb:iqe) = v(abs(bnds(myid)%request_list_uv(iq)),:)
             end if
-            if ( bnds(myid)%uv_neg(iq) ) tmp(1+(iq-1)*kx:iq*kx) = &
-                                        -tmp(1+(iq-1)*kx:iq*kx)
-         end do
-!cdir nodep
-         do iq=1,recv_len
+            if ( bnds(myid)%uv_neg(iq) ) tmp(iqb:iqe) = -tmp(iqb:iqe)
+
             ! unpack_list(iq) is index into extended region
             if ( bnds(myid)%unpack_list_uv(iq) > 0 ) then
-               u(ifull+bnds(myid)%unpack_list_uv(iq),:) = tmp(1+(iq-1)*kx:iq*kx)
+               u(ifull+bnds(myid)%unpack_list_uv(iq),:) = tmp(iqb:iqe)
             else
-               v(ifull-bnds(myid)%unpack_list_uv(iq),:) = tmp(1+(iq-1)*kx:iq*kx)
+               v(ifull-bnds(myid)%unpack_list_uv(iq),:) = tmp(iqb:iqe)
             end if
          end do
       end if
@@ -3024,7 +3023,7 @@ contains
          if ( neighbour(sproc) ) then
             ! Send, even if length is zero
             nreq = nreq + 1
-            call MPI_ISend( dbuf(sproc)%a(:,1:dslen(sproc)), 4*dslen(sproc), &
+            call MPI_ISend( dbuf(sproc)%a, 4*dslen(sproc), &
                     MPI_REAL, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          else
             if ( dslen(sproc) > 0 ) then

@@ -400,7 +400,7 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
       enddo    ! k  loop
 
       if (mod(ktau,nmaxpr)==0)then
-        vx(1:ifull,:)=sdot(1:ifull,1:kl)-vx(1:ifull,1:kl)
+        vx(1:ifull,:)=sdot(1:ifull,1:kl)-vx(1:ifull,:)
 !       convert to approx m/s/s
         do k=2,kl
          vx(1:ifull,k)=vx(1:ifull,k)*rdry*(sig(k-1)-sig(k))*
@@ -434,12 +434,13 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
         write(6,"('omgf_a2',10f8.3)") ps(idjd)*dpsldt(idjd,1:kl)
       endif
 
-      if(nh.ne.0)then
+      if(nh/=0)then
 !       update phi for use in next time step
         do k=1,kl
          phi(:,k)=p(1:ifull,k)-rdry*tbar2d(:)*psl(1:ifull)
         enddo
        
+        ! extract non-hydrostatic component
         wrk3(:,1)=zs(1:ifull)+bet(1)*(t(1:ifull,1)-280.)
         phi_nh(:,1)=phi(:,1)-wrk3(:,1)
         do k=2,kl
@@ -448,8 +449,9 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
           phi_nh(:,k)=phi(:,k)-wrk3(:,k)
         end do
 
+        ! correct for temperature offste
         dum=bet(1)*280.
-        phi(:,1)=phi(:,1)+dum
+        phi(1:ifull,1)=phi(1:ifull,1)+dum
         do k=2,kl
           dum=dum+(bet(k)+betm(k))*280.
           phi(:,k)=phi(:,k)+dum

@@ -5570,7 +5570,8 @@ real, dimension (:,:,:), intent(out)  ::  cldextbnddroplw
 !  local variables:                                                   
 
       real        ::   alpha = 0.1           
-      integer     ::   n
+      integer     ::   ix,iy,iz
+      integer     ::   nx,ny,nz
 
 !---------------------------------------------------------------------
 !  local variables:                                                   
@@ -5578,15 +5579,25 @@ real, dimension (:,:,:), intent(out)  ::  cldextbnddroplw
 !     alpha       frequency-independent parameter for absorption due 
 !                 to cloud drops in the infrared. this value is given 
 !                 in held et al, JAS, 1993. [ m**2 / g ]
-!     n           do-loop index
 !
 !--------------------------------------------------------------------
+
+        nx=size(cldextbnddroplw,1)
+        ny=size(cldextbnddroplw,2)
+        nz=size(cldextbnddroplw,3)
 
 !--------------------------------------------------------------------
 !    define the cloud droplet extinction coefficient. convert to
 !    units of [ km**(-1) ].
 !--------------------------------------------------------------------
-        cldextbnddroplw(:,:,:  ) = 1.0E+03*alpha*conc_drop(:,:,:)
+        do iz=1,nz
+          do iy=1,ny
+!dir$ ivdep
+            do ix=1,nx
+              cldextbnddroplw(ix,iy,iz  ) = 1.0E+03*alpha*conc_drop(ix,iy,iz)
+            end do
+          end do
+        end do
  
 !---------------------------------------------------------------------
 

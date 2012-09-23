@@ -1420,10 +1420,14 @@ c      set time to number of minutes since start
 !       scale up precip,precc,sno,runoff to mm/day (soon reset to 0 in globpe)
 !       but, don't scale up for restart file as just done in previous write
 !       ktau in next line in case ntau (& thus ktau) < nwt 
-        precip=precip*real(nperday)/min(nwt,max(1,ktau))     
-        precc =precc *real(nperday)/min(nwt,max(1,ktau))     
-        sno   =sno   *real(nperday)/min(nwt,max(1,ktau))     
-        runoff=runoff*real(nperday)/min(nwt,max(1,ktau))    
+        precip(1:ifull)=precip(1:ifull)*real(nperday)
+     &    /min(nwt,max(1,ktau))     
+        precc(1:ifull) =precc(1:ifull) *real(nperday)
+     &    /min(nwt,max(1,ktau))     
+        sno(1:ifull)   =sno(1:ifull)   *real(nperday)
+     &    /min(nwt,max(1,ktau))     
+        runoff(1:ifull)=runoff(1:ifull)*real(nperday)
+     &    /min(nwt,max(1,ktau))    
       endif   ! (ktau>0.and.nwt/=nperday.and.itype/=-1)
 
       ! BASIC -------------------------------------------------------
@@ -1897,7 +1901,7 @@ c      "extra" outputs
         if (writetrpm) then
           ! first divide by number of contributions to average
           do k=1,klt
-            trpm(:,k,igas) = trpm(:,k,igas)/float(npm)
+            trpm(1:ifull,k,igas) = trpm(1:ifull,k,igas)/float(npm)
           enddo
           tmpry=trpm(:,:,igas)+trback_g(igas)
           call histwrt4(tmpry,'trpm'//trnum,

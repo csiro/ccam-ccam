@@ -1329,15 +1329,17 @@
         cffall(1:ifull,:)=dumc
       end if
       do k=1,kl
-       riwp_ave(:)=riwp_ave(:)-qfrad(:,k)*dsig(k)*ps(1:ifull)/grav ! ice water path
-       rlwp_ave(:)=rlwp_ave(:)-qlrad(:,k)*dsig(k)*ps(1:ifull)/grav ! liq water path
+       riwp_ave(1:ifull)=riwp_ave(1:ifull)
+     &   -qfrad(:,k)*dsig(k)*ps(1:ifull)/grav ! ice water path
+       rlwp_ave(1:ifull)=rlwp_ave(1:ifull)
+     &   -qlrad(:,k)*dsig(k)*ps(1:ifull)/grav ! liq water path
       enddo
       if(nmaxpr==1.and.mydiag)then
         write (6,"('qfrad',3p9f8.3/5x,9f8.3)") qfrad(idjd,:)
         write (6,"('qlrad',3p9f8.3/5x,9f8.3)") qlrad(idjd,:)
         write (6,"('qf   ',3p9f8.3/5x,9f8.3)") qfg(idjd,:)
       endif
-      rnd_3hr(:,8)=rnd_3hr(:,8)+condx(:)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
+      rnd_3hr(1:ifull,8)=rnd_3hr(1:ifull,8)+condx(:)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
       if (myid==0.and.nmaxpr==1) then
         write(6,*) "After cloud microphysics"
       end if
@@ -1418,9 +1420,9 @@
         write(6,*) "Before surface fluxes"
        end if
        call sflux(nalpha)
-       epan_ave=epan_ave+epan  ! 2D 
-       epot_ave=epot_ave+epot  ! 2D 
-       ga_ave=ga_ave+ga        ! 2D 
+       epan_ave(1:ifull)=epan_ave(1:ifull)+epan  ! 2D 
+       epot_ave(1:ifull)=epot_ave(1:ifull)+epot  ! 2D 
+       ga_ave(1:ifull)=ga_ave(1:ifull)+ga        ! 2D 
        if (myid==0.and.nmaxpr==1) then
         write(6,*) "After surface fluxes"
        end if
@@ -1593,7 +1595,7 @@
         do k=1,kl
          spmean(k)=sqrt(spmean(k))
         enddo
-        speed(:,:)=sqrt(speed(:,:)) ! 3D
+        speed(1:ifull,1:kl)=sqrt(speed(1:ifull,1:kl)) ! 3D
         call maxmin(speed,'sp',ktau,1.,kl)
         call maxmin(t,' t',ktau,1.,kl)
         call maxmin(qg,'qg',ktau,1.e3,kl)
@@ -1689,24 +1691,24 @@
 
 !     update diag_averages and daily max and min screen temps 
 !     N.B. runoff is accumulated in sflux
-      tmaxscr  = max(tmaxscr,tscrn)
-      tminscr  = min(tminscr,tscrn)
-      rhmaxscr = max(rhmaxscr,rhscrn)
-      rhminscr = min(rhminscr,rhscrn)
-      rndmax   = max(rndmax,condx)
-      capemax  = max(capemax,cape)
-      u10mx    = max(u10mx,u10)  ! for hourly scrnfile
-      dew_ave  = dew_ave-min(0.,eg)    
-      eg_ave   = eg_ave+eg    
-      fg_ave   = fg_ave+fg
-      rnet_ave = rnet_ave+rnet
-      tscr_ave = tscr_ave+tscrn 
-      qscrn_ave = qscrn_ave+qgscrn 
-      wb_ave   = wb_ave+wb
-      tsu_ave  = tsu_ave+tss
-      psl_ave  = psl_ave+psl
+      tmaxscr(1:ifull)  = max(tmaxscr(1:ifull),tscrn)
+      tminscr(1:ifull)  = min(tminscr(1:ifull),tscrn)
+      rhmaxscr(1:ifull) = max(rhmaxscr(1:ifull),rhscrn)
+      rhminscr(1:ifull) = min(rhminscr(1:ifull),rhscrn)
+      rndmax(1:ifull)   = max(rndmax(1:ifull),condx)
+      capemax(1:ifull)  = max(capemax(1:ifull),cape)
+      u10mx(1:ifull)    = max(u10mx(1:ifull),u10)  ! for hourly scrnfile
+      dew_ave(1:ifull)  = dew_ave(1:ifull)-min(0.,eg)    
+      eg_ave(1:ifull)   = eg_ave(1:ifull)+eg    
+      fg_ave(1:ifull)   = fg_ave(1:ifull)+fg
+      rnet_ave(1:ifull) = rnet_ave(1:ifull)+rnet
+      tscr_ave(1:ifull) = tscr_ave(1:ifull)+tscrn 
+      qscrn_ave(1:ifull) = qscrn_ave(1:ifull)+qgscrn 
+      wb_ave(1:ifull,1:ms)   = wb_ave(1:ifull,1:ms)+wb
+      tsu_ave(1:ifull)  = tsu_ave(1:ifull)+tss
+      psl_ave(1:ifull)  = psl_ave(1:ifull)+psl
       call mlodiag(spare1,0)
-      mixdep_ave=mixdep_ave+spare1
+      mixdep_ave(1:ifull)=mixdep_ave(1:ifull)+spare1
       spare1(:)=u(1:ifull,1)**2+v(1:ifull,1)**2
       spare2(:)=u(1:ifull,2)**2+v(1:ifull,2)**2
       do iq=1,ifull
@@ -1728,9 +1730,9 @@
           traver(:,:,igas)=traver(:,:,igas)+tr(1:ilt*jlt,:,igas)
         end do
       end if
-      fpn_ave=fpn_ave+fpn
-      frs_ave=frs_ave+frs
-      frp_ave=frp_ave+frp
+      fpn_ave(1:ifull)=fpn_ave(1:ifull)+fpn
+      frs_ave(1:ifull)=frs_ave(1:ifull)+frs
+      frp_ave(1:ifull)=frp_ave(1:ifull)+frp
 
 !     rnd03 to rnd21 are accumulated in mm     
       if (myid==0) then
@@ -1738,7 +1740,7 @@
      &            ktau,mod(ktau-1,nperday)+1,nper3hr(n3hr)
       end if
       if(mod(ktau-1,nperday)+1==nper3hr(n3hr))then
-        rnd_3hr(:,n3hr)=rnd_3hr(:,8)
+        rnd_3hr(1:ifull,n3hr)=rnd_3hr(1:ifull,8)
         if(nextout>=2)then
           spare1(:)=max(.001,sqrt(u(1:ifull,1)**2+v(1:ifull,1)**2))
           u10_3hr(:,n3hr)=u10(:)*u(1:ifull,1)/spare1(:)
@@ -1755,50 +1757,51 @@
       endif    ! (mod(ktau,nperday)==nper3hr(n3hr))
 
       if(ktau==ntau.or.mod(ktau,nperavg)==0)then
-        dew_ave(:)   =   dew_ave(:)/min(ntau,nperavg)
-        epan_ave(:)  =  epan_ave(:)/min(ntau,nperavg)
-        epot_ave(:)  =  epot_ave(:)/min(ntau,nperavg)
-        eg_ave(:)    =    eg_ave(:)/min(ntau,nperavg)
-        fg_ave(:)    =    fg_ave(:)/min(ntau,nperavg)
-        rnet_ave(:)  =  rnet_ave(:)/min(ntau,nperavg)
-        sunhours(:)  =  sunhours(:)/min(ntau,nperavg)
-        ga_ave(:)    =    ga_ave(:)/min(ntau,nperavg)
-        riwp_ave(:)  =  riwp_ave(:)/min(ntau,nperavg)
-        rlwp_ave(:)  =  rlwp_ave(:)/min(ntau,nperavg)
-        tscr_ave(:)  =  tscr_ave(:)/min(ntau,nperavg)
-        qscrn_ave(:) = qscrn_ave(:)/min(ntau,nperavg)
+        dew_ave(1:ifull)   =   dew_ave(1:ifull)/min(ntau,nperavg)
+        epan_ave(1:ifull)  =  epan_ave(1:ifull)/min(ntau,nperavg)
+        epot_ave(1:ifull)  =  epot_ave(1:ifull)/min(ntau,nperavg)
+        eg_ave(1:ifull)    =    eg_ave(1:ifull)/min(ntau,nperavg)
+        fg_ave(1:ifull)    =    fg_ave(1:ifull)/min(ntau,nperavg)
+        rnet_ave(1:ifull)  =  rnet_ave(1:ifull)/min(ntau,nperavg)
+        sunhours(1:ifull)  =  sunhours(1:ifull)/min(ntau,nperavg)
+        ga_ave(1:ifull)    =    ga_ave(1:ifull)/min(ntau,nperavg)
+        riwp_ave(1:ifull)  =  riwp_ave(1:ifull)/min(ntau,nperavg)
+        rlwp_ave(1:ifull)  =  rlwp_ave(1:ifull)/min(ntau,nperavg)
+        tscr_ave(1:ifull)  =  tscr_ave(1:ifull)/min(ntau,nperavg)
+        qscrn_ave(1:ifull) = qscrn_ave(1:ifull)/min(ntau,nperavg)
         do k=1,ms
-          wb_ave(:,k)=wb_ave(:,k)/min(ntau,nperavg)
+          wb_ave(1:ifull,k)=wb_ave(1:ifull,k)/min(ntau,nperavg)
         end do
-        tsu_ave(:)  = tsu_ave(:)/min(ntau,nperavg)
-        psl_ave(:)  = psl_ave(:)/min(ntau,nperavg)
-        mixdep_ave(:)=mixdep_ave(:)/min(ntau,nperavg)
-        sgn_ave(:)  =  sgn_ave(:)/min(ntau,nperavg)  ! Dec07 because of solar fit
+        tsu_ave(1:ifull)  = tsu_ave(1:ifull)/min(ntau,nperavg)
+        psl_ave(1:ifull)  = psl_ave(1:ifull)/min(ntau,nperavg)
+        mixdep_ave(1:ifull)=mixdep_ave(1:ifull)/min(ntau,nperavg)
+        sgn_ave(1:ifull)  =  sgn_ave(1:ifull)/min(ntau,nperavg)  ! Dec07 because of solar fit
         if(myid==0)
      &    write(6,*) 'ktau,koundiag,nperavg =',ktau,koundiag,nperavg
-        sint_ave(:) = sint_ave(:)/max(koundiag,1)
-        sot_ave(:)  =  sot_ave(:)/max(koundiag,1)
-        soc_ave(:)  =  soc_ave(:)/max(koundiag,1)
-        sgdn_ave(:) =  sgdn_ave(:)/max(koundiag,1)
-        rtu_ave(:)  =  rtu_ave(:)/max(koundiag,1)
-        rtc_ave(:)  =  rtc_ave(:)/max(koundiag,1)
-        rgdn_ave(:) =  rgdn_ave(:)/max(koundiag,1)
-        rgn_ave(:)  =  rgn_ave(:)/max(koundiag,1)
-        rgc_ave(:)  =  rgc_ave(:)/max(koundiag,1)
-        cld_ave(:)  =  cld_ave(:)/max(koundiag,1)
-        cll_ave(:)  =  cll_ave(:)/max(koundiag,1)
-        clm_ave(:)  =  clm_ave(:)/max(koundiag,1)
-        clh_ave(:)  =  clh_ave(:)/max(koundiag,1)
-        alb_ave(:)  =  alb_ave(:)/max(koundiag,1)
-        fbeam_ave(:)=  fbeam_ave(:)/max(koundiag,1)
-        cbas_ave(:) = 1.1-cbas_ave(:)/max(1.e-4,precc(:))  ! 1.1 for no precc
-        ctop_ave(:) = 1.1-ctop_ave(:)/max(1.e-4,precc(:))  ! 1.1 for no precc
+        sint_ave(1:ifull) = sint_ave(1:ifull)/max(koundiag,1)
+        sot_ave(1:ifull)  =  sot_ave(1:ifull)/max(koundiag,1)
+        soc_ave(1:ifull)  =  soc_ave(1:ifull)/max(koundiag,1)
+        sgdn_ave(1:ifull) =  sgdn_ave(1:ifull)/max(koundiag,1)
+        rtu_ave(1:ifull)  =  rtu_ave(1:ifull)/max(koundiag,1)
+        rtc_ave(1:ifull)  =  rtc_ave(1:ifull)/max(koundiag,1)
+        rgdn_ave(1:ifull) =  rgdn_ave(1:ifull)/max(koundiag,1)
+        rgn_ave(1:ifull)  =  rgn_ave(1:ifull)/max(koundiag,1)
+        rgc_ave(1:ifull)  =  rgc_ave(1:ifull)/max(koundiag,1)
+        cld_ave(1:ifull)  =  cld_ave(1:ifull)/max(koundiag,1)
+        cll_ave(1:ifull)  =  cll_ave(1:ifull)/max(koundiag,1)
+        clm_ave(1:ifull)  =  clm_ave(1:ifull)/max(koundiag,1)
+        clh_ave(1:ifull)  =  clh_ave(1:ifull)/max(koundiag,1)
+        alb_ave(1:ifull)  =  alb_ave(1:ifull)/max(koundiag,1)
+        fbeam_ave(1:ifull)=  fbeam_ave(1:ifull)/max(koundiag,1)
+        cbas_ave(1:ifull) = 1.1-cbas_ave(1:ifull)/max(1.e-4,precc(:))  ! 1.1 for no precc
+        ctop_ave(1:ifull) = 1.1-ctop_ave(1:ifull)/max(1.e-4,precc(:))  ! 1.1 for no precc
         if (ngas>0) then
-          traver=traver/min(ntau,nperavg)
+          traver(1:ifull,1:kl,1:ngas)=traver(1:ifull,1:kl,1:ngas)
+     &      /min(ntau,nperavg)
         end if
-        fpn_ave=fpn_ave/min(ntau,nperavg)
-        frs_ave=frs_ave/min(ntau,nperavg)
-        frp_ave=frp_ave/min(ntau,nperavg)
+        fpn_ave(1:ifull)=fpn_ave(1:ifull)/min(ntau,nperavg)
+        frs_ave(1:ifull)=frs_ave(1:ifull)/min(ntau,nperavg)
+        frp_ave(1:ifull)=frp_ave(1:ifull)/min(ntau,nperavg)
       end if    ! (ktau==ntau.or.mod(ktau,nperavg)==0)
       
       ! Update diagnostics for consistancy
@@ -2107,27 +2110,34 @@
       include 'newmpar.h'    ! Grid parameters
       include 'const_phys.h' ! Physical constants
       
-      integer iq,k
+      integer iq,k,n
       
+      if (nllp<3) then
+        write(6,*) "ERROR: Incorrect setting of nllp",nllp
+        stop
+      end if
+      
+      n=ilt*jlt
       do k=1,klt
-       do iq=1,ilt*jlt        
-        tr(iq,k,min(ntracmax,ngas+1))=rlatt(iq)*180./pi
-        tr(iq,k,min(ntracmax,ngas+2))=rlongg(iq)*180./pi
-        tr(iq,k,min(ntracmax,ngas+3))=.01*ps(iq)*sig(k)  ! in HPa
+!dir$ ivdep
+       do iq=1,n       
+        tr(iq,k,ngas+1)=rlatt(iq)*180./pi
+        tr(iq,k,ngas+2)=rlongg(iq)*180./pi
+        tr(iq,k,ngas+3)=.01*ps(iq)*sig(k)  ! in HPa
        enddo
       enddo
       if(nllp>=4)then   ! theta
         do k=1,klt
-         do iq=1,ilt*jlt       
-          tr(iq,k,min(ntracmax,ngas+4))=
+         do iq=1,n  
+          tr(iq,k,ngas+4)=
      .	               t(iq,k)*(1.e-5*ps(iq)*sig(k))**(-rdry/cp)
          enddo
         enddo
       endif   ! (nllp>=4)
       if(nllp>=5)then   ! mixing_ratio (g/kg)
         do k=1,klt
-         do iq=1,ilt*jlt       
-          tr(iq,k,min(ntracmax,ngas+5))=1000.*qg(iq,k)
+         do iq=1,n       
+          tr(iq,k,ngas+5)=1000.*qg(iq,k)
          enddo
         enddo
       endif   ! (nllp>=5)

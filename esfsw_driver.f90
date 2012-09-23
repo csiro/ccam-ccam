@@ -2115,9 +2115,9 @@ subroutine esfsw_driver_init
 !----------------------------------------------------------------------
 !    convert some values to mks to match model units
 !--------------------------------------------------------------------
-      p0h2o = 1.0E-2/p0h2o  ! invert, and convert mb to mks
-      kh2o = kh2o *1.0E-01   ! cgs to mks
-      ko3  = ko3 *1.0E-01    ! cgs to mks
+      p0h2o(1:NH2OBANDS) = 1.0E-2/p0h2o(1:NH2OBANDS)  ! invert, and convert mb to mks
+      kh2o(1:nfrqpts) = kh2o(1:nfrqpts) *1.0E-01   ! cgs to mks
+      ko3(1:nfrqpts)  = ko3(1:nfrqpts) *1.0E-01    ! cgs to mks
 
 !----------------------------------------------------------------------
 !
@@ -3927,18 +3927,18 @@ integer :: nextinct
                          ssolar/solflxtotal
  
         if (nband == Solar_spect%visible_band_indx) then
-          Sw_output%bdy_flx(:,:,1) =  Sw_output%bdy_flx(:,:,1) +  &
+          Sw_output%bdy_flx(israd:ierad,jsrad:jerad,1) =  Sw_output%bdy_flx(israd:ierad,jsrad:jerad,1) +  &
                                       sumre(:,:,1) * solarflux(:,:)
-          Sw_output%bdy_flx(:,:,3) =  Sw_output%bdy_flx(:,:,3) +  &
+          Sw_output%bdy_flx(israd:ierad,jsrad:jerad,3) =  Sw_output%bdy_flx(israd:ierad,jsrad:jerad,3) +  &
                                      sumtr(:,:,KERAD+1)*  &
                                      solarflux(:,:) -  &
                                      sumre(:,:,KERAD+1)*  &
                                      solarflux(:,:) 
         endif
         if (nband == onepsix_band_indx) then
-          Sw_output%bdy_flx(:,:,2) =  Sw_output%bdy_flx(:,:,2) +  &
+          Sw_output%bdy_flx(israd:ierad,jsrad:jerad,2) =  Sw_output%bdy_flx(israd:ierad,jsrad:jerad,2) +  &
                                      sumre(:,:,1) * solarflux(:,:)
-          Sw_output%bdy_flx(:,:,4) =  Sw_output%bdy_flx(:,:,4) +  &
+          Sw_output%bdy_flx(israd:ierad,jsrad:jerad,4) =  Sw_output%bdy_flx(israd:ierad,jsrad:jerad,4) +  &
                                      sumtr(:,:,KERAD+1)*  &
                                      solarflux(:,:) - &
                                      sumre(:,:,KERAD+1)*  &
@@ -4194,16 +4194,16 @@ integer :: nextinct
 !--------------------------------------------------------------------
 !    convert sw fluxes to cgs and then back to  mks units.
 !---------------------------------------------------------------------
-      Sw_output%fsw(:,:,:) = 1.0E-03*(1.0E+03*Sw_output%fsw(:,:,:))
-      Sw_output%dfsw(:,:,:) = 1.0E-03*(1.0E+03*Sw_output%dfsw(:,:,:))
-      Sw_output%ufsw(:,:,:) = 1.0E-03*(1.0E+03*Sw_output%ufsw(:,:,:))
+      Sw_output%fsw(israd:ierad,jsrad:jerad,ksrad:kerad+1) = 1.0E-03*(1.0E+03*Sw_output%fsw(israd:ierad,jsrad:jerad,ksrad:kerad+1))
+      Sw_output%dfsw(israd:ierad,jsrad:jerad,ksrad:kerad+1) = 1.0E-03*(1.0E+03*Sw_output%dfsw(israd:ierad,jsrad:jerad,ksrad:kerad+1))
+      Sw_output%ufsw(israd:ierad,jsrad:jerad,ksrad:kerad+1) = 1.0E-03*(1.0E+03*Sw_output%ufsw(israd:ierad,jsrad:jerad,ksrad:kerad+1))
       if (Rad_control%do_totcld_forcing) then
-        Sw_output%fswcf(:,:,:) = 1.0E-03*  &
-                                      (1.0E+03*Sw_output%fswcf(:,:,:))
-        Sw_output%dfswcf(:,:,:) = 1.0E-03*  &
-                                      (1.0E+03*Sw_output%dfswcf(:,:,:))
-        Sw_output%ufswcf(:,:,:) = 1.0E-03*  &
-                                      (1.0E+03*Sw_output%ufswcf(:,:,:))
+        Sw_output%fswcf(israd:ierad,jsrad:jerad,ksrad:kerad+1) = 1.0E-03*  &
+                                      (1.0E+03*Sw_output%fswcf(israd:ierad,jsrad:jerad,ksrad:kerad+1))
+        Sw_output%dfswcf(israd:ierad,jsrad:jerad,ksrad:kerad+1) = 1.0E-03*  &
+                                      (1.0E+03*Sw_output%dfswcf(israd:ierad,jsrad:jerad,ksrad:kerad+1))
+        Sw_output%ufswcf(israd:ierad,jsrad:jerad,ksrad:kerad+1) = 1.0E-03*  &
+                                      (1.0E+03*Sw_output%ufswcf(israd:ierad,jsrad:jerad,ksrad:kerad+1))
       endif
 
 !---------------------------------------------------------------------

@@ -561,7 +561,7 @@ c
 
       if ( kclds /= 0 ) then
       
-      if ( nmr.eq.2 ) then ! MJT CHANGE - mr
+      if ( nmr==2 ) then ! MJT CHANGE - mr
       ! modified M/R overlap
 
       if ( nx == 1 ) then
@@ -641,6 +641,7 @@ c
             ctemp=camt(i,k1)
             ctest(k1)=.false.
           end do
+!dir$ ivdep
           alfa(i,k:kk)=alfa(i,k:kk)
      &      +(1.-ctemp)*alfa(i,k-1)*(tdcl1(i,k-1)*tdcl1i(i,k:kk))**2
           alfau(i,k:kk)=alfau(i,k:kk)

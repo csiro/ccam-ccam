@@ -1235,18 +1235,18 @@ do ii=1,3
   ww_temp(:,ii)=min(max(ww_temp(:,ii),200.),400.)
   rd_temp(:,ii)=min(max(rd_temp(:,ii),200.),400.)
 end do
-v_moistc=min(max(v_moistc,f_swilt),f_ssat)
-v_moistr=min(max(v_moistr,f_swilt),f_ssat)
-rf_water=min(max(rf_water,0.),maxrfwater)
-rd_water=min(max(rd_water,0.),maxrdwater)
-v_watrc=min(max(v_watrc,0.),maxvwatf*f_vegrlaic)
-v_watrr=min(max(v_watrr,0.),maxvwatf*f_vegrlair)
-rf_snow=min(max(rf_snow,0.),maxrfsn)
-rd_snow=min(max(rd_snow,0.),maxrdsn)
-rf_den=min(max(rf_den,minsnowden),maxsnowden)
-rd_den=min(max(rd_den,minsnowden),maxsnowden)
-rf_alpha=min(max(rf_alpha,minsnowalpha),maxsnowalpha)
-rd_alpha=min(max(rd_alpha,minsnowalpha),maxsnowalpha)
+v_moistc(1:ufull)=min(max(v_moistc(1:ufull),f_swilt),f_ssat)
+v_moistr(1:ufull)=min(max(v_moistr(1:ufull),f_swilt),f_ssat)
+rf_water(1:ufull)=min(max(rf_water(1:ufull),0.),maxrfwater)
+rd_water(1:ufull)=min(max(rd_water(1:ufull),0.),maxrdwater)
+v_watrc(1:ufull)=min(max(v_watrc(1:ufull),0.),maxvwatf*f_vegrlaic)
+v_watrr(1:ufull)=min(max(v_watrr(1:ufull),0.),maxvwatf*f_vegrlair)
+rf_snow(1:ufull)=min(max(rf_snow(1:ufull),0.),maxrfsn)
+rd_snow(1:ufull)=min(max(rd_snow(1:ufull),0.),maxrdsn)
+rf_den(1:ufull)=min(max(rf_den(1:ufull),minsnowden),maxsnowden)
+rd_den(1:ufull)=min(max(rd_den(1:ufull),minsnowden),maxsnowden)
+rf_alpha(1:ufull)=min(max(rf_alpha(1:ufull),minsnowalpha),maxsnowalpha)
+rd_alpha(1:ufull)=min(max(rd_alpha(1:ufull),minsnowalpha),maxsnowalpha)
 
 ! new snowfall
 where (a_snd>0.)
@@ -1862,12 +1862,12 @@ if (any(f_sigmavegc>0.)) then ! in-canyon vegetation
   ! calculate water for canyon surfaces
   n=max(a_rnd-d_evapc/lv-max(maxvwatf*f_vegrlaic-v_watrc,0.)/ddt,0.) ! rainfall reaching the soil under vegetation
   ! note that since sigmaf=1, then there is no soil evaporation, only transpiration.  Evaporation only occurs from water on leafs.
-  v_moistc=v_moistc+ddt*(n+rdsnmelt*rd_den/waterden-d_tranc/lv)/(waterden*d_totdepth) ! soil
-  v_watrc=v_watrc+ddt*(a_rnd-d_evapc/lv)                                              ! leaf
-  v_watrc=min(max(v_watrc,0.),maxvwatf*f_vegrlaic)
+  v_moistc(1:ufull)=v_moistc(1:ufull)+ddt*(n+rdsnmelt*rd_den/waterden-d_tranc/lv)/(waterden*d_totdepth) ! soil
+  v_watrc(1:ufull)=v_watrc(1:ufull)+ddt*(a_rnd-d_evapc/lv)                                              ! leaf
+  v_watrc(1:ufull)=min(max(v_watrc(1:ufull),0.),maxvwatf*f_vegrlaic)
   if (wbrelaxc==1) then
     ! increase soil moisture for irrigation 
-    v_moistc=v_moistc+max(0.75*f_swilt+0.25*f_sfc-v_moistc,0.)/(86400./ddt+1.) ! 24h e-fold time
+    v_moistc(1:ufull)=v_moistc(1:ufull)+max(0.75*f_swilt+0.25*f_sfc-v_moistc,0.)/(86400./ddt+1.) ! 24h e-fold time
   end if
 else
   v_moistc=f_swilt
@@ -1877,27 +1877,27 @@ if (any(f_sigmavegr>0.)) then ! green roof
   ! calculate water for roof surface
   n=max(a_rnd-d_evapr/lv-max(maxvwatf*f_vegrlair-v_watrr,0.)/ddt,0.) ! rainfall reaching the soil under vegetation
   ! note that since sigmaf=1, then there is no soil evaporation, only transpiration.  Evaporation only occurs from water on leafs.
-  v_moistr=v_moistr+ddt*(n+rfsnmelt*rf_den/waterden-d_tranr/lv)/(waterden*f_vegdepthr) ! soil
-  v_watrr=v_watrr+ddt*(a_rnd-d_evapr/lv)                                               ! leaf
-  v_watrr=min(max(v_watrr,0.),maxvwatf*f_vegrlair)
+  v_moistr(1:ufull)=v_moistr(1:ufull)+ddt*(n+rfsnmelt*rf_den/waterden-d_tranr/lv)/(waterden*f_vegdepthr) ! soil
+  v_watrr(1:ufull)=v_watrr(1:ufull)+ddt*(a_rnd-d_evapr/lv)                                               ! leaf
+  v_watrr(1:ufull)=min(max(v_watrr(1:ufull),0.),maxvwatf*f_vegrlair)
   if (wbrelaxr==1) then
     ! increase soil moisture for irrigation 
-    v_moistr=v_moistr+max(0.75*f_swilt+0.25*f_sfc-v_moistr,0.)/(86400./ddt+1.) ! 24h e-fold time
+    v_moistr(1:ufull)=v_moistr(1:ufull)+max(0.75*f_swilt+0.25*f_sfc-v_moistr,0.)/(86400./ddt+1.) ! 24h e-fold time
   end if
 else
   v_moistr=f_swilt
   v_watrr=0.
 end if
-rf_water=rf_water+ddt*(a_rnd-eg_roof/lv+rfsnmelt)
-rd_water=rd_water+ddt*(a_rnd-eg_road/lv+rdsnmelt)
+rf_water(1:ufull)=rf_water(1:ufull)+ddt*(a_rnd-eg_roof/lv+rfsnmelt)
+rd_water(1:ufull)=rd_water(1:ufull)+ddt*(a_rnd-eg_road/lv+rdsnmelt)
 
 ! calculate snow
-rf_snow=rf_snow+ddt*(a_snd-eg_rfsn/lv-rfsnmelt)
-rd_snow=rd_snow+ddt*(a_snd-eg_rdsn/lv-rdsnmelt)
-rf_den=rf_den+(maxsnowden-rf_den)/(0.24/(86400.*ddt)+1.)
-rd_den=rd_den+(maxsnowden-rd_den)/(0.24/(86400.*ddt)+1.)
-rf_alpha=rf_alpha+(minsnowalpha-rf_alpha)/(0.24/(86400.*ddt)+1.)
-rd_alpha=rd_alpha+(minsnowalpha-rd_alpha)/(0.24/(86400.*ddt)+1.)
+rf_snow(1:ufull)=rf_snow(1:ufull)+ddt*(a_snd-eg_rfsn/lv-rfsnmelt)
+rd_snow(1:ufull)=rd_snow(1:ufull)+ddt*(a_snd-eg_rdsn/lv-rdsnmelt)
+rf_den(1:ufull)=rf_den(1:ufull)+(maxsnowden-rf_den)/(0.24/(86400.*ddt)+1.)
+rd_den(1:ufull)=rd_den(1:ufull)+(maxsnowden-rd_den)/(0.24/(86400.*ddt)+1.)
+rf_alpha(1:ufull)=rf_alpha(1:ufull)+(minsnowalpha-rf_alpha)/(0.24/(86400.*ddt)+1.)
+rd_alpha(1:ufull)=rd_alpha(1:ufull)+(minsnowalpha-rd_alpha)/(0.24/(86400.*ddt)+1.)
 
 ! calculate runoff (v_watrc runoff already accounted for in precip reaching canyon floor)
 u_rn=0.
@@ -1915,18 +1915,18 @@ do ii=1,3
   ww_temp(:,ii)=min(max(ww_temp(:,ii),200.),400.)
   rd_temp(:,ii)=min(max(rd_temp(:,ii),200.),400.)
 end do
-v_moistc=min(max(v_moistc,f_swilt),f_ssat)
-v_moistr=min(max(v_moistr,f_swilt),f_ssat)
-rf_water=min(max(rf_water,0.),maxrfwater)
-rd_water=min(max(rd_water,0.),maxrdwater)
-v_watrc=min(max(v_watrc,0.),maxvwatf*f_vegrlaic)
-v_watrr=min(max(v_watrr,0.),maxvwatf*f_vegrlair)
-rf_snow=min(max(rf_snow,0.),maxrfsn)
-rd_snow=min(max(rd_snow,0.),maxrdsn)
-rf_den=min(max(rf_den,minsnowden),maxsnowden)
-rd_den=min(max(rd_den,minsnowden),maxsnowden)
-rf_alpha=min(max(rf_alpha,minsnowalpha),maxsnowalpha)
-rd_alpha=min(max(rd_alpha,minsnowalpha),maxsnowalpha)
+v_moistc(1:ufull)=min(max(v_moistc(1:ufull),f_swilt),f_ssat)
+v_moistr(1:ufull)=min(max(v_moistr(1:ufull),f_swilt),f_ssat)
+rf_water(1:ufull)=min(max(rf_water(1:ufull),0.),maxrfwater)
+rd_water(1:ufull)=min(max(rd_water(1:ufull),0.),maxrdwater)
+v_watrc(1:ufull)=min(max(v_watrc(1:ufull),0.),maxvwatf*f_vegrlaic)
+v_watrr(1:ufull)=min(max(v_watrr(1:ufull),0.),maxvwatf*f_vegrlair)
+rf_snow(1:ufull)=min(max(rf_snow(1:ufull),0.),maxrfsn)
+rd_snow(1:ufull)=min(max(rd_snow(1:ufull),0.),maxrdsn)
+rf_den(1:ufull)=min(max(rf_den(1:ufull),minsnowden),maxsnowden)
+rd_den(1:ufull)=min(max(rd_den(1:ufull),minsnowden),maxsnowden)
+rf_alpha(1:ufull)=min(max(rf_alpha(1:ufull),minsnowalpha),maxsnowalpha)
+rd_alpha(1:ufull)=min(max(rd_alpha(1:ufull),minsnowalpha),maxsnowalpha)
 
 ! combine snow and snow-free tiles
 d_roofrgout=a_rg-d_rfsndelta*rg_rfsn-(1.-d_rfsndelta)*((1.-f_sigmavegr)*rg_roof+f_sigmavegr*rg_vegr)

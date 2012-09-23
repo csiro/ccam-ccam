@@ -493,7 +493,7 @@
       ! nurban=-1 urban (save in history and restart files)
       if (nurban/=0) then
         call readreal(urbanfile,sigmu,ifull)
-        sigmu(:)=0.01*sigmu(:)
+        sigmu(1:ifull)=0.01*sigmu(1:ifull)
         where (.not.land(:).or.sigmu<0.05)
           sigmu(:)=0.
         end where
@@ -608,7 +608,7 @@
             endif
           enddo
         endif                  ! (newtop==2)
-        tss(:)=abs(tss(:)) ! not done in infile because -ve needed for onthefly
+        tss(1:ifull)=abs(tss(1:ifull)) ! not done in infile because -ve needed for onthefly
         hourst=.01*ktime
         if ( myid==0 ) then
           write(6,*)'rlongg(1),rlongg(ifull) ',rlongg(1),rlongg(ifull)
@@ -687,7 +687,7 @@
       !-----------------------------------------------------------------
       ! SPECIAL OPTIONS FOR INITIAL CONDITIONS (nspecial, io_in and nhstest)
       if(nspecial>100)then ! increase ps globally by nspecial Pa
-        ps(:)=ps(:)+nspecial
+        ps(1:ifull)=ps(1:ifull)+nspecial
         psl(:)=log(1.e-5*ps(:))
       endif  ! (nspecial>100)       
 
@@ -1311,7 +1311,7 @@ c     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
       ! SPECIAL OPTIONS FOR TEMPERATURES (nspecial)
 
       if(nspecial==34)then      ! test for Andy Pitman & Faye
-       tgg(:,6)=tgg(:,6)+.1
+       tgg(1:ifull,6)=tgg(1:ifull,6)+.1
       endif
       ! for CAI experiment
       if (nspecial.eq.42) then
@@ -1851,9 +1851,9 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
             snowd=micdwn(:,7)*1000.
           end where          
         end if
-        mlodwn(:,:,1)=max(mlodwn(:,:,1),271.)
-        mlodwn(:,:,2)=max(mlodwn(:,:,2),0.)
-        micdwn(:,11)=max(micdwn(:,11),0.)
+        mlodwn(1:ifull,1:wlev,1)=max(mlodwn(1:ifull,1:wlev,1),271.)
+        mlodwn(1:ifull,1:wlev,2)=max(mlodwn(1:ifull,1:wlev,2),0.)
+        micdwn(1:ifull,11)=max(micdwn(1:ifull,11),0.)
         call mloload(mlodwn,ocndwn(:,2),micdwn,0)
         deallocate(micdwn)
         do k=1,ms

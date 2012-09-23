@@ -1173,7 +1173,9 @@ c         options to define factr so it is small for shallow clouds
       enddo   ! iq loop
 
       if(itn<iterconv)then 
-        convpsav(:)=convfact*convpsav(:) ! typically convfact=1.02  
+        do iq=1,ifull
+          convpsav(iq)=convfact*convpsav(iq) ! typically convfact=1.02  
+        end do
       endif                              ! (itn<iterconv)
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!      
       rnrtcn(:)=rnrtcn(:)-qxcess(:)
@@ -1625,12 +1627,12 @@ c           if(evapls>0.)write(6,*) 'iq,k,evapls ',iq,k,evapls
         write(6,"('delT_t',12f7.3/(6x,12f7.3))")
      .   (tt(iq,k)-t(iq,k),k=1,kl)
       endif
-      qg(1:ifull,:)=qq(1:ifull,:)                   
-      condc(:)=.001*dt*rnrtc(:)      ! convective precip for this timestep
-      precc(:)=precc(:)+condc(:)        
-      condx(:)=condc(:)+.001*dt*rnrt(:) ! total precip for this timestep
-      conds(:)=0.   ! MJT
-      precip(:)=precip(:)+condx(:)
+      qg(1:ifull,:)=qq(1:ifull,:)
+      condc(1:ifull)=.001*dt*rnrtc(1:ifull)      ! convective precip for this timestep
+      precc(1:ifull)=precc(1:ifull)+condc(1:ifull)        
+      condx(1:ifull)=condc(1:ifull)+.001*dt*rnrt(1:ifull) ! total precip for this timestep
+      conds(1:ifull)=0.   ! MJT
+      precip(1:ifull)=precip(1:ifull)+condx(1:ifull)
       t(1:ifull,:)=tt(1:ifull,:)             
 
       if(ntest>0.or.diag.or.(ktau<=2.and.nmaxpr==1))then

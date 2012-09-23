@@ -2,90 +2,100 @@
       subroutine eig(sigin,sigmhin,tbar,lapsbot,isoth,dtin,eps,nsig,
      &               bet,betm,nh)
       use vecs_m
+      implicit none
       include 'newmpar.h'
       integer nh,nsig,lapsbot,isoth
       integer nchng,k
+      integer l
       integer, parameter :: neig = 1
+      real tem
       real eps,dtin,dt
       real sigin(kl),sigmhin(kl)
       real sig(kl),sigmh(kl+1),tbar(kl)
       real bet(kl),betm(kl)
 
-c     lapsbot=1 gives zero lowest t lapse for phi calc
-      print *,'this run configured with kl = ',kl
-      print *,'entering eig tbar,lapsbot,isoth,dtin,eps,nh: ',
+!     lapsbot=1 gives zero lowest t lapse for phi calc
+      write(6,*) 'this run configured with kl = ',kl
+      write(6,*) 'entering eig tbar,lapsbot,isoth,dtin,eps,nh: ',
      &                      tbar(1),lapsbot,isoth,dtin,eps,nh
       dt=dtin
       sig(:)=sigin(:)
       sigmh(1:kl)=sigmhin(:)
       sigmh(kl+1)=0.
-c     expect data from bottom up
-      if(sig(1).lt.sig(kl))then
+!     expect data from bottom up
+      if(sig(1)<sig(kl))then
         call flip3(sig,1,1,kl,1)
         bam(1:kl)=sigmhin(:)
         call flip3(bam,1,1,kl,1)  
         sigmh(1)=0.
         sigmh(2:kl+1)=bam(1:kl)
-      endif  ! (sig(1).lt.sig(kl))
-      print *,'final sig values: ',sig
-      print *,'final sigmh values: ',sigmh
+      endif  ! (sig(1)<sig(kl))
+      write(6,*) 'final sig values: ',sig
+      write(6,*) 'final sigmh values: ',sigmh
       open(28,file='eigenv.out')
       call eigs(lapsbot,isoth,tbar,dt,eps,nh,sig,sigmh,
      &          bet,betm)   !------------------------
-      print *,'about to write to 28 '
+      write(6,*) 'about to write to 28 '
       write(28,*)kl,lapsbot,isoth,nsig,
-     .       '   kl,lapsbot,isoth,nsig'
-c     re-order the eigenvectors if necessary
- 112  nchng=0
-      do 116 k=2,kl
-      if(bam(k).lt.bam(k-1))go to 116
+     &       '   kl,lapsbot,isoth,nsig'
+!     re-order the eigenvectors if necessary
       nchng=1
-      tem=bam(k)
-      bam(k)=bam(k-1)
-      bam(k-1)=tem
-      do 114 l=1,kl
-      tem=emat(l,k)
-      emat(l,k)=emat(l,k-1)
-      emat(l,k-1)=tem
-      tem=einv(k,l)
-      einv(k,l)=einv(k-1,l)
- 114  einv(k-1,l)=tem
- 116  continue
-      if(nchng.ne.0)go to 112
-      print *,'eigenvectors re-ordered'
-      print *,'bam',(bam(k),k=1,kl)
-90    format('  bam',15f8.0/4x,15f8.0/4x,15f8.0)
-      if(neig.eq.1)then
-c       write data from bottom up
-        if(sig(1).lt.sig(kl))then
-          call flip3( sig,1, 1,kl, 1)
-          call flip3( sigmh,1, 1,kl+1, 1)
-          call flip3(emat,1, 1,kl,kl)
-          call flip3(einv,1,kl,kl, 1)
-        endif
+      do while (nchng/=0)
+       nchng=0
+       do k=2,kl
+        if(bam(k)<bam(k-1)) cycle
+        nchng=1
+        tem=bam(k)
+        bam(k)=bam(k-1)
+        bam(k-1)=tem
+        do l=1,kl
+         tem=emat(l,k)
+         emat(l,k)=emat(l,k-1)
+         emat(l,k-1)=tem
+         tem=einv(k,l)
+         einv(k,l)=einv(k-1,l)
+         einv(k-1,l)=tem
+        end do
+       end do
+      end do
+      write(6,*)'eigenvectors re-ordered'
+      write(6,*)'bam',(bam(k),k=1,kl)
+      if(neig==1)then
+!      write data from bottom up
+       if(sig(1)<sig(kl))then
+        call flip3( sig,1, 1,kl, 1)
+        call flip3( sigmh,1, 1,kl+1, 1)
+        call flip3(emat,1, 1,kl,kl)
+        call flip3(einv,1,kl,kl, 1)
+       endif
       endif
-      print *,'eig '
+      write(6,*) 'eig '
       do k=1,kl
-       print 92,k,(emat(k,l),l=1,kl)
+       write(6,'(i3,15f8.4/3x,15f8.4/3x,15f8.4)')
+     &   k,(emat(k,l),l=1,kl)
       enddo
-92    format(i3,15f8.4/3x,15f8.4/3x,15f8.4)
-      print *,'einv'
+      write(6,*) 'einv'
       do k=1,kl
-       print 92,k,(einv(k,l),l=1,kl)
+       write(6,'(i3,15f8.4/3x,15f8.4/3x,15f8.4)')
+     &   k,(einv(k,l),l=1,kl)
       enddo
-      write(28,945)(sig(k),k=1,kl),(tbar(k),k=1,kl),(bam(k),k=1,kl)
-     . ,((emat(k,l),k=1,kl),l=1,kl),((einv(k,l),k=1,kl),l=1,kl),
-     . (bam(k),k=1,kl),((emat(k,l),k=1,kl),l=1,kl) ! just to fill space
-945   format(9e14.6)
-      write(28,945)(sigmh(k),k=1,kl+1)
+      write(28,'(9e14.6)')
+     &  (sig(k),k=1,kl),(tbar(k),k=1,kl),(bam(k),k=1,kl)
+     &  ,((emat(k,l),k=1,kl),l=1,kl),((einv(k,l),k=1,kl),l=1,kl),
+     &  (bam(k),k=1,kl),((emat(k,l),k=1,kl),l=1,kl) ! just to fill space
+      write(28,'(9e14.6)') (sigmh(k),k=1,kl+1)
       end
 
       subroutine eigs(lapsbot,isoth,tbar,dt,eps,nh,sig,sigmh,
      &                bet,betm)
       use vecs_m
+      implicit none
       include 'newmpar.h'
       integer lapsbot,isoth,nh
+      integer k,l,irror
+      integer indic(kl)
       real dt,eps
+      real factg,factr,dp
 c     units here are SI, but final output is dimensionless
       real, parameter :: g=9.806
       real, parameter :: cp=1004.64
@@ -96,7 +106,6 @@ c     sets up eigenvectors
       real bet(kl),betm(kl),get(kl),getm(kl),gmat(kl,kl)
       real bmat(kl,kl),evimag(kl),veci(kl,kl),sum1(kl)
       real tbar(kl)
-      integer indic(kl)
       real aa(kl,kl),ab(kl,kl),ac(kl,kl)
       real aaa(kl,kl),cc(kl,kl)
       
@@ -106,8 +115,8 @@ c     sets up eigenvectors
       do k=1,kl
        dsig(k)=sigmh(k+1)-sigmh(k)
       enddo
-      print *,'sigmh ',(sigmh(k),k=1,kl)
-      print *,'dsig ',(dsig(k),k=1,kl)
+      write(6,*) 'sigmh ',(sigmh(k),k=1,kl)
+      write(6,*) 'dsig ',(dsig(k),k=1,kl)
 
       get(1)=bet(1)/(r*sig(1))
       do k=2,kl
@@ -130,24 +139,22 @@ c     sets up eigenvectors
        gmat(k,k)=factr*get(k)
       enddo
    
-      print *,'dt,eps,factg,tbar,factr ',dt,eps,factg,tbar(1),factr
-      print *,'bet ',bet
-      print *,'bmat'
+      write(6,*)'dt,eps,factg,tbar,factr ',dt,eps,factg,tbar(1),factr
+      write(6,*)'bet ',bet
+      write(6,*)'bmat'
       do k=1,kl
-       print 905,k,(bmat(k,l),l=1,kl)
+       write(6,'(i3,15f8.3/3x,15f8.3/3x,15f8.3)') k,(bmat(k,l),l=1,kl)
       enddo
-905   format(i3,15f8.3/3x,15f8.3/3x,15f8.3)
 
-      print *,'get ',get
-      print *,'getm ',getm
-      print *,'gmat'
+      write(6,*) 'get ',get
+      write(6,*) 'getm ',getm
+      write(6,*) 'gmat'
       do k=1,kl
-       print 907,k,(gmat(k,l),l=1,kl)
+       write(6,'(i3,15f8.0/3x,15f8.0/3x,15f8.0)') k,(gmat(k,l),l=1,kl)
       enddo
-907   format(i3,15f8.0/3x,15f8.0/3x,15f8.0)
 
 !     even newer derivation section
-      print *,'even newer derivation section'
+      write(6,*) 'even newer derivation section'
 
       do k=1,kl
        do l=1,kl
@@ -164,105 +171,109 @@ c     sets up eigenvectors
        aa(k,k)=-r*tbar(1)*(sigmh(k+1)-sig(k))/(cp*sig(k))
        ac(k,k)=ac(k,k)+1.
       enddo
-      print *,'aa'
+      write(6,*) 'aa'
       do k=1,kl
-       print 92,k,(aa(k,l),l=1,kl)
+       write(6,'(i3,15f8.4/3x,15f8.4/3x,15f8.4)') 
+     &   k,(aa(k,l),l=1,kl)
       enddo
-      print *,'ac'
+      write(6,*) 'ac'
       do k=1,kl
-       print 905,k,(ac(k,l),l=1,kl)
+       write(6,'(i3,15f8.3/3x,15f8.3/3x,15f8.3)')
+     &   k,(ac(k,l),l=1,kl)
       enddo
       if(isoth.eq.1)then  !  extra vadv terms added
         aa(:,:)=aa(:,:)+tbar(1)*ac(:,:)
       endif
       call matm(aaa,bmat,aa)
       cc(:,:)=aaa(:,:)-r*tbar(1)*ab(:,:)
-      print *,'cc'
+      write(6,*) 'cc'
       do k=1,kl
-       print 91,k,(cc(k,l),l=1,kl)
+       write(6,'(i3,15f8.1/3x,15f8.1/3x,15f8.1)')
+     &   k,(cc(k,l),l=1,kl)
       enddo
-91    format(i3,15f8.1/3x,15f8.1/3x,15f8.1)
 
       if(nh>0)then  ! use gmat instead of bmat to derive aaa ! MJT suggestion
-!     if(nh>-2)then  ! use gmat instead of bmat to derive aaa      
-C     if(nh>-2.and.nh.ne.2)then  ! use gmat instead of bmat to derive aaa term
-!       use nh=-2 to see old eigs, -1 to do hydr. run with NH eigs      
-c        do k=1,kl
-c         do l=k,kl
-c          aa(k,l)=dsig(l)
-c         enddo
-c        enddo
-c        do k=1,kl
-c         aa(k,k)=sigmh(k+1)-sig(k)
-c        enddo
-c        call matm(aaa,gmat,aa)
-c        cc(:,:)=cc(:,:)-aaa(:,:)*2./(dt*(1.+eps))
-c        print *,'cc with gmat terms'
-c        do k=1,kl
-c         print 91,k,(cc(k,l),l=1,kl)
-c        enddo
-c      endif  ! (nh.ne.0)
-
-c      if(nh==2)then  ! use net gmat (June '06)
         gmat(:,:)=bmat(:,:)*(1.+4.*cp*tbar(1)/
-     &           ((g*dt)**2*(1.+eps)*(1.+eps)))
+     &           ((g*dt*(1.+eps))**2))
         call matm(aaa,gmat,aa)
         cc(:,:)=aaa(:,:)-r*tbar(1)*ab(:,:)
-        print *,'cc with gmat'
+        write(6,*) 'cc with gmat'
         do k=1,kl
-         print 91,k,(cc(k,l),l=1,kl)
+         write(6,'(i3,15f8.1/3x,15f8.1/3x,15f8.1)')
+     &     k,(cc(k,l),l=1,kl)
         enddo
       endif  ! (nh==2)
       
       aaa(:,:)=cc(:,:)
-      call eigenp(kl,kl,aaa,bam,evimag,emat,veci,indic)
-      !print *,'indic',(indic(k),k=1,kl) ! 2 = sucessfull
-      print *,'bam',(bam(k),k=1,kl)
-      !print *,'evimag',(evimag(k),k=1,kl) ! should be zero
-      print *,'eig '
+      call eigenp(aaa,bam,evimag,emat,veci,indic)
+      write(6,*) 'bam',(bam(k),k=1,kl)
+      write(6,*) 'eig '
       do k=1,kl
-       print 92,k,(emat(k,l),l=1,kl)
+       write(6,'(i3,15f8.4/3x,15f8.4/3x,15f8.4)')
+     &   k,(emat(k,l),l=1,kl)
       enddo
-92    format(i3,15f8.4/3x,15f8.4/3x,15f8.4)
-      call matinv(cc,kl,sum1,0,dp,irror)
+      call matinv(cc,sum1,0,dp,irror)
       einv(:,:)=emat(:,:)
-      call matinv(einv,kl,sum1,0,dp,irror)
-      print *,'einv'
+      call matinv(einv,sum1,0,dp,irror)
+      write(6,*) 'einv'
       do k=1,kl
-       print 92,k,(einv(k,l),l=1,kl)
+       write(6,'(i3,15f8.4/3x,15f8.4/3x,15f8.4)')
+     &   k,(einv(k,l),l=1,kl)
       enddo
 
       return
       end
 
       subroutine flip3(a,il,jl,kl,ll)
-      dimension a(il,jl,kl,ll)
-      do 2 l=1,ll
-      do 2 j=1,jl
-      do 2 i=1,il
-      do 2 k=1,kl/2
-      tem=a(i,j,k,l)
-      a(i,j,k,l)=a(i,j,kl+1-k,l)
-2     a(i,j,kl+1-k,l)=tem
+      implicit none
+      integer, intent(in) :: il,jl,kl,ll
+      integer l,j,i,k
+      real, dimension(il,jl,kl,ll), intent(inout) :: a
+      real tem
+      do l=1,ll
+       do j=1,jl
+        do i=1,il
+         do k=1,kl/2
+          tem=a(i,j,k,l)
+          a(i,j,k,l)=a(i,j,kl+1-k,l)
+          a(i,j,kl+1-k,l)=tem
+         end do
+        end do
+       end do
+      end do
       return
       end
 
       subroutine matm(a,b,c)
+      implicit none
       include 'newmpar.h'
 c     matrix multiplication      a = b * c
+      integer k,l,ll,ivec
       real a(kl,kl),b(kl,kl),c(kl,kl)
-      do 2 k=1,kl
-      do 2 l=1,kl
-      a(k,l)=b(k,1)*c(1,l)
-      do 2 ll=2,kl
-2     a(k,l)=a(k,l)+b(k,ll)*c(ll,l)
+      do k=1,kl
+       do l=1,kl
+        a(k,l)=b(k,1)*c(1,l)
+        do ll=2,kl
+         a(k,l)=a(k,l)+b(k,ll)*c(ll,l)
+        end do
+       end do
+      end do
       return
       end
 
-      subroutine eigenp(n,nm,a,evr,evi,vecr,veci,indic)
+      subroutine eigenp(a,evr,evi,vecr,veci,indic)
+      implicit none
       include 'newmpar.h'
       integer, dimension(kl*kl) :: iwork,local
+      integer, dimension(kl) :: indic
+      integer i,j,k,l,m
+      integer k1,l1,kon,ivec
       real, dimension(kl*kl) :: prfact,subdia,work
+      real, dimension(kl,kl) :: a,vecr,veci
+      real, dimension(kl) :: evr,evi
+      real d1,d2,d3,enorm
+      real r,r1,ex,eps
+      
 c     currently set up for a general number of 10 levels
 c a.c.m. algorithm number 343
 c revised july, 1970 by n.r.pummeroy, dcr, csiro, canberra
@@ -292,8 +303,6 @@ c original matrix is destroyed by the sub.routine.
 c n is the order of the matrix.
 c nm defines the first dimension of the two dimensional
 c arrays a,vecr,veci and the dimension of the one
-      dimension a(kl,kl),vecr(kl,kl),veci(kl,kl),evr(nm),evi(nm),
-     &          indic(nm)
 c the real parts of the n computed eigenvalues will be found
 c in the first n places of the array evr and the imaginary
 c parts in the first n places of the array evi.
@@ -318,22 +327,14 @@ c            1              found          not found
 c            2              found          found
 c
 c
-
-      if(n.ne.1)go to 1
-      evr(1) = a(1,1)
-      evi(1) = 0.0
-      vecr(1,1) = 1.0
-      veci(1,1) = 0.0
-      indic(1) = 2
-      go to 25
-    1 call scaler(n,a,veci,prfact,enorm)
+      call scaler(a,veci,prfact,enorm)
 c the computation of the eigenvalues of the normalised
 c matrix.
-c  take t=50 significant binary figures.  ex=2**(-t)
-      ex=8.88178418e-16
-c  following for 60 binary figures:
+!  take t=50 significant binary figures.  ex=2**(-t)
+!     ex=8.88178418e-16
+!  following for 60 binary figures:
       ex=8.674e-19
-      call hesqr(n,nm,a,veci,evr,evi,subdia,indic,eps,ex)
+      call hesqr(a,veci,evr,evi,subdia,indic,eps,ex)
 c
 c the possible decomposition of the upper-hessenberg matrix
 c into the submatrices of lower order is indicated in the
@@ -342,10 +343,9 @@ c subdiagonal elements are in modulus less than a small
 c positive number eps defined in the sub.routine hesqr . the
 c amount of work in the eigenvector problem may be
 c minimised in this way.
-      j = n
+      j = kl
       i = 1
       local(1) = 1
-      if(j.eq.1)go to 4
     2 if(abs(subdia(j-1)).gt.eps)go to 3
       i = i+1
       local(i)=0
@@ -354,15 +354,15 @@ c minimised in this way.
       if(j.ne.1)go to 2
 c
 c the eigenvector problem.
-    4 k = 1
+      k = 1
       kon = 0
       l = local(1)
-      m = n
-      do 10 i=1,n
-        ivec = n-i+1
+      m = kl
+      do 10 i=1,kl
+        ivec = kl-i+1
         if(i.le.l)go to 5
         k = k+1
-        m = n-l
+        m = kl-l
         l = l+local(k)
     5   if(indic(ivec).eq.0)go to 10
         if(evi(ivec).ne.0.0)go to 8
@@ -379,7 +379,7 @@ c
 c the computation of the real engenvector ivec of the upper-
 c hessenberg matrix corresponding to the real eigenvalue
 c evr(ivec).
-        call realve(n,nm,m,ivec,a,vecr,evr,evi,iwork,
+        call realve(m,ivec,a,vecr,evr,evi,iwork,
      1  work,indic,eps,ex)
         go to 10
 c
@@ -390,45 +390,44 @@ c not equal to zero then this complex eigenvector has
 c already been found from its conjugate.
     8   if(kon.ne.0)go to 9
         kon = 1
-      print 7707
-7707  format(20x,'attempted call to comove')
+      write(6,*) 'attempted call to comove'
       stop
     9   kon = 0
    10   continue
 c
 c the reconstruction of the matrix used in the reduction of
 c matrix a to an upper-hessenberg form by householder method
-      do 12 i=1,n
-        do 11 j=i,n
+      do 12 i=1,kl
+        do 11 j=i,kl
           a(i,j) = 0.0
    11     a(j,i) = 0.0
    12   a(i,i) = 1.0
-      if(n.le.2)go to 15
-      m = n-2
+      if(kl.le.2)go to 15
+      m = kl-2
       do 14 k=1,m
         l = k+1
-        do 14 j=2,n
+        do 14 j=2,kl
           d1 = 0.0
-          do 13 i=l,n
+          do 13 i=l,kl
             d2 = veci(i,k)
    13       d1 = d1+ d2*a(j,i)
-          do 14 i=l,n
+          do 14 i=l,kl
    14       a(j,i) = a(j,i)-veci(i,k)*d1
 c
 c the computation of the eigenvectors of the original non-
 c scaled matrix.
    15 kon = 1
-      do 24 i=1,n
+      do 24 i=1,kl
         l = 0
         if(evi(i).eq.0.0)go to 16
         l = 1
         if(kon.eq.0)go to 16
         kon = 0
         go to 24
-   16   do 18 j=1,n
+   16   do 18 j=1,kl
       d1 = 0.0
       d2 = 0.0
-          do 17 k=1,n
+          do 17 k=1,kl
             d3 = a(j,k)
             d1 = d1+d3*vecr(k,i)
             if(l.eq.0)go to 17
@@ -443,10 +442,10 @@ c the normalisation of the eigenvectors and the computation
 c of the eigenvalues of the original non-normalised matrix.
         if(l.eq.1)go to 21
         d1 = 0.0
-        do 19 m=1,n
+        do 19 m=1,kl
    19     d1 = d1+work(m)**2
         d1 = sqrt(d1)
-        do 20 m=1,n
+        do 20 m=1,kl
           veci(m,i) = 0.0
    20     vecr(m,i) = work(m)/d1
         evr(i) = evr(i)*enorm
@@ -458,7 +457,7 @@ c
         evi(i) = evi(i)*enorm
         evi(i-1) =-evi(i)
         r = 0.0
-        do 22 j=1,n
+        do 22 j=1,kl
           r1 = work(j)**2 + subdia(j)**2
           if(r.ge.r1)go to 22
           r = r1
@@ -466,7 +465,7 @@ c
    22     continue
         d3 = work(l)
         r1 = subdia(l)
-        do 23 j=1,n
+        do 23 j=1,kl
           d1 = work(j)
           d2 = subdia(j)
           vecr(j,i) = (d1*d3+d2*r1)/r
@@ -475,15 +474,23 @@ c
    23     veci(j,i-1) =-veci(j,i)
    24   continue
 c
-   25 return
+      return
       end
-      subroutine hesqr(n,nm,a,h,evr,evi,subdia,indic,eps,ex)
+      
+      subroutine hesqr(a,h,evr,evi,subdia,indic,eps,ex)
+      implicit none
       include 'newmpar.h'
 c
 c the following real variables were initially single prec.-
 c subdia, eps, ex, r, shift
-      dimension a(kl,kl),h(kl,kl),evr(kl),evi(kl),subdia(kl)
-      dimension indic(nm)
+      integer, dimension(kl) :: indic
+      integer i,j,k,l,m
+      integer m1,maxst,ns
+      real, dimension(kl,kl) :: a,h
+      real, dimension(kl) :: evr,evi,subdia
+      real eps,ex
+      real sr,sr2,shift
+      real r,s,t,x,y,z
 c this sub.routine finds all the eigenvalues of a real
 c general matrix. the original matrix a of order n is
 c reduced to the upper-hessenberg form h by means of
@@ -511,14 +518,14 @@ c
 c
 c reduction of the matrix a to an upper-hessenberg form h.
 c there are n-2 steps.
-      if(n-2)14,1,2
+      if(kl-2)14,1,2
     1 subdia(1) = a(2,1)
       go to 14
-    2 m = n-2
+    2 m = kl-2
       do 12 k=1,m
         l = k+1
         s = 0.0
-        do 3 i=l,n
+        do 3 i=l,kl
           h(i,k) = a(i,k)
 3     s=s+abs(a(i,k))
       if(s.ne.abs(a(k+1,k)))go to 4
@@ -526,7 +533,7 @@ c there are n-2 steps.
         h(k+1,k) = 0.0
         go to 12
     4   sr2 = 0.0
-        do 5 i=l,n
+        do 5 i=l,kl
           sr = a(i,k)
           sr = sr/s
           a(i,k) = sr
@@ -539,22 +546,22 @@ c there are n-2 steps.
         h(l,k) = h(l,k)-sr*s
         subdia(k) = sr*s
         x = s*sqrt(sr2)
-        do 7 i=l,n
+        do 7 i=l,kl
           h(i,k) =h(i,k)/x
     7     subdia(i) = a(i,k)/sr2
 c premultiplication by the matrix pr.
-          do 9 j=l,n
+          do 9 j=l,kl
             sr = 0.0
-            do 8 i=l,n
+            do 8 i=l,kl
     8         sr = sr+a(i,k)*a(i,j)
-            do 9 i=l,n
+            do 9 i=l,kl
     9         a(i,j) = a(i,j)-subdia(i)*sr
 c postmultiplication by the matrix pr.
-            do 11 j=1,n
+            do 11 j=1,kl
               sr=0.0
-              do 10 i=l,n
+              do 10 i=l,kl
    10           sr = sr+a(j,i)*a(i,k)
-              do 11 i=l,n
+              do 11 i=l,kl
    11           a(j,i) = a(j,i)-subdia(i)*sr
    12       continue
       do 13 k=1,m
@@ -562,12 +569,12 @@ c postmultiplication by the matrix pr.
 c transer of the upper half of the matrix a into the
 c array h and the calculation of the small positive number
 c eps.
-      subdia(n-1) = a(n,n-1)
+      subdia(kl-1) = a(kl,kl-1)
    14 eps = 0.0
-      do 15 k=1,n
+      do 15 k=1,kl
         indic(k) = 0
-        if(k.ne.n)eps = eps+subdia(k)**2
-        do 15 i=k,n
+        if(k.ne.kl)eps = eps+subdia(k)**2
+        do 15 i=k,kl
           h(k,i) = a(k,i)
    15     eps = eps + a(k,i)**2
       eps = ex*sqrt(eps)
@@ -577,22 +584,22 @@ c reduced to the upper-modified triangular form.
 c
 c determination of the shift of origin for the first step of
 c the qr iterative process.
-      shift = a(n,n-1)
-      if(n.le.2)shift = 0.0
-      if(a(n,n).ne.0.0)shift = 0.0
-      if(a(n-1,n).ne.0.0)shift = 0.0
-      if(a(n-1,n-1).ne.0.0)shift = 0.0
-      m = n
+      shift = a(kl,kl-1)
+      if(kl.le.2)shift = 0.0
+      if(a(kl,kl).ne.0.0)shift = 0.0
+      if(a(kl-1,kl).ne.0.0)shift = 0.0
+      if(a(kl-1,kl-1).ne.0.0)shift = 0.0
+      m = kl
       ns= 0
-      maxst = n*10
+      maxst = kl*10
 c
 c testing if the upper half of the matrix is equal to zero.
 c if it is equal to zero the qr process is not necessary.
-      do 16 i=2,n
-      do 16 k=i,n
+      do 16 i=2,kl
+      do 16 k=i,kl
       if(a(i-1,k).ne.0.0)go to 18
    16 continue
-      do 17 i=1,n
+      do 17 i=1,kl
       indic(i)=1
 
       evr(i) = a(i,i)
@@ -728,9 +735,18 @@ c the decomposition.
 c
    37 return
       end
-      subroutine matinv(a,n,b,l,d,irror)
+      
+      subroutine matinv(a,b,l,d,irror)
+      implicit none
       include 'newmpar.h'
-      dimension a(kl,kl),b(kl,1),ipiv(kl),ind(kl,2)
+      integer, dimension(kl,2) :: ind
+      integer, dimension(kl) :: ipiv
+      integer l,irror
+      integer i,j,k,m
+      integer irow,icol
+      real, dimension(kl,kl) :: a,b
+      real d
+      real amax
 c     a is an nxn matrix to be inverted,or containing equation coeffs
 c     b is an nxm rhs matrix for equations
 c     if l=0,inverse only given.l positive,solutions only.l negative
@@ -740,14 +756,15 @@ c     a is replaced by the inverse ,b by the solutions.
 c     method of gauss-jordon pivotal elimination
       m=iabs(l)
       d=1.0
-      do 10 i=1,n
-   10 ipiv(i)=0
-      do 220 i=1,n
+      do i=1,kl
+        ipiv(i)=0
+      end do
+      do 220 i=1,kl
       amax=0.0
 c     search sub-matrix for largest element as pivot
-      do  70 j=1,n
+      do  70 j=1,kl
       if(ipiv(j)) 80,30,70
-   30 do  60 k=1,n
+   30 do  60 k=1,kl
       if(ipiv(k)-1) 40,60,80
 c     this row column has not been a pivot
    40 if(abs(a(j,k))-amax)60,60,50
@@ -765,7 +782,7 @@ c     matrix singular,error return
    90 if(irow-icol) 95,130,95
 c     make pivot a diagonal element by row interchange.
    95 d=-d
-      do 100 k=1,n
+      do 100 k=1,kl
       amax=a(irow,k)
       a(irow,k)=a(icol,k)
   100 a(icol,k)=amax
@@ -780,17 +797,17 @@ c     make pivot a diagonal element by row interchange.
       d=d*amax
       a(icol,icol)=1.0
 c     divide pivot row by pivot
-      do 140 k=1,n
+      do 140 k=1,kl
   140 a(icol,k)=a(icol,k)/amax
       if(m) 170,170,150
   150 do 160 k=1,m
   160 b(icol,k)=b(icol,k)/amax
 c     reduce non-pivot rows
-  170 do 220 j=1,n
+  170 do 220 j=1,kl
       if(j-icol) 180,220,180
   180 amax=a(j,icol)
       a(j,icol)=0.0
-      do 190  k=1,n
+      do 190  k=1,kl
   190 a(j,k)=a(j,k)-a(icol,k)*amax
       if(m)  220,220,200
   200 do  210 k=1,m
@@ -799,12 +816,12 @@ c     reduce non-pivot rows
 c     after n pivotal condensations,solutions lie in b matrix
       if(l) 230,230,270
 c     for inverse of a, interchange columns
-  230 do 260 i=1,n
-      j=n+1-i
+  230 do 260 i=1,kl
+      j=kl+1-i
       if(ind(j,1)-ind(j,2)) 240,260,240
   240 irow=ind(j,1)
       icol=ind(j,2)
-      do 250  k=1,n
+      do 250  k=1,kl
       amax=a(k,irow)
       a(k,irow)=a(k,icol)
   250 a(k,icol)=amax
@@ -812,9 +829,22 @@ c     for inverse of a, interchange columns
   270 irror=0
       return
       end
-      subroutine realve(n,nm,m,ivec,a,vecr,evr,evi,
+      
+      subroutine realve(m,ivec,a,vecr,evr,evi,
      1 iwork,work,indic,eps,ex)
+      implicit none
       include 'newmpar.h'
+      integer, dimension(kl) :: iwork,indic
+      integer m
+      integer i,j,k,l
+      integer ivec,iter,ns
+      real, dimension(kl,kl) :: a,vecr
+      real, dimension(kl) :: evr,evi
+      real, dimension(kl) :: work
+      real eps,ex
+      real r,r1,t,evalue,previs
+      real s,sr,bound
+
 c the following real variables were initially single-
 c bound,eps,evalue,ex,previs,r,r1,work
 c this sub.routine finds the real eigenvector of the real
@@ -850,8 +880,7 @@ c eps is a small positive number that numerically represents
 c zero in the program. eps = (euclidian norm of a)*ex,where
 c ex = 2**(-t). t is the number of binary digits in the
 c mantissa of a floating point number.
-      dimension a(kl,kl),vecr(kl,kl),evr(kl)
-      dimension evi(nm),iwork(nm),work(nm),indic(nm)
+
       vecr(1,ivec) = 1.0
       if(m.eq.1)go to 24
 c small perturbation of equal eigenvalues to obtain a full
@@ -896,7 +925,7 @@ c multipliers are stored as the subdiagonal elements of a.
 c
 c the vector (1,1,...,1) is stored in the place of the right
 c hand side column vector.
-    9 do 11 i=1,n
+    9 do 11 i=1,kl
       if(i.gt.m)go to 10
       work(i) = 1.0
       go to 11
@@ -906,7 +935,7 @@ c
 c the inverse iteration is performed on the matrix until the
 c infinite norm of the right-hand side vector is greater
 c than the bound defined as  0.01(n*ex).
-      bound = 0.01/(ex * float(n))
+      bound = 0.01/(ex * float(kl))
       ns = 0
       iter = 1
 c
@@ -970,17 +999,25 @@ c gaussian elimination of the right-hand side vector.
       go to 12
 c
    24 indic(ivec) =2
-   25 if(m.eq.n)go to 27
+   25 if(m.eq.kl)go to 27
       j = m+1
-      do 26 i=j,n
+      do 26 i=j,kl
    26 vecr(i,ivec) = 0.0
    27 return
       end
-      subroutine scaler(n,a,h,prfact,enorm)
+      
+      subroutine scaler(a,h,prfact,enorm)
+      implicit none
       include 'newmpar.h'
 c the following real variables were initially single prec.-
 c bound1,bound2,enorm
-      dimension a(kl,kl),h(kl,kl),prfact(kl)
+      integer i,j
+      integer iter,ncount
+      real, dimension(kl,kl) :: a,h
+      real, dimension(kl) :: prfact
+      real enorm
+      real fnorm,column,row
+      real bound1,bound2,q,factor
 c this sub.routine stores the matrix of the order n from the
 c array a into the array h. afterward the matrix in the
 c array a is scaled so that the quotient of the absolute sum
@@ -1002,18 +1039,20 @@ c must be greater or equal to n.
 c the eigenvalues of the normalised matrix must be
 c multiplied by the scalar enorm in order that they become
 c the eigenvalues of the non-normalised matrix.
-      do 2 i=1,n
-        do 1 j=1,n
-    1     h(i,j) = a(i,j)
-    2   prfact(i)= 1.0
+      do i=1,kl
+        do j=1,kl
+          h(i,j) = a(i,j)
+        end do
+        prfact(i)= 1.0
+      end do
       bound1 = 0.75
       bound2 = 1.33
       iter = 0
     3 ncount = 0
-      do 8 i=1,n
+      do 8 i=1,kl
       column = 0.0
       row    = 0.0
-        do 4 j=1,n
+        do 4 j=1,kl
           if(i.eq.j)go to 4
       column=column+abs(a(j,i))
       row   =row   +abs(a(i,j))
@@ -1026,7 +1065,7 @@ c the eigenvalues of the non-normalised matrix.
     5   ncount = ncount + 1
         go to 8
     6   factor = sqrt(q)
-        do 7 j=1,n
+        do 7 j=1,kl
           if(i.eq.j)go to 7
           a(i,j) = a(i,j)*factor
           a(j,i) = a(j,i)/factor
@@ -1035,41 +1074,55 @@ c the eigenvalues of the non-normalised matrix.
     8   continue
       iter = iter+1
       if(iter.gt.30)go to 11
-      if(ncount.lt.n)go to 3
+      if(ncount.lt.kl)go to 3
 c
       fnorm = 0.0
-      do 9 i=1,n
-        do 9 j=1,n
+      do 9 i=1,kl
+        do 9 j=1,kl
           q = a(i,j)
     9     fnorm = fnorm+q*q
       fnorm = sqrt(fnorm)
-      do 10 i=1,n
-        do 10 j=1,n
+      do 10 i=1,kl
+        do 10 j=1,kl
    10     a(i,j)=a(i,j)/fnorm
       enorm = fnorm
       go to 13
 c
-   11 do 12 i=1,n
+   11 do 12 i=1,kl
 c
 c modification suggested by referee in a.c.m.certification
 c
         prfact(i)=1.0
-        do 12 j=1,n
+        do 12 j=1,kl
    12     a(i,j) = h(i,j)
       enorm = 1.0
 c
    13 return
       end
+      
       subroutine sigtosigh(sig,sigmh,kl)
-c     these routines are written from top down
-      real sig(kl),sigmh(kl+1)
+      implicit none
+      integer, intent(in) :: kl
+      integer k
+!     these routines are written from top down
+      real, dimension(kl), intent(in) :: sig
+      real, dimension(kl+1), intent(out) :: sigmh
       sigmh(1)=1.
       sigmh(kl+1)=0.
-      do 12 k=1,kl-1
-12    sigmh(k+1)=.5*(sig(k)+sig(k+1))
+      do k=1,kl-1
+        sigmh(k+1)=.5*(sig(k)+sig(k+1))
+      end do
       return
-      entry sightosig(sig,sigmh,kl)
-      do 22 k=1,kl
-22    sig(k)=.5*(sigmh(k+1)+sigmh(k))
+      end
+      
+      subroutine sightosig(sig,sigmh,kl)
+      implicit none
+      integer, intent(in) :: kl
+      integer k
+      real, dimension(kl), intent(out) :: sig
+      real, dimension(kl+1), intent(in) :: sigmh
+      do k=1,kl
+        sig(k)=.5*(sigmh(k+1)+sigmh(k))
+      end do
       return
       end

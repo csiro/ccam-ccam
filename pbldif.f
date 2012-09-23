@@ -296,7 +296,7 @@ C latitude value for f so that c = 0.07/f = 700.
      &              max(pblh(:),.07*ustar(:)/max(.5e-4,abs(f(1:ifull))))
       if(npblmin==3)pblh(:) =                      ! to ~agree 39.5N
      &              max(pblh(:),.07*ustar(:)/max(1.e-4,abs(f(1:ifull))))
-      if(npblmin==4)pblh(:) = max(pblh(:),50.)
+      if(npblmin==4)pblh(1:ifull) = max(pblh(1:ifull),50.)
 c     if(npblmin==4)then  !  older Zilit., stable only
 c       do iq=1,ifull
 c        pblmin=.5*sqrt(ustar(iq)*max(0.,obklen(iq))/
