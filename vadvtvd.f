@@ -3,7 +3,7 @@ c                              vadvbott & vadvyu at bottom
 !     can show adding tbar has no effect
       use aerosolldr
       use arrays_m
-      use cc_mpi, only : mydiag, myid
+      use cc_mpi
       use cfrac_m
       use diag_m
       use liqwpar_m  ! ifullw
@@ -41,6 +41,8 @@ c     variables; except extrap at bottom for qg and trace gases  Thu  06-19-1997
 !                            2 MC phitvd flux-limiter
 !                            3 superbee flux-limiter
 !                            0 (not available now) was equivalent to van Leer
+
+      call start_log(vadv_begin)
 
       tfact=1./real(nvadh_pass)
 
@@ -163,6 +165,8 @@ c      qg
 
       endif       ! if(mspec==1.and.abs(nvad).ne.9)
 
+      call end_log(vadv_end)
+ 
       return
       end
       

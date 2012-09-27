@@ -31,16 +31,16 @@
       include 'parmdyn.h'  
       include 'parmvert.h'
       include 'mpif.h'
+      integer iq, k, ng, ii, jj, its, nits, nvadh_pass, iaero
+      integer ierr
+      integer, save :: num = 0
       real aa(ifull,kl),bb(ifull,kl)
       real p(ifull+iextra,kl),phiv(ifull+iextra,kl),tv(ifull+iextra,kl)
       real ddpds(ifull,kl)
       real duma(ifull+iextra,kl+1)
-      integer iq, k, ng, ii, jj, its, nits, nvadh_pass, iaero
       real const_nh, contv, delneg, delpos, ratio
       real sumdiffb, sdmx, sdmx_g, spmax2,termlin
       real, allocatable, save, dimension(:) :: epstsav
-      integer :: ierr
-      integer, save :: num = 0
       
       call start_log(nonlin_begin)
       
@@ -96,12 +96,9 @@
         enddo     ! ng loop
       endif       ! (ngas>=1)
  
-      !--------------------------------------------------------------
-      ! MJT aerosols
       if (abs(iaero)==2) then
         xtgsav(1:ifull,:,:)=xtg(1:ifull,:,:)
       end if
-      !--------------------------------------------------------------
 
       if (diag) then
          call bounds(ps)
@@ -260,7 +257,7 @@ cx      enddo      ! k  loop
        phi(:,k)=phi(:,k-1)+bet(k)*t(1:ifull,k)+betm(k)*t(1:ifull,k-1)
       enddo    ! k  loop
       ! update non-hydrostatic terms from Miller-White height equation
-      if (nh.ne.0.and.(ktau.gt.knh.or.lrestart)) then
+      if (nh/=0.and.(ktau>knh.or.lrestart)) then
         phi=phi+phi_nh
         if (abs(epsp)<=1.) then
           ! MJT exact treatment of constant epsp terms
@@ -379,13 +376,13 @@ c       print *,'termx ',(t(iq,k)+contv*tvv)*dpsldt(iq,k)*roncp/sig(k)
        tv(1:ifull,k)=t(1:ifull,k)+tv(1:ifull,k)  
       enddo
 
-      call bounds(p)
-      call bounds(phiv)
-      duma(1:ifull,1:kl)=tv(1:ifull,:)
+      call bounds(p,nehalf=.true.)
+      duma(1:ifull,1:kl)=phiv(1:ifull,:)
       duma(1:ifull,kl+1)=psl(1:ifull)
       call bounds(duma)
-      tv(:,1:kl)=duma(:,1:kl)
-      psl(:)=duma(:,kl+1)
+      phiv(:,1:kl)=duma(:,1:kl)
+      psl(:)=duma(:,kl+1)      
+      call bounds(tv,nehalf=.true.)
 
       do k=1,kl
 !cdir nodep

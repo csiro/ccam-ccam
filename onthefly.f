@@ -1107,6 +1107,19 @@ c***        but needed here for onthefly (different dims) 28/8/08
               call doints4(ucc,watbdy(1:ifull),nface4,xg4,yg4,nord,dk,
      &               ifg)
             end if
+            ucc=0.
+            call histrd1(ncid,iarchi,ier,'ssalin',ik,6*ik,ucc,
+     &                   6*ik*ik)
+            if (iotest) then
+              if (myid==0) then
+                call ccmpi_distribute(salbdy(1:ifull),ucc)
+              else
+                call ccmpi_distribute(salbdy(1:ifull))
+              end if
+            else
+              call doints4(ucc,salbdy(1:ifull),nface4,xg4,yg4,nord,dk,
+     &               ifg)
+            end if
           end if
         end if
         !--------------------------------------------------

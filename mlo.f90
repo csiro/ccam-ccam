@@ -973,7 +973,7 @@ call getrho(a_ps,d_rho,d_rs,d_alpha,d_beta,d_zcr)                               
 call mlonewice(dt,a_ps,d_rho,d_timelt,d_zcr,diag)                                                    ! create new ice
 
 ! split adjustment of free surface and ice thickness to ensure conservation
-d_neta=w_eta+0.001*dt*(a_inflow+i_fracice*(a_rnd+a_snd))
+d_neta=w_eta+0.001*dt*(a_inflow+(1.-i_fracice)*(a_rnd+a_snd))
 d_ndsn=i_dsn
 d_ndic=i_dic
 d_nsto=i_sto

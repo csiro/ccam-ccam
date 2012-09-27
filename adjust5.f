@@ -131,7 +131,7 @@
           dd(iq,k)=vx(iq,k)/emv(iq)*alfv(iq)  ! Eq. 137
         enddo
       enddo
-      call boundsuv(cc,dd)
+      call boundsuv(cc,dd,stag=-9) ! only update isv and iwu
 
       do k=1,kl
        do iq=1,ifull
@@ -297,7 +297,7 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
          enddo  ! iq loop   
       enddo     !  k loop 
 
-      call boundsuv(cc,dd)
+      call boundsuv(cc,dd,stag=-9) ! only update isv and iwu
 !     calculate linear part only of sigma-dot and omega/ps
       do k=1,kl
 !cdir nodep

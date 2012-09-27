@@ -16,27 +16,27 @@ module mlodynamics
 implicit none
 
 private
-public mlodiffusion,mlorouter,mlohadv,mlodyninit,watbdy,ipice,oldu1,oldv1,oldu2,oldv2
-public gosig,gosigh,godsig,ocnsmag,ocneps
+public mlodiffusion,mlorouter,mlohadv,mlodyninit,watbdy,salbdy,ipice
+public oldu1,oldv1,oldu2,oldv2,gosig,gosigh,godsig,ocnsmag,ocneps
 
-real, dimension(:), allocatable, save :: watbdy,ipice,ee,eeu,eev,dd,ddu,ddv
+real, dimension(:), allocatable, save :: watbdy,salbdy,ipice,ee,eeu,eev,dd,ddu,ddv
 real, dimension(:), allocatable, save :: gosig,gosigh,godsig
 real, dimension(:,:), allocatable, save :: oldu1,oldu2,oldv1,oldv2
 real, dimension(:,:), allocatable, save :: stwgt
 integer, parameter :: salfilt=0     ! additional salinity filter (0=off, 1=Katzfey)
 integer, parameter :: usetide=1     ! tidal forcing (0=off, 1=on)
 integer, parameter :: icemode=2     ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
-integer, parameter :: basinmd=1     ! basin mode (0=soil, 1=redistribute, 2=pile-up)
+integer, parameter :: basinmd=3     ! basin mode (0=soil, 1=redistribute, 2=pile-up, 3=leak)
 integer, parameter :: mstagf =0     ! alternating staggering (0=off left, -1=off right, >0 alternating)
-integer, parameter :: koff   =1     ! stagger relative to A-grid (koff=0) or C-grid (koff=1)
+integer, parameter :: koff   =1     ! time split stagger relative to A-grid (koff=0) or C-grid (koff=1)
 integer, parameter :: nf     =2     ! power for horizontal diffusion reduction factor
 integer, parameter :: itnmax =6     ! number of interations for staggering
 real, parameter :: rhosn  =330.     ! density snow (kg m^-3)
 real, parameter :: rhoic  =900.     ! density ice  (kg m^-3)
 real, parameter :: grav   =9.80616  ! gravitational constant (m s^-2)
 real, parameter :: delphi =150.     ! horizontal diffusion reduction factor gradient
-real, save      :: ocnsmag=2.       ! horizontal diffusion (2. in Griffies (2000), 1.-1.4 in POM (Mellor 2004))
-real, save      :: ocneps =0.2      ! semi-implicit off-centring term
+real, save      :: ocnsmag=1.       ! horizontal diffusion (2. in Griffies (2000), 1.-1.4 in POM (Mellor 2004))
+real, save      :: ocneps =0.1      ! semi-implicit off-centring term
 
 contains
 
@@ -65,8 +65,9 @@ real, dimension(3*wlev) :: dumz,gdumz
 logical, dimension(ifull+iextra) :: wtr
 
 ! river water height
-allocate(watbdy(ifull+iextra))
+allocate(watbdy(ifull+iextra),salbdy(ifull+iextra))
 watbdy=0.
+salbdy=0.
 
 ! prep land-sea mask
 allocate(ee(ifull+iextra))
@@ -242,15 +243,15 @@ uau(1:ifull,:)=av_vmod*u(1:ifull,:)+(1.-av_vmod)*oldu1
 uav(1:ifull,:)=av_vmod*v(1:ifull,:)+(1.-av_vmod)*oldv1
 
 call boundsuv(uau,uav,allvec=.true.)
-call bounds(eta)
+call bounds(eta,nehalf=.true.)
 do k=1,wlev
   dudx(1:ifull,k)=0.5*(uau(ieu,k)-uau(iwu,k))*em(1:ifull)/ds
   dudy(1:ifull,k)=0.5*(uau(inu,k)-uau(isu,k))*em(1:ifull)/ds
   dvdx(1:ifull,k)=0.5*(uav(iev,k)-uav(iwv,k))*em(1:ifull)/ds
   dvdy(1:ifull,k)=0.5*(uav(inv,k)-uav(isv,k))*em(1:ifull)/ds
 end do
-call boundsuv(dudx,dvdy,allvec=.true.)
-call boundsuv(dvdx,dudy,allvec=.true.)
+call boundsuv(dudx,dvdy,stag=-19)
+call boundsuv(dvdx,dudy,stag=-19)
 
 ! Smagorinsky
 do k=1,wlev
@@ -422,14 +423,17 @@ include 'mpif.h'
 include 'parm.h'
 include 'soilv.h'
 
-integer i,iq,ierr
+integer i,ii,iq,ierr
 integer, dimension(ifull,4) :: xp
-real, dimension(ifull+iextra) :: neta,netvel
+real, dimension(ifull,wlev) :: sallvl
+real, dimension(ifull+iextra) :: neta,netvel,cc
 real, dimension(ifull+iextra,2) :: dum
-real, dimension(ifull) :: newwat
+real, dimension(ifull) :: newwat,newsal,cover
+real, dimension(ifull) :: deta,sal,salin,depdum
 real, dimension(ifull,4) :: idp,slope,mslope,vel,flow
+real, dimension(ifull,4) :: fta,ftx
 real, dimension(2) :: dumb,gdumb
-real :: xx,yy,lssum,gssum,lwsum,gwsum,netf,netg
+real :: xx,yy,ll,lssum,gssum,lwsum,gwsum,netf,netg
 
 ! To speed up the code, we use a (semi-)implicit solution rather than an iterative approach
 ! This avoids additional MPI calls.
@@ -439,8 +443,9 @@ real :: xx,yy,lssum,gssum,lwsum,gwsum,netf,netg
 ! on average water leaves the grid box, whereas if the slop of the grid box is convergent, then on
 ! average water enters the grid box.
 
-! The scheme currently does not support outflow from lakes.
+! This version supports salinity in rivers and overflow from lakes
 
+! setup indices and grid spacing
 xp(:,1)=in
 xp(:,2)=ie
 xp(:,3)=is
@@ -450,20 +455,48 @@ idp(:,2)=emu(1:ifull)/ds
 idp(:,3)=emv(isv)/ds
 idp(:,4)=emu(iwu)/ds
 
+! update bounds and initial conditions
 neta=0.
+salin=0.
+sallvl=0.
 call mloexport(4,neta(1:ifull),0,0)
-dum(1:ifull,1)=neta(1:ifull)
-dum(1:ifull,2)=watbdy(1:ifull)
-call bounds(dum(:,1:2))
-neta=dum(:,1)
-watbdy=dum(:,2)
-newwat=watbdy(1:ifull)
+do ii=1,wlev
+  call mloexport(1,sallvl(:,ii),ii,0)
+  salin=salin+godsig(ii)*sallvl(:,ii)
+end do
+deta=0.
+depdum=0.
+where (ee(1:ifull)>0.5)
+  depdum=max(neta(1:ifull)+dd(1:ifull),minwater)
+  ! collect any left over water over ocean
+  salin=(salin*depdum+salbdy(1:ifull)*watbdy(1:ifull)*0.001)/(depdum+watbdy(1:ifull)*0.001)
+  neta(1:ifull)=neta(1:ifull)+0.001*watbdy(1:ifull)
+  ! move water from neta to watbdy for transport
+  deta=1000.*max(neta(1:ifull),0.)
+  salbdy(1:ifull)=salin
+  watbdy(1:ifull)=deta
+  neta(1:ifull)=min(neta(1:ifull),0.)
+end where
+salbdy(1:ifull)=salbdy(1:ifull)*watbdy(1:ifull) ! rescale salinity to PSU*mm for advection
 
+! update boundaries
+dum(1:ifull,1)=watbdy(1:ifull)
+dum(1:ifull,2)=salbdy(1:ifull)
+call bounds(dum(:,1:2))
+watbdy=dum(:,1)
+salbdy=dum(:,2)
+newwat=watbdy(1:ifull)
+newsal=salbdy(1:ifull)
+
+! calculate slopes
 slope=0.
 do i=1,4
-  !slope(:,i)=(zs(1:ifull)-zs(xp(:,i)))/(grav*dp(:,i))                       ! basic
-  slope(:,i)=(zs(1:ifull)/grav+0.001*watbdy(1:ifull)+neta(1:ifull) &
-             -zs(xp(:,i))/grav-0.001*watbdy(xp(:,i))-neta(xp(:,i)))*idp(:,i) ! flood
+  !slope(:,i)=(zs(1:ifull)-zs(xp(:,i)))/(grav*dp(:,i))         ! basic
+  slope(:,i)=(zs(1:ifull)/grav+0.001*watbdy(1:ifull) &
+             -zs(xp(:,i))/grav-0.001*watbdy(xp(:,i)))*idp(:,i) ! flood
+  where (ee(1:ifull)>0.5.and.ee(xp(:,i))>0.5)
+    slope(:,i)=0. ! no orographic slope within ocean bounds
+  end where
 end do
 
 ! Basic expression
@@ -480,15 +513,26 @@ elsewhere
   vel=0.
 end where
 ! compute net velocity for a grid box so that total water is conserved
-netvel(1:ifull)=sum(vel,2)*(1.-ee(1:ifull))
+netvel(1:ifull)=sum(vel,2)
 call bounds(netvel)
+! water outflow
 flow=0.
 do i=1,4
+  fta(:,i)=-dt*vel(:,i)*idp(:,i)
+  ftx(:,i)=-vel(:,i)/netvel(1:ifull)
   where (netvel(1:ifull)>1.E-10)
-    flow(:,i)=watbdy(1:ifull)*max(-dt*vel(:,i)*idp(:,i),-vel(:,i)/netvel(1:ifull)) ! (kg/m^2)
+    flow(:,i)=watbdy(1:ifull)*max(fta(:,i),ftx(:,i)) ! (kg/m^2)
   end where
 end do
 newwat=newwat+sum(flow,2)
+! salinity outflow
+flow=0.
+do i=1,4
+  where (netvel(1:ifull)>1.E-10)
+    flow(:,i)=salbdy(1:ifull)*max(fta(:,i),ftx(:,i))
+  end where
+end do
+newsal=newsal+sum(flow,2)
 
 ! inflow
 mslope=max(-slope,0.)
@@ -498,16 +542,32 @@ where (mslope>1.E-10)
 elsewhere
   vel=0.
 end where
+! water inflow
 flow=0.
 do i=1,4
+  fta(:,i)=dt*vel(:,i)*idp(:,i)
+  ftx(:,i)=vel(:,i)/netvel(xp(:,i))
   where (netvel(xp(:,i))>1.E-10)
-    flow(:,i)=watbdy(xp(:,i))*min(dt*vel(:,i)*idp(:,i),vel(:,i)/netvel(xp(:,i))) ! (kg/m^2)
+    flow(:,i)=watbdy(xp(:,i))*min(fta(:,i),ftx(:,i)) ! (kg/m^2)
     flow(:,i)=flow(:,i)*em(1:ifull)*em(1:ifull)/(em(xp(:,i))*em(xp(:,i))) ! change in gridbox area
   end where
 end do
 newwat=newwat+sum(flow,2)
+! salinity inflow
+flow=0.
+do i=1,4
+  where (netvel(xp(:,i))>1.E-10)
+    flow(:,i)=salbdy(xp(:,i))*min(fta(:,i),ftx(:,i))
+    flow(:,i)=flow(:,i)*em(1:ifull)*em(1:ifull)/(em(xp(:,i))*em(xp(:,i))) ! change in gridbox area
+  end where
+end do
+newsal=newsal+sum(flow,2)
 
 watbdy(1:ifull)=max(newwat,0.)
+salbdy(1:ifull)=max(newsal,0.)
+
+! estimate grid box area covered by water
+cover=min(0.001*watbdy(1:ifull)/minwater,1.)
   
 ! basin
 select case(basinmd)
@@ -518,7 +578,8 @@ select case(basinmd)
         if (all(slope(iq,:)<-1.E-10).and.land(iq)) then
           ! runoff is inserted into soil moisture since CCAM has discrete land and sea points
           xx=watbdy(iq)
-          call cableinflow(iq,xx)
+          ll=cover(iq)
+          call cableinflow(iq,xx,ll)
           newwat(iq)=newwat(iq)+(xx-watbdy(iq))*(1.-sigmu(iq))
         end if
       end do
@@ -527,7 +588,8 @@ select case(basinmd)
         if (all(slope(iq,:)<-1.E-10).and.land(iq)) then
           ! runoff is inserted into soil moisture since CCAM has discrete land and sea points
           xx=watbdy(iq)
-          yy=min(xx,(ssat(isoilm(iq))-wb(iq,ms))*1000.*zse(ms))
+          ll=max(ssat(isoilm(iq))*cover(iq)-wb(iq,ms),0.)*1000.*zse(ms)
+          yy=min(xx,ll)
           wb(iq,ms)=wb(iq,ms)+yy/(1000.*zse(ms))
           xx=max(xx-yy,0.)
           newwat(iq)=newwat(iq)+(xx-watbdy(iq))*(1.-sigmu(iq))
@@ -558,12 +620,62 @@ select case(basinmd)
     call mloimport(4,neta(1:ifull),0,0)
   case(2)
     ! pile-up water
+  case(3)
+    ! leak
+    if (nsib==6.or.nsib==7) then
+      do iq=1,ifull
+        if (land(iq)) then
+          xx=watbdy(iq)
+          ll=cover(iq)
+          call cableinflow(iq,xx,ll)
+          newwat(iq)=newwat(iq)+(xx-watbdy(iq))*(1.-sigmu(iq))
+        end if
+      end do
+    else
+      do iq=1,ifull
+        if (land(iq)) then
+          xx=watbdy(iq)
+          ll=max(ssat(isoilm(iq))*cover(iq)-wb(iq,ms),0.)*1000.*zse(ms)
+          yy=min(xx,ll)
+          wb(iq,ms)=wb(iq,ms)+yy/(1000.*zse(ms))
+          xx=max(xx-yy,0.)
+          newwat(iq)=newwat(iq)+(xx-watbdy(iq))*(1.-sigmu(iq))
+        end if
+      end do
+    end if
   case default
     write(6,*) "ERROR: Unsupported basinmd ",basinmd
     stop
 end select
 
 watbdy(1:ifull)=max(newwat,0.)
+salbdy(1:ifull)=max(newsal,0.)
+
+if (any(salbdy(1:ifull)>0..and.watbdy(1:ifull)<1.E-10)) then
+  write(6,*) "WARN: Patch river salinity"
+end if
+
+! update ocean
+sal=0.
+where (ee(1:ifull)>0.5)
+  depdum=max(dd(1:ifull)+neta(1:ifull),minwater)
+  ! salbdy is already multiplied by watbdy
+  sal=(salin*depdum+0.001*salbdy(1:ifull))/(depdum+0.001*watbdy(1:ifull))
+  neta(1:ifull)=neta(1:ifull)+0.001*watbdy(1:ifull)
+  watbdy(1:ifull)=0.
+  salbdy(1:ifull)=sal   ! ocean default
+elsewhere (watbdy(1:ifull)>1.E-10)
+  salbdy(1:ifull)=salbdy(1:ifull)/watbdy(1:ifull) ! rescale salinity back to PSU
+elsewhere
+  salbdy(1:ifull)=0.    ! land default
+end where
+
+! import ocean data
+call mloimport(4,neta(1:ifull),0,0)
+do ii=1,wlev
+  sallvl(:,ii)=sallvl(:,ii)*sal/salin
+  call mloimport(1,sallvl(:,ii),ii,0)
+end do
 
 return
 end subroutine mlorouter
@@ -600,7 +712,7 @@ include 'parm.h'
 integer leap
 common/leap_yr/leap  ! 1 to allow leap years
 
-integer iq,ll,ii,ierr,totits,itotits
+integer iq,ll,ii,ierr,totits
 integer jyear,jmonth,jday,jhour,jmin,mins
 integer tyear,jstart,iip,iim
 integer, dimension(ifull,wlev) :: nface
@@ -623,17 +735,17 @@ real, dimension(ifull) :: nip,ipmax,imu,imv
 real, dimension(ifull) :: sue,suw,svn,svs,snuw,snvs
 real, dimension(ifull) :: pue,puw,pvn,pvs
 real, dimension(ifull) :: gamm
+real, dimension(2) :: dume,dumf
 real, dimension(ifull+iextra,wlev+1) :: eou,eov
 real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns,mps
 real, dimension(ifull+iextra,wlev) :: cou,cov,cow
 real, dimension(ifull+iextra,wlev) :: rhobar,rho,dalpha,dbeta
 real, dimension(ifull+iextra,7) :: dumc,dumd
 real, dimension(ifull+iextra,4) :: nit
-real, dimension(ifull+iextra,1) :: sku,skv
-real, dimension(ifull,1) :: uiu,uiv,siu,siv,sju,sjv
 real, dimension(ifull,4) :: i_it
+real, dimension(ifull,wlev+1) :: tau,tav,ttau,ttav
 real, dimension(ifull,wlev) :: w_u,w_v,w_t,w_s,dum
-real, dimension(ifull,wlev) :: nuh,nvh,xg,yg,uau,uav,tau,tav
+real, dimension(ifull,wlev) :: nuh,nvh,xg,yg,uau,uav
 real, dimension(ifull,wlev) :: kku,llu,mmu,nnu
 real, dimension(ifull,wlev) :: kkv,llv,mmv,nnv
 real, dimension(ifull,wlev) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
@@ -751,12 +863,14 @@ niv(1:ifull)=i_v
 nis(1:ifull)=i_sal
 
 totits=0
-itotits=0
 
 ! surface pressure gradients (including ice)
 ! (assume ice velocity is 'slow' compared to 'fast' change in neta)
 imass(1:ifull)=ndic(1:ifull)*rhoic+ndsn(1:ifull)*rhosn          ! ice mass per unit area (kg/m^2), unstaggered at time t
 pice(1:ifull)=ps(1:ifull)+grav*nfracice(1:ifull)*imass(1:ifull) ! pressure due to atmosphere and ice at top of water column (unstaggered at t)
+
+! maximum pressure for cavitating fluid
+ipmax=27500.*ndic(1:ifull)*exp(-20.*(1.-nfracice(1:ifull)))
 
 ! Limit minimum ice mass for ice velocity calculation.  Hence we can estimate the ice velocity at
 ! grid points where the ice is not yet present.  
@@ -797,7 +911,7 @@ dttdyv=(ndum(in)-ndum(1:ifull))*emv(1:ifull)/ds
 
 
 
-! ADVECT WATER ----------------------------------------------------
+! ADVECT WATER AND ICE ----------------------------------------------
 ! Water currents are advected using semi-Lagrangian advection
 ! based on McGregor's CCAM advection routines.
 ! Velocity is set to zero at ocean boundaries.
@@ -850,9 +964,9 @@ call mloexpdensity(dumr,duma,dumb,dumt,dums,dzdum,pice(1:ifull),0)
 rho(1:ifull,:)=dumr
 dalpha(1:ifull,:)=duma
 dbeta(1:ifull,:)=dumb
-call bounds(rho)
-call bounds(dalpha)
-call bounds(dbeta)
+call bounds(rho,nehalf=.true.)
+call bounds(dalpha,nehalf=.true.)
+call bounds(dbeta,nehalf=.true.)
 call bounds(nt,corner=.true.)
 call bounds(ns,corner=.true.)
 rhobar(:,1)=(rho(:,1)-1030.)*godsig(1)
@@ -935,24 +1049,32 @@ if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: pressure gradient terms"
 end if
 
+! ocean
 ! Prepare pressure gradient terms at t=t and incorporate into velocity field
 do ii=1,wlev
   rhou=0.5*(rho(1:ifull,ii)+rho(ie,ii))
   rhov=0.5*(rho(1:ifull,ii)+rho(in,ii))
   rhobaru=0.5*(rhobar(1:ifull,ii)+rhobar(ie,ii))
   rhobarv=0.5*(rhobar(1:ifull,ii)+rhobar(in,ii))
-  uau(:,ii)=grav*(gosig(ii)*max(oeu(1:ifull)+ddu(1:ifull),0.)*drhobardxu(:,ii) &
+  tau(:,ii)=grav*(gosig(ii)*max(oeu(1:ifull)+ddu(1:ifull),0.)*drhobardxu(:,ii) &
            +rhobaru*(neta(ie)-neta(1:ifull))*emu(1:ifull)/ds)/rhou ! staggered
-  uav(:,ii)=grav*(gosig(ii)*max(oev(1:ifull)+ddv(1:ifull),0.)*drhobardyv(:,ii) &
+  tav(:,ii)=grav*(gosig(ii)*max(oev(1:ifull)+ddv(1:ifull),0.)*drhobardyv(:,ii) &
            +rhobarv*(neta(in)-neta(1:ifull))*emv(1:ifull)/ds)/rhov
 end do
-call mlounstaguv(uau,uav,tau,tav,toff=1) ! trick from JLM
+! ice
+tau(:,wlev+1)=grav*(neta(ie)-neta(1:ifull))*emu(1:ifull)/ds ! staggered
+tav(:,wlev+1)=grav*(neta(in)-neta(1:ifull))*emv(1:ifull)/ds
+call mlounstaguv(tau,tav,ttau,ttav,toff=1) ! trick from JLM
+! ocean
 do ii=1,wlev
-  uau(:,ii)=nu(1:ifull,ii)+(1.-ocneps)*0.5*dt*( f(1:ifull)*nv(1:ifull,ii)-tau(:,ii)) ! unstaggered
-  uav(:,ii)=nv(1:ifull,ii)+(1.-ocneps)*0.5*dt*(-f(1:ifull)*nu(1:ifull,ii)-tav(:,ii))
+  uau(:,ii)=nu(1:ifull,ii)+(1.-ocneps)*0.5*dt*( f(1:ifull)*nv(1:ifull,ii)-ttau(:,ii)) ! unstaggered
+  uav(:,ii)=nv(1:ifull,ii)+(1.-ocneps)*0.5*dt*(-f(1:ifull)*nu(1:ifull,ii)-ttav(:,ii))
   uau(:,ii)=uau(:,ii)*ee(1:ifull)
   uav(:,ii)=uav(:,ii)*ee(1:ifull)
 end do
+! ice
+snu(1:ifull)=i_u-dt*ttau(:,wlev+1)
+snv(1:ifull)=i_v-dt*ttav(:,wlev+1)
 
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: water vertical advection 1"
@@ -1039,9 +1161,9 @@ if (nxtrrho==1) then
   rho(1:ifull,:)=dumr
   dalpha(1:ifull,:)=duma
   dbeta(1:ifull,:)=dumb
-  call bounds(rho)
-  call bounds(dalpha)
-  call bounds(dbeta)
+  call bounds(rho,nehalf=.true.)
+  call bounds(dalpha,nehalf=.true.)
+  call bounds(dbeta,nehalf=.true.)
   call bounds(nt,corner=.true.)
   call bounds(ns,corner=.true.)
   rhobar(:,1)=(rho(:,1)-1030.)*godsig(1)
@@ -1090,28 +1212,36 @@ spv=0.
 sqv=0.
 srv=0.
 
+! ocean
 ! Precompute U,V current and integral terms at t+1
 do ii=1,wlev
-  snu(1:ifull)=uau(:,ii)
-  snv(1:ifull)=uav(:,ii)
-  uau(:,ii)=uau(:,ii)+0.5*dt*(1.+ocneps)*f(1:ifull)*snv(1:ifull)
-  uav(:,ii)=uav(:,ii)-0.5*dt*(1.+ocneps)*f(1:ifull)*snu(1:ifull)
+  au=uau(:,ii)
+  av=uav(:,ii)
+  tau(:,ii)=uau(:,ii)+0.5*dt*(1.+ocneps)*f(1:ifull)*av
+  tav(:,ii)=uav(:,ii)-0.5*dt*(1.+ocneps)*f(1:ifull)*au
 end do
-call mlostaguv(uau,uav,duma,dumb)
-cou(1:ifull,:)=duma
-cov(1:ifull,:)=dumb
+! ice
+tau(:,wlev+1)=snu(1:ifull)+dt*f(1:ifull)*snv(1:ifull) ! unstaggered
+tav(:,wlev+1)=snv(1:ifull)-dt*f(1:ifull)*snu(1:ifull)
+call mlostaguv(tau,tav,ttau,ttav)
+! ocean
 odum=1./(1.+(1.+ocneps)*(1.+ocneps)*0.25*dt*dt*fu(1:ifull)*fu(1:ifull))
 odum=odum*eeu(1:ifull)
-siu(:,1)=-(1.+ocneps)*0.5*dt*odum
+duma(:,1)=-(1.+ocneps)*0.5*dt*odum
 do ii=1,wlev
-  cou(1:ifull,ii)=cou(1:ifull,ii)*odum ! staggered
+  cou(1:ifull,ii)=ttau(:,ii)*odum ! staggered
 end do
 odum=1./(1.+(1.+ocneps)*(1.+ocneps)*0.25*dt*dt*fv(1:ifull)*fv(1:ifull))
 odum=odum*eev(1:ifull)
-siv(:,1)=-(1.+ocneps)*0.5*dt*odum
+dumb(:,1)=-(1.+ocneps)*0.5*dt*odum
 do ii=1,wlev
-  cov(1:ifull,ii)=cov(1:ifull,ii)*odum ! staggered
+  cov(1:ifull,ii)=ttav(:,ii)*odum ! staggered
 end do
+! ice
+! niu and niv hold the free drift solution (staggered).  Wind stress terms are updated in mlo.f90
+niu(1:ifull)=ttau(:,wlev+1)/(1.+dt*dt*fu(1:ifull)*fu(1:ifull)) ! staggered
+niv(1:ifull)=ttav(:,wlev+1)/(1.+dt*dt*fv(1:ifull)*fv(1:ifull))
+
 do ii=1,wlev
   rhou=0.5*(rho(1:ifull,ii)+rho(ie,ii))
   rhov=0.5*(rho(1:ifull,ii)+rho(in,ii))
@@ -1124,11 +1254,11 @@ do ii=1,wlev
   ! v^(t+1) = nv = av^(t*) + bv*dpdy^(t+1) + cv*dpdx^(t+1) (staggered)
 
   au=cou(1:ifull,ii)
-  bu=siu(:,1)/rhou
+  bu=duma(:,1)/rhou
   cu= (1.+ocneps)*0.5*dt*fu(1:ifull)*bu
 
   av=cov(1:ifull,ii)
-  bv=siv(:,1)/rhov
+  bv=dumb(:,1)/rhov
   cv=-(1.+ocneps)*0.5*dt*fv(1:ifull)*bv
 
   ! Note pressure gradients are along constant newz surfaces
@@ -1205,12 +1335,12 @@ dumc(1:ifull,3)=squ(1:ifull)
 dumd(1:ifull,3)=sqv(1:ifull)
 dumc(1:ifull,4)=sru(1:ifull)
 dumd(1:ifull,4)=srv(1:ifull)
-dumc(1:ifull,5)=niu(1:ifull)
-dumd(1:ifull,5)=niv(1:ifull)
-dumc(1:ifull,6)=ibu(1:ifull)
-dumd(1:ifull,6)=ibv(1:ifull)
-dumc(1:ifull,7)=icu(1:ifull)
-dumd(1:ifull,7)=icv(1:ifull)
+dumc(1:ifull,5)=ibu(1:ifull)
+dumd(1:ifull,5)=ibv(1:ifull)
+dumc(1:ifull,6)=icu(1:ifull)
+dumd(1:ifull,6)=icv(1:ifull)
+dumc(1:ifull,7)=niu(1:ifull)
+dumd(1:ifull,7)=niv(1:ifull)
 call boundsuv(dumc(:,1:7),dumd(:,1:7),stag=-9)
 sou=dumc(:,1)
 sov=dumd(:,1)
@@ -1220,14 +1350,14 @@ squ=dumc(:,3)
 sqv=dumd(:,3)
 sru=dumc(:,4)
 srv=dumd(:,4)
-niu=dumc(:,5)
-niv=dumd(:,5)
-ibu=dumc(:,6)
-ibv=dumd(:,6)
-icu=dumc(:,7)
-icv=dumd(:,7)
+ibu=dumc(:,5)
+ibv=dumd(:,5)
+icu=dumc(:,6)
+icv=dumd(:,6)
+niu=dumc(:,7)
+niv=dumd(:,7)
 
-! prep gradient terms
+! prep ocean gradient terms
 odiv=(sou(1:ifull)/emu(1:ifull)-sou(iwu)/emu(iwu)  &
      +sov(1:ifull)/emv(1:ifull)-sov(isv)/emv(isv)) &
      *em(1:ifull)*em(1:ifull)/ds
@@ -1257,13 +1387,23 @@ suw=-suw
 svn=-svn
 svs=-svs
 
+! prep ice gradient terms
+odum=ibu(1:ifull)+ibu(iwu)+ibv(1:ifull)+ibv(isv)
+
 ! Iteratively solve for free surface height, eta
+! Iterative loop to estimate ice 'pressure'
 alpha=0.9
 do ll=1,llmax
 
+  dumc(1:ifull,1)=neta(1:ifull)
+  dumc(1:ifull,2)=ipice(1:ifull)
+  call bounds(dumc(:,1:2),corner=.true.)
+  neta=dumc(:,1)
+  ipice=dumc(:,2)
+
+  ! ocean
   ! 9-point version -----------------------------------------------
 
-  call bounds(neta,corner=.true.)
   snu(1:ifull)=sru(1:ifull)*0.25*(stwgt(1:ifull,1)*(neta(in)+neta(ine)-neta(1:ifull)-neta(ie)) &
                                  +stwgt(1:ifull,2)*(neta(1:ifull)+neta(ie)-neta(is)-neta(ise)))/ds
   snv(1:ifull)=srv(1:ifull)*0.25*(stwgt(1:ifull,3)*(neta(ie)+neta(ien)-neta(1:ifull)-neta(in)) &
@@ -1300,93 +1440,12 @@ do ll=1,llmax
   seta=max(seta,-dd(1:ifull)-neta(1:ifull)) ! this should become a land point
   seta=seta*ee(1:ifull)
   neta(1:ifull)=alpha*seta+neta(1:ifull)
-  
-  ! Break iterative loop when maximum error is below tol (expensive)
+
   maxloclseta=maxval(abs(seta))
-  call MPI_AllReduce(maxloclseta,maxglobseta,1,MPI_REAL,MPI_MAX,MPI_COMM_WORLD,ierr)
-  if (maxglobseta<tol) exit
-
-end do
-totits=ll
-
-if (myid==0.and.nmaxpr==1) then
-  write(6,*) "mlohadv: free surface conservation"
-end if
-
-! volume conservation for water ---------------------------------------
-if (nud_sfh==0) then
-  !odum=(neta(1:ifull)-w_e)*ee(1:ifull)
-  odum=neta(1:ifull)*ee(1:ifull)
-  call ccglobal_posneg(odum,delpos,delneg)
-  alph_p = -delneg/max(delpos,1.E-20)
-  alph_p = min(max(sqrt(alph_p),1.E-20),1.E20)
-  !neta(1:ifull)=w_e+max(0.,odum)*alph_p+min(0.,odum)/alph_p
-  neta(1:ifull)=max(0.,odum)*alph_p+min(0.,odum)/alph_p
-end if
-
-if (myid==0.and.nmaxpr==1) then
-  write(6,*) "mlohadv: update currents"
-end if
-
-call bounds(neta,corner=.true.)
-oeu(1:ifull)=0.5*(neta(1:ifull)+neta(ie))
-oev(1:ifull)=0.5*(neta(1:ifull)+neta(in))
-tnu=0.5*(neta(in)+neta(ine))
-tee=0.5*(neta(1:ifull)+neta(ie))
-tsu=0.5*(neta(is)+neta(ise))
-tev=0.5*(neta(ie)+neta(ien))
-tnn=0.5*(neta(1:ifull)+neta(in))
-twv=0.5*(neta(iw)+neta(iwn))
-detadxu=(neta(ie)-neta(1:ifull))*emu(1:ifull)/ds
-detadyu=0.5*(stwgt(1:ifull,1)*(tnu-tee)+stwgt(1:ifull,2)*(tee-tsu))*emu(1:ifull)/ds
-detadxv=0.5*(stwgt(1:ifull,3)*(tev-tnn)+stwgt(1:ifull,4)*(tnn-twv))*emv(1:ifull)/ds
-detadyv=(neta(in)-neta(1:ifull))*emv(1:ifull)/ds
-
-! Update currents once neta is calculated
-do ii=1,wlev
-  ! update currents (staggered)
-  nu(1:ifull,ii)=kku(:,ii)+llu(:,ii)*max(oeu(1:ifull)+ddu(1:ifull),0.)+mmu(:,ii)*detadxu+nnu(:,ii)*detadyu
-  nv(1:ifull,ii)=kkv(:,ii)+llv(:,ii)*max(oev(1:ifull)+ddv(1:ifull),0.)+mmv(:,ii)*detadyv+nnv(:,ii)*detadxv
-end do
-
-! use nu and nv for unstagged currents
-dumt=nu(1:ifull,:)
-dums=nv(1:ifull,:)
-call mlounstaguv(dumt,dums,uau,uav)
-nu(1:ifull,:)=uau
-nv(1:ifull,:)=uav
-
-
-
-! UPDATE ICE DYNAMICS ---------------------------------------------
-! Here we start by calculating the ice velocity and then advecting
-! the various ice prognostic variables.
-
-if (myid==0.and.nmaxpr==1) then
-  write(6,*) "mlohadv: Ice fluid dynamics"
-end if
-
-! Update ice velocities
-tau(:,1)=grav*(neta(ie)-neta(1:ifull))*emu(1:ifull)/ds ! staggered
-tav(:,1)=grav*(neta(in)-neta(1:ifull))*emv(1:ifull)/ds
-call mlounstaguv(tau(:,1:1),tav(:,1:1),siu,siv,toff=1) ! trick from JLM
-snu(1:ifull)=i_u-dt*siu(:,1)
-snv(1:ifull)=i_v-dt*siv(:,1)
-uiu(:,1)=snu(1:ifull)+dt*f(1:ifull)*snv(1:ifull) ! unstaggered
-uiv(:,1)=snv(1:ifull)-dt*f(1:ifull)*snu(1:ifull)
-call mlostaguv(uiu,uiv,siu,siv)
-! niu and niv hold the free drift solution (staggered).  Wind stress terms are updated in mlo.f90
-niu(1:ifull)=siu(:,1)/(1.+dt*dt*fu(1:ifull)*fu(1:ifull)) ! staggered
-niv(1:ifull)=siv(:,1)/(1.+dt*dt*fv(1:ifull)*fv(1:ifull))
-
-! maximum pressure for cavitating fluid
-ipmax=27500.*ndic(1:ifull)*exp(-20.*(1.-nfracice(1:ifull)))
-
-! Iterative loop to estimate ice 'pressure'
-odum=ibu(1:ifull)+ibu(iwu)+ibv(1:ifull)+ibv(isv)
-alpha=0.9
-do ll=1,llmax
-
+  
+  ! ice
+  ! 9-point version -------------------------------------------------
+ 
   !dipdxu=(ip(ie)-ip(1:ifull))*emu(1:ifull)/ds
   !dipdyu=spu(1:ifull)*emu(1:ifull)/(ds*icu(1:ifull))
   !dipdxv=spv(1:ifull)*emv(1:ifull)/(ds*icv(1:ifull))
@@ -1400,10 +1459,6 @@ do ll=1,llmax
   !div=(snu(1:ifull)/emu(1:ifull)-snu(iwu)/emu(iwu)+snv(1:ifull)/emv(1:ifull)-snv(isv)/emv(isv)) &
   !    *em(1:ifull)*em(1:ifull)/ds
 
-  
-  ! 9-point version -------------------------------------------------
-  
-  call bounds(ipice,corner=.true.)
   snu(1:ifull)=icu(1:ifull)*0.25*(stwgt(1:ifull,1)*(ipice(in)+ipice(ine)-ipice(1:ifull)-ipice(ie)) &
                                  +stwgt(1:ifull,2)*(ipice(1:ifull)+ipice(ie)-ipice(is)-ipice(ise)))
   snv(1:ifull)=icv(1:ifull)*0.25*(stwgt(1:ifull,3)*(ipice(ie)+ipice(ien)-ipice(1:ifull)-ipice(in)) &
@@ -1415,7 +1470,7 @@ do ll=1,llmax
 
   ! update ice pressure to remove negative divergence
   ! (assume change in imass is small)
-  where (odum/=0..and.sicedep>0.01)
+  where (odum>0..and.sicedep>0.01)
     nip=((niu(1:ifull)/emu(1:ifull)-niu(iwu)/emu(iwu))*ds    &
         +ibu(1:ifull)*ipice(ie)+ibu(iwu)*ipice(iw)           &
         +snu(1:ifull)-snuw                                   &
@@ -1442,14 +1497,65 @@ do ll=1,llmax
   ipice(1:ifull)=alpha*nip+(1.-alpha)*ipice(1:ifull)
 
   maxloclip=maxval(seta)
-  call MPI_AllReduce(maxloclip,maxglobip,1,MPI_REAL,MPI_MAX,MPI_COMM_WORLD,ierr)
-  if (maxglobip<itol) exit
+
+  ! Break iterative loop when maximum error is below tol (expensive)
+  dume(1)=maxloclseta
+  dume(2)=maxloclip
+  call MPI_AllReduce(dume,dumf,2,MPI_REAL,MPI_MAX,MPI_COMM_WORLD,ierr)
+  maxglobseta=dumf(1)
+  maxglobip=dumf(2)
+  
+  if (maxglobseta<tol.and.maxglobip<itol) exit
 
 end do
-itotits=ll
+totits=ll
+
+if (myid==0.and.nmaxpr==1) then
+  write(6,*) "mlohadv: free surface conservation"
+end if
+
+! volume conservation for water ---------------------------------------
+if (nud_sfh==0) then
+  !odum=(neta(1:ifull)-w_e)*ee(1:ifull)
+  odum=neta(1:ifull)*ee(1:ifull)
+  call ccglobal_posneg(odum,delpos,delneg)
+  alph_p = -delneg/max(delpos,1.E-20)
+  alph_p = min(max(sqrt(alph_p),1.E-20),1.E20)
+  !neta(1:ifull)=w_e+max(0.,odum)*alph_p+min(0.,odum)/alph_p
+  neta(1:ifull)=max(0.,odum)*alph_p+min(0.,odum)/alph_p
+end if
+
+if (myid==0.and.nmaxpr==1) then
+  write(6,*) "mlohadv: update currents"
+end if
+
+dumc(1:ifull,1)=neta(1:ifull)
+dumc(1:ifull,2)=ipice(1:ifull)
+call bounds(dumc(:,1:2),corner=.true.)
+neta=dumc(:,1)
+ipice=dumc(:,2)
+
+oeu(1:ifull)=0.5*(neta(1:ifull)+neta(ie))
+oev(1:ifull)=0.5*(neta(1:ifull)+neta(in))
+tnu=0.5*(neta(in)+neta(ine))
+tee=0.5*(neta(1:ifull)+neta(ie))
+tsu=0.5*(neta(is)+neta(ise))
+tev=0.5*(neta(ie)+neta(ien))
+tnn=0.5*(neta(1:ifull)+neta(in))
+twv=0.5*(neta(iw)+neta(iwn))
+detadxu=(neta(ie)-neta(1:ifull))*emu(1:ifull)/ds
+detadyu=0.5*(stwgt(1:ifull,1)*(tnu-tee)+stwgt(1:ifull,2)*(tee-tsu))*emu(1:ifull)/ds
+detadxv=0.5*(stwgt(1:ifull,3)*(tev-tnn)+stwgt(1:ifull,4)*(tnn-twv))*emv(1:ifull)/ds
+detadyv=(neta(in)-neta(1:ifull))*emv(1:ifull)/ds
+
+! Update currents once neta is calculated
+do ii=1,wlev
+  ! update currents (staggered)
+  nu(1:ifull,ii)=kku(:,ii)+llu(:,ii)*max(oeu(1:ifull)+ddu(1:ifull),0.)+mmu(:,ii)*detadxu+nnu(:,ii)*detadyu
+  nv(1:ifull,ii)=kkv(:,ii)+llv(:,ii)*max(oev(1:ifull)+ddv(1:ifull),0.)+mmv(:,ii)*detadyv+nnv(:,ii)*detadxv
+end do
 
 ! Update ice velocity with internal pressure terms
-call bounds(ipice,corner=.true.)
 tnu=0.5*(ipice(in)+ipice(ine))
 tee=0.5*(ipice(1:ifull)+ipice(ie))
 tsu=0.5*(ipice(is)+ipice(ise))
@@ -1551,12 +1657,21 @@ end where
 !  end do
 !end if
 
+! ocean
+! use nu and nv for unstagged currents
+tau(:,1:wlev)=nu(1:ifull,:)
+tav(:,1:wlev)=nv(1:ifull,:)
+! ice
 ! unstagger ice velocities
-siu(:,1)=niu(1:ifull)
-siv(:,1)=niv(1:ifull)
-call mlounstaguv(siu,siv,sju,sjv)
-niu(1:ifull)=sju(:,1)
-niv(1:ifull)=sjv(:,1)
+tau(:,wlev+1)=niu(1:ifull)
+tav(:,wlev+1)=niv(1:ifull)
+call mlounstaguv(tau,tav,ttau,ttav)
+! ocean
+nu(1:ifull,:)=ttau(:,1:wlev)
+nv(1:ifull,:)=ttav(:,1:wlev)
+! ice
+niu(1:ifull)=ttau(:,wlev+1)
+niv(1:ifull)=ttav(:,wlev+1)
 
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: conserve salinity"
@@ -1586,7 +1701,7 @@ if (nud_sss==0) then
 end if
 
 if (myid==0.and.(ktau<=100.or.maxglobseta>tol.or.maxglobip>itol)) then
-  write(6,*) "MLODYNAMICS ",totits,maxglobseta,itotits,maxglobip
+  write(6,*) "MLODYNAMICS ",totits,maxglobseta,maxglobip
 end if
 
 if (myid==0.and.nmaxpr==1) then
@@ -2665,7 +2780,7 @@ implicit none
 include 'newmpar.h'
 include 'parm.h'
 
-integer k,itn,kx,iq
+integer k,itn,kx
 real, dimension(:,:), intent(in) :: u
 real, dimension(ifull,size(u,2)), intent(in) :: v
 real, dimension(ifull,size(u,2)), intent(out) :: uout,vout
@@ -2677,6 +2792,8 @@ logical, dimension(ifull) :: eutest,evtest
 logical, dimension(ifull) :: euetest,euwtest,evntest,evstest
 logical, dimension(ifull) :: euewtest,evnstest
 logical ltest
+
+call start_log(ocnstag_begin)
 
 kx=size(u,2)
 
@@ -2709,6 +2826,8 @@ if (ltest) then
   wtv=0.
   ud=0.
   vd=0.
+  ua=0.
+  va=0.
 
 ! |   *   | X E   |  EE  |     unstaggered
 ! W       * X     E            staggered
@@ -2728,7 +2847,7 @@ if (ltest) then
 ! W       * X     #  ##  #     staggered
   elsewhere (euwtest)
     wtu(:,1)=0.
-    wtu(:,2)=0.4/2.
+    wtu(:,2)=0.2
     !uin(1:ifull,k)=(uh(:,k)+ua(iwu,k)*0.4)/2.
 
   end where
@@ -2742,7 +2861,7 @@ if (ltest) then
     !vin(1:ifull,k)=(vd(:,k)-va(inv,k)*0.4)/1.2
   elsewhere (evstest)
     wtv(:,1)=0.
-    wtv(:,2)=0.4/2.
+    wtv(:,2)=0.2
     !vin(1:ifull,k)=(vh(:,k)+va(isv,k)*0.4)/2.
   end where
 
@@ -2755,7 +2874,7 @@ if (ltest) then
       ud(:,k)=(uin(ieeu,k)*0.1+uin(ieu,k)+uin(1:ifull,k)*0.5)/1.2
       !uin(1:ifull,k)=(ud(:,k)-ua(ieu,k)*0.4)/1.2
     elsewhere (euwtest)
-      ud(:,k)=(uin(ieu,k)*1.2+uin(1:ifull,k)*0.4)/2.
+      ud(:,k)=uin(ieu,k)*0.6+uin(1:ifull,k)*0.2
       !uin(1:ifull,k)=(uh(:,k)+ua(iwu,k)*0.4)/2.
     end where
     where (evnstest)
@@ -2765,20 +2884,16 @@ if (ltest) then
       vd(:,k)=(vin(innv,k)*0.1+vin(inv,k)+vin(1:ifull,k)*0.5)/1.2
       !vin(1:ifull,k)=(vd(:,k)-va(inv,k)*0.4)/1.2
     elsewhere (evstest)
-      vd(:,k)=(vin(inv,k)*1.2+vin(1:ifull,k)*0.4)/2.
+      vd(:,k)=vin(inv,k)*0.6+vin(1:ifull,k)*0.2
       !vin(1:ifull,k)=(vh(:,k)+va(isv,k)*0.4)/2.
     end where
 
     ! 1st guess
     where (eutest)
       ua(1:ifull,k)=uin(ieu,k)*0.5+uin(1:ifull,k)*0.5
-    elsewhere
-      ua(1:ifull,k)=0.
     end where
     where (evtest)
       va(1:ifull,k)=vin(inv,k)*0.5+vin(1:ifull,k)*0.5
-    elsewhere
-      va(1:ifull,k)=0.
     end where
   end do
 
@@ -2806,6 +2921,9 @@ else
   wtu=0.
   wtv=0.
   ud=0.
+  vd=0.
+  ua=0.
+  va=0.
 
 ! |   W   |   * X |  E   |     unstaggered
 !         W     X *      E     staggered
@@ -2824,7 +2942,7 @@ else
 ! #  ##   #   * X |  E   |     unstaggered
 ! #       #     X *      E     staggered
   elsewhere (euetest)
-    wtu(:,1)=0.4/2.
+    wtu(:,1)=0.2
     wtu(:,2)=0.
     !uin(1:ifull,k)=(uh(:,k)+ua(ieu,k)*0.4)/2.
 
@@ -2838,7 +2956,7 @@ else
     wtv(:,2)=-0.4/1.2
     !vin(1:ifull,k)=(vd(:,k)-va(isv,k)*0.4)/1.2
   elsewhere (evntest)
-    wtv(:,1)=0.4/2.
+    wtv(:,1)=0.2
     wtv(:,2)=0.
     !vin(1:ifull,k)=(vh(:,k)+va(inv,k)*0.4)/2.
   end where
@@ -2852,7 +2970,7 @@ else
       ud(:,k)=(uin(iwu,k)*0.1+uin(1:ifull,k)+uin(ieu,k)*0.5)/1.2
       !uin(1:ifull,k)=(ud(:,k)-ua(iwu,k)*0.4)/1.2
     elsewhere (euetest)
-      ud(:,k)=(uin(1:ifull,k)*1.2+uin(ieu,k)*0.4)/2.
+      ud(:,k)=uin(1:ifull,k)*0.6+uin(ieu,k)*0.2
       !uin(1:ifull,k)=(uh(:,k)+ua(ieu,k)*0.4)/2.
     end where
     where (evnstest)
@@ -2862,20 +2980,16 @@ else
       vd(:,k)=(vin(isv,k)*0.1+vin(1:ifull,k)+vin(inv,k)*0.5)/1.2
       !vin(1:ifull,k)=(vd(:,k)-va(isv,k)*0.4)/1.2
     elsewhere (evntest)
-      vd(:,k)=(vin(1:ifull,k)*1.2+vin(inv,k)*0.4)/2.
+      vd(:,k)=vin(1:ifull,k)*0.6+vin(inv,k)*0.2
       !vin(1:ifull,k)=(vh(:,k)+va(inv,k)*0.4)/2.
     end where
 
     ! 1st guess
     where (eutest)
       ua(1:ifull,k)=uin(1:ifull,k)*0.5+uin(iwu,k)*0.5
-    elsewhere
-      ua(1:ifull,k)=0.
     end where
     where (evtest)
       va(1:ifull,k)=vin(1:ifull,k)*0.5+vin(isv,k)*0.5
-    elsewhere
-      va(1:ifull,k)=0.
     end where
   end do
 
@@ -2897,6 +3011,8 @@ end if
 uout=ua(1:ifull,:)
 vout=va(1:ifull,:)
 
+call end_log(ocnstag_end)
+
 return
 end subroutine mlostaguv
 
@@ -2915,7 +3031,7 @@ include 'newmpar.h'
 include 'parm.h'
 
 integer, intent(in), optional :: toff
-integer k,itn,kx,iq,zoff
+integer k,itn,kx,zoff
 real, dimension(:,:), intent(in) :: u
 real, dimension(ifull,size(u,2)), intent(in) :: v
 real, dimension(ifull,size(u,2)), intent(out) :: uout,vout
@@ -2928,6 +3044,8 @@ logical, dimension(ifull) :: eetest,ewtest,entest,estest
 logical, dimension(ifull) :: euetest,euwtest,evntest,evstest
 logical, dimension(ifull) :: euewtest,evnstest
 logical ltest
+
+call start_log(ocnstag_begin)
 
 kx=size(u,2)
 zoff=0
@@ -2969,6 +3087,8 @@ if (ltest) then
   wtv=0.
   ud=0.
   vd=0.
+  ua=0.
+  va=0.
 
 !  |   W   | X *   |  E   |     unstaggered
 ! WW       W X     *            staggered
@@ -3054,8 +3174,6 @@ if (ltest) then
       ua(1:ifull,k)=uin(iwu,k)
     elsewhere (eetest)
       ua(1:ifull,k)=uin(1:ifull,k)
-    elsewhere
-      ua(1:ifull,k)=0.
     end where
     where (evntest)
       va(1:ifull,k)=vin(isv,k)*0.5+vin(1:ifull,k)*0.5
@@ -3063,8 +3181,6 @@ if (ltest) then
       va(1:ifull,k)=vin(isv,k)
     elsewhere (entest)
       va(1:ifull,k)=vin(1:ifull,k)
-    elsewhere
-      va(1:ifull,k)=0.
     end where
   end do
 
@@ -3097,6 +3213,8 @@ else
   wtv=0.
   ud=0.
   vd=0.
+  ua=0.
+  va=0.
 
 !  |   W   |   * X |  E   |     unstaggered
 !          W     X *      E     staggered
@@ -3181,8 +3299,6 @@ else
       ua(1:ifull,k)=uin(ieu,k)
     elsewhere (ewtest)
       ua(1:ifull,k)=uin(1:ifull,k)
-    elsewhere
-      ua(1:ifull,k)=0.
     end where
     where (evstest)
       va(1:ifull,k)=vin(isv,k)*0.5+vin(1:ifull,k)*0.5
@@ -3190,8 +3306,6 @@ else
       va(1:ifull,k)=vin(inv,k)
     elsewhere (estest)
       va(1:ifull,k)=vin(1:ifull,k)
-    elsewhere
-      va(1:ifull,k)=0.
     end where
   end do
 
@@ -3212,6 +3326,8 @@ end if
 
 uout=ua(1:ifull,:)
 vout=va(1:ifull,:)
+
+call end_log(ocnstag_end)
 
 return
 end subroutine mlounstaguv

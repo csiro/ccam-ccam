@@ -626,8 +626,11 @@ c       For time varying surface fields
           call attrib(idnc,idim,3,'icesal',lname,'PSU',0.,130.,0,
      &                itype)
           if (abs(nmlo)>=2) then
-            lname = 'Surface water'
+            lname = 'Surface water depth'
             call attrib(idnc,idim,3,'swater',lname,'mm',0.,6.5E3,0,
+     &                  -1) ! -1 = long
+            lname = 'Surface water salinity'
+            call attrib(idnc,idim,3,'ssalin',lname,'PSU',0.,130.,0,
      &                  itype)
           end if
         end if
@@ -1491,7 +1494,8 @@ c      set time to number of minutes since start
       call histwrt3(tgg(1,5),'tgg5',idnc,iarch,local,.true.)
       call histwrt3(tgg(1,6),'tgg6',idnc,iarch,local,.true.)
       
-      if (nmlo.lt.0.or.(nmlo.gt.0.and.itype==-1)) then
+      if (abs(nmlo)<=9) then
+       if (nmlo<0.or.(nmlo>0.and.itype==-1)) then
         do k=ms+1,wlev
           write(vname,'("tgg",I2.2)') k
           call histwrt3(mlodwn(:,k,1),vname,idnc,iarch,local,.true.)
@@ -1521,7 +1525,10 @@ c      set time to number of minutes since start
         if (abs(nmlo)>=2) then
           call histwrt3(watbdy(1:ifull),'swater',idnc,iarch,local,
      &                  .true.)
+          call histwrt3(salbdy(1:ifull),'ssalin',idnc,iarch,local,
+     &                  .true.)
         end if
+       end if
       end if
 
       ! SOIL --------------------------------------------------------

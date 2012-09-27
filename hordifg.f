@@ -75,15 +75,15 @@ c     scaling value for deltaz
 c     in namelist khdif is fujio's a**2, e.g. 4.
 !     if(nhorps.gt.1)stop 'nhorps > 1 not permitted in hordifgt'
 
-c     set up topography reduction factors for each type of location
-c     expect power nf to be about 1 or 2 (see data statement)
-
       if (kmax<0) then
         kmax=1
         do while (sig(kmax)>=0.25.and.kmax<kl)
           kmax=kmax+1
         end do
       end if
+
+c     set up topography reduction factors for each type of location
+c     expect power nf to be about 1 or 2 (see data statement)
 
       delphi=1.e6  ! turns off reduction (can also use nhorx=4)
       if(abs(nhor)>=50)then
@@ -207,8 +207,8 @@ c     above code independent of k
       select case(nhorjlm)
        case(0)
          ! This is based on 2D Smagorinsky closure
-         call boundsuv(dudx,dvdy,allvec=.true.)
-         call boundsuv(dvdx,dudy,allvec=.true.)
+         call boundsuv(dudx,dvdy,stag=-19)
+         call boundsuv(dvdx,dudy,stag=-19)
          do k=1,kl
            hdif=dt*hdiff(k) ! N.B.  hdiff(k)=khdif*.1
            do iq=1,ifull
@@ -242,7 +242,7 @@ c      jlm deformation scheme using 3D uc, vc, wc
                t_kh(iq,k)= .5*sqrt(cc)*hdif/em(iq) ! this one without em in D terms
             enddo               !  iq loop
          enddo
-         call bounds(t_kh)
+         call bounds(t_kh,nehalf=.true.)
          do k=1,kl
             do iq=1,ifull
                xfact(iq,k) = (t_kh(ie(iq),k)+t_kh(iq,k))*.5
@@ -268,7 +268,7 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
                t_kh(iq,k)= .5*sqrt(cc)*hdif/em(iq) ! this one without em in D terms
             enddo               !  iq loop
          enddo
-         call bounds(t_kh)
+         call bounds(t_kh,nehalf=.true.)
          do k=1,kl
             do iq=1,ifull
                xfact(iq,k) = (t_kh(ie(iq),k)+t_kh(iq,k))*.5
@@ -303,7 +303,7 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
           t_kh(1:ifull,k)=tke(1:ifull,k)*tke(1:ifull,k)
      &    /eps(1:ifull,k)*hdif
         end do
-        call bounds(t_kh)
+        call bounds(t_kh,nehalf=.true.)
         do k=1,kl
           xfact(1:ifull,k)=max(xfact(1:ifull,k),
      &      (t_kh(ie,k)+t_kh(1:ifull,k))*0.5)

@@ -2443,15 +2443,16 @@ end subroutine savetile
 
 ! *************************************************************************************
 ! Water inflow from river routing
-subroutine cableinflow(iqin,inflow)
+subroutine cableinflow(iqin,inflow,lmax)
   
 implicit none
   
 integer, intent(in) :: iqin
 integer n,iq,i
+real, intent(in) :: lmax
 real, intent(inout) :: inflow
 real, dimension(9) :: xx
-real yy
+real yy,ll
   
 xx(:)=inflow
 inflow=0.
@@ -2466,7 +2467,8 @@ do n=1,9
     end if
   end do
   if (iq>0) then
-    yy=min(xx(n),(soil%ssat(iq)-ssoil%wb(iq,cbm_ms))*1000.*soil%zse(cbm_ms))
+    ll=max(soil%ssat(iq)*lmax-ssoil%wb(iq,cbm_ms),0.)*1000.*soil%zse(cbm_ms)
+    yy=min(xx(n),ll)
     ssoil%wb(iq,cbm_ms)=ssoil%wb(iq,cbm_ms)+yy/(1000.*soil%zse(cbm_ms))
     xx(n)=max(xx(n)-yy,0.)
     inflow=inflow+sv(iq)*xx(n)

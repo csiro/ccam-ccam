@@ -21,11 +21,10 @@ module cc_mpi
    integer, save, private :: nreq
 
    public :: bounds, boundsuv, ccmpi_setup, ccmpi_distribute, ccmpi_gather, &
-             ccmpi_distributer8,  &
-             indp, indg, deptsync, intssync, start_log, end_log,            &
-             log_on, log_off, log_setup, phys_loadbal, ccglobal_posneg,     &
-             ccglobal_sum, iq2iqg, indv_mpi, indglobal, readglobvar,        &
-             writeglobvar, face_set, uniform_set
+             ccmpi_distributer8, indp, indg, deptsync, intssync, start_log, &
+             end_log, log_on, log_off, log_setup, phys_loadbal,             &
+             ccglobal_posneg, ccglobal_sum, iq2iqg, indv_mpi, indglobal,    &
+             readglobvar, writeglobvar, face_set, uniform_set
    public :: dpoints_t,dindex_t,sextra_t
    private :: ccmpi_distribute2, ccmpi_distribute2i, ccmpi_distribute3,        &
               ccmpi_distribute2r8, ccmpi_gather2, ccmpi_gather3, checksize,    &
@@ -83,9 +82,10 @@ module cc_mpi
       ! Flag for whether u and v need to be swapped
       logical, dimension(:), pointer :: uv_swap, send_swap,uv_neg,send_neg
       ! Number of points for each processor. Also double row versions.
-      ! lenx is first row plux corner points.
+      ! lenx is first row plux corner points.  lenh is just the ne side.
       integer :: slen, rlen, slenx, rlenx, slen2, rlen2
-      ! Number of points for each processor.
+      integer :: slenh, rlenh
+      ! Number of points for each processor. lenx is for nu, su, ev and wv
       integer :: slen_uv, rlen_uv, slen2_uv, rlen2_uv
       integer :: slenx_uv, rlenx_uv
       integer :: len
@@ -103,7 +103,7 @@ module cc_mpi
    end type sextra_t
 
    type boundsplit
-      integer :: isubg, ievfn
+      integer :: isubg, iwvfn, inubg, ievfn
       integer :: isvbg, iwufn, invbg, ieufn
       integer :: issvbg, iwwufn, innvbg, ieeufn
    end type boundsplit
@@ -141,10 +141,12 @@ module cc_mpi
    integer, public, save :: adjust_begin, adjust_end
    integer, public, save :: upglobal_begin, upglobal_end
    integer, public, save :: hordifg_begin, hordifg_end
+   integer, public, save :: vadv_begin, vadv_end
    integer, public, save :: depts_begin, depts_end
    integer, public, save :: deptsync_begin, deptsync_end
    integer, public, save :: intssync_begin, intssync_end
    integer, public, save :: stag_begin, stag_end
+   integer, public, save :: ocnstag_begin, ocnstag_end
    integer, public, save :: toij_begin, toij_end
    integer, public, save :: physloadbal_begin, physloadbal_end
    integer, public, save :: phys_begin, phys_end
@@ -169,6 +171,8 @@ module cc_mpi
    integer, public, save :: maincalc_begin, maincalc_end
    integer, public, save :: gather_begin, gather_end
    integer, public, save :: distribute_begin, distribute_end
+   integer, public, save :: posneg_begin, posneg_end
+   integer, public, save :: globsum_begin, globsum_end
    integer, public, save :: reduce_begin, reduce_end
    integer, public, save :: precon_begin, precon_end
    integer, public, save :: waterdynamics_begin, waterdynamics_end
@@ -177,7 +181,7 @@ module cc_mpi
    integer, public, save :: mpiwait_begin, mpiwait_end
 #ifdef simple_timer
    public :: simple_timer_finalize
-   integer, parameter :: nevents=44
+   integer, parameter :: nevents=48
    double precision, dimension(nevents), save :: tot_time = 0., start_time
    character(len=15), dimension(nevents), save :: event_name
 #endif 
@@ -696,7 +700,8 @@ contains
       integer :: n, nr, i, j, iq, iqx, count
       integer :: ierr,ierr2, itag = 0, iproc, rproc, sproc
       integer, dimension(MPI_STATUS_SIZE,2*nproc) :: status
-      integer, dimension(7,0:nproc-1) :: dums, dumr
+      integer, dimension(8,0:nproc-1) :: dums, dumr
+      integer, dimension(3,0:nproc-1) :: dumsb, dumrb
       integer :: iqg
       integer :: iext, iextu, iextv, iql, iloc, jloc, nloc
       logical :: swap
@@ -902,13 +907,11 @@ contains
       edge_n(:) = joff(:) == il_g - jpan
       edge_e(:) = ioff(:) == il_g - ipan
 
-      ! Allocate array to hold values for each processor, including self.
-!      allocate(bnds(0:nproc-1))
-!      allocate(ireq(2*nproc))
-
       nr = 1
 
       bnds(:)%len = 0
+      bnds(:)%rlenh = 0
+      bnds(:)%slenh = 0
       bnds(:)%rlen = 0
       bnds(:)%slen = 0
       bnds(:)%rlenx = 0
@@ -929,7 +932,52 @@ contains
       iext = 0
       do n=1,npan
 
-         !     Start with W edge
+         !     Start with N edge
+         j=jpan
+         do i=1,ipan
+            iq = indg(i,j,n)
+            iqx = in_g(iq)
+
+            ! Which processor has this point
+            rproc = qproc(iqx)
+            if ( rproc == myid ) cycle ! Don't add points already on this proc.
+            ! Add this point to request list
+            call check_bnds_alloc(rproc, iext)
+            bnds(rproc)%rlenh = bnds(rproc)%rlenh + 1
+            bnds(rproc)%request_list(bnds(rproc)%rlenh) = iqx
+            ! Increment extended region index
+            iext = iext + 1
+            bnds(rproc)%unpack_list(bnds(rproc)%rlenh) = iext
+            iql = indp(i,j,n)  !  Local index
+            in(iql) = ifull+iext
+         end do
+
+         !     E edge
+         i = ipan
+         do j=1,jpan
+            iq = indg(i,j,n)
+            iqx = ie_g(iq)
+
+            ! Which processor has this point
+            rproc = qproc(iqx)
+            if ( rproc == myid ) cycle ! Don't add points already on this proc.
+            ! Add this point to request list
+            call check_bnds_alloc(rproc, iext)
+            bnds(rproc)%rlenh = bnds(rproc)%rlenh + 1
+            bnds(rproc)%request_list(bnds(rproc)%rlenh) = iqx
+            ! Increment extended region index
+            iext = iext + 1
+            bnds(rproc)%unpack_list(bnds(rproc)%rlenh) = iext
+            iql = indp(i,j,n)  !  Local index
+            ie(iql) = ifull+iext
+         end do
+      end do ! n=1,npan
+      
+      bnds(:)%rlen = bnds(:)%rlenh  ! so that they are appended
+      
+      do n=1,npan
+
+         !     W edge
          i = 1
          do j=1,jpan
             ! 1D code takes care of corners separately at the end so only goes
@@ -951,46 +999,6 @@ contains
             bnds(rproc)%unpack_list(bnds(rproc)%rlen) = iext
             iql = indp(i,j,n)  !  Local index
             iw(iql) = ifull+iext
-         end do
-
-         !     N edge
-         j=jpan
-         do i=1,ipan
-            iq = indg(i,j,n)
-            iqx = in_g(iq)
-
-            ! Which processor has this point
-            rproc = qproc(iqx)
-            if ( rproc == myid ) cycle ! Don't add points already on this proc.
-            ! Add this point to request list
-            call check_bnds_alloc(rproc, iext)
-            bnds(rproc)%rlen = bnds(rproc)%rlen + 1
-            bnds(rproc)%request_list(bnds(rproc)%rlen) = iqx
-            ! Increment extended region index
-            iext = iext + 1
-            bnds(rproc)%unpack_list(bnds(rproc)%rlen) = iext
-            iql = indp(i,j,n)  !  Local index
-            in(iql) = ifull+iext
-         end do
-
-         !     E edge
-         i = ipan
-         do j=1,jpan
-            iq = indg(i,j,n)
-            iqx = ie_g(iq)
-
-            ! Which processor has this point
-            rproc = qproc(iqx)
-            if ( rproc == myid ) cycle ! Don't add points already on this proc.
-            ! Add this point to request list
-            call check_bnds_alloc(rproc, iext)
-            bnds(rproc)%rlen = bnds(rproc)%rlen + 1
-            bnds(rproc)%request_list(bnds(rproc)%rlen) = iqx
-            ! Increment extended region index
-            iext = iext + 1
-            bnds(rproc)%unpack_list(bnds(rproc)%rlen) = iext
-            iql = indp(i,j,n)  !  Local index
-            ie(iql) = ifull+iext
          end do
 
          !     S edge
@@ -1430,35 +1438,29 @@ contains
       do iproc = 1,nproc-1  !
          ! Send and recv from same proc
          sproc = modulo(myid+iproc,nproc)  ! Send to
-         if (bnds(sproc)%rlen > 0 ) then
+         if (bnds(sproc)%rlen2 > 0 ) then
             nreq = nreq + 1
-            call MPI_ISend( bnds(sproc)%rlen, 1, &
+            dumsb(1,sproc) = bnds(sproc)%rlenh
+            dumsb(2,sproc) = bnds(sproc)%rlen
+            dumsb(3,sproc) = bnds(sproc)%rlenx
+            call MPI_ISend( dumsb(:,sproc), 3, &
                  MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
             nreq = nreq + 1
-            call MPI_IRecv( bnds(sproc)%slen, 1, &
-                 MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-         end if
-      end do
-      if ( nreq > 0 ) then
-         call MPI_Waitall(nreq,ireq,status,ierr)
-      end if
-
-      nreq = 0
-      do iproc = 1,nproc-1  !
-         ! Send and recv from same proc
-         sproc = modulo(myid+iproc,nproc)  ! Send to
-         if (bnds(sproc)%rlenx > 0 ) then
-            nreq = nreq + 1
-            call MPI_ISend( bnds(sproc)%rlenx, 1, &
-                 MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-            nreq = nreq + 1
-            call MPI_IRecv( bnds(sproc)%slenx, 1, &
+            call MPI_IRecv( dumrb(:,sproc), 3, &
                  MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end if
       end do
       if ( nreq > 0 ) then
          call MPI_Waitall(nreq,ireq,status,ierr)
       end if
+      do iproc = 1,nproc-1
+         sproc = modulo(myid+iproc,nproc)
+         if ( bnds(sproc)%rlen2 > 0 ) then
+            bnds(sproc)%slenh  = dumrb(1,sproc)
+            bnds(sproc)%slen   = dumrb(2,sproc)
+            bnds(sproc)%slenx  = dumrb(3,sproc)
+         end if
+      end do
 
 !     Start of UV section
 
@@ -1697,7 +1699,7 @@ contains
 
       ! save start of isu indices
       rsplit(:)%isubg = rsplit(:)%ieeufn + 1
-      rsplit(:)%ievfn = rsplit(:)%ieeufn
+      rsplit(:)%iwvfn = rsplit(:)%ieeufn
 
       !     S edge, U
       j=1
@@ -1711,7 +1713,7 @@ contains
             call check_bnds_alloc(rproc, iextu)
             bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
             bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = iqx
-            rsplit(rproc)%ievfn = rsplit(rproc)%ievfn + 1
+            rsplit(rproc)%iwvfn = rsplit(rproc)%iwvfn + 1
             ! Increment extended region index
             iextu = iextu + 1
             bnds(rproc)%unpack_list_uv(bnds(rproc)%rlenx_uv) = iextu
@@ -1739,7 +1741,7 @@ contains
             bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
             ! to show that this is v rather than u, flip sign
             bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = -iqx
-            rsplit(rproc)%ievfn = rsplit(rproc)%ievfn + 1
+            rsplit(rproc)%iwvfn = rsplit(rproc)%iwvfn + 1
             ! Increment extended region index
             iextv = iextv + 1
             bnds(rproc)%unpack_list_uv(bnds(rproc)%rlenx_uv) = -iextv
@@ -1749,6 +1751,10 @@ contains
             bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = swap
          end do
       end do
+
+      ! start save of inu indices
+      rsplit(:)%inubg = rsplit(:)%iwvfn + 1
+      rsplit(:)%ievfn = rsplit(:)%iwvfn
 
       !     N edge (U)
       j=jpan
@@ -1878,11 +1884,12 @@ contains
             dums(4,sproc) = rsplit(sproc)%ieufn
             dums(5,sproc) = rsplit(sproc)%iwwufn
             dums(6,sproc) = rsplit(sproc)%ieeufn
-            dums(7,sproc) = rsplit(sproc)%ievfn
-            call MPI_ISend( dums(:,sproc), 7, &
+            dums(7,sproc) = rsplit(sproc)%iwvfn
+            dums(8,sproc) = rsplit(sproc)%ievfn
+            call MPI_ISend( dums(:,sproc), 8, &
                  MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
             nreq = nreq + 1
-            call MPI_IRecv( dumr(:,sproc), 7, &
+            call MPI_IRecv( dumr(:,sproc), 8, &
                  MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end if
       end do
@@ -1898,7 +1905,8 @@ contains
             ssplit(sproc)%ieufn  = dumr(4,sproc)
             ssplit(sproc)%iwwufn = dumr(5,sproc)
             ssplit(sproc)%ieeufn = dumr(6,sproc)
-            ssplit(sproc)%ievfn  = dumr(7,sproc)
+            ssplit(sproc)%iwvfn  = dumr(7,sproc)
+            ssplit(sproc)%ievfn  = dumr(8,sproc)
          end if
       end do
       ssplit(:)%isvbg  = 1
@@ -1906,6 +1914,7 @@ contains
       ssplit(:)%issvbg = ssplit(:)%ieufn + 1
       ssplit(:)%innvbg = ssplit(:)%iwwufn + 1
       ssplit(:)%isubg  = ssplit(:)%ieeufn + 1
+      ssplit(:)%inubg  = ssplit(:)%iwvfn + 1
 
       ! Only send the swap list once
       nreq = 0
@@ -2056,10 +2065,10 @@ contains
    
    do iproc=0,nproc-1
      nlen=max(kl+1,ol+1)*max(bnds(iproc)%rlen2,bnds(iproc)%rlenx_uv,bnds(iproc)%slen2,bnds(iproc)%slenx_uv)
-     if (nlen.lt.bnds(iproc)%len) then
+     if (nlen<bnds(iproc)%len) then
        !write(6,*) "Reducing array size.  myid,iproc,nlen,len ",myid,iproc,nlen,bnds(iproc)%len
        bnds(iproc)%len=nlen
-       if (iproc.ne.myid) then
+       if (iproc/=myid) then
          deallocate ( bnds(iproc)%rbuf )
          allocate ( bnds(iproc)%rbuf(bnds(iproc)%len) )
          deallocate ( bnds(iproc)%sbuf )
@@ -2105,7 +2114,7 @@ contains
        deallocate ( bnds(iproc)%send_neg )
        allocate ( bnds(iproc)%send_neg(bnds(iproc)%len) )
        bnds(iproc)%send_neg(1:bnds(iproc)%len)=ldum(1:bnds(iproc)%len)
-     elseif (nlen.gt.bnds(iproc)%len) then
+     elseif (nlen>bnds(iproc)%len) then
        write(6,*) "ERROR reducing array size"
        write(6,*) "myid,iproc,nlen,len ",myid,iproc,nlen,bnds(iproc)%len
        write(6,*) "maxbuflen ",maxbuflen
@@ -2126,13 +2135,14 @@ contains
       end if
    end subroutine check_set
 
-   subroutine bounds2(t, nrows, corner)
+   subroutine bounds2(t, nrows, corner, nehalf)
       ! Copy the boundary regions
       real, dimension(ifull+iextra), intent(inout) :: t
       integer, intent(in), optional :: nrows
       logical, intent(in), optional :: corner
+      logical, intent(in), optional :: nehalf
       integer :: iq
-      logical :: double, extra
+      logical :: double, extra, single
       integer :: ierr, itag = 0, iproc, rproc, sproc
       integer, dimension(MPI_STATUS_SIZE,2*nproc) :: status
       integer :: send_len, recv_len
@@ -2143,6 +2153,7 @@ contains
 
       double = .false.
       extra = .false.
+      single = .true.
       if (present(nrows)) then
          if ( nrows == 2 ) then
             double = .true.
@@ -2151,6 +2162,10 @@ contains
       ! corner is irrelevant in double case
       if ( .not. double .and. present(corner) ) then
          extra = corner
+      end if
+      ! nehalf is irrelevant in double or corner case
+      if ( .not. double .and. .not. extra .and. present(nehalf) ) then
+         if (nehalf) single = .false.
       end if
 
 !     Set up the buffers to send
@@ -2164,9 +2179,12 @@ contains
          else if ( extra ) then
             recv_len = bnds(rproc)%rlenx
             send_len = bnds(sproc)%slenx
-         else
+         else if ( single ) then
             recv_len = bnds(rproc)%rlen
             send_len = bnds(sproc)%slen
+         else
+            recv_len = bnds(rproc)%rlenh
+            send_len = bnds(sproc)%slenh
          end if
          if ( recv_len /= 0 ) then
             nreq = nreq + 1
@@ -2196,8 +2214,10 @@ contains
             recv_len = bnds(rproc)%rlen2
          else if ( extra ) then
             recv_len = bnds(rproc)%rlenx
-         else
+         else if ( single ) then
             recv_len = bnds(rproc)%rlen
+         else
+            recv_len = bnds(rproc)%rlenh
          end if
          if ( recv_len > 0 ) then
             do iq=1,recv_len
@@ -2213,8 +2233,10 @@ contains
          recv_len = bnds(myid)%rlen2
       else if ( extra ) then
          recv_len = bnds(myid)%rlenx
-      else
+      else if ( single ) then
          recv_len = bnds(myid)%rlen
+      else
+         recv_len = bnds(myid)%rlenh
       end if
 !cdir nodep
       do iq=1,recv_len
@@ -2226,15 +2248,16 @@ contains
 
    end subroutine bounds2
 
-   subroutine bounds3(t, nrows, klim, corner)
+   subroutine bounds3(t, nrows, klim, corner, nehalf)
       ! Copy the boundary regions. Only this routine requires the extra klim
       ! argument (for helmsol).
       !real, dimension(ifull+iextra,kl), intent(inout) :: t
       real, dimension(:,:), intent(inout) :: t
       integer, intent(in), optional :: nrows, klim
       logical, intent(in), optional :: corner
+      logical, intent(in), optional :: nehalf
       integer :: iq
-      logical :: double, extra
+      logical :: double, extra, single
       integer :: ierr, itag = 0, iproc, rproc, sproc
       integer, dimension(MPI_STATUS_SIZE,2*nproc) :: status
       integer :: send_len, recv_len, kx
@@ -2245,6 +2268,7 @@ contains
 
       double = .false.
       extra = .false.
+      single = .true.
       if (present(nrows)) then
          if ( nrows == 2 ) then
             double = .true.
@@ -2253,6 +2277,10 @@ contains
       ! corner is irrelevant in double case
       if ( .not. double .and. present(corner) ) then
          extra = corner
+      end if
+      ! nehalf is irrelevant in double or corner case
+      if ( .not. double .and. .not. extra .and. present(nehalf) ) then
+         if (nehalf) single = .false.
       end if
       if ( present(klim) ) then
          kx = klim
@@ -2271,9 +2299,12 @@ contains
          else if ( extra ) then
             recv_len = bnds(rproc)%rlenx
             send_len = bnds(sproc)%slenx
-         else
+         else if ( single ) then
             recv_len = bnds(rproc)%rlen
             send_len = bnds(sproc)%slen
+         else
+            recv_len = bnds(rproc)%rlenh
+            send_len = bnds(sproc)%slenh
          end if
          if ( recv_len /= 0 ) then
             nreq = nreq + 1
@@ -2304,8 +2335,10 @@ contains
             recv_len = bnds(rproc)%rlen2
          else if ( extra ) then
             recv_len = bnds(rproc)%rlenx
-         else
+         else if ( single ) then
             recv_len = bnds(rproc)%rlen
+         else
+            recv_len = bnds(rproc)%rlenh
          end if
          if ( recv_len > 0 ) then
 !cdir nodep
@@ -2322,8 +2355,10 @@ contains
          recv_len = bnds(myid)%rlen2
       else if ( extra ) then
          recv_len = bnds(myid)%rlenx
-      else
+      else if ( single ) then
          recv_len = bnds(myid)%rlen
+      else
+         recv_len = bnds(myid)%rlenh
       end if
 !cdir nodep
       do iq=1,recv_len
@@ -2347,7 +2382,7 @@ contains
       integer :: stagmode, iq, iqx, iqz
       logical :: double, extra
       logical :: fsvwu, fnveu, fssvwwu, fnnveeu
-      logical :: fsuwvnuev
+      logical :: fsuwv, fnuev
       integer :: ierr, itag = 0, iproc, rproc, sproc
       integer, dimension(MPI_STATUS_SIZE,2*nproc) :: status
       real :: tmp
@@ -2376,18 +2411,20 @@ contains
       fnveu = .true.
       fssvwwu = .false.
       fnnveeu = .false.
-      fsuwvnuev = .false.
+      fsuwv = .false.
+      fnuev = .false.
       if ( double ) then
         fssvwwu = .true.
         fnnveeu = .true.
       else if ( extra ) then
-        fsuwvnuev = .true.      
+        fsuwv = .true.
+        fnuev = .true.      
       else if ( stagmode == 1 ) then
         fsvwu = .false.
         fnnveeu = .true.
-      else if ( stagmode == 2 .or. stagmode == 7 .or. stagmode == 8 ) then
+      else if ( stagmode == 2 ) then
         fnnveeu = .true. ! fnnveeu requires fnveu
-      else if ( stagmode == 3 .or. stagmode == 4 .or. stagmode == 6 ) then
+      else if ( stagmode == 3 ) then
         fssvwwu = .true. ! fssvwwu requires fsvwu
       else if ( stagmode == 5 ) then
         fnveu = .false.
@@ -2396,6 +2433,10 @@ contains
         fnveu = .false.
       else if ( stagmode == -10 ) then
         fsvwu = .false.
+      else if ( stagmode == -19 ) then
+        fsvwu = .false.
+        fnveu = .false.
+        fnuev = .true.
       end if
       
 !     Set up the buffers to send
@@ -2414,9 +2455,30 @@ contains
             send_len = bnds(sproc)%slen_uv
          end if
          if ( recv_len /= 0 ) then
-            nreq = nreq + 1
-            call MPI_IRecv( bnds(rproc)%rbuf(1), recv_len, &
-                 MPI_REAL, rproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+            recv_len=0
+            if ( fsvwu ) then
+               recv_len=recv_len+rsplit(rproc)%iwufn-rsplit(rproc)%isvbg+1
+            end if
+            if ( fnveu ) then
+               recv_len=recv_len+rsplit(rproc)%ieufn-rsplit(rproc)%invbg+1
+            end if         
+            if ( fssvwwu ) then
+               recv_len=recv_len+rsplit(rproc)%iwwufn-rsplit(rproc)%issvbg+1
+            end if         
+            if ( fnnveeu ) then
+               recv_len=recv_len+rsplit(rproc)%ieeufn-rsplit(rproc)%innvbg+1
+            end if         
+            if ( fsuwv ) then
+               recv_len=recv_len+rsplit(rproc)%iwvfn-rsplit(rproc)%isubg+1
+            end if
+            if ( fnuev ) then
+               recv_len=recv_len+rsplit(rproc)%ievfn-rsplit(rproc)%inubg+1
+            end if
+            if ( recv_len > 0 ) then 
+               nreq = nreq + 1
+               call MPI_IRecv( bnds(rproc)%rbuf(1), recv_len, &
+                    MPI_REAL, rproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+            end if
          end if
          if ( send_len > 0 ) then
             ! Build up list of points
@@ -2481,9 +2543,9 @@ contains
                end do
                iqx = iqx+ssplit(sproc)%ieeufn-ssplit(sproc)%innvbg+1
             end if
-            if ( fsuwvnuev ) then
+            if ( fsuwv ) then
 !cdir nodep
-               do iq=ssplit(sproc)%isubg,ssplit(sproc)%ievfn
+               do iq=ssplit(sproc)%isubg,ssplit(sproc)%iwvfn
                   ! Use abs because sign is used as u/v flag
                   iqz = iqx+iq-ssplit(sproc)%isubg+1
                   if ( (bnds(sproc)%send_list_uv(iq) > 0) .neqv. &
@@ -2494,11 +2556,28 @@ contains
                   end if 
                   if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(iqz) = -bnds(sproc)%sbuf(iqz)
                end do
-               iqx = iqx+ssplit(sproc)%ievfn-ssplit(sproc)%isubg+1
+               iqx = iqx+ssplit(sproc)%iwvfn-ssplit(sproc)%isubg+1
             end if
-            nreq = nreq + 1
-            call MPI_ISend( bnds(sproc)%sbuf(1), iqx, &
-                 MPI_REAL, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+            if ( fnuev ) then
+!cdir nodep
+               do iq=ssplit(sproc)%inubg,ssplit(sproc)%ievfn
+                  ! Use abs because sign is used as u/v flag
+                  iqz = iqx+iq-ssplit(sproc)%inubg+1
+                  if ( (bnds(sproc)%send_list_uv(iq) > 0) .neqv. &
+                        bnds(sproc)%send_swap(iq) ) then
+                     bnds(sproc)%sbuf(iqz) = u(abs(bnds(sproc)%send_list_uv(iq)))
+                  else
+                     bnds(sproc)%sbuf(iqz) = v(abs(bnds(sproc)%send_list_uv(iq)))
+                  end if 
+                  if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(iqz) = -bnds(sproc)%sbuf(iqz)
+               end do
+               iqx = iqx+ssplit(sproc)%ievfn-ssplit(sproc)%inubg+1
+            end if
+            if ( iqx > 0 ) then
+               nreq = nreq + 1
+               call MPI_ISend( bnds(sproc)%sbuf(1), iqx, &
+                    MPI_REAL, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+            end if
          end if
       end do
 
@@ -2571,9 +2650,9 @@ contains
                end do
                iqx = iqx+rsplit(rproc)%ieeufn-rsplit(rproc)%innvbg+1
             end if
-            if ( fsuwvnuev ) then
+            if ( fsuwv ) then
 !cdir nodep
-               do iq=rsplit(rproc)%isubg,rsplit(rproc)%ievfn
+               do iq=rsplit(rproc)%isubg,rsplit(rproc)%iwvfn
                   ! unpack_list(iq) is index into extended region
                   iqz = iqx+iq-rsplit(rproc)%isubg+1
                   if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
@@ -2582,7 +2661,20 @@ contains
                      v(ifull-bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
                   end if
                end do
-               iqx = iqx+rsplit(rproc)%ievfn-rsplit(rproc)%isubg+1
+               iqx = iqx+rsplit(rproc)%iwvfn-rsplit(rproc)%isubg+1
+            end if
+            if ( fnuev ) then
+!cdir nodep
+               do iq=rsplit(rproc)%inubg,rsplit(rproc)%ievfn
+                  ! unpack_list(iq) is index into extended region
+                  iqz = iqx+iq-rsplit(rproc)%inubg+1
+                  if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
+                     u(ifull+bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
+                  else
+                     v(ifull-bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
+                  end if
+               end do
+               iqx = iqx+rsplit(rproc)%ievfn-rsplit(rproc)%inubg+1
             end if
          end if
       end do
@@ -2632,7 +2724,7 @@ contains
       integer :: stagmode, iq, iqx, iqz, iqb, iqe
       logical :: double, extra
       logical :: fsvwu, fnveu, fssvwwu, fnnveeu
-      logical :: fsuwvnuev
+      logical :: fsuwv, fnuev
       integer :: ierr, itag = 0, iproc, rproc, sproc
       integer, dimension(MPI_STATUS_SIZE,2*nproc) :: status
       real, dimension(maxbuflen) :: tmp
@@ -2662,18 +2754,20 @@ contains
       fnveu = .true.
       fssvwwu = .false.
       fnnveeu = .false.
-      fsuwvnuev = .false.
+      fsuwv = .false.
+      fnuev = .false.
       if ( double ) then
         fssvwwu = .true.
         fnnveeu = .true.
       else if ( extra ) then
-        fsuwvnuev = .true.      
+        fsuwv = .true.
+        fnuev = .true.      
       else if ( stagmode == 1 ) then
         fsvwu = .false.
         fnnveeu = .true.
-      else if ( stagmode == 2 .or. stagmode == 7 .or. stagmode == 8 ) then
+      else if ( stagmode == 2 ) then
         fnnveeu = .true. ! fnnveeu requires fnveu
-      else if ( stagmode == 3 .or. stagmode == 4 .or. stagmode == 6 ) then
+      else if ( stagmode == 3 ) then
         fssvwwu = .true. ! fssvwwu requires fsvwu
       else if ( stagmode == 5 ) then
         fnveu = .false.
@@ -2682,6 +2776,10 @@ contains
         fnveu = .false.
       else if ( stagmode == -10 ) then
         fsvwu = .false.
+      else if ( stagmode == -19 ) then
+        fsvwu = .false.
+        fnveu = .false.
+        fnuev = .true.
       end if
 
 !     Set up the buffers to send
@@ -2700,9 +2798,30 @@ contains
             send_len = bnds(sproc)%slen_uv
          end if
          if ( recv_len > 0 ) then
-            nreq = nreq + 1
-            call MPI_IRecv( bnds(rproc)%rbuf(1), recv_len*kx, &
-                 MPI_REAL, rproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+            recv_len=0
+            if ( fsvwu ) then
+               recv_len=recv_len+rsplit(rproc)%iwufn-rsplit(rproc)%isvbg+1
+            end if
+            if ( fnveu ) then
+               recv_len=recv_len+rsplit(rproc)%ieufn-rsplit(rproc)%invbg+1
+            end if         
+            if ( fssvwwu ) then
+               recv_len=recv_len+rsplit(rproc)%iwwufn-rsplit(rproc)%issvbg+1
+            end if         
+            if ( fnnveeu ) then
+               recv_len=recv_len+rsplit(rproc)%ieeufn-rsplit(rproc)%innvbg+1
+            end if         
+            if ( fsuwv ) then
+               recv_len=recv_len+rsplit(rproc)%iwvfn-rsplit(rproc)%isubg+1
+            end if
+            if ( fnuev ) then
+               recv_len=recv_len+rsplit(rproc)%ievfn-rsplit(rproc)%inubg+1
+            end if
+            if ( recv_len > 0 ) then 
+               nreq = nreq + 1
+               call MPI_IRecv( bnds(rproc)%rbuf(1), recv_len*kx, &
+                    MPI_REAL, rproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+            end if
          end if
          if ( send_len > 0 ) then
             ! Build up list of points
@@ -2779,9 +2898,9 @@ contains
                end do
                iqx = iqx+ssplit(sproc)%ieeufn-ssplit(sproc)%innvbg+1
             end if
-            if ( fsuwvnuev ) then
+            if ( fsuwv ) then
 !cdir nodep
-               do iq=ssplit(sproc)%isubg,ssplit(sproc)%ievfn
+               do iq=ssplit(sproc)%isubg,ssplit(sproc)%iwvfn
                   ! send_list_uv(iq) is point index.
                   ! Use abs because sign is used as u/v flag
                   iqz = iqx+iq-ssplit(sproc)%isubg+1
@@ -2795,11 +2914,31 @@ contains
                   end if 
                   if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(iqb:iqe) = -bnds(sproc)%sbuf(iqb:iqe)
                end do
-               iqx = iqx+ssplit(sproc)%ievfn-ssplit(sproc)%isubg+1
+               iqx = iqx+ssplit(sproc)%iwvfn-ssplit(sproc)%isubg+1
             end if
-            nreq = nreq + 1
-            call MPI_ISend( bnds(sproc)%sbuf(1), iqx*kx, &
-                 MPI_REAL, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+            if ( fnuev ) then
+!cdir nodep
+               do iq=ssplit(sproc)%inubg,ssplit(sproc)%ievfn
+                  ! send_list_uv(iq) is point index.
+                  ! Use abs because sign is used as u/v flag
+                  iqz = iqx+iq-ssplit(sproc)%inubg+1
+                  iqb = 1+(iqz-1)*kx
+                  iqe = iqz*kx
+                  if ( (bnds(sproc)%send_list_uv(iq) > 0) .neqv. &
+                        bnds(sproc)%send_swap(iq) ) then
+                     bnds(sproc)%sbuf(iqb:iqe) = u(abs(bnds(sproc)%send_list_uv(iq)),:)
+                  else
+                     bnds(sproc)%sbuf(iqb:iqe) = v(abs(bnds(sproc)%send_list_uv(iq)),:)
+                  end if 
+                  if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(iqb:iqe) = -bnds(sproc)%sbuf(iqb:iqe)
+               end do
+               iqx = iqx+ssplit(sproc)%ievfn-ssplit(sproc)%inubg+1
+            end if
+            if ( iqx > 0 ) then
+               nreq = nreq + 1
+               call MPI_ISend( bnds(sproc)%sbuf(1), iqx*kx, &
+                    MPI_REAL, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+            end if
          end if
       end do
 
@@ -2880,9 +3019,9 @@ contains
                end do
                iqx = iqx+rsplit(rproc)%ieeufn-rsplit(rproc)%innvbg+1
             end if         
-            if ( fsuwvnuev ) then
+            if ( fsuwv ) then
 !cdir nodep
-               do iq=rsplit(rproc)%isubg,rsplit(rproc)%ievfn
+               do iq=rsplit(rproc)%isubg,rsplit(rproc)%iwvfn
                   ! unpack_list(iq) is index into extended region
                   iqz = iqx+iq-rsplit(rproc)%isubg+1
                   iqb = 1+(iqz-1)*kx
@@ -2893,8 +3032,23 @@ contains
                      v(ifull-bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iqb:iqe)
                   end if
                end do
-               iqx = iqx+rsplit(rproc)%ievfn-rsplit(rproc)%isubg+1
-            end if         
+               iqx = iqx+rsplit(rproc)%iwvfn-rsplit(rproc)%isubg+1
+            end if 
+            if ( fnuev ) then
+!cdir nodep
+               do iq=rsplit(rproc)%inubg,rsplit(rproc)%ievfn
+                  ! unpack_list(iq) is index into extended region
+                  iqz = iqx+iq-rsplit(rproc)%inubg+1
+                  iqb = 1+(iqz-1)*kx
+                  iqe = iqz*kx
+                  if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
+                     u(ifull+bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iqb:iqe)
+                  else
+                     v(ifull-bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iqb:iqe)
+                  end if
+               end do
+               iqx = iqx+rsplit(rproc)%ievfn-rsplit(rproc)%inubg+1
+            end if        
          end if
       end do
 
@@ -2908,7 +3062,6 @@ contains
          else
             recv_len = bnds(myid)%rlen_uv
          end if
-!        Split this in two for better vectorisation
 !cdir nodep
          do iq=1,recv_len
             ! request_list is same as send_list in this case
@@ -3722,6 +3875,9 @@ contains
       hordifg_begin = MPE_Log_get_event_number()
       hordifg_end = MPE_Log_get_event_number()
       ierr = MPE_Describe_state(hordifg_begin, hordifg_end, "Hordifg", "blue")
+      vadv_begin = MPE_Log_get_event_number()
+      vadv_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(vadv_begin, vadv_end, "Vadv", "blue")
       depts_begin = MPE_Log_get_event_number()
       depts_end = MPE_Log_get_event_number()
       ierr = MPE_Describe_state(depts_begin, depts_end, "Depts", "pink1")
@@ -3734,6 +3890,9 @@ contains
       stag_begin = MPE_Log_get_event_number()
       stag_end = MPE_Log_get_event_number()
       ierr = MPE_Describe_state(stag_begin, stag_end, "Stag", "YellowGreen")
+      ocnstag_begin = MPE_Log_get_event_number()
+      ocnstag_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(ocnstag_begin, ocnstag_end, "Ocnstag", "YellowGreen")
       toij_begin = MPE_Log_get_event_number()
       toij_end = MPE_Log_get_event_number()
       ierr = MPE_Describe_state(toij_begin, toij_end, "Toij", "blue")
@@ -3824,7 +3983,9 @@ contains
       call vtfuncdef("Upglobal", classhandle, upglobal_begin, ierr)
       upglobal_end = upglobal_begin
       call vtfuncdef("Hordifg", classhandle, hordifg_begin, ierr)
-      upglobal_end = hordifg_begin
+      hordifg_end = hordifg_begin
+      call vtfuncdef("Vadv", classhandle, vadv_begin, ierr)
+      vadv_end = vadv_begin
       call vtfuncdef("Depts", classhandle, depts_begin, ierr)
       depts_end = depts_begin
       call vtfuncdef("Deptsync", classhandle, deptsync_begin, ierr)
@@ -3833,6 +3994,8 @@ contains
       intssync_end = intssync_begin
       call vtfuncdef("Stag", classhandle, stag_begin, ierr)
       stag_end = stag_begin
+      call vtfuncdef("Ocnstag", classhandle, ocnstag_begin, ierr)
+      ocnstag_end = ocnstag_begin
       call vtfuncdef("Toij", classhandle, toij_begin, ierr)
       toij_end =  toij_begin
       call vtfuncdef("PhysLBal", classhandle, physloadbal_begin, ierr)
@@ -3922,139 +4085,155 @@ contains
       hordifg_end = hordifg_begin
       event_name(hordifg_begin) = "Hordifg"
 
-      depts_begin = 11
+      vadv_begin = 11
+      vadv_end = vadv_begin
+      event_name(vadv_begin) = "Vadv"
+
+      depts_begin = 12
       depts_end = depts_begin
       event_name(depts_begin) = "Depts"
 
-      stag_begin = 12
+      stag_begin = 13
       stag_end = stag_begin
       event_name(stag_begin) = "Stag"
 
-      toij_begin = 13
+      ocnstag_begin = 14
+      ocnstag_end = ocnstag_begin
+      event_name(ocnstag_begin) = "Ocnstag"
+
+      toij_begin = 15
       toij_end =  toij_begin
       event_name(toij_begin) = "Toij"
 
-      outfile_begin = 14
+      outfile_begin = 16
       outfile_end =  outfile_begin
       event_name(outfile_begin) = "Outfile"
 
-      onthefly_begin = 15
+      onthefly_begin = 17
       onthefly_end =  onthefly_begin
       event_name(onthefly_begin) = "Onthefly"
 
-      bounds_begin = 16
+      bounds_begin = 18
       bounds_end = bounds_begin
       event_name(bounds_begin) = "Bounds"
 
-      boundsa_begin = 17
+      boundsa_begin = 19
       boundsa_end = boundsa_end
       event_name(boundsa_begin) = "BoundsA"
 
-      boundsb_begin = 18
+      boundsb_begin = 20
       boundsb_end = boundsb_begin
       event_name(boundsb_begin) = "BoundsB"
 
-      boundsuv_begin = 19
+      boundsuv_begin = 21
       boundsuv_end = boundsuv_begin
       event_name(boundsuv_begin) = "BoundsUV"
 
-      deptsync_begin = 20
+      deptsync_begin = 22
       deptsync_end = deptsync_begin
       event_name(deptsync_begin) = "Deptsync"
 
-      intssync_begin = 21
+      intssync_begin = 23
       intssync_end = intssync_begin
       event_name(intssync_begin) = "Intssync"
 
-      gather_begin = 22
+      gather_begin = 24
       gather_end = gather_begin
       event_name(gather_begin) = "Gather"
 
-      distribute_begin = 23
+      distribute_begin = 25
       distribute_end = distribute_begin
       event_name(distribute_begin) = "Distribute"
 
-      reduce_begin = 24
+      posneg_begin = 26
+      posneg_end = posneg_begin
+      event_name(posneg_begin) = "Posneg"
+
+      globsum_begin = 27
+      globsum_end = globsum_begin
+      event_name(globsum_begin) = "Globsum"
+
+      reduce_begin = 28
       reduce_end = reduce_begin
       event_name(reduce_begin) = "Reduce"
 
-      precon_begin = 25
+      precon_begin = 29
       precon_end = precon_begin
       event_name(precon_begin) = "Precon"
 
-      mpiwait_begin = 26
+      mpiwait_begin = 30
       mpiwait_end = mpiwait_begin
       event_name(mpiwait_begin) = "MPI_Wait"
 
-      indata_begin = 27
+      indata_begin = 31
       indata_end =  indata_begin
       event_name(indata_begin) = "Indata"
 
-      nestin_begin = 28
+      nestin_begin = 32
       nestin_end =  nestin_begin
       event_name(nestin_begin) = "Nestin"
       
-      gwdrag_begin = 29
+      gwdrag_begin = 33
       gwdrag_end =  gwdrag_begin
       event_name(gwdrag_begin) = "GWdrag"
 
-      convection_begin = 30
+      convection_begin = 34
       convection_end =  convection_begin
       event_name(convection_begin) = "Convection"
 
-      cloud_begin = 31
+      cloud_begin = 35
       cloud_end =  cloud_begin
       event_name(cloud_begin) = "Cloud"
 
-      radnet_begin = 32
+      radnet_begin = 36
       radnet_end =  radnet_begin
       event_name(radnet_begin) = "Rad_net"
 
-      radmisc_begin = 33
+      radmisc_begin = 37
       radmisc_end =  radmisc_begin
       event_name(radmisc_begin) = "Rad_misc"
       
-      radsw_begin = 34
+      radsw_begin = 38
       radsw_end =  radsw_begin
       event_name(radsw_begin) = "Rad_SW"
 
-      radlw_begin = 35
+      radlw_begin = 39
       radlw_end =  radlw_begin
       event_name(radlw_begin) = "Rad_LW"      
 
-      sfluxnet_begin = 36
+      sfluxnet_begin = 40
       sfluxnet_end =  sfluxnet_begin
       event_name(sfluxnet_begin) = "Sflux_net"
       
-      sfluxwater_begin = 37
+      sfluxwater_begin = 41
       sfluxwater_end =  sfluxwater_begin
       event_name(sfluxwater_begin) = "Sflux_water"
 
-      sfluxland_begin = 38
+      sfluxland_begin = 42
       sfluxland_end =  sfluxland_begin
       event_name(sfluxland_begin) = "Sflux_land"
 
-      sfluxurban_begin = 39
+      sfluxurban_begin = 43
       sfluxurban_end =  sfluxurban_begin
       event_name(sfluxurban_begin) = "Sflux_urban"
 
-      vertmix_begin = 40
+      vertmix_begin = 44
       vertmix_end =  vertmix_begin
       event_name(vertmix_begin) = "Vertmix"
 
-      aerosol_begin = 41
+      aerosol_begin = 45
       aerosol_end =  aerosol_begin
       event_name(aerosol_begin) = "Aerosol"
 
-      waterdynamics_begin = 42
+      waterdynamics_begin = 46
       waterdynamics_end =  waterdynamics_begin
       event_name(waterdynamics_begin) = "Waterdynamics"
 
-      waterdiff_begin = 43
+      waterdiff_begin = 47
       waterdiff_end =  waterdiff_begin
       event_name(waterdiff_begin) = "Waterdiff"
 
-      river_begin = 44
+      river_begin = 48
       river_end =  river_begin
       event_name(river_begin) = "River"
 
@@ -4112,6 +4291,8 @@ contains
        real, dimension(ifull) :: tmparr, tmparr2 
 #endif
 
+       call start_log(posneg_begin)
+
        delpos_l = 0.
        delneg_l = 0.
        do iq=1,ifull
@@ -4139,6 +4320,8 @@ contains
        delneg = delarr(2)
 #endif
 
+       call end_log(posneg_end)
+
     end subroutine ccglobal_posneg2
     
     subroutine ccglobal_posneg3 (array, delpos, delneg, dsigin)
@@ -4159,6 +4342,8 @@ contains
 !      Temporary array for the drpdr_local function
        real, dimension(ifull) :: tmparr, tmparr2 
 #endif
+
+       call start_log(posneg_begin)
 
        delpos_l = 0.
        delneg_l = 0.
@@ -4199,6 +4384,8 @@ contains
        delneg = delarr(2)
 #endif
 
+       call end_log(posneg_end)
+
     end subroutine ccglobal_posneg3
 
     subroutine ccglobal_sum2 (array, result)
@@ -4215,6 +4402,8 @@ contains
 !      Temporary array for the drpdr_local function
        real, dimension(ifull) :: tmparr
 #endif
+
+       call start_log(globsum_begin)
 
        result_l = 0.
        do iq=1,ifull
@@ -4235,6 +4424,8 @@ contains
                             MPI_COMM_WORLD, ierr )
 #endif
 
+       call end_log(globsum_end)
+
     end subroutine ccglobal_sum2
 
     subroutine ccglobal_sum3 (array, result)
@@ -4252,6 +4443,8 @@ contains
 !      Temporary array for the drpdr_local function
        real, dimension(ifull) :: tmparr
 #endif
+
+       call start_log(globsum_begin)
 
        result_l = 0.
 #ifdef sumdd
@@ -4278,6 +4471,8 @@ contains
        call MPI_Allreduce ( result_l, result, 1, MPI_REAL, MPI_SUM,   &
                             MPI_COMM_WORLD, ierr )
 #endif
+
+       call end_log(globsum_end)
 
     end subroutine ccglobal_sum3
 
