@@ -414,10 +414,16 @@ c       create the attributes of the header record of the file
       character(len=3) trnum
       character(len=3), dimension(12) :: mon
       logical, intent(in) :: local
-      logical lwrite
+      logical lwrite,lave,lrad
 
       data mon/'JAN','FEB','MAR','APR','MAY','JUN'
      &        ,'JUL','AUG','SEP','OCT','NOV','DEC'/
+     
+      lwrite=ktau>0
+      lave=mod(ktau,nperavg)==0.or.ktau==ntau
+      lave=lave.and.ktau>0
+      lrad=mod(ktau,kountr)==0.or.ktau==ntau
+      lrad=lrad.and.ktau>0
 
       if(myid == 0 .or. local)then
        if (myid==0) then
@@ -1703,10 +1709,10 @@ c      set time to number of minutes since start
        call histwrt3(ga_ave,'ga_ave',idnc,iarch,local,lwrite)
        call histwrt3(riwp_ave,'iwp_ave',idnc,iarch,local,lwrite)
        call histwrt3(rlwp_ave,'lwp_ave',idnc,iarch,local,lwrite)
-       call histwrt3(cll_ave,'cll',idnc,iarch,local,lwrite)
-       call histwrt3(clm_ave,'clm',idnc,iarch,local,lwrite)
-       call histwrt3(clh_ave,'clh',idnc,iarch,local,lwrite)
-       call histwrt3(cld_ave,'cld',idnc,iarch,local,lwrite)
+       call histwrt3(cll_ave,'cll',idnc,iarch,local,lrad)
+       call histwrt3(clm_ave,'clm',idnc,iarch,local,lrad)
+       call histwrt3(clh_ave,'clh',idnc,iarch,local,lrad)
+       call histwrt3(cld_ave,'cld',idnc,iarch,local,lrad)
        call histwrt3(wb_ave(:,1),'wb1_ave',idnc,iarch,local,lwrite)
        call histwrt3(wb_ave(:,2),'wb2_ave',idnc,iarch,local,lwrite)
        call histwrt3(wb_ave(:,3),'wb3_ave',idnc,iarch,local,lwrite)
@@ -1720,7 +1726,7 @@ c      set time to number of minutes since start
        !  call histwrt3(tgg_ave(:,5),'tgg5_ave',idnc,iarch,local,lwrite)
        !  call histwrt3(tgg_ave(:,6),'tgg6_ave',idnc,iarch,local,lwrite)
        call histwrt3(tsu_ave,'tsu_ave',idnc,iarch,local,lwrite)
-       call histwrt3(alb_ave,'alb_ave',idnc,iarch,local,lwrite)
+       call histwrt3(alb_ave,'alb_ave',idnc,iarch,local,lrad)
        call histwrt3(psl_ave,'pmsl_ave',idnc,iarch,local,lwrite)
        if (nmlo/=0) then
          call histwrt3(mixdep_ave,'mixd_ave',idnc,iarch,local,lwrite)
@@ -1741,19 +1747,19 @@ c      "extra" outputs
          if(myid == 0 ) write(6,*) 'nextout, idnc: ',nextout,idnc
          lwrite=mod(ktau,nperavg)==0.or.ktau==ntau
          lwrite=lwrite.and.ktau>0
-         call histwrt3(rtu_ave,'rtu_ave',idnc,iarch,local,lwrite)
-         call histwrt3(rtc_ave,'rtc_ave',idnc,iarch,local,lwrite)
-         call histwrt3(rgdn_ave,'rgdn_ave',idnc,iarch,local,lwrite)
-         call histwrt3(rgn_ave,'rgn_ave',idnc,iarch,local,lwrite)
-         call histwrt3(rgc_ave,'rgc_ave',idnc,iarch,local,lwrite)
-         call histwrt3(sint_ave,'sint_ave',idnc,iarch,local,lwrite)
-         call histwrt3(sot_ave,'sot_ave',idnc,iarch,local,lwrite)
-         call histwrt3(soc_ave,'soc_ave',idnc,iarch,local,lwrite)
-         call histwrt3(sgdn_ave,'sgdn_ave',idnc,iarch,local,lwrite)
+         call histwrt3(rtu_ave,'rtu_ave',idnc,iarch,local,lrad)
+         call histwrt3(rtc_ave,'rtc_ave',idnc,iarch,local,lrad)
+         call histwrt3(rgdn_ave,'rgdn_ave',idnc,iarch,local,lrad)
+         call histwrt3(rgn_ave,'rgn_ave',idnc,iarch,local,lrad)
+         call histwrt3(rgc_ave,'rgc_ave',idnc,iarch,local,lrad)
+         call histwrt3(sint_ave,'sint_ave',idnc,iarch,local,lrad)
+         call histwrt3(sot_ave,'sot_ave',idnc,iarch,local,lrad)
+         call histwrt3(soc_ave,'soc_ave',idnc,iarch,local,lrad)
+         call histwrt3(sgdn_ave,'sgdn_ave',idnc,iarch,local,lrad)
          call histwrt3(sgn_ave,'sgn_ave',idnc,iarch,local,lwrite)
          aa=sunhours/3600.
          call histwrt3(aa,'sunhours',idnc,iarch,local,lwrite)
-         call histwrt3(fbeam_ave,'fbeam_ave',idnc,iarch,local,lwrite)
+         call histwrt3(fbeam_ave,'fbeam_ave',idnc,iarch,local,lrad)
          lwrite=ktau>0
          call histwrt3(dpsdt,'dpsdt',idnc,iarch,local,lwrite)
          call histwrt3(ustar,'ustar',idnc,iarch,local,lwrite)

@@ -458,7 +458,7 @@
         write (6,'(i5,4i7,f10.2)') nrad,ndiur,mins_rad,kountr,iaero,dt
         write(6,*)'Radiation options B:'
         write(6,*)' nmr bpyear'
-        write (6,'(i4,i7)') nmr,bpyear
+        write (6,'(i4,f7.2)') nmr,bpyear
         write(6,*)'Cloud options A:'
         write(6,*)'  ldr nclddia nstab_cld nrhcrit sigcll '
         write (6,'(i5,i6,2i9,1x,f8.2)') ldr,nclddia,nstab_cld,nrhcrit,

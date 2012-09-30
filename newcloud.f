@@ -334,7 +334,7 @@ c         qvc(mg,k)=qs !Vapour mixing ratio in cloud
           al=1./(1.+(hlcp+fice(mg,k)*hlfcp)*dqsdt)    !Smith's notation
           qc=qtot(mg,k)-qs
 
-          delq=(1-rcrit(mg,k))*qs      !UKMO style (equivalent to above)
+          delq=(1.-rcrit(mg,k))*qs      !UKMO style (equivalent to above)
           cfrac(mg,k)=1.
           qcg(mg,k)=al*qc
           if(qc<delq)then

@@ -41,7 +41,7 @@ c     use diag_m             ! for calls to maxmin
       end do
       
       if(abs(nstag)<3)then
-        call boundsuv(uin,vin,stag=7)
+        call boundsuv(uin,vin,stag=2)
         do k=1,kl
          do iq=1,ifull
           uout(iq,k)=(9.*(uin(ieu(iq),k)+uin(iq,k))
@@ -150,7 +150,7 @@ c          vout(iq,k)=.5*(vin(inv(iq),k)+vin(iq,k))
          vg=va(1:ifull,:)
 
          do itn=1,itnmax        ! each loop is a double iteration
-            call boundsuv(ua,va,stag=4)
+            call boundsuv(ua,va,stag=3)
             do k=1,kl
 !cdir nodep
                do iq=1,ifull
@@ -161,7 +161,7 @@ c          vout(iq,k)=.5*(vin(inv(iq),k)+vin(iq,k))
                enddo
             enddo
 
-            call boundsuv(uin,vin,stag=4)
+            call boundsuv(uin,vin,stag=3)
 !cdir nodep
             do k=1,kl
                do iq=1,ifull
@@ -260,7 +260,7 @@ c     staggered u & v as input; unstaggered as output
 
          do itn=1,itnmax        ! each loop is a double iteration
 
-            call boundsuv(ua,va,stag=6)
+            call boundsuv(ua,va,stag=3)
             do k=1,kl
 !cdir nodep
                do iq=1,ifull
@@ -271,7 +271,7 @@ c     staggered u & v as input; unstaggered as output
                end do
             end do
 
-            call boundsuv(uin,vin,stag=6)
+            call boundsuv(uin,vin,stag=3)
             do k=1,kl
 !cdir nodep
                do iq=1,ifull
@@ -285,7 +285,7 @@ c     staggered u & v as input; unstaggered as output
          end do                 ! itn=1,itnmax
 
       else if ( nstagu==4 ) then
-         call boundsuv(uin,vin,stag=7)
+         call boundsuv(uin,vin,stag=2)
 
          do k=1,kl
 !cdir nodep
@@ -300,7 +300,7 @@ c     staggered u & v as input; unstaggered as output
          vg=va(1:ifull,:)
 
          do itn=1,itnmax        ! each loop is a double iteration
-            call boundsuv(ua,va,stag=8)
+            call boundsuv(ua,va,stag=2)
             do k=1,kl
 !cdir nodep
                do iq=1,ifull
@@ -310,7 +310,7 @@ c     staggered u & v as input; unstaggered as output
      &                 -va(isv(iq),k)/10. +va(innv(iq),k)/4.)/.95
                enddo
             enddo
-            call boundsuv(uin,vin,stag=8)
+            call boundsuv(uin,vin,stag=2)
             do k=1,kl
 !cdir nodep
                do iq=1,ifull

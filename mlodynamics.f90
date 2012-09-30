@@ -30,7 +30,7 @@ integer, parameter :: basinmd=3     ! basin mode (0=soil, 1=redistribute, 2=pile
 integer, parameter :: mstagf =0     ! alternating staggering (0=off left, -1=off right, >0 alternating)
 integer, parameter :: koff   =1     ! time split stagger relative to A-grid (koff=0) or C-grid (koff=1)
 integer, parameter :: nf     =2     ! power for horizontal diffusion reduction factor
-integer, parameter :: itnmax =6     ! number of interations for staggering
+integer, parameter :: itnmax =4     ! number of interations for staggering
 real, parameter :: rhosn  =330.     ! density snow (kg m^-3)
 real, parameter :: rhoic  =900.     ! density ice  (kg m^-3)
 real, parameter :: grav   =9.80616  ! gravitational constant (m s^-2)
@@ -651,7 +651,7 @@ end select
 watbdy(1:ifull)=max(newwat,0.)
 salbdy(1:ifull)=max(newsal,0.)
 
-if (any(salbdy(1:ifull)>0..and.watbdy(1:ifull)<1.E-10)) then
+if (any(salbdy(1:ifull)>0..and.watbdy(1:ifull)==0.)) then
   write(6,*) "WARN: Patch river salinity"
 end if
 
@@ -1392,7 +1392,7 @@ odum=ibu(1:ifull)+ibu(iwu)+ibv(1:ifull)+ibv(isv)
 
 ! Iteratively solve for free surface height, eta
 ! Iterative loop to estimate ice 'pressure'
-alpha=0.9
+alpha=1.
 do ll=1,llmax
 
   dumc(1:ifull,1)=neta(1:ifull)
@@ -3100,9 +3100,10 @@ if (ltest) then
 ! ##   W   | X *   |  E   |     unstaggered
 ! ##       W X     *            staggered
   elsewhere (euetest)
-    wtu(:,1)=-0.1
-    wtu(:,2)=-0.5
+    wtu(:,1)=-0.2
+    wtu(:,2)=0.
     !uin(1:ifull,k)=uh(:,k)-ua(ieu,k)*0.1-ua(iwu,k)*0.5
+    !uin(1:ifull,k)=2.*uh(:,k)-ua(ieu,k)*0.2-2.*uh(iwu,k)
 
 !  |   W   | X *   #  ##  #     unstaggered
 ! WW       W X     #  ##  #     staggered
@@ -3124,9 +3125,10 @@ if (ltest) then
     wtv(:,2)=-0.5
     !vin(1:ifull,k)=vd(:,k)-va(inv,k)*0.1-va(isv,k)*0.5
   elsewhere (evntest)
-    wtv(:,1)=-0.1
-    wtv(:,2)=-0.5
+    wtv(:,1)=-0.2
+    wtv(:,2)=0.
     !vin(1:ifull,k)=vh(:,k)-va(inv,k)*0.1-va(isv,k)*0.5
+    !vin(1:ifull,k)=2.*vh(:,k)-va(inv,k)*0.2-2.*vh(isv,k)
   elsewhere (evstest)
     wtv(:,1)=0.
     wtv(:,2)=-0.4/1.2
@@ -3144,8 +3146,9 @@ if (ltest) then
       ud(:,k)=uin(iwwu,k)*0.1+uin(iwu,k)+uin(1:ifull,k)*0.5
       !uin(1:ifull,k)=ud(:,k)-ua(ieu,k)*0.1-ua(iwu,k)*0.5
     elsewhere (euetest)
-      ud(:,k)=uin(iwu,k)*1.2+uin(1:ifull,k)*0.4
+      ud(:,k)=uin(iwu,k)*0.4+uin(1:ifull,k)*0.8
       !uin(1:ifull,k)=uh(:,k)-ua(ieu,k)*0.1-ua(iwu,k)*0.5
+      !uin(1:ifull,k)=2.*uh(:,k)-ua(ieu,k)*0.2-2.*uh(iwu,k)
     elsewhere (euwtest)
       ud(:,k)=(uin(iwu,k)*2.-uin(iwwu,k)*0.4)/1.2
       !uin(1:ifull,k)=(uh(:,k)-ua(iwu,k)*0.4)/1.2
@@ -3157,8 +3160,9 @@ if (ltest) then
       vd(:,k)=vin(issv,k)*0.1+vin(isv,k)+vin(1:ifull,k)*0.5
       !vin(1:ifull,k)=vd(:,k)-va(inv,k)*0.1-va(isv,k)*0.5
     elsewhere (evntest)
-      vd(:,k)=vin(isv,k)*1.2+vin(1:ifull,k)*0.4
+      vd(:,k)=vin(isv,k)*0.4+vin(1:ifull,k)*0.8
       !vin(1:ifull,k)=vh(:,k)-va(inv,k)*0.1-va(isv,k)*0.5
+      !vin(1:ifull,k)=2.*vh(:,k)-va(inv,k)*0.2-2.*vh(isv,k)
     elsewhere (evstest)
       vd(:,k)=(vin(isv,k)*2.-vin(issv,k)*0.4)/1.2
       !vin(1:ifull,k)=(vh(:,k)-va(isv,k)*0.4)/1.2
@@ -3226,9 +3230,10 @@ else
 !  |   W   |   * X |  E   #     unstaggered
 !          W     X *      #     staggered
   elsewhere (euwtest)
-    wtu(:,1)=-0.5
-    wtu(:,2)=-0.1
+    wtu(:,1)=0.
+    wtu(:,2)=-0.2
     !uin(1:ifull,k)=uh(:,k)-ua(ieu,k)*0.5-ua(iwu,k)*0.1
+    !uin(1:ifull,k)=2.*uh(:,k)-ua(iwu,k)*0.2-2.*uh(ieu,k)
 
 !  #   ##  #   * X |  E   |     unstaggered
 !  #   ##  #     X *      E     staggered
@@ -3250,9 +3255,10 @@ else
     wtv(:,2)=-0.1
     !vin(1:ifull,k)=vd(:,k)-va(inv,k)*0.5-va(isv,k)*0.1
   elsewhere (evstest)
-    wtv(:,1)=-0.5
-    wtv(:,2)=-0.1
+    wtv(:,1)=0.
+    wtv(:,2)=-0.2
     !vin(1:ifull,k)=vh(:,k)-va(inv,k)*0.5-va(isv,k)*0.1
+    !vin(1:ifull,k)=2.*vh(:,k)-va(isv,k)*0.2-2.*vh(inv,k)
   elsewhere (evntest)
     wtv(:,1)=-0.4/1.2
     wtv(:,2)=0.
@@ -3269,8 +3275,9 @@ else
       ud(1:ifull,k)=uin(ieu,k)*0.1+uin(1:ifull,k)+uin(iwu,k)*0.5
       !uin(1:ifull,k)=ud(:,k)-ua(iwu,k)*0.1-ua(ieu,k)*0.5
     elsewhere (euwtest)
-      ud(1:ifull,k)=uin(1:ifull,k)*1.2+uin(iwu,k)*0.4
+      ud(1:ifull,k)=uin(1:ifull,k)*0.4+uin(iwu,k)*0.8
       !uin(1:ifull,k)=uh(:,k)-ua(iwu,k)*0.1-ua(ieu,k)*0.5
+      !uin(1:ifull,k)=2.*uh(:,k)-ua(iwu,k)*0.2-2.*uh(ieu,k)
     elsewhere (euetest)
       ud(1:ifull,k)=(uin(1:ifull,k)*2.-uin(ieu,k)*0.4)/1.2
       !uin(1:ifull,k)=(uh(:,k)-ua(ieu,k)*0.4)/1.2
@@ -3282,8 +3289,9 @@ else
       vd(1:ifull,k)=vin(inv,k)*0.1+vin(1:ifull,k)+vin(isv,k)*0.5
       !vin(1:ifull,k)=vd(:,k)-va(isv,k)*0.1-va(inv,k)*0.5
     elsewhere (evstest)
-      vd(1:ifull,k)=vin(1:ifull,k)*1.2+vin(isv,k)*0.4
+      vd(1:ifull,k)=vin(1:ifull,k)*0.4+vin(isv,k)*0.8
       !vin(1:ifull,k)=vh(:,k)-va(isv,k)*0.1-va(inv,k)*0.5
+      !vin(1:ifull,k)=2.*vh(:,k)-va(isv,k)*0.2-2.*vh(inv,k)
     elsewhere (evntest)
       vd(1:ifull,k)=(vin(1:ifull,k)*2.-vin(inv,k)*0.4)/1.2
       !vin(1:ifull,k)=(vh(:,k)-va(inv,k)*0.4)/1.2

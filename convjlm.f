@@ -18,88 +18,96 @@
       use sigs_m
       use soil_m
       use soilsnow_m  ! for fracice
-      use tkeeps, only : tke,eps ! MJT
+      use tkeeps, only : tke,eps
       use tracers_m  ! ngas, nllp, ntrac
       use vvel_m
       use work2_m   ! for wetfac    JLM
+
       implicit none
-      integer itn,iq,k,k13,k23
-     .       ,khalf,khalfp,kt
-     .       ,ncubase,nlayers,nlayersp
-     .       ,ntest,ntr,nums,nuv
-     .       ,ka,kb,kc,mpwr
-      real convmax,delqq,delss,deltaq,delq_av,delt_av
-     .    ,den1,den2,den3,detr,dprec,dqrx,entrainp,entrr,entrradd
-     .    ,facuv,fldownn,fluxa,fluxb,fluxd,fluxup
-     .    ,frac,fraca,fracb,gam,hbas,hbase,heatlev
-     .    ,pwater,pwater0,qavg,qavgb,qentrr,qprec,qsk,rkmid
-     .    ,savg,savgb,sentrr,sum,totprec,veldt
-     .    ,rKa,Dva,cfls,cflscon,rhodz,qpf,pk,Apr,Bpr,Fr,rhoa,dz,Vr
-     .    ,dtev,qr,qgdiff,Cev2,qr2,Cevx,alphal,blx,evapls,revq
-     .    ,deluu,delvv,pb,sumb
-      real delthet,tmnht1,delons,rino
 
       include 'newmpar.h'
-      parameter (ntest=0)      ! 1 or 2 to turn on; -1 for ldr writes
-!                               -2,-3 for other detrain test      
-!     parameter (iterconv=1)   ! to kuocom.h
-!     parameter (fldown=.6)    ! to kuocom.h
-!     parameter (detrain=.05)  ! to kuocom.h
-!     parameter (alflnd=1.15)  ! e.g. 1.15  
-!     parameter (alfsea=1.05)  ! e.g. 1.05  
-!                                3:for RH-enhanced base
-c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
-      parameter (ncubase=3)    ! 3 ensure takes local maxima
-!                ncubase=0       ktmax limited in later itns
-!                        1       cloud base not below that of itn 1     
-!     parameter (mbase=0)      ! >0 cfrac test as %
-!     parameter (methdetr=2)   ! original code removed March 2010
-!     parameter (methprec=8)   ! 1 (top only); 2 (top half); 4 top quarter (= kbconv)
-!     parameter (nuvconv=0)    ! usually 0, >0 or <0 to turn on momentum mixing
-!     parameter (nuv=0)        ! usually 0, >0 to turn on new momentum mixing (base layers too)
-      integer kcl_top          ! max level for cloud top (convjlm,radrive,vertmix)
-!     nevapls:  turn off/on ls evap - through parm.h; 0 off, 5 newer UK
-!     could reinstate nbase=0 & kbsav_b from .f0406
       include 'const_phys.h'
+      include 'establ.h'
       include 'kuocom.h'   ! kbsav,ktsav,convfact,convpsav,ndavconv
       include 'parm.h'
       include 'parmdyn.h'
-      integer ktmax(ifull),kbsav_ls(ifull),kb_sav(ifull),kt_sav(ifull)
-      integer kkbb(ifull),kmin(ifull)
-      integer iaero
-      integer, save :: k500
+
+      integer, parameter :: ntest=0      ! 1 or 2 to turn on; -1 for ldr writes
+!                                          -2,-3 for other detrain test      
+!     parameter (iterconv=1)             ! to kuocom.h
+!     parameter (fldown=.6)              ! to kuocom.h
+!     parameter (detrain=.05)            ! to kuocom.h
+!     parameter (alflnd=1.15)            ! e.g. 1.15  
+!     parameter (alfsea=1.05)            ! e.g. 1.05  
+!                                          3:for RH-enhanced base
+c     parameter (ncubase=2)              ! 2 from 4/06, more like 0 before  - usual
+      integer, parameter :: ncubase=3    ! 3 ensure takes local maxima
+!                           ncubase=0       ktmax limited in later itns
+!                                   1       cloud base not below that of itn 1     
+!     parameter (mbase=0)                ! >0 cfrac test as %
+!     parameter (methdetr=2)             ! original code removed March 2010
+!     parameter (methprec=8)             ! 1 (top only); 2 (top half); 4 top quarter (= kbconv)
+!     parameter (nuvconv=0)              ! usually 0, >0 or <0 to turn on momentum mixing
+!     parameter (nuv=0)                  ! usually 0, >0 to turn on new momentum mixing (base layers too)
+      integer kcl_top                    ! max level for cloud top (convjlm,radrive,vertmix)
+!     nevapls:  turn off/on ls evap - through parm.h; 0 off, 5 newer UK
+!     could reinstate nbase=0 & kbsav_b from .f0406
+    
+      integer, dimension(:), allocatable, save :: kb_saved,kt_saved
+      integer, dimension(ifull) :: ktmax,kbsav_ls,kb_sav,kt_sav
+      integer, dimension(ifull) :: kkbb,kmin,kdown
+      integer, intent(in) :: iaero
+      integer, save :: klon2,klon23,k500
+      integer nuv
+      integer itn,iq,k,k13,k23
+      integer khalf,khalfp,kt
+      integer nlayersp
+      integer ntr,nums
+      integer ka,kb,kc,mpwr
       real, dimension(:), allocatable, save ::  timeconv
       real, dimension(:,:), allocatable, save :: downex,upin,upin4
       real, dimension(:,:,:), allocatable, save :: detrarr
-      integer, dimension(:), allocatable, save :: kb_saved,kt_saved
+      real, dimension(ifull,kl) :: delq,dels,delu
+      real, dimension(ifull,kl) :: delv,dqsdt,es
+      real, dimension(ifull,kl) :: fluxt,hs
+      real, dimension(ifull,kl) :: phi,qliqw
+      real, dimension(ifull,kl) :: entracc,entrsav
+      real, dimension(ifull,kl) :: fluxh,fluxv,revc
+      real, dimension(ifull,kl) :: qq,qs
+      real, dimension(ifull,kl) :: s,tt,ff
+      real, dimension(ifull,kl) :: qplume,splume
+      real, dimension(ifull,kl-1) :: qbass
+      real, dimension(ifull,naero) :: fscav
+      real, dimension(ifull) :: fldow,fluxq
+      real, dimension(ifull) :: fluxr,flux_dsk
       real, dimension(ifull) :: conrev,rho,xtgsto,ttsto,qqsto,qqrain
       real, dimension(ifull) :: alfqarr,alfqarrx,omgtst
-      real, dimension(ifull,naero) :: fscav
+      real, dimension(ifull) :: qbase,qdown
+      real, dimension(ifull) :: qxcess
+      real, dimension(ifull) :: rnrt,rnrtc,rnrtcn
+      real, dimension(ifull) :: sbase,tdown
+      real, dimension(ifull) :: entr,detrfactr,factr
+      real, dimension(ifull) :: cfraclim,convtim,entrainn
+      real, dimension(kl) :: dsk,h0,q0,t0
+      real, dimension(kl) :: fluxt_k
+      real, dimension(kl) :: k18
+      real fluxqs
+      real convmax,delqq,delss,deltaq,delq_av,delt_av
+      real den1,den2,den3,detr,dprec,dqrx,entrainp,entrr,entrradd
+      real facuv,fldownn,fluxa,fluxb,fluxd,fluxup
+      real frac,fraca,fracb,gam,hbas,hbase,heatlev
+      real pwater,pwater0,qavg,qavgb,qentrr,qprec,qsk,rkmid
+      real savg,savgb,sentrr,sum,totprec,veldt
+      real rKa,Dva,cfls,cflscon,rhodz,qpf,pk,Apr,Bpr,Fr,rhoa,dz,Vr
+      real dtev,qr,qgdiff,Cev2,qr2,Cevx,alphal,blx,evapls,revq
+      real deluu,delvv,pb,sumb
+      real delthet,tmnht1,delons,rino
+      real nlayers
+      real, save :: detrainin
       logical, dimension(ifull) :: bliqu
-      real delq(ifull,kl),dels(ifull,kl),delu(ifull,kl)
-      real delv(ifull,kl),dqsdt(ifull,kl),es(ifull,kl) 
-      real fldow(ifull),fluxq(ifull)
-      real fluxr(ifull),flux_dsk(ifull),fluxt(ifull,kl),hs(ifull,kl)  
-      real phi(ifull,kl),qbase(ifull),qdown(ifull),qliqw(ifull,kl)
-      real entracc(ifull,kl),entrsav(ifull,kl)
-      real fluxh(ifull,kl),fluxv(ifull,kl),revc(ifull,kl)
-      real qq(ifull,kl),qs(ifull,kl),qxcess(ifull)
-      real qbass(ifull,kl-1)
-      real rnrt(ifull),rnrtc(ifull),rnrtcn(ifull)
-      real s(ifull,kl),sbase(ifull),tdown(ifull),tt(ifull,kl)
-      real dsk(kl),h0(kl),q0(kl),t0(kl)  
-      real qplume(ifull,kl),splume(ifull,kl)
-      integer kdown(ifull)
-      real entr(ifull),detrfactr(ifull),factr(ifull)
-      real fluxqs,fluxt_k(kl)
-      real cfraclim(ifull),convtim(ifull),entrainn(ifull)
-      real ff(ifull,kl)
-      real, save:: detrainin
-      integer, save:: klon2,klon23
-      data nuv/0/
-      include 'establ.h'
       
       kcl_top=kl-2
+      nuv=0
       if (.not.allocated(upin)) then
         k500=1
         do while(sig(k500)>=0.6.and.k500<kl)
@@ -179,30 +187,34 @@ c      precalculate detrainment arrays for various methprec
        enddo
        endif  ! (methprec==6)
        if(methprec==7)then
+       ! Modified by MJT for 27 and 35 levels
+       call vgrid18(sig,k18)
        do kb=1,k500
        do kt=1,kl-1
          frac=min(1.,(sig(kb)-sig(kt))/.6)
-         nlayers=kt-kb
-         sum=.5*nlayers*(nlayers+1)
+         nlayers=k18(kt)-k18(kb)
+         sum=.5*nlayers*(nlayers+1.)
         do k=kb+1,kt
-         detrarr(k,kb,kt)=((1.-frac)*(kt-kb)+
-     &        (2.*frac-1.)*(k-kb))/
-     &       (((1.-frac)*(kt-kb)**2+    
+         detrarr(k,kb,kt)=((1.-frac)*(k18(kt)-k18(kb))+
+     &        (2.*frac-1.)*(k18(k)-k18(kb)))/
+     &       (((1.-frac)*(k18(kt)-k18(kb))**2+    
      &        (2.*frac-1.)*sum)) 
         enddo
        enddo
        enddo   
        endif  ! (methprec==7)
        if(methprec==8)then
-       do kb=1,k500
-       do kt=1,kl-1
-         nlayers=kt-kb
-         sum=.5*nlayers*(nlayers+1)
-        do k=kb+1,kt
-         detrarr(k,kb,kt)=(k-kb)/(sum) 
-        enddo
-       enddo
-       enddo   
+        ! Modified by MJT for 27 and 35 levels
+        call vgrid18(sig,k18)
+        do kb=1,k500
+         do kt=1,kl-1
+          nlayers=k18(kt)-k18(kb)
+          sum=.5*nlayers*(nlayers+1.)
+          do k=kb+1,kt
+           detrarr(k,kb,kt)=(k18(k)-k18(kb))/sum 
+          enddo
+         enddo
+        enddo   
        endif  ! (methprec==8)
       if(mydiag)then
         write (6,*) "following gives kb=1 values for methprec=",methprec
@@ -261,10 +273,11 @@ c     precalculate below-base downdraft & updraft environmental contrib terms
       endif    ! (ktau==1)   !---------------------------------------------------------------------------
 
         do iq=1,ifull
-          if(land(iq).or.fracice(iq)>0.)then
+          ! MJT suggestion
+          if(land(iq))then
             alfqarr(iq)=alflnd
           else
-            alfqarr(iq)=alfsea
+            alfqarr(iq)=alflnd*fracice(iq)+alfsea*(1.-fracice(iq))
           endif
 c        alfqarrx reduces for finer resolution than 200 km grid            
           alfqarrx(iq)=1.+(alfqarr(iq)-1.) *sqrt(ds/(em(iq)*208498.))
@@ -321,24 +334,26 @@ c       if(qq(iq,k)+qlg(iq,k)+qfg(iq,k)>qs(iq,k))factr(iq)=1.
 c     enddo
 
 c      following defines kb_sav (as kkbb) for use by nbase=-12     
-        kkbb(:)=1
-       do k=2,k500   
-        if(nbase==-12)then
+       kkbb(:)=1
+       if(nbase==-12)then
+        do k=2,k500   
          do iq=1,ifull
 !         find tentative cloud base ! 
 !            (middle of k-1 level, uppermost level below pblh)
           if(phi(iq,k-1)<pblh(iq)*grav)kkbb(iq)=k-1
          enddo    ! iq loop
+        enddo     ! k loop
        else  ! e.g. nbase=-13
+        do k=2,k500   
          do iq=1,ifull
 !         find tentative cloud base ! 
 !            (uppermost layer, with approx. bottom of layer below pblh)
           if(.5*(phi(iq,k-1)+phi(iq,k))<pblh(iq)*grav)kkbb(iq)=k
          enddo    ! iq loop
-        endif
+        enddo     ! k loop
+       endif
 c        print *,'k,phi-,phi,pblh*g,kkbb',
 c    &      k,phi(idjd,k-1),phi(idjd,k),pblh(idjd)*grav,kkbb(idjd)        
-       enddo     ! k loop
       if(mbase==-7)then
        alfqarr(:)=1.
        do iq=1,ifull
@@ -1705,3 +1720,44 @@ c           if(evapls>0.)write(6,*) 'iq,k,evapls ',iq,k,evapls
       endif  ! (ntest==-1.and.nproc==1)  
       return
       end
+
+      ! MJT - subroutine to re-grid sig to 18 level k
+      ! to be compatible with JLM code
+      subroutine vgrid18(sigin,kout)
+      
+      implicit none
+      
+      include 'newmpar.h'
+
+      integer k,kh
+      real, dimension(kl), intent(in) :: sigin
+      real, dimension(kl), intent(out) :: kout
+      real, dimension(18) :: sig18
+      real xp
+      
+      sig18(1:4)=(/ 0.995542, 0.978395, 0.945816, 0.899863 /)
+      sig18(5:8)=(/ 0.842593, 0.776063, 0.702332, 0.623457 /)
+      sig18(9:12)=(/ 0.541495, 0.458505, 0.376543, 0.297668 /)
+      sig18(13:16)=(/ 0.223937, 0.157407, 0.100137, 0.0541838 /)
+      sig18(17:18)=(/ 0.0216049, 0.00445816 /)
+    
+      kh=1
+      do k=1,kl
+        do while (kh<18)
+          if (sig18(kh+1)<sigin(k)) exit
+          kh=kh+1
+        end do
+        if (kh==18) then
+          xp=0.5*(sig18(18)-sigin(k))/sig18(18)
+          kout(k)=18.+xp
+        else if (sigin(k)>sig18(1)) then
+          xp=0.5*(1.-sigin(k))/(1.-sig18(1))
+          kout(k)=0.5+xp
+        else
+          xp=(sigin(k)-sig18(kh))/(sig18(kh+1)-sig18(kh))
+          kout(k)=real(kh)+xp
+        end if
+      end do
+      
+      return
+      end subroutine vgrid18

@@ -1183,28 +1183,26 @@ c***        but needed here for onthefly (different dims) 28/8/08
         end if
 
         ! PH - Add wetfac to output for mbase=-19 option
-        if (nested/=0) then
-          ucc=0.1
-          call histrd1(ncid,iarchi,ier,'wetfac',ik,6*ik,ucc,6*ik*ik)
-          if (iotest) then
-            if (myid==0) then
-              call ccmpi_distribute(wetfac,ucc)
-            else
-              call ccmpi_distribute(wetfac)
-            end if
+        ucc=0.1
+        call histrd1(ncid,iarchi,ier,'wetfac',ik,6*ik,ucc,6*ik*ik)
+        if (iotest) then
+          if (myid==0) then
+            call ccmpi_distribute(wetfac,ucc)
           else
-            if (myid==0) then
-              where (.not.land_a(:))
-                ucc=spval
-              end where
-              call fill_cc(ucc,spval,ik,0)
-            end if
-            call doints4(ucc,wetfac,nface4,xg4,yg4,nord,dk,ifg)
-          end if ! iotest
-          where (.not.land)
-            wetfac=1.
-          end where
-        end if	
+            call ccmpi_distribute(wetfac)
+          end if
+        else
+          if (myid==0) then
+            where (.not.land_a(:))
+              ucc=spval
+            end where
+            call fill_cc(ucc,spval,ik,0)
+          end if
+          call doints4(ucc,wetfac,nface4,xg4,yg4,nord,dk,ifg)
+        end if ! iotest
+        where (.not.land)
+          wetfac=1.
+        end where
 
         !--------------------------------------------------
         ! Read 10m wind speeds for special sea roughness length calculations

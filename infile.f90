@@ -777,7 +777,7 @@ include 'parm.h'
 integer, intent(in) :: kk,n
 integer klapse,k,kin,iq
 real, dimension(ifull,kl), intent(out) :: t
-real, dimension(ifull,kl) :: told
+real, dimension(ifull,kk) :: told
 real, dimension(kk), intent(in) :: sigin
 real, dimension(kl) :: ka,kb,wta,wtb
       
