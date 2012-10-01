@@ -220,8 +220,6 @@ c        endif
       enddo    ! k loop
 
       call bounds(pe)
-      print *,"pe ",maxval(pe(1:ifull,:)),maxval(pe(in,:)),
-     & maxval(pe(ie,:)),maxval(pe(is,:)),maxval(pe(iw,:))
       if(precon<0)then
         call helmsor(zz,zzn,zze,zzw,zzs,helm,pe,rhsl)
       else
