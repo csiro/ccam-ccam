@@ -131,6 +131,12 @@ c     parameter (ncubase=2)              ! 2 from 4/06, more like 0 before  - us
       mpwr=nint(abs(entrain))
       
       if(ktau==1)then   !---------------------------------------------------------------------------
+        ! MJT suggestion
+        if (alflnd<0..or.alfsea<0.) then
+	  write(6,*) "ERROR: negative alflnd and alfsea are"
+	  write(6,*) "not supported"
+	  stop
+	end if
         kb_saved(:)=kl-1
         kt_saved(:)=kl-1
         detrainin=detrain

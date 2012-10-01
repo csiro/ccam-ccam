@@ -30,13 +30,13 @@ integer, parameter :: basinmd=3     ! basin mode (0=soil, 1=redistribute, 2=pile
 integer, parameter :: mstagf =0     ! alternating staggering (0=off left, -1=off right, >0 alternating)
 integer, parameter :: koff   =1     ! time split stagger relative to A-grid (koff=0) or C-grid (koff=1)
 integer, parameter :: nf     =2     ! power for horizontal diffusion reduction factor
-integer, parameter :: itnmax =4     ! number of interations for staggering
+integer, parameter :: itnmax =6     ! number of interations for staggering
 real, parameter :: rhosn  =330.     ! density snow (kg m^-3)
 real, parameter :: rhoic  =900.     ! density ice  (kg m^-3)
 real, parameter :: grav   =9.80616  ! gravitational constant (m s^-2)
 real, parameter :: delphi =150.     ! horizontal diffusion reduction factor gradient
-real, save      :: ocnsmag=1.       ! horizontal diffusion (2. in Griffies (2000), 1.-1.4 in POM (Mellor 2004))
-real, save      :: ocneps =0.1      ! semi-implicit off-centring term
+real, save      :: ocnsmag=2.       ! horizontal diffusion (2. in Griffies (2000), 1.-1.4 in POM (Mellor 2004))
+real, save      :: ocneps =0.2      ! semi-implicit off-centring term
 
 contains
 
@@ -1392,7 +1392,7 @@ odum=ibu(1:ifull)+ibu(iwu)+ibv(1:ifull)+ibv(isv)
 
 ! Iteratively solve for free surface height, eta
 ! Iterative loop to estimate ice 'pressure'
-alpha=1.
+alpha=0.9
 do ll=1,llmax
 
   dumc(1:ifull,1)=neta(1:ifull)
