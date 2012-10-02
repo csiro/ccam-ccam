@@ -239,91 +239,155 @@ c     open netcdf file for writing output
 !     in that case, don't write the file
       if (ngrdpts.gt.0) then
         ierr = nf_create(outfile,0,tsid(1))
-        if (ierr.ne.nf_noerr) stop 'create ts file failed'
+        if (ierr.ne.nf_noerr) then
+	 write(6,*) nf_strerror(ierr)
+	 stop 'create ts file failed'
+	end if
 c       define dimensions
         ierr=nf_def_dim(tsid(1),'gridpts',ngrdpts,griddim)
-        if (ierr.ne.nf_noerr) stop 'timeseries: grid dimension error'
+        if (ierr.ne.nf_noerr) then
+         write(6,*) nf_strerror(ierr)
+	 stop 'timeseries: grid dimension error'
+	end if
         ierr=nf_def_dim(tsid(1),'surfpts',ngrdpts1,surfdim)
-        if (ierr.ne.nf_noerr) stop 'timeseries: grid dimension error'
+        if (ierr.ne.nf_noerr) then
+	 write(6,*) nf_strerror(ierr)
+	 stop 'timeseries: grid dimension error'
+	end if
         ierr=nf_def_dim(tsid(1),'ijk',3,ijkdim)
         ierr=nf_def_dim(tsid(1),'tracers',ntrac,tracdim)
-        if (ierr.ne.nf_noerr) stop 'timeseries: tracer dimension error'
+        if (ierr.ne.nf_noerr) then
+	 write(6,*) nf_strerror(ierr)
+	 stop 'timeseries: tracer dimension error'
+	end if
         ierr=nf_def_dim(tsid(1),'time',nf_unlimited,timedim)
-        if (ierr.ne.nf_noerr) stop 'timeseries: time dimension error'
+        if (ierr.ne.nf_noerr) then
+         write(6,*) nf_strerror(ierr)
+	 stop 'timeseries: time dimension error'
+	end if
 !     rml 19/09/07 add length dimension for tracname character array
         ierr = nf_def_dim(tsid(1),'len',13,lendim)
-        if (ierr.ne.nf_noerr) stop 'timeseries: length dimension error'
-
+        if (ierr.ne.nf_noerr) then
+         write(6,*) nf_strerror(ierr)
+	 stop 'timeseries: length dimension error'
+        end if
 c       define variables
 !       rml 19/09/07 add tracer name variable
         dims(1)=lendim; dims(2)=tracdim
         ierr = nf_def_var(tsid(1),'tracer_name',nf_char,2,dims,
      &tracnamid)
-        if (ierr.ne.nf_noerr) stop 'timeseries: tracer name var error'
-
+        if (ierr.ne.nf_noerr) then
+         write(6,*) nf_strerror(ierr)
+	 stop 'timeseries: tracer name var error'
+	end if
         dims(1)=griddim; dims(2)=ijkdim
         ierr = nf_def_var(tsid(1),'grid',nf_int,2,dims,gridid)
-        if (ierr.ne.nf_noerr) stop 'timeseries: grid var error'
+        if (ierr.ne.nf_noerr) then
+	 write(6,*) nf_strerror(ierr)
+	 stop 'timeseries: grid var error'
+	end if
         dims(1)=surfdim; dims(2)=ijkdim
         ierr = nf_def_var(tsid(1),'gridsurf',nf_int,2,dims,gridsurfid)
-        if (ierr.ne.nf_noerr) stop 'timeseries: grid var error'
+        if (ierr.ne.nf_noerr) then
+	 write(6,*) nf_strerror(ierr)
+	 stop 'timeseries: grid var error'
+        end if
 
         if ( nproc > 1 ) then
           dims(1)=griddim
           ierr = nf_def_var(tsid(1),'gridorder',nf_int,1,dims,
      &                    gridorderid)
-          if (ierr.ne.nf_noerr) stop 'timeseries: grid var error'
+          if (ierr.ne.nf_noerr) then
+           write(6,*) nf_strerror(ierr)
+	   stop 'timeseries: grid var error'
+	  end if 
           dims(1)=surfdim
           ierr = nf_def_var(tsid(1),'surforder',nf_int,1,dims,
      & surforderid)
-          if (ierr.ne.nf_noerr) stop 'timeseries: grid var error'
+          if (ierr.ne.nf_noerr) then
+           write(6,*) nf_strerror(ierr)	  
+	   stop 'timeseries: grid var error'
+	  end if
         end if
 
         ierr = nf_def_var(tsid(1),'time',nf_double,1,timedim,tsid(2))
-        if (ierr.ne.nf_noerr) stop 'timeseries: tstime var error'
+        if (ierr.ne.nf_noerr) then
+         write(6,*) nf_strerror(ierr)
+	 stop 'timeseries: tstime var error'
+	end if
         dims(1)=griddim; dims(2)=tracdim; dims(3)=timedim
         ierr = nf_def_var(tsid(1),'concts',nf_float,3,dims,tsid(3))
-        if (ierr.ne.nf_noerr) stop 'timeseries: concts var error'
+        if (ierr.ne.nf_noerr) then
+	 write(6,*) nf_strerror(ierr)
+	 stop 'timeseries: concts var error'
+	end if
         do n=1,n3d
           dims(1)=griddim; dims(2)=timedim
           ierr = nf_def_var(tsid(1),varname3(n),nf_float,2,dims(1:2),
      & tsid(3+n))
-          if (ierr.ne.nf_noerr) stop 'timeseries: 3d var error'
+          if (ierr.ne.nf_noerr) then
+           write(6,*) nf_strerror(ierr)	  
+	   stop 'timeseries: 3d var error'
+	  end if
         enddo
         do n=1,n2d
           if (trim(varname2(n)).eq.'flux') then
             dims(1)=surfdim; dims(2)=tracdim; dims(3)=timedim
             ierr = nf_def_var(tsid(1),varname2(n),nf_float,3,dims,
      & tsid(3+n3d+n))
-            if (ierr.ne.nf_noerr) stop 'timeseries: 2d var error'
+            if (ierr.ne.nf_noerr) then
+             write(6,*) nf_strerror(ierr)	    
+	     stop 'timeseries: 2d var error'
+	    end if
           else
             dims(1)=surfdim; dims(2)=timedim
             ierr = nf_def_var(tsid(1),varname2(n),nf_float,2,dims(1:2),
      &   tsid(3+n3d+n))
-            if (ierr.ne.nf_noerr) stop 'timeseries: 2d var error'
+            if (ierr.ne.nf_noerr) then
+             write(6,*) nf_strerror(ierr)	    
+	     stop 'timeseries: 2d var error'
+	    end if
           endif
         enddo
 c
 c     leave define mode
         ierr = nf_enddef(tsid(1))
-        if (ierr.ne.nf_noerr) stop 'timeseries: end define error'
+        if (ierr.ne.nf_noerr) then
+	 write(6,*) nf_strerror(ierr)	
+	 stop 'timeseries: end define error'
+	end if
 c
 !     rml 19/09/07 write tracer name array
         ierr = nf_put_var_text(tsid(1),tracnamid,tracname)
-        if (ierr.ne.nf_noerr) stop 'timeseries: error writing tracname'
+        if (ierr.ne.nf_noerr) then
+	 write(6,*) nf_strerror(ierr)	
+	 stop 'timeseries: error writing tracname'
+	end if
 
 c     write grid point arrays
         ierr = nf_put_var_int(tsid(1),gridid,listijk)
-        if (ierr.ne.nf_noerr) stop 'error writing grid'
+        if (ierr.ne.nf_noerr) then
+	 write(6,*) nf_strerror(ierr)	
+	 stop 'error writing grid'
+	end if
       ! Need explicit section of templist here, because array may have
       ! been allocated larger
         ierr = nf_put_var_int(tsid(1),gridsurfid,templist(:ngrdpts1,:))
-        if (ierr.ne.nf_noerr) stop 'error writing gridsurf'
+        if (ierr.ne.nf_noerr) then
+	 write(6,*) nf_strerror(ierr)	
+	 stop 'error writing gridsurf'
+	end if
         if ( nproc > 1 ) then
          ierr = nf_put_var_int(tsid(1),gridorderid,gridorder(1:ngrdpts))
-          if (ierr.ne.nf_noerr) stop 'error writing gridorder'
+          if (ierr.ne.nf_noerr) then
+           write(6,*) nf_strerror(ierr)	  
+	   stop 'error writing gridorder'
+	  end if
         ierr = nf_put_var_int(tsid(1),surforderid,surforder(1:ngrdpts1))
-          if (ierr.ne.nf_noerr) stop 'error writing surforder'
+          if (ierr.ne.nf_noerr) then
+           write(6,*) nf_strerror(ierr)	  
+	   stop 'error writing surforder'
+	  end if
         end if
         ierr = nf_sync(tsid(1))
         deallocate(templist)

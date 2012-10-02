@@ -1299,6 +1299,8 @@
       select case(nkuo)
         case(5)
           call betts(t,qg,tn,land,ps) ! not called these days
+	case(22)
+	  call oldconvjlm(iaero)      ! JLM's original convjlm before 2012
         case(23,24)
           call convjlm(iaero)         ! split convjlm 
         case(46)

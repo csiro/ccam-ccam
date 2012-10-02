@@ -409,15 +409,15 @@ c       check fluxname first otherwise default to 'flux'
           if (ierr.ne.nf_noerr) stop 'flux variable not found'
         endif
 c       rml 25/08/04 read flux units attribute
-        fluxunit='             '
+        fluxunit=''
         ierr = nf_get_att_text(ncidfl,fluxid,'units',fluxunit)
 c rml 08/11/04 added radon units
 ! rml 30/4/10 exclude mcf deposition case
         if (igas.le.ngas) then
           tracunit(igas)=fluxunit
-          if (trim(fluxunit).ne.'gC/m2/s'.and.
-     &      trim(fluxunit).ne.'Bq/m2/s'.and.
-     &      trim(fluxunit).ne.'mol/m2/s') then
+          if (fluxunit(1:7).ne.'gC/m2/s'.and.
+     &      fluxunit(1:7).ne.'Bq/m2/s'.and.
+     &      fluxunit(1:8).ne.'mol/m2/s') then
             write(6,*) 'Units for ',trim(fluxname),
      &                        ' are ',trim(fluxunit)
             write(6,*) 'Code not set up for units other than gC/m
@@ -426,7 +426,8 @@ c rml 08/11/04 added radon units
      &                        ' are ',trim(fluxunit)
           write(unit_trout,*) 'Code not set up for units other than gC/m
      &2/s or mol/m2/s or Bq/m2/s'
-            stop 'fix flux units'
+            write(6,*) 'fix flux units'
+	    call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
           endif
         endif
         if (trim(fluxtype).eq.'daypulseon') then
