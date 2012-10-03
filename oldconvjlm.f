@@ -133,7 +133,7 @@ c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
      &          alfqarr(iq)=abs(alflnd)
           enddo
         endif
-        if(alflnd<0)then
+        if(alflnd<0.)then
 !         use full value for dx>60km, else linearly vary upwards from 1
           alfqarr(:)=1.+min(1.,ds/(60.e3*em(1:ifull)))*(alfqarr(:)-1.)
         endif  ! (alflnd<0)
@@ -1515,6 +1515,7 @@ c          if(iq==idjd)print *,'k,frac ',k,frac
           xtgsto(iq)=xtg(iq,kt,3)
         end do
         call convscav(fscav,qqsto,qqrain,bliqu,ttsto,xtgsto,rho)
+        xtusav=xtg(1:ifull,:,:) ! Outside convective cloud - fixed in aerointerface.f90
         do ntr=1,naero
           s(:,1:kl-2)=xtg(1:ifull,1:kl-2,ntr)
           do iq=1,ifull
