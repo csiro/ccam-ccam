@@ -71,6 +71,25 @@ end function MPI_Wtime
 double precision function MPI_Wtick()
    MPI_Wtick = 0.0
 end function MPI_Wtick
+
+subroutine MPI_Scatter( sbuf, a, b, rbuf, c, d, iproc, e, ierr )
+   real, dimension(*) :: sbuf,rbuf
+   integer :: a,b,c,d,e,iproc
+   rbuf(1:a)=sbuf(1:a)
+   ierr = 0
+end subroutine MPI_Scatter
+
+subroutine MPI_Gather( sbuf, a, b, rbuf, c, d, iproc, e, ierr )
+   real, dimension(*) :: sbuf,rbuf
+   integer :: a,b,c,d,e,iproc
+   rbuf(1:a)=sbuf(1:a)
+   ierr = 0
+end subroutine MPI_Gather
+ 
+subroutine MPI_Comm_Split(a, b, c, d, ierr)
+  d=a
+  ierr=0
+end subroutine MPI_Comm_Split
  
 ! Note of the following routines should be called in the 1 proc version.
 subroutine MPI_Waitall(nreq,ireq,status,ierr)
@@ -108,3 +127,7 @@ subroutine MPI_Get_count(status, a, count, ierr)
    stop
 end subroutine MPI_Get_count
 
+subroutine MPI_Waitany(nreq,ireq,indx,status,ierr)
+   print*, "Error, dummy MPI_Waitall called"
+   stop
+end subroutine MPI_Waitany

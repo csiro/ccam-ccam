@@ -1351,7 +1351,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       
       integer, intent(in) :: myid,mproc,hproc,npta,pn,px,ns,ne
       integer k,ppass,iy,ppn,ppx,nne,nns,iproc,ierr
-      integer n,a,b,c,til
+      integer n,a,b,c,til,lsize
       integer :: itag=0
       integer, dimension(MPI_STATUS_SIZE) :: status
       real, intent(in) :: cin
@@ -1421,8 +1421,20 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         end if
 
         ! computations for the local processor group
-        call speclocal(myid,mproc,hproc,ns,ne,cq,ppass,qsum,qp,
-     &         qu,qv,qw,qt,qq)
+        if (mod(il_g,mproc)==0) then
+          if (myid==0.and.nmaxpr==1) then
+            write(6,*) "Symmetric decomposition"
+          end if
+          lsize=ifull_g/mproc
+          call speclocal_s(myid,mproc,hproc,ns,ne,cq,ppass,qsum,qp,
+     &           qu,qv,qw,qt,qq,lsize)        
+        else
+          if (myid==0.and.nmaxpr==1) then
+            write(6,*) "Asymmetric decomposition"
+          end if
+          call speclocal(myid,mproc,hproc,ns,ne,cq,ppass,qsum,qp,
+     &           qu,qv,qw,qt,qq)
+        end if
         
         nns=ppass*til+1
         nne=ppass*til+til
@@ -1616,6 +1628,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       !---------------------------------------------------------------------------------
       ! This code runs between the local processors
       ! Code was moved to this subroutine to help the compiler vectorise the code
+      ! This version handles uneven distribution of rows across processors
       subroutine speclocal(myid,mproc,hproc,ns,ne,cq,ppass,qsum,
      &             qp,qu,qv,qw,qt,qq)
 
@@ -2090,6 +2103,508 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       
       return  
       end subroutine speclocal
+
+      !---------------------------------------------------------------------------------
+      ! This code runs between the local processors
+      ! Code was moved to this subroutine to help the compiler vectorise the code
+      ! This version only handles an even distribution of rows across processors
+      subroutine speclocal_s(myid,mproc,hproc,ns,ne,cq,ppass,qsum,
+     &             qp,qu,qv,qw,qt,qq,lsize)
+
+      use xyzinfo_m         ! Grid coordinate arrays
+
+      implicit none
+      
+      include 'newmpar.h'   ! Grid parameters
+      include 'mpif.h'      ! MPI parameters
+      include 'parm.h'      ! Model configuration
+      
+      integer, intent(in) :: myid,mproc,hproc,ns,ne,ppass,lsize
+      integer j,k,n,ipass,kpass,iy,ix,me,a,b,c
+      integer iproc,ierr
+      integer :: itag=0
+      integer, dimension(MPI_STATUS_SIZE) :: status
+      integer, save :: face_comm
+      integer, dimension(4*il_g,il_g,0:3) :: igrd
+      integer, dimension(0:3) :: maps
+      integer, parameter, dimension(2:3) :: kn=(/0,3/)
+      integer, parameter, dimension(2:3) :: kx=(/2,3/)
+      real, intent(in) :: cq
+      real, dimension(ifull_g), intent(inout) :: qp,qsum
+      real, dimension(ifull_g,kbotdav:ktopdav), intent(inout) :: qu,qv
+      real, dimension(ifull_g,kbotdav:ktopdav), intent(inout) :: qw
+      real, dimension(ifull_g,kbotdav:ktopdav), intent(inout) :: qt,qq
+      real, dimension(4*il_g,kbotdav:ktopdav) :: pu,pv,pw,pt,pq
+      real, dimension(4*il_g,kbotdav:ktopdav) :: au,av,aw,at,aq
+      real, dimension(4*il_g) :: pp,ap,psum,asum,ra,xa,ya,za
+      real, dimension(ifull_g*(ktopdav-kbotdav+1)) :: dd
+      real, dimension(lsize*(ktopdav-kbotdav+1)) :: ee
+      logical, save :: first=.true.
+      
+      if (first) then
+        call MPI_Comm_Split(MPI_COMM_WORLD,hproc,myid-hproc,
+     &                      face_comm,ierr)
+        first=.false.
+      end if
+      
+      maps=(/ il_g, il_g, 4*il_g, 3*il_g /)
+      dd=0.
+      ee=0.
+      
+      do ipass=0,3
+        me=maps(ipass)
+        call getiqa(igrd(:,:,ipass),me,ipass,ppass,il_g)
+
+        if (ipass==3) then
+          itag=itag+1
+          if (myid==0.and.nmaxpr==1) then
+            write(6,*) "Recieve arrays from local host"
+          end if
+          iy=me*il_g
+          ix=iy/mproc
+          if (myid==hproc) then
+            do j=ne+1,il_g
+              do n=1,me
+                dd(n+me*(j-1))=qsum(igrd(n,j,ipass))
+              end do
+            end do
+          end if
+          call MPI_Scatter(dd(1:iy),ix,MPI_REAL,
+     &                     ee(1:ix),ix,MPI_REAL,
+     &                     0,face_comm,ierr)
+          if (myid/=hproc) then
+            do j=ns,ne
+              do n=1,me
+                qsum(igrd(n,j,ipass))=ee(n+me*(j-ns))
+              end do
+            end do
+          end if
+          if(nud_p>0)then
+            if (myid==hproc) then
+              do j=ne+1,il_g
+                do n=1,me
+                  dd(n+me*(j-1))=qp(igrd(n,j,ipass))
+                end do
+              end do
+            end if
+            call MPI_Scatter(dd(1:iy),ix,MPI_REAL,
+     &                     ee(1:ix),ix,MPI_REAL,
+     &                     0,face_comm,ierr)
+            if (myid/=hproc) then
+              do j=ns,ne
+                do n=1,me
+                  qp(igrd(n,j,ipass))=ee(n+me*(j-ns))
+                end do
+              end do
+            end if
+          end if
+          iy=me*il_g*(ktopdav-kbotdav+1)
+          ix=iy/mproc
+          a=me*(ktopdav-kbotdav+1)
+          if(nud_uv>0)then
+            if (myid==hproc) then
+              do j=ne+1,il_g
+                do k=kbotdav,ktopdav
+                  do n=1,me
+                    dd(n+me*(k-kbotdav)+a*(j-1))
+     &                =qu(igrd(n,j,ipass),k)
+                  end do
+                end do
+              end do
+            end if
+            call MPI_Scatter(dd(1:iy),ix,MPI_REAL,
+     &                     ee(1:ix),ix,MPI_REAL,
+     &                     0,face_comm,ierr)
+            if (myid/=hproc) then
+              do j=ns,ne
+                do k=kbotdav,ktopdav
+                  do n=1,me
+                    qu(igrd(n,j,ipass),k)
+     &                =ee(n+me*(k-kbotdav)+a*(j-ns))
+                  end do
+                end do
+              end do
+            end if
+            if (myid==hproc) then
+              do j=ne+1,il_g
+                do k=kbotdav,ktopdav
+                  do n=1,me
+                    dd(n+me*(k-kbotdav)+a*(j-1))
+     &                =qv(igrd(n,j,ipass),k)
+                  end do
+                end do
+              end do
+            end if
+            call MPI_Scatter(dd(1:iy),ix,MPI_REAL,
+     &                     ee(1:ix),ix,MPI_REAL,
+     &                     0,face_comm,ierr)
+            if (myid/=hproc) then
+              do j=ns,ne
+                do k=kbotdav,ktopdav
+                  do n=1,me
+                    qv(igrd(n,j,ipass),k)
+     &                =ee(n+me*(k-kbotdav)+a*(j-ns))
+                  end do
+                end do
+              end do
+            end if
+            if (myid==hproc) then
+              do j=ne+1,il_g
+                do k=kbotdav,ktopdav
+                  do n=1,me
+                    dd(n+me*(k-kbotdav)+a*(j-1))
+     &                =qw(igrd(n,j,ipass),k)
+                  end do
+                end do
+              end do
+            end if
+            call MPI_Scatter(dd(1:iy),ix,MPI_REAL,
+     &                     ee(1:ix),ix,MPI_REAL,
+     &                     0,face_comm,ierr)
+            if (myid/=hproc) then
+              do j=ns,ne
+                do k=kbotdav,ktopdav
+                  do n=1,me
+                    qw(igrd(n,j,ipass),k)
+     &                =ee(n+me*(k-kbotdav)+a*(j-ns))
+                  end do
+                end do
+              end do
+            end if
+          end if
+          if(nud_t>0)then
+            if (myid==hproc) then
+              do j=ne+1,il_g
+                do k=kbotdav,ktopdav
+                  do n=1,me
+                    dd(n+me*(k-kbotdav)+a*(j-1))
+     &                =qt(igrd(n,j,ipass),k)
+                  end do
+                end do
+              end do
+            end if
+            call MPI_Scatter(dd(1:iy),ix,MPI_REAL,
+     &                     ee(1:ix),ix,MPI_REAL,
+     &                     0,face_comm,ierr)
+            if (myid/=hproc) then
+              do j=ns,ne
+                do k=kbotdav,ktopdav
+                  do n=1,me
+                    qt(igrd(n,j,ipass),k)
+     &                =ee(n+me*(k-kbotdav)+a*(j-ns))
+                  end do
+                end do
+              end do
+            end if
+          end if
+          if(nud_q>0)then
+            if (myid==hproc) then
+              do j=ne+1,il_g
+                do k=kbotdav,ktopdav
+                  do n=1,me
+                    dd(n+me*(k-kbotdav)+a*(j-1))
+     &                =qq(igrd(n,j,ipass),k)
+                  end do
+                end do
+              end do
+            end if
+            call MPI_Scatter(dd(1:iy),ix,MPI_REAL,
+     &                     ee(1:ix),ix,MPI_REAL,
+     &                     0,face_comm,ierr)
+            if (myid/=hproc) then
+              do j=ns,ne
+                do k=kbotdav,ktopdav
+                  do n=1,me
+                    qq(igrd(n,j,ipass),k)
+     &                =ee(n+me*(k-kbotdav)+a*(j-ns))
+                  end do
+                end do
+              end do
+            end if
+          end if
+        end if
+
+        if (myid==0.and.nmaxpr==1) write(6,*) "Start convolution"
+
+        do j=ns,ne
+          asum(1:me)=qsum(igrd(1:me,j,ipass))
+          xa(1:me)=x_g(igrd(1:me,j,ipass))
+          ya(1:me)=y_g(igrd(1:me,j,ipass))
+          za(1:me)=z_g(igrd(1:me,j,ipass))
+          if (nud_p>0) then
+            ap(1:me)=qp(igrd(1:me,j,ipass))
+          end if
+          if (nud_uv>0) then
+            au(1:me,:)=qu(igrd(1:me,j,ipass),:)
+            av(1:me,:)=qv(igrd(1:me,j,ipass),:)
+            aw(1:me,:)=qw(igrd(1:me,j,ipass),:)
+          end if
+          if (nud_t>0) then
+            at(1:me,:)=qt(igrd(1:me,j,ipass),:)
+          end if
+          if (nud_q>0) then
+            aq(1:me,:)=qq(igrd(1:me,j,ipass),:)
+          end if
+          do n=1,il_g
+            ra(1:me)=xa(n)*xa(1:me)+ya(n)*ya(1:me)+za(n)*za(1:me)
+            ra(1:me)=acos(max(min(ra(1:me),1.),-1.))
+            ra(1:me)=exp(-(cq*ra(1:me))**2)
+            ! can also use the lines below which integrate the gaussian
+            ! analytically over the length element (but slower)
+            !ra(1)=2.*erf(cq*0.5*(ds/rearth)
+            !ra(2:me)=erf(cq*(ra(2:me)+0.5*(ds/rearth)))  ! redefine ra(:) as wgt(:)
+     &      !        -erf(cq*(ra(2:me)-0.5*(ds/rearth)))  ! (correct units are 1/cq)
+            psum(n)=sum(ra(1:me)*asum(1:me))
+            if (nud_p>0) then
+              pp(n)=sum(ra(1:me)*ap(1:me))
+            end if
+            if (nud_uv>0) then
+              do k=kbotdav,ktopdav
+                pu(n,k)=sum(ra(1:me)*au(1:me,k))
+                pv(n,k)=sum(ra(1:me)*av(1:me,k))
+                pw(n,k)=sum(ra(1:me)*aw(1:me,k))
+              end do
+            end if
+            if (nud_t>0) then
+              do k=kbotdav,ktopdav
+                pt(n,k)=sum(ra(1:me)*at(1:me,k))
+              end do
+            end if
+            if (nud_q>0) then
+              do k=kbotdav,ktopdav
+                pq(n,k)=sum(ra(1:me)*aq(1:me,k))
+              end do
+            end if
+          end do
+          qsum(igrd(1:il_g,j,ipass))=psum(1:il_g)
+          if (nud_p>0) then
+            qp(igrd(1:il_g,j,ipass))=pp(1:il_g)
+          end if
+          if (nud_uv>0) then
+            qu(igrd(1:il_g,j,ipass),:)=pu(1:il_g,:)
+            qv(igrd(1:il_g,j,ipass),:)=pv(1:il_g,:)
+            qw(igrd(1:il_g,j,ipass),:)=pw(1:il_g,:)
+          end if
+          if (nud_t>0) then
+            qt(igrd(1:il_g,j,ipass),:)=pt(1:il_g,:)
+          end if
+          if (nud_q>0) then
+            qq(igrd(1:il_g,j,ipass),:)=pq(1:il_g,:)
+          end if
+        end do
+
+        if (myid==0.and.nmaxpr==1) write(6,*) "End convolution"
+
+        if (ipass==2.or.ipass==3) then
+          itag=itag+1
+          if (myid==0.and.nmaxpr==1) then
+            write(6,*) "Send arrays to local host"
+          end if
+          iy=il_g*il_g*(kx(ipass)-kn(ipass)+1)
+          ix=iy/mproc
+          a=il_g*(kx(ipass)-kn(ipass)+1)
+          c=kn(ipass)
+          if (myid/=hproc) then
+            do j=ns,ne
+              do kpass=kn(ipass),kx(ipass)
+                do n=1,il_g
+                  ee(n+il_g*(kpass-c)+a*(j-ns))
+     &              =qsum(igrd(n,j,kpass))
+                end do
+              end do
+            end do
+          end if
+          call MPI_Gather(ee(1:ix),ix,MPI_REAL,
+     &                    dd(1:iy),ix,MPI_REAL,
+     &                    0,face_comm,ierr)
+          if (myid==hproc) then
+            do j=ne+1,il_g
+              do kpass=kn(ipass),kx(ipass)
+                do n=1,il_g
+                  qsum(igrd(n,j,kpass))
+     &              =dd(n+il_g*(kpass-c)+a*(j-1))
+                end do
+              end do
+            end do
+          end if
+          if(nud_p>0)then
+            if (myid/=hproc) then
+              do j=ns,ne
+                do kpass=kn(ipass),kx(ipass)
+                  do n=1,il_g
+                    ee(n+il_g*(kpass-c)+a*(j-ns))
+     &                =qp(igrd(n,j,kpass))
+                  end do
+                end do
+              end do
+            end if
+            call MPI_Gather(ee(1:ix),ix,MPI_REAL,
+     &                      dd(1:iy),ix,MPI_REAL,
+     &                      0,face_comm,ierr)
+            if (myid==hproc) then
+              do j=ne+1,il_g
+                do kpass=kn(ipass),kx(ipass)
+                  do n=1,il_g
+                    qp(igrd(n,j,kpass))
+     &                =dd(n+il_g*(kpass-c)+a*(j-1))
+                  end do
+                end do
+              end do
+            end if
+          end if
+          iy=il_g*il_g*(ktopdav-kbotdav+1)
+     &       *(kx(ipass)-kn(ipass)+1)
+          ix=iy/mproc
+          a=il_g*(kx(ipass)-kn(ipass)+1)
+          b=il_g*(kx(ipass)-kn(ipass)+1)*(ktopdav-kbotdav+1)
+          c=kn(ipass)
+          if(nud_uv>0)then
+            if (myid/=hproc) then
+              do j=ns,ne
+                do k=kbotdav,ktopdav
+                  do kpass=kn(ipass),kx(ipass)
+                    do n=1,il_g
+                      ee(n+il_g*(kpass-c)+a*(k-kbotdav)+b*(j-ns))
+     &                  =qu(igrd(n,j,kpass),k)
+                    end do
+                  end do
+                end do
+              end do
+            end if
+            call MPI_Gather(ee(1:ix),ix,MPI_REAL,
+     &                      dd(1:iy),ix,MPI_REAL,
+     &                      0,face_comm,ierr)
+            if (myid==hproc) then
+              do j=ne+1,il_g
+                do k=kbotdav,ktopdav              
+                  do kpass=kn(ipass),kx(ipass)
+                    do n=1,il_g
+                      qu(igrd(n,j,kpass),k)
+     &                  =dd(n+il_g*(kpass-c)+a*(k-kbotdav)+b*(j-1))
+                    end do
+                  end do
+                end do
+              end do
+            end if
+            if (myid/=hproc) then
+              do j=ns,ne
+                do k=kbotdav,ktopdav
+                  do kpass=kn(ipass),kx(ipass)
+                    do n=1,il_g
+                      ee(n+il_g*(kpass-c)+a*(k-kbotdav)+b*(j-ns))
+     &                  =qv(igrd(n,j,kpass),k)
+                    end do
+                  end do
+                end do
+              end do
+            end if
+            call MPI_Gather(ee(1:ix),ix,MPI_REAL,
+     &                      dd(1:iy),ix,MPI_REAL,
+     &                      0,face_comm,ierr)
+            if (myid==hproc) then
+              do j=ne+1,il_g
+                do k=kbotdav,ktopdav              
+                  do kpass=kn(ipass),kx(ipass)
+                    do n=1,il_g
+                      qv(igrd(n,j,kpass),k)
+     &                  =dd(n+il_g*(kpass-c)+a*(k-kbotdav)+b*(j-1))
+                    end do
+                  end do
+                end do
+              end do
+            end if
+            if (myid/=hproc) then
+              do j=ns,ne
+                do k=kbotdav,ktopdav
+                  do kpass=kn(ipass),kx(ipass)
+                    do n=1,il_g
+                      ee(n+il_g*(kpass-c)+a*(k-kbotdav)+b*(j-ns))
+     &                  =qw(igrd(n,j,kpass),k)
+                    end do
+                  end do
+                end do
+              end do
+            end if
+            call MPI_Gather(ee(1:ix),ix,MPI_REAL,
+     &                      dd(1:iy),ix,MPI_REAL,
+     &                      0,face_comm,ierr)
+            if (myid==hproc) then
+              do j=ne+1,il_g
+                do k=kbotdav,ktopdav              
+                  do kpass=kn(ipass),kx(ipass)
+                    do n=1,il_g
+                      qw(igrd(n,j,kpass),k)
+     &                  =dd(n+il_g*(kpass-c)+a*(k-kbotdav)+b*(j-1))
+                    end do
+                  end do
+                end do
+              end do
+            end if
+          end if
+          if(nud_t>0)then
+            if (myid/=hproc) then
+              do j=ns,ne
+                do k=kbotdav,ktopdav
+                  do kpass=kn(ipass),kx(ipass)
+                    do n=1,il_g
+                      ee(n+il_g*(kpass-c)+a*(k-kbotdav)+b*(j-ns))
+     &                  =qt(igrd(n,j,kpass),k)
+                    end do
+                  end do
+                end do
+              end do
+            end if
+            call MPI_Gather(ee(1:ix),ix,MPI_REAL,
+     &                      dd(1:iy),ix,MPI_REAL,
+     &                      0,face_comm,ierr)
+            if (myid==hproc) then
+              do j=ne+1,il_g
+                do k=kbotdav,ktopdav              
+                  do kpass=kn(ipass),kx(ipass)
+                    do n=1,il_g
+                      qt(igrd(n,j,kpass),k)
+     &                  =dd(n+il_g*(kpass-c)+a*(k-kbotdav)+b*(j-1))
+                    end do
+                  end do
+                end do
+              end do
+            end if
+          end if
+          if(nud_q>0)then
+            if (myid/=hproc) then
+              do j=ns,ne
+                do k=kbotdav,ktopdav
+                  do kpass=kn(ipass),kx(ipass)
+                    do n=1,il_g
+                      ee(n+il_g*(kpass-c)+a*(k-kbotdav)+b*(j-ns))
+     &                  =qq(igrd(n,j,kpass),k)
+                    end do
+                  end do
+                end do
+              end do
+            end if
+            call MPI_Gather(ee(1:ix),ix,MPI_REAL,
+     &                      dd(1:iy),ix,MPI_REAL,
+     &                      0,face_comm,ierr)
+            if (myid==hproc) then
+              do j=ne+1,il_g
+                do k=kbotdav,ktopdav              
+                  do kpass=kn(ipass),kx(ipass)
+                    do n=1,il_g
+                      qq(igrd(n,j,kpass),k)
+     &                  =dd(n+il_g*(kpass-c)+a*(k-kbotdav)+b*(j-1))
+                    end do
+                  end do
+                end do
+              end do
+            end if
+          end if
+        end if
+          
+      end do
+      
+      return  
+      end subroutine speclocal_s
 
       !---------------------------------------------------------------------------------
       ! Map from 1D convolution to global index
@@ -2852,7 +3367,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       
       integer, intent(in) :: myid,mproc,hproc,npta,pn,px,ns,ne,kd
       integer ppass,iy,ppn,ppx,nne,nns,iproc,ierr
-      integer n,a,b,c,k,til
+      integer n,a,b,c,k,til,lsize
       integer :: itag=0
       integer, dimension(MPI_STATUS_SIZE) :: status
       real, intent(in) :: cq,miss
@@ -2929,8 +3444,20 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         end if
 
         ! computations for the local processor group
-        call mlospeclocal(myid,mproc,hproc,ns,ne,cq,ppass,qsum,
-     &                    qp,qps,qpu,qpv,qpw,qph,kd)
+        if (mod(il_g,mproc)==0) then
+          if (myid==0.and.nmaxpr==1) then
+            write(6,*) "MLO Symmetric decomposition"
+          end if
+          lsize=ifull_g/mproc
+          call mlospeclocal_s(myid,mproc,hproc,ns,ne,cq,ppass,qsum,
+     &                      qp,qps,qpu,qpv,qpw,qph,kd,lsize)
+        else
+          if (myid==0.and.nmaxpr==1) then
+            write(6,*) "MLO Asymmetric decomposition"
+          end if
+          call mlospeclocal(myid,mproc,hproc,ns,ne,cq,ppass,qsum,
+     &                      qp,qps,qpu,qpv,qpw,qph,kd)
+        end if
         
         nns=ppass*til+1
         nne=ppass*til+til
@@ -3122,6 +3649,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       !---------------------------------------------------------------------------------
       
       !---------------------------------------------------------------------------------
+      ! This version is for asymmetric decomposition
       subroutine mlospeclocal(myid,mproc,hproc,ns,ne,cq,ppass,
      &             qsum,qp,qps,qpu,qpv,qpw,qph,kd)
 
@@ -3597,6 +4125,518 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       
       return  
       end subroutine mlospeclocal
+
+      !---------------------------------------------------------------------------------
+      ! This version is for asymmetric decomposition
+      subroutine mlospeclocal_s(myid,mproc,hproc,ns,ne,cq,ppass,
+     &             qsum,qp,qps,qpu,qpv,qpw,qph,kd,lsize)
+
+      use xyzinfo_m          ! Grid coordinate arrays
+     
+      implicit none
+      
+      include 'newmpar.h'    ! Grid parameters
+      include 'mpif.h'       ! MPI parameters
+      include 'parm.h'       ! Model configuration
+      
+      integer, intent(in) :: myid,mproc,hproc,ns,ne,ppass,kd
+      integer, intent(in) :: lsize
+      integer j,n,ipass,kpass,iy,ix
+      integer iproc,ierr
+      integer nne,nns,me
+      integer a,b,c,k
+      integer :: itag=0
+      integer, dimension(MPI_STATUS_SIZE) :: status
+      integer, save :: face_comm
+      integer, dimension(4*il_g,il_g,0:3) :: igrd
+      integer, dimension(0:3) :: maps
+      integer, parameter, dimension(2:3) :: kn=(/0,3/)
+      integer, parameter, dimension(2:3) :: kx=(/2,3/)
+      real, intent(in) :: cq
+      real, dimension(ifull_g), intent(inout) :: qph
+      real, dimension(ifull_g,kd), intent(inout) :: qp,qps
+      real, dimension(ifull_g,kd), intent(inout) :: qpu,qpv
+      real, dimension(ifull_g,kd), intent(inout) :: qpw
+      real, dimension(ifull_g), intent(inout) :: qsum
+      real, dimension(4*il_g) :: rr,xa,ya,za
+      real, dimension(4*il_g) :: asum,psum
+      real, dimension(4*il_g) :: aph,pph
+      real, dimension(4*il_g,kd) :: ap,aps,pp,pps
+      real, dimension(4*il_g,kd) :: apu,apv,apw,ppu,ppv,ppw
+      real, dimension(ifull_g*kd) :: zz
+      real, dimension(lsize*kd) :: yy
+      logical, save :: first=.true.
+
+      if (first) then
+        call MPI_Comm_Split(MPI_COMM_WORLD,hproc,myid-hproc,
+     &                      face_comm,ierr)
+        first=.false.
+      end if
+      
+      maps=(/ il_g, il_g, 4*il_g, 3*il_g /)
+      zz=0.
+      yy=0.
+      
+      do ipass=0,3
+        me=maps(ipass)
+        call getiqa(igrd(:,:,ipass),me,ipass,ppass,il_g)
+
+        if (ipass==3) then
+          itag=itag+1
+          if (myid==0.and.nmaxpr==1) then
+            write(6,*) "MLO Recieve arrays from local host"
+          end if
+          iy=me*il_g
+          ix=iy/mproc
+          if (myid==hproc) then
+            do j=ne+1,il_g
+              do n=1,me
+                zz(n+me*(j-1))=qsum(igrd(n,j,ipass))
+              end do
+            end do
+          end if
+          call MPI_Scatter(zz(1:iy),ix,MPI_REAL,
+     &                     yy(1:ix),ix,MPI_REAL,
+     &                     0,face_comm,ierr)
+          if (myid/=hproc) then
+            do j=ns,ne
+              do n=1,me
+                qsum(igrd(n,j,ipass))=yy(n+me*(j-ns))
+              end do
+            end do
+          end if
+          if (nud_sfh/=0) then
+            if (myid==hproc) then
+              do j=ne+1,il_g
+                do n=1,me
+                  zz(n+me*(j-1))=qph(igrd(n,j,ipass))
+                end do
+              end do
+            end if
+            call MPI_Scatter(zz(1:iy),ix,MPI_REAL,
+     &                       yy(1:ix),ix,MPI_REAL,
+     &                       0,face_comm,ierr)
+            if (myid/=hproc) then
+              do j=ns,ne
+                do n=1,me
+                  qsum(igrd(n,j,ipass))=yy(n+me*(j-ns))
+                end do
+              end do
+            end if
+          end if
+          iy=me*il_g*kd
+          ix=iy/mproc
+          a=me*kd
+          if (nud_sst/=0) then
+            if (myid==hproc) then
+              do j=ne+1,il_g
+                do k=1,kd
+                  do n=1,me
+                    zz(n+me*(k-1)+a*(j-1))
+     &                =qp(igrd(n,j,ipass),k)
+                  end do
+                end do
+              end do
+            end if
+            call MPI_Scatter(zz(1:iy),ix,MPI_REAL,
+     &                     yy(1:ix),ix,MPI_REAL,
+     &                     0,face_comm,ierr)
+            if (myid/=hproc) then
+              do j=ns,ne
+                do k=1,kd
+                  do n=1,me
+                    qp(igrd(n,j,ipass),k)
+     &                =yy(n+me*(k-1)+a*(j-ns))
+                  end do
+                end do
+              end do
+            end if
+          end if
+          if (nud_sss/=0) then
+             if (myid==hproc) then
+              do j=ne+1,il_g
+                do k=1,kd
+                  do n=1,me
+                    zz(n+me*(k-1)+a*(j-1))
+     &                =qps(igrd(n,j,ipass),k)
+                  end do
+                end do
+              end do
+            end if
+            call MPI_Scatter(zz(1:iy),ix,MPI_REAL,
+     &                     yy(1:ix),ix,MPI_REAL,
+     &                     0,face_comm,ierr)
+            if (myid/=hproc) then
+              do j=ns,ne
+                do k=1,kd
+                  do n=1,me
+                    qps(igrd(n,j,ipass),k)
+     &                =yy(n+me*(k-1)+a*(j-ns))
+                  end do
+                end do
+              end do
+            end if
+          end if
+          if (nud_ouv/=0) then
+            if (myid==hproc) then
+              do j=ne+1,il_g
+                do k=1,kd
+                  do n=1,me
+                    zz(n+me*(k-1)+a*(j-1))
+     &                =qpu(igrd(n,j,ipass),k)
+                  end do
+                end do
+              end do
+            end if
+            call MPI_Scatter(zz(1:iy),ix,MPI_REAL,
+     &                     yy(1:ix),ix,MPI_REAL,
+     &                     0,face_comm,ierr)
+            if (myid/=hproc) then
+              do j=ns,ne
+                do k=1,kd
+                  do n=1,me
+                    qpu(igrd(n,j,ipass),k)
+     &                =yy(n+me*(k-1)+a*(j-ns))
+                  end do
+                end do
+              end do
+            end if
+            if (myid==hproc) then
+              do j=ne+1,il_g
+                do k=1,kd
+                  do n=1,me
+                    zz(n+me*(k-1)+a*(j-1))
+     &                =qpv(igrd(n,j,ipass),k)
+                  end do
+                end do
+              end do
+            end if
+            call MPI_Scatter(zz(1:iy),ix,MPI_REAL,
+     &                     yy(1:ix),ix,MPI_REAL,
+     &                     0,face_comm,ierr)
+            if (myid/=hproc) then
+              do j=ns,ne
+                do k=1,kd
+                  do n=1,me
+                    qpv(igrd(n,j,ipass),k)
+     &                =yy(n+me*(k-1)+a*(j-ns))
+                  end do
+                end do
+              end do
+            end if
+            if (myid==hproc) then
+              do j=ne+1,il_g
+                do k=1,kd
+                  do n=1,me
+                    zz(n+me*(k-1)+a*(j-1))
+     &                =qpw(igrd(n,j,ipass),k)
+                  end do
+                end do
+              end do
+            end if
+            call MPI_Scatter(zz(1:iy),ix,MPI_REAL,
+     &                     yy(1:ix),ix,MPI_REAL,
+     &                     0,face_comm,ierr)
+            if (myid/=hproc) then
+              do j=ns,ne
+                do k=1,kd
+                  do n=1,me
+                    qpw(igrd(n,j,ipass),k)
+     &                =yy(n+me*(k-1)+a*(j-ns))
+                  end do
+                end do
+              end do
+            end if
+          end if
+        end if
+
+        if (myid==0.and.nmaxpr==1) write(6,*) "MLO start conv"
+
+        do j=ns,ne
+          xa(1:me)=x_g(igrd(1:me,j,ipass))
+          ya(1:me)=y_g(igrd(1:me,j,ipass))
+          za(1:me)=z_g(igrd(1:me,j,ipass))
+          asum(1:me)=qsum(igrd(1:me,j,ipass))
+          if (nud_sst/=0) then
+            do k=1,kd
+              ap(1:me,k)=qp(igrd(1:me,j,ipass),k)
+            end do
+          end if
+          if (nud_sss/=0) then
+            do k=1,kd
+              aps(1:me,k)=qps(igrd(1:me,j,ipass),k)
+            end do
+          end if
+          if (nud_ouv/=0) then
+            do k=1,kd
+              apu(1:me,k)=qpu(igrd(1:me,j,ipass),k)
+              apv(1:me,k)=qpv(igrd(1:me,j,ipass),k)
+              apw(1:me,k)=qpw(igrd(1:me,j,ipass),k)
+            end do
+          end if
+          if (nud_sfh/=0) then
+            aph(1:me)=qph(igrd(1:me,j,ipass))
+          end if
+          do n=1,il_g
+            rr(1:me)=xa(n)*xa(1:me)+ya(n)*ya(1:me)+za(n)*za(1:me)
+            rr(1:me)=acos(max(min(rr(1:me),1.),-1.))
+            rr(1:me)=exp(-(cq*rr(1:me))**2)
+            psum(n)=sum(rr(1:me)*asum(1:me))
+            if (nud_sst/=0) then
+              do k=1,kd
+                pp(n,k)=sum(rr(1:me)*ap(1:me,k))
+              end do
+            end if
+            if (nud_sss/=0) then
+              do k=1,kd
+                pps(n,k)=sum(rr(1:me)*aps(1:me,k))
+              end do
+            end if
+            if (nud_ouv/=0) then
+              do k=1,kd
+                ppu(n,k)=sum(rr(1:me)*apu(1:me,k))
+                ppv(n,k)=sum(rr(1:me)*apv(1:me,k))
+                ppw(n,k)=sum(rr(1:me)*apw(1:me,k))
+              end do
+            end if
+            if (nud_sfh/=0) then
+              pph(n)=sum(rr(1:me)*aph(1:me))
+            end if
+          end do
+          qsum(igrd(1:il_g,j,ipass))=psum(1:il_g)
+          if (nud_sst/=0) then
+            do k=1,kd
+              qp(igrd(1:il_g,j,ipass),k)=pp(1:il_g,k)
+            end do
+          end if
+          if (nud_sss/=0) then
+            do k=1,kd
+              qps(igrd(1:il_g,j,ipass),k)=pps(1:il_g,k)
+            end do
+          end if
+          if (nud_ouv/=0) then
+            do k=1,kd
+              qpu(igrd(1:il_g,j,ipass),k)=ppu(1:il_g,k)
+              qpv(igrd(1:il_g,j,ipass),k)=ppv(1:il_g,k)
+              qpw(igrd(1:il_g,j,ipass),k)=ppw(1:il_g,k)
+            end do
+          end if
+          if (nud_sfh/=0) then
+            qph(igrd(1:il_g,j,ipass))=pph(1:il_g)
+          end if
+        end do
+
+        if (myid==0.and.nmaxpr==1) write(6,*) "MLO end conv"
+
+        if (ipass==2.or.ipass==3) then
+          itag=itag+1
+          if (myid==0.and.nmaxpr==1) then
+            write(6,*) "MLO Send arrays to local host"
+          end if
+          iy=il_g*il_g*(kx(ipass)-kn(ipass)+1)
+          ix=iy/mproc
+          a=il_g*(kx(ipass)-kn(ipass)+1)
+          c=kn(ipass)
+          if (myid/=hproc) then
+            do j=ns,ne
+              do kpass=kn(ipass),kx(ipass)
+                do n=1,il_g
+                  yy(n+il_g*(kpass-c)+a*(j-ns))
+     &              =qsum(igrd(n,j,kpass))
+                end do
+              end do
+            end do
+          end if
+          call MPI_Gather(yy(1:ix),ix,MPI_REAL,
+     &                    zz(1:iy),ix,MPI_REAL,
+     &                    0,face_comm,ierr)
+          if (myid==hproc) then
+            do j=ne+1,il_g
+              do kpass=kn(ipass),kx(ipass)
+                do n=1,il_g
+                  qsum(igrd(n,j,kpass))
+     &              =zz(n+il_g*(kpass-c)+a*(j-1))
+                end do
+              end do
+            end do
+          end if
+          if (nud_sfh/=0) then
+            if (myid/=hproc) then
+              do j=ns,ne
+                do kpass=kn(ipass),kx(ipass)
+                  do n=1,il_g
+                    yy(n+il_g*(kpass-c)+a*(j-ns))
+     &                =qph(igrd(n,j,kpass))
+                  end do
+                end do
+              end do
+            end if
+            call MPI_Gather(yy(1:ix),ix,MPI_REAL,
+     &                      zz(1:iy),ix,MPI_REAL,
+     &                      0,face_comm,ierr)
+            if (myid==hproc) then
+              do j=ne+1,il_g
+                do kpass=kn(ipass),kx(ipass)
+                  do n=1,il_g
+                    qph(igrd(n,j,kpass))
+     &                =zz(n+il_g*(kpass-c)+a*(j-1))
+                  end do
+                end do
+              end do
+            end if
+          end if
+          iy=il_g*il_g*kd*(kx(ipass)-kn(ipass)+1)
+          ix=iy/mproc
+          a=il_g*(kx(ipass)-kn(ipass)+1)
+          b=il_g*(kx(ipass)-kn(ipass)+1)*kd
+          c=kn(ipass)
+          if (nud_sst/=0) then
+            if (myid/=hproc) then
+              do j=ns,ne
+                do k=1,kd
+                  do kpass=kn(ipass),kx(ipass)
+                    do n=1,il_g
+                      yy(n+il_g*(kpass-c)+a*(k-1)+b*(j-ns))
+     &                  =qp(igrd(n,j,kpass),k)
+                    end do
+                  end do
+                end do
+              end do
+            end if
+            call MPI_Gather(yy(1:ix),ix,MPI_REAL,
+     &                      zz(1:iy),ix,MPI_REAL,
+     &                      0,face_comm,ierr)
+            if (myid==hproc) then
+              do j=ne+1,il_g
+                do k=1,kd             
+                  do kpass=kn(ipass),kx(ipass)
+                    do n=1,il_g
+                      qp(igrd(n,j,kpass),k)
+     &                  =zz(n+il_g*(kpass-c)+a*(k-1)+b*(j-1))
+                    end do
+                  end do
+                end do
+              end do
+            end if
+          end if
+          if (nud_sss/=0) then
+            if (myid/=hproc) then
+              do j=ns,ne
+                do k=1,kd
+                  do kpass=kn(ipass),kx(ipass)
+                    do n=1,il_g
+                      yy(n+il_g*(kpass-c)+a*(k-1)+b*(j-ns))
+     &                  =qps(igrd(n,j,kpass),k)
+                    end do
+                  end do
+                end do
+              end do
+            end if
+            call MPI_Gather(yy(1:ix),ix,MPI_REAL,
+     &                      zz(1:iy),ix,MPI_REAL,
+     &                      0,face_comm,ierr)
+            if (myid==hproc) then
+              do j=ne+1,il_g
+                do k=1,kd             
+                  do kpass=kn(ipass),kx(ipass)
+                    do n=1,il_g
+                      qps(igrd(n,j,kpass),k)
+     &                  =zz(n+il_g*(kpass-c)+a*(k-1)+b*(j-1))
+                    end do
+                  end do
+                end do
+              end do
+            end if
+          end if
+          if (nud_ouv/=0) then
+            if (myid/=hproc) then
+              do j=ns,ne
+                do k=1,kd
+                  do kpass=kn(ipass),kx(ipass)
+                    do n=1,il_g
+                      yy(n+il_g*(kpass-c)+a*(k-1)+b*(j-ns))
+     &                  =qpw(igrd(n,j,kpass),k)
+                    end do
+                  end do
+                end do
+              end do
+            end if
+            call MPI_Gather(yy(1:ix),ix,MPI_REAL,
+     &                      zz(1:iy),ix,MPI_REAL,
+     &                      0,face_comm,ierr)
+            if (myid==hproc) then
+              do j=ne+1,il_g
+                do k=1,kd             
+                  do kpass=kn(ipass),kx(ipass)
+                    do n=1,il_g
+                      qpw(igrd(n,j,kpass),k)
+     &                  =zz(n+il_g*(kpass-c)+a*(k-1)+b*(j-1))
+                    end do
+                  end do
+                end do
+              end do
+            end if
+            if (myid/=hproc) then
+              do j=ns,ne
+                do k=1,kd
+                  do kpass=kn(ipass),kx(ipass)
+                    do n=1,il_g
+                      yy(n+il_g*(kpass-c)+a*(k-1)+b*(j-ns))
+     &                  =qpv(igrd(n,j,kpass),k)
+                    end do
+                  end do
+                end do
+              end do
+            end if
+            call MPI_Gather(yy(1:ix),ix,MPI_REAL,
+     &                      zz(1:iy),ix,MPI_REAL,
+     &                      0,face_comm,ierr)
+            if (myid==hproc) then
+              do j=ne+1,il_g
+                do k=1,kd             
+                  do kpass=kn(ipass),kx(ipass)
+                    do n=1,il_g
+                      qpv(igrd(n,j,kpass),k)
+     &                  =zz(n+il_g*(kpass-c)+a*(k-1)+b*(j-1))
+                    end do
+                  end do
+                end do
+              end do
+            end if
+            if (myid/=hproc) then
+              do j=ns,ne
+                do k=1,kd
+                  do kpass=kn(ipass),kx(ipass)
+                    do n=1,il_g
+                      yy(n+il_g*(kpass-c)+a*(k-1)+b*(j-ns))
+     &                  =qpw(igrd(n,j,kpass),k)
+                    end do
+                  end do
+                end do
+              end do
+            end if
+            call MPI_Gather(yy(1:ix),ix,MPI_REAL,
+     &                      zz(1:iy),ix,MPI_REAL,
+     &                      0,face_comm,ierr)
+            if (myid==hproc) then
+              do j=ne+1,il_g
+                do k=1,kd             
+                  do kpass=kn(ipass),kx(ipass)
+                    do n=1,il_g
+                      qpw(igrd(n,j,kpass),k)
+     &                  =zz(n+il_g*(kpass-c)+a*(k-1)+b*(j-1))
+                    end do
+                  end do
+                end do
+              end do
+            end if
+          end if
+        end if
+          
+      end do
+      
+      return  
+      end subroutine mlospeclocal_s
       
       ! Relaxtion method for mlo
       subroutine mlonudge(new,sssb,suvb,sfh,wl)

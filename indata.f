@@ -78,7 +78,9 @@
       real, dimension(ifull,wlev,4) :: mlodwn
       real, dimension(ifull,kl) :: dumqg,dumqf,dumql,dumqr
       real, dimension(ifull,kl) :: dumb,dumu,dumv
-      real, dimension(ifull_g) :: glob2d,davt_g
+      real, dimension(ifull,3) :: dumz
+      real, dimension(ifull_g,3) :: glob2d
+      real, dimension(ifull_g) :: davt_g
       real, dimension(2*kl*kl+kl) :: dumc
       real rlonx,rlatx,alf
       real aamax, aamax_g, c, cent, 
@@ -272,32 +274,28 @@
       if(io_in<=4.and.nhstest>=0)then
         if (myid==0) then
            write(6,*) 'before read zs from topofile'
-           read(66,*,iostat=ierr) glob2d
+           read(66,*,iostat=ierr) glob2d(:,1)
            if(ierr.ne.0) stop 'end-of-file reached on topofile'
            write(6,*) 'after read zs from topofile'
-           call ccmpi_distribute(zs,glob2d)
-        else
-           call ccmpi_distribute(zs)
-        end if
-        if (myid==0) then
            write(6,*) 'before read land-sea fraction'
-           read(66,*,iostat=ierr) glob2d
+           read(66,*,iostat=ierr) glob2d(:,2)
            if(ierr.ne.0) stop 'end-of-file reached on topofile'
            write(6,*) 'after read land-sea fraction'
-           call ccmpi_distribute(zsmask,glob2d)
-        else
-           call ccmpi_distribute(zsmask)
-        end if
-        if (myid==0) then
            write(6,*) 'before read he'
-           read(66,*,iostat=ierr) glob2d
+           read(66,*,iostat=ierr) glob2d(:,3)
            if(ierr.ne.0) stop 'end-of-file reached on topofile'
            write(6,*) 'after read he'
-           call ccmpi_distribute(he,glob2d)
            close(66)
+           call ccmpi_distribute(dumz(:,1:3),glob2d(:,1:3))
+           zs=dumz(:,1)
+           zsmask=dumz(:,2)
+           he=dumz(:,3)
         else
-           call ccmpi_distribute(he)
+           call ccmpi_distribute(dumz(:,1:3))
         end if
+        zs=dumz(:,1)
+        zsmask=dumz(:,2)
+        he=dumz(:,3)
         if ( mydiag ) write(6,*)'he read in from topofile',he(idjd)
 
         ! special options for orography         
@@ -589,7 +587,7 @@
           write(6,*)'kdate,ktime ',kdate,ktime
           write(6,"('wbice(1-ms)',9f7.3)")(wbice(idjd,k),k=1,ms)
         endif
-        if(kdate.ne.kdate_sav.or.ktime.ne.ktime_sav)then
+        if(kdate/=kdate_sav.or.ktime/=ktime_sav)then
           write(6,*) 'stopping in indata, not finding correct ',
      &               'kdate/ktime'
           write(6,*) "kdate,    ktime     ",kdate,ktime
@@ -1582,7 +1580,7 @@ c     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
       !--------------------------------------------------------------
       ! UPDATE DAVIES NUDGING ARRAYS (nbd and nud_hrs)
       ! Must occur after defining initial atmosphere fields
-      if(nbd.ne.0.and.nud_hrs.ne.0)then
+      if(nbd/=0.and.nud_hrs/=0)then
          call davset   ! as entry in subr. davies, sets psls,qgg,tt,uu,vv
          write(6,*) 'nbd,nproc,myid = ',nbd,nproc,myid
          if ( myid == 0 ) then
@@ -2093,7 +2091,11 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
       
       integer ivegdflt,isoildflt
       integer idatafix,iq,ierr
+      integer, dimension(:,:), allocatable :: iduma
+      integer, dimension(ifull,2) :: idumb
       real falbdflt,frsdflt,fzodflt
+      real, dimension(:,:), allocatable :: duma
+      real, dimension(ifull,5) :: dumb
       parameter( ivegdflt=0, isoildflt=0)
       parameter( falbdflt=0., frsdflt=990.)
       parameter( fzodflt=1.)
@@ -2105,29 +2107,64 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
       ! READ BIOSPHERE FILES
       ! if cable, then the albedo is soil albedo only (converted to net albedo
       ! when cable is initialised)
-      call readreal(albfile,albvisnir(:,1),ifull)
-      if (nsib.ge.4) then
-        call readreal(albnirfile,albvisnir(:,2),ifull)
-      else
+      if (nsib<=3) then
+        if (myid==0) then
+          allocate(iduma(ifull_g,2),duma(ifull_g,3))
+          call readreal(albfile,duma(:,1),ifull_g)
+          call readreal(rsmfile,duma(:,2),ifull_g)  ! not used these days
+          call readreal(zofile,duma(:,3),ifull_g)
+          call readint(vegfile,iduma(:,1),ifull_g)
+          call readint(soilfile,iduma(:,2),ifull_g)
+          call ccmpi_distribute(idumb(:,1:2),iduma)
+          call ccmpi_distribute(dumb(:,1:3),duma)
+          deallocate(iduma,duma)
+        else
+          call ccmpi_distribute(idumb(:,1:2))
+          call ccmpi_distribute(dumb(:,1:3))
+        end if
+        albvisnir(:,1)=dumb(:,1)
         albvisnir(:,2)=albvisnir(:,1)
-      end if
-      if (nsib.le.5) then 
-        call readreal(rsmfile,rsmin,ifull)  ! not used these days
-        call readreal(zofile,zolnd,ifull)
-      else
-        zolnd=zobgin ! updated in cable_ccam2.f90
-      end if
-      if (nsib.le.3) then
-        call readint(vegfile,ivegt,ifull)
-      else
+        rsmin=dumb(:,2)
+        zolnd=dumb(:,3)
+        ivegt=idumb(:,1)
+        isoilm=idumb(:,2)
+      else if (nsib==5) then
+        if (myid==0) then
+          allocate(duma(ifull_g,5))
+          call readreal(albfile,duma(:,1),ifull_g)
+          call readreal(albnirfile,duma(:,2),ifull_g)
+          call readreal(rsmfile,duma(:,3),ifull_g)
+          call readreal(zofile,duma(:,4),ifull_g)
+          call readreal(laifile,duma(:,5),ifull_g)
+          call ccmpi_distribute(dumb(:,1:5),duma)
+          deallocate(duma)
+        else
+          call ccmpi_distribute(dumb(:,1:5))
+        end if
+        albvisnir(:,1)=dumb(:,1)
+        albvisnir(:,2)=dumb(:,2)
+        rsmin=dumb(:,3)
+        zolnd=dumb(:,4)
+        vlai=0.01*dumb(:,5)
         ivegt=1 ! updated later
+        call readint(soilfile,isoilm,ifull)
+      else if (nsib>=6) then
+        if (myid==0) then
+          allocate(duma(ifull_g,2))
+          call readreal(albfile,duma(:,1),ifull_g)
+          call readreal(albnirfile,duma(:,2),ifull_g)
+          call ccmpi_distribute(dumb(:,1:2),duma)
+          deallocate(duma)
+        else
+          call ccmpi_distribute(dumb(:,1:2))
+        end if
+        albvisnir(:,1)=dumb(:,1)
+        albvisnir(:,2)=dumb(:,2)
+        zolnd=zobgin ! updated in cable_ccam2.f90
+        ivegt=1 ! updated later
+        call readint(soilfile,isoilm,ifull)
       end if
-      call readint(soilfile,isoilm,ifull)
-      if(nsib.eq.5) then
-        call readreal(laifile,vlai,ifull)
-        vlai(:)=0.01*vlai(:)
-      end if
-
+      
       !--------------------------------------------------------------
       ! CHECK FOR LAND SEA MISMATCHES      
       mismatch = .false.
@@ -2135,7 +2172,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
      &      mismatch = .true.
       if( rdatacheck(land,albvisnir(:,2),'albn',idatafix,falbdflt))
      &      mismatch = .true.
-      if (nsib.ne.6.and.nsib.ne.7) then
+      if (nsib<6) then
         if( rdatacheck(land,rsmin,'rsmin',idatafix,frsdflt))
      &        mismatch = .true.
     !    if( rdatacheck(land,zolnd,'zolnd',idatafix,fzodflt))

@@ -208,7 +208,9 @@
       
       ! arrays are typically read as global and then distributed to
       ! processor local arrays.  This allows for more flexibility
-      ! with diagnosed fields.
+      ! with diagnosed fields.  Data is usually read in as 2D
+      ! fields which avoids memory problems when the host grid
+      ! size is significantly larger than the regional grid size.
       subroutine ontheflyx(nested,kdate_r,ktime_r,
      &                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
      &                    tgg,wb,wbice,snowd,qfg,qlg,qrg,
@@ -268,6 +270,8 @@
       integer, dimension(:,:), allocatable, save :: nface4
       integer, dimension(ifull) :: isflag
       integer, dimension(:), allocatable, save :: isoilm_a
+      integer, dimension(ms) :: iera,ierb
+      integer, dimension(2) :: ierc
       real*8, dimension(1+4*dk,1+4*dk) :: xx4,yy4
       real*8, dimension(dk*dk*6):: z_a,x_a,y_a
       real, dimension(ifull,wlev,4) :: mlodwn
@@ -285,14 +289,13 @@
       real, dimension(:,:), allocatable, save :: xg4, yg4
       real, dimension(ifg) :: uct_g, vct_g
       real, dimension(dk*dk*6,3) :: tggsn_a
-      real, dimension(dk*dk*6) :: psl_a,tss_a,fracice_a
-      real, dimension(dk*dk*6) :: snowd_a,sicedep_a,pmsl_a
+      real, dimension(dk*dk*6) :: tss_a,fracice_a,sicedep_a
+      real, dimension(dk*dk*6) :: psl_a,snowd_a,pmsl_a
       real, dimension(dk*dk*6) :: tss_l_a,tss_s_a
-      real, dimension(dk*dk*6) :: t_a_lev
-      real, dimension(dk*dk*6) :: ucc, vcc
+      real, dimension(dk*dk*6) :: t_a_lev,ucc,vcc
+      real, dimension(dk*dk*6) :: wts_a  ! not used here or defined in call setxyz
       real, dimension(:), allocatable, save :: axs_a,ays_a,azs_a
       real, dimension(:), allocatable, save :: bxs_a,bys_a,bzs_a
-      real, dimension(dk*dk*6) :: wts_a  ! not used here or defined in call setxyz
       real, dimension(3,3), save :: rotpoles,rotpole
       real, intent(in) :: rlong0x, rlat0x, schmidtx
       real rlongd,rlatd
@@ -450,23 +453,21 @@
           zss_a=0.
           ucc=-1.
         end if
-        call histrd1(ncid,iarchi,ier,'zht',ik,6*ik,zss_a,6*ik*ik)
-        call histrd1(ncid,iarchi,ier,'soilt',ik,6*ik,ucc,6*ik*ik)
+        call histrd1(ncid,iarchi,ier,'zht',ik,6*ik,zss_a,6*ik*ik) !**********************************************************************************
+        call histrd1(ncid,iarchi,ier,'soilt',ik,6*ik,ucc,6*ik*ik) !**********************************************************************************
+	if (all(ucc==0.)) ucc=-1.	
         if (myid==0) then
           isoilm_a=nint(ucc)
         end if
         if (nmlo/=0.and.abs(nmlo)<=9) then
           if (.not.allocated(ocndep_l)) allocate(ocndep_l(ifull))
-          ucc=0.
-          call histrd1(ncid,iarchi,ier,'ocndepth',ik,6*ik,ucc,
-     &                 6*ik*ik)
+          ocndep_l=0.
           if (iotest) then
-            if (myid==0) then
-              call ccmpi_distribute(ocndep_l,ucc)
-            else
-              call ccmpi_distribute(ocndep_l)
-            end if
+            call histrd1(ncid,iarchi,ier,'ocndepth',ik,6*ik,ocndep_l,
+     &                   ifull)
           else
+            call histrd1(ncid,iarchi,ier,'ocndepth',ik,6*ik,ucc,
+     &                   6*ik*ik)
             call doints4(ucc,ocndep_l,nface4,xg4,yg4,nord,dk,ifg)
           end if ! iotest
         end if
@@ -516,12 +517,16 @@
       ! Begin reading host data for current time step
       ! psf read when nested=0 or nested=1.and.nud_p/=0
       psl_a=0.
+      psl=0.
       if (nested==0.or.(nested==1.and.nud_test/=0)) then
-        call histrd1(ncid,iarchi,ier,'psf',ik,6*ik,psl_a,6*ik*ik)
+        if (iotest) then
+          call histrd1(ncid,iarchi,ier,'psf',ik,6*ik,psl,ifull)
+        else
+          call histrd1(ncid,iarchi,ier,'psf',ik,6*ik,psl_a,6*ik*ik)
+        end if
       endif 
       ! tsu always read
-      tss_a=293.
-      call histrd1(ncid,iarchi,ier,'tsu',ik,6*ik,tss_a,6*ik*ik)
+      call histrd1(ncid,iarchi,ier,'tsu',ik,6*ik,tss_a,6*ik*ik) !************************************************************************************
       
       ! set up land-sea mask from either soilt, tss or zss
       if(myid==0)then
@@ -562,23 +567,17 @@
         mlodwn(:,:,1)=293.
         if ((nested/=1.or.nud_sst/=0).and.ok>0) then
           do k=1,ok
-            ucc=max(abs(tss_a),271.)
             if (k<=ms) then
               write(vname,'("tgg",I1.1)') k
-              call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
-     &                     ucc,6*ik*ik)
             else
               write(vname,'("tgg",I2.2)') k
+            end if     
+            if (iotest) then
+              call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                     mloin(:,k,1),ifull)
+            else
               call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
      &                     ucc,6*ik*ik)
-            end if
-            if (iotest) then
-              if (myid==0) then
-                call ccmpi_distribute(mloin(:,k,1),ucc)
-              else
-                call ccmpi_distribute(mloin(:,k,1))
-              end if
-            else
               if (myid==0) then
                 where (land_a)
                   ucc=spval
@@ -593,22 +592,20 @@
             end if ! iotest
           end do
           call mloregrid(ok,ocndwn(:,1),mloin(:,:,1),mlodwn(:,:,1),0)
+          if (all(mlodwn(:,:,1)==0.)) mlodwn(:,:,1)=293.
         end if ! (nestesd/=1.or.nud_sst/=0) ..else..
         ! ocean salinity
         mlodwn(:,:,2)=34.72
         if ((nested/=1.or.nud_sss/=0).and.ok>0) then
           do k=1,ok
-            ucc=34.72
             write(vname,'("sal",I2.2)') k
-            call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
-     &                   ucc,6*ik*ik)
             if (iotest) then
-              if (myid==0) then
-                call ccmpi_distribute(mloin(:,k,1),ucc)     
-              else
-                call ccmpi_distribute(mloin(:,k,1))
-              end if
+              call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                     mloin(:,k,1),ifull)
             else
+              ucc=34.72
+              call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                     ucc,6*ik*ik)
               if (myid==0) then
                 where (land_a)
                   ucc=spval
@@ -623,28 +620,28 @@
             end if ! iotest
           end do
           call mloregrid(ok,ocndwn(:,1),mloin(:,:,1),mlodwn(:,:,2),1)
+          if (all(mlodwn(:,:,2)==0.)) mlodwn(:,:,2)=34.72
         end if ! (nestesd/=1.or.nud_sss/=0) ..else..
         ! ocean currents
         mlodwn(:,:,3:4)=0.
         if ((nested/=1.or.nud_ouv/=0).and.ok>0) then
           do k=1,ok
-            ucc=0.
-            vcc=0.
-            write(vname,'("uoc",I2.2)') k
-            call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
-     &                   ucc,6*ik*ik)
-            write(vname,'("voc",I2.2)') k
-            call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
-     &                   vcc,6*ik*ik)
             if (iotest) then
-              if (myid==0) then
-                call ccmpi_distribute(mloin(:,k,1),ucc)
-                call ccmpi_distribute(mloin(:,k,2),vcc)
-              else
-                call ccmpi_distribute(mloin(:,k,1))
-                call ccmpi_distribute(mloin(:,k,2))
-              end if
+              write(vname,'("uoc",I2.2)') k
+              call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                     mloin(:,k,1),ifull)
+              write(vname,'("voc",I2.2)') k
+              call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                     mloin(:,k,2),ifull)
             else
+              ucc=0.
+              vcc=0.
+              write(vname,'("uoc",I2.2)') k
+              call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                     ucc,6*ik*ik)
+              write(vname,'("voc",I2.2)') k
+              call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                     vcc,6*ik*ik)
               if (myid==0) then
                 where (land_a)
                   ucc=spval
@@ -670,16 +667,13 @@
         ! water surface height
         ocndwn(:,2)=0.
         if (nested/=1.or.nud_sfh/=0) then
-          ucc=0.
-          call histrd1(ncid,iarchi,ier,'ocheight',ik,6*ik,ucc,
-     &                 6*ik*ik)
           if (iotest) then
-            if (myid==0) then
-              call ccmpi_distribute(ocndwn(:,2),ucc)
-            else
-              call ccmpi_distribute(ocndwn(:,2))
-            end if
+            call histrd1(ncid,iarchi,ier,'ocheight',ik,6*ik,
+     &                   ocndwn(:,2),ifull)
           else
+            ucc=0.
+            call histrd1(ncid,iarchi,ier,'ocheight',ik,6*ik,ucc,
+     &                   6*ik*ik)
             if (myid==0) then
               where (land_a)
                 ucc=spval
@@ -696,10 +690,8 @@
       ! read sea ice here for prescribed SSTs configuration and for
       ! mixed-layer-ocean
       ! sea-ice is always read
-      sicedep_a=0.
-      fracice_a=0.
-      call histrd1(ncid,iarchi,ier,'siced',ik,6*ik,sicedep_a,6*ik*ik)
-      call histrd1(ncid,iarchi,ierr,'fracice',ik,6*ik,fracice_a,6*ik*ik)
+      call histrd1(ncid,iarchi,ier,'siced',ik,6*ik,sicedep_a,6*ik*ik)    !***************************************************************************
+      call histrd1(ncid,iarchi,ierr,'fracice',ik,6*ik,fracice_a,6*ik*ik) !***************************************************************************
       if (myid==0) then
         if(ier==0)then  ! i.e. sicedep read in 
           if(ierr/=0)then ! i.e. sicedep read in; fracice not read in
@@ -746,19 +738,6 @@ c***        but needed here for onthefly (different dims) 28/8/08
       endif   ! (myid==0)
 
       ! could slightly speed up code by also saving zss arrays
-      if (iotest) then
-        if (myid==0) then
-          
-        else
-          
-        end if
-      else
-        if ( myid==0 ) then
-
-        else
-        end if ! myid==0
-      end if ! iotest
-
       if (iotest) then
         if (myid==0) then
           call ccmpi_distribute(zss,zss_a)
@@ -834,39 +813,43 @@ c***        but needed here for onthefly (different dims) 28/8/08
 
       ! air temperature
       ! read for nested=0 or nested=1.and.(nud_t/=0.or.nud_p/=0)
+      t=300.
       if (nested==0.or.(nested==1.and.nud_test/=0)) then
         do k=1,kk
-          call histrd4s(ncid,iarchi,ier,'temp',ik,6*ik,k,ucc,6*ik*ik) !     temperature
-          if (k==levkk) t_a_lev=ucc ! store for psl calculation below
-          if (myid==0) then
-            if (iotest) then
-              call ccmpi_distribute(u_k(:,k), ucc)
-            else
+          if (iotest) then
+            call histrd4s(ncid,iarchi,ier,'temp',ik,6*ik,k,u_k(:,k),
+     &                    ifull)                                        !     temperature
+          else
+            call histrd4s(ncid,iarchi,ier,'temp',ik,6*ik,k,ucc,6*ik*ik) !     temperature
+            if (k==levkk) t_a_lev=ucc ! store for psl calculation below
+            if (myid==0) then
               call ints4(ucc,uct_g,nface4,xg4,yg4,nord,ik)  ! ints4 on source grid
               call ccmpi_distribute(u_k(:,k),uct_g)
-            end if ! iotest
-          else ! myid /= 0
-            call ccmpi_distribute(u_k(:,k))
-          endif ! myid==0
+            else ! myid /= 0
+              call ccmpi_distribute(u_k(:,k))
+            endif ! myid==0
+          end if ! iotest
         enddo  ! k loop
         call vertint(u_k ,t, 1,kk,sigin)
-      else
-        t=300.
       end if ! (nested==0.or.(nested==1.and.(nud_t/=0.or.nud_p/=0)))
       ! winds
       ! read for nested=0 or nested=1.and.nud_uv/=0
+      u=0.
+      v=0.
       if (nested==0.or.(nested==1.and.nud_uv/=0)) then
         do k=1,kk
           ! to reduce memory footprint, we now have to alternatively read
           ! u and v.  This is a bit inefficent for disk accessing,
           ! but makes it possible to downscale large grids (e.g., C160)
-          call histrd4s(ncid,iarchi,ier,'u',ik,6*ik,k,ucc,6*ik*ik)    !     u wind component
-          call histrd4s(ncid,iarchi,ier,'v',ik,6*ik,k,vcc,6*ik*ik)    !     v wind component
-          if (myid==0) then
-            if (iotest) then
-              call ccmpi_distribute(u_k(:,k), ucc)
-              call ccmpi_distribute(v_k(:,k), vcc)
-            else
+          if (iotest) then
+            call histrd4s(ncid,iarchi,ier,'u',ik,6*ik,k,u_k(:,k),
+     &                    ifull)                                        !     u wind component
+            call histrd4s(ncid,iarchi,ier,'v',ik,6*ik,k,v_k(:,k),
+     &                    ifull)                                        !     v wind component
+          else
+            call histrd4s(ncid,iarchi,ier,'u',ik,6*ik,k,ucc,6*ik*ik)    !     u wind component
+            call histrd4s(ncid,iarchi,ier,'v',ik,6*ik,k,vcc,6*ik*ik)    !     v wind component
+            if (myid==0) then
               call interpwind(ik,uct_g,vct_g,ucc,vcc,axs_a,ays_a,
      &                        azs_a,bxs_a,bys_a,bzs_a,rotpole,
      &                        rotpoles,nface4,xg4,yg4,nord)
@@ -874,52 +857,55 @@ c***        but needed here for onthefly (different dims) 28/8/08
 !             don't need to do map factors and Coriolis on target grid
               call ccmpi_distribute(u_k(:,k), uct_g)
               call ccmpi_distribute(v_k(:,k), vct_g)
-            end if ! iotest
-          else
-            call ccmpi_distribute(u_k(:,k))
-            call ccmpi_distribute(v_k(:,k))
-          endif ! myid==0
+            else
+              call ccmpi_distribute(u_k(:,k))
+              call ccmpi_distribute(v_k(:,k))
+            endif ! myid==0
+          end if ! iotest
         enddo  ! k loop
         call vertint(u_k ,u, 3,kk,sigin)
         call vertint(v_k ,v, 4,kk,sigin)
-      else
-        u=0.
-        v=0.
       end if ! (nested==0.or.(nested==1.and.nud_uv/=0))
       ! mixing ratio
       ! read for nested=0 or nested=1.and.nud_q/=0
+      qg=qgmin
       if (nested==0.or.(nested==1.and.nud_q/=0)) then
+        if (myid==0) then
+          idv = ncvid(ncid,"mixr",iera(1))
+        end if
+        call MPI_Bcast(iera(1),1,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
         do k=1,kk
-          call histrd4s(ncid,iarchi,ier,'mixr',ik,6*ik,k,ucc,6*ik*ik)!     mixing ratio
-          if(ier/=0)then                                             !     mixing ratio
-            call histrd4s(ncid,iarchi,ier,'q',ik,6*ik,k,ucc,6*ik*ik) !     mixing ratio
-          endif  ! (ier/=0)                                          !     mixing ratio
-          if (myid==0) then
-            if (iotest) then
-              call ccmpi_distribute(u_k(:,k), ucc)
+          if (iotest) then
+            if (iera(1)==0) then
+              call histrd4s(ncid,iarchi,ier,'mixr',ik,6*ik,k,u_k(:,k),
+     &                      ifull)                                       !     mixing ratio
             else
+              call histrd4s(ncid,iarchi,ier,'q',ik,6*ik,k,u_k(:,k),
+     &                      ifull)                                       !     mixing ratio
+            endif  ! (ier/=0)
+          else
+            if (iera(1)==0) then
+              call histrd4s(ncid,iarchi,ier,'mixr',ik,6*ik,k,ucc,
+     &                      6*ik*ik)                                     !     mixing ratio
+            else
+              call histrd4s(ncid,iarchi,ier,'q',ik,6*ik,k,ucc,
+     &                      6*ik*ik)                                     !     mixing ratio
+            endif  ! (ier/=0)
+            if (myid==0) then
               call ints4(ucc,uct_g, nface4,xg4,yg4,nord,ik)
               call ccmpi_distribute(u_k(:,k),uct_g)
-            end if ! iotest
-          else
-            call ccmpi_distribute(u_k(:,k))         
-          endif ! myid==0
+            else
+              call ccmpi_distribute(u_k(:,k))         
+            endif ! myid==0
+          end if ! iotest
         enddo  ! k loop
         call vertint(u_k,qg,2,kk,sigin)
-      else
-        qg=qgmin
       end if ! (nested==0.or.(nested==1.and.nud_q/=0))
 
       ! re-grid surface pressure by mapping to MSLP, interpolating and then map to surface pressure
       ! requires psl_a, zss, zss_a, t and t_a_lev
       if (nested==0.or.(nested==1.and.nud_test/=0)) then
-        if (iotest) then
-          if (myid==0) then
-            call ccmpi_distribute(psl,psl_a)
-          else
-            call ccmpi_distribute(psl)
-          end if
-        else
+        if (.not.iotest) then
 !         The routine doints4 does the gather, calls ints4 and redistributes
           if ( myid==0 ) then
             call mslpx(pmsl_a,psl_a,zss_a,t_a_lev,ik*ik*6,sigin(levkk))  ! needs pmsl (preferred)
@@ -930,9 +916,7 @@ c***        but needed here for onthefly (different dims) 28/8/08
           end if ! myid==0
 !         invert pmsl to get psl
           call to_pslx(pmsl,psl,zss,t(:,lev),ifull,lev)  ! on target grid
-        end if ! iotest
-      else
-        psl=0.
+        end if ! .not.iotest
       end if
 
 
@@ -945,711 +929,6 @@ c***        but needed here for onthefly (different dims) 28/8/08
       ! The following data is only read for initial conditions
       if (nested/=1) then
 
-        ! SNOW !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        snowd_a=0.
-        call histrd1(ncid,iarchi,ier,'snd',ik,6*ik,snowd_a,6*ik*ik)
-        if (ier/=0) then
-          where (tss_a<270.)
-            snowd_a=min(55.,5.*(271.-abs(tss_a)))
-          end where
-          where (snowd_a<0.001)
-            snowd_a=0.
-          end where
-        end if
-
-        ! SOIL TEMPERATURE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        do k=1,ms 
-          ucc=tss_a
-          write(vname,'("tgg",I1.1)') k
-          call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
-     &                   ucc,6*ik*ik)
-          if (ier/=0) then
-            if (k==1) then
-              ucc=tss_a
-            else if (k<=3) then
-              call histrd1(ncid,iarchi,ier,'tgg2',ik,6*ik,
-     &                 ucc,6*ik*ik)
-              if (ier/=0) then
-                call histrd1(ncid,iarchi,ier,'tb3',ik,6*ik,
-     &                 ucc,6*ik*ik)
-              end if
-            else
-              call histrd1(ncid,iarchi,ier,'tgg6',ik,6*ik,
-     &                 ucc,6*ik*ik)
-              if (ier/=0) then
-                call histrd1(ncid,iarchi,ier,'tb2',ik,6*ik,
-     &                 ucc,6*ik*ik)
-              end if
-            end if
-          end if
-          if (iotest) then
-            if (myid==0) then
-              call ccmpi_distribute(tgg(:,k),ucc)
-            else
-              call ccmpi_distribute(tgg(:,k))
-            end if
-          else
-            if (myid==0) then
-              where (.not.land_a(:))
-                ucc=spval
-              end where
-              call fill_cc(ucc,spval,ik,0)
-            end if
-            call doints4(ucc,tgg(:,k),nface4,xg4,yg4,
-     &                     nord,dk,ifg)
-          end if
-        end do
-
-        !--------------------------------------------------
-        ! Read MLO sea-ice data
-        if (nmlo/=0.and.abs(nmlo)<=9) then
-          if (.not.allocated(micdwn)) allocate(micdwn(ifull,11))
-          do k=1,8
-            select case(k)
-              case(1,2,3)
-                ucc=280.
-                write(vname,'("tggsn",I1.1)') k
-                call histrd1(ncid,iarchi,ier,vname,ik,6*ik,ucc,
-     &                 6*ik*ik)
-                tggsn_a(:,k)=ucc
-              case(4)
-                 ucc=272.2
-                 call histrd1(ncid,iarchi,ier,'tggsn4',ik,6*ik,ucc,
-     &                 6*ik*ik)
-              case(5)
-                ucc=fracice_a ! read above with nudging arrays
-              case(6)
-                ucc=sicedep_a ! read above with nudging arrays
-              case(7)
-                ucc=snowd_a/1000.
-              case(8)
-                ucc=0.
-                call histrd1(ncid,iarchi,ier,'sto',ik,6*ik,ucc,
-     &                 6*ik*ik)
-            end select
-            if (iotest) then
-              if (myid==0) then
-                call ccmpi_distribute(micdwn(:,k),ucc)
-              else
-                call ccmpi_distribute(micdwn(:,k))
-              end if
-            else
-              if (myid==0) then
-                where (land_a)
-                  ucc=spval
-                end where
-                call fill_cc(ucc,spval,ik,0)
-              end if
-              call doints4(ucc,micdwn(:,k),nface4,xg4,yg4,nord,dk,
-     &               ifg)
-            end if
-          end do
-          ucc=0.
-          vcc=0.
-          call histrd1(ncid,iarchi,ier,'uic',ik,6*ik,ucc,6*ik*ik)
-          call histrd1(ncid,iarchi,ier,'vic',ik,6*ik,vcc,6*ik*ik)
-          if (iotest) then
-            if (myid==0) then
-              call ccmpi_distribute(micdwn(:,9),ucc)
-              call ccmpi_distribute(micdwn(:,10),vcc)
-            else
-              call ccmpi_distribute(micdwn(:,9))
-              call ccmpi_distribute(micdwn(:,10))
-            end if
-          else
-            if (myid==0) then
-              where (land_a)
-                ucc=spval
-                vcc=spval
-              end where
-              call fill_cc(ucc,spval,ik,0)
-              call fill_cc(vcc,spval,ik,0)
-              call interpwind(ik,uct_g,vct_g,ucc,vcc,axs_a,ays_a,azs_a,
-     &                      bxs_a,bys_a,bzs_a,rotpole,rotpoles,nface4,
-     &                      xg4,yg4,nord)
-              call ccmpi_distribute(micdwn(:,9), uct_g)
-              call ccmpi_distribute(micdwn(:,10), vct_g)
-            else ! myid /= 0
-              call ccmpi_distribute(micdwn(:,9))
-              call ccmpi_distribute(micdwn(:,10))
-            endif ! myid==0
-          end if ! iotest
-          ucc=0.
-          call histrd1(ncid,iarchi,ier,'icesal',ik,6*ik,ucc,
-     &                 6*ik*ik)
-          if (iotest) then
-            if (myid==0) then
-              call ccmpi_distribute(micdwn(:,11),ucc)
-            else
-              call ccmpi_distribute(micdwn(:,11))
-            end if
-          else
-            if (myid==0) then
-              where (land_a)
-                ucc=spval
-              end where
-              call fill_cc(ucc,spval,ik,0)
-            end if
-            call doints4(ucc,micdwn(:,11),nface4,xg4,yg4,nord,dk,
-     &             ifg)
-          end if
-          if (abs(nmlo)>=2.and.abs(nmlo)<=9) then
-            ucc=0.
-            call histrd1(ncid,iarchi,ier,'swater',ik,6*ik,ucc,
-     &                   6*ik*ik)
-            if (iotest) then
-              if (myid==0) then
-                call ccmpi_distribute(watbdy(1:ifull),ucc)
-              else
-                call ccmpi_distribute(watbdy(1:ifull))
-              end if
-            else
-              call doints4(ucc,watbdy(1:ifull),nface4,xg4,yg4,nord,dk,
-     &               ifg)
-            end if
-            ucc=0.
-            call histrd1(ncid,iarchi,ier,'ssalin',ik,6*ik,ucc,
-     &                   6*ik*ik)
-            if (iotest) then
-              if (myid==0) then
-                call ccmpi_distribute(salbdy(1:ifull),ucc)
-              else
-                call ccmpi_distribute(salbdy(1:ifull))
-              end if
-            else
-              call doints4(ucc,salbdy(1:ifull),nface4,xg4,yg4,nord,dk,
-     &               ifg)
-            end if
-          end if
-        end if
-        !--------------------------------------------------
-
-        ! SOIL MOISTURE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        do k=1,ms
-          ucc=20.5 
-          write(vname,'("wetfrac",I1.1)') k
-          call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
-     &                   ucc,6*ik*ik)
-          if (ier==0) then
-            ucc=ucc+20. ! flag for fraction of field capacity
-          else
-            write(vname,'("wb",I1.1)') k
-            call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
-     &                     ucc,6*ik*ik)
-            if (ier/=0) then
-              if (k<=2) then
-                call histrd1(ncid,iarchi,ier,'wb2',ik,6*ik,ucc,
-     &                 6*ik*ik)
-                if (ier/=0) then
-                  call histrd1(ncid,iarchi,ier,'wfg',ik,6*ik,ucc,
-     &                   6*ik*ik)
-                end if
-              else
-                call histrd1(ncid,iarchi,ier,'wb6',ik,6*ik,ucc,
-     &                 6*ik*ik)
-                if (ier/=0) then
-                  call histrd1(ncid,iarchi,ier,'wfb',ik,6*ik,ucc,
-     &                   6*ik*ik)
-                end if
-              end if
-            end if
-          end if
-          if (iotest) then
-            if (myid==0) then
-              call ccmpi_distribute(wb(:,k),ucc)
-            else
-              call ccmpi_distribute(wb(:,k))
-            end if
-          else
-            if (myid==0) then
-              where (.not.land_a(:))
-                ucc=spval
-              end where
-              call fill_cc(ucc,spval,ik,0)
-            end if
-            call doints4(ucc,wb(:,k),nface4,xg4,yg4,
-     &                     nord,dk,ifg)
-          end if ! iotest
-        end do
-        !unpack field capacity into volumetric soil moisture
-        if (any(wb(:,:)>10.)) then
-          if (mydiag) write(6,*) "Unpacking wetfrac to wb",wb(idjd,1)
-          wb(:,:)=wb(:,:)-20.
-          do iq=1,ifull
-            isoil=isoilm(iq)
-            wb(iq,:)=(1.-wb(iq,:))*swilt(isoil)+wb(iq,:)*sfc(isoil)
-          end do
-          if (mydiag) write(6,*) "giving wb",wb(idjd,1)
-        end if
-
-        ! PH - Add wetfac to output for mbase=-19 option
-        ucc=0.1
-        call histrd1(ncid,iarchi,ier,'wetfac',ik,6*ik,ucc,6*ik*ik)
-        if (iotest) then
-          if (myid==0) then
-            call ccmpi_distribute(wetfac,ucc)
-          else
-            call ccmpi_distribute(wetfac)
-          end if
-        else
-          if (myid==0) then
-            where (.not.land_a(:))
-              ucc=spval
-            end where
-            call fill_cc(ucc,spval,ik,0)
-          end if
-          call doints4(ucc,wetfac,nface4,xg4,yg4,nord,dk,ifg)
-        end if ! iotest
-        where (.not.land)
-          wetfac=1.
-        end where
-
-        !--------------------------------------------------
-        ! Read 10m wind speeds for special sea roughness length calculations
-        if (nested==0) then
-          call histrd1(ncid,iarchi,ier,'u10',ik,6*ik,ucc,6*ik*ik)
-          if (ier/=0) ucc=-99.
-          if (iotest) then
-            if (myid==0) then
-              call ccmpi_distribute(u10,ucc)
-            else
-              call ccmpi_distribute(u10)
-            end if
-          else
-            call doints4(ucc,u10,nface4,xg4,yg4,nord,dk,ifg)
-          end if ! iotest
-          if (any(u10<-1.)) then
-            u10=sqrt(u(1:ifull,1)**2+v(1:ifull,1)**2)*log(10./0.001)
-     &                                              /log(zmin/0.001)
-          end if
-        end if
-
-        !--------------------------------------------------
-        ! Read boundary layer height for TKE-eps mixing
-        if (nvmix==6.and.nested==0) then
-          ucc=1000. ! dummy for pbl
-          call histrd1(ncid,iarchi,ier,'pblh',ik,6*ik,ucc,6*ik*ik)
-          if (iotest) then
-            if (myid==0) then
-              call ccmpi_distribute(pblh,ucc)
-            else
-              call ccmpi_distribute(pblh)
-            end if
-          else
-            call doints4(ucc,pblh,nface4,xg4,yg4,
-     &                     nord,dk,ifg)
-          end if ! iotest
-        end if
-
-        !--------------------------------------------------
-        ! Read CABLE/CASA aggregate C+N+P pools
-        if (nsib==4.or.nsib>=6) then
-         if (ccycle==0) then
-          do k=1,ncp
-            ucc=0.
-            write(vname,'("cplant",I1.1)') k
-            call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
-     &                   ucc,6*ik*ik)
-            if (ier/=0) ucc=-99.
-            if (iotest) then
-              if (myid==0) then
-                call ccmpi_distribute(dum6,ucc)
-              else
-                call ccmpi_distribute(dum6)
-              end if
-            else
-              if (myid==0) then
-                where (.not.land_a(:))
-                  ucc=spval
-                end where
-                call fill_cc(ucc,spval,ik,0)
-              end if
-              call doints4(ucc,dum6,nface4,xg4,yg4,
-     &                   nord,dk,ifg)
-            end if ! iotest
-            if (all(dum6>-1.)) then
-              cplant(:,k)=dum6
-            end if
-          end do
-          do k=1,ncs
-            ucc=0.
-            write(vname,'("csoil",I1.1)') k
-            call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
-     &                   ucc,6*ik*ik)
-            if (ier/=0) ucc=-99.
-            if (iotest) then
-              if (myid==0) then
-                call ccmpi_distribute(dum6,ucc)
-              else
-                call ccmpi_distribute(dum6)
-              end if
-            else
-              if (myid==0) then
-                where (.not.land_a(:))
-                  ucc=spval
-                end where
-                call fill_cc(ucc,spval,ik,0)
-              end if
-              call doints4(ucc,dum6,nface4,xg4,yg4,
-     &                     nord,dk,ifg)
-            end if ! iotest
-            if (all(dum6>-1.)) then
-              csoil(:,k)=dum6
-            end if
-          end do
-         else
-          do k=1,mplant
-            ucc=0.
-            write(vname,'("cplant",I1.1)') k
-            call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
-     &                   ucc,6*ik*ik)
-            if (ier/=0) ucc=-99.
-            if (iotest) then
-              if (myid==0) then
-                call ccmpi_distribute(dum6,ucc)
-              else
-                call ccmpi_distribute(dum6)
-              end if
-            else
-              if (myid==0) then
-                where (.not.land_a(:))
-                  ucc=spval
-                end where
-                call fill_cc(ucc,spval,ik,0)
-              end if
-              call doints4(ucc,dum6,nface4,xg4,yg4,
-     &                   nord,dk,ifg)
-            end if ! iotest
-            if (all(dum6>-1.)) then
-              cplant(:,k)=dum6
-            end if
-            write(vname,'("nplant",I1.1)') k
-            call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
-     &                   ucc,6*ik*ik)
-            if (ier/=0) ucc=-99.
-            if (iotest) then
-              if (myid==0) then
-                call ccmpi_distribute(dum6,ucc)
-              else
-                call ccmpi_distribute(dum6)
-              end if
-            else
-              if (myid==0) then
-                where (.not.land_a(:))
-                  ucc=spval
-                end where
-                call fill_cc(ucc,spval,ik,0)
-              end if
-              call doints4(ucc,dum6,nface4,xg4,yg4,
-     &                   nord,dk,ifg)
-            end if ! iotest
-            if (all(dum6>-1.)) then
-              niplant(:,k)=dum6
-            end if
-            write(vname,'("pplant",I1.1)') k
-            call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
-     &                   ucc,6*ik*ik)
-            if (ier/=0) ucc=-99.
-            if (iotest) then
-              if (myid==0) then
-                call ccmpi_distribute(dum6,ucc)
-              else
-                call ccmpi_distribute(dum6)
-              end if
-            else
-              if (myid==0) then
-                where (.not.land_a(:))
-                  ucc=spval
-                end where
-                call fill_cc(ucc,spval,ik,0)
-              end if
-              call doints4(ucc,dum6,nface4,xg4,yg4,
-     &                   nord,dk,ifg)
-            end if ! iotest
-            if (all(dum6>-1.)) then
-              pplant(:,k)=dum6
-            end if
-          end do
-          do k=1,mlitter
-            ucc=0.
-            write(vname,'("clitter",I1.1)') k
-            call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
-     &                   ucc,6*ik*ik)
-            if (ier/=0) ucc=-99.
-            if (iotest) then
-              if (myid==0) then
-                call ccmpi_distribute(dum6,ucc)
-              else
-                call ccmpi_distribute(dum6)
-              end if
-            else
-              if (myid==0) then
-                where (.not.land_a(:))
-                  ucc=spval
-                end where
-                call fill_cc(ucc,spval,ik,0)
-              end if
-              call doints4(ucc,dum6,nface4,xg4,yg4,
-     &                   nord,dk,ifg)
-            end if ! iotest
-            if (all(dum6>-1.)) then
-              clitter(:,k)=dum6
-            end if
-            write(vname,'("nlitter",I1.1)') k
-            call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
-     &                   ucc,6*ik*ik)
-            if (ier/=0) ucc=-99.
-            if (iotest) then
-              if (myid==0) then
-                call ccmpi_distribute(dum6,ucc)
-              else
-                call ccmpi_distribute(dum6)
-              end if
-            else
-              if (myid==0) then
-                where (.not.land_a(:))
-                  ucc=spval
-                end where
-                call fill_cc(ucc,spval,ik,0)
-              end if
-              call doints4(ucc,dum6,nface4,xg4,yg4,
-     &                   nord,dk,ifg)
-            end if ! iotest
-            if (all(dum6>-1.)) then
-              nilitter(:,k)=dum6
-            end if
-            write(vname,'("plitter",I1.1)') k
-            call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
-     &                   ucc,6*ik*ik)
-            if (ier/=0) ucc=-99.
-            if (iotest) then
-              if (myid==0) then
-                call ccmpi_distribute(dum6,ucc)
-              else
-                call ccmpi_distribute(dum6)
-              end if
-            else
-              if (myid==0) then
-                where (.not.land_a(:))
-                  ucc=spval
-                end where
-                call fill_cc(ucc,spval,ik,0)
-              end if
-              call doints4(ucc,dum6,nface4,xg4,yg4,
-     &                   nord,dk,ifg)
-            end if ! iotest
-            if (all(dum6>-1.)) then
-              plitter(:,K)=dum6
-            end if
-          end do         
-          do k=1,msoil
-            ucc=0.
-            write(vname,'("csoil",I1.1)') k
-            call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
-     &                   ucc,6*ik*ik)
-            if (ier/=0) ucc=-99.
-            if (iotest) then
-              if (myid==0) then
-                call ccmpi_distribute(dum6,ucc)
-              else
-                call ccmpi_distribute(dum6)
-              end if
-            else
-              if (myid==0) then
-                where (.not.land_a(:))
-                  ucc=spval
-                end where
-                call fill_cc(ucc,spval,ik,0)
-              end if
-              call doints4(ucc,dum6,nface4,xg4,yg4,
-     &                   nord,dk,ifg)
-            end if ! iotest
-            if (all(dum6>-1.)) then
-              csoil(:,k)=dum6
-            end if
-            write(vname,'("nsoil",I1.1)') k
-            call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
-     &                   ucc,6*ik*ik)
-            if (ier/=0) ucc=-99.
-            if (iotest) then
-              if (myid==0) then
-                call ccmpi_distribute(dum6,ucc)
-              else
-                call ccmpi_distribute(dum6)
-              end if
-            else
-              if (myid==0) then
-                where (.not.land_a(:))
-                  ucc=spval
-                end where
-                call fill_cc(ucc,spval,ik,0)
-              end if
-              call doints4(ucc,dum6,nface4,xg4,yg4,
-     &                   nord,dk,ifg)
-            end if ! iotest
-            if (all(dum6>-1.)) then
-              nisoil(:,k)=dum6
-            end if
-            write(vname,'("psoil",I1.1)') k
-            call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
-     &                   ucc,6*ik*ik)
-            if (ier/=0) ucc=-99.
-            if (iotest) then
-              if (myid==0) then
-                call ccmpi_distribute(dum6,ucc)
-              else
-                call ccmpi_distribute(dum6)
-              end if
-            else
-              if (myid==0) then
-                where (.not.land_a(:))
-                  ucc=spval
-                end where
-                call fill_cc(ucc,spval,ik,0)
-              end if
-              call doints4(ucc,dum6,nface4,xg4,yg4,
-     &                   nord,dk,ifg)
-            end if ! iotest
-            if (all(dum6>-1.)) then
-              psoil(:,k)=dum6
-            end if
-          end do
-          ucc=0.
-          call histrd1(ncid,iarchi,ier,'glai',ik,6*ik,
-     &                 ucc,6*ik*ik)
-          if (ier/=0) ucc=-99.
-          if (iotest) then
-            if (myid==0) then
-              call ccmpi_distribute(dum6,ucc)
-            else
-              call ccmpi_distribute(dum6)
-            end if
-          else
-            if (myid==0) then
-              where (.not.land_a(:))
-                ucc=spval
-              end where
-              call fill_cc(ucc,spval,ik,0)
-            end if
-            call doints4(ucc,dum6,nface4,xg4,yg4,
-     &                 nord,dk,ifg)
-          end if ! iotest
-          if (all(dum6>-1.)) then
-            glai=dum6
-          end if
-         end if
-        end if
-
-        !--------------------------------------------------
-        ! Read urban data
-        if (nurban/=0) then
-          if (.not.allocated(atebdwn)) allocate(atebdwn(ifull,24))
-          do k=1,24
-            ucc=999.
-            select case(k)
-              case(1)
-                call histrd1(ncid,iarchi,ier,'rooftgg1',ik,6*ik,
-     &                       ucc,6*ik*ik)
-              case(2)
-                call histrd1(ncid,iarchi,ier,'rooftgg2',ik,6*ik,
-     &                       ucc,6*ik*ik)
-              case(3)
-                call histrd1(ncid,iarchi,ier,'rooftgg3',ik,6*ik,
-     &                       ucc,6*ik*ik)
-              case(4)
-                call histrd1(ncid,iarchi,ier,'waletgg1',ik,6*ik,
-     &                       ucc,6*ik*ik)
-              case(5)
-                call histrd1(ncid,iarchi,ier,'waletgg2',ik,6*ik,
-     &                       ucc,6*ik*ik)
-              case(6)
-                call histrd1(ncid,iarchi,ier,'waletgg3',ik,6*ik,
-     &                       ucc,6*ik*ik)
-              case(7)
-                call histrd1(ncid,iarchi,ier,'walwtgg1',ik,6*ik,
-     &                       ucc,6*ik*ik)
-              case(8)
-                call histrd1(ncid,iarchi,ier,'walwtgg2',ik,6*ik,
-     &                       ucc,6*ik*ik)
-              case(9)
-                call histrd1(ncid,iarchi,ier,'walwtgg3',ik,6*ik,
-     &                       ucc,6*ik*ik)
-              case(10)
-                call histrd1(ncid,iarchi,ier,'roadtgg1',ik,6*ik,
-     &                       ucc,6*ik*ik)
-              case(11)
-                call histrd1(ncid,iarchi,ier,'roadtgg2',ik,6*ik,
-     &                       ucc,6*ik*ik)
-              case(12)
-                call histrd1(ncid,iarchi,ier,'roadtgg3',ik,6*ik,
-     &                       ucc,6*ik*ik)
-              case(13)
-                call histrd1(ncid,iarchi,ier,'urbnsmc',ik,6*ik,
-     &                       ucc,6*ik*ik)
-              case(14)
-                call histrd1(ncid,iarchi,ier,'urbnsmr',ik,6*ik,
-     &                       ucc,6*ik*ik)
-              case(15)
-                 ucc=0.
-                call histrd1(ncid,iarchi,ier,'roofwtr',ik,6*ik,
-     &                       ucc,6*ik*ik)
-              case(16)
-                ucc=0.
-                call histrd1(ncid,iarchi,ier,'roadwtr',ik,6*ik,
-     &                       ucc,6*ik*ik)
-              case(17)
-                ucc=0.
-                call histrd1(ncid,iarchi,ier,'urbwtrc',ik,6*ik,
-     &                       ucc,6*ik*ik)
-              case(18)
-                ucc=0.
-                call histrd1(ncid,iarchi,ier,'urbwtrr',ik,6*ik,
-     &                       ucc,6*ik*ik)
-              case(19)
-                ucc=0.
-                call histrd1(ncid,iarchi,ier,'roofsnd',ik,6*ik,
-     &                       ucc,6*ik*ik)
-              case(20)
-                ucc=0.
-                call histrd1(ncid,iarchi,ier,'roadsnd',ik,6*ik,
-     &                       ucc,6*ik*ik)
-              case(21)
-                ucc=100.
-                call histrd1(ncid,iarchi,ier,'roofden',ik,6*ik,
-     &                       ucc,6*ik*ik)
-              case(22)
-                ucc=100.
-                call histrd1(ncid,iarchi,ier,'roadden',ik,6*ik,
-     &                       ucc,6*ik*ik)
-              case(23)
-                ucc=0.85
-                call histrd1(ncid,iarchi,ier,'roofsna',ik,6*ik,
-     &                       ucc,6*ik*ik)
-              case(24)
-                ucc=0.85
-                call histrd1(ncid,iarchi,ier,'roadsna',ik,6*ik,
-     &                       ucc,6*ik*ik)
-            end select
-            if (iotest) then
-              if (myid==0) then
-                call ccmpi_distribute(atebdwn(:,k),ucc)
-              else
-                call ccmpi_distribute(atebdwn(:,k))
-              end if
-            else
-              if (myid==0) then
-                where (.not.land_a.or.ucc>=399.)
-                  ucc=spval
-                end where
-                call fill_cc(ucc,spval,ik,0)
-              end if
-              call doints4(ucc,atebdwn(:,k),nface4,xg4,yg4,nord
-     &                     ,dk,ifg)
-            end if ! iotest
-          end do
-        end if
-        !--------------------------------------------------
-        
         !--------------------------------------------------
         ! verify restart file
         if (nested==0) then
@@ -1695,15 +974,604 @@ c***        but needed here for onthefly (different dims) 28/8/08
             else
               lrestart=.false.
             end if
-            i=0
-            if (lrestart) i=1
+            ierc(1)=0
+            if (lrestart) ierc(1)=1
+            idv = ncvid(ncid,"u10",ierc(2))
           end if
-          call MPI_Bcast(i,1,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
-          lrestart=(i==1)
+          call MPI_Bcast(ierc(1:2),2,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
+          lrestart=(ierc(1)==1)
+        end if ! nested==0
+        !--------------------------------------------------
+
+        ! SNOW !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        call histrd1(ncid,iarchi,ier,'snd',ik,6*ik,snowd_a,6*ik*ik) !********************************************************************************
+        if (ier/=0) then
+          where (tss_a<270.)
+            snowd_a=min(55.,5.*(271.-abs(tss_a)))
+          end where
+          where (snowd_a<0.001)
+            snowd_a=0.
+          end where
+        end if
+
+        ! SOIL TEMPERATURE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        if (myid==0) then
+          do k=1,ms
+            write(vname,'("tgg",I1.1)') k
+            idv = ncvid(ncid,vname,iera(k))
+          end do
+        end if
+        call MPI_Bcast(iera,ms,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
+        do k=1,ms 
+          if (iera(k)==0) then
+            write(vname,'("tgg",I1.1)') k
+          else if (k<=3.and.iera(2)==0) then
+            vname="tgg2"
+          else if (k<=3) then
+            vname="tb3"
+          else if (iera(6)==0) then
+            vname="tgg6"
+          else
+            vname="tb2"
+          end if
+          if (iotest) then
+            if (k==1.and.iera(1)/=0) then
+              tgg(:,1)=tss
+            else
+              call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                     tgg(:,k),ifull)
+            end if
+          else
+            if (k==1.and.iera(1)/=0) then
+              ucc=tss_a
+            else
+              call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                     ucc,6*ik*ik)
+            end if
+            if (myid==0) then
+              where (.not.land_a(:))
+                ucc=spval
+              end where
+              call fill_cc(ucc,spval,ik,0)
+            end if
+            call doints4(ucc,tgg(:,k),nface4,xg4,yg4,
+     &                     nord,dk,ifg)
+          end if
+        end do
+
+        !--------------------------------------------------
+        ! Read MLO sea-ice data
+        if (nmlo/=0.and.abs(nmlo)<=9) then
+          if (.not.allocated(micdwn)) allocate(micdwn(ifull,11))
+          do k=1,7
+            select case(k)
+              case(1,2,3,4)
+                write(vname,'("tggsn",I1.1)') k
+                call histrd1(ncid,iarchi,ier,vname,ik,6*ik,ucc,
+     &                 6*ik*ik)                                      !*******************************************************************************
+                if (k<=3) then
+                  tggsn_a(:,k)=ucc
+                end if
+              case(5)
+                ucc=fracice_a ! read above with nudging arrays
+              case(6)
+                ucc=sicedep_a ! read above with nudging arrays
+              case(7)
+                ucc=snowd_a*1.E-3
+            end select
+            if (iotest) then
+              if (myid==0) then
+                call ccmpi_distribute(micdwn(:,k),ucc)
+              else
+                call ccmpi_distribute(micdwn(:,k))
+              end if
+            else
+              if (myid==0) then
+                where (land_a)
+                  ucc=spval
+                end where
+                call fill_cc(ucc,spval,ik,0)
+              end if
+              call doints4(ucc,micdwn(:,k),nface4,xg4,yg4,nord,dk,
+     &               ifg)
+            end if
+            if (k<=4) then
+              if (all(micdwn(:,k)==0.)) micdwn(:,k)=280.
+            end if
+          end do
+          if (iotest) then
+            call histrd1(ncid,iarchi,ier,'sto',ik,6*ik,micdwn(:,k),
+     &                 ifull)
+          else
+            call histrd1(ncid,iarchi,ier,'sto',ik,6*ik,ucc,
+     &                 6*ik*ik)
+            if (myid==0) then
+              where (land_a)
+                ucc=spval
+              end where
+              call fill_cc(ucc,spval,ik,0)
+            end if
+            call doints4(ucc,micdwn(:,k),nface4,xg4,yg4,nord,dk,
+     &               ifg)
+          end if
+          if (iotest) then
+            call histrd1(ncid,iarchi,ier,'uic',ik,6*ik,micdwn(:,9),
+     &                   ifull)
+            call histrd1(ncid,iarchi,ier,'vic',ik,6*ik,micdwn(:,10),
+     &                   ifull)
+          else
+            call histrd1(ncid,iarchi,ier,'uic',ik,6*ik,ucc,6*ik*ik)
+            call histrd1(ncid,iarchi,ier,'vic',ik,6*ik,vcc,6*ik*ik)
+            if (myid==0) then
+              where (land_a)
+                ucc=spval
+                vcc=spval
+              end where
+              call fill_cc(ucc,spval,ik,0)
+              call fill_cc(vcc,spval,ik,0)
+              call interpwind(ik,uct_g,vct_g,ucc,vcc,axs_a,ays_a,azs_a,
+     &                      bxs_a,bys_a,bzs_a,rotpole,rotpoles,nface4,
+     &                      xg4,yg4,nord)
+              call ccmpi_distribute(micdwn(:,9), uct_g)
+              call ccmpi_distribute(micdwn(:,10), vct_g)
+            else ! myid /= 0
+              call ccmpi_distribute(micdwn(:,9))
+              call ccmpi_distribute(micdwn(:,10))
+            endif ! myid==0
+          end if ! iotest
+          if (iotest) then
+            call histrd1(ncid,iarchi,ier,'icesal',ik,6*ik,
+     &                   micdwn(:,11),ifull)
+          else
+            call histrd1(ncid,iarchi,ier,'icesal',ik,6*ik,ucc,
+     &                   6*ik*ik)
+            if (myid==0) then
+              where (land_a)
+                ucc=spval
+              end where
+              call fill_cc(ucc,spval,ik,0)
+            end if
+            call doints4(ucc,micdwn(:,11),nface4,xg4,yg4,nord,dk,
+     &             ifg)
+          end if
+          if (abs(nmlo)>=2.and.abs(nmlo)<=9) then
+            if (iotest) then
+              call histrd1(ncid,iarchi,ier,'swater',ik,6*ik,
+     &                     watbdy(1:ifull),ifull)
+            else
+              call histrd1(ncid,iarchi,ier,'swater',ik,6*ik,ucc,
+     &                     6*ik*ik)
+              call doints4(ucc,watbdy(1:ifull),nface4,xg4,yg4,nord,dk,
+     &               ifg)
+            end if
+            if (iotest) then
+              call histrd1(ncid,iarchi,ier,'ssalin',ik,6*ik,
+     &                     salbdy(1:ifull),ifull)
+            else
+              call histrd1(ncid,iarchi,ier,'ssalin',ik,6*ik,ucc,
+     &                     6*ik*ik)
+              call doints4(ucc,salbdy(1:ifull),nface4,xg4,yg4,nord,dk,
+     &               ifg)
+            end if
+          end if
+        end if
+        !--------------------------------------------------
+
+        ! SOIL MOISTURE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        if (myid==0) then
+          do k=1,ms
+            write(vname,'("wetfrac",I1.1)') k
+            idv = ncvid(ncid,vname,iera(k))
+          end do
+        end if
+        call MPI_Bcast(iera,ms,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+        if (any(iera(1:ms)/=0)) then
+          if (myid==0) then
+            do k=1,ms
+              write(vname,'("wb",I1.1)') k
+              idv = ncvid(ncid,vname,ierb(k))
+            end do
+          end if
+          call MPI_Bcast(ierb,ms,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+        end if
+        wb=20.5
+        do k=1,ms
+          if (iera(k)==0) then
+            write(vname,'("wetfrac",I1.1)') k
+          else if (ierb(k)==0) then
+            write(vname,'("wb",I1.1)') k
+          else if (k<2.and.ierb(2)==0) then
+            vname="wb2"
+          else if (k<2) then
+            vname="wfg"
+          else if (ierb(6)==0) then
+            vname="wb6"
+          else
+            vname="wfb"
+          end if
+          if (iotest) then
+            call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                   wb(:,k),ifull)
+            if (iera(k)==0) then
+              wb(:,k)=wb(:,k)+20. ! flag for fraction of field capacity
+            end if
+          else
+            call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                   ucc,6*ik*ik)
+            if (iera(k)==0) then
+              ucc=ucc+20.
+            end if
+            if (myid==0) then
+              where (.not.land_a(:))
+                ucc=spval
+              end where
+              call fill_cc(ucc,spval,ik,0)
+            end if
+            call doints4(ucc,wb(:,k),nface4,xg4,yg4,
+     &                     nord,dk,ifg)
+          end if ! iotest
+        end do
+        !unpack field capacity into volumetric soil moisture
+        if (any(wb(:,:)>10.)) then
+          if (mydiag) write(6,*) "Unpacking wetfrac to wb",wb(idjd,1)
+          wb(:,:)=wb(:,:)-20.
+          do iq=1,ifull
+            isoil=isoilm(iq)
+            wb(iq,:)=(1.-wb(iq,:))*swilt(isoil)+wb(iq,:)*sfc(isoil)
+          end do
+          if (mydiag) write(6,*) "giving wb",wb(idjd,1)
+        end if
+
+        ! PH - Add wetfac to output for mbase=-19 option
+        if (iotest) then
+          call histrd1(ncid,iarchi,ier,'wetfac',ik,6*ik,wetfac,
+     &                 ifull)
+        else
+          call histrd1(ncid,iarchi,ier,'wetfac',ik,6*ik,ucc,6*ik*ik)
+          if (myid==0) then
+            where (.not.land_a(:))
+              ucc=spval
+            end where
+            call fill_cc(ucc,spval,ik,0)
+          end if
+          call doints4(ucc,wetfac,nface4,xg4,yg4,nord,dk,ifg)
+        end if ! iotest
+        where (.not.land)
+          wetfac=1.
+        end where
+
+        !--------------------------------------------------
+        ! Read 10m wind speeds for special sea roughness length calculations
+        if (nested==0) then
+          if (ierc(2)==0) then
+           if (iotest) then
+            call histrd1(ncid,iarchi,ier,'u10',ik,6*ik,u10,ifull)
+           else
+            call histrd1(ncid,iarchi,ier,'u10',ik,6*ik,ucc,6*ik*ik)
+            call doints4(ucc,u10,nface4,xg4,yg4,nord,dk,ifg)
+           end if ! iotest
+          else
+           u10=sqrt(u(1:ifull,1)**2+v(1:ifull,1)**2)*log(10./0.001)
+     &                                              /log(zmin/0.001)
+          end if
+        end if
+
+        !--------------------------------------------------
+        ! Read boundary layer height for TKE-eps mixing
+        if (nvmix==6.and.nested==0) then
+          if (iotest) then
+            call histrd1(ncid,iarchi,ier,'pblh',ik,6*ik,pblh,ifull)
+          else
+            call histrd1(ncid,iarchi,ier,'pblh',ik,6*ik,ucc,6*ik*ik)
+            call doints4(ucc,pblh,nface4,xg4,yg4,
+     &                     nord,dk,ifg)
+          end if ! iotest
+	  if (all(pblh==0.)) pblh=1000.
+        end if
+
+        !--------------------------------------------------
+        ! Read CABLE/CASA aggregate C+N+P pools
+        if (nsib>=6) then
+         if (ccycle==0) then
+          if (myid==0) then
+            idv = ncvid(ncid,"cplant1",iera(1))
+          end if
+          call MPI_Bcast(iera(1),1,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
+          if (iera(1)==0) then
+           do k=1,ncp
+            write(vname,'("cplant",I1.1)') k
+            if (iotest) then
+              call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                     cplant(:,k),ifull)
+            else
+              call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                     ucc,6*ik*ik)
+              if (myid==0) then
+                where (.not.land_a(:))
+                  ucc=spval
+                end where
+                call fill_cc(ucc,spval,ik,0)
+              end if
+              call doints4(ucc,cplant(:,k),nface4,xg4,yg4,
+     &                   nord,dk,ifg)
+            end if ! iotest
+           end do
+           do k=1,ncs
+            write(vname,'("csoil",I1.1)') k
+            if (iotest) then
+              call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                     csoil(:,k),ifull)
+            else
+              call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                     ucc,6*ik*ik)
+              if (myid==0) then
+                where (.not.land_a(:))
+                  ucc=spval
+                end where
+                call fill_cc(ucc,spval,ik,0)
+              end if
+              call doints4(ucc,csoil(:,k),nface4,xg4,yg4,
+     &                     nord,dk,ifg)
+            end if ! iotest
+           end do
+          end if
+         else
+          if (myid==0) then
+            idv = ncvid(ncid,"glai",iera(1))
+          end if
+          call MPI_Bcast(iera(1),1,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
+          if (iera(1)==0) then
+           do k=1,mplant
+            write(vname,'("cplant",I1.1)') k
+            if (iotest) then
+              call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                     cplant(:,k),ifull)
+            else
+              call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                     ucc,6*ik*ik)
+              if (myid==0) then
+                where (.not.land_a(:))
+                  ucc=spval
+                end where
+                call fill_cc(ucc,spval,ik,0)
+              end if
+              call doints4(ucc,cplant(:,k),nface4,xg4,yg4,
+     &                   nord,dk,ifg)
+            end if ! iotest
+            write(vname,'("nplant",I1.1)') k
+            if (iotest) then
+              call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                     niplant(:,k),ifull)
+            else
+              call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                     ucc,6*ik*ik)
+              if (myid==0) then
+                where (.not.land_a(:))
+                  ucc=spval
+                end where
+                call fill_cc(ucc,spval,ik,0)
+              end if
+              call doints4(ucc,niplant(:,k),nface4,xg4,yg4,
+     &                   nord,dk,ifg)
+            end if ! iotest
+            write(vname,'("pplant",I1.1)') k
+            if (iotest) then
+              call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                     pplant(:,k),ifull)
+            else
+              call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                     ucc,6*ik*ik)
+              if (myid==0) then
+                where (.not.land_a(:))
+                  ucc=spval
+                end where
+                call fill_cc(ucc,spval,ik,0)
+              end if
+              call doints4(ucc,pplant(:,k),nface4,xg4,yg4,
+     &                   nord,dk,ifg)
+            end if ! iotest
+           end do
+           do k=1,mlitter
+            write(vname,'("clitter",I1.1)') k
+            if (iotest) then
+              call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                     clitter(:,k),ifull)
+            else
+              call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                     ucc,6*ik*ik)
+              if (myid==0) then
+                where (.not.land_a(:))
+                  ucc=spval
+                end where
+                call fill_cc(ucc,spval,ik,0)
+              end if
+              call doints4(ucc,clitter(:,k),nface4,xg4,yg4,
+     &                   nord,dk,ifg)
+            end if ! iotest
+            write(vname,'("nlitter",I1.1)') k
+            if (iotest) then
+              call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                     nilitter(:,k),ifull)
+            else
+              call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                     ucc,6*ik*ik)
+              if (myid==0) then
+                where (.not.land_a(:))
+                  ucc=spval
+                end where
+                call fill_cc(ucc,spval,ik,0)
+              end if
+              call doints4(ucc,nilitter(:,k),nface4,xg4,yg4,
+     &                   nord,dk,ifg)
+            end if ! iotest
+            write(vname,'("plitter",I1.1)') k
+            if (iotest) then
+              call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                     plitter(:,k),ifull)
+            else
+              call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                     ucc,6*ik*ik)
+              if (myid==0) then
+                where (.not.land_a(:))
+                  ucc=spval
+                end where
+                call fill_cc(ucc,spval,ik,0)
+              end if
+              call doints4(ucc,plitter(:,k),nface4,xg4,yg4,
+     &                     nord,dk,ifg)
+            end if ! iotest
+           end do         
+           do k=1,msoil
+            write(vname,'("csoil",I1.1)') k
+            if (iotest) then
+              call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                     csoil(:,k),ifull)
+            else
+              call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                     ucc,6*ik*ik)
+              if (myid==0) then
+                where (.not.land_a(:))
+                  ucc=spval
+                end where
+                call fill_cc(ucc,spval,ik,0)
+              end if
+              call doints4(ucc,csoil(:,k),nface4,xg4,yg4,
+     &                   nord,dk,ifg)
+            end if ! iotest
+            write(vname,'("nsoil",I1.1)') k
+            if (iotest) then
+              call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                     nisoil(:,k),ifull)
+            else
+              call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                     ucc,6*ik*ik)
+              if (myid==0) then
+                where (.not.land_a(:))
+                  ucc=spval
+                end where
+                call fill_cc(ucc,spval,ik,0)
+              end if
+              call doints4(ucc,nisoil(:,k),nface4,xg4,yg4,
+     &                   nord,dk,ifg)
+            end if ! iotest
+            write(vname,'("psoil",I1.1)') k
+            if (iotest) then
+              call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                     psoil(:,k),ifull)
+            else
+              call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                     ucc,6*ik*ik)
+              if (myid==0) then
+                where (.not.land_a(:))
+                  ucc=spval
+                end where
+                call fill_cc(ucc,spval,ik,0)
+              end if
+              call doints4(ucc,psoil(:,k),nface4,xg4,yg4,
+     &                   nord,dk,ifg)
+            end if ! iotest
+           end do
+           if (iotest) then
+            call histrd1(ncid,iarchi,ier,'glai',ik,6*ik,
+     &                   glai,ifull)
+           else
+            call histrd1(ncid,iarchi,ier,'glai',ik,6*ik,
+     &                   ucc,6*ik*ik)
+            if (myid==0) then
+              where (.not.land_a(:))
+                ucc=spval
+              end where
+              call fill_cc(ucc,spval,ik,0)
+            end if
+            call doints4(ucc,glai,nface4,xg4,yg4,
+     &                 nord,dk,ifg)
+           end if ! iotest
+          end if ! iera(1)==0
+         end if ! ccycle==0 ..else..
+        end if ! if nsib==6.or.nsib==7
+
+        !--------------------------------------------------
+        ! Read urban data
+        if (nurban/=0) then
+          if (.not.allocated(atebdwn)) allocate(atebdwn(ifull,24))
+          do k=1,24
+            select case(k)
+              case(1)
+                vname='rooftgg1'
+              case(2)
+                vname='rooftgg2'
+              case(3)
+                vname='rooftgg3'
+              case(4)
+                vname='waletgg1'
+              case(5)
+                vname='waletgg2'
+              case(6)
+                vname='waletgg3'
+              case(7)
+                vname='walwtgg1'
+              case(8)
+                vname='walwtgg2'
+              case(9)
+                vname='walwtgg3'
+              case(10)
+                vname='roadtgg1'
+              case(11)
+                vname='roadtgg2'
+              case(12)
+                vname='roadtgg3'
+              case(13)
+                vname='urbnsmc'
+              case(14)
+                vname='urbnsmr'
+              case(15)
+                vname='roofwtr'
+              case(16)
+                vname='roadwtr'
+              case(17)
+                vname='urbwtrc'
+              case(18)
+                vname='urbwtrr'
+              case(19)
+                vname='roofsnd'
+              case(20)
+                vname='roadsnd'
+              case(21)
+                vname='roofden'
+              case(22)
+                vname='roadden'
+              case(23)
+                vname='roofsna'
+              case(24)
+                vname='roadsna'
+            end select
+            if (iotest) then
+              call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                     atebdwn(:,k),ifull)
+            else
+              call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                     ucc,6*ik*ik)
+              if (myid==0) then
+                where (.not.land_a.or.ucc>=399.)
+                  ucc=spval
+                end where
+                call fill_cc(ucc,spval,ik,0)
+              end if
+              call doints4(ucc,atebdwn(:,k),nface4,xg4,yg4,nord,
+     &                     dk,ifg)
+            end if ! iotest
+            if (all(atebdwn(:,k)==0.)) then
+              select case(k)
+                case(21,22)
+                  atebdwn(:,k)=100.
+                case(23,24)
+                  atebdwn(:,k)=0.85
+              end select
+            end if
+          end do
         end if
         !--------------------------------------------------
         
-
         if (nested==0) then
           ! OMEGA !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           ! only for restart - no interpolation
@@ -1712,120 +1580,90 @@ c***        but needed here for onthefly (different dims) 28/8/08
             do k=1,kk 
              call histrd4s(ncid,iarchi,ier,'omega',ik,6*ik,k,
      &                     dpsldt(:,k),ifull)
-             dpsldt(:,k)=dpsldt(:,k)/(1.e5*exp(psl(1:ifull)))
+             dpsldt(:,k)=dpsldt(:,k)/(1.e5*exp(psl))
             enddo  ! k loop
           end if
         end if
 
         if (nested==0) then
           ! CLOUD FROZEN WATER !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-          do k=1,kk 
-           ucc=0. ! dummy for qfg
-           call histrd4s(ncid,iarchi,ier,'qfg',ik,6*ik,k,ucc,
-     &                   6*ik*ik)
+          do k=1,kk
            if (iotest) then
-             if (myid==0) then
-               call ccmpi_distribute(u_k(:,k),ucc)
-             else
-               call ccmpi_distribute(u_k(:,k))
-             end if
+             call histrd4s(ncid,iarchi,ier,'qfg',ik,6*ik,k,u_k(:,k),
+     &                     ifull) 
            else
+             ucc=0. ! dummy for qfg
+             call histrd4s(ncid,iarchi,ier,'qfg',ik,6*ik,k,ucc,
+     &                     6*ik*ik)
              call doints4(ucc,u_k(:,k),nface4,xg4,yg4,nord,dk,ifg)
            end if ! iotest
           enddo  ! k loop
-          call vertint(u_k,qfg,5,kk,sigin)
+          call vertint(u_k,dum,5,kk,sigin)
+          qfg(1:ifull,:)=dum
           ! CLOUD LIQUID WATER !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           do k=1,kk 
-           ucc=0. ! dummy for qlg
-           call histrd4s(ncid,iarchi,ier,'qlg',ik,6*ik,k,ucc,
-     &                   6*ik*ik)
            if (iotest) then
-             if (myid==0) then
-               call ccmpi_distribute(u_k(:,k),ucc)
-             else
-               call ccmpi_distribute(u_k(:,k))
-             end if
+             call histrd4s(ncid,iarchi,ier,'qlg',ik,6*ik,k,u_k(:,k),
+     &                     ifull)
            else
+             ucc=0. ! dummy for qlg
+             call histrd4s(ncid,iarchi,ier,'qlg',ik,6*ik,k,ucc,
+     &                     6*ik*ik)
              call doints4(ucc,u_k(:,k),nface4,xg4,yg4,nord,dk,ifg)
            end if ! iotest
           enddo  ! k loop
-          call vertint(u_k,qlg,5,kk,sigin)
+          call vertint(u_k,dum,5,kk,sigin)
+          qlg(1:ifull,:)=dum
           ! RAIN !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-          do k=1,kk 
-           vcc=0. ! dummy for qrg
-           call histrd4s(ncid,iarchi,ier,'qrg',ik,6*ik,k,vcc,
-     &                   6*ik*ik)
+          do k=1,kk
            if (iotest) then
-             if (myid==0) then
-               call ccmpi_distribute(v_k(:,k),vcc)
-             else
-               call ccmpi_distribute(v_k(:,k))
-             end if
-           else
+             call histrd4s(ncid,iarchi,ier,'qrg',ik,6*ik,k,v_k(:,k),
+     &                     ifull)
+           else 
+             vcc=0. ! dummy for qrg
+             call histrd4s(ncid,iarchi,ier,'qrg',ik,6*ik,k,vcc,
+     &                     6*ik*ik)
              call doints4(vcc,v_k(:,k),nface4,xg4,yg4,nord,dk,ifg)
            end if ! iotest
           enddo  ! k loop
-          call vertint(v_k,qrg,5,kk,sigin)
-    !      ! SNOW !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    !      do k=1,kk 
-    !       vcc=0. ! dummy for qsg
-    !       call histrd4s(ncid,iarchi,ier,'qsg',ik,6*ik,k,vcc,
-    ! &                   6*ik*ik)
-    !       if (iotest) then
-    !         if (myid==0) then
-    !           call ccmpi_distribute(v_k(:,k),vcc)
-    !         else
-    !           call ccmpi_distribute(v_k(:,k))
-    !         end if
-    !       else
-    !         call doints4(vcc,v_k(:,k),nface4,xg4,yg4,nord,dk,ifg)
-    !       end if ! iotest
-    !      enddo  ! k loop
-    !      call vertint(v_k,qsg,5,kk,sigin)
+          call vertint(v_k,dum,5,kk,sigin)
+          qrg(1:ifull,:)=dum
     !      ! GRAUPLE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    !      do k=1,kk 
-    !       vcc=0. ! dummy for qgrau
-    !       call histrd4s(ncid,iarchi,ier,'qgrau',ik,6*ik,k,vcc,
-    ! &                   6*ik*ik)
+    !      do k=1,kk
     !       if (iotest) then
-    !         if (myid==0) then
-    !           call ccmpi_distribute(v_k(:,k),vcc)
-    !         else
-    !           call ccmpi_distribute(v_k(:,k))
-    !         end if
-    !       else
+    !         call histrd4s(ncid,iarchi,ier,'qgrau',ik,6*ik,k,
+    ! &                     v_k(:,k),ifull)
+    !       else 
+    !         call histrd4s(ncid,iarchi,ier,'qgrau',ik,6*ik,k,vcc,
+    ! &                     6*ik*ik)
     !         call doints4(vcc,v_k(:,k),nface4,xg4,yg4,nord,dk,ifg)
     !       end if ! iotest
     !      enddo  ! k loop
-    !      call vertint(v_k,qgrau,5,kk,sigin)
+    !      call vertint(v_k,dum,5,kk,sigin)
+    !      qgrau(1:ifull,:)=dum
           ! CLOUD FRACTION !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-          do k=1,kk 
-           ucc=0. ! dummy for cfrac
-           call histrd4s(ncid,iarchi,ier,'cfrac',ik,6*ik,k,ucc,
-     &                   6*ik*ik)
+          do k=1,kk
            if (iotest) then
-             if (myid==0) then
-               call ccmpi_distribute(u_k(:,k),ucc)
-             else
-               call ccmpi_distribute(u_k(:,k))
-             end if
-           else
+             call histrd4s(ncid,iarchi,ier,'cfrac',ik,6*ik,k,
+     &                     u_k(:,k),ifull)
+           else 
+             ucc=0. ! dummy for cfrac
+             call histrd4s(ncid,iarchi,ier,'cfrac',ik,6*ik,k,ucc,
+     &                     6*ik*ik)
              call doints4(ucc,u_k(:,k),nface4,xg4,yg4,nord,dk,ifg)
            end if ! iotest
           enddo  ! k loop
-          call vertint(u_k,cfrac,5,kk,sigin)
+          call vertint(u_k,dum,5,kk,sigin)
+          cfrac(1:ifull,:)=dum
           ! RAIN FRACTION !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-          do k=1,kk 
-           ucc=0. ! dummy for cffall
-           call histrd4s(ncid,iarchi,ier,'cfrain',ik,6*ik,k,ucc,
-     &                   6*ik*ik)
+          do k=1,kk
            if (iotest) then
-             if (myid==0) then
-               call ccmpi_distribute(u_k(:,k),ucc)
-             else
-               call ccmpi_distribute(u_k(:,k))
-             end if
-           else
+             call histrd4s(ncid,iarchi,ier,'cfrain',ik,6*ik,k,
+     &                     u_k(:,k),ifull)
+           else 
+             ucc=0. ! dummy for cffall
+             call histrd4s(ncid,iarchi,ier,'cfrain',ik,6*ik,k,ucc,
+     &                     6*ik*ik)
              call doints4(ucc,u_k(:,k),nface4,xg4,yg4,nord,dk,ifg)
            end if ! iotest
           enddo  ! k loop
@@ -1837,38 +1675,32 @@ c***        but needed here for onthefly (different dims) 28/8/08
         ! TKE-eps data
         if (nvmix==6.and.nested==0) then
           do k=1,kk
-            ucc=1.5E-4 ! dummy for tke
-            call histrd4s(ncid,iarchi,ier,'tke',ik,6*ik,k,
-     &                    ucc,6*ik*ik)
             if (iotest) then
-              if (myid==0) then
-                call ccmpi_distribute(u_k(:,k),ucc)
-              else
-                call ccmpi_distribute(u_k(:,k))
-              end if
+              call histrd4s(ncid,iarchi,ier,'tke',ik,6*ik,k,
+     &                      u_k(:,k),ifull)
             else
+              call histrd4s(ncid,iarchi,ier,'tke',ik,6*ik,k,
+     &                    ucc,6*ik*ik)
               call doints4(ucc,u_k(:,k),nface4,xg4,yg4,
      &                     nord,dk,ifg)
             end if ! iotest
           end do
           call vertint(u_k,dum,5,kk,sigin)
+          if (all(dum==0.)) dum=1.5E-4
           tke(1:ifull,:)=dum
           do k=1,kk
-            vcc=1.E-7 ! dummy for eps
-            call histrd4s(ncid,iarchi,ier,'eps',ik,6*ik,k,
-     &                    vcc,6*ik*ik)
             if (iotest) then
-              if (myid==0) then
-                call ccmpi_distribute(v_k(:,k),vcc)
-              else
-                call ccmpi_distribute(v_k(:,k))
-              end if
+              call histrd4s(ncid,iarchi,ier,'eps',ik,6*ik,k,
+     &                      v_k(:,k),ifull)
             else
+              call histrd4s(ncid,iarchi,ier,'eps',ik,6*ik,k,
+     &                      vcc,6*ik*ik)
               call doints4(vcc,v_k(:,k),nface4,xg4,yg4,
      &                     nord,dk,ifg)
             end if ! iotest
           end do
           call vertint(v_k,dum,5,kk,sigin)
+          if (all(dum==0.)) dum=1.E-7
           eps(1:ifull,:)=dum
         end if
 
@@ -1878,16 +1710,13 @@ c***        but needed here for onthefly (different dims) 28/8/08
           do igas=1,ngas              
             write(trnum,'(i3.3)') igas
             do k=1,kk
-              ucc=0.
-              call histrd4s(ncid,iarchi,ier,'tr'//trnum,ik,6*ik,k,
-     &                 ucc,6*ik*ik)
               if (iotest) then
-                if (myid==0) then
-                   call ccmpi_distribute(u_k(:,k),ucc)
-                else
-                  call ccmpi_distribute(u_k(:,k))
-                end if
+                call histrd4s(ncid,iarchi,ier,'tr'//trnum,ik,6*ik,k,
+     &                   u_k(:,k),ifull)
               else
+                ucc=0.
+                call histrd4s(ncid,iarchi,ier,'tr'//trnum,ik,6*ik,k,
+     &                        ucc,6*ik*ik)
                 call doints4(ucc,u_k(:,k),nface4,xg4,yg4,
      &                       nord,dk,ifg)              
               end if ! iotest
@@ -1901,59 +1730,44 @@ c***        but needed here for onthefly (different dims) 28/8/08
         ! Aerosol data
         if (abs(iaero)>=2) then
           do i=1,naero+2
+            select case(i)
+              case(1)
+                vname='dms'
+              case(2)
+                vname='so2'
+              case(3)
+                vname='so4'
+              case(4)
+                vname='bco'
+              case(5)
+                vname='bci'
+              case(6)
+                vname='oco'
+              case(7)
+                vname='oci'
+              case(8)
+                vname='dust1'
+              case(9)
+                vname='dust2'
+              case(10)
+                vname='dust3'
+              case(11)
+                vname='dust4'
+              case(12)
+                vname='seasalt1'
+              case(13)
+                vname='seasalt2'
+              case default
+                write(6,*) "ERROR: Unknown aerosol type ",i
+                stop
+            end select
             do k=1,kk
-              ucc=0. ! dummy for aerosol
-              select case(i)
-                case(1)
-                  call histrd4s(ncid,iarchi,ier,'dms',ik,6*ik,k,
-     &                          ucc,6*ik*ik)
-                case(2)
-                  call histrd4s(ncid,iarchi,ier,'so2',ik,6*ik,k,
-     &                          ucc,6*ik*ik)
-                case(3)
-                  call histrd4s(ncid,iarchi,ier,'so4',ik,6*ik,k,
-     &                          ucc,6*ik*ik)
-                case(4)
-                  call histrd4s(ncid,iarchi,ier,'bco',ik,6*ik,k,
-     &                          ucc,6*ik*ik)
-                case(5)
-                  call histrd4s(ncid,iarchi,ier,'bci',ik,6*ik,k,
-     &                          ucc,6*ik*ik)
-                case(6)
-                  call histrd4s(ncid,iarchi,ier,'oco',ik,6*ik,k,
-     &                          ucc,6*ik*ik)
-                case(7)
-                  call histrd4s(ncid,iarchi,ier,'oci',ik,6*ik,k,
-     &                          ucc,6*ik*ik)
-                case(8)
-                  call histrd4s(ncid,iarchi,ier,'dust1',ik,6*ik,k,
-     &                          ucc,6*ik*ik)
-                case(9)
-                  call histrd4s(ncid,iarchi,ier,'dust2',ik,6*ik,k,
-     &                          ucc,6*ik*ik)
-                case(10)
-                  call histrd4s(ncid,iarchi,ier,'dust3',ik,6*ik,k,
-     &                          ucc,6*ik*ik)
-                case(11)
-                  call histrd4s(ncid,iarchi,ier,'dust4',ik,6*ik,k,
-     &                          ucc,6*ik*ik)
-                case(12)
-                  call histrd4s(ncid,iarchi,ier,'seasalt1',ik,6*ik,k,
-     &                          ucc,6*ik*ik)
-                case(13)
-                  call histrd4s(ncid,iarchi,ier,'seasalt2',ik,6*ik,k,
-     &                          ucc,6*ik*ik)
-                case default
-                  write(6,*) "ERROR: Unknown aerosol type ",i
-                  stop
-              end select
               if (iotest) then
-                if (myid==0) then
-                  call ccmpi_distribute(u_k(:,k),ucc)
-                else
-                  call ccmpi_distribute(u_k(:,k))
-                end if
+                call histrd4s(ncid,iarchi,ier,vname,ik,6*ik,k,
+     &                        u_k(:,k),ifull)
               else
+                call histrd4s(ncid,iarchi,ier,vname,ik,6*ik,k,
+     &                          ucc,6*ik*ik)
                 call doints4(ucc,u_k(:,k),nface4,xg4,yg4,
      &                       nord,dk,ifg)
               end if ! iotest
@@ -2096,17 +1910,13 @@ c***        but needed here for onthefly (different dims) 28/8/08
 
         ! SOIL ICE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         do k=1,ms
-          ucc=0. 
           write(vname,'("wbice",I1.1)') k
-          call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
-     &                   ucc,6*ik*ik)
           if (iotest) then
-            if (myid==0) then
-              call ccmpi_distribute(wbice(:,k),ucc)
-            else
-              call ccmpi_distribute(wbice(:,k))
-            end if
+            call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                   wbice(:,k),ifull)
           else
+            call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                   ucc,6*ik*ik)
             if (myid==0) then
               where (.not.land_a(:))
                 ucc=spval
@@ -2119,26 +1929,21 @@ c***        but needed here for onthefly (different dims) 28/8/08
         end do
 
         if (nmlo==0.or.abs(nmlo)>9) then ! otherwise already read above
-          tggsn_a(:,:)= 280.
-          call histrd1(ncid,iarchi,ier,'tggsn1',ik,6*ik,tggsn_a(:,1),
-     &                 6*ik*ik)
-          call histrd1(ncid,iarchi,ier,'tggsn2',ik,6*ik,tggsn_a(:,2),
-     &                 6*ik*ik)
-          call histrd1(ncid,iarchi,ier,'tggsn3',ik,6*ik,tggsn_a(:,3),
-     &                 6*ik*ik)
+         do k=1,3
+          write(vname,'("tggsn",I1.1)') k
+          call histrd1(ncid,iarchi,ier,vname,ik,6*ik,tggsn_a(:,k),
+     &                 6*ik*ik)                                        !*****************************************************************************
+          if (all(tggsn_a(:,k)==0.)) tggsn_a(:,k)=280.
+         end do
         end if
 
         if (iotest) then
           if (myid==0) then
             call ccmpi_distribute(snowd,snowd_a)
-            do k=1,3
-              call ccmpi_distribute(tggsn(:,k),tggsn_a(:,k))
-            end do            
+            call ccmpi_distribute(tggsn,tggsn_a)
           else
             call ccmpi_distribute(snowd)
-            do k=1,3
-              call ccmpi_distribute(tggsn(:,k))
-            end do
+            call ccmpi_distribute(tggsn)
           end if
         else
           if(myid==0)then
@@ -2169,17 +1974,13 @@ c***        but needed here for onthefly (different dims) 28/8/08
         end if ! iotest
 
         do k=1,3
-          ucc=0.
           write(vname,'("smass",I1.1)') k
-          call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
-     &                   ucc,6*ik*ik)
           if (iotest) then
-            if (myid==0) then
-              call ccmpi_distribute(smass(:,k),ucc)
-            else
-              call ccmpi_distribute(smass(:,k))
-            end if
+            call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                   smass(:,k),ifull)
           else
+            call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                   ucc,6*ik*ik)
             if (myid==0) then
               where (.not.land_a(:))
                 ucc=spval
@@ -2191,21 +1992,13 @@ c***        but needed here for onthefly (different dims) 28/8/08
           end if ! iotest
         end do
         do k=1,3
-          where(snowd_a>100.)
-            ucc=240.
-          elsewhere
-            ucc=140.
-          endwhere
           write(vname,'("ssdn",I1.1)') k
-          call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
-     &                   ucc,6*ik*ik)
           if (iotest) then
-            if (myid==0) then
-              call ccmpi_distribute(ssdn(:,k),ucc)
-            else
-              call ccmpi_distribute(ssdn(:,k))
-            end if
+            call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                     ssdn(:,k),ifull)
           else
+            call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                   ucc,6*ik*ik)
             if (myid==0) then
               where (.not.land_a(:))
                 ucc=spval
@@ -2215,19 +2008,22 @@ c***        but needed here for onthefly (different dims) 28/8/08
             call doints4(ucc,ssdn(:,k),nface4,xg4,yg4,
      &                     nord,dk,ifg)
           end if ! iotest
+          if (all(ssdn(:,k)==0.)) then
+            where (snowd>100.)
+              ssdn(:,k)=240.
+            elsewhere
+              ssdn(:,k)=140.
+            end where
+          end if
         end do
         ssdnn=ssdn(:,1)
         
-        ucc=0.
-        call histrd1(ncid,iarchi,ier,'snage',ik,6*ik,ucc,
-     &               6*ik*ik)
         if (iotest) then
-          if (myid==0) then
-            call ccmpi_distribute(snage,ucc)
-          else
-            call ccmpi_distribute(snage)
-          end if
+          call histrd1(ncid,iarchi,ier,'snage',ik,6*ik,snage,
+     &                 ifull)
         else
+          call histrd1(ncid,iarchi,ier,'snage',ik,6*ik,ucc,
+     &                 6*ik*ik)
           if (myid==0) then
             where (.not.land_a)
               ucc=spval
@@ -2238,16 +2034,12 @@ c***        but needed here for onthefly (different dims) 28/8/08
      &                   nord,dk,ifg)
         end if ! iotest
 
-        ucc=0.
-        call histrd1(ncid,iarchi,ier,'sflag',ik,6*ik,ucc,
-     &               6*ik*ik)
         if (iotest) then
-          if (myid==0) then
-            call ccmpi_distribute(dum6,ucc)
-          else
-            call ccmpi_distribute(dum6)
-          end if
+          call histrd1(ncid,iarchi,ier,'sflag',ik,6*ik,dum6,
+     &                 ifull)
         else
+          call histrd1(ncid,iarchi,ier,'sflag',ik,6*ik,ucc,
+     &                 6*ik*ik)
           if (myid==0) then
             where (.not.land_a)
               ucc=spval

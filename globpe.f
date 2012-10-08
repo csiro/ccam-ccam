@@ -1299,8 +1299,8 @@
       select case(nkuo)
         case(5)
           call betts(t,qg,tn,land,ps) ! not called these days
-	case(22)
-	  call oldconvjlm(iaero)      ! JLM's original convjlm before 2012
+        case(22)
+          call oldconvjlm(iaero)      ! original convjlm before 2012
         case(23,24)
           call convjlm(iaero)         ! split convjlm 
         case(46)
@@ -2000,11 +2000,6 @@
       integer glob2d(ifull_g)
       real rlong0x,rlat0x,schmidtx,dsx
 
-      if( ifullx /= ifull ) then
-        write(6,*) "Error, readint only works with ifull"
-        write(6,*) "called with", ifullx
-        call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-      end if
       if ( myid == 0 ) then
         write(6,*) 'reading data via readint from ',filename
         open(87,file=filename,status='old')
@@ -2030,10 +2025,19 @@
           write(6,*) 'End of file occurred in readint'
           call MPI_Abort(MPI_COMM_WORLD,-1,ierr)	  
         end if
-        call ccmpi_distribute(itss, glob2d)
+        if (ifullx==ifull) then
+          call ccmpi_distribute(itss, glob2d)
+        else if (ifullx==ifull_g) then
+          itss=glob2d
+        else
+          write(6,*) "ERROR: Invalid ifullx for readint"
+          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+        end if
         write(6,*) trim(header), glob2d(id+(jd-1)*il_g)
       else
-        call ccmpi_distribute(itss)
+        if (ifullx==ifull) then
+          call ccmpi_distribute(itss)
+        end if
       end if
       end subroutine readint
 
@@ -2058,11 +2062,6 @@
       integer ierr
       integer ilx,jlx,ifullx
 
-      if( ifullx /= ifull ) then
-        write(6,*) "Error, readreal only works with ifull"
-        write(6,*) "called with", ifullx
-        call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-      end if
       if ( myid == 0 ) then
         write(6,*) 'reading data via readreal from ',trim(filename)
         open(87,file=filename,status='old')
@@ -2088,10 +2087,19 @@
           write(6,*) "error in readreal",trim(filename),ierr
           call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
         end if
-        call ccmpi_distribute(tss, glob2d)
+        if (ifullx==ifull) then
+          call ccmpi_distribute(tss, glob2d)
+        else if (ifullx==ifull_g) then
+          tss=glob2d
+        else
+          write(6,*) "ERROR: Invalid ifullx for readreal"
+          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+        end if
         write(6,*) trim(header), glob2d(id+(jd-1)*il_g)
       else
-        call ccmpi_distribute(tss)
+        if (ifullx==ifull) then
+          call ccmpi_distribute(tss)
+        end if
       end if
       end subroutine readreal
 

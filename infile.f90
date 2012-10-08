@@ -111,9 +111,7 @@ end if
       
 if (ifull==ik*jk) then
   ! read global arrays for myid==0
-  if (ier==0) then
-    var(:)=globvar(:)
-  end if
+  var(:)=globvar(:)
 else
   ! read local arrays with gather and distribute
   call ccmpi_distribute(var,globvar)
@@ -192,6 +190,7 @@ ier=0
       
 do ipf=0,mynproc-1
   rvar=0.
+  ivar=0
 
   ! get variable idv
   idv=ncvid(pncid(ipf),name,ier)
@@ -227,8 +226,6 @@ do ipf=0,mynproc-1
     ! restart file
     var=rvar
   else
-    ! mesonest file
-     
     ! recompose grid
     if (myid==0) then
       ! recompose own grid
@@ -372,9 +369,7 @@ end if
 ! used for initialisation in calling routine
 if(ifull==ik*jk)then
   ! read global arrays for myid==0
-  if (ier==0) then
-    var(:)=globvar(:)
-  end if
+  var(:)=globvar(:)
 else
   ! read local arrays with gather and distribute
   call ccmpi_distribute(var,globvar)
@@ -453,6 +448,7 @@ ier=0
       
 do ipf=0,mynproc-1
   rvar=0.
+  ivar=0
 
   ! get variable idv
   idv=ncvid(pncid(ipf),name,ier)

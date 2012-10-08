@@ -1728,9 +1728,7 @@ if (fvegprev/=' '.and.fvegnext/=' ') then
                ivsg(iq,4),svsg(iq,4),vling(iq,4),ivsg(iq,5),svsg(iq,5),vling(iq,5)
   end do
   close(87)
-  do n=1,5
-    call ccmpi_distribute(vlinprev(:,n),vling(:,n))
-  end do
+  call ccmpi_distribute(vlinprev,vling)
   open(87,file=fvegnext,status='old')
   read(87,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
   if(ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) stop 'wrong data file supplied'
@@ -1739,9 +1737,7 @@ if (fvegprev/=' '.and.fvegnext/=' ') then
                ivsg(iq,4),svsg(iq,4),vling(iq,4),ivsg(iq,5),svsg(iq,5),vling(iq,5)
   end do
   close(87)
-  do n=1,5
-    call ccmpi_distribute(vlinnext(:,n),vling(:,n))
-  end do      
+  call ccmpi_distribute(vlinnext,vling)
 else
   vlinprev=-1.
   vlinnext=-1.    
@@ -1754,11 +1750,9 @@ do iq=1,ifull_g
              ivsg(iq,4),svsg(iq,4),vling(iq,4),ivsg(iq,5),svsg(iq,5),vling(iq,5)
 end do
 close(87)
-do n=1,5
-  call ccmpi_distribute(ivs(:,n),ivsg(:,n))
-  call ccmpi_distribute(svs(:,n),svsg(:,n))
-  call ccmpi_distribute(vlin(:,n),vling(:,n))
-end do
+call ccmpi_distribute(ivs,ivsg)
+call ccmpi_distribute(svs,svsg)
+call ccmpi_distribute(vlin,vling)
   
 return
 end subroutine vegta
@@ -1778,21 +1772,15 @@ integer n,iq
 real(r_1), dimension(ifull,5), intent(out) :: svs,vlinprev,vlin,vlinnext
 
 if (fvegprev/=' '.and.fvegnext/=' ') then
-  do n=1,5
-    call ccmpi_distribute(vlinprev(:,n))
-  end do
-  do n=1,5
-    call ccmpi_distribute(vlinnext(:,n))
-  end do
+  call ccmpi_distribute(vlinprev)
+  call ccmpi_distribute(vlinnext)
 else
   vlinprev=-1.
   vlinnext=-1.
 end if    
-do n=1,5
-  call ccmpi_distribute(ivs(:,n))
-  call ccmpi_distribute(svs(:,n))
-  call ccmpi_distribute(vlin(:,n))
-end do
+call ccmpi_distribute(ivs)
+call ccmpi_distribute(svs)
+call ccmpi_distribute(vlin)
   
 return
 end subroutine vegtb
@@ -2498,12 +2486,12 @@ include 'parmgeom.h'
 integer ncstatus,ncid,varid,tilg,iq
 integer, dimension(2) :: spos,npos
 real tlat,tlon,tschmidt
-real, dimension(:), allocatable :: dumg
-real, dimension(ifull) :: duma
+real, dimension(:,:), allocatable :: dumg
+real, dimension(ifull,5) :: duma
 character(len=*), intent(in) :: casafile
 
 if (myid==0) then
-  allocate(dumg(ifull_g))
+  allocate(dumg(ifull_g,5))
   write(6,*) "Reading ",trim(casafile)
   ncstatus=nf_open(casafile,nf_nowrite,ncid)
   call ncmsg('CASA_readpoint',ncstatus)
@@ -2536,53 +2524,40 @@ if (myid==0) then
   write(6,*) "Loading soil order"
   ncstatus = nf_inq_varid(ncid,'sorder',varid)
   call ncmsg('sorder',ncstatus)
-  ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
+  ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg(:,1))
   call ncmsg('sorder',ncstatus)
-  call ccmpi_distribute(duma,dumg)
-  casamet%isorder=nint(duma(cmap))
   write(6,*) "Loading N deposition rate"
   ncstatus = nf_inq_varid(ncid,'ndep',varid)
   call ncmsg('ndep',ncstatus)
-  ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
+  ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg(:,2))
   call ncmsg('ndep',ncstatus)
-  call ccmpi_distribute(duma,dumg)
-  casaflux%Nmindep=duma(cmap)/365.*1.E-3
   write(6,*) "Loading N fixation rate"
   ncstatus = nf_inq_varid(ncid,'nfix',varid)
   call ncmsg('nfix',ncstatus)
-  ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
+  ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg(:,3))
   call ncmsg('nfix',ncstatus)
-  call ccmpi_distribute(duma,dumg)
-  casaflux%Nminfix=duma(cmap)/365.
   write(6,*) "Loading P dust deposition"
   ncstatus = nf_inq_varid(ncid,'pdust',varid)
   call ncmsg('pdust',ncstatus)
-  ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
+  ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg(:,4))
   call ncmsg('pdust',ncstatus)
-  call ccmpi_distribute(duma,dumg)
-  casaflux%Pdep=duma(cmap)/365.
   write(6,*) "Loading P weathering rate"
   ncstatus = nf_inq_varid(ncid,'pweather',varid)
   call ncmsg('pweather',ncstatus)
-  ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
+  ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg(:,5))
   call ncmsg('pweather',ncstatus)
-  call ccmpi_distribute(duma,dumg)
-  casaflux%Pwea=duma(cmap)/365.
-  deallocate(dumg)
   ncstatus=nf_close(ncid)
   call ncmsg('CASA_readpoint',ncstatus)
+  call ccmpi_distribute(duma,dumg)
+  deallocate(dumg)
 else
   call ccmpi_distribute(duma)
-  casamet%isorder=nint(duma(cmap))
-  call ccmpi_distribute(duma)
-  casaflux%Nmindep=duma(cmap)/365.*1.E-3  
-  call ccmpi_distribute(duma)
-  casaflux%Nminfix=duma(cmap)/365.
-  call ccmpi_distribute(duma)
-  casaflux%Pdep=duma(cmap)/365.
-  call ccmpi_distribute(duma)
-  casaflux%Pwea=duma(cmap)/365.
 end if
+casamet%isorder=nint(duma(cmap,1))
+casaflux%Nmindep=duma(cmap,2)/365.*1.E-3
+casaflux%Nminfix=duma(cmap,3)/365.
+casaflux%Pdep=duma(cmap,4)/365.
+casaflux%Pwea=duma(cmap,5)/365.
 
 where (veg%iveg==9.or.veg%iveg==10) ! crops
   ! P fertilizer =13 Mt P globally in 1994
