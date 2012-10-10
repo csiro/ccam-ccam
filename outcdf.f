@@ -2268,7 +2268,7 @@ c      "extra" outputs
           call attrib(fncid,sdim,3,'vas',lname,'m/s',-130.,130.,
      &                .false.,1)
           lname='Screen temperature'     
-          call attrib(fncid,sdim,3,'tscrn',lname,'m/s',100.,425.,
+          call attrib(fncid,sdim,3,'tscrn',lname,'K',100.,425.,
      &                .false.,1)
           lname='Precipitation'
           call attrib(fncid,sdim,3,'rnd',lname,'mm/day',0.,1300.,

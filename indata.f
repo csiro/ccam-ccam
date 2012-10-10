@@ -2194,12 +2194,10 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
      &      mismatch = .true.
 
 ! --- rescale and patch up vegie data if necessary
-      call MPI_Allreduce(ivegmin, ivegmin_g, 1, MPI_INTEGER, MPI_MIN, 
-     &                  MPI_COMM_WORLD, ierr )
       call MPI_Allreduce(ivegmax, ivegmax_g, 1, MPI_INTEGER, MPI_MAX, 
      &                  MPI_COMM_WORLD, ierr )
-      if((ivegmax_g<14).and.nsib.ne.6
-     &    .and.nsib.ne.7) then
+      if((ivegmax_g<14).and.nsib/=6
+     &    .and.nsib/=7) then
         if ( mydiag ) write(6,*)
      &      '**** in this run veg types increased from 1-13 to 32-44'
         do iq=1,ifull            ! add offset to sib values so 1-13 becomes 32-44

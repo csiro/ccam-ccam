@@ -200,7 +200,7 @@ do ipf=0,mynproc-1
     end if
   else
     ! obtain scaling factors and offsets from attributes
-    call ncagt(pncid(ipf),idv,'add_offset',addoff,ier)
+    call ncagt(pncid(ipf), ,'add_offset',addoff,ier)
     if (ier/=0) addoff=0.
     call ncagt(pncid(ipf),idv,'scale_factor',sf,ier)
     if (ier/=0) sf=1.

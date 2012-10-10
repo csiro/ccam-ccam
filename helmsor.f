@@ -17,7 +17,6 @@
 !     integer, parameter :: meth=3      ! 3b, 5c1 good
       integer, parameter :: ntest=0 
       integer, parameter :: itmax=300 ! maximum number of iterations allowed
-      integer, parameter :: itstest=1 ! number of iterations before checking convegence
 !     Arguments
       real, intent(in), dimension(ifull) :: zz,zzn,zze,zzw,zzs
 !     WHY are helm and rhs ifull+iextra?????????
@@ -35,11 +34,18 @@
       real, dimension(kl) ::  smin, smin_g
       real, dimension(:), allocatable, save :: accel ! MJT pack
       real aa(ifull), bb(ifull), cc(ifull), axel
+      real ctst1,ctst2,mm,ww,yy
       integer iq, iter, k, nx, j, jx, i,klim,klimnew, ierr, meth, nx_max
-      integer ifx ! MJT pack
+      integer ifx,itstest,its1,its2
       save  meth, nx_max, axel
 
       call start_log(helm_begin) ! MJT
+      
+      itstest=1 ! just a default
+      ctst1=9.E9
+      ctst2=8.E9
+      its1=-1
+      its2=0
       
       if (.not.allocated(mask)) then
         allocate(mask(ifull))
@@ -53,7 +59,7 @@
         axel=-.01*real(precon)-10*nx_max-meth
         if(myid==0)print *,'in helmsor nx_max,meth,axel: ',
      &                                 nx_max,meth,axel
-        print *,'kind precon, axel ',kind(precon),kind(axel)
+        !print *,'kind precon, axel ',kind(precon),kind(axel)
         mask(:)=1
         do j=1,jl
          do i=1,il,2
@@ -89,12 +95,10 @@ c       print *,'j ',j,(mask(iq),iq=1+(j-1)*il,6+(j-1)*il)
 
        do k=1,kl
         call optmx(il_g,schmidt,dt,bam(k),accel(k))
-        ! MJT - not sure about the following line
 	if(il_g>il)accel(k)=1.+.55*(accel(k)-1.)  ! for uniform-dec 22/4/08
 c       if(il_g==il)accel(k)=1.+.55*(accel(k)-1.) ! just a test
         if(myid==0)print *,'k,accel ',k,accel(k)
        enddo
-       print *,'myid,il,il_g,jl_g,dt ',myid,il,il_g,jl_g,dt
       endif
 c$      print *,'myid,ktau,precon ',myid,ktau,precon
  
@@ -220,16 +224,17 @@ c           rotate s files
          smax(k) = maxval(s(1:ifull,k))
          smin(k) = minval(s(1:ifull,k))
        end do
-        call MPI_Reduce( smax, smax_g, klim, MPI_REAL, MPI_MAX, 0,
+        call MPI_AllReduce( smax, smax_g, klim, MPI_REAL, MPI_MAX,
      &                    MPI_COMM_WORLD, ierr )
-        call MPI_Reduce( smin, smin_g, klim, MPI_REAL, MPI_MIN, 0,
+        call MPI_AllReduce( smin, smin_g, klim, MPI_REAL, MPI_MIN,
      &                    MPI_COMM_WORLD, ierr )
       endif
-      if (mod(iter,itstest)==0) then
+      if (iter>=itstest) then
+     
       do k=1,klim
        dsolmax(k) = maxval(abs(dsol(1:ifull,k)))
       enddo
-      call MPI_Reduce( dsolmax, dsolmax_g, klim, MPI_REAL, MPI_MAX, 0,
+      call MPI_AllReduce( dsolmax, dsolmax_g, klim, MPI_REAL, MPI_MAX, 
      &                    MPI_COMM_WORLD, ierr )
       if(myid==0.and.ntest>0)then
         print *,'smin_g ',smin_g(:)
@@ -244,8 +249,19 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
        endif
       enddo
       klim=klimnew
-      call MPI_Bcast(klim,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      end if
+      !call MPI_Bcast(klim,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      
+      its1=its2
+      ctst1=ctst2
+      its2=iter
+      ctst2=dsolmax_g(1)
+      mm=(ctst2-ctst1)/real(its2-its1)
+      ww=ctst1-mm*real(its1)
+      yy=restol*(smax_g(1)-smin_g(1))
+      itstest=nint((yy-ww)/mm)
+      itstest=max(itstest,iter+1)
+     
+      end if ! iter>=itstest
       iter = iter + 1
       enddo   ! while( iter<itmax .and. klim>1)
 
@@ -305,25 +321,40 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
           print *,'ktau,myid,smax_g ',ktau,myid,smax_g(:)
         endif  ! (myid==0)
       end if
-      if (mod(iter,itstest)==0) then
+      if (iter>=itstest) then
+      
       do k=1,klim
 c      write (6,"('iter,k ,s',2i4,4f14.5)") iter,k,(s(iq,k),iq=1,4)
        dsolmax(k) = maxval(abs(dsol(1:ifull,k)))
       enddo  ! k loop
+      call MPI_AllReduce( dsolmax, dsolmax_g, klim, MPI_REAL, MPI_MAX, 
+     &                    MPI_COMM_WORLD, ierr )
       if(ntest>0)then
         print *,'ktau,myid,iter,dsolmax ',ktau,myid,iter,dsolmax(:)
       endif  ! (myid==0)
       klimnew=klim
       do k=klim,1,-1
-       if(dsolmax(k)<restol*(smax_g(k)-smin_g(k)))then
+       if(dsolmax_g(k)<restol*(smax_g(k)-smin_g(k)))then
          klimnew=k
        endif
       enddo
       if(ntest>0)print *,'ktau,myid,klim,klimnew ',
      &                    ktau,myid,klim,klimnew
-      call MPI_AllReduce( klimnew, klim, 1, MPI_INTEGER, MPI_MAX,
-     &                    MPI_COMM_WORLD, ierr )
-      end if ! mod(iter,itstest)==0
+      klim=klimnew
+    !  call MPI_AllReduce( klimnew, klim, 1, MPI_INTEGER, MPI_MAX,
+    ! &                    MPI_COMM_WORLD, ierr )
+     
+      its1=its2
+      ctst1=ctst2
+      its2=iter
+      ctst2=dsolmax_g(1)
+      mm=(ctst2-ctst1)/real(its2-its1)
+      ww=ctst1-mm*real(its1)
+      yy=restol*(smax_g(1)-smin_g(1))
+      itstest=nint((yy-ww)/mm)
+      itstest=max(itstest,iter+1)
+    
+      end if ! iter>itstest
       iter = iter + 1
       enddo   ! while( iter<itmax .and. klim>1)
 

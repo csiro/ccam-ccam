@@ -30,8 +30,7 @@ integer, parameter :: basinmd=3     ! basin mode (0=soil, 1=redistribute, 2=pile
 integer, parameter :: mstagf =0     ! alternating staggering (0=off left, -1=off right, >0 alternating)
 integer, parameter :: koff   =1     ! time split stagger relative to A-grid (koff=0) or C-grid (koff=1)
 integer, parameter :: nf     =2     ! power for horizontal diffusion reduction factor
-integer, parameter :: itnmax =6     ! number of iterations for staggering
-integer, parameter :: itstest=2     ! number of iterations before testing for convegence
+integer, parameter :: itnmax =6     ! number of interations for staggering
 real, parameter :: rhosn  =330.     ! density snow (kg m^-3)
 real, parameter :: rhoic  =900.     ! density ice  (kg m^-3)
 real, parameter :: grav   =9.80616  ! gravitational constant (m s^-2)
@@ -716,9 +715,12 @@ common/leap_yr/leap  ! 1 to allow leap years
 integer iq,ll,ii,ierr,totits
 integer jyear,jmonth,jday,jhour,jmin,mins
 integer tyear,jstart,iip,iim
+integer itstest,its1,its2
 integer, dimension(ifull,wlev) :: nface
-real alpha,maxloclseta,maxglobseta,maxloclip,maxglobip
+real maxloclseta,maxglobseta,maxloclip,maxglobip
 real delpos,delneg,alph_p,fjd
+real yy,ww,mm,ctst1,ctst2
+real, dimension(2) :: alpha
 real, dimension(ifull+iextra) :: neta,pice,imass
 real, dimension(ifull+iextra) :: nfracice,ndic,ndsn,nsto,niu,niv,nis,ndum
 real, dimension(ifull+iextra) :: snu,sou,spu,squ,sru,snv,sov,spv,sqv,srv
@@ -1393,6 +1395,11 @@ odum=ibu(1:ifull)+ibu(iwu)+ibv(1:ifull)+ibv(isv)
 
 ! Iteratively solve for free surface height, eta
 ! Iterative loop to estimate ice 'pressure'
+itstest=1 ! just a default
+ctst1=9.E9
+ctst2=8.E9
+its1=-1
+its2=0
 alpha=0.9
 do ll=1,llmax
 
@@ -1440,7 +1447,7 @@ do ll=1,llmax
   ! (should not occur for typical eta values)
   seta=max(seta,-dd(1:ifull)-neta(1:ifull)) ! this should become a land point
   seta=seta*ee(1:ifull)
-  neta(1:ifull)=alpha*seta+neta(1:ifull)
+  neta(1:ifull)=alpha(1)*seta+neta(1:ifull)
 
   maxloclseta=maxval(abs(seta))
   
@@ -1495,19 +1502,32 @@ do ll=1,llmax
       nip=0.
   end select
   seta=abs(nip-ipice(1:ifull))
-  ipice(1:ifull)=alpha*nip+(1.-alpha)*ipice(1:ifull)
+  ipice(1:ifull)=alpha(2)*nip+(1.-alpha(2))*ipice(1:ifull)
 
   maxloclip=maxval(seta)
 
-  if (mod(ll,itstest)==0) then
-    ! Break iterative loop when maximum error is below tol (expensive)
+  ! Break iterative loop when maximum error is below tol (expensive)
+  if (ll>=itstest) then
     dume(1)=maxloclseta
     dume(2)=maxloclip
     call MPI_AllReduce(dume,dumf,2,MPI_REAL,MPI_MAX,MPI_COMM_WORLD,ierr)
     maxglobseta=dumf(1)
     maxglobip=dumf(2)
-  
-    if (maxglobseta<tol.and.maxglobip<itol) exit
+ 
+    !if (maxglobseta<tol.and.maxglobip<itol) exit
+    if (maxglobseta<tol) exit
+    
+    its1=its2
+    ctst1=ctst2
+    its2=ll
+    ctst2=maxglobseta
+      
+    mm=(ctst2-ctst1)/real(its2-its1)
+    ww=ctst1-mm*real(its1)
+    itstest=nint((tol-ww)/mm)
+    itstest=max(itstest,ll+1)
+    print *,"myid,itstest,iter ",myid,itstest,ll
+    
   end if
 
 end do
