@@ -97,7 +97,7 @@ include 'parm.h'
 integer, intent(in) :: ncid,iarchi,ik,jk,ifull
 integer, intent(out) :: ier
 character(len=*), intent(in) :: name
-real, dimension(ifull), intent(inout) :: var
+real, dimension(:), intent(inout) :: var
 real, dimension(ik*jk) :: globvar
 real vmax,vmin
 
@@ -154,6 +154,7 @@ character(len=*), intent(in) :: name
 if (qtest) then
   if (mynproc>1) then
     write(6,*) "ERROR: Invalid use of qtest"
+    write(6,*) "Expecting 1 file, but required to load ",mynproc
     call MPI_Abort(MPI_COMM_WORLD,-1,ierb)
   end if
   if (.not.present(var)) then
@@ -200,7 +201,7 @@ do ipf=0,mynproc-1
     end if
   else
     ! obtain scaling factors and offsets from attributes
-    call ncagt(pncid(ipf), ,'add_offset',addoff,ier)
+    call ncagt(pncid(ipf),idv,'add_offset',addoff,ier)
     if (ier/=0) addoff=0.
     call ncagt(pncid(ipf),idv,'scale_factor',sf,ier)
     if (ier/=0) sf=1.
@@ -223,7 +224,7 @@ do ipf=0,mynproc-1
   end if ! ier
       
   if (qtest) then
-    ! restart file
+    ! e.g., restart file
     var=rvar
   else
     ! recompose grid
@@ -242,7 +243,9 @@ do ipf=0,mynproc-1
           end do
         end do
       end do
-      ! recompose other processors
+      ! recompose grid from other processors
+      ! Here we use Recv and SSend as it tolerates
+      ! an uneven distribution of files per processor
       jpmax=nproc
       jpmod=mod(fnproc,nproc)
       if (ipf==mynproc-1.and.jpmod/=0) then
@@ -353,7 +356,7 @@ include 'parm.h'
 integer, intent(in) :: ncid,iarchi,ik,jk,kk,ifull
 integer, intent(out) :: ier
 character(len=*), intent(in) :: name
-real, dimension(ifull) :: var
+real, dimension(:) :: var
 real, dimension(ik*jk) :: globvar
 real vmax,vmin
       

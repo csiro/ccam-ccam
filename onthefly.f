@@ -451,10 +451,10 @@
         call MPI_Bcast(sigin  ,kk,MPI_REAL,0,MPI_COMM_WORLD,ier)
         if (allocated(zss_a)) deallocate(zss_a)
         allocate(zss_a(6*dk*dk))        
-        zss_a=0.
         if (myid==0) then
           if (allocated(isoilm_a)) deallocate(isoilm_a)
           allocate(isoilm_a(6*dk*dk))
+          zss_a=0.
           isoilm_a=-1
         end if
         call histrd1(ncid,iarchi,ier,'zht',ik,6*ik,zss_a,6*ik*ik) !**********************************************************************************
