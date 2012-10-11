@@ -715,11 +715,10 @@ common/leap_yr/leap  ! 1 to allow leap years
 integer iq,ll,ii,ierr,totits
 integer jyear,jmonth,jday,jhour,jmin,mins
 integer tyear,jstart,iip,iim
-integer itstest,its1,its2
+integer itstest,itscount
 integer, dimension(ifull,wlev) :: nface
 real maxloclseta,maxglobseta,maxloclip,maxglobip
 real delpos,delneg,alph_p,fjd
-real yy,ww,mm,ctst1,ctst2
 real, dimension(2) :: alpha
 real, dimension(ifull+iextra) :: neta,pice,imass
 real, dimension(ifull+iextra) :: nfracice,ndic,ndsn,nsto,niu,niv,nis,ndum
@@ -1395,11 +1394,11 @@ odum=ibu(1:ifull)+ibu(iwu)+ibv(1:ifull)+ibv(isv)
 
 ! Iteratively solve for free surface height, eta
 ! Iterative loop to estimate ice 'pressure'
-itstest=1 ! just a default
-ctst1=9.E9
-ctst2=8.E9
-its1=-1
-its2=0
+itstest=1
+if (nproc>=128) then
+  itstest=16 ! assumes convergence at roughly 30 iterations
+end if
+itscount=itstest
 alpha=0.9
 do ll=1,llmax
 
@@ -1506,7 +1505,6 @@ do ll=1,llmax
 
   maxloclip=maxval(seta)
 
-  ! Break iterative loop when maximum error is below tol (expensive)
   if (ll>=itstest) then
     dume(1)=maxloclseta
     dume(2)=maxloclip
@@ -1514,20 +1512,10 @@ do ll=1,llmax
     maxglobseta=dumf(1)
     maxglobip=dumf(2)
  
-    !if (maxglobseta<tol.and.maxglobip<itol) exit
-    if (maxglobseta<tol) exit
+    if (maxglobseta<tol.and.maxglobip<itol) exit
     
-    its1=its2
-    ctst1=ctst2
-    its2=ll
-    ctst2=maxglobseta
-      
-    mm=(ctst2-ctst1)/real(its2-its1)
-    ww=ctst1-mm*real(its1)
-    itstest=nint((tol-ww)/mm)
-    itstest=max(itstest,ll+1)
-    print *,"myid,itstest,iter ",myid,itstest,ll
-    
+    itscount=max(itscount/2,1)
+    itstest=itstest+itscount
   end if
 
 end do

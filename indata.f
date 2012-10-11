@@ -287,15 +287,12 @@
            write(6,*) 'after read he'
            close(66)
            call ccmpi_distribute(dumz(:,1:3),glob2d(:,1:3))
-           zs=dumz(:,1)
-           zsmask=dumz(:,2)
-           he=dumz(:,3)
         else
            call ccmpi_distribute(dumz(:,1:3))
         end if
-        zs=dumz(:,1)
-        zsmask=dumz(:,2)
-        he=dumz(:,3)
+        zs(1:ifull)=dumz(:,1)
+        zsmask(1:ifull)=dumz(:,2)
+        he(1:ifull)=dumz(:,3)
         if ( mydiag ) write(6,*)'he read in from topofile',he(idjd)
 
         ! special options for orography         

@@ -334,13 +334,16 @@
 
       !--------------------------------------------------------------
       ! Determine input grid coordinates and interpolation arrays
-      if ( myid==0 .and. newfile ) then
+      if (newfile) then
         if (allocated(nface4)) then
           deallocate(nface4,xg4,yg4)
+        end if
+        allocate(nface4(ifg,4),xg4(ifg,4),yg4(ifg,4))
+       if ( myid==0 ) then
+        if (allocated(axs_a)) then
           deallocate(axs_a,ays_a,azs_a)
           deallocate(bxs_a,bys_a,bzs_a)
         end if
-        allocate(nface4(ifg,4),xg4(ifg,4),yg4(ifg,4))
         allocate(axs_a(dk*dk*6),ays_a(dk*dk*6),azs_a(dk*dk*6))
         allocate(bxs_a(dk*dk*6),bys_a(dk*dk*6),bzs_a(dk*dk*6))
         write(6,*) "Defining input file grid"
@@ -418,7 +421,8 @@
      .           ((wb(ii+(jj-1)*il,ms),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
           endif  ! (nested==0)
         endif
-      end if ! (myid==0.and.newfile)
+       end if ! (myid==0)
+      end if ! newfile
 
       
       ! special data read for new file
@@ -445,18 +449,18 @@
           write(6,'("sigin=",(9f7.4))') (sigin(k),k=1,kk)
         end if
         call MPI_Bcast(sigin  ,kk,MPI_REAL,0,MPI_COMM_WORLD,ier)
+        if (allocated(zss_a)) deallocate(zss_a)
+        allocate(zss_a(6*dk*dk))        
+        zss_a=0.
         if (myid==0) then
-          if (allocated(zss_a)) deallocate(zss_a)
           if (allocated(isoilm_a)) deallocate(isoilm_a)
-          allocate(zss_a(6*ik*ik))
-          allocate(isoilm_a(6*ik*ik))
-          zss_a=0.
-          ucc=-1.
+          allocate(isoilm_a(6*dk*dk))
+          isoilm_a=-1
         end if
         call histrd1(ncid,iarchi,ier,'zht',ik,6*ik,zss_a,6*ik*ik) !**********************************************************************************
         call histrd1(ncid,iarchi,ier,'soilt',ik,6*ik,ucc,6*ik*ik) !**********************************************************************************
-	if (all(ucc==0.)) ucc=-1.	
         if (myid==0) then
+          if (all(ucc==0.)) ucc=-1.
           isoilm_a=nint(ucc)
         end if
         if (nmlo/=0.and.abs(nmlo)<=9) then
@@ -1266,7 +1270,7 @@ c***        but needed here for onthefly (different dims) 28/8/08
             call doints4(ucc,pblh,nface4,xg4,yg4,
      &                     nord,dk,ifg)
           end if ! iotest
-	  if (all(pblh==0.)) pblh=1000.
+          if (all(pblh==0.)) pblh=1000.
         end if
 
         !--------------------------------------------------

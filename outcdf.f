@@ -2056,6 +2056,7 @@ c      "extra" outputs
       integer, parameter :: nihead   = 54
       integer, parameter :: nrhead   = 14
       integer, dimension(nihead) :: nahead
+      integer, dimension(nwt) :: datedat
       integer, dimension(4) :: adim
       integer, dimension(3) :: sdim
       integer, dimension(1) :: start,ncount
@@ -2339,19 +2340,28 @@ c      "extra" outputs
           if (myid==0) then
             write(6,*) "Write high frequency output"
           end if
-          do i=1,nwt
-            tpnt(i)=real(ktau-nwt+i,8)*real(dt,8)
-          end do
           fiarch=ktau-nwt+1
           start(1)=fiarch
           ncount(1)=nwt
+          do i=1,nwt
+            tpnt(i)=real(ktau-nwt+i,8)*real(dt,8)
+          end do
           ierr=nf_put_vara_double(fncid,idnt,start,ncount,tpnt)
           call ncmsg('HFREQ time',ierr)
-          ierr=nf_put_vara_int(fncid,idkdate,start,ncount,kdate)
+          do i=1,nwt
+            datedat(i)=kdate
+          end do
+          ierr=nf_put_vara_int(fncid,idkdate,start,ncount,datedat)
           call ncmsg('HFREQ kdate',ierr)
-          ierr=nf_put_vara_int(fncid,idktime,start,ncount,ktime)
+          do i=1,nwt
+            datedat(i)=ktime
+          end do
+          ierr=nf_put_vara_int(fncid,idktime,start,ncount,datedat)
           call ncmsg('HFREQ ktime',ierr)
-          ierr=nf_put_vara_int(fncid,idmtimer,start,ncount,mtimer)
+          do i=1,nwt
+            datedat(i)=mtimer+nint(real(i-nwt)*dt/60.)
+          end do
+          ierr=nf_put_vara_int(fncid,idmtimer,start,ncount,datedat)
           call ncmsg('HFREQ mtimer',ierr)
         end if
         call freqwrite(fncid,'uas',fiarch,nwt,localhist,
