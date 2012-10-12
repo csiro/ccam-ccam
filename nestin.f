@@ -4219,7 +4219,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             if (myid/=hproc) then
               do j=ns,ne
                 do n=1,me
-                  qsum(igrd(n,j,ipass))=yy(n+me*(j-ns))
+                  qph(igrd(n,j,ipass))=yy(n+me*(j-ns))
                 end do
               end do
             end if
