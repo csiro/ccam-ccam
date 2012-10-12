@@ -4555,7 +4555,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                   do kpass=kn(ipass),kx(ipass)
                     do n=1,il_g
                       yy(n+il_g*(kpass-c)+a*(k-1)+b*(j-ns))
-     &                  =qpw(igrd(n,j,kpass),k)
+     &                  =qpu(igrd(n,j,kpass),k)
                     end do
                   end do
                 end do
@@ -4569,7 +4569,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                 do k=1,kd             
                   do kpass=kn(ipass),kx(ipass)
                     do n=1,il_g
-                      qpw(igrd(n,j,kpass),k)
+                      qpu(igrd(n,j,kpass),k)
      &                  =zz(n+il_g*(kpass-c)+a*(k-1)+b*(j-1))
                     end do
                   end do
