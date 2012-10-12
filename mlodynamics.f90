@@ -1375,19 +1375,18 @@ pvs=spv(isv)*0.5/emv(isv)
 pdiv=(pue-puw+pvn-pvs)*em(1:ifull)*em(1:ifull)/ds
 pdivb=(pue*ddu(1:ifull)-puw*ddu(iwu)+pvn*ddv(1:ifull)-pvs*ddv(isv))*em(1:ifull)*em(1:ifull)/ds
 
-sue=-squ(1:ifull)/ds
-suw=squ(iwu)/ds
-svn=-sqv(1:ifull)/ds
-svs=sqv(isv)/ds
+sue=-squ(1:ifull)/ds-sru(1:ifull)*0.25*(stwgt(1:ifull,1)-stwgt(1:ifull,2))/ds
+suw=squ(iwu)/ds-sru(iwu)*0.25*(stwgt(iwu,1)-stwgt(iwu,2))/ds
+svn=-sqv(1:ifull)/ds-srv(1:ifull)*0.25*(stwgt(1:ifull,3)-stwgt(1:ifull,4))/ds
+svs=sqv(isv)/ds-srv(isv)*0.25*(stwgt(isv,3)-stwgt(isv,4))/ds
 
 sdiv=(sue-suw+svn-svs)*em(1:ifull)*em(1:ifull)/ds
 sdivb=(sue*ddu(1:ifull)-suw*ddu(iwu)+svn*ddv(1:ifull)-svs*ddv(isv))*em(1:ifull)*em(1:ifull)/ds
 
-! change sign
-sue=-sue
-suw=-suw
-svn=-svn
-svs=-svs
+sue=squ(1:ifull)/ds
+suw=-squ(iwu)/ds
+svn=sqv(1:ifull)/ds
+svs=-sqv(isv)/ds
 
 ! prep ice gradient terms
 odum=ibu(1:ifull)+ibu(iwu)+ibv(1:ifull)+ibv(isv)
@@ -1411,14 +1410,14 @@ do ll=1,llmax
   ! ocean
   ! 9-point version -----------------------------------------------
 
-  snu(1:ifull)=sru(1:ifull)*0.25*(stwgt(1:ifull,1)*(neta(in)+neta(ine)-neta(1:ifull)-neta(ie)) &
-                                 +stwgt(1:ifull,2)*(neta(1:ifull)+neta(ie)-neta(is)-neta(ise)))/ds
-  snv(1:ifull)=srv(1:ifull)*0.25*(stwgt(1:ifull,3)*(neta(ie)+neta(ien)-neta(1:ifull)-neta(in)) &
-                                 +stwgt(1:ifull,4)*(neta(1:ifull)+neta(in)-neta(iw)-neta(iwn)))/ds
-  snuw=sru(iwu)*0.25*(stwgt(iwu,1)*(neta(inw)+neta(in)-neta(1:ifull)-neta(iw)) &
-                     +stwgt(iwu,2)*(neta(1:ifull)+neta(iw)-neta(isw)-neta(is)))/ds
-  snvs=srv(isv)*0.25*(stwgt(isv,3)*(neta(ies)+neta(ie)-neta(1:ifull)-neta(is)) &
-                     +stwgt(isv,4)*(neta(1:ifull)+neta(is)-neta(iws)-neta(iw)))/ds
+  snu(1:ifull)=sru(1:ifull)*0.25*(stwgt(1:ifull,1)*(neta(in)+neta(ine)-neta(ie)) &
+                                 +stwgt(1:ifull,2)*(neta(ie)-neta(is)-neta(ise)))/ds
+  snv(1:ifull)=srv(1:ifull)*0.25*(stwgt(1:ifull,3)*(neta(ie)+neta(ien)-neta(in)) &
+                                 +stwgt(1:ifull,4)*(neta(in)-neta(iw)-neta(iwn)))/ds
+  snuw=sru(iwu)*0.25*(stwgt(iwu,1)*(neta(inw)+neta(in)-neta(iw)) &
+                     +stwgt(iwu,2)*(neta(iw)-neta(isw)-neta(is)))/ds
+  snvs=srv(isv)*0.25*(stwgt(isv,3)*(neta(ies)+neta(ie)-neta(is)) &
+                     +stwgt(isv,4)*(neta(is)-neta(iws)-neta(iw)))/ds
   ! For now, assume Boussinesq fluid and treat density in continuity equation as constant
   snu(1:ifull)=snu(1:ifull)+pue*max(neta(ie)+dd(ie),0.)+sue*neta(ie)
   snv(1:ifull)=snv(1:ifull)+pvn*max(neta(in)+dd(in),0.)+svn*neta(in)
