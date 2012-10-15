@@ -27,32 +27,30 @@
       real, dimension(ifull,kl) :: sb, sa, snew, dsol
       integer, allocatable, save, dimension(:) :: mask
       integer, dimension(kl) :: iters
-      integer, dimension(3),save :: ifullx    ! MJT pack
-      integer, dimension(:,:), allocatable, save :: iqx,iqn,iqe ! MJT pack
-      integer, dimension(:,:), allocatable, save :: iqw,iqs     ! MJT pack
+      integer, dimension(3),save :: ifullx
+      integer, dimension(:,:), allocatable, save :: iqx,iqn,iqe
+      integer, dimension(:,:), allocatable, save :: iqw,iqs
       real, dimension(kl) ::  dsolmax, dsolmax_g, smax, smax_g
       real, dimension(kl) ::  smin, smin_g
-      real, dimension(:), allocatable, save :: accel ! MJT pack
+      real, dimension(:), allocatable, save :: accel
       real aa(ifull), bb(ifull), cc(ifull), axel
       integer iq, iter, k, nx, j, jx, i,klim,klimnew, ierr, meth, nx_max
-      integer ifx ! MJT pack
+      integer ifx
       save  meth, nx_max, axel
 
-      call start_log(helm_begin) ! MJT
+      call start_log(helm_begin)
       
       if (.not.allocated(mask)) then
         allocate(mask(ifull))
         allocate(iqx(ifull,3),iqn(ifull,3),iqe(ifull,3))
-        allocate(iqw(ifull,3),iqs(ifull,3))
-        allocate(accel(kl))
+        allocate(iqw(ifull,3),iqs(ifull,3),accel(kl))
 
         if(precon==-1)precon=-2325  ! i.e. 2, 3, .25
         nx_max=abs(precon)/1000
         meth=abs(precon)/100-10*nx_max
         axel=-.01*real(precon)-10*nx_max-meth
-        if(myid==0)print *,'in helmsor nx_max,meth,axel: ',
-     &                                 nx_max,meth,axel
-        print *,'kind precon, axel ',kind(precon),kind(axel)
+        if(myid==0)write(6,*)'in helmsor nx_max,meth,axel: ',
+     &                                   nx_max,meth,axel
         mask(:)=1
         do j=1,jl
          do i=1,il,2
@@ -69,34 +67,33 @@
             if(j>4*il)mask(iq)=3
           endif 
          enddo
-c       print *,'j ',j,(mask(iq),iq=1+(j-1)*il,6+(j-1)*il)
        enddo
-       ifullx=0                                ! MJT pack
-       iqx=0                                   ! MJT pack
-       iqn=0                                   ! MJT pack
-       iqe=0                                   ! MJT pack
-       iqw=0                                   ! MJT pack
-       iqs=0                                   ! MJT pack
-       do iq=1,ifull                           ! MJT pack
-         ifullx(mask(iq))=ifullx(mask(iq))+1   ! MJT pack
-         iqx(ifullx(mask(iq)),mask(iq))=iq     ! MJT pack
-         iqn(ifullx(mask(iq)),mask(iq))=in(iq) ! MJT pack
-         iqe(ifullx(mask(iq)),mask(iq))=ie(iq) ! MJT pack
-         iqw(ifullx(mask(iq)),mask(iq))=iw(iq) ! MJT pack
-         iqs(ifullx(mask(iq)),mask(iq))=is(iq) ! MJT pack
-       end do                                  ! MJT pack
+       ! Pack colour indices
+       ifullx=0
+       iqx=0
+       iqn=0
+       iqe=0
+       iqw=0
+       iqs=0
+       do iq=1,ifull
+         ifullx(mask(iq))=ifullx(mask(iq))+1
+         iqx(ifullx(mask(iq)),mask(iq))=iq
+         iqn(ifullx(mask(iq)),mask(iq))=in(iq)
+         iqe(ifullx(mask(iq)),mask(iq))=ie(iq)
+         iqw(ifullx(mask(iq)),mask(iq))=iw(iq)
+         iqs(ifullx(mask(iq)),mask(iq))=is(iq)
+       end do
 
        do k=1,kl
         call optmx(il_g,schmidt,dt,bam(k),accel(k))
         ! MJT - not sure about the following line
 	if(il_g>il)accel(k)=1.+.55*(accel(k)-1.)  ! for uniform-dec 22/4/08
 c       if(il_g==il)accel(k)=1.+.55*(accel(k)-1.) ! just a test
-        if(myid==0)print *,'k,accel ',k,accel(k)
+        if(myid==0)write(6,*)'k,accel ',k,accel(k)
        enddo
       endif
-c$      print *,'myid,ktau,precon ',myid,ktau,precon
  
-      if(precon<-2899)go to 5  ! e.g. -2900 or -3900
+      if(precon>=-2899) then  ! e.g. not -2900 or -3900
       klim=kl
       iter = 1
       do while ( iter<itmax .and. klim>1)
@@ -250,18 +247,16 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
          print*,'helmjlm ktau,k,Iterations ',ktau,k,iters(k)
         enddo
       endif
-      call end_log(helm_end)
-      return
 
-5     continue  
+      else ! e.g. -2900 or -3900
+
       klim=kl
       iter = 1
       do while ( iter<itmax .and. klim>1)
-       if(ntest==1.and.diag)print *,'myid,iter a ',myid,iter
+       if(ntest==1.and.diag)write(6,*)'myid,iter a ',myid,iter
        call bounds(s, klim=klim)
-       if(ntest==1.and.diag)print *,'myid,iter b ',myid,iter
+       if(ntest==1.and.diag)write(6,*)'myid,iter b ',myid,iter
        do k=1,klim
-        ! should add "!cdir nodep" here, but cannot with 2 colour option - MJT
         do nx=1,nx_max
           ifx=ifullx(nx)
           dsol(iqx(1:ifx,nx),k)=
@@ -288,15 +283,15 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
 !         if(ntest>0.and.diag)print *,'myid,k,smax,smin ',
 !     &                                myid,k,smax(k),smin(k)
         enddo
-        if(ntest>0.and.diag)print *,' before smax call myid ', myid
+        if(ntest>0.and.diag)write(6,*)' before smax call myid ',myid
         call MPI_AllReduce( smax, smax_g, klim, MPI_REAL, MPI_MAX,
      &                      MPI_COMM_WORLD, ierr )
-        if(ntest>0.and.diag)print *,' before smin call myid ', myid
+        if(ntest>0.and.diag)write(6,*)' before smin call myid ',myid
         call MPI_AllReduce( smin, smin_g, klim, MPI_REAL, MPI_MIN,
      &                      MPI_COMM_WORLD, ierr )
         if(ntest>0.and.myid==0)then
-          print *,'ktau,myid,smin_g ',ktau,myid,smin_g(:)
-          print *,'ktau,myid,smax_g ',ktau,myid,smax_g(:)
+          write(6,*)'ktau,myid,smin_g ',ktau,myid,smin_g(:)
+          write(6,*)'ktau,myid,smax_g ',ktau,myid,smax_g(:)
         endif  ! (myid==0)
       end if
       do k=1,klim
@@ -304,7 +299,7 @@ c      write (6,"('iter,k ,s',2i4,4f14.5)") iter,k,(s(iq,k),iq=1,4)
        dsolmax(k) = maxval(abs(dsol(1:ifull,k)))
       enddo  ! k loop
       if(ntest>0)then
-        print *,'ktau,myid,iter,dsolmax ',ktau,myid,iter,dsolmax(:)
+        write(6,*)'ktau,myid,iter,dsolmax ',ktau,myid,iter,dsolmax(:)
       endif  ! (myid==0)
       klimnew=klim
       do k=klim,1,-1
@@ -312,21 +307,25 @@ c      write (6,"('iter,k ,s',2i4,4f14.5)") iter,k,(s(iq,k),iq=1,4)
          klimnew=k
        endif
       enddo
-      if(ntest>0)print *,'ktau,myid,klim,klimnew ',
-     &                    ktau,myid,klim,klimnew
+      if(ntest>0)write(6,*)'ktau,myid,klim,klimnew ',
+     &                      ktau,myid,klim,klimnew
       call MPI_AllReduce( klimnew, klim, 1, MPI_INTEGER, MPI_MAX,
      &                    MPI_COMM_WORLD, ierr )
       iter = iter + 1
       enddo   ! while( iter<itmax .and. klim>1)
 
       if(myid==0)then
-        if(nmaxpr==1)print*,'helmjlm ktau,k,Iterations ',ktau,1,iters(1)
+        if(nmaxpr==1) then
+          write(6,*)'helmjlm ktau,k,Iterations ',ktau,1,iters(1)
+        end if
         if(diag.or.ktau<6)then
          do k=2,kl
-          print*,'helmjlm ktau,k,Iterations ',ktau,k,iters(k)
+          write(6,*)'helmjlm ktau,k,Iterations ',ktau,k,iters(k)
          enddo
         endif
       endif
+      
+      end if ! precon>=-2899 ..else..
       
       call end_log(helm_end)
       return
