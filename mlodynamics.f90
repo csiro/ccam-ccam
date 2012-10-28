@@ -26,16 +26,16 @@ real, dimension(:,:), allocatable, save :: stwgt
 integer, parameter :: salfilt=0     ! additional salinity filter (0=off, 1=Katzfey)
 integer, parameter :: usetide=1     ! tidal forcing (0=off, 1=on)
 integer, parameter :: icemode=2     ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
-integer, parameter :: basinmd=3     ! basin mode (0=soil, 1=redistribute, 2=pile-up, 3=leak)
-integer, parameter :: mstagf =0     ! alternating staggering (0=off left, -1=off right, >0 alternating)
+integer, parameter :: basinmd=2     ! basin mode (0=soil, 1=redistribute, 2=pile-up, 3=leak)
+integer, parameter :: mstagf =0     ! alternating staggering (0=off left, -1=off right, >0 alternating) - value of 18+ works okay
 integer, parameter :: koff   =1     ! time split stagger relative to A-grid (koff=0) or C-grid (koff=1)
 integer, parameter :: nf     =2     ! power for horizontal diffusion reduction factor
-integer, parameter :: itnmax =3     ! number of interations for staggering
+integer, parameter :: itnmax =6     ! number of interations for staggering
 real, parameter :: rhosn  =330.     ! density snow (kg m^-3)
 real, parameter :: rhoic  =900.     ! density ice  (kg m^-3)
 real, parameter :: grav   =9.80616  ! gravitational constant (m s^-2)
 real, parameter :: delphi =150.     ! horizontal diffusion reduction factor gradient
-real, save      :: ocnsmag=1.       ! horizontal diffusion (2. in Griffies (2000), 1.-1.4 in POM (Mellor 2004))
+real, save      :: ocnsmag=2.       ! horizontal diffusion (2. in Griffies (2000), 1.-1.4 in POM (Mellor 2004))
 real, save      :: ocneps =0.1      ! semi-implicit off-centring term
 
 contains
@@ -56,7 +56,7 @@ include 'newmpar.h'
 include 'mpif.h'
 include 'parm.h'
 
-integer ii,iq,ierr
+integer ii,iq,ierr,lndtst,lndtst_g
 real, dimension(ifull,0:wlev) :: dephl
 real, dimension(ifull,wlev) :: dep,dz
 real, dimension(ifull+iextra,4) :: dumx,dumy
@@ -78,6 +78,13 @@ eev=0.
 where(.not.land)
   ee(1:ifull)=1.
 end where
+
+lndtst=0
+if (any(ee>0.5)) lndtst=1
+call MPI_Reduce(lndtst,lndtst_g,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,ierr)
+if (myid==0) then
+  write(6,*) "Processors with water ",lndtst_g,nproc
+end if
 
 ! Calculate depth arrays (free suface term is included later)
 allocate(dd(ifull+iextra))
@@ -102,10 +109,10 @@ dd(1:ifull)=max(dd(1:ifull),1.E-8)
 ! update bounds values
 dumx(1:ifull,1)=ee(1:ifull)
 dumx(1:ifull,2)=dd(1:ifull)
-call bounds(dumx(:,1:2),corner=.true.)
+call bounds(dumx(:,1:2),nrows=2)
 ee=dumx(:,1)
 dd=dumx(:,2)
-wtr=ee>0.5.and.ee<1.5
+wtr=abs(ee-1.)<0.5
 
 ! Precompute weights for calculating staggered gradients
 allocate(stwgt(ifull+iextra,4))
@@ -715,10 +722,12 @@ common/leap_yr/leap  ! 1 to allow leap years
 integer iq,ll,ii,ierr,totits
 integer jyear,jmonth,jday,jhour,jmin,mins
 integer tyear,jstart,iip,iim
-integer itstest,itscount,mm
+integer itstest,mm,itc,itsave1,itsave2
+integer pos(2)
 integer, dimension(ifull,wlev) :: nface
 real maxloclseta,maxglobseta,maxloclip,maxglobip
 real delpos,delneg,alph_p,fjd
+real gd,ci,itserr1,itserr2
 real, dimension(2) :: alpha
 real, dimension(ifull+iextra) :: neta,pice,imass
 real, dimension(ifull+iextra) :: nfracice,ndic,ndsn,nsto,niu,niv,nis,ndum
@@ -760,7 +769,6 @@ logical lleap
 
 integer, parameter :: llmax      = 400 ! Iterations for calculating surface height
 integer, parameter :: nxtrrho    = 1   ! Estimate rho at t+1 (0=off, 1=on)
-integer, parameter :: itsconvmlo = 1   ! Number of iterations before testing for convergence
 real, parameter :: tol    = 5.E-5      ! Tolerance for SOR solver (water)
 real, parameter :: itol   = 2.E1       ! Tolerance for SOR solver (ice)
 real, dimension(5), parameter :: coeff = (/ 1., 2., 5., 14., 42. /) ! Parameters for Talyor expansion
@@ -1407,8 +1415,10 @@ odum=odum+icv(isv)*0.25*(stwgt(isv,3)-stwgt(isv,4))
 ! with a multi-grid method to improve convergence at large scales, although it is
 ! more likely that they dynamical core will be replaced with mass flux scheme when
 ! it is ready
-itstest=itsconvmlo
-itscount=itstest
+itsave2=0
+itserr2=9.E9
+itstest=1
+itc=0
 alpha(1)=0.9 ! for ocean
 alpha(2)=0.9 ! for sea-ice
 do ll=1,llmax
@@ -1531,8 +1541,20 @@ do ll=1,llmax
 
     if (maxglobseta<tol.and.maxglobip<itol) exit
     
-    itscount=max(itscount/2,1)
-    itstest=itstest+itscount
+    itsave1=itsave2
+    itsave2=ll
+    itserr1=itserr2
+    itserr2=log10(maxglobseta)
+    
+    gd=(itserr2-itserr1)/real(itsave2-itsave1)
+    ci=itserr2-gd*real(itsave2)
+    if (gd/=0.) then
+      itstest=nint((log10(tol)-ci)/gd)
+      itstest=max(itstest,ll+1)
+    else
+      itstest=ll+1
+    end if
+    itc=itc+1    
   end if
 
 end do
@@ -1672,19 +1694,6 @@ elsewhere (ndsn(1:ifull)<1.E-4)
   nit(1:ifull,2)=i_it(:,2)
 end where
 
-!! bad data patch
-!if (any(nit(1:ifull,:)<160.)) then
-!  write(6,*) "WARN: Bad ice data patch"
-!  do ii=1,4
-!    where(nit(1:ifull,ii)<160.)
-!      nit(1:ifull,1)=max(w_t(:,1),250.)
-!      nit(1:ifull,2)=max(w_t(:,1),250.)
-!      nit(1:ifull,3)=max(w_t(:,1),250.)
-!      nit(1:ifull,4)=max(w_t(:,1),250.)
-!    end where
-!  end do
-!end if
-
 ! ocean
 ! use nu and nv for unstagged currents
 tau(:,1:wlev)=nu(1:ifull,:)
@@ -1729,7 +1738,7 @@ if (nud_sss==0) then
 end if
 
 if (myid==0.and.(ktau<=100.or.maxglobseta>tol.or.maxglobip>itol)) then
-  write(6,*) "MLODYNAMICS ",totits,maxglobseta,maxglobip
+  write(6,*) "MLODYNAMICS ",totits,itc,maxglobseta,maxglobip
 end if
 
 if (myid==0.and.nmaxpr==1) then
@@ -2809,21 +2818,30 @@ include 'newmpar.h'
 include 'parm.h'
 
 integer k,itn,kx
+integer, save :: lasthand
 real, dimension(:,:), intent(in) :: u
 real, dimension(ifull,size(u,2)), intent(in) :: v
 real, dimension(ifull,size(u,2)), intent(out) :: uout,vout
 real, dimension(ifull+iextra,size(u,2)) :: uin,vin
 real, dimension(ifull+iextra,size(u,2)) :: ua,va
 real, dimension(ifull+iextra,size(u,2)) :: ud,vd
-real, dimension(ifull+iextra,0:3) :: wtu,wtv
+real, dimension(:,:), allocatable, save :: wtu,wtv
+real, dimension(:,:), allocatable, save :: dtu,dtv
 real, dimension(ifull,size(u,2)) :: nud,nvd
 real, dimension(ifull,0:3) :: nwtu,nwtv
-logical, dimension(ifull) :: eutest,evtest
+real, dimension(:), allocatable, save :: stu,stv
 logical, dimension(ifull) :: euetest,euwtest,evntest,evstest
-logical, dimension(ifull) :: euewtest,evnstest
-logical ltest
+logical, dimension(ifull) :: euewtest,evnstest,eutest,evtest
+logical ltest,ltestb
 
 call start_log(ocnstag_begin)
+
+if (.not.allocated(wtu)) then
+  allocate(wtu(ifull+iextra,0:3),wtv(ifull+iextra,0:3))
+  allocate(dtu(ifull,3),dtv(ifull,3))
+  allocate(stu(ifull),stv(ifull))
+  lasthand=0
+end if
 
 kx=size(u,2)
 
@@ -2851,300 +2869,379 @@ else
 end if
 if (ltest) then
 
+  ltestb=.not.(lasthand==1)
+  lasthand=1
+
   ! assign weights
-  wtu=0.
-  wtv=0.
+  if (ltestb) then
+    wtu=0.
+    wtv=0.
+    dtu=0.
+    dtv=0.
+
+! |   *   | X E   |  EE  |     unstaggered
+! W       * X     E            staggered
+    where (euewtest)
+      wtu(1:ifull,0)=1.
+      wtu(1:ifull,1)=-0.5
+      wtu(1:ifull,2)=-0.1
+      wtu(1:ifull,3)=0.
+      dtu(:,1)=0.1
+      dtu(:,2)=1.
+      dtu(:,3)=0.5
+      !ud(1:ifull,k)=uin(ieeu,k)*0.1+uin(ieu,k)+uin(1:ifull,k)*0.5
+      !uin(1:ifull,k)=ud(:,k)-ua(ieu,k)*0.5-ua(iwu,k)*0.1
+
+! #   *   | X E   |  EE  |     unstaggered
+! 0       * X     E            staggered
+    elsewhere (euetest)
+      wtu(1:ifull,0)=1.
+      wtu(1:ifull,1)=-0.5 !=-1./3.
+      wtu(1:ifull,2)=0.   !=0.
+      wtu(1:ifull,3)=0.
+      dtu(:,1)=0.1        !=0.
+      dtu(:,2)=1.         !=1.
+      dtu(:,3)=0.5        !=1./3.
+
+! |   *   | X E   #  ##  #     unstaggered
+!         * X     0  ##  #     staggered
+    elsewhere (euwtest)
+      wtu(1:ifull,0)=1.
+      wtu(1:ifull,1)=0. !=0.
+      wtu(1:ifull,2)=0. !=-1./3.
+      wtu(1:ifull,3)=0.
+      dtu(:,1)=0.       !=0.
+      dtu(:,2)=1.       !=1./3.
+      dtu(:,3)=1./3.    !=1.
+
+! #   *   |   E   #  ##  #     unstaggered
+! #       *       #  ##  #     staggered
+    elsewhere (eutest)
+      wtu(1:ifull,0)=1.
+      wtu(1:ifull,1)=0.
+      wtu(1:ifull,2)=0.
+      wtu(1:ifull,3)=0.
+      dtu(:,1)=0.
+      dtu(:,2)=0.5
+      dtu(:,3)=0.5
+            
+    end where
+    where (evnstest)
+      wtv(1:ifull,0)=1.
+      wtv(1:ifull,1)=-0.5
+      wtv(1:ifull,2)=-0.1
+      wtv(1:ifull,3)=0.
+      dtv(:,1)=0.1
+      dtv(:,2)=1.
+      dtv(:,3)=0.5
+      !vin(1:ifull,k)=vd(:,k)-va(inv,k)*0.5-va(isv,k)*0.1
+    elsewhere (evntest)
+      wtv(1:ifull,0)=1.
+      wtv(1:ifull,1)=-0.5 !=-1./3.
+      wtv(1:ifull,2)=0.   !=0.
+      wtv(1:ifull,3)=0.
+      dtv(:,1)=0.1        !=0.
+      dtv(:,2)=1.         !=1.
+      dtv(:,3)=0.5        !=1./3.
+    elsewhere (evstest)
+      wtv(1:ifull,0)=1.
+      wtv(1:ifull,1)=0.   !=0.
+      wtv(1:ifull,2)=0.   !=-1./3.
+      wtv(1:ifull,3)=0.
+      dtv(:,1)=0.         !=0.
+      dtv(:,2)=1.         !=1./3.
+      dtv(:,3)=1./3.      !=1.
+    elsewhere (evtest)
+      wtv(1:ifull,0)=1.
+      wtv(1:ifull,1)=0.
+      wtv(1:ifull,2)=0.
+      wtv(1:ifull,3)=0.
+      dtv(:,1)=0.
+      dtv(:,2)=0.5
+      dtv(:,3)=0.5
+    end where
+
+    call boundsuv(wtu,wtv,stag=-10)
+    ! Apply JLM's preconditioner
+    nwtu=wtu(1:ifull,:)
+    nwtv=wtv(1:ifull,:)
+    stu=0.
+    stv=0.
+    where (abs(wtu(ieu,0))>1.E-4.and.abs(wtu(1:ifull,1))>1.E-4)
+      stu=-wtu(1:ifull,1)/wtu(ieu,0)
+      nwtu(1:ifull,0)=wtu(1:ifull,0)+stu*wtu(ieu,2)
+      nwtu(1:ifull,1)=wtu(1:ifull,1)+stu*wtu(ieu,0)
+      nwtu(1:ifull,3)=wtu(1:ifull,3)-stu*wtu(ieu,1)
+    end where
+    where (abs(wtv(inv,0))>1.E-4.and.abs(wtv(1:ifull,1))>1.E-4)
+      stv=-wtv(1:ifull,1)/wtv(inv,0)
+      nwtv(1:ifull,0)=wtv(1:ifull,0)+stv*wtv(inv,2)
+      nwtv(1:ifull,1)=wtv(1:ifull,1)+stv*wtv(inv,0)
+      nwtv(1:ifull,3)=wtv(1:ifull,3)-stv*wtv(inv,1)
+    end where
+    wtu(1:ifull,:)=nwtu
+    wtv(1:ifull,:)=nwtv
+    where (abs(wtu(1:ifull,0))<1.E-4)
+      wtu(1:ifull,0)=1.
+      wtu(1:ifull,1)=0.
+      wtu(1:ifull,2)=0.
+      wtu(1:ifull,3)=0.
+    end where
+    where (abs(wtv(1:ifull,0))<1.E-4)
+      wtv(1:ifull,0)=1.
+      wtv(1:ifull,1)=0.
+      wtv(1:ifull,2)=0.
+      wtv(1:ifull,3)=0.
+    end where
+ 
+  end if
+  
   ud=0.
   vd=0.
   ua=0.
   va=0.
 
-! |   *   | X E   |  EE  |     unstaggered
-! W       * X     E            staggered
-  where (euewtest)
-    wtu(1:ifull,0)=1.
-    wtu(1:ifull,1)=-0.5
-    wtu(1:ifull,2)=-0.1
-    wtu(1:ifull,3)=0.
-    !uin(1:ifull,k)=ud(:,k)-ua(ieu,k)*0.5-ua(iwu,k)*0.1
-
-! #   *   | X E   |  EE  |     unstaggered
-! #       * X     E            staggered
-  elsewhere (euetest)
-    wtu(1:ifull,0)=1.
-    wtu(1:ifull,1)=-0.4/1.2
-    wtu(1:ifull,2)=0.
-    wtu(1:ifull,3)=0.
-    !uin(1:ifull,k)=(ud(:,k)-ua(ieu,k)*0.4)/1.2
-
-! |   *   | X E   #  ##  #     unstaggered
-! W       * X     #  ##  #     staggered
-  elsewhere (euwtest)
-    wtu(1:ifull,0)=1.
-    wtu(1:ifull,1)=0.
-    wtu(1:ifull,2)=0.2
-    wtu(1:ifull,3)=0.
-    !uin(1:ifull,k)=(uh(:,k)+ua(iwu,k)*0.4)/2.
-
-  end where
-  where (evnstest)
-    wtv(1:ifull,0)=1.
-    wtv(1:ifull,1)=-0.5
-    wtv(1:ifull,2)=-0.1
-    wtv(1:ifull,3)=0.
-    !vin(1:ifull,k)=vd(:,k)-va(inv,k)*0.5-va(isv,k)*0.1
-  elsewhere (evntest)
-    wtv(1:ifull,0)=1.
-    wtv(1:ifull,1)=-0.4/1.2
-    wtv(1:ifull,2)=0.
-    wtv(1:ifull,3)=0.
-    !vin(1:ifull,k)=(vd(:,k)-va(inv,k)*0.4)/1.2
-  elsewhere (evstest)
-    wtv(1:ifull,0)=1.
-    wtv(1:ifull,1)=0.
-    wtv(1:ifull,2)=0.2
-    wtv(1:ifull,3)=0.
-    !vin(1:ifull,k)=(vh(:,k)+va(isv,k)*0.4)/2.
-  end where
-
   call boundsuv(uin,vin,stag=1)
   do k=1,kx
-    where (euewtest)
-      ud(1:ifull,k)=uin(ieeu,k)*0.1+uin(ieu,k)+uin(1:ifull,k)*0.5
-      !uin(1:ifull,k)=ud(:,k)-ua(ieu,k)*0.5-ua(iwu,k)*0.1
-    elsewhere (euetest)
-      ud(1:ifull,k)=(uin(ieeu,k)*0.1+uin(ieu,k)+uin(1:ifull,k)*0.5)/1.2
-      !uin(1:ifull,k)=(ud(:,k)-ua(ieu,k)*0.4)/1.2
-    elsewhere (euwtest)
-      ud(1:ifull,k)=uin(ieu,k)*0.6+uin(1:ifull,k)*0.2
-      !uin(1:ifull,k)=(uh(:,k)+ua(iwu,k)*0.4)/2.
-    end where
-    where (evnstest)
-      vd(1:ifull,k)=vin(innv,k)*0.1+vin(inv,k)+vin(1:ifull,k)*0.5
-      !vin(1:ifull,k)=vd(:,k)-va(inv,k)*0.5-va(isv,k)*0.1
-    elsewhere (evntest)
-      vd(1:ifull,k)=(vin(innv,k)*0.1+vin(inv,k)+vin(1:ifull,k)*0.5)/1.2
-      !vin(1:ifull,k)=(vd(:,k)-va(inv,k)*0.4)/1.2
-    elsewhere (evstest)
-      vd(1:ifull,k)=vin(inv,k)*0.6+vin(1:ifull,k)*0.2
-      !vin(1:ifull,k)=(vh(:,k)+va(isv,k)*0.4)/2.
-    end where
-
-    ! 1st guess
-    where (eutest)
-      ua(1:ifull,k)=uin(ieu,k)*0.5+uin(1:ifull,k)*0.5
-    end where
-    where (evtest)
-      va(1:ifull,k)=vin(inv,k)*0.5+vin(1:ifull,k)*0.5
-    end where
+    ud(1:ifull,k)=dtu(:,1)*uin(ieeu,k)+dtu(:,2)*uin(ieu,k)+dtu(:,3)*uin(1:ifull,k)
+    vd(1:ifull,k)=dtv(:,1)*vin(innv,k)+dtv(:,2)*vin(inv,k)+dtv(:,3)*vin(1:ifull,k)
   end do
   
   ! Apply JLM's preconditioner
-  call boundsuv(wtu,wtv,stag=-10)
   call boundsuv(ud,vd,stag=-10)
-  nwtu=wtu(1:ifull,:)
-  nwtv=wtv(1:ifull,:)
   nud=ud(1:ifull,:)
   nvd=vd(1:ifull,:)
-  where (abs(wtu(ieu,0))>1.E-4.and.abs(wtu(1:ifull,1))>1.E-4)
-    nwtu(1:ifull,0)=wtu(1:ifull,0)+0.5*wtu(ieu,2)
-    nwtu(1:ifull,1)=wtu(1:ifull,1)+0.5*wtu(ieu,0)
-    nwtu(1:ifull,3)=wtu(1:ifull,3)-0.5*wtu(ieu,1)
-  end where
   do k=1,kx
-    where (abs(wtu(ieu,0))>1.E-4.and.abs(wtu(1:ifull,1))>1.E-4)
-      nud(1:ifull,k)=ud(1:ifull,k)-0.5*ud(ieu,k)
-    end where
+    nud(1:ifull,k)=ud(1:ifull,k)-stu*ud(ieu,k)
+    nvd(1:ifull,k)=vd(1:ifull,k)-stv*vd(inv,k)
   end do
-  where (abs(wtv(inv,0))>1.E-4.and.abs(wtv(1:ifull,1))>1.E-4)
-    nwtv(1:ifull,0)=wtv(1:ifull,0)+0.5*wtv(inv,2)
-    nwtv(1:ifull,1)=wtv(1:ifull,1)+0.5*wtv(inv,0)
-    nwtv(1:ifull,3)=wtv(1:ifull,3)-0.5*wtv(inv,1)
-  end where
-  do k=1,kx
-    where (abs(wtv(inv,0))>1.E-4.and.abs(wtv(1:ifull,1))>1.E-4)
-      nvd(1:ifull,k)=vd(1:ifull,k)-0.5*vd(inv,k)
-    end where
-  end do
-  wtu(1:ifull,:)=nwtu
-  wtv(1:ifull,:)=nwtv
   ud(1:ifull,:)=nud
   vd(1:ifull,:)=nvd
-  where (abs(wtu(1:ifull,0))<1.E-4)
-    wtu(1:ifull,0)=1.
-    wtu(1:ifull,1)=0.
-    wtu(1:ifull,2)=0.
-    wtu(1:ifull,3)=0.
-  end where
-  where (abs(wtv(1:ifull,0))<1.E-4)
-    wtv(1:ifull,0)=1.
-    wtv(1:ifull,1)=0.
-    wtv(1:ifull,2)=0.
-    wtv(1:ifull,3)=0.
-  end where
+  
+  nwtu(:,0)=1.
+  nwtv(:,0)=1.
+  nwtu(:,1)=wtu(1:ifull,1)/wtu(1:ifull,0)
+  nwtv(:,1)=wtv(1:ifull,1)/wtv(1:ifull,0)
+  nwtu(:,2)=wtu(1:ifull,2)/wtu(1:ifull,0)
+  nwtv(:,2)=wtv(1:ifull,2)/wtv(1:ifull,0)
+  nwtu(:,3)=wtu(1:ifull,3)/wtu(1:ifull,0)
+  nwtv(:,3)=wtv(1:ifull,3)/wtv(1:ifull,0)
+  do k=1,kx
+    ud(1:ifull,k)=ud(1:ifull,k)/wtu(1:ifull,0)
+    vd(1:ifull,k)=vd(1:ifull,k)/wtv(1:ifull,0)
+  end do
+
+  do k=1,kx
+    ! 1st guess
+    !ua(1:ifull,k)=(uin(ieu,k)+uin(1:ifull,k))*0.5*eeu(1:ifull)
+    !va(1:ifull,k)=(vin(inv,k)+vin(1:ifull,k))*0.5*eev(1:ifull)
+    ua(1:ifull,k)=ud(1:ifull,k)
+    va(1:ifull,k)=vd(1:ifull,k)
+  end do
+
 
   ! There are many ways to handle staggering near coastlines.
   ! This version supports the following properties:
   ! - Staggering is exactly reversible for the staggered (C grid) frame
-  ! - A constant unstaggered field is preserved under transformation to staggered coordinates
+  ! - Zero flux at land boundaries
+  ! - The wave amplitude should be preserved
 
   do itn=1,itnmax        ! each loop is a double iteration
     call boundsuv(ua,va,stag=2)
     do k=1,kx
-      uin(1:ifull,k)=(ud(1:ifull,k)+wtu(1:ifull,1)*ua(ieu,k)+wtu(1:ifull,2)*ua(iwu,k)+wtu(1:ifull,3)*ua(ieeu,k))/wtu(1:ifull,0)
-      vin(1:ifull,k)=(vd(1:ifull,k)+wtv(1:ifull,1)*va(inv,k)+wtv(1:ifull,2)*va(isv,k)+wtv(1:ifull,3)*va(innv,k))/wtv(1:ifull,0)
+      uin(1:ifull,k)=ud(1:ifull,k)+nwtu(:,1)*ua(ieu,k)+nwtu(:,2)*ua(iwu,k)+nwtu(:,3)*ua(ieeu,k)
+      vin(1:ifull,k)=vd(1:ifull,k)+nwtv(:,1)*va(inv,k)+nwtv(:,2)*va(isv,k)+nwtv(:,3)*va(innv,k)
     end do
     call boundsuv(uin,vin,stag=2)
     do k=1,kx
-      ua(1:ifull,k)=(ud(1:ifull,k)+wtu(1:ifull,1)*uin(ieu,k)+wtu(1:ifull,2)*uin(iwu,k)+wtu(1:ifull,3)*uin(ieeu,k))/wtu(1:ifull,0)
-      va(1:ifull,k)=(vd(1:ifull,k)+wtv(1:ifull,1)*vin(inv,k)+wtv(1:ifull,2)*vin(isv,k)+wtv(1:ifull,3)*vin(innv,k))/wtv(1:ifull,0)
+      ua(1:ifull,k)=ud(1:ifull,k)+nwtu(:,1)*uin(ieu,k)+nwtu(:,2)*uin(iwu,k)+nwtu(:,3)*uin(ieeu,k)
+      va(1:ifull,k)=vd(1:ifull,k)+nwtv(:,1)*vin(inv,k)+nwtv(:,2)*vin(isv,k)+nwtv(:,3)*vin(innv,k)
     end do
   end do                 ! itn=1,itnmax
 
 else
 
+  ltestb=.not.(lasthand==2)
+  lasthand=2
+
   ! assign weights
-  wtu=0.
-  wtv=0.
+  if (ltestb) then
+    wtu=0.
+    wtv=0.
+    dtu=0.
+    dtv=0.
+
+! |   W   |   * X |  E   |     unstaggered
+!         W     X *      E     staggered
+    where (euewtest)
+      wtu(1:ifull,0)=1.
+      wtu(1:ifull,1)=-0.1
+      wtu(1:ifull,2)=-0.5
+      wtu(1:ifull,3)=0.
+      dtu(:,1)=0.1
+      dtu(:,2)=1.
+      dtu(:,3)=0.5
+      !ud(1:ifull,k)=uin(iwu,k)*0.1+uin(1:ifull,k)+uin(ieu,k)*0.5
+      !uin(1:ifull,k)=ud(:,k)-ua(iwu,k)*0.5-ua(ieu,k)*0.1
+
+
+! |   W   |   * X |  E   #     unstaggered
+!         W     X *      0     staggered
+    elsewhere (euwtest)
+      wtu(1:ifull,0)=1.
+      wtu(1:ifull,1)=0.   !=0.
+      wtu(1:ifull,2)=-0.5 !=-1./3.
+      wtu(1:ifull,3)=0.
+      dtu(:,1)=0.1        !=0.
+      dtu(:,2)=1.         !=1.
+      dtu(:,3)=0.5        !=1./3.
+
+! #  ##   #   * X |   E   |     unstaggered
+! #       0     X *             staggered
+    elsewhere (euetest)
+      wtu(1:ifull,0)=1.
+      wtu(1:ifull,1)=0.   !=-0.4/1.2
+      wtu(1:ifull,2)=0.   !=0.
+      wtu(1:ifull,3)=0.
+      dtu(:,1)=0.         !=0.
+      dtu(:,2)=1.         !=1./3.
+      dtu(:,3)=1./3.      !=1.
+
+! #  ##   #   *   |  E   #     unstaggered
+! #       #       *      #     staggered
+    elsewhere (eutest)
+      wtu(1:ifull,0)=1.
+      wtu(1:ifull,1)=0.
+      wtu(1:ifull,2)=0.
+      wtu(1:ifull,3)=0.
+      dtu(:,1)=0.
+      dtu(:,2)=0.5
+      dtu(:,3)=0.5
+      
+    end where
+    where (evnstest)
+      wtv(1:ifull,0)=1.
+      wtv(1:ifull,1)=-0.1
+      wtv(1:ifull,2)=-0.5
+      wtv(1:ifull,3)=0.
+      dtv(:,1)=0.1
+      dtv(:,2)=1.
+      dtv(:,3)=0.5
+    elsewhere (evstest)
+      wtv(1:ifull,0)=1.
+      wtv(1:ifull,1)=0.   !=0.
+      wtv(1:ifull,2)=-0.5 !=-1./3.
+      wtv(1:ifull,3)=0.
+      dtv(:,1)=0.1        !=0.
+      dtv(:,2)=1.         !=1.
+      dtv(:,3)=0.5        !=1./3.
+    elsewhere (evntest)
+      wtv(1:ifull,0)=1.
+      wtv(1:ifull,1)=0.   !=-0.4/1.2
+      wtv(1:ifull,2)=0.   !=0.
+      wtv(1:ifull,3)=0.
+      dtv(:,1)=0.         !=0.
+      dtv(:,2)=1.         !=1./3.
+      dtv(:,3)=1./3.      !=1.
+    elsewhere (evtest)
+      wtv(1:ifull,0)=1.
+      wtv(1:ifull,1)=0.
+      wtv(1:ifull,2)=0.
+      wtv(1:ifull,3)=0.
+      dtv(:,1)=0.
+      dtv(:,2)=0.5
+      dtv(:,3)=0.5
+    end where
+
+    ! Apply JLM's preconditioner
+    call boundsuv(wtu,wtv,stag=-9)
+    nwtu=wtu(1:ifull,:)
+    nwtv=wtv(1:ifull,:)
+    stu=0.
+    stv=0.
+    where (abs(wtu(iwu,0))>1.E-4.and.abs(wtu(1:ifull,2))>1.E-4)
+      stu=-wtu(1:ifull,2)/wtu(iwu,0)
+      nwtu(1:ifull,0)=wtu(1:ifull,0)+stu*wtu(iwu,1)
+      nwtu(1:ifull,2)=wtu(1:ifull,2)+stu*wtu(iwu,0)
+      nwtu(1:ifull,3)=wtu(1:ifull,3)-stu*wtu(iwu,2)
+    end where
+    where (abs(wtv(isv,0))>1.E-4.and.abs(wtv(1:ifull,2))>1.E-4)
+      stv=-wtv(1:ifull,2)/wtv(isv,0)
+      nwtv(1:ifull,0)=wtv(1:ifull,0)+stv*wtv(isv,1)
+      nwtv(1:ifull,2)=wtv(1:ifull,2)+stv*wtv(isv,0)
+      nwtv(1:ifull,3)=wtv(1:ifull,3)-stv*wtv(isv,2)
+    end where
+    wtu(1:ifull,:)=nwtu
+    wtv(1:ifull,:)=nwtv
+    where (abs(wtu(1:ifull,0))<1.E-4)
+      wtu(1:ifull,0)=1.
+      wtu(1:ifull,1)=0.
+      wtu(1:ifull,2)=0.
+      wtu(1:ifull,3)=0.
+    end where
+    where (abs(wtv(1:ifull,0))<1.E-4)
+      wtv(1:ifull,0)=1.
+      wtv(1:ifull,1)=0.
+      wtv(1:ifull,2)=0.
+      wtv(1:ifull,3)=0.
+    end where
+
+  end if
+
   ud=0.
   vd=0.
   ua=0.
   va=0.
 
-! |   W   |   * X |  E   |     unstaggered
-!         W     X *      E     staggered
-  where (euewtest)
-    wtu(1:ifull,0)=1.
-    wtu(1:ifull,1)=-0.1
-    wtu(1:ifull,2)=-0.5
-    wtu(1:ifull,3)=0.
-    !uin(1:ifull,k)=ud(:,k)-ua(ieu,k)*0.1-ua(iwu,k)*0.5
-
-! |   W   |   * X |  E   #     unstaggered
-!         W     X *      #     staggered
-  elsewhere (euwtest)
-    wtu(1:ifull,0)=1.
-    wtu(1:ifull,1)=0.
-    wtu(1:ifull,2)=-0.4/1.2
-    wtu(1:ifull,3)=0.
-    !uin(1:ifull,k)=(ud(:,k)-ua(iwu,k)*0.4)/1.2
-
-! #  ##   #   * X |  E   |     unstaggered
-! #       #     X *      E     staggered
-  elsewhere (euetest)
-    wtu(1:ifull,0)=1.
-    wtu(1:ifull,1)=0.2
-    wtu(1:ifull,2)=0.
-    wtu(1:ifull,3)=0.
-    !uin(1:ifull,k)=(uh(:,k)+ua(ieu,k)*0.4)/2.
-
-  end where
-  where (evnstest)
-    wtv(1:ifull,0)=1.
-    wtv(1:ifull,1)=-0.1
-    wtv(1:ifull,2)=-0.5
-    wtv(1:ifull,3)=0.
-    !vin(1:ifull,k)=vd(:,k)-va(inv,k)*0.1-va(isv,k)*0.5
-  elsewhere (evstest)
-    wtv(1:ifull,0)=1.
-    wtv(1:ifull,1)=0.
-    wtv(1:ifull,2)=-0.4/1.2
-    wtv(1:ifull,3)=0.
-    !vin(1:ifull,k)=(vd(:,k)-va(isv,k)*0.4)/1.2
-  elsewhere (evntest)
-    wtv(1:ifull,0)=1.
-    wtv(1:ifull,1)=0.2
-    wtv(1:ifull,2)=0.
-    wtv(1:ifull,3)=0.
-    !vin(1:ifull,k)=(vh(:,k)+va(inv,k)*0.4)/2.
-  end where
-
   call boundsuv(uin,vin)
   do k=1,kx
-    where (euewtest)
-      ud(1:ifull,k)=uin(iwu,k)*0.1+uin(1:ifull,k)+uin(ieu,k)*0.5
-      !uin(1:ifull,k)=ud(:,k)-ua(iwu,k)*0.5-ua(ieu,k)*0.1
-    elsewhere (euwtest)
-      ud(1:ifull,k)=(uin(iwu,k)*0.1+uin(1:ifull,k)+uin(ieu,k)*0.5)/1.2
-      !uin(1:ifull,k)=(ud(:,k)-ua(iwu,k)*0.4)/1.2
-    elsewhere (euetest)
-      ud(1:ifull,k)=uin(1:ifull,k)*0.6+uin(ieu,k)*0.2
-      !uin(1:ifull,k)=(uh(:,k)+ua(ieu,k)*0.4)/2.
-    end where
-    where (evnstest)
-      vd(1:ifull,k)=vin(isv,k)*0.1+vin(1:ifull,k)+vin(inv,k)*0.5
-      !vin(1:ifull,k)=vd(:,k)-va(isv,k)*0.5-va(inv,k)*0.1
-    elsewhere (evstest)
-      vd(1:ifull,k)=(vin(isv,k)*0.1+vin(1:ifull,k)+vin(inv,k)*0.5)/1.2
-      !vin(1:ifull,k)=(vd(:,k)-va(isv,k)*0.4)/1.2
-    elsewhere (evntest)
-      vd(1:ifull,k)=vin(1:ifull,k)*0.6+vin(inv,k)*0.2
-      !vin(1:ifull,k)=(vh(:,k)+va(inv,k)*0.4)/2.
-    end where
-
-    ! 1st guess
-    where (eutest)
-      ua(1:ifull,k)=uin(1:ifull,k)*0.5+uin(iwu,k)*0.5
-    end where
-    where (evtest)
-      va(1:ifull,k)=vin(1:ifull,k)*0.5+vin(isv,k)*0.5
-    end where
+    ud(1:ifull,k)=dtu(:,1)*uin(iwu,k)+dtu(:,2)*uin(1:ifull,k)+dtu(:,3)*uin(ieu,k)
+    vd(1:ifull,k)=dtv(:,1)*vin(isv,k)+dtv(:,2)*vin(1:ifull,k)+dtv(:,3)*vin(inv,k)
   end do
 
   ! Apply JLM's preconditioner
-  call boundsuv(wtu,wtv,stag=-9)
   call boundsuv(ud,vd,stag=-9)
-  nwtu=wtu(1:ifull,:)
-  nwtv=wtv(1:ifull,:)
   nud=ud(1:ifull,:)
   nvd=vd(1:ifull,:)
-  where (abs(wtu(iwu,0))>1.E-4.and.abs(wtu(1:ifull,2))>1.E-4)
-    nwtu(1:ifull,0)=wtu(1:ifull,0)+0.5*wtu(iwu,1)
-    nwtu(1:ifull,2)=wtu(1:ifull,2)+0.5*wtu(iwu,0)
-    nwtu(1:ifull,3)=wtu(1:ifull,3)-0.5*wtu(iwu,2)
-  end where
   do k=1,kx
-    where (abs(wtu(iwu,0))>1.E-4.and.abs(wtu(1:ifull,2))>1.E-4)
-      nud(1:ifull,k)=ud(1:ifull,k)-0.5*ud(iwu,k)
-    end where
+    nud(1:ifull,k)=ud(1:ifull,k)-stu*ud(iwu,k)
+    nvd(1:ifull,k)=vd(1:ifull,k)-stv*vd(isv,k)
   end do
-  where (abs(wtv(isv,0))>1.E-4.and.abs(wtv(1:ifull,2))>1.E-4)
-    nwtv(1:ifull,0)=wtv(1:ifull,0)+0.5*wtv(isv,1)
-    nwtv(1:ifull,2)=wtv(1:ifull,2)+0.5*wtv(isv,0)
-    nwtv(1:ifull,3)=wtv(1:ifull,3)-0.5*wtv(isv,2)
-  end where
-  do k=1,kx
-    where (abs(wtv(isv,0))>1.E-4.and.abs(wtv(1:ifull,2))>1.E-4)
-      nvd(1:ifull,k)=vd(1:ifull,k)-0.5*vd(isv,k)
-    end where
-  end do
-  wtu(1:ifull,:)=nwtu
-  wtv(1:ifull,:)=nwtv
   ud(1:ifull,:)=nud
   vd(1:ifull,:)=nvd
-  where (abs(wtu(1:ifull,0))<1.E-4)
-    wtu(1:ifull,0)=1.
-    wtu(1:ifull,1)=0.
-    wtu(1:ifull,2)=0.
-    wtu(1:ifull,3)=0.
-  end where
-  where (abs(wtv(1:ifull,0))<1.E-4)
-    wtv(1:ifull,0)=1.
-    wtv(1:ifull,1)=0.
-    wtv(1:ifull,2)=0.
-    wtv(1:ifull,3)=0.
-  end where
+
+  nwtu(:,0)=1.
+  nwtv(:,0)=1.
+  nwtu(:,1)=wtu(1:ifull,1)/wtu(1:ifull,0)
+  nwtv(:,1)=wtv(1:ifull,1)/wtv(1:ifull,0)
+  nwtu(:,2)=wtu(1:ifull,2)/wtu(1:ifull,0)
+  nwtv(:,2)=wtv(1:ifull,2)/wtv(1:ifull,0)
+  nwtu(:,3)=wtu(1:ifull,3)/wtu(1:ifull,0)
+  nwtv(:,3)=wtv(1:ifull,3)/wtv(1:ifull,0)
+  do k=1,kx
+    ud(1:ifull,k)=ud(1:ifull,k)/wtu(1:ifull,0)
+    vd(1:ifull,k)=vd(1:ifull,k)/wtv(1:ifull,0)
+  end do
+
+  do k=1,kx
+    ! 1st guess
+    !ua(1:ifull,k)=(uin(1:ifull,k)+uin(ieu,k))*0.5*eeu(1:ifull)
+    !va(1:ifull,k)=(vin(1:ifull,k)+vin(inv,k))*0.5*eev(1:ifull)
+    ua(1:ifull,k)=ud(1:ifull,k)
+    va(1:ifull,k)=vd(1:ifull,k)
+  end do
+
 
   do itn=1,itnmax        ! each loop is a double iteration
     call boundsuv(ua,va,stag=3)
     do k=1,kx
-      uin(1:ifull,k)=(ud(1:ifull,k)+wtu(1:ifull,1)*ua(ieu,k)+wtu(1:ifull,2)*ua(iwu,k)+wtu(1:ifull,3)*ua(iwwu,k))/wtu(1:ifull,0)
-      vin(1:ifull,k)=(vd(1:ifull,k)+wtv(1:ifull,1)*va(inv,k)+wtv(1:ifull,2)*va(isv,k)+wtv(1:ifull,3)*va(issv,k))/wtv(1:ifull,0)
+      uin(1:ifull,k)=ud(1:ifull,k)+nwtu(:,1)*ua(ieu,k)+nwtu(:,2)*ua(iwu,k)+nwtu(:,3)*ua(iwwu,k)
+      vin(1:ifull,k)=vd(1:ifull,k)+nwtv(:,1)*va(inv,k)+nwtv(:,2)*va(isv,k)+nwtv(:,3)*va(issv,k)
     end do
     call boundsuv(uin,vin,stag=3)
     do k=1,kx
-      ua(1:ifull,k)=(ud(1:ifull,k)+wtu(1:ifull,1)*uin(ieu,k)+wtu(1:ifull,2)*uin(iwu,k)+wtu(1:ifull,3)*uin(iwwu,k))/wtu(1:ifull,0)
-      va(1:ifull,k)=(vd(1:ifull,k)+wtv(1:ifull,1)*vin(inv,k)+wtv(1:ifull,2)*vin(isv,k)+wtv(1:ifull,3)*vin(issv,k))/wtv(1:ifull,0)
+      ua(1:ifull,k)=ud(1:ifull,k)+nwtu(:,1)*uin(ieu,k)+nwtu(:,2)*uin(iwu,k)+nwtu(:,3)*uin(iwwu,k)
+      va(1:ifull,k)=vd(1:ifull,k)+nwtv(:,1)*vin(inv,k)+nwtv(:,2)*vin(isv,k)+nwtv(:,3)*vin(issv,k)
     end do
   end do                 ! itn=1,itnmax
 
@@ -3174,6 +3271,7 @@ include 'parm.h'
 
 integer, intent(in), optional :: toff
 integer k,itn,kx,zoff
+integer, save :: lasthand
 real, dimension(:,:), intent(in) :: u
 real, dimension(ifull,size(u,2)), intent(in) :: v
 real, dimension(ifull,size(u,2)), intent(out) :: uout,vout
@@ -3181,27 +3279,37 @@ real, dimension(ifull+iextra,size(u,2)) :: uin,vin
 real, dimension(ifull+iextra,size(u,2)) :: ua,va
 real, dimension(ifull+iextra,size(u,2)) :: ud,vd
 real, dimension(ifull,size(u,2)) :: nud,nvd
-real, dimension(ifull+iextra,0:3) :: wtu,wtv
 real, dimension(ifull,0:3) :: nwtu,nwtv
-logical, dimension(ifull) :: etest,eutest,evtest
+real, dimension(:,:), allocatable, save :: wtu,wtv
+real, dimension(:,:), allocatable, save :: dtu,dtv
+real, dimension(:), allocatable, save :: stu,stv
+logical, dimension(ifull) :: eutest,evtest
 logical, dimension(ifull) :: eetest,ewtest,entest,estest
 logical, dimension(ifull) :: euetest,euwtest,evntest,evstest
 logical, dimension(ifull) :: euewtest,evnstest
-logical ltest
+logical, dimension(ifull) :: eeetest,ewwtest,enntest,esstest
+logical ltest,ltestb
 
 call start_log(ocnstag_begin)
 
 kx=size(u,2)
+
+if (.not.allocated(wtu)) then
+  allocate(wtu(ifull+iextra,0:3),wtv(ifull+iextra,0:3))
+  allocate(dtu(ifull,3),dtv(ifull,3))
+  allocate(stu(ifull),stv(ifull))
+  lasthand=0
+end if
+
 zoff=0
 if (present(toff)) then
   if (toff==1) zoff=koff
 end if
 
-etest=ee(1:ifull)>0.5
-eetest=etest.and.ee(ie)>0.5
-ewtest=ee(iw)>0.5.and.etest
-entest=etest.and.ee(in)>0.5
-estest=ee(is)>0.5.and.etest
+eetest=ee(1:ifull)*ee(ie)>0.5
+ewtest=ee(iw)*ee(1:ifull)>0.5
+entest=ee(1:ifull)*ee(in)>0.5
+estest=ee(is)*ee(1:ifull)>0.5
 
 do k=1,kx
   uin(1:ifull,k)=u(:,k)*eeu(1:ifull)
@@ -3216,6 +3324,9 @@ else
   ltest=mod((ktau-zoff)/mstagf,2)==0
 end if
 if (ltest) then
+  
+  ltestb=.not.(lasthand==1)
+  lasthand=1
 
   eutest=eeu(iwu)>0.5
   evtest=eev(isv)>0.5
@@ -3225,186 +3336,234 @@ if (ltest) then
   evstest=evtest.and.eev(issv)>0.5
   euewtest=euetest.and.euwtest
   evnstest=evntest.and.evstest
+  eeetest=eetest.and.ee(iee)>0.5
+  enntest=entest.and.ee(inn)>0.5
 
   ! assign weights
-  wtu=0.
-  wtv=0.
+  if (ltestb) then
+    wtu=0.
+    wtv=0.
+    dtu=0.
+    dtv=0.
+
+!  |   W   | X *   |  E   |     unstaggered
+! WW       W X     *            staggered
+    where (euewtest)
+      wtu(1:ifull,0)=1.
+      wtu(1:ifull,1)=-0.1
+      wtu(1:ifull,2)=-0.5
+      wtu(1:ifull,3)=0.
+      dtu(:,1)=0.1
+      dtu(:,2)=1.
+      dtu(:,3)=0.5
+      !ud(1:ifull,k)=uin(iwwu,k)*0.1+uin(iwu,k)+uin(1:ifull,k)*0.5
+      !uin(1:ifull,k)=ud(:,k)-ua(ieu,k)*0.1-ua(iwu,k)*0.5
+        
+! ##   W   | X *   |  E   |     unstaggered
+! 00       W X     *            staggered
+    elsewhere (euetest)
+      wtu(1:ifull,0)=1.
+      wtu(1:ifull,1)=-0.1   !=0.
+      wtu(1:ifull,2)=-0.5   !=-1./3.
+      wtu(1:ifull,3)=0.
+      dtu(:,1)=0.           !=0.
+      dtu(:,2)=1.           !=1.
+      dtu(:,3)=0.5          !=1./3.
+      
+!  |   W   | X *   #  ##  #     unstaggered
+!          W X     0  ##  #     staggered
+    elsewhere (euwtest)
+      wtu(1:ifull,0)=1.
+      wtu(1:ifull,1)=0.     !=0.
+      wtu(1:ifull,2)=-1./3. !=-3.
+      wtu(1:ifull,3)=0.
+      dtu(:,1)=0.           !=1.
+      dtu(:,2)=1.           !=3.
+      dtu(:,3)=0.           !=0.
+
+! ##   ##  #   * X |   E   |     unstaggered
+! ##   ##  0     X *             staggered
+    elsewhere (eeetest)
+      wtu(1:ifull,0)=1.
+      wtu(1:ifull,1)=-1./3. !=-1.
+      wtu(1:ifull,2)=0.     !=0.
+      wtu(1:ifull,3)=0.
+      dtu(:,1)=0.           !=0.
+      dtu(:,2)=0.           !=0.
+      dtu(:,3)=1.           !=2.
+
+! ##   ##  #   *   |   E   #     unstaggered
+! ##   ##  #       *       #     staggered
+    elsewhere (eetest)
+      wtu(1:ifull,0)=1.
+      wtu(1:ifull,1)=0.
+      wtu(1:ifull,2)=0.
+      wtu(1:ifull,3)=0.
+      dtu(:,1)=0.
+      dtu(:,2)=0.
+      dtu(:,3)=1.
+
+! ##   W   |   *   #  ##  #     unstaggered
+! ##       W       #  ##  #     staggered
+    elsewhere (eutest)
+      wtu(1:ifull,0)=1.
+      wtu(1:ifull,1)=0.
+      wtu(1:ifull,2)=0.
+      wtu(1:ifull,3)=0.
+      dtu(:,1)=0.
+      dtu(:,2)=1.
+      dtu(:,3)=0.
+      
+    end where
+    where (evnstest)
+      wtv(1:ifull,0)=1.
+      wtv(1:ifull,1)=-0.1
+      wtv(1:ifull,2)=-0.5
+      wtv(1:ifull,3)=0.
+      dtv(:,1)=0.1
+      dtv(:,2)=1.
+      dtv(:,3)=0.5
+      !vd(1:ifull,k)=vin(issv,k)*0.1+vin(isv,k)+vin(1:ifull,k)*0.5
+      !vin(1:ifull,k)=vd(:,k)-va(inv,k)*0.1-va(isv,k)*0.5
+    elsewhere (evntest)
+      wtv(1:ifull,0)=1.
+      wtv(1:ifull,1)=-0.1   !=0.
+      wtv(1:ifull,2)=-0.5   !=-1./3.
+      wtv(1:ifull,3)=0.
+      dtv(:,1)=0.           !=0.
+      dtv(:,2)=1.           !=1.
+      dtv(:,3)=0.5          !=1./3.
+    elsewhere (evstest)
+      wtv(1:ifull,0)=1.
+      wtv(1:ifull,1)=0.     !=0.
+      wtv(1:ifull,2)=-1./3. !=-3.
+      wtv(1:ifull,3)=0.
+      dtv(:,1)=0.           !=1.
+      dtv(:,2)=1.           !=3.
+      dtv(:,3)=0.           !=0.
+    elsewhere (enntest)
+      wtv(1:ifull,0)=1.
+      wtv(1:ifull,1)=-1./3. !=-1.
+      wtv(1:ifull,2)=0.     !=0.
+      wtv(1:ifull,3)=0.
+      dtv(:,1)=0.           !=0.
+      dtv(:,2)=0.           !=0.
+      dtv(:,3)=1.           !=2.
+    elsewhere (entest)
+      wtv(1:ifull,0)=1.
+      wtv(1:ifull,1)=0.
+      wtv(1:ifull,2)=0.
+      wtv(1:ifull,3)=0.
+      dtv(:,1)=0.
+      dtv(:,2)=0.
+      dtv(:,3)=1.
+    elsewhere (evtest)
+      wtv(1:ifull,0)=1.
+      wtv(1:ifull,1)=0.
+      wtv(1:ifull,2)=0.
+      wtv(1:ifull,3)=0.
+      dtv(:,1)=0.
+      dtv(:,2)=1.
+      dtv(:,3)=0.
+    end where
+
+    ! Apply JLM's preconditioner
+    call boundsuv(wtu,wtv,stag=-9)
+    nwtu=wtu(1:ifull,:)
+    nwtv=wtv(1:ifull,:)
+    nud=ud(1:ifull,:)
+    nvd=vd(1:ifull,:)
+    stu=0.
+    stv=0.
+    where (abs(wtu(iwu,0))>1.E-4.and.abs(wtu(1:ifull,2))>1.E-4)
+      stu=-wtu(1:ifull,2)/wtu(iwu,0)
+      nwtu(1:ifull,0)=wtu(1:ifull,0)+stu*wtu(iwu,1)
+      nwtu(1:ifull,2)=wtu(1:ifull,2)+stu*wtu(iwu,0)
+      nwtu(1:ifull,3)=wtu(1:ifull,3)-stu*wtu(iwu,2)
+    end where
+    where (abs(wtv(isv,0))>1.E-4.and.abs(wtv(1:ifull,2))>1.E-4)
+      stv=-wtv(1:ifull,2)/wtv(isv,0)
+      nwtv(1:ifull,0)=wtv(1:ifull,0)+stv*wtv(isv,1)
+      nwtv(1:ifull,2)=wtv(1:ifull,2)+stv*wtv(isv,0)
+      nwtv(1:ifull,3)=wtv(1:ifull,3)-stv*wtv(isv,2)
+    end where
+    wtu(1:ifull,:)=nwtu
+    wtv(1:ifull,:)=nwtv
+    where (abs(wtu(1:ifull,0))<1.E-4)
+      wtu(1:ifull,0)=1.
+      wtu(1:ifull,1)=0.
+      wtu(1:ifull,2)=0.
+      wtu(1:ifull,3)=0.
+    end where
+    where (abs(wtv(1:ifull,0))<1.E-4)
+      wtv(1:ifull,0)=1.
+      wtv(1:ifull,1)=0.
+      wtv(1:ifull,2)=0.
+      wtv(1:ifull,3)=0.
+    end where
+
+  end if
+
   ud=0.
   vd=0.
   ua=0.
   va=0.
 
-!  |   W   | X *   |  E   |     unstaggered
-! WW       W X     *            staggered
-  where (euewtest)
-    wtu(1:ifull,0)=1.
-    wtu(1:ifull,1)=-0.1
-    wtu(1:ifull,2)=-0.5
-    wtu(1:ifull,3)=0.
-    !uin(1:ifull,k)=ud(:,k)-ua(ieu,k)*0.1-ua(iwu,k)*0.5
-        
-! ##   W   | X *   |  E   |     unstaggered
-! ##       W X     *            staggered
-  elsewhere (euetest)
-    wtu(1:ifull,0)=1.
-    wtu(1:ifull,1)=-0.2
-    wtu(1:ifull,2)=0.
-    wtu(1:ifull,3)=0.
-    !uin(1:ifull,k)=uh(:,k)-ua(ieu,k)*0.1-ua(iwu,k)*0.5
-    !uin(1:ifull,k)=2.*uh(:,k)-ua(ieu,k)*0.2-2.*uh(iwu,k)
-
-!  |   W   | X *   #  ##  #     unstaggered
-! WW       W X     #  ##  #     staggered
-  elsewhere (euwtest)
-    wtu(1:ifull,0)=1.
-    wtu(1:ifull,1)=0.
-    wtu(1:ifull,2)=-0.4/1.2
-    wtu(1:ifull,3)=0.
-    !uin(1:ifull,k)=(uh(:,k)-ua(iwu,k)*0.4)/1.2
-
-! ##   ##  #   *   |  E   |     unstaggered
-! ##   ##  #       *            staggered
-  elsewhere (eetest)
-    wtu(1:ifull,0)=1.
-    wtu(1:ifull,1)=-1.
-    wtu(1:ifull,2)=0.
-    wtu(1:ifull,3)=0.
-    !uin(1:ifull,k)=2.*uh(:,k)-ua(ieu,k)
-
-  end where
-  where (evnstest)
-    wtv(1:ifull,0)=1.
-    wtv(1:ifull,1)=-0.1
-    wtv(1:ifull,2)=-0.5
-    wtv(1:ifull,3)=0.
-    !vin(1:ifull,k)=vd(:,k)-va(inv,k)*0.1-va(isv,k)*0.5
-  elsewhere (evntest)
-    wtv(1:ifull,0)=1.
-    wtv(1:ifull,1)=-0.2
-    wtv(1:ifull,2)=0.
-    wtv(1:ifull,3)=0.
-    !vin(1:ifull,k)=vh(:,k)-va(inv,k)*0.1-va(isv,k)*0.5
-    !vin(1:ifull,k)=2.*vh(:,k)-va(inv,k)*0.2-2.*vh(isv,k)
-  elsewhere (evstest)
-    wtv(1:ifull,0)=1.
-    wtv(1:ifull,1)=0.
-    wtv(1:ifull,2)=-0.4/1.2
-    wtv(1:ifull,3)=0.
-    !vin(1:ifull,k)=(vh(:,k)-va(isv,k)*0.4)/1.2
-  elsewhere (entest)
-    wtv(1:ifull,0)=1.
-    wtv(1:ifull,1)=-1.
-    wtv(1:ifull,2)=0.
-    wtv(1:ifull,3)=0.
-    !vin(1:ifull,k)=2.*vh(:,k)-va(inv,k)
-  end where
-
-  call boundsuv(uin,vin,stag=5)
+  call boundsuv(uin,vin,stag=3)
   do k=1,kx
-    where (euewtest)
-      ud(1:ifull,k)=uin(iwwu,k)*0.1+uin(iwu,k)+uin(1:ifull,k)*0.5
-      !uin(1:ifull,k)=ud(:,k)-ua(ieu,k)*0.1-ua(iwu,k)*0.5
-    elsewhere (euetest)
-      ud(1:ifull,k)=uin(iwu,k)*0.4+uin(1:ifull,k)*0.8
-      !uin(1:ifull,k)=uh(:,k)-ua(ieu,k)*0.1-ua(iwu,k)*0.5
-      !uin(1:ifull,k)=2.*uh(:,k)-ua(ieu,k)*0.2-2.*uh(iwu,k)
-    elsewhere (euwtest)
-      ud(1:ifull,k)=(uin(iwu,k)*2.-uin(iwwu,k)*0.4)/1.2
-      !uin(1:ifull,k)=(uh(:,k)-ua(iwu,k)*0.4)/1.2
-    elsewhere (eetest)
-      ud(1:ifull,k)=2.*uin(1:ifull,k)
-      !uin(1:ifull,k)=2.*uh(:,k)-ua(ieu,k)
-    end where
-    where (evnstest)
-      vd(1:ifull,k)=vin(issv,k)*0.1+vin(isv,k)+vin(1:ifull,k)*0.5
-      !vin(1:ifull,k)=vd(:,k)-va(inv,k)*0.1-va(isv,k)*0.5
-    elsewhere (evntest)
-      vd(1:ifull,k)=vin(isv,k)*0.4+vin(1:ifull,k)*0.8
-      !vin(1:ifull,k)=vh(:,k)-va(inv,k)*0.1-va(isv,k)*0.5
-      !vin(1:ifull,k)=2.*vh(:,k)-va(inv,k)*0.2-2.*vh(isv,k)
-    elsewhere (evstest)
-      vd(1:ifull,k)=(vin(isv,k)*2.-vin(issv,k)*0.4)/1.2
-      !vin(1:ifull,k)=(vh(:,k)-va(isv,k)*0.4)/1.2
-    elsewhere (entest)
-      vd(1:ifull,k)=2.*vin(1:ifull,k)
-      !vin(1:ifull,k)=2.*vh(:,k)-va(inv,k)
-    end where
-
-    ! 1st guess
-    where (euetest)
-      ua(1:ifull,k)=uin(iwu,k)*0.5+uin(1:ifull,k)*0.5
-    elsewhere (eutest)
-      ua(1:ifull,k)=uin(iwu,k)
-    elsewhere (eetest)
-      ua(1:ifull,k)=uin(1:ifull,k)
-    end where
-    where (evntest)
-      va(1:ifull,k)=vin(isv,k)*0.5+vin(1:ifull,k)*0.5
-    elsewhere (evtest)
-      va(1:ifull,k)=vin(isv,k)
-    elsewhere (entest)
-      va(1:ifull,k)=vin(1:ifull,k)
-    end where
+    ud(1:ifull,k)=dtu(:,1)*uin(iwwu,k)+dtu(:,2)*uin(iwu,k)+dtu(:,3)*uin(1:ifull,k)
+    vd(1:ifull,k)=dtv(:,1)*vin(issv,k)+dtv(:,2)*vin(isv,k)+dtv(:,3)*vin(1:ifull,k)
   end do
-
+  
   ! Apply JLM's preconditioner
-  call boundsuv(wtu,wtv,stag=-9)
   call boundsuv(ud,vd,stag=-9)
-  nwtu=wtu(1:ifull,:)
-  nwtv=wtv(1:ifull,:)
   nud=ud(1:ifull,:)
   nvd=vd(1:ifull,:)
-  where (abs(wtu(iwu,0))>1.E-4.and.abs(wtu(1:ifull,2))>1.E-4)
-    nwtu(1:ifull,0)=wtu(1:ifull,0)+0.5*wtu(iwu,1)
-    nwtu(1:ifull,2)=wtu(1:ifull,2)+0.5*wtu(iwu,0)
-    nwtu(1:ifull,3)=wtu(1:ifull,3)-0.5*wtu(iwu,2)
-  end where
   do k=1,kx
-    where (abs(wtu(iwu,0))>1.E-4.and.abs(wtu(1:ifull,2))>1.E-4)
-      nud(1:ifull,k)=ud(1:ifull,k)-0.5*ud(iwu,k)
-    end where
+    nud(1:ifull,k)=ud(1:ifull,k)-stu*ud(iwu,k)
+    nvd(1:ifull,k)=vd(1:ifull,k)-stv*vd(isv,k)
   end do
-  where (abs(wtv(isv,0))>1.E-4.and.abs(wtv(1:ifull,2))>1.E-4)
-    nwtv(1:ifull,0)=wtv(1:ifull,0)+0.5*wtv(isv,1)
-    nwtv(1:ifull,2)=wtv(1:ifull,2)+0.5*wtv(isv,0)
-    nwtv(1:ifull,3)=wtv(1:ifull,3)-0.5*wtv(isv,2)
-  end where
-  do k=1,kx
-    where (abs(wtv(isv,0))>1.E-4.and.abs(wtv(1:ifull,2))>1.E-4)  
-      nvd(1:ifull,k)=vd(1:ifull,k)-0.5*vd(isv,k)
-    end where
-  end do
-  wtu(1:ifull,:)=nwtu
-  wtv(1:ifull,:)=nwtv
   ud(1:ifull,:)=nud
   vd(1:ifull,:)=nvd
-  where (abs(wtu(1:ifull,0))<1.E-4)
-    wtu(1:ifull,0)=1.
-    wtu(1:ifull,1)=0.
-    wtu(1:ifull,2)=0.
-    wtu(1:ifull,3)=0.
-  end where
-  where (abs(wtv(1:ifull,0))<1.E-4)
-    wtv(1:ifull,0)=1.
-    wtv(1:ifull,1)=0.
-    wtv(1:ifull,2)=0.
-    wtv(1:ifull,3)=0.
-  end where
+
+  nwtu(:,0)=1.
+  nwtv(:,0)=1.
+  nwtu(:,1)=wtu(1:ifull,1)/wtu(1:ifull,0)
+  nwtv(:,1)=wtv(1:ifull,1)/wtv(1:ifull,0)
+  nwtu(:,2)=wtu(1:ifull,2)/wtu(1:ifull,0)
+  nwtv(:,2)=wtv(1:ifull,2)/wtv(1:ifull,0)
+  nwtu(:,3)=wtu(1:ifull,3)/wtu(1:ifull,0)
+  nwtv(:,3)=wtv(1:ifull,3)/wtv(1:ifull,0)
+  do k=1,kx
+    ud(1:ifull,k)=ud(1:ifull,k)/wtu(1:ifull,0)
+    vd(1:ifull,k)=vd(1:ifull,k)/wtv(1:ifull,0)
+  end do
+
+  do k=1,kx
+    ! 1st guess
+    !ua(1:ifull,k)=(uin(iwu,k)*eeu(iwu)+uin(1:ifull,k)*eeu(1:ifull))/max(eeu(iwu)+eeu(1:ifull),1.)
+    !va(1:ifull,k)=(vin(isv,k)*eev(isv)+vin(1:ifull,k)*eev(1:ifull))/max(eev(isv)+eev(1:ifull),1.)
+    ua(1:ifull,k)=ud(1:ifull,k)
+    va(1:ifull,k)=vd(1:ifull,k)
+  end do
 
   do itn=1,itnmax        ! each loop is a double iteration
     call boundsuv(ua,va,stag=3)
     do k=1,kx
-      uin(1:ifull,k)=(ud(1:ifull,k)+wtu(1:ifull,1)*ua(ieu,k)+wtu(1:ifull,2)*ua(iwu,k)+wtu(1:ifull,3)*ua(iwwu,k))/wtu(1:ifull,0)
-      vin(1:ifull,k)=(vd(1:ifull,k)+wtv(1:ifull,1)*va(inv,k)+wtv(1:ifull,2)*va(isv,k)+wtv(1:ifull,3)*va(issv,k))/wtv(1:ifull,0)
+      uin(1:ifull,k)=ud(1:ifull,k)+nwtu(:,1)*ua(ieu,k)+nwtu(:,2)*ua(iwu,k)+nwtu(:,3)*ua(iwwu,k)
+      vin(1:ifull,k)=vd(1:ifull,k)+nwtv(:,1)*va(inv,k)+nwtv(:,2)*va(isv,k)+nwtv(:,3)*va(issv,k)
     end do
     call boundsuv(uin,vin,stag=3)
     do k=1,kx
-      ua(1:ifull,k)=(ud(1:ifull,k)+wtu(1:ifull,1)*uin(ieu,k)+wtu(1:ifull,2)*uin(iwu,k)+wtu(1:ifull,3)*uin(iwwu,k))/wtu(1:ifull,0)
-      va(1:ifull,k)=(vd(1:ifull,k)+wtv(1:ifull,1)*vin(inv,k)+wtv(1:ifull,2)*vin(isv,k)+wtv(1:ifull,3)*vin(issv,k))/wtv(1:ifull,0)
+      ua(1:ifull,k)=ud(1:ifull,k)+nwtu(:,1)*uin(ieu,k)+nwtu(:,2)*uin(iwu,k)+nwtu(:,3)*uin(iwwu,k)
+      va(1:ifull,k)=vd(1:ifull,k)+nwtv(:,1)*vin(inv,k)+nwtv(:,2)*vin(isv,k)+nwtv(:,3)*vin(issv,k)
     end do
   end do                  ! itn=1,itnmax
-
+  
 else
+
+  ltestb=.not.(lasthand==2)
+  lasthand=2
 
   eutest=eeu(1:ifull)>0.5
   evtest=eev(1:ifull)>0.5
@@ -3414,182 +3573,225 @@ else
   evntest=evtest.and.eev(inv)>0.5
   euewtest=euetest.and.euwtest
   evnstest=evntest.and.evstest
+  ewwtest=ewtest.and.ee(iww)>0.5
+  esstest=estest.and.ee(iss)>0.5
 
   ! assign weights
-  wtu=0.
-  wtv=0.
+  if (ltestb) then
+    wtu=0.
+    wtv=0.
+    dtu=0.
+    dtv=0.
+  
+!  |   W   |   * X |  E   |     unstaggered
+!          W     X *      E     staggered
+    where (euewtest)
+      wtu(1:ifull,0)=1.
+      wtu(1:ifull,1)=-0.5
+      wtu(1:ifull,2)=-0.1
+      wtu(1:ifull,3)=0.
+      dtu(:,1)=0.1
+      dtu(:,2)=1.
+      dtu(:,3)=0.5
+      !ud(1:ifull,k)=uin(ieu,k)*0.1+uin(1:ifull,k)+uin(iwu,k)*0.5
+      !uin(1:ifull,k)=ud(:,k)-ua(iwu,k)*0.1-ua(ieu,k)*0.5
+        
+!  |   W   |   * X |  E   #     unstaggered
+!          W     X *      0     staggered
+    elsewhere (euwtest)
+      wtu(1:ifull,0)=1.
+      wtu(1:ifull,1)=-0.5   !=-1./3.
+      wtu(1:ifull,2)=-0.1   !=0.
+      wtu(1:ifull,3)=0.
+      dtu(:,1)=0.           !=0.
+      dtu(:,2)=1.           !=1.
+      dtu(:,3)=0.5          !=1./3.
+      
+!  #   ##  #   * X |   E   |     unstaggered
+!  #   ##  0     X *             staggered
+    elsewhere (euetest)
+      wtu(1:ifull,0)=1.
+      wtu(1:ifull,1)=-1./3. !=-3.
+      wtu(1:ifull,2)=0.     !=0.
+      wtu(1:ifull,3)=0.
+      dtu(:,1)=0.           !=1.
+      dtu(:,2)=1.           !=3.
+      dtu(:,3)=0.           !=0.
+
+!  |   W   | X *   #  ##  #     unstaggered
+!          W X     0  ##  #     staggered
+    elsewhere (ewwtest)
+      wtu(1:ifull,0)=1.
+      wtu(1:ifull,1)=0.     !=0.
+      wtu(1:ifull,2)=-1./3. !=-1.
+      wtu(1:ifull,3)=0.
+      dtu(:,1)=0.           !=0.
+      dtu(:,2)=0.           !=0.
+      dtu(:,3)=1.           !=2.
+
+!  #   W   |   *   #  ##  #     unstaggered
+!  #       W       #  ##  #     staggered
+    elsewhere (ewtest)
+      wtu(1:ifull,0)=1.
+      wtu(1:ifull,1)=0.
+      wtu(1:ifull,2)=0.
+      wtu(1:ifull,3)=0.
+      dtu(:,1)=0.
+      dtu(:,2)=0.
+      dtu(:,3)=1.
+
+!  #   ##  #   *   |  E   #     unstaggered
+!  #   ##  #       *      #     staggered
+    elsewhere (eutest)
+      wtu(1:ifull,0)=1.
+      wtu(1:ifull,1)=0.
+      wtu(1:ifull,2)=0.
+      wtu(1:ifull,3)=0.
+      dtu(:,1)=0.
+      dtu(:,2)=1.
+      dtu(:,3)=0.
+
+    end where
+    where (evnstest)
+      wtv(1:ifull,0)=1.
+      wtv(1:ifull,1)=-0.5
+      wtv(1:ifull,2)=-0.1
+      wtv(1:ifull,3)=0.
+      dtv(:,1)=0.1
+      dtv(:,2)=1.
+      dtv(:,3)=0.5
+      !vd(1:ifull,k)=vin(inv,k)*0.1+vin(1:ifull,k)+vin(isv,k)*0.5
+      !vin(1:ifull,k)=vd(:,k)-va(isv,k)*0.1-va(inv,k)*0.5
+    elsewhere (evstest)
+      wtv(1:ifull,0)=1.
+      wtv(1:ifull,1)=-0.5   !=-1./3.
+      wtv(1:ifull,2)=-0.1   !=0.
+      wtv(1:ifull,3)=0.
+      dtv(:,1)=0.           !=0.
+      dtv(:,2)=1.           !=1.
+      dtv(:,3)=0.5          !=1./3.
+    elsewhere (evntest)
+      wtv(1:ifull,0)=1.
+      wtv(1:ifull,1)=-1./3. !=-3.
+      wtv(1:ifull,2)=0.     !=0.
+      wtv(1:ifull,3)=0.
+      dtv(:,1)=0.           !=1.
+      dtv(:,2)=1.           !=3.
+      dtv(:,3)=0.           !=0.
+    elsewhere (esstest)
+      wtv(1:ifull,0)=1.
+      wtv(1:ifull,1)=0.     !=0.
+      wtv(1:ifull,2)=-1./3. !=-1.
+      wtv(1:ifull,3)=0.
+      dtv(:,1)=0.           !=0.
+      dtv(:,2)=0.           !=0.
+      dtv(:,3)=1.           !=2.
+    elsewhere (estest)
+      wtv(1:ifull,0)=1.
+      wtv(1:ifull,1)=0.
+      wtv(1:ifull,2)=0.
+      wtv(1:ifull,3)=0.
+      dtv(:,1)=0.
+      dtv(:,2)=0.
+      dtv(:,3)=1.
+    elsewhere (evtest)
+      wtv(1:ifull,0)=1.
+      wtv(1:ifull,1)=0.
+      wtv(1:ifull,2)=0.
+      wtv(1:ifull,3)=0.
+      dtv(:,1)=0.
+      dtv(:,3)=0.
+      dtv(:,2)=1.
+    end where
+
+    ! Apply JLM's preconditioner
+    call boundsuv(wtu,wtv,stag=-10)
+    nwtu=wtu(1:ifull,:)
+    nwtv=wtv(1:ifull,:)
+    stu=0.
+    stv=0.
+    where (abs(wtu(ieu,0))>1.E-4.and.abs(wtu(1:ifull,1))>1.E-4)
+      stu=-wtu(1:ifull,1)/wtu(ieu,0)
+      nwtu(1:ifull,0)=wtu(1:ifull,0)+stu*wtu(ieu,2)
+      nwtu(1:ifull,1)=wtu(1:ifull,1)+stu*wtu(ieu,0)
+      nwtu(1:ifull,3)=wtu(1:ifull,3)-stu*wtu(ieu,1)
+    end where
+    where (abs(wtv(inv,0))>1.E-4.and.abs(wtv(1:ifull,1))>1.E-4)
+      stv=-wtv(1:ifull,1)/wtv(inv,0)
+      nwtv(1:ifull,0)=wtv(1:ifull,0)+stv*wtv(inv,2)
+      nwtv(1:ifull,1)=wtv(1:ifull,1)+stv*wtv(inv,0)
+      nwtv(1:ifull,3)=wtv(1:ifull,3)-stv*wtv(inv,1)
+    end where
+    wtu(1:ifull,:)=nwtu
+    wtv(1:ifull,:)=nwtv
+    where (abs(wtu(1:ifull,0))<1.E-4)
+      wtu(1:ifull,0)=1.
+      wtu(1:ifull,1)=0.
+      wtu(1:ifull,2)=0.
+      wtu(1:ifull,3)=0.
+    end where
+    where (abs(wtv(1:ifull,0))<1.E-4)
+      wtv(1:ifull,0)=1.
+      wtv(1:ifull,1)=0.
+      wtv(1:ifull,2)=0.
+      wtv(1:ifull,3)=0.
+    end where
+
+  end if
+
   ud=0.
   vd=0.
   ua=0.
   va=0.
 
-!  |   W   |   * X |  E   |     unstaggered
-!          W     X *      E     staggered
-  where (euewtest)
-    wtu(1:ifull,0)=1.
-    wtu(1:ifull,1)=-0.5
-    wtu(1:ifull,2)=-0.1
-    wtu(1:ifull,3)=0.
-    !uin(1:ifull,k)=ud(:,k)-ua(ieu,k)*0.5-ua(iwu,k)*0.1
-        
-!  |   W   |   * X |  E   #     unstaggered
-!          W     X *      #     staggered
-  elsewhere (euwtest)
-    wtu(1:ifull,0)=1.
-    wtu(1:ifull,1)=0.
-    wtu(1:ifull,2)=-0.2
-    wtu(1:ifull,3)=0.
-    !uin(1:ifull,k)=uh(:,k)-ua(ieu,k)*0.5-ua(iwu,k)*0.1
-    !uin(1:ifull,k)=2.*uh(:,k)-ua(iwu,k)*0.2-2.*uh(ieu,k)
-
-!  #   ##  #   * X |  E   |     unstaggered
-!  #   ##  #     X *      E     staggered
-  elsewhere (euetest)
-    wtu(1:ifull,0)=1.
-    wtu(1:ifull,1)=-0.4/1.2
-    wtu(1:ifull,2)=0.
-    wtu(1:ifull,3)=0.
-    !uin(1:ifull,k)=(uh(:,k)-ua(ieu,k)*0.4)/1.2
-
-!  |   W   |   *   #  ##  #     unstaggered
-!          W       #  ##  #     staggered
-  elsewhere (ewtest)
-    wtu(1:ifull,0)=1.
-    wtu(1:ifull,1)=0.
-    wtu(1:ifull,2)=-1.
-    wtu(1:ifull,3)=0.
-    !uin(1:ifull,k)=2.*uh(:,k)-ua(iwu,k)
-
-  end where
-  where (evnstest)
-    wtv(1:ifull,0)=1.
-    wtv(1:ifull,1)=-0.5
-    wtv(1:ifull,2)=-0.1
-    wtv(1:ifull,3)=0.
-    !vin(1:ifull,k)=vd(:,k)-va(inv,k)*0.5-va(isv,k)*0.1
-  elsewhere (evstest)
-    wtv(1:ifull,0)=1.
-    wtv(1:ifull,1)=0.
-    wtv(1:ifull,2)=-0.2
-    wtv(1:ifull,3)=0.
-    !vin(1:ifull,k)=vh(:,k)-va(inv,k)*0.5-va(isv,k)*0.1
-    !vin(1:ifull,k)=2.*vh(:,k)-va(isv,k)*0.2-2.*vh(inv,k)
-  elsewhere (evntest)
-    wtv(1:ifull,0)=1.
-    wtv(1:ifull,1)=-0.4/1.2
-    wtv(1:ifull,2)=0.
-    wtv(1:ifull,3)=0.
-    !vin(1:ifull,k)=(vh(:,k)-va(inv,k)*0.4)/1.2
-  elsewhere (estest)
-    wtv(1:ifull,0)=1.
-    wtv(1:ifull,1)=0.
-    wtv(1:ifull,2)=-1.
-    wtv(1:ifull,3)=0.
-    !vin(1:ifull,k)=2.*vh(:,k)-va(isv,k)
-  end where
-
-  call boundsuv(uin,vin)
+  call boundsuv(uin,vin,stag=3)
   do k=1,kx
-    where (euewtest)
-      ud(1:ifull,k)=uin(ieu,k)*0.1+uin(1:ifull,k)+uin(iwu,k)*0.5
-      !uin(1:ifull,k)=ud(:,k)-ua(iwu,k)*0.1-ua(ieu,k)*0.5
-    elsewhere (euwtest)
-      ud(1:ifull,k)=uin(1:ifull,k)*0.4+uin(iwu,k)*0.8
-      !uin(1:ifull,k)=uh(:,k)-ua(iwu,k)*0.1-ua(ieu,k)*0.5
-      !uin(1:ifull,k)=2.*uh(:,k)-ua(iwu,k)*0.2-2.*uh(ieu,k)
-    elsewhere (euetest)
-      ud(1:ifull,k)=(uin(1:ifull,k)*2.-uin(ieu,k)*0.4)/1.2
-      !uin(1:ifull,k)=(uh(:,k)-ua(ieu,k)*0.4)/1.2
-    elsewhere (ewtest)
-      ud(1:ifull,k)=2.*uin(iwu,k)
-      !uin(1:ifull,k)=2.*uh(:,k)-ua(iwu,k)
-    end where
-    where (evnstest)
-      vd(1:ifull,k)=vin(inv,k)*0.1+vin(1:ifull,k)+vin(isv,k)*0.5
-      !vin(1:ifull,k)=vd(:,k)-va(isv,k)*0.1-va(inv,k)*0.5
-    elsewhere (evstest)
-      vd(1:ifull,k)=vin(1:ifull,k)*0.4+vin(isv,k)*0.8
-      !vin(1:ifull,k)=vh(:,k)-va(isv,k)*0.1-va(inv,k)*0.5
-      !vin(1:ifull,k)=2.*vh(:,k)-va(isv,k)*0.2-2.*vh(inv,k)
-    elsewhere (evntest)
-      vd(1:ifull,k)=(vin(1:ifull,k)*2.-vin(inv,k)*0.4)/1.2
-      !vin(1:ifull,k)=(vh(:,k)-va(inv,k)*0.4)/1.2
-    elsewhere (estest)
-      vd(1:ifull,k)=2.*vin(isv,k)
-      !vin(1:ifull,k)=2.*vh(:,k)-va(isv,k)
-    end where
-
-    ! 1st guess
-    where (euwtest)
-      ua(1:ifull,k)=uin(iwu,k)*0.5+uin(1:ifull,k)*0.5
-    elsewhere (eutest)
-      ua(1:ifull,k)=uin(ieu,k)
-    elsewhere (ewtest)
-      ua(1:ifull,k)=uin(1:ifull,k)
-    end where
-    where (evstest)
-      va(1:ifull,k)=vin(isv,k)*0.5+vin(1:ifull,k)*0.5
-    elsewhere (evtest)
-      va(1:ifull,k)=vin(inv,k)
-    elsewhere (estest)
-      va(1:ifull,k)=vin(1:ifull,k)
-    end where
+    ud(1:ifull,k)=dtu(:,1)*uin(ieu,k)+dtu(:,2)*uin(1:ifull,k)+dtu(:,3)*uin(iwu,k)
+    vd(1:ifull,k)=dtv(:,1)*vin(inv,k)+dtv(:,2)*vin(1:ifull,k)+dtv(:,3)*vin(isv,k)
   end do
 
   ! Apply JLM's preconditioner
-  call boundsuv(wtu,wtv,stag=-10)
   call boundsuv(ud,vd,stag=-10)
-  nwtu=wtu(1:ifull,:)
-  nwtv=wtv(1:ifull,:)
   nud=ud(1:ifull,:)
   nvd=vd(1:ifull,:)
-  where (abs(wtu(ieu,0))>1.E-4.and.abs(wtu(1:ifull,1))>1.E-4)
-    nwtu(1:ifull,0)=wtu(1:ifull,0)+0.5*wtu(ieu,2)
-    nwtu(1:ifull,1)=wtu(1:ifull,1)+0.5*wtu(ieu,0)
-    nwtu(1:ifull,3)=wtu(1:ifull,3)-0.5*wtu(ieu,1)
-  end where
   do k=1,kx
-    where (abs(wtu(ieu,0))>1.E-4.and.abs(wtu(1:ifull,1))>1.E-4)
-      nud(1:ifull,k)=ud(1:ifull,k)-0.5*ud(ieu,k)
-    end where
+    nud(1:ifull,k)=ud(1:ifull,k)-stu*ud(ieu,k)
+    nvd(1:ifull,k)=vd(1:ifull,k)-stv*vd(inv,k)
   end do
-  where (abs(wtv(inv,0))>1.E-4.and.abs(wtv(1:ifull,1))>1.E-4)
-    nwtv(1:ifull,0)=wtv(1:ifull,0)+0.5*wtv(inv,2)
-    nwtv(1:ifull,1)=wtv(1:ifull,1)+0.5*wtv(inv,0)
-    nwtv(1:ifull,3)=wtv(1:ifull,3)-0.5*wtv(inv,1)
-  end where
-  do k=1,kx
-    where (abs(wtv(inv,0))>1.E-4.and.abs(wtv(1:ifull,1))>1.E-4)
-      nvd(1:ifull,k)=vd(1:ifull,k)-0.5*vd(inv,k)
-    end where
-  end do
-  wtu(1:ifull,:)=nwtu
-  wtv(1:ifull,:)=nwtv
   ud(1:ifull,:)=nud
   vd(1:ifull,:)=nvd
-  where (abs(wtu(1:ifull,0))<1.E-4)
-    wtu(1:ifull,0)=1.
-    wtu(1:ifull,1)=0.
-    wtu(1:ifull,2)=0.
-    wtu(1:ifull,3)=0.
-  end where
-  where (abs(wtv(1:ifull,0))<1.E-4)
-    wtv(1:ifull,0)=1.
-    wtv(1:ifull,1)=0.
-    wtv(1:ifull,2)=0.
-    wtv(1:ifull,3)=0.
-  end where
+
+  nwtu(:,0)=1.
+  nwtv(:,0)=1.
+  nwtu(:,1)=wtu(1:ifull,1)/wtu(1:ifull,0)
+  nwtv(:,1)=wtv(1:ifull,1)/wtv(1:ifull,0)
+  nwtu(:,2)=wtu(1:ifull,2)/wtu(1:ifull,0)
+  nwtv(:,2)=wtv(1:ifull,2)/wtv(1:ifull,0)
+  nwtu(:,3)=wtu(1:ifull,3)/wtu(1:ifull,0)
+  nwtv(:,3)=wtv(1:ifull,3)/wtv(1:ifull,0)
+  do k=1,kx
+    ud(1:ifull,k)=ud(1:ifull,k)/wtu(1:ifull,0)
+    vd(1:ifull,k)=vd(1:ifull,k)/wtv(1:ifull,0)
+  end do
+
+  do k=1,kx
+    ! 1st guess
+    !ua(1:ifull,k)=(uin(iwu,k)*eeu(iwu)+uin(1:ifull,k)*eeu(1:ifull))/max(eeu(iwu)+eeu(1:ifull),1.)
+    !va(1:ifull,k)=(vin(isv,k)*eev(isv)+vin(1:ifull,k)*eev(1:ifull))/max(eev(isv)+eev(1:ifull),1.)
+    ua(1:ifull,k)=ud(1:ifull,k)
+    va(1:ifull,k)=vd(1:ifull,k)
+  end do
 
   do itn=1,itnmax        ! each loop is a double iteration
     call boundsuv(ua,va,stag=2)
     do k=1,kx
-      uin(1:ifull,k)=(ud(1:ifull,k)+wtu(1:ifull,1)*ua(ieu,k)+wtu(1:ifull,2)*ua(iwu,k)+wtu(1:ifull,3)*ua(ieeu,k))/wtu(1:ifull,0)
-      vin(1:ifull,k)=(vd(1:ifull,k)+wtv(1:ifull,1)*va(inv,k)+wtv(1:ifull,2)*va(isv,k)+wtv(1:ifull,3)*va(innv,k))/wtv(1:ifull,0)
+      uin(1:ifull,k)=ud(1:ifull,k)+nwtu(:,1)*ua(ieu,k)+nwtu(:,2)*ua(iwu,k)+nwtu(:,3)*ua(ieeu,k)
+      vin(1:ifull,k)=vd(1:ifull,k)+nwtv(:,1)*va(inv,k)+nwtv(:,2)*va(isv,k)+nwtv(:,3)*va(innv,k)
     end do
     call boundsuv(uin,vin,stag=2)
     do k=1,kx
-      ua(1:ifull,k)=(ud(1:ifull,k)+wtu(1:ifull,1)*uin(ieu,k)+wtu(1:ifull,2)*uin(iwu,k)+wtu(1:ifull,3)*uin(ieeu,k))/wtu(1:ifull,0)
-      va(1:ifull,k)=(vd(1:ifull,k)+wtv(1:ifull,1)*vin(inv,k)+wtv(1:ifull,2)*vin(isv,k)+wtv(1:ifull,3)*vin(innv,k))/wtv(1:ifull,0)
+      ua(1:ifull,k)=ud(1:ifull,k)+nwtu(:,1)*uin(ieu,k)+nwtu(:,2)*uin(iwu,k)+nwtu(:,3)*uin(ieeu,k)
+      va(1:ifull,k)=vd(1:ifull,k)+nwtv(:,1)*vin(inv,k)+nwtv(:,2)*vin(isv,k)+nwtv(:,3)*vin(innv,k)
     end do
   end do                  ! itn=1,itnmax
 

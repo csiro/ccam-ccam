@@ -36,6 +36,8 @@
       real aa(ifull), bb(ifull), cc(ifull), axel
       integer iq, iter, k, nx, j, jx, i,klim,klimnew, ierr, meth, nx_max
       integer ifx
+      integer, dimension(:), allocatable, save :: itsconv
+      integer itscount,itstest,itc,klimold
       save  meth, nx_max, axel
 
       call start_log(helm_begin)
@@ -44,6 +46,9 @@
         allocate(mask(ifull))
         allocate(iqx(ifull,3),iqn(ifull,3),iqe(ifull,3))
         allocate(iqw(ifull,3),iqs(ifull,3),accel(kl))
+        allocate(itsconv(kl))
+        
+        itsconv=1
 
         if(precon==-1)precon=-2325  ! i.e. 2, 3, .25
         nx_max=abs(precon)/1000
@@ -87,7 +92,7 @@
        do k=1,kl
         call optmx(il_g,schmidt,dt,bam(k),accel(k))
         ! MJT - not sure about the following line
-	if(il_g>il)accel(k)=1.+.55*(accel(k)-1.)  ! for uniform-dec 22/4/08
+        if(il_g>il)accel(k)=1.+.55*(accel(k)-1.)  ! for uniform-dec 22/4/08
 c       if(il_g==il)accel(k)=1.+.55*(accel(k)-1.) ! just a test
         if(myid==0)write(6,*)'k,accel ',k,accel(k)
        enddo
@@ -252,6 +257,9 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
 
       klim=kl
       iter = 1
+      itstest=itsconv(klim)
+      itscount=itsconv(klim)
+      itc=0
       do while ( iter<itmax .and. klim>1)
        if(ntest==1.and.diag)write(6,*)'myid,iter a ',myid,iter
        call bounds(s, klim=klim)
@@ -294,23 +302,39 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
           write(6,*)'ktau,myid,smax_g ',ktau,myid,smax_g(:)
         endif  ! (myid==0)
       end if
-      do k=1,klim
-c      write (6,"('iter,k ,s',2i4,4f14.5)") iter,k,(s(iq,k),iq=1,4)
-       dsolmax(k) = maxval(abs(dsol(1:ifull,k)))
-      enddo  ! k loop
-      if(ntest>0)then
-        write(6,*)'ktau,myid,iter,dsolmax ',ktau,myid,iter,dsolmax(:)
-      endif  ! (myid==0)
-      klimnew=klim
-      do k=klim,1,-1
-       if(dsolmax(k)<restol*(smax_g(k)-smin_g(k)))then
-         klimnew=k
-       endif
-      enddo
-      if(ntest>0)write(6,*)'ktau,myid,klim,klimnew ',
-     &                      ktau,myid,klim,klimnew
-      call MPI_AllReduce( klimnew, klim, 1, MPI_INTEGER, MPI_MAX,
-     &                    MPI_COMM_WORLD, ierr )
+      if (iter>=itstest) then
+       do k=1,klim
+c       write (6,"('iter,k ,s',2i4,4f14.5)") iter,k,(s(iq,k),iq=1,4)
+        dsolmax(k) = maxval(abs(dsol(1:ifull,k)))
+       enddo  ! k loop
+       if(ntest>0)then
+         write(6,*)'ktau,myid,iter,dsolmax ',ktau,myid,iter,dsolmax(:)
+       endif  ! (myid==0)
+       klimnew=klim
+       do k=klim,1,-1
+        if(dsolmax(k)<restol*(smax_g(k)-smin_g(k)))then
+          klimnew=k
+        endif
+       enddo
+       klimold=klim
+       if(ntest>0)write(6,*)'ktau,myid,klim,klimnew ',
+     &                       ktau,myid,klim,klimnew
+       call MPI_AllReduce( klimnew, klim, 1, MPI_INTEGER, MPI_MAX,
+     &                     MPI_COMM_WORLD, ierr )
+       itscount=max(itscount/2,1)
+       itstest=itstest+itscount
+       if (itscount==1) itc=itc+1
+       if (klimold/=klim) then
+         if (itscount>1) then
+           itsconv(klimold)=max(itsconv(klimold)/2,1)
+         end if
+         if (itc>2*itsconv(klimold)) then
+           itsconv(klimold)=2*itsconv(klimold)
+         end if
+         itc=0
+         itscount=itsconv(klim)
+       end if
+      end if ! iter>=itstest
       iter = iter + 1
       enddo   ! while( iter<itmax .and. klim>1)
 

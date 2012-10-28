@@ -14,7 +14,7 @@ public ieu,inv,iwwu,issv,ieeu,innv
 public iev,iwv,inu,isu
 public lwws,lwss,lees,less,lwwn,lwnn,leen,lenn,lsww
 public lssw,lsee,lsse,lnww,lnnw,lnee,lnne
-public npann,npane,npanw,npans
+!public npann,npane,npanw,npans
 public indices_init,indices_end
 
 integer, dimension(:), allocatable, save :: iw_g,is_g,ise_g,ie_g,ine_g,in_g,iwn_g,inw_g,isw_g,ies_g,iws_g
@@ -28,30 +28,32 @@ integer, dimension(:), allocatable, save :: ieu,inv,iwwu,issv,ieeu,innv
 integer, dimension(:), allocatable, save :: iev,iwv,inu,isu
 integer, dimension(:), allocatable, save :: lwws,lwss,lees,less,lwwn,lwnn,leen,lenn,lsww
 integer, dimension(:), allocatable, save :: lssw,lsee,lsse,lnww,lnnw,lnee,lnne
-integer, dimension(:), allocatable, save :: npann,npane,npanw,npans
+!integer, dimension(:), allocatable, save :: npann,npane,npanw,npans
 
 contains
 
-subroutine indices_init(ifull_g,ifull,iextra,npanels,npan)
+subroutine indices_init(ifull_g,ifull,iextra,npanels,npan,myid)
 
 implicit none
 
-integer, intent(in) :: ifull_g,ifull,iextra,npanels,npan
+integer, intent(in) :: ifull_g,ifull,iextra,npanels,npan,myid
 
 allocate(iw_g(ifull_g),is_g(ifull_g),ise_g(ifull_g))
 allocate(ie_g(ifull_g),ine_g(ifull_g),in_g(ifull_g),iwn_g(ifull_g))
 allocate(inw_g(ifull_g),isw_g(ifull_g),ies_g(ifull_g),iws_g(ifull_g))
 allocate(ien_g(ifull_g),inn_g(ifull_g),iss_g(ifull_g),iww_g(ifull_g))
-allocate(iee_g(ifull_g),iwu_g(ifull_g),isv_g(ifull_g),iwu2_g(ifull_g))
-allocate(isv2_g(ifull_g),ieu2_g(ifull_g),inv2_g(ifull_g),iev2_g(ifull_g))
-allocate(inu2_g(ifull_g),ieu_g(ifull_g),inv_g(ifull_g),iwwu2_g(ifull_g))
-allocate(issv2_g(ifull_g),ieeu2_g(ifull_g),innv2_g(ifull_g))
+allocate(iee_g(ifull_g))
 allocate(lwws_g(0:npanels),lwss_g(0:npanels))
 allocate(lees_g(0:npanels),less_g(0:npanels),lwwn_g(0:npanels),lwnn_g(0:npanels))
 allocate(leen_g(0:npanels),lenn_g(0:npanels),lsww_g(0:npanels))
 allocate(lssw_g(0:npanels),lsee_g(0:npanels),lsse_g(0:npanels),lnww_g(0:npanels))
 allocate(lnnw_g(0:npanels),lnee_g(0:npanels),lnne_g(0:npanels))
-allocate(npann_g(0:13),npane_g(0:13),npanw_g(0:13),npans_g(0:13))
+if (myid==0) then
+  allocate(iwu_g(ifull_g),isv_g(ifull_g),ieu_g(ifull_g),inv_g(ifull_g))
+  allocate(iwu2_g(ifull_g),isv2_g(ifull_g),ieu2_g(ifull_g),inv2_g(ifull_g),iev2_g(ifull_g))
+  allocate(inu2_g(ifull_g),iwwu2_g(ifull_g),issv2_g(ifull_g),ieeu2_g(ifull_g),innv2_g(ifull_g))
+  allocate(npann_g(0:13),npane_g(0:13),npanw_g(0:13),npans_g(0:13))
+end if
 allocate(iw(ifull),is(ifull),ise(ifull))
 allocate(ie(ifull),ine(ifull),in(ifull),iwn(ifull))
 allocate(inw(ifull),isw(ifull),ies(ifull),iws(ifull))
@@ -65,7 +67,7 @@ allocate(lees(npan),less(npan),lwwn(npan),lwnn(npan))
 allocate(leen(npan),lenn(npan),lsww(npan))
 allocate(lssw(npan),lsee(npan),lsse(npan),lnww(npan))
 allocate(lnnw(npan),lnee(npan),lnne(npan))
-allocate(npann(0:13),npane(0:13),npanw(0:13),npans(0:13))
+!allocate(npann(0:13),npane(0:13),npanw(0:13),npans(0:13))
 
 npann_g=(/  1,  2,107,  4,106,  6,  7,109,  9,112, 11, 12,102,101/)
 npane_g=(/103,  3,  4,105,  5,110,108,  8, 10, 11,100,113, 13,  0/)
@@ -135,7 +137,7 @@ deallocate(ieu,inv,iwwu,issv,ieeu,innv)
 deallocate(iev,iwv,inu,isu)
 deallocate(lwws,lwss,lees,less,lwwn,lwnn,leen,lenn,lsww)
 deallocate(lssw,lsee,lsse,lnww,lnnw,lnee,lnne)
-deallocate(npann,npane,npanw,npans)
+!deallocate(npann,npane,npanw,npans)
 
 return
 end subroutine indices_end

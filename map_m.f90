@@ -16,15 +16,20 @@ real, dimension(:), allocatable, save :: dmdx, dmdy
 
 contains
 
-subroutine map_init(ifull_g,ifull,iextra)
+subroutine map_init(ifull_g,ifull,iextra,myid,mbd)
 
 implicit none
 
-integer, intent(in) :: ifull_g,ifull,iextra
+integer, intent(in) :: ifull_g,ifull,iextra,myid,mbd
 
-allocate(em_g(ifull_g),emu_g(ifull_g),emv_g(ifull_g))
-allocate(f_g(ifull_g),fu_g(ifull_g),fv_g(ifull_g))
-allocate(dmdx_g(ifull_g),dmdy_g(ifull_g))
+if (myid==0.or.mbd/=0) then
+  allocate(em_g(ifull_g))
+end if
+if (myid==0) then
+  allocate(emu_g(ifull_g),emv_g(ifull_g))
+  allocate(f_g(ifull_g),fu_g(ifull_g),fv_g(ifull_g))
+  allocate(dmdx_g(ifull_g),dmdy_g(ifull_g))
+end if
 allocate(em(ifull+iextra),emu(ifull+iextra),emv(ifull+iextra))
 allocate(f(ifull+iextra),fu(ifull+iextra),fv(ifull+iextra))
 allocate(dmdx(ifull),dmdy(ifull))
@@ -36,7 +41,7 @@ subroutine map_end
 
 implicit none
 
-deallocate(em_g)
+if (allocated(em_g)) deallocate(em_g)
 if (allocated(emu_g)) deallocate(emu_g)
 if (allocated(emv_g)) deallocate(emv_g)
 if (allocated(f_g)) deallocate(f_g)

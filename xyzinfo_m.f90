@@ -14,14 +14,18 @@ real, dimension(:), allocatable, save :: wts
 
 contains
 
-subroutine xyzinfo_init(ifull_g,ifull,iextra)
+subroutine xyzinfo_init(ifull_g,ifull,iextra,myid,mbd)
 
 implicit none
 
-integer, intent(in) :: ifull_g,ifull,iextra
+integer, intent(in) :: ifull_g,ifull,iextra,myid,mbd
 
-allocate(x_g(ifull_g),y_g(ifull_g),z_g(ifull_g))
-allocate(wts_g(ifull_g))  
+if (myid==0.or.mbd/=0) then
+  allocate(x_g(ifull_g),y_g(ifull_g),z_g(ifull_g))
+end if
+if (myid==0) then
+  allocate(wts_g(ifull_g))  
+end if
 allocate(x(ifull),y(ifull),z(ifull))
 allocate(wts(ifull))
 
@@ -32,7 +36,7 @@ subroutine xyzinfo_end
 
 implicit none
 
-deallocate(x_g,y_g,z_g)
+if (allocated(x_g)) deallocate(x_g,y_g,z_g)
 if (allocated(wts_g)) deallocate(wts_g)
 deallocate(x,y,z)
 deallocate(wts)

@@ -105,6 +105,7 @@
       integer, dimension(8) :: tvals1, tvals2
       integer, dimension(8) :: nper3hr
       integer, dimension(5) :: idum
+      integer, dimension(:,:), allocatable, save :: dumd
       integer iaero, ier, igas, ilx, io_nest, iq, irest, isoil, itr1
       integer itr2, jalbfix, jlx, jtr1, jtr2, k,k2, kktau, mexrest
       integer mins_dt, mins_gmt, mspeca, mtimer_in, nalpha, newsnow
@@ -122,6 +123,7 @@
       real gke, hourst, hrs_dt, evapavge, precavge, preccavge, psavge
       real pslavge, pwater, rel_lat, rel_long, rlwup, spavge, pwatr
       real pwatr_l, qtot, aa, bb, cc, bb_2, cc_2, rat
+      double precision, dimension(:,:,:), allocatable, save :: dume
       character(len=60) comm,comment
       character(len=47) header
       character(len=10) timeval
@@ -207,6 +209,8 @@
 
       !--------------------------------------------------------------
       ! READ NAMELISTS AND SET PARAMETER DEFAULTS
+      ! Currently all processors read the namelist to avoid explicitly
+      ! using MPI_Bcast.  
       ia=-1   ! diagnostic index
       ib=-1   ! diagnostic index
       ntbar=-1
@@ -224,7 +228,9 @@
      &                      version,nproc 
         write(6,*) 'Using defaults for nversion = ',nversion
       end if
-      if(nversion/=0)call change_defaults(nversion)
+      if(nversion/=0) then
+        call change_defaults(nversion)
+      end if
       read (99, cardin)
       npc     =max(npc,1)
       nperday =nint(24.*3600./dt)
@@ -249,7 +255,7 @@
       read (99, datafile)
       read (99, kuonml)
       ngas=0
-      read(99, trfiles, iostat=ierr)         ! try reading tracer namelist.  If no
+      read(99, trfiles, iostat=ierr)       ! try reading tracer namelist.  If no
       if (ierr/=0) rewind(99)              ! namelist is found, then disable
       if (tracerlist/='') call init_tracer ! tracers and rewind namelist.
 
@@ -546,11 +552,11 @@
       !--------------------------------------------------------------
       ! INITIALISE ifull_g ALLOCATABLE ARRAYS
       call bigxy4_init(iquad)
-      call xyzinfo_init(ifull_g,ifull,iextra)
-      call indices_init(ifull_g,ifull,iextra,npanels,npan)
-      call map_init(ifull_g,ifull,iextra)
-      call latlong_init(ifull_g,ifull,iextra)      
-      call vecsuv_init(ifull_g,ifull,iextra)
+      call xyzinfo_init(ifull_g,ifull,iextra,myid,mbd)
+      call indices_init(ifull_g,ifull,iextra,npanels,npan,myid)
+      call map_init(ifull_g,ifull,iextra,myid,mbd)
+      call latlong_init(ifull_g,ifull,iextra,myid)      
+      call vecsuv_init(ifull_g,ifull,iextra,myid)
 
 
       !--------------------------------------------------------------
@@ -564,16 +570,16 @@
       ! Broadcast the following global arrays so that they can be
       ! decomposed into local arrays with ccmpi_setup
       call MPI_Bcast(ds,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(xx4,iquad*iquad,MPI_DOUBLE_PRECISION,0,
+      allocate(dume(iquad,iquad,2))
+      if (myid==0) then
+        dume(:,:,1)=xx4
+        dume(:,:,2)=yy4
+      end if
+      call MPI_Bcast(dume,2*iquad*iquad,MPI_DOUBLE_PRECISION,0,
      &               MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(yy4,iquad*iquad,MPI_DOUBLE_PRECISION,0,
-     &               MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(x_g,ifull_g,MPI_DOUBLE_PRECISION,0,
-     &               MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(y_g,ifull_g,MPI_DOUBLE_PRECISION,0,
-     &               MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(z_g,ifull_g,MPI_DOUBLE_PRECISION,0,
-     &               MPI_COMM_WORLD,ierr)
+      xx4=dume(:,:,1)
+      yy4=dume(:,:,2)
+      deallocate(dume)
       call MPI_Bcast(iw_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       call MPI_Bcast(is_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       call MPI_Bcast(ise_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
@@ -590,81 +596,98 @@
       call MPI_Bcast(iss_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       call MPI_Bcast(iww_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       call MPI_Bcast(iee_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(iwu_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(isv_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(iwu2_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(isv2_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(ieu2_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(inv2_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(iev2_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(inu2_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(ieu_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(inv_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(iwwu2_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,
+    !  call MPI_Bcast(iwu_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+    !  call MPI_Bcast(isv_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+    !  call MPI_Bcast(ieu_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+    !  call MPI_Bcast(inv_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+    !  call MPI_Bcast(iwu2_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+    !  call MPI_Bcast(isv2_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+    !  call MPI_Bcast(ieu2_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+    !  call MPI_Bcast(inv2_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+    !  call MPI_Bcast(iev2_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+    !  call MPI_Bcast(inu2_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+    !  call MPI_Bcast(iwwu2_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,
+    ! &               ierr)
+    !  call MPI_Bcast(issv2_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,
+    ! &               ierr)
+    !  call MPI_Bcast(ieeu2_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,
+    ! &               ierr)
+    !  call MPI_Bcast(innv2_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,
+    ! &               ierr)
+      allocate(dumd(npanels+1,16))
+      if (myid==0) then
+        dumd(:,1)=lwws_g
+        dumd(:,2)=lwss_g
+        dumd(:,3)=lees_g
+        dumd(:,4)=less_g
+        dumd(:,5)=lwwn_g
+        dumd(:,6)=lwnn_g
+        dumd(:,7)=leen_g
+        dumd(:,8)=lenn_g
+        dumd(:,9)=lsww_g
+        dumd(:,10)=lssw_g
+        dumd(:,11)=lsee_g
+        dumd(:,12)=lsse_g
+        dumd(:,13)=lnww_g
+        dumd(:,14)=lnnw_g
+        dumd(:,15)=lnee_g
+        dumd(:,16)=lnne_g
+      end if
+      call MPI_Bcast(dumd,16*(npanels+1),MPI_INTEGER,0,MPI_COMM_WORLD,
      &               ierr)
-      call MPI_Bcast(issv2_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,
-     &               ierr)
-      call MPI_Bcast(ieeu2_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,
-     &               ierr)
-      call MPI_Bcast(innv2_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,
-     &               ierr)
-      call MPI_Bcast(lwws_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
-     &               ierr)
-      call MPI_Bcast(lwss_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
-     &               ierr)
-      call MPI_Bcast(lees_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
-     &               ierr)
-      call MPI_Bcast(less_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
-     &               ierr)
-      call MPI_Bcast(lwwn_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
-     &               ierr)
-      call MPI_Bcast(lwnn_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
-     &               ierr)
-      call MPI_Bcast(leen_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
-     &               ierr)
-      call MPI_Bcast(lenn_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
-     &               ierr)
-      call MPI_Bcast(lsww_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
-     &               ierr)
-      call MPI_Bcast(lssw_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
-     &               ierr)
-      call MPI_Bcast(lsee_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
-     &               ierr)
-      call MPI_Bcast(lsse_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
-     &               ierr)
-      call MPI_Bcast(lnww_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
-     &               ierr)
-      call MPI_Bcast(lnnw_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
-     &               ierr)
-      call MPI_Bcast(lnee_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
-     &               ierr)
-      call MPI_Bcast(lnne_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
-     &               ierr)
-      call MPI_Bcast(npann_g,14,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(npane_g,14,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(npanw_g,14,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(npans_g,14,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(em_g,ifull_g,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      lwws_g=dumd(:,1)
+      lwss_g=dumd(:,2)
+      lees_g=dumd(:,3)
+      less_g=dumd(:,4)
+      lwwn_g=dumd(:,5)
+      lwnn_g=dumd(:,6)
+      leen_g=dumd(:,7)
+      lenn_g=dumd(:,8)
+      lsww_g=dumd(:,9)
+      lssw_g=dumd(:,10)
+      lsee_g=dumd(:,11)
+      lsse_g=dumd(:,12)
+      lnww_g=dumd(:,13)
+      lnnw_g=dumd(:,14)
+      lnee_g=dumd(:,15)
+      lnne_g=dumd(:,16)
+      deallocate(dumd)
+      !call MPI_Bcast(npann_g,14,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      !call MPI_Bcast(npane_g,14,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      !call MPI_Bcast(npanw_g,14,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      !call MPI_Bcast(npans_g,14,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      ! The following are only needed for the scale-selective filter
+      if (mbd/=0) then
+        call MPI_Bcast(x_g,ifull_g,MPI_DOUBLE_PRECISION,0,
+     &                 MPI_COMM_WORLD,ierr)
+        call MPI_Bcast(y_g,ifull_g,MPI_DOUBLE_PRECISION,0,
+     &                 MPI_COMM_WORLD,ierr)
+        call MPI_Bcast(z_g,ifull_g,MPI_DOUBLE_PRECISION,0,
+     &                 MPI_COMM_WORLD,ierr)
+        call MPI_Bcast(em_g,ifull_g,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      end if
       call ccmpi_setup()
 
       
       !--------------------------------------------------------------
       ! DEALLOCATE ifull_g ARRAYS WHERE POSSIBLE
       if (myid/=0) then
-        deallocate(wts_g)
-        deallocate(ax_g,bx_g,ay_g,by_g,az_g,bz_g)
-        deallocate(emu_g,emv_g,f_g,fu_g,fv_g,dmdx_g,dmdy_g)
-        deallocate(rlatt_g,rlongg_g)
+        !deallocate(wts_g)
+        !deallocate(ax_g,bx_g,ay_g,by_g,az_g,bz_g)
+        !deallocate(f_g,fu_g,fv_g,dmdx_g,dmdy_g)
+        !deallocate(emu_g,emv_g)
+        !deallocate(rlatt_g,rlongg_g)
         deallocate(iw_g,is_g,ise_g,ie_g,ine_g,in_g,iwn_g,ien_g)
         deallocate(inw_g,isw_g,ies_g,iws_g)
-        deallocate(inn_g,iss_g,iww_g,iee_g,iwu_g,isv_g)
-        deallocate(iwu2_g,isv2_g,ieu2_g,inv2_g,iev2_g,inu2_g,ieu_g)
-        deallocate(inv_g,iwwu2_g,issv2_g,ieeu2_g,innv2_g)
+        deallocate(inn_g,iss_g,iww_g,iee_g)
+        !deallocate(iwu_g,isv_g,ieu_g,inv_g)
+        !deallocate(iwu2_g,isv2_g,ieu2_g,inv2_g,iev2_g,inu2_g)
+        !deallocate(iwwu2_g,issv2_g,ieeu2_g,innv2_g)
         deallocate(lwws_g,lwss_g,lees_g,less_g,lwwn_g)
         deallocate(lwnn_g,leen_g,lenn_g,lsww_g)
         deallocate(lssw_g,lsee_g,lsse_g,lnww_g,lnnw_g)
         deallocate(lnee_g,lnne_g)
-        deallocate(npann_g,npane_g,npanw_g,npans_g)
+        !deallocate(npann_g,npane_g,npanw_g,npans_g)
       end if
 
       

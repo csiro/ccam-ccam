@@ -12,15 +12,17 @@ real, dimension(:), allocatable, save :: ax,bx,ay,by,az,bz
 
 contains
 
-subroutine vecsuv_init(ifull_g,ifull,iextra)
+subroutine vecsuv_init(ifull_g,ifull,iextra,myid)
 
 implicit none
 
-integer, intent(in) :: ifull_g,ifull,iextra
+integer, intent(in) :: ifull_g,ifull,iextra,myid
 
-allocate(ax_g(ifull_g),bx_g(ifull_g))
-allocate(ay_g(ifull_g),by_g(ifull_g))
-allocate(az_g(ifull_g),bz_g(ifull_g))
+if (myid==0) then
+  allocate(ax_g(ifull_g),bx_g(ifull_g))
+  allocate(ay_g(ifull_g),by_g(ifull_g))
+  allocate(az_g(ifull_g),bz_g(ifull_g))
+end if
 allocate(ax(ifull+iextra),bx(ifull+iextra))
 allocate(ay(ifull+iextra),by(ifull+iextra))
 allocate(az(ifull+iextra),bz(ifull+iextra))

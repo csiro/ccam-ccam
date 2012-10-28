@@ -288,9 +288,8 @@
       real, dimension(:), allocatable, save :: sigin,zss_a,ocndep_l
       real, dimension(:,:), allocatable, save :: xg4, yg4
       real, dimension(ifg) :: uct_g, vct_g
-      real, dimension(dk*dk*6,3) :: tggsn_a
       real, dimension(dk*dk*6) :: tss_a,fracice_a,sicedep_a
-      real, dimension(dk*dk*6) :: psl_a,snowd_a,pmsl_a
+      real, dimension(dk*dk*6) :: psl_a,pmsl_a
       real, dimension(dk*dk*6) :: tss_l_a,tss_s_a
       real, dimension(dk*dk*6) :: t_a_lev,ucc,vcc
       real, dimension(dk*dk*6) :: wts_a  ! not used here or defined in call setxyz
@@ -335,10 +334,10 @@
       !--------------------------------------------------------------
       ! Determine input grid coordinates and interpolation arrays
       if (newfile) then
-        if (allocated(nface4)) then
-          deallocate(nface4,xg4,yg4)
-        end if
-        allocate(nface4(ifg,4),xg4(ifg,4),yg4(ifg,4))
+       if (allocated(nface4)) then
+         deallocate(nface4,xg4,yg4)
+       end if
+       allocate(nface4(ifg,4),xg4(ifg,4),yg4(ifg,4))
        if ( myid==0 ) then
         if (allocated(axs_a)) then
           deallocate(axs_a,ays_a,azs_a)
@@ -988,15 +987,18 @@ c***        but needed here for onthefly (different dims) 28/8/08
         !--------------------------------------------------
 
         ! SNOW !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        call histrd1(ncid,iarchi,ier,'snd',ik,6*ik,snowd_a,6*ik*ik) !********************************************************************************
-        if (ier/=0) then
-          where (tss_a<270.)
-            snowd_a=min(55.,5.*(271.-abs(tss_a)))
-          end where
-          where (snowd_a<0.001)
-            snowd_a=0.
-          end where
-        end if
+        if (iotest) then
+          call histrd1(ncid,iarchi,ier,'snd',ik,6*ik,snowd,ifull)
+        else
+          call histrd1(ncid,iarchi,ier,'snd',ik,6*ik,ucc,6*ik*ik)
+          if(myid==0)then
+            where (.not.land_a)       
+                ucc(:)=spval
+            end where  !   (.not.land_a(iq)) 
+            call fill_cc(ucc,spval,ik,0)
+          endif  ! (myid==0)
+          call doints4(ucc,  snowd,nface4,xg4,yg4,nord,dk,ifg)
+        end if ! iotest
 
         ! SOIL TEMPERATURE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         if (myid==0) then
@@ -1042,6 +1044,11 @@ c***        but needed here for onthefly (different dims) 28/8/08
      &                     nord,dk,ifg)
           end if
         end do
+        if (.not.iotest) then
+          where (snowd>0.)
+            tgg(:,1)=min(tgg(:,1),270.1)
+          endwhere
+        end if
 
         !--------------------------------------------------
         ! Read MLO sea-ice data
@@ -1051,37 +1058,29 @@ c***        but needed here for onthefly (different dims) 28/8/08
             select case(k)
               case(1,2,3,4)
                 write(vname,'("tggsn",I1.1)') k
-                call histrd1(ncid,iarchi,ier,vname,ik,6*ik,ucc,
-     &                 6*ik*ik)                                      !*******************************************************************************
-                if (k<=3) then
-                  tggsn_a(:,k)=ucc
+                if (iotest) then
+                  call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                         micdwn(:,k),ifull)
+                else
+                  call histrd1(ncid,iarchi,ier,vname,ik,6*ik,ucc,
+     &                   6*ik*ik)
+                  if (myid==0) then
+                    where (land_a)
+                      ucc=spval
+                    end where
+                    call fill_cc(ucc,spval,ik,0)
+                  end if
+                  call doints4(ucc,micdwn(:,k),nface4,xg4,yg4,nord,dk,
+     &                         ifg)
                 end if
+                if (all(micdwn(:,k)==0.)) micdwn(:,k)=280.
               case(5)
-                ucc=fracice_a ! read above with nudging arrays
+                micdwn(:,k)=fracice ! read above with nudging arrays
               case(6)
-                ucc=sicedep_a ! read above with nudging arrays
+                micdwn(:,k)=sicedep ! read above with nudging arrays
               case(7)
-                ucc=snowd_a*1.E-3
+                micdwn(:,k)=snowd*1.E-3
             end select
-            if (iotest) then
-              if (myid==0) then
-                call ccmpi_distribute(micdwn(:,k),ucc)
-              else
-                call ccmpi_distribute(micdwn(:,k))
-              end if
-            else
-              if (myid==0) then
-                where (land_a)
-                  ucc=spval
-                end where
-                call fill_cc(ucc,spval,ik,0)
-              end if
-              call doints4(ucc,micdwn(:,k),nface4,xg4,yg4,nord,dk,
-     &               ifg)
-            end if
-            if (k<=4) then
-              if (all(micdwn(:,k)==0.)) micdwn(:,k)=280.
-            end if
           end do
           if (iotest) then
             call histrd1(ncid,iarchi,ier,'sto',ik,6*ik,micdwn(:,k),
@@ -1935,47 +1934,27 @@ c***        but needed here for onthefly (different dims) 28/8/08
         if (nmlo==0.or.abs(nmlo)>9) then ! otherwise already read above
          do k=1,3
           write(vname,'("tggsn",I1.1)') k
-          call histrd1(ncid,iarchi,ier,vname,ik,6*ik,tggsn_a(:,k),
-     &                 6*ik*ik)                                        !*****************************************************************************
-          if (all(tggsn_a(:,k)==0.)) tggsn_a(:,k)=280.
+          if (iotest) then
+            call histrd1(ncid,iarchi,ier,vname,ik,6*ik,tggsn(:,k),
+     &                   ifull)
+          else
+            call histrd1(ncid,iarchi,ier,vname,ik,6*ik,ucc,
+     &                   6*ik*ik)
+            if(myid==0)then
+              where (.not.land_a)
+                ucc=spval
+              end where
+              call fill_cc(ucc,spval,ik,0)
+            endif  ! (myid==0)
+            call doints4(ucc,tggsn(:,k),nface4,xg4,yg4,nord
+     &                 ,dk,ifg)
+          end if
+          if (all(tggsn(:,k)==0.)) tggsn(:,k)=280.
+          where(.not.land)
+            tggsn(:,k)=280.
+          end where
          end do
         end if
-
-        if (iotest) then
-          if (myid==0) then
-            call ccmpi_distribute(snowd,snowd_a)
-            call ccmpi_distribute(tggsn,tggsn_a)
-          else
-            call ccmpi_distribute(snowd)
-            call ccmpi_distribute(tggsn)
-          end if
-        else
-          if(myid==0)then
-            do iq=1,ik*ik*6
-              if(.not.land_a(iq))then       
-                snowd_a(iq)=spval
-                tggsn_a(iq,1:3)=spval
-              endif  !   (.not.land_a(iq)) 
-            enddo   ! iq loop
-            call fill_cc(snowd_a,spval,ik,0)
-            do k=1,3
-              call fill_cc(tggsn_a(:,k),spval,ik,0)
-            enddo
-          endif  ! (myid==0)
-          call doints4(snowd_a,  snowd,nface4,xg4,yg4,nord,dk,ifg)
-          do k=1,3
-            call doints4(tggsn_a(:,k),tggsn(:,k),nface4,xg4,yg4,nord
-     &                   ,dk,ifg)
-          enddo          
-          where(.not.land)
-            tggsn(:,1)=280.
-            tggsn(:,2)=280.
-            tggsn(:,3)=280.
-          end where
-          where (snowd>0.)
-            tgg(:,1)=min(tgg(:,1),270.1)
-          endwhere
-        end if ! iotest
 
         do k=1,3
           write(vname,'("smass",I1.1)') k
