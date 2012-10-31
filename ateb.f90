@@ -927,6 +927,8 @@ snowdelta=rd_snow(is:ie)/(rd_snow(is:ie)+maxrdsn)
 call getswcoeff(ifin,sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn,wallpsi,roadpsi,effhwratio, &
                 f_vangle(is:ie),f_hangle(is:ie),dumfbeam,f_sigmavegc(is:ie),f_roadalpha(is:ie),f_vegalphac(is:ie), &
                 f_wallalpha(is:ie),rd_alpha(is:ie),snowdelta)
+sg_walle=sg_walle*effbldheight
+sg_wallw=sg_wallw*effbldheight
 albu=1.-(f_hwratio(is:ie)*(sg_walle+sg_wallw)*(1.-f_wallalpha(is:ie))+snowdelta*sg_rdsn*(1.-rd_alpha(is:ie)) &
     +(1.-snowdelta)*((1.-f_sigmavegc(is:ie))*sg_road*(1.-f_roadalpha(is:ie))+f_sigmavegc(is:ie)*sg_vegc*(1.-f_vegalphac(is:ie))))
 
@@ -1318,10 +1320,10 @@ sg_rdsn =(1.-rd_alpha)*sg_rdsn*a_sg
 call getlwcoeff(ufull,d_netemiss,d_cwa,d_cra,d_cwe,d_cww,d_crw,d_crr,d_cwr,d_rdsndelta,wallpsi,roadpsi,f_sigmavegc,f_roademiss, &
                 f_vegemissc,f_wallemiss)
 n=d_rfsndelta*snowemiss+(1.-d_rfsndelta)*((1.-f_sigmavegr)*f_roofemiss+f_sigmavegr*f_vegemissr)
-p_emiss=f_sigmabld*n+(1.-f_sigmabld)*(2.*f_wallemiss*f_hwratio*d_cwa+d_netemiss*d_cra) ! diagnostic only
+p_emiss=f_sigmabld*n+(1.-f_sigmabld)*(2.*f_wallemiss*effhwratio*d_cwa+d_netemiss*d_cra) ! diagnostic only
 
 ! estimate in-canyon surface roughness length
-dis=max(max(max(0.1*f_bldheight,zocanyon+0.1),f_zovegc+0.1),zosnow+0.1)
+dis=max(max(max(0.1*effbldheight,zocanyon+0.1),f_zovegc+0.1),zosnow+0.1)
 zolog=1./sqrt(d_rdsndelta/log(dis/zosnow)**2             &
      +(1.-d_rdsndelta)*(f_sigmavegc/log(dis/f_zovegc)**2 &
      +(1.-f_sigmavegc)/log(dis/zocanyon)**2))
@@ -1346,7 +1348,7 @@ p_cndzmin=zom*exp(p_lzom)                        ! distance to canyon displaceme
 ! (i.e., acond = 1/(aerodynamic resistance) )
 select case(resmeth)
   case(0) ! Masson (2000)
-    cu=exp(-0.25*f_hwratio)
+    cu=exp(-0.25*effhwratio)
     acond_road=cu ! bulk transfer coefficents are updated in solvecanyon
     acond_walle=cu
     acond_wallw=cu
@@ -1358,7 +1360,7 @@ select case(resmeth)
     else
       call getincanwindb(we,ww,wr,a_udir,zonet)
     end if
-    dis=max(max(max(0.1*f_bldheight,zocanyon+0.1),f_zovegc+0.1),zosnow+0.1)
+    dis=max(max(max(0.1*effbldheight,zocanyon+0.1),f_zovegc+0.1),zosnow+0.1)
     zolog=log(dis/zocanyon)
     a=vkar*vkar/(zolog*(2.3+zolog))  ! Assume zot=zom/10.
     acond_road=a*wr                  ! road bulk transfer
@@ -1371,7 +1373,7 @@ select case(resmeth)
     a=vkar*vkar/(zolog*(2.3+zolog))  ! Assume zot=zom/10.
     acond_rdsn=a*wr                  ! road snow bulk transfer
   case(2) ! Kusaka et al (2001)
-    cu=exp(-0.25*f_hwratio)
+    cu=exp(-0.25*effhwratio)
     acond_road=cu ! bulk transfer coefficents are updated in solvecanyon
     acond_walle=cu
     acond_wallw=cu
@@ -1800,18 +1802,18 @@ end do
 ggbroof(:,1)=2./(f_roofdepth(:,1)/f_rooflambda(:,1)+f_roofdepth(:,2)/f_rooflambda(:,2))+f_roofcp(:,1)*f_roofdepth(:,1)/ddt
 ggbwall(:,1)=2./(f_walldepth(:,1)/f_walllambda(:,1)+f_walldepth(:,2)/f_walllambda(:,2))+f_wallcp(:,1)*f_walldepth(:,1)/ddt
 ggbroad(:,1)=2./(f_roaddepth(:,1)/f_roadlambda(:,1)+f_roaddepth(:,2)/f_roadlambda(:,2))+f_roadcp(:,1)*f_roaddepth(:,1)/ddt
-ggbroof(:,2)=2./(f_roofdepth(:,1)/f_rooflambda(:,1)+f_roofdepth(:,2)/f_rooflambda(:,2)) &
+ggbroof(:,2)=2./(f_roofdepth(:,1)/f_rooflambda(:,1)+f_roofdepth(:,2)/f_rooflambda(:,2))  &
              +2./(f_roofdepth(:,2)/f_rooflambda(:,2)+f_roofdepth(:,3)/f_rooflambda(:,3)) &
              +f_roofcp(:,2)*f_roofdepth(:,2)/ddt
-ggbwall(:,2)=2./(f_walldepth(:,1)/f_walllambda(:,1)+f_walldepth(:,2)/f_walllambda(:,2)) &
+ggbwall(:,2)=2./(f_walldepth(:,1)/f_walllambda(:,1)+f_walldepth(:,2)/f_walllambda(:,2))  &
              +2./(f_walldepth(:,2)/f_walllambda(:,2)+f_walldepth(:,3)/f_walllambda(:,3)) &
              +f_wallcp(:,2)*f_walldepth(:,2)/ddt
-ggbroad(:,2)=2./(f_roaddepth(:,1)/f_roadlambda(:,1)+f_roaddepth(:,2)/f_roadlambda(:,2)) &
+ggbroad(:,2)=2./(f_roaddepth(:,1)/f_roadlambda(:,1)+f_roaddepth(:,2)/f_roadlambda(:,2))  &
              +2./(f_roaddepth(:,2)/f_roadlambda(:,2)+f_roaddepth(:,3)/f_roadlambda(:,3)) &
              +f_roadcp(:,2)*f_roaddepth(:,2)/ddt
-ggbroof(:,3)=2./(f_roofdepth(:,2)/f_rooflambda(:,2)+f_roofdepth(:,3)/f_rooflambda(:,3)) &
+ggbroof(:,3)=2./(f_roofdepth(:,2)/f_rooflambda(:,2)+f_roofdepth(:,3)/f_rooflambda(:,3))  &
              +f_roofcp(:,3)*f_roofdepth(:,3)/ddt
-ggbwall(:,3)=2./(f_walldepth(:,2)/f_walllambda(:,2)+f_walldepth(:,3)/f_walllambda(:,3)) &
+ggbwall(:,3)=2./(f_walldepth(:,2)/f_walllambda(:,2)+f_walldepth(:,3)/f_walllambda(:,3))  &
              +f_wallcp(:,3)*f_walldepth(:,3)/ddt
 ggbroad(:,3)=2./(f_roaddepth(:,2)/f_roadlambda(:,2)+f_roaddepth(:,3)/f_roadlambda(:,3))+f_roadcp(:,3)*f_roaddepth(:,3)/ddt
 do k=1,2
@@ -2622,8 +2624,8 @@ d_canyonmix=(d_rdsndelta*rdsnqsat*acond_rdsn*d_topu                             
        +if_sigmavegc*(dumvegdelta*acond_vegc*d_topu+(1.-dumvegdelta)/(1./(acond_vegc*d_topu)+res)))+topinvres)
 
 ! solve for canyon sensible heat flux ----------------------------------
-fg_walle=aircp*a_rho*(iwe_temp-d_canyontemp)*acond_walle*d_topu
-fg_wallw=aircp*a_rho*(iww_temp-d_canyontemp)*acond_wallw*d_topu
+fg_walle=aircp*a_rho*(iwe_temp-d_canyontemp)*acond_walle*d_topu*effbldheight
+fg_wallw=aircp*a_rho*(iww_temp-d_canyontemp)*acond_wallw*d_topu*effbldheight
 fg_road=aircp*a_rho*(ird_temp-d_canyontemp)*acond_road*d_topu
 fg_vegc=aircp*a_rho*(ip_vegtempc-d_canyontemp)*acond_vegc*d_topu
 where (d_rdsndelta>0.)
@@ -2694,12 +2696,12 @@ d_accool=d_acout*(1.+max(d_canyontemp-if_bldtemp,0.)/if_bldtemp)
 d_canyontemp=(aircp*a_rho*d_tempc*topinvres+d_rdsndelta*aircp*a_rho*rdsntemp*acond_rdsn*d_topu &
              +(1.-d_rdsndelta)*((1.-if_sigmavegc)*aircp*a_rho*ird_temp*acond_road*d_topu       &
                                +if_sigmavegc*aircp*a_rho*ip_vegtempc*acond_vegc*d_topu)        &
-             +if_hwratio*(aircp*a_rho*iwe_temp*acond_walle*d_topu                              & 
+             +effhwratio*(aircp*a_rho*iwe_temp*acond_walle*d_topu                              & 
                          +aircp*a_rho*iww_temp*acond_wallw*d_topu)+d_traf+d_accool)            &
             /(aircp*a_rho*topinvres+d_rdsndelta*aircp*a_rho*acond_rdsn*d_topu                  &
              +(1.-d_rdsndelta)*((1.-if_sigmavegc)*aircp*a_rho*acond_road*d_topu                &
                                +if_sigmavegc*aircp*a_rho*acond_vegc*d_topu)                    &
-             +if_hwratio*(aircp*a_rho*acond_walle*d_topu                                       &
+             +effhwratio*(aircp*a_rho*acond_walle*d_topu                                       &
                          +aircp*a_rho*acond_wallw*d_topu))
 
 return
@@ -2858,7 +2860,7 @@ implicit none
 real, dimension(ufull), intent(out) :: ueast,uwest,ufloor
 real, dimension(ufull), intent(in) :: z0
 real, dimension(ufull) :: a,b,wsuma,wsumb,fsum
-real, dimension(ufull) :: theta1,wdir,h,w
+real, dimension(ufull) :: theta1,wdir,h,w,effbldheight
 real, dimension(ufull), intent(in) :: a_udir
 
 ! rotate wind direction so that all cases are between 0 and pi
@@ -2869,7 +2871,9 @@ elsewhere
   wdir=a_udir+pi
 endwhere
 
-h=f_bldheight
+effbldheight=max(f_bldheight-6.*f_zovegc,0.1)/f_bldheight  ! MJT suggestion for tall vegetation
+
+h=f_bldheight*effbldheight
 w=f_bldheight/f_hwratio
 
 theta1=asin(min(w/(3.*h),1.))
@@ -2935,7 +2939,7 @@ real, dimension(ufull), intent(in) :: z0
 real, dimension(ufull) :: a,b,wsuma,wsumb,fsum
 real, dimension(ufull) :: theta1,wdir,h,w
 real, dimension(ufull) :: dufa,dura,duva,ntheta
-real, dimension(ufull) :: dufb,durb,duvb
+real, dimension(ufull) :: dufb,durb,duvb,effbldheight
 real, dimension(ufull), intent(in) :: a_udir
 
 ! rotate wind direction so that all cases are between 0 and pi
@@ -2946,7 +2950,9 @@ elsewhere
   wdir=a_udir+pi
 endwhere
 
-h=f_bldheight
+effbldheight=max(f_bldheight-6.*f_zovegc,0.1)/f_bldheight  ! MJT suggestion for tall vegetation
+
+h=f_bldheight*effbldheight
 w=f_bldheight/f_hwratio
 
 theta1=acos(min(w/(3.*h),1.))
