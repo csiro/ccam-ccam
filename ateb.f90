@@ -2568,7 +2568,7 @@ elsewhere
 end where
 f1=(1.+ff)/(ff+if_vegrsminc*if_vegrlaic/5000.)
 f2=max(0.5*(if_sfc-if_swilt)/max(iv_moistc-if_swilt,1.E-9),1.)
-f4=max(1.-0.0016*(298.-d_canyontemp)**2,0.05)
+f4=max(1.-0.0016*(298.-d_canyontemp)**2,0.05) ! 0.2 in Mk3.6
 
 ! estimate mixing ratio at canyon surfaces
 call getqsat(cn,roadqsat,ird_temp,d_sigd)   ! evaluate using pressure at displacement height
@@ -2613,7 +2613,7 @@ elsewhere
   dumvegdelta=d_vegdeltac
 endwhere
 ! remaining transpiration terms
-f3=max(1.-.00025*(vegqsat-d_canyonmix)*d_sigd/0.622,0.05)
+f3=max(1.-0.00025*(vegqsat-d_canyonmix)*d_sigd/0.622,0.5) ! increased limit from 0.05 to 0.5 following Mk3.6
 res=max(30.,if_vegrsminc*f1*f2/(f3*f4))
 ! balance canyon latent heat budget
 d_canyonmix=(d_rdsndelta*rdsnqsat*acond_rdsn*d_topu                                                          &
