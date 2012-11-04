@@ -1,3 +1,10 @@
+      ! This subroutine initialises CCAM prognostic variables and
+      ! surface forcings.  Currently, we assume that disk io is
+      ! slower than MPI, so surface forcings are loaded on a
+      ! single processor and then distributed using MPI_distrubute.
+      ! Note that nested files are split over processors (see
+      ! onthefly.f).
+
       subroutine indata(hourst,newsnow,jalbfix,iaero,lapsbot,isoth,
      &                  nsig)
      
@@ -1862,9 +1869,9 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
 
       !-----------------------------------------------------------------
       ! UPDATE URBAN DATA (nurban)
-      if (nurban.ne.0) then
+      if (nurban/=0) then
         if (myid==0) write(6,*) 'Importing ateb urban data'
-        where(atebdwn(:,1).ge.399.) ! must be the same as spval in onthefly.f
+        where(atebdwn(:,1)>=399.) ! must be the same as spval in onthefly.f
           atebdwn(:,1)=tgg(:,1)
           atebdwn(:,2)=0.5*(tgg(:,1)+291.16)
           atebdwn(:,3)=291.16
@@ -1877,9 +1884,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
           atebdwn(:,10)=tgg(:,1)
           atebdwn(:,11)=0.5*(tgg(:,1)+tgg(:,ms))
           atebdwn(:,12)=tgg(:,ms)
-          atebdwn(:,13)=(wb(:,ms)-swilt(isoilm))
-     &                 /(sfc(isoilm)-swilt(isoilm))
-          atebdwn(:,13)=atebdwn(:,13)*0.26+(1.-atebdwn(:,13))*0.18
+          atebdwn(:,13)=0.5*0.26+0.5*0.18
           atebdwn(:,14)=0.18
           atebdwn(:,15)=0.   ! roof water
           atebdwn(:,16)=0.   ! road water

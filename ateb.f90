@@ -549,7 +549,7 @@ end select
 f_sigmavegc=tsigveg/(1.-tsigmabld)
 f_sigmavegr=csigvegr(itmp)
 f_sigmabld=tsigmabld
-f_hwratio=chwratio(itmp)
+f_hwratio=chwratio(itmp)*f_sigmabld/(1.-f_sigmabld) ! MJT suggested new definition
 f_industryfg=cindustryfg(itmp)
 f_trafficfg=ctrafficfg(itmp)
 f_bldheight=cbldheight(itmp)
@@ -1194,6 +1194,7 @@ real, dimension(ufull) :: rdsntemp,rfsntemp,rdsnmelt,rfsnmelt
 real, dimension(ufull) :: wallpsi,roadpsi,fgtop,egtop,qsatr
 real, dimension(ufull) :: oldval,newval,cu,ctmax,ctmin,evctx,evct
 real, dimension(ufull) :: ln,rn,we,ww,wr,zolog,a,xe,xw,cuven,n,zom,zonet,dis
+real, dimension(ufull) :: width
 real, dimension(ufull) :: p_wallpsi,p_roadpsi
 real, dimension(ufull) :: p_sntemp,p_gasn,p_snmelt
 real, dimension(ufull) :: z_on_l,pa,dts,dtt,effbldheight,effhwratio
@@ -1360,12 +1361,16 @@ select case(resmeth)
     else
       call getincanwindb(we,ww,wr,a_udir,zonet)
     end if
-    dis=max(max(max(0.1*effbldheight,zocanyon+0.1),f_zovegc+0.1),zosnow+0.1)
+    width=f_bldheight/f_hwratio
+    dis=max(0.5*width,zocanyon+0.1)
+    zolog=log(dis/zocanyon)
+    a=vkar*vkar/(zolog*(2.3+zolog))  ! Assume zot=zom/10.
+    acond_walle=a*we                 ! east wall bulk transfer
+    acond_wallw=a*ww                 ! west wall bulk transfer
+    dis=max(max(max(effbldheight*refheight,zocanyon+0.1),f_zovegc+0.1),zosnow+0.1)
     zolog=log(dis/zocanyon)
     a=vkar*vkar/(zolog*(2.3+zolog))  ! Assume zot=zom/10.
     acond_road=a*wr                  ! road bulk transfer
-    acond_walle=a*we                 ! east wall bulk transfer
-    acond_wallw=a*ww                 ! west wall bulk transfer
     zolog=log(dis/f_zovegc)
     a=vkar*vkar/(zolog*(2.3+zolog))  ! Assume zot=zom/10.
     acond_vegc=a*wr
@@ -2789,7 +2794,7 @@ elsewhere
 end where
 f1=(1.+ff)/(ff+f_vegrsminr*f_vegrlair/5000.)
 f2=max(0.5*(f_sfc-f_swilt)/max(v_moistr-f_swilt,1.E-9),1.)
-f3=max(1.-.00025*(vegqsat-d_mixrr)*d_sigr/0.622,0.05)
+f3=max(1.-.00025*(vegqsat-d_mixrr)*d_sigr/0.622,0.5)
 f4=max(1.-0.0016*(298.-d_tempr)**2,0.05)
 res=max(30.,f_vegrsminr*f1*f2/(f3*f4))
 
@@ -3044,7 +3049,7 @@ a=0.15*max(1.,3.*h/(2.*w))
 u0=exp(-0.9*sqrt(13./4.))
 
 zolog=log(max(h,z0+0.1)/z0)
-cuven=log(max(0.1*h,z0+0.1)/z0)/log(max(h,z0+0.1)/z0)
+cuven=log(max(refheight*h,z0+0.1)/z0)/log(max(h,z0+0.1)/z0)
 cuven=max(cuven*max(1.-3.*h/w,0.),(u0/a)*(h/w)*(1.-exp(-a*max(w/h-3.,0.))))
 uf=(u0/a)*(h/w)*(1.-exp(-3.*a))+cuven
 !uf=(u0/a)*(h/w)*(2.-exp(-a*3.)-exp(-a*(w/h-3.)))

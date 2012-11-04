@@ -433,7 +433,7 @@ include 'soilv.h'
 integer i,ii,iq,ierr
 integer, dimension(ifull,4) :: xp
 real, dimension(ifull,wlev) :: sallvl
-real, dimension(ifull+iextra) :: neta,netvel,cc
+real, dimension(ifull+iextra) :: neta,netflx,cc
 real, dimension(ifull+iextra,2) :: dum
 real, dimension(ifull) :: newwat,newsal,cover
 real, dimension(ifull) :: deta,sal,salin,depdum
@@ -451,6 +451,12 @@ real :: xx,yy,ll,lssum,gssum,lwsum,gwsum,netf,netg
 ! average water enters the grid box.
 
 ! This version supports salinity in rivers and overflow from lakes
+
+! MJT notes - Usually for MPI we would update the water level on the boundaries (MPI), estimate
+! the fluxes between grid boxes, then update the fluxes on the boundaries (MPI), then update the
+! new water levels at t+1.  However, in this case we already know the fluxes due to the slope
+! (avoiding a MPI) so the second MPI is simply to constrain water avaliability so that the net amount
+! of water is conserved (i.e., netvel in the code below).
 
 ! setup indices and grid spacing
 xp(:,1)=in
@@ -496,6 +502,7 @@ newwat=watbdy(1:ifull)
 newsal=salbdy(1:ifull)
 
 ! calculate slopes
+! Currently this is has an explicit dependence on watbdy
 slope=0.
 do i=1,4
   !slope(:,i)=(zs(1:ifull)-zs(xp(:,i)))/(grav*dp(:,i))         ! basic
@@ -508,6 +515,7 @@ end do
 
 ! Basic expression
 
+! m = mass/area
 ! flow = m * vel / dx
 ! m(t+1)-m(t) = dt*sum(inflow)-dt*sum(outflow)
 
@@ -519,24 +527,26 @@ where (mslope>1.E-10)
 elsewhere
   vel=0.
 end where
-! compute net velocity for a grid box so that total water is conserved
-netvel(1:ifull)=sum(vel,2)
-call bounds(netvel)
+! compute net outgoing flux for a grid box so that total water is conserved
+do i=1,4
+  fta(:,i)=-dt*vel(:,i)*idp(:,i)     ! outgoing flux
+end do
+netflx(1:ifull)=sum(abs(fta),2)
+call bounds(netflx)
 ! water outflow
 flow=0.
 do i=1,4
-  fta(:,i)=-dt*vel(:,i)*idp(:,i)
-  ftx(:,i)=-vel(:,i)/netvel(1:ifull)
-  where (netvel(1:ifull)>1.E-10)
-    flow(:,i)=watbdy(1:ifull)*max(fta(:,i),ftx(:,i)) ! (kg/m^2)
+  ftx(:,i)=-fta(:,i)/netflx(1:ifull) ! max fraction of total outgoing flux
+  where (netflx(1:ifull)>1.E-10)
+    flow(:,i)=watbdy(1:ifull)*min(fta(:,i),ftx(:,i)) ! (kg/m^2)
   end where
 end do
 newwat=newwat+sum(flow,2)
 ! salinity outflow
 flow=0.
 do i=1,4
-  where (netvel(1:ifull)>1.E-10)
-    flow(:,i)=salbdy(1:ifull)*max(fta(:,i),ftx(:,i))
+  where (netflx(1:ifull)>1.E-10)
+    flow(:,i)=salbdy(1:ifull)*min(fta(:,i),ftx(:,i))
   end where
 end do
 newsal=newsal+sum(flow,2)
@@ -552,9 +562,9 @@ end where
 ! water inflow
 flow=0.
 do i=1,4
-  fta(:,i)=dt*vel(:,i)*idp(:,i)
-  ftx(:,i)=vel(:,i)/netvel(xp(:,i))
-  where (netvel(xp(:,i))>1.E-10)
+  fta(:,i)=dt*vel(:,i)*idp(:,i)     ! incomming flux
+  ftx(:,i)=fta(:,i)/netflx(xp(:,i)) ! max fraction of flux from outgoing cell
+  where (netflx(xp(:,i))>1.E-10)
     flow(:,i)=watbdy(xp(:,i))*min(fta(:,i),ftx(:,i)) ! (kg/m^2)
     flow(:,i)=flow(:,i)*em(1:ifull)*em(1:ifull)/(em(xp(:,i))*em(xp(:,i))) ! change in gridbox area
   end where
@@ -563,7 +573,7 @@ newwat=newwat+sum(flow,2)
 ! salinity inflow
 flow=0.
 do i=1,4
-  where (netvel(xp(:,i))>1.E-10)
+  where (netflx(xp(:,i))>1.E-10)
     flow(:,i)=salbdy(xp(:,i))*min(fta(:,i),ftx(:,i))
     flow(:,i)=flow(:,i)*em(1:ifull)*em(1:ifull)/(em(xp(:,i))*em(xp(:,i))) ! change in gridbox area
   end where
