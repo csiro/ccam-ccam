@@ -4,6 +4,11 @@ module infile
 ! vertical interpolation and some calendar functions
       
 ! This version supports parallel localhist input files
+! Multiple processors read as many input files as
+! supplied in parallel and then send this data to the
+! head processor (i.e., for interpolation and redistribution)
+! The code can also identify restart files, in which case
+! no additional message passing is required.
             
 private
 public histrd1,histrd4s,vertint,datefix,getzinp,ncmsg
@@ -226,7 +231,16 @@ do ipf=0,mynproc-1
   if (qtest) then
     ! e.g., restart file
     var=rvar
+  !else if (mod(fnproc,nproc)==0) then
+  !  ! e.g., mesonest file
+  !  ! symmetric file distribution over processors
+  ! ...
+  ! call MPI_Gather
+  ! ...
   else
+    ! e.g., mesonest file
+    ! asymmetric file distribution over processors
+
     ! recompose grid
     if (myid==0) then
       ! recompose own grid
@@ -236,11 +250,9 @@ do ipf=0,mynproc-1
         ca=pioff(ip,no)
         cb=pjoff(ip,no)+no*pil_g
         do j=1,pjl
-          do i=1,pil
-            iq=i+ca+(j+cb-1)*pil_g
-            iqi=i+(j-1)*pil+n*pil*pjl
-            var(iq)=rvar(iqi)
-          end do
+          iq=ca+(j+cb-1)*pil_g
+          iqi=(j-1)*pil+n*pil*pjl
+          var(iq+1:iq+pil)=rvar(iqi+1:iqi+pil)
         end do
       end do
       ! recompose grid from other processors
@@ -259,11 +271,9 @@ do ipf=0,mynproc-1
           ca=pioff(ip,no)
           cb=pjoff(ip,no)+no*pil_g
           do j=1,pjl
-            do i=1,pil
-              iq=i+ca+(j+cb-1)*pil_g
-              iqi=i+(j-1)*pil+n*pil*pjl
-              var(iq)=rvar(iqi)
-            end do
+            iq=ca+(j+cb-1)*pil_g
+            iqi=(j-1)*pil+n*pil*pjl
+            var(iq+1:iq+pil)=rvar(iqi+1:iqi+pil)
           end do
         end do
       end do
@@ -332,7 +342,6 @@ else
 
     else
       ! read global arrays for myid==0
-
       call hr4p(iarchi,ier,name,kk,.false.)
 
     end if
@@ -484,11 +493,21 @@ do ipf=0,mynproc-1
   end if ! ier
 
   if (qtest) then
-    ! restart file
+    ! expected restart file
     var=rvar
+  !else if (mod(fnproc,nproc)==0) then
+  !  ! expected mesonest file
+  !  ! symmetric file distribution over processors
+  !
+  ! call MPI_Gather(rvar,pil*pjl*pnpan,MPI_REAL,gvar,pil*pjl*pnpan,if_comm,ierb)
+  ! if (myid==0) then
+  !
+  ! end if
+  !
   else
-    ! mesonest file
-      
+    ! expected mesonest file
+    ! asymmetric file distribution over processors
+
     ! recompose grid
     if (myid==0) then
       ! recompose own grid
@@ -498,11 +517,9 @@ do ipf=0,mynproc-1
         ca=pioff(ip,no)
         cb=pjoff(ip,no)+no*pil_g
         do j=1,pjl
-          do i=1,pil
-            iq=i+ca+(j+cb-1)*pil_g
-            iqi=i+(j-1)*pil+n*pil*pjl
-            var(iq)=rvar(iqi)
-          end do
+          iq=ca+(j+cb-1)*pil_g
+          iqi=(j-1)*pil+n*pil*pjl
+          var(iq+1:iq+pil)=rvar(iqi+1:iqi+pil)
         end do
       end do
       ! recompose grids from other processors
@@ -519,11 +536,9 @@ do ipf=0,mynproc-1
           ca=pioff(ip,no)
           cb=pjoff(ip,no)+no*pil_g
           do j=1,pjl
-            do i=1,pil
-              iq=i+ca+(j+cb-1)*pil_g
-              iqi=i+(j-1)*pil+n*pil*pjl
-              var(iq)=rvar(iqi)
-            end do
+            iq=ca+(j+cb-1)*pil_g
+            iqi=(j-1)*pil+n*pil*pjl
+            var(iq+1:iq+pil)=rvar(iqi+1:iqi+pil)
           end do
         end do
       end do

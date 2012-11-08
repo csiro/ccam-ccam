@@ -25,7 +25,7 @@ module cc_mpi
              end_log, log_on, log_off, log_setup, phys_loadbal,             &
              ccglobal_posneg, ccglobal_sum, iq2iqg, indv_mpi, indglobal,    &
              readglobvar, writeglobvar, face_set, uniform_set
-   public :: dpoints_t,dindex_t,sextra_t
+   public :: dpoints_t,dindex_t,sextra_t,bnds
    private :: ccmpi_distribute2, ccmpi_distribute2i, ccmpi_distribute2r8,   &
               ccmpi_distribute3, ccmpi_distribute3i, ccmpi_gather2,         &
               ccmpi_gather3, checksize, ccglobal_posneg2, ccglobal_posneg3, &
@@ -90,6 +90,8 @@ module cc_mpi
       integer :: slen_uv, rlen_uv, slen2_uv, rlen2_uv
       integer :: slenx_uv, rlenx_uv
       integer :: len
+      ! ocean mask
+      integer :: mlomsk
    end type bounds_info
    
    type dpoints_t
@@ -2119,10 +2121,12 @@ contains
       end if
    end subroutine check_set
 
-   subroutine bounds2(t, nrows, corner, nehalf)
+   subroutine bounds2(t, nrows, corner, nehalf, gmode)
       ! Copy the boundary regions
+      ! MJT - modified to restrict bounds calls to ocean processors with gmode=1
       real, dimension(ifull+iextra), intent(inout) :: t
       integer, intent(in), optional :: nrows
+      integer, intent(in), optional :: gmode
       logical, intent(in), optional :: corner
       logical, intent(in), optional :: nehalf
       logical :: double, extra, single
@@ -2130,8 +2134,12 @@ contains
       integer :: ierr, itag = 0, iproc, rproc, sproc
       integer, dimension(MPI_STATUS_SIZE,2*nproc) :: status
       integer :: send_len, recv_len
+      integer :: lmode
 
       call start_log(bounds_begin)
+      
+      lmode=0
+      if (present(gmode)) lmode=gmode
 
       t(ifull+1:ifull+iextra)=9.E9 ! MJT test for bad bounds call
 
@@ -2165,6 +2173,9 @@ contains
          else
             recv_len = bnds(rproc)%rlenh
          end if
+         if (lmode==1) then
+            recv_len=recv_len*bnds(rproc)%mlomsk
+         end if
          if ( recv_len /= 0 ) then
             nreq = nreq + 1
             call MPI_IRecv( bnds(rproc)%rbuf(1),  recv_len, &
@@ -2181,6 +2192,9 @@ contains
             send_len = bnds(sproc)%slen
          else
             send_len = bnds(sproc)%slenh
+         end if
+         if (lmode==1) then
+            send_len=send_len*bnds(sproc)%mlomsk
          end if
          if ( send_len > 0 ) then
             ! Build up list of points
@@ -2210,13 +2224,16 @@ contains
          t(ifull+bnds(myid)%unpack_list(iq)) = t(bnds(myid)%request_list(iq))
       end do
 
+      ! We have experimented with using MPI_Waitany.  The speed-up was
+      ! marginal (i.e., roughly 1%), and did not justify the need to
+      ! increase MPI_TYPE_MAX for large grids.
       if ( nreq > 0 ) then
          call start_log(mpiwait_begin)
          call MPI_Waitall(nreq,ireq,status,ierr)
          call end_log(mpiwait_end)
       end if
 
-      do iproc = 1,nproc-1  !
+      do iproc = 1,nproc-1
          rproc = modulo(myid-iproc,nproc)  ! Recv from
          if ( double ) then
             recv_len = bnds(rproc)%rlen2
@@ -2226,6 +2243,9 @@ contains
             recv_len = bnds(rproc)%rlen
          else
             recv_len = bnds(rproc)%rlenh
+         end if
+         if (lmode==1) then
+            recv_len=recv_len*bnds(rproc)%mlomsk
          end if
          do iq=1,recv_len
             ! unpack_list(iq) is index into extended region
@@ -2237,12 +2257,13 @@ contains
 
    end subroutine bounds2
 
-   subroutine bounds3(t, nrows, klim, corner, nehalf)
+   subroutine bounds3(t, nrows, klim, corner, nehalf, gmode)
       ! Copy the boundary regions. Only this routine requires the extra klim
       ! argument (for helmsol).
-      !real, dimension(ifull+iextra,kl), intent(inout) :: t
+      ! MJT - modified to restrict bounds calls to ocean processors with gmode=1
       real, dimension(:,:), intent(inout) :: t
       integer, intent(in), optional :: nrows, klim
+      integer, intent(in), optional :: gmode
       logical, intent(in), optional :: corner
       logical, intent(in), optional :: nehalf
       logical :: double, extra, single
@@ -2250,8 +2271,12 @@ contains
       integer :: ierr, itag = 0, iproc, rproc, sproc
       integer, dimension(MPI_STATUS_SIZE,2*nproc) :: status
       integer :: send_len, recv_len, kx
+      integer :: lmode
 
       call start_log(bounds_begin)
+
+      lmode=0
+      if (present(gmode)) lmode=gmode
 
       t(ifull+1:ifull+iextra,:)=9.E9 ! MJT test for bad bounds call
 
@@ -2290,6 +2315,9 @@ contains
          else
             recv_len = bnds(rproc)%rlenh
          end if
+         if (lmode==1) then
+            recv_len=recv_len*bnds(rproc)%mlomsk
+         end if
          if ( recv_len /= 0 ) then
             nreq = nreq + 1
             call MPI_IRecv( bnds(rproc)%rbuf(1), recv_len*kx, &
@@ -2306,6 +2334,9 @@ contains
             send_len = bnds(sproc)%slen
          else
             send_len = bnds(sproc)%slenh
+         end if
+         if (lmode==1) then
+            send_len=send_len*bnds(sproc)%mlomsk
          end if
          if ( send_len > 0 ) then
             ! Build up list of points
@@ -2342,7 +2373,7 @@ contains
          call end_log(mpiwait_end)
       end if
 
-      do iproc = 1,nproc-1  !
+      do iproc = 1,nproc-1
          rproc = modulo(myid-iproc,nproc)  ! Recv from
          if ( double ) then
             recv_len = bnds(rproc)%rlen2
@@ -2352,6 +2383,9 @@ contains
             recv_len = bnds(rproc)%rlen
          else
             recv_len = bnds(rproc)%rlenh
+         end if
+         if (lmode==1) then
+            recv_len=recv_len*bnds(rproc)%mlomsk
          end if
 !cdir nodep
          do iq=1,recv_len
@@ -2364,14 +2398,16 @@ contains
 
    end subroutine bounds3
 
-   subroutine boundsuv2(u, v, nrows, stag, allvec)
+   subroutine boundsuv2(u, v, nrows, stag, allvec, gmode)
       ! Copy the boundary regions of u and v. This doesn't require the
       ! diagonal points like (0,0), but does have to take care of the
       ! direction changes.
       ! MJT - Modified to send smaller message lengths for staguv and diffusion
+      ! MJT - modified to restrict bounds calls to ocean processors with gmode=1
       real, dimension(ifull+iextra), intent(inout) :: u, v
       integer, intent(in), optional :: nrows
       integer, intent(in), optional :: stag
+      integer, intent(in), optional :: gmode
       logical, intent(in), optional :: allvec
       logical :: double, extra
       logical :: fsvwu, fnveu, fssvwwu, fnnveeu
@@ -2380,9 +2416,13 @@ contains
       integer :: ierr, itag = 0, iproc, rproc, sproc
       integer, dimension(MPI_STATUS_SIZE,2*nproc) :: status
       integer :: send_len, recv_len
+      integer :: lmode
       real :: tmp
 
       call start_log(boundsuv_begin)
+      
+      lmode=0
+      if (present(gmode)) lmode=gmode
 
       u(ifull+1:ifull+iextra)=9.E9 ! MJT test for bad bounds call
       v(ifull+1:ifull+iextra)=9.E9 ! MJT test for bad bounds call
@@ -2444,6 +2484,9 @@ contains
          else
             recv_len = bnds(rproc)%rlen_uv
          end if
+         if (lmode==1) then
+            recv_len=recv_len*bnds(rproc)%mlomsk
+         end if
          if ( recv_len /= 0 ) then
             recv_len=0
             if ( fsvwu ) then
@@ -2479,6 +2522,9 @@ contains
             send_len = bnds(sproc)%slen2_uv
          else
             send_len = bnds(sproc)%slen_uv
+         end if
+         if (lmode==1) then
+            send_len=send_len*bnds(sproc)%mlomsk
          end if
          if ( send_len > 0 ) then
             ! Build up list of points
@@ -2625,6 +2671,9 @@ contains
          else
             recv_len = bnds(rproc)%rlen_uv
          end if
+         if (lmode==1) then
+            recv_len=recv_len*bnds(rproc)%mlomsk
+         end if
          iqx = 0
          if ( fsvwu ) then
 !cdir nodep
@@ -2710,14 +2759,16 @@ contains
 
    end subroutine boundsuv2
 
-   subroutine boundsuv3(u, v, nrows, stag, allvec)
+   subroutine boundsuv3(u, v, nrows, stag, allvec, gmode)
       ! Copy the boundary regions of u and v. This doesn't require the
       ! diagonal points like (0,0), but does have to take care of the
       ! direction changes.
       ! MJT - Modified to send smaller message lengths for staguv and diffusion
+      ! MJT - modified to restrict bounds calls to ocean processors with gmode=1
       real, dimension(:,:), intent(inout) :: u, v
       integer, intent(in), optional :: nrows
       integer, intent(in), optional :: stag
+      integer, intent(in), optional :: gmode
       logical, intent(in), optional :: allvec
       logical :: double, extra
       logical :: fsvwu, fnveu, fssvwwu, fnnveeu
@@ -2726,9 +2777,13 @@ contains
       integer :: ierr, itag = 0, iproc, rproc, sproc
       integer, dimension(MPI_STATUS_SIZE,2*nproc) :: status
       integer :: send_len, recv_len, kx
+      integer :: lmode
       real, dimension(maxbuflen) :: tmp
       
       call start_log(boundsuv_begin)
+
+      lmode=0
+      if (present(gmode)) lmode=gmode
 
       kx=size(u,2)
       u(ifull+1:ifull+iextra,:)=9.E9 ! MJT test for bad bounds call
@@ -2791,6 +2846,9 @@ contains
          else
             recv_len = bnds(rproc)%rlen_uv
          end if
+         if (lmode==1) then
+            recv_len=recv_len*bnds(rproc)%mlomsk
+         end if
          if ( recv_len > 0 ) then
             recv_len=0
             if ( fsvwu ) then
@@ -2826,6 +2884,9 @@ contains
             send_len = bnds(sproc)%slen2_uv
          else
             send_len = bnds(sproc)%slen_uv
+         end if
+         if (lmode==1) then
+            send_len=send_len*bnds(sproc)%mlomsk
          end if
          if ( send_len > 0 ) then
             ! Build up list of points
@@ -2993,6 +3054,9 @@ contains
          else
             recv_len = bnds(rproc)%rlen_uv
          end if
+         if (lmode==1) then
+            recv_len=recv_len*bnds(rproc)%mlomsk
+         end if
          iqx = 0
          if ( fsvwu ) then
 !cdir nodep
@@ -3090,7 +3154,7 @@ contains
 
    end subroutine boundsuv3
 
-   subroutine deptsync(nface,xg,yg)
+   subroutine deptsync(nface,xg,yg,gmode)
       ! Different levels will have different winds, so the list of points is
       ! different on each level.
       ! xg ranges from 0.5 to il+0.5 on a face. A given processors range
@@ -3099,18 +3163,25 @@ contains
       ! in case there's an exact edge point.
       ! Because of the boundary region, the range [0:ipan+1) can be handled.
       ! Need floor(xxg) in range [0:ipan]
+      ! MJT - modified to restrict bounds calls to ocean processors with gmode=1
       use arrays_m
       integer, dimension(:,:), intent(in) :: nface
+      integer, intent(in), optional :: gmode
       real, dimension(:,:), intent(in) :: xg, yg      
       integer :: iproc
       integer :: nreq, itag = 99, ierr,ierr2, rproc, sproc
       integer, dimension(MPI_STATUS_SIZE,2*nproc) :: status
-      integer, dimension(0:nproc-1) :: binlen
+      integer, dimension(0:nproc-1) :: binlen,msglen
       integer :: count, ip, jp, xn, kx
       integer :: iq, k, idel, jdel, nf
+      integer :: lmode
+      logical, dimension(0:nproc-1) :: lneighbour
 
       ! This does nothing in the one processor case
       if ( nproc == 1 ) return
+
+      lmode=0
+      if (present(gmode)) lmode=gmode
 
       call start_log(deptsync_begin)
       dslen = 0
@@ -3121,7 +3192,15 @@ contains
         end if
       end do
       kx=size(nface,2)
-      binlen=max(bnds(:)%len,1)
+      select case(lmode)
+         case(1)
+            msglen=bnds(:)%len*bnds(:)%mlomsk
+            lneighbour=neighbour.and.(bnds(:)%mlomsk==1)
+         case default
+            msglen=bnds(:)%len
+            lneighbour=neighbour
+      end select
+      binlen=max(msglen,1)
       do k=1,kx
          do iq=1,ifull
             nf = nface(iq,k) + noff ! Make this a local index
@@ -3156,12 +3235,12 @@ contains
       
       ! Error check
       do iproc=0,nproc-1
-        if (dslen(iproc)>bnds(iproc)%len) then
-          write(6,*) "myid,iproc,neighbour,dslen,len ",myid,iproc,neighbour(iproc),dslen(iproc),bnds(iproc)%len
+        if (dslen(iproc)>msglen(iproc)) then
+          write(6,*) "myid,iproc,neighbour,dslen,len ",myid,iproc,neighbour(iproc),dslen(iproc),msglen(iproc)
           iq=dindex(iproc)%a(1,1)
           k=dindex(iproc)%a(2,1)
           write(6,*) "Example error iq,k,u,v ",iq,k,u(iq,k),v(iq,k)
-          call checksize(dslen(iproc),bnds(iproc)%len,"Deptssync")
+          call checksize(dslen(iproc),msglen(iproc),"Deptssync")
         end if
       end do
 
@@ -3173,7 +3252,7 @@ contains
          ! Is there any advantage to this ordering here or would send/recv
          ! to the same processor be just as good?
          rproc = modulo(myid-iproc,nproc)  ! Recv from
-         if ( neighbour(rproc) ) then
+         if ( lneighbour(rproc) ) then
             nreq = nreq + 1
             ! Use the maximum size in the recv call.
             call MPI_IRecv( dpoints(rproc)%a, 4*bnds(rproc)%len, &
@@ -3184,7 +3263,7 @@ contains
          ! Is there any advantage to this ordering here or would send/recv
          ! to the same processor be just as good?
          sproc = modulo(myid+iproc,nproc)  ! Send to
-         if ( neighbour(sproc) ) then
+         if ( lneighbour(sproc) ) then
             ! Send, even if length is zero
             nreq = nreq + 1
             call MPI_ISend( dbuf(sproc)%a, 4*dslen(sproc), &
@@ -3207,7 +3286,7 @@ contains
       nreq = 0
       do iproc = 1,nproc-1  !
          rproc = modulo(myid-iproc,nproc)  ! Recv from
-         if ( neighbour(rproc) ) then
+         if ( lneighbour(rproc) ) then
             nreq = nreq + 1
             call MPI_Get_count(status(1,nreq), MPI_REAL, count, ierr)
             drlen(rproc) = count/4
@@ -4279,8 +4358,9 @@ contains
       end subroutine simple_timer_finalize
 #endif
 
-    subroutine ccglobal_posneg2 (array, delpos, delneg)
+    subroutine ccglobal_posneg2 (array, delpos, delneg, comm)
        ! Calculate global sums of positive and negative values of array
+       ! MJT - modified to restrict calls to comm for ocean processors
        use sumdd_m
        use xyzinfo_m       
        include 'newmpar.h'
@@ -4289,7 +4369,9 @@ contains
        real, intent(out) :: delpos, delneg
        real :: delpos_l, delneg_l
        real, dimension(2) :: delarr, delarr_l
+       integer, intent(in), optional :: comm
        integer :: iq, ierr
+       integer :: lcomm
 #ifdef sumdd
        complex, dimension(2) :: local_sum, global_sum
 !      Temporary array for the drpdr_local function
@@ -4297,6 +4379,9 @@ contains
 #endif
 
        call start_log(posneg_begin)
+
+       lcomm=MPI_COMM_WORLD
+       if (present(comm)) lcomm=comm
 
        delpos_l = 0.
        delneg_l = 0.
@@ -4314,13 +4399,13 @@ contains
        call drpdr_local(tmparr, local_sum(1))
        call drpdr_local(tmparr2, local_sum(2))
        call MPI_Allreduce ( local_sum, global_sum, 2, MPI_COMPLEX,     &
-                            MPI_SUMDR, MPI_COMM_WORLD, ierr )
+                            MPI_SUMDR, lcomm, ierr )
        delpos = real(global_sum(1))
        delneg = real(global_sum(2))
 #else
        delarr_l(1:2) = (/ delpos_l, delneg_l /)
        call MPI_Allreduce ( delarr_l, delarr, 2, MPI_REAL, MPI_SUM,    &
-                            MPI_COMM_WORLD, ierr )
+                            lcomm, ierr )
        delpos = delarr(1)
        delneg = delarr(2)
 #endif
@@ -4329,8 +4414,9 @@ contains
 
     end subroutine ccglobal_posneg2
     
-    subroutine ccglobal_posneg3 (array, delpos, delneg, dsigin)
+    subroutine ccglobal_posneg3 (array, delpos, delneg, dsigin, comm)
        ! Calculate global sums of positive and negative values of array
+       ! MJT - modified to restrict calls to comm for ocean processors
        use sigs_m
        use sumdd_m
        use xyzinfo_m
@@ -4338,10 +4424,12 @@ contains
        real, intent(in), dimension(:,:) :: array
        real, intent(in), dimension(:), optional :: dsigin
        real, intent(out) :: delpos, delneg
+       integer, intent(in), optional :: comm
        real :: delpos_l, delneg_l
        real, dimension(size(array,2)) :: dsigx
        real, dimension(2) :: delarr, delarr_l
        integer :: k, iq, ierr, kx
+       integer :: lcomm
 #ifdef sumdd
        complex, dimension(2) :: local_sum, global_sum
 !      Temporary array for the drpdr_local function
@@ -4349,6 +4437,9 @@ contains
 #endif
 
        call start_log(posneg_begin)
+
+       lcomm=MPI_COMM_WORLD
+       if (present(comm)) lcomm=comm
 
        delpos_l = 0.
        delneg_l = 0.
@@ -4378,13 +4469,13 @@ contains
        end do ! k loop
 #ifdef sumdd
        call MPI_Allreduce ( local_sum, global_sum, 2, MPI_COMPLEX,     &
-                            MPI_SUMDR, MPI_COMM_WORLD, ierr )
+                            MPI_SUMDR, lcomm, ierr )
        delpos = real(global_sum(1))
        delneg = real(global_sum(2))
 #else
        delarr_l(1:2) = (/ delpos_l, delneg_l /)
        call MPI_Allreduce ( delarr_l, delarr, 2, MPI_REAL, MPI_SUM,    &
-                            MPI_COMM_WORLD, ierr )
+                            lcomm, ierr )
        delpos = delarr(1)
        delneg = delarr(2)
 #endif

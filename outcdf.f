@@ -7,7 +7,7 @@
 
       !--------------------------------------------------------------
       ! CONFIGURE DIMENSIONS FOR OUTPUT NETCDF FILES
-      subroutine outcdf(rundate,nmi,itype,ms_out,iaero)
+      subroutine outcdf(rundate,nmi,itype,ms_out,iaero,nstagin)
 
       use cc_mpi                            ! CC MPI routines
       use infile, only : ncmsg              ! Input file routines
@@ -39,7 +39,7 @@
       integer, parameter :: nrhead=14
       integer, dimension(nihead) :: nahead
       integer, dimension(4) :: dim,dims,dimo
-      integer nmi, itype, ms_out, iaero
+      integer nmi, itype, ms_out, iaero, nstagin
       integer xdim,ydim,zdim,tdim,msdim,ocdim
       integer icy, icm, icd, ich, icmi, ics, idv, ier, imode
       integer, save :: idnc=0, iarch=0, idnc0=0
@@ -314,7 +314,7 @@ c       create the attributes of the header record of the file
       endif ! (myid==0.or.local)
       
       ! openhist writes some fields so needs to be called by all processes
-      call openhist(iarch,itype,dim,local,idnc,iaero)
+      call openhist(iarch,itype,dim,local,idnc,iaero,nstagin)
 
       if(myid==0.or.local)then
         ! for testing
@@ -333,7 +333,7 @@ c       create the attributes of the header record of the file
       
       !--------------------------------------------------------------
       ! CREATE ATTRIBUTES AND WRITE OUTPUT
-      subroutine openhist(iarch,itype,dim,local,idnc,iaero)
+      subroutine openhist(iarch,itype,dim,local,idnc,iaero,nstagin)
 
       use aerosolldr                            ! LDR prognostic aerosols
       use arrays_m                              ! Atmosphere dyamics prognostic arrays
@@ -396,7 +396,7 @@ c       create the attributes of the header record of the file
 
       integer i, idkdate, idktau, idktime, idmtimer, idnteg, idnter
       integer idv, ier, iq, isoil, j, k, n, igas, idnc
-      integer iarch, itype, iaero
+      integer iarch, itype, iaero, nstagin, idum
       integer, dimension(4), intent(in) :: dim
       integer, dimension(3) :: idim
       real trmax, trmin
@@ -516,6 +516,29 @@ c       Sigma levels
         call ncaptc(idnc,idv,'positive',ncchar
      &             ,len_trim('down'),'down',ier)
 
+        lname = 'atm stag direction'
+        idv = ncvdef(idnc,'nstag',nclong,1,dim(4),ier)
+        call ncaptc(idnc,idv,'long_name',ncchar
+     &             ,len_trim(lname),lname,ier)
+
+        lname = 'atm unstag direction'
+        idv = ncvdef(idnc,'nstagu',nclong,1,dim(4),ier)
+        call ncaptc(idnc,idv,'long_name',ncchar
+     &             ,len_trim(lname),lname,ier)
+
+        lname = 'atm stag offset'
+        idv = ncvdef(idnc,'nstagoff',nclong,1,dim(4),ier)
+        call ncaptc(idnc,idv,'long_name',ncchar
+     &             ,len_trim(lname),lname,ier)
+
+        if ((nmlo<0.and.nmlo>=-9).or.
+     &      (nmlo>0.and.nmlo<=9.and.itype==-1)) then
+          lname = 'ocn stag offset'
+          idv = ncvdef(idnc,'nstagoffmlo',nclong,1,dim(4),ier)
+          call ncaptc(idnc,idv,'long_name',ncchar
+     &               ,len_trim(lname),lname,ier)     
+        end if
+
         if (myid==0) then
          write(6,*) 'define attributes of variables'
         end if
@@ -534,6 +557,13 @@ c       For time invariant surface fields
         call attrib(idnc,idim,2,'soilt',lname,'none',0.,65.,0,itype)
         lname = 'Vegetation type'
         call attrib(idnc,idim,2,'vegt',lname,'none',0.,65.,0,itype)
+
+        if ((nmlo<0.and.nmlo>=-9).or.
+     &      (nmlo>0.and.nmlo<=9.and.itype==-1)) then
+          lname = 'water depth'
+          call attrib(idnc,idim,2,'ocndepth',lname,'m',0.,32500.,0,
+     &                itype)
+        end if
 
 c       For time varying surface fields
         if (nsib==6.or.nsib==7) then
@@ -605,9 +635,6 @@ c       For time varying surface fields
            write(vname,'("voc",I2.2)') k
            call attrib(idnc,idim,3,vname,lname,'m/s',-65.,65.,0,itype)
           end do
-          lname = 'water depth'
-          call attrib(idnc,idim,2,'ocndepth',lname,'m',0.,32500.,0,
-     &                itype)
           lname = 'water surface height'
           call attrib(idnc,idim,3,'ocheight',lname,'m',-130.,130.,0,
      &                itype)          
@@ -1399,11 +1426,27 @@ c      set time to number of minutes since start
        call ncvpt1(idnc,idv,iarch,kdate,ier)
        idv = ncvid(idnc,'ktime',ier)
        call ncvpt1(idnc,idv,iarch,ktime,ier)
+       idv = ncvid(idnc,'nstag',ier)
+       call ncvpt1(idnc,idv,iarch,nstag,ier)
+       idv = ncvid(idnc,'nstagu',ier)
+       call ncvpt1(idnc,idv,iarch,nstagu,ier)
+       idv = ncvid(idnc,'nstagoff',ier)
+       idum=mod(ktau-nstagoff,max(abs(nstagin),1))
+       idum=idum-abs(nstagin) ! should be -ve
+       call ncvpt1(idnc,idv,iarch,idum,ier)
+       if ((nmlo<0.and.nmlo>=-9).or.
+     &      (nmlo>0.and.nmlo<=9.and.itype==-1)) then
+         idv = ncvid(idnc,'nstagoffmlo',ier)
+         idum=mod(ktau-nstagoffmlo,max(mstagf,1))
+         idum=idum-abs(nstagin) ! should be -ve
+         call ncvpt1(idnc,idv,iarch,nstagoffmlo,ier)
+       end if
        if (myid==0) then
          write(6,*) 'kdate,ktime,ktau=',kdate,ktime,ktau
          write(6,*) 'timer,timeg=',timer,timeg
          write(6,*) 'now write out variables'
        end if
+       
       endif ! myid == 0 .or. local
 
       !**************************************************************
@@ -1419,6 +1462,10 @@ c      set time to number of minutes since start
         call histwrt3(aa,'soilt',idnc,iarch,local,.true.)
         aa(:)=ivegt(:)
         call histwrt3(aa,'vegt',idnc,iarch,local,.true.)
+        if ((nmlo<0.and.nmlo>=-9).or.
+     &      (nmlo>0.and.nmlo<=9.and.itype==-1)) then
+          call histwrt3(aa,'ocndepth',idnc,iarch,local,.true.)
+        end if
       endif ! (ktau==0.or.itype==-1) 
 
       !**************************************************************
@@ -1516,9 +1563,6 @@ c      set time to number of minutes since start
           write(vname,'("voc",I2.2)') k
           call histwrt3(mlodwn(:,k,4),vname,idnc,iarch,local,.true.)
         end do
-        if (ktau==0.or.itype==-1) then
-          call histwrt3(aa,'ocndepth',idnc,iarch,local,.true.)
-        end if
         call histwrt3(bb,'ocheight',idnc,iarch,local,.true.)
         call histwrt3(tggsn(:,1),'tggsn1',idnc,iarch,local,.true.)
         call histwrt3(tggsn(:,2),'tggsn2',idnc,iarch,local,.true.)

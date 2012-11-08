@@ -103,7 +103,7 @@ public sib4,loadcbmparm,loadtile,savetile,cableinflow,cbmemiss
 
 integer, parameter :: hruffmethod    = 1 ! Method for max hruff
 integer, parameter :: proglai        = 0 ! 0 prescribed LAI, 1 prognostic LAI 
-real, parameter :: minfrac = 0.05 ! minimum non-zero tile fraction (improves load balancing)
+real, parameter :: minfrac = 0.01 ! minimum non-zero tile fraction (improves load balancing)
 
 integer, dimension(:), allocatable, save :: cmap
 integer, dimension(9,2), save :: pind  
@@ -794,6 +794,7 @@ implicit none
   
 include 'newmpar.h'
 include 'const_phys.h'
+include 'mpif.h'
 include 'parm.h'
 include 'soilv.h'
 
@@ -801,6 +802,7 @@ integer(i_d), dimension(ifull,5) :: ivs
 integer(i_d) iq,n,k,ipos,isoil,iv,ncount
 integer, dimension(1) :: pos
 integer jyear,jmonth,jday,jhour,jmin,mins
+integer lndtst,lndtst_g,ierr
 real(r_1) totdepth,fc3,fc4,ftu,fg3,fg4,clat,nsum
 real fjd,xp
 real(r_1), dimension(mxvt,ms) :: froot2
@@ -1173,6 +1175,13 @@ end do
 
 if (nmaxpr==1) then
   write(6,*) "myid,landtile ",myid,mp
+
+  lndtst=0
+  if (mp>0) lndtst=1
+  call MPI_Reduce(lndtst,lndtst_g,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,ierr)
+  if (myid==0) then
+    write(6,*) "Processors with land ",lndtst_g,nproc
+  end if
 end if
 
 ! if CABLE is present on this processor, then start allocating arrays
@@ -1808,7 +1817,10 @@ integer k,n,ierr,ierr2,idv
 real, dimension(ifull) :: dat
 real totdepth
 character(len=11) vname
-  
+
+! check that CABLE data exists in restart file
+! and communicate the result to all processors
+! as not all processors are assigned an input file
 if (io_in==1) then
   if (myid==0) idv = ncvid(ncid,"tgg1_9",ierr)
   call MPI_Bcast(ierr,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr2)    

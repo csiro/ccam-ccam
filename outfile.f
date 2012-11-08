@@ -1,4 +1,4 @@
-      subroutine outfile(iout,rundate,nmi,nwrite,iaero)
+      subroutine outfile(iout,rundate,nmi,nwrite,iaero,nstagin)
       use arrays_m
       use cc_mpi
       use pbl_m
@@ -9,7 +9,7 @@
       integer mev1,mev2,nwrite0
       integer nspare,io_outt
       integer ms_out
-      integer iout,nmi,nwrite,iaero
+      integer iout,nmi,nwrite,iaero,nstagin
       real ndt
 c     mev1 = 1 for il even (2 for il odd)
 c     mev2 = 2 for il even (1 for il odd)
@@ -133,12 +133,12 @@ c---------------------------------------------------------------------------
          ms_out = 0             ! Not set anywhere else ?????
          if(iout.eq.19)then
             if ( myid==0 ) print *,"restart write of data to cdf"
-            call outcdf(rundate,nmi,-1,ms_out,iaero)
+            call outcdf(rundate,nmi,-1,ms_out,iaero,nstagin)
             call end_log(outfile_end)
             return              ! done with restart data
          endif                  !  (iout.eq.19)
          if ( myid==0 ) print *,'calling outcdf from outfile'
-         call outcdf(rundate,nmi,1,ms_out,iaero)  
+         call outcdf(rundate,nmi,1,ms_out,iaero,nstagin)  
 
       endif ! (io_outt.eq.1)
 

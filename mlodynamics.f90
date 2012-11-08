@@ -18,11 +18,14 @@ implicit none
 private
 public mlodiffusion,mlorouter,mlohadv,mlodyninit,watbdy,salbdy,ipice
 public oldu1,oldv1,oldu2,oldv2,gosig,gosigh,godsig,ocnsmag,ocneps
+public nstagoffmlo,mstagf
 
 real, dimension(:), allocatable, save :: watbdy,salbdy,ipice,ee,eeu,eev,dd,ddu,ddv
 real, dimension(:), allocatable, save :: gosig,gosigh,godsig
 real, dimension(:,:), allocatable, save :: oldu1,oldu2,oldv1,oldv2
 real, dimension(:,:), allocatable, save :: stwgt
+integer, save :: mlo_comm
+integer, save :: nstagoffmlo
 integer, parameter :: salfilt=0     ! additional salinity filter (0=off, 1=Katzfey)
 integer, parameter :: usetide=1     ! tidal forcing (0=off, 1=on)
 integer, parameter :: icemode=2     ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
@@ -56,13 +59,19 @@ include 'newmpar.h'
 include 'mpif.h'
 include 'parm.h'
 
-integer ii,iq,ierr,lndtst,lndtst_g
+integer ii,iq,ierr
+integer lndtst_g,lrank
+integer, dimension(1) :: stst
+integer, dimension(0:nproc-1) :: ltst
 real, dimension(ifull,0:wlev) :: dephl
 real, dimension(ifull,wlev) :: dep,dz
 real, dimension(ifull+iextra,4) :: dumx,dumy
 real, dimension(wlev) :: sig,sigh,dsig
 real, dimension(3*wlev) :: dumz,gdumz
 logical, dimension(ifull+iextra) :: wtr
+
+! staggering
+nstagoffmlo=0
 
 ! river water height
 allocate(watbdy(ifull+iextra),salbdy(ifull+iextra))
@@ -78,13 +87,6 @@ eev=0.
 where(.not.land)
   ee(1:ifull)=1.
 end where
-
-lndtst=0
-if (any(ee>0.5)) lndtst=1
-call MPI_Reduce(lndtst,lndtst_g,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,ierr)
-if (myid==0) then
-  write(6,*) "Processors with water ",lndtst_g,nproc
-end if
 
 ! Calculate depth arrays (free suface term is included later)
 allocate(dd(ifull+iextra))
@@ -113,6 +115,22 @@ call bounds(dumx(:,1:2),nrows=2)
 ee=dumx(:,1)
 dd=dumx(:,2)
 wtr=abs(ee-1.)<0.5
+where (ee>1.5.or.ee<=0.5)
+  ee=0.
+end where
+
+! Set-up communications for ocean processors and neighbours
+ltst=0
+stst=0
+if (any(ee>0.5)) stst=1
+call MPI_Allgather(stst,1,MPI_INTEGER,ltst,1,MPI_INTEGER,MPI_COMM_WORLD,ierr)
+lrank=count(ltst(0:myid)==1)-1
+lndtst_g=count(ltst==1)
+bnds(:)%mlomsk=ltst(:)
+call MPI_Comm_Split(MPI_COMM_WORLD,stst(1),lrank,mlo_comm,ierr)
+if (myid==0) then
+  write(6,*) "Processors with water ",lndtst_g,nproc
+end if
 
 ! Precompute weights for calculating staggered gradients
 allocate(stwgt(ifull+iextra,4))
@@ -234,6 +252,8 @@ real, dimension(ifull) :: tx_fact,ty_fact
 real, dimension(ifull) :: cc,emi,nu,nv,nw
 logical, dimension(ifull+iextra) :: wtr
 
+if (all(ee<=0.5)) return
+
 hdif=dt*(ocnsmag/pi)**2
 wtr=ee>0.5
 emi=1./em(1:ifull)**2
@@ -249,16 +269,16 @@ call mloexport(4,eta(1:ifull),0,0)
 uau(1:ifull,:)=av_vmod*u(1:ifull,:)+(1.-av_vmod)*oldu1
 uav(1:ifull,:)=av_vmod*v(1:ifull,:)+(1.-av_vmod)*oldv1
 
-call boundsuv(uau,uav,allvec=.true.)
-call bounds(eta,nehalf=.true.)
+call boundsuv(uau,uav,allvec=.true.,gmode=1)
+call bounds(eta,nehalf=.true.,gmode=1)
 do k=1,wlev
   dudx(1:ifull,k)=0.5*(uau(ieu,k)-uau(iwu,k))*em(1:ifull)/ds
   dudy(1:ifull,k)=0.5*(uau(inu,k)-uau(isu,k))*em(1:ifull)/ds
   dvdx(1:ifull,k)=0.5*(uav(iev,k)-uav(iwv,k))*em(1:ifull)/ds
   dvdy(1:ifull,k)=0.5*(uav(inv,k)-uav(isv,k))*em(1:ifull)/ds
 end do
-call boundsuv(dudx,dvdy,stag=-19)
-call boundsuv(dvdx,dudy,stag=-19)
+call boundsuv(dudx,dvdy,stag=-19,gmode=1)
+call boundsuv(dvdx,dudy,stag=-19,gmode=1)
 
 ! Smagorinsky
 do k=1,wlev
@@ -280,7 +300,7 @@ do k=1,wlev
   xfact(1:ifull,k)=xfact(1:ifull,k)*tx_fact ! reduction factor
   yfact(1:ifull,k)=yfact(1:ifull,k)*ty_fact ! reduction factor
 end do
-call boundsuv(xfact,yfact,stag=-9)
+call boundsuv(xfact,yfact,stag=-9,gmode=1)
 
 ! viscosity terms (closure #1)
 do k=1,wlev
@@ -288,9 +308,9 @@ do k=1,wlev
   vc(1:ifull,k)=ay(1:ifull)*u(1:ifull,k)+by(1:ifull)*v(1:ifull,k)
   wc(1:ifull,k)=az(1:ifull)*u(1:ifull,k)+bz(1:ifull)*v(1:ifull,k)
 end do
-call bounds(uc)
-call bounds(vc)
-call bounds(wc)
+call bounds(uc,gmode=1)
+call bounds(vc,gmode=1)
+call bounds(wc,gmode=1)
 
 do k=1,wlev
 
@@ -323,7 +343,7 @@ do k=1,wlev
 end do
 
 ! viscosity terms (closure #2)
-! call boundsuv(u,v,allvec=.true.)
+! call boundsuv(u,v,allvec=.true.,gmode=1)
 !do k=1,wlev
 !
 !  base(:,k)=emi+xfact(1:ifull,k)+xfact(iwu,k)+yfact(1:ifull,k)+yfact(isv,k)
@@ -364,7 +384,7 @@ do i=0,1
     case(1)
       gg(1:ifull,:)=gg(1:ifull,:)-34.72
   end select
-  call bounds(gg)
+  call bounds(gg,gmode=1)
   
   do k=1,wlev
     ff(:,k) = ( gg(1:ifull,k)*emi +                 &
@@ -391,7 +411,7 @@ end do
 ! Jack Katzfey salinity filter
 if (salfilt==1) then
   gg(1:ifull,:)=ff
-  call bounds(gg)
+  call bounds(gg,gmode=1)
   do k=1,wlev
     ff(:,k) = ( gg(1:ifull,k)*emi +                 &
                 xfact(1:ifull,k)*gg(ie,k) +         &
@@ -447,8 +467,8 @@ real :: xx,yy,ll,lssum,gssum,lwsum,gwsum,netf,netg
 
 ! Note that unlike Miller et al (1994), this scheme currently has multiple outflows from a given
 ! grid box (i.e., following Gordon in Mk3.5).  So if the slope of the grid box is divergent, then
-! on average water leaves the grid box, whereas if the slop of the grid box is convergent, then on
-! average water enters the grid box.
+! on average water leaves the grid box, whereas if the slope of the grid box is convergent, then
+! on average water enters the grid box.
 
 ! This version supports salinity in rivers and overflow from lakes
 
@@ -792,10 +812,9 @@ real, dimension(5), parameter :: coeff = (/ 1., 2., 5., 14., 42. /) ! Parameters
 ! Instead of packing ocean points, we keep the original
 ! grid and define a land/sea mask.  This allows us to
 ! use the same index and map factor arrays from the
-! atmospheric dynamical core.  No speed-up is gained
-! by avoiding land points as typically some processors
-! have both land and sea points, preventing updating
-! land and sea prognostic variables in parallel.
+! atmospheric dynamical core.
+
+if (all(ee<0.5)) return
 
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: Start"
@@ -906,7 +925,7 @@ dumc(1:ifull,1)=neta(1:ifull)
 dumc(1:ifull,2)=pice(1:ifull)
 dumc(1:ifull,3)=ndum(1:ifull)
 dumc(1:ifull,4)=imass(1:ifull)
-call bounds(dumc(:,1:4),corner=.true.)
+call bounds(dumc(:,1:4),corner=.true.,gmode=1)
 neta=dumc(:,1)
 pice=dumc(:,2)
 ndum=dumc(:,3)
@@ -989,11 +1008,11 @@ call mloexpdensity(dumr,duma,dumb,dumt,dums,dzdum,pice(1:ifull),0)
 rho(1:ifull,:)=dumr
 dalpha(1:ifull,:)=duma
 dbeta(1:ifull,:)=dumb
-call bounds(rho,nehalf=.true.)
-call bounds(dalpha,nehalf=.true.)
-call bounds(dbeta,nehalf=.true.)
-call bounds(nt,corner=.true.)
-call bounds(ns,corner=.true.)
+call bounds(rho,nehalf=.true.,gmode=1)
+call bounds(dalpha,nehalf=.true.,gmode=1)
+call bounds(dbeta,nehalf=.true.,gmode=1)
+call bounds(nt,corner=.true.,gmode=1)
+call bounds(ns,corner=.true.,gmode=1)
 rhobar(:,1)=(rho(:,1)-1030.)*godsig(1)
 do ii=2,wlev
   rhobar(:,ii)=rhobar(:,ii-1)+(rho(:,ii)-1030.)*godsig(ii)
@@ -1042,7 +1061,7 @@ oeu(1:ifull)=0.5*(neta(1:ifull)+neta(ie))*eeu(1:ifull) ! height at staggered coo
 oev(1:ifull)=0.5*(neta(1:ifull)+neta(in))*eev(1:ifull) ! height at staggered coordinate
 eou(1:ifull,wlev+1)=oeu(1:ifull)
 eov(1:ifull,wlev+1)=oev(1:ifull)
-call boundsuv(eou,eov,stag=-9)
+call boundsuv(eou,eov,stag=-9,gmode=1)
 oeu=eou(:,wlev+1)
 oev=eov(:,wlev+1)
 cou(:,1)=eou(:,1)*godsig(1)
@@ -1186,11 +1205,11 @@ if (nxtrrho==1) then
   rho(1:ifull,:)=dumr
   dalpha(1:ifull,:)=duma
   dbeta(1:ifull,:)=dumb
-  call bounds(rho,nehalf=.true.)
-  call bounds(dalpha,nehalf=.true.)
-  call bounds(dbeta,nehalf=.true.)
-  call bounds(nt,corner=.true.)
-  call bounds(ns,corner=.true.)
+  call bounds(rho,nehalf=.true.,gmode=1)
+  call bounds(dalpha,nehalf=.true.,gmode=1)
+  call bounds(dbeta,nehalf=.true.,gmode=1)
+  call bounds(nt,corner=.true.,gmode=1)
+  call bounds(ns,corner=.true.,gmode=1)
   rhobar(:,1)=(rho(:,1)-1030.)*godsig(1)
   do ii=2,wlev
     rhobar(:,ii)=rhobar(:,ii-1)+(rho(:,ii)-1030.)*godsig(ii)
@@ -1366,7 +1385,7 @@ dumc(1:ifull,6)=icu(1:ifull)
 dumd(1:ifull,6)=icv(1:ifull)
 dumc(1:ifull,7)=niu(1:ifull)
 dumd(1:ifull,7)=niv(1:ifull)
-call boundsuv(dumc(:,1:7),dumd(:,1:7),stag=-9)
+call boundsuv(dumc(:,1:7),dumd(:,1:7),stag=-9,gmode=1)
 sou=dumc(:,1)
 sov=dumd(:,1)
 spu=dumc(:,2)
@@ -1435,7 +1454,7 @@ do ll=1,llmax
 
   dumc(1:ifull,1)=neta(1:ifull)
   dumc(1:ifull,2)=ipice(1:ifull)
-  call bounds(dumc(:,1:2),corner=.true.)
+  call bounds(dumc(:,1:2),corner=.true.,gmode=1)
   neta=dumc(:,1)
   ipice=dumc(:,2)
 
@@ -1498,7 +1517,7 @@ do ll=1,llmax
 
   !snu(1:ifull)=niu(1:ifull)+ibu*dipdxu+icu*dipdyu
   !snv(1:ifull)=niv(1:ifull)+ibv*dipdyv+icv*dipdxv
-  !call boundsuv(snu,snv)
+  !call boundsuv(snu,snv,gmode=1)
     
   ! new divergence at t+1
   !div=(snu(1:ifull)/emu(1:ifull)-snu(iwu)/emu(iwu)+snv(1:ifull)/emv(1:ifull)-snv(isv)/emv(isv)) &
@@ -1545,7 +1564,7 @@ do ll=1,llmax
   if (ll>=itstest) then
     dume(1)=maxloclseta
     dume(2)=maxloclip
-    call MPI_AllReduce(dume,dumf,2,MPI_REAL,MPI_MAX,MPI_COMM_WORLD,ierr)
+    call MPI_AllReduce(dume,dumf,2,MPI_REAL,MPI_MAX,mlo_comm,ierr)
     maxglobseta=dumf(1)
     maxglobip=dumf(2)
 
@@ -1578,7 +1597,7 @@ end if
 if (nud_sfh==0) then
   !odum=(neta(1:ifull)-w_e)*ee(1:ifull)
   odum=neta(1:ifull)*ee(1:ifull)
-  call ccglobal_posneg(odum,delpos,delneg)
+  call ccglobal_posneg(odum,delpos,delneg,comm=mlo_comm)
   alph_p = -delneg/max(delpos,1.E-20)
   alph_p = min(max(sqrt(alph_p),1.E-20),1.E20)
   !neta(1:ifull)=w_e+max(0.,odum)*alph_p+min(0.,odum)/alph_p
@@ -1591,7 +1610,7 @@ end if
 
 dumc(1:ifull,1)=neta(1:ifull)
 dumc(1:ifull,2)=ipice(1:ifull)
-call bounds(dumc(:,1:2),corner=.true.)
+call bounds(dumc(:,1:2),corner=.true.,gmode=1)
 neta=dumc(:,1)
 ipice=dumc(:,2)
 
@@ -1630,10 +1649,11 @@ niu(1:ifull)=niu(1:ifull)+ibu(1:ifull)*dipdxu+icu(1:ifull)*dipdyu
 niv(1:ifull)=niv(1:ifull)+ibv(1:ifull)*dipdyv+icv(1:ifull)*dipdxv
 niu(1:ifull)=niu(1:ifull)*eeu(1:ifull)
 niv(1:ifull)=niv(1:ifull)*eev(1:ifull)
-call boundsuv(niu,niv,stag=-9)
+call boundsuv(niu,niv,stag=-9,gmode=1)
 
 ! Normalisation factor for conserving ice flow in and out of gridbox
-spnet(1:ifull)=-min(niu(iwu),0.)+max(niu(1:ifull),0.)-min(niv(isv),0.)+max(niv(1:ifull),0.)
+spnet(1:ifull)=(-min(niu(iwu)*emu(iwu),0.)+max(niu(1:ifull)*emu(1:ifull),0.) &
+                -min(niv(isv)*emv(isv),0.)+max(niv(1:ifull)*emv(1:ifull),0.))/ds
 
 ! ADVECT ICE ------------------------------------------------------
 ! use simple upwind scheme
@@ -1650,7 +1670,7 @@ dumc(1:ifull,2)=sicedep*fracice/(em(1:ifull)*em(1:ifull)) ! ndum is a volume
 dumc(1:ifull,3)=snowd*0.001*fracice/(em(1:ifull)*em(1:ifull)) ! now ndum is a volume
 ! Conservation
 dumc(1:ifull,4)=spnet(1:ifull)
-call bounds(dumc(:,1:4))
+call bounds(dumc(:,1:4),gmode=1)
 spnet=dumc(:,4)
 do ii=1,3
   call upwindadv(dumc(:,ii),niu,niv,spnet)
@@ -1664,7 +1684,7 @@ ndsn(1:ifull)=dumc(1:ifull,3)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-
 dumc(1:ifull,1)=i_sto*fracice/(em(1:ifull)*em(1:ifull))
 ! Horizontal advection for ice salinity
 dumc(1:ifull,2)=i_sal*fracice*sicedep/(em(1:ifull)*em(1:ifull))
-call bounds(dumc(:,1:2))
+call bounds(dumc(:,1:2),gmode=1)
 do ii=1,2
   call upwindadv(dumc(:,ii),niu,niv,spnet)
 end do
@@ -1680,7 +1700,7 @@ dumc(1:ifull,2)=i_it(1:ifull,2)*fracice*snowd*0.001/(em(1:ifull)*em(1:ifull))
 do ii=3,4
   dumc(1:ifull,ii)=i_it(1:ifull,ii)*fracice*sicedep/(em(1:ifull)*em(1:ifull))
 end do
-call bounds(dumc(:,1:4))
+call bounds(dumc(:,1:4),gmode=1)
 do ii=1,4
   call upwindadv(dumc(:,ii),niu,niv,spnet)
 end do
@@ -1736,7 +1756,7 @@ if (nud_sss==0) then
       dum(:,ii)=ns(1:ifull,ii)-34.72
     end where
   end do
-  call ccglobal_posneg(dum,delpos,delneg,godsig)
+  call ccglobal_posneg(dum,delpos,delneg,godsig,comm=mlo_comm)
   alph_p = -delneg/max(delpos,1.E-20)
   alph_p = min(sqrt(alph_p),alph_p)
   do ii=1,wlev
@@ -1830,7 +1850,7 @@ do ii=1,kx
   call mlotoij5(x3d(:,ii),y3d(:,ii),z3d(:,ii),nface(:,ii),xg(:,ii),yg(:,ii))
 end do
 ! Share off processor departure points.
-call deptsync(nface,xg,yg)
+call deptsync(nface,xg,yg,gmode=1)
 
 do n=1,nguess
   temp(1:ifull,:) = uc
@@ -1852,7 +1872,7 @@ do n=1,nguess
     call mlotoij5(x3d(:,ii),y3d(:,ii),z3d(:,ii),nface(:,ii),xg(:,ii),yg(:,ii))
   end do
   !     Share off processor departure points.
-  call deptsync(nface,xg,yg)
+  call deptsync(nface,xg,yg,gmode=1)
 end do
 
 return
@@ -2013,7 +2033,7 @@ do k=1,kx
     s(1:ifull,k)=cxx-1.
   end where
 end do
-call bounds(s,nrows=2)
+call bounds(s,nrows=2,gmode=1)
 
 !======================== start of intsch=1 section ====================
 if(intsch==1)then
@@ -2411,7 +2431,7 @@ do k=1,kx
     s(1:ifull,k)=cxx-1. ! missing value flag
   end where
 end do
-call bounds(s,nrows=2)
+call bounds(s,nrows=2,gmode=1)
 
 !======================== start of intsch=1 section ====================
 if(intsch==1)then
@@ -2875,7 +2895,7 @@ else if (mstagf<0) then
   ltest=.false.
 else
   ! using ktau-1 ensures that the staggering is relative to the C grid
-  ltest=mod((ktau-koff)/mstagf,2)==0
+  ltest=mod(ktau-koff-nstagoffmlo,mstagf)==0
 end if
 if (ltest) then
 
@@ -2974,7 +2994,7 @@ if (ltest) then
     end where
 
     ! Apply JLM's preconditioner
-    call boundsuv(wtu,wtv,stag=-10)
+    call boundsuv(wtu,wtv,stag=-10,gmode=1)
     nwtu=wtu(1:ifull,:)
     nwtv=wtv(1:ifull,:)
     where (abs(wtu(ieu,0))>1.E-4.and.abs(wtu(1:ifull,1))>1.E-4)
@@ -3005,7 +3025,7 @@ if (ltest) then
     end where
 
     ! normalise
-    call boundsuv(wtu,wtv,stag=-10)
+    call boundsuv(wtu,wtv,stag=-10,gmode=1)
     nwtu(:,0)=1.
     nwtv(:,0)=1.
     do k=1,3
@@ -3021,14 +3041,14 @@ if (ltest) then
  
   end if
   
-  call boundsuv(uin,vin,stag=1)
+  call boundsuv(uin,vin,stag=1,gmode=1)
   do k=1,kx
     ud(1:ifull,k)=dtu(:,1)*uin(ieeu,k)+dtu(:,2)*uin(ieu,k)+dtu(:,3)*uin(1:ifull,k)
     vd(1:ifull,k)=dtv(:,1)*vin(innv,k)+dtv(:,2)*vin(inv,k)+dtv(:,3)*vin(1:ifull,k)
   end do
   
   ! Apply JLM's preconditioner
-  call boundsuv(ud,vd,stag=-10)
+  call boundsuv(ud,vd,stag=-10,gmode=1)
   do k=1,kx
     nud(:,k)=ud(1:ifull,k)-stu*ud(ieu,k)
     nvd(:,k)=vd(1:ifull,k)-stv*vd(inv,k)
@@ -3051,12 +3071,12 @@ if (ltest) then
   ! - The wave amplitude should be preserved
 
   do itn=1,itnmax        ! each loop is a double iteration
-    call boundsuv(ua,va,stag=2)
+    call boundsuv(ua,va,stag=2,gmode=1)
     do k=1,kx
       uin(1:ifull,k)=ud(1:ifull,k)+wtu(:,1)*ua(ieu,k)+wtu(:,2)*ua(iwu,k)+wtu(:,3)*ua(ieeu,k)
       vin(1:ifull,k)=vd(1:ifull,k)+wtv(:,1)*va(inv,k)+wtv(:,2)*va(isv,k)+wtv(:,3)*va(innv,k)
     end do
-    call boundsuv(uin,vin,stag=2)
+    call boundsuv(uin,vin,stag=2,gmode=1)
     do k=1,kx
       ua(1:ifull,k)=ud(1:ifull,k)+wtu(:,1)*uin(ieu,k)+wtu(:,2)*uin(iwu,k)+wtu(:,3)*uin(ieeu,k)
       va(1:ifull,k)=vd(1:ifull,k)+wtv(:,1)*vin(inv,k)+wtv(:,2)*vin(isv,k)+wtv(:,3)*vin(innv,k)
@@ -3159,7 +3179,7 @@ else
     end where
 
     ! Apply JLM's preconditioner
-    call boundsuv(wtu,wtv,stag=-9)
+    call boundsuv(wtu,wtv,stag=-9,gmode=1)
     nwtu=wtu(1:ifull,:)
     nwtv=wtv(1:ifull,:)
     where (abs(wtu(iwu,0))>1.E-4.and.abs(wtu(1:ifull,2))>1.E-4)
@@ -3190,7 +3210,7 @@ else
     end where
 
     ! normalise
-    call boundsuv(wtu,wtv,stag=-9)
+    call boundsuv(wtu,wtv,stag=-9,gmode=1)
     nwtu(:,0)=1.
     nwtv(:,0)=1.
     do k=1,3
@@ -3206,14 +3226,14 @@ else
     
   end if
 
-  call boundsuv(uin,vin)
+  call boundsuv(uin,vin,gmode=1)
   do k=1,kx
     ud(1:ifull,k)=dtu(:,1)*uin(iwu,k)+dtu(:,2)*uin(1:ifull,k)+dtu(:,3)*uin(ieu,k)
     vd(1:ifull,k)=dtv(:,1)*vin(isv,k)+dtv(:,2)*vin(1:ifull,k)+dtv(:,3)*vin(inv,k)
   end do
 
   ! Apply JLM's preconditioner
-  call boundsuv(ud,vd,stag=-9)
+  call boundsuv(ud,vd,stag=-9,gmode=1)
   do k=1,kx
     nud(:,k)=ud(1:ifull,k)-stu*ud(iwu,k)
     nvd(:,k)=vd(1:ifull,k)-stv*vd(isv,k)
@@ -3231,12 +3251,12 @@ else
 
 
   do itn=1,itnmax        ! each loop is a double iteration
-    call boundsuv(ua,va,stag=3)
+    call boundsuv(ua,va,stag=3,gmode=1)
     do k=1,kx
       uin(1:ifull,k)=ud(1:ifull,k)+wtu(:,1)*ua(ieu,k)+wtu(:,2)*ua(iwu,k)+wtu(:,3)*ua(iwwu,k)
       vin(1:ifull,k)=vd(1:ifull,k)+wtv(:,1)*va(inv,k)+wtv(:,2)*va(isv,k)+wtv(:,3)*va(issv,k)
     end do
-    call boundsuv(uin,vin,stag=3)
+    call boundsuv(uin,vin,stag=3,gmode=1)
     do k=1,kx
       ua(1:ifull,k)=ud(1:ifull,k)+wtu(:,1)*uin(ieu,k)+wtu(:,2)*uin(iwu,k)+wtu(:,3)*uin(iwwu,k)
       va(1:ifull,k)=vd(1:ifull,k)+wtv(:,1)*vin(inv,k)+wtv(:,2)*vin(isv,k)+wtv(:,3)*vin(issv,k)
@@ -3319,7 +3339,7 @@ if (mstagf==0) then
 else if (mstagf<0) then
   ltest=.false.
 else
-  ltest=mod((ktau-zoff)/mstagf,2)==0
+  ltest=mod(ktau-zoff-nstagoffmlo,mstagf)==0
 end if
 if (ltest) then
   
@@ -3468,7 +3488,7 @@ if (ltest) then
     end where
     
     ! Apply JLM's preconditioner
-    call boundsuv(wtu,wtv,stag=-9)
+    call boundsuv(wtu,wtv,stag=-9,gmode=1)
     nwtu=wtu(1:ifull,:)
     nwtv=wtv(1:ifull,:)
     nud=ud(1:ifull,:)
@@ -3501,7 +3521,7 @@ if (ltest) then
     end where
 
     ! normalise
-    call boundsuv(wtu,wtv,stag=-9)
+    call boundsuv(wtu,wtv,stag=-9,gmode=1)
     nwtu(:,0)=1.
     nwtv(:,0)=1.
     do k=1,3
@@ -3517,14 +3537,14 @@ if (ltest) then
 
   end if
 
-  call boundsuv(uin,vin,stag=5)
+  call boundsuv(uin,vin,stag=5,gmode=1)
   do k=1,kx
     ud(1:ifull,k)=dtu(:,1)*uin(iwwu,k)+dtu(:,2)*uin(iwu,k)+dtu(:,3)*uin(1:ifull,k)
     vd(1:ifull,k)=dtv(:,1)*vin(issv,k)+dtv(:,2)*vin(isv,k)+dtv(:,3)*vin(1:ifull,k)
   end do
   
   ! Apply JLM's preconditioner
-  call boundsuv(ud,vd,stag=-9)
+  call boundsuv(ud,vd,stag=-9,gmode=1)
   do k=1,kx
     nud(:,k)=ud(1:ifull,k)-stu*ud(iwu,k)
     nvd(:,k)=vd(1:ifull,k)-stv*vd(isv,k)
@@ -3541,12 +3561,12 @@ if (ltest) then
   end do
 
   do itn=1,itnmax        ! each loop is a double iteration
-    call boundsuv(ua,va,stag=3)
+    call boundsuv(ua,va,stag=3,gmode=1)
     do k=1,kx
       uin(1:ifull,k)=ud(1:ifull,k)+wtu(:,1)*ua(ieu,k)+wtu(:,2)*ua(iwu,k)+wtu(:,3)*ua(iwwu,k)
       vin(1:ifull,k)=vd(1:ifull,k)+wtv(:,1)*va(inv,k)+wtv(:,2)*va(isv,k)+wtv(:,3)*va(issv,k)
     end do
-    call boundsuv(uin,vin,stag=3)
+    call boundsuv(uin,vin,stag=3,gmode=1)
     do k=1,kx
       ua(1:ifull,k)=ud(1:ifull,k)+wtu(:,1)*uin(ieu,k)+wtu(:,2)*uin(iwu,k)+wtu(:,3)*uin(iwwu,k)
       va(1:ifull,k)=vd(1:ifull,k)+wtv(:,1)*vin(inv,k)+wtv(:,2)*vin(isv,k)+wtv(:,3)*vin(issv,k)
@@ -3701,7 +3721,7 @@ else
     end where
 
     ! Apply JLM's preconditioner
-    call boundsuv(wtu,wtv,stag=-10)
+    call boundsuv(wtu,wtv,stag=-10,gmode=1)
     nwtu=wtu(1:ifull,:)
     nwtv=wtv(1:ifull,:)
     where (abs(wtu(ieu,0))>1.E-4.and.abs(wtu(1:ifull,1))>1.E-4)
@@ -3732,7 +3752,7 @@ else
     end where
 
     ! normalise
-    call boundsuv(wtu,wtv,stag=-10)
+    call boundsuv(wtu,wtv,stag=-10,gmode=1)
     nwtu(:,0)=1.
     nwtv(:,0)=1.
     do k=1,3
@@ -3748,14 +3768,14 @@ else
 
   end if
 
-  call boundsuv(uin,vin)
+  call boundsuv(uin,vin,gmode=1)
   do k=1,kx
     ud(1:ifull,k)=dtu(:,1)*uin(ieu,k)+dtu(:,2)*uin(1:ifull,k)+dtu(:,3)*uin(iwu,k)
     vd(1:ifull,k)=dtv(:,1)*vin(inv,k)+dtv(:,2)*vin(1:ifull,k)+dtv(:,3)*vin(isv,k)
   end do
 
   ! Apply JLM's preconditioner
-  call boundsuv(ud,vd,stag=-10)
+  call boundsuv(ud,vd,stag=-10,gmode=1)
   do k=1,kx
     nud(:,k)=ud(1:ifull,k)-stu*ud(ieu,k)
     nvd(:,k)=vd(1:ifull,k)-stv*vd(inv,k)
@@ -3772,12 +3792,12 @@ else
   end do
 
   do itn=1,itnmax        ! each loop is a double iteration
-    call boundsuv(ua,va,stag=2)
+    call boundsuv(ua,va,stag=2,gmode=1)
     do k=1,kx
       uin(1:ifull,k)=ud(1:ifull,k)+wtu(:,1)*ua(ieu,k)+wtu(:,2)*ua(iwu,k)+wtu(:,3)*ua(ieeu,k)
       vin(1:ifull,k)=vd(1:ifull,k)+wtv(:,1)*va(inv,k)+wtv(:,2)*va(isv,k)+wtv(:,3)*va(innv,k)
     end do
-    call boundsuv(uin,vin,stag=2)
+    call boundsuv(uin,vin,stag=2,gmode=1)
     do k=1,kx
       ua(1:ifull,k)=ud(1:ifull,k)+wtu(:,1)*uin(ieu,k)+wtu(:,2)*uin(iwu,k)+wtu(:,3)*uin(ieeu,k)
       va(1:ifull,k)=vd(1:ifull,k)+wtv(:,1)*vin(inv,k)+wtv(:,2)*vin(isv,k)+wtv(:,3)*vin(innv,k)
@@ -4512,34 +4532,34 @@ real, dimension(ifull) :: odum,dumd
 dumd=dumc(1:ifull)
 odum=0.5*dt*(niu(iwu)*(dumc(1:ifull)+dumc(iw))    -abs(niu(iwu))*(dumc(1:ifull)-dumc(iw))    )*emu(iwu)/ds
 where (spnet(iw)>0.)
-  odum=min(odum,dumc(iw)*max(niu(iwu),0.)/spnet(iw))
+  odum=min(odum,dumc(iw)*max(niu(iwu)*emu(iwu),0.)/(ds*spnet(iw)))
 end where
 where (spnet(1:ifull)>0.)
-  odum=max(odum,dumc(1:ifull)*min(niu(iwu),0.)/spnet(1:ifull))
+  odum=max(odum,dumc(1:ifull)*min(niu(iwu)*emu(iwu),0.)/(ds*spnet(1:ifull)))
 end where
 dumd=dumd+odum
 odum=-0.5*dt*(niu(1:ifull)*(dumc(1:ifull)+dumc(ie))+abs(niu(1:ifull))*(dumc(1:ifull)-dumc(ie)))*emu(1:ifull)/ds
 where (spnet(ie)>0.)
-  odum=min(odum,-dumc(ie)*min(niu(1:ifull),0.)/spnet(ie))
+  odum=min(odum,-dumc(ie)*min(niu(1:ifull)*emu(1:ifull),0.)/(ds*spnet(ie)))
 end where
 where (spnet(1:ifull)>0.)
-  odum=max(odum,-dumc(1:ifull)*max(niu(1:ifull),0.)/spnet(1:ifull))
+  odum=max(odum,-dumc(1:ifull)*max(niu(1:ifull)*emu(1:ifull),0.)/(ds*spnet(1:ifull)))
 end where
 dumd=dumd+odum  
 odum=0.5*dt*(niv(isv)*(dumc(1:ifull)+dumc(is))    -abs(niv(isv))*(dumc(1:ifull)-dumc(is))    )*emv(isv)/ds
 where (spnet(is)>0.)
-  odum=min(odum,dumc(is)*max(niv(isv),0.)/spnet(is))
+  odum=min(odum,dumc(is)*max(niv(isv)*emv(isv),0.)/(ds*spnet(is)))
 end where
 where (spnet(1:ifull)>0.)
-  odum=max(odum,dumc(1:ifull)*min(niv(isv),0.)/spnet(1:ifull))
+  odum=max(odum,dumc(1:ifull)*min(niv(isv)*emv(isv),0.)/(ds*spnet(1:ifull)))
 end where
 dumd=dumd+odum
 odum=-0.5*dt*(niv(1:ifull)*(dumc(1:ifull)+dumc(in))+abs(niv(1:ifull))*(dumc(1:ifull)-dumc(in)))*emv(1:ifull)/ds
 where (spnet(in)>0.)
-  odum=min(odum,-dumc(in)*min(niv(1:ifull),0.)/spnet(in))
+  odum=min(odum,-dumc(in)*min(niv(1:ifull)*emv(1:ifull),0.)/(ds*spnet(in)))
 end where
 where (spnet(1:ifull)>0.)
-  odum=max(odum,-dumc(1:ifull)*max(niv(1:ifull),0.)/spnet(1:ifull))
+  odum=max(odum,-dumc(1:ifull)*max(niv(1:ifull)*emv(1:ifull),0.)/(ds*spnet(1:ifull)))
 end where
 dumd=dumd+odum
 dumc(1:ifull)=dumd

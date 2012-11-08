@@ -11,12 +11,13 @@
       integer         m,mex,mfix,mfix_qg,mspec,mup,mfix_tr
       integer         nh,nonl,npex,nritch_t,nrot,mfix_aero
       integer         nstag,nstagu,ntbar,nvsplit,nxmap,precon,helmmeth
+      integer         nstagoff
       real            epsp,epsu,epsf,restol
       
       common/paramdyn/m,mex,mfix,mfix_qg,mspec,mup,                      &
      &                nh,nonl,npex,nritch_t,nrot,                        &
-     &                nstag,nstagu,ntbar,nvsplit,nxmap,precon,helmmeth,  &
-     &                epsp,epsu,epsf,restol,mfix_tr,mfix_aero
+     &                nstag,nstagu,nstagoff,ntbar,nvsplit,nxmap,precon,  &
+     &                helmmeth,epsp,epsu,epsf,restol,mfix_tr,mfix_aero
 
 !            (ntbar=0)           ! 0 for standard
 !            (ntbar=(kl+1)/2)    ! level# for tbar2d with T set in nonlin

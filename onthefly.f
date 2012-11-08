@@ -255,6 +255,7 @@
       include 'mpif.h'                          ! MPI parameters
       include 'netcdf.inc'                      ! Netcdf parameters
       include 'parm.h'                          ! Model configuration
+      include 'parmdyn.h'                       ! Dynamics parmaters
       include 'parmgeom.h'                      ! Coordinate data
       include 'soilv.h'                         ! Soil parameters
       include 'stime.h'                         ! File date data
@@ -266,12 +267,13 @@
       integer dk, ifg ! controls automatic array size
       integer lev,levkk,ier,ierr,igas
       integer kdate_r, ktime_r, nemi, id2,jd2,idjd2
-      integer nested, i, j, k, m, iq, ii, jj, np, numneg
+      integer nested, i, j, k, mm, iq, ii, jj, np, numneg
       integer, dimension(:,:), allocatable, save :: nface4
       integer, dimension(ifull) :: isflag
       integer, dimension(:), allocatable, save :: isoilm_a
       integer, dimension(ms) :: iera,ierb
-      integer, dimension(2) :: ierc
+      integer, dimension(7) :: ierc
+      integer, dimension(3), save :: iers
       real*8, dimension(1+4*dk,1+4*dk) :: xx4,yy4
       real*8, dimension(dk*dk*6):: z_a,x_a,y_a
       real, dimension(ifull,wlev,4) :: mlodwn
@@ -301,7 +303,7 @@
       character*8 vname
       character*3 trnum
       logical, dimension(dk*dk*6) :: land_a
-      logical iotest,newfile
+      logical iotest,newfile,tsstest
 
       real, parameter :: spval=999.  ! missing value flag
       real, parameter :: iotol=1.E-5 ! tolarance for iotest
@@ -311,11 +313,11 @@
         write(6,*) "ERROR: Incorrect automatic array size in onthefly"
         stop
       end if
-
+      
       ! land-sea mask method (nemi=3 use soilt, nemi=2 use tgg, nemi=1 use zs)
       nemi=3
       
-      ! are retopo fields required
+      ! test if retopo fields are required
       nud_test=1
       if (nud_p==0.and.nud_t==0.and.nud_q==0) nud_test=0
       
@@ -371,7 +373,8 @@
      &              kdate_r,ktime_r,ktau,ds
            write(6,*)'rotpoles:'
            do i=1,3
-              write(6,9)(i,j,j=1,3),(rotpoles(i,j),j=1,3)
+              write(6,'(3x,2i1,5x,2i1,5x,2i1,5x,3f8.4)')
+     &          (i,j,j=1,3),(rotpoles(i,j),j=1,3)
            enddo
         endif                  ! (ktau<3)
 
@@ -382,24 +385,24 @@
         if(nmaxpr==1)then   ! already in myid==0 loop
            write(6,*)'in onthefly rotpole:'
            do i=1,3
-              write(6,9)(i,j,j=1,3),(rotpole(i,j),j=1,3)
- 9            format(3x,2i1,5x,2i1,5x,2i1,5x,3f8.4)
+              write(6,'(3x,2i1,5x,2i1,5x,2i1,5x,3f8.4)')
+     &          (i,j,j=1,3),(rotpole(i,j),j=1,3)
            enddo
            write(6,*)'xx4,yy4 ',xx4(id,jd),yy4(id,jd)
            write(6,*)'before latltoij for id,jd: ',id,jd
            if ( nproc==1 ) then
               ! Diagnostics will only be correct if nproc==1
-              write(6,*)'rlong4(1-4) ',(rlong4(idjd,m),m=1,4)
-              write(6,*)'rlat4(1-4) ',(rlat4(idjd,m),m=1,4)
+              write(6,*)'rlong4(1-4) ',(rlong4(idjd,mm),mm=1,4)
+              write(6,*)'rlat4(1-4) ',(rlat4(idjd,mm),mm=1,4)
            end if
            write(6,*)'rlong0x,rlat0x,schmidtx ',rlong0x,rlat0x,
      &                schmidtx
         endif                  ! (nmaxpr==1)
-        do m=1,m_fly  !  was 4, now may be set to 1 in namelist
+        do mm=1,m_fly  !  was 4, now may be set to 1 in namelist
            do iq=1,ifull_g
-              call latltoij(rlong4(iq,m),rlat4(iq,m),         !input
-     &                      rlong0x,rlat0x,schmidtx,          !input
-     &                      xg4(iq,m),yg4(iq,m),nface4(iq,m), !output (source)
+              call latltoij(rlong4(iq,mm),rlat4(iq,mm),          !input
+     &                      rlong0x,rlat0x,schmidtx,             !input
+     &                      xg4(iq,mm),yg4(iq,mm),nface4(iq,mm), !output (source)
      &                      xx4,yy4,ik)
            enddo
         enddo
@@ -410,9 +413,9 @@
           idjd2=id2+il*(jd2-1)
           write(6,*)'after latltoij giving id2,jd2,idjd2: ',
      .                                   id2,jd2,idjd2
-          write(6,*)'nface4(1-4) ',(nface4(idjd,m),m=1,4)
-          write(6,*)'xg4(1-4) ',(xg4(idjd,m),m=1,4)
-          write(6,*)'yg4(1-4) ',(yg4(idjd,m),m=1,4)
+          write(6,*)'nface4(1-4) ',(nface4(idjd,mm),mm=1,4)
+          write(6,*)'xg4(1-4) ',(xg4(idjd,mm),mm=1,4)
+          write(6,*)'yg4(1-4) ',(yg4(idjd,mm),mm=1,4)
           if(nested==0)then
              write(6,"('wb_s(1)#  ',9f7.3)") 
      .           ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
@@ -446,21 +449,38 @@
             if (ier==0) call ncvgt(ncid,idv,1,kk,sigin,ier)
           end if
           write(6,'("sigin=",(9f7.4))') (sigin(k),k=1,kk)
+          
+          ! check for missing data
+          idv = ncvid(ncid,"mixr",iers(1))
+          idv = ncvid(ncid,"siced",iers(2))
+          idv = ncvid(ncid,"fracice",iers(3))
         end if
         call MPI_Bcast(sigin  ,kk,MPI_REAL,0,MPI_COMM_WORLD,ier)
+        call MPI_Bcast(iers(1:3),3,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
+      end if ! newfile
+      tsstest=(iers(2)==0.and.iers(3)==0.and.iotest)
+      if (newfile) then
+        if (myid==0) then
+          write(6,*) "tsstest,iers ",tsstest,iers(1:3)
+        end if      
         if (allocated(zss_a)) deallocate(zss_a)
-        allocate(zss_a(6*dk*dk))        
-        if (myid==0) then
-          if (allocated(isoilm_a)) deallocate(isoilm_a)
-          allocate(isoilm_a(6*dk*dk))
-          zss_a=0.
-          isoilm_a=-1
-        end if
-        call histrd1(ncid,iarchi,ier,'zht',ik,6*ik,zss_a,6*ik*ik) !**********************************************************************************
-        call histrd1(ncid,iarchi,ier,'soilt',ik,6*ik,ucc,6*ik*ik) !**********************************************************************************
-        if (myid==0) then
-          if (all(ucc==0.)) ucc=-1.
-          isoilm_a=nint(ucc)
+        if (allocated(isoilm_a)) deallocate(isoilm_a)
+        if (tsstest) then
+          allocate(zss_a(ifull))
+          call histrd1(ncid,iarchi,ier,'zht',ik,6*ik,zss_a,ifull)
+        else
+          allocate(zss_a(6*dk*dk))
+          if (myid==0) then
+            allocate(isoilm_a(6*dk*dk))
+            zss_a=0.
+            isoilm_a=-1
+          end if
+          call histrd1(ncid,iarchi,ier,'zht',ik,6*ik,zss_a,6*ik*ik)
+          call histrd1(ncid,iarchi,ier,'soilt',ik,6*ik,ucc,6*ik*ik)
+          if (myid==0) then
+            if (all(ucc==0.)) ucc=-1.
+            isoilm_a=nint(ucc)
+          end if
         end if
         if (nmlo/=0.and.abs(nmlo)<=9) then
           if (.not.allocated(ocndep_l)) allocate(ocndep_l(ifull))
@@ -498,7 +518,7 @@
           write(6,*) "ERROR: zss_a is undefined in onthefly"
           call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
         end if
-        if (.not.allocated(isoilm_a)) then
+        if (.not.allocated(isoilm_a).and..not.tsstest) then
           write(6,*) "ERROR: isoilm_a is undefined in onthefly"
           call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
         end if
@@ -527,18 +547,24 @@
         else
           call histrd1(ncid,iarchi,ier,'psf',ik,6*ik,psl_a,6*ik*ik)
         end if
-      endif 
-      ! tsu always read
-      call histrd1(ncid,iarchi,ier,'tsu',ik,6*ik,tss_a,6*ik*ik) !************************************************************************************
+      endif
       
-      ! set up land-sea mask from either soilt, tss or zss
-      if(myid==0)then
-        if(nemi==3)then 
+      ! Read surface temperature 
+      ! read global tss to diagnose sea-ice or land-sea mask
+      if (tsstest) then
+        call histrd1(ncid,iarchi,ier,'tsu',ik,6*ik,tss,ifull)
+        zss=zss_a ! used saved zss arrays
+      else
+        call histrd1(ncid,iarchi,ier,'tsu',ik,6*ik,tss_a,6*ik*ik)
+      
+        ! set up land-sea mask from either soilt, tss or zss
+        if(myid==0)then
+         if(nemi==3)then 
           land_a(:)=isoilm_a(:)>0
           numneg=count(.not.land_a)
           if (any(isoilm_a(:)<0)) nemi=2
-        end if
-        if(nemi==2)then
+         end if
+         if(nemi==2)then
           numneg=0
           do iq=1,ik*ik*6
             if(tss_a(iq)>0)then ! over land
@@ -549,14 +575,15 @@
             endif               ! (tss(iq)>0) .. else ..
           enddo
           if(numneg==0)nemi=1  ! should be using zss in that case
-        endif                     !  (nemi==2)
-        tss_a=abs(tss_a)
-        if(nemi==1)then
+         endif                     !  (nemi==2)
+         tss_a=abs(tss_a)
+         if(nemi==1)then
           land_a(:) = zss_a(:) > 0.
           numneg=count(.not.land_a)
-        endif
-        write(6,*)'Land-sea mask using nemi = ',nemi
-      end if       
+         endif
+         write(6,*)'Land-sea mask using nemi = ',nemi
+        end if
+      end if ! (tsstest) ..else..
 
       !--------------------------------------------------------------
       ! Read ocean data for nudging (sea-ice is read below)
@@ -692,18 +719,22 @@
       !--------------------------------------------------------------
       ! read sea ice here for prescribed SSTs configuration and for
       ! mixed-layer-ocean
-      ! sea-ice is always read
-      call histrd1(ncid,iarchi,ier,'siced',ik,6*ik,sicedep_a,6*ik*ik)    !***************************************************************************
-      call histrd1(ncid,iarchi,ierr,'fracice',ik,6*ik,fracice_a,6*ik*ik) !***************************************************************************
-      if (myid==0) then
-        if(ier==0)then  ! i.e. sicedep read in 
-          if(ierr/=0)then ! i.e. sicedep read in; fracice not read in
+      if (tsstest) then
+        call histrd1(ncid,iarchi,ier,'siced',ik,6*ik,sicedep,ifull)
+        call histrd1(ncid,iarchi,ier,'fracice',ik,6*ik,fracice,ifull)
+      else
+        call histrd1(ncid,iarchi,ier,'siced',ik,6*ik,sicedep_a,6*ik*ik)
+        call histrd1(ncid,iarchi,ier,'fracice',ik,6*ik,fracice_a,
+     &               6*ik*ik)
+        if (myid==0) then
+         if(iers(2)==0)then  ! i.e. sicedep read in 
+          if(iers(3)/=0)then ! i.e. sicedep read in; fracice not read in
             where(sicedep_a>0.)
               fracice_a=1.
             endwhere
           endif  ! (ierr/=0)  fracice
-        else     ! sicedep not read in
-          if(ierr/=0)then  ! neither sicedep nor fracice read in
+         else     ! sicedep not read in
+          if(iers(3)/=0)then  ! neither sicedep nor fracice read in
             sicedep_a(:)=0.  ! Oct 08
             fracice_a(:)=0.
 	      write(6,*)'pre-setting siced in onthefly from tss'
@@ -719,11 +750,11 @@ c***        but needed here for onthefly (different dims) 28/8/08
               sicedep_a=0.
               fracice_a=0.
             endwhere
-          endif  ! (ierr/=0)
-        endif    ! (ier/=0) .. else ..    for sicedep
-  
-        ! interpolate surface temperature and sea-ice
-        do iq=1,ik*ik*6
+          endif  ! (iers(3)/=0)
+         endif    ! (iers(2)/=0) .. else ..    for sicedep
+
+         ! interpolate surface temperature and sea-ice
+         do iq=1,ik*ik*6
           if(land_a(iq))then       ! over land
             tss_l_a(iq)=tss_a(iq)
             tss_s_a(iq)=spval
@@ -733,59 +764,63 @@ c***        but needed here for onthefly (different dims) 28/8/08
             tss_s_a(iq)=abs(tss_a(iq))
             tss_l_a(iq)=spval
           endif  !   (land_a(iq)) .. else ..
-        enddo     ! iq loop
-        call fill_cc(tss_l_a,spval,ik,0)
-        call fill_cc(tss_s_a,spval,ik,0)
-        call fill_cc(sicedep_a,spval,ik,0)
-        call fill_cc(fracice_a,spval,ik,0)
-      endif   ! (myid==0)
+         enddo     ! iq loop
+         call fill_cc(tss_l_a,spval,ik,0)
+         call fill_cc(tss_s_a,spval,ik,0)
+         call fill_cc(sicedep_a,spval,ik,0)
+         call fill_cc(fracice_a,spval,ik,0)
+        endif   ! (myid==0)
 
-      ! could slightly speed up code by also saving zss arrays
-      if (iotest) then
-        if (myid==0) then
-          call ccmpi_distribute(zss,zss_a)
-          call ccmpi_distribute(tss,tss_a)
-          call ccmpi_distribute(sicedep,sicedep_a)
-          call ccmpi_distribute(fracice,fracice_a)
-        else
-          call ccmpi_distribute(zss)
-          call ccmpi_distribute(tss)
-          call ccmpi_distribute(sicedep)
-          call ccmpi_distribute(fracice)
-        end if
-!       incorporate other target land mask effects
-        where (land)
-          sicedep=0.
-          fracice=0.
-        end where
-      else
-!       The routine doints4 does the gather, calls ints4 and redistributes
-        call doints4(zss_a , zss,  nface4,xg4,yg4,nord,dk,ifg)
-        call doints4(tss_l_a , tss_l,  nface4,xg4,yg4,nord,dk,ifg)
-        call doints4(tss_s_a , tss_s,  nface4,xg4,yg4,nord,dk,ifg)
-        call doints4(fracice_a , fracice,  nface4,xg4,yg4,nord,dk,ifg)
-        call doints4(sicedep_a , sicedep,  nface4,xg4,yg4,nord,dk,ifg)
-!       incorporate other target land mask effects
-        do iq=1,ifull
-          if(land(iq))then
-            tss(iq)=tss_l(iq)
-            sicedep(iq)=0.
-            fracice(iq)=0.
+        if (iotest) then
+          ! This case occurs for missing sea-ice data
+          if (myid==0) then
+            call ccmpi_distribute(zss,zss_a)
+            call ccmpi_distribute(tss_l,tss_l_a)
+            call ccmpi_distribute(tss_s,tss_s_a)
+            call ccmpi_distribute(sicedep,sicedep_a)
+            call ccmpi_distribute(fracice,fracice_a)
           else
-            tss(iq)=tss_s(iq)   ! no sign switch in CCAM
-            if(sicedep(iq)<.05)then ! for sflux
+            call ccmpi_distribute(zss)
+            call ccmpi_distribute(tss_l)
+            call ccmpi_distribute(tss_s)
+            call ccmpi_distribute(sicedep)
+            call ccmpi_distribute(fracice)
+          end if
+!         incorporate other target land mask effects
+          tss=tss_s
+          where (land)
+            sicedep=0.
+            fracice=0.
+            tss=tss_l
+          end where
+        else
+!         The routine doints4 does the gather, calls ints4 and redistributes
+          call doints4(zss_a , zss,  nface4,xg4,yg4,nord,dk,ifg)
+          call doints4(tss_l_a , tss_l,  nface4,xg4,yg4,nord,dk,ifg)
+          call doints4(tss_s_a , tss_s,  nface4,xg4,yg4,nord,dk,ifg)
+          call doints4(fracice_a , fracice,  nface4,xg4,yg4,nord,dk,ifg)
+          call doints4(sicedep_a , sicedep,  nface4,xg4,yg4,nord,dk,ifg)
+!         incorporate other target land mask effects
+          do iq=1,ifull
+            if(land(iq))then
+              tss(iq)=tss_l(iq)
               sicedep(iq)=0.
               fracice(iq)=0.
+            else
+              tss(iq)=tss_s(iq)   ! no sign switch in CCAM
+              if(sicedep(iq)<.05)then ! for sflux
+                sicedep(iq)=0.
+                fracice(iq)=0.
+              endif
             endif
-          endif
-        enddo  ! iq loop
-        if(nproc==1.and.nmaxpr==1)then
-           write(6,*)'after ints4 idjd,zss(idjd) ',idjd,zss(idjd)
-           write(6,*)'zss1-5 ',(zss(iq),iq=1,5)
-           write(6,*)'after ints4 psl,pmsl ',psl(idjd),pmsl(idjd)
-        endif  ! (nproc==1.and.nmaxpr==1)
-      end if ! iotest
-      if ( nproc==1 ) write(6,*)'after ints4 sicedep ',sicedep(idjd)
+          enddo  ! iq loop
+          if (nproc==1.and.nmaxpr==1) then
+            write(6,*)'after ints4 idjd,zss(idjd) ',idjd,zss(idjd)
+            write(6,*)'zss1-5 ',(zss(iq),iq=1,5)
+            write(6,*)'after ints4 psl,pmsl ',psl(idjd),pmsl(idjd)
+          end if  ! (nproc==1.and.nmaxpr==1)
+        end if ! iotest
+      end if ! (tsstest) ..else..
 
       ! to be depeciated !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       if (nspecial==44.or.nspecial==46) then
@@ -873,13 +908,9 @@ c***        but needed here for onthefly (different dims) 28/8/08
       ! read for nested=0 or nested=1.and.nud_q/=0
       qg=qgmin
       if (nested==0.or.(nested==1.and.nud_q/=0)) then
-        if (myid==0) then
-          idv = ncvid(ncid,"mixr",iera(1))
-        end if
-        call MPI_Bcast(iera(1),1,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
         do k=1,kk
           if (iotest) then
-            if (iera(1)==0) then
+            if (iers(1)==0) then
               call histrd4s(ncid,iarchi,ier,'mixr',ik,6*ik,k,u_k(:,k),
      &                      ifull)                                       !     mixing ratio
             else
@@ -887,7 +918,7 @@ c***        but needed here for onthefly (different dims) 28/8/08
      &                      ifull)                                       !     mixing ratio
             endif  ! (ier/=0)
           else
-            if (iera(1)==0) then
+            if (iers(1)==0) then
               call histrd4s(ncid,iarchi,ier,'mixr',ik,6*ik,k,ucc,
      &                      6*ik*ik)                                     !     mixing ratio
             else
@@ -933,7 +964,7 @@ c***        but needed here for onthefly (different dims) 28/8/08
       if (nested/=1) then
 
         !--------------------------------------------------
-        ! verify restart file
+        ! verify if input is a restart file
         if (nested==0) then
           if (myid==0) then
             if (kk==kl.and.iotest) then
@@ -958,6 +989,24 @@ c***        but needed here for onthefly (different dims) 28/8/08
               if (ier/=0) lrestart=.false.
               idv = ncvid(ncid,"savv2",ier)
               if (ier/=0) lrestart=.false.
+              idv = ncvid(ncid,"nstag",ier)
+              if (ier/=0) then
+                lrestart=.false.
+              else 
+                call ncvgt1(ncid,idv,iarchi,ierc(3),ier)
+              end if
+              idv = ncvid(ncid,"nstagu",ier)
+              if (ier/=0) then
+                lrestart=.false.
+              else 
+                call ncvgt1(ncid,idv,iarchi,ierc(4),ier)
+              end if
+              idv = ncvid(ncid,"nstagoff",ier)
+              if (ier/=0) then
+                lrestart=.false.
+              else 
+                call ncvgt1(ncid,idv,iarchi,ierc(5),ier)
+              end if
               if (abs(nmlo)>=3.and.abs(nmlo)<=9) then
                 if (ok==wlev) then
                   idv = ncvid(ncid,"oldu101",ier)
@@ -970,6 +1019,12 @@ c***        but needed here for onthefly (different dims) 28/8/08
                   if (ier/=0) lrestart=.false.
                   idv = ncvid(ncid,"ipice",ier)
                   if (ier/=0) lrestart=.false.
+                  idv = ncvid(ncid,"nstagoffmlo",ier)
+                  if (ier/=0) then
+                    lrestart=.false.
+                  else
+                    call ncvgt1(ncid,idv,iarchi,ierc(6),ier)
+                  end if
                 else
                   lrestart=.false.
                 end if
@@ -977,12 +1032,26 @@ c***        but needed here for onthefly (different dims) 28/8/08
             else
               lrestart=.false.
             end if
+            idv = ncvid(ncid,"u10",ierc(2))
             ierc(1)=0
             if (lrestart) ierc(1)=1
-            idv = ncvid(ncid,"u10",ierc(2))
           end if
-          call MPI_Bcast(ierc(1:2),2,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
+          call MPI_Bcast(ierc(1:6),6,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
           lrestart=(ierc(1)==1)
+          if (lrestart) then
+            nstag=ierc(3)
+            nstagu=ierc(4)
+            nstagoff=ierc(5)
+            nstagoffmlo=ierc(6)
+            if (myid==0) then
+              write(6,*) "Continue stagging from"
+              write(6,*) "nstag,nstagu,nstagoff ",
+     &                    nstag,nstagu,nstagoff
+              if (abs(nmlo)>=3.and.abs(nmlo)<=9) then
+                write(6,*) "nstagoffmlo ",nstagoffmlo
+              end if
+            end if
+          end if
         end if ! nested==0
         !--------------------------------------------------
 
@@ -2103,24 +2172,26 @@ c***        but needed here for onthefly (different dims) 28/8/08
       real, intent(in), dimension(ifull_g,4) :: xg4, yg4
       integer, intent(in) :: ik, nord
       real wrk(ifull_g,4)
-      integer :: iq, m
+      integer :: iq, mm
       integer :: idx = 25, jdx = 218, idjdx=10441
 
       if(nord==1)then
-         do m=1,m_fly  !  was 4, now may be 1
-            call ints_blb(s,wrk(1,m),nface4(1,m),xg4(1,m),yg4(1,m),ik)
+         do mm=1,m_fly  !  was 4, now may be 1
+            call ints_blb(s,wrk(1,mm),nface4(1,mm),xg4(1,mm),
+     &                    yg4(1,mm),ik)
          enddo
       else
-         do m=1,m_fly  !  was 4, now may be 1
-            call intsb(s,wrk(1,m),nface4(1,m),xg4(1,m),yg4(1,m),ik)
+         do mm=1,m_fly  !  was 4, now may be 1
+            call intsb(s,wrk(1,mm),nface4(1,mm),xg4(1,mm),
+     &                 yg4(1,mm),ik)
          enddo
       endif   ! (nord==1)  .. else ..
       if(ntest>0.and.mydiag)then
          write(6,*)'in ints4 for id,jd,nord: ',id,jd,nord
-         write(6,*)'nface4(1-4) ',(nface4(idjd,m),m=1,4)
-         write(6,*)'xg4(1-4) ',(xg4(idjd,m),m=1,4)
-         write(6,*)'yg4(1-4) ',(yg4(idjd,m),m=1,4)
-         write(6,*)'wrk(1-4) ',(wrk(idjd,m),m=1,4)
+         write(6,*)'nface4(1-4) ',(nface4(idjd,mm),mm=1,4)
+         write(6,*)'xg4(1-4) ',(xg4(idjd,mm),mm=1,4)
+         write(6,*)'yg4(1-4) ',(yg4(idjd,mm),mm=1,4)
+         write(6,*)'wrk(1-4) ',(wrk(idjd,mm),mm=1,4)
       endif
       if(m_fly==1)then
         do iq=1,ifull_g

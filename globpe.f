@@ -547,6 +547,16 @@
         write(6,*) 'mfix >3 not allowed now'
         call MPI_Abort(MPI_COMM_WORLD,-1,ierr)	
       end if
+      nstagin=nstag    ! -ve nstagin gives swapping & its frequency
+      nstaguin=nstagu  ! only the sign of nstaguin matters (chooses scheme)
+      if(nstagin==5.or.nstagin<0)then
+        nstag=4
+        nstagu=4
+        if(nstagin==5)then  ! for backward compatability
+          nstagin=-1 
+          nstaguin=5  
+        endif
+      endif
 
 
       !--------------------------------------------------------------
@@ -596,24 +606,6 @@
       call MPI_Bcast(iss_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       call MPI_Bcast(iww_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       call MPI_Bcast(iee_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-    !  call MPI_Bcast(iwu_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-    !  call MPI_Bcast(isv_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-    !  call MPI_Bcast(ieu_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-    !  call MPI_Bcast(inv_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-    !  call MPI_Bcast(iwu2_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-    !  call MPI_Bcast(isv2_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-    !  call MPI_Bcast(ieu2_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-    !  call MPI_Bcast(inv2_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-    !  call MPI_Bcast(iev2_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-    !  call MPI_Bcast(inu2_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-    !  call MPI_Bcast(iwwu2_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,
-    ! &               ierr)
-    !  call MPI_Bcast(issv2_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,
-    ! &               ierr)
-    !  call MPI_Bcast(ieeu2_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,
-    ! &               ierr)
-    !  call MPI_Bcast(innv2_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,
-    ! &               ierr)
       allocate(dumd(npanels+1,16))
       if (myid==0) then
         dumd(:,1)=lwws_g
@@ -652,10 +644,6 @@
       lnee_g=dumd(:,15)
       lnne_g=dumd(:,16)
       deallocate(dumd)
-      !call MPI_Bcast(npann_g,14,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      !call MPI_Bcast(npane_g,14,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      !call MPI_Bcast(npanw_g,14,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      !call MPI_Bcast(npans_g,14,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       ! The following are only needed for the scale-selective filter
       if (mbd/=0) then
         call MPI_Bcast(x_g,ifull_g,MPI_DOUBLE_PRECISION,0,
@@ -672,22 +660,13 @@
       !--------------------------------------------------------------
       ! DEALLOCATE ifull_g ARRAYS WHERE POSSIBLE
       if (myid/=0) then
-        !deallocate(wts_g)
-        !deallocate(ax_g,bx_g,ay_g,by_g,az_g,bz_g)
-        !deallocate(f_g,fu_g,fv_g,dmdx_g,dmdy_g)
-        !deallocate(emu_g,emv_g)
-        !deallocate(rlatt_g,rlongg_g)
         deallocate(iw_g,is_g,ise_g,ie_g,ine_g,in_g,iwn_g,ien_g)
         deallocate(inw_g,isw_g,ies_g,iws_g)
         deallocate(inn_g,iss_g,iww_g,iee_g)
-        !deallocate(iwu_g,isv_g,ieu_g,inv_g)
-        !deallocate(iwu2_g,isv2_g,ieu2_g,inv2_g,iev2_g,inu2_g)
-        !deallocate(iwwu2_g,issv2_g,ieeu2_g,innv2_g)
         deallocate(lwws_g,lwss_g,lees_g,less_g,lwwn_g)
         deallocate(lwnn_g,leen_g,lenn_g,lsww_g)
         deallocate(lssw_g,lsee_g,lsse_g,lnww_g,lnnw_g)
         deallocate(lnee_g,lnne_g)
-        !deallocate(npann_g,npane_g,npanw_g,npans_g)
       end if
 
       
@@ -951,7 +930,7 @@
       if(nmi==0.and.nwt>0)then
 !       write out the first ofile data set
         if (myid==0) write(6,*)'calling outfile'
-        call outfile(20,rundate,nmi,nwrite,iaero)  ! which calls outcdf
+        call outfile(20,rundate,nmi,nwrite,iaero,nstagin)  ! which calls outcdf
         if(newtop<0) then
           if (myid==0) write(6,*) 'newtop<0 requires a stop here'
           ! just for outcdf to plot zs  & write fort.22
@@ -980,16 +959,6 @@
       hrs_dt = dtin/3600.       ! time step in hours
       mins_dt = nint(dtin/60.)  ! time step in minutes
       mtimer_in=mtimer
-      nstagin=nstag    ! -ve nstagin gives swapping & its frequency
-      nstaguin=nstagu  ! only the sign of nstaguin matters (chooses scheme)
-      if(nstagin==5.or.nstagin<0)then
-        nstag=4
-        nstagu=4
-        if(nstagin==5)then  ! for backward compatability
-          nstagin=-1 
-          nstaguin=5  
-        endif
-      endif
  
  
       !--------------------------------------------------------------
@@ -1022,8 +991,8 @@
       if(ngas>0) call interp_tracerflux(kdate,hrs_dt)
 
       ! DYNAMICS --------------------------------------------------------------
-      if(nstaguin>0.and.ktau>1)then   ! swapping here for nstaguin>0
-        if(nstagin<0.and.mod(ktau,abs(nstagin))==0)then
+      if(nstaguin>0.and.ktau>=1)then   ! swapping here for nstaguin>0
+        if(nstagin<0.and.mod(ktau-nstagoff,abs(nstagin))==0)then
           nstag=7-nstag  ! swap between 3 & 4
           nstagu=nstag
         endif
@@ -1202,8 +1171,8 @@
         savt(1:ifull,:)=t(1:ifull,:)  ! can be used in nonlin during next step
       end if
 
-      if(nstaguin<0.and.ktau>1)then  ! swapping here (lower down) for nstaguin<0
-        if(nstagin<0.and.mod(ktau,abs(nstagin))==0)then
+      if(nstaguin<0.and.ktau>=1)then  ! swapping here (lower down) for nstaguin<0
+        if(nstagin<0.and.mod(ktau-nstagoff,abs(nstagin))==0)then
           nstag=7-nstag  ! swap between 3 & 4
           nstagu=nstag
         end if
@@ -1256,6 +1225,19 @@
       ! nmlo=3   nmlo=2 plus 3D dynamics
       ! nmlo>9   Use external PCOM ocean model
 
+      if (abs(nmlo)>=2) then
+        ! RIVER ROUTING ------------------------------------------------------
+        call start_log(river_begin)
+        if (myid==0.and.nmaxpr==1) then
+          write(6,*) "Before river"
+        end if
+        call mlorouter
+        if (myid==0.and.nmaxpr==1) then
+          write(6,*) "After river"
+        end if
+        call end_log(river_end)
+      end if
+
       ! DYNAMICS --------------------------------------------------------------
       if (abs(nmlo)>=3) then
         call start_log(waterdynamics_begin)
@@ -1280,17 +1262,6 @@
           write(6,*) "After MLO diffusion"
         end if
         call end_log(waterdiff_end)
-
-        ! RIVER ROUTING ------------------------------------------------------
-        call start_log(river_begin)
-        if (myid==0.and.nmaxpr==1) then
-          write(6,*) "Before river"
-        end if
-        call mlorouter
-        if (myid==0.and.nmaxpr==1) then
-          write(6,*) "After river"
-        end if
-        call end_log(river_end)
       end if
 
       ! ***********************************************************************
@@ -1836,7 +1807,7 @@
       
       if(ktau==ntau.or.mod(ktau,nwt)==0)then
         call log_off()
-        call outfile(20,rundate,nmi,nwrite,iaero)  ! which calls outcdf
+        call outfile(20,rundate,nmi,nwrite,iaero,nstagin)  ! which calls outcdf
  
         if(ktau==ntau.and.irest==1) then
 #ifdef simple_timer
@@ -1844,7 +1815,7 @@
           call end_log(maincalc_end)
 #endif
 !         write restart file
-          call outfile(19,rundate,nmi,nwrite,iaero)
+          call outfile(19,rundate,nmi,nwrite,iaero,nstagin)
           if(myid==0)
      &      write(6,*)'finished writing restart file in outfile'
 #ifdef simple_timer
@@ -2226,7 +2197,7 @@
       data ndept/1/,nt_adv/7/,mh_bs/4/
 !     Horiz wind staggering options
 c     data nstag/99/,nstagu/99/
-      data nstag/-10/,nstagu/-1/
+      data nstag/-10/,nstagu/-1/,nstagoff/0/
 !     Vertical advection options
       data nvad/-4/,nvadh/2/,ntvdr/1/
 !     Horizontal mixing options (now in initialparm)
