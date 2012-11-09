@@ -577,10 +577,11 @@
         call setxyz(il_g,rlong0,rlat0,schmidt,x_g,y_g,z_g,wts_g,ax_g,
      &     ay_g,az_g,bx_g,by_g,bz_g,xx4,yy4,myid)
       end if
+      allocate(dume(iquad,iquad,2))
+      allocate(dumd(npanels+1,16))
       ! Broadcast the following global arrays so that they can be
       ! decomposed into local arrays with ccmpi_setup
       call MPI_Bcast(ds,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      allocate(dume(iquad,iquad,2))
       if (myid==0) then
         dume(:,:,1)=xx4
         dume(:,:,2)=yy4
@@ -589,7 +590,6 @@
      &               MPI_COMM_WORLD,ierr)
       xx4=dume(:,:,1)
       yy4=dume(:,:,2)
-      deallocate(dume)
       call MPI_Bcast(iw_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       call MPI_Bcast(is_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       call MPI_Bcast(ise_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
@@ -606,7 +606,6 @@
       call MPI_Bcast(iss_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       call MPI_Bcast(iww_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       call MPI_Bcast(iee_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      allocate(dumd(npanels+1,16))
       if (myid==0) then
         dumd(:,1)=lwws_g
         dumd(:,2)=lwss_g
@@ -643,7 +642,6 @@
       lnnw_g=dumd(:,14)
       lnee_g=dumd(:,15)
       lnne_g=dumd(:,16)
-      deallocate(dumd)
       ! The following are only needed for the scale-selective filter
       if (mbd/=0) then
         call MPI_Bcast(x_g,ifull_g,MPI_DOUBLE_PRECISION,0,
@@ -654,6 +652,8 @@
      &                 MPI_COMM_WORLD,ierr)
         call MPI_Bcast(em_g,ifull_g,MPI_REAL,0,MPI_COMM_WORLD,ierr)
       end if
+      deallocate(dumd)
+      deallocate(dume)
       call ccmpi_setup()
 
       

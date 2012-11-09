@@ -38,7 +38,7 @@ real, parameter :: rhosn  =330.     ! density snow (kg m^-3)
 real, parameter :: rhoic  =900.     ! density ice  (kg m^-3)
 real, parameter :: grav   =9.80616  ! gravitational constant (m s^-2)
 real, parameter :: delphi =150.     ! horizontal diffusion reduction factor gradient
-real, save      :: ocnsmag=2.       ! horizontal diffusion (2. in Griffies (2000), 1.-1.4 in POM (Mellor 2004))
+real, save      :: ocnsmag=1.       ! horizontal diffusion (2. in Griffies (2000), 1.-1.4 in POM (Mellor 2004))
 real, save      :: ocneps =0.1      ! semi-implicit off-centring term
 
 contains
@@ -814,7 +814,7 @@ real, dimension(5), parameter :: coeff = (/ 1., 2., 5., 14., 42. /) ! Parameters
 ! use the same index and map factor arrays from the
 ! atmospheric dynamical core.
 
-if (all(ee<0.5)) return
+if (all(ee<=0.5)) return
 
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: Start"
@@ -1442,8 +1442,7 @@ odum=odum+icv(isv)*0.25*(stwgt(isv,3)-stwgt(isv,4))
 ! Use SOR as it converge faster that Conjugate Gradient (problems with coastlines?)
 ! and it is easy to include the non-linear terms and constraints.  Possibly combine
 ! with a multi-grid method to improve convergence at large scales, although it is
-! more likely that they dynamical core will be replaced with mass flux scheme when
-! it is ready
+! more likely that the dynamical core will be replaced with JLMs mass flux scheme
 itsave2=0
 itserr2=9.E9
 itstest=1

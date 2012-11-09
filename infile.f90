@@ -21,6 +21,7 @@ integer, dimension(:), allocatable, save :: pnoff
 integer, dimension(:,:), allocatable, save :: pioff,pjoff
 integer, save :: mynproc,fnproc
 integer, save :: pil_g,pjl_g,pil,pjl,pnpan
+integer, save :: ip_comm,ip_commold
 logical, save :: ptest
       
 contains
@@ -146,12 +147,13 @@ integer, intent(out) :: ier
 integer(kind=2), dimension(pil*pjl*pnpan) :: ivar
 integer, dimension(3) :: start,count
 integer, dimension(MPI_STATUS_SIZE) :: status
-integer idv,ipf,ip,jpf,jpmax,jpmod,n
+integer idv,ipf,ip,jpf,jpmax,iptst2,n
 integer nctype,ierb,ca,cb
-integer no,i,j,iq,iqi
+integer no,i,j,iq,iqi,lcomm
 integer :: itag=0
 real, dimension(:), intent(inout), optional :: var
 real, dimension(pil*pjl*pnpan) :: rvar
+real, dimension(pil*pjl*pnpan*nproc) :: gvar 
 real addoff,sf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
@@ -193,10 +195,17 @@ end if
 start = (/ 1, 1, iarchi /)
 count = (/ pil, pjl*pnpan, 1 /)
 ier=0
+
+iptst2=mod(fnproc,nproc)
       
 do ipf=0,mynproc-1
   rvar=0.
   ivar=0
+
+  jpmax=nproc
+  if (ipf==mynproc-1.and.iptst2/=0) then
+    jpmax=iptst2
+  end if
 
   ! get variable idv
   idv=ncvid(pncid(ipf),name,ier)
@@ -224,47 +233,22 @@ do ipf=0,mynproc-1
         call MPI_Abort(MPI_COMM_WORLD,-1,ierb)
     end select
     call ncmsg("hr1p",ier)
-    ! unpack data
+    ! unpack compressed data
     rvar=rvar*sf+addoff
   end if ! ier
       
   if (qtest) then
     ! e.g., restart file
     var=rvar
-  !else if (mod(fnproc,nproc)==0) then
-  !  ! e.g., mesonest file
-  !  ! symmetric file distribution over processors
-  ! ...
-  ! call MPI_Gather
-  ! ...
   else
     ! e.g., mesonest file
-    ! asymmetric file distribution over processors
-
-    ! recompose grid
+    
+    lcomm=MPI_COMM_WORLD
+    if (jpmax<nproc) lcomm=ip_comm
+  
+    call MPI_Gather(rvar,pil*pjl*pnpan,MPI_REAL,gvar,pil*pjl*pnpan,MPI_REAL,0,lcomm,ierb)
     if (myid==0) then
-      ! recompose own grid
-      ip=ipf*nproc
-      do n=0,pnpan-1
-        no=n-pnoff(ip)+1
-        ca=pioff(ip,no)
-        cb=pjoff(ip,no)+no*pil_g
-        do j=1,pjl
-          iq=ca+(j+cb-1)*pil_g
-          iqi=(j-1)*pil+n*pil*pjl
-          var(iq+1:iq+pil)=rvar(iqi+1:iqi+pil)
-        end do
-      end do
-      ! recompose grid from other processors
-      ! Here we use Recv and SSend as it tolerates
-      ! an uneven distribution of files per processor
-      jpmax=nproc
-      jpmod=mod(fnproc,nproc)
-      if (ipf==mynproc-1.and.jpmod/=0) then
-        jpmax=jpmod
-      end if
-      do jpf=1,jpmax-1
-        call MPI_Recv(rvar,pil*pjl*pnpan,MPI_REAL,jpf,itag,MPI_COMM_WORLD,status,ierb)
+      do jpf=0,jpmax-1
         ip=ipf*nproc+jpf
         do n=0,pnpan-1
           no=n-pnoff(ip)+1
@@ -272,13 +256,11 @@ do ipf=0,mynproc-1
           cb=pjoff(ip,no)+no*pil_g
           do j=1,pjl
             iq=ca+(j+cb-1)*pil_g
-            iqi=(j-1)*pil+n*pil*pjl
-            var(iq+1:iq+pil)=rvar(iqi+1:iqi+pil)
+            iqi=(j-1)*pil+n*pil*pjl+jpf*pil*pjl*pnpan
+            var(iq+1:iq+pil)=gvar(iqi+1:iqi+pil)
           end do
         end do
       end do
-    else
-      call MPI_SSend(rvar,pil*pjl*pnpan,MPI_REAL,0,itag,MPI_COMM_WORLD,ierb)
     end if
   end if ! qtest
 
@@ -411,12 +393,13 @@ integer, intent(out) :: ier
 integer(kind=2), dimension(pil*pjl*pnpan) :: ivar
 integer, dimension(4) :: start,count
 integer, dimension(MPI_STATUS_SIZE) :: status
-integer idv,ipf,ip,jpf,jpmax,jpmod,n
+integer idv,ipf,ip,jpf,jpmax,iptst2,n
 integer nctype,ierb,ca,cb
-integer no,i,j,iq,iqi
+integer no,i,j,iq,iqi,lcomm
 integer :: itag=0
 real, dimension(:), intent(inout), optional :: var
 real, dimension(pil*pjl*pnpan) :: rvar
+real, dimension(pil*pjl*pnpan*nproc) :: gvar
 real addoff,sf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
@@ -457,10 +440,17 @@ end if
 start = (/ 1, 1, kk, iarchi /)
 count = (/ pil, pjl*pnpan, 1, 1 /)
 ier=0
+
+iptst2=mod(fnproc,nproc)
       
 do ipf=0,mynproc-1
   rvar=0.
   ivar=0
+
+  jpmax=nproc
+  if (ipf==mynproc-1.and.iptst2/=0) then
+    jpmax=iptst2
+  end if
 
   ! get variable idv
   idv=ncvid(pncid(ipf),name,ier)
@@ -495,41 +485,15 @@ do ipf=0,mynproc-1
   if (qtest) then
     ! expected restart file
     var=rvar
-  !else if (mod(fnproc,nproc)==0) then
-  !  ! expected mesonest file
-  !  ! symmetric file distribution over processors
-  !
-  ! call MPI_Gather(rvar,pil*pjl*pnpan,MPI_REAL,gvar,pil*pjl*pnpan,if_comm,ierb)
-  ! if (myid==0) then
-  !
-  ! end if
-  !
   else
     ! expected mesonest file
-    ! asymmetric file distribution over processors
 
-    ! recompose grid
+    lcomm=MPI_COMM_WORLD
+    if (jpmax<nproc) lcomm=ip_comm
+  
+    call MPI_Gather(rvar,pil*pjl*pnpan,MPI_REAL,gvar,pil*pjl*pnpan,MPI_REAL,0,lcomm,ierb)
     if (myid==0) then
-      ! recompose own grid
-      ip=ipf*nproc
-      do n=0,pnpan-1
-        no=n-pnoff(ip)+1
-        ca=pioff(ip,no)
-        cb=pjoff(ip,no)+no*pil_g
-        do j=1,pjl
-          iq=ca+(j+cb-1)*pil_g
-          iqi=(j-1)*pil+n*pil*pjl
-          var(iq+1:iq+pil)=rvar(iqi+1:iqi+pil)
-        end do
-      end do
-      ! recompose grids from other processors
-      jpmax=nproc
-      jpmod=mod(fnproc,nproc)
-      if (ipf==mynproc-1.and.jpmod/=0) then
-        jpmax=jpmod
-      end if
-      do jpf=1,jpmax-1
-        call MPI_Recv(rvar,pil*pjl*pnpan,MPI_REAL,jpf,itag,MPI_COMM_WORLD,status,ierb)
+      do jpf=0,jpmax-1
         ip=ipf*nproc+jpf
         do n=0,pnpan-1
           no=n-pnoff(ip)+1
@@ -537,13 +501,11 @@ do ipf=0,mynproc-1
           cb=pjoff(ip,no)+no*pil_g
           do j=1,pjl
             iq=ca+(j+cb-1)*pil_g
-            iqi=(j-1)*pil+n*pil*pjl
-            var(iq+1:iq+pil)=rvar(iqi+1:iqi+pil)
+            iqi=(j-1)*pil+n*pil*pjl+jpf*pil*pjl*pnpan
+            var(iq+1:iq+pil)=gvar(iqi+1:iqi+pil)
           end do
         end do
       end do
-    else
-      call MPI_SSend(rvar,pil*pjl*pnpan,MPI_REAL,0,itag,MPI_COMM_WORLD,ierb)
     end if
   end if ! qtest
 
@@ -595,6 +557,7 @@ integer, dimension(5) :: idum
 integer, intent(out) :: ncid
 integer ierr,resid,is,ipf,dmode
 integer ipin,nxpr,nypr,dumr
+integer ltst
 character(len=*), intent(in) :: ifile
 character(len=170) :: pfile
 character(len=7) :: fdecomp
@@ -742,7 +705,11 @@ do ipf=is,mynproc-1
     call ncmsg("pfile open",ierr)
   end if
 end do
-     
+
+ltst=0
+if (myid<resid) ltst=1
+call MPI_Comm_Split(MPI_COMM_WORLD,ltst,myid,ip_comm,ierr)
+    
 return
 end subroutine histopen
       
@@ -761,6 +728,7 @@ if (allocated(pncidold)) then
   do ipf=0,plen-1
     ierr=nf_close(pncidold(ipf))
   end do
+  call MPI_Comm_Free(ip_commold,ierr)
   deallocate(pncidold)
 end if
       
@@ -768,6 +736,7 @@ if (allocated(pncid)) then
   plen=size(pncid)
   allocate(pncidold(0:plen-1))
   pncidold=pncid
+  ip_commold=ip_comm
 end if
 
 return
