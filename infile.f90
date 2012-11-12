@@ -203,10 +203,10 @@ do ipf=0,mynproc-1
   ivar=0
 
   jpmax=nproc
-  if (ipf==mynproc-1.and.iptst2/=0) then
+  if (ipf==mynproc-1.and.myid<iptst2) then
     jpmax=iptst2
   end if
-
+  
   ! get variable idv
   idv=ncvid(pncid(ipf),name,ier)
   if(ier/=0)then
@@ -448,7 +448,7 @@ do ipf=0,mynproc-1
   ivar=0
 
   jpmax=nproc
-  if (ipf==mynproc-1.and.iptst2/=0) then
+  if (ipf==mynproc-1.and.myid<iptst2) then
     jpmax=iptst2
   end if
 

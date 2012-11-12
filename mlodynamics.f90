@@ -11,6 +11,8 @@
 
 ! Ocean and sea-ice dynamics are based on the R-grid used by CCAM
 
+! TO DO: Implement multi-grid solver for large numbers of processors
+
 module mlodynamics
 
 implicit none
@@ -34,6 +36,7 @@ integer, parameter :: mstagf =0     ! alternating staggering (0=off left, -1=off
 integer, parameter :: koff   =1     ! time split stagger relative to A-grid (koff=0) or C-grid (koff=1)
 integer, parameter :: nf     =2     ! power for horizontal diffusion reduction factor
 integer, parameter :: itnmax =6     ! number of interations for staggering
+integer, parameter :: itrsol =0     ! Iterative solver (0=SOR, 1=Multi-grid)
 real, parameter :: rhosn  =330.     ! density snow (kg m^-3)
 real, parameter :: rhoic  =900.     ! density ice  (kg m^-3)
 real, parameter :: grav   =9.80616  ! gravitational constant (m s^-2)
@@ -752,31 +755,27 @@ common/leap_yr/leap  ! 1 to allow leap years
 integer iq,ll,ii,ierr,totits
 integer jyear,jmonth,jday,jhour,jmin,mins
 integer tyear,jstart,iip,iim
-integer itstest,mm,itc,itsave1,itsave2
-integer pos(2)
+integer itc
 integer, dimension(ifull,wlev) :: nface
-real maxloclseta,maxglobseta,maxloclip,maxglobip
+real maxglobseta,maxglobip
 real delpos,delneg,alph_p,fjd
-real gd,ci,itserr1,itserr2
-real, dimension(2) :: alpha
 real, dimension(ifull+iextra) :: neta,pice,imass
 real, dimension(ifull+iextra) :: nfracice,ndic,ndsn,nsto,niu,niv,nis,ndum
 real, dimension(ifull+iextra) :: snu,sou,spu,squ,sru,snv,sov,spv,sqv,srv
 real, dimension(ifull+iextra) :: ibu,ibv,icu,icv,spnet,oeu,oev
 real, dimension(ifull) :: i_u,i_v,i_sto,i_sal,rhobaru,rhobarv
-real, dimension(ifull) :: pdiv,sdiv,div,odiv,seta,w_e
-real, dimension(ifull) :: pdivb,sdivb,divb,odivb,xps
+real, dimension(ifull) :: pdiv,sdiv,div,odiv,w_e
+real, dimension(ifull) :: pdivb,sdivb,odivb,xps
 real, dimension(ifull) :: tnu,tsu,tev,twv,tee,tnn,rhou,rhov
 real, dimension(ifull) :: dpsdxu,dpsdyu,dpsdxv,dpsdyv
 real, dimension(ifull) :: dttdxu,dttdyu,dttdxv,dttdyv
 real, dimension(ifull) :: detadxu,detadyu,detadxv,detadyv
 real, dimension(ifull) :: dipdxu,dipdyu,dipdxv,dipdyv
 real, dimension(ifull) :: au,bu,cu,av,bv,cv,odum
-real, dimension(ifull) :: nip,ipmax,imu,imv
+real, dimension(ifull) :: ipmax,imu,imv
 real, dimension(ifull) :: sue,suw,svn,svs,snuw,snvs
 real, dimension(ifull) :: pue,puw,pvn,pvs
 real, dimension(ifull) :: gamm
-real, dimension(2) :: dume,dumf
 real, dimension(ifull+iextra,wlev+1) :: eou,eov
 real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns,mps
 real, dimension(ifull+iextra,wlev) :: cou,cov,cow
@@ -797,11 +796,10 @@ real*8, dimension(ifull,wlev) :: x3d,y3d,z3d
 logical, dimension(ifull+iextra) :: wtr
 logical lleap
 
-integer, parameter :: llmax      = 400 ! Iterations for calculating surface height
 integer, parameter :: nxtrrho    = 1   ! Estimate rho at t+1 (0=off, 1=on)
+integer, parameter :: llmax      = 400 ! Iterations for calculating surface height
 real, parameter :: tol    = 5.E-5      ! Tolerance for SOR solver (water)
 real, parameter :: itol   = 2.E1       ! Tolerance for SOR solver (ice)
-real, dimension(5), parameter :: coeff = (/ 1., 2., 5., 14., 42. /) ! Parameters for Talyor expansion
 
 ! new z levels for including free surface eta (effectively sigma-depth levels)
 ! newz=-eta+oldz*(1+eta/maxdepth)
@@ -1439,154 +1437,16 @@ odum=odum+icv(isv)*0.25*(stwgt(isv,3)-stwgt(isv,4))
 
 ! Iteratively solve for free surface height, eta
 ! Iterative loop to estimate ice 'pressure'
-! Use SOR as it converge faster that Conjugate Gradient (problems with coastlines?)
-! and it is easy to include the non-linear terms and constraints.  Possibly combine
-! with a multi-grid method to improve convergence at large scales, although it is
-! more likely that the dynamical core will be replaced with JLMs mass flux scheme
-itsave2=0
-itserr2=9.E9
-itstest=1
-itc=0
-alpha(1)=0.9 ! for ocean
-alpha(2)=0.9 ! for sea-ice
-do ll=1,llmax
-
-  dumc(1:ifull,1)=neta(1:ifull)
-  dumc(1:ifull,2)=ipice(1:ifull)
-  call bounds(dumc(:,1:2),corner=.true.,gmode=1)
-  neta=dumc(:,1)
-  ipice=dumc(:,2)
-
-  ! ocean
-  ! 9-point version -----------------------------------------------
-
-  snu(1:ifull)=sru(1:ifull)*0.25*(stwgt(1:ifull,1)*(neta(in)+neta(ine)-neta(ie)) &
-                                 +stwgt(1:ifull,2)*(neta(ie)-neta(is)-neta(ise)))/ds
-  snv(1:ifull)=srv(1:ifull)*0.25*(stwgt(1:ifull,3)*(neta(ie)+neta(ien)-neta(in)) &
-                                 +stwgt(1:ifull,4)*(neta(in)-neta(iw)-neta(iwn)))/ds
-  snuw=sru(iwu)*0.25*(stwgt(iwu,1)*(neta(inw)+neta(in)-neta(iw)) &
-                     +stwgt(iwu,2)*(neta(iw)-neta(isw)-neta(is)))/ds
-  snvs=srv(isv)*0.25*(stwgt(isv,3)*(neta(ies)+neta(ie)-neta(is)) &
-                     +stwgt(isv,4)*(neta(is)-neta(iws)-neta(iw)))/ds
-  ! For now, assume Boussinesq fluid and treat density in continuity equation as constant
-  snu(1:ifull)=snu(1:ifull)+pue*max(neta(ie)+dd(ie),0.)+sue*neta(ie)
-  snv(1:ifull)=snv(1:ifull)+pvn*max(neta(in)+dd(in),0.)+svn*neta(in)
-  snuw=snuw+puw*max(neta(iw)+dd(iw),0.)+suw*neta(iw)
-  snvs=snvs+pvs*max(neta(is)+dd(is),0.)+svs*neta(is)
-  
-  div=(snu(1:ifull)-snuw+snv(1:ifull)-snvs)*em(1:ifull)*em(1:ifull)/ds
-  divb=(snu(1:ifull)*ddu(1:ifull)-snuw*ddu(iwu)+snv(1:ifull)*ddv(1:ifull)-snvs*ddv(isv))*em(1:ifull)*em(1:ifull)/ds
-
-  ! solve for quadratic expression of neta^(t+1)
-  ! div^(t+1)=(div+odiv+pdiv*(dd+neta)+sdiv*neta)*neta+(divb+odivb+pdivb*(dd+neta)+sdivb*neta)
-  ! neta^(t+1)+0.5*(1+ocneps)*dt*div^(t+1)=xps
-  au=-(1.+ocneps)*0.5*dt*(pdiv+sdiv)
-  bu=-(1.+(1.+ocneps)*0.5*dt*(div+odiv+pdiv*dd(1:ifull)+pdivb+sdivb))
-  cu=xps-(1.+ocneps)*0.5*dt*(divb+odivb+pdivb*dd(1:ifull))
-  !where (abs(au)>1.E-3)
-  !  seta=-neta(1:ifull)+0.5*(-bu-sqrt(bu*bu-4.*au*cu))/au
-  !elsewhere
-    ! the following is a Talyor expansion of the above expression
-    ! and should be valid for au<1.E-2
-    bv=bu
-    cv=cu
-    seta=-neta(1:ifull)-cv/bv
-    do mm=1,5
-      bv=bv*bu*bu
-      cv=cv*au*cu
-      seta=seta-coeff(mm)*cv/bv
-    end do
-  !end where
-  
-  ! The following expression limits the minimum depth
-  ! (should not occur for typical eta values)
-  seta=max(seta,-dd(1:ifull)-neta(1:ifull)) ! this should become a land point
-  seta=seta*ee(1:ifull)
-  neta(1:ifull)=alpha(1)*seta+neta(1:ifull)
-
-  maxloclseta=maxval(abs(seta))
-
-  ! ice
-  ! 9-point version -------------------------------------------------
- 
-  !dipdxu=(ip(ie)-ip(1:ifull))*emu(1:ifull)/ds
-  !dipdyu=spu(1:ifull)*emu(1:ifull)/(ds*icu(1:ifull))
-  !dipdxv=spv(1:ifull)*emv(1:ifull)/(ds*icv(1:ifull))
-  !dipdyv=(ip(in)-ip(1:ifull))*emv(1:ifull)/ds
-
-  !snu(1:ifull)=niu(1:ifull)+ibu*dipdxu+icu*dipdyu
-  !snv(1:ifull)=niv(1:ifull)+ibv*dipdyv+icv*dipdxv
-  !call boundsuv(snu,snv,gmode=1)
-    
-  ! new divergence at t+1
-  !div=(snu(1:ifull)/emu(1:ifull)-snu(iwu)/emu(iwu)+snv(1:ifull)/emv(1:ifull)-snv(isv)/emv(isv)) &
-  !    *em(1:ifull)*em(1:ifull)/ds
-
-  snu(1:ifull)=icu(1:ifull)*0.25*(stwgt(1:ifull,1)*(ipice(in)+ipice(ine)-ipice(ie)) &
-                                 +stwgt(1:ifull,2)*(ipice(ie)-ipice(is)-ipice(ise)))
-  snv(1:ifull)=icv(1:ifull)*0.25*(stwgt(1:ifull,3)*(ipice(ie)+ipice(ien)-ipice(in)) &
-                                 +stwgt(1:ifull,4)*(ipice(in)-ipice(iw)-ipice(iwn)))
-  snuw=icu(iwu)*0.25*(stwgt(iwu,1)*(ipice(inw)+ipice(in)-ipice(iw)) &
-                     +stwgt(iwu,2)*(ipice(iw)-ipice(isw)-ipice(is)))
-  snvs=icv(isv)*0.25*(stwgt(isv,3)*(ipice(ies)+ipice(ie)-ipice(is)) &
-                     +stwgt(isv,4)*(ipice(is)-ipice(iws)-ipice(iw)))
-
-  ! update ice pressure to remove negative divergence
-  ! (assume change in imass is small)
-  where (odum/=0..and.sicedep>0.01)
-    nip=((niu(1:ifull)/emu(1:ifull)-niu(iwu)/emu(iwu))*ds    &
-        +ibu(1:ifull)*ipice(ie)+ibu(iwu)*ipice(iw)           &
-        +snu(1:ifull)-snuw                                   &
-        +(niv(1:ifull)/emv(1:ifull)-niv(isv)/emv(isv))*ds    &
-        +ibv(1:ifull)*ipice(in)+ibv(isv)*ipice(is)           &
-        +snv(1:ifull)-snvs)/odum
-  elsewhere
-    nip=0.
-  end where
-
-  select case(icemode)
-    case(2)
-      ! cavitating fluid
-      nip=max(min(nip,ipmax),0.)
-    case(1)
-      ! incompressible fluid
-      nip=max(nip,0.)
-    case DEFAULT
-      ! free drift
-      nip=0.
-  end select
-  seta=nip-ipice(1:ifull)
-  ipice(1:ifull)=alpha(2)*nip+(1.-alpha(2))*ipice(1:ifull)
-
-  maxloclip=maxval(abs(seta))
-
-  if (ll>=itstest) then
-    dume(1)=maxloclseta
-    dume(2)=maxloclip
-    call MPI_AllReduce(dume,dumf,2,MPI_REAL,MPI_MAX,mlo_comm,ierr)
-    maxglobseta=dumf(1)
-    maxglobip=dumf(2)
-
-    if (maxglobseta<tol.and.maxglobip<itol) exit
-    
-    itsave1=itsave2
-    itsave2=ll
-    itserr1=itserr2
-    itserr2=log10(maxglobseta)
-    
-    gd=(itserr2-itserr1)/real(itsave2-itsave1)
-    ci=itserr2-gd*real(itsave2)
-    if (gd/=0.) then
-      itstest=nint((log10(tol)-ci)/gd)
-      itstest=max(itstest,ll+1)
-    else
-      itstest=ll+1
-    end if
-    itc=itc+1    
-  end if
-
-end do
-totits=ll
+select case(itrsol)
+  case(0)
+    call mlosor(llmax,tol,itol,neta,sru,srv,sue,svn,suw,svs,pue,pvn,puw,pvs,pdiv,pdivb,sdiv,sdivb,odiv,odivb,xps, &
+                ipice,ibu,ibv,icu,icv,niu,niv,odum,sicedep,ipmax,totits,itc,maxglobseta,maxglobip)
+  case(1)
+    !call mlomgsor
+  case default
+    write(6,*) "ERROR: Unknown option itrsol ",itrsol
+    stop
+end select
 
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: free surface conservation"
@@ -4566,5 +4426,202 @@ dumc(1:ifull)=max(dumc(1:ifull),0.)
   
 return
 end subroutine upwindadv
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Use SOR to solve for free surface and ice pressure
+
+subroutine mlosor(llmax,tol,itol,neta,sru,srv,sue,svn,suw,svs,pue,pvn,puw,pvs,pdiv,pdivb,sdiv,sdivb,odiv,odivb,xps, &
+                  ipice,ibu,ibv,icu,icv,niu,niv,odum,sicedep,ipmax,totits,itc,maxglobseta,maxglobip)
+
+use cc_mpi
+use indices_m
+use map_m
+
+implicit none
+
+include 'newmpar.h'
+include 'mpif.h'
+include 'parm.h'
+
+integer, intent(in) :: llmax
+integer, intent(out) :: totits,itc
+integer itstest,itsave1,itsave2,ll,mm,ierr
+real, intent(in) :: tol,itol
+real, intent(out) :: maxglobseta,maxglobip
+real maxloclseta,maxloclip,itserr1,itserr2
+real gd,ci
+real, dimension(ifull+iextra), intent(inout) :: neta
+real, dimension(ifull+iextra), intent(in) :: sru,srv
+real, dimension(ifull), intent(in) :: sue,svn,suw,svs
+real, dimension(ifull), intent(in) :: pue,pvn,puw,pvs
+real, dimension(ifull), intent(in) :: pdiv,pdivb,sdiv,sdivb,odiv,odivb,xps
+real, dimension(ifull+iextra), intent(inout) :: ipice
+real, dimension(ifull+iextra), intent(in) :: ibu,ibv,icu,icv
+real, dimension(ifull+iextra), intent(in) :: niu,niv
+real, dimension(ifull), intent(in) :: odum,sicedep
+real, dimension(ifull), intent(in) :: ipmax
+real, dimension(ifull) :: snu,snv,snuw,snvs
+real, dimension(ifull) :: div,divb,seta
+real, dimension(ifull) :: au,bu,cu,bv,cv
+real, dimension(ifull) :: nip
+real, dimension(ifull+iextra,2) :: dumc
+real, dimension(2) :: alpha
+real, dimension(2) :: dume,dumf
+
+real, dimension(5), parameter :: coeff = (/ 1., 2., 5., 14., 42. /) ! Parameters for Talyor expansion
+
+! Use SOR as it converge faster that Conjugate Gradient (problems with coastlines?)
+! and it is easy to include the non-linear terms and constraints.  Possibly combine
+! with a multi-grid method to improve convergence at large scales, although it is
+! more likely that the dynamical core will be replaced with JLM's mass flux scheme
+itsave2=0
+itserr2=9.E9
+itstest=1
+itc=0
+alpha(1)=0.9 ! for ocean
+alpha(2)=0.9 ! for sea-ice
+do ll=1,llmax
+
+  dumc(1:ifull,1)=neta(1:ifull)
+  dumc(1:ifull,2)=ipice(1:ifull)
+  call bounds(dumc(:,1:2),corner=.true.,gmode=1)
+  neta=dumc(:,1)
+  ipice=dumc(:,2)
+
+  ! ocean
+  ! 9-point version -----------------------------------------------
+  ! 9-point version is valid for along coastlines for which some of the gradients
+  ! are undefined.
+
+  snu(1:ifull)=sru(1:ifull)*0.25*(stwgt(1:ifull,1)*(neta(in)+neta(ine)-neta(ie)) &
+                                 +stwgt(1:ifull,2)*(neta(ie)-neta(is)-neta(ise)))/ds
+  snv(1:ifull)=srv(1:ifull)*0.25*(stwgt(1:ifull,3)*(neta(ie)+neta(ien)-neta(in)) &
+                                 +stwgt(1:ifull,4)*(neta(in)-neta(iw)-neta(iwn)))/ds
+  snuw=sru(iwu)*0.25*(stwgt(iwu,1)*(neta(inw)+neta(in)-neta(iw)) &
+                     +stwgt(iwu,2)*(neta(iw)-neta(isw)-neta(is)))/ds
+  snvs=srv(isv)*0.25*(stwgt(isv,3)*(neta(ies)+neta(ie)-neta(is)) &
+                     +stwgt(isv,4)*(neta(is)-neta(iws)-neta(iw)))/ds
+  ! For now, assume Boussinesq fluid and treat density in continuity equation as constant
+  snu(1:ifull)=snu(1:ifull)+pue*max(neta(ie)+dd(ie),0.)+sue*neta(ie)
+  snv(1:ifull)=snv(1:ifull)+pvn*max(neta(in)+dd(in),0.)+svn*neta(in)
+  snuw=snuw+puw*max(neta(iw)+dd(iw),0.)+suw*neta(iw)
+  snvs=snvs+pvs*max(neta(is)+dd(is),0.)+svs*neta(is)
+  
+  div=(snu(1:ifull)-snuw+snv(1:ifull)-snvs)*em(1:ifull)*em(1:ifull)/ds
+  divb=(snu(1:ifull)*ddu(1:ifull)-snuw*ddu(iwu)+snv(1:ifull)*ddv(1:ifull)-snvs*ddv(isv))*em(1:ifull)*em(1:ifull)/ds
+
+  ! solve for quadratic expression of neta^(t+1)
+  ! div^(t+1)=(div+odiv+pdiv*(dd+neta)+sdiv*neta)*neta+(divb+odivb+pdivb*(dd+neta)+sdivb*neta)
+  ! neta^(t+1)+0.5*(1+ocneps)*dt*div^(t+1)=xps
+  au=-(1.+ocneps)*0.5*dt*(pdiv+sdiv)
+  bu=-(1.+(1.+ocneps)*0.5*dt*(div+odiv+pdiv*dd(1:ifull)+pdivb+sdivb))
+  cu=xps-(1.+ocneps)*0.5*dt*(divb+odivb+pdivb*dd(1:ifull))
+  !where (abs(au)>1.E-3)
+  !  seta=-neta(1:ifull)+0.5*(-bu-sqrt(bu*bu-4.*au*cu))/au
+  !elsewhere
+    ! the following is a Talyor expansion of the above expression
+    ! and should be valid for au<1.E-2
+    bv=bu
+    cv=cu
+    seta=-neta(1:ifull)-cv/bv
+    do mm=1,5
+      bv=bv*bu*bu
+      cv=cv*au*cu
+      seta=seta-coeff(mm)*cv/bv
+    end do
+  !end where
+  
+  ! The following expression limits the minimum depth
+  ! (should not occur for typical eta values)
+  seta=max(seta,-dd(1:ifull)-neta(1:ifull)) ! this should become a land point
+  seta=seta*ee(1:ifull)
+  neta(1:ifull)=alpha(1)*seta+neta(1:ifull)
+
+  maxloclseta=maxval(abs(seta))
+
+  ! ice
+  ! 9-point version -------------------------------------------------
+ 
+  !dipdxu=(ip(ie)-ip(1:ifull))*emu(1:ifull)/ds
+  !dipdyu=spu(1:ifull)*emu(1:ifull)/(ds*icu(1:ifull))
+  !dipdxv=spv(1:ifull)*emv(1:ifull)/(ds*icv(1:ifull))
+  !dipdyv=(ip(in)-ip(1:ifull))*emv(1:ifull)/ds
+
+  !snu(1:ifull)=niu(1:ifull)+ibu*dipdxu+icu*dipdyu
+  !snv(1:ifull)=niv(1:ifull)+ibv*dipdyv+icv*dipdxv
+  !call boundsuv(snu,snv,gmode=1)
+    
+  ! new divergence at t+1
+  !div=(snu(1:ifull)/emu(1:ifull)-snu(iwu)/emu(iwu)+snv(1:ifull)/emv(1:ifull)-snv(isv)/emv(isv)) &
+  !    *em(1:ifull)*em(1:ifull)/ds
+
+  snu(1:ifull)=icu(1:ifull)*0.25*(stwgt(1:ifull,1)*(ipice(in)+ipice(ine)-ipice(ie)) &
+                                 +stwgt(1:ifull,2)*(ipice(ie)-ipice(is)-ipice(ise)))
+  snv(1:ifull)=icv(1:ifull)*0.25*(stwgt(1:ifull,3)*(ipice(ie)+ipice(ien)-ipice(in)) &
+                                 +stwgt(1:ifull,4)*(ipice(in)-ipice(iw)-ipice(iwn)))
+  snuw=icu(iwu)*0.25*(stwgt(iwu,1)*(ipice(inw)+ipice(in)-ipice(iw)) &
+                     +stwgt(iwu,2)*(ipice(iw)-ipice(isw)-ipice(is)))
+  snvs=icv(isv)*0.25*(stwgt(isv,3)*(ipice(ies)+ipice(ie)-ipice(is)) &
+                     +stwgt(isv,4)*(ipice(is)-ipice(iws)-ipice(iw)))
+
+  ! update ice pressure to remove negative divergence
+  ! (assume change in imass is small)
+  where (odum/=0..and.sicedep>0.01)
+    nip=((niu(1:ifull)/emu(1:ifull)-niu(iwu)/emu(iwu))*ds    &
+        +ibu(1:ifull)*ipice(ie)+ibu(iwu)*ipice(iw)           &
+        +snu(1:ifull)-snuw                                   &
+        +(niv(1:ifull)/emv(1:ifull)-niv(isv)/emv(isv))*ds    &
+        +ibv(1:ifull)*ipice(in)+ibv(isv)*ipice(is)           &
+        +snv(1:ifull)-snvs)/odum
+  elsewhere
+    nip=0.
+  end where
+
+  select case(icemode)
+    case(2)
+      ! cavitating fluid
+      nip=max(min(nip,ipmax),0.)
+    case(1)
+      ! incompressible fluid
+      nip=max(nip,0.)
+    case DEFAULT
+      ! free drift
+      nip=0.
+  end select
+  seta=nip-ipice(1:ifull)
+  ipice(1:ifull)=alpha(2)*nip+(1.-alpha(2))*ipice(1:ifull)
+
+  maxloclip=maxval(abs(seta))
+
+  if (ll>=itstest) then
+    dume(1)=maxloclseta
+    dume(2)=maxloclip
+    call MPI_AllReduce(dume,dumf,2,MPI_REAL,MPI_MAX,mlo_comm,ierr)
+    maxglobseta=dumf(1)
+    maxglobip=dumf(2)
+
+    if (maxglobseta<tol.and.maxglobip<itol) exit
+    
+    itsave1=itsave2
+    itsave2=ll
+    itserr1=itserr2
+    itserr2=log10(maxglobseta)
+    
+    gd=(itserr2-itserr1)/real(itsave2-itsave1)
+    ci=itserr2-gd*real(itsave2)
+    if (gd/=0.) then
+      itstest=nint((log10(tol)-ci)/gd)
+      itstest=max(itstest,ll+1)
+    else
+      itstest=ll+1
+    end if
+    itc=itc+1    
+  end if
+
+end do
+totits=ll
+
+return
+end subroutine mlosor
 
 end module mlodynamics
