@@ -21,7 +21,7 @@
 
       use aerosolldr                      ! LDR prognostic aerosols
       use arrays_m                        ! Atmosphere dyamics prognostic arrays
-      use cc_mpi, only : mydiag, myid     ! CC MPI routines
+      use cc_mpi                          ! CC MPI routines
       use cfrac_m                         ! Cloud fraction
       use diag_m                          ! Diagnostic routines
       use extraout_m                      ! Additional diagnostics
@@ -51,7 +51,6 @@
       include 'dates.h'                   ! Date data
       include 'establ.h'                  ! Liquid saturation function
       include 'kuocom.h'                  ! Convection parameters
-      include 'mpif.h'                    ! MPI parameters
       include 'parm.h'                    ! Model configuration
 
       integer, parameter :: ntest=0
@@ -105,8 +104,8 @@
         call maxmin(u,'%u',ktau,1.,kl)
         call maxmin(v,'%v',ktau,1.,kl)
         call maxmin(t,'%t',ktau,1.,kl)
-        call maxmin(qg,'qg',ktau,1.e3,kl)     
-        call MPI_Barrier( MPI_COMM_WORLD, ierr ) ! stop others going past
+        call maxmin(qg,'qg',ktau,1.e3,kl)
+        call ccmpi_barrier(comm_world)  ! stop others going past    
       if(mydiag)then
           write(6,*)'sig ',sig
           write(6,*)'dsig ',dsig
@@ -952,7 +951,7 @@ c     first do theta (then convert back to t)
 
       !--------------------------------------------------------------
       ! Temperature
-      if (nvmix/=6) then
+      if (nvmix.ne.6) then
        if(nmaxpr==1.and.mydiag)
      &   write (6,"('thet_inx',9f8.3/8x,9f8.3)") rhs(idjd,:)
        rhs(:,1)=rhs(:,1)-(conflux/cp)*fg/(ps(1:ifull)*dnhs(:,1))

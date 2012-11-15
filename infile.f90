@@ -539,7 +539,7 @@ end subroutine ncmsg
 
 !--------------------------------------------------------------
 ! This subroutine opens parallel input files
-subroutine histopen(ncid,ifile)
+subroutine histopen(ncid,ifile,ier)
       
 use cc_mpi
       
@@ -553,8 +553,8 @@ integer, parameter :: nihead   = 54
       
 integer, dimension(nihead) :: ahead
 integer, dimension(0:5) :: duma,dumb
-integer, dimension(5) :: idum
-integer, intent(out) :: ncid
+integer, dimension(6) :: idum
+integer, intent(out) :: ncid,ier
 integer ierr,resid,is,ipf,dmode
 integer ipin,nxpr,nypr,dumr
 integer ltst
@@ -565,37 +565,41 @@ character(len=7) :: fdecomp
 call ncpopt(0) ! turn off fatal errors on all processors
 if (myid==0) then
   ! attempt to open single file with myid==0
-  ierr=nf_open(ifile,nf_nowrite,ncid)
+  ier=nf_open(ifile,nf_nowrite,ncid)
   fnproc=1
   dmode=0
+  pil=0
+  pjl=0
+  pnpan=0
+  ptest=.false.
       
   ! attempt to open parallel files
-  if (ierr/=0) then
+  if (ier/=0) then
     write(pfile,"(a,'.',i4.4)") trim(ifile), 0
-    ierr=nf_open(pfile,nf_nowrite,ncid)
-    if (ierr/=0) then
-      write(6,*) "ERROR: Cannot open ",pfile
-      call ncmsg("pfile open",ierr)
-    end if
-    write(6,*) "Found parallel input file ",ifile
-    ierr=nf_get_att_int(ncid,nf_global,"nproc",fnproc)
-    call ncmsg("nproc",ierr)
-    fdecomp=''
-    ierr=nf_get_att_text(ncid,nf_global,"decomp",fdecomp)
-    call ncmsg("decomp",ierr)
-    select case(fdecomp)
-      case('face')
-        dmode=1
-      case('uniform')
-        dmode=2
-      case default
-        write(6,*) "ERROR: Unknown decomposition ",fdecomp
-        call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-    end select
-    call ncmsg("nproc",ierr)
-    if (fnproc>ncidmax) then
-      write(6,*) "ERROR: Exceeded maximum number of input files"
-      call MPI_Abort(MPI_COMM_WORLD,-1,ierr)    
+    ier=nf_open(pfile,nf_nowrite,ncid)
+    if (ier/=0) then
+      write(6,*) "WARN: Cannot open ",pfile
+    else  
+      write(6,*) "Found parallel input file ",ifile
+      ierr=nf_get_att_int(ncid,nf_global,"nproc",fnproc)
+      call ncmsg("nproc",ierr)
+      fdecomp=''
+      ierr=nf_get_att_text(ncid,nf_global,"decomp",fdecomp)
+      call ncmsg("decomp",ierr)
+      select case(fdecomp)
+        case('face')
+          dmode=1
+        case('uniform')
+          dmode=2
+        case default
+          write(6,*) "ERROR: Unknown decomposition ",fdecomp
+          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+      end select
+      call ncmsg("nproc",ierr)
+      if (fnproc>ncidmax) then
+        write(6,*) "ERROR: Exceeded maximum number of input files"
+        call MPI_Abort(MPI_COMM_WORLD,-1,ierr)    
+      end if
     end if
   else
     ierr=nf_get_att_int(ncid,nf_global,"nproc",dumr)
@@ -606,61 +610,64 @@ if (myid==0) then
     write(6,*) "Found single input file ",ifile
   end if
 
-  ierr=nf_get_att_int(ncid,nf_global,"int_header",ahead)
-  call ncmsg("int_header",ierr)
-  pil_g=ahead(1)
-  pjl_g=ahead(2)
+  if (ier==0) then
+    ierr=nf_get_att_int(ncid,nf_global,"int_header",ahead)
+    call ncmsg("int_header",ierr)
+    pil_g=ahead(1)
+    pjl_g=ahead(2)
         
-  if (allocated(pioff)) then
-    deallocate(pioff,pjoff,pnoff)
-  end if
-  allocate(pioff(0:fnproc-1,0:5),pjoff(0:fnproc-1,0:5))
-  allocate(pnoff(0:fnproc-1))
+    if (allocated(pioff)) then
+      deallocate(pioff,pjoff,pnoff)
+    end if
+    allocate(pioff(0:fnproc-1,0:5),pjoff(0:fnproc-1,0:5))
+    allocate(pnoff(0:fnproc-1))
         
-  select case(dmode)
-    case(0) ! no decomposition
-      pnpan=1
-      pnoff=1
-      pioff=0
-      pjoff=0
-      pil=pil_g
-      pjl=pjl_g
-    case(1) ! face decomposition
-      pnpan=max(1,6/fnproc)
-      do ipf=0,fnproc-1
-        call face_set(pil,pjl,pnoff(ipf),duma,dumb,pnpan,pil_g,ipf,fnproc,nxpr,nypr)
-        pioff(ipf,:)=duma
-        pjoff(ipf,:)=dumb
-      end do
-    case(2) ! uniform decomposition
-      pnpan=6
-      do ipf=0,fnproc-1
-        call uniform_set(pil,pjl,pnoff(ipf),duma,dumb,pnpan,pil_g,ipf,fnproc,nxpr,nypr)
-        pioff(ipf,:)=duma
-        pjoff(ipf,:)=dumb
-      end do
-  end select
+    select case(dmode)
+      case(0) ! no decomposition
+        pnpan=1
+        pnoff=1
+        pioff=0
+        pjoff=0
+        pil=pil_g
+        pjl=pjl_g
+      case(1) ! face decomposition
+        pnpan=max(1,6/fnproc)
+        do ipf=0,fnproc-1
+          call face_set(pil,pjl,pnoff(ipf),duma,dumb,pnpan,pil_g,ipf,fnproc,nxpr,nypr)
+          pioff(ipf,:)=duma
+          pjoff(ipf,:)=dumb
+        end do
+      case(2) ! uniform decomposition
+        pnpan=6
+        do ipf=0,fnproc-1
+          call uniform_set(pil,pjl,pnoff(ipf),duma,dumb,pnpan,pil_g,ipf,fnproc,nxpr,nypr)
+          pioff(ipf,:)=duma
+          pjoff(ipf,:)=dumb
+        end do
+    end select
 
-  ptest=.false.
+    ptest=.false.
 #ifdef uniform_decomp
-  if (dmode==2) then
-    if (nproc==fnproc) then
-      if (pil_g==il_g.and.pjl_g==jl_g) then
-        ptest=.true.
+    if (dmode==2) then
+      if (nproc==fnproc) then
+        if (pil_g==il_g.and.pjl_g==jl_g) then
+          ptest=.true.
+        end if
       end if
     end if
-  end if
 #else
-  if (dmode==1) then
-    if (nproc==fnproc) then
-      if (pil_g==il_g.and.pjl_g==jl_g) then
-        ptest=.true.
+    if (dmode==1) then
+      if (nproc==fnproc) then
+        if (pil_g==il_g.and.pjl_g==jl_g) then
+          ptest=.true.
+        end if
       end if
     end if
-  end if
 #endif
 
-  write(6,*) "Found pil_g,pjl_g,fnproc,dmode,ptest ",pil_g,pjl_g,fnproc,dmode,ptest
+    write(6,*) "Found pil_g,pjl_g,fnproc,dmode,ptest ",pil_g,pjl_g,fnproc,dmode,ptest
+    
+  end if
 
   idum(1)=fnproc
   idum(2)=pil
@@ -668,6 +675,7 @@ if (myid==0) then
   idum(4)=pnpan
   idum(5)=0
   if (ptest) idum(5)=1
+  idum(6)=ier  
 end if
 
 ! Broadcast file metadata
@@ -677,6 +685,9 @@ pil=idum(2)
 pjl=idum(3)
 pnpan=idum(4)
 ptest=(idum(5)==1)
+ier=idum(6)
+
+if (ier/=0) return
 
 ! calculate number of files to be read on this processor
 mynproc=fnproc/nproc

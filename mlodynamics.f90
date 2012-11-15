@@ -26,7 +26,7 @@ real, dimension(:), allocatable, save :: watbdy,salbdy,ipice,ee,eeu,eev,dd,ddu,d
 real, dimension(:), allocatable, save :: gosig,gosigh,godsig
 real, dimension(:,:), allocatable, save :: oldu1,oldu2,oldv1,oldv2
 real, dimension(:,:), allocatable, save :: stwgt
-integer, save :: mlo_comm
+integer, save :: comm_mlo
 integer, save :: nstagoffmlo
 integer, parameter :: salfilt=0     ! additional salinity filter (0=off, 1=Katzfey)
 integer, parameter :: usetide=1     ! tidal forcing (0=off, 1=on)
@@ -130,7 +130,7 @@ call MPI_Allgather(stst,1,MPI_INTEGER,ltst,1,MPI_INTEGER,MPI_COMM_WORLD,ierr)
 lrank=count(ltst(0:myid)==1)-1
 lndtst_g=count(ltst==1)
 bnds(:)%mlomsk=ltst(:)
-call MPI_Comm_Split(MPI_COMM_WORLD,stst(1),lrank,mlo_comm,ierr)
+call MPI_Comm_Split(MPI_COMM_WORLD,stst(1),lrank,comm_mlo,ierr)
 if (myid==0) then
   write(6,*) "Processors with water ",lndtst_g,nproc
 end if
@@ -183,13 +183,17 @@ stwgt(:,4)=dumy(:,4)
 
 ! sigma coordinates should be the same for all iq
 allocate(gosig(wlev),gosigh(wlev),godsig(wlev))
-do iq=1,ifull-1
-  if (.not.land(iq)) exit
-end do
-do ii=1,wlev
-  sig(ii)=dep(iq,ii)/dd(iq)
-  sigh(ii)=dephl(iq,ii)/dd(iq)
-  dsig(ii)=dz(iq,ii)/dd(iq)
+sig=0.
+sigh=0.
+dsig=0.
+do iq=1,ifull
+  if (.not.land(iq)) then
+    do ii=1,wlev
+      sig(ii)=max(sig(ii),dep(iq,ii)/dd(iq))
+      sigh(ii)=max(sigh(ii),dephl(iq,ii)/dd(iq))
+      dsig(ii)=max(dsig(ii),dz(iq,ii)/dd(iq))
+    end do
+  end if
 end do
 do iq=1,ifull
   if (.not.land(iq)) then
@@ -1456,7 +1460,7 @@ end if
 if (nud_sfh==0) then
   !odum=(neta(1:ifull)-w_e)*ee(1:ifull)
   odum=neta(1:ifull)*ee(1:ifull)
-  call ccglobal_posneg(odum,delpos,delneg,comm=mlo_comm)
+  call ccglobal_posneg(odum,delpos,delneg,comm=comm_mlo)
   alph_p = -delneg/max(delpos,1.E-20)
   alph_p = min(max(sqrt(alph_p),1.E-20),1.E20)
   !neta(1:ifull)=w_e+max(0.,odum)*alph_p+min(0.,odum)/alph_p
@@ -1615,7 +1619,7 @@ if (nud_sss==0) then
       dum(:,ii)=ns(1:ifull,ii)-34.72
     end where
   end do
-  call ccglobal_posneg(dum,delpos,delneg,godsig,comm=mlo_comm)
+  call ccglobal_posneg(dum,delpos,delneg,godsig,comm=comm_mlo)
   alph_p = -delneg/max(delpos,1.E-20)
   alph_p = min(sqrt(alph_p),alph_p)
   do ii=1,wlev
@@ -4440,7 +4444,6 @@ use map_m
 implicit none
 
 include 'newmpar.h'
-include 'mpif.h'
 include 'parm.h'
 
 integer, intent(in) :: llmax
@@ -4596,7 +4599,7 @@ do ll=1,llmax
   if (ll>=itstest) then
     dume(1)=maxloclseta
     dume(2)=maxloclip
-    call MPI_AllReduce(dume,dumf,2,MPI_REAL,MPI_MAX,mlo_comm,ierr)
+    call ccmpi_allreduce(dume(1:2),dumf(1:2),"max",comm_mlo)
     maxglobseta=dumf(1)
     maxglobip=dumf(2)
 

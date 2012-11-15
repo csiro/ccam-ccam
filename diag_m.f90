@@ -88,7 +88,6 @@ contains
    subroutine maxmin2(u,char,ktau,fact,kup)
       use cc_mpi
       include 'newmpar.h'
-      include 'mpif.h'
       character(len=2), intent(in) :: char
       integer, intent(in) :: ktau, kup
       real, intent(in) :: fact
@@ -119,10 +118,8 @@ contains
          !-----------------------------------------------------------  
       end do
 
-      call MPI_Reduce ( umax, gumax, kup, MPI_2REAL, MPI_MAXLOC, 0,       &
-     &                  MPI_COMM_WORLD, ierr )
-      call MPI_Reduce ( umin, gumin, kup, MPI_2REAL, MPI_MINLOC, 0,       &
-     &                  MPI_COMM_WORLD, ierr )
+      call ccmpi_reduce(umax,gumax,"maxloc",0,comm_world)
+      call ccmpi_reduce(umin,gumin,"minloc",0,comm_world)
 
       if ( myid == 0 ) then
       
@@ -203,7 +200,6 @@ contains
    subroutine maxmin1(u,char,ktau,fact,kup)
       use cc_mpi
       include 'newmpar.h'
-      include 'mpif.h'
       character(len=2), intent(in) :: char
       integer, intent(in) :: ktau, kup
       real, intent(in) :: fact
@@ -227,10 +223,9 @@ contains
       umax(2)=real(iq2iqg(imax(1)))
       umin(2)=real(iq2iqg(imin(1)))
       !-----------------------------------------------------------
-      call MPI_Reduce ( umax, gumax, 1, MPI_2REAL, MPI_MAXLOC, 0,         &
-     &                  MPI_COMM_WORLD, ierr )
-      call MPI_Reduce ( umin, gumin, 1, MPI_2REAL, MPI_MINLOC, 0,         &
-     &                  MPI_COMM_WORLD, ierr )
+      call ccmpi_reduce(umax,gumax,"maxloc",0,comm_world)
+      call ccmpi_reduce(umin,gumin,"minloc",0,comm_world)
+
       if ( myid == 0 ) then
         iqg = gumax(2)
         ! Convert to global i, j indices
@@ -251,24 +246,33 @@ contains
    end subroutine maxmin1
 
    subroutine average(speed,spmean_g,spavge_g)
+      use cc_mpi
       use sigs_m
+      use sumdd_m
       use xyzinfo_m
-      include 'mpif.h'
       include 'newmpar.h'
       real, dimension(:,: ), intent(in) :: speed
       real, dimension(:), intent(out) :: spmean_g
       real, intent(out) :: spavge_g
       real, dimension(kl) :: spmean
+      real, dimension(size(speed,1)) :: tmpb
+      complex, dimension(kl) :: tmpc,tmpc_g
       integer k, iq, ierr
-
+      
+      tmpc=(0.,0.)
       do k=1,kl
-         spmean(k)=0.
-         do iq=1,ifull
-            spmean(k) = spmean(k)+speed(iq,k)*wts(iq)
-         enddo                  !  iq loop
+         tmpb=speed(1:ifull,k)*wts(1:ifull)
+         call drpdr_local(tmpb,tmpc(k))
       end do
-      call MPI_Reduce ( spmean, spmean_g, kl, MPI_REAL, MPI_SUM, 0,   &
-     &                  MPI_COMM_WORLD, ierr )
+#ifdef sumdd
+      call ccmpi_reduce(tmpc,tmpc_g,"sumdr",0,comm_world)
+      spmean_g=real(tmpc_g)
+#else
+      do k=1,kl
+         spmean(k)=real(tmpc(k))
+      end do
+      call ccmpi_reduce(spmean,spmean_g,"sum",0,comm_world)
+#endif      
       spavge_g = 0.0
       do k=1,kl
          spavge_g = spavge_g-dsig(k)*spmean_g(k) ! dsig is -ve

@@ -379,7 +379,8 @@ c      section to update pan temperatures                               ! sea
         drst=qsttg(iq)*ps(iq)*hlars/(tggsn(iq,1)*tggsn(iq,1)*constz)    ! sice
         xx=grav*zmin*(1.-tggsn(iq,1)*srcp/t(iq,1))                      ! sice
         ri_ice=min(xx/vmag(iq)**2 , ri_max)                             ! sice
-        factchice=1.                                                    ! sice
+        !factchice=1.                                                   ! sice
+        factchice=sqrt(7.4)                                             ! sice
         zoice=.001                                                      ! sice
         zologice=zminlog-log(zoice)   !   i.e. log(zmin/zo(iq))         ! sice
         af(iq)=(vkar/zologice)**2                                       ! sice

@@ -37,7 +37,6 @@
       include 'parm.h'     ! qgmin
       include 'parmdyn.h'  
       include 'parmvert.h'  
-      include 'mpif.h'
       real alph_p, alph_pm, delneg, delpos, delnegk, delposk, alph_q
       real :: sumdiffb_l  ! Local versions
       real, dimension(3) :: delarr, delarr_l
@@ -58,13 +57,16 @@
       real, dimension(ifull,kl) :: dumu,dumv,dumc,dumd
 !     Save this so we can check whether initialisation needs to be redone
       real, save :: dtsave = 0.0
-      real :: hdt, hdtds, sdmx, sdmx_g, sumx, qgminm, ratio, sumdiffb,
+      real, dimension(1) :: sdmx, sdmx_g
+      real :: hdt, hdtds, sumx, qgminm, ratio, sumdiffb,
      &        alph_g
       real dum
       integer :: its, k, l, nits, nvadh_pass, iq, ng, ierr, iaero
       integer, save :: precon_in
       real :: sumin, sumout, sumsav
       real :: delpos_l, delneg_l, const_nh
+      
+      !real, parameter :: qgmaxtop=1.E-5
 
       call start_log(adjust_begin)
       hdt=dt/2.
@@ -479,18 +481,17 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
         endif
         if(nvad==4 .or. nvad==9 ) then
          if(mup==-3)call updps(1)
-          sdmx = maxval(abs(sdot))
+          sdmx(1) = maxval(abs(sdot))
 #ifdef sumdd
-          call MPI_AllReduce(sdmx, sdmx_g, 1, MPI_REAL, MPI_MAX,
-     &                       MPI_COMM_WORLD, ierr )
+          call ccmpi_allreduce(sdmx, sdmx_g, "max", comm_world)
 #else
-          sdmx_g=sdmx
+          sdmx_g(1)=sdmx(1)
 #endif
-          nits=1+sdmx_g/nvadh
+          nits=1+sdmx_g(1)/nvadh
           nvadh_pass=nvadh*nits
           if (mydiag.and.mod(ktau,nmaxpr)==0)
-     &      print *,'in adjust5 sdmx,nits,nvadh_pass ',
-     &                          sdmx_g,nits,nvadh_pass
+     &      write(6,*) 'in adjust5 sdmx,nits,nvadh_pass ',
+     &                          sdmx_g(1),nits,nvadh_pass
           do its=1,nits
            ! For now use this form of call so that vadvtvd doesn't need to 
            ! be changed. With assumed shape arguments this wouldn't be necessary
@@ -540,7 +541,7 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
 	 endif  ! (ntest==1)
       endif                     !  (mfix==-1)
 
-      if(mfix.ne.3)ps(1:ifull)=1.e5*exp(psl(1:ifull))     
+      if(mfix/=3)ps(1:ifull)=1.e5*exp(psl(1:ifull))     
       if(mfix==1.or.mfix==2) then   ! perform conservation fix on ps
 !         fix is on ps (not psl) from 24/1/06      
 !         delpos is the sum of all positive changes over globe
@@ -631,19 +632,24 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
 
       !--------------------------------------------------------------
       ! Moisture conservation
-      if (mfix_qg.ne.0.and.mspec==1) then
+      if (mfix_qg/=0.and.mspec==1) then
         do k=1,kl
-          qg(:,k)=max(qg(:,k),qgmin-qfg(:,k)-qlg(:,k),0.)
+          qg(1:ifull,k)=max(qg(1:ifull,k),
+     &      qgmin-qfg(1:ifull,k)-qlg(1:ifull,k),0.)
+          ! if (sig(k)<0.005) then
+          !   qg(1:ifull,k)=min(qg(1:ifull,k),qgmaxtop)
+          ! end if
         end do
         dumc=qg(1:ifull,:)
         call massfix(mfix_qg,dumc,qgsav,
-     &               ps(1:ifull),ps_sav,wts)
+     &               ps(1:ifull),ps_sav,wts,
+     &               .false.)
         qg(1:ifull,:)=dumc
       endif       !  (mfix_qg.ne.0.and.mspec==1)
 
       !------------------------------------------------------------------------
       ! Cloud water conservation
-      if(mfix_qg.ne.0.and.mspec==1.and.ldr.ne.0)then
+      if(mfix_qg/=0.and.mspec==1.and.ldr/=0)then
         qfg=max(qfg,0.)
         qlg=max(qlg,0.)
         qrg=max(qrg,0.)
@@ -651,42 +657,46 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
         cffall=min(max(cffall,0.),1.)
         dumc=qfg(1:ifull,:)
         call massfix(mfix_qg,dumc,qfgsav,
-     &               ps(1:ifull),ps_sav,wts)
+     &               ps(1:ifull),ps_sav,wts,
+     &               .true.)
         qfg(1:ifull,:)=dumc
         dumc=qlg(1:ifull,:)
         call massfix(mfix_qg,dumc,qlgsav,
-     &               ps(1:ifull),ps_sav,wts)
+     &               ps(1:ifull),ps_sav,wts,
+     &               .true.)
         qlg(1:ifull,:)=dumc
         dumc=qrg(1:ifull,:)
         call massfix(mfix_qg,dumc,qrgsav,
-     &               ps(1:ifull),ps_sav,wts)
+     &               ps(1:ifull),ps_sav,wts,
+     &               .true.)
         qrg(1:ifull,:)=dumc
       endif      !  (mfix_qg.ne0.and.mspec==1.and.ldr.ne.0)
 
       !------------------------------------------------------------------------
       ! Tracer conservation
-      if(mfix_tr.ne.0.and.mspec==1.and.ngas>0)then
+      if(mfix_tr/=0.and.mspec==1.and.ngas>0)then
         do ng=1,ngas
 !         rml 19/09/07 replace gasmin with tracmin
           tr(:,:,ng)=max(tr(:,:,ng),tracmin(ng))
           dumc=tr(1:ifull,:,ng)
           dumd=trsav(1:ifull,:,ng)
           call massfix(mfix_tr,dumc,dumd,
-     &                 ps(1:ifull),ps_sav,wts)
+     &                 ps(1:ifull),ps_sav,wts,
+     &                 .true.)
           tr(1:ifull,:,ng)=dumc
         end do
       endif       !  (mfix_tr.ne.0.and.mspec==1.and.ngas>0)
 
       !--------------------------------------------------------------
       ! Aerosol conservation
-      if (mfix_aero.ne.0.and.mspec==1.and.abs(iaero)==2) then
+      if (mfix_aero/=0.and.mspec==1.and.abs(iaero)==2) then
         xtg=max(xtg,0.)
         do ng=1,naero
           dumc=xtg(1:ifull,:,ng)
           dumd=xtgsav(1:ifull,:,ng)
           call massfix(mfix_aero,dumc,
      &                 dumd,ps(1:ifull),
-     &                 ps_sav,wts)
+     &                 ps_sav,wts,.true.)
           xtg(1:ifull,:,ng)=dumc
         end do
       end if
@@ -698,7 +708,7 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
         write (6,"('dpsdt# mb/d ',9f8.1)") diagvals(dpsdt) 
         write (6,"('qg_a4 ',3p10f8.3)") qg(idjd,:)
         write (6,"('qgs',3p10f8.3)")
-     &                         (qgsav(idjd,k),k=1,kl)
+     &                         (qgsav(idjd,k)/ps_sav(idjd),k=1,kl)
         write (6,"('qf_a4',3p10f8.3)") qfg(idjd,:)
         write (6,"('ql_a4',3p10f8.3)") qlg(idjd,:)
       endif
@@ -823,7 +833,7 @@ c              print *,'iq,iw,iwn ',iq,iw(iq),iwn(iq)
         enddo   ! n loop
       end subroutine adjust_init
 
-      subroutine massfix(mfix,s,ssav,ps,pssav,wts)
+      subroutine massfix(mfix,s,ssav,ps,pssav,wts,llim)
       
       use cc_mpi
       
@@ -837,6 +847,7 @@ c              print *,'iq,iw,iwn ',iq,iw(iq),iwn(iq)
       real, dimension(ifull), intent(in) :: ps,pssav,wts
       real, dimension(ifull,kl) :: wrk1
       real delpos,delneg,ratio,alph_g
+      logical, intent(in) :: llim
 
       if (mfix>0) then
         do k=1,kl
@@ -853,20 +864,24 @@ c              print *,'iq,iw,iwn ',iq,iw(iq),iwn(iq)
         wrk1(:,k)=s(:,k)-ssav(:,k) 
       enddo   ! k loop
       call ccglobal_posneg(wrk1,delpos,delneg)
-      ratio = -delneg/max(delpos,1.e-30)
+      if (llim) then
+        ratio = -delneg/max(delpos,1.e-30)
+      else
+        ratio = -delneg/delpos
+      end if
       if (mfix==1) then
         alph_g = min(ratio,sqrt(ratio))
-        do k=1,kl
-          s(1:ifull,k)=ssav(1:ifull,k)+
-     &      alph_g*max(0.,wrk1(:,k))+min(0.,wrk1(:,k))/max(1.,alph_g)
-        enddo    ! k  loop
       elseif (mfix==2) then
-        alph_g = max(sqrt(ratio),1.e-30)
-        do k=1,kl
-          s(1:ifull,k)=ssav(1:ifull,k)+
-     &      alph_g*max(0.,wrk1(:,k))+min(0.,wrk1(:,k))/alph_g
-        enddo    ! k  loop
+        if (llim) then
+          alph_g = max(sqrt(ratio),1.e-30)
+        else
+          alph_g = sqrt(ratio)
+        end if
       end if ! (mfix==1) .. else ..
+      do k=1,kl
+        s(1:ifull,k)=ssav(1:ifull,k)+
+     &    alph_g*max(0.,wrk1(:,k))+min(0.,wrk1(:,k))/max(1.,alph_g)
+      enddo    ! k  loop
       if (mfix>0) then
         do k=1,kl
           s(1:ifull,k)=s(1:ifull,k)/ps

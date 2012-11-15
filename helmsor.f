@@ -13,7 +13,6 @@
       include 'parm.h'
       include 'parmdyn.h'
       include 'parmgeom.h'  ! rlong0,rlat0,schmidt  - briefly
-      include 'mpif.h'
 !     integer, parameter :: meth=3      ! 3b, 5c1 good
       integer, parameter :: ntest=0 
       integer, parameter :: itmax=300 ! maximum number of iterations allowed
@@ -34,10 +33,11 @@
       real, dimension(kl) ::  smin, smin_g
       real, dimension(:), allocatable, save :: accel
       real aa(ifull), bb(ifull), cc(ifull), axel
+      real gd,ci,itserr1,itserr2
       integer iq, iter, k, nx, j, jx, i,klim,klimnew, ierr, meth, nx_max
       integer ifx
-      integer, dimension(:), allocatable, save :: itsconv
-      integer itscount,itstest,itc,klimold
+      integer itstest,itc,itsave1,itsave2
+      integer, dimension(1) :: idum
       save  meth, nx_max, axel
 
       call start_log(helm_begin)
@@ -46,9 +46,6 @@
         allocate(mask(ifull))
         allocate(iqx(ifull,3),iqn(ifull,3),iqe(ifull,3))
         allocate(iqw(ifull,3),iqs(ifull,3),accel(kl))
-        allocate(itsconv(kl))
-        
-        itsconv=1
 
         if(precon==-1)precon=-2325  ! i.e. 2, 3, .25
         nx_max=abs(precon)/1000
@@ -97,6 +94,10 @@ c       if(il_g==il)accel(k)=1.+.55*(accel(k)-1.) ! just a test
         if(myid==0)write(6,*)'k,accel ',k,accel(k)
        enddo
       endif
+
+      ! MJT - We may need to revisit the accel factor
+      ! as it does not always converge.  accel=0.9 is
+      ! safe, but slow
  
       if(precon>=-2899) then  ! e.g. not -2900 or -3900
       klim=kl
@@ -220,16 +221,16 @@ c           rotate s files
          smax(k) = maxval(s(1:ifull,k))
          smin(k) = minval(s(1:ifull,k))
        end do
-        call MPI_Reduce( smax, smax_g, klim, MPI_REAL, MPI_MAX, 0,
-     &                    MPI_COMM_WORLD, ierr )
-        call MPI_Reduce( smin, smin_g, klim, MPI_REAL, MPI_MIN, 0,
-     &                    MPI_COMM_WORLD, ierr )
+       call ccmpi_reduce(smax(1:klim),smax_g(1:klim),"max",0,
+     &                   comm_world)
+       call ccmpi_reduce(smin(1:klim),smin_g(1:klim),"min",0,
+     &                   comm_world)
       endif
       do k=1,klim
        dsolmax(k) = maxval(abs(dsol(1:ifull,k)))
       enddo
-      call MPI_Reduce( dsolmax, dsolmax_g, klim, MPI_REAL, MPI_MAX, 0,
-     &                    MPI_COMM_WORLD, ierr )
+      call ccmpi_reduce(dsolmax(1:klim),dsolmax_g(1:klim),"max",0,
+     &                  comm_world)
       if(myid==0.and.ntest>0)then
         print *,'smin_g ',smin_g(:)
         print *,'smax_g ',smax_g(:)
@@ -243,7 +244,9 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
        endif
       enddo
       klim=klimnew
-      call MPI_Bcast(klim,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      idum(1)=klim
+      call ccmpi_bcast(idum(1:1),0,comm_world)
+      klim=idum(1)
       iter = iter + 1
       enddo   ! while( iter<itmax .and. klim>1)
 
@@ -257,8 +260,9 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
 
       klim=kl
       iter = 1
-      itstest=itsconv(klim)
-      itscount=itsconv(klim)
+      itsave2=0
+      itserr2=9.E9
+      itstest=1
       itc=0
       do while ( iter<itmax .and. klim>1)
        if(ntest==1.and.diag)write(6,*)'myid,iter a ',myid,iter
@@ -292,11 +296,11 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
 !     &                                myid,k,smax(k),smin(k)
         enddo
         if(ntest>0.and.diag)write(6,*)' before smax call myid ',myid
-        call MPI_AllReduce( smax, smax_g, klim, MPI_REAL, MPI_MAX,
-     &                      MPI_COMM_WORLD, ierr )
+        call ccmpi_allreduce(smax(1:klim),smax_g(1:klim),"max",
+     &                       comm_world)
         if(ntest>0.and.diag)write(6,*)' before smin call myid ',myid
-        call MPI_AllReduce( smin, smin_g, klim, MPI_REAL, MPI_MIN,
-     &                      MPI_COMM_WORLD, ierr )
+        call ccmpi_allreduce(smin(1:klim),smin_g(1:klim),"min",
+     &                       comm_world)
         if(ntest>0.and.myid==0)then
           write(6,*)'ktau,myid,smin_g ',ktau,myid,smin_g(:)
           write(6,*)'ktau,myid,smax_g ',ktau,myid,smax_g(:)
@@ -311,29 +315,33 @@ c       write (6,"('iter,k ,s',2i4,4f14.5)") iter,k,(s(iq,k),iq=1,4)
          write(6,*)'ktau,myid,iter,dsolmax ',ktau,myid,iter,dsolmax(:)
        endif  ! (myid==0)
        klimnew=klim
+       call ccmpi_allreduce(dsolmax(1:klim),dsolmax_g(1:klim),"max",
+     &                      comm_world)
        do k=klim,1,-1
-        if(dsolmax(k)<restol*(smax_g(k)-smin_g(k)))then
-          klimnew=k
+        if(dsolmax_g(k)<restol*(smax_g(k)-smin_g(k)))then
+          klimnew=k-1
         endif
        enddo
-       klimold=klim
-       if(ntest>0)write(6,*)'ktau,myid,klim,klimnew ',
-     &                       ktau,myid,klim,klimnew
-       call MPI_AllReduce( klimnew, klim, 1, MPI_INTEGER, MPI_MAX,
-     &                     MPI_COMM_WORLD, ierr )
-       itscount=max(itscount/2,1)
-       itstest=itstest+itscount
-       if (itscount==1) itc=itc+1
-       if (klimold/=klim) then
-         if (itscount>1) then
-           itsconv(klimold)=max(itsconv(klimold)/2,1)
-         end if
-         if (itc>2*itsconv(klimold)) then
-           itsconv(klimold)=2*itsconv(klimold)
-         end if
-         itc=0
-         itscount=itsconv(klim)
+    !   if(ntest>0)write(6,*)'ktau,myid,klim,klimnew ',
+    ! &                       ktau,myid,klim,klimnew
+    !   call MPI_AllReduce( klimnew, klim, 1, MPI_INTEGER, MPI_MAX,
+    ! &                     MPI_COMM_WORLD, ierr )
+       klim=klimnew
+
+       itsave1=itsave2
+       itsave2=iter
+       itserr1=itserr2
+       itserr2=log10(dsolmax_g(1))
+       
+       gd=(itserr2-itserr1)/real(itsave2-itsave1)
+       ci=itserr2-gd*real(itsave2)
+       if (gd/=0.) then
+         itstest=nint((log10(restol*(smax_g(1)-smin_g(1)))-ci)/gd)
+         itstest=max(itstest,iter+1)
+       else
+         itstest=iter+1
        end if
+       itc=itc+1
       end if ! iter>=itstest
       iter = iter + 1
       enddo   ! while( iter<itmax .and. klim>1)
@@ -346,6 +354,7 @@ c       write (6,"('iter,k ,s',2i4,4f14.5)") iter,k,(s(iq,k),iq=1,4)
          do k=2,kl
           write(6,*)'helmjlm ktau,k,Iterations ',ktau,k,iters(k)
          enddo
+         write(6,*) "itc ",itc
         endif
       endif
       

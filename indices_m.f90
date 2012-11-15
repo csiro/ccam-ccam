@@ -53,6 +53,10 @@ if (myid==0) then
   allocate(iwu2_g(ifull_g),isv2_g(ifull_g),ieu2_g(ifull_g),inv2_g(ifull_g),iev2_g(ifull_g))
   allocate(inu2_g(ifull_g),iwwu2_g(ifull_g),issv2_g(ifull_g),ieeu2_g(ifull_g),innv2_g(ifull_g))
   allocate(npann_g(0:13),npane_g(0:13),npanw_g(0:13),npans_g(0:13))
+  npann_g=(/  1,  2,107,  4,106,  6,  7,109,  9,112, 11, 12,102,101/)
+  npane_g=(/103,  3,  4,105,  5,110,108,  8, 10, 11,100,113, 13,  0/)
+  npanw_g=(/ 13,113,112,  1,  2,  4,104,102,  7,107,  8,  9,109, 12/)
+  npans_g=(/110,  0,  1,100,  3,103,  5,  6,106,  8,105, 10, 11,111/)  
 end if
 allocate(iw(ifull),is(ifull),ise(ifull))
 allocate(ie(ifull),ine(ifull),in(ifull),iwn(ifull))
@@ -68,11 +72,6 @@ allocate(leen(npan),lenn(npan),lsww(npan))
 allocate(lssw(npan),lsee(npan),lsse(npan),lnww(npan))
 allocate(lnnw(npan),lnee(npan),lnne(npan))
 !allocate(npann(0:13),npane(0:13),npanw(0:13),npans(0:13))
-
-npann_g=(/  1,  2,107,  4,106,  6,  7,109,  9,112, 11, 12,102,101/)
-npane_g=(/103,  3,  4,105,  5,110,108,  8, 10, 11,100,113, 13,  0/)
-npanw_g=(/ 13,113,112,  1,  2,  4,104,102,  7,107,  8,  9,109, 12/)
-npans_g=(/110,  0,  1,100,  3,103,  5,  6,106,  8,105, 10, 11,111/)   
 
 return
 end subroutine indices_init

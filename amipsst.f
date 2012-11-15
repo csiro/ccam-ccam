@@ -19,7 +19,6 @@
       include 'newmpar.h'
       include 'dates.h'     !  kdate,ktime,timer,mtimer
       include 'parm.h'      ! id,jd
-      include 'mpif.h'
       real, allocatable, save, dimension(:) :: ssta, sstb, sstc
       real, allocatable, save, dimension(:) :: aice, bice, cice
       real, allocatable, save, dimension(:) :: asal, bsal, csal
@@ -247,12 +246,12 @@ c       c1=0.
         if (nud_ouv.ne.0) then
           write(6,*) "ERROR: nud_ouv.ne.0 is not supported for"
           write(6,*) "       namip.ne.0"
-          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+          call ccmpi_abort(-1)
         end if
         if (nud_sfh.ne.0) then
           write(6,*) "ERROR: nud_sfh.ne.0 is not supported for"
           write(6,*) "       namip.ne.0"
-          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+          call ccmpi_abort(-1)
         end if
         call mloexpmelt(timelt)
         dumb(:,1)=tgg(:,1)
@@ -270,7 +269,7 @@ c       c1=0.
             end if
           case DEFAULT
             write(6,*) "ERROR: Unknown mlomode ",mlomode
-            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+            call ccmpi_abort(-1)
         end select
         do k=1,ms
           call mloexport(0,tgg(:,k),k,0)
@@ -290,7 +289,6 @@ c       c1=0.
       
       include 'newmpar.h'
       include 'filnames.h'  ! list of files
-      include 'mpif.h'      ! MPI parameters
       include 'netcdf.inc'  ! Netcdf parameters
       include 'parmgeom.h'  ! rlong0,rlat0,schmidt      
       
@@ -350,7 +348,7 @@ c       c1=0.
           write(6,*) 'rlat0,rlat_in,schmidt,schmidt_in',
      &                rlat0,rlat_in,schmidt,schmidt_in
           write(6,*) 'wrong amipsst file'
-          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+          call ccmpi_abort(-1)
         endif
         ierr=nf_inq_dimid(ncidx,'time',varid)
         call ncmsg('time',ierr)
@@ -378,7 +376,7 @@ c       c1=0.
           write(6,*) "ERROR: Cannot locate year ",iyr_m
           write(6,*) "       and month ",imo_m
           write(6,*) "       in file ",trim(sstfile)
-          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+          call ccmpi_abort(-1)
         end if
         spos(1:2)=1
         spos(3)=iarchx
@@ -416,7 +414,7 @@ c       c1=0.
      &       iostat=ierr)
         if (ierr.ne.0) then
           write(6,*) "ERROR: Cannot read AMIP sstfile ",trim(sstfile)
-          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+          call ccmpi_abort(-1)
         end if
         write(6,*) "Reading AMIP file in ASCII format"
         iyear=-999
@@ -434,7 +432,7 @@ c       c1=0.
             write(6,*) 'rlat0,rlat_in,schmidt,schmidt_in',
      &                  rlat0,rlat_in,schmidt,schmidt_in
             write(6,*) 'wrong amipsst file'
-            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+            call ccmpi_abort(-1)
           endif
           read(75,*) ssta_g
           ssta_g(:)=ssta_g(:)*.01 -50. +273.16
@@ -446,8 +444,8 @@ c       c1=0.
         read(75,'(i2,i5,a22)') imonth,iyear,header
         write(6,*) 'reading sstb data:',imonth,iyear,header
         write(6,*) 'should agree with imo,iyr ',imo,iyr
-        if(iyr.ne.iyear.or.imo.ne.imonth)then
-          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+        if(iyr/=iyear.or.imo/=imonth)then
+          call ccmpi_abort(-1)
         end if
         read(75,*) ssta_g
         ssta_g(:)=ssta_g(:)*.01 -50. +273.16
@@ -496,13 +494,13 @@ c       extra read from Oct 08
           ! ASCII
           open(unit=76,file=icefile,status='old',form='formatted',
      &         iostat=ierr)
-          if (ierr.ne.0) then
+          if (ierr/=0) then
             write(6,*) "ERROR: Cannot read AMIP icefile ",trim(icefile)
-            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+            call ccmpi_abort(-1)
           end if
 	    iyear=-999
 	    imonth=-999	   
-	    do while(iyr_m.ne.iyear.or.imo_m.ne.imonth)
+	    do while(iyr_m/=iyear.or.imo_m/=imonth)
             read(76,*)
      &       imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
             write(6,'("reading ice ",i2,i5,2i4,2f6.1,f6.3,a22)')
@@ -514,7 +512,7 @@ c       extra read from Oct 08
               write(6,*) 'rlat0,rlat_in,schmidt,schmidt_in',
      &                    rlat0,rlat_in,schmidt,schmidt_in
               write(6,*) 'wrong amipice file'
-              call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+              call ccmpi_abort(-1)
             endif
             read(76,*) ssta_g
             write(6,*) 'want imo_m,iyr_m; aice ',imo_m,iyr_m,
@@ -525,8 +523,8 @@ c       extra read from Oct 08
           read(76,'(i2,i5,a22)') imonth,iyear,header
           write(6,*) 'reading b_sice data:',imonth,iyear,header
           write(6,*) 'should agree with imo,iyr ',imo,iyr
-          if(iyr.ne.iyear.or.imo.ne.imonth) then
-            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+          if(iyr/=iyear.or.imo/=imonth) then
+            call ccmpi_abort(-1)
           end if
           read(76,*) ssta_g
           write(6,*) 'bice(idjd) ',ssta_g(idjd_g)
@@ -570,13 +568,13 @@ c         extra cice read from Oct 08
           ! ASCII
           open(unit=77,file=salfile,status='old',form='formatted',
      &         iostat=ierr)
-          if (ierr.ne.0) then
+          if (ierr/=0) then
             write(6,*) "ERROR: Cannot read AMIP salfile ",trim(salfile)
-            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+            call ccmpi_abort(-1)
           end if
 	    iyear=-999
 	    imonth=-999
-	    do while (iyr_m.ne.iyear.or.imo_m.ne.imonth)
+	    do while (iyr_m/=iyear.or.imo_m/=imonth)
             read(77,*)
      &       imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
             write(6,'("reading sal ",i2,i5,2i4,2f6.1,f6.3,a22)')
@@ -588,7 +586,7 @@ c         extra cice read from Oct 08
               write(6,*) 'rlat0,rlat_in,schmidt,schmidt_in',
      &                    rlat0,rlat_in,schmidt,schmidt_in
               write(6,*) 'wrong sal file'
-              call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+              call ccmpi_abort(-1)
             endif
             read(77,*) ssta_g
             write(6,*) 'want imo_m,iyr_m; asal ',imo_m,iyr_m,
@@ -599,8 +597,8 @@ c         extra cice read from Oct 08
           read(77,'(i2,i5,a22)') imonth,iyear,header
           write(6,*) 'reading b_sal data:',imonth,iyear,header
           write(6,*) 'should agree with imo,iyr ',imo,iyr
-          if(iyr.ne.iyear.or.imo.ne.imonth) then
-            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+          if(iyr/=iyear.or.imo/=imonth) then
+            call ccmpi_abort(-1)
           end if
           read(77,*) ssta_g
           write(6,*) 'bsal(idjd) ',ssta_g(idjd_g)

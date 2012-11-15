@@ -3040,9 +3040,11 @@ p_zoice=0.001
 p_zohice=0.001
 p_zoqice=0.001
 af=vkar**2/(log(a_zmin/p_zoice)*log(a_zmin/p_zoice))
-aft=af
+!factch=1.       ! following CSIRO9
+factch=sqrt(7.4) ! following CCAM sflux
+aft=af/(factch*factch)
 afq=aft
-factch=1.
+
 
 call getqsat(qsat,dqdt,dtsurf,a_ps)
 ri=min(grav*(a_zmin**2/a_zmins)*(1.-dtsurf*srcp/a_temp)/vmagn**2,rimax)

@@ -108,6 +108,7 @@ c     parameter (ncubase=2)              ! 2 from 4/06, more like 0 before  - us
       
       kcl_top=kl-2
       nuv=0
+      fluxt=0.
       if (.not.allocated(upin)) then
         k500=1
         do while(sig(k500)>=0.6.and.k500<kl)
@@ -290,6 +291,7 @@ c        alfqarrx reduces for finer resolution than 200 km grid
         enddo
         if(ktau==1.and.mydiag)write(6,"('alfqarr,alfqarrx',2f7.3)") 
      &              alfqarr(idjd),alfqarrx(idjd)
+      cfraclim=0.
       if(mbase>0)cfraclim(:)=.0001*abs(mbase) ! mbase=1000 for 10%, 100 for 1%
 c     omgtst(iq)=1.e-8*tied_con  ! typical tied_con=10,20 for C48
       do iq=1,ifull

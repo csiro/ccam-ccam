@@ -82,7 +82,6 @@
       include 'establ.h'                      ! Liquid saturation function
       include 'filnames.h'                    ! Filenames
       include 'kuocom.h'                      ! Convection parameters
-      include 'mpif.h'                        ! MPI parameters
       include 'netcdf.inc'                    ! Netcdf parameters
       include 'parm.h'                        ! Model configuration
       include 'parmdyn.h'                     ! Dynamics parameters
@@ -193,10 +192,7 @@
 
       !--------------------------------------------------------------
       ! INITALISE MPI ROUTINES
-      call MPI_Init(ierr)
-      call MPI_Comm_size(MPI_COMM_WORLD, nproc, ierr) ! Find number of processes
-      call MPI_Comm_rank(MPI_COMM_WORLD, myid, ierr)  ! Find local processor id
-
+      call ccmpi_init
 
       !--------------------------------------------------------------
       ! INITALISE LOGS
@@ -296,8 +292,8 @@
         idum(5)=nsig
       end if
       
-      call MPI_Bcast(idum(1:5),5,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(rdum(1:3),3,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      call ccmpi_bcast(idum(1:5),0,comm_world)
+      call ccmpi_bcast(rdum(1:3),0,comm_world)
       il_g=idum(1)
       kl=idum(2)
       lapsbot=idum(3)
@@ -329,7 +325,7 @@
       if (mod(nproc,6)/=0.and.mod(6,nproc)/=0) then
         write(6,*) "ERROR: nproc must be a multiple of 6 or"
         write(6,*) "a factor of 6"
-        call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+        call ccmpi_abort(-1)
       end if
       nxp=max(1,nint(sqrt(real(nproc)/6.)))
       nyp=nproc/nxp
@@ -343,7 +339,7 @@
       if (nxp==0) then
         write(6,*) "ERROR: Invalid number of processors for this grid"
         write(6,*) "Try increasing or decreasing nproc"
-        call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+        call ccmpi_abort(-1)
       end if
       ifull_g=il_g*jl_g
       ijk_g=il_g*jl_g*kl
@@ -392,7 +388,7 @@
 !     for 6-hourly output of sint_ave etc, want 6*60 = N*mins_rad      
       if ((nrad==4.or.nrad==5).and.mod(6*60,mins_rad)/=0) then
         write(6,*) 'prefer 6*60 = N*mins_rad '
-        call MPI_Abort(MPI_COMM_WORLD,-1,ierr)	
+        call ccmpi_abort(-1)	
       end if
 
 
@@ -529,7 +525,7 @@
         write (6, cardin)
         if(nllp==0.and.nextout>=4) then
 	  write(6,*) 'need nllp=3 for nextout>=4'
-          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)	  
+          call ccmpi_abort(-1)	  
 	end if
         write (6, skyin)
         write (6, datafile)
@@ -537,15 +533,15 @@
       end if ! myid=0
       if (newtop>2) then
         write(6,*) 'newtop>2 no longer allowed'
-        call MPI_Abort(MPI_COMM_WORLD,-1,ierr)	
+        call ccmpi_abort(-1)	
       end if
       if (mfix_qg>0.and.(nkuo==4.or.nvad==44)) then
         write(6,*) 'nkuo=4,nvad=44: mfix_qg>0 not allowed'
-        call MPI_Abort(MPI_COMM_WORLD,-1,ierr)	
+        call ccmpi_abort(-1)
       end if
       if (mfix>3) then
         write(6,*) 'mfix >3 not allowed now'
-        call MPI_Abort(MPI_COMM_WORLD,-1,ierr)	
+        call ccmpi_abort(-1)
       end if
       nstagin=nstag    ! -ve nstagin gives swapping & its frequency
       nstaguin=nstagu  ! only the sign of nstaguin matters (chooses scheme)
@@ -581,31 +577,32 @@
       allocate(dumd(npanels+1,16))
       ! Broadcast the following global arrays so that they can be
       ! decomposed into local arrays with ccmpi_setup
-      call MPI_Bcast(ds,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      rdum(1)=ds
+      call ccmpi_bcast(rdum(1:1),0,comm_world)
+      ds=rdum(1)
       if (myid==0) then
         dume(:,:,1)=xx4
         dume(:,:,2)=yy4
       end if
-      call MPI_Bcast(dume,2*iquad*iquad,MPI_DOUBLE_PRECISION,0,
-     &               MPI_COMM_WORLD,ierr)
+      call ccmpi_bcastr8(dume,0,comm_world)
       xx4=dume(:,:,1)
       yy4=dume(:,:,2)
-      call MPI_Bcast(iw_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(is_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(ise_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(ie_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(ine_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(in_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(iwn_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(ien_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(inw_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(isw_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(ies_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(iws_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(inn_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(iss_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(iww_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(iee_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      call ccmpi_bcast(iw_g,0,comm_world)
+      call ccmpi_bcast(is_g,0,comm_world)
+      call ccmpi_bcast(ise_g,0,comm_world)
+      call ccmpi_bcast(ie_g,0,comm_world)
+      call ccmpi_bcast(ine_g,0,comm_world)
+      call ccmpi_bcast(in_g,0,comm_world)
+      call ccmpi_bcast(iwn_g,0,comm_world)
+      call ccmpi_bcast(ien_g,0,comm_world)
+      call ccmpi_bcast(inw_g,0,comm_world)
+      call ccmpi_bcast(isw_g,0,comm_world)
+      call ccmpi_bcast(ies_g,0,comm_world)
+      call ccmpi_bcast(iws_g,0,comm_world)
+      call ccmpi_bcast(inn_g,0,comm_world)
+      call ccmpi_bcast(iss_g,0,comm_world)
+      call ccmpi_bcast(iww_g,0,comm_world)
+      call ccmpi_bcast(iee_g,0,comm_world)
       if (myid==0) then
         dumd(:,1)=lwws_g
         dumd(:,2)=lwss_g
@@ -624,8 +621,7 @@
         dumd(:,15)=lnee_g
         dumd(:,16)=lnne_g
       end if
-      call MPI_Bcast(dumd,16*(npanels+1),MPI_INTEGER,0,MPI_COMM_WORLD,
-     &               ierr)
+      call ccmpi_bcast(dumd,0,comm_world)
       lwws_g=dumd(:,1)
       lwss_g=dumd(:,2)
       lees_g=dumd(:,3)
@@ -644,13 +640,10 @@
       lnne_g=dumd(:,16)
       ! The following are only needed for the scale-selective filter
       if (mbd/=0) then
-        call MPI_Bcast(x_g,ifull_g,MPI_DOUBLE_PRECISION,0,
-     &                 MPI_COMM_WORLD,ierr)
-        call MPI_Bcast(y_g,ifull_g,MPI_DOUBLE_PRECISION,0,
-     &                 MPI_COMM_WORLD,ierr)
-        call MPI_Bcast(z_g,ifull_g,MPI_DOUBLE_PRECISION,0,
-     &                 MPI_COMM_WORLD,ierr)
-        call MPI_Bcast(em_g,ifull_g,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+        call ccmpi_bcastr8(x_g,0,comm_world)
+        call ccmpi_bcastr8(y_g,0,comm_world)
+        call ccmpi_bcastr8(z_g,0,comm_world)
+        call ccmpi_bcast(em_g,0,comm_world)
       end if
       deallocate(dumd)
       deallocate(dume)
@@ -746,7 +739,8 @@
       !--------------------------------------------------------------
       ! READ INITIAL CONDITIONS
       ncid=-1 ! initialise with no files open
-      call histopen(ncid,ifile)
+      call histopen(ncid,ifile,ier)
+      call ncmsg("ifile",ier)
       if (myid==0) then
         write(6,*)'ncid,ifile ',ncid,ifile
         write(6,*)'calling indata; will read from file ',ifile
@@ -781,8 +775,9 @@
         enddo
       enddo
       pwatr_l=pwatr_l/grav
-      call MPI_Reduce ( pwatr_l, pwatr, 1, MPI_REAL, MPI_SUM, 0,
-     &                  MPI_COMM_WORLD, ierr )
+      rdum(1)=pwatr_l
+      call ccmpi_reduce( rdum(1:1), rdum(2:2), "sum", 0, comm_world)
+      pwatr=rdum(2)
       if (myid==0) write (6,"('pwatr0 ',12f7.3)") pwatr
       if (nextout>=4) call setllp
       if (ntrac>0) then
@@ -797,7 +792,8 @@
       ! OPEN MESONEST FILE
       if(mbd/=0.or.nbd/=0)then
          io_in=io_nest ! Needs to be seen by all processors
-         call histopen(ncid,mesonest)
+         call histopen(ncid,mesonest,ier)
+         call ncmsg("mesonest",ier)
          if ( myid == 0 ) then
            write(6,*)'ncid,mesonest ',ncid,mesonest
          endif ! myid == 0
@@ -934,7 +930,7 @@
         if(newtop<0) then
           if (myid==0) write(6,*) 'newtop<0 requires a stop here'
           ! just for outcdf to plot zs  & write fort.22
-          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+          call ccmpi_abort(-1)
         end if
       endif    ! (nmi==0.and.nwt/=0)
 
@@ -1406,7 +1402,7 @@
          call maxmin(v,'#v',ktau,1.,kl)
          call maxmin(t,'#t',ktau,1.,kl)
          call maxmin(qg,'qg',ktau,1.e3,kl)     
-         call MPI_Barrier( MPI_COMM_WORLD, ierr ) ! stop others going past
+         call ccmpi_barrier(comm_world) ! stop others going past
        end if
          
        ! SURFACE FLUXES ---------------------------------------------
@@ -1602,7 +1598,8 @@
            write(6,'("spmean ",9f8.3)') spmean
            write(6,'("spavge ",f8.3)') spavge
         end if
-        call average(qg,spmean,spavge)
+        dumc=qg(1:ifull,:)
+        call average(dumc,spmean,spavge)
         if ( myid==0 ) then
            write(6,'("qgmean ",9f8.5)') spmean
            write(6,'("qgavge ",f8.5)') spavge
@@ -1663,8 +1660,7 @@
         ! All this combined into a single reduction
         temparray = (/ psavge, pslavge, preccavge, precavge, gke,
      &                 cllav, clmav,clhav, cltav /)
-        call MPI_Reduce ( temparray, gtemparray, 9, MPI_REAL, MPI_SUM,0,
-     &                  MPI_COMM_WORLD, ierr )
+        call ccmpi_reduce(temparray,gtemparray,"sum",0,comm_world)
         if (myid==0) then
           write(6,97) gtemparray(1:5) ! psavge,pslavge,preccavge,precavge,gke
  97       format(' average ps, psl, precc, prec, gke: ',
@@ -1846,8 +1842,7 @@
           enddo
          enddo
          temparray(1:3) = (/ precavge, evapavge, pwatr /)
-         call MPI_Reduce ( temparray, gtemparray, 3, MPI_REAL, MPI_MAX,
-     &                   0, MPI_COMM_WORLD, ierr )
+         call ccmpi_reduce(temparray,gtemparray,"max",0,comm_world)
          if ( myid == 0 ) then
           precavge = gtemparray(1)
           evapavge  = gtemparray(2)
@@ -1970,7 +1965,7 @@
       call simple_timer_finalize
 #endif
 
-      call MPI_Finalize(ierr)
+      call ccmpi_finalize
 
       end
 
@@ -1983,7 +1978,6 @@
       implicit none
       
       include 'newmpar.h'   ! Grid parameters
-      include 'mpif.h'      ! MPI parameters
       include 'parm.h'      ! Model configuration
       include 'parmgeom.h'  ! Coordinate data
             
@@ -2005,7 +1999,7 @@
      &         or.rlat0x/=rlat0.or.schmidtx/=schmidt)
      &         then
             write(6,*) 'wrong data file supplied'
-            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)	    
+            call ccmpi_abort(-1)
 	  end if
           read(87,*) glob2d
           close(87)
@@ -2017,7 +2011,7 @@
           close(87)
         else ! ierr > 0
           write(6,*) 'End of file occurred in readint'
-          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)	  
+          call ccmpi_abort(-1)	  
         end if
         if (ifullx==ifull) then
           call ccmpi_distribute(itss, glob2d)
@@ -2025,7 +2019,7 @@
           itss=glob2d
         else
           write(6,*) "ERROR: Invalid ifullx for readint"
-          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+          call ccmpi_abort(-1)
         end if
         write(6,*) trim(header), glob2d(id+(jd-1)*il_g)
       else
@@ -2044,7 +2038,6 @@
       implicit none
       
       include 'newmpar.h'   ! Grid parameters
-      include 'mpif.h'      ! MPI parameters      
       include 'parm.h'      ! Model configuration
       include 'parmgeom.h'  ! Coordinate data
 
@@ -2067,7 +2060,7 @@
      &         or.rlat0x/=rlat0.or.schmidtx/=schmidt)
      &         then
             write(6,*) 'wrong data file supplied'
-            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+            call ccmpi_abort(-1)
 	  end if
           read(87,*) glob2d
           close(87)
@@ -2079,7 +2072,7 @@
           close(87)
         else
           write(6,*) "error in readreal",trim(filename),ierr
-          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+          call ccmpi_abort(-1)
         end if
         if (ifullx==ifull) then
           call ccmpi_distribute(tss, glob2d)
@@ -2087,7 +2080,7 @@
           tss=glob2d
         else
           write(6,*) "ERROR: Invalid ifullx for readreal"
-          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+          call ccmpi_abort(-1)
         end if
         write(6,*) trim(header), glob2d(id+(jd-1)*il_g)
       else

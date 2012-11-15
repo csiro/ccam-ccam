@@ -8,6 +8,7 @@ module cc_mpi
    integer, save, public :: ipan, jpan
    integer, save, dimension(0:npanels), public :: ioff, joff ! these can change on different panels
    integer, save, public :: noff
+   integer, save, public :: comm_world
    integer, save, private :: nxproc, nyproc
 
    integer, public, allocatable, save, dimension(:,:,:) :: fproc
@@ -24,7 +25,9 @@ module cc_mpi
              ccmpi_distributer8, indp, indg, deptsync, intssync, start_log, &
              end_log, log_on, log_off, log_setup, phys_loadbal,             &
              ccglobal_posneg, ccglobal_sum, iq2iqg, indv_mpi, indglobal,    &
-             readglobvar, writeglobvar, face_set, uniform_set
+             readglobvar, writeglobvar, face_set, uniform_set,              &
+             ccmpi_reduce, ccmpi_allreduce, ccmpi_abort, ccmpi_bcast,       &
+             ccmpi_bcastr8, ccmpi_barrier, ccmpi_init, ccmpi_finalize
    public :: dpoints_t,dindex_t,sextra_t,bnds
    private :: ccmpi_distribute2, ccmpi_distribute2i, ccmpi_distribute2r8,   &
               ccmpi_distribute3, ccmpi_distribute3i, ccmpi_gather2,         &
@@ -58,6 +61,18 @@ module cc_mpi
    interface writeglobvar
       module procedure writeglobvar2, writeglobvar3
    end interface
+   interface ccmpi_reduce
+      module procedure ccmpi_reduce2i, ccmpi_reduce2r, ccmpi_reduce3r, ccmpi_reduce2c
+   end interface ccmpi_reduce
+   interface ccmpi_allreduce
+      module procedure ccmpi_allreduce2i, ccmpi_allreduce2r, ccmpi_allreduce3r, ccmpi_allreduce2c
+   end interface ccmpi_allreduce
+   interface ccmpi_bcast
+      module procedure ccmpi_bcast2i, ccmpi_bcast3i, ccmpi_bcast2r, ccmpi_bcast3r, ccmpi_bcast4r
+   end interface ccmpi_bcast
+   interface ccmpi_bcastr8
+      module procedure ccmpi_bcast2r8, ccmpi_bcast4r8
+   end interface ccmpi_bcastr8
 
    ! Define neighbouring faces
    integer, parameter, private, dimension(0:npanels) ::    &
@@ -176,15 +191,16 @@ module cc_mpi
    integer, public, save :: distribute_begin, distribute_end
    integer, public, save :: posneg_begin, posneg_end
    integer, public, save :: globsum_begin, globsum_end
-   integer, public, save :: reduce_begin, reduce_end
    integer, public, save :: precon_begin, precon_end
    integer, public, save :: waterdynamics_begin, waterdynamics_end
    integer, public, save :: waterdiff_begin, waterdiff_end
    integer, public, save :: river_begin, river_end
    integer, public, save :: mpiwait_begin, mpiwait_end
+   integer, public, save :: reduce_begin, reduce_end
+   integer, public, save :: bcast_begin, bcast_end
 #ifdef simple_timer
    public :: simple_timer_finalize
-   integer, parameter :: nevents=48
+   integer, parameter :: nevents=49
    double precision, dimension(nevents), save :: tot_time = 0., start_time
    character(len=15), dimension(nevents), save :: event_name
 #endif 
@@ -2045,7 +2061,7 @@ contains
    
    implicit none
    
-   integer iproc,nlen
+   integer iproc,nlen,ierr
    integer, dimension(maxbuflen) :: idum
    logical, dimension(maxbuflen) :: ldum
    
@@ -2104,7 +2120,7 @@ contains
        write(6,*) "ERROR reducing array size"
        write(6,*) "myid,iproc,nlen,len ",myid,iproc,nlen,bnds(iproc)%len
        write(6,*) "maxbuflen ",maxbuflen
-       stop
+       call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
      end if
    end do
    
@@ -4241,83 +4257,87 @@ contains
       reduce_end = reduce_begin
       event_name(reduce_begin) = "Reduce"
 
-      precon_begin = 29
-      precon_end = precon_begin
-      event_name(precon_begin) = "Precon"
+      bcast_begin = 29
+      bcast_end = bcast_begin
+      event_name(bcast_begin) = "Bcast"
 
       mpiwait_begin = 30
       mpiwait_end = mpiwait_begin
       event_name(mpiwait_begin) = "MPI_Wait"
 
-      indata_begin = 31
+      precon_begin = 31
+      precon_end = precon_begin
+      event_name(precon_begin) = "Precon"
+
+      indata_begin = 32
       indata_end =  indata_begin
       event_name(indata_begin) = "Indata"
 
-      nestin_begin = 32
+      nestin_begin = 33
       nestin_end =  nestin_begin
       event_name(nestin_begin) = "Nestin"
       
-      gwdrag_begin = 33
+      gwdrag_begin = 34
       gwdrag_end =  gwdrag_begin
       event_name(gwdrag_begin) = "GWdrag"
 
-      convection_begin = 34
+      convection_begin = 35
       convection_end =  convection_begin
       event_name(convection_begin) = "Convection"
 
-      cloud_begin = 35
+      cloud_begin = 36
       cloud_end =  cloud_begin
       event_name(cloud_begin) = "Cloud"
 
-      radnet_begin = 36
+      radnet_begin = 37
       radnet_end =  radnet_begin
       event_name(radnet_begin) = "Rad_net"
 
-      radmisc_begin = 37
+      radmisc_begin = 38
       radmisc_end =  radmisc_begin
       event_name(radmisc_begin) = "Rad_misc"
       
-      radsw_begin = 38
+      radsw_begin = 39
       radsw_end =  radsw_begin
       event_name(radsw_begin) = "Rad_SW"
 
-      radlw_begin = 39
+      radlw_begin = 40
       radlw_end =  radlw_begin
       event_name(radlw_begin) = "Rad_LW"      
 
-      sfluxnet_begin = 40
+      sfluxnet_begin = 41
       sfluxnet_end =  sfluxnet_begin
       event_name(sfluxnet_begin) = "Sflux_net"
       
-      sfluxwater_begin = 41
+      sfluxwater_begin = 42
       sfluxwater_end =  sfluxwater_begin
       event_name(sfluxwater_begin) = "Sflux_water"
 
-      sfluxland_begin = 42
+      sfluxland_begin = 43
       sfluxland_end =  sfluxland_begin
       event_name(sfluxland_begin) = "Sflux_land"
 
-      sfluxurban_begin = 43
+      sfluxurban_begin = 44
       sfluxurban_end =  sfluxurban_begin
       event_name(sfluxurban_begin) = "Sflux_urban"
 
-      vertmix_begin = 44
+      vertmix_begin = 45
       vertmix_end =  vertmix_begin
       event_name(vertmix_begin) = "Vertmix"
 
-      aerosol_begin = 45
+      aerosol_begin = 46
       aerosol_end =  aerosol_begin
       event_name(aerosol_begin) = "Aerosol"
 
-      waterdynamics_begin = 46
+      waterdynamics_begin = 47
       waterdynamics_end =  waterdynamics_begin
       event_name(waterdynamics_begin) = "Waterdynamics"
 
-      waterdiff_begin = 47
+      waterdiff_begin = 48
       waterdiff_end =  waterdiff_begin
       event_name(waterdiff_begin) = "Waterdiff"
 
-      river_begin = 48
+      river_begin = 49
       river_end =  river_begin
       event_name(river_begin) = "River"
 
@@ -4766,6 +4786,619 @@ contains
       end if
 
    end subroutine writeglobvar3
+
+   subroutine ccmpi_reduce2i(ldat,gdat,op,host,comm)
+   
+      integer, intent(in) :: host,comm
+      integer(kind=4) ltype,lop,lcomm,ierr,lsize,lkind,lhost
+      integer, dimension(:), intent(in) :: ldat
+      integer, dimension(:), intent(out) :: gdat
+      character(len=*), intent(in) :: op
+      
+      call start_log(reduce_begin)
+      
+      select case(op)
+         case("max")
+            lop=MPI_MAX
+         case("min")
+            lop=MPI_MIN
+         case("sum")
+            lop=MPI_SUM
+         case default
+            write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+      end select
+      
+      lhost=host
+      lcomm=comm
+      lsize=size(ldat)
+      lkind=kind(ldat)
+      select case(lkind)
+         case(4)
+            ltype=MPI_INTEGER
+         case(8)
+            ltype=MPI_INTEGER8
+         case default
+            write(6,*) "ERROR: Unsupported kind in ccmpi_reduce ",lkind
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+      end select
+     
+      call MPI_Reduce(ldat, gdat, lsize, ltype, lop, lhost, lcomm, ierr )
+ 
+      call end_log(reduce_end)
+   
+   end subroutine ccmpi_reduce2i
+
+   subroutine ccmpi_reduce2r(ldat,gdat,op,host,comm)
+   
+      integer, intent(in) :: host,comm
+      integer(kind=4) ltype,lop,lcomm,ierr,lsize,lkind,lhost
+      real, dimension(:), intent(in) :: ldat
+      real, dimension(:), intent(out) :: gdat
+      character(len=*), intent(in) :: op
+      
+      call start_log(reduce_begin)
+      
+      select case(op)
+         case("max")
+            lop=MPI_MAX
+         case("min")
+            lop=MPI_MIN
+         case("sum")
+            lop=MPI_SUM
+         case("maxloc")
+            lop=MPI_MAXLOC
+         case("minloc")
+            lop=MPI_MINLOC
+         case default
+            write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+      end select
+      
+      lhost=host
+      lcomm=comm
+      lsize=size(ldat)
+      if (lop==MPI_MAXLOC.or.lop==MPI_MINLOC) then
+        lsize=lsize/2
+      end if
+      lkind=kind(ldat)
+      select case(lkind)
+         case(4)
+            ltype=MPI_REAL
+            if (lop==MPI_MAXLOC.or.lop==MPI_MINLOC) then
+              ltype=MPI_2REAL
+            end if
+         case(8)
+            ltype=MPI_DOUBLE_PRECISION
+            if (lop==MPI_MAXLOC.or.lop==MPI_MINLOC) then
+              ltype=MPI_2DOUBLE_PRECISION
+            end if
+         case default
+            write(6,*) "ERROR: Unsupported kind in ccmpi_reduce ",lkind
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+      end select
+     
+      call MPI_Reduce(ldat, gdat, lsize, ltype, lop, lhost, lcomm, ierr )
+   
+      call end_log(reduce_end)
+   
+   end subroutine ccmpi_reduce2r
+
+   subroutine ccmpi_reduce3r(ldat,gdat,op,host,comm)
+   
+      integer, intent(in) :: host,comm
+      integer(kind=4) ltype,lop,lcomm,ierr,lsize,lkind,lhost
+      real, dimension(:,:), intent(in) :: ldat
+      real, dimension(:,:), intent(out) :: gdat
+      character(len=*), intent(in) :: op
+      
+      call start_log(reduce_begin)
+      
+      select case(op)
+         case("max")
+            lop=MPI_MAX
+         case("min")
+            lop=MPI_MIN
+         case("sum")
+            lop=MPI_SUM
+         case("maxloc")
+            lop=MPI_MAXLOC
+         case("minloc")
+            lop=MPI_MINLOC
+         case default
+            write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+      end select
+      
+      lhost=host
+      lcomm=comm
+      lsize=size(ldat)
+      if (lop==MPI_MAXLOC.or.lop==MPI_MINLOC) then
+        lsize=lsize/2
+      end if
+      lkind=kind(ldat)
+      select case(lkind)
+         case(4)
+            ltype=MPI_REAL
+            if (lop==MPI_MAXLOC.or.lop==MPI_MINLOC) then
+              ltype=MPI_2REAL
+            end if
+         case(8)
+            ltype=MPI_DOUBLE_PRECISION
+            if (lop==MPI_MAXLOC.or.lop==MPI_MINLOC) then
+              ltype=MPI_2DOUBLE_PRECISION
+            end if
+         case default
+            write(6,*) "ERROR: Unsupported kind in ccmpi_reduce ",lkind
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+      end select
+     
+      call MPI_Reduce(ldat, gdat, lsize, ltype, lop, lhost, lcomm, ierr )
+   
+      call end_log(reduce_end)
+   
+   end subroutine ccmpi_reduce3r
+
+   subroutine ccmpi_reduce2c(ldat,gdat,op,host,comm)
+   
+      use sumdd_m
+   
+      integer, intent(in) :: host,comm
+      integer(kind=4) ltype,lop,lcomm,ierr,lsize,lkind,lhost
+      complex, dimension(:), intent(in) :: ldat
+      complex, dimension(:), intent(out) :: gdat
+      character(len=*), intent(in) :: op
+      
+      call start_log(reduce_begin)
+      
+      select case(op)
+         case("max")
+            lop=MPI_MAX
+         case("min")
+            lop=MPI_MIN
+         case("sum")
+            lop=MPI_SUM
+         case("sumdr")
+            lop=MPI_SUMDR
+         case default
+            write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+      end select
+      
+      lhost=host
+      lcomm=comm
+      lsize=size(ldat)
+      lkind=kind(ldat)
+      select case(lkind)
+         case(4)
+            ltype=MPI_COMPLEX
+         case(8)
+            ltype=MPI_COMPLEX8
+         case default
+            write(6,*) "ERROR: Unsupported kind in ccmpi_reduce ",lkind
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+      end select
+     
+      call MPI_Reduce(ldat, gdat, lsize, ltype, lop, lhost, lcomm, ierr )
+   
+      call end_log(reduce_end)
+   
+   end subroutine ccmpi_reduce2c
+      
+   subroutine ccmpi_allreduce2i(ldat,gdat,op,comm)
+   
+      integer, intent(in) :: comm
+      integer(kind=4) ltype,lop,lcomm,ierr,lsize,lkind
+      integer, dimension(:), intent(in) :: ldat
+      integer, dimension(:), intent(out) :: gdat
+      character(len=*), intent(in) :: op
+      
+      call start_log(reduce_begin)
+      
+      select case(op)
+         case("max")
+            lop=MPI_MAX
+         case("min")
+            lop=MPI_MIN
+         case("sum")
+            lop=MPI_SUM
+         case default
+            write(6,*) "ERROR: Unknown option for ccmpi_allreduce ",op
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+      end select
+      
+      lcomm=comm
+      lsize=size(ldat)
+      lkind=kind(ldat)
+      select case(lkind)
+         case(4)
+            ltype=MPI_INTEGER
+         case(8)
+            ltype=MPI_INTEGER8
+         case default
+            write(6,*) "ERROR: Unsupported kind in ccmpi_allreduce ",lkind
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+      end select
+     
+      call MPI_AllReduce(ldat, gdat, lsize, ltype, lop, lcomm, ierr )
+ 
+      call end_log(reduce_end)
+   
+   end subroutine ccmpi_allreduce2i
+
+   subroutine ccmpi_allreduce2r(ldat,gdat,op,comm)
+   
+      integer, intent(in) :: comm
+      integer(kind=4) ltype,lop,lcomm,ierr,lsize,lkind
+      real, dimension(:), intent(in) :: ldat
+      real, dimension(:), intent(out) :: gdat
+      character(len=*), intent(in) :: op
+      
+      call start_log(reduce_begin)
+      
+      select case(op)
+         case("max")
+            lop=MPI_MAX
+         case("min")
+            lop=MPI_MIN
+         case("sum")
+            lop=MPI_SUM
+         case("maxloc")
+            lop=MPI_MAXLOC
+         case("minloc")
+            lop=MPI_MINLOC
+         case default
+            write(6,*) "ERROR: Unknown option for ccmpi_allreduce ",op
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+      end select
+      
+      lcomm=comm
+      lsize=size(ldat)
+      if (lop==MPI_MAXLOC.or.lop==MPI_MINLOC) then
+        lsize=lsize/2
+      end if
+      lkind=kind(ldat)
+      select case(lkind)
+         case(4)
+            ltype=MPI_REAL
+            if (lop==MPI_MAXLOC.or.lop==MPI_MINLOC) then
+              ltype=MPI_2REAL
+            end if
+         case(8)
+            ltype=MPI_DOUBLE_PRECISION
+            if (lop==MPI_MAXLOC.or.lop==MPI_MINLOC) then
+              ltype=MPI_2DOUBLE_PRECISION
+            end if
+         case default
+            write(6,*) "ERROR: Unsupported kind in ccmpi_allreduce ",lkind
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+      end select
+     
+      call MPI_AllReduce(ldat, gdat, lsize, ltype, lop, lcomm, ierr )
+   
+      call end_log(reduce_end)
+   
+   end subroutine ccmpi_allreduce2r
+  
+   subroutine ccmpi_allreduce3r(ldat,gdat,op,comm)
+   
+      integer, intent(in) :: comm
+      integer(kind=4) ltype,lop,lcomm,ierr,lsize,lkind
+      real, dimension(:,:), intent(in) :: ldat
+      real, dimension(:,:), intent(out) :: gdat
+      character(len=*), intent(in) :: op
+      
+      call start_log(reduce_begin)
+      
+      select case(op)
+         case("max")
+            lop=MPI_MAX
+         case("min")
+            lop=MPI_MIN
+         case("sum")
+            lop=MPI_SUM
+         case("maxloc")
+            lop=MPI_MAXLOC
+         case("minloc")
+            lop=MPI_MINLOC
+         case default
+            write(6,*) "ERROR: Unknown option for ccmpi_allreduce ",op
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+      end select
+      
+      lcomm=comm
+      lsize=size(ldat)
+      if (lop==MPI_MAXLOC.or.lop==MPI_MINLOC) then
+        lsize=lsize/2
+      end if
+      lkind=kind(ldat)
+      select case(lkind)
+         case(4)
+            ltype=MPI_REAL
+            if (lop==MPI_MAXLOC.or.lop==MPI_MINLOC) then
+              ltype=MPI_2REAL
+            end if
+         case(8)
+            ltype=MPI_DOUBLE_PRECISION
+            if (lop==MPI_MAXLOC.or.lop==MPI_MINLOC) then
+              ltype=MPI_2DOUBLE_PRECISION
+            end if
+         case default
+            write(6,*) "ERROR: Unsupported kind in ccmpi_allreduce ",lkind
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+      end select
+     
+      call MPI_AllReduce(ldat, gdat, lsize, ltype, lop, lcomm, ierr )
+   
+      call end_log(reduce_end)
+   
+   end subroutine ccmpi_allreduce3r
+   
+   subroutine ccmpi_allreduce2c(ldat,gdat,op,comm)
+   
+      use sumdd_m
+   
+      integer, intent(in) :: comm
+      integer(kind=4) ltype,lop,lcomm,ierr,lsize,lkind
+      complex, dimension(:), intent(in) :: ldat
+      complex, dimension(:), intent(out) :: gdat
+      character(len=*), intent(in) :: op
+      
+      call start_log(reduce_begin)
+      
+      select case(op)
+         case("max")
+            lop=MPI_MAX
+         case("min")
+            lop=MPI_MIN
+         case("sum")
+            lop=MPI_SUM
+         case("sumdr")
+            lop=MPI_SUMDR
+         case default
+            write(6,*) "ERROR: Unknown option for ccmpi_allreduce ",op
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+      end select
+      
+      lcomm=comm
+      lsize=size(ldat)
+      lkind=kind(ldat)
+      select case(lkind)
+         case(4)
+            ltype=MPI_COMPLEX
+         case(8)
+            ltype=MPI_COMPLEX8
+         case default
+            write(6,*) "ERROR: Unsupported kind in ccmpi_allreduce ",lkind
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+      end select
+     
+      call MPI_AllReduce(ldat, gdat, lsize, ltype, lop, lcomm, ierr )
+   
+      call end_log(reduce_end)
+   
+   end subroutine ccmpi_allreduce2c
+   
+   subroutine ccmpi_abort(ierrin)
+   
+      integer, intent(in) :: ierrin
+      integer(kind=4) lerrin,ierr
+      
+      lerrin=ierrin
+      call MPI_Abort(MPI_COMM_WORLD,lerrin,ierr)
+   
+   end subroutine ccmpi_abort
+
+   subroutine ccmpi_bcast2i(ldat,host,comm)
+
+      integer, intent(in) :: host,comm
+      integer(kind=4) ltype,lcomm,lhost,ierr,lsize,lkind
+      integer, dimension(:), intent(in) :: ldat
+
+      call start_log(bcast_begin)
+
+      lhost=host
+      lcomm=comm
+      lsize=size(ldat)
+      lkind=kind(ldat)
+      select case(lkind)
+         case(4)
+            ltype=MPI_INTEGER
+         case(8)
+            ltype=MPI_INTEGER8
+         case default
+            write(6,*) "ERROR: Unsupported kind in ccmpi_allreduce ",lkind
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+      end select   
+   
+      call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,ierr)
+         
+      call end_log(bcast_end)
+         
+   end subroutine ccmpi_bcast2i
+
+   subroutine ccmpi_bcast3i(ldat,host,comm)
+
+      integer, intent(in) :: host,comm
+      integer(kind=4) ltype,lcomm,lhost,ierr,lsize,lkind
+      integer, dimension(:,:), intent(in) :: ldat
+
+      call start_log(bcast_begin)
+
+      lhost=host
+      lcomm=comm
+      lsize=size(ldat)
+      lkind=kind(ldat)
+      select case(lkind)
+         case(4)
+            ltype=MPI_INTEGER
+         case(8)
+            ltype=MPI_INTEGER8
+         case default
+            write(6,*) "ERROR: Unsupported kind in ccmpi_allreduce ",lkind
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+      end select   
+   
+      call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,ierr)
+      
+      call end_log(bcast_end)   
+      
+   end subroutine ccmpi_bcast3i
+   
+   subroutine ccmpi_bcast2r(ldat,host,comm)
+   
+      integer, intent(in) :: host,comm
+      integer(kind=4) ltype,lcomm,lhost,ierr,lsize,lkind
+      real, dimension(:), intent(in) :: ldat
+
+      call start_log(bcast_begin)
+
+      lhost=host
+      lcomm=comm
+      lsize=size(ldat)
+      lkind=kind(ldat)
+      select case(lkind)
+         case(4)
+            ltype=MPI_REAL
+         case(8)
+            ltype=MPI_DOUBLE_PRECISION
+         case default
+            write(6,*) "ERROR: Unsupported kind in ccmpi_allreduce ",lkind
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+      end select   
+   
+      call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,ierr)
+   
+      call end_log(bcast_end)
+   
+   end subroutine ccmpi_bcast2r
+
+   subroutine ccmpi_bcast3r(ldat,host,comm)
+   
+      integer, intent(in) :: host,comm
+      integer(kind=4) ltype,lcomm,lhost,ierr,lsize,lkind
+      real, dimension(:,:), intent(in) :: ldat
+
+      call start_log(bcast_begin)
+
+      lhost=host
+      lcomm=comm
+      lsize=size(ldat)
+      lkind=kind(ldat)
+      select case(lkind)
+         case(4)
+            ltype=MPI_REAL
+         case(8)
+            ltype=MPI_DOUBLE_PRECISION
+         case default
+            write(6,*) "ERROR: Unsupported kind in ccmpi_allreduce ",lkind
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+      end select   
+   
+      call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,ierr)
+   
+      call end_log(bcast_end)
+   
+   end subroutine ccmpi_bcast3r
+
+   subroutine ccmpi_bcast4r(ldat,host,comm)
+   
+      integer, intent(in) :: host,comm
+      integer(kind=4) ltype,lcomm,lhost,ierr,lsize,lkind
+      real, dimension(:,:,:), intent(in) :: ldat
+
+      call start_log(bcast_begin)
+
+      lhost=host
+      lcomm=comm
+      lsize=size(ldat)
+      lkind=kind(ldat)
+      select case(lkind)
+         case(4)
+            ltype=MPI_REAL
+         case(8)
+            ltype=MPI_DOUBLE_PRECISION
+         case default
+            write(6,*) "ERROR: Unsupported kind in ccmpi_allreduce ",lkind
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+      end select   
+   
+      call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,ierr)
+   
+      call end_log(bcast_end)
+   
+   end subroutine ccmpi_bcast4r
+
+   subroutine ccmpi_bcast2r8(ldat,host,comm)
+   
+      integer, intent(in) :: host,comm
+      integer(kind=4) ltype,lcomm,lhost,ierr,lsize,lkind
+      double precision, dimension(:), intent(in) :: ldat
+   
+      call start_log(bcast_begin)
+      
+      lhost=host
+      lcomm=comm
+      lsize=size(ldat)
+      lkind=kind(ldat)
+      ltype=MPI_DOUBLE_PRECISION
+   
+      call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,ierr)
+   
+      call end_log(bcast_end)
+   
+   end subroutine ccmpi_bcast2r8
+   
+   subroutine ccmpi_bcast4r8(ldat,host,comm)
+   
+      integer, intent(in) :: host,comm
+      integer(kind=4) ltype,lcomm,lhost,ierr,lsize,lkind
+      double precision, dimension(:,:,:), intent(in) :: ldat
+
+      call start_log(bcast_begin)
+
+      lhost=host
+      lcomm=comm
+      lsize=size(ldat)
+      lkind=kind(ldat)
+      ltype=MPI_DOUBLE_PRECISION
+   
+      call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,ierr)
+   
+      call end_log(bcast_end)
+   
+   end subroutine ccmpi_bcast4r8
+
+   subroutine ccmpi_barrier(comm)
+   
+      integer, intent(in) :: comm
+      integer(kind=4) lcomm,ierr
+      
+      lcomm=comm
+      call MPI_Barrier( lcomm, ierr )
+   
+   end subroutine ccmpi_barrier
+
+   subroutine ccmpi_init
+
+      integer(kind=4) lerr,lproc,lid
+
+      call MPI_Init(lerr)
+      call MPI_Comm_size(MPI_COMM_WORLD, lproc, lerr) ! Find number of processes
+      call MPI_Comm_rank(MPI_COMM_WORLD, lid, lerr)   ! Find local processor id
+      nproc=lproc
+      myid=lid
+      comm_world=MPI_COMM_WORLD
+   
+   end subroutine ccmpi_init
+   
+   subroutine ccmpi_finalize
+   
+      integer(kind=4) lerr
+   
+      call MPI_Finalize(lerr)
+   
+   end subroutine ccmpi_finalize
 
 end module cc_mpi
 

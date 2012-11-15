@@ -40,7 +40,6 @@ implicit none
 
 include 'netcdf.inc'
 include 'newmpar.h'
-include 'mpif.h'
 include 'parmgeom.h'
       
 integer, intent(in) :: kdatein
@@ -97,7 +96,7 @@ if (myid==0) then
     write(6,*) "ERROR: Grid mismatch for ",trim(aerofile)
     write(6,*) "rlong0,rlat0,schmidt ",rlong0,rlat0,schmidt
     write(6,*) "tlon,tlat,tschmidt   ",tlon,tlat,tschmidt
-    call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+    call ccmpi_abort(-1)
   end if
   ncstatus = nf_inq_dimid(ncid,'longitude',varid)
   call ncmsg('longitude',ncstatus)
@@ -106,7 +105,7 @@ if (myid==0) then
   if (tilg/=il_g) then
     write (6,*) "ERROR: Grid mismatch for ",trim(aerofile)
     write (6,*) "il_g,tilg ",il_g,tilg
-    call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+    call ccmpi_abort(-1)
   end if
   ! load emission fields
   spos=1
@@ -270,7 +269,7 @@ if (myid==0) then
   idum(1)=ilon
   idum(2)=ilat
   idum(3)=ilev
-  call MPI_Bcast(idum,3,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+  call ccmpi_bcast(idum(1:3),0,comm_world)
   allocate(oxidantprev(ifull,ilev,4))
   allocate(oxidantnow(ifull,ilev,4))
   allocate(oxidantnext(ifull,ilev,4))
@@ -297,9 +296,9 @@ if (myid==0) then
   call ncmsg('lev',ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,sposs(3),nposs(3),rlev) ! input vertical levels
   call ncmsg('lev',ncstatus)
-  call MPI_Bcast(rlon,ilon,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-  call MPI_Bcast(rlat,ilat,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-  call MPI_Bcast(rlev,ilev,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+  call ccmpi_bcast(rlon,0,comm_world)
+  call ccmpi_bcast(rlat,0,comm_world)
+  call ccmpi_bcast(rlev,0,comm_world)
   do j=1,4
     select case(j)
       case(1)
@@ -323,18 +322,18 @@ if (myid==0) then
           if (sposs(4).lt.1) sposs(4)=12
           ncstatus = nf_get_vara_real(ncid,varid,sposs,nposs,oxidantdum(:,:,:,1))
           call ncmsg('prev',ncstatus)
-          call MPI_Bcast(oxidantdum(:,:,:,1),ilon*ilat*ilev,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+          call ccmpi_bcast(oxidantdum(:,:,:,1),0,comm_world)
         case(2)
           sposs(4)=jmonth
           ncstatus = nf_get_vara_real(ncid,varid,sposs,nposs,oxidantdum(:,:,:,2))
           call ncmsg('curr',ncstatus)
-          call MPI_Bcast(oxidantdum(:,:,:,2),ilon*ilat*ilev,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+          call ccmpi_bcast(oxidantdum(:,:,:,2),0,comm_world)
         case(3)
           sposs(4)=jmonth+1
           if (sposs(4).gt.12) sposs(4)=1
           ncstatus = nf_get_vara_real(ncid,varid,sposs,nposs,oxidantdum(:,:,:,3))
           call ncmsg('next',ncstatus)
-          call MPI_Bcast(oxidantdum(:,:,:,3),ilon*ilat*ilev,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+          call ccmpi_bcast(oxidantdum(:,:,:,3),0,comm_world)
       end select
     end do
     call o3regrid(oxidantprev(:,:,j),oxidantnow(:,:,j),oxidantnext(:,:,j),oxidantdum,rlon,rlat,ilon,ilat,ilev)
@@ -354,7 +353,7 @@ else
     call aldrloaderod(i,1,duma)
   end do
   ! load oxidant fields
-  call MPI_Bcast(idum,3,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+  call ccmpi_bcast(idum(1:3),0,comm_world)
   ilon=idum(1)
   ilat=idum(2)
   ilev=idum(3)
@@ -363,12 +362,12 @@ else
   allocate(oxidantnext(ifull,ilev,4))
   allocate(rlon(ilon),rlat(ilat),rlev(ilev))
   allocate(oxidantdum(ilon,ilat,ilev,3))
-  call MPI_Bcast(rlon,ilon,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-  call MPI_Bcast(rlat,ilat,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-  call MPI_Bcast(rlev,ilev,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+  call ccmpi_bcast(rlon,0,comm_world)
+  call ccmpi_bcast(rlat,0,comm_world)
+  call ccmpi_bcast(rlev,0,comm_world)
   do j=1,4
     do i=1,3
-      call MPI_Bcast(oxidantdum(:,:,:,i),ilon*ilat*ilev,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      call ccmpi_bcast(oxidantdum(:,:,:,i),0,comm_world)
     end do
     call o3regrid(oxidantprev(:,:,j),oxidantnow(:,:,j),oxidantnext(:,:,j),oxidantdum,rlon,rlat,ilon,ilat,ilev)    
   end do

@@ -794,7 +794,6 @@ implicit none
   
 include 'newmpar.h'
 include 'const_phys.h'
-include 'mpif.h'
 include 'parm.h'
 include 'soilv.h'
 
@@ -802,7 +801,7 @@ integer(i_d), dimension(ifull,5) :: ivs
 integer(i_d) iq,n,k,ipos,isoil,iv,ncount
 integer, dimension(1) :: pos
 integer jyear,jmonth,jday,jhour,jmin,mins
-integer lndtst,lndtst_g,ierr
+integer, dimension(1) :: lndtst,lndtst_g
 real(r_1) totdepth,fc3,fc4,ftu,fg3,fg4,clat,nsum
 real fjd,xp
 real(r_1), dimension(mxvt,ms) :: froot2
@@ -1176,11 +1175,11 @@ end do
 if (nmaxpr==1) then
   write(6,*) "myid,landtile ",myid,mp
 
-  lndtst=0
-  if (mp>0) lndtst=1
-  call MPI_Reduce(lndtst,lndtst_g,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,ierr)
+  lndtst(1)=0
+  if (mp>0) lndtst(1)=1
+  call ccmpi_reduce(lndtst(1:1),lndtst_g(1:1),"sum",0,comm_world)
   if (myid==0) then
-    write(6,*) "Processors with land ",lndtst_g,nproc
+    write(6,*) "Processors with land ",lndtst_g(1),nproc
   end if
 end if
 
@@ -1799,7 +1798,7 @@ end subroutine vegtb
 subroutine loadtile
 
 use carbpools_m
-use cc_mpi, only : myid
+use cc_mpi
 use infile
 use soil_m
 use soilsnow_m
@@ -1809,11 +1808,11 @@ implicit none
 
 include 'newmpar.h'
 include 'darcdf.h'
-include 'mpif.h'
 include 'netcdf.inc'
 include 'parm.h'  
   
-integer k,n,ierr,ierr2,idv
+integer k,n,ierr,idv
+integer, dimension(1) :: dum
 real, dimension(ifull) :: dat
 real totdepth
 character(len=11) vname
@@ -1823,7 +1822,9 @@ character(len=11) vname
 ! as not all processors are assigned an input file
 if (io_in==1) then
   if (myid==0) idv = ncvid(ncid,"tgg1_9",ierr)
-  call MPI_Bcast(ierr,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr2)    
+  dum(1)=ierr
+  call ccmpi_bcast(dum(1:1),0,comm_world)
+  ierr=dum(1)
 else
   ierr=1
 end if
@@ -2491,7 +2492,6 @@ use infile
 implicit none
   
 include 'newmpar.h'
-include 'mpif.h'
 include 'netcdf.inc'
 include 'parmgeom.h'
   
@@ -2594,7 +2594,6 @@ use cc_mpi
 implicit none
 
 include 'newmpar.h'
-include 'mpif.h'
 
 integer, parameter :: nphen=8 ! was 10(IGBP). changed by Q.Zhang @01/12/2011
 integer np,nx,ilat,ierr,ivp
@@ -2624,9 +2623,9 @@ if (myid==0) then
   end do
   close(87)
 end if
-call MPI_Bcast(greenup,271*mxvt,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-call MPI_Bcast(fall,271*mxvt,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-call MPI_Bcast(phendoy1,271*mxvt,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+call ccmpi_bcast(greenup,0,comm_world)
+call ccmpi_bcast(fall,0,comm_world)
+call ccmpi_bcast(phendoy1,0,comm_world)
 
 do np=1,mp
   ilat=(rad%latitude(np)+55.25)/0.5+1

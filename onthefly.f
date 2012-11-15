@@ -2569,11 +2569,6 @@ c808         call bounds(a)
          dlnps=max(0.,zs(iq))/(rdry*tav)
          pmsl(iq)=1.e5*exp(psl(iq)+dlnps)
         enddo
-      if(nmaxpr==1.and.mydiag)then
-        write(6,*)'sig(lev) ',siglev
-        write(6,*)'zs,t_lev,psl,pmsl ',
-     .           zs(idjd),t(idjd),psl(idjd),pmsl(idjd)
-      endif
       return
       end
       

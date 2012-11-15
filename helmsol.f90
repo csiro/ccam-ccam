@@ -14,7 +14,6 @@
       include 'newmpar.h'
       include 'parm.h'
       include 'parmdyn.h'
-      include 'mpif.h'
       integer, parameter :: itmax=600 ! maximum number of iterations allowed
 !     Arguments
       real, intent(in), dimension(ifull) :: zz,zzn,zze,zzw,zzs
@@ -34,11 +33,9 @@
       integer :: iq, iter, k, klim, ierr
       logical, save :: ilustart = .true.
       real, save :: factest
-#ifdef sumdd
       complex, dimension(3*kl) :: local_sum, global_sum
 !     Temporary array for the drpdr_local function
       real, dimension(ifull) :: tmparr, tmparr2 
-#endif
 
       call start_log(helm_begin)
       
@@ -66,20 +63,14 @@
 
       ! Use D'Azevedo method
       smag = 0.
-#ifdef sumdd
       local_sum = (0.,0.)
-#endif
       do k=1,klim
          if ( k <= precon) then
             do iq=1,ifull
                r(iq,k) = - ( zze(iq)*s(ie(iq),k) + zzw(iq)*s(iw(iq),k) + &
                              zzn(iq)*s(in(iq),k) + zzs(iq)*s(is(iq),k) - &
                              rhs(iq,k) ) - s(iq,k)*fac(iq,k)
-#ifdef sumdd
                tmparr(iq) = s(iq,k)*s(iq,k)
-#else
-               smag(k) = smag(k) + s(iq,k)*s(iq,k)
-#endif
             end do
             call ilusolve(h,r,k)
             d(1:ifull,k) = h(1:ifull,k)
@@ -89,16 +80,11 @@
                              zzn(iq)*s(in(iq),k) + zzs(iq)*s(is(iq),k) - &
                              rhs(iq,k) ) * invfac(iq,k) - s(iq,k)
                d(iq,k) = r(iq,k)
-#ifdef sumdd
                tmparr(iq) = s(iq,k)*s(iq,k)
-#else
-               smag(k) = smag(k) + s(iq,k)*s(iq,k)
-#endif
             end do
          end if
-#ifdef sumdd
          call drpdr_local(tmparr, local_sum(2*klim+k))
-#endif
+         smag(k)=real(local_sum(2*klim+k))
       end do
 
       call bounds(d, klim=klim)
@@ -110,48 +96,36 @@
                v(iq,k) = zze(iq)*d(ie(iq),k) + zzw(iq)*d(iw(iq),k) + &
                     zzn(iq)*d(in(iq),k) + zzs(iq)*d(is(iq),k) + &
                     d(iq,k)*fac(iq,k) 
-#ifdef sumdd
                tmparr(iq) = d(iq,k)*v(iq,k)
                tmparr2(iq) = r(iq,k)*h(iq,k)
-#else
-               sigma(k) = sigma(k) + d(iq,k)*v(iq,k)
-               gamma_1(k) = gamma_1(k) + r(iq,k)*h(iq,k)
-#endif
             end do
          else
             do iq=1,ifull
                v(iq,k) = ( zze(iq)*d(ie(iq),k) + zzw(iq)*d(iw(iq),k) + &
                            zzn(iq)*d(in(iq),k) + zzs(iq)*d(is(iq),k) ) *  &
                            invfac(iq,k) + d(iq,k)
-#ifdef sumdd
                tmparr(iq) = d(iq,k)*v(iq,k)
                tmparr2(iq) = r(iq,k)*r(iq,k)
-#else
-               sigma(k) = sigma(k) + d(iq,k)*v(iq,k)
-               gamma_1(k) = gamma_1(k) + r(iq,k)*r(iq,k)
-#endif
             end do
          end if
-#ifdef sumdd
          call drpdr_local(tmparr, local_sum(k))
          call drpdr_local(tmparr2, local_sum(klim+k))
-#endif
+         sigma(k)=real(local_sum(k))
+         gamma_1(k)=real(local_sum(klim+k))
       end do
       call start_log(reduce_begin)
 #ifdef sumdd
-      call MPI_Allreduce (local_sum, global_sum, 2*klim, MPI_COMPLEX, &
-                          MPI_SUMDR, MPI_COMM_WORLD, ierr) 
+      call ccmpi_allreduce(local_sum(1:2*klim),global_sum(1:2*klim),"sumdr",comm_world)
       gsigma(1:klim) = real(global_sum(1:klim))
       ggamma_1(1:klim) = real(global_sum(klim+1:2*klim))
-      local_sum(1:2*klim) = (0.,0.) ! Still need the later part.
 #else
       arr(1:klim) = sigma(1:klim)
       arr(klim+1:2*klim) = gamma_1(1:klim)
-      call MPI_Allreduce ( arr, garr, 2*klim, MPI_REAL, MPI_SUM,       &
-                           MPI_COMM_WORLD, ierr )
+      call ccmpi_allreduce(arr(1:2*klim),garr(1:2*klim),"sum",comm_world)
       gsigma(1:klim) = garr(1:klim)
       ggamma_1(1:klim) = garr(klim+1:2*klim)
 #endif
+      local_sum(1:2*klim) = (0.,0.) ! Still need the later part.
       call end_log(reduce_end)
       alpha(1:klim) = ggamma_1(1:klim) / gsigma(1:klim)
       do k=1,klim
@@ -179,13 +153,8 @@
                     sx(iq,k) = zze(iq)*h(ie(iq),k) + zzw(iq)*h(iw(iq),k) + &
                                zzn(iq)*h(in(iq),k) + zzs(iq)*h(is(iq),k) + &
                                h(iq,k)*fac(iq,k)
-#ifdef sumdd
                     tmparr(iq) = r(iq,k)*h(iq,k)
                     tmparr2(iq) = sx(iq,k)*h(iq,k)
-#else
-                    gamma_1(k) = gamma_1(k) + r(iq,k)*h(iq,k)
-                    delta(k) = delta(k) + sx(iq,k)*h(iq,k)
-#endif
                  end do
               else
                  do iq=1,ifull
@@ -193,39 +162,32 @@
                     sx(iq,k) = ( zze(iq)*h(ie(iq),k) + zzw(iq)*h(iw(iq),k) + &
                                  zzn(iq)*h(in(iq),k) + zzs(iq)*h(is(iq),k) ) *&
                                  invfac(iq,k) + h(iq,k)
-#ifdef sumdd
                     tmparr(iq) = h(iq,k)*h(iq,k)
                     tmparr2(iq) = sx(iq,k)*h(iq,k)
-#else
-                    gamma_1(k) = gamma_1(k) + h(iq,k)*h(iq,k)
-                    delta(k) = delta(k) + sx(iq,k)*h(iq,k)
-#endif
                  end do
               end if
-#ifdef sumdd
               call drpdr_local(tmparr, local_sum(k))
               call drpdr_local(tmparr2, local_sum(klim+k))
-#endif
+              gamma_1(k)=real(local_sum(k))
+              delta(k)=real(local_sum(klim+k))
            end do
             
            call start_log(reduce_begin)
 #ifdef sumdd
-           call MPI_Allreduce (local_sum, global_sum, 3*klim, MPI_COMPLEX, &
-                               MPI_SUMDR, MPI_COMM_WORLD, ierr) 
+           call ccmpi_allreduce(local_sum(1:3*klim),global_sum(1:3*klim),"sumdr",comm_world)
            ggamma_1(1:klim) = real(global_sum(1:klim))
            gdelta(1:klim) = real(global_sum(klim+1:2*klim))
            gsmag(1:klim) = real(global_sum(2*klim+1:3*klim))
-           local_sum = (0.,0.)
 #else
            arr(1:klim) = gamma_1(1:klim)
            arr(klim+1:2*klim) = delta(1:klim)
            arr(2*klim+1:3*klim) = smag(1:klim)
-           call MPI_Allreduce ( arr, garr, 3*klim, MPI_REAL, MPI_SUM,     &
-                                MPI_COMM_WORLD, ierr )
+           call ccmpi_allreduce(arr(1:3*klim),garr(1:3*klim),"sum",comm_world)
            ggamma_1(1:klim) = garr(1:klim)
            gdelta(1:klim) = garr(klim+1:2*klim)
            gsmag(1:klim) = garr(2*klim+1:3*klim)
 #endif
+           local_sum = (0.,0.)
            call end_log(reduce_end)
            if ( (diag .or. ktau<6 .or. itmax-iter.lt.50) .and. myid == 0 ) then
               write(6,'("Iterations",i4,i3,6g13.6/(10x,6g13.6))')   &
@@ -253,11 +215,7 @@
                     v(iq,k) = sx(iq,k) + beta(k) * v(iq,k)
                     s(iq,k) = s(iq,k) + alpha(k) * d(iq,k)
                     r(iq,k) = r(iq,k) - alpha(k) * v(iq,k)
-#ifdef sumdd
                     tmparr(iq) = s(iq,k)*s(iq,k)
-#else
-                    smag(k) = smag(k) + s(iq,k)*s(iq,k)
-#endif
                  end do
                  call ilusolve(h,r,k)
               else
@@ -267,69 +225,51 @@
                     v(iq,k) = sx(iq,k) + beta(k) * v(iq,k)
                     s(iq,k) = s(iq,k) + alpha(k) * d(iq,k)
                     h(iq,k) = h(iq,k) - alpha(k) * v(iq,k)
-#ifdef sumdd
                     tmparr(iq) = s(iq,k)*s(iq,k)
-#else
-                    smag(k) = smag(k) + s(iq,k)*s(iq,k)
-#endif
                  end do
               end if
-#ifdef sumdd
               call drpdr_local(tmparr, local_sum(2*klim+k))
-#endif
+              smag(k)=real(local_sum(2*klim+k))
            end do
 
         end do
       
       
       case(1) ! ! D'Azevedo Method standard
-
-#ifdef sumdd      
+      
         local_sum(klim+1:2*klim)=local_sum(2*klim+1:3*klim)
-#endif
         do iter=2,itmax
            gamma_1(1:klim) = 0.0
            do k=1,klim
               if ( k <= precon ) then
                  do iq=1,ifull
-#ifdef sumdd
                     tmparr(iq) = r(iq,k)*h(iq,k)
-#else
-                    gamma_1(k) = gamma_1(k) + r(iq,k)*h(iq,k)
-#endif
                  end do
               else
                  do iq=1,ifull
                     ! Here h is a copy of r
-#ifdef sumdd
                     tmparr(iq) = h(iq,k)*h(iq,k)
-#else
-                    gamma_1(k) = gamma_1(k) + h(iq,k)*h(iq,k)
-#endif
                  end do
               end if
-#ifdef sumdd
               call drpdr_local(tmparr, local_sum(k))
-#endif
+              gamma_1(k)=real(local_sum(k))
            end do
             
            call start_log(reduce_begin)
 #ifdef sumdd
-           call MPI_Allreduce (local_sum, global_sum, 2*klim, MPI_COMPLEX, &
-                               MPI_SUMDR, MPI_COMM_WORLD, ierr) 
+           call ccmpi_allreduce(local_sum(1:2*klim),global_sum(1:2*klim),"sumdr",comm_world) 
            ggamma_1(1:klim) = real(global_sum(1:klim))
            gsmag(1:klim) = real(global_sum(klim+1:2*klim))
-           local_sum = (0.,0.)
 #else
            arr(1:klim) = gamma_1(1:klim)
            arr(klim+1:2*klim) = smag(1:klim)
-           call MPI_Allreduce ( arr, garr, 2*klim, MPI_REAL, MPI_SUM,     &
-                                MPI_COMM_WORLD, ierr )
+           call ccmpi_allreduce(arr(1:2*klim),garr(1:2*klim),"sum",comm_world)
            ggamma_1(1:klim) = garr(1:klim)
            gsmag(1:klim) = garr(klim+1:2*klim)
 #endif
+           local_sum = (0.,0.)
            call end_log(reduce_end)
-           if ( (diag .or. ktau<6 .or. itmax-iter.lt.50) .and. myid == 0 ) then
+           if ( (diag .or. ktau<6 .or. itmax-iter<50) .and. myid == 0 ) then
               write(6,'("Iterations",i4,i3,6g13.6/(10x,6g13.6))')   &
      &                   iter, klim, sqrt(abs(ggamma_1(1:klim)))
            end if
@@ -346,7 +286,7 @@
            beta(1:klim) = ggamma_1(1:klim) / ggamma_0(1:klim)
            ggamma_0(1:klim) = ggamma_1(1:klim)
          
-           sigma(1:klim)=0
+           sigma(1:klim)=0.
            do k=1,klim
               if ( k <= precon) then
                  do iq=1,ifull
@@ -366,41 +306,30 @@
                     v(iq,k) = zze(iq)*d(ie(iq),k) + zzw(iq)*d(iw(iq),k) + &
                       zzn(iq)*d(in(iq),k) + zzs(iq)*d(is(iq),k) + &
                       d(iq,k)*fac(iq,k)
-#ifdef sumdd
                  tmparr(iq) = d(iq,k)*v(iq,k)
-#else
-                 sigma(k) = sigma(k) + d(iq,k)*v(iq,k)
-#endif 
                  end do
               else
                  do iq=1,ifull
                     v(iq,k) = ( zze(iq)*d(ie(iq),k) + zzw(iq)*d(iw(iq),k) + &
                              zzn(iq)*d(in(iq),k) + zzs(iq)*d(is(iq),k) ) *  &
                              invfac(iq,k) + d(iq,k)
-#ifdef sumdd
                  tmparr(iq) = d(iq,k)*v(iq,k)
-#else
-                 sigma(k) = sigma(k) + d(iq,k)*v(iq,k)
-#endif
                  end do
               end if
-#ifdef sumdd
              call drpdr_local(tmparr, local_sum(k))
-#endif
+             sigma(k)=real(local_sum(k))
            end do     
 
            call start_log(reduce_begin)
 #ifdef sumdd
-           call MPI_Allreduce (local_sum, global_sum, klim, MPI_COMPLEX, &
-                               MPI_SUMDR, MPI_COMM_WORLD, ierr) 
+           call ccmpi_allreduce(local_sum(1:klim),global_sum(1:klim),"sumdr",comm_world)
            gsigma(1:klim) = real(global_sum(1:klim))
-           local_sum(1:klim) = (0.,0.) ! Still need the later part.
 #else
            arr(1:klim) = sigma(1:klim)
-           call MPI_Allreduce ( arr, garr, klim, MPI_REAL, MPI_SUM,       &
-                                MPI_COMM_WORLD, ierr )
+           call ccmpi_allreduce(arr(1:klim),garr(1:klim),"sum",comm_world)
            gsigma(1:klim) = garr(1:klim)
 #endif
+           local_sum(1:klim) = (0.,0.) ! Still need the later part.
            call end_log(reduce_end)        
          
            alpha(1:klim) = ggamma_1(1:klim) / gsigma(1:klim)
@@ -410,11 +339,7 @@
                  do iq=1,ifull
                     s(iq,k) = s(iq,k) + alpha(k) * d(iq,k)
                     r(iq,k) = r(iq,k) - alpha(k) * v(iq,k)
-#ifdef sumdd
                     tmparr(iq) = s(iq,k)*s(iq,k)
-#else
-                    smag(k) = smag(k) + s(iq,k)*s(iq,k)
-#endif
                  end do
                  call ilusolve(h,r,k)
               else
@@ -422,16 +347,11 @@
                     ! Use h in place of r
                     s(iq,k) = s(iq,k) + alpha(k) * d(iq,k)
                     h(iq,k) = h(iq,k) - alpha(k) * v(iq,k)
-#ifdef sumdd
                     tmparr(iq) = s(iq,k)*s(iq,k)
-#else
-                    smag(k) = smag(k) + s(iq,k)*s(iq,k)
-#endif
                  end do
               end if
-#ifdef sumdd
               call drpdr_local(tmparr, local_sum(klim+k))
-#endif
+              smag(k)=real(local_sum(klim+k))
            end do
 
         end do      

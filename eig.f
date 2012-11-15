@@ -119,6 +119,7 @@ c     sets up eigenvectors
       write(6,*) 'dsig ',(dsig(k),k=1,kl)
 
       get(1)=bet(1)/(r*sig(1))
+      getm(1)=0.
       do k=2,kl
         get(k)=bet(k)/(r*sig(k))
         getm(k)=betm(k)/(r*sig(k-1))

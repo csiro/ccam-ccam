@@ -31,7 +31,6 @@
       include 'parmdyn.h'  
       include 'parmhor.h'  ! mhint, m_bs, nt_adv
       include 'parmvert.h'  
-      include 'mpif.h'
       real, save, allocatable, dimension(:,:):: tnsav,unsav,vnsav ! for npex=-1
       real, dimension(ifull+iextra,kl) :: uc, vc, wc, dd
       real aa(ifull+iextra)
@@ -43,7 +42,8 @@
       integer iaero, l
       real denb, tempry, vdot1,
      &     vdot2, vec1x, vec1y, vec1z, vec2x, vec2y, vec2z, vec3x,
-     &     vec3y, vec3z, vecdot, sdmx, sdmx_g
+     &     vec3y, vec3z, vecdot
+      real, dimension(1) :: sdmx, sdmx_g
       integer, save :: num_hight = 0, numunstab = 0
 
       call start_log(upglobal_begin)
@@ -177,14 +177,13 @@
 !-------------------------moved up here May 06---------------------------
       if(nvad==-4.and.nvadh.ne.3)then 
 !       N.B. this moved one is doing vadv on just extra pslx terms      
-        sdmx = maxval(abs(sdot))
+        sdmx(1) = maxval(abs(sdot))
 #ifdef sumdd
-        call MPI_AllReduce(sdmx, sdmx_g, 1, MPI_REAL, MPI_MAX, 
-     &                     MPI_COMM_WORLD, ierr )
+        call ccmpi_allreduce(sdmx(1:1),sdmx_g(1:1),"max",comm_world)
 #else
-        sdmx_g=sdmx
+        sdmx_g(1)=sdmx(1)
 #endif
-	 nits=1+sdmx_g/nvadh
+	 nits=1+sdmx_g(1)/nvadh
 	 nvadh_pass=nvadh*nits ! use - for nvadu
         do its=1,nits
          dumt=tx(1:ifull,:)
@@ -448,19 +447,19 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
         if(nvad==-4)then
           sdot(:,2:kl)=sbar(:,:)
           if(nvadh==3)then  ! just done here after horiz adv
-            sdmx = maxval(abs(sdot))
+            sdmx(1) = maxval(abs(sdot))
 #ifdef sumdd
-            call MPI_AllReduce(sdmx, sdmx_g, 1, MPI_REAL, MPI_MAX, 
-     &                         MPI_COMM_WORLD, ierr )
+            call ccmpi_allreduce(sdmx(1:1),sdmx_g(1:1),"max",
+     &                           comm_world)
 #else
-            sdmx_g=sdmx
+            sdmx_g(1)=sdmx(1)
 #endif
-            nits=1+sdmx_g   ! effectively takes nvadh=1  1/2/06
+            nits=1+sdmx_g(1)   ! effectively takes nvadh=1  1/2/06
             nvadh_pass=nits ! use - for nvadu
           endif   ! (nvadh==3)
 	   if(mod(ktau,nmaxpr)==0.and.mydiag)
      &       print *,'upglobal ktau,sdmx,nits,nvadh_pass ',
-     &                         ktau,sdmx_g,nits,nvadh_pass
+     &                         ktau,sdmx_g(1),nits,nvadh_pass
           if( (diag.or.nmaxpr==1) .and. mydiag )then
             print *,'in upglobal before vadv2'
             write (6,"('qg  ',3p9f8.3/4x,9f8.3)")   qg(idjd,:)

@@ -148,7 +148,7 @@ c *****************************************************************
 ! rml 16/2/10 addition for methane
 ! rml 30/4/10 addition for mcf
       use arrays_m        ! ps
-      use cc_mpi, only : myid
+      use cc_mpi
       use sigs_m          ! disg,bet,betm
       use tracermodule, only : oh,strloss,unit_trout,mcfdep,jmcf
       use tracers_m       ! tr
@@ -156,7 +156,6 @@ c *****************************************************************
       implicit none
       include 'newmpar.h'
       include 'const_phys.h' !eradsq,pi,grav
-      include 'mpif.h'
       include 'parm.h'    ! dt
       real trsrc(ilt*jlt,kl)
       real temptr(ilt*jlt,klt)
@@ -167,7 +166,8 @@ c rml 08/11/04 decay flag to all decay for radon
       logical decay,methloss,mcfloss
       real drate,fluxfact
       integer igas
-      real koh,totloss_l,totloss,kohmcf
+      real koh,kohmcf
+      real, dimension(1) :: totloss_l,totloss
       parameter(koh=2.45e-12,kohmcf=1.64e-12)
       integer ierr,k,iq
 
@@ -189,22 +189,23 @@ c
      &     (koh*exp(-1775./t(1:ilt*jlt,:))*oh(:,:) + strloss(:,:))
 !
 !       calculate total loss
-        totloss_l = 0.
+        totloss_l(1) = 0.
         do k=1,kl
           do iq=1,ilt*jlt
-            totloss_l = totloss_l + loss(iq,k)*dsig(k)*ps(iq)*wts(iq)
+            totloss_l(1) = totloss_l(1)
+     &        + loss(iq,k)*dsig(k)*ps(iq)*wts(iq)
           enddo
         enddo
-        call MPI_Allreduce(totloss_l,totloss,1,MPI_REAL,MPI_SUM,
-     &                     MPI_COMM_WORLD,ierr)
+        call ccmpi_allreduce(totloss_l(1:1),totloss(1:1),"sum",
+     &                       comm_world)
 !       convert to TgCH4 and write out
         if (myid == 0) then
-          totloss = -1.*totloss*4*pi*eradsq*fCH4_MolM/
+          totloss(1) = -1.*totloss(1)*4*pi*eradsq*fCH4_MolM/
      &                 (grav*fAIR_MolM*1.e18)
-          write(6,*) 'Total loss',ktau,totloss
-          write(unit_trout,*) 'Total loss',ktau,totloss
+          write(6,*) 'Total loss',ktau,totloss(1)
+          write(unit_trout,*) 'Total loss',ktau,totloss(1)
 !         accumulate loss over month
-          acloss_g(igas) = acloss_g(igas) + totloss
+          acloss_g(igas) = acloss_g(igas) + totloss(1)
         endif
         dep=1.
       elseif (mcfloss) then

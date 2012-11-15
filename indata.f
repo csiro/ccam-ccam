@@ -231,7 +231,7 @@
       end if
    
       c=grav/stdlapse
-      bet(1)=c *(sig(1)**(-rdry/c)-1)
+      bet(1)=c *(sig(1)**(-rdry/c)-1.)
       if(lapsbot==1)bet(1)=-rdry*log(sig(1))
       do k=1,kl
        betm(k)=bet(k)
@@ -669,6 +669,14 @@
 
         qg(1:ifull,:)=max(qg(1:ifull,:),0.)
         ps(1:ifull)=1.e5*exp(psl(1:ifull))
+        
+        ! old options
+        !qg(1:ifull,:)=max(qg(1:ifull,:),qgmin)
+        !do k=1,kl
+        !  if (sig(k)<0.005) then
+        !    qg(1:ifull,:)=min(qg(1:ifull,:),1.E-5)
+        !  end if
+        !end do
 
       else
 
@@ -1095,7 +1103,7 @@
       ! Soil recycling input
       if(nrungcm<=-3.and.nrungcm>=-5)then
        call ncpopt(0)
-       call histopen(ncid,surf_00)
+       call histopen(ncid,surf_00,ier)
        if (ier==0) then
         ! clobber ifile surface data with surfin surface data
         kdate_s=kdate_sav
@@ -1766,7 +1774,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
      &                  MPI_COMM_WORLD, ierr )
         if(myid==0)write(6,*)'for lgwd>0, aamax: ',aamax_g
       end if ! lgwd>0
-      if (ngwd.ne.0) then
+      if (ngwd/=0) then
         hemax=0.
         do iq=1,ifull
          hemax=max(he(iq),hemax)

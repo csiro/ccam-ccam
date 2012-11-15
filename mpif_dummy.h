@@ -9,9 +9,14 @@
       integer, parameter :: MPI_CHARACTER =  1
       integer, parameter :: MPI_LOGICAL   = 25
       integer, parameter :: MPI_REAL      = 26
-      integer, parameter :: MPI_DOUBLE_PRECISION = 27
-      integer, parameter :: MPI_INTEGER   = 28
       integer, parameter :: MPI_2REAL     = 32
+      integer, parameter :: MPI_DOUBLE_PRECISION = 27
+      integer, parameter :: MPI_2DOUBLE_PRECISION = 1275072547
+      integer, parameter :: MPI_INTEGER   = 28
+      integer, parameter :: MPI_INTEGER8  = 1275070513
+      integer, parameter :: MPI_COMPLEX   = 1275070494
+      integer, parameter :: MPI_COMPLEX8  = 1275070504
+      integer, parameter :: MPI_COMPLEX16 = 1275072554
 !
 !     Collective operations
 !

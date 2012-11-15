@@ -16,7 +16,7 @@ c  This routine reads the CO2 transmission coefficients from the
 c  co2_datafile (filename set in namelist)
 c  was unit 15 for DARLAM, unit 17 for conformal-cubic
 
-      use cc_mpi, only : myid
+      use cc_mpi
       use co2dta_m
       use radisw_m           ! passes rrvco2 to radrive for use in swr89
       
@@ -25,7 +25,6 @@ c  was unit 15 for DARLAM, unit 17 for conformal-cubic
       include 'parm.h'
       include 'filnames.h'
       include 'newmpar.h'
-      include 'mpif.h'
       include 'rdparm.h'  ! needed before other radiation common blocks
       
       real, parameter :: sigtol=1e-3
@@ -88,7 +87,7 @@ c  was unit 15 for DARLAM, unit 17 for conformal-cubic
           rdum(6)=rrvf113
           rdum(7)=rrvf22
         end if
-        call MPI_Bcast(rdum(1:7),7,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+        call ccmpi_bcast(rdum(1:7),0,comm_world)
         rrvco2=rdum(1)
         rrvch4=rdum(2)
         rrvn2o=rdum(3)
@@ -153,35 +152,37 @@ c       Note that the radiation data has the levels in the reverse order
         read(lu,*) co218
         close(lu)
       end if
-      call MPI_Bcast(rrvco2,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(stemp,lp1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(gtemp,lp1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(cdt51,lp1*lp1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(co251,lp1*lp1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(c2d51,lp1*lp1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(cdt58,lp1*lp1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(co258,lp1*lp1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(c2d58,lp1*lp1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(cdtm51,l,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(co2m51,l,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(c2dm51,l,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(cdtm58,l,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(co2m58,l,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(c2dm58,l,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(cdt31,lp1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(co231,lp1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(c2d31,lp1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(cdt38,lp1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(co238,lp1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(c2d38,lp1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(cdt71,lp1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(co271,lp1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(c2d71,lp1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(cdt78,lp1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(co278,lp1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(c2d78,lp1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(co211,lp1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(co218,lp1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      rdum(1)=rrvco2
+      call ccmpi_bcast(rdum(1:1),0,comm_world)
+      rrvco2=rdum(1)
+      call ccmpi_bcast(stemp,0,comm_world)
+      call ccmpi_bcast(gtemp,0,comm_world)
+      call ccmpi_bcast(cdt51,0,comm_world)
+      call ccmpi_bcast(co251,0,comm_world)
+      call ccmpi_bcast(c2d51,0,comm_world)
+      call ccmpi_bcast(cdt58,0,comm_world)
+      call ccmpi_bcast(co258,0,comm_world)
+      call ccmpi_bcast(c2d58,0,comm_world)
+      call ccmpi_bcast(cdtm51,0,comm_world)
+      call ccmpi_bcast(co2m51,0,comm_world)
+      call ccmpi_bcast(c2dm51,0,comm_world)
+      call ccmpi_bcast(cdtm58,0,comm_world)
+      call ccmpi_bcast(co2m58,0,comm_world)
+      call ccmpi_bcast(c2dm58,0,comm_world)
+      call ccmpi_bcast(cdt31,0,comm_world)
+      call ccmpi_bcast(co231,0,comm_world)
+      call ccmpi_bcast(c2d31,0,comm_world)
+      call ccmpi_bcast(cdt38,0,comm_world)
+      call ccmpi_bcast(co238,0,comm_world)
+      call ccmpi_bcast(c2d38,0,comm_world)
+      call ccmpi_bcast(cdt71,0,comm_world)
+      call ccmpi_bcast(co271,0,comm_world)
+      call ccmpi_bcast(c2d71,0,comm_world)
+      call ccmpi_bcast(cdt78,0,comm_world)
+      call ccmpi_bcast(co278,0,comm_world)
+      call ccmpi_bcast(c2d78,0,comm_world)
+      call ccmpi_bcast(co211,0,comm_world)
+      call ccmpi_bcast(co218,0,comm_world)
       !--------------------------------------------------------------
       
       return
