@@ -24,7 +24,7 @@ contains
 ! This version supports CMIP3 (ASCII) and CMIP5 (netcdf) file formats            
 subroutine o3_read(sigma,jyear,jmonth)
 
-use cc_mpi, only : myid
+use cc_mpi
 use infile, only : ncmsg
 
 implicit none
@@ -32,7 +32,6 @@ implicit none
 include 'newmpar.h'
 include 'filnames.h'
 include 'netcdf.inc'
-include 'mpif.h'
       
 integer, intent(in) :: jyear,jmonth
 integer nlev,i,l,k,ierr
@@ -102,7 +101,7 @@ if (myid==0) then
     nn=(jyear-yy)*12+(jmonth-mm)+1
     if (nn<1.or.nn>tt) then
       write(6,*) "ERROR: Cannot find date in ozone data"
-      call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+      call ccmpi_abort(-1)
     end if
     write(6,*) "Found ozone data at index ",nn
     spos=1
@@ -145,7 +144,7 @@ if (myid==0) then
     read(16,*) nlev
     if ( nlev/=kl ) then
       write(6,*) ' ERROR - Number of levels wrong in o3_data file'
-      call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+      call ccmpi_abort(-1)
     end if
     ! Check that the sigma levels are the same
     ! Note that the radiation data has the levels in the reverse order
@@ -154,7 +153,7 @@ if (myid==0) then
       if ( abs(sigma(k)-sigin(k)) > sigtol ) then
         write(6,*) ' ERROR - sigma level wrong in o3_data file'
         write(6,*) k, sigma(k), sigin(k)
-        call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+        call ccmpi_abort(-1)
       end if
     end do
           
@@ -173,7 +172,7 @@ if (myid==0) then
   dum(2)=jj
   dum(3)=kk
 end if
-call MPI_Bcast(dum,3,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+call ccmpi_bcast(dum(1:3),0,comm_world)
 ii=dum(1)
 jj=dum(2)
 kk=dum(3)
@@ -183,10 +182,10 @@ if (ii>0) then
     allocate(o3dum(ii,jj,kk,3))
   end if
   allocate(o3pre(ifull,kk),o3mth(ifull,kk),o3nxt(ifull,kk))
-  call MPI_Bcast(o3dum,ii*jj*kk*3,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-  call MPI_Bcast(o3lon,ii,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-  call MPI_Bcast(o3lat,jj,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-  call MPI_Bcast(o3pres,kk,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+  call ccmpi_bcast(o3dum,0,comm_world)
+  call ccmpi_bcast(o3lon,0,comm_world)
+  call ccmpi_bcast(o3lat,0,comm_world)
+  call ccmpi_bcast(o3pres,0,comm_world)
   if (myid==0) write(6,*) "Interpolate ozone data to CC grid"
   call o3regrid(o3pre,o3mth,o3nxt,o3dum,o3lon,o3lat,ii,jj,kk)
   deallocate(o3dum,o3lat,o3lon)
@@ -195,10 +194,10 @@ else
     allocate(dduo3n(37,kl),ddo3n2(37,kl))
     allocate(ddo3n3(37,kl),ddo3n4(37,kl))
   end if
-  call MPI_Bcast(ddo3n2,37*kl,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-  call MPI_Bcast(ddo3n4,37*kl,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-  call MPI_Bcast(dduo3n,37*kl,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-  call MPI_Bcast(ddo3n3,37*kl,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+  call ccmpi_bcast(ddo3n2,0,comm_world)
+  call ccmpi_bcast(ddo3n4,0,comm_world)
+  call ccmpi_bcast(dduo3n,0,comm_world)
+  call ccmpi_bcast(ddo3n4,0,comm_world)
   call resetd(dduo3n,ddo3n2,ddo3n3,ddo3n4,37*kl)
 end if
       

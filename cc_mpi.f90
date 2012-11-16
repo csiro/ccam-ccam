@@ -18,8 +18,8 @@ module cc_mpi
    ! These only need to be module variables for the overlap case
    ! when they have to keep values between boundsa and boundsb.
    ! For now leave them here.
-   integer, allocatable, dimension(:), save, private :: ireq
-   integer, save, private :: nreq
+   integer(kind=4), allocatable, dimension(:), save, private :: ireq
+   integer(kind=4), save, private :: nreq
 
    public :: bounds, boundsuv, ccmpi_setup, ccmpi_distribute, ccmpi_gather, &
              ccmpi_distributer8, indp, indg, deptsync, intssync, start_log, &
@@ -27,7 +27,9 @@ module cc_mpi
              ccglobal_posneg, ccglobal_sum, iq2iqg, indv_mpi, indglobal,    &
              readglobvar, writeglobvar, face_set, uniform_set,              &
              ccmpi_reduce, ccmpi_allreduce, ccmpi_abort, ccmpi_bcast,       &
-             ccmpi_bcastr8, ccmpi_barrier, ccmpi_init, ccmpi_finalize
+             ccmpi_bcastr8, ccmpi_barrier, ccmpi_gatherx, ccmpi_scatterx,   &
+             ccmpi_allgatherx, ccmpi_recv, ccmpi_ssend, ccmpi_init,         &
+             ccmpi_finalize, ccmpi_commsplit, ccmpi_commfree
    public :: dpoints_t,dindex_t,sextra_t,bnds
    private :: ccmpi_distribute2, ccmpi_distribute2i, ccmpi_distribute2r8,   &
               ccmpi_distribute3, ccmpi_distribute3i, ccmpi_gather2,         &
@@ -68,11 +70,27 @@ module cc_mpi
       module procedure ccmpi_allreduce2i, ccmpi_allreduce2r, ccmpi_allreduce3r, ccmpi_allreduce2c
    end interface ccmpi_allreduce
    interface ccmpi_bcast
-      module procedure ccmpi_bcast2i, ccmpi_bcast3i, ccmpi_bcast2r, ccmpi_bcast3r, ccmpi_bcast4r
+      module procedure ccmpi_bcast2i, ccmpi_bcast3i, ccmpi_bcast2r, ccmpi_bcast3r, ccmpi_bcast4r, &
+                       ccmpi_bcast5r, ccmpi_bcast2s
    end interface ccmpi_bcast
    interface ccmpi_bcastr8
-      module procedure ccmpi_bcast2r8, ccmpi_bcast4r8
+      module procedure ccmpi_bcast2r8, ccmpi_bcast3r8, ccmpi_bcast4r8
    end interface ccmpi_bcastr8
+   interface ccmpi_gatherx
+      module procedure ccmpi_gatherx2r
+   end interface ccmpi_gatherx
+   interface ccmpi_scatterx
+      module procedure ccmpi_scatterx2r
+   end interface ccmpi_scatterx
+   interface ccmpi_allgatherx
+      module procedure ccmpi_allgatherx2i
+   end interface ccmpi_allgatherx
+   interface ccmpi_recv
+      module procedure ccmpi_recv2r
+   end interface ccmpi_recv
+   interface ccmpi_ssend
+      module procedure ccmpi_ssend2r
+   end interface ccmpi_ssend
 
    ! Define neighbouring faces
    integer, parameter, private, dimension(0:npanels) ::    &
@@ -89,24 +107,24 @@ module cc_mpi
 
    type bounds_info
       real, dimension(:), pointer :: sbuf, rbuf
-      integer, dimension(:), pointer :: request_list
-      integer, dimension(:), pointer :: send_list
-      integer, dimension(:), pointer :: unpack_list
-      integer, dimension(:), pointer :: request_list_uv
-      integer, dimension(:), pointer :: send_list_uv
-      integer, dimension(:), pointer :: unpack_list_uv
+      integer(kind=4), dimension(:), pointer :: request_list
+      integer(kind=4), dimension(:), pointer :: send_list
+      integer(kind=4), dimension(:), pointer :: unpack_list
+      integer(kind=4), dimension(:), pointer :: request_list_uv
+      integer(kind=4), dimension(:), pointer :: send_list_uv
+      integer(kind=4), dimension(:), pointer :: unpack_list_uv
       ! Flag for whether u and v need to be swapped
       logical, dimension(:), pointer :: uv_swap, send_swap,uv_neg,send_neg
       ! Number of points for each processor. Also double row versions.
       ! lenx is first row plux corner points.  lenh is just the ne side.
-      integer :: slen, rlen, slenx, rlenx, slen2, rlen2
-      integer :: slenh, rlenh
+      integer(kind=4) :: slen, rlen, slenx, rlenx, slen2, rlen2
+      integer(kind=4) :: slenh, rlenh
       ! Number of points for each processor. lenx is for nu, su, ev and wv
-      integer :: slen_uv, rlen_uv, slen2_uv, rlen2_uv
-      integer :: slenx_uv, rlenx_uv
-      integer :: len
+      integer(kind=4) :: slen_uv, rlen_uv, slen2_uv, rlen2_uv
+      integer(kind=4) :: slenx_uv, rlenx_uv
+      integer(kind=4) :: len
       ! ocean mask
-      integer :: mlomsk
+      integer(kind=4) :: mlomsk
    end type bounds_info
    
    type dpoints_t
@@ -142,7 +160,7 @@ module cc_mpi
    type(dindex_t), allocatable, dimension(:), public, save :: dindex
    type(sextra_t), allocatable, dimension(:), public, save :: sextra
    ! Number of points for each processor.
-   integer, dimension(:), allocatable, public, save :: dslen, drlen
+   integer(kind=4), dimension(:), allocatable, public, save :: dslen, drlen
 
    ! True if processor is a nearest neighbour
    logical, allocatable, dimension(:), public, save :: neighbour
@@ -200,7 +218,7 @@ module cc_mpi
    integer, public, save :: bcast_begin, bcast_end
 #ifdef simple_timer
    public :: simple_timer_finalize
-   integer, parameter :: nevents=49
+   integer(kind=4), parameter :: nevents=49
    double precision, dimension(nevents), save :: tot_time = 0., start_time
    character(len=15), dimension(nevents), save :: event_name
 #endif 
@@ -232,7 +250,8 @@ contains
       use sumdd_m
       use vecsuv_m
       use xyzinfo_m
-      integer :: ierr,iproc
+      integer iproc
+      integer(kind=4) ierr
 
       allocate(fproc(il_g,il_g,0:npanels))
       allocate(qproc(ifull_g))
@@ -352,7 +371,8 @@ contains
       ! Convert standard 1D arrays to face form and distribute to processors
       real, dimension(ifull), intent(out) :: af
       real, dimension(ifull_g), intent(in), optional :: a1
-      integer :: i, j, n, iq, iproc, ierr
+      integer :: i, j, n, iq, iproc
+      integer(kind=4) ierr,lsize,ltype
       real, dimension(ifull,0:nproc-1) :: sbuf
       integer :: npoff, ipoff, jpoff ! Offsets for target
       integer :: slen
@@ -386,7 +406,13 @@ contains
             end do
          end do
       end if
-      call MPI_Scatter(sbuf,ifull,MPI_REAL,af,ifull,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      lsize=ifull
+#ifdef r8i8
+      ltype=MPI_DOUBLE_PRECISION
+#else
+      ltype=MPI_REAL
+#endif
+      call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,0,MPI_COMM_WORLD,ierr)
 
       call end_log(distribute_end)
    end subroutine ccmpi_distribute2
@@ -395,7 +421,8 @@ contains
       ! Convert standard 1D arrays to face form and distribute to processors
       real*8, dimension(ifull), intent(out) :: af
       real*8, dimension(ifull_g), intent(in), optional :: a1
-      integer :: i, j, n, iq, iproc, ierr
+      integer :: i, j, n, iq, iproc
+      integer(kind=4) ierr,lsize
       real*8, dimension(ifull,0:nproc-1) :: sbuf
       integer :: npoff, ipoff, jpoff ! Offsets for target
       integer :: slen
@@ -429,7 +456,8 @@ contains
             end do
          end do
       end if
-      call MPI_Scatter(sbuf,ifull,MPI_DOUBLE_PRECISION,af,ifull,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
+      lsize=ifull
+      call MPI_Scatter(sbuf,lsize,MPI_DOUBLE_PRECISION,af,lsize,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
 
       call end_log(distribute_end)
    end subroutine ccmpi_distribute2r8
@@ -438,7 +466,8 @@ contains
       ! Convert standard 1D arrays to face form and distribute to processors
       integer, dimension(ifull), intent(out) :: af
       integer, dimension(ifull_g), intent(in), optional :: a1
-      integer :: i, j, n, iq, iproc, ierr
+      integer :: i, j, n, iq, iproc
+      integer(kind=4) ierr,lsize,ltype
       integer, dimension(ifull,0:nproc-1) :: sbuf
       integer :: npoff, ipoff, jpoff ! Offsets for target
       integer :: slen
@@ -472,7 +501,13 @@ contains
             end do
          end do
       end if
-      call MPI_Scatter(sbuf,ifull,MPI_INTEGER,af,ifull,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      lsize=ifull
+#ifdef r8i8
+      ltype=MPI_INTEGER8
+#else
+      ltype=MPI_INTEGER
+#endif
+      call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,0,MPI_COMM_WORLD,ierr)
  
       call end_log(distribute_end)
    end subroutine ccmpi_distribute2i
@@ -483,7 +518,8 @@ contains
       ! the number of levels
       real, dimension(:,:), intent(out) :: af
       real, dimension(:,:), intent(in), optional :: a1
-      integer :: i, j, n, iq, iproc, ierr
+      integer :: i, j, n, iq, iproc
+      integer(kind=4) ierr,lsize,ltype
       real, dimension(ifull,size(af,2),0:nproc-1) :: sbuf
       integer :: npoff, ipoff, jpoff ! Offsets for target
       integer :: slen, kx
@@ -518,7 +554,13 @@ contains
             end do
          end do
       end if
-      call MPI_Scatter(sbuf,ifull*kx,MPI_REAL,af,ifull*kx,MPI_REAL,0,MPI_COMM_WORLD,ierr)      
+      lsize=ifull*kx
+#ifdef r8i8
+      ltype=MPI_DOUBLE_PRECISION
+#else
+      ltype=MPI_REAL
+#endif
+      call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,0,MPI_COMM_WORLD,ierr)      
 
       call end_log(distribute_end)
    end subroutine ccmpi_distribute3
@@ -529,7 +571,8 @@ contains
       ! the number of levels
       integer, dimension(:,:), intent(out) :: af
       integer, dimension(:,:), intent(in), optional :: a1
-      integer :: i, j, n, iq, iproc, ierr
+      integer :: i, j, n, iq, iproc
+      integer(kind=4) ierr,lsize,ltype
       integer, dimension(ifull,size(af,2),0:nproc-1) :: sbuf
       integer :: npoff, ipoff, jpoff ! Offsets for target
       integer :: slen, kx
@@ -564,7 +607,13 @@ contains
             end do
          end do
       end if
-      call MPI_Scatter(sbuf,ifull*kx,MPI_INTEGER,af,ifull*kx,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)      
+      lsize=ifull*kx
+#ifdef r8i8
+      ltype=MPI_INTEGER8
+#else
+      ltype=MPI_INTEGER
+#endif
+      call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,0,MPI_COMM_WORLD,ierr)      
 
       call end_log(distribute_end)
    end subroutine ccmpi_distribute3i
@@ -574,7 +623,8 @@ contains
 
       real, dimension(ifull), intent(in) :: a
       real, dimension(ifull_g), intent(out), optional :: ag
-      integer :: ierr, iproc
+      integer :: iproc
+      integer(kind=4) ierr,lsize,ltype
       real, dimension(ifull,0:nproc-1) :: abuf
       integer :: ipoff, jpoff, npoff
       integer :: i, j, n, iq, iqg
@@ -586,7 +636,13 @@ contains
          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
       end if
       
-      call MPI_Gather(a,ifull,MPI_REAL,abuf,ifull,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      lsize=ifull
+#ifdef r8i8
+      ltype=MPI_DOUBLE_PRECISION
+#else
+      ltype=MPI_REAL
+#endif
+      call MPI_Gather(a,lsize,ltype,abuf,lsize,ltype,0,MPI_COMM_WORLD,ierr)
       if ( myid == 0 ) then
          ! map array in order of processor rank
          do iproc=0,nproc-1
@@ -621,7 +677,8 @@ contains
 
       real, dimension(:,:), intent(in) :: a
       real, dimension(:,:), intent(out), optional :: ag
-      integer :: ierr, iproc
+      integer :: iproc
+      integer(kind=4) ierr,lsize,ltype
       real, dimension(ifull,size(a,2),0:nproc-1) :: abuf
       integer :: ipoff, jpoff, npoff
       integer :: i, j, n, iq, iqg, kx
@@ -634,7 +691,13 @@ contains
       end if
 
       kx=size(a,2)
-      call MPI_Gather(a,ifull*kx,MPI_REAL,abuf,ifull*kx,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      lsize=ifull*kx
+#ifdef r8i8
+      ltype=MPI_DOUBLE_PRECISION
+#else
+      ltype=MPI_REAL
+#endif
+      call MPI_Gather(a,lsize,ltype,abuf,lsize,ltype,0,MPI_COMM_WORLD,ierr)
       if ( myid == 0 ) then
          ! map array in order of processor rank
          do iproc=0,nproc-1
@@ -667,11 +730,12 @@ contains
    subroutine bounds_setup()
 
       use indices_m
-      integer :: n, nr, i, j, iq, iqx, count
-      integer :: ierr,ierr2, itag = 0, iproc, rproc, sproc
-      integer, dimension(MPI_STATUS_SIZE,2*nproc) :: status
-      integer, dimension(8,0:nproc-1) :: dums, dumr
-      integer, dimension(3,0:nproc-1) :: dumsb, dumrb
+      integer :: n, nr, i, j, iq, iqx
+      integer :: iproc
+      integer(kind=4), dimension(MPI_STATUS_SIZE,2*nproc) :: status
+      integer(kind=4) :: ierr, itag=0, count, rproc, sproc
+      integer(kind=4), dimension(8,0:nproc-1) :: dums, dumr
+      integer(kind=4), dimension(3,0:nproc-1) :: dumsb, dumrb
       integer :: iqg
       integer :: iext, iextu, iextv, iql, iloc, jloc, nloc
       logical :: swap
@@ -2061,8 +2125,9 @@ contains
    
    implicit none
    
-   integer iproc,nlen,ierr
-   integer, dimension(maxbuflen) :: idum
+   integer iproc,nlen
+   integer(kind=4) ierr
+   integer(kind=4), dimension(maxbuflen) :: idum
    logical, dimension(maxbuflen) :: ldum
    
    do iproc=0,nproc-1
@@ -2129,7 +2194,7 @@ contains
 
    subroutine check_set(ind,str,i,j,n,iq)
       integer, intent(in) :: ind,i,j,n,iq
-      integer :: ierr,ierr2
+      integer(kind=4) :: ierr
       character(len=*) :: str
       if ( ind == huge(1) ) then
          write(6,*) str, " not set", myid, i, j, n, iq
@@ -2146,16 +2211,21 @@ contains
       logical, intent(in), optional :: corner
       logical, intent(in), optional :: nehalf
       logical :: double, extra, single
-      integer :: iq
-      integer :: ierr, itag = 0, iproc, rproc, sproc
-      integer, dimension(MPI_STATUS_SIZE,2*nproc) :: status
-      integer :: send_len, recv_len
+      integer :: iq, iproc
+      integer(kind=4) :: ierr, itag = 0, rproc, sproc, ltype
+      integer(kind=4), dimension(MPI_STATUS_SIZE,2*nproc) :: status
+      integer(kind=4) :: send_len, recv_len
       integer :: lmode
 
       call start_log(bounds_begin)
       
       lmode=0
       if (present(gmode)) lmode=gmode
+#ifdef r8i8
+      ltype=MPI_DOUBLE_PRECISION
+#else
+      ltype=MPI_REAL
+#endif   
 
       t(ifull+1:ifull+iextra)=9.E9 ! MJT test for bad bounds call
 
@@ -2195,7 +2265,7 @@ contains
          if ( recv_len /= 0 ) then
             nreq = nreq + 1
             call MPI_IRecv( bnds(rproc)%rbuf(1),  recv_len, &
-                 MPI_REAL, rproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+                 ltype, rproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end if
       end do
       do iproc = 1,nproc-1  !
@@ -2219,7 +2289,7 @@ contains
             end do
             nreq = nreq + 1
             call MPI_ISend( bnds(sproc)%sbuf(1), send_len, &
-                 MPI_REAL, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+                 ltype, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end if
       end do
 
@@ -2283,16 +2353,21 @@ contains
       logical, intent(in), optional :: corner
       logical, intent(in), optional :: nehalf
       logical :: double, extra, single
-      integer :: iq
-      integer :: ierr, itag = 0, iproc, rproc, sproc
-      integer, dimension(MPI_STATUS_SIZE,2*nproc) :: status
-      integer :: send_len, recv_len, kx
+      integer :: iq,iproc
+      integer(kind=4) :: ierr, itag = 0, rproc, sproc, ltype
+      integer(kind=4), dimension(MPI_STATUS_SIZE,2*nproc) :: status
+      integer(kind=4) :: send_len, recv_len, kx
       integer :: lmode
 
       call start_log(bounds_begin)
 
       lmode=0
       if (present(gmode)) lmode=gmode
+#ifdef r8i8
+      ltype=MPI_DOUBLE_PRECISION
+#else
+      ltype=MPI_REAL
+#endif   
 
       t(ifull+1:ifull+iextra,:)=9.E9 ! MJT test for bad bounds call
 
@@ -2336,8 +2411,9 @@ contains
          end if
          if ( recv_len /= 0 ) then
             nreq = nreq + 1
-            call MPI_IRecv( bnds(rproc)%rbuf(1), recv_len*kx, &
-                 MPI_REAL, rproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+            recv_len=recv_len*kx
+            call MPI_IRecv( bnds(rproc)%rbuf(1), recv_len, &
+                 ltype, rproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end if
       end do
       do iproc = 1,nproc-1  !
@@ -2361,8 +2437,9 @@ contains
                bnds(sproc)%sbuf(1+(iq-1)*kx:iq*kx) = t(bnds(sproc)%send_list(iq),1:kx)
             end do
             nreq = nreq + 1
-            call MPI_ISend( bnds(sproc)%sbuf(1), send_len*kx, &
-                 MPI_REAL, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+            send_len=send_len*kx
+            call MPI_ISend( bnds(sproc)%sbuf(1), send_len, &
+                 ltype, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end if
       end do
 
@@ -2428,10 +2505,10 @@ contains
       logical :: double, extra
       logical :: fsvwu, fnveu, fssvwwu, fnnveeu
       logical :: fsuwv, fnuev
-      integer :: stagmode, iq, iqx, iqz
-      integer :: ierr, itag = 0, iproc, rproc, sproc
-      integer, dimension(MPI_STATUS_SIZE,2*nproc) :: status
-      integer :: send_len, recv_len
+      integer :: stagmode, iq, iqz, iproc
+      integer(kind=4) :: ierr, itag = 0, rproc, sproc, iqx, ltype
+      integer(kind=4), dimension(MPI_STATUS_SIZE,2*nproc) :: status
+      integer(kind=4) :: send_len, recv_len
       integer :: lmode
       real :: tmp
 
@@ -2439,6 +2516,11 @@ contains
       
       lmode=0
       if (present(gmode)) lmode=gmode
+#ifdef r8i8
+      ltype=MPI_DOUBLE_PRECISION
+#else
+      ltype=MPI_REAL
+#endif   
 
       u(ifull+1:ifull+iextra)=9.E9 ! MJT test for bad bounds call
       v(ifull+1:ifull+iextra)=9.E9 ! MJT test for bad bounds call
@@ -2526,7 +2608,7 @@ contains
             if ( recv_len > 0 ) then 
                nreq = nreq + 1
                call MPI_IRecv( bnds(rproc)%rbuf(1), recv_len, &
-                    MPI_REAL, rproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+                    ltype, rproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
             end if
          end if
       end do
@@ -2638,7 +2720,7 @@ contains
             if ( iqx > 0 ) then
                nreq = nreq + 1
                call MPI_ISend( bnds(sproc)%sbuf(1), iqx, &
-                    MPI_REAL, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+                    ltype, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
             end if
          end if
       end do
@@ -2789,10 +2871,10 @@ contains
       logical :: double, extra
       logical :: fsvwu, fnveu, fssvwwu, fnnveeu
       logical :: fsuwv, fnuev
-      integer :: stagmode, iq, iqx, iqz, iqb, iqe
-      integer :: ierr, itag = 0, iproc, rproc, sproc
-      integer, dimension(MPI_STATUS_SIZE,2*nproc) :: status
-      integer :: send_len, recv_len, kx
+      integer :: stagmode, iq, iqz, iqb, iqe, iproc
+      integer(kind=4) :: ierr, itag = 0, rproc, sproc, iqx, ltype
+      integer(kind=4), dimension(MPI_STATUS_SIZE,2*nproc) :: status
+      integer(kind=4) :: send_len, recv_len, kx
       integer :: lmode
       real, dimension(maxbuflen) :: tmp
       
@@ -2800,6 +2882,11 @@ contains
 
       lmode=0
       if (present(gmode)) lmode=gmode
+#ifdef r8i8
+      ltype=MPI_DOUBLE_PRECISION
+#else
+      ltype=MPI_REAL
+#endif   
 
       kx=size(u,2)
       u(ifull+1:ifull+iextra,:)=9.E9 ! MJT test for bad bounds call
@@ -2887,8 +2974,9 @@ contains
             end if
             if ( recv_len > 0 ) then 
                nreq = nreq + 1
-               call MPI_IRecv( bnds(rproc)%rbuf(1), recv_len*kx, &
-                    MPI_REAL, rproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+               recv_len=recv_len*kx
+               call MPI_IRecv( bnds(rproc)%rbuf(1), recv_len, &
+                    ltype, rproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
             end if
          end if
       end do
@@ -3017,8 +3105,9 @@ contains
             end if
             if ( iqx > 0 ) then
                nreq = nreq + 1
-               call MPI_ISend( bnds(sproc)%sbuf(1), iqx*kx, &
-                    MPI_REAL, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+               iqx=iqx*kx
+               call MPI_ISend( bnds(sproc)%sbuf(1), iqx, &
+                    ltype, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
             end if
          end if
       end do
@@ -3185,8 +3274,8 @@ contains
       integer, intent(in), optional :: gmode
       real, dimension(:,:), intent(in) :: xg, yg      
       integer :: iproc
-      integer :: nreq, itag = 99, ierr,ierr2, rproc, sproc
-      integer, dimension(MPI_STATUS_SIZE,2*nproc) :: status
+      integer(kind=4) :: nreq, itag = 99, ierr, rproc, sproc, ltype
+      integer(kind=4), dimension(MPI_STATUS_SIZE,2*nproc) :: status
       integer, dimension(0:nproc-1) :: binlen,msglen
       integer :: count, ip, jp, xn, kx
       integer :: iq, k, idel, jdel, nf
@@ -3198,6 +3287,11 @@ contains
 
       lmode=0
       if (present(gmode)) lmode=gmode
+#ifdef r8i8
+      ltype=MPI_DOUBLE_PRECISION
+#else
+      ltype=MPI_REAL
+#endif   
 
       call start_log(deptsync_begin)
       dslen = 0
@@ -3272,7 +3366,7 @@ contains
             nreq = nreq + 1
             ! Use the maximum size in the recv call.
             call MPI_IRecv( dpoints(rproc)%a, 4*bnds(rproc)%len, &
-                         MPI_REAL, rproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+                         ltype, rproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end if
       end do
       do iproc = 1,nproc-1  !
@@ -3283,7 +3377,7 @@ contains
             ! Send, even if length is zero
             nreq = nreq + 1
             call MPI_ISend( dbuf(sproc)%a, 4*dslen(sproc), &
-                    MPI_REAL, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+                    ltype, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          else
             if ( dslen(sproc) > 0 ) then
                write(6,*) "Error, dslen > 0 for non neighbour",      &
@@ -3316,11 +3410,17 @@ contains
    subroutine intssync(s)
       real, dimension(:,:), intent(inout) :: s
       integer :: iproc
-      integer :: nreq, itag = 0, ierr, rproc, sproc
+      integer(kind=4) :: nreq, itag = 0, ierr, rproc, sproc, ltype
       integer :: iq
-      integer, dimension(MPI_STATUS_SIZE,2*nproc) :: status
+      integer(kind=4), dimension(MPI_STATUS_SIZE,2*nproc) :: status
 
       call start_log(intssync_begin)
+
+#ifdef r8i8
+      ltype=MPI_DOUBLE_PRECISION
+#else
+      ltype=MPI_REAL
+#endif   
 
       ! When sending the results, roles of dslen and drlen are reversed
       nreq = 0
@@ -3329,7 +3429,7 @@ contains
          if ( dslen(rproc) /= 0 ) then
             nreq = nreq + 1
             call MPI_IRecv( dbuf(rproc)%b, dslen(rproc), &
-                            MPI_REAL, rproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+                            ltype, rproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end if
       end do
       do iproc = 1,nproc-1  !
@@ -3337,7 +3437,7 @@ contains
          if ( drlen(sproc) /= 0 ) then
             nreq = nreq + 1
             call MPI_ISend( sextra(sproc)%a, drlen(sproc), & 
-                 MPI_REAL, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+                 ltype, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end if
       end do
       
@@ -3429,7 +3529,7 @@ contains
    subroutine checksize(len, msize, mesg)
       integer, intent(in) :: len,msize
       character(len=*), intent(in) :: mesg
-      integer :: ierr,ierr2
+      integer(kind=4) :: ierr
       if ( len > msize ) then
          write(6,*) "Error, maxsize exceeded in ", mesg
          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
@@ -3439,7 +3539,8 @@ contains
    subroutine check_bnds_alloc(rproc, iext)
       integer, intent(in) :: rproc
       integer, intent(in) :: iext
-      integer :: len, ierr,ierr2
+      integer :: len
+      integer(kind=4) ierr
 
 !     Allocate the components of the bnds array. It's too much work to
 !     get the exact sizes, so allocate a fixed size for each case where
@@ -3587,7 +3688,8 @@ contains
       integer, intent(in) :: myidx,nprocx,npanx,il_gx
       integer, intent(out) :: ipanx,jpanx,noffx,nxprocx,nyprocx
       integer, dimension(0:npanels), intent(out) :: ioffx,joffx 
-      integer n,ierr
+      integer n
+      integer(kind=4) ierr
 
       !  Processor allocation
       !  if  nprocx <= npanels+1, then each gets a number of full panels
@@ -3651,7 +3753,8 @@ contains
       include 'parm.h'
 !     Routine to set up offsets etc for the uniform decomposition
       integer, intent(in) :: npanels, ifull
-      integer :: i, j, n, ierr, iproc, nd, jdf, idjd_g
+      integer :: i, j, n, iproc, nd, jdf, idjd_g
+      integer(kind=4) ierr
 
       call uniform_set(ipan,jpan,noff,ioff,joff,npan,il_g,myid,nproc,nxproc,nyproc)
 
@@ -3777,7 +3880,8 @@ contains
       integer, intent(in) :: myidx, nprocx, npanx, il_gx
       integer, intent(out) :: ipanx, jpanx, noffx, nxprocx, nyprocx
       integer, dimension(0:npanels), intent(out) :: ioffx, joffx 
-      integer n, ierr
+      integer n
+      integer(kind=4) ierr
       
       if ( npanx /= npanels+1 ) then
          write(6,*) "Error: inconsistency in proc_setup_uniform"
@@ -3825,7 +3929,8 @@ contains
       ! Calculate the offsets for a given processor
       integer, intent(in) :: procid, panid, nxprocx, nyprocx, ipanx, jpanx, npanx, il_gx, nprocx, dmode
       integer, intent(out) :: ipoff, jpoff, npoff
-      integer :: myface, mtmp, ierr
+      integer :: myface, mtmp
+      integer(kind=4) ierr
 
       select case(dmode)
          case(0)
@@ -4347,7 +4452,7 @@ contains
    subroutine phys_loadbal()
 !     This forces a sychronisation to make the physics load imbalance overhead
 !     explicit. 
-      integer :: ierr
+      integer(kind=4) :: ierr
       call start_log(physloadbal_begin)
       call MPI_Barrier( MPI_COMM_WORLD, ierr )
       call end_log(physloadbal_end)
@@ -4356,7 +4461,8 @@ contains
 #ifdef simple_timer
       subroutine simple_timer_finalize()
          ! Calculate the mean, min and max times for each case
-         integer :: i, ierr
+         integer :: i
+         integer(kind=4) ierr
          double precision, dimension(nevents) :: emean, emax, emin
          call MPI_Reduce(tot_time, emean, nevents, MPI_DOUBLE_PRECISION, &
                          MPI_SUM, 0, MPI_COMM_WORLD, ierr )
@@ -4390,13 +4496,11 @@ contains
        real :: delpos_l, delneg_l
        real, dimension(2) :: delarr, delarr_l
        integer, intent(in), optional :: comm
-       integer :: iq, ierr
-       integer :: lcomm
-#ifdef sumdd
+       integer :: iq
+       integer(kind=4) :: lcomm, ierr, ltype
        complex, dimension(2) :: local_sum, global_sum
 !      Temporary array for the drpdr_local function
        real, dimension(ifull) :: tmparr, tmparr2 
-#endif
 
        call start_log(posneg_begin)
 
@@ -4406,25 +4510,32 @@ contains
        delpos_l = 0.
        delneg_l = 0.
        do iq=1,ifull
-#ifdef sumdd         
           tmparr(iq)  = max(0.,array(iq)*wts(iq))
           tmparr2(iq) = min(0.,array(iq)*wts(iq))
-#else
-          delpos_l = delpos_l + max(0.,array(iq)*wts(iq))
-          delneg_l = delneg_l + min(0.,array(iq)*wts(iq))
-#endif
        enddo
-#ifdef sumdd
        local_sum = (0.,0.)
        call drpdr_local(tmparr, local_sum(1))
        call drpdr_local(tmparr2, local_sum(2))
-       call MPI_Allreduce ( local_sum, global_sum, 2, MPI_COMPLEX,     &
+       delpos_l=real(local_sum(1))
+       delneg_l=real(local_sum(2))
+#ifdef sumdd
+#ifdef r8i8
+      ltype=MPI_COMPLEX8
+#else
+      ltype=MPI_COMPLEX
+#endif   
+       call MPI_Allreduce ( local_sum, global_sum, 2, ltype,     &
                             MPI_SUMDR, lcomm, ierr )
        delpos = real(global_sum(1))
        delneg = real(global_sum(2))
 #else
+#ifdef r8i8
+      ltype=MPI_DOUBLE_PRECISION
+#else
+      ltype=MPI_REAL
+#endif   
        delarr_l(1:2) = (/ delpos_l, delneg_l /)
-       call MPI_Allreduce ( delarr_l, delarr, 2, MPI_REAL, MPI_SUM,    &
+       call MPI_Allreduce ( delarr_l, delarr, 2, ltype, MPI_SUM,    &
                             lcomm, ierr )
        delpos = delarr(1)
        delneg = delarr(2)
@@ -4448,13 +4559,11 @@ contains
        real :: delpos_l, delneg_l
        real, dimension(size(array,2)) :: dsigx
        real, dimension(2) :: delarr, delarr_l
-       integer :: k, iq, ierr, kx
-       integer :: lcomm
-#ifdef sumdd
+       integer :: k, iq, kx
+       integer(kind=4) ierr, lcomm, ltype
        complex, dimension(2) :: local_sum, global_sum
 !      Temporary array for the drpdr_local function
        real, dimension(ifull) :: tmparr, tmparr2 
-#endif
 
        call start_log(posneg_begin)
 
@@ -4469,32 +4578,35 @@ contains
        else
          dsigx=dsig
        end if
-#ifdef sumdd         
        local_sum = (0.,0.)
-#endif
        do k=1,kx
           do iq=1,ifull
-#ifdef sumdd         
              tmparr(iq)  = max(0.,-dsigx(k)*array(iq,k)*wts(iq))
              tmparr2(iq) = min(0.,-dsigx(k)*array(iq,k)*wts(iq))
-#else
-             delpos_l = delpos_l + max(0.,-dsigx(k)*array(iq,k)*wts(iq))
-             delneg_l = delneg_l + min(0.,-dsigx(k)*array(iq,k)*wts(iq))
-#endif
           end do
-#ifdef sumdd
           call drpdr_local(tmparr, local_sum(1))
           call drpdr_local(tmparr2, local_sum(2))
-#endif
+          delpos_l=real(local_sum(1))
+          delneg_l=real(local_sum(2))
        end do ! k loop
 #ifdef sumdd
-       call MPI_Allreduce ( local_sum, global_sum, 2, MPI_COMPLEX,     &
+#ifdef r8i8
+      ltype=MPI_COMPLEX8
+#else
+      ltype=MPI_COMPLEX
+#endif   
+       call MPI_Allreduce ( local_sum, global_sum, 2, ltype,     &
                             MPI_SUMDR, lcomm, ierr )
        delpos = real(global_sum(1))
        delneg = real(global_sum(2))
 #else
+#ifdef r8i8
+      ltype=MPI_DOUBLE_PRECISION
+#else
+      ltype=MPI_REAL
+#endif   
        delarr_l(1:2) = (/ delpos_l, delneg_l /)
-       call MPI_Allreduce ( delarr_l, delarr, 2, MPI_REAL, MPI_SUM,    &
+       call MPI_Allreduce ( delarr_l, delarr, 2,ltype, MPI_SUM,    &
                             lcomm, ierr )
        delpos = delarr(1)
        delneg = delarr(2)
@@ -4512,7 +4624,8 @@ contains
        real, intent(in), dimension(ifull) :: array
        real, intent(out) :: result
        real :: result_l
-       integer :: iq, ierr
+       integer :: iq
+       integer(kind=4) ierr
 #ifdef sumdd
        complex :: local_sum, global_sum
 !      Temporary array for the drpdr_local function
@@ -4553,7 +4666,8 @@ contains
        real, intent(in), dimension(ifull,kl) :: array
        real, intent(out) :: result
        real :: result_l
-       integer :: k, iq, ierr
+       integer :: k, iq
+       integer(kind=4) ierr
 #ifdef sumdd
        complex :: local_sum, global_sum
 !      Temporary array for the drpdr_local function
@@ -4812,17 +4926,12 @@ contains
       lhost=host
       lcomm=comm
       lsize=size(ldat)
-      lkind=kind(ldat)
-      select case(lkind)
-         case(4)
-            ltype=MPI_INTEGER
-         case(8)
-            ltype=MPI_INTEGER8
-         case default
-            write(6,*) "ERROR: Unsupported kind in ccmpi_reduce ",lkind
-            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-      end select
-     
+#ifdef r8i8
+      ltype=MPI_INTEGER8
+#else
+      ltype=MPI_INTEGER
+#endif 
+
       call MPI_Reduce(ldat, gdat, lsize, ltype, lop, lhost, lcomm, ierr )
  
       call end_log(reduce_end)
@@ -4832,53 +4941,61 @@ contains
    subroutine ccmpi_reduce2r(ldat,gdat,op,host,comm)
    
       integer, intent(in) :: host,comm
-      integer(kind=4) ltype,lop,lcomm,ierr,lsize,lkind,lhost
+      integer(kind=4) ltype,lop,lcomm,lerr,lsize,lhost
       real, dimension(:), intent(in) :: ldat
       real, dimension(:), intent(out) :: gdat
       character(len=*), intent(in) :: op
       
       call start_log(reduce_begin)
       
-      select case(op)
-         case("max")
-            lop=MPI_MAX
-         case("min")
-            lop=MPI_MIN
-         case("sum")
-            lop=MPI_SUM
-         case("maxloc")
-            lop=MPI_MAXLOC
-         case("minloc")
-            lop=MPI_MINLOC
-         case default
-            write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
-            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-      end select
-      
       lhost=host
       lcomm=comm
       lsize=size(ldat)
-      if (lop==MPI_MAXLOC.or.lop==MPI_MINLOC) then
-        lsize=lsize/2
-      end if
-      lkind=kind(ldat)
-      select case(lkind)
-         case(4)
-            ltype=MPI_REAL
-            if (lop==MPI_MAXLOC.or.lop==MPI_MINLOC) then
-              ltype=MPI_2REAL
-            end if
-         case(8)
+            
+      select case(op)
+         case("max")
+            lop=MPI_MAX
+#ifdef r8i8
             ltype=MPI_DOUBLE_PRECISION
-            if (lop==MPI_MAXLOC.or.lop==MPI_MINLOC) then
-              ltype=MPI_2DOUBLE_PRECISION
-            end if
+#else
+            ltype=MPI_REAL
+#endif 
+         case("min")
+            lop=MPI_MIN
+#ifdef r8i8
+            ltype=MPI_DOUBLE_PRECISION
+#else
+            ltype=MPI_REAL
+#endif 
+         case("sum")
+            lop=MPI_SUM
+#ifdef r8i8
+            ltype=MPI_DOUBLE_PRECISION
+#else
+            ltype=MPI_REAL
+#endif 
+         case("maxloc")
+            lop=MPI_MAXLOC
+            lsize=lsize/2
+#ifdef r8i8
+            ltype=MPI_2DOUBLE_PRECISION
+#else
+            ltype=MPI_2REAL
+#endif 
+         case("minloc")
+            lop=MPI_MINLOC
+            lsize=lsize/2
+#ifdef r8i8
+            ltype=MPI_2DOUBLE_PRECISION
+#else
+            ltype=MPI_2REAL
+#endif 
          case default
-            write(6,*) "ERROR: Unsupported kind in ccmpi_reduce ",lkind
-            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+            write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
+            call MPI_Abort(MPI_COMM_WORLD,-1,lerr)
       end select
      
-      call MPI_Reduce(ldat, gdat, lsize, ltype, lop, lhost, lcomm, ierr )
+      call MPI_Reduce(ldat, gdat, lsize, ltype, lop, lhost, lcomm, lerr )
    
       call end_log(reduce_end)
    
@@ -4887,53 +5004,61 @@ contains
    subroutine ccmpi_reduce3r(ldat,gdat,op,host,comm)
    
       integer, intent(in) :: host,comm
-      integer(kind=4) ltype,lop,lcomm,ierr,lsize,lkind,lhost
+      integer(kind=4) ltype,lop,lcomm,lerr,lsize,lhost
       real, dimension(:,:), intent(in) :: ldat
       real, dimension(:,:), intent(out) :: gdat
       character(len=*), intent(in) :: op
       
       call start_log(reduce_begin)
-      
-      select case(op)
-         case("max")
-            lop=MPI_MAX
-         case("min")
-            lop=MPI_MIN
-         case("sum")
-            lop=MPI_SUM
-         case("maxloc")
-            lop=MPI_MAXLOC
-         case("minloc")
-            lop=MPI_MINLOC
-         case default
-            write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
-            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-      end select
-      
+
       lhost=host
       lcomm=comm
       lsize=size(ldat)
-      if (lop==MPI_MAXLOC.or.lop==MPI_MINLOC) then
-        lsize=lsize/2
-      end if
-      lkind=kind(ldat)
-      select case(lkind)
-         case(4)
-            ltype=MPI_REAL
-            if (lop==MPI_MAXLOC.or.lop==MPI_MINLOC) then
-              ltype=MPI_2REAL
-            end if
-         case(8)
+            
+      select case(op)
+         case("max")
+            lop=MPI_MAX
+#ifdef r8i8
             ltype=MPI_DOUBLE_PRECISION
-            if (lop==MPI_MAXLOC.or.lop==MPI_MINLOC) then
-              ltype=MPI_2DOUBLE_PRECISION
-            end if
+#else
+            ltype=MPI_REAL
+#endif 
+         case("min")
+            lop=MPI_MIN
+#ifdef r8i8
+            ltype=MPI_DOUBLE_PRECISION
+#else
+            ltype=MPI_REAL
+#endif 
+         case("sum")
+            lop=MPI_SUM
+#ifdef r8i8
+            ltype=MPI_DOUBLE_PRECISION
+#else
+            ltype=MPI_REAL
+#endif 
+         case("maxloc")
+            lop=MPI_MAXLOC
+            lsize=lsize/2
+#ifdef r8i8
+            ltype=MPI_2DOUBLE_PRECISION
+#else
+            ltype=MPI_2REAL
+#endif 
+         case("minloc")
+            lop=MPI_MINLOC
+            lsize=lsize/2
+#ifdef r8i8
+            ltype=MPI_2DOUBLE_PRECISION
+#else
+            ltype=MPI_2REAL
+#endif 
          case default
-            write(6,*) "ERROR: Unsupported kind in ccmpi_reduce ",lkind
-            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+            write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
+            call MPI_Abort(MPI_COMM_WORLD,-1,lerr)
       end select
-     
-      call MPI_Reduce(ldat, gdat, lsize, ltype, lop, lhost, lcomm, ierr )
+      
+      call MPI_Reduce(ldat, gdat, lsize, ltype, lop, lhost, lcomm, lerr )
    
       call end_log(reduce_end)
    
@@ -4944,7 +5069,7 @@ contains
       use sumdd_m
    
       integer, intent(in) :: host,comm
-      integer(kind=4) ltype,lop,lcomm,ierr,lsize,lkind,lhost
+      integer(kind=4) ltype,lop,lcomm,lerr,lsize,lhost
       complex, dimension(:), intent(in) :: ldat
       complex, dimension(:), intent(out) :: gdat
       character(len=*), intent(in) :: op
@@ -4962,24 +5087,19 @@ contains
             lop=MPI_SUMDR
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
-            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+            call MPI_Abort(MPI_COMM_WORLD,-1,lerr)
       end select
       
       lhost=host
       lcomm=comm
       lsize=size(ldat)
-      lkind=kind(ldat)
-      select case(lkind)
-         case(4)
-            ltype=MPI_COMPLEX
-         case(8)
-            ltype=MPI_COMPLEX8
-         case default
-            write(6,*) "ERROR: Unsupported kind in ccmpi_reduce ",lkind
-            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-      end select
+#ifdef r8i8
+      ltype=MPI_COMPLEX8
+#else
+      ltype=MPI_COMPLEX
+#endif 
      
-      call MPI_Reduce(ldat, gdat, lsize, ltype, lop, lhost, lcomm, ierr )
+      call MPI_Reduce(ldat, gdat, lsize, ltype, lop, lhost, lcomm, lerr )
    
       call end_log(reduce_end)
    
@@ -4988,7 +5108,7 @@ contains
    subroutine ccmpi_allreduce2i(ldat,gdat,op,comm)
    
       integer, intent(in) :: comm
-      integer(kind=4) ltype,lop,lcomm,ierr,lsize,lkind
+      integer(kind=4) ltype,lop,lcomm,lerr,lsize
       integer, dimension(:), intent(in) :: ldat
       integer, dimension(:), intent(out) :: gdat
       character(len=*), intent(in) :: op
@@ -5004,23 +5124,18 @@ contains
             lop=MPI_SUM
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_allreduce ",op
-            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+            call MPI_Abort(MPI_COMM_WORLD,-1,lerr)
       end select
       
       lcomm=comm
       lsize=size(ldat)
-      lkind=kind(ldat)
-      select case(lkind)
-         case(4)
-            ltype=MPI_INTEGER
-         case(8)
-            ltype=MPI_INTEGER8
-         case default
-            write(6,*) "ERROR: Unsupported kind in ccmpi_allreduce ",lkind
-            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-      end select
+#ifdef r8i8
+      ltype=MPI_INTEGER8
+#else
+      ltype=MPI_INTEGER
+#endif 
      
-      call MPI_AllReduce(ldat, gdat, lsize, ltype, lop, lcomm, ierr )
+      call MPI_AllReduce(ldat, gdat, lsize, ltype, lop, lcomm, lerr )
  
       call end_log(reduce_end)
    
@@ -5029,52 +5144,60 @@ contains
    subroutine ccmpi_allreduce2r(ldat,gdat,op,comm)
    
       integer, intent(in) :: comm
-      integer(kind=4) ltype,lop,lcomm,ierr,lsize,lkind
+      integer(kind=4) ltype,lop,lcomm,lerr,lsize
       real, dimension(:), intent(in) :: ldat
       real, dimension(:), intent(out) :: gdat
       character(len=*), intent(in) :: op
       
       call start_log(reduce_begin)
       
+      lcomm=comm
+      lsize=size(ldat)
+      
       select case(op)
          case("max")
             lop=MPI_MAX
+#ifdef r8i8
+            ltype=MPI_DOUBLE_PRECISION
+#else
+            ltype=MPI_REAL
+#endif 
          case("min")
             lop=MPI_MIN
+#ifdef r8i8
+            ltype=MPI_DOUBLE_PRECISION
+#else
+            ltype=MPI_REAL
+#endif 
          case("sum")
             lop=MPI_SUM
+#ifdef r8i8
+            ltype=MPI_DOUBLE_PRECISION
+#else
+            ltype=MPI_REAL
+#endif 
          case("maxloc")
             lop=MPI_MAXLOC
+            lsize=lsize/2
+#ifdef r8i8
+            ltype=MPI_2DOUBLE_PRECISION
+#else
+            ltype=MPI_2REAL
+#endif 
          case("minloc")
             lop=MPI_MINLOC
+            lsize=lsize/2
+#ifdef r8i8
+            ltype=MPI_2DOUBLE_PRECISION
+#else
+            ltype=MPI_2REAL
+#endif 
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_allreduce ",op
-            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-      end select
-      
-      lcomm=comm
-      lsize=size(ldat)
-      if (lop==MPI_MAXLOC.or.lop==MPI_MINLOC) then
-        lsize=lsize/2
-      end if
-      lkind=kind(ldat)
-      select case(lkind)
-         case(4)
-            ltype=MPI_REAL
-            if (lop==MPI_MAXLOC.or.lop==MPI_MINLOC) then
-              ltype=MPI_2REAL
-            end if
-         case(8)
-            ltype=MPI_DOUBLE_PRECISION
-            if (lop==MPI_MAXLOC.or.lop==MPI_MINLOC) then
-              ltype=MPI_2DOUBLE_PRECISION
-            end if
-         case default
-            write(6,*) "ERROR: Unsupported kind in ccmpi_allreduce ",lkind
-            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+            call MPI_Abort(MPI_COMM_WORLD,-1,lerr)
       end select
      
-      call MPI_AllReduce(ldat, gdat, lsize, ltype, lop, lcomm, ierr )
+      call MPI_AllReduce(ldat, gdat, lsize, ltype, lop, lcomm, lerr )
    
       call end_log(reduce_end)
    
@@ -5083,52 +5206,60 @@ contains
    subroutine ccmpi_allreduce3r(ldat,gdat,op,comm)
    
       integer, intent(in) :: comm
-      integer(kind=4) ltype,lop,lcomm,ierr,lsize,lkind
+      integer(kind=4) ltype,lop,lcomm,lerr,lsize
       real, dimension(:,:), intent(in) :: ldat
       real, dimension(:,:), intent(out) :: gdat
       character(len=*), intent(in) :: op
       
       call start_log(reduce_begin)
       
+      lcomm=comm
+      lsize=size(ldat)
+      
       select case(op)
          case("max")
             lop=MPI_MAX
+#ifdef r8i8
+            ltype=MPI_DOUBLE_PRECISION
+#else
+            ltype=MPI_REAL
+#endif 
          case("min")
             lop=MPI_MIN
+#ifdef r8i8
+            ltype=MPI_DOUBLE_PRECISION
+#else
+            ltype=MPI_REAL
+#endif 
          case("sum")
             lop=MPI_SUM
+#ifdef r8i8
+            ltype=MPI_DOUBLE_PRECISION
+#else
+            ltype=MPI_REAL
+#endif 
          case("maxloc")
             lop=MPI_MAXLOC
+            lsize=lsize/2
+#ifdef r8i8
+            ltype=MPI_2DOUBLE_PRECISION
+#else
+            ltype=MPI_2REAL
+#endif 
          case("minloc")
             lop=MPI_MINLOC
+            lsize=lsize/2
+#ifdef r8i8
+            ltype=MPI_2DOUBLE_PRECISION
+#else
+            ltype=MPI_2REAL
+#endif 
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_allreduce ",op
-            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+            call MPI_Abort(MPI_COMM_WORLD,-1,lerr)
       end select
       
-      lcomm=comm
-      lsize=size(ldat)
-      if (lop==MPI_MAXLOC.or.lop==MPI_MINLOC) then
-        lsize=lsize/2
-      end if
-      lkind=kind(ldat)
-      select case(lkind)
-         case(4)
-            ltype=MPI_REAL
-            if (lop==MPI_MAXLOC.or.lop==MPI_MINLOC) then
-              ltype=MPI_2REAL
-            end if
-         case(8)
-            ltype=MPI_DOUBLE_PRECISION
-            if (lop==MPI_MAXLOC.or.lop==MPI_MINLOC) then
-              ltype=MPI_2DOUBLE_PRECISION
-            end if
-         case default
-            write(6,*) "ERROR: Unsupported kind in ccmpi_allreduce ",lkind
-            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-      end select
-     
-      call MPI_AllReduce(ldat, gdat, lsize, ltype, lop, lcomm, ierr )
+      call MPI_AllReduce(ldat, gdat, lsize, ltype, lop, lcomm, lerr )
    
       call end_log(reduce_end)
    
@@ -5139,7 +5270,7 @@ contains
       use sumdd_m
    
       integer, intent(in) :: comm
-      integer(kind=4) ltype,lop,lcomm,ierr,lsize,lkind
+      integer(kind=4) ltype,lop,lcomm,lerr,lsize
       complex, dimension(:), intent(in) :: ldat
       complex, dimension(:), intent(out) :: gdat
       character(len=*), intent(in) :: op
@@ -5157,23 +5288,18 @@ contains
             lop=MPI_SUMDR
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_allreduce ",op
-            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+            call MPI_Abort(MPI_COMM_WORLD,-1,lerr)
       end select
       
       lcomm=comm
       lsize=size(ldat)
-      lkind=kind(ldat)
-      select case(lkind)
-         case(4)
-            ltype=MPI_COMPLEX
-         case(8)
-            ltype=MPI_COMPLEX8
-         case default
-            write(6,*) "ERROR: Unsupported kind in ccmpi_allreduce ",lkind
-            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-      end select
+#ifdef r8i8
+      ltype=MPI_COMPLEX8
+#else
+      ltype=MPI_COMPLEX
+#endif 
      
-      call MPI_AllReduce(ldat, gdat, lsize, ltype, lop, lcomm, ierr )
+      call MPI_AllReduce(ldat, gdat, lsize, ltype, lop, lcomm, lerr )
    
       call end_log(reduce_end)
    
@@ -5192,7 +5318,7 @@ contains
    subroutine ccmpi_bcast2i(ldat,host,comm)
 
       integer, intent(in) :: host,comm
-      integer(kind=4) ltype,lcomm,lhost,ierr,lsize,lkind
+      integer(kind=4) ltype,lcomm,lhost,lerr,lsize
       integer, dimension(:), intent(in) :: ldat
 
       call start_log(bcast_begin)
@@ -5200,18 +5326,13 @@ contains
       lhost=host
       lcomm=comm
       lsize=size(ldat)
-      lkind=kind(ldat)
-      select case(lkind)
-         case(4)
-            ltype=MPI_INTEGER
-         case(8)
-            ltype=MPI_INTEGER8
-         case default
-            write(6,*) "ERROR: Unsupported kind in ccmpi_allreduce ",lkind
-            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-      end select   
+#ifdef r8i8
+      ltype=MPI_INTEGER8
+#else
+      ltype=MPI_INTEGER
+#endif 
    
-      call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,ierr)
+      call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,lerr)
          
       call end_log(bcast_end)
          
@@ -5220,7 +5341,7 @@ contains
    subroutine ccmpi_bcast3i(ldat,host,comm)
 
       integer, intent(in) :: host,comm
-      integer(kind=4) ltype,lcomm,lhost,ierr,lsize,lkind
+      integer(kind=4) ltype,lcomm,lhost,lerr,lsize
       integer, dimension(:,:), intent(in) :: ldat
 
       call start_log(bcast_begin)
@@ -5228,18 +5349,13 @@ contains
       lhost=host
       lcomm=comm
       lsize=size(ldat)
-      lkind=kind(ldat)
-      select case(lkind)
-         case(4)
-            ltype=MPI_INTEGER
-         case(8)
-            ltype=MPI_INTEGER8
-         case default
-            write(6,*) "ERROR: Unsupported kind in ccmpi_allreduce ",lkind
-            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-      end select   
+#ifdef r8i8
+      ltype=MPI_INTEGER8
+#else
+      ltype=MPI_INTEGER
+#endif   
    
-      call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,ierr)
+      call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,lerr)
       
       call end_log(bcast_end)   
       
@@ -5248,7 +5364,7 @@ contains
    subroutine ccmpi_bcast2r(ldat,host,comm)
    
       integer, intent(in) :: host,comm
-      integer(kind=4) ltype,lcomm,lhost,ierr,lsize,lkind
+      integer(kind=4) ltype,lcomm,lhost,lerr,lsize
       real, dimension(:), intent(in) :: ldat
 
       call start_log(bcast_begin)
@@ -5256,18 +5372,13 @@ contains
       lhost=host
       lcomm=comm
       lsize=size(ldat)
-      lkind=kind(ldat)
-      select case(lkind)
-         case(4)
-            ltype=MPI_REAL
-         case(8)
-            ltype=MPI_DOUBLE_PRECISION
-         case default
-            write(6,*) "ERROR: Unsupported kind in ccmpi_allreduce ",lkind
-            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-      end select   
+#ifdef r8i8
+      ltype=MPI_DOUBLE_PRECISION
+#else
+      ltype=MPI_REAL
+#endif 
    
-      call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,ierr)
+      call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,lerr)
    
       call end_log(bcast_end)
    
@@ -5276,7 +5387,7 @@ contains
    subroutine ccmpi_bcast3r(ldat,host,comm)
    
       integer, intent(in) :: host,comm
-      integer(kind=4) ltype,lcomm,lhost,ierr,lsize,lkind
+      integer(kind=4) ltype,lcomm,lhost,lerr,lsize
       real, dimension(:,:), intent(in) :: ldat
 
       call start_log(bcast_begin)
@@ -5284,18 +5395,13 @@ contains
       lhost=host
       lcomm=comm
       lsize=size(ldat)
-      lkind=kind(ldat)
-      select case(lkind)
-         case(4)
-            ltype=MPI_REAL
-         case(8)
-            ltype=MPI_DOUBLE_PRECISION
-         case default
-            write(6,*) "ERROR: Unsupported kind in ccmpi_allreduce ",lkind
-            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-      end select   
+#ifdef r8i8
+      ltype=MPI_DOUBLE_PRECISION
+#else
+      ltype=MPI_REAL
+#endif   
    
-      call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,ierr)
+      call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,lerr)
    
       call end_log(bcast_end)
    
@@ -5304,7 +5410,7 @@ contains
    subroutine ccmpi_bcast4r(ldat,host,comm)
    
       integer, intent(in) :: host,comm
-      integer(kind=4) ltype,lcomm,lhost,ierr,lsize,lkind
+      integer(kind=4) ltype,lcomm,lhost,lerr,lsize
       real, dimension(:,:,:), intent(in) :: ldat
 
       call start_log(bcast_begin)
@@ -5312,27 +5418,63 @@ contains
       lhost=host
       lcomm=comm
       lsize=size(ldat)
-      lkind=kind(ldat)
-      select case(lkind)
-         case(4)
-            ltype=MPI_REAL
-         case(8)
-            ltype=MPI_DOUBLE_PRECISION
-         case default
-            write(6,*) "ERROR: Unsupported kind in ccmpi_allreduce ",lkind
-            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-      end select   
+#ifdef r8i8
+      ltype=MPI_DOUBLE_PRECISION
+#else
+      ltype=MPI_REAL
+#endif  
    
-      call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,ierr)
+      call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,lerr)
    
       call end_log(bcast_end)
    
    end subroutine ccmpi_bcast4r
 
+   subroutine ccmpi_bcast5r(ldat,host,comm)
+   
+      integer, intent(in) :: host,comm
+      integer(kind=4) ltype,lcomm,lhost,lerr,lsize
+      real, dimension(:,:,:,:), intent(in) :: ldat
+
+      call start_log(bcast_begin)
+
+      lhost=host
+      lcomm=comm
+      lsize=size(ldat)
+#ifdef r8i8
+      ltype=MPI_DOUBLE_PRECISION
+#else
+      ltype=MPI_REAL
+#endif
+      call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,lerr)
+   
+      call end_log(bcast_end)
+   
+   end subroutine ccmpi_bcast5r
+
+   subroutine ccmpi_bcast2s(ldat,host,comm)
+   
+      integer, intent(in) :: host,comm
+      integer(kind=4) ltype,lcomm,lhost,lerr,lsize
+      character(len=*), dimension(:), intent(in) :: ldat
+
+      call start_log(bcast_begin)
+
+      lhost=host
+      lcomm=comm
+      lsize=size(ldat)*len(ldat(1))
+      ltype=MPI_CHARACTER
+   
+      call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,lerr)
+   
+      call end_log(bcast_end)
+   
+   end subroutine ccmpi_bcast2s
+   
    subroutine ccmpi_bcast2r8(ldat,host,comm)
    
       integer, intent(in) :: host,comm
-      integer(kind=4) ltype,lcomm,lhost,ierr,lsize,lkind
+      integer(kind=4) ltype,lcomm,lhost,ierr,lsize
       double precision, dimension(:), intent(in) :: ldat
    
       call start_log(bcast_begin)
@@ -5340,7 +5482,6 @@ contains
       lhost=host
       lcomm=comm
       lsize=size(ldat)
-      lkind=kind(ldat)
       ltype=MPI_DOUBLE_PRECISION
    
       call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,ierr)
@@ -5349,10 +5490,29 @@ contains
    
    end subroutine ccmpi_bcast2r8
    
+   subroutine ccmpi_bcast3r8(ldat,host,comm)
+   
+      integer, intent(in) :: host,comm
+      integer(kind=4) ltype,lcomm,lhost,ierr,lsize
+      double precision, dimension(:,:), intent(in) :: ldat
+   
+      call start_log(bcast_begin)
+      
+      lhost=host
+      lcomm=comm
+      lsize=size(ldat)
+      ltype=MPI_DOUBLE_PRECISION
+   
+      call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,ierr)
+   
+      call end_log(bcast_end)
+   
+   end subroutine ccmpi_bcast3r8   
+   
    subroutine ccmpi_bcast4r8(ldat,host,comm)
    
       integer, intent(in) :: host,comm
-      integer(kind=4) ltype,lcomm,lhost,ierr,lsize,lkind
+      integer(kind=4) ltype,lcomm,lhost,ierr,lsize
       double precision, dimension(:,:,:), intent(in) :: ldat
 
       call start_log(bcast_begin)
@@ -5360,7 +5520,6 @@ contains
       lhost=host
       lcomm=comm
       lsize=size(ldat)
-      lkind=kind(ldat)
       ltype=MPI_DOUBLE_PRECISION
    
       call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,ierr)
@@ -5378,6 +5537,128 @@ contains
       call MPI_Barrier( lcomm, ierr )
    
    end subroutine ccmpi_barrier
+   
+   subroutine ccmpi_gatherx2r(gdat,ldat,host,comm)
+
+      integer, intent(in) :: host,comm
+      integer(kind=4) lsize,ltype,lhost,lcomm,lerr
+      real, dimension(:), intent(out) :: gdat
+      real, dimension(:), intent(in) :: ldat
+
+#ifdef debug        
+      if (size(gdat)/=size(ldat)*nproc) then
+         write(6,*) "ERROR: Incorrect size for ccmpi_gather"
+         call MPI_Abort(MPI_COMM_WORLD,-1,lerr)
+      end if
+#endif
+      
+      lcomm=comm
+      lhost=host
+      lsize=size(ldat)
+#ifdef r8i8
+      ltype=MPI_DOUBLE_PRECISION
+#else
+      ltype=MPI_REAL
+#endif     
+   
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+   
+   end subroutine ccmpi_gatherx2r
+   
+   subroutine ccmpi_scatterx2r(gdat,ldat,host,comm)
+   
+      integer, intent(in) :: host,comm
+      integer(kind=4) lsize,ltype,lhost,lcomm,lerr
+      real, dimension(:), intent(in) :: gdat
+      real, dimension(:), intent(out) :: ldat
+
+#ifdef debug        
+      if (size(gdat)/=size(ldat)*nproc) then
+         write(6,*) "ERROR: Incorrect size for ccmpi_scatter"
+         call MPI_Abort(MPI_COMM_WORLD,-1,lerr)
+      end if
+#endif
+      
+      lcomm=comm
+      lhost=host
+      lsize=size(ldat)
+#ifdef r8i8
+      ltype=MPI_DOUBLE_PRECISION
+#else
+      ltype=MPI_REAL
+#endif     
+   
+      call MPI_Scatter(gdat,lsize,ltype,ldat,lsize,ltype,lhost,lcomm,lerr)
+   
+   end subroutine ccmpi_scatterx2r
+   
+   subroutine ccmpi_allgatherx2i(gdat,ldat,comm)
+   
+      integer, intent(in) :: comm
+      integer(kind=4) lsize,ltype,lcomm,lerr
+      integer, dimension(:), intent(in) :: ldat
+      integer, dimension(:), intent(out) :: gdat
+
+#ifdef debug      
+      if (size(gdat)/=size(ldat)*nproc) then
+         write(6,*) "ERROR: Incorrect size for ccmpi_allgather"
+         call MPI_Abort(MPI_COMM_WORLD,-1,lerr)
+      end if
+#endif
+   
+      lcomm=comm
+      lsize=size(ldat)
+#ifdef r8i8
+      ltype=MPI_INTEGER8
+#else
+      ltype=MPI_INTEGER
+#endif  
+      
+      call MPI_AllGather(ldat,lsize,ltype,gdat,lsize,ltype,lcomm,lerr)
+      
+   end subroutine ccmpi_allgatherx2i
+   
+   subroutine ccmpi_recv2r(ldat,iproc,itag,comm)
+   
+      integer, intent(in) :: iproc,itag,comm
+      integer(kind=4) lproc,ltag,lcomm,lerr,lsize,ltype
+      integer(kind=4), dimension(MPI_STATUS_SIZE) :: lstatus
+      real, dimension(:), intent(out) :: ldat
+   
+      lproc=iproc
+      ltag=itag
+      lcomm=comm
+      lsize=size(ldat)      
+#ifdef r8i8
+      ltype=MPI_DOUBLE_PRECISION
+#else
+      ltype=MPI_REAL
+#endif
+      
+      call MPI_Recv(ldat,lsize,ltype,lproc,ltag,lcomm,lstatus,lerr)
+   
+   end subroutine ccmpi_recv2r
+   
+   subroutine ccmpi_ssend2r(ldat,iproc,itag,comm)
+   
+      integer, intent(in) :: iproc,itag,comm
+      integer(kind=4) lproc,ltag,lcomm,lerr,lsize,ltype
+      integer(kind=4), dimension(MPI_STATUS_SIZE) :: lstatus
+      real, dimension(:), intent(in) :: ldat
+
+      lproc=iproc
+      ltag=itag
+      lcomm=comm
+      lsize=size(ldat)      
+#ifdef r8i8
+      ltype=MPI_DOUBLE_PRECISION
+#else
+      ltype=MPI_REAL
+#endif
+  
+      call MPI_SSend(ldat,lsize,ltype,lproc,ltag,lcomm,lerr)
+   
+   end subroutine ccmpi_ssend2r
 
    subroutine ccmpi_init
 
@@ -5399,6 +5680,30 @@ contains
       call MPI_Finalize(lerr)
    
    end subroutine ccmpi_finalize
+
+   subroutine ccmpi_commsplit(commout,comm,colour,rank)
+   
+      integer, intent(out) :: commout
+      integer, intent(in) :: comm,colour,rank
+      integer(kind=4) lcomm,lcommout,lerr,lrank,lcolour
+   
+      lcomm=comm
+      lcolour=colour
+      lrank=rank
+      call MPI_Comm_Split(lcomm,lcolour,lrank,lcommout,lerr)
+      commout=lcommout
+   
+   end subroutine ccmpi_commsplit
+   
+   subroutine ccmpi_commfree(comm)
+   
+      integer, intent(in) :: comm
+      integer(kind=4) lcomm,lerr
+      
+      lcomm=comm
+      call MPI_Comm_Free(lcomm,lerr)
+   
+   end subroutine ccmpi_commfree
 
 end module cc_mpi
 

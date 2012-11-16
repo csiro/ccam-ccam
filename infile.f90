@@ -21,7 +21,7 @@ integer, dimension(:), allocatable, save :: pnoff
 integer, dimension(:,:), allocatable, save :: pioff,pjoff
 integer, save :: mynproc,fnproc
 integer, save :: pil_g,pjl_g,pil,pjl,pnpan
-integer, save :: ip_comm,ip_commold
+integer, save :: comm_ip,comm_ipold
 logical, save :: ptest
       
 contains
@@ -34,7 +34,6 @@ use cc_mpi
       
 implicit none
       
-include 'mpif.h'
 include 'parm.h'
       
 integer ncid,iarchi,ier,ik,jk,ifull
@@ -43,11 +42,13 @@ real, dimension(:), intent(inout) :: var ! may be dummy argument from myid/=0
 
 if (ifull/=ik*jk.and.ptest) then
   ! read local arrays without gather and distribute
-       
+
+#ifdef debug       
   if (size(var)/=ifull) then
     write(6,*) "ERROR: Incorrect use of dummy var in histrd1"
-    call MPI_Abort(MPI_COMM_WORLD,-1,ier)
+    call ccmpi_abort(-1)
   end if
+#endif
 
   call hr1p(iarchi,ier,name,.true.,var)
 
@@ -60,20 +61,24 @@ else
   ! split up processors to save memory.  No need to allocate global
   ! arrays on myid/=0.
   if (myid==0) then
+#ifdef debug
     if (size(var)/=ifull) then
       write(6,*) "ERROR: Incorrect use of dummy var in histrd1"
-      call MPI_Abort(MPI_COMM_WORLD,-1,ier)
+      call ccmpi_abort(-1)
     end if
+#endif
 
     call hr1a(ncid,iarchi,ier,name,ik,jk,var,ifull)
   else
     if(ifull/=ik*jk)then
       ! read local arrays with gather and distribute
 
+#ifdef debug
       if (size(var)/=ifull) then
         write(6,*) "ERROR: Incorrect use of dummy var in histrd"
-        call MPI_Abort(MPI_COMM_WORLD,-1,ier)
+        call ccmpi_abort(-1)
       end if
+#endif
 
       call hr1p(iarchi,ier,name,.false.)
       call ccmpi_distribute(var)
@@ -139,14 +144,12 @@ use cc_mpi
 implicit none
 
 include 'newmpar.h'
-include 'mpif.h'
 include 'netcdf.inc'
 
 integer, intent(in) :: iarchi
 integer, intent(out) :: ier
 integer(kind=2), dimension(pil*pjl*pnpan) :: ivar
 integer, dimension(3) :: start,count
-integer, dimension(MPI_STATUS_SIZE) :: status
 integer idv,ipf,ip,jpf,jpmax,iptst2,n
 integer nctype,ierb,ca,cb
 integer no,i,j,iq,iqi,lcomm
@@ -158,39 +161,41 @@ real addoff,sf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 
+#ifdef debug
 if (qtest) then
   if (mynproc>1) then
     write(6,*) "ERROR: Invalid use of qtest"
     write(6,*) "Expecting 1 file, but required to load ",mynproc
-    call MPI_Abort(MPI_COMM_WORLD,-1,ierb)
+    call ccmpi_abort(-1)
   end if
   if (.not.present(var)) then
     write(6,*) "ERROR: Missing var in hr1p with qtest"
-    call MPI_Abort(MPI_COMM_WORLD,-1,ierb)
+    call ccmpi_abort(-1)
   end if
   if (size(var)/=pil*pjl*pnpan) then
     write(6,*) "ERROR: Invalid var size in hr1p with qtest"
     write(6,*) "size(var),pil,pjl,pnpan ",size(var),pil,pjl,pnpan
-    call MPI_Abort(MPI_COMM_WORLD,-1,ierb)
+    call ccmpi_abort(-1)
   end if
 else
   if (myid==0) then
     if (.not.present(var)) then
       write(6,*) "ERROR: Missing var in hr1p"
-      call MPI_Abort(MPI_COMM_WORLD,-1,ierb)
+      call ccmpi_abort(-1)
     end if
     if (size(var)/=pil_g*pjl_g) then
       write(6,*) "ERROR: Invalid var size in hr1p"
       write(6,*) "size(var),pil_g,pjl_g ",size(var),pil_g,pjl_g
-      call MPI_Abort(MPI_COMM_WORLD,-1,ierb)
+      call ccmpi_abort(-1)
     end if
   else
     if (present(var)) then
       write(6,*) "ERROR: Invalid use of var in hr1p"
-      call MPI_Abort(MPI_COMM_WORLD,-1,ierb)
+      call ccmpi_abort(-1)
     end if
   end if
 end if
+#endif
 
 start = (/ 1, 1, iarchi /)
 count = (/ pil, pjl*pnpan, 1 /)
@@ -230,7 +235,7 @@ do ipf=0,mynproc-1
         rvar(:)=real(ivar(:))
       case DEFAULT
         write(6,*) "ERROR: Unknown NetCDF format"
-        call MPI_Abort(MPI_COMM_WORLD,-1,ierb)
+        call ccmpi_abort(-1)
     end select
     call ncmsg("hr1p",ier)
     ! unpack compressed data
@@ -243,10 +248,10 @@ do ipf=0,mynproc-1
   else
     ! e.g., mesonest file
     
-    lcomm=MPI_COMM_WORLD
-    if (jpmax<nproc) lcomm=ip_comm
+    lcomm=comm_world
+    if (jpmax<nproc) lcomm=comm_ip
   
-    call MPI_Gather(rvar,pil*pjl*pnpan,MPI_REAL,gvar,pil*pjl*pnpan,MPI_REAL,0,lcomm,ierb)
+    call ccmpi_gatherx(gvar,rvar,0,lcomm)
     if (myid==0) then
       do jpf=0,jpmax-1
         ip=ipf*nproc+jpf
@@ -277,7 +282,6 @@ use cc_mpi
       
 implicit none
       
-include 'mpif.h'
 include 'parm.h'
       
 integer, intent(in) :: ncid,iarchi,ik,jk,kk,ifull
@@ -287,11 +291,13 @@ real, dimension(:), intent(inout) :: var ! may be dummy argument from myid/=0
       
 if (ifull/=ik*jk.and.ptest) then
   ! read local arrays without gather and distribute
-       
+
+#ifdef debug       
   if (size(var)/=ifull) then
     write(6,*) "ERROR: Incorrect use of dummy var in histrd4s"
-    call MPI_Abort(MPI_COMM_WORLD,-1,ier)
+    call ccmpi_abort(-1)
   end if
+#endif
 
   call hr4p(iarchi,ier,name,kk,.true.,var)
 
@@ -304,20 +310,24 @@ else
   ! split up processors to save memory.  No need to allocate global
   ! arrays on myid/=0.
   if (myid==0) then
+#ifdef debug
     if (size(var)/=ifull) then
       write(6,*) "ERROR: Incorrect use of dummy var in histrd4s"
-      call MPI_Abort(MPI_COMM_WORLD,-1,ier)
+      call ccmpi_abort(-1)
     end if
+#endif
  
     call hr4sa(ncid,iarchi,ier,name,ik,jk,kk,var,ifull)
   else
     if(ifull/=ik*jk)then
       ! read local arrays with gather and distribute
 
+#ifdef debug
       if (size(var)/=ifull) then
         write(6,*) "ERROR: Incorrect use of dummy var in histrd"
-        call MPI_Abort(MPI_COMM_WORLD,-1,ier)
+        call ccmpi_abort(-1)
       end if
+#endif
  
       call hr4p(iarchi,ier,name,kk,.false.)
       call ccmpi_distribute(var)
@@ -385,14 +395,12 @@ use cc_mpi
 implicit none
 
 include 'newmpar.h'
-include 'mpif.h'
 include 'netcdf.inc'
 
 integer, intent(in) :: iarchi,kk
 integer, intent(out) :: ier
 integer(kind=2), dimension(pil*pjl*pnpan) :: ivar
 integer, dimension(4) :: start,count
-integer, dimension(MPI_STATUS_SIZE) :: status
 integer idv,ipf,ip,jpf,jpmax,iptst2,n
 integer nctype,ierb,ca,cb
 integer no,i,j,iq,iqi,lcomm
@@ -404,38 +412,40 @@ real addoff,sf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 
+#ifdef debug
 if (qtest) then
   if (mynproc>1) then
      write(6,*) "ERROR: Invalid use of qtest"
-     call MPI_Abort(MPI_COMM_WORLD,-1,ierb)
+     call ccmpi_abort(-1)
   end if
   if (.not.present(var)) then
     write(6,*) "ERROR: Missing var in hr4p with qtest"
-    call MPI_Abort(MPI_COMM_WORLD,-1,ierb)
+    call ccmpi_abort(-1)
   end if
   if (size(var)/=pil*pjl*pnpan) then
     write(6,*) "ERROR: Invalid var size in hr4p with qtest"
     write(6,*) "size(var),pil,pjl,pnpan ",size(var),pil,pjl,pnpan
-    call MPI_Abort(MPI_COMM_WORLD,-1,ierb)
+    call ccmpi_abort(-1)
   end if
 else
   if (myid==0) then
     if (.not.present(var)) then
       write(6,*) "ERROR: Missing var in hr4p"
-      call MPI_Abort(MPI_COMM_WORLD,-1,ierb)
+      call ccmpi_abort(-1)
     end if
     if (size(var)/=pil_g*pjl_g) then
       write(6,*) "ERROR: Invalid var size in hr4p"
       write(6,*) "size(var),pil_g,pjl_g ",size(var),pil_g,pjl_g
-      call MPI_Abort(MPI_COMM_WORLD,-1,ierb)
+      call ccmpi_abort(-1)
     end if
   else
     if (present(var)) then
       write(6,*) "ERROR: Invalid use of var in hr4p"
-      call MPI_Abort(MPI_COMM_WORLD,-1,ierb)
+      call ccmpi_abort(-1)
     end if
   end if
 end if
+#endif
 
 start = (/ 1, 1, kk, iarchi /)
 count = (/ pil, pjl*pnpan, 1, 1 /)
@@ -475,7 +485,7 @@ do ipf=0,mynproc-1
         rvar(:)=real(ivar(:))
       case DEFAULT
         write(6,*) "ERROR: Unknown NetCDF format"
-        call MPI_Abort(MPI_COMM_WORLD,-1,ierb)
+        call ccmpi_abort(-1)
     end select
     call ncmsg("hr4p",ier)
     ! unpack data
@@ -488,10 +498,10 @@ do ipf=0,mynproc-1
   else
     ! expected mesonest file
 
-    lcomm=MPI_COMM_WORLD
-    if (jpmax<nproc) lcomm=ip_comm
+    lcomm=comm_world
+    if (jpmax<nproc) lcomm=comm_ip
   
-    call MPI_Gather(rvar,pil*pjl*pnpan,MPI_REAL,gvar,pil*pjl*pnpan,MPI_REAL,0,lcomm,ierb)
+    call ccmpi_gatherx(gvar,rvar,0,lcomm)
     if (myid==0) then
       do jpf=0,jpmax-1
         ip=ipf*nproc+jpf
@@ -522,7 +532,6 @@ use cc_mpi
 
 implicit none
 
-include 'mpif.h'
 include 'netcdf.inc'
 
 integer, intent(in) :: ncstatus
@@ -531,7 +540,7 @@ character(len=*), intent(in) :: txt
 
 if (ncstatus/=0) then
   write(6,*) txt," ",nf_strerror(ncstatus)
-  call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+  call ccmpi_abort(-1)
 end if
 
 return
@@ -546,7 +555,6 @@ use cc_mpi
 implicit none
       
 include 'newmpar.h'
-include 'mpif.h'
 include 'netcdf.inc'
       
 integer, parameter :: nihead   = 54
@@ -593,19 +601,19 @@ if (myid==0) then
           dmode=2
         case default
           write(6,*) "ERROR: Unknown decomposition ",fdecomp
-          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+          call ccmpi_abort(-1)
       end select
       call ncmsg("nproc",ierr)
       if (fnproc>ncidmax) then
         write(6,*) "ERROR: Exceeded maximum number of input files"
-        call MPI_Abort(MPI_COMM_WORLD,-1,ierr)    
+        call ccmpi_abort(-1)
       end if
     end if
   else
     ierr=nf_get_att_int(ncid,nf_global,"nproc",dumr)
     if (ierr==0) then
       write(6,*) "ERROR: Incorrect base filename"
-      call MPI_Abort(MPI_COMM_WORLD,-1,ierr)    
+      call ccmpi_abort(-1)
     end if
     write(6,*) "Found single input file ",ifile
   end if
@@ -679,7 +687,7 @@ if (myid==0) then
 end if
 
 ! Broadcast file metadata
-call MPI_Bcast(idum,5,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+call ccmpi_bcast(idum(1:5),0,comm_world)
 fnproc=idum(1)
 pil=idum(2)
 pjl=idum(3)
@@ -719,7 +727,7 @@ end do
 
 ltst=0
 if (myid<resid) ltst=1
-call MPI_Comm_Split(MPI_COMM_WORLD,ltst,myid,ip_comm,ierr)
+call ccmpi_commsplit(comm_ip,comm_world,ltst,myid)
     
 return
 end subroutine histopen
@@ -727,6 +735,8 @@ end subroutine histopen
 !--------------------------------------------------------------
 ! This subroutine closes parallel input files
 subroutine histclose
+
+use cc_mpi
       
 implicit none
     
@@ -739,7 +749,7 @@ if (allocated(pncidold)) then
   do ipf=0,plen-1
     ierr=nf_close(pncidold(ipf))
   end do
-  call MPI_Comm_Free(ip_commold,ierr)
+  call ccmpi_commfree(comm_ipold)
   deallocate(pncidold)
 end if
       
@@ -747,7 +757,7 @@ if (allocated(pncid)) then
   plen=size(pncid)
   allocate(pncidold(0:plen-1))
   pncidold=pncid
-  ip_commold=ip_comm
+  comm_ipold=comm_ip
 end if
 
 return
@@ -951,7 +961,6 @@ use cc_mpi
 implicit none
 
 include 'dates.h'
-include 'mpif.h'
 include 'parm.h'
 
 integer leap
@@ -972,7 +981,7 @@ jmin  =ktime-jhour*100
       
 if (jmonth<1.or.jmonth>12) then
   write(6,*) "ERROR: Invalid month ",jmonth
-  call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+  call ccmpi_abort(-1)
 end if 
 
 ndoy=odoy

@@ -79,7 +79,6 @@ implicit none
 
 include 'parm.h'
 include 'newmpar.h'
-include 'mpif.h'
 include 'kuocom.h'
 
 logical, intent(in) :: odcalc  ! True for full radiation calculation
@@ -381,7 +380,7 @@ if ( first ) then
       !allocate(Aerosol_diags%lw_absopdep_vlcno(imax,1,kl+1,2))
       write(6,*) "ERROR: Prescribed aerosol properties for"
       write(6,*) "volcanoes is currently unsupported"
-      call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+      call ccmpi_abort(-1)
     end if
 
   end if
@@ -418,7 +417,7 @@ Rad_time%ticks  =0
 ! error checking
 if (ldr==0) then
   write(6,*) "ERROR: SEA-ESF radiation requires ldr/=0"
-  call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+  call ccmpi_abort(-1)
 end if
 
 if(mod(ifull,imax)/=0)then
@@ -426,7 +425,7 @@ if(mod(ifull,imax)/=0)then
   ! so an error here should indicate a bug in globpe.f
   write(6,*) 'nproc,il,jl,ifull,imax ',nproc,il,jl,ifull,imax
   write(6,*) 'illegal setting of imax in rdparm'
-  call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+  call ccmpi_abort(-1)
 endif
 
 ! main loop ---------------------------------------------------------
@@ -556,7 +555,7 @@ do j=1,jl,imax/il
     else
       ! PCOM
       write(6,*) "ERROR: This option for nmlo is not currently supported"
-      call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+      call ccmpi_abort(-1)
     end if
 
     ! Urban albedo --------------------------------------------------
@@ -605,7 +604,7 @@ do j=1,jl,imax/il
         Aerosol%aerosol=max(Aerosol%aerosol,0.)
       case DEFAULT
         write(6,*) "ERROR: unknown iaero option ",iaero
-        call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+        call ccmpi_abort(-1)
     end select
 
     ! define droplet size distribution ------------------------------
@@ -1335,7 +1334,6 @@ use cc_mpi
 implicit none
 
 include 'filnames.h'
-include 'mpif.h'
 
 integer n,nmodel,unit,num_wavenumbers,num_input_categories
 integer noptical,nivl3,nband,nw,ierr,na,ni
@@ -1371,7 +1369,7 @@ if (myid==0) then
   open(unit,file=filename,iostat=ierr,status='old')
   if (ierr/=0) then
     write(6,*) "ERROR: Cannot open ",trim(filename)
-    call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+    call ccmpi_abort(-1)
   end if
   write(6,*) "Loading aerosol optical properties"
 
@@ -1524,13 +1522,13 @@ if (myid==0) then
 
 end if
 
-call MPI_Bcast(Aerosol_props%aerextband,Solar_spect%nbands*naermodels,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
-call MPI_Bcast(Aerosol_props%aerssalbband,Solar_spect%nbands*naermodels,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
-call MPI_Bcast(Aerosol_props%aerasymmband,Solar_spect%nbands*naermodels,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
-call MPI_Bcast(Aerosol_props%aerextbandlw,N_AEROSOL_BANDS*naermodels,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
-call MPI_Bcast(Aerosol_props%aerssalbbandlw,N_AEROSOL_BANDS*naermodels,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
-call MPI_Bcast(Aerosol_props%aerextbandlw_cn,N_AEROSOL_BANDS*naermodels,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
-call MPI_Bcast(Aerosol_props%aerssalbbandlw_cn,N_AEROSOL_BANDS*naermodels,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
+call ccmpi_bcastr8(Aerosol_props%aerextband,0,comm_world)
+call ccmpi_bcastr8(Aerosol_props%aerssalbband,0,comm_world)
+call ccmpi_bcastr8(Aerosol_props%aerasymmband,0,comm_world)
+call ccmpi_bcastr8(Aerosol_props%aerextbandlw,0,comm_world)
+call ccmpi_bcastr8(Aerosol_props%aerssalbbandlw,0,comm_world)
+call ccmpi_bcastr8(Aerosol_props%aerextbandlw_cn,0,comm_world)
+call ccmpi_bcastr8(Aerosol_props%aerssalbbandlw_cn,0,comm_world)
 
 return
 end subroutine loadaerooptical

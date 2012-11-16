@@ -152,7 +152,6 @@ c     initial value now read from tracerlist
       implicit none
       include 'newmpar.h'
       include 'netcdf.inc'
-      include 'mpif.h'
       include 'filnames.h'
       integer i,ierr
 ! rml 19/04/10 variables for methane initial condition 
@@ -207,13 +206,13 @@ c i.e. some read from restart, others initialised here
 c ***********************************************************************
       subroutine tr_back
 c     remove a background value for tracer fields for more accurate transport
-      use cc_mpi, only : myid
+      use cc_mpi
       use tracers_m
       implicit none
       include 'newmpar.h'
-      include 'mpif.h'
       integer i,ierr
       real trmin,trmin_g
+      real, dimension(2) :: dum
       
 
       if ( myid == 0 ) then
@@ -226,9 +225,9 @@ c     remove a background value for tracer fields for more accurate transport
         trmin=minval(tr(1:ilt*jlt,klt/2,i))
 !       trmax=maxval(tr(1:ilt*jlt,klt/2,i))
 
-        call MPI_Allreduce(trmin,trmin_g,1,MPI_REAL,MPI_MIN,
-     &                     MPI_COMM_WORLD,ierr)
-!       call MPI_Allreduce(trmax,trmax_g,1,MPI_REAL,MPI_MAX,MPI_COMM_WORLD,ier)
+        dum(1)=trmin
+        call ccmpi_allreduce(dum(1:1),dum(2:2),"min",comm_world)
+        trmin_g=dum(2)
       
         trback_g(i) = trmin_g
         tr(:,:,i) = tr(:,:,i) - trback_g(i)
@@ -336,6 +335,7 @@ c     rml 25/08/04 added fluxunit variable
 c     nflux =3 for month interp case - last month, this month, next month
 c     nflux=31*24+2 for daily, hourly, 3 hourly case
       real fluxin(il*jl,nflux),co2time(nflux),hr
+      real, dimension(2) :: dum
       integer ncidfl,timedim,yearid,monthid,fluxid,hourid
       integer nregdim,nregion,dayid,ierr
       integer, dimension(:), allocatable :: fluxyr,fluxmon
@@ -344,7 +344,6 @@ c     nflux=31*24+2 for daily, hourly, 3 hourly case
       real fluxin_g(ifull_g,nflux)
       logical gridpts
       include 'netcdf.inc'
-      include 'mpif.h'
 
 !  rml 30/04/10 special case for MCF deposition rates
       if (igas.eq.ngas+1) then
@@ -427,7 +426,7 @@ c rml 08/11/04 added radon units
           write(unit_trout,*) 'Code not set up for units other than gC/m
      &2/s or mol/m2/s or Bq/m2/s'
             write(6,*) 'fix flux units'
-	    call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+            call ccmpi_abort(-1)
           endif
         endif
         if (trim(fluxtype).eq.'daypulseon') then
@@ -606,20 +605,18 @@ c         read sunrise/sunset times for this month, region from file
       end if !myid == 0
 
 !     Simple broadcast for co2 time
-      call MPI_Bcast(co2time,nflux,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      call ccmpi_bcast(co2time(1:nflux),0,comm_world)
 !     Also need to share tracunit, tractype, and tracname. MPI_character. Total length
 !     of the array
-      call MPI_Bcast(tracunit,13*numtracer,MPI_CHARACTER,0,
-     &               MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(tractype,13*numtracer,MPI_CHARACTER,0,
-     &               MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(tracname,13*numtracer,MPI_CHARACTER,0,
-     &               MPI_COMM_WORLD,ierr)
+      call ccmpi_bcast(tracunit,0,comm_world)
+      call ccmpi_bcast(tractype,0,comm_world)
+      call ccmpi_bcast(tracname,0,comm_world)
       
-      if (trim(fluxtype).eq.'daypulseon') then
+      if (trim(fluxtype)=='daypulseon') then
 
-        call MPI_Bcast(tracdaytime(igas,:),2,MPI_REAL,0,MPI_COMM_WORLD,
-     &                 ierr)
+        dum(1:2)=tracdaytime(igas,:)
+        call ccmpi_bcast(dum(1:2),0,comm_world)
+        tracdaytime(igas,:)=dum(1:2)
 
 c       count number of timesteps that source emitting for
         kount=0
@@ -662,9 +659,6 @@ c     nflux =3 for month interp case - last month, this month, next month
       real ohin_g(ifull_g,kl,nfield)
       logical gridpts
       include 'netcdf.inc'
-      include 'mpif.h'
-
-c
 
       if ( myid == 0 ) then ! Read on this processor and then distribute
         write(6,*)'reading for ',imon,' from ',ohfile
@@ -902,59 +896,36 @@ c     rml 16/10/03 check tracer mass - just write out for <= 6 tracers
       include 'newmpar.h'
       include 'const_phys.h' ! rearth,fc_molm,fair_molm
       include 'dates.h'    !timeg
-      include 'mpif.h'
       integer it,iq,k,ktau,ntau,igas,ierr
 
       real ltime
       real trmin,trmax
-      real ::trmass_l(ngas)
+      real, dimension(ngas) :: trmass_l
       real checkwts,checkwts_g,checkdsig,checkdsig_g
-#ifdef sumdd
-       complex :: local_sum(ngas), global_sum(ngas)
-!      Temporary array for the drpdr_local function
-       real, dimension(ifull) :: tmparr
-#endif
+      complex :: local_sum(ngas), global_sum(ngas)
+!     Temporary array for the drpdr_local function
+      real, dimension(ifull) :: tmparr
 
        trmass_l = 0.
-#ifdef sumdd
        local_sum = (0.,0.)
-#endif
        do it=1,ngas
-!         checkwts = 0.
-!         checkdsig = 0.
           do k=1,kl
              do iq=1,ifull
-#ifdef sumdd         
-! rml 22/4/10 looks like bug *wts not ** wts
-!               tmparr(iq)  = tr(iq,k,it)*dsig(k)*ps(iq)**wts(iq)
-                tmparr(iq)  = tr(iq,k,it)*dsig(k)*ps(iq)*wts(iq)
-#else
-! rml 22/4/10 looks like bug *wts not ** wts
-                trmass_l(it) = trmass_l(it) +
-!    &                          tr(iq,k,it)*dsig(k)*ps(iq)**wts(iq)
-!    &                          tr(iq,k,it)*dsig(k)*ps(iq)*wts(iq)
-     &             (trback_g(it)+tr(iq,k,it))*dsig(k)*ps(iq)*wts(iq)
-!               checkwts = checkwts + wts(iq)
-!               checkdsig = checkdsig + dsig(k)
-#endif
+                tmparr(iq)  = (trback_g(it)+tr(iq,k,it))
+     &                        *dsig(k)*ps(iq)*wts(iq)
              end do
           end do
-#ifdef sumdd
           call drpdr_local(tmparr, local_sum(it))
-#endif
+          trmass_l(it)=real(local_sum(it))
        end do ! it
 
 #ifdef sumdd
-       call MPI_Allreduce ( local_sum, global_sum, ngas, 
-     &                     MPI_COMPLEX, MPI_SUMDR, MPI_COMM_WORLD, ierr)
+       call ccmpi_allreduce(local_sum(1:ngas),global_sum(1:ngas),
+     &                      "sumdr",comm_world)
        trmass = real(global_sum)
 #else
-       call MPI_Allreduce ( trmass_l, trmass, ngas, MPI_REAL,
-     &                      MPI_SUM, MPI_COMM_WORLD, ierr )
-!      call MPI_Allreduce ( checkwts, checkwts_g, 1, MPI_REAL,
-!    &                      MPI_SUM, MPI_COMM_WORLD, ierr )
-!      call MPI_Allreduce ( checkdsig, checkdsig_g, 1, MPI_REAL,
-!    &                      MPI_SUM, MPI_COMM_WORLD, ierr )
+       call ccmpi_allreduce(trmass_l(1:ngas),trmass(1:ngas),
+     &                      "sum",comm_world)
 #endif
 
 
@@ -965,13 +936,6 @@ c     scaling assumes CO2 with output in GtC?
      &        -1*trmass(1:6)*4.*3.14159*(rearth**2)*fC_MolM/
      &          (grav*1e18*fAIR_MolM)
          else
-!           write(unit_trout,*) 'Trmass: ',ktau,
-!    &        -1*trmass(:)*4.*3.14159*(rearth**2)*fC_MolM/
-!    &         (grav*1e18*fAIR_MolM)
-!    & ,minval(tr(1:ilt*jlt,1:klt,1)),maxval(tr(1:ilt*jlt,1:klt,1))
-!           scaling for methane in Tg
-!           write(unit_trout,*) 'Trmass ppb*Pa: ',trmass(:)
-!           write(unit_trout,*) checkwts_g,checkdsig_g
             write(unit_trout,*) 'Trmass (Tg CH4): ',ktau,
      &        -1*trmass(1:6)*4.*pi*eradsq*fCH4_MolM/
      &         (grav*1.e18*fAIR_MolM)

@@ -5596,11 +5596,10 @@ end subroutine rctrns
 subroutine read_lbltfs (gas_type, callrctrns, nstd_lo, nstd_hi, nf,   &
                         ntbnd, trns_std_hi_nf, trns_std_lo_nf )
  
- use cc_mpi, only : myid ! MJT
- 
- include 'filnames.h' ! MJT
- include 'netcdf.inc' ! MJT
- include 'mpif.h'
+ use cc_mpi
+  
+ include 'filnames.h'
+ include 'netcdf.inc'
  
 !--------------------------------------------------------------------
 !
@@ -5744,7 +5743,7 @@ real,    dimension (:,:,:), intent(out)  :: trns_std_hi_nf,   &
         ncstatus=nf_get_vara_double(ncid,varid,startpos,npos,trns_std_hi_nf(:,:,1:ntbnd(nf)))
         ncstatus=nf_close(ncid)
       end if
-      call MPI_Bcast(trns_std_hi_nf(:,:,1:ntbnd(nf)),npos(1)*npos(2)*npos(3),MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
+      call ccmpi_bcastr8(trns_std_hi_nf(:,:,1:ntbnd(nf)),0,comm_world)
       
       !write(6,*) "UNSUPPORTED read ",ncname
       !stop
@@ -5777,6 +5776,7 @@ real,    dimension (:,:,:), intent(out)  :: trns_std_hi_nf,   &
         filename = trim(cnsdir) // '/' // trim(name_lo )
         ncname = trim(filename) // '.nc'
 
+        startpos=1
         npos(1)=size(trns_std_lo_nf(:,:,1:ntbnd(nf)),1)
         npos(2)=size(trns_std_lo_nf(:,:,1:ntbnd(nf)),2)
         npos(3)=ntbnd(nf)
@@ -5788,11 +5788,10 @@ real,    dimension (:,:,:), intent(out)  :: trns_std_hi_nf,   &
           end if
           write(6,*) "Reading ",trim(ncname)
           ncstatus=nf_inq_varid(ncid,"trns_std_nf",varid)
-          startpos=1
           ncstatus=nf_get_vara_double(ncid,varid,startpos,npos,trns_std_lo_nf(:,:,1:ntbnd(nf)))
           ncstatus=nf_close(ncid)
         end if
-        call MPI_Bcast(trns_std_lo_nf(:,:,1:ntbnd(nf)),npos(1)*npos(2)*npos(3),MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
+        call ccmpi_bcastr8(trns_std_lo_nf(:,:,1:ntbnd(nf)),0,comm_world)
         
         !write(6,*) "UNSUPPORTED read ",ncname
         !stop

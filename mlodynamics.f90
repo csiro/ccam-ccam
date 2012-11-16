@@ -59,7 +59,6 @@ use soil_m
 implicit none
 
 include 'newmpar.h'
-include 'mpif.h'
 include 'parm.h'
 
 integer ii,iq,ierr
@@ -126,11 +125,11 @@ end where
 ltst=0
 stst=0
 if (any(ee>0.5)) stst=1
-call MPI_Allgather(stst,1,MPI_INTEGER,ltst,1,MPI_INTEGER,MPI_COMM_WORLD,ierr)
+call ccmpi_allgatherx(ltst(0:nproc-1),stst(1:1),comm_world)
 lrank=count(ltst(0:myid)==1)-1
 lndtst_g=count(ltst==1)
 bnds(:)%mlomsk=ltst(:)
-call MPI_Comm_Split(MPI_COMM_WORLD,stst(1),lrank,comm_mlo,ierr)
+call ccmpi_commsplit(comm_mlo,comm_world,stst(1),lrank)
 if (myid==0) then
   write(6,*) "Processors with water ",lndtst_g,nproc
 end if
@@ -202,7 +201,7 @@ do iq=1,ifull
           abs(sigh(ii)*dd(iq)-dephl(iq,ii))>0.1.or. &
           abs(dsig(ii)*dd(iq)-dz(iq,ii))>0.1) then
         write(6,*) "ERROR: MLO not configured for sigma levels"
-        call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+        call ccmpi_abort(-1)
       end if
     end do
   end if
@@ -210,7 +209,7 @@ end do
 dumz(1:wlev)=sig
 dumz(wlev+1:2*wlev)=sigh
 dumz(2*wlev+1:3*wlev)=dsig
-call MPI_Allreduce(dumz,gdumz,3*wlev,MPI_REAL,MPI_MAX,MPI_COMM_WORLD,ierr)
+call ccmpi_allreduce(dumz(1:3*wlev),gdumz(1:3*wlev),"max",comm_world)
 gosig=gdumz(1:wlev)
 gosigh=gdumz(wlev+1:2*wlev)
 godsig=gdumz(2*wlev+1:3*wlev)
@@ -453,7 +452,6 @@ implicit none
 
 include 'newmpar.h'
 include 'const_phys.h'
-include 'mpif.h'
 include 'parm.h'
 include 'soilv.h'
 
@@ -654,7 +652,7 @@ select case(basinmd)
     end do
     dumb(1)=lssum
     dumb(2)=lwsum
-    call MPI_AllReduce(dumb,gdumb,2,MPI_REAL,MPI_SUM,MPI_COMM_WORLD,ierr)
+    call ccmpi_allreduce(dumb(1:2),gdumb(1:2),"sum",comm_world)
     gssum=gdumb(1)
     gwsum=gdumb(2)
     xx=gssum/max(gwsum,0.1)
@@ -750,7 +748,6 @@ implicit none
 
 include 'newmpar.h'
 include 'const_phys.h'
-include 'mpif.h'
 include 'parm.h'
 
 integer leap
@@ -1866,7 +1863,6 @@ implicit none
 include 'newmpar.h'
 include 'parm.h'
 include 'parmhor.h'
-include 'mpif.h'
 
 integer idel,iq,jdel,kx
 integer i,j,k,n,ind,ip,jp,iproc,ierr,intsch,ncount
@@ -2260,7 +2256,6 @@ implicit none
 include 'newmpar.h'
 include 'parm.h'
 include 'parmhor.h'
-include 'mpif.h'
 
 integer idel,iq,jdel,kx
 integer i,j,k,n,ind,ip,jp,iproc,ierr,intsch,ncount
@@ -3687,11 +3682,11 @@ use mlo
 
 implicit none
 
-include 'mpif.h'
 include 'newmpar.h'
 
 integer, intent(in) :: cnum
-integer its,its_g,ii,l,iq,ierr
+integer ii,l,iq,ierr
+integer, dimension(1) :: its,its_g
 real, intent(in) :: dtin
 real dtnew,dtmin
 real, dimension(ifull,0:wlev), intent(in) :: ww
@@ -3710,21 +3705,21 @@ do iq=1,ifull
     end do
   end if
 end do
-its=int(dtin/(dtnew+0.01))+1
+its(1)=int(dtin/(dtnew+0.01))+1
 #ifdef sumdd
-call MPI_AllReduce(its,its_g,1,MPI_INTEGER,MPI_MAX,MPI_COMM_WORLD,ierr)
-if (its_g>500.and.myid==0) write(6,*) "MLOVERT cnum,its_g",cnum,its_g
+call ccmpi_allreduce(its(1:1),its_g(1:1),"max",comm_world)
+if (its_g(1)>500.and.myid==0) write(6,*) "MLOVERT cnum,its_g",cnum,its_g(1)
 #else
-its_g=its
-if (its_g>500) then
-  write(6,*) "MLOVERT myid,cnum,its_g",myid,cnum,its_g
+its_g(1)=its(1)
+if (its_g(1)>500) then
+  write(6,*) "MLOVERT myid,cnum,its_g",myid,cnum,its_g(1)
 end if
 #endif
-dtnew=dtin/real(its_g)
+dtnew=dtin/real(its_g(1))
 
 tt=tt-290.
 ss=ss-34.72
-do l=1,its_g
+do l=1,its_g(1)
   call mlotvd(dtnew,ww,uu,depdum,dzdum)
   call mlotvd(dtnew,ww,vv,depdum,dzdum)
   call mlotvd(dtnew,ww,ss,depdum,dzdum)

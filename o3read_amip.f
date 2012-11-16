@@ -4,11 +4,11 @@
 !  Based on the supplied example program to read the data.
 !  This routine is fixed format f90
 
-      use cc_mpi, only : myid
+      use cc_mpi
       use o3amip_m
 
       implicit none
-      include 'mpif.h'
+      
       include 'filnames.h'
 
       character(len=120) :: label
@@ -77,9 +77,9 @@
         enddo
         close(un)
       end if
-      call MPI_Bcast(glat,jg,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(gpri,lg,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(gdat,jg*kg*mo,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      call ccmpi_bcast(glat,0,comm_world)
+      call ccmpi_bcast(gpri,0,comm_world)
+      call ccmpi_bcast(gdat,0,comm_world)
       !--------------------------------------------------------------
 
       dp = gpri(2:lvlo3d) - gpri(1:lvlo3d-1)

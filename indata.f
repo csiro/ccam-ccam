@@ -50,7 +50,6 @@
       include 'darcdf.h'                       ! Netcdf data
       include 'dates.h'                        ! Date data
       include 'filnames.h'                     ! Filenames
-      include 'mpif.h'                         ! MPI parameters
       include 'netcdf.inc'                     ! Netcdf parameters
       include 'parm.h'                         ! Model configuration
       include 'parmdyn.h'                      ! Dynamics parmaters
@@ -89,6 +88,7 @@
       real, dimension(ifull_g,3) :: glob2d
       real, dimension(ifull_g) :: davt_g
       real, dimension(2*kl*kl+kl) :: dumc
+      real, dimension(2) :: dumd
       real rlonx,rlatx,alf
       real aamax, aamax_g, c, cent, 
      &     coslat, coslong, costh, den, diffb, diffg, dist,
@@ -190,7 +190,7 @@
       dumc(1:kl)=sig
       dumc(kl+1:2*kl)=sigmh
       dumc(2*kl+1:3*kl)=tbar
-      call MPI_Bcast(dumc(1:3*kl),3*kl,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      call ccmpi_bcast(dumc(1:3*kl),0,comm_world)
       sig=dumc(1:kl)
       sigmh=dumc(kl+1:2*kl)
       tbar=dumc(2*kl+1:3*kl)
@@ -266,9 +266,9 @@
        endif  ! (nh.ne.0)
       endif !myid==0
 
-      call MPI_Bcast(bam,kl,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(emat,kl*kl,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(einv,kl*kl,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      call ccmpi_bcast(bam,0,comm_world)
+      call ccmpi_bcast(emat,0,comm_world)
+      call ccmpi_bcast(einv,0,comm_world)
 
 !     zmin here is approx height of the lowest level in the model
       zmin=-rdry*280.*log(sig(1))/grav
@@ -596,7 +596,7 @@
      &               'kdate/ktime'
           write(6,*) "kdate,    ktime     ",kdate,ktime
           write(6,*) "kdate_sav,ktime_sav ",kdate_sav,ktime_sav
-          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+          call ccmpi_abort(-1)
         endif
  
         ! adjust input for differences in orography
@@ -1089,7 +1089,7 @@
          iveg=ivegt(idjd)
          if (nsib==6.or.nsib==7) iveg=1
          isoil=isoilm(idjd)
-         if (isoil.gt.0) then
+         if (isoil>0) then
            write(6,*)'isoil,iveg,month,fracsum,rlatt: ',
      &                isoil,iveg,imo,fracsum(imo),rlatt(idjd)
            fracs=sign(1.,rlatt(idjd))*fracsum(imo) ! +ve for local summer
@@ -1579,7 +1579,7 @@ c     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
         enddo
       endif  ! (abs(epsp)>99.)
       if(epsp>1..and.epsp<2.)epst(:)=epsp-1.
-      write (6,"('epst0#  ',9f8.2)") diagvals(epst) 
+      !write (6,"('epst0#  ',9f8.2)") diagvals(epst) 
 
       ! saved albedo
       albsav(:)=albvisnir(:,1)    ! VIS
@@ -1770,8 +1770,9 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
         enddo   ! iq loop
         if(mydiag)write(6,*)'for lgwd>0, typical zo#: ', diagvals(aa)
 !     & 	 ((aa(ii+(jj-1)*il),ii=id-1,id+1),jj=jd+1,jd-1,-1)
-        call MPI_Reduce(aamax, aamax_g, 1, MPI_REAL, MPI_MAX, 0,
-     &                  MPI_COMM_WORLD, ierr )
+        dumd(1)=aamax
+        call ccmpi_reduce(dumd(1:1),dumd(2:2),"max",0,comm_world)
+        aamax_g=dumd(2)
         if(myid==0)write(6,*)'for lgwd>0, aamax: ',aamax_g
       end if ! lgwd>0
       if (ngwd/=0) then
@@ -1786,8 +1787,9 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
          he(iq)=min(hefact*he(iq),helim)
         enddo
         if (myid==0) write(6,*)'hemax = ',hemax
-        call MPI_Allreduce(hemax, hemax_g, 1, MPI_REAL, MPI_MAX, 
-     &                  MPI_COMM_WORLD, ierr )
+        dumd(1)=hemax
+        call ccmpi_allreduce(dumd(1:1),dumd(2:2),"max",comm_world)
+        hemax_g=dumd(2)
         hemax = hemax_g
         if(hemax==0.)then
 !         use he of 30% of orography, i.e. zs*.3/grav
@@ -1796,9 +1798,14 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
            hemax=max(he(iq),hemax)
           enddo ! iq loop
         endif   ! (hemax==0.)
-        call MPI_Reduce(hemax, hemax_g, 1, MPI_REAL, MPI_MAX, 0,
-     &                  MPI_COMM_WORLD, ierr )
-        if (myid==0) write(6,*)'final hemax = ',hemax_g
+        if (nmaxpr==1) then
+          dumd(1)=hemax
+          call ccmpi_reduce(dumd(1:1),dumd(2:2),"max",0,comm_world)
+          if (myid==0) then
+            hemax_g=dumd(2)
+            write(6,*)'final hemax = ',hemax_g
+          end if
+        end if
       endif     ! (ngwd.ne.0)
 
 
@@ -1912,12 +1919,12 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
 
       !--------------------------------------------------------------     
       ! WRITE FORT.22 FILE FOR GRID INFO
-      write(6,*)'at centre of the panels:'
-      do n=1,npan
-         iq = indp((ipan+1)/2,(jpan+1)/2,n)
-         write(6,'(" n,em,emu,emv,f,fu,fv "i3,3f9.3,3f10.6)')
-     &        n-noff,em(iq),emu(iq),emv(iq),f(iq),fu(iq),fv(iq)
-      enddo ! n=1,npan
+!      write(6,*)'at centre of the panels:'
+!      do n=1,npan
+!         iq = indp((ipan+1)/2,(jpan+1)/2,n)
+!         write(6,'(" n,em,emu,emv,f,fu,fv "i3,3f9.3,3f10.6)')
+!     &        n-noff,em(iq),emu(iq),emv(iq),f(iq),fu(iq),fv(iq)
+!      enddo ! n=1,npan
 
       if(nproc==1)then
         coslong=cos(rlong0*pi/180.)   
@@ -2066,7 +2073,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
 98        format(i3,i4,i5,i6,2f7.2 ,l3,2f7.2, i3,i6,f7.1,f5.2,
      &           4f5.2,f7.1,i4)
              ! Put a barrier here to force stations to be printed in the right order
-          call MPI_Barrier( MPI_COMM_WORLD, ierr )
+          call ccmpi_barrier(comm_world)
         enddo  ! nn=1,nstn
       endif     !  (nstn>0)
 
@@ -2095,7 +2102,6 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
       include 'newmpar.h'          ! Grid parameters
       include 'const_phys.h'       ! Physical constants
       include 'filnames.h'         ! Filenames
-      include 'mpif.h'             ! MPI parameters
       include 'parm.h'             ! Model configuration
       include 'soilv.h'            ! Soil parameters
       
@@ -2103,6 +2109,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
       integer idatafix,iq,ierr
       integer, dimension(:,:), allocatable :: iduma
       integer, dimension(ifull,2) :: idumb
+      integer, dimension(2) :: dumc
       real falbdflt,frsdflt,fzodflt
       real, dimension(:,:), allocatable :: duma
       real, dimension(ifull,5) :: dumb
@@ -2204,15 +2211,17 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
      &      mismatch = .true.
 
 ! --- rescale and patch up vegie data if necessary
-      call MPI_Allreduce(ivegmax, ivegmax_g, 1, MPI_INTEGER, MPI_MAX, 
-     &                  MPI_COMM_WORLD, ierr )
-      if((ivegmax_g<14).and.nsib/=6
-     &    .and.nsib/=7) then
-        if ( mydiag ) write(6,*)
-     &      '**** in this run veg types increased from 1-13 to 32-44'
-        do iq=1,ifull            ! add offset to sib values so 1-13 becomes 32-44
-         if(ivegt(iq)>0)ivegt(iq)=ivegt(iq)+31
-        enddo
+      if (nsib/=6.and.nsib/=7) then
+        dumc(1)=ivegmax
+        call ccmpi_allreduce(dumc(1:1),dumc(2:2),"max",comm_world)
+        ivegmax_g=dumc(2)
+        if(ivegmax_g<14) then
+          if ( mydiag ) write(6,*)
+     &        '**** in this run veg types increased from 1-13 to 32-44'
+          do iq=1,ifull            ! add offset to sib values so 1-13 becomes 32-44
+           if(ivegt(iq)>0)ivegt(iq)=ivegt(iq)+31
+          enddo
+        end if
       endif
  
       albvisnir(:,:)=.01*albvisnir(:,:)
@@ -2691,7 +2700,6 @@ c find coexp: see notes "simplified wind model ..." eq 34a
       include 'newmpar.h'
       include 'const_phys.h'  
       include 'netcdf.inc'
-      include 'mpif.h'
       
       integer iq,ix
       integer ncid,ncs,varid,ierr
@@ -2718,8 +2726,8 @@ c find coexp: see notes "simplified wind model ..." eq 34a
 	ncs=nf_close(ncid)
 	sdata=sdata+273.16
       end if
-      call MPI_Bcast(sdata,300,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(ldata,300,MPI_REAL,0,MPI_COMM_WORLD,ierr)      
+      call ccmpi_bcast(sdata,0,comm_world)
+      call ccmpi_bcast(ldata,0,comm_world)
       
       do iq=1,ifull
         if (.not.land(iq)) then

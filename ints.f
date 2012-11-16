@@ -15,7 +15,6 @@ c     doing x-interpolation before y-interpolation
       include 'newmpar.h'
       include 'parm.h'
       include 'parmhor.h'    ! has mh_bs
-      include 'mpif.h'
       integer intsch, nfield
       integer nface(ifull,kl)
       real xg(ifull,kl),yg(ifull,kl)      ! now passed through call
@@ -270,7 +269,7 @@ c                +x*(1+x)*(2-x)*c3}/2
                   if ( fproc(ip,jp,n-noff) /= myid ) then
                      print*, "Error in ints", myid, n, iq, iproc,
      &                     dpoints(iproc)%a(:,iq)                       ! MJT memory
-                     call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+                     call ccmpi_abort(-1)
                   end if
 #endif
                   idel = int(dpoints(iproc)%a(2,iq))                    ! MJT memory
@@ -343,7 +342,7 @@ c                +x*(1+x)*(2-x)*c3}/2
                   if ( fproc(ip,jp,n-noff) /= myid ) then
                      print*, "Error in ints", myid, n, iq, iproc,
      &                     dpoints(iproc)%a(:,iq)                       ! MJT memory
-                     call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+                     call ccmpi_abort(-1)
                   end if
 #endif
                   idel = int(dpoints(iproc)%a(2,iq))                    ! MJT memory
@@ -620,7 +619,7 @@ c                +y*(1+y)*(2-y)*c3}/2
                   if ( fproc(ip,jp,n-noff) /= myid ) then
                      print*, "Error in ints_bl", myid, n, iq, iproc,
      &                 dpoints(iproc)%a(:,iq)                           ! MJT memory
-                     call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+                     call ccmpi_abort(-1)
                   end if
 #endif
                   idel = int(dpoints(iproc)%a(2,iq))                    ! MJT memory
@@ -692,7 +691,7 @@ c               +y*(1+y)*(2-y)*c3}/2
                   if ( fproc(ip,jp,n-noff) /= myid ) then
                      print*, "Error in ints_bl", myid, n, iq, iproc,
      &                 dpoints(iproc)%a(:,iq)                           ! MJT memory
-                     call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+                     call ccmpi_abort(-1)
                   end if
 #endif
                   idel = int(dpoints(iproc)%a(2,iq))                    ! MJT memory
@@ -834,7 +833,7 @@ c                    but for bi-linear only need 0:il+1 &  0:il+1
             if ( fproc(ip,jp,n-noff) /= myid ) then
                print*, "Error in ints_bl", myid, n, iq, iproc,
      &              dpoints(iproc)%a(:,iq)                              ! MJT memory
-               call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+               call ccmpi_abort(-1)
             end if
 #endif
             idel = int(dpoints(iproc)%a(2,iq))                          ! MJT memory

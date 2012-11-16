@@ -30,7 +30,6 @@
       include 'parm.h'
       include 'parmdyn.h'  
       include 'parmvert.h'
-      include 'mpif.h'
       integer iq, k, ng, ii, jj, its, nits, nvadh_pass, iaero
       integer ierr
       integer, save :: num = 0
@@ -39,7 +38,8 @@
       real ddpds(ifull,kl)
       real duma(ifull+iextra,kl+1)
       real const_nh, contv, delneg, delpos, ratio
-      real sumdiffb, sdmx, sdmx_g, spmax2,termlin
+      real sumdiffb, spmax2,termlin
+      real, dimension(1) :: sdmx, sdmx_g
       real, allocatable, save, dimension(:) :: epstsav
       
       call start_log(nonlin_begin)
@@ -67,6 +67,9 @@
         qlgsav=qlg(1:ifull,:)
         qrgsav=qrg(1:ifull,:)
       endif   ! (ldr.ne.0)
+      if (mydiag.and.nmaxpr==1) then
+        write(6,*) "qgsav ",qgsav(idjd,nlv)
+      end if
 
       if(ngas>=1)then
         if(mfix_rad>0.and.mspec==1)then ! make gases 2 to ng add up to g1
@@ -131,7 +134,8 @@
         write (6,"('epst#  ',9f8.2)") diagvals(epst) 
         write (6,"('sdot#  ',9f8.3)") diagvals(sdot(:,nlv)) 
         write (6,"('sdotn  ',9f8.3/7x,9f8.3)") sdot(idjd,1:kl)
-        write (6,"('omgf#  ',9f8.3)") ps(idjd)*dpsldt(idjd,nlv)
+        write (6,"('omgf#  ',9f8.3)") ((ps(ii+jj*il)*
+     &              dpsldt(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=-1,1)
         write (6,"('omgfn  ',9f8.3/7x,9f8.3)") ps(idjd)*dpsldt(idjd,:)
         write (6,"('t   ',9f8.3/4x,9f8.3)")     t(idjd,:)
         write (6,"('u   ',9f8.3/4x,9f8.3)")     u(idjd,:)
@@ -141,18 +145,17 @@
 
 !     do vertical advection in split mode
       if(nvad==4.or.nvad==9)then
-        sdmx = maxval(abs(sdot))
+        sdmx(1) = maxval(abs(sdot))
 #ifdef sumdd
-        call MPI_AllReduce(sdmx, sdmx_g, 1, MPI_REAL, MPI_MAX,
-     &                     MPI_COMM_WORLD, ierr )
+        call ccmpi_allreduce(sdmx(1:1),sdmx_g(1:1),"max",comm_world)
 #else
-        sdmx_g=sdmx
+        sdmx_g(1)=sdmx(1)
 #endif
-        nits=1+sdmx_g/nvadh
+        nits=1+sdmx_g(1)/nvadh
         nvadh_pass=nvadh*nits
         if (mydiag.and.mod(ktau,nmaxpr)==0)
      &      print *,'in nonlin sdmx,nits,nvadh_pass ',
-     &                         sdmx_g,nits,nvadh_pass
+     &                         sdmx_g(1),nits,nvadh_pass
          do its=1,nits
             call vadvtvd(t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),
      &                   nvadh_pass,iaero) 
@@ -352,6 +355,8 @@ cy      tx(iq,k)=.5*dt*termlin  ! t and epst later  cy
       if( (diag.or.nmaxpr==1) .and. mydiag )then
         iq=idjd
         k=nlv
+        print *,'dpsldt,roncp,sig ',
+     &           dpsldt(iq,k),roncp,sig(k)
         print *,'contv,tbar2d,termlin_nlv ',
      &           contv,tbar2d(iq),tbar2d(iq)*dpsldt(iq,k)*roncp/sig(k)
         print *,'tv,tn ',tv(iq,k),tn(iq,k)

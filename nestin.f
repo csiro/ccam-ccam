@@ -30,7 +30,7 @@
       subroutine nestin(iaero)
       
       use arrays_m                     ! Atmosphere dyamics prognostic arrays
-      use cc_mpi, only : myid, mydiag  ! CC MPI routines
+      use cc_mpi                       ! CC MPI routines
       use davb_m                       ! Far-field nudging (host store)
       use diag_m                       ! Diagnostic routines
       use indices_m                    ! Grid index arrays
@@ -44,7 +44,6 @@
       
       include 'newmpar.h'              ! Grid parameters
       include 'dates.h'                ! Date data
-      include 'mpif.h'                 ! MPI parameters
       include 'netcdf.inc'             ! Netcdf parameters
       include 'parm.h'                 ! Model configuration
       include 'stime.h'                ! File date data
@@ -55,6 +54,7 @@
       integer kdate_r,ktime_r,kdhour,kdmin,iabsdate
       real timerm,cona,conb,rduma
       real, save :: rdumg = -999.
+      real, dimension(2) :: dumbb
       real, dimension(:,:), allocatable, save :: ta,ua,va,qa
       real, dimension(:,:), allocatable, save :: tb,ub,vb,qb,ocndep
       real, dimension(:), allocatable, save :: psla,pslb,tssa,tssb
@@ -169,7 +169,7 @@
      &                 dums,duma,duma,dumm,iaero,sssb,ocndep)
         else
           write(6,*) 'ERROR: Nudging requires abs(io_in)=1'
-          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+          call ccmpi_abort(-1)
         endif   ! (io_in==1)
         tssb(:) = abs(tssb(:))
         if (mydiag) then
@@ -278,8 +278,10 @@
             wl=wlev
             if (rdumg<-1.) then
               rduma=maxval(ocndep(:,1)) ! check if 3D data exists
-              call MPI_AllReduce(rduma,rdumg,1,MPI_REAL,MPI_MAX,
-     &                           MPI_COMM_WORLD,ierr)
+              dumbb(1)=rduma
+              call ccmpi_allreduce(dumbb(1:1),dumbb(2:2),"max",
+     &                             comm_world)
+              rdumg=dumbb(2)
             end if
             if (rdumg<0.5) wl=1
             if (wl==1) then ! switch to 2D if 3D data is missing
@@ -305,7 +307,7 @@
       subroutine nestinb(iaero)
 
       use arrays_m                     ! Atmosphere dyamics prognostic arrays
-      use cc_mpi, only : myid, mydiag  ! CC MPI routines
+      use cc_mpi                       ! CC MPI routines
       use diag_m                       ! Diagnostic routines
       use indices_m                    ! Grid index arrays
       use latlong_m                    ! Lat/lon coordinates
@@ -318,7 +320,6 @@
  
       include 'newmpar.h'              ! Grid parameters
       include 'dates.h'                ! Date data
-      include 'mpif.h'                 ! MPI parameters
       include 'netcdf.inc'             ! Netcdf parameters
       include 'parm.h'                 ! Model configuration
       include 'stime.h'                ! File date data
@@ -329,6 +330,7 @@
       integer iabsdate,iq,k,kdhour,kdmin
       real ds_r,timeg_b,rduma
       real, save :: rdumg = -999.
+      real, dimension(2) :: dumbb
       real, dimension(:,:), allocatable, save :: tb,ub,vb,qb,ocndep
       real, dimension(:), allocatable, save :: pslb,tssb,fraciceb
       real, dimension(:), allocatable, save :: sicedepb
@@ -367,7 +369,7 @@
         else
           write(6,*) 'ERROR: Scale-selective filter requires ',
      &               'abs(io_in)=1'
-          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+          call ccmpi_abort(-1)
         endif   ! (abs(io_in)==1)
         tssb(:) = abs(tssb(:))  ! moved here Mar '03
         if (mydiag) then
@@ -496,8 +498,10 @@
               wl=wlev
               if (rdumg<-1.) then
                 rduma=maxval(ocndep(:,1)) ! check for 3D data
-                call MPI_AllReduce(rduma,rdumg,1,MPI_REAL,MPI_MAX,
-     &                             MPI_COMM_WORLD,ierr)
+                dumbb(1)=rduma
+                call ccmpi_allreduce(dumbb(1:1),dumbb(2:2),"max",
+     &                               comm_world)
+                rdumg=dumbb(2)
               end if
               if (rdumg<0.5) wl=1
               if (wl==1) then ! switch to 2D data if 3D is missing
@@ -536,7 +540,6 @@
 
       include 'newmpar.h'              ! Grid parameters
       include 'const_phys.h'           ! Physical constants
-      include 'mpif.h'                 ! MPI parameters
       include 'parm.h'                 ! Model configuration
       include 'parmgeom.h'             ! Coordinate data
 
@@ -630,7 +633,7 @@
           if (nproc>1) then
             write(6,*) "Option is currently disabled"
             write(6,*) "for multi-processor configurations"
-            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+            call ccmpi_abort(-1)
           end if
           call fastspec((.1*real(mbd)/(pi*schmidt))**2
      &       ,psld(:),ud(:,kbotdav:ktopdav),vd(:,kbotdav:ktopdav)
@@ -1172,10 +1175,9 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       implicit none
       
       include 'newmpar.h'   ! Grid parameters
-      include 'mpif.h'      ! MPI parameters
       include 'parm.h'      ! Model configuration
 
-      integer i,j,n,iq,iqg,k,ierr,iy
+      integer i,j,n,iq,iqg,k,ierr
       real, intent(in) :: cin
       real, dimension(ifull_g), intent(inout) :: psls
       real, dimension(ifull_g,kbotdav:ktopdav), intent(inout) :: uu,vv
@@ -1192,25 +1194,18 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         write(6,*) "Send arrays to all processors"
       end if
       if(nud_p>0)then
-        call MPI_Bcast(psls(:),ifull_g,MPI_REAL,0,
-     &         MPI_COMM_WORLD,ierr)
+        call ccmpi_bcast(psls,0,comm_world)
       end if
-      iy=ifull_g*(ktopdav-kbotdav+1)
       if(nud_uv>0)then
-        call MPI_Bcast(uu,iy,MPI_REAL,0,
-     &         MPI_COMM_WORLD,ierr)    
-        call MPI_Bcast(vv,iy,MPI_REAL,0,
-     &         MPI_COMM_WORLD,ierr)    
-        call MPI_Bcast(ww,iy,MPI_REAL,0,
-     &         MPI_COMM_WORLD,ierr)    
+        call ccmpi_bcast(uu,0,comm_world)
+        call ccmpi_bcast(vv,0,comm_world)
+        call ccmpi_bcast(ww,0,comm_world)
       end if
       if(nud_t>0)then
-        call MPI_Bcast(tt,iy,MPI_REAL,0,
-     &         MPI_COMM_WORLD,ierr)    
+        call ccmpi_bcast(tt,0,comm_world)
       end if
       if(nud_q>0)then
-        call MPI_Bcast(qgg,iy,MPI_REAL,0,
-     &         MPI_COMM_WORLD,ierr)    
+        call ccmpi_bcast(qgg,0,comm_world)
       end if
     
       if (myid==0.and.nmaxpr==1) write(6,*) "Start 2D filter"
@@ -1294,7 +1289,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       hproc=0                             ! host processor for panel
       call procdiv(ns,ne,il_g,nproc,myid) ! number of rows per processor
 
-      call spechost(myid,mproc,hproc,npta,pn,px,ns,ne,cin,psls,uu,vv,
+      call spechost(mproc,hproc,npta,pn,px,ns,ne,cin,psls,uu,vv,
      &       ww,tt,qgg)
           
       return
@@ -1328,7 +1323,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       hproc=pn*mproc/npta                       ! host processor for panel
       call procdiv(ns,ne,il_g,mproc,myid-hproc) ! number of rows per processor
 
-      call spechost(myid,mproc,hproc,npta,pn,px,ns,ne,cin,psls,uu,vv,
+      call spechost(mproc,hproc,npta,pn,px,ns,ne,cin,psls,uu,vv,
      &       ww,tt,qgg)
 
       return
@@ -1338,22 +1333,21 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
 
       !---------------------------------------------------------------------------------
       ! This is the main routine for the scale-selective filter
-      subroutine spechost(myid,mproc,hproc,npta,pn,px,ns,ne,cin,psls,
+      subroutine spechost(mproc,hproc,npta,pn,px,ns,ne,cin,psls,
      &                    uu,vv,ww,tt,qgg)
 
+      use cc_mpi            ! CC MPI routines
       use map_m             ! Grid map arrays
       
       implicit none
       
       include 'newmpar.h'   ! Grid parameters
-      include 'mpif.h'      ! MPI parameters
       include 'parm.h'      ! Model configuration
       
-      integer, intent(in) :: myid,mproc,hproc,npta,pn,px,ns,ne
+      integer, intent(in) :: mproc,hproc,npta,pn,px,ns,ne
       integer k,ppass,iy,ppn,ppx,nne,nns,iproc,ierr
       integer n,a,b,c,til,lsize
       integer :: itag=0
-      integer, dimension(MPI_STATUS_SIZE) :: status
       real, intent(in) :: cin
       real, dimension(ifull_g), intent(inout) :: psls
       real, dimension(ifull_g,kbotdav:ktopdav), intent(inout) :: uu,vv
@@ -1372,25 +1366,18 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         write(6,*) "Send arrays to all processors"
       end if
       if(nud_p>0)then
-        call MPI_Bcast(psls(:),ifull_g,MPI_REAL,0,
-     &         MPI_COMM_WORLD,ierr)
+        call ccmpi_bcast(psls,0,comm_world)
       end if
-      iy=ifull_g*(ktopdav-kbotdav+1)
       if(nud_uv>0)then
-        call MPI_Bcast(uu,iy,MPI_REAL,0,
-     &         MPI_COMM_WORLD,ierr)    
-        call MPI_Bcast(vv,iy,MPI_REAL,0,
-     &         MPI_COMM_WORLD,ierr)    
-        call MPI_Bcast(ww,iy,MPI_REAL,0,
-     &         MPI_COMM_WORLD,ierr)    
+        call ccmpi_bcast(uu,0,comm_world)
+        call ccmpi_bcast(vv,0,comm_world)
+        call ccmpi_bcast(ww,0,comm_world)
       end if
       if(nud_t>0)then
-        call MPI_Bcast(tt,iy,MPI_REAL,0,
-     &         MPI_COMM_WORLD,ierr)    
+        call ccmpi_bcast(tt,0,comm_world)
       end if
       if(nud_q>0)then
-        call MPI_Bcast(qgg,iy,MPI_REAL,0,
-     &         MPI_COMM_WORLD,ierr)    
+        call ccmpi_bcast(qgg,0,comm_world)
       end if
       
       if (ns>ne) return
@@ -1426,13 +1413,13 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             write(6,*) "Symmetric decomposition"
           end if
           lsize=ifull_g/mproc
-          call speclocal_s(myid,mproc,hproc,ns,ne,cq,ppass,qsum,qp,
+          call speclocal_s(mproc,hproc,ns,ne,cq,ppass,qsum,qp,
      &           qu,qv,qw,qt,qq,lsize)        
         else
           if (myid==0.and.nmaxpr==1) then
             write(6,*) "Asymmetric decomposition"
           end if
-          call speclocal(myid,mproc,hproc,ns,ne,cq,ppass,qsum,qp,
+          call speclocal(mproc,hproc,ns,ne,cq,ppass,qsum,qp,
      &           qu,qv,qw,qt,qq)
         end if
         
@@ -1474,8 +1461,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
           a=til
           c=-til*ppn
           if(nud_p>0)then
-            call MPI_Recv(dd(1:iy),iy,MPI_REAL,
-     &             iproc,itag,MPI_COMM_WORLD,status,ierr)
+            call ccmpi_recv(dd(1:iy),iproc,itag,comm_world)
             do ppass=ppn,ppx
               do n=1,til
                 zp(n+ppass*til)=dd(n+a*ppass+c)
@@ -1486,8 +1472,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
           b=npta*til
           c=-til*(ppn+npta*kbotdav)
           if(nud_uv>0)then
-            call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc,itag,
-     &             MPI_COMM_WORLD,status,ierr)
+            call ccmpi_recv(dd(1:iy),iproc,itag,comm_world)
             do k=kbotdav,ktopdav
               do ppass=ppn,ppx
                 do n=1,til
@@ -1495,8 +1480,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                 end do
               end do
             end do
-            call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc,itag,
-     &             MPI_COMM_WORLD,status,ierr)
+            call ccmpi_recv(dd(1:iy),iproc,itag,comm_world)
             do k=kbotdav,ktopdav
               do ppass=ppn,ppx
                 do n=1,til
@@ -1504,8 +1488,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                 end do
               end do
             end do
-            call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc,itag,
-     &             MPI_COMM_WORLD,status,ierr)
+            call ccmpi_recv(dd(1:iy),iproc,itag,comm_world)
             do k=kbotdav,ktopdav
               do ppass=ppn,ppx
                 do n=1,til
@@ -1515,8 +1498,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             end do
           end if
           if(nud_t>0)then
-            call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc,itag,
-     &             MPI_COMM_WORLD,status,ierr)
+            call ccmpi_recv(dd(1:iy),iproc,itag,comm_world)
             do k=kbotdav,ktopdav
               do ppass=ppn,ppx
                 do n=1,til
@@ -1526,8 +1508,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             end do
           end if
           if(nud_q>0)then
-            call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc,itag,
-     &             MPI_COMM_WORLD,status,ierr)
+            call ccmpi_recv(dd(1:iy),iproc,itag,comm_world)
             do k=kbotdav,ktopdav
               do ppass=ppn,ppx
                 do n=1,til
@@ -1547,8 +1528,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
               dd(n+a*ppass+c)=zp(n+ppass*til)
             end do
           end do
-          call MPI_SSend(dd(1:iy),iy,MPI_REAL,0,
-     &           itag,MPI_COMM_WORLD,ierr)
+          call ccmpi_ssend(dd(1:iy),0,itag,comm_world)
         end if
         iy=npta*til*(ktopdav-kbotdav+1)
         b=npta*til
@@ -1561,8 +1541,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
               end do
             end do
           end do
-          call MPI_SSend(dd(1:iy),iy,MPI_REAL,0,itag,
-     &           MPI_COMM_WORLD,ierr)
+          call ccmpi_ssend(dd(1:iy),0,itag,comm_world)
           do k=kbotdav,ktopdav
             do ppass=pn,px
               do n=1,til
@@ -1570,8 +1549,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
               end do
             end do
           end do
-          call MPI_SSend(dd(1:iy),iy,MPI_REAL,0,itag,
-     &           MPI_COMM_WORLD,ierr)
+          call ccmpi_ssend(dd(1:iy),0,itag,comm_world)
           do k=kbotdav,ktopdav
             do ppass=pn,px
               do n=1,til
@@ -1579,8 +1557,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
               end do
             end do
           end do
-          call MPI_SSend(dd(1:iy),iy,MPI_REAL,0,itag,
-     &           MPI_COMM_WORLD,ierr)
+          call ccmpi_ssend(dd(1:iy),0,itag,comm_world)
         end if
         if(nud_t>0)then
           do k=kbotdav,ktopdav
@@ -1590,8 +1567,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
               end do
             end do
           end do
-          call MPI_SSend(dd(1:iy),iy,MPI_REAL,0,itag,
-     &           MPI_COMM_WORLD,ierr)
+          call ccmpi_ssend(dd(1:iy),0,itag,comm_world)
         end if
         if(nud_q>0)then
           do k=kbotdav,ktopdav
@@ -1601,8 +1577,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
               end do
             end do
           end do
-          call MPI_SSend(dd(1:iy),iy,MPI_REAL,0,itag,
-     &           MPI_COMM_WORLD,ierr)
+          call ccmpi_ssend(dd(1:iy),0,itag,comm_world)
         end if
       end if      
       
@@ -1629,24 +1604,23 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       ! This code runs between the local processors
       ! Code was moved to this subroutine to help the compiler vectorise the code
       ! This version handles uneven distribution of rows across processors
-      subroutine speclocal(myid,mproc,hproc,ns,ne,cq,ppass,qsum,
+      subroutine speclocal(mproc,hproc,ns,ne,cq,ppass,qsum,
      &             qp,qu,qv,qw,qt,qq)
 
+      use cc_mpi            ! CC MPI routines
       use xyzinfo_m         ! Grid coordinate arrays
 
       implicit none
       
       include 'newmpar.h'   ! Grid parameters
-      include 'mpif.h'      ! MPI parameters
       include 'parm.h'      ! Model configuration
       
-      integer, intent(in) :: myid,mproc,hproc,ns,ne,ppass
+      integer, intent(in) :: mproc,hproc,ns,ne,ppass
       integer j,k,n,ipass,kpass,iy
       integer iproc,ierr
       integer nne,nns,me
       integer a,b,c,d
       integer :: itag=0
-      integer, dimension(MPI_STATUS_SIZE) :: status
       integer, dimension(4*il_g,il_g,0:3) :: igrd
       integer, dimension(0:3) :: maps
       integer, parameter, dimension(2:3) :: kn=(/0,3/)
@@ -1684,16 +1658,14 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                   dd(n+a*j+d)=qsum(igrd(n,j,ipass))
                 end do
               end do
-              call MPI_SSend(dd(1:iy),iy,MPI_REAL,iproc,itag,
-     &               MPI_COMM_WORLD,ierr)    
+              call ccmpi_ssend(dd(1:iy),iproc,itag,comm_world)
               if(nud_p>0)then
                 do j=nns,nne
                   do n=1,me
                     dd(n+a*j+d)=qp(igrd(n,j,ipass))
                   end do
                 end do
-                call MPI_SSend(dd(1:iy),iy,MPI_REAL,iproc,itag,
-     &                 MPI_COMM_WORLD,ierr)
+                call ccmpi_ssend(dd(1:iy),iproc,itag,comm_world)
               end if
               iy=me*(nne-nns+1)*(ktopdav-kbotdav+1)
               b=me*(nne-nns+1)
@@ -1706,8 +1678,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                     end do
                   end do
                 end do
-                call MPI_SSend(dd(1:iy),iy,MPI_REAL,iproc,itag,
-     &                 MPI_COMM_WORLD,ierr)
+                call ccmpi_ssend(dd(1:iy),iproc,itag,comm_world)
                 do k=kbotdav,ktopdav
                   do j=nns,nne
                     do n=1,me
@@ -1715,8 +1686,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                     end do
                   end do
                 end do
-                call MPI_SSend(dd(1:iy),iy,MPI_REAL,iproc,itag,
-     &                 MPI_COMM_WORLD,ierr)
+                call ccmpi_ssend(dd(1:iy),iproc,itag,comm_world)
                 do k=kbotdav,ktopdav
                   do j=nns,nne
                     do n=1,me
@@ -1724,8 +1694,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                     end do
                   end do
                 end do
-                call MPI_SSend(dd(1:iy),iy,MPI_REAL,iproc,itag,
-     &                 MPI_COMM_WORLD,ierr)
+                call ccmpi_ssend(dd(1:iy),iproc,itag,comm_world)
               end if
               if(nud_t>0)then
                 do k=kbotdav,ktopdav
@@ -1735,8 +1704,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                     end do
                   end do
                 end do
-                call MPI_SSend(dd(1:iy),iy,MPI_REAL,iproc,itag,
-     &                 MPI_COMM_WORLD,ierr)
+                call ccmpi_ssend(dd(1:iy),iproc,itag,comm_world)
               end if
               if(nud_q>0)then
                 do k=kbotdav,ktopdav
@@ -1746,24 +1714,21 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                     end do
                   end do
                 end do
-                call MPI_SSend(dd(1:iy),iy,MPI_REAL,iproc,itag,
-     &                 MPI_COMM_WORLD,ierr)
+                call ccmpi_ssend(dd(1:iy),iproc,itag,comm_world)
               end if
             end do
           else
             iy=me*(ne-ns+1)
             a=me
             d=-me*ns
-            call MPI_Recv(dd(1:iy),iy,MPI_REAL,hproc,itag,
-     &             MPI_COMM_WORLD,status,ierr)
+            call ccmpi_recv(dd(1:iy),hproc,itag,comm_world)
             do j=ns,ne
               do n=1,me
                 qsum(igrd(n,j,ipass))=dd(n+a*j+d)
               end do
             end do
             if(nud_p>0)then
-              call MPI_Recv(dd(1:iy),iy,MPI_REAL,hproc,itag,
-     &               MPI_COMM_WORLD,status,ierr)
+              call ccmpi_recv(dd(1:iy),hproc,itag,comm_world)
               do j=ns,ne
                 do n=1,me
                   qp(igrd(n,j,ipass))=dd(n+a*j+d)
@@ -1774,8 +1739,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             b=me*(ne-ns+1)
             d=-me*(ns+kbotdav*(ne-ns+1))
             if(nud_uv>0)then
-              call MPI_Recv(dd(1:iy),iy,MPI_REAL,hproc,itag,
-     &               MPI_COMM_WORLD,status,ierr)
+              call ccmpi_recv(dd(1:iy),hproc,itag,comm_world)
               do k=kbotdav,ktopdav
                 do j=ns,ne
                   do n=1,me
@@ -1783,8 +1747,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                   end do
                 end do
               end do
-              call MPI_Recv(dd(1:iy),iy,MPI_REAL,hproc,itag,
-     &               MPI_COMM_WORLD,status,ierr)
+              call ccmpi_recv(dd(1:iy),hproc,itag,comm_world)
               do k=kbotdav,ktopdav
                 do j=ns,ne
                   do n=1,me
@@ -1792,8 +1755,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                   end do
                 end do
               end do
-              call MPI_Recv(dd(1:iy),iy,MPI_REAL,hproc,itag,
-     &               MPI_COMM_WORLD,status,ierr)
+              call ccmpi_recv(dd(1:iy),hproc,itag,comm_world)
               do k=kbotdav,ktopdav
                 do j=ns,ne
                   do n=1,me
@@ -1803,8 +1765,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
               end do
             end if
             if(nud_t>0)then
-              call MPI_Recv(dd(1:iy),iy,MPI_REAL,hproc,itag,
-     &               MPI_COMM_WORLD,status,ierr)
+              call ccmpi_recv(dd(1:iy),hproc,itag,comm_world)
               do k=kbotdav,ktopdav
                 do j=ns,ne
                   do n=1,me
@@ -1814,8 +1775,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
               end do
             end if
             if(nud_q>0)then
-              call MPI_Recv(dd(1:iy),iy,MPI_REAL,hproc,itag,
-     &               MPI_COMM_WORLD,status,ierr)
+              call ccmpi_recv(dd(1:iy),hproc,itag,comm_world)
               do k=kbotdav,ktopdav
                 do j=ns,ne
                   do n=1,me
@@ -1911,8 +1871,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
               a=il_g
               c=il_g*(nne-nns+1)
               d=-il_g*(nns+(nne-nns+1)*kn(ipass))
-              call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc
-     &               ,itag,MPI_COMM_WORLD,status,ierr)
+              call ccmpi_recv(dd(1:iy),iproc,itag,comm_world)
               do kpass=kn(ipass),kx(ipass)
                 do j=nns,nne
                   do n=1,il_g
@@ -1921,8 +1880,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                 end do
               end do
               if(nud_p>0)then
-                call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc,
-     &                 itag,MPI_COMM_WORLD,status,ierr)
+                call ccmpi_recv(dd(1:iy),iproc,itag,comm_world)
                 do kpass=kn(ipass),kx(ipass)
                   do j=nns,nne
                     do n=1,il_g
@@ -1938,8 +1896,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
               d=-il_g*(nns+(nne-nns+1)
      &          *(kbotdav+(ktopdav-kbotdav+1)*kn(ipass)))
               if(nud_uv>0)then
-                call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc
-     &                 ,itag,MPI_COMM_WORLD,status,ierr)
+                call ccmpi_recv(dd(1:iy),iproc,itag,comm_world)
                 do k=kbotdav,ktopdav
                   do kpass=kn(ipass),kx(ipass)
                     do j=nns,nne
@@ -1950,8 +1907,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                     end do
                   end do
                 end do
-                call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc
-     &                 ,itag,MPI_COMM_WORLD,status,ierr)
+                call ccmpi_recv(dd(1:iy),iproc,itag,comm_world)
                 do k=kbotdav,ktopdav
                   do kpass=kn(ipass),kx(ipass)
                     do j=nns,nne
@@ -1962,8 +1918,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                     end do
                   end do
                 end do
-                call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc
-     &                 ,itag,MPI_COMM_WORLD,status,ierr)
+                call ccmpi_recv(dd(1:iy),iproc,itag,comm_world)
                 do k=kbotdav,ktopdav
                   do kpass=kn(ipass),kx(ipass)
                     do j=nns,nne
@@ -1976,8 +1931,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                 end do
               end if
               if(nud_t>0)then
-                call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc
-     &                 ,itag,MPI_COMM_WORLD,status,ierr)
+                call ccmpi_recv(dd(1:iy),iproc,itag,comm_world)
                 do k=kbotdav,ktopdav
                   do kpass=kn(ipass),kx(ipass)
                     do j=nns,nne
@@ -1990,8 +1944,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                 end do
               end if
               if(nud_q>0)then
-                call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc
-     &                 ,itag,MPI_COMM_WORLD,status,ierr)
+                call ccmpi_recv(dd(1:iy),iproc,itag,comm_world)
                 do k=kbotdav,ktopdav
                   do kpass=kn(ipass),kx(ipass)
                     do j=nns,nne
@@ -2016,8 +1969,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                 end do
               end do
             end do
-            call MPI_SSend(dd(1:iy),iy,MPI_REAL,hproc,itag,
-     &             MPI_COMM_WORLD,ierr)
+            call ccmpi_ssend(dd(1:iy),hproc,itag,comm_world)
             if(nud_p>0)then
               do kpass=kn(ipass),kx(ipass)
                 do j=ns,ne
@@ -2026,8 +1978,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                   end do
                 end do
               end do
-              call MPI_SSend(dd(1:iy),iy,MPI_REAL,hproc,itag,
-     &               MPI_COMM_WORLD,ierr)
+              call ccmpi_ssend(dd(1:iy),hproc,itag,comm_world)
             end if
             iy=il_g*(ne-ns+1)*(ktopdav-kbotdav+1)
      &         *(kx(ipass)-kn(ipass)+1)
@@ -2045,8 +1996,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                   end do
                 end do
               end do
-              call MPI_SSend(dd(1:iy),iy,MPI_REAL,hproc,itag,
-     &               MPI_COMM_WORLD,ierr)
+              call ccmpi_ssend(dd(1:iy),hproc,itag,comm_world)
               do k=kbotdav,ktopdav
                 do kpass=kn(ipass),kx(ipass)
                    do j=ns,ne
@@ -2056,8 +2006,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                   end do
                 end do
               end do
-              call MPI_SSend(dd(1:iy),iy,MPI_REAL,hproc,itag,
-     &               MPI_COMM_WORLD,ierr)
+              call ccmpi_ssend(dd(1:iy),hproc,itag,comm_world)
               do k=kbotdav,ktopdav
                 do kpass=kn(ipass),kx(ipass)
                   do j=ns,ne
@@ -2067,8 +2016,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                   end do
                 end do
               end do
-              call MPI_SSend(dd(1:iy),iy,MPI_REAL,hproc,itag,
-     &               MPI_COMM_WORLD,ierr)
+              call ccmpi_ssend(dd(1:iy),hproc,itag,comm_world)
             end if
             if(nud_t>0)then
               do k=kbotdav,ktopdav
@@ -2080,8 +2028,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                   end do
                 end do
               end do
-              call MPI_SSend(dd(1:iy),iy,MPI_REAL,hproc,itag,
-     &               MPI_COMM_WORLD,ierr)
+              call ccmpi_ssend(dd(1:iy),hproc,itag,comm_world)
             end if
             if(nud_q>0)then
               do k=kbotdav,ktopdav
@@ -2093,8 +2040,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                   end do
                 end do
               end do
-              call MPI_SSend(dd(1:iy),iy,MPI_REAL,hproc,itag,
-     &               MPI_COMM_WORLD,ierr)
+              call ccmpi_ssend(dd(1:iy),hproc,itag,comm_world)
             end if
           end if
         end if
@@ -2108,23 +2054,22 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       ! This code runs between the local processors
       ! Code was moved to this subroutine to help the compiler vectorise the code
       ! This version only handles an even distribution of rows across processors
-      subroutine speclocal_s(myid,mproc,hproc,ns,ne,cq,ppass,qsum,
+      subroutine speclocal_s(mproc,hproc,ns,ne,cq,ppass,qsum,
      &             qp,qu,qv,qw,qt,qq,lsize)
 
+      use cc_mpi            ! CC MPI routines
       use xyzinfo_m         ! Grid coordinate arrays
 
       implicit none
       
       include 'newmpar.h'   ! Grid parameters
-      include 'mpif.h'      ! MPI parameters
       include 'parm.h'      ! Model configuration
       
-      integer, intent(in) :: myid,mproc,hproc,ns,ne,ppass,lsize
+      integer, intent(in) :: mproc,hproc,ns,ne,ppass,lsize
       integer j,k,n,ipass,kpass,iy,ix,me,a,b,c
       integer iproc,ierr
       integer :: itag=0
-      integer, dimension(MPI_STATUS_SIZE) :: status
-      integer, save :: face_comm
+      integer, save :: comm_face
       integer, dimension(4*il_g,il_g,0:3) :: igrd
       integer, dimension(0:3) :: maps
       integer, parameter, dimension(2:3) :: kn=(/0,3/)
@@ -2142,8 +2087,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       logical, save :: first=.true.
       
       if (first) then
-        call MPI_Comm_Split(MPI_COMM_WORLD,hproc,myid-hproc,
-     &                      face_comm,ierr)
+        call ccmpi_commsplit(comm_face,comm_world,hproc,myid-hproc)
         first=.false.
       end if
       
@@ -2169,9 +2113,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
               end do
             end do
           end if
-          call MPI_Scatter(dd(1:iy),ix,MPI_REAL,
-     &                     ee(1:ix),ix,MPI_REAL,
-     &                     0,face_comm,ierr)
+          call ccmpi_scatterx(dd(1:iy),ee(1:ix),0,comm_face)
           if (myid/=hproc) then
             do j=ns,ne
               do n=1,me
@@ -2187,9 +2129,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                 end do
               end do
             end if
-            call MPI_Scatter(dd(1:iy),ix,MPI_REAL,
-     &                     ee(1:ix),ix,MPI_REAL,
-     &                     0,face_comm,ierr)
+            call ccmpi_scatterx(dd(1:iy),ee(1:ix),0,comm_face)
             if (myid/=hproc) then
               do j=ns,ne
                 do n=1,me
@@ -2212,9 +2152,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                 end do
               end do
             end if
-            call MPI_Scatter(dd(1:iy),ix,MPI_REAL,
-     &                     ee(1:ix),ix,MPI_REAL,
-     &                     0,face_comm,ierr)
+            call ccmpi_scatterx(dd(1:iy),ee(1:ix),0,comm_face)
             if (myid/=hproc) then
               do j=ns,ne
                 do k=kbotdav,ktopdav
@@ -2235,9 +2173,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                 end do
               end do
             end if
-            call MPI_Scatter(dd(1:iy),ix,MPI_REAL,
-     &                     ee(1:ix),ix,MPI_REAL,
-     &                     0,face_comm,ierr)
+            call ccmpi_scatterx(dd(1:iy),ee(1:ix),0,comm_face)
             if (myid/=hproc) then
               do j=ns,ne
                 do k=kbotdav,ktopdav
@@ -2258,9 +2194,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                 end do
               end do
             end if
-            call MPI_Scatter(dd(1:iy),ix,MPI_REAL,
-     &                     ee(1:ix),ix,MPI_REAL,
-     &                     0,face_comm,ierr)
+            call ccmpi_scatterx(dd(1:iy),ee(1:ix),0,comm_face)
             if (myid/=hproc) then
               do j=ns,ne
                 do k=kbotdav,ktopdav
@@ -2283,9 +2217,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                 end do
               end do
             end if
-            call MPI_Scatter(dd(1:iy),ix,MPI_REAL,
-     &                     ee(1:ix),ix,MPI_REAL,
-     &                     0,face_comm,ierr)
+            call ccmpi_scatterx(dd(1:iy),ee(1:ix),0,comm_face)
             if (myid/=hproc) then
               do j=ns,ne
                 do k=kbotdav,ktopdav
@@ -2308,9 +2240,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                 end do
               end do
             end if
-            call MPI_Scatter(dd(1:iy),ix,MPI_REAL,
-     &                     ee(1:ix),ix,MPI_REAL,
-     &                     0,face_comm,ierr)
+            call ccmpi_scatterx(dd(1:iy),ee(1:ix),0,comm_face)
             if (myid/=hproc) then
               do j=ns,ne
                 do k=kbotdav,ktopdav
@@ -2414,9 +2344,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
               end do
             end do
           end if
-          call MPI_Gather(ee(1:ix),ix,MPI_REAL,
-     &                    dd(1:iy),ix,MPI_REAL,
-     &                    0,face_comm,ierr)
+          call ccmpi_gatherx(dd(1:iy),ee(1:ix),0,comm_face)
           if (myid==hproc) then
             do j=ne+1,il_g
               do kpass=kn(ipass),kx(ipass)
@@ -2438,9 +2366,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                 end do
               end do
             end if
-            call MPI_Gather(ee(1:ix),ix,MPI_REAL,
-     &                      dd(1:iy),ix,MPI_REAL,
-     &                      0,face_comm,ierr)
+            call ccmpi_gatherx(dd(1:iy),ee(1:ix),0,comm_face)
             if (myid==hproc) then
               do j=ne+1,il_g
                 do kpass=kn(ipass),kx(ipass)
@@ -2471,9 +2397,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                 end do
               end do
             end if
-            call MPI_Gather(ee(1:ix),ix,MPI_REAL,
-     &                      dd(1:iy),ix,MPI_REAL,
-     &                      0,face_comm,ierr)
+            call ccmpi_gatherx(dd(1:iy),ee(1:ix),0,comm_face)
             if (myid==hproc) then
               do j=ne+1,il_g
                 do k=kbotdav,ktopdav              
@@ -2498,9 +2422,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                 end do
               end do
             end if
-            call MPI_Gather(ee(1:ix),ix,MPI_REAL,
-     &                      dd(1:iy),ix,MPI_REAL,
-     &                      0,face_comm,ierr)
+            call ccmpi_gatherx(dd(1:iy),ee(1:ix),0,comm_face)
             if (myid==hproc) then
               do j=ne+1,il_g
                 do k=kbotdav,ktopdav              
@@ -2525,9 +2447,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                 end do
               end do
             end if
-            call MPI_Gather(ee(1:ix),ix,MPI_REAL,
-     &                      dd(1:iy),ix,MPI_REAL,
-     &                      0,face_comm,ierr)
+            call ccmpi_gatherx(dd(1:iy),ee(1:ix),0,comm_face)
             if (myid==hproc) then
               do j=ne+1,il_g
                 do k=kbotdav,ktopdav              
@@ -2554,9 +2474,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                 end do
               end do
             end if
-            call MPI_Gather(ee(1:ix),ix,MPI_REAL,
-     &                      dd(1:iy),ix,MPI_REAL,
-     &                      0,face_comm,ierr)
+            call ccmpi_gatherx(dd(1:iy),ee(1:ix),0,comm_face)
             if (myid==hproc) then
               do j=ne+1,il_g
                 do k=kbotdav,ktopdav              
@@ -2583,9 +2501,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                 end do
               end do
             end if
-            call MPI_Gather(ee(1:ix),ix,MPI_REAL,
-     &                      dd(1:iy),ix,MPI_REAL,
-     &                      0,face_comm,ierr)
+            call ccmpi_gatherx(dd(1:iy),ee(1:ix),0,comm_face)
             if (myid==hproc) then
               do j=ne+1,il_g
                 do k=kbotdav,ktopdav              
@@ -3109,11 +3025,10 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       implicit none
 
       include 'newmpar.h'         ! Grid parameters
-      include 'mpif.h'            ! MPI parameters
       include 'parm.h'            ! Model configuration
 
       integer, intent(in) :: kd
-      integer ierr,iy
+      integer ierr
       real, intent(in) :: miss
       real, dimension(ifull_g,1), intent(inout) :: diffh_g
       real, dimension(ifull_g,kd), intent(inout) :: diff_g,diffs_g
@@ -3125,27 +3040,25 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         write(6,*) "Send arrays to all processors"
       end if
 
-      iy=ifull_g*kd
       if (nud_sst/=0) then
-        call MPI_Bcast(diff_g,iy,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+        call ccmpi_bcast(diff_g,0,comm_world)
         landg=abs(diff_g(:,1)-miss)<0.1
       end if
 
       if (nud_sss/=0) then
-        call MPI_Bcast(diffs_g,iy,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+        call ccmpi_bcast(diffs_g,0,comm_world)
         landg=abs(diffs_g(:,1)-miss)<0.1
       end if
 
       if (nud_ouv/=0) then
-        call MPI_Bcast(diffu_g,iy,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-        call MPI_Bcast(diffv_g,iy,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-        call MPI_Bcast(diffw_g,iy,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+        call ccmpi_bcast(diffu_g,0,comm_world)
+        call ccmpi_bcast(diffv_g,0,comm_world)
+        call ccmpi_bcast(diffw_g,0,comm_world)
         landg=abs(diffw_g(:,1)-miss)<0.1
       end if
 
       if (nud_sfh/=0) then
-        call MPI_Bcast(diffh_g(:,1),ifull_g,MPI_REAL,0,MPI_COMM_WORLD,
-     &                 ierr)
+        call ccmpi_bcast(diffh_g,0,comm_world)
         landg=abs(diffh_g(:,1)-miss)<0.1
       end if
 
@@ -3293,7 +3206,6 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
 
       include 'newmpar.h'         ! Grid parameters
       include 'const_phys.h'      ! Physical constants
-      include 'mpif.h'            ! MPI parameters
       include 'parm.h'            ! Model configuration
       include 'parmgeom.h'        ! Coordinate data
 
@@ -3342,7 +3254,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         call procdiv(ns,ne,il_g,nproc,myid) ! number of rows per processor
       end if
 
-      call mlospechost(myid,mproc,hproc,npta,pn,px,ns,ne,cq,
+      call mlospechost(mproc,hproc,npta,pn,px,ns,ne,cq,
      &                 diff_g,diffs_g,diffu_g,diffv_g,diffw_g,
      &                 diffh_g,miss,kd)
 
@@ -3353,23 +3265,22 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       return
       end subroutine mlofilterfast
 
-      subroutine mlospechost(myid,mproc,hproc,npta,pn,px,ns,ne,cq,
+      subroutine mlospechost(mproc,hproc,npta,pn,px,ns,ne,cq,
      &                       diff_g,diffs_g,diffu_g,diffv_g,diffw_g,
      &                       diffh_g,miss,kd)
 
+      use cc_mpi             ! CC MPI routines
       use map_m              ! Grid map arrays
       
       implicit none
       
       include 'newmpar.h'    ! Grid parameters
-      include 'mpif.h'       ! MPI parameters
       include 'parm.h'       ! Model configuration
       
-      integer, intent(in) :: myid,mproc,hproc,npta,pn,px,ns,ne,kd
+      integer, intent(in) :: mproc,hproc,npta,pn,px,ns,ne,kd
       integer ppass,iy,ppn,ppx,nne,nns,iproc,ierr
       integer n,a,b,c,k,til,lsize
       integer :: itag=0
-      integer, dimension(MPI_STATUS_SIZE) :: status
       real, intent(in) :: cq,miss
       real, dimension(ifull_g,1), intent(inout) :: diffh_g
       real, dimension(ifull_g,kd), intent(inout) :: diff_g,diffs_g
@@ -3383,24 +3294,22 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       
       til=il_g*il_g 
 
-      iy=ifull_g*kd
       if (nud_sst/=0) then
-        call MPI_Bcast(diff_g,iy,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+        call ccmpi_bcast(diff_g,0,comm_world)
         landg=abs(diff_g(:,1)-miss)<0.1
       end if
       if (nud_sss/=0) then
-        call MPI_Bcast(diffs_g,iy,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+        call ccmpi_bcast(diffs_g,0,comm_world)
         landg=abs(diffs_g(:,1)-miss)<0.1
       end if
       if (nud_ouv/=0) then
-        call MPI_Bcast(diffu_g,iy,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-        call MPI_Bcast(diffv_g,iy,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-        call MPI_Bcast(diffw_g,iy,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+        call ccmpi_bcast(diffu_g,0,comm_world)
+        call ccmpi_bcast(diffv_g,0,comm_world)
+        call ccmpi_bcast(diffw_g,0,comm_world)
         landg=abs(diffw_g(:,1)-miss)<0.1
       end if
       if (nud_sfh/=0) then
-        call MPI_Bcast(diffh_g(:,1),ifull_g,MPI_REAL,0,MPI_COMM_WORLD,
-     &                 ierr)
+        call ccmpi_bcast(diffh_g,0,comm_world)
         landg=abs(diffh_g(:,1)-miss)<0.1
       end if
       
@@ -3449,13 +3358,13 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             write(6,*) "MLO Symmetric decomposition"
           end if
           lsize=ifull_g/mproc
-          call mlospeclocal_s(myid,mproc,hproc,ns,ne,cq,ppass,qsum,
+          call mlospeclocal_s(mproc,hproc,ns,ne,cq,ppass,qsum,
      &                      qp,qps,qpu,qpv,qpw,qph,kd,lsize)
         else
           if (myid==0.and.nmaxpr==1) then
             write(6,*) "MLO Asymmetric decomposition"
           end if
-          call mlospeclocal(myid,mproc,hproc,ns,ne,cq,ppass,qsum,
+          call mlospeclocal(mproc,hproc,ns,ne,cq,ppass,qsum,
      &                      qp,qps,qpu,qpv,qpw,qph,kd)
         end if
         
@@ -3504,8 +3413,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
           b=npta*til
           c=-til*(ppn+npta)
           if (nud_sst/=0) then
-            call MPI_Recv(zz(1:iy),iy,MPI_REAL,iproc,itag,
-     &                    MPI_COMM_WORLD,status,ierr)
+            call ccmpi_recv(zz(1:iy),iproc,itag,comm_world)
             do k=1,kd
               do ppass=ppn,ppx
                 do n=1,til
@@ -3515,8 +3423,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             end do
           end if
           if (nud_sss/=0) then
-            call MPI_Recv(zz(1:iy),iy,MPI_REAL,iproc,itag,
-     &                    MPI_COMM_WORLD,status,ierr)
+            call ccmpi_recv(zz(1:iy),iproc,itag,comm_world)
             do k=1,kd
               do ppass=ppn,ppx
                 do n=1,til
@@ -3526,8 +3433,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             end do
           end if
           if (nud_ouv/=0) then
-            call MPI_Recv(zz(1:iy),iy,MPI_REAL,iproc,itag,
-     &                    MPI_COMM_WORLD,status,ierr)
+            call ccmpi_recv(zz(1:iy),iproc,itag,comm_world)
             do k=1,kd
               do ppass=ppn,ppx
                 do n=1,til
@@ -3535,8 +3441,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                 end do
               end do
             end do
-            call MPI_Recv(zz(1:iy),iy,MPI_REAL,iproc,itag,
-     &                    MPI_COMM_WORLD,status,ierr)
+            call ccmpi_recv(zz(1:iy),iproc,itag,comm_world)
             do k=1,kd
               do ppass=ppn,ppx
                 do n=1,til
@@ -3544,8 +3449,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                 end do
               end do
             end do
-            call MPI_Recv(zz(1:iy),iy,MPI_REAL,iproc,itag,
-     &                    MPI_COMM_WORLD,status,ierr)
+            call ccmpi_recv(zz(1:iy),iproc,itag,comm_world)
             do k=1,kd
               do ppass=ppn,ppx
                 do n=1,til
@@ -3558,8 +3462,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
           a=til
           c=-til*ppn
           if (nud_sfh/=0) then
-            call MPI_Recv(zz(1:iy),iy,MPI_REAL,iproc,itag,
-     &                    MPI_COMM_WORLD,status,ierr)
+            call ccmpi_recv(zz(1:iy),iproc,itag,comm_world)
             do ppass=ppn,ppx
               do n=1,til
                 zph(n+ppass*til)=zz(n+a*ppass+c)
@@ -3580,8 +3483,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
               end do
             end do
           end do
-          call MPI_SSend(zz(1:iy),iy,MPI_REAL,0,itag,MPI_COMM_WORLD,
-     &                   ierr)
+          call ccmpi_ssend(zz(1:iy),0,itag,comm_world)
         end if
         if (nud_sss/=0) then
           do k=1,kd
@@ -3591,8 +3493,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
               end do
             end do
           end do
-          call MPI_SSend(zz(1:iy),iy,MPI_REAL,0,itag,MPI_COMM_WORLD,
-     &                   ierr)
+          call ccmpi_ssend(zz(1:iy),0,itag,comm_world)
         end if
         if (nud_ouv/=0) then
           do k=1,kd
@@ -3602,8 +3503,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
               end do
             end do
           end do
-          call MPI_SSend(zz(1:iy),iy,MPI_REAL,0,itag,MPI_COMM_WORLD,
-     &                   ierr)
+          call ccmpi_ssend(zz(1:iy),0,itag,comm_world)
           do k=1,kd
             do ppass=pn,px
               do n=1,til
@@ -3611,8 +3511,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
               end do
             end do
           end do
-          call MPI_SSend(zz(1:iy),iy,MPI_REAL,0,itag,MPI_COMM_WORLD,
-     &                   ierr)
+          call ccmpi_ssend(zz(1:iy),0,itag,comm_world)
           do k=1,kd
             do ppass=pn,px
               do n=1,til
@@ -3620,8 +3519,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
               end do
             end do
           end do
-          call MPI_SSend(zz(1:iy),iy,MPI_REAL,0,itag,MPI_COMM_WORLD,
-     &                   ierr)
+          call ccmpi_ssend(zz(1:iy),0,itag,comm_world)
         end if
         iy=npta*til
         a=til
@@ -3632,8 +3530,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
               zz(n+a*ppass+c)=zph(n+ppass*til)
             end do
           end do
-          call MPI_SSend(zz(1:iy),iy,MPI_REAL,0,itag,MPI_COMM_WORLD,
-     &                   ierr)
+          call ccmpi_ssend(zz(1:iy),0,itag,comm_world)
         end if
       end if      
       
@@ -3650,24 +3547,23 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       
       !---------------------------------------------------------------------------------
       ! This version is for asymmetric decomposition
-      subroutine mlospeclocal(myid,mproc,hproc,ns,ne,cq,ppass,
+      subroutine mlospeclocal(mproc,hproc,ns,ne,cq,ppass,
      &             qsum,qp,qps,qpu,qpv,qpw,qph,kd)
 
+      use cc_mpi             ! CC MPI routines
       use xyzinfo_m          ! Grid coordinate arrays
      
       implicit none
       
       include 'newmpar.h'    ! Grid parameters
-      include 'mpif.h'       ! MPI parameters
       include 'parm.h'       ! Model configuration
       
-      integer, intent(in) :: myid,mproc,hproc,ns,ne,ppass,kd
+      integer, intent(in) :: mproc,hproc,ns,ne,ppass,kd
       integer j,n,ipass,kpass,iy
       integer iproc,ierr
       integer nne,nns,me
       integer a,b,c,d,k
       integer :: itag=0
-      integer, dimension(MPI_STATUS_SIZE) :: status
       integer, dimension(4*il_g,il_g,0:3) :: igrd
       integer, dimension(0:3) :: maps
       integer, parameter, dimension(2:3) :: kn=(/0,3/)
@@ -3708,16 +3604,14 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                   zz(n+a*j+d)=qsum(igrd(n,j,ipass))
                 end do
               end do
-              call MPI_SSend(zz(1:iy),iy,MPI_REAL,iproc,
-     &             itag,MPI_COMM_WORLD,ierr)
+              call ccmpi_ssend(zz(1:iy),iproc,itag,comm_world)
               if (nud_sfh/=0) then
                 do j=nns,nne
                   do n=1,me
                     zz(n+a*j+d)=qph(igrd(n,j,ipass))
                   end do
                 end do
-                call MPI_SSend(zz(1:iy),iy,MPI_REAL,iproc,
-     &                 itag,MPI_COMM_WORLD,ierr)
+                call ccmpi_ssend(zz(1:iy),iproc,itag,comm_world)
               end if
               iy=me*(nne-nns+1)*kd
               b=me*(nne-nns+1)
@@ -3730,8 +3624,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                     end do
                   end do
                 end do
-                call MPI_SSend(zz(1:iy),iy,MPI_REAL,iproc,
-     &                 itag,MPI_COMM_WORLD,ierr)
+                call ccmpi_ssend(zz(1:iy),iproc,itag,comm_world)
               end if
               if (nud_sss/=0) then
                 do k=1,kd
@@ -3741,8 +3634,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                     end do
                   end do
                 end do
-                call MPI_SSend(zz(1:iy),iy,MPI_REAL,iproc,
-     &                 itag,MPI_COMM_WORLD,ierr)
+                call ccmpi_ssend(zz(1:iy),iproc,itag,comm_world)
               end if
               if (nud_ouv/=0) then
                 do k=1,kd
@@ -3752,8 +3644,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                     end do
                   end do
                 end do
-                call MPI_SSend(zz(1:iy),iy,MPI_REAL,iproc,
-     &                 itag,MPI_COMM_WORLD,ierr)
+                call ccmpi_ssend(zz(1:iy),iproc,itag,comm_world)
                 do k=1,kd
                   do j=nns,nne
                     do n=1,me
@@ -3761,8 +3652,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                     end do
                   end do
                 end do
-                call MPI_SSend(zz(1:iy),iy,MPI_REAL,iproc,
-     &                 itag,MPI_COMM_WORLD,ierr)
+                call ccmpi_ssend(zz(1:iy),iproc,itag,comm_world)
                 do k=1,kd
                   do j=nns,nne
                     do n=1,me
@@ -3770,24 +3660,21 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                     end do
                   end do
                 end do
-                call MPI_SSend(zz(1:iy),iy,MPI_REAL,iproc,
-     &                 itag,MPI_COMM_WORLD,ierr)
+                call ccmpi_ssend(zz(1:iy),iproc,itag,comm_world)
               end if
             end do
           else
             iy=me*(ne-ns+1)
             a=me
             d=-me*ns
-            call MPI_Recv(zz(1:iy),iy,MPI_REAL,hproc,
-     &           itag,MPI_COMM_WORLD,status,ierr)
+            call ccmpi_recv(zz(1:iy),hproc,itag,comm_world)
             do j=ns,ne
               do n=1,me
                 qsum(igrd(n,j,ipass))=zz(n+a*j+d)
               end do
             end do
             if (nud_sfh/=0) then
-              call MPI_Recv(zz(1:iy),iy,MPI_REAL,hproc,
-     &               itag,MPI_COMM_WORLD,status,ierr)
+              call ccmpi_recv(zz(1:iy),hproc,itag,comm_world)
               do j=ns,ne
                 do n=1,me
                   qph(igrd(n,j,ipass))=zz(n+a*j+d)
@@ -3798,8 +3685,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             b=me*(ne-ns+1)
             d=-me*(ne+1)
             if (nud_sst/=0) then
-              call MPI_Recv(zz(1:iy),iy,MPI_REAL,hproc,
-     &               itag,MPI_COMM_WORLD,status,ierr)
+              call ccmpi_recv(zz(1:iy),hproc,itag,comm_world)
               do k=1,kd
                 do j=ns,ne
                   do n=1,me
@@ -3809,8 +3695,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
               end do
             end if
             if (nud_sss/=0) then
-              call MPI_Recv(zz(1:iy),iy,MPI_REAL,hproc,
-     &               itag,MPI_COMM_WORLD,status,ierr)
+              call ccmpi_recv(zz(1:iy),hproc,itag,comm_world)
               do k=1,kd
                 do j=ns,ne
                   do n=1,me
@@ -3820,8 +3705,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
               end do  
             end if
             if (nud_ouv/=0) then
-              call MPI_Recv(zz(1:iy),iy,MPI_REAL,hproc,
-     &               itag,MPI_COMM_WORLD,status,ierr)
+              call ccmpi_recv(zz(1:iy),hproc,itag,comm_world)
               do k=1,kd
                 do j=ns,ne
                   do n=1,me
@@ -3829,8 +3713,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                   end do
                 end do
               end do
-              call MPI_Recv(zz(1:iy),iy,MPI_REAL,hproc,
-     &               itag,MPI_COMM_WORLD,status,ierr)
+              call ccmpi_recv(zz(1:iy),hproc,itag,comm_world)
               do k=1,kd
                 do j=ns,ne
                   do n=1,me
@@ -3838,8 +3721,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                   end do
                 end do
               end do
-              call MPI_Recv(zz(1:iy),iy,MPI_REAL,hproc,
-     &               itag,MPI_COMM_WORLD,status,ierr)
+              call ccmpi_recv(zz(1:iy),hproc,itag,comm_world)
               do k=1,kd
                 do j=ns,ne
                   do n=1,me
@@ -3942,8 +3824,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
               a=il_g
               c=il_g*(nne-nns+1)
               d=-il_g*(nns+(nne-nns+1)*kn(ipass))
-              call MPI_Recv(zz(1:iy),iy,MPI_REAL,iproc
-     &             ,itag,MPI_COMM_WORLD,status,ierr)
+              call ccmpi_recv(zz(1:iy),iproc,itag,comm_world)
               do kpass=kn(ipass),kx(ipass)
                 do j=nns,nne
                   do n=1,il_g
@@ -3952,8 +3833,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                 end do
               end do
               if (nud_sfh/=0) then
-                call MPI_Recv(zz(1:iy),iy,MPI_REAL,iproc,
-     &                 itag,MPI_COMM_WORLD,status,ierr)
+                call ccmpi_recv(zz(1:iy),iproc,itag,comm_world)
                 do kpass=kn(ipass),kx(ipass)
                   do j=nns,nne
                     do n=1,il_g
@@ -3967,8 +3847,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
               c=il_g*(nne-nns+1)*kd
               d=-il_g*(nns+(nne-nns+1)*(1+kd*kn(ipass)))
               if (nud_sst/=0) then
-                call MPI_Recv(zz(1:iy),iy,MPI_REAL,iproc,
-     &                 itag,MPI_COMM_WORLD,status,ierr)
+                call ccmpi_recv(zz(1:iy),iproc,itag,comm_world)
                 do k=1,kd
                   do kpass=kn(ipass),kx(ipass)
                     do j=nns,nne
@@ -3980,8 +3859,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                 end do
               end if
               if (nud_sss/=0) then
-                call MPI_Recv(zz(1:iy),iy,MPI_REAL,iproc,
-     &                 itag,MPI_COMM_WORLD,status,ierr)
+                call ccmpi_recv(zz(1:iy),iproc,itag,comm_world)
                 do k=1,kd
                   do kpass=kn(ipass),kx(ipass)
                     do j=nns,nne
@@ -3993,8 +3871,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                 end do
               end if
               if (nud_ouv/=0) then
-                call MPI_Recv(zz(1:iy),iy,MPI_REAL,iproc,
-     &                 itag,MPI_COMM_WORLD,status,ierr)
+                call ccmpi_recv(zz(1:iy),iproc,itag,comm_world)
                 do k=1,kd
                   do kpass=kn(ipass),kx(ipass)
                     do j=nns,nne
@@ -4004,8 +3881,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                     end do
                   end do
                 end do
-                call MPI_Recv(zz(1:iy),iy,MPI_REAL,iproc,
-     &                 itag,MPI_COMM_WORLD,status,ierr)
+                call ccmpi_recv(zz(1:iy),iproc,itag,comm_world)
                 do k=1,kd
                   do kpass=kn(ipass),kx(ipass)
                     do j=nns,nne
@@ -4015,8 +3891,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                     end do
                   end do
                 end do
-                call MPI_Recv(zz(1:iy),iy,MPI_REAL,iproc,
-     &                 itag,MPI_COMM_WORLD,status,ierr)
+                call ccmpi_recv(zz(1:iy),iproc,itag,comm_world)
                 do k=1,kd
                   do kpass=kn(ipass),kx(ipass)
                     do j=nns,nne
@@ -4040,8 +3915,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                 end do
               end do
             end do
-            call MPI_SSend(zz(1:iy),iy,MPI_REAL,hproc,
-     &           itag,MPI_COMM_WORLD,ierr)
+            call ccmpi_ssend(zz(1:iy),hproc,itag,comm_world)
             if (nud_sfh/=0) then
               do kpass=kn(ipass),kx(ipass)
                 do j=ns,ne
@@ -4050,8 +3924,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                   end do
                 end do
               end do
-              call MPI_SSend(zz(1:iy),iy,MPI_REAL,hproc,
-     &               itag,MPI_COMM_WORLD,ierr)
+              call ccmpi_ssend(zz(1:iy),hproc,itag,comm_world)
             end if
             iy=il_g*(ne-ns+1)*kd*(kx(ipass)-kn(ipass)+1)
             b=il_g*(ne-ns+1)
@@ -4067,8 +3940,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                   end do
                 end do
               end do
-              call MPI_SSend(zz(1:iy),iy,MPI_REAL,hproc,
-     &               itag,MPI_COMM_WORLD,ierr)
+              call ccmpi_ssend(zz(1:iy),hproc,itag,comm_world)
             end if
             if (nud_sss/=0) then
               do k=1,kd
@@ -4080,8 +3952,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                   end do
                 end do
               end do
-              call MPI_SSend(zz(1:iy),iy,MPI_REAL,hproc,
-     &               itag,MPI_COMM_WORLD,ierr)
+              call ccmpi_ssend(zz(1:iy),hproc,itag,comm_world)
             end if
             if (nud_ouv/=0) then
               do k=1,kd
@@ -4093,8 +3964,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                   end do
                 end do
               end do
-              call MPI_SSend(zz(1:iy),iy,MPI_REAL,hproc,
-     &               itag,MPI_COMM_WORLD,ierr)
+              call ccmpi_ssend(zz(1:iy),hproc,itag,comm_world)
               do k=1,kd
                 do kpass=kn(ipass),kx(ipass)
                   do j=ns,ne
@@ -4104,8 +3974,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                   end do
                 end do
               end do
-              call MPI_SSend(zz(1:iy),iy,MPI_REAL,hproc,
-     &               itag,MPI_COMM_WORLD,ierr)
+              call ccmpi_ssend(zz(1:iy),hproc,itag,comm_world)
               do k=1,kd
                 do kpass=kn(ipass),kx(ipass)
                   do j=ns,ne
@@ -4115,8 +3984,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                   end do
                 end do
               end do
-              call MPI_SSend(zz(1:iy),iy,MPI_REAL,hproc,
-     &               itag,MPI_COMM_WORLD,ierr)
+              call ccmpi_ssend(zz(1:iy),hproc,itag,comm_world)
             end if
           end if
         end if
@@ -4128,26 +3996,25 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
 
       !---------------------------------------------------------------------------------
       ! This version is for asymmetric decomposition
-      subroutine mlospeclocal_s(myid,mproc,hproc,ns,ne,cq,ppass,
+      subroutine mlospeclocal_s(mproc,hproc,ns,ne,cq,ppass,
      &             qsum,qp,qps,qpu,qpv,qpw,qph,kd,lsize)
 
+      use cc_mpi             ! CC MPI routines
       use xyzinfo_m          ! Grid coordinate arrays
      
       implicit none
       
       include 'newmpar.h'    ! Grid parameters
-      include 'mpif.h'       ! MPI parameters
       include 'parm.h'       ! Model configuration
       
-      integer, intent(in) :: myid,mproc,hproc,ns,ne,ppass,kd
+      integer, intent(in) :: mproc,hproc,ns,ne,ppass,kd
       integer, intent(in) :: lsize
       integer j,n,ipass,kpass,iy,ix
       integer iproc,ierr
       integer nne,nns,me
       integer a,b,c,k
       integer :: itag=0
-      integer, dimension(MPI_STATUS_SIZE) :: status
-      integer, save :: face_comm
+      integer, save :: comm_face
       integer, dimension(4*il_g,il_g,0:3) :: igrd
       integer, dimension(0:3) :: maps
       integer, parameter, dimension(2:3) :: kn=(/0,3/)
@@ -4168,8 +4035,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       logical, save :: first=.true.
 
       if (first) then
-        call MPI_Comm_Split(MPI_COMM_WORLD,hproc,myid-hproc,
-     &                      face_comm,ierr)
+        call ccmpi_commsplit(comm_face,comm_world,hproc,myid-hproc)
         first=.false.
       end if
       
@@ -4195,9 +4061,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
               end do
             end do
           end if
-          call MPI_Scatter(zz(1:iy),ix,MPI_REAL,
-     &                     yy(1:ix),ix,MPI_REAL,
-     &                     0,face_comm,ierr)
+          call ccmpi_scatterx(zz(1:iy),yy(1:ix),0,comm_face)
           if (myid/=hproc) then
             do j=ns,ne
               do n=1,me
@@ -4213,9 +4077,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                 end do
               end do
             end if
-            call MPI_Scatter(zz(1:iy),ix,MPI_REAL,
-     &                       yy(1:ix),ix,MPI_REAL,
-     &                       0,face_comm,ierr)
+            call ccmpi_scatterx(zz(1:iy),yy(1:ix),0,comm_face)
             if (myid/=hproc) then
               do j=ns,ne
                 do n=1,me
@@ -4238,9 +4100,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                 end do
               end do
             end if
-            call MPI_Scatter(zz(1:iy),ix,MPI_REAL,
-     &                     yy(1:ix),ix,MPI_REAL,
-     &                     0,face_comm,ierr)
+            call ccmpi_scatterx(zz(1:iy),yy(1:ix),0,comm_face)
             if (myid/=hproc) then
               do j=ns,ne
                 do k=1,kd
@@ -4263,9 +4123,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                 end do
               end do
             end if
-            call MPI_Scatter(zz(1:iy),ix,MPI_REAL,
-     &                     yy(1:ix),ix,MPI_REAL,
-     &                     0,face_comm,ierr)
+            call ccmpi_scatterx(zz(1:iy),yy(1:ix),0,comm_face)
             if (myid/=hproc) then
               do j=ns,ne
                 do k=1,kd
@@ -4288,9 +4146,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                 end do
               end do
             end if
-            call MPI_Scatter(zz(1:iy),ix,MPI_REAL,
-     &                     yy(1:ix),ix,MPI_REAL,
-     &                     0,face_comm,ierr)
+            call ccmpi_scatterx(zz(1:iy),yy(1:ix),0,comm_face)
             if (myid/=hproc) then
               do j=ns,ne
                 do k=1,kd
@@ -4311,9 +4167,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                 end do
               end do
             end if
-            call MPI_Scatter(zz(1:iy),ix,MPI_REAL,
-     &                     yy(1:ix),ix,MPI_REAL,
-     &                     0,face_comm,ierr)
+            call ccmpi_scatterx(zz(1:iy),yy(1:ix),0,comm_face)
             if (myid/=hproc) then
               do j=ns,ne
                 do k=1,kd
@@ -4334,9 +4188,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                 end do
               end do
             end if
-            call MPI_Scatter(zz(1:iy),ix,MPI_REAL,
-     &                     yy(1:ix),ix,MPI_REAL,
-     &                     0,face_comm,ierr)
+            call ccmpi_scatterx(zz(1:iy),yy(1:ix),0,comm_face)
             if (myid/=hproc) then
               do j=ns,ne
                 do k=1,kd
@@ -4447,9 +4299,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
               end do
             end do
           end if
-          call MPI_Gather(yy(1:ix),ix,MPI_REAL,
-     &                    zz(1:iy),ix,MPI_REAL,
-     &                    0,face_comm,ierr)
+          call ccmpi_gatherx(zz(1:iy),yy(1:ix),0,comm_face)
           if (myid==hproc) then
             do j=ne+1,il_g
               do kpass=kn(ipass),kx(ipass)
@@ -4471,9 +4321,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                 end do
               end do
             end if
-            call MPI_Gather(yy(1:ix),ix,MPI_REAL,
-     &                      zz(1:iy),ix,MPI_REAL,
-     &                      0,face_comm,ierr)
+            call ccmpi_gatherx(zz(1:iy),yy(1:ix),0,comm_face)
             if (myid==hproc) then
               do j=ne+1,il_g
                 do kpass=kn(ipass),kx(ipass)
@@ -4503,9 +4351,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                 end do
               end do
             end if
-            call MPI_Gather(yy(1:ix),ix,MPI_REAL,
-     &                      zz(1:iy),ix,MPI_REAL,
-     &                      0,face_comm,ierr)
+            call ccmpi_gatherx(zz(1:iy),yy(1:ix),0,comm_face)
             if (myid==hproc) then
               do j=ne+1,il_g
                 do k=1,kd             
@@ -4532,9 +4378,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                 end do
               end do
             end if
-            call MPI_Gather(yy(1:ix),ix,MPI_REAL,
-     &                      zz(1:iy),ix,MPI_REAL,
-     &                      0,face_comm,ierr)
+            call ccmpi_gatherx(zz(1:iy),yy(1:ix),0,comm_face)
             if (myid==hproc) then
               do j=ne+1,il_g
                 do k=1,kd             
@@ -4561,9 +4405,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                 end do
               end do
             end if
-            call MPI_Gather(yy(1:ix),ix,MPI_REAL,
-     &                      zz(1:iy),ix,MPI_REAL,
-     &                      0,face_comm,ierr)
+            call ccmpi_gatherx(zz(1:iy),yy(1:ix),0,comm_face)
             if (myid==hproc) then
               do j=ne+1,il_g
                 do k=1,kd             
@@ -4588,9 +4430,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                 end do
               end do
             end if
-            call MPI_Gather(yy(1:ix),ix,MPI_REAL,
-     &                      zz(1:iy),ix,MPI_REAL,
-     &                      0,face_comm,ierr)
+            call ccmpi_gatherx(zz(1:iy),yy(1:ix),0,comm_face)
             if (myid==hproc) then
               do j=ne+1,il_g
                 do k=1,kd             
@@ -4615,9 +4455,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                 end do
               end do
             end if
-            call MPI_Gather(yy(1:ix),ix,MPI_REAL,
-     &                      zz(1:iy),ix,MPI_REAL,
-     &                      0,face_comm,ierr)
+            call ccmpi_gatherx(zz(1:iy),yy(1:ix),0,comm_face)
             if (myid==hproc) then
               do j=ne+1,il_g
                 do k=1,kd             

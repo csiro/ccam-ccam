@@ -5,13 +5,25 @@
       !   nested=2  Surface data recycling
       
       ! This version supports the parallel file routines contained
-      ! in infile.f.
-       
+      ! in infile.f.  Hence restart files do not require any
+      ! gathers and scatters.
+
+      ! In the case where the grid needs to be interpolated, then
+      ! the current code gathers the pieces of input from the
+      ! IO read processors onto a single processor.  The single
+      ! processor then interpolates the input data to the model
+      ! grid.  The data is then distributed to all processors.
+      ! This approach has smaller message sizes to be sent
+      ! (compared to all processors interpolate locally, for
+      ! which all processors need a copy of the global grid),
+      ! but has the bottle neck of one processor performing
+      ! all the interpolation.
+      
       subroutine onthefly(nested,kdate_r,ktime_r,
-     .                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
-     .                    tgg,wb,wbice,snowd,qfg,qlg,qrg,
-     .                    tggsn,smass,ssdn,ssdnn,snage,isflag,
-     .                    iaero,mlodwn,ocndwn)
+     &                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
+     &                    tgg,wb,wbice,snowd,qfg,qlg,qrg,
+     &                    tggsn,smass,ssdn,ssdnn,snage,isflag,
+     &                    iaero,mlodwn,ocndwn)
 
       use cc_mpi           ! CC MPI routines
       use infile           ! Input file routines
@@ -22,7 +34,6 @@
 
       include 'newmpar.h'  ! Grid parameters
       include 'darcdf.h'   ! Netcdf data
-      include 'mpif.h'     ! MPI parameters
       include 'netcdf.inc' ! Netcdf parameters
       include 'parm.h'     ! Model configuration
       include 'stime.h'    ! File date data
@@ -141,7 +152,7 @@
         rdum(3)=schmidtx
       endif  ! ( myid==0 )
 
-      call MPI_Bcast(idum(1:8),8,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
+      call ccmpi_bcast(idum(1:8),0,comm_world)
       kdate_r=idum(1)
       ktime_r=idum(2)
       ncid=idum(3)
@@ -152,7 +163,7 @@
       iarchi=idum(8)
       newfile=ncid/=ncidold
       if (newfile) then
-        call MPI_Bcast(rdum(1:3),3,MPI_REAL,0,MPI_COMM_WORLD,ier)
+        call ccmpi_bcast(rdum(1:3),0,comm_world)
         rlong0x=rdum(1)
         rlat0x=rdum(2)
         schmidtx=rdum(3)
@@ -173,7 +184,7 @@
           return
         end if
         write(6,*) "ERROR: Cannot locate date/time in input file"
-        call MPI_Abort(MPI_COMM_WORLD,-1,ier)
+        call ccmpi_abort(-1)
       end if
       !--------------------------------------------------------------
       
@@ -252,7 +263,6 @@
       include 'newmpar.h'                       ! Grid parameters
       include 'const_phys.h'                    ! Physical constants
       include 'darcdf.h'                        ! Netcdf data
-      include 'mpif.h'                          ! MPI parameters
       include 'netcdf.inc'                      ! Netcdf parameters
       include 'parm.h'                          ! Model configuration
       include 'parmdyn.h'                       ! Dynamics parmaters
@@ -350,7 +360,7 @@
         write(6,*) "Defining input file grid"
         if (ifg/=ifull_g) then
           write(6,*) "ERROR: Internal array allocation error"
-          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+          call ccmpi_abort(-1)
         end if
         if (m_fly==1) then
           rlong4(:,1)=rlongg_g(:)*180./pi
@@ -455,8 +465,8 @@
           idv = ncvid(ncid,"siced",iers(2))
           idv = ncvid(ncid,"fracice",iers(3))
         end if
-        call MPI_Bcast(sigin  ,kk,MPI_REAL,0,MPI_COMM_WORLD,ier)
-        call MPI_Bcast(iers(1:3),3,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
+        call ccmpi_bcast(sigin,0,comm_world)
+        call ccmpi_bcast(iers(1:3),0,comm_world)
       end if ! newfile
       tsstest=(iers(2)==0.and.iers(3)==0.and.iotest)
       if (newfile) then
@@ -503,26 +513,28 @@
         end if
       endif
 
+#ifdef debug
       ! internal errors which should not occur if code is written correctly
       if (.not.allocated(sigin)) then
         write(6,*) "ERROR: sigin is undefined in onthefly"
-        call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+        call ccmpi_abort(-1)
       end if
       if (nmlo/=0.and.abs(nmlo)<=9
      &    .and..not.allocated(ocndep_l)) then
         write(6,*) "ERROR: ocndep_l is undefined in onthefly"
-        call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+        call ccmpi_abort(-1)
       end if
       if (myid==0) then
         if (.not.allocated(zss_a)) then
           write(6,*) "ERROR: zss_a is undefined in onthefly"
-          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+          call ccmpi_abort(-1)
         end if
         if (.not.allocated(isoilm_a).and..not.tsstest) then
           write(6,*) "ERROR: isoilm_a is undefined in onthefly"
-          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+          call ccmpi_abort(-1)
         end if
       end if
+#endif
 
       ! detemine the level below sig=0.9 (used to calculate psl)
       lev=0
@@ -1036,7 +1048,7 @@ c***        but needed here for onthefly (different dims) 28/8/08
             ierc(1)=0
             if (lrestart) ierc(1)=1
           end if
-          call MPI_Bcast(ierc(1:6),6,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
+          call ccmpi_bcast(ierc(1:6),0,comm_world)
           lrestart=(ierc(1)==1)
           if (lrestart) then
             nstag=ierc(3)
@@ -1076,7 +1088,7 @@ c***        but needed here for onthefly (different dims) 28/8/08
             idv = ncvid(ncid,vname,iera(k))
           end do
         end if
-        call MPI_Bcast(iera,ms,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
+        call ccmpi_bcast(iera(1:ms),0,comm_world)
         do k=1,ms 
           if (iera(k)==0) then
             write(vname,'("tgg",I1.1)') k
@@ -1236,7 +1248,7 @@ c***        but needed here for onthefly (different dims) 28/8/08
             idv = ncvid(ncid,vname,iera(k))
           end do
         end if
-        call MPI_Bcast(iera,ms,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+        call ccmpi_bcast(iera(1:ms),0,comm_world)
         if (any(iera(1:ms)/=0)) then
           if (myid==0) then
             do k=1,ms
@@ -1244,7 +1256,7 @@ c***        but needed here for onthefly (different dims) 28/8/08
               idv = ncvid(ncid,vname,ierb(k))
             end do
           end if
-          call MPI_Bcast(ierb,ms,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+          call ccmpi_bcast(ierb(1:ms),0,comm_world)
         end if
         wb=20.5
         do k=1,ms
@@ -1348,7 +1360,7 @@ c***        but needed here for onthefly (different dims) 28/8/08
           if (myid==0) then
             idv = ncvid(ncid,"cplant1",iera(1))
           end if
-          call MPI_Bcast(iera(1),1,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
+          call ccmpi_bcast(iera(1:1),0,comm_world)
           if (iera(1)==0) then
            do k=1,ncp
             write(vname,'("cplant",I1.1)') k
@@ -1391,7 +1403,7 @@ c***        but needed here for onthefly (different dims) 28/8/08
           if (myid==0) then
             idv = ncvid(ncid,"glai",iera(1))
           end if
-          call MPI_Bcast(iera(1),1,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
+          call ccmpi_bcast(iera(1:1),0,comm_world)
           if (iera(1)==0) then
            do k=1,mplant
             write(vname,'("cplant",I1.1)') k
@@ -2299,7 +2311,7 @@ c     first extend s arrays into sx - this one -1:il+2 & -1:il+2
        sx(ik+1,ik+2,n)=s(ind(2,ik,n_e))   ! enn  
        sx(0,ik+1,n)   =s(ind(1,ik,n_w))   ! wn  
        sx(ik+1,ik+1,n)=s(ind(1,ik,n_e))   ! en  
-       sx(ik+1,-1,n)=s(ind(2,1,n_e))     ! ess  
+       sx(ik+1,-1,n)=s(ind(2,1,n_e))      ! ess  
       enddo  ! n loop
 c     for ew interpolation, sometimes need (different from ns):
 c          (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
@@ -2434,7 +2446,6 @@ c     routine fills in interior of an array which has undefined points
       implicit none
       
       include 'newmpar.h' ! Grid parameters
-      include 'mpif.h'    ! MPI parameters
 
       real a_io(ik*ik*6)         ! input and output array
       real value            ! array value denoting undefined
