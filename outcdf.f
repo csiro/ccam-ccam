@@ -10,7 +10,7 @@
       subroutine outcdf(rundate,nmi,itype,ms_out,iaero,nstagin)
 
       use cc_mpi                            ! CC MPI routines
-      use infile, only : ncmsg              ! Input file routines
+      use infile                            ! Input file routines
       use liqwpar_m                         ! Cloud water mixing ratios
       use mlo, only : wlev                  ! Ocean physics and prognostic arrays
       use parmhdff_m                        ! Horizontal diffusion parameters
@@ -69,7 +69,7 @@
         ! itype=1 outfile
         iarch=iarch+1
         if(local)then
-           write(cdffile,"(a,'.',i4.4)") trim(ofile), myid
+           write(cdffile,"(a,'.',i6.6)") trim(ofile), myid
         else
            cdffile=ofile
         endif
@@ -77,7 +77,7 @@
         ! itype=-1 restfile
         iarch=1
         if(local)then
-           write(cdffile,"(a,'.',i4.4)") trim(restfile), myid
+           write(cdffile,"(a,'.',i6.6)") trim(restfile), myid
         else
            cdffile=restfile
         endif
@@ -94,54 +94,58 @@
         if (myid==0) then
           write(6,*) 'nccre of ',cdffile
         end if
-#ifdef usenc3
-        idnc = nccre(cdffile, ncclob, ier)
-#else
-        ier=nf_create(cdffile,NF_NETCDF4,idnc)
-#endif
-        if (myid==0) then
-          write(6,*) 'idnc,ier=',idnc,ier
-        end if
-        if (ier/=0) then
-          write(6,*) "Error creating outfile"
-          call ncmsg("Outcdf",ier)
-        end if
+        call ccnf_create(cdffile,idnc)
         ! Turn off the data filling
-        imode = ncsfil(idnc,ncnofill,ier)
-        if (myid==0) then
-          write(6,*) 'imode=',imode
-        end if
+        call ccnf_nofill(idnc)
         ! Create dimensions, lon, runtopo.shlat
         if(local)then
-           xdim = ncddef(idnc, 'longitude', il, ier)
-           ydim = ncddef(idnc, 'latitude', jl, ier)
+           call ccnf_def_dim(idnc,'longitude',il,xdim)
+           call ccnf_def_dim(idnc,'latitude',jl,ydim)
         else
-           xdim = ncddef(idnc, 'longitude', il_g, ier)
-           ydim = ncddef(idnc, 'latitude', jl_g, ier)
+           call ccnf_def_dim(idnc,'longitude',il_g,xdim)
+           call ccnf_def_dim(idnc,'latitude',jl_g,ydim)
         endif
-        zdim= ncddef(idnc, 'lev', kl, ier)
-        msdim= ncddef(idnc, 'zsoil', ms, ier)
+        call ccnf_def_dim(idnc,'lev',kl,zdim)
+        call ccnf_def_dim(idnc,'zsoil',ms,msdim)
         if (abs(nmlo)>0..and.abs(nmlo)<=9) then
-          ocdim= ncddef(idnc, 'olev', ol, ier)
+          call ccnf_def_dim(idnc,'olev',ol,ocdim)
         end if
-        tdim= ncddef(idnc, 'time',ncunlim,ier)
+        call ccnf_def_dimu(idnc,'time',tdim)
         if (myid==0) then
           write(6,*) "xdim,ydim,zdim,tdim"
           write(6,*)  xdim,ydim,zdim,tdim
         end if
 
+        ! atmosphere dimensions
+        dim(1) = xdim
+        dim(2) = ydim
+        dim(3) = zdim
+        dim(4) = tdim
+
+        ! soil dimensions
+        dims(1) = xdim
+        dims(2) = ydim
+        dims(3) = msdim
+        dims(4) = tdim
+
+        ! ocean dimensions
+        dimo(1) = xdim
+        dimo(2) = ydim
+        dimo(3) = ocdim
+        dimo(4) = tdim
+
         ! Define coords.
-        ixp = ncvdef(idnc,'longitude',NCFLOAT,1,xdim,ier)
+        call ccnf_def_var(idnc,'longitude','float',1,dim(1:1),ixp)
         call ncaptc(idnc,ixp,'point_spacing',NCCHAR,4,'even',ier)
         call ncaptc(idnc,ixp,'units',NCCHAR,12,'degrees_east',ier)
-        iyp = ncvdef(idnc,'latitude',NCFLOAT,1,ydim,ier)
+        call ccnf_def_var(idnc,'latitude','float',1,dim(2:2),iyp)
         call ncaptc(idnc,iyp,'point_spacing',NCCHAR,4,'even',ier)
         call ncaptc(idnc,iyp,'units',NCCHAR,13,'degrees_north',ier)
         if (myid==0) then
           write(6,*) 'ixp,iyp=',ixp,iyp
         end if
 
-        idlev = ncvdef(idnc,'lev',NCFLOAT,1,zdim,ier)
+        call ccnf_def_var(idnc,'lev','float',1,dim(3:3),idlev)
         call ncaptc(idnc,idlev,'positive',NCCHAR,4,'down',ier)
         call ncaptc(idnc,idlev,'point_spacing',NCCHAR,6,'uneven',ier)
         call ncaptc(idnc,idlev,'units',NCCHAR,11,'sigma_level',ier)
@@ -150,7 +154,7 @@
           write(6,*) 'idlev=',idlev
         end if
 
-        idms = ncvdef(idnc,'zsoil',NCFLOAT,1,msdim,ier)
+        call ccnf_def_var(idnc,'zsoil','float',1,dims(3:3),idms)
         call ncaptc(idnc,idms,'point_spacing',NCCHAR,6,'uneven',ier)
         call ncaptc(idnc,idms,'units',NCCHAR,1,'m',ier)
         if (myid==0) then
@@ -158,7 +162,7 @@
         end if
         
         if (abs(nmlo)>0.and.abs(nmlo)<=9) then
-          idoc = ncvdef(idnc,'olev',NCFLOAT,1,ocdim,ier)
+          call ccnf_def_var(idnc,'olev','float',1,dimo(3:3),idoc)
           call ncaptc(idnc,idoc,'point_spacing',NCCHAR,6,'uneven',ier)
           call ncaptc(idnc,idoc,'units',NCCHAR,11,'sigma_level',ier)
           if (myid==0) then
@@ -166,18 +170,14 @@
           end if
         end if
 
+        call ccnf_def_var(idnc,'time','float',1,dim(4:4),idnt)
+        call ncaptc(idnc,idnt,'point_spacing',NCCHAR,4,'even',ier)
         if (myid==0) then
           write(6,*) 'tdim,idnc=',tdim,idnc
-        end if
-        idnt = ncvdef(idnc,'time',NCFLOAT,1,tdim,ier)
-        if (myid==0) then
           write(6,*) 'idnt=',idnt
-        end if
-        call ncaptc(idnc,idnt,'point_spacing',NCCHAR,4,'even',ier)
-
-        if (myid==0) then
           write(6,*) 'kdate,ktime,ktau=',kdate,ktime,ktau
         end if
+
         icy=kdate/10000
         icm=max(1,min(12,(kdate-icy*10000)/100))
         icd=max(1,min(31,(kdate-icy*10000-icm*100)))
@@ -204,24 +204,6 @@
         if (leap==0) then
           call ncaptc(idnc,idnt,'calendar',NCCHAR,6,'noleap',ier)
         end if
-
-        ! atmosphere dimensions
-        dim(1) = xdim
-        dim(2) = ydim
-        dim(3) = zdim
-        dim(4) = tdim
-
-        ! soil dimensions
-        dims(1) = xdim
-        dims(2) = ydim
-        dims(3) = msdim
-        dims(4) = tdim
-
-        ! ocean dimensions
-        dimo(1) = xdim
-        dimo(2) = ydim
-        dimo(3) = ocdim
-        dimo(4) = tdim
 
 c       create the attributes of the header record of the file
         nahead(1)=il_g       ! needed by cc2hist
@@ -318,10 +300,9 @@ c       create the attributes of the header record of the file
 
       if(myid==0.or.local)then
         ! for testing
-        !call ncsnc(idnc,ier)
-        !call ncmsg("ncsnc",ier)
+        !call ccnf_sync(idnc)
         if(ktau==ntau)then
-          call ncclos(idnc,ier)
+          call ccnf_close(idnc)
           if (myid==0) then
             write(6,*) "calling ncclos(idnc,ier) ",idnc,ier
           end if
@@ -404,6 +385,7 @@ c       create the attributes of the header record of the file
       real, dimension(il_g) :: xpnt
       real, dimension(jl_g) :: ypnt
       real, dimension(ifull) :: aa,bb,cc
+      real, dimension(ifull) :: ocndep,ocnheight
       real, dimension(ifull,kl) :: tmpry
       real, dimension(ifull,wlev,4) :: mlodwn
       real, dimension(ifull,11) :: micdwn
@@ -1449,6 +1431,18 @@ c      set time to number of minutes since start
        
       endif ! myid == 0 .or. local
 
+      ! Export ocean data
+      if (nmlo/=0.and.abs(nmlo)<=9) then
+        mlodwn(:,:,1:2)=999.
+        mlodwn(:,:,3:4)=0.
+        micdwn=999.
+        micdwn(:,9)=0.
+        micdwn(:,10)=0.
+        ocndep=0. ! ocean depth
+        ocnheight=0. ! free surface height
+        call mlosave(mlodwn,ocndep,ocnheight,micdwn,0)
+      end if        
+
       !**************************************************************
       ! WRITE TIME-INVARIANT VARIABLES
       !**************************************************************
@@ -1464,7 +1458,7 @@ c      set time to number of minutes since start
         call histwrt3(aa,'vegt',idnc,iarch,local,.true.)
         if ((nmlo<0.and.nmlo>=-9).or.
      &      (nmlo>0.and.nmlo<=9.and.itype==-1)) then
-          call histwrt3(aa,'ocndepth',idnc,iarch,local,.true.)
+          call histwrt3(ocndep,'ocndepth',idnc,iarch,local,.true.)
         end if
       endif ! (ktau==0.or.itype==-1) 
 
@@ -1513,15 +1507,7 @@ c      set time to number of minutes since start
 
       ! MLO ---------------------------------------------------------      
       if (nmlo/=0) then
-        mlodwn(:,:,1:2)=999.
-        mlodwn(:,:,3:4)=0.
-        micdwn=999.
-        micdwn(:,9)=0.
-        micdwn(:,10)=0.
-        aa=0. ! ocean depth
-        bb=0. ! free surface height
-        call mlosave(mlodwn,aa,bb,micdwn,0)
-        bb=min(max(bb,-130.),130.)
+        ocnheight=min(max(ocnheight,-130.),130.)
         do k=1,ms
           where (.not.land)
             tgg(:,k)=mlodwn(:,k,1)
@@ -1563,7 +1549,7 @@ c      set time to number of minutes since start
           write(vname,'("voc",I2.2)') k
           call histwrt3(mlodwn(:,k,4),vname,idnc,iarch,local,.true.)
         end do
-        call histwrt3(bb,'ocheight',idnc,iarch,local,.true.)
+        call histwrt3(ocnheight,'ocheight',idnc,iarch,local,.true.)
         call histwrt3(tggsn(:,1),'tggsn1',idnc,iarch,local,.true.)
         call histwrt3(tggsn(:,2),'tggsn2',idnc,iarch,local,.true.)
         call histwrt3(tggsn(:,3),'tggsn3',idnc,iarch,local,.true.)
@@ -2137,7 +2123,7 @@ c      "extra" outputs
         end if
         allocate(freqstore(ifull,nwt,freqvars))
         if (localhist) then
-          write(ffile,"(a,'.',i4.4)") trim(surfile), myid
+          write(ffile,"(a,'.',i6.6)") trim(surfile), myid
         else
           ffile=surfile
         end if
@@ -2438,6 +2424,7 @@ c      "extra" outputs
       subroutine attrib(cdfid,dim,ndim,name,lname,units,xmin,xmax,
      &                  daily,itype)
 
+      use cc_mpi
       use infile, only : ncmsg ! Input file routines
 
       implicit none
@@ -2460,11 +2447,18 @@ c      "extra" outputs
       if (itype==1) then
         vtype = ncshort
       else
+#ifdef r8i8
+        vtype = ncdouble
+#else
         vtype = ncfloat
+#endif
       end if
 
       idv = ncvdef(cdfid, name, vtype, ndim, dim, ier)
-      call ncmsg("attrib",ier)
+      if (ier/=0) then
+        write(6,*) "ERROR: Cannot define ",trim(name)
+        call ccmpi_abort(-1)
+      end if
       call ncaptc(cdfid,idv,'long_name',ncchar,len_trim(lname),lname,
      &            ier)
       if(len_trim(units)/=0)then
@@ -2478,9 +2472,8 @@ c      "extra" outputs
         addoff=xmin-scalef*minv
         call ncapt(cdfid,idv,'add_offset',ncfloat,1,addoff,ier)
         call ncapt(cdfid,idv,'scale_factor',ncfloat,1,scalef,ier)
-      endif
-      if(vtype == ncfloat)then
-        call ncapt(cdfid,idv,'missing_value',ncfloat,1,nf_fill_float,
+      else
+        call ncapt(cdfid,idv,'missing_value',vtype,1,nf_fill_float,
      &             ier)
       endif
       call ncaptc(cdfid,idv,'FORTRAN_format',ncchar,5,'G11.4',ier)
@@ -2584,8 +2577,10 @@ c      "extra" outputs
         ipack=max(min(nint((var-addoff)/scale_f),maxv),minv)
        end if
        ier=nf_put_vara_int2(idnc,mid,start,ncount,ipack)
-      else
+      elseif (vtype == ncfloat) then
        ier=nf_put_vara_real(idnc,mid,start,ncount,var)
+      else
+       ier=nf_put_vara_double(idnc,mid,start,ncount,var)
       endif
       if (ier/=0) then
         write(6,*) "ERROR: Cannot write ",sname
@@ -2653,8 +2648,10 @@ c     find variable index
         ipack=max(min(nint((globvar-addoff)/scale_f),maxv),minv)
        endif
        ier=nf_put_vara_int2(idnc,mid,start,ncount,ipack)
-      else
+      elseif (vtype==ncfloat) then
        ier=nf_put_vara_real(idnc,mid,start,ncount,globvar)
+      else
+       ier=nf_put_vara_double(idnc,mid,start,ncount,globvar)
       endif
       if (ier/=0) then
         write(6,*) "ERROR: Cannot write ",sname

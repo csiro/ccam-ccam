@@ -283,13 +283,12 @@ c       c1=0.
      &                  namip,iyr,imo,idjd_g)
       
       use cc_mpi
-      use infile, only : ncmsg,datefix
+      use infile
       
       implicit none
       
       include 'newmpar.h'
       include 'filnames.h'  ! list of files
-      include 'netcdf.inc'  ! Netcdf parameters
       include 'parmgeom.h'  ! rlong0,rlat0,schmidt      
       
       integer, parameter :: nihead=54
@@ -309,7 +308,7 @@ c       c1=0.
       real, dimension(nrhead) :: ahead
       real rlon_in,rlat_in,schmidt_in
       real of,sc
-      logical ltest
+      logical ltest,tst
       character*22 header
       character*10 unitstr
 
@@ -322,15 +321,13 @@ c       c1=0.
       endif
       
       ! check for netcdf file format
-      iernc=nf_open(sstfile,nf_nowrite,ncidx)
+      call ccnf_open(sstfile,ncidx,iernc)
       if (iernc==0) then
         ! NETCDF
         write(6,*) "Reading AMIP file in netcdf format"
         ! check grid definition
-        ierr=nf_get_att_int(ncidx,nf_global,'int_header',nahead)
-        call ncmsg('int_header',ierr)
-        ierr=nf_get_att_real(ncidx,nf_global,'real_header',ahead)
-        call ncmsg('real_header',ierr)
+        call ccnf_get_att_intg(ncidx,'int_header',nahead)
+        call ccnf_get_att_realg(ncidx,'real_header',ahead)
         il_in=nahead(1)
         jl_in=nahead(2)
         rlon_in   =ahead(5)
@@ -350,23 +347,32 @@ c       c1=0.
           write(6,*) 'wrong amipsst file'
           call ccmpi_abort(-1)
         endif
-        ierr=nf_inq_dimid(ncidx,'time',varid)
-        call ncmsg('time',ierr)
-        ierr=nf_inq_dimlen(ncidx,varid,maxarchi)
-        call ncmsg('time',ierr)
+        call ccnf_inq_dimlen(ncidx,'time',maxarchi)
         ! search for required month
         iarchx=0
         iyear=-999
         imonth=-999
         ltest=.true.
-        ierr=nf_inq_varid(ncidx,'kdate',varid)
-        ierr=nf_inq_varid(ncidx,'ktime',varidb)
-        ierr=nf_inq_varid(ncidx,'mtimer',varidc)
+        call ccnf_inq_varid(ncidx,'kdate',varid,tst)
+        if (tst) then
+          write(6,*) "ERROR: Cannot locate kdate"
+          call ccmpi_abort(-1)
+        end if
+        call ccnf_inq_varid(ncidx,'ktime',varidb,tst)
+        if (tst) then
+          write(6,*) "ERROR: Cannot locate ktime"
+          call ccmpi_abort(-1)
+        end if
+        call ccnf_inq_varid(ncidx,'mtimer',varidc,tst)
+        if (tst) then
+          write(6,*) "ERROR: Cannot locate mtimer"
+          call ccmpi_abort(-1)
+        end if
         do while (ltest.and.iarchx<maxarchi)
           iarchx=iarchx+1
-          ierr=nf_get_var1_int(ncidx,varid,iarchx,kdate_r)
-          ierr=nf_get_var1_int(ncidx,varidb,iarchx,ktime_r)
-          ierr=nf_get_var1_int(ncidx,varidc,iarchx,mtimer_r)
+          call ccnf_get_var1_int(ncidx,varid,iarchx,kdate_r)
+          call ccnf_get_var1_int(ncidx,varidb,iarchx,ktime_r)
+          call ccnf_get_var1_int(ncidx,varidc,iarchx,mtimer_r)
           call datefix(kdate_r,ktime_r,mtimer_r)
           iyear=int(kdate_r/10000)
           imonth=int((kdate_r-iyear*10000)/100)
@@ -383,28 +389,27 @@ c       c1=0.
         npos(1)=il_g
         npos(2)=6*il_g
         npos(3)=1
-        ierr=nf_inq_varid(ncidx,'tos',varid)
-        call ncmsg('tos',ierr) 
+        call ccnf_inq_varid(ncidx,'tos',varid,tst)
+        if (tst) then
+          write(6,*) "ERROR: Cannot locate tos"
+          call ccmpi_abort(-1)
+        end if
         unitstr=''
-        ierr=nf_get_att_text(ncidx,varid,'units',unitstr)
-        call ncmsg('tos units',ierr)
-        ierr=nf_get_vara_real(ncidx,varid,spos,npos,ssta_g)
-        call ncmsg('SST previous',ierr) 
-        ierr=nf_get_att_real(ncidx,varid,'add_offset',of)
+        call ccnf_get_att_text(ncidx,varid,'units',unitstr)
+        call ccnf_get_vara_real(ncidx,varid,spos,npos,ssta_g)
+        call ccnf_get_att_real(ncidx,varid,'add_offset',of)
         if (ierr/=0) of=0.
         if (trim(unitstr)=='C') of=of+273.16
-        ierr=nf_get_att_real(ncidx,varid,'scale_factor',sc)
+        call ccnf_get_att_real(ncidx,varid,'scale_factor',sc)
         if (ierr/=0) sc=1.
         ssta_g=sc*ssta_g+of        
         call ccmpi_distribute(ssta, ssta_g)
         spos(3)=spos(3)+1
-        ierr=nf_get_vara_real(ncidx,varid,spos,npos,ssta_g)
-        call ncmsg('SST current',ierr)        
+        call ccnf_get_vara_real(ncidx,varid,spos,npos,ssta_g)
         ssta_g=sc*ssta_g+of  
         call ccmpi_distribute(sstb, ssta_g)
         spos(3)=spos(3)+1
-        ierr=nf_get_vara_real(ncidx,varid,spos,npos,ssta_g)
-        call ncmsg('SST next',ierr)        
+        call ccnf_get_vara_real(ncidx,varid,spos,npos,ssta_g)
         ssta_g=sc*ssta_g+of  
         call ccmpi_distribute(sstc, ssta_g)
           
@@ -466,26 +471,26 @@ c       extra read from Oct 08
         if (iernc==0) then
           ! NETCDF
           spos(3)=iarchx
-          ierr=nf_inq_varid(ncidx,'sic',varid)
-          call ncmsg('sic',ierr) 
-          ierr=nf_get_vara_real(ncidx,varid,spos,npos,ssta_g)
-          call ncmsg('SICE previous',ierr)
-          ierr=nf_get_att_real(ncidx,varid,'add_offset',of)
+          call ccnf_inq_varid(ncidx,'sic',varid,tst)
+          if (tst) then
+            write(6,*) "ERROR: Cannot locate sic"
+            call ccmpi_abort(-1)
+          end if
+          call ccnf_get_vara_real(ncidx,varid,spos,npos,ssta_g)
+          call ccnf_get_att_real(ncidx,varid,'add_offset',of)
           if (ierr/=0) of=0.
-          ierr=nf_get_att_real(ncidx,varid,'scale_factor',sc)
+          call ccnf_get_att_real(ncidx,varid,'scale_factor',sc)
           if (ierr/=0) sc=1.
           ssta_g=sc*ssta_g+of
           ssta_g=100.*ssta_g  
           call ccmpi_distribute(aice, ssta_g)
           spos(3)=spos(3)+1
-          ierr=nf_get_vara_real(ncidx,varid,spos,npos,ssta_g)
-          call ncmsg('SICE current',ierr)
+          call ccnf_get_vara_real(ncidx,varid,spos,npos,ssta_g)
           ssta_g=sc*ssta_g+of
           ssta_g=100.*ssta_g       
           call ccmpi_distribute(bice, ssta_g)
           spos(3)=spos(3)+1
-          ierr=nf_get_vara_real(ncidx,varid,spos,npos,ssta_g)
-          call ncmsg('SICE next',ierr)        
+          call ccnf_get_vara_real(ncidx,varid,spos,npos,ssta_g)
           ssta_g=sc*ssta_g+of
           ssta_g=100.*ssta_g  
           call ccmpi_distribute(cice, ssta_g)
@@ -543,24 +548,24 @@ c         extra cice read from Oct 08
 	  if (iernc==0) then
 	    ! NETCDF
           spos(3)=iarchx
-          ierr=nf_inq_varid(ncidx,'sss',varid)
-          call ncmsg('sss',ierr) 
-          ierr=nf_get_vara_real(ncidx,varid,spos,npos,ssta_g)
-          call ncmsg('SAL previous',ierr)
-          ierr=nf_get_att_real(ncidx,varid,'add_offset',of)
+          call ccnf_inq_varid(ncidx,'sss',varid,tst)
+          if (tst) then
+            write(6,*) "ERROR: Cannot locate sss"
+            call ccmpi_abort(-1)
+          end if
+          call ccnf_get_vara_real(ncidx,varid,spos,npos,ssta_g)
+          call ccnf_get_att_real(ncidx,varid,'add_offset',of)
           if (ierr/=0) of=0.
-          ierr=nf_get_att_real(ncidx,varid,'scale_factor',sc)
+          call ccnf_get_att_real(ncidx,varid,'scale_factor',sc)
           if (ierr/=0) sc=1.  
           ssta_g=sc*ssta_g+of
           call ccmpi_distribute(asal, ssta_g)
           spos(3)=spos(3)+1
-          ierr=nf_get_vara_real(ncidx,varid,spos,npos,ssta_g)
-          call ncmsg('SAL current',ierr)
+          call ccnf_get_vara_real(ncidx,varid,spos,npos,ssta_g)
           ssta_g=sc*ssta_g+of
           call ccmpi_distribute(bsal, ssta_g)
           spos(3)=spos(3)+1
-          ierr=nf_get_vara_real(ncidx,varid,spos,npos,ssta_g)
-          call ncmsg('SAL next',ierr)
+          call ccnf_get_vara_real(ncidx,varid,spos,npos,ssta_g)
           ssta_g=sc*ssta_g+of        
           call ccmpi_distribute(csal, ssta_g)
           
@@ -619,7 +624,7 @@ c         extra cice read from Oct 08
 	endif
 
       if (iernc==0) then
-        ierr=nf_close(ncidx)
+        call ccnf_close(ncidx)
       end if
       
       return

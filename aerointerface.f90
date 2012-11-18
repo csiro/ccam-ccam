@@ -33,12 +33,11 @@ subroutine load_aerosolldr(aerofile,oxidantfile,kdatein)
       
 use aerosolldr
 use cc_mpi
-use infile, only : ncmsg
+use infile
 use ozoneread
       
 implicit none
 
-include 'netcdf.inc'
 include 'newmpar.h'
 include 'parmgeom.h'
       
@@ -54,6 +53,7 @@ real, dimension(:,:,:,:), allocatable, save :: oxidantdum
 real, dimension(:), allocatable, save :: rlon,rlat
 real tlat,tlon,tschmidt
 character(len=*), intent(in) :: aerofile,oxidantfile
+logical tst
 
 if (myid==0) write(6,*) "Initialising prognostic aerosols"
 
@@ -83,25 +83,19 @@ call aldrinit(ifull,iextra,kl)
 if (myid==0) then
   allocate(dumg(ifull_g))
   write(6,*) "Reading ",trim(aerofile)
-  ncstatus=nf_open(aerofile,nf_nowrite,ncid)
+  call ccnf_open(aerofile,ncid,ncstatus)
   call ncmsg('Aerosol emissions',ncstatus)
   ! check dimensions and location
-  ncstatus=nf_get_att_real(ncid,nf_global,'lat0',tlat)
-  call ncmsg('lat0',ncstatus)
-  ncstatus=nf_get_att_real(ncid,nf_global,'lon0',tlon)
-  call ncmsg('lon0',ncstatus)
-  ncstatus=nf_get_att_real(ncid,nf_global,'schmidt0',tschmidt)
-  call ncmsg('schmidt0',ncstatus)
-  if (rlong0.ne.tlon.or.rlat0.ne.tlat.or.schmidt.ne.tschmidt) then
+  call ccnf_get_att_realg(ncid,'lat0',tlat)
+  call ccnf_get_att_realg(ncid,'lon0',tlon)
+  call ccnf_get_att_realg(ncid,'schmidt0',tschmidt)
+  if (rlong0/=tlon.or.rlat0/=tlat.or.schmidt/=tschmidt) then
     write(6,*) "ERROR: Grid mismatch for ",trim(aerofile)
     write(6,*) "rlong0,rlat0,schmidt ",rlong0,rlat0,schmidt
     write(6,*) "tlon,tlat,tschmidt   ",tlon,tlat,tschmidt
     call ccmpi_abort(-1)
   end if
-  ncstatus = nf_inq_dimid(ncid,'longitude',varid)
-  call ncmsg('longitude',ncstatus)
-  ncstatus = nf_inq_dimlen(ncid,varid,tilg)
-  call ncmsg('longitude',ncstatus)
+  call ccnf_inq_dimlen(ncid,'longitude',tilg)
   if (tilg/=il_g) then
     write (6,*) "ERROR: Grid mismatch for ",trim(aerofile)
     write (6,*) "il_g,tilg ",il_g,tilg
@@ -112,159 +106,187 @@ if (myid==0) then
   npos(1)=il_g
   npos(2)=il_g*6
   write(6,*) "Loading emissions for SO2 anth l1"
-  ncstatus = nf_inq_varid(ncid,'so2a1',varid)
-  call ncmsg('so2a1',ncstatus)
-  ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-  call ncmsg('so2a1',ncstatus)
+  call ccnf_inq_varid(ncid,'so2a1',varid,tst)
+  if (tst) then
+    write(6,*) "ERROR: Cannot locate so2a1"
+    call ccmpi_abort(-1)
+  end if
+  call ccnf_get_vara_real(ncid,varid,spos,npos,dumg)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(1,duma)
   write(6,*) "Loading emissions for SO2 anth l2"
-  ncstatus = nf_inq_varid(ncid,'so2a2',varid)
-  call ncmsg('so2a2',ncstatus)
-  ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-  call ncmsg('so2a2',ncstatus)
+  call ccnf_inq_varid(ncid,'so2a2',varid,tst)
+  if (tst) then
+    write(6,*) "ERROR: Cannot locate so2a2"
+    call ccmpi_abort(-1)
+  end if
+  call ccnf_get_vara_real(ncid,varid,spos,npos,dumg)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(2,duma)
   write(6,*) "Loading emissions for BC anth l1"
-  ncstatus = nf_inq_varid(ncid,'bca1',varid)
-  call ncmsg('bca1',ncstatus)
-  ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-  call ncmsg('bca1',ncstatus)
+  call ccnf_inq_varid(ncid,'bca1',varid,tst)
+  if (tst) then
+    write(6,*) "ERROR: Cannot locate bca1"
+    call ccmpi_abort(-1)
+  end if
+  call ccnf_get_vara_real(ncid,varid,spos,npos,dumg)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(3,duma)
   write(6,*) "Loading emissions for BC anth l2"
-  ncstatus = nf_inq_varid(ncid,'bca2',varid)
-  call ncmsg('bca2',ncstatus)
-  ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-  call ncmsg('bca2',ncstatus)
+  call ccnf_inq_varid(ncid,'bca2',varid,tst)
+  if (tst) then
+    write(6,*) "ERROR: Cannot locate bca2"
+    call ccmpi_abort(-1)
+  end if
+  call ccnf_get_vara_real(ncid,varid,spos,npos,dumg)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(4,duma)
   write(6,*) "Loading emissions for OC anth l1"
-  ncstatus = nf_inq_varid(ncid,'oca1',varid)
-  call ncmsg('oca1',ncstatus)
-  ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-  call ncmsg('oca1',ncstatus)
+  call ccnf_inq_varid(ncid,'oca1',varid,tst)
+  if (tst) then
+    write(6,*) "ERROR: Cannot locate oca1"
+    call ccmpi_abort(-1)
+  end if
+  call ccnf_get_vara_real(ncid,varid,spos,npos,dumg)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(5,duma)
   write(6,*) "Loading emissions for OC anth l2"
-  ncstatus = nf_inq_varid(ncid,'oca2',varid)
-  call ncmsg('oca2',ncstatus)
-  ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-  call ncmsg('oca2',ncstatus)
+  call ccnf_inq_varid(ncid,'oca2',varid,tst)
+  if (tst) then
+    write(6,*) "ERROR: Cannot locate oca2"
+    call ccmpi_abort(-1)
+  end if
+  call ccnf_get_vara_real(ncid,varid,spos,npos,dumg)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(6,duma)
   write(6,*) "Loading emissions for SO2 bio l1"
-  ncstatus = nf_inq_varid(ncid,'so2b1',varid)
-  call ncmsg('so2b1',ncstatus)
-  ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-  call ncmsg('so2b1',ncstatus)
+  call ccnf_inq_varid(ncid,'so2b1',varid,tst)
+  if (tst) then
+    write(6,*) "ERROR: Cannot locate so2b1"
+    call ccmpi_abort(-1)
+  end if
+  call ccnf_get_vara_real(ncid,varid,spos,npos,dumg)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(7,duma)
   write(6,*) "Loading emissions for SO2 bio l2"
-  ncstatus = nf_inq_varid(ncid,'so2b2',varid)
-  call ncmsg('so2b2',ncstatus)
-  ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-  call ncmsg('so2b2',ncstatus)
+  call ccnf_inq_varid(ncid,'so2b2',varid,tst)
+  if (tst) then
+    write(6,*) "ERROR: Cannot locate so2b2"
+    call ccmpi_abort(-1)
+  end if
+  call ccnf_get_vara_real(ncid,varid,spos,npos,dumg)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(8,duma)
   write(6,*) "Loading emissions for BC bio l1"
-  ncstatus = nf_inq_varid(ncid,'bcb1',varid)
-  call ncmsg('bcb1',ncstatus)
-  ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-  call ncmsg('bcb1',ncstatus)
+  call ccnf_inq_varid(ncid,'bcb1',varid,tst)
+  if (tst) then
+    write(6,*) "ERROR: Cannot locate bcb1"
+    call ccmpi_abort(-1)
+  end if
+  call ccnf_get_vara_real(ncid,varid,spos,npos,dumg)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(9,duma)
   write(6,*) "Loading emissions for BC bio l2"
-  ncstatus = nf_inq_varid(ncid,'bcb2',varid)
-  call ncmsg('bcb2',ncstatus)
-  ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-  call ncmsg('bcb2',ncstatus)
+  call ccnf_inq_varid(ncid,'bcb2',varid,tst)
+  if (tst) then
+    write(6,*) "ERROR: Cannot locate bcb2"
+    call ccmpi_abort(-1)
+  end if
+  call ccnf_get_vara_real(ncid,varid,spos,npos,dumg)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(10,duma)
   write(6,*) "Loading emissions for OC bio l1"
-  ncstatus = nf_inq_varid(ncid,'ocb1',varid)
-  call ncmsg('ocb1',ncstatus)
-  ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-  call ncmsg('ocb1',ncstatus)
+  call ccnf_inq_varid(ncid,'ocb1',varid,tst)
+  if (tst) then
+    write(6,*) "ERROR: Cannot locate ocb1"
+    call ccmpi_abort(-1)
+  end if
+  call ccnf_get_vara_real(ncid,varid,spos,npos,dumg)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(11,duma)
   write(6,*) "Loading emissions for OC bio l2"
-  ncstatus = nf_inq_varid(ncid,'ocb2',varid)
-  call ncmsg('ocb2',ncstatus)
-  ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-  call ncmsg('ocb2',ncstatus)
+  call ccnf_inq_varid(ncid,'ocb2',varid,tst)
+  if (tst) then
+    write(6,*) "ERROR: Cannot locate ocb2"
+    call ccmpi_abort(-1)
+  end if
+  call ccnf_get_vara_real(ncid,varid,spos,npos,dumg)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(12,duma)
   write(6,*) "Loading emissions for DMS ocean"
-  ncstatus = nf_inq_varid(ncid,'dmso',varid)
-  call ncmsg('dmso',ncstatus)
-  ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-  call ncmsg('dmso',ncstatus)
+  call ccnf_inq_varid(ncid,'dmso',varid,tst)
+  if (tst) then
+    write(6,*) "ERROR: Cannot locate dmso"
+    call ccmpi_abort(-1)
+  end if
+  call ccnf_get_vara_real(ncid,varid,spos,npos,dumg)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(13,duma)
   write(6,*) "Loading emissions for DMS land"
-  ncstatus = nf_inq_varid(ncid,'dmst',varid)
-  call ncmsg('dmst',ncstatus)
-  ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-  call ncmsg('dmst',ncstatus)
+  call ccnf_inq_varid(ncid,'dmst',varid,tst)
+  if (tst) then
+    write(6,*) "ERROR: Cannot locate dmst"
+    call ccmpi_abort(-1)
+  end if
+  call ccnf_get_vara_real(ncid,varid,spos,npos,dumg)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(14,duma)
   write(6,*) "Loading emissions for natural organic"
-  ncstatus = nf_inq_varid(ncid,'ocna',varid)
-  call ncmsg('ocna',ncstatus)
-  ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-  call ncmsg('ocna',ncstatus)
+  call ccnf_inq_varid(ncid,'ocna',varid,tst)
+  if (tst) then
+    write(6,*) "ERROR: Cannot locate ocna"
+    call ccmpi_abort(-1)
+  end if
+  call ccnf_get_vara_real(ncid,varid,spos,npos,dumg)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(15,duma)
   write(6,*) "Loading emissions for Volcanic SO2"
-  ncstatus = nf_inq_varid(ncid,'vso2',varid)
-  call ncmsg('vso2',ncstatus)
-  ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-  call ncmsg('vso2',ncstatus)
+  call ccnf_inq_varid(ncid,'vso2',varid,tst)
+  if (tst) then
+    write(6,*) "ERROR: Cannot locate vso2"
+    call ccmpi_abort(-1)
+  end if
+  call ccnf_get_vara_real(ncid,varid,spos,npos,dumg)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(16,duma)
   ! load dust fields
   write(6,*) "Loading emissions for dust (sand)"
-  ncstatus = nf_inq_varid(ncid,'sandem',varid)
-  call ncmsg('sandem',ncstatus)
-  ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-  call ncmsg('sandem',ncstatus)
+  call ccnf_inq_varid(ncid,'sandem',varid,tst)
+  if (tst) then
+    write(6,*) "ERROR: Cannot locate sandem"
+    call ccmpi_abort(-1)
+  end if
+  call ccnf_get_vara_real(ncid,varid,spos,npos,dumg)
   call ccmpi_distribute(duma,dumg)
   call aldrloaderod(1,1,duma)
   write(6,*) "Loading emissions for dust (slit)"
-  ncstatus = nf_inq_varid(ncid,'siltem',varid)
-  call ncmsg('siltem',ncstatus)
-  ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-  call ncmsg('siltem',ncstatus)
+  call ccnf_inq_varid(ncid,'siltem',varid,tst)
+  if (tst) then
+    write(6,*) "ERROR: Cannot locate siltem"
+    call ccmpi_abort(-1)
+  end if
+  call ccnf_get_vara_real(ncid,varid,spos,npos,dumg)
   call ccmpi_distribute(duma,dumg)
   call aldrloaderod(2,1,duma)
   write(6,*) "Loading emissions for dust (clay)"
-  ncstatus = nf_inq_varid(ncid,'clayem',varid)
-  call ncmsg('clayem',ncstatus)
-  ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-  call ncmsg('clayem',ncstatus)
+  call ccnf_inq_varid(ncid,'clayem',varid,tst)
+  if (tst) then
+    write(6,*) "ERROR: Cannot locate clayem"
+    call ccmpi_abort(-1)
+  end if
+  call ccnf_get_vara_real(ncid,varid,spos,npos,dumg)
   call ccmpi_distribute(duma,dumg)
   call aldrloaderod(3,1,duma)
-  ncstatus=nf_close(ncid)
-  call ncmsg('Aerosol emissions',ncstatus)
+  call ccnf_close(ncid)
   deallocate(dumg)
   ! load oxidant fields
   write(6,*) "Reading ",trim(oxidantfile)
-  ncstatus=nf_open(oxidantfile,nf_nowrite,ncid)
+  call ccnf_open(oxidantfile,ncid,ncstatus)
   call ncmsg('Oxidants',ncstatus)
   ! check dimensions and location
-  ncstatus = nf_inq_dimid(ncid,'lon',varid)
-  call ncmsg('lon',ncstatus)
-  ncstatus = nf_inq_dimlen(ncid,varid,ilon)
-  call ncmsg('lon',ncstatus)
-  ncstatus = nf_inq_dimid(ncid,'lat',varid)
-  call ncmsg('lat',ncstatus)
-  ncstatus = nf_inq_dimlen(ncid,varid,ilat)
-  call ncmsg('lat',ncstatus)
-  ncstatus = nf_inq_dimid(ncid,'lev',varid)
-  call ncmsg('lev',ncstatus)
-  ncstatus = nf_inq_dimlen(ncid,varid,ilev)
-  call ncmsg('lev',ncstatus)
+  call ccnf_inq_dimlen(ncid,'lon',ilon)
+  call ccnf_inq_dimlen(ncid,'lat',ilat)
+  call ccnf_inq_dimlen(ncid,'lev',ilev)
   write(6,*) "Found oxidant dimensions ",ilon,ilat,ilev
   idum(1)=ilon
   idum(2)=ilat
@@ -284,18 +306,24 @@ if (myid==0) then
   jyear=kdatein/10000
   jmonth=(kdatein-jyear*10000)/100
   write(6,*) "Processing oxidant file for month ",jmonth
-  ncstatus = nf_inq_varid(ncid,'lon',varid)
-  call ncmsg('lon',ncstatus)
-  ncstatus = nf_get_vara_real(ncid,varid,sposs(1),nposs(1),rlon)
-  call ncmsg('lon',ncstatus)
-  ncstatus = nf_inq_varid(ncid,'lat',varid)
-  call ncmsg('lat',ncstatus)
-  ncstatus = nf_get_vara_real(ncid,varid,sposs(2),nposs(2),rlat) ! input latitudes (deg)
-  call ncmsg('lat',ncstatus)
-  ncstatus = nf_inq_varid(ncid,'lev',varid)
-  call ncmsg('lev',ncstatus)
-  ncstatus = nf_get_vara_real(ncid,varid,sposs(3),nposs(3),rlev) ! input vertical levels
-  call ncmsg('lev',ncstatus)
+  call ccnf_inq_varid(ncid,'lon',varid,tst)
+  if (tst) then
+    write(6,*) "ERROR: Cannot locate lon"
+    call ccmpi_abort(-1)
+  end if
+  call ccnf_get_vara_real(ncid,varid,sposs(1:1),nposs(1:1),rlon)
+  call ccnf_inq_varid(ncid,'lat',varid,tst)
+  if (tst) then
+    write(6,*) "ERROR: Cannot locate lat"
+    call ccmpi_abort(-1)
+  end if
+  call ccnf_get_vara_real(ncid,varid,sposs(2:2),nposs(2:2),rlat) ! input latitudes (deg)
+  call ccnf_inq_varid(ncid,'lev',varid,tst)
+  if (tst) then
+    write(6,*) "ERROR: Cannot locate lev"
+    call ccmpi_abort(-1)
+  end if
+  call ccnf_get_vara_real(ncid,varid,sposs(3:3),nposs(3:3),rlev) ! input vertical levels
   call ccmpi_bcast(rlon,0,comm_world)
   call ccmpi_bcast(rlat,0,comm_world)
   call ccmpi_bcast(rlev,0,comm_world)
@@ -303,43 +331,54 @@ if (myid==0) then
     select case(j)
       case(1)
         write(6,*) "Reading OH"
-        ncstatus = nf_inq_varid(ncid,'OH',varid)
+        call ccnf_inq_varid(ncid,'OH',varid,tst)
+        if (tst) then
+          write(6,*) "ERROR: Cannot locate OH"
+          call ccmpi_abort(-1)
+        end if
       case(2)
         write(6,*) "Reading H2O2"
-        ncstatus = nf_inq_varid(ncid,'H2O2',varid)
+        call ccnf_inq_varid(ncid,'H2O2',varid,tst)
+        if (tst) then
+          write(6,*) "ERROR: Cannot locate H2O2"
+          call ccmpi_abort(-1)
+        end if
       case(3)
         write(6,*) "Reading O3"
-        ncstatus = nf_inq_varid(ncid,'O3',varid)
+        call ccnf_inq_varid(ncid,'O3',varid,tst)
+        if (tst) then
+          write(6,*) "ERROR: Cannot locate O3"
+          call ccmpi_abort(-1)
+        end if
       case(4)
         write(6,*) "Reading NO2"
-        ncstatus = nf_inq_varid(ncid,'NO2',varid)
+        call ccnf_inq_varid(ncid,'NO2',varid,tst)
+        if (tst) then
+          write(6,*) "ERROR: Cannot locate NO2"
+          call ccmpi_abort(-1)
+        end if
     end select
-    call ncmsg('Oxidants',ncstatus)
     do i=1,3
       select case(i)
         case(1)
           sposs(4)=jmonth-1
-          if (sposs(4).lt.1) sposs(4)=12
-          ncstatus = nf_get_vara_real(ncid,varid,sposs,nposs,oxidantdum(:,:,:,1))
-          call ncmsg('prev',ncstatus)
+          if (sposs(4)<1) sposs(4)=12
+          call ccnf_get_vara_real(ncid,varid,sposs,nposs,oxidantdum(:,:,:,1))
           call ccmpi_bcast(oxidantdum(:,:,:,1),0,comm_world)
         case(2)
           sposs(4)=jmonth
-          ncstatus = nf_get_vara_real(ncid,varid,sposs,nposs,oxidantdum(:,:,:,2))
-          call ncmsg('curr',ncstatus)
+          call ccnf_get_vara_real(ncid,varid,sposs,nposs,oxidantdum(:,:,:,2))
           call ccmpi_bcast(oxidantdum(:,:,:,2),0,comm_world)
         case(3)
           sposs(4)=jmonth+1
-          if (sposs(4).gt.12) sposs(4)=1
-          ncstatus = nf_get_vara_real(ncid,varid,sposs,nposs,oxidantdum(:,:,:,3))
-          call ncmsg('next',ncstatus)
+          if (sposs(4)>12) sposs(4)=1
+          call ccnf_get_vara_real(ncid,varid,sposs,nposs,oxidantdum(:,:,:,3))
           call ccmpi_bcast(oxidantdum(:,:,:,3),0,comm_world)
       end select
     end do
     call o3regrid(oxidantprev(:,:,j),oxidantnow(:,:,j),oxidantnext(:,:,j),oxidantdum,rlon,rlat,ilon,ilat,ilev)
   end do
-  ncstatus=nf_close(ncid)
-  call ncmsg('Oxidants',ncstatus)
+  call ccnf_close(ncid)
   deallocate(oxidantdum,rlat,rlon)
 else
   ! load emission fields

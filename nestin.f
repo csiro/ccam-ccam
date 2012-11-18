@@ -44,7 +44,6 @@
       
       include 'newmpar.h'              ! Grid parameters
       include 'dates.h'                ! Date data
-      include 'netcdf.inc'             ! Netcdf parameters
       include 'parm.h'                 ! Model configuration
       include 'stime.h'                ! File date data
 
@@ -320,7 +319,6 @@
  
       include 'newmpar.h'              ! Grid parameters
       include 'dates.h'                ! Date data
-      include 'netcdf.inc'             ! Netcdf parameters
       include 'parm.h'                 ! Model configuration
       include 'stime.h'                ! File date data
  

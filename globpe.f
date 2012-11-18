@@ -82,7 +82,6 @@
       include 'establ.h'                      ! Liquid saturation function
       include 'filnames.h'                    ! Filenames
       include 'kuocom.h'                      ! Convection parameters
-      include 'netcdf.inc'                    ! Netcdf parameters
       include 'parm.h'                        ! Model configuration
       include 'parmdyn.h'                     ! Dynamics parameters
       include 'parmgeom.h'                    ! Coordinate data
@@ -1588,6 +1587,7 @@
          spmean(k)=sqrt(spmean(k))
         enddo
         speed(1:ifull,1:kl)=sqrt(speed(1:ifull,1:kl)) ! 3D
+        spavge=sqrt(spavge)
         call maxmin(speed,'sp',ktau,1.,kl)
         call maxmin(t,' t',ktau,1.,kl)
         call maxmin(qg,'qg',ktau,1.e3,kl)

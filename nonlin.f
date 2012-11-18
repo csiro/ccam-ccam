@@ -134,8 +134,7 @@
         write (6,"('epst#  ',9f8.2)") diagvals(epst) 
         write (6,"('sdot#  ',9f8.3)") diagvals(sdot(:,nlv)) 
         write (6,"('sdotn  ',9f8.3/7x,9f8.3)") sdot(idjd,1:kl)
-        write (6,"('omgf#  ',9f8.3)") ((ps(ii+jj*il)*
-     &              dpsldt(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=-1,1)
+        write (6,"('omgf#  ',9f8.3)") ps(idjd)*dpsldt(idjd,nlv)
         write (6,"('omgfn  ',9f8.3/7x,9f8.3)") ps(idjd)*dpsldt(idjd,:)
         write (6,"('t   ',9f8.3/4x,9f8.3)")     t(idjd,:)
         write (6,"('u   ',9f8.3/4x,9f8.3)")     u(idjd,:)

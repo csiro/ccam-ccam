@@ -5597,9 +5597,9 @@ subroutine read_lbltfs (gas_type, callrctrns, nstd_lo, nstd_hi, nf,   &
                         ntbnd, trns_std_hi_nf, trns_std_lo_nf )
  
  use cc_mpi
+ use infile
   
  include 'filnames.h'
- include 'netcdf.inc'
  
 !--------------------------------------------------------------------
 !
@@ -5634,6 +5634,7 @@ real,    dimension (:,:,:), intent(out)  :: trns_std_hi_nf,   &
       integer        :: n, nt, nrec_inhi, inrad, nrec_inlo
       
       integer ncid,ncstatus,varid,startpos(3),npos(3),ierr ! MJT
+      logical tst ! MJT
  
       data (input_lblco2name(n,1),n=1,nfreq_bands_sea_co2)/            &
         'cns_0_490850   ', 'cns_0_490630   ', 'cns_0_630700   ', &
@@ -5733,15 +5734,19 @@ real,    dimension (:,:,:), intent(out)  :: trns_std_hi_nf,   &
       npos(2)=size(trns_std_hi_nf(:,:,1:ntbnd(nf)),2)
       npos(3)=ntbnd(nf)
       if (myid==0) then
-        ncstatus=nf_open(ncname,nf_nowrite,ncid)
-        if (ncstatus.ne.0) then
+        call ccnf_open(ncname,ncid,ncstatus)
+        if (ncstatus/=0) then
           write(6,*) "ERROR: Cannot open ",trim(ncname)
           stop
         end if
         write(6,*) "Reading ",trim(ncname)
-        ncstatus=nf_inq_varid(ncid,"trns_std_nf",varid)
-        ncstatus=nf_get_vara_double(ncid,varid,startpos,npos,trns_std_hi_nf(:,:,1:ntbnd(nf)))
-        ncstatus=nf_close(ncid)
+        call ccnf_inq_varid(ncid,"trns_std_nf",varid,tst)
+        if (tst) then
+          write(6,*) "trns_std_nf not found"
+          call ccmpi_abort(-1)
+        end if
+        call ccnf_get_vara_double(ncid,varid,startpos,npos,trns_std_hi_nf(:,:,1:ntbnd(nf)))
+        call ccnf_close(ncid)
       end if
       call ccmpi_bcastr8(trns_std_hi_nf(:,:,1:ntbnd(nf)),0,comm_world)
       
@@ -5781,15 +5786,19 @@ real,    dimension (:,:,:), intent(out)  :: trns_std_hi_nf,   &
         npos(2)=size(trns_std_lo_nf(:,:,1:ntbnd(nf)),2)
         npos(3)=ntbnd(nf)
         if (myid==0) then
-          ncstatus=nf_open(ncname,nf_nowrite,ncid)
-          if (ncstatus.ne.0) then
+          call ccnf_open(ncname,ncid,ncstatus)
+          if (ncstatus/=0) then
             write(6,*) "ERROR: Cannot open ",trim(ncname)
             stop
           end if
           write(6,*) "Reading ",trim(ncname)
-          ncstatus=nf_inq_varid(ncid,"trns_std_nf",varid)
-          ncstatus=nf_get_vara_double(ncid,varid,startpos,npos,trns_std_lo_nf(:,:,1:ntbnd(nf)))
-          ncstatus=nf_close(ncid)
+          call ccnf_inq_varid(ncid,"trns_std_nf",varid,tst)
+          if (tst) then
+            write(6,*) "trns_std_nf not found"
+            call ccmpi_abort(-1)
+          end if
+          call ccnf_get_vara_double(ncid,varid,startpos,npos,trns_std_lo_nf(:,:,1:ntbnd(nf)))
+          call ccnf_close(ncid)
         end if
         call ccmpi_bcastr8(trns_std_lo_nf(:,:,1:ntbnd(nf)),0,comm_world)
         

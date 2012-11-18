@@ -107,12 +107,12 @@ module cc_mpi
 
    type bounds_info
       real, dimension(:), pointer :: sbuf, rbuf
-      integer(kind=4), dimension(:), pointer :: request_list
-      integer(kind=4), dimension(:), pointer :: send_list
-      integer(kind=4), dimension(:), pointer :: unpack_list
-      integer(kind=4), dimension(:), pointer :: request_list_uv
-      integer(kind=4), dimension(:), pointer :: send_list_uv
-      integer(kind=4), dimension(:), pointer :: unpack_list_uv
+      integer, dimension(:), pointer :: request_list
+      integer, dimension(:), pointer :: send_list
+      integer, dimension(:), pointer :: unpack_list
+      integer, dimension(:), pointer :: request_list_uv
+      integer, dimension(:), pointer :: send_list_uv
+      integer, dimension(:), pointer :: unpack_list_uv
       ! Flag for whether u and v need to be swapped
       logical, dimension(:), pointer :: uv_swap, send_swap,uv_neg,send_neg
       ! Number of points for each processor. Also double row versions.
@@ -372,7 +372,7 @@ contains
       real, dimension(ifull), intent(out) :: af
       real, dimension(ifull_g), intent(in), optional :: a1
       integer :: i, j, n, iq, iproc
-      integer(kind=4) ierr,lsize,ltype
+      integer(kind=4) ierr, lsize, ltype
       real, dimension(ifull,0:nproc-1) :: sbuf
       integer :: npoff, ipoff, jpoff ! Offsets for target
       integer :: slen
@@ -2353,10 +2353,10 @@ contains
       logical, intent(in), optional :: corner
       logical, intent(in), optional :: nehalf
       logical :: double, extra, single
-      integer :: iq,iproc
+      integer :: iq, iproc, kx
       integer(kind=4) :: ierr, itag = 0, rproc, sproc, ltype
       integer(kind=4), dimension(MPI_STATUS_SIZE,2*nproc) :: status
-      integer(kind=4) :: send_len, recv_len, kx
+      integer(kind=4) :: send_len, recv_len
       integer :: lmode
 
       call start_log(bounds_begin)
@@ -2871,10 +2871,10 @@ contains
       logical :: double, extra
       logical :: fsvwu, fnveu, fssvwwu, fnnveeu
       logical :: fsuwv, fnuev
-      integer :: stagmode, iq, iqz, iqb, iqe, iproc
+      integer :: stagmode, iq, iqz, iqb, iqe, iproc, kx
       integer(kind=4) :: ierr, itag = 0, rproc, sproc, iqx, ltype
       integer(kind=4), dimension(MPI_STATUS_SIZE,2*nproc) :: status
-      integer(kind=4) :: send_len, recv_len, kx
+      integer(kind=4) :: send_len, recv_len
       integer :: lmode
       real, dimension(maxbuflen) :: tmp
       

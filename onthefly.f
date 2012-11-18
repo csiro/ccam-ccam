@@ -34,7 +34,6 @@
 
       include 'newmpar.h'  ! Grid parameters
       include 'darcdf.h'   ! Netcdf data
-      include 'netcdf.inc' ! Netcdf parameters
       include 'parm.h'     ! Model configuration
       include 'stime.h'    ! File date data
 
@@ -62,7 +61,7 @@
      & ssdnn(ifull),snage(ifull),qfg(ifull,kl),
      & qlg(ifull,kl),qrg(ifull,kl),mlodwn(ifull,wlev,4),
      & ocndwn(ifull,2)
-      logical ltest,newfile
+      logical ltest,newfile,tst
 
       call start_log(onthefly_begin)
       !--------------------------------------------------------------
@@ -74,8 +73,8 @@
         if(ncid/=ncidold)then
           write(6,*) 'Reading new file metadata'
           iarchi=1
-          call ncagt(ncid,ncglobal,'int_header',nahead,ier)
-          call ncagt(ncid,ncglobal,'real_header',ahead,ier)
+          call ccnf_get_att_intg(ncid,'int_header',nahead)
+          call ccnf_get_att_realg(ncid,'real_header',ahead)
           ik=nahead(1)
           jk=nahead(2)
           kk=nahead(3)
@@ -88,14 +87,10 @@
             schmidtx=ahead(8)
           endif  ! (schmidtx<=0..or.schmidtx>1.)        
           maxarchi=0
-          idv = ncdid(ncid,'time',ier)
-          ier = nf_inq_dimlen(ncid,idv,maxarchi)
+          call ccnf_inq_dimlen(ncid,'time',maxarchi)
           ok=0
           if (nmlo/=0.and.abs(nmlo)<=9) then
-            idv = ncdid(ncid,'olev',ier)
-            if (ier==0) then
-              ier = nf_inq_dimlen(ncid,idv,ok)
-            end if
+            call ccnf_inq_dimlen(ncid,'olev',ok,failok=.true.)
           end if
           write(6,*) "Found ik,jk,kk,ok ",ik,jk,kk,ok
           write(6,*) "      maxarchi ",maxarchi
@@ -106,22 +101,24 @@
      &                        kdate_s,ktime_s
         ltest=.true.
         iarchi=iarchi-1
-        idvkd = ncvid(ncid,'kdate',ier)
-        idvkt = ncvid(ncid,'ktime',ier)
-        idvmt = ncvid(ncid,'mtimer',ierx)
-        if (ierx/=0) then
-          idvmt = ncvid(ncid,'timer',ier)
+        call ccnf_inq_varid(ncid,'kdate',idvkd,tst)
+        call ccnf_inq_varid(ncid,'ktime',idvkt,tst)
+        call ccnf_inq_varid(ncid,'mtimer',idvmt,tst)
+        ierx=0
+        if (tst) then
+          ierx=1
+          call ccnf_inq_varid(ncid,'timer',idvmt,tst)
         end if
         do while(ltest.and.iarchi<maxarchi)
           iarchi=iarchi+1
-          call ncvgt1(ncid,idvkd,iarchi,kdate_r,ier)
-          call ncvgt1(ncid,idvkt,iarchi,ktime_r,ier)
+          call ccnf_get_var1_int(ncid,idvkd,iarchi,kdate_r)
+          call ccnf_get_var1_int(ncid,idvkt,iarchi,ktime_r)
           if (ierx==0) then
-            call ncvgt1(ncid,idvmt,iarchi,mtimer,ier)
+            call ccnf_get_var1_int(ncid,idvmt,iarchi,mtimer)
             timer=mtimer/60.
           else
             timer=0.
-            call ncvgt1(ncid,idvmt,iarchi,timer,ier)
+            call ccnf_get_var1_real(ncid,idvmt,iarchi,timer)
             mtimer=nint(timer*60.)
           endif
           if (mtimer>0) then
@@ -263,7 +260,6 @@
       include 'newmpar.h'                       ! Grid parameters
       include 'const_phys.h'                    ! Physical constants
       include 'darcdf.h'                        ! Netcdf data
-      include 'netcdf.inc'                      ! Netcdf parameters
       include 'parm.h'                          ! Model configuration
       include 'parmdyn.h'                       ! Dynamics parmaters
       include 'parmgeom.h'                      ! Coordinate data
@@ -284,6 +280,7 @@
       integer, dimension(ms) :: iera,ierb
       integer, dimension(7) :: ierc
       integer, dimension(3), save :: iers
+      integer, dimension(2) :: dumb
       real*8, dimension(1+4*dk,1+4*dk) :: xx4,yy4
       real*8, dimension(dk*dk*6):: z_a,x_a,y_a
       real, dimension(ifull,wlev,4) :: mlodwn
@@ -313,7 +310,7 @@
       character*8 vname
       character*3 trnum
       logical, dimension(dk*dk*6) :: land_a
-      logical iotest,newfile,tsstest
+      logical iotest,newfile,tsstest,tst
 
       real, parameter :: spval=999.  ! missing value flag
       real, parameter :: iotol=1.E-5 ! tolarance for iotest
@@ -446,24 +443,27 @@
         allocate(sigin(kk))
         if (myid==0) then
           write(6,*) "Reading fixed fields"
-          idv = ncvid(ncid,'lev',ier)
-          if (ier==0) call ncvgt(ncid,idv,1,kk,sigin,ier)
-          if (ier/=0) then
-            call ncagt(ncid,ncglobal,'sigma',sigin,ier)
+          call ccnf_inq_varid(ncid,'lev',idv,tst)
+          if (tst) then
+            call ccnf_inq_varid(ncid,'layer',idv,tst)
           end if
-          if (ier/=0) then
-            call ncagt(ncid,ncglobal,'sigma_lev',sigin,ier)
-          end if
-          if (ier/=0) then
-            idv = ncvid(ncid,'layer',ier)
-            if (ier==0) call ncvgt(ncid,idv,1,kk,sigin,ier)
+          if (.not.tst) then
+            dumb(1)=1
+            dumb(2)=kk
+            call ccnf_get_vara_real(ncid,idv,dumb(1:1),dumb(2:2),sigin)
+          else
+            call ccnf_get_att_realg(ncid,'sigma',sigin)
           end if
           write(6,'("sigin=",(9f7.4))') (sigin(k),k=1,kk)
           
           ! check for missing data
-          idv = ncvid(ncid,"mixr",iers(1))
-          idv = ncvid(ncid,"siced",iers(2))
-          idv = ncvid(ncid,"fracice",iers(3))
+          iers(1:3)=0
+          call ccnf_inq_varid(ncid,'mixr',idv,tst)
+          if (tst) iers(1)=-1
+          call ccnf_inq_varid(ncid,'siced',idv,tst)
+          if (tst) iers(2)=-1
+          call ccnf_inq_varid(ncid,'fracice',idv,tst)
+          if (tst) iers(3)=-1
         end if
         call ccmpi_bcast(sigin,0,comm_world)
         call ccmpi_bcast(iers(1:3),0,comm_world)
@@ -981,61 +981,61 @@ c***        but needed here for onthefly (different dims) 28/8/08
           if (myid==0) then
             if (kk==kl.and.iotest) then
               lrestart=.true.
-              idv = ncvid(ncid,"omega",ier)
-              if (ier/=0) lrestart=.false.
-              idv = ncvid(ncid,"zgnhs",ier)
-              if (ier/=0) lrestart=.false.
-              idv = ncvid(ncid,"sdot",ier)
-              if (ier/=0) lrestart=.false.
-              idv = ncvid(ncid,"pslx",ier)
-              if (ier/=0) lrestart=.false.
-              idv = ncvid(ncid,"savu",ier)
-              if (ier/=0) lrestart=.false.
-              idv = ncvid(ncid,"savv",ier)
-              if (ier/=0) lrestart=.false.
-              idv = ncvid(ncid,"savu1",ier)
-              if (ier/=0) lrestart=.false.
-              idv = ncvid(ncid,"savv1",ier)
-              if (ier/=0) lrestart=.false.
-              idv = ncvid(ncid,"savu2",ier)
-              if (ier/=0) lrestart=.false.
-              idv = ncvid(ncid,"savv2",ier)
-              if (ier/=0) lrestart=.false.
-              idv = ncvid(ncid,"nstag",ier)
-              if (ier/=0) then
+              call ccnf_inq_varid(ncid,'omega',idv,tst)
+              if (tst) lrestart=.false.
+              call ccnf_inq_varid(ncid,'zgnhs',idv,tst)
+              if (tst) lrestart=.false.
+              call ccnf_inq_varid(ncid,'sdot',idv,tst)
+              if (tst) lrestart=.false.
+              call ccnf_inq_varid(ncid,'pslx',idv,tst)
+              if (tst) lrestart=.false.
+              call ccnf_inq_varid(ncid,'savu',idv,tst)
+              if (tst) lrestart=.false.
+              call ccnf_inq_varid(ncid,'savv',idv,tst)
+              if (tst) lrestart=.false.
+              call ccnf_inq_varid(ncid,'savu1',idv,tst)
+              if (tst) lrestart=.false.
+              call ccnf_inq_varid(ncid,'savv1',idv,tst)
+              if (tst) lrestart=.false.
+              call ccnf_inq_varid(ncid,'savu2',idv,tst)
+              if (tst) lrestart=.false.
+              call ccnf_inq_varid(ncid,'savv2',idv,tst)
+              if (tst) lrestart=.false.
+              call ccnf_inq_varid(ncid,'nstag',idv,tst)
+              if (tst) then
                 lrestart=.false.
               else 
-                call ncvgt1(ncid,idv,iarchi,ierc(3),ier)
+                call ccnf_get_var1_int(ncid,idv,iarchi,ierc(3))
               end if
-              idv = ncvid(ncid,"nstagu",ier)
-              if (ier/=0) then
+              call ccnf_inq_varid(ncid,'nstagu',idv,tst)
+              if (tst) then
                 lrestart=.false.
               else 
-                call ncvgt1(ncid,idv,iarchi,ierc(4),ier)
+                call ccnf_get_var1_int(ncid,idv,iarchi,ierc(4))
               end if
-              idv = ncvid(ncid,"nstagoff",ier)
-              if (ier/=0) then
+              call ccnf_inq_varid(ncid,'nstagoff',idv,tst)
+              if (tst) then
                 lrestart=.false.
               else 
-                call ncvgt1(ncid,idv,iarchi,ierc(5),ier)
+                call ccnf_get_var1_int(ncid,idv,iarchi,ierc(5))
               end if
               if (abs(nmlo)>=3.and.abs(nmlo)<=9) then
                 if (ok==wlev) then
-                  idv = ncvid(ncid,"oldu101",ier)
-                  if (ier/=0) lrestart=.false.
-                  idv = ncvid(ncid,"oldv101",ier)
-                  if (ier/=0) lrestart=.false.
-                  idv = ncvid(ncid,"oldu201",ier)
-                  if (ier/=0) lrestart=.false.
-                  idv = ncvid(ncid,"oldv201",ier)
-                  if (ier/=0) lrestart=.false.
-                  idv = ncvid(ncid,"ipice",ier)
-                  if (ier/=0) lrestart=.false.
-                  idv = ncvid(ncid,"nstagoffmlo",ier)
-                  if (ier/=0) then
+                  call ccnf_inq_varid(ncid,'oldu101',idv,tst)
+                  if (tst) lrestart=.false.
+                  call ccnf_inq_varid(ncid,'oldv101',idv,tst)
+                  if (tst) lrestart=.false.
+                  call ccnf_inq_varid(ncid,'oldu201',idv,tst)
+                  if (tst) lrestart=.false.
+                  call ccnf_inq_varid(ncid,'oldv201',idv,tst)
+                  if (tst) lrestart=.false.
+                  call ccnf_inq_varid(ncid,'ipice',idv,tst)
+                  if (tst) lrestart=.false.
+                  call ccnf_inq_varid(ncid,'nstagoffmlo',idv,tst)
+                  if (tst) then
                     lrestart=.false.
                   else
-                    call ncvgt1(ncid,idv,iarchi,ierc(6),ier)
+                    call ccnf_get_var1_int(ncid,idv,iarchi,ierc(6))
                   end if
                 else
                   lrestart=.false.
@@ -1044,9 +1044,10 @@ c***        but needed here for onthefly (different dims) 28/8/08
             else
               lrestart=.false.
             end if
-            idv = ncvid(ncid,"u10",ierc(2))
-            ierc(1)=0
+            call ccnf_inq_varid(ncid,'u10',idv,tst)
+            ierc(1:2)=0
             if (lrestart) ierc(1)=1
+            if (tst) ierc(2)=-1
           end if
           call ccmpi_bcast(ierc(1:6),0,comm_world)
           lrestart=(ierc(1)==1)
@@ -1083,9 +1084,11 @@ c***        but needed here for onthefly (different dims) 28/8/08
 
         ! SOIL TEMPERATURE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         if (myid==0) then
+          iera(1:ms)=0
           do k=1,ms
             write(vname,'("tgg",I1.1)') k
-            idv = ncvid(ncid,vname,iera(k))
+            call ccnf_inq_varid(ncid,vname,idv,tst)
+            if (tst) iera(k)=-1
           end do
         end if
         call ccmpi_bcast(iera(1:ms),0,comm_world)
@@ -1243,9 +1246,12 @@ c***        but needed here for onthefly (different dims) 28/8/08
 
         ! SOIL MOISTURE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         if (myid==0) then
+          iera(1:ms)=0
+          ierb(1:ms)=0
           do k=1,ms
             write(vname,'("wetfrac",I1.1)') k
-            idv = ncvid(ncid,vname,iera(k))
+            call ccnf_inq_varid(ncid,vname,idv,tst)
+            if (tst) iera(k)=-1
           end do
         end if
         call ccmpi_bcast(iera(1:ms),0,comm_world)
@@ -1253,7 +1259,8 @@ c***        but needed here for onthefly (different dims) 28/8/08
           if (myid==0) then
             do k=1,ms
               write(vname,'("wb",I1.1)') k
-              idv = ncvid(ncid,vname,ierb(k))
+              call ccnf_inq_varid(ncid,vname,idv,tst)
+              if (tst) ierb(k)=-1
             end do
           end if
           call ccmpi_bcast(ierb(1:ms),0,comm_world)
@@ -1358,7 +1365,9 @@ c***        but needed here for onthefly (different dims) 28/8/08
         if (nsib>=6) then
          if (ccycle==0) then
           if (myid==0) then
-            idv = ncvid(ncid,"cplant1",iera(1))
+            call ccnf_inq_varid(ncid,'cplant1',idv,tst)
+            iera(1)=0
+            if (tst) iera(1)=-1
           end if
           call ccmpi_bcast(iera(1:1),0,comm_world)
           if (iera(1)==0) then
@@ -1401,7 +1410,9 @@ c***        but needed here for onthefly (different dims) 28/8/08
           end if
          else
           if (myid==0) then
-            idv = ncvid(ncid,"glai",iera(1))
+            call ccnf_inq_varid(ncid,'glai',idv,tst)
+            iera(1)=0
+            if (tst) iera(1)=-1
           end if
           call ccmpi_bcast(iera(1:1),0,comm_world)
           if (iera(1)==0) then

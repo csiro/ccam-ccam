@@ -25,24 +25,25 @@ contains
 subroutine o3_read(sigma,jyear,jmonth)
 
 use cc_mpi
-use infile, only : ncmsg
+use infile
 
 implicit none
 
 include 'newmpar.h'
 include 'filnames.h'
-include 'netcdf.inc'
       
 integer, intent(in) :: jyear,jmonth
 integer nlev,i,l,k,ierr
 integer ncstatus,ncid,tt
-integer valident,yy,mm,iti,nn
+integer valident,yy,mm,nn
+integer, dimension(1) :: iti
 integer, dimension(4) :: spos,npos
 integer, dimension(3) :: dum
 real, dimension(:,:,:,:), allocatable, save :: o3dum
 real, dimension(:), allocatable, save :: o3lon,o3lat
 real, dimension(kl) :: sigma,sigin
 character(len=32) cdate
+logical tst
 
 real, parameter :: sigtol=1.e-3
       
@@ -50,52 +51,52 @@ real, parameter :: sigtol=1.e-3
 ! Read montly ozone data for interpolation
 if (myid==0) then
   write(6,*) "Reading ",trim(o3file)
-  ncstatus=nf_open(o3file,nf_nowrite,ncid)
+  call ccnf_open(o3file,ncid,ncstatus)
   if (ncstatus==0) then
     write(6,*) "Ozone in NetCDF format (CMIP5)"
-    ncstatus=nf_inq_dimid(ncid,'lon',valident)
-    call ncmsg('lon',ncstatus)
-    ncstatus=nf_inq_dimlen(ncid,valident,ii)
-    call ncmsg('lon',ncstatus)
+    call ccnf_inq_dimlen(ncid,'lon',ii)
     allocate(o3lon(ii))
-    ncstatus=nf_inq_varid(ncid,'lon',valident)
-    call ncmsg('lon',ncstatus)
-    ncstatus=nf_get_vara_real(ncid,valident,1,ii,o3lon)
-    call ncmsg('lon',ncstatus)
-    ncstatus=nf_inq_dimid(ncid,'lat',valident)
-    call ncmsg('lat',ncstatus)
-    ncstatus=nf_inq_dimlen(ncid,valident,jj)
-    call ncmsg('lat',ncstatus)
+    call ccnf_inq_varid(ncid,'lon',valident,tst)
+    if (tst) then
+      write(6,*) "lon variable not found"
+      call ccmpi_abort(-1)
+    end if
+    spos(1)=1
+    npos(1)=ii
+    call ccnf_get_vara_real(ncid,valident,spos(1:1),npos(1:1),o3lon)
+    call ccnf_inq_dimlen(ncid,'lat',jj)
     allocate(o3lat(jj))
-    ncstatus=nf_inq_varid(ncid,'lat',valident)
-    call ncmsg('lat',ncstatus)
-    ncstatus=nf_get_vara_real(ncid,valident,1,jj,o3lat)
-    call ncmsg('lat',ncstatus)
-    ncstatus=nf_inq_dimid(ncid,'plev',valident)
-    call ncmsg('plev',ncstatus)
-    ncstatus=nf_inq_dimlen(ncid,valident,kk)
-    call ncmsg('plev',ncstatus)
+    call ccnf_inq_varid(ncid,'lat',valident,tst)
+    if (tst) then
+      write(6,*) "lat variable not found"
+      call ccmpi_abort(-1)
+    end if
+    npos(1)=jj
+    call ccnf_get_vara_real(ncid,valident,spos(1:1),npos(1:1),o3lat)
+    call ccnf_inq_dimlen(ncid,'plev',kk)
     allocate(o3pres(kk))
-    ncstatus=nf_inq_varid(ncid,'plev',valident)
-    call ncmsg('plev',ncstatus)
-    ncstatus=nf_get_vara_real(ncid,valident,1,kk,o3pres)
-    call ncmsg('plev',ncstatus)
-    ncstatus=nf_inq_dimid(ncid,'time',valident)
-    call ncmsg('time',ncstatus)
-    ncstatus=nf_inq_dimlen(ncid,valident,tt)
-    call ncmsg('time',ncstatus)
-    ncstatus=nf_inq_varid(ncid,'time',valident)
-    call ncmsg('time',ncstatus)
-    ncstatus=nf_get_att_text(ncid,valident,'units',cdate)
-    call ncmsg('time',ncstatus)
-    ncstatus=nf_get_vara_int(ncid,valident,1,1,iti)
-    call ncmsg('time',ncstatus)
+    call ccnf_inq_varid(ncid,'plev',valident,tst)
+    if (tst) then
+      write(6,*) "plev variable not found"
+      call ccmpi_abort(-1)
+    end if
+    npos(1)=kk
+    call ccnf_get_vara_real(ncid,valident,spos(1:1),npos(1:1),o3pres)
+    call ccnf_inq_dimlen(ncid,'time',tt)
+    call ccnf_inq_varid(ncid,'time',valident,tst)
+    if (tst) then
+      write(6,*) "time variable not found"
+      call ccmpi_abort(-1)
+    end if
+    call ccnf_get_att_text(ncid,valident,'units',cdate)
+    npos(1)=1
+    call ccnf_get_vara_int(ncid,valident,spos(1:1),npos(1:1),iti)
     write(6,*) "Found ozone dimensions ",ii,jj,kk,tt
     allocate(o3dum(ii,jj,kk,3))
     read(cdate(14:17),*) yy
     read(cdate(19:20),*) mm
-    yy=yy+iti/12
-    mm=mm+mod(iti,12)
+    yy=yy+iti(1)/12
+    mm=mm+mod(iti(1),12)
     write(6,*) "Requested date ",jyear,jmonth
     write(6,*) "Initial ozone date ",yy,mm
     nn=(jyear-yy)*12+(jmonth-mm)+1
@@ -110,19 +111,18 @@ if (myid==0) then
     npos(3)=kk
     npos(4)=1
     write(6,*) "Reading O3"
-    ncstatus=nf_inq_varid(ncid,'O3',valident)
-    call ncmsg('O3',ncstatus)
+    call ccnf_inq_varid(ncid,'O3',valident,tst)
+    if (tst) then
+      write(6,*) "O3 variable not found"
+      call ccmpi_abort(-1)
+    end if
     spos(4)=max(nn-1,1)
-    ncstatus=nf_get_vara_real(ncid,valident,spos,npos,o3dum(:,:,:,1))
-    call ncmsg('prev',ncstatus)
+    call ccnf_get_vara_real(ncid,valident,spos,npos,o3dum(:,:,:,1))
     spos(4)=nn
-    ncstatus=nf_get_vara_real(ncid,valident,spos,npos,o3dum(:,:,:,2))
-    call ncmsg('curr',ncstatus)
+    call ccnf_get_vara_real(ncid,valident,spos,npos,o3dum(:,:,:,2))
     spos(4)=min(nn+1,tt)
-    ncstatus=nf_get_vara_real(ncid,valident,spos,npos,o3dum(:,:,:,3))
-    call ncmsg('next',ncstatus)
-    ncstatus=nf_close(ncid)
-    call ncmsg('ozone file',ncstatus)
+    call ccnf_get_vara_real(ncid,valident,spos,npos,o3dum(:,:,:,3))
+    call ccnf_close(ncid)
     ! Here we fix missing values by filling down
     ! If we try to neglect these values in the
     ! vertical column integration, then block

@@ -69,14 +69,15 @@ c     All processors read this list and select the points in their own
 c     region.
 c
       use cc_mpi, only : myid, indv_mpi, fproc, ipan
+      use infile
 !     rml 19/09/07 add tracname so that can be written to ts output file
       use tracermodule, only : sitefile,tracname
       use vecsuv_m
       use xyzinfo_m
       implicit none
       integer kount,kountprof,n,kount500
-      integer ierr,ntrac
-      integer griddim,ijkdim,timedim,tracdim,gridid,dims(3)
+      integer ntrac
+      integer griddim,ijkdim,timedim(1),tracdim,gridid,dims(3)
 !     rml 19/09/07 addition of tracer name array in output file
       integer lendim, tracnamid
       integer surfdim,gridsurfid
@@ -88,7 +89,6 @@ c
       character*8 chtemp
       character*80 head
       integer :: ig, jg, tmpval ! Better name for this
-      include 'netcdf.inc'
       include 'dates.h'
       include 'newmpar.h'  ! kl
       integer ip, nface, ii, jj, iqg, istn, jstn
@@ -230,166 +230,83 @@ c     open netcdf file for writing output
       if ( nproc == 1 ) then
         outfile = 'ts.'//chtemp(1:4)//'.'//chtemp(5:6)//'.nc'
       else
-!       Include a 2 digid processor number in the file
-        write(outfile,'(a,a,a,a,a, i2.2,a)') 'ts.', chtemp(1:4), '.',
+!       Include a 6 digid processor number in the file
+        write(outfile,'(a,a,a,a,a, i6.6,a)') 'ts.', chtemp(1:4), '.',
      &     chtemp(5:6), '.p', myid, '.nc'
       end if
 !
 !     when multiprocessor, possible to have no grid points in an output file
 !     in that case, don't write the file
-      if (ngrdpts.gt.0) then
-        ierr = nf_create(outfile,0,tsid(1))
-        if (ierr.ne.nf_noerr) then
-	 write(6,*) nf_strerror(ierr)
-	 stop 'create ts file failed'
-	end if
+      if (ngrdpts>0) then
+        call ccnf_create(outfile,tsid(1))
+        call ccnf_nofill(tsid(1))
 c       define dimensions
-        ierr=nf_def_dim(tsid(1),'gridpts',ngrdpts,griddim)
-        if (ierr.ne.nf_noerr) then
-         write(6,*) nf_strerror(ierr)
-	 stop 'timeseries: grid dimension error'
-	end if
-        ierr=nf_def_dim(tsid(1),'surfpts',ngrdpts1,surfdim)
-        if (ierr.ne.nf_noerr) then
-	 write(6,*) nf_strerror(ierr)
-	 stop 'timeseries: grid dimension error'
-	end if
-        ierr=nf_def_dim(tsid(1),'ijk',3,ijkdim)
-        ierr=nf_def_dim(tsid(1),'tracers',ntrac,tracdim)
-        if (ierr.ne.nf_noerr) then
-	 write(6,*) nf_strerror(ierr)
-	 stop 'timeseries: tracer dimension error'
-	end if
-        ierr=nf_def_dim(tsid(1),'time',nf_unlimited,timedim)
-        if (ierr.ne.nf_noerr) then
-         write(6,*) nf_strerror(ierr)
-	 stop 'timeseries: time dimension error'
-	end if
+        call ccnf_def_dim(tsid(1),'gridpts',ngrdpts,griddim)
+        call ccnf_def_dim(tsid(1),'surfpts',ngrdpts1,surfdim)
+        call ccnf_def_dim(tsid(1),'ijk',3,ijkdim)
+        call ccnf_def_dim(tsid(1),'tracers',ntrac,tracdim)
+        call ccnf_def_dimu(tsid(1),'time',timedim(1))
 !     rml 19/09/07 add length dimension for tracname character array
-        ierr = nf_def_dim(tsid(1),'len',13,lendim)
-        if (ierr.ne.nf_noerr) then
-         write(6,*) nf_strerror(ierr)
-	 stop 'timeseries: length dimension error'
-        end if
+        call ccnf_def_dim(tsid(1),'len',13,lendim)
 c       define variables
 !       rml 19/09/07 add tracer name variable
         dims(1)=lendim; dims(2)=tracdim
-        ierr = nf_def_var(tsid(1),'tracer_name',nf_char,2,dims,
-     &tracnamid)
-        if (ierr.ne.nf_noerr) then
-         write(6,*) nf_strerror(ierr)
-	 stop 'timeseries: tracer name var error'
-	end if
+        call ccnf_def_var(tsid(1),'tracer_name','char',2,dims,
+     &                    tracnamid)
         dims(1)=griddim; dims(2)=ijkdim
-        ierr = nf_def_var(tsid(1),'grid',nf_int,2,dims,gridid)
-        if (ierr.ne.nf_noerr) then
-	 write(6,*) nf_strerror(ierr)
-	 stop 'timeseries: grid var error'
-	end if
+        call ccnf_def_var(tsid(1),'grid','int',2,dims,gridid)
         dims(1)=surfdim; dims(2)=ijkdim
-        ierr = nf_def_var(tsid(1),'gridsurf',nf_int,2,dims,gridsurfid)
-        if (ierr.ne.nf_noerr) then
-	 write(6,*) nf_strerror(ierr)
-	 stop 'timeseries: grid var error'
-        end if
+        call ccnf_def_var(tsid(1),'gridsurf','int',2,dims,gridsurfid)
 
         if ( nproc > 1 ) then
           dims(1)=griddim
-          ierr = nf_def_var(tsid(1),'gridorder',nf_int,1,dims,
+          call ccnf_def_var(tsid(1),'gridorder','int',1,dims,
      &                    gridorderid)
-          if (ierr.ne.nf_noerr) then
-           write(6,*) nf_strerror(ierr)
-	   stop 'timeseries: grid var error'
-	  end if 
           dims(1)=surfdim
-          ierr = nf_def_var(tsid(1),'surforder',nf_int,1,dims,
-     & surforderid)
-          if (ierr.ne.nf_noerr) then
-           write(6,*) nf_strerror(ierr)	  
-	   stop 'timeseries: grid var error'
-	  end if
+          call ccnf_def_var(tsid(1),'surforder','int',1,dims,
+     &                    surforderid)
         end if
 
-        ierr = nf_def_var(tsid(1),'time',nf_double,1,timedim,tsid(2))
-        if (ierr.ne.nf_noerr) then
-         write(6,*) nf_strerror(ierr)
-	 stop 'timeseries: tstime var error'
-	end if
-        dims(1)=griddim; dims(2)=tracdim; dims(3)=timedim
-        ierr = nf_def_var(tsid(1),'concts',nf_float,3,dims,tsid(3))
-        if (ierr.ne.nf_noerr) then
-	 write(6,*) nf_strerror(ierr)
-	 stop 'timeseries: concts var error'
-	end if
+        call ccnf_def_var(tsid(1),'time','double',1,timedim,tsid(2))
+        dims(1)=griddim; dims(2)=tracdim; dims(3)=timedim(1)
+        call ccnf_def_var(tsid(1),'concts','float',3,dims,tsid(3))
         do n=1,n3d
-          dims(1)=griddim; dims(2)=timedim
-          ierr = nf_def_var(tsid(1),varname3(n),nf_float,2,dims(1:2),
+          dims(1)=griddim; dims(2)=timedim(1)
+          call ccnf_def_var(tsid(1),varname3(n),'float',2,dims(1:2),
      & tsid(3+n))
-          if (ierr.ne.nf_noerr) then
-           write(6,*) nf_strerror(ierr)	  
-	   stop 'timeseries: 3d var error'
-	  end if
         enddo
         do n=1,n2d
-          if (trim(varname2(n)).eq.'flux') then
-            dims(1)=surfdim; dims(2)=tracdim; dims(3)=timedim
-            ierr = nf_def_var(tsid(1),varname2(n),nf_float,3,dims,
+          if (trim(varname2(n))=='flux') then
+            dims(1)=surfdim; dims(2)=tracdim; dims(3)=timedim(1)
+            call ccnf_def_var(tsid(1),varname2(n),'float',3,dims,
      & tsid(3+n3d+n))
-            if (ierr.ne.nf_noerr) then
-             write(6,*) nf_strerror(ierr)	    
-	     stop 'timeseries: 2d var error'
-	    end if
           else
-            dims(1)=surfdim; dims(2)=timedim
-            ierr = nf_def_var(tsid(1),varname2(n),nf_float,2,dims(1:2),
+            dims(1)=surfdim; dims(2)=timedim(1)
+            call ccnf_def_var(tsid(1),varname2(n),'float',2,dims(1:2),
      &   tsid(3+n3d+n))
-            if (ierr.ne.nf_noerr) then
-             write(6,*) nf_strerror(ierr)	    
-	     stop 'timeseries: 2d var error'
-	    end if
           endif
         enddo
 c
 c     leave define mode
-        ierr = nf_enddef(tsid(1))
-        if (ierr.ne.nf_noerr) then
-	 write(6,*) nf_strerror(ierr)	
-	 stop 'timeseries: end define error'
-	end if
+        call ccnf_enddef(tsid(1))
 c
 !     rml 19/09/07 write tracer name array
-        ierr = nf_put_var_text(tsid(1),tracnamid,tracname)
-        if (ierr.ne.nf_noerr) then
-	 write(6,*) nf_strerror(ierr)	
-	 stop 'timeseries: error writing tracname'
-	end if
+        call ccnf_put_var_text(tsid(1),tracnamid,tracname)
 
 c     write grid point arrays
-        ierr = nf_put_var_int(tsid(1),gridid,listijk)
-        if (ierr.ne.nf_noerr) then
-	 write(6,*) nf_strerror(ierr)	
-	 stop 'error writing grid'
-	end if
+        call ccnf_put_var_int(tsid(1),gridid,listijk)
       ! Need explicit section of templist here, because array may have
       ! been allocated larger
-        ierr = nf_put_var_int(tsid(1),gridsurfid,templist(:ngrdpts1,:))
-        if (ierr.ne.nf_noerr) then
-	 write(6,*) nf_strerror(ierr)	
-	 stop 'error writing gridsurf'
-	end if
+        call ccnf_put_var_int(tsid(1),gridsurfid,
+     &         templist(:ngrdpts1,:))
         if ( nproc > 1 ) then
-         ierr = nf_put_var_int(tsid(1),gridorderid,gridorder(1:ngrdpts))
-          if (ierr.ne.nf_noerr) then
-           write(6,*) nf_strerror(ierr)	  
-	   stop 'error writing gridorder'
-	  end if
-        ierr = nf_put_var_int(tsid(1),surforderid,surforder(1:ngrdpts1))
-          if (ierr.ne.nf_noerr) then
-           write(6,*) nf_strerror(ierr)	  
-	   stop 'error writing surforder'
-	  end if
+         call ccnf_put_var_int(tsid(1),gridorderid,
+     &          gridorder(1:ngrdpts))
+         call ccnf_put_var_int(tsid(1),surforderid,
+     &          surforder(1:ngrdpts1))
         end if
-        ierr = nf_sync(tsid(1))
+        ! MJT - removed to improve model performance
+        !call ccnf_sync(tsid(1))
         deallocate(templist)
       endif
 c
@@ -409,6 +326,7 @@ c
       use carbpools_m ! cbm co2 fluxes
       use define_dimensions, only : ncs, ncp ! Used in carbpool.h
       use extraout_m  ! cloud arrays
+      use infile
       use morepbl_m   ! rnet,eg,fg
       use pbl_m       ! tss
       use prec_m      ! precip
@@ -425,8 +343,6 @@ c
       integer ierr,start(3),count(3),n,iq,kount,m,jyear,mins
       integer ktau,ntau,k
       logical surfflux
-      include 'netcdf.inc'
-!!!      include 'cbmdim.h'
       include 'newmpar.h'    ! dimensions for tr array
       include 'const_phys.h' ! grav (for height calc)
 
@@ -435,8 +351,7 @@ c
       if (ngrdpts.eq.0) return
       if (mod(ktau,ntsfreq).eq.0) then
         tstime = dble(jyear) + dble(mins)/dble(365.*24.*60.)
-        ierr = nf_put_var1_double(tsid(1),tsid(2),indextime,tstime)
-        if (ierr.ne.nf_noerr) stop ': error writing tstime'
+        call ccnf_put_var1_double(tsid(1),tsid(2),indextime,tstime)
         allocate(cts(ngrdpts,ntrac))
         do n=1,ngrdpts
           iq = listijk(n,1) + (listijk(n,2)-1)*il
@@ -445,11 +360,7 @@ c
         enddo
         start(1)=1; start(2)=1; start(3)=indextime
         count(1)=ngrdpts; count(2)=ntrac; count(3)=1
-        ierr=nf_put_vara_real(tsid(1),tsid(3),start,count,cts)
-        if (ierr.ne.nf_noerr) then
-          write(6,*) nf_strerror(ierr)
-          stop 'error writing cts - tr array'
-        endif
+        call ccnf_put_vara_real(tsid(1),tsid(3),start,count,cts)
         deallocate(cts)
 c
         do m=1,n3d
@@ -493,9 +404,8 @@ c
           enddo
           start(1)=1; start(2)=indextime
           count(1)=ngrdpts; count(2)=1
-          ierr=nf_put_vara_real(tsid(1),tsid(3+m),start(1:2),count(1:2),
-     &                          vts)
-          if (ierr.ne.nf_noerr) stop 'error writing vts'
+          call ccnf_put_vara_real(tsid(1),tsid(3+m),start(1:2),
+     &                          count(1:2),vts)
           deallocate(vts)
         enddo
 c
@@ -537,11 +447,8 @@ c
             enddo 
             start(1)=1; start(2)=1; start(3)=indextime
             count(1)=ngrdpts1; count(2)=ntrac; count(3)=1
-            ierr=nf_put_vara_real(tsid(1),tsid(3+n3d+m),start,count,cts)
-            if (ierr.ne.nf_noerr) then
-              write(6,*) nf_strerror(ierr)
-              stop 'error writing cts - fluxes'
-            endif
+            call ccnf_put_vara_real(tsid(1),tsid(3+n3d+m),start,count,
+     &                              cts)
             deallocate(cts)
             surfflux=.true.
           case default
@@ -562,18 +469,18 @@ c
             enddo
             start(1)=1; start(2)=indextime
             count(1)=ngrdpts1; count(2)=1
-            ierr=nf_put_vara_real(tsid(1),tsid(3+n3d+m),start(1:2),
+            call ccnf_put_vara_real(tsid(1),tsid(3+n3d+m),start(1:2),
      &                            count(1:2),vts)
-            if (ierr.ne.nf_noerr) stop 'error writing vts'
             deallocate(vts)
           endif
         enddo
 
 c
-        ierr=nf_sync(tsid(1))
+        ! MJT - removed to improve performance
+        !call ccnf_sync(tsid(1))
         indextime=indextime+1
       endif
-      if (ktau.eq.ntau) ierr=nf_close(tsid(1))
+      if (ktau.eq.ntau) call ccnf_close(tsid(1))
 c
 
       return
@@ -584,48 +491,50 @@ c
 c     rml 25/11/03 subroutine to read file containing times and locations
 c     of ship (or other mobile obs).  Also opens netcdf file for output.
 c
+      use cc_mpi
+      use infile
       use tracermodule, only : shipfile
       implicit none
-      integer ok,nptsdim,dateid,timeid,ntrac,i,i2
+      integer nptsdim,dateid,timeid,ntrac,i,i2,ierr
       integer dtlsdim,nvaldim,outshipid(3),dims(2),tracdim
       real dt
       character*15 outfile2
       character*8 chtemp
       include 'newmpar.h'
-      include 'netcdf.inc'
       include 'dates.h'
+      logical tst
 c
       if ( nproc > 1 ) then
          print*, "Error, parallel version of shiplist not yet working"
          stop
       end if
 c     open file with ship locations
-      ok = nf_open(shipfile,0,inshipid(1))
-      if (ok.ne.nf_noerr) stop 'readshiplist: open file failure'
-      ok = nf_inq_dimid(inshipid(1),'npts',nptsdim)
-      if (ok.ne.nf_noerr) stop 'readshiplist: read nptsdim failure'
-      ok = nf_inq_dimlen(inshipid(1),nptsdim,nshippts)
-      if (ok.ne.nf_noerr) stop 'readshiplist: read dimlen failure'
+      call ccnf_open(shipfile,inshipid(1),ierr)
+      call ncmsg("readshiplist",ierr)
+      call ccnf_inq_dimlen(inshipid(1),'npts',nshippts)
 c     read times for ship samples
       allocate(shipdate(nshippts),shiptime(nshippts))
-      ok = nf_inq_varid(inshipid(1),'date',dateid)
-      if (ok.ne.nf_noerr) stop 'readshiplist: read dateid failure'
-      ok = nf_get_var_int(inshipid(1),dateid,shipdate)
-      if (ok.ne.nf_noerr) stop 'readshiplist: read shipdate failure'
-      ok = nf_inq_varid(inshipid(1),'time',timeid)
-      if (ok.ne.nf_noerr) stop 'readshiplist: read timeid failure'
-      ok = nf_get_var_int(inshipid(1),timeid,shiptime)
-      if (ok.ne.nf_noerr) stop 'readshiplist: read shiptime failure'
-      ok = nf_inq_varid(inshipid(1),'loc',inshipid(2))
-      if (ok.ne.nf_noerr) stop 'readshiplist: read locid failure'
-      ok = nf_inq_varid(inshipid(1),'lev',inshipid(4))
-      if (ok.ne.nf_noerr) stop 'readshiplist: read locid failure'
-      ok = nf_inq_varid(inshipid(1),'ship',inshipid(3))
-      if (ok.ne.nf_noerr) stop 'readshiplist: read shipid failure'
+      call ccnf_get_var_int(inshipid(1),'date',shipdate)
+      call ccnf_get_var_int(inshipid(1),'time',shiptime)
+      call ccnf_inq_varid(inshipid(1),'loc',inshipid(2),tst)
+      if (tst) then
+        write(6,*) "ERROR: Cannot locate loc"
+        call ccmpi_abort(-1)
+      end if
+      call ccnf_inq_varid(inshipid(1),'lev',inshipid(4),tst)
+      if (tst) then
+        write(6,*) "ERROR: Cannot locate lev"
+        call ccmpi_abort(-1)
+      end if
+      call ccnf_inq_varid(inshipid(1),'ship',inshipid(3),tst)
+      if (tst) then
+        write(6,*) "ERROR: Cannot locate ship"
+        call ccmpi_abort(-1)
+      end if
 c
 c     locate sample time just smaller than current time
       do i=1,nshippts
-        if (shipdate(i).lt.kdate) then
+        if (shipdate(i)<kdate) then
           indship=i
         endif
       enddo
@@ -640,25 +549,19 @@ c
 c     open netcdf file for output  
       write(chtemp,'(i8)') kdate
       outfile2 = 'ship.'//chtemp(1:4)//'.'//chtemp(5:6)//'.nc'
-      ok = nf_create(outfile2,0,outshipid(1))
-      if (ok.ne.nf_noerr) stop 'readshiplist: create error'
-      ok=nf_def_dim(outshipid(1),'nshiptrac',ntrac,tracdim)
-      if (ok.ne.nf_noerr) stop 'readshiplist: tracer dimension error'
+      call ccnf_create(outfile2,outshipid(1))
+      call ccnf_nofill(outshipid(1))
+      call ccnf_def_dim(outshipid(1),'nshiptrac',ntrac,tracdim)
 c    rml 18/12/03 increased dimension to include level for aircraft output
-      ok = nf_def_dim(outshipid(1),'date_time_loc_ship',5,dtlsdim)
-      if (ok.ne.nf_noerr) stop 'readshiplist: dtls dimension error'
-      ok = nf_def_dim(outshipid(1),'nval',nf_unlimited,nvaldim)
-      if (ok.ne.nf_noerr) stop 'readshiplist: npt dimension error'
+      call ccnf_def_dim(outshipid(1),'date_time_loc_ship',5,dtlsdim)
+      call ccnf_def_dimu(outshipid(1),'nval',nvaldim)
       dims(1)=dtlsdim; dims(2)=nvaldim
-      ok = nf_def_var(outshipid(1),'shipinfo',nf_int,2,dims,
+      call ccnf_def_var(outshipid(1),'shipinfo','int',2,dims,
      &                outshipid(2))
-      if (ok.ne.nf_noerr) stop 'readshiplist: shipinfo variable error'
       dims(1)=tracdim; dims(2)=nvaldim
-      ok = nf_def_var(outshipid(1),'tsship',nf_float,2,dims,
+      call ccnf_def_var(outshipid(1),'tsship','float',2,dims,
      &                outshipid(3))
-      if (ok.ne.nf_noerr) stop 'readshiplist: shiptracer variable error'
-      ok = nf_enddef(outshipid(1))
-      if (ok.ne.nf_noerr) stop 'readshiplist: end define error'
+      call ccnf_enddef(outshipid(1))
 
       nshipout=0
       return
@@ -668,6 +571,7 @@ c ********************************************************************
 c
 c     rml 25/11/03 subroutine to write mobile timeseries e.g. ship
 c
+      use infile
       use tracers_m
       implicit none
       integer ktau,ntau,ok,iloc,ilev,iship,ierr
@@ -679,7 +583,6 @@ c
       data monlen/31,28,31,30,31,30,31,31,30,31,30,31/
       
       include 'newmpar.h'    ! dimensions for tr array
-      include 'netcdf.inc'
       include 'dates.h'
 c
 c     if reached end of data leave subroutine
@@ -723,36 +626,33 @@ c         keep real sample time rather than model time for easier
 c         match to data
           info(1) = shipdate(indship+1)
           info(2) = shiptime(indship+1)
-          ok = nf_get_var1_int(inshipid(1),inshipid(2),indship+1,iloc)
-          if (ok.ne.nf_noerr) stop 'writeshipts: read loc error'
+          call ccnf_get_var1_int(inshipid(1),inshipid(2),indship+1,iloc)
           info(3) = iloc
 c    rml 18/12/03 addition of level info to do aircraft output
-          ok = nf_get_var1_int(inshipid(1),inshipid(4),indship+1,ilev)
-          if (ok.ne.nf_noerr) stop 'writeshipts: read lev error'
+          call ccnf_get_var1_int(inshipid(1),inshipid(4),indship+1,ilev)
           info(4) = ilev
-          ok = nf_get_var1_int(inshipid(1),inshipid(3),indship+1,iship)
-          if (ok.ne.nf_noerr) stop 'writeshipts: read ship error'
+          call ccnf_get_var1_int(inshipid(1),inshipid(3),indship+1,
+     &                           iship)
           info(5) = iship
           start(1)=1; start(2)=nshipout
           kount(1)=5; kount(2)=1
-          ok = nf_put_vara_int(outshipid(1),outshipid(2),start,kount,
+          call ccnf_put_vara_int(outshipid(1),outshipid(2),start,kount,
      &                         info)
-          if (ok.ne.nf_noerr) stop 'writeshipts: write info error'
           start(1)=1; start(2)=nshipout
           kount(1)=ntrac; kount(2)=1
-          ok = nf_put_vara_real(outshipid(1),outshipid(3),start,kount,
+          call ccnf_put_vara_real(outshipid(1),outshipid(3),start,kount,
      &                         tr(iloc,ilev,:))
-          if (ok.ne.nf_noerr) stop 'writeshipts: write shipts error'
 
           indship=indship+1
         else
           moredat=.false.
         endif
       enddo
-      ierr=nf_sync(outshipid(1))
+      ! MJT removed to improve performance
+      !call ccnf_sync(outshipid(1))
       if (ktau.eq.ntau) then
-        ok=nf_close(inshipid(1))
-        ierr=nf_close(outshipid(1))
+        call ccnf_close(inshipid(1))
+        call ccnf_close(outshipid(1))
       endif
  
       return

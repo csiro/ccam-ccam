@@ -147,16 +147,10 @@ c
 c ***********************************************************************
       subroutine tracini
 c     initial value now read from tracerlist 
-      use cc_mpi
+      use infile
       use tracers_m
       implicit none
-      include 'newmpar.h'
-      include 'netcdf.inc'
-      include 'filnames.h'
-      integer i,ierr
-! rml 19/04/10 variables for methane initial condition 
-      integer ok,ncid,ch4id,mcfid
-      real in_g(ifull_g,kl)
+      integer i
       real in(ilt*jlt,klt)
 
       do i=1,ngas
@@ -164,35 +158,13 @@ c rml 15/11/06 facility to introduce new tracers to simulation
 c i.e. some read from restart, others initialised here
         if (tracival(i).ne.-999) then
 ! rml 16/2/10 addition for TC methane to get 3d initial condition
-            if (tracname(i)(1:7).eq.'methane') then
+            if (tracname(i)(1:7)=='methane') then
 !             read  initial condition
-              if (myid == 0) then
-                ok = nf_open('ch4in_cc48.nc',0,ncid)
-                if (ok.ne.0) write(6,*) nf_strerror(ok)
-                ok = nf_inq_varid(ncid,'ch4in',ch4id)
-                if (ok.ne.0) write(6,*) nf_strerror(ok)
-                ok = nf_get_var_real(ncid,ch4id,in_g)
-                if (ok.ne.0) write(6,*) nf_strerror(ok)
-                ok = nf_close(ncid)
-                call ccmpi_distribute(in,in_g)
-              else
-                call ccmpi_distribute(in)
-              endif
+              call ccnf_read('ch4in_cc48.nc','ch4in',in)
               tr(1:ilt*jlt,1:klt,i)=in
-            elseif (tracname(i)(1:3).eq.'mcf') then
+            elseif (tracname(i)(1:3)=='mcf') then
 !             read  mcf initial condition
-              if (myid == 0) then
-                ok = nf_open('mcfin_cc48.nc',0,ncid)
-                if (ok.ne.0) write(6,*) nf_strerror(ok)
-                ok = nf_inq_varid(ncid,'mcfin',mcfid)
-                if (ok.ne.0) write(6,*) nf_strerror(ok)
-                ok = nf_get_var_real(ncid,mcfid,in_g)
-                if (ok.ne.0) write(6,*) nf_strerror(ok)
-                ok = nf_close(ncid)
-                call ccmpi_distribute(in,in_g)
-              else
-                call ccmpi_distribute(in)
-              endif
+              call ccnf_read('cmcfin_cc48.nc','mcfin',in)
               tr(1:ilt*jlt,1:klt,i)=in
             else
               tr(:,:,i)=tracival(i)
@@ -321,6 +293,7 @@ c *************************************************************************
       subroutine readrco2(igas,iyr,imon,nflux,fluxin,co2time)
 c     rml 23/09/03 largely rewritten to use netcdf files
       use cc_mpi
+      use infile
       use tracers_m
       implicit none
       include 'newmpar.h' !il,jl,kl
@@ -330,23 +303,22 @@ c     include 'trcom2.h'
 c     rml 25/08/04 added fluxunit variable
       character*13 fluxtype,fluxname,fluxunit
       integer nflux,iyr,imon,igas,ntime,lc,regnum,kount
-      integer nprev,nnext,ncur,n1,n2,ntot,n,timx,gridid
+      integer nprev,nnext,ncur,n1,n2,ntot,n,timx,gridid,ierr
       real timeinc
 c     nflux =3 for month interp case - last month, this month, next month
 c     nflux=31*24+2 for daily, hourly, 3 hourly case
       real fluxin(il*jl,nflux),co2time(nflux),hr
       real, dimension(2) :: dum
-      integer ncidfl,timedim,yearid,monthid,fluxid,hourid
-      integer nregdim,nregion,dayid,ierr
+      integer ncidfl,fluxid
+      integer nregion,dayid
       integer, dimension(:), allocatable :: fluxyr,fluxmon
       real, dimension(:), allocatable :: fluxhr
       integer start(3),count(3)
       real fluxin_g(ifull_g,nflux)
-      logical gridpts
-      include 'netcdf.inc'
+      logical gridpts,tst
 
 !  rml 30/04/10 special case for MCF deposition rates
-      if (igas.eq.ngas+1) then
+      if (igas==ngas+1) then
         fluxtype='monrep'
         fluxname='flux'
         filename = '/short/r39/TCinput/MCF_loss_CCAM48.nc'
@@ -356,8 +328,8 @@ c     nflux=31*24+2 for daily, hourly, 3 hourly case
         filename=tracfile(igas)
       endif
 c
-      if (trim(fluxtype).eq.'pulseoff'.or.
-     &    trim(fluxtype).eq.'daypulseoff') then
+      if (trim(fluxtype)=='pulseoff'.or.
+     &    trim(fluxtype)=='daypulseoff') then
 c       no surface fluxes to read
         fluxin = 0.
         tracunit(igas)=''
@@ -369,54 +341,34 @@ c       no surface fluxes to read
      &  trim(fluxtype),' for ',iyr,imon,' from ',filename
         write(unit_trout,*)'reading ',trim(fluxname), ' with type ', 
      &  trim(fluxtype),' for ',iyr,imon,' from ',filename
-        ierr = nf_open(filename,0,ncidfl)
-        if (ierr.ne.nf_noerr) then
-          write(6,*) ierr,igas,filename
-          write(6,*) nf_strerror(ierr)
-          write(unit_trout,*) ierr,igas,filename
-          write(unit_trout,*) nf_strerror(ierr)
-          stop 'flux file not found'
-        endif
+        call ccnf_open(filename,ncidfl,ierr)
+        call ncmsg("readrco2",ierr)
         ! check for 1D or 2D formatted input
-        ierr=nf_inq_dimid(ncidfl,'gridpts',gridid)
-        gridpts=ierr.eq.0 ! true when 1D formatted input is detected
-        ierr=nf_inq_dimid(ncidfl,'time',timedim)
-        if (ierr.ne.nf_noerr) stop 'time dimension error'
-        ierr=nf_inq_dimlen(ncidfl,timedim,ntime)
-        if (ierr.ne.nf_noerr) stop 'time dimension length error'
-        ierr=nf_inq_varid(ncidfl,'year',yearid)
-        if (ierr.ne.nf_noerr) stop 'year variable not found'
+        call ccnf_inq_dimid(ncidfl,'gridpts',gridid,gridpts)
+        call ccnf_inq_dimlen(ncidfl,'time',ntime)
         allocate(fluxyr(ntime),fluxmon(ntime))
-        ierr=nf_get_var_int(ncidfl,yearid,fluxyr)
-        if (ierr.ne.nf_noerr) stop 'year variable not read'
-        ierr=nf_inq_varid(ncidfl,'month',monthid)
-        if (ierr.ne.nf_noerr) stop 'month variable not found'
-        ierr=nf_get_var_int(ncidfl,monthid,fluxmon)
-        if (ierr.ne.nf_noerr) stop 'month variable not read'
+        call ccnf_get_var_int(ncidfl,'year',fluxyr)
+        call ccnf_get_var_int(ncidfl,'month',fluxmon)
 c       read hours variable for daily, hourly, 3 hourly data
-        if (nflux.eq.(31*24+2)) then
+        if (nflux==(31*24+2)) then
           allocate(fluxhr(ntime))
-          ierr=nf_inq_varid(ncidfl,'hour',hourid)
-          if (ierr.ne.nf_noerr) stop 'hour variable not found'
-          ierr=nf_get_var_real(ncidfl,hourid,fluxhr)
-          if (ierr.ne.nf_noerr) stop 'hour variable not read'
+          call ccnf_get_var_real(ncidfl,'hour',fluxhr)
         endif
 c       check fluxname first otherwise default to 'flux'
-        ierr=nf_inq_varid(ncidfl,fluxname,fluxid)
-        if (ierr.ne.nf_noerr) then
-          ierr=nf_inq_varid(ncidfl,'flux',fluxid)
-          if (ierr.ne.nf_noerr) stop 'flux variable not found'
+        call ccnf_inq_varid(ncidfl,fluxname,fluxid,tst)
+        if (tst) then
+          call ccnf_inq_varid(ncidfl,'flux',fluxid,tst)
+          if (tst) stop 'flux variable not found'
         endif
 c       rml 25/08/04 read flux units attribute
-        fluxunit=''
-        ierr = nf_get_att_text(ncidfl,fluxid,'units',fluxunit)
+        call ccnf_get_att_text(ncidfl,fluxid,'units',fluxunit)
 c rml 08/11/04 added radon units
 ! rml 30/4/10 exclude mcf deposition case
-        if (igas.le.ngas) then
+        if (igas<=ngas) then
           tracunit(igas)=fluxunit
-          if (fluxunit(1:7).ne.'gC/m2/s'.and.
-     &      fluxunit(1:7).ne.'Bq/m2/s'.and.
-     &      fluxunit(1:8).ne.'mol/m2/s') then
+          if (fluxunit(1:7)/='gC/m2/s'.and.
+     &      fluxunit(1:7)/='Bq/m2/s'.and.
+     &      fluxunit(1:8)/='mol/m2/s') then
             write(6,*) 'Units for ',trim(fluxname),
      &                        ' are ',trim(fluxunit)
             write(6,*) 'Code not set up for units other than gC/m
@@ -429,58 +381,54 @@ c rml 08/11/04 added radon units
             call ccmpi_abort(-1)
           endif
         endif
-        if (trim(fluxtype).eq.'daypulseon') then
+        if (trim(fluxtype)=='daypulseon') then
 c         need to read sunset/sunrise times
-          ierr=nf_inq_dimid(ncidfl,'nregion',nregdim)
-          if (ierr.ne.nf_noerr) stop 'nregion dimension error'
-          ierr=nf_inq_dimlen(ncidfl,nregdim,nregion)
-          if (ierr.ne.nf_noerr) stop 'nregion dimension length error'
-          ierr=nf_inq_varid(ncidfl,'daylight',dayid)
-          if (ierr.ne.nf_noerr) stop 'daylight variable not found'
+          call ccnf_inq_dimlen(ncidfl,'nregion',nregion)
+          call ccnf_inq_varid(ncidfl,'daylight',dayid,tst)
         endif
 c
 c       find required records
-        if (nflux.eq.3) then
+        if (nflux==3) then
 c         monthly/annual cases
           nprev=0
           nnext=0
           ncur=0
-          if (trim(fluxtype).eq.'constant'.or.
-     &        trim(fluxtype).eq.'pulseon'.or.
-     &        trim(fluxtype).eq.'daypulseon') then
+          if (trim(fluxtype)=='constant'.or.
+     &        trim(fluxtype)=='pulseon'.or.
+     &        trim(fluxtype)=='daypulseon') then
 c           check ntime
-            if (ntime.ne.1) stop 'flux file wrong ntime'
+            if (ntime/=1) stop 'flux file wrong ntime'
             ncur = 1
-          elseif (trim(fluxtype).eq.'annual') then
+          elseif (trim(fluxtype)=='annual') then
             do n=1,ntime
-              if (fluxyr(n).eq.iyr) ncur=n
+              if (fluxyr(n)==iyr) ncur=n
             enddo
-          elseif (trim(fluxtype).eq.'monrep') then
-            if (ntime.ne.12) stop 'flux file wrong ntime'
+          elseif (trim(fluxtype)=='monrep') then
+            if (ntime/=12) stop 'flux file wrong ntime'
             do n=1,ntime
-              if (fluxmon(n).eq.imon) then
+              if (fluxmon(n)==imon) then
                 ncur=n
                 nprev=n-1
-                if (nprev.eq.0) nprev=12
+                if (nprev==0) nprev=12
                 nnext=n+1
-                if (nnext.eq.13) nnext=1
+                if (nnext==13) nnext=1
               endif
             enddo
           else
 c           monthly case
             do n=1,ntime
-              if (fluxyr(n).eq.iyr.and.fluxmon(n).eq.imon) then
+              if (fluxyr(n)==iyr.and.fluxmon(n)==imon) then
                 ncur=n
                 nprev=n-1
 c               keep flux constant at ends of data
-                if (nprev.eq.0) nprev=n
+                if (nprev==0) nprev=n
                 nnext=n+1
-                if (nnext.eq.ntime+1) nnext=n
+                if (nnext==ntime+1) nnext=n
               endif
             enddo
           endif
 c
-          if (ncur.eq.0) stop 'current year/month not in flux file'
+          if (ncur==0) stop 'current year/month not in flux file'
           if ( myid == 0 ) then
            write(6,*)'reading ',ncur,fluxyr(ncur),fluxmon(ncur)
            write(unit_trout,*)'reading ',ncur,fluxyr(ncur),fluxmon(ncur)
@@ -497,23 +445,20 @@ c
             timx=3
           end if
 c         read preceeding month if needed
-          if (nprev.ne.0) then
+          if (nprev/=0) then
             start(timx)=nprev
-            ierr=nf_get_vara_real(ncidfl,fluxid,start,count,
+            call ccnf_get_vara_real(ncidfl,fluxid,start,count,
      &                            fluxin_g(:,1))
-            if (ierr.ne.nf_noerr) stop 'error reading fluxin prev'
           endif
 c         read current month/year
           start(timx)=ncur
-          ierr=nf_get_vara_real(ncidfl,fluxid,start,count,
+          call ccnf_get_vara_real(ncidfl,fluxid,start,count,
      &                          fluxin_g(:,2))
-          if (ierr.ne.nf_noerr) stop 'error reading fluxin cur'
 c         read next month
-          if (nnext.ne.0) then
+          if (nnext/=0) then
             start(timx)=nnext
-            ierr=nf_get_vara_real(ncidfl,fluxid,start,count,
+            call ccnf_get_vara_real(ncidfl,fluxid,start,count,
      &                            fluxin_g(:,3))
-            if (ierr.ne.nf_noerr) stop 'error reading fluxin next'
           endif
         else
 c         daily, hourly, 3 hourly case
@@ -521,16 +466,16 @@ c         find first time in month
 c         rml 06/01/06 extend case to cope with annually repeating or
 c         real year fluxes
           do n=1,ntime
-            if ( ( (fluxyr(n).eq.0).or.(fluxyr(n).eq.iyr) ) .and. 
-     &           (fluxmon(n).eq.imon) ) then
+            if ( ( (fluxyr(n)==0).or.(fluxyr(n)==iyr) ) .and. 
+     &           (fluxmon(n)==imon) ) then
               n1=n
               exit
             endif
           enddo
 c         find last time in month
           do n=ntime,1,-1
-            if ( ( (fluxyr(n).eq.0).or.(fluxyr(n).eq.iyr) ) .and. 
-     &           (fluxmon(n).eq.imon) ) then
+            if ( ( (fluxyr(n)==0).or.(fluxyr(n)==iyr) ) .and. 
+     &           (fluxmon(n)==imon) ) then
               n2=n
               exit
             endif
@@ -547,33 +492,31 @@ c         read fluxes
             start(3)=1; count(3)=ntot
             timx=3
           end if
-          ierr=nf_get_vara_real(ncidfl,fluxid,start,count,
+          call ccnf_get_vara_real(ncidfl,fluxid,start,count,
      &                                fluxin_g(:,2:ntot+1))
-          if (ierr.ne.nf_noerr) stop 'error reading fluxin '
 c         read in last time of prev month and first time of next month
-          if ((n1.eq.1).and.(fluxyr(n1).eq.0)) then
+          if ((n1==1).and.(fluxyr(n1)==0)) then
 c           loop
             nprev=ntime
-          elseif ((n1.eq.1).and.(fluxyr(n1).ne.0)) then
+          elseif ((n1==1).and.(fluxyr(n1)/=0)) then
 c           keep constant
             nprev=n1
           else
             nprev=n1-1
           endif
           start(timx)=nprev; count(timx)=1
-          ierr=nf_get_vara_real(ncidfl,fluxid,start,count,fluxin_g(:,1))
-          if (ierr.ne.nf_noerr) stop 'error reading fluxin '
-          if ((n2.eq.ntime).and.(fluxyr(n2).eq.0)) then
+          call ccnf_get_vara_real(ncidfl,fluxid,start,count,
+     &                            fluxin_g(:,1))
+          if ((n2==ntime).and.(fluxyr(n2)==0)) then
             nnext=1
-          elseif((n2.eq.ntime).and.(fluxyr(n2).ne.0)) then
+          elseif((n2==ntime).and.(fluxyr(n2)/=0)) then
             nnext=ntime
           else
             nnext=n2+1
           endif
           start(timx)=nnext; count(timx)=1
-          ierr=nf_get_vara_real(ncidfl,fluxid,start,count,
+          call ccnf_get_vara_real(ncidfl,fluxid,start,count,
      &                                      fluxin_g(:,ntot+2))
-          if (ierr.ne.nf_noerr) stop 'error reading fluxin '
 c
 c         need to make an array with the hour data in
           co2time(2:ntot+1)=fluxhr(n1:n2)
@@ -582,19 +525,18 @@ c         need to make an array with the hour data in
           co2time(ntot+2)=co2time(ntot+1)+timeinc
         endif
 c
-        if (trim(fluxtype).eq.'daypulseon') then
+        if (trim(fluxtype)=='daypulseon') then
 c         read sunrise/sunset times for this month, region from file
           lc=len_trim(fluxname)
           read(fluxname(lc-2:lc),'(i3)') regnum
-          if (regnum.gt.nregion) stop 'region number > nregion'
+          if (regnum>nregion) stop 'region number > nregion'
           start(1)=regnum; start(2)=imon; start(3)=1
           count(1)=1; count(2)=1; count(3)=2
-          ierr=nf_get_vara_real(ncidfl,dayid,start,count,
+          call ccnf_get_vara_real(ncidfl,dayid,start,count,
      &                          tracdaytime(igas,:))
-          if (ierr.ne.nf_noerr) stop 'error reading daylight '
         end if
 
-        ierr = nf_close(ncidfl)
+        call ccnf_close(ncidfl)
 
         ! Should be more careful here, probably don't need the full range of
         ! the second dimension all the time.
@@ -622,16 +564,16 @@ c       count number of timesteps that source emitting for
         kount=0
         do n=1,nperday
           hr = 24.*float(n)/float(nperday)
-          if (tracdaytime(igas,1).lt.tracdaytime(igas,2) .and.
-     &        tracdaytime(igas,1).le.hr .and.
-     &        tracdaytime(igas,2).ge.hr) kount=kount+1 
-          if (tracdaytime(igas,1).gt.tracdaytime(igas,2) .and.
-     &        (tracdaytime(igas,1).le.hr .or.
-     &        tracdaytime(igas,2).ge.hr)) kount=kount+1 
+          if (tracdaytime(igas,1)<tracdaytime(igas,2) .and.
+     &        tracdaytime(igas,1)<=hr .and.
+     &        tracdaytime(igas,2)>=hr) kount=kount+1 
+          if (tracdaytime(igas,1)>tracdaytime(igas,2) .and.
+     &        (tracdaytime(igas,1)<=hr .or.
+     &        tracdaytime(igas,2)>=hr)) kount=kount+1 
         enddo
 c       scale flux to allow for emission over fraction of day
 c       just set flux to zero if no daylight
-        if (kount.ne.0) then
+        if (kount/=0) then
           fluxin = fluxin*float(nperday)/float(kount)
         else
           fluxin = 0.
@@ -644,63 +586,49 @@ c *************************************************************************
       subroutine readoh(imon,nfield,ohfile,varname,ohin)
 ! rml 16/2/10 New subroutine to read oh and strat loss for Transcom methane
       use cc_mpi
+      use infile
       implicit none
       include 'newmpar.h' !il,jl,kl
       include 'parm.h' !nperday
       character*50 ohfile
       character*13 varname
-      integer nfield,imon,ntime
+      integer nfield,imon,ntime,ierr
       integer nprev,nnext,ncur,n,timx,gridid
 c     nflux =3 for month interp case - last month, this month, next month
       real ohin(il*jl,kl,nfield)
-      integer ncidfl,timedim,monthid,fluxid,ierr
+      integer ncidfl,fluxid
       integer, dimension(:), allocatable :: ohmon
       integer start(4),count(4)
       real ohin_g(ifull_g,kl,nfield)
-      logical gridpts
-      include 'netcdf.inc'
+      logical gridpts,tst
 
       if ( myid == 0 ) then ! Read on this processor and then distribute
         write(6,*)'reading for ',imon,' from ',ohfile
         write(unit_trout,*)'reading for ',imon,' from ',ohfile
-        ierr = nf_open(trim(ohfile),0,ncidfl)
-        if (ierr.ne.nf_noerr) then
-          write(6,*) ierr,ohfile
-          write(6,*) nf_strerror(ierr)
-          write(unit_trout,*) ierr,ohfile
-          write(unit_trout,*) nf_strerror(ierr)
-          stop 'methane oh/loss file not found'
-        endif
+        call ccnf_open(ohfile,ncidfl,ierr)
+        call ncmsg("readoh",ierr)
         ! check for 1D or 2D formatted input
-        ierr=nf_inq_dimid(ncidfl,'gridpts',gridid)
-        gridpts=ierr.eq.0 ! true when 1D formatted input is detected
-        ierr=nf_inq_dimid(ncidfl,'time',timedim)
-        if (ierr.ne.nf_noerr) stop 'time dimension error'
-        ierr=nf_inq_dimlen(ncidfl,timedim,ntime)
-        if (ierr.ne.nf_noerr) stop 'time dimension length error'
+        call ccnf_inq_dimid(ncidfl,'gridpts',gridid,gridpts)
+        call ccnf_inq_dimlen(ncidfl,'time',ntime)
         allocate(ohmon(ntime))
-        ierr=nf_inq_varid(ncidfl,'month',monthid)
-        if (ierr.ne.nf_noerr) stop 'month variable not found'
-        ierr=nf_get_var_int(ncidfl,monthid,ohmon)
-        if (ierr.ne.nf_noerr) stop 'month variable not read'
+        call ccnf_get_var_int(ncidfl,'month',ohmon)
 c       check fluxname 
-        ierr=nf_inq_varid(ncidfl,trim(varname),fluxid)
-        if (ierr.ne.nf_noerr) stop 'oh/loss variable not found'
+        call ccnf_inq_varid(ncidfl,varname,fluxid,tst)
 c
 c       find required records
-        if (nfield.eq.3) then
+        if (nfield==3) then
 c         monthly case
           nprev=0
           nnext=0
           ncur=0
-          if (ntime.ne.12) stop 'oh/loss file wrong ntime'
+          if (ntime/=12) stop 'oh/loss file wrong ntime'
           do n=1,ntime
-            if (ohmon(n).eq.imon) then
+            if (ohmon(n)==imon) then
               ncur=n
               nprev=n-1
-              if (nprev.eq.0) nprev=12
+              if (nprev==0) nprev=12
               nnext=n+1
-              if (nnext.eq.13) nnext=1
+              if (nnext==13) nnext=1
             endif
           enddo
 c
@@ -708,7 +636,7 @@ c
            write(6,*)'reading ',ncur,ohmon(ncur)
            write(unit_trout,*)'reading ',ncur,ohmon(ncur)
           end if
-          if (ncur.eq.0) stop 'current month not in flux file'
+          if (ncur==0) stop 'current month not in flux file'
 c    
           ohin_g=0.
           if (gridpts) then
@@ -721,27 +649,24 @@ c
             timx=4
           end if
 c         read preceeding month if needed
-          if (nprev.ne.0) then
+          if (nprev/=0) then
             start(timx)=nprev
-            ierr=nf_get_vara_real(ncidfl,fluxid,start,count,
+            call ccnf_get_vara_real(ncidfl,fluxid,start,count,
      &                            ohin_g(:,:,1))
-            if (ierr.ne.nf_noerr) stop 'error reading ohin prev'
           endif
 c         read current month/year
           start(timx)=ncur
-          ierr=nf_get_vara_real(ncidfl,fluxid,start,count,
+          call ccnf_get_vara_real(ncidfl,fluxid,start,count,
      &                            ohin_g(:,:,2))
-          if (ierr.ne.nf_noerr) stop 'error reading ohin cur'
 c         read next month
-          if (nnext.ne.0) then
+          if (nnext/=0) then
             start(timx)=nnext
-            ierr=nf_get_vara_real(ncidfl,fluxid,start,count,
+            call ccnf_get_vara_real(ncidfl,fluxid,start,count,
      &                            ohin_g(:,:,3))
-            if (ierr.ne.nf_noerr) stop 'error reading ohin next'
           endif
         endif
 
-        ierr = nf_close(ncidfl)
+        call ccnf_close(ncidfl)
 
         ! Should be more careful here, probably don't need the full range of
         ! the second dimension all the time.

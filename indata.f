@@ -50,7 +50,6 @@
       include 'darcdf.h'                       ! Netcdf data
       include 'dates.h'                        ! Date data
       include 'filnames.h'                     ! Filenames
-      include 'netcdf.inc'                     ! Netcdf parameters
       include 'parm.h'                         ! Model configuration
       include 'parmdyn.h'                      ! Dynamics parmaters
       include 'parmgeom.h'                     ! Coordinate data
@@ -496,7 +495,7 @@
       if (nurban/=0) then
         call readreal(urbanfile,sigmu,ifull)
         sigmu(1:ifull)=0.01*sigmu(1:ifull)
-        where (.not.land(:).or.sigmu<0.05)
+        where (.not.land(:).or.sigmu<0.01)
           sigmu(:)=0.
         end where
         if (myid==0) write(6,*) 'Initialising ateb urban scheme'
@@ -2690,6 +2689,7 @@ c find coexp: see notes "simplified wind model ..." eq 34a
       subroutine caispecial
       
       use cc_mpi
+      use infile
       use latlong_m
       use pbl_m
       use soil_m
@@ -2699,51 +2699,59 @@ c find coexp: see notes "simplified wind model ..." eq 34a
       
       include 'newmpar.h'
       include 'const_phys.h'  
-      include 'netcdf.inc'
       
       integer iq,ix
       integer ncid,ncs,varid,ierr
       integer, dimension(3) :: spos,npos
       real x,r
       real, dimension(300) :: sdata,ldata
+      logical tst
       
       if (myid==0) then
         write(6,*) "Reading nspecial=42 SSTs"
 	  spos=1
-        ncs=nf_open('sst_djf.cdf',nf_nowrite,ncid)
-	if (ncs.ne.0) then
-	  write(6,*) "ERROR: Cannot open sst_djf.cdf"
-	  stop
-	end if
-	npos=1
-	npos(1)=300
-	ncs=nf_inq_varid(ncid,'SST_DJF',varid)
-	ncs=nf_get_vara_real(ncid,varid,spos,npos,sdata)
-	npos=1
-	npos(1)=300
-	ncs=nf_inq_varid(ncid,'YT_OCEAN',varid)
-	ncs=nf_get_vara_real(ncid,varid,spos(1),npos(1),ldata)	
-	ncs=nf_close(ncid)
-	sdata=sdata+273.16
+        call ccnf_open('sst_djf.cdf',ncid,ncs)
+	  if (ncs/=0) then
+	    write(6,*) "ERROR: Cannot open sst_djf.cdf"
+	    call ccmpi_abort(-1)
+	  end if
+	  npos=1
+	  npos(1)=300
+	  call ccnf_inq_varid(ncid,'SST_DJF',varid,tst)
+	  if (tst) then
+	    write(6,*) "ERROR: Cannot read SST_DJF"
+	    call ccmpi_abort(-1)
+	  end if
+	  call ccnf_get_vara_real(ncid,varid,spos(1:1),npos(1:1),sdata)
+	  npos=1
+	  npos(1)=300
+	  call ccnf_inq_varid(ncid,'YT_OCEAN',varid,tst)
+	  if (tst) then
+	    write(6,*) "ERROR: Cannot read SST_DJF"
+	    call ccmpi_abort(-1)
+	  end if
+	  call ccnf_get_vara_real(ncid,varid,spos(1:1),npos(1:1),ldata)	
+	  call ccnf_close(ncid)
+        sdata=sdata+273.16
       end if
       call ccmpi_bcast(sdata,0,comm_world)
       call ccmpi_bcast(ldata,0,comm_world)
       
       do iq=1,ifull
         if (.not.land(iq)) then
-	  r=rlatt(iq)*180./pi
+          r=rlatt(iq)*180./pi
           if (r.lt.ldata(2)) then
             tss(iq)=sdata(2)
           elseif (r.gt.ldata(300)) then
-	    tss(iq)=sdata(300)
+            tss(iq)=sdata(300)
           else
             do ix=2,300
               if (ldata(ix).gt.r) exit
             end do
             x=(r-ldata(ix))/(ldata(ix+1)-ldata(ix))
-	    tss(iq)=(1.-x)*sdata(ix)+x*sdata(ix+1)
+            tss(iq)=(1.-x)*sdata(ix)+x*sdata(ix+1)
           end if
-	  tgg(iq,1)=tss(iq)
+          tgg(iq,1)=tss(iq)
         end if
       end do
       
