@@ -147,8 +147,8 @@ C Local data, functions etc
      & 0.08, 0., 0. /                                                          ! MJT suggestion
       tdiffx(tx_)=min(max( tx_-tfrz, -40.), 1.)                                ! MJT suggestion
       esdiffx(tx_) =                                                           ! MJT suggestion
-     &    (1.-(tdiffx(tx_)-aint(tdiffx(tx_))))*esdiff(int(tdiffx(tx_)))        ! MJT suggestion
-     &  + (tdiffx(tx_)-aint(tdiffx(tx_)))*esdiff(int(tdiffx(tx_))+1)           ! MJT suggestion
+     &  (1.-(tdiffx(tx_)-anint(tdiffx(tx_))))*esdiff(nint(tdiffx(tx_)))        ! MJT suggestion
+     & +(tdiffx(tx_)-anint(tdiffx(tx_)))*esdiff(nint(tdiffx(tx_))+1)           ! MJT suggestion
 !     include 'ESTABL.f'  !Contains arithmetic statement function qsat(p,T)
       real tablei
       common /esitable/ tablei(0:220) !Table of es values wrt ice
@@ -161,8 +161,8 @@ c TDIFF is difference between T and 123.16, subject to 0 <= TDIFF <= 220
       tdiff(t)=min(max( t-123.16, 0.), 219.)
 
 c These give the ice values needed for the qcloud scheme
-      estabi(t) = (1.-(tdiff(t)-aint(tdiff(t))))*tablei(int(tdiff(t)))
-     &           + (tdiff(t)-aint(tdiff(t)))*tablei(int(tdiff(t))+1)
+      estabi(t) = (1.-(tdiff(t)-anint(tdiff(t))))*tablei(nint(tdiff(t)))
+     &           + (tdiff(t)-anint(tdiff(t)))*tablei(nint(tdiff(t))+1)
       qsati(pp,t) = epsil*estabi(t)/max(.1,pp-estabi(t)) 
 
 C Start code : ----------------------------------------------------------
@@ -187,10 +187,10 @@ c Note that qcg is the total cloud water (liquid+frozen)
 
       do k=1,nl
         do mg=1,ln2
-          if(ttg(mg,k).ge.tfrz)then
+          if(ttg(mg,k)>=tfrz)then
             fice(mg,k)=0.
-          elseif(ttg(mg,k).ge.tice)then
-            if(qfg(mg,k).gt.1.0e-12)then
+          elseif(ttg(mg,k)>=tice)then
+            if(qfg(mg,k)>1.0e-12)then
               fice(mg,k)=min(qfg(mg,k)/(qfg(mg,k)+qlg(mg,k)), 1.)
             else
               fice(mg,k)=0.
@@ -411,7 +411,7 @@ c The grid-box-mean values of qtg and ttg are adjusted later on (below).
 
       do k=1,nl
         do mg=1,ln2
-          if(ttg(mg,k).ge.Tice)then
+          if(ttg(mg,k)>=Tice)then
 
             qfg(mg,k) = fice(mg,k)*qcg(mg,k)
             qlg(mg,k) = qcg(mg,k) - qfg(mg,k)
@@ -431,14 +431,14 @@ c liquid and ice values.
 
       do k=1,nl   ! was nl-1 until Sept '04
         do mg=1,ln2
-          if(cfrac(mg,k).gt.0.)then
+          if(cfrac(mg,k)>0.)then
             Tk=tliq(mg,k)+hlcp*(qlg(mg,k)+qfg(mg,k))/cfrac(mg,k) !T in liq cloud
             fl=qlg(mg,k)/(qfg(mg,k)+qlg(mg,k))
-            if(Tk.lt.tfrz.and.qlg(mg,k).gt.0.)then
+            if(Tk<tfrz.and.qlg(mg,k)>0.)then
               pk=100*prf(mg,k)
               qs=qsati(pk,Tk)
               es=qs*pk/0.622 !ice value
-              Aprpr=hl/(rKa*Tk)*(hls/(rvap*Tk)-1)
+              Aprpr=hl/(rKa*Tk)*(hls/(rvap*Tk)-1.)
               Bprpr=rvap*Tk/((Dva/pk)*es)
 !              deles=(1.-fice(mg,k))                           ! MJT suggestion
 !     &              *esdiff(min(max(-40,(nint(Tk-tfrz))),1))  ! MJT suggestion
@@ -500,8 +500,8 @@ c Vertically sub-grid cloud
 !      else
         do k=2,nl-1
           do mg=1,ln2
-            if(cfrac(mg,k).gt.1.0e-2
-     &           .and.cfrac(mg,k+1).eq.0..and.cfrac(mg,k-1).eq.0.)then
+            if(cfrac(mg,k)>1.0e-2
+     &           .and.cfrac(mg,k+1)==0..and.cfrac(mg,k-1)==0.)then
 c            ccov(mg,k)=cfrac(mg,k)**(2./3)
               ccov(mg,k)=sqrt(cfrac(mg,k))
             endif

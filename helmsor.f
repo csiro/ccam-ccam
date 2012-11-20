@@ -15,7 +15,7 @@
       include 'parmgeom.h'  ! rlong0,rlat0,schmidt  - briefly
 !     integer, parameter :: meth=3      ! 3b, 5c1 good
       integer, parameter :: ntest=0 
-      integer, parameter :: itmax=300 ! maximum number of iterations allowed
+      integer, parameter :: itmax=400 ! maximum number of iterations allowed
 !     Arguments
       real, intent(in), dimension(ifull) :: zz,zzn,zze,zzw,zzs
 !     WHY are helm and rhs ifull+iextra?????????
@@ -26,17 +26,17 @@
       real, dimension(ifull,kl) :: sb, sa, snew, dsol
       integer, allocatable, save, dimension(:) :: mask
       integer, dimension(kl) :: iters
-      integer, dimension(3),save :: ifullx
+      integer, dimension(3), save :: ifullx
       integer, dimension(:,:), allocatable, save :: iqx,iqn,iqe
       integer, dimension(:,:), allocatable, save :: iqw,iqs
       real, dimension(kl) ::  dsolmax, dsolmax_g, smax, smax_g
       real, dimension(kl) ::  smin, smin_g
       real, dimension(:), allocatable, save :: accel
       real aa(ifull), bb(ifull), cc(ifull), axel
-      real gd,ci,itserr1,itserr2
-      integer iq, iter, k, nx, j, jx, i,klim,klimnew, ierr, meth, nx_max
-      integer ifx
-      integer itstest,itc,itsave1,itsave2
+      real gd, ci, itserr1, itserr2
+      integer iq, iter, k, nx, j, jx, i, klim, klimnew, ierr, meth
+      integer ifx, nx_max, iqg, ig, jg, ng, tg, n
+      integer itstest, itc, itsave1, itsave2
       integer, dimension(1) :: idum
       save  meth, nx_max, axel
 
@@ -53,23 +53,101 @@
         axel=-.01*real(precon)-10*nx_max-meth
         if(myid==0)write(6,*)'in helmsor nx_max,meth,axel: ',
      &                                   nx_max,meth,axel
-        mask(:)=1
-        do j=1,jl
-         do i=1,il,2
-          jx=mod(i+j,2)    ! 0 or 1  starting (1,1) on panel
-          iq=i+jx+(j-1)*il
-          if(nx_max==2)then
+        
+        ! global index method
+        if (nx_max==3) then ! 3 colour
+
+        mask=0
+        do n=1,npan
+         do j=1,jpan
+          do i=1,ipan
+           iq = indp(i,j,n)   ! Local
+           iqg = indg(i,j,n)  ! Global
+           
+           tg=iqg-1
+           ng=tg/(il_g*il_g)
+           tg=tg-ng*il_g*il_g
+           jg=tg/il_g
+           tg=tg-jg*il_g
+           ig=tg
+           ig=ig+1
+           jg=jg+1
+           
+           jx=mod(ig+jg+ng*il_g,2)
+           select case(ng)
+            case(0,3)
+             if (jx==0) then
+              mask(iq)=1
+             else
+              mask(iq)=2
+             end if
+            case(1,4)
+             if (jx==0) then
+              mask(iq)=1
+             else
+              mask(iq)=3
+             end if
+            case(2,5)
+             if (jx==0) then
+              mask(iq)=2
+             else
+              mask(iq)=3
+             end if
+           end select
+          end do
+         end do
+        end do
+      
+       else ! 2 colour
+
+        mask=0
+        do n=1,npan
+         do j=1,jpan
+          do i=1,ipan
+           iq = indp(i,j,n)   ! Local
+           iqg = indg(i,j,n)  ! Global
+           
+           tg=iqg-1
+           ng=tg/(il_g*il_g)
+           tg=tg-ng*il_g*il_g
+           jg=tg/il_g
+           tg=tg-jg*il_g
+           ig=tg
+           ig=ig+1
+           jg=jg+1
+           
+           jx=mod(ig+jg+ng*il_g,2)
+           if (jx==0) then
+            mask(iq)=1
+           else
             mask(iq)=2
-          else
-            if(j>il.and.j<=3*il)mask(iq)=3
-            if(j>3*il.and.j<=5*il)mask(iq)=2
-            jx=mod(i+j+1,2)  ! 0 or 1  starting (2,1) on panel
-            iq=i+jx+(j-1)*il
-            if(j<=2*il)mask(iq)=2
-            if(j>4*il)mask(iq)=3
-          endif 
-         enddo
-       enddo
+           end if
+          end do
+         end do
+        end do
+
+       end if ! if (nx_max==3) ..else..
+
+     
+!        ! old local indices
+!        mask(:)=1
+!        do j=1,jl
+!         do i=1,il,2
+!          jx=mod(i+j,2)    ! 0 or 1  starting (1,1) on panel
+!          iq=i+jx+(j-1)*il
+!          if(nx_max==2)then
+!            mask(iq)=2
+!          else
+!            if(j>il.and.j<=3*il)mask(iq)=3
+!            if(j>3*il.and.j<=5*il)mask(iq)=2
+!            jx=mod(i+j+1,2)  ! 0 or 1  starting (2,1) on panel
+!            iq=i+jx+(j-1)*il
+!            if(j<=2*il)mask(iq)=2
+!            if(j>4*il)mask(iq)=3
+!          endif 
+!         enddo
+!       enddo
+       
        ! Pack colour indices
        ifullx=0
        iqx=0
@@ -87,18 +165,18 @@
        end do
 
        do k=1,kl
-        call optmx(il_g,schmidt,dt,bam(k),accel(k))
+        !MJT - issues with convergence.  Use Gauss-Seidel
+        ! until accel can be re-calculated
+        !call optmx(il_g,schmidt,dt,bam(k),accel(k))
+        accel(k)=1. ! gauss-seidel
+        
         ! MJT - not sure about the following line
-        if(il_g>il)accel(k)=1.+.55*(accel(k)-1.)  ! for uniform-dec 22/4/08
+!       if(il_g>il)accel(k)=1.+.55*(accel(k)-1.)  ! for uniform-dec 22/4/08
 c       if(il_g==il)accel(k)=1.+.55*(accel(k)-1.) ! just a test
         if(myid==0)write(6,*)'k,accel ',k,accel(k)
        enddo
       endif
 
-      ! MJT - We may need to revisit the accel factor
-      ! as it does not always converge.  accel=0.9 is
-      ! safe, but slow
- 
       if(precon>=-2899) then  ! e.g. not -2900 or -3900
       klim=kl
       iter = 1
@@ -264,13 +342,11 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
       itserr2=9.E9
       itstest=1
       itc=0
-      do while ( iter<itmax .and. klim>1)
-       if(ntest==1.and.diag)write(6,*)'myid,iter a ',myid,iter
-       call bounds(s, klim=klim)
-       if(ntest==1.and.diag)write(6,*)'myid,iter b ',myid,iter
-       do k=1,klim
-        do nx=1,nx_max
-          ifx=ifullx(nx)
+      call bounds(s, klim=klim)      
+      do while ( iter<itmax .and. klim>0)
+      do nx=1,nx_max
+        ifx=ifullx(nx)
+        do k=1,klim
           dsol(iqx(1:ifx,nx),k)=
      &       ( zzn(iqx(1:ifx,nx))*s(iqn(1:ifx,nx),k)
      &       + zzw(iqx(1:ifx,nx))*s(iqw(1:ifx,nx),k)
@@ -283,12 +359,15 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
           snew(iqx(1:ifx,nx),k) = s(iqx(1:ifx,nx),k)
      &       + accel(k)*dsol(iqx(1:ifx,nx),k)
           s(iqx(1:ifx,nx),k)=snew(iqx(1:ifx,nx),k)
-        enddo  ! nx loop
+        enddo ! k loop
+        call bounds(s, klim=klim)  ! Need this to work for different colours
+      enddo  ! nx loop  
+      do k=1,klim
         iters(k)=iter
-      enddo ! k loop   
-      if(ntest>0.and.diag)
+      end do
+       if((ntest>0.or.nmaxpr==1).and.diag)
      &  write (6,"('myid,Iter ,s',i4,4f14.5)")myid,iter,(s(iq,1),iq=1,4)
-      if(iter==1)then
+       if(iter==1)then
         do k=1,klim
          smax(k) = maxval(s(1:ifull,k))
          smin(k) = minval(s(1:ifull,k))
@@ -301,49 +380,48 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
         if(ntest>0.and.diag)write(6,*)' before smin call myid ',myid
         call ccmpi_allreduce(smin(1:klim),smin_g(1:klim),"min",
      &                       comm_world)
-        if(ntest>0.and.myid==0)then
-          write(6,*)'ktau,myid,smin_g ',ktau,myid,smin_g(:)
-          write(6,*)'ktau,myid,smax_g ',ktau,myid,smax_g(:)
+        if((ntest>0.or.nmaxpr==1).and.myid==0)then
+          write(6,*)'ktau,smin_g ',ktau,smin_g(:)
+          write(6,*)'ktau,smax_g ',ktau,smax_g(:)
         endif  ! (myid==0)
-      end if
-      if (iter>=itstest) then
-       do k=1,klim
-c       write (6,"('iter,k ,s',2i4,4f14.5)") iter,k,(s(iq,k),iq=1,4)
-        dsolmax(k) = maxval(abs(dsol(1:ifull,k)))
-       enddo  ! k loop
-       if(ntest>0)then
+       end if
+       if (iter>=itstest) then
+        do k=1,klim
+c        write (6,"('iter,k ,s',2i4,4f14.5)") iter,k,(s(iq,k),iq=1,4)
+         dsolmax(k) = maxval(abs(dsol(1:ifull,k)))
+        enddo  ! k loop
+        if(ntest>0)then
          write(6,*)'ktau,myid,iter,dsolmax ',ktau,myid,iter,dsolmax(:)
-       endif  ! (myid==0)
-       klimnew=klim
-       call ccmpi_allreduce(dsolmax(1:klim),dsolmax_g(1:klim),"max",
-     &                      comm_world)
-       do k=klim,1,-1
-        if(dsolmax_g(k)<restol*(smax_g(k)-smin_g(k)))then
-          klimnew=k-1
-        endif
-       enddo
-    !   if(ntest>0)write(6,*)'ktau,myid,klim,klimnew ',
-    ! &                       ktau,myid,klim,klimnew
-    !   call MPI_AllReduce( klimnew, klim, 1, MPI_INTEGER, MPI_MAX,
-    ! &                     MPI_COMM_WORLD, ierr )
-       klim=klimnew
+        endif  ! (myid==0)
+        klimnew=klim
+        call ccmpi_allreduce(dsolmax(1:klim),dsolmax_g(1:klim),"max",
+     &                       comm_world)
+        do k=klim,1,-1
+         if(dsolmax_g(k)<restol*(smax_g(k)-smin_g(k)))then
+           klimnew=k-1
+         endif
+        enddo
+        klim=klimnew
 
-       itsave1=itsave2
-       itsave2=iter
-       itserr1=itserr2
-       itserr2=log10(dsolmax_g(1))
+        itsave1=itsave2
+        itsave2=iter
+        itserr1=itserr2
+        itserr2=log10(dsolmax_g(1))
        
-       gd=(itserr2-itserr1)/real(itsave2-itsave1)
-       ci=itserr2-gd*real(itsave2)
-       if (gd/=0.) then
+        gd=(itserr2-itserr1)/real(itsave2-itsave1)
+        ci=itserr2-gd*real(itsave2)
+        if (gd/=0.) then
          itstest=nint((log10(restol*(smax_g(1)-smin_g(1)))-ci)/gd)
          itstest=max(itstest,iter+1)
-       else
+        else
          itstest=iter+1
-       end if
-       itc=itc+1
-      end if ! iter>=itstest
-      iter = iter + 1
+        end if
+        if (myid==0.and.nmaxpr==1) then
+          write(6,*) "iter,itstest ",iter,itstest
+        end if
+        itc=itc+1
+       end if ! iter>=itstest
+       iter = iter + 1
       enddo   ! while( iter<itmax .and. klim>1)
 
       if(myid==0)then

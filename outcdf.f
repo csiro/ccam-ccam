@@ -22,7 +22,6 @@
       include 'dates.h'                     ! Date data
       include 'filnames.h'                  ! Filenames
       include 'kuocom.h'                    ! Convection parameters
-      include 'netcdf.inc'                  ! Netcdf parameters
       include 'parm.h'                      ! Model configuration
       include 'parmdyn.h'                   ! Dynamics parameters
       include 'parmgeom.h'                  ! Coordinate data
@@ -136,42 +135,42 @@
 
         ! Define coords.
         call ccnf_def_var(idnc,'longitude','float',1,dim(1:1),ixp)
-        call ncaptc(idnc,ixp,'point_spacing',NCCHAR,4,'even',ier)
-        call ncaptc(idnc,ixp,'units',NCCHAR,12,'degrees_east',ier)
+        call ccnf_put_att_text(idnc,ixp,'point_spacing',4,'even')
+        call ccnf_put_att_text(idnc,ixp,'units',12,'degrees_east')
         call ccnf_def_var(idnc,'latitude','float',1,dim(2:2),iyp)
-        call ncaptc(idnc,iyp,'point_spacing',NCCHAR,4,'even',ier)
-        call ncaptc(idnc,iyp,'units',NCCHAR,13,'degrees_north',ier)
+        call ccnf_put_att_text(idnc,iyp,'point_spacing',4,'even')
+        call ccnf_put_att_text(idnc,iyp,'units',13,'degrees_north')
         if (myid==0) then
           write(6,*) 'ixp,iyp=',ixp,iyp
         end if
 
         call ccnf_def_var(idnc,'lev','float',1,dim(3:3),idlev)
-        call ncaptc(idnc,idlev,'positive',NCCHAR,4,'down',ier)
-        call ncaptc(idnc,idlev,'point_spacing',NCCHAR,6,'uneven',ier)
-        call ncaptc(idnc,idlev,'units',NCCHAR,11,'sigma_level',ier)
-        call ncaptc(idnc,idlev,'long_name',NCCHAR,11,'sigma_level',ier)
+        call ccnf_put_att_text(idnc,idlev,'positive',4,'down')
+        call ccnf_put_att_text(idnc,idlev,'point_spacing',6,'uneven')
+        call ccnf_put_att_text(idnc,idlev,'units',11,'sigma_level')
+        call ccnf_put_att_text(idnc,idlev,'long_name',11,'sigma_level')
         if (myid==0) then
           write(6,*) 'idlev=',idlev
         end if
 
         call ccnf_def_var(idnc,'zsoil','float',1,dims(3:3),idms)
-        call ncaptc(idnc,idms,'point_spacing',NCCHAR,6,'uneven',ier)
-        call ncaptc(idnc,idms,'units',NCCHAR,1,'m',ier)
+        call ccnf_put_att_text(idnc,idms,'point_spacing',6,'uneven')
+        call ccnf_put_att_text(idnc,idms,'units',1,'m')
         if (myid==0) then
           write(6,*) 'idms=',idms
         end if
         
         if (abs(nmlo)>0.and.abs(nmlo)<=9) then
           call ccnf_def_var(idnc,'olev','float',1,dimo(3:3),idoc)
-          call ncaptc(idnc,idoc,'point_spacing',NCCHAR,6,'uneven',ier)
-          call ncaptc(idnc,idoc,'units',NCCHAR,11,'sigma_level',ier)
+          call ccnf_put_att_text(idnc,idoc,'point_spacing',6,'uneven')
+          call ccnf_put_att_text(idnc,idoc,'units',11,'sigma_level')
           if (myid==0) then
             write(6,*) 'idoc=',idoc
           end if
         end if
 
         call ccnf_def_var(idnc,'time','float',1,dim(4:4),idnt)
-        call ncaptc(idnc,idnt,'point_spacing',NCCHAR,4,'even',ier)
+        call ccnf_put_att_text(idnc,idnt,'point_spacing',4,'even')
         if (myid==0) then
           write(6,*) 'tdim,idnc=',tdim,idnc
           write(6,*) 'idnt=',idnt
@@ -193,16 +192,16 @@
         if (myid==0) then
           write(6,*) 'timorg=',timorg
         end if
-        call ncaptc(idnc,idnt,'time_origin',NCCHAR,20,timorg,ier)
+        call ccnf_put_att_text(idnc,idnt,'time_origin',20,timorg)
 
         write(grdtim,'("minutes since ",i4.4,"-",i2.2,"-",i2.2," ",
      &       2(i2.2,":"),i2.2)') icy,icm,icd,ich,icmi,ics
         if (myid==0) then
           write(6,*) 'grdtim=',grdtim
         end if
-        call ncaptc(idnc,idnt,'units',NCCHAR,33,grdtim,ier)
+        call ccnf_put_att_text(idnc,idnt,'units',33,grdtim)
         if (leap==0) then
-          call ncaptc(idnc,idnt,'calendar',NCCHAR,6,'noleap',ier)
+          call ccnf_put_att_text(idnc,idnt,'calendar',6,'noleap')
         end if
 
 c       create the attributes of the header record of the file
@@ -280,17 +279,12 @@ c       create the attributes of the header record of the file
         if (myid==0) then
           write(6,*) "ahead=",ahead
         end if
-        call ncapt(idnc,ncglobal,'int_header',nclong,nihead,nahead,ier)
-        call ncmsg("int_header",ier)
-        call ncapt(idnc,ncglobal,'real_header',ncfloat,nrhead,ahead,ier)
-        call ncmsg("real_header",ier)
-        call ncaptc(idnc,ncglobal,'date_header',ncchar,10,rundate,ier)
-        call ncmsg("date_header",ier)
+        call ccnf_put_att_intg(idnc,'int_header',nihead,nahead)
+        call ccnf_put_att_realg(idnc,'real_header',nrhead,ahead)
+        call ccnf_put_att_textg(idnc,'date_header',10,rundate)
 
-        idv=ncvdef(idnc,'ds',ncfloat,0,1,ier)
-        call ncmsg("ds",ier)
-        idv=ncvdef(idnc,'dt',ncfloat,0,1,ier)
-        call ncmsg("dt",ier)
+        call ccnf_def_var0(idnc,'ds','float',idv)
+        call ccnf_def_var0(idnc,'dt','float',idv)
        endif ! ( iarch=1)then
 
       endif ! (myid==0.or.local)
@@ -329,6 +323,7 @@ c       create the attributes of the header record of the file
       use dpsdt_m                               ! Vertical velocity
       use extraout_m                            ! Additional diagnostics
       use histave_m                             ! Time average arrays
+      use infile                                ! Input file routines
       use latlong_m                             ! Lat/lon coordinates
       use liqwpar_m                             ! Cloud water mixing ratios
       use map_m                                 ! Grid map arrays
@@ -363,7 +358,6 @@ c       create the attributes of the header record of the file
       include 'dates.h'                         ! Date data
       include 'filnames.h'                      ! Filenames
       include 'kuocom.h'                        ! Convection parameters
-      include 'netcdf.inc'                      ! Netcdf parameters
       include 'parm.h'                          ! Model configuration
       include 'parmdyn.h'                       ! Dynamics parameters
       include 'parmvert.h'                      ! Vertical advection parameters
@@ -380,6 +374,7 @@ c       create the attributes of the header record of the file
       integer iarch, itype, iaero, nstagin, idum
       integer, dimension(4), intent(in) :: dim
       integer, dimension(3) :: idim
+      integer, dimension(2) :: iduma
       real trmax, trmin
       real, dimension(ms) :: zsoil
       real, dimension(il_g) :: xpnt
@@ -396,7 +391,7 @@ c       create the attributes of the header record of the file
       character(len=3) trnum
       character(len=3), dimension(12) :: mon
       logical, intent(in) :: local
-      logical lwrite,lave,lrad
+      logical lwrite,lave,lrad,tst
 
       data mon/'JAN','FEB','MAR','APR','MAY','JUN'
      &        ,'JUL','AUG','SEP','OCT','NOV','DEC'/
@@ -429,32 +424,27 @@ c       Model run number
         if (myid==0) then
          write(6,*) 'nrun=',nrun
         end if
-        call ncapt(idnc,ncglobal,'nrun',nclong,1,nrun,ier)
-        if (myid==0) then
-         write(6,*) "nrun ier=",ier
-        end if
+        iduma(1)=nrun
+        call ccnf_put_att_intg(idnc,'nrun',1,iduma(1:1))
 
 c       Experiment description
         expdesc = 'CCAM model run'
-        call ncaptc(idnc,ncglobal,'expdesc',ncchar,len_trim(expdesc),
-     &              expdesc,ier)
-        if (myid==0) then
-         write(6,*)"expdesc ier=",ier
-        end if
+        call ccnf_put_att_textg(idnc,'expdesc',len_trim(expdesc),
+     &                         expdesc)
 
 c       Model version
-        call ncaptc(idnc,ncglobal,'version',ncchar,len_trim(version),
-     &              version,ier)
+        call ccnf_put_att_textg(idnc,'version',len_trim(version),
+     &                          version)
 
         if(local)then
-           ier = nf_put_att_int(idnc,nf_global,"processor_num",nf_int,
-     &                          1,myid)
-           ier = nf_put_att_int(idnc,nf_global,"nproc",nf_int,
-     &                          1,nproc)
+           iduma(1)=myid
+           call ccnf_put_att_intg(idnc,'processor_num',1,iduma(1:1))
+           iduma(1)=nproc
+           call ccnf_put_att_intg(idnc,'nproc',1,iduma(1:1))
 #ifdef uniform_decomp
-           ier = nf_put_att_text(idnc,nf_global,"decomp",7,"uniform")
+           call ccnf_put_att_textg(idnc,'decomp',7,'uniform')
 #else
-           ier = nf_put_att_text(idnc,nf_global,"decomp",4,"face")
+           call ccnf_put_att_textg(idnc,'decomp',4,'face')
 #endif
         endif           
 
@@ -462,63 +452,63 @@ c       Sigma levels
         if (myid==0) then
          write(6,*) 'sig=',sig
         end if
-        call ncapt(idnc,ncglobal,'sigma',ncfloat,kl,sig,ier)
+        call ccnf_put_att_realg(idnc,'sigma',kl,sig)
 
         lname = 'year-month-day at start of run'
-        idkdate = ncvdef(idnc,'kdate',nclong,1,dim(4),ier)
-        call ncaptc(idnc,idkdate,'long_name',ncchar
-     &             ,len_trim(lname),lname,ier)
+        call ccnf_def_var(idnc,'kdate','int',1,dim(4:4),idkdate)
+        call ccnf_put_att_text(idnc,idkdate,'long_name',
+     &                         len_trim(lname),lname)
 
         lname = 'hour-minute at start of run'
-        idktime = ncvdef(idnc,'ktime',nclong,1,dim(4),ier)
-        call ncaptc(idnc,idktime,'long_name',ncchar
-     &             ,len_trim(lname),lname,ier)
+        call ccnf_def_var(idnc,'ktime','int',1,dim(4:4),idktime)
+        call ccnf_put_att_text(idnc,idktime,'long_name',
+     &                         len_trim(lname),lname)
 
         lname = 'timer (hrs)'
-        idnter = ncvdef(idnc,'timer',ncfloat,1,dim(4),ier)
-        call ncaptc(idnc,idnter,'long_name',ncchar
-     &             ,len_trim(lname),lname,ier)
+        call ccnf_def_var(idnc,'timer','float',1,dim(4:4),idnter)
+        call ccnf_put_att_text(idnc,idnter,'long_name',
+     &                         len_trim(lname),lname)
 
         lname = 'mtimer (mins)'
-        idmtimer = ncvdef(idnc,'mtimer',nclong,1,dim(4),ier)
-        call ncaptc(idnc,idmtimer,'long_name',ncchar
-     &             ,len_trim(lname),lname,ier)
+        call ccnf_def_var(idnc,'mtimer','int',1,dim(4:4),idmtimer)
+        call ccnf_put_att_text(idnc,idmtimer,'long_name',
+     &                         len_trim(lname),lname)
 
         lname = 'timeg (UTC)'
-        idnteg = ncvdef(idnc,'timeg',ncfloat,1,dim(4),ier)
-        call ncaptc(idnc,idnteg,'long_name',ncchar
-     &             ,len_trim(lname),lname,ier)
+        call ccnf_def_var(idnc,'timeg','float',1,dim(4:4),idnteg)
+        call ccnf_put_att_text(idnc,idnteg,'long_name',
+     &                         len_trim(lname),lname)
 
         lname = 'number of time steps from start'
-        idktau = ncvdef(idnc,'ktau',nclong,1,dim(4),ier)
-        call ncaptc(idnc,idktau,'long_name',ncchar
-     &             ,len_trim(lname),lname,ier)
+        call ccnf_def_var(idnc,'ktau','int',1,dim(4:4),idktau)
+        call ccnf_put_att_text(idnc,idktau,'long_name',
+     &                         len_trim(lname),lname)
 
-        idv = ncvdef(idnc,'sigma', ncfloat, 1, dim(3),ier)
-        call ncaptc(idnc,idv,'positive',ncchar
-     &             ,len_trim('down'),'down',ier)
+        call ccnf_def_var(idnc,'sigma','float',1,dim(3:3),idv)
+        call ccnf_put_att_text(idnc,idv,'positive',
+     &                         len_trim('down'),'down')
 
         lname = 'atm stag direction'
-        idv = ncvdef(idnc,'nstag',nclong,1,dim(4),ier)
-        call ncaptc(idnc,idv,'long_name',ncchar
-     &             ,len_trim(lname),lname,ier)
+        call ccnf_def_var(idnc,'nstag','int',1,dim(4:4),idv)
+        call ccnf_put_att_text(idnc,idv,'long_name',
+     &                         len_trim(lname),lname)
 
         lname = 'atm unstag direction'
-        idv = ncvdef(idnc,'nstagu',nclong,1,dim(4),ier)
-        call ncaptc(idnc,idv,'long_name',ncchar
-     &             ,len_trim(lname),lname,ier)
+        call ccnf_def_var(idnc,'nstagu','int',1,dim(4:4),idv)
+        call ccnf_put_att_text(idnc,idv,'long_name',
+     &                         len_trim(lname),lname)
 
         lname = 'atm stag offset'
-        idv = ncvdef(idnc,'nstagoff',nclong,1,dim(4),ier)
-        call ncaptc(idnc,idv,'long_name',ncchar
-     &             ,len_trim(lname),lname,ier)
+        call ccnf_def_var(idnc,'nstagoff','int',1,dim(4:4),idv)
+        call ccnf_put_att_text(idnc,idv,'long_name',
+     &                         len_trim(lname),lname)
 
         if ((nmlo<0.and.nmlo>=-9).or.
      &      (nmlo>0.and.nmlo<=9.and.itype==-1)) then
           lname = 'ocn stag offset'
-          idv = ncvdef(idnc,'nstagoffmlo',nclong,1,dim(4),ier)
-          call ncaptc(idnc,idv,'long_name',ncchar
-     &               ,len_trim(lname),lname,ier)     
+          call ccnf_def_var(idnc,'nstagoffmlo','int',1,dim(4:4),idv)
+          call ccnf_put_att_text(idnc,idv,'long_name',
+     &                           len_trim(lname),lname)     
         end if
 
         if (myid==0) then
@@ -1332,7 +1322,7 @@ c       For time varying surface fields
           write(6,*) 'finished defining attributes'
         end if
 c       Leave define mode
-        call ncendf(idnc,ier)
+        call ccnf_enddef(idnc)
         if (myid==0) then
           write(6,*) 'leave define mode: ier=',ier
         end if
@@ -1342,7 +1332,6 @@ c       Leave define mode
            do i=1,ipan
               xpnt(i) = float(i) + ioff(0)
            end do
-           call ncvpt(idnc,ixp,1,il,xpnt,ier)
            i=1
            do n=1,npan
              do j=1,jpan
@@ -1350,25 +1339,34 @@ c       Leave define mode
                i=i+1
              end do
            end do
-           call ncvpt(idnc,iyp,1,jl,ypnt,ier)
         else
            do i=1,il_g
               xpnt(i) = float(i)
            end do
-           call ncvpt(idnc,ixp,1,il_g,xpnt,ier)
            do j=1,jl_g
               ypnt(j) = float(j)
            end do
-           call ncvpt(idnc,iyp,1,jl_g,ypnt,ier)
         endif
+        iduma(1)=1
+        iduma(2)=il
+        call ccnf_put_vara_real(idnc,ixp,iduma(1:1),iduma(2:2),xpnt)
+        iduma(1)=1
+        iduma(2)=jl
+        call ccnf_put_vara_real(idnc,iyp,iduma(1:1),iduma(2:2),ypnt)
 
-        call ncvpt(idnc,idlev,1,kl,sig,ier)
+        iduma(1)=1
+        iduma(2)=kl
+        call ccnf_put_vara_real(idnc,idlev,iduma(1:1),iduma(2:2),sig)
 
-        idv = ncvid(idnc,'sigma',ier)
-        call ncvpt(idnc,idv,1,kl,sig,ier)
+        call ccnf_inq_varid(idnc,'sigma',idv,tst)
+        iduma(1)=1
+        iduma(2)=kl
+        call ccnf_put_vara_real(idnc,idv,iduma(1:1),iduma(2:2),sig)
 
-        idv = ncvid(idnc,'lev',ier)
-        call ncvpt(idnc,idv,1,kl,sig,ier)
+        call ccnf_inq_varid(idnc,'lev',idv,tst)
+        iduma(1)=1
+        iduma(2)=kl
+        call ccnf_put_vara_real(idnc,idv,iduma(1:1),iduma(2:2),sig)
 
         zsoil(1)=.5*zse(1)
         zsoil(2)=zse(1)+zse(2)*.5
@@ -1376,16 +1374,21 @@ c       Leave define mode
         zsoil(4)=zse(1)+zse(2)+zse(3)+zse(4)*.5
         zsoil(5)=zse(1)+zse(2)+zse(3)+zse(4)+zse(5)*.5
         zsoil(6)=zse(1)+zse(2)+zse(3)+zse(4)+zse(5)+zse(6)*.5
-        call ncvpt(idnc,idms,1,ms,zsoil,ier)
+        iduma(1)=1
+        iduma(2)=ms
+        call ccnf_put_vara_real(idnc,idms,iduma(1:1),iduma(2:2),zsoil)
         
         if (abs(nmlo).gt.0.and.abs(nmlo)<=9) then
-          call ncvpt(idnc,idoc,1,wlev,gosig,ier)
+          iduma(1)=1
+          iduma(2)=wlev
+          call ccnf_put_vara_real(idnc,idoc,iduma(1:1),iduma(2:2),
+     &                            gosig)
         end if
 
-        idv = ncvid(idnc,'ds',ier)
-        call ncvpt1(idnc,idv,1,ds,ier)
-        idv = ncvid(idnc,'dt',ier)
-        call ncvpt1(idnc,idv,1,dt,ier)
+        call ccnf_inq_varid(idnc,'ds',idv,tst)
+        call ccnf_put_var1_real(idnc,idv,1,ds)
+        call ccnf_inq_varid(idnc,'dt',idv,tst)
+        call ccnf_put_var1_real(idnc,idv,1,dt)
        endif ! iarch==1
 !      -----------------------------------------------------------      
        if (myid==0) then
@@ -1393,35 +1396,34 @@ c       Leave define mode
      &                                 kdate,ktime,ktau,mtimer
        end if
 c      set time to number of minutes since start 
-       idv = ncvid(idnc,'time',ier)
-       call ncvpt1(idnc,idv,iarch,real(mtimer),ier)
-
-       idv = ncvid(idnc,'timer',ier)
-       call ncvpt1(idnc,idv,iarch,timer,ier)
-       idv = ncvid(idnc,'mtimer',ier)
-       call ncvpt1(idnc,idv,iarch,mtimer,ier)
-       idv = ncvid(idnc,'timeg',ier)
-       call ncvpt1(idnc,idv,iarch,timeg,ier)
-       idv = ncvid(idnc,'ktau',ier)
-       call ncvpt1(idnc,idv,iarch,ktau,ier)
-       idv = ncvid(idnc,'kdate',ier)
-       call ncvpt1(idnc,idv,iarch,kdate,ier)
-       idv = ncvid(idnc,'ktime',ier)
-       call ncvpt1(idnc,idv,iarch,ktime,ier)
-       idv = ncvid(idnc,'nstag',ier)
-       call ncvpt1(idnc,idv,iarch,nstag,ier)
-       idv = ncvid(idnc,'nstagu',ier)
-       call ncvpt1(idnc,idv,iarch,nstagu,ier)
-       idv = ncvid(idnc,'nstagoff',ier)
+       call ccnf_inq_varid(idnc,'time',idv,tst)
+       call ccnf_put_var1_real(idnc,idv,iarch,real(mtimer))
+       call ccnf_inq_varid(idnc,'timer',idv,tst)
+       call ccnf_put_var1_real(idnc,idv,iarch,timer)
+       call ccnf_inq_varid(idnc,'mtimer',idv,tst)
+       call ccnf_put_var1_int(idnc,idv,iarch,mtimer)
+       call ccnf_inq_varid(idnc,'timeg',idv,tst)
+       call ccnf_put_var1_real(idnc,idv,iarch,timeg)
+       call ccnf_inq_varid(idnc,'ktau',idv,tst)
+       call ccnf_put_var1_int(idnc,idv,iarch,ktau)
+       call ccnf_inq_varid(idnc,'kdate',idv,tst)
+       call ccnf_put_var1_int(idnc,idv,iarch,kdate)
+       call ccnf_inq_varid(idnc,'ktime',idv,tst)
+       call ccnf_put_var1_int(idnc,idv,iarch,ktime)
+       call ccnf_inq_varid(idnc,'nstag',idv,tst)
+       call ccnf_put_var1_int(idnc,idv,iarch,nstag)
+       call ccnf_inq_varid(idnc,'nstagu',idv,tst)
+       call ccnf_put_var1_int(idnc,idv,iarch,nstagu)
        idum=mod(ktau-nstagoff,max(abs(nstagin),1))
        idum=idum-abs(nstagin) ! should be -ve
-       call ncvpt1(idnc,idv,iarch,idum,ier)
+       call ccnf_inq_varid(idnc,'nstagoff',idv,tst)
+       call ccnf_put_var1_int(idnc,idv,iarch,idum)
        if ((nmlo<0.and.nmlo>=-9).or.
      &      (nmlo>0.and.nmlo<=9.and.itype==-1)) then
-         idv = ncvid(idnc,'nstagoffmlo',ier)
          idum=mod(ktau-nstagoffmlo,max(mstagf,1))
-         idum=idum-abs(nstagin) ! should be -ve
-         call ncvpt1(idnc,idv,iarch,nstagoffmlo,ier)
+         idum=idum-abs(mstagf) ! should be -ve
+         call ccnf_inq_varid(idnc,'nstagoffmlo',idv,tst)
+         call ccnf_put_var1_int(idnc,idv,iarch,idum)
        end if
        if (myid==0) then
          write(6,*) 'kdate,ktime,ktau=',kdate,ktime,ktau

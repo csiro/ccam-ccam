@@ -1701,11 +1701,11 @@ end subroutine within_canopy
          real(r_1), intent(out), dimension(:):: fwsoil ! soil water modifier of stom. cond
          REAL(r_1), DIMENSION(mp) :: rwater ! soil water availability
 
-         rwater = MAX(1.0e-4_r_2, &
+         rwater = MAX(0.0, &
               SUM(veg%froot * MAX(0.024,MIN(1.0_r_2,ssoil%wb - &
                    SPREAD(soil%swilt, 2, ms))),2) /(soil%sfc-soil%swilt))
         
-            fwsoil = MAX(1.0e-4,MIN(1.0, veg%vbeta * rwater))
+            fwsoil = MAX(0.0,MIN(1.0, veg%vbeta * rwater))
             
          return   
       end subroutine fwsoil_calc_std 
@@ -1723,7 +1723,7 @@ end subroutine within_canopy
          REAL(r_1), DIMENSION(mp,3)          :: xi, ti, si
       integer :: j
  
-         rwater = MAX(1.0e-4_r_2, &
+         rwater = MAX(0.0, &
               SUM(veg%froot * MAX(0.024,MIN(1.0_r_2,ssoil%wb - &
                    SPREAD(soil%swilt, 2, ms))),2) /(soil%sfc-soil%swilt))
          fwsoil = 1.
@@ -1767,7 +1767,7 @@ end subroutine within_canopy
          !--- local level dependent rwater 
          REAL(r_1), DIMENSION(mp,ms)  :: frwater
     
-            fwsoil(:) = 1.0e-4
+            fwsoil(:) = 0.0
             normFac(:) = 0.0
             do ns=1,ms
                dummy(:) = rootgamma/max(1.0e-3,ssoil%wb(:,ns)-soil%swilt(:))

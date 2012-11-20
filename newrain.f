@@ -174,8 +174,8 @@ C Local data, functions etc
      & 0.08, 0. /                                                              ! MJT suggestion
       tdiffx(tx_)=min(max( tx_-tfrz, -40.), 0.)                                ! MJT suggestion
       esdiffx(tx_) =                                                           ! MJT suggestion
-     &    (1.-(tdiffx(tx_)-aint(tdiffx(tx_))))*esdiff(int(tdiffx(tx_)))        ! MJT suggestion
-     &  + (tdiffx(tx_)-aint(tdiffx(tx_)))*esdiff(int(tdiffx(tx_))+1)           ! MJT suggestion
+     &  (1.-(tdiffx(tx_)-anint(tdiffx(tx_))))*esdiff(nint(tdiffx(tx_)))        ! MJT suggestion
+     & +(tdiffx(tx_)-anint(tdiffx(tx_)))*esdiff(nint(tdiffx(tx_))+1)           ! MJT suggestion
       real tablei
       common /esitable/ tablei(0:220) !Table of es values wrt ice
 
@@ -187,8 +187,8 @@ c TDIFF is difference between T and 123.16, subject to 0 <= TDIFF <= 220
       tdiff(t)=min(max( t-123.16, 0.), 219.)
 
 c These give the ice values needed for the qcloud scheme
-      estabi(t) = (1.-(tdiff(t)-aint(tdiff(t))))*tablei(int(tdiff(t)))
-     &           + (tdiff(t)-aint(tdiff(t)))*tablei(int(tdiff(t))+1)
+      estabi(t) = (1.-(tdiff(t)-anint(tdiff(t))))*tablei(nint(tdiff(t)))
+     &           + (tdiff(t)-anint(tdiff(t)))*tablei(nint(tdiff(t))+1)
       qsati(pp,t) = epsil*estabi(t)/max(.1,pp-estabi(t)) !Usual formula
 
       real pow75,x
@@ -234,14 +234,14 @@ C Start code : ----------------------------------------------------------
           cfrain(mg,k)=0.
           pk=100.0*prf(mg,k)
           qsg(mg,k)=qsati(pk,ttg(mg,k))
-          if(qfg(mg,k).gt.0.)then
+          if(qfg(mg,k)>0.)then
             cifr(mg,k)=cfrac(mg,k)*qfg(mg,k)/(qlg(mg,k)+qfg(mg,k))
           else
             cifr(mg,k)=0.
           endif
 c          clfr(mg,k)=max(cfrac(mg,k)-cifr(mg,k),0.) 
 c Previous line not good for roundoff; next few lines are better
-          if(qlg(mg,k).gt.0.)then
+          if(qlg(mg,k)>0.)then
             clfr(mg,k)=cfrac(mg,k)*qlg(mg,k)/(qlg(mg,k)+qfg(mg,k))
           else
             clfr(mg,k)=0.
@@ -252,19 +252,19 @@ c Previous line not good for roundoff; next few lines are better
 c Define cdrop  - passed through as cdso4, defined in leoncld.f
 
 ***************** Cut here to insert new auto scheme ********************            
-      if (ncloud.gt.0) then
+      if (ncloud>0) then
 c Using new (subgrid) autoconv scheme... 
         do k=nl-1,1,-1
           do mg=1,ln2
             cfrain(mg,k)=0.0
             rhodz=rhoa(mg,k)*dz(mg,k)
 
-            if(clfr(mg,k).gt.0.)then
+            if(clfr(mg,k)>0.)then
 
               ql=qlg(mg,k)
               cfla=0.
               dqla=0.
-              if(cfa(mg,k).gt.0.)then
+              if(cfa(mg,k)>0.)then
                 cfla=cfa(mg,k)*clfr(mg,k)/(clfr(mg,k)+cifr(mg,k))
                 qla=qca(mg,k)/cfa(mg,k)
 
@@ -279,7 +279,7 @@ c Following few lines are for Yangang Liu's new scheme (2004: JAS, GRL)
                 R3c = 1.e-6*R6c/beta6 !in metres
                 qcrit=(4*pi/3)*rhow*R3c**3*Cdrop(mg,k)/rhoa(mg,k) !New qcrit
 
-                if(qla.le.qcrit)then
+                if(qla<=qcrit)then
                   ql2=qla
                 else
 
@@ -314,12 +314,12 @@ c Or, using old autoconv scheme...
             cfrain(mg,k)=0.0
             rhodz=rhoa(mg,k)*dz(mg,k)
 
-            if(clfr(mg,k).gt.0.)then
+            if(clfr(mg,k)>0.)then
        
               qcrit=(4*pi/3)*rhow*Rcm**3*cdrop(mg,k)/rhoa(mg,k)
               qcic=qlg(mg,k)/clfr(mg,k) !In cloud value
 
-              if(qcic.lt.qcrit)then
+              if(qcic<qcrit)then
                 ql=qlg(mg,k)
                 dqlo=0.
               else
@@ -343,7 +343,7 @@ c               selfcoll=min(ql1,ql1*cdt/(1+0.5*cdt))
             endif
           enddo
         enddo
-      endif ! (ncloud.gt.0)
+      endif ! (ncloud>0)
 
 c Call frozen precipitation routine
 
@@ -374,7 +374,7 @@ c Call frozen precipitation routine
 
       ! The following has been modified to track the random overlap rain fraction (rdclfr)
       ! and the max overlap rain fraction (mxclfr) so than both random overlaped and
-      ! max/random overlaped clouds are supported - MJT
+      ! maximum/random overlaped clouds are supported - MJT
 
 c      do nt=1,njumps
 
@@ -394,10 +394,10 @@ c Now work down through the levels...
             rhodz=rhoa(mg,k)*dz(mg,k)
             evap=0.
 
-            ! The following flag detects max/random overlap clouds
+            ! The following flag detects maximum/random overlap clouds
             ! that are separated by a clear layer
-            if ((clfr(mg,k).eq.0..and.cfrain(mg,k).eq.0.)
-     &          .or.nmr.eq.0) then
+            if ((clfr(mg,k)==0..and.cfrain(mg,k)==0.)
+     &          .or.nmr==0) then
               ! combine max overlap from last cloud with net random overlap
               rdclfr(mg)=rdclfr(mg)+mxclfr(mg)-rdclfr(mg)*mxclfr(mg)
               mxclfr(mg)=0.
@@ -411,10 +411,10 @@ c Evaporation of rain
 
             qpf=fluxrain(mg)/rhodz !Mix ratio of rain which falls into layer  ! MJT suggestion
             clrevap=(1.-clfr(mg,k))*qpf                                       ! MJT suggestion
-            if(fluxrain(mg).gt.0.and.cfrac(mg,k).lt.1.0)then
+            if(fluxrain(mg)>0.and.cfrac(mg,k)<1.0)then
               pk=100.0*prf(mg,k)
               qsg(mg,k)=qsati(pk,ttg(mg,k))
-              if(ttg(mg,k).lt.tfrz.and.ttg(mg,k).ge.tice)then
+              if(ttg(mg,k)<tfrz.and.ttg(mg,k).ge.tice)then
 !              qsl(mg,k)=qsg(mg,k)+epsil                            ! MJT suggestion
 !     &             *esdiff(nint(ttg(mg,k)-tfrz))/(100.0*prf(mg,k)) ! MJT suggestion
               qsl(mg,k)=qsg(mg,k)+epsil                             ! MJT suggestion
@@ -452,8 +452,8 @@ c              Vr=5./sqrt(rhoa(mg,k))                !Nominal fall speed
 
 c Now do the collection term.
 
-c            if(qlg(mg,k).gt.1.e-10)then
-              if(fluxrain(mg).gt.0.)then
+c            if(qlg(mg,k)>1.e-10)then
+              if(fluxrain(mg)>0.)then
                 Fr=fluxrain(mg)/clfra(mg)/delt
                 cfrain(mg,k)=max(cfrain(mg,k),
      &                       min(mxclfr(mg),clfr(mg,k))                ! max overlap
@@ -462,7 +462,7 @@ c            if(qlg(mg,k).gt.1.e-10)then
                 Fr=0.
               endif
 
-              if(fluxc(mg,k+1).gt.0.)then
+              if(fluxc(mg,k+1)>0.)then
                 Frc=max(0.,fluxc(mg,k+1)/max(ccra(mg),0.01)/tdt) ! over tdt
                 cfrain(mg,k)=max(cfrain(mg,k),clfr(mg,k)*ccra(mg))       ! rnd overlap
                 !cfrain(mg,k)=max(cfrain(mg,k),min(clfr(mg,k),ccra(mg))) ! max overlap
@@ -498,7 +498,7 @@ c and convective (ccra).
 
             cfrain(mg,k)=min(1.,
      &             cfrain(mg,k)+cfmelt(mg,k)-cfrain(mg,k)*cfmelt(mg,k))
-            if (frclr(mg,k).lt.1.e-15) then
+            if (frclr(mg,k)<1.e-15) then
               rdclfr(mg)=0.
               mxclfr(mg)=0.
             end if
@@ -565,19 +565,19 @@ c Remove small amounts of cloud
 
       do k=1,nl
         do mg=1,ln2
-          if(qlg(mg,k).lt.1e-10.or.clfr(mg,k).lt.1e-5)then
+          if(qlg(mg,k)<1e-10.or.clfr(mg,k)<1e-5)then
             qtg(mg,k)=qtg(mg,k)+qlg(mg,k)
             ttg(mg,k)=ttg(mg,k)-hlcp*qlg(mg,k)
             qlg(mg,k)=0.
             clfr(mg,k)=0.
           endif
-          if(qfg(mg,k).lt.1e-10.or.cifr(mg,k).lt.1e-5)then
+          if(qfg(mg,k)<1e-10.or.cifr(mg,k)<1e-5)then
             qtg(mg,k)=qtg(mg,k)+qfg(mg,k)
             ttg(mg,k)=ttg(mg,k)-hlscp*qfg(mg,k)
             qfg(mg,k)=0.
             cifr(mg,k)=0.
           endif
-          if(qrg(mg,k).lt.1e-10.or.cffall(mg,k).lt.1e-5)then
+          if(qrg(mg,k)<1e-10.or.cffall(mg,k)<1e-5)then
             qtg(mg,k)=qtg(mg,k)+qrg(mg,k)
             ttg(mg,k)=ttg(mg,k)-hlcp*qrg(mg,k)
             qrg(mg,k)=0.
@@ -598,11 +598,11 @@ c     from 16/1/06, ccov cfrac NOT UPDATED here
 c      do k=1,nl-1
 c        do mg=1,ln2
 cc Next 3 lines commented for m35-m38 runs.
-cC***          if(qlgsav(mg,k).gt.0.)then
+cC***          if(qlgsav(mg,k)>0.)then
 cC***            clfr(mg,k)=clfr(mg,k)*qlg(mg,k)/qlgsav(mg,k)
 cC***          endif
 c          cftemp=min(cifr(mg,k)+clfr(mg,k), 1.)
-c          if(cfrac(mg,k).gt.0.)then
+c          if(cfrac(mg,k)>0.)then
 c            ccov(mg,k)=min(1., ccov(mg,k)*cftemp/cfrac(mg,k))
 c          else
 c            ccov(mg,k)=cftemp
@@ -614,8 +614,8 @@ c      enddo
       if(ntest==2)then
         do k=1,nl
           do mg=1,ln2
-            if(cfrac(mg,k).gt.0)then
-              if(qlg(mg,k).le.0.and.qfg(mg,k).le.0)then
+            if(cfrac(mg,k)>0)then
+              if(qlg(mg,k)<=0.and.qfg(mg,k)<=0)then
                 print*,'end newrain cloud with zero/neg water: cfrac=',
      &               cfrac(mg,k),' ccov= ',ccov(mg,k)
                 print*,'cifr ,clfr ',cifr(mg,k),clfr(mg,k)
@@ -626,7 +626,7 @@ c      enddo
                 print*
               endif
             else
-              if(qlg(mg,k).gt.0.or.qfg(mg,k).gt.0)then
+              if(qlg(mg,k)>0.or.qfg(mg,k)>0)then
                print*,'end newrain cloud water with no cloud: qfg,qlg=',
      &               qfg(mg,k),qlg(mg,k)
                print*,'cifr ,clfr ',cifr(mg,k),clfr(mg,k)

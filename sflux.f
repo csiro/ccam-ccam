@@ -171,6 +171,11 @@ c     using av_vmod (1. for no time averaging)
       vmag(:)=max( vmod(:) , vmodmin) ! vmag used to calculate ri
       if(ntsur/=7)vmod(:)=vmag(:)	! gives usual way
 
+      dirad=0.
+      degdt=0.
+      dfgdt=0.
+      cie=0.
+
       !--------------------------------------------------------------
       call start_log(sfluxwater_begin)
       if (nmlo==0) then                                                 ! sea

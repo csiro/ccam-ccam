@@ -13,12 +13,12 @@ module infile
 private
 public histrd1,histrd4s,vertint,datefix,getzinp,ncmsg
 public histopen,histclose
-public ccnf_open,ccnf_create,ccnf_close,ccnf_inq_varid,ccnf_inq_dimid,ccnf_inq_dimlen
-public ccnf_def_dim,ccnf_def_dimu,ccnf_def_var,ccnf_enddef,ccnf_nofill,ccnf_get_var_real,ccnf_get_var_realg
+public ccnf_open,ccnf_create,ccnf_close,ccnf_sync,ccnf_enddef,ccnf_nofill,ccnf_inq_varid,ccnf_inq_dimid
+public ccnf_inq_dimlen,ccnf_def_dim,ccnf_def_dimu,ccnf_def_var,ccnf_def_var0,ccnf_get_var_real,ccnf_get_var_realg
 public ccnf_get_var_int,ccnf_get_att_intg,ccnf_get_vara_real,ccnf_get_vara_int,ccnf_get_vara_double
 public ccnf_get_var1_int,ccnf_get_var1_real,ccnf_get_att_text,ccnf_get_att_real,ccnf_get_att_realg
-public ccnf_read,ccnf_put_var_text,ccnf_put_var_int,ccnf_put_var1_double,ccnf_put_vara_int
-public ccnf_put_vara_real,ccnf_sync
+public ccnf_read,ccnf_put_var_text,ccnf_put_var_int,ccnf_put_var1_int,ccnf_put_var1_real,ccnf_put_var1_double
+public ccnf_put_vara_int,ccnf_put_vara_real,ccnf_put_att_text,ccnf_put_att_textg,ccnf_put_att_intg,ccnf_put_att_realg
 
 interface ccnf_get_att_intg
   module procedure ccnf_get_att_intg1i, ccnf_get_att_intg2i
@@ -1347,6 +1347,45 @@ vid=lvid
 return
 end subroutine ccnf_def_var
 
+subroutine ccnf_def_var0(ncid,vname,vtype,vid)
+
+use cc_mpi
+
+implicit none
+
+include 'netcdf.inc'
+
+integer, intent(in) :: ncid
+integer, intent(out) :: vid
+integer(kind=4) ncstatus,lncid,lvid,ltype
+character(len=*), intent(in) :: vname
+character(len=*), intent(in) :: vtype
+
+lncid=ncid
+select case(vtype)
+  case('int')
+    ltype=nf_int
+  case('float')
+    ltype=nf_float
+  case('double')
+    ltype=nf_double
+  case('char')
+    ltype=nf_char
+  case default
+    write(6,*) "ERROR: Unknown option for ccnf_def_var ",vtype
+    call ccmpi_abort(-1)
+end select
+
+ncstatus = nf_def_var(lncid,vname,ltype,0,1,lvid)
+if (ncstatus/=nf_noerr) then
+  write(6,*) nf_strerror(ncstatus)
+  call ccmpi_abort(-1)
+end if
+vid=lvid
+
+return
+end subroutine ccnf_def_var0
+
 subroutine ccnf_enddef(ncid)
 
 use cc_mpi
@@ -1914,6 +1953,60 @@ end if
 return
 end subroutine ccnf_put_var_int3i
 
+subroutine ccnf_put_var1_int(ncid,vid,start,vdat)
+
+use cc_mpi
+
+implicit none
+
+include 'netcdf.inc'
+
+integer, intent(in) :: ncid,vid,start
+integer(kind=4) ncstatus,lncid,lvid,lstart
+integer, intent(in) :: vdat
+integer(kind=4) :: ldat
+
+lncid=ncid
+lvid=vid
+lstart=start
+ldat=vdat
+ncstatus=nf_put_var1_int(lncid,lvid,lstart,ldat)
+if (ncstatus/=nf_noerr) then
+  write(6,*) nf_strerror(ncstatus)
+  call ccmpi_abort(-1)
+end if
+
+return
+end subroutine ccnf_put_var1_int
+
+subroutine ccnf_put_var1_real(ncid,vid,start,vdat)
+
+use cc_mpi
+
+implicit none
+
+include 'netcdf.inc'
+
+integer, intent(in) :: ncid,vid,start
+integer(kind=4) ncstatus,lncid,lvid,lstart
+real, intent(in) :: vdat
+
+lncid=ncid
+lvid=vid
+lstart=start
+#ifdef i8r8
+ncstatus=nf_put_var1_double(lncid,lvid,lstart,vdat)
+#else
+ncstatus=nf_put_var1_real(lncid,lvid,lstart,vdat)
+#endif
+if (ncstatus/=nf_noerr) then
+  write(6,*) nf_strerror(ncstatus)
+  call ccmpi_abort(-1)
+end if
+
+return
+end subroutine ccnf_put_var1_real
+
 subroutine ccnf_put_var1_double(ncid,vid,start,vdat)
 
 use cc_mpi
@@ -1951,14 +2044,16 @@ integer(kind=4) ncstatus,lncid,lvid
 integer, dimension(:), intent(in) :: start,count
 integer(kind=4), dimension(size(start)) :: lstart,lcount
 real, dimension(:), intent(in) :: vdat
-real(kind=4), dimension(size(vdat)) :: ldat
 
 lncid=ncid
 lvid=vid
 lstart=start
 lcount=count
-ldat=vdat
-ncstatus=nf_put_vara_real(lncid,lvid,lstart,lcount,ldat)
+#ifdef i8r8
+ncstatus=nf_put_vara_double(lncid,lvid,lstart,lcount,vdat)
+#else
+ncstatus=nf_put_vara_real(lncid,lvid,lstart,lcount,vdat)
+#endif
 if (ncstatus/=nf_noerr) then
   write(6,*) nf_strerror(ncstatus)
   call ccmpi_abort(-1)
@@ -1980,14 +2075,16 @@ integer(kind=4) ncstatus,lncid,lvid
 integer, dimension(:), intent(in) :: start,count
 integer(kind=4), dimension(size(start)) :: lstart,lcount
 real, dimension(:,:), intent(in) :: vdat
-real(kind=4), dimension(size(vdat,1),size(vdat,2)) :: ldat
 
 lncid=ncid
 lvid=vid
 lstart=start
 lcount=count
-ldat=vdat
-ncstatus=nf_put_vara_real(lncid,lvid,lstart,lcount,ldat)
+#ifdef i8r8
+ncstatus=nf_put_vara_double(lncid,lvid,lstart,lcount,vdat)
+#else
+ncstatus=nf_put_vara_real(lncid,lvid,lstart,lcount,vdat)
+#endif
 if (ncstatus/=nf_noerr) then
   write(6,*) nf_strerror(ncstatus)
   call ccmpi_abort(-1)
@@ -2024,5 +2121,108 @@ end if
 
 return
 end subroutine ccnf_put_vara_int2i
+
+subroutine ccnf_put_att_text(ncid,vid,aname,asize,atext)
+
+use cc_mpi
+
+implicit none
+
+include 'netcdf.inc'
+
+integer, intent(in) :: ncid,vid,asize
+integer(kind=4) ncstatus,lncid,lvid,lsize
+character(len=*), intent(in) :: aname
+character(len=asize), intent(in) :: atext
+
+lncid=ncid
+lvid=vid
+lsize=asize
+ncstatus=nf_put_att_text(lncid,lvid,aname,lsize,atext)
+if (ncstatus/=nf_noerr) then
+  write(6,*) nf_strerror(ncstatus)
+  call ccmpi_abort(-1)
+end if
+
+return
+end subroutine ccnf_put_att_text
+
+subroutine ccnf_put_att_textg(ncid,aname,asize,atext)
+
+use cc_mpi
+
+implicit none
+
+include 'netcdf.inc'
+
+integer, intent(in) :: ncid,asize
+integer(kind=4) ncstatus,lncid,lsize
+character(len=*), intent(in) :: aname
+character(len=asize), intent(in) :: atext
+
+lncid=ncid
+lsize=asize
+ncstatus=nf_put_att_text(lncid,nf_global,aname,lsize,atext)
+if (ncstatus/=nf_noerr) then
+  write(6,*) nf_strerror(ncstatus)
+  call ccmpi_abort(-1)
+end if
+
+return
+end subroutine ccnf_put_att_textg
+
+subroutine ccnf_put_att_intg(ncid,aname,vsize,vdat)
+
+use cc_mpi
+
+implicit none
+
+include 'netcdf.inc'
+
+integer, intent(in) :: ncid,vsize
+integer(kind=4) ncstatus,lncid,lsize
+integer, dimension(:), intent(in) :: vdat
+integer(kind=4), dimension(size(vdat)) :: ldat
+character(len=*), intent(in) :: aname
+
+lncid=ncid
+lsize=vsize
+ldat=vdat
+ncstatus=nf_put_att_int(lncid,nf_global,aname,nf_int,lsize,ldat)
+if (ncstatus/=nf_noerr) then
+  write(6,*) nf_strerror(ncstatus)
+  call ccmpi_abort(-1)
+end if
+
+return
+end subroutine ccnf_put_att_intg
+
+subroutine ccnf_put_att_realg(ncid,aname,vsize,vdat)
+
+use cc_mpi
+
+implicit none
+
+include 'netcdf.inc'
+
+integer, intent(in) :: ncid,vsize
+integer(kind=4) ncstatus,lncid,lsize
+real, dimension(:), intent(in) :: vdat
+character(len=*), intent(in) :: aname
+
+lncid=ncid
+lsize=vsize
+#ifdef i8r8
+ncstatus=nf_put_att_double(lncid,nf_global,aname,nf_float,lsize,vdat)
+#else
+ncstatus=nf_put_att_real(lncid,nf_global,aname,nf_float,lsize,vdat)
+#endif
+if (ncstatus/=nf_noerr) then
+  write(6,*) nf_strerror(ncstatus)
+  call ccmpi_abort(-1)
+end if
+
+return
+end subroutine ccnf_put_att_realg
 
 end module infile

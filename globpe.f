@@ -184,10 +184,22 @@
       data comment/' '/,comm/' '/,irest/1/,jalbfix/1/,nalpha/1/
       data mexrest/6/,mins_rad/60/,nwrite/0/,nsnowout/999999/
 
-!#ifdef stacklimit
+#ifdef stacklimit
       ! For linux only
       call setstacklimit(-1)
-!#endif
+#endif
+
+#ifdef i8r8
+      if (kind(iq)/=8) then
+        write(6,*) "ERROR: CCAM configured for double precision"
+        stop
+      end if
+#else
+      if (kind(iq)/=4) then
+        write(6,*) "ERROR: CCAM configured for single precision"
+        stop
+      end if
+#endif
 
       !--------------------------------------------------------------
       ! INITALISE MPI ROUTINES

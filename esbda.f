@@ -19,7 +19,9 @@ C     MKS table
 C     TABLE OF ES fROM -150 C TO +70 C IN ONE-DEGREE INCREMENTS.
 C     Temperature of last ES in each row is shown as a comment.
 C                                                                      ! TEMP
-      common /es_table/ table(0:220)
+      real, dimension(0:220) :: table
+      common /es_table/ table
+      
       data (table(i),i=0,99) /1.e-9, 1.e-9, 2.e-9, 3.e-9, 4.e-9,       !-146C
      & 6.e-9, 9.e-9, 13.e-9, 18.e-9, 26.e-9,                           !-141C
      & 36.e-9, 51.e-9, 71.e-9, 99.e-9, 136.e-9,                        !-136C

@@ -790,8 +790,8 @@ if (first) then
 end if
 
 tdiff=min(max( temp-123.16, 0.), 219.)
-rx=tdiff-aint(tdiff)
-ix=int(tdiff)
+rx=tdiff-anint(tdiff)
+ix=nint(tdiff)
 esatf=(1.-rx)*table(ix)+ rx*table(ix+1)
 qsat=0.622*esatf/max(ps-esatf,0.1)
 

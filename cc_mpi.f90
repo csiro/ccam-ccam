@@ -2205,6 +2205,7 @@ contains
    subroutine bounds2(t, nrows, corner, nehalf, gmode)
       ! Copy the boundary regions
       ! MJT - modified to restrict bounds calls to ocean processors with gmode=1
+      ! MJT - modified to allow NE half updates to reduce message size
       real, dimension(ifull+iextra), intent(inout) :: t
       integer, intent(in), optional :: nrows
       integer, intent(in), optional :: gmode
@@ -2259,6 +2260,7 @@ contains
          else
             recv_len = bnds(rproc)%rlenh
          end if
+         ! processor mask
          if (lmode==1) then
             recv_len=recv_len*bnds(rproc)%mlomsk
          end if
@@ -2279,6 +2281,7 @@ contains
          else
             send_len = bnds(sproc)%slenh
          end if
+         ! processor mask
          if (lmode==1) then
             send_len=send_len*bnds(sproc)%mlomsk
          end if
@@ -2575,7 +2578,7 @@ contains
       nreq = 0
       do iproc = 1,nproc-1  !
          rproc = modulo(myid-iproc,nproc)  ! Recv from
-         if ( extra ) then
+         if ( extra .or. stagmode == -19 ) then
             recv_len = bnds(rproc)%rlenx_uv
          else if ( double .or. stagmode > 0 ) then
             recv_len = bnds(rproc)%rlen2_uv
@@ -2614,7 +2617,7 @@ contains
       end do
       do iproc = 1,nproc-1  !
          sproc = modulo(myid+iproc,nproc)  ! Send to
-         if ( extra ) then
+         if ( extra .or. stagmode == -19 ) then
             send_len = bnds(sproc)%slenx_uv
          else if ( double .or. stagmode > 0 ) then
             send_len = bnds(sproc)%slen2_uv
@@ -2728,9 +2731,9 @@ contains
       ! Finally see if there are any points on my own processor that need
       ! to be fixed up. This will only be in the case when nproc < npanels.
       if ( bnds(myid)%rlen_uv > 0 ) then
-         if ( extra ) then
+         if ( extra .or. stagmode == -19 ) then
             recv_len = bnds(myid)%rlenx_uv
-         else if ( double ) then
+         else if ( double .or. stagmode > 0 ) then
             recv_len = bnds(myid)%rlen2_uv
          else
             recv_len = bnds(myid)%rlen_uv
@@ -2762,7 +2765,7 @@ contains
 
       do iproc = 1,nproc-1  !
          rproc = modulo(myid-iproc,nproc)  ! Recv from
-         if ( extra ) then
+         if ( extra .or. stagmode == -19 ) then
             recv_len = bnds(rproc)%rlenx_uv
          else if ( double .or. stagmode > 0 ) then
             recv_len = bnds(rproc)%rlen2_uv
@@ -2942,7 +2945,7 @@ contains
       nreq = 0
       do iproc = 1,nproc-1  !
          rproc = modulo(myid-iproc,nproc)  ! Recv from
-         if ( extra ) then
+         if ( extra .or. stagmode == -19 ) then
             recv_len = bnds(rproc)%rlenx_uv
          else if ( double .or. stagmode > 0 ) then
             recv_len = bnds(rproc)%rlen2_uv
@@ -2982,7 +2985,7 @@ contains
       end do
       do iproc = 1,nproc-1  !
          sproc = modulo(myid+iproc,nproc)  ! Send to
-         if ( extra ) then
+         if ( extra .or. stagmode == -19 ) then
             send_len = bnds(sproc)%slenx_uv
          else if ( double .or. stagmode > 0 ) then
             send_len = bnds(sproc)%slen2_uv
@@ -3115,7 +3118,7 @@ contains
       ! Finally see if there are any points on my own processor that need
       ! to be fixed up. This will only be in the case when nproc < npanels.
       if ( bnds(myid)%rlen_uv > 0 ) then
-         if ( extra ) then
+         if ( extra .or. stagmode == -19 ) then
             recv_len = bnds(myid)%rlenx_uv
          else if ( double .or. stagmode > 0 ) then
             recv_len = bnds(myid)%rlen2_uv
@@ -3152,7 +3155,7 @@ contains
 
       do iproc = 1,nproc-1  !
          rproc = modulo(myid-iproc,nproc)  ! Recv from
-         if ( extra ) then
+         if ( extra .or. stagmode == -19 ) then
             recv_len = bnds(rproc)%rlenx_uv
          else if ( double .or. stagmode > 0 ) then
             recv_len = bnds(rproc)%rlen2_uv

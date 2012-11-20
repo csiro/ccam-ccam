@@ -151,7 +151,7 @@ leoncld.o : aerointerface.o arrays_m.o cc_mpi.o diag_m.o kuocomb_m.o latlong_m.o
 longwave_clouds.o : rad_utilities.o
 longwave_fluxes.o : rad_utilities.o
 longwave_tables.o : longwave_params.o rad_utilities.o
-lw_gases_stdtf.o : cc_mpi.o gas_tf.o rad_utilities.o filnames.h
+lw_gases_stdtf.o : cc_mpi.o infile.o gas_tf.o rad_utilities.o filnames.h
 lwr88.o : co2dta_m.o kdacom_m.o radisw_m.o tfcom_m.o work3lwr_m.o hcon.h newmpar.h parm.h rdparm.h rnddta.h
 microphys_rad.o : esfsw_parameters.o longwave_params.o rad_utilities.o
 mlodynamics.o : arrays_m.o bigxy4_m.o cable_ccam2.o cc_mpi.o indices_m.o infile.o latlong_m.o map_m.o mlo.o nharrs_m.o nsibd_m.o soil_m.o soilsnow_m.o vecsuv_m.o xyzinfo_m.o const_phys.h newmpar.h parm.h soilv.h
@@ -181,8 +181,8 @@ spa88.o :  cldcom_m.o kdacom_m.o lwout_m.o radisw_m.o rdflux_m.o srccom_m.o tfco
 staguv.o : cc_mpi.o indices_m.o map_m.o vecsuv_m.o newmpar.h parm.h parmdyn.h
 swr99.o : hcon.h newmpar.h rdparm.h
 table.o : radisw_m.o tabcom_m.o hcon.h newmpar.h rdparm.h rnddta.h
-timeseries.o : arrays_m.o cable_define_dimensions.o carbpools_m.o cc_mpi.o extraout_m.o morepbl_m.o pbl_m.o prec_m.o sigs_m.o soil_m.o soilsnow_m.o tracermodule.o tracers_m.o vecsuv_m.o vegpar_m.o vvel_m.o xyzinfo_m.o const_phys.h dates.h newmpar.h parmgeom.h
-tracermodule.o : arrays_m.o cc_mpi.o latlong_m.o sigs_m.o sumdd_m.o tracers_m.o xyzinfo_m.o const_phys.h dates.h newmpar.h parm.h
+timeseries.o : arrays_m.o cable_define_dimensions.o carbpools_m.o cc_mpi.o infile.o extraout_m.o morepbl_m.o pbl_m.o prec_m.o sigs_m.o soil_m.o soilsnow_m.o tracermodule.o tracers_m.o vecsuv_m.o vegpar_m.o vvel_m.o xyzinfo_m.o const_phys.h dates.h newmpar.h parmgeom.h
+tracermodule.o : arrays_m.o cc_mpi.o infile.o latlong_m.o sigs_m.o sumdd_m.o tracers_m.o xyzinfo_m.o const_phys.h dates.h newmpar.h parm.h
 trim.o : newmpar.h 
 trvmix.o : arrays_m.o cc_mpi.o cable_ccam2.o cable_define_dimensions.o carbpools_m.o cc_mpi.o diag_m.o nsibd_m.o sigs_m.o tracermodule.o tracers_m.o xyzinfo_m.o const_phys.h dates.h newmpar.h parm.h
 updps.o : arrays_m.o cc_mpi.o diag_m.o indices_m.o map_m.o nlin_m.o savuvt_m.o savuv1_m.o sigs_m.o vecsuv_m.o vvel_m.o xarrs_m.o xyzinfo_m.o const_phys.h newmpar.h parm.h parmdyn.h parmhor.h
