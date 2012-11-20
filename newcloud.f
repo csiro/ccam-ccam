@@ -147,8 +147,8 @@ C Local data, functions etc
      & 0.08, 0., 0. /                                                          ! MJT suggestion
       tdiffx(tx_)=min(max( tx_-tfrz, -40.), 1.)                                ! MJT suggestion
       esdiffx(tx_) =                                                           ! MJT suggestion
-     &  (1.-(tdiffx(tx_)-anint(tdiffx(tx_))))*esdiff(nint(tdiffx(tx_)))        ! MJT suggestion
-     & +(tdiffx(tx_)-anint(tdiffx(tx_)))*esdiff(nint(tdiffx(tx_))+1)           ! MJT suggestion
+     &    (1.-(tdiffx(tx_)-aint(tdiffx(tx_))))*esdiff(int(tdiffx(tx_)))        ! MJT suggestion
+     &  + (tdiffx(tx_)-aint(tdiffx(tx_)))*esdiff(int(tdiffx(tx_))+1)           ! MJT suggestion
 !     include 'ESTABL.f'  !Contains arithmetic statement function qsat(p,T)
       real tablei
       common /esitable/ tablei(0:220) !Table of es values wrt ice
@@ -161,8 +161,8 @@ c TDIFF is difference between T and 123.16, subject to 0 <= TDIFF <= 220
       tdiff(t)=min(max( t-123.16, 0.), 219.)
 
 c These give the ice values needed for the qcloud scheme
-      estabi(t) = (1.-(tdiff(t)-anint(tdiff(t))))*tablei(nint(tdiff(t)))
-     &           + (tdiff(t)-anint(tdiff(t)))*tablei(nint(tdiff(t))+1)
+      estabi(t) = (1.-(tdiff(t)-aint(tdiff(t))))*tablei(int(tdiff(t)))
+     &           + (tdiff(t)-aint(tdiff(t)))*tablei(int(tdiff(t))+1)
       qsati(pp,t) = epsil*estabi(t)/max(.1,pp-estabi(t)) 
 
 C Start code : ----------------------------------------------------------

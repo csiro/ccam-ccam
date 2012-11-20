@@ -2060,8 +2060,8 @@ if (first) then
 end if
 
 tdiff=min(max( temp-123.16, 0.), 219.)
-rx=tdiff-anint(tdiff)
-ix=nint(tdiff)
+rx=tdiff-aint(tdiff)
+ix=int(tdiff)
 esatf=(1.-rx)*table(ix)+ rx*table(ix+1)
 qsat=0.622*esatf/max(ps-esatf,0.1)
 
@@ -2845,7 +2845,7 @@ real, dimension(25), parameter :: trafficcycle = (/ 0.1, 0.1, 0.1, 0.1, 0.5, 1.0
                                                     1.5, 1.5, 1.5, 1.5, 1.5, 1.4, 1.2,  1., 0.8, 0.6, 0.4, 0.2, &
                                                     0.1 /) 
 
-ip=nint(24.*if_ctime)
+ip=int(24.*if_ctime)
 rp=24.*if_ctime-real(ip)
 where (ip<1) ip=ip+24
 trafficout=if_trafficfg*((1.-rp)*trafficcycle(ip)+rp*trafficcycle(ip+1))
