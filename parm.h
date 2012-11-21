@@ -11,7 +11,8 @@
      &        mloalpha,nud_ouv,nud_sfh,rescrn,knh,ccycle
       real qgmin,                                                        &
      &     aleadfr,av_vmod,vmodmin,snmin,tss_sh,charnock,chn10,zobgin,   &
-     &     ds,dt,dtin,timea,panfg,panzo,bpyear
+     &     rlongdn,rlongdx,rlatdn,rlatdx,ds,dt,dtin,timea,panfg,panzo,   &
+     &     bpyear
       logical diag, localhist,amipo3
       common/parm1/meso,nem,ngwd,nrungcm,newtop                          &
      &  ,qgmin        ! min value, esp. for stratosphere           [1.e-6]
@@ -20,7 +21,8 @@
 
       common/parmvmix/nvmix,nlocal
 
-      common/parmtest/nhstest,namip,nsemble,nspecial
+      common/parmtest/nhstest,namip,nsemble,nspecial,rlongdn,rlongdx,    &
+     &                rlatdn,rlatdx
 
       common/parmsfce/newrough,newsoilm,nsib,nsoil,ntsea,ntsur,ntsur2,   &
      &                lgwd,newztsea,aleadfr,av_vmod,vmodmin,snmin,       &

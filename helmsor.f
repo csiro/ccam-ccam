@@ -24,7 +24,6 @@
       real, intent(inout) :: s(ifull+iextra,kl)      ! Solution
       real, intent(in) :: rhs(ifull+iextra,kl)       ! RHS
       real, dimension(ifull,kl) :: sb, sa, snew, dsol
-      integer, allocatable, save, dimension(:) :: mask
       integer, dimension(kl) :: iters
       integer, dimension(3), save :: ifullx
       integer, dimension(:,:), allocatable, save :: iqx,iqn,iqe
@@ -42,112 +41,25 @@
 
       call start_log(helm_begin)
       
-      if (.not.allocated(mask)) then
-        allocate(mask(ifull))
-        allocate(iqx(ifull,3),iqn(ifull,3),iqe(ifull,3))
-        allocate(iqw(ifull,3),iqs(ifull,3),accel(kl))
+      if (.not.allocated(iqx)) then
+       allocate(iqx(ifull,3),iqn(ifull,3),iqe(ifull,3))
+       allocate(iqw(ifull,3),iqs(ifull,3),accel(kl))
 
-        if(precon==-1)precon=-2325  ! i.e. 2, 3, .25
-        nx_max=abs(precon)/1000
-        meth=abs(precon)/100-10*nx_max
-        axel=-.01*real(precon)-10*nx_max-meth
-        if(myid==0)write(6,*)'in helmsor nx_max,meth,axel: ',
+       if(precon==-1)precon=-2325  ! i.e. 2, 3, .25
+       nx_max=abs(precon)/1000
+       meth=abs(precon)/100-10*nx_max
+       axel=-.01*real(precon)-10*nx_max-meth
+       if(myid==0)write(6,*)'in helmsor nx_max,meth,axel: ',
      &                                   nx_max,meth,axel
-        
-        ! global index method
-        if (nx_max==3) then ! 3 colour
-
-        mask=0
-        do n=1,npan
-         do j=1,jpan
-          do i=1,ipan
-           iq = indp(i,j,n)   ! Local
-           iqg = indg(i,j,n)  ! Global
-           
-           tg=iqg-1
-           ng=tg/(il_g*il_g)
-           tg=tg-ng*il_g*il_g
-           jg=tg/il_g
-           tg=tg-jg*il_g
-           ig=tg
-           ig=ig+1
-           jg=jg+1
-           
-           jx=mod(ig+jg+ng*il_g,2)
-           select case(ng)
-            case(0,3)
-             if (jx==0) then
-              mask(iq)=1
-             else
-              mask(iq)=2
-             end if
-            case(1,4)
-             if (jx==0) then
-              mask(iq)=1
-             else
-              mask(iq)=3
-             end if
-            case(2,5)
-             if (jx==0) then
-              mask(iq)=2
-             else
-              mask(iq)=3
-             end if
-           end select
-          end do
-         end do
-        end do
-      
-       else ! 2 colour
-
-        mask=0
-        do n=1,npan
-         do j=1,jpan
-          do i=1,ipan
-           iq = indp(i,j,n)   ! Local
-           iqg = indg(i,j,n)  ! Global
-           
-           tg=iqg-1
-           ng=tg/(il_g*il_g)
-           tg=tg-ng*il_g*il_g
-           jg=tg/il_g
-           tg=tg-jg*il_g
-           ig=tg
-           ig=ig+1
-           jg=jg+1
-           
-           jx=mod(ig+jg+ng*il_g,2)
-           if (jx==0) then
-            mask(iq)=1
-           else
-            mask(iq)=2
-           end if
-          end do
-         end do
-        end do
-
-       end if ! if (nx_max==3) ..else..
-
-     
-!        ! old local indices
-!        mask(:)=1
-!        do j=1,jl
-!         do i=1,il,2
-!          jx=mod(i+j,2)    ! 0 or 1  starting (1,1) on panel
-!          iq=i+jx+(j-1)*il
-!          if(nx_max==2)then
-!            mask(iq)=2
-!          else
-!            if(j>il.and.j<=3*il)mask(iq)=3
-!            if(j>3*il.and.j<=5*il)mask(iq)=2
-!            jx=mod(i+j+1,2)  ! 0 or 1  starting (2,1) on panel
-!            iq=i+jx+(j-1)*il
-!            if(j<=2*il)mask(iq)=2
-!            if(j>4*il)mask(iq)=3
-!          endif 
-!         enddo
-!       enddo
-       
+ 
+       if (nx_max/=maxcolour) then
+        write(6,*) "ERROR: number of colours mismatched between"
+        write(6,*) "helmsor and cc_mpi.  Use three colours for"
+        write(6,*) "uniform decomposition or two colours for"
+        write(6,*) "face decomposition"
+        call ccmpi_abort(-1)
+       end if
+  
        ! Pack colour indices
        ifullx=0
        iqx=0
@@ -156,12 +68,12 @@
        iqw=0
        iqs=0
        do iq=1,ifull
-         ifullx(mask(iq))=ifullx(mask(iq))+1
-         iqx(ifullx(mask(iq)),mask(iq))=iq
-         iqn(ifullx(mask(iq)),mask(iq))=in(iq)
-         iqe(ifullx(mask(iq)),mask(iq))=ie(iq)
-         iqw(ifullx(mask(iq)),mask(iq))=iw(iq)
-         iqs(ifullx(mask(iq)),mask(iq))=is(iq)
+         ifullx(colourmask(iq))=ifullx(colourmask(iq))+1
+         iqx(ifullx(colourmask(iq)),colourmask(iq))=iq
+         iqn(ifullx(colourmask(iq)),colourmask(iq))=in(iq)
+         iqe(ifullx(colourmask(iq)),colourmask(iq))=ie(iq)
+         iqw(ifullx(colourmask(iq)),colourmask(iq))=iw(iq)
+         iqs(ifullx(colourmask(iq)),colourmask(iq))=is(iq)
        end do
 
        do k=1,kl
@@ -184,8 +96,6 @@ c       if(il_g==il)accel(k)=1.+.55*(accel(k)-1.) ! just a test
        call bounds(s, klim=klim)
        do k=1,klim        
         do nx=1,nx_max
-!         do iq=1,ifull
-!          if(mask(iq)==nx)then
            ifx=ifullx(nx)
            dsol(iqx(1:ifx,nx),k)=
      &        ( zzn(iqx(1:ifx,nx))*s(iqn(1:ifx,nx),k)
@@ -199,16 +109,12 @@ c       if(il_g==il)accel(k)=1.+.55*(accel(k)-1.) ! just a test
            snew(iqx(1:ifx,nx),k) = s(iqx(1:ifx,nx),k)
      &        + dsol(iqx(1:ifx,nx),k)
 c            snew(iq,k) = s(iq,k) + dsol(iq,k)*accel(k)  ! no help
-!          endif
-!         enddo
 
 !        following are jlm methods for improving guess
          if(iter>=3)then
          select case(meth)
           case(3)
 !         if(iter>=3.and.meth==3)then   ! qls
-!          do iq=1,ifull
-!           if(mask(iq)==nx)then
             aa(iqx(1:ifx,nx))=
      &       (sb(iqx(1:ifx,nx),k)
      &       -3.*sa(iqx(1:ifx,nx),k)
@@ -221,13 +127,9 @@ c            snew(iq,k) = s(iq,k) + dsol(iq,k)*accel(k)  ! no help
 c           snew(iq,k)=aa+.25*bb+.0625*cc !3c
             snew(iqx(1:ifx,nx),k)=aa(iqx(1:ifx,nx))
      &       +axel*bb(iqx(1:ifx,nx))
-!           endif
-!          enddo
 !         endif  ! meth=3
           case(4)
 !         if(iter>=3.and.meth==4)then   ! oscill
-!          do iq=1,ifull
-!           if(mask(iq)==nx)then
             aa(iqx(1:ifx,nx))=(7.*snew(iqx(1:ifx,nx),k)
      &       +3.*s(iqx(1:ifx,nx),k)
      &       -3.*sa(iqx(1:ifx,nx),k)
@@ -239,13 +141,9 @@ c           snew(iq,k)=aa+.25*bb+.0625*cc !3c
 c           cc=.25*(snew(iq,k)-s(iq,k)-sa(iq,k)+sb(iq,k))         !             aa=(sb(iq,k)-3*sa(iq,k)+3*s(iq,k)+19*snew(iq,k))/20.  
             snew(iqx(1:ifx,nx),k)=aa(iqx(1:ifx,nx))
      &       +axel*bb(iqx(1:ifx,nx))
-!           endif
-!          enddo
 !         endif  ! meth=4
           case(5)
 !         if(iter>=3.and.meth==5)then   ! wqls
-!          do iq=1,ifull
-!           if(mask(iq)==nx)then
             aa(iqx(1:ifx,nx))=(2.*sb(iqx(1:ifx,nx),k)
      &       -6.*sa(iqx(1:ifx,nx),k)+6*s(iqx(1:ifx,nx),k)
      &       +68.*snew(iqx(1:ifx,nx),k))/70.  
@@ -256,13 +154,9 @@ c           cc=.25*(snew(iq,k)-s(iq,k)-sa(iq,k)+sb(iq,k))         !             
 c           cc=(3*sb(iq,k)-2*sa(iq,k)-5*s(iq,k)+4*snew(iq,k))/14.  
             snew(iqx(1:ifx,nx),k)=aa(iqx(1:ifx,nx))
      &       +axel*bb(iqx(1:ifx,nx))          
-!          endif
-!          enddo
 !         endif  ! meth=5
           case(6)
 !         if(iter>=3.and.meth==6)then   ! wqls again
-!          do iq=1,ifull
-!           if(mask(iq)==nx)then
             aa(iqx(1:ifx,nx))=(2.*sb(iqx(1:ifx,nx),k)
      &       -6.*sa(iqx(1:ifx,nx),k)+6*s(iqx(1:ifx,nx),k)
      &       +68.*snew(iqx(1:ifx,nx),k))/70.  
@@ -275,20 +169,14 @@ c           cc=(3*sb(iq,k)-2*sa(iq,k)-5*s(iq,k)+4*snew(iq,k))/14.
             snew(iqx(1:ifx,nx),k)=aa(iqx(1:ifx,nx))
      &       +axel*(bb(iqx(1:ifx,nx))
      &       +axel*cc(iqx(1:ifx,nx)))          
-!          endif
-!          enddo
 !         endif  ! meth=5
          end select
          end if
 
 !         do iq=1,ifull
-!          if(mask(iq)==nx)then
-c           rotate s files
             sb(iqx(1:ifx,nx),k)=sa(iqx(1:ifx,nx),k)
             sa(iqx(1:ifx,nx),k)=s(iqx(1:ifx,nx),k)
             s(iqx(1:ifx,nx),k)=snew(iqx(1:ifx,nx),k)
-!          endif
-!         enddo
         enddo  ! nx loop
         iters(k)=iter
       enddo ! k loop   
@@ -360,7 +248,7 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
      &       + accel(k)*dsol(iqx(1:ifx,nx),k)
           s(iqx(1:ifx,nx),k)=snew(iqx(1:ifx,nx),k)
         enddo ! k loop
-        call bounds(s, klim=klim)  ! Need this to work for different colours
+        call bounds(s, klim=klim, colour=nx)
       enddo  ! nx loop  
       do k=1,klim
         iters(k)=iter
@@ -403,11 +291,11 @@ c        write (6,"('iter,k ,s',2i4,4f14.5)") iter,k,(s(iq,k),iq=1,4)
         enddo
         klim=klimnew
 
+        ! MJT - reduce collective MPI calls by anticipating convergence
         itsave1=itsave2
         itsave2=iter
         itserr1=itserr2
         itserr2=log10(dsolmax_g(1))
-       
         gd=(itserr2-itserr1)/real(itsave2-itsave1)
         ci=itserr2-gd*real(itsave2)
         if (gd/=0.) then
@@ -420,6 +308,7 @@ c        write (6,"('iter,k ,s',2i4,4f14.5)") iter,k,(s(iq,k),iq=1,4)
           write(6,*) "iter,itstest ",iter,itstest
         end if
         itc=itc+1
+        
        end if ! iter>=itstest
        iter = iter + 1
       enddo   ! while( iter<itmax .and. klim>1)

@@ -144,7 +144,7 @@
      & ,istn,jstn,iunp,nrotstn,slat,slon,zstn,name_stn
      & ,mexrest,mh_bs,ndept,nritch_t,nt_adv
      & ,mfix,mfix_qg,namip,amipo3,nh,npex,nhstest,nsemble
-     & ,nspecial,panfg,panzo,nplens
+     & ,nspecial,panfg,panzo,nplens,rlatdn,rlatdx,rlongdn,rlongdx
      & ,newsnow,nsnowout,newrough,newsoilm,nglacier,newztsea
      & ,epsp,epsu,epsf
      & ,av_vmod,charnock,chn10,snmin,tss_sh,vmodmin,zobgin
@@ -184,10 +184,10 @@
       data comment/' '/,comm/' '/,irest/1/,jalbfix/1/,nalpha/1/
       data mexrest/6/,mins_rad/60/,nwrite/0/,nsnowout/999999/
 
-#ifdef stacklimit
+!#ifdef stacklimit
       ! For linux only
       call setstacklimit(-1)
-#endif
+!#endif
 
 #ifdef i8r8
       if (kind(iq)/=8) then
@@ -2240,7 +2240,8 @@ c     data nstag/99/,nstagu/99/
       data nurban/0/,ccycle/0/
 !     Special and test options
       data namip/0/,amipo3/.false./,nhstest/0/,nsemble/0/,nspecial/0/,
-     &     panfg/4./,panzo/.001/,nplens/0/
+     &     panfg/4./,panzo/.001/,nplens/0/,rlatdx/0./,rlatdn/0./,
+     &     rlongdn/0./,rlongdx/0./
       data rescrn/0/,knh/-1/
 !     I/O options
       data m_fly/4/,io_in/1/,io_out/1/,io_rest/1/

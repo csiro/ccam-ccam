@@ -370,7 +370,7 @@ c       create the attributes of the header record of the file
      &  idoc                                    ! Output file dimension data
 
       integer i, idkdate, idktau, idktime, idmtimer, idnteg, idnter
-      integer idv, ier, iq, isoil, j, k, n, igas, idnc
+      integer idv, iq, isoil, j, k, n, igas, idnc
       integer iarch, itype, iaero, nstagin, idum
       integer, dimension(4), intent(in) :: dim
       integer, dimension(3) :: idim
@@ -1324,7 +1324,7 @@ c       For time varying surface fields
 c       Leave define mode
         call ccnf_enddef(idnc)
         if (myid==0) then
-          write(6,*) 'leave define mode: ier=',ier
+          write(6,*) 'leave define mode'
         end if
 
         if(local)then

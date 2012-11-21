@@ -99,6 +99,7 @@
      &     uzon, vmer, wet3, zonx, zony, zonz, zsdiff, zsmin, tstom, 
      &     xbub, ybub, xc, yc, zc, xt, yt, zt, tbubb, emcent,
      &     deli, delj, centi, distnew, distx, rhs, ril2
+      real newzo,visalb,niralb
 
       ! The following look-up tables are for the Mk3 land-surface scheme
       real, dimension(44), parameter :: vegpmin = (/
@@ -436,6 +437,23 @@
         end if ! (nsib==6.or.nsib==7) ..else..
       end if   ! nsib>=1
 
+      ! JJK special option for adjusting surface albedo and roughness
+      if(nspecial<-10)then
+       do iq=1,ifull
+        rlongd=rlongg(iq)*180./pi
+        rlatd=rlatt(iq)*180./pi
+        if((rlatdn<rlatd .and. rlatd<rlatdx).and.
+     &     (rlongdn<rlongd .and. rlongd<rlongdx))then
+! assume nspecial = -vvir where vv = % vis alb and ir = % nir alb
+         newzo=real(abs(nspecial)/10000)
+         visalb=real((abs(nspecial)-nint(newzo)*10000)/100)
+         niralb=real(abs(nspecial)-nint(newzo)*10000-nint(visalb)*100)
+         if ( newzo  > 1. ) zolnd(iq)=newzo/1000. ! input mm, output m
+         if ( visalb > 1. ) albvisnir(iq,1)=visalb/100. ! (to make 0-1)
+         if ( niralb > 1. ) albvisnir(iq,2)=niralb/100. ! (to make 0-1)
+        endif
+       enddo
+      endif  ! (nspecial<-10)
 
       !**************************************************************
       !**************************************************************
