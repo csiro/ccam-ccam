@@ -2358,7 +2358,9 @@ contains
       ltype=MPI_REAL
 #endif   
 
-      t(ifull+1:ifull+iextra)=9.E9 ! MJT test for bad bounds call
+      if ( lcolour == 0 ) then
+         t(ifull+1:ifull+iextra)=9.E9 ! MJT test for bad bounds call
+      end if
 
       double = .false.
       extra = .false.
@@ -2706,7 +2708,9 @@ contains
       ltype=MPI_REAL
 #endif   
 
-      t(ifull+1:ifull+iextra,:)=9.E9 ! MJT test for bad bounds call
+      if ( lcolour == 0 ) then
+         t(ifull+1:ifull+iextra,:)=9.E9 ! MJT test for bad bounds call
+      end if
 
       double = .false.
       extra = .false.

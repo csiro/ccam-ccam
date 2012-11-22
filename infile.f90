@@ -18,7 +18,8 @@ public ccnf_inq_dimlen,ccnf_def_dim,ccnf_def_dimu,ccnf_def_var,ccnf_def_var0,ccn
 public ccnf_get_var_int,ccnf_get_att_intg,ccnf_get_vara_real,ccnf_get_vara_int,ccnf_get_vara_double
 public ccnf_get_var1_int,ccnf_get_var1_real,ccnf_get_att_text,ccnf_get_att_real,ccnf_get_att_realg
 public ccnf_read,ccnf_put_var_text,ccnf_put_var_int,ccnf_put_var1_int,ccnf_put_var1_real,ccnf_put_var1_double
-public ccnf_put_vara_int,ccnf_put_vara_real,ccnf_put_att_text,ccnf_put_att_textg,ccnf_put_att_intg,ccnf_put_att_realg
+public ccnf_put_vara_int,ccnf_put_vara_real,ccnf_put_vara_double,ccnf_put_att_text,ccnf_put_att_textg
+public ccnf_put_att_intg,ccnf_put_att_realg
 
 interface ccnf_get_att_intg
   module procedure ccnf_get_att_intg1i, ccnf_get_att_intg2i
@@ -38,6 +39,9 @@ end interface ccnf_get_vara_double
 interface ccnf_put_vara_real
   module procedure ccnf_put_vara_real2r, ccnf_put_vara_real3r
 end interface ccnf_put_vara_real
+interface ccnf_put_vara_double
+  module procedure ccnf_put_vara_double2r
+end interface ccnf_put_vara_double
 interface ccnf_put_vara_int
   module procedure ccnf_put_vara_int2i
 end interface ccnf_put_vara_int
@@ -2092,6 +2096,33 @@ end if
 
 return
 end subroutine ccnf_put_vara_real3r
+
+subroutine ccnf_put_vara_double2r(ncid,vid,start,count,vdat)
+
+use cc_mpi
+
+implicit none
+
+include 'netcdf.inc'
+
+integer, intent(in) :: ncid,vid
+integer(kind=4) ncstatus,lncid,lvid
+integer, dimension(:), intent(in) :: start,count
+integer(kind=4), dimension(size(start)) :: lstart,lcount
+double precision, dimension(:), intent(in) :: vdat
+
+lncid=ncid
+lvid=vid
+lstart=start
+lcount=count
+ncstatus=nf_put_vara_double(lncid,lvid,lstart,lcount,vdat)
+if (ncstatus/=nf_noerr) then
+  write(6,*) nf_strerror(ncstatus)
+  call ccmpi_abort(-1)
+end if
+
+return
+end subroutine ccnf_put_vara_double2r
 
 subroutine ccnf_put_vara_int2i(ncid,vid,start,count,vdat)
 

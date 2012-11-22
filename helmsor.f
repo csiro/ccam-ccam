@@ -318,7 +318,7 @@ c        write (6,"('iter,k ,s',2i4,4f14.5)") iter,k,(s(iq,k),iq=1,4)
           write(6,*)'helmjlm ktau,k,Iterations ',ktau,1,iters(1)
         end if
         if(diag.or.ktau<6)then
-         do k=2,kl
+         do k=1,kl
           write(6,*)'helmjlm ktau,k,Iterations ',ktau,k,iters(k)
          enddo
          write(6,*) "itc ",itc

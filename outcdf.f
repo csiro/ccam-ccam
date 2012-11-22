@@ -1332,6 +1332,10 @@ c       Leave define mode
            do i=1,ipan
               xpnt(i) = float(i) + ioff(0)
            end do
+           iduma(1)=1
+           iduma(2)=il
+           call ccnf_put_vara_real(idnc,ixp,iduma(1:1),iduma(2:2),
+     &                             xpnt(1:il))
            i=1
            do n=1,npan
              do j=1,jpan
@@ -1339,20 +1343,24 @@ c       Leave define mode
                i=i+1
              end do
            end do
+           iduma(1)=1
+           iduma(2)=jl
+           call ccnf_put_vara_real(idnc,iyp,iduma(1:1),iduma(2:2),
+     &                             ypnt(1:jl))
         else
            do i=1,il_g
               xpnt(i) = float(i)
            end do
+           iduma(1)=1
+           iduma(2)=il_g
+           call ccnf_put_vara_real(idnc,ixp,iduma(1:1),iduma(2:2),xpnt)
            do j=1,jl_g
               ypnt(j) = float(j)
            end do
+           iduma(1)=1
+           iduma(2)=jl_g
+           call ccnf_put_vara_real(idnc,iyp,iduma(1:1),iduma(2:2),ypnt)
         endif
-        iduma(1)=1
-        iduma(2)=il
-        call ccnf_put_vara_real(idnc,ixp,iduma(1:1),iduma(2:2),xpnt)
-        iduma(1)=1
-        iduma(2)=jl
-        call ccnf_put_vara_real(idnc,iyp,iduma(1:1),iduma(2:2),ypnt)
 
         iduma(1)=1
         iduma(2)=kl
@@ -2061,7 +2069,7 @@ c      "extra" outputs
 
       use arrays_m                          ! Atmosphere dyamics prognostic arrays
       use cc_mpi                            ! CC MPI routines
-      use infile, only : ncmsg              ! Input file routines
+      use infile                            ! Input file routines
       use morepbl_m                         ! Additional boundary layer diagnostics
       use parmhdff_m                        ! Horizontal diffusion parameters
       use screen_m                          ! Screen level diagnostics
@@ -2074,7 +2082,6 @@ c      "extra" outputs
       include 'dates.h'                     ! Date data
       include 'filnames.h'                  ! Filenames
       include 'kuocom.h'                    ! Convection parameters
-      include 'netcdf.inc'                  ! Netcdf parameters
       include 'parm.h'                      ! Model configuration
       include 'parmdyn.h'                   ! Dynamics parameters
       include 'parmgeom.h'                  ! Coordinate data
@@ -2092,6 +2099,7 @@ c      "extra" outputs
       integer, dimension(4) :: adim
       integer, dimension(3) :: sdim
       integer, dimension(1) :: start,ncount
+      integer, dimension(2) :: iduma
       integer ierr,ixp,iyp,izp,old_mode
       integer icy,icm,icd,ich,icmi,ics,ti
       integer i,j,n,fiarch
@@ -2130,56 +2138,32 @@ c      "extra" outputs
           ffile=surfile
         end if
         if (myid==0.or.localhist) then
-#ifdef usenc3
-          ierr=nf_create(ffile,nf_clobber,fncid)
-#else
-          ierr=nf_create(ffile,NF_NETCDF4,fncid)
-#endif
-          call ncmsg('HFREQ open',ierr)
+          call ccnf_create(ffile,fncid)
           ! Turn off the data filling
-          ierr=nf_set_fill(fncid,nf_nofill,old_mode)
-          call ncmsg('HFREQ fill',ierr)
+          call ccnf_nofill(fncid)
           ! Create dimensions
           if (localhist) then
-             ierr=nf_def_dim(fncid,'longitude',il,adim(1))
-             call ncmsg('HFREQ lognitude',ierr)
-             ierr=nf_def_dim(fncid,'latitude',jl,adim(2))
-             call ncmsg('HFREQ latitude',ierr)
+             call ccnf_def_dim(fncid,'longitude',il,adim(1))
+             call ccnf_def_dim(fncid,'latitude',jl,adim(2))
           else
-             ierr=nf_def_dim(fncid,'longitude',il_g,adim(1))
-             call ncmsg('HFREQ longitude',ierr)
-             ierr=nf_def_dim(fncid,'latitude',jl_g,adim(2))
-             call ncmsg('HFREQ latitude',ierr)
+             call ccnf_def_dim(fncid,'longitude',il_g,adim(1))
+             call ccnf_def_dim(fncid,'latitude',jl_g,adim(2))
           endif
-          ierr=nf_def_dim(fncid,'lev',kl,adim(3))
-          call ncmsg('HFREQ lev def_dim',ierr)          
-          ierr=nf_def_dim(fncid,'time',nf_unlimited,adim(4))
-          call ncmsg('HFREQ time',ierr)
+          call ccnf_def_dim(fncid,'lev',kl,adim(3))
+          call ccnf_def_dimu(fncid,'time',adim(4))
           ! Define coords.
-          ierr=nf_def_var(fncid,'longitude',nf_float,1,adim(1),ixp)
-          call ncmsg('HFREQ longitude',ierr)
-          ierr=nf_put_att_text(fncid,ixp,'point_spacing',4,'even')
-          call ncmsg('HFREQ longitude',ierr)
-          ierr=nf_put_att_text(fncid,ixp,'units',12,'degrees_east')
-          call ncmsg('HFREQ longitude',ierr)
-          ierr=nf_def_var(fncid,'latitude',nf_float,1,adim(2),iyp)
-          call ncmsg('HFREQ latitude',ierr)
-          ierr=nf_put_att_text(fncid,iyp,'point_spacing',4,'even')
-          call ncmsg('HFREQ latitude',ierr)
-          ierr=nf_put_att_text(fncid,iyp,'units',13,'degrees_north')
-          call ncmsg('HFREQ latitude',ierr)
-          ierr=nf_def_var(fncid,'lev',nf_float,1,adim(3),izp)
-          call ncmsg('HFREQ lev def_var',ierr)
-          ierr=nf_put_att_text(fncid,izp,'positive',4,'down')
-          call ncmsg('HFREQ lev positive',ierr)
-          ierr=nf_put_att_text(fncid,izp,'point_spacing',6,'uneven')
-          call ncmsg('HFREQ lev point_spacing',ierr)
-          ierr=nf_put_att_text(fncid,izp,'units',11,'sigma_level')
-          call ncmsg('HFREQ lev units',ierr)
-          ierr=nf_def_var(fncid,'time',nf_double,1,adim(4),idnt)
-          call ncmsg('HFREQ time',ierr)
-          ierr=nf_put_att_text(fncid,idnt,'point_spacing',4,'even')
-          call ncmsg('HFREQ time',ierr)
+          call ccnf_def_var(fncid,'longitude','float',1,adim(1:1),ixp)
+          call ccnf_put_att_text(fncid,ixp,'point_spacing',4,'even')
+          call ccnf_put_att_text(fncid,ixp,'units',12,'degrees_east')
+          call ccnf_def_var(fncid,'latitude','float',1,adim(2:2),iyp)
+          call ccnf_put_att_text(fncid,iyp,'point_spacing',4,'even')
+          call ccnf_put_att_text(fncid,iyp,'units',13,'degrees_north')
+          call ccnf_def_var(fncid,'lev','float',1,adim(3:3),izp)
+          call ccnf_put_att_text(fncid,izp,'positive',4,'down')
+          call ccnf_put_att_text(fncid,izp,'point_spacing',6,'uneven')
+          call ccnf_put_att_text(fncid,izp,'units',11,'sigma_level')
+          call ccnf_def_var(fncid,'time','double',1,adim(4:4),idnt)
+          call ccnf_put_att_text(fncid,idnt,'point_spacing',4,'even')
           icy=kdate/10000
           icm=max(1,min(12,(kdate-icy*10000)/100))
           icd=max(1,min(31,(kdate-icy*10000-icm*100)))
@@ -2189,22 +2173,16 @@ c      "extra" outputs
           ics=0
           write(timorg,'(i2.2,"-",a3,"-",i4.4,3(":",i2.2))')
      &                   icd,month(icm),icy,ich,icmi,ics
-          ierr=nf_put_att_text(fncid,idnt,'time_origin',20,timorg,ierr)
-          call ncmsg('HFREQ time',ierr)
+          call ccnf_put_att_text(fncid,idnt,'time_origin',20,timorg)
           write(grdtim,'("seconds since ",i4.4,"-",i2.2,"-",i2.2," ",
      &         2(i2.2,":"),i2.2)') icy,icm,icd,ich,icmi,ics
-          ierr=nf_put_att_text(fncid,idnt,'units',33,grdtim,ierr)
-          call ncmsg('HFREQ time',ierr)
+          call ccnf_put_att_text(fncid,idnt,'units',33,grdtim)
           if (leap==0) then
-            ierr=nf_put_att_text(fncid,idnt,'calendar',6,'noleap',ierr)
-            call ncmsg('HFREQ time',ierr)
+            call ccnf_put_att_text(fncid,idnt,'calendar',6,'noleap')
           end if
-          ierr=nf_def_var(fncid,'kdate',nf_int,1,adim(4),idkdate)
-          call ncmsg('HFREQ kdate',ierr)
-          ierr=nf_def_var(fncid,'ktime',nf_int,1,adim(4),idktime)
-          call ncmsg('HFREQ ktime',ierr)
-          ierr=nf_def_var(fncid,'mtimer',nf_int,1,adim(4),idmtimer)
-          call ncmsg('HFREQ mtimer',ierr)
+          call ccnf_def_var(fncid,'kdate','int',1,adim(4:4),idkdate)
+          call ccnf_def_var(fncid,'ktime','int',1,adim(4:4),idktime)
+          call ccnf_def_var(fncid,'mtimer','int',1,adim(4:4),idmtimer)
           ! header data
           ahead(1)=ds
           ahead(2)=0.  !difknbd
@@ -2274,21 +2252,17 @@ c      "extra" outputs
           nahead(52)=nevapls
           nahead(53)=nevapcc
           nahead(54)=nt_adv
-          ierr=nf_put_att_real(fncid,nf_global,'real_header',nf_float,
-     &                        nrhead,ahead)
-          call ncmsg('HFREQ real_header',ierr)
-          ierr=nf_put_att_int(fncid,nf_global,'int_header',nf_int,
-     &                        nihead,nahead)
-          call ncmsg('HFREQ int_header',ierr)
+          call ccnf_put_att_realg(fncid,'real_header',nrhead,ahead)
+          call ccnf_put_att_intg(fncid,'int_header',nihead,nahead)
           if(localhist)then
-            ierr=nf_put_att_int(fncid,nf_global,"processor_num",nf_int,
-     &                          1,myid)
-            ierr=nf_put_att_int(fncid,nf_global,"nproc",nf_int,
-     &                          1,nproc)
+            iduma(1)=myid
+            call ccnf_put_att_intg(fncid,'processor_num',1,iduma(1:1))
+            iduma(1)=nproc
+            call ccnf_put_att_intg(fncid,'nproc',1,iduma(1:1))
 #ifdef uniform_decomp
-            ierr=nf_put_att_text(fncid,nf_global,"decomp",7,"uniform")
+            call ccnf_put_att_textg(fncid,'decomp',7,'uniform')
 #else
-            ierr=nf_put_att_text(fncid,nf_global,"decomp",4,"face")
+            call ccnf_put_att_textg(fncid,'decomp',4,'face')
 #endif
           endif 
           ! define variables
@@ -2311,15 +2285,16 @@ c      "extra" outputs
      &                .false.,1)
 
           ! end definition mode
-          ierr=nf_enddef(fncid)
-          call ncmsg('HFREQ enddef',ierr)
+          call ccnf_enddef(fncid)
           if (localhist) then
            ! Set these to global indices (relative to panel 0 in uniform decomp)
            do i=1,ipan
               xpnt(i) = float(i) + ioff(0)
            end do
-           ierr=nf_put_vara_real(fncid,ixp,1,il,xpnt)
-           call ncmsg('HFREQ longitude',ierr)
+           iduma(1)=1
+           iduma(2)=il
+           call ccnf_put_vara_real(fncid,ixp,iduma(1:1),iduma(2:2),
+     &                             xpnt(1:il))
            i=1
            do n=1,npan
              do j=1,jpan
@@ -2327,22 +2302,25 @@ c      "extra" outputs
                i=i+1
              end do
            end do
-           ierr=nf_put_vara_real(fncid,iyp,1,jl,ypnt)
-           call ncmsg('HFREQ latitude',ierr)
+           iduma(1)=1
+           iduma(2)=jl
+           call ccnf_put_vara_real(fncid,iyp,iduma(1:1),iduma(2:2),
+     &                             ypnt(1:jl))
           else
            do i=1,il_g
               xpnt(i) = float(i)
            end do
-           ierr=nf_put_vara_real(fncid,ixp,1,il_g,xpnt)
-           call ncmsg('HFREQ longitude',ierr)
+           call ccnf_put_vara_real(fncid,ixp,iduma(1:1),iduma(2:2),
+     &                             xpnt)
            do j=1,jl_g
               ypnt(j) = float(j)
            end do
-           ierr=nf_put_vara_real(fncid,iyp,1,jl_g,ypnt)
-           call ncmsg('HFREQ latitude',ierr)
+           call ccnf_put_vara_real(fncid,iyp,iduma(1:1),iduma(2:2),
+     &                             ypnt)
           end if
-          ierr=nf_put_vara_real(fncid,izp,1,kl,sig)
-          call ncmsg('HFREQ lev put_vara',ierr)
+          iduma(1)=1
+          iduma(2)=kl
+          call ccnf_put_vara_real(fncid,izp,iduma(1:1),iduma(2:2),sig)
         end if
         first=.false.
         if (myid==0) then
@@ -2378,23 +2356,19 @@ c      "extra" outputs
           do i=1,nwt
             tpnt(i)=real(ktau-nwt+i,8)*real(dt,8)
           end do
-          ierr=nf_put_vara_double(fncid,idnt,start,ncount,tpnt)
-          call ncmsg('HFREQ time',ierr)
+          call ccnf_put_vara_double(fncid,idnt,start,ncount,tpnt)
           do i=1,nwt
             datedat(i)=kdate
           end do
-          ierr=nf_put_vara_int(fncid,idkdate,start,ncount,datedat)
-          call ncmsg('HFREQ kdate',ierr)
+          call ccnf_put_vara_int(fncid,idkdate,start,ncount,datedat)
           do i=1,nwt
             datedat(i)=ktime
           end do
-          ierr=nf_put_vara_int(fncid,idktime,start,ncount,datedat)
-          call ncmsg('HFREQ ktime',ierr)
+          call ccnf_put_vara_int(fncid,idktime,start,ncount,datedat)
           do i=1,nwt
             datedat(i)=mtimer+nint(real(i-nwt)*dt/60.)
           end do
-          ierr=nf_put_vara_int(fncid,idmtimer,start,ncount,datedat)
-          call ncmsg('HFREQ mtimer',ierr)
+          call ccnf_put_vara_int(fncid,idmtimer,start,ncount,datedat)
         end if
         call freqwrite(fncid,'uas',fiarch,nwt,localhist,
      &                 freqstore(:,:,1))
@@ -2411,8 +2385,7 @@ c      "extra" outputs
       ! close file at end of run
       if (myid==0.or.localhist) then
         if (ktau==ntau) then
-          ierr=nf_close(fncid)
-          call ncmsg('HFREQ close',ierr)
+          call ccnf_close(fncid)
         end if
       end if
       
