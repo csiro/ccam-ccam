@@ -1,7 +1,9 @@
 module infile
       
 ! This module contains routines for reading netcdf files,
-! vertical interpolation and some calendar functions
+! vertical interpolation and some calendar functions.
+! This module also contains the interface to the netcdf
+! library.
       
 ! This version supports parallel localhist input files
 ! Multiple processors read as many input files as
@@ -13,7 +15,7 @@ module infile
 private
 public histrd1,histrd4s,vertint,datefix,getzinp,ncmsg
 public histopen,histclose
-public ccnf_open,ccnf_create,ccnf_close,ccnf_sync,ccnf_enddef,ccnf_nofill,ccnf_inq_varid,ccnf_inq_dimid
+public ccnf_open,ccnf_create,ccnf_close,ccnf_sync,ccnf_enddef,ccnf_redef,ccnf_nofill,ccnf_inq_varid,ccnf_inq_dimid
 public ccnf_inq_dimlen,ccnf_def_dim,ccnf_def_dimu,ccnf_def_var,ccnf_def_var0,ccnf_get_var_real,ccnf_get_var_realg
 public ccnf_get_var_int,ccnf_get_att_intg,ccnf_get_vara_real,ccnf_get_vara_int,ccnf_get_vara_double
 public ccnf_get_var1_int,ccnf_get_var1_real,ccnf_get_att_text,ccnf_get_att_real,ccnf_get_att_realg
@@ -1410,6 +1412,27 @@ end if
 
 return
 end subroutine ccnf_enddef
+
+subroutine ccnf_redef(ncid)
+
+use cc_mpi
+
+implicit none
+
+include 'netcdf.inc'
+
+integer, intent(in) :: ncid
+integer(kind=4) ncstatus,lncid
+
+lncid=ncid
+ncstatus=nf_redef(ncid)
+if (ncstatus/=nf_noerr) then
+  write(6,*) nf_strerror(ncstatus)
+  call ccmpi_abort(-1)
+end if
+
+return
+end subroutine ccnf_redef
 
 subroutine ccnf_sync(ncid)
 

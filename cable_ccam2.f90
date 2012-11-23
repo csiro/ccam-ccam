@@ -253,7 +253,7 @@ call define_canopy(bal,rad,rough,air,met,dt,ssoil,soil,veg,canopy)
 ssoil%otss = ssoil%tss
 call soil_snow(dt,soil,ssoil,canopy,met,bal,veg)
 ! adjust for new soil temperature
-deltat = ssoil%tss - ssoil%otss
+deltat         = ssoil%tss - ssoil%otss
 canopy%fhs     = canopy%fhs + deltat*ssoil%dfh_dtg
 canopy%fes     = canopy%fes + deltat*ssoil%cls*ssoil%dfe_ddq*ssoil%ddq_dtg
 canopy%fhs_cor = canopy%fhs_cor + deltat*ssoil%dfh_dtg
@@ -1809,21 +1809,24 @@ implicit none
 
 include 'newmpar.h'
 include 'darcdf.h'
-include 'netcdf.inc'
 include 'parm.h'  
   
 integer k,n,ierr,idv
 integer, dimension(1) :: dum
 real, dimension(ifull) :: dat
 real totdepth
+logical tst
 character(len=11) vname
 
 ! check that CABLE data exists in restart file
 ! and communicate the result to all processors
 ! as not all processors are assigned an input file
 if (io_in==1) then
-  if (myid==0) idv = ncvid(ncid,"tgg1_9",ierr)
-  dum(1)=ierr
+  if (myid==0) then
+    call ccnf_inq_varid(ncid,"tgg1_9",idv,tst)
+    dum(1)=0
+    if (tst) dum(1)=1
+  end if
   call ccmpi_bcast(dum(1:1),0,comm_world)
   ierr=dum(1)
 else
@@ -2120,6 +2123,7 @@ subroutine savetile(idnc,local,idim,iarch)
 
 use carbpools_m
 use cc_mpi, only : myid
+use infile
 use soil_m
 use soilsnow_m
 use vegpar_m
@@ -2140,7 +2144,7 @@ if (myid==0.or.local) then
   if (myid==0) then
     write(6,*) "Storing CABLE tile data"
   end if
-  call ncredf(idnc,ierr)
+  call ccnf_redef(idnc)
   do n=1,9
     do k=1,ms
       write(lname,'("Soil temperature lev ",I1.1," tile ",I1.1)') k,n
@@ -2491,40 +2495,34 @@ use cc_mpi
 use infile
 
 implicit none
-  
+
 include 'newmpar.h'
-include 'netcdf.inc'
 include 'parmgeom.h'
-  
+
 integer ncstatus,ncid,varid,tilg,iq
 integer, dimension(2) :: spos,npos
 real tlat,tlon,tschmidt
 real, dimension(:,:), allocatable :: dumg
 real, dimension(ifull,5) :: duma
 character(len=*), intent(in) :: casafile
+logical tst
 
 if (myid==0) then
   allocate(dumg(ifull_g,5))
   write(6,*) "Reading ",trim(casafile)
-  ncstatus=nf_open(casafile,nf_nowrite,ncid)
+  call ccnf_open(casafile,ncid,ncstatus)
   call ncmsg('CASA_readpoint',ncstatus)
   ! check dimensions and location
-  ncstatus=nf_get_att_real(ncid,nf_global,'lat0',tlat)
-  call ncmsg('lat0',ncstatus)
-  ncstatus=nf_get_att_real(ncid,nf_global,'lon0',tlon)
-  call ncmsg('lon0',ncstatus)
-  ncstatus=nf_get_att_real(ncid,nf_global,'schmidt0',tschmidt)
-  call ncmsg('schmidt0',ncstatus)
+  call ccnf_get_att_realg(ncid,'lat0',tlat)
+  call ccnf_get_att_realg(ncid,'lon0',tlon)
+  call ccnf_get_att_realg(ncid,'schmidt0',tschmidt)
   if (rlong0/=tlon.or.rlat0/=tlat.or.schmidt/=tschmidt) then
     write(6,*) "ERROR: Grid mismatch for ",trim(casafile)
     write(6,*) "rlong0,rlat0,schmidt ",rlong0,rlat0,schmidt
     write(6,*) "tlon,tlat,tschmidt   ",tlon,tlat,tschmidt
     stop
   end if
-  ncstatus = nf_inq_dimid(ncid,'longitude',varid)
-  call ncmsg('longitude',ncstatus)
-  ncstatus = nf_inq_dimlen(ncid,varid,tilg)
-  call ncmsg('longitude',ncstatus)
+  call ccnf_inq_dimlen(ncid,'longitude',tilg)
   if (tilg/=il_g) then
     write (6,*) "ERROR: Grid mismatch for ",trim(casafile)
     write (6,*) "il_g,tilg ",il_g,tilg
@@ -2535,32 +2533,21 @@ if (myid==0) then
   npos(1)=il_g
   npos(2)=il_g*6
   write(6,*) "Loading soil order"
-  ncstatus = nf_inq_varid(ncid,'sorder',varid)
-  call ncmsg('sorder',ncstatus)
-  ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg(:,1))
-  call ncmsg('sorder',ncstatus)
+  call ccnf_inq_varid(ncid,'sorder',varid,tst)
+  call ccnf_get_vara_real(ncid,varid,spos,npos,dumg(:,1))
   write(6,*) "Loading N deposition rate"
-  ncstatus = nf_inq_varid(ncid,'ndep',varid)
-  call ncmsg('ndep',ncstatus)
-  ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg(:,2))
-  call ncmsg('ndep',ncstatus)
+  call ccnf_inq_varid(ncid,'ndep',varid,tst)
+  call ccnf_get_vara_real(ncid,varid,spos,npos,dumg(:,2))
   write(6,*) "Loading N fixation rate"
-  ncstatus = nf_inq_varid(ncid,'nfix',varid)
-  call ncmsg('nfix',ncstatus)
-  ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg(:,3))
-  call ncmsg('nfix',ncstatus)
+  call ccnf_inq_varid(ncid,'nfix',varid,tst)
+  call ccnf_get_vara_real(ncid,varid,spos,npos,dumg(:,3))
   write(6,*) "Loading P dust deposition"
-  ncstatus = nf_inq_varid(ncid,'pdust',varid)
-  call ncmsg('pdust',ncstatus)
-  ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg(:,4))
-  call ncmsg('pdust',ncstatus)
+  call ccnf_inq_varid(ncid,'pdust',varid,tst)
+  call ccnf_get_vara_real(ncid,varid,spos,npos,dumg(:,4))
   write(6,*) "Loading P weathering rate"
-  ncstatus = nf_inq_varid(ncid,'pweather',varid)
-  call ncmsg('pweather',ncstatus)
-  ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg(:,5))
-  call ncmsg('pweather',ncstatus)
-  ncstatus=nf_close(ncid)
-  call ncmsg('CASA_readpoint',ncstatus)
+  call ccnf_inq_varid(ncid,'pweather',varid,tst)
+  call ccnf_get_vara_real(ncid,varid,spos,npos,dumg(:,5))
+  call ccnf_close(ncid)
   call ccmpi_distribute(duma,dumg)
   deallocate(dumg)
 else
