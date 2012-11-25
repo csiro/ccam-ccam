@@ -154,6 +154,9 @@ module cc_mpi
    type(coloursplit), allocatable, dimension(:), save, private :: rcolsp
    type(coloursplit), allocatable, dimension(:), save, private :: scolsp
    integer, allocatable, dimension(:), save, public :: colourmask
+   integer, dimension(3), save, public :: ifullx
+   integer, dimension(:,:), allocatable, save, public :: iqx,iqn,iqe,iqw,iqs
+   integer, dimension(:,:), allocatable, save, public :: iqwu,iqsv
 #ifdef uniform_decomp
    integer, parameter, public :: maxcolour = 3
 #else
@@ -256,12 +259,13 @@ module cc_mpi
 contains
 
    subroutine ccmpi_setup()
+      use indices_m
       use latlong_m
       use map_m
       use sumdd_m
       use vecsuv_m
       use xyzinfo_m
-      integer iproc, iq, iqg, i, j, n, ig, jg, ng, tg, jx
+      integer iproc, iq, iqg, i, j, n, ig, jg, ng, tg, jx, mcc
       integer(kind=4) ierr
 
       allocate(fproc(il_g,il_g,0:npanels))
@@ -414,6 +418,7 @@ contains
       call boundsuv(ax,bx)
       call boundsuv(ay,by)
       call boundsuv(az,bz)
+      call bounds(f,corner=.true.)
 
       ! Off processor departure points
       do iproc=0,nproc-1
@@ -430,6 +435,31 @@ contains
           allocate(sextra(iproc)%a(1))
           allocate(dindex(iproc)%a(2,1))
         end if
+      end do
+
+      ! Pack colour indices
+      mcc=max( count( colourmask == 1 ), count( colourmask == 2), count( colourmask == 3) )
+      allocate ( iqx(mcc,maxcolour) )
+      allocate ( iqn(mcc,maxcolour), iqe(mcc,maxcolour) )
+      allocate ( iqw(mcc,maxcolour), iqs(mcc,maxcolour) )
+      allocate ( iqwu(mcc,maxcolour), iqsv(mcc,maxcolour) )
+      ifullx=0
+      iqx=0
+      iqn=0
+      iqe=0
+      iqw=0
+      iqs=0
+      iqwu=0
+      iqsv=0
+      do iq=1,ifull
+         ifullx(colourmask(iq))=ifullx(colourmask(iq))+1
+         iqx(ifullx(colourmask(iq)),colourmask(iq))=iq
+         iqn(ifullx(colourmask(iq)),colourmask(iq))=in(iq)
+         iqe(ifullx(colourmask(iq)),colourmask(iq))=ie(iq)
+         iqw(ifullx(colourmask(iq)),colourmask(iq))=iw(iq)
+         iqs(ifullx(colourmask(iq)),colourmask(iq))=is(iq)
+         iqwu(ifullx(colourmask(iq)),colourmask(iq))=iwu(iq)
+         iqsv(ifullx(colourmask(iq)),colourmask(iq))=isv(iq)
       end do
 
 #ifdef sumdd

@@ -293,8 +293,7 @@ c       create the attributes of the header record of the file
       call openhist(iarch,itype,dim,local,idnc,iaero,nstagin)
 
       if(myid==0.or.local)then
-        ! for testing
-        !call ccnf_sync(idnc)
+        call ccnf_sync(idnc)
         if(ktau==ntau)then
           call ccnf_close(idnc)
           if (myid==0) then
@@ -1423,13 +1422,13 @@ c      set time to number of minutes since start
        call ccnf_inq_varid(idnc,'nstagu',idv,tst)
        call ccnf_put_var1_int(idnc,idv,iarch,nstagu)
        idum=mod(ktau-nstagoff,max(abs(nstagin),1))
-       idum=idum-abs(nstagin) ! should be -ve
+       idum=idum-max(abs(nstagin),1) ! should be -ve
        call ccnf_inq_varid(idnc,'nstagoff',idv,tst)
        call ccnf_put_var1_int(idnc,idv,iarch,idum)
        if ((nmlo<0.and.nmlo>=-9).or.
      &      (nmlo>0.and.nmlo<=9.and.itype==-1)) then
-         idum=mod(ktau-nstagoffmlo,max(mstagf,1))
-         idum=idum-abs(mstagf) ! should be -ve
+         idum=mod(ktau-nstagoffmlo,max(2*mstagf,1))
+         idum=idum-max(2*mstagf,1) ! should be -ve
          call ccnf_inq_varid(idnc,'nstagoffmlo',idv,tst)
          call ccnf_put_var1_int(idnc,idv,iarch,idum)
        end if
@@ -2270,19 +2269,19 @@ c      "extra" outputs
           sdim(3)=adim(4)
           lname='x-component 10m wind'
           call attrib(fncid,sdim,3,'uas',lname,'m/s',-130.,130.,
-     &                .false.,1)
+     &                0,1)
           lname='y-component 10m wind'     
           call attrib(fncid,sdim,3,'vas',lname,'m/s',-130.,130.,
-     &                .false.,1)
+     &                0,1)
           lname='Screen temperature'     
           call attrib(fncid,sdim,3,'tscrn',lname,'K',100.,425.,
-     &                .false.,1)
+     &                0,1)
           lname='Precipitation'
           call attrib(fncid,sdim,3,'rnd',lname,'mm/day',0.,1300.,
-     &                .false.,1)
+     &                0,1)
           lname='Snowfall'
           call attrib(fncid,sdim,3,'sno',lname,'mm/day',0.,1300.,
-     &                .false.,1)
+     &                0,1)
 
           ! end definition mode
           call ccnf_enddef(fncid)
@@ -2384,6 +2383,7 @@ c      "extra" outputs
      
       ! close file at end of run
       if (myid==0.or.localhist) then
+        call ccnf_sync(fncid)
         if (ktau==ntau) then
           call ccnf_close(fncid)
         end if
@@ -2393,436 +2393,3 @@ c      "extra" outputs
       
       return
       end subroutine freqfile
-      
-      !--------------------------------------------------------------
-      ! DEFINE ATTRIBUTES
-      subroutine attrib(cdfid,dim,ndim,name,lname,units,xmin,xmax,
-     &                  daily,itype)
-
-      use cc_mpi
-      use infile, only : ncmsg ! Input file routines
-
-      implicit none
-
-      include 'netcdf.inc'     ! Netcdf parameters
-
-      integer, intent(in) :: cdfid,itype,ndim
-      integer, intent(in) :: daily
-      integer, dimension(3), intent(in) :: dim
-      integer ier, idv, vtype
-      integer*2, parameter :: minv = -32500
-      integer*2, parameter :: maxv = 32500
-      integer*2, parameter :: missval = -32501
-      real, intent(in) :: xmin,xmax
-      real scalef, addoff
-      character(len=*), intent(in) :: name
-      character(len=*), intent(in) :: lname
-      character(len=*), intent(in) :: units
-      
-      if (itype==1) then
-        vtype = ncshort
-      else
-#ifdef r8i8
-        vtype = ncdouble
-#else
-        vtype = ncfloat
-#endif
-      end if
-
-      idv = ncvdef(cdfid, name, vtype, ndim, dim, ier)
-      if (ier/=0) then
-        write(6,*) "ERROR: Cannot define ",trim(name)
-        call ccmpi_abort(-1)
-      end if
-      call ncaptc(cdfid,idv,'long_name',ncchar,len_trim(lname),lname,
-     &            ier)
-      if(len_trim(units)/=0)then
-        call ncaptc(cdfid,idv,'units',ncchar,len_trim(units),units,ier)
-      endif
-      if(vtype == ncshort)then
-        call ncapt(cdfid,idv,'valid_min'    ,ncshort,1,minv,ier)
-        call ncapt(cdfid,idv,'valid_max'    ,ncshort,1,maxv,ier)
-        call ncapt(cdfid,idv,'missing_value',ncshort,1,missval,ier)
-        scalef=(xmax-xmin)/(real(maxv)-real(minv))
-        addoff=xmin-scalef*minv
-        call ncapt(cdfid,idv,'add_offset',ncfloat,1,addoff,ier)
-        call ncapt(cdfid,idv,'scale_factor',ncfloat,1,scalef,ier)
-      else
-        call ncapt(cdfid,idv,'missing_value',vtype,1,nf_fill_float,
-     &             ier)
-      endif
-      call ncaptc(cdfid,idv,'FORTRAN_format',ncchar,5,'G11.4',ier)
-      if(daily>0)then
-        call ncaptc(cdfid,idv,'valid_time',ncchar,5,'daily',ier) 
-      endif
-      
-      return
-      end
-
-      !--------------------------------------------------------------
-      ! 3D NETCDF WRITE ARRAY ROUTINES
-      subroutine histwrt3(var,sname,idnc,iarch,local,lwrite)
-
-      use cc_mpi              ! CC MPI routines
-
-      implicit none
-
-      include 'newmpar.h'     ! Grid parameters
-      include 'netcdf.inc'    ! Netcdf parameters
-
-      integer, intent(in) :: idnc, iarch
-      real, dimension(ifull), intent(in) :: var
-      real, dimension(ifull,1) :: wvar
-      character(len=*), intent(in) :: sname
-      logical, intent(in) :: local,lwrite
-
-      wvar(:,1)=var
-      if (.not.lwrite) then
-        wvar=nf_fill_float
-      endif
-
-      if (local) then
-        call fw3l(wvar,sname,idnc,iarch,1)
-      elseif (myid==0) then
-        call fw3a(wvar,sname,idnc,iarch,1)
-      else
-        call ccmpi_gather(wvar)
-      endif
-
-      return
-      end subroutine histwrt3
-
-      subroutine freqwrite(fncid,cname,fiarch,istep,local,datain)
-
-      use cc_mpi               ! CC MPI routines
-      
-      implicit none
-      
-      include 'newmpar.h'      ! Grid parameters
-      
-      integer, intent(in) :: fncid,fiarch,istep
-      real, dimension(ifull,istep), intent(in) :: datain
-      logical, intent(in) :: local
-      character(len=*), intent(in) :: cname
-      
-      if (local) then
-        call fw3l(datain,cname,fncid,fiarch,istep)
-      elseif (myid==0) then
-        call fw3a(datain,cname,fncid,fiarch,istep)
-      else
-        call ccmpi_gather(datain)
-      endif
-     
-      return
-      end subroutine freqwrite
-
-      subroutine fw3l(var,sname,idnc,iarch,istep)
-
-      use cc_mpi, only : myid  ! CC MPI routines
-      use infile, only : ncmsg ! Input file routines
-      
-      implicit none
-      
-      include 'newmpar.h'      ! Grid parameters
-      include 'netcdf.inc'     ! Netcdf parameters
-      include 'parm.h'         ! Model configuration
-      
-      integer, intent(in) :: idnc,iarch,istep
-      integer mid, vtype, ier
-      integer, dimension(3) :: start, ncount
-      integer*2, dimension(ifull,istep) :: ipack
-      integer*2, parameter :: minv = -32500
-      integer*2, parameter :: maxv = 32500
-      integer*2, parameter :: missval = -32501
-      real, dimension(ifull,istep), intent(in) :: var
-      real addoff, scale_f, pvar
-      character(len=*), intent(in) :: sname
-
-      start = (/ 1, 1, iarch /)
-      ncount = (/ il, jl, istep /)
-      ier=nf_inq_varid(idnc,sname,mid)
-      ! Check variable type
-      ier = nf_inq_vartype(idnc, mid, vtype)
-      if(vtype == ncshort)then
-       if (all(var>9.8E36)) then
-        ipack=missval
-       else
-        ier=nf_get_att_real(idnc,mid,'add_offset',addoff)
-        ier=nf_get_att_real(idnc,mid,'scale_factor',scale_f)
-        ipack=max(min(nint((var-addoff)/scale_f),maxv),minv)
-       end if
-       ier=nf_put_vara_int2(idnc,mid,start,ncount,ipack)
-      elseif (vtype == ncfloat) then
-       ier=nf_put_vara_real(idnc,mid,start,ncount,var)
-      else
-       ier=nf_put_vara_double(idnc,mid,start,ncount,var)
-      endif
-      if (ier/=0) then
-        write(6,*) "ERROR: Cannot write ",sname
-        call ncmsg("histwrt3",ier)
-      end if
-
-      if(mod(ktau,nmaxpr)==0.and.myid==0)then
-       if (any(var==nf_fill_float)) then
-         write(6,'("histwrt3 ",a7,i4,a7)')
-     &              sname,iarch,"missing"
-       else
-         write(6,'("histwrt3 ",a7,i4)')
-     &             sname,iarch
-        end if
-      endif
-
-      return
-      end subroutine fw3l
-      
-      subroutine fw3a(var,sname,idnc,iarch,istep)
-
-      use cc_mpi               ! CC MPI routines
-      use infile, only : ncmsg ! Input file routines
-
-      implicit none
-
-      include 'newmpar.h'      ! Grid parameters
-      include 'netcdf.inc'     ! Netcdf parameters
-      include 'parm.h'         ! Model configuration
-
-      integer, intent(in) :: idnc, iarch, istep
-      integer mid, vtype, ier, iq
-      integer imn, imx, jmn, jmx
-      integer, dimension(3) :: start, ncount
-      integer*2, parameter :: minv = -32500
-      integer*2, parameter :: maxv = 32500
-      integer*2, parameter :: missval = -32501
-      integer*2, dimension(ifull_g,istep) :: ipack
-      real, dimension(ifull,istep), intent(in) :: var
-      real, dimension(ifull_g,istep) :: globvar
-      real addoff, scale_f, pvar, varn, varx
-      character(len=*), intent(in) :: sname
-      
-      call ccmpi_gather(var, globvar)
-      start(1) = 1
-      start(2) = 1
-      start(3) = iarch
-      ncount(1) = il_g
-      ncount(2) = jl_g
-      ncount(3) = istep
-
-c     find variable index
-      ier=nf_inq_varid(idnc,sname,mid)
-      call ncmsg(sname,ier)
-
-!     Check variable type
-      ier = nf_inq_vartype(idnc, mid, vtype)
-      call ncmsg("fw3a type",ier)
-      if(vtype == ncshort)then
-       if(all(globvar>9.8e36))then
-        ipack=missval
-       else
-        ier=nf_get_att_real(idnc,mid,'add_offset',addoff)
-        ier=nf_get_att_real(idnc,mid,'scale_factor',scale_f)
-        ipack=max(min(nint((globvar-addoff)/scale_f),maxv),minv)
-       endif
-       ier=nf_put_vara_int2(idnc,mid,start,ncount,ipack)
-      elseif (vtype==ncfloat) then
-       ier=nf_put_vara_real(idnc,mid,start,ncount,globvar)
-      else
-       ier=nf_put_vara_double(idnc,mid,start,ncount,globvar)
-      endif
-      if (ier/=0) then
-        write(6,*) "ERROR: Cannot write ",sname
-        call ncmsg("histwrt3",ier)
-      end if
-
-      if(mod(ktau,nmaxpr)==0)then
-       if (any(globvar==nf_fill_float)) then
-         write(6,'("histwrt3 ",a7,i4,a7)')
-     &              sname,iarch,"missing"
-       else
-         varn = minval(globvar(:,1))
-         varx = maxval(globvar(:,1))
-         ! This should work ???? but sum trick is more portable???
-         ! iq = minloc(globvar,dim=1)
-         iq = sum(minloc(globvar(:,1)))
-         ! Convert this 1D index to 2D
-         imn = 1 + modulo(iq-1,il_g)
-         jmn = 1 + (iq-1)/il_g
-         iq = sum(maxloc(globvar(:,1)))
-         ! Convert this 1D index to 2D
-         imx = 1 + modulo(iq-1,il_g)
-         jmx = 1 + (iq-1)/il_g
-         write(6,'("histwrt3 ",a7,i4,f12.4,2i4,f12.4,2i4,f12.4)')
-     &             sname,iarch,varn,imn,jmn,varx,imx,jmx,
-     &             globvar(id+(jd-1)*il_g,1)
-        end if
-      endif
-
-      return
-      end subroutine fw3a
-
-      !--------------------------------------------------------------
-      ! 4D NETCDF WRITE ARRAY ROUTINES
-      subroutine histwrt4(var,sname,idnc,iarch,local,lwrite)
-
-      use cc_mpi              ! CC MPI routines
-
-      implicit none
-
-      include 'newmpar.h'     ! Grid parameters
-      include 'netcdf.inc'    ! Netcdf parameters
-
-      integer, intent(in) :: idnc, iarch
-      real, dimension(ifull,kl), intent(in) :: var
-      real, dimension(ifull,kl) :: wvar
-      character(len=*), intent(in) :: sname
-      logical, intent(in) :: local,lwrite
-
-      if (lwrite) then
-        wvar=var
-      else
-        wvar=nf_fill_float
-      endif
-
-      if (local) then
-        call hw4l(wvar,sname,idnc,iarch)
-      elseif (myid==0) then
-        call hw4a(wvar,sname,idnc,iarch)
-      else
-        call ccmpi_gather(wvar)
-      endif
-
-      return
-      end subroutine histwrt4
-      
-      subroutine hw4l(var,sname,idnc,iarch)
-
-      use cc_mpi, only : myid  ! CC MPI routines
-      use infile, only : ncmsg ! Input file routines
-
-      implicit none
-
-      include 'newmpar.h'      ! Grid parameters
-      include 'netcdf.inc'     ! Netcdf parameters
-      include 'parm.h'         ! Model configuration
-
-      integer, intent(in) :: idnc, iarch
-      integer mid, vtype, ier
-      integer, dimension(4) :: start, count
-      integer*2, parameter :: minv=-32500
-      integer*2, parameter :: maxv=32500
-      integer*2, parameter :: missval=-32501
-      integer*2, dimension(ifull,kl) :: ipack
-      real, dimension(ifull,kl), intent(in) :: var
-      real addoff, scale_f, pvar
-      character(len=*), intent(in) :: sname
-
-      start = (/ 1, 1, 1, iarch /)
-      count = (/ il, jl, kl, 1 /)
-      mid = ncvid(idnc,sname,ier)
-!     Check variable type
-      ier = nf_inq_vartype(idnc, mid, vtype)
-      if(vtype == ncshort)then
-       if(all(var>9.8e36))then
-        ipack=missval
-       else
-        call ncagt(idnc,mid,'add_offset',addoff,ier)
-        call ncagt(idnc,mid,'scale_factor',scale_f,ier)
-        ipack=max(min(nint((var-addoff)/scale_f),maxv),minv)
-       endif
-       call ncvpt(idnc, mid, start, count, ipack, ier)
-      else
-       call ncvpt(idnc, mid, start, count, var, ier)
-      endif
-      if (ier/=0) then
-        write(6,*) "ERROR: Cannot write ",sname
-        call ncmsg("histwrt4",ier)
-      end if
-
-      if(mod(ktau,nmaxpr)==0.and.myid==0)then
-       if (any(var==nf_fill_float)) then
-         write(6,'("histwrt4 ",a7,i4,a7)')
-     &              sname,iarch,"missing"
-       else
-         write(6,'("histwrt4 ",a7,i4)')
-     &     sname,iarch
-       end if
-      endif
-
-      return
-      end subroutine hw4l      
-
-      subroutine hw4a(var,sname,idnc,iarch)
-
-      use cc_mpi              ! CC MPI routines
-      use infile, only : ncmsg ! Input file routines
-
-      implicit none
-
-      include 'newmpar.h'     ! Grid parameters
-      include 'netcdf.inc'    ! Netcdf parameters
-      include 'parm.h'        ! Model configuration
-
-      integer, intent(in) :: idnc, iarch
-      integer mid, vtype, ier, iq
-      integer imx, jmx, kmx
-      integer, dimension(4) :: start, count
-      integer, dimension(2) :: max_result
-      integer*2, parameter :: minv=-32500
-      integer*2, parameter :: maxv=32500
-      integer*2, parameter :: missval=-32501
-      integer*2, dimension(ifull_g,kl) :: ipack
-      real addoff, scale_f, pvar, varn, varx
-      real, dimension(ifull,kl), intent(in) :: var
-      real, dimension(ifull_g,kl) :: globvar
-      character(len=*), intent(in) :: sname
-      
-      call ccmpi_gather(var, globvar)
-      start(1) = 1
-      start(2) = 1
-      start(3) = 1
-      start(4) = iarch
-      count(1) = il_g
-      count(2) = jl_g
-      count(3) = kl
-      count(4) = 1
-
-c     find variable index
-      mid = ncvid(idnc,sname,ier)
-!     Check variable type
-      ier = nf_inq_vartype(idnc, mid, vtype)
-      if(vtype == ncshort)then
-       if(all(globvar>9.8e36))then
-        ipack=missval
-       else
-        call ncagt(idnc,mid,'add_offset',addoff,ier)
-        call ncagt(idnc,mid,'scale_factor',scale_f,ier)
-        ipack=max(min(nint((globvar-addoff)/scale_f),maxv),minv)
-       endif
-       call ncvpt(idnc, mid, start, count, ipack, ier)
-      else
-       call ncvpt(idnc, mid, start, count, globvar, ier)
-      endif
-      if (ier/=0) then
-        write(6,*) "ERROR: Cannot write ",sname
-        call ncmsg("histwrt4",ier)
-      end if
-
-      if(mod(ktau,nmaxpr)==0)then
-       if (any(globvar==nf_fill_float)) then
-         write(6,'("histwrt4 ",a7,i4,a7)')
-     &              sname,iarch,"missing"
-       else
-         varn = minval(globvar)
-         varx = maxval(globvar)
-         max_result = maxloc(globvar)
-         kmx = max_result(2)
-         iq = max_result(1)
-         ! Convert this 1D index to 2D
-         imx = 1 + modulo(iq-1,il_g)
-         jmx = 1 + (iq-1)/il_g
-         write(6,'("histwrt4 ",a7,i4,2f12.4,3i4,f12.4)')
-     &     sname,iarch,varn,varx,imx,jmx,kmx,globvar(id+(jd-1)*il_g,nlv)
-       end if
-      endif
-
-      return
-      end subroutine hw4a      

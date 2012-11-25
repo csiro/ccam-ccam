@@ -25,9 +25,6 @@
       real, intent(in) :: rhs(ifull+iextra,kl)       ! RHS
       real, dimension(ifull,kl) :: sb, sa, snew, dsol
       integer, dimension(kl) :: iters
-      integer, dimension(3), save :: ifullx
-      integer, dimension(:,:), allocatable, save :: iqx,iqn,iqe
-      integer, dimension(:,:), allocatable, save :: iqw,iqs
       real, dimension(kl) ::  dsolmax, dsolmax_g, smax, smax_g
       real, dimension(kl) ::  smin, smin_g
       real, dimension(:), allocatable, save :: accel
@@ -41,9 +38,8 @@
 
       call start_log(helm_begin)
       
-      if (.not.allocated(iqx)) then
-       allocate(iqx(ifull,3),iqn(ifull,3),iqe(ifull,3))
-       allocate(iqw(ifull,3),iqs(ifull,3),accel(kl))
+      if (.not.allocated(accel)) then
+       allocate(accel(kl))
 
        if(precon==-1)precon=-2325  ! i.e. 2, 3, .25
        nx_max=abs(precon)/1000
@@ -60,22 +56,6 @@
         call ccmpi_abort(-1)
        end if
   
-       ! Pack colour indices
-       ifullx=0
-       iqx=0
-       iqn=0
-       iqe=0
-       iqw=0
-       iqs=0
-       do iq=1,ifull
-         ifullx(colourmask(iq))=ifullx(colourmask(iq))+1
-         iqx(ifullx(colourmask(iq)),colourmask(iq))=iq
-         iqn(ifullx(colourmask(iq)),colourmask(iq))=in(iq)
-         iqe(ifullx(colourmask(iq)),colourmask(iq))=ie(iq)
-         iqw(ifullx(colourmask(iq)),colourmask(iq))=iw(iq)
-         iqs(ifullx(colourmask(iq)),colourmask(iq))=is(iq)
-       end do
-
        do k=1,kl
         !MJT - issues with convergence.  Use Gauss-Seidel
         ! until accel can be re-calculated
@@ -235,7 +215,7 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
       do nx=1,nx_max
         ifx=ifullx(nx)
         do k=1,klim
-          dsol(iqx(1:ifx,nx),k)=
+          dsol(1:ifx,k)=
      &       ( zzn(iqx(1:ifx,nx))*s(iqn(1:ifx,nx),k)
      &       + zzw(iqx(1:ifx,nx))*s(iqw(1:ifx,nx),k)
      &       + zze(iqx(1:ifx,nx))*s(iqe(1:ifx,nx),k)
@@ -244,9 +224,9 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
      &       -helm(iqx(1:ifx,nx),k))*s(iqx(1:ifx,nx),k)
      &       - rhs(iqx(1:ifx,nx),k))      
      &       /(helm(iqx(1:ifx,nx),k)-zz(iqx(1:ifx,nx)))
-          snew(iqx(1:ifx,nx),k) = s(iqx(1:ifx,nx),k)
-     &       + accel(k)*dsol(iqx(1:ifx,nx),k)
-          s(iqx(1:ifx,nx),k)=snew(iqx(1:ifx,nx),k)
+          snew(1:ifx,k) = s(iqx(1:ifx,nx),k)
+     &       + accel(k)*dsol(1:ifx,k)
+          s(iqx(1:ifx,nx),k)=snew(1:ifx,k)
         enddo ! k loop
         call bounds(s, klim=klim, colour=nx)
       enddo  ! nx loop  

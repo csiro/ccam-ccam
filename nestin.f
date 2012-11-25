@@ -3095,7 +3095,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       include 'parmgeom.h'   ! Coordinate data
 
       integer, intent(in) :: kd
-      integer i,j,n,iqw,iqwg,k
+      integer i,j,n,iqq,iqqg,k
       real, intent(in) :: miss
       real nsum,cq
       real, dimension(ifull_g,1), intent(inout) :: diffh_g
@@ -3145,32 +3145,32 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       do n=1,npan
         do j=1,jpan
           do i=1,ipan
-            iqwg=indg(i,j,n)
-            iqw=indp(i,j,n)
-            if (.not.landg(iqwg)) then
-              rr(:)=x_g(iqwg)*x_g(:)+y_g(iqwg)*y_g(:)+z_g(iqwg)*z_g(:)
+            iqqg=indg(i,j,n)
+            iqq=indp(i,j,n)
+            if (.not.landg(iqqg)) then
+              rr(:)=x_g(iqqg)*x_g(:)+y_g(iqqg)*y_g(:)+z_g(iqqg)*z_g(:)
               rr(:)=acos(max(min(rr(:),1.),-1.))
               rr(:)=exp(-(cq*rr(:))**2)
               nsum=sum(rr(:)*mm(:))
               if (nud_sst/=0) then
                 do k=1,kd
-                  dd(iqw,k)=sum(rr(:)*diff_g(:,k))/nsum
+                  dd(iqq,k)=sum(rr(:)*diff_g(:,k))/nsum
                 end do
               end if
               if (nud_sss/=0) then
                 do k=1,kd
-                  dds(iqw,k)=sum(rr(:)*diffs_g(:,k))/nsum
+                  dds(iqq,k)=sum(rr(:)*diffs_g(:,k))/nsum
                 end do
               end if
               if (nud_ouv/=0) then
                 do k=1,kd
-                  ddu(iqw,k)=sum(rr(:)*diffu_g(:,k))/nsum
-                  ddv(iqw,k)=sum(rr(:)*diffv_g(:,k))/nsum
-                  ddw(iqw,k)=sum(rr(:)*diffw_g(:,k))/nsum
+                  ddu(iqq,k)=sum(rr(:)*diffu_g(:,k))/nsum
+                  ddv(iqq,k)=sum(rr(:)*diffv_g(:,k))/nsum
+                  ddw(iqq,k)=sum(rr(:)*diffw_g(:,k))/nsum
                 end do
               end if
               if (nud_sfh/=0) then
-                ddh(iqw)=sum(rr(:)*diffh_g(:,1))/nsum
+                ddh(iqq)=sum(rr(:)*diffh_g(:,1))/nsum
               end if
             end if
           end do
