@@ -259,7 +259,7 @@ do ipf=0,mynproc-1
   end if
   
   ! get variable idv
-  idv=ncvid(pncid(ipf),name,ler)
+  ler=nf_inq_varid(pncid(ipf),name,idv)
   ier=ler
   if(ier/=0)then
     if (myid==0.and.ipf==0) then
@@ -526,7 +526,7 @@ do ipf=0,mynproc-1
   end if
 
   ! get variable idv
-  idv=ncvid(pncid(ipf),name,ler)
+  ler=nf_inq_varid(pncid(ipf),name,idv)
   ier=ler
   if(ier/=0)then
     if (myid==0.and.ipf==0) then
@@ -1106,12 +1106,12 @@ implicit none
 
 include 'netcdf.inc'
 
-integer, intent(in) :: cdfid,itype,ndim
+integer, intent(in) :: cdfid, itype, ndim
 integer, intent(in) :: daily
 integer, dimension(ndim), intent(in) :: dim
 integer(kind=4), dimension(ndim) :: ldim
 integer(kind=4) :: lncid, vtype, ier, idv, lsize, lndim
-real, intent(in) :: xmin,xmax
+real, intent(in) :: xmin, xmax
 real(kind=4) scalef, addoff
 character(len=*), intent(in) :: name
 character(len=*), intent(in) :: lname
@@ -1138,24 +1138,74 @@ if (ier/=0) then
 end if
 lsize=len_trim(lname)
 ier = nf_put_att_text(lncid,idv,'long_name',lsize,lname)
+if (ier/=0) then
+  write(6,*) "ERROR: Cannot define long_name for ",trim(name)
+  write(6,*) nf_strerror(ier)
+  call ccmpi_abort(-1)
+end if
 lsize=len_trim(units)
-if(lsize/=0)then
+if(lsize>0)then
   ier = nf_put_att_text(lncid,idv,'units',lsize,lname)
+  if (ier/=0) then
+    write(6,*) "ERROR: Cannot define units for ",trim(name)
+    write(6,*) nf_strerror(ier)
+    call ccmpi_abort(-1)
+  end if
 endif
-if(vtype == nf_short)then
+if (vtype == nf_short) then
   ier = nf_put_att_int2(lncid,idv,'valid_min',nf_short,1,minv)
+  if (ier/=0) then
+    write(6,*) "ERROR: Cannot define valid_min for ",trim(name)
+    write(6,*) nf_strerror(ier)
+    call ccmpi_abort(-1)
+  end if
   ier = nf_put_att_int2(lncid,idv,'valid_max',nf_short,1,maxv)
+  if (ier/=0) then
+    write(6,*) "ERROR: Cannot define valid_max for ",trim(name)
+    write(6,*) nf_strerror(ier)
+    call ccmpi_abort(-1)
+  end if
   ier = nf_put_att_int2(lncid,idv,'missing_value',nf_short,1,missval)
+  if (ier/=0) then
+    write(6,*) "ERROR: Cannot define missing_value for ",trim(name)
+    write(6,*) nf_strerror(ier)
+    call ccmpi_abort(-1)
+  end if
   scalef=(xmax-xmin)/(real(maxv)-real(minv))
   addoff=xmin-scalef*minv
   ier = nf_put_att_real(lncid,idv,'add_offset',nf_float,1,addoff)
+  if (ier/=0) then
+    write(6,*) "ERROR: Cannot define add_offset for ",trim(name)
+    write(6,*) nf_strerror(ier)
+    call ccmpi_abort(-1)
+  end if
   ier = nf_put_att_real(lncid,idv,'scale_factor',nf_float,1,scalef)
+  if (ier/=0) then
+    write(6,*) "ERROR: Cannot define scale_factor for ",trim(name)
+    write(6,*) nf_strerror(ier)
+    call ccmpi_abort(-1)
+  end if
 else
-  ier = nf_put_att_real(lncid,idv,'missing_value',1,nf_fill_float)
+  ier = nf_put_att_real(lncid,idv,'missing_value',nf_float,1,nf_fill_float)
+  if (ier/=0) then
+    write(6,*) "ERROR: Cannot define missing_value for ",trim(name)
+    write(6,*) nf_strerror(ier)
+    call ccmpi_abort(-1)
+  end if
 endif
 ier = nf_put_att_text(lncid,idv,'FORTRAN_format',5,'G11.4')
+  if (ier/=0) then
+    write(6,*) "ERROR: Cannot define FORTRAN_format for ",trim(name)
+    write(6,*) nf_strerror(ier)
+    call ccmpi_abort(-1)
+  end if
 if(daily>0)then
   ier = nf_put_att_text(lncid,idv,'valid_time',5,'daily')
+  if (ier/=0) then
+    write(6,*) "ERROR: Cannot define valid_time for ",trim(name)
+    write(6,*) nf_strerror(ier)
+    call ccmpi_abort(-1)
+  end if
 endif
       
 return
