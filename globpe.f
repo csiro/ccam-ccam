@@ -1983,7 +1983,7 @@
 
       !--------------------------------------------------------------
       ! READ INTEGER TEXT FILES
-      subroutine readint(filename,itss,ifullx)
+      subroutine readint(filename,itss,ifully)
       
       use cc_mpi            ! CC MPI routines
  
@@ -1995,8 +1995,8 @@
             
       character *(*) filename
       character header*47
-      integer ifullx,ilx,jlx,ierr
-      integer itss(ifullx)
+      integer ifully,ilx,jlx,ierr
+      integer itss(ifully)
       integer glob2d(ifull_g)
       real rlong0x,rlat0x,schmidtx,dsx
 
@@ -2025,17 +2025,17 @@
           write(6,*) 'End of file occurred in readint'
           call ccmpi_abort(-1)	  
         end if
-        if (ifullx==ifull) then
+        if (ifully==ifull) then
           call ccmpi_distribute(itss, glob2d)
-        else if (ifullx==ifull_g) then
+        else if (ifully==ifull_g) then
           itss=glob2d
         else
-          write(6,*) "ERROR: Invalid ifullx for readint"
+          write(6,*) "ERROR: Invalid ifully for readint"
           call ccmpi_abort(-1)
         end if
         write(6,*) trim(header), glob2d(id+(jd-1)*il_g)
       else
-        if (ifullx==ifull) then
+        if (ifully==ifull) then
           call ccmpi_distribute(itss)
         end if
       end if
@@ -2043,7 +2043,7 @@
 
       !--------------------------------------------------------------
       ! READ REAL TEXT FILES
-      subroutine readreal(filename,tss,ifullx)
+      subroutine readreal(filename,tss,ifully)
  
       use cc_mpi            ! CC MPI routines
  
@@ -2055,11 +2055,11 @@
 
       character *(*) filename
       character header*47
-      real tss(ifullx)
+      real tss(ifully)
       real glob2d(ifull_g)
       real rlong0x,rlat0x,schmidtx,dsx
       integer ierr
-      integer ilx,jlx,ifullx
+      integer ilx,jlx,ifully
 
       if ( myid == 0 ) then
         write(6,*) 'reading data via readreal from ',trim(filename)
@@ -2086,17 +2086,17 @@
           write(6,*) "error in readreal",trim(filename),ierr
           call ccmpi_abort(-1)
         end if
-        if (ifullx==ifull) then
+        if (ifully==ifull) then
           call ccmpi_distribute(tss, glob2d)
-        else if (ifullx==ifull_g) then
+        else if (ifully==ifull_g) then
           tss=glob2d
         else
-          write(6,*) "ERROR: Invalid ifullx for readreal"
+          write(6,*) "ERROR: Invalid ifully for readreal"
           call ccmpi_abort(-1)
         end if
         write(6,*) trim(header), glob2d(id+(jd-1)*il_g)
       else
-        if (ifullx==ifull) then
+        if (ifully==ifull) then
           call ccmpi_distribute(tss)
         end if
       end if
