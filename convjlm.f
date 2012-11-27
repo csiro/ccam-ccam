@@ -135,7 +135,7 @@ c     parameter (ncubase=2)              ! 2 from 4/06, more like 0 before  - us
         ! MJT suggestion
         if (alflnd<0..or.alfsea<0.) then
 	  write(6,*) "ERROR: negative alflnd and alfsea are"
-	  write(6,*) "not supported"
+	  write(6,*) "not supported in convjlm"
 	  stop
 	end if
         kb_saved(:)=kl-1
@@ -1515,16 +1515,20 @@ c     if(ktau<=3.and.nmaxpr==1.and.mydiag)then
       if(ldr/=0)then
 !       Leon's stuff here, e.g.
         do k=1,kl
-          do iq=1,ifullw
-!          qlg(iq,k)=qlg(iq,k)+qliqw(iq,k)
-           if(tt(iq,k)<253.16)then   ! i.e. -20C
-             qfg(iq,k)=qfg(iq,k)+qliqw(iq,k)
-             tt(iq,k)=tt(iq,k)+3.35e5*qliqw(iq,k)/cp   ! fusion heating
-           else
-             qlg(iq,k)=qlg(iq,k)+qliqw(iq,k)
-           endif
-          enddo
-         enddo
+          if(rhmois==0.)then  ! Nov 2012
+!           this is older simpler option, allowing ldr scheme to assign qfg without time complications          
+            qlg(1:ifull,k)=qlg(1:ifull,k)+qliqw(1:ifull,k)
+          else
+           do iq=1,ifullw
+            if(tt(iq,k)<253.16)then   ! i.e. -20C
+              qfg(iq,k)=qfg(iq,k)+qliqw(iq,k)
+              tt(iq,k)=tt(iq,k)+3.35e5*qliqw(iq,k)/cp   ! fusion heating
+            else
+              qlg(iq,k)=qlg(iq,k)+qliqw(iq,k)
+            endif
+           enddo
+          endif !  (rhmois==0.)
+         enddo  ! k loop
       else      ! for ldr=0
         qq(1:ifull,:)=qq(1:ifull,:)+qliqw(1:ifull,:)         
         tt(1:ifull,:)=tt(1:ifull,:)-hl*qliqw(1:ifull,:)/cp   ! evaporate it
