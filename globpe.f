@@ -739,10 +739,10 @@
      &         id,jd,con*rlongg(idjd),con*rlatt(idjd)
       end if
 
+      call date_and_time(rundate)
+      call date_and_time(time=timeval)
       if (myid == 0) then
-        call date_and_time(rundate)
         write(6,*)'RUNDATE IS ',rundate
-        call date_and_time(time=timeval)
         write(6,*)'Starting time ',timeval
       end if
 

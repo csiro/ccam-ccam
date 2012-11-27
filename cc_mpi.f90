@@ -832,7 +832,7 @@ contains
    subroutine bounds_setup()
 
       use indices_m
-      integer :: n, nr, i, j, iq, iqx
+      integer :: n, nr, i, j, iq, iqq
       integer :: iproc
       integer(kind=4), dimension(MPI_STATUS_SIZE,2*nproc) :: status
       integer(kind=4) :: ierr, itag=0, count, rproc, sproc
@@ -896,129 +896,129 @@ contains
                iq = indp(i,j,n)   ! Local
                iqg = indg(i,j,n)  ! Global
 
-               iqx = in_g(iqg)    ! Global neighbour index
-               rproc = qproc(iqx) ! Processor that has this point
+               iqq = in_g(iqg)    ! Global neighbour index
+               rproc = qproc(iqq) ! Processor that has this point
                if ( rproc == myid ) then ! Just copy the value
-                  ! Convert global iqx to local value
-                  call indv_mpi(iqx,iloc,jloc,nloc)
+                  ! Convert global iqq to local value
+                  call indv_mpi(iqq,iloc,jloc,nloc)
                   in(iq) = indp(iloc,jloc,nloc)
                end if
-               iqx = inn_g(iqg)    ! Global neighbour index
-               rproc = qproc(iqx) ! Processor that has this point
+               iqq = inn_g(iqg)    ! Global neighbour index
+               rproc = qproc(iqq) ! Processor that has this point
                if ( rproc == myid ) then ! Just copy the value
-                  ! Convert global iqx to local value
-                  call indv_mpi(iqx,iloc,jloc,nloc)
+                  ! Convert global iqq to local value
+                  call indv_mpi(iqq,iloc,jloc,nloc)
                   inn(iq) = indp(iloc,jloc,nloc)
                end if
 
-               iqx = is_g(iqg)    ! Global neighbour index
-               rproc = qproc(iqx) ! Processor that has this point
+               iqq = is_g(iqg)    ! Global neighbour index
+               rproc = qproc(iqq) ! Processor that has this point
                if ( rproc == myid ) then ! Just copy the value
-                  ! Convert global iqx to local value
-                  call indv_mpi(iqx,iloc,jloc,nloc)
+                  ! Convert global iqq to local value
+                  call indv_mpi(iqq,iloc,jloc,nloc)
                   is(iq) = indp(iloc,jloc,nloc)
                end if
-               iqx = iss_g(iqg)    ! Global neighbour index
-               rproc = qproc(iqx) ! Processor that has this point
+               iqq = iss_g(iqg)    ! Global neighbour index
+               rproc = qproc(iqq) ! Processor that has this point
                if ( rproc == myid ) then ! Just copy the value
-                  ! Convert global iqx to local value
-                  call indv_mpi(iqx,iloc,jloc,nloc)
+                  ! Convert global iqq to local value
+                  call indv_mpi(iqq,iloc,jloc,nloc)
                   iss(iq) = indp(iloc,jloc,nloc)
                end if
 
-               iqx = ie_g(iqg)    ! Global neighbour index
-               rproc = qproc(iqx) ! Processor that has this point
+               iqq = ie_g(iqg)    ! Global neighbour index
+               rproc = qproc(iqq) ! Processor that has this point
                if ( rproc == myid ) then ! Just copy the value
-                  ! Convert global iqx to local value
-                  call indv_mpi(iqx,iloc,jloc,nloc)
+                  ! Convert global iqq to local value
+                  call indv_mpi(iqq,iloc,jloc,nloc)
                   ie(iq) = indp(iloc,jloc,nloc)
                end if
-               iqx = iee_g(iqg)    ! Global neighbour index
-               rproc = qproc(iqx) ! Processor that has this point
+               iqq = iee_g(iqg)    ! Global neighbour index
+               rproc = qproc(iqq) ! Processor that has this point
                if ( rproc == myid ) then ! Just copy the value
-                  ! Convert global iqx to local value
-                  call indv_mpi(iqx,iloc,jloc,nloc)
+                  ! Convert global iqq to local value
+                  call indv_mpi(iqq,iloc,jloc,nloc)
                   iee(iq) = indp(iloc,jloc,nloc)
                end if
 
-               iqx = iw_g(iqg)    ! Global neighbour index
-               rproc = qproc(iqx) ! Processor that has this point
+               iqq = iw_g(iqg)    ! Global neighbour index
+               rproc = qproc(iqq) ! Processor that has this point
                if ( rproc == myid ) then ! Just copy the value
-                  ! Convert global iqx to local value
-                  call indv_mpi(iqx,iloc,jloc,nloc)
+                  ! Convert global iqq to local value
+                  call indv_mpi(iqq,iloc,jloc,nloc)
                   iw(iq) = indp(iloc,jloc,nloc)
                end if
-               iqx = iww_g(iqg)    ! Global neighbour index
-               rproc = qproc(iqx) ! Processor that has this point
+               iqq = iww_g(iqg)    ! Global neighbour index
+               rproc = qproc(iqq) ! Processor that has this point
                if ( rproc == myid ) then ! Just copy the value
-                  ! Convert global iqx to local value
-                  call indv_mpi(iqx,iloc,jloc,nloc)
+                  ! Convert global iqq to local value
+                  call indv_mpi(iqq,iloc,jloc,nloc)
                   iww(iq) = indp(iloc,jloc,nloc)
                end if
 
                ! Note that the model only needs a limited set of the diagonal
                ! index arrays
-               iqx = ine_g(iqg)    ! Global neighbour index
-               rproc = qproc(iqx) ! Processor that has this point
+               iqq = ine_g(iqg)    ! Global neighbour index
+               rproc = qproc(iqq) ! Processor that has this point
                if ( rproc == myid ) then ! Just copy the value
-                  ! Convert global iqx to local value
-                  call indv_mpi(iqx,iloc,jloc,nloc)
+                  ! Convert global iqq to local value
+                  call indv_mpi(iqq,iloc,jloc,nloc)
                   ine(iq) = indp(iloc,jloc,nloc)
                end if
 
-               iqx = ise_g(iqg)    ! Global neighbour index
-               rproc = qproc(iqx) ! Processor that has this point
+               iqq = ise_g(iqg)    ! Global neighbour index
+               rproc = qproc(iqq) ! Processor that has this point
                if ( rproc == myid ) then ! Just copy the value
-                  ! Convert global iqx to local value
-                  call indv_mpi(iqx,iloc,jloc,nloc)
+                  ! Convert global iqq to local value
+                  call indv_mpi(iqq,iloc,jloc,nloc)
                   ise(iq) = indp(iloc,jloc,nloc)
                end if
 
-               iqx = ien_g(iqg)    ! Global neighbour index
-               rproc = qproc(iqx) ! Processor that has this point
+               iqq = ien_g(iqg)    ! Global neighbour index
+               rproc = qproc(iqq) ! Processor that has this point
                if ( rproc == myid ) then ! Just copy the value
-                  ! Convert global iqx to local value
-                  call indv_mpi(iqx,iloc,jloc,nloc)
+                  ! Convert global iqq to local value
+                  call indv_mpi(iqq,iloc,jloc,nloc)
                   ien(iq) = indp(iloc,jloc,nloc)
                end if
 
-               iqx = iwn_g(iqg)    ! Global neighbour index
-               rproc = qproc(iqx) ! Processor that has this point
+               iqq = iwn_g(iqg)    ! Global neighbour index
+               rproc = qproc(iqq) ! Processor that has this point
                if ( rproc == myid ) then ! Just copy the value
-                  ! Convert global iqx to local value
-                  call indv_mpi(iqx,iloc,jloc,nloc)
+                  ! Convert global iqq to local value
+                  call indv_mpi(iqq,iloc,jloc,nloc)
                   iwn(iq) = indp(iloc,jloc,nloc)
                end if
 
-               iqx = inw_g(iqg)    ! Global neighbour index
-               rproc = qproc(iqx) ! Processor that has this point
+               iqq = inw_g(iqg)    ! Global neighbour index
+               rproc = qproc(iqq) ! Processor that has this point
                if ( rproc == myid ) then ! Just copy the value
-                  ! Convert global iqx to local value
-                  call indv_mpi(iqx,iloc,jloc,nloc)
+                  ! Convert global iqq to local value
+                  call indv_mpi(iqq,iloc,jloc,nloc)
                   inw(iq) = indp(iloc,jloc,nloc)
                end if
 
-               iqx = isw_g(iqg)    ! Global neighbour index
-               rproc = qproc(iqx) ! Processor that has this point
+               iqq = isw_g(iqg)    ! Global neighbour index
+               rproc = qproc(iqq) ! Processor that has this point
                if ( rproc == myid ) then ! Just copy the value
-                  ! Convert global iqx to local value
-                  call indv_mpi(iqx,iloc,jloc,nloc)
+                  ! Convert global iqq to local value
+                  call indv_mpi(iqq,iloc,jloc,nloc)
                   isw(iq) = indp(iloc,jloc,nloc)
                end if
 
-               iqx = ies_g(iqg)    ! Global neighbour index
-               rproc = qproc(iqx) ! Processor that has this point
+               iqq = ies_g(iqg)    ! Global neighbour index
+               rproc = qproc(iqq) ! Processor that has this point
                if ( rproc == myid ) then ! Just copy the value
-                  ! Convert global iqx to local value
-                  call indv_mpi(iqx,iloc,jloc,nloc)
+                  ! Convert global iqq to local value
+                  call indv_mpi(iqq,iloc,jloc,nloc)
                   ies(iq) = indp(iloc,jloc,nloc)
                end if
 
-               iqx = iws_g(iqg)    ! Global neighbour index
-               rproc = qproc(iqx) ! Processor that has this point
+               iqq = iws_g(iqg)    ! Global neighbour index
+               rproc = qproc(iqq) ! Processor that has this point
                if ( rproc == myid ) then ! Just copy the value
-                  ! Convert global iqx to local value
-                  call indv_mpi(iqx,iloc,jloc,nloc)
+                  ! Convert global iqq to local value
+                  call indv_mpi(iqq,iloc,jloc,nloc)
                   iws(iq) = indp(iloc,jloc,nloc)
                end if
 
@@ -1078,9 +1078,9 @@ contains
             j=jpan
             do i=1,ipan
                iq = indg(i,j,n)
-               iqx = in_g(iq)
+               iqq = in_g(iq)
                ! Which processor has this point
-               rproc = qproc(iqx)
+               rproc = qproc(iqq)
                if ( rproc == myid ) cycle ! Don't add points already on this proc.
                iql = indp(i,j,n)  !  Local index
                if ( colourmask(iql) /= icol ) cycle
@@ -1088,7 +1088,7 @@ contains
                call check_bnds_alloc(rproc, iext)
                bnds(rproc)%rlenh = bnds(rproc)%rlenh + 1
                rcolsp(rproc)%ihfn(icol) = rcolsp(rproc)%ihfn(icol) + 1
-               bnds(rproc)%request_list(bnds(rproc)%rlenh) = iqx
+               bnds(rproc)%request_list(bnds(rproc)%rlenh) = iqq
                ! Increment extended region index
                iext = iext + 1
                bnds(rproc)%unpack_list(bnds(rproc)%rlenh) = iext
@@ -1099,9 +1099,9 @@ contains
             i = ipan
             do j=1,jpan
                iq = indg(i,j,n)
-               iqx = ie_g(iq)
+               iqq = ie_g(iq)
                ! Which processor has this point
-               rproc = qproc(iqx)
+               rproc = qproc(iqq)
                if ( rproc == myid ) cycle ! Don't add points already on this proc.
                iql = indp(i,j,n)  !  Local index
                if ( colourmask(iql) /= icol ) cycle
@@ -1109,7 +1109,7 @@ contains
                call check_bnds_alloc(rproc, iext)
                bnds(rproc)%rlenh = bnds(rproc)%rlenh + 1
                rcolsp(rproc)%ihfn(icol) = rcolsp(rproc)%ihfn(icol) + 1
-               bnds(rproc)%request_list(bnds(rproc)%rlenh) = iqx
+               bnds(rproc)%request_list(bnds(rproc)%rlenh) = iqq
                ! Increment extended region index
                iext = iext + 1
                bnds(rproc)%unpack_list(bnds(rproc)%rlenh) = iext
@@ -1138,9 +1138,9 @@ contains
                ! 1D code takes care of corners separately at the end so only goes
                ! over 1,jpan here.
                iq = indg(i,j,n)
-               iqx = iw_g(iq) ! iqx is the global index of the required neighbouring point.
+               iqq = iw_g(iq) ! iqq is the global index of the required neighbouring point.
                ! Which processor has this point
-               rproc = qproc(iqx)
+               rproc = qproc(iqq)
                if ( rproc == myid ) cycle ! Don't add points already on this proc.
                iql = indp(i,j,n)  !  Local index
                if ( colourmask(iql) /= icol ) cycle
@@ -1148,7 +1148,7 @@ contains
                call check_bnds_alloc(rproc, iext)
                bnds(rproc)%rlen = bnds(rproc)%rlen + 1
                rcolsp(rproc)%iffn(icol) = rcolsp(rproc)%iffn(icol) + 1
-               bnds(rproc)%request_list(bnds(rproc)%rlen) = iqx
+               bnds(rproc)%request_list(bnds(rproc)%rlen) = iqq
                ! Increment extended region index
                iext = iext + 1
                bnds(rproc)%unpack_list(bnds(rproc)%rlen) = iext
@@ -1159,9 +1159,9 @@ contains
             j=1
             do i=1,ipan
                iq = indg(i,j,n)
-               iqx = is_g(iq)
+               iqq = is_g(iq)
                ! Which processor has this point
-               rproc = qproc(iqx)
+               rproc = qproc(iqq)
                if ( rproc == myid ) cycle ! Don't add points already on this proc.
                iql = indp(i,j,n)  !  Local index
                if ( colourmask(iql) /= icol ) cycle
@@ -1169,7 +1169,7 @@ contains
                call check_bnds_alloc(rproc, iext)
                bnds(rproc)%rlen = bnds(rproc)%rlen + 1
                rcolsp(rproc)%iffn(icol) = rcolsp(rproc)%iffn(icol) + 1
-               bnds(rproc)%request_list(bnds(rproc)%rlen) = iqx
+               bnds(rproc)%request_list(bnds(rproc)%rlen) = iqq
                ! Increment extended region index
                iext = iext + 1
                bnds(rproc)%unpack_list(bnds(rproc)%rlen) = iext
@@ -1195,13 +1195,13 @@ contains
 !        This might matter for leen etc but not here
 !         if ( edge_e .and. edge_n ) then
 !            ! This is a real vertex
-         iqx = ine_g(iqg)
+         iqq = ine_g(iqg)
          ! Which processor has this point
-         rproc = qproc(iqx)
+         rproc = qproc(iqq)
          if ( rproc /= myid ) then ! Add to list
             call check_bnds_alloc(rproc, iext)
             bnds(rproc)%rlenx = bnds(rproc)%rlenx + 1
-            bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqx
+            bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqq
             ! Increment extended region index
             iext = iext + 1
             bnds(rproc)%unpack_list(bnds(rproc)%rlenx) = iext
@@ -1211,13 +1211,13 @@ contains
          if (ien_g(iqg)==ine_g(iqg)) then
             ien(iq)=ine(iq)
          else
-            iqx = ien_g(iqg)
+            iqq = ien_g(iqg)
             ! Which processor has this point
-            rproc = qproc(iqx)
+            rproc = qproc(iqq)
             if ( rproc /= myid ) then ! Add to list
                call check_bnds_alloc(rproc, iext)
                bnds(rproc)%rlenx = bnds(rproc)%rlenx + 1
-               bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqx
+               bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqq
                ! Increment extended region index
                iext = iext + 1
                bnds(rproc)%unpack_list(bnds(rproc)%rlenx) = iext
@@ -1227,13 +1227,13 @@ contains
 
          iq = indp(ipan,1,n)
          iqg = indg(ipan,1,n)
-         iqx = ise_g(iqg)
+         iqq = ise_g(iqg)
          ! Which processor has this point
-         rproc = qproc(iqx)
+         rproc = qproc(iqq)
          if ( rproc /= myid ) then ! Add to list
             call check_bnds_alloc(rproc, iext)
             bnds(rproc)%rlenx = bnds(rproc)%rlenx + 1
-            bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqx
+            bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqq
             ! Increment extended region index
             iext = iext + 1
             bnds(rproc)%unpack_list(bnds(rproc)%rlenx) = iext
@@ -1243,13 +1243,13 @@ contains
          if (ies_g(iqg)==ise_g(iqg)) then
             ies(iq)=ise(iq)
          else
-            iqx = ies_g(iqg)
+            iqq = ies_g(iqg)
             ! Which processor has this point
-            rproc = qproc(iqx)
+            rproc = qproc(iqq)
             if ( rproc /= myid ) then ! Add to list
                call check_bnds_alloc(rproc, iext)
                bnds(rproc)%rlenx = bnds(rproc)%rlenx + 1
-               bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqx
+               bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqq
                ! Increment extended region index
                iext = iext + 1
                bnds(rproc)%unpack_list(bnds(rproc)%rlenx) = iext
@@ -1259,13 +1259,13 @@ contains
 
          iq = indp(1,jpan,n)
          iqg = indg(1,jpan,n)
-         iqx = iwn_g(iqg)
+         iqq = iwn_g(iqg)
          ! Which processor has this point
-         rproc = qproc(iqx)
+         rproc = qproc(iqq)
          if ( rproc /= myid ) then ! Add to list
             call check_bnds_alloc(rproc, iext)
             bnds(rproc)%rlenx = bnds(rproc)%rlenx + 1
-            bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqx
+            bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqq
             ! Increment extended region index
             iext = iext + 1
             bnds(rproc)%unpack_list(bnds(rproc)%rlenx) = iext
@@ -1275,13 +1275,13 @@ contains
          if (inw_g(iqg)==iwn_g(iqg)) then
             inw(iq)=iwn(iq)
          else
-            iqx = inw_g(iqg)
+            iqq = inw_g(iqg)
             ! Which processor has this point
-            rproc = qproc(iqx)
+            rproc = qproc(iqq)
             if ( rproc /= myid ) then ! Add to list
                call check_bnds_alloc(rproc, iext)
                bnds(rproc)%rlenx = bnds(rproc)%rlenx + 1
-               bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqx
+               bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqq
                ! Increment extended region index
                iext = iext + 1
                bnds(rproc)%unpack_list(bnds(rproc)%rlenx) = iext
@@ -1291,13 +1291,13 @@ contains
 
          iq = indp(1,1,n)
          iqg = indg(1,1,n)
-         iqx = isw_g(iqg)
+         iqq = isw_g(iqg)
          ! Which processor has this point
-         rproc = qproc(iqx)
+         rproc = qproc(iqq)
          if ( rproc /= myid ) then ! Add to list
             call check_bnds_alloc(rproc, iext)
             bnds(rproc)%rlenx = bnds(rproc)%rlenx + 1
-            bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqx
+            bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqq
             ! Increment extended region index
             iext = iext + 1
             bnds(rproc)%unpack_list(bnds(rproc)%rlenx) = iext
@@ -1307,13 +1307,13 @@ contains
          if (iws_g(iqg)==isw_g(iqg)) then
             iws(iq)=isw(iq)
          else
-            iqx = iws_g(iqg)
+            iqq = iws_g(iqg)
             ! Which processor has this point
-            rproc = qproc(iqx)
+            rproc = qproc(iqq)
             if ( rproc /= myid ) then ! Add to list
                call check_bnds_alloc(rproc, iext)
                bnds(rproc)%rlenx = bnds(rproc)%rlenx + 1
-               bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqx
+               bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqq
                ! Increment extended region index
                iext = iext + 1
                bnds(rproc)%unpack_list(bnds(rproc)%rlenx) = iext
@@ -1331,15 +1331,15 @@ contains
          i = 1
          do j=1,jpan
             iq = indg(i,j,n)
-            iqx = iww_g(iq)
+            iqq = iww_g(iq)
 
             ! Which processor has this point
-            rproc = qproc(iqx)
+            rproc = qproc(iqq)
             if ( rproc == myid ) cycle ! Don't add points already on this proc.
             ! Add this point to request list
             call check_bnds_alloc(rproc, iext)
             bnds(rproc)%rlen2 = bnds(rproc)%rlen2 + 1
-            bnds(rproc)%request_list(bnds(rproc)%rlen2) = iqx
+            bnds(rproc)%request_list(bnds(rproc)%rlen2) = iqq
             ! Increment extended region index
             iext = iext + 1
             bnds(rproc)%unpack_list(bnds(rproc)%rlen2) = iext
@@ -1351,15 +1351,15 @@ contains
          j=jpan
          do i=1,ipan
             iq = indg(i,j,n)
-            iqx = inn_g(iq)
+            iqq = inn_g(iq)
 
             ! Which processor has this point
-            rproc = qproc(iqx)
+            rproc = qproc(iqq)
             if ( rproc == myid ) cycle ! Don't add points already on this proc.
             ! Add this point to request list
             call check_bnds_alloc(rproc, iext)
             bnds(rproc)%rlen2 = bnds(rproc)%rlen2 + 1
-            bnds(rproc)%request_list(bnds(rproc)%rlen2) = iqx
+            bnds(rproc)%request_list(bnds(rproc)%rlen2) = iqq
             ! Increment extended region index
             iext = iext + 1
             bnds(rproc)%unpack_list(bnds(rproc)%rlen2) = iext
@@ -1371,15 +1371,15 @@ contains
          i = ipan
          do j=1,jpan
             iq = indg(i,j,n)
-            iqx = iee_g(iq)
+            iqq = iee_g(iq)
 
             ! Which processor has this point
-            rproc = qproc(iqx)
+            rproc = qproc(iqq)
             if ( rproc == myid ) cycle ! Don't add points already on this proc.
             ! Add this point to request list
             call check_bnds_alloc(rproc, iext)
             bnds(rproc)%rlen2 = bnds(rproc)%rlen2 + 1
-            bnds(rproc)%request_list(bnds(rproc)%rlen2) = iqx
+            bnds(rproc)%request_list(bnds(rproc)%rlen2) = iqq
             ! Increment extended region index
             iext = iext + 1
             bnds(rproc)%unpack_list(bnds(rproc)%rlen2) = iext
@@ -1391,15 +1391,15 @@ contains
          j=1
          do i=1,ipan
             iq = indg(i,j,n)
-            iqx = iss_g(iq)
+            iqq = iss_g(iq)
 
             ! Which processor has this point
-            rproc = qproc(iqx)
+            rproc = qproc(iqq)
             if ( rproc == myid ) cycle ! Don't add points already on this proc.
             ! Add this point to request list
             call check_bnds_alloc(rproc, iext)
             bnds(rproc)%rlen2 = bnds(rproc)%rlen2 + 1
-            bnds(rproc)%request_list(bnds(rproc)%rlen2) = iqx
+            bnds(rproc)%request_list(bnds(rproc)%rlen2) = iqq
             ! Increment extended region index
             iext = iext + 1
             bnds(rproc)%unpack_list(bnds(rproc)%rlen2) = iext
@@ -1678,13 +1678,13 @@ contains
       do n=1,npan
          do i=1,ipan
             iqg = indg(i,j,n)
-            iqx = is_g(iqg)
-            rproc = qproc(iqx)
+            iqq = is_g(iqg)
+            rproc = qproc(iqq)
             swap = edge_s(n-noff) .and. swap_s(n-noff)
             if ( rproc == myid .and. .not. swap ) cycle
             call check_bnds_alloc(rproc, iextv)
             bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlen_uv) = -iqx
+            bnds(rproc)%request_list_uv(bnds(rproc)%rlen_uv) = -iqq
             rsplit(rproc)%iwufn = rsplit(rproc)%iwufn + 1
             ! Increment extended region index
             iextv = iextv + 1
@@ -1701,9 +1701,9 @@ contains
       do n=1,npan
          do j=1,jpan
             iqg = indg(i,j,n)
-            iqx = iw_g(iqg)
+            iqq = iw_g(iqg)
             ! Which processor has this point
-            rproc = qproc(iqx)
+            rproc = qproc(iqq)
             ! Only need to add to bounds region if it's on another processor
             ! or if it's on this processor and needs to be swapped.
             ! Decide if u/v need to be swapped. My face is n-noff
@@ -1711,7 +1711,7 @@ contains
             if ( rproc == myid .and. .not. swap ) cycle
             call check_bnds_alloc(rproc, iextu)
             bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlen_uv) = iqx
+            bnds(rproc)%request_list_uv(bnds(rproc)%rlen_uv) = iqq
             rsplit(rproc)%iwufn = rsplit(rproc)%iwufn + 1
             ! Increment extended region index
             iextu = iextu + 1
@@ -1732,15 +1732,15 @@ contains
       do n=1,npan
          do i=1,ipan
             iqg = indg(i,j,n)
-            iqx = in_g(iqg)
-            rproc = qproc(iqx)
+            iqq = in_g(iqg)
+            rproc = qproc(iqq)
             swap = edge_n(n-noff) .and. swap_n(n-noff)
             if ( rproc == myid .and. .not. swap ) cycle
             ! Add this point to request list
             call check_bnds_alloc(rproc, iextv)
             bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1
             ! to show that this is v rather than u, flip sign
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlen_uv) = -iqx
+            bnds(rproc)%request_list_uv(bnds(rproc)%rlen_uv) = -iqq
             rsplit(rproc)%ieufn = rsplit(rproc)%ieufn + 1
             ! Increment extended region index
             iextv = iextv + 1
@@ -1757,14 +1757,14 @@ contains
       do n=1,npan
          do j=1,jpan
             iqg = indg(i,j,n)
-            iqx = ie_g(iqg)
-            rproc = qproc(iqx)
+            iqq = ie_g(iqg)
+            rproc = qproc(iqq)
             swap = edge_e(n-noff) .and. swap_e(n-noff)
             if ( rproc == myid .and. .not. swap ) cycle
             ! Add this point to request list
             call check_bnds_alloc(rproc, iextu)
             bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlen_uv) = iqx
+            bnds(rproc)%request_list_uv(bnds(rproc)%rlen_uv) = iqq
             rsplit(rproc)%ieufn = rsplit(rproc)%ieufn + 1
             ! Increment extended region index
             iextu = iextu + 1
@@ -1793,13 +1793,13 @@ contains
       do n=1,npan
          do i=1,ipan
             iqg = indg(i,j,n)
-            iqx = iss_g(iqg)
-            rproc = qproc(iqx)
+            iqq = iss_g(iqg)
+            rproc = qproc(iqq)
             swap = edge_s(n-noff) .and. swap_s(n-noff)
             if ( rproc == myid .and. .not. swap ) cycle
             call check_bnds_alloc(rproc, iextv)
             bnds(rproc)%rlen2_uv = bnds(rproc)%rlen2_uv + 1
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlen2_uv) = -iqx
+            bnds(rproc)%request_list_uv(bnds(rproc)%rlen2_uv) = -iqq
             rsplit(rproc)%iwwufn = rsplit(rproc)%iwwufn + 1
             ! Increment extended region index
             iextv = iextv + 1
@@ -1816,15 +1816,15 @@ contains
       do n=1,npan
          do j=1,jpan
             iqg = indg(i,j,n)
-            iqx = iww_g(iqg)
+            iqq = iww_g(iqg)
             ! Which processor has this point
-            rproc = qproc(iqx)
+            rproc = qproc(iqq)
             swap = edge_w(n-noff) .and. swap_w(n-noff)
             if ( rproc == myid .and. .not. swap ) cycle
             ! Add this point to request list
             call check_bnds_alloc(rproc, iextu)
             bnds(rproc)%rlen2_uv = bnds(rproc)%rlen2_uv + 1
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlen2_uv) = iqx
+            bnds(rproc)%request_list_uv(bnds(rproc)%rlen2_uv) = iqq
             rsplit(rproc)%iwwufn = rsplit(rproc)%iwwufn + 1
             ! Increment extended region index
             iextu = iextu + 1
@@ -1846,15 +1846,15 @@ contains
       do n=1,npan
          do i=1,ipan
             iqg = indg(i,j,n)
-            iqx = inn_g(iqg)
-            rproc = qproc(iqx)
+            iqq = inn_g(iqg)
+            rproc = qproc(iqq)
             swap = edge_n(n-noff) .and. swap_n(n-noff)
             if ( rproc == myid .and. .not. swap ) cycle
             ! Add this point to request list
             call check_bnds_alloc(rproc, iextv)
             bnds(rproc)%rlen2_uv = bnds(rproc)%rlen2_uv + 1
             ! to show that this is v rather than u, flip sign
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlen2_uv) = -iqx
+            bnds(rproc)%request_list_uv(bnds(rproc)%rlen2_uv) = -iqq
             rsplit(rproc)%ieeufn = rsplit(rproc)%ieeufn + 1
             ! Increment extended region index
             iextv = iextv + 1
@@ -1871,14 +1871,14 @@ contains
       do n=1,npan
          do j=1,jpan
             iqg = indg(i,j,n)
-            iqx = iee_g(iqg)
-            rproc = qproc(iqx)
+            iqq = iee_g(iqg)
+            rproc = qproc(iqq)
             swap = edge_e(n-noff) .and. swap_e(n-noff)
             if ( rproc == myid .and. .not. swap ) cycle
             ! Add this point to request list
             call check_bnds_alloc(rproc, iextu)
             bnds(rproc)%rlen2_uv = bnds(rproc)%rlen2_uv + 1
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlen2_uv) = iqx
+            bnds(rproc)%request_list_uv(bnds(rproc)%rlen2_uv) = iqq
             rsplit(rproc)%ieeufn = rsplit(rproc)%ieeufn + 1
             ! Increment extended region index
             iextu = iextu + 1
@@ -1903,13 +1903,13 @@ contains
       do n=1,npan
          do i=1,ipan
             iqg = indg(i,j,n)
-            iqx = is_g(iqg)
-            rproc = qproc(iqx)
+            iqq = is_g(iqg)
+            rproc = qproc(iqq)
             swap = edge_s(n-noff) .and. swap_s(n-noff)
             if ( rproc == myid .and. .not. swap ) cycle
             call check_bnds_alloc(rproc, iextu)
             bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = iqx
+            bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = iqq
             rsplit(rproc)%iwvfn = rsplit(rproc)%iwvfn + 1
             ! Increment extended region index
             iextu = iextu + 1
@@ -1926,9 +1926,9 @@ contains
       do n=1,npan
          do j=1,jpan
             iqg = indg(i,j,n)
-            iqx = iw_g(iqg)
+            iqq = iw_g(iqg)
             ! Which processor has this point
-            rproc = qproc(iqx)
+            rproc = qproc(iqq)
             ! Only need to add to bounds region if it's on another processor
             ! or if it's on this processor and needs to be swapped.
             ! Decide if u/v need to be swapped. My face is n-noff
@@ -1937,7 +1937,7 @@ contains
             call check_bnds_alloc(rproc, iextv)
             bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
             ! to show that this is v rather than u, flip sign
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = -iqx
+            bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = -iqq
             rsplit(rproc)%iwvfn = rsplit(rproc)%iwvfn + 1
             ! Increment extended region index
             iextv = iextv + 1
@@ -1958,14 +1958,14 @@ contains
       do n=1,npan
          do i=1,ipan
             iqg = indg(i,j,n)
-            iqx = in_g(iqg)
-            rproc = qproc(iqx)
+            iqq = in_g(iqg)
+            rproc = qproc(iqq)
             swap = edge_n(n-noff) .and. swap_n(n-noff)
             if ( rproc == myid .and. .not. swap ) cycle
             ! Add this point to request list
             call check_bnds_alloc(rproc, iextu)
             bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = iqx
+            bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = iqq
             rsplit(rproc)%ievfn = rsplit(rproc)%ievfn + 1
             ! Increment extended region index
             iextu = iextu + 1
@@ -1982,15 +1982,15 @@ contains
       do n=1,npan
          do j=1,jpan
             iqg = indg(i,j,n)
-            iqx = ie_g(iqg)
-            rproc = qproc(iqx)
+            iqq = ie_g(iqg)
+            rproc = qproc(iqq)
             swap = edge_e(n-noff) .and. swap_e(n-noff)
             if ( rproc == myid .and. .not. swap ) cycle
             ! Add this point to request list
             call check_bnds_alloc(rproc, iextv)
             bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
             ! to show that this is v rather than u, flip sign
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = -iqx
+            bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = -iqq
             rsplit(rproc)%ievfn = rsplit(rproc)%ievfn + 1
             ! Increment extended region index
             iextv = iextv + 1
@@ -2373,7 +2373,7 @@ contains
       integer :: iq, iproc, iqz
       integer(kind=4) :: ierr, itag = 0, rproc, sproc, ltype
       integer(kind=4), dimension(MPI_STATUS_SIZE,2*nproc) :: status
-      integer(kind=4) :: send_len, recv_len, iqx
+      integer(kind=4) :: send_len, recv_len, iqq
       integer :: lmode, lcolour
 
       call start_log(bounds_begin)
@@ -2518,74 +2518,74 @@ contains
          end if
          if ( send_len > 0 ) then
             ! Build up list of points
-            iqx = 0
+            iqq = 0
             if ( fcrh ) then
 !cdir nodep
                do iq=scolsp(sproc)%ihbg(1),scolsp(sproc)%ihfn(1)
-                  iqz = iqx+iq-scolsp(sproc)%ihbg(1)+1
+                  iqz = iqq+iq-scolsp(sproc)%ihbg(1)+1
                   bnds(sproc)%sbuf(iqz) = t(bnds(sproc)%send_list(iq))
                end do
-               iqx = iqx+scolsp(sproc)%ihfn(1)-scolsp(sproc)%ihbg(1)+1
+               iqq = iqq+scolsp(sproc)%ihfn(1)-scolsp(sproc)%ihbg(1)+1
             end if
              if ( fcgh ) then
 !cdir nodep
                do iq=scolsp(sproc)%ihbg(2),scolsp(sproc)%ihfn(2)
-                  iqz = iqx+iq-scolsp(sproc)%ihbg(2)+1
+                  iqz = iqq+iq-scolsp(sproc)%ihbg(2)+1
                   bnds(sproc)%sbuf(iqz) = t(bnds(sproc)%send_list(iq))
                end do
-               iqx = iqx+scolsp(sproc)%ihfn(2)-scolsp(sproc)%ihbg(2)+1
+               iqq = iqq+scolsp(sproc)%ihfn(2)-scolsp(sproc)%ihbg(2)+1
             end if           
             if ( fcbh ) then
 !cdir nodep
                do iq=scolsp(sproc)%ihbg(3),scolsp(sproc)%ihfn(3)
-                  iqz = iqx+iq-scolsp(sproc)%ihbg(3)+1
+                  iqz = iqq+iq-scolsp(sproc)%ihbg(3)+1
                   bnds(sproc)%sbuf(iqz) = t(bnds(sproc)%send_list(iq))
                end do
-               iqx = iqx+scolsp(sproc)%ihfn(3)-scolsp(sproc)%ihbg(3)+1
+               iqq = iqq+scolsp(sproc)%ihfn(3)-scolsp(sproc)%ihbg(3)+1
             end if            
             if ( fcrf ) then
 !cdir nodep
                do iq=scolsp(sproc)%ifbg(1),scolsp(sproc)%iffn(1)
-                  iqz = iqx+iq-scolsp(sproc)%ifbg(1)+1
+                  iqz = iqq+iq-scolsp(sproc)%ifbg(1)+1
                   bnds(sproc)%sbuf(iqz) = t(bnds(sproc)%send_list(iq))
                end do
-               iqx = iqx+scolsp(sproc)%iffn(1)-scolsp(sproc)%ifbg(1)+1
+               iqq = iqq+scolsp(sproc)%iffn(1)-scolsp(sproc)%ifbg(1)+1
             end if
             if ( fcgf ) then
 !cdir nodep
                do iq=scolsp(sproc)%ifbg(2),scolsp(sproc)%iffn(2)
-                  iqz = iqx+iq-scolsp(sproc)%ifbg(2)+1
+                  iqz = iqq+iq-scolsp(sproc)%ifbg(2)+1
                   bnds(sproc)%sbuf(iqz) = t(bnds(sproc)%send_list(iq))
                end do
-               iqx = iqx+scolsp(sproc)%iffn(2)-scolsp(sproc)%ifbg(2)+1
+               iqq = iqq+scolsp(sproc)%iffn(2)-scolsp(sproc)%ifbg(2)+1
             end if
             if ( fcbf ) then
 !cdir nodep
                do iq=scolsp(sproc)%ifbg(3),scolsp(sproc)%iffn(3)
-                  iqz = iqx+iq-scolsp(sproc)%ifbg(3)+1
+                  iqz = iqq+iq-scolsp(sproc)%ifbg(3)+1
                   bnds(sproc)%sbuf(iqz) = t(bnds(sproc)%send_list(iq))
                end do
-               iqx = iqx+scolsp(sproc)%iffn(3)-scolsp(sproc)%ifbg(3)+1
+               iqq = iqq+scolsp(sproc)%iffn(3)-scolsp(sproc)%ifbg(3)+1
             end if
             if ( fextra ) then
 !cdir nodep
                 do iq=scolsp(sproc)%iffn(3)+1,bnds(sproc)%slenx
-                  iqz = iqx+iq-scolsp(sproc)%iffn(3)
+                  iqz = iqq+iq-scolsp(sproc)%iffn(3)
                   bnds(sproc)%sbuf(iqz) = t(bnds(sproc)%send_list(iq))
                end do
-               iqx = iqx+bnds(sproc)%slenx-scolsp(sproc)%iffn(3)
+               iqq = iqq+bnds(sproc)%slenx-scolsp(sproc)%iffn(3)
             end if
             if ( fdouble ) then
 !cdir nodep
                 do iq=bnds(sproc)%slenx+1,bnds(sproc)%slen2
-                  iqz = iqx+iq-bnds(sproc)%slenx
+                  iqz = iqq+iq-bnds(sproc)%slenx
                   bnds(sproc)%sbuf(iqz) = t(bnds(sproc)%send_list(iq))
                end do
-               iqx = iqx+bnds(sproc)%slen2-bnds(sproc)%slenx
+               iqq = iqq+bnds(sproc)%slen2-bnds(sproc)%slenx
             end if
-            if ( iqx > 0 ) then
+            if ( iqq > 0 ) then
                nreq = nreq + 1
-               call MPI_ISend( bnds(sproc)%sbuf(1), iqx, &
+               call MPI_ISend( bnds(sproc)%sbuf(1), iqq, &
                     ltype, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
             end if
          end if
@@ -2633,70 +2633,70 @@ contains
          end if
          if ( recv_len > 0 ) then
             ! unpack_list(iq) is index into extended region
-            iqx = 0
+            iqq = 0
             if ( fcrh ) then
 !cdir nodep
                do iq=rcolsp(rproc)%ihbg(1),rcolsp(rproc)%ihfn(1)
-                  iqz = iqx+iq-rcolsp(rproc)%ihbg(1)+1
+                  iqz = iqq+iq-rcolsp(rproc)%ihbg(1)+1
                   t(ifull+bnds(rproc)%unpack_list(iq)) = bnds(rproc)%rbuf(iqz)
                end do
-               iqx = iqx+rcolsp(rproc)%ihfn(1)-rcolsp(rproc)%ihbg(1)+1
+               iqq = iqq+rcolsp(rproc)%ihfn(1)-rcolsp(rproc)%ihbg(1)+1
             end if
              if ( fcgh ) then
 !cdir nodep
                do iq=rcolsp(rproc)%ihbg(2),rcolsp(rproc)%ihfn(2)
-                  iqz = iqx+iq-rcolsp(rproc)%ihbg(2)+1
+                  iqz = iqq+iq-rcolsp(rproc)%ihbg(2)+1
                   t(ifull+bnds(rproc)%unpack_list(iq)) = bnds(rproc)%rbuf(iqz)
                end do
-               iqx = iqx+rcolsp(rproc)%ihfn(2)-rcolsp(rproc)%ihbg(2)+1
+               iqq = iqq+rcolsp(rproc)%ihfn(2)-rcolsp(rproc)%ihbg(2)+1
             end if           
             if ( fcbh ) then
 !cdir nodep
                do iq=rcolsp(rproc)%ihbg(3),rcolsp(rproc)%ihfn(3)
-                  iqz = iqx+iq-rcolsp(rproc)%ihbg(3)+1
+                  iqz = iqq+iq-rcolsp(rproc)%ihbg(3)+1
                   t(ifull+bnds(rproc)%unpack_list(iq)) = bnds(rproc)%rbuf(iqz)
                end do
-               iqx = iqx+rcolsp(rproc)%ihfn(3)-rcolsp(rproc)%ihbg(3)+1
+               iqq = iqq+rcolsp(rproc)%ihfn(3)-rcolsp(rproc)%ihbg(3)+1
             end if            
             if ( fcrf ) then
 !cdir nodep
                do iq=rcolsp(rproc)%ifbg(1),rcolsp(rproc)%iffn(1)
-                  iqz = iqx+iq-rcolsp(rproc)%ifbg(1)+1
+                  iqz = iqq+iq-rcolsp(rproc)%ifbg(1)+1
                   t(ifull+bnds(rproc)%unpack_list(iq)) = bnds(rproc)%rbuf(iqz)
                end do
-               iqx = iqx+rcolsp(rproc)%iffn(1)-rcolsp(rproc)%ifbg(1)+1
+               iqq = iqq+rcolsp(rproc)%iffn(1)-rcolsp(rproc)%ifbg(1)+1
             end if
             if ( fcgf ) then
 !cdir nodep
                do iq=rcolsp(rproc)%ifbg(2),rcolsp(rproc)%iffn(2)
-                  iqz = iqx+iq-rcolsp(rproc)%ifbg(2)+1
+                  iqz = iqq+iq-rcolsp(rproc)%ifbg(2)+1
                   t(ifull+bnds(rproc)%unpack_list(iq)) = bnds(rproc)%rbuf(iqz)
                end do
-               iqx = iqx+rcolsp(rproc)%iffn(2)-rcolsp(rproc)%ifbg(2)+1
+               iqq = iqq+rcolsp(rproc)%iffn(2)-rcolsp(rproc)%ifbg(2)+1
             end if
             if ( fcbf ) then
 !cdir nodep
                do iq=rcolsp(rproc)%ifbg(3),rcolsp(rproc)%iffn(3)
-                  iqz = iqx+iq-rcolsp(rproc)%ifbg(3)+1
+                  iqz = iqq+iq-rcolsp(rproc)%ifbg(3)+1
                   t(ifull+bnds(rproc)%unpack_list(iq)) = bnds(rproc)%rbuf(iqz)
                end do
-               iqx = iqx+rcolsp(rproc)%iffn(3)-rcolsp(rproc)%ifbg(3)+1
+               iqq = iqq+rcolsp(rproc)%iffn(3)-rcolsp(rproc)%ifbg(3)+1
             end if
             if ( fextra ) then
 !cdir nodep
                 do iq=rcolsp(rproc)%iffn(3)+1,bnds(rproc)%rlenx
-                  iqz = iqx+iq-rcolsp(rproc)%iffn(3)
+                  iqz = iqq+iq-rcolsp(rproc)%iffn(3)
                   t(ifull+bnds(rproc)%unpack_list(iq)) = bnds(rproc)%rbuf(iqz)
                end do
-               iqx = iqx+bnds(rproc)%rlenx-rcolsp(rproc)%iffn(3)
+               iqq = iqq+bnds(rproc)%rlenx-rcolsp(rproc)%iffn(3)
             end if
             if ( fdouble ) then
 !cdir nodep
                 do iq=bnds(rproc)%rlenx+1,bnds(rproc)%rlen2
-                  iqz = iqx+iq-bnds(rproc)%rlenx
+                  iqz = iqq+iq-bnds(rproc)%rlenx
                   t(ifull+bnds(rproc)%unpack_list(iq)) = bnds(rproc)%rbuf(iqz)
                end do
-               iqx = iqx+bnds(rproc)%rlen2-bnds(rproc)%rlenx
+               iqq = iqq+bnds(rproc)%rlen2-bnds(rproc)%rlenx
             end if
          end if         
       end do
@@ -2723,7 +2723,7 @@ contains
       integer :: iq, iproc, kx, iqz, iqb, iqe
       integer(kind=4) :: ierr, itag = 0, rproc, sproc, ltype
       integer(kind=4), dimension(MPI_STATUS_SIZE,2*nproc) :: status
-      integer(kind=4) :: send_len, recv_len, iqx
+      integer(kind=4) :: send_len, recv_len, iqq
       integer :: lmode, lcolour
 
       call start_log(bounds_begin)
@@ -2871,91 +2871,91 @@ contains
             send_len=send_len*bnds(sproc)%mlomsk
          end if
          if ( send_len > 0 ) then
-            iqx = 0
+            iqq = 0
             if ( fcrh ) then
 !cdir nodep
                do iq=scolsp(sproc)%ihbg(1),scolsp(sproc)%ihfn(1)
-                  iqz = iqx+iq-scolsp(sproc)%ihbg(1)+1
+                  iqz = iqq+iq-scolsp(sproc)%ihbg(1)+1
                   iqb = 1+(iqz-1)*kx
                   iqe = iqz*kx
                   bnds(sproc)%sbuf(iqb:iqe) = t(bnds(sproc)%send_list(iq),:)
                end do
-               iqx = iqx+scolsp(sproc)%ihfn(1)-scolsp(sproc)%ihbg(1)+1
+               iqq = iqq+scolsp(sproc)%ihfn(1)-scolsp(sproc)%ihbg(1)+1
             end if
              if ( fcgh ) then
 !cdir nodep
                do iq=scolsp(sproc)%ihbg(2),scolsp(sproc)%ihfn(2)
-                  iqz = iqx+iq-scolsp(sproc)%ihbg(2)+1
+                  iqz = iqq+iq-scolsp(sproc)%ihbg(2)+1
                   iqb = 1+(iqz-1)*kx
                   iqe = iqz*kx
                   bnds(sproc)%sbuf(iqb:iqe) = t(bnds(sproc)%send_list(iq),:)
                end do
-               iqx = iqx+scolsp(sproc)%ihfn(2)-scolsp(sproc)%ihbg(2)+1
+               iqq = iqq+scolsp(sproc)%ihfn(2)-scolsp(sproc)%ihbg(2)+1
             end if           
             if ( fcbh ) then
 !cdir nodep
                do iq=scolsp(sproc)%ihbg(3),scolsp(sproc)%ihfn(3)
-                  iqz = iqx+iq-scolsp(sproc)%ihbg(3)+1
+                  iqz = iqq+iq-scolsp(sproc)%ihbg(3)+1
                   iqb = 1+(iqz-1)*kx
                   iqe = iqz*kx
                   bnds(sproc)%sbuf(iqb:iqe) = t(bnds(sproc)%send_list(iq),:)
                end do
-               iqx = iqx+scolsp(sproc)%ihfn(3)-scolsp(sproc)%ihbg(3)+1
+               iqq = iqq+scolsp(sproc)%ihfn(3)-scolsp(sproc)%ihbg(3)+1
             end if            
             if ( fcrf ) then
 !cdir nodep
                do iq=scolsp(sproc)%ifbg(1),scolsp(sproc)%iffn(1)
-                  iqz = iqx+iq-scolsp(sproc)%ifbg(1)+1
+                  iqz = iqq+iq-scolsp(sproc)%ifbg(1)+1
                   iqb = 1+(iqz-1)*kx
                   iqe = iqz*kx
                   bnds(sproc)%sbuf(iqb:iqe) = t(bnds(sproc)%send_list(iq),:)
                end do
-               iqx = iqx+scolsp(sproc)%iffn(1)-scolsp(sproc)%ifbg(1)+1
+               iqq = iqq+scolsp(sproc)%iffn(1)-scolsp(sproc)%ifbg(1)+1
             end if
             if ( fcgf ) then
 !cdir nodep
                do iq=scolsp(sproc)%ifbg(2),scolsp(sproc)%iffn(2)
-                  iqz = iqx+iq-scolsp(sproc)%ifbg(2)+1
+                  iqz = iqq+iq-scolsp(sproc)%ifbg(2)+1
                   iqb = 1+(iqz-1)*kx
                   iqe = iqz*kx
                   bnds(sproc)%sbuf(iqb:iqe) = t(bnds(sproc)%send_list(iq),:)
                end do
-               iqx = iqx+scolsp(sproc)%iffn(2)-scolsp(sproc)%ifbg(2)+1
+               iqq = iqq+scolsp(sproc)%iffn(2)-scolsp(sproc)%ifbg(2)+1
             end if
             if ( fcbf ) then
 !cdir nodep
                do iq=scolsp(sproc)%ifbg(3),scolsp(sproc)%iffn(3)
-                  iqz = iqx+iq-scolsp(sproc)%ifbg(3)+1
+                  iqz = iqq+iq-scolsp(sproc)%ifbg(3)+1
                   iqb = 1+(iqz-1)*kx
                   iqe = iqz*kx
                   bnds(sproc)%sbuf(iqb:iqe) = t(bnds(sproc)%send_list(iq),:)
                end do
-               iqx = iqx+scolsp(sproc)%iffn(3)-scolsp(sproc)%ifbg(3)+1
+               iqq = iqq+scolsp(sproc)%iffn(3)-scolsp(sproc)%ifbg(3)+1
             end if
             if ( fextra ) then
 !cdir nodep
                 do iq=scolsp(sproc)%iffn(3)+1,bnds(sproc)%slenx
-                  iqz = iqx+iq-scolsp(sproc)%iffn(3)
+                  iqz = iqq+iq-scolsp(sproc)%iffn(3)
                   iqb = 1+(iqz-1)*kx
                   iqe = iqz*kx
                   bnds(sproc)%sbuf(iqb:iqe) = t(bnds(sproc)%send_list(iq),:)
                end do
-               iqx = iqx+bnds(sproc)%slenx-scolsp(sproc)%iffn(3)
+               iqq = iqq+bnds(sproc)%slenx-scolsp(sproc)%iffn(3)
             end if
             if ( fdouble ) then
 !cdir nodep
                 do iq=bnds(sproc)%slenx+1,bnds(sproc)%slen2
-                  iqz = iqx+iq-bnds(sproc)%slenx
+                  iqz = iqq+iq-bnds(sproc)%slenx
                   iqb = 1+(iqz-1)*kx
                   iqe = iqz*kx
                   bnds(sproc)%sbuf(iqb:iqe) = t(bnds(sproc)%send_list(iq),:)
                end do
-               iqx = iqx+bnds(sproc)%slen2-bnds(sproc)%slenx
+               iqq = iqq+bnds(sproc)%slen2-bnds(sproc)%slenx
             end if
-            if ( iqx > 0 ) then
+            if ( iqq > 0 ) then
                nreq = nreq + 1
-               iqx=iqx*kx
-               call MPI_ISend( bnds(sproc)%sbuf(1), iqx, &
+               iqq=iqq*kx
+               call MPI_ISend( bnds(sproc)%sbuf(1), iqq, &
                     ltype, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
             end if
          end if
@@ -2999,86 +2999,86 @@ contains
             recv_len=recv_len*bnds(rproc)%mlomsk
          end if
          if ( recv_len > 0 ) then
-            iqx = 0
+            iqq = 0
             if ( fcrh ) then
 !cdir nodep
                do iq=rcolsp(rproc)%ihbg(1),rcolsp(rproc)%ihfn(1)
-                  iqz = iqx+iq-rcolsp(rproc)%ihbg(1)+1
+                  iqz = iqq+iq-rcolsp(rproc)%ihbg(1)+1
                   iqb = 1+(iqz-1)*kx
                   iqe = iqz*kx
                   t(ifull+bnds(rproc)%unpack_list(iq),:) = bnds(rproc)%rbuf(iqb:iqe)
                end do
-               iqx = iqx+rcolsp(rproc)%ihfn(1)-rcolsp(rproc)%ihbg(1)+1
+               iqq = iqq+rcolsp(rproc)%ihfn(1)-rcolsp(rproc)%ihbg(1)+1
             end if
              if ( fcgh ) then
 !cdir nodep
                do iq=rcolsp(rproc)%ihbg(2),rcolsp(rproc)%ihfn(2)
-                  iqz = iqx+iq-rcolsp(rproc)%ihbg(2)+1
+                  iqz = iqq+iq-rcolsp(rproc)%ihbg(2)+1
                   iqb = 1+(iqz-1)*kx
                   iqe = iqz*kx
                   t(ifull+bnds(rproc)%unpack_list(iq),:) = bnds(rproc)%rbuf(iqb:iqe)
                end do
-               iqx = iqx+rcolsp(rproc)%ihfn(2)-rcolsp(rproc)%ihbg(2)+1
+               iqq = iqq+rcolsp(rproc)%ihfn(2)-rcolsp(rproc)%ihbg(2)+1
             end if           
             if ( fcbh ) then
 !cdir nodep
                do iq=rcolsp(rproc)%ihbg(3),rcolsp(rproc)%ihfn(3)
-                  iqz = iqx+iq-rcolsp(rproc)%ihbg(3)+1
+                  iqz = iqq+iq-rcolsp(rproc)%ihbg(3)+1
                   iqb = 1+(iqz-1)*kx
                   iqe = iqz*kx
                   t(ifull+bnds(rproc)%unpack_list(iq),:) = bnds(rproc)%rbuf(iqb:iqe)
                end do
-               iqx = iqx+rcolsp(rproc)%ihfn(3)-rcolsp(rproc)%ihbg(3)+1
+               iqq = iqq+rcolsp(rproc)%ihfn(3)-rcolsp(rproc)%ihbg(3)+1
             end if            
             if ( fcrf ) then
 !cdir nodep
                do iq=rcolsp(rproc)%ifbg(1),rcolsp(rproc)%iffn(1)
-                  iqz = iqx+iq-rcolsp(rproc)%ifbg(1)+1
+                  iqz = iqq+iq-rcolsp(rproc)%ifbg(1)+1
                   iqb = 1+(iqz-1)*kx
                   iqe = iqz*kx
                   t(ifull+bnds(rproc)%unpack_list(iq),:) = bnds(rproc)%rbuf(iqb:iqe)
                end do
-               iqx = iqx+rcolsp(rproc)%iffn(1)-rcolsp(rproc)%ifbg(1)+1
+               iqq = iqq+rcolsp(rproc)%iffn(1)-rcolsp(rproc)%ifbg(1)+1
             end if
             if ( fcgf ) then
 !cdir nodep
                do iq=rcolsp(rproc)%ifbg(2),rcolsp(rproc)%iffn(2)
-                  iqz = iqx+iq-rcolsp(rproc)%ifbg(2)+1
+                  iqz = iqq+iq-rcolsp(rproc)%ifbg(2)+1
                   iqb = 1+(iqz-1)*kx
                   iqe = iqz*kx
                   t(ifull+bnds(rproc)%unpack_list(iq),:) = bnds(rproc)%rbuf(iqb:iqe)
                end do
-               iqx = iqx+rcolsp(rproc)%iffn(2)-rcolsp(rproc)%ifbg(2)+1
+               iqq = iqq+rcolsp(rproc)%iffn(2)-rcolsp(rproc)%ifbg(2)+1
             end if
             if ( fcbf ) then
 !cdir nodep
                do iq=rcolsp(rproc)%ifbg(3),rcolsp(rproc)%iffn(3)
-                  iqz = iqx+iq-rcolsp(rproc)%ifbg(3)+1
+                  iqz = iqq+iq-rcolsp(rproc)%ifbg(3)+1
                   iqb = 1+(iqz-1)*kx
                   iqe = iqz*kx
                   t(ifull+bnds(rproc)%unpack_list(iq),:) = bnds(rproc)%rbuf(iqb:iqe)
                end do
-               iqx = iqx+rcolsp(rproc)%iffn(3)-rcolsp(rproc)%ifbg(3)+1
+               iqq = iqq+rcolsp(rproc)%iffn(3)-rcolsp(rproc)%ifbg(3)+1
             end if
             if ( fextra ) then
 !cdir nodep
                 do iq=rcolsp(rproc)%iffn(3)+1,bnds(rproc)%rlenx
-                  iqz = iqx+iq-rcolsp(rproc)%iffn(3)
+                  iqz = iqq+iq-rcolsp(rproc)%iffn(3)
                   iqb = 1+(iqz-1)*kx
                   iqe = iqz*kx
                   t(ifull+bnds(rproc)%unpack_list(iq),:) = bnds(rproc)%rbuf(iqb:iqe)
                end do
-               iqx = iqx+bnds(rproc)%rlenx-rcolsp(rproc)%iffn(3)
+               iqq = iqq+bnds(rproc)%rlenx-rcolsp(rproc)%iffn(3)
             end if
             if ( fdouble ) then
 !cdir nodep
                 do iq=bnds(rproc)%rlenx+1,bnds(rproc)%rlen2
-                  iqz = iqx+iq-bnds(rproc)%rlenx
+                  iqz = iqq+iq-bnds(rproc)%rlenx
                   iqb = 1+(iqz-1)*kx
                   iqe = iqz*kx
                   t(ifull+bnds(rproc)%unpack_list(iq),:) = bnds(rproc)%rbuf(iqb:iqe)
                end do
-               iqx = iqx+bnds(rproc)%rlen2-bnds(rproc)%rlenx
+               iqq = iqq+bnds(rproc)%rlen2-bnds(rproc)%rlenx
             end if
          end if
       end do
@@ -3102,7 +3102,7 @@ contains
       logical :: fsvwu, fnveu, fssvwwu, fnnveeu
       logical :: fsuwv, fnuev
       integer :: stagmode, iq, iqz, iproc
-      integer(kind=4) :: ierr, itag = 0, rproc, sproc, iqx, ltype
+      integer(kind=4) :: ierr, itag = 0, rproc, sproc, iqq, ltype
       integer(kind=4), dimension(MPI_STATUS_SIZE,2*nproc) :: status
       integer(kind=4) :: send_len, recv_len
       integer :: lmode
@@ -3222,12 +3222,12 @@ contains
          end if
          if ( send_len > 0 ) then
             ! Build up list of points
-            iqx = 0
+            iqq = 0
             if ( fsvwu ) then
 !cdir nodep
                do iq=ssplit(sproc)%isvbg,ssplit(sproc)%iwufn
                   ! Use abs because sign is used as u/v flag
-                  iqz = iqx+iq-ssplit(sproc)%isvbg+1
+                  iqz = iqq+iq-ssplit(sproc)%isvbg+1
                   if ( (bnds(sproc)%send_list_uv(iq) > 0) .neqv. &
                         bnds(sproc)%send_swap(iq) ) then
                      bnds(sproc)%sbuf(iqz) = u(abs(bnds(sproc)%send_list_uv(iq)))
@@ -3236,13 +3236,13 @@ contains
                   end if 
                   if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(iqz) = -bnds(sproc)%sbuf(iqz)
                end do
-               iqx = iqx+ssplit(sproc)%iwufn-ssplit(sproc)%isvbg+1
+               iqq = iqq+ssplit(sproc)%iwufn-ssplit(sproc)%isvbg+1
             end if
             if ( fnveu ) then
 !cdir nodep
                do iq=ssplit(sproc)%invbg,ssplit(sproc)%ieufn
                   ! Use abs because sign is used as u/v flag
-                  iqz = iqx+iq-ssplit(sproc)%invbg+1
+                  iqz = iqq+iq-ssplit(sproc)%invbg+1
                   if ( (bnds(sproc)%send_list_uv(iq) > 0) .neqv. &
                         bnds(sproc)%send_swap(iq) ) then
                      bnds(sproc)%sbuf(iqz) = u(abs(bnds(sproc)%send_list_uv(iq)))
@@ -3251,13 +3251,13 @@ contains
                   end if 
                   if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(iqz) = -bnds(sproc)%sbuf(iqz)
                end do
-               iqx = iqx+ssplit(sproc)%ieufn-ssplit(sproc)%invbg+1
+               iqq = iqq+ssplit(sproc)%ieufn-ssplit(sproc)%invbg+1
             end if
             if ( fssvwwu ) then
 !cdir nodep
                do iq=ssplit(sproc)%issvbg,ssplit(sproc)%iwwufn
                   ! Use abs because sign is used as u/v flag
-                  iqz = iqx+iq-ssplit(sproc)%issvbg+1
+                  iqz = iqq+iq-ssplit(sproc)%issvbg+1
                   if ( (bnds(sproc)%send_list_uv(iq) > 0) .neqv. &
                         bnds(sproc)%send_swap(iq) ) then
                      bnds(sproc)%sbuf(iqz) = u(abs(bnds(sproc)%send_list_uv(iq)))
@@ -3266,13 +3266,13 @@ contains
                   end if 
                   if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(iqz) = -bnds(sproc)%sbuf(iqz)
                end do
-               iqx = iqx+ssplit(sproc)%iwwufn-ssplit(sproc)%issvbg+1
+               iqq = iqq+ssplit(sproc)%iwwufn-ssplit(sproc)%issvbg+1
             end if
             if ( fnnveeu ) then
 !cdir nodep
                do iq=ssplit(sproc)%innvbg,ssplit(sproc)%ieeufn
                   ! Use abs because sign is used as u/v flag
-                  iqz = iqx+iq-ssplit(sproc)%innvbg+1
+                  iqz = iqq+iq-ssplit(sproc)%innvbg+1
                   if ( (bnds(sproc)%send_list_uv(iq) > 0) .neqv. &
                         bnds(sproc)%send_swap(iq) ) then
                      bnds(sproc)%sbuf(iqz) = u(abs(bnds(sproc)%send_list_uv(iq)))
@@ -3281,13 +3281,13 @@ contains
                   end if 
                   if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(iqz) = -bnds(sproc)%sbuf(iqz)
                end do
-               iqx = iqx+ssplit(sproc)%ieeufn-ssplit(sproc)%innvbg+1
+               iqq = iqq+ssplit(sproc)%ieeufn-ssplit(sproc)%innvbg+1
             end if
             if ( fsuwv ) then
 !cdir nodep
                do iq=ssplit(sproc)%isubg,ssplit(sproc)%iwvfn
                   ! Use abs because sign is used as u/v flag
-                  iqz = iqx+iq-ssplit(sproc)%isubg+1
+                  iqz = iqq+iq-ssplit(sproc)%isubg+1
                   if ( (bnds(sproc)%send_list_uv(iq) > 0) .neqv. &
                         bnds(sproc)%send_swap(iq) ) then
                      bnds(sproc)%sbuf(iqz) = u(abs(bnds(sproc)%send_list_uv(iq)))
@@ -3296,13 +3296,13 @@ contains
                   end if 
                   if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(iqz) = -bnds(sproc)%sbuf(iqz)
                end do
-               iqx = iqx+ssplit(sproc)%iwvfn-ssplit(sproc)%isubg+1
+               iqq = iqq+ssplit(sproc)%iwvfn-ssplit(sproc)%isubg+1
             end if
             if ( fnuev ) then
 !cdir nodep
                do iq=ssplit(sproc)%inubg,ssplit(sproc)%ievfn
                   ! Use abs because sign is used as u/v flag
-                  iqz = iqx+iq-ssplit(sproc)%inubg+1
+                  iqz = iqq+iq-ssplit(sproc)%inubg+1
                   if ( (bnds(sproc)%send_list_uv(iq) > 0) .neqv. &
                         bnds(sproc)%send_swap(iq) ) then
                      bnds(sproc)%sbuf(iqz) = u(abs(bnds(sproc)%send_list_uv(iq)))
@@ -3311,11 +3311,11 @@ contains
                   end if 
                   if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(iqz) = -bnds(sproc)%sbuf(iqz)
                end do
-               iqx = iqx+ssplit(sproc)%ievfn-ssplit(sproc)%inubg+1
+               iqq = iqq+ssplit(sproc)%ievfn-ssplit(sproc)%inubg+1
             end if
-            if ( iqx > 0 ) then
+            if ( iqq > 0 ) then
                nreq = nreq + 1
-               call MPI_ISend( bnds(sproc)%sbuf(1), iqx, &
+               call MPI_ISend( bnds(sproc)%sbuf(1), iqq, &
                     ltype, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
             end if
          end if
@@ -3368,84 +3368,84 @@ contains
          if (lmode==1) then
             recv_len=recv_len*bnds(rproc)%mlomsk
          end if
-         iqx = 0
+         iqq = 0
          if ( fsvwu ) then
 !cdir nodep
             do iq=rsplit(rproc)%isvbg,rsplit(rproc)%iwufn
                ! unpack_list(iq) is index into extended region
-               iqz = iqx+iq-rsplit(rproc)%isvbg+1
+               iqz = iqq+iq-rsplit(rproc)%isvbg+1
                if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
                   u(ifull+bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
                else
                   v(ifull-bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
                end if
             end do
-            iqx = iqx+rsplit(rproc)%iwufn-rsplit(rproc)%isvbg+1
+            iqq = iqq+rsplit(rproc)%iwufn-rsplit(rproc)%isvbg+1
          end if
          if ( fnveu ) then
 !cdir nodep
             do iq=rsplit(rproc)%invbg,rsplit(rproc)%ieufn
                ! unpack_list(iq) is index into extended region
-               iqz = iqx+iq-rsplit(rproc)%invbg+1
+               iqz = iqq+iq-rsplit(rproc)%invbg+1
                if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
                   u(ifull+bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
                else
                   v(ifull-bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
                end if
             end do
-            iqx = iqx+rsplit(rproc)%ieufn-rsplit(rproc)%invbg+1
+            iqq = iqq+rsplit(rproc)%ieufn-rsplit(rproc)%invbg+1
          end if
          if ( fssvwwu ) then
 !cdir nodep
             do iq=rsplit(rproc)%issvbg,rsplit(rproc)%iwwufn
                ! unpack_list(iq) is index into extended region
-               iqz = iqx+iq-rsplit(rproc)%issvbg+1
+               iqz = iqq+iq-rsplit(rproc)%issvbg+1
                if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
                   u(ifull+bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
                else
                   v(ifull-bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
                end if
             end do
-            iqx = iqx+rsplit(rproc)%iwwufn-rsplit(rproc)%issvbg+1
+            iqq = iqq+rsplit(rproc)%iwwufn-rsplit(rproc)%issvbg+1
          end if
          if ( fnnveeu ) then
 !cdir nodep
             do iq=rsplit(rproc)%innvbg,rsplit(rproc)%ieeufn
                ! unpack_list(iq) is index into extended region
-               iqz = iqx+iq-rsplit(rproc)%innvbg+1
+               iqz = iqq+iq-rsplit(rproc)%innvbg+1
                if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
                   u(ifull+bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
                else
                   v(ifull-bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
                end if
             end do
-            iqx = iqx+rsplit(rproc)%ieeufn-rsplit(rproc)%innvbg+1
+            iqq = iqq+rsplit(rproc)%ieeufn-rsplit(rproc)%innvbg+1
          end if
          if ( fsuwv ) then
 !cdir nodep
             do iq=rsplit(rproc)%isubg,rsplit(rproc)%iwvfn
                ! unpack_list(iq) is index into extended region
-               iqz = iqx+iq-rsplit(rproc)%isubg+1
+               iqz = iqq+iq-rsplit(rproc)%isubg+1
                if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
                   u(ifull+bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
                else
                   v(ifull-bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
                end if
             end do
-            iqx = iqx+rsplit(rproc)%iwvfn-rsplit(rproc)%isubg+1
+            iqq = iqq+rsplit(rproc)%iwvfn-rsplit(rproc)%isubg+1
          end if
          if ( fnuev ) then
 !cdir nodep
             do iq=rsplit(rproc)%inubg,rsplit(rproc)%ievfn
                ! unpack_list(iq) is index into extended region
-               iqz = iqx+iq-rsplit(rproc)%inubg+1
+               iqz = iqq+iq-rsplit(rproc)%inubg+1
                if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
                   u(ifull+bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
                else
                   v(ifull-bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
                end if
             end do
-            iqx = iqx+rsplit(rproc)%ievfn-rsplit(rproc)%inubg+1
+            iqq = iqq+rsplit(rproc)%ievfn-rsplit(rproc)%inubg+1
          end if
       end do
 
@@ -3468,7 +3468,7 @@ contains
       logical :: fsvwu, fnveu, fssvwwu, fnnveeu
       logical :: fsuwv, fnuev
       integer :: stagmode, iq, iqz, iqb, iqe, iproc, kx
-      integer(kind=4) :: ierr, itag = 0, rproc, sproc, iqx, ltype
+      integer(kind=4) :: ierr, itag = 0, rproc, sproc, iqq, ltype
       integer(kind=4), dimension(MPI_STATUS_SIZE,2*nproc) :: status
       integer(kind=4) :: send_len, recv_len
       integer :: lmode
@@ -3590,13 +3590,13 @@ contains
          end if
          if ( send_len > 0 ) then
             ! Build up list of points
-            iqx = 0
+            iqq = 0
             if ( fsvwu ) then
 !cdir nodep
                do iq=ssplit(sproc)%isvbg,ssplit(sproc)%iwufn
                   ! send_list_uv(iq) is point index.
                   ! Use abs because sign is used as u/v flag
-                  iqz = iqx+iq-ssplit(sproc)%isvbg+1
+                  iqz = iqq+iq-ssplit(sproc)%isvbg+1
                   iqb = 1+(iqz-1)*kx
                   iqe = iqz*kx
                   if ( (bnds(sproc)%send_list_uv(iq) > 0) .neqv. &
@@ -3607,14 +3607,14 @@ contains
                   end if 
                   if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(iqb:iqe) = -bnds(sproc)%sbuf(iqb:iqe)
                end do
-               iqx = iqx+ssplit(sproc)%iwufn-ssplit(sproc)%isvbg+1
+               iqq = iqq+ssplit(sproc)%iwufn-ssplit(sproc)%isvbg+1
             end if
             if ( fnveu ) then
 !cdir nodep
                do iq=ssplit(sproc)%invbg,ssplit(sproc)%ieufn
                   ! send_list_uv(iq) is point index.
                   ! Use abs because sign is used as u/v flag
-                  iqz = iqx+iq-ssplit(sproc)%invbg+1
+                  iqz = iqq+iq-ssplit(sproc)%invbg+1
                   iqb = 1+(iqz-1)*kx
                   iqe = iqz*kx
                   if ( (bnds(sproc)%send_list_uv(iq) > 0) .neqv. &
@@ -3625,14 +3625,14 @@ contains
                   end if 
                   if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(iqb:iqe) = -bnds(sproc)%sbuf(iqb:iqe)
                end do
-               iqx = iqx+ssplit(sproc)%ieufn-ssplit(sproc)%invbg+1
+               iqq = iqq+ssplit(sproc)%ieufn-ssplit(sproc)%invbg+1
             end if
             if ( fssvwwu ) then
 !cdir nodep
                do iq=ssplit(sproc)%issvbg,ssplit(sproc)%iwwufn
                   ! send_list_uv(iq) is point index.
                   ! Use abs because sign is used as u/v flag
-                  iqz = iqx+iq-ssplit(sproc)%issvbg+1
+                  iqz = iqq+iq-ssplit(sproc)%issvbg+1
                   iqb = 1+(iqz-1)*kx
                   iqe = iqz*kx
                   if ( (bnds(sproc)%send_list_uv(iq) > 0) .neqv. &
@@ -3643,14 +3643,14 @@ contains
                   end if 
                   if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(iqb:iqe) = -bnds(sproc)%sbuf(iqb:iqe)
                end do
-               iqx = iqx+ssplit(sproc)%iwwufn-ssplit(sproc)%issvbg+1
+               iqq = iqq+ssplit(sproc)%iwwufn-ssplit(sproc)%issvbg+1
             end if
             if ( fnnveeu ) then
 !cdir nodep
                do iq=ssplit(sproc)%innvbg,ssplit(sproc)%ieeufn
                   ! send_list_uv(iq) is point index.
                   ! Use abs because sign is used as u/v flag
-                  iqz = iqx+iq-ssplit(sproc)%innvbg+1
+                  iqz = iqq+iq-ssplit(sproc)%innvbg+1
                   iqb = 1+(iqz-1)*kx
                   iqe = iqz*kx
                   if ( (bnds(sproc)%send_list_uv(iq) > 0) .neqv. &
@@ -3661,14 +3661,14 @@ contains
                   end if 
                   if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(iqb:iqe) = -bnds(sproc)%sbuf(iqb:iqe)
                end do
-               iqx = iqx+ssplit(sproc)%ieeufn-ssplit(sproc)%innvbg+1
+               iqq = iqq+ssplit(sproc)%ieeufn-ssplit(sproc)%innvbg+1
             end if
             if ( fsuwv ) then
 !cdir nodep
                do iq=ssplit(sproc)%isubg,ssplit(sproc)%iwvfn
                   ! send_list_uv(iq) is point index.
                   ! Use abs because sign is used as u/v flag
-                  iqz = iqx+iq-ssplit(sproc)%isubg+1
+                  iqz = iqq+iq-ssplit(sproc)%isubg+1
                   iqb = 1+(iqz-1)*kx
                   iqe = iqz*kx
                   if ( (bnds(sproc)%send_list_uv(iq) > 0) .neqv. &
@@ -3679,14 +3679,14 @@ contains
                   end if 
                   if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(iqb:iqe) = -bnds(sproc)%sbuf(iqb:iqe)
                end do
-               iqx = iqx+ssplit(sproc)%iwvfn-ssplit(sproc)%isubg+1
+               iqq = iqq+ssplit(sproc)%iwvfn-ssplit(sproc)%isubg+1
             end if
             if ( fnuev ) then
 !cdir nodep
                do iq=ssplit(sproc)%inubg,ssplit(sproc)%ievfn
                   ! send_list_uv(iq) is point index.
                   ! Use abs because sign is used as u/v flag
-                  iqz = iqx+iq-ssplit(sproc)%inubg+1
+                  iqz = iqq+iq-ssplit(sproc)%inubg+1
                   iqb = 1+(iqz-1)*kx
                   iqe = iqz*kx
                   if ( (bnds(sproc)%send_list_uv(iq) > 0) .neqv. &
@@ -3697,12 +3697,12 @@ contains
                   end if 
                   if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(iqb:iqe) = -bnds(sproc)%sbuf(iqb:iqe)
                end do
-               iqx = iqx+ssplit(sproc)%ievfn-ssplit(sproc)%inubg+1
+               iqq = iqq+ssplit(sproc)%ievfn-ssplit(sproc)%inubg+1
             end if
-            if ( iqx > 0 ) then
+            if ( iqq > 0 ) then
                nreq = nreq + 1
-               iqx=iqx*kx
-               call MPI_ISend( bnds(sproc)%sbuf(1), iqx, &
+               iqq=iqq*kx
+               call MPI_ISend( bnds(sproc)%sbuf(1), iqq, &
                     ltype, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
             end if
          end if
@@ -3758,12 +3758,12 @@ contains
          if (lmode==1) then
             recv_len=recv_len*bnds(rproc)%mlomsk
          end if
-         iqx = 0
+         iqq = 0
          if ( fsvwu ) then
 !cdir nodep
             do iq=rsplit(rproc)%isvbg,rsplit(rproc)%iwufn
                ! unpack_list(iq) is index into extended region
-               iqz = iqx+iq-rsplit(rproc)%isvbg+1
+               iqz = iqq+iq-rsplit(rproc)%isvbg+1
                iqb = 1+(iqz-1)*kx
                iqe = iqz*kx
                if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
@@ -3772,13 +3772,13 @@ contains
                   v(ifull-bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iqb:iqe)
                end if
             end do
-            iqx = iqx+rsplit(rproc)%iwufn-rsplit(rproc)%isvbg+1
+            iqq = iqq+rsplit(rproc)%iwufn-rsplit(rproc)%isvbg+1
          end if
          if ( fnveu ) then
 !cdir nodep
             do iq=rsplit(rproc)%invbg,rsplit(rproc)%ieufn
                ! unpack_list(iq) is index into extended region
-               iqz = iqx+iq-rsplit(rproc)%invbg+1
+               iqz = iqq+iq-rsplit(rproc)%invbg+1
                iqb = 1+(iqz-1)*kx
                iqe = iqz*kx
                if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
@@ -3787,13 +3787,13 @@ contains
                   v(ifull-bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iqb:iqe)
                end if
             end do
-            iqx = iqx+rsplit(rproc)%ieufn-rsplit(rproc)%invbg+1
+            iqq = iqq+rsplit(rproc)%ieufn-rsplit(rproc)%invbg+1
          end if         
          if ( fssvwwu ) then
 !cdir nodep
             do iq=rsplit(rproc)%issvbg,rsplit(rproc)%iwwufn
                ! unpack_list(iq) is index into extended region
-               iqz = iqx+iq-rsplit(rproc)%issvbg+1
+               iqz = iqq+iq-rsplit(rproc)%issvbg+1
                iqb = 1+(iqz-1)*kx
                iqe = iqz*kx
                if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
@@ -3802,13 +3802,13 @@ contains
                   v(ifull-bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iqb:iqe)
                end if
             end do
-            iqx = iqx+rsplit(rproc)%iwwufn-rsplit(rproc)%issvbg+1
+            iqq = iqq+rsplit(rproc)%iwwufn-rsplit(rproc)%issvbg+1
          end if         
          if ( fnnveeu ) then
 !cdir nodep
             do iq=rsplit(rproc)%innvbg,rsplit(rproc)%ieeufn
                ! unpack_list(iq) is index into extended region
-               iqz = iqx+iq-rsplit(rproc)%innvbg+1
+               iqz = iqq+iq-rsplit(rproc)%innvbg+1
                iqb = 1+(iqz-1)*kx
                iqe = iqz*kx
                if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
@@ -3817,13 +3817,13 @@ contains
                   v(ifull-bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iqb:iqe)
                end if
             end do
-            iqx = iqx+rsplit(rproc)%ieeufn-rsplit(rproc)%innvbg+1
+            iqq = iqq+rsplit(rproc)%ieeufn-rsplit(rproc)%innvbg+1
          end if         
          if ( fsuwv ) then
 !cdir nodep
             do iq=rsplit(rproc)%isubg,rsplit(rproc)%iwvfn
                ! unpack_list(iq) is index into extended region
-               iqz = iqx+iq-rsplit(rproc)%isubg+1
+               iqz = iqq+iq-rsplit(rproc)%isubg+1
                iqb = 1+(iqz-1)*kx
                iqe = iqz*kx
                if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
@@ -3832,13 +3832,13 @@ contains
                   v(ifull-bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iqb:iqe)
                end if
             end do
-            iqx = iqx+rsplit(rproc)%iwvfn-rsplit(rproc)%isubg+1
+            iqq = iqq+rsplit(rproc)%iwvfn-rsplit(rproc)%isubg+1
          end if 
          if ( fnuev ) then
 !cdir nodep
             do iq=rsplit(rproc)%inubg,rsplit(rproc)%ievfn
                ! unpack_list(iq) is index into extended region
-               iqz = iqx+iq-rsplit(rproc)%inubg+1
+               iqz = iqq+iq-rsplit(rproc)%inubg+1
                iqb = 1+(iqz-1)*kx
                iqe = iqz*kx
                if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
@@ -3847,7 +3847,7 @@ contains
                   v(ifull-bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iqb:iqe)
                end if
             end do
-            iqx = iqx+rsplit(rproc)%ievfn-rsplit(rproc)%inubg+1
+            iqq = iqq+rsplit(rproc)%ievfn-rsplit(rproc)%inubg+1
          end if        
       end do
 
@@ -4174,8 +4174,8 @@ contains
       end if
    end subroutine check_bnds_alloc
 
-   subroutine fix_index(iqx,larray,n,bnds,iext)
-      integer, intent(in) :: iqx, n
+   subroutine fix_index(iqq,larray,n,bnds,iext)
+      integer, intent(in) :: iqq, n
       integer, dimension(:), intent(out) :: larray
       integer, intent(inout) :: iext
       type(bounds_info), dimension(0:), intent(inout) :: bnds
@@ -4183,42 +4183,42 @@ contains
 
       ! This processes extra corner points, so adds to rlenx
       ! Which processor has this point
-      rproc = qproc(iqx)
+      rproc = qproc(iqq)
       if ( rproc /= myid ) then ! Add to list
          call check_bnds_alloc(rproc, iext)
          bnds(rproc)%rlenx = bnds(rproc)%rlenx + 1
-         bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqx
+         bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqq
          ! Increment extended region index
          iext = iext + 1
          bnds(rproc)%unpack_list(bnds(rproc)%rlenx) = iext
          larray(n) = ifull+iext
       else
          ! If it's on this processor, just use the local index
-         call indv_mpi(iqx,iloc,jloc,nloc)
+         call indv_mpi(iqq,iloc,jloc,nloc)
          larray(n) = indp(iloc,jloc,nloc)
       end if
    end subroutine fix_index
 
-   subroutine fix_index2(iqx,larray,n,bnds,iext)
-      integer, intent(in) :: iqx, n
+   subroutine fix_index2(iqq,larray,n,bnds,iext)
+      integer, intent(in) :: iqq, n
       integer, dimension(:), intent(out) :: larray
       integer, intent(inout) :: iext
       type(bounds_info), dimension(0:), intent(inout) :: bnds
       integer :: rproc, iloc,jloc,nloc
 
       ! Which processor has this point
-      rproc = qproc(iqx)
+      rproc = qproc(iqq)
       if ( rproc /= myid ) then ! Add to list
          call check_bnds_alloc(rproc, iext)
          bnds(rproc)%rlen2 = bnds(rproc)%rlen2 + 1
-         bnds(rproc)%request_list(bnds(rproc)%rlen2) = iqx
+         bnds(rproc)%request_list(bnds(rproc)%rlen2) = iqq
          ! Increment extended region index
          iext = iext + 1
          bnds(rproc)%unpack_list(bnds(rproc)%rlen2) = iext
          larray(n) = ifull+iext
       else
          ! If it's on this processor, just use the local index
-         call indv_mpi(iqx,iloc,jloc,nloc)
+         call indv_mpi(iqq,iloc,jloc,nloc)
          larray(n) = indp(iloc,jloc,nloc)
       end if
    end subroutine fix_index2

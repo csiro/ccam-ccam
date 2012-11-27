@@ -57,12 +57,11 @@
        end if
   
        do k=1,kl
-        !MJT - issues with convergence.  Use Gauss-Seidel
-        ! until accel can be re-calculated
-        !call optmx(il_g,schmidt,dt,bam(k),accel(k))
-        accel(k)=1. ! gauss-seidel
+        call optmx(il_g,schmidt,dt,bam(k),accel(k))
+        !accel(k)=1. ! gauss-seidel
         
         ! MJT - not sure about the following line
+	accel(k)=1.+.55*(accel(k)-1.) ! MJT suggestion
 !       if(il_g>il)accel(k)=1.+.55*(accel(k)-1.)  ! for uniform-dec 22/4/08
 c       if(il_g==il)accel(k)=1.+.55*(accel(k)-1.) ! just a test
         if(myid==0)write(6,*)'k,accel ',k,accel(k)
@@ -212,10 +211,10 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
       itc=0
       call bounds(s, klim=klim)      
       do while ( iter<itmax .and. klim>0)
-      do nx=1,nx_max
+       do nx=1,nx_max
         ifx=ifullx(nx)
         do k=1,klim
-          dsol(1:ifx,k)=
+          dsol(iqx(1:ifx,nx),k)=
      &       ( zzn(iqx(1:ifx,nx))*s(iqn(1:ifx,nx),k)
      &       + zzw(iqx(1:ifx,nx))*s(iqw(1:ifx,nx),k)
      &       + zze(iqx(1:ifx,nx))*s(iqe(1:ifx,nx),k)
@@ -224,15 +223,15 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
      &       -helm(iqx(1:ifx,nx),k))*s(iqx(1:ifx,nx),k)
      &       - rhs(iqx(1:ifx,nx),k))      
      &       /(helm(iqx(1:ifx,nx),k)-zz(iqx(1:ifx,nx)))
-          snew(1:ifx,k) = s(iqx(1:ifx,nx),k)
-     &       + accel(k)*dsol(1:ifx,k)
-          s(iqx(1:ifx,nx),k)=snew(1:ifx,k)
+          snew(iqx(1:ifx,nx),k) = s(iqx(1:ifx,nx),k)
+     &       + accel(k)*dsol(iqx(1:ifx,nx),k)
+          s(iqx(1:ifx,nx),k) = snew(iqx(1:ifx,nx),k)
         enddo ! k loop
         call bounds(s, klim=klim, colour=nx)
-      enddo  ! nx loop  
-      do k=1,klim
+       enddo  ! nx loop  
+       do k=1,klim
         iters(k)=iter
-      end do
+       end do
        if((ntest>0.or.nmaxpr==1).and.diag)
      &  write (6,"('myid,Iter ,s',i4,4f14.5)")myid,iter,(s(iq,1),iq=1,4)
        if(iter==1)then
@@ -297,7 +296,7 @@ c        write (6,"('iter,k ,s',2i4,4f14.5)") iter,k,(s(iq,k),iq=1,4)
         if(nmaxpr==1) then
           write(6,*)'helmjlm ktau,k,Iterations ',ktau,1,iters(1)
         end if
-        if(diag.or.ktau<6)then
+        if(diag.or.ktau<6.or.iters(1)>itmax-5)then
          do k=1,kl
           write(6,*)'helmjlm ktau,k,Iterations ',ktau,k,iters(k)
          enddo
