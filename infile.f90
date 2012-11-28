@@ -1145,7 +1145,7 @@ if (ier/=0) then
 end if
 lsize=len_trim(units)
 if(lsize>0)then
-  ier = nf_put_att_text(lncid,idv,'units',lsize,lname)
+  ier = nf_put_att_text(lncid,idv,'units',lsize,units)
   if (ier/=0) then
     write(6,*) "ERROR: Cannot define units for ",trim(name)
     write(6,*) nf_strerror(ier)
