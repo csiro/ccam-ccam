@@ -40,7 +40,7 @@
       integer, dimension(4) :: dim,dims,dimo
       integer nmi, itype, ms_out, iaero, nstagin
       integer xdim,ydim,zdim,tdim,msdim,ocdim
-      integer icy, icm, icd, ich, icmi, ics, idv, ier, imode
+      integer icy, icm, icd, ich, icmi, ics, idv, imode
       integer, save :: idnc=0, iarch=0, idnc0=0
       real, dimension(nrhead) :: ahead
       character(len=180) cdffile
@@ -297,7 +297,7 @@ c       create the attributes of the header record of the file
         if(ktau==ntau)then
           call ccnf_close(idnc)
           if (myid==0) then
-            write(6,*) "calling ncclos(idnc,ier) ",idnc,ier
+            write(6,*) "calling ncclos(idnc) ",idnc
           end if
         endif
       endif    ! (myid==0.or.local)
