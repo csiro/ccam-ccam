@@ -1571,9 +1571,9 @@ if(vtype == nf_short)then
   ier=nf_put_vara_int2(lncid,mid,start,ncount,ipack)
 else
 #ifdef r8i8
-  ier=nf_put_vara_double(lncid,mid,start,ncount,var)
+  ier=nf_put_vara_double(lncid,mid,start,ncount,globvar)
 #else
-  ier=nf_put_vara_real(lncid,mid,start,ncount,var)
+  ier=nf_put_vara_real(lncid,mid,start,ncount,globvar)
 #endif
 endif
 if (ier/=0) then
