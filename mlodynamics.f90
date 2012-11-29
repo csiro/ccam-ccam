@@ -3741,7 +3741,7 @@ do iq=1,ifull
 end do
 its(1)=int(dtin/(dtnew+0.01))+1
 #ifdef sumdd
-call ccmpi_allreduce(its(1:1),its_g(1:1),"max",comm_world)
+call ccmpi_allreduce(its(1:1),its_g(1:1),"max",comm_mlo)
 if (its_g(1)>500.and.myid==0) write(6,*) "MLOVERT cnum,its_g",cnum,its_g(1)
 #else
 its_g(1)=its(1)
