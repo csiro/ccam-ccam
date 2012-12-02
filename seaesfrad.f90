@@ -90,7 +90,7 @@ integer swcount,ierr
 integer, save :: nlow,nmid
 real, dimension(:), allocatable, save :: sgamp
 real, dimension(:,:), allocatable, save :: rtt
-real, dimension(imax) :: qsat,coszro2,taudar2,coszro,taudar
+real, dimension(imax) :: qsat,coszro2,taudar2,coszro,taudar,mx
 real, dimension(imax) :: sg,sint,sout,sgdn,rg,rt,rgdn,sgdnvis,sgdnnir
 real, dimension(imax) :: soutclr,sgclr,rtclr,rgclr,sga
 real, dimension(imax) :: sgvis,sgdnvisdir,sgdnvisdif,sgdnnirdir,sgdnnirdif
@@ -615,15 +615,42 @@ do j=1,jl,imax/il
     cloudmi(istart:iend)=0.
     cloudhi(istart:iend)=0.
     ! Diagnose low, middle and high clouds
-    do k=1,nlow
-      cloudlo(istart:iend)=cloudlo(istart:iend)*(1.-cfrac(istart:iend,k))+cfrac(istart:iend,k)
-    enddo
-    do k=nlow+1,nmid
-      cloudmi(istart:iend)=cloudmi(istart:iend)*(1.-cfrac(istart:iend,k))+cfrac(istart:iend,k)
-    enddo
-    do k=nmid+1,kl-1
-      cloudhi(istart:iend)=cloudhi(istart:iend)*(1.-cfrac(istart:iend,k))+cfrac(istart:iend,k)
-    enddo
+    if (nmr>0) then
+      mx=0.
+      do k=1,nlow
+        mx=max(mx,cfrac(istart:iend,k))
+        where (cfrac(istart:iend,k)==0.)
+          cloudlo(istart:iend)=cloudlo(istart:iend)+mx*(1.-cloudlo(istart:iend))
+          mx=0.
+        end where
+      end do
+      mx=0.
+      do k=nlow+1,nmid
+        mx=max(mx,cfrac(istart:iend,k))
+        where (cfrac(istart:iend,k)==0.)
+          cloudmi(istart:iend)=cloudmi(istart:iend)+mx*(1.-cloudmi(istart:iend))
+          mx=0.
+        end where
+      end do
+      mx=0.
+      do k=nmid+1,kl-1
+        mx=max(mx,cfrac(istart:iend,k))
+        where (cfrac(istart:iend,k)==0.)
+          cloudhi(istart:iend)=cloudhi(istart:iend)+mx*(1.-cloudhi(istart:iend))
+          mx=0.
+        end where
+      end do  
+    else
+      do k=1,nlow
+        cloudlo(istart:iend)=cloudlo(istart:iend)*(1.-cfrac(istart:iend,k))+cfrac(istart:iend,k)
+      enddo
+      do k=nlow+1,nmid
+        cloudmi(istart:iend)=cloudmi(istart:iend)*(1.-cfrac(istart:iend,k))+cfrac(istart:iend,k)
+      enddo
+      do k=nmid+1,kl-1
+        cloudhi(istart:iend)=cloudhi(istart:iend)*(1.-cfrac(istart:iend,k))+cfrac(istart:iend,k)
+      enddo
+    end if
 
     ! Prepare SEA-ESF arrays ----------------------------------------
     tnhs(:,1)=phi_nh(istart:iend,1)/bet(1)

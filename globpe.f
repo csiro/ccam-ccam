@@ -1587,7 +1587,7 @@
         if(ndi2==0)ndi2=ktau+40
       endif
       if(ktau==ndi2)then
-         if(mydiag)write(6,*)'reset nmaxpr'
+         if(myid==0)write(6,*)'reset nmaxpr'
          nmaxpr=nmaxprsav
       endif
       if (mod(ktau,nmaxpr)==0.or.ktau==ntau)then
@@ -1695,24 +1695,24 @@
 
 !     update diag_averages and daily max and min screen temps 
 !     N.B. runoff is accumulated in sflux
-      tmaxscr(1:ifull)  = max(tmaxscr(1:ifull),tscrn)
-      tminscr(1:ifull)  = min(tminscr(1:ifull),tscrn)
-      rhmaxscr(1:ifull) = max(rhmaxscr(1:ifull),rhscrn)
-      rhminscr(1:ifull) = min(rhminscr(1:ifull),rhscrn)
-      rndmax(1:ifull)   = max(rndmax(1:ifull),condx)
-      capemax(1:ifull)  = max(capemax(1:ifull),cape)
-      u10mx(1:ifull)    = max(u10mx(1:ifull),u10)  ! for hourly scrnfile
-      dew_ave(1:ifull)  = dew_ave(1:ifull)-min(0.,eg)    
-      eg_ave(1:ifull)   = eg_ave(1:ifull)+eg    
-      fg_ave(1:ifull)   = fg_ave(1:ifull)+fg
-      rnet_ave(1:ifull) = rnet_ave(1:ifull)+rnet
-      tscr_ave(1:ifull) = tscr_ave(1:ifull)+tscrn 
-      qscrn_ave(1:ifull) = qscrn_ave(1:ifull)+qgscrn 
-      wb_ave(1:ifull,1:ms)   = wb_ave(1:ifull,1:ms)+wb
-      tsu_ave(1:ifull)  = tsu_ave(1:ifull)+tss
-      psl_ave(1:ifull)  = psl_ave(1:ifull)+psl
+      tmaxscr(1:ifull)     = max(tmaxscr(1:ifull),tscrn)
+      tminscr(1:ifull)     = min(tminscr(1:ifull),tscrn)
+      rhmaxscr(1:ifull)    = max(rhmaxscr(1:ifull),rhscrn)
+      rhminscr(1:ifull)    = min(rhminscr(1:ifull),rhscrn)
+      rndmax(1:ifull)      = max(rndmax(1:ifull),condx)
+      capemax(1:ifull)     = max(capemax(1:ifull),cape)
+      u10mx(1:ifull)       = max(u10mx(1:ifull),u10)  ! for hourly scrnfile
+      dew_ave(1:ifull)     = dew_ave(1:ifull)-min(0.,eg)    
+      eg_ave(1:ifull)      = eg_ave(1:ifull)+eg    
+      fg_ave(1:ifull)      = fg_ave(1:ifull)+fg
+      rnet_ave(1:ifull)    = rnet_ave(1:ifull)+rnet
+      tscr_ave(1:ifull)    = tscr_ave(1:ifull)+tscrn 
+      qscrn_ave(1:ifull)   = qscrn_ave(1:ifull)+qgscrn 
+      wb_ave(1:ifull,1:ms) = wb_ave(1:ifull,1:ms)+wb
+      tsu_ave(1:ifull)     = tsu_ave(1:ifull)+tss
+      psl_ave(1:ifull)     = psl_ave(1:ifull)+psl
       call mlodiag(spare1,0)
-      mixdep_ave(1:ifull)=mixdep_ave(1:ifull)+spare1
+      mixdep_ave(1:ifull)  = mixdep_ave(1:ifull)+spare1
       spare1(:)=u(1:ifull,1)**2+v(1:ifull,1)**2
       spare2(:)=u(1:ifull,2)**2+v(1:ifull,2)**2
       do iq=1,ifull
@@ -1761,51 +1761,51 @@
       endif    ! (mod(ktau,nperday)==nper3hr(n3hr))
 
       if(ktau==ntau.or.mod(ktau,nperavg)==0)then
-        dew_ave(1:ifull)   =   dew_ave(1:ifull)/min(ntau,nperavg)
-        epan_ave(1:ifull)  =  epan_ave(1:ifull)/min(ntau,nperavg)
-        epot_ave(1:ifull)  =  epot_ave(1:ifull)/min(ntau,nperavg)
-        eg_ave(1:ifull)    =    eg_ave(1:ifull)/min(ntau,nperavg)
-        fg_ave(1:ifull)    =    fg_ave(1:ifull)/min(ntau,nperavg)
-        rnet_ave(1:ifull)  =  rnet_ave(1:ifull)/min(ntau,nperavg)
-        sunhours(1:ifull)  =  sunhours(1:ifull)/min(ntau,nperavg)
-        ga_ave(1:ifull)    =    ga_ave(1:ifull)/min(ntau,nperavg)
-        riwp_ave(1:ifull)  =  riwp_ave(1:ifull)/min(ntau,nperavg)
-        rlwp_ave(1:ifull)  =  rlwp_ave(1:ifull)/min(ntau,nperavg)
-        tscr_ave(1:ifull)  =  tscr_ave(1:ifull)/min(ntau,nperavg)
-        qscrn_ave(1:ifull) = qscrn_ave(1:ifull)/min(ntau,nperavg)
+        dew_ave(1:ifull)    = dew_ave(1:ifull)/min(ntau,nperavg)
+        epan_ave(1:ifull)   = epan_ave(1:ifull)/min(ntau,nperavg)
+        epot_ave(1:ifull)   = epot_ave(1:ifull)/min(ntau,nperavg)
+        eg_ave(1:ifull)     = eg_ave(1:ifull)/min(ntau,nperavg)
+        fg_ave(1:ifull)     = fg_ave(1:ifull)/min(ntau,nperavg)
+        rnet_ave(1:ifull)   = rnet_ave(1:ifull)/min(ntau,nperavg)
+        sunhours(1:ifull)   = sunhours(1:ifull)/min(ntau,nperavg)
+        ga_ave(1:ifull)     = ga_ave(1:ifull)/min(ntau,nperavg)
+        riwp_ave(1:ifull)   = riwp_ave(1:ifull)/min(ntau,nperavg)
+        rlwp_ave(1:ifull)   = rlwp_ave(1:ifull)/min(ntau,nperavg)
+        tscr_ave(1:ifull)   = tscr_ave(1:ifull)/min(ntau,nperavg)
+        qscrn_ave(1:ifull)  = qscrn_ave(1:ifull)/min(ntau,nperavg)
         do k=1,ms
-          wb_ave(1:ifull,k)=wb_ave(1:ifull,k)/min(ntau,nperavg)
+          wb_ave(1:ifull,k) = wb_ave(1:ifull,k)/min(ntau,nperavg)
         end do
-        tsu_ave(1:ifull)  = tsu_ave(1:ifull)/min(ntau,nperavg)
-        psl_ave(1:ifull)  = psl_ave(1:ifull)/min(ntau,nperavg)
-        mixdep_ave(1:ifull)=mixdep_ave(1:ifull)/min(ntau,nperavg)
-        sgn_ave(1:ifull)  =  sgn_ave(1:ifull)/min(ntau,nperavg)  ! Dec07 because of solar fit
+        tsu_ave(1:ifull)    = tsu_ave(1:ifull)/min(ntau,nperavg)
+        psl_ave(1:ifull)    = psl_ave(1:ifull)/min(ntau,nperavg)
+        mixdep_ave(1:ifull) = mixdep_ave(1:ifull)/min(ntau,nperavg)
+        sgn_ave(1:ifull)    = sgn_ave(1:ifull)/min(ntau,nperavg)  ! Dec07 because of solar fit
         if(myid==0)
      &    write(6,*) 'ktau,koundiag,nperavg =',ktau,koundiag,nperavg
-        sint_ave(1:ifull) = sint_ave(1:ifull)/max(koundiag,1)
-        sot_ave(1:ifull)  =  sot_ave(1:ifull)/max(koundiag,1)
-        soc_ave(1:ifull)  =  soc_ave(1:ifull)/max(koundiag,1)
-        sgdn_ave(1:ifull) =  sgdn_ave(1:ifull)/max(koundiag,1)
-        rtu_ave(1:ifull)  =  rtu_ave(1:ifull)/max(koundiag,1)
-        rtc_ave(1:ifull)  =  rtc_ave(1:ifull)/max(koundiag,1)
-        rgdn_ave(1:ifull) =  rgdn_ave(1:ifull)/max(koundiag,1)
-        rgn_ave(1:ifull)  =  rgn_ave(1:ifull)/max(koundiag,1)
-        rgc_ave(1:ifull)  =  rgc_ave(1:ifull)/max(koundiag,1)
-        cld_ave(1:ifull)  =  cld_ave(1:ifull)/max(koundiag,1)
-        cll_ave(1:ifull)  =  cll_ave(1:ifull)/max(koundiag,1)
-        clm_ave(1:ifull)  =  clm_ave(1:ifull)/max(koundiag,1)
-        clh_ave(1:ifull)  =  clh_ave(1:ifull)/max(koundiag,1)
-        alb_ave(1:ifull)  =  alb_ave(1:ifull)/max(koundiag,1)
-        fbeam_ave(1:ifull)=  fbeam_ave(1:ifull)/max(koundiag,1)
-        cbas_ave(1:ifull) = 1.1-cbas_ave(1:ifull)/max(1.e-4,precc(:))  ! 1.1 for no precc
-        ctop_ave(1:ifull) = 1.1-ctop_ave(1:ifull)/max(1.e-4,precc(:))  ! 1.1 for no precc
+        sint_ave(1:ifull)   = sint_ave(1:ifull)/max(koundiag,1)
+        sot_ave(1:ifull)    = sot_ave(1:ifull)/max(koundiag,1)
+        soc_ave(1:ifull)    = soc_ave(1:ifull)/max(koundiag,1)
+        sgdn_ave(1:ifull)   = sgdn_ave(1:ifull)/max(koundiag,1)
+        rtu_ave(1:ifull)    = rtu_ave(1:ifull)/max(koundiag,1)
+        rtc_ave(1:ifull)    = rtc_ave(1:ifull)/max(koundiag,1)
+        rgdn_ave(1:ifull)   = rgdn_ave(1:ifull)/max(koundiag,1)
+        rgn_ave(1:ifull)    = rgn_ave(1:ifull)/max(koundiag,1)
+        rgc_ave(1:ifull)    = rgc_ave(1:ifull)/max(koundiag,1)
+        cld_ave(1:ifull)    = cld_ave(1:ifull)/max(koundiag,1)
+        cll_ave(1:ifull)    = cll_ave(1:ifull)/max(koundiag,1)
+        clm_ave(1:ifull)    = clm_ave(1:ifull)/max(koundiag,1)
+        clh_ave(1:ifull)    = clh_ave(1:ifull)/max(koundiag,1)
+        alb_ave(1:ifull)    = alb_ave(1:ifull)/max(koundiag,1)
+        fbeam_ave(1:ifull)  = fbeam_ave(1:ifull)/max(koundiag,1)
+        cbas_ave(1:ifull)   = 1.1-cbas_ave(1:ifull)/max(1.e-4,precc(:))  ! 1.1 for no precc
+        ctop_ave(1:ifull)   = 1.1-ctop_ave(1:ifull)/max(1.e-4,precc(:))  ! 1.1 for no precc
         if (ngas>0) then
           traver(1:ifull,1:kl,1:ngas)=traver(1:ifull,1:kl,1:ngas)
      &      /min(ntau,nperavg)
         end if
-        fpn_ave(1:ifull)=fpn_ave(1:ifull)/min(ntau,nperavg)
-        frs_ave(1:ifull)=frs_ave(1:ifull)/min(ntau,nperavg)
-        frp_ave(1:ifull)=frp_ave(1:ifull)/min(ntau,nperavg)
+        fpn_ave(1:ifull)    = fpn_ave(1:ifull)/min(ntau,nperavg)
+        frs_ave(1:ifull)    = frs_ave(1:ifull)/min(ntau,nperavg)
+        frp_ave(1:ifull)    = frp_ave(1:ifull)/min(ntau,nperavg)
       end if    ! (ktau==ntau.or.mod(ktau,nperavg)==0)
       
       ! Update diagnostics for consistancy
@@ -1818,17 +1818,13 @@
         call outfile(20,rundate,nmi,nwrite,iaero,nstagin)  ! which calls outcdf
  
         if(ktau==ntau.and.irest==1) then
-#ifdef simple_timer
           ! Don't include the time for writing the restart file
           call end_log(maincalc_end)
-#endif
 !         write restart file
           call outfile(19,rundate,nmi,nwrite,iaero,nstagin)
           if(myid==0)
      &      write(6,*)'finished writing restart file in outfile'
-#ifdef simple_timer
           call start_log(maincalc_begin)
-#endif
         endif  ! (ktau==ntau.and.irest==1)
         call log_on()
       endif    ! (ktau==ntau.or.mod(ktau,nwt)==0)

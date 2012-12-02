@@ -6,38 +6,22 @@
       use tracers_m
       implicit none
       include 'newmpar.h'
-      integer mev1,mev2,nwrite0
-      integer nspare,io_outt
-      integer ms_out
-      integer iout,nmi,nwrite,iaero,nstagin
-      real ndt
-c     mev1 = 1 for il even (2 for il odd)
-c     mev2 = 2 for il even (1 for il odd)
-      parameter (nwrite0=1) ! 0 original, 1 writes initial nveg,nsoil etc
       include 'dates.h'    ! mtimer
       include 'filnames.h' ! list of files, read in once only
       include 'parm.h'
+
+      integer io_outt
+      integer iout,nmi,nwrite,iaero,nstagin
       character rundate*8,qgout*20
       character co2out*80,radonout*80,surfout*80
-      integer nface6(4,3)   ! Faces to use in each phase    (c-cub)
-      integer ioff6(4,3)    ! Starting offset for each face (c-cub)
-      data nface6 / 0, 1, 3, 4,   0, 2, 3, 5,   1, 2, 4, 5 /
-      data nspare/0/
 
       call start_log(outfile_begin)
       
-      mev1=il+1-il/2*2
-      mev2=3-mev1
-      ioff6(:,1)=(/ 1,mev1,mev2,2 /)
-      ioff6(:,2)=(/ 2,1,mev1,mev2 /)
-      ioff6(:,3)=(/ mev2,2,1,mev1 /)
-      
-      ndt=dt
       io_outt=io_out
-      if(iout.eq.19)io_outt=io_rest  !  choice for writing restart file
+      if(iout==19)io_outt=io_rest  !  choice for writing restart file
       if ( myid==0 ) then
-         print *,'ofile written for iout,kdate,ktime,mtimer: ',
-     &                              iout,kdate,ktime,mtimer
+        write(6,*) 'ofile written for iout,kdate,ktime,mtimer: ',
+     &                                iout,kdate,ktime,mtimer
       end if
 
 !      call mslp(pmsl,psl,zs,t(1:ifull,:)) ! MJT cable
@@ -48,8 +32,8 @@ c     reincorporate land mask into surface temperature
 !      enddo   ! iq loop                              ! MJT cable
 !      if ( mydiag ) print *,'tssout: ',tssout(idjd)  ! MJT cable
 
-      if(io_outt.eq.3)then
-         print*, "Error, binary output not supported"
+      if(io_outt==3)then
+         write(6,*) 'Error, binary output not supported'
          stop
       end if
 
@@ -82,11 +66,11 @@ c     reincorporate land mask into surface temperature
                endif
             endif               ! (ktau.eq.nwrite)
             if ( myid == 0 ) then
-               print *,'writing current soil & snow variables to ',
-     &                  surfout
-               open(unit=77,file=surfout,form='formatted',
-     &              status='unknown')
-               write (77,*) kdate,ktime,' ktau = ',ktau
+              write(6,*) 'writing current soil & snow variables to ',
+     &                    surfout
+              open(unit=77,file=surfout,form='formatted',
+     &             status='unknown')
+              write (77,*) kdate,ktime,' ktau = ',ktau
             end if
             call writeglobvar(77, wb, fmt='(14f6.3)')
             call writeglobvar(77, tgg, fmt='(12f7.2)')
@@ -117,8 +101,8 @@ c     reincorporate land mask into surface temperature
 !            endif               ! (ico2.gt.0)
             if(nrungcm.eq.-2.or.nrungcm.eq.-5)then
                if ( myid == 0 ) then
-                  print *,'writing special qgout file: ',qgout
-                  open(unit=77,file=qgout,form='unformatted',
+                 write(6,*) 'writing special qgout file: ',qgout
+                 open(unit=77,file=qgout,form='unformatted',
      &                 status='unknown')
                end if
                call writeglobvar(77, qg)
@@ -129,17 +113,14 @@ c     reincorporate land mask into surface temperature
 
 
 c---------------------------------------------------------------------------
-      if(io_outt.eq.1)then  ! for netcdf
-         ms_out = 0             ! Not set anywhere else ?????
-         if(iout.eq.19)then
-            if ( myid==0 ) print *,"restart write of data to cdf"
-            call outcdf(rundate,nmi,-1,ms_out,iaero,nstagin)
-            call end_log(outfile_end)
-            return              ! done with restart data
-         endif                  !  (iout.eq.19)
-         if ( myid==0 ) print *,'calling outcdf from outfile'
-         call outcdf(rundate,nmi,1,ms_out,iaero,nstagin)  
-
+      if(io_outt==1)then  ! for netcdf
+         if(iout==19)then
+            if ( myid==0 ) write(6,*) 'restart write of data to cdf'
+            call outcdf(rundate,nmi,-1,iaero,nstagin)
+         else
+            if ( myid==0 ) write(6,*) 'calling outcdf from outfile'
+            call outcdf(rundate,nmi,1,iaero,nstagin)
+         end if ! (iout==19) ..else..
       endif ! (io_outt.eq.1)
 
       call end_log(outfile_end)

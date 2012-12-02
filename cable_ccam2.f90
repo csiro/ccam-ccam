@@ -99,7 +99,7 @@ use soil_snow_module
 implicit none
 
 private
-public sib4,loadcbmparm,loadtile,savetile,cableinflow,cbmemiss
+public sib4,loadcbmparm,loadtile,savetiledef,savetile,cableinflow,cbmemiss
 
 integer, parameter :: hruffmethod    = 1 ! Method for max hruff
 integer, parameter :: proglai        = 0 ! 0 prescribed LAI, 1 prognostic LAI 
@@ -2119,32 +2119,27 @@ end subroutine loadtile
 
 ! *************************************************************************************
 ! This subroutine saves CABLE tile data
-subroutine savetile(idnc,local,idim,iarch)
+subroutine savetiledef(idnc,local,idim)
 
 use carbpools_m
 use cc_mpi, only : myid
 use infile
-use soil_m
-use soilsnow_m
-use vegpar_m
   
 implicit none
 
 include 'newmpar.h'
   
-integer, intent(in) :: idnc,iarch
+integer, intent(in) :: idnc
 integer k,n,ierr
 integer, dimension(3), intent(in) :: idim  
-real, dimension(ifull) :: dat
 character(len=11) vname
 character(len=40) lname
 logical, intent(in) :: local
   
 if (myid==0.or.local) then
   if (myid==0) then
-    write(6,*) "Storing CABLE tile data"
+    write(6,*) "Defining CABLE tile data"
   end if
-  call ccnf_redef(idnc)
   do n=1,9
     do k=1,ms
       write(lname,'("Soil temperature lev ",I1.1," tile ",I1.1)') k,n
@@ -2280,8 +2275,32 @@ if (myid==0.or.local) then
   lname='NIR albedo'
   vname='albnir'
   call attrib(idnc,idim,3,vname,lname,'none',0.,1.3,0,-1)
-  call ncendf(idnc,ierr)
 end if
+  
+return
+end subroutine savetiledef
+
+! *************************************************************************************
+! This subroutine saves CABLE tile data
+subroutine savetile(idnc,local,iarch)
+
+use carbpools_m
+use cc_mpi, only : myid
+use infile
+use soil_m
+use soilsnow_m
+use vegpar_m
+  
+implicit none
+
+include 'newmpar.h'
+  
+integer, intent(in) :: idnc,iarch
+integer k,n,ierr
+real, dimension(ifull) :: dat
+character(len=11) vname
+logical, intent(in) :: local
+  
 do n=1,9
   do k=1,ms
     dat=tgg(:,k)

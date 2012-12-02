@@ -72,6 +72,7 @@ C Argument list
       real cll(imax)
       real clm(imax)
       real clh(imax)
+      real mx(imax)
 
 c      real Refflm(imax)
 c      real cldliq(imax)
@@ -208,6 +209,35 @@ c        cldliq(:)=0.
         
 c Diagnose low, middle and high clouds; nlow,nmid are set up in initax.f
         
+        if (nmr>0) then ! max-rnd overlap
+        
+          mx=0.
+          do k=1,nlow
+            mx=max(mx,cfrac(:,k))
+            where (cfrac(:,k)==0.)
+              cll=cll+mx*(1.-cll)
+              mx=0.
+            end where
+          end do
+          mx=0.
+          do k=nlow+1,nmid
+            mx=max(mx,cfrac(:,k))
+            where (cfrac(:,k)==0.)
+              clm=clm+mx*(1.-clm)
+              mx=0.
+            end where
+          end do
+          mx=0.
+          do k=nmid+1,nl-1
+            mx=max(mx,cfrac(:,k))
+            where (cfrac(:,k)==0.)
+              clh=clh+mx*(1.-clh)
+              mx=0.
+            end where
+          end do          
+          
+        else ! usual random overlap
+        
         do k=1,nlow
             cll(:)=cll(:)+cfrac(:,k)-cll(:)*cfrac(:,k)
         enddo
@@ -229,6 +259,8 @@ c        endif  ! (nclddia<0)
         do k=nmid+1,nl-1
             clh(:)=clh(:)+cfrac(:,k)-clh(:)*cfrac(:,k)
         enddo
+        
+        end if ! (nmr>0) ..else..
 
 c Set up rk and cdrop (now as cdso4 from radriv90.f)
 
@@ -762,7 +794,7 @@ c             if(prf(mg,k).gt.800.) Em = 1.
         enddo
 
         
-        end if ! (nmr.eq.1)
+        end if ! (nmr.eq.1) ..else..
         !--------------------------------------------------------------------------------
 
 

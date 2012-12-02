@@ -51,7 +51,7 @@
       real ps_sav(ifull),cc(ifull+iextra,kl),
      &     dd(ifull+iextra,kl),pslxint(ifull),pslsav(ifull)
       real pe(ifull+iextra,kl),e(ifull,kl)
-      real helm(ifull+iextra,kl),rhsl(ifull+iextra,kl),delps(ifull)
+      real helm(ifull,kl),rhsl(ifull,kl),delps(ifull)
       real omgf(ifull,kl)
       real bb(ifull)
       real, dimension(ifull,kl) :: dumu,dumv,dumc,dumd
@@ -79,14 +79,15 @@
         allocate(alfn(ifull+iextra),alfu(ifull),alfv(ifull))
       end if
 
+      ! time step can change during initialisation
       if(dt /= dtsave) then 
          call adjust_init(zz,zzn,zze,zzw,zzs,pfact,alff,alf,alfe,alfn,
      &                    alfu,alfv)
          precon_in=precon
-         if(precon>0)precon=0  ! 22/4/07
+         precon=min(precon,0)  ! 22/4/07
       end if
 
-      if (diag)then
+      if (diag.or.nmaxpr==1)then
          if (mydiag ) then
            print *,'entering adjust5'
            write (6,"('tx_a1',10f8.2)") tx(idjd,:)
@@ -173,7 +174,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
         do k=2,kl
          wrk1(:,k)=wrk1(:,k-1)+bet(k)*wrk2(:,k)+betm(k)*wrk2(:,k-1)
         enddo   ! k loop
-        if (diag.and.mydiag)then
+        if ((diag.or.nmaxpr==1).and.mydiag)then
           print *,'adjust5 omgfnl ',(omgfnl(idjd,k),k=1,kl)
           print *,'adjust5 h_nh ',(h_nh(idjd,k),k=1,kl)
           print *,'adjust5 pa ',(p(idjd,k),k=1,kl)
@@ -221,14 +222,14 @@ c     &             k,rhsl(idjd,k),rhsl(idjd+il,k),rhsl(idjd-il,k)
 c        endif
       enddo    ! k loop
 
-      call bounds(pe)
       if(precon<0)then
         call helmsor(zz,zzn,zze,zzw,zzs,helm,pe,rhsl)
       else
+        call bounds(pe)
         call helmsol(zz,zzn,zze,zzw,zzs,helm,pe,rhsl)
       endif  ! (precon>kl)
 
-      if (diag)then   !  only for last k of loop (i.e. 1)
+      if (diag.or.nmaxpr==1)then   !  only for last k of loop (i.e. 1)
          ! Some diagnostics requiring extra bounds calls have been removed
          if (mydiag ) then
             write (6,"('tx_a2',10f8.2)") tx(idjd,:)
@@ -265,7 +266,7 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
       call bounds(p,corner=.true.)
 
 !      now u & v
-      if (diag.and.mydiag)then
+      if ((diag.or.nmaxpr==1).and.mydiag)then
          print*,'iq,k,fu,alfu,alfu*ux(iq,k) ',
      &           idjd,nlv,fu(idjd),alfu(idjd),alfu(idjd)*ux(idjd,nlv)
          print*,'alfF & n e w s (in(iq)),alfF(ine(iq)),alfF(is(iq))',

@@ -18,11 +18,9 @@
       integer, parameter :: itmax=400 ! maximum number of iterations allowed
 !     Arguments
       real, intent(in), dimension(ifull) :: zz,zzn,zze,zzw,zzs
-!     WHY are helm and rhs ifull+iextra?????????
-!     Not just for printa call ?????
-      real, intent(in) :: helm(ifull+iextra,kl)      ! Helmholtz coefficients
+      real, intent(in) :: helm(ifull,kl)             ! Helmholtz coefficients
       real, intent(inout) :: s(ifull+iextra,kl)      ! Solution
-      real, intent(in) :: rhs(ifull+iextra,kl)       ! RHS
+      real, intent(in) :: rhs(ifull,kl)              ! RHS
       real, dimension(ifull,kl) :: sb, sa, snew, dsol
       integer, dimension(kl) :: iters
       real, dimension(kl) ::  dsolmax, dsolmax_g, smax, smax_g
@@ -61,7 +59,7 @@
         !accel(k)=1. ! gauss-seidel
         
         ! MJT - not sure about the following line
-	accel(k)=1.+.55*(accel(k)-1.) ! MJT suggestion
+        accel(k)=1.+.55*(accel(k)-1.) ! MJT suggestion
 !       if(il_g>il)accel(k)=1.+.55*(accel(k)-1.)  ! for uniform-dec 22/4/08
 c       if(il_g==il)accel(k)=1.+.55*(accel(k)-1.) ! just a test
         if(myid==0)write(6,*)'k,accel ',k,accel(k)

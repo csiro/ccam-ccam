@@ -54,6 +54,12 @@ end interface ccnf_put_var_text
 interface ccnf_put_var_int
   module procedure ccnf_put_var_int2i, ccnf_put_var_int3i
 end interface ccnf_put_var_int
+interface ccnf_put_att_intg
+  module procedure ccnf_put_att_intg1, ccnf_put_att_intg2
+end interface ccnf_put_att_intg
+interface ccnf_put_att_realg
+  module procedure ccnf_put_att_realg1, ccnf_put_att_realg2
+end interface ccnf_put_att_realg
 
 integer, dimension(:), allocatable, save :: pnoff
 integer, dimension(:,:), allocatable, save :: pioff,pjoff
@@ -529,7 +535,7 @@ do ipf=0,mynproc-1
   ler=nf_inq_varid(pncid(ipf),name,idv)
   ier=ler
   if(ier/=0)then
-    if (myid==0.and.ipf==0) then
+    if (myid==0.and.ipf==0.and.kk==1) then
       write(6,*) '***absent field for ncid,name,idv,ier: ',pncid(0),name,idv,ier
     end if
   else
@@ -1298,8 +1304,8 @@ if (ier/=nf_noerr) then
 end if
 
 ! Check variable type
-ier = nf_inq_vartype(lncid, mid, vtype)
-if(vtype == ncshort)then
+ier=nf_inq_vartype(lncid,mid,vtype)
+if(vtype == nf_short)then
   if (all(var>9.8E36)) then
     ipack=missval
   else
@@ -1321,7 +1327,7 @@ if (ier/=0) then
   call ccmpi_abort(-1)
 end if
 
-if(mod(ktau,nmaxpr)==0.and.myid==0)then
+if (mod(ktau,nmaxpr)==0.and.myid==0) then
   if (any(var==nf_fill_float)) then
     write(6,'("histwrt3 ",a7,i4,a7)') sname,iarch,"missing"
   else
@@ -1354,12 +1360,9 @@ real varn, varx
 character(len=*), intent(in) :: sname
       
 call ccmpi_gather(var, globvar)
-start(1) = 1
-start(2) = 1
-start(3) = iarch
-ncount(1) = il_g
-ncount(2) = jl_g
-ncount(3) = istep
+
+start = (/ 1, 1, iarch /)
+ncount = (/ il_g, jl_g, istep /)
 
 !     find variable index
 lncid=idnc
@@ -1371,7 +1374,7 @@ if (ier/=nf_noerr) then
 end if
 
 !     Check variable type
-ier = nf_inq_vartype(lncid, mid, vtype)
+ier=nf_inq_vartype(lncid,mid,vtype)
 if (vtype == nf_short) then
   if (all(globvar>9.8e36)) then
     ipack=missval
@@ -2714,7 +2717,7 @@ end if
 return
 end subroutine ccnf_put_att_text
 
-subroutine ccnf_put_att_textg(ncid,aname,asize,atext)
+subroutine ccnf_put_att_textg(ncid,aname,atext)
 
 use cc_mpi
 
@@ -2722,13 +2725,13 @@ implicit none
 
 include 'netcdf.inc'
 
-integer, intent(in) :: ncid,asize
+integer, intent(in) :: ncid
 integer(kind=4) ncstatus,lncid,lsize
 character(len=*), intent(in) :: aname
-character(len=asize), intent(in) :: atext
+character(len=*), intent(in) :: atext
 
 lncid=ncid
-lsize=asize
+lsize=len_trim(atext)
 ncstatus=nf_put_att_text(lncid,nf_global,aname,lsize,atext)
 if (ncstatus/=nf_noerr) then
   write(6,*) nf_strerror(ncstatus)
@@ -2738,7 +2741,33 @@ end if
 return
 end subroutine ccnf_put_att_textg
 
-subroutine ccnf_put_att_intg(ncid,aname,vsize,vdat)
+subroutine ccnf_put_att_intg1(ncid,aname,vdat)
+
+use cc_mpi
+
+implicit none
+
+include 'netcdf.inc'
+
+integer, intent(in) :: ncid
+integer(kind=4) ncstatus,lncid,lsize
+integer, intent(in) :: vdat
+integer(kind=4), dimension(1) :: ldat
+character(len=*), intent(in) :: aname
+
+lncid=ncid
+lsize=1
+ldat(1)=vdat
+ncstatus=nf_put_att_int(lncid,nf_global,aname,nf_int,lsize,ldat)
+if (ncstatus/=nf_noerr) then
+  write(6,*) nf_strerror(ncstatus)
+  call ccmpi_abort(-1)
+end if
+
+return
+end subroutine ccnf_put_att_intg1
+
+subroutine ccnf_put_att_intg2(ncid,aname,vsize,vdat)
 
 use cc_mpi
 
@@ -2762,9 +2791,39 @@ if (ncstatus/=nf_noerr) then
 end if
 
 return
-end subroutine ccnf_put_att_intg
+end subroutine ccnf_put_att_intg2
 
-subroutine ccnf_put_att_realg(ncid,aname,vsize,vdat)
+subroutine ccnf_put_att_realg1(ncid,aname,vdat)
+
+use cc_mpi
+
+implicit none
+
+include 'netcdf.inc'
+
+integer, intent(in) :: ncid
+integer(kind=4) ncstatus,lncid,lsize
+real, intent(in) :: vdat
+real, dimension(1) :: ldat
+character(len=*), intent(in) :: aname
+
+lncid=ncid
+lsize=1
+ldat(1)=vdat
+#ifdef i8r8
+ncstatus=nf_put_att_double(lncid,nf_global,aname,nf_float,lsize,ldat)
+#else
+ncstatus=nf_put_att_real(lncid,nf_global,aname,nf_float,lsize,ldat)
+#endif
+if (ncstatus/=nf_noerr) then
+  write(6,*) nf_strerror(ncstatus)
+  call ccmpi_abort(-1)
+end if
+
+return
+end subroutine ccnf_put_att_realg1
+
+subroutine ccnf_put_att_realg2(ncid,aname,vsize,vdat)
 
 use cc_mpi
 
@@ -2790,6 +2849,6 @@ if (ncstatus/=nf_noerr) then
 end if
 
 return
-end subroutine ccnf_put_att_realg
+end subroutine ccnf_put_att_realg2
 
 end module infile

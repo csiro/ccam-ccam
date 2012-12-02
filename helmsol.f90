@@ -19,9 +19,9 @@
       real, intent(in), dimension(ifull) :: zz,zzn,zze,zzw,zzs
 !     WHY are helm and rhs ifull+iextra?????????
 !     Not just for printa call ?????
-      real, intent(in) :: helm(ifull+iextra,kl)      ! Helmholtz coefficients
+      real, intent(in) :: helm(ifull,kl)             ! Helmholtz coefficients
       real, intent(inout) :: s(ifull+iextra,kl)      ! Solution
-      real, intent(in) :: rhs(ifull+iextra,kl)       ! RHS
+      real, intent(in) :: rhs(ifull,kl)              ! RHS
       real, dimension(ifull,kl) :: fac, invfac, v, sx
       real, dimension(ifull+iextra,kl) :: d, r, h
 
