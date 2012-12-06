@@ -148,7 +148,6 @@ module cc_mpi
    end type coloursplit
 
    type(bounds_info), allocatable, dimension(:), save :: bnds
-   integer, save, public :: mlomsk_ne, mlomsk_sw
 
    type(boundsplit), allocatable, dimension(:), save, private :: rsplit
    type(boundsplit), allocatable, dimension(:), save, private :: ssplit
@@ -2375,7 +2374,7 @@ contains
       integer(kind=4) :: ierr, itag = 0, rproc, sproc, ltype
       integer(kind=4), dimension(MPI_STATUS_SIZE,2*nproc) :: status
       integer(kind=4) :: send_len, recv_len, iqq
-      integer :: lmode, lcolour, msk_ne, msk_sw
+      integer :: lmode, lcolour
 
       call start_log(bounds_begin)
       
@@ -2466,32 +2465,28 @@ contains
             recv_len = bnds(rproc)%rlenh
          end if
          ! processor mask
-         msk_ne=1
-         msk_sw=1
          if (lmode==1) then
             recv_len=recv_len*bnds(rproc)%mlomsk
-            msk_ne=mlomsk_ne
-            msk_sw=mlomsk_sw
          end if
          if ( recv_len > 0 ) then
             recv_len=0
             if ( fcrh ) then
-               recv_len=recv_len+(rcolsp(rproc)%ihfn(1)-rcolsp(rproc)%ihbg(1)+1)*msk_ne
+               recv_len=recv_len+rcolsp(rproc)%ihfn(1)-rcolsp(rproc)%ihbg(1)+1
             end if
             if ( fcgh ) then
-               recv_len=recv_len+(rcolsp(rproc)%ihfn(2)-rcolsp(rproc)%ihbg(2)+1)*msk_ne
+               recv_len=recv_len+rcolsp(rproc)%ihfn(2)-rcolsp(rproc)%ihbg(2)+1
             end if
             if ( fcbh ) then
-               recv_len=recv_len+(rcolsp(rproc)%ihfn(3)-rcolsp(rproc)%ihbg(3)+1)*msk_ne
+               recv_len=recv_len+rcolsp(rproc)%ihfn(3)-rcolsp(rproc)%ihbg(3)+1
             end if
             if ( fcrf ) then
-               recv_len=recv_len+(rcolsp(rproc)%iffn(1)-rcolsp(rproc)%ifbg(1)+1)*msk_sw
+               recv_len=recv_len+rcolsp(rproc)%iffn(1)-rcolsp(rproc)%ifbg(1)+1
             end if
             if ( fcgf ) then
-               recv_len=recv_len+(rcolsp(rproc)%iffn(2)-rcolsp(rproc)%ifbg(2)+1)*msk_sw
+               recv_len=recv_len+rcolsp(rproc)%iffn(2)-rcolsp(rproc)%ifbg(2)+1
             end if
             if ( fcbf ) then
-               recv_len=recv_len+(rcolsp(rproc)%iffn(3)-rcolsp(rproc)%ifbg(3)+1)*msk_sw
+               recv_len=recv_len+rcolsp(rproc)%iffn(3)-rcolsp(rproc)%ifbg(3)+1
             end if
             if ( fextra ) then
                recv_len=recv_len+bnds(rproc)%rlenx-rcolsp(rproc)%iffn(3)
@@ -2518,17 +2513,13 @@ contains
             send_len = bnds(sproc)%slenh
          end if
          ! processor mask
-         msk_ne=1
-         msk_sw=1
          if (lmode==1) then
             send_len=send_len*bnds(sproc)%mlomsk
-            msk_ne=mlomsk_ne
-            msk_sw=mlomsk_sw
          end if
          if ( send_len > 0 ) then
             ! Build up list of points
             iqq = 0
-            if ( fcrh .and. msk_ne==1 ) then
+            if ( fcrh ) then
 !cdir nodep
                do iq=scolsp(sproc)%ihbg(1),scolsp(sproc)%ihfn(1)
                   iqz = iqq+iq-scolsp(sproc)%ihbg(1)+1
@@ -2536,7 +2527,7 @@ contains
                end do
                iqq = iqq+scolsp(sproc)%ihfn(1)-scolsp(sproc)%ihbg(1)+1
             end if
-             if ( fcgh .and. msk_ne==1 ) then
+             if ( fcgh ) then
 !cdir nodep
                do iq=scolsp(sproc)%ihbg(2),scolsp(sproc)%ihfn(2)
                   iqz = iqq+iq-scolsp(sproc)%ihbg(2)+1
@@ -2544,7 +2535,7 @@ contains
                end do
                iqq = iqq+scolsp(sproc)%ihfn(2)-scolsp(sproc)%ihbg(2)+1
             end if           
-            if ( fcbh .and. msk_ne==1 ) then
+            if ( fcbh ) then
 !cdir nodep
                do iq=scolsp(sproc)%ihbg(3),scolsp(sproc)%ihfn(3)
                   iqz = iqq+iq-scolsp(sproc)%ihbg(3)+1
@@ -2552,7 +2543,7 @@ contains
                end do
                iqq = iqq+scolsp(sproc)%ihfn(3)-scolsp(sproc)%ihbg(3)+1
             end if            
-            if ( fcrf .and. msk_sw==1 ) then
+            if ( fcrf ) then
 !cdir nodep
                do iq=scolsp(sproc)%ifbg(1),scolsp(sproc)%iffn(1)
                   iqz = iqq+iq-scolsp(sproc)%ifbg(1)+1
@@ -2560,7 +2551,7 @@ contains
                end do
                iqq = iqq+scolsp(sproc)%iffn(1)-scolsp(sproc)%ifbg(1)+1
             end if
-            if ( fcgf .and. msk_sw==1 ) then
+            if ( fcgf ) then
 !cdir nodep
                do iq=scolsp(sproc)%ifbg(2),scolsp(sproc)%iffn(2)
                   iqz = iqq+iq-scolsp(sproc)%ifbg(2)+1
@@ -2568,7 +2559,7 @@ contains
                end do
                iqq = iqq+scolsp(sproc)%iffn(2)-scolsp(sproc)%ifbg(2)+1
             end if
-            if ( fcbf .and. msk_sw==1 ) then
+            if ( fcbf ) then
 !cdir nodep
                do iq=scolsp(sproc)%ifbg(3),scolsp(sproc)%iffn(3)
                   iqz = iqq+iq-scolsp(sproc)%ifbg(3)+1
@@ -2637,17 +2628,13 @@ contains
          else
             recv_len = bnds(rproc)%rlenh
          end if
-         msk_ne=1
-         msk_sw=1
          if (lmode==1) then
             recv_len=recv_len*bnds(rproc)%mlomsk
-            msk_ne=mlomsk_ne
-            msk_sw=mlomsk_sw
          end if
          if ( recv_len > 0 ) then
             ! unpack_list(iq) is index into extended region
             iqq = 0
-            if ( fcrh .and. msk_ne==1 ) then
+            if ( fcrh ) then
 !cdir nodep
                do iq=rcolsp(rproc)%ihbg(1),rcolsp(rproc)%ihfn(1)
                   iqz = iqq+iq-rcolsp(rproc)%ihbg(1)+1
@@ -2655,7 +2642,7 @@ contains
                end do
                iqq = iqq+rcolsp(rproc)%ihfn(1)-rcolsp(rproc)%ihbg(1)+1
             end if
-             if ( fcgh .and. msk_ne==1 ) then
+             if ( fcgh ) then
 !cdir nodep
                do iq=rcolsp(rproc)%ihbg(2),rcolsp(rproc)%ihfn(2)
                   iqz = iqq+iq-rcolsp(rproc)%ihbg(2)+1
@@ -2663,7 +2650,7 @@ contains
                end do
                iqq = iqq+rcolsp(rproc)%ihfn(2)-rcolsp(rproc)%ihbg(2)+1
             end if           
-            if ( fcbh .and. msk_ne==1 ) then
+            if ( fcbh ) then
 !cdir nodep
                do iq=rcolsp(rproc)%ihbg(3),rcolsp(rproc)%ihfn(3)
                   iqz = iqq+iq-rcolsp(rproc)%ihbg(3)+1
@@ -2671,7 +2658,7 @@ contains
                end do
                iqq = iqq+rcolsp(rproc)%ihfn(3)-rcolsp(rproc)%ihbg(3)+1
             end if            
-            if ( fcrf .and. msk_sw==1 ) then
+            if ( fcrf ) then
 !cdir nodep
                do iq=rcolsp(rproc)%ifbg(1),rcolsp(rproc)%iffn(1)
                   iqz = iqq+iq-rcolsp(rproc)%ifbg(1)+1
@@ -2679,7 +2666,7 @@ contains
                end do
                iqq = iqq+rcolsp(rproc)%iffn(1)-rcolsp(rproc)%ifbg(1)+1
             end if
-            if ( fcgf .and. msk_sw==1 ) then
+            if ( fcgf ) then
 !cdir nodep
                do iq=rcolsp(rproc)%ifbg(2),rcolsp(rproc)%iffn(2)
                   iqz = iqq+iq-rcolsp(rproc)%ifbg(2)+1
@@ -2687,7 +2674,7 @@ contains
                end do
                iqq = iqq+rcolsp(rproc)%iffn(2)-rcolsp(rproc)%ifbg(2)+1
             end if
-            if ( fcbf .and. msk_sw==1 ) then
+            if ( fcbf ) then
 !cdir nodep
                do iq=rcolsp(rproc)%ifbg(3),rcolsp(rproc)%iffn(3)
                   iqz = iqq+iq-rcolsp(rproc)%ifbg(3)+1
@@ -2737,7 +2724,7 @@ contains
       integer(kind=4) :: ierr, itag = 0, rproc, sproc, ltype
       integer(kind=4), dimension(MPI_STATUS_SIZE,2*nproc) :: status
       integer(kind=4) :: send_len, recv_len, iqq
-      integer :: lmode, lcolour, msk_ne, msk_sw
+      integer :: lmode, lcolour
 
       call start_log(bounds_begin)
       
@@ -2832,32 +2819,28 @@ contains
          else
             recv_len = bnds(rproc)%rlenh
          end if
-         msk_ne=1
-         msk_sw=1
          if (lmode==1) then
             recv_len=recv_len*bnds(rproc)%mlomsk
-            msk_ne=mlomsk_ne
-            msk_sw=mlomsk_sw
          end if
          if ( recv_len > 0 ) then
             recv_len=0
             if ( fcrh ) then
-               recv_len=recv_len+(rcolsp(rproc)%ihfn(1)-rcolsp(rproc)%ihbg(1)+1)*msk_ne
+               recv_len=recv_len+rcolsp(rproc)%ihfn(1)-rcolsp(rproc)%ihbg(1)+1
             end if
             if ( fcgh ) then
-               recv_len=recv_len+(rcolsp(rproc)%ihfn(2)-rcolsp(rproc)%ihbg(2)+1)*msk_ne
+               recv_len=recv_len+rcolsp(rproc)%ihfn(2)-rcolsp(rproc)%ihbg(2)+1
             end if
             if ( fcbh ) then
-               recv_len=recv_len+(rcolsp(rproc)%ihfn(3)-rcolsp(rproc)%ihbg(3)+1)*msk_ne
+               recv_len=recv_len+rcolsp(rproc)%ihfn(3)-rcolsp(rproc)%ihbg(3)+1
             end if
             if ( fcrf ) then
-               recv_len=recv_len+(rcolsp(rproc)%iffn(1)-rcolsp(rproc)%ifbg(1)+1)*msk_sw
+               recv_len=recv_len+rcolsp(rproc)%iffn(1)-rcolsp(rproc)%ifbg(1)+1
             end if
             if ( fcgf ) then
-               recv_len=recv_len+(rcolsp(rproc)%iffn(2)-rcolsp(rproc)%ifbg(2)+1)*msk_sw
+               recv_len=recv_len+rcolsp(rproc)%iffn(2)-rcolsp(rproc)%ifbg(2)+1
             end if
             if ( fcbf ) then
-               recv_len=recv_len+(rcolsp(rproc)%iffn(3)-rcolsp(rproc)%ifbg(3)+1)*msk_sw
+               recv_len=recv_len+rcolsp(rproc)%iffn(3)-rcolsp(rproc)%ifbg(3)+1
             end if
             if ( fextra ) then
                recv_len=recv_len+bnds(rproc)%rlenx-rcolsp(rproc)%iffn(3)
@@ -2884,16 +2867,12 @@ contains
          else
             send_len = bnds(sproc)%slenh
          end if
-         msk_ne=1
-         msk_sw=1
          if (lmode==1) then
             send_len=send_len*bnds(sproc)%mlomsk
-            msk_ne=mlomsk_ne
-            msk_sw=mlomsk_sw
          end if
          if ( send_len > 0 ) then
             iqq = 0
-            if ( fcrh .and. msk_ne==1 ) then
+            if ( fcrh ) then
 !cdir nodep
                do iq=scolsp(sproc)%ihbg(1),scolsp(sproc)%ihfn(1)
                   iqz = iqq+iq-scolsp(sproc)%ihbg(1)+1
@@ -2903,7 +2882,7 @@ contains
                end do
                iqq = iqq+scolsp(sproc)%ihfn(1)-scolsp(sproc)%ihbg(1)+1
             end if
-             if ( fcgh .and. msk_ne==1 ) then
+             if ( fcgh ) then
 !cdir nodep
                do iq=scolsp(sproc)%ihbg(2),scolsp(sproc)%ihfn(2)
                   iqz = iqq+iq-scolsp(sproc)%ihbg(2)+1
@@ -2913,7 +2892,7 @@ contains
                end do
                iqq = iqq+scolsp(sproc)%ihfn(2)-scolsp(sproc)%ihbg(2)+1
             end if           
-            if ( fcbh .and. msk_ne==1 ) then
+            if ( fcbh ) then
 !cdir nodep
                do iq=scolsp(sproc)%ihbg(3),scolsp(sproc)%ihfn(3)
                   iqz = iqq+iq-scolsp(sproc)%ihbg(3)+1
@@ -2923,7 +2902,7 @@ contains
                end do
                iqq = iqq+scolsp(sproc)%ihfn(3)-scolsp(sproc)%ihbg(3)+1
             end if            
-            if ( fcrf .and. msk_sw==1 ) then
+            if ( fcrf ) then
 !cdir nodep
                do iq=scolsp(sproc)%ifbg(1),scolsp(sproc)%iffn(1)
                   iqz = iqq+iq-scolsp(sproc)%ifbg(1)+1
@@ -2933,7 +2912,7 @@ contains
                end do
                iqq = iqq+scolsp(sproc)%iffn(1)-scolsp(sproc)%ifbg(1)+1
             end if
-            if ( fcgf .and. msk_sw==1 ) then
+            if ( fcgf ) then
 !cdir nodep
                do iq=scolsp(sproc)%ifbg(2),scolsp(sproc)%iffn(2)
                   iqz = iqq+iq-scolsp(sproc)%ifbg(2)+1
@@ -2943,7 +2922,7 @@ contains
                end do
                iqq = iqq+scolsp(sproc)%iffn(2)-scolsp(sproc)%ifbg(2)+1
             end if
-            if ( fcbf .and. msk_sw==1 ) then
+            if ( fcbf ) then
 !cdir nodep
                do iq=scolsp(sproc)%ifbg(3),scolsp(sproc)%iffn(3)
                   iqz = iqq+iq-scolsp(sproc)%ifbg(3)+1
@@ -3016,16 +2995,12 @@ contains
          else
             recv_len = bnds(rproc)%rlenh
          end if
-         msk_ne=1
-         msk_sw=1
          if (lmode==1) then
             recv_len=recv_len*bnds(rproc)%mlomsk
-            msk_ne=mlomsk_ne
-            msk_sw=mlomsk_sw
          end if
          if ( recv_len > 0 ) then
             iqq = 0
-            if ( fcrh .and. msk_ne==1 ) then
+            if ( fcrh ) then
 !cdir nodep
                do iq=rcolsp(rproc)%ihbg(1),rcolsp(rproc)%ihfn(1)
                   iqz = iqq+iq-rcolsp(rproc)%ihbg(1)+1
@@ -3035,7 +3010,7 @@ contains
                end do
                iqq = iqq+rcolsp(rproc)%ihfn(1)-rcolsp(rproc)%ihbg(1)+1
             end if
-             if ( fcgh .and. msk_ne==1 ) then
+             if ( fcgh ) then
 !cdir nodep
                do iq=rcolsp(rproc)%ihbg(2),rcolsp(rproc)%ihfn(2)
                   iqz = iqq+iq-rcolsp(rproc)%ihbg(2)+1
@@ -3045,7 +3020,7 @@ contains
                end do
                iqq = iqq+rcolsp(rproc)%ihfn(2)-rcolsp(rproc)%ihbg(2)+1
             end if           
-            if ( fcbh .and. msk_ne==1 ) then
+            if ( fcbh ) then
 !cdir nodep
                do iq=rcolsp(rproc)%ihbg(3),rcolsp(rproc)%ihfn(3)
                   iqz = iqq+iq-rcolsp(rproc)%ihbg(3)+1
@@ -3055,7 +3030,7 @@ contains
                end do
                iqq = iqq+rcolsp(rproc)%ihfn(3)-rcolsp(rproc)%ihbg(3)+1
             end if            
-            if ( fcrf .and. msk_sw==1 ) then
+            if ( fcrf ) then
 !cdir nodep
                do iq=rcolsp(rproc)%ifbg(1),rcolsp(rproc)%iffn(1)
                   iqz = iqq+iq-rcolsp(rproc)%ifbg(1)+1
@@ -3065,7 +3040,7 @@ contains
                end do
                iqq = iqq+rcolsp(rproc)%iffn(1)-rcolsp(rproc)%ifbg(1)+1
             end if
-            if ( fcgf .and. msk_sw==1 ) then
+            if ( fcgf ) then
 !cdir nodep
                do iq=rcolsp(rproc)%ifbg(2),rcolsp(rproc)%iffn(2)
                   iqz = iqq+iq-rcolsp(rproc)%ifbg(2)+1
@@ -3075,7 +3050,7 @@ contains
                end do
                iqq = iqq+rcolsp(rproc)%iffn(2)-rcolsp(rproc)%ifbg(2)+1
             end if
-            if ( fcbf .and. msk_sw==1 ) then
+            if ( fcbf ) then
 !cdir nodep
                do iq=rcolsp(rproc)%ifbg(3),rcolsp(rproc)%iffn(3)
                   iqz = iqq+iq-rcolsp(rproc)%ifbg(3)+1
@@ -3130,7 +3105,7 @@ contains
       integer(kind=4) :: ierr, itag = 0, rproc, sproc, iqq, ltype
       integer(kind=4), dimension(MPI_STATUS_SIZE,2*nproc) :: status
       integer(kind=4) :: send_len, recv_len
-      integer :: lmode, msk_ne, msk_sw
+      integer :: lmode
       real :: tmp
 
       call start_log(boundsuv_begin)
@@ -3203,32 +3178,28 @@ contains
          else
             recv_len = bnds(rproc)%rlen_uv
          end if
-         msk_ne=1
-         msk_sw=1
          if (lmode==1) then
             recv_len=recv_len*bnds(rproc)%mlomsk
-            msk_ne=mlomsk_ne
-            msk_sw=mlomsk_sw
          end if
          if ( recv_len /= 0 ) then
             recv_len=0
             if ( fsvwu ) then
-               recv_len=recv_len+(rsplit(rproc)%iwufn-rsplit(rproc)%isvbg+1)*msk_sw
+               recv_len=recv_len+rsplit(rproc)%iwufn-rsplit(rproc)%isvbg+1
             end if
             if ( fnveu ) then
-               recv_len=recv_len+(rsplit(rproc)%ieufn-rsplit(rproc)%invbg+1)*msk_ne
+               recv_len=recv_len+rsplit(rproc)%ieufn-rsplit(rproc)%invbg+1
             end if         
             if ( fssvwwu ) then
-               recv_len=recv_len+(rsplit(rproc)%iwwufn-rsplit(rproc)%issvbg+1)*msk_sw
+               recv_len=recv_len+rsplit(rproc)%iwwufn-rsplit(rproc)%issvbg+1
             end if         
             if ( fnnveeu ) then
-               recv_len=recv_len+(rsplit(rproc)%ieeufn-rsplit(rproc)%innvbg+1)*msk_ne
+               recv_len=recv_len+rsplit(rproc)%ieeufn-rsplit(rproc)%innvbg+1
             end if         
             if ( fsuwv ) then
-               recv_len=recv_len+(rsplit(rproc)%iwvfn-rsplit(rproc)%isubg+1)*msk_sw
+               recv_len=recv_len+rsplit(rproc)%iwvfn-rsplit(rproc)%isubg+1
             end if
             if ( fnuev ) then
-               recv_len=recv_len+(rsplit(rproc)%ievfn-rsplit(rproc)%inubg+1)*msk_ne
+               recv_len=recv_len+rsplit(rproc)%ievfn-rsplit(rproc)%inubg+1
             end if
             if ( recv_len > 0 ) then 
                nreq = nreq + 1
@@ -3246,17 +3217,13 @@ contains
          else
             send_len = bnds(sproc)%slen_uv
          end if
-         msk_ne=1
-         msk_sw=1
          if (lmode==1) then
             send_len=send_len*bnds(sproc)%mlomsk
-            msk_ne=mlomsk_ne
-            msk_sw=mlomsk_sw
          end if
          if ( send_len > 0 ) then
             ! Build up list of points
             iqq = 0
-            if ( fsvwu .and. msk_sw==1 ) then
+            if ( fsvwu ) then
 !cdir nodep
                do iq=ssplit(sproc)%isvbg,ssplit(sproc)%iwufn
                   ! Use abs because sign is used as u/v flag
@@ -3271,7 +3238,7 @@ contains
                end do
                iqq = iqq+ssplit(sproc)%iwufn-ssplit(sproc)%isvbg+1
             end if
-            if ( fnveu .and. msk_ne==1 ) then
+            if ( fnveu ) then
 !cdir nodep
                do iq=ssplit(sproc)%invbg,ssplit(sproc)%ieufn
                   ! Use abs because sign is used as u/v flag
@@ -3286,7 +3253,7 @@ contains
                end do
                iqq = iqq+ssplit(sproc)%ieufn-ssplit(sproc)%invbg+1
             end if
-            if ( fssvwwu .and. msk_sw==1 ) then
+            if ( fssvwwu ) then
 !cdir nodep
                do iq=ssplit(sproc)%issvbg,ssplit(sproc)%iwwufn
                   ! Use abs because sign is used as u/v flag
@@ -3301,7 +3268,7 @@ contains
                end do
                iqq = iqq+ssplit(sproc)%iwwufn-ssplit(sproc)%issvbg+1
             end if
-            if ( fnnveeu .and. msk_ne==1 ) then
+            if ( fnnveeu ) then
 !cdir nodep
                do iq=ssplit(sproc)%innvbg,ssplit(sproc)%ieeufn
                   ! Use abs because sign is used as u/v flag
@@ -3316,7 +3283,7 @@ contains
                end do
                iqq = iqq+ssplit(sproc)%ieeufn-ssplit(sproc)%innvbg+1
             end if
-            if ( fsuwv .and. msk_sw==1 ) then
+            if ( fsuwv ) then
 !cdir nodep
                do iq=ssplit(sproc)%isubg,ssplit(sproc)%iwvfn
                   ! Use abs because sign is used as u/v flag
@@ -3331,7 +3298,7 @@ contains
                end do
                iqq = iqq+ssplit(sproc)%iwvfn-ssplit(sproc)%isubg+1
             end if
-            if ( fnuev .and. msk_ne==1 ) then
+            if ( fnuev ) then
 !cdir nodep
                do iq=ssplit(sproc)%inubg,ssplit(sproc)%ievfn
                   ! Use abs because sign is used as u/v flag
@@ -3398,15 +3365,11 @@ contains
          else
             recv_len = bnds(rproc)%rlen_uv
          end if
-         msk_ne=1
-         msk_sw=1
          if (lmode==1) then
             recv_len=recv_len*bnds(rproc)%mlomsk
-            msk_ne=mlomsk_ne
-            msk_sw=mlomsk_sw
          end if
          iqq = 0
-         if ( fsvwu .and. msk_sw==1 ) then
+         if ( fsvwu ) then
 !cdir nodep
             do iq=rsplit(rproc)%isvbg,rsplit(rproc)%iwufn
                ! unpack_list(iq) is index into extended region
@@ -3419,7 +3382,7 @@ contains
             end do
             iqq = iqq+rsplit(rproc)%iwufn-rsplit(rproc)%isvbg+1
          end if
-         if ( fnveu .and. msk_ne==1 ) then
+         if ( fnveu ) then
 !cdir nodep
             do iq=rsplit(rproc)%invbg,rsplit(rproc)%ieufn
                ! unpack_list(iq) is index into extended region
@@ -3432,7 +3395,7 @@ contains
             end do
             iqq = iqq+rsplit(rproc)%ieufn-rsplit(rproc)%invbg+1
          end if
-         if ( fssvwwu .and. msk_sw==1 ) then
+         if ( fssvwwu ) then
 !cdir nodep
             do iq=rsplit(rproc)%issvbg,rsplit(rproc)%iwwufn
                ! unpack_list(iq) is index into extended region
@@ -3445,7 +3408,7 @@ contains
             end do
             iqq = iqq+rsplit(rproc)%iwwufn-rsplit(rproc)%issvbg+1
          end if
-         if ( fnnveeu .and. msk_ne==1 ) then
+         if ( fnnveeu ) then
 !cdir nodep
             do iq=rsplit(rproc)%innvbg,rsplit(rproc)%ieeufn
                ! unpack_list(iq) is index into extended region
@@ -3458,7 +3421,7 @@ contains
             end do
             iqq = iqq+rsplit(rproc)%ieeufn-rsplit(rproc)%innvbg+1
          end if
-         if ( fsuwv .and. msk_sw==1 ) then
+         if ( fsuwv ) then
 !cdir nodep
             do iq=rsplit(rproc)%isubg,rsplit(rproc)%iwvfn
                ! unpack_list(iq) is index into extended region
@@ -3471,7 +3434,7 @@ contains
             end do
             iqq = iqq+rsplit(rproc)%iwvfn-rsplit(rproc)%isubg+1
          end if
-         if ( fnuev .and. msk_ne==1 ) then
+         if ( fnuev ) then
 !cdir nodep
             do iq=rsplit(rproc)%inubg,rsplit(rproc)%ievfn
                ! unpack_list(iq) is index into extended region
@@ -3508,7 +3471,7 @@ contains
       integer(kind=4) :: ierr, itag = 0, rproc, sproc, iqq, ltype
       integer(kind=4), dimension(MPI_STATUS_SIZE,2*nproc) :: status
       integer(kind=4) :: send_len, recv_len
-      integer :: lmode, msk_ne, msk_sw
+      integer :: lmode
       real, dimension(maxbuflen) :: tmp
       
       call start_log(boundsuv_begin)
@@ -3582,32 +3545,28 @@ contains
          else
             recv_len = bnds(rproc)%rlen_uv
          end if
-         msk_ne=1
-         msk_sw=1
          if (lmode==1) then
             recv_len=recv_len*bnds(rproc)%mlomsk
-            msk_ne=mlomsk_ne
-            msk_sw=mlomsk_sw
          end if
          if ( recv_len > 0 ) then
             recv_len=0
             if ( fsvwu ) then
-               recv_len=recv_len+(rsplit(rproc)%iwufn-rsplit(rproc)%isvbg+1)*msk_sw
+               recv_len=recv_len+rsplit(rproc)%iwufn-rsplit(rproc)%isvbg+1
             end if
             if ( fnveu ) then
-               recv_len=recv_len+(rsplit(rproc)%ieufn-rsplit(rproc)%invbg+1)*msk_ne
+               recv_len=recv_len+rsplit(rproc)%ieufn-rsplit(rproc)%invbg+1
             end if         
             if ( fssvwwu ) then
-               recv_len=recv_len+(rsplit(rproc)%iwwufn-rsplit(rproc)%issvbg+1)*msk_sw
+               recv_len=recv_len+rsplit(rproc)%iwwufn-rsplit(rproc)%issvbg+1
             end if         
             if ( fnnveeu ) then
-               recv_len=recv_len+(rsplit(rproc)%ieeufn-rsplit(rproc)%innvbg+1)*msk_ne
+               recv_len=recv_len+rsplit(rproc)%ieeufn-rsplit(rproc)%innvbg+1
             end if         
             if ( fsuwv ) then
-               recv_len=recv_len+(rsplit(rproc)%iwvfn-rsplit(rproc)%isubg+1)*msk_sw
+               recv_len=recv_len+rsplit(rproc)%iwvfn-rsplit(rproc)%isubg+1
             end if
             if ( fnuev ) then
-               recv_len=recv_len+(rsplit(rproc)%ievfn-rsplit(rproc)%inubg+1)*msk_ne
+               recv_len=recv_len+rsplit(rproc)%ievfn-rsplit(rproc)%inubg+1
             end if
             if ( recv_len > 0 ) then 
                nreq = nreq + 1
@@ -3626,17 +3585,13 @@ contains
          else
             send_len = bnds(sproc)%slen_uv
          end if
-         msk_ne=1
-         msk_sw=1
          if (lmode==1) then
             send_len=send_len*bnds(sproc)%mlomsk
-            msk_ne=mlomsk_ne
-            msk_sw=mlomsk_sw
          end if
          if ( send_len > 0 ) then
             ! Build up list of points
             iqq = 0
-            if ( fsvwu .and. msk_sw==1 ) then
+            if ( fsvwu ) then
 !cdir nodep
                do iq=ssplit(sproc)%isvbg,ssplit(sproc)%iwufn
                   ! send_list_uv(iq) is point index.
@@ -3654,7 +3609,7 @@ contains
                end do
                iqq = iqq+ssplit(sproc)%iwufn-ssplit(sproc)%isvbg+1
             end if
-            if ( fnveu .and. msk_ne==1 ) then
+            if ( fnveu ) then
 !cdir nodep
                do iq=ssplit(sproc)%invbg,ssplit(sproc)%ieufn
                   ! send_list_uv(iq) is point index.
@@ -3672,7 +3627,7 @@ contains
                end do
                iqq = iqq+ssplit(sproc)%ieufn-ssplit(sproc)%invbg+1
             end if
-            if ( fssvwwu .and. msk_sw==1 ) then
+            if ( fssvwwu ) then
 !cdir nodep
                do iq=ssplit(sproc)%issvbg,ssplit(sproc)%iwwufn
                   ! send_list_uv(iq) is point index.
@@ -3690,7 +3645,7 @@ contains
                end do
                iqq = iqq+ssplit(sproc)%iwwufn-ssplit(sproc)%issvbg+1
             end if
-            if ( fnnveeu .and. msk_ne==1 ) then
+            if ( fnnveeu ) then
 !cdir nodep
                do iq=ssplit(sproc)%innvbg,ssplit(sproc)%ieeufn
                   ! send_list_uv(iq) is point index.
@@ -3708,7 +3663,7 @@ contains
                end do
                iqq = iqq+ssplit(sproc)%ieeufn-ssplit(sproc)%innvbg+1
             end if
-            if ( fsuwv .and. msk_sw==1 ) then
+            if ( fsuwv ) then
 !cdir nodep
                do iq=ssplit(sproc)%isubg,ssplit(sproc)%iwvfn
                   ! send_list_uv(iq) is point index.
@@ -3726,7 +3681,7 @@ contains
                end do
                iqq = iqq+ssplit(sproc)%iwvfn-ssplit(sproc)%isubg+1
             end if
-            if ( fnuev .and. msk_ne==1 ) then
+            if ( fnuev ) then
 !cdir nodep
                do iq=ssplit(sproc)%inubg,ssplit(sproc)%ievfn
                   ! send_list_uv(iq) is point index.
@@ -3800,15 +3755,11 @@ contains
          else
             recv_len = bnds(rproc)%rlen_uv
          end if
-         msk_ne=1
-         msk_sw=1
          if (lmode==1) then
             recv_len=recv_len*bnds(rproc)%mlomsk
-            msk_ne=mlomsk_ne
-            msk_sw=mlomsk_sw
          end if
          iqq = 0
-         if ( fsvwu .and. msk_sw==1 ) then
+         if ( fsvwu ) then
 !cdir nodep
             do iq=rsplit(rproc)%isvbg,rsplit(rproc)%iwufn
                ! unpack_list(iq) is index into extended region
@@ -3823,7 +3774,7 @@ contains
             end do
             iqq = iqq+rsplit(rproc)%iwufn-rsplit(rproc)%isvbg+1
          end if
-         if ( fnveu .and. msk_ne==1 ) then
+         if ( fnveu ) then
 !cdir nodep
             do iq=rsplit(rproc)%invbg,rsplit(rproc)%ieufn
                ! unpack_list(iq) is index into extended region
@@ -3838,7 +3789,7 @@ contains
             end do
             iqq = iqq+rsplit(rproc)%ieufn-rsplit(rproc)%invbg+1
          end if         
-         if ( fssvwwu .and. msk_sw==1 ) then
+         if ( fssvwwu ) then
 !cdir nodep
             do iq=rsplit(rproc)%issvbg,rsplit(rproc)%iwwufn
                ! unpack_list(iq) is index into extended region
@@ -3853,7 +3804,7 @@ contains
             end do
             iqq = iqq+rsplit(rproc)%iwwufn-rsplit(rproc)%issvbg+1
          end if         
-         if ( fnnveeu .and. msk_ne==1 ) then
+         if ( fnnveeu ) then
 !cdir nodep
             do iq=rsplit(rproc)%innvbg,rsplit(rproc)%ieeufn
                ! unpack_list(iq) is index into extended region
@@ -3868,7 +3819,7 @@ contains
             end do
             iqq = iqq+rsplit(rproc)%ieeufn-rsplit(rproc)%innvbg+1
          end if         
-         if ( fsuwv .and. msk_sw==1 ) then
+         if ( fsuwv ) then
 !cdir nodep
             do iq=rsplit(rproc)%isubg,rsplit(rproc)%iwvfn
                ! unpack_list(iq) is index into extended region
@@ -3883,7 +3834,7 @@ contains
             end do
             iqq = iqq+rsplit(rproc)%iwvfn-rsplit(rproc)%isubg+1
          end if 
-         if ( fnuev .and. msk_sw==1 ) then
+         if ( fnuev ) then
 !cdir nodep
             do iq=rsplit(rproc)%inubg,rsplit(rproc)%ievfn
                ! unpack_list(iq) is index into extended region

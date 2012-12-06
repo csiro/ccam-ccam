@@ -53,7 +53,7 @@ c     variables; except extrap at bottom for qg and trace gases  Thu  06-19-1997
 	   ratha(:)=.5
 	   rathb(:)=.5
         endif
-        if(myid==0)then
+        if(mydiag)then
           print *,'In vadvtvd nvad,nvadh_pass,nqq,npslx,ntvdr ',
      .             nvad,nvadh_pass(idjd),nqq,npslx,ntvdr
           print *,'nimp,nthub,ntvd,tfact ',nimp,nthub,ntvd,tfact(idjd)

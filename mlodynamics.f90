@@ -130,10 +130,6 @@ call ccmpi_allgatherx(ltst(0:nproc-1),stst(1:1),comm_world)
 lrank=count(ltst(0:myid)==1)-1
 lndtst_g=count(ltst==1)
 bnds(:)%mlomsk=ltst(:)
-mlomsk_ne=0
-mlomsk_sw=0
-if (any(wtr(ie).or.wtr(in))) mlomsk_ne=1
-if (any(wtr(is).or.wtr(iw))) mlomsk_sw=1
 call ccmpi_commsplit(comm_mlo,comm_world,stst(1),lrank)
 if (myid==0) then
   write(6,*) "Processors with water ",lndtst_g,nproc
