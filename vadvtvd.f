@@ -1,4 +1,4 @@
-      subroutine vadvtvd(tarr,uarr,varr,nvadh_pass,iaero)   ! globpea  version
+      subroutine vadvtvd(tarr,uarr,varr,nvadh_pass,nits,iaero)   ! globpea  version
 c                              vadvbott & vadvyu at bottom
 !     can show adding tbar has no effect
       use aerosolldr
@@ -25,9 +25,10 @@ c     variables; except extrap at bottom for qg and trace gases  Thu  06-19-1997
       include 'parmvert.h' ! nthub,nimp,ntvd
       real tarr(ifull,kl),uarr(ifull,kl),varr(ifull,kl)
       real dum(ifull,kl)
-      real tfact
-      integer num,iaero,nqq,npslx,nvadh_pass
+      real, dimension(ifull) :: tfact
+      integer num,iaero,nqq,npslx
       integer ntr,k
+      integer, dimension(ifull) :: nvadh_pass, nits
       data num/0/
       save num
       parameter (npslx=1)  ! 0 off, 1 on for nvad=-4
@@ -54,13 +55,13 @@ c     variables; except extrap at bottom for qg and trace gases  Thu  06-19-1997
         endif
         if(myid==0)then
           print *,'In vadvtvd nvad,nvadh_pass,nqq,npslx,ntvdr ',
-     .                        nvad,nvadh_pass,nqq,npslx,ntvdr
-          print *,'nimp,nthub,ntvd,tfact ',nimp,nthub,ntvd,tfact
+     .             nvad,nvadh_pass(idjd),nqq,npslx,ntvdr
+          print *,'nimp,nthub,ntvd,tfact ',nimp,nthub,ntvd,tfact(idjd)
         endif
       endif
 
 c     t
-      call vadvsub(tarr,tfact,0)
+      call vadvsub(tarr,tfact,nits,0)
       if( (diag.or.nmaxpr==1) .and. mydiag )then
 !       These diagnostics don't work with single input/output argument
         write (6,"('tout',9f8.2/4x,9f8.2)") (tarr(idjd,k),k=1,kl)
@@ -69,7 +70,7 @@ c     t
       endif
 
 c     u
-      call vadvsub(uarr,tfact,0)
+      call vadvsub(uarr,tfact,nits,0)
       if( diag .and. mydiag )then
         write (6,"('uout',9f8.2/4x,9f8.2)") (uarr(idjd,k),k=1,kl)
         write (6,"('u#  ',9f8.2)") diagvals(uarr(:,nlv)) 
@@ -77,7 +78,7 @@ c     u
       endif
 
 c     v
-      call vadvsub(varr,tfact,0)
+      call vadvsub(varr,tfact,nits,0)
       if( diag .and. mydiag )then
         write (6,"('vout',9f8.2/4x,9f8.2)") (varr(idjd,k),k=1,kl)
         write (6,"('v#  ',9f8.2)") diagvals(varr(:,nlv)) 
@@ -86,14 +87,14 @@ c     v
 c     h_nh
       if(nh.ne.0)then
         dum=h_nh(1:ifull,:)
-        call vadvsub(dum,tfact,0)
+        call vadvsub(dum,tfact,nits,0)
         h_nh(1:ifull,:)=dum
       endif     ! (nh.ne.0)
 
 c     pslx
       if(npslx==1.and.nvad<=-4)then  ! handles -9 too
         dum=pslx(1:ifull,:)
-        call vadvsub(dum,tfact,0)
+        call vadvsub(dum,tfact,nits,0)
         pslx(1:ifull,:)=dum
       endif  ! (npslx==1.and.nvad==-4)
 
@@ -101,28 +102,28 @@ c     pslx
 
 c      qg
        dum=qg(1:ifull,:)
-       call vadvsub(dum,tfact,nqq)
+       call vadvsub(dum,tfact,nits,nqq)
        qg(1:ifull,:)=dum
        if( diag .and. mydiag )then
         write (6,"('qout',9f8.2/4x,9f8.2)") (1000.*qg(idjd,k),k=1,kl)
         write (6,"('qg# ',3p9f8.2)") diagvals(qg(:,nlv)) 
        endif
 
-       if(ldr.ne.0)then
+       if(ldr/=0)then
         dum=qlg(1:ifull,:)
-        call vadvsub(dum,tfact,0)
+        call vadvsub(dum,tfact,nits,0)
         qlg(1:ifull,:)=dum
         dum=qfg(1:ifull,:)
-        call vadvsub(dum,tfact,0)
+        call vadvsub(dum,tfact,nits,0)
         qfg(1:ifull,:)=dum
         dum=qrg(1:ifull,:)
-        call vadvsub(dum,tfact,0)
+        call vadvsub(dum,tfact,nits,0)
         qrg(1:ifull,:)=dum
         !dum=cfrac(1:ifull,:)
-        !call vadvsub(dum,tfact,0)
+        !call vadvsub(dum,tfact,nits,0)
         !cfrac(1:ifull,:)=dum
         dum=cffall(1:ifull,:)
-        call vadvsub(dum,tfact,0)
+        call vadvsub(dum,tfact,nits,0)
         cffall(1:ifull,:)=dum
         if( diag .and. mydiag )then
          write (6,"('lout',9f8.2/4x,9f8.2)") (1000.*qlg(idjd,k),k=1,kl)
@@ -135,7 +136,7 @@ c      qg
        if(ngas>0.or.nextout>=4)then
         do ntr=1,ntrac
          dum=tr(1:ifull,:,ntr)
-         call vadvsub(dum,tfact,0)
+         call vadvsub(dum,tfact,nits,0)
          tr(1:ifull,:,ntr)=dum
         enddo      ! ntr loop
        endif      ! (nextout>=4)
@@ -144,10 +145,10 @@ c      qg
        ! MJT tke
        if(nvmix==6)then
         dum=eps(1:ifull,:)
-        call vadvsub(dum,tfact,0)
+        call vadvsub(dum,tfact,nits,0)
         eps(1:ifull,:)=dum
         dum=tke(1:ifull,:)
-        call vadvsub(dum,tfact,0)
+        call vadvsub(dum,tfact,nits,0)
         tke(1:ifull,:)=dum
        endif      ! if(nvmix.eq.6)
        !--------------------------------------------------------------
@@ -157,7 +158,7 @@ c      qg
        if (abs(iaero)==2) then
         do ntr=1,naero
          dum=xtg(1:ifull,:,ntr)
-         call vadvsub(dum,tfact,0)  
+         call vadvsub(dum,tfact,nits,0)  
          xtg(1:ifull,:,ntr)=dum
         end do
        end if
@@ -171,7 +172,7 @@ c      qg
       end
       
       ! Subroutine to perform generic TVD advection
-      subroutine vadvsub(tarr,tfact,nqq)
+      subroutine vadvsub(tarr,tfact,nits,nqq)
       
       use sigs_m
       use vvel_m
@@ -182,13 +183,17 @@ c      qg
       include 'parmvert.h'
       
       integer, intent(in) :: nqq
-      integer k,iq,kp,kx
-      real, intent(in) :: tfact
+      integer, dimension(ifull) :: nits
+      integer k,iq,kp,kx,i,its_g
+      real, dimension(ifull), intent(in) :: tfact
       real rat,phitvd,fluxhi,fluxlo
       real hdsdot
       real, dimension(ifull,kl), intent(inout) :: tarr
       real, dimension(ifull,0:kl) :: delt,fluxh
       real, dimension(ifull,kl) :: xin
+      logical, dimension(ifull) :: msk
+
+      its_g=maxval(nits)
 
       do iq=1,ifull
 c      fluxh(k) is located at level k+.5
@@ -202,6 +207,7 @@ c      fluxh(k) is located at level k+.5
       if(nqq==3)then
         tarr(1:ifull,:)=tarr(1:ifull,:)**(1./3.)
       endif 
+      
       do k=1,kl-1
        do iq=1,ifull
          delt(iq,k)=tarr(iq,k+1)-tarr(iq,k)
@@ -226,7 +232,7 @@ c      fluxh(k) is located at level k+.5
          fluxhi=rathb(k)*tarr(iq,k)+ratha(k)*tarr(iq,k+1)
         else if(nthub==2)then     ! higher order scheme
          fluxhi=rathb(k)*tarr(iq,k)+ratha(k)*tarr(iq,k+1)
-     &                 -.5*delt(iq,k)*tfact*sdot(iq,k+1)
+     &                 -.5*delt(iq,k)*tfact(iq)*sdot(iq,k+1)
         endif  ! (nthub==2)
         fluxlo=tarr(iq,kx)
         fluxh(iq,k)=sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
@@ -235,9 +241,9 @@ c      fluxh(k) is located at level k+.5
       if(nimp==1)then
        do k=1,kl
         do iq=1,ifull
-         hdsdot=.5*tfact*(sdot(iq,k+1)-sdot(iq,k))
+         hdsdot=.5*tfact(iq)*(sdot(iq,k+1)-sdot(iq,k))
          tarr(iq,k)=(tarr(iq,k)
-     &               +tfact*(fluxh(iq,k-1)-fluxh(iq,k))
+     &               +tfact(iq)*(fluxh(iq,k-1)-fluxh(iq,k))
      &               +hdsdot*tarr(iq,k) )/(1.-hdsdot)
         end do
        end do
@@ -245,11 +251,60 @@ c      fluxh(k) is located at level k+.5
        do k=1,kl
         do iq=1,ifull       
          tarr(iq,k)=tarr(iq,k)
-     &               +tfact*(fluxh(iq,k-1)-fluxh(iq,k)
+     &               +tfact(iq)*(fluxh(iq,k-1)-fluxh(iq,k)
      &               +tarr(iq,k)*(sdot(iq,k+1)-sdot(iq,k)))
         enddo     ! iq loop
        enddo      ! k loop
       endif   ! (nimp==1)
+      
+      do i=2,its_g
+       msk=(nits>=i)
+
+       do iq=1,ifull
+        if (msk(iq)) then
+         do k=1,kl-1
+          delt(iq,k)=tarr(iq,k+1)-tarr(iq,k)
+         enddo     ! k loop
+         delt(iq,0)=min(delt(iq,1),tarr(iq,1))       ! for non-negative tt
+         do k=1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
+          kp=sign(1.,sdot(iq,k+1))
+          kx=k+(1-kp)/2  !  k for sdot +ve,  k+1 for sdot -ve
+          rat=delt(iq,k-kp)/(delt(iq,k)+sign(1.e-20,delt(iq,k)))
+          if(ntvd==1)then
+           phitvd=(rat+abs(rat))/(1.+abs(rat))       ! 0 for -ve rat
+          else if(ntvd==2) then
+           phitvd=max(0.,min(2.*rat,.5+.5*rat,2.))   ! 0 for -ve rat
+          else if(ntvd==3) then
+           phitvd=max(0.,min(1.,2.*rat),min(2.,rat)) ! 0 for -ve rat
+          end if
+          if(nthub==1) then
+           fluxhi=rathb(k)*tarr(iq,k)+ratha(k)*tarr(iq,k+1)
+          else if(nthub==2)then     ! higher order scheme
+           fluxhi=rathb(k)*tarr(iq,k)+ratha(k)*tarr(iq,k+1)
+     &                   -.5*delt(iq,k)*tfact(iq)*sdot(iq,k+1)
+          endif  ! (nthub==2)
+          fluxlo=tarr(iq,kx)
+          fluxh(iq,k)=sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
+         enddo     ! k loop
+         if(nimp==1)then
+          do k=1,kl
+           hdsdot=.5*tfact(iq)*(sdot(iq,k+1)-sdot(iq,k))
+           tarr(iq,k)=(tarr(iq,k)
+     &                 +tfact(iq)*(fluxh(iq,k-1)-fluxh(iq,k))
+     &                 +hdsdot*tarr(iq,k) )/(1.-hdsdot)
+          end do
+         else
+          do k=1,kl
+           tarr(iq,k)=tarr(iq,k)
+     &                 +tfact(iq)*(fluxh(iq,k-1)-fluxh(iq,k)
+     &                 +tarr(iq,k)*(sdot(iq,k+1)-sdot(iq,k)))
+          enddo      ! k loop
+         endif   ! (nimp==1)
+        end if ! msk
+       end do ! iq
+      
+      end do
+
       if(nqq==3)then
         tarr(1:ifull,:)=tarr(1:ifull,:)**3
       endif       ! (nqq==3)

@@ -38,12 +38,13 @@
       integer idjdd
       real theta(ifull,kl), factr(kl)
       real, dimension(ifull,kl) :: dumt,dumu,dumv
-      integer ii,intsch, iq, jj,k, kk, ntr, ierr, its, nits, nvadh_pass
+      integer ii,intsch, iq, jj,k, kk, ntr, ierr
       integer iaero, l
+      integer, dimension(ifull) :: nits, nvadh_pass
       real denb, tempry, vdot1,
      &     vdot2, vec1x, vec1y, vec1z, vec2x, vec2y, vec2z, vec3x,
      &     vec3y, vec3z, vecdot
-      real, dimension(1) :: sdmx, sdmx_g
+      real, dimension(ifull) :: sdmx
       integer, save :: num_hight = 0, numunstab = 0
 
       call start_log(upglobal_begin)
@@ -175,26 +176,18 @@
       end do     ! k loop
 
 !-------------------------moved up here May 06---------------------------
-      if(nvad==-4.and.nvadh.ne.3)then 
+      if(nvad==-4.and.nvadh/=3)then 
 !       N.B. this moved one is doing vadv on just extra pslx terms      
-        sdmx(1) = maxval(abs(sdot))
-#ifdef sumdd
-        call ccmpi_allreduce(sdmx(1:1),sdmx_g(1:1),"max",comm_world)
-#else
-        sdmx_g(1)=sdmx(1)
-#endif
-	 nits=1+sdmx_g(1)/nvadh
-	 nvadh_pass=nvadh*nits ! use - for nvadu
-        do its=1,nits
-         dumt=tx(1:ifull,:)
-         dumu=ux(1:ifull,:)
-         dumv=vx(1:ifull,:)
-         call vadvtvd(dumt,dumu,dumv,
-     &                nvadh_pass,iaero)
-         tx(1:ifull,:)=dumt
-         ux(1:ifull,:)=dumu
-         vx(1:ifull,:)=dumv 
-        enddo
+        sdmx(:) = maxval(abs(sdot),2)
+	  nits(:)=1+sdmx(:)/nvadh
+	  nvadh_pass(:)=nvadh*nits(:) ! use - for nvadu
+        dumt=tx(1:ifull,:)
+        dumu=ux(1:ifull,:)
+        dumv=vx(1:ifull,:)
+        call vadvtvd(dumt,dumu,dumv,nvadh_pass,nits,iaero)
+        tx(1:ifull,:)=dumt
+        ux(1:ifull,:)=dumu
+        vx(1:ifull,:)=dumv 
         if( (diag.or.nmaxpr==1) .and. mydiag )then
           print *,'in upglobal after vadv1'
           write (6,"('qg  ',3p9f8.3/4x,9f8.3)")   qg(idjd,:)
@@ -447,33 +440,24 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
         if(nvad==-4)then
           sdot(:,2:kl)=sbar(:,:)
           if(nvadh==3)then  ! just done here after horiz adv
-            sdmx(1) = maxval(abs(sdot))
-#ifdef sumdd
-            call ccmpi_allreduce(sdmx(1:1),sdmx_g(1:1),"max",
-     &                           comm_world)
-#else
-            sdmx_g(1)=sdmx(1)
-#endif
-            nits=1+sdmx_g(1)   ! effectively takes nvadh=1  1/2/06
-            nvadh_pass=nits ! use - for nvadu
+            sdmx(:) = maxval(abs(sdot),2)
+            nits(:)=1+sdmx(:)   ! effectively takes nvadh=1  1/2/06
+            nvadh_pass(:)=nits(:) ! use - for nvadu
           endif   ! (nvadh==3)
 	   if(mod(ktau,nmaxpr)==0.and.mydiag)
      &       print *,'upglobal ktau,sdmx,nits,nvadh_pass ',
-     &                         ktau,sdmx_g(1),nits,nvadh_pass
+     &                ktau,sdmx(idjd),nits(idjd),nvadh_pass(idjd)
           if( (diag.or.nmaxpr==1) .and. mydiag )then
             print *,'in upglobal before vadv2'
             write (6,"('qg  ',3p9f8.3/4x,9f8.3)")   qg(idjd,:)
           endif
-          do its=1,nits
-            dumt=tx(1:ifull,:)
-            dumu=ux(1:ifull,:)
-            dumv=vx(1:ifull,:)
-            call vadvtvd(dumt,dumu,dumv,
-     &                   nvadh_pass,iaero)
-            tx(1:ifull,:)=dumt
-            ux(1:ifull,:)=dumu
-            vx(1:ifull,:)=dumv 
-          enddo
+          dumt=tx(1:ifull,:)
+          dumu=ux(1:ifull,:)
+          dumv=vx(1:ifull,:)
+          call vadvtvd(dumt,dumu,dumv,nvadh_pass,nits,iaero)
+          tx(1:ifull,:)=dumt
+          ux(1:ifull,:)=dumu
+          vx(1:ifull,:)=dumv 
           if( (diag.or.nmaxpr==1) .and. mydiag )then
             print *,'in upglobal after vadv2'
             write (6,"('qg  ',3p9f8.3/4x,9f8.3)")   qg(idjd,:)

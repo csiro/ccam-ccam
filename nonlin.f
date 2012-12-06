@@ -30,17 +30,19 @@
       include 'parm.h'
       include 'parmdyn.h'  
       include 'parmvert.h'
-      integer iq, k, ng, ii, jj, its, nits, nvadh_pass, iaero
+      integer iq, k, ng, ii, jj, iaero
       integer ierr
       integer, save :: num = 0
+      integer, dimension(ifull) :: nits, nvadh_pass
       real aa(ifull,kl),bb(ifull,kl)
       real p(ifull+iextra,kl),phiv(ifull+iextra,kl),tv(ifull+iextra,kl)
       real ddpds(ifull,kl)
       real duma(ifull+iextra,kl+1)
       real const_nh, contv, delneg, delpos, ratio
       real sumdiffb, spmax2,termlin
-      real, dimension(1) :: sdmx, sdmx_g
+      real, dimension(ifull) :: sdmx
       real, allocatable, save, dimension(:) :: epstsav
+      real, dimension(ifull,kl) :: dumt,dumu,dumv
       
       call start_log(nonlin_begin)
       
@@ -144,21 +146,19 @@
 
 !     do vertical advection in split mode
       if(nvad==4.or.nvad==9)then
-        sdmx(1) = maxval(abs(sdot))
-#ifdef sumdd
-        call ccmpi_allreduce(sdmx(1:1),sdmx_g(1:1),"max",comm_world)
-#else
-        sdmx_g(1)=sdmx(1)
-#endif
-        nits=1+sdmx_g(1)/nvadh
-        nvadh_pass=nvadh*nits
+        sdmx(:) = maxval(abs(sdot),2)
+        nits(:)=1+sdmx(:)/nvadh
+        nvadh_pass(:)=nvadh*nits(:)
         if (mydiag.and.mod(ktau,nmaxpr)==0)
-     &      print *,'in nonlin sdmx,nits,nvadh_pass ',
-     &                         sdmx_g(1),nits,nvadh_pass
-         do its=1,nits
-            call vadvtvd(t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),
-     &                   nvadh_pass,iaero) 
-        enddo
+     &    print *,'in nonlin sdmx,nits,nvadh_pass ',
+     &             sdmx(idjd),nits(idjd),nvadh_pass(idjd)
+          dumt=t(1:ifull,:)
+          dumu=u(1:ifull,:)
+          dumv=v(1:ifull,:)
+          call vadvtvd(dumt,dumu,dumv,nvadh_pass,nits,iaero)
+          t(1:ifull,:)=dumt
+          u(1:ifull,:)=dumu
+          v(1:ifull,:)=dumv 
       endif  ! (nvad==4.or.nvad==9)
 
       if(nvad>=7)then
@@ -333,6 +333,7 @@ cx      enddo      ! k  loop
           if (mydiag)then
             print *,'h_nh.b ',(h_nh(idjd,k),k=1,kl)
             print *,'phi ',(phi(idjd,k),k=1,kl)
+            print *,'phi_nh ',(phi_nh(idjd,k),k=1,kl)
           endif
           call maxmin(h_nh,'h_',ktau,1.,kl)
         endif

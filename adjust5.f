@@ -54,15 +54,16 @@
       real helm(ifull,kl),rhsl(ifull,kl),delps(ifull)
       real omgf(ifull,kl)
       real bb(ifull)
-      real, dimension(ifull,kl) :: dumu,dumv,dumc,dumd
+      real, dimension(ifull,kl) :: dumu,dumv,dumc,dumd,dumt
 !     Save this so we can check whether initialisation needs to be redone
       real, save :: dtsave = 0.0
-      real, dimension(1) :: sdmx, sdmx_g
+      real, dimension(ifull) :: sdmx
       real :: hdt, hdtds, sumx, qgminm, ratio, sumdiffb,
      &        alph_g
       real dum
-      integer :: its, k, l, nits, nvadh_pass, iq, ng, ierr, iaero
+      integer :: its, k, l, iq, ng, ierr, iaero
       integer, save :: precon_in
+      integer, dimension(ifull) :: nits, nvadh_pass
       real :: sumin, sumout, sumsav
       real :: delpos_l, delneg_l, const_nh
       
@@ -482,23 +483,21 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
         endif
         if(nvad==4 .or. nvad==9 ) then
          if(mup==-3)call updps(1)
-          sdmx(1) = maxval(abs(sdot))
-#ifdef sumdd
-          call ccmpi_allreduce(sdmx, sdmx_g, "max", comm_world)
-#else
-          sdmx_g(1)=sdmx(1)
-#endif
-          nits=1+sdmx_g(1)/nvadh
-          nvadh_pass=nvadh*nits
+          sdmx(:) = maxval(abs(sdot),2)
+          nits(:)=1+sdmx(:)/nvadh
+          nvadh_pass(:)=nvadh*nits(:)
           if (mydiag.and.mod(ktau,nmaxpr)==0)
      &      write(6,*) 'in adjust5 sdmx,nits,nvadh_pass ',
-     &                          sdmx_g(1),nits,nvadh_pass
-          do its=1,nits
-           ! For now use this form of call so that vadvtvd doesn't need to 
-           ! be changed. With assumed shape arguments this wouldn't be necessary
-            call vadvtvd(t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),
-     &                   nvadh_pass,iaero)
-          enddo
+     &                  sdmx(idjd),nits(idjd),nvadh_pass(idjd)
+          ! For now use this form of call so that vadvtvd doesn't need to 
+          ! be changed. With assumed shape arguments this wouldn't be necessary
+          dumt=t(1:ifull,:)
+          dumu=u(1:ifull,:)
+          dumv=v(1:ifull,:)
+          call vadvtvd(dumt,dumu,dumv,nvadh_pass,nits,iaero)
+          t(1:ifull,:)=dumt
+          u(1:ifull,:)=dumu
+          v(1:ifull,:)=dumv 
         endif  !  nvad==4 .or. nvad==9
         if(nvad>=7) call vadv30(t(1:ifull,:),
      &                            u(1:ifull,:),
