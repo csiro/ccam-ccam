@@ -473,41 +473,54 @@ contains
       ! Convert standard 1D arrays to face form and distribute to processors
       real, dimension(ifull), intent(out) :: af
       real, dimension(ifull_g), intent(in), optional :: a1
+      integer(kind=4) :: ierr
+
+      call start_log(distribute_begin)
+
+      ! Copy internal region
+      if ( myid == 0 ) then
+         if ( .not. present(a1) ) then
+            write(6,*) "Error: ccmpi_distribute argument required on proc 0"
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+         end if
+         call host_distribute2(af,a1)
+      else
+         call proc_distribute2(af)
+      end if
+
+      call end_log(distribute_end)
+   end subroutine ccmpi_distribute2
+
+   subroutine host_distribute2(af,a1)
+      ! Convert standard 1D arrays to face form and distribute to processors
+      real, dimension(ifull), intent(out) :: af
+      real, dimension(ifull_g), intent(in) :: a1
       integer :: i, j, n, iq, iproc
-      integer(kind=4) ierr, lsize, ltype
+      integer(kind=4) :: ierr, lsize, ltype
       real, dimension(ifull,0:nproc-1) :: sbuf
       integer :: npoff, ipoff, jpoff ! Offsets for target
       integer :: slen
 
-      call start_log(distribute_begin)
-!cdir iexpand(indp, indg)
-      if ( myid == 0 .and. .not. present(a1) ) then
-         write(6,*) "Error: ccmpi_distribute argument required on proc 0"
-         call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-      end if
-      ! Copy internal region
-      if ( myid == 0 ) then
-         ! map array in order of processor rank
-         do iproc=0,nproc-1
-            slen = 0
+      ! map array in order of processor rank
+      do iproc=0,nproc-1
+         slen = 0
 #ifdef uniform_decomp
-            do n=1,npan
-               ! Panel range on the source processor
-               call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,1)
+         do n=1,npan
+            ! Panel range on the source processor
+            call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,1)
 #else
-            call proc_region(iproc,0,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,0)
-            do n=1,npan
+         call proc_region(iproc,0,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,0)
+         do n=1,npan
 #endif
-               do j=1,jpan
-                  do i=1,ipan
-                     iq = i+ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
-                     slen = slen + 1
-                     sbuf(slen,iproc) = a1(iq)
-                  end do
+            do j=1,jpan
+               do i=1,ipan
+                  iq = i+ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+                  slen = slen + 1
+                  sbuf(slen,iproc) = a1(iq)
                end do
             end do
          end do
-      end if
+      end do
       lsize=ifull
 #ifdef r8i8
       ltype=MPI_DOUBLE_PRECISION
@@ -516,93 +529,143 @@ contains
 #endif
       call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,0,MPI_COMM_WORLD,ierr)
 
-      call end_log(distribute_end)
-   end subroutine ccmpi_distribute2
+   end subroutine host_distribute2
+
+   subroutine proc_distribute2(af)
+      ! Convert standard 1D arrays to face form and distribute to processors
+      real, dimension(ifull), intent(out) :: af
+      integer(kind=4) :: ierr, lsize, ltype
+      real, dimension(0,0) :: sbuf
+
+      lsize=ifull
+#ifdef r8i8
+      ltype=MPI_DOUBLE_PRECISION
+#else
+      ltype=MPI_REAL
+#endif
+      call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,0,MPI_COMM_WORLD,ierr)
+
+   end subroutine proc_distribute2
 
    subroutine ccmpi_distribute2r8(af,a1)
       ! Convert standard 1D arrays to face form and distribute to processors
       real*8, dimension(ifull), intent(out) :: af
       real*8, dimension(ifull_g), intent(in), optional :: a1
+      integer(kind=4) :: ierr
+
+      call start_log(distribute_begin)
+
+      if ( myid == 0 ) then
+         if ( .not. present(a1) ) then
+            write(6,*) "Error: ccmpi_distribute argument required on proc 0"
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+         end if
+         call host_distribute2r8(af,a1)
+      else
+         call proc_distribute2r8(af)
+      end if
+
+      call end_log(distribute_end)
+   end subroutine ccmpi_distribute2r8
+
+   subroutine host_distribute2r8(af,a1)
+      ! Convert standard 1D arrays to face form and distribute to processors
+      real*8, dimension(ifull), intent(out) :: af
+      real*8, dimension(ifull_g), intent(in) :: a1
       integer :: i, j, n, iq, iproc
-      integer(kind=4) ierr,lsize
+      integer(kind=4) :: ierr,lsize
       real*8, dimension(ifull,0:nproc-1) :: sbuf
       integer :: npoff, ipoff, jpoff ! Offsets for target
       integer :: slen
 
-      call start_log(distribute_begin)
-!cdir iexpand(indp, indg)
-      if ( myid == 0 .and. .not. present(a1) ) then
-         write(6,*) "Error: ccmpi_distribute argument required on proc 0"
-         call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-      end if
-      ! Copy internal region
-      if ( myid == 0 ) then
-         ! map array in order of processor rank
-         do iproc=0,nproc-1
-            slen = 0
+      ! map array in order of processor rank
+      do iproc=0,nproc-1
+         slen = 0
 #ifdef uniform_decomp
-            do n=1,npan
-               ! Panel range on the source processor
-               call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,1)
+         do n=1,npan
+            ! Panel range on the source processor
+            call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,1)
 #else
-            call proc_region(iproc,0,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,0)
-            do n=1,npan
+         call proc_region(iproc,0,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,0)
+         do n=1,npan
 #endif
-               do j=1,jpan
-                  do i=1,ipan
-                     iq = i+ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
-                     slen = slen + 1
-                     sbuf(slen,iproc) = a1(iq)
-                  end do
+            do j=1,jpan
+               do i=1,ipan
+                  iq = i+ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+                  slen = slen + 1
+                  sbuf(slen,iproc) = a1(iq)
                end do
             end do
          end do
-      end if
+      end do
+
       lsize=ifull
       call MPI_Scatter(sbuf,lsize,MPI_DOUBLE_PRECISION,af,lsize,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
 
-      call end_log(distribute_end)
-   end subroutine ccmpi_distribute2r8
+   end subroutine host_distribute2r8
+   
+   subroutine proc_distribute2r8(af)
+      ! Convert standard 1D arrays to face form and distribute to processors
+      real*8, dimension(ifull), intent(out) :: af
+      integer(kind=4) :: ierr,lsize
+      real*8, dimension(0,0) :: sbuf
+
+      lsize=ifull
+      call MPI_Scatter(sbuf,lsize,MPI_DOUBLE_PRECISION,af,lsize,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
+
+   end subroutine proc_distribute2r8
 
    subroutine ccmpi_distribute2i(af,a1)
       ! Convert standard 1D arrays to face form and distribute to processors
       integer, dimension(ifull), intent(out) :: af
       integer, dimension(ifull_g), intent(in), optional :: a1
+      integer(kind=4) :: ierr
+
+      call start_log(distribute_begin)
+
+      if ( myid == 0 ) then
+         if ( .not. present(a1) ) then
+            write(6,*) "Error: ccmpi_distribute argument required on proc 0"
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+         end if
+         call host_distribute2i(af,a1)
+      else
+         call proc_distribute2i(af)
+      end if
+
+      call end_log(distribute_end)
+   end subroutine ccmpi_distribute2i
+
+   subroutine host_distribute2i(af,a1)
+      ! Convert standard 1D arrays to face form and distribute to processors
+      integer, dimension(ifull), intent(out) :: af
+      integer, dimension(ifull_g), intent(in) :: a1
       integer :: i, j, n, iq, iproc
-      integer(kind=4) ierr,lsize,ltype
+      integer(kind=4) :: ierr,lsize,ltype
       integer, dimension(ifull,0:nproc-1) :: sbuf
       integer :: npoff, ipoff, jpoff ! Offsets for target
       integer :: slen
 
-      call start_log(distribute_begin)
-!cdir iexpand(indp, indg)
-      if ( myid == 0 .and. .not. present(a1) ) then
-         write(6,*) "Error: ccmpi_distribute argument required on proc 0"
-         call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-      end if
-      ! Copy internal region
-      if ( myid == 0 ) then
-         ! map array in order of processor rank
-         do iproc=0,nproc-1
-            slen = 0
+      ! map array in order of processor rank
+      do iproc=0,nproc-1
+         slen = 0
 #ifdef uniform_decomp
-            do n=1,npan
-               ! Panel range on the source processor
-               call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,1)
+         do n=1,npan
+            ! Panel range on the source processor
+            call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,1)
 #else
-            call proc_region(iproc,0,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,0)
-            do n=1,npan
+         call proc_region(iproc,0,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,0)
+         do n=1,npan
 #endif
-               do j=1,jpan
-                  do i=1,ipan
-                     iq = i+ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
-                     slen = slen + 1
-                     sbuf(slen,iproc) = a1(iq)
-                  end do
+            do j=1,jpan
+               do i=1,ipan
+                  iq = i+ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+                  slen = slen + 1
+                  sbuf(slen,iproc) = a1(iq)
                end do
             end do
          end do
-      end if
+      end do
       lsize=ifull
 #ifdef r8i8
       ltype=MPI_INTEGER8
@@ -611,8 +674,23 @@ contains
 #endif
       call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,0,MPI_COMM_WORLD,ierr)
  
-      call end_log(distribute_end)
-   end subroutine ccmpi_distribute2i
+   end subroutine host_distribute2i
+
+   subroutine proc_distribute2i(af)
+      ! Convert standard 1D arrays to face form and distribute to processors
+      integer, dimension(ifull), intent(out) :: af
+      integer(kind=4) :: ierr,lsize,ltype
+      integer, dimension(0,0) :: sbuf
+
+      lsize=ifull
+#ifdef r8i8
+      ltype=MPI_INTEGER8
+#else
+      ltype=MPI_INTEGER
+#endif
+      call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,0,MPI_COMM_WORLD,ierr)
+ 
+   end subroutine proc_distribute2i
 
    subroutine ccmpi_distribute3(af,a1)
       ! Convert standard 1D arrays to face form and distribute to processors
@@ -620,42 +698,57 @@ contains
       ! the number of levels
       real, dimension(:,:), intent(out) :: af
       real, dimension(:,:), intent(in), optional :: a1
+      integer(kind=4) :: ierr
+
+      call start_log(distribute_begin)
+
+      if ( myid == 0 ) then
+         if ( .not. present(a1) ) then
+            write(6,*) "Error: ccmpi_distribute argument required on proc 0"
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+         end if
+         call host_distribute3(af,a1)
+      else
+         call proc_distribute3(af)
+      end if
+
+      call end_log(distribute_end)
+   end subroutine ccmpi_distribute3
+
+   subroutine host_distribute3(af,a1)
+      ! Convert standard 1D arrays to face form and distribute to processors
+      ! This is also used for tracers, so second dimension is not necessarily
+      ! the number of levels
+      real, dimension(:,:), intent(out) :: af
+      real, dimension(:,:), intent(in) :: a1
       integer :: i, j, n, iq, iproc
-      integer(kind=4) ierr,lsize,ltype
+      integer(kind=4) :: ierr,lsize,ltype
       real, dimension(ifull,size(af,2),0:nproc-1) :: sbuf
       integer :: npoff, ipoff, jpoff ! Offsets for target
       integer :: slen, kx
 
-      call start_log(distribute_begin)
-!cdir iexpand(indp, indg)
-      if ( myid == 0 .and. .not. present(a1) ) then
-         write(6,*) "Error: ccmpi_distribute argument required on proc 0"
-         call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-      end if
       kx=size(af,2)
-      ! Copy internal region
-      if ( myid == 0 ) then
-         ! map array in order of processor rank
-         do iproc=0,nproc-1
-            slen = 0
+
+      ! map array in order of processor rank
+      do iproc=0,nproc-1
+         slen = 0
 #ifdef uniform_decomp
-            do n=1,npan
-               ! Panel range on the source processor
-               call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,1)
+         do n=1,npan
+            ! Panel range on the source processor
+            call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,1)
 #else
-            call proc_region(iproc,0,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,0)
-            do n=1,npan
+         call proc_region(iproc,0,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,0)
+         do n=1,npan
 #endif
-               do j=1,jpan
-                  do i=1,ipan
-                     iq = i+ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
-                     slen = slen + 1
-                     sbuf(slen,:,iproc) = a1(iq,:)
-                  end do
+            do j=1,jpan
+               do i=1,ipan
+                  iq = i+ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+                  slen = slen + 1
+                  sbuf(slen,:,iproc) = a1(iq,:)
                end do
             end do
          end do
-      end if
+      end do
       lsize=ifull*kx
 #ifdef r8i8
       ltype=MPI_DOUBLE_PRECISION
@@ -664,8 +757,28 @@ contains
 #endif
       call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,0,MPI_COMM_WORLD,ierr)      
 
-      call end_log(distribute_end)
-   end subroutine ccmpi_distribute3
+   end subroutine host_distribute3
+
+   subroutine proc_distribute3(af)
+      ! Convert standard 1D arrays to face form and distribute to processors
+      ! This is also used for tracers, so second dimension is not necessarily
+      ! the number of levels
+      real, dimension(:,:), intent(out) :: af
+      integer(kind=4) :: ierr,lsize,ltype
+      real, dimension(0,0,0) :: sbuf
+      integer :: kx
+
+      kx=size(af,2)
+
+      lsize=ifull*kx
+#ifdef r8i8
+      ltype=MPI_DOUBLE_PRECISION
+#else
+      ltype=MPI_REAL
+#endif
+      call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,0,MPI_COMM_WORLD,ierr)      
+
+   end subroutine proc_distribute3
 
    subroutine ccmpi_distribute3i(af,a1)
       ! Convert standard 1D arrays to face form and distribute to processors
@@ -673,42 +786,56 @@ contains
       ! the number of levels
       integer, dimension(:,:), intent(out) :: af
       integer, dimension(:,:), intent(in), optional :: a1
+      integer(kind=4) :: ierr
+
+      call start_log(distribute_begin)
+      if ( myid == 0 ) then
+         if ( .not. present(a1) ) then
+            write(6,*) "Error: ccmpi_distribute argument required on proc 0"
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+         end if
+         call host_distribute3i(af,a1)
+      else
+         call proc_distribute3i(af)
+      end if
+
+      call end_log(distribute_end)
+   end subroutine ccmpi_distribute3i
+
+   subroutine host_distribute3i(af,a1)
+      ! Convert standard 1D arrays to face form and distribute to processors
+      ! This is also used for tracers, so second dimension is not necessarily
+      ! the number of levels
+      integer, dimension(:,:), intent(out) :: af
+      integer, dimension(:,:), intent(in) :: a1
       integer :: i, j, n, iq, iproc
-      integer(kind=4) ierr,lsize,ltype
+      integer(kind=4) :: ierr, lsize, ltype
       integer, dimension(ifull,size(af,2),0:nproc-1) :: sbuf
       integer :: npoff, ipoff, jpoff ! Offsets for target
       integer :: slen, kx
 
-      call start_log(distribute_begin)
-!cdir iexpand(indp, indg)
-      if ( myid == 0 .and. .not. present(a1) ) then
-         write(6,*) "Error: ccmpi_distribute argument required on proc 0"
-         call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-      end if
       kx=size(af,2)
-      ! Copy internal region
-      if ( myid == 0 ) then
-         ! map array in order of processor rank
-         do iproc=0,nproc-1
-            slen = 0
+
+      ! map array in order of processor rank
+      do iproc=0,nproc-1
+         slen = 0
 #ifdef uniform_decomp
-            do n=1,npan
-               ! Panel range on the source processor
-               call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,1)
+         do n=1,npan
+            ! Panel range on the source processor
+            call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,1)
 #else
-            call proc_region(iproc,0,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,0)
-            do n=1,npan
+         call proc_region(iproc,0,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,0)
+         do n=1,npan
 #endif
-               do j=1,jpan
-                  do i=1,ipan
-                     iq = i+ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
-                     slen = slen + 1
-                     sbuf(slen,:,iproc) = a1(iq,:)
-                  end do
+            do j=1,jpan
+               do i=1,ipan
+                  iq = i+ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+                  slen = slen + 1
+                  sbuf(slen,:,iproc) = a1(iq,:)
                end do
             end do
          end do
-      end if
+      end do
       lsize=ifull*kx
 #ifdef r8i8
       ltype=MPI_INTEGER8
@@ -717,27 +844,62 @@ contains
 #endif
       call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,0,MPI_COMM_WORLD,ierr)      
 
-      call end_log(distribute_end)
-   end subroutine ccmpi_distribute3i
+   end subroutine host_distribute3i
+
+   subroutine proc_distribute3i(af)
+      ! Convert standard 1D arrays to face form and distribute to processors
+      ! This is also used for tracers, so second dimension is not necessarily
+      ! the number of levels
+      integer, dimension(:,:), intent(out) :: af
+      integer(kind=4) :: ierr, lsize, ltype
+      integer, dimension(0,0,0) :: sbuf
+      integer :: kx
+
+      kx=size(af,2)
+      lsize=ifull*kx
+#ifdef r8i8
+      ltype=MPI_INTEGER8
+#else
+      ltype=MPI_INTEGER
+#endif
+      call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,0,MPI_COMM_WORLD,ierr)      
+
+   end subroutine proc_distribute3i   
 
    subroutine ccmpi_gather2(a,ag)
       ! Collect global arrays.
 
       real, dimension(ifull), intent(in) :: a
       real, dimension(ifull_g), intent(out), optional :: ag
+      integer(kind=4) :: ierr
+
+      call start_log(gather_begin)
+
+      if ( myid == 0 ) then
+         if ( .not. present(ag) ) then
+            write(6,*) "Error: ccmpi_gather argument required on proc 0"
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+         end if
+         call host_gather2(a,ag)
+      else
+         call proc_gather2(a)
+      end if
+
+      call end_log(gather_end)
+
+   end subroutine ccmpi_gather2
+
+   subroutine host_gather2(a,ag)
+      ! Collect global arrays.
+
+      real, dimension(ifull), intent(in) :: a
+      real, dimension(ifull_g), intent(out) :: ag
       integer :: iproc
-      integer(kind=4) ierr,lsize,ltype
+      integer(kind=4) :: ierr, lsize, ltype
       real, dimension(ifull,0:nproc-1) :: abuf
       integer :: ipoff, jpoff, npoff
       integer :: i, j, n, iq, iqg
 
-      call start_log(gather_begin)
-!cdir iexpand(indp, indg, ind)
-      if ( myid == 0 .and. .not. present(ag) ) then
-         write(6,*) "Error: ccmpi_gather argument required on proc 0"
-         call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-      end if
-      
       lsize=ifull
 #ifdef r8i8
       ltype=MPI_DOUBLE_PRECISION
@@ -745,52 +907,78 @@ contains
       ltype=MPI_REAL
 #endif
       call MPI_Gather(a,lsize,ltype,abuf,lsize,ltype,0,MPI_COMM_WORLD,ierr)
-      if ( myid == 0 ) then
-         ! map array in order of processor rank
-         do iproc=0,nproc-1
+
+      ! map array in order of processor rank
+      do iproc=0,nproc-1
 #ifdef uniform_decomp
-            do n=1,npan
-               ! Panel range on the source processor
-               call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,1)
+         do n=1,npan
+            ! Panel range on the source processor
+            call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,1)
 #else
-            call proc_region(iproc,0,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,0)
-            do n=1,npan
+         call proc_region(iproc,0,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,0)
+         do n=1,npan
 #endif
-               ! Use the face indices for unpacking
-               do j=1,jpan
+            ! Use the face indices for unpacking
+            do j=1,jpan
 !cdir nodep
-                  do i=1,ipan
-                     ! Global indices are i+ipoff, j+jpoff, n-npoff
-                     iqg = indglobal(i+ipoff,j+jpoff,n-npoff) ! True global 1D index
-                     iq = indp(i,j,n)
-                     ag(iqg) = abuf(iq,iproc)
-                  end do
+               do i=1,ipan
+                  ! Global indices are i+ipoff, j+jpoff, n-npoff
+                  iqg = indglobal(i+ipoff,j+jpoff,n-npoff) ! True global 1D index
+                  iq = indp(i,j,n)
+                  ag(iqg) = abuf(iq,iproc)
                end do
             end do
          end do
-      end if
+      end do
 
-      call end_log(gather_end)
+   end subroutine host_gather2
+   
+   subroutine proc_gather2(a)
+      real, dimension(ifull), intent(in) :: a
+      integer(kind=4) :: ierr, lsize, ltype
+      real, dimension(0,0) :: abuf
 
-   end subroutine ccmpi_gather2
+      lsize=ifull
+#ifdef r8i8
+      ltype=MPI_DOUBLE_PRECISION
+#else
+      ltype=MPI_REAL
+#endif
+      call MPI_Gather(a,lsize,ltype,abuf,lsize,ltype,0,MPI_COMM_WORLD,ierr)
+
+   end subroutine proc_gather2
 
    subroutine ccmpi_gather3(a,ag)
       ! Collect global arrays.
 
       real, dimension(:,:), intent(in) :: a
       real, dimension(:,:), intent(out), optional :: ag
+      integer(kind=4) :: ierr
+
+      call start_log(gather_begin)
+
+      if ( myid == 0 ) then
+         if ( .not. present(ag) ) then
+            write(6,*) "Error: ccmpi_gather argument required on proc 0"
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+         end if
+         call host_gather3(a,ag)
+      else
+         call proc_gather3(a)
+      end if
+      
+      call end_log(gather_end)
+
+   end subroutine ccmpi_gather3
+
+   subroutine host_gather3(a,ag)
+      real, dimension(:,:), intent(in) :: a
+      real, dimension(:,:), intent(out) :: ag
       integer :: iproc
-      integer(kind=4) ierr,lsize,ltype
+      integer(kind=4) :: ierr, lsize, ltype
       real, dimension(ifull,size(a,2),0:nproc-1) :: abuf
       integer :: ipoff, jpoff, npoff
       integer :: i, j, n, iq, iqg, kx
-
-      call start_log(gather_begin)
-!cdir iexpand(indp, indg, ind)
-      if ( myid == 0 .and. .not. present(ag) ) then
-         write(6,*) "Error: ccmpi_gather argument required on proc 0"
-         call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
-      end if
 
       kx=size(a,2)
       lsize=ifull*kx
@@ -800,34 +988,48 @@ contains
       ltype=MPI_REAL
 #endif
       call MPI_Gather(a,lsize,ltype,abuf,lsize,ltype,0,MPI_COMM_WORLD,ierr)
-      if ( myid == 0 ) then
-         ! map array in order of processor rank
-         do iproc=0,nproc-1
+
+      ! map array in order of processor rank
+      do iproc=0,nproc-1
 #ifdef uniform_decomp
-            do n=1,npan
-               ! Panel range on the source processor
-               call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,1)
+         do n=1,npan
+            ! Panel range on the source processor
+            call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,1)
 #else
-            call proc_region(iproc,0,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,0)
-            do n=1,npan
+         call proc_region(iproc,0,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,0)
+         do n=1,npan
 #endif
-               ! Use the face indices for unpacking
-               do j=1,jpan
+            ! Use the face indices for unpacking
+            do j=1,jpan
 !cdir nodep
-                  do i=1,ipan
-                     ! Global indices are i+ipoff, j+jpoff, n-npoff
-                     iqg = indglobal(i+ipoff,j+jpoff,n-npoff) ! True global 1D index
-                     iq = indp(i,j,n)
-                     ag(iqg,:) = abuf(iq,:,iproc)
-                  end do
+               do i=1,ipan
+                  ! Global indices are i+ipoff, j+jpoff, n-npoff
+                  iqg = indglobal(i+ipoff,j+jpoff,n-npoff) ! True global 1D index
+                  iq = indp(i,j,n)
+                  ag(iqg,:) = abuf(iq,:,iproc)
                end do
             end do
          end do
-      end if
-      
-      call end_log(gather_end)
+      end do
 
-   end subroutine ccmpi_gather3
+   end subroutine host_gather3
+   
+   subroutine proc_gather3(a)
+      real, dimension(:,:), intent(in) :: a
+      integer(kind=4) :: ierr, lsize, ltype
+      real, dimension(0,0,0) :: abuf
+      integer :: kx
+
+      kx=size(a,2)
+      lsize=ifull*kx
+#ifdef r8i8
+      ltype=MPI_DOUBLE_PRECISION
+#else
+      ltype=MPI_REAL
+#endif
+      call MPI_Gather(a,lsize,ltype,abuf,lsize,ltype,0,MPI_COMM_WORLD,ierr)
+
+   end subroutine proc_gather3
 
    subroutine bounds_setup()
 
@@ -6136,15 +6338,17 @@ contains
    
    subroutine ccmpi_gatherx2r(gdat,ldat,host,comm)
 
-      integer, intent(in) :: host,comm
-      integer(kind=4) lsize,ltype,lhost,lcomm,lerr
+      integer, intent(in) :: host, comm
+      integer(kind=4) lsize, ltype, lhost, lcomm, lerr
       real, dimension(:), intent(out) :: gdat
       real, dimension(:), intent(in) :: ldat
 
-#ifdef debug        
-      if (size(gdat)/=size(ldat)*nproc) then
-         write(6,*) "ERROR: Incorrect size for ccmpi_gather"
-         call MPI_Abort(MPI_COMM_WORLD,-1,lerr)
+#ifdef debug
+      if (myid==lhost) then        
+         if (size(gdat)/=size(ldat)*nproc) then
+            write(6,*) "ERROR: Incorrect size for ccmpi_gather"
+            call MPI_Abort(MPI_COMM_WORLD,-1,lerr)
+         end if
       end if
 #endif
       
@@ -6169,9 +6373,11 @@ contains
       real, dimension(:), intent(out) :: ldat
 
 #ifdef debug        
-      if (size(gdat)/=size(ldat)*nproc) then
-         write(6,*) "ERROR: Incorrect size for ccmpi_scatter"
-         call MPI_Abort(MPI_COMM_WORLD,-1,lerr)
+      if (myid==lhost) then        
+         if (size(gdat)/=size(ldat)*nproc) then
+            write(6,*) "ERROR: Incorrect size for ccmpi_gather"
+            call MPI_Abort(MPI_COMM_WORLD,-1,lerr)
+         end if
       end if
 #endif
       
@@ -6196,9 +6402,11 @@ contains
       integer, dimension(:), intent(out) :: gdat
 
 #ifdef debug      
-      if (size(gdat)/=size(ldat)*nproc) then
-         write(6,*) "ERROR: Incorrect size for ccmpi_allgather"
-         call MPI_Abort(MPI_COMM_WORLD,-1,lerr)
+      if (myid==lhost) then        
+         if (size(gdat)/=size(ldat)*nproc) then
+            write(6,*) "ERROR: Incorrect size for ccmpi_gather"
+            call MPI_Abort(MPI_COMM_WORLD,-1,lerr)
+         end if
       end if
 #endif
    

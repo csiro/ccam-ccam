@@ -47,11 +47,11 @@
      &                                   nx_max,meth,axel
  
        if (nx_max/=maxcolour) then
-        write(6,*) "ERROR: number of colours mismatched between"
-        write(6,*) "helmsor and cc_mpi.  Use three colours for"
-        write(6,*) "uniform decomposition or two colours for"
-        write(6,*) "face decomposition"
-        call ccmpi_abort(-1)
+        if (myid==0) then
+         write(6,*) "WARN: mismatched number of colours"
+         write(6,*) "changing nx_max ",nx_max,maxcolour
+        end if
+        nx_max=maxcolour
        end if
   
        do k=1,kl

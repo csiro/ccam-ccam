@@ -63,7 +63,7 @@ if (myid==0) then
     end if
     spos(1)=1
     npos(1)=ii
-    call ccnf_get_vara_real(ncid,valident,spos(1:1),npos(1:1),o3lon)
+    call ccnf_get_vara(ncid,valident,spos(1:1),npos(1:1),o3lon)
     call ccnf_inq_dimlen(ncid,'lat',jj)
     allocate(o3lat(jj))
     call ccnf_inq_varid(ncid,'lat',valident,tst)
@@ -72,7 +72,7 @@ if (myid==0) then
       call ccmpi_abort(-1)
     end if
     npos(1)=jj
-    call ccnf_get_vara_real(ncid,valident,spos(1:1),npos(1:1),o3lat)
+    call ccnf_get_vara(ncid,valident,spos(1:1),npos(1:1),o3lat)
     call ccnf_inq_dimlen(ncid,'plev',kk)
     allocate(o3pres(kk))
     call ccnf_inq_varid(ncid,'plev',valident,tst)
@@ -81,16 +81,16 @@ if (myid==0) then
       call ccmpi_abort(-1)
     end if
     npos(1)=kk
-    call ccnf_get_vara_real(ncid,valident,spos(1:1),npos(1:1),o3pres)
+    call ccnf_get_vara(ncid,valident,spos(1:1),npos(1:1),o3pres)
     call ccnf_inq_dimlen(ncid,'time',tt)
     call ccnf_inq_varid(ncid,'time',valident,tst)
     if (tst) then
       write(6,*) "time variable not found"
       call ccmpi_abort(-1)
     end if
-    call ccnf_get_att_text(ncid,valident,'units',cdate)
+    call ccnf_get_att(ncid,valident,'units',cdate)
     npos(1)=1
-    call ccnf_get_vara_int(ncid,valident,spos(1:1),npos(1:1),iti)
+    call ccnf_get_vara(ncid,valident,spos(1:1),npos(1:1),iti)
     write(6,*) "Found ozone dimensions ",ii,jj,kk,tt
     allocate(o3dum(ii,jj,kk,3))
     read(cdate(14:17),*) yy
@@ -117,11 +117,11 @@ if (myid==0) then
       call ccmpi_abort(-1)
     end if
     spos(4)=max(nn-1,1)
-    call ccnf_get_vara_real(ncid,valident,spos,npos,o3dum(:,:,:,1))
+    call ccnf_get_vara(ncid,valident,spos,npos,o3dum(:,:,:,1))
     spos(4)=nn
-    call ccnf_get_vara_real(ncid,valident,spos,npos,o3dum(:,:,:,2))
+    call ccnf_get_vara(ncid,valident,spos,npos,o3dum(:,:,:,2))
     spos(4)=min(nn+1,tt)
-    call ccnf_get_vara_real(ncid,valident,spos,npos,o3dum(:,:,:,3))
+    call ccnf_get_vara(ncid,valident,spos,npos,o3dum(:,:,:,3))
     call ccnf_close(ncid)
     ! Here we fix missing values by filling down
     ! If we try to neglect these values in the

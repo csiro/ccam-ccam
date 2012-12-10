@@ -73,8 +73,8 @@
         if(ncid/=ncidold)then
           write(6,*) 'Reading new file metadata'
           iarchi=1
-          call ccnf_get_att_intg(ncid,'int_header',nahead)
-          call ccnf_get_att_realg(ncid,'real_header',ahead)
+          call ccnf_get_attg(ncid,'int_header',nahead)
+          call ccnf_get_attg(ncid,'real_header',ahead)
           ik=nahead(1)
           jk=nahead(2)
           kk=nahead(3)
@@ -111,14 +111,14 @@
         end if
         do while(ltest.and.iarchi<maxarchi)
           iarchi=iarchi+1
-          call ccnf_get_var1_int(ncid,idvkd,iarchi,kdate_r)
-          call ccnf_get_var1_int(ncid,idvkt,iarchi,ktime_r)
+          call ccnf_get_var1(ncid,idvkd,iarchi,kdate_r)
+          call ccnf_get_var1(ncid,idvkt,iarchi,ktime_r)
           if (ierx==0) then
-            call ccnf_get_var1_int(ncid,idvmt,iarchi,mtimer)
+            call ccnf_get_var1(ncid,idvmt,iarchi,mtimer)
             timer=mtimer/60.
           else
             timer=0.
-            call ccnf_get_var1_real(ncid,idvmt,iarchi,timer)
+            call ccnf_get_var1(ncid,idvmt,iarchi,timer)
             mtimer=nint(timer*60.)
           endif
           if (mtimer>0) then
@@ -188,8 +188,8 @@
       ! Here we call ontheflyx with different automatic array
       ! sizes.  This means the arrays are correct for interpolation
       ! and file i/o on myid==0, as well as the arrays are smaller
-      ! on myid/=0 when they are not needed.  The code is still
-      ! human readable since there is only one ontheflyx subroutine.
+      ! on myid/=0 when they are not needed.  This way we avoid
+      ! having to maintain multiple ontheflyx subroutines.
       if (myid==0) then
         call ontheflyx(nested,kdate_r,ktime_r,
      &                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
@@ -278,7 +278,7 @@
       integer, dimension(ifull) :: isflag
       integer, dimension(:), allocatable, save :: isoilm_a
       integer, dimension(ms) :: iera,ierb
-      integer, dimension(7) :: ierc
+      integer, dimension(6) :: ierc
       integer, dimension(3), save :: iers
       integer, dimension(2) :: dumb
       real*8, dimension(1+4*dk,1+4*dk) :: xx4,yy4
@@ -450,9 +450,9 @@
           if (.not.tst) then
             dumb(1)=1
             dumb(2)=kk
-            call ccnf_get_vara_real(ncid,idv,dumb(1:1),dumb(2:2),sigin)
+            call ccnf_get_vara(ncid,idv,dumb(1:1),dumb(2:2),sigin)
           else
-            call ccnf_get_att_realg(ncid,'sigma',sigin)
+            call ccnf_get_attg(ncid,'sigma',sigin)
           end if
           write(6,'("sigin=",(9f7.4))') (sigin(k),k=1,kk)
           
@@ -1005,19 +1005,19 @@ c***        but needed here for onthefly (different dims) 28/8/08
               if (tst) then
                 lrestart=.false.
               else 
-                call ccnf_get_var1_int(ncid,idv,iarchi,ierc(3))
+                call ccnf_get_var1(ncid,idv,iarchi,ierc(3))
               end if
               call ccnf_inq_varid(ncid,'nstagu',idv,tst)
               if (tst) then
                 lrestart=.false.
               else 
-                call ccnf_get_var1_int(ncid,idv,iarchi,ierc(4))
+                call ccnf_get_var1(ncid,idv,iarchi,ierc(4))
               end if
               call ccnf_inq_varid(ncid,'nstagoff',idv,tst)
               if (tst) then
                 lrestart=.false.
               else 
-                call ccnf_get_var1_int(ncid,idv,iarchi,ierc(5))
+                call ccnf_get_var1(ncid,idv,iarchi,ierc(5))
               end if
               if (abs(nmlo)>=3.and.abs(nmlo)<=9) then
                 if (ok==wlev) then
@@ -1035,7 +1035,7 @@ c***        but needed here for onthefly (different dims) 28/8/08
                   if (tst) then
                     lrestart=.false.
                   else
-                    call ccnf_get_var1_int(ncid,idv,iarchi,ierc(6))
+                    call ccnf_get_var1(ncid,idv,iarchi,ierc(6))
                   end if
                 else
                   lrestart=.false.

@@ -5745,7 +5745,7 @@ real,    dimension (:,:,:), intent(out)  :: trns_std_hi_nf,   &
           write(6,*) "trns_std_nf not found"
           call ccmpi_abort(-1)
         end if
-        call ccnf_get_vara_double(ncid,varid,startpos,npos,trns_std_hi_nf(:,:,1:ntbnd(nf)))
+        call ccnf_get_vara(ncid,varid,startpos,npos,trns_std_hi_nf(:,:,1:ntbnd(nf)))
         call ccnf_close(ncid)
       end if
       call ccmpi_bcastr8(trns_std_hi_nf(:,:,1:ntbnd(nf)),0,comm_world)
@@ -5797,7 +5797,7 @@ real,    dimension (:,:,:), intent(out)  :: trns_std_hi_nf,   &
             write(6,*) "trns_std_nf not found"
             call ccmpi_abort(-1)
           end if
-          call ccnf_get_vara_double(ncid,varid,startpos,npos,trns_std_lo_nf(:,:,1:ntbnd(nf)))
+          call ccnf_get_vara(ncid,varid,startpos,npos,trns_std_lo_nf(:,:,1:ntbnd(nf)))
           call ccnf_close(ncid)
         end if
         call ccmpi_bcastr8(trns_std_lo_nf(:,:,1:ntbnd(nf)),0,comm_world)

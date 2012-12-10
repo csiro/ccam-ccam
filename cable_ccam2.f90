@@ -2532,9 +2532,9 @@ if (myid==0) then
   call ccnf_open(casafile,ncid,ncstatus)
   call ncmsg('CASA_readpoint',ncstatus)
   ! check dimensions and location
-  call ccnf_get_att_realg(ncid,'lat0',tlat)
-  call ccnf_get_att_realg(ncid,'lon0',tlon)
-  call ccnf_get_att_realg(ncid,'schmidt0',tschmidt)
+  call ccnf_get_attg(ncid,'lat0',tlat)
+  call ccnf_get_attg(ncid,'lon0',tlon)
+  call ccnf_get_attg(ncid,'schmidt0',tschmidt)
   if (rlong0/=tlon.or.rlat0/=tlat.or.schmidt/=tschmidt) then
     write(6,*) "ERROR: Grid mismatch for ",trim(casafile)
     write(6,*) "rlong0,rlat0,schmidt ",rlong0,rlat0,schmidt
@@ -2553,19 +2553,19 @@ if (myid==0) then
   npos(2)=il_g*6
   write(6,*) "Loading soil order"
   call ccnf_inq_varid(ncid,'sorder',varid,tst)
-  call ccnf_get_vara_real(ncid,varid,spos,npos,dumg(:,1))
+  call ccnf_get_vara(ncid,varid,spos,npos,dumg(:,1))
   write(6,*) "Loading N deposition rate"
   call ccnf_inq_varid(ncid,'ndep',varid,tst)
-  call ccnf_get_vara_real(ncid,varid,spos,npos,dumg(:,2))
+  call ccnf_get_vara(ncid,varid,spos,npos,dumg(:,2))
   write(6,*) "Loading N fixation rate"
   call ccnf_inq_varid(ncid,'nfix',varid,tst)
-  call ccnf_get_vara_real(ncid,varid,spos,npos,dumg(:,3))
+  call ccnf_get_vara(ncid,varid,spos,npos,dumg(:,3))
   write(6,*) "Loading P dust deposition"
   call ccnf_inq_varid(ncid,'pdust',varid,tst)
-  call ccnf_get_vara_real(ncid,varid,spos,npos,dumg(:,4))
+  call ccnf_get_vara(ncid,varid,spos,npos,dumg(:,4))
   write(6,*) "Loading P weathering rate"
   call ccnf_inq_varid(ncid,'pweather',varid,tst)
-  call ccnf_get_vara_real(ncid,varid,spos,npos,dumg(:,5))
+  call ccnf_get_vara(ncid,varid,spos,npos,dumg(:,5))
   call ccnf_close(ncid)
   call ccmpi_distribute(duma,dumg)
   deallocate(dumg)

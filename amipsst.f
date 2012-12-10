@@ -326,8 +326,8 @@ c       c1=0.
         ! NETCDF
         write(6,*) "Reading AMIP file in netcdf format"
         ! check grid definition
-        call ccnf_get_att_intg(ncidx,'int_header',nahead)
-        call ccnf_get_att_realg(ncidx,'real_header',ahead)
+        call ccnf_get_attg(ncidx,'int_header',nahead)
+        call ccnf_get_attg(ncidx,'real_header',ahead)
         il_in=nahead(1)
         jl_in=nahead(2)
         rlon_in   =ahead(5)
@@ -370,9 +370,9 @@ c       c1=0.
         end if
         do while (ltest.and.iarchx<maxarchi)
           iarchx=iarchx+1
-          call ccnf_get_var1_int(ncidx,varid,iarchx,kdate_r)
-          call ccnf_get_var1_int(ncidx,varidb,iarchx,ktime_r)
-          call ccnf_get_var1_int(ncidx,varidc,iarchx,mtimer_r)
+          call ccnf_get_var1(ncidx,varid,iarchx,kdate_r)
+          call ccnf_get_var1(ncidx,varidb,iarchx,ktime_r)
+          call ccnf_get_var1(ncidx,varidc,iarchx,mtimer_r)
           call datefix(kdate_r,ktime_r,mtimer_r)
           iyear=int(kdate_r/10000)
           imonth=int((kdate_r-iyear*10000)/100)
@@ -395,21 +395,21 @@ c       c1=0.
           call ccmpi_abort(-1)
         end if
         unitstr=''
-        call ccnf_get_att_text(ncidx,varid,'units',unitstr)
-        call ccnf_get_vara_real(ncidx,varid,spos,npos,ssta_g)
-        call ccnf_get_att_real(ncidx,varid,'add_offset',of)
+        call ccnf_get_att(ncidx,varid,'units',unitstr)
+        call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
+        call ccnf_get_att(ncidx,varid,'add_offset',of)
         if (ierr/=0) of=0.
         if (trim(unitstr)=='C') of=of+273.16
-        call ccnf_get_att_real(ncidx,varid,'scale_factor',sc)
+        call ccnf_get_att(ncidx,varid,'scale_factor',sc)
         if (ierr/=0) sc=1.
         ssta_g=sc*ssta_g+of        
         call ccmpi_distribute(ssta, ssta_g)
         spos(3)=spos(3)+1
-        call ccnf_get_vara_real(ncidx,varid,spos,npos,ssta_g)
+        call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
         ssta_g=sc*ssta_g+of  
         call ccmpi_distribute(sstb, ssta_g)
         spos(3)=spos(3)+1
-        call ccnf_get_vara_real(ncidx,varid,spos,npos,ssta_g)
+        call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
         ssta_g=sc*ssta_g+of  
         call ccmpi_distribute(sstc, ssta_g)
           
@@ -476,21 +476,21 @@ c       extra read from Oct 08
             write(6,*) "ERROR: Cannot locate sic"
             call ccmpi_abort(-1)
           end if
-          call ccnf_get_vara_real(ncidx,varid,spos,npos,ssta_g)
-          call ccnf_get_att_real(ncidx,varid,'add_offset',of)
+          call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
+          call ccnf_get_att(ncidx,varid,'add_offset',of)
           if (ierr/=0) of=0.
-          call ccnf_get_att_real(ncidx,varid,'scale_factor',sc)
+          call ccnf_get_att(ncidx,varid,'scale_factor',sc)
           if (ierr/=0) sc=1.
           ssta_g=sc*ssta_g+of
           ssta_g=100.*ssta_g  
           call ccmpi_distribute(aice, ssta_g)
           spos(3)=spos(3)+1
-          call ccnf_get_vara_real(ncidx,varid,spos,npos,ssta_g)
+          call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
           ssta_g=sc*ssta_g+of
           ssta_g=100.*ssta_g       
           call ccmpi_distribute(bice, ssta_g)
           spos(3)=spos(3)+1
-          call ccnf_get_vara_real(ncidx,varid,spos,npos,ssta_g)
+          call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
           ssta_g=sc*ssta_g+of
           ssta_g=100.*ssta_g  
           call ccmpi_distribute(cice, ssta_g)
@@ -553,19 +553,19 @@ c         extra cice read from Oct 08
             write(6,*) "ERROR: Cannot locate sss"
             call ccmpi_abort(-1)
           end if
-          call ccnf_get_vara_real(ncidx,varid,spos,npos,ssta_g)
-          call ccnf_get_att_real(ncidx,varid,'add_offset',of)
+          call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
+          call ccnf_get_att(ncidx,varid,'add_offset',of)
           if (ierr/=0) of=0.
-          call ccnf_get_att_real(ncidx,varid,'scale_factor',sc)
+          call ccnf_get_att(ncidx,varid,'scale_factor',sc)
           if (ierr/=0) sc=1.  
           ssta_g=sc*ssta_g+of
           call ccmpi_distribute(asal, ssta_g)
           spos(3)=spos(3)+1
-          call ccnf_get_vara_real(ncidx,varid,spos,npos,ssta_g)
+          call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
           ssta_g=sc*ssta_g+of
           call ccmpi_distribute(bsal, ssta_g)
           spos(3)=spos(3)+1
-          call ccnf_get_vara_real(ncidx,varid,spos,npos,ssta_g)
+          call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
           ssta_g=sc*ssta_g+of        
           call ccmpi_distribute(csal, ssta_g)
           

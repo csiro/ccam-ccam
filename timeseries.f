@@ -291,18 +291,18 @@ c     leave define mode
         call ccnf_enddef(tsid(1))
 c
 !     rml 19/09/07 write tracer name array
-        call ccnf_put_var_text(tsid(1),tracnamid,tracname)
+        call ccnf_put_var(tsid(1),tracnamid,tracname)
 
 c     write grid point arrays
-        call ccnf_put_var_int(tsid(1),gridid,listijk)
+        call ccnf_put_var(tsid(1),gridid,listijk)
       ! Need explicit section of templist here, because array may have
       ! been allocated larger
-        call ccnf_put_var_int(tsid(1),gridsurfid,
+        call ccnf_put_var(tsid(1),gridsurfid,
      &         templist(:ngrdpts1,:))
         if ( nproc > 1 ) then
-         call ccnf_put_var_int(tsid(1),gridorderid,
+         call ccnf_put_var(tsid(1),gridorderid,
      &          gridorder(1:ngrdpts))
-         call ccnf_put_var_int(tsid(1),surforderid,
+         call ccnf_put_var(tsid(1),surforderid,
      &          surforder(1:ngrdpts1))
         end if
         ! MJT - removed to improve model performance
@@ -351,7 +351,7 @@ c
       if (ngrdpts.eq.0) return
       if (mod(ktau,ntsfreq).eq.0) then
         tstime = dble(jyear) + dble(mins)/dble(365.*24.*60.)
-        call ccnf_put_var1_double(tsid(1),tsid(2),indextime,tstime)
+        call ccnf_put_var1(tsid(1),tsid(2),indextime,tstime)
         allocate(cts(ngrdpts,ntrac))
         do n=1,ngrdpts
           iq = listijk(n,1) + (listijk(n,2)-1)*il
@@ -360,7 +360,7 @@ c
         enddo
         start(1)=1; start(2)=1; start(3)=indextime
         count(1)=ngrdpts; count(2)=ntrac; count(3)=1
-        call ccnf_put_vara_real(tsid(1),tsid(3),start,count,cts)
+        call ccnf_put_vara(tsid(1),tsid(3),start,count,cts)
         deallocate(cts)
 c
         do m=1,n3d
@@ -404,7 +404,7 @@ c
           enddo
           start(1)=1; start(2)=indextime
           count(1)=ngrdpts; count(2)=1
-          call ccnf_put_vara_real(tsid(1),tsid(3+m),start(1:2),
+          call ccnf_put_vara(tsid(1),tsid(3+m),start(1:2),
      &                          count(1:2),vts)
           deallocate(vts)
         enddo
@@ -447,7 +447,7 @@ c
             enddo 
             start(1)=1; start(2)=1; start(3)=indextime
             count(1)=ngrdpts1; count(2)=ntrac; count(3)=1
-            call ccnf_put_vara_real(tsid(1),tsid(3+n3d+m),start,count,
+            call ccnf_put_vara(tsid(1),tsid(3+n3d+m),start,count,
      &                              cts)
             deallocate(cts)
             surfflux=.true.
@@ -469,7 +469,7 @@ c
             enddo
             start(1)=1; start(2)=indextime
             count(1)=ngrdpts1; count(2)=1
-            call ccnf_put_vara_real(tsid(1),tsid(3+n3d+m),start(1:2),
+            call ccnf_put_vara(tsid(1),tsid(3+n3d+m),start(1:2),
      &                            count(1:2),vts)
             deallocate(vts)
           endif
@@ -514,8 +514,8 @@ c     open file with ship locations
       call ccnf_inq_dimlen(inshipid(1),'npts',nshippts)
 c     read times for ship samples
       allocate(shipdate(nshippts),shiptime(nshippts))
-      call ccnf_get_var_int(inshipid(1),'date',shipdate)
-      call ccnf_get_var_int(inshipid(1),'time',shiptime)
+      call ccnf_get_var(inshipid(1),'date',shipdate)
+      call ccnf_get_var(inshipid(1),'time',shiptime)
       call ccnf_inq_varid(inshipid(1),'loc',inshipid(2),tst)
       if (tst) then
         write(6,*) "ERROR: Cannot locate loc"
@@ -626,21 +626,21 @@ c         keep real sample time rather than model time for easier
 c         match to data
           info(1) = shipdate(indship+1)
           info(2) = shiptime(indship+1)
-          call ccnf_get_var1_int(inshipid(1),inshipid(2),indship+1,iloc)
+          call ccnf_get_var1(inshipid(1),inshipid(2),indship+1,iloc)
           info(3) = iloc
 c    rml 18/12/03 addition of level info to do aircraft output
-          call ccnf_get_var1_int(inshipid(1),inshipid(4),indship+1,ilev)
+          call ccnf_get_var1(inshipid(1),inshipid(4),indship+1,ilev)
           info(4) = ilev
-          call ccnf_get_var1_int(inshipid(1),inshipid(3),indship+1,
+          call ccnf_get_var1(inshipid(1),inshipid(3),indship+1,
      &                           iship)
           info(5) = iship
           start(1)=1; start(2)=nshipout
           kount(1)=5; kount(2)=1
-          call ccnf_put_vara_int(outshipid(1),outshipid(2),start,kount,
+          call ccnf_put_vara(outshipid(1),outshipid(2),start,kount,
      &                         info)
           start(1)=1; start(2)=nshipout
           kount(1)=ntrac; kount(2)=1
-          call ccnf_put_vara_real(outshipid(1),outshipid(3),start,kount,
+          call ccnf_put_vara(outshipid(1),outshipid(3),start,kount,
      &                         tr(iloc,ilev,:))
 
           indship=indship+1

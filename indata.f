@@ -253,9 +253,9 @@
       if(myid==0)then
        write(6,*) 'bet ',bet
        write(6,*) 'betm ',betm
-       if (nh.ne.0) then
-        if(nh==2.and.lapsbot.ne.3)stop 'nh=2 needs lapsbot=3'
-        if (abs(epsp).le.1.) then
+       if (nh/=0) then
+        if(nh==2.and.lapsbot/=3)stop 'nh=2 needs lapsbot=3'
+        if (abs(epsp)<=1.) then
          ! exact treatment when epsp is constant
          call eig(sig,sigmh,tbar,lapsbot,isoth,dt,abs(epsp),nsig,
      &            bet,betm,nh)
@@ -2740,7 +2740,7 @@ c find coexp: see notes "simplified wind model ..." eq 34a
 	    write(6,*) "ERROR: Cannot read SST_DJF"
 	    call ccmpi_abort(-1)
 	  end if
-	  call ccnf_get_vara_real(ncid,varid,spos(1:1),npos(1:1),sdata)
+	  call ccnf_get_vara(ncid,varid,spos(1:1),npos(1:1),sdata)
 	  npos=1
 	  npos(1)=300
 	  call ccnf_inq_varid(ncid,'YT_OCEAN',varid,tst)
@@ -2748,7 +2748,7 @@ c find coexp: see notes "simplified wind model ..." eq 34a
 	    write(6,*) "ERROR: Cannot read SST_DJF"
 	    call ccmpi_abort(-1)
 	  end if
-	  call ccnf_get_vara_real(ncid,varid,spos(1:1),npos(1:1),ldata)	
+	  call ccnf_get_vara(ncid,varid,spos(1:1),npos(1:1),ldata)	
 	  call ccnf_close(ncid)
         sdata=sdata+273.16
       end if

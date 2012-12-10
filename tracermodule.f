@@ -347,12 +347,12 @@ c       no surface fluxes to read
         call ccnf_inq_dimid(ncidfl,'gridpts',gridid,gridpts)
         call ccnf_inq_dimlen(ncidfl,'time',ntime)
         allocate(fluxyr(ntime),fluxmon(ntime))
-        call ccnf_get_var_int(ncidfl,'year',fluxyr)
-        call ccnf_get_var_int(ncidfl,'month',fluxmon)
+        call ccnf_get_var(ncidfl,'year',fluxyr)
+        call ccnf_get_var(ncidfl,'month',fluxmon)
 c       read hours variable for daily, hourly, 3 hourly data
         if (nflux==(31*24+2)) then
           allocate(fluxhr(ntime))
-          call ccnf_get_var_real(ncidfl,'hour',fluxhr)
+          call ccnf_get_var(ncidfl,'hour',fluxhr)
         endif
 c       check fluxname first otherwise default to 'flux'
         call ccnf_inq_varid(ncidfl,fluxname,fluxid,tst)
@@ -361,7 +361,7 @@ c       check fluxname first otherwise default to 'flux'
           if (tst) stop 'flux variable not found'
         endif
 c       rml 25/08/04 read flux units attribute
-        call ccnf_get_att_text(ncidfl,fluxid,'units',fluxunit)
+        call ccnf_get_att(ncidfl,fluxid,'units',fluxunit)
 c rml 08/11/04 added radon units
 ! rml 30/4/10 exclude mcf deposition case
         if (igas<=ngas) then
@@ -447,17 +447,17 @@ c
 c         read preceeding month if needed
           if (nprev/=0) then
             start(timx)=nprev
-            call ccnf_get_vara_real(ncidfl,fluxid,start,count,
+            call ccnf_get_vara(ncidfl,fluxid,start,count,
      &                            fluxin_g(:,1))
           endif
 c         read current month/year
           start(timx)=ncur
-          call ccnf_get_vara_real(ncidfl,fluxid,start,count,
+          call ccnf_get_vara(ncidfl,fluxid,start,count,
      &                          fluxin_g(:,2))
 c         read next month
           if (nnext/=0) then
             start(timx)=nnext
-            call ccnf_get_vara_real(ncidfl,fluxid,start,count,
+            call ccnf_get_vara(ncidfl,fluxid,start,count,
      &                            fluxin_g(:,3))
           endif
         else
@@ -492,7 +492,7 @@ c         read fluxes
             start(3)=1; count(3)=ntot
             timx=3
           end if
-          call ccnf_get_vara_real(ncidfl,fluxid,start,count,
+          call ccnf_get_vara(ncidfl,fluxid,start,count,
      &                                fluxin_g(:,2:ntot+1))
 c         read in last time of prev month and first time of next month
           if ((n1==1).and.(fluxyr(n1)==0)) then
@@ -505,7 +505,7 @@ c           keep constant
             nprev=n1-1
           endif
           start(timx)=nprev; count(timx)=1
-          call ccnf_get_vara_real(ncidfl,fluxid,start,count,
+          call ccnf_get_vara(ncidfl,fluxid,start,count,
      &                            fluxin_g(:,1))
           if ((n2==ntime).and.(fluxyr(n2)==0)) then
             nnext=1
@@ -515,7 +515,7 @@ c           keep constant
             nnext=n2+1
           endif
           start(timx)=nnext; count(timx)=1
-          call ccnf_get_vara_real(ncidfl,fluxid,start,count,
+          call ccnf_get_vara(ncidfl,fluxid,start,count,
      &                                      fluxin_g(:,ntot+2))
 c
 c         need to make an array with the hour data in
@@ -532,7 +532,7 @@ c         read sunrise/sunset times for this month, region from file
           if (regnum>nregion) stop 'region number > nregion'
           start(1)=regnum; start(2)=imon; start(3)=1
           count(1)=1; count(2)=1; count(3)=2
-          call ccnf_get_vara_real(ncidfl,dayid,start,count,
+          call ccnf_get_vara(ncidfl,dayid,start,count,
      &                          tracdaytime(igas,:))
         end if
 
@@ -611,7 +611,7 @@ c     nflux =3 for month interp case - last month, this month, next month
         call ccnf_inq_dimid(ncidfl,'gridpts',gridid,gridpts)
         call ccnf_inq_dimlen(ncidfl,'time',ntime)
         allocate(ohmon(ntime))
-        call ccnf_get_var_int(ncidfl,'month',ohmon)
+        call ccnf_get_var(ncidfl,'month',ohmon)
 c       check fluxname 
         call ccnf_inq_varid(ncidfl,varname,fluxid,tst)
 c
@@ -651,17 +651,17 @@ c
 c         read preceeding month if needed
           if (nprev/=0) then
             start(timx)=nprev
-            call ccnf_get_vara_real(ncidfl,fluxid,start,count,
+            call ccnf_get_vara(ncidfl,fluxid,start,count,
      &                            ohin_g(:,:,1))
           endif
 c         read current month/year
           start(timx)=ncur
-          call ccnf_get_vara_real(ncidfl,fluxid,start,count,
+          call ccnf_get_vara(ncidfl,fluxid,start,count,
      &                            ohin_g(:,:,2))
 c         read next month
           if (nnext/=0) then
             start(timx)=nnext
-            call ccnf_get_vara_real(ncidfl,fluxid,start,count,
+            call ccnf_get_vara(ncidfl,fluxid,start,count,
      &                            ohin_g(:,:,3))
           endif
         endif

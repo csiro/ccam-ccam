@@ -126,42 +126,42 @@
 
         ! Define coords.
         call ccnf_def_var(idnc,'longitude','float',1,dim(1:1),ixp)
-        call ccnf_put_att_text(idnc,ixp,'point_spacing',4,'even')
-        call ccnf_put_att_text(idnc,ixp,'units',12,'degrees_east')
+        call ccnf_put_att(idnc,ixp,'point_spacing',4,'even')
+        call ccnf_put_att(idnc,ixp,'units',12,'degrees_east')
         call ccnf_def_var(idnc,'latitude','float',1,dim(2:2),iyp)
-        call ccnf_put_att_text(idnc,iyp,'point_spacing',4,'even')
-        call ccnf_put_att_text(idnc,iyp,'units',13,'degrees_north')
+        call ccnf_put_att(idnc,iyp,'point_spacing',4,'even')
+        call ccnf_put_att(idnc,iyp,'units',13,'degrees_north')
         if (myid==0) then
           write(6,*) 'ixp,iyp=',ixp,iyp
         end if
 
         call ccnf_def_var(idnc,'lev','float',1,dim(3:3),idlev)
-        call ccnf_put_att_text(idnc,idlev,'positive',4,'down')
-        call ccnf_put_att_text(idnc,idlev,'point_spacing',6,'uneven')
-        call ccnf_put_att_text(idnc,idlev,'units',11,'sigma_level')
-        call ccnf_put_att_text(idnc,idlev,'long_name',11,'sigma_level')
+        call ccnf_put_att(idnc,idlev,'positive',4,'down')
+        call ccnf_put_att(idnc,idlev,'point_spacing',6,'uneven')
+        call ccnf_put_att(idnc,idlev,'units',11,'sigma_level')
+        call ccnf_put_att(idnc,idlev,'long_name',11,'sigma_level')
         if (myid==0) then
           write(6,*) 'idlev=',idlev
         end if
 
         call ccnf_def_var(idnc,'zsoil','float',1,dims(3:3),idms)
-        call ccnf_put_att_text(idnc,idms,'point_spacing',6,'uneven')
-        call ccnf_put_att_text(idnc,idms,'units',1,'m')
+        call ccnf_put_att(idnc,idms,'point_spacing',6,'uneven')
+        call ccnf_put_att(idnc,idms,'units',1,'m')
         if (myid==0) then
           write(6,*) 'idms=',idms
         end if
         
         if (abs(nmlo)>0.and.abs(nmlo)<=9) then
           call ccnf_def_var(idnc,'olev','float',1,dimo(3:3),idoc)
-          call ccnf_put_att_text(idnc,idoc,'point_spacing',6,'uneven')
-          call ccnf_put_att_text(idnc,idoc,'units',11,'sigma_level')
+          call ccnf_put_att(idnc,idoc,'point_spacing',6,'uneven')
+          call ccnf_put_att(idnc,idoc,'units',11,'sigma_level')
           if (myid==0) then
             write(6,*) 'idoc=',idoc
           end if
         end if
 
         call ccnf_def_var(idnc,'time','float',1,dim(4:4),idnt)
-        call ccnf_put_att_text(idnc,idnt,'point_spacing',4,'even')
+        call ccnf_put_att(idnc,idnt,'point_spacing',4,'even')
         if (myid==0) then
           write(6,*) 'tdim,idnc=',tdim,idnc
           write(6,*) 'idnt=',idnt
@@ -177,12 +177,12 @@
         ics=0
         write(timorg,'(i2.2,"-",a3,"-",i4.4,3(":",i2.2))')
      &               icd,month(icm),icy,ich,icmi,ics
-        call ccnf_put_att_text(idnc,idnt,'time_origin',20,timorg)
+        call ccnf_put_att(idnc,idnt,'time_origin',20,timorg)
         write(grdtim,'("minutes since ",i4.4,"-",i2.2,"-",i2.2," ",
      &       2(i2.2,":"),i2.2)') icy,icm,icd,ich,icmi,ics
-        call ccnf_put_att_text(idnc,idnt,'units',33,grdtim)
+        call ccnf_put_att(idnc,idnt,'units',33,grdtim)
         if (leap==0) then
-          call ccnf_put_att_text(idnc,idnt,'calendar',6,'noleap')
+          call ccnf_put_att(idnc,idnt,'calendar',6,'noleap')
         end if
         if (myid==0) then
           write(6,*) 'timorg=',timorg
@@ -262,9 +262,9 @@ c       create the attributes of the header record of the file
           write(6,'("nahead=",(20i4))') nahead
           write(6,*) "ahead=",ahead
         end if
-        call ccnf_put_att_intg(idnc,'int_header',nihead,nahead)
-        call ccnf_put_att_realg(idnc,'real_header',nrhead,ahead)
-        call ccnf_put_att_textg(idnc,'date_header',rundate)
+        call ccnf_put_attg(idnc,'int_header',nihead,nahead)
+        call ccnf_put_attg(idnc,'real_header',nrhead,ahead)
+        call ccnf_put_attg(idnc,'date_header',rundate)
 
         call ccnf_def_var0(idnc,'ds','float',idv)
         call ccnf_def_var0(idnc,'dt','float',idv)
@@ -407,22 +407,22 @@ c       Model run number
          write(6,*) 'idim=',idim
          write(6,*) 'nrun=',nrun
         end if
-        call ccnf_put_att_intg(idnc,'nrun',nrun)
+        call ccnf_put_attg(idnc,'nrun',nrun)
 
 c       Experiment description
         expdesc = 'CCAM model run'
-        call ccnf_put_att_textg(idnc,'expdesc',expdesc)
+        call ccnf_put_attg(idnc,'expdesc',expdesc)
 
 c       Model version
-        call ccnf_put_att_textg(idnc,'version',version)
+        call ccnf_put_attg(idnc,'version',version)
 
         if(local)then
-           call ccnf_put_att_intg(idnc,'processor_num',myid)
-           call ccnf_put_att_intg(idnc,'nproc',nproc)
+           call ccnf_put_attg(idnc,'processor_num',myid)
+           call ccnf_put_attg(idnc,'nproc',nproc)
 #ifdef uniform_decomp
-           call ccnf_put_att_textg(idnc,'decomp','uniform')
+           call ccnf_put_attg(idnc,'decomp','uniform')
 #else
-           call ccnf_put_att_textg(idnc,'decomp','face')
+           call ccnf_put_attg(idnc,'decomp','face')
 #endif
         endif           
 
@@ -430,62 +430,62 @@ c       Sigma levels
         if (myid==0) then
          write(6,*) 'sig=',sig
         end if
-        call ccnf_put_att_realg(idnc,'sigma',kl,sig)
+        call ccnf_put_attg(idnc,'sigma',kl,sig)
 
         lname = 'year-month-day at start of run'
         call ccnf_def_var(idnc,'kdate','int',1,dim(4:4),idkdate)
-        call ccnf_put_att_text(idnc,idkdate,'long_name',
+        call ccnf_put_att(idnc,idkdate,'long_name',
      &                         len_trim(lname),lname)
 
         lname = 'hour-minute at start of run'
         call ccnf_def_var(idnc,'ktime','int',1,dim(4:4),idktime)
-        call ccnf_put_att_text(idnc,idktime,'long_name',
+        call ccnf_put_att(idnc,idktime,'long_name',
      &                         len_trim(lname),lname)
 
         lname = 'timer (hrs)'
         call ccnf_def_var(idnc,'timer','float',1,dim(4:4),idnter)
-        call ccnf_put_att_text(idnc,idnter,'long_name',
+        call ccnf_put_att(idnc,idnter,'long_name',
      &                         len_trim(lname),lname)
 
         lname = 'mtimer (mins)'
         call ccnf_def_var(idnc,'mtimer','int',1,dim(4:4),idmtimer)
-        call ccnf_put_att_text(idnc,idmtimer,'long_name',
+        call ccnf_put_att(idnc,idmtimer,'long_name',
      &                         len_trim(lname),lname)
 
         lname = 'timeg (UTC)'
         call ccnf_def_var(idnc,'timeg','float',1,dim(4:4),idnteg)
-        call ccnf_put_att_text(idnc,idnteg,'long_name',
+        call ccnf_put_att(idnc,idnteg,'long_name',
      &                         len_trim(lname),lname)
 
         lname = 'number of time steps from start'
         call ccnf_def_var(idnc,'ktau','int',1,dim(4:4),idktau)
-        call ccnf_put_att_text(idnc,idktau,'long_name',
+        call ccnf_put_att(idnc,idktau,'long_name',
      &                         len_trim(lname),lname)
 
         call ccnf_def_var(idnc,'sigma','float',1,dim(3:3),idv)
-        call ccnf_put_att_text(idnc,idv,'positive',
+        call ccnf_put_att(idnc,idv,'positive',
      &                         len_trim('down'),'down')
 
         lname = 'atm stag direction'
         call ccnf_def_var(idnc,'nstag','int',1,dim(4:4),idv)
-        call ccnf_put_att_text(idnc,idv,'long_name',
+        call ccnf_put_att(idnc,idv,'long_name',
      &                         len_trim(lname),lname)
 
         lname = 'atm unstag direction'
         call ccnf_def_var(idnc,'nstagu','int',1,dim(4:4),idv)
-        call ccnf_put_att_text(idnc,idv,'long_name',
+        call ccnf_put_att(idnc,idv,'long_name',
      &                         len_trim(lname),lname)
 
         lname = 'atm stag offset'
         call ccnf_def_var(idnc,'nstagoff','int',1,dim(4:4),idv)
-        call ccnf_put_att_text(idnc,idv,'long_name',
+        call ccnf_put_att(idnc,idv,'long_name',
      &                         len_trim(lname),lname)
 
         if ((nmlo<0.and.nmlo>=-9).or.
      &      (nmlo>0.and.nmlo<=9.and.itype==-1)) then
           lname = 'ocn stag offset'
           call ccnf_def_var(idnc,'nstagoffmlo','int',1,dim(4:4),idv)
-          call ccnf_put_att_text(idnc,idv,'long_name',
+          call ccnf_put_att(idnc,idv,'long_name',
      &                           len_trim(lname),lname)     
         end if
 
@@ -1321,7 +1321,7 @@ c       Leave define mode
            end do
            iduma(1)=1
            iduma(2)=il
-           call ccnf_put_vara_real(idnc,ixp,iduma(1:1),iduma(2:2),
+           call ccnf_put_vara(idnc,ixp,iduma(1:1),iduma(2:2),
      &                             xpnt(1:il))
            i=1
            do n=1,npan
@@ -1332,7 +1332,7 @@ c       Leave define mode
            end do
            iduma(1)=1
            iduma(2)=jl
-           call ccnf_put_vara_real(idnc,iyp,iduma(1:1),iduma(2:2),
+           call ccnf_put_vara(idnc,iyp,iduma(1:1),iduma(2:2),
      &                             ypnt(1:jl))
         else
            do i=1,il_g
@@ -1340,28 +1340,28 @@ c       Leave define mode
            end do
            iduma(1)=1
            iduma(2)=il_g
-           call ccnf_put_vara_real(idnc,ixp,iduma(1:1),iduma(2:2),xpnt)
+           call ccnf_put_vara(idnc,ixp,iduma(1:1),iduma(2:2),xpnt)
            do j=1,jl_g
               ypnt(j) = float(j)
            end do
            iduma(1)=1
            iduma(2)=jl_g
-           call ccnf_put_vara_real(idnc,iyp,iduma(1:1),iduma(2:2),ypnt)
+           call ccnf_put_vara(idnc,iyp,iduma(1:1),iduma(2:2),ypnt)
         endif
 
         iduma(1)=1
         iduma(2)=kl
-        call ccnf_put_vara_real(idnc,idlev,iduma(1:1),iduma(2:2),sig)
+        call ccnf_put_vara(idnc,idlev,iduma(1:1),iduma(2:2),sig)
 
         call ccnf_inq_varid(idnc,'sigma',idv,tst)
         iduma(1)=1
         iduma(2)=kl
-        call ccnf_put_vara_real(idnc,idv,iduma(1:1),iduma(2:2),sig)
+        call ccnf_put_vara(idnc,idv,iduma(1:1),iduma(2:2),sig)
 
         call ccnf_inq_varid(idnc,'lev',idv,tst)
         iduma(1)=1
         iduma(2)=kl
-        call ccnf_put_vara_real(idnc,idv,iduma(1:1),iduma(2:2),sig)
+        call ccnf_put_vara(idnc,idv,iduma(1:1),iduma(2:2),sig)
 
         zsoil(1)=.5*zse(1)
         zsoil(2)=zse(1)+zse(2)*.5
@@ -1371,19 +1371,19 @@ c       Leave define mode
         zsoil(6)=zse(1)+zse(2)+zse(3)+zse(4)+zse(5)+zse(6)*.5
         iduma(1)=1
         iduma(2)=ms
-        call ccnf_put_vara_real(idnc,idms,iduma(1:1),iduma(2:2),zsoil)
+        call ccnf_put_vara(idnc,idms,iduma(1:1),iduma(2:2),zsoil)
         
         if (abs(nmlo)>0.and.abs(nmlo)<=9) then
           iduma(1)=1
           iduma(2)=wlev
-          call ccnf_put_vara_real(idnc,idoc,iduma(1:1),iduma(2:2),
+          call ccnf_put_vara(idnc,idoc,iduma(1:1),iduma(2:2),
      &                            gosig)
         end if
 
         call ccnf_inq_varid(idnc,'ds',idv,tst)
-        call ccnf_put_var1_real(idnc,idv,1,ds)
+        call ccnf_put_var1(idnc,idv,1,ds)
         call ccnf_inq_varid(idnc,'dt',idv,tst)
-        call ccnf_put_var1_real(idnc,idv,1,dt)
+        call ccnf_put_var1(idnc,idv,1,dt)
        endif ! iarch==1
 !      -----------------------------------------------------------      
        if (myid==0) then
@@ -1392,33 +1392,33 @@ c       Leave define mode
        end if
 c      set time to number of minutes since start 
        call ccnf_inq_varid(idnc,'time',idv,tst)
-       call ccnf_put_var1_real(idnc,idv,iarch,real(mtimer))
+       call ccnf_put_var1(idnc,idv,iarch,real(mtimer))
        call ccnf_inq_varid(idnc,'timer',idv,tst)
-       call ccnf_put_var1_real(idnc,idv,iarch,timer)
+       call ccnf_put_var1(idnc,idv,iarch,timer)
        call ccnf_inq_varid(idnc,'mtimer',idv,tst)
-       call ccnf_put_var1_int(idnc,idv,iarch,mtimer)
+       call ccnf_put_var1(idnc,idv,iarch,mtimer)
        call ccnf_inq_varid(idnc,'timeg',idv,tst)
-       call ccnf_put_var1_real(idnc,idv,iarch,timeg)
+       call ccnf_put_var1(idnc,idv,iarch,timeg)
        call ccnf_inq_varid(idnc,'ktau',idv,tst)
-       call ccnf_put_var1_int(idnc,idv,iarch,ktau)
+       call ccnf_put_var1(idnc,idv,iarch,ktau)
        call ccnf_inq_varid(idnc,'kdate',idv,tst)
-       call ccnf_put_var1_int(idnc,idv,iarch,kdate)
+       call ccnf_put_var1(idnc,idv,iarch,kdate)
        call ccnf_inq_varid(idnc,'ktime',idv,tst)
-       call ccnf_put_var1_int(idnc,idv,iarch,ktime)
+       call ccnf_put_var1(idnc,idv,iarch,ktime)
        call ccnf_inq_varid(idnc,'nstag',idv,tst)
-       call ccnf_put_var1_int(idnc,idv,iarch,nstag)
+       call ccnf_put_var1(idnc,idv,iarch,nstag)
        call ccnf_inq_varid(idnc,'nstagu',idv,tst)
-       call ccnf_put_var1_int(idnc,idv,iarch,nstagu)
+       call ccnf_put_var1(idnc,idv,iarch,nstagu)
        idum=mod(ktau-nstagoff,max(abs(nstagin),1))
        idum=idum-max(abs(nstagin),1) ! should be -ve
        call ccnf_inq_varid(idnc,'nstagoff',idv,tst)
-       call ccnf_put_var1_int(idnc,idv,iarch,idum)
+       call ccnf_put_var1(idnc,idv,iarch,idum)
        if ((nmlo<0.and.nmlo>=-9).or.
      &      (nmlo>0.and.nmlo<=9.and.itype==-1)) then
          idum=mod(ktau-nstagoffmlo,max(2*mstagf,1))
          idum=idum-max(2*mstagf,1) ! should be -ve
          call ccnf_inq_varid(idnc,'nstagoffmlo',idv,tst)
-         call ccnf_put_var1_int(idnc,idv,iarch,idum)
+         call ccnf_put_var1(idnc,idv,iarch,idum)
        end if
        if (myid==0) then
          write(6,*) 'kdate,ktime,ktau=',kdate,ktime,ktau
@@ -2124,17 +2124,17 @@ c      "extra" outputs
           call ccnf_def_dimu(fncid,'time',adim(4))
           ! Define coords.
           call ccnf_def_var(fncid,'longitude','float',1,adim(1:1),ixp)
-          call ccnf_put_att_text(fncid,ixp,'point_spacing',4,'even')
-          call ccnf_put_att_text(fncid,ixp,'units',12,'degrees_east')
+          call ccnf_put_att(fncid,ixp,'point_spacing',4,'even')
+          call ccnf_put_att(fncid,ixp,'units',12,'degrees_east')
           call ccnf_def_var(fncid,'latitude','float',1,adim(2:2),iyp)
-          call ccnf_put_att_text(fncid,iyp,'point_spacing',4,'even')
-          call ccnf_put_att_text(fncid,iyp,'units',13,'degrees_north')
+          call ccnf_put_att(fncid,iyp,'point_spacing',4,'even')
+          call ccnf_put_att(fncid,iyp,'units',13,'degrees_north')
           call ccnf_def_var(fncid,'lev','float',1,adim(3:3),izp)
-          call ccnf_put_att_text(fncid,izp,'positive',4,'down')
-          call ccnf_put_att_text(fncid,izp,'point_spacing',6,'uneven')
-          call ccnf_put_att_text(fncid,izp,'units',11,'sigma_level')
+          call ccnf_put_att(fncid,izp,'positive',4,'down')
+          call ccnf_put_att(fncid,izp,'point_spacing',6,'uneven')
+          call ccnf_put_att(fncid,izp,'units',11,'sigma_level')
           call ccnf_def_var(fncid,'time','double',1,adim(4:4),idnt)
-          call ccnf_put_att_text(fncid,idnt,'point_spacing',4,'even')
+          call ccnf_put_att(fncid,idnt,'point_spacing',4,'even')
           icy=kdate/10000
           icm=max(1,min(12,(kdate-icy*10000)/100))
           icd=max(1,min(31,(kdate-icy*10000-icm*100)))
@@ -2144,12 +2144,12 @@ c      "extra" outputs
           ics=0
           write(timorg,'(i2.2,"-",a3,"-",i4.4,3(":",i2.2))')
      &                   icd,month(icm),icy,ich,icmi,ics
-          call ccnf_put_att_text(fncid,idnt,'time_origin',20,timorg)
+          call ccnf_put_att(fncid,idnt,'time_origin',20,timorg)
           write(grdtim,'("seconds since ",i4.4,"-",i2.2,"-",i2.2," ",
      &         2(i2.2,":"),i2.2)') icy,icm,icd,ich,icmi,ics
-          call ccnf_put_att_text(fncid,idnt,'units',33,grdtim)
+          call ccnf_put_att(fncid,idnt,'units',33,grdtim)
           if (leap==0) then
-            call ccnf_put_att_text(fncid,idnt,'calendar',6,'noleap')
+            call ccnf_put_att(fncid,idnt,'calendar',6,'noleap')
           end if
           call ccnf_def_var(fncid,'kdate','int',1,adim(4:4),idkdate)
           call ccnf_def_var(fncid,'ktime','int',1,adim(4:4),idktime)
@@ -2223,15 +2223,15 @@ c      "extra" outputs
           nahead(52)=nevapls
           nahead(53)=nevapcc
           nahead(54)=nt_adv
-          call ccnf_put_att_realg(fncid,'real_header',nrhead,ahead)
-          call ccnf_put_att_intg(fncid,'int_header',nihead,nahead)
+          call ccnf_put_attg(fncid,'real_header',nrhead,ahead)
+          call ccnf_put_attg(fncid,'int_header',nihead,nahead)
           if(localhist)then
-            call ccnf_put_att_intg(fncid,'processor_num',myid)
-            call ccnf_put_att_intg(fncid,'nproc',nproc)
+            call ccnf_put_attg(fncid,'processor_num',myid)
+            call ccnf_put_attg(fncid,'nproc',nproc)
 #ifdef uniform_decomp
-            call ccnf_put_att_textg(fncid,'decomp','uniform')
+            call ccnf_put_attg(fncid,'decomp','uniform')
 #else
-            call ccnf_put_att_textg(fncid,'decomp','face')
+            call ccnf_put_attg(fncid,'decomp','face')
 #endif
           endif 
           ! define variables
@@ -2262,7 +2262,7 @@ c      "extra" outputs
            end do
            iduma(1)=1
            iduma(2)=il
-           call ccnf_put_vara_real(fncid,ixp,iduma(1:1),iduma(2:2),
+           call ccnf_put_vara(fncid,ixp,iduma(1:1),iduma(2:2),
      &                             xpnt(1:il))
            i=1
            do n=1,npan
@@ -2273,23 +2273,23 @@ c      "extra" outputs
            end do
            iduma(1)=1
            iduma(2)=jl
-           call ccnf_put_vara_real(fncid,iyp,iduma(1:1),iduma(2:2),
+           call ccnf_put_vara(fncid,iyp,iduma(1:1),iduma(2:2),
      &                             ypnt(1:jl))
           else
            do i=1,il_g
               xpnt(i) = float(i)
            end do
-           call ccnf_put_vara_real(fncid,ixp,iduma(1:1),iduma(2:2),
+           call ccnf_put_vara(fncid,ixp,iduma(1:1),iduma(2:2),
      &                             xpnt)
            do j=1,jl_g
               ypnt(j) = float(j)
            end do
-           call ccnf_put_vara_real(fncid,iyp,iduma(1:1),iduma(2:2),
+           call ccnf_put_vara(fncid,iyp,iduma(1:1),iduma(2:2),
      &                             ypnt)
           end if
           iduma(1)=1
           iduma(2)=kl
-          call ccnf_put_vara_real(fncid,izp,iduma(1:1),iduma(2:2),sig)
+          call ccnf_put_vara(fncid,izp,iduma(1:1),iduma(2:2),sig)
         end if
         first=.false.
         if (myid==0) then
@@ -2325,19 +2325,19 @@ c      "extra" outputs
           do i=1,nwt
             tpnt(i)=real(ktau-nwt+i,8)*real(dt,8)
           end do
-          call ccnf_put_vara_double(fncid,idnt,start,ncount,tpnt)
+          call ccnf_put_vara(fncid,idnt,start,ncount,tpnt)
           do i=1,nwt
             datedat(i)=kdate
           end do
-          call ccnf_put_vara_int(fncid,idkdate,start,ncount,datedat)
+          call ccnf_put_vara(fncid,idkdate,start,ncount,datedat)
           do i=1,nwt
             datedat(i)=ktime
           end do
-          call ccnf_put_vara_int(fncid,idktime,start,ncount,datedat)
+          call ccnf_put_vara(fncid,idktime,start,ncount,datedat)
           do i=1,nwt
             datedat(i)=mtimer+nint(real(i-nwt)*dt/60.)
           end do
-          call ccnf_put_vara_int(fncid,idmtimer,start,ncount,datedat)
+          call ccnf_put_vara(fncid,idmtimer,start,ncount,datedat)
         end if
         call freqwrite(fncid,'uas',fiarch,nwt,localhist,
      &                 freqstore(:,:,1))
