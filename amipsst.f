@@ -396,11 +396,12 @@ c       c1=0.
         end if
         unitstr=''
         call ccnf_get_att(ncidx,varid,'units',unitstr)
+        write(6,*) "Reading SST data from amipsst file"        
         call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
-        call ccnf_get_att(ncidx,varid,'add_offset',of)
+        call ccnf_get_att(ncidx,varid,'add_offset',of,ierr=ierr)
         if (ierr/=0) of=0.
         if (trim(unitstr)=='C') of=of+273.16
-        call ccnf_get_att(ncidx,varid,'scale_factor',sc)
+        call ccnf_get_att(ncidx,varid,'scale_factor',sc,ierr=ierr)
         if (ierr/=0) sc=1.
         ssta_g=sc*ssta_g+of        
         call ccmpi_distribute(ssta, ssta_g)
@@ -476,10 +477,11 @@ c       extra read from Oct 08
             write(6,*) "ERROR: Cannot locate sic"
             call ccmpi_abort(-1)
           end if
+          write(6,*) "Reading Sea Ice data from amipsst file"
           call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
-          call ccnf_get_att(ncidx,varid,'add_offset',of)
+          call ccnf_get_att(ncidx,varid,'add_offset',of,ierr=ierr)
           if (ierr/=0) of=0.
-          call ccnf_get_att(ncidx,varid,'scale_factor',sc)
+          call ccnf_get_att(ncidx,varid,'scale_factor',sc,ierr=ierr)
           if (ierr/=0) sc=1.
           ssta_g=sc*ssta_g+of
           ssta_g=100.*ssta_g  
@@ -553,10 +555,11 @@ c         extra cice read from Oct 08
             write(6,*) "ERROR: Cannot locate sss"
             call ccmpi_abort(-1)
           end if
+          write(6,*) "Reading Salinity data from amipsst file"
           call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
-          call ccnf_get_att(ncidx,varid,'add_offset',of)
+          call ccnf_get_att(ncidx,varid,'add_offset',of,ierr=ierr)
           if (ierr/=0) of=0.
-          call ccnf_get_att(ncidx,varid,'scale_factor',sc)
+          call ccnf_get_att(ncidx,varid,'scale_factor',sc,ierr=ierr)
           if (ierr/=0) sc=1.  
           ssta_g=sc*ssta_g+of
           call ccmpi_distribute(asal, ssta_g)

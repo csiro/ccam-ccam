@@ -381,12 +381,12 @@ c       print *,'termx ',(t(iq,k)+contv*tvv)*dpsldt(iq,k)*roncp/sig(k)
       enddo
 
       call bounds(p,nehalf=.true.)
+      call bounds(tv,nehalf=.true.)
       duma(1:ifull,1:kl)=phiv(1:ifull,:)
       duma(1:ifull,kl+1)=psl(1:ifull)
       call bounds(duma)
       phiv(ifull+1:ifull+iextra,1:kl)=duma(ifull+1:ifull+iextra,1:kl)
       psl(ifull+1:ifull+iextra)=duma(ifull+1:ifull+iextra,kl+1)      
-      call bounds(tv,nehalf=.true.)
 
       do k=1,kl
 !cdir nodep

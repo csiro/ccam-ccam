@@ -2492,7 +2492,7 @@ call ncmsg("get_vara",ncstatus)
 return
 end subroutine ccnf_get_vara_double4d
 
-subroutine ccnf_get_att_text(ncid,vid,aname,atext)
+subroutine ccnf_get_att_text(ncid,vid,aname,atext,ierr)
 
 use cc_mpi
 #ifndef usenc3
@@ -2506,6 +2506,7 @@ include 'netcdf.inc'
 #endif
 
 integer, intent(in) :: ncid,vid
+integer, intent(out), optional :: ierr
 integer ncstatus
 character(len=*), intent(in) :: aname
 character(len=*), intent(out) :: atext
@@ -2516,12 +2517,16 @@ ncstatus = nf_get_att_text(ncid,vid,aname,atext)
 #else
 ncstatus = nf90_get_att(ncid,vid,aname,atext)
 #endif
-call ncmsg("get_att",ncstatus)
+if (present(ierr)) then
+  ierr=ncstatus
+else
+  call ncmsg(aname,ncstatus)
+end if
 
 return
 end subroutine ccnf_get_att_text
 
-subroutine ccnf_get_att_real(ncid,vid,aname,vdat)
+subroutine ccnf_get_att_real(ncid,vid,aname,vdat,ierr)
 
 use cc_mpi
 #ifndef usenc3
@@ -2535,6 +2540,7 @@ include 'netcdf.inc'
 #endif
 
 integer, intent(in) :: ncid,vid
+integer, intent(out), optional :: ierr
 integer ncstatus
 character(len=*), intent(in) :: aname
 real, intent(out) :: vdat
@@ -2544,7 +2550,11 @@ ncstatus = nf_get_att_real(ncid,vid,aname,vdat)
 #else
 ncstatus = nf90_get_att(ncid,vid,aname,vdat)
 #endif
-call ncmsg("get_att",ncstatus)
+if (present(ierr)) then
+  ierr=ncstatus
+else
+  call ncmsg(aname,ncstatus)
+end if
 
 
 return
