@@ -41,11 +41,9 @@ c     doing x-interpolation before y-interpolation
                      sx(i,j,n,k) = s(ind(i,j,n),k)
                   enddo         ! i loop
                enddo            ! j loop
-            enddo               ! n loop
             
 c       this is intsb           EW interps done first
 c       first extend s arrays into sx - this one -1:il+2 & -1:il+2
-            do n=1,npan
                do j=1,jpan
                   sx(0,j,n,k) = s(iw(ind(1,j,n)),k)
                   sx(-1,j,n,k) = s(iww(ind(1,j,n)),k)
@@ -417,9 +415,7 @@ c       first extend s arrays into sx - this one -1:il+2 & -1:il+2
                      sx(i,j,n,k)=s(ind(i,j,n),k)
                   enddo         ! i loop
                enddo            ! j loop
-            enddo               ! n loop
 
-            do n=1,npan
                do j=1,jpan
                   sx(0,j,n,k) = s(iw(ind(1,j,n)),k)
                   sx(-1,j,n,k) = s(iww(ind(1,j,n)),k)

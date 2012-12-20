@@ -560,14 +560,10 @@
       if (myid == 0) then     
         write(6,*) "Gather data for spectral filter"
       end if
-      if(nud_p>0) then
-        if (myid==0) then
-          call ccmpi_gather(pslb(:), psld(:))
-        else
-          call ccmpi_gather(pslb(:))
-        end if
+      if (nud_p>0) then
+        call ccmpi_gatherall(pslb(:), psld(:))
       end if
-      if(nud_uv==3)then
+      if (nud_uv==3) then
         polenx=-cos(rlat0*pi/180.)
         poleny=0.
         polenz=sin(rlat0*pi/180.)
@@ -583,50 +579,33 @@
           diffu(:,k)=costh(:)*ub(:,k)  ! uzon
      &             -sinth(:)*vb(:,k)
         end do
-        if (myid==0) then
-          call ccmpi_gather(diffu(:,kbotdav:ktopdav),
-     &                      wd(:,kbotdav:ktopdav))
-        else
-          call ccmpi_gather(diffu(:,kbotdav:ktopdav))
-        end if
-      elseif(nud_uv/=0)then
-        if (myid==0) then
-          call ccmpi_gather(ub(:,kbotdav:ktopdav),
-     &                      ud(:,kbotdav:ktopdav))
-          call ccmpi_gather(vb(:,kbotdav:ktopdav),
-     &                      vd(:,kbotdav:ktopdav))
-          do k=kbotdav,ktopdav
-            x_g=ud(:,k)
-            xx_g=vd(:,k)
-            ud(:,k)=ax_g(:)*x_g+bx_g(:)*xx_g
-            vd(:,k)=ay_g(:)*x_g+by_g(:)*xx_g
-            wd(:,k)=az_g(:)*x_g+bz_g(:)*xx_g
-          end do
-        else
-          call ccmpi_gather(ub(:,kbotdav:ktopdav))
-          call ccmpi_gather(vb(:,kbotdav:ktopdav))
-        end if
+        call ccmpi_gatherall(diffu(:,kbotdav:ktopdav),
+     &                    wd(:,kbotdav:ktopdav))
+      else if (nud_uv/=0) then
+        call ccmpi_gatherall(ub(:,kbotdav:ktopdav),
+     &                    ud(:,kbotdav:ktopdav))
+        call ccmpi_gatherall(vb(:,kbotdav:ktopdav),
+     &                    vd(:,kbotdav:ktopdav))
+        do k=kbotdav,ktopdav
+          x_g=ud(:,k)
+          xx_g=vd(:,k)
+          ud(:,k)=ax_g(:)*x_g+bx_g(:)*xx_g
+          vd(:,k)=ay_g(:)*x_g+by_g(:)*xx_g
+          wd(:,k)=az_g(:)*x_g+bz_g(:)*xx_g
+        end do
       end if
-      if(nud_t>0)then
-        if (myid==0) then
-          call ccmpi_gather(tb(:,kbotdav:ktopdav),
-     &                      td(:,kbotdav:ktopdav))
-        else
-          call ccmpi_gather(tb(:,kbotdav:ktopdav))
-        end if
+      if (nud_t>0) then
+        call ccmpi_gatherall(tb(:,kbotdav:ktopdav),
+     &                    td(:,kbotdav:ktopdav))
       end if
-      if(nud_q>0)then
-        if (myid==0) then
-          call ccmpi_gather(qb(:,kbotdav:ktopdav),
-     &                      qd(:,kbotdav:ktopdav))
-        else
-          call ccmpi_gather(qb(:,kbotdav:ktopdav))
-        end if
+      if (nud_q>0) then
+        call ccmpi_gatherall(qb(:,kbotdav:ktopdav),
+     &                    qd(:,kbotdav:ktopdav))
       end if
 
       !-----------------------------------------------------------------------
-      if(nud_uv<0)then 
-        if (myid == 0) then
+      if (nud_uv<0) then 
+        if (myid==0) then
           write(6,*) "JLM Fast spectral filter"
           if (nproc>1) then
             write(6,*) "Option is currently disabled"
@@ -639,15 +618,15 @@
      &       ,qd(:,kbotdav:ktopdav))
         end if
         disflag=.true.
-      elseif(nud_uv==9)then 
-        if (myid == 0) write(6,*) "Two dimensional spectral filter"
+      else if (nud_uv==9) then 
+        if (myid==0) write(6,*) "Two dimensional spectral filter"
         call slowspecmpi(.1*real(mbd)/(pi*schmidt)
      &                ,psld(:),ud(:,kbotdav:ktopdav)
      &                ,vd(:,kbotdav:ktopdav),wd(:,kbotdav:ktopdav)
      &                ,td(:,kbotdav:ktopdav),qd(:,kbotdav:ktopdav))
         disflag=.false.
-      elseif(mod(6,nproc)==0.or.mod(nproc,6)==0)then
-        if (myid == 0) write(6,*) 
+      else if (mod(6,nproc)==0.or.mod(nproc,6)==0) then
+        if (myid==0) write(6,*) 
      &    "Separable 1D filter (MPI optimised)"
         call specfastmpi(myid,.1*real(mbd)/(pi*schmidt)
      &                ,psld(:),ud(:,kbotdav:ktopdav)
@@ -655,7 +634,7 @@
      &                ,td(:,kbotdav:ktopdav),qd(:,kbotdav:ktopdav))
         disflag=.true.
       else
-        if (myid == 0) write(6,*) "Separable 1D filter (MPI)"
+        if (myid==0) write(6,*) "Separable 1D filter (MPI)"
         call fourspecmpi(myid,.1*real(mbd)/(pi*schmidt)
      &                ,psld(:),ud(:,kbotdav:ktopdav)
      &                ,vd(:,kbotdav:ktopdav),wd(:,kbotdav:ktopdav)
@@ -664,7 +643,7 @@
       endif  ! (nud_uv<0) .. else ..
       !-----------------------------------------------------------------------
 
-      if (myid == 0) then
+      if (myid==0) then
         write(6,*) "Distribute data from spectral filter"
       end if
       if (nud_p>0) then
@@ -680,7 +659,7 @@
         psl(1:ifull)=psl(1:ifull)+diffu(:,1)
         ps=1.e5*exp(psl(1:ifull))
       end if
-      if(nud_uv==3)then
+      if (nud_uv==3) then
         if (disflag) then
           if (myid==0) then
             call ccmpi_distribute(diffu(:,kbotdav:ktopdav),
@@ -695,7 +674,7 @@
           ud(1:ifull,k)=costh(:)*diffu(:,k)
           vd(1:ifull,k)=-sinth(:)*diffu(:,k)	  
         end do
-      elseif(nud_uv/=0) then
+      else if (nud_uv/=0) then
         if (disflag) then
           if (myid==0) then
             do k=kbotdav,ktopdav
@@ -1189,25 +1168,9 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       cq=sqrt(4.5)*cin
 
       if (myid==0.and.nmaxpr==1) then
-        write(6,*) "Send arrays to all processors"
+        write(6,*) "Start 2D filter"
       end if
-      if(nud_p>0)then
-        call ccmpi_bcast(psls,0,comm_world)
-      end if
-      if(nud_uv>0)then
-        call ccmpi_bcast(uu,0,comm_world)
-        call ccmpi_bcast(vv,0,comm_world)
-        call ccmpi_bcast(ww,0,comm_world)
-      end if
-      if(nud_t>0)then
-        call ccmpi_bcast(tt,0,comm_world)
-      end if
-      if(nud_q>0)then
-        call ccmpi_bcast(qgg,0,comm_world)
-      end if
-    
-      if (myid==0.and.nmaxpr==1) write(6,*) "Start 2D filter"
-      
+   
       do n=1,npan
         do j=1,jpan
           do i=1,ipan
@@ -1360,24 +1323,6 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       til=il_g*il_g
       cq=sqrt(4.5)*cin ! filter length scale
 
-      if (myid==0.and.nmaxpr==1) then
-        write(6,*) "Send arrays to all processors"
-      end if
-      if(nud_p>0)then
-        call ccmpi_bcast(psls,0,comm_world)
-      end if
-      if(nud_uv>0)then
-        call ccmpi_bcast(uu,0,comm_world)
-        call ccmpi_bcast(vv,0,comm_world)
-        call ccmpi_bcast(ww,0,comm_world)
-      end if
-      if(nud_t>0)then
-        call ccmpi_bcast(tt,0,comm_world)
-      end if
-      if(nud_q>0)then
-        call ccmpi_bcast(qgg,0,comm_world)
-      end if
-      
       if (ns>ne) return
       if (myid==0.and.nmaxpr==1) write(6,*) "Start 1D filter"
 
@@ -2725,11 +2670,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             diff(:,kb)=sstb(:,ka)-old
           end where
         end do
-        if (myid==0) then
-          call ccmpi_gather(diff(:,1:kd),diff_g(:,1:kd))
-        else
-          call ccmpi_gather(diff(:,1:kd))
-        end if
+        call ccmpi_gatherall(diff(:,1:kd),diff_g(:,1:kd))
       end if
 
       if (nud_sss/=0) then
@@ -2743,11 +2684,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             diff(:,kb)=sssb(:,ka)-old
           end where
         end do
-        if (myid==0) then
-          call ccmpi_gather(diff(:,1:kd),diffs_g(:,1:kd))
-        else
-          call ccmpi_gather(diff(:,1:kd))
-        end if
+        call ccmpi_gatherall(diff(:,1:kd),diffs_g(:,1:kd))
       end if
 
       if (nud_ouv/=0) then
@@ -2761,11 +2698,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             diff(:,kb)=suvb(:,ka,1)-old
           end where
         end do
-        if (myid==0) then
-          call ccmpi_gather(diff(:,1:kd),diffu_g(:,1:kd))
-        else
-          call ccmpi_gather(diff(:,1:kd))
-        end if
+        call ccmpi_gatherall(diff(:,1:kd),diffu_g(:,1:kd))
         diff=miss
         do k=ktopmlo,kc
           ka=min(wl,k)
@@ -2776,23 +2709,19 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             diff(:,kb)=suvb(:,ka,2)-old
           end where
         end do
-        if (myid==0) then
-          call ccmpi_gather(diff(:,1:kd),diffv_g(:,1:kd))
-          do k=1,kd
-            x_g=diffu_g(:,k)
-            xx_g=diffv_g(:,k)
-            diffu_g(:,k)=ax_g*x_g+bx_g*xx_g
-            diffv_g(:,k)=ay_g*x_g+by_g*xx_g
-            diffw_g(:,k)=az_g*x_g+bz_g*xx_g
-            where (abs(x_g-miss)<0.1)
-              diffu_g(:,k)=miss
-              diffv_g(:,k)=miss
-              diffw_g(:,k)=miss
-            end where
-          end do
-        else
-          call ccmpi_gather(diff(:,1:kd))
-        end if
+        call ccmpi_gatherall(diff(:,1:kd),diffv_g(:,1:kd))
+        do k=1,kd
+          x_g=diffu_g(:,k)
+          xx_g=diffv_g(:,k)
+          diffu_g(:,k)=ax_g*x_g+bx_g*xx_g
+          diffv_g(:,k)=ay_g*x_g+by_g*xx_g
+          diffw_g(:,k)=az_g*x_g+bz_g*xx_g
+          where (abs(x_g-miss)<0.1)
+            diffu_g(:,k)=miss
+            diffv_g(:,k)=miss
+            diffw_g(:,k)=miss
+          end where
+        end do
       end if
 
       if (nud_sfh/=0) then
@@ -2802,11 +2731,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         where (.not.land)
           diff(:,1)=sfh-old
         end where
-        if (myid==0) then
-          call ccmpi_gather(diff(:,1),diffh_g(:,1))
-        else
-          call ccmpi_gather(diff(:,1))
-        end if
+        call ccmpi_gatherall(diff(:,1),diffh_g(:,1))
       end if
 
       if ((nud_uv/=9.and.abs(nmlo)/=1).or.namip/=0) then
@@ -3034,29 +2959,19 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       real, dimension(ifull_g,kd), intent(inout) :: diffw_g
       logical, dimension(ifull_g) :: landg
 
-      if (myid==0.and.nmaxpr==1) then
-        write(6,*) "Send arrays to all processors"
-      end if
-
       if (nud_sst/=0) then
-        call ccmpi_bcast(diff_g,0,comm_world)
         landg=abs(diff_g(:,1)-miss)<0.1
       end if
 
       if (nud_sss/=0) then
-        call ccmpi_bcast(diffs_g,0,comm_world)
         landg=abs(diffs_g(:,1)-miss)<0.1
       end if
 
       if (nud_ouv/=0) then
-        call ccmpi_bcast(diffu_g,0,comm_world)
-        call ccmpi_bcast(diffv_g,0,comm_world)
-        call ccmpi_bcast(diffw_g,0,comm_world)
         landg=abs(diffw_g(:,1)-miss)<0.1
       end if
 
       if (nud_sfh/=0) then
-        call ccmpi_bcast(diffh_g,0,comm_world)
         landg=abs(diffh_g(:,1)-miss)<0.1
       end if
 
@@ -3293,21 +3208,15 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       til=il_g*il_g 
 
       if (nud_sst/=0) then
-        call ccmpi_bcast(diff_g,0,comm_world)
         landg=abs(diff_g(:,1)-miss)<0.1
       end if
       if (nud_sss/=0) then
-        call ccmpi_bcast(diffs_g,0,comm_world)
         landg=abs(diffs_g(:,1)-miss)<0.1
       end if
       if (nud_ouv/=0) then
-        call ccmpi_bcast(diffu_g,0,comm_world)
-        call ccmpi_bcast(diffv_g,0,comm_world)
-        call ccmpi_bcast(diffw_g,0,comm_world)
         landg=abs(diffw_g(:,1)-miss)<0.1
       end if
       if (nud_sfh/=0) then
-        call ccmpi_bcast(diffh_g,0,comm_world)
         landg=abs(diffh_g(:,1)-miss)<0.1
       end if
       

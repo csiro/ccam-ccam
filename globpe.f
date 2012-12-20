@@ -573,7 +573,7 @@
       call indices_init(ifull_g,ifull,iextra,npanels,npan,myid)
       call map_init(ifull_g,ifull,iextra,myid,mbd)
       call latlong_init(ifull_g,ifull,iextra,myid)      
-      call vecsuv_init(ifull_g,ifull,iextra,myid)
+      call vecsuv_init(ifull_g,ifull,iextra,myid,mbd)
 
 
       !--------------------------------------------------------------
@@ -655,6 +655,12 @@
         call ccmpi_bcastr8(y_g,0,comm_world)
         call ccmpi_bcastr8(z_g,0,comm_world)
         call ccmpi_bcast(em_g,0,comm_world)
+        call ccmpi_bcast(ax_g,0,comm_world)
+        call ccmpi_bcast(ay_g,0,comm_world)
+        call ccmpi_bcast(az_g,0,comm_world)
+        call ccmpi_bcast(bx_g,0,comm_world)
+        call ccmpi_bcast(by_g,0,comm_world)
+        call ccmpi_bcast(bz_g,0,comm_world)
       end if
       deallocate(dumd)
       deallocate(dume)

@@ -138,6 +138,7 @@ c     degdt is degdt (was ceva in surfupa/b)
       factch=999.    ! dummy values
       taux=0.        ! dummy values
       tauy=0.        ! dummy values
+      gamm=3.471e+05 ! dummy values
 
       if (diag.or.ntest==1) then
         if (mydiag) then

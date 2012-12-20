@@ -536,7 +536,7 @@ c       For time varying surface fields
         lname ='Mean sea level pressure'
         call attrib(idnc,idim,3,'pmsl',lname,'hPa',800.,1200.,0,itype)
         lname = 'Surface roughness'
-        call attrib(idnc,idim,3,'zolnd',lname,'m',0.,65.,0,itype)
+        call attrib(idnc,idim,3,'zolnd',lname,'m',0.,65.,0,-1) ! -1=long
         lname = 'Leaf area index'
         call attrib(idnc,idim,3,'lai',lname,'none',0.,32.5,0,itype)
         lname = 'Surface temperature'

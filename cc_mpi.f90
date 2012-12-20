@@ -22,7 +22,8 @@ module cc_mpi
    integer(kind=4), save, private :: nreq
 
    public :: bounds, boundsuv, ccmpi_setup, ccmpi_distribute, ccmpi_gather, &
-             ccmpi_distributer8, indp, indg, deptsync, intssync, start_log, &
+             ccmpi_distributer8, ccmpi_gatherall,                           &
+             indp, indg, deptsync, intssync, start_log,                     &
              end_log, log_on, log_off, log_setup, phys_loadbal,             &
              ccglobal_posneg, ccglobal_sum, iq2iqg, indv_mpi, indglobal,    &
              readglobvar, writeglobvar, face_set, uniform_set,              &
@@ -44,6 +45,9 @@ module cc_mpi
    end interface
    interface ccmpi_distributer8
       module procedure ccmpi_distribute2r8
+   end interface
+   interface ccmpi_gatherall
+      module procedure ccmpi_gatherall2, ccmpi_gatherall3
    end interface
    interface bounds
       module procedure bounds2, bounds3
@@ -107,12 +111,12 @@ module cc_mpi
 
    type bounds_info
       real, dimension(:), pointer :: sbuf, rbuf
-      integer, dimension(:), pointer :: request_list
-      integer, dimension(:), pointer :: send_list
-      integer, dimension(:), pointer :: unpack_list
-      integer, dimension(:), pointer :: request_list_uv
-      integer, dimension(:), pointer :: send_list_uv
-      integer, dimension(:), pointer :: unpack_list_uv
+      integer(kind=4), dimension(:), pointer :: request_list
+      integer(kind=4), dimension(:), pointer :: send_list
+      integer(kind=4), dimension(:), pointer :: unpack_list
+      integer(kind=4), dimension(:), pointer :: request_list_uv
+      integer(kind=4), dimension(:), pointer :: send_list_uv
+      integer(kind=4), dimension(:), pointer :: unpack_list_uv
       ! Flag for whether u and v need to be swapped
       logical, dimension(:), pointer :: uv_swap, send_swap,uv_neg,send_neg
       ! Number of points for each processor. Also double row versions.
@@ -279,12 +283,12 @@ contains
       allocate(neighbour(0:nproc-1))
       
 #ifdef uniform_decomp
-      call proc_setup_uniform(npanels,ifull)
+      call proc_setup_uniform
       ! Faces may not line up properly so need extra factor here
       maxbuflen = (max(ipan,jpan)+4)*3*max(kl+1,ol+1) * 8 * 2  !*3 for extra vector row (e.g., inu,isu,iev,iwv)
                                                                ! kl+1 and ol+1 for 2D + 3D packing
 #else
-      call proc_setup(npanels,ifull)
+      call proc_setup
       if ( nproc < npanels+1 ) then
          ! This is the maximum size, each face has 4 edges
          maxbuflen = npan*4*(il_g+4)*3*max(kl+1,ol+1) !*3 for extra vector row (e.g., inu,isu,iev,iwv)
@@ -1031,6 +1035,103 @@ contains
 
    end subroutine proc_gather3
 
+   subroutine ccmpi_gatherall2(a,ag)
+      ! Collect global arrays.
+
+      real, dimension(:), intent(in) :: a
+      real, dimension(:), intent(out) :: ag
+      integer :: iproc
+      integer(kind=4) :: ierr, lsize, ltype
+      real, dimension(ifull,0:nproc-1) :: abuf
+      integer :: ipoff, jpoff, npoff
+      integer :: i, j, n, iq, iqg
+
+      call start_log(gather_begin)
+
+      lsize=ifull
+#ifdef r8i8
+      ltype=MPI_DOUBLE_PRECISION
+#else
+      ltype=MPI_REAL
+#endif
+      call MPI_AllGather(a,lsize,ltype,abuf,lsize,ltype,MPI_COMM_WORLD,ierr)
+
+      ! map array in order of processor rank
+      do iproc=0,nproc-1
+#ifdef uniform_decomp
+         do n=1,npan
+            ! Panel range on the source processor
+            call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,1)
+#else
+         call proc_region(iproc,0,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,0)
+         do n=1,npan
+#endif
+            ! Use the face indices for unpacking
+            do j=1,jpan
+!cdir nodep
+               do i=1,ipan
+                  ! Global indices are i+ipoff, j+jpoff, n-npoff
+                  iqg = indglobal(i+ipoff,j+jpoff,n-npoff) ! True global 1D index
+                  iq = indp(i,j,n)
+                  ag(iqg) = abuf(iq,iproc)
+               end do
+            end do
+         end do
+      end do
+
+      call end_log(gather_end)
+
+   end subroutine ccmpi_gatherall2
+   
+   subroutine ccmpi_gatherall3(a,ag)
+      ! Collect global arrays.
+
+      real, dimension(:,:), intent(in) :: a
+      real, dimension(:,:), intent(out) :: ag
+      integer :: iproc
+      integer(kind=4) :: ierr, lsize, ltype
+      real, dimension(ifull,size(a,2),0:nproc-1) :: abuf
+      integer :: ipoff, jpoff, npoff
+      integer :: i, j, n, iq, iqg, kx
+
+      call start_log(gather_begin)
+
+      kx=size(a,2)
+      lsize=ifull*kx
+#ifdef r8i8
+      ltype=MPI_DOUBLE_PRECISION
+#else
+      ltype=MPI_REAL
+#endif
+      call MPI_AllGather(a,lsize,ltype,abuf,lsize,ltype,MPI_COMM_WORLD,ierr)
+
+      ! map array in order of processor rank
+      do iproc=0,nproc-1
+#ifdef uniform_decomp
+         do n=1,npan
+            ! Panel range on the source processor
+            call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,1)
+#else
+         call proc_region(iproc,0,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,0)
+         do n=1,npan
+#endif
+            ! Use the face indices for unpacking
+            do j=1,jpan
+!cdir nodep
+               do i=1,ipan
+                  ! Global indices are i+ipoff, j+jpoff, n-npoff
+                  iqg = indglobal(i+ipoff,j+jpoff,n-npoff) ! True global 1D index
+                  iq = indp(i,j,n)
+                  ag(iqg,:) = abuf(iq,:,iproc)
+               end do
+            end do
+         end do
+      end do
+
+      call end_log(gather_end)
+
+   end subroutine ccmpi_gatherall3
+   
    subroutine bounds_setup()
 
       use indices_m
@@ -2579,7 +2680,7 @@ contains
       integer :: lmode, lcolour
 
       call start_log(bounds_begin)
-      
+
       lmode=0
       lcolour=0 ! all colours
       if (present(gmode)) lmode=gmode
@@ -2811,8 +2912,10 @@ contains
       end do
 
       ! We have experimented with using MPI_Waitany.  The speed-up was
-      ! marginal (i.e., roughly 1%), and did not justify the need to
-      ! increase MPI_TYPE_MAX for large grids.
+      ! marginal (i.e., roughly 1%), since there is relatively little
+      ! computation steps before leaving the subroutine.  Instead we
+      ! only wait for the MPI_IRecv and allow the MPI_ISend until the
+      ! next bounds call.
       if ( nreq > 0 ) then
          call start_log(mpiwait_begin)
          call MPI_Waitall(nreq,ireq,status,ierr)
@@ -4072,7 +4175,7 @@ contains
       integer, intent(in), optional :: gmode
       real, dimension(:,:), intent(in) :: xg, yg      
       integer :: iproc
-      integer(kind=4) :: nreq, itag = 99, ierr, rproc, sproc, ltype
+      integer(kind=4) :: itag = 99, ierr, rproc, sproc, ltype
       integer(kind=4), dimension(MPI_STATUS_SIZE,2*nproc) :: status
       integer, dimension(0:nproc-1) :: binlen,msglen
       integer :: count, ip, jp, xn, kx
@@ -4083,6 +4186,8 @@ contains
       ! This does nothing in the one processor case
       if ( nproc == 1 ) return
 
+      call start_log(deptsync_begin)
+
       lmode=0
       if (present(gmode)) lmode=gmode
 #ifdef r8i8
@@ -4091,7 +4196,6 @@ contains
       ltype=MPI_REAL
 #endif   
 
-      call start_log(deptsync_begin)
       dslen = 0
       drlen = 0
       do iproc=0,nproc-1
@@ -4207,9 +4311,8 @@ contains
 
    subroutine intssync(s)
       real, dimension(:,:), intent(inout) :: s
-      integer :: iproc
-      integer(kind=4) :: nreq, itag = 0, ierr, rproc, sproc, ltype
-      integer :: iq
+      integer :: iproc, iq
+      integer(kind=4) :: itag = 0, ierr, rproc, sproc, ltype
       integer(kind=4), dimension(MPI_STATUS_SIZE,2*nproc) :: status
 
       call start_log(intssync_begin)
@@ -4425,10 +4528,9 @@ contains
       end if
    end subroutine fix_index2
 
-   subroutine proc_setup(npanels,ifull)
+   subroutine proc_setup
       include 'parm.h'
 !     Routine to set up offsets etc.
-      integer, intent(in) :: npanels, ifull
       integer :: i, j, n, iproc, nd, jdf, idjd_g
 
       call face_set(ipan,jpan,noff,ioff,joff,npan,il_g,myid,nproc,nxproc,nyproc)
@@ -4547,10 +4649,9 @@ contains
    
    end subroutine face_set
 
-   subroutine proc_setup_uniform(npanels,ifull)
+   subroutine proc_setup_uniform
       include 'parm.h'
 !     Routine to set up offsets etc for the uniform decomposition
-      integer, intent(in) :: npanels, ifull
       integer :: i, j, n, iproc, nd, jdf, idjd_g
       integer(kind=4) ierr
 

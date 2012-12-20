@@ -48,16 +48,16 @@
         iday=kdate-10000*iyr-100*imo  +mtimer/(60*24)
         !print *,'at start of amipsst for iyr,imo,iday ',iyr,imo,iday
         mdays = (/ 31, 31,28,31,30,31,30,31,31,30,31,30,31, 31 /)
-        if (leap.ge.1) then
-          if (mod(iyr,4).eq.0) mdays(2)=29
-          if (mod(iyr,100).eq.0) mdays(2)=28
-          if (mod(iyr,400).eq.0) mdays(2)=29
+        if (leap>=1) then
+          if (mod(iyr,4)==0) mdays(2)=29
+          if (mod(iyr,100)==0) mdays(2)=28
+          if (mod(iyr,400)==0) mdays(2)=29
         end if
         do while (iday>mdays(imo))
          iday=iday-mdays(imo)
          imo=imo+1
          if(imo>12)then
-           imo=1               ! no leap years for the moment
+           imo=1
            iyr=iyr+1
          endif
         enddo
@@ -207,7 +207,7 @@ c       c1=0.
         if(fraciceb(iq)<=.02)fraciceb(iq)=0.
       enddo
       
-      if (nmlo==0) then ! MJT mlo
+      if (nmlo==0) then
        sicedep(:)=0. 
        if(ktau==0)then  ! will set sicedep in indata
         fracice(:)=fraciceb(:)
@@ -225,7 +225,7 @@ c       c1=0.
            if(fracice(iq)==0.)then
 !            create values for tice, and set averaged tss
 !            N.B. if already a sice point, keep present tice
-             tggsn(iq,1)=min(271.2,tss(iq),t(iq,1)+.04*6.5) ! for 40 m lev1 ! MJT seaice
+             tggsn(iq,1)=min(271.2,tss(iq),t(iq,1)+.04*6.5) ! for 40 m lev1
            endif  ! (fracice(iq)==0.)
            if(rlatt(iq)>0.)then
              sicedep(iq)=2.
@@ -234,21 +234,20 @@ c       c1=0.
            endif ! (rlatt(iq)>0.)
          endif    ! (fraciceb(iq)>0.)
          fracice(iq)=fraciceb(iq)
-         tss(iq)=tggsn(iq,1)*fracice(iq)+tgg(iq,1)*(1.-fracice(iq)) ! MJT seaice
+         tss(iq)=tggsn(iq,1)*fracice(iq)+tgg(iq,1)*(1.-fracice(iq))
         endif      ! (.not.land(iq))
        enddo
       !--------------------------------------------------------------
-      ! MJT mlo
-      elseif (ktau.gt.0) then
+      elseif (ktau>0) then
         dumb=0.
         dumc=0.
         dumd=34.72
-        if (nud_ouv.ne.0) then
+        if (nud_ouv/=0) then
           write(6,*) "ERROR: nud_ouv.ne.0 is not supported for"
           write(6,*) "       namip.ne.0"
           call ccmpi_abort(-1)
         end if
-        if (nud_sfh.ne.0) then
+        if (nud_sfh/=0) then
           write(6,*) "ERROR: nud_sfh.ne.0 is not supported for"
           write(6,*) "       namip.ne.0"
           call ccmpi_abort(-1)

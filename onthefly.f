@@ -65,13 +65,15 @@
 
       call start_log(onthefly_begin)
       !--------------------------------------------------------------
-      if ( myid==0 )then
-        write(6,*) 'Entering onthefly for nested,ktau = ',
-     &                                    nested,ktau
-        ! turn OFF fatal netcdf errors; from here on
-        call ncpopt(0)
+      if ( myid==0 .or. pfall )then
+        if (myid==0) then
+          write(6,*) 'Entering onthefly for nested,ktau = ',
+     &                                      nested,ktau
+        end if
         if(ncid/=ncidold)then
-          write(6,*) 'Reading new file metadata'
+          if (myid==0) then
+            write(6,*) 'Reading new file metadata'
+          end if
           iarchi=1
           call ccnf_get_attg(ncid,'int_header',nahead)
           call ccnf_get_attg(ncid,'real_header',ahead)
@@ -92,13 +94,17 @@
           if (nmlo/=0.and.abs(nmlo)<=9) then
             call ccnf_inq_dimlen(ncid,'olev',ok,failok=.true.)
           end if
-          write(6,*) "Found ik,jk,kk,ok ",ik,jk,kk,ok
-          write(6,*) "      maxarchi ",maxarchi
-          write(6,*) "      rlong0x,rlat0x,schmidtx ",
-     &                      rlong0x,rlat0x,schmidtx
+          if (myid==0) then
+            write(6,*) "Found ik,jk,kk,ok ",ik,jk,kk,ok
+            write(6,*) "      maxarchi ",maxarchi
+            write(6,*) "      rlong0x,rlat0x,schmidtx ",
+     &                        rlong0x,rlat0x,schmidtx
+          end if
         end if
-        write(6,*)'Search for kdate_s,ktime_s >= ',
-     &                        kdate_s,ktime_s
+        if (myid==0) then
+          write(6,*)'Search for kdate_s,ktime_s >= ',
+     &                          kdate_s,ktime_s
+        end if
         ltest=.true.
         iarchi=iarchi-1
         call ccnf_inq_varid(ncid,'kdate',idvkd,tst)
@@ -134,8 +140,10 @@
         if (ltest) then
           ktime_r=-1
         end if
-        write(6,*) 'After search ltest,iarchi =',ltest,iarchi
-        write(6,*) '             kdate_r,ktime_r =',kdate_r,ktime_r
+        if (myid==0) then
+          write(6,*) 'After search ltest,iarchi =',ltest,iarchi
+          write(6,*) '             kdate_r,ktime_r =',kdate_r,ktime_r
+        end if
         idum(1)=kdate_r
         idum(2)=ktime_r
         idum(3)=ncid
@@ -147,23 +155,27 @@
         rdum(1)=rlong0x
         rdum(2)=rlat0x
         rdum(3)=schmidtx
-      endif  ! ( myid==0 )
+      endif  ! ( myid==0 .or. pfall )
 
-      call ccmpi_bcast(idum(1:8),0,comm_world)
-      kdate_r=idum(1)
-      ktime_r=idum(2)
-      ncid=idum(3)
-      ik=idum(4)
-      jk=idum(5)
-      kk=idum(6)
-      ok=idum(7)
-      iarchi=idum(8)
+      if (.not.pfall) then
+        call ccmpi_bcast(idum(1:8),0,comm_world)
+        kdate_r=idum(1)
+        ktime_r=idum(2)
+        ncid=idum(3)
+        ik=idum(4)
+        jk=idum(5)
+        kk=idum(6)
+        ok=idum(7)
+        iarchi=idum(8)
+      end if
       newfile=ncid/=ncidold
       if (newfile) then
-        call ccmpi_bcast(rdum(1:3),0,comm_world)
-        rlong0x=rdum(1)
-        rlat0x=rdum(2)
-        schmidtx=rdum(3)
+        if (.not.pfall) then
+          call ccmpi_bcast(rdum(1:3),0,comm_world)
+          rlong0x=rdum(1)
+          rlat0x=rdum(2)
+          schmidtx=rdum(3)
+        end if
         if (ncidold/=-1) then
           if (myid==0) then
             write(6,*) 'Closing old input file'
@@ -277,7 +289,8 @@
       integer, dimension(:,:), allocatable, save :: nface4
       integer, dimension(ifull) :: isflag
       integer, dimension(:), allocatable, save :: isoilm_a
-      integer, dimension(ms) :: iera,ierb
+      integer, dimension(2*ms) :: iera
+      integer, dimension(ms) :: ierb
       integer, dimension(6) :: ierc
       integer, dimension(3), save :: iers
       integer, dimension(2) :: dumb
@@ -441,8 +454,10 @@
       if (newfile) then
         if (allocated(sigin)) deallocate(sigin)
         allocate(sigin(kk))
-        if (myid==0) then
-          write(6,*) "Reading fixed fields"
+        if (myid==0.or.pfall) then
+          if (myid==0) then
+            write(6,*) "Reading fixed fields"
+          end if
           call ccnf_inq_varid(ncid,'lev',idv,tst)
           if (tst) then
             call ccnf_inq_varid(ncid,'layer',idv,tst)
@@ -454,7 +469,9 @@
           else
             call ccnf_get_attg(ncid,'sigma',sigin)
           end if
-          write(6,'("sigin=",(9f7.4))') (sigin(k),k=1,kk)
+          if (myid==0) then
+            write(6,'("sigin=",(9f7.4))') (sigin(k),k=1,kk)
+          end if
           
           ! check for missing data
           iers(1:3)=0
@@ -465,8 +482,10 @@
           call ccnf_inq_varid(ncid,'fracice',idv,tst)
           if (tst) iers(3)=-1
         end if
-        call ccmpi_bcast(sigin,0,comm_world)
-        call ccmpi_bcast(iers(1:3),0,comm_world)
+        if (.not.pfall) then
+          call ccmpi_bcast(sigin,0,comm_world)
+          call ccmpi_bcast(iers(1:3),0,comm_world)
+        end if
       end if ! newfile
       tsstest=(iers(2)==0.and.iers(3)==0.and.iotest)
       if (newfile) then
@@ -978,7 +997,7 @@ c***        but needed here for onthefly (different dims) 28/8/08
         !--------------------------------------------------
         ! verify if input is a restart file
         if (nested==0) then
-          if (myid==0) then
+          if (myid==0.or.pfall) then
             if (kk==kl.and.iotest) then
               lrestart=.true.
               call ccnf_inq_varid(ncid,'omega',idv,tst)
@@ -1049,7 +1068,9 @@ c***        but needed here for onthefly (different dims) 28/8/08
             if (lrestart) ierc(1)=1
             if (tst) ierc(2)=-1
           end if
-          call ccmpi_bcast(ierc(1:6),0,comm_world)
+          if (.not.pfall) then
+            call ccmpi_bcast(ierc(1:6),0,comm_world)
+          end if
           lrestart=(ierc(1)==1)
           if (lrestart) then
             nstag=ierc(3)
@@ -1083,7 +1104,7 @@ c***        but needed here for onthefly (different dims) 28/8/08
         end if ! iotest
 
         ! SOIL TEMPERATURE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        if (myid==0) then
+        if (myid==0.or.pfall) then
           iera(1:ms)=0
           do k=1,ms
             write(vname,'("tgg",I1.1)') k
@@ -1091,7 +1112,9 @@ c***        but needed here for onthefly (different dims) 28/8/08
             if (tst) iera(k)=-1
           end do
         end if
-        call ccmpi_bcast(iera(1:ms),0,comm_world)
+        if (.not.pfall) then
+          call ccmpi_bcast(iera(1:ms),0,comm_world)
+        end if
         do k=1,ms 
           if (iera(k)==0) then
             write(vname,'("tgg",I1.1)') k
@@ -1245,25 +1268,22 @@ c***        but needed here for onthefly (different dims) 28/8/08
         !--------------------------------------------------
 
         ! SOIL MOISTURE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        if (myid==0) then
+        if (myid==0.or.pfall) then
           iera(1:ms)=0
           ierb(1:ms)=0
           do k=1,ms
             write(vname,'("wetfrac",I1.1)') k
             call ccnf_inq_varid(ncid,vname,idv,tst)
             if (tst) iera(k)=-1
+            write(vname,'("wb",I1.1)') k
+            call ccnf_inq_varid(ncid,vname,idv,tst)
+            if (tst) ierb(k)=-1
           end do
         end if
-        call ccmpi_bcast(iera(1:ms),0,comm_world)
-        if (any(iera(1:ms)/=0)) then
-          if (myid==0) then
-            do k=1,ms
-              write(vname,'("wb",I1.1)') k
-              call ccnf_inq_varid(ncid,vname,idv,tst)
-              if (tst) ierb(k)=-1
-            end do
-          end if
-          call ccmpi_bcast(ierb(1:ms),0,comm_world)
+        if (.not.pfall) then
+          iera(ms+1:2*ms)=ierb(1:ms)
+          call ccmpi_bcast(iera(1:2*ms),0,comm_world)
+          ierb(1:ms)=iera(ms+1:2*ms)
         end if
         wb=20.5
         do k=1,ms
@@ -1364,12 +1384,14 @@ c***        but needed here for onthefly (different dims) 28/8/08
         ! Read CABLE/CASA aggregate C+N+P pools
         if (nsib>=6) then
          if (ccycle==0) then
-          if (myid==0) then
+          if (myid==0.or.pfall) then
             call ccnf_inq_varid(ncid,'cplant1',idv,tst)
             iera(1)=0
             if (tst) iera(1)=-1
           end if
-          call ccmpi_bcast(iera(1:1),0,comm_world)
+          if (.not.pfall) then
+            call ccmpi_bcast(iera(1:1),0,comm_world)
+          end if
           if (iera(1)==0) then
            do k=1,ncp
             write(vname,'("cplant",I1.1)') k
@@ -1409,12 +1431,14 @@ c***        but needed here for onthefly (different dims) 28/8/08
            end do
           end if
          else
-          if (myid==0) then
+          if (myid==0.or.pfall) then
             call ccnf_inq_varid(ncid,'glai',idv,tst)
             iera(1)=0
             if (tst) iera(1)=-1
           end if
-          call ccmpi_bcast(iera(1:1),0,comm_world)
+          if (.not.pfall) then
+            call ccmpi_bcast(iera(1:1),0,comm_world)
+          end if
           if (iera(1)==0) then
            do k=1,mplant
             write(vname,'("cplant",I1.1)') k

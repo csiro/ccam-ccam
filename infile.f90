@@ -14,7 +14,7 @@ module infile
             
 private
 public vertint,datefix,getzinp,ncmsg
-public histopen,histclose,histrd1,histrd4s
+public histopen,histclose,histrd1,histrd4s,pfall
 public attrib,histwrt3,histwrt4,freqwrite
 public ccnf_open,ccnf_create,ccnf_close,ccnf_sync,ccnf_enddef,ccnf_redef,ccnf_nofill,ccnf_inq_varid,ccnf_inq_dimid
 public ccnf_inq_dimlen,ccnf_def_dim,ccnf_def_dimu,ccnf_def_var,ccnf_def_var0,ccnf_get_var,ccnf_get_varg
@@ -67,7 +67,7 @@ integer, dimension(:), allocatable, save :: pncidold
 integer, save :: mynproc,fnproc
 integer, save :: pil_g,pjl_g,pil,pjl,pnpan
 integer, save :: comm_ip,comm_ipold
-logical, save :: ptest
+logical, save :: ptest,pfall
 
 integer(kind=2), parameter :: minv = -32500
 integer(kind=2), parameter :: maxv = 32500
@@ -680,6 +680,7 @@ if (myid==0) then
   pjl=0
   pnpan=0
   ptest=.false.
+  pfall=.false.
       
   ! attempt to open parallel files
 #ifdef usenc3
@@ -826,7 +827,7 @@ if (ier/=nf90_noerr) return
 mynproc=fnproc/nproc
 resid=mod(fnproc,nproc)
 if (myid<resid) mynproc=mynproc+1
-      
+
 if (allocated(pncid)) then
   deallocate(pncid)
 end if
@@ -861,7 +862,12 @@ end do
 ltst=0
 if (myid<resid) ltst=1
 call ccmpi_commsplit(comm_ip,comm_world,ltst,myid)
-    
+
+pfall=(fnproc>=nproc)
+if (pfall) then
+  ncid=pncid(0)
+end if
+
 return
 end subroutine histopen
       
@@ -2131,7 +2137,7 @@ end select
 #ifdef usenc3
 ncstatus = nf_def_var(ncid,vname,ltype,0,1,vid)
 #else
-ncstatus = nf90_def_var(ncid,vname,ltype,1,vid)
+ncstatus = nf90_def_var(ncid,vname,ltype,vid)
 #endif
 call ncmsg("def_var0",ncstatus)
 

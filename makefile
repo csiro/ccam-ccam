@@ -1,8 +1,8 @@
 FC = ifort
 
-#FFLAGS = -O -xHost -ftz -fpp -I /apps/netcdf/4.1.3/include -assume buffered_io -Dsimple_timer -Duniform_decomp -Dsumdd
-FFLAGS = -O -xHost -ftz -fpp -I /apps/netcdf/4.1.3/include -assume buffered_io -Dsimple_timer -Dsumdd 
-LIBS = -L /apps/netcdf/4.1.3/lib -L /apps/hdf5/1.8.8/lib -lmpi -lnetcdf -lnetcdff -lhdf5 -lhdf5_hl
+#FFLAGS = -O -xHost -ftz -fpp -I $(NETCDF_ROOT)/include -assume buffered_io -Dsimple_timer -Duniform_decomp -Dsumdd
+FFLAGS = -O -xHost -ftz -fpp -I $(NETCDF_ROOT)/include -assume buffered_io -Dsimple_timer -Dsumdd 
+LIBS = -L $(NETCDF_ROOT)/lib -L /apps/hdf5/1.8.9/lib -lmpi -lnetcdf -lnetcdff -lhdf5 -lhdf5_hl
 
 LDFLAGS = 
 
