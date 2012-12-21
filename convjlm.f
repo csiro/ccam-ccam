@@ -398,9 +398,9 @@ c    &      k,phi(idjd,k-1),phi(idjd,k),pblh(idjd)*grav,kkbb(idjd)
           alfqarr(iq)=alfqarrx(iq)*                 !  N.B. qs check done later with qbass
      &      max(qg(iq,1),qg(iq,2),qg(iq,k))/qg(iq,k)  
 c        if(.not.land(iq).and.tpan(iq)-tss(iq)>.01*tied_con)then         
-         if(.not.land(iq).and.ktau>1)then
-c          dtsol=.01*sgsave(iq)/(1.+.25*(u(iq,1)**2+v(iq,1)**2))   ! solar heating   ! sea
-           dtsol=.01*sgsave(iq)/(1.+.25*vmod(iq)**2)   ! solar heating   ! sea
+         if(.not.land(iq))then
+           dtsol=.01*sgsave(iq)/(1.+.25*(u(iq,1)**2+v(iq,1)**2))   ! solar heating   ! sea
+c          dtsol=.01*sgsave(iq)/(1.+.25*vmod(iq)**2)   ! solar heating   ! sea
 c         tpan-tss   is .3*dtsol          
           if(.3*dtsol>.01*tied_con)then         
            es(iq,1)=establ(tt(iq,1))
