@@ -30,6 +30,8 @@ allocate(rtclsave(ifull),sgclsave(ifull),taux(ifull),tauy(ifull),ustar(ifull))
 allocate(swrsave(ifull),fbeamvis(ifull),fbeamnir(ifull))
 allocate(u10_3hr(ifull,8),v10_3hr(ifull,8),tscr_3hr(ifull,8),rh1_3hr(ifull,8))
 
+sgsave=0.
+
 return
 end subroutine extraout_init
 

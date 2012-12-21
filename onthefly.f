@@ -246,6 +246,7 @@
       use cc_mpi                                ! CC MPI routines
       use cfrac_m                               ! Cloud fraction
       use define_dimensions, only : ncs, ncp    ! CABLE dimensions
+      use extraout_m                            ! Additional diagnostics      
       use infile                                ! Input file routines
       use latlong_m                             ! Lat/lon coordinates
       use mlo, only : wlev,micdwn,mloregrid     ! Ocean physics and prognostic arrays
@@ -1333,7 +1334,6 @@ c***        but needed here for onthefly (different dims) 28/8/08
           if (mydiag) write(6,*) "giving wb",wb(idjd,1)
         end if
 
-        ! PH - Add wetfac to output for mbase=-19 option
         if (iotest) then
           call histrd1(ncid,iarchi,ier,'wetfac',ik,6*ik,wetfac,
      &                 ifull)
@@ -2149,6 +2149,22 @@ c***        but needed here for onthefly (different dims) 28/8/08
      &                   nord,dk,ifg)
         end if ! iotest
         isflag=nint(dum6)
+
+        if (iotest) then
+          call histrd1(ncid,iarchi,ier,'sgsave',ik,6*ik,sgsave,
+     &                 ifull)
+        else
+          call histrd1(ncid,iarchi,ier,'sgsave',ik,6*ik,ucc,
+     &                 6*ik*ik)
+          if (myid==0) then
+            where (.not.land_a)
+              ucc=spval
+            end where
+            call fill_cc(ucc,spval,ik,0)
+          end if
+          call doints4(ucc,sgsave,nface4,xg4,yg4,
+     &                   nord,dk,ifg)
+        end if ! iotest
         
       endif    ! (nested/=1)
 

@@ -1300,6 +1300,9 @@ c       For time varying surface fields
          call attrib(idnc,idim,3,'snage',lname,'none',0.,20.,0,itype)   
          lname = 'Snow flag'
          call attrib(idnc,idim,3,'sflag',lname,'none',0.,4.,0,itype)
+         lname = 'Solar net at ground (+ve down)'
+         call attrib(idnc,idim,3,'sgsave',lname,'W/m2',-500.,2000.,0,
+     &               itype)
          if (nsib==6.or.nsib==7) then
           call savetiledef(idnc,local,idim)
          end if
@@ -2023,6 +2026,7 @@ c      "extra" outputs
        call histwrt3(snage,'snage',idnc,iarch,local,.true.)
        aa(:)=isflag(:)
        call histwrt3(aa,'sflag',idnc,iarch,local,.true.)
+       call histwrt3(sgsave,'sgsave',idnc,iarch,local,.true.)       
        if (nsib==6.or.nsib==7) then
          call savetile(idnc,local,iarch)
        end if
