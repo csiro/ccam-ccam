@@ -36,6 +36,7 @@ integer, parameter :: koff   =1     ! time split stagger relative to A-grid (kof
 integer, parameter :: nf     =2     ! power for horizontal diffusion reduction factor
 integer, parameter :: itnmax =3     ! number of interations for staggering
 integer, parameter :: itrsol =0     ! Iterative solver (0=SOR, 1=Multi-grid)
+integer, parameter :: fixsal =1     ! Conserve salinity (0=Usual, 1=Fixed Sal)
 real, parameter :: rhosn  =330.     ! density snow (kg m^-3)
 real, parameter :: rhoic  =900.     ! density ice  (kg m^-3)
 real, parameter :: grav   =9.80616  ! gravitational constant (m s^-2)
@@ -162,12 +163,12 @@ if (abs(nmlo)>=3) then
 
   ! special gradient arrays
   allocate(dfdyu(ifull),dfdxv(ifull))
-  tnu=0.5*(f(in)+f(ien))
+  tnu=0.5*(f(in)+f(ine))
   tee=0.5*(f(1:ifull)+f(ie))
-  tsu=0.5*(f(is)+f(ies))
-  tev=0.5*(f(ie)+f(ine))
+  tsu=0.5*(f(is)+f(ise))
+  tev=0.5*(f(ie)+f(ien))
   tnn=0.5*(f(1:ifull)+f(in))
-  twv=0.5*(f(iw)+f(inw))
+  twv=0.5*(f(iw)+f(iwn))
   dfdyu=0.5*(stwgt(:,1)*(tnu-tee)+stwgt(:,2)*(tee-tsu))*emu(1:ifull)/ds
   dfdxv=0.5*(stwgt(:,3)*(tev-tnn)+stwgt(:,4)*(tnn-twv))*emv(1:ifull)/ds
 end if
@@ -938,12 +939,12 @@ pice(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,2)
 tide(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,3)
 imass(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,4)
 ! surface pressure
-tnu=0.5*(pice(in)*f(in)+pice(ien)*f(ien))
+tnu=0.5*(pice(in)*f(in)+pice(ine)*f(ine))
 tee=0.5*(pice(1:ifull)*f(1:ifull)+pice(ie)*f(ie))
-tsu=0.5*(pice(is)*f(is)+pice(ies)*f(ies))
-tev=0.5*(pice(ie)*f(ie)+pice(ine)*f(ine))
+tsu=0.5*(pice(is)*f(is)+pice(ise)*f(ise))
+tev=0.5*(pice(ie)*f(ie)+pice(ien)*f(ien))
 tnn=0.5*(pice(1:ifull)*f(1:ifull)+pice(in)*f(in))
-twv=0.5*(pice(iw)*f(iw)+pice(inw)*f(inw))
+twv=0.5*(pice(iw)*f(iw)+pice(iwn)*f(iwn))
 dpsdxu=(pice(ie)-pice(1:ifull))*emu(1:ifull)/ds ! staggered at time t
 dpsdyu=0.5*(stwgt(:,1)*(tnu-tee)+stwgt(:,2)*(tee-tsu))*emu(1:ifull)/ds
 dpsdxv=0.5*(stwgt(:,3)*(tev-tnn)+stwgt(:,4)*(tnn-twv))*emv(1:ifull)/ds
@@ -951,12 +952,12 @@ dpsdyv=(pice(in)-pice(1:ifull))*emv(1:ifull)/ds
 piceu=0.5*(pice(1:ifull)+pice(ie))
 picev=0.5*(pice(1:ifull)+pice(in))
 ! tides
-tnu=0.5*(tide(in)*f(in)+tide(ien)*f(ien))
+tnu=0.5*(tide(in)*f(in)+tide(ine)*f(ine))
 tee=0.5*(tide(1:ifull)*f(1:ifull)+tide(ie)*f(ie))
-tsu=0.5*(tide(is)*f(is)+tide(ies)*f(ies))
-tev=0.5*(tide(ie)*f(ie)+tide(ine)*f(ine))
+tsu=0.5*(tide(is)*f(is)+tide(ise)*f(ise))
+tev=0.5*(tide(ie)*f(ie)+tide(ien)*f(ien))
 tnn=0.5*(tide(1:ifull)*f(1:ifull)+tide(in)*f(in))
-twv=0.5*(tide(iw)*f(iw)+tide(inw)*f(inw))
+twv=0.5*(tide(iw)*f(iw)+tide(iwn)*f(iwn))
 dttdxu=(tide(ie)-tide(1:ifull))*emu(1:ifull)/ds ! staggered
 dttdyu=0.5*(stwgt(:,1)*(tnu-tee)+stwgt(:,2)*(tee-tsu))*emu(1:ifull)/ds
 dttdxv=0.5*(stwgt(:,3)*(tev-tnn)+stwgt(:,4)*(tnn-twv))*emv(1:ifull)/ds
@@ -1498,12 +1499,12 @@ call bounds(dumc(:,1:2),corner=.true.,gmode=1)
 neta(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,1)
 ipice(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,2)
 
-tnu=0.5*(neta(in)*f(in)+neta(ien)*f(ien))
+tnu=0.5*(neta(in)*f(in)+neta(ine)*f(ine))
 tee=0.5*(neta(1:ifull)*f(1:ifull)+neta(ie)*f(ie))
-tsu=0.5*(neta(is)*f(is)+neta(ies)*f(ies))
-tev=0.5*(neta(ie)*f(ie)+neta(ine)*f(ine))
+tsu=0.5*(neta(is)*f(is)+neta(ise)*f(ise))
+tev=0.5*(neta(ie)*f(ie)+neta(ien)*f(ien))
 tnn=0.5*(neta(1:ifull)*f(1:ifull)+neta(in)*f(in))
-twv=0.5*(neta(iw)*f(iw)+neta(inw)*f(inw))
+twv=0.5*(neta(iw)*f(iw)+neta(iwn)*f(iwn))
 detadxu=(neta(ie)-neta(1:ifull))*emu(1:ifull)/ds
 detadyu=0.5*(stwgt(:,1)*(tnu-tee)+stwgt(:,2)*(tee-tsu))*emu(1:ifull)/ds
 detadxv=0.5*(stwgt(:,3)*(tev-tnn)+stwgt(:,4)*(tnn-twv))*emv(1:ifull)/ds
@@ -1519,12 +1520,12 @@ do ii=1,wlev
 end do
 
 ! Update ice velocity with internal pressure terms
-tnu=0.5*(ipice(in)*f(in)+ipice(ien)*f(ien))
+tnu=0.5*(ipice(in)*f(in)+ipice(ine)*f(ine))
 tee=0.5*(ipice(1:ifull)*f(1:ifull)+ipice(ie)*f(ie))
-tsu=0.5*(ipice(is)*f(is)+ipice(ies)*f(ies))
-tev=0.5*(ipice(ie)*f(ie)+ipice(ine)*f(ine))
+tsu=0.5*(ipice(is)*f(is)+ipice(ise)*f(ise))
+tev=0.5*(ipice(ie)*f(ie)+ipice(ien)*f(ien))
 tnn=0.5*(ipice(1:ifull)*f(1:ifull)+ipice(in)*f(in))
-twv=0.5*(ipice(iw)*f(iw)+ipice(inw)*f(inw))
+twv=0.5*(ipice(iw)*f(iw)+ipice(iwn)*f(iwn))
 dipdxu=(ipice(ie)-ipice(1:ifull))*emu(1:ifull)/ds
 dipdyu=0.5*(stwgt(:,1)*(tnu-tee)+stwgt(:,2)*(tee-tsu))*emu(1:ifull)/ds
 dipdxv=0.5*(stwgt(:,3)*(tev-tnn)+stwgt(:,4)*(tnn-twv))*emv(1:ifull)/ds
@@ -1636,12 +1637,19 @@ if (nud_sss==0) then
   delneg=0.
   dum=0.
   ndum=sum(w_s(1:ifull,:),2)
-  do ii=1,wlev
-    where(wtr(1:ifull).and.ndum>0.1)
-      dum(:,ii)=ns(1:ifull,ii)-w_s(:,ii)
-      !dum(:,ii)=ns(1:ifull,ii)-34.72
-    end where
-  end do
+  if (fixsal==0) then
+    do ii=1,wlev
+      where(wtr(1:ifull).and.ndum>0.1)
+        dum(:,ii)=ns(1:ifull,ii)-w_s(:,ii)
+      end where
+    end do
+  else
+    do ii=1,wlev
+      where(wtr(1:ifull).and.ndum>0.1)
+      dum(:,ii)=ns(1:ifull,ii)-34.72
+      end where
+    end do
+  end if
   call ccglobal_posneg(dum,delpos,delneg,godsig,comm=comm_mlo)
   alph_p = -delneg/max(delpos,1.E-20)
   alph_p = min(sqrt(alph_p),alph_p)
@@ -3933,17 +3941,17 @@ do ii=1,wlev
   drhobardzv=(rhobarhl(1:ifull,ii)+rhobarhl(in,ii)-rhobarhl(1:ifull,ii-1)-rhobarhl(in,ii-1))          &
             /(dephladj(1:ifull,ii)+dephladj(in,ii)-dephladj(1:ifull,ii-1)-dephladj(in,ii-1))
   tnu=0.5*(( rhobar(in,ii)+drhobardzu*((1.-gosig(ii))*neta(in) -gosig(ii)*dd(in) ))*f(in) &
-          +(rhobar(ien,ii)+drhobardzu*((1.-gosig(ii))*neta(ien)-gosig(ii)*dd(ien)))*f(ien))
+          +(rhobar(ine,ii)+drhobardzu*((1.-gosig(ii))*neta(ine)-gosig(ii)*dd(ine)))*f(ine))
   tee=0.5*(( rhobar(1:ifull,ii)+drhobardzu*((1.-gosig(ii))*neta(1:ifull) -gosig(ii)*dd(1:ifull) ))*f(1:ifull) &
           +(rhobar(ie,ii)+drhobardzu*((1.-gosig(ii))*neta(ie)-gosig(ii)*dd(ie)))*f(ie))
   tsu=0.5*(( rhobar(is,ii)+drhobardzu*((1.-gosig(ii))*neta(is) -gosig(ii)*dd(is) ))*f(is) &
-          +(rhobar(ies,ii)+drhobardzu*((1.-gosig(ii))*neta(ies)-gosig(ii)*dd(ies)))*f(ies))
+          +(rhobar(ise,ii)+drhobardzu*((1.-gosig(ii))*neta(ise)-gosig(ii)*dd(ise)))*f(ise))
   tev=0.5*(( rhobar(ie,ii)+drhobardzv*((1.-gosig(ii))*neta(ie) -gosig(ii)*dd(ie) ))*f(ie) &
-          +(rhobar(ine,ii)+drhobardzv*((1.-gosig(ii))*neta(ine)-gosig(ii)*dd(ine)))*f(ine))
+          +(rhobar(ien,ii)+drhobardzv*((1.-gosig(ii))*neta(ien)-gosig(ii)*dd(ien)))*f(ien))
   tnn=0.5*(( rhobar(1:ifull,ii)+drhobardzv*((1.-gosig(ii))*neta(1:ifull) -gosig(ii)*dd(1:ifull) ))*f(1:ifull) &
           +(rhobar(in,ii)+drhobardzv*((1.-gosig(ii))*neta(in)-gosig(ii)*dd(in)))*f(in))
   twv=0.5*(( rhobar(iw,ii)+drhobardzv*((1.-gosig(ii))*neta(iw) -gosig(ii)*dd(iw) ))*f(iw) &
-          +(rhobar(inw,ii)+drhobardzv*((1.-gosig(ii))*neta(inw)-gosig(ii)*dd(inw)))*f(inw))
+          +(rhobar(iwn,ii)+drhobardzv*((1.-gosig(ii))*neta(iwn)-gosig(ii)*dd(iwn)))*f(iwn))
   drhobardxu(:,ii)=(rhobar(ie,ii)-rhobar(1:ifull,ii)+drhobardzu*((1.-gosig(ii))*(neta(ie)-neta(1:ifull)) &
                                                      -gosig(ii)*(dd(ie)-dd(1:ifull))))*emu(1:ifull)/ds
   drhobardxu(:,ii)=drhobardxu(:,ii)*eeu(1:ifull)                                                   
@@ -3972,12 +3980,12 @@ include 'newmpar.h'
 include 'parm.h'
 
 integer iqq,ii
-integer sdi,sde,sdw,sdn,sds,sden,sdes,sdne,sdnw
-real ddux,ddvy,ri,re,rw,rn,rs,ren,res,rne,rnw
-real mxi,mxe,mxw,mxn,mxs,mxen,mxes,mxne,mxnw
+integer sdi,sde,sdw,sdn,sds,sden,sdse,sdne,sdwn
+real ddux,ddvy,ri,re,rw,rn,rs,ren,rse,rne,rwn
+real mxi,mxe,mxw,mxn,mxs,mxen,mxse,mxne,mxwn
 real drhobardzu,drhobardzv
-real, dimension(wlev) :: ddi,dde,ddw,ddn,dds,dden,ddes,ddne,ddnw
-real, dimension(wlev) :: ssi,sse,ssw,ssn,sss,ssen,sses,ssne,ssnw
+real, dimension(wlev) :: ddi,dde,ddw,ddn,dds,dden,ddse,ddne,ddwn
+real, dimension(wlev) :: ssi,sse,ssw,ssn,sss,ssen,ssse,ssne,sswn
 real, dimension(ifull+iextra,wlev), intent (in) :: rhobar
 real, dimension(ifull+iextra), intent(in) :: neta
 real, dimension(ifull,wlev), intent(out) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
@@ -4013,17 +4021,17 @@ do iqq=1,ifull
     sde=2
     sdn=2
     sds=2
-    sden=2
-    sdes=2
+    sdne=2
+    sdse=2
     mxs=dd(is(iqq))
-    mxen=dd(ien(iqq))
-    mxes=dd(ies(iqq))
+    mxne=dd(ine(iqq))
+    mxse=dd(ise(iqq))
     sss=rhobar(is(iqq),:)
-    ssen=rhobar(ien(iqq),:)
-    sses=rhobar(ies(iqq),:)
+    ssne=rhobar(ine(iqq),:)
+    ssse=rhobar(ise(iqq),:)
     dds=gosig(:)*mxs
-    dden=gosig(:)*mxen
-    ddes=gosig(:)*mxes
+    ddne=gosig(:)*mxne
+    ddse=gosig(:)*mxse
     do ii=1,wlev
       ! process staggered u locations
       ! estimate vertical gradient
@@ -4040,23 +4048,23 @@ do iqq=1,ifull
         ri=ri+drhobardzu*(1.-gosig(ii))*neta(iqq)
         re=re+drhobardzu*(1.-gosig(ii))*neta(ie(iqq))
         drhobardxu(iqq,ii)=eeu(iqq)*(re-ri)*emu(iqq)/ds
-        if (mxn>=ddux.and.mxen>=ddux) then
+        if (mxn>=ddux.and.mxne>=ddux) then
           call seekval(rn,ssn(:),ddn(:),ddux,sdn)
-          call seekval(ren,ssen(:),dden(:),ddux,sden)
+          call seekval(rne,ssne(:),ddne(:),ddux,sdne)
           ! the following terms correct for neglecting neta in the above interpolation of depths
           rn=rn+drhobardzu*(1.-gosig(ii))*neta(in(iqq))
-          ren=ren+drhobardzu*(1.-gosig(ii))*neta(ien(iqq))
-          drhobardyu(iqq,ii)=drhobardyu(iqq,ii)+0.25*stwgt(iqq,1)*(rn*f(in(iqq))+ren*f(ien(iqq))-ri*f(iqq)-re*f(ie(iqq)))*emu(iqq)/ds
-          drhobardyu(iqq,ii)=drhobardyu(iqq,ii)-0.125*stwgt(iqq,1)*(ri+re)*(f(in(iqq))+f(ien(iqq))-f(iqq)-f(ie(iqq)))*emu(iqq)/ds
+          rne=rne+drhobardzu*(1.-gosig(ii))*neta(ine(iqq))
+          drhobardyu(iqq,ii)=drhobardyu(iqq,ii)+0.25*stwgt(iqq,1)*(rn*f(in(iqq))+rne*f(ine(iqq))-ri*f(iqq)-re*f(ie(iqq)))*emu(iqq)/ds
+          drhobardyu(iqq,ii)=drhobardyu(iqq,ii)-0.125*stwgt(iqq,1)*(ri+re)*(f(in(iqq))+f(ine(iqq))-f(iqq)-f(ie(iqq)))*emu(iqq)/ds
         end if
-        if (mxs>=ddux.and.mxes>=ddux) then
+        if (mxs>=ddux.and.mxse>=ddux) then
           call seekval(rs,sss(:),dds(:),ddux,sds)
-          call seekval(res,sses(:),ddes(:),ddux,sdes)
+          call seekval(rse,ssse(:),ddse(:),ddux,sdse)
           ! the following terms correct for neglecting neta in the above interpolation of depths
           rs=rs+drhobardzu*(1.-gosig(ii))*neta(is(iqq))
-          res=res+drhobardzu*(1.-gosig(ii))*neta(ies(iqq))
-          drhobardyu(iqq,ii)=drhobardyu(iqq,ii)+0.25*stwgt(iqq,2)*(ri*f(iqq)+re*f(ie(iqq))-rs*f(is(iqq))-res*f(ies(iqq)))*emu(iqq)/ds
-          drhobardyu(iqq,ii)=drhobardyu(iqq,ii)-0.125*stwgt(iqq,2)*(ri+re)*(f(iqq)+f(ie(iqq))-f(is(iqq))-f(ies(iqq)))*emu(iqq)/ds
+          rse=rse+drhobardzu*(1.-gosig(ii))*neta(ise(iqq))
+          drhobardyu(iqq,ii)=drhobardyu(iqq,ii)+0.25*stwgt(iqq,2)*(ri*f(iqq)+re*f(ie(iqq))-rs*f(is(iqq))-rse*f(ise(iqq)))*emu(iqq)/ds
+          drhobardyu(iqq,ii)=drhobardyu(iqq,ii)-0.125*stwgt(iqq,2)*(ri+re)*(f(iqq)+f(ie(iqq))-f(is(iqq))-f(ise(iqq)))*emu(iqq)/ds
         end if
       end if
     end do
@@ -4069,17 +4077,17 @@ do iqq=1,ifull
     sdn=2
     sde=2
     sdw=2
-    sdne=2
-    sdnw=2
+    sden=2
+    sdwn=2
     mxw=dd(iw(iqq))
-    mxne=dd(ine(iqq))
-    mxnw=dd(inw(iqq))
+    mxen=dd(ien(iqq))
+    mxwn=dd(iwn(iqq))
     ssw=rhobar(iw(iqq),:)
-    ssne=rhobar(ine(iqq),:)
-    ssnw=rhobar(inw(iqq),:)
+    ssen=rhobar(ien(iqq),:)
+    sswn=rhobar(iwn(iqq),:)
     ddw=gosig(:)*mxw
-    ddne=gosig(:)*mxne
-    ddnw=gosig(:)*mxnw
+    dden=gosig(:)*mxen
+    ddwn=gosig(:)*mxwn
     do ii=1,wlev
       ! now process staggered v locations
       ! estimate vertical gradient
@@ -4094,21 +4102,21 @@ do iqq=1,ifull
         ri=ri+drhobardzv*(1.-gosig(ii))*neta(iqq)
         rn=rn+drhobardzv*(1.-gosig(ii))*neta(in(iqq))
         drhobardyv(iqq,ii)=eev(iqq)*(rn-ri)*emv(iqq)/ds
-        if (mxe>=ddvy.and.mxne>=ddvy) then
+        if (mxe>=ddvy.and.mxen>=ddvy) then
           call seekval(re,sse(:),dde(:),ddvy,sde)
-          call seekval(rne,ssne(:),ddne(:),ddvy,sdne)
+          call seekval(ren,ssen(:),dden(:),ddvy,sden)
           re=re+drhobardzv*(1.-gosig(ii))*neta(ie(iqq))
-          rne=rne+drhobardzv*(1.-gosig(ii))*neta(ine(iqq))
-          drhobardxv(iqq,ii)=drhobardxv(iqq,ii)+0.25*stwgt(iqq,3)*(re*f(ie(iqq))+ren*f(ine(iqq))-ri*f(iqq)-rn*f(in(iqq)))*emv(iqq)/ds
-          drhobardxv(iqq,ii)=drhobardxv(iqq,ii)-0.125*stwgt(iqq,3)*(ri+rn)*(f(ie(iqq))+f(ine(iqq))-f(iqq)-f(in(iqq)))*emv(iqq)/ds
+          ren=ren+drhobardzv*(1.-gosig(ii))*neta(ien(iqq))
+          drhobardxv(iqq,ii)=drhobardxv(iqq,ii)+0.25*stwgt(iqq,3)*(re*f(ie(iqq))+ren*f(ien(iqq))-ri*f(iqq)-rn*f(in(iqq)))*emv(iqq)/ds
+          drhobardxv(iqq,ii)=drhobardxv(iqq,ii)-0.125*stwgt(iqq,3)*(ri+rn)*(f(ie(iqq))+f(ien(iqq))-f(iqq)-f(in(iqq)))*emv(iqq)/ds
         end if
-        if (mxw>=ddvy.and.mxnw>=ddvy) then
+        if (mxw>=ddvy.and.mxwn>=ddvy) then
           call seekval(rw,ssw(:),ddw(:),ddvy,sdw)
-          call seekval(rnw,ssnw(:),ddnw(:),ddvy,sdnw)
+          call seekval(rwn,sswn(:),ddwn(:),ddvy,sdwn)
           rw=rw+drhobardzv*(1.-gosig(ii))*neta(iw(iqq))
-          rnw=rnw+drhobardzv*(1.-gosig(ii))*neta(inw(iqq))
-          drhobardxv(iqq,ii)=drhobardxv(iqq,ii)+0.25*stwgt(iqq,4)*(ri*f(iqq)+rn*f(in(iqq))-rw*f(iw(iqq))-rnw*f(inw(iqq)))*emv(iqq)/ds
-          drhobardxv(iqq,ii)=drhobardxv(iqq,ii)-0.125*stwgt(iqq,4)*(ri+rn)*(f(iqq)+f(in(iqq))-f(iw(iqq))-f(inw(iqq)))*emv(iqq)/ds
+          rwn=rwn+drhobardzv*(1.-gosig(ii))*neta(iwn(iqq))
+          drhobardxv(iqq,ii)=drhobardxv(iqq,ii)+0.25*stwgt(iqq,4)*(ri*f(iqq)+rn*f(in(iqq))-rw*f(iw(iqq))-rwn*f(iwn(iqq)))*emv(iqq)/ds
+          drhobardxv(iqq,ii)=drhobardxv(iqq,ii)-0.125*stwgt(iqq,4)*(ri+rn)*(f(iqq)+f(in(iqq))-f(iw(iqq))-f(iwn(iqq)))*emv(iqq)/ds
         end if
       end if
     end do

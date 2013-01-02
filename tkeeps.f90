@@ -1,7 +1,7 @@
 
 ! This module calculates the turblent kinetic energy and mixing for the boundary layer based on Hurley 2009
 ! (eddy dissipation) and Angevine et al 2010 (mass flux).  Specifically, this version is modified for
-! clouds.
+! clouds and saturated air following Durran and Klemp JAS 1982.
 
 ! Usual procedure
 
@@ -107,20 +107,23 @@ end subroutine tkeinit
 ! mode=0 mass flux with moist convection
 ! mode=1 no mass flux
 
-subroutine tkemix(kmo,theta,qg,qlg,qfg,qrg,cfrac,cfrain,zi,wt0,wq0,ps,ustar,rhoas,zz,zzh,sig,sigkap,dt,qgmin,mode,diag)
+subroutine tkemix(kmo,theta,qg,qlg,qfg,qrg,cfrac,cfrain,zi,wt0,wq0,ps,ustar,rhoas, &
+                  zz,zzh,sig,sigkap,dt,qgmin,mode,diag,naero,aero)
 
 implicit none
 
-integer, intent(in) :: diag,mode
-integer k,i,klcl,ktopmax
+integer, intent(in) :: diag,mode,naero
+integer k,i,j,klcl,ktopmax
 integer icount,kcount,ncount,mcount
 real, intent(in) :: dt,qgmin
+real, dimension(:,:,:), intent(inout) :: aero
 real, dimension(ifull,kl), intent(inout) :: theta,qg,qlg,qfg,qrg,cfrac,cfrain
 real, dimension(ifull,kl), intent(out) :: kmo
 real, dimension(ifull,kl), intent(in) :: zz,zzh
 real, dimension(ifull), intent(inout) :: zi
 real, dimension(ifull), intent(in) :: wt0,wq0,ps,ustar,rhoas
 real, dimension(kl), intent(in) :: sigkap,sig
+real, dimension(ifull,kl,size(aero,3)) :: gamar,arup
 real, dimension(ifull,kl) :: km,thetav,thetal,temp,qsat
 real, dimension(ifull,kl) :: gamtv,gamth,gamqv,gamql,gamqf
 real, dimension(ifull,kl) :: gamqr,gamcf,gamcr,gamhl
@@ -227,6 +230,10 @@ do kcount=1,mcount
   qrup=qrg
   cfup=cfrac
   crup=cfrain
+  if (naero>0) then
+    gamar=0.
+    arup=aero
+  end if
   qupsat=qsat
   qtup=qg+qlg+qfg+qrg
   tlup=thetal
@@ -252,7 +259,7 @@ do kcount=1,mcount
           !ee=2./max(100.,zidry(i))                     ! Angevine et al (2010)
           !ee=1./max(zht,1.)                            ! Siebesma et al (2003)
           !ee=0.5*(1./max(zht,1.)+1./max(zi(i)-zht,1.)) ! Soares et al (2004)
-          ee=1./max(100.,zidry(i))                      ! MJT suggestion
+          ee=1./max(100.,zidry(i))                      ! MJT suggestion for CCAM
           ! first level -----------------
           ! initial thermodynamic state
           ! split thetal and qtot into components (conservation is maintained)
@@ -452,7 +459,7 @@ do kcount=1,mcount
           ! check for convergence
           ! use zidry instead of zi to avoid oscillations
           ! for borderline shallow convection
-          if (abs(zidry(i)-zidryold)<0.01*zidry(i)) exit
+          if (abs(zidry(i)-zidryold)<1.) exit
           zidryold=zidry(i)
         end do
 
@@ -463,6 +470,13 @@ do kcount=1,mcount
           dzht=dz_hl(i,k-1)
           cfup(i,k)=(cfup(i,k-1)+dzht*ee*cfrac(i,k) )/(1.+dzht*ee)
           crup(i,k)=(crup(i,k-1)+dzht*ee*cfrain(i,k))/(1.+dzht*ee)
+        end do
+        do j=1,naero
+          arup(i,1,j)=aero(i,1,j)
+          do k=2,ktopmax
+            dzht=dz_hl(i,k-1)
+            arup(i,k,j)=(arup(i,k-1,j)+dzht*ee*aero(i,k,j))/(1.+dzht*ee)
+          end do
         end do
 
         ! update explicit counter gradient terms
@@ -475,6 +489,11 @@ do kcount=1,mcount
           gamtv(i,k)=gamth(i,k)+theta(i,k)*(0.61*gamqv(i,k)-gamql(i,k)-gamqf(i,k)-gamqr(i,k))
           gamcf(i,k)=mflx(i,k)*(cfup(i,k)-cfrac(i,k))
           gamcr(i,k)=mflx(i,k)*(crup(i,k)-cfrain(i,k))
+        end do
+        do j=1,naero
+          do k=1,ktopmax
+            gamar(i,k,j)=mflx(i,k)*(arup(i,k,j)-aero(i,k,j))
+          end do
         end do
 
       else                   ! stable
@@ -697,6 +716,15 @@ do kcount=1,mcount
   where (qrg>1.E-12)
     cfrain=max(cfrain,1.E-6)
   end where
+  
+  ! Aerosols
+  do j=1,naero
+    call updategam(gamhl,gamar(:,:,j),zz,zzh,zi)
+    dd(:,1)=aero(:,1,j)-ddts*gamhl(:,1)*rhoahl(:,1)/(rhoa(:,1)*dz_fl(:,1))
+    dd(:,2:kl-1)=aero(:,2:kl-1,j)+ddts*(gamhl(:,1:kl-2)*rhoahl(:,1:kl-2)-gamhl(:,2:kl-1)*rhoahl(:,2:kl-1))/(rhoa(:,2:kl-1)*dz_fl(:,2:kl-1))
+    dd(:,kl)=aero(:,kl,j)+ddts*gamhl(:,kl-1)*rhoahl(:,kl-1)/(rhoa(:,kl)*dz_fl(:,kl))
+    call thomas(aero(:,:,j),aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
+  end do
 
 end do
 

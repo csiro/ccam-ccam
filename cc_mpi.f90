@@ -12,13 +12,12 @@ module cc_mpi
    integer, save, private :: nxproc, nyproc
 
    integer, public, allocatable, save, dimension(:,:,:) :: fproc
-   integer, public, allocatable, save, dimension(:) :: qproc
 
 
    ! These only need to be module variables for the overlap case
    ! when they have to keep values between boundsa and boundsb.
    ! For now leave them here.
-   integer(kind=4), allocatable, dimension(:), save, private :: ireq
+   integer(kind=4), allocatable, dimension(:), save, public :: ireq
    integer(kind=4), save, private :: nreq
 
    public :: bounds, boundsuv, ccmpi_setup, ccmpi_distribute, ccmpi_gather, &
@@ -271,9 +270,9 @@ contains
       use xyzinfo_m
       integer iproc, iq, iqg, i, j, n, ig, jg, ng, tg, jx, mcc
       integer(kind=4) ierr
+      real, dimension(ifull_g) :: qproc
 
       allocate(fproc(il_g,il_g,0:npanels))
-      allocate(qproc(ifull_g))
       allocate(ireq(2*nproc))
       allocate(bnds(0:nproc-1))
       allocate(dpoints(0:nproc-1))
@@ -283,12 +282,12 @@ contains
       allocate(neighbour(0:nproc-1))
       
 #ifdef uniform_decomp
-      call proc_setup_uniform
+      call proc_setup_uniform(qproc)
       ! Faces may not line up properly so need extra factor here
       maxbuflen = (max(ipan,jpan)+4)*3*max(kl+1,ol+1) * 8 * 2  !*3 for extra vector row (e.g., inu,isu,iev,iwv)
                                                                ! kl+1 and ol+1 for 2D + 3D packing
 #else
-      call proc_setup
+      call proc_setup(qproc)
       if ( nproc < npanels+1 ) then
          ! This is the maximum size, each face has 4 edges
          maxbuflen = npan*4*(il_g+4)*3*max(kl+1,ol+1) !*3 for extra vector row (e.g., inu,isu,iev,iwv)
@@ -416,7 +415,7 @@ contains
          call ccmpi_distribute(rlongg)
       end if
 
-      call bounds_setup()
+      call bounds_setup(qproc)
       call bounds(em)
       call boundsuv(emu,emv)
       call boundsuv(ax,bx)
@@ -442,7 +441,7 @@ contains
       end do
 
       ! Pack colour indices
-      mcc=max( count( colourmask == 1 ), count( colourmask == 2), count( colourmask == 3) )
+      mcc=max( count( colourmask == 1 ), count( colourmask == 2 ), count( colourmask == 3 ) )
       allocate ( iqx(mcc,maxcolour) )
       allocate ( iqn(mcc,maxcolour), iqe(mcc,maxcolour) )
       allocate ( iqw(mcc,maxcolour), iqs(mcc,maxcolour) )
@@ -1132,9 +1131,10 @@ contains
 
    end subroutine ccmpi_gatherall3
    
-   subroutine bounds_setup()
+   subroutine bounds_setup(qproc)
 
       use indices_m
+      real, dimension(ifull_g), intent(in) :: qproc
       integer :: n, nr, i, j, iq, iqq
       integer :: iproc
       integer(kind=4), dimension(MPI_STATUS_SIZE,2*nproc) :: status
@@ -1716,84 +1716,84 @@ contains
          ! NE corner, lnee, leen, lenn, lnne
          iqg = indg(ipan,jpan,n)
          if ( edge_n(n-noff) .and. edge_e(n-noff) ) then
-            call fix_index2(lnee_g(n-noff),lnee,n,bnds,iext)
-            call fix_index2(leen_g(n-noff),leen,n,bnds,iext)
-            call fix_index2(lenn_g(n-noff),lenn,n,bnds,iext)
-            call fix_index2(lnne_g(n-noff),lnne,n,bnds,iext)
+            call fix_index2(lnee_g(n-noff),lnee,n,bnds,iext,qproc)
+            call fix_index2(leen_g(n-noff),leen,n,bnds,iext,qproc)
+            call fix_index2(lenn_g(n-noff),lenn,n,bnds,iext,qproc)
+            call fix_index2(lnne_g(n-noff),lnne,n,bnds,iext,qproc)
          else if ( edge_e(n-noff) ) then
             ! Use in first because it'll be on same face.
-            call fix_index2(iee_g(in_g(iqg)),lnee,n,bnds,iext)
+            call fix_index2(iee_g(in_g(iqg)),lnee,n,bnds,iext,qproc)
             leen(n) = lnee(n)
-            call fix_index2(ie_g(inn_g(iqg)),lenn,n,bnds,iext)
+            call fix_index2(ie_g(inn_g(iqg)),lenn,n,bnds,iext,qproc)
             lnne(n) = lenn(n)
          else
             ! Use ie first
-            call fix_index2(in_g(iee_g(iqg)),lnee,n,bnds,iext)
+            call fix_index2(in_g(iee_g(iqg)),lnee,n,bnds,iext,qproc)
             leen(n) = lnee(n)
-            call fix_index2(inn_g(ie_g(iqg)),lenn,n,bnds,iext)
+            call fix_index2(inn_g(ie_g(iqg)),lenn,n,bnds,iext,qproc)
             lnne(n) = lenn(n)
          end if
 
          ! NW corner, lnww, lwwn, lwnn, lnnw
          iqg = indg(1,jpan,n)
          if ( edge_n(n-noff) .and. edge_w(n-noff) ) then
-            call fix_index2(lnww_g(n-noff),lnww,n,bnds,iext)
-            call fix_index2(lwwn_g(n-noff),lwwn,n,bnds,iext)
-            call fix_index2(lwnn_g(n-noff),lwnn,n,bnds,iext)
-            call fix_index2(lnnw_g(n-noff),lnnw,n,bnds,iext)
+            call fix_index2(lnww_g(n-noff),lnww,n,bnds,iext,qproc)
+            call fix_index2(lwwn_g(n-noff),lwwn,n,bnds,iext,qproc)
+            call fix_index2(lwnn_g(n-noff),lwnn,n,bnds,iext,qproc)
+            call fix_index2(lnnw_g(n-noff),lnnw,n,bnds,iext,qproc)
          else if ( edge_w(n-noff) ) then
             ! Use in first because it'll be on same face.
-            call fix_index2(iww_g(in_g(iqg)),lnww,n,bnds,iext)
+            call fix_index2(iww_g(in_g(iqg)),lnww,n,bnds,iext,qproc)
             lwwn(n) = lnww(n)
-            call fix_index2(iw_g(inn_g(iqg)),lwnn,n,bnds,iext)
+            call fix_index2(iw_g(inn_g(iqg)),lwnn,n,bnds,iext,qproc)
             lnnw(n) = lwnn(n)
          else
             ! Use iw first
-            call fix_index2(in_g(iww_g(iqg)),lnww,n,bnds,iext)
+            call fix_index2(in_g(iww_g(iqg)),lnww,n,bnds,iext,qproc)
             lwwn(n) = lnww(n)
-            call fix_index2(inn_g(iw_g(iqg)),lwnn,n,bnds,iext)
+            call fix_index2(inn_g(iw_g(iqg)),lwnn,n,bnds,iext,qproc)
             lnnw(n) = lwnn(n)
          end if
 
          ! SE corner, lsee, lees, less, lsse
          iqg = indg(ipan,1,n)
          if ( edge_s(n-noff) .and. edge_e(n-noff) ) then
-            call fix_index2(lsee_g(n-noff),lsee,n,bnds,iext)
-            call fix_index2(lees_g(n-noff),lees,n,bnds,iext)
-            call fix_index2(less_g(n-noff),less,n,bnds,iext)
-            call fix_index2(lsse_g(n-noff),lsse,n,bnds,iext)
+            call fix_index2(lsee_g(n-noff),lsee,n,bnds,iext,qproc)
+            call fix_index2(lees_g(n-noff),lees,n,bnds,iext,qproc)
+            call fix_index2(less_g(n-noff),less,n,bnds,iext,qproc)
+            call fix_index2(lsse_g(n-noff),lsse,n,bnds,iext,qproc)
          else if ( edge_e(n-noff) ) then
             ! Use is first because it'll be on same face.
-            call fix_index2(iee_g(is_g(iqg)),lsee,n,bnds,iext)
+            call fix_index2(iee_g(is_g(iqg)),lsee,n,bnds,iext,qproc)
             lees(n) = lsee(n)
-            call fix_index2(ie_g(iss_g(iqg)),less,n,bnds,iext)
+            call fix_index2(ie_g(iss_g(iqg)),less,n,bnds,iext,qproc)
             lsse(n) = less(n)
          else
             ! Use ie first
-            call fix_index2(is_g(iee_g(iqg)),lsee,n,bnds,iext)
+            call fix_index2(is_g(iee_g(iqg)),lsee,n,bnds,iext,qproc)
             lees(n) = lsee(n)
-            call fix_index2(iss_g(ie_g(iqg)),less,n,bnds,iext)
+            call fix_index2(iss_g(ie_g(iqg)),less,n,bnds,iext,qproc)
             lsse(n) = less(n)
          end if
 
          ! SW corner, lsww, lwws, lwss, lssw
          iqg = indg(1,1,n)
          if ( edge_s(n-noff) .and. edge_w(n-noff) ) then
-            call fix_index2(lsww_g(n-noff),lsww,n,bnds,iext)
-            call fix_index2(lwws_g(n-noff),lwws,n,bnds,iext)
-            call fix_index2(lwss_g(n-noff),lwss,n,bnds,iext)
-            call fix_index2(lssw_g(n-noff),lssw,n,bnds,iext)
+            call fix_index2(lsww_g(n-noff),lsww,n,bnds,iext,qproc)
+            call fix_index2(lwws_g(n-noff),lwws,n,bnds,iext,qproc)
+            call fix_index2(lwss_g(n-noff),lwss,n,bnds,iext,qproc)
+            call fix_index2(lssw_g(n-noff),lssw,n,bnds,iext,qproc)
          else if ( edge_w(n-noff) ) then
             ! Use is first because it'll be on same face.
-            call fix_index2(iww_g(is_g(iqg)),lsww,n,bnds,iext)
+            call fix_index2(iww_g(is_g(iqg)),lsww,n,bnds,iext,qproc)
             lwws(n) = lsww(n)
-            call fix_index2(iw_g(iss_g(iqg)),lwss,n,bnds,iext)
+            call fix_index2(iw_g(iss_g(iqg)),lwss,n,bnds,iext,qproc)
             lssw(n) = lwss(n)
          else
             ! Use iw first
-            call fix_index2(is_g(iww_g(iqg)),lsww,n,bnds,iext)
+            call fix_index2(is_g(iww_g(iqg)),lsww,n,bnds,iext,qproc)
             lwws(n) = lsww(n)
-            call fix_index2(iss_g(iw_g(iqg)),lwss,n,bnds,iext)
+            call fix_index2(iss_g(iw_g(iqg)),lwss,n,bnds,iext,qproc)
             lssw(n) = lwss(n)
          end if
 
@@ -4479,12 +4479,13 @@ contains
       end if
    end subroutine check_bnds_alloc
 
-   subroutine fix_index(iqq,larray,n,bnds,iext)
+   subroutine fix_index(iqq,larray,n,bnds,iext,qproc)
       integer, intent(in) :: iqq, n
       integer, dimension(:), intent(out) :: larray
       integer, intent(inout) :: iext
       type(bounds_info), dimension(0:), intent(inout) :: bnds
       integer :: rproc, iloc,jloc,nloc
+      real, dimension(:), intent(in) :: qproc
 
       ! This processes extra corner points, so adds to rlenx
       ! Which processor has this point
@@ -4504,12 +4505,13 @@ contains
       end if
    end subroutine fix_index
 
-   subroutine fix_index2(iqq,larray,n,bnds,iext)
+   subroutine fix_index2(iqq,larray,n,bnds,iext,qproc)
       integer, intent(in) :: iqq, n
       integer, dimension(:), intent(out) :: larray
       integer, intent(inout) :: iext
       type(bounds_info), dimension(0:), intent(inout) :: bnds
       integer :: rproc, iloc,jloc,nloc
+      real, dimension(:), intent(in) :: qproc
 
       ! Which processor has this point
       rproc = qproc(iqq)
@@ -4528,9 +4530,10 @@ contains
       end if
    end subroutine fix_index2
 
-   subroutine proc_setup
+   subroutine proc_setup(qproc)
       include 'parm.h'
 !     Routine to set up offsets etc.
+      real, dimension(ifull_g), intent(out) :: qproc
       integer :: i, j, n, iproc, nd, jdf, idjd_g
 
       call face_set(ipan,jpan,noff,ioff,joff,npan,il_g,myid,nproc,nxproc,nyproc)
@@ -4649,9 +4652,10 @@ contains
    
    end subroutine face_set
 
-   subroutine proc_setup_uniform
+   subroutine proc_setup_uniform(qproc)
       include 'parm.h'
 !     Routine to set up offsets etc for the uniform decomposition
+      real, dimension(ifull_g), intent(out) :: qproc
       integer :: i, j, n, iproc, nd, jdf, idjd_g
       integer(kind=4) ierr
 
@@ -4669,15 +4673,14 @@ contains
       ! MJT suggested decomposition to improve load balance
       ! Here, processors assigned to different faces are
       ! (quasi-)equidistant.  For it to work correctly, we
-      ! need to invert ipan and jpan on processors 3 to 5
-      ! which wastes memory with x(il,jl) arrays.  Hence
-      ! the processor assignement is only quasi-equidistant
-      ! when nxproc.ne.nyproc
+      ! need to invert ipan and jpan on processors 3 to 5.
+      ! Hence, the processor assignement is only quasi-equidistant
+      ! when nxproc/=nyproc
       iproc=0
       qproc=-9999
       do j=1,il_g,jpan
         do i=1,il_g,ipan
-          if (j.le.il_g/2) then
+          if (j<=il_g/2) then
             fproc(i:i+ipan-1,j:j+jpan-1,0)=iproc
           else
             fproc(il_g-i-ipan+2:il_g-i+1,j:j+jpan-1,0)=iproc
@@ -4695,7 +4698,7 @@ contains
       iproc=0
       do j=1,il_g,jpan
         do i=1,il_g,ipan
-          if (i.le.il_g/2) then
+          if (i<=il_g/2) then
             fproc(i:i+ipan-1,j:j+jpan-1,2)=iproc
           else
             fproc(i:i+ipan-1,il_g-j-jpan+2:il_g-j+1,2)=iproc
@@ -4706,7 +4709,7 @@ contains
       iproc=0
       do i=1,il_g,ipan
         do j=1,il_g,jpan
-          if (i.le.il_g/2) then
+          if (i<=il_g/2) then
             fproc(i:i+ipan-1,j:j+jpan-1,3)=iproc
           else
             fproc(i:i+ipan-1,il_g-j-jpan+2:il_g-j+1,3)=iproc
@@ -4724,7 +4727,7 @@ contains
       iproc=0
       do i=1,il_g,ipan
         do j=1,il_g,jpan
-          if (j.le.il_g/2) then
+          if (j<=il_g/2) then
             fproc(i:i+ipan-1,j:j+jpan-1,5)=iproc
           else
             fproc(il_g-i-ipan+2:il_g-i+1,j:j+jpan-1,5)=iproc

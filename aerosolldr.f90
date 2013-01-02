@@ -110,9 +110,9 @@ implicit none
 integer, intent(in) :: index
 real, dimension(ifull), intent(in) :: aa
 
-if (index.lt.16) then
+if (index<16) then
   field(:,index)=aa ! Then follow SO2, BC and OC from anthro (a) and biomass-burning (b) levels 1 and 2
-elseif (index.eq.16) then
+elseif (index==16) then
   vso2(:)=aa        ! volcanic
 else
   write(6,*) "ERROR: index out-of-range for aldrloademiss"
@@ -221,7 +221,6 @@ real qlgx,qfgx
 real, parameter :: beta=0.65
 integer mg,nt,k
 
-xtg=max(xtg,0.)
 conwd=0.
 v10n=ustar*log(10./zo)/vkar
 dumsnowd=1.E-3*snowd
@@ -262,7 +261,7 @@ call xtemiss(dt, xtm1, rhoa(:,1), ts, sicef, vefn, aphp1,                 & !Inp
              land, tsigmf, dumsnowd, fwet, mc, wg, isig,                  & !Inputs
              xte, xtem, so2dd, so4dd, so2em, dmsem, so4em, bem, oem, bbem)  !Outputs
 do k=1,kl
-  xtg(1:ifull,k,:)=max(xtg(1:ifull,k,:)+xte(:,kl+1-k,:)*dt,0.)
+  xtg(1:ifull,k,:)=xtg(1:ifull,k,:)+xte(:,kl+1-k,:)*dt
 enddo
 
 ! Emission and dry deposition of dust
@@ -272,23 +271,22 @@ do k=1,kl
   aphp1(:,k)=prf(:)*sig(k)*0.01 ! hPa
 end do
 dumd=xtg(1:ifull,:,itracdu:itracdu+ndust-1)
-call dsettling(dt,ttg,dz,aphp1(:,1:kl),                     & !Inputs
-               dumd,dustdd) !In and out
+call dsettling(dt,ttg,dz,aphp1(:,1:kl), & !Inputs
+               dumd,dustdd)               !In and out
 ! Calculate dust emission and turbulent dry deposition at the surface
 duste(:)=0.
-call dustem(dt,rhoa(:,1),wg,Veff,dz(:,1),vt,snowd,dxy,land,             & !Inputs
-            dumd,dustdd,duste)          !In and out
+call dustem(dt,rhoa(:,1),wg,Veff,dz(:,1),vt,snowd,dxy,land,  & !Inputs
+            dumd,dustdd,duste)                                 !In and out
 xtg(1:ifull,:,itracdu:itracdu+ndust-1)=dumd
 
 ! Decay of hydrophobic black and organic carbon into hydrophilic forms
 do k=1,kl
   xtm1(:,kl+1-k,:)=xtg(1:ifull,k,:)
 enddo
-xtm1(:,:,:)=max(0.,xtm1(:,:,:))
 call xtsink (dt, xtm1, &  !Inputs
              xte)         !Output
 do k=1,kl
-  xtg(1:ifull,k,:)=max(xtg(1:ifull,k,:)+xte(:,kl+1-k,:)*dt,0.)
+  xtg(1:ifull,k,:)=xtg(1:ifull,k,:)+xte(:,kl+1-k,:)*dt
 enddo
 
 ! Compute diagnostic sea salt aerosol
@@ -305,7 +303,7 @@ do k=1,kl
   do mg=1,ifull
     qlgx=max(qlg(mg,k),0.)
     qfgx=max(qfg(mg,k),0.)
-    if(qlgx+qfgx.gt.1.e-8)then
+    if(qlgx+qfgx>1.e-8)then
       cstrat=min(cfrac(mg,k),1.-clcon(mg,k))
       pclcover(mg,kl+1-k)=cstrat*qlgx/(qlgx+qfgx) !Liquid-cloud fraction
       pcfcover(mg,kl+1-k)=cstrat*qfgx/(qlgx+qfgx) !Ice-cloud fraction
@@ -326,7 +324,7 @@ call xtchemie (1, dt,zdayfac,aphp1(:,1:kl), ppmrate, ppfprec,                   
                conwd,so2wd, so4wd, dustwd,                                      & !In and Out
                xte, so2oh, so2h2, so2o3, dmsoh, dmsn3)                            !Output
 do k=1,kl
-  xtg(1:ifull,k,:)=max(xtg(1:ifull,k,:)+xte(:,kl+1-k,:)*dt,0.)
+  xtg(1:ifull,k,:)=xtg(1:ifull,k,:)+xte(:,kl+1-k,:)*dt
 enddo
 
 !! diagnostics?
@@ -365,7 +363,7 @@ enddo
 !hso41(:) =hso41(:)+1.e9*xtg(:,1,3)*rho1(:) !In ugS/m3
 !
 !! Carbonaceous stuff
-!if(ncarb.gt.0)then
+!if(ncarb>0)then
 !  do k=1,nl
 !    ! Factor 1.e9 for carbon fields to convert to ug/m2
 !    hbcb(:)=hbcb(:)+1.e9*(xtg(:,k,itracbc)+xtg(:,k,itracbc+1))*dprf(:,k)/grav
@@ -376,7 +374,7 @@ enddo
 !endif
 
 !! Dust diagnostics
-!if(ndust.gt.0)then
+!if(ndust>0)then
 !  do nt=itracdu,itracdu+ndust-1
 !    hdust(:)=hdust(:)+1.e9*rho1(:)*xtg(:,1,nt) !In ug/m3
 !  enddo
@@ -389,8 +387,6 @@ enddo
 !    enddo
 !  enddo
 !endif
-
-xtg=max(xtg,0.)
 
 return
 end subroutine aldrcalc
@@ -506,25 +502,25 @@ iocna=idmst+1     ! Nat org
 ! make sure sig is inverted with kl as lowest level
 ! scale to CSIRO9 18 levels
 ! jk2 is top of level=1, bottom of level=2
-pos=maxloc(sig,sig.le.0.990) ! 100m
+pos=maxloc(sig,sig<=0.990) ! 100m
 jk2=pos(1)
 ! jk3 is top of level=2, bottom of level=3
-pos=maxloc(sig,sig.le.0.965) ! 300m
+pos=maxloc(sig,sig<=0.965) ! 300m
 jk3=pos(1)
 ! jk4 is top of level=3, bottom of level=4
-pos=maxloc(sig,sig.le.0.925) ! 600m
+pos=maxloc(sig,sig<=0.925) ! 600m
 jk4=pos(1)
 ! jk5 is top of level=4, bottom of level=5
-pos=maxloc(sig,sig.le.0.870) ! 1,150m
+pos=maxloc(sig,sig<=0.870) ! 1,150m
 jk5=pos(1)
 ! jk6 is top of level=5, bottom of level=6
-pos=maxloc(sig,sig.le.0.800) ! 1,800m
+pos=maxloc(sig,sig<=0.800) ! 1,800m
 jk6=pos(1)
 ! jk8 is top of level=7, bottom of level=8
-pos=maxloc(sig,sig.le.0.650) ! 3,500m
+pos=maxloc(sig,sig<=0.650) ! 3,500m
 jk8=pos(1)
 ! jk9 is top of level=8, bottom of level=9
-pos=maxloc(sig,sig.le.0.500) ! 5,500m
+pos=maxloc(sig,sig<=0.500) ! 5,500m
 jk9=pos(1)
 
 ! --------------------------------------------------------------
@@ -560,7 +556,7 @@ DO JL=1,ifull
     VpCO2=wtliss*VpCO2liss+(1.-wtliss)*VpCO2
     ScCO2=600.
     ScDMS = 2674 - 147.12*zsst + 3.726*zsst**2 - 0.038*zsst**3 !Sc for DMS (Saltzman et al.)
-    if(zzspeed.lt.3.6)then
+    if(zzspeed<3.6)then
       zVdms = VpCO2 * (ScCO2/ScDMS)**(2./3.)
     else
       zVdms = VpCO2 * sqrt(ScCO2/ScDMS)
@@ -687,7 +683,7 @@ DO JL=1,ifull
   ZVOLCEMI3=ZVOLCEMI*0.28
   !JK=hvolc(jl)
   jk=kl
-  IF(JK.GT.0) THEN
+  IF(JK>0) THEN
     ZDP=Grav/(APHP1(JL,JK+1)-APHP1(JL,JK))
     XTE(JL,JK,JT)=XTE(JL,JK,JT)+ZVOLCEMI1*vso2(JL)*ZDP
     do jk=jk4+1,jk3
@@ -717,7 +713,7 @@ DO JL=1,ifull
   IF(.NOT.LOLAND(JL)) THEN
 !         - SEA ICE -
 !           - MELTING/NOT MELTING SEAICE-
-    IF(TSM1M(JL).GE.(TMELT-0.1)) THEN
+    IF(TSM1M(JL)>=(TMELT-0.1)) THEN
       ZVD2ICE=0.8E-2
       ZVD4ICE=0.2E-2
     ELSE
@@ -730,9 +726,9 @@ DO JL=1,ifull
 !      - LAND -
 !        - NON-FOREST AREAS -
 !         -  SNOW/NO SNOW -
-    IF(PSNOW(JL).GT.ZSNCRI) THEN
+    IF(PSNOW(JL)>ZSNCRI) THEN
 !            - MELTING/NOT MELTING SNOW -
-      if(tsm1m(jl).ge.tmelt) then !This is a simplification of above line
+      if(tsm1m(jl)>=tmelt) then !This is a simplification of above line
         ZVD2NOF=0.8E-2
         ZVD4NOF=0.2E-2
       ELSE
@@ -741,18 +737,18 @@ DO JL=1,ifull
       ENDIF
     ELSE
 !           -  FROZEN/NOT FROZEN SOIL -
-      IF(TSM1M(JL).LE.TMELT) THEN
+      IF(TSM1M(JL)<=TMELT) THEN
         ZVD2NOF=0.2E-2
         ZVD4NOF=0.025E-2
       ELSE
 !            - WET/DRY -
 !               - COMPLETELY WET -
-        IF(fwet(JL).GE.0.01.OR.WSM1M(JL).EQ.1.) THEN
+        IF(fwet(JL)>=0.01.OR.WSM1M(JL)==1.) THEN
           ZVD2NOF=0.8E-2
           ZVD4NOF=0.2E-2
         ELSE
 !                  - DRY -
-          IF(WSM1M(JL).LT.0.9) THEN
+          IF(WSM1M(JL)<0.9) THEN
             ZVD2NOF=0.2E-2
             ZVD4NOF=0.025E-2
           ELSE
@@ -887,7 +883,7 @@ PQTMST=1./PTMST
 ZFAC=ALOG(0.5)*PTMST
 
 DO JT=1,naero
-  IF (SXTSINK(JT).NE.0.) THEN
+  IF (SXTSINK(JT)/=0.) THEN
     ZDECAY=EXP(ZFAC/SXTSINK(JT))
     DO JK=1,kl
       DO JL=1,ifull
@@ -1169,7 +1165,7 @@ ZSO4(:,ktop:kl)=AMAX1(0.,ZSO4(:,ktop:kl))
 !   CALCULATE THE REACTION-RATES FOR SO2-H2O2
 DO JK=KTOP,kl
   DO JL=1,ifull
-    IF(ZLWCIC(JL,JK).GT.ZMIN) THEN
+    IF(ZLWCIC(JL,JK)>ZMIN) THEN
       ZLWCL=ZLWCIC(JL,JK)*PRHOP1(JL,JK)*1.E-06
       ZLWCV=ZLWCIC(JL,JK)*PRHOP1(JL,JK)*1.E-03
       ZHP=ZHPBASE+ZSO4(JL,JK)*1000./(ZLWCIC(JL,JK)*ZMOLGS)
@@ -1200,7 +1196,7 @@ DO JK=KTOP,kl
     ZXTP1=XTO(JL,JK,JT)
     ZXTP10(JL,JK)=XTO(JL,JK,JT)
     ZXTP1C(JL,JK)=XTO(JL,JK,JT)
-    IF(ZXTP1.GT.ZMIN.AND.ZLWCIC(JL,JK).GT.ZMIN) THEN
+    IF(ZXTP1>ZMIN.AND.ZLWCIC(JL,JK)>ZMIN) THEN
       X=PRHOP1(JL,JK)
 
       ZQTP1=1./PTP1(JL,JK)-ZQ298
@@ -1232,7 +1228,7 @@ DO JK=KTOP,kl
 
       DO JN=1,NITER
         ZQ=ZRKH2O2(JL,JK)*ZH2O2M
-        ZSO2MH=(1-nfastox)*ZSO2M*EXP(-ZQ*ZDT) & ! = zero if nfastox.eq.1
+        ZSO2MH=(1-nfastox)*ZSO2M*EXP(-ZQ*ZDT) & ! = zero if nfastox==1
                +nfastox * max (0., zso2m - zh2o2m )
 
         ZDSO2H=ZSO2M-ZSO2MH
@@ -1299,7 +1295,7 @@ ZSO4C(:,ktop:kl)=AMAX1(0.,ZSO4C(:,ktop:kl))
 !   CALCULATE THE REACTION-RATES FOR SO2-H2O2
 DO JK=KTOP,kl
   DO JL=1,ifull
-    IF(PCCW(JL,JK).GT.ZMIN) THEN
+    IF(PCCW(JL,JK)>ZMIN) THEN
       ZLWCL=PCCW(JL,JK)*PRHOP1(JL,JK)*1.E-06
       ZLWCV=PCCW(JL,JK)*PRHOP1(JL,JK)*1.E-03
       ZHP=ZHPBASE+ZSO4C(JL,JK)*1000./(PCCW(JL,JK)*ZMOLGS)
@@ -1328,7 +1324,7 @@ JT=ITRACSO2
 DO JK=KTOP,kl
   DO JL=1,ifull
     ZXTP1=XTU(JL,JK,JT)
-    IF(ZXTP1.GT.ZMIN.AND.PCCW(JL,JK).GT.ZMIN) THEN
+    IF(ZXTP1>ZMIN.AND.PCCW(JL,JK)>ZMIN) THEN
       X=PRHOP1(JL,JK)
 
       ZQTP1=1./PTP1(JL,JK)-ZQ298
@@ -1360,7 +1356,7 @@ DO JK=KTOP,kl
 
       DO JN=1,NITER
         ZQ=ZRKH2O2(JL,JK)*ZH2O2M
-        ZSO2MH=(1-nfastox)*ZSO2M*EXP(-ZQ*ZDT)+nfastox*max(0.,zso2m-zh2o2m) ! = zero if nfastox.eq.1
+        ZSO2MH=(1-nfastox)*ZSO2M*EXP(-ZQ*ZDT)+nfastox*max(0.,zso2m-zh2o2m) ! = zero if nfastox==1
 
         ZDSO2H=ZSO2M-ZSO2MH
         ZH2O2M=ZH2O2M-ZDSO2H
@@ -1418,10 +1414,10 @@ DO JT=ITRACSO2,naero
 
   IF (LWETDEP(JT)) THEN          !True for all except DMS
 
-    if(jt.eq.itracso2) then        !SO2
+    if(jt==itracso2) then        !SO2
       zsolub(:,:)=zhenry(:,:)
 
-    elseif(jt.eq.itracso2+1) then  !sulfate
+    elseif(jt==itracso2+1) then  !sulfate
       zxtp1c(:,:)=zso4(:,:)
       zxtp10(:,:)=zso4i(:,:)
       zxtp1con(:,:)=zso4c(:,:)
@@ -1432,13 +1428,13 @@ DO JT=ITRACSO2,naero
       zxtp1c(:,:)=xto(:,:,jt)
       zxtp1con(:,:)=xtu(:,:,jt)
         
-      if(ncarb.gt.0.and.(jt.eq.itracbc.or.jt.eq.itracoc))then  !hydrophobic BC and OC
+      if(ncarb>0.and.(jt==itracbc.or.jt==itracoc))then  !hydrophobic BC and OC
         zsolub(:,:)=0.
-      elseif(ncarb.gt.0.and.(jt.eq.itracbc+1.or.jt.eq.itracoc+1))then !hydrophilic BC and OC
+      elseif(ncarb>0.and.(jt==itracbc+1.or.jt==itracoc+1))then !hydrophilic BC and OC
         zsolub(:,:)=0.6
-      elseif(jt.ge.itracdu.and.jt.lt.itracdu+ndsiz)then !hydrophobic dust (first 4 dust vars)
+      elseif(jt>=itracdu.and.jt<itracdu+ndsiz)then !hydrophobic dust (first 4 dust vars)
         zsolub(:,:)=0.
-      elseif(jt.ge.itracdu+ndsiz)then !hydrophilic dust !hydrophilic dust (last 4 dust vars)
+      elseif(jt>=itracdu+ndsiz)then !hydrophilic dust !hydrophilic dust (last 4 dust vars)
         zsolub(:,:)=1.
       endif
 
@@ -1465,19 +1461,19 @@ DO JT=ITRACSO2,naero
     end do
 
 ! Note that stratwd as coded here includes the below-cloud convective scavenging/evaporation
-    if(jt.eq.itracso2)then
+    if(jt==itracso2)then
       stratwd(:)=0.
       do jk=1,kl
         stratwd(:)=stratwd(:)+zdep3d(:,jk)*pdpp1(:,jk)/(grav*ptmst)
       enddo
       so2wd(:)=so2wd(:)+stratwd(:)
-    elseif(jt.eq.itracso2+1)then
+    elseif(jt==itracso2+1)then
       stratwd(:)=0.
       do jk=1,kl
         stratwd(:)=stratwd(:)+zdep3d(:,jk)*pdpp1(:,jk)/(grav*ptmst)
       enddo
       so4wd(:)=so4wd(:)+stratwd(:)
-    elseif(jt.ge.itracdu.and.jt.lt.itracdu+ndust)then
+    elseif(jt>=itracdu.and.jt<itracdu+ndust)then
       do jk=1,kl
         dustwd(:)=dustwd(:)+zdep3d(:,jk)*pdpp1(:,jk)/(grav*ptmst)
       enddo
@@ -1507,20 +1503,20 @@ enddo
 ! Need to hack this because of irritating CSIRO coding! (NH+SH latitudes concatenated!)
 !      ZDAYL=0.
 !      DO 402 JL=1,lon
-!        IF(ZRDAYL(JL).EQ.1) THEN
+!        IF(ZRDAYL(JL)==1) THEN
 !          ZDAYL=ZDAYL+1.
 !        ENDIF
 !  402 CONTINUE
 !      ZDAYFAC(:)=0.
 !      ZNLON=FLOAT(lon)
-!      IF(ZDAYL.NE.0.) ZDAYFAC(1)=ZNLON/ZDAYL !NH
-!      IF(ZDAYL.NE.znlon) ZDAYFAC(2)=ZNLON/(znlon-ZDAYL) !SH
+!      IF(ZDAYL/=0.) ZDAYFAC(1)=ZNLON/ZDAYL !NH
+!      IF(ZDAYL/=znlon) ZDAYFAC(2)=ZNLON/(znlon-ZDAYL) !SH
 
 JT=ITRACSO2
 !   DAY-TIME CHEMISTRY
 DO JK=1,kl
   DO JL=1,ifull
-    IF(ZRDAYL(JL).EQ.1) THEN
+    IF(ZRDAYL(JL)==1) THEN
       !ins=(jl-1)/lon + 1 !hemisphere index
       X=PRHOP1(JL,JK)
       ZXTP1SO2=XTM1(JL,JK,JT)+XTE(JL,JK,JT)*PTMST
@@ -1539,7 +1535,7 @@ DO JK=1,kl
       so2oh3d(jl,jk)=zso2
 
       ZXTP1DMS=XTM1(JL,JK,JT-1)+XTE(JL,JK,JT-1)*PTMST
-      IF(ZXTP1DMS.LE.ZMIN) THEN
+      IF(ZXTP1DMS<=ZMIN) THEN
         ZDMS=0.
       ELSE
         T=PTP1(JL,JK)
@@ -1560,10 +1556,10 @@ end do
 !   NIGHT-TIME CHEMISTRY
 DO JK=1,kl
   DO JL=1,ifull
-    IF(ZRDAYL(JL).NE.1) THEN
+    IF(ZRDAYL(JL)/=1) THEN
       X=PRHOP1(JL,JK)
       ZXTP1DMS=XTM1(JL,JK,JT-1)+XTE(JL,JK,JT-1)*PTMST
-      IF(ZXTP1DMS.LE.ZMIN) THEN
+      IF(ZXTP1DMS<=ZMIN) THEN
         ZDMS=0.
       ELSE
         ZTK3=ZK3*EXP(520./PTP1(JL,JK))
@@ -1581,7 +1577,7 @@ DO JK=1,kl
 
         ZNO3=ZKNO2O3*(ZKN2O5+ZKN2O5AQ)*ZZNO2(JL,JK)*ZZO3(JL,JK)
         ZZQ=ZKNO2NO3*ZKN2O5AQ*ZZNO2(JL,JK)+(ZKN2O5+ZKN2O5AQ)*ZTK3*ZXTP1DMS*XTOC(X,ZMOLGS)
-        IF(ZZQ.GT.0.) THEN
+        IF(ZZQ>0.) THEN
           ZNO3=ZNO3/ZZQ
         ELSE
           ZNO3=0.
@@ -1718,7 +1714,7 @@ zcollefs(itracdu+2) = 0.04
 zcollefs(itracdu+3) = 0.1
 
 ! Hydrophilic ones...
-!if(ndust.gt.4)then
+!if(ndust>4)then
 !  zcollefr(itracdu+5) = 0.1
 !  zcollefr(itracdu+6) = 0.2
 !  zcollefr(itracdu+7) = 0.5
@@ -1755,7 +1751,7 @@ prevap(:,:)=0.
 kbase(:)=9999
 do jk=ktop,kl
   do jl=1,ifull
-    if(pclcon(jl,jk).gt.zmin)kbase(jl)=jk
+    if(pclcon(jl,jk)>zmin)kbase(jl)=jk
   enddo
 enddo
 
@@ -1772,11 +1768,11 @@ DO JK=KTOP,kl
 
 ! In-cloud ice scavenging (including vertical redistribution when snow
 ! evaporates or falls into a layer). Include accretion of ql by snow.
-  if(Ecols(ktrac).gt.zmin)then
+  if(Ecols(ktrac)>zmin)then
     do jl=1,ifull
       ziicscav=0.
-      !if(pmiwc(jl,jk).gt.zmin)then
-      if(pmiwc(jl,jk).gt.1.E-8)then ! MJT suggestion
+      !if(pmiwc(jl,jk)>zmin)then
+      if(pmiwc(jl,jk)>1.E-8)then ! MJT suggestion
         ziicscav=Ecols(ktrac)*pqfsed(jl,jk) !qfsed is the fractional sedimentation in dt
         ziicscav=min(ziicscav,1.)
         xdep=pxtp10(jl,jk)*ziicscav*pcfcover(jl,jk)
@@ -1790,11 +1786,11 @@ DO JK=KTOP,kl
   endif
 
 ! This loop does riming (accretion of liquid water by falling snow)
-  if(Rcoeff(ktrac).gt.zmin)then
+  if(Rcoeff(ktrac)>zmin)then
     do jl=1,ifull
       zilcscav=0.
-      !if(pmlwc(jl,jk).gt.zmin)then
-      if(pmlwc(jl,jk).gt.1.E-8)then ! MJT suggestion
+      !if(pmlwc(jl,jk)>zmin)then
+      if(pmlwc(jl,jk)>1.E-8)then ! MJT suggestion
         zilcscav=Rcoeff(ktrac)*psolub(jl,jk)*(pmaccr(jl,jk)*ptmst/pmlwc(jl,jk))
         zilcscav=min(zilcscav,1.)
         xdep=pxtp1c(jl,jk)*zilcscav*pclcover(jl,jk)
@@ -1806,9 +1802,9 @@ DO JK=KTOP,kl
   endif
 
 ! Below-cloud scavenging by snow
-  if(zcollefs(ktrac).gt.zmin)then
+  if(zcollefs(ktrac)>zmin)then
     do jl=1,ifull
-      if(pfsnow(jl,jk).gt.zmin.and.pclcover(jl,jk).lt.1.-zmin)then
+      if(pfsnow(jl,jk)>zmin.and.pclcover(jl,jk)<1.-zmin)then
         plambda=min(plambs(jl,jk),8.e3) !Cut it off at about -30 deg. C
         zbcscav=zcollefs(ktrac)*plambda*pfsnow(jl,jk)*ptmst/(2*rhos)
         zbcscav=min(1.,zbcscav/(1.+0.5*zbcscav)) !Time-centred
@@ -1822,7 +1818,7 @@ DO JK=KTOP,kl
 
 ! Redistribution by snow that evaporates or stays in layer
   do jl=1,ifull
-    if (pfsnow(jl,jk).gt.zmin) then
+    if (pfsnow(jl,jk)>zmin) then
       zstay=(pfsubl(jl,jk)+pfstay(jl,jk))/pfsnow(jl,jk)
       zstay=min(1., zstay)
       zstay=min(zstay,1.)
@@ -1830,7 +1826,7 @@ DO JK=KTOP,kl
       zdeps(jl)=zdeps(jl)*(1.-zstay)
       zdeps(jl)=max(0.,zdeps(jl))
       pdep3d(jl,jk)=pdep3d(jl,jk)-xstay
-      if(zclr0(jl).gt.zmin)then
+      if(zclr0(jl)>zmin)then
         pxtp10(jl,jk)=pxtp10(jl,jk)+xstay/zclr0(jl)
       else
         pxtp1c(jl,jk)=pxtp1c(jl,jk)+xstay/pclcover(jl,jk)
@@ -1840,7 +1836,7 @@ DO JK=KTOP,kl
 
   ! Melting of snow... 
   do jl=1,ifull
-    if (pfmelt(jl,jk).gt.zmin) then
+    if (pfmelt(jl,jk)>zmin) then
       zdepr(jl)=zdepr(jl)+zdeps(jl)
       zdeps(jl)=0.
     endif
@@ -1848,8 +1844,8 @@ DO JK=KTOP,kl
 
   !  In-cloud scavenging by warm-rain processes (autoconversion and collection)
   do jl=1,ifull
-    !if(pmratep(jl,jk).gt.zmin) then
-    if(pmratep(jl,jk).gt.zmin.and.pmlwc(jl,jk).gt.1.E-8) then ! MJT suggestion
+    !if(pmratep(jl,jk)>zmin) then
+    if(pmratep(jl,jk)>zmin.and.pmlwc(jl,jk)>1.E-8) then ! MJT suggestion
       zicscav=psolub(jl,jk)*(pmratep(jl,jk)*ptmst/pmlwc(jl,jk))
       zicscav=min(zicscav,1.)
       xicscav=pxtp1c(jl,jk)*zicscav*pclcover(jl,jk) !gridbox mean
@@ -1860,9 +1856,9 @@ DO JK=KTOP,kl
   enddo
 
   ! Below-cloud scavenging by stratiform rain (conv done below)
-  if(zcollefr(ktrac).gt.zmin)then
+  if(zcollefr(ktrac)>zmin)then
     do jl=1,ifull
-      if(pfprec(jl,jk).gt.zmin.and.zclr0(jl).gt.zmin)then
+      if(pfprec(jl,jk)>zmin.and.zclr0(jl)>zmin)then
         zbcscav=zcollefr(ktrac)*prscav(jl,jk)
         zbcscav=min(1.,zbcscav/(1.+0.5*zbcscav)) !Time-centred
         xbcscav=zbcscav*pxtp10(jl,jk)*zclr0(jl)
@@ -1875,10 +1871,10 @@ DO JK=KTOP,kl
 
   ! Reevaporation of rain
   do jl=1,ifull
-    if (pfprec(jl,jk).gt.zmin.and.zclear(jl).gt.zmin) then
+    if (pfprec(jl,jk)>zmin.and.zclear(jl)>zmin) then
       zevap=pfevap(jl,jk)/pfprec(jl,jk)
       zevap=min(1., zevap)
-      if(zevap.lt.1.)zevap=Evfac(ktrac)*zevap
+      if(zevap<1.)zevap=Evfac(ktrac)*zevap
       xevap=zdepr(jl)*zevap*zftom(jl) !xevap is the grid-box-mean m.r. change
       zdepr(jl)=max(0.,zdepr(jl)*(1.-zevap))
       pdep3d(jl,jk)=pdep3d(jl,jk)-xevap
@@ -1898,7 +1894,7 @@ do jk=ktop,kl
     zclr0(jl)=1.-pclcover(jl,jk)-pclcon(jl,jk)
           
 ! Below-cloud scavenging by convective precipitation (assumed to be rain)
-    if(pfconv(jl,jk-1).gt.zmin.and.zclr0(jl).gt.zmin)then
+    if(pfconv(jl,jk-1)>zmin.and.zclr0(jl)>zmin)then
       fracc=0.1           !Convective rain fraction
       Frc=max(0.,pfconv(jl,jk-1)/fracc)
       zbcscav=zcollefr(ktrac)*fracc*0.24*ptmst*pow75(Frc)
@@ -1910,11 +1906,11 @@ do jk=ktop,kl
     endif
 
 ! Below-cloud reevaporation of convective rain
-    if(jk.gt.kbase(jl).and.pfconv(jl,jk-1).gt.zmin.and.zclr0(jl).gt.zmin)then
+    if(jk>kbase(jl).and.pfconv(jl,jk-1)>zmin.and.zclr0(jl)>zmin)then
       pcevap=pfconv(jl,jk-1)-pfconv(jl,jk)
       zevap=pcevap/pfconv(jl,jk-1)
       zevap=max(0.,min(1.,zevap))
-      if(zevap.lt.1.)zevap=Evfac(ktrac)*zevap
+      if(zevap<1.)zevap=Evfac(ktrac)*zevap
       xevap=conwd(jl,ktrac)*zevap*zftom(jl) !xevap is the grid-box-mean m.r. change
       conwd(jl,ktrac)=max(0.,conwd(jl,ktrac)*(1.-zevap))
       pdep3d(jl,jk)=pdep3d(jl,jk)-xevap
@@ -2133,7 +2129,7 @@ do n = 1, ndust
       ! Fraction of emerged surfaces (subtract lakes, coastal ocean,...)
       cw=1.-water(i)
       ! Case of surface dry enough to erode
-      if (wg(i).lt.0.1) then !Tuning suggested for Asian source by P. Ginoux
+      if (wg(i)<0.1) then !Tuning suggested for Asian source by P. Ginoux
         u_ts=max(0.,u_ts0*(1.2+0.2*alog10(max(1.e-3,wg(i)))))
       else
         ! Case of wet surface, no erosion
@@ -2273,7 +2269,7 @@ end where
 
 ! Do the seasalt above the PBL in a separate loop due to compiler problems
 do k=2,kl
-  where (.not.land.and.zmid(:,k).le.pblh)
+  where (.not.land.and.zmid(:,k)<=pblh)
     ssn(:,k,1)=ssn(:,1,1)
     ssn(:,k,2)=ssn(:,1,2)
   elsewhere (.not.land)
@@ -2384,7 +2380,7 @@ scav_eff=0.
 ! CALCULATE THE SOLUBILITY OF SO2
 ! TOTAL SULFATE  IS ONLY USED TO CALCULATE THE PH OF CLOUD WATER
 do i=1,ifull
-  if(xpold(i).gt.0..and.BWKP1(I))then
+  if(xpold(i)>0..and.BWKP1(I))then
     ZQTP1=1./tt(i)-1./298.
     ZE2=1.23*EXP(3020.*ZQTP1)
     ZE3=1.2E-02*EXP(2010.*ZQTP1)
@@ -2411,7 +2407,7 @@ do i=1,ifull
 enddo
 
 do nt=1,naero
-  if (nt.eq.ITRACSO2) then
+  if (nt==ITRACSO2) then
     where (bwkp1)
       scav_eff(:,nt)=f_so2(:)
     elsewhere
@@ -2429,7 +2425,7 @@ end do
 ! Wet deposition scavenging fraction
 fscav(:,:)=0.
 do nt=1,naero
-  where(xpold.gt.0.)
+  where(xpold>0.)
     fscav(:,nt)=scav_eff(:,nt)*max(xpold(:)-xpkp1(:),0.)/xpold(:)
   end where
 enddo

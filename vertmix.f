@@ -11,7 +11,7 @@
 
       ! nlocal=0 No counter gradient term
       ! nlocal=6 Holtslag and Boville non-local term
-      ! nlocal=7 Mass flux based counter gradient
+      ! nlocal=7 Mass flux based counter gradient (requires nvmix=6)
       
       ! kscmom   0 off, 1 turns on shal_conv momentum (usual)
 
@@ -55,7 +55,7 @@
 
       integer, parameter :: ntest=0
       integer, parameter :: ndvmod=0    ! 0 default, 1+ for dvmod tests
-      integer kcl_top,iaero,l,iq,k,iqmax,ierr                  
+      integer kcl_top,iaero,l,iq,k,iqmax,ierr,tnaero              
       integer, save :: kscbase,ksctop
       integer, dimension(ifull) :: kbase,ktop
       real, parameter :: bprm=4.7,cm=7.4,ch=5.3,amxlsq=100.   ! coefficients for Louis scheme
@@ -65,6 +65,7 @@
       real conflux,qbas,xold,delthet_old,rhskp,rhsk,diffmax
       real w1,w2,al,betaq,betac,betat,pk,qc,dqsdt,fice,es,delta
       real rlog12,rlogh1,rlogs1,rlogs2
+      real, dimension(ifull,kl,2*naero) :: dumar
       real, dimension(ifull,kl) :: betatt,betaqt,rhs,delthet,thebas
       real, dimension(ifull,kl) :: cu,thee,qs,uav,vav,au,ct,gt
       real, dimension(ifull,kl) :: guv,ri,rkm,rkh,rk_shal,zg
@@ -142,7 +143,7 @@
       if(nmaxpr==1.and.mydiag)
      &  write (6,"('thet_in',9f8.3/7x,9f8.3)") rhs(idjd,:)
 
-      if (nvmix.ne.6) then
+      if (nvmix/=6) then
 
       !--------------------------------------------------------------
       ! JLM's local Ri scheme
@@ -218,7 +219,7 @@ c           betaq=delta/(1.+delta*qg(iq,k)-qc)
        delthet(:,k)=rhs(:,k+1)-rhs(:,k)  ! rhs is theta or thetal here
       enddo      !  k loop
 
-      if(ktau==1.and.ksc.ne.0)then
+      if(ktau==1.and.ksc/=0)then
 !       set ksctop for shallow convection
         ksctop=1    ! ksctop will be first level below sigkcst
         do while(sig(ksctop+1)>sigksct)  !  e.g. sigksct=.75
@@ -238,7 +239,7 @@ c           betaq=delta/(1.+delta*qg(iq,k)-qc)
         do k=1,kl
          prcpv(k)=sig(k)**(-roncp)
         enddo  ! k loop
-      endif    ! (ktau==1.and.ksc.ne.0)
+      endif    ! (ktau==1.and.ksc/=0)
 
 c     ****** section for Geleyn shallow convection; others moved lower****
       if(ksc==-99)then
@@ -444,7 +445,7 @@ c           the following is the original Louis stable formula
 c      calculate k's, guv and gt
 c      nonlocal scheme usually applied to temperature and moisture, not momentum
 c      (i.e. local scheme is applied to momentum for nlocal=0,1)
-       if(nvmix.ne.0)then    ! use nvmix=0 only for special test runs
+       if(nvmix/=0)then    ! use nvmix=0 only for special test runs
          do iq=1,ifull
           rkm(iq,k)=fm(iq)*sqmxl(iq)*dzr(iq)
           rkh(iq,k)=fh(iq)*sqmxl(iq)*dzr(iq)
@@ -452,7 +453,7 @@ c      (i.e. local scheme is applied to momentum for nlocal=0,1)
        else
          rkm(:,:)=0.
          rkh(:,:)=0.
-       endif     ! (nvmix.ne.0)
+       endif     ! (nvmix/=0)
 
        if((diag.or.ntest>=1).and.mydiag)then
         iq=idjd
@@ -498,7 +499,7 @@ c      (i.e. local scheme is applied to momentum for nlocal=0,1)
         write (6,"('rkm0 ',9f9.3/5x,9f9.3)") rkm(idjd,1:kl-2)
       endif
 
-      if(nlocal.ne.0)then
+      if(nlocal/=0)then
         call pbldif(rhs,rkh,rkm,uav,vav)  ! rhs is theta or thetal
 !       n.b. *** pbldif partially updates qg and theta (t done during trim)	 
 !       and updates rkh and rkm arrays
@@ -644,13 +645,13 @@ c       and call that layer the cloud base.
           if(sigsp(iq)>sigmh(k+1))kbase(iq)=k
          enddo
         enddo
-        if(nlocal.ne.0)then  ! like old ksc=95, but ensures LCL within PBL
+        if(nlocal/=0)then  ! like old ksc=95, but ensures LCL within PBL
           do iq=1,ifull
            if(zh(iq,kbase(iq))>pblh(iq))then 
               kbase(iq)=kl
            endif
           enddo  ! iq loop
-        endif  ! (nlocal.ne.0)
+        endif  ! (nlocal/=0)
 c       following has some jlm shortcuts	 
         do iq=1,ifull
          k=kbase(iq)
@@ -764,7 +765,7 @@ c     add in effects of shallow convection
         enddo   !  k loop
       endif     ! (kscmom==1)
       
-      if(ksc.ne.0.and.(ntest.ne.0.or.diag).and.nproc==1.)then
+      if(ksc/=0.and.(ntest/=0.or.diag).and.nproc==1.)then
         do iq=1,ifull
          if(rk_shal(iq,1)>rk_shal(iq,2))then
            write(6,*) 'iq,rk_shal1,rk_shal2',iq,rk_shal(iq,1),
@@ -803,7 +804,7 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
        !-------------------------------------------------------------
        ! TKE-eps closure scheme
       
-       ! note ksc.ne.0 options are clobbered when nvmix=6
+       ! note ksc/=0 options are clobbered when nvmix=6
        ! However, nvmix=6 with nlocal=7 supports its own shallow
        ! convection options
        
@@ -818,18 +819,27 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
        rhoas=1./rrhoa
        wq0=eg*rrhoa/hl
        wt0=fg*rrhoa/cp
+       dumqg=qg(1:ifull,:)
+       dumql=qlg(1:ifull,:)
+       dumqf=qfg(1:ifull,:)
+       dumqr=qrg(1:ifull,:)
+       dumcr=cffall(1:ifull,:)
+       dumar=0.
+       tnaero=0
+       if (abs(iaero)==2) then ! Use counter gradient for aerosols
+         tnaero=2*naero
+         dumar(:,:,1:naero)=xtg(1:ifull,:,:)
+         dumar(:,:,naero+1:2*naero)=xtusav(1:ifull,:,:)
+       end if
        select case(nlocal)
         case(0) ! no counter gradient
-         dumqg=qg(1:ifull,:)
-         dumql=qlg(1:ifull,:)
-         dumqf=qfg(1:ifull,:)
-         dumqr=qrg(1:ifull,:)
-         dumcr=cffall(1:ifull,:)
+         tnaero=0
          call tkemix(rkm,rhs,dumqg,dumql,
-     &             dumqf,dumqr,cfrac,
-     &             dumcr,pblh,wt0,wq0,
-     &             ps(1:ifull),ustar,rhoas,zg,zh,sig,
-     &             sigkap,dt,qgmin,1,0)
+     &             dumqf,dumqr,cfrac,dumcr,
+     &             pblh,wt0,wq0,ps(1:ifull),
+     &             ustar,rhoas,zg,zh,sig,
+     &             sigkap,dt,qgmin,1,0,
+     &             tnaero,dumar)
          qg(1:ifull,:)=dumqg
          qlg(1:ifull,:)=dumql
          qfg(1:ifull,:)=dumqf
@@ -837,16 +847,13 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
          cffall(1:ifull,:)=dumcr
          rkh=rkm
         case(1,2,3,4,5,6) ! KCN counter gradient method
-         dumqg=qg(1:ifull,:)
-         dumql=qlg(1:ifull,:)
-         dumqf=qfg(1:ifull,:)
-         dumqr=qrg(1:ifull,:)
-         dumcr=cffall(1:ifull,:)
+         tnaero=0
          call tkemix(rkm,rhs,dumqg,dumql,
-     &             dumqf,dumqr,cfrac,
-     *             dumcr,pblh,wt0,wq0,
-     &             ps(1:ifull),ustar,rhoas,zg,zh,sig,
-     &             sigkap,dt,qgmin,1,0)
+     &             dumqf,dumqr,cfrac,dumcr,
+     &             pblh,wt0,wq0,ps(1:ifull),
+     &             ustar,rhoas,zg,zh,sig,
+     &             sigkap,dt,qgmin,1,0,
+     &             tnaero,dumar)
          qg(1:ifull,:)=dumqg
          qlg(1:ifull,:)=dumql
          qfg(1:ifull,:)=dumqf
@@ -859,27 +866,27 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
      &                 +(1.-av_vmod)*savv(1:ifull,:)
          call pbldif(rhs,rkh,rkm,uav,vav)
         case(7) ! mass-flux counter gradient
-         dumqg=qg(1:ifull,:)
-         dumql=qlg(1:ifull,:)
-         dumqf=qfg(1:ifull,:)
-         dumqr=qrg(1:ifull,:)
-         dumcr=cffall(1:ifull,:)
          call tkemix(rkm,rhs,dumqg,dumql,
-     &             dumqf,dumqr,cfrac,
-     &             dumcr,pblh,wt0,wq0,
-     &             ps(1:ifull),ustar,rhoas,zg,zh,sig,
-     &             sigkap,dt,qgmin,0,0)
+     &             dumqf,dumqr,cfrac,dumcr,
+     &             pblh,wt0,wq0,ps(1:ifull),
+     &             ustar,rhoas,zg,zh,sig,
+     &             sigkap,dt,qgmin,0,0,
+     &             tnaero,dumar)
          qg(1:ifull,:)=dumqg
          qlg(1:ifull,:)=dumql
          qfg(1:ifull,:)=dumqf
          qrg(1:ifull,:)=dumqr
          cffall(1:ifull,:)=dumcr
+         if (abs(iaero)==2) then
+           xtg(1:ifull,:,:)=dumar(:,:,1:naero)
+           xtusav(1:ifull,:,:)=dumar(:,:,naero+1:2*naero)
+         end if
          rkh=rkm
         case DEFAULT
           write(6,*) "ERROR: Unknown nlocal option for nvmix=6"
           stop
        end select 
-      end if ! nvmix.ne.6
+      end if ! nvmix/=6
 
       !--------------------------------------------------------------
       ! Perform mixing on prognstic arrays
@@ -951,7 +958,7 @@ c     first do theta (then convert back to t)
 
       !--------------------------------------------------------------
       ! Temperature
-      if (nvmix.ne.6) then
+      if (nvmix/=6) then
        if(nmaxpr==1.and.mydiag)
      &   write (6,"('thet_inx',9f8.3/8x,9f8.3)") rhs(idjd,:)
        rhs(:,1)=rhs(:,1)-(conflux/cp)*fg/(ps(1:ifull)*dnhs(:,1))
@@ -974,7 +981,7 @@ c     first do theta (then convert back to t)
 
       !--------------------------------------------------------------
       ! Moisture
-      if (nvmix.ne.6) then
+      if (nvmix/=6) then
        rhs=qg(1:ifull,:)
        rhs(:,1)=rhs(:,1)-(conflux/hl)*eg/(ps(1:ifull)*dnhs(:,1))
 c      could add extra sfce moisture flux term for crank-nicholson
@@ -985,9 +992,9 @@ c      could add extra sfce moisture flux term for crank-nicholson
         write (6,"('qg ',9f7.3/(8x,9f7.3))")
      &             (1000.*qg(idjd,k),k=1,kl)
        endif
-      end if ! (nvmix.eq.6)
+      end if ! (nvmix==6)
 
-      if (nvmix.eq.6.and.nlocal.gt.0) then
+      if (nvmix==6.and.nlocal>0) then
         ! increase mixing to replace counter gradient term
         at=cq*at
         ct=cq*ct
@@ -995,7 +1002,7 @@ c      could add extra sfce moisture flux term for crank-nicholson
 
       !--------------------------------------------------------------
       ! Cloud microphysics terms
-      if(ldr.ne.0.and.nvmix.ne.6)then
+      if(ldr/=0.and.nvmix/=6)then
 c       now do qfg
         rhs=qfg(1:ifull,:)
         call trim(at,ct,rhs,0)    ! for qfg
@@ -1004,7 +1011,7 @@ c       now do qlg
         rhs=qlg(1:ifull,:)
         call trim(at,ct,rhs,0)    ! for qlg
         qlg(1:ifull,:)=rhs
-        if (ncloud.gt.0) then
+        if (ncloud>0) then
 c         now do qrg
           rhs=qrg(1:ifull,:)
           call trim(at,ct,rhs,0)    ! for qrg
@@ -1018,11 +1025,11 @@ c         now do cffall
           call trim(at,ct,rhs,0)    ! for cffall
           cffall(1:ifull,:)=min(max(rhs,0.),1.)
        end if
-      endif    ! (ldr.ne.0)
+      endif    ! (ldr/=0)
       
       !--------------------------------------------------------------
       ! Aerosols
-      if (abs(iaero)==2) then
+      if (abs(iaero)==2.and.nvmix/=6) then
         do l=1,naero
           rhs=xtg(1:ifull,:,l)
           call trim(at,ct,rhs,0)
@@ -1061,7 +1068,7 @@ c         now do cffall
       ! Adjustment for moving ocean surface
       ou=0.
       ov=0.
-      if (nmlo.ne.0) then
+      if (nmlo/=0) then
         iu=0.
         iv=0.
         call mloexport(2,ou,1,0)
