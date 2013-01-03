@@ -52,6 +52,7 @@
       include 'establ.h'                  ! Liquid saturation function
       include 'kuocom.h'                  ! Convection parameters
       include 'parm.h'                    ! Model configuration
+      include 'parmdyn.h'                 ! Dynamics parameters
 
       integer, parameter :: ntest=0
       integer, parameter :: ndvmod=0    ! 0 default, 1+ for dvmod tests
@@ -65,7 +66,7 @@
       real conflux,qbas,xold,delthet_old,rhskp,rhsk,diffmax
       real w1,w2,al,betaq,betac,betat,pk,qc,dqsdt,fice,es,delta
       real rlog12,rlogh1,rlogs1,rlogs2
-      real, dimension(ifull,kl,2*naero) :: dumar
+      real, dimension(ifull,kl,2*naero+1) :: dumar
       real, dimension(ifull,kl) :: betatt,betaqt,rhs,delthet,thebas
       real, dimension(ifull,kl) :: cu,thee,qs,uav,vav,au,ct,gt
       real, dimension(ifull,kl) :: guv,ri,rkm,rkh,rk_shal,zg
@@ -824,16 +825,19 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
        dumqf=qfg(1:ifull,:)
        dumqr=qrg(1:ifull,:)
        dumcr=cffall(1:ifull,:)
-       dumar=0.
        tnaero=0
+       dumar=0.
+       if (nh/=0) then
+         tnaero=1
+         dumar(:,:,1)=tnhs(:,:)
+       end if
        if (abs(iaero)==2) then ! Use counter gradient for aerosols
-         tnaero=2*naero
-         dumar(:,:,1:naero)=xtg(1:ifull,:,:)
-         dumar(:,:,naero+1:2*naero)=xtusav(1:ifull,:,:)
+         tnaero=tnaero+2*naero
+         dumar(:,:,tnaero-2*naero+1:tnaero-naero)=xtg(1:ifull,:,:)
+         dumar(:,:,tnaero-naero+1:tnaero)=xtusav(1:ifull,:,:)
        end if
        select case(nlocal)
         case(0) ! no counter gradient
-         tnaero=0
          call tkemix(rkm,rhs,dumqg,dumql,
      &             dumqf,dumqr,cfrac,dumcr,
      &             pblh,wt0,wq0,ps(1:ifull),
@@ -847,7 +851,6 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
          cffall(1:ifull,:)=dumcr
          rkh=rkm
         case(1,2,3,4,5,6) ! KCN counter gradient method
-         tnaero=0
          call tkemix(rkm,rhs,dumqg,dumql,
      &             dumqf,dumqr,cfrac,dumcr,
      &             pblh,wt0,wq0,ps(1:ifull),
@@ -877,15 +880,24 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
          qfg(1:ifull,:)=dumqf
          qrg(1:ifull,:)=dumqr
          cffall(1:ifull,:)=dumcr
-         if (abs(iaero)==2) then
-           xtg(1:ifull,:,:)=dumar(:,:,1:naero)
-           xtusav(1:ifull,:,:)=dumar(:,:,naero+1:2*naero)
-         end if
          rkh=rkm
         case DEFAULT
           write(6,*) "ERROR: Unknown nlocal option for nvmix=6"
           stop
-       end select 
+       end select
+       
+       if (nh/=0) then
+         phi_nh(:,1)=bet(1)*dumar(:,1,1)
+         do k=2,kl
+           phi_nh(:,k)=phi_nh(:,k-1)+bet(k)*dumar(:,k,1)
+     &                             +betm(k)*dumar(:,k-1,1)
+         end do
+       end if
+       if (abs(iaero)==2) then
+         xtg(1:ifull,:,:)=dumar(:,:,tnaero-2*naero+1:tnaero-naero)
+         xtusav(1:ifull,:,:)=dumar(:,:,tnaero-naero+1:tnaero)
+       end if
+         
       end if ! nvmix/=6
 
       !--------------------------------------------------------------
@@ -1026,6 +1038,18 @@ c         now do cffall
           cffall(1:ifull,:)=min(max(rhs,0.),1.)
        end if
       endif    ! (ldr/=0)
+      
+      !--------------------------------------------------------------
+      ! NHS term
+      if (nh/=0.and.nvmix/=6) then
+        rhs=tnhs(:,:)
+        call trim(at,ct,rhs,0)
+         phi_nh(:,1)=bet(1)*rhs(:,1)
+         do k=2,kl
+           phi_nh(:,k)=phi_nh(:,k-1)+bet(k)*rhs(:,k)
+     &                             +betm(k)*rhs(:,k-1)
+         end do
+      end if 
       
       !--------------------------------------------------------------
       ! Aerosols
