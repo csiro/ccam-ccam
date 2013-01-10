@@ -1119,7 +1119,6 @@
 
       ! Soil recycling input
       if(nrungcm<=-3.and.nrungcm>=-5)then
-       call ncpopt(0)
        call histopen(ncid,surf_00,ier)
        if (ier==0) then
         ! clobber ifile surface data with surfin surface data
@@ -1134,7 +1133,7 @@
      &       dumb,tgg,wb,wbice,snowd,dumb,
      &       dumb,dumb,tggsn,smass,ssdn,ssdnn,snage,isflag,
      &       iaero,mlodwn,ocndwn)
-         if(kdate.ne.kdate_sav.or.ktime.ne.ktime_sav)then
+         if(kdate/=kdate_sav.or.ktime/=ktime_sav)then
           if (myid==0) then
            write(6,*) 'WARN: Could not locate correct date/time'
            write(6,*) '      Using infile surface data instead'

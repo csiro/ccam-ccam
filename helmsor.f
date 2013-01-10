@@ -21,23 +21,29 @@
       real, intent(in) :: helm(ifull,kl)             ! Helmholtz coefficients
       real, intent(inout) :: s(ifull+iextra,kl)      ! Solution
       real, intent(in) :: rhs(ifull,kl)              ! RHS
+      real, dimension(ifull,maxcolour,kl) :: helmc,rhsc
       real, dimension(ifull,kl) :: sb, sa, snew, dsol
-      integer, dimension(kl) :: iters
+      real, dimension(ifull,maxcolour) :: zzc,zznc,zzec,zzwc,zzsc
       real, dimension(kl) ::  dsolmax, dsolmax_g, smax, smax_g
       real, dimension(kl) ::  smin, smin_g
       real, dimension(:), allocatable, save :: accel
       real aa(ifull), bb(ifull), cc(ifull), axel
       real gd, ci, itserr1, itserr2
+      real, save :: dtsave = 0.
       integer iq, iter, k, nx, j, jx, i, klim, klimnew, ierr, meth
       integer ifx, nx_max, iqg, ig, jg, ng, tg, n
       integer itstest, itc, itsave1, itsave2
+      integer, dimension(kl) :: iters
       integer, dimension(1) :: idum
       save  meth, nx_max, axel
 
       call start_log(helm_begin)
       
-      if (.not.allocated(accel)) then
-       allocate(accel(kl))
+      if (dt/=dtsave) then
+        dtsave=dt
+        if (.not.allocated(accel)) then
+          allocate(accel(kl))
+        end if
 
        if(precon==-1)precon=-2325  ! i.e. 2, 3, .25
        nx_max=abs(precon)/1000
@@ -207,23 +213,34 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
       itserr2=9.E9
       itstest=1
       itc=0
+      do nx=1,nx_max
+        ifx=ifullx(nx)
+        zznc(1:ifx,nx) =zzn(iqx(1:ifx,nx))
+        zzwc(1:ifx,nx) =zzw(iqx(1:ifx,nx))
+        zzec(1:ifx,nx) =zze(iqx(1:ifx,nx))
+        zzsc(1:ifx,nx) =zzs(iqx(1:ifx,nx))
+        zzc(1:ifx,nx)  =zz(iqx(1:ifx,nx))
+        do k=1,kl
+          helmc(1:ifx,nx,k)=helm(iqx(1:ifx,nx),k)
+          rhsc(1:ifx,nx,k) =rhs(iqx(1:ifx,nx),k)
+        end do
+      end do
       call bounds(s, klim=klim)      
       do while ( iter<itmax .and. klim>0)
        do nx=1,nx_max
         ifx=ifullx(nx)
         do k=1,klim
           dsol(iqx(1:ifx,nx),k)=
-     &       ( zzn(iqx(1:ifx,nx))*s(iqn(1:ifx,nx),k)
-     &       + zzw(iqx(1:ifx,nx))*s(iqw(1:ifx,nx),k)
-     &       + zze(iqx(1:ifx,nx))*s(iqe(1:ifx,nx),k)
-     &       + zzs(iqx(1:ifx,nx))*s(iqs(1:ifx,nx),k)
-     &       +(zz(iqx(1:ifx,nx))
-     &       -helm(iqx(1:ifx,nx),k))*s(iqx(1:ifx,nx),k)
-     &       - rhs(iqx(1:ifx,nx),k))      
-     &       /(helm(iqx(1:ifx,nx),k)-zz(iqx(1:ifx,nx)))
-          snew(iqx(1:ifx,nx),k) = s(iqx(1:ifx,nx),k)
+     &       ( zznc(1:ifx,nx)*s(iqn(1:ifx,nx),k)
+     &       + zzwc(1:ifx,nx)*s(iqw(1:ifx,nx),k)
+     &       + zzec(1:ifx,nx)*s(iqe(1:ifx,nx),k)
+     &       + zzsc(1:ifx,nx)*s(iqs(1:ifx,nx),k)
+     &       +(zzc(1:ifx,nx)
+     &       -helmc(1:ifx,nx,k))*s(iqx(1:ifx,nx),k)
+     &       - rhsc(1:ifx,nx,k))      
+     &       /(helmc(1:ifx,nx,k)-zzc(1:ifx,nx))
+          s(iqx(1:ifx,nx),k) = s(iqx(1:ifx,nx),k)
      &       + accel(k)*dsol(iqx(1:ifx,nx),k)
-          s(iqx(1:ifx,nx),k) = snew(iqx(1:ifx,nx),k)
         enddo ! k loop
         call bounds(s, klim=klim, colour=nx)
        enddo  ! nx loop  

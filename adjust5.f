@@ -9,6 +9,7 @@
       use indices_m
       use liqwpar_m  ! qfg,qlg
       use map_m
+      use mgsolve
       use morepbl_m  ! condx,eg
       use nharrs_m
       use nlin_m
@@ -86,6 +87,11 @@
      &                    alfu,alfv)
          precon_in=precon
          precon=min(precon,0)  ! 22/4/07
+         
+         if (precon<-9999) then
+           call mgsor_init
+           call mgzz_init(zz,zzn,zze,zzw,zzs)
+         end if
       end if
 
       if (diag.or.nmaxpr==1)then
@@ -223,12 +229,17 @@ c     &             k,rhsl(idjd,k),rhsl(idjd+il,k),rhsl(idjd-il,k)
 c        endif
       enddo    ! k loop
 
-      if(precon<0)then
+      if (precon<-9999) then
+        ! Multi-grid
+        call mghelm(zz,zzn,zze,zzw,zzs,helm,pe,rhsl)
+      else if (precon<0) then
+        ! SOR
         call helmsor(zz,zzn,zze,zzw,zzs,helm,pe,rhsl)
       else
+        ! Congujate gradient
         call bounds(pe)
         call helmsol(zz,zzn,zze,zzw,zzs,helm,pe,rhsl)
-      endif  ! (precon>kl)
+      endif ! (precon<-9999) .. else ..
 
       if (diag.or.nmaxpr==1)then   !  only for last k of loop (i.e. 1)
          ! Some diagnostics requiring extra bounds calls have been removed

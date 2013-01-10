@@ -1646,19 +1646,26 @@ if (nud_sss==0) then
   else
     do ii=1,wlev
       where(wtr(1:ifull).and.ndum>0.1)
-      dum(:,ii)=ns(1:ifull,ii)-34.72
+        dum(:,ii)=ns(1:ifull,ii)-34.72
       end where
     end do
   end if
   call ccglobal_posneg(dum,delpos,delneg,godsig,comm=comm_mlo)
   alph_p = -delneg/max(delpos,1.E-20)
   alph_p = min(sqrt(alph_p),alph_p)
-  do ii=1,wlev
-    where(wtr(1:ifull).and.ndum>0.1)
-      ns(1:ifull,ii)=w_s(:,ii)+max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)
-      !ns(1:ifull,ii)=34.72+max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)
-    end where
-  end do
+  if (fixsal==0) then
+    do ii=1,wlev
+      where(wtr(1:ifull).and.ndum>0.1)
+        ns(1:ifull,ii)=w_s(:,ii)+max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)
+      end where
+    end do
+  else
+    do ii=1,wlev
+      where(wtr(1:ifull).and.ndum>0.1)
+        ns(1:ifull,ii)=34.72+max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)
+      end where
+    end do
+  end if
 end if
 
 if (myid==0.and.(ktau<=100.or.maxglobseta>tol.or.maxglobip>itol)) then

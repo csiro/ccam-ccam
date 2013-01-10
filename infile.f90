@@ -864,7 +864,7 @@ if (myid<resid) ltst=1
 call ccmpi_commsplit(comm_ip,comm_world,ltst,myid)
 
 pfall=(fnproc>=nproc)
-if (pfall) then
+if (mynproc>0) then
   ncid=pncid(0)
 end if
 

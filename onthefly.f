@@ -146,7 +146,8 @@
         end if
         idum(1)=kdate_r
         idum(2)=ktime_r
-        idum(3)=ncid
+        idum(3)=0
+        if (ncid/=ncidold) idum(3)=1
         idum(4)=ik
         idum(5)=jk
         idum(6)=kk
@@ -157,18 +158,18 @@
         rdum(3)=schmidtx
       endif  ! ( myid==0 .or. pfall )
 
+      newfile=ncid/=ncidold
       if (.not.pfall) then
         call ccmpi_bcast(idum(1:8),0,comm_world)
         kdate_r=idum(1)
         ktime_r=idum(2)
-        ncid=idum(3)
+        newfile=(idum(3)==1)
         ik=idum(4)
         jk=idum(5)
         kk=idum(6)
         ok=idum(7)
         iarchi=idum(8)
       end if
-      newfile=ncid/=ncidold
       if (newfile) then
         if (.not.pfall) then
           call ccmpi_bcast(rdum(1:3),0,comm_world)

@@ -18,7 +18,7 @@ module cc_mpi
    ! when they have to keep values between boundsa and boundsb.
    ! For now leave them here.
    integer(kind=4), allocatable, dimension(:), save, public :: ireq
-   integer(kind=4), save, private :: nreq
+   integer(kind=4), save, public :: nreq
 
    public :: bounds, boundsuv, ccmpi_setup, ccmpi_distribute, ccmpi_gather, &
              ccmpi_distributer8, ccmpi_gatherall,                           &
@@ -331,7 +331,7 @@ contains
                jg = jg+1
            
                jx = mod(ig+jg+ng*il_g,2)
-               select case( ng+jx*6 )
+               select case( ng+jx*(npanels+1) )
                   case(0,1,3,4)
                      colourmask(iq)=1
                   case(2,5,6,9)
@@ -3025,7 +3025,7 @@ contains
       logical :: double, extra, single
       logical :: fcrh, fcrf, fcgh, fcgf, fcbh, fcbf
       logical :: fextra, fdouble
-      integer :: iq, iproc, kx, iqz, iqb, iqe
+      integer :: iq, iproc, kx, iqz, iq_b, iq_e
       integer(kind=4) :: ierr, itag = 0, rproc, sproc, ltype
       integer(kind=4), dimension(MPI_STATUS_SIZE,2*nproc) :: status
       integer(kind=4) :: send_len, recv_len, iqq
@@ -3181,9 +3181,9 @@ contains
 !cdir nodep
                do iq=scolsp(sproc)%ihbg(1),scolsp(sproc)%ihfn(1)
                   iqz = iqq+iq-scolsp(sproc)%ihbg(1)+1
-                  iqb = 1+(iqz-1)*kx
-                  iqe = iqz*kx
-                  bnds(sproc)%sbuf(iqb:iqe) = t(bnds(sproc)%send_list(iq),:)
+                  iq_b = 1+(iqz-1)*kx
+                  iq_e = iqz*kx
+                  bnds(sproc)%sbuf(iq_b:iq_e) = t(bnds(sproc)%send_list(iq),:)
                end do
                iqq = iqq+scolsp(sproc)%ihfn(1)-scolsp(sproc)%ihbg(1)+1
             end if
@@ -3191,9 +3191,9 @@ contains
 !cdir nodep
                do iq=scolsp(sproc)%ihbg(2),scolsp(sproc)%ihfn(2)
                   iqz = iqq+iq-scolsp(sproc)%ihbg(2)+1
-                  iqb = 1+(iqz-1)*kx
-                  iqe = iqz*kx
-                  bnds(sproc)%sbuf(iqb:iqe) = t(bnds(sproc)%send_list(iq),:)
+                  iq_b = 1+(iqz-1)*kx
+                  iq_e = iqz*kx
+                  bnds(sproc)%sbuf(iq_b:iq_e) = t(bnds(sproc)%send_list(iq),:)
                end do
                iqq = iqq+scolsp(sproc)%ihfn(2)-scolsp(sproc)%ihbg(2)+1
             end if           
@@ -3201,9 +3201,9 @@ contains
 !cdir nodep
                do iq=scolsp(sproc)%ihbg(3),scolsp(sproc)%ihfn(3)
                   iqz = iqq+iq-scolsp(sproc)%ihbg(3)+1
-                  iqb = 1+(iqz-1)*kx
-                  iqe = iqz*kx
-                  bnds(sproc)%sbuf(iqb:iqe) = t(bnds(sproc)%send_list(iq),:)
+                  iq_b = 1+(iqz-1)*kx
+                  iq_e = iqz*kx
+                  bnds(sproc)%sbuf(iq_b:iq_e) = t(bnds(sproc)%send_list(iq),:)
                end do
                iqq = iqq+scolsp(sproc)%ihfn(3)-scolsp(sproc)%ihbg(3)+1
             end if            
@@ -3211,9 +3211,9 @@ contains
 !cdir nodep
                do iq=scolsp(sproc)%ifbg(1),scolsp(sproc)%iffn(1)
                   iqz = iqq+iq-scolsp(sproc)%ifbg(1)+1
-                  iqb = 1+(iqz-1)*kx
-                  iqe = iqz*kx
-                  bnds(sproc)%sbuf(iqb:iqe) = t(bnds(sproc)%send_list(iq),:)
+                  iq_b = 1+(iqz-1)*kx
+                  iq_e = iqz*kx
+                  bnds(sproc)%sbuf(iq_b:iq_e) = t(bnds(sproc)%send_list(iq),:)
                end do
                iqq = iqq+scolsp(sproc)%iffn(1)-scolsp(sproc)%ifbg(1)+1
             end if
@@ -3221,9 +3221,9 @@ contains
 !cdir nodep
                do iq=scolsp(sproc)%ifbg(2),scolsp(sproc)%iffn(2)
                   iqz = iqq+iq-scolsp(sproc)%ifbg(2)+1
-                  iqb = 1+(iqz-1)*kx
-                  iqe = iqz*kx
-                  bnds(sproc)%sbuf(iqb:iqe) = t(bnds(sproc)%send_list(iq),:)
+                  iq_b = 1+(iqz-1)*kx
+                  iq_e = iqz*kx
+                  bnds(sproc)%sbuf(iq_b:iq_e) = t(bnds(sproc)%send_list(iq),:)
                end do
                iqq = iqq+scolsp(sproc)%iffn(2)-scolsp(sproc)%ifbg(2)+1
             end if
@@ -3231,9 +3231,9 @@ contains
 !cdir nodep
                do iq=scolsp(sproc)%ifbg(3),scolsp(sproc)%iffn(3)
                   iqz = iqq+iq-scolsp(sproc)%ifbg(3)+1
-                  iqb = 1+(iqz-1)*kx
-                  iqe = iqz*kx
-                  bnds(sproc)%sbuf(iqb:iqe) = t(bnds(sproc)%send_list(iq),:)
+                  iq_b = 1+(iqz-1)*kx
+                  iq_e = iqz*kx
+                  bnds(sproc)%sbuf(iq_b:iq_e) = t(bnds(sproc)%send_list(iq),:)
                end do
                iqq = iqq+scolsp(sproc)%iffn(3)-scolsp(sproc)%ifbg(3)+1
             end if
@@ -3241,9 +3241,9 @@ contains
 !cdir nodep
                 do iq=scolsp(sproc)%iffn(3)+1,bnds(sproc)%slenx
                   iqz = iqq+iq-scolsp(sproc)%iffn(3)
-                  iqb = 1+(iqz-1)*kx
-                  iqe = iqz*kx
-                  bnds(sproc)%sbuf(iqb:iqe) = t(bnds(sproc)%send_list(iq),:)
+                  iq_b = 1+(iqz-1)*kx
+                  iq_e = iqz*kx
+                  bnds(sproc)%sbuf(iq_b:iq_e) = t(bnds(sproc)%send_list(iq),:)
                end do
                iqq = iqq+bnds(sproc)%slenx-scolsp(sproc)%iffn(3)
             end if
@@ -3251,9 +3251,9 @@ contains
 !cdir nodep
                 do iq=bnds(sproc)%slenx+1,bnds(sproc)%slen2
                   iqz = iqq+iq-bnds(sproc)%slenx
-                  iqb = 1+(iqz-1)*kx
-                  iqe = iqz*kx
-                  bnds(sproc)%sbuf(iqb:iqe) = t(bnds(sproc)%send_list(iq),:)
+                  iq_b = 1+(iqz-1)*kx
+                  iq_e = iqz*kx
+                  bnds(sproc)%sbuf(iq_b:iq_e) = t(bnds(sproc)%send_list(iq),:)
                end do
                iqq = iqq+bnds(sproc)%slen2-bnds(sproc)%slenx
             end if
@@ -3309,9 +3309,9 @@ contains
 !cdir nodep
                do iq=rcolsp(rproc)%ihbg(1),rcolsp(rproc)%ihfn(1)
                   iqz = iqq+iq-rcolsp(rproc)%ihbg(1)+1
-                  iqb = 1+(iqz-1)*kx
-                  iqe = iqz*kx
-                  t(ifull+bnds(rproc)%unpack_list(iq),:) = bnds(rproc)%rbuf(iqb:iqe)
+                  iq_b = 1+(iqz-1)*kx
+                  iq_e = iqz*kx
+                  t(ifull+bnds(rproc)%unpack_list(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
                end do
                iqq = iqq+rcolsp(rproc)%ihfn(1)-rcolsp(rproc)%ihbg(1)+1
             end if
@@ -3319,9 +3319,9 @@ contains
 !cdir nodep
                do iq=rcolsp(rproc)%ihbg(2),rcolsp(rproc)%ihfn(2)
                   iqz = iqq+iq-rcolsp(rproc)%ihbg(2)+1
-                  iqb = 1+(iqz-1)*kx
-                  iqe = iqz*kx
-                  t(ifull+bnds(rproc)%unpack_list(iq),:) = bnds(rproc)%rbuf(iqb:iqe)
+                  iq_b = 1+(iqz-1)*kx
+                  iq_e = iqz*kx
+                  t(ifull+bnds(rproc)%unpack_list(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
                end do
                iqq = iqq+rcolsp(rproc)%ihfn(2)-rcolsp(rproc)%ihbg(2)+1
             end if           
@@ -3329,9 +3329,9 @@ contains
 !cdir nodep
                do iq=rcolsp(rproc)%ihbg(3),rcolsp(rproc)%ihfn(3)
                   iqz = iqq+iq-rcolsp(rproc)%ihbg(3)+1
-                  iqb = 1+(iqz-1)*kx
-                  iqe = iqz*kx
-                  t(ifull+bnds(rproc)%unpack_list(iq),:) = bnds(rproc)%rbuf(iqb:iqe)
+                  iq_b = 1+(iqz-1)*kx
+                  iq_e = iqz*kx
+                  t(ifull+bnds(rproc)%unpack_list(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
                end do
                iqq = iqq+rcolsp(rproc)%ihfn(3)-rcolsp(rproc)%ihbg(3)+1
             end if            
@@ -3339,9 +3339,9 @@ contains
 !cdir nodep
                do iq=rcolsp(rproc)%ifbg(1),rcolsp(rproc)%iffn(1)
                   iqz = iqq+iq-rcolsp(rproc)%ifbg(1)+1
-                  iqb = 1+(iqz-1)*kx
-                  iqe = iqz*kx
-                  t(ifull+bnds(rproc)%unpack_list(iq),:) = bnds(rproc)%rbuf(iqb:iqe)
+                  iq_b = 1+(iqz-1)*kx
+                  iq_e = iqz*kx
+                  t(ifull+bnds(rproc)%unpack_list(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
                end do
                iqq = iqq+rcolsp(rproc)%iffn(1)-rcolsp(rproc)%ifbg(1)+1
             end if
@@ -3349,9 +3349,9 @@ contains
 !cdir nodep
                do iq=rcolsp(rproc)%ifbg(2),rcolsp(rproc)%iffn(2)
                   iqz = iqq+iq-rcolsp(rproc)%ifbg(2)+1
-                  iqb = 1+(iqz-1)*kx
-                  iqe = iqz*kx
-                  t(ifull+bnds(rproc)%unpack_list(iq),:) = bnds(rproc)%rbuf(iqb:iqe)
+                  iq_b = 1+(iqz-1)*kx
+                  iq_e = iqz*kx
+                  t(ifull+bnds(rproc)%unpack_list(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
                end do
                iqq = iqq+rcolsp(rproc)%iffn(2)-rcolsp(rproc)%ifbg(2)+1
             end if
@@ -3359,9 +3359,9 @@ contains
 !cdir nodep
                do iq=rcolsp(rproc)%ifbg(3),rcolsp(rproc)%iffn(3)
                   iqz = iqq+iq-rcolsp(rproc)%ifbg(3)+1
-                  iqb = 1+(iqz-1)*kx
-                  iqe = iqz*kx
-                  t(ifull+bnds(rproc)%unpack_list(iq),:) = bnds(rproc)%rbuf(iqb:iqe)
+                  iq_b = 1+(iqz-1)*kx
+                  iq_e = iqz*kx
+                  t(ifull+bnds(rproc)%unpack_list(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
                end do
                iqq = iqq+rcolsp(rproc)%iffn(3)-rcolsp(rproc)%ifbg(3)+1
             end if
@@ -3369,9 +3369,9 @@ contains
 !cdir nodep
                 do iq=rcolsp(rproc)%iffn(3)+1,bnds(rproc)%rlenx
                   iqz = iqq+iq-rcolsp(rproc)%iffn(3)
-                  iqb = 1+(iqz-1)*kx
-                  iqe = iqz*kx
-                  t(ifull+bnds(rproc)%unpack_list(iq),:) = bnds(rproc)%rbuf(iqb:iqe)
+                  iq_b = 1+(iqz-1)*kx
+                  iq_e = iqz*kx
+                  t(ifull+bnds(rproc)%unpack_list(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
                end do
                iqq = iqq+bnds(rproc)%rlenx-rcolsp(rproc)%iffn(3)
             end if
@@ -3379,9 +3379,9 @@ contains
 !cdir nodep
                 do iq=bnds(rproc)%rlenx+1,bnds(rproc)%rlen2
                   iqz = iqq+iq-bnds(rproc)%rlenx
-                  iqb = 1+(iqz-1)*kx
-                  iqe = iqz*kx
-                  t(ifull+bnds(rproc)%unpack_list(iq),:) = bnds(rproc)%rbuf(iqb:iqe)
+                  iq_b = 1+(iqz-1)*kx
+                  iq_e = iqz*kx
+                  t(ifull+bnds(rproc)%unpack_list(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
                end do
                iqq = iqq+bnds(rproc)%rlen2-bnds(rproc)%rlenx
             end if
@@ -3772,7 +3772,7 @@ contains
       logical :: double, extra
       logical :: fsvwu, fnveu, fssvwwu, fnnveeu
       logical :: fsuwv, fnuev
-      integer :: stagmode, iq, iqz, iqb, iqe, iproc, kx
+      integer :: stagmode, iq, iqz, iq_b, iq_e, iproc, kx
       integer(kind=4) :: ierr, itag = 0, rproc, sproc, iqq, ltype
       integer(kind=4), dimension(MPI_STATUS_SIZE,2*nproc) :: status
       integer(kind=4) :: send_len, recv_len
@@ -3902,15 +3902,15 @@ contains
                   ! send_list_uv(iq) is point index.
                   ! Use abs because sign is used as u/v flag
                   iqz = iqq+iq-ssplit(sproc)%isvbg+1
-                  iqb = 1+(iqz-1)*kx
-                  iqe = iqz*kx
+                  iq_b = 1+(iqz-1)*kx
+                  iq_e = iqz*kx
                   if ( (bnds(sproc)%send_list_uv(iq) > 0) .neqv. &
                         bnds(sproc)%send_swap(iq) ) then
-                     bnds(sproc)%sbuf(iqb:iqe) = u(abs(bnds(sproc)%send_list_uv(iq)),:)
+                     bnds(sproc)%sbuf(iq_b:iq_e) = u(abs(bnds(sproc)%send_list_uv(iq)),:)
                   else
-                     bnds(sproc)%sbuf(iqb:iqe) = v(abs(bnds(sproc)%send_list_uv(iq)),:)
+                     bnds(sproc)%sbuf(iq_b:iq_e) = v(abs(bnds(sproc)%send_list_uv(iq)),:)
                   end if 
-                  if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(iqb:iqe) = -bnds(sproc)%sbuf(iqb:iqe)
+                  if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(iq_b:iq_e) = -bnds(sproc)%sbuf(iq_b:iq_e)
                end do
                iqq = iqq+ssplit(sproc)%iwufn-ssplit(sproc)%isvbg+1
             end if
@@ -3920,15 +3920,15 @@ contains
                   ! send_list_uv(iq) is point index.
                   ! Use abs because sign is used as u/v flag
                   iqz = iqq+iq-ssplit(sproc)%invbg+1
-                  iqb = 1+(iqz-1)*kx
-                  iqe = iqz*kx
+                  iq_b = 1+(iqz-1)*kx
+                  iq_e = iqz*kx
                   if ( (bnds(sproc)%send_list_uv(iq) > 0) .neqv. &
                         bnds(sproc)%send_swap(iq) ) then
-                     bnds(sproc)%sbuf(iqb:iqe) = u(abs(bnds(sproc)%send_list_uv(iq)),:)
+                     bnds(sproc)%sbuf(iq_b:iq_e) = u(abs(bnds(sproc)%send_list_uv(iq)),:)
                   else
-                     bnds(sproc)%sbuf(iqb:iqe) = v(abs(bnds(sproc)%send_list_uv(iq)),:)
+                     bnds(sproc)%sbuf(iq_b:iq_e) = v(abs(bnds(sproc)%send_list_uv(iq)),:)
                   end if 
-                  if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(iqb:iqe) = -bnds(sproc)%sbuf(iqb:iqe)
+                  if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(iq_b:iq_e) = -bnds(sproc)%sbuf(iq_b:iq_e)
                end do
                iqq = iqq+ssplit(sproc)%ieufn-ssplit(sproc)%invbg+1
             end if
@@ -3938,15 +3938,15 @@ contains
                   ! send_list_uv(iq) is point index.
                   ! Use abs because sign is used as u/v flag
                   iqz = iqq+iq-ssplit(sproc)%issvbg+1
-                  iqb = 1+(iqz-1)*kx
-                  iqe = iqz*kx
+                  iq_b = 1+(iqz-1)*kx
+                  iq_e = iqz*kx
                   if ( (bnds(sproc)%send_list_uv(iq) > 0) .neqv. &
                         bnds(sproc)%send_swap(iq) ) then
-                     bnds(sproc)%sbuf(iqb:iqe) = u(abs(bnds(sproc)%send_list_uv(iq)),:)
+                     bnds(sproc)%sbuf(iq_b:iq_e) = u(abs(bnds(sproc)%send_list_uv(iq)),:)
                   else
-                     bnds(sproc)%sbuf(iqb:iqe) = v(abs(bnds(sproc)%send_list_uv(iq)),:)
+                     bnds(sproc)%sbuf(iq_b:iq_e) = v(abs(bnds(sproc)%send_list_uv(iq)),:)
                   end if 
-                  if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(iqb:iqe) = -bnds(sproc)%sbuf(iqb:iqe)
+                  if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(iq_b:iq_e) = -bnds(sproc)%sbuf(iq_b:iq_e)
                end do
                iqq = iqq+ssplit(sproc)%iwwufn-ssplit(sproc)%issvbg+1
             end if
@@ -3956,15 +3956,15 @@ contains
                   ! send_list_uv(iq) is point index.
                   ! Use abs because sign is used as u/v flag
                   iqz = iqq+iq-ssplit(sproc)%innvbg+1
-                  iqb = 1+(iqz-1)*kx
-                  iqe = iqz*kx
+                  iq_b = 1+(iqz-1)*kx
+                  iq_e = iqz*kx
                   if ( (bnds(sproc)%send_list_uv(iq) > 0) .neqv. &
                         bnds(sproc)%send_swap(iq) ) then
-                     bnds(sproc)%sbuf(iqb:iqe) = u(abs(bnds(sproc)%send_list_uv(iq)),:)
+                     bnds(sproc)%sbuf(iq_b:iq_e) = u(abs(bnds(sproc)%send_list_uv(iq)),:)
                   else
-                     bnds(sproc)%sbuf(iqb:iqe) = v(abs(bnds(sproc)%send_list_uv(iq)),:)
+                     bnds(sproc)%sbuf(iq_b:iq_e) = v(abs(bnds(sproc)%send_list_uv(iq)),:)
                   end if 
-                  if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(iqb:iqe) = -bnds(sproc)%sbuf(iqb:iqe)
+                  if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(iq_b:iq_e) = -bnds(sproc)%sbuf(iq_b:iq_e)
                end do
                iqq = iqq+ssplit(sproc)%ieeufn-ssplit(sproc)%innvbg+1
             end if
@@ -3974,15 +3974,15 @@ contains
                   ! send_list_uv(iq) is point index.
                   ! Use abs because sign is used as u/v flag
                   iqz = iqq+iq-ssplit(sproc)%isubg+1
-                  iqb = 1+(iqz-1)*kx
-                  iqe = iqz*kx
+                  iq_b = 1+(iqz-1)*kx
+                  iq_e = iqz*kx
                   if ( (bnds(sproc)%send_list_uv(iq) > 0) .neqv. &
                         bnds(sproc)%send_swap(iq) ) then
-                     bnds(sproc)%sbuf(iqb:iqe) = u(abs(bnds(sproc)%send_list_uv(iq)),:)
+                     bnds(sproc)%sbuf(iq_b:iq_e) = u(abs(bnds(sproc)%send_list_uv(iq)),:)
                   else
-                     bnds(sproc)%sbuf(iqb:iqe) = v(abs(bnds(sproc)%send_list_uv(iq)),:)
+                     bnds(sproc)%sbuf(iq_b:iq_e) = v(abs(bnds(sproc)%send_list_uv(iq)),:)
                   end if 
-                  if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(iqb:iqe) = -bnds(sproc)%sbuf(iqb:iqe)
+                  if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(iq_b:iq_e) = -bnds(sproc)%sbuf(iq_b:iq_e)
                end do
                iqq = iqq+ssplit(sproc)%iwvfn-ssplit(sproc)%isubg+1
             end if
@@ -3992,15 +3992,15 @@ contains
                   ! send_list_uv(iq) is point index.
                   ! Use abs because sign is used as u/v flag
                   iqz = iqq+iq-ssplit(sproc)%inubg+1
-                  iqb = 1+(iqz-1)*kx
-                  iqe = iqz*kx
+                  iq_b = 1+(iqz-1)*kx
+                  iq_e = iqz*kx
                   if ( (bnds(sproc)%send_list_uv(iq) > 0) .neqv. &
                         bnds(sproc)%send_swap(iq) ) then
-                     bnds(sproc)%sbuf(iqb:iqe) = u(abs(bnds(sproc)%send_list_uv(iq)),:)
+                     bnds(sproc)%sbuf(iq_b:iq_e) = u(abs(bnds(sproc)%send_list_uv(iq)),:)
                   else
-                     bnds(sproc)%sbuf(iqb:iqe) = v(abs(bnds(sproc)%send_list_uv(iq)),:)
+                     bnds(sproc)%sbuf(iq_b:iq_e) = v(abs(bnds(sproc)%send_list_uv(iq)),:)
                   end if 
-                  if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(iqb:iqe) = -bnds(sproc)%sbuf(iqb:iqe)
+                  if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(iq_b:iq_e) = -bnds(sproc)%sbuf(iq_b:iq_e)
                end do
                iqq = iqq+ssplit(sproc)%ievfn-ssplit(sproc)%inubg+1
             end if
@@ -4026,21 +4026,21 @@ contains
 !cdir nodep
          do iq=1,recv_len
             ! request_list is same as send_list in this case
-            iqb=1+(iq-1)*kx
-            iqe=iq*kx
+            iq_b=1+(iq-1)*kx
+            iq_e=iq*kx
             if ( (bnds(myid)%request_list_uv(iq) > 0) .neqv. &
                      bnds(myid)%uv_swap(iq) ) then  ! haven't copied to send_swap yet
-               tmp(iqb:iqe) = u(abs(bnds(myid)%request_list_uv(iq)),:)
+               tmp(iq_b:iq_e) = u(abs(bnds(myid)%request_list_uv(iq)),:)
             else
-               tmp(iqb:iqe) = v(abs(bnds(myid)%request_list_uv(iq)),:)
+               tmp(iq_b:iq_e) = v(abs(bnds(myid)%request_list_uv(iq)),:)
             end if
-            if ( bnds(myid)%uv_neg(iq) ) tmp(iqb:iqe) = -tmp(iqb:iqe)
+            if ( bnds(myid)%uv_neg(iq) ) tmp(iq_b:iq_e) = -tmp(iq_b:iq_e)
 
             ! unpack_list(iq) is index into extended region
             if ( bnds(myid)%unpack_list_uv(iq) > 0 ) then
-               u(ifull+bnds(myid)%unpack_list_uv(iq),:) = tmp(iqb:iqe)
+               u(ifull+bnds(myid)%unpack_list_uv(iq),:) = tmp(iq_b:iq_e)
             else
-               v(ifull-bnds(myid)%unpack_list_uv(iq),:) = tmp(iqb:iqe)
+               v(ifull-bnds(myid)%unpack_list_uv(iq),:) = tmp(iq_b:iq_e)
             end if
          end do
       end if
@@ -4069,12 +4069,12 @@ contains
             do iq=rsplit(rproc)%isvbg,rsplit(rproc)%iwufn
                ! unpack_list(iq) is index into extended region
                iqz = iqq+iq-rsplit(rproc)%isvbg+1
-               iqb = 1+(iqz-1)*kx
-               iqe = iqz*kx
+               iq_b = 1+(iqz-1)*kx
+               iq_e = iqz*kx
                if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
-                  u(ifull+bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iqb:iqe)
+                  u(ifull+bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
                else
-                  v(ifull-bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iqb:iqe)
+                  v(ifull-bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
                end if
             end do
             iqq = iqq+rsplit(rproc)%iwufn-rsplit(rproc)%isvbg+1
@@ -4084,12 +4084,12 @@ contains
             do iq=rsplit(rproc)%invbg,rsplit(rproc)%ieufn
                ! unpack_list(iq) is index into extended region
                iqz = iqq+iq-rsplit(rproc)%invbg+1
-               iqb = 1+(iqz-1)*kx
-               iqe = iqz*kx
+               iq_b = 1+(iqz-1)*kx
+               iq_e = iqz*kx
                if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
-                  u(ifull+bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iqb:iqe)
+                  u(ifull+bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
                else
-                  v(ifull-bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iqb:iqe)
+                  v(ifull-bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
                end if
             end do
             iqq = iqq+rsplit(rproc)%ieufn-rsplit(rproc)%invbg+1
@@ -4099,12 +4099,12 @@ contains
             do iq=rsplit(rproc)%issvbg,rsplit(rproc)%iwwufn
                ! unpack_list(iq) is index into extended region
                iqz = iqq+iq-rsplit(rproc)%issvbg+1
-               iqb = 1+(iqz-1)*kx
-               iqe = iqz*kx
+               iq_b = 1+(iqz-1)*kx
+               iq_e = iqz*kx
                if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
-                  u(ifull+bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iqb:iqe)
+                  u(ifull+bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
                else
-                  v(ifull-bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iqb:iqe)
+                  v(ifull-bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
                end if
             end do
             iqq = iqq+rsplit(rproc)%iwwufn-rsplit(rproc)%issvbg+1
@@ -4114,12 +4114,12 @@ contains
             do iq=rsplit(rproc)%innvbg,rsplit(rproc)%ieeufn
                ! unpack_list(iq) is index into extended region
                iqz = iqq+iq-rsplit(rproc)%innvbg+1
-               iqb = 1+(iqz-1)*kx
-               iqe = iqz*kx
+               iq_b = 1+(iqz-1)*kx
+               iq_e = iqz*kx
                if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
-                  u(ifull+bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iqb:iqe)
+                  u(ifull+bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
                else
-                  v(ifull-bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iqb:iqe)
+                  v(ifull-bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
                end if
             end do
             iqq = iqq+rsplit(rproc)%ieeufn-rsplit(rproc)%innvbg+1
@@ -4129,12 +4129,12 @@ contains
             do iq=rsplit(rproc)%isubg,rsplit(rproc)%iwvfn
                ! unpack_list(iq) is index into extended region
                iqz = iqq+iq-rsplit(rproc)%isubg+1
-               iqb = 1+(iqz-1)*kx
-               iqe = iqz*kx
+               iq_b = 1+(iqz-1)*kx
+               iq_e = iqz*kx
                if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
-                  u(ifull+bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iqb:iqe)
+                  u(ifull+bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
                else
-                  v(ifull-bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iqb:iqe)
+                  v(ifull-bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
                end if
             end do
             iqq = iqq+rsplit(rproc)%iwvfn-rsplit(rproc)%isubg+1
@@ -4144,12 +4144,12 @@ contains
             do iq=rsplit(rproc)%inubg,rsplit(rproc)%ievfn
                ! unpack_list(iq) is index into extended region
                iqz = iqq+iq-rsplit(rproc)%inubg+1
-               iqb = 1+(iqz-1)*kx
-               iqe = iqz*kx
+               iq_b = 1+(iqz-1)*kx
+               iq_e = iqz*kx
                if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
-                  u(ifull+bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iqb:iqe)
+                  u(ifull+bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
                else
-                  v(ifull-bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iqb:iqe)
+                  v(ifull-bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
                end if
             end do
             iqq = iqq+rsplit(rproc)%ievfn-rsplit(rproc)%inubg+1

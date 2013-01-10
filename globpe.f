@@ -741,9 +741,10 @@
       ! DISPLAY DIAGNOSTIC INDEX AND TIMER DATA
       con=180./pi
       if ( mydiag ) then
-         write(6,*)'id,jd,rlongg,rlatt in degrees: ',
+         write(6,"('id,jd,rlongg,rlatt in degrees: ',2i4,2f8.2)")
      &         id,jd,con*rlongg(idjd),con*rlatt(idjd)
       end if
+
 
       call date_and_time(rundate)
       call date_and_time(time=timeval)

@@ -1,13 +1,13 @@
       subroutine convjlm(iaero)      ! jlm convective scheme - Version v3
 !     the shallow convection options here just for iterconv=1
 !     has +ve fldownn depending on delta sigma; -ve uses older abs(fldown)   
-!     N.B. nevapcc option has been removed
+!     N.B. old nevapcc option has been removed
       use aerosolldr
       use arrays_m   
       use cc_mpi, only : mydiag, myid, bounds
       use cfrac_m
       use diag_m
-      use extraout_m      
+      use extraout_m
       use indices_m
       use kuocomb_m
       use latlong_m
@@ -15,6 +15,7 @@
       use map_m
       use morepbl_m
       use nharrs_m, only : phi_nh
+      use pbl_m  ! tss
       use prec_m
       use sigs_m
       use soil_m
@@ -148,10 +149,10 @@ c     parameter (ncubase=2)              ! 2 from 4/06, more like 0 before  - us
         do k=1,kl
          if(sig(k)>.25)klon23=k  ! JLM
          if(sig(k)> .5)klon2=k
-	 if(sig(k)> .935)k935=k
+         if(sig(k)> .935)k935=k
         enddo
         if(mydiag)print *,'klon23,klon2,k500,k935',
-     &                     klon23,klon2,k500,k935	
+     &                     klon23,klon2,k500,k935
 
        if(nevapcc>0)then ! typically 20, 30, 40, 60  ! uses **2
          print *,'entrainn k=5,13 for kb=4; nevapcc =',nevapcc
@@ -165,6 +166,8 @@ c     parameter (ncubase=2)              ! 2 from 4/06, more like 0 before  - us
        endif	
 	
 c      precalculate detrainment arrays for various methprec
+c      methprec gives the vertical distribution of the detrainment
+c      methdetr gives the fraction of precip detrained (going into qxcess)
        if(methprec==4)then
        do kb=1,k500
        do kt=1,kl-1
@@ -180,7 +183,7 @@ c      precalculate detrainment arrays for various methprec
        enddo
        enddo
        endif  ! (methprec==4)
-       if(methprec==5)then
+       if(methprec==5)then  ! rather similar to 8, but more general form  - recent usual value
        do kb=1,k500
        do kt=1,kl-1
         sumb=0.
@@ -247,7 +250,7 @@ c      precalculate detrainment arrays for various methprec
        endif
 
 c     precalculate below-base downdraft & updraft environmental contrib terms (ktau=1)
-       do kb=1,kl-1
+       do kb=1,kl-1   ! original proposal, kscsea=0 (small upin near sfce, large downex)
         sum=0.
         sumb=0.
         do k=1,kb
@@ -263,7 +266,7 @@ c     precalculate below-base downdraft & updraft environmental contrib terms (k
        enddo
 c     precalculate below-base downdraft & updraft environmental contrib terms
       if(kscsea==-1.or.kscsea==-2)then   ! trying to be backward compatible for upin
-c      this one gives linearly increasing mass fluxes at each half level 
+c      this one gives linearly increasing mass fluxes at each half level      
        do kb=1,k500
         upin4(1,kb)=(1.-sigmh(1+1))/(1.-sigmh(kb+1))
         upin(1,kb)=upin4(1,kb)
@@ -277,7 +280,7 @@ c      this one gives linearly increasing mass fluxes at each half level
        enddo
       endif  ! kscsea==-1.or.kscsea==-2  
       if(kscsea<=-2)then   ! trying to be backward compatible for downex
-c      gives relatively larger downdraft fluxes near surface  
+c      gives relatively larger downdraft fluxes near surface      
        do kb=1,k500
         sum=0.
         do k=1,kb
@@ -298,39 +301,71 @@ c      gives relatively larger downdraft fluxes near surface
          write (6,"('downex',17f7.3)") (downex(k,kb),k=1,kb)
         enddo
       endif
-      endif    ! (ktau==1)   !---------------------------------------------------------------------------
+      endif    ! (ktau==1)
+!---------------------------------------------------------------------------
 
-        do iq=1,ifull
-          if(land(iq))then
-            alfqarr(iq)=alflnd
-          else
-            alfqarr(iq)=abs(alfsea)
-          endif
-c        alfqarrx reduces for finer resolution than 200 km grid            
-          alfqarrx(iq)=1.+(alfqarr(iq)-1.) *sqrt(ds/(em(iq)*208498.))
-          if(alfsea<0.)then
-            alfqarrx(iq)=1.+(alfqarr(iq)-1.) *
-     &      sqrt(sqrt(ds/(em(iq)*208498.)))
-          endif
-        enddo
-        if(ktau==1.and.mydiag)write(6,"('alfqarr,alfqarrx',2f7.3)") 
-     &              alfqarr(idjd),alfqarrx(idjd)
-      cfraclim=0.
-      if(mbase>0)cfraclim(:)=.0001*abs(mbase) ! mbase=1000 for 10%, 100 for 1%
-c     omgtst(iq)=1.e-8*tied_con  ! typical tied_con=10,20 for C48
-      if(tied_over<0.)then  ! use sdot(1.5) with omgtst instead of omega
-        omega(1:ifull)=1.e5*sdot(1:ifull,2)*(sig(2)-sig(1))/dt
-       else
-        omega(1:ifull)=dpsldt(1:ifull,kscmom)
-      endif
+       omega(1:ifull)=dpsldt(1:ifull,1)
+c     omgtst(iq)=1.e-8*tied_con  ! typical tied_con=10,20 for C48. Nowadays zero
       do iq=1,ifull
 c     typical tied_con=10,20 for C48, increasing for smaller ds  (i.e. 14, 28 for C96 100 km)
        if(tied_con>0.)then    
          omgtst(iq)=1.e-8*tied_con *sqrt(em(iq)*208498./ds)  
        else
-         omgtst(iq)=-1.e-8*tied_con *sqrt(sqrt(em(iq)*208498./ds))  
+          omgtst(iq)=-1.e-8*tied_con *sqrt(sqrt(em(iq)*208498./ds))  
        endif
       enddo
+
+        do iq=1,ifull
+          if(land(iq))then
+            alfqarr(iq)=alflnd
+          else
+            alfqarr(iq)=alfsea
+            dtsol=.01*sgsave(iq)/(1.+.25*(u(iq,1)**2+v(iq,1)**2))   ! solar heating   ! sea
+c          tpan-tss   is .3*dtsol.  Suggest add .1 to alfqarr for dtsol=1 and mbase=-x1         
+            if(mbase<-20.and.mbase>-30)then
+              alfqarr(iq)=alfsea-.1*(mbase+20)*dtsol
+            endif
+            if(mbase<-30.and.mbase>-40)then
+              alfqarr(iq)=alfsea-.1*(mbase+30)*dtsol**2
+            endif
+            if(mbase<-40.and.mbase>-50)then
+              alfqarr(iq)=alfsea-.1*(mbase+40)*sqrt(dtsol)
+            endif
+           if(omega(iq)<0.)then   ! following group also check for -ve omega
+            if(mbase<-60.and.mbase>-70)then
+              alfqarr(iq)=alfsea-.1*(mbase+60)*dtsol
+            endif
+            if(mbase<-70.and.mbase>-80)then
+              alfqarr(iq)=alfsea-.1*(mbase+70)*dtsol**2
+            endif
+            if(mbase<-80.and.mbase>-90)then
+              alfqarr(iq)=alfsea-.1*(mbase+80)*sqrt(dtsol)
+            endif
+           endif  ! (omega(iq)<0.)
+	   
+           alfqarr(iq)=fracice(iq)*alflnd+(1.-fracice(iq))*alfqarr(iq) ! MJT suggestion
+
+          endif   ! (land(iq)) .. else ..
+
+c        alfqarrx reduces for finer resolution than 200 km grid            
+           sum=ds/(em(iq)*208498.)
+          if(tied_over>1.)then  ! e.g. 20 or 26
+            alfqarrx(iq)=1.+(alfqarr(iq)-1.) *
+     &      (1.+tied_over)*sum/(1.+tied_over*sum)
+          else
+             alfqarrx(iq)=1.+(alfqarr(iq)-1.) *sqrt(sum)  ! early eqn
+          endif
+        enddo
+        if(tied_over.ne.0.)then
+          do iq=1,ifull
+            alfqarrx(iq)=min(alfqarrx(iq),2.)
+          enddo
+        endif
+	
+        if(ktau==1.and.mydiag)write(6,"('alfqarr,alfqarrx',2f7.3)") 
+     &              alfqarr(idjd),alfqarrx(idjd)
+      cfraclim=0.
+      if(mbase>0)cfraclim(:)=.0001*abs(mbase) ! mbase=1000 for 10%, 100 for 1%
 
 c     convective first, then possibly L/S rainfall
       qliqw(:,:)=0.  
@@ -392,7 +427,7 @@ c      following defines kb_sav (as kkbb) for use by nbase=-12
 c        print *,'k,phi-,phi,pblh*g,kkbb',
 c    &      k,phi(idjd,k-1),phi(idjd,k),pblh(idjd)*grav,kkbb(idjd)        
 
-      if(mbase==-2)then  ! simple plus tpan sea
+      if(mbase==-2)then  ! simple_max plus tpan_qs sea
        do iq=1,ifull
           k=kkbb(iq)
           alfqarr(iq)=alfqarrx(iq)*                 !  N.B. qs check done later with qbass
@@ -412,169 +447,6 @@ c         tpan-tss   is .3*dtsol
          endif
        enddo 
       endif  ! mbase=-2      
-      if(mbase==-3)then  ! simple plus omgtst sea
-       do iq=1,ifull
-           k=kkbb(iq)
-           alfqarr(iq)=alfqarrx(iq)*                 !  N.B. qs check done later with qbass
-     &      max(qg(iq,1),qg(iq,2),qg(iq,k))/qg(iq,k)  
-          if(.not.land(iq).and.omega(iq)<-omgtst(iq))then         
-           es(iq,1)=establ(tt(iq,1))
-           pk=ps(iq)*sig(1)
-           qs(iq,1)=.622*es(iq,1)/max(pk-es(iq,1),1.)  
-           alfqarr(iq)=alfqarrx(iq)*                 !  N.B. qs check done later with qbass
-     &               max(qs(iq,1),qg(iq,2),qg(iq,k))/qg(iq,k)
-          endif
-       enddo 
-      endif  ! mbase=-3     
-      if(mbase==-4)then  ! simple
-       do iq=1,ifull
-           k=kkbb(iq)
-             alfqarr(iq)=alfqarrx(iq)*                 !  N.B. qs check done later with qbass
-     &      max(qg(iq,1),qg(iq,2),qg(iq,k))/qg(iq,k)  
-       enddo 
-      endif  ! mbase=-4     
-      if(mbase==-5)then  ! rino test only; max for land, qs for sea
-       alfqarr(:)=alfqarrx(:)
-       do iq=1,ifull
-         es(iq,1)=establ(tt(iq,1))
-         pk=ps(iq)*sig(1)
-         qs(iq,1)=.622*es(iq,1)/max(pk-es(iq,1),1.)  
-           delthet=t(iq,2)*sig(2)**(-roncp)-t(iq,1)*sig(1)**(-roncp)
-           tmnht1=(t(iq,2)*log(sig(1))-t(iq,1)*log(sig(2))+
-     &   (t(iq,1)-t(iq,2))*log(sigmh(2)))/(log(sig(1))-log(sig(2)))
-           delons=(rdry/grav)*(sig(2)-sig(1))/sigmh(2)
-           dz =-tmnht1*delons  ! this is z(k+1)-z(k)
-           rino=grav*dz*(delthet/tmnht1   +.61*(qg(iq,2)-qg(iq,1)))
-     & /max(sqrt( (u(iq,2)-u(iq,1))**2 +(v(iq,2)-v(iq,1))**2 ),1.)
-           k=kkbb(iq)
-          if(rino<0.)then
-           if(land(iq).or.fracice(iq)>0.)then
-             alfqarr(iq)=alfqarrx(iq)*                 !  N.B. qs check done later with qbass
-     &               max(qg(iq,1),qg(iq,2),qg(iq,k))/qg(iq,k)
-           else
-            alfqarr(iq)=alfqarrx(iq)*                 !  N.B. qs check done later with qbass
-     &               max(qs(iq,1),qg(iq,2),qg(iq,k))/qg(iq,k)
-           endif
-          endif  ! (rino<0.) .. else ..
-       enddo 
-      endif  ! mbase=-5
-      if(mbase==-6)then  ! rino & max for all (gives Eq hole)
-       alfqarr(:)=alfqarrx(:)
-       do iq=1,ifull
-         es(iq,1)=establ(tt(iq,1))
-         pk=ps(iq)*sig(1)
-         qs(iq,1)=.622*es(iq,1)/max(pk-es(iq,1),1.)  
-           delthet=t(iq,2)*sig(2)**(-roncp)-t(iq,1)*sig(1)**(-roncp)
-           tmnht1=(t(iq,2)*log(sig(1))-t(iq,1)*log(sig(2))+
-     &   (t(iq,1)-t(iq,2))*log(sigmh(2)))/(log(sig(1))-log(sig(2)))
-           delons=(rdry/grav)*(sig(2)-sig(1))/sigmh(2)
-           dz =-tmnht1*delons  ! this is z(k+1)-z(k)
-           rino=grav*dz*(delthet/tmnht1   +.61*(qg(iq,2)-qg(iq,1)))
-     & /max(sqrt( (u(iq,2)-u(iq,1))**2 +(v(iq,2)-v(iq,1))**2 ),1.)
-           k=kkbb(iq)
-          if(rino<0.)then
-             alfqarr(iq)=alfqarrx(iq)*                 !  N.B. qs check done later with qbass
-     &               max(qg(iq,1),qg(iq,2),qg(iq,k))/qg(iq,k)
-          endif  ! (rino<0.) .. else ..
-       enddo 
-      endif  ! mbase=-6
-      if(mbase==-7)then  ! rino & max for land, omgtst & qs(k) for sea
-       alfqarr(:)=alfqarrx(:)
-       do iq=1,ifull
-           k=kkbb(iq)
-          if(land(iq).or.fracice(iq)>0.)then
-           delthet=t(iq,2)*sig(2)**(-roncp)-t(iq,1)*sig(1)**(-roncp)
-           tmnht1=(t(iq,2)*log(sig(1))-t(iq,1)*log(sig(2))+
-     &   (t(iq,1)-t(iq,2))*log(sigmh(2)))/(log(sig(1))-log(sig(2)))
-           delons=(rdry/grav)*(sig(2)-sig(1))/sigmh(2)
-           dz =-tmnht1*delons  ! this is z(k+1)-z(k)
-           rino=grav*dz*(delthet/tmnht1   +.61*(qg(iq,2)-qg(iq,1)))
-     & /max(sqrt( (u(iq,2)-u(iq,1))**2 +(v(iq,2)-v(iq,1))**2 ),1.)
-           if(rino<0.)then
-             alfqarr(iq)=alfqarrx(iq)*                 !  N.B. qs check done later with qbass
-     &               max(qg(iq,1),qg(iq,2),qg(iq,k))/qg(iq,k)
-           endif
-         else ! i over sea
-          if(omega(iq)<-omgtst(iq))then         
-           es(iq,1)=establ(tt(iq,1))
-           pk=ps(iq)*sig(1)
-           qs(iq,1)=.622*es(iq,1)/max(pk-es(iq,1),1.)  
-           alfqarr(iq)=alfqarrx(iq)*                 !  N.B. qs check done later with qbass
-     &               max(qs(iq,1),qg(iq,2),qg(iq,k))/qg(iq,k)
-          endif
-        endif
-       enddo 
-      endif  ! mbase=-7      
-      if(mbase==-8)then  ! rino & max for all, else_for_sea omgtst & qs(k) 
-       alfqarr(:)=alfqarrx(:)
-       do iq=1,ifull
-           delthet=t(iq,2)*sig(2)**(-roncp)-t(iq,1)*sig(1)**(-roncp)
-           tmnht1=(t(iq,2)*log(sig(1))-t(iq,1)*log(sig(2))+
-     &   (t(iq,1)-t(iq,2))*log(sigmh(2)))/(log(sig(1))-log(sig(2)))
-           delons=(rdry/grav)*(sig(2)-sig(1))/sigmh(2)
-           dz =-tmnht1*delons  ! this is z(k+1)-z(k)
-           rino=grav*dz*(delthet/tmnht1   +.61*(qg(iq,2)-qg(iq,1)))
-     & /max(sqrt( (u(iq,2)-u(iq,1))**2 +(v(iq,2)-v(iq,1))**2 ),1.)
-           k=kkbb(iq)
-          if(rino<0.)then
-             alfqarr(iq)=alfqarrx(iq)*                 !  N.B. qs check done later with qbass
-     &      max(qg(iq,1),qg(iq,2),qg(iq,3),qg(iq,k))/qg(iq,k)  ! 8d
-          elseif(.not.land(iq))then ! over sea
-            if(omega(iq)<-omgtst(iq))then         
-             es(iq,1)=establ(tt(iq,1))
-             pk=ps(iq)*sig(1)
-             qs(iq,1)=.622*es(iq,1)/max(pk-es(iq,1),1.)  
-c            alfqarr(iq)=max(1.,qs(iq,1)/qg(iq,k))  ! 8a
-             alfqarr(iq)=alfqarrx(iq)*                 !  N.B. qs check done later with qbass  ! 8b
-     &               max(qs(iq,1),qg(iq,2),qg(iq,k))/qg(iq,k)
-            endif
-          endif  ! (rino<0.) .. else ..
-       enddo 
-      endif  ! mbase=-8      
-      if(mbase==-9)then  ! rino & max for all; for_sea also omgtst & qs(1) 
-       alfqarr(:)=alfqarrx(:)
-       do iq=1,ifull
-           delthet=t(iq,2)*sig(2)**(-roncp)-t(iq,1)*sig(1)**(-roncp)
-           tmnht1=(t(iq,2)*log(sig(1))-t(iq,1)*log(sig(2))+
-     &   (t(iq,1)-t(iq,2))*log(sigmh(2)))/(log(sig(1))-log(sig(2)))
-           delons=(rdry/grav)*(sig(2)-sig(1))/sigmh(2)
-           dz =-tmnht1*delons  ! this is z(k+1)-z(k)
-           rino=grav*dz*(delthet/tmnht1   +.61*(qg(iq,2)-qg(iq,1)))
-     & /max(sqrt( (u(iq,2)-u(iq,1))**2 +(v(iq,2)-v(iq,1))**2 ),1.)
-           k=kkbb(iq)
-          if(rino<0.)then
-             alfqarr(iq)=alfqarrx(iq)*                 !  N.B. qs check done later with qbass
-     &               max(qg(iq,1),qg(iq,2),qg(iq,k))/qg(iq,k)
-          endif  ! (rino<0.) .. else ..
-          if(.not.land(iq))then ! over sea
-            if(omega(iq)<-omgtst(iq))then         
-             es(iq,1)=establ(tt(iq,1))
-             pk=ps(iq)*sig(1)
-             qs(iq,1)=.622*es(iq,1)/max(pk-es(iq,1),1.)  
-c            alfqarr(iq)=max(1.,qs(iq,1)/qg(iq,k))  ! 9b
-             alfqarr(iq)=alfqarrx(iq)*                 !  N.B. qs check done later with qbass  ! 9c
-     &               max(qs(iq,1),qg(iq,2),qg(iq,k))/qg(iq,k)
-            endif
-          endif  ! (.not.land(iq))
-       enddo 
-      endif  ! mbase=-9     
-      if(mbase==-16)then ! omgtst with qs over sea and 1.5 enhanced over land
-       alfqarr(:)=alfqarrx(:)
-       do iq=1,ifull
-         k=kkbb(iq)
-        if(omega(iq)<-omgtst(iq))then     
-         if(land(iq))then
-          alfqarr(iq)=1.+1.5*(alfqarrx(iq)-1.)
-         else
-         es(iq,1)=establ(tt(iq,1))
-         pk=ps(iq)*sig(1)
-         qs(iq,1)=.622*es(iq,1)/max(pk-es(iq,1),1.)  
-          alfqarr(iq)=alfqarrx(iq)*                 !  N.B. qs check done later with qbass
-     &               max(qs(iq,1),qg(iq,2),qg(iq,k))/qg(iq,k)
-         endif    
-        endif
-       enddo 
-      endif  ! mbase=-16
       if(mbase==-17)then ! omgtst with max_qg over land, qs(k) over sea
        alfqarr(:)=alfqarrx(:)
        do iq=1,ifull
@@ -620,6 +492,9 @@ c          alfqarr(iq)=max(1.,qs(iq,k)/qg(iq,k))
         endif
        enddo 
       endif  ! mbase=-19   
+      if(mbase<=-20)then  ! various simple with tpan added
+         alfqarr(:)=alfqarrx(:)
+      endif  ! mbase<=-20  
 
 !_____________________beginning of convective calculation loop________________
       do itn=1,iterconv
@@ -1278,7 +1153,7 @@ c       this s and h does not yet include updated phi (or does it?)
          qxcess(iq)=detrain*rnrtcn(iq) 
         enddo
       endif   ! (methdetr==1)     
-      if(methdetr==2)then  ! 09/11  NB methdetr=2 ignores detrainin  
+      if(methdetr==2)then  ! 09/11  NB methdetr=1 & 2 ignore detrainin  
         do iq=1,ifull     
          detrain=min(1.,max(.16,               ! thicknesses .2 (full) and .6 (.15)
      &           1.42-2.1*(sig(kb_sav(iq))-sig(kt_sav(iq)))))
@@ -1287,7 +1162,7 @@ c       this s and h does not yet include updated phi (or does it?)
       endif   ! (methdetr==2)     
       if(methdetr==3)then  ! now usual (with .14 from 20/6/12)
         do iq=1,ifull     
-         detrain=min( 1., detrainin+(1.-detrainin)*(
+         detrain=min( 1., detrainin+(1.-detrainin)*(   ! typical detrainin is .15
      &      (.6-min(sig(kb_sav(iq))-sig(kt_sav(iq)), .6))/(.6-.14))**3 )
 c        diff=0, .14, .2,.3, .4, .6 gives detrain=1, 1, .71, .39,.22, .15   for .14/.15  - now usual
 c        diff=0, .15, .2,.3, .4, .6 gives detrain=1, 1, .75, .406,.225, .15   for .15/.15  - was usual
@@ -1325,18 +1200,18 @@ c        diff=0, .15, .2,.3, .4, .6 gives detrain=1, 1, .732, .367,.179, .1   fo
          endif
         enddo
         if(convtime<0.)then
-c         options to define factr so it is small for shallow clouds        
-         if(convtime<-2.5)then
-          do iq=1,ifull    ! 20 mins for .6; 57 mins for .3; 160 mins for .15
+c         options to define factr so it is small for (longer-lived) shallow clouds       
+         if(convtime<-2.5)then  ! e.g. -4.
+          do iq=1,ifull    ! 20 mins for .6; 31m for .45; 57m for .3; 160m for .15
            frac=(sig(kb_sav(iq))-sig(kt_sav(iq)))/.6  ! 28/10/11
            factr(iq)=min(1.,(dt/1200.)*frac*sqrt(frac))   ! -4
           enddo
          elseif(convtime<-1.5)then  ! -2, a common setting
-          do iq=1,ifull     ! 20 mins for .6; 40 mins for .3; 80 mins for .15
+          do iq=1,ifull     ! 20 mins for .6; 27m for .45; 40m for .3; 80m for .15
            factr(iq)=min(1.,(dt/1200.)*
      &                        (sig(kb_sav(iq))-sig(kt_sav(iq)))/.6)  ! -2
           enddo
-         else
+         else  !   e.g. -1.
           do iq=1,ifull    ! 20 mins for .6; 28 mins for .3; 40 mins for .15
            frac=(sig(kb_sav(iq))-sig(kt_sav(iq)))/.6  ! 28/10/11
            factr(iq)=min(1.,(dt/1200.)*sqrt(frac))       ! -1
@@ -1617,16 +1492,15 @@ c      if(mydiag)print *,'methprec5 detrfactr,detrfactr(idjd)
        write (6,"('pblh,fldow,tdown,qdown,fluxq3',
      &             f8.2,f5.2,f7.2,3p2f8.3,1pf8.2)")
      &     pblh(iq),fldow(iq),tdown(iq),qdown(iq),fluxq(iq)
-       write(6,"('ktau,kkbb,wetfac,alfqarr,dpsldt8,-omgtst8',
+       write(6,"('ktau,kkbb,wetfac,alfqarr,omega8,-omgtst8',
      &             i5,i3,2f6.3,8pf9.3,f7.3)") ktau,kkbb(idjd),
-     &       wetfac(idjd),alfqarr(idjd),dpsldt(idjd,1),-omgtst(idjd)
+     &      wetfac(idjd),alfqarr(idjd),omega(idjd),-omgtst(idjd)
        write(6,"('fluxt3',3p14f10.3)") fluxt(iq,kb_sav(iq)+1:kt_sav(iq))
       endif
-c     if(ktau<=3.and.nmaxpr==1.and.mydiag)then
-      if(nmaxpr==1.and.mydiag)then
+      if(ntest>0.and.nmaxpr==1.and.mydiag)then
         write(6,*) 'at end of itn loop'
         iq=idjd
-        phi(iq,1)=bet(1)*tt(iq,1)
+        phi(iq,1)=bet(1)*tt(iq,1)  ! N.B. these recalcs interefer with reprod if just nmaxpr=1)
         do k=2,kl
          phi(iq,k)=phi(iq,k-1)+bet(k)*tt(iq,k)+betm(k)*tt(iq,k-1)
         enddo      ! k  loop
@@ -1647,7 +1521,7 @@ c     if(ktau<=3.and.nmaxpr==1.and.mydiag)then
          sum=sum-dsig(k)*(dels(iq,k)/cp+hlcp*delq(iq,k))
         enddo
         write(6,*) 'non-scaled delh_sum   ',sum
-      endif
+      endif  ! (ntest>0.and.nmaxpr==1.and.mydiag)
       if(itn==1)then
         kb_saved(:)=kb_sav(:)
         kt_saved(:)=kt_sav(:)
