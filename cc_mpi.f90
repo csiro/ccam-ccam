@@ -125,7 +125,7 @@ module cc_mpi
       ! Number of points for each processor. lenx is for nu, su, ev and wv
       integer(kind=4) :: slen_uv, rlen_uv, slen2_uv, rlen2_uv
       integer(kind=4) :: slenx_uv, rlenx_uv
-      integer(kind=4) :: len
+      integer(kind=4) :: len,sbuflen,rbuflen
       ! ocean mask
       integer(kind=4) :: mlomsk
    end type bounds_info
@@ -2521,6 +2521,10 @@ contains
       end do
 
       call reducealloc ! resize arrays
+      do iproc=0,nproc-1
+        bnds(iproc)%sbuflen=bnds(iproc)%len
+        bnds(iproc)%rbuflen=bnds(iproc)%len
+      end do
 
 !  Final check for values that haven't been set properly
       do n=1,npan
@@ -3673,87 +3677,89 @@ contains
          if (lmode==1) then
             recv_len=recv_len*bnds(rproc)%mlomsk
          end if
-         iqq = 0
-         if ( fsvwu ) then
+         if ( recv_len > 0 ) then
+            iqq = 0
+            if ( fsvwu ) then
 !cdir nodep
-            do iq=rsplit(rproc)%isvbg,rsplit(rproc)%iwufn
-               ! unpack_list(iq) is index into extended region
-               iqz = iqq+iq-rsplit(rproc)%isvbg+1
-               if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
-                  u(ifull+bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
-               else
-                  v(ifull-bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
-               end if
-            end do
-            iqq = iqq+rsplit(rproc)%iwufn-rsplit(rproc)%isvbg+1
-         end if
-         if ( fnveu ) then
+               do iq=rsplit(rproc)%isvbg,rsplit(rproc)%iwufn
+                  ! unpack_list(iq) is index into extended region
+                  iqz = iqq+iq-rsplit(rproc)%isvbg+1
+                  if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
+                     u(ifull+bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
+                  else
+                     v(ifull-bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
+                  end if
+               end do
+               iqq = iqq+rsplit(rproc)%iwufn-rsplit(rproc)%isvbg+1
+            end if
+            if ( fnveu ) then
 !cdir nodep
-            do iq=rsplit(rproc)%invbg,rsplit(rproc)%ieufn
-               ! unpack_list(iq) is index into extended region
-               iqz = iqq+iq-rsplit(rproc)%invbg+1
-               if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
-                  u(ifull+bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
-               else
-                  v(ifull-bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
-               end if
-            end do
-            iqq = iqq+rsplit(rproc)%ieufn-rsplit(rproc)%invbg+1
-         end if
-         if ( fssvwwu ) then
+               do iq=rsplit(rproc)%invbg,rsplit(rproc)%ieufn
+                  ! unpack_list(iq) is index into extended region
+                  iqz = iqq+iq-rsplit(rproc)%invbg+1
+                  if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
+                     u(ifull+bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
+                  else
+                     v(ifull-bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
+                  end if
+               end do
+               iqq = iqq+rsplit(rproc)%ieufn-rsplit(rproc)%invbg+1
+            end if
+            if ( fssvwwu ) then
 !cdir nodep
-            do iq=rsplit(rproc)%issvbg,rsplit(rproc)%iwwufn
-               ! unpack_list(iq) is index into extended region
-               iqz = iqq+iq-rsplit(rproc)%issvbg+1
-               if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
-                  u(ifull+bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
-               else
-                  v(ifull-bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
-               end if
-            end do
-            iqq = iqq+rsplit(rproc)%iwwufn-rsplit(rproc)%issvbg+1
-         end if
-         if ( fnnveeu ) then
+               do iq=rsplit(rproc)%issvbg,rsplit(rproc)%iwwufn
+                  ! unpack_list(iq) is index into extended region
+                  iqz = iqq+iq-rsplit(rproc)%issvbg+1
+                  if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
+                     u(ifull+bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
+                  else
+                     v(ifull-bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
+                  end if
+               end do
+               iqq = iqq+rsplit(rproc)%iwwufn-rsplit(rproc)%issvbg+1
+            end if
+            if ( fnnveeu ) then
 !cdir nodep
-            do iq=rsplit(rproc)%innvbg,rsplit(rproc)%ieeufn
-               ! unpack_list(iq) is index into extended region
-               iqz = iqq+iq-rsplit(rproc)%innvbg+1
-               if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
-                  u(ifull+bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
-               else
-                  v(ifull-bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
-               end if
-            end do
-            iqq = iqq+rsplit(rproc)%ieeufn-rsplit(rproc)%innvbg+1
-         end if
-         if ( fsuwv ) then
+               do iq=rsplit(rproc)%innvbg,rsplit(rproc)%ieeufn
+                  ! unpack_list(iq) is index into extended region
+                  iqz = iqq+iq-rsplit(rproc)%innvbg+1
+                  if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
+                     u(ifull+bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
+                  else
+                     v(ifull-bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
+                  end if
+               end do
+               iqq = iqq+rsplit(rproc)%ieeufn-rsplit(rproc)%innvbg+1
+            end if
+            if ( fsuwv ) then
 !cdir nodep
-            do iq=rsplit(rproc)%isubg,rsplit(rproc)%iwvfn
-               ! unpack_list(iq) is index into extended region
-               iqz = iqq+iq-rsplit(rproc)%isubg+1
-               if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
-                  u(ifull+bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
-               else
-                  v(ifull-bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
-               end if
-            end do
-            iqq = iqq+rsplit(rproc)%iwvfn-rsplit(rproc)%isubg+1
-         end if
-         if ( fnuev ) then
+               do iq=rsplit(rproc)%isubg,rsplit(rproc)%iwvfn
+                  ! unpack_list(iq) is index into extended region
+                  iqz = iqq+iq-rsplit(rproc)%isubg+1
+                  if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
+                     u(ifull+bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
+                  else
+                     v(ifull-bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
+                  end if
+               end do
+               iqq = iqq+rsplit(rproc)%iwvfn-rsplit(rproc)%isubg+1
+            end if
+            if ( fnuev ) then
 !cdir nodep
-            do iq=rsplit(rproc)%inubg,rsplit(rproc)%ievfn
-               ! unpack_list(iq) is index into extended region
-               iqz = iqq+iq-rsplit(rproc)%inubg+1
-               if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
-                  u(ifull+bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
-               else
-                  v(ifull-bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
-               end if
-            end do
-            iqq = iqq+rsplit(rproc)%ievfn-rsplit(rproc)%inubg+1
+               do iq=rsplit(rproc)%inubg,rsplit(rproc)%ievfn
+                  ! unpack_list(iq) is index into extended region
+                  iqz = iqq+iq-rsplit(rproc)%inubg+1
+                  if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
+                     u(ifull+bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
+                  else
+                     v(ifull-bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
+                  end if
+               end do
+               iqq = iqq+rsplit(rproc)%ievfn-rsplit(rproc)%inubg+1
+            end if
          end if
       end do
-
+      
       call end_log(boundsuv_end)
 
    end subroutine boundsuv2
@@ -4063,97 +4069,99 @@ contains
          if (lmode==1) then
             recv_len=recv_len*bnds(rproc)%mlomsk
          end if
-         iqq = 0
-         if ( fsvwu ) then
+         if (recv_len > 0 ) then
+            iqq = 0
+            if ( fsvwu ) then
 !cdir nodep
-            do iq=rsplit(rproc)%isvbg,rsplit(rproc)%iwufn
-               ! unpack_list(iq) is index into extended region
-               iqz = iqq+iq-rsplit(rproc)%isvbg+1
-               iq_b = 1+(iqz-1)*kx
-               iq_e = iqz*kx
-               if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
-                  u(ifull+bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
-               else
-                  v(ifull-bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
-               end if
-            end do
-            iqq = iqq+rsplit(rproc)%iwufn-rsplit(rproc)%isvbg+1
+               do iq=rsplit(rproc)%isvbg,rsplit(rproc)%iwufn
+                  ! unpack_list(iq) is index into extended region
+                  iqz = iqq+iq-rsplit(rproc)%isvbg+1
+                  iq_b = 1+(iqz-1)*kx
+                  iq_e = iqz*kx
+                  if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
+                     u(ifull+bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
+                  else
+                     v(ifull-bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
+                  end if
+               end do
+               iqq = iqq+rsplit(rproc)%iwufn-rsplit(rproc)%isvbg+1
+            end if
+            if ( fnveu ) then
+!cdir nodep
+               do iq=rsplit(rproc)%invbg,rsplit(rproc)%ieufn
+                  ! unpack_list(iq) is index into extended region
+                  iqz = iqq+iq-rsplit(rproc)%invbg+1
+                  iq_b = 1+(iqz-1)*kx
+                  iq_e = iqz*kx
+                  if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
+                     u(ifull+bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
+                  else
+                     v(ifull-bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
+                  end if
+               end do
+               iqq = iqq+rsplit(rproc)%ieufn-rsplit(rproc)%invbg+1
+            end if         
+            if ( fssvwwu ) then
+!cdir nodep
+               do iq=rsplit(rproc)%issvbg,rsplit(rproc)%iwwufn
+                  ! unpack_list(iq) is index into extended region
+                  iqz = iqq+iq-rsplit(rproc)%issvbg+1
+                  iq_b = 1+(iqz-1)*kx
+                  iq_e = iqz*kx
+                  if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
+                     u(ifull+bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
+                  else
+                     v(ifull-bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
+                  end if
+               end do
+               iqq = iqq+rsplit(rproc)%iwwufn-rsplit(rproc)%issvbg+1
+            end if         
+            if ( fnnveeu ) then
+!cdir nodep
+               do iq=rsplit(rproc)%innvbg,rsplit(rproc)%ieeufn
+                  ! unpack_list(iq) is index into extended region
+                  iqz = iqq+iq-rsplit(rproc)%innvbg+1
+                  iq_b = 1+(iqz-1)*kx
+                  iq_e = iqz*kx
+                  if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
+                     u(ifull+bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
+                  else
+                     v(ifull-bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
+                  end if
+               end do
+               iqq = iqq+rsplit(rproc)%ieeufn-rsplit(rproc)%innvbg+1
+            end if         
+            if ( fsuwv ) then
+!cdir nodep
+               do iq=rsplit(rproc)%isubg,rsplit(rproc)%iwvfn
+                  ! unpack_list(iq) is index into extended region
+                  iqz = iqq+iq-rsplit(rproc)%isubg+1
+                  iq_b = 1+(iqz-1)*kx
+                  iq_e = iqz*kx
+                  if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
+                     u(ifull+bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
+                  else
+                     v(ifull-bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
+                  end if
+               end do
+               iqq = iqq+rsplit(rproc)%iwvfn-rsplit(rproc)%isubg+1
+            end if 
+            if ( fnuev ) then
+!cdir nodep
+               do iq=rsplit(rproc)%inubg,rsplit(rproc)%ievfn
+                  ! unpack_list(iq) is index into extended region
+                  iqz = iqq+iq-rsplit(rproc)%inubg+1
+                  iq_b = 1+(iqz-1)*kx
+                  iq_e = iqz*kx
+                  if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
+                     u(ifull+bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
+                  else
+                     v(ifull-bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
+                  end if
+               end do
+               iqq = iqq+rsplit(rproc)%ievfn-rsplit(rproc)%inubg+1
+            end if        
          end if
-         if ( fnveu ) then
-!cdir nodep
-            do iq=rsplit(rproc)%invbg,rsplit(rproc)%ieufn
-               ! unpack_list(iq) is index into extended region
-               iqz = iqq+iq-rsplit(rproc)%invbg+1
-               iq_b = 1+(iqz-1)*kx
-               iq_e = iqz*kx
-               if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
-                  u(ifull+bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
-               else
-                  v(ifull-bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
-               end if
-            end do
-            iqq = iqq+rsplit(rproc)%ieufn-rsplit(rproc)%invbg+1
-         end if         
-         if ( fssvwwu ) then
-!cdir nodep
-            do iq=rsplit(rproc)%issvbg,rsplit(rproc)%iwwufn
-               ! unpack_list(iq) is index into extended region
-               iqz = iqq+iq-rsplit(rproc)%issvbg+1
-               iq_b = 1+(iqz-1)*kx
-               iq_e = iqz*kx
-               if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
-                  u(ifull+bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
-               else
-                  v(ifull-bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
-               end if
-            end do
-            iqq = iqq+rsplit(rproc)%iwwufn-rsplit(rproc)%issvbg+1
-         end if         
-         if ( fnnveeu ) then
-!cdir nodep
-            do iq=rsplit(rproc)%innvbg,rsplit(rproc)%ieeufn
-               ! unpack_list(iq) is index into extended region
-               iqz = iqq+iq-rsplit(rproc)%innvbg+1
-               iq_b = 1+(iqz-1)*kx
-               iq_e = iqz*kx
-               if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
-                  u(ifull+bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
-               else
-                  v(ifull-bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
-               end if
-            end do
-            iqq = iqq+rsplit(rproc)%ieeufn-rsplit(rproc)%innvbg+1
-         end if         
-         if ( fsuwv ) then
-!cdir nodep
-            do iq=rsplit(rproc)%isubg,rsplit(rproc)%iwvfn
-               ! unpack_list(iq) is index into extended region
-               iqz = iqq+iq-rsplit(rproc)%isubg+1
-               iq_b = 1+(iqz-1)*kx
-               iq_e = iqz*kx
-               if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
-                  u(ifull+bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
-               else
-                  v(ifull-bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
-               end if
-            end do
-            iqq = iqq+rsplit(rproc)%iwvfn-rsplit(rproc)%isubg+1
-         end if 
-         if ( fnuev ) then
-!cdir nodep
-            do iq=rsplit(rproc)%inubg,rsplit(rproc)%ievfn
-               ! unpack_list(iq) is index into extended region
-               iqz = iqq+iq-rsplit(rproc)%inubg+1
-               iq_b = 1+(iqz-1)*kx
-               iq_e = iqz*kx
-               if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
-                  u(ifull+bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
-               else
-                  v(ifull-bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(iq_b:iq_e)
-               end if
-            end do
-            iqq = iqq+rsplit(rproc)%ievfn-rsplit(rproc)%inubg+1
-         end if        
       end do
 
       call end_log(boundsuv_end)

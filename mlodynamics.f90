@@ -801,7 +801,6 @@ logical, dimension(ifull+iextra) :: wtr
 logical lleap
 
 integer, parameter :: nxtrrho    = 1   ! Estimate rho at t+1 (0=off, 1=on)
-integer, parameter :: llmax      = 400 ! Iterations for calculating surface height
 real, parameter :: tol    = 5.E-5      ! Tolerance for SOR solver (water)
 real, parameter :: itol   = 2.E1       ! Tolerance for SOR solver (ice)
 
@@ -1456,17 +1455,13 @@ qvs=ssv(isv)*0.5/emv(isv)
 qdiv=(que-quw+qvn-qvs)*em(1:ifull)*em(1:ifull)/ds
 qdivb=(que*ddu(1:ifull)-quw*ddu(iwu)+qvn*ddv(1:ifull)-qvs*ddv(isv))*em(1:ifull)*em(1:ifull)/ds
 
-! prep ice gradient terms
-odum=ibu(1:ifull)+ibu(iwu)+ibv(1:ifull)+ibv(isv)
-odum=odum-0.5*(idu(1:ifull)+idu(iwu)+idv(1:ifull)+idv(isv))
-
 ! Iteratively solve for free surface height, eta
 ! Iterative loop to estimate ice 'pressure'
 select case(itrsol)
   case(0)
-    call mlosor(llmax,tol,itol,neta,sue,svn,suw,svs,pue,pvn,puw,pvs,que,qvn,quw,qvs,               &
+    call mlosor(tol,itol,neta,sue,svn,suw,svs,pue,pvn,puw,pvs,que,qvn,quw,qvs,                     &
                 pdiv,pdivb,sdiv,sdivb,odiv,odivb,qdiv,qdivb,xps,                                   &
-                ipice,ibu,ibv,idu,idv,niu,niv,odum,sicedep,ipmax,totits,itc,maxglobseta,maxglobip)
+                ipice,ibu,ibv,idu,idv,niu,niv,ipmax,totits,itc,maxglobseta,maxglobip)
   case(1)
     !call mlomgsor
   case default
@@ -1646,7 +1641,7 @@ if (nud_sss==0) then
   else
     do ii=1,wlev
       where(wtr(1:ifull).and.ndum>0.1)
-        dum(:,ii)=ns(1:ifull,ii)-34.72
+      dum(:,ii)=ns(1:ifull,ii)-34.72
       end where
     end do
   end if
@@ -3785,7 +3780,6 @@ real, dimension(ifull,wlev), intent(inout) :: uu
 real, dimension(ifull,wlev-1) :: ff
 real, dimension(ifull,0:wlev) :: delu
 real, dimension(ifull) :: fl,fh,cc,rr,xx,jj
-logical, dimension(ifull) :: msk
 
 ! f=(w*u) at half levels
 ! du/dt = u*dw/dz-df/dz = -w*du/dz
@@ -3816,38 +3810,33 @@ end do
 uu(:,wlev)=uu(:,wlev)+dtnew*(-uu(:,wlev)*ww(:,wlev-1)+ff(:,wlev-1))/max(dzadj(:,wlev),1.E-10)
 
 
-do i=2,its_g
+do iq=1,ifull
+  do i=2,its(iq)
 
-  msk=(its>=i)
+    delu(iq,:)=0.
+    do ii=1,wlev-1
+      delu(iq,ii)=uu(iq,ii+1)-uu(iq,ii)
+    end do
+
+    ! TVD part
+    do ii=1,wlev-1
+      fl(iq)=0.5*ww(iq,ii)*(uu(iq,ii)+uu(iq,ii+1))+0.5*abs(ww(iq,ii))*(uu(iq,ii)-uu(iq,ii+1))
+      fh(iq)=ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1)) &
+        -0.5*(uu(iq,ii+1)-uu(iq,ii))*ww(iq,ii)**2*dtnew(iq)/max(depadj(iq,ii+1)-depadj(iq,ii),1.E-10)
+      xx(iq)=delu(iq,ii)+sign(1.E-20,delu(iq,ii))
+      jj(iq)=sign(1.,ww(iq,ii))
+      rr(iq)=0.5*((1.-jj(iq))*delu(iq,ii+1)+(1.+jj(iq))*delu(iq,ii-1))/xx(iq)
+      cc(iq)=max(0.,min(1.,2.*rr(iq)),min(2.,rr(iq))) ! superbee
+      ff(iq,ii)=fl(iq)+cc(iq)*(fh(iq)-fl(iq))
+    end do
   
-  do iq=1,ifull
-    if (msk(iq)) then
+    uu(iq,1)=uu(iq,1)+dtnew(iq)*(uu(iq,1)*ww(iq,1)-ff(iq,1))/max(dzadj(iq,1),1.E-10)
+    do ii=2,wlev-1
+      uu(iq,ii)=uu(iq,ii)+dtnew(iq)*(uu(iq,ii)*(ww(iq,ii)-ww(iq,ii-1))-ff(iq,ii)+ff(iq,ii-1))/max(dzadj(iq,ii),1.E-10)
+    end do
+    uu(iq,wlev)=uu(iq,wlev)+dtnew(iq)*(-uu(iq,wlev)*ww(iq,wlev-1)+ff(iq,wlev-1))/max(dzadj(iq,wlev),1.E-10)
 
-      delu(iq,:)=0.
-      do ii=1,wlev-1
-        delu(iq,ii)=uu(iq,ii+1)-uu(iq,ii)
-      end do
-
-      ! TVD part
-      do ii=1,wlev-1
-        fl(iq)=0.5*ww(iq,ii)*(uu(iq,ii)+uu(iq,ii+1))+0.5*abs(ww(iq,ii))*(uu(iq,ii)-uu(iq,ii+1))
-        fh(iq)=ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1)) &
-          -0.5*(uu(iq,ii+1)-uu(iq,ii))*ww(iq,ii)**2*dtnew(iq)/max(depadj(iq,ii+1)-depadj(iq,ii),1.E-10)
-        xx(iq)=delu(iq,ii)+sign(1.E-20,delu(iq,ii))
-        jj(iq)=sign(1.,ww(iq,ii))
-        rr(iq)=0.5*((1.-jj(iq))*delu(iq,ii+1)+(1.+jj(iq))*delu(iq,ii-1))/xx(iq)
-        cc(iq)=max(0.,min(1.,2.*rr(iq)),min(2.,rr(iq))) ! superbee
-        ff(iq,ii)=fl(iq)+cc(iq)*(fh(iq)-fl(iq))
-      end do
-  
-      uu(iq,1)=uu(iq,1)+dtnew(iq)*(uu(iq,1)*ww(iq,1)-ff(iq,1))/max(dzadj(iq,1),1.E-10)
-      do ii=2,wlev-1
-        uu(iq,ii)=uu(iq,ii)+dtnew(iq)*(uu(iq,ii)*(ww(iq,ii)-ww(iq,ii-1))-ff(iq,ii)+ff(iq,ii-1))/max(dzadj(iq,ii),1.E-10)
-      end do
-      uu(iq,wlev)=uu(iq,wlev)+dtnew(iq)*(-uu(iq,wlev)*ww(iq,wlev-1)+ff(iq,wlev-1))/max(dzadj(iq,wlev),1.E-10)
-    end if
   end do
- 
 end do
 
 return
@@ -4411,9 +4400,9 @@ end subroutine upwindadv
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Use SOR to solve for free surface and ice pressure
 
-subroutine mlosor(llmax,tol,itol,neta,sue,svn,suw,svs,pue,pvn,puw,pvs,que,qvn,quw,qvs,              &
+subroutine mlosor(tol,itol,neta,sue,svn,suw,svs,pue,pvn,puw,pvs,que,qvn,quw,qvs,                    &
                   pdiv,pdivb,sdiv,sdivb,odiv,odivb,qdiv,qdivb,xps,                                  &
-                  ipice,ibu,ibv,idu,idv,niu,niv,odum,sicedep,ipmax,totits,itc,maxglobseta,maxglobip)
+                  ipice,ibu,ibv,idu,idv,niu,niv,ipmax,totits,itc,maxglobseta,maxglobip)
 
 use cc_mpi
 use indices_m
@@ -4424,7 +4413,6 @@ implicit none
 include 'newmpar.h'
 include 'parm.h'
 
-integer, intent(in) :: llmax
 integer, intent(out) :: totits,itc
 integer itstest,itsave1,itsave2,ll,mm,ierr
 integer nx,ifx
@@ -4440,24 +4428,18 @@ real, dimension(ifull), intent(in) :: pdiv,pdivb,sdiv,sdivb,odiv,odivb,qdiv,qdiv
 real, dimension(ifull+iextra), intent(inout) :: ipice
 real, dimension(ifull+iextra), intent(in) :: ibu,ibv,idu,idv
 real, dimension(ifull+iextra), intent(in) :: niu,niv
-real, dimension(ifull), intent(in) :: odum,sicedep
 real, dimension(ifull), intent(in) :: ipmax
-real, dimension(ifull+iextra) :: netadd
-real, dimension(ifull) :: snu,snv,snuw,snvs
-real, dimension(ifull) :: div,divb,seta,setab
-real, dimension(ifull) :: au,bu,cu,bv,cv
-real, dimension(ifull) :: nip
-real, dimension(ifull) :: setac
-real, dimension(ifull,maxcolour) :: emc,dduc,ddvc,dducw,ddvcs
-real, dimension(ifull,maxcolour) :: quec,puec,quwc,puwc,qvnc,pvnc,qvsc,pvsc
-real, dimension(ifull,maxcolour) :: qdivc,odivc,odivbc,xpsc
-real, dimension(ifull,maxcolour) :: odumc,sicedepc,niuc,nivc
-real, dimension(ifull,maxcolour) :: iduc,iducw,idvc,idvcs,ibuc,ibucw,ibvc,ibvcs
+real, dimension(ifull,2) :: zz,zzn,zzs,zze,zzw,rhs
+real, dimension(ifull) :: yy,yyn,yys,yye,yyw
+real, dimension(ifull) :: hh
+real, dimension(ifull) :: au,bu,cu,seta,setab,setac,nip
+real, dimension(ifull,maxcolour,2) :: zzc,zznc,zzsc,zzec,zzwc,rhsc
+real, dimension(ifull,maxcolour) :: yyc,yync,yysc,yyec,yywc
+real, dimension(ifull,maxcolour) :: hhc
 real, dimension(ifull+iextra,2) :: dumc
-real, dimension(2) :: alpha
-real, dimension(2) :: dume,dumf
+real, dimension(2) :: alpha,dume,dumf
 
-real, dimension(5), parameter :: coeff = (/ 1., 2., 5., 14., 42. /) ! Parameters for Talyor expansion
+integer, parameter :: llmax      = 400 ! Iterations for calculating surface height
 
 ! Use SOR as it converge faster that Conjugate Gradient (problems with coastlines?)
 ! and it is easy to include the non-linear terms and constraints.  Possibly combine
@@ -4476,39 +4458,49 @@ call bounds(dumc(:,1:2),gmode=1)
 neta(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,1)
 ipice(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,2)
 
+! zz*(DIV^2 neta) + yy*neta*(DIV^2 neta) + hh*neta = rhs
+
+! ocean
+zzn(:,1)= (1.+ocneps)*0.5*dt*(qvn+svn+pvn)*ddv(1:ifull)*em(1:ifull)**2/ds
+zzs(:,1)=-(1.+ocneps)*0.5*dt*(qvs+svs+pvs)*ddv(isv)    *em(1:ifull)**2/ds
+zze(:,1)= (1.+ocneps)*0.5*dt*(que+sue+pue)*ddu(1:ifull)*em(1:ifull)**2/ds
+zzw(:,1)=-(1.+ocneps)*0.5*dt*(quw+suw+puw)*ddu(iwu)    *em(1:ifull)**2/ds
+zz(:,1) = (1.+ocneps)*0.5*dt*(qdivb+sdivb+pdivb)
+
+yyn= (1.+ocneps)*0.5*dt*(qvn+svn+pvn)*em(1:ifull)**2/ds
+yys=-(1.+ocneps)*0.5*dt*(qvs+svs+pvs)*em(1:ifull)**2/ds
+yye= (1.+ocneps)*0.5*dt*(que+sue+pue)*em(1:ifull)**2/ds
+yyw=-(1.+ocneps)*0.5*dt*(quw+suw+puw)*em(1:ifull)**2/ds
+yy = (1.+ocneps)*0.5*dt*(qdiv+sdiv+pdiv)
+
+hh     =1.+(1.+ocneps)*0.5*dt*(odiv                                                           &
+        +(pvn*dd(in)-pvs*dd(is)+pue*dd(ie)-puw*dd(iw))*em(1:ifull)**2/ds+pdiv*dd(1:ifull))
+rhs(:,1)=xps-(1.+ocneps)*0.5*dt*(odivb                                                        &
+        +(pvn*ddv(1:ifull)*dd(in)-pvs*ddv(isv)*dd(is)+pue*ddu(1:ifull)*dd(ie)-puw*ddu(iwu)*dd(iw))*em(1:ifull)**2/ds+pdivb*dd(1:ifull))
+
+! ice
+zzn(:,2)=(-idv(1:ifull)*0.5-ibv(1:ifull))/ds
+zzs(:,2)=(-idv(isv)*0.5    -ibv(isv)    )/ds
+zze(:,2)=(-idu(1:ifull)*0.5-ibu(1:ifull))/ds
+zzw(:,2)=(-idu(iwu)*0.5    -ibu(iwu)    )/ds
+zz(:,2) =(ibu(1:ifull)+ibu(iwu)+ibv(1:ifull)+ibv(isv)-0.5*(idu(1:ifull)+idu(iwu)+idv(1:ifull)+idv(isv)))/ds
+
+rhs(:,2)=niu(1:ifull)/emu(1:ifull)-niu(iwu)/emu(iwu)+niv(1:ifull)/emv(1:ifull)-niv(isv)/emv(isv)
+
 do nx=1,maxcolour
   ifx=ifullx(nx)
-  quec(1:ifx,nx)=que(iqx(1:ifx,nx))+sue(iqx(1:ifx,nx))
-  puec(1:ifx,nx)=pue(iqx(1:ifx,nx))
-  qvnc(1:ifx,nx)=qvn(iqx(1:ifx,nx))+svn(iqx(1:ifx,nx))
-  pvnc(1:ifx,nx)=pvn(iqx(1:ifx,nx))
-  quwc(1:ifx,nx)=quw(iqx(1:ifx,nx))+suw(iqx(1:ifx,nx))
-  puwc(1:ifx,nx)=puw(iqx(1:ifx,nx))
-  qvsc(1:ifx,nx)=qvs(iqx(1:ifx,nx))+svs(iqx(1:ifx,nx))
-  pvsc(1:ifx,nx)=pvs(iqx(1:ifx,nx))
-  emc(1:ifx,nx)=em(iqx(1:ifx,nx))
-  dduc(1:ifx,nx)=ddu(iqx(1:ifx,nx))
-  ddvc(1:ifx,nx)=ddv(iqx(1:ifx,nx))
-  dducw(1:ifx,nx)=ddu(iqwu(1:ifx,nx))
-  ddvcs(1:ifx,nx)=ddv(iqsv(1:ifx,nx))
-  qdivc(1:ifx,nx)=qdiv(iqx(1:ifx,nx))+pdiv(iqx(1:ifx,nx))+sdiv(iqx(1:ifx,nx))
-  odivc(1:ifx,nx)=odiv(iqx(1:ifx,nx))+pdiv(iqx(1:ifx,nx))*dd(iqx(1:ifx,nx))+qdivb(iqx(1:ifx,nx))+pdivb(iqx(1:ifx,nx))+sdivb(iqx(1:ifx,nx))
-  odivbc(1:ifx,nx)=odivb(iqx(1:ifx,nx))+pdivb(iqx(1:ifx,nx))*dd(iqx(1:ifx,nx))
-  xpsc(1:ifx,nx)=xps(iqx(1:ifx,nx))
-  odumc(1:ifx,nx)=odum(iqx(1:ifx,nx))
-  sicedepc(1:ifx,nx)=sicedep(iqx(1:ifx,nx))
-  where (odumc(1:ifx,nx)/=0.)
-    niuc(1:ifx,nx)=(niu(iqx(1:ifx,nx))/emu(iqx(1:ifx,nx))-niu(iqwu(1:ifx,nx))/emu(iqwu(1:ifx,nx)))*ds/odumc(1:ifx,nx)
-    nivc(1:ifx,nx)=(niv(iqx(1:ifx,nx))/emv(iqx(1:ifx,nx))-niv(iqsv(1:ifx,nx))/emv(iqsv(1:ifx,nx)))*ds/odumc(1:ifx,nx)
-    iduc(1:ifx,nx)=idu(iqx(1:ifx,nx))*0.5/odumc(1:ifx,nx)
-    iducw(1:ifx,nx)=idu(iqwu(1:ifx,nx))*0.5/odumc(1:ifx,nx)
-    idvc(1:ifx,nx)=idv(iqx(1:ifx,nx))*0.5/odumc(1:ifx,nx)
-    idvcs(1:ifx,nx)=idv(iqsv(1:ifx,nx))*0.5/odumc(1:ifx,nx)
-    ibuc(1:ifx,nx)=ibu(iqx(1:ifx,nx))/odumc(1:ifx,nx)
-    ibucw(1:ifx,nx)=ibu(iqwu(1:ifx,nx))/odumc(1:ifx,nx)
-    ibvc(1:ifx,nx)=ibv(iqx(1:ifx,nx))/odumc(1:ifx,nx)
-    ibvcs(1:ifx,nx)=ibv(iqsv(1:ifx,nx))/odumc(1:ifx,nx)
-  end where
+  zznc(1:ifx,nx,:)=zzn(iqx(1:ifx,nx),:)
+  zzsc(1:ifx,nx,:)=zzs(iqx(1:ifx,nx),:)
+  zzec(1:ifx,nx,:)=zze(iqx(1:ifx,nx),:)
+  zzwc(1:ifx,nx,:)=zzw(iqx(1:ifx,nx),:)
+  zzc(1:ifx,nx,:) = zz(iqx(1:ifx,nx),:)
+  yync(1:ifx,nx)  =yyn(iqx(1:ifx,nx))
+  yysc(1:ifx,nx)  =yys(iqx(1:ifx,nx))
+  yyec(1:ifx,nx)  =yye(iqx(1:ifx,nx))
+  yywc(1:ifx,nx)  =yyw(iqx(1:ifx,nx))
+  yyc(1:ifx,nx)   = yy(iqx(1:ifx,nx))
+  hhc(1:ifx,nx)   = hh(iqx(1:ifx,nx))
+  rhsc(1:ifx,nx,:)=rhs(iqx(1:ifx,nx),:)
 end do
 
 do ll=1,llmax
@@ -4519,78 +4511,35 @@ do ll=1,llmax
 
     ! ocean
     ! 5-point version -----------------------------------------------
-    
-    netadd=max(neta+dd,0.)
 
     ! For now, assume Boussinesq fluid and treat density in continuity equation as constant
-    snu(1:ifx)=quec(1:ifx,nx)*neta(iqe(1:ifx,nx))+puec(1:ifx,nx)*netadd(iqe(1:ifx,nx))
-    snv(1:ifx)=qvnc(1:ifx,nx)*neta(iqn(1:ifx,nx))+pvnc(1:ifx,nx)*netadd(iqn(1:ifx,nx))
-    snuw(1:ifx)=quwc(1:ifx,nx)*neta(iqw(1:ifx,nx))+puwc(1:ifx,nx)*netadd(iqw(1:ifx,nx))
-    snvs(1:ifx)=qvsc(1:ifx,nx)*neta(iqs(1:ifx,nx))+pvsc(1:ifx,nx)*netadd(iqs(1:ifx,nx))
-  
-    div(1:ifx)=(snu(1:ifx)-snuw(1:ifx)+snv(1:ifx)-snvs(1:ifx))*emc(1:ifx,nx)**2/ds
-    divb(1:ifx)=(snu(1:ifx)*dduc(1:ifx,nx)-snuw(1:ifx)*dducw(1:ifx,nx) &
-                +snv(1:ifx)*ddvc(1:ifx,nx)-snvs(1:ifx)*ddvcs(1:ifx,nx))*emc(1:ifx,nx)**2/ds
-
-    ! solve for quadratic expression of neta^(t+1)
-    ! div^(t+1)=(div+odiv+pdiv*(dd+neta)+sdiv*neta)*neta+(divb+odivb+pdivb*(dd+neta)+sdivb*neta)
-    ! neta^(t+1)+0.5*(1+ocneps)*dt*div^(t+1)=xps
-    au(1:ifx)=-(1.+ocneps)*0.5*dt*qdivc(1:ifx,nx)
-    bu(1:ifx)=-(1.+(1.+ocneps)*0.5*dt*(div(1:ifx)+odivc(1:ifx,nx)))
-    cu(1:ifx)=xpsc(1:ifx,nx)-(1.+ocneps)*0.5*dt*(divb(1:ifx)+odivbc(1:ifx,nx))
-    !where (abs(au)>1.E-3)
-    !  seta=-neta(1:ifull)+0.5*(-bu-sqrt(bu*bu-4.*au*cu))/au
-    !elsewhere
-      ! the following is a Talyor expansion of the above expression
-      ! and should be valid for au<1.E-2
-      bv(1:ifx)=bu(1:ifx)
-      cv(1:ifx)=cu(1:ifx)
-      setac(1:ifx)=-neta(iqx(1:ifx,nx))-cv(1:ifx)/bv(1:ifx)
-      do mm=1,5
-        bv(1:ifx)=bv(1:ifx)*bu(1:ifx)*bu(1:ifx)
-        cv(1:ifx)=cv(1:ifx)*au(1:ifx)*cu(1:ifx)
-        setac(1:ifx)=setac(1:ifx)-coeff(mm)*cv(1:ifx)/bv(1:ifx)
-      end do
-    !end where
+    au(1:ifx)=yyc(1:ifx,nx)
+    bu(1:ifx)=zzc(1:ifx,nx,1)+hhc(1:ifx,nx)+yync(1:ifx,nx)*neta(iqn(1:ifx,nx))+yysc(1:ifx,nx)*neta(iqs(1:ifx,nx)) &
+                                           +yyec(1:ifx,nx)*neta(iqe(1:ifx,nx))+yywc(1:ifx,nx)*neta(iqw(1:ifx,nx))
+    cu(1:ifx)=-rhsc(1:ifx,nx,1)+zznc(1:ifx,nx,1)*neta(iqn(1:ifx,nx))+zzsc(1:ifx,nx,1)*neta(iqs(1:ifx,nx)) &
+                               +zzec(1:ifx,nx,1)*neta(iqe(1:ifx,nx))+zzwc(1:ifx,nx,1)*neta(iqw(1:ifx,nx))
     
     ! alternative form
-    ! setac(1:ifx)=-neta(iqx(1:ifx,nx))+2.*cu(1:ifx)/(-bu(1:ifx)-sqrt(bu(1:ifx)*bu(1:ifx)-4.*au(1:ifx)*cu(1:ifx)))
-  
+    setac(1:ifx)=-neta(iqx(1:ifx,nx))-2.*cu(1:ifx)/(bu(1:ifx)+sqrt(bu(1:ifx)*bu(1:ifx)-4.*au(1:ifx)*cu(1:ifx)))
+    
     ! The following expression limits the minimum depth
     ! (should not occur for typical eta values)
-    seta(iqx(1:ifx,nx))=max(setac(1:ifx),-netadd(iqx(1:ifx,nx))) ! this should become a land point
+    seta(iqx(1:ifx,nx))=max(setac(1:ifx),-(neta(iqx(1:ifx,nx))+dd(iqx(1:ifx,nx)))) ! this should become a land point
     seta(iqx(1:ifx,nx))=seta(iqx(1:ifx,nx))*ee(iqx(1:ifx,nx))
-    neta(iqx(1:ifx,nx))=alpha(1)*seta(iqx(1:ifx,nx))+neta(iqx(1:ifx,nx))
+    neta(iqx(1:ifx,nx))=neta(iqx(1:ifx,nx))+alpha(1)*seta(iqx(1:ifx,nx))
 
     ! ice
     ! 5-point version -------------------------------------------------
  
-    !dipdxu=(ip(ie)-ip(1:ifull))*emu(1:ifull)/ds
-    !dipdyu=spu(1:ifull)*emu(1:ifull)/(ds*icu(1:ifull))
-    !dipdxv=spv(1:ifull)*emv(1:ifull)/(ds*icv(1:ifull))
-    !dipdyv=(ip(in)-ip(1:ifull))*emv(1:ifull)/ds
-
-    !snu(1:ifull)=niu(1:ifull)+idu*ipu+ibu*dipdxu+icu*dipdyu
-    !snv(1:ifull)=niv(1:ifull)+idv*ipv+ibv*dipdyv+icv*dipdxv
-    !call boundsuv(snu,snv,gmode=1)
+    bu(1:ifx)=zzc(1:ifx,nx,2)
+    cu(1:ifx)=-rhsc(1:ifx,nx,2)+zznc(1:ifx,nx,2)*ipice(iqn(1:ifx,nx))+zzsc(1:ifx,nx,2)*ipice(iqs(1:ifx,nx)) &
+                               +zzec(1:ifx,nx,2)*ipice(iqe(1:ifx,nx))+zzwc(1:ifx,nx,2)*ipice(iqw(1:ifx,nx))
     
-    ! new divergence at t+1
-    !div=(snu(1:ifull)/emu(1:ifull)-snu(iwu)/emu(iwu)+snv(1:ifull)/emv(1:ifull)-snv(isv)/emv(isv)) &
-    !    *em(1:ifull)*em(1:ifull)/ds
-
-    ! update ice pressure to remove negative divergence
-    ! (assume change in imass is small)
-    where (odumc(1:ifx,nx)/=0..and.sicedepc(1:ifx,nx)>0.01)
-      nip(1:ifx)=niuc(1:ifx,nx)                                                         &
-          +iduc(1:ifx,nx)*ipice(iqe(1:ifx,nx))+iducw(1:ifx,nx)*ipice(iqw(1:ifx,nx))     &
-          +ibuc(1:ifx,nx)*ipice(iqe(1:ifx,nx))+ibucw(1:ifx,nx)*ipice(iqw(1:ifx,nx))     &
-          +nivc(1:ifx,nx)                                                               &
-          +idvc(1:ifx,nx)*ipice(iqn(1:ifx,nx))+idvcs(1:ifx,nx)*ipice(iqs(1:ifx,nx))     &
-          +ibvc(1:ifx,nx)*ipice(iqn(1:ifx,nx))+ibvcs(1:ifx,nx)*ipice(iqs(1:ifx,nx))
-    elsewhere
-      nip(1:ifx)=0.
+    nip(1:ifx)=0.
+    where(bu(1:ifx)/=0.)
+      nip(1:ifx)=-cu(1:ifx)/bu(1:ifx)
     end where
-
+ 
     select case(icemode)
       case(2)
         ! cavitating fluid
@@ -4603,7 +4552,7 @@ do ll=1,llmax
         nip(1:ifx)=0.
     end select
     setab(iqx(1:ifx,nx))=nip(1:ifx)-ipice(iqx(1:ifx,nx))
-    ipice(iqx(1:ifx,nx))=alpha(2)*nip(1:ifx)+(1.-alpha(2))*ipice(iqx(1:ifx,nx))
+    ipice(iqx(1:ifx,nx))=ipice(iqx(1:ifx,nx))+alpha(2)*setab(iqx(1:ifx,nx))
 
     dumc(iqx(1:ifx,nx),1)=neta(iqx(1:ifx,nx))
     dumc(iqx(1:ifx,nx),2)=ipice(iqx(1:ifx,nx))

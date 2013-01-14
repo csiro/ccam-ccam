@@ -1185,7 +1185,16 @@ if (nmaxpr==1) then
 end if
 
 ! if CABLE is present on this processor, then start allocating arrays
-if (myid==0) write(6,*) "Allocating CABLE and CASA CNP arrays"
+! Write messages here in case myid==0 has no land-points (mp==0)
+if (myid==0) then
+  write(6,*) "Allocating CABLE and CASA CNP arrays"
+  if (icycle==0) then
+    write(6,*) "Using CABLE carbon cycle"
+  else
+    write(6,*) "Using CASA CNP"
+  end if
+end if
+
 if (mp>0) then
   
   allocate(sv(mp),cmap(mp))
@@ -1426,7 +1435,6 @@ if (mp>0) then
   
   if (icycle==0) then
     ! Initialise CABLE carbon pools
-    if (myid==0) write(6,*) "Using CABLE carbon cycle"
     do n=1,9
       do k=1,ncp
         cplant(cmap(pind(n,1):pind(n,2)),k)=cplant(cmap(pind(n,1):pind(n,2)),k) &
@@ -1439,7 +1447,6 @@ if (mp>0) then
     end do
   else
     ! CASA CNP
-    if (myid==0) write(6,*) "Using CASA CNP"
     call alloc_casavariable(casabiome,casapool,casaflux,casamet,casabal,mp)
     call alloc_phenvariable(phen,mp)
     

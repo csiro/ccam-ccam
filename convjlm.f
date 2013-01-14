@@ -155,14 +155,18 @@ c     parameter (ncubase=2)              ! 2 from 4/06, more like 0 before  - us
      &                     klon23,klon2,k500,k935
 
        if(nevapcc>0)then ! typically 20, 30, 40, 60  ! uses **2
-         print *,'entrainn k=5,13 for kb=4; nevapcc =',nevapcc
-          write (6,"(10f7.3)")
+        if (myid==0) then
+         write(6,*) 'entrainn k=5,13 for kb=4; nevapcc =',nevapcc
+         write (6,"(10f7.3)")
      &   (.1*nevapcc*min(1., (.1/(max(.001,sig(4) -sig(k))))**2),k=5,13)
+        end if
        endif
        if(nevapcc<0)then ! typically -20, -30, -40, -60
-         print *,'entrainn k=5,13 for kb=4; nevapcc =',nevapcc
+        if (myid==0) then
+         write(6,*) 'entrainn k=5,13 for kb=4; nevapcc =',nevapcc
           write (6,"(10f7.3)")
      &   (-.1*nevapcc*min(1.,.1/(sig(4) -sig(k))),k=5,13)
+        end if
        endif	
 	
 c      precalculate detrainment arrays for various methprec

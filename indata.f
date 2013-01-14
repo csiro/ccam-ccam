@@ -1802,7 +1802,6 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
 !****    himalayas etc.
          he(iq)=min(hefact*he(iq),helim)
         enddo
-        if (myid==0) write(6,*)'hemax = ',hemax
         dumd(1)=hemax
         call ccmpi_allreduce(dumd(1:1),dumd(2:2),"max",comm_world)
         hemax_g=dumd(2)
@@ -1845,7 +1844,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
           do k=1,wlev
             call mloexpdep(0,depth,k,0)
             ! This polynomial fit is from MOM3, based on Levitus
-            where (depth.lt.2000.)
+            where (depth<2000.)
             mlodwn(:,k,1)=18.4231944
      &        -0.43030662E-1*depth(:)
      &        +0.607121504E-4*depth(:)**2
@@ -2020,10 +2019,13 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
          enddo
       endif
       if(nstn>0.and.nrotstn(1)==0)then
-        write(6,*) 'land stations'
-        write(*,"(a)")
-     &       ' lu istn jstn  iq   slon   slat land rlong  rlat'
-     &    // ' isoil iveg zs(m) alb  wb3  wet3 vlai  zo   he'
+        if (myid==0) then
+         write(6,*) 'land stations'
+         write(*,"(a)")
+     &        ' lu istn jstn  iq   slon   slat land rlong  rlat'
+     &     // ' isoil iveg zs(m) alb  wb3  wet3 vlai  zo   he'
+        end if
+        call ccmpi_barrier(comm_world)
         do nn=1,nstn
            call latltoij(slon(nn),slat(nn),rlong0,rlat0,schmidt,
      &                   ri,rj,nface,xx4,yy4,il_g)

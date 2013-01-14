@@ -674,13 +674,13 @@ if (myid==0) then
 #else
   ier=nf90_open(ifile,nf90_nowrite,ncid)
 #endif
-  fnproc=1
-  dmode=0
-  pil=0
-  pjl=0
-  pnpan=0
-  ptest=.false.
-  pfall=.false.
+  fnproc=1      ! number of files to be read over all processors
+  dmode=0       ! Single file (dmode=0) Face decomposition (dmode=1) or Uniform decomposiiton (dmode=2)
+  pil=0         ! Number of X grid points within a file panel
+  pjl=0         ! Number of Y grid points within a file panel
+  pnpan=0       ! Number of panels in file
+  ptest=.false. ! Files match current processor (e.g., Restart file), allowing MPI gather/scatter to be avoided
+  pfall=.false. ! Every processor has been assigned at least one file, no need to Bcast metadata data
       
   ! attempt to open parallel files
 #ifdef usenc3
@@ -1001,6 +1001,8 @@ end subroutine vertint
 ! This subroutine advances input date by the amount of time defined by mtimer_r
 subroutine datefix(kdate_r,ktime_r,mtimer_r)
 
+use cc_mpi
+
 implicit none
 
 include 'newmpar.h'
@@ -1020,15 +1022,19 @@ data minsday/1440/,minsyr/525600/
 
 if(kdate_r>=00600000.and.kdate_r<=00991231)then   ! old 1960-1999
   kdate_r=kdate_r+19000000
-  write(6,*) 'For Y2K kdate_r altered to: ',kdate_r
+  if (myid==0) then
+    write(6,*) 'For Y2K kdate_r altered to: ',kdate_r
+  end if
 endif
 iyr=kdate_r/10000
 imo=(kdate_r-10000*iyr)/100
 iday=kdate_r-10000*iyr-100*imo
 ihr=ktime_r/100
 imins=ktime_r-100*ihr
-write(6,*) 'entering datefix iyr,imo,iday,ihr,imins,mtimer_r: ', &
-                             iyr,imo,iday,ihr,imins,mtimer_r
+if (myid==0) then
+  write(6,*) 'entering datefix iyr,imo,iday,ihr,imins,mtimer_r: ', &
+                               iyr,imo,iday,ihr,imins,mtimer_r
+end if
 
 mdays(2)=28
 if (leap==1) then
@@ -1066,7 +1072,9 @@ ihr=ihr+mtimerh
 imins=imins+mtimerm
 if(imins==58.or.imins==59)then
   ! allow for roundoff for real timer from old runs
-  write(6,*)'*** imins increased to 60 from imins = ',imins
+  if (myid==0) then
+    write(6,*)'*** imins increased to 60 from imins = ',imins
+  end if
   imins=60
 endif
 if(imins>59)then
@@ -1096,7 +1104,9 @@ ktime_r=ihr*100+imins
 mtimer=0
 if(diag)write(6,*)'end datefix iyr,imo,iday,ihr,imins,mtimer_r: ', &
                                iyr,imo,iday,ihr,imins,mtimer_r
-write(6,*)'leaving datefix kdate_r,ktime_r: ',kdate_r,ktime_r
+if (myid==0) then
+  write(6,*)'leaving datefix kdate_r,ktime_r: ',kdate_r,ktime_r
+end if
 
 return
 end subroutine datefix
