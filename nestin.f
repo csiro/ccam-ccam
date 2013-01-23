@@ -284,7 +284,8 @@
             end if
             if (rdumg<0.5) wl=1
             if (wl==1) then ! switch to 2D if 3D data is missing
-              call mloexpmelt(timelt)
+              !call mloexpmelt(timelt)
+              call mloexport(0,timelt,1,0)
               dumaa(:,1,1)=cona*tssa+conb*tssb
               where (fraciceb>0.)
                 dumaa(:,1,1)=timelt
@@ -503,7 +504,8 @@
               end if
               if (rdumg<0.5) wl=1
               if (wl==1) then ! switch to 2D data if 3D is missing
-                call mloexpmelt(timelt)
+                !call mloexpmelt(timelt)
+                call mloexport(0,timelt,1,0)
                 sssb(:,1,1)=tssb
                 where (fraciceb>0.)
                   sssb(:,1,1)=timelt

@@ -155,7 +155,7 @@
      & ,m_fly,mstn,nqg,nurban,nmr,ktopdav,nud_sst,nud_sss
      & ,mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv
      & ,nud_sfh,bpyear,rescrn,helmmeth,nmlo,ol,mxd,mindep,minwater
-     & ,ocnsmag,ocneps,knh,ccycle
+     & ,ocnsmag,ocneps,fixsal,knh,ccycle
       namelist/skyin/mins_rad,ndiur
       namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,
      &    hfile,icefile,mesonest,nmifile,o3file,radfile,restfile,
@@ -495,9 +495,9 @@
         write (6,'(2i7)') nurban,ccycle
         write(6,*)'Ocean/lake options:'
         write(6,*)' nmlo  ol      mxd   mindep minwater  ocnsmag',
-     &            ' ocneps'
-        write (6,'(i5,i4,5f9.2)')
-     &          nmlo,ol,mxd,mindep,minwater,ocnsmag,ocneps
+     &            '   ocneps fixsal'
+        write (6,'(i5,i4,5f9.2,i4)')
+     &          nmlo,ol,mxd,mindep,minwater,ocnsmag,ocneps,fixsal
         if(mbd/=0.or.nbd/=0)then
           write(6,*)'Nudging options A:'
           write(6,*)' nbd    nud_p  nud_q  nud_t  nud_uv nud_hrs',
@@ -1094,8 +1094,8 @@
         enddo   ! k loop 
       else      ! i.e. mex >=4 and ktau>=3
 !       (tau+.5) from tau, tau-1, tau-2   ! ubar is savu1 here
-        ubar(:,:)=u(1:ifull,:)*15./8.-savu(:,:)*10./8.+savu1(:,:)*3./8.
-        vbar(:,:)=v(1:ifull,:)*15./8.-savv(:,:)*10./8.+savv1(:,:)*3./8.
+        ubar(:,:)=(u(1:ifull,:)*15.-savu(:,:)*10.+savu1(:,:)*3.)/8.
+        vbar(:,:)=(v(1:ifull,:)*15.-savv(:,:)*10.+savv1(:,:)*3.)/8.
       endif    ! (ktau==1) .. else ..
       if (mod(ktau,nmaxpr)==0.and.mydiag)then
         nlx=max(2,nlv)  ! as savs not defined for k=1

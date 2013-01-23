@@ -22,8 +22,10 @@
       real, intent(inout) :: s(ifull+iextra,kl)      ! Solution
       real, intent(in) :: rhs(ifull,kl)              ! RHS
       real, dimension(ifull,maxcolour,kl) :: helmc,rhsc
-      real, dimension(ifull,kl) :: sb, sa, snew, dsol
-      real, dimension(ifull,maxcolour) :: zzc,zznc,zzec,zzwc,zzsc
+      real, dimension(ifull,kl) :: sb, sa, snew
+      real, dimension(ifull,kl) :: dsol
+      real, dimension(ifull,maxcolour) :: zzc,zznc,zzec
+      real, dimension(ifull,maxcolour) :: zzwc,zzsc
       real, dimension(kl) ::  dsolmax, dsolmax_g, smax, smax_g
       real, dimension(kl) ::  smin, smin_g
       real, dimension(:), allocatable, save :: accel
@@ -225,6 +227,22 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
           rhsc(1:ifx,nx,k) =rhs(iqx(1:ifx,nx),k)
         end do
       end do
+      do k=1,klim
+       smax(k) = maxval(s(1:ifull,k))
+       smin(k) = minval(s(1:ifull,k))
+!       if(ntest>0.and.diag)print *,'myid,k,smax,smin ',
+!     &                              myid,k,smax(k),smin(k)
+      enddo
+      if(ntest>0.and.diag)write(6,*)' before smax call myid ',myid
+      call ccmpi_allreduce(smax(1:klim),smax_g(1:klim),"max",
+     &                     comm_world)
+      if(ntest>0.and.diag)write(6,*)' before smin call myid ',myid
+      call ccmpi_allreduce(smin(1:klim),smin_g(1:klim),"min",
+     &                     comm_world)
+      if((ntest>0.or.nmaxpr==1).and.myid==0)then
+        write(6,*)'ktau,smin_g ',ktau,smin_g(:)
+        write(6,*)'ktau,smax_g ',ktau,smax_g(:)
+      endif  ! (myid==0)
       call bounds(s, klim=klim)      
       do while ( iter<itmax .and. klim>0)
        do nx=1,nx_max
@@ -248,25 +266,8 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
         iters(k)=iter
        end do
        if((ntest>0.or.nmaxpr==1).and.diag)
-     &  write (6,"('myid,Iter ,s',i4,4f14.5)")myid,iter,(s(iq,1),iq=1,4)
-       if(iter==1)then
-        do k=1,klim
-         smax(k) = maxval(s(1:ifull,k))
-         smin(k) = minval(s(1:ifull,k))
-!         if(ntest>0.and.diag)print *,'myid,k,smax,smin ',
-!     &                                myid,k,smax(k),smin(k)
-        enddo
-        if(ntest>0.and.diag)write(6,*)' before smax call myid ',myid
-        call ccmpi_allreduce(smax(1:klim),smax_g(1:klim),"max",
-     &                       comm_world)
-        if(ntest>0.and.diag)write(6,*)' before smin call myid ',myid
-        call ccmpi_allreduce(smin(1:klim),smin_g(1:klim),"min",
-     &                       comm_world)
-        if((ntest>0.or.nmaxpr==1).and.myid==0)then
-          write(6,*)'ktau,smin_g ',ktau,smin_g(:)
-          write(6,*)'ktau,smax_g ',ktau,smax_g(:)
-        endif  ! (myid==0)
-       end if
+     &  write (6,"('myid,Iter ,s',i4,4f14.5)")
+     &  myid,iter,(s(iq,1),iq=1,4)
        if (iter>=itstest) then
         do k=1,klim
 c        write (6,"('iter,k ,s',2i4,4f14.5)") iter,k,(s(iq,k),iq=1,4)

@@ -252,9 +252,10 @@ c       c1=0.
           write(6,*) "       namip.ne.0"
           call ccmpi_abort(-1)
         end if
-        call mloexpmelt(timelt)
+        !call mloexpmelt(timelt)
+        call mloexport(0,timelt,1,0)
         dumb(:,1)=tgg(:,1)
-        where(fraciceb.gt.0.)
+        where(fraciceb>0.)
           dumb(:,1)=timelt
         end where
         dumd(:,1)=sssb
@@ -262,7 +263,7 @@ c       c1=0.
           case(0) ! relax
             call mlonudge(dumb,dumd,dumc,dumc(:,1,1),1)
           case(1)
-            if (mod(mtimer,mlotime*60).eq.0) then
+            if (mod(mtimer,mlotime*60)==0) then
               call mlofilterhub(dumb,dumd,dumc,
      &                          dumc(:,1,1),1)
             end if
@@ -299,7 +300,11 @@ c       c1=0.
       integer varidb,varidc
       integer mtimer_r,kdate_r,ktime_r
       integer, dimension(3) :: spos,npos
+#ifdef i8r8
+      integer, dimension(nihead) :: nahead
+#else
       integer(kind=4), dimension(nihead) :: nahead
+#endif
       real, dimension(ifull), intent(out) :: ssta,sstb,sstc
       real, dimension(ifull), intent(out) :: aice,bice,cice
       real, dimension(ifull), intent(out) :: asal,bsal,csal

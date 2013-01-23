@@ -30,8 +30,10 @@ interface ccnf_get_attg
 end interface ccnf_get_attg
 interface ccnf_get_vara
   module procedure ccnf_get_vara_real2r, ccnf_get_vara_real3r, ccnf_get_vara_real4r 
-  module procedure ccnf_get_vara_int2i 
+  module procedure ccnf_get_vara_int2i
+#ifndef i8r8 
   module procedure ccnf_get_vara_double4d
+#endif
 end interface ccnf_get_vara
 interface ccnf_get_var1
   module procedure ccnf_get_var1_real, ccnf_get_var1_int
@@ -50,14 +52,19 @@ end interface ccnf_put_attg
 interface ccnf_put_vara
   module procedure ccnf_put_vara_real2r, ccnf_put_vara_real3r
   module procedure ccnf_put_vara_int2i
+#ifndef i8r8
   module procedure ccnf_put_vara_double2r
+#endif
 end interface ccnf_put_vara
 interface ccnf_put_var
   module procedure ccnf_put_var_text2r
   module procedure ccnf_put_var_int2i, ccnf_put_var_int3i
 end interface ccnf_put_var
 interface ccnf_put_var1
-  module procedure ccnf_put_var1_real, ccnf_put_var1_int, ccnf_put_var1_double
+  module procedure ccnf_put_var1_real, ccnf_put_var1_int
+#ifndef i8r8
+  module procedure ccnf_put_var1_double
+#endif
 end interface ccnf_put_var1
 
 integer, dimension(:), allocatable, save :: pnoff
@@ -929,10 +936,11 @@ include 'parm.h'
 
 integer, intent(in) :: kk,n
 integer klapse,k,kin,iq
+integer, dimension(kl) :: ka,kb
 real, dimension(ifull,kl), intent(out) :: t
 real, dimension(ifull,kk) :: told
 real, dimension(kk), intent(in) :: sigin
-real, dimension(kl) :: ka,kb,wta,wtb
+real, dimension(kl) :: wta,wtb
       
 if (kk==kl) then
   if (all(abs(sig-sigin)<0.0001)) then
@@ -1190,7 +1198,7 @@ character(len=*), intent(in) :: lname
 character(len=*), intent(in) :: units
 
 #ifdef usenc3
-#ifdef r8i8
+#ifdef i8r8
   vtype = nf_double
 #else
   vtype = nf_float
@@ -1230,7 +1238,7 @@ if(daily>0)then
   call ncmsg("valid_time",ier)
 endif
 #else
-#ifdef r8i8
+#ifdef i8r8
   vtype = nf90_double
 #else
   vtype = nf90_float
@@ -1392,7 +1400,7 @@ if(vtype == nf90_short)then
 #ifdef usenc3
   ier=nf_put_vara_int2(idnc,mid,start,ncount,ipack)
 else
-#ifdef r8i8
+#ifdef i8r8
   ier=nf_put_vara_double(idnc,mid,start,ncount,var)
 #else
   ier=nf_put_vara_real(idnc,mid,start,ncount,var)
@@ -1478,7 +1486,7 @@ if (vtype == nf90_short) then
 #ifdef usenc3
   ier=nf_put_vara_int2(idnc,mid,start,ncount,ipack)
 else
-#ifdef r8i8
+#ifdef i8r8
   ier=nf_put_vara_double(idnc,mid,start,ncount,globvar)
 #else
   ier=nf_put_vara_real(idnc,mid,start,ncount,globvar)
@@ -1614,7 +1622,7 @@ if(vtype == nf90_short)then
 #ifdef usenc3
   ier=nf_put_vara_int2(idnc,mid,start,ncount,ipack)
 else
-#ifdef r8i8
+#ifdef i8r8
   ier=nf_put_vara_double(idnc,mid,start,ncount,var)
 #else
   ier=nf_put_vara_real(idnc,mid,start,ncount,var)
@@ -1706,7 +1714,7 @@ if(vtype == nf90_short)then
 #ifdef usenc3
   ier=nf_put_vara_int2(idnc,mid,start,ncount,ipack)
 else
-#ifdef r8i8
+#ifdef i8r8
   ier=nf_put_vara_double(idnc,mid,start,ncount,globvar)
 #else
   ier=nf_put_vara_real(idnc,mid,start,ncount,globvar)
@@ -2480,6 +2488,7 @@ call ncmsg("get_vara",ncstatus)
 return
 end subroutine ccnf_get_vara_int2i
 
+#ifndef i8r8
 subroutine ccnf_get_vara_double4d(ncid,vid,start,ncount,vdat)
 
 use cc_mpi
@@ -2507,6 +2516,7 @@ call ncmsg("get_vara",ncstatus)
 
 return
 end subroutine ccnf_get_vara_double4d
+#endif
 
 subroutine ccnf_get_att_text(ncid,vid,aname,atext,ierr)
 
@@ -2889,6 +2899,7 @@ call ncmsg("put_var1",ncstatus)
 return
 end subroutine ccnf_put_var1_real
 
+#ifndef i8r8
 subroutine ccnf_put_var1_double(ncid,vid,start,vdat)
 
 use cc_mpi
@@ -2922,6 +2933,7 @@ call ncmsg("put_var1",ncstatus)
 
 return
 end subroutine ccnf_put_var1_double
+#endif
 
 subroutine ccnf_put_vara_real2r(ncid,vid,start,ncount,vdat)
 
@@ -2987,6 +2999,7 @@ call ncmsg("put_vara",ncstatus)
 return
 end subroutine ccnf_put_vara_real3r
 
+#ifndef i8r8
 subroutine ccnf_put_vara_double2r(ncid,vid,start,ncount,vdat)
 
 use cc_mpi
@@ -3014,6 +3027,7 @@ call ncmsg("put_vara",ncstatus)
 
 return
 end subroutine ccnf_put_vara_double2r
+#endif
 
 subroutine ccnf_put_vara_int2i(ncid,vid,start,ncount,vdat)
 
@@ -3085,7 +3099,7 @@ include 'netcdf.inc'
 #endif
 
 integer, intent(in) :: ncid
-integer(kind=4) ncstatus,lsize
+integer ncstatus,lsize
 character(len=*), intent(in) :: aname
 character(len=*), intent(in) :: atext
 

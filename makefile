@@ -2,6 +2,7 @@ FC = mpif90
 
 FFLAGS = -O -xHost -ftz -fpp -I $(NETCDF_ROOT)/include -assume buffered_io -Dsimple_timer -Duniform_decomp -Dsumdd
 #FFLAGS = -O -xHost -ftz -fpp -I $(NETCDF_ROOT)/include -assume buffered_io -Dsimple_timer -Dsumdd 
+#FFLAGS = -O -xHost -ftz -fpp -i8 -r8 -I $(NETCDF_ROOT)/include -assume buffered_io -Dsimple_timer -Duniform_decomp -Dsumdd -Di8r8
 LIBS = -L $(NETCDF_ROOT)/lib -L $(HDF5_HOME)/lib -lnetcdf -lnetcdff -lhdf5 -lhdf5_hl
 
 LDFLAGS = 
@@ -72,6 +73,12 @@ rad_utilities.o: rad_utilities.f90
 sealw99.o: sealw99.f90
 	$(FC)  -c -r8 $(FFLAGS) $<
 sumdd_m.o: sumdd_m.f90
+	$(FC)  -c -fp-model precise $(FFLAGS) $<
+mgsolve.o: mgsolve.f90
+	$(FC)  -c -fp-model precise $(FFLAGS) $<
+helmsor.o: helmsor.f
+	$(FC)  -c -fp-model precise $(FFLAGS) $<
+helmsol.o: helmsol.f90
 	$(FC)  -c -fp-model precise $(FFLAGS) $<
 stacklimit.o: stacklimit.c
 	cc -c stacklimit.c
@@ -155,7 +162,7 @@ lw_gases_stdtf.o : cc_mpi.o infile.o gas_tf.o rad_utilities.o filnames.h
 lwr88.o : co2dta_m.o kdacom_m.o radisw_m.o tfcom_m.o work3lwr_m.o hcon.h newmpar.h parm.h rdparm.h rnddta.h
 mgsolve.o : cc_mpi.o indices_m.o newmpar.h parm.h parmdyn.h
 microphys_rad.o : esfsw_parameters.o longwave_params.o rad_utilities.o
-mlodynamics.o : arrays_m.o bigxy4_m.o cable_ccam2.o cc_mpi.o indices_m.o infile.o latlong_m.o map_m.o mlo.o nharrs_m.o nsibd_m.o soil_m.o soilsnow_m.o vecsuv_m.o xyzinfo_m.o const_phys.h newmpar.h parm.h soilv.h
+mlodynamics.o : arrays_m.o bigxy4_m.o cable_ccam2.o cc_mpi.o indices_m.o infile.o latlong_m.o map_m.o mgsolve.o mlo.o nharrs_m.o nsibd_m.o soil_m.o soilsnow_m.o vecsuv_m.o xyzinfo_m.o const_phys.h newmpar.h parm.h parmdyn.h soilv.h
 mslp.o : cc_mpi.o sigs_m.o const_phys.h newmpar.h parm.h
 nestin.o : arrays_m.o cc_mpi.o dava_m.o davb_m.o diag_m.o indices_m.o latlong_m.o map_m.o mlo.o mlodynamics.o nharrs_m.o pbl_m.o savuvt_m.o savuv1_m.o sigs_m.o soil_m.o soilsnow_m.o vecsuv_m.o work3sav_m.o xyzinfo_m.o const_phys.h darcdf.h dates.h newmpar.h parm.h parmgeom.h stime.h
 newcloud.o : diag_m.o cc_mpi.o sigs_m.o const_phys.h cparams.h kuocom.h newmpar.h parm.h params.h 

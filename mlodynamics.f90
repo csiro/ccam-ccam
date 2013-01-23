@@ -17,7 +17,7 @@ implicit none
 
 private
 public mlodiffusion,mlorouter,mlohadv,mlodyninit,watbdy,salbdy,ipice
-public oldu1,oldv1,oldu2,oldv2,gosig,gosigh,godsig,ocnsmag,ocneps
+public oldu1,oldv1,oldu2,oldv2,gosig,gosigh,godsig,ocnsmag,ocneps,fixsal
 public nstagoffmlo,mstagf
 
 real, dimension(:), allocatable, save :: watbdy,salbdy
@@ -35,8 +35,7 @@ integer, parameter :: mstagf =0     ! alternating staggering (0=off left, -1=off
 integer, parameter :: koff   =1     ! time split stagger relative to A-grid (koff=0) or C-grid (koff=1)
 integer, parameter :: nf     =2     ! power for horizontal diffusion reduction factor
 integer, parameter :: itnmax =3     ! number of interations for staggering
-integer, parameter :: itrsol =0     ! Iterative solver (0=SOR, 1=Multi-grid)
-integer, parameter :: fixsal =1     ! Conserve salinity (0=Usual, 1=Fixed Sal)
+integer, save      :: fixsal =1     ! Conserve salinity (0=Usual, 1=Fixed Sal)
 real, parameter :: rhosn  =330.     ! density snow (kg m^-3)
 real, parameter :: rhoic  =900.     ! density ice  (kg m^-3)
 real, parameter :: grav   =9.80616  ! gravitational constant (m s^-2)
@@ -618,6 +617,7 @@ select case(basinmd)
   case(0)
     ! add water to soil moisture 
     if (nsib==6.or.nsib==7) then
+      ! CABLE
       do iq=1,ifull
         if (all(slope(iq,:)<-1.E-10).and.land(iq)) then
           ! runoff is inserted into soil moisture since CCAM has discrete land and sea points
@@ -628,6 +628,7 @@ select case(basinmd)
         end if
       end do
     else
+      ! Standard land surface model
       do iq=1,ifull
         if (all(slope(iq,:)<-1.E-10).and.land(iq)) then
           ! runoff is inserted into soil moisture since CCAM has discrete land and sea points
@@ -667,6 +668,7 @@ select case(basinmd)
   case(3)
     ! leak
     if (nsib==6.or.nsib==7) then
+      ! CABLE
       do iq=1,ifull
         if (land(iq)) then
           xx=watbdy(iq)
@@ -676,6 +678,7 @@ select case(basinmd)
         end if
       end do
     else
+      ! Standard land surface model
       do iq=1,ifull
         if (land(iq)) then
           xx=watbdy(iq)
@@ -751,6 +754,7 @@ implicit none
 include 'newmpar.h'
 include 'const_phys.h'
 include 'parm.h'
+include 'parmdyn.h'
 
 integer leap
 common/leap_yr/leap  ! 1 to allow leap years
@@ -921,7 +925,17 @@ imass(1:ifull)=ndic(1:ifull)*rhoic+ndsn(1:ifull)*rhosn          ! ice mass per u
 pice(1:ifull)=ps(1:ifull)+grav*nfracice(1:ifull)*imass(1:ifull) ! pressure due to atmosphere and ice at top of water column (unstaggered at t)
 
 ! maximum pressure for cavitating fluid
-ipmax=27500.*ndic(1:ifull)*exp(-20.*(1.-nfracice(1:ifull)))
+select case(icemode)
+  case(2)
+    ! cavitating fluid
+    ipmax=27500.*ndic(1:ifull)*exp(-20.*(1.-nfracice(1:ifull)))
+  case(1)
+    ! incompressible fluid
+    ipmax=9.E9
+  case DEFAULT
+    ! free drift
+    ipmax=0.
+end select
 
 ! Limit minimum ice mass for ice velocity calculation.  Hence we can estimate the ice velocity at
 ! grid points where the ice is not yet present.  
@@ -1249,7 +1263,6 @@ if (nxtrrho==1) then
   end do
 end if
 
-
 ! FREE SURFACE CALCULATION ----------------------------------------
 
 if (myid==0.and.nmaxpr==1) then
@@ -1457,17 +1470,17 @@ qdivb=(que*ddu(1:ifull)-quw*ddu(iwu)+qvn*ddv(1:ifull)-qvs*ddv(isv))*em(1:ifull)*
 
 ! Iteratively solve for free surface height, eta
 ! Iterative loop to estimate ice 'pressure'
-select case(itrsol)
-  case(0)
-    call mlosor(tol,itol,neta,sue,svn,suw,svs,pue,pvn,puw,pvs,que,qvn,quw,qvs,                     &
-                pdiv,pdivb,sdiv,sdivb,odiv,odivb,qdiv,qdivb,xps,                                   &
-                ipice,ibu,ibv,idu,idv,niu,niv,ipmax,totits,itc,maxglobseta,maxglobip)
-  case(1)
-    !call mlomgsor
-  case default
-    write(6,*) "ERROR: Unknown option itrsol ",itrsol
-    stop
-end select
+if (precon<-9999) then
+  ! Multi-grid
+  call mlomg(tol,itol,neta,sue,svn,suw,svs,pue,pvn,puw,pvs,que,qvn,quw,qvs,                      &
+              pdiv,pdivb,sdiv,sdivb,odiv,odivb,qdiv,qdivb,xps,                                   &
+              ipice,ibu,ibv,idu,idv,niu,niv,sicedep,ipmax,totits,itc,maxglobseta,maxglobip)
+else
+  ! Usual SOR
+  call mlosor(tol,itol,neta,sue,svn,suw,svs,pue,pvn,puw,pvs,que,qvn,quw,qvs,                     &
+              pdiv,pdivb,sdiv,sdivb,odiv,odivb,qdiv,qdivb,xps,                                   &
+              ipice,ibu,ibv,idu,idv,niu,niv,sicedep,ipmax,totits,itc,maxglobseta,maxglobip)
+end if
 
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: free surface conservation"
@@ -3771,7 +3784,7 @@ implicit none
 
 include 'newmpar.h'
 
-integer ii,i,its_g,iq
+integer ii,i,iq
 integer, dimension(ifull), intent(in) :: its
 real, dimension(ifull), intent(in) :: dtnew
 real, dimension(ifull,0:wlev), intent(in) :: ww
@@ -3783,8 +3796,6 @@ real, dimension(ifull) :: fl,fh,cc,rr,xx,jj
 
 ! f=(w*u) at half levels
 ! du/dt = u*dw/dz-df/dz = -w*du/dz
-
-its_g=maxval(its)
 
 delu=0.
 do ii=1,wlev-1
@@ -4402,7 +4413,7 @@ end subroutine upwindadv
 
 subroutine mlosor(tol,itol,neta,sue,svn,suw,svs,pue,pvn,puw,pvs,que,qvn,quw,qvs,                    &
                   pdiv,pdivb,sdiv,sdivb,odiv,odivb,qdiv,qdivb,xps,                                  &
-                  ipice,ibu,ibv,idu,idv,niu,niv,ipmax,totits,itc,maxglobseta,maxglobip)
+                  ipice,ibu,ibv,idu,idv,niu,niv,sicedep,ipmax,totits,itc,maxglobseta,maxglobip)
 
 use cc_mpi
 use indices_m
@@ -4416,6 +4427,7 @@ include 'parm.h'
 integer, intent(out) :: totits,itc
 integer itstest,itsave1,itsave2,ll,mm,ierr
 integer nx,ifx
+integer iq
 real, intent(in) :: tol,itol
 real, intent(out) :: maxglobseta,maxglobip
 real maxloclseta,maxloclip,itserr1,itserr2
@@ -4428,6 +4440,7 @@ real, dimension(ifull), intent(in) :: pdiv,pdivb,sdiv,sdivb,odiv,odivb,qdiv,qdiv
 real, dimension(ifull+iextra), intent(inout) :: ipice
 real, dimension(ifull+iextra), intent(in) :: ibu,ibv,idu,idv
 real, dimension(ifull+iextra), intent(in) :: niu,niv
+real, dimension(ifull), intent(in) :: sicedep
 real, dimension(ifull), intent(in) :: ipmax
 real, dimension(ifull,2) :: zz,zzn,zzs,zze,zzw,rhs
 real, dimension(ifull) :: yy,yyn,yys,yye,yyw
@@ -4449,8 +4462,8 @@ itsave2=0
 itserr2=9.E9
 itstest=1
 itc=0
-alpha(1)=0.9 ! for ocean
-alpha(2)=0.9 ! for sea-ice
+alpha(1)=1. ! for ocean
+alpha(2)=1. ! for sea-ice
 
 dumc(1:ifull,1)=neta(1:ifull)
 dumc(1:ifull,2)=ipice(1:ifull)
@@ -4534,23 +4547,14 @@ do ll=1,llmax
     bu(1:ifx)=zzc(1:ifx,nx,2)
     cu(1:ifx)=-rhsc(1:ifx,nx,2)+zznc(1:ifx,nx,2)*ipice(iqn(1:ifx,nx))+zzsc(1:ifx,nx,2)*ipice(iqs(1:ifx,nx)) &
                                +zzec(1:ifx,nx,2)*ipice(iqe(1:ifx,nx))+zzwc(1:ifx,nx,2)*ipice(iqw(1:ifx,nx))
-    
     nip(1:ifx)=0.
-    where(bu(1:ifx)/=0.)
+    where (bu(1:ifx)/=0.)
       nip(1:ifx)=-cu(1:ifx)/bu(1:ifx)
     end where
  
-    select case(icemode)
-      case(2)
-        ! cavitating fluid
-        nip(1:ifx)=max(min(nip(1:ifx),ipmax(iqx(1:ifx,nx))),0.)
-      case(1)
-        ! incompressible fluid
-        nip(1:ifx)=max(nip(1:ifx),0.)
-      case DEFAULT
-        ! free drift
-        nip(1:ifx)=0.
-    end select
+    ! cavitating fluid
+    nip(1:ifx)=max(min(nip(1:ifx),ipmax(iqx(1:ifx,nx))),0.)
+
     setab(iqx(1:ifx,nx))=nip(1:ifx)-ipice(iqx(1:ifx,nx))
     ipice(iqx(1:ifx,nx))=ipice(iqx(1:ifx,nx))+alpha(2)*setab(iqx(1:ifx,nx))
 
@@ -4561,7 +4565,7 @@ do ll=1,llmax
     ipice(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,2)
   
   end do
-
+  
   maxloclseta=maxval(abs(seta))
   maxloclip=maxval(abs(setab))
 
@@ -4595,5 +4599,79 @@ totits=ll
 
 return
 end subroutine mlosor
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Use multi-grid to solve for free surface and ice pressure
+
+subroutine mlomg(tol,itol,neta,sue,svn,suw,svs,pue,pvn,puw,pvs,que,qvn,quw,qvs,                     &
+                  pdiv,pdivb,sdiv,sdivb,odiv,odivb,qdiv,qdivb,xps,                                  &
+                  ipice,ibu,ibv,idu,idv,niu,niv,sicedep,ipmax,totits,itc,maxglobseta,maxglobip)
+
+use indices_m
+use mgsolve
+use map_m
+
+implicit none
+
+include 'newmpar.h'
+include 'parm.h'
+
+integer, intent(out) :: totits,itc
+real, intent(in) :: tol,itol
+real, intent(out) :: maxglobseta,maxglobip
+real, dimension(ifull+iextra), intent(inout) :: neta,ipice
+real, dimension(ifull), intent(in) :: sue,svn,suw,svs
+real, dimension(ifull), intent(in) :: pue,pvn,puw,pvs
+real, dimension(ifull), intent(in) :: que,qvn,quw,qvs
+real, dimension(ifull), intent(in) :: pdiv,pdivb,sdiv,sdivb,odiv,odivb,qdiv,qdivb,xps
+real, dimension(ifull+iextra), intent(in) :: ibu,ibv,idu,idv
+real, dimension(ifull+iextra), intent(in) :: niu,niv
+real, dimension(ifull), intent(in) :: sicedep
+real, dimension(ifull), intent(in) :: ipmax
+real, dimension(ifull,2) :: zz,zzn,zzs,zze,zzw,rhs
+real, dimension(ifull) :: yy,yyn,yys,yye,yyw
+real, dimension(ifull) :: hh
+logical, save :: lfirst = .true.
+
+if (lfirst) then
+  call mgsor_init
+end if
+
+! zz*(DIV^2 neta) + yy*neta*(DIV^2 neta) + hh*neta = rhs
+
+! ocean
+zzn(:,1)= (1.+ocneps)*0.5*dt*(qvn+svn+pvn)*ddv(1:ifull)*em(1:ifull)**2/ds
+zzs(:,1)=-(1.+ocneps)*0.5*dt*(qvs+svs+pvs)*ddv(isv)    *em(1:ifull)**2/ds
+zze(:,1)= (1.+ocneps)*0.5*dt*(que+sue+pue)*ddu(1:ifull)*em(1:ifull)**2/ds
+zzw(:,1)=-(1.+ocneps)*0.5*dt*(quw+suw+puw)*ddu(iwu)    *em(1:ifull)**2/ds
+zz(:,1) = (1.+ocneps)*0.5*dt*(qdivb+sdivb+pdivb)
+
+yyn= (1.+ocneps)*0.5*dt*(qvn+svn+pvn)*em(1:ifull)**2/ds
+yys=-(1.+ocneps)*0.5*dt*(qvs+svs+pvs)*em(1:ifull)**2/ds
+yye= (1.+ocneps)*0.5*dt*(que+sue+pue)*em(1:ifull)**2/ds
+yyw=-(1.+ocneps)*0.5*dt*(quw+suw+puw)*em(1:ifull)**2/ds
+yy = (1.+ocneps)*0.5*dt*(qdiv+sdiv+pdiv)
+
+hh     =1.+(1.+ocneps)*0.5*dt*(odiv                                                           &
+        +(pvn*dd(in)-pvs*dd(is)+pue*dd(ie)-puw*dd(iw))*em(1:ifull)**2/ds+pdiv*dd(1:ifull))
+rhs(:,1)=xps(1:ifull)-(1.+ocneps)*0.5*dt*(odivb                                               &
+        +(pvn*ddv(1:ifull)*dd(in)-pvs*ddv(isv)*dd(is)+pue*ddu(1:ifull)*dd(ie)-puw*ddu(iwu)*dd(iw))*em(1:ifull)**2/ds+pdivb*dd(1:ifull))
+
+! ice
+zzn(:,2)=(-idv(1:ifull)*0.5-ibv(1:ifull))/ds
+zzs(:,2)=(-idv(isv)*0.5    -ibv(isv)    )/ds
+zze(:,2)=(-idu(1:ifull)*0.5-ibu(1:ifull))/ds
+zzw(:,2)=(-idu(iwu)*0.5    -ibu(iwu)    )/ds
+zz(:,2) =(ibu(1:ifull)+ibu(iwu)+ibv(1:ifull)+ibv(isv)-0.5*(idu(1:ifull)+idu(iwu)+idv(1:ifull)+idv(isv)))/ds
+
+rhs(:,2)=niu(1:ifull)/emu(1:ifull)-niu(iwu)/emu(iwu)+niv(1:ifull)/emv(1:ifull)-niv(isv)/emv(isv)
+
+call mgmlo(neta,ipice,yy,yyn,yys,yye,yyw,zz,zzn,zzs,zze,zzw,hh,rhs,tol,itol,totits,maxglobseta,maxglobip, &
+           ipmax,ee,dd,comm_mlo)
+itc=totits
+
+return
+end subroutine mlomg
+
 
 end module mlodynamics
