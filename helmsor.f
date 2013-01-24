@@ -1,4 +1,4 @@
-      subroutine helmsor(zz,zzn,zze,zzw,zzs,helm,s,rhs)
+      subroutine helmsor(zz,zzn,zze,zzw,zzs,helm,s,irhs)
 !     Solve Helmholtz equation - experimental jlm version
 !     e.g. use  -2540, -2335, -2635, -2425 (in decr. order)
 
@@ -17,19 +17,21 @@
       integer, parameter :: ntest=0 
       integer, parameter :: itmax=400 ! maximum number of iterations allowed
 !     Arguments
-      real, intent(in), dimension(ifull) :: zz,zzn,zze,zzw,zzs
-      real, intent(in) :: helm(ifull,kl)             ! Helmholtz coefficients
-      real, intent(inout) :: s(ifull+iextra,kl)      ! Solution
-      real, intent(in) :: rhs(ifull,kl)              ! RHS
+      real, dimension(ifull), intent(in) :: zz,zzn,zze,zzw,zzs
+      real, dimension(ifull,kl), intent(in) :: helm         ! Helmholtz coefficients
+      real, dimension(ifull+iextra,kl), intent(inout) :: s  ! Solution
+      real, dimension(ifull,kl), intent(in) :: irhs         ! RHS
+      real, dimension(ifull,kl) :: rhs
       real, dimension(ifull,maxcolour,kl) :: helmc,rhsc
       real, dimension(ifull,kl) :: sb, sa, snew
       real, dimension(ifull,kl) :: dsol
       real, dimension(ifull,maxcolour) :: zzc,zznc,zzec
       real, dimension(ifull,maxcolour) :: zzwc,zzsc
       real, dimension(kl) ::  dsolmax, dsolmax_g, smax, smax_g
-      real, dimension(kl) ::  smin, smin_g
+      real, dimension(kl) ::  smin, smin_g, savg
       real, dimension(:), allocatable, save :: accel
-      real aa(ifull), bb(ifull), cc(ifull), axel
+      real, dimension(ifull) :: aa, bb, cc
+      real axel
       real gd, ci, itserr1, itserr2
       real, save :: dtsave = 0.
       integer iq, iter, k, nx, j, jx, i, klim, klimnew, ierr, meth
@@ -40,6 +42,8 @@
       save  meth, nx_max, axel
 
       call start_log(helm_begin)
+      
+      rhs=irhs ! allows subroutine to modify rhs
       
       if (dt/=dtsave) then
         dtsave=dt
@@ -215,18 +219,6 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
       itserr2=9.E9
       itstest=1
       itc=0
-      do nx=1,nx_max
-        ifx=ifullx(nx)
-        zznc(1:ifx,nx) =zzn(iqx(1:ifx,nx))
-        zzwc(1:ifx,nx) =zzw(iqx(1:ifx,nx))
-        zzec(1:ifx,nx) =zze(iqx(1:ifx,nx))
-        zzsc(1:ifx,nx) =zzs(iqx(1:ifx,nx))
-        zzc(1:ifx,nx)  =zz(iqx(1:ifx,nx))
-        do k=1,kl
-          helmc(1:ifx,nx,k)=helm(iqx(1:ifx,nx),k)
-          rhsc(1:ifx,nx,k) =rhs(iqx(1:ifx,nx),k)
-        end do
-      end do
       do k=1,klim
        smax(k) = maxval(s(1:ifull,k))
        smin(k) = minval(s(1:ifull,k))
@@ -243,6 +235,27 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
         write(6,*)'ktau,smin_g ',ktau,smin_g(:)
         write(6,*)'ktau,smax_g ',ktau,smax_g(:)
       endif  ! (myid==0)
+      
+      ! JLM suggestion
+      do k=1,kl
+        savg(k)=0.5*(smax_g(k)+smin_g(k))
+        s(1:ifull,k)=s(1:ifull,k)-savg(k)
+        rhs(:,k)=rhs(:,k)+(helm(:,k)-zz-zzn-zzs-zze-zzw)*savg(k)
+      end do
+
+      do nx=1,nx_max
+        ifx=ifullx(nx)
+        zznc(1:ifx,nx) =zzn(iqx(1:ifx,nx))
+        zzwc(1:ifx,nx) =zzw(iqx(1:ifx,nx))
+        zzec(1:ifx,nx) =zze(iqx(1:ifx,nx))
+        zzsc(1:ifx,nx) =zzs(iqx(1:ifx,nx))
+        zzc(1:ifx,nx)  =zz(iqx(1:ifx,nx))
+        do k=1,kl
+          helmc(1:ifx,nx,k)=helm(iqx(1:ifx,nx),k)
+          rhsc(1:ifx,nx,k) =rhs(iqx(1:ifx,nx),k)
+        end do
+      end do
+      
       call bounds(s, klim=klim)      
       do while ( iter<itmax .and. klim>0)
        do nx=1,nx_max
@@ -307,6 +320,10 @@ c        write (6,"('iter,k ,s',2i4,4f14.5)") iter,k,(s(iq,k),iq=1,4)
        end if ! iter>=itstest
        iter = iter + 1
       enddo   ! while( iter<itmax .and. klim>1)
+      
+      do k=1,kl
+        s(1:ifull,k)=s(1:ifull,k)+savg(k)
+      end do
 
       if(myid==0)then
         if(nmaxpr==1) then

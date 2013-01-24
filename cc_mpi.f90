@@ -157,7 +157,6 @@ module cc_mpi
    type(boundsplit), allocatable, dimension(:), save, private :: ssplit
    type(coloursplit), allocatable, dimension(:), save, private :: rcolsp
    type(coloursplit), allocatable, dimension(:), save, private :: scolsp
-   integer, allocatable, dimension(:), save, public :: colourmask
    integer, dimension(3), save, public :: ifullx
    integer, dimension(:,:), allocatable, save, public :: iqx,iqn,iqe,iqw,iqs
    integer, dimension(:,:), allocatable, save, public :: iqwu,iqsv
@@ -304,8 +303,9 @@ contains
       use sumdd_m
       use vecsuv_m
       use xyzinfo_m
-      integer iproc, iq, iqg, i, j, n, ig, jg, ng, tg, jx, mcc
+      integer iproc, iq, iqg, i, j, n, mcc
       integer(kind=4) ierr
+      integer, dimension(ifull) :: colourmask
       real, dimension(ifull_g) :: qproc
 
       allocate(fproc(il_g,il_g,0:npanels))
@@ -341,72 +341,12 @@ contains
 
       allocate ( rsplit(0:nproc-1), ssplit(0:nproc-1) )
       allocate ( rcolsp(0:nproc-1), scolsp(0:nproc-1) )
-      allocate ( colourmask(ifull) )
 
       ! Also do the initialisation for deptsync here
       allocate ( dslen(0:nproc-1), drlen(0:nproc-1) )
       dslen=0
       drlen=0
 
-#ifdef uniform_decomp
-      ! three colour mask
-      do n=1,npan
-         do j=1,jpan
-            do i=1,ipan
-               iq = indp(i,j,n)   ! Local
-               iqg = indg(i,j,n)  ! Global
-           
-               ! calculate global i,j,n
-               tg = iqg-1
-               ng = tg/(il_g*il_g)
-               tg = tg-ng*il_g*il_g
-               jg = tg/il_g
-               tg = tg-jg*il_g
-               ig = tg
-               ig = ig+1
-               jg = jg+1
-           
-               jx = mod(ig+jg+ng*il_g,2)
-               select case( ng+jx*(npanels+1) )
-                  case(0,1,3,4)
-                     colourmask(iq)=1
-                  case(2,5,6,9)
-                     colourmask(iq)=2
-                  case(7,8,10,11)
-                     colourmask(iq)=3
-               end select
-            end do
-         end do
-      end do
-#else
-      ! two colour mask
-      do n=1,npan
-         do j=1,jpan
-            do i=1,ipan
-               iq = indp(i,j,n)   ! Local
-               iqg = indg(i,j,n)  ! Global
-           
-               ! calculate global i,j,n
-               tg = iqg-1
-               ng = tg/(il_g*il_g)
-               tg = tg-ng*il_g*il_g
-               jg = tg/il_g
-               tg = tg-jg*il_g
-               ig = tg
-               ig = ig+1
-               jg = jg+1
-           
-               jx = mod(ig+jg+ng*il_g,2)
-               if (jx == 0 ) then
-                  colourmask(iq)=1
-               else
-                  colourmask(iq)=2
-               end if
-            end do
-         end do
-      end do
-#endif
-      
       if ( myid == 0 ) then
          call ccmpi_distribute(wts,wts_g)
          call ccmpi_distribute(em,em_g)
@@ -477,6 +417,16 @@ contains
       end do
 
       ! Pack colour indices
+      do n=1,npan
+         do j=1,jpan
+            do i=1,ipan
+               iq = indp(i,j,n)   ! Local
+               iqg = indg(i,j,n)  ! Global
+               colourmask(iq)=findcolour(iqg)
+            end do
+         end do
+      end do
+      
       mcc=max( count( colourmask == 1 ), count( colourmask == 2 ), count( colourmask == 3 ) )
       allocate ( iqx(mcc,maxcolour) )
       allocate ( iqn(mcc,maxcolour), iqe(mcc,maxcolour) )
@@ -1172,7 +1122,7 @@ contains
       use indices_m
       
       real, dimension(ifull_g), intent(in) :: qproc
-      integer :: n, nr, i, j, iq, iqq
+      integer :: n, nr, i, j, iq, iqq, mycol
       integer :: iproc, rproc, sproc
       integer(kind=4), dimension(MPI_STATUS_SIZE,2*nproc) :: status
       integer(kind=4) :: ierr, itag=0, count
@@ -1423,8 +1373,9 @@ contains
                ! Which processor has this point
                rproc = qproc(iqq)
                if ( rproc == myid ) cycle ! Don't add points already on this proc.
+               mycol = findcolour(iqq)
+               if ( mycol /= icol ) cycle
                iql = indp(i,j,n)  !  Local index
-               if ( colourmask(iql) /= icol ) cycle
                ! Add this point to request list
                call check_bnds_alloc(rproc, iext)
                bnds(rproc)%rlenh = bnds(rproc)%rlenh + 1
@@ -1444,8 +1395,9 @@ contains
                ! Which processor has this point
                rproc = qproc(iqq)
                if ( rproc == myid ) cycle ! Don't add points already on this proc.
+               mycol = findcolour(iqq)
+               if ( mycol /= icol ) cycle
                iql = indp(i,j,n)  !  Local index
-               if ( colourmask(iql) /= icol ) cycle
                ! Add this point to request list
                call check_bnds_alloc(rproc, iext)
                bnds(rproc)%rlenh = bnds(rproc)%rlenh + 1
@@ -1483,8 +1435,9 @@ contains
                ! Which processor has this point
                rproc = qproc(iqq)
                if ( rproc == myid ) cycle ! Don't add points already on this proc.
+               mycol = findcolour(iqq)
+               if ( mycol /= icol ) cycle
                iql = indp(i,j,n)  !  Local index
-               if ( colourmask(iql) /= icol ) cycle
                ! Add this point to request list
                call check_bnds_alloc(rproc, iext)
                bnds(rproc)%rlen = bnds(rproc)%rlen + 1
@@ -1504,8 +1457,9 @@ contains
                ! Which processor has this point
                rproc = qproc(iqq)
                if ( rproc == myid ) cycle ! Don't add points already on this proc.
+               mycol = findcolour(iqq)
+               if ( mycol /= icol ) cycle
                iql = indp(i,j,n)  !  Local index
-               if ( colourmask(iql) /= icol ) cycle
                ! Add this point to request list
                call check_bnds_alloc(rproc, iext)
                bnds(rproc)%rlen = bnds(rproc)%rlen + 1
@@ -3093,6 +3047,7 @@ contains
       double = .false.
       extra = .false.
       single = .true.
+      kx = size(t,2)
       if (present(nrows)) then
          if ( nrows == 2 ) then
             double = .true.
@@ -3108,8 +3063,6 @@ contains
       end if
       if ( present(klim) ) then
          kx = klim
-      else
-         kx = size(t,2)
       end if
 
       fcrh=.true.
@@ -7654,6 +7607,58 @@ contains
 
    return
    end function indx
+   
+   function findcolour(iqg) result(icol)
+   
+   integer, intent(in) :: iqg
+   integer icol
+   integer ig, jg, ng, tg, jx
+   
+#ifdef uniform_decomp
+      ! three colour mask
+         
+      ! calculate global i,j,n
+      tg = iqg - 1
+      ng = tg/(il_g*il_g)
+      tg = tg - ng*il_g*il_g
+      jg = tg/il_g
+      tg = tg - jg*il_g
+      ig = tg
+      ig = ig + 1
+      jg = jg + 1
+           
+      jx = mod( ig + jg + ng*il_g, 2 )
+      select case( ng + jx*(npanels+1) )
+         case(0,1,3,4)
+            icol=1
+         case(2,5,6,9)
+            icol=2
+         case(7,8,10,11)
+            icol=3
+      end select
+#else
+      ! two colour mask
+           
+      ! calculate global i,j,n
+      tg = iqg - 1
+      ng = tg/(il_g*il_g)
+      tg = tg - ng*il_g*il_g
+      jg = tg/il_g
+      tg = tg - jg*il_g
+      ig = tg
+      ig = ig + 1
+      jg = jg + 1
+           
+      jx = mod( ig + jg + ng*il_g, 2 )
+      if (jx == 0 ) then
+         icol=1
+      else
+         icol=2
+      end if
+#endif
+   
+   return
+   end function findcolour
 
 end module cc_mpi
 
