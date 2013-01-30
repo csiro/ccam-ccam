@@ -38,37 +38,25 @@
       include 'parm.h'     ! qgmin
       include 'parmdyn.h'  
       include 'parmvert.h'  
-      real alph_p, alph_pm, delneg, delpos, delnegk, delposk, alph_q
-      real :: sumdiffb_l  ! Local versions
-      real, dimension(3) :: delarr, delarr_l
-      ! Work common here ????
-      real p(ifull+iextra,kl),omgfnl(ifull,kl)
-      real wrk1(ifull,kl), wrk2(ifull,kl) ! just work arrays here
-      real wrk3(ifull,kl)
-      real d(ifull,kl)   ! NOT shared updps
       real, dimension(:), allocatable, save :: zz,zzn,zze,zzw,zzs
       real, dimension(:), allocatable, save :: pfact,alff,alf,alfe
       real, dimension(:), allocatable, save :: alfn,alfu,alfv
-      real ps_sav(ifull),cc(ifull+iextra,kl),
-     &     dd(ifull+iextra,kl),pslxint(ifull),pslsav(ifull)
-      real pe(ifull+iextra,kl),e(ifull,kl)
-      real helm(ifull,kl),rhsl(ifull,kl),delps(ifull)
-      real omgf(ifull,kl)
-      real bb(ifull)
+      real, dimension(ifull+iextra,kl) :: p,cc,dd,pe
+      real, dimension(ifull,kl) :: omgfnl,wrk1,wrk2,wrk3,d,e
+      real, dimension(ifull,kl) :: helm,rhsl,omgf
       real, dimension(ifull,kl) :: dumu,dumv,dumc,dumd,dumt
-!     Save this so we can check whether initialisation needs to be redone
-      real, save :: dtsave = 0.0
-      real, dimension(ifull) :: sdmx
-      real :: hdt, hdtds, sumx, qgminm, ratio, sumdiffb,
-     &        alph_g
-      real dum
-      integer :: its, k, l, iq, ng, ierr, iaero
-      integer, save :: precon_in
+      real, dimension(ifull) :: ps_sav,pslxint,pslsav
+      real, dimension(ifull) :: sdmx,delps,bb
+      real, dimension(3) :: delarr, delarr_l
+      real hdt, hdtds, sumx, qgminm, ratio, sumdiffb, alph_g
+      real alph_p, alph_pm, delneg, delpos, delnegk, delposk, alph_q
+      real sumdiffb_l  ! Local versions
+      real sumin, sumout, sumsav, dum
+      real delpos_l, delneg_l, const_nh
+      real, save :: dtsave = 0.
       integer, dimension(ifull) :: nits, nvadh_pass
-      real :: sumin, sumout, sumsav
-      real :: delpos_l, delneg_l, const_nh
-      
-      !real, parameter :: qgmaxtop=1.E-5
+      integer its, k, l, iq, ng, ierr, iaero
+      integer, save :: precon_in = -99999
 
       call start_log(adjust_begin)
       hdt=dt/2.
@@ -96,7 +84,7 @@
 
       if (diag.or.nmaxpr==1)then
          if (mydiag ) then
-           print *,'entering adjust5'
+           write(6,*) 'entering adjust5'
            write (6,"('tx_a1',10f8.2)") tx(idjd,:)
            if(m<8)then
              write (6,"('ux_stag',10f8.2)") ux(idjd,:)
@@ -182,10 +170,10 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
          wrk1(:,k)=wrk1(:,k-1)+bet(k)*wrk2(:,k)+betm(k)*wrk2(:,k-1)
         enddo   ! k loop
         if ((diag.or.nmaxpr==1).and.mydiag)then
-          print *,'adjust5 omgfnl ',(omgfnl(idjd,k),k=1,kl)
-          print *,'adjust5 h_nh ',(h_nh(idjd,k),k=1,kl)
-          print *,'adjust5 pa ',(p(idjd,k),k=1,kl)
-          print *,'adjust5 wrk1 ',(wrk1(idjd,k),k=1,kl)
+          write(6,*) 'adjust5 omgfnl ',(omgfnl(idjd,k),k=1,kl)
+          write(6,*) 'adjust5 h_nh ',(h_nh(idjd,k),k=1,kl)
+          write(6,*) 'adjust5 pa ',(p(idjd,k),k=1,kl)
+          write(6,*) 'adjust5 wrk1 ',(wrk1(idjd,k),k=1,kl)
         endif
         p(1:ifull,:)=p(1:ifull,:)+wrk1(:,:)  ! nh
       endif     ! (nh.ne.0.and.(ktau.gt.knh.or.lrestart))
@@ -219,14 +207,6 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
             rhsl(iq,k) = rhsl(iq,k)/hdtds -helm(iq,k)*pe(iq,k) ! Eq. 161 mult
          enddo                  ! iq loop
 
-c         if (diag.and.mydiag)then   
-c           print*,'pe & direct n s ',
-c     &             k,pe(idjd,k),pe(idjd+il,k),pe(idjd-il,k)
-c           print*,'helm & direct n s ',
-c     &             k,helm(idjd,k),helm(idjd+il,k),helm(idjd-il,k)
-c           print*,'rhsl & direct n s ',
-c     &             k,rhsl(idjd,k),rhsl(idjd+il,k),rhsl(idjd-il,k)
-c        endif
       enddo    ! k loop
 
       if (precon<-9999) then
@@ -245,18 +225,16 @@ c        endif
          ! Some diagnostics requiring extra bounds calls have been removed
          if (mydiag ) then
             write (6,"('tx_a2',10f8.2)") tx(idjd,:)
-            print *,'omgfnl_a2 ',omgfnl(idjd,:)
-            print *,'adjust5 cc ',cc(idjd,:)
-            print *,'adjust5 dd ',dd(idjd,:)
-            print *,'adjust5 d_in ',d(idjd,:)
-            print *,'adjust5 p_in ',p(idjd,:)
-            print *,'adjust5 pe ',pe(idjd,:)
-            print *,'adjust5 pe_e ',pe(ie(idjd),:)
-            print *,'adjust5 pe_w ',pe(iw(idjd),:)
-            print *,'adjust5 rhsl ',rhsl(idjd,:)
-c           print*,'rhsl & direct n s ',
-c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
-            print *,'adjust5 helm ',helm(idjd,:)
+            write(6,*) 'omgfnl_a2 ',omgfnl(idjd,:)
+            write(6,*) 'adjust5 cc ',cc(idjd,:)
+            write(6,*) 'adjust5 dd ',dd(idjd,:)
+            write(6,*) 'adjust5 d_in ',d(idjd,:)
+            write(6,*) 'adjust5 p_in ',p(idjd,:)
+            write(6,*) 'adjust5 pe ',pe(idjd,:)
+            write(6,*) 'adjust5 pe_e ',pe(ie(idjd),:)
+            write(6,*) 'adjust5 pe_w ',pe(iw(idjd),:)
+            write(6,*) 'adjust5 rhsl ',rhsl(idjd,:)
+            write(6,*) 'adjust5 helm ',helm(idjd,:)
          end if
          call printa('psnt',pslxint,ktau,0,ia,ib,ja,jb,0.,1000.)
          call printa('tx  ',tx,ktau,nlv,ia,ib,ja,jb,200.,1.)
@@ -279,19 +257,19 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
 
 !      now u & v
       if ((diag.or.nmaxpr==1).and.mydiag)then
-         print*,'iq,k,fu,alfu,alfu*ux(iq,k) ',
-     &           idjd,nlv,fu(idjd),alfu(idjd),alfu(idjd)*ux(idjd,nlv)
-         print*,'alfF & n e w s (in(iq)),alfF(ine(iq)),alfF(is(iq))',
-     &          'alfF(ise(iq)),alfe(iq) ',alfF(in(idjd)),alfF(ine(idjd))
-     &           ,alfF(is(idjd)),alfF(ise(idjd)),alfe(idjd)
-         sumx = alf(ie(idjd))-alf(idjd)+.25*(alfF(in(idjd))+
-     &        alfF(ine(idjd))-alfF(is(idjd))-alfF(ise(idjd)))-alfe(idjd)
-         print*,'sum  ',sumx
-         print*,'p & n e w s ne se ',p(idjd,nlv),p(in(idjd),nlv),
-     &           p(ie(idjd),nlv),p(iw(idjd),nlv),p(is(idjd),nlv),
-     &           p(ine(idjd),nlv),p(ise(idjd),nlv)
-         print*,'p & direct n s ',
-     &           p(idjd,nlv),p(idjd+il,nlv),p(idjd-il,nlv)
+       write(6,*) 'iq,k,fu,alfu,alfu*ux(iq,k) ',
+     &         idjd,nlv,fu(idjd),alfu(idjd),alfu(idjd)*ux(idjd,nlv)
+       write(6,*) 'alfF & n e w s (in(iq)),alfF(ine(iq)),alfF(is(iq))',
+     &        'alfF(ise(iq)),alfe(iq) ',alfF(in(idjd)),alfF(ine(idjd))
+     &         ,alfF(is(idjd)),alfF(ise(idjd)),alfe(idjd)
+       sumx = alf(ie(idjd))-alf(idjd)+.25*(alfF(in(idjd))+
+     &      alfF(ine(idjd))-alfF(is(idjd))-alfF(ise(idjd)))-alfe(idjd)
+       write(6,*) 'sum  ',sumx
+       write(6,*) 'p & n e w s ne se ',p(idjd,nlv),p(in(idjd),nlv),
+     &         p(ie(idjd),nlv),p(iw(idjd),nlv),p(is(idjd),nlv),
+     &         p(ine(idjd),nlv),p(ise(idjd),nlv)
+       write(6,*) 'p & direct n s ',
+     &         p(idjd,nlv),p(idjd+il,nlv),p(idjd-il,nlv)
       endif
 
       do k=1,kl
@@ -324,7 +302,7 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
       enddo     ! k  loop
       if(nmaxpr==1)then
         call maxmin(d,'dv',ktau,0.,kl)
-        if(nproc==1)print *,'cc,cc-,dd,dd-',
+        if(nproc==1)write(6,*) 'cc,cc-,dd,dd-',
      &     cc(idjd,nlv)/emu(idjd),cc(iwu(idjd),nlv)/emu(iwu(idjd)),
      &     dd(idjd,nlv)/emv(idjd),dd(isv(idjd),nlv)/emv(isv(idjd))      
       endif   ! (nmaxpr==1)
@@ -425,13 +403,13 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
       endif
 
       if ((diag.or.nmaxpr==1) .and. mydiag ) then
-         print *,'m ',m
+         write(6,*) 'm ',m
          if(m<=6)write (6,"('diva5p ',5p10f8.2)") d(idjd,:)
          write (6,"('omgf_l*dt',10f8.4)") omgf(idjd,:)*dt
          write (6,"('omgfnl*dt',10f8.4)") omgfnl(idjd,:)*dt
          write (6,"('u_a2 ',10f8.2)") u(idjd,:)
          write (6,"('v_a2 ',10f8.2)") v(idjd,:)
-         print *,'ps,psl ',ps(idjd),psl(idjd)
+         write(6,*) 'ps,psl ',ps(idjd),psl(idjd)
          write (6,"('pslx_3p',3p9f8.4)") pslx(idjd,:)
          write (6,"('sdot_a2',10f8.3)") sdot(idjd,1:kl)
       endif
@@ -472,22 +450,19 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
           phi(:,k)=phi(:,k)+dum
         end do
         if(nmaxpr==1.and.mydiag)then
-          print *,'phi_adj ',(phi(idjd,k),k=1,kl)
+          write(6,*) 'phi_adj ',(phi(idjd,k),k=1,kl)
         endif
       endif  ! (nh.ne.0)
 
       if(nvadh==2.and.nvad>0)then                 ! final dt/2 's worth
         if ((diag.or.nmaxpr==1) .and. mydiag ) then
-         print *,'before vertical advection in adjust5 for ktau= ',ktau
+         write(6,*) 'before vertical advection in adjust5 for ktau= ',
+     &               ktau
          write (6,"('t_a2  ',10f8.2)") t(idjd,:)
          write (6,"('us# ',9f8.2)") diagvals(cc(:,nlv)) 
-!   &           ((cc(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,1)
          write (6,"('vs# ',9f8.2)") diagvals(dd(:,nlv))  
-!   &           ((dd(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
          write (6,"('u#  ',9f8.2)") diagvals(u(:,nlv)) 
-!    &           ((u(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
          write (6,"('v#  ',9f8.2)") diagvals(v(:,nlv)) 
-!    &           ((v(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
          write (6,"('u_a2 ',10f8.2)") u(idjd,:)
          write (6,"('v_a2 ',10f8.2)") v(idjd,:)
          write (6,"('qg_a2 ',3p10f8.3)") qg(idjd,:)
@@ -514,7 +489,7 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
      &                            u(1:ifull,:),
      &                            v(1:ifull,:),iaero) ! for vadvbess
         if (( diag.or.nmaxpr==1) .and. mydiag ) then
-          print *,'after vertical advection in adjust5'
+          write(6,*) 'after vertical advection in adjust5'
           write (6,"('qg_a3',3p10f8.3)") qg(idjd,:)
           write (6,"('t_a3',10f8.2)") t(idjd,:)
           write (6,"('thet_a3',10f8.2)") t(idjd,:)*sig(:)**(-roncp)
@@ -532,8 +507,8 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
          call ccglobal_posneg(delps,delpos,delneg)
 	 if(ntest==1)then
            if(myid==0)then
-              print *,'psl_delpos,delneg ',delpos,delneg
-              print *,'ps,psl,delps ',ps(idjd),psl(idjd),delps(idjd)
+              write(6,*) 'psl_delpos,delneg ',delpos,delneg
+              write(6,*) 'ps,psl,delps ',ps(idjd),psl(idjd),delps(idjd)
            endif
            call ccglobal_sum(pslsav,sumsav)
            call ccglobal_sum(psl,sumin)
@@ -545,10 +520,10 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
      &           alph_p*max(0.,delps(iq)) + alph_pm*min(0.,delps(iq))
          enddo
 	 if(ntest==1)then
-           if(myid==0)print *,'alph_p,alph_pm ',alph_p,alph_pm
+           if(myid==0)write(6,*) 'alph_p,alph_pm ',alph_p,alph_pm
            call ccglobal_sum(psl,sumout)
            if(myid==0)
-     &        print *,'psl_sumsav,sumin,sumout ',sumsav,sumin,sumout
+     &       write(6,*) 'psl_sumsav,sumin,sumout ',sumsav,sumin,sumout
 	 endif  ! (ntest==1)
       endif                     !  (mfix==-1)
 
@@ -564,8 +539,8 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
          call ccglobal_posneg(delps,delpos,delneg)
          if(ntest==1)then
            if(myid==0)then
-              print *,'psl_delpos,delneg ',delpos,delneg
-              print *,'ps,psl,delps ',ps(idjd),psl(idjd),delps(idjd)
+              write(6,*) 'psl_delpos,delneg ',delpos,delneg
+              write(6,*) 'ps,psl,delps ',ps(idjd),psl(idjd),delps(idjd)
            endif
            call ccglobal_sum(ps_sav,sumsav)
            call ccglobal_sum(ps,sumin)
@@ -588,10 +563,10 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
      &           alph_p*max(0.,delps(iq)) + alph_pm*min(0.,delps(iq))
          enddo
         if(ntest==1)then
-           if(myid==0)print *,'alph_p,alph_pm ',alph_p,alph_pm
+           if(myid==0) write(6,*) 'alph_p,alph_pm ',alph_p,alph_pm
            call ccglobal_sum(ps,sumout)
            if (myid==0)
-     &        print *,'ps_sumsav,sumin,sumout ',sumsav,sumin,sumout
+     &       write(6,*) 'ps_sumsav,sumin,sumout ',sumsav,sumin,sumout
         endif  ! (ntest==1)
 !       psl(1:ifull)=log(1.e-5*ps(1:ifull))
 !       following is cheaper and maintains full precision of psl
@@ -611,9 +586,9 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
         call ccglobal_posneg(delps,delpos,delneg)
         if(ntest==1)then
           if(myid==0)then
-             print *,'psl_delpos,delneg ',delpos,delneg
-             print *,'ps,psl,delps ',ps(idjd),psl(idjd),delps(idjd)
-             print *,'ps_sav,pslsav ',ps_sav(idjd),pslsav(idjd)
+            write(6,*) 'psl_delpos,delneg ',delpos,delneg
+            write(6,*) 'ps,psl,delps ',ps(idjd),psl(idjd),delps(idjd)
+            write(6,*) 'ps_sav,pslsav ',ps_sav(idjd),pslsav(idjd)
           endif
           call ccglobal_sum(ps_sav,sumsav)
           call ccglobal_sum(ps,sumin)
@@ -628,10 +603,10 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
      &               delps(1:ifull)*(1.-.5*delps(1:ifull))
         ps(1:ifull)=1.e5*exp(psl(1:ifull))     
 	  if(ntest==1)then
-          if(myid==0)print *,'alph_p,alph_pm ',alph_p,alph_pm
+          if(myid==0) write(6,*) 'alph_p,alph_pm ',alph_p,alph_pm
           call ccglobal_sum(ps,sumout)
           if(myid==0)
-     &       print *,'ps_sumsav,sumin,sumout ',sumsav,sumin,sumout
+     &      write(6,*) 'ps_sumsav,sumin,sumout ',sumsav,sumin,sumout
 	  endif  ! (ntest==1)
       endif                   !  (mfix==3)
       
@@ -647,9 +622,6 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
         do k=1,kl
           qg(1:ifull,k)=max(qg(1:ifull,k),
      &      qgmin-qfg(1:ifull,k)-qlg(1:ifull,k),0.)
-          ! if (sig(k)<0.005) then
-          !   qg(1:ifull,k)=min(qg(1:ifull,k),qgmaxtop)
-          ! end if
         end do
         dumc=qg(1:ifull,:)
         call massfix(mfix_qg,dumc,qgsav,
@@ -714,8 +686,8 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
       !--------------------------------------------------------------
 
       if ((diag.or.nmaxpr==1) .and. mydiag ) then
-        print *,'at end of adjust5 for ktau= ',ktau
-        print *,'ps_sav,ps ',ps_sav(idjd),ps(idjd)
+        write(6,*) 'at end of adjust5 for ktau= ',ktau
+        write(6,*) 'ps_sav,ps ',ps_sav(idjd),ps(idjd)
         write (6,"('dpsdt# mb/d ',9f8.1)") diagvals(dpsdt) 
         write (6,"('qg_a4 ',3p10f8.3)") qg(idjd,:)
         write (6,"('qgs',3p10f8.3)")
@@ -727,22 +699,19 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
          call bounds(psl)
          if (mydiag ) then
             iq=idjd
-            print  *,'adjust5 d ',d(iq,:)
-!            Would require bounds call
-!            print  *,'adjust5 d: e ',d(ie(iq),:)
-!            print  *,'adjust5 d: w ',d(iw(iq),:)
-            print  *,'adjust5 wrk2 ',idjd, wrk2(idjd,:)
+            write(6,*) 'adjust5 d ',d(iq,:)
+            write(6,*) 'adjust5 wrk2 ',idjd, wrk2(idjd,:)
             write (6,"('adjust5 psl_3p & n e w s',3p9f8.4)") psl(idjd)
      &          ,psl(in(iq)),psl(ie(iq)),psl(iw(iq)),psl(is(iq))
          end if
          call printa('psl ',psl,ktau,0,ia,ib,ja,jb,0.,1000.)
-         if (mydiag ) print *,'adjust5 t ',t(idjd,:)
+         if (mydiag ) write(6,*) 'adjust5 t ',t(idjd,:)
          call printa('t   ',t,ktau,nlv,ia,ib,ja,jb,200.,1.)
-         if (mydiag ) print *,'adjust5 u ',u(idjd,:)
+         if (mydiag ) write(6,*) 'adjust5 u ',u(idjd,:)
          call printa('u   ',u,ktau,nlv,ia,ib,ja,jb,0.,1.)
-         if (mydiag ) print *,'adjust5 v ',v(idjd,:)
+         if (mydiag ) write(6,*) 'adjust5 v ',v(idjd,:)
          call printa('v   ',v,ktau,nlv,ia,ib,ja,jb,0.,1.)
-         if (mydiag ) print *,'ps diagnostic from end of adjust:'
+         if (mydiag ) write(6,*) 'ps diagnostic from end of adjust:'
          do iq=1,ifull
             bb(iq)=ps(iq)-ps_sav(iq)
          enddo
@@ -818,8 +787,6 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
          do n=1,npan            ! 1,6
             if(edge_s(n-noff) .and. edge_w(n-noff) ) then
                iq=indp(1,1,n)
-c              print *,'adjust5 iq,zzs,zzw,alfF_s,alfF_w ',
-c    &                iq,zzs(iq),zzw(iq),alfF(is(iq)),alfF(iw(iq))        
                zzs(iq)=zzs(iq)+.25*alfF(is(iq)) ! i,j-1 coeff
                zzw(iq)=zzw(iq)-.25*alfF(iw(iq)) ! i-1,j coeff
             end if
@@ -827,19 +794,16 @@ c    &                iq,zzs(iq),zzw(iq),alfF(is(iq)),alfF(iw(iq))
                iq=indp(ipan,jpan,n)
                zzn(iq)=zzn(iq)+.25*alfF(in(iq)) ! i,j+1 coeff
                zze(iq)=zze(iq)-.25*alfF(ie(iq)) ! i+1,j coeff
-c              print *,'in,ine,ie,ien ',in(iq),ine(iq),ie(iq),ien(iq)
             end if
             if(edge_s(n-noff) .and. edge_e(n-noff) ) then
                iq=indp(ipan,1,n)
                zzs(iq)=zzs(iq)-.25*alfF(is(iq)) ! i,j-1 coeff
                zze(iq)=zze(iq)+.25*alfF(ie(iq)) ! i+1,j coeff
-c              print *,'iq,is,ise ',iq,is(iq),ise(iq)
             end if
             if(edge_n(n-noff) .and. edge_w(n-noff) ) then
                iq=indp(1,jpan,n)
                zzn(iq)=zzn(iq)-.25*alfF(in(iq)) ! i,j+1 coeff
                zzw(iq)=zzw(iq)+.25*alfF(iw(iq)) ! i-1,j coeff
-c              print *,'iq,iw,iwn ',iq,iw(iq),iwn(iq)
             end if
         enddo   ! n loop
       end subroutine adjust_init

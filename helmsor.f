@@ -25,18 +25,18 @@
       real, dimension(ifull,maxcolour,kl) :: helmc,rhsc
       real, dimension(ifull,kl) :: sb, sa, snew
       real, dimension(ifull,kl) :: dsol
-      real, dimension(ifull,maxcolour) :: zzc,zznc,zzec
+      real, dimension(ifull,maxcolour) :: zznc,zzec
       real, dimension(ifull,maxcolour) :: zzwc,zzsc
       real, dimension(kl) ::  dsolmax, dsolmax_g, smax, smax_g
       real, dimension(kl) ::  smin, smin_g, savg
       real, dimension(:), allocatable, save :: accel
       real, dimension(ifull) :: aa, bb, cc
       real axel
-      real gd, ci, itserr1, itserr2
+      !real gd, ci, itserr1, itserr2
       real, save :: dtsave = 0.
       integer iq, iter, k, nx, j, jx, i, klim, klimnew, ierr, meth
       integer ifx, nx_max, iqg, ig, jg, ng, tg, n
-      integer itstest, itc, itsave1, itsave2
+      !integer itstest, itc, itsave1, itsave2
       integer, dimension(kl) :: iters
       integer, dimension(1) :: idum
       save  meth, nx_max, axel
@@ -215,10 +215,10 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
 
       klim=kl
       iter = 1
-      itsave2=0
-      itserr2=9.E9
-      itstest=1
-      itc=0
+      !itsave2=0
+      !itserr2=9.E9
+      !itstest=1
+      !itc=0
       do k=1,klim
        smax(k) = maxval(s(1:ifull,k))
        smin(k) = minval(s(1:ifull,k))
@@ -249,14 +249,13 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
         zzwc(1:ifx,nx) =zzw(iqx(1:ifx,nx))
         zzec(1:ifx,nx) =zze(iqx(1:ifx,nx))
         zzsc(1:ifx,nx) =zzs(iqx(1:ifx,nx))
-        zzc(1:ifx,nx)  =zz(iqx(1:ifx,nx))
         do k=1,kl
-          helmc(1:ifx,nx,k)=helm(iqx(1:ifx,nx),k)
+          helmc(1:ifx,nx,k)=helm(iqx(1:ifx,nx),k)-zz(iqx(1:ifx,nx))
           rhsc(1:ifx,nx,k) =rhs(iqx(1:ifx,nx),k)
         end do
       end do
       
-      call bounds(s, klim=klim)      
+      call bounds(s, klim=klim)     
       do while ( iter<itmax .and. klim>0)
        do nx=1,nx_max
         ifx=ifullx(nx)
@@ -266,10 +265,8 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
      &       + zzwc(1:ifx,nx)*s(iqw(1:ifx,nx),k)
      &       + zzec(1:ifx,nx)*s(iqe(1:ifx,nx),k)
      &       + zzsc(1:ifx,nx)*s(iqs(1:ifx,nx),k)
-     &       +(zzc(1:ifx,nx)
-     &       -helmc(1:ifx,nx,k))*s(iqx(1:ifx,nx),k)
-     &       - rhsc(1:ifx,nx,k))      
-     &       /(helmc(1:ifx,nx,k)-zzc(1:ifx,nx))
+     &       -helmc(1:ifx,nx,k)*s(iqx(1:ifx,nx),k)
+     &       -rhsc(1:ifx,nx,k) )/helmc(1:ifx,nx,k)
           s(iqx(1:ifx,nx),k) = s(iqx(1:ifx,nx),k)
      &       + accel(k)*dsol(iqx(1:ifx,nx),k)
         enddo ! k loop
@@ -278,17 +275,17 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
        do k=1,klim
         iters(k)=iter
        end do
-       if((ntest>0.or.nmaxpr==1).and.diag)
-     &  write (6,"('myid,Iter ,s',i4,4f14.5)")
-     &  myid,iter,(s(iq,1),iq=1,4)
-       if (iter>=itstest) then
+!       if((ntest>0.or.nmaxpr==1).and.diag)
+!     &  write (6,"('myid,Iter ,s',i4,4f14.5)")
+!     &  myid,iter,(s(iq,1),iq=1,4)
+       !if (iter>=itstest) then
         do k=1,klim
 c        write (6,"('iter,k ,s',2i4,4f14.5)") iter,k,(s(iq,k),iq=1,4)
          dsolmax(k) = maxval(abs(dsol(1:ifull,k)))
         enddo  ! k loop
-        if(ntest>0)then
-         write(6,*)'ktau,myid,iter,dsolmax ',ktau,myid,iter,dsolmax(:)
-        endif  ! (myid==0)
+!        if(ntest>0)then
+!         write(6,*)'ktau,myid,iter,dsolmax ',ktau,myid,iter,dsolmax(:)
+!        endif  ! (myid==0)
         klimnew=klim
         call ccmpi_allreduce(dsolmax(1:klim),dsolmax_g(1:klim),"max",
      &                       comm_world)
@@ -299,25 +296,25 @@ c        write (6,"('iter,k ,s',2i4,4f14.5)") iter,k,(s(iq,k),iq=1,4)
         enddo
         klim=klimnew
 
-        ! MJT - reduce collective MPI calls by anticipating convergence
-        itsave1=itsave2
-        itsave2=iter
-        itserr1=itserr2
-        itserr2=log10(dsolmax_g(1))
-        gd=(itserr2-itserr1)/real(itsave2-itsave1)
-        ci=itserr2-gd*real(itsave2)
-        if (gd/=0.) then
-         itstest=nint((log10(restol*(smax_g(1)-smin_g(1)))-ci)/gd)
-         itstest=max(itstest,iter+1)
-        else
-         itstest=iter+1
-        end if
-        if (myid==0.and.nmaxpr==1) then
-          write(6,*) "iter,itstest ",iter,itstest
-        end if
-        itc=itc+1
-        
-       end if ! iter>=itstest
+       ! ! MJT - reduce collective MPI calls by anticipating convergence
+       ! itsave1=itsave2
+       ! itsave2=iter
+       ! itserr1=itserr2
+       ! itserr2=log10(dsolmax_g(1))
+       ! gd=(itserr2-itserr1)/real(itsave2-itsave1)
+       ! ci=itserr2-gd*real(itsave2)
+       ! if (gd/=0.) then
+       !  itstest=nint((log10(restol*(smax_g(1)-smin_g(1)))-ci)/gd)
+       !  itstest=max(itstest,iter+1)
+       ! else
+       !  itstest=iter+1
+       ! end if
+       ! if (myid==0.and.nmaxpr==1) then
+       !   write(6,*) "iter,itstest ",iter,itstest
+       ! end if
+       ! itc=itc+1
+       ! 
+       !end if ! iter>=itstest
        iter = iter + 1
       enddo   ! while( iter<itmax .and. klim>1)
       
@@ -333,7 +330,7 @@ c        write (6,"('iter,k ,s',2i4,4f14.5)") iter,k,(s(iq,k),iq=1,4)
          do k=1,kl
           write(6,*)'helmjlm ktau,k,Iterations ',ktau,k,iters(k)
          enddo
-         write(6,*) "itc ",itc
+         !write(6,*) "itc ",itc
         endif
       endif
       

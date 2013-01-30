@@ -1768,6 +1768,7 @@ real, dimension(wfull) :: ssf
 real dsf,aa,bb,deldz
 logical lflag
 
+ssf=0.
 do iqw=1,wfull
   dsf=0.
   do ii=1,wlev-1
@@ -3010,7 +3011,7 @@ subroutine iceflux(dt,a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,a_u,a_v,a_
 implicit none
 
 integer, intent(in) :: diag
-integer ll
+integer ll,iqw
 real, dimension(wfull), intent(in) :: a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins
 real, dimension(wfull,wlev), intent(in) :: d_rho
 real, dimension(wfull), intent(inout) :: d_ftop,d_tb,d_fb,d_timelt,d_tauxicw,d_tauyicw,d_zcr,d_ndsn,d_ndic
@@ -3105,32 +3106,41 @@ d_tb=w_temp(:,1)
 imass=max(rhoic*i_dic+rhosn*i_dsn,10.) ! ice mass per unit area
 newiu=i_u
 newiv=i_v
-do ll=1,20
-  uu=a_u-newiu
-  vv=a_v-newiv
-  du=w_u(:,1)-newiu
-  dv=w_v(:,1)-newiv
+do iqw=1,wfull
+  do ll=1,20
+    uu(iqw)=a_u(iqw)-newiu(iqw)
+    vv(iqw)=a_v(iqw)-newiv(iqw)
+    du(iqw)=w_u(iqw,1)-newiu(iqw)
+    dv(iqw)=w_v(iqw,1)-newiv(iqw)
   
-  vmagn=max(sqrt(uu*uu+vv*vv),0.01)
-  icemagn=max(sqrt(du*du+dv*dv),0.0001)
+    vmagn(iqw)=max(sqrt(uu(iqw)*uu(iqw)+vv(iqw)*vv(iqw)),0.01)
+    icemagn(iqw)=max(sqrt(du(iqw)*du(iqw)+dv(iqw)*dv(iqw)),0.0001)
 
-  g=i_u-newiu+dt*(rho*p_cdice*vmagn*uu+d_rho(:,1)*0.00536*icemagn*du)/imass
-  h=i_v-newiv+dt*(rho*p_cdice*vmagn*vv+d_rho(:,1)*0.00536*icemagn*dv)/imass
+    g(iqw)=i_u(iqw)-newiu(iqw)+dt*(rho(iqw)*p_cdice(iqw)*vmagn(iqw)*uu(iqw) &
+                                +d_rho(iqw,1)*0.00536*icemagn(iqw)*du(iqw))/imass(iqw)
+    h(iqw)=i_v(iqw)-newiv(iqw)+dt*(rho(iqw)*p_cdice(iqw)*vmagn(iqw)*vv(iqw) &
+                                +d_rho(iqw,1)*0.00536*icemagn(iqw)*dv(iqw))/imass(iqw)
   
-  dgu=-1.-dt*(rho*p_cdice*vmagn*(1.+(uu/vmagn)**2)+d_rho(:,1)*0.00536*icemagn*(1.+(du/icemagn)**2))/imass
-  dhu=-dt*(rho*p_cdice*uu*vv/vmagn+d_rho(:,1)*0.00536*du*dv/icemagn)/imass
-  dgv=dhu
-  dhv=-1.-dt*(rho*p_cdice*vmagn*(1.+(vv/vmagn)**2)+d_rho(:,1)*0.00536*icemagn*(1.+(dv/icemagn)**2))/imass
+    dgu(iqw)=-1.-dt*(rho(iqw)*p_cdice(iqw)*vmagn(iqw)*(1.+(uu(iqw)/vmagn(iqw))**2) &
+                  +d_rho(iqw,1)*0.00536*icemagn(iqw)*(1.+(du(iqw)/icemagn(iqw))**2))/imass(iqw)
+    dhu(iqw)=-dt*(rho(iqw)*p_cdice(iqw)*uu(iqw)*vv(iqw)/vmagn(iqw) &
+               +d_rho(iqw,1)*0.00536*du(iqw)*dv(iqw)/icemagn(iqw))/imass(iqw)
+    dgv(iqw)=dhu(iqw)
+    dhv(iqw)=-1.-dt*(rho(iqw)*p_cdice(iqw)*vmagn(iqw)*(1.+(vv(iqw)/vmagn(iqw))**2) &
+               +d_rho(iqw,1)*0.00536*icemagn(iqw)*(1.+(dv(iqw)/icemagn(iqw))**2))/imass(iqw)
 
-  det=dgu*dhv-dgv*dhu
-  newiu=newiu-0.9*( g*dhv-h*dgv)/det
-  newiv=newiv-0.9*(-g*dhu+h*dgu)/det
+    det(iqw)=dgu(iqw)*dhv(iqw)-dgv(iqw)*dhu(iqw)
 
-  newiu=max(newiu,min(a_u,w_u(:,1),i_u))
-  newiu=min(newiu,max(a_u,w_u(:,1),i_u))
-  newiv=max(newiv,min(a_v,w_v(:,1),i_v))
-  newiv=min(newiv,max(a_v,w_v(:,1),i_v))
-  if (all(abs(g)<1.E-3).and.all(abs(h)<1.E-3)) exit
+    newiu(iqw)=newiu(iqw)-0.9*( g(iqw)*dhv(iqw)-h(iqw)*dgv(iqw))/det(iqw)
+    newiv(iqw)=newiv(iqw)-0.9*(-g(iqw)*dhu(iqw)+h(iqw)*dgu(iqw))/det(iqw)
+
+    !newiu(iqw)=max(newiu(iqw),min(a_u(iqw),w_u(iqw,1),i_u(iqw)))
+    !newiu(iqw)=min(newiu(iqw),max(a_u(iqw),w_u(iqw,1),i_u(iqw)))
+    !newiv(iqw)=max(newiv(iqw),min(a_v(iqw),w_v(iqw,1),i_v(iqw)))
+    !newiv(iqw)=min(newiv(iqw),max(a_v(iqw),w_v(iqw,1),i_v(iqw)))
+  
+    if (abs(g(iqw))<1.E-3.and.abs(h(iqw))<1.E-3) exit
+  end do
 end do
 
 ! momentum transfer

@@ -6053,22 +6053,6 @@ contains
 #else
             ltype=MPI_REAL
 #endif 
-         case("maxloc")
-            lop=MPI_MAXLOC
-            lsize=lsize/2
-#ifdef i8r8
-            ltype=MPI_2DOUBLE_PRECISION
-#else
-            ltype=MPI_2REAL
-#endif 
-         case("minloc")
-            lop=MPI_MINLOC
-            lsize=lsize/2
-#ifdef i8r8
-            ltype=MPI_2DOUBLE_PRECISION
-#else
-            ltype=MPI_2REAL
-#endif 
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_allreduce ",op
             call MPI_Abort(MPI_COMM_WORLD,-1,lerr)
@@ -6994,9 +6978,9 @@ contains
       integer, dimension(npanels+1) :: mioff, mjoff
       integer, dimension(2*(mipan+mjpan+2)*(npanels+1)) :: dum
       integer, dimension(2,0:nproc-1) :: sdum,rdum
-      integer i, j, n, iq, iqq, iqg, ii, mfull, mfull_g, ncount
+      integer i, j, n, iq, iqq, iqg, iql, iqb, iqtmp, ii, mfull, mfull_g, ncount
       integer mg_colour_np, iloc, jloc, nloc
-      integer iext, iql, iproc, xlen, jx, nc, xlev, rproc, sproc
+      integer iext, iproc, xlen, jx, nc, xlev, rproc, sproc
       integer(kind=4) :: itag=0, lproc, ierr, ltype, llen
       logical, dimension(0:nproc-1) :: mg_neighbour
       logical lflag, lglob
@@ -7033,7 +7017,7 @@ contains
             end do
          end do
       end do
-
+      
       if (ncount==0) then
          write(6,*) "ERROR: Cannot find myid in mg_proc"
          write(6,*) "myid,g ",myid,g
@@ -7049,7 +7033,7 @@ contains
          je_g(iq) = iq + 1
          jw_g(iq) = iq - 1
       end do
-
+      
       do n = 0, npanels
          if (npann(n) < 100) then
             do ii = 1, mil_g
@@ -7111,6 +7095,7 @@ contains
             end do
          end if
       end do
+
 
       ! Calculate local indices on this processor
       if (lglob) then
@@ -7224,12 +7209,23 @@ contains
                iql = indx(i,j,n-1,mipan,mjpan)  !  Local index
                ! Add this point to request list
                call mgcheck_bnds_alloc(g, rproc, iext)
-               mg_bnds(rproc,g)%rlen = mg_bnds(rproc,g)%rlen + 1
-               mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlen) = iqq
-               ! Increment extended region index
-               iext = iext + 1
-               mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlen) = iext
-               mg(g)%in(iql) = mg(g)%ifull+iext
+               iqtmp=-1
+               do iqb=1,mg_bnds(rproc,g)%rlen
+                  if ( mg_bnds(rproc,g)%request_list(iqb) == iqq ) then
+                     iqtmp = iqb
+                     exit
+                  end if
+               end do
+               if ( iqtmp > 0 ) then
+                  mg(g)%in(iql) = mg(g)%ifull+iqtmp
+               else
+                  mg_bnds(rproc,g)%rlen = mg_bnds(rproc,g)%rlen + 1
+                  mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlen) = iqq
+                  ! Increment extended region index
+                  iext = iext + 1
+                  mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlen) = iext
+                  mg(g)%in(iql) = mg(g)%ifull+iext
+               end if
             end do
 
             !     E edge
@@ -7243,12 +7239,23 @@ contains
                iql = indx(i,j,n-1,mipan,mjpan)  !  Local index
                ! Add this point to request list
                call mgcheck_bnds_alloc(g, rproc, iext)
-               mg_bnds(rproc,g)%rlen = mg_bnds(rproc,g)%rlen + 1
-               mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlen) = iqq
-               ! Increment extended region index
-               iext = iext + 1
-               mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlen) = iext
-               mg(g)%ie(iql) = mg(g)%ifull+iext
+               iqtmp=-1
+               do iqb=1,mg_bnds(rproc,g)%rlen
+                  if ( mg_bnds(rproc,g)%request_list(iqb) == iqq ) then
+                     iqtmp = iqb
+                     exit
+                  end if
+               end do
+               if ( iqtmp > 0 ) then
+                  mg(g)%ie(iql) = mg(g)%ifull+iqtmp
+               else
+                  mg_bnds(rproc,g)%rlen = mg_bnds(rproc,g)%rlen + 1
+                  mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlen) = iqq
+                  ! Increment extended region index
+                  iext = iext + 1
+                  mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlen) = iext
+                  mg(g)%ie(iql) = mg(g)%ifull+iext
+               end if
             end do
 
             !     W edge
@@ -7262,12 +7269,23 @@ contains
                iql = indx(i,j,n-1,mipan,mjpan)  !  Local index
                ! Add this point to request list
                call mgcheck_bnds_alloc(g, rproc, iext)
-               mg_bnds(rproc,g)%rlen = mg_bnds(rproc,g)%rlen + 1
-               mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlen) = iqq
-               ! Increment extended region index
-               iext = iext + 1
-               mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlen) = iext
-               mg(g)%iw(iql) = mg(g)%ifull+iext
+               iqtmp=-1
+               do iqb=1,mg_bnds(rproc,g)%rlen
+                  if ( mg_bnds(rproc,g)%request_list(iqb) == iqq ) then
+                     iqtmp = iqb
+                     exit
+                  end if
+               end do
+               if ( iqtmp > 0 ) then
+                  mg(g)%iw(iql) = mg(g)%ifull+iqtmp
+               else
+                  mg_bnds(rproc,g)%rlen = mg_bnds(rproc,g)%rlen + 1
+                  mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlen) = iqq
+                  ! Increment extended region index
+                  iext = iext + 1
+                  mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlen) = iext
+                  mg(g)%iw(iql) = mg(g)%ifull+iext
+               end if
             end do
 
             !     S edge
@@ -7281,12 +7299,23 @@ contains
                iql = indx(i,j,n-1,mipan,mjpan)  !  Local index
                ! Add this point to request list
                call mgcheck_bnds_alloc(g, rproc, iext)
-               mg_bnds(rproc,g)%rlen = mg_bnds(rproc,g)%rlen + 1
-               mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlen) = iqq
-               ! Increment extended region index
-               iext = iext + 1
-               mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlen) = iext
-               mg(g)%is(iql) = mg(g)%ifull+iext
+               iqtmp=-1
+               do iqb=1,mg_bnds(rproc,g)%rlen
+                  if ( mg_bnds(rproc,g)%request_list(iqb) == iqq ) then
+                     iqtmp = iqb
+                     exit
+                  end if
+               end do
+               if ( iqtmp > 0 ) then
+                  mg(g)%is(iql) = mg(g)%ifull+iqtmp
+               else
+                  mg_bnds(rproc,g)%rlen = mg_bnds(rproc,g)%rlen + 1
+                  mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlen) = iqq
+                  ! Increment extended region index
+                  iext = iext + 1
+                  mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlen) = iext
+                  mg(g)%is(iql) = mg(g)%ifull+iext
+               end if
             end do
          end do ! n=1,npan
 
@@ -7304,12 +7333,23 @@ contains
             rproc = mg_qproc(iqq)
             if ( rproc /= myid ) then ! Add to list
                call mgcheck_bnds_alloc(g, rproc, iext)
-               mg_bnds(rproc,g)%rlenx = mg_bnds(rproc,g)%rlenx + 1
-               mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlenx) = iqq
-               ! Increment extended region index
-               iext = iext + 1
-               mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlenx) = iext
-               mg(g)%ine(iq) = mg(g)%ifull+iext
+               iqtmp=-1
+               do iqb=1,mg_bnds(rproc,g)%rlenx
+                  if ( mg_bnds(rproc,g)%request_list(iqb) == iqq ) then
+                     iqtmp = iqb
+                     exit
+                  end if
+               end do
+               if ( iqtmp > 0 ) then
+                  mg(g)%ine(iq) = mg(g)%ifull+iqtmp
+               else
+                  mg_bnds(rproc,g)%rlenx = mg_bnds(rproc,g)%rlenx + 1
+                  mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlenx) = iqq
+                  ! Increment extended region index
+                  iext = iext + 1
+                  mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlenx) = iext
+                  mg(g)%ine(iq) = mg(g)%ifull+iext
+               end if
             end if
 
             ! SE
@@ -7320,12 +7360,23 @@ contains
             rproc = mg_qproc(iqq)
             if ( rproc /= myid ) then ! Add to list
                call mgcheck_bnds_alloc(g, rproc, iext)
-               mg_bnds(rproc,g)%rlenx = mg_bnds(rproc,g)%rlenx + 1
-               mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlenx) = iqq
-               ! Increment extended region index
-               iext = iext + 1
-               mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlenx) = iext
-               mg(g)%ise(iq) = mg(g)%ifull+iext
+               iqtmp=-1
+               do iqb=1,mg_bnds(rproc,g)%rlenx
+                  if ( mg_bnds(rproc,g)%request_list(iqb) == iqq ) then
+                     iqtmp = iqb
+                     exit
+                  end if
+               end do
+               if ( iqtmp > 0 ) then
+                  mg(g)%ise(iq) = mg(g)%ifull+iqtmp
+               else
+                  mg_bnds(rproc,g)%rlenx = mg_bnds(rproc,g)%rlenx + 1
+                  mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlenx) = iqq
+                  ! Increment extended region index
+                  iext = iext + 1
+                  mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlenx) = iext
+                  mg(g)%ise(iq) = mg(g)%ifull+iext
+               end if
             end if
 
             ! WN
@@ -7336,12 +7387,23 @@ contains
             rproc = mg_qproc(iqq)
             if ( rproc /= myid ) then ! Add to list
                call mgcheck_bnds_alloc(g, rproc, iext)
-               mg_bnds(rproc,g)%rlenx = mg_bnds(rproc,g)%rlenx + 1
-               mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlenx) = iqq
-               ! Increment extended region index
-               iext = iext + 1
-               mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlenx) = iext
-               mg(g)%inw(iq) = mg(g)%ifull+iext
+               iqtmp=-1
+               do iqb=1,mg_bnds(rproc,g)%rlenx
+                  if ( mg_bnds(rproc,g)%request_list(iqb) == iqq ) then
+                     iqtmp = iqb
+                     exit
+                  end if
+               end do
+               if ( iqtmp > 0 ) then
+                  mg(g)%inw(iq) = mg(g)%ifull+iqtmp
+               else
+                  mg_bnds(rproc,g)%rlenx = mg_bnds(rproc,g)%rlenx + 1
+                  mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlenx) = iqq
+                  ! Increment extended region index
+                  iext = iext + 1
+                  mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlenx) = iext
+                  mg(g)%inw(iq) = mg(g)%ifull+iext
+               end if
             end if
 
             ! SW
@@ -7352,12 +7414,23 @@ contains
             rproc = mg_qproc(iqq)
             if ( rproc /= myid ) then ! Add to list
                call mgcheck_bnds_alloc(g, rproc, iext)
-               mg_bnds(rproc,g)%rlenx = mg_bnds(rproc,g)%rlenx + 1
-               mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlenx) = iqq
-               ! Increment extended region index
-               iext = iext + 1
-               mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlenx) = iext
-               mg(g)%isw(iq) = mg(g)%ifull+iext
+               iqtmp=-1
+               do iqb=1,mg_bnds(rproc,g)%rlenx
+                  if ( mg_bnds(rproc,g)%request_list(iqb) == iqq ) then
+                     iqtmp = iqb
+                     exit
+                  end if
+               end do
+               if ( iqtmp > 0 ) then
+                  mg(g)%isw(iq) = mg(g)%ifull+iqtmp
+               else
+                  mg_bnds(rproc,g)%rlenx = mg_bnds(rproc,g)%rlenx + 1
+                  mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlenx) = iqq
+                  ! Increment extended region index
+                  iext = iext + 1
+                  mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlenx) = iext
+                  mg(g)%isw(iq) = mg(g)%ifull+iext
+               end if
             end if
 
          end do
@@ -7610,13 +7683,10 @@ contains
    
    function findcolour(iqg) result(icol)
    
-   integer, intent(in) :: iqg
-   integer icol
-   integer ig, jg, ng, tg, jx
-   
-#ifdef uniform_decomp
-      ! three colour mask
-         
+      integer, intent(in) :: iqg
+      integer icol
+      integer ig, jg, ng, tg, jx
+
       ! calculate global i,j,n
       tg = iqg - 1
       ng = tg/(il_g*il_g)
@@ -7626,7 +7696,10 @@ contains
       ig = tg
       ig = ig + 1
       jg = jg + 1
-           
+   
+#ifdef uniform_decomp
+      ! three colour mask
+         
       jx = mod( ig + jg + ng*il_g, 2 )
       select case( ng + jx*(npanels+1) )
          case(0,1,3,4)
@@ -7638,16 +7711,6 @@ contains
       end select
 #else
       ! two colour mask
-           
-      ! calculate global i,j,n
-      tg = iqg - 1
-      ng = tg/(il_g*il_g)
-      tg = tg - ng*il_g*il_g
-      jg = tg/il_g
-      tg = tg - jg*il_g
-      ig = tg
-      ig = ig + 1
-      jg = jg + 1
            
       jx = mod( ig + jg + ng*il_g, 2 )
       if (jx == 0 ) then

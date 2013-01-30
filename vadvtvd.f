@@ -184,16 +184,13 @@ c      qg
       
       integer, intent(in) :: nqq
       integer, dimension(ifull) :: nits
-      integer k,iq,kp,kx,i,its_g
+      integer k,iq,kp,kx,i
       real, dimension(ifull), intent(in) :: tfact
       real rat,phitvd,fluxhi,fluxlo
       real hdsdot
       real, dimension(ifull,kl), intent(inout) :: tarr
       real, dimension(ifull,0:kl) :: delt,fluxh
       real, dimension(ifull,kl) :: xin
-      logical, dimension(ifull) :: msk
-
-      its_g=maxval(nits)
 
       do iq=1,ifull
 c      fluxh(k) is located at level k+.5
@@ -256,12 +253,10 @@ c      fluxh(k) is located at level k+.5
         enddo     ! iq loop
        enddo      ! k loop
       endif   ! (nimp==1)
-      
-      do i=2,its_g
-       msk=(nits>=i)
 
-       do iq=1,ifull
-        if (msk(iq)) then
+      do iq=1,ifull      
+       do i=2,nits(iq)
+
          do k=1,kl-1
           delt(iq,k)=tarr(iq,k+1)-tarr(iq,k)
          enddo     ! k loop
@@ -300,10 +295,9 @@ c      fluxh(k) is located at level k+.5
      &                 +tarr(iq,k)*(sdot(iq,k+1)-sdot(iq,k)))
           enddo      ! k loop
          endif   ! (nimp==1)
-        end if ! msk
-       end do ! iq
-      
-      end do
+
+       end do ! i
+      end do ! iq
 
       if(nqq==3)then
         tarr(1:ifull,:)=tarr(1:ifull,:)**3

@@ -89,7 +89,7 @@
           wc(iq,k)=az(iq)*un(iq,k) + bz(iq)*vn(iq,k)
          enddo                 ! iq loop
         enddo
-        if(mup.ne.0)then
+        if(mup/=0)then
           call ints(uc,intsch,nface,xg,yg,3)
           call ints(vc,intsch,nface,xg,yg,3)
           call ints(wc,intsch,nface,xg,yg,3)
@@ -154,15 +154,15 @@
 
       if ( mydiag ) then
          if(tx(idjd,kl)>264.)then  !cb
-           print *
-           print *,'upglobal a',ktau,id,jd,tx(idjd,kl)
+           write(6,*)
+           write(6,*) 'upglobal a',ktau,id,jd,tx(idjd,kl)
          endif    ! (tx(idjd,kl)>264.)
       end if
 
       if(num_hight<100)then
         do iq=1,ifull
          if(tx(iq,kl)>264.)then  !cb
-           print *,'upglobal ktau,myid,iq,large_tx  ',ktau,myid,iq,
+           write(6,*) 'upglobal ktau,myid,iq,large_tx  ',ktau,myid,iq,
      &           tx(iq,kl)
            write (6,"('sdot_iq',9f7.3/7x,9f7.3)") sdot(iq,1:kl)
 	    num_hight=num_hight+1
@@ -170,9 +170,9 @@
 	 enddo
       endif           
 
-      aa(:)=zs(:)/(rdry*nritch_t)    ! save zs/(r*t) for nt_adv schemes 
+      aa(1:ifull)=zs(1:ifull)/(rdry*nritch_t)    ! save zs/(r*t) for nt_adv schemes 
       do k=1,kl   
-       dd(:,k)=aa(:)
+       dd(1:ifull,k)=aa(1:ifull)
       end do     ! k loop
 
 !-------------------------moved up here May 06---------------------------
@@ -189,7 +189,7 @@
         ux(1:ifull,:)=dumu
         vx(1:ifull,:)=dumv 
         if( (diag.or.nmaxpr==1) .and. mydiag )then
-          print *,'in upglobal after vadv1'
+          write(6,*) 'in upglobal after vadv1'
           write (6,"('qg  ',3p9f8.3/4x,9f8.3)")   qg(idjd,:)
         endif
       endif  ! (nvad==-4.and.nvadh.ne.3)
@@ -198,31 +198,31 @@
 !      N.B. [D + dsigdot/dsig] saved in adjust5 (or updps) as pslx
        pslx(1:ifull,k)=psl(1:ifull)-pslx(1:ifull,k)*dt*.5*(1.-epst(:))
       end do    ! k loop
-      pslx(:,:)=pslx(:,:)+dd(:,:)
+      pslx(1:ifull,:)=pslx(1:ifull,:)+dd(1:ifull,:)
       if(nmaxpr==1.and.nproc==1)then
-	print *,'pslx_3p before advection'
+	write(6,*) 'pslx_3p before advection'
         write (6,"('pslx_b',3p9f8.4)") pslx(idjd,:)
         write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
         write (6,"(3p9f8.4)") 
      &        ((pslx(max(min(ii+jj*il,ifull),1),nlv),ii=idjd-4,idjd+4)
      &        ,jj=2,-2,-1)
       endif
-      if(mup.ne.0)then
+      if(mup/=0)then
         call ints_bl(dd,intsch,nface,xg,yg)  ! advection on all levels
         call ints(pslx,intsch,nface,xg,yg,1)
       endif
-      pslx(:,:)=pslx(:,:)-dd(:,:)
+      pslx(1:ifull,:)=pslx(1:ifull,:)-dd(1:ifull,:)
 !     special T advection treatments follow
       do k=1,kl
        tx(1:ifull,k)=tx(1:ifull,k)+aa(1:ifull)*factr(k)   !cy  
       end do   ! k
-      if(mup.ne.0)call ints(tx,intsch,nface,xg,yg,3)
+      if(mup/=0)call ints(tx,intsch,nface,xg,yg,3)
       do k=1,kl
        tx(1:ifull,k) = tx(1:ifull,k) - dd(1:ifull,k)*factr(k)
       end do
 !------------------------------------------------------------------
 	if(nmaxpr==1.and.nproc==1)then
-         print *,'pslx_3p & dd after advection'
+         write(6,*) 'pslx_3p & dd after advection'
          write (6,"('pslx_a',3p9f8.4)") pslx(idjd,:)
          write (6,"('aa#',3p9f8.4)") 
      &             ((aa(ii+jj*il),ii=idjd-1,idjd+1),jj=-1,1)
@@ -240,11 +240,11 @@
 	  do k=2,kl
           uc(1:ifull,1)=uc(1:ifull,1)-pslx(1:ifull,k)*dsig(k)
          enddo
-	 print *,'integ pslx after advection'
+	 write(6,*) 'integ pslx after advection'
          write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
          write (6,"(3p9f8.4)") 
      &            ((uc(ii+jj*il,1),ii=idjdd-4,idjdd+4),jj=2,-2,-1)
-         print *,'corresp integ ps after advection'
+         write(6,*) 'corresp integ ps after advection'
          write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
          write (6,"(-2p9f8.2)") 
      &        ((1.e5*exp(uc(ii+jj*il,1)),ii=idjdd-4,idjdd+4),jj=2,-2,-1)
@@ -253,14 +253,14 @@
 !      now comes ux & vx section
        if(diag)then
           if ( mydiag ) then
-             print *,
+             write(6,*)
      &         'unstaggered now as uavx and vavx: globpea uses ux & vx'
-             print *,'ux ',(ux(idjd,kk),kk=1,nlv)
+             write(6,*) 'ux ',(ux(idjd,kk),kk=1,nlv)
           end if
           call printa('uavx',ux,ktau,nlv,ia,ib,ja,jb,0.,1.)
-          if (mydiag) print *,'vx ',(vx(idjd,kk),kk=1,nlv)
+          if (mydiag) write(6,*) 'vx ',(vx(idjd,kk),kk=1,nlv)
           call printa('vavx',vx,ktau,nlv,ia,ib,ja,jb,0.,1.)
-          if ( mydiag ) print *,
+          if ( mydiag ) write(6,*)
      &       'unstaggered u and v as uav and vav: globpea uses u & v'
           call printa('uav ',u,ktau,nlv,ia,ib,ja,jb,0.,1.)
           call printa('vav ',v,ktau,nlv,ia,ib,ja,jb,0.,1.)
@@ -276,7 +276,7 @@
        enddo
        if(diag)then
           if ( mydiag ) then
-             print *,'uc,vc,wc before advection'
+             write(6,*) 'uc,vc,wc before advection'
              write (6,'(a,18e20.10)') 'uc,vc,wc '
      &                           ,uc(idjd,nlv),vc(idjd,nlv),wc(idjd,nlv)
           end if
@@ -285,15 +285,15 @@
           call printa('wc  ',wc,ktau,nlv,ia,ib,ja,jb,0.,1.)
           call printa('xg  ',xg,ktau,nlv,ia,ib,ja,jb,0.,1.)
           call printa('yg  ',yg,ktau,nlv,ia,ib,ja,jb,0.,1.)
-          if ( mydiag ) print *,'nface ',nface(idjd,:)
+          if ( mydiag ) write(6,*) 'nface ',nface(idjd,:)
        endif
-       if(mup.ne.0)then
+       if(mup/=0)then
           call ints(uc,intsch,nface,xg,yg,2)
           call ints(vc,intsch,nface,xg,yg,2)
           call ints(wc,intsch,nface,xg,yg,2)
        endif
        if(diag)then
-          if ( mydiag ) print *,'uc,vc,wc after advection'
+          if ( mydiag ) write(6,*) 'uc,vc,wc after advection'
           call printa('uc  ',uc,ktau,nlv,ia,ib,ja,jb,0.,1.)
           call printa('vc  ',vc,ktau,nlv,ia,ib,ja,jb,0.,1.)
           call printa('wc  ',wc,ktau,nlv,ia,ib,ja,jb,0.,1.)
@@ -342,7 +342,7 @@
                 vec1y = z3d(iq,k)*x(iq) - z(iq)*x3d(iq,k)
                 vec1z = x3d(iq,k)*y(iq) - x(iq)*y3d(iq,k)
                 denb = vec1x**2 + vec1y**2 + vec1z**2
-	         print *,'uc,vc,wc after nrot; denb = ',denb
+	         write(6,*) 'uc,vc,wc after nrot; denb = ',denb
 	     endif
             call printa('uc  ',uc,ktau,nlv,ia,ib,ja,jb,0.,1.)
             call printa('vc  ',vc,ktau,nlv,ia,ib,ja,jb,0.,1.)
@@ -366,13 +366,13 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
          vx(1:ifull,:)=vx(1:ifull,:)+.5*dt*vn(1:ifull,:) ! dyn contrib
        endif
        if(diag.and.k==nlv)then
-          if ( mydiag ) print *,
+          if ( mydiag ) write(6,*)
      &         'after advection in upglobal; unstaggered ux and vx:'
           call printa('ux  ',ux,ktau,nlv,ia,ib,ja,jb,0.,1.)
           call printa('vx  ',vx,ktau,nlv,ia,ib,ja,jb,0.,1.)
        endif
 
-       if(mspec==1.and.mup.ne.0)then   ! advect qg after preliminary step
+       if(mspec==1.and.mup/=0)then   ! advect qg after preliminary step
           call ints(qg,intsch,nface,xg,yg,4)
           if(ldr/=0)then
              call ints(qlg,intsch,nface,xg,yg,4)
@@ -445,10 +445,10 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
             nvadh_pass(:)=nits(:) ! use - for nvadu
           endif   ! (nvadh==3)
 	   if(mod(ktau,nmaxpr)==0.and.mydiag)
-     &       print *,'upglobal ktau,sdmx,nits,nvadh_pass ',
+     &       write(6,*) 'upglobal ktau,sdmx,nits,nvadh_pass ',
      &                ktau,sdmx(idjd),nits(idjd),nvadh_pass(idjd)
           if( (diag.or.nmaxpr==1) .and. mydiag )then
-            print *,'in upglobal before vadv2'
+            write(6,*) 'in upglobal before vadv2'
             write (6,"('qg  ',3p9f8.3/4x,9f8.3)")   qg(idjd,:)
           endif
           dumt=tx(1:ifull,:)
@@ -459,7 +459,7 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
           ux(1:ifull,:)=dumu
           vx(1:ifull,:)=dumv 
           if( (diag.or.nmaxpr==1) .and. mydiag )then
-            print *,'in upglobal after vadv2'
+            write(6,*) 'in upglobal after vadv2'
             write (6,"('qg  ',3p9f8.3/4x,9f8.3)")   qg(idjd,:)
           endif
         endif   ! (nvad==-4)
@@ -504,10 +504,10 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
 
       if( diag) then
         if(mydiag)then
-          print *,'near end of upglobal staggered ux and vx:'
-          print *,'un_u ',un(idjd,:)
-          print *,'vn_u ',vn(idjd,:)
-          print *,'tn_u ',tn(idjd,:)
+          write(6,*) 'near end of upglobal staggered ux and vx:'
+          write(6,*) 'un_u ',un(idjd,:)
+          write(6,*) 'vn_u ',vn(idjd,:)
+          write(6,*) 'tn_u ',tn(idjd,:)
           write (6,"('tx_u1',9f8.2/5x,9f8.2)") tx(idjd,:)
         endif
         call printa('ux  ',ux,ktau,nlv,ia,ib,ja,jb,0.,1.)
@@ -522,7 +522,7 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
          enddo
          do k=ntest,kl   ! e.g. 8,kl
           if(theta(iq,k)<theta(iq,k-1))then  ! based on tx
-            print *,"unstable layer in upglobal for ktau,iq,k's,del ",
+           write(6,*)"unstable layer in upglobal for ktau,iq,k's,del ",
      &                           ktau,iq,k-1,k,theta(iq,k-1)-theta(iq,k)
 	     write (6,"('theta',9f7.2/5x,9f7.2)") theta(iq,:)
             write (6,"('sdot',9f7.3/4x,9f7.3)")  sdot(iq,1:kl)
@@ -534,7 +534,7 @@ c           if(numunstab==100)stop 'numunstab=30'
       endif
 
       if( ( diag.or.nmaxpr==1) .and. mydiag ) then
-        print *,'near end of upglobal for ktau= ',ktau
+        write(6,*) 'near end of upglobal for ktau= ',ktau
         write (6,"('tx_u2',9f8.2/5x,9f8.2)")  tx(idjd,:)
         write (6,"('qg_u',3p9f8.3/4x,9f8.3)") qg(idjd,:)
         write (6,"('ql_u',3p9f8.3/4x,9f8.3)") qlg(idjd,:)

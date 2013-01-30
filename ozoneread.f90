@@ -197,7 +197,7 @@ else
   call ccmpi_bcast(ddo3n2,0,comm_world)
   call ccmpi_bcast(ddo3n4,0,comm_world)
   call ccmpi_bcast(dduo3n,0,comm_world)
-  call ccmpi_bcast(ddo3n4,0,comm_world)
+  call ccmpi_bcast(ddo3n3,0,comm_world)
   call resetd(dduo3n,ddo3n2,ddo3n3,ddo3n4,37*kl)
 end if
       
@@ -218,9 +218,9 @@ include 'newmpar.h'
 include 'const_phys.h'
       
 integer, intent(in) :: npts,mins,istart
-integer j,ilat,m,iend
+integer j,ilat,m,iend,ilatp
 real date,rang,rsin1,rcos1,rcos2,theta,angle,than
-real do3,do3p
+real do3,do3p,t5
 real, dimension(npts), intent(in) :: ps
 real, dimension(kl), intent(in) :: sig
 real, dimension(npts,kl), intent(out) :: duo3n
@@ -254,25 +254,23 @@ else ! CMIP3 ozone
   rang = tpi*(date-rlag)/year
   rsin1 = sin(rang)
   rcos1 = cos(rang)
-  rcos2 = cos(2.0*rang)
+  rcos2 = cos(2.*rang)
 
   do j=1,npts
-    theta=90.-rlatt(istart+j-1)*180./pi
-    ilat = theta/5.
-    angle = 5 * ilat
-    than = (theta-angle)/5.
-    ilat = ilat+1
+    theta = 90. - rlatt(istart+j-1)*180./pi
+    t5 = theta/5.
+    ilat = int(t5)
+    angle = real(ilat)
+    than = (t5 - angle)
+    ilatp = min(ilat + 1,37)
     do m = 1,kl
       do3  = dduo3n(ilat,m) + rsin1*ddo3n2(ilat,m) + rcos1*ddo3n3(ilat,m) + rcos2*ddo3n4(ilat,m)
-      do3p = dduo3n(ilat+1,m) + rsin1*ddo3n2(ilat+1,m) + rcos1*ddo3n3(ilat+1,m) + rcos2*ddo3n4(ilat+1,m)
-      duo3n(j,m)=do3+than*(do3p-do3)
+      do3p = dduo3n(ilatp,m) + rsin1*ddo3n2(ilatp,m) + rcos1*ddo3n3(ilatp,m) + rcos2*ddo3n4(ilatp,m)
+      duo3n(j,m) = do3 + than*(do3p - do3)
+      ! convert from cm stp to gm/gm
+      duo3n(j,m) = duo3n(j,m)*1.01325e2*0.1/ps(j)
     end do
-  end do
-  ! convert from cm stp to gm/gm
-  do m=1,kl
-    duo3n(:,m)=duo3n(:,m)*1.01325e2/(ps(:)*10.)
-  end do
-        
+  end do      
 end if
 duo3n=max(1.e-10,duo3n)
       

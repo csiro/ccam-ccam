@@ -141,236 +141,239 @@ do itr=1,itr_mg
       iv(iqx(1:ifc,nc),k)=iv(iqx(1:ifc,nc),k)+dsol(iqx(1:ifc,nc),k)
     end do
     call bounds(iv,klim=klim,colour=nc)
+
   end do
+
+  ! residual
+  do k=1,klim
+    w(1:ifull,k)=-izzn*iv(in,k)-izzw*iv(iw,k)-izze*iv(ie,k)-izzs*iv(is,k)+irhs(:,k)+iv(1:ifull,k)*(ihelm(:,k)-izz)
+  end do
+
+  ! fine grid
+  g=1
+  ng=mg(g)%ifull
+
+  ! For when the inital grid cannot be upscaled
+  call mgcollect(g,w,klim=klim)
+
+  ! restriction
+  ! (since this always operates within a panel, then ine = ien is always true)
+  ng4=mg(g)%ifull_fine
+  iqaa(1:ng4)=          mg(g)%fine    
+  iqbb(1:ng4)= mg(g)%in(mg(g)%fine)
+  iqcc(1:ng4)= mg(g)%ie(mg(g)%fine)
+  iqdd(1:ng4)=mg(g)%ine(mg(g)%fine)
+  rhs(1:ng4,1:klim,g+1)=0.25*(w(iqaa(1:ng4),1:klim)+w(iqbb(1:ng4),1:klim) &
+                             +w(iqcc(1:ng4),1:klim)+w(iqdd(1:ng4),1:klim))
+
+  ! upscale grid
+  do g=2,mg_maxlevel-1
   
-    ! residual
-    do k=1,klim
-      w(1:ifull,k)=-izzn*iv(in,k)-izzw*iv(iw,k)-izze*iv(ie,k)-izzs*iv(is,k)+irhs(:,k)+iv(1:ifull,k)*(ihelm(:,k)-izz)
-    end do
-    
-    ! fine grid
-    g=1
     ng=mg(g)%ifull
 
-    ! For when the inital grid cannot be upscaled
-    call mgcollect(g,w,klim=klim)
+    ! merge grids if insufficent points on this processor
+    call mgcollect(g,rhs(:,:,g),klim=klim)
+    
+    ! update
+    ! possibly use colours here, although latency might be an issue as the grid size
+    ! becomes more coarse
+    ! assume zero for first guess of residual (also avoids additional bounds call)
+    !v(:,1:klim,g)=0.
+    do k=1,klim
+      v(1:ng,k,g)=-rhs(1:ng,k,g)/(helm(1:ng,k,g)-mg(g)%zz)
+    end do
+
+    ! residual
+    call mgbounds(g,v(:,:,g),klim=klim)
+    do k=1,klim
+      w(1:ng,k)=-mg(g)%zze*v(mg(g)%ie,k,g)-mg(g)%zzw*v(mg(g)%iw,k,g)     &
+                -mg(g)%zzn*v(mg(g)%in,k,g)-mg(g)%zzs*v(mg(g)%is,k,g)
+                !+rhs(1:ng,k,g)+(helm(1:ng,k,g)-mg(g)%zz)*v(1:ng,k,g)
+    end do
 
     ! restriction
-    ! (since this always operates within a panel, then ine = ien is always true)
+    ! (calculate finer grid before mgcollect as the messages sent/recv are shorter)
     ng4=mg(g)%ifull_fine
-    iqaa(1:ng4)=          mg(g)%fine    
+    iqaa(1:ng4)=          mg(g)%fine
     iqbb(1:ng4)= mg(g)%in(mg(g)%fine)
     iqcc(1:ng4)= mg(g)%ie(mg(g)%fine)
     iqdd(1:ng4)=mg(g)%ine(mg(g)%fine)
     rhs(1:ng4,1:klim,g+1)=0.25*(w(iqaa(1:ng4),1:klim)+w(iqbb(1:ng4),1:klim) &
                                +w(iqcc(1:ng4),1:klim)+w(iqdd(1:ng4),1:klim))
 
-    ! upscale grid
-    do g=2,mg_maxlevel-1
-  
-      ng=mg(g)%ifull
+  end do
 
-      ! merge grids if insufficent points on this processor
-      call mgcollect(g,rhs(:,:,g),klim=klim)
-    
-      ! update
-      ! possibly use colours here, although latency might be an issue as the grid size
-      ! becomes more coarse
-      ! assume zero for first guess of residual (also avoids additional bounds call)
-      !v(:,1:klim,g)=0.
-      do k=1,klim
-        v(1:ng,k,g)=-rhs(1:ng,k,g)/(helm(1:ng,k,g)-mg(g)%zz)
+  ! solve coarse grid
+  g=mg_maxlevel
+  ng=mg(g)%ifull
+
+  ! ensure all processors have a copy of the coarse grid
+  call mgcollect(g,rhs(:,:,g),klim=klim)
+
+  do k=1,klim
+    v(1:ng,k,g)=-rhs(1:ng,k,g)/(helm(1:ng,k,g)-mg(g)%zz)
+    smax(k)=maxval(v(1:ng,k,g))
+    smin(k)=minval(v(1:ng,k,g))
+  end do
+
+  klimc=klim
+  do itrc=1,itr_max
+    do nc=1,3 ! always three colours for coarse multigrid
+      ifc=mg_ifullc(nc)
+      do k=1,klimc
+        ! update
+        dsol(col_iq(1:ifc,nc),k)=(zzecu(1:ifc,nc)*v(col_iqe(1:ifc,nc),k,g)+zzwcu(1:ifc,nc)*v(col_iqw(1:ifc,nc),k,g)  &
+                                 +zzncu(1:ifc,nc)*v(col_iqn(1:ifc,nc),k,g)+zzscu(1:ifc,nc)*v(col_iqs(1:ifc,nc),k,g)  &
+                                 -rhs(col_iq(1:ifc,nc),k,g))*rhelmcu(1:ifc,nc,k)-v(col_iq(1:ifc,nc),k,g)
+        v(col_iq(1:ifc,nc),k,g)=v(col_iq(1:ifc,nc),k,g)+dsol(col_iq(1:ifc,nc),k)
       end do
-
-      ! residual
-      call mgbounds(g,v(:,:,g),klim=klim)
-      do k=1,klim
-        w(1:ng,k)=-mg(g)%zze*v(mg(g)%ie,k,g)-mg(g)%zzw*v(mg(g)%iw,k,g)     &
-                  -mg(g)%zzn*v(mg(g)%in,k,g)-mg(g)%zzs*v(mg(g)%is,k,g)
-                  !+rhs(1:ng,k,g)+(helm(1:ng,k,g)-mg(g)%zz)*v(1:ng,k,g)
-      end do
-
-      ! restriction
-      ! (calculate finer grid before mgcollect as the messages sent/recv are shorter)
-      ng4=mg(g)%ifull_fine
-      iqaa(1:ng4)=          mg(g)%fine
-      iqbb(1:ng4)= mg(g)%in(mg(g)%fine)
-      iqcc(1:ng4)= mg(g)%ie(mg(g)%fine)
-      iqdd(1:ng4)=mg(g)%ine(mg(g)%fine)
-      rhs(1:ng4,1:klim,g+1)=0.25*(w(iqaa(1:ng4),1:klim)+w(iqbb(1:ng4),1:klim) &
-                                 +w(iqcc(1:ng4),1:klim)+w(iqdd(1:ng4),1:klim))
+      ! no call to bounds since all points are on this processor
     end do
+    do k=1,klimc  
+      dsolmax(k)=maxval(abs(dsol(1:ng,k)))
+    end do    ! convergence test
+    knew=klimc
+    do k=klimc,1,-1
+      if (dsolmax(k)>=restol*(smax(k)-smin(k))) exit
+      knew=k-1      
+    end do
+    klimc=knew
+    if (klimc<1) exit
+  end do
+  
+  ! interpolation
+  ! all points are present on this processor, so no need for MPI comms
+  ! (there maybe issues interpolating near vertices, where we could
+  !  possibly use a three point interpolation)
+  ng4=mg(g)%ifull_coarse
+  do k=1,klim
+    w(1:ng4,k)= mg(g)%wgt_a*v(mg(g)%coarse_a,k,g) + mg(g)%wgt_bc*v(mg(g)%coarse_b,k,g) &
+             + mg(g)%wgt_bc*v(mg(g)%coarse_c,k,g) +  mg(g)%wgt_d*v(mg(g)%coarse_d,k,g)
+  end do
 
-    ! solve coarse grid
-    g=mg_maxlevel
+  ! downscale grid
+  do g=mg_maxlevel-1,2,-1
+
     ng=mg(g)%ifull
+    
+    ! extension
+    ! No mgbounds as the v halp has already been updated and
+    ! the coarse interpolation also updates the w halo
+    v(1:ng4,1:klim,g)=v(1:ng4,1:klim,g)+w(1:ng4,1:klim)
 
-    ! ensure all processors have a copy of the coarse grid
-    call mgcollect(g,rhs(:,:,g),klim=klim)
-
+    ! post smoothing
     do k=1,klim
-      v(1:ng,k,g)=-rhs(1:ng,k,g)/(helm(1:ng,k,g)-mg(g)%zz)
-      smax(k)=maxval(v(1:ng,k,g))
-      smin(k)=minval(v(1:ng,k,g))
+      v(1:ng,k,g)=(mg(g)%zze*v(mg(g)%ie,k,g)+mg(g)%zzw*v(mg(g)%iw,k,g) &
+                  +mg(g)%zzn*v(mg(g)%in,k,g)+mg(g)%zzs*v(mg(g)%is,k,g) &
+                  -rhs(1:ng,k,g))/(helm(1:ng,k,g)-mg(g)%zz)
     end do
 
-    klimc=klim
-    do itrc=1,itr_max
-      do nc=1,3 ! always three colours for coarse multigrid
-        ifc=mg_ifullc(nc)
-        do k=1,klimc
-          ! update
-          dsol(col_iq(1:ifc,nc),k)=(zzecu(1:ifc,nc)*v(col_iqe(1:ifc,nc),k,g)+zzwcu(1:ifc,nc)*v(col_iqw(1:ifc,nc),k,g)  &
-                                   +zzncu(1:ifc,nc)*v(col_iqn(1:ifc,nc),k,g)+zzscu(1:ifc,nc)*v(col_iqs(1:ifc,nc),k,g)  &
-                                   -rhs(col_iq(1:ifc,nc),k,g))*rhelmcu(1:ifc,nc,k)-v(col_iq(1:ifc,nc),k,g)
-          v(col_iq(1:ifc,nc),k,g)=v(col_iq(1:ifc,nc),k,g)+dsol(col_iq(1:ifc,nc),k)
-        end do
-        ! no call to bounds since all points are on this processor
-      end do
-      do k=1,klimc  
-        dsolmax(k)=maxval(abs(dsol(1:ng,k)))
-      end do    ! convergence test
-      knew=klimc
-      do k=klimc,1,-1
-        if (dsolmax(k)>=restol*(smax(k)-smin(k))) exit
-        knew=k-1      
-      end do
-      klimc=knew
-      if (klimc<1) exit
-    end do
-  
+    call mgbounds(g,v(:,:,g),klim=klim,corner=.true.)
+
     ! interpolation
-    ! all points are present on this processor, so no need for MPI comms
     ! (there maybe issues interpolating near vertices, where we could
     !  possibly use a three point interpolation)
+    ! JLM suggests using a three point (plane) fit instead of the 4
+    ! point bi-linear fit.  This treats the vertices the same as the
+    ! other points.
     ng4=mg(g)%ifull_coarse
     do k=1,klim
       w(1:ng4,k)= mg(g)%wgt_a*v(mg(g)%coarse_a,k,g) + mg(g)%wgt_bc*v(mg(g)%coarse_b,k,g) &
                + mg(g)%wgt_bc*v(mg(g)%coarse_c,k,g) +  mg(g)%wgt_d*v(mg(g)%coarse_d,k,g)
     end do
+      
+  end do
 
-    ! downscale grid
-    do g=mg_maxlevel-1,2,-1
 
-      ng=mg(g)%ifull
-    
-      ! extension
-      ! No mgbounds as the v halp has already been updated and
-      ! the coarse interpolation also updates the w halo
-      v(1:ng4,1:klim,g)=v(1:ng4,1:klim,g)+w(1:ng4,1:klim)
-    
-      ! post smoothing
-      do k=1,klim
-        v(1:ng,k,g)=(mg(g)%zze*v(mg(g)%ie,k,g)+mg(g)%zzw*v(mg(g)%iw,k,g) &
-                    +mg(g)%zzn*v(mg(g)%in,k,g)+mg(g)%zzs*v(mg(g)%is,k,g) &
-                    -rhs(1:ng,k,g))/(helm(1:ng,k,g)-mg(g)%zz)
+  ! fine grid
+  g=1
+  ng=mg(g)%ifull
+  
+  ! convert back to local grid if required and update halo
+  if (mg(g)%merge_len>1) then
+    vdum=0.
+    do n=1,npan
+      ir=mod(mg(g)%merge_pos(n)-1,mg(g)%merge_row)+1   ! index for proc row
+      ic=(mg(g)%merge_pos(n)-1)/mg(g)%merge_row+1      ! index for proc col
+      do jj=1,jpan
+        iq_a=1+(jj-1)*ipan+(n-1)*ipan*jpan
+        iq_b=jj*ipan+(n-1)*ipan*jpan
+        iq_c=1+(ir-1)*ipan+(jj-1+(ic-1)*jpan)*jpan+(n-1)*ipan*jpan*mg(g)%merge_len
+        iq_d=ir*ipan+(jj-1+(ic-1)*jpan)*jpan+(n-1)*ipan*jpan*mg(g)%merge_len
+        vdum(iq_a:iq_b,1:klim)=w(iq_c:iq_d,1:klim)
       end do
-    
-      call mgbounds(g,v(:,:,g),klim=klim,corner=.true.)
-
-      ! interpolation
-      ! (there maybe issues interpolating near vertices, where we could
-      !  possibly use a three point interpolation)
-      ! JLM suggests using a three point (plane) fit instead of the 4
-      ! point bi-linear fit.  This treats the vertices the same as the
-      ! other points.
-      ng4=mg(g)%ifull_coarse
-      do k=1,klim
-        w(1:ng4,k)= mg(g)%wgt_a*v(mg(g)%coarse_a,k,g) + mg(g)%wgt_bc*v(mg(g)%coarse_b,k,g) &
-                 + mg(g)%wgt_bc*v(mg(g)%coarse_c,k,g) +  mg(g)%wgt_d*v(mg(g)%coarse_d,k,g)
+      j=1
+      do i=1,ipan
+        iq_a=i+(j-1)*ipan+(n-1)*ipan*jpan
+        iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*jpan+(n-1)*ipan*jpan*mg(g)%merge_len
+        iq_b=is(iq_a)
+        iq_d=mg(1)%is(iq_c)
+        vdum(iq_b,1:klim)=w(iq_d,1:klim)
+      end do
+      j=jpan
+      do i=1,ipan
+        iq_a=i+(j-1)*ipan+(n-1)*ipan*jpan
+        iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*jpan+(n-1)*ipan*jpan*mg(g)%merge_len
+        iq_b=in(iq_a)
+        iq_d=mg(1)%in(iq_c)
+        vdum(iq_b,1:klim)=w(iq_d,1:klim)
+      end do  
+      i=1
+      do j=1,jpan
+        iq_a=i+(j-1)*ipan+(n-1)*ipan*jpan
+        iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*jpan+(n-1)*ipan*jpan*mg(g)%merge_len
+        iq_a=iw(iq_a)
+        iq_b=mg(1)%iw(iq_c)
+        vdum(iq_b,1:klim)=w(iq_d,1:klim)
+      end do
+      i=ipan
+      do j=1,jpan
+        iq_a=i+(j-1)*ipan+(n-1)*ipan*jpan
+        iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*jpan+(n-1)*ipan*jpan*mg(g)%merge_len
+        iq_a=ie(iq_a)
+        iq_b=mg(1)%ie(iq_c)
+        vdum(iq_b,1:klim)=w(iq_d,1:klim)
       end do
     end do
-
-
-    ! fine grid
-    g=1
-    ng=mg(g)%ifull
-  
-    ! convert back to local grid if required and update halo
-    if (mg(g)%merge_len>1) then
-      vdum=0.
-      do n=1,npan
-        ir=mod(mg(g)%merge_pos(n)-1,mg(g)%merge_row)+1   ! index for proc row
-        ic=(mg(g)%merge_pos(n)-1)/mg(g)%merge_row+1      ! index for proc col
-        do jj=1,jpan
-          iq_a=1+(jj-1)*ipan+(n-1)*ipan*jpan
-          iq_b=jj*ipan+(n-1)*ipan*jpan
-          iq_c=1+(ir-1)*ipan+(jj-1+(ic-1)*jpan)*jpan+(n-1)*ipan*jpan*mg(g)%merge_len
-          iq_d=ir*ipan+(jj-1+(ic-1)*jpan)*jpan+(n-1)*ipan*jpan*mg(g)%merge_len
-          vdum(iq_a:iq_b,1:klim)=w(iq_c:iq_d,1:klim)
-        end do
-        j=1
-        do i=1,ipan
-          iq_a=i+(j-1)*ipan+(n-1)*ipan*jpan
-          iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*jpan+(n-1)*ipan*jpan*mg(g)%merge_len
-          iq_b=is(iq_a)
-          iq_d=mg(1)%is(iq_c)
-          vdum(iq_b,1:klim)=w(iq_d,1:klim)
-        end do
-        j=jpan
-        do i=1,ipan
-          iq_a=i+(j-1)*ipan+(n-1)*ipan*jpan
-          iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*jpan+(n-1)*ipan*jpan*mg(g)%merge_len
-          iq_b=in(iq_a)
-          iq_d=mg(1)%in(iq_c)
-          vdum(iq_b,1:klim)=w(iq_d,1:klim)
-        end do  
-        i=1
-        do j=1,jpan
-          iq_a=i+(j-1)*ipan+(n-1)*ipan*jpan
-          iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*jpan+(n-1)*ipan*jpan*mg(g)%merge_len
-          iq_a=iw(iq_a)
-          iq_b=mg(1)%iw(iq_c)
-          vdum(iq_b,1:klim)=w(iq_d,1:klim)
-        end do
-        i=ipan
-        do j=1,jpan
-          iq_a=i+(j-1)*ipan+(n-1)*ipan*jpan
-          iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*jpan+(n-1)*ipan*jpan*mg(g)%merge_len
-          iq_a=ie(iq_a)
-          iq_b=mg(1)%ie(iq_c)
-          vdum(iq_b,1:klim)=w(iq_d,1:klim)
-        end do
+    w(1:ifull+iextra,1:klim)=vdum(1:ifull+iextra,1:klim)    
+    ! extension
+    iv(1:ifull+iextra,1:klim)=iv(1:ifull+iextra,1:klim)+w(1:ifull+iextra,1:klim)
+  else
+    vdum=0.
+    do n=1,npan
+      j=1
+      do i=1,ipan
+        iq=indx(i,j,n-1,ipan,jpan)
+        iq_a=is(iq)
+        iq_b=mg(1)%is(iq)
+        vdum(iq_a,1:klim)=w(iq_b,1:klim)
       end do
-      w(1:ifull+iextra,1:klim)=vdum(1:ifull+iextra,1:klim)    
-      ! extension
-      iv(1:ifull+iextra,1:klim)=iv(1:ifull+iextra,1:klim)+w(1:ifull+iextra,1:klim)
-    else
-      vdum=0.
-      do n=1,npan
-        j=1
-        do i=1,ipan
-          iq=indx(i,j,n-1,ipan,jpan)
-          iq_a=is(iq)
-          iq_b=mg(1)%is(iq)
-          vdum(iq_a,1:klim)=w(iq_b,1:klim)
-        end do
-        j=jpan
-        do i=1,ipan
-          iq=indx(i,j,n-1,ipan,jpan)
-          iq_a=in(iq)
-          iq_b=mg(1)%in(iq)
-          vdum(iq_a,1:klim)=w(iq_b,1:klim)
-        end do  
-        i=1
-        do j=1,jpan
-          iq=indx(i,j,n-1,ipan,jpan)
-          iq_a=iw(iq)
-          iq_b=mg(1)%iw(iq)
-          vdum(iq_a,1:klim)=w(iq_b,1:klim)
-        end do
-        i=ipan
-        do j=1,jpan
-          iq=indx(i,j,n-1,ipan,jpan)
-          iq_a=ie(iq)
-          iq_b=mg(1)%ie(iq)
-          vdum(iq_a,1:klim)=w(iq_b,1:klim)
-        end do
+      j=jpan
+      do i=1,ipan
+        iq=indx(i,j,n-1,ipan,jpan)
+        iq_a=in(iq)
+        iq_b=mg(1)%in(iq)
+        vdum(iq_a,1:klim)=w(iq_b,1:klim)
+      end do  
+      i=1
+      do j=1,jpan
+        iq=indx(i,j,n-1,ipan,jpan)
+        iq_a=iw(iq)
+        iq_b=mg(1)%iw(iq)
+        vdum(iq_a,1:klim)=w(iq_b,1:klim)
       end do
-      w(ifull+1:ifull+iextra,1:klim)=vdum(ifull+1:ifull+iextra,1:klim)
-      ! extension
-      iv(1:ifull+iextra,1:klim)=iv(1:ifull+iextra,1:klim)+w(1:ifull+iextra,1:klim)
-    end if
+      i=ipan
+      do j=1,jpan
+        iq=indx(i,j,n-1,ipan,jpan)
+        iq_a=ie(iq)
+        iq_b=mg(1)%ie(iq)
+        vdum(iq_a,1:klim)=w(iq_b,1:klim)
+      end do
+    end do
+    w(ifull+1:ifull+iextra,1:klim)=vdum(ifull+1:ifull+iextra,1:klim)
+    ! extension
+    iv(1:ifull+iextra,1:klim)=iv(1:ifull+iextra,1:klim)+w(1:ifull+iextra,1:klim)
+  end if
 
   ! post smoothing
   do nc=1,maxcolour
@@ -379,7 +382,7 @@ do itr=1,itr_mg
       dsol(iqx(1:ifc,nc),k)=( zznc(1:ifc,nc)*iv(iqn(1:ifc,nc),k) + zzwc(1:ifc,nc)*iv(iqw(1:ifc,nc),k)    &
                             + zzec(1:ifc,nc)*iv(iqe(1:ifc,nc),k) + zzsc(1:ifc,nc)*iv(iqs(1:ifc,nc),k)    &
                             - rhsc(1:ifc,nc,k))*rhelmc(1:ifc,nc,k) - iv(iqx(1:ifc,nc),k)
-     iv(iqx(1:ifc,nc),k) = iv(iqx(1:ifc,nc),k) + dsol(iqx(1:ifc,nc),k)
+      iv(iqx(1:ifc,nc),k) = iv(iqx(1:ifc,nc),k) + dsol(iqx(1:ifc,nc),k)
     end do
     call bounds(iv,klim=klim,colour=nc)
   end do
@@ -1678,6 +1681,17 @@ do g=2,mg_maxlevel
   ! adjust weights for panel corners
   do iq=1,np
     if (mg(g)%coarse_d(iq)==mg(g)%coarse_b(iq).or.mg(g)%coarse_d(iq)==mg(g)%coarse_c(iq)) then
+      mg(g)%wgt_a(iq)=0.5
+      mg(g)%wgt_bc(iq)=0.25
+      mg(g)%wgt_d(iq)=0.
+    else if (mg(g)%coarse_c(iq)==mg(g)%coarse_a(iq)) then
+      iqq=mg(g)%coarse_d(iq)
+      mg(g)%coarse_c(iq)=mg(g)%coarse_d(iq)
+      mg(g)%coarse_d(iq)=iqq
+      mg(g)%wgt_a(iq)=0.5
+      mg(g)%wgt_bc(iq)=0.25
+      mg(g)%wgt_d(iq)=0.
+    else if (mg(g)%coarse_c(iq)==mg(g)%coarse_d(iq)) then
       mg(g)%wgt_a(iq)=0.5
       mg(g)%wgt_bc(iq)=0.25
       mg(g)%wgt_d(iq)=0.

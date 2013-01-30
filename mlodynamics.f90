@@ -4425,13 +4425,13 @@ include 'newmpar.h'
 include 'parm.h'
 
 integer, intent(out) :: totits,itc
-integer itstest,itsave1,itsave2,ll,mm,ierr
-integer nx,ifx
+!integer itstest,itsave1,itsave2
+integer nx,ifx,ll,ierr
 integer iq
 real, intent(in) :: tol,itol
 real, intent(out) :: maxglobseta,maxglobip
-real maxloclseta,maxloclip,itserr1,itserr2
-real gd,ci
+real maxloclseta,maxloclip
+!real gd,ci,itserr1,itserr2
 real, dimension(ifull+iextra), intent(inout) :: neta
 real, dimension(ifull), intent(in) :: sue,svn,suw,svs
 real, dimension(ifull), intent(in) :: pue,pvn,puw,pvs
@@ -4458,10 +4458,10 @@ integer, parameter :: llmax      = 400 ! Iterations for calculating surface heig
 ! and it is easy to include the non-linear terms and constraints.  Possibly combine
 ! with a multi-grid method to improve convergence at large scales, although it is
 ! more likely that the dynamical core will be replaced with JLM's mass flux scheme
-itsave2=0
-itserr2=9.E9
-itstest=1
-itc=0
+!itsave2=0
+!itserr2=9.E9
+!itstest=1
+!itc=0
 alpha(1)=1. ! for ocean
 alpha(2)=1. ! for sea-ice
 
@@ -4569,7 +4569,7 @@ do ll=1,llmax
   maxloclseta=maxval(abs(seta))
   maxloclip=maxval(abs(setab))
 
-  if (ll>=itstest) then
+  !if (ll>=itstest) then
     dume(1)=maxloclseta
     dume(2)=maxloclip
     call ccmpi_allreduce(dume(1:2),dumf(1:2),"max",comm_mlo)
@@ -4578,24 +4578,25 @@ do ll=1,llmax
 
     if (maxglobseta<tol.and.maxglobip<itol) exit
     
-    itsave1=itsave2
-    itsave2=ll
-    itserr1=itserr2
-    itserr2=log10(maxglobseta)
+  !  itsave1=itsave2
+  !  itsave2=ll
+  !  itserr1=itserr2
+  !  itserr2=log10(maxglobseta)
     
-    gd=(itserr2-itserr1)/real(itsave2-itsave1)
-    ci=itserr2-gd*real(itsave2)
-    if (gd/=0.) then
-      itstest=nint((log10(tol)-ci)/gd)
-      itstest=max(itstest,ll+1)
-    else
-      itstest=ll+1
-    end if
-    itc=itc+1    
-  end if
+  !  gd=(itserr2-itserr1)/real(itsave2-itsave1)
+  !  ci=itserr2-gd*real(itsave2)
+  !  if (gd/=0.) then
+  !    itstest=nint((log10(tol)-ci)/gd)
+  !    itstest=max(itstest,ll+1)
+  !  else
+  !    itstest=ll+1
+  !  end if
+  !  itc=itc+1    
+  !end if
 
 end do
 totits=ll
+itc=totits
 
 return
 end subroutine mlosor
