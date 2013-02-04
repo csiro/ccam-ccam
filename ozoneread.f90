@@ -259,7 +259,7 @@ else ! CMIP3 ozone
   do j=1,npts
     theta = 90. - rlatt(istart+j-1)*180./pi
     t5 = theta/5.
-    ilat = int(t5)
+    ilat = int(t5) + 1
     angle = real(ilat)
     than = (t5 - angle)
     ilatp = min(ilat + 1,37)

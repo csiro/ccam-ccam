@@ -54,6 +54,7 @@ real, dimension(:), allocatable, save :: rlon,rlat
 real tlat,tlon,tschmidt
 character(len=*), intent(in) :: aerofile,oxidantfile
 logical tst
+real, parameter :: iotol=1.E-5 ! tolarance for iotest
 
 if (myid==0) write(6,*) "Initialising prognostic aerosols"
 
@@ -89,7 +90,7 @@ if (myid==0) then
   call ccnf_get_attg(ncid,'lat0',tlat)
   call ccnf_get_attg(ncid,'lon0',tlon)
   call ccnf_get_attg(ncid,'schmidt0',tschmidt)
-  if (rlong0/=tlon.or.rlat0/=tlat.or.schmidt/=tschmidt) then
+  if (abs(rlong0-tlon)>iotol.or.abs(rlat0-tlat)>iotol.or.abs(schmidt-tschmidt)>iotol) then
     write(6,*) "ERROR: Grid mismatch for ",trim(aerofile)
     write(6,*) "rlong0,rlat0,schmidt ",rlong0,rlat0,schmidt
     write(6,*) "tlon,tlat,tschmidt   ",tlon,tlat,tschmidt

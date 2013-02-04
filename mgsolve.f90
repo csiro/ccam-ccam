@@ -190,7 +190,7 @@ do itr=1,itr_mg
                 -mg(g)%zzn*v(mg(g)%in,k,g)-mg(g)%zzs*v(mg(g)%is,k,g)
                 !+rhs(1:ng,k,g)+(helm(1:ng,k,g)-mg(g)%zz)*v(1:ng,k,g)
     end do
-
+   
     ! restriction
     ! (calculate finer grid before mgcollect as the messages sent/recv are shorter)
     ng4=mg(g)%ifull_fine
@@ -200,7 +200,6 @@ do itr=1,itr_mg
     iqdd(1:ng4)=mg(g)%ine(mg(g)%fine)
     rhs(1:ng4,1:klim,g+1)=0.25*(w(iqaa(1:ng4),1:klim)+w(iqbb(1:ng4),1:klim) &
                                +w(iqcc(1:ng4),1:klim)+w(iqdd(1:ng4),1:klim))
-
   end do
 
   ! solve coarse grid
@@ -240,7 +239,7 @@ do itr=1,itr_mg
     klimc=knew
     if (klimc<1) exit
   end do
-  
+ 
   ! interpolation
   ! all points are present on this processor, so no need for MPI comms
   ! (there maybe issues interpolating near vertices, where we could
@@ -255,7 +254,7 @@ do itr=1,itr_mg
   do g=mg_maxlevel-1,2,-1
 
     ng=mg(g)%ifull
-    
+
     ! extension
     ! No mgbounds as the v halp has already been updated and
     ! the coarse interpolation also updates the w halo
@@ -281,7 +280,7 @@ do itr=1,itr_mg
       w(1:ng4,k)= mg(g)%wgt_a*v(mg(g)%coarse_a,k,g) + mg(g)%wgt_bc*v(mg(g)%coarse_b,k,g) &
                + mg(g)%wgt_bc*v(mg(g)%coarse_c,k,g) +  mg(g)%wgt_d*v(mg(g)%coarse_d,k,g)
     end do
-      
+
   end do
 
 
@@ -322,16 +321,16 @@ do itr=1,itr_mg
       do j=1,jpan
         iq_a=i+(j-1)*ipan+(n-1)*ipan*jpan
         iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*jpan+(n-1)*ipan*jpan*mg(g)%merge_len
-        iq_a=iw(iq_a)
-        iq_b=mg(1)%iw(iq_c)
+        iq_b=iw(iq_a)
+        iq_d=mg(1)%iw(iq_c)
         vdum(iq_b,1:klim)=w(iq_d,1:klim)
       end do
       i=ipan
       do j=1,jpan
         iq_a=i+(j-1)*ipan+(n-1)*ipan*jpan
         iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*jpan+(n-1)*ipan*jpan*mg(g)%merge_len
-        iq_a=ie(iq_a)
-        iq_b=mg(1)%ie(iq_c)
+        iq_b=ie(iq_a)
+        iq_d=mg(1)%ie(iq_c)
         vdum(iq_b,1:klim)=w(iq_d,1:klim)
       end do
     end do
@@ -1002,7 +1001,7 @@ integer mipan,mjpan,hipan,hjpan,mil_g,ia,ja
 integer i,j,n,mg_npan,mxpr,mypr
 integer cid,ix,jx,colour,rank,ncol,nrow
 integer npanx,na,nx,ny,sii,eii,sjj,ejj
-integer drow,dcol
+integer drow,dcol,maxmergelen
 logical lglob
 
 if (.not.sorfirst) return
@@ -1075,6 +1074,7 @@ if (mod(mipan,2)/=0.or.mod(mjpan,2)/=0) then
       write(6,*) "Multi-grid gather4 at level           ",g,mipan,mjpan
     end if
 
+    maxmergelen=npan
     allocate(mg(1)%merge_list(4,npan),mg(1)%merge_pos(npan))
 
     ! find my processor and surrounding members of the gather
@@ -1268,6 +1268,7 @@ do g=2,mg_maxlevel
         write(6,*) "Multi-grid gather4 at level           ",g,mipan,mjpan
       end if
 
+      maxmergelen=npan
       allocate(mg(g)%merge_list(4,npan),mg(g)%merge_pos(npan))
       
       do n=1,npan
@@ -1301,7 +1302,7 @@ do g=2,mg_maxlevel
         mg(g)%merge_list(2,n)=mg(g)%fproc(ii+hipan,jj      ,nn)
         mg(g)%merge_list(3,n)=mg(g)%fproc(ii,      jj+hjpan,nn)
         mg(g)%merge_list(4,n)=mg(g)%fproc(ii+hipan,jj+hjpan,nn)
-
+ 
         do j=1,mil_g,mjpan
           do i=1,mil_g,mipan
             cid=mg(g)%fproc(i+ix,j+jx,nn) ! processor in same merge position as myid
@@ -1322,6 +1323,7 @@ do g=2,mg_maxlevel
             exit
           end if
         end do
+       
         if (mg(g)%merge_pos(n)<1) then
           write(6,*) "ERROR: Invalid merge_pos g,n,pos ",g,n,mg(g)%merge_pos(n)
           call ccmpi_abort(-1)
@@ -1369,6 +1371,7 @@ do g=2,mg_maxlevel
       
       ! find gather members
 #ifdef uniform_decomp
+      maxmergelen=npan
       allocate(mg(g)%merge_list(mg(g)%merge_len,npan),mg(g)%merge_pos(npan))
       do n=1,npan
         nn=n-noff
@@ -1396,6 +1399,7 @@ do g=2,mg_maxlevel
         end if
       end do
 #else
+      maxmergelen=1
       allocate(mg(g)%merge_list(mg(g)%merge_len,1),mg(g)%merge_pos(1))      
       iqq=0
       do n=1,6/npan
@@ -1435,6 +1439,7 @@ do g=2,mg_maxlevel
       if (myid==0) then
         write(6,*) "Multi-grid toplevel                   ",g,mipan,mjpan
       end if
+      maxmergelen=1
       allocate(mg(g)%merge_pos(1))
       mg(g)%merge_pos(1)=1
     end if
@@ -1475,6 +1480,7 @@ do g=2,mg_maxlevel
     end if
     ! no messages sent, but we allocate this arrays for the
     ! coarse calculation below
+    maxmergelen=1
     allocate(mg(g)%merge_pos(1))
     mg(g)%merge_pos(1)=1
   end if
@@ -1540,10 +1546,10 @@ do g=2,mg_maxlevel
   mg(g)%wgt_a=0.5625
   mg(g)%wgt_bc=0.1875
   mg(g)%wgt_d=0.0625
-
+ 
   do n=1,npanx
   
-    nn=min(n,mg(g)%merge_len)
+    nn=min(n,maxmergelen)
     na=mg(g)%merge_pos(nn)
     nx=mod(na-1,nrow)+1
     ny=(na-1)/nrow+1
@@ -1579,7 +1585,7 @@ do g=2,mg_maxlevel
         mg(g)%coarse_b(iq)= mg(g)%is(iqq)
         mg(g)%coarse_c(iq)= mg(g)%ie(iqq)
         mg(g)%coarse_d(iq)=mg(g)%ise(iqq)
-          
+
         ! even, even
         iq =indx(ia+1,ja+1,n-1,2*drow,2*dcol) ! fine grid
         mg(g)%coarse_a(iq)=          iqq

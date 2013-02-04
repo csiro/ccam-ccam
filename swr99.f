@@ -8,7 +8,7 @@
      &                   taudar_in, rh2o_in, rrco2, ssolar,
      &                   qo3_in, nclds_in, ktopsw_in, kbtmsw_in,
      &                   cirab_in, cirrf_in, cuvrf_in, camt_in,
-     &                   swr_out ) ! MJT cable
+     &                   swr_out, cldoff ) ! MJT cable
 
 
 !     This driver routine just calculates the size and passes it to 
@@ -34,15 +34,20 @@
       real, intent(out), dimension(imax)     :: grdflx_out,swr_out ! MJT cable
       
       integer  :: ipts
-      ipts = count ( coszro_in > zero )
-      if (any(nclds_in>0)) ipts=count(coszro_in>0..and.nclds_in>0) ! MJT rad
+      logical, intent(in) :: cldoff
+      
+      if (cldoff) then
+        ipts = count ( coszro_in > zero )
+      else
+        ipts=count(coszro_in>zero.and.nclds_in>0) ! MJT rad
+      end if
 
       call swr99p      ( fsw_out, hsw_out, grdflx_out, ufsw_out, 
      &                   dfsw_out, press_in, press2_in, coszro_in,
      &                   taudar_in, rh2o_in, rrco2, ssolar,
      &                   qo3_in, nclds_in, ktopsw_in, kbtmsw_in,
      &                   cirab_in, cirrf_in, cuvrf_in, camt_in, ipts,
-     &                   swr_out ) ! MJT cable
+     &                   swr_out, cldoff ) ! MJT cable
 
       end subroutine swr99
 
@@ -51,7 +56,7 @@
      &                   taudar_in, rh2o_in, rrco2, ssolar,
      &                   qo3_in, nclds_in, ktopsw_in, kbtmsw_in,
      &                   cirab_in, cirrf_in, cuvrf_in, camt_in, ipts,
-     &                   swr_out ) ! MJT cable
+     &                   swr_out, cldoff ) ! MJT cable
 
 
 cfpp$ noconcur r
@@ -96,7 +101,8 @@ c
       real,  dimension(ipts,l)       :: hsw
       real, dimension(ipts)          :: grdflx,swr ! MJT cable
 
-      integer :: k,kclds ! MJT rad
+      integer :: k
+      logical, intent(in) :: cldoff
       logical, dimension(imax) :: lcoszn
       integer, dimension(ipts) :: pindex
       
@@ -106,9 +112,8 @@ c
         allocate(grdflx_sav(imax),swr_sav(imax))
       end if
 
-      kclds=maxval(nclds_in) ! MJT rad
       lcoszn = coszro_in > zero
-      if (kclds>0) then              ! MJT rad
+      if (.not.cldoff) then          ! MJT rad
         lcoszn=lcoszn.and.nclds_in>0 ! MJT rad
         grdflx_out=grdflx_sav        ! MJT rad
         ufsw_out=ufsw_sav            ! MJT rad
@@ -120,7 +125,7 @@ c
 !     If there are no sunlit points set everything to zero and return 
 !     immediately
       if ( ipts == 0 ) then
-       if (kclds==0) then ! MJT rad
+       if (cldoff) then ! MJT rad
 	  grdflx_out = zero
 	  ufsw_out   = zero
 	  dfsw_out   = zero
@@ -163,7 +168,7 @@ c
      &                   swr ) ! MJT cable
 
 !     Unpack results  ( Use my version to get around NEC compiler error )
-      if (kclds==0) then ! MJT rad
+      if (cldoff) then ! MJT rad
        grdflx_out = 0.0
        swr_out = 0.5 ! MJT cable
        fsw_out = 0.0
@@ -182,7 +187,7 @@ c
 	 dfsw_out(pindex,k) = dfsw(:,k)
       end do
       
-      if (kclds==0) then             ! MJT rad
+      if (cldoff) then             ! MJT rad
         grdflx_sav=grdflx_out        ! MJT rad
         ufsw_sav=ufsw_out            ! MJT rad
         dfsw_sav=dfsw_out            ! MJT rad

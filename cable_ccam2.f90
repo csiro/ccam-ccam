@@ -264,6 +264,9 @@ canopy%fe      = canopy%fev + canopy%fes
 canopy%rnet    = canopy%fns + canopy%fnv
 rad%trad       = ( (1.-rad%transd)*canopy%tv**4 + rad%transd*ssoil%tss**4 )**0.25
 
+! EK suggestion
+canopy%cdtq =  max( 0.1*canopy%cduv, canopy%cdtq)
+
 !--------------------------------------------------------------
 ! CASA CNP
 select case (icycle)

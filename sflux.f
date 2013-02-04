@@ -172,11 +172,6 @@ c     using av_vmod (1. for no time averaging)
       vmag(:)=max( vmod(:) , vmodmin) ! vmag used to calculate ri
       if(ntsur/=7)vmod(:)=vmag(:)	! gives usual way
 
-      dirad=0.
-      degdt=0.
-      dfgdt=0.
-      cie=0.
-
       !--------------------------------------------------------------
       call start_log(sfluxwater_begin)
       if (nmlo==0) then                                                 ! sea
@@ -375,18 +370,20 @@ c      section to update pan temperatures                               ! sea
        endif                                                            ! sea
        zminlog=log(zmin)                                                ! sea
 
+       fgf=0.
+       fev=0.
        do iq=1,ifull                                                    ! sice
         if(sicedep(iq)>0.)then                                          ! sice
 !       non-leads for sea ice points                                    ! sice
-!       N.B. tggsn( ,3) holds tice                                      ! sice
+!       N.B. tggsn( ,1) holds tice                                      ! sice
         es = establ(tggsn(iq,1))                                        ! sice
         constz=ps(iq)-es                                                ! sice
         qsttg(iq)= .622*es/constz                                       ! sice
         drst=qsttg(iq)*ps(iq)*hlars/(tggsn(iq,1)*tggsn(iq,1)*constz)    ! sice
         xx=grav*zmin*(1.-tggsn(iq,1)*srcp/t(iq,1))                      ! sice
         ri_ice=min(xx/vmag(iq)**2 , ri_max)                             ! sice
-        !factchice=1.                                                   ! sice
-        factchice=sqrt(7.4)                                             ! sice
+        !factchice=1. ! factch is sqrt(zo/zt) for use in unstable fh    ! sice
+        factchice=sqrt(7.4) ! same as land from 27/4/99                 ! sice
         zoice=.001                                                      ! sice
         zologice=zminlog-log(zoice)   !   i.e. log(zmin/zo(iq))         ! sice
         af(iq)=(vkar/zologice)**2                                       ! sice
@@ -448,9 +445,9 @@ c       no snow on the ice assumed for now                              ! sice
         cie(iq) = 2.04/sicedep(iq)                                      ! sice
         rgg(iq)=5.67e-8*tggsn(iq,1)**4                                  ! sice
 !       gflux here is	flux from ice to water, +ve downwards           ! sice
-        gflux(iq)=cie(iq)*(tggsn(iq,1)-271.2) ! MJT seaice              ! sice
+        gflux(iq)=cie(iq)*(tggsn(iq,1)-271.2)                           ! sice
         ga(iq)=-slwa(iq)-rgg(iq)-fev(iq)-fgf(iq)-gflux(iq)              ! sice
-        dirad(iq)=4.*5.67e-8*tggsn(iq,1)**3 ! MJT seaice                ! sice
+        dirad(iq)=4.*5.67e-8*tggsn(iq,1)**3                             ! sice
         b1=dirad(iq)+degdt(iq)+dfgdt(iq)+cie(iq)                        ! sice
         gbot=(gamm(iq)/dt)+b1                                           ! sice
         deltat=ga(iq)/gbot                                              ! sice

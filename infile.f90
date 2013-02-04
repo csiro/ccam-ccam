@@ -69,8 +69,8 @@ end interface ccnf_put_var1
 
 integer, dimension(:), allocatable, save :: pnoff
 integer, dimension(:,:), allocatable, save :: pioff,pjoff
-integer, dimension(:), allocatable, save :: pncid
-integer, dimension(:), allocatable, save :: pncidold
+integer(kind=4), dimension(:), allocatable, save :: pncid
+integer(kind=4), dimension(:), allocatable, save :: pncidold
 integer, save :: mynproc,fnproc
 integer, save :: pil_g,pjl_g,pil,pjl,pnpan
 integer, save :: comm_ip,comm_ipold
@@ -209,12 +209,13 @@ include 'netcdf.inc'
 
 integer, intent(in) :: iarchi
 integer, intent(out) :: ier
-integer, dimension(3) :: start,count
+integer(kind=4), dimension(3) :: start,count
 integer ipf,jpmax,iptst2,lcomm
-integer ler,idv
+integer(kind=4) :: idv,lier,ler
 real, dimension(:), intent(inout), optional :: var
 real, dimension(pil*pjl*pnpan) :: rvar
 real addoff,sf
+real(kind=4) :: laddoff,lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 
@@ -270,11 +271,13 @@ do ipf=0,mynproc-1
   
   ! get variable idv
 #ifdef usenc3
-  ier=nf_inq_varid(pncid(ipf),name,idv)
-  if(ier/=nf_noerr)then
+  lier=nf_inq_varid(pncid(ipf),name,idv)
+  ier=lier
+  if(lier/=nf_noerr)then
 #else
-  ier=nf90_inq_varid(pncid(ipf),name,idv)
-  if(ier/=nf90_noerr)then
+  lier=nf90_inq_varid(pncid(ipf),name,idv)
+  ier=lier
+  if(lier/=nf90_noerr)then
 #endif
     if (myid==0.and.ipf==0) then
       write(6,*) '***absent field for ncid,name,idv,ier: ',pncid(0),name,idv,ier
@@ -282,18 +285,26 @@ do ipf=0,mynproc-1
   else
     ! obtain scaling factors and offsets from attributes
 #ifdef usenc3
-    ler=nf_get_att_real(pncid(ipf),idv,'add_offset',addoff)
+    ler=nf_get_att_real(pncid(ipf),idv,'add_offset',laddoff)
+    addoff=laddoff
     if (ler/=nf_noerr) addoff=0.
-    ler=nf_get_att_real(pncid(ipf),idv,'scale_factor',sf)
+    ler=nf_get_att_real(pncid(ipf),idv,'scale_factor',lsf)
+    sf=lsf
     if (ler/=nf_noerr) sf=1.
-    ier=nf_get_vara_real(pncid(ipf),idv,start,count,rvar)
+#ifdef i8r8
+    lier=nf_get_vara_double(pncid(ipf),idv,start,count,rvar)
+#else
+    lier=nf_get_vara_real(pncid(ipf),idv,start,count,rvar)
+#endif
+    ier=lier
     call ncmsg(name,ier)
 #else
     ler=nf90_get_att(pncid(ipf),idv,'add_offset',addoff)
     if (ler/=nf90_noerr) addoff=0.
     ler=nf90_get_att(pncid(ipf),idv,'scale_factor',sf)
     if (ler/=nf90_noerr) sf=1.
-    ier=nf90_get_var(pncid(ipf),idv,rvar,start=start,count=count)
+    lier=nf90_get_var(pncid(ipf),idv,rvar,start=start,count=count)
+    ier=lier
     call ncmsg(name,ier)
 #endif
     ! unpack compressed data
@@ -499,13 +510,14 @@ include 'netcdf.inc'
 
 integer, intent(in) :: iarchi,kk
 integer, intent(out) :: ier
-integer, dimension(4) :: start,ncount
+integer(kind=4), dimension(4) :: start,ncount
 integer ipf,jpmax,iptst2,lcomm
-integer ler,idv
+integer(kind=4) :: ler,idv,lier
 real, dimension(:), intent(inout), optional :: var
 real, dimension(pil*pjl*pnpan) :: rvar
 real, dimension(pil*pjl*pnpan*nproc) :: gvar
 real addoff,sf
+real(kind=4) :: laddoff,lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 
@@ -560,11 +572,13 @@ do ipf=0,mynproc-1
 
   ! get variable idv
 #ifdef usenc3
-  ier=nf_inq_varid(pncid(ipf),name,idv)
-  if(ier/=nf_noerr)then
+  lier=nf_inq_varid(pncid(ipf),name,idv)
+  ier=lier
+  if(lier/=nf_noerr)then
 #else
-  ier=nf90_inq_varid(pncid(ipf),name,idv)
-  if(ier/=nf90_noerr)then
+  lier=nf90_inq_varid(pncid(ipf),name,idv)
+  ier=lier
+  if(lier/=nf90_noerr)then
 #endif
     if (myid==0.and.ipf==0.and.kk==1) then
       write(6,*) '***absent field for ncid,name,idv,ier: ',pncid(0),name,idv,ier
@@ -572,18 +586,28 @@ do ipf=0,mynproc-1
   else
     ! obtain scaling factors and offsets from attributes
 #ifdef usenc3
-    ler=nf_get_att_real(pncid(ipf),idv,'add_offset',addoff)
+    ler=nf_get_att_real(pncid(ipf),idv,'add_offset',laddoff)
+    addoff=laddoff
     if (ler/=nf_noerr) addoff=0.
-    ler=nf_get_att_real(pncid(ipf),idv,'scale_factor',sf)
+    ler=nf_get_att_real(pncid(ipf),idv,'scale_factor',lsf)
+    sf=lsf
     if (ler/=nf_noerr) sf=1.
-    ier=nf_get_vara_real(pncid(ipf),idv,start,ncount,rvar)
+#ifdef i8r8
+    lier=nf_get_vara_double(pncid(ipf),idv,start,ncount,rvar)
+#else
+    lier=nf_get_vara_real(pncid(ipf),idv,start,ncount,rvar)
+#endif
+    ier=lier
     call ncmsg(name,ier)
 #else
-    ler=nf90_get_att(pncid(ipf),idv,'add_offset',addoff)
+    ler=nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
+    addoff=laddoff
     if (ler/=nf90_noerr) addoff=0.
-    ler=nf90_get_att(pncid(ipf),idv,'scale_factor',sf)
+    ler=nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
+    sf=lsf
     if (ler/=nf90_noerr) sf=1.
-    ier=nf90_get_var(pncid(ipf),idv,rvar,start=start,count=ncount)
+    lier=nf90_get_var(pncid(ipf),idv,rvar,start=start,count=ncount)
+    ier=lier
     call ncmsg(name,ier)
 #endif
     ! unpack data
@@ -628,14 +652,16 @@ include 'netcdf.inc'
 #endif
 
 integer, intent(in) :: ierr
+integer(kind=4) :: lierr
 character(len=*), intent(in) :: txt
 
+lierr=ierr
 #ifdef usenc3
-if (ierr/=nf_noerr) then
-  write(6,*) txt," ",nf_strerror(ierr)
+if (lierr/=nf_noerr) then
+  write(6,*) txt," ",nf_strerror(lierr)
 #else
-if (ierr/=nf90_noerr) then
-  write(6,*) txt," ",nf90_strerror(ierr)
+if (lierr/=nf90_noerr) then
+  write(6,*) txt," ",nf90_strerror(lierr)
 #endif
   call ccmpi_abort(-1)
 end if
@@ -665,10 +691,11 @@ integer, dimension(nihead) :: ahead
 integer, dimension(0:5) :: duma,dumb
 integer, dimension(6) :: idum
 integer, intent(out) :: ncid,ier
-integer ler,dumr
 integer resid,is,ipf,dmode
 integer ipin,nxpr,nypr
-integer ltst
+integer ltst,der
+integer(kind=4), dimension(nihead) :: lahead
+integer(kind=4) :: lncid,lier,ler,lidum
 character(len=*), intent(in) :: ifile
 character(len=170) :: pfile
 character(len=7) :: fdecomp
@@ -677,10 +704,12 @@ logical omode
 if (myid==0) then
   ! attempt to open single file with myid==0
 #ifdef usenc3
-  ier=nf_open(ifile,nf_nowrite,ncid)
+  lier=nf_open(ifile,nf_nowrite,lncid)
 #else
-  ier=nf90_open(ifile,nf90_nowrite,ncid)
+  lier=nf90_open(ifile,nf90_nowrite,lncid)
 #endif
+  ncid=lncid
+  ier=lier
   fnproc=1      ! number of files to be read over all processors
   dmode=0       ! Single file (dmode=0) Face decomposition (dmode=1) or Uniform decomposiiton (dmode=2)
   pil=0         ! Number of X grid points within a file panel
@@ -691,30 +720,40 @@ if (myid==0) then
       
   ! attempt to open parallel files
 #ifdef usenc3
-  if (ier/=nf_noerr) then
+  if (lier/=nf_noerr) then
     write(pfile,"(a,'.',i6.6)") trim(ifile), 0
-    ier=nf_open(pfile,nf_nowrite,ncid)
-    if (ier/=nf_noerr) then
+    lier=nf_open(pfile,nf_nowrite,lncid)
+    ncid=lncid
+    ier=lier
+    if (lier/=nf_noerr) then
 #else
-  if (ier/=nf90_noerr) then
+  if (lier/=nf90_noerr) then
     write(pfile,"(a,'.',i6.6)") trim(ifile), 0
-    ier=nf90_open(pfile,nf90_nowrite,ncid)
-    if (ier/=nf90_noerr) then
+    lier=nf90_open(pfile,nf90_nowrite,lncid)
+    ncid=lncid
+    ier=lier
+    if (lier/=nf90_noerr) then
 #endif
       write(6,*) "WARN: Cannot open ",pfile
     else  
       write(6,*) "Found parallel input file ",ifile
       fdecomp=''
 #ifdef usenc3
-      ler=nf_get_att_int(ncid,nf_global,"nproc",fnproc)
-      call ncmsg("nproc",ler)
-      ler=nf_get_att_text(ncid,nf_global,"decomp",fdecomp)
-      call ncmsg("decomp",ler)
+      ler=nf_get_att_int(lncid,nf_global,"nproc",lidum)
+      fnproc=lidum
+      der=ler
+      call ncmsg("nproc",der)
+      ler=nf_get_att_text(lncid,nf_global,"decomp",fdecomp)
+      der=ler
+      call ncmsg("decomp",der)
 #else
-      ler=nf90_get_att(ncid,nf90_global,"nproc",fnproc)
-      call ncmsg("nproc",ler)
+      ler=nf90_get_att(ncid,nf90_global,"nproc",lidum)
+      fnproc=lidum
+      der=ler
+      call ncmsg("nproc",der)
       ler=nf90_get_att(ncid,nf90_global,"decomp",fdecomp)
-      call ncmsg("decomp",ler)
+      der=ler
+      call ncmsg("decomp",der)
 #endif
       select case(fdecomp)
         case('face')
@@ -729,10 +768,10 @@ if (myid==0) then
   else
     ! nproc should only exist in multi-file input
 #ifdef usenc3
-    ler=nf_get_att_int(ncid,nf_global,"nproc",dumr)
+    ler=nf_get_att_int(ncid,nf_global,"nproc",lidum)
     if (ler==nf_noerr) then
 #else
-    ler=nf90_get_att(ncid,nf90_global,"nproc",dumr)
+    ler=nf90_get_att(ncid,nf90_global,"nproc",lidum)
     if (ler==nf90_noerr) then
 #endif
       write(6,*) "ERROR: Incorrect base filename"
@@ -742,13 +781,17 @@ if (myid==0) then
   end if
 
 #ifdef usenc3
-  if (ier==nf_noerr) then
-    ler=nf_get_att_int(ncid,nf_global,"int_header",ahead)
-    call ncmsg("int_header",ler)
+  if (lier==nf_noerr) then
+    ler=nf_get_att_int(lncid,nf_global,"int_header",lahead)
+    ahead=lahead
+    der=ler
+    call ncmsg("int_header",der)
 #else
-  if (ier==nf90_noerr) then
-    ler=nf90_get_att(ncid,nf90_global,"int_header",ahead)
-    call ncmsg("int_header",ler)
+  if (lier==nf90_noerr) then
+    ler=nf90_get_att(lncid,nf90_global,"int_header",lahead)
+    ahead=lahead
+    der=ler
+    call ncmsg("int_header",der)
 #endif
     pil_g=ahead(1)
     pjl_g=ahead(2)
@@ -824,10 +867,11 @@ pnpan=idum(4)
 ptest=(idum(5)==1)
 ier=idum(6)
 
+lier=ier
 #ifdef usenc3
-if (ier/=nf_noerr) return
+if (lier/=nf_noerr) return
 #else
-if (ier/=nf90_noerr) return
+if (lier/=nf90_noerr) return
 #endif
 
 ! calculate number of files to be read on this processor
@@ -894,7 +938,7 @@ include 'netcdf.inc'
 #endif
      
 integer ipf,ipin,plen
-integer ierr
+integer(kind=4) :: ierr
       
 if (allocated(pncidold)) then
   plen=size(pncidold)
@@ -1190,9 +1234,12 @@ include 'netcdf.inc'
 integer, intent(in) :: cdfid, itype, ndim
 integer, intent(in) :: daily
 integer, dimension(ndim), intent(in) :: dim
-integer vtype, ier, idv, lsize
+integer ier
+integer(kind=4) :: vtype, idv, lcdfid, lndim, lier, lsize, lnum
+integer(kind=4), dimension(ndim) :: ldim
 real, intent(in) :: xmin, xmax
 real scalef, addoff
+real(kind=4) :: lscalef,laddoff
 character(len=*), intent(in) :: name
 character(len=*), intent(in) :: lname
 character(len=*), intent(in) :: units
@@ -1204,37 +1251,61 @@ character(len=*), intent(in) :: units
   vtype = nf_float
 #endif
 if (itype==1) vtype = nf_short
-ier = nf_def_var(cdfid, name, vtype, ndim, dim, idv)
+lcdfid=cdfid
+lndim=ndim
+ldim=dim
+lier = nf_def_var(lcdfid, name, vtype, lndim, ldim, idv)
+ier=lier
 call ncmsg("def_var",ier)
 lsize=len_trim(lname)
-ier = nf_put_att_text(cdfid,idv,'long_name',lsize,lname)
+lier = nf_put_att_text(lcdfid,idv,'long_name',lsize,lname)
+ier=lier
 call ncmsg("long_name",ier)
 lsize=len_trim(units)
 if(lsize>0)then
-  ier = nf_put_att_text(cdfid,idv,'units',lsize,units)
+  lier = nf_put_att_text(lcdfid,idv,'units',lsize,units)
+  ier=lier
   call ncmsg("units",ier)
 endif
 if (vtype == nf_short) then
-  ier = nf_put_att_int2(cdfid,idv,'valid_min',nf_short,1,minv)
+  lnum=1
+  lier = nf_put_att_int2(lcdfid,idv,'valid_min',nf_short,lnum,minv)
+  ier=lier
   call ncmsg("valid_min",ier)
-  ier = nf_put_att_int2(cdfid,idv,'valid_max',nf_short,1,maxv)
+  lnum=1
+  lier = nf_put_att_int2(lcdfid,idv,'valid_max',nf_short,lnum,maxv)
+  ier=lier
   call ncmsg("valid_max",ier)
-  ier = nf_put_att_int2(cdfid,idv,'missing_value',nf_short,1,missval)
+  lnum=1
+  lier = nf_put_att_int2(lcdfid,idv,'missing_value',nf_short,lnum,missval)
+  ier=lier
   call ncmsg("missing_value",ier)
   scalef=(xmax-xmin)/(real(maxv)-real(minv))
   addoff=xmin-scalef*minv
-  ier = nf_put_att_real(cdfid,idv,'add_offset',nf_float,1,addoff)
+  lscalef=scalef
+  laddoff=addoff
+  lnum=1
+  lier = nf_put_att_real(lcdfid,idv,'add_offset',nf_float,lnum,laddoff)
+  ier=lier
   call ncmsg("add_offset",ier)
-  ier = nf_put_att_real(cdfid,idv,'scale_factor',nf_float,1,scalef)
+  lnum=1
+  lier = nf_put_att_real(lcdfid,idv,'scale_factor',nf_float,lnum,lscalef)
+  ier=lier
   call ncmsg("scale_factor",ier)
 else
-  ier = nf_put_att_real(cdfid,idv,'missing_value',nf_float,1,nf_fill_float)
+  lnum=1
+  lier = nf_put_att_real(lcdfid,idv,'missing_value',nf_float,lnum,nf_fill_float)
+  ier=lier
   call ncmsg("missing_value",ier)
 endif
-ier = nf_put_att_text(cdfid,idv,'FORTRAN_format',5,'G11.4')
+lnum=5
+lier = nf_put_att_text(lcdfid,idv,'FORTRAN_format',lnum,'G11.4')
+ier=lier
 call ncmsg("FORTRAN_format",ier)
 if(daily>0)then
-  ier = nf_put_att_text(cdfid,idv,'valid_time',5,'daily')
+  lnum=5
+  lier = nf_put_att_text(lcdfid,idv,'valid_time',lnum,'daily')
+  ier=lier
   call ncmsg("valid_time",ier)
 endif
 #else
@@ -1244,37 +1315,53 @@ endif
   vtype = nf90_float
 #endif
 if (itype==1) vtype = nf90_short
-ier = nf90_def_var(cdfid, name, vtype, dim, idv, deflate_level=1)
+lcdfid=cdfid
+ldim=dim
+lnum=1
+lier = nf90_def_var(lcdfid, name, vtype, ldim, idv, deflate_level=lnum)
+ier=lier
 call ncmsg("def_var",ier)
 lsize=len_trim(lname)
-ier = nf90_put_att(cdfid,idv,'long_name',lname)
+lier = nf90_put_att(lcdfid,idv,'long_name',lname)
+ier=lier
 call ncmsg("long_name",ier)
 lsize=len_trim(units)
 if(lsize>0)then
-  ier = nf90_put_att(cdfid,idv,'units',units)
+  lier = nf90_put_att(lcdfid,idv,'units',units)
+  ier=lier
   call ncmsg("units",ier)
 endif
 if (vtype == nf90_short) then
-  ier = nf90_put_att(cdfid,idv,'valid_min',minv)
+  lier = nf90_put_att(lcdfid,idv,'valid_min',minv)
+  ier=lier
   call ncmsg("valid_min",ier)
-  ier = nf90_put_att(cdfid,idv,'valid_max',maxv)
+  lier = nf90_put_att(lcdfid,idv,'valid_max',maxv)
+  ier=lier
   call ncmsg("valid_max",ier)
-  ier = nf90_put_att(cdfid,idv,'missing_value',missval)
+  lier = nf90_put_att(lcdfid,idv,'missing_value',missval)
+  ier=lier
   call ncmsg("missing_value",ier)
   scalef=(xmax-xmin)/(real(maxv)-real(minv))
   addoff=xmin-scalef*minv
-  ier = nf90_put_att(cdfid,idv,'add_offset',addoff)
+  lscalef=scalef
+  laddoff=addoff
+  lier = nf90_put_att(lcdfid,idv,'add_offset',laddoff)
+  ier=lier
   call ncmsg("add_offset",ier)
-  ier = nf90_put_att(cdfid,idv,'scale_factor',scalef)
+  lier = nf90_put_att(lcdfid,idv,'scale_factor',lscalef)
+  ier=lier
   call ncmsg("scale_factor",ier)
 else
-  ier = nf90_put_att(cdfid,idv,'missing_value',nf90_fill_float)
+  lier = nf90_put_att(lcdfid,idv,'missing_value',nf90_fill_float)
+  ier=lier
   call ncmsg("missing_value",ier)
 endif
-ier = nf90_put_att(cdfid,idv,'FORTRAN_format','G11.4')
+lier = nf90_put_att(lcdfid,idv,'FORTRAN_format','G11.4')
+ier=lier
 call ncmsg("FORTRAN_format",ier)
 if(daily>0)then
-  ier = nf90_put_att(cdfid,idv,'valid_time','daily')
+  lier = nf90_put_att(lcdfid,idv,'valid_time','daily')
+  ier=lier
   call ncmsg("valid_time",ier)
 endif
 #endif
@@ -1364,60 +1451,68 @@ include 'netcdf.inc'     ! Netcdf parameters
 include 'parm.h'         ! Model configuration
       
 integer, intent(in) :: idnc,iarch,istep
-integer mid, vtype, ier
-integer, dimension(3) :: start, ncount
+integer ier
+integer(kind=4) :: lidnc, lier, mid, vtype
+integer(kind=4), dimension(3) :: start, ncount
 integer(kind=2), dimension(ifull,istep) :: ipack
 real, dimension(ifull,istep), intent(in) :: var
 real addoff, scale_f
+real(kind=4) :: laddoff,lscale_f
 character(len=*), intent(in) :: sname
 
 start = (/ 1, 1, iarch /)
 ncount = (/ il, jl, istep /)
 
+lidnc=idnc
 #ifdef usenc3
-ier=nf_inq_varid(idnc,sname,mid)
+lier=nf_inq_varid(lidnc,sname,mid)
+ier=lier
 call ncmsg(sname,ier)
-ier=nf_inq_vartype(idnc,mid,vtype)
+lier=nf_inq_vartype(lidnc,mid,vtype)
 if(vtype == nf_short)then
 #else
-ier=nf90_inq_varid(idnc,sname,mid)
+lier=nf90_inq_varid(lidnc,sname,mid)
+ier=lier
 call ncmsg(sname,ier)
-ier=nf90_inquire_variable(idnc,mid,xtype=vtype)
+lier=nf90_inquire_variable(lidnc,mid,xtype=vtype)
 if(vtype == nf90_short)then
 #endif
   if (all(var>9.8E36)) then
     ipack=missval
   else
 #ifdef usenc3  
-    ier=nf_get_att_real(idnc,mid,'add_offset',addoff)
-    ier=nf_get_att_real(idnc,mid,'scale_factor',scale_f)
+    lier=nf_get_att_real(lidnc,mid,'add_offset',laddoff)
+    lier=nf_get_att_real(lidnc,mid,'scale_factor',lscale_f)
 #else
-    ier=nf90_get_att(idnc,mid,'add_offset',addoff)
-    ier=nf90_get_att(idnc,mid,'scale_factor',scale_f)
+    lier=nf90_get_att(lidnc,mid,'add_offset',laddoff)
+    lier=nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
 #endif
+    addoff=laddoff
+    scale_f=lscale_f
     ipack=max(min(nint((var-addoff)/scale_f),maxv),minv)
   end if
 #ifdef usenc3
-  ier=nf_put_vara_int2(idnc,mid,start,ncount,ipack)
+  lier=nf_put_vara_int2(lidnc,mid,start,ncount,ipack)
 else
 #ifdef i8r8
-  ier=nf_put_vara_double(idnc,mid,start,ncount,var)
+  lier=nf_put_vara_double(lidnc,mid,start,ncount,var)
 #else
-  ier=nf_put_vara_real(idnc,mid,start,ncount,var)
+  lier=nf_put_vara_real(lidnc,mid,start,ncount,var)
 #endif
 #else
-  ier=nf90_put_var(idnc,mid,ipack,start=start,count=ncount)
+  lier=nf90_put_var(lidnc,mid,ipack,start=start,count=ncount)
 else
-ier=nf90_put_var(idnc,mid,var,start=start,count=ncount)
+lier=nf90_put_var(lidnc,mid,var,start=start,count=ncount)
 #endif
 end if
+ier=lier
 call ncmsg(sname,ier)
 
 if (mod(ktau,nmaxpr)==0.and.myid==0) then
 #ifdef usenc3
-  if (any(var==nf_fill_float)) then
+  if (any(var==real(nf_fill_float))) then
 #else
-  if (any(var==nf90_fill_float)) then
+  if (any(var==real(nf90_fill_float))) then
 #endif
     write(6,'("histwrt3 ",a7,i4,a7)') sname,iarch,"missing"
   else
@@ -1444,14 +1539,16 @@ include 'netcdf.inc'     ! Netcdf parameters
 include 'parm.h'         ! Model configuration
 
 integer, intent(in) :: idnc, iarch, istep
-integer mid, vtype, ier
+integer ier
 integer imn, imx, jmn, jmx, iq
-integer, dimension(3) :: start, ncount
+integer(kind=4) :: lidnc, mid, vtype, lier
+integer(kind=4), dimension(3) :: start, ncount
 integer(kind=2), dimension(ifull_g,istep) :: ipack
 real, dimension(ifull,istep), intent(in) :: var
 real, dimension(ifull_g,istep) :: globvar
 real addoff, scale_f
 real varn, varx
+real(kind=4) :: laddoff, lscale_f
 character(len=*), intent(in) :: sname
       
 call ccmpi_gather(var, globvar)
@@ -1460,50 +1557,56 @@ start = (/ 1, 1, iarch /)
 ncount = (/ il_g, jl_g, istep /)
 
 !     find variable index
+lidnc=idnc
 #ifdef usenc3
-ier=nf_inq_varid(idnc,sname,mid)
+lier=nf_inq_varid(lidnc,sname,mid)
+ier=lier
 call ncmsg(sname,ier)
-ier=nf_inq_vartype(idnc,mid,vtype)
+lier=nf_inq_vartype(lidnc,mid,vtype)
 if (vtype == nf_short) then
 #else
-ier=nf90_inq_varid(idnc,sname,mid)
+lier=nf90_inq_varid(lidnc,sname,mid)
+ier=lier
 call ncmsg(sname,ier)
-ier=nf90_inquire_variable(idnc,mid,xtype=vtype)
+lier=nf90_inquire_variable(lidnc,mid,xtype=vtype)
 if (vtype == nf90_short) then
 #endif
   if (all(globvar>9.8e36)) then
     ipack=missval
   else
 #ifdef usenc3
-    ier=nf_get_att_real(idnc,mid,'add_offset',addoff)
-    ier=nf_get_att_real(idnc,mid,'scale_factor',scale_f)
+    lier=nf_get_att_real(lidnc,mid,'add_offset',laddoff)
+    lier=nf_get_att_real(lidnc,mid,'scale_factor',lscale_f)
 #else
-    ier=nf90_get_att(idnc,mid,'add_offset',addoff)
-    ier=nf90_get_att(idnc,mid,'scale_factor',scale_f)
+    lier=nf90_get_att(lidnc,mid,'add_offset',laddoff)
+    lier=nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
 #endif
+    addoff=laddoff
+    scale_f=lscale_f
     ipack=max(min(nint((globvar-addoff)/scale_f),maxv),minv)
   endif
 #ifdef usenc3
-  ier=nf_put_vara_int2(idnc,mid,start,ncount,ipack)
+  lier=nf_put_vara_int2(lidnc,mid,start,ncount,ipack)
 else
 #ifdef i8r8
-  ier=nf_put_vara_double(idnc,mid,start,ncount,globvar)
+  lier=nf_put_vara_double(lidnc,mid,start,ncount,globvar)
 #else
-  ier=nf_put_vara_real(idnc,mid,start,ncount,globvar)
+  lier=nf_put_vara_real(lidnc,mid,start,ncount,globvar)
 #endif
 #else
-  ier=nf90_put_var(idnc,mid,ipack,start=start,count=ncount)
+  lier=nf90_put_var(lidnc,mid,ipack,start=start,count=ncount)
 else
-  ier=nf90_put_var(idnc,mid,globvar,start=start,count=ncount)
+  lier=nf90_put_var(lidnc,mid,globvar,start=start,count=ncount)
 #endif
 endif
+ier=lier
 call ncmsg(sname,ier)
 
 if(mod(ktau,nmaxpr)==0)then
 #ifdef usenc3
-  if (any(globvar==nf_fill_float)) then
+  if (any(globvar==real(nf_fill_float))) then
 #else
-  if (any(globvar==nf90_fill_float)) then
+  if (any(globvar==real(nf90_fill_float))) then
 #endif
     write(6,'("histwrt3 ",a7,i4,a7)') sname,iarch,"missing"
   else
@@ -1586,60 +1689,68 @@ include 'netcdf.inc'     ! Netcdf parameters
 include 'parm.h'         ! Model configuration
 
 integer, intent(in) :: idnc, iarch
-integer mid, vtype, ier
-integer, dimension(4) :: start, ncount
+integer ier
+integer(kind=4) :: mid, vtype, lier, lidnc
+integer(kind=4), dimension(4) :: start, ncount
 integer(kind=2), dimension(ifull,kl) :: ipack
 real, dimension(ifull,kl), intent(in) :: var
 real addoff, scale_f
+real(kind=4) :: laddoff, lscale_f
 character(len=*), intent(in) :: sname
 
 start = (/ 1, 1, 1, iarch /)
 ncount = (/ il, jl, kl, 1 /)
 
+lidnc=idnc
 #ifdef usenc3
-ier=nf_inq_varid(idnc,sname,mid)
+lier=nf_inq_varid(lidnc,sname,mid)
+ier=lier
 call ncmsg(sname,ier)
-ier = nf_inq_vartype(idnc, mid, vtype)
+lier = nf_inq_vartype(lidnc, mid, vtype)
 if(vtype == nf_short)then
 #else
-ier=nf90_inq_varid(idnc,sname,mid)
+lier=nf90_inq_varid(lidnc,sname,mid)
+ier=lier
 call ncmsg(sname,ier)
-ier = nf90_inquire_variable(idnc, mid, xtype=vtype)
+lier = nf90_inquire_variable(lidnc, mid, xtype=vtype)
 if(vtype == nf90_short)then
 #endif
   if(all(var>9.8e36))then
     ipack=missval
   else
 #ifdef usenc3
-    ier=nf_get_att_real(idnc,mid,'add_offset',addoff)
-    ier=nf_get_att_real(idnc,mid,'scale_factor',scale_f)
+    lier=nf_get_att_real(lidnc,mid,'add_offset',laddoff)
+    lier=nf_get_att_real(lidnc,mid,'scale_factor',lscale_f)
 #else
-    ier=nf90_get_att(idnc,mid,'add_offset',addoff)
-    ier=nf90_get_att(idnc,mid,'scale_factor',scale_f)
+    lier=nf90_get_att(lidnc,mid,'add_offset',laddoff)
+    lier=nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
 #endif
+    addoff=laddoff
+    scale_f=lscale_f
     ipack=max(min(nint((var-addoff)/scale_f),maxv),minv)
   endif
 #ifdef usenc3
-  ier=nf_put_vara_int2(idnc,mid,start,ncount,ipack)
+  lier=nf_put_vara_int2(lidnc,mid,start,ncount,ipack)
 else
 #ifdef i8r8
-  ier=nf_put_vara_double(idnc,mid,start,ncount,var)
+  lier=nf_put_vara_double(lidnc,mid,start,ncount,var)
 #else
-  ier=nf_put_vara_real(idnc,mid,start,ncount,var)
+  lier=nf_put_vara_real(lidnc,mid,start,ncount,var)
 #endif
 #else
-  ier=nf90_put_var(idnc,mid,ipack,start=start,count=ncount)
+  lier=nf90_put_var(lidnc,mid,ipack,start=start,count=ncount)
 else
-  ier=nf90_put_var(idnc,mid,var,start=start,count=ncount)
+  lier=nf90_put_var(lidnc,mid,var,start=start,count=ncount)
 #endif
 endif
+ier=lier
 call ncmsg(sname,ier)
 
 if(mod(ktau,nmaxpr)==0.and.myid==0)then
 #ifdef usenc3
-  if (any(var==nf_fill_float)) then
+  if (any(var==real(nf_fill_float))) then
 #else
-  if (any(var==nf90_fill_float)) then
+  if (any(var==real(nf90_fill_float))) then
 #endif
     write(6,'("histwrt4 ",a7,i4,a7)') sname,iarch,"missing"
   else
@@ -1666,72 +1777,74 @@ include 'netcdf.inc'    ! Netcdf parameters
 include 'parm.h'        ! Model configuration
 
 integer, intent(in) :: idnc, iarch
-integer mid, vtype, ier
+integer ier
 integer imx, jmx, kmx, iq
-integer, dimension(4) :: start, ncount
+integer(kind=4) :: mid, vtype, lier, lidnc
+integer(kind=4), dimension(4) :: start, ncount
 integer, dimension(2) :: max_result
 integer(kind=2), dimension(ifull_g,kl) :: ipack
 real addoff, scale_f
 real varn, varx
+real(kind=4) :: laddoff, lscale_f
 real, dimension(ifull,kl), intent(in) :: var
 real, dimension(ifull_g,kl) :: globvar
 character(len=*), intent(in) :: sname
       
 call ccmpi_gather(var, globvar)
-start(1) = 1
-start(2) = 1
-start(3) = 1
-start(4) = iarch
-ncount(1) = il_g
-ncount(2) = jl_g
-ncount(3) = kl
-ncount(4) = 1
+start = (/ 1, 1, 1, iarch /)
+ncount = (/ il_g, jl_g, kl, 1 /)
 
 !     find variable index
+lidnc=idnc
 #ifdef usenc3
-ier=nf_inq_varid(idnc,sname,mid)
+lier=nf_inq_varid(lidnc,sname,mid)
+ier=lier
 call ncmsg(sname,ier)
-ier = nf_inq_vartype(idnc, mid, vtype)
+lier = nf_inq_vartype(lidnc, mid, vtype)
 if(vtype == nf_short)then
 #else
-ier=nf90_inq_varid(idnc,sname,mid)
+lier=nf90_inq_varid(lidnc,sname,mid)
+ier=lier
 call ncmsg(sname,ier)
-ier = nf90_inquire_variable(idnc, mid, xtype=vtype)
+lier = nf90_inquire_variable(lidnc, mid, xtype=vtype)
 if(vtype == nf90_short)then
 #endif
   if(all(globvar>9.8e36))then
     ipack=missval
   else
 #ifdef usenc3
-    ier=nf_get_att_real(idnc,mid,'add_offset',addoff)
-    ier=nf_get_att_real(idnc,mid,'scale_factor',scale_f)
+    lier=nf_get_att_real(lidnc,mid,'add_offset',laddoff)
+    lier=nf_get_att_real(lidnc,mid,'scale_factor',lscale_f)
 #else
-    ier=nf90_get_att(idnc,mid,'add_offset',addoff)
-    ier=nf90_get_att(idnc,mid,'scale_factor',scale_f)
+    lier=nf90_get_att(lidnc,mid,'add_offset',laddoff)
+    lier=nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
 #endif
+    addoff=laddoff
+    scale_f=lscale_f
     ipack=max(min(nint((globvar-addoff)/scale_f),maxv),minv)
   endif
 #ifdef usenc3
-  ier=nf_put_vara_int2(idnc,mid,start,ncount,ipack)
+  lier=nf_put_vara_int2(lidnc,mid,start,ncount,ipack)
 else
 #ifdef i8r8
-  ier=nf_put_vara_double(idnc,mid,start,ncount,globvar)
+  lier=nf_put_vara_double(lidnc,mid,start,ncount,globvar)
 #else
-  ier=nf_put_vara_real(idnc,mid,start,ncount,globvar)
+  lier=nf_put_vara_real(lidnc,mid,start,ncount,globvar)
 #endif
 #else
-  ier=nf90_put_var(idnc,mid,ipack,start=start,count=ncount)
+  lier=nf90_put_var(lidnc,mid,ipack,start=start,count=ncount)
 else
-  ier=nf90_put_var(idnc,mid,globvar,start=start,count=ncount)
+  lier=nf90_put_var(lidnc,mid,globvar,start=start,count=ncount)
 #endif
 endif
+ier=lier
 call ncmsg(sname,ier)
 
 if(mod(ktau,nmaxpr)==0)then
 #ifdef usenc3
-  if (any(globvar==nf_fill_float)) then
+  if (any(globvar==real(nf_fill_float))) then
 #else
-  if (any(globvar==nf90_fill_float)) then
+  if (any(globvar==real(nf90_fill_float))) then
 #endif
     write(6,'("histwrt4 ",a7,i4,a7)') sname,iarch,"missing"
   else
@@ -1768,13 +1881,16 @@ include 'netcdf.inc'
 integer, intent(out) :: ncid
 integer, intent(out), optional :: status
 integer ncstatus
+integer(kind=4) :: lncid,lncstatus
 character(len=*), intent(in) :: fname
 
 #ifdef usenc3
-ncstatus = nf_open(fname,nf_nowrite,ncid)
+lncstatus = nf_open(fname,nf_nowrite,lncid)
 #else
-ncstatus = nf90_open(fname,nf90_nowrite,ncid)
+lncstatus = nf90_open(fname,nf90_nowrite,lncid)
 #endif
+ncid=lncid
+ncstatus=lncstatus
 
 if (present(status)) then
   status=ncstatus
@@ -1800,13 +1916,17 @@ include 'netcdf.inc'
 
 integer, intent(out) :: ncid
 integer ncstatus
+integer(kind=4) :: lncid, lncstatus
 character(len=*), intent(in) :: fname
 
 #ifdef usenc3
-  ncstatus = nf_create(fname,nf_clobber,ncid)
+  lncstatus = nf_create(fname,nf_clobber,lncid)
 #else
-  ncstatus = nf90_create(fname,nf90_netcdf4,ncid)
+  lncstatus = nf90_create(fname,nf90_netcdf4,lncid)
 #endif
+ncid=lncid
+ncstatus=lncstatus
+
 call ncmsg("create",ncstatus)
 
 return
@@ -1827,12 +1947,15 @@ include 'netcdf.inc'
 
 integer, intent(in) :: ncid
 integer ncstatus
+integer(kind=4) :: lncid,lncstatus
 
+lncid=ncid
 #if usenc3
-ncstatus = nf_close(ncid)
+lncstatus = nf_close(lncid)
 #else
-ncstatus = nf90_close(ncid)
+lncstatus = nf90_close(lncid)
 #endif
+ncstatus=lncstatus
 call ncmsg("close",ncstatus)
 
 return
@@ -1852,13 +1975,16 @@ include 'netcdf.inc'
 #endif
 
 integer, intent(in) :: ncid
-integer ncstatus,lomode
+integer ncstatus
+integer(kind=4) :: lncid,lncstatus,lomode
 
+lncid=ncid
 #ifdef usenc3
-ncstatus=nf_set_fill(ncid,nf_nofill,lomode)
+lncstatus=nf_set_fill(lncid,nf_nofill,lomode)
 #else
-ncstatus=nf90_set_fill(ncid,nf90_nofill,lomode)
+lncstatus=nf90_set_fill(lncid,nf90_nofill,lomode)
 #endif
+ncstatus=lncstatus
 call ncmsg("nofill",ncstatus)
 
 return
@@ -1880,17 +2006,21 @@ include 'netcdf.inc'
 integer, intent(in) :: ncid
 integer, intent(out) :: did
 integer ncstatus
+integer(kind=4) :: lncid,ldid,lncstatus
 logical ltst
 logical, intent(out), optional :: tst
 character(len=*), intent(in) :: dname
 
+lncid=ncid
 #ifdef usenc3
-ncstatus=nf_inq_dimid(ncid,dname,did)
-ltst=(ncstatus/=nf_noerr)
+lncstatus=nf_inq_dimid(lncid,dname,ldid)
+ltst=(lncstatus/=nf_noerr)
 #else
-ncstatus=nf90_inq_dimid(ncid,dname,did)
-ltst=(ncstatus/=nf90_noerr)
+lncstatus=nf90_inq_dimid(lncid,dname,ldid)
+ltst=(lncstatus/=nf90_noerr)
 #endif
+did=ldid
+ncstatus=lncstatus
 
 if (present(tst)) then
   tst=ltst
@@ -1916,7 +2046,8 @@ include 'netcdf.inc'
 
 integer, intent(in) :: ncid
 integer, intent(inout) :: dlen
-integer ncstatus,ldid,ldlen
+integer ncstatus
+integer(kind=4) :: lncid,lncstatus,ldid,ldlen
 character(len=*), intent(in) :: dname
 logical, intent(in), optional :: failok
 logical ftest
@@ -1924,30 +2055,35 @@ logical ftest
 ftest=.false.
 if (present(failok)) ftest=failok
 
+lncid=ncid
 ldlen=dlen
 #ifdef usenc3
-ncstatus=nf_inq_dimid(ncid,dname,ldid)
-if (ncstatus/=nf_noerr) then
+lncstatus=nf_inq_dimid(lncid,dname,ldid)
+if (lncstatus/=nf_noerr) then
   if (ftest) return
+  ncstatus=lncstatus
   write(6,*) nf_strerror(ncstatus)
   call ccmpi_abort(-1)
 end if
-ncstatus=nf_inq_dimlen(ncid,ldid,ldlen)
-if (ncstatus/=nf_noerr) then
+lncstatus=nf_inq_dimlen(lncid,ldid,ldlen)
+if (lncstatus/=nf_noerr) then
   if (ftest) return
+  ncstatus=lncstatus
   write(6,*) nf_strerror(ncstatus)
   call ccmpi_abort(-1)
 end if
 #else
-ncstatus=nf90_inq_dimid(ncid,dname,ldid)
-if (ncstatus/=nf90_noerr) then
+lncstatus=nf90_inq_dimid(lncid,dname,ldid)
+if (lncstatus/=nf90_noerr) then
   if (ftest) return
+  ncstatus=lncstatus
   write(6,*) nf90_strerror(ncstatus)
   call ccmpi_abort(-1)
 end if
-ncstatus=nf90_inquire_dimension(ncid,ldid,len=ldlen)
-if (ncstatus/=nf90_noerr) then
+lncstatus=nf90_inquire_dimension(lncid,ldid,len=ldlen)
+if (lncstatus/=nf90_noerr) then
   if (ftest) return
+  ncstatus=lncstatus
   write(6,*) nf90_strerror(ncstatus)
   call ccmpi_abort(-1)
 end if
@@ -1973,17 +2109,21 @@ include 'netcdf.inc'
 integer, intent(in) :: ncid
 integer, intent(out) :: vid
 integer ncstatus
+integer(kind=4) :: lncid,lvid,lncstatus
 character(len=*), intent(in) :: vname
 logical, intent(out), optional :: tst
 logical ltst
 
+lncid=ncid
 #ifdef usenc3
-ncstatus = nf_inq_varid(ncid,vname,vid)
-ltst=(ncstatus/=nf_noerr)
+lncstatus = nf_inq_varid(lncid,vname,lvid)
+ltst=(lncstatus/=nf_noerr)
 #else
-ncstatus = nf90_inq_varid(ncid,vname,vid)
-ltst=(ncstatus/=nf90_noerr)
+lncstatus = nf90_inq_varid(lncid,vname,lvid)
+ltst=(lncstatus/=nf90_noerr)
 #endif
+vid=lvid
+ncstatus=lncstatus
 
 if (present(tst)) then
   tst=ltst
@@ -2010,13 +2150,18 @@ include 'netcdf.inc'
 integer, intent(in) :: ncid,nsize
 integer, intent(out) :: did
 integer ncstatus
+integer(kind=4) :: lncid,lnsize,ldid,lncstatus
 character(len=*), intent(in) :: dname
 
+lncid=ncid
+lnsize=nsize
 #ifdef usenc3
-ncstatus=nf_def_dim(ncid,dname,nsize,did)
+lncstatus=nf_def_dim(lncid,dname,lnsize,ldid)
 #else
-ncstatus=nf90_def_dim(ncid,dname,nsize,did)
+lncstatus=nf90_def_dim(lncid,dname,lnsize,ldid)
 #endif
+did=ldid
+ncstatus=lncstatus
 call ncmsg("def_dim",ncstatus)
 
 return
@@ -2038,13 +2183,17 @@ include 'netcdf.inc'
 integer, intent(in) :: ncid
 integer, intent(out) :: did
 integer ncstatus
+integer(kind=4) :: lncid,ldid,lncstatus
 character(len=*), intent(in) :: dname
 
+lncid=ncid
 #ifdef usenc3
-ncstatus=nf_def_dim(ncid,dname,nf_unlimited,did)
+lncstatus=nf_def_dim(lncid,dname,nf_unlimited,ldid)
 #else
-ncstatus=nf90_def_dim(ncid,dname,nf90_unlimited,did)
+lncstatus=nf90_def_dim(lncid,dname,nf90_unlimited,ldid)
 #endif
+did=ldid
+ncstatus=lncstatus
 call ncmsg("def_dimu",ncstatus)
 
 return
@@ -2067,7 +2216,9 @@ integer, intent(in) :: ncid,vndim
 integer, intent(in), optional :: deflate
 integer, intent(out) :: vid
 integer, dimension(vndim), intent(in) :: dims
-integer ncstatus,lvid,ltype,ldef
+integer ncstatus
+integer(kind=4) :: lncid,lvndim,ldef,ltype,lvid,lncstatus
+integer(kind=4), dimension(vndim) :: ldims
 character(len=*), intent(in) :: vname
 character(len=*), intent(in) :: vtype
 
@@ -2096,13 +2247,18 @@ select case(vtype)
     call ccmpi_abort(-1)
 end select
 
+lncid=ncid
+ldims=dims
 #ifdef usenc3
-ncstatus = nf_def_var(ncid,vname,ltype,vndim,dims,vid)
+lvndim=vndim
+lncstatus = nf_def_var(lncid,vname,ltype,lvndim,ldims,lvid)
 #else
 ldef=1
 if (present(deflate)) ldef=deflate
-ncstatus = nf90_def_var(ncid,vname,ltype,dims,vid,deflate_level=ldef)
+lncstatus = nf90_def_var(lncid,vname,ltype,ldims,lvid,deflate_level=ldef)
 #endif
+vid=lvid
+ncstatus=lncstatus
 call ncmsg("def_var",ncstatus)
 
 return
@@ -2123,7 +2279,8 @@ include 'netcdf.inc'
 
 integer, intent(in) :: ncid
 integer, intent(out) :: vid
-integer ncstatus,ltype
+integer ncstatus
+integer(kind=4) :: lncid,lvid,lncstatus,ltype,lone,lzero
 character(len=*), intent(in) :: vname
 character(len=*), intent(in) :: vtype
 
@@ -2152,11 +2309,16 @@ select case(vtype)
     call ccmpi_abort(-1)
 end select
 
+lncid=ncid
 #ifdef usenc3
-ncstatus = nf_def_var(ncid,vname,ltype,0,1,vid)
+lone=1
+lzero=0
+lncstatus = nf_def_var(lncid,vname,ltype,lzero,lone,lvid)
 #else
-ncstatus = nf90_def_var(ncid,vname,ltype,vid)
+lncstatus = nf90_def_var(lncid,vname,ltype,lvid)
 #endif
+vid=lvid
+ncstatus=lncstatus
 call ncmsg("def_var0",ncstatus)
 
 return
@@ -2177,12 +2339,15 @@ include 'netcdf.inc'
 
 integer, intent(in) :: ncid
 integer ncstatus
+integer(kind=4) :: lncid,lncstatus
 
+lncid=ncid
 #ifdef usenc3
-ncstatus=nf_enddef(ncid)
+lncstatus=nf_enddef(lncid)
 #else
-ncstatus=nf90_enddef(ncid)
+lncstatus=nf90_enddef(lncid)
 #endif
+ncstatus=lncstatus
 call ncmsg("enddef",ncstatus)
 
 return
@@ -2203,12 +2368,15 @@ include 'netcdf.inc'
 
 integer, intent(in) :: ncid
 integer ncstatus
+integer(kind=4) :: lncid,lncstatus
 
+lncid=ncid
 #ifdef usenc3
-ncstatus=nf_redef(ncid)
+lncstatus=nf_redef(lncid)
 #else
-ncstatus=nf90_redef(ncid)
+lncstatus=nf90_redef(lncid)
 #endif
+ncstatus=lncstatus
 call ncmsg("redef",ncstatus)
 
 return
@@ -2229,13 +2397,16 @@ include 'netcdf.inc'
 
 integer, intent(in) :: ncid
 integer ncstatus
+integer(kind=4) :: lncid,lncstatus
 
 #ifdef outsync
+lncid=ncid
 #ifdef usenc3
-ncstatus = nf_sync(ncid)
+lncstatus = nf_sync(lncid)
 #else
-ncstatus = nf90_sync(ncid)
+lncstatus = nf90_sync(lncid)
 #endif
+ncstatus=lncstatus
 call ncmsg("sync",ncstatus)
 #endif
 
@@ -2256,19 +2427,29 @@ include 'netcdf.inc'
 #endif
 
 integer, intent(in) :: ncid
-integer lvid,ncstatus
+integer ncstatus
+integer(kind=4) :: lvid,lncstatus,lncid
 real, dimension(:), intent(out) :: vdat
 character(len=*), intent(in) :: vname
 
+lncid=ncid
 #ifdef usenc3
-ncstatus = nf_inq_varid(ncid,vname,lvid)
+lncstatus = nf_inq_varid(lncid,vname,lvid)
+ncstatus=lncstatus
 call ncmsg("get_var_varid",ncstatus)
-ncstatus = nf_get_var_real(ncid,lvid,vdat)
+#ifdef i8r8
+lncstatus = nf_get_var_double(lncid,lvid,vdat)
+#else
+lncstatus = nf_get_var_real(lncid,lvid,vdat)
+#endif
+ncstatus=lncstatus
 call ncmsg("get_var",ncstatus)
 #else
-ncstatus = nf90_inq_varid(ncid,vname,lvid)
+lncstatus = nf90_inq_varid(lncid,vname,lvid)
+ncstatus=lncstatus
 call ncmsg("get_var_varid",ncstatus)
-ncstatus = nf90_get_var(ncid,lvid,vdat)
+lncstatus = nf90_get_var(lncid,lvid,vdat)
+ncstatus=lncstatus
 call ncmsg("get_var",ncstatus)
 #endif
 
@@ -2289,19 +2470,28 @@ include 'netcdf.inc'
 #endif
 
 integer, intent(in) :: ncid
-integer lvid,ncstatus
+integer ncstatus
 integer, dimension(:), intent(out) :: vdat
+integer(kind=4) :: lncid,lncstatus,lvid
+integer(kind=4), dimension(size(vdat)) :: lvdat
 character(len=*), intent(in) :: vname
 
+lncid=ncid
 #ifdef usenc3
-ncstatus = nf_inq_varid(ncid,vname,lvid)
+lncstatus = nf_inq_varid(lncid,vname,lvid)
+ncstatus=lncstatus
 call ncmsg("get_var_varid",ncstatus)
-ncstatus = nf_get_var_int(ncid,lvid,vdat)
+lncstatus = nf_get_var_int(lncid,lvid,lvdat)
+vdat=lvdat
+ncstatus=lncstatus
 call ncmsg("get_var",ncstatus)
 #else
-ncstatus = nf90_inq_varid(ncid,vname,lvid)
+lncstatus = nf90_inq_varid(lncid,vname,lvid)
+ncstatus=lncstatus
 call ncmsg("get_var_varid",ncstatus)
-ncstatus = nf90_get_var(ncid,lvid,vdat)
+lncstatus = nf90_get_var(lncid,lvid,lvdat)
+vdat=lvdat
+ncstatus=lncstatus
 call ncmsg("get_var",ncstatus)
 #endif
 
@@ -2323,20 +2513,31 @@ include 'netcdf.inc'
 
 integer, intent(in) :: ncid,vid,start
 integer ncstatus
-#ifndef usenc3
-integer, dimension(1) :: lstart,lcount
+integer(kind=4) :: lncid,lvid,lncstatus
+#ifdef usenc3
+integer(kind=4) :: lstart
+#else
+integer(kind=4), dimension(1) :: lstart,lcount
 real, dimension(1) :: ldat
 #endif
 real, intent(out) :: vdat
 
+lncid=ncid
+lvid=vid
 #ifdef usenc3
-ncstatus = nf_get_var1_real(ncid,vid,start,vdat)
+lstart=start
+#ifdef i8r8
+lncstatus = nf_get_var1_double(lncid,lvid,lstart,vdat)
+#else
+lncstatus = nf_get_var1_real(lncid,lvid,lstart,vdat)
+#endif
 #else
 lstart=start
 lcount=1
-ncstatus = nf90_get_var(ncid,vid,ldat,start=lstart,count=lcount)
+lncstatus = nf90_get_var(lncid,lvid,ldat,start=lstart,count=lcount)
 vdat=ldat(1)
 #endif
+ncstatus=lncstatus
 call ncmsg("get_var1",ncstatus)
 
 return
@@ -2357,20 +2558,32 @@ include 'netcdf.inc'
 
 integer, intent(in) :: ncid,vid,start
 integer ncstatus
-#ifndef usenc3
+integer(kind=4) :: lncid,lvid,lncstatus
+#ifdef usenc3
+integer(kind=4) :: lstart,ldat
+#else
 integer, dimension(1) :: lstart,lcount
 integer, dimension(1) :: ldat
 #endif
 integer, intent(out) :: vdat
 
+lncid=ncid
+lvid=vid
 #ifdef usenc3
-ncstatus = nf_get_var1_int(ncid,vid,start,vdat)
+lstart=start
+#ifdef i8r8
+lncstatus = nf_get_var1_int(lncid,lvid,lstart,ldat)
+#else
+lncstatus = nf_get_var1_int(lncid,lvid,lstart,ldat)
+#endif
+vdat=ldat
 #else
 lstart=start
 lcount=1
-ncstatus = nf90_get_var(ncid,vid,ldat,start=lstart,count=lcount)
+lncstatus = nf90_get_var(lncid,lvid,ldat,start=lstart,count=lcount)
 vdat=ldat(1)
 #endif
+ncstatus=lncstatus
 call ncmsg("get_var1",ncstatus)
 
 return
@@ -2390,15 +2603,27 @@ include 'netcdf.inc'
 #endif
 
 integer, intent(in) :: ncid,vid
-integer, dimension(:) :: start,ncount
+integer, dimension(:), intent(in) :: start,ncount
 integer ncstatus
+integer(kind=4) :: lncid,lvid,lncstatus
+integer(kind=4), dimension(size(start)) :: lstart
+integer(kind=4), dimension(size(ncount)) :: lncount
 real, dimension(:), intent(out) :: vdat
 
+lncid=ncid
+lvid=vid
+lstart=start
+lncount=ncount
 #ifdef usenc3
-ncstatus=nf_get_vara_real(ncid,vid,start,ncount,vdat)
+#ifdef i8r8
+lncstatus=nf_get_vara_double(lncid,lvid,lstart,lncount,vdat)
 #else
-ncstatus=nf90_get_var(ncid,vid,vdat,start=start,count=ncount)
+lncstatus=nf_get_vara_real(lncid,lvid,lstart,lncount,vdat)
 #endif
+#else
+lncstatus=nf90_get_var(lncid,lvid,vdat,start=lstart,count=lncount)
+#endif
+ncstatus=lncstatus
 call ncmsg("get_vara",ncstatus)
 
 return
@@ -2420,13 +2645,25 @@ include 'netcdf.inc'
 integer, intent(in) :: ncid,vid
 integer, dimension(:) :: start,ncount
 integer ncstatus
+integer(kind=4) :: lncid,lvid,lncstatus
+integer(kind=4), dimension(size(start)) :: lstart
+integer(kind=4), dimension(size(ncount)) :: lncount
 real, dimension(:,:), intent(out) :: vdat
 
+lncid=ncid
+lvid=vid
+lstart=start
+lncount=ncount
 #ifdef usenc3
-ncstatus=nf_get_vara_real(ncid,vid,start,ncount,vdat)
+#ifdef i8r8
+lncstatus=nf_get_vara_double(lncid,lvid,lstart,lncount,vdat)
 #else
-ncstatus=nf90_get_var(ncid,vid,vdat,start=start,count=ncount)
+lncstatus=nf_get_vara_real(lncid,lvid,lstart,lncount,vdat)
 #endif
+#else
+lncstatus=nf90_get_var(lncid,lvid,vdat,start=lstart,count=lncount)
+#endif
+ncstatus=lncstatus
 call ncmsg("get_vara",ncstatus)
 
 return
@@ -2448,13 +2685,25 @@ include 'netcdf.inc'
 integer, intent(in) :: ncid,vid
 integer, dimension(:) :: start,ncount
 integer ncstatus
+integer(kind=4) :: lncid,lvid,lncstatus
+integer(kind=4), dimension(size(start)) :: lstart
+integer(kind=4), dimension(size(ncount)) :: lncount
 real, dimension(:,:,:), intent(out) :: vdat
 
+lncid=ncid
+lvid=vid
+lstart=start
+lncount=ncount
 #ifdef usenc3
-ncstatus=nf_get_vara_real(ncid,vid,start,ncount,vdat)
+#ifdef i8r8
+lncstatus=nf_get_vara_double(lncid,lvid,lstart,lncount,vdat)
 #else
-ncstatus=nf90_get_var(ncid,vid,vdat,start=start,count=ncount)
+lncstatus=nf_get_vara_real(lncid,lvid,lstart,lncount,vdat)
 #endif
+#else
+lncstatus=nf90_get_var(lncid,lvid,vdat,start=lstart,count=lncount)
+#endif
+ncstatus=lncstatus
 call ncmsg("get_vara",ncstatus)
 
 return
@@ -2477,12 +2726,22 @@ integer, intent(in) :: ncid,vid
 integer, dimension(:) :: start,ncount
 integer ncstatus
 integer, dimension(:), intent(out) :: vdat
+integer(kind=4) :: lncid,lvid,lncstatus
+integer(kind=4), dimension(size(start)) :: lstart
+integer(kind=4), dimension(size(ncount)) :: lncount
+integer(kind=4), dimension(size(vdat)) :: lvdat
 
+lncid=ncid
+lvid=vid
+lstart=start
+lncount=ncount
 #ifdef usenc3
-ncstatus=nf_get_vara_int(ncid,vid,start,ncount,vdat)
+lncstatus=nf_get_vara_int(lncid,lvid,lstart,lncount,lvdat)
 #else
-ncstatus=nf90_get_var(ncid,vid,vdat,start=start,count=ncount)
+lncstatus=nf90_get_var(lncid,lvid,lvdat,start=lstart,count=lncount)
 #endif
+vdat=lvdat
+ncstatus=lncstatus
 call ncmsg("get_vara",ncstatus)
 
 return
@@ -2505,13 +2764,21 @@ include 'netcdf.inc'
 integer, intent(in) :: ncid,vid
 integer, dimension(:) :: start,ncount
 integer ncstatus
+integer(kind=4) :: lncid,lvid,lncstatus
+integer(kind=4), dimension(size(start)) :: lstart
+integer(kind=4), dimension(size(ncount)) :: lncount
 double precision, dimension(:,:,:), intent(out) :: vdat
 
+lncid=ncid
+lvid=vid
+lstart=start
+lncount=ncount
 #ifdef usenc3
-ncstatus=nf_get_vara_double(ncid,vid,start,ncount,vdat)
+lncstatus=nf_get_vara_double(lncid,lvid,lstart,lncount,vdat)
 #else
-ncstatus=nf90_get_var(ncid,vid,vdat,start=start,count=ncount)
+lncstatus=nf90_get_var(lncid,lvid,vdat,start=lstart,count=lncount)
 #endif
+ncstatus=lncstatus
 call ncmsg("get_vara",ncstatus)
 
 return
@@ -2534,15 +2801,19 @@ include 'netcdf.inc'
 integer, intent(in) :: ncid,vid
 integer, intent(out), optional :: ierr
 integer ncstatus
+integer(kind=4) :: lncid,lvid,lncstatus
 character(len=*), intent(in) :: aname
 character(len=*), intent(out) :: atext
 
 atext=''
+lncid=ncid
+lvid=vid
 #ifdef usenc3
-ncstatus = nf_get_att_text(ncid,vid,aname,atext)
+lncstatus = nf_get_att_text(lncid,lvid,aname,atext)
 #else
-ncstatus = nf90_get_att(ncid,vid,aname,atext)
+lncstatus = nf90_get_att(lncid,lvid,aname,atext)
 #endif
+ncstatus=lncstatus
 if (present(ierr)) then
   ierr=ncstatus
 else
@@ -2568,14 +2839,22 @@ include 'netcdf.inc'
 integer, intent(in) :: ncid,vid
 integer, intent(out), optional :: ierr
 integer ncstatus
+integer(kind=4) :: lncid,lvid,lncstatus
 character(len=*), intent(in) :: aname
 real, intent(out) :: vdat
 
+lncid=ncid
+lvid=vid
 #ifdef usenc3
-ncstatus = nf_get_att_real(ncid,vid,aname,vdat)
+#ifdef i8r8
+lncstatus = nf_get_att_double(lncid,lvid,aname,vdat)
 #else
-ncstatus = nf90_get_att(ncid,vid,aname,vdat)
+lncstatus = nf_get_att_real(lncid,lvid,aname,vdat)
 #endif
+#else
+lncstatus = nf90_get_att(lncid,lvid,aname,vdat)
+#endif
+ncstatus=lncstatus
 if (present(ierr)) then
   ierr=ncstatus
 else
@@ -2601,14 +2880,21 @@ include 'netcdf.inc'
 
 integer, intent(in) :: ncid
 integer ncstatus
+integer(kind=4) :: lncid,lncstatus
 character(len=*), intent(in) :: aname
 real, intent(out) :: vdat
 
+lncid=ncid
 #ifdef usenc3
-ncstatus = nf_get_att_real(ncid,nf_global,aname,vdat)
+#ifdef i8r8
+lncstatus = nf_get_att_double(lncid,nf_global,aname,vdat)
 #else
-ncstatus = nf90_get_att(ncid,nf90_global,aname,vdat)
+lncstatus = nf_get_att_real(lncid,nf_global,aname,vdat)
 #endif
+#else
+lncstatus = nf90_get_att(lncid,nf90_global,aname,vdat)
+#endif
+ncstatus=lncstatus
 call ncmsg("get_attg",ncstatus)
 
 return
@@ -2629,14 +2915,21 @@ include 'netcdf.inc'
 
 integer, intent(in) :: ncid
 integer ncstatus
+integer(kind=4) :: lncid,lncstatus
 character(len=*), intent(in) :: aname
 real, dimension(:), intent(out) :: vdat
 
+lncid=ncid
 #ifdef usenc3
-ncstatus = nf_get_att_real(ncid,nf_global,aname,vdat)
+#ifdef i8r8
+lncstatus = nf_get_att_double(lncid,nf_global,aname,vdat)
 #else
-ncstatus = nf90_get_att(ncid,nf90_global,aname,vdat)
+lncstatus = nf_get_att_real(lncid,nf_global,aname,vdat)
 #endif
+#else
+lncstatus = nf90_get_att(lncid,nf90_global,aname,vdat)
+#endif
+ncstatus=lncstatus
 call ncmsg("get_attg",ncstatus)
 
 return
@@ -2656,15 +2949,19 @@ include 'netcdf.inc'
 #endif
 
 integer, intent(in) :: ncid
-integer ncstatus
-character(len=*), intent(in) :: aname
 integer, intent(out) :: vdat
+integer ncstatus
+integer(kind=4) :: lncid,lncstatus,lvdat
+character(len=*), intent(in) :: aname
 
+lncid=ncid
 #ifdef usenc3
-ncstatus = nf_get_att_int(ncid,nf_global,aname,vdat)
+lncstatus = nf_get_att_int(lncid,nf_global,aname,lvdat)
 #else
-ncstatus = nf90_get_att(ncid,nf90_global,aname,vdat)
+lncstatus = nf90_get_att(lncid,nf90_global,aname,lvdat)
 #endif
+vdat=lvdat
+ncstatus=lncstatus
 call ncmsg("get_attg",ncstatus)
 
 return
@@ -2684,15 +2981,20 @@ include 'netcdf.inc'
 #endif
 
 integer, intent(in) :: ncid
-integer ncstatus
-character(len=*), intent(in) :: aname
 integer, dimension(:), intent(out) :: vdat
+integer ncstatus
+integer(kind=4) :: lncid,lncstatus
+integer(kind=4), dimension(size(vdat)) :: lvdat
+character(len=*), intent(in) :: aname
 
+lncid=ncid
 #ifdef usenc3
-ncstatus = nf_get_att_int(ncid,nf_global,aname,vdat)
+lncstatus = nf_get_att_int(lncid,nf_global,aname,lvdat)
 #else
-ncstatus = nf90_get_att(ncid,nf90_global,aname,vdat)
+lncstatus = nf90_get_att(lncid,nf90_global,aname,lvdat)
 #endif
+vdat=lvdat
+ncstatus=lncstatus
 call ncmsg("get_attg",ncstatus)
 
 return
@@ -2712,7 +3014,8 @@ include 'newmpar.h'
 include 'netcdf.inc'
 #endif
 
-integer ncstatus,lncid,lvid
+integer ncstatus
+integer(kind=4) :: lncid,lvid,lncstatus
 real, dimension(ifull), intent(out) :: vdat
 real, dimension(ifull_g) :: vdat_g
 character(len=*), intent(in) :: fname
@@ -2720,22 +3023,34 @@ character(len=*), intent(in) :: vname
 
 if (myid==0) then
 #ifdef usenc3
-  ncstatus = nf_open(fname,nf_nowrite,lncid)
+  lncstatus = nf_open(fname,nf_nowrite,lncid)
+  ncstatus=lncstatus
   call ncmsg(fname,ncstatus)
-  ncstatus = nf_inq_varid(lncid,vname,lvid)
+  lncstatus = nf_inq_varid(lncid,vname,lvid)
+  ncstatus=lncstatus
   call ncmsg(fname,ncstatus)
-  ncstatus = nf_get_var_real(lncid,lvid,vdat_g)
+#ifdef i8r8
+  lncstatus = nf_get_var_double(lncid,lvid,vdat_g)
+#else
+  lncstatus = nf_get_var_real(lncid,lvid,vdat_g)
+#endif
+  ncstatus=lncstatus
   call ncmsg(fname,ncstatus)
-  ncstatus = nf_close(lncid)
+  lncstatus = nf_close(lncid)
+  ncstatus=lncstatus
   call ncmsg(fname,ncstatus)
 #else
-  ncstatus = nf90_open(fname,nf90_nowrite,lncid)
+  lncstatus = nf90_open(fname,nf90_nowrite,lncid)
+  ncstatus=lncstatus
   call ncmsg(fname,ncstatus)
-  ncstatus = nf90_inq_varid(lncid,vname,lvid)
+  lncstatus = nf90_inq_varid(lncid,vname,lvid)
+  ncstatus=lncstatus
   call ncmsg(fname,ncstatus)
-  ncstatus = nf90_get_var(lncid,lvid,vdat_g)
+  lncstatus = nf90_get_var(lncid,lvid,vdat_g)
+  ncstatus=lncstatus
   call ncmsg(fname,ncstatus)
-  ncstatus = nf90_close(lncid)
+  lncstatus = nf90_close(lncid)
+  ncstatus=lncstatus
   call ncmsg(fname,ncstatus)
 #endif
   call ccmpi_distribute(vdat,vdat_g)
@@ -2761,13 +3076,17 @@ include 'netcdf.inc'
 
 integer, intent(in) :: ncid,vid
 integer ncstatus
+integer(kind=4) :: lncid,lvid,lncstatus
 character(len=*), dimension(:), intent(in) :: vtxt
 
+lncid=ncid
+lvid=vid
 #ifdef usenc3
-ncstatus = nf_put_var_text(ncid,vid,vtxt)
+lncstatus = nf_put_var_text(lncid,lvid,vtxt)
 #else
-ncstatus = nf90_put_var(ncid,vid,vtxt)
+lncstatus = nf90_put_var(lncid,lvid,vtxt)
 #endif
+ncstatus=lncstatus
 call ncmsg("put_var",ncstatus)
 
 return
@@ -2789,12 +3108,18 @@ include 'netcdf.inc'
 integer, intent(in) :: ncid,vid
 integer ncstatus
 integer, dimension(:), intent(in) :: vdat
+integer(kind=4) :: lncid,lvid,lncstatus
+integer(kind=4), dimension(size(vdat)) :: lvdat
 
+lncid=ncid
+lvid=vid
+lvdat=vdat
 #ifdef usenc3
-ncstatus = nf_put_var_int(ncid,vid,vdat)
+lncstatus = nf_put_var_int(lncid,lvid,lvdat)
 #else
-ncstatus = nf90_put_var(ncid,vid,vdat)
+lncstatus = nf90_put_var(lncid,lvid,lvdat)
 #endif
+ncstatus=lncstatus
 call ncmsg("put_var",ncstatus)
 
 return
@@ -2816,12 +3141,18 @@ include 'netcdf.inc'
 integer, intent(in) :: ncid,vid
 integer ncstatus
 integer, dimension(:,:), intent(in) :: vdat
+integer(kind=4) :: lncid,lvid,lncstatus
+integer(kind=4), dimension(size(vdat,1),size(vdat,2)) :: lvdat
 
+lncid=ncid
+lvid=vid
+lvdat=vdat
 #ifdef usenc3
-ncstatus = nf_put_var_int(ncid,vid,vdat)
+lncstatus = nf_put_var_int(lncid,lvid,lvdat)
 #else
-ncstatus = nf90_put_var(ncid,vid,vdat)
+lncstatus = nf90_put_var(lncid,lvid,lvdat)
 #endif
+ncstatus=lncstatus
 call ncmsg("put_var",ncstatus)
 
 return
@@ -2841,21 +3172,29 @@ include 'netcdf.inc'
 #endif
 
 integer, intent(in) :: ncid,vid,start
-integer ncstatus
-#ifndef usenc3
-integer, dimension(1) :: lstart,lcount
-integer, dimension(1) :: ldat
-#endif
 integer, intent(in) :: vdat
-
+integer ncstatus
+integer(kind=4) :: lncid,lvid,lncstatus
 #ifdef usenc3
-ncstatus=nf_put_var1_int(ncid,vid,start,vdat)
+integer(kind=4) :: lstart,ldat
+#else
+integer(kind=4), dimension(1) :: lstart,lcount
+integer(kind=4), dimension(1) :: ldat
+#endif
+
+lncid=ncid
+lvid=vid
+#ifdef usenc3
+lstart=start
+ldat=vdat
+lncstatus=nf_put_var1_int(lncid,lvid,lstart,ldat)
 #else
 lstart=start
 lcount=1
 ldat(1)=vdat
-ncstatus=nf90_put_var(ncid,vid,ldat,start=lstart,count=lcount)
+lncstatus=nf90_put_var(lncid,lvid,ldat,start=lstart,count=lcount)
 #endif
+ncstatus=lncstatus
 call ncmsg("put_var1",ncstatus)
 
 return
@@ -2876,24 +3215,31 @@ include 'netcdf.inc'
 
 integer, intent(in) :: ncid,vid,start
 integer ncstatus
-#ifndef usenc3
-integer, dimension(1) :: lstart,lcount
+integer(kind=4) :: lncid,lvid,lncstatus
+#ifdef usenc3
+integer(kind=4) :: lstart
+#else
+integer(kind=4), dimension(1) :: lstart,lcount
 real, dimension(1) :: ldat
 #endif
 real, intent(in) :: vdat
 
+lncid=ncid
+lvid=vid
 #ifdef usenc3
+lstart=start
 #ifdef i8r8
-ncstatus=nf_put_var1_double(ncid,vid,start,vdat)
+lncstatus=nf_put_var1_double(lncid,lvid,lstart,vdat)
 #else
-ncstatus=nf_put_var1_real(ncid,vid,start,vdat)
+lncstatus=nf_put_var1_real(lncid,lvid,lstart,vdat)
 #endif
 #else
 lstart=start
 lcount=1
 ldat(1)=vdat
-ncstatus=nf90_put_var(ncid,vid,ldat,start=lstart,count=lcount)
+lncstatus=nf90_put_var(lncid,lvid,ldat,start=lstart,count=lcount)
 #endif
+ncstatus=lncstatus
 call ncmsg("put_var1",ncstatus)
 
 return
@@ -2915,20 +3261,27 @@ include 'netcdf.inc'
 
 integer, intent(in) :: ncid,vid,start
 integer ncstatus
-#ifndef usenc3
-integer, dimension(1) :: lstart,lcount
+integer(kind=4) :: lncid,lvid,lncstatus
+#ifdef usenc3
+integer(kind=4) :: lstart
+#else
+integer(kind=4), dimension(1) :: lstart,lcount
 double precision, dimension(1) :: ldat
 #endif
 double precision, intent(in) :: vdat
 
+lncid=ncid
+lvid=vid
 #ifdef usenc3
-ncstatus=nf_put_var1_double(ncid,vid,start,vdat)
+lstart=start
+lncstatus=nf_put_var1_double(lncid,lvid,lstart,vdat)
 #else
 lstart=start
 lcount=1
 ldat(1)=vdat
-ncstatus=nf90_put_var(ncid,vid,ldat,start=lstart,count=lcount)
+lncstatus=nf90_put_var(lncid,lvid,ldat,start=lstart,count=lcount)
 #endif
+ncstatus=lncstatus
 call ncmsg("put_var1",ncstatus)
 
 return
@@ -2951,17 +3304,25 @@ include 'netcdf.inc'
 integer, intent(in) :: ncid,vid
 integer ncstatus
 integer, dimension(:), intent(in) :: start,ncount
+integer(kind=4) :: lncid,lvid,lncstatus
+integer(kind=4), dimension(size(start)) :: lstart
+integer(kind=4), dimension(size(ncount)) :: lncount
 real, dimension(:), intent(in) :: vdat
 
+lncid=ncid
+lvid=vid
+lstart=start
+lncount=ncount
 #ifdef usenc3
 #ifdef i8r8
-ncstatus=nf_put_vara_double(ncid,vid,start,ncount,vdat)
+lncstatus=nf_put_vara_double(lncid,lvid,lstart,lncount,vdat)
 #else
-ncstatus=nf_put_vara_real(ncid,vid,start,ncount,vdat)
+lncstatus=nf_put_vara_real(lncid,lvid,lstart,lncount,vdat)
 #endif
 #else
-ncstatus=nf90_put_var(ncid,vid,vdat,start=start,count=ncount)
+lncstatus=nf90_put_var(lncid,lvid,vdat,start=lstart,count=lncount)
 #endif
+ncstatus=lncstatus
 call ncmsg("put_vara",ncstatus)
 
 return
@@ -2983,17 +3344,25 @@ include 'netcdf.inc'
 integer, intent(in) :: ncid,vid
 integer ncstatus
 integer, dimension(:), intent(in) :: start,ncount
+integer(kind=4) :: lncid,lvid,lncstatus
+integer(kind=4), dimension(size(start)) :: lstart
+integer(kind=4), dimension(size(ncount)) :: lncount
 real, dimension(:,:), intent(in) :: vdat
 
+lncid=ncid
+lvid=vid
+lstart=start
+lncount=ncount
 #ifdef usenc3
 #ifdef i8r8
-ncstatus=nf_put_vara_double(ncid,vid,start,ncount,vdat)
+lncstatus=nf_put_vara_double(lncid,lvid,lstart,lncount,vdat)
 #else
-ncstatus=nf_put_vara_real(ncid,vid,start,ncount,vdat)
+lncstatus=nf_put_vara_real(lncid,lvid,lstart,lncount,vdat)
 #endif
 #else
-ncstatus=nf90_put_var(ncid,vid,vdat,start=start,count=ncount)
+lncstatus=nf90_put_var(lncid,lvid,vdat,start=lstart,count=lncount)
 #endif
+ncstatus=lncstatus
 call ncmsg("put_vara",ncstatus)
 
 return
@@ -3016,13 +3385,21 @@ include 'netcdf.inc'
 integer, intent(in) :: ncid,vid
 integer ncstatus
 integer, dimension(:), intent(in) :: start,ncount
+integer(kind=4) :: lncid,lvid,lncstatus
+integer(kind=4), dimension(size(start)) :: lstart
+integer(kind=4), dimension(size(ncount)) :: lncount
 double precision, dimension(:), intent(in) :: vdat
 
+lncid=ncid
+lvid=vid
+lstart=start
+lncount=ncount
 #ifdef usenc3
-ncstatus=nf_put_vara_double(ncid,vid,start,ncount,vdat)
+lncstatus=nf_put_vara_double(lncid,lvid,lstart,lncount,vdat)
 #else
-ncstatus=nf90_put_var(ncid,vid,vdat,start=start,count=ncount)
+lncstatus=nf90_put_var(lncid,lvid,vdat,start=lstart,count=lncount)
 #endif
+ncstatus=lncstatus
 call ncmsg("put_vara",ncstatus)
 
 return
@@ -3046,12 +3423,22 @@ integer, intent(in) :: ncid,vid
 integer ncstatus
 integer, dimension(:), intent(in) :: start,ncount
 integer, dimension(:), intent(in) :: vdat
+integer(kind=4) :: lncid,lvid,lncstatus
+integer(kind=4), dimension(size(start)) :: lstart
+integer(kind=4), dimension(size(ncount)) :: lncount
+integer(kind=4), dimension(size(vdat)) :: lvdat
 
+lncid=ncid
+lvid=vid
+lstart=start
+lncount=ncount
+lvdat=vdat
 #ifdef usenc3
-ncstatus=nf_put_vara_int(ncid,vid,start,ncount,vdat)
+lncstatus=nf_put_vara_int(lncid,lvid,lstart,lncount,lvdat)
 #else
-ncstatus=nf90_put_var(ncid,vid,vdat,start=start,count=ncount)
+lncstatus=nf90_put_var(lncid,lvid,lvdat,start=lstart,count=lncount)
 #endif
+ncstatus=lncstatus
 call ncmsg("put_vara",ncstatus)
 
 return
@@ -3072,14 +3459,19 @@ include 'netcdf.inc'
 
 integer, intent(in) :: ncid,vid,asize
 integer ncstatus
+integer(kind=4) :: lncid,lvid,lncstatus,lasize
 character(len=*), intent(in) :: aname
 character(len=asize), intent(in) :: atext
 
+lncid=ncid
+lvid=vid
 #ifdef usenc3
-ncstatus=nf_put_att_text(ncid,vid,aname,asize,atext)
+lasize=asize
+lncstatus=nf_put_att_text(lncid,lvid,aname,lasize,atext)
 #else
-ncstatus=nf90_put_att(ncid,vid,aname,atext)
+lncstatus=nf90_put_att(lncid,lvid,aname,atext)
 #endif
+ncstatus=lncstatus
 call ncmsg("put_att",ncstatus)
 
 return
@@ -3099,16 +3491,19 @@ include 'netcdf.inc'
 #endif
 
 integer, intent(in) :: ncid
-integer ncstatus,lsize
+integer ncstatus
+integer(kind=4) :: lsize,lncid,lncstatus
 character(len=*), intent(in) :: aname
 character(len=*), intent(in) :: atext
 
-lsize=len_trim(atext)
+lncid=ncid
 #ifdef usenc3
-ncstatus=nf_put_att_text(ncid,nf_global,aname,lsize,atext)
+lsize=len_trim(atext)
+lncstatus=nf_put_att_text(lncid,nf_global,aname,lsize,atext)
 #else
-ncstatus=nf90_put_att(ncid,nf90_global,aname,atext)
+lncstatus=nf90_put_att(lncid,nf90_global,aname,atext)
 #endif
+ncstatus=lncstatus
 call ncmsg("put_attg",ncstatus)
 
 return
@@ -3130,15 +3525,19 @@ include 'netcdf.inc'
 integer, intent(in) :: ncid
 integer ncstatus
 integer, intent(in) :: vdat
-integer, dimension(1) :: ldat
+integer(kind=4) :: lncid,lncstatus,lone
+integer(kind=4), dimension(1) :: ldat
 character(len=*), intent(in) :: aname
 
+lncid=ncid
 ldat(1)=vdat
 #ifdef usenc3
-ncstatus=nf_put_att_int(ncid,nf_global,aname,nf_int,1,ldat)
+lone=1
+lncstatus=nf_put_att_int(lncid,nf_global,aname,nf_int,lone,ldat)
 #else
-ncstatus=nf90_put_att(ncid,nf90_global,aname,ldat)
+lncstatus=nf90_put_att(lncid,nf90_global,aname,ldat)
 #endif
+ncstatus=lncstatus
 call ncmsg("put_attg",ncstatus)
 
 return
@@ -3160,13 +3559,19 @@ include 'netcdf.inc'
 integer, intent(in) :: ncid,vsize
 integer ncstatus
 integer, dimension(:), intent(in) :: vdat
+integer(kind=4) :: lncid,lvsize,lncstatus
+integer(kind=4), dimension(size(vdat)) :: lvdat
 character(len=*), intent(in) :: aname
 
+lncid=ncid
+lvdat=vdat
 #ifdef usenc3
-ncstatus=nf_put_att_int(ncid,nf_global,aname,nf_int,vsize,vdat)
+lvsize=vsize
+lncstatus=nf_put_att_int(lncid,nf_global,aname,nf_int,lvsize,lvdat)
 #else
-ncstatus=nf90_put_att(ncid,nf90_global,aname,vdat)
+lncstatus=nf90_put_att(lncid,nf90_global,aname,lvdat)
 #endif
+ncstatus=lncstatus
 call ncmsg("put_att",ncstatus)
 
 return
@@ -3187,20 +3592,23 @@ include 'netcdf.inc'
 
 integer, intent(in) :: ncid
 integer ncstatus
+integer(kind=4) :: lncid,lncstatus
 real, intent(in) :: vdat
 real, dimension(1) :: ldat
 character(len=*), intent(in) :: aname
 
+lncid=ncid
 ldat(1)=vdat
 #ifdef usenc3
 #ifdef i8r8
-ncstatus=nf_put_att_double(ncid,nf_global,aname,nf_float,1,ldat)
+lncstatus=nf_put_att_double(lncid,nf_global,aname,nf_float,1,ldat)
 #else
-ncstatus=nf_put_att_real(ncid,nf_global,aname,nf_float,1,ldat)
+lncstatus=nf_put_att_real(lncid,nf_global,aname,nf_float,1,ldat)
 #endif
 #else
-ncstatus=nf90_put_att(ncid,nf90_global,aname,ldat)
+lncstatus=nf90_put_att(lncid,nf90_global,aname,ldat)
 #endif
+ncstatus=lncstatus
 call ncmsg("put_attg",ncstatus)
 
 return
@@ -3221,18 +3629,22 @@ include 'netcdf.inc'
 
 integer, intent(in) :: ncid,vsize
 integer ncstatus
+integer(kind=4) :: lncid,lvsize,lncstatus
 real, dimension(:), intent(in) :: vdat
 character(len=*), intent(in) :: aname
 
+lncid=ncid
 #ifdef usenc3
+lvsize=vsize
 #ifdef i8r8
-ncstatus=nf_put_att_double(ncid,nf_global,aname,nf_float,vsize,vdat)
+lncstatus=nf_put_att_double(lncid,nf_global,aname,nf_float,lvsize,vdat)
 #else
-ncstatus=nf_put_att_real(ncid,nf_global,aname,nf_float,vsize,vdat)
+lncstatus=nf_put_att_real(lncid,nf_global,aname,nf_float,lvsize,vdat)
 #endif
 #else
-ncstatus=nf90_put_att(ncid,nf90_global,aname,vdat)
+lncstatus=nf90_put_att(lncid,nf90_global,aname,vdat)
 #endif
+ncstatus=lncstatus
 call ncmsg("put_attg",ncstatus)
 
 return

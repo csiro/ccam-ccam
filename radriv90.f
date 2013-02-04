@@ -492,7 +492,7 @@ c         write(24,*)coszro2
         call swr99(fsw,hsw,sg,ufsw,dfsw,press,press2,coszro,
      &             taudar,rh2o,rrco2,ssolar,qo3,nclds,
      &             ktopsw,kbtmsw,cirab,cirrf,cuvrf,camt,
-     &             swrsave(istart:iend)) ! MJT cable
+     &             swrsave(istart:iend),cldoff) ! MJT cable
         if(ndi<0.and.nmaxpr==1)
      &     write(6,*)'after  swr99 ktau,j,myid ',ktau,j,myid
         do i=1,imax
@@ -528,7 +528,7 @@ c       write(24,*)coszro2
       call swr99(fsw,hsw,sg,ufsw,dfsw,press,press2,coszro,
      &           taudar,rh2o,rrco2,ssolar,qo3,nclds,
      &           ktopsw,kbtmsw,cirab,cirrf,cuvrf,camt,
-     &           swrsave(istart:iend))
+     &           swrsave(istart:iend),cldoff)
       do i=1,imax
           sint(i) = dfsw(i,1)*h1m3   ! solar in top
           sout(i) = ufsw(i,1)*h1m3   ! solar out top
