@@ -128,7 +128,7 @@ real, dimension(ifull,kl) :: km,thetav,thetal,temp,qsat
 real, dimension(ifull,kl) :: gamtv,gamth,gamqv,gamql,gamqf
 real, dimension(ifull,kl) :: gamqr,gamcf,gamcr,gamhl
 real, dimension(ifull,kl) :: qgnc,thetavnc,qsatc
-real, dimension(ifull,kl) :: tkenew,epsnew,bb,cc,dd,ff,rr
+real, dimension(ifull,kl) :: tkenew,epsnew,bb,cc,dd,ff,gg,rr
 real, dimension(ifull,kl) :: rhoa,rhoahl,mflx,thup,thetavhl,thetahl
 real, dimension(ifull,kl) :: qvup,qlup,qfup,qrup,cfup,crup
 real, dimension(ifull,kl) :: qshl,qlhl,qfhl,qrhl
@@ -681,17 +681,17 @@ do kcount=1,mcount
   do k=1,kl
     rr(:,k)=theta(:,k)-sigkap(k)*(lv*(qlg(:,k)+qrg(:,k))+ls*qfg(:,k))/cp ! thetal
   end do
-  qq=max(qg+qlg+qfg+qrg,qgmin) ! qtot before phase transition
+  gg=max(qg+qlg+qfg+qrg,qgmin) ! qtot before phase transition
   qlg=max(qlg,0.)
   qfg=max(qfg,0.)
   qrg=max(qrg,0.)
   qg=max(qg,0.)
   ff=max(qg+qlg+qfg+qrg,qgmin) ! qtot after phase transition
-  qq=qq/ff                     ! scale factor for conservation
-  qg=qg*qq
-  qlg=qlg*qq
-  qfg=qfg*qq
-  qrg=qrg*qq
+  gg=gg/ff                     ! scale factor for conservation
+  qg=qg*gg
+  qlg=qlg*gg
+  qfg=qfg*gg
+  qrg=qrg*gg
   do k=1,kl
     theta(:,k)=rr(:,k)+sigkap(k)*(lv*(qlg(:,k)+qrg(:,k))+ls*qfg(:,k))/cp
   end do
