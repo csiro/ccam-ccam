@@ -302,7 +302,7 @@ c       create the attributes of the header record of the file
       use carbpools_m                           ! Carbon pools
       use cc_mpi                                ! CC MPI routines
       use cfrac_m                               ! Cloud fraction
-      use define_dimensions, only : ncs, ncp    ! CABLE dimensions
+      use cable_def_types_mod, only : ncs, ncp  ! CABLE dimensions
       use dpsdt_m                               ! Vertical velocity
       use extraout_m                            ! Additional diagnostics
       use histave_m                             ! Time average arrays

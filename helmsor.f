@@ -255,7 +255,7 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
         end do
       end do
       
-      call bounds(s, klim=klim)     
+      call bounds(s)     
       do while ( iter<itmax .and. klim>0)
        do nx=1,nx_max
         ifx=ifullx(nx)
@@ -270,7 +270,7 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
           s(iqx(1:ifx,nx),k) = s(iqx(1:ifx,nx),k)
      &       + accel(k)*dsol(iqx(1:ifx,nx),k)
         enddo ! k loop
-        call bounds(s, klim=klim, colour=nx)
+        call bounds_colour(s, nx, klim=klim)
        enddo  ! nx loop  
        do k=1,klim
         iters(k)=iter

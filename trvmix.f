@@ -73,7 +73,7 @@ c ***************************************************************************
       subroutine trgassflux(igas,trsrc)
       use cable_ccam, only : cbmemiss
       use carbpools_m ! online co2 fluxes
-      use define_dimensions, only : ncs, ncp ! Used in carbpool.h
+      use cable_def_types_mod, only : ncs, ncp ! Used in carbpool.h
       use nsibd_m     !ivegt (vegetation type)
       use tracermodule, only :co2em,tractype,tracname,tracdaytime
 c     this routine put the correct tracer surface flux into trsrc

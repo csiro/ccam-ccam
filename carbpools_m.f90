@@ -1,7 +1,7 @@
 module carbpools_m
 
 use casadimension, only : mplant,mlitter,msoil ! CASA dimensions
-use define_dimensions, only : ncs,ncp          ! CABLE dimensions
+use cable_def_types_mod, only : ncs,ncp        ! CABLE dimensions
 
 implicit none
 

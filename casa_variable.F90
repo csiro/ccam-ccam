@@ -1,9 +1,32 @@
+!==============================================================================
+! This source code is part of the 
+! Australian Community Atmosphere Biosphere Land Exchange (CABLE) model.
+! This work is licensed under the CABLE Academic User Licence Agreement 
+! (the "Licence").
+! You may not use this file except in compliance with the Licence.
+! A copy of the Licence and registration form can be obtained from 
+! http://www.accessimulator.org.au/cable
+! You need to register and read the Licence agreement before use.
+! Please contact cable_help@nf.nci.org.au for any questions on 
+! registration and the Licence.
+!
+! Unless required by applicable law or agreed to in writing, 
+! software distributed under the Licence is distributed on an "AS IS" BASIS,
+! WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+! See the Licence for the specific language governing permissions and 
+! limitations under the Licence.
+! ==============================================================================
+!
+! Purpose: defines/allocates variables for CASA-CNP
+!
+! Contact: Yingping.Wang@csiro.au
+!
+! History: Developed for offline CASA-CNP, code revision likely to better
+!          suit ACCESS and to merge more consistently with CABLE code
+!
+!
+! ==============================================================================
 ! casa_variable.f90
-!
-! Model development by YingPing Wang, CSIRO Marine and Atmospheric Research.
-! Coupling to Mk3L by Bernard Pak,    CSIRO Marine and Atmospheric Research.
-!
-! Please send bug reports to Bernard.Pak@csiro.au
 !
 ! the following modules are used when "casacnp" is coupled to "cable"
 !   casadimension
@@ -12,8 +35,13 @@
 !   phenvariable with subroutine alloc_phenvariable
 
 MODULE casadimension
-  USE define_dimensions
-  IMPLICIT NONE
+   
+   USE cable_def_types_mod, ONLY : mp, r_2, mvtype, ms
+   
+   IMPLICIT NONE
+  
+
+  
   INTEGER, PARAMETER :: mdyear=365         ! days per year
   INTEGER, PARAMETER :: mdmonth=30         ! days per month
   INTEGER, PARAMETER :: mdweek=7           ! days per week
@@ -36,7 +64,7 @@ END MODULE casadimension
 
 MODULE casaparm
   USE casadimension
-  USE define_dimensions
+
   IMPLICIT NONE
   INTEGER, PARAMETER :: initcasa= 1   ! =0 spin; 1 restart file
   INTEGER, PARAMETER :: iceland  = 17 !=13 for casa vegtype =15 for IGBP vegtype
@@ -81,7 +109,6 @@ END MODULE casaparm
 
 MODULE casavariable
   USE casadimension
-  USE define_dimensions
   IMPLICIT NONE
 
   TYPE casa_biome
@@ -275,7 +302,6 @@ Contains
 
 SUBROUTINE alloc_casavariable(casabiome,casapool,casaflux,casamet, &
                               casabal,arraysize)
-! added mvtype (=mvt) and mstype to define_dimensions (BP sep2010)
 !SUBROUTINE alloc_casavariable(casabiome,casapool,casaflux,casamet, &
 !                              casabal,arraysize,mvt)
   IMPLICIT NONE
@@ -285,7 +311,7 @@ SUBROUTINE alloc_casavariable(casabiome,casapool,casaflux,casamet, &
   TYPE (casa_met)    , INTENT(INOUT) :: casamet
   TYPE (casa_balance), INTENT(INOUT) :: casabal
   INTEGER,             INTENT(IN) :: arraysize
-!  INTEGER(i_d),        INTENT(IN) :: mvt
+!  INTEGER,        INTENT(IN) :: mvt
 !  INTEGER :: mvt
 
 !  mvt = mvtype
@@ -484,7 +510,6 @@ END MODULE casavariable
 
 MODULE phenvariable
   USE casadimension
-  USE define_dimensions
   IMPLICIT NONE
   TYPE phen_variable
     INTEGER,   DIMENSION(:),  POINTER :: phase        
@@ -495,12 +520,11 @@ MODULE phenvariable
 CONTAINS
 
 SUBROUTINE alloc_phenvariable(phen,arraysize)
-! added mvtype (=mvt) and mstype to define_dimensions (BP sep2010)
 !SUBROUTINE alloc_phenvariable(phen,arraysize,mvt)
   IMPLICIT NONE
   TYPE(phen_variable), INTENT(INOUT) :: phen
   INTEGER,             INTENT(IN) :: arraysize
-!  INTEGER(i_d),        INTENT(IN) :: mvt
+!  INTEGER,        INTENT(IN) :: mvt
 
   ALLOCATE(phen%Tkshed(mvtype))
 !  ALLOCATE(phen%Tkshed(mvt))

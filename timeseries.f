@@ -324,7 +324,7 @@ c  rml 10/11/05: added pressure, surface flux and pblh for TC
 c
       use arrays_m    ! temp, q, ps
       use carbpools_m ! cbm co2 fluxes
-      use define_dimensions, only : ncs, ncp ! Used in carbpool.h
+      use cable_def_types_mod, only : ncs, ncp ! Used in carbpool.h
       use extraout_m  ! cloud arrays
       use infile
       use morepbl_m   ! rnet,eg,fg

@@ -80,21 +80,20 @@ module cable_ccam
 ! 8       organi!              peat
 ! 9       land ice
 
-use air_module
-use albedo_module
-use canopy_module
-use carbon_module
-use casa_cnp
+use cable_air_module
+use cable_albedo_module
+use cable_canopy_module
+use cable_carbon_module
+use cable_common_module
+use cable_data_module
+use cable_def_types_mod, cbm_ms => ms
+use cable_radiation_module
+use cable_roughness_module
+use cable_soil_snow_module
+use casa_cnp_module
 use casadimension
 use casaparm, xroot => froot
 use casavariable
-use cable_common_module
-use define_dimensions, cbm_ms => ms
-use define_types
-use physical_constants
-use radiation_module
-use roughness_module
-use soil_snow_module
 
 implicit none
 
@@ -125,6 +124,7 @@ type (casa_flux), save :: casaflux
 type (casa_met), save :: casamet
 type (casa_pool), save :: casapool
 type (phen_variable), save :: phen
+type (physical_constants), save :: c
 
 contains
 ! ****************************************************************************
@@ -169,7 +169,7 @@ real(r_2), dimension(mp) :: xkleaf,xnplimit,xNPuptake,xklitter
 real(r_2), dimension(mp) :: xksoil
 integer jyear,jmonth,jday,jhour,jmin
 integer k,mins,nb,iq,j
-integer(i_d) :: idoy
+integer :: idoy
 
 cansto=0.
 fwet=0.
@@ -196,7 +196,7 @@ met%tk=theta(cmap)
 met%tvair=met%tk
 met%tvrad=met%tk
 met%ua=vmod(cmap)
-met%ua=max(met%ua,umin)
+met%ua=max(met%ua,c%umin)
 call setco2for(atmco2)
 met%ca=1.e-6*atmco2(cmap)
 met%coszen=max(1.e-8,coszro2(cmap)) ! use instantaneous value
@@ -245,7 +245,7 @@ ktau_gl=900
 kend_gl=999
 ssoil%owetfac = ssoil%wetfac
 canopy%oldcansto=canopy%cansto
-call ruff_resist(veg,rough,ssoil,soil,met,canopy)
+call ruff_resist(veg,rough,ssoil,canopy)
 call define_air(met,air)
 call init_radiation(met,rad,veg,canopy)
 call surface_albedo(ssoil,veg,met,rad,soil,canopy)
@@ -800,41 +800,41 @@ include 'const_phys.h'
 include 'parm.h'
 include 'soilv.h'
 
-integer(i_d), dimension(ifull,5) :: ivs
-integer(i_d) iq,n,k,ipos,isoil,iv,ncount
+integer, dimension(ifull,5) :: ivs
+integer iq,n,k,ipos,isoil,iv,ncount
 integer, dimension(1) :: pos
 integer jyear,jmonth,jday,jhour,jmin,mins
 integer, dimension(1) :: lndtst,lndtst_g
-real(r_1) totdepth,fc3,fc4,ftu,fg3,fg4,clat,nsum
+real totdepth,fc3,fc4,ftu,fg3,fg4,clat,nsum
 real fjd,xp
-real(r_1), dimension(mxvt,ms) :: froot2
-real(r_1), dimension(ifull,5) :: svs,vlin,vlinprev,vlinnext
-real(r_1), dimension(ncp) :: ratecp
-real(r_1), dimension(ncs) :: ratecs
-real(r_1), dimension(mxvt,ncp) :: tcplant
-real(r_1), dimension(mxvt,ncs) :: tcsoil
-real(r_1), dimension(mxvt)   :: canst1,dleaf,ejmax,frac4,hc,rp20
-real(r_1), dimension(mxvt)   :: rpcoef,shelrb,vcmax,xfang
-real(r_1), dimension(mxvt)   :: tminvj,tmaxvj,vbeta
-real(r_1), dimension(mxvt)   :: extkn,rootbeta,vegcf,c4frac
-real(r_1), dimension(mxvt,2) :: taul,refl  
-real(r_1), dimension(mxvt)   :: leafage,woodage,frootage,metage
-real(r_1), dimension(mxvt)   :: strage,cwdage,micage,slowage,passage
-real(r_1), dimension(mxvt)   :: xfherbivore,xxkleafcoldmax,xxkleafdrymax
-real(r_1), dimension(mxvt)   :: xratioNPleafmin,xratioNPleafmax,xratioNPwoodmin,xratioNPwoodmax
-real(r_1), dimension(mxvt)   :: xratioNPfrootmin,xratioNPfrootmax,xfNminloss,xfNminleach,xnfixrate
-real(r_1), dimension(mxvt)   :: xnsoilmin,xplab,xpsorb,xpocc
-real(r_1), dimension(mxvt)   :: cleaf,cwood,cfroot,cmet,cstr,ccwd,cmic,cslow,cpass,nleaf
-real(r_1), dimension(mxvt)   :: nwood,nfroot,nmet,nstr,ncwd,nmic,nslow,npass,xpleaf,xpwood
-real(r_1), dimension(mxvt)   :: xpfroot,xpmet,xpstr,xpcwd,xpmic,xpslow,xppass,clabileage
-real(r_1), dimension(mxvt,mplant) :: ratiocnplant
-real(r_1), dimension(mxvt,msoil)  :: ratiocnsoil,ratiocnsoilmax,ratiocnsoilmin
-real(r_1), dimension(12)       :: xkmlabp,xpsorbmax,xfPleach
-real(r_1), dimension(12,msoil) :: rationpsoil
-real(r_1), dimension(ifull)   :: albsoil
-real(r_1), dimension(ifull,2) :: albsoilsn
-real(r_1), dimension(ifull,mxvt)     :: newgrid
-real(r_1), dimension(ifull,mxvt,0:2) :: newlai
+real, dimension(mxvt,ms) :: froot2
+real, dimension(ifull,5) :: svs,vlin,vlinprev,vlinnext
+real, dimension(ncp) :: ratecp
+real, dimension(ncs) :: ratecs
+real, dimension(mxvt,ncp) :: tcplant
+real, dimension(mxvt,ncs) :: tcsoil
+real, dimension(mxvt)   :: canst1,dleaf,ejmax,frac4,hc,rp20
+real, dimension(mxvt)   :: rpcoef,shelrb,vcmax,xfang
+real, dimension(mxvt)   :: tminvj,tmaxvj,vbeta
+real, dimension(mxvt)   :: extkn,rootbeta,vegcf,c4frac
+real, dimension(mxvt,2) :: taul,refl  
+real, dimension(mxvt)   :: leafage,woodage,frootage,metage
+real, dimension(mxvt)   :: strage,cwdage,micage,slowage,passage
+real, dimension(mxvt)   :: xfherbivore,xxkleafcoldmax,xxkleafdrymax
+real, dimension(mxvt)   :: xratioNPleafmin,xratioNPleafmax,xratioNPwoodmin,xratioNPwoodmax
+real, dimension(mxvt)   :: xratioNPfrootmin,xratioNPfrootmax,xfNminloss,xfNminleach,xnfixrate
+real, dimension(mxvt)   :: xnsoilmin,xplab,xpsorb,xpocc
+real, dimension(mxvt)   :: cleaf,cwood,cfroot,cmet,cstr,ccwd,cmic,cslow,cpass,nleaf
+real, dimension(mxvt)   :: nwood,nfroot,nmet,nstr,ncwd,nmic,nslow,npass,xpleaf,xpwood
+real, dimension(mxvt)   :: xpfroot,xpmet,xpstr,xpcwd,xpmic,xpslow,xppass,clabileage
+real, dimension(mxvt,mplant) :: ratiocnplant
+real, dimension(mxvt,msoil)  :: ratiocnsoil,ratiocnsoilmax,ratiocnsoilmin
+real, dimension(12)       :: xkmlabp,xpsorbmax,xfPleach
+real, dimension(12,msoil) :: rationpsoil
+real, dimension(ifull)   :: albsoil
+real, dimension(ifull,2) :: albsoilsn
+real, dimension(ifull,mxvt)     :: newgrid
+real, dimension(ifull,mxvt,0:2) :: newlai
 character(len=*), intent(in) :: fveg,fvegprev,fvegnext,fphen,casafile
 
 if (myid==0) write(6,*) "Initialising CABLE"
@@ -1729,11 +1729,11 @@ include 'newmpar.h'
 include 'parmgeom.h'  ! rlong0,rlat0,schmidt  
   
 character(len=*), intent(in) :: fveg,fvegprev,fvegnext
-integer(i_d), dimension(ifull,5), intent(out) :: ivs
-integer(i_d), dimension(ifull_g,5) :: ivsg  
+integer, dimension(ifull,5), intent(out) :: ivs
+integer, dimension(ifull_g,5) :: ivsg  
 integer n,iq,ilx,jlx,iad  
-real(r_1), dimension(ifull,5), intent(out) :: svs,vlinprev,vlin,vlinnext
-real(r_1), dimension(ifull_g,5) :: svsg,vling
+real, dimension(ifull,5), intent(out) :: svs,vlinprev,vlin,vlinnext
+real, dimension(ifull_g,5) :: svsg,vling
 real rlong0x,rlat0x,schmidtx,dsx,ra,rb
 character(len=47) header  
 
@@ -1786,9 +1786,9 @@ implicit none
 include 'newmpar.h'
 
 character(len=*), intent(in) :: fveg,fvegprev,fvegnext
-integer(i_d), dimension(ifull,5), intent(out) :: ivs
+integer, dimension(ifull,5), intent(out) :: ivs
 integer n,iq
-real(r_1), dimension(ifull,5), intent(out) :: svs,vlinprev,vlin,vlinnext
+real, dimension(ifull,5), intent(out) :: svs,vlinprev,vlin,vlinnext
 
 if (fvegprev/=' '.and.fvegnext/=' ') then
   call ccmpi_distribute(vlinprev)

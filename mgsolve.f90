@@ -140,7 +140,7 @@ do itr=1,itr_mg
                             - rhsc(1:ifc,nc,k) )*rhelmc(1:ifc,nc,k) - iv(iqx(1:ifc,nc),k)
       iv(iqx(1:ifc,nc),k)=iv(iqx(1:ifc,nc),k)+dsol(iqx(1:ifc,nc),k)
     end do
-    call bounds(iv,klim=klim,colour=nc)
+    call bounds_colour(iv,nc,klim=klim)
 
   end do
 
@@ -383,7 +383,7 @@ do itr=1,itr_mg
                             - rhsc(1:ifc,nc,k))*rhelmc(1:ifc,nc,k) - iv(iqx(1:ifc,nc),k)
       iv(iqx(1:ifc,nc),k) = iv(iqx(1:ifc,nc),k) + dsol(iqx(1:ifc,nc),k)
     end do
-    call bounds(iv,klim=klim,colour=nc)
+    call bounds_colour(iv,nc,klim=klim)
   end do
 
   ! test for convergence
@@ -414,7 +414,7 @@ if (klim>0) then
                               - rhsc(1:ifc,nc,k) )*rhelmc(1:ifc,nc,k) - iv(iqx(1:ifc,nc),k)
         iv(iqx(1:ifc,nc),k) = iv(iqx(1:ifc,nc),k) + dsol(iqx(1:ifc,nc),k)
       end do
-      call bounds(iv,klim=klim,colour=nc)
+      call bounds_colour(iv,nc,klim=klim)
     end do
 
     ! test for convergence
@@ -581,7 +581,7 @@ do itr=1,itr_mgice
 
     dumc(1:ifull,1)=neta(1:ifull)
     dumc(1:ifull,2)=ipice(1:ifull)
-    call bounds(dumc(:,1:2),gmode=1,colour=nc)
+    call bounds_colour(dumc(:,1:2),nc,gmode=1)
     neta(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,1)
     ipice(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,2)
   end do
@@ -917,7 +917,7 @@ do itr=1,itr_mgice
 
     dumc(1:ifull,1)=neta(1:ifull)
     dumc(1:ifull,2)=ipice(1:ifull)
-    call bounds(dumc(:,1:2),gmode=1,colour=nc)
+    call bounds_colour(dumc(:,1:2),nc,gmode=1)
     neta(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,1)
     ipice(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,2)
   end do
@@ -965,7 +965,7 @@ if (dsolmax_g(1)>=tol.or.dsolmax_g(2)>=itol) then
 
       dumc(1:ifull,1)=neta(1:ifull)
       dumc(1:ifull,2)=ipice(1:ifull)
-      call bounds(dumc(:,1:2),gmode=1,colour=nc)
+      call bounds_colour(dumc(:,1:2),nc,gmode=1)
       neta(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,1)
       ipice(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,2)
     end do

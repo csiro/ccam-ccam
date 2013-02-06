@@ -246,7 +246,7 @@
       use carbpools_m                           ! Carbon pools
       use cc_mpi                                ! CC MPI routines
       use cfrac_m                               ! Cloud fraction
-      use define_dimensions, only : ncs, ncp    ! CABLE dimensions
+      use cable_def_types_mod, only : ncs, ncp  ! CABLE dimensions
       use extraout_m                            ! Additional diagnostics      
       use infile                                ! Input file routines
       use latlong_m                             ! Lat/lon coordinates

@@ -4560,7 +4560,7 @@ do ll=1,llmax
 
     dumc(iqx(1:ifx,nx),1)=neta(iqx(1:ifx,nx))
     dumc(iqx(1:ifx,nx),2)=ipice(iqx(1:ifx,nx))
-    call bounds(dumc(:,1:2),gmode=1,colour=nx)
+    call bounds_colour(dumc(:,1:2),nx,gmode=1)
     neta(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,1)
     ipice(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,2)
   

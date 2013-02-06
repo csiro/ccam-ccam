@@ -1,9 +1,35 @@
+!==============================================================================
+! This source code is part of the 
+! Australian Community Atmosphere Biosphere Land Exchange (CABLE) model.
+! This work is licensed under the CABLE Academic User Licence Agreement 
+! (the "Licence").
+! You may not use this file except in compliance with the Licence.
+! A copy of the Licence and registration form can be obtained from 
+! http://www.accessimulator.org.au/cable
+! You need to register and read the Licence agreement before use.
+! Please contact cable_help@nf.nci.org.au for any questions on 
+! registration and the Licence.
+!
+! Unless required by applicable law or agreed to in writing, 
+! software distributed under the Licence is distributed on an "AS IS" BASIS,
+! WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+! See the Licence for the specific language governing permissions and 
+! limitations under the Licence.
+! ==============================================================================
+!
+! Purpose: subroutines for calculating carbon, nitrogen, phosphorus cycle 
+!          including plant growth
+!
+! Called from: biogeochem (mostly) or casa_xnp
+!
+! Contact: Yingping.Wang@csiro.au
+!
+! History: Developed by Yingping Wang (Wang et al., BG, 2011)
+!          Current version uses fixed phenology.
+!
+!
+! ==============================================================================
 ! casa_cnp.f90
-!
-! Model development by YingPing Wang, CSIRO Marine and Atmospheric Research.
-! Coupling to Mk3L by Bernard Pak,    CSIRO Marine and Atmospheric Research.
-!
-! Please send bug reports to Bernard.Pak@csiro.au
 !
 ! This module contains the following subroutines:
 !   casa_xnp
@@ -22,9 +48,8 @@
 !   casa_ndummy
 !   phenology
 
-MODULE casa_cnp
-USE define_dimensions
-USE define_types
+MODULE casa_cnp_module
+USE cable_def_types_mod
 USE casadimension
 USE casaparm
 USE casavariable
@@ -480,17 +505,14 @@ SUBROUTINE casa_xratesoil(xklitter,xksoil,veg,soil,casamet)
   ! add xkoptsoil defined by CSIRO classification. Q.Zhang @ 02/02/2011
   ! data xkoptsoil/0.28113,0.2553,1.15865,0.298998,0.10343498, &
   !                0.25652738,0.25652738,0.25652738,10.0,10.0,1.0,0.01,0.5,1.0,0.5,1.0,1.0/
-
   ! comment out xkoptsoil defined by IGBP classification. Q.Zhang @ 02/02/2011
-  !  data xkoptsoil/0.28113,0.2553,1.15865,0.298998,0.495,0.5, &
-  !                 0.10343498,0.46494,0.168633,0.25652738,1.0,10.0,0.5,0.5,0.5,0.01,1.0/
-                   
+!    data xkoptsoil/0.28113,0.2553,1.15865,0.298998,0.495,0.5, &
+!                   0.10343498,0.46494,0.168633,0.25652738,1.0,10.0,0.5,0.5,0.5,0.01,1.0/
 !  ! test new parameters
 !  ! set c3 grass, crop and barren as 0.5652738 (Q.Zhang 23/05/2011)
 !   data xkoptsoil/0.28113,0.6553,1.15865,0.298998,0.343498, &
 !                  0.5652738,0.25652738,0.25652738,0.5652738, &
 !                  0.25652738,1.0,0.652738,0.5,1.0,0.5,1.0,1.0/
-
 !  change from the above on 4 aug 2011 by ypwang, calibrated by ypw using igbp soil c (CNP cycle simulation only)
    data xkoptsoil/0.33,0.60,0.15,0.60,0.16, &
                   0.40,0.30,0.20,0.20, &
@@ -1164,7 +1186,6 @@ SUBROUTINE casa_xkN(xkNlimiting,casapool,casaflux,casamet,veg)
 !  data xClitter/100.0,100.0,100.0,100.0,50.0,150.0,150.0,100.0,&
 !                150.0,150.0,100.0, 20.0,20.0, 20.0, 20.0, 20.0,20.0/
   real(r_2) maxfinelitter(17),maxcwd(17)
-
   data maxfinelitter/1524.0, 384.0, 1527.0, 887.0, 157.0, &
                       361.0, 225.0,  913.0, 660.0, 100.0, &
                       100.0, 100.0,  100.0,  83.0, 100.0, &
@@ -1807,4 +1828,4 @@ SUBROUTINE phenology(iday,veg,phen)
 
 END SUBROUTINE phenology
 
-END MODULE casa_cnp
+END MODULE casa_cnp_module
