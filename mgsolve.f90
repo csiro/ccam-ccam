@@ -18,8 +18,8 @@ logical, save :: zzfirst=.true.
 logical, save :: mlofirst=.true.
 
 integer, parameter :: itr_max=300 ! maximum number of iterations
-integer, parameter :: itr_mg=30
-integer, parameter :: itr_mgice=30
+integer, parameter :: itr_mg=10
+integer, parameter :: itr_mgice=10
 
 contains
 
@@ -35,7 +35,6 @@ include 'newmpar.h'
 include 'parm.h'
 include 'parmdyn.h'
 
-integer, dimension(mg_maxsize) :: iqaa,iqbb,iqcc,iqdd
 integer, dimension(kl) :: iters
 integer itrc,itr,ng,ng4,g,k,jj,i,j,iq
 integer klimc,knew,klim,ir,ic
@@ -85,21 +84,12 @@ end do
 
 iters=0
 
-!itsave2=0
-!itserr2=9.E9
-!itstest=1
-!itc=0
-
 helm(1:ifull,:,1)=ihelm(1:ifull,:)
 call mgcollect(1,helm(:,:,1))
 do g=1,mg_maxlevel-1
   ng4=mg(g)%ifull_fine
-  iqaa(1:ng4)=          mg(g)%fine    
-  iqbb(1:ng4)= mg(g)%in(mg(g)%fine)
-  iqcc(1:ng4)= mg(g)%ie(mg(g)%fine)
-  iqdd(1:ng4)=mg(g)%ine(mg(g)%fine)
-  helm(1:ng4,1:kl,g+1)=0.25*(helm(iqaa(1:ng4),1:kl,g)+helm(iqbb(1:ng4),1:kl,g) &
-                            +helm(iqcc(1:ng4),1:kl,g)+helm(iqdd(1:ng4),1:kl,g))
+  helm(1:ng4,1:kl,g+1)=0.25*(helm(mg(g)%fine  ,1:kl,g)+helm(mg(g)%fine_n ,1:kl,g) &
+                            +helm(mg(g)%fine_e,1:kl,g)+helm(mg(g)%fine_ne,1:kl,g))
   call mgcollect(g+1,helm(:,:,g+1))
 end do
 
@@ -127,7 +117,7 @@ do nc=1,3
   end do
 end do
 
-call bounds(iv,klim=klim)
+call bounds(iv)
 
 ! Main loop
 do itr=1,itr_mg
@@ -159,12 +149,8 @@ do itr=1,itr_mg
   ! restriction
   ! (since this always operates within a panel, then ine = ien is always true)
   ng4=mg(g)%ifull_fine
-  iqaa(1:ng4)=          mg(g)%fine    
-  iqbb(1:ng4)= mg(g)%in(mg(g)%fine)
-  iqcc(1:ng4)= mg(g)%ie(mg(g)%fine)
-  iqdd(1:ng4)=mg(g)%ine(mg(g)%fine)
-  rhs(1:ng4,1:klim,g+1)=0.25*(w(iqaa(1:ng4),1:klim)+w(iqbb(1:ng4),1:klim) &
-                             +w(iqcc(1:ng4),1:klim)+w(iqdd(1:ng4),1:klim))
+  rhs(1:ng4,1:klim,g+1)=0.25*(w(mg(g)%fine  ,1:klim)+w(mg(g)%fine_n ,1:klim) &
+                             +w(mg(g)%fine_e,1:klim)+w(mg(g)%fine_ne,1:klim))
 
   ! upscale grid
   do g=2,mg_maxlevel-1
@@ -194,12 +180,8 @@ do itr=1,itr_mg
     ! restriction
     ! (calculate finer grid before mgcollect as the messages sent/recv are shorter)
     ng4=mg(g)%ifull_fine
-    iqaa(1:ng4)=          mg(g)%fine
-    iqbb(1:ng4)= mg(g)%in(mg(g)%fine)
-    iqcc(1:ng4)= mg(g)%ie(mg(g)%fine)
-    iqdd(1:ng4)=mg(g)%ine(mg(g)%fine)
-    rhs(1:ng4,1:klim,g+1)=0.25*(w(iqaa(1:ng4),1:klim)+w(iqbb(1:ng4),1:klim) &
-                               +w(iqcc(1:ng4),1:klim)+w(iqdd(1:ng4),1:klim))
+    rhs(1:ng4,1:klim,g+1)=0.25*(w(mg(g)%fine  ,1:klim)+w(mg(g)%fine_n ,1:klim) &
+                               +w(mg(g)%fine_e,1:klim)+w(mg(g)%fine_ne,1:klim))
   end do
 
   ! solve coarse grid
@@ -318,7 +300,7 @@ do itr=1,itr_mg
         vdum(iq_b,1:klim)=w(iq_d,1:klim)
       end do  
       i=1
-      do j=1,jpan
+      do j=2,jpan-1
         iq_a=i+(j-1)*ipan+(n-1)*ipan*jpan
         iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*jpan+(n-1)*ipan*jpan*mg(g)%merge_len
         iq_b=iw(iq_a)
@@ -326,7 +308,7 @@ do itr=1,itr_mg
         vdum(iq_b,1:klim)=w(iq_d,1:klim)
       end do
       i=ipan
-      do j=1,jpan
+      do j=2,jpan-1
         iq_a=i+(j-1)*ipan+(n-1)*ipan*jpan
         iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*jpan+(n-1)*ipan*jpan*mg(g)%merge_len
         iq_b=ie(iq_a)
@@ -355,14 +337,14 @@ do itr=1,itr_mg
         vdum(iq_a,1:klim)=w(iq_b,1:klim)
       end do  
       i=1
-      do j=1,jpan
+      do j=2,jpan-1
         iq=indx(i,j,n-1,ipan,jpan)
         iq_a=iw(iq)
         iq_b=mg(1)%iw(iq)
         vdum(iq_a,1:klim)=w(iq_b,1:klim)
       end do
       i=ipan
-      do j=1,jpan
+      do j=2,jpan-1
         iq=indx(i,j,n-1,ipan,jpan)
         iq_a=ie(iq)
         iq_b=mg(1)%ie(iq)
@@ -468,8 +450,7 @@ integer, intent(in) :: comm_mlo
 integer, intent(out) :: totits
 integer itr,itrc,g,ng,ng4,n,i,j,ir,ic,jj,iq
 integer iq_a,iq_b,iq_c,iq_d
-integer ifc,nc
-integer, dimension(mg_maxsize) :: iqaa,iqbb,iqcc,iqdd
+integer ifc,nc,itmg
 real, intent(in) :: tol,itol
 real, intent(out) :: maxglobseta,maxglobip
 real, dimension(ifull+iextra), intent(inout) :: neta,ipice
@@ -534,12 +515,8 @@ yy(1:ifull,5,1)=iyyw(1:ifull)
 call mgcollect(1,yy(:,1:5,1),gmode=1)
 do g=1,mg_maxlevel-1
   ng4=mg(g)%ifull_fine
-  iqaa(1:ng4)=          mg(g)%fine    
-  iqbb(1:ng4)= mg(g)%in(mg(g)%fine)
-  iqcc(1:ng4)= mg(g)%ie(mg(g)%fine)
-  iqdd(1:ng4)=mg(g)%ine(mg(g)%fine)
-  yy(1:ng4,1:5,g+1)=0.25*dfac*(yy(iqaa(1:ng4),1:5,g)+yy(iqbb(1:ng4),1:5,g) &
-                              +yy(iqcc(1:ng4),1:5,g)+yy(iqdd(1:ng4),1:5,g))
+  yy(1:ng4,1:5,g+1)=0.25*dfac*(yy(mg(g)%fine  ,1:5,g)+yy(mg(g)%fine_n ,1:5,g) &
+                              +yy(mg(g)%fine_e,1:5,g)+yy(mg(g)%fine_ne,1:5,g))
   call mgcollect(g+1,yy(:,1:5,g+1),gmode=1)
 end do
 
@@ -557,7 +534,7 @@ do itr=1,itr_mgice
   do nc=1,maxcolour
     ifc=ifullx(nc)
     bu(iqx(1:ifc,nc))=izz(iqx(1:ifc,nc),1)+ihh(iqx(1:ifc,nc))                                            &
-                      +iyyn(iqx(1:ifc,nc))*neta(iqn(1:ifc,nc))+iyys(iqx(1:ifc,nc))*neta(iqs(1:ifc,nc)) &
+                      +iyyn(iqx(1:ifc,nc))*neta(iqn(1:ifc,nc))+iyys(iqx(1:ifc,nc))*neta(iqs(1:ifc,nc))   &
                       +iyye(iqx(1:ifc,nc))*neta(iqe(1:ifc,nc))+iyyw(iqx(1:ifc,nc))*neta(iqw(1:ifc,nc))
     cu(iqx(1:ifc,nc))=izzn(iqx(1:ifc,nc),1)*neta(iqn(1:ifc,nc))+izzs(iqx(1:ifc,nc),1)*neta(iqs(1:ifc,nc)) &
                      +izze(iqx(1:ifc,nc),1)*neta(iqe(1:ifc,nc))+izzw(iqx(1:ifc,nc),1)*neta(iqw(1:ifc,nc)) &
@@ -610,24 +587,20 @@ do itr=1,itr_mgice
   ! restriction
   ! (since this always operates within a panel, then ine = ien is always true)
   ng4=mg(g)%ifull_fine
-  iqaa(1:ng4)=          mg(g)%fine    
-  iqbb(1:ng4)= mg(g)%in(mg(g)%fine)
-  iqcc(1:ng4)= mg(g)%ie(mg(g)%fine)
-  iqdd(1:ng4)=mg(g)%ine(mg(g)%fine)
-  rhs(1:ng4,g+1)=0.25*(w(iqaa(1:ng4),1)+w(iqbb(1:ng4),1) &
-                      +w(iqcc(1:ng4),1)+w(iqdd(1:ng4),1))
-  zz(1:ng4,g+1) =0.25*dfac*(w(iqaa(1:ng4),2)+w(iqbb(1:ng4),2) &
-                           +w(iqcc(1:ng4),2)+w(iqdd(1:ng4),2))
-  zzn(1:ng4,g+1)=0.25*dfac*(w(iqaa(1:ng4),3)+w(iqbb(1:ng4),3) &
-                           +w(iqcc(1:ng4),3)+w(iqdd(1:ng4),3))
-  zzs(1:ng4,g+1)=0.25*dfac*(w(iqaa(1:ng4),4)+w(iqbb(1:ng4),4) &
-                           +w(iqcc(1:ng4),4)+w(iqdd(1:ng4),4))
-  zze(1:ng4,g+1)=0.25*dfac*(w(iqaa(1:ng4),5)+w(iqbb(1:ng4),5) &
-                           +w(iqcc(1:ng4),5)+w(iqdd(1:ng4),5))
-  zzw(1:ng4,g+1)=0.25*dfac*(w(iqaa(1:ng4),6)+w(iqbb(1:ng4),6) &
-                           +w(iqcc(1:ng4),6)+w(iqdd(1:ng4),6))
-  hh(1:ng4,g+1)=0.25*(w(iqaa(1:ng4),7)+w(iqbb(1:ng4),7) &
-                     +w(iqcc(1:ng4),7)+w(iqdd(1:ng4),7))
+  rhs(1:ng4,g+1)=0.25*(w(mg(g)%fine  ,1)+w(mg(g)%fine_n ,1) &
+                      +w(mg(g)%fine_e,1)+w(mg(g)%fine_ne,1))
+  zz(1:ng4,g+1) =0.25*dfac*(w(mg(g)%fine  ,2)+w(mg(g)%fine_n ,2) &
+                           +w(mg(g)%fine_e,2)+w(mg(g)%fine_ne,2))
+  zzn(1:ng4,g+1)=0.25*dfac*(w(mg(g)%fine  ,3)+w(mg(g)%fine_n ,3) &
+                           +w(mg(g)%fine_e,3)+w(mg(g)%fine_ne,3))
+  zzs(1:ng4,g+1)=0.25*dfac*(w(mg(g)%fine  ,4)+w(mg(g)%fine_n ,4) &
+                           +w(mg(g)%fine_e,4)+w(mg(g)%fine_ne,4))
+  zze(1:ng4,g+1)=0.25*dfac*(w(mg(g)%fine  ,5)+w(mg(g)%fine_n ,5) &
+                           +w(mg(g)%fine_e,5)+w(mg(g)%fine_ne,5))
+  zzw(1:ng4,g+1)=0.25*dfac*(w(mg(g)%fine  ,6)+w(mg(g)%fine_n ,6) &
+                           +w(mg(g)%fine_e,6)+w(mg(g)%fine_ne,6))
+  hh(1:ng4,g+1)=0.25*(w(mg(g)%fine  ,7)+w(mg(g)%fine_n ,7) &
+                     +w(mg(g)%fine_e,7)+w(mg(g)%fine_ne,7))
 
   ! upscale grid
   do g=2,mg_maxlevel-1
@@ -684,24 +657,20 @@ do itr=1,itr_mgice
     ! restriction
     ! (calculate finer grid before mgcollect as the messages sent/recv are shorter)
     ng4=mg(g)%ifull_fine
-    iqaa(1:ng4)=          mg(g)%fine    
-    iqbb(1:ng4)= mg(g)%in(mg(g)%fine)
-    iqcc(1:ng4)= mg(g)%ie(mg(g)%fine)
-    iqdd(1:ng4)=mg(g)%ine(mg(g)%fine)
-    rhs(1:ng4,g+1)=0.25*(w(iqaa(1:ng4),1)+w(iqbb(1:ng4),1) &
-                        +w(iqcc(1:ng4),1)+w(iqdd(1:ng4),1))
-    zz(1:ng4,g+1)=0.25*dfac*(w(iqaa(1:ng4),2)+w(iqbb(1:ng4),2) &
-                            +w(iqcc(1:ng4),2)+w(iqdd(1:ng4),2))
-    zzn(1:ng4,g+1)=0.25*dfac*(w(iqaa(1:ng4),3)+w(iqbb(1:ng4),3) &
-                             +w(iqcc(1:ng4),3)+w(iqdd(1:ng4),3))
-    zzs(1:ng4,g+1)=0.25*dfac*(w(iqaa(1:ng4),4)+w(iqbb(1:ng4),4) &
-                             +w(iqcc(1:ng4),4)+w(iqdd(1:ng4),4))
-    zze(1:ng4,g+1)=0.25*dfac*(w(iqaa(1:ng4),5)+w(iqbb(1:ng4),5) &
-                             +w(iqcc(1:ng4),5)+w(iqdd(1:ng4),5))
-    zzw(1:ng4,g+1)=0.25*dfac*(w(iqaa(1:ng4),6)+w(iqbb(1:ng4),6) &
-                             +w(iqcc(1:ng4),6)+w(iqdd(1:ng4),6))
-    hh(1:ng4,g+1)=0.25*(w(iqaa(1:ng4),7)+w(iqbb(1:ng4),7) &
-                       +w(iqcc(1:ng4),7)+w(iqdd(1:ng4),7))
+    rhs(1:ng4,g+1)=0.25*(w(mg(g)%fine  ,1)+w(mg(g)%fine_n ,1) &
+                        +w(mg(g)%fine_e,1)+w(mg(g)%fine_ne,1))
+    zz(1:ng4,g+1)=0.25*dfac*(w(mg(g)%fine  ,2)+w(mg(g)%fine_n ,2) &
+                            +w(mg(g)%fine_e,2)+w(mg(g)%fine_ne,2))
+    zzn(1:ng4,g+1)=0.25*dfac*(w(mg(g)%fine  ,3)+w(mg(g)%fine_n ,3) &
+                             +w(mg(g)%fine_e,3)+w(mg(g)%fine_ne,3))
+    zzs(1:ng4,g+1)=0.25*dfac*(w(mg(g)%fine  ,4)+w(mg(g)%fine_n ,4) &
+                             +w(mg(g)%fine_e,4)+w(mg(g)%fine_ne,4))
+    zze(1:ng4,g+1)=0.25*dfac*(w(mg(g)%fine  ,5)+w(mg(g)%fine_n ,5) &
+                             +w(mg(g)%fine_e,5)+w(mg(g)%fine_ne,5))
+    zzw(1:ng4,g+1)=0.25*dfac*(w(mg(g)%fine  ,6)+w(mg(g)%fine_n ,6) &
+                             +w(mg(g)%fine_e,6)+w(mg(g)%fine_ne,6))
+    hh(1:ng4,g+1)=0.25*(w(mg(g)%fine  ,7)+w(mg(g)%fine_n ,7) &
+                       +w(mg(g)%fine_e,7)+w(mg(g)%fine_ne,7))
 
   end do
 
@@ -826,7 +795,7 @@ do itr=1,itr_mgice
         vdum(iq_b)=w(iq_d,1)
       end do  
       i=1
-      do j=1,jpan
+      do j=2,jpan-1
         iq_a=i+(j-1)*ipan+(n-1)*ipan*jpan
         iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*jpan+(n-1)*ipan*jpan*mg(g)%merge_len
         iq_a=iw(iq_a)
@@ -834,7 +803,7 @@ do itr=1,itr_mgice
         vdum(iq_b)=w(iq_d,1)
       end do
       i=ipan
-      do j=1,jpan
+      do j=2,jpan-1
         iq_a=i+(j-1)*ipan+(n-1)*ipan*jpan
         iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*jpan+(n-1)*ipan*jpan*mg(g)%merge_len
         iq_a=ie(iq_a)
@@ -863,14 +832,14 @@ do itr=1,itr_mgice
         vdum(iq_a)=w(iq_b,1)
       end do  
       i=1
-      do j=1,jpan
+      do j=2,jpan-1
         iq=indx(i,j,n-1,ipan,jpan)
         iq_a=iw(iq)
         iq_b=mg(1)%iw(iq)
         vdum(iq_a)=w(iq_b,1)
       end do
       i=ipan
-      do j=1,jpan
+      do j=2,jpan-1
         iq=indx(i,j,n-1,ipan,jpan)
         iq_a=ie(iq)
         iq_b=mg(1)%ie(iq)
@@ -925,15 +894,18 @@ do itr=1,itr_mgice
   ! test for convergence
  
   dsolmax(1)=maxval(abs(dsol(1:ifull,1)))
-  dsolmax(2)=maxval(abs(dsol(1:ifull,2)))
-  call ccmpi_allreduce(dsolmax(1:2),dsolmax_g(1:2),"max",comm_mlo)
-  if (dsolmax_g(1)<tol.and.dsolmax_g(2)<itol) exit
+  call ccmpi_allreduce(dsolmax(1:1),dsolmax_g(1:1),"max",comm_mlo)
+  if (dsolmax_g(1)<tol) exit
   
 end do
 
+itmg=itr
+dsolmax(2)=maxval(abs(dsol(1:ifull,2)))
+call ccmpi_allreduce(dsolmax(2:2),dsolmax_g(2:2),"max",comm_mlo)
+
 ! SOR if MG fails to converge
 if (dsolmax_g(1)>=tol.or.dsolmax_g(2)>=itol) then
-  do itr=itr_mgice+1,itr_max
+  do itr=itmg+1,itr_max
     au(1:ifull)=iyy
   
     do nc=1,maxcolour
@@ -1194,7 +1166,8 @@ mg(1)%ipan=mipan
 mg(1)%ifull=mipan*mjpan*mg_npan
 mg(1)%ifull_fine=mg(1)%ifull/4
 
-allocate(mg(1)%fine(mg(1)%ifull_fine))
+allocate(mg(1)%fine(mg(1)%ifull_fine),mg(1)%fine_n(mg(1)%ifull_fine))
+allocate(mg(1)%fine_e(mg(1)%ifull_fine),mg(1)%fine_ne(mg(1)%ifull_fine))
 iqq=0
 do n=1,mg_npan
   do jj=1,mjpan,2
@@ -1211,6 +1184,10 @@ allocate(mg(1)%in(np),mg(1)%ie(np),mg(1)%is(np),mg(1)%iw(np))
 allocate(mg(1)%ine(np),mg(1)%inw(np),mg(1)%ise(np),mg(1)%isw(np))
 
 call mg_index(1,mil_g,mipan,mjpan)
+
+mg(1)%fine_n=mg(1)%in(mg(1)%fine)
+mg(1)%fine_e=mg(1)%ie(mg(1)%fine)
+mg(1)%fine_ne=mg(1)%ine(mg(1)%fine)
 
 mg_maxsize=max(mg_maxsize,mg(1)%ifull+mg(1)%iextra)
 
@@ -1508,7 +1485,8 @@ do g=2,mg_maxlevel
     
   if (g<mg_maxlevel) then
     np=mg(g)%ifull_fine
-    allocate(mg(g)%fine(np))
+    allocate(mg(g)%fine(np),mg(g)%fine_n(np))
+    allocate(mg(g)%fine_e(np),mg(g)%fine_ne(np))
     ! mipan and mjpan should always be an even number here
     iqq=0
     do n=1,mg_npan
@@ -1527,6 +1505,10 @@ do g=2,mg_maxlevel
   allocate(mg(g)%ine(np),mg(g)%inw(np),mg(g)%ise(np),mg(g)%isw(np))
 
   call mg_index(g,mil_g,mipan,mjpan)
+  
+  mg(g)%fine_n=mg(g)%in(mg(g)%fine)
+  mg(g)%fine_e=mg(g)%ie(mg(g)%fine)
+  mg(g)%fine_ne=mg(g)%ine(mg(g)%fine)
   
   mg_maxsize=max(mg_maxsize,mg(g)%ifull+mg(g)%iextra)
 

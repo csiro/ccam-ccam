@@ -459,6 +459,7 @@ real, dimension(ifull) :: coszro,taudar
 real, dimension(ifull,kl) :: oxout,zg,clcon,pccw,rhoa
 real, dimension(ifull,kl) :: tnhs,dz
 real, dimension(ifull,kl) :: dumt,dumql,dumqf
+real, dimension(ifull,kl,naero) :: xtusav
 real, dimension(ifull) :: dxy,cldcon,wg
 real, dimension(kl+1) :: sigh
 
@@ -540,9 +541,10 @@ end if
 
 ! Convert from aerosol concentration outside convective cloud (used by CCAM)
 ! to aerosol concentration inside convective cloud
+xtusav=xtosav
 do j=1,naero
   where (clcon>0.)
-    xtusav(:,:,j)=(xtg(1:ifull,:,j)-(1.-clcon)*xtusav(:,:,j))/clcon
+    xtusav(:,:,j)=(xtg(1:ifull,:,j)-(1.-clcon)*xtosav(:,:,j))/clcon
   end where
 end do
 
@@ -558,7 +560,7 @@ call aldrcalc(dt,sig,sigh,dsig,zg,dz,cansto,fwet,wg,pblh,ps,   &
               dumql,dumqf,cfrac,clcon,                         &
               pccw,dxy,rhoa,cdtq,ppfprec,ppfmelt,ppfsnow,      &
               ppfconv,ppfevap,ppfsubl,pplambs,ppmrate,         &
-              ppmaccr,ppfstay,ppqfsed,pprscav,zdayfac)
+              ppmaccr,ppfstay,ppqfsed,pprscav,zdayfac,xtusav)
 
 ! store sulfate for LH+SF radiation scheme.  SEA-ESF radiation scheme imports prognostic aerosols in seaesfrad.f90.
 ! Factor 1.e3 to convert to g/m2, x 3 to get sulfate from sulfur
@@ -572,7 +574,7 @@ end subroutine aerocalc
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Estimate cloud droplet size
-subroutine aerodrop(iaero,istart,imax,kl,cdn,rhoa,land,rlatt)
+subroutine aerodrop(iaero,istart,imax,kl,cdn,rhoa,land,rlatt,outconv)
 
 use aerosolldr
 
@@ -587,10 +589,17 @@ real, dimension(imax,kl), intent(out) :: cdn
 real, dimension(imax,kl), intent(in) :: rhoa
 real, dimension(imax), intent(in) :: rlatt
 logical, dimension(imax), intent(in) :: land
+logical, intent(in), optional :: outconv
+logical convmode
+
+convmode=.true.
+if (present(outconv)) then
+  convmode=.not.outconv
+end if
 
 select case(abs(iaero))
   case(2)
-    call cldrop(istart,imax,cdn,rhoa)
+    call cldrop(istart,imax,cdn,rhoa,convmode)
   case default
     where (land(:).and.rlatt(:)>0.)
       cdn(:,1)=cdropl_nh

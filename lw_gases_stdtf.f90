@@ -965,9 +965,10 @@ real,             intent(in)     ::  co2_vmr
 !    (USSTD,1976; USSTD,1976 +- 25) except for the 4.3 um band (nf=2)
 !    where the number is one.
 !---------------------------------------------------------------------
-          call read_lbltfs('co2',                               &
+
+          call read_lbltfs('co2',                                     &
                            callrctrns_co2, nstd_co2_lo, nstd_co2_hi,  &
-                           nf, ntbnd_co2,                          &
+                           nf, ntbnd_co2,                             &
                            trns_std_hi_nf, trns_std_lo_nf )
  
           do_lyrcalc_co2 = do_lyrcalc_co2_nf(nf)
@@ -5609,7 +5610,7 @@ character(len=*),           intent(in)   :: gas_type
 logical,                    intent(in)   :: callrctrns
 integer,                    intent(in)   :: nstd_lo, nstd_hi, nf
 integer, dimension(:),      intent(in)   :: ntbnd
-real,    dimension (:,:,:), intent(out)  :: trns_std_hi_nf,   &
+real,    dimension(:,:,:),  intent(out)  :: trns_std_hi_nf,   &
                                             trns_std_lo_nf
 
 !--------------------------------------------------------------------
@@ -5633,11 +5634,12 @@ real,    dimension (:,:,:), intent(out)  :: trns_std_hi_nf,   &
 
       integer        :: n, nt, nrec_inhi, inrad, nrec_inlo
       
-      integer ncid,ncstatus,varid,startpos(3),npos(3),ierr ! MJT
-      logical tst ! MJT
+      integer, dimension(3) :: startpos,npos ! MJT
+      integer ncid,ncstatus,varid,ierr       ! MJT
+      logical tst                            ! MJT
  
       data (input_lblco2name(n,1),n=1,nfreq_bands_sea_co2)/            &
-        'cns_0_490850   ', 'cns_0_490630   ', 'cns_0_630700   ', &
+        'cns_0_490850   ', 'cns_0_490630   ', 'cns_0_630700   ',       &
         'cns_0_700850   ', 'cns_0_43um     '/
       data (input_lblco2name(n,2),n=1,nfreq_bands_sea_co2)/            &
         'cns_165_490850   ', 'cns_165_490630   ', 'cns_165_630700   ', &
@@ -5737,7 +5739,7 @@ real,    dimension (:,:,:), intent(out)  :: trns_std_hi_nf,   &
         call ccnf_open(ncname,ncid,ncstatus)
         if (ncstatus/=0) then
           write(6,*) "ERROR: Cannot open ",trim(ncname)
-          stop
+          call ccmpi_abort(-1)
         end if
         write(6,*) "Reading ",trim(ncname)
         call ccnf_inq_varid(ncid,"trns_std_nf",varid,tst)

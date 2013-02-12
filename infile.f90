@@ -196,16 +196,15 @@ end subroutine hr1a
 subroutine hr1p(iarchi,ier,name,qtest,var)
       
 use cc_mpi
-#ifndef usenc3
+#ifdef usenc3
+use netcdf_m
+#else
 use netcdf
 #endif
       
 implicit none
 
 include 'newmpar.h'
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: iarchi
 integer, intent(out) :: ier
@@ -497,16 +496,15 @@ end subroutine hr4sa
 subroutine hr4p(iarchi,ier,name,kk,qtest,var)
       
 use cc_mpi
-#ifndef usenc3
+#ifdef usenc3
+use netcdf_m
+#else
 use netcdf
 #endif
       
 implicit none
 
 include 'newmpar.h'
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: iarchi,kk
 integer, intent(out) :: ier
@@ -641,15 +639,13 @@ end subroutine hr4p
 subroutine ncmsg(txt,ierr)
 
 use cc_mpi
-#ifndef usenc3
+#ifdef usenc3
+use netcdf_m
+#else
 use netcdf
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ierr
 integer(kind=4) :: lierr
@@ -674,16 +670,15 @@ end subroutine ncmsg
 subroutine histopen(ncid,ifile,ier)
       
 use cc_mpi
-#ifndef usenc3
+#ifdef usenc3
+use netcdf_m
+#else
 use netcdf
 #endif
       
 implicit none
       
 include 'newmpar.h'
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
       
 integer, parameter :: nihead   = 54
       
@@ -927,16 +922,14 @@ end subroutine histopen
 subroutine histclose
 
 use cc_mpi
-#ifndef usenc3
+#ifdef usenc3
+use netcdf_m
+#else
 use netcdf
 #endif
       
 implicit none
 
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
-     
 integer ipf,ipin,plen
 integer(kind=4) :: ierr
       
@@ -1221,15 +1214,13 @@ end subroutine getzinp
 subroutine attrib(cdfid,dim,ndim,name,lname,units,xmin,xmax,daily,itype)
 
 use cc_mpi
-#ifndef usenc3
+#ifdef usenc3
+use netcdf_m
+#else
 use netcdf
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: cdfid, itype, ndim
 integer, intent(in) :: daily
@@ -1374,16 +1365,15 @@ end subroutine attrib
 subroutine histwrt3(var,sname,idnc,iarch,local,lwrite)
 
 use cc_mpi              ! CC MPI routines
-#ifndef usenc3
+#ifdef usenc3
+use netcdf_m            ! Netcdf parameters
+#else
 use netcdf              ! Netcdf parameters
 #endif
 
 implicit none
 
 include 'newmpar.h'     ! Grid parameters
-#ifdef usenc3
-include 'netcdf.inc'    ! Netcdf parameters
-#endif
 
 integer, intent(in) :: idnc, iarch
 real, dimension(ifull), intent(in) :: var
@@ -1438,16 +1428,15 @@ end subroutine freqwrite
 subroutine fw3l(var,sname,idnc,iarch,istep)
 
 use cc_mpi               ! CC MPI routines
-#ifndef usenc3
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
 use netcdf               ! Netcdf parameters
 #endif
       
 implicit none
       
 include 'newmpar.h'      ! Grid parameters
-#ifdef usenc3
-include 'netcdf.inc'     ! Netcdf parameters
-#endif
 include 'parm.h'         ! Model configuration
       
 integer, intent(in) :: idnc,iarch,istep
@@ -1526,16 +1515,15 @@ end subroutine fw3l
 subroutine fw3a(var,sname,idnc,iarch,istep)
 
 use cc_mpi               ! CC MPI routines
-#ifndef usenc3
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
 use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
 
 include 'newmpar.h'      ! Grid parameters
-#ifdef usenc3
-include 'netcdf.inc'     ! Netcdf parameters
-#endif
 include 'parm.h'         ! Model configuration
 
 integer, intent(in) :: idnc, iarch, istep
@@ -1636,16 +1624,15 @@ end subroutine fw3a
 subroutine histwrt4(var,sname,idnc,iarch,local,lwrite)
 
 use cc_mpi              ! CC MPI routines
-#ifndef usenc3
-use netcdf              ! Netcdf parameters
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
 
 include 'newmpar.h'     ! Grid parameters
-#ifdef usenc3
-include 'netcdf.inc'    ! Netcdf parameters
-#endif
 
 integer, intent(in) :: idnc, iarch
 real, dimension(ifull,kl), intent(in) :: var
@@ -1676,16 +1663,15 @@ end subroutine histwrt4
 subroutine hw4l(var,sname,idnc,iarch)
 
 use cc_mpi               ! CC MPI routines
-#ifndef usenc3
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
 use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
 
 include 'newmpar.h'      ! Grid parameters
-#ifdef usenc3
-include 'netcdf.inc'     ! Netcdf parameters
-#endif
 include 'parm.h'         ! Model configuration
 
 integer, intent(in) :: idnc, iarch
@@ -1764,16 +1750,15 @@ end subroutine hw4l
 subroutine hw4a(var,sname,idnc,iarch)
 
 use cc_mpi              ! CC MPI routines
-#ifndef usenc3
-use netcdf              ! Netcdf parameters
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
 
 include 'newmpar.h'     ! Grid parameters
-#ifdef usenc3
-include 'netcdf.inc'    ! Netcdf parameters
-#endif
 include 'parm.h'        ! Model configuration
 
 integer, intent(in) :: idnc, iarch
@@ -1868,15 +1853,13 @@ end subroutine hw4a
 subroutine ccnf_open(fname,ncid,status)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(out) :: ncid
 integer, intent(out), optional :: status
@@ -1904,15 +1887,13 @@ end subroutine ccnf_open
 subroutine ccnf_create(fname,ncid)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(out) :: ncid
 integer ncstatus
@@ -1935,15 +1916,13 @@ end subroutine ccnf_create
 subroutine ccnf_close(ncid)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid
 integer ncstatus
@@ -1964,15 +1943,13 @@ end subroutine ccnf_close
 subroutine ccnf_nofill(ncid)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid
 integer ncstatus
@@ -1993,15 +1970,13 @@ end subroutine ccnf_nofill
 subroutine ccnf_inq_dimid(ncid,dname,did,tst)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid
 integer, intent(out) :: did
@@ -2034,15 +2009,13 @@ end subroutine ccnf_inq_dimid
 subroutine ccnf_inq_dimlen(ncid,dname,dlen,failok)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid
 integer, intent(inout) :: dlen
@@ -2096,15 +2069,13 @@ end subroutine ccnf_inq_dimlen
 subroutine ccnf_inq_varid(ncid,vname,vid,tst)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid
 integer, intent(out) :: vid
@@ -2137,15 +2108,13 @@ end subroutine ccnf_inq_varid
 subroutine ccnf_def_dim(ncid,dname,nsize,did)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid,nsize
 integer, intent(out) :: did
@@ -2170,15 +2139,13 @@ end subroutine ccnf_def_dim
 subroutine ccnf_def_dimu(ncid,dname,did)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid
 integer, intent(out) :: did
@@ -2202,15 +2169,13 @@ end subroutine ccnf_def_dimu
 subroutine ccnf_def_var(ncid,vname,vtype,vndim,dims,vid,deflate)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid,vndim
 integer, intent(in), optional :: deflate
@@ -2267,15 +2232,13 @@ end subroutine ccnf_def_var
 subroutine ccnf_def_var0(ncid,vname,vtype,vid)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid
 integer, intent(out) :: vid
@@ -2327,15 +2290,13 @@ end subroutine ccnf_def_var0
 subroutine ccnf_enddef(ncid)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid
 integer ncstatus
@@ -2356,15 +2317,13 @@ end subroutine ccnf_enddef
 subroutine ccnf_redef(ncid)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid
 integer ncstatus
@@ -2385,15 +2344,13 @@ end subroutine ccnf_redef
 subroutine ccnf_sync(ncid)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid
 integer ncstatus
@@ -2416,15 +2373,13 @@ end subroutine ccnf_sync
 subroutine ccnf_get_var_real(ncid,vname,vdat)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid
 integer ncstatus
@@ -2459,15 +2414,13 @@ end subroutine ccnf_get_var_real
 subroutine ccnf_get_var_int(ncid,vname,vdat)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid
 integer ncstatus
@@ -2501,15 +2454,13 @@ end subroutine ccnf_get_var_int
 subroutine ccnf_get_var1_real(ncid,vid,start,vdat)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid,vid,start
 integer ncstatus
@@ -2546,15 +2497,13 @@ end subroutine ccnf_get_var1_real
 subroutine ccnf_get_var1_int(ncid,vid,start,vdat)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid,vid,start
 integer ncstatus
@@ -2592,15 +2541,13 @@ end subroutine ccnf_get_var1_int
 subroutine ccnf_get_vara_real2r(ncid,vid,start,ncount,vdat)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid,vid
 integer, dimension(:), intent(in) :: start,ncount
@@ -2632,15 +2579,13 @@ end subroutine ccnf_get_vara_real2r
 subroutine ccnf_get_vara_real3r(ncid,vid,start,ncount,vdat)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid,vid
 integer, dimension(:) :: start,ncount
@@ -2672,15 +2617,13 @@ end subroutine ccnf_get_vara_real3r
 subroutine ccnf_get_vara_real4r(ncid,vid,start,ncount,vdat)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid,vid
 integer, dimension(:) :: start,ncount
@@ -2712,15 +2655,13 @@ end subroutine ccnf_get_vara_real4r
 subroutine ccnf_get_vara_int2i(ncid,vid,start,ncount,vdat)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid,vid
 integer, dimension(:) :: start,ncount
@@ -2751,15 +2692,13 @@ end subroutine ccnf_get_vara_int2i
 subroutine ccnf_get_vara_double4d(ncid,vid,start,ncount,vdat)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid,vid
 integer, dimension(:) :: start,ncount
@@ -2788,15 +2727,13 @@ end subroutine ccnf_get_vara_double4d
 subroutine ccnf_get_att_text(ncid,vid,aname,atext,ierr)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid,vid
 integer, intent(out), optional :: ierr
@@ -2826,15 +2763,13 @@ end subroutine ccnf_get_att_text
 subroutine ccnf_get_att_real(ncid,vid,aname,vdat,ierr)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid,vid
 integer, intent(out), optional :: ierr
@@ -2868,15 +2803,13 @@ end subroutine ccnf_get_att_real
 subroutine ccnf_get_att_realg1r(ncid,aname,vdat)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid
 integer ncstatus
@@ -2903,15 +2836,13 @@ end subroutine ccnf_get_att_realg1r
 subroutine ccnf_get_att_realg2r(ncid,aname,vdat)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid
 integer ncstatus
@@ -2938,15 +2869,13 @@ end subroutine ccnf_get_att_realg2r
 subroutine ccnf_get_att_intg1i(ncid,aname,vdat)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid
 integer, intent(out) :: vdat
@@ -2970,15 +2899,13 @@ end subroutine ccnf_get_att_intg1i
 subroutine ccnf_get_att_intg2i(ncid,aname,vdat)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid
 integer, dimension(:), intent(out) :: vdat
@@ -3003,16 +2930,15 @@ end subroutine ccnf_get_att_intg2i
 subroutine ccnf_read(fname,vname,vdat)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
 
 include 'newmpar.h'
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer ncstatus
 integer(kind=4) :: lncid,lvid,lncstatus
@@ -3064,15 +2990,13 @@ end subroutine ccnf_read
 subroutine ccnf_put_var_text2r(ncid,vid,vtxt)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid,vid
 integer ncstatus
@@ -3095,15 +3019,13 @@ end subroutine ccnf_put_var_text2r
 subroutine ccnf_put_var_int2i(ncid,vid,vdat)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid,vid
 integer ncstatus
@@ -3128,15 +3050,13 @@ end subroutine ccnf_put_var_int2i
 subroutine ccnf_put_var_int3i(ncid,vid,vdat)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid,vid
 integer ncstatus
@@ -3161,15 +3081,13 @@ end subroutine ccnf_put_var_int3i
 subroutine ccnf_put_var1_int(ncid,vid,start,vdat)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid,vid,start
 integer, intent(in) :: vdat
@@ -3203,15 +3121,13 @@ end subroutine ccnf_put_var1_int
 subroutine ccnf_put_var1_real(ncid,vid,start,vdat)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid,vid,start
 integer ncstatus
@@ -3249,15 +3165,13 @@ end subroutine ccnf_put_var1_real
 subroutine ccnf_put_var1_double(ncid,vid,start,vdat)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid,vid,start
 integer ncstatus
@@ -3291,15 +3205,13 @@ end subroutine ccnf_put_var1_double
 subroutine ccnf_put_vara_real2r(ncid,vid,start,ncount,vdat)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid,vid
 integer ncstatus
@@ -3323,7 +3235,7 @@ lncstatus=nf_put_vara_real(lncid,lvid,lstart,lncount,vdat)
 lncstatus=nf90_put_var(lncid,lvid,vdat,start=lstart,count=lncount)
 #endif
 ncstatus=lncstatus
-call ncmsg("put_vara",ncstatus)
+call ncmsg("put_vara_real2r",ncstatus)
 
 return
 end subroutine ccnf_put_vara_real2r
@@ -3331,15 +3243,13 @@ end subroutine ccnf_put_vara_real2r
 subroutine ccnf_put_vara_real3r(ncid,vid,start,ncount,vdat)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid,vid
 integer ncstatus
@@ -3372,15 +3282,13 @@ end subroutine ccnf_put_vara_real3r
 subroutine ccnf_put_vara_double2r(ncid,vid,start,ncount,vdat)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid,vid
 integer ncstatus
@@ -3409,15 +3317,13 @@ end subroutine ccnf_put_vara_double2r
 subroutine ccnf_put_vara_int2i(ncid,vid,start,ncount,vdat)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid,vid
 integer ncstatus
@@ -3447,15 +3353,13 @@ end subroutine ccnf_put_vara_int2i
 subroutine ccnf_put_att_text(ncid,vid,aname,asize,atext)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid,vid,asize
 integer ncstatus
@@ -3480,15 +3384,13 @@ end subroutine ccnf_put_att_text
 subroutine ccnf_put_att_textg(ncid,aname,atext)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid
 integer ncstatus
@@ -3512,15 +3414,13 @@ end subroutine ccnf_put_att_textg
 subroutine ccnf_put_att_intg1(ncid,aname,vdat)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid
 integer ncstatus
@@ -3546,15 +3446,13 @@ end subroutine ccnf_put_att_intg1
 subroutine ccnf_put_att_intg2(ncid,aname,vsize,vdat)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid,vsize
 integer ncstatus
@@ -3580,15 +3478,13 @@ end subroutine ccnf_put_att_intg2
 subroutine ccnf_put_att_realg1(ncid,aname,vdat)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid
 integer ncstatus
@@ -3617,15 +3513,13 @@ end subroutine ccnf_put_att_realg1
 subroutine ccnf_put_att_realg2(ncid,aname,vsize,vdat)
 
 use cc_mpi
-#ifndef usenc3
-use netcdf
+#ifdef usenc3
+use netcdf_m             ! Netcdf parameters
+#else
+use netcdf               ! Netcdf parameters
 #endif
 
 implicit none
-
-#ifdef usenc3
-include 'netcdf.inc'
-#endif
 
 integer, intent(in) :: ncid,vsize
 integer ncstatus

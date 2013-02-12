@@ -834,7 +834,7 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
        if (abs(iaero)==2) then ! Use counter gradient for aerosols
          tnaero=tnaero+2*naero
          dumar(:,:,tnaero-2*naero+1:tnaero-naero)=xtg(1:ifull,:,:)
-         dumar(:,:,tnaero-naero+1:tnaero)=xtusav(1:ifull,:,:)
+         dumar(:,:,tnaero-naero+1:tnaero)=xtosav(1:ifull,:,:)
        end if
        select case(nlocal)
         case(0) ! no counter gradient
@@ -895,7 +895,7 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
        end if
        if (abs(iaero)==2) then
          xtg(1:ifull,:,:)=dumar(:,:,tnaero-2*naero+1:tnaero-naero)
-         xtusav(1:ifull,:,:)=dumar(:,:,tnaero-naero+1:tnaero)
+         xtosav(1:ifull,:,:)=dumar(:,:,tnaero-naero+1:tnaero)
        end if
          
       end if ! nvmix/=6
@@ -1055,12 +1055,12 @@ c         now do cffall
       ! Aerosols
       if (abs(iaero)==2.and.nvmix/=6) then
         do l=1,naero
-          rhs=xtg(1:ifull,:,l)
+          rhs=xtg(1:ifull,:,l) ! Total grid-box
           call trim(at,ct,rhs,0)
           xtg(1:ifull,:,l)=rhs
-          rhs=xtusav(:,:,l) ! Outside convective cloud - fixed in aerointerface.f90
+          rhs=xtosav(:,:,l)    ! Outside convective cloud
           call trim(at,ct,rhs,0)
-          xtusav(:,:,l)=rhs
+          xtosav(:,:,l)=rhs
         end do
       end if ! (abs(iaero)==2)
 

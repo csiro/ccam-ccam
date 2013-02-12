@@ -823,12 +823,11 @@ c       reaching the next level (or the surface).
       !--------------------------------------------------------------
       ! MJT aerosols
       if (abs(iaero)==2) then
-        xtusav=xtg(1:ifull,:,:) ! Outside convective cloud - fixed in aerointerface.f90
         ! fscav=0. no scavenging in this convection scheme
         do ntr=1,naero
           ss(:,:)=xtg(1:ifull,:,ntr)
           do iq=1,ifull
-           if(kbsav(iq).gt.0)then
+           if(kbsav(iq)>0)then
              kb=kbsav(iq)
              kt=ktsav(iq)
              veldt=convpsav(iq)

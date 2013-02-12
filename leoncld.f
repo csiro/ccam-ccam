@@ -105,8 +105,9 @@ c These outputs are not used in this model at present
         tnhs(:,k)=(phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:,k-1))/bet(k)
       end do
       
-      ! Calculate droplet concentration from aerosols
-      call aerodrop(iaero,1,ifull,kl,cdso4,rhoa,land,rlatt)
+      ! Calculate droplet concentration from aerosols (for non-convective faction of grid-box)
+      call aerodrop(iaero,1,ifull,kl,cdso4,rhoa,land,rlatt,
+     &              outconv=.true.)
 
       kbase(:)=0  ! default
       ktop(:) =0  ! default
@@ -136,7 +137,7 @@ c     Set up convective cloud column
 
 !     if(diag.and.mydiag)then
       if(nmaxpr==1.and.mydiag)then
-        if(ktau.eq.1)print *,'in leoncloud acon,bcon,Rcm ',acon,bcon,Rcm
+        if(ktau==1)print *,'in leoncloud acon,bcon,Rcm ',acon,bcon,Rcm
         print *,'entering leoncld'
         write (6,"('qg  ',3p9f8.3/4x,9f8.3)") qg(idjd,:)
         write (6,"('qf  ',3p9f8.3/4x,9f8.3)") qfg(idjd,:)
@@ -145,11 +146,9 @@ c     Set up convective cloud column
 
 c     Calculate convective cloud fraction and adjust moisture variables 
 c     before calling newcloud
-      !------------------------------------------------------------------------
-      ! MJT CHANGE - mr
-      if (nmr.ge.1) then 
+      if (nmr>=1) then ! Max/Rnd cloud overlap
         do k=1,kl
-          where (k.le.ktop(1:ifull).and.k.ge.kbase(1:ifull))
+          where (k<=ktop(1:ifull).and.k>=kbase(1:ifull))
             clcon(1:ifull,k)=cldcon(1:ifull) ! maximum overlap
             !ccw=wcon(:)/rhoa(:,k)  !In-cloud l.w. mixing ratio
             qccon(1:ifull,k)=clcon(1:ifull,k)*
@@ -169,37 +168,38 @@ c     before calling newcloud
             qenv(1:ifull,k)=qg(1:ifull,k)
           endwhere
         enddo
-      else ! usual
+      else ! usual random cloud overlap
       
-      do k=1,kl
-        do iq=1,ifull
-          if(k.le.ktop(iq).and.k.ge.kbase(iq))then
-            ncl=ktop(iq)-kbase(iq)+1
-            clcon(iq,k)=1.0-(1.0-cldcon(iq))**(1.0/ncl) !Random overlap
-            ccw=wcon(iq)/rhoa(iq,k)  !In-cloud l.w. mixing ratio
-!!27/4/04   qccon(iq,k)=clcon(iq,k)*ccw*0.25 ! 0.25 reduces updraft value to cloud value
-            qccon(iq,k)=clcon(iq,k)*ccw
-            !qcl(iq,k)=qsg(iq,k)
-!           N.B. get silly qenv (becoming >qg) if qg>qsg (jlm)	     
-            qcl(iq,k)=max(qsg(iq,k),qg(iq,k))  ! jlm
-            qenv(iq,k)=max(1.e-8,
-     &                 qg(iq,k)-clcon(iq,k)*qcl(iq,k))/(1-clcon(iq,k))
-            qcl(iq,k)=(qg(iq,k)-(1-clcon(iq,k))*qenv(iq,k))/clcon(iq,k)
-            qlg(iq,k)=qlg(iq,k)/(1-clcon(iq,k))
-            qfg(iq,k)=qfg(iq,k)/(1-clcon(iq,k))
-          else
-            clcon(iq,k)=0.
-            qccon(iq,k)=0.
-            qcl(iq,k)=0.
-            qenv(iq,k)=qg(iq,k)
-          endif
+        do k=1,kl
+          do iq=1,ifull
+            if(k<=ktop(iq).and.k>=kbase(iq))then
+              ncl=ktop(iq)-kbase(iq)+1
+              clcon(iq,k)=1.0-(1.0-cldcon(iq))**(1.0/ncl) !Random overlap
+              ccw=wcon(iq)/rhoa(iq,k)  !In-cloud l.w. mixing ratio
+!!27/4/04     qccon(iq,k)=clcon(iq,k)*ccw*0.25 ! 0.25 reduces updraft value to cloud value
+              qccon(iq,k)=clcon(iq,k)*ccw
+              !qcl(iq,k)=qsg(iq,k)
+!             N.B. get silly qenv (becoming >qg) if qg>qsg (jlm)	     
+              qcl(iq,k)=max(qsg(iq,k),qg(iq,k))  ! jlm
+              qenv(iq,k)=max(1.e-8,
+     &               qg(iq,k)-clcon(iq,k)*qcl(iq,k))/(1.-clcon(iq,k))
+              qcl(iq,k)=(qg(iq,k)-(1.-clcon(iq,k))*qenv(iq,k))
+     &               /clcon(iq,k)
+              qlg(iq,k)=qlg(iq,k)/(1.-clcon(iq,k))
+              qfg(iq,k)=qfg(iq,k)/(1.-clcon(iq,k))
+            else
+              clcon(iq,k)=0.
+              qccon(iq,k)=0.
+              qcl(iq,k)=0.
+              qenv(iq,k)=qg(iq,k)
+            endif
+          enddo
         enddo
-      enddo
       
       end if
-      !------------------------------------------------------------------------
+      
       tenv(:,:)=t(1:ifull,:) !Assume T is the same in and out of convective cloud
-!     if(diag.and.mydiag)then
+
       if(nmaxpr==1.and.mydiag)then
         print *,'before newcloud',ktau
         write (6,"('t   ',9f8.2/4x,9f8.2)") t(idjd,:)
@@ -221,7 +221,7 @@ c     Calculate cloud fraction and cloud water mixing ratios
      &     cfrac,ccov,cfa,qca)   !Outputs
       qlg(1:ifull,:)=dumql
       qfg(1:ifull,:)=dumqf
-!     if(diag.and.mydiag)then
+
       if(nmaxpr==1.and.mydiag)then
         print *,'after newcloud',ktau
         write (6,"('tnv ',9f8.2/4x,9f8.2)") tenv(idjd,:)
@@ -234,18 +234,19 @@ c     Calculate cloud fraction and cloud water mixing ratios
 c     Weight output variables according to non-convective fraction of grid-box            
       do k=1,kl
         do iq=1,ifull
-          t(iq,k)=clcon(iq,k)*t(iq,k)+(1-clcon(iq,k))*tenv(iq,k)
-          qg(iq,k)=clcon(iq,k)*qcl(iq,k)+(1-clcon(iq,k))*qenv(iq,k)
-          if(k.ge.kbase(iq).and.k.le.ktop(iq))then
-            cfrac(iq,k)=cfrac(iq,k)*(1-clcon(iq,k))
-            ccov(iq,k)=ccov(iq,k)*(1-clcon(iq,k))              
-            qlg(iq,k)=qlg(iq,k)*(1-clcon(iq,k))
-            qfg(iq,k)=qfg(iq,k)*(1-clcon(iq,k))
-            cfa(iq,k)=cfa(iq,k)*(1-clcon(iq,k))
-            qca(iq,k)=qca(iq,k)*(1-clcon(iq,k))              
+          t(iq,k)=clcon(iq,k)*t(iq,k)+(1.-clcon(iq,k))*tenv(iq,k)
+          qg(iq,k)=clcon(iq,k)*qcl(iq,k)+(1.-clcon(iq,k))*qenv(iq,k)
+          if(k>=kbase(iq).and.k<=ktop(iq))then
+            cfrac(iq,k)=cfrac(iq,k)*(1.-clcon(iq,k))
+            ccov(iq,k)=ccov(iq,k)*(1.-clcon(iq,k))              
+            qlg(iq,k)=qlg(iq,k)*(1.-clcon(iq,k))
+            qfg(iq,k)=qfg(iq,k)*(1.-clcon(iq,k))
+            cfa(iq,k)=cfa(iq,k)*(1.-clcon(iq,k))
+            qca(iq,k)=qca(iq,k)*(1.-clcon(iq,k))              
           endif
         enddo
       enddo
+
       if(nmaxpr==1.and.mydiag)then
         print *,'before newrain',ktau
         write (6,"('t   ',9f8.2/4x,9f8.2)") t(idjd,:)
@@ -309,7 +310,7 @@ c     Calculate precipitation and related processes
 
       !--------------------------------------------------------------
       ! Store data needed by prognostic aerosol scheme
-      if (abs(iaero).ge.2) then
+      if (abs(iaero)>=2) then
         ppfprec(:,1)=0. !At TOA
         ppfmelt(:,1)=0. !At TOA
         ppfsnow(:,1)=0. !At TOA
@@ -353,7 +354,7 @@ c          qfrad(iq,k)=qfg(iq,k)+(1.-fl)*qccon(iq,k)
       enddo
 
 !========================= Jack's diag stuff =========================
-       if(ncfrp.eq.1)then  ! from here to near end; Jack's diag stuff
+       if(ncfrp==1)then  ! from here to near end; Jack's diag stuff
         do iq=1,icfrp
           tautot(iq)=0.
           cldmax(iq)=0.

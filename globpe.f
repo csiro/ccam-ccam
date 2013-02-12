@@ -11,6 +11,7 @@
 !                      v+ve northwards (on the panel)
 
       use aerointerface                       ! Aerosol interface
+      use aerosolldr, only : xtosav,xtg       ! LDR prognostic aerosols
       use arrays_m                            ! Atmosphere dyamics prognostic arrays
       use bigxy4_m                            ! Grid interpolation
       use carbpools_m, only : carbpools_init  ! Carbon pools
@@ -1302,23 +1303,24 @@
       if (myid==0.and.nmaxpr==1) then
         write(6,*) "Before convection"
       end if
+      condc=0.
       condx=0.
       conds=0.
+      ! Save aerosol concentrations for outside convective fraction of grid box
+      if (abs(iaero)>=2) then
+        xtosav(:,:,:)=xtg(1:ifull,:,:) ! Outside convective cloud
+      end if
+      ! Select convection scheme
       select case(nkuo)
         case(5)
           call betts(t,qg,tn,land,ps) ! not called these days
-        case(22)
-          call oldconvjlm(iaero)      ! original convjlm before 2012
         case(23,24)
           call convjlm(iaero)         ! split convjlm 
         case(46)
           call conjob(iaero)          ! split Arakawa-Gordon scheme
       end select
-      if (nkuo/=0) then
-        ! Not set in HS tests.
-        cbas_ave(:)=cbas_ave(:)+condc(:)*(1.1-sig(kbsav(:))) ! diagnostic
-        ctop_ave(:)=ctop_ave(:)+condc(:)*(1.1-sig(abs(ktsav(:)))) ! diagnostic
-      end if
+      cbas_ave(:)=cbas_ave(:)+condc(:)*(1.1-sig(kbsav(:)))      ! diagnostic
+      ctop_ave(:)=ctop_ave(:)+condc(:)*(1.1-sig(abs(ktsav(:)))) ! diagnostic
       if (myid==0.and.nmaxpr==1) then
         write(6,*) "After convection"
       end if

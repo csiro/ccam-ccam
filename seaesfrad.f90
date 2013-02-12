@@ -463,26 +463,22 @@ do j=1,jl,imax/il
     else
       call o3set(imax,istart,mins,duo3n,sig,ps(istart:iend))
     end if
-    Rad_gases%qo3(:,1,:)=max(1.e-10,duo3n)
+    Rad_gases%qo3(:,1,:)=dble(max(1.e-10,duo3n))
 
     ! Set-up albedo
     ! Land albedo ---------------------------------------------------
     if (nsib==6.or.nsib==7) then
       ! CABLE version
-      where (land(istart:iend))
-        cuvrf_dir(1:imax) = albvisdir(istart:iend) ! from cable (inc snow)
-        cirrf_dir(1:imax) = albnirdir(istart:iend) ! from cable (inc snow)
-        cuvrf_dif(1:imax) = albvisdif(istart:iend) ! from cable (inc snow)
-        cirrf_dif(1:imax) = albnirdif(istart:iend) ! from cable (inc snow)
-      end where
+      cuvrf_dir(1:imax) = albvisdir(istart:iend) ! from cable (inc snow)
+      cirrf_dir(1:imax) = albnirdir(istart:iend) ! from cable (inc snow)
+      cuvrf_dif(1:imax) = albvisdif(istart:iend) ! from cable (inc snow)
+      cirrf_dif(1:imax) = albnirdif(istart:iend) ! from cable (inc snow)
     else
       ! nsib=3 version (calculate snow)
-      where (land(istart:iend))
-        cuvrf_dir(1:imax) = albsav(istart:iend)    ! from albfile (indata.f)
-        cirrf_dir(1:imax) = albnirsav(istart:iend) ! from albnirfile (indata.f)
-        cuvrf_dif(1:imax) = cuvrf_dir(1:imax)      ! assume DIR and DIF are the same
-        cirrf_dif(1:imax) = cirrf_dir(1:imax)      ! assume DIR and DIF are the same
-      end where
+      cuvrf_dir(1:imax) = albsav(istart:iend)    ! from albfile (indata.f)
+      cirrf_dir(1:imax) = albnirsav(istart:iend) ! from albnirfile (indata.f)
+      cuvrf_dif(1:imax) = cuvrf_dir(1:imax)      ! assume DIR and DIF are the same
+      cirrf_dif(1:imax) = cirrf_dir(1:imax)      ! assume DIR and DIF are the same
       ! The following snow calculation should be done by sib3 (sflux.f)
       do i=1,imax
         iq=i+(j-1)*il
@@ -665,7 +661,7 @@ do j=1,jl,imax/il
       call getqsat(imax,qsat,dumt(:,k),p2(:,k))
       Atmos_input%deltaz(:,1,kr) =(-dsig(k)/sig(k))*rdry*(dumt(:,k)+tnhs(:,k))/grav
       Atmos_input%rh2o(:,1,kr)   =max(qg(istart:iend,k),2.E-7)
-      Atmos_input%temp(:,1,kr)   =min(max(dumt(:,k),100.),370.)      
+      Atmos_input%temp(:,1,kr)   =min(max(dumt(:,k),100.),370.)    
       Atmos_input%press(:,1,kr)  =p2(:,k)
       Atmos_input%rel_hum(:,1,kr)=min(qg(istart:iend,k)/qsat,1.)
     end do
@@ -843,8 +839,10 @@ do j=1,jl,imax/il
     end where
     
     ! Store albedo data ---------------------------------------------
-    albvisnir(istart:iend,1)=Surface%asfc_vis_dir(:,1)*fbeamvis(istart:iend)+Surface%asfc_vis_dif(:,1)*(1.-fbeamvis(istart:iend))
-    albvisnir(istart:iend,2)=Surface%asfc_nir_dir(:,1)*fbeamnir(istart:iend)+Surface%asfc_nir_dif(:,1)*(1.-fbeamnir(istart:iend))
+    albvisnir(istart:iend,1)=Surface%asfc_vis_dir(:,1)*fbeamvis(istart:iend) &
+                            +Surface%asfc_vis_dif(:,1)*(1.-fbeamvis(istart:iend))
+    albvisnir(istart:iend,2)=Surface%asfc_nir_dir(:,1)*fbeamnir(istart:iend) &
+                            +Surface%asfc_nir_dif(:,1)*(1.-fbeamnir(istart:iend))
     
     ! longwave output -----------------------------------------------
     rg(1:imax) = Lw_output(1)%flxnet(:,1,kl+1)          ! longwave at surface
@@ -1116,11 +1114,9 @@ real(kind=8), dimension(:,:,:,:),        intent(inout) :: r
 !  local variables:
 
       type(sw_output_type) :: Sw_output_ad, Sw_output_std
-      logical  :: skipswrad
-      logical  :: with_clouds
-      logical  :: calc_includes_aerosols
       integer  :: naerosol_optical
       integer  :: i, j       
+      logical  :: skipswrad
 
 !---------------------------------------------------------------------
 !   local variables:
@@ -1194,10 +1190,10 @@ real(kind=8), dimension(:,:,:,:),        intent(inout) :: r
           else
             naerosol_optical = 0  
           endif 
-          call swresf (is, ie, js, je, Atmos_input, Surface, Rad_gases,&
-                       Aerosol, Aerosol_props, Astro, Cldrad_props,      &
-                       Cld_spec, include_volcanoes,                      &
-                       Sw_output(1), Aerosol_diags, r,                   &
+          call swresf (is, ie, js, je, Atmos_input, Surface, Rad_gases,    &
+                       Aerosol, Aerosol_props, Astro, Cldrad_props,        &
+                       Cld_spec, include_volcanoes,                        &
+                       Sw_output(1), Aerosol_diags, r,                     &
                        do_aerosol_forcing, naerosol_optical)
       endif
 !--------------------------------------------------------------------
@@ -1338,10 +1334,10 @@ end do
 
 do k=1,kl
   kr=kl+1-k
-  Rdrop(:,kr)=2.E6*reffl(:,k) ! convert to diameter and microns
-  Rice(:,kr) =2.E6*reffi(:,k)
-  conl(:,kr) =scale_factor*1000.*Wliq(:,k) !g/m^3
-  coni(:,kr) =scale_factor*1000.*Wice(:,k)
+  Rdrop(:,kr)=dble(2.E6*reffl(:,k)) ! convert to diameter and microns
+  Rice(:,kr) =dble(2.E6*reffi(:,k))
+  conl(:,kr) =dble(scale_factor*1000.*Wliq(:,k)) !g/m^3
+  coni(:,kr) =dble(scale_factor*1000.*Wice(:,k))
 end do
 
 where (Rdrop>0.)
@@ -1362,11 +1358,11 @@ implicit none
 
 include 'filnames.h'
 
-integer n,nmodel,unit,num_wavenumbers,num_input_categories
-integer noptical,nivl3,nband,nw,ierr,na,ni
+integer :: n,nmodel,unit,num_wavenumbers,num_input_categories
+integer :: noptical,nivl3,nband,nw,ierr,na,ni
 integer, dimension(:), allocatable, save :: endaerwvnsf
 integer, dimension(:), allocatable, save :: nivl1aero,nivl2aero
-real(kind=8) sumsol3
+real(kind=8) :: sumsol3
 real(kind=8), dimension(:,:), allocatable, save :: aeroextivl,aerossalbivl,aeroasymmivl
 real(kind=8), dimension(:,:), allocatable, save :: sflwwts,sflwwts_cn
 real(kind=8), dimension(:,:), allocatable, save :: solivlaero

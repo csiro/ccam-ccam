@@ -7,12 +7,12 @@ implicit none
 
 private
 public aldrcalc,aldrinit,aldrend,aldrloademiss,aldrloaderod,aldrloadoxidant,cldrop,convscav, &
-       xtg,xtgsav,xtusav,naero,ssn
+       xtg,xtgsav,xtosav,naero,ssn
 
 integer, save :: ifull,kl
 real, dimension(:,:,:), allocatable, save :: xtg     ! prognostic aerosols (see indexing below)
 real, dimension(:,:,:), allocatable, save :: xtgsav  ! save for mass conservation in semi-Lagrangian models
-real, dimension(:,:,:), allocatable, save :: xtusav  ! aerosol mixing ratio in convective cloud
+real, dimension(:,:,:), allocatable, save :: xtosav  ! aerosol mixing ratio outside convective cloud
 real, dimension(:,:,:), allocatable, save :: ssn     ! diagnostic sea salt
 real, dimension(:,:,:), allocatable, save :: erod    ! sand, clay and silt fraction that can erode
 real, dimension(:,:), allocatable, save :: field     ! non-volcanic emissions
@@ -65,7 +65,7 @@ ifull=ifin
 kl=klin
 allocate(xtg(ifull+iextra,kl,naero))
 allocate(xtgsav(ifull,kl,naero))
-allocate(xtusav(ifull,kl,naero))
+allocate(xtosav(ifull,kl,naero))
 allocate(vso2(ifull))
 allocate(field(ifull,15))
 allocate(ssn(ifull,kl,2))
@@ -74,7 +74,7 @@ allocate(erod(ifull,ndcls,ndsrc))
 
 xtg=0.
 xtgsav=0.
-xtusav=0.
+xtosav=0.
 vso2=0.
 field=0.
 ssn=0.
@@ -91,7 +91,7 @@ subroutine aldrend
 
 implicit none
 
-deallocate(xtg,xtgsav,xtusav)
+deallocate(xtg,xtgsav,xtosav)
 deallocate(vso2)
 deallocate(field)
 deallocate(ssn)
@@ -160,7 +160,7 @@ end subroutine aldrloaderod
 subroutine aldrcalc(dt,sig,sigh,dsig,zz,dz,mc,fwet,wg,pblh,prf,ts,ttg,rcondx,condc,snowd,sg,fg,eg,v10m,  &
                     ustar,zo,land,sicef,tsigmf,qlg,qfg,cfrac,clcon,pccw,dxy,rhoa,vt,ppfprec,ppfmelt,     &
                     ppfsnow,ppfconv,ppfevap,ppfsubl,pplambs,ppmrate,ppmaccr,ppfstay,ppqfsed,pprscav,     &
-                    zdayfac)
+                    zdayfac,xtusav)
 
 implicit none
 
@@ -200,6 +200,7 @@ real, dimension(ifull,kl), intent(in) :: rhoa  ! density of air
 real, dimension(ifull,kl), intent(in) :: ppfprec,ppfmelt,ppfsnow,ppfconv ! from LDR prog cloud
 real, dimension(ifull,kl), intent(in) :: ppfevap,ppfsubl,pplambs,ppmrate ! from LDR prog cloud
 real, dimension(ifull,kl), intent(in) :: ppmaccr,ppfstay,ppqfsed,pprscav ! from LDR prog cloud
+real, dimension(ifull,kl,naero), intent(in) :: xtusav ! aerosol mixing ratio inside convective cloud
 logical, dimension(ifull), intent(in) :: land  ! land/sea mask (t=land)
 real, dimension(ifull,naero) :: conwd          ! Diagnostic only: Convective wet deposition
 real, dimension(ifull,naero) :: xtem
@@ -2302,18 +2303,32 @@ end subroutine seasalt
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! cloud droplet concentration
 
-subroutine cldrop(istart,imax,cdn,rhoa)
+subroutine cldrop(istart,imax,cdn,rhoa,convmode)
 
 implicit none
 
 integer, intent(in) :: istart,imax
+integer k,is,ie
 real, dimension(imax,kl), intent(in) :: rhoa
 real, dimension(imax,kl), intent(out) :: cdn
+real, dimension(imax,kl) :: xtgso2,xtgbc,xtgoc
 real, dimension(imax) :: so4_n,cphil_n,dust_n,aero_n,Atot
-integer k,is,ie
+logical, intent(in) :: convmode
 
 is=istart
 ie=istart+imax-1
+
+if (convmode) then
+  ! total grid-box
+  xtgso2 = xtg(is:ie,:,itracso2+1)
+  xtgbc = xtg(is:ie,:,itracbc+1)
+  xtgoc = xtg(is:ie,:,itracoc+1)
+else
+  ! outside convective fraction of grid-box
+  xtgso2 = xtosav(is:ie,:,itracso2+1)
+  xtgbc = xtosav(is:ie,:,itracbc+1)
+  xtgbc = xtosav(is:ie,:,itracbc+1)
+end if
 
 do k=1,kl
   ! Factor of 132.14/32.06 converts from sulfur to ammmonium sulfate
@@ -2321,7 +2336,7 @@ do k=1,kl
   ! from Penner et al (1998).
   ! 1.69e17 converts from mass (kg/m3) to number concentration (/m3) for dist'n 
   ! from IPCC (2001), Table 5.1, as used by Minghuai Wang for lookup optical properties.
-  so4_n(:) = 1.24e17 * (132.14/32.06) * rhoa(:,k) * xtg(is:ie,k,itracso2+1)
+  so4_n(:) = 1.24e17 * (132.14/32.06) * rhoa(:,k) * xtgso2(:,k)
 
   ! Factor of 1.3 converts from OC to organic matter (OM) 
   ! 1.25e17 converts from hydrophilic mass (kg/m3) to number concentration (/m3) for
@@ -2330,7 +2345,7 @@ do k=1,kl
   ! biomass regional haze distribution from IPCC (2001), Table 5.1. Using rho_a=1250 kg/m3.
 
   ! Following line counts Aitken mode as well as accumulation mode carb aerosols
-  cphil_n(:) = 2.30e17 * rhoa(:,k) * (xtg(is:ie,k,itracbc+1)+1.3*xtg(is:ie,k,itracoc+1))
+  cphil_n(:) = 2.30e17 * rhoa(:,k) * (xtgbc(:,k)+1.3*xtgoc(:,k))
 
   ! The dust particles are the accumulation mode only (80.2% of the hydrophilic 
   ! "small dust" particles)
@@ -2374,8 +2389,9 @@ integer i,nt
 data scav_effl/0.0,1.0,0.9,0.0,0.3,0.0,0.3,4*0.05/ !liquid
 data scav_effi/0.0,0.0,0.0,.05,0.0,.05,0.0,4*0.05/ !ice
 
-f_so2=0.
+f_so2   =0.
 scav_eff=0.
+fscav   =0.
 
 ! CALCULATE THE SOLUBILITY OF SO2
 ! TOTAL SULFATE  IS ONLY USED TO CALCULATE THE PH OF CLOUD WATER
@@ -2407,23 +2423,17 @@ do i=1,ifull
 enddo
 
 do nt=1,naero
-  if (nt==ITRACSO2) then
-    where (bwkp1)
-      scav_eff(:,nt)=f_so2(:)
-    elsewhere
-      scav_eff(:,nt)=scav_effi(nt)
-    end where
-  else
-    where (bwkp1)
-      scav_eff(:,nt)=scav_effl(nt)
-    elsewhere
-      scav_eff(:,nt)=scav_effi(nt)
-    end where
-  end if
+  where (bwkp1)
+    scav_eff(:,nt)=scav_effl(nt)
+  elsewhere
+    scav_eff(:,nt)=scav_effi(nt)
+  end where
 end do
+where (bwkp1)
+  scav_eff(:,ITRACSO2)=f_so2(:)
+end where
 
 ! Wet deposition scavenging fraction
-fscav(:,:)=0.
 do nt=1,naero
   where(xpold>0.)
     fscav(:,nt)=scav_eff(:,nt)*max(xpold(:)-xpkp1(:),0.)/xpold(:)

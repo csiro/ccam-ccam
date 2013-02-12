@@ -305,6 +305,7 @@ c       create the attributes of the header record of the file
       use cable_def_types_mod, only : ncs, ncp  ! CABLE dimensions
       use dpsdt_m                               ! Vertical velocity
       use extraout_m                            ! Additional diagnostics
+      use gdrag_m                               ! Gravity wave drag
       use histave_m                             ! Time average arrays
       use infile                                ! Input file routines
       use latlong_m                             ! Lat/lon coordinates
@@ -496,6 +497,9 @@ c       Sigma levels
 c       For time invariant surface fields
         lname = 'Surface geopotential'
         call attrib(idnc,idim(1:2),2,'zht',lname,'m2/s2',-1000.,90.e3,
+     &              0,-1)
+        lname = 'Std Dev of surface height'
+        call attrib(idnc,idim(1:2),2,'he',lname,'m',-1000.,90.e3,
      &              0,-1)
         lname = 'Map factor'
         call attrib(idnc,idim(1:2),2,'map',lname,'none',.001,1500.,
@@ -1449,6 +1453,7 @@ c      set time to number of minutes since start
 
       if(ktau==0.or.itype==-1)then  ! also for restart file
         call histwrt3(zs,'zht',idnc,iarch,local,.true.)
+        call histwrt3(he,'he',idnc,iarch,local,.true.)
         call histwrt3(em,'map',idnc,iarch,local,.true.)
         call histwrt3(f,'cor',idnc,iarch,local,.true.)
         call histwrt3(sigmu,'sigmu',idnc,iarch,local,.true.)
@@ -2283,11 +2288,15 @@ c      "extra" outputs
            do i=1,il_g
               xpnt(i) = float(i)
            end do
+           iduma(1)=1
+           iduma(2)=il_g
            call ccnf_put_vara(fncid,ixp,iduma(1:1),iduma(2:2),
      &                             xpnt)
            do j=1,jl_g
               ypnt(j) = float(j)
            end do
+           iduma(1)=1
+           iduma(2)=jl_g
            call ccnf_put_vara(fncid,iyp,iduma(1:1),iduma(2:2),
      &                             ypnt)
           end if

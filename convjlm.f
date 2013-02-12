@@ -1404,7 +1404,7 @@ c      if(mydiag)print *,'methprec5 detrfactr,detrfactr(idjd)
       end if
 
       ! Convective transport of TKE and eps - MJT
-      if (nvmix.eq.6) then
+      if (nvmix==6) then
         s(:,1:kl-2)=tke(1:ifull,1:kl-2)
         do iq=1,ifull
          if(kt_sav(iq)<kl-1)then
@@ -1441,7 +1441,7 @@ c      if(mydiag)print *,'methprec5 detrfactr,detrfactr(idjd)
         enddo   ! iq loop        
       end if
 
-      ! Convective transport of aerosols - MJT
+      ! Convective transport of aerosols
       if (abs(iaero)==2) then
         ! This is a simple approximation where all rain is attributed to
         ! kt_save.  However, rain is actually attributed to kt_save (qprec)
@@ -1451,12 +1451,11 @@ c      if(mydiag)print *,'methprec5 detrfactr,detrfactr(idjd)
           ttsto(iq)=tt(iq,kt)
           qqsto(iq)=qq(iq,kt)
           rho(iq)=ps(iq)*sig(kt)/(rdry*ttsto(iq))
-          bliqu(iq)=ttsto(iq).ge.253.16
+          bliqu(iq)=ttsto(iq)>=253.16
           qqrain(iq)=qqsto(iq)+convpsav(iq)*rnrtcn(iq)
           xtgsto(iq)=xtg(iq,kt,3)
         end do
         call convscav(fscav,qqsto,qqrain,bliqu,ttsto,xtgsto,rho)
-        xtusav=xtg(1:ifull,:,:) ! Outside convective cloud - fixed in aerointerface.f90
         do ntr=1,naero
           s(:,1:kl-2)=xtg(1:ifull,1:kl-2,ntr)
           do iq=1,ifull
@@ -1700,7 +1699,7 @@ c           if(evapls>0.)write(6,*) 'iq,k,evapls ',iq,k,evapls
       condc(1:ifull)=.001*dt*rnrtc(1:ifull)      ! convective precip for this timestep
       precc(1:ifull)=precc(1:ifull)+condc(1:ifull)        
       condx(1:ifull)=condc(1:ifull)+.001*dt*rnrt(1:ifull) ! total precip for this timestep
-      conds(1:ifull)=0.   ! MJT
+      conds(1:ifull)=0.
       precip(1:ifull)=precip(1:ifull)+condx(1:ifull)
       t(1:ifull,:)=tt(1:ifull,:)             
 
