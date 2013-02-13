@@ -1,7 +1,7 @@
 FC = mpif90
 
 #FFLAGS = -O -xHost -ftz -fpp -I $(NETCDF_ROOT)/include -assume buffered_io -Dsimple_timer -Duniform_decomp -Dsumdd -fp-model strict -Doutsync
-FFLAGS = -O -xHost -ftz -fpp -I $(NETCDF_ROOT)/include -assume buffered_io -Dsimple_timer -Dsumdd 
+FFLAGS = -xHost -ftz -fpp -I $(NETCDF_ROOT)/include -assume buffered_io -Dsimple_timer -Dsumdd 
 #FFLAGS = -O -xHost -ftz -fpp -I $(NETCDF_ROOT)/include -assume buffered_io -Dsimple_timer -Duniform_decomp -Dsumdd
 #FFLAGS = -O -xHost -ftz -fpp -r8 -i8 -I $(NETCDF_ROOT)/include -assume buffered_io -Dsimple_timer -Duniform_decomp -Dsumdd -Di8r8
 LIBS = -L $(NETCDF_ROOT)/lib -L $(HDF5_HOME)/lib -lnetcdf -lnetcdff -lhdf5 -lhdf5_hl
@@ -47,6 +47,10 @@ clean:
 
 .SUFFIXES:.f90 .F90
 
+mpif_m.o: mpif_m.f90
+	$(FC) -c $<
+netcdf_m.o: netcdf_m.f90
+	$(FC) -c -I $(NETCDF_ROOT)/include $<
 esfsw_driver.o: esfsw_driver.f90
 	$(FC)  -c -r8 $(FFLAGS) $<
 esfsw_parameters.o: esfsw_parameters.f90

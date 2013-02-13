@@ -24,12 +24,13 @@ module tkeeps
 implicit none
 
 private
-public tkeinit,tkemix,tkeend,tke,eps,shear
+public tkeinit,tkemix,tkeend,tke,eps,shear,zidry
 public mintke,mineps,cm0,cq,minl,maxl
 
 integer, save :: ifull,iextra,kl
 real, dimension(:,:), allocatable, save :: shear
 real, dimension(:,:), allocatable, save :: tke,eps
+real, dimension(:), allocatable, save :: zidry
 
 ! model constants
 real, parameter :: b1      = 2.     ! Soares et al (2004) 1., Siebesma et al (2003) 2.
@@ -53,7 +54,7 @@ real, parameter :: epsl  = rd/rv
 real, parameter :: delta = 1./(epsl-1.)
 real, parameter :: cp    = 1004.64
 real, parameter :: vkar  = 0.4
-real, parameter :: pi    = 3.1415927
+real, parameter :: pi    = 3.14159265
 
 ! stability constants
 real, parameter :: a_1   = 1.
@@ -64,7 +65,7 @@ real, parameter :: d_1   = 0.35
 !real, parameter :: bb1 = 0.5 ! Luhar low wind
 !real, parameter :: cc1 = 0.3 ! Luhar low wind
 
-integer, parameter :: icm1   = 5        ! max iterations for calculating pblh
+integer, parameter :: icm1   = 1        ! max iterations for calculating pblh
 real, parameter :: maxdts    = 300.     ! max timestep for split
 real, parameter :: maxdtt    = 100.     ! max timestep for tke-eps
 real, parameter :: mintke    = 1.E-8    ! min value for tke
@@ -91,12 +92,13 @@ iextra=iextrain
 kl=klin
 
 allocate(tke(ifull+iextra,kl),eps(ifull+iextra,kl))
-allocate(shear(ifull,kl))
+allocate(shear(ifull,kl),zidry(ifull))
 
 cm34=cm0**0.75
 tke=mintke
 eps=mineps
 shear=0.
+zidry=1000.
 
 return
 end subroutine tkeinit
@@ -138,7 +140,7 @@ real, dimension(ifull,2:kl) :: aa,qq,pps,ppt,ppb
 real, dimension(ifull,kl)   :: dz_fl   ! dz_fl(k)=0.5*(zz(k+1)-zz(k-1))
 real, dimension(ifull,kl-1) :: dz_hl   ! dz_hl(k)=zz(k+1)-zz(k)
 real, dimension(ifull) :: wstar,z_on_l,phim,wtv0,dum
-real, dimension(ifull) :: tkeold,epsold,zidry
+real, dimension(ifull) :: tkeold,epsold
 real, dimension(kl) :: w2up,nn
 real xp,dtr,as,bs,cs,cm12,cm34,qcup
 real zht,dzht,nnc,zidryold,zilcl,ee
@@ -177,7 +179,6 @@ pps(:,2:kl-1)=km(:,2:kl-1)*shear(:,2:kl-1)
 pps(:,kl)=0.
 ppb(:,kl)=0.
 ppt(:,kl)=0.
-zidry=zi
 
 ! Calculate air density - must use same theta for calculating dz
 do k=1,kl
@@ -514,9 +515,12 @@ do kcount=1,mcount
         !  end if
         !end do
         zi(i)=zz(i,1) ! MJT suggestion
+        zidry(i)=zi(i)
       end if
     end do
        
+  else ! other PBL scheme
+    zidry=zi
   end if
 
   ! calculate tke and eps at 1st level

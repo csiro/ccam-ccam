@@ -326,7 +326,7 @@ c       create the attributes of the header record of the file
       use sigs_m                                ! Atmosphere sigma levels
       use soil_m                                ! Soil and surface data
       use soilsnow_m                            ! Soil, snow and surface data
-      use tkeeps, only : tke,eps                ! TKE-EPS boundary layer
+      use tkeeps, only : tke,eps,zidry          ! TKE-EPS boundary layer
       use tracermodule, only : tracmax,tracmin, ! Tracer routines
      &      tracname,writetrpm
       use tracers_m                             ! Tracer data
@@ -937,6 +937,11 @@ c       For time varying surface fields
         if (nextout>=1.or.(nvmix==6.and.itype==-1)) then
           lname = 'PBL depth'
           call attrib(idnc,idim,3,'pblh',lname,'m',0.,13000.,0,itype)
+          if (nvmix==6) then
+            lname = 'Dry PBL depth'
+            call attrib(idnc,idim,3,'zidry',lname,'m',0.,13000.,0,
+     &                  itype)
+          end if
         end if
 
         ! CABLE -----------------------------------------------------
@@ -1793,7 +1798,10 @@ c      "extra" outputs
       
       ! TURBULENT MIXING --------------------------------------------
       if (nextout>=1.or.(nvmix==6.and.itype==-1)) then
-       call histwrt3(pblh,'pblh',idnc,iarch,local,.true.)
+        call histwrt3(pblh,'pblh',idnc,iarch,local,.true.)
+        if (nvmix==6) then
+          call histwrt3(zidry,'zidry',idnc,iarch,local,.true.)
+        end if
       end if
 
       ! CABLE -------------------------------------------------------

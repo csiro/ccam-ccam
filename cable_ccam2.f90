@@ -105,7 +105,7 @@ integer, parameter :: proglai        = 0 ! 0 prescribed LAI, 1 prognostic LAI
 real, parameter :: minfrac = 0.01 ! minimum non-zero tile fraction (improves load balancing)
 
 integer, dimension(:), allocatable, save :: cmap
-integer, dimension(9,2), save :: pind  
+integer, dimension(5,2), save :: pind  
 real, dimension(:), allocatable, save :: sv,vl1,vl2,vl3
 type (air_type), save :: air
 type (bgc_pool_type), save :: bgc
@@ -225,7 +225,7 @@ rough%hruff=max(0.01,veg%hc-1.2*ssoil%snowd/max(ssoil%ssdnn,100.))
 select case(hruffmethod)
   case(0) ! hruff is mixed in a tile (find max hruff for tile)
     hruff_grmx=0.01
-    do nb=1,9
+    do nb=1,5
       if (pind(nb,1)<=mp) then
         hruff_grmx(cmap(pind(nb,1):pind(nb,2)))=max( &
           hruff_grmx(cmap(pind(nb,1):pind(nb,2))),rough%hruff(pind(nb,1):pind(nb,2)))
@@ -416,7 +416,7 @@ else
   glai=0.
 end if
  
-do nb=1,9
+do nb=1,5
   if (pind(nb,1)>mp) exit
   do k=1,ms
     tgg(cmap(pind(nb,1):pind(nb,2)),k)=tgg(cmap(pind(nb,1):pind(nb,2)),k) &
@@ -567,7 +567,7 @@ where (land.and.tmps>=0.5) ! tmps is average isflag
 elsewhere
   isflag=0
 endwhere
-do nb=1,9 ! update snow (diagnostic only)
+do nb=1,5 ! update snow (diagnostic only)
   if (pind(nb,1)>mp) exit      
   do k=1,3
     where (ssoil%isflag(pind(nb,1):pind(nb,2))<isflag(cmap(pind(nb,1):pind(nb,2))).and.k==1)               ! pack 1-layer into 3-layer
@@ -696,7 +696,7 @@ frd=0.
 frp=0.
 frs=0.
   
-do nb=1,9
+do nb=1,5
   if (pind(nb,1)<=mp) then
     where (veg%iveg(pind(nb,1):pind(nb,2))==mvegt)
       fpn(cmap(pind(nb,1):pind(nb,2)))=fpn(cmap(pind(nb,1):pind(nb,2))) &
@@ -767,7 +767,7 @@ select case(proglai)
 end select
 
 sigmf=0.
-do nb=1,9
+do nb=1,5
   if (pind(nb,1)<=mp) then
     sigmf(cmap(pind(nb,1):pind(nb,2)))=sigmf(cmap(pind(nb,1):pind(nb,2))) &
       +sv(pind(nb,1):pind(nb,2))*(1.-exp(-vextkn*veg%vlai(pind(nb,1):pind(nb,2))))
@@ -1155,16 +1155,22 @@ do iq=1,ifull
       newlai(iq,:,1)=newlai(iq,:,1)/newgrid(iq,:)
       newlai(iq,:,2)=newlai(iq,:,2)/newgrid(iq,:)
     end where
+    ipos=count(newgrid(iq,:)>0.)
+    do while (ipos>5)
+      pos=minloc(newgrid(iq,:),newgrid(iq,:)>0.)
+      newgrid(iq,pos(1))=0.
+      nsum=sum(newgrid(iq,:))
+      newgrid(iq,:)=newgrid(iq,:)/nsum
+      ipos=count(newgrid(iq,:)>0.)
+    end do    
     do while (any(newgrid(iq,:)<minfrac.and.newgrid(iq,:)>0.))
       pos=minloc(newgrid(iq,:),newgrid(iq,:)>0.)
       newgrid(iq,pos(1))=0.
       nsum=sum(newgrid(iq,:))
       newgrid(iq,:)=newgrid(iq,:)/nsum
     end do
-    nsum=sum(newgrid(iq,:))
-    newgrid(iq,:)=newgrid(iq,:)/nsum
     ipos=count(newgrid(iq,:)>0.)
-    if (ipos>9) then
+    if (ipos>5) then
       write(6,*) "ERROR: Too many CABLE tiles"
       stop
     end if
@@ -1246,9 +1252,9 @@ if (mp>0) then
 
   ! pack biome data into CABLE vector
   ! prepare LAI arrays for temporal interpolation (PWCB)  
-  ! now up to 9 PFT tiles from 5 IGBP classes (need correct order for vectorisation)
+  ! now up to 5 PFT tiles from 5 IGBP classes (need correct order for vectorisation)
   ipos=0
-  do n=1,9
+  do n=1,5
     pind(n,1)=ipos+1
     do iq=1,ifull
       if (land(iq)) then
@@ -1331,7 +1337,7 @@ if (mp>0) then
   call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
   call setlai(sigmf,jyear,jmonth,jday,jhour,jmin)
   vlai=0.
-  do n=1,9
+  do n=1,5
     if (pind(n,1)<=mp) then
       vlai(cmap(pind(n,1):pind(n,2)))=vlai(cmap(pind(n,1):pind(n,2))) &
                                       +sv(pind(n,1):pind(n,2))*veg%vlai(pind(n,1):pind(n,2))
@@ -1438,7 +1444,7 @@ if (mp>0) then
   
   if (icycle==0) then
     ! Initialise CABLE carbon pools
-    do n=1,9
+    do n=1,5
       do k=1,ncp
         cplant(cmap(pind(n,1):pind(n,2)),k)=cplant(cmap(pind(n,1):pind(n,2)),k) &
           +sv(pind(n,1):pind(n,2))*tcplant(veg%iveg(pind(n,1):pind(n,2)),k)
@@ -1676,7 +1682,7 @@ if (mp>0) then
     plitter=0.
     psoil=0.
     glai=0.
-    do n=1,9
+    do n=1,5
       if (pind(n,1)<=mp) then
         do k=1,mplant
           cplant(cmap(pind(n,1):pind(n,2)),k)=cplant(cmap(pind(n,1):pind(n,2)),k) &
@@ -1833,7 +1839,7 @@ character(len=11) vname
 ! as not all processors are assigned an input file
 if (io_in==1) then
   if (myid==0) then
-    call ccnf_inq_varid(ncid,"tgg1_9",idv,tst)
+    call ccnf_inq_varid(ncid,"tgg1_5",idv,tst)
     dum(1)=0
     if (tst) dum(1)=1
   end if
@@ -1893,7 +1899,7 @@ if (ierr/=0) then
 else
   ! Located CABLE tile data
   if (myid==0) write(6,*) "Use tiled data to initialise CABLE"
-  do n=1,9
+  do n=1,5
     do k=1,ms
       write(vname,'("tgg",I1.1,"_",I1.1)') k,n
       call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
@@ -2150,7 +2156,7 @@ if (myid==0.or.local) then
   if (myid==0) then
     write(6,*) "Defining CABLE tile data"
   end if
-  do n=1,9
+  do n=1,5
     do k=1,ms
       write(lname,'("Soil temperature lev ",I1.1," tile ",I1.1)') k,n
       write(vname,'("tgg",I1.1,"_",I1.1)') k,n
@@ -2311,7 +2317,7 @@ real, dimension(ifull) :: dat
 character(len=11) vname
 logical, intent(in) :: local
   
-do n=1,9
+do n=1,5
   do k=1,ms
     dat=tgg(:,k)
     if (pind(n,1)<=mp) then      
@@ -2486,12 +2492,12 @@ integer, intent(in) :: iqin
 integer n,iq,i
 real, intent(in) :: lmax
 real, intent(inout) :: inflow
-real, dimension(9) :: xx
+real, dimension(5) :: xx
 real yy,ll
   
 xx(:)=inflow
 inflow=0.
-do n=1,9
+do n=1,5
   iq=-1
   do i=pind(n,1),pind(n,2)
     if (cmap(i)==iqin) then

@@ -15,9 +15,8 @@ module cc_mpi
 
 
    ! These only need to be module variables for the overlap case
-   ! when they have to keep values between boundsa and boundsb.
-   ! For now leave them here.
-   integer, parameter, private :: maxtile = 1
+   integer, parameter, private :: maxtile = 1 ! Allows for overlapping message passing
+                                              ! with bounds_tile and boundsuv_tile
    integer(kind=4), allocatable, dimension(:,:), save, private :: ireq
    integer(kind=4), dimension(maxtile), save, private :: nreq, rreq
    integer, allocatable, dimension(:,:), save, private :: rlist
@@ -502,12 +501,12 @@ contains
       ! Convert standard 1D arrays to face form and distribute to processors
       real, dimension(ifull), intent(out) :: af
       real, dimension(ifull_g), intent(in) :: a1
+      real, dimension(ifull,0:nproc-1) :: sbuf
       integer :: i, j, n, iq, iproc
       integer(kind=4) :: ierr, lsize, ltype
-      real, dimension(ifull,0:nproc-1) :: sbuf
+      integer(kind=4) :: zero
       integer :: npoff, ipoff, jpoff ! Offsets for target
       integer :: slen
-      integer(kind=4) :: zero
 
       ! map array in order of processor rank
       do iproc=0,nproc-1
@@ -1909,7 +1908,7 @@ contains
       allocate( dumsl(maxbuflen,neighnum),dumrl(maxbuflen,neighnum) )
 
       if ( nreq(1) > 0 ) then
-         call MPI_Waitall(nreq(1),ireq,status,ierr)
+         call MPI_Waitall(nreq(1),ireq(:,1),status,ierr)
       end if
 
 !     Now, for each processor send the list of points I want.
@@ -1941,7 +1940,7 @@ contains
          end if
       end do      
       if ( nreq(1) > 0 ) then
-         call MPI_Waitall(nreq(1),ireq,status,ierr)
+         call MPI_Waitall(nreq(1),ireq(:,1),status,ierr)
       end if
 
 !     Now get the actual sizes from the status
@@ -2019,7 +2018,7 @@ contains
               itag, MPI_COMM_WORLD, ireq(nreq(1),1), ierr )
       end do
       if ( nreq(1) > 0 ) then
-         call MPI_Waitall(nreq(1),ireq,status,ierr)
+         call MPI_Waitall(nreq(1),ireq(:,1),status,ierr)
       end if
       do iproc = 1,neighnum
          rproc = neighlistrecv(iproc)
@@ -2439,7 +2438,7 @@ contains
          end if
       end do
       if ( nreq(1) > 0 ) then
-         call MPI_Waitall(nreq(1),ireq,status,ierr)
+         call MPI_Waitall(nreq(1),ireq(:,1),status,ierr)
       end if
 
 !     Now get the actual sizes from the status
@@ -2492,7 +2491,7 @@ contains
          end if
       end do
       if ( nreq(1) > 0 ) then
-         call MPI_Waitall(nreq(1),ireq,status,ierr)
+         call MPI_Waitall(nreq(1),ireq(:,1),status,ierr)
       end if
       do iproc = 1,neighnum
          rproc = neighlistrecv(iproc)
@@ -2539,7 +2538,7 @@ contains
          end if
       end do
       if ( nreq(1) > 0 ) then
-         call MPI_Waitall(nreq(1),ireq,status,ierr)
+         call MPI_Waitall(nreq(1),ireq(:,1),status,ierr)
       end if
       do iproc=1,neighnum
         rproc=neighlistrecv(iproc)
@@ -2573,7 +2572,7 @@ contains
          end if
       end do
       if ( nreq(1) > 0 ) then
-         call MPI_Waitall(nreq(1),ireq,status,ierr)
+         call MPI_Waitall(nreq(1),ireq(:,1),status,ierr)
       end if
       do iproc=1,neighnum
         rproc=neighlistrecv(iproc)
@@ -2716,7 +2715,7 @@ contains
    logical, dimension(maxbuflen) :: ldum
    
    do iproc = 0,nproc-1
-      nlen = max(kl+1,ol+1)*max(bnds(iproc)%rlenx,bnds(iproc)%rlenx_uv,bnds(iproc)%slenx,bnds(iproc)%slenx_uv)
+      nlen = max(kl+1,ol+1)*max(bnds(iproc)%rlen2,bnds(iproc)%rlenx_uv,bnds(iproc)%slen2,bnds(iproc)%slenx_uv)
       if ( nlen < bnds(iproc)%len ) then
          !write(6,*) "Reducing array size.  myid,iproc,nlen,len ",myid,iproc,nlen,bnds(iproc)%len
          bnds(iproc)%len = nlen
@@ -2859,7 +2858,7 @@ contains
       ! Clear any current messages
       if ( nreq(1) > 0 ) then
          call start_log(mpiwait_begin)
-         call MPI_Waitall(nreq(1),ireq,status,ierr)
+         call MPI_Waitall(nreq(1),ireq(:,1),status,ierr)
          call end_log(mpiwait_end)
       end if
 
@@ -2909,7 +2908,7 @@ contains
       
          rcount = rcount - 1
          call start_log(mpiwait_begin)
-         call MPI_Waitany(rreq(1),ireq,lproc,status,ierr)
+         call MPI_Waitany(rreq(1),ireq(:,1),lproc,status(:,1),ierr)
          call end_log(mpiwait_end)
  
          iproc = rlist(lproc,1)  ! Recv from
@@ -3011,7 +3010,7 @@ contains
       ! Clear any current messages
       if ( nreq(1) > 0 ) then
          call start_log(mpiwait_begin)
-         call MPI_Waitall(nreq(1),ireq,status,ierr)
+         call MPI_Waitall(nreq(1),ireq(:,1),status,ierr)
          call end_log(mpiwait_end)
       end if
 
@@ -3062,7 +3061,7 @@ contains
 
          rcount = rcount - 1
          call start_log(mpiwait_begin)
-         call MPI_Waitany(rreq(1),ireq,lproc,status,ierr)
+         call MPI_Waitany(rreq(1),ireq(:,1),lproc,status(:,1),ierr)
          call end_log(mpiwait_end)
 
          iproc = rlist(lproc,1)  ! Recv from
@@ -3125,7 +3124,7 @@ contains
       ! Clear any current messages
       if ( nreq(1) > 0 ) then
          call start_log(mpiwait_begin)
-         call MPI_Waitall(nreq(1),ireq,status,ierr)
+         call MPI_Waitall(nreq(1),ireq(:,1),status,ierr)
          call end_log(mpiwait_end)
       end if
 
@@ -3191,7 +3190,7 @@ contains
 
          rcount = rcount - 1
          call start_log(mpiwait_begin)
-         call MPI_Waitany(rreq(1),ireq,lproc,status,ierr)
+         call MPI_Waitany(rreq(1),ireq(:,1),lproc,status(:,1),ierr)
          call end_log(mpiwait_end)
 
          iproc = rlist(lproc,1)  ! Recv from
@@ -3305,7 +3304,7 @@ contains
       ! Clear any current messages
       if ( nreq(tile) > 0 ) then
          call start_log(mpiwait_begin)
-         call MPI_Waitall(nreq(tile),ireq(1,tile),status(1,tile),ierr)
+         call MPI_Waitall(nreq(tile),ireq(:,tile),status(:,tile),ierr)
          call end_log(mpiwait_end)
       end if
 
@@ -3433,7 +3432,7 @@ contains
       
          rcount = rcount - 1
          call start_log(mpiwaittile_begin)
-         call MPI_Waitany(rreq(tile),ireq(1,tile),lproc,status,ierr)
+         call MPI_Waitany(rreq(tile),ireq(:,tile),lproc,status(:,1),ierr)
          call end_log(mpiwaittile_end)
 
          iproc = rlist(lproc,tile)  ! Recv from
@@ -3570,7 +3569,7 @@ contains
       ! Clear any current messages
       if ( nreq(1) > 0 ) then
          call start_log(mpiwaituv_begin)
-         call MPI_Waitall(nreq(1),ireq,status,ierr)
+         call MPI_Waitall(nreq(1),ireq(:,1),status,ierr)
          call end_log(mpiwaituv_end)
       end if
       
@@ -3740,7 +3739,7 @@ contains
       
          rcount = rcount - 1
          call start_log(mpiwaituv_begin)
-         call MPI_Waitany(rreq(1),ireq,lproc,status,ierr)
+         call MPI_Waitany(rreq(1),ireq(:,1),lproc,status(:,1),ierr)
          call end_log(mpiwaituv_end)
 
          iproc = rlist(lproc,1)  ! Recv from
@@ -3953,7 +3952,7 @@ contains
       ! Clear any current messages
       if ( nreq(1) > 0 ) then
          call start_log(mpiwaituv_begin)
-         call MPI_Waitall(nreq(1),ireq,status,ierr)
+         call MPI_Waitall(nreq(1),ireq(:,1),status,ierr)
          call end_log(mpiwaituv_end)
       end if
 
@@ -4144,7 +4143,7 @@ contains
          
          rcount = rcount - 1
          call start_log(mpiwaituv_begin)
-         call MPI_Waitany(rreq(1),ireq,lproc,status,ierr)
+         call MPI_Waitany(rreq(1),ireq(:,1),lproc,status(:,1),ierr)
          call end_log(mpiwaituv_end)
 
          iproc = rlist(lproc,1)  ! Recv from
@@ -4662,7 +4661,7 @@ contains
       
          rcount = rcount - 1
          call start_log(mpiwaituvtile_begin)
-         call MPI_Waitany(rreq(tile),ireq(1,tile),lproc,status,ierr)
+         call MPI_Waitany(rreq(tile),ireq(:,tile),lproc,status(:,1),ierr)
          call end_log(mpiwaituvtile_end)
 
          iproc = rlist(lproc,tile)  ! Recv from
@@ -4784,7 +4783,7 @@ contains
       use arrays_m
       integer, dimension(:,:), intent(in) :: nface
       integer, intent(in), optional :: gmode
-      real, dimension(:,:), intent(in) :: xg, yg      
+      real, dimension(:,:), intent(in) :: xg, yg
       integer :: iproc, rproc, sproc
       integer :: ip, jp, xn, kx
       integer :: iq, k, idel, jdel, nf
@@ -4855,7 +4854,7 @@ contains
       ! Clear any current messages
       if ( nreq(1) > 0 ) then
          call start_log(mpiwaitdep_begin)
-         call MPI_Waitall(nreq(1),ireq,status,ierr)
+         call MPI_Waitall(nreq(1),ireq(:,1),status,ierr)
          call end_log(mpiwaitdep_end)
       end if
 
@@ -4905,7 +4904,7 @@ contains
       
          rcount = rcount - 1
          call start_log(mpiwaitdep_begin)
-         call MPI_Waitany(rreq(1), ireq, lproc, status, ierr)
+         call MPI_Waitany(rreq(1), ireq(:,1), lproc, status(:,1), ierr)
          call end_log(mpiwaitdep_end)
 
 !        Now get the actual sizes from the status
@@ -4945,7 +4944,7 @@ contains
       ! Clear any current messages
       if ( nreq(1) > 0 ) then
          call start_log(mpiwaitdep_begin)
-         call MPI_Waitall(nreq(1), ireq, status, ierr)
+         call MPI_Waitall(nreq(1), ireq(:,1), status, ierr)
          call end_log(mpiwaitdep_end)
       end if
 
@@ -4980,7 +4979,7 @@ contains
       
          rcount = rcount - 1
          call start_log(mpiwaitdep_begin)
-         call MPI_Waitany(rreq(1), ireq, lproc, status, ierr)
+         call MPI_Waitany(rreq(1), ireq(:,1), lproc, status(:,1), ierr)
          call end_log(mpiwaitdep_end)
 
          iproc = rlist(lproc,1)
@@ -7366,7 +7365,7 @@ contains
 
       if ( nreq(1) > 0 ) then
          call start_log(mpiwaitmg_begin)
-         call MPI_Waitall(nreq(1),ireq,status,ierr)
+         call MPI_Waitall(nreq(1),ireq(:,1),status,ierr)
          call end_log(mpiwaitmg_end)
       end if
 
@@ -7416,7 +7415,7 @@ contains
       
          rcount = rcount - 1
          call start_log(mpiwaitmg_begin)
-         call MPI_Waitany(rreq(1),ireq,lproc,status,ierr)
+         call MPI_Waitany(rreq(1),ireq(:,1),lproc,status(:,1),ierr)
          call end_log(mpiwaitmg_end)
 
          iproc = rlist(lproc,1)  ! Recv from
@@ -7671,7 +7670,7 @@ contains
 
       if ( nreq(1) > 0 ) then
          call start_log(mpiwaitmg_begin)
-         call MPI_Waitall(nreq(1),ireq,status,ierr)
+         call MPI_Waitall(nreq(1),ireq(:,1),status,ierr)
          call end_log(mpiwaitmg_end)
       end if
 
