@@ -1591,6 +1591,12 @@
       ! ***********************************************************************
       ! DIAGNOSTICS AND OUTPUT
       ! ***********************************************************************
+
+      ! Update diagnostics for consistancy
+      if (rescrn>0) then
+        call autoscrn
+      end if
+
       if(ndi==-ktau)then
         nmaxpr=1         ! diagnostic prints; reset 6 lines on
         if(ndi2==0)ndi2=ktau+40
@@ -1816,11 +1822,6 @@
         frs_ave(1:ifull)    = frs_ave(1:ifull)/min(ntau,nperavg)
         frp_ave(1:ifull)    = frp_ave(1:ifull)/min(ntau,nperavg)
       end if    ! (ktau==ntau.or.mod(ktau,nperavg)==0)
-      
-      ! Update diagnostics for consistancy
-      if (rescrn>0) then
-        call autoscrn
-      end if
       
       if(ktau==ntau.or.mod(ktau,nwt)==0)then
         call log_off()

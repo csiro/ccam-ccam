@@ -114,7 +114,7 @@ type (balances_type), save :: bal
 type (radiation_type), save :: rad
 type (roughness_type), save :: rough
 type (soil_parameter_type), save :: soil
-type (soil_snow_type), save :: ssoil
+type (soil_snow_type), save :: ssnow
 type (sum_flux_type), save :: sum_flux
 type (veg_parameter_type), save :: veg
 type (canopy_type), save :: canopy
@@ -163,7 +163,7 @@ include 'parm.h'
 ! for calculation of zenith angle
 real fjd,r1,dlt,slag,dhr,alp,x,esatf
 real, dimension(ifull) :: coszro2,taudar2,tmps,hruff_grmx,atmco2
-real, dimension(mp) :: swdwn,deltat
+real, dimension(mp) :: swdwn
 real(r_2), dimension(mp) :: xKNlimiting,xkleafcold,xkleafdry
 real(r_2), dimension(mp) :: xkleaf,xnplimit,xNPuptake,xklitter
 real(r_2), dimension(mp) :: xksoil
@@ -221,7 +221,7 @@ met%fld=-rgsave(cmap) ! long wave down (positive) W/m^2
 ! Interpolate lai.  Also need sigmf for LDR prognostic aerosols.
 call setlai(sigmf,jyear,jmonth,jday,jhour,jmin)
 
-rough%hruff=max(0.01,veg%hc-1.2*ssoil%snowd/max(ssoil%ssdnn,100.))
+rough%hruff=max(0.01,veg%hc-1.2*ssnow%snowd/max(ssnow%ssdnn,100.))
 select case(hruffmethod)
   case(0) ! hruff is mixed in a tile (find max hruff for tile)
     hruff_grmx=0.01
@@ -243,26 +243,28 @@ end select
 ! CABLE
 ktau_gl=900
 kend_gl=999
-ssoil%owetfac = ssoil%wetfac
+ssnow%owetfac = ssnow%wetfac
 canopy%oldcansto=canopy%cansto
-call ruff_resist(veg,rough,ssoil,canopy)
+call ruff_resist(veg,rough,ssnow,canopy)
 call define_air(met,air)
 call init_radiation(met,rad,veg,canopy)
-call surface_albedo(ssoil,veg,met,rad,soil,canopy)
-call define_canopy(bal,rad,rough,air,met,dt,ssoil,soil,veg,canopy)
-ssoil%otss = ssoil%tss
-call soil_snow(dt,soil,ssoil,canopy,met,bal,veg)
+call surface_albedo(ssnow,veg,met,rad,soil,canopy)
+call define_canopy(bal,rad,rough,air,met,dt,ssnow,soil,veg,canopy)
+ssnow%otss_0 = ssnow%otss
+ssnow%otss = ssnow%tss
+ssnow%owetfac = ssnow%wetfac
+call soil_snow(dt,soil,ssnow,canopy,met,bal,veg)
 ! adjust for new soil temperature
-deltat         = ssoil%tss - ssoil%otss
-canopy%fhs     = canopy%fhs + deltat*ssoil%dfh_dtg
-canopy%fes     = canopy%fes + deltat*ssoil%cls*ssoil%dfe_ddq*ssoil%ddq_dtg
-canopy%fhs_cor = canopy%fhs_cor + deltat*ssoil%dfh_dtg
-canopy%fes_cor = canopy%fes_cor + deltat*ssoil%cls*ssoil%dfe_ddq*ssoil%ddq_dtg
+ssnow%deltss   = ssnow%tss - ssnow%otss
+canopy%fhs     = canopy%fhs + ssnow%deltss*ssnow%dfh_dtg
+canopy%fes     = canopy%fes + ssnow%deltss*ssnow%cls*ssnow%dfe_ddq*ssnow%ddq_dtg
+canopy%fhs_cor = canopy%fhs_cor + ssnow%deltss*ssnow%dfh_dtg
+canopy%fes_cor = canopy%fes_cor + ssnow%deltss*ssnow%cls*ssnow%dfe_ddq*ssnow%ddq_dtg
 canopy%fh      = canopy%fhv + canopy%fhs
 canopy%fev     = canopy%fevc + canopy%fevw
 canopy%fe      = canopy%fev + canopy%fes
 canopy%rnet    = canopy%fns + canopy%fnv
-rad%trad       = ( (1.-rad%transd)*canopy%tv**4 + rad%transd*ssoil%tss**4 )**0.25
+rad%trad       = ( (1.-rad%transd)*canopy%tv**4 + rad%transd*ssnow%tss**4 )**0.25
 
 ! EK suggestion
 canopy%cdtq =  max( 0.1*canopy%cduv, canopy%cdtq)
@@ -272,15 +274,15 @@ canopy%cdtq =  max( 0.1*canopy%cduv, canopy%cdtq)
 select case (icycle)
   case(0) ! off
     call plantcarb(veg,bgc,met,canopy)
-    call soilcarb(soil,ssoil,veg,bgc,met,canopy)
-    call carbon_pl(dt,soil,ssoil,veg,canopy,bgc)
+    call soilcarb(soil,ssnow,veg,bgc,met,canopy)
+    call carbon_pl(dt,soil,ssnow,veg,canopy,bgc)
     canopy%fnpp = -canopy%fpn - canopy%frp
     canopy%fnee = canopy%fpn + canopy%frs + canopy%frp
   case(3) ! C+N+P
     ! update casamet
     casamet%tairk = casamet%tairk + met%tk
-    casamet%tsoil = casamet%tsoil + ssoil%tgg
-    casamet%moist = casamet%moist + ssoil%wb
+    casamet%tsoil = casamet%tsoil + ssnow%tgg
+    casamet%moist = casamet%moist + ssnow%wb
     casaflux%cgpp = casaflux%cgpp + (-canopy%fpn+canopy%frday)*dt
     casaflux%crmplant(:,leaf) =casaflux%crmplant(:,leaf) + canopy%frday*dt
     ! run CASA CNP once per day
@@ -420,11 +422,11 @@ do nb=1,5
   if (pind(nb,1)>mp) exit
   do k=1,ms
     tgg(cmap(pind(nb,1):pind(nb,2)),k)=tgg(cmap(pind(nb,1):pind(nb,2)),k) &
-                                    +sv(pind(nb,1):pind(nb,2))*ssoil%tgg(pind(nb,1):pind(nb,2),k)
+                                    +sv(pind(nb,1):pind(nb,2))*ssnow%tgg(pind(nb,1):pind(nb,2),k)
     wb(cmap(pind(nb,1):pind(nb,2)),k)=wb(cmap(pind(nb,1):pind(nb,2)),k) &
-                                    +sv(pind(nb,1):pind(nb,2))*ssoil%wb(pind(nb,1):pind(nb,2),k)
+                                    +sv(pind(nb,1):pind(nb,2))*ssnow%wb(pind(nb,1):pind(nb,2),k)
     wbice(cmap(pind(nb,1):pind(nb,2)),k)=wbice(cmap(pind(nb,1):pind(nb,2)),k) &
-                                    +sv(pind(nb,1):pind(nb,2))*ssoil%wbice(pind(nb,1):pind(nb,2),k)
+                                    +sv(pind(nb,1):pind(nb,2))*ssnow%wbice(pind(nb,1):pind(nb,2),k)
   end do
   if (icycle==0) then
     do k=1,ncp
@@ -476,7 +478,7 @@ do nb=1,5
   albnirdif(cmap(pind(nb,1):pind(nb,2)))=albnirdif(cmap(pind(nb,1):pind(nb,2))) &
                                     +sv(pind(nb,1):pind(nb,2))*rad%reffdf(pind(nb,1):pind(nb,2),2)
   runoff(cmap(pind(nb,1):pind(nb,2)))=runoff(cmap(pind(nb,1):pind(nb,2))) &
-                                    +sv(pind(nb,1):pind(nb,2))*ssoil%runoff(pind(nb,1):pind(nb,2))*dt ! convert mm/s to mm
+                                    +sv(pind(nb,1):pind(nb,2))*ssnow%runoff(pind(nb,1):pind(nb,2))*dt ! convert mm/s to mm
   rnet(cmap(pind(nb,1):pind(nb,2)))=rnet(cmap(pind(nb,1):pind(nb,2))) &
                                     +sv(pind(nb,1):pind(nb,2))*canopy%rnet(pind(nb,1):pind(nb,2))
   fg(cmap(pind(nb,1):pind(nb,2)))=fg(cmap(pind(nb,1):pind(nb,2))) &
@@ -486,7 +488,7 @@ do nb=1,5
   ga(cmap(pind(nb,1):pind(nb,2)))=ga(cmap(pind(nb,1):pind(nb,2))) &
                                     +sv(pind(nb,1):pind(nb,2))*canopy%ga(pind(nb,1):pind(nb,2))
   epot(cmap(pind(nb,1):pind(nb,2)))=epot(cmap(pind(nb,1):pind(nb,2))) &
-                                    +sv(pind(nb,1):pind(nb,2))*ssoil%potev(pind(nb,1):pind(nb,2))
+                                    +sv(pind(nb,1):pind(nb,2))*ssnow%potev(pind(nb,1):pind(nb,2))
   tss(cmap(pind(nb,1):pind(nb,2)))=tss(cmap(pind(nb,1):pind(nb,2))) &
                                     +sv(pind(nb,1):pind(nb,2))*rad%trad(pind(nb,1):pind(nb,2))**4 ! ave longwave radiation
   cansto(cmap(pind(nb,1):pind(nb,2)))=cansto(cmap(pind(nb,1):pind(nb,2))) &
@@ -515,11 +517,11 @@ do nb=1,5
   cdtq(cmap(pind(nb,1):pind(nb,2)))=cdtq(cmap(pind(nb,1):pind(nb,2))) &
                                    +sv(pind(nb,1):pind(nb,2))*canopy%cdtq(pind(nb,1):pind(nb,2))
   wetfac(cmap(pind(nb,1):pind(nb,2)))=wetfac(cmap(pind(nb,1):pind(nb,2))) &
-                                    +sv(pind(nb,1):pind(nb,2))*ssoil%wetfac(pind(nb,1):pind(nb,2))
+                                    +sv(pind(nb,1):pind(nb,2))*ssnow%wetfac(pind(nb,1):pind(nb,2))
   rsmin(cmap(pind(nb,1):pind(nb,2)))=rsmin(cmap(pind(nb,1):pind(nb,2))) &
                                     +sv(pind(nb,1):pind(nb,2))*canopy%gswx_T(pind(nb,1):pind(nb,2))
   tmps(cmap(pind(nb,1):pind(nb,2)))=tmps(cmap(pind(nb,1):pind(nb,2))) &
-                                    +sv(pind(nb,1):pind(nb,2))*real(ssoil%isflag(pind(nb,1):pind(nb,2)))
+                                    +sv(pind(nb,1):pind(nb,2))*real(ssnow%isflag(pind(nb,1):pind(nb,2)))
   vlai(cmap(pind(nb,1):pind(nb,2)))=vlai(cmap(pind(nb,1):pind(nb,2))) &
                                     +sv(pind(nb,1):pind(nb,2))*veg%vlai(pind(nb,1):pind(nb,2))
 
@@ -570,56 +572,56 @@ endwhere
 do nb=1,5 ! update snow (diagnostic only)
   if (pind(nb,1)>mp) exit      
   do k=1,3
-    where (ssoil%isflag(pind(nb,1):pind(nb,2))<isflag(cmap(pind(nb,1):pind(nb,2))).and.k==1)               ! pack 1-layer into 3-layer
+    where (ssnow%isflag(pind(nb,1):pind(nb,2))<isflag(cmap(pind(nb,1):pind(nb,2))).and.k==1)               ! pack 1-layer into 3-layer
       tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k) &                          ! pack 1-layer into 3-layer
-                                       +sv(pind(nb,1):pind(nb,2))*ssoil%tgg(pind(nb,1):pind(nb,2),1)       ! pack 1-layer into 3-layer
+                                       +sv(pind(nb,1):pind(nb,2))*ssnow%tgg(pind(nb,1):pind(nb,2),1)       ! pack 1-layer into 3-layer
       smass(cmap(pind(nb,1):pind(nb,2)),k)=smass(cmap(pind(nb,1):pind(nb,2)),k) &                          ! pack 1-layer into 3-layer
-                                       +sv(pind(nb,1):pind(nb,2))*0.05*ssoil%ssdn(pind(nb,1):pind(nb,2),1) ! pack 1-layer into 3-layer
+                                       +sv(pind(nb,1):pind(nb,2))*0.05*ssnow%ssdn(pind(nb,1):pind(nb,2),1) ! pack 1-layer into 3-layer
       ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k) &                            ! pack 1-layer into 3-layer
-                                       +sv(pind(nb,1):pind(nb,2))*ssoil%ssdn(pind(nb,1):pind(nb,2),1)      ! pack 1-layer into 3-layer
-    elsewhere (ssoil%isflag(pind(nb,1):pind(nb,2))<isflag(cmap(pind(nb,1):pind(nb,2))).and.k==2)           ! pack 1-layer into 3-layer
+                                       +sv(pind(nb,1):pind(nb,2))*ssnow%ssdn(pind(nb,1):pind(nb,2),1)      ! pack 1-layer into 3-layer
+    elsewhere (ssnow%isflag(pind(nb,1):pind(nb,2))<isflag(cmap(pind(nb,1):pind(nb,2))).and.k==2)           ! pack 1-layer into 3-layer
       tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k) &                          ! pack 1-layer into 3-layer
-                                       +sv(pind(nb,1):pind(nb,2))*ssoil%tgg(pind(nb,1):pind(nb,2),1)       ! pack 1-layer into 3-layer
+                                       +sv(pind(nb,1):pind(nb,2))*ssnow%tgg(pind(nb,1):pind(nb,2),1)       ! pack 1-layer into 3-layer
       smass(cmap(pind(nb,1):pind(nb,2)),k)=smass(cmap(pind(nb,1):pind(nb,2)),k) &                          ! pack 1-layer into 3-layer
-                                       +sv(pind(nb,1):pind(nb,2))*(ssoil%snowd(pind(nb,1):pind(nb,2)) &    ! pack 1-layer into 3-layer
-                                       -0.05*ssoil%ssdn(pind(nb,1):pind(nb,2),1))*0.4                      ! pack 1-layer into 3-layer
+                                       +sv(pind(nb,1):pind(nb,2))*(ssnow%snowd(pind(nb,1):pind(nb,2)) &    ! pack 1-layer into 3-layer
+                                       -0.05*ssnow%ssdn(pind(nb,1):pind(nb,2),1))*0.4                      ! pack 1-layer into 3-layer
       ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k) &                            ! pack 1-layer into 3-layer
-                                       +sv(pind(nb,1):pind(nb,2))*ssoil%ssdn(pind(nb,1):pind(nb,2),1)      ! pack 1-layer into 3-layer
-    elsewhere (ssoil%isflag(pind(nb,1):pind(nb,2))<isflag(cmap(pind(nb,1):pind(nb,2))).and.k==3)           ! pack 1-layer into 3-layer
+                                       +sv(pind(nb,1):pind(nb,2))*ssnow%ssdn(pind(nb,1):pind(nb,2),1)      ! pack 1-layer into 3-layer
+    elsewhere (ssnow%isflag(pind(nb,1):pind(nb,2))<isflag(cmap(pind(nb,1):pind(nb,2))).and.k==3)           ! pack 1-layer into 3-layer
       tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k) &                          ! pack 1-layer into 3-layer
-                                       +sv(pind(nb,1):pind(nb,2))*ssoil%tgg(pind(nb,1):pind(nb,2),1)       ! pack 1-layer into 3-layer
+                                       +sv(pind(nb,1):pind(nb,2))*ssnow%tgg(pind(nb,1):pind(nb,2),1)       ! pack 1-layer into 3-layer
       smass(cmap(pind(nb,1):pind(nb,2)),k)=smass(cmap(pind(nb,1):pind(nb,2)),k) &                          ! pack 1-layer into 3-layer
-                                       +sv(pind(nb,1):pind(nb,2))*(ssoil%snowd(pind(nb,1):pind(nb,2)) &    ! pack 1-layer into 3-layer
-                                       -0.05*ssoil%ssdn(pind(nb,1):pind(nb,2),1))*0.6                      ! pack 1-layer into 3-layer
+                                       +sv(pind(nb,1):pind(nb,2))*(ssnow%snowd(pind(nb,1):pind(nb,2)) &    ! pack 1-layer into 3-layer
+                                       -0.05*ssnow%ssdn(pind(nb,1):pind(nb,2),1))*0.6                      ! pack 1-layer into 3-layer
       ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k) &                            ! pack 1-layer into 3-layer
-                                       +sv(pind(nb,1):pind(nb,2))*ssoil%ssdn(pind(nb,1):pind(nb,2),1)      ! pack 1-layer into 3-layer
-    elsewhere (ssoil%isflag(pind(nb,1):pind(nb,2))>isflag(cmap(pind(nb,1):pind(nb,2))).and.k==1)           ! pack 3-layer into 1-layer
+                                       +sv(pind(nb,1):pind(nb,2))*ssnow%ssdn(pind(nb,1):pind(nb,2),1)      ! pack 1-layer into 3-layer
+    elsewhere (ssnow%isflag(pind(nb,1):pind(nb,2))>isflag(cmap(pind(nb,1):pind(nb,2))).and.k==1)           ! pack 3-layer into 1-layer
       tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k) &                          ! pack 3-layer into 1-layer
                                        +sv(pind(nb,1):pind(nb,2))*273.16                                   ! pack 3-layer into 1-layer
       smass(cmap(pind(nb,1):pind(nb,2)),k)=smass(cmap(pind(nb,1):pind(nb,2)),k) &                          ! pack 3-layer into 1-layer
-                                       +sv(pind(nb,1):pind(nb,2))*ssoil%snowd(pind(nb,1):pind(nb,2))       ! pack 3-layer into 1-layer
+                                       +sv(pind(nb,1):pind(nb,2))*ssnow%snowd(pind(nb,1):pind(nb,2))       ! pack 3-layer into 1-layer
       ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k) &                            ! pack 3-layer into 1-layer
-                                      +sv(pind(nb,1):pind(nb,2))*ssoil%ssdnn(pind(nb,1):pind(nb,2))        ! pack 3-layer into 1-layer
-    elsewhere (ssoil%isflag(pind(nb,1):pind(nb,2))>isflag(cmap(pind(nb,1):pind(nb,2))).and.k>=2)           ! pack 3-layer into 1-layer
+                                      +sv(pind(nb,1):pind(nb,2))*ssnow%ssdnn(pind(nb,1):pind(nb,2))        ! pack 3-layer into 1-layer
+    elsewhere (ssnow%isflag(pind(nb,1):pind(nb,2))>isflag(cmap(pind(nb,1):pind(nb,2))).and.k>=2)           ! pack 3-layer into 1-layer
       tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k) &                          ! pack 3-layer into 1-layer
                                        +sv(pind(nb,1):pind(nb,2))*273.16                                   ! pack 3-layer into 1-layer
       ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k) &                            ! pack 3-layer into 1-layer
-                                       +sv(pind(nb,1):pind(nb,2))*ssoil%ssdn(pind(nb,1):pind(nb,2),k)      ! pack 3-layer into 1-layer
+                                       +sv(pind(nb,1):pind(nb,2))*ssnow%ssdn(pind(nb,1):pind(nb,2),k)      ! pack 3-layer into 1-layer
     elsewhere                                                                                              ! no change in layers
       tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k) &                          ! no change in layers
-                                       +sv(pind(nb,1):pind(nb,2))*ssoil%tggsn(pind(nb,1):pind(nb,2),k)     ! no change in layers
+                                       +sv(pind(nb,1):pind(nb,2))*ssnow%tggsn(pind(nb,1):pind(nb,2),k)     ! no change in layers
       smass(cmap(pind(nb,1):pind(nb,2)),k)=smass(cmap(pind(nb,1):pind(nb,2)),k) &                          ! no change in layers
-                                       +sv(pind(nb,1):pind(nb,2))*ssoil%smass(pind(nb,1):pind(nb,2),k)     ! no change in layers
+                                       +sv(pind(nb,1):pind(nb,2))*ssnow%smass(pind(nb,1):pind(nb,2),k)     ! no change in layers
       ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k) &                            ! no change in layers
-                                       +sv(pind(nb,1):pind(nb,2))*ssoil%ssdn(pind(nb,1):pind(nb,2),k)      ! no change in layers
+                                       +sv(pind(nb,1):pind(nb,2))*ssnow%ssdn(pind(nb,1):pind(nb,2),k)      ! no change in layers
     end where
   end do
   ssdnn(cmap(pind(nb,1):pind(nb,2)))=ssdnn(cmap(pind(nb,1):pind(nb,2))) &
-                                       +sv(pind(nb,1):pind(nb,2))*ssoil%ssdnn(pind(nb,1):pind(nb,2))
+                                       +sv(pind(nb,1):pind(nb,2))*ssnow%ssdnn(pind(nb,1):pind(nb,2))
   snage(cmap(pind(nb,1):pind(nb,2)))=snage(cmap(pind(nb,1):pind(nb,2))) &
-                                       +sv(pind(nb,1):pind(nb,2))*ssoil%snage(pind(nb,1):pind(nb,2))
+                                       +sv(pind(nb,1):pind(nb,2))*ssnow%snage(pind(nb,1):pind(nb,2))
   snowd(cmap(pind(nb,1):pind(nb,2)))=snowd(cmap(pind(nb,1):pind(nb,2))) &
-                                       +sv(pind(nb,1):pind(nb,2))*ssoil%snowd(pind(nb,1):pind(nb,2))
+                                       +sv(pind(nb,1):pind(nb,2))*ssnow%snowd(pind(nb,1):pind(nb,2))
 end do
 
 return
@@ -754,7 +756,7 @@ select case(proglai)
     monthstart=1440*(jday-1) + 60*jhour + jmin ! mins from start month
     x=min(max(real(mtimer+monthstart)/real(1440.*imonth(jmonth)),0.),1.)
     veg%vlai=vl1+vl2*x+vl3*x*x ! LAI as a function of time
-    veg%vlai=max(veg%vlai,0.1)
+    veg%vlai=max(veg%vlai,0.001)
   case(1)
     if (icycle==0) then
       write(6,*) "ERROR: CASA CNP LAI is not operational"
@@ -813,7 +815,7 @@ real, dimension(ncp) :: ratecp
 real, dimension(ncs) :: ratecs
 real, dimension(mxvt,ncp) :: tcplant
 real, dimension(mxvt,ncs) :: tcsoil
-real, dimension(mxvt)   :: canst1,dleaf,ejmax,frac4,hc,rp20
+real, dimension(mxvt)   :: canst1,leaf_w,leaf_l,ejmax,frac4,hc,rp20
 real, dimension(mxvt)   :: rpcoef,shelrb,vcmax,xfang
 real, dimension(mxvt)   :: tminvj,tmaxvj,vbeta
 real, dimension(mxvt)   :: extkn,rootbeta,vegcf,c4frac
@@ -849,7 +851,8 @@ rhos=(/ 1600.,1595.,1381.,1373.,1476.,1521.,1373.,1537.,1455.,2600.,2600.,2600.,
 
 hc=(/ 17.,35.,15.5,20.,0.6,0.567,0.567,0.567,0.55,0.55,0.567,0.2,6.017,0.2,0.2,0.2,0.2 /)
 xfang=(/ 0.01,0.1,0.01,0.25,0.01,-0.3,-0.3,-0.3,-0.3,-0.3,-0.3,0.1,0.,0.,0.,0.,0. /)
-dleaf=(/ 0.055,0.1,0.04,0.15,0.1,0.3,0.3,0.3,0.3,0.3,0.3,0.3,0.242,0.03,0.03,0.03,0.03 /)
+leaf_w=(/ 0.001,0.05,0.001,0.08,0.005,0.01,0.01,0.01,0.01,0.01,0.01,0.03,0.015,0.00,0.00,0.00,0.00 /)
+leaf_l=(/ 0.055,0.10,0.040,0.15,0.100,0.30,0.30,0.30,0.30,0.30,0.30,0.30,0.242,0.03,0.03,0.03,0.03 /)
 canst1=0.1
 shelrb=2.
 extkn=0.001 ! new definition for nitrogen (CABLE v1.9b)
@@ -866,8 +869,8 @@ rpcoef=0.0832
 rs20=(/ 1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,0.,1.,0.,0.,0.,0. /)
 tminvj=(/ -15.,-15., 5., 5.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15. /)
 tmaxvj=(/ -10.,-10.,10.,15.,-10.,-10.,-10.,-10.,-10.,-10.,-10.,-10.,-10.,-10.,-10.,-10.,-10. /)
-vbeta=(/ 2.,2.,2.,2.,4.,4.,4.,4.,2.,2.,4.,4.,2.,4.,4.,4.,4. /)
-!vbeta=(/ 1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1. /)
+!vbeta=(/ 2.,2.,2.,2.,4.,4.,4.,4.,2.,2.,4.,4.,2.,4.,4.,4.,4. /)
+vbeta=(/ 1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1. /)
 rootbeta=(/ 0.943,0.962,0.966,0.961,0.964,0.943,0.943,0.943,0.961,0.961,0.943,0.975,0.961,0.961,0.961,0.961,0.961 /)
 tcplant(:,1)=(/ 200.  ,300.  ,200.  ,300.  ,159.  ,250. ,250. ,250. ,150. ,150. ,250.,1.  ,0.1,0.  ,1.,1.,0. /)
 tcplant(:,2)=(/ 10217.,16833.,5967. ,12000.,5000. ,0.   ,0.   ,0.   ,0.   ,0.   ,0.  ,0.  ,0. ,0.  ,0.,0.,0. /)
@@ -1216,7 +1219,7 @@ if (mp>0) then
   call alloc_cbm_var(rad, mp)
   call alloc_cbm_var(rough, mp)
   call alloc_cbm_var(soil, mp)
-  call alloc_cbm_var(ssoil, mp)
+  call alloc_cbm_var(ssnow, mp)
   call alloc_cbm_var(sum_flux, mp)
   call alloc_cbm_var(veg, mp)
 
@@ -1282,7 +1285,7 @@ if (mp>0) then
             vl2(ipos)=0.
             vl3(ipos)=0.
           end if
-          if (veg%iveg(ipos)==14.or.veg%iveg(ipos)==16.or.veg%iveg(ipos)==17) then
+          if (veg%iveg(ipos)>=14.and.veg%iveg(ipos)<=17) then
             vl1(ipos)=0.001
             vl2(ipos)=0.
             vl3(ipos)=0.
@@ -1312,7 +1315,7 @@ if (mp>0) then
   veg%shelrb    = shelrb(veg%iveg)
   veg%vcmax     = vcmax(veg%iveg)
   veg%xfang     = xfang(veg%iveg)
-  veg%dleaf     = dleaf(veg%iveg)
+  veg%dleaf     = sqrt(leaf_w(veg%iveg)*leaf_l(veg%iveg))
   veg%xalbnir   = 1. ! not used
   veg%taul(:,1) = taul(veg%iveg,1)
   veg%taul(:,2) = taul(veg%iveg,2)  
@@ -1399,12 +1402,12 @@ if (mp>0) then
   soil%albsoil(:,1)=albsoil(cmap)
   soil%albsoil(:,2)=albsoil(cmap)
 
-  ssoil%albsoilsn(:,1)=albsoilsn(cmap,1) ! overwritten by CABLE
-  ssoil%albsoilsn(:,2)=albsoilsn(cmap,2) ! overwritten by CABLE
-  ssoil%albsoilsn(:,3)=0.05
+  ssnow%albsoilsn(:,1)=albsoilsn(cmap,1) ! overwritten by CABLE
+  ssnow%albsoilsn(:,2)=albsoilsn(cmap,2) ! overwritten by CABLE
+  ssnow%albsoilsn(:,3)=0.05
   
-  ssoil%t_snwlr=0.05
-  ssoil%pudsmx=0.
+  ssnow%t_snwlr=0.05
+  ssnow%pudsmx=0.
   
   rad%albedo_T=albsoil(cmap)
   rad%trad=tss(cmap)
@@ -1418,11 +1421,11 @@ if (mp>0) then
   canopy%dgdtg=0.
   canopy%fhs_cor=0.
   canopy%fes_cor=0.
-  ssoil%wb_lake=0. ! not used when mlo.f90 is active
   canopy%ga=0.
   canopy%dgdtg=0.
-  ssoil%fland=1.
-  ssoil%ifland=soil%isoilm
+  ssnow%wb_lake=0. ! not used when mlo.f90 is active
+  ssnow%fland=1.
+  ssnow%ifland=soil%isoilm
   
   ! Initialise sum flux variables
   sum_flux%sumpn=0.
@@ -1854,22 +1857,22 @@ if (ierr/=0) then
   if (myid==0) write(6,*) "Use gridbox averaged data to initialise CABLE"
   if (mp>0) then
     do k = 1,ms
-      ssoil%tgg(:,k) = tgg(cmap,k)
-      ssoil%wb(:,k) = wb(cmap,k)
-      ssoil%wbice(:,k) = wbice(cmap,k)
+      ssnow%tgg(:,k) = tgg(cmap,k)
+      ssnow%wb(:,k) = wb(cmap,k)
+      ssnow%wbice(:,k) = wbice(cmap,k)
     enddo
     do k = 1,3
-      ssoil%tggsn(:,k) = tggsn(cmap,k)
-      ssoil%smass(:,k) = smass(cmap,k)
-      ssoil%ssdn(:,k) = ssdn(cmap,k)
+      ssnow%tggsn(:,k) = tggsn(cmap,k)
+      ssnow%smass(:,k) = smass(cmap,k)
+      ssnow%ssdn(:,k) = ssdn(cmap,k)
     enddo      
-    ssoil%isflag=isflag(cmap)
-    ssoil%snowd=snowd(cmap)
-    ssoil%snage=snage(cmap)
-    ssoil%rtsoil=100.
+    ssnow%isflag=isflag(cmap)
+    ssnow%snowd=snowd(cmap)
+    ssnow%snage=snage(cmap)
+    ssnow%rtsoil=50.
     canopy%cansto=0.
-    ssoil%pudsto=0.
-    ssoil%wetfac=0.
+    ssnow%pudsto=0.
+    ssnow%wetfac=0.
     if (icycle==0) then
       do k=1,ncp
         bgc%cplant(:,k) = cplant(cmap,k)
@@ -1903,46 +1906,46 @@ else
     do k=1,ms
       write(vname,'("tgg",I1.1,"_",I1.1)') k,n
       call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-      if (pind(n,1)<=mp) ssoil%tgg(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
+      if (pind(n,1)<=mp) ssnow%tgg(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
       write(vname,'("wb",I1.1,"_",I1.1)') k,n
       call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-      if (pind(n,1)<=mp) ssoil%wb(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
+      if (pind(n,1)<=mp) ssnow%wb(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
       write(vname,'("wbice",I1.1,"_",I1.1)') k,n
       call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-      if (pind(n,1)<=mp) ssoil%wbice(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
+      if (pind(n,1)<=mp) ssnow%wbice(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
     end do
     do k=1,3
       write(vname,'("tggsn",I1.1,"_",I1.1)') k,n
       call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-      if (pind(n,1)<=mp) ssoil%tggsn(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
+      if (pind(n,1)<=mp) ssnow%tggsn(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
       write(vname,'("smass",I1.1,"_",I1.1)') k,n
       call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-      if (pind(n,1)<=mp) ssoil%smass(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
+      if (pind(n,1)<=mp) ssnow%smass(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
       write(vname,'("ssdn",I1.1,"_",I1.1)') k,n
       call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-      if (pind(n,1)<=mp) ssoil%ssdn(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
+      if (pind(n,1)<=mp) ssnow%ssdn(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
     end do
     write(vname,'("sflag_",I1.1)') n
     call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-    if (pind(n,1)<=mp) ssoil%isflag(pind(n,1):pind(n,2))=nint(dat(cmap(pind(n,1):pind(n,2))))
+    if (pind(n,1)<=mp) ssnow%isflag(pind(n,1):pind(n,2))=nint(dat(cmap(pind(n,1):pind(n,2))))
     write(vname,'("snd_",I1.1)') n
     call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-    if (pind(n,1)<=mp) ssoil%snowd(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
+    if (pind(n,1)<=mp) ssnow%snowd(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
     write(vname,'("snage_",I1.1)') n
     call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-    if (pind(n,1)<=mp) ssoil%snage(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
+    if (pind(n,1)<=mp) ssnow%snage(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
     write(vname,'("rtsoil_",I1.1)') n
     call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-    if (pind(n,1)<=mp) ssoil%rtsoil(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
+    if (pind(n,1)<=mp) ssnow%rtsoil(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
     write(vname,'("cansto_",I1.1)') n
     call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
     if (pind(n,1)<=mp) canopy%cansto(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
     write(vname,'("pudsto_",I1.1)') n
     call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-    if (pind(n,1)<=mp) ssoil%pudsto(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
+    if (pind(n,1)<=mp) ssnow%pudsto(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
     write(vname,'("wetfac_",I1.1)') n
     call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
-    if (pind(n,1)<=mp) ssoil%wetfac(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
+    if (pind(n,1)<=mp) ssnow%wetfac(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
     if (icycle==0) then
       do k=1,ncp
         write(vname,'("cplant",I1.1,"_",I1.1)') k,n
@@ -2035,46 +2038,46 @@ if (mp>0) then
     totdepth = totdepth + soil%zse(k)*100.
   enddo
 
-  ssoil%wb=max(ssoil%wb,0.)
-  ssoil%wbice=max(ssoil%wbice,0.)
-  ssoil%smass=max(ssoil%smass,0.)
-  ssoil%rtsoil=max(ssoil%rtsoil,0.)
-  ssoil%snowd=max(ssoil%snowd,0.)
-  ssoil%wetfac=min(max(ssoil%wetfac,0.),1.)
+  ssnow%wb=max(ssnow%wb,0.)
+  ssnow%wbice=max(ssnow%wbice,0.)
+  ssnow%smass=max(ssnow%smass,0.)
+  ssnow%rtsoil=max(ssnow%rtsoil,0.)
+  ssnow%snowd=max(ssnow%snowd,0.)
+  ssnow%wetfac=min(max(ssnow%wetfac,0.),1.)
   canopy%cansto=max(canopy%cansto,0.)
 
   ! overwritten by CABLE
-  ssoil%osnowd=ssoil%snowd                                ! overwritten by CABLE
-  bal%osnowd0=ssoil%snowd                                 ! overwritten by CABLE
-  where (ssoil%isflag>0)
-    ssoil%sdepth(:,1)=ssoil%smass(:,1)/ssoil%ssdn(:,1)    ! overwritten by CABLE
-    ssoil%ssdnn=(ssoil%ssdn(:,1)*ssoil%smass(:,1)+ssoil%ssdn(:,2) &
-         & *ssoil%smass(:,2)+ssoil%ssdn(:,3)*ssoil%smass(:,3))    &
-         & /ssoil%snowd
+  ssnow%osnowd=ssnow%snowd                                ! overwritten by CABLE
+  bal%osnowd0=ssnow%snowd                                 ! overwritten by CABLE
+  where (ssnow%isflag>0)
+    ssnow%sdepth(:,1)=ssnow%smass(:,1)/ssnow%ssdn(:,1)    ! overwritten by CABLE
+    ssnow%ssdnn=(ssnow%ssdn(:,1)*ssnow%smass(:,1)+ssnow%ssdn(:,2) &
+         & *ssnow%smass(:,2)+ssnow%ssdn(:,3)*ssnow%smass(:,3))    &
+         & /ssnow%snowd
   elsewhere
-    ssoil%sdepth(:,1)=ssoil%snowd/ssoil%ssdn(:,1)         ! overwritten by CABLE
-    ssoil%ssdnn=max(120.,ssoil%ssdn(:,1))                 ! overwritten by CABLE
+    ssnow%sdepth(:,1)=ssnow%snowd/ssnow%ssdn(:,1)         ! overwritten by CABLE
+    ssnow%ssdnn=max(120.,ssnow%ssdn(:,1))                 ! overwritten by CABLE
   end where
   do k=2,3
-    where (ssoil%isflag>0)
-      ssoil%sdepth(:,k)=ssoil%smass(:,k)/ssoil%ssdn(:,k)  ! overwritten by CABLE
+    where (ssnow%isflag>0)
+      ssnow%sdepth(:,k)=ssnow%smass(:,k)/ssnow%ssdn(:,k)  ! overwritten by CABLE
     elsewhere
-      ssoil%sdepth(:,k)=ssoil%sconds(:,1)                 ! overwritten by CABLE
+      ssnow%sdepth(:,k)=ssnow%sconds(:,1)                 ! overwritten by CABLE
     end where
   end do  
-  ssoil%owetfac=ssoil%wetfac
-  ssoil%wbtot=0.
-  ssoil%wbtot1=0.
-  ssoil%wbtot2=0.
-  ssoil%tggav=0.
+  ssnow%owetfac=ssnow%wetfac
+  ssnow%wbtot=0.
+  ssnow%wbtot1=0.
+  ssnow%wbtot2=0.
+  ssnow%tggav=0.
   do k = 1,ms
-    ssoil%wbtot=ssoil%wbtot+ssoil%wb(:,k)*1000.0*soil%zse(k)
-    ssoil%tggav=ssoil%tggav+soil%zse(k)*ssoil%tgg(:,k)/(totdepth/100.)
-    ssoil%gammzz(:,k)=max((1.-soil%ssat)*soil%css* soil%rhosoil &
-       & +(ssoil%wb(:,k)-ssoil%wbice(:,k))*4.218e3* 1000.       &
-       & +ssoil%wbice(:,k)*2.100e3*1000.*0.9,soil%css*soil%rhosoil)*soil%zse(k)
+    ssnow%wbtot=ssnow%wbtot+ssnow%wb(:,k)*1000.0*soil%zse(k)
+    ssnow%tggav=ssnow%tggav+soil%zse(k)*ssnow%tgg(:,k)/(totdepth/100.)
+    ssnow%gammzz(:,k)=max((1.-soil%ssat)*soil%css* soil%rhosoil &
+       & +(ssnow%wb(:,k)-ssnow%wbice(:,k))*4.218e3* 1000.       &
+       & +ssnow%wbice(:,k)*2.100e3*1000.*0.9,soil%css*soil%rhosoil)*soil%zse(k)
   end do
-  bal%wbtot0=ssoil%wbtot
+  bal%wbtot0=ssnow%wbtot
 
   if (icycle==0) then
     bgc%cplant=max(bgc%cplant,0.)
@@ -2321,51 +2324,51 @@ do n=1,5
   do k=1,ms
     dat=tgg(:,k)
     if (pind(n,1)<=mp) then      
-      dat(cmap(pind(n,1):pind(n,2)))=ssoil%tgg(pind(n,1):pind(n,2),k)
+      dat(cmap(pind(n,1):pind(n,2)))=ssnow%tgg(pind(n,1):pind(n,2),k)
     end if
     write(vname,'("tgg",I1.1,"_",I1.1)') k,n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=wb(:,k)
     if (pind(n,1)<=mp) then  
-      dat(cmap(pind(n,1):pind(n,2)))=ssoil%wb(pind(n,1):pind(n,2),k)
+      dat(cmap(pind(n,1):pind(n,2)))=ssnow%wb(pind(n,1):pind(n,2),k)
     end if
     write(vname,'("wb",I1.1,"_",I1.1)') k,n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=wbice(:,k)
     if (pind(n,1)<=mp) then  
-      dat(cmap(pind(n,1):pind(n,2)))=ssoil%wbice(pind(n,1):pind(n,2),k)
+      dat(cmap(pind(n,1):pind(n,2)))=ssnow%wbice(pind(n,1):pind(n,2),k)
     end if
     write(vname,'("wbice",I1.1,"_",I1.1)') k,n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
   end do
   do k=1,3
     dat=tggsn(:,k)
-    if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%tggsn(pind(n,1):pind(n,2),k)
+    if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=ssnow%tggsn(pind(n,1):pind(n,2),k)
     write(vname,'("tggsn",I1.1,"_",I1.1)') k,n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=smass(:,k)
-    if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%smass(pind(n,1):pind(n,2),k)
+    if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=ssnow%smass(pind(n,1):pind(n,2),k)
     write(vname,'("smass",I1.1,"_",I1.1)') k,n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=ssdn(:,k)
-    if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%ssdn(pind(n,1):pind(n,2),k)
+    if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=ssnow%ssdn(pind(n,1):pind(n,2),k)
     write(vname,'("ssdn",I1.1,"_",I1.1)') k,n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
   end do
   dat=real(isflag)
-  if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=real(ssoil%isflag(pind(n,1):pind(n,2)))
+  if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=real(ssnow%isflag(pind(n,1):pind(n,2)))
   write(vname,'("sflag_",I1.1)') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)
   dat=snowd
-  if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%snowd(pind(n,1):pind(n,2))
+  if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=ssnow%snowd(pind(n,1):pind(n,2))
   write(vname,'("snd_",I1.1)') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)
   dat=snage
-  if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%snage(pind(n,1):pind(n,2))
+  if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=ssnow%snage(pind(n,1):pind(n,2))
   write(vname,'("snage_",I1.1)') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)
   dat=100.
-  if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%rtsoil(pind(n,1):pind(n,2))
+  if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=ssnow%rtsoil(pind(n,1):pind(n,2))
   write(vname,'("rtsoil_",I1.1)') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)   
   dat=cansto
@@ -2373,11 +2376,11 @@ do n=1,5
   write(vname,'("cansto_",I1.1)') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)
   dat=0.
-  if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%pudsto(pind(n,1):pind(n,2))
+  if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=ssnow%pudsto(pind(n,1):pind(n,2))
   write(vname,'("pudsto_",I1.1)') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)
   dat=0.
-  if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%wetfac(pind(n,1):pind(n,2))
+  if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=ssnow%wetfac(pind(n,1):pind(n,2))
   write(vname,'("wetfac_",I1.1)') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)
   if (icycle==0) then
@@ -2508,9 +2511,9 @@ do n=1,5
     end if
   end do
   if (iq>0) then
-    ll=max(soil%ssat(iq)*lmax-ssoil%wb(iq,cbm_ms),0.)*1000.*soil%zse(cbm_ms)
+    ll=max(soil%ssat(iq)*lmax-ssnow%wb(iq,cbm_ms),0.)*1000.*soil%zse(cbm_ms)
     yy=min(xx(n),ll)
-    ssoil%wb(iq,cbm_ms)=ssoil%wb(iq,cbm_ms)+yy/(1000.*soil%zse(cbm_ms))
+    ssnow%wb(iq,cbm_ms)=ssnow%wb(iq,cbm_ms)+yy/(1000.*soil%zse(cbm_ms))
     xx(n)=max(xx(n)-yy,0.)
     inflow=inflow+sv(iq)*xx(n)
   else

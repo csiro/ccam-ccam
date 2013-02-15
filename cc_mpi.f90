@@ -217,7 +217,6 @@ module cc_mpi
    end type mgbndtype
    
    integer, save, public :: mg_maxlevel
-
    type(mgtype), dimension(:), allocatable, save, public :: mg
    type(mgbndtype), dimension(:,:), allocatable, save, public :: mg_bnds
 
@@ -7323,15 +7322,17 @@ contains
       integer :: kx, iq
       integer :: iproc, iq_b, iq_e, rproc, sproc, recv_len, send_len
       integer :: lmode, rcount, sreq, myrlen
-      integer, dimension(neighnum) :: rslen, sslen
-      integer, dimension(2*neighnum) :: dreq
+      integer, dimension(mg(g)%neighnum) :: rslen, sslen
+      integer, dimension(2*mg(g)%neighnum) :: dreq
       integer(kind=4) :: ierr, itag=0, llen, lproc, ltype
-      integer(kind=4), dimension(MPI_STATUS_SIZE,2*nproc) :: status
+      integer(kind=4), dimension(MPI_STATUS_SIZE,2*mg(g)%neighnum) :: status
       real, dimension(:,:), intent(inout) :: vdat
       logical, intent(in), optional :: corner
       logical extra
 
       call start_log(mgbounds_begin)
+      
+      if (mg(g)%neighnum <= 0) return
 
       extra = .false.
       if (present(corner)) extra = corner
@@ -7349,17 +7350,17 @@ contains
       vdat(mg(g)%ifull+1:mg(g)%ifull+mg(g)%iextra,1:kx) = 0. ! Must be zero for mlodynamics
       
       if ( extra ) then
-         rslen  = mg_bnds(neighlistrecv,g)%rlenx
-         sslen  = mg_bnds(neighlistsend,g)%slenx
+         rslen  = mg_bnds(mg(g)%neighlistrecv,g)%rlenx
+         sslen  = mg_bnds(mg(g)%neighlistsend,g)%slenx
          myrlen = mg_bnds(myid,g)%rlenx
       else
-         rslen  = mg_bnds(neighlistrecv,g)%rlen
-         sslen  = mg_bnds(neighlistsend,g)%slen
+         rslen  = mg_bnds(mg(g)%neighlistrecv,g)%rlen
+         sslen  = mg_bnds(mg(g)%neighlistsend,g)%slen
          myrlen = mg_bnds(myid,g)%rlen
       end if
       if ( lmode == 1 ) then
-        rslen  = rslen*bnds(neighlistrecv)%mlomsk
-        sslen  = sslen*bnds(neighlistsend)%mlomsk
+        rslen  = rslen*bnds(mg(g)%neighlistrecv)%mlomsk
+        sslen  = sslen*bnds(mg(g)%neighlistsend)%mlomsk
         myrlen = myrlen*bnds(myid)%mlomsk
       end if
 
@@ -7419,7 +7420,7 @@ contains
          call end_log(mpiwaitmg_end)
 
          iproc = rlist(lproc,1)  ! Recv from
-         rproc = neighlistrecv(iproc)
+         rproc = mg(g)%neighlistrecv(iproc)
          recv_len = rslen(iproc)
 !cdir nodep
          do iq = 1,recv_len
@@ -7880,6 +7881,7 @@ contains
          mg(g)%isw=jsw_g
          mg(g)%ixlen=0
          mg(g)%iextra=0
+         mg(g)%neighnum=0
       else
          mg(g)%iextra=2*(mipan+mjpan+2)*npan ! first guess
 
@@ -8251,7 +8253,8 @@ contains
             if ( mg_neighbour(rproc) ) then
                nreq(1) = nreq(1) + 1
                lproc = rproc
-               call MPI_IRecv( rdum(:,rproc), 2, ltype, lproc, itag, MPI_COMM_WORLD, dreq(nreq(1)), ierr )
+               mnum = 2
+               call MPI_IRecv( rdum(:,rproc), mnum, ltype, lproc, itag, MPI_COMM_WORLD, dreq(nreq(1)), ierr )
             end if
          end do
          do iproc = 1,nproc-1
@@ -8261,7 +8264,8 @@ contains
                sdum(1,sproc) = mg_bnds(sproc,g)%rlenx
                sdum(2,sproc) = mg_bnds(sproc,g)%rlen
                lproc = sproc
-               call MPI_ISend( sdum(:,sproc), 2, ltype, lproc, itag, MPI_COMM_WORLD, dreq(nreq(1)), ierr )
+               mnum = 2
+               call MPI_ISend( sdum(:,sproc), mnum, ltype, lproc, itag, MPI_COMM_WORLD, dreq(nreq(1)), ierr )
             end if
          end do
          if ( nreq(1) > 0 ) then

@@ -300,7 +300,7 @@ do itr=1,itr_mg
         vdum(iq_b,1:klim)=w(iq_d,1:klim)
       end do  
       i=1
-      do j=2,jpan-1
+      do j=1,jpan
         iq_a=i+(j-1)*ipan+(n-1)*ipan*jpan
         iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*jpan+(n-1)*ipan*jpan*mg(g)%merge_len
         iq_b=iw(iq_a)
@@ -308,7 +308,7 @@ do itr=1,itr_mg
         vdum(iq_b,1:klim)=w(iq_d,1:klim)
       end do
       i=ipan
-      do j=2,jpan-1
+      do j=1,jpan
         iq_a=i+(j-1)*ipan+(n-1)*ipan*jpan
         iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*jpan+(n-1)*ipan*jpan*mg(g)%merge_len
         iq_b=ie(iq_a)
@@ -337,14 +337,14 @@ do itr=1,itr_mg
         vdum(iq_a,1:klim)=w(iq_b,1:klim)
       end do  
       i=1
-      do j=2,jpan-1
+      do j=1,jpan
         iq=indx(i,j,n-1,ipan,jpan)
         iq_a=iw(iq)
         iq_b=mg(1)%iw(iq)
         vdum(iq_a,1:klim)=w(iq_b,1:klim)
       end do
       i=ipan
-      do j=2,jpan-1
+      do j=1,jpan
         iq=indx(i,j,n-1,ipan,jpan)
         iq_a=ie(iq)
         iq_b=mg(1)%ie(iq)
@@ -795,19 +795,19 @@ do itr=1,itr_mgice
         vdum(iq_b)=w(iq_d,1)
       end do  
       i=1
-      do j=2,jpan-1
+      do j=1,jpan
         iq_a=i+(j-1)*ipan+(n-1)*ipan*jpan
         iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*jpan+(n-1)*ipan*jpan*mg(g)%merge_len
-        iq_a=iw(iq_a)
-        iq_b=mg(1)%iw(iq_c)
+        iq_b=iw(iq_a)
+        iq_d=mg(1)%iw(iq_c)
         vdum(iq_b)=w(iq_d,1)
       end do
       i=ipan
-      do j=2,jpan-1
+      do j=1,jpan
         iq_a=i+(j-1)*ipan+(n-1)*ipan*jpan
         iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*jpan+(n-1)*ipan*jpan*mg(g)%merge_len
-        iq_a=ie(iq_a)
-        iq_b=mg(1)%ie(iq_c)
+        iq_b=ie(iq_a)
+        iq_d=mg(1)%ie(iq_c)
         vdum(iq_b)=w(iq_d,1)
       end do
     end do
@@ -832,14 +832,14 @@ do itr=1,itr_mgice
         vdum(iq_a)=w(iq_b,1)
       end do  
       i=1
-      do j=2,jpan-1
+      do j=1,jpan
         iq=indx(i,j,n-1,ipan,jpan)
         iq_a=iw(iq)
         iq_b=mg(1)%iw(iq)
         vdum(iq_a)=w(iq_b,1)
       end do
       i=ipan
-      do j=2,jpan-1
+      do j=1,jpan
         iq=indx(i,j,n-1,ipan,jpan)
         iq_a=ie(iq)
         iq_b=mg(1)%ie(iq)
@@ -967,9 +967,10 @@ use cc_mpi
 implicit none
 
 include 'newmpar.h'
+include 'parm.h'
 
 integer g,np,iq,iqq,iql,iproc,xlen,nn,ii,jj
-integer mipan,mjpan,hipan,hjpan,mil_g,ia,ja
+integer mipan,mjpan,hipan,hjpan,mil_g,iia,jja
 integer i,j,n,mg_npan,mxpr,mypr
 integer cid,ix,jx,colour,rank,ncol,nrow
 integer npanx,na,nx,ny,sii,eii,sjj,ejj
@@ -1086,10 +1087,10 @@ if (mod(mipan,2)/=0.or.mod(mjpan,2)/=0) then
         do i=1,mil_g,mipan
           cid=mg(1)%fproc(i+ix,j+jx,nn) ! processor in same merge position as myid
                                         ! we will maintain communications with this processor
-          do ja=1,mjpan
-            do ia=1,mipan
+          do jja=1,mjpan
+            do iia=1,mipan
               ! update fproc map with processor that owns this data
-              mg(1)%fproc(i+ia-1,j+ja-1,nn)=cid
+              mg(1)%fproc(i+iia-1,j+jja-1,nn)=cid
             end do
           end do
         end do
@@ -1116,10 +1117,10 @@ if (mod(mipan,2)/=0.or.mod(mjpan,2)/=0) then
           do i=1,mil_g,mipan
             cid=mg(g)%fproc(i+ix,j+jx,nn) ! processor in same merge position as myid
                                           ! we will maintain communications with this processor
-            do ja=1,mjpan
-              do ia=1,mipan
+            do jja=1,mjpan
+              do iia=1,mipan
                 ! update fproc map with processor that owns this data
-                mg(g)%fproc(i+ia-1,j+ja-1,nn)=cid
+                mg(g)%fproc(i+iia-1,j+jja-1,nn)=cid
               end do
             end do
           end do
@@ -1132,23 +1133,26 @@ if (mod(mipan,2)/=0.or.mod(mjpan,2)/=0) then
       call ccmpi_commsplit(mg(1)%comm,comm_world,colour,rank)
       
       ! MLO comm
-      rank=-1
-      jj=-1
-      do ii=1,mg(1)%merge_len
-        iproc=mg(1)%merge_list(ii,1)
-        if (bnds(iproc)%mlomsk==1) then
-          jj=jj+1
-          if (iproc==myid) then
-            rank=jj
-            exit
-          end if
+      if (abs(nmlo)>0.and.abs(nmlo)<=9) then
+        if (bnds(myid)%mlomsk==1) then
+          rank=-1
+          jj=-1
+          do ii=1,mg(1)%merge_len
+            iproc=mg(1)%merge_list(ii,1)
+            if (bnds(iproc)%mlomsk==1) then
+              jj=jj+1
+              if (iproc==myid) then
+                rank=jj
+                exit
+              end if
+            end if
+          end do
+        else
+          colour=nproc
+          rank=count(bnds(0:myid)%mlomsk==0)-1
         end if
-      end do
-      if (rank<0) then
-        colour=nproc
-        rank=0
+        call ccmpi_commsplit(mg(1)%comm_mlo,comm_world,colour,rank)
       end if
-      call ccmpi_commsplit(mg(1)%comm_mlo,comm_world,colour,rank)
       
     end if
       
@@ -1208,10 +1212,10 @@ do g=2,mg_maxlevel
   ! Calculate size of grid at this level
   do nn=0,npanels
     do jj=1,2*mil_g,2
-      ja=(jj-1)/2+1
+      jja=(jj-1)/2+1
       do ii=1,2*mil_g,2
-        ia=(ii-1)/2+1
-        mg(g)%fproc(ia,ja,nn)=mg(g-1)%fproc(ii,jj,nn)
+        iia=(ii-1)/2+1
+        mg(g)%fproc(iia,jja,nn)=mg(g-1)%fproc(ii,jj,nn)
       end do
     end do
   end do
@@ -1284,10 +1288,10 @@ do g=2,mg_maxlevel
           do i=1,mil_g,mipan
             cid=mg(g)%fproc(i+ix,j+jx,nn) ! processor in same merge position as myid
                                           ! we will maintain communications with this processor
-            do ja=1,mjpan
-              do ia=1,mipan
+            do jja=1,mjpan
+              do iia=1,mipan
                 ! update fproc map with processor that owns this data
-                mg(g)%fproc(i+ia-1,j+ja-1,nn)=cid
+                mg(g)%fproc(i+iia-1,j+jja-1,nn)=cid
               end do
             end do
           end do
@@ -1315,10 +1319,10 @@ do g=2,mg_maxlevel
             do i=1,mil_g,mipan
               cid=mg(g)%fproc(i+ix,j+jx,nn) ! processor in same merge position as myid
                                             ! we will maintain communications with this processor
-              do ja=1,mjpan
-                do ia=1,mipan
+              do jja=1,mjpan
+                do iia=1,mipan
                   ! update fproc map with processor that owns this data
-                  mg(g)%fproc(i+ia-1,j+ja-1,nn)=cid
+                  mg(g)%fproc(i+iia-1,j+jja-1,nn)=cid
                 end do
               end do
             end do
@@ -1430,23 +1434,26 @@ do g=2,mg_maxlevel
         call ccmpi_commsplit(mg(g)%comm,comm_world,colour,rank)
 
         ! MLO comm
-        rank=-1
-        jj=-1
-        do ii=1,mg(g)%merge_len
-          iproc=mg(g)%merge_list(ii,1)
-          if (bnds(iproc)%mlomsk==1) then
-            jj=jj+1
-            if (iproc==myid) then
-              rank=jj
-              exit
-            end if
+        if (abs(nmlo)>0.and.abs(nmlo)<=9) then
+          if (bnds(myid)%mlomsk==1) then
+            rank=-1
+            jj=-1
+            do ii=1,mg(g)%merge_len
+              iproc=mg(g)%merge_list(ii,1)
+              if (bnds(iproc)%mlomsk==1) then
+                jj=jj+1
+                if (iproc==myid) then
+                  rank=jj
+                  exit
+                end if
+              end if
+            end do
+          else
+            colour=nproc
+            rank=count(bnds(0:myid)%mlomsk==0)-1
           end if
-        end do
-        if (rank<0) then
-          colour=nproc
-          rank=0
+          call ccmpi_commsplit(mg(g)%comm_mlo,comm_world,colour,rank)
         end if
-        call ccmpi_commsplit(mg(g)%comm_mlo,comm_world,colour,rank)
 
       end if
     end if
@@ -1506,9 +1513,11 @@ do g=2,mg_maxlevel
 
   call mg_index(g,mil_g,mipan,mjpan)
   
-  mg(g)%fine_n=mg(g)%in(mg(g)%fine)
-  mg(g)%fine_e=mg(g)%ie(mg(g)%fine)
-  mg(g)%fine_ne=mg(g)%ine(mg(g)%fine)
+  if (g<mg_maxlevel) then
+    mg(g)%fine_n=mg(g)%in(mg(g)%fine)
+    mg(g)%fine_e=mg(g)%ie(mg(g)%fine)
+    mg(g)%fine_ne=mg(g)%ine(mg(g)%fine)
+  end if
   
   mg_maxsize=max(mg_maxsize,mg(g)%ifull+mg(g)%iextra)
 
@@ -1541,35 +1550,35 @@ do g=2,mg_maxlevel
     ejj=ny*dcol
     
     do jj=sjj,ejj
-      ja=2*(jj-sjj)+1
+      jja=2*(jj-sjj)+1
       do ii=sii,eii
-        ia=2*(ii-sii)+1
+        iia=2*(ii-sii)+1
         
         iqq=indx(ii,jj,n-1,mipan,mjpan)   ! coarse grid
         
         ! odd, odd          
-        iq =indx(ia,ja,n-1,2*drow,2*dcol)     ! fine grid
+        iq =indx(iia,jja,n-1,2*drow,2*dcol)     ! fine grid
         mg(g)%coarse_a(iq)=          iqq
         mg(g)%coarse_b(iq)= mg(g)%is(iqq)
         mg(g)%coarse_c(iq)= mg(g)%iw(iqq)
         mg(g)%coarse_d(iq)=mg(g)%isw(iqq)
           
         ! odd, even
-        iq =indx(ia,ja+1,n-1,2*drow,2*dcol)   ! fine grid
+        iq =indx(iia,jja+1,n-1,2*drow,2*dcol)   ! fine grid
         mg(g)%coarse_a(iq)=          iqq
         mg(g)%coarse_b(iq)= mg(g)%in(iqq)
         mg(g)%coarse_c(iq)= mg(g)%iw(iqq)
         mg(g)%coarse_d(iq)=mg(g)%inw(iqq)
           
         ! even, odd
-        iq =indx(ia+1,ja,n-1,2*drow,2*dcol)   ! fine grid 
+        iq =indx(iia+1,jja,n-1,2*drow,2*dcol)   ! fine grid 
         mg(g)%coarse_a(iq)=          iqq
         mg(g)%coarse_b(iq)= mg(g)%is(iqq)
         mg(g)%coarse_c(iq)= mg(g)%ie(iqq)
         mg(g)%coarse_d(iq)=mg(g)%ise(iqq)
 
         ! even, even
-        iq =indx(ia+1,ja+1,n-1,2*drow,2*dcol) ! fine grid
+        iq =indx(iia+1,jja+1,n-1,2*drow,2*dcol) ! fine grid
         mg(g)%coarse_a(iq)=          iqq
         mg(g)%coarse_b(iq)= mg(g)%in(iqq)
         mg(g)%coarse_c(iq)= mg(g)%ie(iqq)
@@ -1586,14 +1595,14 @@ do g=2,mg_maxlevel
       ! need to check every point as the current
       ! grid may be the result of a global gather
       do jj=sjj,ejj
-        ja=2*(jj-sjj)+1
+        jja=2*(jj-sjj)+1
         do ii=sii,eii
-          ia=2*(ii-sii)+1
+          iia=2*(ii-sii)+1
         
           iqq=indx(ii,jj,n-1,mipan,mjpan)   ! coarse grid
         
           ! odd, odd          
-          iq =indx(ia,ja,n-1,2*drow,2*dcol)     ! fine grid
+          iq =indx(iia,jja,n-1,2*drow,2*dcol)     ! fine grid
           iql=mg(g-1)%is(iq)
           if (mg(g)%coarse_a(iql)==0) then
             mg(g)%coarse_a(iql)= mg(g)%is(iqq)
@@ -1610,7 +1619,7 @@ do g=2,mg_maxlevel
           end if
           
           ! odd, even
-          iq =indx(ia,ja+1,n-1,2*drow,2*dcol)   ! fine grid
+          iq =indx(iia,jja+1,n-1,2*drow,2*dcol)   ! fine grid
           iql=mg(g-1)%in(iq)
           if (mg(g)%coarse_a(iql)==0) then
             mg(g)%coarse_a(iql)= mg(g)%in(iqq)
@@ -1627,7 +1636,7 @@ do g=2,mg_maxlevel
           end if
           
           ! even, odd
-          iq =indx(ia+1,ja,n-1,2*drow,2*dcol)   ! fine grid 
+          iq =indx(iia+1,jja,n-1,2*drow,2*dcol)   ! fine grid 
           iql=mg(g-1)%is(iq)
           if (mg(g)%coarse_a(iql)==0) then
             mg(g)%coarse_a(iql)= mg(g)%is(iqq)
@@ -1644,7 +1653,7 @@ do g=2,mg_maxlevel
           end if
           
           ! even, even
-          iq =indx(ia+1,ja+1,n-1,2*drow,2*dcol) ! fine grid
+          iq =indx(iia+1,jja+1,n-1,2*drow,2*dcol) ! fine grid
           iql=mg(g-1)%in(iq)
           if (mg(g)%coarse_a(iql)==0) then
             mg(g)%coarse_a(iql)= mg(g)%in(iqq)

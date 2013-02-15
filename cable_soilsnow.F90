@@ -1788,13 +1788,14 @@ SUBROUTINE soil_snow(dels, soil, ssnow, canopy, met, bal, veg)
    CALL surfbv(dels, met, ssnow, soil, veg, canopy )
 
    ! correction required for energy balance in online simulations 
-   IF( cable_runtime%um) THEN
+   ! MJT bug fix
+   !IF( cable_runtime%um) THEN
       canopy%fhs_cor = ssnow%dtmlt(:,1)*ssnow%dfh_dtg
       canopy%fes_cor = ssnow%dtmlt(:,1)*(ssnow%cls*ssnow%dfe_ddq * ssnow%ddq_dtg)
 
       canopy%fhs = canopy%fhs+canopy%fhs_cor
       canopy%fes = canopy%fes+canopy%fes_cor
-   ENDIF
+   !ENDIF
 
    ! redistrb (set in cable.nml) by default==.FALSE. 
    IF( redistrb )                                                              &

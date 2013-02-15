@@ -127,7 +127,11 @@ ltst=0
 stst=0
 if (any(ee>0.5)) stst=1
 call ccmpi_allgatherx(ltst(0:nproc-1),stst(1:1),comm_world)
-lrank=count(ltst(0:myid)==1)-1
+if (stst(1)==1) then
+  lrank=count(ltst(0:myid)==1)-1
+else
+  lrank=count(ltst(0:myid)==0)-1
+end if
 lndtst_g=count(ltst==1)
 bnds(:)%mlomsk=ltst(:)
 call ccmpi_commsplit(comm_mlo,comm_world,stst(1),lrank)
@@ -273,11 +277,12 @@ do k=1,wlev
   call mloexport(3,v(1:ifull,k),k,0)
 end do
 call mloexport(4,eta(1:ifull),0,0)
+call bounds(eta,nehalf=.true.,gmode=1)
+
 uau(1:ifull,:)=av_vmod*u(1:ifull,:)+(1.-av_vmod)*oldu1
 uav(1:ifull,:)=av_vmod*v(1:ifull,:)+(1.-av_vmod)*oldv1
-
 call boundsuv(uau,uav,allvec=.true.,gmode=1)
-call bounds(eta,nehalf=.true.,gmode=1)
+
 do k=1,wlev
   dudx(1:ifull,k)=0.5*(uau(ieu,k)-uau(iwu,k))*em(1:ifull)/ds
   dudy(1:ifull,k)=0.5*(uau(inu,k)-uau(isu,k))*em(1:ifull)/ds
@@ -1026,6 +1031,8 @@ end if
 ! (Assume free surface correction is small so that changes in the compression 
 ! effect due to neta can be neglected.  Consequently, the neta dependence is 
 ! separable in the iterative loop)
+call bounds(nt,corner=.true.,gmode=1)
+call bounds(ns,corner=.true.,gmode=1)
 dumt=nt(1:ifull,:)
 dums=ns(1:ifull,:)
 call mloexpdensity(dumr,duma,dumb,dumt,dums,dzdum,pice(1:ifull),0)
@@ -1035,8 +1042,6 @@ dbeta(1:ifull,:)=dumb
 call bounds(rho,nehalf=.true.,gmode=1)
 call bounds(dalpha,nehalf=.true.,gmode=1)
 call bounds(dbeta,nehalf=.true.,gmode=1)
-call bounds(nt,corner=.true.,gmode=1)
-call bounds(ns,corner=.true.,gmode=1)
 rhobar(:,1)=(rho(:,1)-1030.)*godsig(1)
 do ii=2,wlev
   rhobar(:,ii)=rhobar(:,ii-1)+(rho(:,ii)-1030.)*godsig(ii)
@@ -1223,6 +1228,8 @@ end if
 
 ! Approximate normalised density rhobar at t+1 (unstaggered, using T and S at t+1)
 if (nxtrrho==1) then
+  call bounds(nt,corner=.true.,gmode=1)
+  call bounds(ns,corner=.true.,gmode=1)
   dumt=nt(1:ifull,:)
   dums=ns(1:ifull,:)
   call mloexpdensity(dumr,duma,dumb,dumt,dums,dzdum,pice(1:ifull),0)
@@ -1232,8 +1239,6 @@ if (nxtrrho==1) then
   call bounds(rho,nehalf=.true.,gmode=1)
   call bounds(dalpha,nehalf=.true.,gmode=1)
   call bounds(dbeta,nehalf=.true.,gmode=1)
-  call bounds(nt,corner=.true.,gmode=1)
-  call bounds(ns,corner=.true.,gmode=1)
   rhobar(:,1)=(rho(:,1)-1030.)*godsig(1)
   do ii=2,wlev
     rhobar(:,ii)=rhobar(:,ii-1)+(rho(:,ii)-1030.)*godsig(ii)
@@ -4582,7 +4587,7 @@ do ll=1,llmax
   !  itsave2=ll
   !  itserr1=itserr2
   !  itserr2=log10(maxglobseta)
-    
+  !  
   !  gd=(itserr2-itserr1)/real(itsave2-itsave1)
   !  ci=itserr2-gd*real(itsave2)
   !  if (gd/=0.) then
