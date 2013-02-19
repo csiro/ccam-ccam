@@ -1078,9 +1078,10 @@ dmsn33d(:,:)=0.
 xte(:,:,:)=0.
 pcons2=1./(ptmst*grav)
 pdtime=0.5*ptmst
-zrdayl(:)=0
 where (sg(:)>0.)
   zrdayl(:)=1
+elsewhere
+  zrdayl(:)=0  
 end where
 
 ! Calculate xto, tracer mixing ratio outside convective updraughts
@@ -1130,13 +1131,15 @@ ZNAMAIR=1.E-03*ZAVO/ZMOLGAIR
 ZLWCMIN=1.E-07
 
 ! Calculate in-cloud ql
-zlwcic(:,:)=0.
 where (pclcover(:,:)>zmin)
   zlwcic(:,:)=pmlwc(:,:)/pclcover(:,:)
+elsewhere
+  zlwcic(:,:)=0.
 end where
-ziwcic(:,:)=0.
 where (pcfcover(:,:)>zmin)
   ziwcic(:,:)=pmiwc(:,:)/pcfcover(:,:)
+elsewhere
+  ziwcic(:,:)=0.
 end where
 
 !  OXIDANT CONCENTRATIONS IN MOLECULE/CM**3
@@ -2098,9 +2101,10 @@ data ipoint/3,2,2,2/ !,3,2,2,2,12*0/ !Pointer to the 3 classes (sand, silt, clay
 data frac_s/0.1,0.25,0.25,0.25/ !,16*0./
 
 ! Start code : ----------------------------------------------------------
-water=1.
 where (land)
   water=0.       ! fraction of water in each grid box
+elsewhere
+  water=1.
 end where
 Ch_dust = 1.e-9  ! Transfer coeff for type natural source (kg*s2/m5)
 
@@ -2253,31 +2257,29 @@ integer k,mg
 !             Jones et al. (2001) JGR 106, 20293-20310.
 !             Nilsson et al. (2001) JGR 106, 32139-32154.
 
-ssn(:,:,:)=0.
-
 ! Jones et al. give different windspeed relations for v10m < 2, 2 <= v10m <= 17.5,
 ! and v10m > 17.5, but let's apply the middle one everywhere, since a min. windspeed 
 ! of 2 m/s seems reasonable, and the model gives few points with v10m > 17.5.
+Veff=max(2.,v10m)
 
 ! Number-to-mass conversion factors are derived from the parameters of the two
 ! lognormal modes given by Nilsson, together with rhosalt=2.0e3 kg/m3.
-k=1
-where (.not.land)
-  Veff=max(2.,v10m)
-  ssn(:,k,1)=10.**(0.0950*Veff+6.2830)
-  ssn(:,k,2)=10.**(0.0422*Veff+5.7122)
-end where
-
-! Do the seasalt above the PBL in a separate loop due to compiler problems
-do k=2,kl
-  where (.not.land.and.zmid(:,k)<=pblh)
-    ssn(:,k,1)=ssn(:,1,1)
-    ssn(:,k,2)=ssn(:,1,2)
-  elsewhere (.not.land)
-    ssn(:,k,1)=10.e6*exp(-zmid(:,k)/3000.)
-    ssn(:,k,2)=1.0e6*exp(-zmid(:,k)/1500.)
-  end where
-enddo
+do mg=1,ifull
+  if (.not.land(mg)) then
+    ssn(mg,1,1)=10.**(0.0950*Veff(mg)+6.2830) 
+    ssn(mg,1,2)=10.**(0.0422*Veff(mg)+5.7122)  
+    do k=2,kl
+      if (zmid(mg,k)<pblh(mg)) then
+        ssn(mg,k,:)=ssn(mg,1,:)
+      else
+        ssn(mg,k,1)=10.e6*exp(-zmid(mg,k)/3000.)
+        ssn(mg,k,2)=1.0e6*exp(-zmid(mg,k)/1500.)
+      end if
+    end do
+  else
+    ssn(mg,:,:)=0.
+  end if
+end do
 
 ! Reduce over sea ice...
 do mg=1,ifull
@@ -2327,7 +2329,7 @@ else
   ! outside convective fraction of grid-box
   xtgso2 = xtosav(is:ie,:,itracso2+1)
   xtgbc = xtosav(is:ie,:,itracbc+1)
-  xtgbc = xtosav(is:ie,:,itracbc+1)
+  xtgoc = xtosav(is:ie,:,itracoc+1)
 end if
 
 do k=1,kl
@@ -2389,10 +2391,6 @@ integer i,nt
 data scav_effl/0.0,1.0,0.9,0.0,0.3,0.0,0.3,4*0.05/ !liquid
 data scav_effi/0.0,0.0,0.0,.05,0.0,.05,0.0,4*0.05/ !ice
 
-f_so2   =0.
-scav_eff=0.
-fscav   =0.
-
 ! CALCULATE THE SOLUBILITY OF SO2
 ! TOTAL SULFATE  IS ONLY USED TO CALCULATE THE PH OF CLOUD WATER
 do i=1,ifull
@@ -2419,25 +2417,24 @@ do i=1,ifull
     P_SO2=ZZA*ZHENEFF
     F_SO2(i)=P_SO2/(1.+P_SO2)
     F_SO2(i)=min(max(0.,F_SO2(i)),1.)
+  else
+    f_so2(i)=0.
   endif
 enddo
 
 do nt=1,naero
-  where (bwkp1)
+  where (bwkp1.and.nt==ITRACSO2)
+    scav_eff(:,nt)=f_so2(:)
+  elsewhere (bwkp1)
     scav_eff(:,nt)=scav_effl(nt)
   elsewhere
     scav_eff(:,nt)=scav_effi(nt)
   end where
 end do
-where (bwkp1)
-  scav_eff(:,ITRACSO2)=f_so2(:)
-end where
 
 ! Wet deposition scavenging fraction
 do nt=1,naero
-  where(xpold>0.)
-    fscav(:,nt)=scav_eff(:,nt)*max(xpold(:)-xpkp1(:),0.)/xpold(:)
-  end where
+  fscav(:,nt)=scav_eff(:,nt)*max(xpold(:)-xpkp1(:),0.)/max(xpold(:),1.E-6)
 enddo
 
 return

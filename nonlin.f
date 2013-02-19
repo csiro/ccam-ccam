@@ -45,11 +45,10 @@
       real, dimension(ifull,kl) :: dumt,dumu,dumv
       
       call start_log(nonlin_begin)
-      
-      if (.not.allocated(epstsav)) allocate(epstsav(ifull))
-
+     
       if(epsp<-2.)then
-        if(num==0)epstsav(:)=epst(:)
+        if (.not.allocated(epstsav)) allocate(epstsav(ifull))
+        if (num==0) epstsav(:)=epst(:)
         do iq=1,ifull
          spmax2=max(u(iq,3*kl/4)**2+v(iq,3*kl/4)**2,
      &              u(iq,  kl  )**2+v(iq,  kl  )**2) 
@@ -69,8 +68,8 @@
         qlgsav=qlg(1:ifull,:)
         qrgsav=qrg(1:ifull,:)
       endif   ! (ldr.ne.0)
-      if (mydiag.and.nmaxpr==1) then
-        write(6,*) "qgsav ",qgsav(idjd,nlv)
+      if (abs(iaero)==2) then
+        xtgsav(1:ifull,:,:)=xtg(1:ifull,:,:)
       end if
 
       if(ngas>=1)then
@@ -101,38 +100,34 @@
         enddo     ! ng loop
       endif       ! (ngas>=1)
  
-      if (abs(iaero)==2) then
-        xtgsav(1:ifull,:,:)=xtg(1:ifull,:,:)
-      end if
+      if ( diag.or.nmaxpr==1 ) then
+       call bounds(ps)
+       if ( mydiag ) then
+          write(6,*) "qgsav ",qgsav(idjd,nlv)
+          write(6,*) 'at beginning of nonlin'
+          write(6,*) 'npex,roncp ',npex,roncp
+          write (6,"('tn0*dt',9f8.3/6x,9f8.3)") tn(idjd,:)*dt
+          write (6,"('un0*dt',9f8.3/6x,9f8.3)") un(idjd,:)*dt
+          write (6,"('vn0*dt',9f8.3/6x,9f8.3)") vn(idjd,:)*dt
+          write (6,"('tbar',9f8.3/4x,9f8.3)") tbar(:)
+          write (6,"('sig ',9f8.5/4x,9f8.5)") sig(:)
+          write (6,"('rata',9f8.5/4x,9f8.5)") rata(:)
+          write (6,"('ratb',9f8.5/4x,9f8.5)") ratb(:)
+          write (6,"('em & news',5f10.4)") em(idjd),
+     &        em(in(idjd)),em(ie(idjd)),em(iw(idjd)),em(is(idjd))
+          write (6,"('emu,emu_w,emv,emv_s',4f10.4)") 
+     &        emu(idjd),emu(iwu(idjd)),emv(idjd),emv(isv(idjd))
+          write (6,"('psl & news ',5f9.5)") psl(idjd),
+     &        psl(in(idjd)),psl(ie(idjd)),psl(iw(idjd)),psl(is(idjd))
+          write (6,"('ps  & news ',-2p5f9.3)") ps(idjd),
+     &        ps(in(idjd)),ps(ie(idjd)),ps(iw(idjd)),ps(is(idjd))
+       endif
+       call printa('u   ',u,ktau,nlv,ia,ib,ja,jb,0.,1.)
+       call printa('v   ',v,ktau,nlv,ia,ib,ja,jb,0.,1.)
+       call printa('t   ',t,ktau,nlv,ia,ib,ja,jb,200.,1.)
 
-      if (diag) then
-         call bounds(ps)
-         if ( mydiag ) then
-            print *,'at beginning of nonlin'
-            print *,'npex,roncp ',npex,roncp
-            write (6,"('tn0*dt',9f8.3/6x,9f8.3)") tn(idjd,:)*dt
-            write (6,"('un0*dt',9f8.3/6x,9f8.3)") un(idjd,:)*dt
-            write (6,"('vn0*dt',9f8.3/6x,9f8.3)") vn(idjd,:)*dt
-            write (6,"('tbar',9f8.3/4x,9f8.3)") tbar(:)
-            write (6,"('sig ',9f8.5/4x,9f8.5)") sig(:)
-            write (6,"('rata',9f8.5/4x,9f8.5)") rata(:)
-            write (6,"('ratb',9f8.5/4x,9f8.5)") ratb(:)
-            write (6,"('em & news',5f10.4)") em(idjd),
-     &          em(in(idjd)),em(ie(idjd)),em(iw(idjd)),em(is(idjd))
-            write (6,"('emu,emu_w,emv,emv_s',4f10.4)") 
-     &          emu(idjd),emu(iwu(idjd)),emv(idjd),emv(isv(idjd))
-            write (6,"('psl & news ',5f9.5)") psl(idjd),
-     &          psl(in(idjd)),psl(ie(idjd)),psl(iw(idjd)),psl(is(idjd))
-            write (6,"('ps  & news ',-2p5f9.3)") ps(idjd),
-     &          ps(in(idjd)),ps(ie(idjd)),ps(iw(idjd)),ps(is(idjd))
-         endif
-         call printa('u   ',u,ktau,nlv,ia,ib,ja,jb,0.,1.)
-         call printa('v   ',v,ktau,nlv,ia,ib,ja,jb,0.,1.)
-         call printa('t   ',t,ktau,nlv,ia,ib,ja,jb,200.,1.)
-      endif
-
-      if ( (diag.or.nmaxpr==1) .and. mydiag )then
-        print *,'in nonlin before possible vertical advection',ktau
+       if ( mydiag )then
+        write(6,*) 'in nonlin before possible vertical advection',ktau
         write (6,"('epst#  ',9f8.2)") diagvals(epst) 
         write (6,"('sdot#  ',9f8.3)") diagvals(sdot(:,nlv)) 
         write (6,"('sdotn  ',9f8.3/7x,9f8.3)") sdot(idjd,1:kl)
@@ -142,7 +137,14 @@
         write (6,"('u   ',9f8.3/4x,9f8.3)")     u(idjd,:)
         write (6,"('v   ',9f8.3/4x,9f8.3)")     v(idjd,:)
         write (6,"('qg  ',3p9f8.3/4x,9f8.3)")   qg(idjd,:)
+       end if
       endif
+
+#ifdef loadbalall
+      call start_log(nonlina_loadbal_begin)
+      call phys_loadbal
+      call end_log(nonlina_loadbal_end)
+#endif
 
 !     do vertical advection in split mode
       if(nvad==4.or.nvad==9)then
@@ -164,6 +166,12 @@
       if(nvad>=7)then
          call vadv30(t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),iaero)  ! for vadvbess
       endif
+
+#ifdef loadbalall
+      call start_log(nonlinb_loadbal_begin)
+      call phys_loadbal
+      call end_log(nonlinb_loadbal_end)
+#endif
 
 cx      do k=1,kl  ! following done in upglobal from 04/09
 cx!       N.B. [D + dsigdot/dsig] saved in adjust5 (or updps) as pslx
@@ -230,23 +238,19 @@ cx      enddo      ! k  loop
         do iq=1,ifull
          tbar2d(iq)=t(iq,1)+contv*tv(iq,1)
         enddo   ! iq loop
-      endif     ! (ntbar==-1.or....)
-      if(ntbar==0)then
+      else if (ntbar==0)then
         do iq=1,ifull
          tbar2d(iq)=tbar(1)
         enddo   ! iq loop
-      endif     ! (ntbar==0)
-      if(ntbar>0)then
+      else if (ntbar>0)then
         do iq=1,ifull
          tbar2d(iq)=t(iq,ntbar)
         enddo   ! iq loop
-      endif     ! (ntbar>0)
-      if(ntbar==-3)then
+      else if (ntbar==-3)then
         do iq=1,ifull
          tbar2d(iq)=max(t(iq,1),t(iq,2),t(iq,3),t(iq,kl))
         enddo   ! iq loop
-      endif     ! (ntbar==-3)
-      if(ntbar==-4)then
+      else if (ntbar==-4)then
         do iq=1,ifull
          tbar2d(iq)=max(t(iq,1),t(iq,2),t(iq,4),t(iq,kl))
         enddo   ! iq loop
@@ -270,7 +274,7 @@ cx      enddo      ! k  loop
          h_nh(1:ifull,k)=(1.+epst(:))*tbar(1)*dpsldt(:,k)/sig(k)
         enddo
         if (nmaxpr==1) then
-          if(mydiag)print *,'h_nh.a ',(h_nh(idjd,k),k=1,kl)
+          if(mydiag) write(6,*) 'h_nh.a ',(h_nh(idjd,k),k=1,kl)
         end if
         select case(nh)
          case(3)
@@ -352,6 +356,7 @@ cx      enddo      ! k  loop
 cy      tx(iq,k)=.5*dt*termlin  ! t and epst later  cy
        enddo     ! iq loop
       enddo      ! k  loop
+      
       if( (diag.or.nmaxpr==1) .and. mydiag )then
         iq=idjd
         k=nlv
@@ -375,18 +380,29 @@ c       print *,'termx ',(t(iq,k)+contv*tvv)*dpsldt(iq,k)*roncp/sig(k)
        phiv(1:ifull,k)=phiv(1:ifull,k-1)
      &                 -bet(k)*tv(1:ifull,k)-betm(k)*tv(1:ifull,k-1)
       enddo    ! k  loop
+
 !     also need full Tv
       do k=1,kl
        tv(1:ifull,k)=t(1:ifull,k)+tv(1:ifull,k)  
       enddo
 
-      call bounds(p,nehalf=.true.)
-      call bounds(tv,nehalf=.true.)
+#ifdef loadbalall
+      call start_log(nonlinc_loadbal_begin)
+      call phys_loadbal
+      call end_log(nonlinc_loadbal_end)
+#endif
       duma(1:ifull,1:kl)=phiv(1:ifull,:)
       duma(1:ifull,kl+1)=psl(1:ifull)
       call bounds(duma)
       phiv(ifull+1:ifull+iextra,1:kl)=duma(ifull+1:ifull+iextra,1:kl)
-      psl(ifull+1:ifull+iextra)=duma(ifull+1:ifull+iextra,kl+1)      
+      psl(ifull+1:ifull+iextra)=duma(ifull+1:ifull+iextra,kl+1)       
+      call bounds(p,nehalf=.true.)
+      call bounds(tv,nehalf=.true.)
+#ifdef loadbalall
+      call start_log(nonlind_loadbal_begin)
+      call phys_loadbal
+      call end_log(nonlind_loadbal_end)
+#endif
 
       do k=1,kl
 !cdir nodep
@@ -395,6 +411,7 @@ c       print *,'termx ',(t(iq,k)+contv*tvv)*dpsldt(iq,k)*roncp/sig(k)
         bb(iq,k)=-.5*dt*emv(iq)*(p(in(iq),k)-p(iq,k))*(1.-epsu)/ds
        enddo   ! iq loop
       enddo    ! k loop
+
       if(npex==5)then   ! rather noisy with nstag=-1 (incl. old 5)
 !       npex=5 same as npex=0, but does direct unstaggered calc      
         do k=1,kl
@@ -416,7 +433,7 @@ c       print *,'termx ',(t(iq,k)+contv*tvv)*dpsldt(iq,k)*roncp/sig(k)
      &        -.5*rdry*(tv(in(iq),k)+tv(iq,k))*(psl(in(iq))-psl(iq)))/ds
          enddo   ! iq loop
         enddo    ! k loop
-        if(npex.ne.6)then
+        if(npex/=6)then
           aa(1:ifull,:)=aa(1:ifull,:)+.5*dt*un(1:ifull,:) ! still staggered
           bb(1:ifull,:)=bb(1:ifull,:)+.5*dt*vn(1:ifull,:) ! still staggered
         endif  ! (npex.ne.6)
@@ -429,18 +446,33 @@ c       print *,'termx ',(t(iq,k)+contv*tvv)*dpsldt(iq,k)*roncp/sig(k)
           endif
         endif                     ! (diag)
       endif  ! (npex==5 ... else ...)
+
+#ifdef loadbalall
+      call start_log(nonline_loadbal_begin)
+      call phys_loadbal
+      call end_log(nonline_loadbal_end)
+#endif
       call unstaguv(aa,bb,ux,vx) ! convert to unstaggered positions
+#ifdef loadbalall
+      call start_log(nonlinf_loadbal_begin)
+      call phys_loadbal
+      call end_log(nonlinf_loadbal_end)
+#endif
+
       if(diag)then
         call printa('aa  ',aa,ktau,nlv,ia,ib,ja,jb,0.,1.)
         call printa('bb  ',bb,ktau,nlv,ia,ib,ja,jb,0.,1.)
       endif                     ! (diag)
+
       ux(1:ifull,:)=u(1:ifull,:)+ux(1:ifull,:)
       vx(1:ifull,:)=v(1:ifull,:)+vx(1:ifull,:)
+      
       if(npex==5)then
         ux(1:ifull,:)=ux(1:ifull,:)+.5*dt*un(1:ifull,:) ! unstaggered
         vx(1:ifull,:)=vx(1:ifull,:)+.5*dt*vn(1:ifull,:) ! unstaggered
-      endif
-      if(npex<3)call unstaguv(un,vn,un,vn) 
+      else if (npex<3) then
+        call unstaguv(un,vn,un,vn) 
+      end if
       
       if(nxmap==2)then  ! not ready with npex=3
         do k=1,kl
@@ -485,6 +517,13 @@ c       print *,'termx ',(t(iq,k)+contv*tvv)*dpsldt(iq,k)*roncp/sig(k)
       endif
 
       num=1
+
+#ifdef loadbalall
+      call start_log(nonling_loadbal_begin)
+      call phys_loadbal
+      call end_log(nonling_loadbal_end)
+#endif
+
       call end_log(nonlin_end)
       return
       end

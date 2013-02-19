@@ -469,16 +469,20 @@ do j=1,jl,imax/il
     ! Land albedo ---------------------------------------------------
     if (nsib==6.or.nsib==7) then
       ! CABLE version
-      cuvrf_dir(1:imax) = albvisdir(istart:iend) ! from cable (inc snow)
-      cirrf_dir(1:imax) = albnirdir(istart:iend) ! from cable (inc snow)
-      cuvrf_dif(1:imax) = albvisdif(istart:iend) ! from cable (inc snow)
-      cirrf_dif(1:imax) = albnirdif(istart:iend) ! from cable (inc snow)
+      where (land(istart:iend))
+        cuvrf_dir(1:imax) = albvisdir(istart:iend) ! from cable (inc snow)
+        cirrf_dir(1:imax) = albnirdir(istart:iend) ! from cable (inc snow)
+        cuvrf_dif(1:imax) = albvisdif(istart:iend) ! from cable (inc snow)
+        cirrf_dif(1:imax) = albnirdif(istart:iend) ! from cable (inc snow)
+      end where
     else
       ! nsib=3 version (calculate snow)
-      cuvrf_dir(1:imax) = albsav(istart:iend)    ! from albfile (indata.f)
-      cirrf_dir(1:imax) = albnirsav(istart:iend) ! from albnirfile (indata.f)
-      cuvrf_dif(1:imax) = cuvrf_dir(1:imax)      ! assume DIR and DIF are the same
-      cirrf_dif(1:imax) = cirrf_dir(1:imax)      ! assume DIR and DIF are the same
+      where (land(istart:iend))
+        cuvrf_dir(1:imax) = albsav(istart:iend)    ! from albfile (indata.f)
+        cirrf_dir(1:imax) = albnirsav(istart:iend) ! from albnirfile (indata.f)
+        cuvrf_dif(1:imax) = cuvrf_dir(1:imax)      ! assume DIR and DIF are the same
+        cirrf_dif(1:imax) = cirrf_dir(1:imax)      ! assume DIR and DIF are the same
+      end where
       ! The following snow calculation should be done by sib3 (sflux.f)
       do i=1,imax
         iq=i+(j-1)*il
@@ -1245,8 +1249,6 @@ rhoa=prf/(rdry*ttg)
 
 ! Reffl is the effective radius calculated following
 ! Martin etal 1994, JAS 51, 1823-1842
-reffl=0.
-Wliq=0.
 where (qlg>1.E-8.and.cfrac>0.)
   Wliq=rhoa*qlg/cfrac !kg/m^3
   ! This is the Liu and Daum scheme for relative dispersion (Nature, 419, 580-581 and pers. comm.)
@@ -1262,6 +1264,9 @@ where (qlg>1.E-8.and.cfrac>0.)
 
   ! Martin et al 1994
   reffl=(3.*Wliq/(4.*pi*rhow*rk*cdrop))**(1./3.)
+elsewhere
+  reffl=0.
+  Wliq=0.
 end where
 
 ! (GFDL NOTES)
@@ -1299,12 +1304,12 @@ if (do_brenguier) then
 end if
 
 
-reffi=0.
-Wice=0.
 where (qfg>1.E-8.and.cfrac>0.)
   Wice=rhoa*qfg/cfrac !kg/m**3
 !Lohmann et al.(1999)
 !  reffi=min(150.e-6,3.73e-4*Wice**0.216) 
+elsewhere
+  Wice=0.
 end where
 
 !Donner et al (1997)
@@ -1328,6 +1333,8 @@ do k=1,kl
       else
         reffi(iq,k)=5.E-7*20.2
       end if
+    else
+      reffi(iq,k)=0.
     end if
   end do
 end do

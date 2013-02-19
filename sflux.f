@@ -577,7 +577,9 @@ c       Surface stresses taux, tauy: diagnostic only - unstag now       ! sice
         stop                                                            ! PCOM
       end if                                                            ! PCOM
 #ifdef loadbalall
+      call start_log(sfluxwater_loadbal_begin)
       call phys_loadbal
+      call end_log(sfluxwater_loadbal_end)
 #endif
       call end_log(sfluxwater_end)
       !--------------------------------------------------------------      
@@ -847,7 +849,9 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
           stop                                                          ! land
       end select                                                        ! land
 #ifdef loadbalall
+      call start_log(sfluxland_loadbal_begin)                           ! land
       call phys_loadbal                                                 ! land
+      call end_log(sfluxland_loadbal_end)                               ! land
 #endif
       call end_log(sfluxland_end)                                       ! land
       !----------------------------------------------------------
@@ -919,7 +923,9 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
         write(6,*) "After urban"                                        ! urban
       end if                                                            ! urban
 #ifdef loadbalall
+      call start_log(sfluxurban_loadbal_begin)                          ! urban
       call phys_loadbal                                                 ! urban
+      call end_log(sfluxurban_loadbal_end)                              ! urban
 #endif
       call end_log(sfluxurban_end)                                      ! urban
 c ----------------------------------------------------------------------

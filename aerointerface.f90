@@ -452,12 +452,12 @@ include 'parm.h'
 include 'soilv.h'
 
 integer jyear,jmonth,jday,jhour,jmin,mins,smins
-integer j,k,tt,ttx
+integer j,k,tt,ttx,iq
 integer, save :: sday=-9999
 real dhr,fjd,sfjd,r1,dlt,alp,slag
 real, dimension(ifull) :: coszro,taudar
 real, dimension(ifull,kl) :: oxout,zg,clcon,pccw,rhoa
-real, dimension(ifull,kl) :: tnhs,dz
+real, dimension(ifull,kl) :: tnhs,dz,ctmp
 real, dimension(ifull,kl) :: dumt,dumql,dumqf
 real, dimension(ifull,kl,naero) :: xtusav
 real, dimension(ifull) :: dxy,cldcon,wg
@@ -466,7 +466,7 @@ real, dimension(kl+1) :: sigh
 ! timer calculations
 call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
 ! update prescribed oxidant fields once per day
-if (sday.le.mins-1440) then
+if (sday<=mins-1440) then
   sday=mins
   do j=1,4      
     call fieldinterpolate(oxout,oxidantprev(:,:,j),oxidantnow(:,:,j),oxidantnext(:,:,j), &
@@ -486,7 +486,7 @@ if (sday.le.mins-1440) then
     call zenith(sfjd,r1,dlt,slag,rlatt,rlongg,dhr,ifull,coszro,taudar)
     zdayfac(:)=zdayfac(:)+taudar
   end do
-  where (zdayfac.gt.0.)
+  where (zdayfac>0.)
     zdayfac(:)=real(ttx)/zdayfac(:)
   end where
 end if
@@ -517,35 +517,48 @@ end do
 
 ! estimate convective cloud fraction
 ! from leoncld.f
-cldcon=0.
 where (ktsav<kl-1)
   cldcon=min(acon+bcon*log(1.+condc*86400./dt),0.8) !NCAR
+elsewhere
+  cldcon=0.
 end where
-clcon=0.
-pccw=0.
 if (nmr>=1) then
-  do k=1,kl
-    where (k<=ktsav.and.k>=kbsav+1)
-      clcon(:,k)=cldcon ! maximum overlap
-      pccw(:,kl+1-k)=wlc/rhoa(:,k)
-    end where
-  end do
+  do iq=1,ifull
+    do k=1,kbsav(iq)
+      clcon(iq,k)=0.
+      pccw(iq,kl+1-k)=0.
+    end do
+    do k=kbsav(iq)+1,ktsav(iq)
+      clcon(iq,k)=cldcon(iq) ! maximum overlap
+      pccw(iq,kl+1-k)=wlc/rhoa(iq,k)
+    end do
+    do k=ktsav(iq)+1,kl
+      clcon(iq,k)=0.
+      pccw(iq,kl+1-k)=0.
+    end do
+  end do  
 else
-  do k=1,kl
-    where (k<=ktsav.and.k>=kbsav+1)
-      clcon(:,k)=1.-(1.-cldcon)**(1./real(ktsav-kbsav+2)) !Random overlap
-      pccw(:,kl+1-k)=wlc/rhoa(:,k)      
-    end where
-  end do
+  do iq=1,ifull
+    do k=1,kbsav(iq)
+      clcon(iq,k)=0.
+      pccw(iq,kl+1-k)=0.
+    end do
+    do k=kbsav(iq)+1,ktsav(iq)
+      clcon(iq,k)=1.-(1.-cldcon(iq))**(1./real(ktsav(iq)-kbsav(iq)+2)) !Random overlap
+      pccw(iq,kl+1-k)=wlc/rhoa(iq,k)
+    end do
+    do k=ktsav(iq)+1,kl
+      clcon(iq,k)=0.
+      pccw(iq,kl+1-k)=0.
+    end do
+  end do  
 end if
 
 ! Convert from aerosol concentration outside convective cloud (used by CCAM)
 ! to aerosol concentration inside convective cloud
-xtusav=xtosav
+ctmp=max(clcon,1.E-6)
 do j=1,naero
-  where (clcon>0.)
-    xtusav(:,:,j)=(xtg(1:ifull,:,j)-(1.-clcon)*xtosav(:,:,j))/clcon
-  end where
+  xtusav(:,:,j)=(xtg(1:ifull,:,j)-(1.-ctmp)*xtosav(:,:,j))/ctmp
 end do
 
 wg=min(max(wetfac,0.),1.)

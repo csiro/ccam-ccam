@@ -106,6 +106,7 @@ real, parameter :: minfrac = 0.01 ! minimum non-zero tile fraction (improves loa
 
 integer, dimension(:), allocatable, save :: cmap
 integer, dimension(5,2), save :: pind  
+integer, save :: maxnb
 real, dimension(:), allocatable, save :: sv,vl1,vl2,vl3
 type (air_type), save :: air
 type (bgc_pool_type), save :: bgc
@@ -418,8 +419,7 @@ else
   glai=0.
 end if
  
-do nb=1,5
-  if (pind(nb,1)>mp) exit
+do nb=1,maxnb
   do k=1,ms
     tgg(cmap(pind(nb,1):pind(nb,2)),k)=tgg(cmap(pind(nb,1):pind(nb,2)),k) &
                                     +sv(pind(nb,1):pind(nb,2))*ssnow%tgg(pind(nb,1):pind(nb,2),k)
@@ -534,7 +534,7 @@ do nb=1,5
   !u10(cmap(pind(nb,1):pind(nb,2)))=u10(cmap(pind(nb,1):pind(nb,2))) &
   !                                  +sv(pind(nb,1):pind(nb,2))*canopy%ua_10m(pind(nb,1):pind(nb,2))
 end do
-cdtq=max(cdtq,0.) ! MJT PATCH
+
 where (land)
   ustar=sqrt(cduv)*vmod
   zoh=zmin*exp(-sqrt(zo)/zoh)
@@ -569,8 +569,7 @@ where (land.and.tmps>=0.5) ! tmps is average isflag
 elsewhere
   isflag=0
 endwhere
-do nb=1,5 ! update snow (diagnostic only)
-  if (pind(nb,1)>mp) exit      
+do nb=1,maxnb ! update snow (diagnostic only)
   do k=1,3
     where (ssnow%isflag(pind(nb,1):pind(nb,2))<isflag(cmap(pind(nb,1):pind(nb,2))).and.k==1)               ! pack 1-layer into 3-layer
       tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k) &                          ! pack 1-layer into 3-layer
@@ -697,20 +696,17 @@ fpn=0.
 frd=0.
 frp=0.
 frs=0.
-  
-do nb=1,5
-  if (pind(nb,1)<=mp) then
-    where (veg%iveg(pind(nb,1):pind(nb,2))==mvegt)
-      fpn(cmap(pind(nb,1):pind(nb,2)))=fpn(cmap(pind(nb,1):pind(nb,2))) &
-                                      +sv(pind(nb,1):pind(nb,2))*canopy%fpn(pind(nb,1):pind(nb,2))
-      frd(cmap(pind(nb,1):pind(nb,2)))=frd(cmap(pind(nb,1):pind(nb,2))) &
-                                      +sv(pind(nb,1):pind(nb,2))*canopy%frday(pind(nb,1):pind(nb,2))
-      frp(cmap(pind(nb,1):pind(nb,2)))=frp(cmap(pind(nb,1):pind(nb,2))) &
-                                      +sv(pind(nb,1):pind(nb,2))*canopy%frp(pind(nb,1):pind(nb,2))
-      frs(cmap(pind(nb,1):pind(nb,2)))=frs(cmap(pind(nb,1):pind(nb,2))) &
-                                      +sv(pind(nb,1):pind(nb,2))*canopy%frs(pind(nb,1):pind(nb,2))
-    end where
-  end if
+do nb=1,maxnb
+  where (veg%iveg(pind(nb,1):pind(nb,2))==mvegt)
+    fpn(cmap(pind(nb,1):pind(nb,2)))=fpn(cmap(pind(nb,1):pind(nb,2))) &
+                                    +sv(pind(nb,1):pind(nb,2))*canopy%fpn(pind(nb,1):pind(nb,2))
+    frd(cmap(pind(nb,1):pind(nb,2)))=frd(cmap(pind(nb,1):pind(nb,2))) &
+                                    +sv(pind(nb,1):pind(nb,2))*canopy%frday(pind(nb,1):pind(nb,2))
+    frp(cmap(pind(nb,1):pind(nb,2)))=frp(cmap(pind(nb,1):pind(nb,2))) &
+                                    +sv(pind(nb,1):pind(nb,2))*canopy%frp(pind(nb,1):pind(nb,2))
+    frs(cmap(pind(nb,1):pind(nb,2)))=frs(cmap(pind(nb,1):pind(nb,2))) &
+                                    +sv(pind(nb,1):pind(nb,2))*canopy%frs(pind(nb,1):pind(nb,2))
+  end where
 end do
   
 select case(mode)
@@ -769,11 +765,9 @@ select case(proglai)
 end select
 
 sigmf=0.
-do nb=1,5
-  if (pind(nb,1)<=mp) then
-    sigmf(cmap(pind(nb,1):pind(nb,2)))=sigmf(cmap(pind(nb,1):pind(nb,2))) &
-      +sv(pind(nb,1):pind(nb,2))*(1.-exp(-vextkn*veg%vlai(pind(nb,1):pind(nb,2))))
-  end if
+do nb=1,maxnb
+  sigmf(cmap(pind(nb,1):pind(nb,2)))=sigmf(cmap(pind(nb,1):pind(nb,2))) &
+    +sv(pind(nb,1):pind(nb,2))*(1.-exp(-vextkn*veg%vlai(pind(nb,1):pind(nb,2))))
 end do
   
 return
@@ -1342,6 +1336,7 @@ if (mp>0) then
   vlai=0.
   do n=1,5
     if (pind(n,1)<=mp) then
+      maxnb=n
       vlai(cmap(pind(n,1):pind(n,2)))=vlai(cmap(pind(n,1):pind(n,2))) &
                                       +sv(pind(n,1):pind(n,2))*veg%vlai(pind(n,1):pind(n,2))
     end if
@@ -1447,7 +1442,7 @@ if (mp>0) then
   
   if (icycle==0) then
     ! Initialise CABLE carbon pools
-    do n=1,5
+    do n=1,maxnb
       do k=1,ncp
         cplant(cmap(pind(n,1):pind(n,2)),k)=cplant(cmap(pind(n,1):pind(n,2)),k) &
           +sv(pind(n,1):pind(n,2))*tcplant(veg%iveg(pind(n,1):pind(n,2)),k)
@@ -1602,14 +1597,6 @@ if (mp>0) then
     casabiome%kclabrate          = deltcasa/clabileage
 
     casamet%iveg2 =casabiome%ivt2(veg%iveg)
-    casamet%lnonwood = 1
-
-    casapool%cplant(:,wood)  = 0.
-    casapool%clitter(:,cwd)  = 0.
-    casapool%nplant(:,wood)  = 0.
-    casapool%nlitter(:,cwd)  = 0.
-    casapool%pplant(:,wood)  = 0.
-    casapool%plitter(:,cwd)  = 0.
     where (casamet%iveg2==3.or.casamet%iveg2==2)
       casamet%lnonwood = 0
       casapool%cplant(:,wood)  = cwood(veg%iveg) 
@@ -1618,6 +1605,14 @@ if (mp>0) then
       casapool%nlitter(:,cwd)  = ncwd(veg%iveg)
       casapool%pplant(:,wood)  = xpwood(veg%iveg)
       casapool%plitter(:,cwd)  = xpcwd(veg%iveg)
+    elsewhere
+      casamet%lnonwood = 1
+      casapool%cplant(:,wood)  = 0.
+      casapool%clitter(:,cwd)  = 0.
+      casapool%nplant(:,wood)  = 0.
+      casapool%nlitter(:,cwd)  = 0.
+      casapool%pplant(:,wood)  = 0.
+      casapool%plitter(:,cwd)  = 0.    
     end where
     casapool%cplant(:,leaf)     = cleaf(veg%iveg)
     casapool%cplant(:,xroot)    = cfroot(veg%iveg)
@@ -1685,35 +1680,33 @@ if (mp>0) then
     plitter=0.
     psoil=0.
     glai=0.
-    do n=1,5
-      if (pind(n,1)<=mp) then
-        do k=1,mplant
-          cplant(cmap(pind(n,1):pind(n,2)),k)=cplant(cmap(pind(n,1):pind(n,2)),k) &
-                                          +sv(pind(n,1):pind(n,2))*casapool%cplant(pind(n,1):pind(n,2),k)
-          niplant(cmap(pind(n,1):pind(n,2)),k)=niplant(cmap(pind(n,1):pind(n,2)),k) &
-                                          +sv(pind(n,1):pind(n,2))*casapool%nplant(pind(n,1):pind(n,2),k)
-          pplant(cmap(pind(n,1):pind(n,2)),k)=pplant(cmap(pind(n,1):pind(n,2)),k) &
-                                          +sv(pind(n,1):pind(n,2))*casapool%pplant(pind(n,1):pind(n,2),k)
-        end do
-        do k=1,mlitter
-          clitter(cmap(pind(n,1):pind(n,2)),k)=clitter(cmap(pind(n,1):pind(n,2)),k) &
-                                          +sv(pind(n,1):pind(n,2))*casapool%clitter(pind(n,1):pind(n,2),k)
-          nilitter(cmap(pind(n,1):pind(n,2)),k)=nilitter(cmap(pind(n,1):pind(n,2)),k) &
-                                          +sv(pind(n,1):pind(n,2))*casapool%nlitter(pind(n,1):pind(n,2),k)
-          plitter(cmap(pind(n,1):pind(n,2)),k)=plitter(cmap(pind(n,1):pind(n,2)),k) &
-                                        +sv(pind(n,1):pind(n,2))*casapool%plitter(pind(n,1):pind(n,2),k)
-        end do
-        do k=1,msoil
-          csoil(cmap(pind(n,1):pind(n,2)),k)=csoil(cmap(pind(n,1):pind(n,2)),k) &
-                                          +sv(pind(n,1):pind(n,2))*casapool%csoil(pind(n,1):pind(n,2),k)
-          nisoil(cmap(pind(n,1):pind(n,2)),k)=nisoil(cmap(pind(n,1):pind(n,2)),k) &
-                                          +sv(pind(n,1):pind(n,2))*casapool%nsoil(pind(n,1):pind(n,2),k)
-          psoil(cmap(pind(n,1):pind(n,2)),k)=psoil(cmap(pind(n,1):pind(n,2)),k) &
-                                          +sv(pind(n,1):pind(n,2))*casapool%psoil(pind(n,1):pind(n,2),k)
-        end do
-        glai(cmap(pind(n,1):pind(n,2)))=glai(cmap(pind(n,1):pind(n,2))) &
-                                     +sv(pind(n,1):pind(n,2))*casamet%glai(pind(n,1):pind(n,2))
-      end if
+    do n=1,maxnb
+      do k=1,mplant
+        cplant(cmap(pind(n,1):pind(n,2)),k)=cplant(cmap(pind(n,1):pind(n,2)),k) &
+                                        +sv(pind(n,1):pind(n,2))*casapool%cplant(pind(n,1):pind(n,2),k)
+        niplant(cmap(pind(n,1):pind(n,2)),k)=niplant(cmap(pind(n,1):pind(n,2)),k) &
+                                        +sv(pind(n,1):pind(n,2))*casapool%nplant(pind(n,1):pind(n,2),k)
+        pplant(cmap(pind(n,1):pind(n,2)),k)=pplant(cmap(pind(n,1):pind(n,2)),k) &
+                                        +sv(pind(n,1):pind(n,2))*casapool%pplant(pind(n,1):pind(n,2),k)
+      end do
+      do k=1,mlitter
+        clitter(cmap(pind(n,1):pind(n,2)),k)=clitter(cmap(pind(n,1):pind(n,2)),k) &
+                                        +sv(pind(n,1):pind(n,2))*casapool%clitter(pind(n,1):pind(n,2),k)
+        nilitter(cmap(pind(n,1):pind(n,2)),k)=nilitter(cmap(pind(n,1):pind(n,2)),k) &
+                                        +sv(pind(n,1):pind(n,2))*casapool%nlitter(pind(n,1):pind(n,2),k)
+        plitter(cmap(pind(n,1):pind(n,2)),k)=plitter(cmap(pind(n,1):pind(n,2)),k) &
+                                      +sv(pind(n,1):pind(n,2))*casapool%plitter(pind(n,1):pind(n,2),k)
+      end do
+      do k=1,msoil
+        csoil(cmap(pind(n,1):pind(n,2)),k)=csoil(cmap(pind(n,1):pind(n,2)),k) &
+                                        +sv(pind(n,1):pind(n,2))*casapool%csoil(pind(n,1):pind(n,2),k)
+        nisoil(cmap(pind(n,1):pind(n,2)),k)=nisoil(cmap(pind(n,1):pind(n,2)),k) &
+                                        +sv(pind(n,1):pind(n,2))*casapool%nsoil(pind(n,1):pind(n,2),k)
+        psoil(cmap(pind(n,1):pind(n,2)),k)=psoil(cmap(pind(n,1):pind(n,2)),k) &
+                                        +sv(pind(n,1):pind(n,2))*casapool%psoil(pind(n,1):pind(n,2),k)
+      end do
+      glai(cmap(pind(n,1):pind(n,2)))=glai(cmap(pind(n,1):pind(n,2))) &
+                                   +sv(pind(n,1):pind(n,2))*casamet%glai(pind(n,1):pind(n,2))
     end do
 
   end if ! icycle>0
@@ -2323,21 +2316,15 @@ logical, intent(in) :: local
 do n=1,5
   do k=1,ms
     dat=tgg(:,k)
-    if (pind(n,1)<=mp) then      
-      dat(cmap(pind(n,1):pind(n,2)))=ssnow%tgg(pind(n,1):pind(n,2),k)
-    end if
+    if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=ssnow%tgg(pind(n,1):pind(n,2),k)
     write(vname,'("tgg",I1.1,"_",I1.1)') k,n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=wb(:,k)
-    if (pind(n,1)<=mp) then  
-      dat(cmap(pind(n,1):pind(n,2)))=ssnow%wb(pind(n,1):pind(n,2),k)
-    end if
+    if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=ssnow%wb(pind(n,1):pind(n,2),k)
     write(vname,'("wb",I1.1,"_",I1.1)') k,n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=wbice(:,k)
-    if (pind(n,1)<=mp) then  
-      dat(cmap(pind(n,1):pind(n,2)))=ssnow%wbice(pind(n,1):pind(n,2),k)
-    end if
+    if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=ssnow%wbice(pind(n,1):pind(n,2),k)
     write(vname,'("wbice",I1.1,"_",I1.1)') k,n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
   end do
@@ -2492,7 +2479,7 @@ subroutine cableinflow(iqin,inflow,lmax)
 implicit none
   
 integer, intent(in) :: iqin
-integer n,iq,i
+integer n,iq
 real, intent(in) :: lmax
 real, intent(inout) :: inflow
 real, dimension(5) :: xx
@@ -2500,25 +2487,18 @@ real yy,ll
   
 xx(:)=inflow
 inflow=0.
-do n=1,5
-  iq=-1
-  do i=pind(n,1),pind(n,2)
-    if (cmap(i)==iqin) then
-      iq=i
-      exit
-    elseif (cmap(i)>iqin) then
+do n=1,maxnb
+  do iq=pind(n,1),pind(n,2)
+    if (cmap(iq)==iqin) then
+      ll=max(soil%ssat(iq)*lmax-ssnow%wb(iq,cbm_ms),0.)*1000.*soil%zse(cbm_ms)
+      yy=min(xx(n),ll)
+      ssnow%wb(iq,cbm_ms)=ssnow%wb(iq,cbm_ms)+yy/(1000.*soil%zse(cbm_ms))
+      xx(n)=max(xx(n)-yy,0.)
+      inflow=inflow+sv(iq)*xx(n)
+    elseif (cmap(iq)>iqin) then
       exit
     end if
   end do
-  if (iq>0) then
-    ll=max(soil%ssat(iq)*lmax-ssnow%wb(iq,cbm_ms),0.)*1000.*soil%zse(cbm_ms)
-    yy=min(xx(n),ll)
-    ssnow%wb(iq,cbm_ms)=ssnow%wb(iq,cbm_ms)+yy/(1000.*soil%zse(cbm_ms))
-    xx(n)=max(xx(n)-yy,0.)
-    inflow=inflow+sv(iq)*xx(n)
-  else
-    exit
-  end if
 end do
   
 return

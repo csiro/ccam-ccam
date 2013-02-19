@@ -61,8 +61,12 @@
         enddo      ! k loop
       endif  ! (m>=5)
 
-      if(ndept==0) call depts(x3d,y3d,z3d)
-      if(ndept==1) call depts1(x3d,y3d,z3d)
+      select case(ndept)
+       case(0)
+        call depts(x3d,y3d,z3d)
+       case(1)
+        call depts1(x3d,y3d,z3d)
+      end select
       
       if(npex==-1)then   ! extrap. Adams-Bashforth style 
 !       may not be as good as usual jlm method, because 
@@ -107,8 +111,9 @@
       endif   ! (npex==-1)
       
 !     calculate factr for choice of nt_adv, as usually used
-      if(nt_adv==0)factr(:)=0.
-      if(nt_adv==3) then   ! 1. up to sig=.3
+      if(nt_adv==0) then
+        factr(:)=0.
+      else if(nt_adv==3) then   ! 1. up to sig=.3
         do k=1,kl
                    factr(k)=stdlapse*(rdry*nritch_t/grav)
                    if(sig(k)<0.3)factr(k)=0.
@@ -175,6 +180,12 @@
        dd(1:ifull,k)=aa(1:ifull)
       end do     ! k loop
 
+#ifdef loadbalall
+      call start_log(upglobala_loadbal_begin)
+      call phys_loadbal
+      call end_log(upglobala_loadbal_end)
+#endif
+
 !-------------------------moved up here May 06---------------------------
       if(nvad==-4.and.nvadh/=3)then 
 !       N.B. this moved one is doing vadv on just extra pslx terms      
@@ -194,6 +205,12 @@
         endif
       endif  ! (nvad==-4.and.nvadh.ne.3)
 !------------------------------------------------------------------
+#ifdef loadbalall
+      call start_log(upglobalb_loadbal_begin)
+      call phys_loadbal
+      call end_log(upglobalb_loadbal_end)
+#endif
+
       do k=1,kl   
 !      N.B. [D + dsigdot/dsig] saved in adjust5 (or updps) as pslx
        pslx(1:ifull,k)=psl(1:ifull)-pslx(1:ifull,k)*dt*.5*(1.-epst(:))
@@ -379,7 +396,8 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
              call ints(qfg,intsch,nface,xg,yg,4)
              if (ncloud>0) then
                call ints(qrg,intsch,nface,xg,yg,4)
-               !call ints(cffrac,intsch,nface,xg,yg,4)
+               !call ints(cfrac,intsch,nface,xg,yg,4)
+               !cfrac=min(max(cfrac,0.),1.)
                call ints(cffall,intsch,nface,xg,yg,4)
                cffall=min(max(cffall,0.),1.)
              end if
@@ -436,6 +454,12 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
         vx(1:ifull,:)=vx(1:ifull,:)+.5*dt*vn(1:ifull,:) ! dyn contrib
       endif
 
+#ifdef loadbalall
+      call start_log(upglobalc_loadbal_begin)
+      call phys_loadbal
+      call end_log(upglobalc_loadbal_end)
+#endif
+
       if(nvadh==2.or.nvadh==3)then                 ! final dt/2 's worth
         if(nvad==-4)then
           sdot(:,2:kl)=sbar(:,:)
@@ -465,6 +489,12 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
         endif   ! (nvad==-4)
       endif     ! (nvadh==2.or.nvadh==3)
 
+#ifdef loadbalall
+      call start_log(upglobald_loadbal_begin)
+      call phys_loadbal
+      call end_log(upglobald_loadbal_end)
+#endif
+
       if(npex==0.or.npex==5)then ! adding later (after 2nd vadv) than for npex=1
         ux(1:ifull,:)=ux(1:ifull,:)+.5*dt*un(1:ifull,:) ! dyn contrib
         vx(1:ifull,:)=vx(1:ifull,:)+.5*dt*vn(1:ifull,:) ! dyn contrib
@@ -488,8 +518,20 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
 
       if(npex>=0)tx(1:ifull,:)=tx(1:ifull,:)+.5*dt*tn(1:ifull,:) 
 
+#ifdef loadbalall
+      call start_log(upglobale_loadbal_begin)
+      call phys_loadbal
+      call end_log(upglobale_loadbal_end)
+#endif
+
 !     now interpolate ux,vx to the staggered grid
       call staguv(ux,vx,ux,vx)
+
+#ifdef loadbalall
+      call start_log(upglobalf_loadbal_begin)
+      call phys_loadbal
+      call end_log(upglobalf_loadbal_end)
+#endif
 
 !     npex=3 add un, vn on staggered grid 
       if(npex==3)then  
@@ -540,6 +582,12 @@ c           if(numunstab==100)stop 'numunstab=30'
         write (6,"('ql_u',3p9f8.3/4x,9f8.3)") qlg(idjd,:)
         write (6,"('qf_u',3p9f8.3/4x,9f8.3)") qfg(idjd,:)
       endif     
+
+#ifdef loadbalall
+      call start_log(upglobalg_loadbal_begin)
+      call phys_loadbal
+      call end_log(upglobalg_loadbal_end)
+#endif
 
       call end_log(upglobal_end)
       return

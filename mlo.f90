@@ -61,7 +61,6 @@ integer, parameter :: incradbf  = 1 ! include shortwave in buoyancy forcing
 integer, parameter :: incradgam = 1 ! include shortwave in non-local term
 integer, parameter :: zomode    = 2 ! roughness calculation (0=Charnock (CSIRO9), 1=Charnock (zot=zom), 2=Beljaars)
 integer, parameter :: mixmeth   = 1 ! Refine mixed layer depth calculation (0=None, 1=Iterative)
-integer, parameter :: salrelax  = 0 ! relax salinity to 34.72 PSU (used for single column mode)
 integer, parameter :: deprelax  = 0 ! surface height (0=vary, 1=relax, 2=set to zero)
 ! model parameters
 real, save :: mxd      = 5002.18 ! Max depth (m)
@@ -1074,11 +1073,6 @@ do ii=1,wlev
   dd(:,ii)=w_sal(:,ii)+dt*rhs(:,ii)*d_ws0
 end do
 dd(:,1)=dd(:,1)-dt*d_ws0/(dz(:,1)*d_zcr)
-if (salrelax==1) then ! relax salinity
-  where (w_sal>1.E-6)
-    dd=dd+dt*(34.72-w_sal)/(3600.*24.*365.25)
-  end where
-end if
 call thomas(w_sal,aa,bb,cc,dd)
 w_sal=max(0.,w_sal)
 
@@ -1203,22 +1197,22 @@ do ii=2,wlev
 end do
 
 ! diffusion ---------------------------------------------------------
-num=0.
-nus=0.
 do ii=2,wlev
   ! s - shear
   where (ri(:,ii)<0.)
     num(:,ii)=nu0
   elsewhere (ri(:,ii)<ri0)
     num(:,ii)=nu0*(1.-(ri(:,ii)/ri0)**2)**3
+  elsewhere
+    num(:,ii)=0.
   endwhere
   nus(:,ii)=num(:,ii)
   ! d - double-diffusive
   ! double-diffusive mixing is neglected for now
+  ! w - internal ave
+  num(:,ii)=num(:,ii)+numw
+  nus(:,ii)=nus(:,ii)+nusw
 end do
-! w - internal ave
-num=num+numw
-nus=nus+nusw
 num(:,1)=num(:,2) ! to avoid problems calculating shallow mixed layer
 nus(:,1)=nus(:,2)
 !--------------------------------------------------------------------
@@ -1268,14 +1262,17 @@ a3s=1.-2.*g1s+dg1sds
 
 !--------------------------------------------------------------------
 ! calculate diffusion terms
-km=num
-ks=nus
 do ii=2,wlev
   where (ii<=mixind_hl)
     sigma=depth_hl(:,ii)*d_zcr/p_mixdepth
-    km(:,ii)=max(p_mixdepth*wm(:,ii)*sigma*(1.+sigma*(a2m+a3m*sigma)),num(:,ii))
-    ks(:,ii)=max(p_mixdepth*ws(:,ii)*sigma*(1.+sigma*(a2s+a3s*sigma)),nus(:,ii))
+    km(:,ii)=p_mixdepth*wm(:,ii)*sigma*(1.+sigma*(a2m+a3m*sigma))
+    ks(:,ii)=p_mixdepth*ws(:,ii)*sigma*(1.+sigma*(a2s+a3s*sigma))
+  elsewhere
+    km(:,ii)=0.
+    ks(:,ii)=0.
   end where
+  km(:,ii)=max(km(:,ii),num(:,ii))
+  ks(:,ii)=max(ks(:,ii),nus(:,ii))
 end do
 
 !--------------------------------------------------------------------
@@ -1283,10 +1280,11 @@ end do
 ! gammas is the same for temp and sal when double-diffusion is not employed
 cg=10.*vkar*(98.96*vkar*epsilon)**(1./3.) ! Large (1994)
 !cg=5.*vkar*(98.96*vkar*epsilon)**(1./3.) ! Bernie (2004)
-gammas=0.
 do ii=2,wlev
   where (p_bf<0..and.ii<=mixind_hl) ! unstable
     gammas(:,ii)=cg/max(ws(:,ii)*p_mixdepth,1.E-20)
+  elsewhere
+    gammas(:,ii)=0.
   end where
 end do
 
@@ -1428,14 +1426,14 @@ end if
 call getbf(d_rad,d_alpha,d_b0)
 
 ! impose limits for stable conditions
-where(p_bf>1.E-10)
-  l=d_ustar*d_ustar*d_ustar/(vkar*p_bf)
-  p_mixdepth=min(p_mixdepth,l)
-end where
 where(p_bf>1.E-10.and.abs(a_f)>1.E-10)
   l=0.7*d_ustar/abs(a_f)
-  p_mixdepth=min(p_mixdepth,l)
+elsewhere (p_bf>1.E-10)
+  l=d_ustar*d_ustar*d_ustar/(vkar*p_bf)
+elsewhere
+  l=depth(:,wlev)*d_zcr
 end where
+p_mixdepth=min(p_mixdepth,l)
 p_mixdepth=max(p_mixdepth,depth(:,1)*d_zcr)
 p_mixdepth=min(p_mixdepth,depth(:,wlev)*d_zcr)
 
@@ -2142,11 +2140,12 @@ i_u=i_u+dt*(p_tauxica-d_tauxicw)/imass
 i_v=i_v+dt*(p_tauyica-d_tauyicw)/imass
 
 ! Remove excessive salinity from ice
-deld=0.
 where (i_dic>=icemin)
   deld=i_dic*(1.-icesal/max(i_sal,icesal))
-  i_sal=i_sal*(1.-deld/i_dic)
+elsewhere
+  deld=0.
 end where
+i_sal=i_sal*(1.-deld/i_dic)
 d_salflxf=d_salflxf+deld*rhoic/dt
 d_salflxs=d_salflxs-deld*rhoic/dt
 
@@ -2190,9 +2189,10 @@ logical lflag
 
 ! limits on ice formation
 d_wavail=max(depth_hl(:,wlev+1)+w_eta-minwater,0.)
-maxnewice=0.
 where (i_fracice<1.)
   maxnewice=d_wavail*rhowt/rhoic/(1.-i_fracice)
+elsewhere
+  maxnewice=0.
 end where
 maxnewice=max(min(maxnewice,0.15),0.)
 
@@ -2482,11 +2482,12 @@ if (nc3>0) then
 end if
 
 ! the following are snow to ice processes
-xxx=0.
-excess=0.
 where (ip_dic>icemin)
   xxx=ip_dic+ip_dsn-(rhosn*ip_dsn+rhoic*ip_dic)/rhowt ! white ice formation
   excess=max(ip_dsn-xxx,0.)*rhosn/rhowt               ! white ice formation
+elsewhere
+  xxx=0.
+  excess=0.
 end where
 where (excess>0..and.dp_nk==2)
   ip_tn1=(0.5*ip_dic*ip_tn1+rhowt/rhoic*excess*ip_tn0*cps/cpi)/(0.5*ip_dic+rhowt/rhoic*excess) ! Assume 2 levels of ice, hence 0.5*hi
@@ -3082,9 +3083,10 @@ d_nk=min(int(d_ndic/himin),2)
 alb=     a_vnratio*(p_icevisdiralb*a_fbvis+p_icevisdifalb*(1.-a_fbvis))+ &
     (1.-a_vnratio)*(p_icevisdifalb*a_fbvis+p_icevisdifalb*(1.-a_fbvis))
 qmax=qice*0.5*max(d_ndic-himin,0.)
-eye=0.
 where (d_ndsn<icemin.and.d_nsto<qmax.and.d_nk>0)
   eye=0.35
+elsewhere
+  eye=0.
 end where
 d_nsto=d_nsto+dt*a_sg*(1.-alb)*eye
 
@@ -3107,7 +3109,7 @@ imass=max(rhoic*i_dic+rhosn*i_dsn,10.) ! ice mass per unit area
 newiu=i_u
 newiv=i_v
 do iqw=1,wfull
-  do ll=1,20
+  do ll=1,20 ! max iterations
     uu(iqw)=a_u(iqw)-newiu(iqw)
     vv(iqw)=a_v(iqw)-newiv(iqw)
     du(iqw)=w_u(iqw,1)-newiu(iqw)

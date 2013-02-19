@@ -827,15 +827,15 @@ if (ucount==0) return
 ib=count(upack(1:is-1))+1
 ie=ucount+ib-1
 
-f_fbeam(ib:ie)=0.
 lsg(ib:ie)=pack(sg,upack(is:ifinish))
 lcosin(ib:ie)=pack(cosin,upack(is:ifinish))
 
 tmpr(ib:ie)=0.847+lcosin(ib:ie)*(1.04*lcosin(ib:ie)-1.61)
 tmpk(ib:ie)=(1.47-tmpr(ib:ie))/1.66
-tmprat(ib:ie)=0.
 where (lcosin(ib:ie)>1.0e-10 .and. lsg(ib:ie)>10.)
   tmprat(ib:ie)=lsg(ib:ie)/(solcon*(1.+0.033*cos(2.*pi*(fjd-10.)/365.))*lcosin(ib:ie))
+elsewhere
+  tmprat(ib:ie)=0.
 end where
 where (tmprat(ib:ie)>0.22)
   f_fbeam(ib:ie)=6.4*(tmprat(ib:ie)-0.22)**2
@@ -843,6 +843,8 @@ elsewhere (tmprat(ib:ie)>0.35)
   f_fbeam(ib:ie)=min(1.66*tmprat(ib:ie)-0.4728,1.)
 elsewhere (tmprat(ib:ie)>tmpk(ib:ie))
   f_fbeam(ib:ie)=max(1.-tmpr(ib:ie),0.)
+elsewhere
+  f_fbeam(ib:ie)=0.
 end where
 
 return
@@ -2889,32 +2891,32 @@ fsum=0.  ! floor
 ! integrate jet on road, venting side (A)
 a=0.
 b=max(0.,wdir-pi+theta1)
-if (any(b>a)) call integratewind(wsuma,wsumb,fsum,a,b,h,w,wdir,z0,0)
+call integratewind(wsuma,wsumb,fsum,a,b,h,w,wdir,z0,0)
 
 ! integrate jet on wall, venting side
 a=max(0.,wdir-pi+theta1)
 b=max(0.,wdir-theta1)
-if (any(b>a)) call integratewind(wsuma,wsumb,fsum,a,b,h,w,wdir,z0,1)
+call integratewind(wsuma,wsumb,fsum,a,b,h,w,wdir,z0,1)
 
 ! integrate jet on road, venting side (B)
 a=max(0.,wdir-theta1)
 b=wdir
-if (any(b>a)) call integratewind(wsuma,wsumb,fsum,a,b,h,w,wdir,z0,0)
+call integratewind(wsuma,wsumb,fsum,a,b,h,w,wdir,z0,0)
 
 ! integrate jet on road, recirculation side (A)
 a=wdir
 b=min(pi,wdir+theta1)
-if (any(b>a)) call integratewind(wsumb,wsuma,fsum,a,b,h,w,wdir,z0,0)
+call integratewind(wsumb,wsuma,fsum,a,b,h,w,wdir,z0,0)
 
 ! integrate jet on wall, recirculation side
 a=min(pi,wdir+theta1)
 b=min(pi,wdir+pi-theta1)
-if (any(b>a)) call integratewind(wsumb,wsuma,fsum,a,b,h,w,wdir,z0,1)
+call integratewind(wsumb,wsuma,fsum,a,b,h,w,wdir,z0,1)
 
 ! integrate jet on road, recirculation side (B)
 a=min(pi,wdir+pi-theta1)
 b=pi
-if (any(b>a)) call integratewind(wsumb,wsuma,fsum,a,b,h,w,wdir,z0,0)
+call integratewind(wsumb,wsuma,fsum,a,b,h,w,wdir,z0,0)
 
 ! Correct for rotation of winds at start of subroutine
 ! 0.5 to adjust for factor of 2 in gettopu
@@ -3005,31 +3007,33 @@ real, dimension(ufull) :: theta,dtheta,st,nw
 real, dimension(ufull) :: duf,dur,duv
 
 dtheta=(b-a)/real(ntot)
-select case(mode)
-  case(0) ! jet on road
-    do n=1,ntot
-      theta=dtheta*(real(n)-0.5)+a
-      st=abs(sin(theta-wdir))
-      nw=max(w/max(st,1.E-9),3.*h)
-      call winda(duf,dur,duv,h,nw,z0)
-      wsuma=wsuma+dur*st*dtheta
-      wsumb=wsumb+duv*st*dtheta
-      fsum=fsum+duf*st*dtheta
-    end do
-  case(1) ! jet on wall
-    do n=1,ntot
-      theta=dtheta*(real(n)-0.5)+a
-      st=abs(sin(theta-wdir))
-      nw=min(w/max(st,1.E-9),3.*h)
-      call windb(duf,dur,duv,h,nw,z0)
-      wsuma=wsuma+dur*st*dtheta
-      wsumb=wsumb+duv*st*dtheta
-      fsum=fsum+duf*st*dtheta
-    end do
-  case DEFAULT
-    write(6,*) "ERROR: Unknown ateb.f90 integratewind mode ",mode
-    stop
-end select
+if (any(dtheta>0.)) then
+  select case(mode)
+    case(0) ! jet on road
+      do n=1,ntot
+        theta=dtheta*(real(n)-0.5)+a
+        st=abs(sin(theta-wdir))
+        nw=max(w/max(st,1.E-9),3.*h)
+        call winda(duf,dur,duv,h,nw,z0)
+        wsuma=wsuma+dur*st*dtheta
+        wsumb=wsumb+duv*st*dtheta
+        fsum=fsum+duf*st*dtheta
+      end do
+    case(1) ! jet on wall
+      do n=1,ntot
+        theta=dtheta*(real(n)-0.5)+a
+        st=abs(sin(theta-wdir))
+        nw=min(w/max(st,1.E-9),3.*h)
+        call windb(duf,dur,duv,h,nw,z0)
+        wsuma=wsuma+dur*st*dtheta
+        wsumb=wsumb+duv*st*dtheta
+        fsum=fsum+duf*st*dtheta
+      end do
+    case DEFAULT
+      write(6,*) "ERROR: Unknown ateb.f90 integratewind mode ",mode
+      stop
+  end select
+end if
 
 return
 end subroutine integratewind

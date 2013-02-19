@@ -84,21 +84,15 @@ salbdy=0.
 ! prep land-sea mask
 allocate(ee(ifull+iextra))
 allocate(eeu(ifull+iextra),eev(ifull+iextra))
-ee=0.
-eeu=0.
-eev=0. 
 where(.not.land)
   ee(1:ifull)=1.
+elsewhere
+  ee(1:ifull)=0.
 end where
 
 ! Calculate depth arrays (free suface term is included later)
 allocate(dd(ifull+iextra))
 allocate(ddu(ifull+iextra),ddv(ifull+iextra))
-dd=0.
-ddu=0.
-ddv=0.
-dep=0.
-dz=0.
 do ii=1,wlev
   call mloexpdep(0,dep(:,ii),ii,0)
   call mloexpdep(1,dz(:,ii),ii,0)
@@ -565,19 +559,21 @@ end do
 netflx(1:ifull)=sum(abs(fta),2)
 call bounds(netflx)
 ! water outflow
-flow=0.
 do i=1,4
   ftx(:,i)=-fta(:,i)/netflx(1:ifull) ! max fraction of total outgoing flux
   where (netflx(1:ifull)>1.E-10)
     flow(:,i)=watbdy(1:ifull)*min(fta(:,i),ftx(:,i)) ! (kg/m^2)
+  elsewhere
+    flow(:,i)=0.
   end where
 end do
 newwat=newwat+sum(flow,2)
 ! salinity outflow
-flow=0.
 do i=1,4
   where (netflx(1:ifull)>1.E-10)
     flow(:,i)=salbdy(1:ifull)*min(fta(:,i),ftx(:,i))
+  elsewhere
+    flow(:,i)=0.
   end where
 end do
 newsal=newsal+sum(flow,2)
@@ -591,13 +587,14 @@ elsewhere
   vel=0.
 end where
 ! water inflow
-flow=0.
 do i=1,4
   fta(:,i)=dt*vel(:,i)*idp(:,i)     ! incomming flux
   ftx(:,i)=fta(:,i)/netflx(xp(:,i)) ! max fraction of flux from outgoing cell
   where (netflx(xp(:,i))>1.E-10)
     flow(:,i)=watbdy(xp(:,i))*min(fta(:,i),ftx(:,i)) ! (kg/m^2)
     flow(:,i)=flow(:,i)*em(1:ifull)*em(1:ifull)/(em(xp(:,i))*em(xp(:,i))) ! change in gridbox area
+  elsewhere
+    flow(:,i)=0.
   end where
 end do
 newwat=newwat+sum(flow,2)
@@ -607,6 +604,8 @@ do i=1,4
   where (netflx(xp(:,i))>1.E-10)
     flow(:,i)=salbdy(xp(:,i))*min(fta(:,i),ftx(:,i))
     flow(:,i)=flow(:,i)*em(1:ifull)*em(1:ifull)/(em(xp(:,i))*em(xp(:,i))) ! change in gridbox area
+  elsewhere
+    flow(:,i)=0.
   end where
 end do
 newsal=newsal+sum(flow,2)
@@ -708,7 +707,6 @@ if (any(salbdy(1:ifull)>0..and.watbdy(1:ifull)==0.)) then
 end if
 
 ! update ocean
-sal=0.
 where (ee(1:ifull)>0.5)
   depdum=max(dd(1:ifull)+neta(1:ifull),minwater)
   ! salbdy is already multiplied by watbdy
@@ -718,8 +716,10 @@ where (ee(1:ifull)>0.5)
   salbdy(1:ifull)=sal   ! ocean default
 elsewhere (watbdy(1:ifull)>1.E-10)
   salbdy(1:ifull)=salbdy(1:ifull)/watbdy(1:ifull) ! rescale salinity back to PSU
+  sal=0.
 elsewhere
   salbdy(1:ifull)=0.    ! land default
+  sal=0.
 end where
 
 ! import ocean data
@@ -908,13 +908,14 @@ nu(1:ifull,:)=w_u
 nv(1:ifull,:)=w_v
 nt(1:ifull,:)=w_t
 ns(1:ifull,:)=w_s
-nfracice=0.
-ndic=0.
-ndsn=0.
 where (wtr(1:ifull))
   nfracice(1:ifull)=fracice
   ndic(1:ifull)=sicedep
   ndsn(1:ifull)=snowd*0.001
+elsewhere
+  nfracice(1:ifull)=0.
+  ndic(1:ifull)=0.
+  ndsn(1:ifull)=0.
 end where
 nit(1:ifull,:)=i_it
 nsto(1:ifull)=i_sto
@@ -1648,18 +1649,21 @@ end if
 if (nud_sss==0) then
   delpos=0.
   delneg=0.
-  dum=0.
   ndum=sum(w_s(1:ifull,:),2)
   if (fixsal==0) then
     do ii=1,wlev
       where(wtr(1:ifull).and.ndum>0.1)
         dum(:,ii)=ns(1:ifull,ii)-w_s(:,ii)
+      elsewhere
+        dum(:,ii)=0.
       end where
     end do
   else
     do ii=1,wlev
       where(wtr(1:ifull).and.ndum>0.1)
-      dum(:,ii)=ns(1:ifull,ii)-34.72
+        dum(:,ii)=ns(1:ifull,ii)-34.72
+      elsewhere
+        dum(:,ii)=0.
       end where
     end do
   end if
@@ -1681,7 +1685,7 @@ if (nud_sss==0) then
   end if
 end if
 
-if (myid==0.and.(ktau<=100.or.maxglobseta>tol.or.maxglobip>itol)) then
+if (myid==0.and.(ktau<=5.or.maxglobseta>tol.or.maxglobip>itol)) then
   write(6,*) "MLODYNAMICS ",totits,itc,maxglobseta,maxglobip
 end if
 
@@ -2328,6 +2332,8 @@ logical, dimension(ifull+iextra), intent(in) :: wtr
 logical :: lmode
 ind(i,j,n)=i+(j-1)*ipan+(n-1)*ipan*jpan  ! *** for n=1,npan
 
+return
+
 lmode=.true.
 if (present(bilinear)) lmode=.not.bilinear
 
@@ -2816,12 +2822,6 @@ if (ltest) then
 
   ! assign weights
   if (ltestb) then
-    wtu=0.
-    wtv=0.
-    dtu=0.
-    dtv=0.
-    stu=0.
-    stv=0.
 
 ! |   *   | X E   |  EE  |     unstaggered
 ! W       * X     E            staggered
@@ -2868,6 +2868,15 @@ if (ltest) then
       dtu(:,1)=0.
       dtu(:,2)=0.5
       dtu(:,3)=0.5
+
+    elsewhere
+      wtu(1:ifull,0)=0.
+      wtu(1:ifull,1)=0.
+      wtu(1:ifull,2)=0.
+      wtu(1:ifull,3)=0.
+      dtu(:,1)=0.
+      dtu(:,2)=0.
+      dtu(:,3)=0.
             
     end where
     where (evnstest)
@@ -2903,37 +2912,65 @@ if (ltest) then
       dtv(:,1)=0.
       dtv(:,2)=0.5
       dtv(:,3)=0.5
+    elsewhere
+      wtv(1:ifull,0)=0.
+      wtv(1:ifull,1)=0.
+      wtv(1:ifull,2)=0.
+      wtv(1:ifull,3)=0.
+      dtv(:,1)=0.
+      dtv(:,2)=0.
+      dtv(:,3)=0.
     end where
 
     ! Apply JLM's preconditioner
     call boundsuv(wtu,wtv,stag=-10,gmode=1)
-    nwtu=wtu(1:ifull,:)
-    nwtv=wtv(1:ifull,:)
     where (abs(wtu(ieu,0))>1.E-4.and.abs(wtu(1:ifull,1))>1.E-4)
       stu=-wtu(1:ifull,1)/wtu(ieu,0)
       nwtu(1:ifull,0)=wtu(1:ifull,0)+stu*wtu(ieu,2)
       nwtu(1:ifull,1)=wtu(1:ifull,1)+stu*wtu(ieu,0)
+      nwtu(1:ifull,2)=wtu(1:ifull,2)
       nwtu(1:ifull,3)=wtu(1:ifull,3)-stu*wtu(ieu,1)
+    elsewhere
+      stu=0.
+      nwtu(1:ifull,0)=wtu(1:ifull,0)
+      nwtu(1:ifull,1)=wtu(1:ifull,1)
+      nwtu(1:ifull,2)=wtu(1:ifull,2)
+      nwtu(1:ifull,3)=wtu(1:ifull,3)
     end where
     where (abs(wtv(inv,0))>1.E-4.and.abs(wtv(1:ifull,1))>1.E-4)
       stv=-wtv(1:ifull,1)/wtv(inv,0)
       nwtv(1:ifull,0)=wtv(1:ifull,0)+stv*wtv(inv,2)
       nwtv(1:ifull,1)=wtv(1:ifull,1)+stv*wtv(inv,0)
+      nwtv(1:ifull,2)=wtv(1:ifull,2)
       nwtv(1:ifull,3)=wtv(1:ifull,3)-stv*wtv(inv,1)
+    elsewhere
+      stv=0.
+      nwtv(1:ifull,0)=wtv(1:ifull,0)
+      nwtv(1:ifull,1)=wtv(1:ifull,1)
+      nwtv(1:ifull,2)=wtv(1:ifull,2)
+      nwtv(1:ifull,3)=wtv(1:ifull,3)
     end where
-    wtu(1:ifull,:)=nwtu
-    wtv(1:ifull,:)=nwtv
     where (abs(wtu(1:ifull,0))<1.E-4)
       wtu(1:ifull,0)=1.
       wtu(1:ifull,1)=0.
       wtu(1:ifull,2)=0.
       wtu(1:ifull,3)=0.
+    elsewhere
+      wtu(1:ifull,0)=nwtu(1:ifull,0)
+      wtu(1:ifull,1)=nwtu(1:ifull,1)
+      wtu(1:ifull,2)=nwtu(1:ifull,2)
+      wtu(1:ifull,3)=nwtu(1:ifull,3)
     end where
     where (abs(wtv(1:ifull,0))<1.E-4)
       wtv(1:ifull,0)=1.
       wtv(1:ifull,1)=0.
       wtv(1:ifull,2)=0.
       wtv(1:ifull,3)=0.
+    elsewhere
+      wtv(1:ifull,0)=nwtv(1:ifull,0)
+      wtv(1:ifull,1)=nwtv(1:ifull,1)
+      wtv(1:ifull,2)=nwtv(1:ifull,2)
+      wtv(1:ifull,3)=nwtv(1:ifull,3)
     end where
 
     ! normalise
@@ -3002,12 +3039,6 @@ else
 
   ! assign weights
   if (ltestb) then
-    wtu=0.
-    wtv=0.
-    dtu=0.
-    dtv=0.
-    stu=0.
-    stv=0.
 
 ! |   W   |   * X |  E   |     unstaggered
 !         W     X *      E     staggered
@@ -3054,6 +3085,14 @@ else
       dtu(:,1)=0.
       dtu(:,2)=0.5
       dtu(:,3)=0.5
+    elsewhere
+      wtu(1:ifull,0)=0.
+      wtu(1:ifull,1)=0.
+      wtu(1:ifull,2)=0.
+      wtu(1:ifull,3)=0.
+      dtu(:,1)=0.
+      dtu(:,2)=0.
+      dtu(:,3)=0.
       
     end where
     where (evnstest)
@@ -3088,37 +3127,65 @@ else
       dtv(:,1)=0.
       dtv(:,2)=0.5
       dtv(:,3)=0.5
+    elsewhere
+      wtv(1:ifull,0)=0.
+      wtv(1:ifull,1)=0.
+      wtv(1:ifull,2)=0.
+      wtv(1:ifull,3)=0.
+      dtv(:,1)=0.
+      dtv(:,2)=0.
+      dtv(:,3)=0.
     end where
 
     ! Apply JLM's preconditioner
     call boundsuv(wtu,wtv,stag=-9,gmode=1)
-    nwtu=wtu(1:ifull,:)
-    nwtv=wtv(1:ifull,:)
     where (abs(wtu(iwu,0))>1.E-4.and.abs(wtu(1:ifull,2))>1.E-4)
       stu=-wtu(1:ifull,2)/wtu(iwu,0)
       nwtu(1:ifull,0)=wtu(1:ifull,0)+stu*wtu(iwu,1)
+      nwtu(1:ifull,1)=wtu(1:ifull,1)
       nwtu(1:ifull,2)=wtu(1:ifull,2)+stu*wtu(iwu,0)
       nwtu(1:ifull,3)=wtu(1:ifull,3)-stu*wtu(iwu,2)
+    elsewhere
+      stu=0.
+      nwtu(1:ifull,0)=wtu(1:ifull,0)
+      nwtu(1:ifull,1)=wtu(1:ifull,1)
+      nwtu(1:ifull,2)=wtu(1:ifull,2)
+      nwtu(1:ifull,3)=wtu(1:ifull,3)
     end where
     where (abs(wtv(isv,0))>1.E-4.and.abs(wtv(1:ifull,2))>1.E-4)
       stv=-wtv(1:ifull,2)/wtv(isv,0)
       nwtv(1:ifull,0)=wtv(1:ifull,0)+stv*wtv(isv,1)
+      nwtv(1:ifull,1)=wtv(1:ifull,1)
       nwtv(1:ifull,2)=wtv(1:ifull,2)+stv*wtv(isv,0)
       nwtv(1:ifull,3)=wtv(1:ifull,3)-stv*wtv(isv,2)
+    elsewhere
+      stv=0.
+      nwtv(1:ifull,0)=wtv(1:ifull,0)
+      nwtv(1:ifull,1)=wtv(1:ifull,1)
+      nwtv(1:ifull,2)=wtv(1:ifull,2)
+      nwtv(1:ifull,3)=wtv(1:ifull,3)
     end where
-    wtu(1:ifull,:)=nwtu
-    wtv(1:ifull,:)=nwtv
     where (abs(wtu(1:ifull,0))<1.E-4)
       wtu(1:ifull,0)=1.
       wtu(1:ifull,1)=0.
       wtu(1:ifull,2)=0.
       wtu(1:ifull,3)=0.
+    elsewhere
+      wtu(1:ifull,0)=nwtu(1:ifull,0)
+      wtu(1:ifull,1)=nwtu(1:ifull,1)
+      wtu(1:ifull,2)=nwtu(1:ifull,2)
+      wtu(1:ifull,3)=nwtu(1:ifull,3)
     end where
     where (abs(wtv(1:ifull,0))<1.E-4)
       wtv(1:ifull,0)=1.
       wtv(1:ifull,1)=0.
       wtv(1:ifull,2)=0.
       wtv(1:ifull,3)=0.
+    elsewhere
+      wtv(1:ifull,0)=nwtv(1:ifull,0)
+      wtv(1:ifull,1)=nwtv(1:ifull,1)
+      wtv(1:ifull,2)=nwtv(1:ifull,2)
+      wtv(1:ifull,3)=nwtv(1:ifull,3)
     end where
 
     ! normalise
@@ -3271,12 +3338,6 @@ if (ltest) then
 
   ! assign weights
   if (ltestb) then
-    wtu=0.
-    wtv=0.
-    dtu=0.
-    dtv=0.
-    stu=0.
-    stv=0.
 
 !  |   W   | X *   |  E   |     unstaggered
 ! WW       W X     *            staggered
@@ -3345,6 +3406,15 @@ if (ltest) then
       dtu(:,1)=0.
       dtu(:,2)=1.
       dtu(:,3)=0.
+
+    elsewhere
+      wtu(1:ifull,0)=0.
+      wtu(1:ifull,1)=0.
+      wtu(1:ifull,2)=0.
+      wtu(1:ifull,3)=0.
+      dtu(:,1)=0.
+      dtu(:,2)=0.
+      dtu(:,3)=0.
       
     end where
     where (evnstest)
@@ -3397,39 +3467,65 @@ if (ltest) then
       dtv(:,1)=0.
       dtv(:,2)=1.
       dtv(:,3)=0.
+    elsewhere
+      wtv(1:ifull,0)=0.
+      wtv(1:ifull,1)=0.
+      wtv(1:ifull,2)=0.
+      wtv(1:ifull,3)=0.
+      dtv(:,1)=0.
+      dtv(:,2)=0.
+      dtv(:,3)=0.
     end where
     
     ! Apply JLM's preconditioner
     call boundsuv(wtu,wtv,stag=-9,gmode=1)
-    nwtu=wtu(1:ifull,:)
-    nwtv=wtv(1:ifull,:)
-    nud=ud(1:ifull,:)
-    nvd=vd(1:ifull,:)
     where (abs(wtu(iwu,0))>1.E-4.and.abs(wtu(1:ifull,2))>1.E-4)
       stu=-wtu(1:ifull,2)/wtu(iwu,0)
       nwtu(:,0)=wtu(1:ifull,0)+stu*wtu(iwu,1)
+      nwtu(:,1)=wtu(1:ifull,1)
       nwtu(:,2)=wtu(1:ifull,2)+stu*wtu(iwu,0)
       nwtu(:,3)=wtu(1:ifull,3)-stu*wtu(iwu,2)
+    elsewhere
+      stu=0.
+      nwtu(:,0)=wtu(1:ifull,0)
+      nwtu(:,1)=wtu(1:ifull,1)
+      nwtu(:,2)=wtu(1:ifull,2)
+      nwtu(:,3)=wtu(1:ifull,3)
     end where
     where (abs(wtv(isv,0))>1.E-4.and.abs(wtv(1:ifull,2))>1.E-4)
       stv=-wtv(1:ifull,2)/wtv(isv,0)
       nwtv(:,0)=wtv(1:ifull,0)+stv*wtv(isv,1)
+      nwtv(:,1)=wtv(1:ifull,1)
       nwtv(:,2)=wtv(1:ifull,2)+stv*wtv(isv,0)
       nwtv(:,3)=wtv(1:ifull,3)-stv*wtv(isv,2)
+    elsewhere
+      stv=0.
+      nwtv(:,0)=wtv(1:ifull,0)
+      nwtv(:,1)=wtv(1:ifull,1)
+      nwtv(:,2)=wtv(1:ifull,2)
+      nwtv(:,3)=wtv(1:ifull,3)
     end where
-    wtu(1:ifull,:)=nwtu
-    wtv(1:ifull,:)=nwtv
     where (abs(wtu(1:ifull,0))<1.E-4)
       wtu(1:ifull,0)=1.
       wtu(1:ifull,1)=0.
       wtu(1:ifull,2)=0.
       wtu(1:ifull,3)=0.
+    elsewhere
+      wtu(1:ifull,0)=nwtu(1:ifull,0)
+      wtu(1:ifull,1)=nwtu(1:ifull,1)
+      wtu(1:ifull,2)=nwtu(1:ifull,2)
+      wtu(1:ifull,3)=nwtu(1:ifull,3)
     end where
     where (abs(wtv(1:ifull,0))<1.E-4)
       wtv(1:ifull,0)=1.
       wtv(1:ifull,1)=0.
       wtv(1:ifull,2)=0.
       wtv(1:ifull,3)=0.
+    elsewhere
+      wtv(1:ifull,0)=nwtv(1:ifull,0)
+      wtv(1:ifull,1)=nwtv(1:ifull,1)
+      wtv(1:ifull,2)=nwtv(1:ifull,2)
+      wtv(1:ifull,3)=nwtv(1:ifull,3)
     end where
 
     ! normalise
@@ -3504,12 +3600,6 @@ else
 
   ! assign weights
   if (ltestb) then
-    wtu=0.
-    wtv=0.
-    dtu=0.
-    dtv=0.
-    stu=0.
-    stv=0.
   
 !  |   W   |   * X |  E   |     unstaggered
 !          W     X *      E     staggered
@@ -3578,6 +3668,14 @@ else
       dtu(:,1)=0.
       dtu(:,2)=1.
       dtu(:,3)=0.
+    elsewhere
+      wtu(1:ifull,0)=0.
+      wtu(1:ifull,1)=0.
+      wtu(1:ifull,2)=0.
+      wtu(1:ifull,3)=0.
+      dtu(:,1)=0.
+      dtu(:,2)=0.
+      dtu(:,3)=0.
 
     end where
     where (evnstest)
@@ -3628,39 +3726,67 @@ else
       wtv(1:ifull,2)=0.
       wtv(1:ifull,3)=0.
       dtv(:,1)=0.
-      dtv(:,3)=0.
       dtv(:,2)=1.
+      dtv(:,3)=0.
+    elsewhere
+      wtv(1:ifull,0)=0.
+      wtv(1:ifull,1)=0.
+      wtv(1:ifull,2)=0.
+      wtv(1:ifull,3)=0.
+      dtv(:,1)=0.
+      dtv(:,2)=0.
+      dtv(:,3)=0.
     end where
 
     ! Apply JLM's preconditioner
     call boundsuv(wtu,wtv,stag=-10,gmode=1)
-    nwtu=wtu(1:ifull,:)
-    nwtv=wtv(1:ifull,:)
     where (abs(wtu(ieu,0))>1.E-4.and.abs(wtu(1:ifull,1))>1.E-4)
       stu=-wtu(1:ifull,1)/wtu(ieu,0)
       nwtu(1:ifull,0)=wtu(1:ifull,0)+stu*wtu(ieu,2)
       nwtu(1:ifull,1)=wtu(1:ifull,1)+stu*wtu(ieu,0)
+      nwtu(1:ifull,2)=wtu(1:ifull,2)
       nwtu(1:ifull,3)=wtu(1:ifull,3)-stu*wtu(ieu,1)
+    elsewhere
+      stu=0.
+      nwtu(1:ifull,0)=wtu(1:ifull,0)
+      nwtu(1:ifull,1)=wtu(1:ifull,1)
+      nwtu(1:ifull,2)=wtu(1:ifull,2)
+      nwtu(1:ifull,3)=wtu(1:ifull,3)
     end where
     where (abs(wtv(inv,0))>1.E-4.and.abs(wtv(1:ifull,1))>1.E-4)
       stv=-wtv(1:ifull,1)/wtv(inv,0)
       nwtv(1:ifull,0)=wtv(1:ifull,0)+stv*wtv(inv,2)
       nwtv(1:ifull,1)=wtv(1:ifull,1)+stv*wtv(inv,0)
+      nwtv(1:ifull,2)=wtv(1:ifull,2)
       nwtv(1:ifull,3)=wtv(1:ifull,3)-stv*wtv(inv,1)
+    elsewhere
+      stv=0.
+      nwtv(1:ifull,0)=wtv(1:ifull,0)
+      nwtv(1:ifull,1)=wtv(1:ifull,1)
+      nwtv(1:ifull,2)=wtv(1:ifull,2)
+      nwtv(1:ifull,3)=wtv(1:ifull,3)
     end where
-    wtu(1:ifull,:)=nwtu
-    wtv(1:ifull,:)=nwtv
     where (abs(wtu(1:ifull,0))<1.E-4)
       wtu(1:ifull,0)=1.
       wtu(1:ifull,1)=0.
       wtu(1:ifull,2)=0.
       wtu(1:ifull,3)=0.
+    elsewhere
+      wtu(1:ifull,0)=nwtu(1:ifull,0)
+      wtu(1:ifull,1)=nwtu(1:ifull,1)
+      wtu(1:ifull,2)=nwtu(1:ifull,2)
+      wtu(1:ifull,3)=nwtu(1:ifull,3)
     end where
     where (abs(wtv(1:ifull,0))<1.E-4)
       wtv(1:ifull,0)=1.
       wtv(1:ifull,1)=0.
       wtv(1:ifull,2)=0.
       wtv(1:ifull,3)=0.
+    elsewhere
+      wtv(1:ifull,0)=nwtv(1:ifull,0)
+      wtv(1:ifull,1)=nwtv(1:ifull,1)
+      wtv(1:ifull,2)=nwtv(1:ifull,2)
+      wtv(1:ifull,3)=nwtv(1:ifull,3)
     end where
 
     ! normalise
@@ -3729,7 +3855,7 @@ end subroutine mlounstaguv
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine performs vertical advection based on JLMs TVD scheme
 
-subroutine mlovadv(dtin,ww,uu,vv,ss,tt,mm,depdum,dzdum,wtr,cnum)
+subroutine mlovadv(dtin,ww,uu,vv,ss,tt,mm,depdum,idzdum,wtr,cnum)
 
 use cc_mpi
 use mlo
@@ -3741,12 +3867,16 @@ include 'newmpar.h'
 integer, intent(in) :: cnum
 integer ii,l,iq,ierr,its_g
 integer, dimension(ifull) :: its
+integer, dimension(ifull,wlev-1) :: kp,kx
 real, intent(in) :: dtin
 real, dimension(ifull) :: dtnew
 real, dimension(ifull,0:wlev), intent(in) :: ww
-real, dimension(ifull,wlev), intent(in) :: depdum,dzdum
+real, dimension(ifull,wlev), intent(in) :: depdum,idzdum
 real, dimension(ifull,wlev), intent(inout) :: uu,vv,ss,tt,mm
+real, dimension(ifull,wlev) :: dzdum
 logical, dimension(ifull), intent(in) :: wtr
+
+dzdum=max(idzdum,1.E-10)
 
 ! reduce time step to ensure stability
 dtnew(:)=dtin
@@ -3754,7 +3884,7 @@ do iq=1,ifull
   if (wtr(iq)) then
     do ii=1,wlev-1
       ! this trick works if dzdum(iq,ii)<dzdum(iq,ii+1)
-      dtnew(iq)=min(dtnew(iq),0.3*max(dzdum(iq,ii),1.E-10)/max(abs(ww(iq,ii)),1.E-12))
+      dtnew(iq)=min(dtnew(iq),0.3*dzdum(iq,ii)/max(abs(ww(iq,ii)),1.E-12))
     end do
   end if
 end do
@@ -3765,13 +3895,18 @@ if (its_g>500) then
 end if
 dtnew(:)=dtin/real(its(:))
 
+do ii=1,wlev-1
+  kp(:,ii)=sign(1.,ww(:,ii))
+  kx(:,ii)=ii+(1-kp(:,ii))/2 !  k for ww +ve,  k+1 for ww -ve
+end do
+  
 tt=tt-290.
 ss=ss-34.72
-call mlotvd(its,dtnew,ww,uu,depdum,dzdum)
-call mlotvd(its,dtnew,ww,vv,depdum,dzdum)
-call mlotvd(its,dtnew,ww,ss,depdum,dzdum)
-call mlotvd(its,dtnew,ww,tt,depdum,dzdum)
-call mlotvd(its,dtnew,ww,mm,depdum,dzdum)
+call mlotvd(its,dtnew,ww,uu,depdum,dzdum,kp,kx)
+call mlotvd(its,dtnew,ww,vv,depdum,dzdum,kp,kx)
+call mlotvd(its,dtnew,ww,ss,depdum,dzdum,kp,kx)
+call mlotvd(its,dtnew,ww,tt,depdum,dzdum,kp,kx)
+call mlotvd(its,dtnew,ww,mm,depdum,dzdum,kp,kx)
 tt=tt+290.
 ss=ss+34.72
 where (ss<0.1)
@@ -3781,7 +3916,7 @@ end where
 return
 end subroutine mlovadv
 
-subroutine mlotvd(its,dtnew,ww,uu,depadj,dzadj)
+subroutine mlotvd(its,dtnew,ww,uu,depadj,dzadj,kp,kx)
 
 use mlo
 
@@ -3791,66 +3926,67 @@ include 'newmpar.h'
 
 integer ii,i,iq
 integer, dimension(ifull), intent(in) :: its
+integer, dimension(ifull,wlev-1), intent(in) :: kp,kx
 real, dimension(ifull), intent(in) :: dtnew
 real, dimension(ifull,0:wlev), intent(in) :: ww
 real, dimension(ifull,wlev), intent(in) :: depadj,dzadj
 real, dimension(ifull,wlev), intent(inout) :: uu
 real, dimension(ifull,wlev-1) :: ff
 real, dimension(ifull,0:wlev) :: delu
-real, dimension(ifull) :: fl,fh,cc,rr,xx,jj
+real, dimension(ifull) :: fl,fh,cc,rr,xx
 
 ! f=(w*u) at half levels
 ! du/dt = u*dw/dz-df/dz = -w*du/dz
 
-delu=0.
+delu(:,0)=0.
 do ii=1,wlev-1
   delu(:,ii)=uu(:,ii+1)-uu(:,ii)
 end do
+delu(:,wlev)=0.
 
 ! TVD part
 do ii=1,wlev-1
-  fl=0.5*ww(:,ii)*(uu(:,ii)+uu(:,ii+1))+0.5*abs(ww(:,ii))*(uu(:,ii)-uu(:,ii+1))
+  do iq=1,ifull
+    rr(iq)=delu(iq,ii-kp(iq,ii))
+    fl(iq)=ww(iq,ii)*uu(iq,kx(iq,ii))
+  end do
   fh=ww(:,ii)*0.5*(uu(:,ii)+uu(:,ii+1)) &
      -0.5*(uu(:,ii+1)-uu(:,ii))*ww(:,ii)**2*dtnew/max(depadj(:,ii+1)-depadj(:,ii),1.E-10)
   xx=delu(:,ii)+sign(1.E-20,delu(:,ii))
-  jj=sign(1.,ww(:,ii))
-  rr=0.5*((1.-jj)*delu(:,ii+1)+(1.+jj)*delu(:,ii-1))/xx
   cc=max(0.,min(1.,2.*rr),min(2.,rr)) ! superbee
   ff(:,ii)=fl+cc*(fh-fl)
   !ff(:,ii)=ww(:,ii)*0.5*(uu(:,ii)+uu(:,ii+1)) ! explicit
 end do
-uu(:,1)=uu(:,1)+dtnew*(uu(:,1)*ww(:,1)-ff(:,1))/max(dzadj(:,1),1.E-10)
+uu(:,1)=uu(:,1)+dtnew*(uu(:,1)*ww(:,1)-ff(:,1))/dzadj(:,1)
 do ii=2,wlev-1
-  uu(:,ii)=uu(:,ii)+dtnew*(uu(:,ii)*(ww(:,ii)-ww(:,ii-1))-ff(:,ii)+ff(:,ii-1))/max(dzadj(:,ii),1.E-10)
+  uu(:,ii)=uu(:,ii)+dtnew*(uu(:,ii)*(ww(:,ii)-ww(:,ii-1))-ff(:,ii)+ff(:,ii-1))/dzadj(:,ii)
 end do
-uu(:,wlev)=uu(:,wlev)+dtnew*(-uu(:,wlev)*ww(:,wlev-1)+ff(:,wlev-1))/max(dzadj(:,wlev),1.E-10)
+uu(:,wlev)=uu(:,wlev)+dtnew*(-uu(:,wlev)*ww(:,wlev-1)+ff(:,wlev-1))/dzadj(:,wlev)
 
 
 do iq=1,ifull
   do i=2,its(iq)
 
-    delu(iq,:)=0.
     do ii=1,wlev-1
       delu(iq,ii)=uu(iq,ii+1)-uu(iq,ii)
     end do
 
     ! TVD part
     do ii=1,wlev-1
-      fl(iq)=0.5*ww(iq,ii)*(uu(iq,ii)+uu(iq,ii+1))+0.5*abs(ww(iq,ii))*(uu(iq,ii)-uu(iq,ii+1))
+      rr(iq)=delu(iq,ii-kp(iq,ii))
+      fl(iq)=ww(iq,ii)*uu(iq,kx(iq,ii))
       fh(iq)=ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1)) &
         -0.5*(uu(iq,ii+1)-uu(iq,ii))*ww(iq,ii)**2*dtnew(iq)/max(depadj(iq,ii+1)-depadj(iq,ii),1.E-10)
       xx(iq)=delu(iq,ii)+sign(1.E-20,delu(iq,ii))
-      jj(iq)=sign(1.,ww(iq,ii))
-      rr(iq)=0.5*((1.-jj(iq))*delu(iq,ii+1)+(1.+jj(iq))*delu(iq,ii-1))/xx(iq)
       cc(iq)=max(0.,min(1.,2.*rr(iq)),min(2.,rr(iq))) ! superbee
       ff(iq,ii)=fl(iq)+cc(iq)*(fh(iq)-fl(iq))
     end do
   
-    uu(iq,1)=uu(iq,1)+dtnew(iq)*(uu(iq,1)*ww(iq,1)-ff(iq,1))/max(dzadj(iq,1),1.E-10)
+    uu(iq,1)=uu(iq,1)+dtnew(iq)*(uu(iq,1)*ww(iq,1)-ff(iq,1))/dzadj(iq,1)
     do ii=2,wlev-1
-      uu(iq,ii)=uu(iq,ii)+dtnew(iq)*(uu(iq,ii)*(ww(iq,ii)-ww(iq,ii-1))-ff(iq,ii)+ff(iq,ii-1))/max(dzadj(iq,ii),1.E-10)
+      uu(iq,ii)=uu(iq,ii)+dtnew(iq)*(uu(iq,ii)*(ww(iq,ii)-ww(iq,ii-1))-ff(iq,ii)+ff(iq,ii-1))/dzadj(iq,ii)
     end do
-    uu(iq,wlev)=uu(iq,wlev)+dtnew(iq)*(-uu(iq,wlev)*ww(iq,wlev-1)+ff(iq,wlev-1))/max(dzadj(iq,wlev),1.E-10)
+    uu(iq,wlev)=uu(iq,wlev)+dtnew(iq)*(-uu(iq,wlev)*ww(iq,wlev-1)+ff(iq,wlev-1))/dzadj(iq,wlev)
 
   end do
 end do

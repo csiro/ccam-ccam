@@ -881,10 +881,11 @@ if (mynproc>0) then
   allocate(pncid(0:mynproc-1))
 end if
       
-is=0
 if (myid==0) then 
   is=1
   pncid(0)=ncid
+else
+  is=0
 end if
       
 do ipf=is,mynproc-1
@@ -905,8 +906,11 @@ do ipf=is,mynproc-1
   end if
 end do
 
-ltst=0
-if (myid<resid) ltst=1
+if (myid<resid) then
+  ltst=1
+else
+  ltst=0
+end if
 call ccmpi_commsplit(comm_ip,comm_world,ltst,myid)
 
 pfall=(fnproc>=nproc)

@@ -80,7 +80,6 @@
       real, dimension(:), allocatable, save :: prcpv
 
       kcl_top=kl-2 ! maximum level for cloud top (conjob & vertmix)
-      if (.not.allocated(prcpv)) allocate(prcpv(kl))
 
       ! Non-hydrostatic terms
       tnhs(:,1)=phi_nh(:,1)/bet(1)
@@ -148,6 +147,8 @@
 
       !--------------------------------------------------------------
       ! JLM's local Ri scheme
+
+      if (.not.allocated(prcpv)) allocate(prcpv(kl))
 
 c Pre-calculate the buoyancy parameters if using qcloud scheme.
 c Follow Smith's (1990) notation; gam() is HBG's notation for (L/cp)dqsdt.
@@ -825,8 +826,6 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
        dumqf=qfg(1:ifull,:)
        dumqr=qrg(1:ifull,:)
        dumcr=cffall(1:ifull,:)
-       tnaero=0
-       dumar=0.
        if (nh/=0) then
          tnaero=1
          dumar(:,:,1)=tnhs(:,:)

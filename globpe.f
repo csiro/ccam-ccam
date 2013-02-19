@@ -185,10 +185,10 @@
       data comment/' '/,comm/' '/,irest/1/,jalbfix/1/,nalpha/1/
       data mexrest/6/,mins_rad/60/,nwrite/0/,nsnowout/999999/
 
-!#ifdef stacklimit
+#ifndef stacklimit
       ! For linux only
       call setstacklimit(-1)
-!#endif
+#endif
 
 #ifdef i8r8
       if (kind(iq)/=8) then
@@ -982,6 +982,11 @@
          call date_and_time(time=timeval,values=tvals1)
          write(6,*) "Start of loop time ", timeval
       end if
+#ifdef loadbalall
+      call start_log(globa_loadbal_begin)
+      call phys_loadbal
+      call end_log(globa_loadbal_end)
+#endif
       call log_on()
       call start_log(maincalc_begin)
 
@@ -997,13 +1002,22 @@
       ! ***********************************************************************
 
       ! NESTING ---------------------------------------------------------------
-      call start_log(nestin_begin)
-      if (nbd/=0) call nestin(iaero)
-      call end_log(nestin_end)
+      if (nbd/=0) then
+        call start_log(nestin_begin)
+        call nestin(iaero)
+        call end_log(nestin_end)
+#ifdef loadbalall
+        call start_log(nestina_loadbal_begin)
+        call phys_loadbal
+        call end_log(nestina_loadbal_end)
+#endif
+      end if
       
       ! TRACERS ---------------------------------------------------------------
 !     rml 17/02/06 interpolate tracer fluxes to current timestep
-      if(ngas>0) call interp_tracerflux(kdate,hrs_dt)
+      if (ngas>0) then
+        call interp_tracerflux(kdate,hrs_dt)
+      end if
 
       ! DYNAMICS --------------------------------------------------------------
       if(nstaguin>0.and.ktau>=1)then   ! swapping here for nstaguin>0
@@ -1047,7 +1061,7 @@
       endif
 
 !     set up tau +.5 velocities in ubar, vbar
-      if(ktau<10.and.mydiag)then
+      if(ktau<10.and.myid==0.and.nmaxpr==1)then
         write(6,*) 'ktau,mex,mspec,mspeca:',ktau,mex,mspec,mspeca
       endif
       sbar(:,2:kl)=sdot(:,2:kl)
@@ -1108,7 +1122,9 @@
      &      v(idjd,nlv),vbar(idjd,nlv)
       endif
       if(ktau>2.and.epsp>1..and.epsp<2.)then ! 
-        if (mydiag.and.ktau==3)write(6,*)'using epsp= ',epsp
+        if (myid==0.and.ktau==3.and.nmaxpr==1) then
+          write(6,*)'using epsp= ',epsp
+        end if
         do iq=1,ifull
          if((sign(1.,dpsdt(iq))/=sign(1.,dpsdtb(iq))).and.
      &      (sign(1.,dpsdtbb(iq))/=sign(1.,dpsdtb(iq))))then
@@ -1203,6 +1219,11 @@
         else if (nbd/=0) then
           call davies
         end if
+#ifdef loadbalall
+        call start_log(nestinb_loadbal_begin)
+        call phys_loadbal
+        call end_log(nestinb_loadbal_end)
+#endif
       end if
       call end_log(nestin_end)
 
@@ -1228,6 +1249,11 @@
       call start_log(hordifg_begin)
       if (nhor<0) call hordifgt(iaero)  ! now not tendencies
       if (diag.and.mydiag) write(6,*) 'after hordifgt t ',t(idjd,:)
+#ifdef loadbalall
+      call start_log(hordifg_loadbal_begin)
+      call phys_loadbal
+      call end_log(hordifg_loadbal_end)
+#endif
       call end_log(hordifg_end)
 
       ! ***********************************************************************
@@ -1250,6 +1276,11 @@
         if (myid==0.and.nmaxpr==1) then
           write(6,*) "After river"
         end if
+#ifdef loadbalall
+        call start_log(river_loadbal_begin)
+        call phys_loadbal
+        call end_log(river_loadbal_end)
+#endif
         call end_log(river_end)
       end if
 
@@ -1263,6 +1294,11 @@
         if (myid==0.and.nmaxpr==1) then
           write(6,*) "After MLO dynamics"
         end if
+#ifdef loadbalall
+        call start_log(waterdynamics_loadbal_begin)
+        call phys_loadbal
+        call end_log(waterdynamics_loadbal_end)
+#endif
         call end_log(waterdynamics_end)
       end if
 
@@ -1276,6 +1312,11 @@
         if (myid==0.and.nmaxpr==1) then
           write(6,*) "After MLO diffusion"
         end if
+#ifdef loadbalall
+        call start_log(waterdiff_loadbal_begin)
+        call phys_loadbal
+        call end_log(waterdiff_loadbal_end)
+#endif
         call end_log(waterdiff_end)
       end if
 
@@ -1294,7 +1335,9 @@
         write(6,*) "After gwdrag"
       end if
 #ifdef loadbalall
+      call start_log(gwdrag_loadbal_begin)
       call phys_loadbal
+      call end_log(gwdrag_loadbal_end)
 #endif
       call end_log(gwdrag_end)
 
@@ -1325,7 +1368,9 @@
         write(6,*) "After convection"
       end if
 #ifdef loadbalall
+      call start_log(convection_loadbal_begin)
       call phys_loadbal
+      call end_log(convection_loadbal_end)
 #endif
       call end_log(convection_end)
 
@@ -1356,7 +1401,9 @@
         write(6,*) "After cloud microphysics"
       end if
 #ifdef loadbalall
+      call start_log(cloud_loadbal_begin)
       call phys_loadbal
+      call end_log(cloud_loadbal_end)
 #endif
       call end_log(cloud_end)
 
@@ -1391,20 +1438,17 @@
         mtimer=mtimer_sav
       end if    ! (nhstest<0)
       if (nmaxpr==1) then
-        ! Account for load bal explicitly rather than implicitly in
-        ! the reduce in maxmin.
-#ifdef loadbal
-        call phys_loadbal
-#endif
         call maxmin(slwa,'sl',ktau,.1,1)
       end if
       if (myid==0.and.nmaxpr==1) then
         write(6,*) "After radiation"
       end if
 #ifdef loadbalall
-       call phys_loadbal
+      call start_log(radnet_loadbal_begin)
+      call phys_loadbal
+      call end_log(radnet_loadbal_end)
 #endif
-       call end_log(radnet_end)
+      call end_log(radnet_end)
 
 
       ! HELD & SUAREZ ---------------------------------------------------------
@@ -1438,9 +1482,6 @@
        if (myid==0.and.nmaxpr==1) then
         write(6,*) "After surface fluxes"
        end if
-#ifdef loadbalall
-       call phys_loadbal
-#endif
        call end_log(sfluxnet_end)
        
        ! STATION OUTPUT ---------------------------------------------
@@ -1539,7 +1580,9 @@
         if(nmaxpr==1.and.mydiag)
      &    write (6,"('aft-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
 #ifdef loadbalall
+        call start_log(vertmix_loadbal_begin)
         call phys_loadbal
+        call end_log(vertmix_loadbal_end)
 #endif
         call end_log(vertmix_end)
       endif  ! (ntsur>=1)
@@ -1558,7 +1601,9 @@
          write(6,*) "After aerosols"
         end if
 #ifdef loadbalall
+        call start_log(aerosol_loadbal_begin)
         call phys_loadbal
+        call end_log(aerosol_loadbal_end)
 #endif
         call end_log(aerosol_end)
       end if
@@ -1592,7 +1637,7 @@
       ! DIAGNOSTICS AND OUTPUT
       ! ***********************************************************************
 
-      ! Update diagnostics for consistancy
+      ! Update diagnostics for consistancy in history file
       if (rescrn>0) then
         call autoscrn
       end if
@@ -1822,9 +1867,9 @@
         frs_ave(1:ifull)    = frs_ave(1:ifull)/min(ntau,nperavg)
         frp_ave(1:ifull)    = frp_ave(1:ifull)/min(ntau,nperavg)
       end if    ! (ktau==ntau.or.mod(ktau,nperavg)==0)
-      
+
+      call log_off()
       if(ktau==ntau.or.mod(ktau,nwt)==0)then
-        call log_off()
         call outfile(20,rundate,nmi,nwrite,iaero,nstagin)  ! which calls outcdf
  
         if(ktau==ntau.and.irest==1) then
@@ -1836,12 +1881,23 @@
      &      write(6,*)'finished writing restart file in outfile'
           call start_log(maincalc_begin)
         endif  ! (ktau==ntau.and.irest==1)
-        call log_on()
       endif    ! (ktau==ntau.or.mod(ktau,nwt)==0)
-      if(nstn>0.and.nrotstn(1)>0.and.mod(mtimer,60)==0)call stationb
+      
+      if(nstn>0.and.nrotstn(1)>0.and.mod(mtimer,60)==0) then
+        call stationb
+      end if
       
       ! buffer and write high frequency fields
-      if (surfile/=' ') call freqfile
+      if (surfile/=' ') then
+        call freqfile
+      end if
+      call log_on()
+ 
+#ifdef loadbalall
+      call start_log(outfile_loadbal_begin)
+      call phys_loadbal
+      call end_log(outfile_loadbal_end)
+#endif
 
       if(mod(ktau,nperavg)==0)then   
 !       produce some diags & reset most averages once every nperavg
@@ -1870,6 +1926,7 @@
          end if
         end if
 !       also zero most averaged fields every nperavg
+        if (myid==0) write(6,*) 'resetting tscr_ave for ktau = ',ktau
         cbas_ave(:)=0.
         ctop_ave(:)=0.
         dew_ave(:)=0.
@@ -1889,7 +1946,6 @@
         fbeam_ave(:)=0.
         psl_ave(:)=0.
         mixdep_ave(:)=0.
-        if (myid==0) write(6,*) 'resetting tscr_ave for ktau = ',ktau
         koundiag=0
         sint_ave(:) = 0.
         sot_ave(:)  = 0.
@@ -1961,6 +2017,13 @@
       ! Flush vampir trace information to disk to save memory.
       call vtflush(ierr)
 #endif
+
+#ifdef loadbalall
+      call start_log(globb_loadbal_begin)
+      call phys_loadbal
+      call end_log(globb_loadbal_end)
+#endif
+
 88    continue                   ! *** end of main time loop
 #ifdef simple_timer
       call end_log(maincalc_end)

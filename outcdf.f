@@ -105,9 +105,10 @@
         endif
         call ccnf_def_dim(idnc,'lev',kl,zdim)
         call ccnf_def_dim(idnc,'zsoil',ms,msdim)
-        ocdim=0
         if (abs(nmlo)>0..and.abs(nmlo)<=9) then
           call ccnf_def_dim(idnc,'olev',ol,ocdim)
+        else
+          ocdim=0
         end if
         call ccnf_def_dimu(idnc,'time',tdim)
         if (myid==0) then
@@ -2322,12 +2323,8 @@ c      "extra" outputs
       ti=mod(ktau,nwt)
       if (ti==0) ti=nwt
       umag=sqrt(u(1:ifull,1)*u(1:ifull,1)+v(1:ifull,1)*v(1:ifull,1))
-      uas=0.
-      vas=0.
-      where (umag>0.)
-        uas=u10*u(1:ifull,1)/umag
-        vas=u10*v(1:ifull,1)/umag
-      end where
+      uas=u10*u(1:ifull,1)/max(umag,1.E-6)
+      vas=u10*v(1:ifull,1)/max(umag,1.E-6)
       freqstore(:,ti,1)=uas
       freqstore(:,ti,2)=vas
       freqstore(:,ti,3)=tscrn
