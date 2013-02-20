@@ -222,7 +222,7 @@ do kcount=1,mcount
     temp(:,k)=theta(:,k)/sigkap(k)
     thetal(:,k)=theta(:,k)-sigkap(k)*(lv*(qlg(:,k)+qrg(:,k))+ls*qfg(:,k))/cp
     ! calculate saturated mixing ratio
-    call getqsat(ifull,qsat(:,k),temp(:,k),pres(:,k))
+    call getqsat(qsat(:,k),temp(:,k),pres(:,k))
   end do
 
   ! Calculate non-local mass-flux terms for theta_l and qtot
@@ -273,7 +273,7 @@ do kcount=1,mcount
           txup=tlup(1)                                                 ! theta,up after evaporation of ql,up and qf,up
           ttup(1)=txup/sigkap(1)                                       ! temp,up
           qxup=qtup(1)                                                 ! qv,up after evaporation of ql,up and qf,up
-          call getqsat(1,qupsat(1),ttup(1),pres(i,1))                  ! estimate of saturated mixing ratio in plume
+          call getqsat(qupsat(1:1),ttup(1:1),pres(i,1:1))                  ! estimate of saturated mixing ratio in plume
           tvup(1)=txup+theta(i,1)*0.61*qxup                            ! thetav,up after evaporation of ql,up and qf,up
           ! update updraft velocity and mass flux
           nn(1)=grav*be*wtv0(i)/(thetav(i,1)*sqrt(max(tke(i,1),1.E-4)))          ! Hurley 2007
@@ -319,7 +319,7 @@ do kcount=1,mcount
             mflx(k)=mflx(k-1)/(1.+dzht*(dtr-ee))
             ! check for lcl
             if (.not.sconv) then
-              call getqsat(1,qupsat(k),ttup(k),pres(i,k))                ! estimate of saturated mixing ratio in plume
+              call getqsat(qupsat(k:k),ttup(k:k),pres(i,k:k))                ! estimate of saturated mixing ratio in plume
               if (qxup>=qupsat(k)) then
                 ! estimate LCL when saturation occurs
                 as=ee*(qupsat(k)-qupsat(k-1))/dzht
@@ -372,7 +372,7 @@ do kcount=1,mcount
             templ=tlup(klcl)/sigkap(klcl)                                        ! templ,up
             ! estimate saturated air temperature
             tdum=templ
-            call getqsat(1,qupsat(klcl),tdum,pres(i,klcl))
+            call getqsat(qupsat(klcl:klcl),tdum(1:1),pres(i,klcl:klcl))
             qxup=qupsat(klcl)
             fice=min(max(273.16-templ,0.),40.)/40.
             lx=lv+lf*fice
@@ -417,7 +417,7 @@ do kcount=1,mcount
                 templ=tlup(k)/sigkap(k)                               ! templ,up
                 ! estimate saturated air temperature
                 tdum=templ
-                call getqsat(1,qupsat(k),tdum,pres(i,k))
+                call getqsat(qupsat(k:k),tdum(1:1),pres(i,k:k))
                 qxup=qupsat(k)
                 fice=min(max(273.16-templ,0.),40.)/40.
                 lx=lv+lf*fice
@@ -582,13 +582,13 @@ do kcount=1,mcount
   ! saturated conditions from Durran and Klemp JAS 1982 (see also WRF)
   do k=2,kl-1
     tqq=(1.+lv*qsatc(:,k)/(rd*temp(:,k)))/(1.+lv*lv*qsatc(:,k)/(cp*rv*temp(:,k)*temp(:,k)))
-    tbb=-grav*km(:,k)*(tqq*((thetahl(:,k)-thetahl(:,k-1))/theta(:,k)                          &
+    tbb=-grav*km(:,k)*(tqq*((thetahl(:,k)-thetahl(:,k-1))/theta(:,k)                              &
            +lv*(qshl(:,k)-qshl(:,k-1))/(cp*temp(:,k)))-qshl(:,k)-qlhl(:,k)-qfhl(:,k)-qrhl(:,k)    &
            +qshl(:,k-1)+qlhl(:,k-1)+qfhl(:,k-1)+qrhl(:,k-1))/dz_fl(:,k)
     tbb=tbb+grav*(tqq*(gamth(:,k)/theta(:,k)+lv*gamqv(:,k)/(cp*temp(:,k)))         &
            -gamqv(:,k)-gamql(:,k)-gamqf(:,k)-gamqr(:,k))
     ! unsaturated
-    tcc=-grav*km(:,k)*(thetavhl(:,k)-thetavhl(:,k))/(thetavnc(:,k)*dz_fl(:,k))
+    tcc=-grav*km(:,k)*(thetavhl(:,k)-thetavhl(:,k-1))/(thetavnc(:,k)*dz_fl(:,k))
     tcc=tcc+grav*gamtv(:,k)/thetav(:,k)
     ppb(:,k)=(1.-cfrac(:,k))*tcc+cfrac(:,k)*tbb ! cloud fraction weighted (e.g., Smith 1990)
 
@@ -788,16 +788,16 @@ end subroutine thomas
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Estimate saturation mixing ratio
 
-subroutine getqsat(ilen,qsat,temp,ps)
+subroutine getqsat(qsat,temp,ps)
 
 implicit none
 
-integer, intent(in) :: ilen
-real, dimension(ilen), intent(in) :: temp,ps
-real, dimension(ilen), intent(out) :: qsat
+real, dimension(:), intent(in) :: temp
+real, dimension(size(temp)), intent(in) :: ps
+real, dimension(size(temp)), intent(out) :: qsat
 real, dimension(0:220), save :: table
-real, dimension(ilen) :: esatf,tdiff,rx
-integer, dimension(ilen) :: ix
+real, dimension(size(temp)) :: esatf,tdiff,rx
+integer, dimension(size(temp)) :: ix
 logical, save :: first=.true.
 
 if (first) then

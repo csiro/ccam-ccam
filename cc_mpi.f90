@@ -19,13 +19,13 @@ module cc_mpi
    integer(kind=4), allocatable, dimension(:), save, private :: ireq
    integer, allocatable, dimension(:), save, private :: rlist
    
-   integer, allocatable, dimension(:), save, private :: neighlistrecv
-   integer, allocatable, dimension(:), save, private :: neighlistsend
-   integer, save, private :: neighnum
+   integer, allocatable, dimension(:), save, public :: neighlistrecv
+   integer, allocatable, dimension(:), save, public :: neighlistsend
+   integer, save, public :: neighnum
 
    public :: bounds, boundsuv, ccmpi_setup, ccmpi_distribute, ccmpi_gather, &
              ccmpi_distributer8, ccmpi_gatherall,                           &
-             indp, indg, deptsync, intssync, start_log,                     &
+             indp, indg, deptsync, intssync_send, intssync_recv, start_log, &
              end_log, log_on, log_off, log_setup, phys_loadbal,             &
              ccglobal_posneg, ccglobal_sum, iq2iqg, indv_mpi, indglobal,    &
              readglobvar, writeglobvar, face_set, uniform_set,              &
@@ -395,8 +395,8 @@ contains
 
       ! Also do the initialisation for deptsync here
       allocate ( dslen(0:nproc-1), drlen(0:nproc-1) )
-      dslen=0
-      drlen=0
+      dslen = 0
+      drlen = 0
 
       if ( myid == 0 ) then
          call ccmpi_distribute(wts,wts_g)
@@ -2828,6 +2828,8 @@ contains
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
 
       call start_log(bounds_begin)
+      
+      if (neighnum<1) return
 
 #ifdef i8r8
       ltype=MPI_DOUBLE_PRECISION
@@ -2964,18 +2966,19 @@ contains
       integer :: iq, iproc, kx, iq_b, iq_e, rproc, sproc, send_len, recv_len
       integer :: lmode, lcolour, rcount, myrlen
       integer, dimension(neighnum) :: rslen, sslen
-      integer(kind=4) :: ierr, itag = 0, llen, ltype, lproc, sreq
+      integer(kind=4) :: ierr, itag = 0, llen, lproc, sreq
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif  
 
       call start_log(bounds_begin)
+      
+      if (neighnum<1) return
 
-#ifdef i8r8
-      ltype=MPI_DOUBLE_PRECISION
-#else
-      ltype=MPI_REAL
-#endif   
-
-     kx = size(t,2)
+      kx = size(t,2)
       lmode = 0
       double = .false.
       extra = .false.
@@ -3108,22 +3111,23 @@ contains
       integer :: iq, iproc, kx, iqz, iq_b, iq_e, rproc, sproc, send_len, recv_len, iqq
       integer :: lmode, rcount, myrlen
       integer, dimension(neighnum) :: rslen, sslen
-      integer(kind=4) :: ierr, itag = 0, llen, ltype, lproc, sreq
+      integer(kind=4) :: ierr, itag = 0, llen, lproc, sreq
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif 
 
       call start_log(bounds_begin)
+      
+      if ( neighnum < 1 ) return
 
       kx = size(t,2)
       lmode = 0
       if ( present(klim) ) kx = klim
       if ( present(gmode)) lmode = gmode
       
-#ifdef i8r8
-      ltype=MPI_DOUBLE_PRECISION
-#else
-      ltype=MPI_REAL
-#endif   
-
       rslen = bnds(neighlistrecv)%rlen
       sslen = bnds(neighlistsend)%slen
       myrlen = bnds(myid)%rlen
@@ -3201,7 +3205,7 @@ contains
 
          rcount = rcount - 1
          call start_log(mpiwait_begin)
-         call MPI_Waitany(rreq,ireq,lproc,status,ierr)
+         call MPI_Waitany(rreq,ireq,lproc,status(:,1),ierr)
          call end_log(mpiwait_end)
 
          iproc = rlist(lproc)  ! Recv from
@@ -3247,9 +3251,11 @@ contains
       integer, dimension(neighnum) :: rslen, sslen
       integer(kind=4) :: ierr, itag = 0, llen, lproc, ltype, sreq
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
-      real :: tmp
+      real :: tmp, negmul
 
       call start_log(boundsuv_begin)
+      
+      if ( neighnum < 1 ) return
 
 #ifdef i8r8
       ltype=MPI_DOUBLE_PRECISION
@@ -3556,7 +3562,7 @@ contains
       
          rcount = rcount - 1
          call start_log(mpiwaituv_begin)
-         call MPI_Waitany(rreq,ireq,lproc,status,ierr)
+         call MPI_Waitany(rreq,ireq,lproc,status(:,1),ierr)
          call end_log(mpiwaituv_end)
 
          iproc = rlist(lproc)  ! Recv from
@@ -3662,17 +3668,21 @@ contains
       integer :: iq, iqz, iq_b, iq_e, iproc, kx, rproc, sproc, iqq, send_len, recv_len
       integer :: lmode, stagmode, rcount, myrlen
       integer, dimension(neighnum) :: rslen, sslen
-      integer(kind=4) :: ierr, itag = 0, llen, lproc, ltype, sreq
+      integer(kind=4) :: ierr, itag = 0, llen, lproc, sreq
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif   
       real, dimension(maxbuflen) :: tmp
+      real negmul
       
       call start_log(boundsuv_begin)
+      
+      if ( neighnum < 1 ) return
 
-#ifdef i8r8
-      ltype = MPI_DOUBLE_PRECISION
-#else
-      ltype = MPI_REAL
-#endif   
+
 
       kx = size(u,2)
       double = .false.
@@ -3858,13 +3868,17 @@ contains
                   iqz = iqq+iq-ssplit(sproc)%isvbg+1
                   iq_b = 1+(iqz-1)*kx
                   iq_e = iqz*kx
+                  if ( bnds(sproc)%send_neg(iq) ) then
+                     negmul = -1.
+                  else
+                     negmul = 1.
+                  end if
                   if ( (bnds(sproc)%send_list_uv(iq) > 0) .neqv. &
                         bnds(sproc)%send_swap(iq) ) then
-                     bnds(sproc)%sbuf(iq_b:iq_e) = u(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
+                     bnds(sproc)%sbuf(iq_b:iq_e) = negmul*u(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
                   else
-                     bnds(sproc)%sbuf(iq_b:iq_e) = v(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
+                     bnds(sproc)%sbuf(iq_b:iq_e) = negmul*v(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
                   end if 
-                  if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(iq_b:iq_e) = -bnds(sproc)%sbuf(iq_b:iq_e)
                end do
                iqq = iqq+ssplit(sproc)%iwufn-ssplit(sproc)%isvbg+1
             end if
@@ -3876,13 +3890,17 @@ contains
                   iqz = iqq+iq-ssplit(sproc)%invbg+1
                   iq_b = 1+(iqz-1)*kx
                   iq_e = iqz*kx
+                  if ( bnds(sproc)%send_neg(iq) ) then
+                     negmul = -1.
+                  else
+                     negmul = 1.
+                  end if
                   if ( (bnds(sproc)%send_list_uv(iq) > 0) .neqv. &
                         bnds(sproc)%send_swap(iq) ) then
-                     bnds(sproc)%sbuf(iq_b:iq_e) = u(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
+                     bnds(sproc)%sbuf(iq_b:iq_e) = negmul*u(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
                   else
-                     bnds(sproc)%sbuf(iq_b:iq_e) = v(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
+                     bnds(sproc)%sbuf(iq_b:iq_e) = negmul*v(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
                   end if 
-                  if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(iq_b:iq_e) = -bnds(sproc)%sbuf(iq_b:iq_e)
                end do
                iqq = iqq+ssplit(sproc)%ieufn-ssplit(sproc)%invbg+1
             end if
@@ -3894,13 +3912,17 @@ contains
                   iqz = iqq+iq-ssplit(sproc)%issvbg+1
                   iq_b = 1+(iqz-1)*kx
                   iq_e = iqz*kx
+                  if ( bnds(sproc)%send_neg(iq) ) then
+                     negmul = -1.
+                  else
+                     negmul = 1.
+                  end if
                   if ( (bnds(sproc)%send_list_uv(iq) > 0) .neqv. &
                         bnds(sproc)%send_swap(iq) ) then
-                     bnds(sproc)%sbuf(iq_b:iq_e) = u(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
+                     bnds(sproc)%sbuf(iq_b:iq_e) = negmul*u(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
                   else
-                     bnds(sproc)%sbuf(iq_b:iq_e) = v(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
+                     bnds(sproc)%sbuf(iq_b:iq_e) = negmul*v(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
                   end if 
-                  if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(iq_b:iq_e) = -bnds(sproc)%sbuf(iq_b:iq_e)
                end do
                iqq = iqq+ssplit(sproc)%iwwufn-ssplit(sproc)%issvbg+1
             end if
@@ -3912,13 +3934,17 @@ contains
                   iqz = iqq+iq-ssplit(sproc)%innvbg+1
                   iq_b = 1+(iqz-1)*kx
                   iq_e = iqz*kx
+                  if ( bnds(sproc)%send_neg(iq) ) then
+                     negmul = -1.
+                  else
+                     negmul = 1.
+                  end if
                   if ( (bnds(sproc)%send_list_uv(iq) > 0) .neqv. &
                         bnds(sproc)%send_swap(iq) ) then
-                     bnds(sproc)%sbuf(iq_b:iq_e) = u(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
+                     bnds(sproc)%sbuf(iq_b:iq_e) = negmul*u(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
                   else
-                     bnds(sproc)%sbuf(iq_b:iq_e) = v(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
+                     bnds(sproc)%sbuf(iq_b:iq_e) = negmul*v(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
                   end if 
-                  if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(iq_b:iq_e) = -bnds(sproc)%sbuf(iq_b:iq_e)
                end do
                iqq = iqq+ssplit(sproc)%ieeufn-ssplit(sproc)%innvbg+1
             end if
@@ -3930,13 +3956,17 @@ contains
                   iqz = iqq+iq-ssplit(sproc)%isubg+1
                   iq_b = 1+(iqz-1)*kx
                   iq_e = iqz*kx
+                  if ( bnds(sproc)%send_neg(iq) ) then
+                     negmul = -1.
+                  else
+                     negmul = 1.
+                  end if
                   if ( (bnds(sproc)%send_list_uv(iq) > 0) .neqv. &
                         bnds(sproc)%send_swap(iq) ) then
-                     bnds(sproc)%sbuf(iq_b:iq_e) = u(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
+                     bnds(sproc)%sbuf(iq_b:iq_e) = negmul*u(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
                   else
-                     bnds(sproc)%sbuf(iq_b:iq_e) = v(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
+                     bnds(sproc)%sbuf(iq_b:iq_e) = negmul*v(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
                   end if 
-                  if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(iq_b:iq_e) = -bnds(sproc)%sbuf(iq_b:iq_e)
                end do
                iqq = iqq+ssplit(sproc)%iwvfn-ssplit(sproc)%isubg+1
             end if
@@ -3948,13 +3978,17 @@ contains
                   iqz = iqq+iq-ssplit(sproc)%inubg+1
                   iq_b = 1+(iqz-1)*kx
                   iq_e = iqz*kx
+                  if ( bnds(sproc)%send_neg(iq) ) then
+                     negmul = -1.
+                  else
+                     negmul = 1.
+                  end if
                   if ( (bnds(sproc)%send_list_uv(iq) > 0) .neqv. &
                         bnds(sproc)%send_swap(iq) ) then
-                     bnds(sproc)%sbuf(iq_b:iq_e) = u(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
+                     bnds(sproc)%sbuf(iq_b:iq_e) = negmul*u(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
                   else
-                     bnds(sproc)%sbuf(iq_b:iq_e) = v(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
+                     bnds(sproc)%sbuf(iq_b:iq_e) = negmul*v(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
                   end if 
-                  if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(iq_b:iq_e) = -bnds(sproc)%sbuf(iq_b:iq_e)
                end do
                iqq = iqq+ssplit(sproc)%ievfn-ssplit(sproc)%inubg+1
             end if
@@ -3975,13 +4009,17 @@ contains
          ! request_list is same as send_list in this case
          iq_b = 1+(iq-1)*kx
          iq_e = iq*kx
+         if ( bnds(myid)%uv_neg(iq) ) then
+            negmul = -1.
+         else
+            negmul = 1.
+         end if
          if ( (bnds(myid)%request_list_uv(iq) > 0) .neqv. &
                   bnds(myid)%uv_swap(iq) ) then  ! haven't copied to send_swap yet
-            tmp(iq_b:iq_e) = u(abs(bnds(myid)%request_list_uv(iq)),1:kx)
+            tmp(iq_b:iq_e) = negmul*u(abs(bnds(myid)%request_list_uv(iq)),1:kx)
          else
-            tmp(iq_b:iq_e) = v(abs(bnds(myid)%request_list_uv(iq)),1:kx)
+            tmp(iq_b:iq_e) = negmul*v(abs(bnds(myid)%request_list_uv(iq)),1:kx)
          end if
-         if ( bnds(myid)%uv_neg(iq) ) tmp(iq_b:iq_e) = -tmp(iq_b:iq_e)
 
          ! unpack_list(iq) is index into extended region
          if ( bnds(myid)%unpack_list_uv(iq) > 0 ) then
@@ -4119,26 +4157,25 @@ contains
       integer :: ip, jp, xn, kx
       integer :: iq, k, idel, jdel, nf, gf
       integer :: lmode, rcount
-      integer(kind=4) :: itag = 99, ierr, llen, lproc, ltype, ncount, mone, sreq
+      integer(kind=4) :: itag = 99, ierr, llen, lproc, ncount, mone, sreq
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif   
       integer, dimension(0:nproc-1) :: msglen
       logical :: lerr
 
-      ! This does nothing in the one processor case
-      if ( nproc == 1 ) return
-
       call start_log(deptsync_begin)
 
-      kx=size(nface,2)
-      lmode=0
-      if (present(gmode)) lmode=gmode
+      ! This does nothing in the one processor case
+      if ( neighnum < 1 ) return
       
-#ifdef i8r8
-      ltype=MPI_DOUBLE_PRECISION
-#else
-      ltype=MPI_REAL
-#endif   
-
+      kx = size(nface,2)
+      lmode = 0
+      if (present(gmode)) lmode = gmode
+      
       lerr = .false.
       dslen = 0
       drlen = 0
@@ -4186,6 +4223,8 @@ contains
                iq = dindex(iproc)%a(1,1)
                k = dindex(iproc)%a(2,1)
                write(6,*) "Example error iq,k,u,v ",iq,k,u(iq,k),v(iq,k)
+               write(6,*) "dbuf ",dbuf(iproc)%a(:,1)
+               write(6,*) "neighlistrecv ",neighlistrecv
                call checksize(dslen(iproc),msglen(iproc),"Deptssync")
             end if
          end do
@@ -4209,7 +4248,7 @@ contains
             nreq = nreq + 1
             rlist(nreq) = iproc
             ! Use the maximum size in the recv call.
-            llen = 4*bnds(rproc)%len
+            llen = 4*msglen(rproc)
             lproc = rproc
             call MPI_IRecv( dpoints(rproc)%a, llen, ltype, lproc, &
                          itag, MPI_COMM_WORLD, ireq(nreq), ierr )
@@ -4236,7 +4275,7 @@ contains
       
          rcount = rcount - 1
          call start_log(mpiwaitdep_begin)
-         call MPI_Waitany(rreq, ireq, lproc, status, ierr)
+         call MPI_Waitany(rreq, ireq, lproc, status(:,1), ierr)
          call end_log(mpiwaitdep_end)
 
 !        Now get the actual sizes from the status
@@ -4251,20 +4290,19 @@ contains
 
    end subroutine deptsync
 
-   subroutine intssync(s)
-      real, dimension(:,:), intent(inout) :: s
-      integer :: iproc, iq, rproc, sproc
-      integer :: rcount
-      integer(kind=4) :: itag = 0, ierr, llen, lproc, ltype, sreq
+   subroutine intssync_send
+      integer :: iproc, rproc, sproc
+      integer(kind=4) :: itag = 0, ierr, llen, lproc, sreq
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
 
       call start_log(intssync_begin)
-
-#ifdef i8r8
-      ltype=MPI_DOUBLE_PRECISION
-#else
-      ltype=MPI_REAL
-#endif   
+      
+      if ( neighnum < 1 ) return
 
       ! Clear any current messages
       sreq = nreq - rreq
@@ -4297,6 +4335,19 @@ contains
          end if
       end do
       
+      call end_log(intssync_end)
+
+   end subroutine intssync_send
+
+   subroutine intssync_recv(s)
+      real, dimension(:,:), intent(inout) :: s
+      integer :: iproc, iq, rproc
+      integer :: rcount
+      integer(kind=4) :: itag = 0, ierr, lproc
+      integer(kind=4), dimension(MPI_STATUS_SIZE) :: status
+
+      call start_log(intssync_begin)
+      
       ! Unpack incomming messages
       rcount = rreq
       do while ( rcount > 0 )
@@ -4316,7 +4367,7 @@ contains
 
       call end_log(intssync_end)
 
-   end subroutine intssync
+   end subroutine intssync_recv
 
    subroutine indv_mpi(iq, i, j, n)
       integer , intent(in) :: iq
@@ -6824,28 +6875,27 @@ contains
       integer :: iproc, iq_b, iq_e, rproc, sproc, recv_len, send_len
       integer :: lmode, rcount, myrlen
       integer, dimension(mg(g)%neighnum) :: rslen, sslen
-      integer(kind=4) :: ierr, itag=0, llen, lproc, ltype, sreq
+      integer(kind=4) :: ierr, itag=0, llen, lproc, sreq
       integer(kind=4), dimension(MPI_STATUS_SIZE,size(ireq)) :: status
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
       real, dimension(:,:), intent(inout) :: vdat
       logical, intent(in), optional :: corner
       logical extra
 
       call start_log(mgbounds_begin)
       
-      if (mg(g)%neighnum <= 0) return
+      if ( mg(g)%neighnum < 1) return
 
-      extra = .false.
-      if (present(corner)) extra = corner
       kx = size(vdat,2)
-      if (present(klim)) kx = klim
+      extra = .false.
       lmode = 0
-      if (present(gmode)) lmode = gmode
-
-#ifdef i8r8
-      ltype=MPI_DOUBLE_PRECISION
-#else
-      ltype=MPI_REAL
-#endif
+      if (present(klim)  ) kx = klim
+      if (present(corner)) extra = corner
+      if (present(gmode) ) lmode = gmode
 
       if ( extra ) then
          rslen  = mg_bnds(mg(g)%neighlistrecv,g)%rlenx
@@ -6914,7 +6964,7 @@ contains
       
          rcount = rcount - 1
          call start_log(mpiwaitmg_begin)
-         call MPI_Waitany(rreq,ireq,lproc,status,ierr)
+         call MPI_Waitany(rreq,ireq,lproc,status(:,1),ierr)
          call end_log(mpiwaitmg_end)
 
          iproc = rlist(lproc)  ! Recv from
@@ -6988,16 +7038,15 @@ contains
       integer i, k, iq_a, iq_b, iq_c, iq_d
       integer nrow, ncol, ilen_a, ilen_b
       integer xproc, ir, ic, is, ie, js, je, jj
-      integer(kind=4) :: ierr, ltype, ilen, lcomm
+      integer(kind=4) :: ierr, ilen, lcomm
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
       real, dimension(:,:), intent(inout) :: vdat
       real, dimension(lmsg*nmax) :: tdat
       real, dimension(lmsg*nmax) :: tdat_g
-
-#ifdef i8r8
-      ltype = MPI_DOUBLE_PRECISION
-#else
-      ltype = MPI_REAL
-#endif
 
       ! prep data for sending around the merge
       nrow = mg(g)%ipan/mg(g)%merge_row  ! number of points along a row per processor
@@ -7066,20 +7115,19 @@ contains
       integer is, js, je, jj
       integer :: rproc, sproc, msreq, mrreq
       integer :: rcount
-      integer(kind=4) :: ierr, itag=0, ltype, ilen, lcomm, lproc, sreq
+      integer(kind=4) :: ierr, itag=0, ilen, lcomm, lproc, sreq
       integer(kind=4), dimension(MPI_STATUS_SIZE,nproc) :: status
+#ifdef i8r8
+      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4) :: ltype = MPI_REAL
+#endif
       integer, dimension(-npan:npan*(nmax-1)) :: rarry, sarry, roff, soff
       integer, dimension(0:nproc-1) :: rrlist, sslist, pr, ps
       integer, dimension(nproc) :: rp, sp
       real, dimension(:,:), intent(inout) :: vdat
       real, dimension(lmsg*npan,0:(nmax-1)*npan) :: rrtn
       real, dimension(lmsg*npan,(nmax-1)*npan) :: sdep
-
-#ifdef i8r8
-      ltype = MPI_DOUBLE_PRECISION
-#else
-      ltype = MPI_REAL
-#endif
 
       ! prep data for sending around the merge
       nrow = mg(g)%ipan/mg(g)%merge_row  ! number of points along a row per processor

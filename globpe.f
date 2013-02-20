@@ -185,6 +185,8 @@
       data comment/' '/,comm/' '/,irest/1/,jalbfix/1/,nalpha/1/
       data mexrest/6/,mins_rad/60/,nwrite/0/,nsnowout/999999/
 
+      print *,"hi"
+ 
 #ifndef stacklimit
       ! For linux only
       call setstacklimit(-1)
@@ -1155,7 +1157,7 @@
       ! set diagnostic printout flag
       diag=(ktau>=abs(ndi).and.ktau<=ndi2)
       if(ndi<0)then
-        if(ktau==ktau/ndi*ndi)diag=.true.
+        if(ktau==(ktau/ndi)*ndi)diag=.true.
       endif
 
       ! save tracer arrays
@@ -1247,7 +1249,9 @@
 
       ! DIFFUSION -------------------------------------------------------------
       call start_log(hordifg_begin)
-      if (nhor<0) call hordifgt(iaero)  ! now not tendencies
+      if (nhor<0) then
+        call hordifgt(iaero)  ! now not tendencies
+      end if
       if (diag.and.mydiag) write(6,*) 'after hordifgt t ',t(idjd,:)
 #ifdef loadbalall
       call start_log(hordifg_loadbal_begin)

@@ -44,10 +44,10 @@ c     has jlm nhorx option as last digit of nhor, e.g. -157
       real, dimension(ifull+iextra,kl) :: dudx,dudy,dvdx,dvdy
       real, dimension(ifull) :: ptemp, tx_fact, ty_fact
       real, dimension(ifull) :: sx_fact,sy_fact
-      real, dimension(ifull) :: r1,r2
+      real, dimension(ifull) :: r1,r2,tdum
       real, dimension(ifull+iextra,kl) :: ww,uav,vav
       real, dimension(ifull,0:kl-1) :: zgh
-      real, dimension(ifull,kl) :: zg
+      real, dimension(ifull,kl) :: zg,base
       real, dimension(ifull,kl) :: dudz,dvdz
       real, dimension(ifull,kl) :: dwdx,dwdy,dwdz
       integer, parameter :: nf=2
@@ -86,26 +86,26 @@ c     set up topography reduction factors for each type of location
 c     expect power nf to be about 1 or 2 (see data statement)
 
       delphi=1.e6  ! turns off reduction (can also use nhorx=4)
-      if(abs(nhor)>=50)then
-         nhora=10*(abs(nhor)/10)    ! e.g. 150  for nhor=-157
-         nhorx=abs(nhor)-nhora      ! e.g.   7  for nhor=-157
-         delphi=nhora*grav
+      if (abs(nhor)>=50) then
+        nhora=10*(abs(nhor)/10)    ! e.g. 150  for nhor=-157
+        nhorx=abs(nhor)-nhora      ! e.g.   7  for nhor=-157
+        delphi=nhora*grav
       endif
 
       do iq=1,ifull
-       ptemp(iq)=ps(iq)**.286
-       tx_fact(iq)=1./(1.+(abs(zs(ie(iq))-zs(iq))/delphi)**nf)
-       ty_fact(iq)=1./(1.+(abs(zs(in(iq))-zs(iq))/delphi)**nf)
-       sx_fact(iq)=1./(1.+(0.5*abs(zs(ie(iq))-zs(iw(iq)))/delphi)**nf)
-       sy_fact(iq)=1./(1.+(0.5*abs(zs(in(iq))-zs(is(iq)))/delphi)**nf)
+        ptemp(iq)=ps(iq)**.286
+        tx_fact(iq)=1./(1.+(abs(zs(ie(iq))-zs(iq))/delphi)**nf)
+        ty_fact(iq)=1./(1.+(abs(zs(in(iq))-zs(iq))/delphi)**nf)
+        sx_fact(iq)=1./(1.+(0.5*abs(zs(ie(iq))-zs(iw(iq)))/delphi)**nf)
+        sy_fact(iq)=1./(1.+(0.5*abs(zs(in(iq))-zs(is(iq)))/delphi)**nf)
       enddo   !  iq loop
 c     above code independent of k
 
       if(diag.and.mydiag)then
-         print *,'hordifgt u ',(u(idjd,k),k=1,kl)
-         print *,'hordifgt v ',(v(idjd,k),k=1,kl)
-         print *,'ax,ay,az ',ax(idjd),ay(idjd),az(idjd)
-         print *,'bx,by,bz ',bx(idjd),by(idjd),bz(idjd)
+        write(6,*) 'hordifgt u ',(u(idjd,k),k=1,kl)
+        write(6,*) 'hordifgt v ',(v(idjd,k),k=1,kl)
+        write(6,*) 'ax,ay,az ',ax(idjd),ay(idjd),az(idjd)
+        write(6,*) 'bx,by,bz ',bx(idjd),by(idjd),bz(idjd)
       endif
 
       !--------------------------------------------------------------
@@ -290,16 +290,16 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
       ! This can be combined with the diffusion coefficents above
       ! so as to operate over a large range of grid length scales
       if (nvmix==6) then
-        tke(1:ifull,:)=max(tke(1:ifull,:),mintke)
-        eps(1:ifull,:)=min(eps(1:ifull,:),
-     &                 (cm0**0.75)*tke(1:ifull,:)
-     &                 *sqrt(tke(1:ifull,:))/minl)
-        eps(1:ifull,:)=max(eps(1:ifull,:),
-     &                 (cm0**0.75)*tke(1:ifull,:)
-     &                 *sqrt(tke(1:ifull,:))/maxl)
-        eps(1:ifull,:)=max(eps(1:ifull,:),mineps)
         hdif=dt*cm0/(ds*ds)
         do k=1,kl
+          tke(1:ifull,k)=max(tke(1:ifull,k),mintke)
+          tdum=(cm0**0.75)*tke(1:ifull,k)
+     &                 *sqrt(tke(1:ifull,k))
+          eps(1:ifull,k)=min(eps(1:ifull,k),
+     &                 tdum/minl)
+          eps(1:ifull,k)=max(eps(1:ifull,k),
+     &                 tdum/maxl)
+          eps(1:ifull,k)=max(eps(1:ifull,k),mineps)
           t_kh(1:ifull,k)=tke(1:ifull,k)*tke(1:ifull,k)
      &    /eps(1:ifull,k)*hdif
         end do
@@ -364,6 +364,12 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
       call boundsuv(xfact,yfact,stag=-9) ! MJT - can use stag=-9 option which will
                                          ! only update iwu and isv values
 
+      do k=1,kl
+        base(:,k)=1./(em(1:ifull)*em(1:ifull)) +
+     &     xfact(1:ifull,k) + xfact(iwu,k) +
+     &     yfact(1:ifull,k) + yfact(isv,k)
+      end do
+
       if(nhorps==0.or.nhorps==-2)then ! for nhorps=-1,-3 don't diffuse u,v
          do k=1,kl
             do iq=1,ifull
@@ -373,22 +379,19 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
      &                 xfact(iwu(iq),k)*uc(iw(iq),k) +
      &                 yfact(iq,k)*uc(in(iq),k) +
      &                 yfact(isv(iq),k)*uc(is(iq),k) ) /
-     &              ( emi + xfact(iq,k) + xfact(iwu(iq),k) +
-     &                yfact(iq,k)+yfact(isv(iq),k) )
+     &              base(iq,k)
                vcc = ( vc(iq,k)*emi +
      &                 xfact(iq,k)*vc(ie(iq),k) +
      &                 xfact(iwu(iq),k)*vc(iw(iq),k) +
      &                 yfact(iq,k)*vc(in(iq),k) +
      &                 yfact(isv(iq),k)*vc(is(iq),k) ) /
-     &               ( emi + xfact(iq,k) + xfact(iwu(iq),k) +
-     &                 yfact(iq,k)+yfact(isv(iq),k) )
+     &               base(iq,k)
                wcc = ( wc(iq,k)*emi +
      &                 xfact(iq,k)*wc(ie(iq),k) +
      &                 xfact(iwu(iq),k)*wc(iw(iq),k) +
      &                 yfact(iq,k)*wc(in(iq),k) +
      &                 yfact(isv(iq),k)*wc(is(iq),k) ) /
-     &               ( emi + xfact(iq,k) + xfact(iwu(iq),k) +
-     &                 yfact(iq,k) + yfact(isv(iq),k) )
+     &               base(iq,k)
                u(iq,k) = ax(iq)*ucc + ay(iq)*vcc + az(iq)*wcc
                v(iq,k) = bx(iq)*ucc + by(iq)*vcc + bz(iq)*wcc
             enddo   !  iq loop
@@ -420,9 +423,7 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
      &                     xfact(iwu,k)*ee(iw,k) +
      &                     yfact(1:ifull,k)*ee(in,k) +
      &                     yfact(isv,k)*ee(is,k) ) /
-     &                   ( 1./(em(1:ifull)**2) +
-     &                     xfact(1:ifull,k) + xfact(iwu,k) +
-     &                     yfact(1:ifull,k) + yfact(isv,k))
+     &                   base(1:ifull,k)
          end do
          ee(1:ifull,:)=eps(1:ifull,:)
          call bounds(ee)
@@ -432,23 +433,19 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
      &                     xfact(iwu,k)*ee(iw,k) +
      &                     yfact(1:ifull,k)*ee(in,k) +
      &                     yfact(isv,k)*ee(is,k) ) /
-     &                   ( 1./(em(1:ifull)**2) +
-     &                     xfact(1:ifull,k) + xfact(iwu,k) +
-     &                     yfact(1:ifull,k) + yfact(isv,k))
+     &                   base(1:ifull,k)
          end do
       end if
        
       if(nhorps/=-2)then   ! for nhorps=-2 don't diffuse T, qg
 c       do t diffusion based on potential temperature ff
-        do k=1,kl
-          do iq=1,ifull
-            ee(iq,k)=qg(iq,k)
-            ff(iq,k)=t(iq,k)/ptemp(iq) ! watch out for Chen!
-          enddo              !  iq loop
-        end do
-        call bounds(ee)
-        call bounds(ff)
-        if(nhorps.ne.-3)then  ! for nhorps=-3 don't diffuse T; only qg
+        if(nhorps/=-3)then  ! for nhorps=-3 don't diffuse T; only qg
+          do k=1,kl
+            do iq=1,ifull
+              ff(iq,k)=t(iq,k)/ptemp(iq) ! watch out for Chen!
+            enddo              !  iq loop
+          end do
+          call bounds(ff)
           do k=1,kl
             do iq=1,ifull
               emi=1./em(iq)**2
@@ -458,11 +455,16 @@ c       do t diffusion based on potential temperature ff
      &                  xfact(iwu(iq),k)*ff(iw(iq),k) +
      &                  yfact(iq,k)*ff(in(iq),k) +
      &                  yfact(isv(iq),k)*ff(is(iq),k) ) /
-     &                ( emi + xfact(iq,k) + xfact(iwu(iq),k) +
-     &                  yfact(iq,k) + yfact(isv(iq),k) )
+     &                base(iq,k)
             enddo           !  iq loop
           end do
         endif                 ! (nhorps.ne.-3)
+        do k=1,kl
+          do iq=1,ifull
+            ee(iq,k)=qg(iq,k)
+          enddo              !  iq loop
+        end do
+        call bounds(ee)
         do k=1,kl
           do iq=1,ifull
             emi=1./em(iq)**2
@@ -471,8 +473,7 @@ c       do t diffusion based on potential temperature ff
      &                   xfact(iwu(iq),k)*ee(iw(iq),k) +
      &                   yfact(iq,k)*ee(in(iq),k) +
      &                   yfact(isv(iq),k)*ee(is(iq),k) ) /
-     &                 ( emi + xfact(iq,k) + xfact(iwu(iq),k) +
-     &                   yfact(iq,k)+yfact(isv(iq),k))
+     &                 base(iq,k)
            end do              !  iq loop
         end do
         ! non-hydrostatic
@@ -485,17 +486,19 @@ c       do t diffusion based on potential temperature ff
             ! representing non-hydrostatic term as a correction to air temperature
             ee(1:ifull,k)=(phi_nh(:,k)-phi_nh(:,k-1)
      &              -betm(k)*ee(1:ifull,k-1))/bet(k)
+          end do
+          do k=1,kl
+            ee(1:ifull,k)=ee(1:ifull,k)/ptemp(1:ifull)
           end do        
           call bounds(ee)
           do k=1,kl
-            ff(1:ifull,k) = ( ee(1:ifull,k)/em(1:ifull)**2 +
+            ff(1:ifull,k) = ptemp(1:ifull) * 
+     &      ( ee(1:ifull,k)/em(1:ifull)**2 +
      &        xfact(1:ifull,k)*ee(ie,k) +
      &        xfact(iwu,k)*ee(iw,k) +
      &        yfact(1:ifull,k)*ee(in,k) +
      &        yfact(isv,k)*ee(is,k) ) /
-     &        ( 1./em(1:ifull)**2 +
-     &          xfact(1:ifull,k) + xfact(iwu,k) +
-     &          yfact(1:ifull,k) + yfact(isv,k) )
+     &        base(1:ifull,k)
           end do
           phi_nh(:,1)=bet(1)*ff(1:ifull,1)
           do k=2,kl
@@ -513,9 +516,7 @@ c       do t diffusion based on potential temperature ff
      &        xfact(iwu,k)*ee(iw,k) +
      &        yfact(1:ifull,k)*ee(in,k) +
      &        yfact(isv,k)*ee(is,k) ) /
-     &        ( 1./em(1:ifull)**2 +
-     &          xfact(1:ifull,k) + xfact(iwu,k) +
-     &          yfact(1:ifull,k) + yfact(isv,k) )
+     &        base(1:ifull,k)
           end do
           ee(1:ifull,:)=qfg(1:ifull,:)
           call bounds(ee)
@@ -525,9 +526,7 @@ c       do t diffusion based on potential temperature ff
      &        xfact(iwu,k)*ee(iw,k) +
      &        yfact(1:ifull,k)*ee(in,k) +
      &        yfact(isv,k)*ee(is,k) ) /
-     &        ( 1./em(1:ifull)**2 +
-     &          xfact(1:ifull,k) + xfact(iwu,k) +
-     &          yfact(1:ifull,k) + yfact(isv,k) )
+     &        base(1:ifull,k)
           end do
           ee(1:ifull,:)=qrg(1:ifull,:)
           call bounds(ee)
@@ -537,9 +536,7 @@ c       do t diffusion based on potential temperature ff
      &        xfact(iwu,k)*ee(iw,k) +
      &        yfact(1:ifull,k)*ee(in,k) +
      &        yfact(isv,k)*ee(is,k) ) /
-     &        ( 1./em(1:ifull)**2 +
-     &          xfact(1:ifull,k) + xfact(iwu,k) +
-     &          yfact(1:ifull,k) + yfact(isv,k) )
+     &        base(1:ifull,k)
           end do
 !          ee(1:ifull,:)=cfrac(1:ifull,:)
 !          call bounds(ee)
@@ -549,9 +546,7 @@ c       do t diffusion based on potential temperature ff
 !     &        xfact(iwu,k)*ee(iw,k) +
 !     &        yfact(1:ifull,k)*ee(in,k) +
 !     &        yfact(isv,k)*ee(is,k) ) /
-!     &        ( 1./em(1:ifull)**2 +
-!     &          xfact(1:ifull,k) + xfact(iwu,k) +
-!     &          yfact(1:ifull,k) + yfact(isv,k) )
+!     &        base(1:ifull,k)
 !          end do
           ee(1:ifull,:)=cffall(1:ifull,:)
           call bounds(ee)
@@ -561,9 +556,7 @@ c       do t diffusion based on potential temperature ff
      &        xfact(iwu,k)*ee(iw,k) +
      &        yfact(1:ifull,k)*ee(in,k) +
      &        yfact(isv,k)*ee(is,k) ) /
-     &        ( 1./em(1:ifull)**2 +
-     &          xfact(1:ifull,k) + xfact(iwu,k) +
-     &          yfact(1:ifull,k) + yfact(isv,k) )
+     &        base(1:ifull,k)
           end do
         end if                 ! (ldr.ne.0)
       endif                    ! (nhorps.ne.-2)
@@ -579,9 +572,7 @@ c       do t diffusion based on potential temperature ff
      &        xfact(iwu,k)*ee(iw,k) +
      &        yfact(1:ifull,k)*ee(in,k) +
      &        yfact(isv,k)*ee(is,k) ) /
-     &        ( 1./em(1:ifull)**2 +
-     &          xfact(1:ifull,k) + xfact(iwu,k) +
-     &          yfact(1:ifull,k) + yfact(isv,k) )
+     &        base(1:ifull,k)
           end do
         end do
       end if
