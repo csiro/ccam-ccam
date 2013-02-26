@@ -1192,7 +1192,7 @@ c***        but needed here for onthefly (different dims) 28/8/08
             end select
           end do
           if (iotest) then
-            call histrd1(ncid,iarchi,ier,'sto',ik,6*ik,micdwn(:,k),
+            call histrd1(ncid,iarchi,ier,'sto',ik,6*ik,micdwn(:,8),
      &                 ifull)
           else
             call histrd1(ncid,iarchi,ier,'sto',ik,6*ik,ucc,
@@ -1203,7 +1203,7 @@ c***        but needed here for onthefly (different dims) 28/8/08
               end where
               call fill_cc(ucc,spval,ik,0)
             end if
-            call doints4(ucc,micdwn(:,k),nface4,xg4,yg4,nord,dk,
+            call doints4(ucc,micdwn(:,8),nface4,xg4,yg4,nord,dk,
      &               ifg)
           end if
           if (iotest) then

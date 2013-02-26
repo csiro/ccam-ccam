@@ -1329,17 +1329,20 @@ if (mp>0) then
     veg%hc=17.
   end where
 
+  ! calculate max tile number
+  do n=1,5
+    if (pind(n,1)<=mp) then
+      maxnb=n
+    end if
+  end do
 
   ! Calculate LAI and veg fraction diagnostics
   call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
   call setlai(sigmf,jyear,jmonth,jday,jhour,jmin)
   vlai=0.
-  do n=1,5
-    if (pind(n,1)<=mp) then
-      maxnb=n
-      vlai(cmap(pind(n,1):pind(n,2)))=vlai(cmap(pind(n,1):pind(n,2))) &
-                                      +sv(pind(n,1):pind(n,2))*veg%vlai(pind(n,1):pind(n,2))
-    end if
+  do n=1,maxnb
+    vlai(cmap(pind(n,1):pind(n,2)))=vlai(cmap(pind(n,1):pind(n,2))) &
+                                    +sv(pind(n,1):pind(n,2))*veg%vlai(pind(n,1):pind(n,2))
   end do
 
   ! Load CABLE soil data

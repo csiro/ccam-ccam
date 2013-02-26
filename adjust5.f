@@ -130,6 +130,7 @@
           dd(iq,k)=vx(iq,k)/emv(iq)*alfv(iq)  ! Eq. 137
         enddo
       enddo
+      
 #ifdef loadbalall
       call start_log(adjusta_loadbal_begin)
       call phys_loadbal
@@ -276,6 +277,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
             enddo               ! iq loop
          enddo                  !  l loop
       end do
+
 #ifdef loadbalall
       call start_log(adjuste_loadbal_begin)
       call phys_loadbal
@@ -407,7 +409,6 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
       call end_log(adjustj_loadbal_end)
 #endif
 
-
 !     vert. integ. div into e
       wrk2(:,kl)=-dsig(kl)*d(:,kl)
       wrk3(:,kl)=sig(kl)*d(:,kl)
@@ -507,6 +508,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
           dum=dum+(bet(k)+betm(k))*280.
           phi(:,k)=phi(:,k)+dum
         end do
+        
         if(nmaxpr==1.and.mydiag)then
           write(6,*) 'phi_adj ',(phi(idjd,k),k=1,kl)
         endif

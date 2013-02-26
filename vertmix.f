@@ -826,6 +826,7 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
        dumqf=qfg(1:ifull,:)
        dumqr=qrg(1:ifull,:)
        dumcr=cffall(1:ifull,:)
+       tnaero=0
        if (nh/=0) then
          tnaero=1
          dumar(:,:,1)=tnhs(:,:)

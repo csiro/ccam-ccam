@@ -17,7 +17,7 @@ implicit none
 
 private
 public mlodiffusion,mlorouter,mlohadv,mlodyninit,watbdy,salbdy,ipice
-public oldu1,oldv1,oldu2,oldv2,gosig,gosigh,godsig,ocnsmag,ocneps,fixsal
+public oldu1,oldv1,oldu2,oldv2,gosig,gosigh,godsig,ocnsmag,ocneps,fixsal,fixheight
 public nstagoffmlo,mstagf
 
 real, dimension(:), allocatable, save :: watbdy,salbdy
@@ -27,15 +27,16 @@ real, dimension(:,:), allocatable, save :: oldu1,oldu2,oldv1,oldv2
 real, dimension(:,:), allocatable, save :: stwgt
 integer, save :: comm_mlo
 integer, save :: nstagoffmlo
-integer, parameter :: salfilt=0     ! additional salinity filter (0=off, 1=Katzfey)
-integer, parameter :: usetide=1     ! tidal forcing (0=off, 1=on)
-integer, parameter :: icemode=2     ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
-integer, parameter :: basinmd=2     ! basin mode (0=soil, 1=redistribute, 2=pile-up, 3=leak)
-integer, parameter :: mstagf =0     ! alternating staggering (0=off left, -1=off right, >0 alternating)
-integer, parameter :: koff   =1     ! time split stagger relative to A-grid (koff=0) or C-grid (koff=1)
-integer, parameter :: nf     =2     ! power for horizontal diffusion reduction factor
-integer, parameter :: itnmax =3     ! number of interations for staggering
-integer, save      :: fixsal =1     ! Conserve salinity (0=Usual, 1=Fixed Sal)
+integer, parameter :: salfilt  =0   ! additional salinity filter (0=off, 1=Katzfey)
+integer, parameter :: usetide  =1   ! tidal forcing (0=off, 1=on)
+integer, parameter :: icemode  =2   ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
+integer, parameter :: basinmd  =2   ! basin mode (0=soil, 1=redistribute, 2=pile-up, 3=leak)
+integer, parameter :: mstagf   =0   ! alternating staggering (0=off left, -1=off right, >0 alternating)
+integer, parameter :: koff     =1   ! time split stagger relative to A-grid (koff=0) or C-grid (koff=1)
+integer, parameter :: nf       =2   ! power for horizontal diffusion reduction factor
+integer, parameter :: itnmax   =3   ! number of interations for staggering
+integer, save      :: fixsal   =1   ! Conserve salinity (0=Usual, 1=Fixed average salinity at 34.72)
+integer, save      :: fixheight=1   ! Conserve free surface height (0=Usual, 1=Fixed average Height at 0)
 real, parameter :: rhosn  =330.     ! density snow (kg m^-3)
 real, parameter :: rhoic  =900.     ! density ice  (kg m^-3)
 real, parameter :: grav   =9.80616  ! gravitational constant (m s^-2)
@@ -508,8 +509,6 @@ do ii=1,wlev
   call mloexport(1,sallvl(:,ii),ii,0)
   salin=salin+godsig(ii)*sallvl(:,ii)
 end do
-deta=0.
-depdum=0.
 where (ee(1:ifull)>0.5)
   depdum=max(neta(1:ifull)+dd(1:ifull),minwater)
   ! collect any left over water over ocean
@@ -520,6 +519,9 @@ where (ee(1:ifull)>0.5)
   salbdy(1:ifull)=salin
   watbdy(1:ifull)=deta
   neta(1:ifull)=min(neta(1:ifull),0.)
+elsewhere
+  deta=0.
+  depdum=0.
 end where
 salbdy(1:ifull)=salbdy(1:ifull)*watbdy(1:ifull) ! rescale salinity to PSU*mm for advection
 
@@ -729,10 +731,12 @@ end where
 ! import ocean data
 call mloimport(4,neta(1:ifull),0,0)
 do ii=1,wlev
-  sallvl(:,ii)=sallvl(:,ii)*sal/salin
+  where (ee(1:ifull)>0.5)
+    sallvl(:,ii)=sallvl(:,ii)*sal/salin
+  end where
   call mloimport(1,sallvl(:,ii),ii,0)
 end do
-
+  
 return
 end subroutine mlorouter
 
@@ -1039,14 +1043,14 @@ end if
 ! (Assume free surface correction is small so that changes in the compression 
 ! effect due to neta can be neglected.  Consequently, the neta dependence is 
 ! separable in the iterative loop)
-call bounds(nt,corner=.true.,gmode=1)
-call bounds(ns,corner=.true.,gmode=1)
 dumt=nt(1:ifull,:)
 dums=ns(1:ifull,:)
 call mloexpdensity(dumr,duma,dumb,dumt,dums,dzdum,pice(1:ifull),0)
 rho(1:ifull,:)=dumr
 dalpha(1:ifull,:)=duma
 dbeta(1:ifull,:)=dumb
+call bounds(nt,corner=.true.,gmode=1)
+call bounds(ns,corner=.true.,gmode=1)
 call bounds(rho,nehalf=.true.,gmode=1)
 call bounds(dalpha,nehalf=.true.,gmode=1)
 call bounds(dbeta,nehalf=.true.,gmode=1)
@@ -1196,7 +1200,7 @@ call mlob2intsb(nt,nface,xg,yg,wtr)
 call mlob2intsb(ns,nface,xg,yg,wtr)
 nt(1:ifull,:)=nt(1:ifull,:)+290.
 ns(1:ifull,:)=ns(1:ifull,:)+34.72
- 
+
 ! Rotate vector to arrival point
 call mlorot(cou(1:ifull,:),cov(1:ifull,:),cow(1:ifull,:),x3d,y3d,z3d)
 
@@ -1236,14 +1240,14 @@ end if
 
 ! Approximate normalised density rhobar at t+1 (unstaggered, using T and S at t+1)
 if (nxtrrho==1) then
-  call bounds(nt,corner=.true.,gmode=1)
-  call bounds(ns,corner=.true.,gmode=1)
   dumt=nt(1:ifull,:)
   dums=ns(1:ifull,:)
   call mloexpdensity(dumr,duma,dumb,dumt,dums,dzdum,pice(1:ifull),0)
   rho(1:ifull,:)=dumr
   dalpha(1:ifull,:)=duma
   dbeta(1:ifull,:)=dumb
+  call bounds(nt,corner=.true.,gmode=1)
+  call bounds(ns,corner=.true.,gmode=1)
   call bounds(rho,nehalf=.true.,gmode=1)
   call bounds(dalpha,nehalf=.true.,gmode=1)
   call bounds(dbeta,nehalf=.true.,gmode=1)
@@ -1501,13 +1505,19 @@ end if
 
 ! volume conservation for water ---------------------------------------
 if (nud_sfh==0) then
-  odum=(neta(1:ifull)-w_e)*ee(1:ifull)
-  !odum=neta(1:ifull)*ee(1:ifull)
+  if (fixheight==0) then
+    odum=(neta(1:ifull)-w_e)*ee(1:ifull)
+  else
+    odum=neta(1:ifull)*ee(1:ifull)
+  end if
   call ccglobal_posneg(odum,delpos,delneg,comm=comm_mlo)
   alph_p = -delneg/max(delpos,1.E-20)
   alph_p = min(max(sqrt(alph_p),1.E-20),1.E20)
-  neta(1:ifull)=w_e+max(0.,odum)*alph_p+min(0.,odum)/alph_p
-  !neta(1:ifull)=max(0.,odum)*alph_p+min(0.,odum)/alph_p
+  if (fixheight==0) then
+    neta(1:ifull)=w_e+max(0.,odum)*alph_p+min(0.,odum)/alph_p
+  else
+    neta(1:ifull)=max(0.,odum)*alph_p+min(0.,odum)/alph_p
+  end if
 end if
 
 if (myid==0.and.nmaxpr==1) then
@@ -1652,11 +1662,15 @@ if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: conserve salinity"
 end if
   
+  
 ! salinity conservation
 if (nud_sss==0) then
   delpos=0.
   delneg=0.
-  ndum=sum(w_s(1:ifull,:),2)
+  ndum=0.
+  do ii=1,wlev
+    ndum=ndum+w_s(1:ifull,ii)*godsig(ii)
+  end do
   if (fixsal==0) then
     do ii=1,wlev
       where(wtr(1:ifull).and.ndum>0.1)
@@ -1674,7 +1688,7 @@ if (nud_sss==0) then
       end where
     end do
   end if
-  call ccglobal_posneg(dum,delpos,delneg,godsig,comm=comm_mlo)
+  call ccglobal_posneg(dum,delpos,delneg,dsigin=godsig,comm=comm_mlo)
   alph_p = -delneg/max(delpos,1.E-20)
   alph_p = min(sqrt(alph_p),alph_p)
   if (fixsal==0) then
@@ -2840,16 +2854,19 @@ if (ltest) then
       !ud(1:ifull,k)=uin(ieeu,k)*0.1+uin(ieu,k)+uin(1:ifull,k)*0.5
       !uin(1:ifull,k)=ud(:,k)-ua(ieu,k)*0.5-ua(iwu,k)*0.1
 
+! #   *   | X E   |  EE  |     unstaggered
+! 0       * X     E            staggered
+
 ! #   *   | X E   |      |     unstaggered
 ! #       * X     E            staggered
     elsewhere (euetest)
       wtu(1:ifull,0)=1.
-      wtu(1:ifull,1)=-1./3. !=-1./3.
+      wtu(1:ifull,1)=-1./3. !=-0.5
       wtu(1:ifull,2)=0.     !=0.
       wtu(1:ifull,3)=0.
-      dtu(:,1)=0.           !=0.
+      dtu(:,1)=0.           !=0.1
       dtu(:,2)=1.           !=1.
-      dtu(:,3)=1./3.        !=1./3.
+      dtu(:,3)=1./3.        !=0.5
 
 ! |   *   | X E   #  ##  #     unstaggered
 !         * X     0  ##  #     staggered
@@ -2894,12 +2911,12 @@ if (ltest) then
       !vin(1:ifull,k)=vd(:,k)-va(inv,k)*0.5-va(isv,k)*0.1
     elsewhere (evntest)
       wtv(1:ifull,0)=1.
-      wtv(1:ifull,1)=-1./3. !=-1./3.
+      wtv(1:ifull,1)=-1./3. !=-0.5
       wtv(1:ifull,2)=0.     !=0.
       wtv(1:ifull,3)=0.
-      dtv(:,1)=0.           !=0.
+      dtv(:,1)=0.           !=0.1
       dtv(:,2)=1.           !=1.
-      dtv(:,3)=1./3.        !=1./3.
+      dtv(:,3)=1./3.        !=0.5
     elsewhere (evstest)
       wtv(1:ifull,0)=1.
       wtv(1:ifull,1)=0.   !=0.
@@ -3057,27 +3074,27 @@ else
       !ud(1:ifull,k)=uin(iwu,k)*0.1+uin(1:ifull,k)+uin(ieu,k)*0.5
       !uin(1:ifull,k)=ud(:,k)-ua(iwu,k)*0.5-ua(ieu,k)*0.1
 
-! |       |   * X |  E   #     unstaggered
-!         W     X *      #     staggered
+! |   W   |   * X |  E   #     unstaggered
+!         W     X *      0     staggered
     elsewhere (euwtest)
       wtu(1:ifull,0)=1.
-      wtu(1:ifull,1)=0.     !=0.
-      wtu(1:ifull,2)=-1./3. !=-1./3.
+      wtu(1:ifull,1)=-0.
+      wtu(1:ifull,2)=-0.5
       wtu(1:ifull,3)=0.
-      dtu(:,1)=0.           !=0.
-      dtu(:,2)=1.           !=1.
-      dtu(:,3)=1./3.        !=1./3.
+      dtu(:,1)=0.1
+      dtu(:,2)=1.
+      dtu(:,3)=0.5
 
 ! #  ##   #   * X |   E   |     unstaggered
 ! #       0     X *             staggered
     elsewhere (euetest)
       wtu(1:ifull,0)=1.
-      wtu(1:ifull,1)=0.   !=-0.4/1.2
-      wtu(1:ifull,2)=0.   !=0.
+      wtu(1:ifull,1)=0.
+      wtu(1:ifull,2)=0.
       wtu(1:ifull,3)=0.
-      dtu(:,1)=0.         !=0.
-      dtu(:,2)=1.         !=1./3.
-      dtu(:,3)=1./3.      !=1.
+      dtu(:,1)=0.
+      dtu(:,2)=1.
+      dtu(:,3)=1./3.
 
 ! #  ##   #   *   |  E   #     unstaggered
 ! #       #       *      #     staggered
@@ -3109,20 +3126,20 @@ else
       dtv(:,3)=0.5
     elsewhere (evstest)
       wtv(1:ifull,0)=1.
-      wtv(1:ifull,1)=0.     !=0.
-      wtv(1:ifull,2)=-1./3. !=-1./3.
+      wtv(1:ifull,1)=0.
+      wtv(1:ifull,2)=-0.5
       wtv(1:ifull,3)=0.
-      dtv(:,1)=0.           !=0.
-      dtv(:,2)=1.           !=1.
-      dtv(:,3)=1./3.        !=1./3.
+      dtv(:,1)=0.1
+      dtv(:,2)=1.
+      dtv(:,3)=0.5
     elsewhere (evntest)
       wtv(1:ifull,0)=1.
-      wtv(1:ifull,1)=0.   !=-0.4/1.2
-      wtv(1:ifull,2)=0.   !=0.
+      wtv(1:ifull,1)=0.
+      wtv(1:ifull,2)=0.
       wtv(1:ifull,3)=0.
-      dtv(:,1)=0.         !=0.
-      dtv(:,2)=1.         !=1./3.
-      dtv(:,3)=1./3.      !=1.
+      dtv(:,1)=0.
+      dtv(:,2)=1.
+      dtv(:,3)=1./3.
     elsewhere (evtest)
       wtv(1:ifull,0)=1.
       wtv(1:ifull,1)=0.
@@ -3355,41 +3372,41 @@ if (ltest) then
       dtu(:,3)=0.5
       !ud(1:ifull,k)=uin(iwwu,k)*0.1+uin(iwu,k)+uin(1:ifull,k)*0.5
       !uin(1:ifull,k)=ud(:,k)-ua(ieu,k)*0.1-ua(iwu,k)*0.5
-        
-! ##   W   | X *   |      |     unstaggered
-! ##       W X     *            staggered
+
+! ##   W   | X *   |  E   |     unstaggered
+! #0       W X     *            staggered
     elsewhere (euetest)
       wtu(1:ifull,0)=1.
-      wtu(1:ifull,1)=0.      !=0.
-      wtu(1:ifull,2)=-1./3.  !=-1./3.
+      wtu(1:ifull,1)=-0.1
+      wtu(1:ifull,2)=-0.5
       wtu(1:ifull,3)=0.
-      dtu(:,1)=0.            !=0.
-      dtu(:,2)=1.            !=1.
-      dtu(:,3)=1./3.         !=1./3.
+      dtu(:,1)=0.
+      dtu(:,2)=1.
+      dtu(:,3)=0.5
       
 !  |   W   | X *   #  ##  #     unstaggered
 !          W X     0  ##  #     staggered
     elsewhere (euwtest)
       wtu(1:ifull,0)=1.
-      wtu(1:ifull,1)=0.      !=0.
-      wtu(1:ifull,2)=-1./3.  !=-3.
+      wtu(1:ifull,1)=0.
+      wtu(1:ifull,2)=-1./3.
       wtu(1:ifull,3)=0.
-      dtu(:,1)=0.            !=1.
-      dtu(:,2)=1.            !=3.
-      dtu(:,3)=0.            !=0.
+      dtu(:,1)=0.
+      dtu(:,2)=1.
+      dtu(:,3)=0.
 
 ! ##   ##  #   * X |   E   |     unstaggered
 ! ##   ##  0     X *             staggered
     elsewhere (eeetest)
       wtu(1:ifull,0)=1.
-      wtu(1:ifull,1)=-1./3. !=-1.
-      wtu(1:ifull,2)=0.     !=0.
+      wtu(1:ifull,1)=-1./3.
+      wtu(1:ifull,2)=0.
       wtu(1:ifull,3)=0.
-      dtu(:,1)=0.           !=0.
-      dtu(:,2)=0.           !=0.
-      dtu(:,3)=1.           !=2.
+      dtu(:,1)=0.
+      dtu(:,2)=0.
+      dtu(:,3)=1.
 
-! ##   ##  #   *   |   E   #     unstaggered
+! ##   ##  #   *   |   E    #     unstaggered
 ! ##   ##  #       *       #     staggered
     elsewhere (eetest)
       wtu(1:ifull,0)=1.
@@ -3433,28 +3450,28 @@ if (ltest) then
       !vin(1:ifull,k)=vd(:,k)-va(inv,k)*0.1-va(isv,k)*0.5
     elsewhere (evntest)
       wtv(1:ifull,0)=1.
-      wtv(1:ifull,1)=0.      !=0.
-      wtv(1:ifull,2)=-1./3.  !=-1./3.
+      wtv(1:ifull,1)=0.
+      wtv(1:ifull,2)=-0.5
       wtv(1:ifull,3)=0.
-      dtv(:,1)=0.            !=0.
-      dtv(:,2)=1.            !=1.
-      dtv(:,3)=1./3.         !=1./3.
+      dtv(:,1)=0.1
+      dtv(:,2)=1.
+      dtv(:,3)=0.5
     elsewhere (evstest)
       wtv(1:ifull,0)=1.
-      wtv(1:ifull,1)=0.     !=0.
-      wtv(1:ifull,2)=-1./3. !=-3.
+      wtv(1:ifull,1)=0.
+      wtv(1:ifull,2)=-1./3.
       wtv(1:ifull,3)=0.
-      dtv(:,1)=0.           !=1.
-      dtv(:,2)=1.           !=3.
-      dtv(:,3)=0.           !=0.
+      dtv(:,1)=0.
+      dtv(:,2)=1.
+      dtv(:,3)=0.
     elsewhere (enntest)
       wtv(1:ifull,0)=1.
-      wtv(1:ifull,1)=-1./3. !=-1.
-      wtv(1:ifull,2)=0.     !=0.
+      wtv(1:ifull,1)=-1./3.
+      wtv(1:ifull,2)=0.
       wtv(1:ifull,3)=0.
-      dtv(:,1)=0.           !=0.
-      dtv(:,2)=0.           !=0.
-      dtv(:,3)=1.           !=2.
+      dtv(:,1)=0.
+      dtv(:,2)=0.
+      dtv(:,3)=1.
     elsewhere (entest)
       wtv(1:ifull,0)=1.
       wtv(1:ifull,1)=0.
@@ -3618,38 +3635,38 @@ else
       !ud(1:ifull,k)=uin(ieu,k)*0.1+uin(1:ifull,k)+uin(iwu,k)*0.5
       !uin(1:ifull,k)=ud(:,k)-ua(iwu,k)*0.1-ua(ieu,k)*0.5
         
-!  |       |   * X |  E   #     unstaggered
-!          W     X *      #     staggered
+!  |   W   |   * X |  E   #     unstaggered
+!          W     X *      0     staggered
     elsewhere (euwtest)
       wtu(1:ifull,0)=1.
-      wtu(1:ifull,1)=-1./3.  !=-1./3.
-      wtu(1:ifull,2)=0.      !=0.
+      wtu(1:ifull,1)=-0.5
+      wtu(1:ifull,2)=-0.1
       wtu(1:ifull,3)=0.
-      dtu(:,1)=0.            !=0.
-      dtu(:,2)=1.            !=1.
-      dtu(:,3)=1./3.         !=1./3.
+      dtu(:,1)=0.
+      dtu(:,2)=1.
+      dtu(:,3)=0.5
       
 !  #   ##  #   * X |   E   |     unstaggered
 !  #   ##  0     X *             staggered
     elsewhere (euetest)
       wtu(1:ifull,0)=1.
-      wtu(1:ifull,1)=-1./3. !=-3.
-      wtu(1:ifull,2)=0.     !=0.
+      wtu(1:ifull,1)=-1./3.
+      wtu(1:ifull,2)=0.
       wtu(1:ifull,3)=0.
-      dtu(:,1)=0.           !=1.
-      dtu(:,2)=1.           !=3.
-      dtu(:,3)=0.           !=0.
+      dtu(:,1)=0.
+      dtu(:,2)=1.
+      dtu(:,3)=0.
 
 !  |   W   | X *   #  ##  #     unstaggered
 !          W X     0  ##  #     staggered
     elsewhere (ewwtest)
       wtu(1:ifull,0)=1.
-      wtu(1:ifull,1)=0.     !=0.
-      wtu(1:ifull,2)=-1./3. !=-1.
+      wtu(1:ifull,1)=0.
+      wtu(1:ifull,2)=-1./3.
       wtu(1:ifull,3)=0.
-      dtu(:,1)=0.           !=0.
-      dtu(:,2)=0.           !=0.
-      dtu(:,3)=1.           !=2.
+      dtu(:,1)=0.
+      dtu(:,2)=0.
+      dtu(:,3)=1.
 
 !  #   W   |   *   #  ##  #     unstaggered
 !  #       W       #  ##  #     staggered
@@ -3694,28 +3711,28 @@ else
       !vin(1:ifull,k)=vd(:,k)-va(isv,k)*0.1-va(inv,k)*0.5
     elsewhere (evstest)
       wtv(1:ifull,0)=1.
-      wtv(1:ifull,1)=-1./3.  !=-1./3.
-      wtv(1:ifull,2)=0.      !=0.
+      wtv(1:ifull,1)=-0.5
+      wtv(1:ifull,2)=-0.1
       wtv(1:ifull,3)=0.
-      dtv(:,1)=0.            !=0.
-      dtv(:,2)=1.            !=1.
-      dtv(:,3)=1./3.         !=1./3.
+      dtv(:,1)=0.
+      dtv(:,2)=1.
+      dtv(:,3)=0.5
     elsewhere (evntest)
       wtv(1:ifull,0)=1.
-      wtv(1:ifull,1)=-1./3. !=-3.
-      wtv(1:ifull,2)=0.     !=0.
+      wtv(1:ifull,1)=-1./3.
+      wtv(1:ifull,2)=0.
       wtv(1:ifull,3)=0.
-      dtv(:,1)=0.           !=1.
-      dtv(:,2)=1.           !=3.
-      dtv(:,3)=0.           !=0.
+      dtv(:,1)=0.
+      dtv(:,2)=1.
+      dtv(:,3)=0.
     elsewhere (esstest)
       wtv(1:ifull,0)=1.
-      wtv(1:ifull,1)=0.     !=0.
-      wtv(1:ifull,2)=-1./3. !=-1.
+      wtv(1:ifull,1)=0.
+      wtv(1:ifull,2)=-1./3.
       wtv(1:ifull,3)=0.
-      dtv(:,1)=0.           !=0.
-      dtv(:,2)=0.           !=0.
-      dtv(:,3)=1.           !=2.
+      dtv(:,1)=0.
+      dtv(:,2)=0.
+      dtv(:,3)=1.
     elsewhere (estest)
       wtv(1:ifull,0)=1.
       wtv(1:ifull,1)=0.

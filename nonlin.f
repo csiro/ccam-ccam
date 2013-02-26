@@ -62,14 +62,22 @@
       endif  ! (epsp<-2.)
 
 !     *** following qgsav should be before first vadv call
-      qgsav=qg(1:ifull,:)      ! for qg  conservation in adjust5
+      do k=1,kl
+        qgsav(:,k)=qg(1:ifull,k)      ! for qg  conservation in adjust5
+      end do
       if(ldr/=0)then
-        qfgsav=qfg(1:ifull,:)
-        qlgsav=qlg(1:ifull,:)
-        qrgsav=qrg(1:ifull,:)
+        do k=1,kl
+          qfgsav(:,k)=qfg(1:ifull,k)
+          qlgsav(:,k)=qlg(1:ifull,k)
+          qrgsav(:,k)=qrg(1:ifull,k)
+        end do
       endif   ! (ldr.ne.0)
       if (abs(iaero)==2) then
-        xtgsav(1:ifull,:,:)=xtg(1:ifull,:,:)
+        do ng=1,naero
+          do k=1,kl
+            xtgsav(:,k,ng)=xtg(1:ifull,k,ng)
+          end do
+        end do
       end if
 
       if(ngas>=1)then

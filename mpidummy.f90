@@ -94,18 +94,18 @@ subroutine MPI_Allgather( sbuf, a, b, rbuf, c, d, e, ierr )
 end subroutine MPI_Allgather 
  
 subroutine MPI_Comm_Split(a, b, c, d, ierr)
-  d=a
-  ierr=0
+   d=a
+   ierr=0
 end subroutine MPI_Comm_Split
  
 subroutine MPI_Comm_Free(a,ierr)
-  integer :: a,ierr
+   integer :: a,ierr
 end subroutine MPI_Comm_Free
 
 ! Note of the following routines should be called in the 1 proc version.
 subroutine MPI_Waitall(nreq,ireq,status,ierr)
-   print*, "Error, dummy MPI_Waitall called"
-   stop
+   integer :: nreq,ierr
+   integer, dimension(*) :: ireq,status
 end subroutine MPI_Waitall
 
 subroutine MPI_Recv( a, b, c, iproc, itag, d, status, ierr )

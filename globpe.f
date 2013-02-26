@@ -156,7 +156,7 @@
      & ,m_fly,mstn,nqg,nurban,nmr,ktopdav,nud_sst,nud_sss
      & ,mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv
      & ,nud_sfh,bpyear,rescrn,helmmeth,nmlo,ol,mxd,mindep,minwater
-     & ,ocnsmag,ocneps,fixsal,knh,ccycle
+     & ,ocnsmag,ocneps,fixsal,fixheight,knh,ccycle
       namelist/skyin/mins_rad,ndiur
       namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,
      &    hfile,icefile,mesonest,nmifile,o3file,radfile,restfile,
@@ -184,8 +184,6 @@
       data itr1/23/,jtr1/13/,itr2/25/,jtr2/11/
       data comment/' '/,comm/' '/,irest/1/,jalbfix/1/,nalpha/1/
       data mexrest/6/,mins_rad/60/,nwrite/0/,nsnowout/999999/
-
-      print *,"hi"
  
 #ifndef stacklimit
       ! For linux only
@@ -498,9 +496,10 @@
         write (6,'(2i7)') nurban,ccycle
         write(6,*)'Ocean/lake options:'
         write(6,*)' nmlo  ol      mxd   mindep minwater  ocnsmag',
-     &            '   ocneps fixsal'
-        write (6,'(i5,i4,5f9.2,i4)')
-     &          nmlo,ol,mxd,mindep,minwater,ocnsmag,ocneps,fixsal
+     &            '   ocneps fixsal fixheight'
+        write (6,'(i5,i4,5f9.2,2i4)')
+     &          nmlo,ol,mxd,mindep,minwater,ocnsmag,ocneps,fixsal,
+     &          fixheight
         if(mbd/=0.or.nbd/=0)then
           write(6,*)'Nudging options A:'
           write(6,*)' nbd    nud_p  nud_q  nud_t  nud_uv nud_hrs',
@@ -1931,47 +1930,49 @@
         end if
 !       also zero most averaged fields every nperavg
         if (myid==0) write(6,*) 'resetting tscr_ave for ktau = ',ktau
-        cbas_ave(:)=0.
-        ctop_ave(:)=0.
-        dew_ave(:)=0.
-        epan_ave(:)=0.
-        epot_ave(:)=0.
-        eg_ave(:)=0.
-        fg_ave(:)=0.
-        rnet_ave(:)=0.
-        sunhours(:)=0.
-        riwp_ave(:)=0.
-        rlwp_ave(:)=0.
-        qscrn_ave(:) = 0.
-        tscr_ave(:) = 0.
-        wb_ave(:,:)=0.
-        tsu_ave(:)=0.
-        alb_ave(:)=0.
-        fbeam_ave(:)=0.
-        psl_ave(:)=0.
+        cbas_ave(:)  =0.
+        ctop_ave(:)  =0.
+        dew_ave(:)   =0.
+        epan_ave(:)  =0.
+        epot_ave(:)  =0.
+        eg_ave(:)    =0.
+        fg_ave(:)    =0.
+        rnet_ave(:)  =0.
+        sunhours(:)  =0.
+        riwp_ave(:)  =0.
+        rlwp_ave(:)  =0.
+        qscrn_ave(:) =0.
+        tscr_ave(:)  =0.
+        wb_ave(:,:)  =0.
+        tsu_ave(:)   =0.
+        alb_ave(:)   =0.
+        fbeam_ave(:) =0.
+        psl_ave(:)   =0.
         mixdep_ave(:)=0.
-        koundiag=0
-        sint_ave(:) = 0.
-        sot_ave(:)  = 0.
-        soc_ave(:)  = 0.
-        sgdn_ave(:) = 0.
-        sgn_ave(:)  = 0.
-        rtu_ave(:)  = 0.
-        rtc_ave(:)  = 0.
-        rgdn_ave(:) = 0.
-        rgn_ave(:)  = 0.
-        rgc_ave(:)  = 0.
-        cld_ave(:)  = 0.
-        cll_ave(:)  = 0.
-        clm_ave(:)  = 0.
-        clh_ave(:)  = 0.
+        koundiag     =0
+        sint_ave(:)  =0.
+        sot_ave(:)   =0.
+        soc_ave(:)   =0.
+        sgdn_ave(:)  =0.
+        sgn_ave(:)   =0.
+        rtu_ave(:)   =0.
+        rtc_ave(:)   =0.
+        rgdn_ave(:)  =0.
+        rgn_ave(:)   =0.
+        rgc_ave(:)   =0.
+        cld_ave(:)   =0.
+        cll_ave(:)   =0.
+        clm_ave(:)   =0.
+        clh_ave(:)   =0.
 !       zero evap, precip, precc, sno, runoff fields each nperavg (3/12/04) 
-        evap(:)=0.  
-        precip(:)=0.  ! converted to mm/day in outcdf
-        precc(:)=0.   ! converted to mm/day in outcdf
-        sno(:)=0.     ! converted to mm/day in outcdf
-        runoff(:)=0.  ! converted to mm/day in outcdf
-        if (ngas>0) traver=0.
+        evap(:)      =0.  
+        precip(:)    =0.  ! converted to mm/day in outcdf
+        precc(:)     =0.  ! converted to mm/day in outcdf
+        sno(:)       =0.  ! converted to mm/day in outcdf
+        runoff(:)    =0.  ! converted to mm/day in outcdf
+        if (ngas>0) then
+          traver=0.
+        end if
         fpn_ave=0.
         frs_ave=0.
         frp_ave=0.
@@ -1992,20 +1993,22 @@
 956        format(i5,i3,a5,6f7.1)
           enddo
         endif  ! (ntau<10*nperday)
-        rndmax (:) = 0.
-        tmaxscr(:) = tscrn(:) 
-        tminscr(:) = tscrn(:) 
+        rndmax (:)  = 0.
+        tmaxscr(:)  = tscrn(:) 
+        tminscr(:)  = tscrn(:) 
         rhmaxscr(:) = rhscrn(:) 
         rhminscr(:) = rhscrn(:) 
-        u10max(:)=0.
-        v10max(:)=0.
-        u1max(:)=0.
-        v1max(:)=0.
-        u2max(:)=0.
-        v2max(:)=0.
-        capemax(:)=0.
-        rnd_3hr(:,8)=0.       ! i.e. rnd24(:)=0.
-        if(nextout>=4)call setllp ! from Nov 11, reset once per day
+        u10max(:)   = 0.
+        v10max(:)   = 0.
+        u1max(:)    = 0.
+        v1max(:)    = 0.
+        u2max(:)    = 0.
+        v2max(:)    = 0.
+        capemax(:)  = 0.
+        rnd_3hr(:,8)= 0.       ! i.e. rnd24(:)=0.
+        if(nextout>=4) then
+          call setllp ! from Nov 11, reset once per day
+        end if
         if(namip/=0)then ! not for last day, as day 1 of next month
           if (myid==0)
      &     write(6,*)

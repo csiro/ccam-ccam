@@ -189,20 +189,19 @@ module cc_mpi
 
    ! Multi-grid arrays
    type mgtype
-      integer :: ifull,iextra,ixlen,ifull_fine,ifull_coarse
-      integer :: merge_len,merge_row,ipan
-      integer :: comm,comm_mlo
+      integer :: ifull, iextra, ixlen, ifull_fine, ifull_coarse
+      integer :: merge_len, merge_row, ipan
+      integer :: comm, comm_mlo
       integer :: neighnum
       integer, dimension(:,:,:), allocatable :: fproc
       integer, dimension(:,:), allocatable :: merge_list
       integer, dimension(:), allocatable :: merge_pos
-      integer, dimension(:), allocatable :: in,ie,is,iw,ine,inw,ise,isw
-      integer, dimension(:), allocatable :: coarse_a,coarse_b,coarse_c,coarse_d
-      integer, dimension(:), allocatable :: fine,fine_n,fine_e,fine_ne
-      integer, dimension(:), allocatable :: buflen
+      integer, dimension(:), allocatable :: in, ie, is, iw, ine, inw, ise, isw
+      integer, dimension(:), allocatable :: coarse_a, coarse_b, coarse_c, coarse_d
+      integer, dimension(:), allocatable :: fine, fine_n, fine_e, fine_ne
       integer, dimension(:), allocatable :: neighlistsend, neighlistrecv
-      real, dimension(:), allocatable :: zzn,zze,zzs,zzw,zz
-      real, dimension(:), allocatable :: wgt_a,wgt_bc,wgt_d
+      real, dimension(:), allocatable :: zzn, zze, zzs, zzw, zz
+      real, dimension(:), allocatable :: wgt_a, wgt_bc, wgt_d
       logical :: globgath
    end type mgtype
 
@@ -2824,13 +2823,11 @@ contains
       integer :: iq, iproc, rproc, sproc, send_len, recv_len
       integer :: lmode, rcount, myrlen
       integer, dimension(neighnum) :: rslen, sslen
-      integer(kind=4) :: ierr, itag = 0, ltype, llen, lproc, sreq
+      integer(kind=4) :: ierr, itag = 1, ltype, llen, lproc, sreq
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
 
       call start_log(bounds_begin)
       
-      if (neighnum<1) return
-
 #ifdef i8r8
       ltype=MPI_DOUBLE_PRECISION
 #else
@@ -2966,7 +2963,7 @@ contains
       integer :: iq, iproc, kx, iq_b, iq_e, rproc, sproc, send_len, recv_len
       integer :: lmode, lcolour, rcount, myrlen
       integer, dimension(neighnum) :: rslen, sslen
-      integer(kind=4) :: ierr, itag = 0, llen, lproc, sreq
+      integer(kind=4) :: ierr, itag = 2, llen, lproc, sreq
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -2976,8 +2973,6 @@ contains
 
       call start_log(bounds_begin)
       
-      if (neighnum<1) return
-
       kx = size(t,2)
       lmode = 0
       double = .false.
@@ -3111,7 +3106,7 @@ contains
       integer :: iq, iproc, kx, iqz, iq_b, iq_e, rproc, sproc, send_len, recv_len, iqq
       integer :: lmode, rcount, myrlen
       integer, dimension(neighnum) :: rslen, sslen
-      integer(kind=4) :: ierr, itag = 0, llen, lproc, sreq
+      integer(kind=4) :: ierr, itag = 3, llen, lproc, sreq
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -3121,8 +3116,6 @@ contains
 
       call start_log(bounds_begin)
       
-      if ( neighnum < 1 ) return
-
       kx = size(t,2)
       lmode = 0
       if ( present(klim) ) kx = klim
@@ -3148,8 +3141,8 @@ contains
       do iproc = 1,neighnum
          rproc = neighlistrecv(iproc)  ! Recv from
          if ( rslen(iproc) > 0 ) then
-            recv_len = rcolsp(rproc)%ihfn(lcolour)-rcolsp(rproc)%ihbg(lcolour)+1 &
-                      +rcolsp(rproc)%iffn(lcolour)-rcolsp(rproc)%ifbg(lcolour)+1
+            recv_len = rcolsp(rproc)%ihfn(lcolour)-rcolsp(rproc)%ihbg(lcolour)   &
+                      +rcolsp(rproc)%iffn(lcolour)-rcolsp(rproc)%ifbg(lcolour)+2
             if ( recv_len > 0 ) then
                nreq = nreq + 1
                rlist(nreq) = iproc
@@ -3249,20 +3242,17 @@ contains
       integer :: iq, iqz, iproc, rproc, sproc, iqq, send_len, recv_len
       integer :: lmode, stagmode, rcount, myrlen
       integer, dimension(neighnum) :: rslen, sslen
-      integer(kind=4) :: ierr, itag = 0, llen, lproc, ltype, sreq
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif   
+      integer(kind=4) :: ierr, itag = 4, llen, lproc, sreq
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
       real :: tmp, negmul
 
       call start_log(boundsuv_begin)
       
-      if ( neighnum < 1 ) return
-
-#ifdef i8r8
-      ltype=MPI_DOUBLE_PRECISION
-#else
-      ltype=MPI_REAL
-#endif   
-
       lmode = 0
       double = .false.
       extra = .false.
@@ -3668,7 +3658,7 @@ contains
       integer :: iq, iqz, iq_b, iq_e, iproc, kx, rproc, sproc, iqq, send_len, recv_len
       integer :: lmode, stagmode, rcount, myrlen
       integer, dimension(neighnum) :: rslen, sslen
-      integer(kind=4) :: ierr, itag = 0, llen, lproc, sreq
+      integer(kind=4) :: ierr, itag = 5, llen, lproc, sreq
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -3680,10 +3670,6 @@ contains
       
       call start_log(boundsuv_begin)
       
-      if ( neighnum < 1 ) return
-
-
-
       kx = size(u,2)
       double = .false.
       extra = .false.
@@ -4035,7 +4021,7 @@ contains
          
          rcount = rcount - 1
          call start_log(mpiwaituv_begin)
-         call MPI_Waitany(rreq,ireq,lproc,status,ierr)
+         call MPI_Waitany(rreq,ireq,lproc,status(:,1),ierr)
          call end_log(mpiwaituv_end)
 
          iproc = rlist(lproc)  ! Recv from
@@ -4292,7 +4278,7 @@ contains
 
    subroutine intssync_send
       integer :: iproc, rproc, sproc
-      integer(kind=4) :: itag = 0, ierr, llen, lproc, sreq
+      integer(kind=4) :: itag = 98, ierr, llen, lproc, sreq
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -4302,8 +4288,6 @@ contains
 
       call start_log(intssync_begin)
       
-      if ( neighnum < 1 ) return
-
       ! Clear any current messages
       sreq = nreq - rreq
       call start_log(mpiwaitdep_begin)
@@ -4343,7 +4327,7 @@ contains
       real, dimension(:,:), intent(inout) :: s
       integer :: iproc, iq, rproc
       integer :: rcount
-      integer(kind=4) :: itag = 0, ierr, lproc
+      integer(kind=4) :: ierr, lproc
       integer(kind=4), dimension(MPI_STATUS_SIZE) :: status
 
       call start_log(intssync_begin)
@@ -6875,7 +6859,7 @@ contains
       integer :: iproc, iq_b, iq_e, rproc, sproc, recv_len, send_len
       integer :: lmode, rcount, myrlen
       integer, dimension(mg(g)%neighnum) :: rslen, sslen
-      integer(kind=4) :: ierr, itag=0, llen, lproc, sreq
+      integer(kind=4) :: ierr, itag=20, llen, lproc, sreq
       integer(kind=4), dimension(MPI_STATUS_SIZE,size(ireq)) :: status
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -6888,8 +6872,6 @@ contains
 
       call start_log(mgbounds_begin)
       
-      if ( mg(g)%neighnum < 1) return
-
       kx = size(vdat,2)
       extra = .false.
       lmode = 0
@@ -6969,9 +6951,8 @@ contains
 
          iproc = rlist(lproc)  ! Recv from
          rproc = mg(g)%neighlistrecv(iproc)
-         recv_len = rslen(iproc)
 !cdir nodep
-         do iq = 1,recv_len
+         do iq = 1,rslen(iproc)
             iq_b = 1+(iq-1)*kx
             iq_e = iq*kx
             vdat(mg(g)%ifull+mg_bnds(rproc,g)%unpack_list(iq),1:kx) = bnds(rproc)%rbuf(iq_b:iq_e)
@@ -7115,7 +7096,8 @@ contains
       integer is, js, je, jj
       integer :: rproc, sproc, msreq, mrreq
       integer :: rcount
-      integer(kind=4) :: ierr, itag=0, ilen, lcomm, lproc, sreq
+      integer(kind=4) :: ierr, itag=21, ilen, lcomm, lproc, sreq
+      integer(kind=4), dimension(2*nproc) :: dreq
       integer(kind=4), dimension(MPI_STATUS_SIZE,nproc) :: status
 #ifdef i8r8
       integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
@@ -7171,11 +7153,11 @@ contains
                if ( rrlist(rproc) == 0 ) then
                   mrreq = mrreq+1     ! number of MPI Recv requests
                   rp(mrreq) = rproc   ! Processor associated with this request
-                  pr(rproc)  =mrreq   ! Request associated with this processor
+                  pr(rproc) = mrreq   ! Request associated with this processor
                end if
+               roff(ida) = rrlist(rproc)       ! Offset number as a function of packing index
                rrlist(rproc) = rrlist(rproc)+1 ! Number of sub-messages Recv from this processor
                rarry(ida) = pr(rproc)          ! Request number as a function of packing index
-               roff(ida) = rrlist(rproc)-1     ! Offset number as a function of packing index
             end if
     
             ! Send processor
@@ -7188,9 +7170,9 @@ contains
                   sp(msreq) = sproc   ! Processor associated with this request
                   ps(sproc) = msreq   ! Request associated with this processor
                end if
+               soff(ida) = sslist(sproc)       ! Offset number as a function of packing index
                sslist(sproc) = sslist(sproc)+1 ! Number of sub-messages Send from this processor
                sarry(ida) = ps(sproc)          ! Request number as a function of packing index
-               soff(ida) = sslist(sproc)-1     ! Offset number as a function of packing index
      
                ! Pack data into send arrays
                do k = 1,kx
@@ -7203,9 +7185,9 @@ contains
          ! data for myid  
          !xproc = 0
          ida = n-npan                   ! index for packing arrays
+         roff(ida) = rrlist(myid)       ! Offset number as a function of packing index
          rrlist(myid) = rrlist(myid)+1  ! Number of sub-messages Recv from this processor
          rarry(ida) = 0                 ! Request number as a function of packing index
-         roff(ida) = rrlist(myid)-1     ! Offset number as a function of packing index
          do k = 1,kx
             rrtn(1+(k-1)*msg_len+roff(ida)*lmsg:k*msg_len+roff(ida)*lmsg,rarry(ida)) = vdat(1+msg_off:msg_len+msg_off,k)
          end do
@@ -7224,7 +7206,7 @@ contains
          ilen = lmsg*rrlist(rproc)
          nreq = nreq + 1
          lproc = rproc
-         call MPI_IRecv( rrtn(:,i), ilen, ltype, lproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+         call MPI_IRecv( rrtn(:,i), ilen, ltype, lproc, itag, MPI_COMM_WORLD, dreq(nreq), ierr )
       end do
   
       ! MPI Send
@@ -7233,11 +7215,11 @@ contains
          ilen = lmsg*sslist(sproc)
          nreq = nreq + 1
          lproc = sproc
-         call MPI_ISend( sdep(:,i), ilen, ltype, lproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+         call MPI_ISend( sdep(:,i), ilen, ltype, lproc, itag, MPI_COMM_WORLD, dreq(nreq), ierr )
       end do
 
       call start_log(mpiwaitmg_begin)
-      call MPI_Waitall(nreq,ireq,status,ierr)
+      call MPI_Waitall(nreq,dreq,status,ierr)
       call end_log(mpiwaitmg_end)
       nreq = 0
       rreq = 0
@@ -7291,17 +7273,17 @@ contains
       integer iext, iproc, xlen, jx, nc, xlev, rproc, sproc
       integer ntest, nsize
       integer neighnumrecv, neighnumsend
-      integer(kind=4) :: itag=0, lproc, ierr, ltype, llen, mnum, sreq
+      integer(kind=4) :: itag=22, lproc, ierr, llen, mnum, sreq
       integer(kind=4), dimension(2*nproc) :: dreq
       integer(kind=4), dimension(MPI_STATUS_SIZE,2*nproc) :: status
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_INTEGER8
+#else
+      integer(kind=4), parameter :: ltype = MPI_INTEGER
+#endif
       logical, dimension(0:nproc-1) :: mg_neighbour
       logical lflag, lglob
 
-#ifdef i8r8
-      ltype = MPI_INTEGER8
-#else
-      ltype = MPI_INTEGER
-#endif
 
       ! size of this grid
       mfull_g = 6*mil_g*mil_g
@@ -7311,6 +7293,7 @@ contains
       ncount = 0
       lglob = .true.
       mg_neighbour = .false.
+      mg_qproc = -1
       do n = 0,npanels
          lflag = .true.
          do j = 1,mil_g
@@ -7335,6 +7318,12 @@ contains
          write(6,*) "ERROR: Cannot find myid in mg_proc"
          write(6,*) "myid,g ",myid,g
          write(6,*) "mg_proc ",maxval(mg_qproc),minval(mg_qproc),count(mg_qproc==myid)
+         mnum = -1
+         call MPI_Abort(MPI_COMM_WORLD,mnum,ierr)
+      end if
+      
+      if ( any( mg_qproc < 0 ) ) then
+         write(6,*) "ERROR: Invalid mg_qproc"
          mnum = -1
          call MPI_Abort(MPI_COMM_WORLD,mnum,ierr)
       end if
@@ -7410,6 +7399,11 @@ contains
          end if
       end do
 
+      mg_bnds(:,g)%len = 0
+      mg_bnds(:,g)%rlen = 0
+      mg_bnds(:,g)%slen = 0
+      mg_bnds(:,g)%rlenx = 0
+      mg_bnds(:,g)%slenx = 0
 
       ! Calculate local indices on this processor
       if ( lglob ) then
@@ -7424,6 +7418,8 @@ contains
          mg(g)%ixlen = 0
          mg(g)%iextra = 0
          mg(g)%neighnum = 0
+         allocate ( mg(g)%neighlistrecv(mg(g)%neighnum) )
+         allocate ( mg(g)%neighlistsend(mg(g)%neighnum) )
       else
          mg(g)%iextra = 2*(mipan+mjpan+2)*npan ! first guess
 
@@ -7507,10 +7503,6 @@ contains
 
          ! Calculate local indices in halo
          iext = 0
-         mg_bnds(:,g)%rlen = 0
-         mg_bnds(:,g)%slen = 0
-         mg_bnds(:,g)%rlenx = 0
-         mg_bnds(:,g)%slenx = 0
          do n = 1,npan
 
             !     Start with N edge
@@ -7787,8 +7779,6 @@ contains
          ! Unlike cc_mpi.f90, this can be asymmetric between sending
          ! and recieving.  Hence we first send message lengths to all 
          nreq = 0
-         rdum = 0
-         sdum = 0
          llen = 2
          do iproc = 1,nproc-1
             rproc = modulo(myid+iproc,nproc)
@@ -7809,9 +7799,14 @@ contains
             end if
          end do
          call MPI_Waitall(nreq,dreq,status,ierr)
-  
-         mg_bnds(:,g)%slenx = rdum(1,:)
-         mg_bnds(:,g)%slen  = rdum(2,:)
+
+         do iproc = 1,nproc-1
+            rproc = modulo(myid+iproc,nproc)
+            if ( mg_neighbour(rproc) ) then
+               mg_bnds(rproc,g)%slenx = rdum(1,rproc)
+               mg_bnds(rproc,g)%slen  = rdum(2,rproc)
+            end if
+         end do
   
          mg_neighbour = mg_bnds(:,g)%rlenx > 0 .or. mg_bnds(:,g)%slenx > 0
          mg(g)%neighnum = count( mg_neighbour )
@@ -7824,30 +7819,30 @@ contains
             allocate(rlist(ntest))
          end if
   
-        ! set-up neighbour lists
-        allocate ( mg(g)%neighlistrecv(mg(g)%neighnum) )
-        allocate ( mg(g)%neighlistsend(mg(g)%neighnum) )
-        neighnumrecv = 0
-        neighnumsend = 0
-        do iproc = 1,nproc-1
-           rproc = modulo(myid-iproc,nproc)
-           sproc = modulo(myid+iproc,nproc)
-           if ( mg_neighbour(rproc) ) then
-              neighnumrecv = neighnumrecv + 1
-              mg(g)%neighlistrecv(neighnumrecv) = rproc
-           end if
-           if ( mg_neighbour(sproc) ) then
-              neighnumsend = neighnumsend + 1
-              mg(g)%neighlistsend(neighnumsend) = sproc
-           end if
-        end do
+         ! set-up neighbour lists
+         allocate ( mg(g)%neighlistrecv(mg(g)%neighnum) )
+         allocate ( mg(g)%neighlistsend(mg(g)%neighnum) )
+         neighnumrecv = 0
+         neighnumsend = 0
+         do iproc = 1,nproc-1
+            rproc = modulo(myid-iproc,nproc)
+            sproc = modulo(myid+iproc,nproc)
+            if ( mg_neighbour(rproc) ) then
+               neighnumrecv = neighnumrecv + 1
+               mg(g)%neighlistrecv(neighnumrecv) = rproc
+            end if
+            if ( mg_neighbour(sproc) ) then
+               neighnumsend = neighnumsend + 1
+               mg(g)%neighlistsend(neighnumsend) = sproc
+            end if
+         end do
       
-        if ( neighnumrecv /= mg(g)%neighnum .or. neighnumsend /= mg(g)%neighnum ) then
-           write(6,*) "ERROR: Multi-grid neighnum mismatch"
-           write(6,*) "neighnum, neighnumrecv, neighnumsend ",mg(g)%neighnum, neighnumrecv, neighnumsend
-           mnum = -1
-           call MPI_Abort(MPI_COMM_WORLD,mnum,ierr)
-        end if
+         if ( neighnumrecv /= mg(g)%neighnum .or. neighnumsend /= mg(g)%neighnum ) then
+            write(6,*) "ERROR: Multi-grid neighnum mismatch"
+            write(6,*) "neighnum, neighnumrecv, neighnumsend ",mg(g)%neighnum, neighnumrecv, neighnumsend
+            mnum = -1
+            call MPI_Abort(MPI_COMM_WORLD,mnum,ierr)
+         end if
   
          ! Now start sending messages  
          nreq = 0

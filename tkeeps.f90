@@ -273,7 +273,7 @@ do kcount=1,mcount
           txup=tlup(1)                                                 ! theta,up after evaporation of ql,up and qf,up
           ttup(1)=txup/sigkap(1)                                       ! temp,up
           qxup=qtup(1)                                                 ! qv,up after evaporation of ql,up and qf,up
-          call getqsat(qupsat(1:1),ttup(1:1),pres(i,1:1))                  ! estimate of saturated mixing ratio in plume
+          call getqsat(qupsat(1:1),ttup(1:1),pres(i:i,1))                  ! estimate of saturated mixing ratio in plume
           tvup(1)=txup+theta(i,1)*0.61*qxup                            ! thetav,up after evaporation of ql,up and qf,up
           ! update updraft velocity and mass flux
           nn(1)=grav*be*wtv0(i)/(thetav(i,1)*sqrt(max(tke(i,1),1.E-4)))          ! Hurley 2007
@@ -319,7 +319,7 @@ do kcount=1,mcount
             mflx(k)=mflx(k-1)/(1.+dzht*(dtr-ee))
             ! check for lcl
             if (.not.sconv) then
-              call getqsat(qupsat(k:k),ttup(k:k),pres(i,k:k))                ! estimate of saturated mixing ratio in plume
+              call getqsat(qupsat(k:k),ttup(k:k),pres(i:i,k))                ! estimate of saturated mixing ratio in plume
               if (qxup>=qupsat(k)) then
                 ! estimate LCL when saturation occurs
                 as=ee*(qupsat(k)-qupsat(k-1))/dzht
@@ -372,7 +372,7 @@ do kcount=1,mcount
             templ=tlup(klcl)/sigkap(klcl)                                        ! templ,up
             ! estimate saturated air temperature
             tdum=templ
-            call getqsat(qupsat(klcl:klcl),tdum(1:1),pres(i,klcl:klcl))
+            call getqsat(qupsat(klcl:klcl),tdum(1:1),pres(i:i,klcl))
             qxup=qupsat(klcl)
             fice=min(max(273.16-templ,0.),40.)/40.
             lx=lv+lf*fice
@@ -417,7 +417,7 @@ do kcount=1,mcount
                 templ=tlup(k)/sigkap(k)                               ! templ,up
                 ! estimate saturated air temperature
                 tdum=templ
-                call getqsat(qupsat(k:k),tdum(1:1),pres(i,k:k))
+                call getqsat(qupsat(k:k),tdum(1:1),pres(i:i,k))
                 qxup=qupsat(k)
                 fice=min(max(273.16-templ,0.),40.)/40.
                 lx=lv+lf*fice

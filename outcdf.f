@@ -1489,8 +1489,12 @@ c      set time to number of minutes since start
       tmpry=t(1:ifull,:)
       call mslp(aa,psl,zs,tmpry)
       aa=aa/100.
-      call histwrt3(aa,'pmsl',idnc,iarch,local,.true.)      
-      call histwrt3(zo,'zolnd',idnc,iarch,local,.true.)
+      call histwrt3(aa,'pmsl',idnc,iarch,local,.true.)
+      if (nsib==6.or.nsib==7) then      
+        call histwrt3(zo,'zolnd',idnc,iarch,local,lwrite)
+      else
+        call histwrt3(zo,'zolnd',idnc,iarch,local,.true.)
+      end if
       call histwrt3(vlai,'lai',idnc,iarch,local,.true.)
       call histwrt3(tss,'tsu',idnc,iarch,local,.true.)
       call histwrt3(tpan,'tpan',idnc,iarch,local,.true.)

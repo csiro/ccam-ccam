@@ -402,12 +402,12 @@
           call maxmin(vb,'vb',ktau,1.,kl)
           call maxmin(tb,'tb',ktau,1.,kl)
           call maxmin(qb,'qb',ktau,1.e3,kl)
+          if ( myid == 0 ) then
+            write(6,*) 
+     &      'following in nestinb after read pslb are psl not ps'
+          end if
+          call maxmin(pslb,'pB',ktau,100.,1)
         endif
-        if ( myid == 0 ) then
-          write(6,*) 
-     &    'following in nestinb after read pslb are psl not ps'
-        end if
-        call maxmin(pslb,'pB',ktau,100.,1)
 
 !       in these cases redefine pslb, tb and (effectively) zsb using zs
 !       this keeps fine-mesh land mask & zs

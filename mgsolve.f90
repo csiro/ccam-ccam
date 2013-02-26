@@ -1061,28 +1061,28 @@ if (myid==0) then
 end if
 
 allocate(mg(mg_maxlevel))
+mg(:)%comm=0
+mg(:)%comm_mlo=0
+
 allocate(mg_bnds(0:nproc-1,mg_maxlevel))
-do iproc=0,nproc-1
-  do g=1,mg_maxlevel
-    mg_bnds(iproc,g)%len=0
-  end do
-end do
 
 hipan=mipan
 hjpan=mjpan
 
 ! calculate fine grid for finest grid level
 g=1
-mg(1)%globgath=.false.
 mg_npan=npan
+mg(1)%globgath=.false.
 mg(1)%merge_len=1
 mg(1)%merge_row=1
+mg(1)%ifull_coarse=0
 
 allocate(mg(1)%fproc(mil_g,mil_g,0:npanels))
 mg(1)%fproc(:,:,:)=fproc(:,:,:)
 
 ! check if coarse grid needs mgcollect
 if (mod(mipan,2)/=0.or.mod(mjpan,2)/=0) then
+
   if (mod(mxpr,2)==0.and.mod(mypr,2)==0) then
    
    ! This case occurs when there are multiple processors on a panel.
@@ -1103,7 +1103,6 @@ if (mod(mipan,2)/=0.or.mod(mjpan,2)/=0) then
       write(6,*) "Multi-grid gather4 at level           ",g,mipan,mjpan
     end if
 
-    maxmergelen=npan
     allocate(mg(1)%merge_list(4,npan),mg(1)%merge_pos(npan))
 
     ! find my processor and surrounding members of the gather
@@ -1278,9 +1277,9 @@ do g=2,mg_maxlevel
 
 
   ! first assume no gather for upscaled grid
+  mg(g)%globgath=.false.
   mg(g)%merge_len=1
   mg(g)%merge_row=1
-  mg(g)%globgath=.false.
   
   ! check for multi-grid gather
   if (mod(mipan,2)/=0.or.mod(mjpan,2)/=0) then ! grid cannot be subdivided on current processor
@@ -1470,7 +1469,7 @@ do g=2,mg_maxlevel
 
     else ! all data is already on one processor
       if (g/=mg_maxlevel) then
-        write(6,*) "ERROR: g.ne.mg_maxlevel ",g,mg_maxlevel
+        write(6,*) "ERROR: g/=mg_maxlevel ",g,mg_maxlevel
         stop
       end if
       if (myid==0) then

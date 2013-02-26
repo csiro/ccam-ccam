@@ -886,29 +886,20 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
      &               ,ps(1:ifull),uzon,vmer,vmodmin,0)                  ! urban
         runoff=runoff+newrunoff ! add new runoff after including urban  ! urban
         ! here we blend zo with the urban part                          ! urban
-        zoh(iperm(1:ipland))=zo(iperm(1:ipland))                        ! urban
-     &                      /factch(iperm(1:ipland))**2                 ! urban
-        call atebzo(zo,zoh,0)                                           ! urban
-        zoq(iperm(1:ipland))=zoh(iperm(1:ipland))                       ! urban
-        factch(iperm(1:ipland))=sqrt(zo(iperm(1:ipland))                ! urban
-     &                      /zoh(iperm(1:ipland)))                      ! urban
+        call atebzo(zo,zoh,zoq,0)                                       ! urban
+        factch=sqrt(zo/zoh)                                             ! urban
         ! calculate ustar                                               ! urban
-        cduv(iperm(1:ipland))=cduv(iperm(1:ipland))                     ! urban
-     &                       /vmag(iperm(1:ipland))                     ! urban
-        cdtq(iperm(1:ipland))=cdtq(iperm(1:ipland))                     ! urban
-     &                       /vmag(iperm(1:ipland))                     ! urban
+        cduv=cduv/vmag                                                  ! urban
+        cdtq=cdtq/vmag                                                  ! urban
         call atebcd(cduv,cdtq,0)                                        ! urban
-        cduv(iperm(1:ipland))=cduv(iperm(1:ipland))                     ! urban
-     &                       *vmag(iperm(1:ipland))                     ! urban
-        cdtq(iperm(1:ipland))=cdtq(iperm(1:ipland))                     ! urban
-     &                       *vmag(iperm(1:ipland))                     ! urban
-        ustar(iperm(1:ipland))=sqrt(vmod(iperm(1:ipland))               ! urban
-     &                       *cduv(iperm(1:ipland)))                    ! urban
+        cduv=cduv*vmag                                                  ! urban
+        cdtq=cdtq*vmag                                                  ! urban
+        ustar=sqrt(vmod*cduv)                                           ! urban
         ! calculate screen level diagnostics                            ! urban
         call atebscrnout(tscrn,qgscrn,uscrn,u10,0)                      ! urban
         do ip=1,ipland ! assumes all urban points are land points       ! urban
           iq=iperm(ip)                                                  ! urban
-          if (sigmu(iq).gt.0.) then                                     ! urban
+          if (sigmu(iq)>0.) then                                        ! urban
             es = establ(tss(iq))                                        ! urban
             qsttg(iq)= .622*es/(ps(iq)-es)                              ! urban
             rhscrn(iq)=100.*qgscrn(iq)/qsttg(iq)                        ! urban

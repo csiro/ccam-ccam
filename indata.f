@@ -78,12 +78,11 @@
 
       real, intent(out) :: hourst
       real, dimension(ifull) :: zss, aa, zsmask
-      real, dimension(ifull) :: dep, depth, duma, rlai
+      real, dimension(ifull) :: dep, depth, rlai
+      real, dimension(ifull,5) :: duma
       real, dimension(ifull,2) :: ocndwn
       real, dimension(ifull,wlev,4) :: mlodwn
-      real, dimension(ifull,kl) :: dumqg,dumqf,dumql,dumqr
-      real, dimension(ifull,kl) :: dumb,dumu,dumv
-      real, dimension(ifull,3) :: dumz
+       real, dimension(ifull,kl,7) :: dumb
       real, dimension(ifull_g,3) :: glob2d
       real, dimension(ifull_g) :: davt_g
       real, dimension(2*kl*kl+kl) :: dumc
@@ -293,13 +292,13 @@
            if(ierr.ne.0) stop 'end-of-file reached on topofile'
            write(6,*) 'after read he'
            close(66)
-           call ccmpi_distribute(dumz(:,1:3),glob2d(:,1:3))
+           call ccmpi_distribute(duma(:,1:3),glob2d(:,1:3))
         else
-           call ccmpi_distribute(dumz(:,1:3))
+           call ccmpi_distribute(duma(:,1:3))
         end if
-        zs(1:ifull)=dumz(:,1)
-        zsmask(1:ifull)=dumz(:,2)
-        he(1:ifull)=dumz(:,3)
+        zs(1:ifull)=duma(:,1)
+        zsmask(1:ifull)=duma(:,2)
+        he(1:ifull)=duma(:,3)
         if ( mydiag ) write(6,*)'he read in from topofile',he(idjd)
 
         ! special options for orography         
@@ -589,17 +588,17 @@
         zss=zs(1:ifull)
         if (abs(io_in)==1) then
           call onthefly(0,kdate,ktime,psl(1:ifull),zss,tss,sicedep,
-     &         fracice,dumb,dumu,dumv,
-     &         dumqg,tgg,wb,wbice,snowd,dumqf,
-     &         dumql,dumqr,tggsn,smass,ssdn,ssdnn,
+     &         fracice,dumb(:,:,1),dumb(:,:,2),dumb(:,:,3),
+     &         dumb(:,:,4),tgg,wb,wbice,snowd,dumb(:,:,5),
+     &         dumb(:,:,6),dumb(:,:,7),tggsn,smass,ssdn,ssdnn,
      &         snage,isflag,iaero,mlodwn,ocndwn)
-          t(1:ifull,:)=dumb
-          u(1:ifull,:)=dumu
-          v(1:ifull,:)=dumv
-          qg(1:ifull,:)=dumqg
-          qfg(1:ifull,:)=dumqf
-          qlg(1:ifull,:)=dumql
-          qrg(1:ifull,:)=dumqr
+          t(1:ifull,:)=dumb(:,:,1)
+          u(1:ifull,:)=dumb(:,:,2)
+          v(1:ifull,:)=dumb(:,:,3)
+          qg(1:ifull,:)=dumb(:,:,4)
+          qfg(1:ifull,:)=dumb(:,:,5)
+          qlg(1:ifull,:)=dumb(:,:,6)
+          qrg(1:ifull,:)=dumb(:,:,7)
         endif   ! (abs(io_in)==1)
         if(mydiag)then
           write(6,*)'ds,zss',ds,zss(idjd)
@@ -666,12 +665,12 @@
             write(6,"('100*psl#  in',9f8.2)") 100.*diagvals(psl)
             write(6,*)'now call retopo from indata'
           end if ! ( mydiag )
-          dumb=t(1:ifull,:)
-          dumqg=qg(1:ifull,:)
-          call retopo(psl(1:ifull),zss,zs(1:ifull),dumb,
-     &                dumqg)
-          t(1:ifull,:)=dumb
-          qg(1:ifull,:)=dumqg
+          dumb(:,:,1)=t(1:ifull,:)
+          dumb(:,:,2)=qg(1:ifull,:)
+          call retopo(psl(1:ifull),zss,zs(1:ifull),dumb(:,:,1),
+     &                dumb(:,:,2))
+          t(1:ifull,:)=dumb(:,:,1)
+          qg(1:ifull,:)=dumb(:,:,2)
           if(nmaxpr==1.and.mydiag)then
               write(6,"('100*psl# out',9f8.2)") 100.*diagvals(psl)
           endif
@@ -1128,11 +1127,11 @@
          write(6,*) 'Replacing surface data with input from ',
      &               trim(surf_00)
         end if
-        call onthefly(2,kdate,ktime,duma,duma,duma,duma,
-     &       duma,dumb,dumb,dumb,
-     &       dumb,tgg,wb,wbice,snowd,dumb,
-     &       dumb,dumb,tggsn,smass,ssdn,ssdnn,snage,isflag,
-     &       iaero,mlodwn,ocndwn)
+        call onthefly(2,kdate,ktime,duma(:,1),duma(:,2),duma(:,3),
+     &       duma(:,4),duma(:,5),dumb(:,:,1),dumb(:,:,2),dumb(:,:,3),
+     &       dumb(:,:,4),tgg,wb,wbice,snowd,dumb(:,:,5),
+     &       dumb(:,:,6),dumb(:,:,7),tggsn,smass,ssdn,ssdnn,snage,
+     &       isflag,iaero,mlodwn,ocndwn)
          if(kdate/=kdate_sav.or.ktime/=ktime_sav)then
           if (myid==0) then
            write(6,*) 'WARN: Could not locate correct date/time'
@@ -1603,7 +1602,6 @@ c     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
       
       ! surface pressure
       ps(1:ifull)=1.e5*exp(psl(1:ifull))
-
 
       !--------------------------------------------------------------
       ! UPDATE DAVIES NUDGING ARRAYS (nbd and nud_hrs)

@@ -1076,7 +1076,6 @@ dd(:,1)=dd(:,1)-dt*d_ws0/(dz(:,1)*d_zcr)
 call thomas(w_sal,aa,bb,cc,dd)
 w_sal=max(0.,w_sal)
 
-
 ! split U diffusion term
 cc(:,1)=-dt*km(:,2)/(dz_hl(:,2)*dz(:,1)*d_zcr*d_zcr)
 bb(:,1)=1.-cc(:,1)
@@ -1206,12 +1205,11 @@ do ii=2,wlev
   elsewhere
     num(:,ii)=0.
   endwhere
-  nus(:,ii)=num(:,ii)
   ! d - double-diffusive
   ! double-diffusive mixing is neglected for now
   ! w - internal ave
   num(:,ii)=num(:,ii)+numw
-  nus(:,ii)=nus(:,ii)+nusw
+  nus(:,ii)=num(:,ii)+nusw ! note that nus is a copy of num
 end do
 num(:,1)=num(:,2) ! to avoid problems calculating shallow mixed layer
 nus(:,1)=nus(:,2)
@@ -1265,14 +1263,12 @@ a3s=1.-2.*g1s+dg1sds
 do ii=2,wlev
   where (ii<=mixind_hl)
     sigma=depth_hl(:,ii)*d_zcr/p_mixdepth
-    km(:,ii)=p_mixdepth*wm(:,ii)*sigma*(1.+sigma*(a2m+a3m*sigma))
-    ks(:,ii)=p_mixdepth*ws(:,ii)*sigma*(1.+sigma*(a2s+a3s*sigma))
+    km(:,ii)=max(p_mixdepth*wm(:,ii)*sigma*(1.+sigma*(a2m+a3m*sigma)),num(:,ii))
+    ks(:,ii)=max(p_mixdepth*ws(:,ii)*sigma*(1.+sigma*(a2s+a3s*sigma)),nus(:,ii))
   elsewhere
-    km(:,ii)=0.
-    ks(:,ii)=0.
+    km(:,ii)=num(:,ii)
+    ks(:,ii)=nus(:,ii)
   end where
-  km(:,ii)=max(km(:,ii),num(:,ii))
-  ks(:,ii)=max(ks(:,ii),nus(:,ii))
 end do
 
 !--------------------------------------------------------------------
@@ -2142,10 +2138,10 @@ i_v=i_v+dt*(p_tauyica-d_tauyicw)/imass
 ! Remove excessive salinity from ice
 where (i_dic>=icemin)
   deld=i_dic*(1.-icesal/max(i_sal,icesal))
+  i_sal=i_sal*(1.-deld/i_dic)
 elsewhere
   deld=0.
 end where
-i_sal=i_sal*(1.-deld/i_dic)
 d_salflxf=d_salflxf+deld*rhoic/dt
 d_salflxs=d_salflxs-deld*rhoic/dt
 
