@@ -131,17 +131,7 @@
         enddo
       enddo
       
-#ifdef loadbalall
-      call start_log(adjusta_loadbal_begin)
-      call phys_loadbal
-      call end_log(adjusta_loadbal_end)
-#endif
       call boundsuv(cc,dd,stag=-9) ! only update isv and iwu
-#ifdef loadbalall
-      call start_log(adjustb_loadbal_begin)
-      call phys_loadbal
-      call end_log(adjustb_loadbal_end)
-#endif
 
       do k=1,kl
        do iq=1,ifull
@@ -221,12 +211,6 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
 
       enddo    ! k loop
 
-#ifdef loadbalall
-      call start_log(adjustc_loadbal_begin)
-      call phys_loadbal
-      call end_log(adjustc_loadbal_end)
-#endif
-
       if (precon<-9999) then
         ! Multi-grid
         call mghelm(zz,zzn,zze,zzw,zzs,helm,pe,rhsl)
@@ -238,12 +222,6 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
         call bounds(pe)
         call helmsol(zz,zzn,zze,zzw,zzs,helm,pe,rhsl)
       endif ! (precon<-9999) .. else ..
-
-#ifdef loadbalall
-      call start_log(adjustd_loadbal_begin)
-      call phys_loadbal
-      call end_log(adjustd_loadbal_end)
-#endif
 
       if (diag.or.nmaxpr==1)then   !  only for last k of loop (i.e. 1)
          ! Some diagnostics requiring extra bounds calls have been removed
@@ -278,17 +256,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
          enddo                  !  l loop
       end do
 
-#ifdef loadbalall
-      call start_log(adjuste_loadbal_begin)
-      call phys_loadbal
-      call end_log(adjuste_loadbal_end)
-#endif
       call bounds(p,corner=.true.)
-#ifdef loadbalall
-      call start_log(adjustf_loadbal_begin)
-      call phys_loadbal
-      call end_log(adjustf_loadbal_end)
-#endif
 
 !      now u & v
       if ((diag.or.nmaxpr==1).and.mydiag)then
@@ -325,17 +293,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
          enddo  ! iq loop   
       enddo     !  k loop 
 
-#ifdef loadbalall
-      call start_log(adjustg_loadbal_begin)
-      call phys_loadbal
-      call end_log(adjustg_loadbal_end)
-#endif
       call boundsuv(cc,dd,stag=-9) ! only update isv and iwu
-#ifdef loadbalall
-      call start_log(adjusth_loadbal_begin)
-      call phys_loadbal
-      call end_log(adjusth_loadbal_end)
-#endif
 
 !     calculate linear part only of sigma-dot and omega/ps
       do k=1,kl
@@ -358,13 +316,6 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
         cc(1:ifull,:)=cc(1:ifull,:)+.5*dt*un(1:ifull,:)
         dd(1:ifull,:)=dd(1:ifull,:)+.5*dt*vn(1:ifull,:)
       endif
-
-#ifdef loadbalall
-      call start_log(adjusti_loadbal_begin)
-      call phys_loadbal
-      call end_log(adjusti_loadbal_end)
-#endif
-
 
 !     straightforward rev. cubic interp of u and v (i.e. nuv=10)
 !     This is necessary because staguv expects arrays dimensioned 
@@ -402,12 +353,6 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
         u(1:ifull,:)=dumu
         v(1:ifull,:)=dumv
       endif
-
-#ifdef loadbalall
-      call start_log(adjustj_loadbal_begin)
-      call phys_loadbal
-      call end_log(adjustj_loadbal_end)
-#endif
 
 !     vert. integ. div into e
       wrk2(:,kl)=-dsig(kl)*d(:,kl)
@@ -514,12 +459,6 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
         endif
       endif  ! (nh.ne.0)
 
-#ifdef loadbalall
-      call start_log(adjustk_loadbal_begin)
-      call phys_loadbal
-      call end_log(adjustk_loadbal_end)
-#endif
-
       if(nvadh==2.and.nvad>0)then                 ! final dt/2 's worth
         if ((diag.or.nmaxpr==1) .and. mydiag ) then
          write(6,*) 'before vertical advection in adjust5 for ktau= ',
@@ -563,12 +502,6 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
           write (6,"('v_a3',10f8.2)") v(idjd,:)
         endif
       endif     !  (nvadh==2.and.nvad>0)
-
-#ifdef loadbalall
-      call start_log(adjustl_loadbal_begin)
-      call phys_loadbal
-      call end_log(adjustl_loadbal_end)
-#endif
 
       if (mfix==-1) then   ! perform conservation fix on psl
 !        delpos is the sum of all positive changes over globe
@@ -797,12 +730,6 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
       endif
 
       dtsave = dt
-      
-#ifdef loadbalall
-      call start_log(adjustm_loadbal_begin)
-      call phys_loadbal
-      call end_log(adjustm_loadbal_end)
-#endif
       
       call end_log(adjust_end)
 

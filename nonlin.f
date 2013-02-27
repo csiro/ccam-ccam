@@ -148,12 +148,6 @@
        end if
       endif
 
-#ifdef loadbalall
-      call start_log(nonlina_loadbal_begin)
-      call phys_loadbal
-      call end_log(nonlina_loadbal_end)
-#endif
-
 !     do vertical advection in split mode
       if(nvad==4.or.nvad==9)then
         sdmx(:) = maxval(abs(sdot),2)
@@ -174,12 +168,6 @@
       if(nvad>=7)then
          call vadv30(t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),iaero)  ! for vadvbess
       endif
-
-#ifdef loadbalall
-      call start_log(nonlinb_loadbal_begin)
-      call phys_loadbal
-      call end_log(nonlinb_loadbal_end)
-#endif
 
 cx      do k=1,kl  ! following done in upglobal from 04/09
 cx!       N.B. [D + dsigdot/dsig] saved in adjust5 (or updps) as pslx
@@ -394,11 +382,6 @@ c       print *,'termx ',(t(iq,k)+contv*tvv)*dpsldt(iq,k)*roncp/sig(k)
        tv(1:ifull,k)=t(1:ifull,k)+tv(1:ifull,k)  
       enddo
 
-#ifdef loadbalall
-      call start_log(nonlinc_loadbal_begin)
-      call phys_loadbal
-      call end_log(nonlinc_loadbal_end)
-#endif
       duma(1:ifull,1:kl)=phiv(1:ifull,:)
       duma(1:ifull,kl+1)=psl(1:ifull)
       call bounds(duma)
@@ -406,11 +389,6 @@ c       print *,'termx ',(t(iq,k)+contv*tvv)*dpsldt(iq,k)*roncp/sig(k)
       psl(ifull+1:ifull+iextra)=duma(ifull+1:ifull+iextra,kl+1)       
       call bounds(p,nehalf=.true.)
       call bounds(tv,nehalf=.true.)
-#ifdef loadbalall
-      call start_log(nonlind_loadbal_begin)
-      call phys_loadbal
-      call end_log(nonlind_loadbal_end)
-#endif
 
       do k=1,kl
 !cdir nodep
@@ -455,17 +433,7 @@ c       print *,'termx ',(t(iq,k)+contv*tvv)*dpsldt(iq,k)*roncp/sig(k)
         endif                     ! (diag)
       endif  ! (npex==5 ... else ...)
 
-#ifdef loadbalall
-      call start_log(nonline_loadbal_begin)
-      call phys_loadbal
-      call end_log(nonline_loadbal_end)
-#endif
       call unstaguv(aa,bb,ux,vx) ! convert to unstaggered positions
-#ifdef loadbalall
-      call start_log(nonlinf_loadbal_begin)
-      call phys_loadbal
-      call end_log(nonlinf_loadbal_end)
-#endif
 
       if(diag)then
         call printa('aa  ',aa,ktau,nlv,ia,ib,ja,jb,0.,1.)
@@ -526,12 +494,7 @@ c       print *,'termx ',(t(iq,k)+contv*tvv)*dpsldt(iq,k)*roncp/sig(k)
 
       num=1
 
-#ifdef loadbalall
-      call start_log(nonling_loadbal_begin)
-      call phys_loadbal
-      call end_log(nonling_loadbal_end)
-#endif
-
       call end_log(nonlin_end)
+      
       return
       end

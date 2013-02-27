@@ -180,12 +180,6 @@
        dd(1:ifull,k)=aa(1:ifull)
       end do     ! k loop
 
-#ifdef loadbalall
-      call start_log(upglobala_loadbal_begin)
-      call phys_loadbal
-      call end_log(upglobala_loadbal_end)
-#endif
-
 !-------------------------moved up here May 06---------------------------
       if(nvad==-4.and.nvadh/=3)then 
 !       N.B. this moved one is doing vadv on just extra pslx terms      
@@ -205,11 +199,6 @@
         endif
       endif  ! (nvad==-4.and.nvadh.ne.3)
 !------------------------------------------------------------------
-#ifdef loadbalall
-      call start_log(upglobalb_loadbal_begin)
-      call phys_loadbal
-      call end_log(upglobalb_loadbal_end)
-#endif
 
       do k=1,kl   
 !      N.B. [D + dsigdot/dsig] saved in adjust5 (or updps) as pslx
@@ -454,12 +443,6 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
         vx(1:ifull,:)=vx(1:ifull,:)+.5*dt*vn(1:ifull,:) ! dyn contrib
       endif
 
-#ifdef loadbalall
-      call start_log(upglobalc_loadbal_begin)
-      call phys_loadbal
-      call end_log(upglobalc_loadbal_end)
-#endif
-
       if(nvadh==2.or.nvadh==3)then                 ! final dt/2 's worth
         if(nvad==-4)then
           sdot(:,2:kl)=sbar(:,:)
@@ -489,12 +472,6 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
         endif   ! (nvad==-4)
       endif     ! (nvadh==2.or.nvadh==3)
 
-#ifdef loadbalall
-      call start_log(upglobald_loadbal_begin)
-      call phys_loadbal
-      call end_log(upglobald_loadbal_end)
-#endif
-
       if(npex==0.or.npex==5)then ! adding later (after 2nd vadv) than for npex=1
         ux(1:ifull,:)=ux(1:ifull,:)+.5*dt*un(1:ifull,:) ! dyn contrib
         vx(1:ifull,:)=vx(1:ifull,:)+.5*dt*vn(1:ifull,:) ! dyn contrib
@@ -518,20 +495,8 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
 
       if(npex>=0)tx(1:ifull,:)=tx(1:ifull,:)+.5*dt*tn(1:ifull,:) 
 
-#ifdef loadbalall
-      call start_log(upglobale_loadbal_begin)
-      call phys_loadbal
-      call end_log(upglobale_loadbal_end)
-#endif
-
 !     now interpolate ux,vx to the staggered grid
       call staguv(ux,vx,ux,vx)
-
-#ifdef loadbalall
-      call start_log(upglobalf_loadbal_begin)
-      call phys_loadbal
-      call end_log(upglobalf_loadbal_end)
-#endif
 
 !     npex=3 add un, vn on staggered grid 
       if(npex==3)then  
@@ -583,12 +548,7 @@ c           if(numunstab==100)stop 'numunstab=30'
         write (6,"('qf_u',3p9f8.3/4x,9f8.3)") qfg(idjd,:)
       endif     
 
-#ifdef loadbalall
-      call start_log(upglobalg_loadbal_begin)
-      call phys_loadbal
-      call end_log(upglobalg_loadbal_end)
-#endif
-
       call end_log(upglobal_end)
+      
       return
       end

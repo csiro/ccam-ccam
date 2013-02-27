@@ -221,9 +221,7 @@ module cc_mpi
 
    ! Timer
    integer, public, save :: bounds_begin, bounds_end
-   integer, public, save :: boundstile_begin, boundstile_end
    integer, public, save :: boundsuv_begin, boundsuv_end
-   integer, public, save :: boundsuvtile_begin, boundsuvtile_end
    integer, public, save :: ints_begin, ints_end
    integer, public, save :: nonlin_begin, nonlin_end
    integer, public, save :: helm_begin, helm_end
@@ -276,35 +274,6 @@ module cc_mpi
    integer, public, save :: bcast_begin, bcast_end
    integer, public, save :: mgbounds_begin, mgbounds_end
    integer, public, save :: mgcollect_begin, mgcollect_end
-   integer, public, save :: nestina_loadbal_begin, nestina_loadbal_end
-   integer, public, save :: nestinb_loadbal_begin, nestinb_loadbal_end
-   integer, public, save :: nonlina_loadbal_begin, nonlina_loadbal_end
-   integer, public, save :: nonlinb_loadbal_begin, nonlinb_loadbal_end
-   integer, public, save :: nonlinc_loadbal_begin, nonlinc_loadbal_end
-   integer, public, save :: nonlind_loadbal_begin, nonlind_loadbal_end
-   integer, public, save :: nonline_loadbal_begin, nonline_loadbal_end
-   integer, public, save :: nonlinf_loadbal_begin, nonlinf_loadbal_end
-   integer, public, save :: nonling_loadbal_begin, nonling_loadbal_end
-   integer, public, save :: upglobala_loadbal_begin, upglobala_loadbal_end
-   integer, public, save :: upglobalb_loadbal_begin, upglobalb_loadbal_end
-   integer, public, save :: upglobalc_loadbal_begin, upglobalc_loadbal_end
-   integer, public, save :: upglobald_loadbal_begin, upglobald_loadbal_end
-   integer, public, save :: upglobale_loadbal_begin, upglobale_loadbal_end
-   integer, public, save :: upglobalf_loadbal_begin, upglobalf_loadbal_end
-   integer, public, save :: upglobalg_loadbal_begin, upglobalg_loadbal_end
-   integer, public, save :: adjusta_loadbal_begin, adjusta_loadbal_end
-   integer, public, save :: adjustb_loadbal_begin, adjustb_loadbal_end
-   integer, public, save :: adjustc_loadbal_begin, adjustc_loadbal_end
-   integer, public, save :: adjustd_loadbal_begin, adjustd_loadbal_end
-   integer, public, save :: adjuste_loadbal_begin, adjuste_loadbal_end
-   integer, public, save :: adjustf_loadbal_begin, adjustf_loadbal_end
-   integer, public, save :: adjustg_loadbal_begin, adjustg_loadbal_end
-   integer, public, save :: adjusth_loadbal_begin, adjusth_loadbal_end
-   integer, public, save :: adjusti_loadbal_begin, adjusti_loadbal_end
-   integer, public, save :: adjustj_loadbal_begin, adjustj_loadbal_end
-   integer, public, save :: adjustk_loadbal_begin, adjustk_loadbal_end
-   integer, public, save :: adjustl_loadbal_begin, adjustl_loadbal_end
-   integer, public, save :: adjustm_loadbal_begin, adjustm_loadbal_end
    integer, public, save :: hordifg_loadbal_begin, hordifg_loadbal_end
    integer, public, save :: river_loadbal_begin, river_loadbal_end
    integer, public, save :: waterdynamics_loadbal_begin, waterdynamics_loadbal_end
@@ -323,7 +292,7 @@ module cc_mpi
    integer, public, save :: globb_loadbal_begin, globb_loadbal_end
 #ifdef simple_timer
    public :: simple_timer_finalize
-   integer, parameter :: nevents = 101
+   integer, parameter :: nevents = 70
    double precision, dimension(nevents), save :: tot_time = 0., start_time
    character(len=15), dimension(nevents), save :: event_name
 #endif 
@@ -3351,16 +3320,6 @@ contains
          rslen = bnds(neighlistrecv)%rlen_uv
          sslen = bnds(neighlistsend)%slen_uv
          myrlen = bnds(myid)%rlen_uv
-      else if ( stagmode == -19 ) then
-         fsvwu = .false.
-         fnveu = .false.
-         fssvwwu = .false.
-         fnnveeu = .false.
-         fsuwv = .false.
-         fnuev = .true.
-         rslen = bnds(neighlistrecv)%rlenx_uv
-         sslen = bnds(neighlistsend)%slenx_uv
-         myrlen = bnds(myid)%rlenx_uv
       else
          fsvwu = .true.
          fnveu = .true.
@@ -3771,16 +3730,6 @@ contains
          rslen = bnds(neighlistrecv)%rlen_uv
          sslen = bnds(neighlistsend)%slen_uv
          myrlen = bnds(myid)%rlen_uv
-      else if ( stagmode == -19 ) then
-         fsvwu = .false.
-         fnveu = .false.
-         fssvwwu = .false.
-         fnnveeu = .false.
-         fsuwv = .false.
-         fnuev = .true.
-         rslen = bnds(neighlistrecv)%rlenx_uv
-         sslen = bnds(neighlistsend)%slenx_uv
-         myrlen = bnds(myid)%rlenx_uv
       else
          fsvwu = .true.
          fnveu = .true.
@@ -5224,335 +5173,211 @@ contains
       bounds_end = bounds_begin
       event_name(bounds_begin) = "Bounds"
 
-      boundstile_begin = 19
-      boundstile_end = boundstile_begin
-      event_name(boundstile_begin) = "Bounds_Tile"
-
-      boundsuv_begin = 20
+      boundsuv_begin = 19
       boundsuv_end = boundsuv_begin
       event_name(boundsuv_begin) = "BoundsUV"
 
-      boundsuvtile_begin = 21
-      boundsuvtile_end = boundsuvtile_begin
-      event_name(boundsuvtile_begin) = "BoundsUV_Tile"
-
-      deptsync_begin = 22
+      deptsync_begin = 20
       deptsync_end = deptsync_begin
       event_name(deptsync_begin) = "Deptsync"
 
-      intssync_begin = 23
+      intssync_begin = 21
       intssync_end = intssync_begin
       event_name(intssync_begin) = "Intssync"
 
-      gather_begin = 24
+      gather_begin = 22
       gather_end = gather_begin
       event_name(gather_begin) = "Gather"
 
-      distribute_begin = 25
+      distribute_begin = 23
       distribute_end = distribute_begin
       event_name(distribute_begin) = "Distribute"
 
-      posneg_begin = 26
+      posneg_begin = 24
       posneg_end = posneg_begin
       event_name(posneg_begin) = "Posneg"
 
-      globsum_begin = 27
+      globsum_begin = 25
       globsum_end = globsum_begin
       event_name(globsum_begin) = "Globsum"
 
-      reduce_begin = 28
+      reduce_begin = 26
       reduce_end = reduce_begin
       event_name(reduce_begin) = "Reduce"
 
-      bcast_begin = 29
+      bcast_begin = 27
       bcast_end = bcast_begin
       event_name(bcast_begin) = "Bcast"
       
-      mgbounds_begin = 30
+      mgbounds_begin = 28
       mgbounds_end = mgbounds_begin
       event_name(mgbounds_begin) = "MG_bounds"
       
-      mgcollect_begin = 31
+      mgcollect_begin = 29
       mgcollect_end = mgcollect_begin
       event_name(mgcollect_begin) = "MG_collect"      
 
-      mpiwait_begin = 32
+      mpiwait_begin = 30
       mpiwait_end = mpiwait_begin
       event_name(mpiwait_begin) = "MPI_Wait"
 
-      mpiwaittile_begin = 33
+      mpiwaittile_begin = 31
       mpiwaittile_end = mpiwaittile_begin
       event_name(mpiwaittile_begin) = "MPI_Wait_Tile"
 
-      mpiwaituv_begin = 34
+      mpiwaituv_begin = 32
       mpiwaituv_end = mpiwaituv_begin
       event_name(mpiwaituv_begin) = "MPI_WaitUV"
 
-      mpiwaituvtile_begin = 35
+      mpiwaituvtile_begin = 33
       mpiwaituvtile_end = mpiwaituvtile_begin
       event_name(mpiwaituvtile_begin) = "MPI_WaitUV_Tile"
 
-      mpiwaitdep_begin = 36
+      mpiwaitdep_begin = 34
       mpiwaitdep_end = mpiwaitdep_begin
       event_name(mpiwaitdep_begin) = "MPI_WaitDEP"
 
-      mpiwaitmg_begin = 37
+      mpiwaitmg_begin = 35
       mpiwaitmg_end = mpiwaitmg_begin
       event_name(mpiwaitmg_begin) = "MPI_WaitMG"
 
-      precon_begin = 38
+      precon_begin = 36
       precon_end = precon_begin
       event_name(precon_begin) = "Precon"
 
-      indata_begin = 39
+      indata_begin = 37
       indata_end =  indata_begin
       event_name(indata_begin) = "Indata"
 
-      nestin_begin = 40
+      nestin_begin = 38
       nestin_end =  nestin_begin
       event_name(nestin_begin) = "Nestin"
       
-      gwdrag_begin = 41
+      gwdrag_begin = 39
       gwdrag_end =  gwdrag_begin
       event_name(gwdrag_begin) = "GWdrag"
 
-      convection_begin = 42
+      convection_begin = 40
       convection_end =  convection_begin
       event_name(convection_begin) = "Convection"
 
-      cloud_begin = 43
+      cloud_begin = 41
       cloud_end =  cloud_begin
       event_name(cloud_begin) = "Cloud"
 
-      radnet_begin = 44
+      radnet_begin = 42
       radnet_end =  radnet_begin
       event_name(radnet_begin) = "Rad_net"
 
-      radmisc_begin = 45
+      radmisc_begin = 43
       radmisc_end =  radmisc_begin
       event_name(radmisc_begin) = "Rad_misc"
       
-      radsw_begin = 46
+      radsw_begin = 44
       radsw_end =  radsw_begin
       event_name(radsw_begin) = "Rad_SW"
 
-      radlw_begin = 47
+      radlw_begin = 45
       radlw_end =  radlw_begin
       event_name(radlw_begin) = "Rad_LW"      
 
-      sfluxnet_begin = 48
+      sfluxnet_begin = 46
       sfluxnet_end =  sfluxnet_begin
       event_name(sfluxnet_begin) = "Sflux_net"
       
-      sfluxwater_begin = 49
+      sfluxwater_begin = 47
       sfluxwater_end =  sfluxwater_begin
       event_name(sfluxwater_begin) = "Sflux_water"
 
-      sfluxland_begin = 50
+      sfluxland_begin = 48
       sfluxland_end =  sfluxland_begin
       event_name(sfluxland_begin) = "Sflux_land"
 
-      sfluxurban_begin = 51
+      sfluxurban_begin = 49
       sfluxurban_end =  sfluxurban_begin
       event_name(sfluxurban_begin) = "Sflux_urban"
 
-      vertmix_begin = 52
+      vertmix_begin = 50
       vertmix_end =  vertmix_begin
       event_name(vertmix_begin) = "Vertmix"
 
-      aerosol_begin = 53
+      aerosol_begin = 51
       aerosol_end =  aerosol_begin
       event_name(aerosol_begin) = "Aerosol"
 
-      waterdynamics_begin = 54
+      waterdynamics_begin = 52
       waterdynamics_end =  waterdynamics_begin
       event_name(waterdynamics_begin) = "Waterdynamics"
 
-      waterdiff_begin = 55
+      waterdiff_begin = 53
       waterdiff_end =  waterdiff_begin
       event_name(waterdiff_begin) = "Waterdiff"
 
-      river_begin = 56
+      river_begin = 54
       river_end =  river_begin
       event_name(river_begin) = "River"
 
-      nestina_loadbal_begin = 57
-      nestina_loadbal_end =  nestina_loadbal_begin
-      event_name(nestina_loadbal_begin) = "LoadBal_NestinA"
-
-      nestinb_loadbal_begin = 58
-      nestinb_loadbal_end =  nestinb_loadbal_begin
-      event_name(nestinb_loadbal_begin) = "LoadBal_NestinB"
-
-      nonlina_loadbal_begin = 59
-      nonlina_loadbal_end =  nonlina_loadbal_begin
-      event_name(nonlina_loadbal_begin) = "LoadBal_NonlinA"
-
-      nonlinb_loadbal_begin = 60
-      nonlinb_loadbal_end =  nonlinb_loadbal_begin
-      event_name(nonlinb_loadbal_begin) = "LoadBal_NonlinB"
- 
-      nonlinc_loadbal_begin = 61
-      nonlinc_loadbal_end =  nonlinc_loadbal_begin
-      event_name(nonlinc_loadbal_begin) = "LoadBal_NonlinC"     
- 
-      nonlind_loadbal_begin = 62
-      nonlind_loadbal_end =  nonlind_loadbal_begin
-      event_name(nonlind_loadbal_begin) = "LoadBal_NonlinD"
-
-      nonline_loadbal_begin = 63
-      nonline_loadbal_end =  nonline_loadbal_begin
-      event_name(nonline_loadbal_begin) = "LoadBal_NonlinE"
-
-      nonlinf_loadbal_begin = 64
-      nonlinf_loadbal_end =  nonlinf_loadbal_begin
-      event_name(nonlinf_loadbal_begin) = "LoadBal_NonlinF"
-
-      nonling_loadbal_begin = 65
-      nonling_loadbal_end =  nonling_loadbal_begin
-      event_name(nonling_loadbal_begin) = "LoadBal_NonlinG"
-           
-      upglobala_loadbal_begin = 66
-      upglobala_loadbal_end = upglobala_loadbal_begin
-      event_name(upglobala_loadbal_begin) = "LoadBal_UglobA"      
-
-      upglobalb_loadbal_begin = 67
-      upglobalb_loadbal_end = upglobalb_loadbal_begin
-      event_name(upglobalb_loadbal_begin) = "LoadBal_UglobB" 
-
-      upglobalc_loadbal_begin = 68
-      upglobalc_loadbal_end = upglobalc_loadbal_begin
-      event_name(upglobalc_loadbal_begin) = "LoadBal_UglobC"
-
-      upglobald_loadbal_begin = 69
-      upglobald_loadbal_end = upglobald_loadbal_begin
-      event_name(upglobald_loadbal_begin) = "LoadBal_UglobD"
-
-      upglobale_loadbal_begin = 70
-      upglobale_loadbal_end = upglobale_loadbal_begin
-      event_name(upglobale_loadbal_begin) = "LoadBal_UglobE"
-
-      upglobalf_loadbal_begin = 71
-      upglobalf_loadbal_end = upglobalf_loadbal_begin
-      event_name(upglobalf_loadbal_begin) = "LoadBal_UglobF"
-
-      upglobalg_loadbal_begin = 72
-      upglobalg_loadbal_end = upglobalg_loadbal_begin
-      event_name(upglobalg_loadbal_begin) = "LoadBal_UglobG"
-
-      adjusta_loadbal_begin = 73
-      adjusta_loadbal_end = adjusta_loadbal_begin
-      event_name(adjusta_loadbal_begin) = "LoadBal_AdjustA" 
-
-      adjustb_loadbal_begin = 74
-      adjustb_loadbal_end = adjustb_loadbal_begin
-      event_name(adjustb_loadbal_begin) = "LoadBal_AdjustB" 
-
-      adjustc_loadbal_begin = 75
-      adjustc_loadbal_end = adjustc_loadbal_begin
-      event_name(adjustc_loadbal_begin) = "LoadBal_AdjustC" 
-
-      adjustd_loadbal_begin = 76
-      adjustd_loadbal_end = adjustd_loadbal_begin
-      event_name(adjustd_loadbal_begin) = "LoadBal_AdjustD" 
-
-      adjuste_loadbal_begin = 77
-      adjuste_loadbal_end = adjuste_loadbal_begin
-      event_name(adjuste_loadbal_begin) = "LoadBal_AdjustE" 
-
-      adjustf_loadbal_begin = 78
-      adjustf_loadbal_end = adjustf_loadbal_begin
-      event_name(adjustf_loadbal_begin) = "LoadBal_AdjustF" 
-
-      adjustg_loadbal_begin = 79
-      adjustg_loadbal_end = adjustg_loadbal_begin
-      event_name(adjustg_loadbal_begin) = "LoadBal_AdjustG" 
-
-      adjusth_loadbal_begin = 80
-      adjusth_loadbal_end = adjusth_loadbal_begin
-      event_name(adjusth_loadbal_begin) = "LoadBal_AdjustH" 
-
-      adjusti_loadbal_begin = 81
-      adjusti_loadbal_end = adjusti_loadbal_begin
-      event_name(adjusti_loadbal_begin) = "LoadBal_AdjustI" 
-
-      adjustj_loadbal_begin = 82
-      adjustj_loadbal_end = adjustj_loadbal_begin
-      event_name(adjustj_loadbal_begin) = "LoadBal_AdjustJ" 
-
-      adjustk_loadbal_begin = 83
-      adjustk_loadbal_end = adjustk_loadbal_begin
-      event_name(adjustk_loadbal_begin) = "LoadBal_AdjustK" 
-
-      adjustl_loadbal_begin = 84
-      adjustl_loadbal_end = adjustl_loadbal_begin
-      event_name(adjustl_loadbal_begin) = "LoadBal_AdjustL" 
-
-      adjustm_loadbal_begin = 85
-      adjustm_loadbal_end = adjustm_loadbal_begin
-      event_name(adjustm_loadbal_begin) = "LoadBal_AdjustM" 
-
-      hordifg_loadbal_begin = 86
+      hordifg_loadbal_begin = 55
       hordifg_loadbal_end = hordifg_loadbal_begin
       event_name(hordifg_loadbal_begin) = "LoadBal_Hordifg"
 
-      river_loadbal_begin = 87
+      river_loadbal_begin = 56
       river_loadbal_end = river_loadbal_begin
       event_name(river_loadbal_begin) = "LoadBal_River"
 
-      waterdynamics_loadbal_begin = 88
+      waterdynamics_loadbal_begin = 57
       waterdynamics_loadbal_end = waterdynamics_loadbal_begin
       event_name(waterdynamics_loadbal_begin) = "LoadBal_Waterdynamics"
 
-      waterdiff_loadbal_begin = 89
+      waterdiff_loadbal_begin = 58
       waterdiff_loadbal_end = waterdiff_loadbal_begin
       event_name(waterdiff_loadbal_begin) = "LoadBal_Waterdiff"
 
-      gwdrag_loadbal_begin = 90
+      gwdrag_loadbal_begin = 59
       gwdrag_loadbal_end = gwdrag_loadbal_begin
       event_name(gwdrag_loadbal_begin) = "LoadBal_GWDrag"
 
-      convection_loadbal_begin = 91
+      convection_loadbal_begin = 60
       convection_loadbal_end = convection_loadbal_begin
       event_name(convection_loadbal_begin) = "LoadBal_Convection"
 
-      cloud_loadbal_begin = 92
+      cloud_loadbal_begin = 61
       cloud_loadbal_end = cloud_loadbal_begin
       event_name(cloud_loadbal_begin) = "LoadBal_Cloud"
 
-      radnet_loadbal_begin = 93
+      radnet_loadbal_begin = 62
       radnet_loadbal_end = radnet_loadbal_begin
       event_name(radnet_loadbal_begin) = "LoadBal_Rad"
 
-      vertmix_loadbal_begin = 94
+      vertmix_loadbal_begin = 63
       vertmix_loadbal_end = vertmix_loadbal_begin
       event_name(vertmix_loadbal_begin) = "LoadBal_Vertmix"
 
-      aerosol_loadbal_begin = 95
+      aerosol_loadbal_begin = 64
       aerosol_loadbal_end = aerosol_loadbal_begin
       event_name(aerosol_loadbal_begin) = "LoadBal_Aerosol"
 
-      outfile_loadbal_begin = 96
+      outfile_loadbal_begin = 65
       outfile_loadbal_end = outfile_loadbal_begin
       event_name(outfile_loadbal_begin) = "LoadBal_Outfile"
 
-      sfluxwater_loadbal_begin = 97
+      sfluxwater_loadbal_begin = 66
       sfluxwater_loadbal_end = sfluxwater_loadbal_begin
       event_name(sfluxwater_loadbal_begin) = "LoadBal_SFwater"
 
-      sfluxland_loadbal_begin = 98
+      sfluxland_loadbal_begin = 67
       sfluxland_loadbal_end = sfluxland_loadbal_begin
       event_name(sfluxland_loadbal_begin) = "LoadBal_SFland"
 
-      sfluxurban_loadbal_begin = 99
+      sfluxurban_loadbal_begin = 68
       sfluxurban_loadbal_end = sfluxurban_loadbal_begin
       event_name(sfluxurban_loadbal_begin) = "LoadBal_SFurban"
 
-      globa_loadbal_begin = 100
+      globa_loadbal_begin = 69
       globa_loadbal_end = globa_loadbal_begin
       event_name(globa_loadbal_begin) = "LoadBal_GlobA"
       
-      globb_loadbal_begin = 101
+      globb_loadbal_begin = 70
       globb_loadbal_end = globb_loadbal_begin
       event_name(globb_loadbal_begin) = "LoadBal_GlobB"
 

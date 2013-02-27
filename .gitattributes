@@ -55,7 +55,6 @@
 /nlin_m.f90 -text
 /nsibd_m.f90 -text
 /o3amip_m.f90 -text
-/oldconvjlm.f -text
 /optical_path.f90 -text
 /ozoneread.f90 -text
 /parmgeom.h -text

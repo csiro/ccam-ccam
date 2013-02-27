@@ -508,8 +508,8 @@ c End of Kessler-type formulation
 c Update the rhoi and cifr fields
 
             cifr(mg,k)=min(1.-clfr(mg,k),
-     &                (cifr(mg,k)-cffluxout)+cffluxin*(1-fthru(mg,k)))
-            rhoi(mg,k)=(rhoi(mg,k)-rhoiout)+rhoiin*(1-fthru(mg,k))
+     &                (cifr(mg,k)-cffluxout)+cffluxin*(1.-fthru(mg,k)))
+            rhoi(mg,k)=(rhoi(mg,k)-rhoiout)+rhoiin*(1.-fthru(mg,k))
             fluxice(mg)=rhoiout*dz(mg,k)+fluxice(mg)*fthru(mg,k) 
 c Now fluxice is flux leaving layer k
             fluxi(mg,k)=fluxi(mg,k)+fluxice(mg)

@@ -256,8 +256,8 @@ include 'parm.h'
 integer k,i,iq
 real hdif,xp
 real, dimension(ifull+iextra,wlev) :: u,v,uc,vc,wc,uau,uav
-real, dimension(ifull+iextra,wlev) :: xfact,yfact,gg
-real, dimension(ifull+iextra,wlev) :: dudx,dvdx,dudy,dvdy
+real, dimension(ifull+iextra,wlev) :: xfact,yfact,gg,t_kh
+real, dimension(ifull) :: dudx,dvdx,dudy,dvdy
 real, dimension(ifull,wlev) :: ff,base
 real, dimension(ifull+iextra) :: depadj,eta
 real, dimension(ifull) :: tx_fact,ty_fact
@@ -280,38 +280,39 @@ end do
 call mloexport(4,eta(1:ifull),0,0)
 call bounds(eta,nehalf=.true.,gmode=1)
 
-uau(1:ifull,:)=av_vmod*u(1:ifull,:)+(1.-av_vmod)*oldu1
-uav(1:ifull,:)=av_vmod*v(1:ifull,:)+(1.-av_vmod)*oldv1
+if (abs(nmlo)>=3) then
+  uau(1:ifull,:)=av_vmod*u(1:ifull,:)+(1.-av_vmod)*oldu1
+  uav(1:ifull,:)=av_vmod*v(1:ifull,:)+(1.-av_vmod)*oldv1
+else
+  uau(1:ifull,:)=u(1:ifull,:)
+  uav(1:ifull,:)=v(1:ifull,:)
+end if
 call boundsuv(uau,uav,allvec=.true.,gmode=1)
 
-do k=1,wlev
-  dudx(1:ifull,k)=0.5*(uau(ieu,k)-uau(iwu,k))*em(1:ifull)/ds
-  dudy(1:ifull,k)=0.5*(uau(inu,k)-uau(isu,k))*em(1:ifull)/ds
-  dvdx(1:ifull,k)=0.5*(uav(iev,k)-uav(iwv,k))*em(1:ifull)/ds
-  dvdy(1:ifull,k)=0.5*(uav(inv,k)-uav(isv,k))*em(1:ifull)/ds
-end do
-call boundsuv(dudx,dvdy,stag=-19,gmode=1)
-call boundsuv(dvdx,dudy,stag=-19,gmode=1)
-
 ! Smagorinsky
+do k=1,wlev
+  dudx=0.5*((uau(ieu,k)-uau(1:ifull,k))*emu(1:ifull)/ds*eeu(1:ifull) &
+           +(uau(1:ifull,k)-uau(iwu,k))*emu(iwu)/ds*eeu(iwu))
+  dudy=0.5*((uau(inu,k)-uau(1:ifull,k))*emv(1:ifull)/ds*eev(1:ifull) &
+           +(uau(1:ifull,k)-uau(isu,k))*emv(isv)/ds*eev(isv))
+  dvdx=0.5*((uav(iev,k)-uav(1:ifull,k))*emu(1:ifull)/ds*eeu(1:ifull) &
+           +(uav(1:ifull,k)-uav(iwv,k))*emu(iwu)/ds*eeu(iwu))
+  dvdy=0.5*((uav(inv,k)-uav(1:ifull,k))*emv(1:ifull)/ds*eev(1:ifull) &
+           +(uav(1:ifull,k)-uav(isv,k))*emv(isv)/ds*eev(isv))
+
+  cc=(dudx-dvdy)**2+(dudy+dvdx)**2
+  t_kh(1:ifull,k)=sqrt(cc)*hdif/(em(1:ifull)*em(1:ifull))
+end do
+call bounds(t_kh,nehalf=.true.,gmode=1)
+
+! reduce diffusion errors where bathymetry gradients are strong
 do k=1,wlev
   depadj=gosig(k)*max(dd+eta,minwater)
   tx_fact=1./(1.+(abs(depadj(ie)-depadj(1:ifull))/delphi)**nf)
   ty_fact=1./(1.+(abs(depadj(in)-depadj(1:ifull))/delphi)**nf)
 
-  ! stagu
-  cc=((uau(ieu,k)-uau(1:ifull,k))*emu(1:ifull)/ds-0.5*(dvdy(1:ifull,k)+dvdy(iev,k)))**2 &
-    +((uav(iev,k)-uav(1:ifull,k))*emu(1:ifull)/ds+0.5*(dudy(1:ifull,k)+dudy(iev,k)))**2
-  xfact(1:ifull,k)=sqrt(cc)*hdif/(emu(1:ifull)*emu(1:ifull))
-  
-  ! stagv
-  cc=(0.5*(dudx(1:ifull,k)+dudx(inu,k))-(uav(inv,k)-uav(1:ifull,k))*emv(1:ifull)/ds)**2 &
-    +(0.5*(dvdx(1:ifull,k)+dvdx(inu,k))-(uau(inu,k)-uau(1:ifull,k))*emv(1:ifull)/ds)**2
-  yfact(1:ifull,k)=sqrt(cc)*hdif/(emu(1:ifull)*emu(1:ifull))
-
-  ! reduce diffusion errors where bathymetry gradients are strong
-  xfact(1:ifull,k)=xfact(1:ifull,k)*tx_fact ! reduction factor
-  yfact(1:ifull,k)=yfact(1:ifull,k)*ty_fact ! reduction factor
+  xfact(1:ifull,k)=0.5*(t_kh(1:ifull,k)+t_kh(ie,k))*tx_fact*eeu(1:ifull) ! reduction factor
+  yfact(1:ifull,k)=0.5*(t_kh(1:ifull,k)+t_kh(in,k))*ty_fact*eev(1:ifull) ! reduction factor
 end do
 call boundsuv(xfact,yfact,stag=-9,gmode=1)
 
@@ -376,13 +377,6 @@ end do
 !  call mloimport(3,nv,k,0)
 !
 !end do
-
-! set fluxes for scalars to be zero along land boundary
-do k=1,wlev
-  xfact(:,k)=xfact(:,k)*eeu(:) ! land boundary
-  yfact(:,k)=yfact(:,k)*eev(:) ! land boundary
-  base(:,k)=emi+xfact(1:ifull,k)+xfact(iwu,k)+yfact(1:ifull,k)+yfact(isv,k)
-end do
 
 ! update scalar variables
 do i=0,1
