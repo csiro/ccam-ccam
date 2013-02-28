@@ -122,6 +122,7 @@ call bounds(iv)
 ! Main loop
 do itr=1,itr_mg
 
+  ! update on model grid using colours
   do nc=1,maxcolour
     ifc=ifullx(nc)
     do k=1,klim
@@ -131,7 +132,6 @@ do itr=1,itr_mg
       iv(iqx(1:ifc,nc),k)=iv(iqx(1:ifc,nc),k)+dsol(iqx(1:ifc,nc),k)
     end do
     call bounds_colour(iv,nc,klim=klim)
-
   end do
 
   ! residual
@@ -471,7 +471,7 @@ real, dimension(mg_maxsize,mg_maxlevel) :: hh
 real, dimension(mg_maxsize,mg_maxlevel) :: rhs
 !real, dimension(mg_maxsize,mg_maxlevel) :: rhsice
 real, dimension(mg_maxsize,2) :: dsol,new
-real, dimension(ifull+iextra,2) :: dumc,dumd
+real, dimension(ifull+iextra,2) :: dumc
 real, dimension(2) :: alpha
 real, dimension(2) :: dsolmax,dsolmax_g
 
@@ -905,6 +905,8 @@ do itr=1,itr_mgice
     !ipice(1:ifull+iextra)=ipice(1:ifull+iextra)+w(1:ifull+iextra,8)
   end if
 
+  dumc(:,1)=neta
+  !dumc(:,2)=ipice
   neta=max(neta,-dd)*ee
   !ipice=max(min(ipice,ipmax),0.) 
   

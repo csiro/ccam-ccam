@@ -600,25 +600,25 @@
           qlg(1:ifull,:)=dumb(:,:,6)
           qrg(1:ifull,:)=dumb(:,:,7)
 	  
-	  ! MJT patch for very poor initial conditions
-	  if (any(t(1:ifull,:)<100.)) then
-	    write(6,*) "WARN: Poor initial conditions"
-	    write(6,*) "for t ",minval(t(1:ifull,:))
-	    t(1:ifull,:)=max(t(1:ifull,:),100.)
-	  end if
-	  dumb(:,:,1)=(t(1:ifull,:)-100.)/hlcp
-	  if (any(qlg(1:ifull,:)>dumb(:,:,1))) then
-	    write(6,*) "WARN: Poor initial conditions"
-	    write(6,*) "for qlg ",maxval(qlg(1:ifull,:))
-	    qlg(1:ifull,:)=min(qlg(1:ifull,:),dumb(:,:,1))
-	  end if
-	  dumb(:,:,1)=(t(1:ifull,:)-100.-hlcp*qlg(1:ifull,:)) 
-     &              /(hlcp+hlfcp)
-	  if (any(qfg(1:ifull,:)>dumb(:,:,1))) then
-	    write(6,*) "WARN: Poor initial conditions"
-	    write(6,*) "for qfg ",maxval(qfg(1:ifull,:))
-	    qfg(1:ifull,:)=min(qfg(1:ifull,:),dumb(:,:,1))
-	  end if
+!          ! MJT patch for very poor initial conditions
+!          if (any(t(1:ifull,:)<100.)) then
+!            write(6,*) "WARN: Poor initial conditions"
+!            write(6,*) "for t ",minval(t(1:ifull,:))
+!            t(1:ifull,:)=max(t(1:ifull,:),100.)
+!          end if
+!          dumb(:,:,1)=(t(1:ifull,:)-100.)/hlcp
+!          if (any(qlg(1:ifull,:)>dumb(:,:,1))) then
+!            write(6,*) "WARN: Poor initial conditions"
+!            write(6,*) "for qlg ",maxval(qlg(1:ifull,:))
+!            qlg(1:ifull,:)=min(qlg(1:ifull,:),dumb(:,:,1))
+!          end if
+!          dumb(:,:,1)=(t(1:ifull,:)-100.-hlcp*qlg(1:ifull,:)) 
+!     &              /(hlcp+hlfcp)
+!          if (any(qfg(1:ifull,:)>dumb(:,:,1))) then
+!            write(6,*) "WARN: Poor initial conditions"
+!            write(6,*) "for qfg ",maxval(qfg(1:ifull,:))
+!            qfg(1:ifull,:)=min(qfg(1:ifull,:),dumb(:,:,1))
+!          end if
 	  
         endif   ! (abs(io_in)==1)
         if(mydiag)then

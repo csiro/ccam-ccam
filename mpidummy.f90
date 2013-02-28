@@ -108,6 +108,16 @@ subroutine MPI_Waitall(nreq,ireq,status,ierr)
    integer, dimension(*) :: ireq,status
 end subroutine MPI_Waitall
 
+subroutine MPI_Waitany(nreq,ireq,indx,status,ierr)
+   print*, "Error, dummy MPI_Waitany called"
+   stop
+end subroutine MPI_Waitany
+
+subroutine MPI_Waitsome(nreq,ireq,len,list,status,ierr)
+   print*, "Error, dummy MPI_Waitsome called"
+   stop
+end subroutine MPI_Waitsome
+
 subroutine MPI_Recv( a, b, c, iproc, itag, d, status, ierr )
    print*, "Error, dummy MPI_Recv called"
    stop
@@ -137,11 +147,6 @@ subroutine MPI_Get_count(status, a, count, ierr)
    print*, "Error, dummy MPI_Get_count called"
    stop
 end subroutine MPI_Get_count
-
-subroutine MPI_Waitany(nreq,ireq,indx,status,ierr)
-   print*, "Error, dummy MPI_Waitall called"
-   stop
-end subroutine MPI_Waitany
 
 subroutine MPI_OP_Create(fn,l,a, ierr)
   integer a,ierr
