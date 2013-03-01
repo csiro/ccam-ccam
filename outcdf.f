@@ -293,6 +293,7 @@ c       create the attributes of the header record of the file
       ! CREATE ATTRIBUTES AND WRITE OUTPUT
       subroutine openhist(iarch,itype,dim,local,idnc,iaero,nstagin)
 
+      use aerointerface                         ! Aerosol interface
       use aerosolldr                            ! LDR prognostic aerosols
       use arrays_m                              ! Atmosphere dyamics prognostic arrays
       use ateb, only : atebsave                 ! Urban
@@ -943,6 +944,46 @@ c       For time varying surface fields
             call attrib(idnc,idim,3,'zidry',lname,'m',0.,13000.,0,
      &                  itype)
           end if
+        end if
+        
+        ! AEROSOL OPTICAL DEPTHS ------------------------------------
+        if (nextout>=1.and.abs(iaero)>=2.and.nrad==5) then
+          lname = 'Total column small dust optical depth VIS'
+          call attrib(idnc,idim,3,'sdust_vis',lname,'1/km',0.,13.,0,
+     &                itype)
+          lname = 'Total column small dust optical depth NIR'
+          call attrib(idnc,idim,3,'sdust_nir',lname,'1/km',0.,13.,0,
+     &                itype)
+          lname = 'Total column small dust optical depth LW'
+          call attrib(idnc,idim,3,'sdust_lw',lname,'1/km',0.,13.,0,
+     &                itype)
+          lname = 'Total column large dust optical depth VIS'
+          call attrib(idnc,idim,3,'ldust_vis',lname,'1/km',0.,13.,0,
+     &                itype)
+          lname = 'Total column large dust optical depth NIR'
+          call attrib(idnc,idim,3,'ldust_nir',lname,'1/km',0.,13.,0,
+     &                itype)
+          lname = 'Total column large dust optical depth LW'
+          call attrib(idnc,idim,3,'ldust_lw',lname,'1/km',0.,13.,0,
+     &                itype)
+          lname = 'Total column sulfate optical depth VIS'
+          call attrib(idnc,idim,3,'so4_vis',lname,'1/km',0.,13.,0,
+     &                itype)
+          lname = 'Total column sulfate optical depth NIR'
+          call attrib(idnc,idim,3,'so4_nir',lname,'1/km',0.,13.,0,
+     &                itype)
+          lname = 'Total column surfate optical depth LW'
+          call attrib(idnc,idim,3,'so4_lw',lname,'1/km',0.,13.,0,
+     &                itype)
+          lname = 'Total column aerosol optical depth VIS'
+          call attrib(idnc,idim,3,'aero_vis',lname,'1/km',0.,13.,0,
+     &                itype)
+          lname = 'Total column aerosol optical depth NIR'
+          call attrib(idnc,idim,3,'aero_nir',lname,'1/km',0.,13.,0,
+     &                itype)
+          lname = 'Total column aerosol optical depth LW'
+          call attrib(idnc,idim,3,'aero_lw',lname,'1/km',0.,13.,0,
+     &                itype)
         end if
 
         ! CABLE -----------------------------------------------------
@@ -1807,6 +1848,34 @@ c      "extra" outputs
         if (nvmix==6) then
           call histwrt3(zidry,'zidry',idnc,iarch,local,.true.)
         end if
+      end if
+
+      ! AEROSOL OPTICAL DEPTH ---------------------------------------
+      if (nextout>=1.and.abs(iaero)>=2.and.nrad==5) then
+        call histwrt3(opticaldepth(:,1,1),'sdust_vis',idnc,iarch,
+     &                local,.true.)
+        call histwrt3(opticaldepth(:,1,2),'sdust_nir',idnc,iarch,
+     &                local,.true.)
+        call histwrt3(opticaldepth(:,1,3),'sdust_lw',idnc,iarch,
+     &                local,.true.)
+        call histwrt3(opticaldepth(:,2,1),'ldust_vis',idnc,iarch,
+     &                local,.true.)
+        call histwrt3(opticaldepth(:,2,2),'ldust_nir',idnc,iarch,
+     &                local,.true.)
+        call histwrt3(opticaldepth(:,2,3),'ldust_lw',idnc,iarch,
+     &                local,.true.)
+        call histwrt3(opticaldepth(:,3,1),'so4_vis',idnc,iarch,
+     &                local,.true.)
+        call histwrt3(opticaldepth(:,3,2),'so4_nir',idnc,iarch,
+     &                local,.true.)
+        call histwrt3(opticaldepth(:,3,3),'so4_lw',idnc,iarch,
+     &                local,.true.)
+        call histwrt3(opticaldepth(:,4,1),'aero_vis',idnc,iarch,
+     &                local,.true.)
+        call histwrt3(opticaldepth(:,4,2),'aero_nir',idnc,iarch,
+     &                local,.true.)
+        call histwrt3(opticaldepth(:,4,3),'aero_lw',idnc,iarch,
+     &                local,.true.)
       end if
 
       ! CABLE -------------------------------------------------------

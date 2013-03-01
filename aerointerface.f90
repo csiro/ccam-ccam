@@ -14,15 +14,18 @@ private
 public load_aerosolldr,aerocalc,aerodrop
 public ppfprec,ppfmelt,ppfsnow,ppfconv,ppfevap,ppfsubl,pplambs,ppmrate, &
        ppmaccr,ppfstay,ppqfsed,pprscav
+public opticaldepth
 
 real, dimension(:,:,:), allocatable, save :: oxidantprev
 real, dimension(:,:,:), allocatable, save :: oxidantnow
 real, dimension(:,:,:), allocatable, save :: oxidantnext
 real, dimension(:), allocatable, save :: rlev,zdayfac
+real, dimension(:,:,:), allocatable, save :: opticaldepth
 real, dimension(:,:), allocatable, save :: ppfprec,ppfmelt,ppfsnow,ppfconv  ! data saved from LDR cloud scheme
 real, dimension(:,:), allocatable, save :: ppfevap,ppfsubl,pplambs,ppmrate  ! data saved from LDR cloud scheme
 real, dimension(:,:), allocatable, save :: ppmaccr,ppfstay,ppqfsed,pprscav  ! data saved from LDR cloud scheme
 integer, save :: ilon,ilat,ilev
+integer, parameter :: naerofamilies = 4      ! Number of aerosol families
 real, parameter :: wlc = 0.2e-3         ! LWC of deep conv cloud (kg/m**3)
 
 contains
@@ -65,6 +68,7 @@ allocate(pplambs(ifull,kl),ppmrate(ifull,kl))
 allocate(ppmaccr(ifull,kl),ppfstay(ifull,kl))
 allocate(ppqfsed(ifull,kl),pprscav(ifull,kl))
 allocate(zdayfac(ifull))
+allocate(opticaldepth(ifull,naerofamilies,3))
 ppfprec=0.
 ppfmelt=0.
 ppfsnow=0.
@@ -78,6 +82,7 @@ ppfstay=0.
 ppqfsed=0.
 pprscav=0.
 zdayfac=0.
+opticaldepth=0.
 
 call aldrinit(ifull,iextra,kl)
 

@@ -85,7 +85,7 @@ logical, intent(in) :: odcalc  ! True for full radiation calculation
 integer, intent(in) :: imax,iaero
 integer jyear,jmonth,jday,jhour,jmin
 integer k,ksigtop,mins
-integer i,j,iq,istart,iend,kr
+integer i,j,iq,istart,iend,kr,nr
 integer swcount,ierr
 integer, save :: nlow,nmid
 real, dimension(:), allocatable, save :: sgamp
@@ -189,7 +189,7 @@ if ( first ) then
   Cldrad_control%do_donner_deep_clouds   =.false.
   Cldrad_control%do_stochastic_clouds    =.false.  
   Sw_control%solar_constant              =csolar
-  Sw_control%do_cmip_diagnostics         =.false.
+  Sw_control%do_cmip_diagnostics         =.true. ! Need for aerosol optical depths
   Lw_control%do_lwcldemiss               =.true.
   Lw_control%do_o3_iz                    =.true.
   Lw_control%do_co2_iz                   =.true.
@@ -586,20 +586,20 @@ do j=1,jl,imax/il
         ! prognostic aerosols
         do k=1,kl
           kr=kl+1-k
-          dprf=ps(istart:iend)*(sigh(k+1)-sigh(k))
-          Aerosol%aerosol(:,1,kr,1) =xtg(istart:iend,k,3)*dprf*3.0/grav  ! so4
-          Aerosol%aerosol(:,1,kr,2) =xtg(istart:iend,k,4)*dprf*1.0/grav  ! bc hydrophobic
-          Aerosol%aerosol(:,1,kr,3) =xtg(istart:iend,k,5)*dprf*1.0/grav  ! bc hydrophilic
-          Aerosol%aerosol(:,1,kr,4) =xtg(istart:iend,k,6)*dprf*1.3/grav  ! oc hydrophobic
-          Aerosol%aerosol(:,1,kr,5) =xtg(istart:iend,k,7)*dprf*1.3/grav  ! oc hydrophilic
-          Aerosol%aerosol(:,1,kr,6) =xtg(istart:iend,k,8)*dprf*1.0/grav  ! dust 0.1-1
-          Aerosol%aerosol(:,1,kr,7) =xtg(istart:iend,k,9)*dprf*1.0/grav  ! dust 1-2
-          Aerosol%aerosol(:,1,kr,8) =xtg(istart:iend,k,10)*dprf*1.0/grav ! dust 2-3
-          Aerosol%aerosol(:,1,kr,9) =xtg(istart:iend,k,11)*dprf*1.0/grav ! dust 3-6
+          dprf=ps(istart:iend)*(sigh(k)-sigh(k+1))
+          Aerosol%aerosol(:,1,kr,1) =xtg(istart:iend,k,3)*dprf/grav  ! so4
+          Aerosol%aerosol(:,1,kr,2) =xtg(istart:iend,k,4)*dprf/grav  ! bc hydrophobic
+          Aerosol%aerosol(:,1,kr,3) =xtg(istart:iend,k,5)*dprf/grav  ! bc hydrophilic
+          Aerosol%aerosol(:,1,kr,4) =xtg(istart:iend,k,6)*dprf/grav  ! oc hydrophobic
+          Aerosol%aerosol(:,1,kr,5) =xtg(istart:iend,k,7)*dprf/grav  ! oc hydrophilic
+          Aerosol%aerosol(:,1,kr,6) =xtg(istart:iend,k,8)*dprf/grav  ! dust 0.1-1
+          Aerosol%aerosol(:,1,kr,7) =xtg(istart:iend,k,9)*dprf/grav  ! dust 1-2
+          Aerosol%aerosol(:,1,kr,8) =xtg(istart:iend,k,10)*dprf/grav ! dust 2-3
+          Aerosol%aerosol(:,1,kr,9) =xtg(istart:iend,k,11)*dprf/grav ! dust 3-6
           Aerosol%aerosol(:,1,kr,10)=2.64e-18*ssn(istart:iend,k,1) &
-                                     /rhoa(:,k)*dprf*1.0/grav  ! Small sea salt
+                                     /rhoa(:,k)*dprf/grav  ! Small sea salt
           Aerosol%aerosol(:,1,kr,11)=1.38e-15*ssn(istart:iend,k,2) &
-                                     /rhoa(:,k)*dprf*1.0/grav  ! Large sea salt
+                                     /rhoa(:,k)*dprf/grav  ! Large sea salt
         end do
         Aerosol%aerosol=max(Aerosol%aerosol,0.)
       case DEFAULT
@@ -877,6 +877,35 @@ do j=1,jl,imax/il
     do k=1,kl
       ! total heating rate (convert deg K/day to deg K/sec)
       rtt(istart:iend,kl+1-k)=-(Sw_output(1)%hsw(:,1,k)+Lw_output(1)%heatra(:,1,k))/86400.
+    end do
+    
+    ! aerosol optical depths ----------------------------------------
+    opticaldepth(istart:iend,:,:)=0.
+    do k=1,kl
+      ! Small dust
+      opticaldepth(istart:iend,1,1)=opticaldepth(istart:iend,1,1)+Aerosol_diags%extopdep(1:imax,1,k,6,1) ! Visible
+      opticaldepth(istart:iend,1,2)=opticaldepth(istart:iend,1,2)+Aerosol_diags%extopdep(1:imax,1,k,6,2) ! Near IR
+      opticaldepth(istart:iend,1,3)=opticaldepth(istart:iend,1,3)+Aerosol_diags%extopdep(1:imax,1,k,6,3) ! Longwave
+      ! Large dust
+      opticaldepth(istart:iend,2,1)=opticaldepth(istart:iend,2,1)+Aerosol_diags%extopdep(1:imax,1,k,7,1) ! Visible
+      opticaldepth(istart:iend,2,2)=opticaldepth(istart:iend,2,2)+Aerosol_diags%extopdep(1:imax,1,k,7,2) ! Near IR
+      opticaldepth(istart:iend,2,3)=opticaldepth(istart:iend,2,3)+Aerosol_diags%extopdep(1:imax,1,k,7,3) ! Longwave
+      opticaldepth(istart:iend,2,1)=opticaldepth(istart:iend,2,1)+Aerosol_diags%extopdep(1:imax,1,k,8,1) ! Visible
+      opticaldepth(istart:iend,2,2)=opticaldepth(istart:iend,2,2)+Aerosol_diags%extopdep(1:imax,1,k,8,2) ! Near IR
+      opticaldepth(istart:iend,2,3)=opticaldepth(istart:iend,2,3)+Aerosol_diags%extopdep(1:imax,1,k,8,3) ! Longwave
+      opticaldepth(istart:iend,2,1)=opticaldepth(istart:iend,2,1)+Aerosol_diags%extopdep(1:imax,1,k,9,1) ! Visible
+      opticaldepth(istart:iend,2,2)=opticaldepth(istart:iend,2,2)+Aerosol_diags%extopdep(1:imax,1,k,9,2) ! Near IR
+      opticaldepth(istart:iend,2,3)=opticaldepth(istart:iend,2,3)+Aerosol_diags%extopdep(1:imax,1,k,9,3) ! Longwave
+      ! Sulfate
+      opticaldepth(istart:iend,3,1)=opticaldepth(istart:iend,3,1)+Aerosol_diags%extopdep(1:imax,1,k,1,1) ! Visible
+      opticaldepth(istart:iend,3,2)=opticaldepth(istart:iend,3,2)+Aerosol_diags%extopdep(1:imax,1,k,1,2) ! Near IR
+      opticaldepth(istart:iend,3,3)=opticaldepth(istart:iend,3,3)+Aerosol_diags%extopdep(1:imax,1,k,1,3) ! Longwave
+      ! Aerosol
+      do nr=1,nfields
+        opticaldepth(istart:iend,4,1)=opticaldepth(istart:iend,4,1)+Aerosol_diags%extopdep(1:imax,1,k,nr,1) ! Visible
+        opticaldepth(istart:iend,4,2)=opticaldepth(istart:iend,4,2)+Aerosol_diags%extopdep(1:imax,1,k,nr,2) ! Near IR
+        opticaldepth(istart:iend,4,3)=opticaldepth(istart:iend,4,3)+Aerosol_diags%extopdep(1:imax,1,k,nr,3) ! Longwave
+      end do
     end do
 
     ! Calculate the amplitude of the diurnal cycle of solar radiation
@@ -1171,7 +1200,10 @@ real(kind=8), dimension(:,:,:,:),        intent(inout) :: r
 !    physics window and bypass the sw radiation calculations for that 
 !    window.
 !--------------------------------------------------------------------
-      skipswrad = .not.any(Astro%cosz > 0.0)
+      !skipswrad = .not.any(Astro%cosz > 0.0)
+      
+      ! MJT - Need to disable skipswrad for aerosol diagnostics
+      skipswrad = .false.
 
 !--------------------------------------------------------------------
 !    if the sun is shining nowhere in the physics window allocate
@@ -1511,6 +1543,11 @@ if (myid==0) then
   ! longwave optical models
 
   call lw_aerosol_interaction(num_wavenumbers,sflwwts,sflwwts_cn,endaerwvnsf)
+
+!    the units of extinction coefficient (aeroextivl) are m**2/gm.
+!    to make the lw band extinction coefficient (aerextbandlw) have
+!    units (m**2/Kg) consistent with the units in FMS models, one
+!    must multiply by 1000. this is done below.
   
   Aerosol_props%aerextbandlw=0.
   Aerosol_props%aerssalbbandlw=0.
