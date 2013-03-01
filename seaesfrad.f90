@@ -189,7 +189,7 @@ if ( first ) then
   Cldrad_control%do_donner_deep_clouds   =.false.
   Cldrad_control%do_stochastic_clouds    =.false.  
   Sw_control%solar_constant              =csolar
-  Sw_control%do_cmip_diagnostics         =.true. ! Need for aerosol optical depths
+  Sw_control%do_cmip_diagnostics         =do_aerosol_forcing ! Need for aerosol optical depths
   Lw_control%do_lwcldemiss               =.true.
   Lw_control%do_o3_iz                    =.true.
   Lw_control%do_co2_iz                   =.true.
@@ -880,33 +880,35 @@ do j=1,jl,imax/il
     end do
     
     ! aerosol optical depths ----------------------------------------
-    opticaldepth(istart:iend,:,:)=0.
-    do k=1,kl
-      ! Small dust
-      opticaldepth(istart:iend,1,1)=opticaldepth(istart:iend,1,1)+Aerosol_diags%extopdep(1:imax,1,k,6,1) ! Visible
-      opticaldepth(istart:iend,1,2)=opticaldepth(istart:iend,1,2)+Aerosol_diags%extopdep(1:imax,1,k,6,2) ! Near IR
-      opticaldepth(istart:iend,1,3)=opticaldepth(istart:iend,1,3)+Aerosol_diags%extopdep(1:imax,1,k,6,3) ! Longwave
-      ! Large dust
-      opticaldepth(istart:iend,2,1)=opticaldepth(istart:iend,2,1)+Aerosol_diags%extopdep(1:imax,1,k,7,1) ! Visible
-      opticaldepth(istart:iend,2,2)=opticaldepth(istart:iend,2,2)+Aerosol_diags%extopdep(1:imax,1,k,7,2) ! Near IR
-      opticaldepth(istart:iend,2,3)=opticaldepth(istart:iend,2,3)+Aerosol_diags%extopdep(1:imax,1,k,7,3) ! Longwave
-      opticaldepth(istart:iend,2,1)=opticaldepth(istart:iend,2,1)+Aerosol_diags%extopdep(1:imax,1,k,8,1) ! Visible
-      opticaldepth(istart:iend,2,2)=opticaldepth(istart:iend,2,2)+Aerosol_diags%extopdep(1:imax,1,k,8,2) ! Near IR
-      opticaldepth(istart:iend,2,3)=opticaldepth(istart:iend,2,3)+Aerosol_diags%extopdep(1:imax,1,k,8,3) ! Longwave
-      opticaldepth(istart:iend,2,1)=opticaldepth(istart:iend,2,1)+Aerosol_diags%extopdep(1:imax,1,k,9,1) ! Visible
-      opticaldepth(istart:iend,2,2)=opticaldepth(istart:iend,2,2)+Aerosol_diags%extopdep(1:imax,1,k,9,2) ! Near IR
-      opticaldepth(istart:iend,2,3)=opticaldepth(istart:iend,2,3)+Aerosol_diags%extopdep(1:imax,1,k,9,3) ! Longwave
-      ! Sulfate
-      opticaldepth(istart:iend,3,1)=opticaldepth(istart:iend,3,1)+Aerosol_diags%extopdep(1:imax,1,k,1,1) ! Visible
-      opticaldepth(istart:iend,3,2)=opticaldepth(istart:iend,3,2)+Aerosol_diags%extopdep(1:imax,1,k,1,2) ! Near IR
-      opticaldepth(istart:iend,3,3)=opticaldepth(istart:iend,3,3)+Aerosol_diags%extopdep(1:imax,1,k,1,3) ! Longwave
-      ! Aerosol
-      do nr=1,nfields
-        opticaldepth(istart:iend,4,1)=opticaldepth(istart:iend,4,1)+Aerosol_diags%extopdep(1:imax,1,k,nr,1) ! Visible
-        opticaldepth(istart:iend,4,2)=opticaldepth(istart:iend,4,2)+Aerosol_diags%extopdep(1:imax,1,k,nr,2) ! Near IR
-        opticaldepth(istart:iend,4,3)=opticaldepth(istart:iend,4,3)+Aerosol_diags%extopdep(1:imax,1,k,nr,3) ! Longwave
+    if (do_aerosol_forcing) then
+      opticaldepth(istart:iend,:,:)=0.
+      do k=1,kl
+        ! Small dust
+        opticaldepth(istart:iend,1,1)=opticaldepth(istart:iend,1,1)+Aerosol_diags%extopdep(1:imax,1,k,6,1) ! Visible
+        opticaldepth(istart:iend,1,2)=opticaldepth(istart:iend,1,2)+Aerosol_diags%extopdep(1:imax,1,k,6,2) ! Near IR
+        opticaldepth(istart:iend,1,3)=opticaldepth(istart:iend,1,3)+Aerosol_diags%extopdep(1:imax,1,k,6,3) ! Longwave
+        ! Large dust
+        opticaldepth(istart:iend,2,1)=opticaldepth(istart:iend,2,1)+Aerosol_diags%extopdep(1:imax,1,k,7,1) ! Visible
+        opticaldepth(istart:iend,2,2)=opticaldepth(istart:iend,2,2)+Aerosol_diags%extopdep(1:imax,1,k,7,2) ! Near IR
+        opticaldepth(istart:iend,2,3)=opticaldepth(istart:iend,2,3)+Aerosol_diags%extopdep(1:imax,1,k,7,3) ! Longwave
+        opticaldepth(istart:iend,2,1)=opticaldepth(istart:iend,2,1)+Aerosol_diags%extopdep(1:imax,1,k,8,1) ! Visible
+        opticaldepth(istart:iend,2,2)=opticaldepth(istart:iend,2,2)+Aerosol_diags%extopdep(1:imax,1,k,8,2) ! Near IR
+        opticaldepth(istart:iend,2,3)=opticaldepth(istart:iend,2,3)+Aerosol_diags%extopdep(1:imax,1,k,8,3) ! Longwave
+        opticaldepth(istart:iend,2,1)=opticaldepth(istart:iend,2,1)+Aerosol_diags%extopdep(1:imax,1,k,9,1) ! Visible
+        opticaldepth(istart:iend,2,2)=opticaldepth(istart:iend,2,2)+Aerosol_diags%extopdep(1:imax,1,k,9,2) ! Near IR
+        opticaldepth(istart:iend,2,3)=opticaldepth(istart:iend,2,3)+Aerosol_diags%extopdep(1:imax,1,k,9,3) ! Longwave
+        ! Sulfate
+        opticaldepth(istart:iend,3,1)=opticaldepth(istart:iend,3,1)+Aerosol_diags%extopdep(1:imax,1,k,1,1) ! Visible
+        opticaldepth(istart:iend,3,2)=opticaldepth(istart:iend,3,2)+Aerosol_diags%extopdep(1:imax,1,k,1,2) ! Near IR
+        opticaldepth(istart:iend,3,3)=opticaldepth(istart:iend,3,3)+Aerosol_diags%extopdep(1:imax,1,k,1,3) ! Longwave
+        ! Aerosol
+        do nr=1,nfields
+          opticaldepth(istart:iend,4,1)=opticaldepth(istart:iend,4,1)+Aerosol_diags%extopdep(1:imax,1,k,nr,1) ! Visible
+          opticaldepth(istart:iend,4,2)=opticaldepth(istart:iend,4,2)+Aerosol_diags%extopdep(1:imax,1,k,nr,2) ! Near IR
+          opticaldepth(istart:iend,4,3)=opticaldepth(istart:iend,4,3)+Aerosol_diags%extopdep(1:imax,1,k,nr,3) ! Longwave
+        end do
       end do
-    end do
+    end if
 
     ! Calculate the amplitude of the diurnal cycle of solar radiation
     ! at the surface (using the value for the middle of the radiation
