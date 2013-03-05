@@ -16,6 +16,7 @@ private
 public vertint,datefix,getzinp,ncmsg
 public histopen,histclose,histrd1,histrd4s,pfall
 public attrib,histwrt3,histwrt4,freqwrite
+public surfread
 public ccnf_open,ccnf_create,ccnf_close,ccnf_sync,ccnf_enddef,ccnf_redef,ccnf_nofill,ccnf_inq_varid,ccnf_inq_dimid
 public ccnf_inq_dimlen,ccnf_def_dim,ccnf_def_dimu,ccnf_def_var,ccnf_def_var0,ccnf_get_var,ccnf_get_varg
 public ccnf_get_vara,ccnf_get_var1,ccnf_get_att,ccnf_get_attg,ccnf_read,ccnf_put_var,ccnf_put_var1
@@ -2103,7 +2104,7 @@ ncstatus=lncstatus
 if (present(tst)) then
   tst=ltst
 else
-  call ncmsg("varid",ncstatus)
+  call ncmsg(vname,ncstatus)
 end if
 
 return
@@ -3547,5 +3548,131 @@ call ncmsg("put_attg",ncstatus)
 
 return
 end subroutine ccnf_put_att_realg2
+
+subroutine surfread(dat,varname,netcdfid,filename)
+
+use cc_mpi
+
+implicit none
+
+include 'newmpar.h'
+
+integer, intent(in), optional :: netcdfid
+integer ifully
+character(len=*), intent(in), optional :: filename
+character(len=*), intent(in) :: varname
+real, dimension(:), intent(out) :: dat
+
+ifully=size(dat)
+if (myid==0) then
+  if (present(filename)) then
+    call surfreadglob(dat,varname,filename=filename)  
+  else if (present(netcdfid)) then
+    call surfreadglob(dat,varname,netcdfid=netcdfid)  
+  else
+    write(6,*) 'Failed to specify input file'
+    call ccmpi_abort(-1)
+  end if
+else
+  if (ifully==ifull) then
+    call ccmpi_distribute(dat)
+  end if
+end if
+
+return
+end subroutine surfread
+
+! Read surface data and distribute over processors
+! This version suports both netcdf and text file formats
+subroutine surfreadglob(dat,vname,netcdfid,filename)
+
+use cc_mpi
+
+implicit none
+
+include 'newmpar.h'   ! Grid parameters
+include 'parm.h'      ! Model configuration
+include 'parmgeom.h'  ! Coordinate data
+
+integer, intent(in), optional :: netcdfid
+integer, dimension(3) :: spos,npos
+integer ifully,ncidx,iernc,varid,ierr
+integer ilx,jlx
+character(len=*), intent(in), optional :: filename
+character(len=*), intent(in) :: vname
+character(len=47) header
+real, dimension(:), intent(out) :: dat
+real, dimension(ifull_g) :: glob2d
+real rlong0x,rlat0x,schmidtx,dsx
+
+ifully=size(dat)
+
+if (present(filename)) then
+  call ccnf_open(filename,ncidx,iernc)
+else if (present(netcdfid)) then
+  ncidx=netcdfid
+  iernc=0
+end if
+
+if (iernc==0) then ! Netcdf file
+
+  call ccnf_inq_dimlen(ncidx,'longitude',ilx)
+  call ccnf_inq_dimlen(ncidx,'latitude',jlx)
+  call ccnf_get_attg(ncidx,'long0',rlong0x)
+  call ccnf_get_attg(ncidx,'lat0',rlat0x)
+  call ccnf_get_attg(ncidx,'schmidt',schmidtx)
+  if(ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) then
+    write(6,*) 'wrong data file supplied'
+    call ccmpi_abort(-1)
+  end if
+
+  spos(1:3)=1
+  npos(1)=il_g
+  npos(2)=6*il_g
+  npos(3)=1
+  call ccnf_inq_varid(ncidx,vname,varid)
+  call ccnf_get_vara(ncidx,varid,spos,npos,glob2d)
+  if (present(filename)) then
+    call ccnf_close(ncidx)
+  end if
+  
+else ! ASCII file
+
+  open(87,file=filename,status='old')
+  read(87,*,iostat=ierr) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
+  if ( ierr == 0 ) then
+    write(6,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
+    if(ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) then
+      write(6,*) 'wrong data file supplied'
+      call ccmpi_abort(-1)
+    end if
+    read(87,*) glob2d
+    close(87)
+  else if ( ierr < 0 ) then ! Error, so really unformatted file
+    close(87)
+    write(6,*) 'now doing unformatted read'
+    open(87,file=filename,status='old',form='unformatted')
+    read(87) glob2d
+    close(87)
+  else
+    write(6,*) "error in surfreadglob",trim(filename),ierr
+    call ccmpi_abort(-1)
+  end if
+  
+end if
+
+! distrubte data over processors
+if (ifully==ifull) then
+  call ccmpi_distribute(dat, glob2d)
+else if (ifully==ifull_g) then
+  dat=glob2d
+else
+  write(6,*) "ERROR: Invalid array size in surfreadglob"
+  call ccmpi_abort(-1)
+end if
+  
+return
+end subroutine surfreadglob
+
 
 end module infile

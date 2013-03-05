@@ -34,7 +34,7 @@ integer, parameter :: basinmd  =2   ! basin mode (0=soil, 1=redistribute, 2=pile
 integer, parameter :: mstagf   =0   ! alternating staggering (0=off left, -1=off right, >0 alternating)
 integer, parameter :: koff     =1   ! time split stagger relative to A-grid (koff=0) or C-grid (koff=1)
 integer, parameter :: nf       =2   ! power for horizontal diffusion reduction factor
-integer, parameter :: itnmax   =3   ! number of interations for staggering
+integer, parameter :: itnmax   =6   ! number of interations for staggering
 integer, save      :: fixsal   =1   ! Conserve salinity (0=Usual, 1=Fixed average salinity at 34.72)
 integer, save      :: fixheight=1   ! Conserve free surface height (0=Usual, 1=Fixed average Height at 0)
 real, parameter :: rhosn  =330.     ! density snow (kg m^-3)

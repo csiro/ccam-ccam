@@ -949,40 +949,40 @@ c       For time varying surface fields
         ! AEROSOL OPTICAL DEPTHS ------------------------------------
         if (nextout>=1.and.abs(iaero)>=2.and.nrad==5) then
           lname = 'Total column small dust optical depth VIS'
-          call attrib(idnc,idim,3,'sdust_vis',lname,'1/km',0.,13.,0,
+          call attrib(idnc,idim,3,'sdust_vis',lname,'none',0.,13.,0,
      &                itype)
           lname = 'Total column small dust optical depth NIR'
-          call attrib(idnc,idim,3,'sdust_nir',lname,'1/km',0.,13.,0,
+          call attrib(idnc,idim,3,'sdust_nir',lname,'none',0.,13.,0,
      &                itype)
           lname = 'Total column small dust optical depth LW'
-          call attrib(idnc,idim,3,'sdust_lw',lname,'1/km',0.,13.,0,
+          call attrib(idnc,idim,3,'sdust_lw',lname,'none',0.,13.,0,
      &                itype)
           lname = 'Total column large dust optical depth VIS'
-          call attrib(idnc,idim,3,'ldust_vis',lname,'1/km',0.,13.,0,
+          call attrib(idnc,idim,3,'ldust_vis',lname,'none',0.,13.,0,
      &                itype)
           lname = 'Total column large dust optical depth NIR'
-          call attrib(idnc,idim,3,'ldust_nir',lname,'1/km',0.,13.,0,
+          call attrib(idnc,idim,3,'ldust_nir',lname,'none',0.,13.,0,
      &                itype)
           lname = 'Total column large dust optical depth LW'
-          call attrib(idnc,idim,3,'ldust_lw',lname,'1/km',0.,13.,0,
+          call attrib(idnc,idim,3,'ldust_lw',lname,'none',0.,13.,0,
      &                itype)
           lname = 'Total column sulfate optical depth VIS'
-          call attrib(idnc,idim,3,'so4_vis',lname,'1/km',0.,13.,0,
+          call attrib(idnc,idim,3,'so4_vis',lname,'none',0.,13.,0,
      &                itype)
           lname = 'Total column sulfate optical depth NIR'
-          call attrib(idnc,idim,3,'so4_nir',lname,'1/km',0.,13.,0,
+          call attrib(idnc,idim,3,'so4_nir',lname,'none',0.,13.,0,
      &                itype)
           lname = 'Total column surfate optical depth LW'
-          call attrib(idnc,idim,3,'so4_lw',lname,'1/km',0.,13.,0,
+          call attrib(idnc,idim,3,'so4_lw',lname,'none',0.,13.,0,
      &                itype)
           lname = 'Total column aerosol optical depth VIS'
-          call attrib(idnc,idim,3,'aero_vis',lname,'1/km',0.,13.,0,
+          call attrib(idnc,idim,3,'aero_vis',lname,'none',0.,13.,0,
      &                itype)
           lname = 'Total column aerosol optical depth NIR'
-          call attrib(idnc,idim,3,'aero_nir',lname,'1/km',0.,13.,0,
+          call attrib(idnc,idim,3,'aero_nir',lname,'none',0.,13.,0,
      &                itype)
           lname = 'Total column aerosol optical depth LW'
-          call attrib(idnc,idim,3,'aero_lw',lname,'1/km',0.,13.,0,
+          call attrib(idnc,idim,3,'aero_lw',lname,'none',0.,13.,0,
      &                itype)
         end if
 

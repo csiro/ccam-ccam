@@ -1,3 +1,4 @@
-      integer idnc,ncid,iarchi                                    ! MJT tracerfix
-      common/darcdf/idnc,ncid,iarchi   ! stuff for reading netcdf ! MJT tracerfix
+      integer idnc,ncid,ncidveg,iarchi
+      integer lncveg                                   
+      common/darcdf/idnc,ncid,ncidveg,iarchi,lncveg   ! stuff for reading netcdf
 

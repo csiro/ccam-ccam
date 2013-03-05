@@ -77,8 +77,8 @@ module cc_mpi
       module procedure ccmpi_allreduce2i, ccmpi_allreduce2r, ccmpi_allreduce3r, ccmpi_allreduce2c
    end interface ccmpi_allreduce
    interface ccmpi_bcast
-      module procedure ccmpi_bcast2i, ccmpi_bcast3i, ccmpi_bcast2r, ccmpi_bcast3r, ccmpi_bcast4r, &
-                       ccmpi_bcast5r, ccmpi_bcast2s
+      module procedure ccmpi_bcast1i, ccmpi_bcast2i, ccmpi_bcast3i, ccmpi_bcast2r, ccmpi_bcast3r, &
+                       ccmpi_bcast4r, ccmpi_bcast5r, ccmpi_bcast2s
    end interface ccmpi_bcast
    interface ccmpi_bcastr8
       module procedure ccmpi_bcast2r8, ccmpi_bcast3r8, ccmpi_bcast4r8
@@ -6318,6 +6318,29 @@ contains
       call MPI_Abort(MPI_COMM_WORLD,lerrin,ierr)
    
    end subroutine ccmpi_abort
+
+   subroutine ccmpi_bcast1i(ldat,host,comm)
+
+      integer, intent(in) :: host,comm
+      integer(kind=4) ltype,lcomm,lhost,lerr,lsize
+      integer, intent(in) :: ldat
+
+      call start_log(bcast_begin)
+
+      lhost = host
+      lcomm = comm
+      lsize = 1
+#ifdef i8r8
+      ltype = MPI_INTEGER8
+#else
+      ltype = MPI_INTEGER
+#endif 
+   
+      call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,lerr)
+         
+      call end_log(bcast_end)
+         
+   end subroutine ccmpi_bcast1i
 
    subroutine ccmpi_bcast2i(ldat,host,comm)
 

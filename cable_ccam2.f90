@@ -268,7 +268,7 @@ canopy%rnet    = canopy%fns + canopy%fnv
 rad%trad       = ( (1.-rad%transd)*canopy%tv**4 + rad%transd*ssnow%tss**4 )**0.25
 
 ! EK suggestion
-canopy%cdtq =  max( 0.1*canopy%cduv, canopy%cdtq)
+canopy%cdtq =  max( 0.1*canopy%cduv, canopy%cdtq )
 
 !--------------------------------------------------------------
 ! CASA CNP
@@ -1727,57 +1727,132 @@ end subroutine loadcbmparm
 subroutine vegta(ivs,svs,vlinprev,vlin,vlinnext,fvegprev,fveg,fvegnext)
   
 use cc_mpi
+use infile
 
 implicit none
   
 include 'newmpar.h'
+include 'darcdf.h'
 include 'parmgeom.h'  ! rlong0,rlat0,schmidt  
   
 character(len=*), intent(in) :: fveg,fvegprev,fvegnext
 integer, dimension(ifull,5), intent(out) :: ivs
 integer, dimension(ifull_g,5) :: ivsg  
-integer n,iq,ilx,jlx,iad  
+integer, dimension(3) :: spos,npos
+integer n,iq,ilx,jlx,iad 
+integer ncidx,iernc,varid 
 real, dimension(ifull,5), intent(out) :: svs,vlinprev,vlin,vlinnext
 real, dimension(ifull_g,5) :: svsg,vling
 real rlong0x,rlat0x,schmidtx,dsx,ra,rb
 character(len=47) header  
+character(len=6) vname
 
-write(6,*) "Reading land-use data for CABLE"
-if (fvegprev/=' '.and.fvegnext/=' ') then
-  open(87,file=fvegprev,status='old')
-  read(87,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
-  if(ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) stop 'wrong data file supplied'
-  do iq=1,ifull_g
-    read(87,*) iad,ra,rb,ivsg(iq,1),svsg(iq,1),vling(iq,1),ivsg(iq,2),svsg(iq,2),vling(iq,2),ivsg(iq,3),svsg(iq,3),vling(iq,3), &
-               ivsg(iq,4),svsg(iq,4),vling(iq,4),ivsg(iq,5),svsg(iq,5),vling(iq,5)
+write(6,*) "Reading land-use parameters for CABLE"
+if (lncveg==1) then
+  ! assume this file grid has been tested when opened
+  spos(1:3)=1
+  npos(1)=il_g
+  npos(2)=6*il_g
+  npos(3)=1
+  do n=1,5
+    write(vname,"(A,I1.1)") "lai",n
+    call ccnf_inq_varid(ncidveg,vname,varid)
+    call ccnf_get_vara(ncidveg,varid,spos,npos,vling(:,n)) 
+    write(vname,"(A,I1.1)") "vegt",n
+    call ccnf_inq_varid(ncidveg,vname,varid)
+    call ccnf_get_vara(ncidveg,varid,spos,npos,svsg(:,n)) 
+    ivsg(:,n)=nint(svsg(:,n))
+    write(vname,"(A,I1.1)") "vfrac",n
+    call ccnf_inq_varid(ncidveg,vname,varid)
+    call ccnf_get_vara(ncidveg,varid,spos,npos,svsg(:,n))
   end do
-  close(87)
-  call ccmpi_distribute(vlinprev,vling)
-  open(87,file=fvegnext,status='old')
-  read(87,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
-  if(ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) stop 'wrong data file supplied'
-  do iq=1,ifull_g
-    read(87,*) iad,ra,rb,ivsg(iq,1),svsg(iq,1),vling(iq,1),ivsg(iq,2),svsg(iq,2),vling(iq,2),ivsg(iq,3),svsg(iq,3),vling(iq,3), &
-               ivsg(iq,4),svsg(iq,4),vling(iq,4),ivsg(iq,5),svsg(iq,5),vling(iq,5)
-  end do
-  close(87)
-  call ccmpi_distribute(vlinnext,vling)
+  call ccmpi_distribute(ivs,ivsg)
+  call ccmpi_distribute(svs,svsg)
+  call ccmpi_distribute(vlin,vling)
+  if (fvegprev/=' '.and.fvegnext/=' ') then
+    call ccnf_open(fvegprev,ncidx,iernc)
+    if (iernc/=0) then
+      write(6,*) 'Cannot read netcdf file ',trim(fvegprev)
+      call ccmpi_abort(-1)
+    end if
+    call ccnf_inq_dimlen(ncidx,'longitude',ilx)
+    call ccnf_inq_dimlen(ncidx,'latitude',jlx)
+    call ccnf_get_attg(ncidx,'long0',rlong0x)
+    call ccnf_get_attg(ncidx,'lat0',rlat0x)
+    call ccnf_get_attg(ncidx,'schmidt',schmidtx)
+    if(ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) then
+      write(6,*) 'wrong data file supplied ',trim(fvegprev)
+      call ccmpi_abort(-1)
+    end if
+    do n=1,5
+      write(vname,"(A,I1.1)") "lai",n
+      call ccnf_inq_varid(ncidveg,vname,varid)
+      call ccnf_get_vara(ncidveg,varid,spos,npos,vling(:,n)) 
+    end do
+    call ccnf_close(ncidx)
+    call ccmpi_distribute(vlinprev,vling)
+    call ccnf_open(fvegnext,ncidx,iernc)
+    if (iernc/=0) then
+      write(6,*) 'Cannot read netcdf file ',trim(fvegnext)
+      call ccmpi_abort(-1)
+    end if
+    call ccnf_inq_dimlen(ncidx,'longitude',ilx)
+    call ccnf_inq_dimlen(ncidx,'latitude',jlx)
+    call ccnf_get_attg(ncidx,'long0',rlong0x)
+    call ccnf_get_attg(ncidx,'lat0',rlat0x)
+    call ccnf_get_attg(ncidx,'schmidt',schmidtx)
+    if(ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) then
+      write(6,*) 'wrong data file supplied ',trim(fvegnext)
+      call ccmpi_abort(-1)
+    end if
+    do n=1,5
+      write(vname,"(A,I1.1)") "lai",n
+      call ccnf_inq_varid(ncidveg,vname,varid)
+      call ccnf_get_vara(ncidveg,varid,spos,npos,vling(:,n)) 
+    end do
+    call ccnf_close(ncidx)
+    call ccmpi_distribute(vlinnext,vling)
+  else
+    vlinprev=-1.
+    vlinnext=-1.    
+  end if
+
 else
-  vlinprev=-1.
-  vlinnext=-1.    
+  open(87,file=fveg,status='old')
+  read(87,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
+  if(ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) stop 'wrong data file supplied'
+  do iq=1,ifull_g
+    read(87,*) iad,ra,rb,ivsg(iq,1),svsg(iq,1),vling(iq,1),ivsg(iq,2),svsg(iq,2),vling(iq,2),ivsg(iq,3),svsg(iq,3),vling(iq,3), &
+               ivsg(iq,4),svsg(iq,4),vling(iq,4),ivsg(iq,5),svsg(iq,5),vling(iq,5)
+  end do
+  close(87)
+  call ccmpi_distribute(ivs,ivsg)
+  call ccmpi_distribute(svs,svsg)
+  call ccmpi_distribute(vlin,vling)
+  if (fvegprev/=' '.and.fvegnext/=' ') then
+    open(87,file=fvegprev,status='old')
+    read(87,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
+    if(ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) stop 'wrong data file supplied'
+    do iq=1,ifull_g
+      read(87,*) iad,ra,rb,ivsg(iq,1),svsg(iq,1),vling(iq,1),ivsg(iq,2),svsg(iq,2),vling(iq,2),ivsg(iq,3),svsg(iq,3),vling(iq,3), &
+                 ivsg(iq,4),svsg(iq,4),vling(iq,4),ivsg(iq,5),svsg(iq,5),vling(iq,5)
+    end do
+    close(87)
+    call ccmpi_distribute(vlinprev,vling)
+    open(87,file=fvegnext,status='old')
+    read(87,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
+    if(ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) stop 'wrong data file supplied'
+    do iq=1,ifull_g
+      read(87,*) iad,ra,rb,ivsg(iq,1),svsg(iq,1),vling(iq,1),ivsg(iq,2),svsg(iq,2),vling(iq,2),ivsg(iq,3),svsg(iq,3),vling(iq,3), &
+                 ivsg(iq,4),svsg(iq,4),vling(iq,4),ivsg(iq,5),svsg(iq,5),vling(iq,5)
+    end do
+    close(87)
+    call ccmpi_distribute(vlinnext,vling)
+  else
+    vlinprev=-1.
+    vlinnext=-1.    
+  end if
 end if
-open(87,file=fveg,status='old')
-read(87,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
-if(ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) stop 'wrong data file supplied'
-do iq=1,ifull_g
-  read(87,*) iad,ra,rb,ivsg(iq,1),svsg(iq,1),vling(iq,1),ivsg(iq,2),svsg(iq,2),vling(iq,2),ivsg(iq,3),svsg(iq,3),vling(iq,3), &
-             ivsg(iq,4),svsg(iq,4),vling(iq,4),ivsg(iq,5),svsg(iq,5),vling(iq,5)
-end do
-close(87)
-call ccmpi_distribute(ivs,ivsg)
-call ccmpi_distribute(svs,svsg)
-call ccmpi_distribute(vlin,vling)
-  
 return
 end subroutine vegta
   
@@ -1795,6 +1870,9 @@ integer, dimension(ifull,5), intent(out) :: ivs
 integer n,iq
 real, dimension(ifull,5), intent(out) :: svs,vlinprev,vlin,vlinnext
 
+call ccmpi_distribute(ivs)
+call ccmpi_distribute(svs)
+call ccmpi_distribute(vlin)
 if (fvegprev/=' '.and.fvegnext/=' ') then
   call ccmpi_distribute(vlinprev)
   call ccmpi_distribute(vlinnext)
@@ -1802,9 +1880,6 @@ else
   vlinprev=-1.
   vlinnext=-1.
 end if    
-call ccmpi_distribute(ivs)
-call ccmpi_distribute(svs)
-call ccmpi_distribute(vlin)
   
 return
 end subroutine vegtb
@@ -2009,6 +2084,14 @@ else
       call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
       if (pind(n,1)<=mp) casapool%psoilocc(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
     end if
+    ! CABLE correction terms
+    dat=0.
+    write(vname,'("fhscor_",I1.1)') n
+    call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
+    if (pind(n,1)<=mp) canopy%fhs_cor(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))    
+    write(vname,'("fescor_",I1.1)') n
+    call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
+    if (pind(n,1)<=mp) canopy%fes_cor(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))   
   end do
   ! albvisdir, albvisdif, albnirdir, albnirdif are used when nrad=5
   vname='albvisdir'
@@ -2023,7 +2106,7 @@ else
   vname='albvis'
   call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,albvisnir(:,1),ifull)
   vname='albnir'
-  call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,albvisnir(:,2),ifull)        
+  call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,albvisnir(:,2),ifull)
 end if
   
 ! Some fixes for rounding errors
@@ -2271,6 +2354,12 @@ if (myid==0.or.local) then
       write(vname,'("psoilocc_",I1.1)') n
       call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0,-1)
     end if
+    write(lname,'("Sensible correction term ",I1.1)') n
+    write(vname,'("fhscor_",I1.1)') n
+    call attrib(idnc,idim,3,vname,lname,'W/m2',-3000.,3000.,0,-1)
+    write(lname,'("Latent correction term ",I1.1)') n
+    write(vname,'("fescor_",I1.1)') n
+    call attrib(idnc,idim,3,vname,lname,'W/m2',-3000.,3000.,0,-1)
   end do
   lname='DIR VIS albedo'
   vname='albvisdir'
@@ -2458,6 +2547,14 @@ do n=1,5
     write(vname,'("psoilocc_",I1.1)') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
   end if
+  dat=0.
+  if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=canopy%fhs_cor(pind(n,1):pind(n,2))
+  write(vname,'("fhscor_",I1.1)') n
+  call histwrt3(dat,vname,idnc,iarch,local,.true.)
+  dat=0.
+  if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=canopy%fes_cor(pind(n,1):pind(n,2))
+  write(vname,'("fescor_",I1.1)') n
+  call histwrt3(dat,vname,idnc,iarch,local,.true.)
 end do
 vname='albvisdir'
 call histwrt3(albvisdir,vname,idnc,iarch,local,.true.)

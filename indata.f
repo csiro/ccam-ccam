@@ -68,11 +68,13 @@
       real, parameter :: rkappa = 2./7.
 
       integer, intent(in) :: newsnow,jalbfix,iaero
+      integer, dimension(3) :: spos,npos
       integer i1, ii, imo, indexi, indexl, indexs, ip, iq, isoil, isoth,
      &     iveg, iyr, j1, jj, k, kdate_sav, ktime_sav, l,
      &     nface, nn, npgb, nsig, i, j, n,
      &     ix, jx, ixjx, ierr, ic, jc, iqg, ig, jg,
      &     isav, jsav, ier, lapsbot
+      integer ncidx
 
       character(len=80) :: co2in,radonin,surfin,header
 
@@ -82,9 +84,9 @@
       real, dimension(ifull,5) :: duma
       real, dimension(ifull,2) :: ocndwn
       real, dimension(ifull,wlev,4) :: mlodwn
-       real, dimension(ifull,kl,7) :: dumb
-      real, dimension(ifull_g,3) :: glob2d
-      real, dimension(ifull_g) :: davt_g
+      real, dimension(ifull,kl,7) :: dumb
+      real, dimension(:,:), allocatable :: glob2d
+      real, dimension(:), allocatable :: davt_g
       real, dimension(2*kl*kl+kl) :: dumc
       real, dimension(2) :: dumd
       real rlonx,rlatx,alf
@@ -279,22 +281,37 @@
 !     read in fresh zs, land-sea mask (land where +ve), variances
       if(io_in<=4.and.nhstest>=0)then
         if (myid==0) then
-           write(6,*) 'before read zs from topofile'
-           read(66,*,iostat=ierr) glob2d(:,1)
-           if(ierr.ne.0) stop 'end-of-file reached on topofile'
-           write(6,*) 'after read zs from topofile'
-           write(6,*) 'before read land-sea fraction'
-           read(66,*,iostat=ierr) glob2d(:,2)
-           if(ierr.ne.0) stop 'end-of-file reached on topofile'
-           write(6,*) 'after read land-sea fraction'
-           write(6,*) 'before read he'
-           read(66,*,iostat=ierr) glob2d(:,3)
-           if(ierr.ne.0) stop 'end-of-file reached on topofile'
-           write(6,*) 'after read he'
-           close(66)
-           call ccmpi_distribute(duma(:,1:3),glob2d(:,1:3))
+          allocate(glob2d(ifull_g,3))
+          call ccnf_open(vegfile,ncidx,ierr)
+          if (ierr==0) then
+            write(6,*) 'before read zs from topofile'
+            call surfread(glob2d(:,1),'zs',netcdfid=ncidx)
+            write(6,*) 'after read zs from topofile'
+            write(6,*) 'before read land-sea fraction'
+            call surfread(glob2d(:,2),'lsm',netcdfid=ncidx)
+            write(6,*) 'after read land-sea fraction'
+            write(6,*) 'before read he'
+            call surfread(glob2d(:,3),'tsd',netcdfid=ncidx)
+            write(6,*) 'after read he'
+          else
+            write(6,*) 'before read zs from topofile'
+            read(66,*,iostat=ierr) glob2d(:,1)
+            if(ierr/=0) stop 'end-of-file reached on topofile'
+            write(6,*) 'after read zs from topofile'
+            write(6,*) 'before read land-sea fraction'
+            read(66,*,iostat=ierr) glob2d(:,2)
+            if(ierr/=0) stop 'end-of-file reached on topofile'
+            write(6,*) 'after read land-sea fraction'
+            write(6,*) 'before read he'
+            read(66,*,iostat=ierr) glob2d(:,3)
+            if(ierr/=0) stop 'end-of-file reached on topofile'
+            write(6,*) 'after read he'
+            close(66)
+            call ccmpi_distribute(duma(:,1:3),glob2d(:,1:3))
+            deallocate(glob2d)
+          end if
         else
-           call ccmpi_distribute(duma(:,1:3))
+          call ccmpi_distribute(duma(:,1:3))
         end if
         zs(1:ifull)=duma(:,1)
         zsmask(1:ifull)=duma(:,2)
@@ -492,13 +509,13 @@
       ! nmlo=2 same as 1, but with Smag horz diffusion and river routing
       ! nmlo=3 same as 2, but with horizontal and vertical advection
       if (nmlo/=0.and.abs(nmlo)<=9) then
-        call readreal(bathfile,dep,ifull)
+        if (myid==0) write(6,*) 'Initialising MLO'
+        call surfread(dep,'depth',filename=bathfile)
         where (land)
           dep=0.
         elsewhere
           dep=max(dep,4.*minwater)
         end where
-        if (myid==0) write(6,*) 'Initialising MLO'
         call mloinit(ifull,dep,0)
         call mlodyninit
       end if
@@ -510,12 +527,16 @@
       ! nurban=1 urban (save in restart file)
       ! nurban=-1 urban (save in history and restart files)
       if (nurban/=0) then
-        call readreal(urbanfile,sigmu,ifull)
-        sigmu(1:ifull)=0.01*sigmu(1:ifull)
+        if (myid==0) write(6,*) 'Initialising ateb urban scheme'
+        if (lncveg==1) then
+          call surfread(sigmu,'urban',netcdfid=ncidveg)
+        else
+          call surfread(sigmu,'urban',filename=urbanfile)
+          sigmu=sigmu*0.01
+        end if
         where (.not.land(:).or.sigmu<0.01)
           sigmu(:)=0.
         end where
-        if (myid==0) write(6,*) 'Initialising ateb urban scheme'
         if (nmaxpr==1) then
           write(6,*) "myid,urban ",myid,count(sigmu>0.)
         end if
@@ -523,6 +544,12 @@
       else
         sigmu(:)=0.
         call atebdisable(0) ! disable urban
+      end if
+      
+      if (myid==0) then
+        if (lncveg==1) then
+          call ccnf_close(ncidveg)
+        end if
       end if
 
 
@@ -600,25 +627,25 @@
           qlg(1:ifull,:)=dumb(:,:,6)
           qrg(1:ifull,:)=dumb(:,:,7)
 	  
-!          ! MJT patch for very poor initial conditions
-!          if (any(t(1:ifull,:)<100.)) then
-!            write(6,*) "WARN: Poor initial conditions"
-!            write(6,*) "for t ",minval(t(1:ifull,:))
-!            t(1:ifull,:)=max(t(1:ifull,:),100.)
-!          end if
-!          dumb(:,:,1)=(t(1:ifull,:)-100.)/hlcp
-!          if (any(qlg(1:ifull,:)>dumb(:,:,1))) then
-!            write(6,*) "WARN: Poor initial conditions"
-!            write(6,*) "for qlg ",maxval(qlg(1:ifull,:))
-!            qlg(1:ifull,:)=min(qlg(1:ifull,:),dumb(:,:,1))
-!          end if
-!          dumb(:,:,1)=(t(1:ifull,:)-100.-hlcp*qlg(1:ifull,:)) 
-!     &              /(hlcp+hlfcp)
-!          if (any(qfg(1:ifull,:)>dumb(:,:,1))) then
-!            write(6,*) "WARN: Poor initial conditions"
-!            write(6,*) "for qfg ",maxval(qfg(1:ifull,:))
-!            qfg(1:ifull,:)=min(qfg(1:ifull,:),dumb(:,:,1))
-!          end if
+    !  ! MJT patch for very poor initial conditions
+    !	  if (any(t(1:ifull,:)<100.)) then
+    !	    write(6,*) "WARN: Poor initial conditions"
+    !	    write(6,*) "for t ",minval(t(1:ifull,:))
+    !	    t(1:ifull,:)=max(t(1:ifull,:),100.)
+    !	  end if
+    !	  dumb(:,:,1)=(t(1:ifull,:)-100.)/hlcp
+    !	  if (any(qlg(1:ifull,:)>dumb(:,:,1))) then
+    !	    write(6,*) "WARN: Poor initial conditions"
+    !	    write(6,*) "for qlg ",maxval(qlg(1:ifull,:))
+    !	    qlg(1:ifull,:)=min(qlg(1:ifull,:),dumb(:,:,1))
+    !	  end if
+    !	  dumb(:,:,1)=(t(1:ifull,:)-100.-hlcp*qlg(1:ifull,:)) 
+    !&              /(hlcp+hlfcp)
+    !	  if (any(qfg(1:ifull,:)>dumb(:,:,1))) then
+    !	    write(6,*) "WARN: Poor initial conditions"
+    !	    write(6,*) "for qfg ",maxval(qfg(1:ifull,:))
+    !	    qfg(1:ifull,:)=min(qfg(1:ifull,:),dumb(:,:,1))
+    !	  end if
 	  
         endif   ! (abs(io_in)==1)
         if(mydiag)then
@@ -1037,6 +1064,7 @@
           vin=3.
           if(nhstest==-3)vin=0. ! just for 6 colours of panels
           if(myid==0)then
+            allocate(davt_g(ifull_g))
             do n=0,5
              do j=1,il_g
               do i=1,il_g
@@ -1046,6 +1074,7 @@
              enddo  ! j loop
             enddo   ! n loop
             call ccmpi_distribute(tss,davt_g)
+            deallocate(davt_g)
           else
             call ccmpi_distribute(tss)
           endif ! myid==0
@@ -1631,6 +1660,7 @@ c     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
          call davset   ! as entry in subr. davies, sets psls,qgg,tt,uu,vv
          write(6,*) 'nbd,nproc,myid = ',nbd,nproc,myid
          if ( myid == 0 ) then
+           allocate(davt_g(ifull_g))
            ! Set up the weights using global array and indexing
            ! This needs the global function indglobal for calculating the 1D index
            davt_g(:) = 0.
@@ -1764,6 +1794,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
              enddo              ! j loop
            endif                !  (nbd==-7)  
            call ccmpi_distribute(davt,davt_g)
+           deallocate(davt_g)
          else
            call ccmpi_distribute(davt)
          end if ! myid==0
@@ -2126,6 +2157,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
 
       use arrays_m                 ! Atmosphere dyamics prognostic arrays
       use cc_mpi                   ! CC MPI routines
+      use infile                   ! Input file routines
       use map_m                    ! Grid map arrays
       use nsibd_m                  ! Land-surface arrays
       use pbl_m                    ! Boundary layer arrays
@@ -2138,24 +2170,26 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
 
       include 'newmpar.h'          ! Grid parameters
       include 'const_phys.h'       ! Physical constants
+      include 'darcdf.h'           ! Netcdf data
       include 'filnames.h'         ! Filenames
       include 'parm.h'             ! Model configuration
       include 'soilv.h'            ! Soil parameters
       
       integer ivegdflt,isoildflt
-      integer idatafix,iq,ierr
+      integer iq,ierr
+      integer ivegmin, ivegmax, ivegmin_g, ivegmax_g
+      integer :: idatafix=0
       integer, dimension(:,:), allocatable :: iduma
       integer, dimension(ifull,2) :: idumb
       integer, dimension(2) :: dumc
+      integer, dimension(3) :: spos,npos
       real falbdflt,frsdflt,fzodflt
       real, dimension(:,:), allocatable :: duma
       real, dimension(ifull,5) :: dumb
-      parameter( ivegdflt=0, isoildflt=0)
-      parameter( falbdflt=0., frsdflt=990.)
-      parameter( fzodflt=1.)
-      data idatafix/0/
+      parameter( ivegdflt=0,  isoildflt=0  )
+      parameter( falbdflt=0., frsdflt=990. )
+      parameter( fzodflt=1. )
       logical rdatacheck,idatacheck,mismatch
-      integer ivegmin, ivegmax, ivegmin_g, ivegmax_g
 
       !------------------------------------------------------------------------
       ! READ BIOSPHERE FILES
@@ -2182,6 +2216,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
         zolnd=dumb(:,3)
         ivegt=idumb(:,1)
         isoilm=idumb(:,2)
+        lncveg=0
       else if (nsib==5) then
         if (myid==0) then
           allocate(duma(ifull_g,5))
@@ -2202,21 +2237,34 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
         vlai=0.01*dumb(:,5)
         ivegt=1 ! updated later
         call readint(soilfile,isoilm,ifull)
+        lncveg=0
       else if (nsib>=6) then
         if (myid==0) then
-          allocate(duma(ifull_g,2))
-          call readreal(albfile,duma(:,1),ifull_g)
-          call readreal(albnirfile,duma(:,2),ifull_g)
-          call ccmpi_distribute(dumb(:,1:2),duma)
+          allocate(duma(ifull_g,3))
+          call ccnf_open(vegfile,ncidveg,ierr)
+          if (ierr==0) then
+            lncveg=1
+            call surfread(duma(:,3),'soilt',netcdfid=ncidveg)
+            call surfread(duma(:,1),'albvis',netcdfid=ncidveg)
+            call surfread(duma(:,2),'albnir',netcdfid=ncidveg)
+          else
+            lncveg=0
+            call surfread(duma(:,3),'soilt',filename=soilfile)
+            call surfread(duma(:,1),'albvis',filename=albfile)
+            call surfread(duma(:,2),'albnir',filename=albnirfile)
+          end if
+          call ccmpi_distribute(dumb(:,1:3),duma(:,1:3))
           deallocate(duma)
         else
-          call ccmpi_distribute(dumb(:,1:2))
+          call ccmpi_distribute(dumb(:,1:3))
         end if
+        ! communicate netcdf status to all processors
+        call ccmpi_bcast(lncveg,0,comm_world)
         albvisnir(:,1)=dumb(:,1)
         albvisnir(:,2)=dumb(:,2)
+        isoilm=nint(dumb(:,3))
         zolnd=zobgin ! updated in cable_ccam2.f90
-        ivegt=1 ! updated later
-        call readint(soilfile,isoilm,ifull)
+        ivegt=1      ! updated in cable_ccam2.f90
       end if
       
       !--------------------------------------------------------------
