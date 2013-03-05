@@ -3618,7 +3618,7 @@ if (iernc==0) then ! Netcdf file
 
   call ccnf_inq_dimlen(ncidx,'longitude',ilx)
   call ccnf_inq_dimlen(ncidx,'latitude',jlx)
-  call ccnf_get_attg(ncidx,'long0',rlong0x)
+  call ccnf_get_attg(ncidx,'lon0',rlong0x)
   call ccnf_get_attg(ncidx,'lat0',rlat0x)
   call ccnf_get_attg(ncidx,'schmidt',schmidtx)
   if(ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) then

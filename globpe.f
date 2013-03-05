@@ -277,12 +277,23 @@
 !       open new topo file and check its dimensions
 !       here used to supply rlong0,rlat0,schmidt
 !       Remanded of file is read in indata.f
-        open(66,file=topofile,recl=2000,status='old')
         write(6,*) 'reading topofile header'
-        read(66,*) ilx,jlx,rlong0,rlat0,schmidt,dsx,header
+        call ccnf_open(topofile,ncidtopo,ierr)
+        if (ierr==0) then
+          lnctopo=1
+          call ccnf_inq_dimlen(ncidtopo,'longitude',ilx)
+          call ccnf_inq_dimlen(ncidtopo,'latitude',jlx)
+          call ccnf_get_attg(ncidtopo,'lon0',rlong0)
+          call ccnf_get_attg(ncidtopo,'lat0',rlat0)
+          call ccnf_get_attg(ncidtopo,'schmidt',schmidt) 
+        else
+          lnctopo=0
+          open(66,file=topofile,recl=2000,status='old')
+          read(66,*) ilx,jlx,rlong0,rlat0,schmidt,dsx,header
+          il_g=ilx
+        end if
         write(6,*) 'ilx,jlx,rlong0,rlat0,schmidt,dsx ',
-     &           ilx,jlx,rlong0,rlat0,schmidt,dsx,header
-        il_g=ilx
+     &              ilx,jlx,rlong0,rlat0,schmidt,dsx,header
       end if      ! (io_in<=4)
       idum(1)=il_g
       rdum(1)=rlong0

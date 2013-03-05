@@ -1,4 +1,4 @@
-      integer idnc,ncid,ncidveg,iarchi
-      integer lncveg                                   
-      common/darcdf/idnc,ncid,ncidveg,iarchi,lncveg   ! stuff for reading netcdf
+      integer idnc,ncid,ncidtopo,ncidveg
+      integer iarchi,lnctopo,lncveg                                   
+      common/darcdf/idnc,ncid,ncidtopo,ncidveg,iarchi,lnctopo,lncveg   ! stuff for reading netcdf
 

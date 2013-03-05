@@ -74,7 +74,6 @@
      &     nface, nn, npgb, nsig, i, j, n,
      &     ix, jx, ixjx, ierr, ic, jc, iqg, ig, jg,
      &     isav, jsav, ier, lapsbot
-      integer ncidx
 
       character(len=80) :: co2in,radonin,surfin,header
 
@@ -282,17 +281,17 @@
       if(io_in<=4.and.nhstest>=0)then
         if (myid==0) then
           allocate(glob2d(ifull_g,3))
-          call ccnf_open(vegfile,ncidx,ierr)
-          if (ierr==0) then
+          if (lnctopo==1) then
             write(6,*) 'before read zs from topofile'
-            call surfread(glob2d(:,1),'zs',netcdfid=ncidx)
+            call surfread(glob2d(:,1),'zs',netcdfid=ncidtopo)
             write(6,*) 'after read zs from topofile'
             write(6,*) 'before read land-sea fraction'
-            call surfread(glob2d(:,2),'lsm',netcdfid=ncidx)
+            call surfread(glob2d(:,2),'lsm',netcdfid=ncidtopo)
             write(6,*) 'after read land-sea fraction'
             write(6,*) 'before read he'
-            call surfread(glob2d(:,3),'tsd',netcdfid=ncidx)
+            call surfread(glob2d(:,3),'tsd',netcdfid=ncidtopo)
             write(6,*) 'after read he'
+            call ccnf_close(ncidtopo)
           else
             write(6,*) 'before read zs from topofile'
             read(66,*,iostat=ierr) glob2d(:,1)
