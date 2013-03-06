@@ -51,6 +51,8 @@
 /mlo.f90 -text
 /mlodynamics.f90 -text
 /morepbl_m.f90 -text
+/mpif_m.f90 -text
+/netcdf_m.f90 -text
 /nharrs_m.f90 -text
 /nlin_m.f90 -text
 /nsibd_m.f90 -text
