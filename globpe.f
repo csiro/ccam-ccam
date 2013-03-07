@@ -1604,6 +1604,11 @@
        write(6,*) "After PBL mixing"
       end if
 
+      ! Update diagnostics for consistancy in history file
+      if (rescrn>0) then
+        call autoscrn
+      end if
+
       ! AEROSOLS --------------------------------------------------------------
       if (abs(iaero)>=2) then
         call start_log(aerosol_begin)
@@ -1650,11 +1655,6 @@
       ! ***********************************************************************
       ! DIAGNOSTICS AND OUTPUT
       ! ***********************************************************************
-
-      ! Update diagnostics for consistancy in history file
-      if (rescrn>0) then
-        call autoscrn
-      end if
 
       if(ndi==-ktau)then
         nmaxpr=1         ! diagnostic prints; reset 6 lines on

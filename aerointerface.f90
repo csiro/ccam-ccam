@@ -584,7 +584,7 @@ call aldrcalc(dt,sig,sigh,dsig,zg,dz,cansto,fwet,wg,pblh,ps,   &
 ! Factor 1.e3 to convert to g/m2, x 3 to get sulfate from sulfur
 so4t(:)=0.
 do k=1,kl
-  so4t(:)=so4t(:)+3.e3*xtg(:,k,3)*(-ps(:)*dsig(k))/grav
+  so4t(:)=so4t(:)+1.e3*xtg(:,k,3)*(-ps(:)*dsig(k))/grav
 enddo
 
 return

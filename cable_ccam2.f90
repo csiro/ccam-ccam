@@ -268,7 +268,9 @@ canopy%rnet    = canopy%fns + canopy%fnv
 rad%trad       = ( (1.-rad%transd)*canopy%tv**4 + rad%transd*ssnow%tss**4 )**0.25
 
 ! EK suggestion
-canopy%cdtq =  max( 0.1*canopy%cduv, canopy%cdtq )
+!canopy%cdtq =  max( 0.1*canopy%cduv, canopy%cdtq )
+! MJT suggestion
+canopy%cdtq =  max( 0., canopy%cdtq )
 
 !--------------------------------------------------------------
 ! CASA CNP
