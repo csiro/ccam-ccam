@@ -30,7 +30,7 @@ integer, save :: nstagoffmlo
 integer, parameter :: salfilt  =0   ! additional salinity filter (0=off, 1=Katzfey)
 integer, parameter :: usetide  =1   ! tidal forcing (0=off, 1=on)
 integer, parameter :: icemode  =2   ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
-integer, parameter :: basinmd  =2   ! basin mode (0=soil, 1=redistribute, 2=pile-up, 3=leak)
+integer, parameter :: basinmd  =0   ! basin mode (0=soil, 1=redistribute, 2=pile-up, 3=leak)
 integer, parameter :: mstagf   =0   ! alternating staggering (0=off left, -1=off right, >0 alternating)
 integer, parameter :: koff     =1   ! time split stagger relative to A-grid (koff=0) or C-grid (koff=1)
 integer, parameter :: nf       =2   ! power for horizontal diffusion reduction factor
@@ -702,6 +702,8 @@ end select
 watbdy(1:ifull)=max(newwat,0.)
 salbdy(1:ifull)=max(newsal,0.)
 
+! case when water is absorbed by land-surface, but there is
+! non-zero salinity left behind.
 if (any(salbdy(1:ifull)>0..and.watbdy(1:ifull)==0.)) then
   write(6,*) "WARN: Patch river salinity"
 end if
@@ -725,8 +727,12 @@ end where
 ! import ocean data
 call mloimport(4,neta(1:ifull),0,0)
 do ii=1,wlev
-  where (ee(1:ifull)>0.5)
+  where (ee(1:ifull)>0.5.and.salin>0.)
+    ! rescale salinity profile
     sallvl(:,ii)=sallvl(:,ii)*sal/salin
+  elsewhere (ee(1:ifull)>0.5)
+    ! set new uniform salinity profile
+    sallvl(:,ii)=sal
   end where
   call mloimport(1,sallvl(:,ii),ii,0)
 end do
@@ -2850,28 +2856,25 @@ if (ltest) then
 
 ! #   *   | X E   |  EE  |     unstaggered
 ! 0       * X     E            staggered
-
-! #   *   | X E   |      |     unstaggered
-! #       * X     E            staggered
     elsewhere (euetest)
       wtu(1:ifull,0)=1.
-      wtu(1:ifull,1)=-1./3. !=-0.5
-      wtu(1:ifull,2)=0.     !=0.
+      wtu(1:ifull,1)=-0.5
+      wtu(1:ifull,2)=0.
       wtu(1:ifull,3)=0.
-      dtu(:,1)=0.           !=0.1
-      dtu(:,2)=1.           !=1.
-      dtu(:,3)=1./3.        !=0.5
+      dtu(:,1)=0.1
+      dtu(:,2)=1.
+      dtu(:,3)=0.5
 
 ! |   *   | X E   #  ##  #     unstaggered
 !         * X     0  ##  #     staggered
     elsewhere (euwtest)
       wtu(1:ifull,0)=1.
-      wtu(1:ifull,1)=0.     !=0.
-      wtu(1:ifull,2)=0.     !=-1./3.
+      wtu(1:ifull,1)=0.
+      wtu(1:ifull,2)=0.
       wtu(1:ifull,3)=0.
-      dtu(:,1)=0.           !=0.
-      dtu(:,2)=1.           !=1./3.
-      dtu(:,3)=1./3.        !=1.
+      dtu(:,1)=0.
+      dtu(:,2)=1.
+      dtu(:,3)=1./3.
 
 ! #   *   |   E   #  ##  #     unstaggered
 ! #       *       #  ##  #     staggered

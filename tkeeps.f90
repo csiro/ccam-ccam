@@ -65,7 +65,7 @@ real, parameter :: d_1   = 0.35
 !real, parameter :: bb1 = 0.5 ! Luhar low wind
 !real, parameter :: cc1 = 0.3 ! Luhar low wind
 
-integer, parameter :: icm1   = 1        ! max iterations for calculating pblh
+integer, parameter :: icm1   = 5        ! max iterations for calculating pblh
 real, parameter :: maxdts    = 300.     ! max timestep for split
 real, parameter :: maxdtt    = 100.     ! max timestep for tke-eps
 real, parameter :: mintke    = 1.E-8    ! min value for tke
