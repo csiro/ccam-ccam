@@ -218,7 +218,7 @@ c     Calculate cloud fraction and cloud water mixing ratios
       dumqf=qfg(1:ifull,:)
       call newcloud(dt,1,land,prf,kbase,ktop,rhoa,cdso4, !Inputs
      &     tenv,qenv,dumql,dumqf,   !In and out  t here is tenv
-     &     cfrac,ccov,cfa,qca)   !Outputs
+     &     cfrac,ccov,cfa,qca)      !Outputs
       qlg(1:ifull,:)=dumql
       qfg(1:ifull,:)=dumqf
 
@@ -266,14 +266,16 @@ c     Weight output variables according to non-convective fraction of grid-box
 !     Moved up 16/1/06 (and ccov,cfrac NOT UPDATED in newrain)
 !     done because sometimes newrain drops out all qlg, ending up with 
 !     zero cloud (although it will be rediagnosed as 1 next timestep)
-      do k=1,kl
-        do iq=1,ifull
-c         cfrac(iq,k)=min(1.,ccov(iq,k)+clcon(iq,k))
-          fl=max(0.0,min(1.0,(t(iq,k)-ticon)/(273.15-ticon)))
-          qlrad(iq,k)=qlg(iq,k)+fl*qccon(iq,k)
-          qfrad(iq,k)=qfg(iq,k)+(1.-fl)*qccon(iq,k)
+      if (ncloud==0) then
+        do k=1,kl
+          do iq=1,ifull
+c           cfrac(iq,k)=min(1.,ccov(iq,k)+clcon(iq,k))
+            fl=max(0.0,min(1.0,(t(iq,k)-ticon)/(273.15-ticon)))
+            qlrad(iq,k)=qlg(iq,k)+fl*qccon(iq,k)
+            qfrad(iq,k)=qfg(iq,k)+(1.-fl)*qccon(iq,k)
+          enddo
         enddo
-      enddo
+      end if
 
 c     Calculate precipitation and related processes
       dumt=t(1:ifull,:)
@@ -285,9 +287,9 @@ c     Calculate precipitation and related processes
       call newrain(land,1,dt,fluxc,rhoa,dz,ccrain,prf,cdso4,  !Inputs
      &    cfa,qca,                                            !Inputs
      &    dumt,dumql,dumqf,dumqr,
-     &    precs,dumqg,cfrac,dumcr,ccov, !In and Out
+     &    precs,dumqg,cfrac,dumcr,ccov,                     !In and Out
      &    preci,qevap,qsubl,qauto,qcoll,qaccr,fluxr,fluxi,  !Outputs
-     &    fluxm,pfstay,pqfsed,slopes,prscav)     !Outputs
+     &    fluxm,pfstay,pqfsed,slopes,prscav)                !Outputs
       t(1:ifull,:)=dumt
       qlg(1:ifull,:)=dumql
       qfg(1:ifull,:)=dumqf
@@ -325,7 +327,7 @@ c     Calculate precipitation and related processes
           ppfevap(:,kl+1-k)=qevap(:,k)*rhoa(:,k)*dz(:,k)/dt
           ppfsubl(:,kl+1-k)=qsubl(:,k)*rhoa(:,k)*dz(:,k)/dt !flux sublimating or staying in k
           pplambs(:,kl+1-k)=slopes(:,k)
-          where (qlg(:,k)+qfg(:,k).gt.1.e-8)
+          where (qlg(:,k)+qfg(:,k)>1.e-8)
             ppmrate(:,kl+1-k)=(qauto(:,k)+qcoll(:,k))/dt
             ppmaccr(:,kl+1-k)=qaccr(:,k)/dt
           elsewhere
@@ -344,14 +346,25 @@ c     Calculate precipitation and related processes
 !     Moved up 16/1/06 (and ccov,cfrac NOT UPDATED in newrain)
 !     done because sometimes newrain drops out all qlg, ending up with 
 !     zero cloud (although it will be rediagnosed as 1 next timestep)
-      do k=1,kl
-        do iq=1,ifull
-          cfrac(iq,k)=min(1.,ccov(iq,k)+clcon(iq,k))
-c          fl=max(0.0,min(1.0,(t(iq,k)-ticon)/(273.15-ticon)))
-c          qlrad(iq,k)=qlg(iq,k)+fl*qccon(iq,k)
-c          qfrad(iq,k)=qfg(iq,k)+(1.-fl)*qccon(iq,k)
+      if (ncloud==0) then
+        do k=1,kl
+          do iq=1,ifull
+            cfrac(iq,k)=min(1.,ccov(iq,k)+clcon(iq,k))
+c            fl=max(0.0,min(1.0,(t(iq,k)-ticon)/(273.15-ticon)))
+c            qlrad(iq,k)=qlg(iq,k)+fl*qccon(iq,k)
+c            qfrad(iq,k)=qfg(iq,k)+(1.-fl)*qccon(iq,k)
+          enddo
         enddo
-      enddo
+      else
+        do k=1,kl
+          do iq=1,ifull
+            cfrac(iq,k)=min(1.,ccov(iq,k)+clcon(iq,k))
+            fl=max(0.0,min(1.0,(t(iq,k)-ticon)/(273.15-ticon)))
+            qlrad(iq,k)=qlg(iq,k)+fl*qccon(iq,k)
+            qfrad(iq,k)=qfg(iq,k)+(1.-fl)*qccon(iq,k)
+          enddo
+        enddo
+      end if
 
 !========================= Jack's diag stuff =========================
        if(ncfrp==1)then  ! from here to near end; Jack's diag stuff
@@ -371,7 +384,7 @@ c       cfrp data
             taul(iq,k)=0.
             taui(iq,k)=0.
             Reffl=0.
-            if(cfrac(iq,k).gt.0)then
+            if(cfrac(iq,k)>0.)then
               tau_sfac=1.
 c             fice(iq,k) = qfg(iq,k)/(qfg(iq,k)+qlg(iq,k))
               fice(iq,k) = qfrad(iq,k)/(qfrad(iq,k)+qlrad(iq,k)) ! 16/1/06
@@ -379,7 +392,7 @@ c             fice(iq,k) = qfg(iq,k)/(qfg(iq,k)+qlg(iq,k))
               !dpdp=dprf(iq,k)/prf(iq,k)
               !dz=dpdp*rdry*t(iq,k)/grav
 c             Liquid water clouds
-              if(qlg(iq,k).gt.1.0e-8)then
+              if(qlg(iq,k)>1.0e-8)then
                 Wliq=rhoa(iq,k)*qlg(iq,k)/(cfrac(iq,k)*(1-fice(iq,k))) !kg/m^3
                 if(.not.land(iq))then !sea
                   rk=0.8
@@ -394,7 +407,7 @@ c formula for reffl. Use mid cloud value of Reff for emissivity.
                 taul(iq,k)=tau_sfac*1.5*qlpath/(rhow*Reffl)
               endif ! qlg
 c Ice clouds
-              if(qfg(iq,k).gt.1.0e-8)then
+              if(qfg(iq,k)>1.0e-8)then
                 Wice=rhoa(iq,k)*qfg(iq,k)/(cfrac(iq,k)*fice(iq,k)) !kg/m**3
                 sigmai = aice*Wice**bice !visible ext. coeff. for ice
                 taui(iq,k)=sigmai*dz(iq,k) !visible opt. depth for ice
@@ -411,13 +424,13 @@ c top down to get highest level with cfrac=cldmax (kcldfmax)
           do iq=1,icfrp
             tautot(iq)=tautot(iq)+cfrac(iq,k)*(fice(iq,k)
      &                *taui(iq,k)+(1.-fice(iq,k))*taul(iq,k))
-            if(cfrac(iq,k).gt.cldmax(iq)) kcldfmax(iq)=k
+            if(cfrac(iq,k)>cldmax(iq)) kcldfmax(iq)=k
             cldmax(iq)=max(cldmax(iq),cfrac(iq,k))
           enddo ! iq
         enddo ! k
 
         do iq=1,icfrp
-          if(cldmax(iq).gt.1.e-10) then
+          if(cldmax(iq)>1.e-10) then
             tautot(iq)=tautot(iq)/cldmax(iq)
 
             cfd=0.

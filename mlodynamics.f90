@@ -405,7 +405,7 @@ do i=0,1
       ff=ff+290.
     case(1)
       ff=ff+34.72
-      where (ff<0.1)
+      where (ff<0.)
         ff=0.
       end where
   end select
@@ -501,6 +501,7 @@ sallvl=0.
 call mloexport(4,neta(1:ifull),0,0)
 do ii=1,wlev
   call mloexport(1,sallvl(:,ii),ii,0)
+  ! could modify the following to only operate on the top 5m of the ocean column
   salin=salin+godsig(ii)*sallvl(:,ii)
 end do
 where (ee(1:ifull)>0.5)
@@ -1673,7 +1674,7 @@ if (nud_sss==0) then
   end do
   if (fixsal==0) then
     do ii=1,wlev
-      where(wtr(1:ifull).and.ndum>0.1)
+      where(wtr(1:ifull).and.ndum>0.)
         dum(:,ii)=ns(1:ifull,ii)-w_s(:,ii)
       elsewhere
         dum(:,ii)=0.
@@ -1681,7 +1682,7 @@ if (nud_sss==0) then
     end do
   else
     do ii=1,wlev
-      where(wtr(1:ifull).and.ndum>0.1)
+      where(wtr(1:ifull).and.ndum>0.)
         dum(:,ii)=ns(1:ifull,ii)-34.72
       elsewhere
         dum(:,ii)=0.
@@ -1693,13 +1694,13 @@ if (nud_sss==0) then
   alph_p = min(sqrt(alph_p),alph_p)
   if (fixsal==0) then
     do ii=1,wlev
-      where(wtr(1:ifull).and.ndum>0.1)
+      where(wtr(1:ifull).and.ndum>0.)
         ns(1:ifull,ii)=w_s(:,ii)+max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)
       end where
     end do
   else
     do ii=1,wlev
-      where(wtr(1:ifull).and.ndum>0.1)
+      where(wtr(1:ifull).and.ndum>0.)
         ns(1:ifull,ii)=34.72+max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)
       end where
     end do
@@ -3927,7 +3928,7 @@ call mlotvd(its,dtnew,ww,tt,depdum,dzdum,kp,kx)
 call mlotvd(its,dtnew,ww,mm,depdum,dzdum,kp,kx)
 tt=tt+290.
 ss=ss+34.72
-where (ss<0.1)
+where (ss<0.)
   ss=0.
 end where
 

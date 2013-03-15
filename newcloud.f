@@ -136,19 +136,19 @@ C Local data, functions etc
       integer lgdebug,insdebug   ! 1,idjd
       data debug,lgdebug,insdebug /.false.,1,1/
       save ukconv,naerosol_i,debug,lgdebug,insdebug
-      real tdiffx,tx_,esdiffx                                                  ! MJT suggestion
+      real tdiffx,tx_,esdiffx
 
-      real esdiff(-40:2)  !Table of es(liq) - es(ice) (MKS), -40 <= t <= 0 C   ! MJT suggestion
+      real esdiff(-40:2)  !Table of es(liq) - es(ice) (MKS), -40 <= t <= 0 C
       data esdiff / 
      & 6.22, 6.76, 7.32, 7.92, 8.56, 9.23, 9.94,10.68,11.46,12.27,
      & 13.11,13.99,14.89,15.82,16.76,17.73,18.70,19.68,20.65,21.61,
      & 22.55,23.45,24.30,25.08,25.78,26.38,26.86,27.18,27.33,27.27,
      & 26.96,26.38,25.47,24.20,22.51,20.34,17.64,14.34,10.37, 5.65,
-     & 0.08, 0., 0. /                                                          ! MJT suggestion
-      tdiffx(tx_)=min(max( tx_-tfrz, -40.), 1.)                                ! MJT suggestion
-      esdiffx(tx_) =                                                           ! MJT suggestion
-     &    (1.-(tdiffx(tx_)-aint(tdiffx(tx_))))*esdiff(int(tdiffx(tx_)))        ! MJT suggestion
-     &  + (tdiffx(tx_)-aint(tdiffx(tx_)))*esdiff(int(tdiffx(tx_))+1)           ! MJT suggestion
+     & 0.08, 0., 0. /
+      tdiffx(tx_)=min(max( tx_-tfrz, -40.), 1.)
+      esdiffx(tx_) = 
+     &    (1.-(tdiffx(tx_)-aint(tdiffx(tx_))))*esdiff(int(tdiffx(tx_)))
+     &  + (tdiffx(tx_)-aint(tdiffx(tx_)))*esdiff(int(tdiffx(tx_))+1)
 !     include 'ESTABL.f'  !Contains arithmetic statement function qsat(p,T)
       real tablei
       common /esitable/ tablei(0:220) !Table of es values wrt ice
@@ -217,143 +217,145 @@ c Note that qcg is the total cloud water (liquid+frozen)
           write(6,*) 'fice ',fice(idjd,:)
       endif
       
+      if (ncloud<3) then ! usual diagnostic cloud
+      
 c Precompute the array of critical relative humidities 
 
-      if(nclddia==-3)then
-        do k=1,nl
-         do mg=1,ln2
-          if(land(mg))then
-            rcrit(mg,k)=max( rcrit_l , (1.-16.*(1.-sig(k))**3) ) 
-          else
-            rcrit(mg,k)=max( rcrit_s , (1.-16.*(1.-sig(k))**3) ) 
-          endif 
-         enddo
-        enddo
-      elseif(nclddia<0)then
-        do k=1,nl
-         do mg=1,ln2
-          if(land(mg))then
-            rcrit(mg,k)=max( rcrit_l , (1.-4.*(1.-sig(k))**2) ) 
-          else
-            rcrit(mg,k)=max( rcrit_s , (1.-4.*(1.-sig(k))**2) ) 
-          endif 
-         enddo
-        enddo
-       elseif(nclddia==1)then
-        do k=1,nl
-         do mg=1,ln2
-          if(land(mg))then
-            rcrit(mg,k)=max(rcrit_l,sig(k)**3)          ! .75 for R21 Mk2
-          else
-            rcrit(mg,k)=max(rcrit_s,sig(k)**3)          ! .85 for R21 Mk2
-          endif
-         enddo
-        enddo
-      elseif(nclddia==2)then
-        do k=1,nl
-         do mg=1,ln2
-          if(land(mg))then
-            rcrit(mg,k)=rcrit_l
-          else
-            rcrit(mg,k)=rcrit_s
-          endif
-         enddo
-        enddo
-       elseif(nclddia==3)then
-        do k=1,nl
-         do mg=1,ln2
-          if(land(mg))then
-            rcrit(mg,k)=max(rcrit_l,sig(k)**2)          ! .75 for R21 Mk2
-          else
-            rcrit(mg,k)=max(rcrit_s,sig(k)**2)          ! .85 for R21 Mk2
-          endif
-         enddo
-        enddo
-      elseif(nclddia==4)then
-        do k=1,nl
-         do mg=1,ln2
-          if(land(mg))then
-            rcrit(mg,k)=max(rcrit_l,sig(k))          ! .75 for test Mk2/3
-          else
-            rcrit(mg,k)=max(rcrit_s,sig(k))          ! .9  for test Mk2/3
-          endif
-         enddo
-        enddo
-      elseif(nclddia==5)then  ! default till May 08
-        do k=1,nl
-         do mg=1,ln2
-          if(land(mg))then
-            rcrit(mg,k)=max(rcrit_l,min(.99,sig(k))) ! .75 for same as T63
-          else
-            rcrit(mg,k)=max(rcrit_s,min(.99,sig(k))) ! .85 for same as T63
-          endif
-         enddo
-        enddo
-       elseif(nclddia==6)then
-        do k=1,nl
-         do mg=1,ln2
-          if(land(mg))then
-            rcrit(mg,k)=max(rcrit_l*(1.-.15*sig(k)),sig(k)**4)         
-          else
-            rcrit(mg,k)=max(rcrit_s*(1.-.15*sig(k)),sig(k)**4)          
-          endif
-         enddo
-        enddo
-       elseif(nclddia==7)then
-        do k=1,nl
-         do mg=1,ln2
-          if(land(mg))then
-            rcrit(mg,k)=max(rcrit_l*(1.-.2*sig(k)),sig(k)**4)         
-          else
-            rcrit(mg,k)=max(rcrit_s*(1.-.2*sig(k)),sig(k)**4)          
-          endif
-         enddo
-        enddo
-      endif  ! (nclddia<0)  .. else ..
+        if(nclddia==-3)then
+          do k=1,nl
+           do mg=1,ln2
+            if(land(mg))then
+              rcrit(mg,k)=max( rcrit_l , (1.-16.*(1.-sig(k))**3) ) 
+            else
+              rcrit(mg,k)=max( rcrit_s , (1.-16.*(1.-sig(k))**3) ) 
+            endif 
+           enddo
+          enddo
+        elseif(nclddia<0)then
+          do k=1,nl
+           do mg=1,ln2
+            if(land(mg))then
+              rcrit(mg,k)=max( rcrit_l , (1.-4.*(1.-sig(k))**2) ) 
+            else
+              rcrit(mg,k)=max( rcrit_s , (1.-4.*(1.-sig(k))**2) ) 
+            endif 
+           enddo
+          enddo
+         elseif(nclddia==1)then
+          do k=1,nl
+           do mg=1,ln2
+            if(land(mg))then
+              rcrit(mg,k)=max(rcrit_l,sig(k)**3)          ! .75 for R21 Mk2
+            else
+              rcrit(mg,k)=max(rcrit_s,sig(k)**3)          ! .85 for R21 Mk2
+            endif
+           enddo
+          enddo
+        elseif(nclddia==2)then
+          do k=1,nl
+           do mg=1,ln2
+            if(land(mg))then
+              rcrit(mg,k)=rcrit_l
+            else
+              rcrit(mg,k)=rcrit_s
+            endif
+           enddo
+          enddo
+         elseif(nclddia==3)then
+          do k=1,nl
+           do mg=1,ln2
+            if(land(mg))then
+              rcrit(mg,k)=max(rcrit_l,sig(k)**2)          ! .75 for R21 Mk2
+            else
+              rcrit(mg,k)=max(rcrit_s,sig(k)**2)          ! .85 for R21 Mk2
+            endif
+           enddo
+          enddo
+        elseif(nclddia==4)then
+          do k=1,nl
+           do mg=1,ln2
+            if(land(mg))then
+              rcrit(mg,k)=max(rcrit_l,sig(k))          ! .75 for test Mk2/3
+            else
+              rcrit(mg,k)=max(rcrit_s,sig(k))          ! .9  for test Mk2/3
+            endif
+           enddo
+          enddo
+        elseif(nclddia==5)then  ! default till May 08
+          do k=1,nl
+           do mg=1,ln2
+            if(land(mg))then
+              rcrit(mg,k)=max(rcrit_l,min(.99,sig(k))) ! .75 for same as T63
+            else
+              rcrit(mg,k)=max(rcrit_s,min(.99,sig(k))) ! .85 for same as T63
+            endif
+           enddo
+          enddo
+         elseif(nclddia==6)then
+          do k=1,nl
+           do mg=1,ln2
+            if(land(mg))then
+              rcrit(mg,k)=max(rcrit_l*(1.-.15*sig(k)),sig(k)**4)         
+            else
+              rcrit(mg,k)=max(rcrit_s*(1.-.15*sig(k)),sig(k)**4)          
+            endif
+           enddo
+          enddo
+         elseif(nclddia==7)then
+          do k=1,nl
+           do mg=1,ln2
+            if(land(mg))then
+              rcrit(mg,k)=max(rcrit_l*(1.-.2*sig(k)),sig(k)**4)         
+            else
+              rcrit(mg,k)=max(rcrit_s*(1.-.2*sig(k)),sig(k)**4)          
+            endif
+           enddo
+          enddo
+        endif  ! (nclddia<0)  .. else ..
 
 c Calculate cloudy fraction of grid box (cfrac) and gridbox-mean cloud water
 c using the triangular PDF of Smith (1990)
 
-      do k=1,nl
-        do mg=1,ln2
-          hlrvap=(hl+fice(mg,k)*hlf)/rvap
-          qtot(mg,k)=qtg(mg,k)+qcg(mg,k)
-          tliq(mg,k)=ttg(mg,k)-hlcp*qcg(mg,k)-hlfcp*qfg(mg,k)
+        do k=1,nl
+          do mg=1,ln2
+            hlrvap=(hl+fice(mg,k)*hlf)/rvap
+            qtot(mg,k)=qtg(mg,k)+qcg(mg,k)
+            tliq(mg,k)=ttg(mg,k)-hlcp*qcg(mg,k)-hlfcp*qfg(mg,k)
 
 c Calculate qs and gam=(L/cp)*dqsdt,  at temperature tliq
-          pk=100.0*prf(mg,k)
-          qsi=qsati(pk,tliq(mg,k))           !Ice value
-          !deles=esdiff(min(max(-40,(nint(tliq(mg,k)-tfrz))),1)) ! MJT suggestion
-          deles=esdiffx(tliq(mg,k))                              ! MJT suggestion
-          qsl(mg,k)=qsi+epsil*deles/pk       !qs over liquid
-          qsw(mg,k)=fice(mg,k)*qsi+(1.-fice(mg,k))*qsl(mg,k) !Weighted qs at temperature Tliq
-          qs=qsw(mg,k)
-          dqsdt=qs*hlrvap/tliq(mg,k)**2
-c         qvc(mg,k)=qs !Vapour mixing ratio in cloud
+            pk=100.0*prf(mg,k)
+            qsi=qsati(pk,tliq(mg,k))           !Ice value
+            !deles=esdiff(min(max(-40,(nint(tliq(mg,k)-tfrz))),1)) ! MJT suggestion
+            deles=esdiffx(tliq(mg,k))                              ! MJT suggestion
+            qsl(mg,k)=qsi+epsil*deles/pk       !qs over liquid
+            qsw(mg,k)=fice(mg,k)*qsi+(1.-fice(mg,k))*qsl(mg,k) !Weighted qs at temperature Tliq
+            qs=qsw(mg,k)
+            dqsdt=qs*hlrvap/tliq(mg,k)**2
+c           qvc(mg,k)=qs !Vapour mixing ratio in cloud
 
-          al=1./(1.+(hlcp+fice(mg,k)*hlfcp)*dqsdt)    !Smith's notation
-          qc=qtot(mg,k)-qs
+            al=1./(1.+(hlcp+fice(mg,k)*hlfcp)*dqsdt)    !Smith's notation
+            qc=qtot(mg,k)-qs
 
-          delq=(1.-rcrit(mg,k))*qs      !UKMO style (equivalent to above)
-          cfrac(mg,k)=1.
-          qcg(mg,k)=al*qc
-          if(qc<delq)then
-            cfrac(mg,k)=max(1.e-6 , 1.-.5*((qc-delq)/delq)**2)     ! for roundoff
-            qcg(mg,k)=max(1.e-8,al*(qc-(qc-delq)**3/(6.*delq**2))) ! for roundoff
-          endif
-          if(qc<=0.)then
-            cfrac(mg,k)=max(1.e-6 , .5*((qc+delq)/delq)**2)    ! for roundoff
-            qcg(mg,k)=max(1.e-8, al*(qc+delq)**3/(6.*delq**2)) ! for roundoff
-          endif
-          if(qc<=-delq)then
-            cfrac(mg,k)=0.
-            qcg(mg,k)=0.
-          endif
-c          ! Roundoff check
-c          if ( qcg(mg,k) <= 0. ) then
-c             cfrac(mg,k) = 0.
-c             qcg  (mg,k) = 0.  ! added Oct '06
-c          end if
+            delq=(1.-rcrit(mg,k))*qs      !UKMO style (equivalent to above)
+            cfrac(mg,k)=1.
+            qcg(mg,k)=al*qc
+            if(qc<delq)then
+              cfrac(mg,k)=max(1.e-6 , 1.-.5*((qc-delq)/delq)**2)     ! for roundoff
+              qcg(mg,k)=max(1.e-8,al*(qc-(qc-delq)**3/(6.*delq**2))) ! for roundoff
+            endif
+            if(qc<=0.)then
+              cfrac(mg,k)=max(1.e-6 , .5*((qc+delq)/delq)**2)    ! for roundoff
+              qcg(mg,k)=max(1.e-8, al*(qc+delq)**3/(6.*delq**2)) ! for roundoff
+            endif
+            if(qc<=-delq)then
+              cfrac(mg,k)=0.
+              qcg(mg,k)=0.
+            endif
+c            ! Roundoff check
+c            if ( qcg(mg,k) <= 0. ) then
+c               cfrac(mg,k) = 0.
+c               qcg  (mg,k) = 0.  ! added Oct '06
+c            end if
 
 c Calculate the cloud fraction (cfa) in which ql exceeds qcrit, and
 c the corresponding gridbox-mean cloud water mixing ratio qca. 
@@ -378,31 +380,43 @@ C***          if(qc2.le.-delq)then
 C***            cfa(mg,k)=0.
 C***            qca(mg,k)=0.
 C***          endif
-          ! Set these to zero so negative indefinite initialisation works
-          cfa(mg,k)=0.
-          qca(mg,k)=0.
+            ! Set these to zero so negative indefinite initialisation works
+            cfa(mg,k)=0.
+            qca(mg,k)=0.
 
-        enddo
-      enddo
-
-      if(diag.and.mydiag)then
-          write(6,*) 'rcrit ',rcrit(idjd,:)
-          write(6,*) 'qtot ',qtot(idjd,:)
-          do k=1,nl
-           dum(k)=qsati(100.*prf(idjd,k),tliq(idjd,k)) 
           enddo
-          write(6,*) 'qsi',dum(:)
-          write(6,*) 'nint',nint(tliq(idjd,:)-tfrz)
-          write(6,*) 'deles',
-     &               esdiff(min(max(-40,(nint(tliq(idjd,:)-tfrz))),1))
-          write(6,*) 'tliq',tliq(idjd,:)
-          write(6,*) 'qsl ',qsl(idjd,:)
-          write(6,*) 'qsw ',qsw(idjd,:)
-          write(6,*) 'cfrac ',cfrac(idjd,:)
-          write(6,*) 'qc  ',  qtot(idjd,:)-qsw(idjd,:)
-          write(6,*) 'qcg ',qcg(idjd,:)
-          write(6,*) 'delq ', (1.-rcrit(idjd,:))*qsw(idjd,:)
-      endif
+        enddo
+
+        if(diag.and.mydiag)then
+            write(6,*) 'rcrit ',rcrit(idjd,:)
+            write(6,*) 'qtot ',qtot(idjd,:)
+            do k=1,nl
+             dum(k)=qsati(100.*prf(idjd,k),tliq(idjd,k)) 
+            enddo
+            write(6,*) 'qsi',dum(:)
+            write(6,*) 'nint',nint(tliq(idjd,:)-tfrz)
+            write(6,*) 'deles',
+     &                 esdiff(min(max(-40,(nint(tliq(idjd,:)-tfrz))),1))
+            write(6,*) 'tliq',tliq(idjd,:)
+            write(6,*) 'qsl ',qsl(idjd,:)
+            write(6,*) 'qsw ',qsw(idjd,:)
+            write(6,*) 'cfrac ',cfrac(idjd,:)
+            write(6,*) 'qc  ',  qtot(idjd,:)-qsw(idjd,:)
+            write(6,*) 'qcg ',qcg(idjd,:)
+            write(6,*) 'delq ', (1.-rcrit(idjd,:))*qsw(idjd,:)
+        endif
+        
+      else ! prognostic cloud
+      
+        ! Tiedtke prognostic cloud model
+        write(6,*) "Prognositc cloud not implemented"
+        stop
+      
+        !call progcloud(cfrac,qcg)
+        cfa=0.
+        qca=0.
+
+      end if ! ncloud<3 ..else..
 
 c Assume condensation or evaporation retains ice fraction fice.
 c Introduce a time-decay factor for cirrus (as suggested by results of Khvorostyanov & Sassen,
@@ -502,7 +516,7 @@ c Vertically sub-grid cloud
           do mg=1,ln2
             if(cfrac(mg,k)>1.0e-2
      &           .and.cfrac(mg,k+1)==0..and.cfrac(mg,k-1)==0.)then
-c            ccov(mg,k)=cfrac(mg,k)**(2./3)
+c            ccov(mg,k)=cfrac(mg,k)**(2./3) ! Mk3.6
               ccov(mg,k)=sqrt(cfrac(mg,k))
             endif
           enddo

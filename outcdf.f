@@ -1852,30 +1852,31 @@ c      "extra" outputs
 
       ! AEROSOL OPTICAL DEPTH ---------------------------------------
       if (nextout>=1.and.abs(iaero)>=2.and.nrad==5) then
+        lwrite=ktau>0
         call histwrt3(opticaldepth(:,1,1),'sdust_vis',idnc,iarch,
-     &                local,.true.)
+     &                local,lwrite)
         call histwrt3(opticaldepth(:,1,2),'sdust_nir',idnc,iarch,
-     &                local,.true.)
+     &                local,lwrite)
         call histwrt3(opticaldepth(:,1,3),'sdust_lw',idnc,iarch,
-     &                local,.true.)
+     &                local,lwrite)
         call histwrt3(opticaldepth(:,2,1),'ldust_vis',idnc,iarch,
-     &                local,.true.)
+     &                local,lwrite)
         call histwrt3(opticaldepth(:,2,2),'ldust_nir',idnc,iarch,
-     &                local,.true.)
+     &                local,lwrite)
         call histwrt3(opticaldepth(:,2,3),'ldust_lw',idnc,iarch,
-     &                local,.true.)
+     &                local,lwrite)
         call histwrt3(opticaldepth(:,3,1),'so4_vis',idnc,iarch,
-     &                local,.true.)
+     &                local,lwrite)
         call histwrt3(opticaldepth(:,3,2),'so4_nir',idnc,iarch,
-     &                local,.true.)
+     &                local,lwrite)
         call histwrt3(opticaldepth(:,3,3),'so4_lw',idnc,iarch,
-     &                local,.true.)
+     &                local,lwrite)
         call histwrt3(opticaldepth(:,4,1),'aero_vis',idnc,iarch,
-     &                local,.true.)
+     &                local,lwrite)
         call histwrt3(opticaldepth(:,4,2),'aero_nir',idnc,iarch,
-     &                local,.true.)
+     &                local,lwrite)
         call histwrt3(opticaldepth(:,4,3),'aero_lw',idnc,iarch,
-     &                local,.true.)
+     &                local,lwrite)
       end if
 
       ! CABLE -------------------------------------------------------

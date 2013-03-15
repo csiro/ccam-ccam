@@ -607,6 +607,19 @@ c          cfrac(mg,k)=cftemp
 c        enddo
 c      enddo
 
+      if (ncloud>0) then
+        do k=1,nl
+          cfrac(:,k)=min(1.,cifr(:,k)+clfr(:,k))
+          ccov(:,k)=cfrac(:,k)
+        end do
+        do k=2,nl-1
+          where (cfrac(:,k)>1.E-2.and.cfrac(:,k+1)==0..and.
+     &           cfrac(:,k-1)==0.)
+            ccov(:,k)=sqrt(cfrac(:,k))
+          end where
+        end do
+      end if
+
       if(ntest==2)then
         do k=1,nl
           do mg=1,ln2

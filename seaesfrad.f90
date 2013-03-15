@@ -334,12 +334,16 @@ if ( first ) then
     Aerosol_props%optical_index(3)=28                         ! black carbon (using soot)
     Aerosol_props%optical_index(4)=27                         ! organic carbon
     Aerosol_props%optical_index(5)=27                         ! organic carbon
-    Aerosol_props%optical_index(6)=33                         ! dust 0.1-1 (using 0.8)
-    Aerosol_props%optical_index(7)=34                         ! dust 1-2   (using 1)
-    Aerosol_props%optical_index(8)=35                         ! dust 2-3   (using 2)
-    Aerosol_props%optical_index(9)=36                         ! dust 3-6   (using 4)
-    Aerosol_props%optical_index(10)=29                        ! sea-salt
-    Aerosol_props%optical_index(11)=29                        ! sea-salt
+    Aerosol_props%optical_index(6)=33                         ! dust 0.1-1 (using 0.8) (same as GFDL dust1)
+    Aerosol_props%optical_index(7)=34                         ! dust 1-2   (using 1)   (same as GFDL dust2)
+    Aerosol_props%optical_index(8)=35                         ! dust 2-3   (using 2)   (same as GFDL dust3)
+    Aerosol_props%optical_index(9)=36                         ! dust 3-6   (using 4)   (same as GFDL dust4)
+                                                              ! missing dust 6-10      (same as GFDL dust5)
+    Aerosol_props%optical_index(10)=29                        ! sea-salt 0.04          (GFDL salt1 0.1-0.5)
+    Aerosol_props%optical_index(11)=29                        ! sea-salt 0.4           (GFDL salt2 0.5-1)
+                                                              ! missing                (GFDL salt3 1-2.5)
+                                                              ! missing                (GFDL salt4 2.5-5)
+                                                              ! missing                (GFDL salt5 5-10)
     !aerosol_optical_names = "sulfate_30%", "sulfate_35%", "sulfate_40%", "sulfate_45%",
     !                        "sulfate_50%", "sulfate_55%", "sulfate_60%", "sulfate_65%",
     !                        "sulfate_70%", "sulfate_75%", "sulfate_80%", "sulfate_82%",
@@ -597,9 +601,13 @@ do j=1,jl,imax/il
           Aerosol%aerosol(:,1,kr,8) =xtg(istart:iend,k,10)*dprf/grav ! dust 2-3
           Aerosol%aerosol(:,1,kr,9) =xtg(istart:iend,k,11)*dprf/grav ! dust 3-6
           Aerosol%aerosol(:,1,kr,10)=2.64e-18*ssn(istart:iend,k,1) &
-                                     /rhoa(:,k)*dprf/grav  ! Small sea salt
+                                     /rhoa(:,k)*dprf/grav  ! Small sea salt (0.035)
           Aerosol%aerosol(:,1,kr,11)=1.38e-15*ssn(istart:iend,k,2) &
-                                     /rhoa(:,k)*dprf/grav  ! Large sea salt
+                                     /rhoa(:,k)*dprf/grav  ! Large sea salt (0.35)
+          !Aerosol%aerosol(:,1,kr,10)=5.3e-17*ssn(istart:iend,k,1) &
+          !                           /rhoa(:,k)*dprf/grav  ! Small sea salt (0.1)
+          !Aerosol%aerosol(:,1,kr,11)=9.1e-15*ssn(istart:iend,k,2) &
+          !                           /rhoa(:,k)*dprf/grav  ! Large sea salt (0.5)
         end do
         Aerosol%aerosol=max(Aerosol%aerosol,0.)
       case DEFAULT
@@ -703,18 +711,14 @@ do j=1,jl,imax/il
     Rad_gases%rrvf113=rrvf113
     Rad_gases%rrvf22 =rrvf22
     
-    Cld_spec%camtsw=0.
-    Cld_spec%crndlw=0.
-    Cld_spec%cmxolw=0.
     if (nmr==0) then
       do i=1,imax ! random overlap
         iq=i+istart-1
         do k=1,kl
           kr=kl+1-k
-          if (cfrac(iq,k)>0.) then
-            Cld_spec%camtsw(i,1,kr)=cfrac(iq,k) ! Max+Rnd overlap clouds for SW
-            Cld_spec%crndlw(i,1,kr)=cfrac(iq,k) ! Rnd overlap for LW
-          end if
+          Cld_spec%camtsw(i,1,kr)=cfrac(iq,k) ! Max+Rnd overlap clouds for SW
+          Cld_spec%crndlw(i,1,kr)=cfrac(iq,k) ! Rnd overlap for LW
+          Cld_spec%cmxolw(i,1,kr)=0.
         end do
       end do
     else
@@ -722,20 +726,20 @@ do j=1,jl,imax/il
         iq=i+istart-1
         do k=1,kl
           kr=kl+1-k
-          if (cfrac(iq,k)>0.) then
-            Cld_spec%camtsw(i,1,kr)=cfrac(iq,k) ! Max+Rnd overlap clouds for SW
-            maxover=.false.
-            if (k>1) then
-              if (cfrac(iq,k-1)>0.) maxover=.true.
-            end if
-            if (k.lt.kl) then
-              if (cfrac(iq,k+1)>0.) maxover=.true.
-            end if
-            if (maxover) then
-              Cld_spec%cmxolw(i,1,kr)=cfrac(iq,k) ! Max overlap for LW
-            else
-              Cld_spec%crndlw(i,1,kr)=cfrac(iq,k) ! Rnd overlap for LW
-            end if
+          Cld_spec%camtsw(i,1,kr)=cfrac(iq,k) ! Max+Rnd overlap clouds for SW
+          maxover=.false.
+          if (k>1) then
+            if (cfrac(iq,k-1)>0.) maxover=.true.
+          end if
+          if (k<kl) then
+            if (cfrac(iq,k+1)>0.) maxover=.true.
+          end if
+          if (maxover) then
+            Cld_spec%cmxolw(i,1,kr)=cfrac(iq,k) ! Max overlap for LW
+            Cld_spec%crndlw(i,1,kr)=0.
+          else
+            Cld_spec%crndlw(i,1,kr)=cfrac(iq,k) ! Rnd overlap for LW
+            Cld_spec%cmxolw(i,1,kr)=0.
           end if
         end do
       end do
@@ -888,15 +892,11 @@ do j=1,jl,imax/il
         opticaldepth(istart:iend,1,2)=opticaldepth(istart:iend,1,2)+Aerosol_diags%extopdep(1:imax,1,k,6,2) ! Near IR
         opticaldepth(istart:iend,1,3)=opticaldepth(istart:iend,1,3)+Aerosol_diags%extopdep(1:imax,1,k,6,3) ! Longwave
         ! Large dust
-        opticaldepth(istart:iend,2,1)=opticaldepth(istart:iend,2,1)+Aerosol_diags%extopdep(1:imax,1,k,7,1) ! Visible
-        opticaldepth(istart:iend,2,2)=opticaldepth(istart:iend,2,2)+Aerosol_diags%extopdep(1:imax,1,k,7,2) ! Near IR
-        opticaldepth(istart:iend,2,3)=opticaldepth(istart:iend,2,3)+Aerosol_diags%extopdep(1:imax,1,k,7,3) ! Longwave
-        opticaldepth(istart:iend,2,1)=opticaldepth(istart:iend,2,1)+Aerosol_diags%extopdep(1:imax,1,k,8,1) ! Visible
-        opticaldepth(istart:iend,2,2)=opticaldepth(istart:iend,2,2)+Aerosol_diags%extopdep(1:imax,1,k,8,2) ! Near IR
-        opticaldepth(istart:iend,2,3)=opticaldepth(istart:iend,2,3)+Aerosol_diags%extopdep(1:imax,1,k,8,3) ! Longwave
-        opticaldepth(istart:iend,2,1)=opticaldepth(istart:iend,2,1)+Aerosol_diags%extopdep(1:imax,1,k,9,1) ! Visible
-        opticaldepth(istart:iend,2,2)=opticaldepth(istart:iend,2,2)+Aerosol_diags%extopdep(1:imax,1,k,9,2) ! Near IR
-        opticaldepth(istart:iend,2,3)=opticaldepth(istart:iend,2,3)+Aerosol_diags%extopdep(1:imax,1,k,9,3) ! Longwave
+        do nr=7,9
+          opticaldepth(istart:iend,2,1)=opticaldepth(istart:iend,2,1)+Aerosol_diags%extopdep(1:imax,1,k,nr,1) ! Visible
+          opticaldepth(istart:iend,2,2)=opticaldepth(istart:iend,2,2)+Aerosol_diags%extopdep(1:imax,1,k,nr,2) ! Near IR
+          opticaldepth(istart:iend,2,3)=opticaldepth(istart:iend,2,3)+Aerosol_diags%extopdep(1:imax,1,k,nr,3) ! Longwave
+        end do
         ! Sulfate
         opticaldepth(istart:iend,3,1)=opticaldepth(istart:iend,3,1)+Aerosol_diags%extopdep(1:imax,1,k,1,1) ! Visible
         opticaldepth(istart:iend,3,2)=opticaldepth(istart:iend,3,2)+Aerosol_diags%extopdep(1:imax,1,k,1,2) ! Near IR
@@ -1375,10 +1375,10 @@ end do
 
 do k=1,kl
   kr=kl+1-k
-  Rdrop(:,kr)=dble(2.E6*reffl(:,k)) ! convert to diameter and microns
-  Rice(:,kr) =dble(2.E6*reffi(:,k))
-  conl(:,kr) =dble(scale_factor*1000.*Wliq(:,k)) !g/m^3
-  coni(:,kr) =dble(scale_factor*1000.*Wice(:,k))
+  Rdrop(:,kr)=2.E6*dble(reffl(:,k)) ! convert to diameter and microns
+  Rice(:,kr) =2.E6*dble(reffi(:,k))
+  conl(:,kr) =1000.*dble(scale_factor*Wliq(:,k)) !g/m^3
+  coni(:,kr) =1000.*dble(scale_factor*Wice(:,k))
 end do
 
 where (Rdrop>0.)
