@@ -31,7 +31,7 @@ integer, parameter :: salfilt  =0   ! additional salinity filter (0=off, 1=Katzf
 integer, parameter :: usetide  =1   ! tidal forcing (0=off, 1=on)
 integer, parameter :: icemode  =2   ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
 integer, parameter :: basinmd  =0   ! basin mode (0=soil, 1=redistribute, 2=pile-up, 3=leak)
-integer, parameter :: mstagf   =0   ! alternating staggering (0=off left, -1=off right, >0 alternating)
+integer, parameter :: mstagf   =10  ! alternating staggering (0=off left, -1=off right, >0 alternating)
 integer, parameter :: koff     =1   ! time split stagger relative to A-grid (koff=0) or C-grid (koff=1)
 integer, parameter :: nf       =2   ! power for horizontal diffusion reduction factor
 integer, parameter :: itnmax   =6   ! number of interations for staggering
@@ -215,9 +215,9 @@ end do
 do iq=1,ifull
   if (.not.land(iq)) then
     do ii=1,wlev
-      if (abs(sig(ii)*dd(iq)-dep(iq,ii))>0.1.or.    &
-          abs(sigh(ii)*dd(iq)-dephl(iq,ii))>0.1.or. &
-          abs(dsig(ii)*dd(iq)-dz(iq,ii))>0.1) then
+      if (abs(sig(ii)*dd(iq)-dep(iq,ii))>0.01.or.    &
+          abs(sigh(ii)*dd(iq)-dephl(iq,ii))>0.01.or. &
+          abs(dsig(ii)*dd(iq)-dz(iq,ii))>0.01) then
         write(6,*) "ERROR: MLO not configured for sigma levels"
         call ccmpi_abort(-1)
       end if

@@ -2779,7 +2779,10 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
           do k=ktopmlo,kbotmlo-1
             !nsq=-2.*grav*(rho(:,k)-rho(:,k+1))/((dep(:,k+1)-dep(:,k))*(rho(:,k)+rho(:,k+1)))
             nsq(:,k)=-(rho(:,k)-rho(:,k+1))/(rho(:,k)+rho(:,k+1))
+            nsq(:,k)=max(nsq(:,k),0.)
           end do
+          ! nsq(:,k-1)=-(a0*(oldt-old))/(2.*rho0+a0*(oldt+old))
+          ! old*(1.-nsq(:,k-1)=oldt*(1.+nsq(:,k-1))+2.*rho0/a0*nsq(:,k-1)
           call mloexport(0,old,ktopmlo,0)
           old=old+diff(:,1)*10./real(mloalpha)
           old=max(old,271.)

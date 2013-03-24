@@ -1305,7 +1305,6 @@ real, dimension(wfull,wlev), intent(in) :: d_rho,d_nsq,d_rad,d_alpha,d_beta
 real, dimension(wfull), intent(in) :: d_b0,d_ustar,d_zcr
 real, dimension(wfull), intent(in) :: a_f
 integer, parameter :: maxits = 3
-real, parameter :: alpha = 0.9
 
 vtc=1.8*sqrt(0.2/(98.96*epsilon))/(vkar*vkar*ric)
 
@@ -1388,7 +1387,6 @@ if (mixmeth==1) then
     oldxp=0.
     oldtrib=rib(iqw,ii-1)
     xp=(p_mixdepth(iqw)-depth(iqw,ii-1)*d_zcr(iqw))/((depth(iqw,ii)-depth(iqw,ii-1))*d_zcr(iqw))
-    xp=max(xp,oldxp+0.1)
     do kk=1,maxits
       if (xp<0.5) then
         tnsq=(1.-2.*xp)*0.5*max(d_nsq(iqw,ii-1)+d_nsq(iqw,ii),0.)+(2.*xp)*max(d_nsq(iqw,ii),0.)
@@ -1404,15 +1402,14 @@ if (mixmeth==1) then
       vtsq=tdepth*tws*sqrt(tnsq)*vtc
       dvsq=(usf(iqw)-twu)**2+(vsf(iqw)-twv)**2
       trib=(tdepth-minsfc)*tbuoy/(max(dvsq+vtsq,1.E-20)*trho)
-      if (abs(trib-oldtrib)>1.E-5) then
-        newxp=xp-alpha*(trib-ric)*(xp-oldxp)/(trib-oldtrib) ! i.e., (trib-ric-oldtrib+ric)
-        oldtrib=trib
-        oldxp=xp
-        xp=newxp
-        xp=min(max(xp,0.),1.)
-      else
+      if (abs(trib-oldtrib)<1.E-5) then
         exit
       end if
+      newxp=xp-(trib-ric)*(xp-oldxp)/(trib-oldtrib) ! i.e., (trib-ric-oldtrib+ric)
+      oldtrib=trib
+      oldxp=xp
+      xp=newxp
+      xp=min(max(xp,0.),1.)
     end do
     p_mixdepth(iqw)=((1.-xp)*depth(iqw,ii-1)+xp*depth(iqw,ii))*d_zcr(iqw)
   end do

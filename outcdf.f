@@ -924,6 +924,9 @@ c       For time varying surface fields
           lname = 'Solar net at ground (+ve down)'
           call attrib(idnc,idim,3,'sgn_ave',lname,'W/m2',-500.,2000.,0,
      &                itype)
+          lname = 'Clear sky SW at ground (+ve down)'
+          call attrib(idnc,idim,3,'sgc_ave',lname,'W/m2',-500.,2000.,0,
+     &                itype)
           lname = 'Sunshine hours'
           call attrib(idnc,idim,3,'sunhours',lname,'hrs',0.,64.5,0,
      &                itype)
@@ -1833,6 +1836,7 @@ c      "extra" outputs
          call histwrt3(soc_ave,'soc_ave',idnc,iarch,local,lrad)
          call histwrt3(sgdn_ave,'sgdn_ave',idnc,iarch,local,lrad)
          call histwrt3(sgn_ave,'sgn_ave',idnc,iarch,local,lave)
+         call histwrt3(sgc_ave,'sgc_ave',idnc,iarch,local,lrad)
          aa=sunhours/3600.
          call histwrt3(aa,'sunhours',idnc,iarch,local,lave)
          call histwrt3(fbeam_ave,'fbeam_ave',idnc,iarch,local,lrad)

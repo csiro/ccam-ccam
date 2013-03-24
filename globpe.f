@@ -290,8 +290,8 @@
           lnctopo=0
           open(66,file=topofile,recl=2000,status='old')
           read(66,*) ilx,jlx,rlong0,rlat0,schmidt,dsx,header
-          il_g=ilx
         end if
+        il_g=ilx        
         write(6,*) 'ilx,jlx,rlong0,rlat0,schmidt,dsx ',
      &              ilx,jlx,rlong0,rlat0,schmidt,dsx,header
       end if      ! (io_in<=4)
@@ -940,6 +940,7 @@
       rgdn_ave(:) = 0.  ! LW_ground (down-welling)  +ve down
       rgn_ave(:)  = 0.  ! LW_ground (net)  +ve up
       rgc_ave(:)  = 0.  ! LW_ground (clear sky)
+      sgc_ave(:)  = 0.  ! SW_ground (clear sky)
       cld_ave(:)  = 0.
       cll_ave(:)  = 0.
       clm_ave(:)  = 0.
@@ -1365,7 +1366,7 @@
       conds=0.
       ! Save aerosol concentrations for outside convective fraction of grid box
       if (abs(iaero)>=2) then
-        xtosav(:,:,:)=xtg(1:ifull,:,:) ! Outside convective cloud
+        xtosav(:,:,:)=xtg(1:ifull,:,:) ! Aerosol mixing ratio outside convective cloud
       end if
       ! Select convection scheme
       select case(nkuo)
@@ -1865,6 +1866,7 @@
         rgdn_ave(1:ifull)   = rgdn_ave(1:ifull)/max(koundiag,1)
         rgn_ave(1:ifull)    = rgn_ave(1:ifull)/max(koundiag,1)
         rgc_ave(1:ifull)    = rgc_ave(1:ifull)/max(koundiag,1)
+        sgc_ave(1:ifull)    = sgc_ave(1:ifull)/max(koundiag,1)
         cld_ave(1:ifull)    = cld_ave(1:ifull)/max(koundiag,1)
         cll_ave(1:ifull)    = cll_ave(1:ifull)/max(koundiag,1)
         clm_ave(1:ifull)    = clm_ave(1:ifull)/max(koundiag,1)
@@ -1971,6 +1973,7 @@
         rgdn_ave(:)  =0.
         rgn_ave(:)   =0.
         rgc_ave(:)   =0.
+        sgc_ave(:)   =0.
         cld_ave(:)   =0.
         cll_ave(:)   =0.
         clm_ave(:)   =0.

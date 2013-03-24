@@ -953,6 +953,7 @@ do j=1,jl,imax/il
       rgc_ave(istart:iend)  = rgc_ave(istart:iend)  + rgclr(1:imax)
       rgdn_ave(istart:iend) = rgdn_ave(istart:iend) + rgdn(1:imax)
       sgdn_ave(istart:iend) = sgdn_ave(istart:iend) + sgdn(1:imax)
+      sgc_ave(istart:iend)  = sgc_ave(istart:iend)  + sgclr(1:imax)
       cld_ave(istart:iend)  = cld_ave(istart:iend)  + cloudtot(istart:iend)
       cll_ave(istart:iend)  = cll_ave(istart:iend)  + cloudlo(istart:iend)
       clm_ave(istart:iend)  = clm_ave(istart:iend)  + cloudmi(istart:iend)

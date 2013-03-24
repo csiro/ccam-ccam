@@ -273,7 +273,7 @@ do kcount=1,mcount
           txup=tlup(1)                                                 ! theta,up after evaporation of ql,up and qf,up
           ttup(1)=txup/sigkap(1)                                       ! temp,up
           qxup=qtup(1)                                                 ! qv,up after evaporation of ql,up and qf,up
-          call getqsat(qupsat(1:1),ttup(1:1),pres(i:i,1))                  ! estimate of saturated mixing ratio in plume
+          call getqsat(qupsat(1:1),ttup(1:1),pres(i:i,1))              ! estimate of saturated mixing ratio in plume
           tvup(1)=txup+theta(i,1)*0.61*qxup                            ! thetav,up after evaporation of ql,up and qf,up
           ! update updraft velocity and mass flux
           nn(1)=grav*be*wtv0(i)/(thetav(i,1)*sqrt(max(tke(i,1),1.E-4)))          ! Hurley 2007
@@ -299,18 +299,18 @@ do kcount=1,mcount
             ! update thermodynamics of plume
             ! split thetal and qtot into components (conservation is maintained)
             ! (use upwind as centred scheme requires vertical spacing less than 250m)
-            thup(k)=(thup(k-1)+dzht*ee*theta(i,k) )/(1.+dzht*ee)
-            qvup(k)=(qvup(k-1)+dzht*ee*qg(i,k)    )/(1.+dzht*ee)
-            qlup(k)=(qlup(k-1)+dzht*ee*qlg(i,k)   )/(1.+dzht*ee)
-            qfup(k)=(qfup(k-1)+dzht*ee*qfg(i,k)   )/(1.+dzht*ee)
-            qrup(k)=(qrup(k-1)+dzht*ee*qrg(i,k)   )/(1.+dzht*ee)
+            thup(k)=(thup(k-1)+dzht*ee*theta(i,k))/(1.+dzht*ee)
+            qvup(k)=(qvup(k-1)+dzht*ee*qg(i,k)   )/(1.+dzht*ee)
+            qlup(k)=(qlup(k-1)+dzht*ee*qlg(i,k)  )/(1.+dzht*ee)
+            qfup(k)=(qfup(k-1)+dzht*ee*qfg(i,k)  )/(1.+dzht*ee)
+            qrup(k)=(qrup(k-1)+dzht*ee*qrg(i,k)  )/(1.+dzht*ee)
             ! diagnose thermodynamic variables assuming no condensation
             tlup(k)=thup(k)-(lv*(qlup(k)+qrup(k))+ls*qfup(k))/cp  ! thetal,up
             qtup(k)=qvup(k)+qlup(k)+qfup(k)+qrup(k)               ! qtot,up
-            txup=tlup(k)                                                  ! theta,up after evaporation of ql,up and qf,up
-            ttup(k)=txup/sigkap(k)                                        ! temp,up
-            qxup=qtup(k)                                                  ! qv,up after evaporation of ql,up and qf,up
-            tvup(k)=txup+theta(i,k)*0.61*qxup                             ! thetav,up after evaporation of ql,up and qf,up
+            txup=tlup(k)                                          ! theta,up after evaporation of ql,up and qf,up
+            ttup(k)=txup/sigkap(k)                                ! temp,up
+            qxup=qtup(k)                                          ! qv,up after evaporation of ql,up and qf,up
+            tvup(k)=txup+theta(i,k)*0.61*qxup                     ! thetav,up after evaporation of ql,up and qf,up
             ! calculate buoyancy
             nn(k)=grav*(tvup(k)-thetav(i,k))/thetav(i,k)
             ! update updraft velocity
@@ -319,7 +319,7 @@ do kcount=1,mcount
             mflx(k)=mflx(k-1)/(1.+dzht*(dtr-ee))
             ! check for lcl
             if (.not.sconv) then
-              call getqsat(qupsat(k:k),ttup(k:k),pres(i:i,k))                ! estimate of saturated mixing ratio in plume
+              call getqsat(qupsat(k:k),ttup(k:k),pres(i:i,k))     ! estimate of saturated mixing ratio in plume
               if (qxup>=qupsat(k)) then
                 ! estimate LCL when saturation occurs
                 as=ee*(qupsat(k)-qupsat(k-1))/dzht
@@ -458,7 +458,7 @@ do kcount=1,mcount
           ! check for convergence
           ! use zidry instead of zi to avoid oscillations
           ! for borderline shallow convection
-          if (abs(zidry(i)-zidryold)<1.) exit
+          if (abs(zidry(i)-zidryold)<10.) exit
           zidryold=zidry(i)
         end do
 
@@ -544,10 +544,10 @@ do kcount=1,mcount
   ! Calculate sources and sinks for TKE and eps
   ! prepare arrays for calculating buoyancy of saturated air
   ! (i.e., related to the saturated adiabatic lapse rate)
-  qsatc=max(qsat,qg)                  ! assume qg is saturated inside cloud
-  dd=qlg/max(cfrac,1.E-6)             ! inside cloud value
-  ff=qfg/max(cfrac,1.E-6)             ! inside cloud value
-  rr=qrg/max(cfrac,cfrain,1.E-6)      ! inside cloud value assuming max overlap
+  qsatc=max(qsat,qg)                           ! assume qg is saturated inside cloud
+  dd=qlg/max(cfrac,1.E-6)                      ! inside cloud value
+  ff=qfg/max(cfrac,1.E-6)                      ! inside cloud value
+  rr=qrg/max(cfrac,cfrain,1.E-6)               ! inside cloud value assuming max overlap
   do k=1,kl
     tbb=max(1.-cfrac(:,k),1.E-6)
     qgnc=(qg(:,k)-(1.-tbb)*qsatc(:,k))/tbb     ! outside cloud value
@@ -555,11 +555,11 @@ do kcount=1,mcount
     thetavnc(:,k)=theta(:,k)*(1.+0.61*qgnc)    ! outside cloud value
   end do
   call updatekmo(thetahl,theta,fzzh)
-  call updatekmo(thetavhl,thetavnc,fzzh)            ! outside cloud value
-  call updatekmo(qshl,qsatc,fzzh)                   ! inside cloud value
-  call updatekmo(qlhl,dd,fzzh)                      ! inside cloud value
-  call updatekmo(qfhl,ff,fzzh)                      ! inside cloud value
-  call updatekmo(qrhl,rr,fzzh)                      ! inside cloud value
+  call updatekmo(thetavhl,thetavnc,fzzh)       ! outside cloud value
+  call updatekmo(qshl,qsatc,fzzh)              ! inside cloud value
+  call updatekmo(qlhl,dd,fzzh)                 ! inside cloud value
+  call updatekmo(qfhl,ff,fzzh)                 ! inside cloud value
+  call updatekmo(qrhl,rr,fzzh)                 ! inside cloud value
   ! fixes for clear/cloudy interface
   lta(:,2:kl)=cfrac(:,2:kl)<=1.E-6
   do k=2,kl-1

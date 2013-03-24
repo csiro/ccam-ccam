@@ -640,6 +640,7 @@ c     cloud amounts for saving
          rgc_ave(iq)  = rgc_ave(iq)  + rgclr(i)
          rgdn_ave(iq) = rgdn_ave(iq) + rgdn(i)
          sgdn_ave(iq) = sgdn_ave(iq) + sgdn(i)
+         sgc_ave(iq)  = sgc_ave(iq)  + sgclr(i)
          cld_ave(iq)  = cld_ave(iq)  + cloudtot(iq)
          cll_ave(iq)  = cll_ave(iq)  + cloudlo(iq)
          clm_ave(iq)  = clm_ave(iq)  + cloudmi(iq)
@@ -763,7 +764,6 @@ c       endif
       REAL, DIMENSION(mp) :: tmprat !
       real, parameter :: two_pi = 2. * 3.1415927
       fbeam = 0.0
-      tmpr = 0.847 + coszen * (1.04 * coszen - 1.61)
       tmpk = (1.47 - tmpr) / 1.66
       WHERE (coszen > 1.0e-10 .AND. fsd > 10.0)
        tmprat = fsd / (solcon * (1.0 + 0.033 * 
@@ -771,8 +771,15 @@ c       endif
       ELSEWHERE
        tmprat = 0.0
       END WHERE
-      WHERE (tmprat > 0.22) fbeam = 6.4 * (tmprat - 0.22) ** 2
-      WHERE (tmprat > 0.35) fbeam = MIN(1.66 * tmprat - 0.4728, 1.0)
-      WHERE (tmprat > tmpk) fbeam = MAX(1.0 - tmpr, 0.0)
+      WHERE (tmprat > tmpk)
+        fbeam = MAX(1.0 - tmpr, 0.0)
+      ELSEWHERE (tmprat > 0.35)
+        fbeam = MIN(1.66 * tmprat - 0.4728, 1.0)
+      ELSEWHERE (tmprat > 0.22)
+        fbeam = 6.4 * (tmprat - 0.22) ** 2
+      ELSEWHERE
+        fbeam = 0.
+      END WHERE
+      
       END subroutine spitter
       !--------------------------------------------------------------

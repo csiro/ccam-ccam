@@ -284,6 +284,7 @@
           if (lnctopo==1) then
             write(6,*) 'before read zs from topofile'
             call surfread(glob2d(:,1),'zs',netcdfid=ncidtopo)
+            glob2d(:,1)=grav*glob2d(:,1)
             write(6,*) 'after read zs from topofile'
             write(6,*) 'before read land-sea fraction'
             call surfread(glob2d(:,2),'lsm',netcdfid=ncidtopo)
@@ -306,15 +307,15 @@
             if(ierr/=0) stop 'end-of-file reached on topofile'
             write(6,*) 'after read he'
             close(66)
-            call ccmpi_distribute(duma(:,1:3),glob2d(:,1:3))
-            deallocate(glob2d)
           end if
+          call ccmpi_distribute(duma(:,1:3),glob2d(:,1:3))
+          deallocate(glob2d)
         else
           call ccmpi_distribute(duma(:,1:3))
         end if
-        zs(1:ifull)=duma(:,1)
+        zs(1:ifull)    =duma(:,1)
         zsmask(1:ifull)=duma(:,2)
-        he(1:ifull)=duma(:,3)
+        he(1:ifull)    =duma(:,3)
         if ( mydiag ) write(6,*)'he read in from topofile',he(idjd)
 
         ! special options for orography         
