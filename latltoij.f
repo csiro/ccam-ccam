@@ -131,6 +131,11 @@ c        predict new value for ri, rj
          den=dxx*dyy-dyx*dxy
          ri=ig+is*((xgrid-xx4(ig,jg))*dyy-(ygrid-yy4(ig,jg))*dyx)/den
          rj=jg+js*((ygrid-yy4(ig,jg))*dxx-(xgrid-xx4(ig,jg))*dxy)/den
+         
+         ri=min(ri,1.0+1.99999*ik)
+         ri=max(ri,1.0+0.00001*ik)
+         rj=min(rj,1.0+1.99999*ik)
+         rj=max(rj,1.0+0.00001*ik)
         enddo  ! loop loop
         xout=.25*(ri+3.) -.5  ! -.5 for stag; back to normal ri, rj defn
         yout=.25*(rj+3.) -.5  ! -.5 for stag
