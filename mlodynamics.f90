@@ -467,6 +467,8 @@ real, dimension(ifull,4) :: idp,slope,mslope,vel,flow
 real, dimension(ifull,4) :: fta,ftx
 real, dimension(2) :: dumb,gdumb
 real :: xx,yy,ll,lssum,gssum,lwsum,gwsum,netf,netg
+real, parameter :: inflowbias = 10.  ! Bias height for inflow into ocean.  Levels above this will flow
+                                     ! back onto land.
 
 ! To speed up the code, we use a (semi-)implicit solution rather than an iterative approach
 ! This avoids additional MPI calls.
@@ -499,6 +501,7 @@ neta=0.
 salin=0.
 sallvl=0.
 call mloexport(4,neta(1:ifull),0,0)
+neta(1:ifull)=neta(1:ifull)-inflowbias*ee(1:ifull)
 do ii=1,wlev
   call mloexport(1,sallvl(:,ii),ii,0)
   ! could modify the following to only operate on the top 5m of the ocean column
@@ -726,6 +729,7 @@ elsewhere
 end where
 
 ! import ocean data
+neta(1:ifull)=neta(1:ifull)+inflowbias*ee(1:ifull)
 call mloimport(4,neta(1:ifull),0,0)
 do ii=1,wlev
   where (ee(1:ifull)>0.5.and.salin>0.)
