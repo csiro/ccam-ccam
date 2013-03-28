@@ -2913,20 +2913,20 @@ if (ltest) then
       !vin(1:ifull,k)=vd(:,k)-va(inv,k)*0.5-va(isv,k)*0.1
     elsewhere (evntest)
       wtv(1:ifull,0)=1.
-      wtv(1:ifull,1)=-1./3. !=-0.5
-      wtv(1:ifull,2)=0.     !=0.
+      wtv(1:ifull,1)=-0.5
+      wtv(1:ifull,2)=0.
       wtv(1:ifull,3)=0.
-      dtv(:,1)=0.           !=0.1
-      dtv(:,2)=1.           !=1.
-      dtv(:,3)=1./3.        !=0.5
+      dtv(:,1)=0.1
+      dtv(:,2)=1.
+      dtv(:,3)=0.5
     elsewhere (evstest)
       wtv(1:ifull,0)=1.
-      wtv(1:ifull,1)=0.   !=0.
-      wtv(1:ifull,2)=0.   !=-1./3.
+      wtv(1:ifull,1)=0.
+      wtv(1:ifull,2)=0.
       wtv(1:ifull,3)=0.
-      dtv(:,1)=0.         !=0.
-      dtv(:,2)=1.         !=1./3.
-      dtv(:,3)=1./3.      !=1.
+      dtv(:,1)=0. 
+      dtv(:,2)=1.
+      dtv(:,3)=1./3.
     elsewhere (evtest)
       wtv(1:ifull,0)=1.
       wtv(1:ifull,1)=0.
@@ -3452,10 +3452,10 @@ if (ltest) then
       !vin(1:ifull,k)=vd(:,k)-va(inv,k)*0.1-va(isv,k)*0.5
     elsewhere (evntest)
       wtv(1:ifull,0)=1.
-      wtv(1:ifull,1)=0.
+      wtv(1:ifull,1)=-0.1
       wtv(1:ifull,2)=-0.5
       wtv(1:ifull,3)=0.
-      dtv(:,1)=0.1
+      dtv(:,1)=0.
       dtv(:,2)=1.
       dtv(:,3)=0.5
     elsewhere (evstest)
