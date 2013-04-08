@@ -313,9 +313,9 @@
         else
           call ccmpi_distribute(duma(:,1:3))
         end if
-        zs(1:ifull)    =duma(:,1)
+        zs(1:ifull)=duma(:,1)
         zsmask(1:ifull)=duma(:,2)
-        he(1:ifull)    =duma(:,3)
+        he(1:ifull)=duma(:,3)
         if ( mydiag ) write(6,*)'he read in from topofile',he(idjd)
 
         ! special options for orography         
@@ -450,26 +450,26 @@
            endif
           endif  ! (zs(iq)<=0.)
          enddo
+         ! JJK special option for adjusting surface albedo and roughness
+         if(nspecial<-10)then
+          do iq=1,ifull
+           rlongd=rlongg(iq)*180./pi
+           rlatd=rlatt(iq)*180./pi
+           if((rlatdn<rlatd .and. rlatd<rlatdx).and.
+     &        (rlongdn<rlongd .and. rlongd<rlongdx))then
+! assume nspecial = -vvir where vv = % vis alb and ir = % nir alb
+            newzo=real(abs(nspecial)/10000)
+            visalb=real((abs(nspecial)-nint(newzo)*10000)/100)
+            niralb=real(abs(nspecial)-nint(newzo)*10000
+     &             -nint(visalb)*100)
+            if ( newzo  > 1. ) zolnd(iq)=newzo/1000. ! input mm, output m
+            if ( visalb > 1. ) albvisnir(iq,1)=visalb/100. ! (to make 0-1)
+            if ( niralb > 1. ) albvisnir(iq,2)=niralb/100. ! (to make 0-1)
+           endif
+          enddo
+         endif  ! (nspecial<-10)
         end if ! (nsib==6.or.nsib==7) ..else..
       end if   ! nsib>=1
-
-      ! JJK special option for adjusting surface albedo and roughness
-      if(nspecial<-10)then
-       do iq=1,ifull
-        rlongd=rlongg(iq)*180./pi
-        rlatd=rlatt(iq)*180./pi
-        if((rlatdn<rlatd .and. rlatd<rlatdx).and.
-     &     (rlongdn<rlongd .and. rlongd<rlongdx))then
-! assume nspecial = -vvir where vv = % vis alb and ir = % nir alb
-         newzo=real(abs(nspecial)/10000)
-         visalb=real((abs(nspecial)-nint(newzo)*10000)/100)
-         niralb=real(abs(nspecial)-nint(newzo)*10000-nint(visalb)*100)
-         if ( newzo  > 1. ) zolnd(iq)=newzo/1000. ! input mm, output m
-         if ( visalb > 1. ) albvisnir(iq,1)=visalb/100. ! (to make 0-1)
-         if ( niralb > 1. ) albvisnir(iq,2)=niralb/100. ! (to make 0-1)
-        endif
-       enddo
-      endif  ! (nspecial<-10)
 
       !**************************************************************
       !**************************************************************
@@ -1892,23 +1892,23 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
           if (myid==0) write(6,*) 'Using MLO defaults'
           ocndwn(:,2)=0.
           do k=1,wlev
-!            call mloexpdep(0,depth,k,0)
-!            ! This polynomial fit is from MOM3, based on Levitus
-!            where (depth<2000.)
-!            mlodwn(:,k,1)=18.4231944
-!     &        -0.43030662E-1*depth(:)
-!     &        +0.607121504E-4*depth(:)**2
-!     &        -0.523806281E-7*depth(:)**3
-!     &        +0.272989082E-10*depth(:)**4
-!     &        -0.833224666E-14*depth(:)**5
-!     &        +0.136974583E-17*depth(:)**6
-!     &        -0.935923382E-22*depth(:)**7
-!            mlodwn(:,k,1)=mlodwn(:,k,1)*(tss-273.16)/18.4231944+273.16
-!            elsewhere
-!            mlodwn(:,k,1)=275.16
-!            end where
+            call mloexpdep(0,depth,k,0)
+            ! This polynomial fit is from MOM3, based on Levitus
+            where (depth<2000.)
+            mlodwn(:,k,1)=18.4231944
+     &        -0.43030662E-1*depth(:)
+     &        +0.607121504E-4*depth(:)**2
+     &        -0.523806281E-7*depth(:)**3
+     &        +0.272989082E-10*depth(:)**4
+     &        -0.833224666E-14*depth(:)**5
+     &        +0.136974583E-17*depth(:)**6
+     &        -0.935923382E-22*depth(:)**7
+            mlodwn(:,k,1)=mlodwn(:,k,1)*(tss-273.16)/18.4231944+273.16
+            elsewhere
+            mlodwn(:,k,1)=275.16
+            end where
             ! This is simply using the surface temperature
-            mlodwn(:,k,1)=max(tss,270.)
+            ! mlodwn(:,k,1)=max(tss,270.)
             mlodwn(:,k,2)=34.72
             mlodwn(:,k,3:4)=0.
           end do

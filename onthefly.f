@@ -260,7 +260,7 @@
       use screen_m                              ! Screen level diagnostics
       use sigs_m                                ! Atmosphere sigma levels
       use soil_m                                ! Soil and surface data
-      use tkeeps, only : tke,eps,zidry          ! TKE-EPS boundary layer
+      use tkeeps, only : tke,eps                ! TKE-EPS boundary layer
       use tracers_m                             ! Tracer data
       use utilities                             ! Grid utilities
       use vecsuv_m                              ! Map to cartesian coordinates
@@ -1373,20 +1373,13 @@ c***        but needed here for onthefly (different dims) 28/8/08
         if (nvmix==6.and.nested==0) then
           if (iotest) then
             call histrd1(ncid,iarchi,ier,'pblh',ik,6*ik,pblh,ifull)
-            call histrd1(ncid,iarchi,ier,'zidry',ik,6*ik,zidry,ifull)
           else
             call histrd1(ncid,iarchi,ier,'pblh',ik,6*ik,ucc,6*ik*ik)
             call doints4(ucc,pblh,nface4,xg4,yg4,
      &                     nord,dk,ifg)
-            call histrd1(ncid,iarchi,ier,'zidry',ik,6*ik,ucc,6*ik*ik)
-            call doints4(ucc,zidry,nface4,xg4,yg4,
-     &                     nord,dk,ifg)
           end if ! iotest
           if (all(pblh==0.)) then
             pblh=1000.
-          end if
-          if (all(zidry==0.)) then
-            zidry=pblh
           end if
         end if
 

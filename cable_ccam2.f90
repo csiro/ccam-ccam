@@ -100,7 +100,6 @@ implicit none
 private
 public sib4,loadcbmparm,loadtile,savetiledef,savetile,cableinflow,cbmemiss
 
-integer, parameter :: hruffmethod    = 1 ! Method for max hruff
 integer, parameter :: proglai        = 0 ! 0 prescribed LAI, 1 prognostic LAI 
 real, parameter :: minfrac = 0.01 ! minimum non-zero tile fraction (improves load balancing)
 
@@ -223,22 +222,7 @@ met%fld=-rgsave(cmap) ! long wave down (positive) W/m^2
 call setlai(sigmf,jyear,jmonth,jday,jhour,jmin)
 
 rough%hruff=max(0.01,veg%hc-1.2*ssnow%snowd/max(ssnow%ssdnn,100.))
-select case(hruffmethod)
-  case(0) ! hruff is mixed in a tile (find max hruff for tile)
-    hruff_grmx=0.01
-    do nb=1,5
-      if (pind(nb,1)<=mp) then
-        hruff_grmx(cmap(pind(nb,1):pind(nb,2)))=max( &
-          hruff_grmx(cmap(pind(nb,1):pind(nb,2))),rough%hruff(pind(nb,1):pind(nb,2)))
-      end if
-    end do
-    rough%hruff_grmx=hruff_grmx(cmap)
-  case(1) ! hruff is seperate in a tile (no max hruff for tile)
-    rough%hruff_grmx=rough%hruff
-  case DEFAULT
-    write(6,*) "ERROR: Unsupported hruffmethod ",hruffmethod
-    stop
-end select
+rough%hruff_grmx=rough%hruff ! Does nothing in CABLE v2.0
   
 !--------------------------------------------------------------
 ! CABLE
@@ -728,6 +712,8 @@ end subroutine cbmemiss
 
 ! *************************************************************************************
 subroutine setlai(sigmf,jyear,jmonth,jday,jhour,jmin)
+
+use cc_mpi
   
 implicit none
 
@@ -752,12 +738,12 @@ select case(proglai)
     end if
 
     monthstart=1440*(jday-1) + 60*jhour + jmin ! mins from start month
-    x=min(max(real(mtimer+monthstart)/real(1440.*imonth(jmonth)),0.),1.)
+    x=min(max(real(mtimer+monthstart)/real(1440*imonth(jmonth)),0.),1.)
     veg%vlai=vl1+vl2*x+vl3*x*x ! LAI as a function of time
   case(1)
     if (icycle==0) then
       write(6,*) "ERROR: CASA CNP LAI is not operational"
-      stop
+      call ccmpi_abort(-1)
     end if
     veg%vlai=casamet%glai
   case default
@@ -1779,7 +1765,7 @@ if (lncveg==1) then
     end if
     call ccnf_inq_dimlen(ncidx,'longitude',ilx)
     call ccnf_inq_dimlen(ncidx,'latitude',jlx)
-    call ccnf_get_attg(ncidx,'long0',rlong0x)
+    call ccnf_get_attg(ncidx,'lon0',rlong0x)
     call ccnf_get_attg(ncidx,'lat0',rlat0x)
     call ccnf_get_attg(ncidx,'schmidt',schmidtx)
     if(ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) then
@@ -1800,7 +1786,7 @@ if (lncveg==1) then
     end if
     call ccnf_inq_dimlen(ncidx,'longitude',ilx)
     call ccnf_inq_dimlen(ncidx,'latitude',jlx)
-    call ccnf_get_attg(ncidx,'long0',rlong0x)
+    call ccnf_get_attg(ncidx,'lon0',rlong0x)
     call ccnf_get_attg(ncidx,'lat0',rlat0x)
     call ccnf_get_attg(ncidx,'schmidt',schmidtx)
     if(ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) then
@@ -1930,14 +1916,14 @@ if (ierr/=0) then
   if (myid==0) write(6,*) "Use gridbox averaged data to initialise CABLE"
   if (mp>0) then
     do k = 1,ms
-      ssnow%tgg(:,k) = tgg(cmap,k)
-      ssnow%wb(:,k) = wb(cmap,k)
+      ssnow%tgg(:,k)   = tgg(cmap,k)
+      ssnow%wb(:,k)    = wb(cmap,k)
       ssnow%wbice(:,k) = wbice(cmap,k)
     enddo
     do k = 1,3
       ssnow%tggsn(:,k) = tggsn(cmap,k)
       ssnow%smass(:,k) = smass(cmap,k)
-      ssnow%ssdn(:,k) = ssdn(cmap,k)
+      ssnow%ssdn(:,k)  = ssdn(cmap,k)
     enddo      
     ssnow%isflag=isflag(cmap)
     ssnow%snowd=snowd(cmap)
@@ -2576,13 +2562,13 @@ end subroutine savetile
 
 ! *************************************************************************************
 ! Water inflow from river routing
-subroutine cableinflow(iqin,inflow,lmax)
+subroutine cableinflow(iqin,inflow,lmax,rate)
   
 implicit none
   
 integer, intent(in) :: iqin
-integer n,iq
-real, intent(in) :: lmax
+integer n,iq,k
+real, intent(in) :: lmax,rate
 real, intent(inout) :: inflow
 real, dimension(5) :: xx
 real yy,ll
@@ -2592,12 +2578,14 @@ inflow=0.
 do n=1,maxnb
   do iq=pind(n,1),pind(n,2)
     if (cmap(iq)==iqin) then
-      ll=max(soil%ssat(iq)*lmax-ssnow%wb(iq,cbm_ms),0.)*1000.*soil%zse(cbm_ms)
-      yy=min(xx(n),ll)
-      ssnow%wb(iq,cbm_ms)=ssnow%wb(iq,cbm_ms)+yy/(1000.*soil%zse(cbm_ms))
-      xx(n)=max(xx(n)-yy,0.)
+      do k=1,cbm_ms
+        ll=max(soil%sfc(iq)-ssnow%wb(iq,k),0.)*1000.*soil%zse(k)
+        ll=ll*rate*lmax
+        yy=min(xx(n),ll)
+        ssnow%wb(iq,k)=ssnow%wb(iq,k)+yy/(1000.*soil%zse(k))
+        xx(n)=xx(n)-yy
+      end do
       inflow=inflow+sv(iq)*xx(n)
-    elseif (cmap(iq)>iqin) then
       exit
     end if
   end do

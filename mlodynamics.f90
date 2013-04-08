@@ -27,22 +27,23 @@ real, dimension(:,:), allocatable, save :: oldu1,oldu2,oldv1,oldv2
 real, dimension(:,:), allocatable, save :: stwgt
 integer, save :: comm_mlo
 integer, save :: nstagoffmlo
-integer, parameter :: salfilt  =0   ! additional salinity filter (0=off, 1=Katzfey)
-integer, parameter :: usetide  =1   ! tidal forcing (0=off, 1=on)
-integer, parameter :: icemode  =2   ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
-integer, parameter :: basinmd  =0   ! basin mode (0=soil, 1=redistribute, 2=pile-up, 3=leak)
-integer, parameter :: mstagf   =10  ! alternating staggering (0=off left, -1=off right, >0 alternating)
-integer, parameter :: koff     =1   ! time split stagger relative to A-grid (koff=0) or C-grid (koff=1)
-integer, parameter :: nf       =2   ! power for horizontal diffusion reduction factor
-integer, parameter :: itnmax   =6   ! number of interations for staggering
-integer, save      :: fixsal   =1   ! Conserve salinity (0=Usual, 1=Fixed average salinity at 34.72)
-integer, save      :: fixheight=1   ! Conserve free surface height (0=Usual, 1=Fixed average Height at 0)
-real, parameter :: rhosn  =330.     ! density snow (kg m^-3)
-real, parameter :: rhoic  =900.     ! density ice  (kg m^-3)
-real, parameter :: grav   =9.80616  ! gravitational constant (m s^-2)
-real, parameter :: delphi =150.     ! horizontal diffusion reduction factor gradient
-real, save      :: ocnsmag=1.       ! horizontal diffusion (2. in Griffies (2000), 1.-1.4 in POM (Mellor 2004))
-real, save      :: ocneps =0.1      ! semi-implicit off-centring term
+integer, parameter :: salfilt  =0    ! badditional salinity filter (0=off, 1=Katzfey)
+integer, parameter :: usetide  =1    ! tidal forcing (0=off, 1=on)
+integer, parameter :: icemode  =2    ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
+integer, parameter :: basinmd  =3    ! basin mode (0=soil, 1=redistribute, 2=pile-up, 3=leak)
+integer, parameter :: mstagf   =10   ! alternating staggering (0=off left, -1=off right, >0 alternating)
+integer, parameter :: koff     =1    ! time split stagger relative to A-grid (koff=0) or C-grid (koff=1)
+integer, parameter :: nf       =2    ! power for horizontal diffusion reduction factor
+integer, parameter :: itnmax   =6    ! number of interations for staggering
+integer, save      :: fixsal   =1    ! Conserve salinity (0=Usual, 1=Fixed average salinity at 34.72)
+integer, save      :: fixheight=1    ! Conserve free surface height (0=Usual, 1=Fixed average Height at 0)
+real, parameter :: rhosn      = 330.      ! density snow (kg m^-3)
+real, parameter :: rhoic      = 900.      ! density ice  (kg m^-3)
+real, parameter :: grav       = 9.80616   ! gravitational constant (m s^-2)
+real, parameter :: delphi     = 150.      ! horizontal diffusion reduction factor gradient
+real, save      :: ocnsmag    = 1.        ! horizontal diffusion (2. in Griffies (2000), 1.-1.4 in POM (Mellor 2004))
+real, save      :: ocneps     = 0.1       ! semi-implicit off-centring term
+real, parameter :: inflowbias = 10.       ! Bias height for inflow into ocean.  Levels above this will flow back onto land.
 
 contains
 
@@ -264,12 +265,15 @@ real, dimension(ifull) :: tx_fact,ty_fact
 real, dimension(ifull) :: cc,emi,nu,nv,nw
 logical, dimension(ifull+iextra) :: wtr
 
+! abort if no water points on this processor
 if (all(ee<=0.5)) return
 
+! Define diffusion scale, land-sea mask and grid spacing
 hdif=dt*(ocnsmag/pi)**2
 wtr=ee>0.5
 emi=1./em(1:ifull)**2
 
+! extract data from MLO
 u=0.
 v=0.
 eta=0.
@@ -280,6 +284,7 @@ end do
 call mloexport(4,eta(1:ifull),0,0)
 call bounds(eta,nehalf=.true.,gmode=1)
 
+! use JLM coupling weighting
 if (abs(nmlo)>=3) then
   uau(1:ifull,:)=av_vmod*u(1:ifull,:)+(1.-av_vmod)*oldu1
   uav(1:ifull,:)=av_vmod*v(1:ifull,:)+(1.-av_vmod)*oldv1
@@ -289,7 +294,9 @@ else
 end if
 call boundsuv(uau,uav,allvec=.true.,gmode=1)
 
-! Smagorinsky
+! calculate diffusion following Smagorinsky
+! here we split the calculation into left, right, top, bottom in
+! case of coastlines
 do k=1,wlev
   dudx=0.5*((uau(ieu,k)-uau(1:ifull,k))*emu(1:ifull)/ds*eeu(1:ifull) &
            +(uau(1:ifull,k)-uau(iwu,k))*emu(iwu)/ds*eeu(iwu))
@@ -301,7 +308,7 @@ do k=1,wlev
            +(uav(1:ifull,k)-uav(isv,k))*emv(isv)/ds*eev(isv))
 
   cc=(dudx-dvdy)**2+(dudy+dvdx)**2
-  t_kh(1:ifull,k)=sqrt(cc)*hdif/(em(1:ifull)*em(1:ifull))
+  t_kh(1:ifull,k)=sqrt(cc)*hdif*emi
 end do
 call bounds(t_kh,nehalf=.true.,gmode=1)
 
@@ -316,7 +323,7 @@ do k=1,wlev
 end do
 call boundsuv(xfact,yfact,stag=-9,gmode=1)
 
-! viscosity terms (closure #1)
+! Laplacian diffusion terms (closure #1)
 do k=1,wlev
   uc(1:ifull,k)=ax(1:ifull)*u(1:ifull,k)+bx(1:ifull)*v(1:ifull,k)
   vc(1:ifull,k)=ay(1:ifull)*u(1:ifull,k)+by(1:ifull)*v(1:ifull,k)
@@ -356,7 +363,7 @@ do k=1,wlev
 
 end do
 
-! viscosity terms (closure #2)
+! Laplacian diffusion and viscosity terms (closure #2)
 ! call boundsuv(u,v,allvec=.true.,gmode=1)
 !do k=1,wlev
 !
@@ -405,9 +412,7 @@ do i=0,1
       ff=ff+290.
     case(1)
       ff=ff+34.72
-      where (ff<0.)
-        ff=0.
-      end where
+      ff=max(ff,0.)
   end select
   do k=1,wlev
     call mloimport(i,ff(:,k),k,0)
@@ -456,19 +461,19 @@ include 'const_phys.h'
 include 'parm.h'
 include 'soilv.h'
 
-integer i,ii,iq,ierr
+integer i,ii,iq,ierr,k
+integer nit
 integer, dimension(ifull,4) :: xp
 real, dimension(ifull,wlev) :: sallvl
 real, dimension(ifull+iextra) :: neta,netflx,cc
+real, dimension(ifull+iextra) :: newwat
 real, dimension(ifull+iextra,2) :: dum
-real, dimension(ifull) :: newwat,newsal,cover
+real, dimension(ifull) :: newsal,cover
 real, dimension(ifull) :: deta,sal,salin,depdum
 real, dimension(ifull,4) :: idp,slope,mslope,vel,flow
-real, dimension(ifull,4) :: fta,ftx
+real, dimension(ifull,4) :: fta,ftb,ftx,fty
 real, dimension(2) :: dumb,gdumb
-real :: xx,yy,ll,lssum,gssum,lwsum,gwsum,netf,netg
-real, parameter :: inflowbias = 10.  ! Bias height for inflow into ocean.  Levels above this will flow
-                                     ! back onto land.
+real xx,yy,ll,lssum,gssum,lwsum,gwsum,netf,netg,rate\
 
 ! To speed up the code, we use a (semi-)implicit solution rather than an iterative approach
 ! This avoids additional MPI calls.
@@ -485,6 +490,8 @@ real, parameter :: inflowbias = 10.  ! Bias height for inflow into ocean.  Level
 ! new water levels at t+1.  However, in this case we already know the fluxes due to the slope
 ! (avoiding a MPI) so the second MPI is simply to constrain water avaliability so that the net amount
 ! of water is conserved (i.e., netvel in the code below).
+
+! Currently fluxes are explicit.  May need iterative loop for implicit solver.
 
 ! setup indices and grid spacing
 xp(:,1)=in
@@ -529,50 +536,74 @@ dum(1:ifull,2)=salbdy(1:ifull)
 call bounds(dum(:,1:2))
 watbdy(ifull+1:ifull+iextra)=dum(ifull+1:ifull+iextra,1)
 salbdy(ifull+1:ifull+iextra)=dum(ifull+1:ifull+iextra,2)
-newwat=watbdy(1:ifull)
+newwat(1:ifull)=watbdy(1:ifull)
 newsal=salbdy(1:ifull)
 
-! calculate slopes
-! Currently this is has an explicit dependence on watbdy
-do i=1,4
-  !slope(:,i)=(zs(1:ifull)-zs(xp(:,i)))/(grav*dp(:,i))         ! basic
-  slope(:,i)=(zs(1:ifull)/grav+0.001*watbdy(1:ifull) &
-             -zs(xp(:,i))/grav-0.001*watbdy(xp(:,i)))*idp(:,i) ! flood
-  where (ee(1:ifull)>0.5.and.ee(xp(:,i))>0.5)
-    slope(:,i)=0. ! no orographic slope within ocean bounds
-  end where
+! predictor-corrector
+do nit=1,2
+  
+  call bounds(newwat)
+
+  ! calculate slopes
+  ! Currently this is has an explicit dependence on watbdy
+  do i=1,4
+    where ((ee(1:ifull)*ee(xp(:,i)))>0.5)
+      slope(:,i)=0. ! no orographic slope within ocean bounds
+    elsewhere
+      !slope(:,i)=(zs(1:ifull)-zs(xp(:,i)))/(grav*dp(:,i))         ! basic
+      slope(:,i)=(zs(1:ifull)/grav+0.001*newwat(1:ifull) &
+                 -zs(xp(:,i))/grav-0.001*newwat(xp(:,i)))*idp(:,i) ! flood
+    end where
+  end do
+
+  newwat(1:ifull)=watbdy(1:ifull)
+
+  ! Basic expression
+
+  ! m = mass/area
+  ! flow = m * vel / dx
+  ! m(t+1)-m(t) = dt*sum(inflow)-dt*sum(outflow)
+
+  ! outflow
+  mslope=max(slope,0.)
+  vel=min(0.35*sqrt(mslope/0.00005),5.) ! from Miller et al (1994)
+  ! compute net outgoing flux for a grid box so that total water is conserved
+  do i=1,4
+    fta(:,i)=-dt*vel(:,i)*idp(:,i)     ! outgoing flux
+  end do
+  netflx(1:ifull)=sum(abs(fta),2)
+  call bounds(netflx)
+  
+  ! water outflow
+  do i=1,4
+    where (netflx(1:ifull)>1.E-10)
+      ftx(:,i)=-fta(:,i)/netflx(1:ifull) ! max fraction of total outgoing flux
+      flow(:,i)=watbdy(1:ifull)*min(fta(:,i),ftx(:,i)) ! (kg/m^2)
+    elsewhere
+      flow(:,i)=0.
+    end where
+  end do
+  newwat(1:ifull)=newwat(1:ifull)+sum(flow,2)
+
+  ! inflow
+  mslope=max(-slope,0.)
+  vel=min(0.35*sqrt(mslope/0.00005),5.) ! from Miller et al (1994)
+
+  ! water inflow
+  do i=1,4
+    ftb(:,i)=dt*vel(:,i)*idp(:,i)     ! incomming flux
+    where (netflx(xp(:,i))>1.E-10)
+      fty(:,i)=ftb(:,i)/netflx(xp(:,i)) ! max fraction of flux from outgoing cel
+      flow(:,i)=watbdy(xp(:,i))*min(ftb(:,i),fty(:,i)) ! (kg/m^2)
+      flow(:,i)=flow(:,i)*em(1:ifull)*em(1:ifull)/(em(xp(:,i))*em(xp(:,i))) ! change in gridbox area
+    elsewhere
+      flow(:,i)=0.
+    end where
+  end do
+  newwat(1:ifull)=newwat(1:ifull)+sum(flow,2)
+
 end do
 
-! Basic expression
-
-! m = mass/area
-! flow = m * vel / dx
-! m(t+1)-m(t) = dt*sum(inflow)-dt*sum(outflow)
-
-! outflow
-mslope=max(slope,0.)
-vel=0.35*sqrt(mslope/0.00005) ! from Miller et al (1994)
-where (mslope>1.E-10)
-  vel=min(max(vel,0.15),5.)
-elsewhere
-  vel=0.
-end where
-! compute net outgoing flux for a grid box so that total water is conserved
-do i=1,4
-  fta(:,i)=-dt*vel(:,i)*idp(:,i)     ! outgoing flux
-end do
-netflx(1:ifull)=sum(abs(fta),2)
-call bounds(netflx)
-! water outflow
-do i=1,4
-  ftx(:,i)=-fta(:,i)/netflx(1:ifull) ! max fraction of total outgoing flux
-  where (netflx(1:ifull)>1.E-10)
-    flow(:,i)=watbdy(1:ifull)*min(fta(:,i),ftx(:,i)) ! (kg/m^2)
-  elsewhere
-    flow(:,i)=0.
-  end where
-end do
-newwat=newwat+sum(flow,2)
 ! salinity outflow
 do i=1,4
   where (netflx(1:ifull)>1.E-10)
@@ -582,31 +613,10 @@ do i=1,4
   end where
 end do
 newsal=newsal+sum(flow,2)
-
-! inflow
-mslope=max(-slope,0.)
-vel=0.35*sqrt(mslope/0.00005) ! from Miller et al (1994)
-where (mslope>1.E-10)
-  vel=min(max(vel,0.15),5.)
-elsewhere
-  vel=0.
-end where
-! water inflow
-do i=1,4
-  fta(:,i)=dt*vel(:,i)*idp(:,i)     ! incomming flux
-  ftx(:,i)=fta(:,i)/netflx(xp(:,i)) ! max fraction of flux from outgoing cell
-  where (netflx(xp(:,i))>1.E-10)
-    flow(:,i)=watbdy(xp(:,i))*min(fta(:,i),ftx(:,i)) ! (kg/m^2)
-    flow(:,i)=flow(:,i)*em(1:ifull)*em(1:ifull)/(em(xp(:,i))*em(xp(:,i))) ! change in gridbox area
-  elsewhere
-    flow(:,i)=0.
-  end where
-end do
-newwat=newwat+sum(flow,2)
 ! salinity inflow
 do i=1,4
   where (netflx(xp(:,i))>1.E-10)
-    flow(:,i)=salbdy(xp(:,i))*min(fta(:,i),ftx(:,i))
+    flow(:,i)=salbdy(xp(:,i))*min(ftb(:,i),fty(:,i))
     flow(:,i)=flow(:,i)*em(1:ifull)*em(1:ifull)/(em(xp(:,i))*em(xp(:,i))) ! change in gridbox area
   elsewhere
     flow(:,i)=0.
@@ -619,6 +629,7 @@ salbdy(1:ifull)=max(newsal,0.)
 
 ! estimate grid box area covered by water
 cover=min(0.001*watbdy(1:ifull)/minwater,1.)
+rate=min(dt/(8.*3600.),1.) ! MJT suggestion
   
 ! basin
 select case(basinmd)
@@ -631,7 +642,7 @@ select case(basinmd)
           ! runoff is inserted into soil moisture since CCAM has discrete land and sea points
           xx=watbdy(iq)
           ll=cover(iq)
-          call cableinflow(iq,xx,ll)
+          call cableinflow(iq,xx,ll,rate)
           newwat(iq)=newwat(iq)+(xx-watbdy(iq))*(1.-sigmu(iq))
         end if
       end do
@@ -641,10 +652,13 @@ select case(basinmd)
         if (all(slope(iq,:)<-1.E-10).and.land(iq)) then
           ! runoff is inserted into soil moisture since CCAM has discrete land and sea points
           xx=watbdy(iq)
-          ll=max(ssat(isoilm(iq))*cover(iq)-wb(iq,ms),0.)*1000.*zse(ms)
-          yy=min(xx,ll)
-          wb(iq,ms)=wb(iq,ms)+yy/(1000.*zse(ms))
-          xx=max(xx-yy,0.)
+          do k=1,ms
+            ll=max(sfc(isoilm(iq))-wb(iq,k),0.)*1000.*zse(k)
+            ll=ll*rate*cover(iq)
+            yy=min(xx,ll)
+            wb(iq,k)=wb(iq,k)+yy/(1000.*zse(k))
+            xx=max(xx-yy,0.)
+          end do
           newwat(iq)=newwat(iq)+(xx-watbdy(iq))*(1.-sigmu(iq))
         end if
       end do
@@ -678,22 +692,25 @@ select case(basinmd)
     if (nsib==6.or.nsib==7) then
       ! CABLE
       do iq=1,ifull
-        if (land(iq)) then
+        if (land(iq).and.watbdy(iq)>0.) then
           xx=watbdy(iq)
           ll=cover(iq)
-          call cableinflow(iq,xx,ll)
+          call cableinflow(iq,xx,ll,rate)
           newwat(iq)=newwat(iq)+(xx-watbdy(iq))*(1.-sigmu(iq))
         end if
       end do
     else
       ! Standard land surface model
       do iq=1,ifull
-        if (land(iq)) then
+        if (land(iq).and.watbdy(iq)>0.) then
           xx=watbdy(iq)
-          ll=max(ssat(isoilm(iq))*cover(iq)-wb(iq,ms),0.)*1000.*zse(ms)
-          yy=min(xx,ll)
-          wb(iq,ms)=wb(iq,ms)+yy/(1000.*zse(ms))
-          xx=max(xx-yy,0.)
+          do k=1,ms
+            ll=max(sfc(isoilm(iq))-wb(iq,k),0.)*1000.*zse(k)
+            ll=ll*rate*cover(iq)
+            yy=min(xx,ll)
+            wb(iq,k)=wb(iq,k)+yy/(1000.*zse(k))
+            xx=max(xx-yy,0.)
+          end do
           newwat(iq)=newwat(iq)+(xx-watbdy(iq))*(1.-sigmu(iq))
         end if
       end do
@@ -1842,20 +1859,21 @@ real, dimension(ifull) :: xstr,ystr,zstr
 real, dimension(ifull) :: denxyz,xd,yd,zd
 real, dimension(ifull) :: ri,rj
 real dxx,dxy,dyx,dyy
-real*8, dimension(ifull,size(nface,2)), intent(inout) :: x3d,y3d,z3d
-real*8, dimension(ifull) :: den
-real*8 alf,alfonsch
-real*8, parameter :: one = 1.
+real(kind=8), dimension(ifull,size(nface,2)), intent(inout) :: x3d,y3d,z3d
+real(kind=8), dimension(ifull) :: den
+real(kind=8) alf,alfonsch
+real(kind=8), parameter :: one = 1.
 integer, parameter :: nmaploop = 3
 
 kx=size(nface,2)
+
+alf=(one-schmidt**2)/(one+schmidt**2)
+alfonsch=2.*schmidt/(one+schmidt**2)  ! same but bit more accurate
 
 do ii=1,kx
 
   !     if necessary, transform (x3d, y3d, z3d) to equivalent
   !     coordinates (xstr, ystr, zstr) on regular gnomonic panels
-  alf=(one-schmidt**2)/(one+schmidt**2)
-  alfonsch=2.*schmidt/(one+schmidt**2)  ! same but bit more accurate
   den=one-alf*z3d(:,ii) ! to force real*8
   xstr=x3d(:,ii)*(alfonsch/den)
   ystr=y3d(:,ii)*(alfonsch/den)
@@ -1900,15 +1918,15 @@ do ii=1,kx
   xg(:,ii)=min(max(-.99999,xg(:,ii)),.99999)
   yg(:,ii)=min(max(-.99999,yg(:,ii)),.99999)
   !      first guess for ri, rj and nearest i,j
-  ri=1.+(1.+xg(:,ii))*2.*real(il_g)
-  rj=1.+(1.+yg(:,ii))*2.*real(il_g)
+  ri=1.+(1.+xg(:,ii))*real(2*il_g)
+  rj=1.+(1.+yg(:,ii))*real(2*il_g)
   do loop=1,nmaploop
     do iq=1,ifull
       i=nint(ri(iq))
       j=nint(rj(iq))
       is=nint(sign(1.,ri(iq)-real(i)))
       js=nint(sign(1.,rj(iq)-real(j)))
-  !       predict new value for ri, rj
+      ! predict new value for ri, rj
       dxx=xx4(i+is,j)-xx4(i,j)
       dyx=xx4(i,j+js)-xx4(i,j)
       dxy=yy4(i+is,j)-yy4(i,j)
@@ -1919,8 +1937,8 @@ do ii=1,kx
     end do
   end do  ! loop loop
   !      expect xg, yg to range between .5 and il+.5
-  xg(:,ii)=.25*(ri+3.) -.5  ! -.5 for stag; back to normal ri, rj defn
-  yg(:,ii)=.25*(rj+3.) -.5  ! -.5 for stag
+  xg(:,ii)=0.25*(ri+3.)-0.5  ! -.5 for stag; back to normal ri, rj defn
+  yg(:,ii)=0.25*(rj+3.)-0.5  ! -.5 for stag
 
 end do
 
@@ -2462,7 +2480,7 @@ if(intsch==1)then
         ! bi-linear interpolation
         scb=sc(0:1,0:1)
         call lfill(scb,cxx)
-        sc(0:1,0:1)=scb        
+        sc(0:1,0:1)=scb
         aad=sc(1,1)-sc(0,1)-sc(1,0)+sc(0,0)
         aab=sc(1,0)-sc(0,0)
         aac=sc(0,1)-sc(0,0)
@@ -2818,9 +2836,9 @@ kx=size(u,2)
 
 eutest=eeu(1:ifull)>0.5
 evtest=eev(1:ifull)>0.5
-euetest=eutest.and.eeu(ieu)>0.5
+euetest=eutest      .and.eeu(ieu)>0.5
 euwtest=eeu(iwu)>0.5.and.eutest
-evntest=evtest.and.eev(inv)>0.5
+evntest=evtest      .and.eev(inv)>0.5
 evstest=eev(isv)>0.5.and.evtest
 euewtest=euetest.and.euwtest
 evnstest=evntest.and.evstest
@@ -3080,7 +3098,7 @@ else
 !         W     X *      0     staggered
     elsewhere (euwtest)
       wtu(1:ifull,0)=1.
-      wtu(1:ifull,1)=-0.
+      wtu(1:ifull,1)=0.
       wtu(1:ifull,2)=-0.5
       wtu(1:ifull,3)=0.
       dtu(:,1)=0.1
@@ -3932,9 +3950,7 @@ call mlotvd(its,dtnew,ww,tt,depdum,dzdum,kp,kx)
 call mlotvd(its,dtnew,ww,mm,depdum,dzdum,kp,kx)
 tt=tt+290.
 ss=ss+34.72
-where (ss<0.)
-  ss=0.
-end where
+ss=max(ss,0.)
 
 return
 end subroutine mlovadv

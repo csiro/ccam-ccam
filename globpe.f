@@ -292,8 +292,8 @@
           read(66,*) ilx,jlx,rlong0,rlat0,schmidt,dsx,header
         end if
         il_g=ilx        
-        write(6,*) 'ilx,jlx,rlong0,rlat0,schmidt,dsx ',
-     &              ilx,jlx,rlong0,rlat0,schmidt,dsx,header
+        write(6,*) 'ilx,jlx,rlong0,rlat0,schmidt ',
+     &              ilx,jlx,rlong0,rlat0,schmidt
       end if      ! (io_in<=4)
       idum(1)=il_g
       rdum(1)=rlong0

@@ -74,8 +74,8 @@
       real, dimension(ifull,kl) :: dumqg,dumql,dumqf,dumqr,dumcr
       real, dimension(ifull,kl-1) :: dnhsh
       real, dimension(ifull) :: dqtot,csq,dvmod,dz,dzr,fm,fh,sqmxl
-      real, dimension(ifull) :: x,zhv,theeb,sigsp,wt0,wq0,rrhoa
-      real, dimension(ifull) :: ou,ov,iu,iv,rhoas
+      real, dimension(ifull) :: x,zhv,theeb,sigsp
+      real, dimension(ifull) :: ou,ov,iu,iv
       real, dimension(kl) :: sighkap,sigkap,delons,delh
       real, dimension(:), allocatable, save :: prcpv
 
@@ -817,17 +817,14 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
      &                    +betm(k)*t(1:ifull,k-1))/grav
        end do ! k  loop
        zg=zg+phi_nh/grav ! add non-hydrostatic component
-       rrhoa=rdry*t(1:ifull,1)/(sig(1)*ps(1:ifull))
-       rhoas=1./rrhoa
-       wq0=eg*rrhoa/hl
-       wt0=fg*rrhoa/cp
        dumqg=qg(1:ifull,:)
        dumql=qlg(1:ifull,:)
        dumqf=qfg(1:ifull,:)
        dumqr=qrg(1:ifull,:)
        dumcr=cffall(1:ifull,:)
        tnaero=0
-       if (nh/=0) then
+       
+       if (nh/=0) then         ! Use counter gradient for non-hydrostatic adjustment
          tnaero=1
          dumar(:,:,1)=tnhs(:,:)
        end if
@@ -836,13 +833,14 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
          dumar(:,:,tnaero-2*naero+1:tnaero-naero)=xtg(1:ifull,:,:)
          dumar(:,:,tnaero-naero+1:tnaero)=xtosav(1:ifull,:,:)
        end if
+       
        select case(nlocal)
         case(0) ! no counter gradient
          call tkemix(rkm,rhs,dumqg,dumql,
      &             dumqf,dumqr,cfrac,dumcr,
-     &             pblh,wt0,wq0,ps(1:ifull),
-     &             ustar,rhoas,zg,zh,sig,
-     &             sigkap,dt,qgmin,1,0,
+     &             pblh,fg,eg,ps(1:ifull),
+     &             ustar,zg,zh,sig,
+     &             dt,qgmin,1,0,
      &             tnaero,dumar)
          qg(1:ifull,:)=dumqg
          qlg(1:ifull,:)=dumql
@@ -853,9 +851,9 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
         case(1,2,3,4,5,6) ! KCN counter gradient method
          call tkemix(rkm,rhs,dumqg,dumql,
      &             dumqf,dumqr,cfrac,dumcr,
-     &             pblh,wt0,wq0,ps(1:ifull),
-     &             ustar,rhoas,zg,zh,sig,
-     &             sigkap,dt,qgmin,1,0,
+     &             pblh,fg,eg,ps(1:ifull),
+     &             ustar,zg,zh,sig,
+     &             dt,qgmin,1,0,
      &             tnaero,dumar)
          qg(1:ifull,:)=dumqg
          qlg(1:ifull,:)=dumql
@@ -871,9 +869,9 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
         case(7) ! mass-flux counter gradient
          call tkemix(rkm,rhs,dumqg,dumql,
      &             dumqf,dumqr,cfrac,dumcr,
-     &             pblh,wt0,wq0,ps(1:ifull),
-     &             ustar,rhoas,zg,zh,sig,
-     &             sigkap,dt,qgmin,0,0,
+     &             pblh,fg,eg,ps(1:ifull),
+     &             ustar,zg,zh,sig,
+     &             dt,qgmin,0,0,
      &             tnaero,dumar)
          qg(1:ifull,:)=dumqg
          qlg(1:ifull,:)=dumql
@@ -977,23 +975,21 @@ c     first do theta (then convert back to t)
        call trim(at,ct,rhs,0)   ! for t
        if(nmaxpr==1.and.mydiag)
      &   write (6,"('thet_out',9f8.3/8x,9f8.3)") rhs(idjd,:)
-      end if
-      do k=1,kl
+       do k=1,kl
         do iq=1,ifull
          t(iq,k)=rhs(iq,k)/sigkap(k)
         enddo  ! iq loop
-      enddo    !  k loop
-      if(diag)then
-         if (mydiag) then
-            write(6,*)'vertmix eg,fg,cdtq,land '
-     &                  ,eg(idjd),fg(idjd),cdtq(idjd),land(idjd)
-         end if
+       enddo    !  k loop
+       if(diag)then
+        if (mydiag) then
+          write(6,*)'vertmix eg,fg,cdtq,land '
+     &              ,eg(idjd),fg(idjd),cdtq(idjd),land(idjd)
+        end if
         call printa('thet',rhs,ktau,nlv,ia,ib,ja,jb,200.,1.)
-      endif
+       end if
 
       !--------------------------------------------------------------
       ! Moisture
-      if (nvmix/=6) then
        rhs=qg(1:ifull,:)
        rhs(:,1)=rhs(:,1)-(conflux/hl)*eg/(ps(1:ifull)*dnhs(:,1))
 c      could add extra sfce moisture flux term for crank-nicholson
@@ -1004,17 +1000,10 @@ c      could add extra sfce moisture flux term for crank-nicholson
         write (6,"('qg ',9f7.3/(8x,9f7.3))")
      &             (1000.*qg(idjd,k),k=1,kl)
        endif
-      end if ! (nvmix==6)
-
-      if (nvmix==6.and.nlocal>0) then
-        ! increase mixing to replace counter gradient term
-        at=cq*at
-        ct=cq*ct
-      end if
 
       !--------------------------------------------------------------
       ! Cloud microphysics terms
-      if(ldr/=0.and.nvmix/=6)then
+       if(ldr/=0)then
 c       now do qfg
         rhs=qfg(1:ifull,:)
         call trim(at,ct,rhs,0)    ! for qfg
@@ -1024,36 +1013,36 @@ c       now do qlg
         call trim(at,ct,rhs,0)    ! for qlg
         qlg(1:ifull,:)=rhs
         if (ncloud>0) then
-c         now do qrg
-          rhs=qrg(1:ifull,:)
-          call trim(at,ct,rhs,0)    ! for qrg
-          qrg(1:ifull,:)=rhs
-c         now do cfrac
-          rhs=cfrac(1:ifull,:)
-          call trim(at,ct,rhs,0)    ! for cfrac
-          cfrac(1:ifull,:)=min(max(rhs,0.),1.)
-c         now do cffall
-          rhs=cffall(1:ifull,:)
-          call trim(at,ct,rhs,0)    ! for cffall
-          cffall(1:ifull,:)=min(max(rhs,0.),1.)
-       end if
-      endif    ! (ldr/=0)
+c        now do qrg
+         rhs=qrg(1:ifull,:)
+         call trim(at,ct,rhs,0)    ! for qrg
+         qrg(1:ifull,:)=rhs
+c        now do cfrac
+         rhs=cfrac(1:ifull,:)
+         call trim(at,ct,rhs,0)    ! for cfrac
+         cfrac(1:ifull,:)=min(max(rhs,0.),1.)
+c        now do cffall
+         rhs=cffall(1:ifull,:)
+         call trim(at,ct,rhs,0)    ! for cffall
+         cffall(1:ifull,:)=min(max(rhs,0.),1.)
+        end if
+       endif    ! (ldr/=0)
       
       !--------------------------------------------------------------
       ! NHS term
-      if (nh/=0.and.nvmix/=6) then
+       if (nh/=0) then
         rhs=tnhs(:,:)
         call trim(at,ct,rhs,0)
-         phi_nh(:,1)=bet(1)*rhs(:,1)
-         do k=2,kl
-           phi_nh(:,k)=phi_nh(:,k-1)+bet(k)*rhs(:,k)
-     &                             +betm(k)*rhs(:,k-1)
-         end do
-      end if 
+        phi_nh(:,1)=bet(1)*rhs(:,1)
+        do k=2,kl
+          phi_nh(:,k)=phi_nh(:,k-1)+bet(k)*rhs(:,k)
+     &                            +betm(k)*rhs(:,k-1)
+        end do
+       end if 
       
       !--------------------------------------------------------------
       ! Aerosols
-      if (abs(iaero)==2.and.nvmix/=6) then
+       if (abs(iaero)==2) then
         do l=1,naero
           rhs=xtg(1:ifull,:,l) ! Total grid-box
           call trim(at,ct,rhs,0)
@@ -1062,7 +1051,17 @@ c         now do cffall
           call trim(at,ct,rhs,0)
           xtosav(:,:,l)=rhs
         end do
-      end if ! (abs(iaero)==2)
+       end if ! (abs(iaero)==2)
+      
+      else
+
+       ! increase mixing to replace counter gradient term      
+       if (nlocal>0) then
+        at=cq*at
+        ct=cq*ct
+       end if
+       
+      end if ! nvmix/=6 ..else..
 
       !--------------------------------------------------------------
       ! Tracers
@@ -1097,7 +1096,7 @@ c         now do cffall
         iv=0.
         call mloexport(2,ou,1,0)
         call mloexport(3,ov,1,0)
-        call mloexpice(iu,9,0)
+        call mloexpice(iu, 9,0)
         call mloexpice(iv,10,0)
         ou=(1.-fracice)*ou+fracice*iu
         ov=(1.-fracice)*ov+fracice*iv
