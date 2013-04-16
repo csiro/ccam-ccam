@@ -34,7 +34,7 @@ real, dimension(:,:), allocatable, save :: tke,eps
 ! model constants
 real, parameter :: b1      = 2.     ! Soares et al (2004) 1., Siebesma et al (2003) 2.
 real, parameter :: b2      = 1./3.  ! Soares et al (2004) 2., Siebesma et al (2003) 1./3.
-real, parameter :: be      = 7.     ! Hurley (2007) 1., Soares et al (2004) 0.3
+real, parameter :: be      = 1.     ! Hurley (2007) 1., Soares et al (2004) 0.3
 real, parameter :: cm0     = 0.09   ! Hurley (2007) 0.09, Duynkerke 1988 0.03
 real, parameter :: ce0     = 0.69   ! Hurley (2007) 0.69, Duynkerke 1988 0.42
 real, parameter :: ce1     = 1.46
@@ -124,7 +124,7 @@ real, dimension(ifull,kl,size(aero,3)) :: gamar
 real, dimension(ifull,kl) :: km,thetav,thetal,temp,qsat
 real, dimension(ifull,kl) :: gamtv,gamth,gamqv,gamql,gamqf
 real, dimension(ifull,kl) :: gamqr,gamcf,gamcr,gamhl
-real, dimension(ifull,kl) :: thetavnc,qsatc
+real, dimension(ifull,kl) :: thetavnc,qsatc,thetac,tliq,tempc
 real, dimension(ifull,kl) :: tkenew,epsnew,bb,cc,dd,ff,rr
 real, dimension(ifull,kl) :: rhoa,rhoahl,thetavhl,thetahl
 real, dimension(ifull,kl) :: qshl,qlhl,qfhl,qrhl
@@ -203,7 +203,7 @@ ppt(:,kl)=0.
 
 ! interpolate to half levels
 call updatekmo(rhoahl,rhoa,fzzh)
-call updatekmo(kmo,km,fzzh)
+call updatekmo(kmo,   km,  fzzh)
 
 idzm(:,2:kl)  =rhoahl(:,1:kl-1)/(rhoa(:,2:kl)*dz_fl(:,2:kl))
 idzp(:,1:kl-1)=rhoahl(:,1:kl-1)/(rhoa(:,1:kl-1)*dz_fl(:,1:kl-1))
@@ -221,8 +221,9 @@ do kcount=1,mcount
   do k=1,kl
     temp(:,k)  =theta(:,k)/sigkap(k)
     thetal(:,k)=theta(:,k)-sigkap(k)*(lv*(qlg(:,k)+qrg(:,k))+ls*qfg(:,k))/cp
+    tliq(:,k)  =thetal(:,k)/sigkap(k)
     ! calculate saturated mixing ratio
-    call getqsat(qsat(:,k),temp(:,k),pres(:,k))
+    call getqsat(qsat(:,k),tliq(:,k),pres(:,k))
   end do
 
   ! Calculate non-local mass-flux terms for theta_l and qtot
@@ -300,7 +301,7 @@ do kcount=1,mcount
             tdum   =templ
             call getqsat(qupsat(k:k),tdum(1:1),pres(i:i,k))
             ! estimate variance of qtup in updraft (following Hurley and TAPM)
-            sigqtup=sqrt(max(1.E-10,1.6*tke(i,k)/eps(i,k)*cq*km(i,k)*((qtup(k)-qtup(k-1))/dzht)**2))
+            sigqtup=sqrt(max(1.E-6,1.6*tke(i,k)/eps(i,k)*cq*km(i,k)*((qtup(k)-qtup(k-1))/dzht)**2))
             ! MJT condensation scheme -  follow Smith 1990 and assume
             ! triangle distribution for qtup.  The average qtup is qxup
             ! after accounting for saturation
@@ -323,8 +324,8 @@ do kcount=1,mcount
             lx=lv+lf*fice
             dqsdt=qupsat(k)*lx/(rv*templ*templ)
             al=cp/(cp+lx*dqsdt)
-            qcup=qtup(k)-qxup
-            qcup=qcup*al
+            qcup=(qtup(k)-qxup)*al
+            qxup=qtup(k)-qcup
             ttup(k)=templ+lx*qcup/cp                               ! temp,up
             txup   =ttup(k)*sigkap(k)                              ! theta,up after redistribution
             tvup(k)=txup+theta(i,k)*(1.61*qxup-qtup(k))            ! thetav,up after redistribution
@@ -352,7 +353,7 @@ do kcount=1,mcount
           wstar(i)=(grav*zi(i)*wtv0(i)/thetav(i,1))**(1./3.)
 
           ! check for convergence
-          if (abs(zi(i)-ziold)<10.) exit
+          if (abs(zi(i)-ziold)<1.) exit
           ziold=zi(i)
         end do
 
@@ -439,22 +440,25 @@ do kcount=1,mcount
   ! Calculate sources and sinks for TKE and eps
   ! prepare arrays for calculating buoyancy of saturated air
   ! (i.e., related to the saturated adiabatic lapse rate)
-  qsatc=max(qsat,qg)                           ! assume qg is saturated inside cloud
-  dd=qlg/max(cfrac,1.E-6)                      ! inside cloud value
-  ff=qfg/max(cfrac,1.E-6)                      ! inside cloud value
-  rr=qrg/max(cfrac,cfrain,1.E-6)               ! inside cloud value assuming max overlap
+  qsatc=max(qsat,qg)                                                       ! assume qg is saturated inside cloud
+  dd=qlg/max(cfrac,1.E-6)                                                  ! inside cloud value
+  ff=qfg/max(cfrac,1.E-6)                                                  ! inside cloud value
+  rr=qrg/max(cfrac,cfrain,1.E-6)                                           ! inside cloud value assuming max overlap
   do k=1,kl
     tbb=max(1.-cfrac(:,k),1.E-6)
-    qgnc=(qg(:,k)-(1.-tbb)*qsatc(:,k))/tbb     ! outside cloud value
+    qgnc=(qg(:,k)-(1.-tbb)*qsatc(:,k))/tbb                                 ! outside cloud value
     qgnc=min(max(qgnc,qgmin),qsatc(:,k))
-    thetavnc(:,k)=theta(:,k)*(1.+0.61*qgnc)    ! outside cloud value
+    thetac(:,k)=thetal(:,k)+sigkap(k)*(lv*(dd(:,k)+rr(:,k))+ls*ff(:,k))/cp ! inside cloud value
+    tempc(:,k)=thetac(:,k)/sigkap(k)                                       ! inside cloud value
+    !thetanc(:,k)=thetal(:,k)                                              ! outside cloud value
+    thetavnc(:,k)=thetal(:,k)*(1.+0.61*qgnc)                               ! outside cloud value
   end do
-  call updatekmo(thetahl,theta,fzzh)
-  call updatekmo(thetavhl,thetavnc,fzzh)       ! outside cloud value
-  call updatekmo(qshl,qsatc,fzzh)              ! inside cloud value
-  call updatekmo(qlhl,dd,fzzh)                 ! inside cloud value
-  call updatekmo(qfhl,ff,fzzh)                 ! inside cloud value
-  call updatekmo(qrhl,rr,fzzh)                 ! inside cloud value
+  call updatekmo(thetahl,thetac,fzzh)                                      ! inside cloud value
+  call updatekmo(thetavhl,thetavnc,fzzh)                                   ! outside cloud value
+  call updatekmo(qshl,qsatc,fzzh)                                          ! inside cloud value
+  call updatekmo(qlhl,dd,fzzh)                                             ! inside cloud value
+  call updatekmo(qfhl,ff,fzzh)                                             ! inside cloud value
+  call updatekmo(qrhl,rr,fzzh)                                             ! inside cloud value
   ! fixes for clear/cloudy interface
   lta(:,2:kl)=cfrac(:,2:kl)<=1.E-6
   do k=2,kl-1
@@ -475,16 +479,16 @@ do kcount=1,mcount
 
   do k=2,kl-1
     ! Calculate buoyancy term
-    tqq=(1.+lv*qsatc(:,k)/(rd*temp(:,k)))/(1.+lv*lv*qsatc(:,k)/(cp*rv*temp(:,k)*temp(:,k)))
+    tqq=(1.+lv*qsatc(:,k)/(rd*tempc(:,k)))/(1.+lv*lv*qsatc(:,k)/(cp*rv*tempc(:,k)*tempc(:,k)))
     ! saturated conditions from Durran and Klemp JAS 1982 (see also WRF)
-    tbb=-grav*km(:,k)*(tqq*((thetahl(:,k)-thetahl(:,k-1))/theta(:,k)                              &
-           +lv*(qshl(:,k)-qshl(:,k-1))/(cp*temp(:,k)))-qshl(:,k)-qlhl(:,k)-qfhl(:,k)-qrhl(:,k)    &
+    tbb=-grav*km(:,k)*(tqq*((thetahl(:,k)-thetahl(:,k-1))/thetac(:,k)                              &
+           +lv*(qshl(:,k)-qshl(:,k-1))/(cp*tempc(:,k)))-qshl(:,k)-qlhl(:,k)-qfhl(:,k)-qrhl(:,k)    &
            +qshl(:,k-1)+qlhl(:,k-1)+qfhl(:,k-1)+qrhl(:,k-1))/dz_fl(:,k)
     tbb=tbb+grav*(tqq*(gamth(:,k)/theta(:,k)+lv*gamqv(:,k)/(cp*temp(:,k)))         &
            -gamqv(:,k)-gamql(:,k)-gamqf(:,k)-gamqr(:,k))
     ! unsaturated
     tcc=-grav*km(:,k)*(thetavhl(:,k)-thetavhl(:,k-1))/(thetavnc(:,k)*dz_fl(:,k))
-    tcc=tcc+grav*gamtv(:,k)/thetav(:,k)
+    tcc=tcc+grav*gamtv(:,k)/thetavnc(:,k)
     ppb(:,k)=(1.-cfrac(:,k))*tcc+cfrac(:,k)*tbb ! cloud fraction weighted (e.g., Smith 1990)
 
     ! Calculate transport term on full levels
@@ -785,7 +789,7 @@ real, intent(in) :: zht,zi,zmin
 !entfn=2./max(100.,zi)                                     ! Angevine et al (2010)
 !entfn=1./zht                                              ! Siebesma et al (2003)
 !entfn=0.5*(1./min(zht,zi-zmin)+1./max(zi-zht,zmin))       ! Soares et al (2004)
-entfn=1./max(100.,zi)
+entfn=0.5*(1./max(100.,min(zht,zi-100.))+1./max(zi-zht,100.))
 
 return
 end function entfn
@@ -799,8 +803,7 @@ real ent
 
 ent=entfn(zht,zi,zmin)
 
-!dtrfn=ent+0.05/max(zi-zht,zmin)   ! Angevine et al (2010)
-dtrfn=ent+0.025/max(zi-zht,zmin)
+dtrfn=ent+0.05/max(zi-zht,zmin)   ! Angevine et al (2010)
 
 return
 end function dtrfn
