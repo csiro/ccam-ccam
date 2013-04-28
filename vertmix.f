@@ -74,7 +74,7 @@
       real, dimension(ifull,kl) :: dumqg,dumql,dumqf,dumqr,dumcr
       real, dimension(ifull,kl-1) :: dnhsh
       real, dimension(ifull) :: dqtot,csq,dvmod,dz,dzr,fm,fh,sqmxl
-      real, dimension(ifull) :: x,zhv,theeb,sigsp
+      real, dimension(ifull) :: x,zhv,theeb,sigsp,rhos
       real, dimension(ifull) :: ou,ov,iu,iv
       real, dimension(kl) :: sighkap,sigkap,delons,delh
       real, dimension(:), allocatable, save :: prcpv
@@ -824,6 +824,8 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
        dumcr=cffall(1:ifull,:)
        tnaero=0
        
+       rhos=ps(1:ifull)/(rdry*tss(:))
+       
        if (nh/=0) then         ! Use counter gradient for non-hydrostatic adjustment
          tnaero=1
          dumar(:,:,1)=tnhs(:,:)
@@ -839,7 +841,7 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
          call tkemix(rkm,rhs,dumqg,dumql,
      &             dumqf,dumqr,cfrac,dumcr,
      &             pblh,fg,eg,ps(1:ifull),
-     &             ustar,zg,zh,sig,
+     &             ustar,zg,zh,sig,rhos,
      &             dt,qgmin,1,0,
      &             tnaero,dumar)
          qg(1:ifull,:)=dumqg
@@ -852,7 +854,7 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
          call tkemix(rkm,rhs,dumqg,dumql,
      &             dumqf,dumqr,cfrac,dumcr,
      &             pblh,fg,eg,ps(1:ifull),
-     &             ustar,zg,zh,sig,
+     &             ustar,zg,zh,sig,rhos,
      &             dt,qgmin,1,0,
      &             tnaero,dumar)
          qg(1:ifull,:)=dumqg
@@ -870,7 +872,7 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
          call tkemix(rkm,rhs,dumqg,dumql,
      &             dumqf,dumqr,cfrac,dumcr,
      &             pblh,fg,eg,ps(1:ifull),
-     &             ustar,zg,zh,sig,
+     &             ustar,zg,zh,sig,rhos,
      &             dt,qgmin,0,0,
      &             tnaero,dumar)
          qg(1:ifull,:)=dumqg
@@ -1054,6 +1056,11 @@ c        now do cffall
        end if ! (abs(iaero)==2)
       
       else
+
+       ! convert from theta to temp
+       do k=1,kl
+         t(1:ifull,k)=rhs(1:ifull,k)/sigkap(k)
+       enddo    !  k loop
 
        ! increase mixing to replace counter gradient term      
        if (nlocal>0) then

@@ -450,6 +450,8 @@
            endif
           endif  ! (zs(iq)<=0.)
          enddo
+        end if ! (nsib==6.or.nsib==7) ..else..
+	if (nsib/=6.and.nsib/=7) then
          ! JJK special option for adjusting surface albedo and roughness
          if(nspecial<-10)then
           do iq=1,ifull
@@ -467,8 +469,8 @@
             if ( niralb > 1. ) albvisnir(iq,2)=niralb/100. ! (to make 0-1)
            endif
           enddo
-         endif  ! (nspecial<-10)
-        end if ! (nsib==6.or.nsib==7) ..else..
+         endif  ! (nspecial<-10)	
+	end if ! (nsib/=6.and.nsib/=7)
       end if   ! nsib>=1
 
       !**************************************************************

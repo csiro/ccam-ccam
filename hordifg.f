@@ -326,7 +326,7 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
           end do
           do k=kmax+1,kl
             shear(:,k)=2.*(dudx(1:ifull,k)**2+dvdy(1:ifull,k)**2
-     &              +dwdz(:,k)**2)
+     &                    +dwdz(:,k)**2)
      &              +(dudy(1:ifull,k)+dvdx(1:ifull,k))**2
      &              +(dudz(:,k)+dwdx(:,k))**2
      &              +(dvdz(:,k)+dwdy(:,k))**2

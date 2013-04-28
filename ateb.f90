@@ -1277,7 +1277,7 @@ d_rfsndelta=rf_snow/(rf_snow+maxrfsn)
 d_rdsndelta=rd_snow/(rd_snow+maxrdsn)
 
 ! canyon (displacement height at refheight*building height)
-d_sigd=a_ps*exp(-grav*f_bldheight*refheight/(rd*a_temp))
+d_sigd=a_ps
 pa=a_ps*exp(-grav*a_zmin/(rd*a_temp))
 d_tempc=a_temp*(d_sigd/pa)**(rd/aircp)
 call getqsat(qsatr,d_tempc,d_sigd)
@@ -1285,7 +1285,7 @@ call getqsat(a,a_temp,pa)
 d_mixrc=a_mixr*qsatr/a ! a=qsata
 
 ! roof (displacement height at building height)
-d_sigr=a_ps*exp(-grav*f_bldheight/(rd*a_temp))
+d_sigr=a_ps*exp(-grav*f_bldheight*(1.-refheight)/(rd*a_temp))
 d_tempr=a_temp*(d_sigr/pa)**(rd/aircp)
 call getqsat(qsatr,d_tempr,d_sigr)
 d_mixrr=a_mixr*qsatr/a ! a=qsata
@@ -1346,13 +1346,11 @@ where (zom*f_sigmabld<zonet*(1.-f_sigmabld)) ! MJT suggestion
 end where
 n=rd_snow/(rd_snow+maxrdsn+0.408*grav*zom)       ! snow cover for urban roughness calc (Douville, et al 1995)
 zom=(1.-n)*zom+n*zosnow                          ! blend urban and snow roughness lengths (i.e., snow fills canyon)
-d_rfdzmin=max(max(abs(a_zmin-f_bldheight),zoroof+0.1),f_zovegr+0.1) ! distance to roof displacement height
-where (a_zmin>=f_bldheight)
-  p_lzom=log(a_zmin/zom)
-elsewhere ! lowest atmospheric model level is within the canopy.  Need to interact with boundary layer scheme.
-  p_lzom=log(f_bldheight/zom)*exp(0.5*f_hwratio*(1.-a_zmin/f_bldheight))
-end where
-p_cndzmin=zom*exp(p_lzom)                        ! distance to canyon displacement height
+
+! here the first model level is always a_zmin above the displacement height
+d_rfdzmin=max(max(abs(a_zmin-f_bldheight*(1.-refheight)),zoroof+0.1),f_zovegr+0.1) ! distance to roof displacement height
+p_lzom=log(a_zmin/zom)
+p_cndzmin=a_zmin                                 ! distance to canyon displacement height
 
 ! calculate canyon wind speed and bulk transfer coefficents
 ! (i.e., acond = 1/(aerodynamic resistance) )

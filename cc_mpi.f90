@@ -34,6 +34,7 @@ module cc_mpi
              ccmpi_allgatherx, ccmpi_recv, ccmpi_ssend, ccmpi_init,         &
              ccmpi_finalize, ccmpi_commsplit, ccmpi_commfree, mgbounds,     &
              mgcollect, mg_index, indx, bounds_colour
+   public :: mgbndtype
    public :: dpoints_t,dindex_t,sextra_t,bnds
    private :: ccmpi_distribute2, ccmpi_distribute2i, ccmpi_distribute2r8,   &
               ccmpi_distribute3, ccmpi_distribute3i, ccmpi_gather2,         &
@@ -4214,7 +4215,7 @@ contains
          ! Is there any advantage to this ordering here or would send/recv
          ! to the same processor be just as good?
          rproc = neighlistrecv(iproc)  ! Recv from
-         if ( msglen(rproc) > 0 ) then
+         if ( msglen(rproc) > 0 ) then ! Possible for no ocean points to be exchanged with neighbour
             nreq = nreq + 1
             rlist(nreq) = iproc
             ! Use the maximum size in the recv call.
@@ -4229,7 +4230,7 @@ contains
          ! Is there any advantage to this ordering here or would send/recv
          ! to the same processor be just as good?
          sproc = neighlistsend(iproc)  ! Send to
-         if ( msglen(sproc) > 0 ) then
+         if ( msglen(sproc) > 0 ) then ! Possible for no ocean points to be exchanged with neighbour
             ! Send, even if length is zero
             nreq = nreq + 1
             llen = 4*dslen(sproc)
@@ -4249,14 +4250,12 @@ contains
          rcount = rcount - ldone
          
          do jproc = 1,ldone
-         
             lproc = donelist(jproc)
 !           Now get the actual sizes from the status
             iproc = rlist(lproc)  ! Recv from
             rproc = neighlistrecv(iproc)
             call MPI_Get_count(status(:,jproc), ltype, ncount, ierr)
             drlen(rproc) = ncount/4
-            
          end do
 
       end do
