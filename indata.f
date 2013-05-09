@@ -467,6 +467,11 @@
             if ( newzo  > 1. ) zolnd(iq)=newzo/1000. ! input mm, output m
             if ( visalb > 1. ) albvisnir(iq,1)=visalb/100. ! (to make 0-1)
             if ( niralb > 1. ) albvisnir(iq,2)=niralb/100. ! (to make 0-1)
+	    if ( .not. land(iq) ) then
+	      land(iq)=.true.
+	      ivegt(iq)=42
+	      isoilm(iq)=7
+	    end if
            endif
           enddo
          endif  ! (nspecial<-10)	

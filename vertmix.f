@@ -824,7 +824,8 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
        dumcr=cffall(1:ifull,:)
        tnaero=0
        
-       rhos=ps(1:ifull)/(rdry*tss(:))
+       !rhos=ps(1:ifull)/(rdry*tss(:))
+       rhos=sig(1)*ps(1:ifull)/(rdry*t(1:ifull,1))
        
        if (nh/=0) then         ! Use counter gradient for non-hydrostatic adjustment
          tnaero=1
