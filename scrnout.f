@@ -453,7 +453,7 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
         z0_on_l  = z_on_l*zo/zmin
         zt_on_l  = z_on_l*zoh/zmin
         zq_on_l  = z_on_l*zoq/zmin
-        where (z_on_l.lt.0.)
+        where (z_on_l<0.)
           pm0     = (1.-16.*z0_on_l)**(-0.25)
           ph0     = (1.-16.*zt_on_l)**(-0.5)
           pq0     = (1.-16.*zq_on_l)**(-0.5)
@@ -500,7 +500,7 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
       z10_on_l  = min(z10_on_l,10.)
       neutral   = log(zmin/z0)
       neutral10 = log(zmin/z10)
-      where (z_on_l.lt.0.)
+      where (z_on_l<0.)
         ph0     = (1.-16.*z0_on_l)**(-0.50)
         ph1     = (1.-16.*z_on_l)**(-0.50)
         pm0     = (1.-16.*z0_on_l)**(-0.25)
@@ -580,7 +580,7 @@ c-------Beljaars and Holtslag (1991) heat function
       ps(1:ifull)=1.E5*exp(psl(1:ifull))
       ou=0.
       ov=0.
-      if (nmlo.ne.0) then
+      if (nmlo/=0) then
         iu=0.
         iv=0.
         call mloexport(2,ou,1,0)

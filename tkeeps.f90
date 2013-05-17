@@ -47,11 +47,11 @@ real, dimension(:), allocatable, save :: ustar
 real, parameter :: b1      = 2.     ! Soares et al (2004) 1., Siebesma et al (2003) 2.
 real, parameter :: b2      = 1./3.  ! Soares et al (2004) 2., Siebesma et al (2003) 1./3.
 real, parameter :: be      = 0.3    ! Hurley (2007) 1., Soares et al (2004) 0.3
-real, parameter :: cm0     = 0.03   ! Hurley (2007) 0.09, Duynkerke 1988 0.03
-real, parameter :: ce0     = 0.42   ! Hurley (2007) 0.69, Duynkerke 1988 0.42
+real, parameter :: cm0     = 0.09   ! Hurley (2007) 0.09, Duynkerke 1988 0.03
+real, parameter :: ce0     = 0.69   ! Hurley (2007) 0.69, Duynkerke 1988 0.42
 real, parameter :: ce1     = 1.46
 real, parameter :: ce2     = 1.83
-real, parameter :: ce3     = 0.35   ! Hurley (2007) 0.45, Dynkerke et al 1987 0.35
+real, parameter :: ce3     = 0.45   ! Hurley (2007) 0.45, Dynkerke et al 1987 0.35
 real, parameter :: cq      = 2.5
 real, parameter :: ent0    = 0.5    ! MJT suggestion for mass flux
 real, parameter :: dtrn0   = 0.4    ! MJT suggestion for mass flux
@@ -190,7 +190,7 @@ real xp,as,bs,cs,cm12,cm34,qcup
 real zht,dzht,ziold,ent,entc,entn,dtr,dtrc,dtrn
 real ddts,zlcl
 real lx,tempd,templ,fice,qxup,txup,dqsdt,al
-real sigqtup,rng,zimin,zimax
+real sigqtup,rng
 logical, dimension(ifull,kl) :: lta
 logical scond
 
@@ -308,8 +308,6 @@ do kcount=1,mcount
  
     do i=1,ifull
       if (wtv0(i)>0.) then ! unstable
-        zimin=0.
-        zimax=10000.
         do icount=1,icm1
           ziold=zidry(i)
           zlcl=0.
@@ -343,8 +341,15 @@ do kcount=1,mcount
           ! update updraft velocity and mass flux
           nn(1)  =grav*be*wtv0(i)/(thetav(i,1)*sqrt(max(tke(i,1),1.E-4))) ! Hurley 2007
           w2up(1)=2.*dzht*b2*nn(1)/(1.+2.*dzht*b1*ent)                    ! Hurley 2007
+          templ  =tlup(1)/sigkap(1)                                    ! templ,up
+          tdum(1)=templ
+          call getqsat(qupsat(1:1),tdum(1:1),pres(i,1:1))
+          ! estimate variance of qtup in updraft
+          sigqtup=1.E-5
+          rng=sqrt(6.)*sigqtup               ! variance of triangle distribution
+          dqdash(1)=(qtup(1)-qupsat(1))/rng  ! scaled variance
+          dqdash(1)=min(dqdash(1),-1.)
           cff(1)=0.
-          dqdash(1)=-100.
         
           ! updraft without condensation
           do k=2,kl
@@ -373,7 +378,7 @@ do kcount=1,mcount
               ! MJT condensation scheme -  follow Smith 1990 and assume
               ! triangle distribution for qtup.  The average qtup is qxup
               ! after accounting for saturation
-              rng=sqrt(6.)*sigqtup            ! variance of triangle distribution
+              rng=sqrt(6.)*sigqtup               ! variance of triangle distribution
               dqdash(k)=(qtup(k)-qupsat(k))/rng  ! scaled variance
               if (dqdash(k)>=-1.) then
                 scond=.true.
@@ -402,9 +407,6 @@ do kcount=1,mcount
             end if
           end do
           
-          ! update surface boundary conditions
-          wstar(i)=(grav*zidry(i)*wtv0(i)/thetav(i,1))**(1./3.)
-
           if (.not.scond) then
             zi(i)=zidry(i)
             zlcl=zidry(i)-0.1
@@ -486,15 +488,9 @@ do kcount=1,mcount
             end do
           
           end if
-          
-          if (zidry(i)>ziold) then
-            zimin=ziold
-          else
-            zimax=ziold
-          end if
-          if (zidry(i)>=zimax.or.zidry(i)<=zimin) then
-            zidry(i)=0.5*(zimin+zimax)
-          end if
+
+          ! update surface boundary conditions
+          wstar(i)=(grav*zidry(i)*wtv0(i)/thetav(i,1))**(1./3.)
           
           zi(i)=max(zidry(i),zi(i))
 

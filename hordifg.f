@@ -273,21 +273,11 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
          end do
 
        case(3)
-         t_kh=0. ! no diffusion (i.e., for pure nvmix.eq.6)
-                 ! Probably works better for grid scales that
-                 ! are less than 500 m
-
-       case DEFAULT
-         write(6,*) "ERROR: Unknown option nhorjlm=",nhorjlm
-         stop
-      end select
-       
-      ! Calculate horizontal diffusion based on prognostic TKE
-      ! This can be combined with the diffusion coefficents above
-      ! so as to operate over a large range of grid length scales
-      if (nvmix==6) then
-        hdif=dt*cm0/(ds*ds)
-        do k=1,kl
+        ! Probably works better for grid scales that
+        ! are less than 500 m       
+        if (nvmix==6) then
+         hdif=dt*cm0/(ds*ds)
+         do k=1,kl
           tke(1:ifull,k)=max(tke(1:ifull,k),mintke)
           tdum=(cm0**0.75)*tke(1:ifull,k)
      &                 *sqrt(tke(1:ifull,k))
@@ -298,14 +288,26 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
           eps(1:ifull,k)=max(eps(1:ifull,k),mineps)
           t_kh(1:ifull,k)=tke(1:ifull,k)*tke(1:ifull,k)
      &    /eps(1:ifull,k)*hdif
-        end do
-        call bounds(t_kh,nehalf=.true.)
-        do k=1,kl
-          xfact(1:ifull,k)=max(xfact(1:ifull,k),
-     &      (t_kh(ie,k)+t_kh(1:ifull,k))*0.5)
-          yfact(1:ifull,k)=max(yfact(1:ifull,k),
-     &      (t_kh(in,k)+t_kh(1:ifull,k))*0.5)
-        end do
+         end do
+         call bounds(t_kh,nehalf=.true.)
+         do k=1,kl
+          xfact(1:ifull,k)=(t_kh(ie,k)+t_kh(1:ifull,k))*0.5
+          yfact(1:ifull,k)=(t_kh(in,k)+t_kh(1:ifull,k))*0.5
+         end do
+	else
+         write(6,*) "ERROR: njorjlm=3 requires nvmix=6"
+	 stop
+        end if
+
+       case DEFAULT
+         write(6,*) "ERROR: Unknown option nhorjlm=",nhorjlm
+         stop
+      end select
+       
+      ! Calculate horizontal diffusion based on prognostic TKE
+      ! This can be combined with the diffusion coefficents above
+      ! so as to operate over a large range of grid length scales
+      if (nvmix==6) then
         if (nhorx==1) then
           do k=1,kl
             shear(:,k)=2.*((dudx(1:ifull,k)*sx_fact)**2
