@@ -2032,21 +2032,21 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
      &          4f7.1,2f6.2,f5.2)
         enddo
        enddo
-      elseif(myid==0)then
-        coslong=cos(rlong0*pi/180.)
-        sinlong=sin(rlong0*pi/180.)
-        coslat=cos(rlat0*pi/180.)
-        sinlat=sin(rlat0*pi/180.)
-        polenx=-coslat
-        poleny=0.
-        polenz=sinlat
-        write(22,921)
-        do j=1,jl_g
-         do i=1,il_g
-          iq=i+(j-1)*il_g
-          write(22,922) iq,i,j,rlongg_g(iq)*180./pi,rlatt_g(iq)*180./pi
-         enddo
-        enddo
+      !elseif(myid==0)then
+      !  coslong=cos(rlong0*pi/180.)
+      !  sinlong=sin(rlong0*pi/180.)
+      !  coslat=cos(rlat0*pi/180.)
+      !  sinlat=sin(rlat0*pi/180.)
+      !  polenx=-coslat
+      !  poleny=0.
+      !  polenz=sinlat
+      !  write(22,921)
+      !  do j=1,jl_g
+      !   do i=1,il_g
+      !    iq=i+(j-1)*il_g
+      !    write(22,922) iq,i,j,rlongg_g(iq)*180./pi,rlatt_g(iq)*180./pi
+      !   enddo
+      !  enddo
       endif  ! (nproc==1)
 
 

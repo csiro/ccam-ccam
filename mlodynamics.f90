@@ -27,7 +27,7 @@ real, dimension(:,:), allocatable, save :: oldu1,oldu2,oldv1,oldv2
 real, dimension(:,:), allocatable, save :: stwgt
 integer, save :: comm_mlo
 integer, save :: nstagoffmlo
-integer, parameter :: salfilt  =0    ! badditional salinity filter (0=off, 1=Katzfey)
+integer, parameter :: salfilt  =0    ! additional salinity filter (0=off, 1=Katzfey)
 integer, parameter :: usetide  =1    ! tidal forcing (0=off, 1=on)
 integer, parameter :: icemode  =2    ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
 integer, parameter :: basinmd  =3    ! basin mode (0=soil, 1=redistribute, 2=pile-up, 3=leak)

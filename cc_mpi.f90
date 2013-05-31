@@ -2855,9 +2855,13 @@ contains
 
       ! Clear any current messages
       sreq = nreq - rreq
+#ifdef simple_timer
       call start_log(mpiwait_begin)
+#endif
       call MPI_Waitall(sreq,ireq(rreq+1),status,ierr)
+#ifdef simple_timer
       call end_log(mpiwait_end)
+#endif
 
 !     Set up the buffers to send
       nreq = 0
@@ -2902,10 +2906,14 @@ contains
       ! Unpack incomming messages
       rcount = rreq
       do while ( rcount > 0 )
-      
+
+#ifdef simple_timer      
          call start_log(mpiwait_begin)
+#endif
          call MPI_Waitsome(rreq,ireq,ldone,donelist,status,ierr)
+#ifdef simple_timer
          call end_log(mpiwait_end)
+#endif
          rcount = rcount - ldone
          
          do jproc = 1,ldone
@@ -3005,9 +3013,13 @@ contains
 
       ! Clear any current messages
       sreq = nreq - rreq
+#ifdef simple_timer
       call start_log(mpiwait_begin)
+#endif
       call MPI_Waitall(sreq,ireq(rreq+1),status,ierr)
+#ifdef simple_timer
       call end_log(mpiwait_end)
+#endif      
 
 !     Set up the buffers to send
       nreq = 0
@@ -3054,9 +3066,13 @@ contains
       rcount = rreq
       do while ( rcount > 0 )
 
+#ifdef simple_timer
          call start_log(mpiwait_begin)
+#endif
          call MPI_Waitsome(rreq,ireq,ldone,donelist,status,ierr)
+#ifdef simple_timer
          call end_log(mpiwait_end)
+#endif
          rcount = rcount - ldone
          
          do jproc = 1,ldone
@@ -3117,9 +3133,13 @@ contains
 
       ! Clear any current messages
       sreq = nreq - rreq
+#ifdef simple_timer
       call start_log(mpiwait_begin)
+#endif
       call MPI_Waitall(sreq,ireq(rreq+1),status,ierr)
+#ifdef simple_timer
       call end_log(mpiwait_end)
+#endif
 
 !     Set up the buffers to send
       nreq = 0
@@ -3181,9 +3201,13 @@ contains
       rcount = rreq
       do while ( rcount > 0 )
 
+#ifdef simple_timer
          call start_log(mpiwait_begin)
+#endif
          call MPI_Waitsome(rreq,ireq,ldone,donelist,status,ierr)
+#ifdef simple_timer
          call end_log(mpiwait_end)
+#endif
          rcount = rcount - ldone
          
          do jproc = 1,ldone
@@ -3363,9 +3387,13 @@ contains
 
       ! Clear any current messages
       sreq = nreq - rreq
+#ifdef simple_timer
       call start_log(mpiwaituv_begin)
+#endif
       call MPI_Waitall(sreq,ireq(rreq+1),status,ierr)
+#ifdef simple_timer
       call end_log(mpiwaituv_end)
+#endif
       
 !     Set up the buffers to send
       nreq = 0
@@ -3530,10 +3558,14 @@ contains
       ! Unpack incomming messages
       rcount = rreq
       do while ( rcount > 0 )
-      
+
+#ifdef simple_timer      
          call start_log(mpiwaituv_begin)
+#endif
          call MPI_Waitsome(rreq,ireq,ldone,donelist,status,ierr)
+#ifdef simple_timer
          call end_log(mpiwaituv_end)
+#endif
          rcount = rcount - ldone
          
          do jproc = 1,ldone
@@ -3780,9 +3812,13 @@ contains
 
       ! Clear any current messages
       sreq = nreq - rreq 
+#ifdef simple_timer
       call start_log(mpiwaituv_begin)
+#endif
       call MPI_Waitall(sreq,ireq(rreq+1),status,ierr)
+#ifdef simple_timer
       call end_log(mpiwaituv_end)
+#endif
 
 !     Set up the buffers to send
       nreq = 0
@@ -3996,10 +4032,14 @@ contains
       ! Unpack incomming messages
       rcount = rreq
       do while ( rcount > 0 )
-         
+
+#ifdef simple_timer         
          call start_log(mpiwaituv_begin)
+#endif
          call MPI_Waitsome(rreq,ireq,ldone,donelist,status,ierr)
+#ifdef simple_timer
          call end_log(mpiwaituv_end)
+#endif
          rcount = rcount - ldone
          
          do jproc = 1,ldone
@@ -4203,9 +4243,13 @@ contains
 
       ! Clear any current messages
       sreq = nreq - rreq
+#ifdef simple_timer
       call start_log(mpiwaitdep_begin)
+#endif
       call MPI_Waitall(sreq,ireq(rreq+1),status,ierr)
+#ifdef simple_timer
       call end_log(mpiwaitdep_end)
+#endif
  
 !     In this case the length of each buffer is unknown and will not
 !     be symmetric between processors. Therefore need to get the length
@@ -4243,10 +4287,14 @@ contains
       ! Unpack incomming messages
       rcount = rreq
       do while ( rcount > 0 )
-      
+
+#ifdef simple_timer      
          call start_log(mpiwaitdep_begin)
+#endif
          call MPI_Waitsome(rreq, ireq, ldone, donelist, status, ierr)
+#ifdef simple_timer
          call end_log(mpiwaitdep_end)
+#endif
          rcount = rcount - ldone
          
          do jproc = 1,ldone
@@ -4278,9 +4326,13 @@ contains
       
       ! Clear any current messages
       sreq = nreq - rreq
+#ifdef simple_timer
       call start_log(mpiwaitdep_begin)
+#endif
       call MPI_Waitall(sreq, ireq(rreq+1), status, ierr)
+#ifdef simple_timer
       call end_log(mpiwaitdep_end)
+#endif
 
       ! When sending the results, roles of dslen and drlen are reversed
       nreq = 0
@@ -4324,10 +4376,14 @@ contains
       ! Unpack incomming messages
       rcount = rreq
       do while ( rcount > 0 )
-      
+
+#ifdef simple_timer      
          call start_log(mpiwaitdep_begin)
+#endif
          call MPI_Waitsome(rreq, ireq, ldone, donelist, status, ierr)
+#ifdef simple_timer
          call end_log(mpiwaitdep_end)
+#endif
          rcount = rcount - ldone
          
          do jproc = 1,ldone
@@ -4905,12 +4961,10 @@ contains
       integer :: ierr
 #ifdef vampir
       include "VT.inc"
+      call vtenter(event, VT_NOSCL, ierr)
 #endif
 #ifdef mpilog
       ierr = MPE_log_event(event,0,"")
-#endif
-#ifdef vampir
-      call vtenter(event, VT_NOSCL, ierr)
 #endif
 #ifdef simple_timer
 #ifdef scyld
@@ -4925,12 +4979,10 @@ contains
       integer :: ierr
 #ifdef vampir
       include "VT.inc"
+      call vtleave(VT_NOSCL, ierr)
 #endif
 #ifdef mpilog
       ierr = MPE_log_event(event,0,"")
-#endif
-#ifdef vampir
-      call vtleave(VT_NOSCL, ierr)
 #endif
 #ifdef simple_timer
 #ifdef scyld
@@ -4942,17 +4994,22 @@ contains
 
    subroutine log_off()
 #ifdef vampir
+      include "VT.inc"
       call vttraceoff()
 #endif
    end subroutine log_off
    
    subroutine log_on()
 #ifdef vampir
+      include "VT.inc"
       call vttraceon()
 #endif
    end subroutine log_on
 
    subroutine log_setup()
+#ifdef vampir
+      include "VT.inc"
+#endif
       integer :: ierr
       integer :: classhandle
 #ifdef mpilog
@@ -5069,10 +5126,30 @@ contains
       ierr = MPE_Describe_state(river_begin, river_end, "River", "Yellow")
 #endif
 #ifdef vampir
+#ifdef simple_timer
+      write(6,*) "ERROR: vampir and simple_timer should not be compiled together"
+      stop
+#endif
       call vtfuncdef("Bounds", classhandle, bounds_begin, ierr)
       bounds_end = bounds_begin
       call vtfuncdef("BoundsUV", classhandle, boundsuv_begin, ierr)
       boundsuv_end = boundsuv_begin
+      call vtfuncdef("MG_bounds", classhandle, mgbounds_begin, ierr)
+      mgbounds_end = mgbounds_begin
+      call vtfuncdef("MG_collect", classhandle, mgcollect_begin, ierr)
+      mgcollect_end = mgcollect_begin
+      call vtfuncdef("Gather", classhandle, gather_begin, ierr)
+      gather_end = gather_begin
+      call vtfuncdef("Distribute", classhandle, distribute_begin, ierr)
+      distribute_end = distribute_begin
+      call vtfuncdef("Posneg", classhandle, posneg_begin, ierr)
+      posneg_end = posneg_begin
+      call vtfuncdef("Globsum", classhandle, globsum_begin, ierr)
+      globsum_end = globsum_begin
+      call vtfuncdef("Reduce", classhandle, reduce_begin, ierr)
+      reduce_end = reduce_begin
+      call vtfuncdef("Bcast", classhandle, bcast_begin, ierr)
+      bcast_end = bcast_begin
       call vtfuncdef("Ints", classhandle, ints_begin, ierr)
       ints_end = ints_begin 
       call vtfuncdef("Nonlin", classhandle, nonlin_begin, ierr)
@@ -5143,6 +5220,10 @@ contains
       waterdiff_end =  waterdiff_begin
       call vtfuncdef("River", classhandle, river_begin, ierr)
       river_end =  river_begin
+      call vtfuncdef("Indata", classhandle, indata_begin, ierr)
+      indata_end = indata_begin
+      call vtfuncdef("Nestin", classhandle, nestin_begin, ierr)
+      nestin_end = nestin_begin
 #endif
 #ifdef simple_timer
 
@@ -6791,9 +6872,13 @@ contains
       end if
 
       sreq = nreq - rreq
+#ifdef simple_timer
       call start_log(mpiwaitmg_begin)
+#endif
       call MPI_Waitall(sreq,ireq(rreq+1),status,ierr)
+#ifdef simple_timer      
       call end_log(mpiwaitmg_end)
+#endif
 
       !     Set up the buffers to send
       nreq = 0
@@ -6838,10 +6923,14 @@ contains
 
       rcount = rreq
       do while ( rcount > 0 )
-      
+
+#ifdef simple_timer      
          call start_log(mpiwaitmg_begin)
+#endif
          call MPI_Waitsome(rreq,ireq,ldone,donelist,status,ierr)
+#ifdef simple_timer
          call end_log(mpiwaitmg_end)
+#endif
          rcount = rcount - ldone
          
          do jproc = 1,ldone
@@ -7095,9 +7184,13 @@ contains
       end do
 
       sreq = nreq - rreq
+#ifdef simple_timer
       call start_log(mpiwaitmg_begin)
+#endif
       call MPI_Waitall(sreq,ireq(rreq+1),status,ierr)
+#ifdef simple_timer
       call end_log(mpiwaitmg_end)
+#endif
 
       ! MPI Recv
       nreq = 0
@@ -7118,9 +7211,13 @@ contains
          call MPI_ISend( sdep(:,i), ilen, ltype, lproc, itag, MPI_COMM_WORLD, dreq(nreq), ierr )
       end do
 
+#ifdef simple_timer
       call start_log(mpiwaitmg_begin)
+#endif
       call MPI_Waitall(nreq,dreq,status,ierr)
+#ifdef simple_timer
       call end_log(mpiwaitmg_end)
+#endif
       nreq = 0
       rreq = 0
   

@@ -156,7 +156,7 @@
      & ,m_fly,mstn,nqg,nurban,nmr,ktopdav,nud_sst,nud_sss
      & ,mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv
      & ,nud_sfh,bpyear,rescrn,helmmeth,nmlo,ol,mxd,mindep,minwater
-     & ,ocnsmag,ocneps,fixsal,fixheight,knh,ccycle
+     & ,ocnsmag,ocneps,fixsal,fixheight,knh,ccycle,kblock
       namelist/skyin/mins_rad,ndiur
       namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,
      &    hfile,icefile,mesonest,nmifile,o3file,radfile,restfile,
@@ -399,6 +399,8 @@
       if (ib<0) ib=ia+3
       if (ktopdav<0) ktopdav=kl
       if (kbotmlo<0) kbotmlo=ol
+      if (kblock<0)  kblock=max(min(ktopdav-kbotdav+1,kl),
+     &                          min(kbotmlo-ktopmlo+1,ol))
       if (ldr==0) mbase=0
       dsig4=max(dsig2+.01,dsig4)
       if(kbotu==0) kbotu=kbotdav
@@ -518,9 +520,9 @@
           write (6,'(i5,3i7,7i8)') 
      &      nbd,nud_p,nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs,kbotdav,kbotu
           write(6,*)'Nudging options B:'
-          write(6,*)' mbd    ktopdav'
-          write (6,'(i5,i8)') 
-     &      mbd,ktopdav
+          write(6,*)' mbd    ktopdav kblock'
+          write (6,'(i5,2i8)') 
+     &      mbd,ktopdav,kblock
           write(6,*)'Nudging options C:'
           write(6,*)' nud_sst nud_sss nud_ouv nud_sfh ktopmlo',
      &              ' kbotmlo mloalpha'
@@ -1001,7 +1003,9 @@
       call end_log(globa_loadbal_end)
 #endif
       call log_on()
+#ifdef simple_timer
       call start_log(maincalc_begin)
+#endif
 
       do 88 kktau=1,ntau   ! ****** start of main time loop
       ktau=kktau
@@ -1890,12 +1894,16 @@
  
         if(ktau==ntau.and.irest==1) then
           ! Don't include the time for writing the restart file
+#ifdef simple_timer
           call end_log(maincalc_end)
+#endif
 !         write restart file
           call outfile(19,rundate,nmi,nwrite,iaero,nstagin)
           if(myid==0)
      &      write(6,*)'finished writing restart file in outfile'
+#ifdef simple_timer
           call start_log(maincalc_begin)
+#endif
         endif  ! (ktau==ntau.and.irest==1)
       endif    ! (ktau==ntau.or.mod(ktau,nwt)==0)
       
@@ -2278,7 +2286,7 @@
      &     kdate_s/-1/,ktime_s/-1/,leap/0/,
      &     mbd/0/,nbd/0/,nbox/1/,kbotdav/4/,kbotu/0/,           
      &     nud_p/0/,nud_q/0/,nud_t/0/,nud_uv/1/,nud_hrs/24/,nudu_hrs/0/,
-     &     ktopdav/-1/
+     &     ktopdav/-1/,kblock/-1/
       data nud_sst/0/,nud_sss/0/,nud_ouv/0/,nud_sfh/0/
       data mloalpha/10/,kbotmlo/-1/,ktopmlo/1/
       

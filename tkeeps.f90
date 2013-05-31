@@ -343,13 +343,12 @@ do kcount=1,mcount
           w2up(1)=2.*dzht*b2*nn(1)/(1.+2.*dzht*b1*ent)                    ! Hurley 2007
           templ  =tlup(1)/sigkap(1)                                    ! templ,up
           tdum(1)=templ
-          call getqsat(qupsat(1:1),tdum(1:1),pres(i,1:1))
+          call getqsat(qupsat(1:1),tdum(1:1),pres(i:i,1))
           ! estimate variance of qtup in updraft
           sigqtup=1.E-5
           rng=sqrt(6.)*sigqtup               ! variance of triangle distribution
           dqdash(1)=(qtup(1)-qupsat(1))/rng  ! scaled variance
           dqdash(1)=min(dqdash(1),-1.)
-          cff(1)=0.
         
           ! updraft without condensation
           do k=2,kl
@@ -372,7 +371,7 @@ do kcount=1,mcount
             templ  =tlup(k)/sigkap(k)                                     ! templ,up
             if (.not.scond) then
               tdum(1)=templ
-              call getqsat(qupsat(k:k),tdum(1:1),pres(i,k:k))
+              call getqsat(qupsat(k:k),tdum(1:1),pres(i:i,k))
               ! estimate variance of qtup in updraft (following Hurley and TAPM)
               sigqtup=sqrt(max(1.E-10,1.6*tke(i,k)/eps(i,k)*cq*km(i,k)*((qtup(k)-qtup(k-1))/dzht)**2))
               ! MJT condensation scheme -  follow Smith 1990 and assume
@@ -435,7 +434,7 @@ do kcount=1,mcount
               tempd  =thup(i,k)/sigkap(k)
               templ  =tlup(k)/sigkap(k)                                     ! templ,up
               tdum(1)=templ
-              call getqsat(qupsat(k:k),tdum(1:1),pres(i,k:k))
+              call getqsat(qupsat(k:k),tdum(1:1),pres(i:i,k))
               ! estimate variance of qtup in updraft (following Hurley and TAPM)
               sigqtup=sqrt(max(1.E-10,1.6*tke(i,k)/eps(i,k)*cq*km(i,k)*((qtup(k)-qtup(k-1))/dzht)**2))
               ! MJT condensation scheme -  follow Smith 1990 and assume
@@ -509,8 +508,10 @@ do kcount=1,mcount
           xp  =min(max(xp,0.),1.)
           ent =entfn(zht,     zi(i),     zz(i,1))
           dtrn=dtrfn(zht,     zidry(i),  zz(i,1),dtrn0)
-          dtrc=dtrfn(zht-zlcl,zi(i)-zlcl,zz(i,1),dtrc0)
+          dtrc=dtrfn(zht,     zi(i),     zz(i,1),dtrn0)
           dtr =(1.-xp)*dtrn+xp*dtrc
+          dtrc=dtrfn(zht,     zi(i),     zz(i,1),dtrc0)
+          dtr =(1.-cff(k))*dtr+cff(k)*dtrc
           mflx(i,k)=mflx(i,k-1)/(1.+dzht*(dtr-ent))
         end do
 

@@ -1671,9 +1671,11 @@ c***        but needed here for onthefly (different dims) 28/8/08
                 vname='roadsna'
             end select
             if (iotest) then
+              atebdwn(:,k)=999.
               call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
      &                     atebdwn(:,k),ifull)
             else
+              ucc=999.
               call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
      &                     ucc,6*ik*ik)
               if (myid==0) then

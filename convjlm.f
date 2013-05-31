@@ -20,7 +20,7 @@
       use sigs_m
       use soil_m
       use soilsnow_m  ! for fracice
-      use tkeeps, only : tke,eps
+      use tkeeps, only : tke,eps,zidry
       use tracers_m  ! ngas, nllp, ntrac
       use vvel_m
       use work2_m   ! for wetfac    JLM
@@ -136,10 +136,10 @@ c     parameter (ncubase=2)              ! 2 from 4/06, more like 0 before  - us
       if(ktau==1)then   !---------------------------------------------------------------------------
         ! MJT suggestion
         if (alflnd<0..or.alfsea<0.) then
-	  write(6,*) "ERROR: negative alflnd and alfsea are"
-	  write(6,*) "not supported in convjlm"
-	  stop
-	end if
+          write(6,*) "ERROR: negative alflnd and alfsea are"
+          write(6,*) "not supported in convjlm"
+          stop
+        end if
         kb_saved(:)=kl-1
         kt_saved(:)=kl-1
         detrainin=detrain
@@ -167,8 +167,8 @@ c     parameter (ncubase=2)              ! 2 from 4/06, more like 0 before  - us
           write (6,"(10f7.3)")
      &   (-.1*nevapcc*min(1.,.1/(sig(4) -sig(k))),k=5,13)
         end if
-       endif	
-	
+       endif
+
 c      precalculate detrainment arrays for various methprec
 c      methprec gives the vertical distribution of the detrainment
 c      methdetr gives the fraction of precip detrained (going into qxcess)
