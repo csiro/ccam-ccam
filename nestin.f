@@ -1838,7 +1838,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
               end if
               iy=me*(nne-nns+1)*klt
               b=me*(nne-nns+1)
-              d=-me*(nns+(nne-nns+1))
+              d=-me*(nne+1)
               if(nud_uv>0)then
                 do k=1,klt
                   do j=nns,nne
@@ -1906,7 +1906,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             endif
             iy=me*(ne-ns+1)*klt
             b=me*(ne-ns+1)
-            d=-me*(ns+(ne-ns+1))
+            d=-me*(ne+1)
             if(nud_uv>0)then
               call ccmpi_recv(dd(1:iy),hproc,itag,comm_world)
               do k=1,klt
@@ -2904,53 +2904,53 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         lblock=(kbb==ktopmlo)
       
         if (nud_sst/=0) then
-          diff=miss
           do k=kln,klx
-            ka=min(wl,k)
             kb=k-kln+1
-            old=sstb(:,ka)
+            old=sstb(:,k)
             call mloexport(0,old,k,0)
             where (.not.land)
-              diff(:,kb)=sstb(:,ka)-old
+              diff(:,kb)=sstb(:,k)-old
+            elsewhere
+              diff(:,kb)=miss
             end where
           end do
           call ccmpi_gatherall(diff(:,1:klt),diff_g(:,1:klt))
         end if
 
         if (nud_sss/=0) then
-          diff=miss
           do k=kln,klx
-            ka=min(wl,k)
             kb=k-kln+1
-            old=sssb(:,ka)
+            old=sssb(:,k)
             call mloexport(1,old,k,0)
             where (.not.land)
-              diff(:,kb)=sssb(:,ka)-old
+              diff(:,kb)=sssb(:,k)-old
+            elsewhere
+              diff(:,kb)=miss
             end where
           end do
           call ccmpi_gatherall(diff(:,1:klt),diffs_g(:,1:klt))
         end if
 
         if (nud_ouv/=0) then
-          diff=miss
           do k=kln,klx
-            ka=min(wl,k)
             kb=k-kln+1
-            old=suvb(:,ka,1)
+            old=suvb(:,k,1)
             call mloexport(2,old,k,0)
             where (.not.land)
-              diff(:,kb)=suvb(:,ka,1)-old
+              diff(:,kb)=suvb(:,k,1)-old
+            elsewhere
+              diff(:,kb)=miss
             end where
           end do
           call ccmpi_gatherall(diff(:,1:klt),diffu_g(:,1:klt))
-          diff=miss
           do k=kln,klx
-            ka=min(wl,k)
             kb=k-kln+1
-            old=suvb(:,ka,2)
+            old=suvb(:,k,2)
             call mloexport(3,old,k,0)
             where (.not.land)
-              diff(:,kb)=suvb(:,ka,2)-old
+              diff(:,kb)=suvb(:,k,2)-old
+            elsewhere
+              diff(:,kb)=miss
             end where
           end do
           call ccmpi_gatherall(diff(:,1:klt),diffv_g(:,1:klt))
@@ -3004,11 +3004,11 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
               stop
             end if
             old=293.
-            do k=ktopmlo,kbotmlo
+            do k=1,kbotmlo
               call mloexport(0,old,k,0)
               rho(:,k)=rho0+a0*old ! linear approximation to density
             end do
-            do k=ktopmlo,kbotmlo-1
+            do k=1,kbotmlo-1
               !nsq=-2.*grav*(rho(:,k)-rho(:,k+1))/((dep(:,k+1)-dep(:,k))*(rho(:,k)+rho(:,k+1)))
               nsq(:,k)=-(rho(:,k)-rho(:,k+1))/(rho(:,k)+rho(:,k+1))
               !nsq(:,k)=max(nsq(:,k),0.)
@@ -3397,7 +3397,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         npta=max(6/nproc,1)                       ! number of panels per processor
         mproc=max(nproc/6,1)                      ! number of processors per panel
         pn=myid*npta/mproc                        ! start panel
-        px=(myid+mproc)*npta/mproc-1              ! end panel
+        px=pn+npta-1                              ! end panel
         hproc=pn*mproc/npta                       ! host processor for panel
         call procdiv(ns,ne,il_g,mproc,myid-hproc) ! number of rows per processor
       else
@@ -3708,7 +3708,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       return
       end subroutine mlospechost
       !---------------------------------------------------------------------------------
-
+      ! memory reduced version
       subroutine mlospechost_n(mproc,hproc,pn,ns,ne,cq,
      &                       diff_g,diffs_g,diffu_g,diffv_g,diffw_g,
      &                       diffh_g,miss,lblock,kd)
@@ -3847,7 +3847,6 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         do iproc=mproc,nproc-1,mproc
           ppn=iproc/mproc
           iy=til*kd
-          a=til
           b=til
           c=-til
           if (nud_sst/=0) then
@@ -3896,7 +3895,6 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         end do
       elseif (myid==hproc) then
         iy=til*kd
-        a=til
         b=til
         c=-til
         if (nud_sst/=0) then
