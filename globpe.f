@@ -684,7 +684,14 @@
       
       !--------------------------------------------------------------
       ! DEALLOCATE ifull_g ARRAYS WHERE POSSIBLE
-      if (myid/=0) then
+      call worklocl_init(ifull)      
+      if (myid==0) then
+        call ccmpi_distribute(rlong4_l,rlong4)
+        call ccmpi_distribute(rlat4_l,rlat4)
+        call workglob_end
+      else
+        call ccmpi_distribute(rlong4_l)
+        call ccmpi_distribute(rlat4_l)
         deallocate(iw_g,is_g,ise_g,ie_g,ine_g,in_g,iwn_g,ien_g)
         deallocate(inw_g,isw_g,ies_g,iws_g)
         deallocate(inn_g,iss_g,iww_g,iee_g)

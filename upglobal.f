@@ -31,20 +31,24 @@
       include 'parmdyn.h'  
       include 'parmhor.h'  ! mhint, m_bs, nt_adv
       include 'parmvert.h'  
-      real, save, allocatable, dimension(:,:):: tnsav,unsav,vnsav ! for npex=-1
+
+      real, save, allocatable, dimension(:,:):: tnsav,unsav,vnsav              ! for npex=-1
+      real, save, allocatable, dimension(:,:):: ux_st_sav,vx_st_sav            ! for nstag=1
+      real, save, allocatable, dimension(:,:):: ux_unst_sav,vx_unst_sav        ! for nstag=1
       real, dimension(ifull+iextra,kl) :: uc, vc, wc, dd
-      real aa(ifull+iextra)
-      real*8 x3d(ifull,kl),y3d(ifull,kl),z3d(ifull,kl)
-      integer idjdd
-      real theta(ifull,kl), factr(kl)
-      real, dimension(ifull,kl) :: dumt,dumu,dumv
-      integer ii,intsch, iq, jj,k, kk, ntr, ierr
-      integer iaero, l
-      integer, dimension(ifull) :: nits, nvadh_pass
+      real, dimension(ifull+iextra) :: aa
+      real, dimension(ifull,kl) :: dumt, theta
+      real, dimension(ifull,kl) :: wrk1, wrk2
+      real, dimension(ifull) :: sdmx
+      real, dimension(kl) :: factr
       real denb, tempry, vdot1,
      &     vdot2, vec1x, vec1y, vec1z, vec2x, vec2y, vec2z, vec3x,
      &     vec3y, vec3z, vecdot
-      real, dimension(ifull) :: sdmx
+      real*8, dimension(ifull,kl) :: x3d,y3d,z3d
+      integer, dimension(ifull) :: nits, nvadh_pass
+      integer idjdd
+      integer ii,intsch, iq, jj,k, kk, ntr, ierr
+      integer iaero, l
       integer, save :: num_hight = 0, numunstab = 0
 
       call start_log(upglobal_begin)
@@ -187,12 +191,12 @@
 	  nits(:)=1+sdmx(:)/nvadh
 	  nvadh_pass(:)=nvadh*nits(:) ! use - for nvadu
         dumt=tx(1:ifull,:)
-        dumu=ux(1:ifull,:)
-        dumv=vx(1:ifull,:)
-        call vadvtvd(dumt,dumu,dumv,nvadh_pass,nits,iaero)
+        wrk1=ux(1:ifull,:)
+        wrk2=vx(1:ifull,:)
+        call vadvtvd(dumt,wrk1,wrk2,nvadh_pass,nits,iaero)
         tx(1:ifull,:)=dumt
-        ux(1:ifull,:)=dumu
-        vx(1:ifull,:)=dumv 
+        ux(1:ifull,:)=wrk1
+        vx(1:ifull,:)=wrk2 
         if( (diag.or.nmaxpr==1) .and. mydiag )then
           write(6,*) 'in upglobal after vadv1'
           write (6,"('qg  ',3p9f8.3/4x,9f8.3)")   qg(idjd,:)
@@ -459,12 +463,12 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
             write (6,"('qg  ',3p9f8.3/4x,9f8.3)")   qg(idjd,:)
           endif
           dumt=tx(1:ifull,:)
-          dumu=ux(1:ifull,:)
-          dumv=vx(1:ifull,:)
-          call vadvtvd(dumt,dumu,dumv,nvadh_pass,nits,iaero)
+          wrk1=ux(1:ifull,:)
+          wrk2=vx(1:ifull,:)
+          call vadvtvd(dumt,wrk1,wrk2,nvadh_pass,nits,iaero)
           tx(1:ifull,:)=dumt
-          ux(1:ifull,:)=dumu
-          vx(1:ifull,:)=dumv 
+          ux(1:ifull,:)=wrk1
+          vx(1:ifull,:)=wrk2 
           if( (diag.or.nmaxpr==1) .and. mydiag )then
             write(6,*) 'in upglobal after vadv2'
             write (6,"('qg  ',3p9f8.3/4x,9f8.3)")   qg(idjd,:)
@@ -473,9 +477,22 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
       endif     ! (nvadh==2.or.nvadh==3)
 
       if(npex==0.or.npex==5)then ! adding later (after 2nd vadv) than for npex=1
-        ux(1:ifull,:)=ux(1:ifull,:)+.5*dt*un(1:ifull,:) ! dyn contrib
-        vx(1:ifull,:)=vx(1:ifull,:)+.5*dt*vn(1:ifull,:) ! dyn contrib
-      endif
+        ux(1:ifull,:)=ux(1:ifull,:)+.5*dt*un(1:ifull,:) ! dyn contrib   unstagg RHS of (27, 2008)
+        vx(1:ifull,:)=vx(1:ifull,:)+.5*dt*vn(1:ifull,:) ! dyn contrib   unstagg RHS of (28, 2008)
+      else if (npex==-2)then   ! Adams-Bashforth just for tau+1 terms
+        if (.not.allocated(unsav)) then
+          allocate(unsav(ifull,kl),vnsav(ifull,kl))
+        end if
+        if(ktau==1)then
+	  unsav(:,:) =un(:,:)
+	  vnsav(:,:) =vn(:,:)
+        endif
+        ux(1:ifull,:)=ux(1:ifull,:)
+     &                +dt*(un(1:ifull,:)-.5*unsav(1:ifull,:))    !  for Ad-Bash  npex=-2        
+        vx(1:ifull,:)=vx(1:ifull,:)
+     &                +dt*(vn(1:ifull,:)-.5*vnsav(1:ifull,:))    !  for Ad-Bash  npex=-2    
+      endif  ! (npex==-2)
+
       if(nvsplit==3.or.nvsplit==4)then
         ux(1:ifull,:)=ux(1:ifull,:)+.5*dt*unn(1:ifull,:) ! phys contrib
         vx(1:ifull,:)=vx(1:ifull,:)+.5*dt*vnn(1:ifull,:) ! phys contrib
@@ -496,15 +513,32 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
       if(npex>=0)tx(1:ifull,:)=tx(1:ifull,:)+.5*dt*tn(1:ifull,:) 
 
 !     now interpolate ux,vx to the staggered grid
-      call staguv(ux,vx,ux,vx)
+      if(nstag==1.and.ktau==1)then ! MJT notes - this looks like a bug? 
+       if (.not.allocated(ux_st_sav)) then
+        allocate(ux_st_sav(ifull,kl),vx_st_sav(ifull,kl))
+        allocate(ux_unst_sav(ifull,kl),vx_unst_sav(ifull,kl))
+       end if
+       wrk1(1:ifull,:)=ux(1:ifull,:)-ux_st_sav(1:ifull,:)  ! unst increment
+       wrk2(1:ifull,:)=vx(1:ifull,:)-vx_st_sav(1:ifull,:)  ! unst increment
+       call staguv(wrk1,wrk2,wrk1,wrk2)
+       wrk1(1:ifull,:)=wrk1(1:ifull,:)+ux_st_sav(1:ifull,:)  ! new stagg value
+       wrk2(1:ifull,:)=wrk2(1:ifull,:)+vx_st_sav(1:ifull,:)  ! new stagg value
+       ux_unst_sav(1:ifull,:)=ux(1:ifull,:)
+       vx_unst_sav(1:ifull,:)=vx(1:ifull,:)
+       ux(1:ifull,:)=wrk1(1:ifull,:)
+       vx(1:ifull,:)=wrk2(1:ifull,:)
+       ux_st_sav(1:ifull,:)=ux(1:ifull,:)
+       vx_st_sav(1:ifull,:)=vx(1:ifull,:)
+      else
+       call staguv(ux,vx,ux,vx)
+      endif   
 
-!     npex=3 add un, vn on staggered grid 
       if(npex==3)then  
+!     npex=3 add un, vn on staggered grid 
         ux(1:ifull,:)=ux(1:ifull,:)+.5*dt*un(1:ifull,:)
         vx(1:ifull,:)=vx(1:ifull,:)+.5*dt*vn(1:ifull,:)
-      endif
+      else if (npex==6) then
 !     npex=6 similar to npex=3, but adds all un, vn here
-      if(npex==6)then  
         ux(1:ifull,:)=ux(1:ifull,:)+dt*un(1:ifull,:)
         vx(1:ifull,:)=vx(1:ifull,:)+dt*vn(1:ifull,:)
       endif

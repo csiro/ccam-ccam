@@ -307,7 +307,6 @@
       real, dimension(ifull) :: tss_l, tss_s, pmsl
       real, dimension(:), allocatable, save :: sigin,zss_a,ocndep_l
       real, dimension(:,:), allocatable, save :: xg4, yg4
-      real, dimension(:,:), allocatable, save :: rlong4_l, rlat4_l
       real, dimension(ik*ik*6) :: fracice_a,sicedep_a
       real, dimension(ik*ik*6) :: tss_l_a,tss_s_a
       real, dimension(ik*ik*6) :: ucc,vcc,pmsl_a
@@ -361,14 +360,14 @@
        allocate(axs_a(dk*dk*6),ays_a(dk*dk*6),azs_a(dk*dk*6))
        allocate(bxs_a(dk*dk*6),bys_a(dk*dk*6),bzs_a(dk*dk*6))
        allocate(xx4(1+4*ik,1+4*ik),yy4(1+4*ik,1+4*ik))
-       allocate(rlong4_l(ifull,4),rlat4_l(ifull,4))
-       
+
+       if (m_fly==1) then
+         rlong4_l(:,1)=rlongg(:)*180./pi
+         rlat4_l(:,1)=rlatt(:)*180./pi
+       end if    
+          
        if ( myid==0 ) then
         write(6,*) "Defining input file grid"
-        if (m_fly==1) then
-          rlong4(:,1)=rlongg_g(:)*180./pi
-          rlat4(:,1)=rlatt_g(:)*180./pi
-        end if
 !       N.B. -ve ik in call setxyz preserves TARGET rlat4, rlong4     
 !       following setxyz call is for source data geom    ****   
         do iq=1,ik*ik*6
@@ -378,12 +377,7 @@
         enddo      
         call setxyz(ik,rlong0x,rlat0x,-schmidtx,x_a,y_a,z_a,wts_a,
      &   axs_a,ays_a,azs_a,bxs_a,bys_a,bzs_a,xx4,yy4,myid)
-        call ccmpi_distribute(rlong4_l(:,1:m_fly),rlong4(:,1:m_fly))
-        call ccmpi_distribute(rlat4_l(:,1:m_fly),rlat4(:,1:m_fly))
-       else
-        call ccmpi_distribute(rlong4_l(:,1:m_fly))
-        call ccmpi_distribute(rlat4_l(:,1:m_fly))
-       end if ! (myid==0) ..else..
+       end if ! (myid==0)
 
        call ccmpi_bcastr8(xx4,0,comm_world)
        call ccmpi_bcastr8(yy4,0,comm_world)
@@ -430,7 +424,6 @@
          enddo
        enddo
        deallocate(xx4,yy4)
-       deallocate(rlong4_l,rlat4_l)
        
        if(nproc==1.and.nmaxpr==1)then
          ! Diagnostics will only be correct if nproc==1
@@ -1518,7 +1511,7 @@ c***        but needed here for onthefly (different dims) 28/8/08
               ucc=999.
               call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
      &                     ucc,6*ik*ik)
-              where (ucc>=399.)
+              where (ucc>=399..or.ucc<=100.)
                 ucc=999.
               end where
               call fill_cc(ucc,dk,0,sea_a)
