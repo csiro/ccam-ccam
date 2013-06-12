@@ -138,7 +138,7 @@
           do iq=1,ifull
             if(fraciceb(iq)>0..and.fracice(iq)==0.)then
 !             N.B. if already a sice point, keep present tice (in tggsn)
-              tggsn(iq,1)=min(271.2,tssb(iq),tb(iq,1)+.04*6.5) ! for 40 m lev1 ! MJT seaice
+              tggsn(iq,1)=min(271.2,tssb(iq),tb(iq,1)+.04*6.5) ! for 40 m lev1
             endif  ! (fraciceb(iq)==0..and.fracice(iq))
             if(fracice(iq)<.02)fracice(iq)=0.
             if(land(iq))then
@@ -415,19 +415,11 @@
         if(nmaxpr==1.and.mydiag)then
           write(6,*) 'zs (idjd) :',zs(idjd)
           write(6,*) 'zsb (idjd) :',zsb(idjd)
-!          write (6,"('100*psl.wesn ',2p5f8.3)") psl(idjd),
-!     &           psl(iw(idjd)),psl(ie(idjd)),psl(is(idjd)),psl(in(idjd))
-!          write (6,"('ps.wesn ',-2p5f9.3)") ps(idjd),
-!     &          ps(iw(idjd)),ps(ie(idjd)),ps(is(idjd)),ps(in(idjd))
           write(6,*) 'pslb in(idjd) :',pslb(idjd)
           write(6,*) 
      &     'call retopo from nestin; psl# prints refer to pslb'
         endif
         call retopo(pslb,zsb,zs(1:ifull),tb,qb)
-!        if(nmaxpr==1.and.mydiag)then
-!           write (6,"('100*pslb.wesn ',2p5f8.3)") pslb(idjd),
-!     &       pslb(iw(idjd)),pslb(ie(idjd)),pslb(is(idjd)),pslb(in(idjd))
-!        endif
 
         ! Removed by MJT for conservation
 !       ensure qb big enough, but not too big in top levels (from Sept '04)
@@ -504,7 +496,6 @@
               end if
               if (rdumg<0.5) wl=1
               if (wl==1) then ! switch to 2D data if 3D is missing
-                !call mloexpmelt(timelt)
                 call mloexport(0,timelt,1,0)
                 sssb(:,1,1)=tssb
                 where (fraciceb>0.)
@@ -547,21 +538,18 @@
       real, dimension(ifull), intent(in) :: pslb
       real, dimension(ifull) :: costh,sinth
       real, dimension(ifull,kl), intent(in) :: ub,vb,tb,qb
-      real, dimension(ifull,kblock) :: diffu,diffv
-      real, dimension(ifull_g) :: psld,x_g,xx_g
-      real, dimension(ifull_g,kblock) :: ud,vd,wd,td,qd
+      real, dimension(ifull,kblock) :: dum
+      real, dimension(ifull) :: psld
+      real, dimension(ifull,kblock) :: ud,vd,wd,td,qd
       real den,polenx,poleny,polenz,zonx,zony,zonz
-      logical disflag,lblock
+      logical lblock
 
-      ! nud_uv<0 (JLM 3-pass filter)
       ! nud_uv=0 (no preturbing of winds)
       ! nud_uv=1 (1D scale-selective filter)
       ! nud_uv=3 (JLM preturb zonal winds with 1D filter)
       ! nud_uv=9 (2D scale-selective filter)
 
-      if (nud_p>0) then
-        call ccmpi_gatherall(pslb(:), psld(:))
-      end if
+      ! zonal wind option
       if (nud_uv==3) then
         polenx=-cos(rlat0*pi/180.)
         poleny=0.
@@ -576,169 +564,95 @@
         enddo
       end if
       
+      ! store pressure for nudging
+      psld=pslb
+     
       ! Loop over maximum block size
       ! kblock can be reduced to save memory
       do kb=kbotdav,ktopdav,kblock
         if (myid == 0) then     
-          write(6,*) "Gather data for spectral filter ",kb
+          write(6,*) "Gather data for spectral filter      ",kb
         end if      
-        kln=kb
-        klx=min(kb+kblock-1,ktopdav)
-        klt=klx-kln+1
-        lblock=(kb==kbotdav)
+        kln=kb                       ! lower limit of block
+        klx=min(kb+kblock-1,ktopdav) ! upper limit of block
+        klt=klx-kln+1                ! number of levels in block
+        lblock=(kb==kbotdav)         ! flag for first loop (include psl)
+        
+        ! store winds, air temperature and water vapor for nudging
         if (nud_uv==3) then
           do k=kln,klx
             klc=k-kln+1
-            diffu(:,klc)=costh(:)*ub(:,k)  ! uzon
-     &                  -sinth(:)*vb(:,k)
+            ud(:,klc)=costh(:)*ub(:,k)  ! uzon
+     &               -sinth(:)*vb(:,k)
           end do
-          call ccmpi_gatherall(diffu(:,1:klt),wd(:,1:klt))
-        else if (nud_uv/=0) then
-          call ccmpi_gatherall(ub(:,kln:klx),ud(:,1:klt))
-          call ccmpi_gatherall(vb(:,kln:klx),vd(:,1:klt))
-          do k=1,klt
-            x_g=ud(:,k)
-            xx_g=vd(:,k)
-            ud(:,k)=ax_g(:)*x_g+bx_g(:)*xx_g
-            vd(:,k)=ay_g(:)*x_g+by_g(:)*xx_g
-            wd(:,k)=az_g(:)*x_g+bz_g(:)*xx_g
-          end do
+        else
+          ud(:,1:klt)=ub(:,kln:klx)
+          vd(:,1:klt)=vb(:,kln:klx)
         end if
-        if (nud_t>0) then
-          call ccmpi_gatherall(tb(:,kln:klx),td(:,1:klt))
-        end if
-        if (nud_q>0) then
-          call ccmpi_gatherall(qb(:,kln:klx),qd(:,1:klt))
-        end if
+        td(:,1:klt)=tb(:,kln:klx)
+        qd(:,1:klt)=qb(:,kln:klx)
 
         !-----------------------------------------------------------------------
-        if (nud_uv<0) then 
+        ! select nudging option
+        if (nud_uv==9) then 
           if (myid==0) then
-            write(6,*) "JLM Fast spectral filter ",kb
-            if (nproc>1) then
-              write(6,*) "Option is currently disabled"
-              write(6,*) "for multi-processor configurations"
-              call ccmpi_abort(-1)
-            end if
-            call fastspec((.1*real(mbd)/(pi*schmidt))**2
-     &         ,psld(:),ud(:,1:klt),vd(:,1:klt),wd(:,1:klt)
-     &         ,td(:,1:klt),qd(:,1:klt),lblock,klt)
+            write(6,*) "Two dimensional spectral filter      ",kb
           end if
-          disflag=.true.
-        else if (nud_uv==9) then 
-          if (myid==0) write(6,*) "Two dimensional spectral filter ",kb
           call slowspecmpi(.1*real(mbd)/(pi*schmidt)
-     &                  ,psld(:),ud(:,1:klt),vd(:,1:klt),wd(:,1:klt)
+     &                  ,psld(:),ud(:,1:klt),vd(:,1:klt)
      &                  ,td(:,1:klt),qd(:,1:klt),lblock,klt)
-          disflag=.false.
         else if (mod(6,nproc)==0.or.mod(nproc,6)==0) then
-          if (myid==0) write(6,*) 
-     &      "Separable 1D filter (MPI optimised) ",kb
+          if (myid==0) then
+            write(6,*) "Separable 1D filter (MPI optimised)  ",kb
+          end if
           call specfastmpi(myid,.1*real(mbd)/(pi*schmidt)
-     &                  ,psld(:),ud(:,1:klt),vd(:,1:klt),wd(:,1:klt)
+     &                  ,psld(:),ud(:,1:klt),vd(:,1:klt)
      &                  ,td(:,1:klt),qd(:,1:klt),lblock,klt)
-          disflag=.true.
         else
-          if (myid==0) write(6,*) "Separable 1D filter (MPI) ",kb
+          if (myid==0) then
+            write(6,*) "Separable 1D filter (MPI)            ",kb
+          end if
           call fourspecmpi(myid,.1*real(mbd)/(pi*schmidt)
-     &                  ,psld(:),ud(:,1:klt),vd(:,1:klt),wd(:,1:klt)
+     &                  ,psld(:),ud(:,1:klt),vd(:,1:klt)
      &                  ,td(:,1:klt),qd(:,1:klt),lblock,klt)
-          disflag=.true.
         endif  ! (nud_uv<0) .. else ..
         !-----------------------------------------------------------------------
 
         if (myid==0) then
           write(6,*) "Distribute data from spectral filter ",kb
         end if
+        
         if (nud_uv==3) then
-          if (disflag) then
-            if (myid==0) then
-              call ccmpi_distribute(diffu(:,1:klt),wd(:,1:klt))
-            else
-              call ccmpi_distribute(diffu(:,1:klt))
-            end if
-          else
-            diffu(:,1:klt)=wd(:,1:klt)
-          end if
+          dum(:,1:klt)=ud(:,1:klt)
           do k=1,klt
-            ud(1:ifull,k)=costh(:)*diffu(:,k)
-            vd(1:ifull,k)=-sinth(:)*diffu(:,k)	  
+            ud(1:ifull,k)=costh(:)*dum(:,k)
+            vd(1:ifull,k)=-sinth(:)*dum(:,k)	  
           end do
-        else if (nud_uv/=0) then
-          if (disflag) then
-            if (myid==0) then
-              do k=1,klt
-                x_g=ax_g(:)*ud(:,k)+ay_g(:)*vd(:,k)+az_g(:)*wd(:,k)
-                xx_g=bx_g(:)*ud(:,k)+by_g(:)*vd(:,k)+bz_g(:)*wd(:,k)
-                ud(:,k)=x_g
-                vd(:,k)=xx_g
-              end do
-              call ccmpi_distribute(diffu(:,1:klt),ud(:,1:klt))
-              call ccmpi_distribute(diffv(:,1:klt),vd(:,1:klt))
-            else
-              call ccmpi_distribute(diffu(:,1:klt))
-              call ccmpi_distribute(diffv(:,1:klt))
-            end if
-          else
-            do k=1,klt
-              diffu(:,k)=ax*ud(1:ifull,k)+ay*vd(1:ifull,k)
-     &          +az*wd(1:ifull,k)
-              diffv(:,k)=bx*ud(1:ifull,k)+by*vd(1:ifull,k)
-     &          +bz*wd(1:ifull,k)
-            end do
-          end if
         end if
         if (nud_uv/=0) then
-          u(1:ifull,kln:klx)=u(1:ifull,kln:klx)+diffu(:,1:klt)
-          v(1:ifull,kln:klx)=v(1:ifull,kln:klx)+diffv(:,1:klt)
-          savu(1:ifull,kln:klx)=savu(1:ifull,kln:klx)+diffu(:,1:klt)
-          savu1(1:ifull,kln:klx)=savu1(1:ifull,kln:klx)+diffu(:,1:klt)
-          savu2(1:ifull,kln:klx)=savu2(1:ifull,kln:klx)+diffu(:,1:klt)
-          savv(1:ifull,kln:klx)=savv(1:ifull,kln:klx)+diffv(:,1:klt)
-          savv1(1:ifull,kln:klx)=savv1(1:ifull,kln:klx)+diffv(:,1:klt)
-          savv2(1:ifull,kln:klx)=savv2(1:ifull,kln:klx)+diffv(:,1:klt)
+          u(1:ifull,kln:klx)=u(1:ifull,kln:klx)+ud(:,1:klt)
+          v(1:ifull,kln:klx)=v(1:ifull,kln:klx)+vd(:,1:klt)
+          savu(1:ifull,kln:klx)=savu(1:ifull,kln:klx)+ud(:,1:klt)
+          savu1(1:ifull,kln:klx)=savu1(1:ifull,kln:klx)+ud(:,1:klt)
+          savu2(1:ifull,kln:klx)=savu2(1:ifull,kln:klx)+ud(:,1:klt)
+          savv(1:ifull,kln:klx)=savv(1:ifull,kln:klx)+vd(:,1:klt)
+          savv1(1:ifull,kln:klx)=savv1(1:ifull,kln:klx)+vd(:,1:klt)
+          savv2(1:ifull,kln:klx)=savv2(1:ifull,kln:klx)+vd(:,1:klt)
         end if
         if (nud_t>0) then
-          if (disflag) then
-            if (myid==0) then
-              call ccmpi_distribute(diffu(:,1:klt),td(:,1:klt))
-            else
-              call ccmpi_distribute(diffu(:,1:klt))
-            end if
-          else
-            diffu(:,1:klt)=td(1:ifull,1:klt)
-          end if
-          t(1:ifull,kln:klx)=t(1:ifull,kln:klx)+diffu(:,1:klt)
+          t(1:ifull,kln:klx)=t(1:ifull,kln:klx)+td(:,1:klt)
         end if
         if (nud_q>0) then
-          if (disflag) then
-            if (myid==0) then
-              call ccmpi_distribute(diffu(:,1:klt),qd(:,1:klt))
-            else
-              call ccmpi_distribute(diffu(:,1:klt))
-            end if
-          else
-            diffu(:,1:klt)=qd(1:ifull,1:klt)
-          end if
           qg(1:ifull,kln:klx)=max(qg(1:ifull,kln:klx)
-     &     +diffu(:,1:klt),0.)
+     &     +qd(:,1:klt),0.)
           qgsav(:,kln:klx)=max(qgsav(:,kln:klx)
-     &     +diffu(:,1:klt),0.)
+     &     +qd(:,1:klt),0.)
         end if
       
       end do
       
       if (nud_p>0) then
-        if (disflag) then
-          if (myid==0) then
-            call ccmpi_distribute(diffu(:,1), psld(:))
-          else
-            call ccmpi_distribute(diffu(:,1))
-          end if
-        else
-          diffu(:,1)=psld(1:ifull)
-        end if
-        psl(1:ifull)=psl(1:ifull)+diffu(:,1)
+        psl(1:ifull)=psl(1:ifull)+psld(:)
         ps=1.e5*exp(psl(1:ifull))
       end if
       if (nud_t>0) then
@@ -753,393 +667,14 @@
       return
       end subroutine getspecdata
 
-      !--------------------------------------------------------------
-      ! Fast spectral downscaling (JLM version)
-      ! Only works with single processor
-      subroutine fastspec(cutoff2,psla,ua,va,wa,ta,qa,lblock,klt)
-   
-      use indices_m          ! Grid index arrays
-      use map_m              ! Grid map arrays
-      use xyzinfo_m          ! Grid coordinate arrays
-
-      implicit none
-!      
-      include 'newmpar.h'    ! Grid parameters
-      include 'const_phys.h' ! Physical constants
-      include 'parm.h'       ! Model configuration
-      include 'parmgeom.h'   ! Coordinate data  
-
-      integer, parameter :: ntest=0
-      integer, intent(in) :: klt 
-      integer i,j,k,n,n1,iq,iq1
-      real, intent(in) :: cutoff2
-      real, dimension(ifull_g), intent(inout) :: psla
-      real, dimension(ifull_g,klt), intent(inout) :: ua,va
-      real, dimension(ifull_g,klt), intent(inout) :: wa
-      real, dimension(ifull_g,klt), intent(inout) :: ta,qa
-      real, dimension(ifull_g) :: psls,sumwt
-      real, dimension(ifull_g) :: psls2
-      real, dimension(:), allocatable, save :: xx,yy,zz
-      real, dimension(ifull_g,klt) :: uu,vv,ww,tt,qgg
-      real, dimension(ifull_g,klt) :: uu2,vv2,ww2,tt2,qgg2
-      real emmin,dist,dist1,wt,wt1,xxmax,yymax,zzmax
-      logical, intent(in) :: lblock
-      
-      ! myid must = 0 to get here.  So there is no need to check.
- 
-      if (.not.allocated(xx)) then
-        allocate(xx(ifull_g),yy(ifull_g),zz(ifull_g))
-
-!       set up geometry for filtering through panel 1
-!       x pass on panels 1, 2, 4, 5
-!       y pass on panels 0, 1, 3, 4
-!       z pass on panels 0, 2, 3, 5
-        xx=0.
-        yy=0.
-        zz=0.
-        do iq=1+il_g*il_g,3*il_g*il_g
-          xx(iq)=xx(iw_g(iq))+sqrt((x_g(iq)-x_g(iw_g(iq)))**2+
-     &           (y_g(iq)-y_g(iw_g(iq)))**2+(z_g(iq)-z_g(iw_g(iq)))**2)
-        enddo
-         do iq=1+4*il_g*il_g,6*il_g*il_g
-          xx(iq)=xx(is_g(iq))+sqrt((x_g(iq)-x_g(is_g(iq)))**2+
-     &           (y_g(iq)-y_g(is_g(iq)))**2+(z_g(iq)-z_g(is_g(iq)))**2)
-        enddo
-        do iq=1,2*il_g*il_g
-          yy(iq)=yy(is_g(iq))+sqrt((x_g(iq)-x_g(is_g(iq)))**2+
-     &           (y_g(iq)-y_g(is_g(iq)))**2+(z_g(iq)-z_g(is_g(iq)))**2)
-        enddo
-        do iq=1+3*il_g*il_g,5*il_g*il_g
-          yy(iq)=yy(iw_g(iq))+sqrt((x_g(iq)-x_g(iw_g(iq)))**2+
-     &           (y_g(iq)-y_g(iw_g(iq)))**2+(z_g(iq)-z_g(iw_g(iq)))**2)
-        enddo
-        if(mbd>0)then
-         do iq=1,il_g*il_g
-          zz(iq)=zz(iw_g(iq))+sqrt((x_g(iq)-x_g(iw_g(iq)))**2+
-     &           (y_g(iq)-y_g(iw_g(iq)))**2+(z_g(iq)-z_g(iw_g(iq)))**2)
-         enddo
-         do iq=1+2*il_g*il_g,4*il_g*il_g
-          zz(iq)=zz(is_g(iq))+sqrt((x_g(iq)-x_g(is_g(iq)))**2+
-     &           (y_g(iq)-y_g(is_g(iq)))**2+(z_g(iq)-z_g(is_g(iq)))**2)
-         enddo
-         do iq=1+5*il_g*il_g,6*il_g*il_g
-          zz(iq)=zz(iw_g(iq))+sqrt((x_g(iq)-x_g(iw_g(iq)))**2+
-     &           (y_g(iq)-y_g(iw_g(iq)))**2+(z_g(iq)-z_g(iw_g(iq)))**2)
-         enddo
-        endif  ! (mbd>0)
-        if(ntest>0)then
-          do iq=1,144
-           write(6,*) 'iq,xx,yy,zz ',iq,xx(iq),yy(iq),zz(iq)
-          enddo
-          do iq=il_g*il_g,il_g*il_g+il_g
-           write(6,*) 'iq,xx,yy,zz ',iq,xx(iq),yy(iq),zz(iq)
-          enddo
-         do iq=4*il_g*il_g-il_g,4*il_g*il_g
-           write(6,*) 'iq,xx,yy,zz ',iq,xx(iq),yy(iq),zz(iq)
-          enddo
-         do iq=5*il_g*il_g-il_g,5*il_g*il_g
-           write(6,*) 'iq,xx,yy,zz ',iq,xx(iq),yy(iq),zz(iq)
-          enddo
-          write(6,*) 'xx mid:'   
-          do i=1,48
-           write(6,*) 'i xx',i,xx(il_g*il_g*1.5+i)
-          enddo
-          do i=1,48
-           write(6,*) 'i xx',i+il_g,xx(il_g*il_g*2.5+i)
-          enddo
-          do i=1,48
-           write(6,*) 'i xx',i+2*il_g,xx(il_g*il_g*4-il_g/2+i*il_g)
-          enddo
-          do i=1,48
-           write(6,*) 'i xx',i+3*il_g,xx(il_g*il_g*5-il_g/2+i*il_g)
-          enddo
-          write(6,*) 'yy mid:'   
-          do j=1,96
-           write(6,*) 'j yy',j,yy(-il_g/2+j*il_g)
-          enddo
-          do j=1,48
-           write(6,*) 'j yy',j+2*il_g,yy(il_g*il_g*3.5+j)
-          enddo
-          do j=1,48
-           write(6,*) 'j yy',j+3*il_g,yy(il_g*il_g*4.5+j)
-          enddo
-!         wrap-around values defined by xx(il_g,5*il_g+j),j=1,il_g; yy(i,5*il_g),i=1,il_g
-          write(6,*) 'wrap-round values'
-          do j=1,il_g
-           write(6,*) 'j,xx ',j,xx(6*il_g*il_g+1-j)       ! xx(il_g+1-j,il_g,5)
-          enddo
-          do i=1,il_g
-           write(6,*) 'i,yy ',i,yy(5*il_g*il_g+il_g-il_g*i)   ! yy(il_g,il_g+1-i,4)
-          enddo
-          do j=1,il_g
-           write(6,*) 'j,zz ',j,zz(5*il_g*il_g+il_g*j)      ! zz(il_g,j,5)
-          enddo
-        endif  ! ntest>0
-      endif    ! .not.allocated
-
-      qgg(1:ifull_g,1:klt)=0.
-      tt(1:ifull_g,1:klt)=0.
-      uu(1:ifull_g,1:klt)=0.
-      vv(1:ifull_g,1:klt)=0.
-      ww(1:ifull_g,1:klt)=0.
-      psls(1:ifull_g)=0.
-      qgg2(1:ifull_g,1:klt)=0.
-      tt2(1:ifull_g,1:klt)=0.
-      uu2(1:ifull_g,1:klt)=0.
-      vv2(1:ifull_g,1:klt)=0.
-      ww2(1:ifull_g,1:klt)=0.
-      psls2(1:ifull_g)=0.
-      sumwt(1:ifull_g)=1.e-20   ! for undefined panels
-      emmin=sqrt(cutoff2)*ds/rearth
-      write(6,*) 'schmidt,cutoff,kbotdav ',schmidt,sqrt(cutoff2),kbotdav 
-      
-      do j=1,il_g                ! doing x-filter on panels 1,2,4,5
-       xxmax=xx(il_g*(6*il_g-1)+il_g+1-j)
-       write(6,*) 'j,xxmax ',j,xxmax
-       do n=1,4*il_g
-        if(n<=il_g)iq=il_g*(il_g+j-1)+n                   ! panel 1
-        if(n>il_g.and.n<=2*il_g)iq=il_g*(2*il_g+j-2)+n      ! panel 2
-        if(n>2*il_g)iq=il_g*(2*il_g+n-1)+il_g+1-j           ! panel 4,5
-        
-        if (em_g(iq)>emmin) then
-        
-        do n1=n,4*il_g
-!        following test shows on sx6 don't use "do n1=m+1,4*il_g"
-!        if(n==4*il_g)write(6,*) 'problem for i,n,n1 ',i,n,n1
-         if(n1<=il_g)iq1=il_g*(il_g+j-1)+n1               ! panel 1
-         if(n1>il_g.and.n1<=2*il_g)iq1=il_g*(2*il_g+j-2)+n1 ! panel 2
-         if(n1>2*il_g)iq1=il_g*(2*il_g+n1-1)+il_g+1-j       ! panel 4,5
-         dist1=abs(xx(iq)-xx(iq1))
-         dist=min(dist1,xxmax-dist1)
-         wt=exp(-4.5*dist*dist*cutoff2)
-         wt1=wt/em_g(iq1)
-         wt=wt/em_g(iq)
-         if(n==n1)wt1=0.  ! so as not to add in twice
-c        if(iq==10345.or.iq1==10345)
-c    &     write(6,*) 'iq,iq1,n,n1,xx,xx1,dist1,dist,wt,wt1 ',         
-c    &              iq,iq1,n,n1,xx(iq),xx(iq1),dist1,dist,wt,wt1 
-         sumwt(iq)=sumwt(iq)+wt1
-         sumwt(iq1)=sumwt(iq1)+wt
-!        producing "x-filtered" version of pslb-psl etc
-c        psls(iq)=psls(iq)+wt1*(pslb(iq1)-psl(iq1))
-c        psls(iq1)=psls(iq1)+wt*(pslb(iq)-psl(iq))
-         psls(iq)=psls(iq)+wt1*psla(iq1)
-         psls(iq1)=psls(iq1)+wt*psla(iq)
-         do k=1,klt ! MJT nestin
-          qgg(iq,k)=qgg(iq,k)+wt1*qa(iq1,k)
-          qgg(iq1,k)=qgg(iq1,k)+wt*qa(iq,k)
-          tt(iq,k)=tt(iq,k)+wt1*ta(iq1,k)
-          tt(iq1,k)=tt(iq1,k)+wt*ta(iq,k)
-          uu(iq,k)=uu(iq,k)+wt1*ua(iq1,k)
-          uu(iq1,k)=uu(iq1,k)+wt*ua(iq,k)
-          vv(iq,k)=vv(iq,k)+wt1*va(iq1,k)
-          vv(iq1,k)=vv(iq1,k)+wt*va(iq,k)
-          ww(iq,k)=ww(iq,k)+wt1*wa(iq1,k)
-          ww(iq1,k)=ww(iq1,k)+wt*wa(iq,k)
-         enddo  ! k loop
-c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
-        enddo   ! n1 loop
-        else
-          sumwt(iq)=1.
-        end if
-       enddo    ! n loop
-      enddo     ! j loop      
-      if(nud_uv==-1)then
-        do iq=1,ifull_g
-         psls2(iq)=psls(iq)/sumwt(iq)
-         do k=1,klt
-          qgg2(iq,k)=qgg(iq,k)/sumwt(iq)
-          tt2(iq,k)=tt(iq,k)/sumwt(iq)
-          uu2(iq,k)=uu(iq,k)/sumwt(iq)
-          vv2(iq,k)=vv(iq,k)/sumwt(iq)
-          ww2(iq,k)=ww(iq,k)/sumwt(iq)
-         enddo
-        enddo
-      else  ! original fast scheme
-        do iq=1,ifull_g
-         if(sumwt(iq)/=1.e-20)then
-           psla(iq)=psls(iq)/sumwt(iq)
-           do k=1,klt
-            qa(iq,k)=qgg(iq,k)/sumwt(iq)
-            ta(iq,k)=tt(iq,k)/sumwt(iq)
-            ua(iq,k)=uu(iq,k)/sumwt(iq)
-            va(iq,k)=vv(iq,k)/sumwt(iq)
-            wa(iq,k)=ww(iq,k)/sumwt(iq)
-           enddo
-         endif  ! (sumwt(iq)/=1.e-20)
-        enddo
-      endif  ! (nud_uv==-1) .. else ..
-      
-      qgg(1:ifull_g,1:klt)=0.
-      tt(1:ifull_g,1:klt)=0.
-      uu(1:ifull_g,1:klt)=0.
-      vv(1:ifull_g,1:klt)=0.
-      ww(1:ifull_g,1:klt)=0.
-      psls(1:ifull_g)=0.
-      sumwt(1:ifull_g)=1.e-20   ! for undefined panels
-      
-      do i=1,il_g                ! doing y-filter on panels 0,1,3,4
-       yymax=yy(il_g*(5*il_g-i+1))  
-       do n=1,4*il_g
-        if(n<=2*il_g)iq=il_g*(n-1)+i                      ! panel 0,1
-        if(n>2*il_g.and.n<=3*il_g)iq=il_g*(4*il_g-i-2)+n      ! panel 3
-        if(n>3*il_g)iq=il_g*(5*il_g-i-3)+n                  ! panel 4       
-        if (em_g(iq)>emmin) then       
-        do n1=n,4*il_g
-         if(n1<=2*il_g)iq1=il_g*(n1-1)+i                  ! panel 0,1
-         if(n1>2*il_g.and.n1<=3*il_g)iq1=il_g*(4*il_g-i-2)+n1 ! panel 3
-         if(n1>3*il_g)iq1=il_g*(5*il_g-i-3)+n1              ! panel 4
-         dist1=abs(yy(iq)-yy(iq1))
-         dist=min(dist1,yymax-dist1)
-         wt=exp(-4.5*dist*dist*cutoff2)
-         wt1=wt/em_g(iq1)
-         wt=wt/em_g(iq)
-         if(n==n1)wt1=0.  ! so as not to add in twice
-         sumwt(iq)=sumwt(iq)+wt1
-         sumwt(iq1)=sumwt(iq1)+wt
-!        producing "y-filtered" version of pslb-psl etc
-         psls(iq)=psls(iq)+wt1*psla(iq1)
-         psls(iq1)=psls(iq1)+wt*psla(iq)
-         do k=1,klt
-          qgg(iq,k)=qgg(iq,k)+wt1*qa(iq1,k)
-          qgg(iq1,k)=qgg(iq1,k)+wt*qa(iq,k)
-          tt(iq,k)=tt(iq,k)+wt1*ta(iq1,k)
-          tt(iq1,k)=tt(iq1,k)+wt*ta(iq,k)
-          uu(iq,k)=uu(iq,k)+wt1*ua(iq1,k)
-          uu(iq1,k)=uu(iq1,k)+wt*ua(iq,k)
-          vv(iq,k)=vv(iq,k)+wt1*va(iq1,k)
-          vv(iq1,k)=vv(iq1,k)+wt*va(iq,k)
-          ww(iq,k)=ww(iq,k)+wt1*wa(iq1,k)
-          ww(iq1,k)=ww(iq1,k)+wt*wa(iq,k)
-         enddo  ! k loop
-        enddo   ! n1 loop
-        else
-          sumwt(iq)=1.
-        end if
-       enddo    ! n loop
-      enddo     ! i loop
-      if(nud_uv==-1)then
-        do iq=1,ifull_g
-         psls2(iq)=psls2(iq)+psls(iq)/sumwt(iq)
-         do k=1,klt
-          qgg2(iq,k)=qgg2(iq,k)+qgg(iq,k)/sumwt(iq)
-          tt2(iq,k)=tt2(iq,k)+tt(iq,k)/sumwt(iq)
-          uu2(iq,k)=uu2(iq,k)+uu(iq,k)/sumwt(iq)
-          vv2(iq,k)=vv2(iq,k)+vv(iq,k)/sumwt(iq)
-          ww2(iq,k)=ww2(iq,k)+ww(iq,k)/sumwt(iq)
-         enddo
-        enddo
-      else  ! original fast scheme
-        do iq=1,ifull_g
-         if(sumwt(iq)/=1.e-20)then
-           psla(iq)=psls(iq)/sumwt(iq)
-           do k=1,klt
-            qa(iq,k)=qgg(iq,k)/sumwt(iq)
-            ta(iq,k)=tt(iq,k)/sumwt(iq)
-            ua(iq,k)=uu(iq,k)/sumwt(iq)
-            va(iq,k)=vv(iq,k)/sumwt(iq)
-            wa(iq,k)=ww(iq,k)/sumwt(iq)
-           enddo
-         endif  ! (sumwt(iq)/=1.e-20)
-        enddo
-      endif  ! (nud_uv==-1) .. else ..
-
-      if(mbd>=0) then
-       qgg(1:ifull_g,1:klt)=0.
-       tt(1:ifull_g,1:klt)=0.
-       uu(1:ifull_g,1:klt)=0.
-       vv(1:ifull_g,1:klt)=0.
-       ww(1:ifull_g,1:klt)=0.
-       psls(1:ifull_g)=0.
-       sumwt(1:ifull_g)=1.e-20   ! for undefined panels
-    
-       do j=1,il_g                ! doing "z"-filter on panels 0,2,3,5
-        zzmax=zz(5*il_g*il_g+il_g*j)
-        write(6,*) 'j,zzmax ',j,zzmax
-        do n=1,4*il_g
-         if(n<=il_g)iq=il_g*(j-1)+n                     ! panel 0
-         if(n>il_g.and.n<=3*il_g)iq=il_g*(il_g+n-1)+il_g+1-j  ! panel 2,3
-         if(n>3*il_g)iq=il_g*(5*il_g+j-4)+n               ! panel 5
-        
-         if (em_g(iq)>emmin) then
-        
-         do n1=n,4*il_g
-          if(n1<=il_g)iq1=il_g*(j-1)+n1                     ! panel 0
-          if(n1>il_g.and.n1<=3*il_g)iq1=il_g*(il_g+n1-1)+il_g+1-j ! panel 2,3
-          if(n1>3*il_g)iq1=il_g*(5*il_g+j-4)+n1               ! panel 5
-          dist1=abs(zz(iq)-zz(iq1))
-          dist=min(dist1,zzmax-dist1)
-          wt=exp(-4.5*dist*dist*cutoff2)
-          wt1=wt/em_g(iq1)
-          wt=wt/em_g(iq)
-          if(n==n1)wt1=0.  ! so as not to add in twice
-          sumwt(iq)=sumwt(iq)+wt1
-          sumwt(iq1)=sumwt(iq1)+wt
-!         producing "z"-filtered version of pslb-psl etc
-          psls(iq)=psls(iq)+wt1*psla(iq1)
-          psls(iq1)=psls(iq1)+wt*psla(iq)
-          do k=1,klt ! MJT nestin
-           qgg(iq,k)=qgg(iq,k)+wt1*qa(iq1,k)
-           qgg(iq1,k)=qgg(iq1,k)+wt*qa(iq,k)
-           tt(iq,k)=tt(iq,k)+wt1*ta(iq1,k)
-           tt(iq1,k)=tt(iq1,k)+wt*ta(iq,k)
-           uu(iq,k)=uu(iq,k)+wt1*ua(iq1,k)
-           uu(iq1,k)=uu(iq1,k)+wt*ua(iq,k)
-           vv(iq,k)=vv(iq,k)+wt1*va(iq1,k)
-           vv(iq1,k)=vv(iq1,k)+wt*va(iq,k)
-           ww(iq,k)=ww(iq,k)+wt1*wa(iq1,k)
-           ww(iq1,k)=ww(iq1,k)+wt*wa(iq,k)
-          enddo  ! k loop
-         enddo   ! n1 loop
-         else
-           sumwt(iq)=1.
-         end if
-        enddo    ! n loop
-       enddo     ! j loop      
-      if(nud_uv==-1)then
-        write(6,*) 'in nestinb nud_uv ',nud_uv
-        do iq=1,ifull_g
-         psls2(iq)=psls2(iq)+psls(iq)/sumwt(iq)
-         do k=1,klt ! MJT nestin
-          qgg2(iq,k)=qgg2(iq,k)+qgg(iq,k)/sumwt(iq)
-          tt2(iq,k)=tt2(iq,k)+tt(iq,k)/sumwt(iq)
-          uu2(iq,k)=uu2(iq,k)+uu(iq,k)/sumwt(iq)
-          vv2(iq,k)=vv2(iq,k)+vv(iq,k)/sumwt(iq)
-          ww2(iq,k)=ww2(iq,k)+ww(iq,k)/sumwt(iq)
-         enddo
-        enddo
-        psla(1:ifull_g)=.5*psls2(1:ifull_g)
-        qa(1:ifull_g,1:klt)=.5*qgg2(1:ifull_g,1:klt)
-        ta(1:ifull_g,1:klt)=.5*tt2(1:ifull_g,1:klt)
-        ua(1:ifull_g,1:klt)=.5*uu2(1:ifull_g,1:klt)
-        va(1:ifull_g,1:klt)=.5*vv2(1:ifull_g,1:klt)
-        wa(1:ifull_g,1:klt)=.5*ww2(1:ifull_g,1:klt)
-      else  ! original fast scheme
-        write(6,*) 'in nestinb  nud_uv ',nud_uv
-        do iq=1,ifull_g
-         if(sumwt(iq)/=1.e-20)then
-           psla(iq)=psls(iq)/sumwt(iq)
-           do k=1,klt ! MJT nestin
-            qa(iq,k)=qgg(iq,k)/sumwt(iq)
-            ta(iq,k)=tt(iq,k)/sumwt(iq)
-            ua(iq,k)=uu(iq,k)/sumwt(iq)
-            va(iq,k)=vv(iq,k)/sumwt(iq)
-            wa(iq,k)=ww(iq,k)/sumwt(iq)
-           enddo
-         endif  ! (sumwt(iq)/=1.e-20)
-        enddo
-      endif  ! (nud_uv==-1) .. else ..
-      end if ! (mbd>=0)
-
-      return
-      end subroutine fastspec
-
       !---------------------------------------------------------------------------------
       ! Slow 2D spectral downscaling - MPI version
-      subroutine slowspecmpi(cin,psls,uu,vv,ww,tt,qgg,lblock,klt)
+      ! This option is an exact treatment of the filter
+      subroutine slowspecmpi(cin,pslb,ub,vb,tb,qb,lblock,klt)
 
       use cc_mpi            ! CC MPI routines
       use map_m             ! Grid map arrays
+      use vecsuv_m          ! Map to cartesian coordinates
       use xyzinfo_m         ! Grid coordinate arrays
       
       implicit none
@@ -1150,17 +685,41 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       integer, intent(in) :: klt
       integer i,j,n,iq,iqg,k,ierr
       real, intent(in) :: cin
-      real, dimension(ifull_g), intent(inout) :: psls
-      real, dimension(ifull_g,klt), intent(inout) :: uu,vv
-      real, dimension(ifull_g,klt), intent(inout) :: ww
-      real, dimension(ifull_g,klt), intent(inout) :: tt,qgg
-      real, dimension(ifull_g) :: r
-      real, dimension(ifull) :: pd
-      real, dimension(ifull,klt) :: ud,vd,wd,td,qd
+      real, dimension(ifull), intent(inout) :: pslb
+      real, dimension(ifull,klt), intent(inout) :: ub,vb
+      real, dimension(ifull,klt), intent(inout) :: tb,qb
+      real, dimension(ifull_g) :: psls
+      real, dimension(ifull_g,klt) :: uu,vv,ww
+      real, dimension(ifull_g,klt) :: tt,qgg
+      real, dimension(ifull_g) :: r,da,db
+      real, dimension(klt) :: ud,vd,wd
       real cq,psum
       logical, intent(in) :: lblock
 
       cq=sqrt(4.5)*cin
+
+      if (nud_p>0.and.lblock) then
+        call ccmpi_gatherall(pslb(:), psls(:))
+      end if
+      if (nud_uv==3) then
+        call ccmpi_gatherall(ub(:,1:klt),ww(:,1:klt))
+      else if (nud_uv>0) then
+        call ccmpi_gatherall(ub(:,1:klt),uu(:,1:klt))
+        call ccmpi_gatherall(vb(:,1:klt),vv(:,1:klt))
+        do k=1,klt
+          da=ub(:,k)
+          db=vb(:,k)
+          uu(:,k)=ax_g(:)*da+bx_g(:)*db
+          vv(:,k)=ay_g(:)*da+by_g(:)*db
+          ww(:,k)=az_g(:)*da+bz_g(:)*db
+        end do
+      endif
+      if (nud_t>0) then
+        call ccmpi_gatherall(tb(:,1:klt),tt(:,1:klt))
+      end if
+      if (nud_q>0) then
+        call ccmpi_gatherall(qb(:,1:klt),qgg(:,1:klt))
+      end if
 
       if (myid==0.and.nmaxpr==1) then
         write(6,*) "Start 2D filter"
@@ -1170,49 +729,36 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         do j=1,jpan
           do i=1,ipan
             iqg=indg(i,j,n)
-            iq=indp(i,j,n)
+            iq =indp(i,j,n)
             r(:)=x_g(iqg)*x_g(:)+y_g(iqg)*y_g(:)+z_g(iqg)*z_g(:)
             r(:)=acos(max(min(r(:),1.),-1.))
-            r(:)=exp(-(cq*r(:))**2)/(em_g(:)**2)
+            r(:)=exp(-(cq*r(:))**2)/(em_g(:)*em_g(:))
             psum=sum(r(:))
             if (nud_p>0.and.lblock) then
-              pd(iq)=sum(r(:)*psls(:))/psum
+              pslb(iq)=sum(r(:)*psls(:))/psum
             end if
             if (nud_uv>0) then
               do k=1,klt
-                ud(iq,k)=sum(r(:)*uu(:,k))/psum
-                vd(iq,k)=sum(r(:)*vv(:,k))/psum
-                wd(iq,k)=sum(r(:)*ww(:,k))/psum
-              end do        
+                ud(k)=sum(r(:)*uu(:,k))/psum
+                vd(k)=sum(r(:)*vv(:,k))/psum
+                wd(k)=sum(r(:)*ww(:,k))/psum
+                ub(iq,k)=ax(iq)*ud(k)+ay(iq)*vd(k)+az(iq)*wd(k)
+                vb(iq,k)=bx(iq)*ud(k)+by(iq)*vd(k)+bz(iq)*wd(k)
+              end do
             end if
             if (nud_t>0) then
               do k=1,klt
-                td(iq,k)=sum(r(:)*tt(:,k))/psum
+                tb(iq,k)=sum(r(:)*tt(:,k))/psum
               end do
             end if
             if (nud_q>0) then
               do k=1,klt
-                qd(iq,k)=sum(r(:)*qgg(:,k))/psum
+                qb(iq,k)=sum(r(:)*qgg(:,k))/psum
               end do
             end if
           end do
         end do
       end do
- 
-      if (nud_p>0.and.lblock) then
-        psls(1:ifull)=pd
-      end if
-      if (nud_uv>0) then
-        uu(1:ifull,:)=ud(:,:)
-        vv(1:ifull,:)=vd(:,:)
-        ww(1:ifull,:)=wd(:,:)
-      end if
-      if (nud_t>0) then
-        tt(1:ifull,:)=td(:,:)
-      end if
-      if (nud_q>0) then
-        qgg(1:ifull,:)=qd(:,:)
-      end if
  
       if (myid == 0.and.nmaxpr==1) write(6,*) "End 2D filter"
 
@@ -1223,7 +769,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       !---------------------------------------------------------------------------------
       ! Four pass spectral downscaling (symmetric)
       ! Used when mod(6,nproc)/=0 and mod(nproc,6)/=0 since it is slower than specfastmpi
-      subroutine fourspecmpi(myid,cin,psls,uu,vv,ww,tt,qgg,lblock,klt)
+      subroutine fourspecmpi(myid,cin,psls,uu,vv,tt,qgg,lblock,klt)
       
       implicit none
       
@@ -1233,10 +779,9 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       integer, intent(in) :: myid,klt
       integer pn,px,hproc,mproc,ns,ne,npta
       real, intent(in) :: cin
-      real, dimension(ifull_g), intent(inout) :: psls
-      real, dimension(ifull_g,klt), intent(inout) :: uu,vv
-      real, dimension(ifull_g,klt), intent(inout) :: ww
-      real, dimension(ifull_g,klt), intent(inout) :: tt,qgg
+      real, dimension(ifull), intent(inout) :: psls
+      real, dimension(ifull,klt), intent(inout) :: uu,vv
+      real, dimension(ifull,klt), intent(inout) :: tt,qgg
       logical, intent(in) :: lblock
       
       npta=1                              ! number of panels per processor
@@ -1246,8 +791,14 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       hproc=0                             ! host processor for panel
       call procdiv(ns,ne,il_g,nproc,myid) ! number of rows per processor
 
-      call spechost(mproc,hproc,npta,pn,px,ns,ne,cin,psls,uu,vv,
-     &       ww,tt,qgg,lblock,klt)
+      if (myid==0) then
+        call spechost(mproc,hproc,npta,pn,px,ns,ne,cin,psls,uu,vv,
+     &       tt,qgg,lblock,klt,ifull_g)
+      else
+        call spechost(mproc,hproc,npta,pn,px,ns,ne,cin,psls,uu,vv,
+     &       tt,qgg,lblock,klt,0)
+      end if
+
           
       return
       end subroutine fourspecmpi
@@ -1258,7 +809,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       ! Four pass spectral downscaling (symmetric)
       ! MPI optimised for magic processor numbers 1,2,3,6,12,18,24,30,36,...
       ! (only works for mod(6,nproc)==0 or mod(nproc,6)==0)
-      subroutine specfastmpi(myid,cin,psls,uu,vv,ww,tt,qgg,lblock,klt)
+      subroutine specfastmpi(myid,cin,psls,uu,vv,tt,qgg,lblock,klt)
       
       implicit none
       
@@ -1266,12 +817,11 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       include 'parm.h'       ! Model configuration
       
       integer, intent(in) :: myid,klt
-      integer pn,px,hproc,mproc,ns,ne,npta
+      integer pn,px,hproc,mproc,ns,ne,npta,ifg
       real, intent(in) :: cin
-      real, dimension(ifull_g), intent(inout) :: psls
-      real, dimension(ifull_g,klt), intent(inout) :: uu,vv
-      real, dimension(ifull_g,klt), intent(inout) :: ww
-      real, dimension(ifull_g,klt), intent(inout) :: tt,qgg
+      real, dimension(ifull), intent(inout) :: psls
+      real, dimension(ifull,klt), intent(inout) :: uu,vv
+      real, dimension(ifull,klt), intent(inout) :: tt,qgg
       logical, intent(in) :: lblock
       
       npta=max(6/nproc,1)                       ! number of panels per processor
@@ -1281,12 +831,17 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       hproc=pn*mproc/npta                       ! host processor for panel
       call procdiv(ns,ne,il_g,mproc,myid-hproc) ! number of rows per processor
 
+      if (myid==hproc) then
+        ifg=ifull_g
+      else
+        ifg=0
+      end if
       if (npta==1) then
         call spechost_n(mproc,hproc,pn,ns,ne,cin,psls,uu,vv,
-     &         ww,tt,qgg,lblock,klt)
+     &         tt,qgg,lblock,klt,ifg)
       else
         call spechost(mproc,hproc,npta,pn,px,ns,ne,cin,psls,uu,vv,
-     &         ww,tt,qgg,lblock,klt)
+     &         tt,qgg,lblock,klt,ifg)
       end if
 
       return
@@ -1296,122 +851,191 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
 
       !---------------------------------------------------------------------------------
       ! This is the main routine for the scale-selective filter
-      subroutine spechost(mproc,hproc,npta,pn,px,ns,ne,cin,psls,
-     &                    uu,vv,ww,tt,qgg,lblock,klt)
+      ! (see spechost_n for a reduced memory version)
+      subroutine spechost(mproc,hproc,npta,pn,px,ns,ne,cin,pslb,
+     &                    ub,vb,tb,qb,lblock,klt,ifg)
 
       use cc_mpi            ! CC MPI routines
       use map_m             ! Grid map arrays
+      use vecsuv_m          ! Map to cartesian coordinates
       
       implicit none
       
       include 'newmpar.h'   ! Grid parameters
       include 'parm.h'      ! Model configuration
       
-      integer, intent(in) :: mproc,hproc,npta,pn,px,ns,ne,klt
+      integer, intent(in) :: mproc,hproc,npta,pn,px,ns,ne,klt,ifg
       integer k,ppass,iy,ppn,ppx,nne,nns,iproc,ierr
-      integer n,a,b,c,til,lsize
+      integer n,a,b,c,til,colour,rank
       integer :: itag=0
+      integer, save :: comm_host
       real, intent(in) :: cin
-      real, dimension(ifull_g), intent(inout) :: psls
-      real, dimension(ifull_g,klt), intent(inout) :: uu,vv
-      real, dimension(ifull_g,klt), intent(inout) :: ww
-      real, dimension(ifull_g,klt), intent(inout) :: tt,qgg
-      real, dimension(ifull_g) :: qp,qsum,zp
-      real, dimension(ifull_g,klt) :: qu,qv,qw,qt,qq
-      real, dimension(ifull_g,klt) :: zu,zv,zw,zt,zq
-      real, dimension(ifull_g*klt) :: dd
+      real, dimension(ifull), intent(inout) :: pslb
+      real, dimension(ifull,klt), intent(inout) :: ub,vb
+      real, dimension(ifull,klt), intent(inout) :: tb,qb
+      real, dimension(ifg) :: psls
+      real, dimension(ifg,klt) :: uu,vv,ww
+      real, dimension(ifg,klt) :: tt,qgg
+      real, dimension(ifg) :: qp,qsum,zp,x_g,xx_g
+      real, dimension(ifg,klt) :: qu,qv,qw,qt,qq
+      real, dimension(ifg,klt) :: zu,zv,zw,zt,zq
+      real, dimension(ifg*klt) :: dd
       real cq
       logical, intent(in) :: lblock
+      logical, save :: first = .true.
+
+      if (first) then
+        if (myid==hproc) then
+          colour=0
+          rank=hproc/mproc
+        else
+          colour=1
+          rank=myid-hproc
+        end if
+        call ccmpi_commsplit(comm_host,comm_world,colour,rank)
+        first=.false.
+      end if
       
       til=il_g*il_g
       cq=sqrt(4.5)*cin ! filter length scale
 
+      ! gather data onto myid==0
+      if (nud_p>0.and.lblock) then
+        if (myid==0) then
+          call ccmpi_gather(pslb(:), psls(:))
+        else
+          call ccmpi_gather(pslb(:))
+        end if
+      end if
+      if (nud_uv==3) then
+        if (myid==0) then
+          call ccmpi_gather(ub(:,1:klt),ww(:,1:klt))
+        else
+          call ccmpi_gather(ub(:,1:klt))
+        end if
+      else if (nud_uv>0) then
+        if (myid==0) then
+          call ccmpi_gather(ub(:,1:klt),uu(:,1:klt))
+          call ccmpi_gather(vb(:,1:klt),vv(:,1:klt))
+          ! we assume that the coordinate transform on a single 
+          ! processor is faster than sending three components 
+          ! of the wind vector with gather
+          do k=1,klt
+            x_g =uu(:,k)
+            xx_g=vv(:,k)
+            uu(:,k)=ax_g(:)*x_g+bx_g(:)*xx_g
+            vv(:,k)=ay_g(:)*x_g+by_g(:)*xx_g
+            ww(:,k)=az_g(:)*x_g+bz_g(:)*xx_g
+          end do
+        else
+          call ccmpi_gather(ub(:,1:klt))
+          call ccmpi_gather(vb(:,1:klt))
+        end if
+      end if
+      if (nud_t>0) then
+        if (myid==0) then
+          call ccmpi_gather(tb(:,1:klt),tt(:,1:klt))
+        else
+          call ccmpi_gather(tb(:,1:klt))
+        end if
+      end if
+      if (nud_q>0) then
+        if (myid==0) then
+          call ccmpi_gather(qb(:,1:klt),qgg(:,1:klt))
+        else
+          call ccmpi_gather(qb(:,1:klt))
+        end if
+      end if
+
       if (ns>ne) return
       if (myid==0.and.nmaxpr==1) write(6,*) "Start 1D filter"
 
-      qsum(:)=1./(em_g(:)*em_g(:))
-      if (nud_p>0.and.lblock) then
-        psls(:)=psls(:)*qsum(:)
-      end if
-      if (nud_uv>0) then
-        do k=1,klt
-          uu(:,k)=uu(:,k)*qsum(:)
-          vv(:,k)=vv(:,k)*qsum(:)
-          ww(:,k)=ww(:,k)*qsum(:)
-        end do
-      end if
-      if (nud_t>0) then
-        do k=1,klt
-          tt(:,k)=tt(:,k)*qsum(:)
-        end do
-      end if
-      if (nud_q>0) then
-        do k=1,klt
-          qgg(:,k)=qgg(:,k)*qsum(:)
-        end do
+      ! distribute data over host processors
+      if (myid==hproc) then
+        qsum(:)=1./(em_g(:)*em_g(:))
+        if (nud_p>0.and.lblock) then
+          call ccmpi_bcast(psls,0,comm_host)
+          psls(:)=psls(:)*qsum(:)
+        end if
+        if (nud_uv>0) then
+          call ccmpi_bcast(uu,0,comm_host)
+          call ccmpi_bcast(vv,0,comm_host)
+          call ccmpi_bcast(ww,0,comm_host)
+          do k=1,klt
+            uu(:,k)=uu(:,k)*qsum(:)
+            vv(:,k)=vv(:,k)*qsum(:)
+            ww(:,k)=ww(:,k)*qsum(:)
+          end do
+        end if
+        if (nud_t>0) then
+          call ccmpi_bcast(tt,0,comm_host)
+          do k=1,klt
+            tt(:,k)=tt(:,k)*qsum(:)
+          end do
+        end if
+        if (nud_q>0) then
+          call ccmpi_bcast(qgg,0,comm_host)
+          do k=1,klt
+            qgg(:,k)=qgg(:,k)*qsum(:)
+          end do
+        end if
       end if
 
       do ppass=pn,px
 
-        qsum(:)=1./(em_g(:)*em_g(:))
-        if (nud_p>0.and.lblock) then
-          qp=psls
-        end if
-        if (nud_uv>0) then
-          do k=1,klt
-            qu(:,k)=uu(:,k)
-            qv(:,k)=vv(:,k)
-            qw(:,k)=ww(:,k)
-          end do
-        end if
-        if (nud_t>0) then
-          do k=1,klt
-            qt(:,k)=tt(:,k)
-          end do
-        end if
-        if (nud_q>0) then
-          do k=1,klt
-            qq(:,k)=qgg(:,k)
-          end do
+        ! reset nudging fields for the next panel
+        if (myid==hproc) then
+          qsum(:)=1./(em_g(:)*em_g(:))
+          if (nud_p>0.and.lblock) then
+            qp=psls
+          end if
+          if (nud_uv>0) then
+            do k=1,klt
+              qu(:,k)=uu(:,k)
+              qv(:,k)=vv(:,k)
+              qw(:,k)=ww(:,k)
+            end do
+          end if
+          if (nud_t>0) then
+            do k=1,klt
+              qt(:,k)=tt(:,k)
+            end do
+          end if
+          if (nud_q>0) then
+            do k=1,klt
+              qq(:,k)=qgg(:,k)
+            end do
+          end if
         end if
 
         ! computations for the local processor group
-        if (mod(il_g,mproc)==0) then
-          if (myid==0.and.nmaxpr==1) then
-            write(6,*) "Symmetric decomposition"
-          end if
-          lsize=ifull_g/mproc
-          call speclocal_s(mproc,hproc,ns,ne,cq,ppass,qsum,qp,
-     &           qu,qv,qw,qt,qq,lsize,lblock,klt)        
-        else
-          if (myid==0.and.nmaxpr==1) then
-            write(6,*) "Asymmetric decomposition"
-          end if
-          call speclocal(mproc,hproc,ns,ne,cq,ppass,qsum,qp,
-     &           qu,qv,qw,qt,qq,lblock,klt)
-        end if
+        call speclocal(mproc,hproc,ns,ne,cq,ppass,qsum,qp,
+     &         qu,qv,qw,qt,qq,lblock,klt,ifg)
         
-        nns=ppass*til+1
-        nne=ppass*til+til
-        if (nud_p>0.and.lblock) then
-          zp(nns:nne)=qp(nns:nne)/qsum(nns:nne)
-        end if
-        if (nud_uv>0) then
-          do k=1,klt
-            zu(nns:nne,k)=qu(nns:nne,k)/qsum(nns:nne)
-            zv(nns:nne,k)=qv(nns:nne,k)/qsum(nns:nne)
-            zw(nns:nne,k)=qw(nns:nne,k)/qsum(nns:nne)
-          end do
-        end if
-        if (nud_t>0) then
-          do k=1,klt
-            zt(nns:nne,k)=qt(nns:nne,k)/qsum(nns:nne)
-          end do
-        end if
-        if (nud_q>0) then
-          do k=1,klt
-            zq(nns:nne,k)=qq(nns:nne,k)/qsum(nns:nne)
-          end do
+        ! store the filtered results for this panel
+        if (myid==hproc) then
+          nns=ppass*til+1
+          nne=ppass*til+til
+          if (nud_p>0.and.lblock) then
+            zp(nns:nne)=qp(nns:nne)/qsum(nns:nne)
+          end if
+          if (nud_uv>0) then
+            do k=1,klt
+              zu(nns:nne,k)=qu(nns:nne,k)/qsum(nns:nne)
+              zv(nns:nne,k)=qv(nns:nne,k)/qsum(nns:nne)
+              zw(nns:nne,k)=qw(nns:nne,k)/qsum(nns:nne)
+            end do
+          end if
+          if (nud_t>0) then
+            do k=1,klt
+              zt(nns:nne,k)=qt(nns:nne,k)/qsum(nns:nne)
+            end do
+          end if
+          if (nud_q>0) then
+            do k=1,klt
+              zq(nns:nne,k)=qq(nns:nne,k)/qsum(nns:nne)
+            end do
+          end if
         end if
         
       end do
@@ -1549,19 +1173,48 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         end if
       end if      
       
+      ! distribute data to processors
       if (nud_p>0.and.lblock) then
-        psls(:)=zp(:)
+        if (myid==0) then
+          call ccmpi_distribute(pslb,zp)
+        else
+          call ccmpi_distribute(pslb)
+        end if
       end if
-      if (nud_uv>0) then
-        uu(:,:)=zu(:,:)
-        vv(:,:)=zv(:,:)
-        ww(:,:)=zw(:,:)
+      if (nud_uv==3) then
+        if (myid==0) then
+          call ccmpi_distribute(ub(:,1:klt),zw(:,1:klt))
+        else
+          call ccmpi_distribute(ub(:,1:klt))
+        end if
+      else if (nud_uv>0) then
+        if (myid==0) then
+          do k=1,klt
+            x_g=ax_g(:)*zu(:,k)+ay_g(:)*zv(:,k)+az_g(:)*zw(:,k)
+            xx_g=bx_g(:)*zu(:,k)+by_g(:)*zv(:,k)+bz_g(:)*zw(:,k)
+            zu(:,k)=x_g
+            zv(:,k)=xx_g
+          end do
+          call ccmpi_distribute(ub(:,1:klt),zu(:,1:klt))
+          call ccmpi_distribute(vb(:,1:klt),zv(:,1:klt))
+        else
+          call ccmpi_distribute(ub(:,1:klt))
+          call ccmpi_distribute(vb(:,1:klt))
+        end if
       end if
       if (nud_t>0) then
-        tt(:,:)=zt(:,:)
+        if (myid==0) then
+          call ccmpi_distribute(tb(:,1:klt),zt(:,1:klt))
+        else
+          call ccmpi_distribute(tb(:,1:klt))
+        end if
       end if
       if (nud_q>0) then
-        qgg(:,:)=zq(:,:)
+        if (myid==0) then
+          call ccmpi_distribute(qb(:,1:klt),zq(:,1:klt))
+        else
+          call ccmpi_distribute(qb(:,1:klt))
+        end if
       end if
 
       return
@@ -1569,100 +1222,163 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       !---------------------------------------------------------------------------------
 
       ! This version is for one panel per processor (reduced memory)
-      subroutine spechost_n(mproc,hproc,pn,ns,ne,cin,psls,
-     &                    uu,vv,ww,tt,qgg,lblock,klt)
+      subroutine spechost_n(mproc,hproc,pn,ns,ne,cin,pslb,
+     &                    ub,vb,tb,qb,lblock,klt,ifg)
 
       use cc_mpi            ! CC MPI routines
       use map_m             ! Grid map arrays
+      use vecsuv_m          ! Map to cartesian coordinates
       
       implicit none
       
       include 'newmpar.h'   ! Grid parameters
       include 'parm.h'      ! Model configuration
       
-      integer, intent(in) :: mproc,hproc,pn,ns,ne,klt
+      integer, intent(in) :: mproc,hproc,pn,ns,ne,klt,ifg
       integer k,iy,ppn,nne,nns,iproc,ierr
-      integer n,a,b,c,til,lsize
+      integer n,a,b,c,til,colour,rank
       integer :: itag=0
+      integer, save :: comm_host
       real, intent(in) :: cin
-      real, dimension(ifull_g), intent(inout) :: psls
-      real, dimension(ifull_g,klt), intent(inout) :: uu,vv
-      real, dimension(ifull_g,klt), intent(inout) :: ww
-      real, dimension(ifull_g,klt), intent(inout) :: tt,qgg
-      real, dimension(ifull_g) :: qsum
-      real, dimension(ifull_g*klt) :: dd
       real cq
+      real, dimension(ifull), intent(inout) :: pslb
+      real, dimension(ifull,klt), intent(inout) :: ub,vb
+      real, dimension(ifull,klt), intent(inout) :: tb,qb
+      real, dimension(ifg) :: psls
+      real, dimension(ifg,klt) :: uu,vv,ww
+      real, dimension(ifg,klt) :: tt,qgg
+      real, dimension(ifg) :: qsum,x_g,xx_g
+      real, dimension(ifg*klt) :: dd
       logical, intent(in) :: lblock
+      logical, save :: first = .true.
+
+      if (first) then
+        if (myid==hproc) then
+          colour=0
+          rank=hproc/mproc
+        else
+          colour=1
+          rank=myid-hproc
+        end if
+        call ccmpi_commsplit(comm_host,comm_world,colour,rank)
+        first=.false.
+      end if
       
       til=il_g*il_g
       cq=sqrt(4.5)*cin ! filter length scale
 
+      ! gather data onto myid==0
+      if (nud_p>0.and.lblock) then
+        if (myid==0) then
+          call ccmpi_gather(pslb(:), psls(:))
+        else
+          call ccmpi_gather(pslb(:))
+        end if
+      end if
+      if (nud_uv==3) then
+        if (myid==0) then
+          call ccmpi_gather(ub(:,1:klt),ww(:,1:klt))
+        else
+          call ccmpi_gather(ub(:,1:klt))
+        end if
+      else if (nud_uv>0) then
+        if (myid==0) then
+          call ccmpi_gather(ub(:,1:klt),uu(:,1:klt))
+          call ccmpi_gather(vb(:,1:klt),vv(:,1:klt))
+          do k=1,klt
+            x_g =uu(:,k)
+            xx_g=vv(:,k)
+            uu(:,k)=ax_g(:)*x_g+bx_g(:)*xx_g
+            vv(:,k)=ay_g(:)*x_g+by_g(:)*xx_g
+            ww(:,k)=az_g(:)*x_g+bz_g(:)*xx_g
+          end do
+        else
+          call ccmpi_gather(ub(:,1:klt))
+          call ccmpi_gather(vb(:,1:klt))
+        end if
+      end if
+      if (nud_t>0) then
+        if (myid==0) then
+          call ccmpi_gather(tb(:,1:klt),tt(:,1:klt))
+        else
+          call ccmpi_gather(tb(:,1:klt))
+        end if
+      end if
+      if (nud_q>0) then
+        if (myid==0) then
+          call ccmpi_gather(qb(:,1:klt),qgg(:,1:klt))
+        else
+          call ccmpi_gather(qb(:,1:klt))
+        end if
+      end if
+
       if (ns>ne) return
       if (myid==0.and.nmaxpr==1) write(6,*) "Start 1D filter"
 
-      qsum(:)=1./(em_g(:)*em_g(:))
-      if (nud_p>0.and.lblock) then
-        psls(:)=psls(:)*qsum(:)
-      end if
-      if (nud_uv>0) then
-        do k=1,klt
-          uu(:,k)=uu(:,k)*qsum(:)
-          vv(:,k)=vv(:,k)*qsum(:)
-          ww(:,k)=ww(:,k)*qsum(:)
-        end do
-      end if
-      if (nud_t>0) then
-        do k=1,klt
-          tt(:,k)=tt(:,k)*qsum(:)
-        end do
-      end if
-      if (nud_q>0) then
-        do k=1,klt
-          qgg(:,k)=qgg(:,k)*qsum(:)
-        end do
+      ! distribute data over host processors
+      if (myid==hproc) then
+        qsum(:)=1./(em_g(:)*em_g(:))
+        if (nud_p>0.and.lblock) then
+          call ccmpi_bcast(psls,0,comm_host)
+          psls(:)=psls(:)*qsum(:)
+        end if
+        if (nud_uv>0) then
+          call ccmpi_bcast(uu,0,comm_host)
+          call ccmpi_bcast(vv,0,comm_host)
+          call ccmpi_bcast(ww,0,comm_host)
+          do k=1,klt
+            uu(:,k)=uu(:,k)*qsum(:)
+            vv(:,k)=vv(:,k)*qsum(:)
+            ww(:,k)=ww(:,k)*qsum(:)
+          end do
+        end if
+        if (nud_t>0) then
+          call ccmpi_bcast(tt,0,comm_host)
+          do k=1,klt
+            tt(:,k)=tt(:,k)*qsum(:)
+          end do
+        end if
+        if (nud_q>0) then
+          call ccmpi_bcast(qgg,0,comm_host)
+          do k=1,klt
+            qgg(:,k)=qgg(:,k)*qsum(:)
+          end do
+        end if
       end if
 
       ! computations for the local processor group
-      if (mod(il_g,mproc)==0) then
-        if (myid==0.and.nmaxpr==1) then
-          write(6,*) "Symmetric decomposition"
+      call speclocal(mproc,hproc,ns,ne,cq,pn,qsum,psls,
+     &         uu,vv,ww,tt,qgg,lblock,klt,ifg)
+
+      ! store results on host processor
+      if (myid==hproc) then        
+        nns=pn*til+1
+        nne=pn*til+til
+        if (nud_p>0.and.lblock) then
+          psls(nns:nne)=psls(nns:nne)/qsum(nns:nne)
         end if
-        lsize=ifull_g/mproc
-        call speclocal_s(mproc,hproc,ns,ne,cq,pn,qsum,psls,
-     &         uu,vv,ww,tt,qgg,lsize,lblock,klt)        
-      else
-        if (myid==0.and.nmaxpr==1) then
-          write(6,*) "Asymmetric decomposition"
+        if (nud_uv>0) then
+          do k=1,klt
+            uu(nns:nne,k)=uu(nns:nne,k)/qsum(nns:nne)
+            vv(nns:nne,k)=vv(nns:nne,k)/qsum(nns:nne)
+            ww(nns:nne,k)=ww(nns:nne,k)/qsum(nns:nne)
+          end do
         end if
-        call speclocal(mproc,hproc,ns,ne,cq,pn,qsum,psls,
-     &         uu,vv,ww,tt,qgg,lblock,klt)
-      end if
-        
-      nns=pn*til+1
-      nne=pn*til+til
-      if (nud_p>0.and.lblock) then
-        psls(nns:nne)=psls(nns:nne)/qsum(nns:nne)
-      end if
-      if (nud_uv>0) then
-        do k=1,klt
-          uu(nns:nne,k)=uu(nns:nne,k)/qsum(nns:nne)
-          vv(nns:nne,k)=vv(nns:nne,k)/qsum(nns:nne)
-          ww(nns:nne,k)=ww(nns:nne,k)/qsum(nns:nne)
-        end do
-      end if
-      if (nud_t>0) then
-        do k=1,klt
-          tt(nns:nne,k)=tt(nns:nne,k)/qsum(nns:nne)
-        end do
-      end if
-      if (nud_q>0) then
-        do k=1,klt
-          qgg(nns:nne,k)=qgg(nns:nne,k)/qsum(nns:nne)
-        end do
+        if (nud_t>0) then
+          do k=1,klt
+            tt(nns:nne,k)=tt(nns:nne,k)/qsum(nns:nne)
+          end do
+        end if
+        if (nud_q>0) then
+          do k=1,klt
+            qgg(nns:nne,k)=qgg(nns:nne,k)/qsum(nns:nne)
+          end do
+        end if
       end if
         
       if (myid==0.and.nmaxpr==1) write(6,*) "End 1D filter"
 
+      ! collect data from host processors
       itag=itag+1
       if (myid == 0) then
         if (nmaxpr==1) write(6,*) 
@@ -1765,6 +1481,50 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         end if
       end if      
       
+      ! distribute data to processors
+      if (nud_p>0.and.lblock) then
+        if (myid==0) then
+          call ccmpi_distribute(pslb,psls)
+        else
+          call ccmpi_distribute(pslb)
+        end if
+      end if
+      if (nud_uv==3) then
+        if (myid==0) then
+          call ccmpi_distribute(ub(:,1:klt),ww(:,1:klt))
+        else
+          call ccmpi_distribute(ub(:,1:klt))
+        end if
+      else if (nud_uv>0) then
+        if (myid==0) then
+          do k=1,klt
+            x_g=ax_g(:)*uu(:,k)+ay_g(:)*vv(:,k)+az_g(:)*ww(:,k)
+            xx_g=bx_g(:)*uu(:,k)+by_g(:)*vv(:,k)+bz_g(:)*ww(:,k)
+            uu(:,k)=x_g
+            vv(:,k)=xx_g
+          end do
+          call ccmpi_distribute(ub(:,1:klt),uu(:,1:klt))
+          call ccmpi_distribute(vb(:,1:klt),vv(:,1:klt))
+        else
+          call ccmpi_distribute(ub(:,1:klt))
+          call ccmpi_distribute(vb(:,1:klt))
+        end if
+      end if
+      if (nud_t>0) then
+        if (myid==0) then
+          call ccmpi_distribute(tb(:,1:klt),tt(:,1:klt))
+        else
+          call ccmpi_distribute(tb(:,1:klt))
+        end if
+      end if
+      if (nud_q>0) then
+        if (myid==0) then
+          call ccmpi_distribute(qb(:,1:klt),qgg(:,1:klt))
+        else
+          call ccmpi_distribute(qb(:,1:klt))
+        end if
+      end if
+      
       return
       end subroutine spechost_n
       
@@ -1773,7 +1533,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       ! Code was moved to this subroutine to help the compiler vectorise the code
       ! This version handles uneven distribution of rows across processors
       subroutine speclocal(mproc,hproc,ns,ne,cq,ppass,qsum,
-     &             qp,qu,qv,qw,qt,qq,lblock,klt)
+     &             qp,qu,qv,qw,qt,qq,lblock,klt,ifg)
 
       use cc_mpi            ! CC MPI routines
       use xyzinfo_m         ! Grid coordinate arrays
@@ -1783,200 +1543,208 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       include 'newmpar.h'   ! Grid parameters
       include 'parm.h'      ! Model configuration
       
-      integer, intent(in) :: mproc,hproc,ns,ne,ppass,klt
-      integer j,k,n,ipass,kpass,iy
+      integer, intent(in) :: mproc,hproc,ns,ne,ppass,klt,ifg
+      integer j,k,n,ipass,iy
       integer iproc,ierr
       integer nne,nns,me
-      integer a,b,c,d
+      integer a,b,d
       integer :: itag=0
-      integer, dimension(4*il_g,il_g,0:3) :: igrd
+      integer, dimension(4*il_g,il_g) :: igrd
       integer, dimension(0:3) :: maps
-      integer, parameter, dimension(2:3) :: kn=(/0,3/)
-      integer, parameter, dimension(2:3) :: kx=(/2,3/)
       real, intent(in) :: cq
-      real, dimension(ifull_g), intent(inout) :: qp,qsum
-      real, dimension(ifull_g,klt), intent(inout) :: qu,qv
-      real, dimension(ifull_g,klt), intent(inout) :: qw
-      real, dimension(ifull_g,klt), intent(inout) :: qt,qq
-      real, dimension(4*il_g,klt) :: pu,pv,pw,pt,pq
-      real, dimension(4*il_g,klt) :: au,av,aw,at,aq
-      real, dimension(4*il_g) :: pp,ap,psum,asum,ra,xa,ya,za
-      real, dimension(ifull_g*klt) :: dd
+      real, dimension(ifg), intent(inout) :: qp,qsum
+      real, dimension(ifg,klt), intent(inout) :: qu,qv
+      real, dimension(ifg,klt), intent(inout) :: qw
+      real, dimension(ifg,klt), intent(inout) :: qt,qq
+      real, dimension(4*il_g) :: ra,xa,ya,za
+      real, dimension(4*il_g,ns:ne,klt) :: pu,pv,pw,pt,pq
+      real, dimension(4*il_g,ns:ne,klt) :: au,av,aw,at,aq
+      real, dimension(4*il_g,ns:ne) :: pp,psum
+      real, dimension(4*il_g,ns:ne) :: ap,asum
+      real, dimension(4*il_g*klt*(ne-ns+1)) :: dd
       logical, intent(in) :: lblock
       
       maps=(/ il_g, il_g, 4*il_g, 3*il_g /)
       
       do ipass=0,3
         me=maps(ipass)
-        call getiqa(igrd(:,:,ipass),me,ipass,ppass,il_g)
+        call getiqa(igrd(:,:),me,ipass,ppass,il_g)
 
-        if (ipass==3) then
-          itag=itag+1
-          if (myid==0.and.nmaxpr==1) then
-            write(6,*) "Receive arrays from local host"
-          end if
-          if (myid==hproc) then
-            do iproc=hproc+1,mproc+hproc-1
-              call procdiv(nns,nne,il_g,mproc,iproc-hproc)
-              if (nns>nne) exit
-              iy=me*(nne-nns+1)
-              a=me
-              d=-me*nns
+        itag=itag+1
+        if (myid==0.and.nmaxpr==1) then
+          write(6,*) "Receive arrays from local host"
+        end if
+        if (myid==hproc) then
+          do iproc=hproc+1,mproc+hproc-1
+            call procdiv(nns,nne,il_g,mproc,iproc-hproc)
+            if (nns>nne) exit
+            iy=me*(nne-nns+1)
+            a=me
+            d=-me*nns
+            do j=nns,nne
+              do n=1,me
+                dd(n+a*j+d)=qsum(igrd(n,j))
+              end do
+            end do
+            call ccmpi_ssend(dd(1:iy),iproc,itag,comm_world)
+            if(nud_p>0.and.lblock)then
               do j=nns,nne
                 do n=1,me
-                  dd(n+a*j+d)=qsum(igrd(n,j,ipass))
+                  dd(n+a*j+d)=qp(igrd(n,j))
                 end do
               end do
               call ccmpi_ssend(dd(1:iy),iproc,itag,comm_world)
-              if(nud_p>0.and.lblock)then
+            end if
+            iy=me*(nne-nns+1)*klt
+            b=me*(nne-nns+1)
+            d=-me*(nne+1)
+            if(nud_uv>0)then
+              do k=1,klt
                 do j=nns,nne
                   do n=1,me
-                    dd(n+a*j+d)=qp(igrd(n,j,ipass))
+                    dd(n+a*j+b*k+d)=qu(igrd(n,j),k)
                   end do
                 end do
-                call ccmpi_ssend(dd(1:iy),iproc,itag,comm_world)
-              end if
-              iy=me*(nne-nns+1)*klt
-              b=me*(nne-nns+1)
-              d=-me*(nne+1)
-              if(nud_uv>0)then
-                do k=1,klt
-                  do j=nns,nne
-                    do n=1,me
-                      dd(n+a*j+b*k+d)=qu(igrd(n,j,ipass),k)
-                    end do
+              end do
+              call ccmpi_ssend(dd(1:iy),iproc,itag,comm_world)
+              do k=1,klt
+                do j=nns,nne
+                  do n=1,me
+                    dd(n+a*j+b*k+d)=qv(igrd(n,j),k)
                   end do
                 end do
-                call ccmpi_ssend(dd(1:iy),iproc,itag,comm_world)
-                do k=1,klt
-                  do j=nns,nne
-                    do n=1,me
-                      dd(n+a*j+b*k+d)=qv(igrd(n,j,ipass),k)
-                    end do
+              end do
+              call ccmpi_ssend(dd(1:iy),iproc,itag,comm_world)
+              do k=1,klt
+                do j=nns,nne
+                  do n=1,me
+                    dd(n+a*j+b*k+d)=qw(igrd(n,j),k)
                   end do
                 end do
-                call ccmpi_ssend(dd(1:iy),iproc,itag,comm_world)
-                do k=1,klt
-                  do j=nns,nne
-                    do n=1,me
-                      dd(n+a*j+b*k+d)=qw(igrd(n,j,ipass),k)
-                    end do
+              end do
+              call ccmpi_ssend(dd(1:iy),iproc,itag,comm_world)
+            end if
+            if(nud_t>0)then
+              do k=1,klt
+                do j=nns,nne
+                  do n=1,me
+                    dd(n+a*j+b*k+d)=qt(igrd(n,j),k)
                   end do
                 end do
-                call ccmpi_ssend(dd(1:iy),iproc,itag,comm_world)
-              end if
-              if(nud_t>0)then
-                do k=1,klt
-                  do j=nns,nne
-                    do n=1,me
-                      dd(n+a*j+b*k+d)=qt(igrd(n,j,ipass),k)
-                    end do
+              end do
+              call ccmpi_ssend(dd(1:iy),iproc,itag,comm_world)
+            end if
+            if(nud_q>0)then
+              do k=1,klt
+                do j=nns,nne
+                  do n=1,me
+                    dd(n+a*j+b*k+d)=qq(igrd(n,j),k)
                   end do
                 end do
-                call ccmpi_ssend(dd(1:iy),iproc,itag,comm_world)
-              end if
-              if(nud_q>0)then
-                do k=1,klt
-                  do j=nns,nne
-                    do n=1,me
-                      dd(n+a*j+b*k+d)=qq(igrd(n,j,ipass),k)
-                    end do
-                  end do
-                end do
-                call ccmpi_ssend(dd(1:iy),iproc,itag,comm_world)
-              end if
+              end do
+              call ccmpi_ssend(dd(1:iy),iproc,itag,comm_world)
+            end if
+          end do
+          do j=ns,ne
+            asum(1:me,j)=qsum(igrd(1:me,j))
+          end do
+          if (nud_p>0.and.lblock) then
+            do j=ns,ne
+              ap(1:me,j)=qp(igrd(1:me,j))
             end do
-          else
-            iy=me*(ne-ns+1)
-            a=me
-            d=-me*ns
+          end if
+          if (nud_uv>0) then
+            do j=ns,ne
+              au(1:me,j,:)=qu(igrd(1:me,j),:)
+              av(1:me,j,:)=qv(igrd(1:me,j),:)
+              aw(1:me,j,:)=qw(igrd(1:me,j),:)
+            end do
+          end if
+          if (nud_t>0) then
+            do j=ns,ne
+              at(1:me,j,:)=qt(igrd(1:me,j),:)
+            end do
+          end if
+          if (nud_q>0) then
+            do j=ns,ne
+              aq(1:me,j,:)=qq(igrd(1:me,j),:)
+            end do
+          end if
+        else
+          iy=me*(ne-ns+1)
+          a=me
+          d=-me*ns
+          call ccmpi_recv(dd(1:iy),hproc,itag,comm_world)
+          do j=ns,ne
+            do n=1,me
+              asum(n,j)=dd(n+a*j+d)
+            end do
+          end do
+          if(nud_p>0.and.lblock)then
             call ccmpi_recv(dd(1:iy),hproc,itag,comm_world)
             do j=ns,ne
               do n=1,me
-                qsum(igrd(n,j,ipass))=dd(n+a*j+d)
+                ap(n,j)=dd(n+a*j+d)
               end do
             end do
-            if(nud_p>0.and.lblock)then
-              call ccmpi_recv(dd(1:iy),hproc,itag,comm_world)
+          endif
+          iy=me*(ne-ns+1)*klt
+          b=me*(ne-ns+1)
+          d=-me*(ne+1)
+          if(nud_uv>0)then
+            call ccmpi_recv(dd(1:iy),hproc,itag,comm_world)
+            do k=1,klt
               do j=ns,ne
                 do n=1,me
-                  qp(igrd(n,j,ipass))=dd(n+a*j+d)
+                  au(n,j,k)=dd(n+a*j+b*k+d)
                 end do
               end do
-            endif
-            iy=me*(ne-ns+1)*klt
-            b=me*(ne-ns+1)
-            d=-me*(ne+1)
-            if(nud_uv>0)then
-              call ccmpi_recv(dd(1:iy),hproc,itag,comm_world)
-              do k=1,klt
-                do j=ns,ne
-                  do n=1,me
-                    qu(igrd(n,j,ipass),k)=dd(n+a*j+b*k+d)
-                  end do
+            end do
+            call ccmpi_recv(dd(1:iy),hproc,itag,comm_world)
+            do k=1,klt
+              do j=ns,ne
+                do n=1,me
+                  av(n,j,k)=dd(n+a*j+b*k+d)
                 end do
               end do
-              call ccmpi_recv(dd(1:iy),hproc,itag,comm_world)
-              do k=1,klt
-                do j=ns,ne
-                  do n=1,me
-                    qv(igrd(n,j,ipass),k)=dd(n+a*j+b*k+d)
-                  end do
+            end do
+            call ccmpi_recv(dd(1:iy),hproc,itag,comm_world)
+            do k=1,klt
+              do j=ns,ne
+                do n=1,me
+                  aw(n,j,k)=dd(n+a*j+b*k+d)
                 end do
               end do
-              call ccmpi_recv(dd(1:iy),hproc,itag,comm_world)
-              do k=1,klt
-                do j=ns,ne
-                  do n=1,me
-                    qw(igrd(n,j,ipass),k)=dd(n+a*j+b*k+d)
-                  end do
+            end do
+          end if
+          if(nud_t>0)then
+            call ccmpi_recv(dd(1:iy),hproc,itag,comm_world)
+            do k=1,klt
+              do j=ns,ne
+                do n=1,me
+                  at(n,j,k)=dd(n+a*j+b*k+d)
                 end do
               end do
-            end if
-            if(nud_t>0)then
-              call ccmpi_recv(dd(1:iy),hproc,itag,comm_world)
-              do k=1,klt
-                do j=ns,ne
-                  do n=1,me
-                    qt(igrd(n,j,ipass),k)=dd(n+a*j+b*k+d)
-                  end do
+            end do
+          end if
+          if(nud_q>0)then
+            call ccmpi_recv(dd(1:iy),hproc,itag,comm_world)
+            do k=1,klt
+              do j=ns,ne
+                do n=1,me
+                  aq(n,j,k)=dd(n+a*j+b*k+d)
                 end do
               end do
-            end if
-            if(nud_q>0)then
-              call ccmpi_recv(dd(1:iy),hproc,itag,comm_world)
-              do k=1,klt
-                do j=ns,ne
-                  do n=1,me
-                    qq(igrd(n,j,ipass),k)=dd(n+a*j+b*k+d)
-                  end do
-                end do
-              end do
-            end if
+            end do
           end if
         end if
 
         if (myid==0.and.nmaxpr==1) write(6,*) "Start convolution"
 
         do j=ns,ne
-          asum(1:me)=qsum(igrd(1:me,j,ipass))
-          xa(1:me)=x_g(igrd(1:me,j,ipass))
-          ya(1:me)=y_g(igrd(1:me,j,ipass))
-          za(1:me)=z_g(igrd(1:me,j,ipass))
-          if (nud_p>0.and.lblock) then
-            ap(1:me)=qp(igrd(1:me,j,ipass))
-          end if
-          if (nud_uv>0) then
-            au(1:me,:)=qu(igrd(1:me,j,ipass),:)
-            av(1:me,:)=qv(igrd(1:me,j,ipass),:)
-            aw(1:me,:)=qw(igrd(1:me,j,ipass),:)
-          end if
-          if (nud_t>0) then
-            at(1:me,:)=qt(igrd(1:me,j,ipass),:)
-          end if
-          if (nud_q>0) then
-            aq(1:me,:)=qq(igrd(1:me,j,ipass),:)
-          end if
+          xa(1:me)=x_g(igrd(1:me,j))
+          ya(1:me)=y_g(igrd(1:me,j))
+          za(1:me)=z_g(igrd(1:me,j))
           do n=1,il_g
             ra(1:me)=xa(n)*xa(1:me)+ya(n)*ya(1:me)+za(n)*za(1:me)
             ra(1:me)=acos(max(min(ra(1:me),1.),-1.))
@@ -1986,711 +1754,206 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             !ra(1)=2.*erf(cq*0.5*(ds/rearth)
             !ra(2:me)=erf(cq*(ra(2:me)+0.5*(ds/rearth)))  ! redefine ra(:) as wgt(:)
      &      !        -erf(cq*(ra(2:me)-0.5*(ds/rearth)))  ! (correct units are 1/cq)
-            psum(n)=sum(ra(1:me)*asum(1:me))
+            psum(n,j)=sum(ra(1:me)*asum(1:me,j))
             if (nud_p>0.and.lblock) then
-              pp(n)=sum(ra(1:me)*ap(1:me))
+              pp(n,j)=sum(ra(1:me)*ap(1:me,j))
             end if
             if (nud_uv>0) then
               do k=1,klt
-                pu(n,k)=sum(ra(1:me)*au(1:me,k))
-                pv(n,k)=sum(ra(1:me)*av(1:me,k))
-                pw(n,k)=sum(ra(1:me)*aw(1:me,k))
+                pu(n,j,k)=sum(ra(1:me)*au(1:me,j,k))
+                pv(n,j,k)=sum(ra(1:me)*av(1:me,j,k))
+                pw(n,j,k)=sum(ra(1:me)*aw(1:me,j,k))
               end do
             end if
             if (nud_t>0) then
               do k=1,klt
-                pt(n,k)=sum(ra(1:me)*at(1:me,k))
+                pt(n,j,k)=sum(ra(1:me)*at(1:me,j,k))
               end do
             end if
             if (nud_q>0) then
               do k=1,klt
-                pq(n,k)=sum(ra(1:me)*aq(1:me,k))
+                pq(n,j,k)=sum(ra(1:me)*aq(1:me,j,k))
               end do
             end if
           end do
-          qsum(igrd(1:il_g,j,ipass))=psum(1:il_g)
-          if (nud_p>0.and.lblock) then
-            qp(igrd(1:il_g,j,ipass))=pp(1:il_g)
-          end if
-          if (nud_uv>0) then
-            qu(igrd(1:il_g,j,ipass),:)=pu(1:il_g,:)
-            qv(igrd(1:il_g,j,ipass),:)=pv(1:il_g,:)
-            qw(igrd(1:il_g,j,ipass),:)=pw(1:il_g,:)
-          end if
-          if (nud_t>0) then
-            qt(igrd(1:il_g,j,ipass),:)=pt(1:il_g,:)
-          end if
-          if (nud_q>0) then
-            qq(igrd(1:il_g,j,ipass),:)=pq(1:il_g,:)
-          end if
         end do
 
         if (myid==0.and.nmaxpr==1) write(6,*) "End convolution"
 
-        if (ipass==2.or.ipass==3) then
-          itag=itag+1
-          if (myid==0.and.nmaxpr==1) then
-            write(6,*) "Send arrays to local host"
+        itag=itag+1
+        if (myid==0.and.nmaxpr==1) then
+          write(6,*) "Send arrays to local host"
+        end if
+        if (myid==hproc) then
+          ! process points on host proc
+          do j=ns,ne
+            qsum(igrd(1:il_g,j))=psum(1:il_g,j)
+          end do
+          if (nud_p>0.and.lblock) then
+            do j=ns,ne
+              qp(igrd(1:il_g,j))=pp(1:il_g,j)
+            end do
           end if
-          if (myid==hproc) then
-            do iproc=hproc+1,mproc+hproc-1
-              call procdiv(nns,nne,il_g,mproc,iproc-hproc)
-              if (nns>nne) exit
-              iy=il_g*(nne-nns+1)*(kx(ipass)-kn(ipass)+1)
-              a=il_g
-              c=il_g*(nne-nns+1)
-              d=-il_g*(nns+(nne-nns+1)*kn(ipass))
+          if (nud_uv>0) then
+            do j=ns,ne
+              qu(igrd(1:il_g,j),:)=pu(1:il_g,j,:)
+              qv(igrd(1:il_g,j),:)=pv(1:il_g,j,:)
+              qw(igrd(1:il_g,j),:)=pw(1:il_g,j,:)
+            end do
+          end if
+          if (nud_t>0) then
+            do j=ns,ne
+              qt(igrd(1:il_g,j),:)=pt(1:il_g,j,:)
+            end do
+          end if
+          if (nud_q>0) then
+            do j=ns,ne
+              qq(igrd(1:il_g,j),:)=pq(1:il_g,j,:)
+            end do
+          end if
+          ! process points from other procs
+          do iproc=hproc+1,mproc+hproc-1
+            call procdiv(nns,nne,il_g,mproc,iproc-hproc)
+            if (nns>nne) exit
+            iy=il_g*(nne-nns+1)
+            a=il_g
+            d=-il_g*nns
+            call ccmpi_recv(dd(1:iy),iproc,itag,comm_world)
+            do j=nns,nne
+              do n=1,il_g
+                qsum(igrd(n,j))=dd(n+a*j+d)
+              end do
+            end do
+            if(nud_p>0.and.lblock)then
               call ccmpi_recv(dd(1:iy),iproc,itag,comm_world)
-              do kpass=kn(ipass),kx(ipass)
+              do j=nns,nne
+                do n=1,il_g
+                  qp(igrd(n,j))=dd(n+a*j+d)
+                end do
+              end do
+            end if
+            iy=il_g*(nne-nns+1)*klt
+            b=il_g*(nne-nns+1)
+            d=-il_g*(nne+1)
+            if(nud_uv>0)then
+              call ccmpi_recv(dd(1:iy),iproc,itag,comm_world)
+              do k=1,klt
                 do j=nns,nne
                   do n=1,il_g
-                    qsum(igrd(n,j,kpass))=dd(n+a*j+c*kpass+d)
+                    qu(igrd(n,j),k)=dd(n+a*j+b*k+d)
                   end do
                 end do
               end do
-              if(nud_p>0.and.lblock)then
-                call ccmpi_recv(dd(1:iy),iproc,itag,comm_world)
-                do kpass=kn(ipass),kx(ipass)
-                  do j=nns,nne
-                    do n=1,il_g
-                      qp(igrd(n,j,kpass))=dd(n+a*j+c*kpass+d)
-                    end do
+              call ccmpi_recv(dd(1:iy),iproc,itag,comm_world)
+              do k=1,klt
+                do j=nns,nne
+                  do n=1,il_g
+                    qv(igrd(n,j),k)=dd(n+a*j+b*k+d)
                   end do
                 end do
-              end if
-              iy=il_g*(nne-nns+1)*klt
-     &           *(kx(ipass)-kn(ipass)+1)
-              b=il_g*(nne-nns+1)
-              c=il_g*(nne-nns+1)*klt
-              d=-il_g*(nns+(nne-nns+1)
-     &          *(1+klt*kn(ipass)))
-              if(nud_uv>0)then
-                call ccmpi_recv(dd(1:iy),iproc,itag,comm_world)
-                do k=1,klt
-                  do kpass=kn(ipass),kx(ipass)
-                    do j=nns,nne
-                      do n=1,il_g
-                        qu(igrd(n,j,kpass),k)
-     &                    =dd(n+a*j+b*k+c*kpass+d)
-                      end do
-                    end do
+              end do
+              call ccmpi_recv(dd(1:iy),iproc,itag,comm_world)
+              do k=1,klt
+                do j=nns,nne
+                  do n=1,il_g
+                    qw(igrd(n,j),k)=dd(n+a*j+b*k+d)
                   end do
                 end do
-                call ccmpi_recv(dd(1:iy),iproc,itag,comm_world)
-                do k=1,klt
-                  do kpass=kn(ipass),kx(ipass)
-                    do j=nns,nne
-                      do n=1,il_g
-                        qv(igrd(n,j,kpass),k)
-     &                    =dd(n+a*j+b*k+c*kpass+d)
-                      end do
-                    end do
+              end do
+            end if
+            if(nud_t>0)then
+              call ccmpi_recv(dd(1:iy),iproc,itag,comm_world)
+              do k=1,klt
+                do j=nns,nne
+                  do n=1,il_g
+                    qt(igrd(n,j),k)=dd(n+a*j+b*k+d)
                   end do
                 end do
-                call ccmpi_recv(dd(1:iy),iproc,itag,comm_world)
-                do k=1,klt
-                  do kpass=kn(ipass),kx(ipass)
-                    do j=nns,nne
-                      do n=1,il_g
-                        qw(igrd(n,j,kpass),k)
-     &                    =dd(n+a*j+b*k+c*kpass+d)
-                      end do
-                    end do
+              end do
+            end if
+            if(nud_q>0)then
+              call ccmpi_recv(dd(1:iy),iproc,itag,comm_world)
+              do k=1,klt
+                do j=nns,nne
+                  do n=1,il_g
+                    qq(igrd(n,j),k)=dd(n+a*j+b*k+d)
                   end do
                 end do
-              end if
-              if(nud_t>0)then
-                call ccmpi_recv(dd(1:iy),iproc,itag,comm_world)
-                do k=1,klt
-                  do kpass=kn(ipass),kx(ipass)
-                    do j=nns,nne
-                      do n=1,il_g
-                        qt(igrd(n,j,kpass),k)
-     &                    =dd(n+a*j+b*k+c*kpass+d)
-                      end do
-                    end do
-                  end do
-                end do
-              end if
-              if(nud_q>0)then
-                call ccmpi_recv(dd(1:iy),iproc,itag,comm_world)
-                do k=1,klt
-                  do kpass=kn(ipass),kx(ipass)
-                    do j=nns,nne
-                      do n=1,il_g
-                        qq(igrd(n,j,kpass),k)
-     &                    =dd(n+a*j+b*k+c*kpass+d)
-                      end do
-                    end do
-                  end do
-                end do
-              end if
+              end do
+            end if
+          end do
+       else
+          iy=il_g*(ne-ns+1)
+          a=il_g
+          d=-il_g*ns
+          do j=ns,ne
+            do n=1,il_g
+              dd(n+a*j+d)=psum(n,j)
             end do
-          else
-            iy=il_g*(ne-ns+1)*(kx(ipass)-kn(ipass)+1)
-            a=il_g
-            c=il_g*(ne-ns+1)
-            d=-il_g*(ns+(ne-ns+1)*kn(ipass))
-            do kpass=kn(ipass),kx(ipass)
+          end do
+          call ccmpi_ssend(dd(1:iy),hproc,itag,comm_world)
+          if(nud_p>0.and.lblock)then
+            do j=ns,ne
+              do n=1,il_g
+                dd(n+a*j+d)=pp(n,j)
+              end do
+            end do
+            call ccmpi_ssend(dd(1:iy),hproc,itag,comm_world)
+          end if
+          iy=il_g*(ne-ns+1)*klt
+          b=il_g*(ne-ns+1)
+          d=-il_g*(ne+1)
+          if(nud_uv>0)then
+            do k=1,klt
               do j=ns,ne
                 do n=1,il_g
-                  dd(n+a*j+c*kpass+d)=qsum(igrd(n,j,kpass))
+                  dd(n+a*j+b*k+d)=pu(n,j,k)
                 end do
               end do
             end do
             call ccmpi_ssend(dd(1:iy),hproc,itag,comm_world)
-            if(nud_p>0.and.lblock)then
-              do kpass=kn(ipass),kx(ipass)
-                do j=ns,ne
-                  do n=1,il_g
-                    dd(n+a*j+c*kpass+d)=qp(igrd(n,j,kpass))
-                  end do
+            do k=1,klt
+              do j=ns,ne
+                do n=1,il_g
+                  dd(n+a*j+b*k+d)=pv(n,j,k)
                 end do
               end do
-              call ccmpi_ssend(dd(1:iy),hproc,itag,comm_world)
-            end if
-            iy=il_g*(ne-ns+1)*klt
-     &         *(kx(ipass)-kn(ipass)+1)
-            b=il_g*(ne-ns+1)
-            c=il_g*(ne-ns+1)*klt
-            d=-il_g*(ns+(ne-ns+1)
-     &        *(1+klt*kn(ipass)))
-            if(nud_uv>0)then
-              do k=1,klt
-                do kpass=kn(ipass),kx(ipass)
-                  do j=ns,ne
-                    do n=1,il_g
-                      dd(n+a*j+b*k+c*kpass+d)=qu(igrd(n,j,kpass),k)
-                    end do
-                  end do
+            end do
+            call ccmpi_ssend(dd(1:iy),hproc,itag,comm_world)
+            do k=1,klt
+              do j=ns,ne
+                do n=1,il_g
+                  dd(n+a*j+b*k+d)=pw(n,j,k)
                 end do
               end do
-              call ccmpi_ssend(dd(1:iy),hproc,itag,comm_world)
-              do k=1,klt
-                do kpass=kn(ipass),kx(ipass)
-                   do j=ns,ne
-                    do n=1,il_g
-                      dd(n+a*j+b*k+c*kpass+d)=qv(igrd(n,j,kpass),k)
-                    end do
-                  end do
-                end do
-              end do
-              call ccmpi_ssend(dd(1:iy),hproc,itag,comm_world)
-              do k=1,klt
-                do kpass=kn(ipass),kx(ipass)
-                  do j=ns,ne
-                    do n=1,il_g
-                      dd(n+a*j+b*k+c*kpass+d)=qw(igrd(n,j,kpass),k)
-                    end do
-                  end do
-                end do
-              end do
-              call ccmpi_ssend(dd(1:iy),hproc,itag,comm_world)
-            end if
-            if(nud_t>0)then
-              do k=1,klt
-                do kpass=kn(ipass),kx(ipass)
-                  do j=ns,ne
-                    do n=1,il_g
-                      dd(n+a*j+b*k+c*kpass+d)=qt(igrd(n,j,kpass),k)
-                    end do
-                  end do
-                end do
-              end do
-              call ccmpi_ssend(dd(1:iy),hproc,itag,comm_world)
-            end if
-            if(nud_q>0)then
-              do k=1,klt
-                do kpass=kn(ipass),kx(ipass)
-                  do j=ns,ne
-                    do n=1,il_g
-                      dd(n+a*j+b*k+c*kpass+d)=qq(igrd(n,j,kpass),k)
-                    end do
-                  end do
-                end do
-              end do
-              call ccmpi_ssend(dd(1:iy),hproc,itag,comm_world)
-            end if
+            end do
+            call ccmpi_ssend(dd(1:iy),hproc,itag,comm_world)
           end if
-        end if
-          
+          if(nud_t>0)then
+            do k=1,klt
+              do j=ns,ne
+                do n=1,il_g
+                  dd(n+a*j+b*k+d)=pt(n,j,k)
+                end do
+              end do
+            end do
+            call ccmpi_ssend(dd(1:iy),hproc,itag,comm_world)
+          end if
+          if(nud_q>0)then
+            do k=1,klt
+              do j=ns,ne
+                do n=1,il_g
+                  dd(n+a*j+b*k+d)=pq(n,j,k)
+                end do
+              end do
+            end do
+            call ccmpi_ssend(dd(1:iy),hproc,itag,comm_world)
+          end if
+        end if  
       end do
       
       return  
       end subroutine speclocal
-
-      !---------------------------------------------------------------------------------
-      ! This code runs between the local processors
-      ! Code was moved to this subroutine to help the compiler vectorise the code
-      ! This version only handles an even distribution of rows across processors
-      subroutine speclocal_s(mproc,hproc,ns,ne,cq,ppass,qsum,
-     &             qp,qu,qv,qw,qt,qq,lsize,lblock,klt)
-
-      use cc_mpi            ! CC MPI routines
-      use xyzinfo_m         ! Grid coordinate arrays
-
-      implicit none
-      
-      include 'newmpar.h'   ! Grid parameters
-      include 'parm.h'      ! Model configuration
-      
-      integer, intent(in) :: mproc,hproc,ns,ne,ppass,lsize,klt
-      integer j,k,n,ipass,kpass,iy,ix,me,a,b,c
-      integer iproc,ierr
-      integer :: itag=0
-      integer, save :: comm_face
-      integer, dimension(4*il_g,il_g,0:3) :: igrd
-      integer, dimension(0:3) :: maps
-      integer, parameter, dimension(2:3) :: kn=(/0,3/)
-      integer, parameter, dimension(2:3) :: kx=(/2,3/)
-      real, intent(in) :: cq
-      real, dimension(ifull_g), intent(inout) :: qp,qsum
-      real, dimension(ifull_g,klt), intent(inout) :: qu,qv
-      real, dimension(ifull_g,klt), intent(inout) :: qw
-      real, dimension(ifull_g,klt), intent(inout) :: qt,qq
-      real, dimension(4*il_g,klt) :: pu,pv,pw,pt,pq
-      real, dimension(4*il_g,klt) :: au,av,aw,at,aq
-      real, dimension(4*il_g) :: pp,ap,psum,asum,ra,xa,ya,za
-      real, dimension(ifull_g*klt) :: dd
-      real, dimension(lsize*klt) :: ee
-      logical, intent(in) :: lblock
-      logical, save :: first=.true.
-      
-      if (first) then
-        call ccmpi_commsplit(comm_face,comm_world,hproc,myid-hproc)
-        first=.false.
-      end if
-      
-      maps=(/ il_g, il_g, 4*il_g, 3*il_g /)
-      dd=0.
-      ee=0.
-      
-      do ipass=0,3
-        me=maps(ipass)
-        call getiqa(igrd(:,:,ipass),me,ipass,ppass,il_g)
-
-        if (ipass==3) then
-          itag=itag+1
-          if (myid==0.and.nmaxpr==1) then
-            write(6,*) "Receive arrays from local host"
-          end if
-          iy=me*il_g
-          ix=iy/mproc
-          if (myid==hproc) then
-            do j=ne+1,il_g
-              do n=1,me
-                dd(n+me*(j-1))=qsum(igrd(n,j,ipass))
-              end do
-            end do
-          end if
-          call ccmpi_scatterx(dd(1:iy),ee(1:ix),0,comm_face)
-          if (myid/=hproc) then
-            do j=ns,ne
-              do n=1,me
-                qsum(igrd(n,j,ipass))=ee(n+me*(j-ns))
-              end do
-            end do
-          end if
-          if(nud_p>0.and.lblock)then
-            if (myid==hproc) then
-              do j=ne+1,il_g
-                do n=1,me
-                  dd(n+me*(j-1))=qp(igrd(n,j,ipass))
-                end do
-              end do
-            end if
-            call ccmpi_scatterx(dd(1:iy),ee(1:ix),0,comm_face)
-            if (myid/=hproc) then
-              do j=ns,ne
-                do n=1,me
-                  qp(igrd(n,j,ipass))=ee(n+me*(j-ns))
-                end do
-              end do
-            end if
-          end if
-          iy=me*il_g*klt
-          ix=iy/mproc
-          a=me*klt
-          if(nud_uv>0)then
-            if (myid==hproc) then
-              do j=ne+1,il_g
-                do k=1,klt
-                  do n=1,me
-                    dd(n+me*(k-1)+a*(j-1))
-     &                =qu(igrd(n,j,ipass),k)
-                  end do
-                end do
-              end do
-            end if
-            call ccmpi_scatterx(dd(1:iy),ee(1:ix),0,comm_face)
-            if (myid/=hproc) then
-              do j=ns,ne
-                do k=1,klt
-                  do n=1,me
-                    qu(igrd(n,j,ipass),k)
-     &                =ee(n+me*(k-1)+a*(j-ns))
-                  end do
-                end do
-              end do
-            end if
-            if (myid==hproc) then
-              do j=ne+1,il_g
-                do k=1,klt
-                  do n=1,me
-                    dd(n+me*(k-1)+a*(j-1))
-     &                =qv(igrd(n,j,ipass),k)
-                  end do
-                end do
-              end do
-            end if
-            call ccmpi_scatterx(dd(1:iy),ee(1:ix),0,comm_face)
-            if (myid/=hproc) then
-              do j=ns,ne
-                do k=1,klt
-                  do n=1,me
-                    qv(igrd(n,j,ipass),k)
-     &                =ee(n+me*(k-1)+a*(j-ns))
-                  end do
-                end do
-              end do
-            end if
-            if (myid==hproc) then
-              do j=ne+1,il_g
-                do k=1,klt
-                  do n=1,me
-                    dd(n+me*(k-1)+a*(j-1))
-     &                =qw(igrd(n,j,ipass),k)
-                  end do
-                end do
-              end do
-            end if
-            call ccmpi_scatterx(dd(1:iy),ee(1:ix),0,comm_face)
-            if (myid/=hproc) then
-              do j=ns,ne
-                do k=1,klt
-                  do n=1,me
-                    qw(igrd(n,j,ipass),k)
-     &                =ee(n+me*(k-1)+a*(j-ns))
-                  end do
-                end do
-              end do
-            end if
-          end if
-          if(nud_t>0)then
-            if (myid==hproc) then
-              do j=ne+1,il_g
-                do k=1,klt
-                  do n=1,me
-                    dd(n+me*(k-1)+a*(j-1))
-     &                =qt(igrd(n,j,ipass),k)
-                  end do
-                end do
-              end do
-            end if
-            call ccmpi_scatterx(dd(1:iy),ee(1:ix),0,comm_face)
-            if (myid/=hproc) then
-              do j=ns,ne
-                do k=1,klt
-                  do n=1,me
-                    qt(igrd(n,j,ipass),k)
-     &                =ee(n+me*(k-1)+a*(j-ns))
-                  end do
-                end do
-              end do
-            end if
-          end if
-          if(nud_q>0)then
-            if (myid==hproc) then
-              do j=ne+1,il_g
-                do k=1,klt
-                  do n=1,me
-                    dd(n+me*(k-1)+a*(j-1))
-     &                =qq(igrd(n,j,ipass),k)
-                  end do
-                end do
-              end do
-            end if
-            call ccmpi_scatterx(dd(1:iy),ee(1:ix),0,comm_face)
-            if (myid/=hproc) then
-              do j=ns,ne
-                do k=1,klt
-                  do n=1,me
-                    qq(igrd(n,j,ipass),k)
-     &                =ee(n+me*(k-1)+a*(j-ns))
-                  end do
-                end do
-              end do
-            end if
-          end if
-        end if
-
-        if (myid==0.and.nmaxpr==1) write(6,*) "Start convolution"
-
-        do j=ns,ne
-          asum(1:me)=qsum(igrd(1:me,j,ipass))
-          xa(1:me)=x_g(igrd(1:me,j,ipass))
-          ya(1:me)=y_g(igrd(1:me,j,ipass))
-          za(1:me)=z_g(igrd(1:me,j,ipass))
-          if (nud_p>0.and.lblock) then
-            ap(1:me)=qp(igrd(1:me,j,ipass))
-          end if
-          if (nud_uv>0) then
-            au(1:me,:)=qu(igrd(1:me,j,ipass),:)
-            av(1:me,:)=qv(igrd(1:me,j,ipass),:)
-            aw(1:me,:)=qw(igrd(1:me,j,ipass),:)
-          end if
-          if (nud_t>0) then
-            at(1:me,:)=qt(igrd(1:me,j,ipass),:)
-          end if
-          if (nud_q>0) then
-            aq(1:me,:)=qq(igrd(1:me,j,ipass),:)
-          end if
-          do n=1,il_g
-            ra(1:me)=xa(n)*xa(1:me)+ya(n)*ya(1:me)+za(n)*za(1:me)
-            ra(1:me)=acos(max(min(ra(1:me),1.),-1.))
-            ra(1:me)=exp(-(cq*ra(1:me))**2)
-            ! can also use the lines below which integrate the gaussian
-            ! analytically over the length element (but slower)
-            !ra(1)=2.*erf(cq*0.5*(ds/rearth)
-            !ra(2:me)=erf(cq*(ra(2:me)+0.5*(ds/rearth)))  ! redefine ra(:) as wgt(:)
-     &      !        -erf(cq*(ra(2:me)-0.5*(ds/rearth)))  ! (correct units are 1/cq)
-            psum(n)=sum(ra(1:me)*asum(1:me))
-            if (nud_p>0.and.lblock) then
-              pp(n)=sum(ra(1:me)*ap(1:me))
-            end if
-            if (nud_uv>0) then
-              do k=1,klt
-                pu(n,k)=sum(ra(1:me)*au(1:me,k))
-                pv(n,k)=sum(ra(1:me)*av(1:me,k))
-                pw(n,k)=sum(ra(1:me)*aw(1:me,k))
-              end do
-            end if
-            if (nud_t>0) then
-              do k=1,klt
-                pt(n,k)=sum(ra(1:me)*at(1:me,k))
-              end do
-            end if
-            if (nud_q>0) then
-              do k=1,klt
-                pq(n,k)=sum(ra(1:me)*aq(1:me,k))
-              end do
-            end if
-          end do
-          qsum(igrd(1:il_g,j,ipass))=psum(1:il_g)
-          if (nud_p>0.and.lblock) then
-            qp(igrd(1:il_g,j,ipass))=pp(1:il_g)
-          end if
-          if (nud_uv>0) then
-            qu(igrd(1:il_g,j,ipass),:)=pu(1:il_g,:)
-            qv(igrd(1:il_g,j,ipass),:)=pv(1:il_g,:)
-            qw(igrd(1:il_g,j,ipass),:)=pw(1:il_g,:)
-          end if
-          if (nud_t>0) then
-            qt(igrd(1:il_g,j,ipass),:)=pt(1:il_g,:)
-          end if
-          if (nud_q>0) then
-            qq(igrd(1:il_g,j,ipass),:)=pq(1:il_g,:)
-          end if
-        end do
-
-        if (myid==0.and.nmaxpr==1) write(6,*) "End convolution"
-
-        if (ipass==2.or.ipass==3) then
-          itag=itag+1
-          if (myid==0.and.nmaxpr==1) then
-            write(6,*) "Send arrays to local host"
-          end if
-          iy=il_g*il_g*(kx(ipass)-kn(ipass)+1)
-          ix=iy/mproc
-          a=il_g*(kx(ipass)-kn(ipass)+1)
-          c=kn(ipass)
-          if (myid/=hproc) then
-            do j=ns,ne
-              do kpass=kn(ipass),kx(ipass)
-                do n=1,il_g
-                  ee(n+il_g*(kpass-c)+a*(j-ns))
-     &              =qsum(igrd(n,j,kpass))
-                end do
-              end do
-            end do
-          end if
-          call ccmpi_gatherx(dd(1:iy),ee(1:ix),0,comm_face)
-          if (myid==hproc) then
-            do j=ne+1,il_g
-              do kpass=kn(ipass),kx(ipass)
-                do n=1,il_g
-                  qsum(igrd(n,j,kpass))
-     &              =dd(n+il_g*(kpass-c)+a*(j-1))
-                end do
-              end do
-            end do
-          end if
-          if(nud_p>0.and.lblock)then
-            if (myid/=hproc) then
-              do j=ns,ne
-                do kpass=kn(ipass),kx(ipass)
-                  do n=1,il_g
-                    ee(n+il_g*(kpass-c)+a*(j-ns))
-     &                =qp(igrd(n,j,kpass))
-                  end do
-                end do
-              end do
-            end if
-            call ccmpi_gatherx(dd(1:iy),ee(1:ix),0,comm_face)
-            if (myid==hproc) then
-              do j=ne+1,il_g
-                do kpass=kn(ipass),kx(ipass)
-                  do n=1,il_g
-                    qp(igrd(n,j,kpass))
-     &                =dd(n+il_g*(kpass-c)+a*(j-1))
-                  end do
-                end do
-              end do
-            end if
-          end if
-          iy=il_g*il_g*klt
-     &       *(kx(ipass)-kn(ipass)+1)
-          ix=iy/mproc
-          a=il_g*(kx(ipass)-kn(ipass)+1)
-          b=il_g*(kx(ipass)-kn(ipass)+1)*klt
-          c=kn(ipass)
-          if(nud_uv>0)then
-            if (myid/=hproc) then
-              do j=ns,ne
-                do k=1,klt
-                  do kpass=kn(ipass),kx(ipass)
-                    do n=1,il_g
-                      ee(n+il_g*(kpass-c)+a*(k-1)+b*(j-ns))
-     &                  =qu(igrd(n,j,kpass),k)
-                    end do
-                  end do
-                end do
-              end do
-            end if
-            call ccmpi_gatherx(dd(1:iy),ee(1:ix),0,comm_face)
-            if (myid==hproc) then
-              do j=ne+1,il_g
-                do k=1,klt           
-                  do kpass=kn(ipass),kx(ipass)
-                    do n=1,il_g
-                      qu(igrd(n,j,kpass),k)
-     &                  =dd(n+il_g*(kpass-c)+a*(k-1)+b*(j-1))
-                    end do
-                  end do
-                end do
-              end do
-            end if
-            if (myid/=hproc) then
-              do j=ns,ne
-                do k=1,klt
-                  do kpass=kn(ipass),kx(ipass)
-                    do n=1,il_g
-                      ee(n+il_g*(kpass-c)+a*(k-1)+b*(j-ns))
-     &                  =qv(igrd(n,j,kpass),k)
-                    end do
-                  end do
-                end do
-              end do
-            end if
-            call ccmpi_gatherx(dd(1:iy),ee(1:ix),0,comm_face)
-            if (myid==hproc) then
-              do j=ne+1,il_g
-                do k=1,klt          
-                  do kpass=kn(ipass),kx(ipass)
-                    do n=1,il_g
-                      qv(igrd(n,j,kpass),k)
-     &                  =dd(n+il_g*(kpass-c)+a*(k-1)+b*(j-1))
-                    end do
-                  end do
-                end do
-              end do
-            end if
-            if (myid/=hproc) then
-              do j=ns,ne
-                do k=1,klt
-                  do kpass=kn(ipass),kx(ipass)
-                    do n=1,il_g
-                      ee(n+il_g*(kpass-c)+a*(k-1)+b*(j-ns))
-     &                  =qw(igrd(n,j,kpass),k)
-                    end do
-                  end do
-                end do
-              end do
-            end if
-            call ccmpi_gatherx(dd(1:iy),ee(1:ix),0,comm_face)
-            if (myid==hproc) then
-              do j=ne+1,il_g
-                do k=1,klt   
-                  do kpass=kn(ipass),kx(ipass)
-                    do n=1,il_g
-                      qw(igrd(n,j,kpass),k)
-     &                  =dd(n+il_g*(kpass-c)+a*(k-1)+b*(j-1))
-                    end do
-                  end do
-                end do
-              end do
-            end if
-          end if
-          if(nud_t>0)then
-            if (myid/=hproc) then
-              do j=ns,ne
-                do k=1,klt
-                  do kpass=kn(ipass),kx(ipass)
-                    do n=1,il_g
-                      ee(n+il_g*(kpass-c)+a*(k-1)+b*(j-ns))
-     &                  =qt(igrd(n,j,kpass),k)
-                    end do
-                  end do
-                end do
-              end do
-            end if
-            call ccmpi_gatherx(dd(1:iy),ee(1:ix),0,comm_face)
-            if (myid==hproc) then
-              do j=ne+1,il_g
-                do k=1,klt           
-                  do kpass=kn(ipass),kx(ipass)
-                    do n=1,il_g
-                      qt(igrd(n,j,kpass),k)
-     &                  =dd(n+il_g*(kpass-c)+a*(k-1)+b*(j-1))
-                    end do
-                  end do
-                end do
-              end do
-            end if
-          end if
-          if(nud_q>0)then
-            if (myid/=hproc) then
-              do j=ns,ne
-                do k=1,klt
-                  do kpass=kn(ipass),kx(ipass)
-                    do n=1,il_g
-                      ee(n+il_g*(kpass-c)+a*(k-1)+b*(j-ns))
-     &                  =qq(igrd(n,j,kpass),k)
-                    end do
-                  end do
-                end do
-              end do
-            end if
-            call ccmpi_gatherx(dd(1:iy),ee(1:ix),0,comm_face)
-            if (myid==hproc) then
-              do j=ne+1,il_g
-                do k=1,klt        
-                  do kpass=kn(ipass),kx(ipass)
-                    do n=1,il_g
-                      qq(igrd(n,j,kpass),k)
-     &                  =dd(n+il_g*(kpass-c)+a*(k-1)+b*(j-1))
-                    end do
-                  end do
-                end do
-              end do
-            end if
-          end if
-        end if
-          
-      end do
-      
-      return  
-      end subroutine speclocal_s
 
       !---------------------------------------------------------------------------------
       ! Map from 1D convolution to global index
@@ -2859,37 +2122,28 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       real, dimension(ifull), intent(in) :: sfh
       real, dimension(ifull,wlev), intent(in) :: sstb,sssb
       real, dimension(ifull,wlev,2), intent(in) :: suvb
-      real, dimension(ifull_g,1) :: diffh_g
-      real, dimension(ifull_g,kblock) :: diff_g,diffs_g
-      real, dimension(ifull_g,kblock) :: diffu_g,diffv_g,diffw_g
-      real, dimension(ifull,kblock) :: diff
-      real, dimension(ifull_g) :: x_g,xx_g
+      real, dimension(ifull,1) :: diffh_l
+      real, dimension(ifull,kblock) :: diff_l,diffs_l
+      real, dimension(ifull,kblock) :: diffu_l,diffv_l
       real, dimension(ifull) :: old,oldt
       real, dimension(ifull,ktopmlo:kbotmlo) :: rho,nsq
-      logical disflag,lblock
+      logical lblock
       integer, parameter :: tempfix=1 ! delta temp (0=linear, 1=buoyancy)
       real, parameter :: rho0=1030.   ! linear density offset
       real, parameter :: a0=-0.3      ! linear density temp gradient
       real, parameter :: miss = 999999.
       
       
-      diff_g=miss
-      diffs_g=miss
-      diffu_g=miss
-      diffv_g=miss
-      diffw_g=miss
-      diffh_g=miss
-
       kc=min(kbotmlo,ktopmlo+wl-1)
 
       if (nud_sfh/=0) then
-        diff(:,1)=miss
         old=sfh
         call mloexport(4,old,0,0)
         where (.not.land)
-          diff(:,1)=sfh-old
+          diffh_l(:,1)=sfh-old
+        elsewhere
+          diffh_l(:,1)=miss
         end where
-        call ccmpi_gatherall(diff(:,1),diffh_g(:,1))
       end if
       
       do kbb=ktopmlo,kc,kblock
@@ -2909,12 +2163,11 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             old=sstb(:,k)
             call mloexport(0,old,k,0)
             where (.not.land)
-              diff(:,kb)=sstb(:,k)-old
+              diff_l(:,kb)=sstb(:,k)-old
             elsewhere
-              diff(:,kb)=miss
+              diff_l(:,kb)=miss
             end where
           end do
-          call ccmpi_gatherall(diff(:,1:klt),diff_g(:,1:klt))
         end if
 
         if (nud_sss/=0) then
@@ -2923,12 +2176,11 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             old=sssb(:,k)
             call mloexport(1,old,k,0)
             where (.not.land)
-              diff(:,kb)=sssb(:,k)-old
+              diffs_l(:,kb)=sssb(:,k)-old
             elsewhere
-              diff(:,kb)=miss
+              diffs_l(:,kb)=miss
             end where
           end do
-          call ccmpi_gatherall(diff(:,1:klt),diffs_g(:,1:klt))
         end if
 
         if (nud_ouv/=0) then
@@ -2937,49 +2189,31 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             old=suvb(:,k,1)
             call mloexport(2,old,k,0)
             where (.not.land)
-              diff(:,kb)=suvb(:,k,1)-old
+              diffu_l(:,kb)=suvb(:,k,1)-old
             elsewhere
-              diff(:,kb)=miss
+              diffu_l(:,kb)=miss
             end where
           end do
-          call ccmpi_gatherall(diff(:,1:klt),diffu_g(:,1:klt))
           do k=kln,klx
             kb=k-kln+1
             old=suvb(:,k,2)
             call mloexport(3,old,k,0)
             where (.not.land)
-              diff(:,kb)=suvb(:,k,2)-old
+              diffv_l(:,kb)=suvb(:,k,2)-old
             elsewhere
-              diff(:,kb)=miss
-            end where
-          end do
-          call ccmpi_gatherall(diff(:,1:klt),diffv_g(:,1:klt))
-          do k=1,klt
-            x_g=diffu_g(:,k)
-            xx_g=diffv_g(:,k)
-            diffu_g(:,k)=ax_g*x_g+bx_g*xx_g
-            diffv_g(:,k)=ay_g*x_g+by_g*xx_g
-            diffw_g(:,k)=az_g*x_g+bz_g*xx_g
-            where (abs(x_g-miss)<0.1)
-              diffu_g(:,k)=miss
-              diffv_g(:,k)=miss
-              diffw_g(:,k)=miss
+              diffv_l(:,kb)=miss
             end where
           end do
         end if
 
         if ((nud_uv/=9.and.abs(nmlo)/=1).or.namip/=0) then
-          call mlofilterfast(diff_g(:,1:klt),diffs_g(:,1:klt),
-     &                       diffu_g(:,1:klt),diffv_g(:,1:klt),
-     &                       diffw_g(:,1:klt),diffh_g(:,1),
-     &                       miss,lblock,klt)
-          disflag=.true.
+          call mlofilterfast(diff_l(:,1:klt),diffs_l(:,1:klt),
+     &                       diffu_l(:,1:klt),diffv_l(:,1:klt),
+     &                       diffh_l(:,1),miss,lblock,klt)
         else
-          call mlofilter(diff_g(:,1:klt),diffs_g(:,1:klt),
-     &                   diffu_g(:,1:klt),diffv_g(:,1:klt),
-     &                   diffw_g(:,1:klt),diffh_g(:,1),
-     &                   miss,lblock,klt)
-          disflag=.false.
+          call mlofilter(diff_l(:,1:klt),diffs_l(:,1:klt),
+     &                   diffu_l(:,1:klt),diffv_l(:,1:klt),
+     &                   diffh_l(:,1),miss,lblock,klt)
         end if
 
         if (myid==0) then
@@ -2987,15 +2221,6 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         end if
 
         if (nud_sst/=0) then
-          if (disflag) then
-            if (myid == 0) then
-              call ccmpi_distribute(diff(:,1:klt), diff_g(:,1:klt))
-            else
-              call ccmpi_distribute(diff(:,1:klt))
-            end if
-          else
-            diff(:,1:klt)=diff_g(1:ifull,1:klt)
-          end if
           ! correct temp pertubation to minimise change in buoyancy
           if (tempfix==1.and.kc==1) then
             if (ktopmlo/=1) then
@@ -3016,7 +2241,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             ! nsq(:,k-1)=-(a0*(oldt-old))/(2.*rho0+a0*(oldt+old))
             ! old*(1.-nsq(:,k-1))=oldt*(1.+nsq(:,k-1))+2.*rho0/a0*nsq(:,k-1)
             call mloexport(0,old,1,0)
-            old=old+diff(:,1)*10./real(mloalpha)
+            old=old+diff_l(:,1)*10./real(mloalpha)
             old=max(old,271.)
             call mloimport(0,old,1,0)
             oldt=old
@@ -3033,7 +2258,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
               kb=k-kln+1
               old=sstb(:,ka)
               call mloexport(0,old,k,0)
-              old=old+diff(:,kb)*10./real(mloalpha)
+              old=old+diff_l(:,kb)*10./real(mloalpha)
               old=max(old,271.)
               call mloimport(0,old,k,0)
             end do
@@ -3041,7 +2266,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
               do k=kc+1,kbotmlo
                 old=sstb(:,ka)
                 call mloexport(0,old,k,0)
-                old=old+diff(:,kb)*10./real(mloalpha) ! kb saved from above loop
+                old=old+diff_l(:,kb)*10./real(mloalpha) ! kb saved from above loop
                 old=max(old,271.)	  
                 call mloimport(0,old,k,0)
               end do
@@ -3050,21 +2275,12 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         end if
 
         if (nud_sss/=0) then
-          if (disflag) then
-            if (myid == 0) then
-              call ccmpi_distribute(diff(:,1:klt), diffs_g(:,1:klt))
-            else
-              call ccmpi_distribute(diff(:,1:klt))
-            end if
-          else
-            diff(:,1:klt)=diffs_g(1:ifull,1:klt)
-          end if
           do k=kln,klx
             ka=min(wl,k)
             kb=k-kln+1
             old=sssb(:,ka)
             call mloexport(1,old,k,0)
-            old=old+diff(:,kb)*10./real(mloalpha)
+            old=old+diffs_l(:,kb)*10./real(mloalpha)
             old=max(old,0.)
             call mloimport(1,old,k,0)
           end do
@@ -3072,7 +2288,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             do k=kc+1,kbotmlo
               old=sssb(:,ka)
               call mloexport(1,old,k,0)
-              old=old+diff(:,kb)*10./real(mloalpha) ! kb saved from above loop
+              old=old+diffs_l(:,kb)*10./real(mloalpha) ! kb saved from above loop
               old=max(old,0.)
               call mloimport(1,old,k,0)
             end do
@@ -3080,85 +2296,51 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         end if
 
         if (nud_ouv/=0) then
-          if (disflag) then
-            if (myid == 0) then
-              do k=1,klt
-                x_g=ax_g*diffu_g(:,k)+ay_g*diffv_g(:,k)
-     &            +az_g*diffw_g(:,k)
-                xx_g=bx_g*diffu_g(:,k)+by_g*diffv_g(:,k)
-     &            +bz_g*diffw_g(:,k)
-                diffu_g(:,k)=x_g
-                diffv_g(:,k)=xx_g
-              end do
-              call ccmpi_distribute(diff(:,1:klt), diffu_g(:,1:klt))
-            else
-              call ccmpi_distribute(diff(:,1:klt))
-            end if
-          else
-            do k=1,klt
-              x_g(1:ifull)=ax*diffu_g(1:ifull,k)+ay*diffv_g(1:ifull,k)
-     &          +az*diffw_g(1:ifull,k)
-              xx_g(1:ifull)=bx*diffu_g(1:ifull,k)+by*diffv_g(1:ifull,k)
-     &          +bz*diffw_g(1:ifull,k)
-              diffu_g(1:ifull,k)=x_g(1:ifull)
-              diffv_g(1:ifull,k)=xx_g(1:ifull)
-            end do
-            diff(:,1:klt)=diffu_g(1:ifull,1:klt)
-          end if
           do k=kln,klx
             ka=min(wl,k)
             kb=k-kln+1
             old=suvb(:,ka,1)
             call mloexport(2,old,k,0)
-            old=old+diff(:,kb)*10./real(mloalpha)
+            old=old+diffu_l(:,kb)*10./real(mloalpha)
             call mloimport(2,old,k,0)
             if (allocated(oldu1)) then
-              oldu1(:,k)=oldu1(:,k)+diff(:,kb)*10./real(mloalpha)
-              oldu2(:,k)=oldu2(:,k)+diff(:,kb)*10./real(mloalpha)
+              oldu1(:,k)=oldu1(:,k)+diffu_l(:,kb)*10./real(mloalpha)
+              oldu2(:,k)=oldu2(:,k)+diffu_l(:,kb)*10./real(mloalpha)
             end if
           end do
           if (klx==kc) then
             do k=kc+1,kbotmlo
               old=suvb(:,ka,1)
               call mloexport(2,old,k,0)
-              old=old+diff(:,kb)*10./real(mloalpha) ! kb saved from above loop
+              old=old+diffu_l(:,kb)*10./real(mloalpha) ! kb saved from above loop
               call mloimport(2,old,k,0)
               if (allocated(oldu1)) then
-                oldu1(:,k)=oldu1(:,k)+diff(:,kb)*10./real(mloalpha)
-                oldu2(:,k)=oldu2(:,k)+diff(:,kb)*10./real(mloalpha)
+                oldu1(:,k)=oldu1(:,k)+diffu_l(:,kb)*10./real(mloalpha)
+                oldu2(:,k)=oldu2(:,k)+diffu_l(:,kb)*10./real(mloalpha)
               end if
             end do
-          end if
-          if (disflag) then
-            if (myid == 0) then
-              call ccmpi_distribute(diff(:,1:klt), diffv_g(:,1:klt))
-            else
-              call ccmpi_distribute(diff(:,1:klt))
-            end if
-          else
-            diff(:,1:klt)=diffv_g(1:ifull,1:klt)
           end if
           do k=kln,klx
             ka=min(wl,k)
             kb=k-kln+1
             old=suvb(:,ka,2)
             call mloexport(3,old,k,0)
-            old=old+diff(:,kb)*10./real(mloalpha)
+            old=old+diffv_l(:,kb)*10./real(mloalpha)
             call mloimport(3,old,k,0)
             if (allocated(oldv1)) then
-              oldv1(:,k)=oldv1(:,k)+diff(:,kb)*10./real(mloalpha)
-              oldv2(:,k)=oldv2(:,k)+diff(:,kb)*10./real(mloalpha)
+              oldv1(:,k)=oldv1(:,k)+diffv_l(:,kb)*10./real(mloalpha)
+              oldv2(:,k)=oldv2(:,k)+diffv_l(:,kb)*10./real(mloalpha)
             end if
           end do
           if (klx==kc) then
             do k=kc+1,kbotmlo
               old=suvb(:,ka,2)
               call mloexport(3,old,k,0)
-              old=old+diff(:,kb)*10./real(mloalpha)
+              old=old+diffv_l(:,kb)*10./real(mloalpha)
               call mloimport(3,old,k,0)
               if (allocated(oldv1)) then
-                oldv1(:,k)=oldv1(:,k)+diff(:,kb)*10./real(mloalpha)
-                oldv2(:,k)=oldv2(:,k)+diff(:,kb)*10./real(mloalpha)
+                oldv1(:,k)=oldv1(:,k)+diffv_l(:,kb)*10./real(mloalpha)
+                oldv2(:,k)=oldv2(:,k)+diffv_l(:,kb)*10./real(mloalpha)
               end if
             end do
           end if
@@ -3167,18 +2349,9 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       end do
      
       if (nud_sfh/=0) then
-        if (disflag) then
-          if (myid == 0) then
-            call ccmpi_distribute(diff(:,1:1), diffh_g(:,1:1))
-          else
-            call ccmpi_distribute(diff(:,1:1))
-          end if
-        else
-          diff(:,1)=diffh_g(1:ifull,1)
-        end if
         old=sfh
         call mloexport(4,old,0,0)
-        old=old+diff(:,1)*10./real(mloalpha)
+        old=old+diffh_l(:,1)*10./real(mloalpha)
         call mloimport(4,old,0,0)
       end if
 
@@ -3187,10 +2360,11 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       
       !---------------------------------------------------------------------------------
       ! 2D Filter for MLO 
-      subroutine mlofilter(diff_g,diffs_g,diffu_g,diffv_g,diffw_g,
-     &                     diffh_g,miss,lblock,kd)
+      subroutine mlofilter(diff_l,diffs_l,diffu_l,diffv_l,
+     &                     diffh_l,miss,lblock,kd)
 
       use cc_mpi                  ! CC MPI routines
+      use vecsuv_m                ! Map to cartesian coordinates
 
       implicit none
 
@@ -3198,28 +2372,46 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       include 'parm.h'            ! Model configuration
 
       integer, intent(in) :: kd
-      integer ierr
+      integer k,ierr
       real, intent(in) :: miss
-      real, dimension(ifull_g,1), intent(inout) :: diffh_g
-      real, dimension(ifull_g,kd), intent(inout) :: diff_g,diffs_g
-      real, dimension(ifull_g,kd), intent(inout) :: diffu_g,diffv_g
-      real, dimension(ifull_g,kd), intent(inout) :: diffw_g
+      real, dimension(ifull,1), intent(inout) :: diffh_l
+      real, dimension(ifull,kd), intent(inout) :: diff_l,diffs_l
+      real, dimension(ifull,kd), intent(inout) :: diffu_l,diffv_l
+      real, dimension(ifull_g,1) :: diffh_g
+      real, dimension(ifull_g,kd) :: diff_g,diffs_g
+      real, dimension(ifull_g,kd) :: diffu_g,diffv_g
+      real, dimension(ifull_g,kd) :: diffw_g
+      real, dimension(ifull_g) :: x_g, xx_g
       logical, intent(in) :: lblock
       logical, dimension(ifull_g) :: landg
 
       if (nud_sst/=0) then
+        call ccmpi_gatherall(diff_l(:,1:kd),diff_g(:,1:kd))
         landg=abs(diff_g(:,1)-miss)<0.1
       end if
-
       if (nud_sss/=0) then
+        call ccmpi_gatherall(diffs_l(:,1:kd),diffs_g(:,1:kd))
         landg=abs(diffs_g(:,1)-miss)<0.1
       end if
-
       if (nud_ouv/=0) then
+        call ccmpi_gatherall(diffu_l(:,1:kd),diffu_g(:,1:kd))
+        call ccmpi_gatherall(diffv_l(:,1:kd),diffv_g(:,1:kd))
+        do k=1,kd
+          x_g =diffu_g(:,k)
+          xx_g=diffv_g(:,k)
+          diffu_g(:,k)=ax_g*x_g+bx_g*xx_g
+          diffv_g(:,k)=ay_g*x_g+by_g*xx_g
+          diffw_g(:,k)=az_g*x_g+bz_g*xx_g
+          where (abs(x_g-miss)<0.1)
+            diffu_g(:,k)=miss
+            diffv_g(:,k)=miss
+            diffw_g(:,k)=miss
+          end where
+        end do        
         landg=abs(diffw_g(:,1)-miss)<0.1
       end if
-
       if (nud_sfh/=0.and.lblock) then
+        call ccmpi_gatherall(diffh_l(:,1),diffh_g(:,1))
         landg=abs(diffh_g(:,1)-miss)<0.1
       end if
 
@@ -3239,6 +2431,20 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       if (myid==0.and.nmaxpr==1) then
         write(6,*) "MLO end 2D filter"
       end if
+      
+      if (nud_sst/=0) then
+        diff_l=diff_g(1:ifull,:)
+      end if
+      if (nud_sss/=0) then
+        diffs_l=diffs_g(1:ifull,:)
+      end if
+      if (nud_ouv/=0) then
+        diffu_l=diffu_g(1:ifull,:)
+        diffv_l=diffv_g(1:ifull,:)
+      end if
+      if (nud_sfh/=0.and.lblock) then
+        diffh_l=diffh_g(1:ifull,:)
+      end if
 
       return
       end subroutine mlofilter
@@ -3248,6 +2454,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
 
       use cc_mpi             ! CC MPI routines
       use map_m              ! Grid map arrays
+      use vecsuv_m           ! Map to cartesian coordinates
       use xyzinfo_m          ! Grid coordinate arrays
 
       implicit none
@@ -3267,7 +2474,8 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       real, dimension(ifull_g,kd), intent(inout) :: diffw_g
       real, dimension(ifull_g) :: rr,mm,nn
       real, dimension(ifull) :: ddh
-      real, dimension(ifull,kd) :: dd,dds,ddu,ddv,ddw
+      real, dimension(ifull,kd) :: dd,dds,ddu,ddv
+      real, dimension(kd) :: tu,tv,tw
       logical, intent(in) :: lblock
       logical, dimension(ifull_g), intent(in) :: landg
 
@@ -3275,16 +2483,16 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       cq=sqrt(4.5)*.1*real(max(nud_sst,nud_sss,nud_ouv,nud_sfh,mbd))
      &   /(pi*schmidt)
 
-      mm=1./(em_g*em_g)
-      nn=0.
       dd=0.
       dds=0.
       ddu=0.
       ddv=0.
-      ddw=0.
       ddh=0.
+      mm=1./(em_g*em_g)
       where(.not.landg)
         nn=mm
+      elsewhere
+        nn=0.
       end where
       if (nud_sst/=0) then
         do k=1,kd
@@ -3328,9 +2536,11 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
               end if
               if (nud_ouv/=0) then
                 do k=1,kd
-                  ddu(iqq,k)=sum(rr(:)*diffu_g(:,k))/nsum
-                  ddv(iqq,k)=sum(rr(:)*diffv_g(:,k))/nsum
-                  ddw(iqq,k)=sum(rr(:)*diffw_g(:,k))/nsum
+                  tu(k)=sum(rr(:)*diffu_g(:,k))/nsum
+                  tv(k)=sum(rr(:)*diffv_g(:,k))/nsum
+                  tw(k)=sum(rr(:)*diffw_g(:,k))/nsum
+                  ddu(iqq,k)=ax(iqq)*tu(k)+ay(iqq)*tv(k)+az(iqq)*tw(k)
+                  ddv(iqq,k)=bx(iqq)*tu(k)+by(iqq)*tv(k)+bz(iqq)*tw(k)
                 end do
               end if
               if (nud_sfh/=0.and.lblock) then
@@ -3359,8 +2569,8 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       end subroutine mlofilterhost
 
       ! 1D filer for mlo
-      subroutine mlofilterfast(diff_g,diffs_g,diffu_g,diffv_g,diffw_g,
-     &                         diffh_g,miss,lblock,kd)
+      subroutine mlofilterfast(diff_l,diffs_l,diffu_l,diffv_l,
+     &                         diffh_l,miss,lblock,kd)
 
       use cc_mpi                  ! CC MPI routines
 
@@ -3372,12 +2582,11 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       include 'parmgeom.h'        ! Coordinate data
 
       integer, intent(in) :: kd
-      integer pn,px,hproc,mproc,ns,ne,npta
+      integer pn,px,hproc,mproc,ns,ne,npta,ifg
       real, intent(in) :: miss      
-      real, dimension(ifull_g,1), intent(inout) :: diffh_g
-      real, dimension(ifull_g,kd), intent(inout) :: diff_g,diffs_g
-      real, dimension(ifull_g,kd), intent(inout) :: diffu_g,diffv_g
-      real, dimension(ifull_g,kd), intent(inout) :: diffw_g
+      real, dimension(ifull,1), intent(inout) :: diffh_l
+      real, dimension(ifull,kd), intent(inout) :: diff_l,diffs_l
+      real, dimension(ifull,kd), intent(inout) :: diffu_l,diffv_l
       real cq
       logical, intent(in) :: lblock
       
@@ -3417,14 +2626,19 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         call procdiv(ns,ne,il_g,nproc,myid) ! number of rows per processor
       end if
 
+      if (myid==hproc) then
+        ifg=ifull_g
+      else
+        ifg=0
+      end if
       if (pn==px) then
         call mlospechost_n(mproc,hproc,pn,ns,ne,cq,
-     &                   diff_g,diffs_g,diffu_g,diffv_g,diffw_g,
-     &                   diffh_g,miss,lblock,kd)
+     &                   diff_l,diffs_l,diffu_l,diffv_l,
+     &                   diffh_l,miss,lblock,kd,ifg)
       else
         call mlospechost(mproc,hproc,npta,pn,px,ns,ne,cq,
-     &                   diff_g,diffs_g,diffu_g,diffv_g,diffw_g,
-     &                   diffh_g,miss,lblock,kd)
+     &                   diff_l,diffs_l,diffu_l,diffv_l,
+     &                   diffh_l,miss,lblock,kd,ifg)
       end if
 
       if (myid==0.and.nmaxpr==1) then
@@ -3435,133 +2649,223 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       end subroutine mlofilterfast
 
       subroutine mlospechost(mproc,hproc,npta,pn,px,ns,ne,cq,
-     &                       diff_g,diffs_g,diffu_g,diffv_g,diffw_g,
-     &                       diffh_g,miss,lblock,kd)
+     &                       diff_l,diffs_l,diffu_l,diffv_l,
+     &                       diffh_l,miss,lblock,kd,ifg)
 
       use cc_mpi             ! CC MPI routines
       use map_m              ! Grid map arrays
+      use vecsuv_m           ! Map to cartesian coordinates
       
       implicit none
       
       include 'newmpar.h'    ! Grid parameters
       include 'parm.h'       ! Model configuration
       
-      integer, intent(in) :: mproc,hproc,npta,pn,px,ns,ne,kd
+      integer, intent(in) :: mproc,hproc,npta,pn,px,ns,ne,kd,ifg
       integer ppass,iy,ppn,ppx,nne,nns,iproc,ierr
-      integer n,a,b,c,k,til,lsize
+      integer n,a,b,c,k,til,colour,rank
       integer :: itag=0
+      integer, save :: comm_host
       real, intent(in) :: cq,miss
-      real, dimension(ifull_g,1), intent(inout) :: diffh_g
-      real, dimension(ifull_g,kd), intent(inout) :: diff_g,diffs_g
-      real, dimension(ifull_g,kd), intent(inout) :: diffu_g,diffv_g
-      real, dimension(ifull_g,kd), intent(inout) :: diffw_g
-      real, dimension(ifull_g) :: qsum,rsum,zph,qph
-      real, dimension(ifull_g,kd) :: zp,zps,zpu,zpv,zpw
-      real, dimension(ifull_g,kd) :: qp,qps,qpu,qpv,qpw
-      real, dimension(ifull_g*kd) :: zz
+      real, dimension(ifull,1), intent(inout) :: diffh_l
+      real, dimension(ifull,kd), intent(inout) :: diff_l,diffs_l
+      real, dimension(ifull,kd), intent(inout) :: diffu_l,diffv_l
+      real, dimension(ifg,1) :: diffh_g
+      real, dimension(ifg,kd) :: diff_g,diffs_g
+      real, dimension(ifg,kd) :: diffu_g,diffv_g
+      real, dimension(ifg,kd) :: diffw_g
+      real, dimension(ifg) :: qsum,rsum,zph,qph,x_g,xx_g
+      real, dimension(ifg,kd) :: zp,zps,zpu,zpv,zpw
+      real, dimension(ifg,kd) :: qp,qps,qpu,qpv,qpw
+      real, dimension(ifg*kd) :: zz
       logical, intent(in) :: lblock
-      logical, dimension(ifull_g) :: landg
+      logical, dimension(ifg) :: landg
+      logical, save :: first = .true.
+
+      if (first) then
+        if (myid==hproc) then
+          colour=0
+          rank=hproc/mproc
+        else
+          colour=1
+          rank=myid-hproc
+        end if
+        call ccmpi_commsplit(comm_host,comm_world,colour,rank)
+        first=.false.
+      end if
       
       til=il_g*il_g 
 
+      ! gather data onto myid==0
       if (nud_sst/=0) then
-        landg=abs(diff_g(:,1)-miss)<0.1
+        if (myid==0) then
+          call ccmpi_gather(diff_l(:,1:kd),diff_g(:,1:kd))
+        else
+          call ccmpi_gather(diff_l(:,1:kd))
+        end if
       end if
       if (nud_sss/=0) then
-        landg=abs(diffs_g(:,1)-miss)<0.1
+        if (myid==0) then
+          call ccmpi_gather(diffs_l(:,1:kd),diffs_g(:,1:kd))
+        else
+          call ccmpi_gather(diffs_l(:,1:kd))
+        end if
       end if
       if (nud_ouv/=0) then
-        landg=abs(diffw_g(:,1)-miss)<0.1
+        if (myid==0) then
+          call ccmpi_gather(diffu_l(:,1:kd),diffu_g(:,1:kd))
+          call ccmpi_gather(diffv_l(:,1:kd),diffv_g(:,1:kd))
+          do k=1,kd
+            x_g =diffu_g(:,k)
+            xx_g=diffv_g(:,k)
+            diffu_g(:,k)=ax_g*x_g+bx_g*xx_g
+            diffv_g(:,k)=ay_g*x_g+by_g*xx_g
+            diffw_g(:,k)=az_g*x_g+bz_g*xx_g
+            where (abs(x_g-miss)<0.1)
+              diffu_g(:,k)=miss
+              diffv_g(:,k)=miss
+              diffw_g(:,k)=miss
+            end where
+          end do
+        else
+          call ccmpi_gather(diffu_l(:,1:kd),diffu_g(:,1:kd))
+          call ccmpi_gather(diffv_l(:,1:kd),diffv_g(:,1:kd))
+        end if        
       end if
       if (nud_sfh/=0.and.lblock) then
-        landg=abs(diffh_g(:,1)-miss)<0.1
+        if (myid==0) then
+          call ccmpi_gather(diffh_l(:,1),diffh_g(:,1))
+        else
+          call ccmpi_gather(diffh_l(:,1))
+        end if
       end if
-      
+     
       if (ns>ne) return
       if (myid==0.and.nmaxpr==1) write(6,*) "MLO Start 1D filter"
 
-      zp=0.
-      zps=0.
-      zpu=0.
-      zpv=0.
-      zpw=0.
-      zph=0.
-
-      do ppass=pn,px
-
-        rsum=0.
+      ! distribute data over host processors
+      if (myid==hproc) then
         qsum(:)=1./(em_g(:)*em_g(:))
+        if (nud_sst/=0) then
+          call ccmpi_bcast(diff_g,0,comm_host)
+          landg=abs(diff_g(:,1)-miss)<0.1
+        end if
+        if (nud_sss/=0) then
+          call ccmpi_bcast(diffs_g,0,comm_host)
+          landg=abs(diffs_g(:,1)-miss)<0.1
+        end if
+        if (nud_ouv/=0) then
+          call ccmpi_bcast(diffu_g,0,comm_host)
+          call ccmpi_bcast(diffv_g,0,comm_host)
+          call ccmpi_bcast(diffw_g,0,comm_host)
+          landg=abs(diffw_g(:,1)-miss)<0.1
+        end if
+        if (nud_sfh/=0.and.lblock) then
+          call ccmpi_bcast(diffh_g,0,comm_host)
+          landg=abs(diffh_g(:,1)-miss)<0.1
+        end if        
+        
         where(.not.landg) ! land/sea mask
           rsum(:)=qsum(:)
+        elsewhere
+          rsum(:)=0.
         end where
 
         if (nud_sst/=0) then
           do k=1,kd
-            qp(:,k)=diff_g(:,k)*rsum
+            diff_g(:,k)=diff_g(:,k)*rsum
           end do
         end if
         if (nud_sss/=0) then
           do k=1,kd
-            qps(:,k)=diffs_g(:,k)*rsum
+            diffs_g(:,k)=diffs_g(:,k)*rsum
           end do
         end if 
         if (nud_ouv/=0) then
           do k=1,kd
-            qpu(:,k)=diffu_g(:,k)*rsum
-            qpv(:,k)=diffv_g(:,k)*rsum
-            qpw(:,k)=diffw_g(:,k)*rsum
+            diffu_g(:,k)=diffu_g(:,k)*rsum
+            diffv_g(:,k)=diffv_g(:,k)*rsum
+            diffw_g(:,k)=diffw_g(:,k)*rsum
           end do
         end if
         if (nud_sfh/=0.and.lblock) then
-          qph=diffh_g(:,1)*rsum
+          diffh_g(:,1)=diffh_g(:,1)*rsum
+        end if
+
+        zp=0.
+        zps=0.
+        zpu=0.
+        zpv=0.
+        zpw=0.
+        zph=0.
+      end if
+
+      do ppass=pn,px
+
+        if (myid==hproc) then
+          qsum(:)=1./(em_g(:)*em_g(:))
+
+          if (nud_sst/=0) then
+            do k=1,kd
+              qp(:,k)=diff_g(:,k)
+            end do
+          end if
+          if (nud_sss/=0) then
+            do k=1,kd
+              qps(:,k)=diffs_g(:,k)
+            end do
+          end if 
+          if (nud_ouv/=0) then
+            do k=1,kd
+              qpu(:,k)=diffu_g(:,k)
+              qpv(:,k)=diffv_g(:,k)
+              qpw(:,k)=diffw_g(:,k)
+            end do
+          end if
+          if (nud_sfh/=0.and.lblock) then
+            qph=diffh_g(:,1)
+          end if
         end if
 
         ! computations for the local processor group
-        if (mod(il_g,mproc)==0) then
-          if (myid==0.and.nmaxpr==1) then
-            write(6,*) "MLO Symmetric decomposition"
+        call mlospeclocal(mproc,hproc,ns,ne,cq,ppass,qsum,
+     &                      qp,qps,qpu,qpv,qpw,qph,kd,lblock,
+     &                      ifg)
+        
+        ! store results on host processors
+        if (myid==hproc) then
+          nns=ppass*til+1
+          nne=ppass*til+til
+          if (nud_sst/=0) then
+            do k=1,kd
+              where (qsum(nns:nne)>1.E-8)
+                zp(nns:nne,k)=qp(nns:nne,k)/qsum(nns:nne)
+              end where
+            end do
           end if
-          lsize=ifull_g/mproc
-          call mlospeclocal_s(mproc,hproc,ns,ne,cq,ppass,qsum,
-     &                      qp,qps,qpu,qpv,qpw,qph,kd,lsize,lblock)
-        else
-          if (myid==0.and.nmaxpr==1) then
-            write(6,*) "MLO Asymmetric decomposition"
+          if (nud_sss/=0) then
+            do k=1,kd
+              where (qsum(nns:nne)>1.E-8)
+                zps(nns:nne,k)=qps(nns:nne,k)/qsum(nns:nne)
+              end where
+            end do
           end if
-          call mlospeclocal(mproc,hproc,ns,ne,cq,ppass,qsum,
-     &                      qp,qps,qpu,qpv,qpw,qph,kd,lblock)
+          if (nud_ouv/=0) then
+            do k=1,kd
+              where (qsum(nns:nne)>1.E-8)
+                zpu(nns:nne,k)=qpu(nns:nne,k)/qsum(nns:nne)
+                zpv(nns:nne,k)=qpv(nns:nne,k)/qsum(nns:nne)
+                zpw(nns:nne,k)=qpw(nns:nne,k)/qsum(nns:nne)
+              end where
+            end do
+          end if
+          if (nud_sfh/=0.and.lblock) then
+            where (qsum(nns:nne)>1.E-8)
+              zph(nns:nne)=qph(nns:nne)/qsum(nns:nne)
+            end where
+          end if
         end if
         
-        nns=ppass*til+1
-        nne=ppass*til+til
-        if (nud_sst/=0) then
-          do k=1,kd
-            where (qsum(nns:nne)>1.E-8)
-              zp(nns:nne,k)=qp(nns:nne,k)/qsum(nns:nne)
-            end where
-          end do
-        end if
-        if (nud_sss/=0) then
-          do k=1,kd
-            where (qsum(nns:nne)>1.E-8)
-              zps(nns:nne,k)=qps(nns:nne,k)/qsum(nns:nne)
-            end where
-          end do
-        end if
-        if (nud_ouv/=0) then
-          do k=1,kd
-            where (qsum(nns:nne)>1.E-8)
-              zpu(nns:nne,k)=qpu(nns:nne,k)/qsum(nns:nne)
-              zpv(nns:nne,k)=qpv(nns:nne,k)/qsum(nns:nne)
-              zpw(nns:nne,k)=qpw(nns:nne,k)/qsum(nns:nne)
-            end where
-          end do
-        end if
-        if (nud_sfh/=0.and.lblock) then
-          where (qsum(nns:nne)>1.E-8)
-            zph(nns:nne)=qph(nns:nne)/qsum(nns:nne)
-          end where
-        end if
       end do
 
       if (myid==0.and.nmaxpr==1) write(6,*) "MLO End 1D filter"
@@ -3698,145 +3002,239 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         end if
       end if      
       
-      diff_g(:,:)=zp(:,:)
-      diffs_g(:,:)=zps(:,:)
-      diffu_g(:,:)=zpu(:,:)
-      diffv_g(:,:)=zpv(:,:)
-      diffw_g(:,:)=zpw(:,:)
-      diffh_g(:,1)=zph(:)
+      ! distribute data to processors
+      if (nud_sst/=0) then
+        if (myid == 0) then
+          call ccmpi_distribute(diff_l(:,1:kd), zp(:,1:kd))
+        else
+          call ccmpi_distribute(diff_l(:,1:kd))
+        end if
+      end if
+      if (nud_sss/=0) then
+        if (myid == 0) then
+          call ccmpi_distribute(diffs_l(:,1:kd), zps(:,1:kd))
+        else
+          call ccmpi_distribute(diffs_l(:,1:kd))
+        end if
+      end if
+      if (nud_ouv/=0) then
+        if (myid == 0) then
+          do k=1,kd
+            x_g =ax_g*zpu(:,k)+ay_g*zpv(:,k)
+     &        +az_g*zpw(:,k)
+            xx_g=bx_g*zpu(:,k)+by_g*zpv(:,k)
+     &        +bz_g*zpw(:,k)
+            zpu(:,k)=x_g
+            zpv(:,k)=xx_g
+          end do
+          call ccmpi_distribute(diffu_l(:,1:kd), zpu(:,1:kd))
+          call ccmpi_distribute(diffv_l(:,1:kd), zpv(:,1:kd))
+        else
+          call ccmpi_distribute(diffu_l(:,1:kd))
+          call ccmpi_distribute(diffv_l(:,1:kd))
+        end if
+      end if
+      if (nud_sfh/=0.and.lblock) then
+        if (myid == 0) then
+          call ccmpi_distribute(diffh_l(:,1), zph(:))
+        else
+          call ccmpi_distribute(diffh_l(:,1))
+        end if
+      end if
 
       return
       end subroutine mlospechost
       !---------------------------------------------------------------------------------
       ! memory reduced version
       subroutine mlospechost_n(mproc,hproc,pn,ns,ne,cq,
-     &                       diff_g,diffs_g,diffu_g,diffv_g,diffw_g,
-     &                       diffh_g,miss,lblock,kd)
+     &                       diff_l,diffs_l,diffu_l,diffv_l,
+     &                       diffh_l,miss,lblock,kd,ifg)
 
       use cc_mpi             ! CC MPI routines
       use map_m              ! Grid map arrays
+      use vecsuv_m          ! Map to cartesian coordinates
       
       implicit none
       
       include 'newmpar.h'    ! Grid parameters
       include 'parm.h'       ! Model configuration
       
-      integer, intent(in) :: mproc,hproc,pn,ns,ne,kd
+      integer, intent(in) :: mproc,hproc,pn,ns,ne,kd,ifg
       integer iy,ppn,nne,nns,iproc,ierr
-      integer n,a,b,c,k,til,lsize
+      integer n,a,b,c,k,til,colour,rank
       integer :: itag=0
+      integer, save :: comm_host
       real, intent(in) :: cq,miss
-      real, dimension(ifull_g,1), intent(inout) :: diffh_g
-      real, dimension(ifull_g,kd), intent(inout) :: diff_g,diffs_g
-      real, dimension(ifull_g,kd), intent(inout) :: diffu_g,diffv_g
-      real, dimension(ifull_g,kd), intent(inout) :: diffw_g
-      real, dimension(ifull_g) :: qsum,rsum
-      real, dimension(ifull_g*kd) :: zz
+      real, dimension(ifull,1), intent(inout) :: diffh_l
+      real, dimension(ifull,kd), intent(inout) :: diff_l,diffs_l
+      real, dimension(ifull,kd), intent(inout) :: diffu_l,diffv_l
+      real, dimension(ifg,1) :: diffh_g
+      real, dimension(ifg,kd) :: diff_g,diffs_g
+      real, dimension(ifg,kd) :: diffu_g,diffv_g,diffw_g
+      real, dimension(ifg) :: qsum,rsum,x_g,xx_g
+      real, dimension(ifg*kd) :: zz
       logical, intent(in) :: lblock
-      logical, dimension(ifull_g) :: landg
+      logical, dimension(ifg) :: landg
+      logical, save :: first = .true.
+
+      if (first) then
+        if (myid==hproc) then
+          colour=0
+          rank=hproc/mproc
+        else
+          colour=1
+          rank=myid-hproc
+        end if
+        call ccmpi_commsplit(comm_host,comm_world,colour,rank)
+        first=.false.
+      end if
       
       til=il_g*il_g 
 
+      ! gather data onto myid==0
       if (nud_sst/=0) then
-        landg=abs(diff_g(:,1)-miss)<0.1
+        if (myid==0) then
+          call ccmpi_gather(diff_l(:,1:kd),diff_g(:,1:kd))
+        else
+          call ccmpi_gather(diff_l(:,1:kd))
+        end if
       end if
       if (nud_sss/=0) then
-        landg=abs(diffs_g(:,1)-miss)<0.1
+        if (myid==0) then
+          call ccmpi_gather(diffs_l(:,1:kd),diffs_g(:,1:kd))
+        else
+          call ccmpi_gather(diffs_l(:,1:kd))
+        end if
       end if
       if (nud_ouv/=0) then
-        landg=abs(diffw_g(:,1)-miss)<0.1
+        if (myid==0) then
+          call ccmpi_gather(diffu_l(:,1:kd),diffu_g(:,1:kd))
+          call ccmpi_gather(diffv_l(:,1:kd),diffv_g(:,1:kd))
+          do k=1,kd
+            x_g =diffu_g(:,k)
+            xx_g=diffv_g(:,k)
+            diffu_g(:,k)=ax_g*x_g+bx_g*xx_g
+            diffv_g(:,k)=ay_g*x_g+by_g*xx_g
+            diffw_g(:,k)=az_g*x_g+bz_g*xx_g
+            where (abs(x_g-miss)<0.1)
+              diffu_g(:,k)=miss
+              diffv_g(:,k)=miss
+              diffw_g(:,k)=miss
+            end where
+          end do
+        else
+          call ccmpi_gather(diffu_l(:,1:kd),diffu_g(:,1:kd))
+          call ccmpi_gather(diffv_l(:,1:kd),diffv_g(:,1:kd))
+        end if        
       end if
       if (nud_sfh/=0.and.lblock) then
-        landg=abs(diffh_g(:,1)-miss)<0.1
+        if (myid==0) then
+          call ccmpi_gather(diffh_l(:,1),diffh_g(:,1))
+        else
+          call ccmpi_gather(diffh_l(:,1))
+        end if
       end if
       
       if (ns>ne) return
       if (myid==0.and.nmaxpr==1) write(6,*) "MLO Start 1D filter"
 
-      rsum=0.
-      qsum(:)=1./(em_g(:)*em_g(:))
-      where(.not.landg) ! land/sea mask
-        rsum(:)=qsum(:)
-      end where
+      ! distribute data over host processors
+      if (myid==hproc) then
+        qsum(:)=1./(em_g(:)*em_g(:))
+        if (nud_sst/=0) then
+          call ccmpi_bcast(diff_g,0,comm_host)
+          landg=abs(diff_g(:,1)-miss)<0.1
+        end if
+        if (nud_sss/=0) then
+          call ccmpi_bcast(diffs_g,0,comm_host)
+          landg=abs(diffs_g(:,1)-miss)<0.1
+        end if
+        if (nud_ouv/=0) then
+          call ccmpi_bcast(diffu_g,0,comm_host)
+          call ccmpi_bcast(diffv_g,0,comm_host)
+          call ccmpi_bcast(diffw_g,0,comm_host)
+          landg=abs(diffw_g(:,1)-miss)<0.1
+        end if
+        if (nud_sfh/=0.and.lblock) then
+          call ccmpi_bcast(diffh_g,0,comm_host)
+          landg=abs(diffh_g(:,1)-miss)<0.1
+        end if        
+        
+        where(.not.landg) ! land/sea mask
+          rsum(:)=qsum(:)
+        elsewhere
+          rsum(:)=0.
+        end where
 
-      if (nud_sst/=0) then
-        do k=1,kd
-          diff_g(:,k)=diff_g(:,k)*rsum
-        end do
-      end if
-      if (nud_sss/=0) then
-        do k=1,kd
-          diffs_g(:,k)=diffs_g(:,k)*rsum
-        end do
-      end if 
-      if (nud_ouv/=0) then
-        do k=1,kd
-          diffu_g(:,k)=diffu_g(:,k)*rsum
-          diffv_g(:,k)=diffv_g(:,k)*rsum
-          diffw_g(:,k)=diffw_g(:,k)*rsum
-        end do
-      end if
-      if (nud_sfh/=0.and.lblock) then
-        diffh_g(:,1)=diffh_g(:,1)*rsum
+        if (nud_sst/=0) then
+          do k=1,kd
+            diff_g(:,k)=diff_g(:,k)*rsum
+          end do
+        end if
+        if (nud_sss/=0) then
+          do k=1,kd
+            diffs_g(:,k)=diffs_g(:,k)*rsum
+          end do
+        end if 
+        if (nud_ouv/=0) then
+          do k=1,kd
+            diffu_g(:,k)=diffu_g(:,k)*rsum
+            diffv_g(:,k)=diffv_g(:,k)*rsum
+            diffw_g(:,k)=diffw_g(:,k)*rsum
+          end do
+        end if
+        if (nud_sfh/=0.and.lblock) then
+          diffh_g(:,1)=diffh_g(:,1)*rsum
+        end if
       end if
 
       ! computations for the local processor group
-      if (mod(il_g,mproc)==0) then
-        if (myid==0.and.nmaxpr==1) then
-          write(6,*) "MLO Symmetric decomposition"
-        end if
-        lsize=ifull_g/mproc
-        call mlospeclocal_s(mproc,hproc,ns,ne,cq,pn,qsum,
+      call mlospeclocal(mproc,hproc,ns,ne,cq,pn,qsum,
      &                    diff_g,diffs_g,diffu_g,diffv_g,diffw_g,
-     &                    diffh_g,kd,lsize,lblock)
-      else
-        if (myid==0.and.nmaxpr==1) then
-          write(6,*) "MLO Asymmetric decomposition"
+     &                    diffh_g,kd,lblock,ifg)
+      
+      ! store results on host processor  
+      if (myid==hproc) then
+        nns=pn*til+1
+        nne=pn*til+til
+        if (nud_sst/=0) then
+          do k=1,kd
+            where (qsum(nns:nne)>1.E-8)
+              diff_g(nns:nne,k)=diff_g(nns:nne,k)/qsum(nns:nne)
+            elsewhere
+              diff_g(nns:nne,k)=0.
+            end where
+          end do
         end if
-        call mlospeclocal(mproc,hproc,ns,ne,cq,pn,qsum,
-     &                    diff_g,diffs_g,diffu_g,diffv_g,diffw_g,
-     &                    diffh_g,kd,lblock)
-      end if
-        
-      nns=pn*til+1
-      nne=pn*til+til
-      if (nud_sst/=0) then
-        do k=1,kd
+        if (nud_sss/=0) then
+          do k=1,kd
+            where (qsum(nns:nne)>1.E-8)
+              diffs_g(nns:nne,k)=diffs_g(nns:nne,k)/qsum(nns:nne)
+            elsewhere
+              diffs_g(nns:nne,k)=0.
+            end where
+          end do
+        end if
+        if (nud_ouv/=0) then
+          do k=1,kd
+            where (qsum(nns:nne)>1.E-8)
+              diffu_g(nns:nne,k)=diffu_g(nns:nne,k)/qsum(nns:nne)
+              diffv_g(nns:nne,k)=diffv_g(nns:nne,k)/qsum(nns:nne)
+              diffw_g(nns:nne,k)=diffw_g(nns:nne,k)/qsum(nns:nne)
+            elsewhere
+              diffu_g(nns:nne,k)=0.
+              diffv_g(nns:nne,k)=0.
+              diffw_g(nns:nne,k)=0.
+            end where
+          end do
+        end if
+        if (nud_sfh/=0.and.lblock) then
           where (qsum(nns:nne)>1.E-8)
-            diff_g(nns:nne,k)=diff_g(nns:nne,k)/qsum(nns:nne)
+            diffh_g(nns:nne,1)=diffh_g(nns:nne,1)/qsum(nns:nne)
           elsewhere
-            diff_g(nns:nne,k)=0.
+            diffh_g(nns:nne,1)=0.
           end where
-        end do
-      end if
-      if (nud_sss/=0) then
-        do k=1,kd
-          where (qsum(nns:nne)>1.E-8)
-            diffs_g(nns:nne,k)=diffs_g(nns:nne,k)/qsum(nns:nne)
-          elsewhere
-            diffs_g(nns:nne,k)=0.
-          end where
-        end do
-      end if
-      if (nud_ouv/=0) then
-        do k=1,kd
-          where (qsum(nns:nne)>1.E-8)
-            diffu_g(nns:nne,k)=diffu_g(nns:nne,k)/qsum(nns:nne)
-            diffv_g(nns:nne,k)=diffv_g(nns:nne,k)/qsum(nns:nne)
-            diffw_g(nns:nne,k)=diffw_g(nns:nne,k)/qsum(nns:nne)
-          elsewhere
-            diffu_g(nns:nne,k)=0.
-            diffv_g(nns:nne,k)=0.
-            diffw_g(nns:nne,k)=0.
-          end where
-        end do
-      end if
-      if (nud_sfh/=0.and.lblock) then
-        where (qsum(nns:nne)>1.E-8)
-          diffh_g(nns:nne,1)=diffh_g(nns:nne,1)/qsum(nns:nne)
-        elsewhere
-          diffh_g(nns:nne,1)=0.
-        end where
+        end if
       end if
 
       if (myid==0.and.nmaxpr==1) write(6,*) "MLO End 1D filter"
@@ -3942,6 +3340,46 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         end if
       end if      
 
+      ! distribute data to processors
+      if (nud_sst/=0) then
+        if (myid == 0) then
+          call ccmpi_distribute(diff_l(:,1:kd), diff_g(:,1:kd))
+        else
+          call ccmpi_distribute(diff_l(:,1:kd))
+        end if
+      end if
+      if (nud_sss/=0) then
+        if (myid == 0) then
+          call ccmpi_distribute(diffs_l(:,1:kd), diffs_g(:,1:kd))
+        else
+          call ccmpi_distribute(diffs_l(:,1:kd))
+        end if
+      end if
+      if (nud_ouv/=0) then
+        if (myid == 0) then
+          do k=1,kd
+            x_g =ax_g*diffu_g(:,k)+ay_g*diffv_g(:,k)
+     &        +az_g*diffw_g(:,k)
+            xx_g=bx_g*diffu_g(:,k)+by_g*diffv_g(:,k)
+     &        +bz_g*diffw_g(:,k)
+            diffu_g(:,k)=x_g
+            diffv_g(:,k)=xx_g
+          end do
+          call ccmpi_distribute(diffu_l(:,1:kd), diffu_g(:,1:kd))
+          call ccmpi_distribute(diffv_l(:,1:kd), diffv_g(:,1:kd))
+        else
+          call ccmpi_distribute(diffu_l(:,1:kd))
+          call ccmpi_distribute(diffv_l(:,1:kd))
+        end if
+      end if
+      if (nud_sfh/=0.and.lblock) then
+        if (myid == 0) then
+          call ccmpi_distribute(diffh_l(:,1:1), diffh_g(:,1:1))
+        else
+          call ccmpi_distribute(diffh_l(:,1:1))
+        end if
+      end if
+
       return
       end subroutine mlospechost_n
 
@@ -3949,7 +3387,8 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       !---------------------------------------------------------------------------------
       ! This version is for asymmetric decomposition
       subroutine mlospeclocal(mproc,hproc,ns,ne,cq,ppass,
-     &             qsum,qp,qps,qpu,qpv,qpw,qph,kd,lblock)
+     &             qsum,qp,qps,qpu,qpv,qpw,qph,kd,lblock,
+     &             ifg)
 
       use cc_mpi             ! CC MPI routines
       use xyzinfo_m          ! Grid coordinate arrays
@@ -3959,435 +3398,407 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       include 'newmpar.h'    ! Grid parameters
       include 'parm.h'       ! Model configuration
       
-      integer, intent(in) :: mproc,hproc,ns,ne,ppass,kd
-      integer j,n,ipass,kpass,iy
+      integer, intent(in) :: mproc,hproc,ns,ne,ppass,kd,ifg
+      integer j,n,ipass,iy
       integer iproc,ierr
       integer nne,nns,me
-      integer a,b,c,d,k
+      integer a,b,d,k
       integer :: itag=0
-      integer, dimension(4*il_g,il_g,0:3) :: igrd
+      integer, dimension(4*il_g,il_g) :: igrd
       integer, dimension(0:3) :: maps
-      integer, parameter, dimension(2:3) :: kn=(/0,3/)
-      integer, parameter, dimension(2:3) :: kx=(/2,3/)
       real, intent(in) :: cq
-      real, dimension(ifull_g), intent(inout) :: qph
-      real, dimension(ifull_g,kd), intent(inout) :: qp,qps
-      real, dimension(ifull_g,kd), intent(inout) :: qpu,qpv
-      real, dimension(ifull_g,kd), intent(inout) :: qpw
-      real, dimension(ifull_g), intent(inout) :: qsum
+      real, dimension(ifg), intent(inout) :: qph,qsum
+      real, dimension(ifg,kd), intent(inout) :: qp,qps
+      real, dimension(ifg,kd), intent(inout) :: qpu,qpv
+      real, dimension(ifg,kd), intent(inout) :: qpw
       real, dimension(4*il_g) :: rr,xa,ya,za
-      real, dimension(4*il_g) :: asum,psum
-      real, dimension(4*il_g) :: aph,pph
-      real, dimension(4*il_g,kd) :: ap,aps,pp,pps
-      real, dimension(4*il_g,kd) :: apu,apv,apw,ppu,ppv,ppw
-      real, dimension(ifull_g*kd) :: zz
+      real, dimension(4*il_g,ns:ne) :: asum,psum
+      real, dimension(4*il_g,ns:ne) :: aph,pph
+      real, dimension(4*il_g,ns:ne,kd) :: ap,aps,pp,pps
+      real, dimension(4*il_g,ns:ne,kd) :: apu,apv,apw,ppu,ppv,ppw
+      real, dimension(4*il_g*kd*(ne-ns+1)) :: zz
       logical, intent(in) :: lblock
       
       maps=(/ il_g, il_g, 4*il_g, 3*il_g /)
       
       do ipass=0,3
         me=maps(ipass)
-        call getiqa(igrd(:,:,ipass),me,ipass,ppass,il_g)
+        call getiqa(igrd(:,:),me,ipass,ppass,il_g)
 
-        if (ipass==3) then
-          itag=itag+1
-          if (myid==0.and.nmaxpr==1) then
-            write(6,*) "MLO Recieve arrays from local host"
-          end if
-          if (myid==hproc) then
-            do iproc=hproc+1,mproc+hproc-1
-              call procdiv(nns,nne,il_g,mproc,iproc-hproc)
-              if (nns>nne) exit
-              iy=me*(nne-nns+1)
-              a=me
-              d=-me*nns
+        itag=itag+1
+        if (myid==0.and.nmaxpr==1) then
+          write(6,*) "MLO Recieve arrays from local host"
+        end if
+        if (myid==hproc) then
+          do iproc=hproc+1,mproc+hproc-1
+            call procdiv(nns,nne,il_g,mproc,iproc-hproc)
+            if (nns>nne) exit
+            iy=me*(nne-nns+1)
+            a=me
+            d=-me*nns
+            do j=nns,nne
+              do n=1,me
+                zz(n+a*j+d)=qsum(igrd(n,j))
+              end do
+            end do
+            call ccmpi_ssend(zz(1:iy),iproc,itag,comm_world)
+            if (nud_sfh/=0.and.lblock) then
               do j=nns,nne
                 do n=1,me
-                  zz(n+a*j+d)=qsum(igrd(n,j,ipass))
+                  zz(n+a*j+d)=qph(igrd(n,j))
                 end do
               end do
               call ccmpi_ssend(zz(1:iy),iproc,itag,comm_world)
-              if (nud_sfh/=0.and.lblock) then
+            end if
+            iy=me*(nne-nns+1)*kd
+            b=me*(nne-nns+1)
+            d=-me*(nne+1)
+            if (nud_sst/=0) then
+              do k=1,kd
                 do j=nns,nne
                   do n=1,me
-                    zz(n+a*j+d)=qph(igrd(n,j,ipass))
+                    zz(n+a*j+b*k+d)=qp(igrd(n,j),k)
                   end do
                 end do
-                call ccmpi_ssend(zz(1:iy),iproc,itag,comm_world)
-              end if
-              iy=me*(nne-nns+1)*kd
-              b=me*(nne-nns+1)
-              d=-me*(nne+1)
-              if (nud_sst/=0) then
-                do k=1,kd
-                  do j=nns,nne
-                    do n=1,me
-                      zz(n+a*j+b*k+d)=qp(igrd(n,j,ipass),k)
-                    end do
+              end do
+              call ccmpi_ssend(zz(1:iy),iproc,itag,comm_world)
+            end if
+            if (nud_sss/=0) then
+              do k=1,kd
+                do j=nns,nne
+                  do n=1,me
+                    zz(n+a*j+b*k+d)=qps(igrd(n,j),k)
                   end do
                 end do
-                call ccmpi_ssend(zz(1:iy),iproc,itag,comm_world)
-              end if
-              if (nud_sss/=0) then
-                do k=1,kd
-                  do j=nns,nne
-                    do n=1,me
-                      zz(n+a*j+b*k+d)=qps(igrd(n,j,ipass),k)
-                    end do
+              end do
+              call ccmpi_ssend(zz(1:iy),iproc,itag,comm_world)
+            end if
+            if (nud_ouv/=0) then
+              do k=1,kd
+                do j=nns,nne
+                  do n=1,me
+                    zz(n+a*j+b*k+d)=qpu(igrd(n,j),k)
                   end do
                 end do
-                call ccmpi_ssend(zz(1:iy),iproc,itag,comm_world)
-              end if
-              if (nud_ouv/=0) then
-                do k=1,kd
-                  do j=nns,nne
-                    do n=1,me
-                      zz(n+a*j+b*k+d)=qpu(igrd(n,j,ipass),k)
-                    end do
+              end do
+              call ccmpi_ssend(zz(1:iy),iproc,itag,comm_world)
+              do k=1,kd
+                do j=nns,nne
+                  do n=1,me
+                    zz(n+a*j+b*k+d)=qpv(igrd(n,j),k)
                   end do
                 end do
-                call ccmpi_ssend(zz(1:iy),iproc,itag,comm_world)
-                do k=1,kd
-                  do j=nns,nne
-                    do n=1,me
-                      zz(n+a*j+b*k+d)=qpv(igrd(n,j,ipass),k)
-                    end do
+              end do
+              call ccmpi_ssend(zz(1:iy),iproc,itag,comm_world)
+              do k=1,kd
+                do j=nns,nne
+                  do n=1,me
+                    zz(n+a*j+b*k+d)=qpw(igrd(n,j),k)
                   end do
                 end do
-                call ccmpi_ssend(zz(1:iy),iproc,itag,comm_world)
-                do k=1,kd
-                  do j=nns,nne
-                    do n=1,me
-                      zz(n+a*j+b*k+d)=qpw(igrd(n,j,ipass),k)
-                    end do
-                  end do
-                end do
-                call ccmpi_ssend(zz(1:iy),iproc,itag,comm_world)
-              end if
+              end do
+              call ccmpi_ssend(zz(1:iy),iproc,itag,comm_world)
+            end if
+          end do
+          ! prepare data on host processor
+          do j=ns,ne
+            asum(1:me,j)=qsum(igrd(1:me,j))
+          end do
+          if (nud_sst/=0) then
+            do j=ns,ne
+              ap(1:me,j,:)=qp(igrd(1:me,j),:)
             end do
-          else
-            iy=me*(ne-ns+1)
-            a=me
-            d=-me*ns
+          end if
+          if (nud_sss/=0) then
+            do j=ns,ne
+              aps(1:me,j,:)=qps(igrd(1:me,j),:)
+            end do
+          end if
+          if (nud_ouv/=0) then
+            do j=ns,ne
+              apu(1:me,j,:)=qpu(igrd(1:me,j),:)
+              apv(1:me,j,:)=qpv(igrd(1:me,j),:)
+              apw(1:me,j,:)=qpw(igrd(1:me,j),:)
+            end do
+          end if
+          if (nud_sfh/=0.and.lblock) then
+            do j=ns,ne
+              aph(1:me,j)=qph(igrd(1:me,j))
+            end do
+          end if
+        else
+          iy=me*(ne-ns+1)
+          a=me
+          d=-me*ns
+          call ccmpi_recv(zz(1:iy),hproc,itag,comm_world)
+          do j=ns,ne
+            do n=1,me
+              asum(n,j)=zz(n+a*j+d)
+            end do
+          end do
+          if (nud_sfh/=0.and.lblock) then
             call ccmpi_recv(zz(1:iy),hproc,itag,comm_world)
             do j=ns,ne
               do n=1,me
-                qsum(igrd(n,j,ipass))=zz(n+a*j+d)
+                aph(n,j)=zz(n+a*j+d)
               end do
             end do
-            if (nud_sfh/=0.and.lblock) then
-              call ccmpi_recv(zz(1:iy),hproc,itag,comm_world)
+          end if
+          iy=me*(ne-ns+1)*kd
+          b=me*(ne-ns+1)
+          d=-me*(ne+1)
+          if (nud_sst/=0) then
+            call ccmpi_recv(zz(1:iy),hproc,itag,comm_world)
+            do k=1,kd
               do j=ns,ne
                 do n=1,me
-                  qph(igrd(n,j,ipass))=zz(n+a*j+d)
+                  ap(n,j,k)=zz(n+a*j+b*k+d)
                 end do
               end do
-            end if
-            iy=me*(ne-ns+1)*kd
-            b=me*(ne-ns+1)
-            d=-me*(ne+1)
-            if (nud_sst/=0) then
-              call ccmpi_recv(zz(1:iy),hproc,itag,comm_world)
-              do k=1,kd
-                do j=ns,ne
-                  do n=1,me
-                    qp(igrd(n,j,ipass),k)=zz(n+a*j+b*k+d)
-                  end do
-                end do
-              end do
-            end if
-            if (nud_sss/=0) then
-              call ccmpi_recv(zz(1:iy),hproc,itag,comm_world)
-              do k=1,kd
-                do j=ns,ne
-                  do n=1,me
-                    qps(igrd(n,j,ipass),k)=zz(n+a*j+b*k+d)
-                  end do
-                end do
-              end do  
-            end if
-            if (nud_ouv/=0) then
-              call ccmpi_recv(zz(1:iy),hproc,itag,comm_world)
-              do k=1,kd
-                do j=ns,ne
-                  do n=1,me
-                    qpu(igrd(n,j,ipass),k)=zz(n+a*j+b*k+d)
-                  end do
-                end do
-              end do
-              call ccmpi_recv(zz(1:iy),hproc,itag,comm_world)
-              do k=1,kd
-                do j=ns,ne
-                  do n=1,me
-                    qpv(igrd(n,j,ipass),k)=zz(n+a*j+b*k+d)
-                  end do
-                end do
-              end do
-              call ccmpi_recv(zz(1:iy),hproc,itag,comm_world)
-              do k=1,kd
-                do j=ns,ne
-                  do n=1,me
-                    qpw(igrd(n,j,ipass),k)=zz(n+a*j+b*k+d)
-                  end do
-                end do
-              end do  
-            end if          
+            end do
           end if
+          if (nud_sss/=0) then
+            call ccmpi_recv(zz(1:iy),hproc,itag,comm_world)
+            do k=1,kd
+              do j=ns,ne
+                do n=1,me
+                  aps(n,j,k)=zz(n+a*j+b*k+d)
+                end do
+              end do
+            end do  
+          end if
+          if (nud_ouv/=0) then
+            call ccmpi_recv(zz(1:iy),hproc,itag,comm_world)
+            do k=1,kd
+              do j=ns,ne
+                do n=1,me
+                  apu(n,j,k)=zz(n+a*j+b*k+d)
+                end do
+              end do
+            end do
+            call ccmpi_recv(zz(1:iy),hproc,itag,comm_world)
+            do k=1,kd
+              do j=ns,ne
+                do n=1,me
+                  apv(n,j,k)=zz(n+a*j+b*k+d)
+                end do
+              end do
+            end do
+            call ccmpi_recv(zz(1:iy),hproc,itag,comm_world)
+            do k=1,kd
+              do j=ns,ne
+                do n=1,me
+                  apw(n,j,k)=zz(n+a*j+b*k+d)
+                end do
+              end do
+            end do  
+          end if          
         end if
 
         if (myid==0.and.nmaxpr==1) write(6,*) "MLO start conv"
 
         do j=ns,ne
-          xa(1:me)=x_g(igrd(1:me,j,ipass))
-          ya(1:me)=y_g(igrd(1:me,j,ipass))
-          za(1:me)=z_g(igrd(1:me,j,ipass))
-          asum(1:me)=qsum(igrd(1:me,j,ipass))
-          if (nud_sst/=0) then
-            do k=1,kd
-              ap(1:me,k)=qp(igrd(1:me,j,ipass),k)
-            end do
-          end if
-          if (nud_sss/=0) then
-            do k=1,kd
-              aps(1:me,k)=qps(igrd(1:me,j,ipass),k)
-            end do
-          end if
-          if (nud_ouv/=0) then
-            do k=1,kd
-              apu(1:me,k)=qpu(igrd(1:me,j,ipass),k)
-              apv(1:me,k)=qpv(igrd(1:me,j,ipass),k)
-              apw(1:me,k)=qpw(igrd(1:me,j,ipass),k)
-            end do
-          end if
-          if (nud_sfh/=0.and.lblock) then
-            aph(1:me)=qph(igrd(1:me,j,ipass))
-          end if
+          xa(1:me)=x_g(igrd(1:me,j))
+          ya(1:me)=y_g(igrd(1:me,j))
+          za(1:me)=z_g(igrd(1:me,j))
           do n=1,il_g
             rr(1:me)=xa(n)*xa(1:me)+ya(n)*ya(1:me)+za(n)*za(1:me)
             rr(1:me)=acos(max(min(rr(1:me),1.),-1.))
             rr(1:me)=exp(-(cq*rr(1:me))**2)
-            psum(n)=sum(rr(1:me)*asum(1:me))
+            psum(n,j)=sum(rr(1:me)*asum(1:me,j))
             if (nud_sst/=0) then
               do k=1,kd
-                pp(n,k)=sum(rr(1:me)*ap(1:me,k))
+                pp(n,j,k)=sum(rr(1:me)*ap(1:me,j,k))
               end do
             end if
             if (nud_sss/=0) then
               do k=1,kd
-                pps(n,k)=sum(rr(1:me)*aps(1:me,k))
+                pps(n,j,k)=sum(rr(1:me)*aps(1:me,j,k))
               end do
             end if
             if (nud_ouv/=0) then
               do k=1,kd
-                ppu(n,k)=sum(rr(1:me)*apu(1:me,k))
-                ppv(n,k)=sum(rr(1:me)*apv(1:me,k))
-                ppw(n,k)=sum(rr(1:me)*apw(1:me,k))
+                ppu(n,j,k)=sum(rr(1:me)*apu(1:me,j,k))
+                ppv(n,j,k)=sum(rr(1:me)*apv(1:me,j,k))
+                ppw(n,j,k)=sum(rr(1:me)*apw(1:me,j,k))
               end do
             end if
             if (nud_sfh/=0.and.lblock) then
-              pph(n)=sum(rr(1:me)*aph(1:me))
+              pph(n,j)=sum(rr(1:me)*aph(1:me,j))
             end if
           end do
-          qsum(igrd(1:il_g,j,ipass))=psum(1:il_g)
-          if (nud_sst/=0) then
-            do k=1,kd
-              qp(igrd(1:il_g,j,ipass),k)=pp(1:il_g,k)
-            end do
-          end if
-          if (nud_sss/=0) then
-            do k=1,kd
-              qps(igrd(1:il_g,j,ipass),k)=pps(1:il_g,k)
-            end do
-          end if
-          if (nud_ouv/=0) then
-            do k=1,kd
-              qpu(igrd(1:il_g,j,ipass),k)=ppu(1:il_g,k)
-              qpv(igrd(1:il_g,j,ipass),k)=ppv(1:il_g,k)
-              qpw(igrd(1:il_g,j,ipass),k)=ppw(1:il_g,k)
-            end do
-          end if
-          if (nud_sfh/=0.and.lblock) then
-            qph(igrd(1:il_g,j,ipass))=pph(1:il_g)
-          end if
         end do
 
         if (myid==0.and.nmaxpr==1) write(6,*) "MLO end conv"
 
-        if (ipass==2.or.ipass==3) then
-          itag=itag+1
-          if (myid==0.and.nmaxpr==1) then
-            write(6,*) "MLO Send arrays to local host"
+        itag=itag+1
+        if (myid==0.and.nmaxpr==1) then
+          write(6,*) "MLO Send arrays to local host"
+        end if
+        if (myid==hproc) then
+          ! process points on host proc
+          do j=ns,ne
+            qsum(igrd(1:il_g,j))=psum(1:il_g,j)
+          end do
+          if (nud_sst/=0) then
+            do j=ns,ne
+              qp(igrd(1:il_g,j),:)=pp(1:il_g,j,:)
+            end do
           end if
-          if (myid==hproc) then
-            do iproc=hproc+1,mproc+hproc-1
-              call procdiv(nns,nne,il_g,mproc,iproc-hproc)
-              if (nns>nne) exit
-              iy=il_g*(nne-nns+1)*(kx(ipass)-kn(ipass)+1)
-              a=il_g
-              c=il_g*(nne-nns+1)
-              d=-il_g*(nns+(nne-nns+1)*kn(ipass))
+          if (nud_sss/=0) then
+            do j=ns,ne
+              qps(igrd(1:il_g,j),:)=pps(1:il_g,j,:)
+            end do
+          end if
+          if (nud_ouv/=0) then
+            do j=ns,ne
+              qpu(igrd(1:il_g,j),:)=ppu(1:il_g,j,:)
+              qpv(igrd(1:il_g,j),:)=ppv(1:il_g,j,:)
+              qpw(igrd(1:il_g,j),:)=ppw(1:il_g,j,:)
+            end do
+          end if
+          if (nud_sfh/=0.and.lblock) then
+            do j=ns,ne
+              qph(igrd(1:il_g,j))=pph(1:il_g,j)
+            end do
+          end if
+          ! process points from other procs
+          do iproc=hproc+1,mproc+hproc-1
+            call procdiv(nns,nne,il_g,mproc,iproc-hproc)
+            if (nns>nne) exit
+            iy=il_g*(nne-nns+1)
+            a=il_g
+            d=-il_g*nns
+            call ccmpi_recv(zz(1:iy),iproc,itag,comm_world)
+            do j=nns,nne
+              do n=1,il_g
+                qsum(igrd(n,j))=zz(n+a*j+d)
+              end do
+            end do
+            if (nud_sfh/=0.and.lblock) then
               call ccmpi_recv(zz(1:iy),iproc,itag,comm_world)
-              do kpass=kn(ipass),kx(ipass)
+              do j=nns,nne
+                do n=1,il_g
+                  qph(igrd(n,j))=zz(n+a*j+d)
+                end do
+              end do
+            end if
+            iy=il_g*(nne-nns+1)*kd
+            b=il_g*(nne-nns+1)
+            d=-il_g*(nne+1)
+            if (nud_sst/=0) then
+              call ccmpi_recv(zz(1:iy),iproc,itag,comm_world)
+              do k=1,kd
                 do j=nns,nne
                   do n=1,il_g
-                    qsum(igrd(n,j,kpass))=zz(n+a*j+c*kpass+d)
+                    qp(igrd(n,j),k)=zz(n+a*j+b*k+d)
                   end do
                 end do
               end do
-              if (nud_sfh/=0.and.lblock) then
-                call ccmpi_recv(zz(1:iy),iproc,itag,comm_world)
-                do kpass=kn(ipass),kx(ipass)
-                  do j=nns,nne
-                    do n=1,il_g
-                      qph(igrd(n,j,kpass))=zz(n+a*j+c*kpass+d)
-                    end do
+            end if
+            if (nud_sss/=0) then
+              call ccmpi_recv(zz(1:iy),iproc,itag,comm_world)
+              do k=1,kd
+                do j=nns,nne
+                  do n=1,il_g
+                    qps(igrd(n,j),k)=zz(n+a*j+b*k+d)
                   end do
                 end do
-              end if
-              iy=il_g*(nne-nns+1)*kd*(kx(ipass)-kn(ipass)+1)
-              b=il_g*(nne-nns+1)
-              c=il_g*(nne-nns+1)*kd
-              d=-il_g*(nns+(nne-nns+1)*(1+kd*kn(ipass)))
-              if (nud_sst/=0) then
-                call ccmpi_recv(zz(1:iy),iproc,itag,comm_world)
-                do k=1,kd
-                  do kpass=kn(ipass),kx(ipass)
-                    do j=nns,nne
-                      do n=1,il_g
-                        qp(igrd(n,j,kpass),k)=zz(n+a*j+b*k+c*kpass+d)
-                      end do
-                    end do
+              end do
+            end if
+            if (nud_ouv/=0) then
+              call ccmpi_recv(zz(1:iy),iproc,itag,comm_world)
+              do k=1,kd
+                do j=nns,nne
+                  do n=1,il_g
+                    qpu(igrd(n,j),k)=zz(n+a*j+b*k+d)
                   end do
                 end do
-              end if
-              if (nud_sss/=0) then
-                call ccmpi_recv(zz(1:iy),iproc,itag,comm_world)
-                do k=1,kd
-                  do kpass=kn(ipass),kx(ipass)
-                    do j=nns,nne
-                      do n=1,il_g
-                        qps(igrd(n,j,kpass),k)=zz(n+a*j+b*k+c*kpass+d)
-                      end do
-                    end do
+              end do
+              call ccmpi_recv(zz(1:iy),iproc,itag,comm_world)
+              do k=1,kd
+                do j=nns,nne
+                  do n=1,il_g
+                    qpv(igrd(n,j),k)=zz(n+a*j+b*k+d)
                   end do
                 end do
-              end if
-              if (nud_ouv/=0) then
-                call ccmpi_recv(zz(1:iy),iproc,itag,comm_world)
-                do k=1,kd
-                  do kpass=kn(ipass),kx(ipass)
-                    do j=nns,nne
-                      do n=1,il_g
-                        qpu(igrd(n,j,kpass),k)=zz(n+a*j+b*k+c*kpass+d)
-                      end do
-                    end do
+              end do
+              call ccmpi_recv(zz(1:iy),iproc,itag,comm_world)
+              do k=1,kd
+                do j=nns,nne
+                  do n=1,il_g
+                    qpw(igrd(n,j),k)=zz(n+a*j+b*k+d)
                   end do
                 end do
-                call ccmpi_recv(zz(1:iy),iproc,itag,comm_world)
-                do k=1,kd
-                  do kpass=kn(ipass),kx(ipass)
-                    do j=nns,nne
-                      do n=1,il_g
-                        qpv(igrd(n,j,kpass),k)=zz(n+a*j+b*k+c*kpass+d)
-                      end do
-                    end do
-                  end do
-                end do
-                call ccmpi_recv(zz(1:iy),iproc,itag,comm_world)
-                do k=1,kd
-                  do kpass=kn(ipass),kx(ipass)
-                    do j=nns,nne
-                      do n=1,il_g
-                        qpw(igrd(n,j,kpass),k)=zz(n+a*j+b*k+c*kpass+d)
-                      end do
-                    end do
-                  end do
-                end do
-              end if
+              end do
+            end if
+          end do
+        else
+          iy=il_g*(ne-ns+1)
+          a=il_g
+          d=-il_g*ns
+          do j=ns,ne
+            do n=1,il_g
+              zz(n+a*j+d)=psum(n,j)
             end do
-          else
-            iy=il_g*(ne-ns+1)*(kx(ipass)-kn(ipass)+1)
-            a=il_g
-            c=il_g*(ne-ns+1)
-            d=-il_g*(ns+(ne-ns+1)*kn(ipass))
-            do kpass=kn(ipass),kx(ipass)
+          end do
+          call ccmpi_ssend(zz(1:iy),hproc,itag,comm_world)
+          if (nud_sfh/=0.and.lblock) then
+            do j=ns,ne
+              do n=1,il_g
+                zz(n+a*j+d)=pph(n,j)
+              end do
+            end do
+            call ccmpi_ssend(zz(1:iy),hproc,itag,comm_world)
+          end if
+          iy=il_g*(ne-ns+1)*kd
+          b=il_g*(ne-ns+1)
+          d=-il_g*(ne+1)
+          if (nud_sst/=0) then
+            do k=1,kd
               do j=ns,ne
                 do n=1,il_g
-                  zz(n+a*j+c*kpass+d)=qsum(igrd(n,j,kpass))
+                  zz(n+a*j+b*k+d)=pp(n,j,k)
                 end do
               end do
             end do
             call ccmpi_ssend(zz(1:iy),hproc,itag,comm_world)
-            if (nud_sfh/=0.and.lblock) then
-              do kpass=kn(ipass),kx(ipass)
-                do j=ns,ne
-                  do n=1,il_g
-                    zz(n+a*j+c*kpass+d)=qph(igrd(n,j,kpass))
-                  end do
+          end if
+          if (nud_sss/=0) then
+            do k=1,kd
+              do j=ns,ne
+                do n=1,il_g
+                  zz(n+a*j+b*k+d)=pps(n,j,k)
                 end do
               end do
-              call ccmpi_ssend(zz(1:iy),hproc,itag,comm_world)
-            end if
-            iy=il_g*(ne-ns+1)*kd*(kx(ipass)-kn(ipass)+1)
-            b=il_g*(ne-ns+1)
-            c=il_g*(ne-ns+1)*kd
-            d=-il_g*(ns+(ne-ns+1)*(1+kd*kn(ipass)))
-            if (nud_sst/=0) then
-              do k=1,kd
-                do kpass=kn(ipass),kx(ipass)
-                  do j=ns,ne
-                    do n=1,il_g
-                      zz(n+a*j+b*k+c*kpass+d)=qp(igrd(n,j,kpass),k)
-                    end do
-                  end do
+            end do
+            call ccmpi_ssend(zz(1:iy),hproc,itag,comm_world)
+          end if
+          if (nud_ouv/=0) then
+            do k=1,kd
+              do j=ns,ne
+                do n=1,il_g
+                  zz(n+a*j+b*k+d)=ppu(n,j,k)
                 end do
               end do
-              call ccmpi_ssend(zz(1:iy),hproc,itag,comm_world)
-            end if
-            if (nud_sss/=0) then
-              do k=1,kd
-                do kpass=kn(ipass),kx(ipass)
-                  do j=ns,ne
-                    do n=1,il_g
-                      zz(n+a*j+b*k+c*kpass+d)=qps(igrd(n,j,kpass),k)
-                    end do
-                  end do
+            end do
+            call ccmpi_ssend(zz(1:iy),hproc,itag,comm_world)
+            do k=1,kd
+              do j=ns,ne
+                do n=1,il_g
+                  zz(n+a*j+b*k+d)=ppv(n,j,k)
                 end do
               end do
-              call ccmpi_ssend(zz(1:iy),hproc,itag,comm_world)
-            end if
-            if (nud_ouv/=0) then
-              do k=1,kd
-                do kpass=kn(ipass),kx(ipass)
-                  do j=ns,ne
-                    do n=1,il_g
-                      zz(n+a*j+b*k+c*kpass+d)=qpu(igrd(n,j,kpass),k)
-                    end do
-                  end do
+            end do
+            call ccmpi_ssend(zz(1:iy),hproc,itag,comm_world)
+            do k=1,kd
+              do j=ns,ne
+                do n=1,il_g
+                  zz(n+a*j+b*k+d)=ppw(n,j,k)
                 end do
               end do
-              call ccmpi_ssend(zz(1:iy),hproc,itag,comm_world)
-              do k=1,kd
-                do kpass=kn(ipass),kx(ipass)
-                  do j=ns,ne
-                    do n=1,il_g
-                      zz(n+a*j+b*k+c*kpass+d)=qpv(igrd(n,j,kpass),k)
-                    end do
-                  end do
-                end do
-              end do
-              call ccmpi_ssend(zz(1:iy),hproc,itag,comm_world)
-              do k=1,kd
-                do kpass=kn(ipass),kx(ipass)
-                  do j=ns,ne
-                    do n=1,il_g
-                      zz(n+a*j+b*k+c*kpass+d)=qpw(igrd(n,j,kpass),k)
-                    end do
-                  end do
-                end do
-              end do
-              call ccmpi_ssend(zz(1:iy),hproc,itag,comm_world)
-            end if
+            end do
+            call ccmpi_ssend(zz(1:iy),hproc,itag,comm_world)
           end if
         end if
           
@@ -4396,489 +3807,6 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       return  
       end subroutine mlospeclocal
 
-      !---------------------------------------------------------------------------------
-      ! This version is for asymmetric decomposition
-      subroutine mlospeclocal_s(mproc,hproc,ns,ne,cq,ppass,
-     &             qsum,qp,qps,qpu,qpv,qpw,qph,kd,lsize,lblock)
-
-      use cc_mpi             ! CC MPI routines
-      use xyzinfo_m          ! Grid coordinate arrays
-     
-      implicit none
-      
-      include 'newmpar.h'    ! Grid parameters
-      include 'parm.h'       ! Model configuration
-      
-      integer, intent(in) :: mproc,hproc,ns,ne,ppass,kd
-      integer, intent(in) :: lsize
-      integer j,n,ipass,kpass,iy,ix
-      integer iproc,ierr
-      integer nne,nns,me
-      integer a,b,c,k
-      integer :: itag=0
-      integer, save :: comm_face
-      integer, dimension(4*il_g,il_g,0:3) :: igrd
-      integer, dimension(0:3) :: maps
-      integer, parameter, dimension(2:3) :: kn=(/0,3/)
-      integer, parameter, dimension(2:3) :: kx=(/2,3/)
-      real, intent(in) :: cq
-      real, dimension(ifull_g), intent(inout) :: qph
-      real, dimension(ifull_g,kd), intent(inout) :: qp,qps
-      real, dimension(ifull_g,kd), intent(inout) :: qpu,qpv
-      real, dimension(ifull_g,kd), intent(inout) :: qpw
-      real, dimension(ifull_g), intent(inout) :: qsum
-      real, dimension(4*il_g) :: rr,xa,ya,za
-      real, dimension(4*il_g) :: asum,psum
-      real, dimension(4*il_g) :: aph,pph
-      real, dimension(4*il_g,kd) :: ap,aps,pp,pps
-      real, dimension(4*il_g,kd) :: apu,apv,apw,ppu,ppv,ppw
-      real, dimension(ifull_g*kd) :: zz
-      real, dimension(lsize*kd) :: yy
-      logical, intent(in) :: lblock
-      logical, save :: first=.true.
-
-      if (first) then
-        call ccmpi_commsplit(comm_face,comm_world,hproc,myid-hproc)
-        first=.false.
-      end if
-      
-      maps=(/ il_g, il_g, 4*il_g, 3*il_g /)
-      zz=0.
-      yy=0.
-      
-      do ipass=0,3
-        me=maps(ipass)
-        call getiqa(igrd(:,:,ipass),me,ipass,ppass,il_g)
-
-        if (ipass==3) then
-          itag=itag+1
-          if (myid==0.and.nmaxpr==1) then
-            write(6,*) "MLO Recieve arrays from local host"
-          end if
-          iy=me*il_g
-          ix=iy/mproc
-          if (myid==hproc) then
-            do j=ne+1,il_g
-              do n=1,me
-                zz(n+me*(j-1))=qsum(igrd(n,j,ipass))
-              end do
-            end do
-          end if
-          call ccmpi_scatterx(zz(1:iy),yy(1:ix),0,comm_face)
-          if (myid/=hproc) then
-            do j=ns,ne
-              do n=1,me
-                qsum(igrd(n,j,ipass))=yy(n+me*(j-ns))
-              end do
-            end do
-          end if
-          if (nud_sfh/=0.and.lblock) then
-            if (myid==hproc) then
-              do j=ne+1,il_g
-                do n=1,me
-                  zz(n+me*(j-1))=qph(igrd(n,j,ipass))
-                end do
-              end do
-            end if
-            call ccmpi_scatterx(zz(1:iy),yy(1:ix),0,comm_face)
-            if (myid/=hproc) then
-              do j=ns,ne
-                do n=1,me
-                  qph(igrd(n,j,ipass))=yy(n+me*(j-ns))
-                end do
-              end do
-            end if
-          end if
-          iy=me*il_g*kd
-          ix=iy/mproc
-          a=me*kd
-          if (nud_sst/=0) then
-            if (myid==hproc) then
-              do j=ne+1,il_g
-                do k=1,kd
-                  do n=1,me
-                    zz(n+me*(k-1)+a*(j-1))
-     &                =qp(igrd(n,j,ipass),k)
-                  end do
-                end do
-              end do
-            end if
-            call ccmpi_scatterx(zz(1:iy),yy(1:ix),0,comm_face)
-            if (myid/=hproc) then
-              do j=ns,ne
-                do k=1,kd
-                  do n=1,me
-                    qp(igrd(n,j,ipass),k)
-     &                =yy(n+me*(k-1)+a*(j-ns))
-                  end do
-                end do
-              end do
-            end if
-          end if
-          if (nud_sss/=0) then
-             if (myid==hproc) then
-              do j=ne+1,il_g
-                do k=1,kd
-                  do n=1,me
-                    zz(n+me*(k-1)+a*(j-1))
-     &                =qps(igrd(n,j,ipass),k)
-                  end do
-                end do
-              end do
-            end if
-            call ccmpi_scatterx(zz(1:iy),yy(1:ix),0,comm_face)
-            if (myid/=hproc) then
-              do j=ns,ne
-                do k=1,kd
-                  do n=1,me
-                    qps(igrd(n,j,ipass),k)
-     &                =yy(n+me*(k-1)+a*(j-ns))
-                  end do
-                end do
-              end do
-            end if
-          end if
-          if (nud_ouv/=0) then
-            if (myid==hproc) then
-              do j=ne+1,il_g
-                do k=1,kd
-                  do n=1,me
-                    zz(n+me*(k-1)+a*(j-1))
-     &                =qpu(igrd(n,j,ipass),k)
-                  end do
-                end do
-              end do
-            end if
-            call ccmpi_scatterx(zz(1:iy),yy(1:ix),0,comm_face)
-            if (myid/=hproc) then
-              do j=ns,ne
-                do k=1,kd
-                  do n=1,me
-                    qpu(igrd(n,j,ipass),k)
-     &                =yy(n+me*(k-1)+a*(j-ns))
-                  end do
-                end do
-              end do
-            end if
-            if (myid==hproc) then
-              do j=ne+1,il_g
-                do k=1,kd
-                  do n=1,me
-                    zz(n+me*(k-1)+a*(j-1))
-     &                =qpv(igrd(n,j,ipass),k)
-                  end do
-                end do
-              end do
-            end if
-            call ccmpi_scatterx(zz(1:iy),yy(1:ix),0,comm_face)
-            if (myid/=hproc) then
-              do j=ns,ne
-                do k=1,kd
-                  do n=1,me
-                    qpv(igrd(n,j,ipass),k)
-     &                =yy(n+me*(k-1)+a*(j-ns))
-                  end do
-                end do
-              end do
-            end if
-            if (myid==hproc) then
-              do j=ne+1,il_g
-                do k=1,kd
-                  do n=1,me
-                    zz(n+me*(k-1)+a*(j-1))
-     &                =qpw(igrd(n,j,ipass),k)
-                  end do
-                end do
-              end do
-            end if
-            call ccmpi_scatterx(zz(1:iy),yy(1:ix),0,comm_face)
-            if (myid/=hproc) then
-              do j=ns,ne
-                do k=1,kd
-                  do n=1,me
-                    qpw(igrd(n,j,ipass),k)
-     &                =yy(n+me*(k-1)+a*(j-ns))
-                  end do
-                end do
-              end do
-            end if
-          end if
-        end if
-
-        if (myid==0.and.nmaxpr==1) write(6,*) "MLO start conv"
-
-        do j=ns,ne
-          xa(1:me)=x_g(igrd(1:me,j,ipass))
-          ya(1:me)=y_g(igrd(1:me,j,ipass))
-          za(1:me)=z_g(igrd(1:me,j,ipass))
-          asum(1:me)=qsum(igrd(1:me,j,ipass))
-          if (nud_sst/=0) then
-            do k=1,kd
-              ap(1:me,k)=qp(igrd(1:me,j,ipass),k)
-            end do
-          end if
-          if (nud_sss/=0) then
-            do k=1,kd
-              aps(1:me,k)=qps(igrd(1:me,j,ipass),k)
-            end do
-          end if
-          if (nud_ouv/=0) then
-            do k=1,kd
-              apu(1:me,k)=qpu(igrd(1:me,j,ipass),k)
-              apv(1:me,k)=qpv(igrd(1:me,j,ipass),k)
-              apw(1:me,k)=qpw(igrd(1:me,j,ipass),k)
-            end do
-          end if
-          if (nud_sfh/=0.and.lblock) then
-            aph(1:me)=qph(igrd(1:me,j,ipass))
-          end if
-          do n=1,il_g
-            rr(1:me)=xa(n)*xa(1:me)+ya(n)*ya(1:me)+za(n)*za(1:me)
-            rr(1:me)=acos(max(min(rr(1:me),1.),-1.))
-            rr(1:me)=exp(-(cq*rr(1:me))**2)
-            psum(n)=sum(rr(1:me)*asum(1:me))
-            if (nud_sst/=0) then
-              do k=1,kd
-                pp(n,k)=sum(rr(1:me)*ap(1:me,k))
-              end do
-            end if
-            if (nud_sss/=0) then
-              do k=1,kd
-                pps(n,k)=sum(rr(1:me)*aps(1:me,k))
-              end do
-            end if
-            if (nud_ouv/=0) then
-              do k=1,kd
-                ppu(n,k)=sum(rr(1:me)*apu(1:me,k))
-                ppv(n,k)=sum(rr(1:me)*apv(1:me,k))
-                ppw(n,k)=sum(rr(1:me)*apw(1:me,k))
-              end do
-            end if
-            if (nud_sfh/=0.and.lblock) then
-              pph(n)=sum(rr(1:me)*aph(1:me))
-            end if
-          end do
-          qsum(igrd(1:il_g,j,ipass))=psum(1:il_g)
-          if (nud_sst/=0) then
-            do k=1,kd
-              qp(igrd(1:il_g,j,ipass),k)=pp(1:il_g,k)
-            end do
-          end if
-          if (nud_sss/=0) then
-            do k=1,kd
-              qps(igrd(1:il_g,j,ipass),k)=pps(1:il_g,k)
-            end do
-          end if
-          if (nud_ouv/=0) then
-            do k=1,kd
-              qpu(igrd(1:il_g,j,ipass),k)=ppu(1:il_g,k)
-              qpv(igrd(1:il_g,j,ipass),k)=ppv(1:il_g,k)
-              qpw(igrd(1:il_g,j,ipass),k)=ppw(1:il_g,k)
-            end do
-          end if
-          if (nud_sfh/=0.and.lblock) then
-            qph(igrd(1:il_g,j,ipass))=pph(1:il_g)
-          end if
-        end do
-
-        if (myid==0.and.nmaxpr==1) write(6,*) "MLO end conv"
-
-        if (ipass==2.or.ipass==3) then
-          itag=itag+1
-          if (myid==0.and.nmaxpr==1) then
-            write(6,*) "MLO Send arrays to local host"
-          end if
-          iy=il_g*il_g*(kx(ipass)-kn(ipass)+1)
-          ix=iy/mproc
-          a=il_g*(kx(ipass)-kn(ipass)+1)
-          c=kn(ipass)
-          if (myid/=hproc) then
-            do j=ns,ne
-              do kpass=kn(ipass),kx(ipass)
-                do n=1,il_g
-                  yy(n+il_g*(kpass-c)+a*(j-ns))
-     &              =qsum(igrd(n,j,kpass))
-                end do
-              end do
-            end do
-          end if
-          call ccmpi_gatherx(zz(1:iy),yy(1:ix),0,comm_face)
-          if (myid==hproc) then
-            do j=ne+1,il_g
-              do kpass=kn(ipass),kx(ipass)
-                do n=1,il_g
-                  qsum(igrd(n,j,kpass))
-     &              =zz(n+il_g*(kpass-c)+a*(j-1))
-                end do
-              end do
-            end do
-          end if
-          if (nud_sfh/=0.and.lblock) then
-            if (myid/=hproc) then
-              do j=ns,ne
-                do kpass=kn(ipass),kx(ipass)
-                  do n=1,il_g
-                    yy(n+il_g*(kpass-c)+a*(j-ns))
-     &                =qph(igrd(n,j,kpass))
-                  end do
-                end do
-              end do
-            end if
-            call ccmpi_gatherx(zz(1:iy),yy(1:ix),0,comm_face)
-            if (myid==hproc) then
-              do j=ne+1,il_g
-                do kpass=kn(ipass),kx(ipass)
-                  do n=1,il_g
-                    qph(igrd(n,j,kpass))
-     &                =zz(n+il_g*(kpass-c)+a*(j-1))
-                  end do
-                end do
-              end do
-            end if
-          end if
-          iy=il_g*il_g*kd*(kx(ipass)-kn(ipass)+1)
-          ix=iy/mproc
-          a=il_g*(kx(ipass)-kn(ipass)+1)
-          b=il_g*(kx(ipass)-kn(ipass)+1)*kd
-          c=kn(ipass)
-          if (nud_sst/=0) then
-            if (myid/=hproc) then
-              do j=ns,ne
-                do k=1,kd
-                  do kpass=kn(ipass),kx(ipass)
-                    do n=1,il_g
-                      yy(n+il_g*(kpass-c)+a*(k-1)+b*(j-ns))
-     &                  =qp(igrd(n,j,kpass),k)
-                    end do
-                  end do
-                end do
-              end do
-            end if
-            call ccmpi_gatherx(zz(1:iy),yy(1:ix),0,comm_face)
-            if (myid==hproc) then
-              do j=ne+1,il_g
-                do k=1,kd             
-                  do kpass=kn(ipass),kx(ipass)
-                    do n=1,il_g
-                      qp(igrd(n,j,kpass),k)
-     &                  =zz(n+il_g*(kpass-c)+a*(k-1)+b*(j-1))
-                    end do
-                  end do
-                end do
-              end do
-            end if
-          end if
-          if (nud_sss/=0) then
-            if (myid/=hproc) then
-              do j=ns,ne
-                do k=1,kd
-                  do kpass=kn(ipass),kx(ipass)
-                    do n=1,il_g
-                      yy(n+il_g*(kpass-c)+a*(k-1)+b*(j-ns))
-     &                  =qps(igrd(n,j,kpass),k)
-                    end do
-                  end do
-                end do
-              end do
-            end if
-            call ccmpi_gatherx(zz(1:iy),yy(1:ix),0,comm_face)
-            if (myid==hproc) then
-              do j=ne+1,il_g
-                do k=1,kd             
-                  do kpass=kn(ipass),kx(ipass)
-                    do n=1,il_g
-                      qps(igrd(n,j,kpass),k)
-     &                  =zz(n+il_g*(kpass-c)+a*(k-1)+b*(j-1))
-                    end do
-                  end do
-                end do
-              end do
-            end if
-          end if
-          if (nud_ouv/=0) then
-            if (myid/=hproc) then
-              do j=ns,ne
-                do k=1,kd
-                  do kpass=kn(ipass),kx(ipass)
-                    do n=1,il_g
-                      yy(n+il_g*(kpass-c)+a*(k-1)+b*(j-ns))
-     &                  =qpu(igrd(n,j,kpass),k)
-                    end do
-                  end do
-                end do
-              end do
-            end if
-            call ccmpi_gatherx(zz(1:iy),yy(1:ix),0,comm_face)
-            if (myid==hproc) then
-              do j=ne+1,il_g
-                do k=1,kd             
-                  do kpass=kn(ipass),kx(ipass)
-                    do n=1,il_g
-                      qpu(igrd(n,j,kpass),k)
-     &                  =zz(n+il_g*(kpass-c)+a*(k-1)+b*(j-1))
-                    end do
-                  end do
-                end do
-              end do
-            end if
-            if (myid/=hproc) then
-              do j=ns,ne
-                do k=1,kd
-                  do kpass=kn(ipass),kx(ipass)
-                    do n=1,il_g
-                      yy(n+il_g*(kpass-c)+a*(k-1)+b*(j-ns))
-     &                  =qpv(igrd(n,j,kpass),k)
-                    end do
-                  end do
-                end do
-              end do
-            end if
-            call ccmpi_gatherx(zz(1:iy),yy(1:ix),0,comm_face)
-            if (myid==hproc) then
-              do j=ne+1,il_g
-                do k=1,kd             
-                  do kpass=kn(ipass),kx(ipass)
-                    do n=1,il_g
-                      qpv(igrd(n,j,kpass),k)
-     &                  =zz(n+il_g*(kpass-c)+a*(k-1)+b*(j-1))
-                    end do
-                  end do
-                end do
-              end do
-            end if
-            if (myid/=hproc) then
-              do j=ns,ne
-                do k=1,kd
-                  do kpass=kn(ipass),kx(ipass)
-                    do n=1,il_g
-                      yy(n+il_g*(kpass-c)+a*(k-1)+b*(j-ns))
-     &                  =qpw(igrd(n,j,kpass),k)
-                    end do
-                  end do
-                end do
-              end do
-            end if
-            call ccmpi_gatherx(zz(1:iy),yy(1:ix),0,comm_face)
-            if (myid==hproc) then
-              do j=ne+1,il_g
-                do k=1,kd             
-                  do kpass=kn(ipass),kx(ipass)
-                    do n=1,il_g
-                      qpw(igrd(n,j,kpass),k)
-     &                  =zz(n+il_g*(kpass-c)+a*(k-1)+b*(j-1))
-                    end do
-                  end do
-                end do
-              end do
-            end if
-          end if
-        end if
-          
-      end do
-      
-      return  
-      end subroutine mlospeclocal_s
-      
       ! Relaxtion method for mlo
       subroutine mlonudge(new,sssb,suvb,sfh,wl)
 

@@ -115,6 +115,7 @@ module cc_mpi
 
    type bounds_info
       real, dimension(:), allocatable :: sbuf, rbuf
+      real, dimension(:), allocatable :: send_neg
       integer, dimension(:), allocatable :: request_list
       integer, dimension(:), allocatable :: send_list
       integer, dimension(:), allocatable :: unpack_list
@@ -122,7 +123,7 @@ module cc_mpi
       integer, dimension(:), allocatable :: send_list_uv
       integer, dimension(:), allocatable :: unpack_list_uv
       ! Flag for whether u and v need to be swapped
-      logical, dimension(:), allocatable :: uv_swap, send_swap, uv_neg, send_neg
+      logical, dimension(:), allocatable :: uv_swap, send_swap, uv_neg
       ! Number of points for each processor. Also double row versions.
       ! lenx is first row plux corner points.  lenh is just the ne side.
       integer :: slen, rlen, slenx, rlenx, slen2, rlen2
@@ -147,7 +148,7 @@ module cc_mpi
    end type sextra_t
 
    type boundsplit
-      integer :: isubg, iwvfn, inubg, ievfn
+      integer :: isubg, ievfn
       integer :: isvbg, iwufn, invbg, ieufn
       integer :: issvbg, iwwufn, innvbg, ieeufn
    end type boundsplit
@@ -1916,7 +1917,7 @@ contains
       allocate( ireq(2*neighnum) )
       allocate( rlist(neighnum) )
       allocate( status(MPI_STATUS_SIZE,2*neighnum ))
-      allocate( dums(8,neighnum),dumr(8,neighnum) )
+      allocate( dums(7,neighnum),dumr(7,neighnum) )
       allocate( dumsb(9,neighnum),dumrb(9,neighnum) )
       allocate( dumsl(maxbuflen,neighnum),dumrl(maxbuflen,neighnum) )
 
@@ -2281,7 +2282,7 @@ contains
 
       ! save start of isu indices
       rsplit(:)%isubg = rsplit(:)%ieeufn + 1
-      rsplit(:)%iwvfn = rsplit(:)%ieeufn
+      rsplit(:)%ievfn = rsplit(:)%ieeufn
 
       !     S edge, U
       j=1
@@ -2295,7 +2296,7 @@ contains
             call check_bnds_alloc(rproc, iextu)
             bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
             bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = iqq
-            rsplit(rproc)%iwvfn = rsplit(rproc)%iwvfn + 1
+            rsplit(rproc)%ievfn = rsplit(rproc)%ievfn + 1
             ! Increment extended region index
             iextu = iextu + 1
             bnds(rproc)%unpack_list_uv(bnds(rproc)%rlenx_uv) = iextu
@@ -2323,7 +2324,7 @@ contains
             bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
             ! to show that this is v rather than u, flip sign
             bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = -iqq
-            rsplit(rproc)%iwvfn = rsplit(rproc)%iwvfn + 1
+            rsplit(rproc)%ievfn = rsplit(rproc)%ievfn + 1
             ! Increment extended region index
             iextv = iextv + 1
             bnds(rproc)%unpack_list_uv(bnds(rproc)%rlenx_uv) = -iextv
@@ -2333,10 +2334,6 @@ contains
             bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = swap
          end do
       end do
-
-      ! start save of inu indices
-      rsplit(:)%inubg = rsplit(:)%iwvfn + 1
-      rsplit(:)%ievfn = rsplit(:)%iwvfn
 
       !     N edge (U)
       j=jpan
@@ -2463,10 +2460,9 @@ contains
       ssplit(:)%ieufn  = 0
       ssplit(:)%iwwufn = 0
       ssplit(:)%ieeufn = 0
-      ssplit(:)%iwvfn  = 0
       ssplit(:)%ievfn  = 0
       nreq = 0
-      mnum = 8
+      mnum = 7
       do iproc = 1,neighnum
          rproc = neighlistrecv(iproc)  ! Recv from
          if ( bnds(rproc)%rlenx_uv > 0 ) then
@@ -2486,8 +2482,7 @@ contains
             dums(4,iproc) = rsplit(sproc)%ieufn
             dums(5,iproc) = rsplit(sproc)%iwwufn
             dums(6,iproc) = rsplit(sproc)%ieeufn
-            dums(7,iproc) = rsplit(sproc)%iwvfn
-            dums(8,iproc) = rsplit(sproc)%ievfn
+            dums(7,iproc) = rsplit(sproc)%ievfn
             lproc = sproc
             call MPI_ISend( dums(:,iproc), mnum, ltype, lproc, &
                  itag, MPI_COMM_WORLD, ireq(nreq), ierr )
@@ -2503,8 +2498,7 @@ contains
             ssplit(rproc)%ieufn  = dumr(4,iproc)
             ssplit(rproc)%iwwufn = dumr(5,iproc)
             ssplit(rproc)%ieeufn = dumr(6,iproc)
-            ssplit(rproc)%iwvfn  = dumr(7,iproc)
-            ssplit(rproc)%ievfn  = dumr(8,iproc)
+            ssplit(rproc)%ievfn  = dumr(7,iproc)
          end if
       end do
       ssplit(:)%isvbg  = 1
@@ -2512,7 +2506,6 @@ contains
       ssplit(:)%issvbg = ssplit(:)%ieufn  + 1
       ssplit(:)%innvbg = ssplit(:)%iwwufn + 1
       ssplit(:)%isubg  = ssplit(:)%ieeufn + 1
-      ssplit(:)%inubg  = ssplit(:)%iwvfn  + 1
 
       ! Only send the swap list once
       nreq = 0
@@ -2572,10 +2565,14 @@ contains
       end do
       call MPI_Waitall(nreq,ireq,status,ierr)
       do iproc=1,neighnum
-        rproc=neighlistrecv(iproc)
-        if ( bnds(rproc)%slenx_uv > 0 ) then
-          bnds(rproc)%send_neg(1:bnds(rproc)%slenx_uv) = dumrl(1:bnds(rproc)%slenx_uv,iproc)
-        end if
+         rproc=neighlistrecv(iproc)
+         if ( bnds(rproc)%slenx_uv > 0 ) then
+           where ( dumrl(1:bnds(rproc)%slenx_uv,iproc) )
+              bnds(rproc)%send_neg(1:bnds(rproc)%slenx_uv) = -1.
+           elsewhere
+              bnds(rproc)%send_neg(1:bnds(rproc)%slenx_uv) =  1.
+           end where
+         end if
       end do
       
       ! Flag that all messages have been cleared
@@ -2702,73 +2699,69 @@ contains
 
    end subroutine bounds_setup
    
-   ! MJT memory
    subroutine reducealloc
+      ! free memory   
+      integer iproc,nlen
+      integer(kind=4) ierr, mnum
+      real, dimension(maxbuflen) :: rdum
+      integer, dimension(maxbuflen) :: idum
+      logical, dimension(maxbuflen) :: ldum
    
-   implicit none
-   
-   integer iproc,nlen
-   integer(kind=4) ierr, mnum
-   integer, dimension(maxbuflen) :: idum
-   logical, dimension(maxbuflen) :: ldum
-   
-   do iproc = 0,nproc-1
-      nlen = max(kl+1,ol+1)*max(bnds(iproc)%rlen2,bnds(iproc)%rlenx_uv,bnds(iproc)%slen2,bnds(iproc)%slenx_uv)
-      if ( nlen < bnds(iproc)%len ) then
-         !write(6,*) "Reducing array size.  myid,iproc,nlen,len ",myid,iproc,nlen,bnds(iproc)%len
-         bnds(iproc)%len = nlen
-         if ( iproc /= myid ) then
-            idum(1:bnds(iproc)%len) = bnds(iproc)%request_list(1:bnds(iproc)%len)
-            deallocate ( bnds(iproc)%request_list )
-            allocate ( bnds(iproc)%request_list(bnds(iproc)%len) )
-            bnds(iproc)%request_list(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
-            idum(1:bnds(iproc)%len) = bnds(iproc)%send_list(1:bnds(iproc)%len)
-            deallocate ( bnds(iproc)%send_list )
-            allocate ( bnds(iproc)%send_list(bnds(iproc)%len) )
-            bnds(iproc)%send_list(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
-            idum(1:bnds(iproc)%len) = bnds(iproc)%unpack_list(1:bnds(iproc)%len)
-            deallocate ( bnds(iproc)%unpack_list )
-            allocate ( bnds(iproc)%unpack_list(bnds(iproc)%len) )
-            bnds(iproc)%unpack_list(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
+      do iproc = 0,nproc-1
+         nlen = max(kl+1,ol+1)*max(bnds(iproc)%rlen2,bnds(iproc)%rlenx_uv,bnds(iproc)%slen2,bnds(iproc)%slenx_uv)
+         if ( nlen < bnds(iproc)%len ) then
+            !write(6,*) "Reducing array size.  myid,iproc,nlen,len ",myid,iproc,nlen,bnds(iproc)%len
+            bnds(iproc)%len = nlen
+            if ( iproc /= myid ) then
+               idum(1:bnds(iproc)%len) = bnds(iproc)%request_list(1:bnds(iproc)%len)
+               deallocate ( bnds(iproc)%request_list )
+               allocate ( bnds(iproc)%request_list(bnds(iproc)%len) )
+               bnds(iproc)%request_list(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
+               idum(1:bnds(iproc)%len) = bnds(iproc)%send_list(1:bnds(iproc)%len)
+               deallocate ( bnds(iproc)%send_list )
+               allocate ( bnds(iproc)%send_list(bnds(iproc)%len) )
+               bnds(iproc)%send_list(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
+               idum(1:bnds(iproc)%len) = bnds(iproc)%unpack_list(1:bnds(iproc)%len)
+               deallocate ( bnds(iproc)%unpack_list )
+               allocate ( bnds(iproc)%unpack_list(bnds(iproc)%len) )
+               bnds(iproc)%unpack_list(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
+            end if
+            idum(1:bnds(iproc)%len) = bnds(iproc)%request_list_uv(1:bnds(iproc)%len)
+            deallocate ( bnds(iproc)%request_list_uv )
+            allocate ( bnds(iproc)%request_list_uv(bnds(iproc)%len) )
+            bnds(iproc)%request_list_uv(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
+            idum(1:bnds(iproc)%len) = bnds(iproc)%send_list_uv(1:bnds(iproc)%len)
+            deallocate ( bnds(iproc)%send_list_uv )
+            allocate ( bnds(iproc)%send_list_uv(bnds(iproc)%len) )
+            bnds(iproc)%send_list_uv(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
+            idum(1:bnds(iproc)%len) = bnds(iproc)%unpack_list_uv(1:bnds(iproc)%len)
+            deallocate ( bnds(iproc)%unpack_list_uv )
+            allocate ( bnds(iproc)%unpack_list_uv(bnds(iproc)%len) )
+            bnds(iproc)%unpack_list_uv(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
+            ldum(1:bnds(iproc)%len) = bnds(iproc)%uv_swap(1:bnds(iproc)%len)
+            deallocate ( bnds(iproc)%uv_swap )
+            allocate ( bnds(iproc)%uv_swap(bnds(iproc)%len) )
+            bnds(iproc)%uv_swap(1:bnds(iproc)%len) = ldum(1:bnds(iproc)%len)
+            ldum(1:bnds(iproc)%len) = bnds(iproc)%send_swap(1:bnds(iproc)%len)
+            deallocate ( bnds(iproc)%send_swap )
+            allocate ( bnds(iproc)%send_swap(bnds(iproc)%len) )
+            bnds(iproc)%send_swap(1:bnds(iproc)%len) = ldum(1:bnds(iproc)%len)
+            ldum(1:bnds(iproc)%len) = bnds(iproc)%uv_neg(1:bnds(iproc)%len)
+            deallocate ( bnds(iproc)%uv_neg )
+            allocate ( bnds(iproc)%uv_neg(bnds(iproc)%len) )
+            bnds(iproc)%uv_neg(1:bnds(iproc)%len) = ldum(1:bnds(iproc)%len)
+            rdum(1:bnds(iproc)%len) = bnds(iproc)%send_neg(1:bnds(iproc)%len)
+            deallocate ( bnds(iproc)%send_neg )
+            allocate ( bnds(iproc)%send_neg(bnds(iproc)%len) )
+            bnds(iproc)%send_neg(1:bnds(iproc)%len) = rdum(1:bnds(iproc)%len)
+         else if ( nlen > bnds(iproc)%len ) then
+            write(6,*) "ERROR reducing array size"
+            write(6,*) "myid,iproc,nlen,len ",myid,iproc,nlen,bnds(iproc)%len
+            write(6,*) "maxbuflen ",maxbuflen
+            mnum = -1
+            call MPI_Abort(MPI_COMM_WORLD,mnum,ierr)
          end if
-         idum(1:bnds(iproc)%len) = bnds(iproc)%request_list_uv(1:bnds(iproc)%len)
-         deallocate ( bnds(iproc)%request_list_uv )
-         allocate ( bnds(iproc)%request_list_uv(bnds(iproc)%len) )
-         bnds(iproc)%request_list_uv(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
-         idum(1:bnds(iproc)%len) = bnds(iproc)%send_list_uv(1:bnds(iproc)%len)
-         deallocate ( bnds(iproc)%send_list_uv )
-         allocate ( bnds(iproc)%send_list_uv(bnds(iproc)%len) )
-         bnds(iproc)%send_list_uv(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
-         idum(1:bnds(iproc)%len) = bnds(iproc)%unpack_list_uv(1:bnds(iproc)%len)
-         deallocate ( bnds(iproc)%unpack_list_uv )
-         allocate ( bnds(iproc)%unpack_list_uv(bnds(iproc)%len) )
-         bnds(iproc)%unpack_list_uv(1:bnds(iproc)%len) = idum(1:bnds(iproc)%len)
-         ldum(1:bnds(iproc)%len) = bnds(iproc)%uv_swap(1:bnds(iproc)%len)
-         deallocate ( bnds(iproc)%uv_swap )
-         allocate ( bnds(iproc)%uv_swap(bnds(iproc)%len) )
-         bnds(iproc)%uv_swap(1:bnds(iproc)%len) = ldum(1:bnds(iproc)%len)
-         ldum(1:bnds(iproc)%len) = bnds(iproc)%send_swap(1:bnds(iproc)%len)
-         deallocate ( bnds(iproc)%send_swap )
-         allocate ( bnds(iproc)%send_swap(bnds(iproc)%len) )
-         bnds(iproc)%send_swap(1:bnds(iproc)%len) = ldum(1:bnds(iproc)%len)
-         ldum(1:bnds(iproc)%len) = bnds(iproc)%uv_neg(1:bnds(iproc)%len)
-         deallocate ( bnds(iproc)%uv_neg )
-         allocate ( bnds(iproc)%uv_neg(bnds(iproc)%len) )
-         bnds(iproc)%uv_neg(1:bnds(iproc)%len) = ldum(1:bnds(iproc)%len)
-         ldum(1:bnds(iproc)%len) = bnds(iproc)%send_neg(1:bnds(iproc)%len)
-         deallocate ( bnds(iproc)%send_neg )
-         allocate ( bnds(iproc)%send_neg(bnds(iproc)%len) )
-         bnds(iproc)%send_neg(1:bnds(iproc)%len) = ldum(1:bnds(iproc)%len)
-      else if ( nlen > bnds(iproc)%len ) then
-         write(6,*) "ERROR reducing array size"
-         write(6,*) "myid,iproc,nlen,len ",myid,iproc,nlen,bnds(iproc)%len
-         write(6,*) "maxbuflen ",maxbuflen
-         mnum = -1
-         call MPI_Abort(MPI_COMM_WORLD,mnum,ierr)
-      end if
-   end do
-   
-   return
+      end do
    end subroutine reducealloc
 
    subroutine check_set(ind,str,i,j,n,iq)
@@ -2847,10 +2840,10 @@ contains
          myrlen = bnds(myid)%rlenh
       end if
       if ( lmode == 1 ) then
-        t(ifull+1:ifull+iextra) = 0. ! Must be zero for mlodynamics
-        rslen  = rslen*bnds(neighlistrecv)%mlomsk
-        sslen  = sslen*bnds(neighlistsend)%mlomsk
-        myrlen = myrlen*bnds(myid)%mlomsk
+         t(ifull+1:ifull+iextra) = 0. ! Must be zero for mlodynamics
+         rslen  = rslen*bnds(neighlistrecv)%mlomsk
+         sslen  = sslen*bnds(neighlistsend)%mlomsk
+         myrlen = myrlen*bnds(myid)%mlomsk
       end if
 
       ! Clear any current messages
@@ -2962,7 +2955,7 @@ contains
       kx = size(t,2)
       lmode = 0
       double = .false.
-      extra = .false.
+      extra  = .false.
       single = .true.
       if ( present(klim) ) then
          kx = klim
@@ -3005,10 +2998,10 @@ contains
          myrlen = bnds(myid)%rlenh
       end if
       if ( lmode == 1 ) then
-        t(ifull+1:ifull+iextra,1:kx) = 0. ! Must be zero for mlodynamics
-        rslen  = rslen*bnds(neighlistrecv)%mlomsk
-        sslen  = sslen*bnds(neighlistsend)%mlomsk
-        myrlen = myrlen*bnds(myid)%mlomsk
+         t(ifull+1:ifull+iextra,1:kx) = 0. ! Must be zero for mlodynamics
+         rslen  = rslen*bnds(neighlistrecv)%mlomsk
+         sslen  = sslen*bnds(neighlistsend)%mlomsk
+         myrlen = myrlen*bnds(myid)%mlomsk
       end if
 
       ! Clear any current messages
@@ -3126,9 +3119,9 @@ contains
       sslen = bnds(neighlistsend)%slen
       myrlen = bnds(myid)%rlen
       if ( lmode == 1 ) then
-        rslen = rslen*bnds(neighlistrecv)%mlomsk
-        sslen = sslen*bnds(neighlistsend)%mlomsk
-        myrlen = myrlen*bnds(myid)%mlomsk
+         rslen = rslen*bnds(neighlistrecv)%mlomsk
+         sslen = sslen*bnds(neighlistsend)%mlomsk
+         myrlen = myrlen*bnds(myid)%mlomsk
       end if
 
       ! Clear any current messages
@@ -3251,7 +3244,7 @@ contains
       logical, intent(in), optional :: allvec
       logical :: double, extra
       logical :: fsvwu, fnveu, fssvwwu, fnnveeu
-      logical :: fsuwv, fnuev
+      logical :: fnsuewv
       integer :: iq, iqz, iproc, rproc, sproc, iqq, send_len, recv_len
       integer :: lmode, stagmode, rcount, myrlen, jproc, lproc
       integer, dimension(neighnum) :: rslen, sslen
@@ -3276,14 +3269,14 @@ contains
          lmode = gmode
       end if
       if ( present(allvec) ) then
-        extra = allvec
+         extra = allvec
       end if
       ! double is irrelevant in extra case
       if ( .not. extra .and. present(nrows)) then
          if ( nrows == 2 ) double = .true.
       end if
       if ( present(stag) ) then
-        stagmode = stag
+         stagmode = stag
       end if
 
       if ( double ) then
@@ -3291,8 +3284,7 @@ contains
          fnveu = .true.
          fssvwwu = .true.
          fnnveeu = .true.
-         fsuwv = .false.
-         fnuev = .false.
+         fnsuewv = .false.
          rslen = bnds(neighlistrecv)%rlen2_uv
          sslen = bnds(neighlistsend)%slen2_uv
          myrlen = bnds(myid)%rlen2_uv
@@ -3301,8 +3293,7 @@ contains
          fnveu = .true.
          fssvwwu = .false.
          fnnveeu = .false.
-         fsuwv = .true.
-         fnuev = .true.
+         fnsuewv = .true.
          rslen = bnds(neighlistrecv)%rlenx_uv
          sslen = bnds(neighlistsend)%slenx_uv              
          myrlen = bnds(myid)%rlenx_uv
@@ -3311,8 +3302,7 @@ contains
          fnveu = .true.
          fssvwwu = .false.
          fnnveeu = .true.
-         fsuwv = .false.
-         fnuev = .false.
+         fnsuewv = .false.
          rslen = bnds(neighlistrecv)%rlen2_uv
          sslen = bnds(neighlistsend)%slen2_uv
          myrlen = bnds(myid)%rlen2_uv
@@ -3321,8 +3311,7 @@ contains
          fnveu = .true.
          fssvwwu = .false.
          fnnveeu = .true. ! fnnveeu requires fnveu
-         fsuwv = .false.
-         fnuev = .false.
+         fnsuewv = .false.
          rslen = bnds(neighlistrecv)%rlen2_uv
          sslen = bnds(neighlistsend)%slen2_uv
          myrlen = bnds(myid)%rlen2_uv
@@ -3331,8 +3320,7 @@ contains
          fnveu = .true.
          fssvwwu = .true. ! fssvwwu requires fsvwu
          fnnveeu = .false.
-         fsuwv = .false.
-         fnuev = .false.
+         fnsuewv = .false.
          rslen = bnds(neighlistrecv)%rlen2_uv
          sslen = bnds(neighlistsend)%slen2_uv
          myrlen = bnds(myid)%rlen2_uv
@@ -3341,8 +3329,7 @@ contains
          fnveu = .false.
          fssvwwu = .true.
          fnnveeu = .false.
-         fsuwv = .false.
-         fnuev = .false.
+         fnsuewv = .false.
          rslen = bnds(neighlistrecv)%rlen2_uv
          sslen = bnds(neighlistsend)%slen2_uv
          myrlen = bnds(myid)%rlen2_uv
@@ -3351,8 +3338,7 @@ contains
          fnveu = .false.
          fssvwwu = .false.
          fnnveeu = .false.
-         fsuwv = .false.
-         fnuev = .false.
+         fnsuewv = .false.
          rslen = bnds(neighlistrecv)%rlen_uv
          sslen = bnds(neighlistsend)%slen_uv
          myrlen = bnds(myid)%rlen_uv
@@ -3361,8 +3347,7 @@ contains
          fnveu = .true.
          fssvwwu = .false.
          fnnveeu = .false.
-         fsuwv = .false.
-         fnuev = .false.
+         fnsuewv = .false.
          rslen = bnds(neighlistrecv)%rlen_uv
          sslen = bnds(neighlistsend)%slen_uv
          myrlen = bnds(myid)%rlen_uv
@@ -3371,8 +3356,7 @@ contains
          fnveu = .true.
          fssvwwu = .false.
          fnnveeu = .false.
-         fsuwv = .false.
-         fnuev = .false.
+         fnsuewv = .false.
          rslen = bnds(neighlistrecv)%rlen_uv
          sslen = bnds(neighlistsend)%slen_uv
          myrlen = bnds(myid)%rlen_uv
@@ -3402,22 +3386,19 @@ contains
          if ( rslen(iproc) > 0 ) then
             recv_len=0
             if ( fsvwu ) then
-               recv_len=recv_len+rsplit(rproc)%iwufn-rsplit(rproc)%isvbg+1
+               recv_len = recv_len+rsplit(rproc)%iwufn-rsplit(rproc)%isvbg+1
             end if
             if ( fnveu ) then
-               recv_len=recv_len+rsplit(rproc)%ieufn-rsplit(rproc)%invbg+1
+               recv_len = recv_len+rsplit(rproc)%ieufn-rsplit(rproc)%invbg+1
             end if         
             if ( fssvwwu ) then
-               recv_len=recv_len+rsplit(rproc)%iwwufn-rsplit(rproc)%issvbg+1
+               recv_len = recv_len+rsplit(rproc)%iwwufn-rsplit(rproc)%issvbg+1
             end if         
             if ( fnnveeu ) then
-               recv_len=recv_len+rsplit(rproc)%ieeufn-rsplit(rproc)%innvbg+1
+               recv_len = recv_len+rsplit(rproc)%ieeufn-rsplit(rproc)%innvbg+1
             end if         
-            if ( fsuwv ) then
-               recv_len=recv_len+rsplit(rproc)%iwvfn-rsplit(rproc)%isubg+1
-            end if
-            if ( fnuev ) then
-               recv_len=recv_len+rsplit(rproc)%ievfn-rsplit(rproc)%inubg+1
+            if ( fnsuewv ) then
+               recv_len = recv_len+rsplit(rproc)%ievfn-rsplit(rproc)%isubg+1
             end if
             if ( recv_len > 0 ) then 
                nreq = nreq + 1
@@ -3446,7 +3427,7 @@ contains
                   else
                      bnds(sproc)%sbuf(iqz) = v(abs(bnds(sproc)%send_list_uv(iq)))
                   end if 
-                  if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(iqz) = -bnds(sproc)%sbuf(iqz)
+                  bnds(sproc)%sbuf(iqz) = bnds(sproc)%send_neg(iq)*bnds(sproc)%sbuf(iqz)
                end do
                iqq = iqq+ssplit(sproc)%iwufn-ssplit(sproc)%isvbg+1
             end if
@@ -3461,7 +3442,7 @@ contains
                   else
                      bnds(sproc)%sbuf(iqz) = v(abs(bnds(sproc)%send_list_uv(iq)))
                   end if 
-                  if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(iqz) = -bnds(sproc)%sbuf(iqz)
+                  bnds(sproc)%sbuf(iqz) = bnds(sproc)%send_neg(iq)*bnds(sproc)%sbuf(iqz)
                end do
                iqq = iqq+ssplit(sproc)%ieufn-ssplit(sproc)%invbg+1
             end if
@@ -3476,7 +3457,7 @@ contains
                   else
                      bnds(sproc)%sbuf(iqz) = v(abs(bnds(sproc)%send_list_uv(iq)))
                   end if 
-                  if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(iqz) = -bnds(sproc)%sbuf(iqz)
+                  bnds(sproc)%sbuf(iqz) = bnds(sproc)%send_neg(iq)*bnds(sproc)%sbuf(iqz)
                end do
                iqq = iqq+ssplit(sproc)%iwwufn-ssplit(sproc)%issvbg+1
             end if
@@ -3491,13 +3472,13 @@ contains
                   else
                      bnds(sproc)%sbuf(iqz) = v(abs(bnds(sproc)%send_list_uv(iq)))
                   end if 
-                  if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(iqz) = -bnds(sproc)%sbuf(iqz)
+                  bnds(sproc)%sbuf(iqz) = bnds(sproc)%send_neg(iq)*bnds(sproc)%sbuf(iqz)
                end do
                iqq = iqq+ssplit(sproc)%ieeufn-ssplit(sproc)%innvbg+1
             end if
-            if ( fsuwv ) then
+            if ( fnsuewv ) then
 !cdir nodep
-               do iq=ssplit(sproc)%isubg,ssplit(sproc)%iwvfn
+               do iq=ssplit(sproc)%isubg,ssplit(sproc)%ievfn
                   ! Use abs because sign is used as u/v flag
                   iqz = iqq+iq-ssplit(sproc)%isubg+1
                   if ( (bnds(sproc)%send_list_uv(iq) > 0) .neqv. &
@@ -3506,24 +3487,9 @@ contains
                   else
                      bnds(sproc)%sbuf(iqz) = v(abs(bnds(sproc)%send_list_uv(iq)))
                   end if 
-                  if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(iqz) = -bnds(sproc)%sbuf(iqz)
+                  bnds(sproc)%sbuf(iqz) = bnds(sproc)%send_neg(iq)*bnds(sproc)%sbuf(iqz)
                end do
-               iqq = iqq+ssplit(sproc)%iwvfn-ssplit(sproc)%isubg+1
-            end if
-            if ( fnuev ) then
-!cdir nodep
-               do iq=ssplit(sproc)%inubg,ssplit(sproc)%ievfn
-                  ! Use abs because sign is used as u/v flag
-                  iqz = iqq+iq-ssplit(sproc)%inubg+1
-                  if ( (bnds(sproc)%send_list_uv(iq) > 0) .neqv. &
-                        bnds(sproc)%send_swap(iq) ) then
-                     bnds(sproc)%sbuf(iqz) = u(abs(bnds(sproc)%send_list_uv(iq)))
-                  else
-                     bnds(sproc)%sbuf(iqz) = v(abs(bnds(sproc)%send_list_uv(iq)))
-                  end if 
-                  if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(iqz) = -bnds(sproc)%sbuf(iqz)
-               end do
-               iqq = iqq+ssplit(sproc)%ievfn-ssplit(sproc)%inubg+1
+               iqq = iqq+ssplit(sproc)%ievfn-ssplit(sproc)%isubg+1
             end if
             if ( iqq > 0 ) then
                nreq = nreq + 1
@@ -3626,9 +3592,9 @@ contains
                end do
                iqq = iqq+rsplit(rproc)%ieeufn-rsplit(rproc)%innvbg+1
             end if
-            if ( fsuwv ) then
+            if ( fnsuewv ) then
 !cdir nodep
-               do iq=rsplit(rproc)%isubg,rsplit(rproc)%iwvfn
+               do iq=rsplit(rproc)%isubg,rsplit(rproc)%ievfn
                   ! unpack_list(iq) is index into extended region
                   iqz = iqq+iq-rsplit(rproc)%isubg+1
                   if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
@@ -3637,20 +3603,7 @@ contains
                      v(ifull-bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
                   end if
                end do
-               iqq = iqq+rsplit(rproc)%iwvfn-rsplit(rproc)%isubg+1
-            end if
-            if ( fnuev ) then
-!cdir nodep
-               do iq=rsplit(rproc)%inubg,rsplit(rproc)%ievfn
-                  ! unpack_list(iq) is index into extended region
-                  iqz = iqq+iq-rsplit(rproc)%inubg+1
-                  if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
-                     u(ifull+bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
-                  else
-                     v(ifull-bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iqz)
-                  end if
-               end do
-               iqq = iqq+rsplit(rproc)%ievfn-rsplit(rproc)%inubg+1
+               iqq = iqq+rsplit(rproc)%ievfn-rsplit(rproc)%isubg+1
             end if
 
          end do
@@ -3672,7 +3625,7 @@ contains
       logical, intent(in), optional :: allvec
       logical :: double, extra
       logical :: fsvwu, fnveu, fssvwwu, fnnveeu
-      logical :: fsuwv, fnuev
+      logical :: fnsuewv
       integer :: iq, iqz, iq_b, iq_e, iproc, kx, rproc, sproc, iqq, send_len, recv_len
       integer :: lmode, stagmode, rcount, myrlen, jproc, lproc
       integer, dimension(neighnum) :: rslen, sslen
@@ -3686,7 +3639,6 @@ contains
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif   
       real, dimension(maxbuflen) :: tmp
-      real negmul
       
       call start_log(boundsuv_begin)
       
@@ -3696,7 +3648,7 @@ contains
       stagmode = 0
       lmode = 0
       if ( present(allvec) ) then
-        extra = allvec
+         extra = allvec
       end if 
       ! double is irrelevant in extra case
       if ( .not. extra .and. present(nrows) ) then
@@ -3716,8 +3668,7 @@ contains
          fnveu = .true.
          fssvwwu = .true.
          fnnveeu = .true.
-         fsuwv = .false.
-         fnuev = .false.
+         fnsuewv = .false.
          rslen = bnds(neighlistrecv)%rlen2_uv
          sslen = bnds(neighlistsend)%slen2_uv
          myrlen = bnds(myid)%rlen2_uv
@@ -3726,8 +3677,7 @@ contains
          fnveu = .true.
          fssvwwu = .false.
          fnnveeu = .false.
-         fsuwv = .true.
-         fnuev = .true.
+         fnsuewv = .true.
          rslen = bnds(neighlistrecv)%rlenx_uv
          sslen = bnds(neighlistsend)%slenx_uv              
          myrlen = bnds(myid)%rlenx_uv
@@ -3736,8 +3686,7 @@ contains
          fnveu = .true.
          fssvwwu = .false.
          fnnveeu = .true.
-         fsuwv = .false.
-         fnuev = .false.
+         fnsuewv = .false.
          rslen = bnds(neighlistrecv)%rlen2_uv
          sslen = bnds(neighlistsend)%slen2_uv
          myrlen = bnds(myid)%rlen2_uv
@@ -3746,8 +3695,7 @@ contains
          fnveu = .true.
          fssvwwu = .false.
          fnnveeu = .true. ! fnnveeu requires fnveu
-         fsuwv = .false.
-         fnuev = .false.
+         fnsuewv = .false.
          rslen = bnds(neighlistrecv)%rlen2_uv
          sslen = bnds(neighlistsend)%slen2_uv
          myrlen = bnds(myid)%rlen2_uv
@@ -3756,8 +3704,7 @@ contains
          fnveu = .true.
          fssvwwu = .true. ! fssvwwu requires fsvwu
          fnnveeu = .false.
-         fsuwv = .false.
-         fnuev = .false.
+         fnsuewv = .false.
          rslen = bnds(neighlistrecv)%rlen2_uv
          sslen = bnds(neighlistsend)%slen2_uv
          myrlen = bnds(myid)%rlen2_uv
@@ -3766,8 +3713,7 @@ contains
          fnveu = .false.
          fssvwwu = .true.
          fnnveeu = .false.
-         fsuwv = .false.
-         fnuev = .false.
+         fnsuewv = .false.
          rslen = bnds(neighlistrecv)%rlen2_uv
          sslen = bnds(neighlistsend)%slen2_uv
          myrlen = bnds(myid)%rlen2_uv
@@ -3776,8 +3722,7 @@ contains
          fnveu = .false.
          fssvwwu = .false.
          fnnveeu = .false.
-         fsuwv = .false.
-         fnuev = .false.
+         fnsuewv = .false.
          rslen = bnds(neighlistrecv)%rlen_uv
          sslen = bnds(neighlistsend)%slen_uv
          myrlen = bnds(myid)%rlen_uv
@@ -3786,8 +3731,7 @@ contains
          fnveu = .true.
          fssvwwu = .false.
          fnnveeu = .false.
-         fsuwv = .false.
-         fnuev = .false.
+         fnsuewv = .false.
          rslen = bnds(neighlistrecv)%rlen_uv
          sslen = bnds(neighlistsend)%slen_uv
          myrlen = bnds(myid)%rlen_uv
@@ -3796,8 +3740,7 @@ contains
          fnveu = .true.
          fssvwwu = .false.
          fnnveeu = .false.
-         fsuwv = .false.
-         fnuev = .false.
+         fnsuewv = .false.
          rslen = bnds(neighlistrecv)%rlen_uv
          sslen = bnds(neighlistsend)%slen_uv
          myrlen = bnds(myid)%rlen_uv
@@ -3838,11 +3781,8 @@ contains
             if ( fnnveeu ) then
                recv_len = recv_len+rsplit(rproc)%ieeufn-rsplit(rproc)%innvbg+1
             end if         
-            if ( fsuwv ) then
-               recv_len = recv_len+rsplit(rproc)%iwvfn-rsplit(rproc)%isubg+1
-            end if
-            if ( fnuev ) then
-               recv_len = recv_len+rsplit(rproc)%ievfn-rsplit(rproc)%inubg+1
+            if ( fnsuewv ) then
+               recv_len = recv_len+rsplit(rproc)%ievfn-rsplit(rproc)%isubg+1
             end if
             if ( recv_len > 0 ) then 
                nreq = nreq + 1
@@ -3868,17 +3808,13 @@ contains
                   iqz = iqq+iq-ssplit(sproc)%isvbg+1
                   iq_b = 1+(iqz-1)*kx
                   iq_e = iqz*kx
-                  if ( bnds(sproc)%send_neg(iq) ) then
-                     negmul = -1.
-                  else
-                     negmul = 1.
-                  end if
                   if ( (bnds(sproc)%send_list_uv(iq) > 0) .neqv. &
                         bnds(sproc)%send_swap(iq) ) then
-                     bnds(sproc)%sbuf(iq_b:iq_e) = negmul*u(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
+                     bnds(sproc)%sbuf(iq_b:iq_e) = u(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
                   else
-                     bnds(sproc)%sbuf(iq_b:iq_e) = negmul*v(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
-                  end if 
+                     bnds(sproc)%sbuf(iq_b:iq_e) = v(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
+                  end if
+                  bnds(sproc)%sbuf(iq_b:iq_e) = bnds(sproc)%send_neg(iq)*bnds(sproc)%sbuf(iq_b:iq_e) 
                end do
                iqq = iqq+ssplit(sproc)%iwufn-ssplit(sproc)%isvbg+1
             end if
@@ -3890,17 +3826,13 @@ contains
                   iqz = iqq+iq-ssplit(sproc)%invbg+1
                   iq_b = 1+(iqz-1)*kx
                   iq_e = iqz*kx
-                  if ( bnds(sproc)%send_neg(iq) ) then
-                     negmul = -1.
-                  else
-                     negmul = 1.
-                  end if
                   if ( (bnds(sproc)%send_list_uv(iq) > 0) .neqv. &
                         bnds(sproc)%send_swap(iq) ) then
-                     bnds(sproc)%sbuf(iq_b:iq_e) = negmul*u(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
+                     bnds(sproc)%sbuf(iq_b:iq_e) = u(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
                   else
-                     bnds(sproc)%sbuf(iq_b:iq_e) = negmul*v(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
+                     bnds(sproc)%sbuf(iq_b:iq_e) = v(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
                   end if 
+                  bnds(sproc)%sbuf(iq_b:iq_e) = bnds(sproc)%send_neg(iq)*bnds(sproc)%sbuf(iq_b:iq_e)
                end do
                iqq = iqq+ssplit(sproc)%ieufn-ssplit(sproc)%invbg+1
             end if
@@ -3912,17 +3844,13 @@ contains
                   iqz = iqq+iq-ssplit(sproc)%issvbg+1
                   iq_b = 1+(iqz-1)*kx
                   iq_e = iqz*kx
-                  if ( bnds(sproc)%send_neg(iq) ) then
-                     negmul = -1.
-                  else
-                     negmul = 1.
-                  end if
                   if ( (bnds(sproc)%send_list_uv(iq) > 0) .neqv. &
                         bnds(sproc)%send_swap(iq) ) then
-                     bnds(sproc)%sbuf(iq_b:iq_e) = negmul*u(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
+                     bnds(sproc)%sbuf(iq_b:iq_e) = u(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
                   else
-                     bnds(sproc)%sbuf(iq_b:iq_e) = negmul*v(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
+                     bnds(sproc)%sbuf(iq_b:iq_e) = v(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
                   end if 
+                  bnds(sproc)%sbuf(iq_b:iq_e) = bnds(sproc)%send_neg(iq)*bnds(sproc)%sbuf(iq_b:iq_e)
                end do
                iqq = iqq+ssplit(sproc)%iwwufn-ssplit(sproc)%issvbg+1
             end if
@@ -3934,63 +3862,33 @@ contains
                   iqz = iqq+iq-ssplit(sproc)%innvbg+1
                   iq_b = 1+(iqz-1)*kx
                   iq_e = iqz*kx
-                  if ( bnds(sproc)%send_neg(iq) ) then
-                     negmul = -1.
-                  else
-                     negmul = 1.
-                  end if
                   if ( (bnds(sproc)%send_list_uv(iq) > 0) .neqv. &
                         bnds(sproc)%send_swap(iq) ) then
-                     bnds(sproc)%sbuf(iq_b:iq_e) = negmul*u(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
+                     bnds(sproc)%sbuf(iq_b:iq_e) = u(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
                   else
-                     bnds(sproc)%sbuf(iq_b:iq_e) = negmul*v(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
-                  end if 
+                     bnds(sproc)%sbuf(iq_b:iq_e) = v(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
+                  end if
+                  bnds(sproc)%sbuf(iq_b:iq_e) = bnds(sproc)%send_neg(iq)*bnds(sproc)%sbuf(iq_b:iq_e)
                end do
                iqq = iqq+ssplit(sproc)%ieeufn-ssplit(sproc)%innvbg+1
             end if
-            if ( fsuwv ) then
+            if ( fnsuewv ) then
 !cdir nodep
-               do iq = ssplit(sproc)%isubg,ssplit(sproc)%iwvfn
+               do iq = ssplit(sproc)%isubg,ssplit(sproc)%ievfn
                   ! send_list_uv(iq) is point index.
                   ! Use abs because sign is used as u/v flag
                   iqz = iqq+iq-ssplit(sproc)%isubg+1
                   iq_b = 1+(iqz-1)*kx
                   iq_e = iqz*kx
-                  if ( bnds(sproc)%send_neg(iq) ) then
-                     negmul = -1.
-                  else
-                     negmul = 1.
-                  end if
                   if ( (bnds(sproc)%send_list_uv(iq) > 0) .neqv. &
                         bnds(sproc)%send_swap(iq) ) then
-                     bnds(sproc)%sbuf(iq_b:iq_e) = negmul*u(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
+                     bnds(sproc)%sbuf(iq_b:iq_e) = u(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
                   else
-                     bnds(sproc)%sbuf(iq_b:iq_e) = negmul*v(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
+                     bnds(sproc)%sbuf(iq_b:iq_e) = v(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
                   end if 
+                  bnds(sproc)%sbuf(iq_b:iq_e) = bnds(sproc)%send_neg(iq)*bnds(sproc)%sbuf(iq_b:iq_e)
                end do
-               iqq = iqq+ssplit(sproc)%iwvfn-ssplit(sproc)%isubg+1
-            end if
-            if ( fnuev ) then
-!cdir nodep
-               do iq = ssplit(sproc)%inubg,ssplit(sproc)%ievfn
-                  ! send_list_uv(iq) is point index.
-                  ! Use abs because sign is used as u/v flag
-                  iqz = iqq+iq-ssplit(sproc)%inubg+1
-                  iq_b = 1+(iqz-1)*kx
-                  iq_e = iqz*kx
-                  if ( bnds(sproc)%send_neg(iq) ) then
-                     negmul = -1.
-                  else
-                     negmul = 1.
-                  end if
-                  if ( (bnds(sproc)%send_list_uv(iq) > 0) .neqv. &
-                        bnds(sproc)%send_swap(iq) ) then
-                     bnds(sproc)%sbuf(iq_b:iq_e) = negmul*u(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
-                  else
-                     bnds(sproc)%sbuf(iq_b:iq_e) = negmul*v(abs(bnds(sproc)%send_list_uv(iq)),1:kx)
-                  end if 
-               end do
-               iqq = iqq+ssplit(sproc)%ievfn-ssplit(sproc)%inubg+1
+               iqq = iqq+ssplit(sproc)%ievfn-ssplit(sproc)%isubg+1
             end if
             if ( iqq > 0 ) then
                nreq = nreq + 1
@@ -4009,17 +3907,13 @@ contains
          ! request_list is same as send_list in this case
          iq_b = 1+(iq-1)*kx
          iq_e = iq*kx
-         if ( bnds(myid)%uv_neg(iq) ) then
-            negmul = -1.
-         else
-            negmul = 1.
-         end if
          if ( (bnds(myid)%request_list_uv(iq) > 0) .neqv. &
                   bnds(myid)%uv_swap(iq) ) then  ! haven't copied to send_swap yet
-            tmp(iq_b:iq_e) = negmul*u(abs(bnds(myid)%request_list_uv(iq)),1:kx)
+            tmp(iq_b:iq_e) = u(abs(bnds(myid)%request_list_uv(iq)),1:kx)
          else
-            tmp(iq_b:iq_e) = negmul*v(abs(bnds(myid)%request_list_uv(iq)),1:kx)
+            tmp(iq_b:iq_e) = v(abs(bnds(myid)%request_list_uv(iq)),1:kx)
          end if
+         if ( bnds(myid)%uv_neg(iq) ) tmp(iq_b:iq_e) = -tmp(iq_b:iq_e)
 
          ! unpack_list(iq) is index into extended region
          if ( bnds(myid)%unpack_list_uv(iq) > 0 ) then
@@ -4108,9 +4002,9 @@ contains
                end do
                iqq = iqq+rsplit(rproc)%ieeufn-rsplit(rproc)%innvbg+1
             end if         
-            if ( fsuwv ) then
+            if ( fnsuewv ) then
 !cdir nodep
-               do iq = rsplit(rproc)%isubg,rsplit(rproc)%iwvfn
+               do iq = rsplit(rproc)%isubg,rsplit(rproc)%ievfn
                   ! unpack_list(iq) is index into extended region
                   iqz = iqq+iq-rsplit(rproc)%isubg+1
                   iq_b = 1+(iqz-1)*kx
@@ -4121,23 +4015,8 @@ contains
                      v(ifull-bnds(rproc)%unpack_list_uv(iq),1:kx) = bnds(rproc)%rbuf(iq_b:iq_e)
                   end if
                end do
-               iqq = iqq+rsplit(rproc)%iwvfn-rsplit(rproc)%isubg+1
+               iqq = iqq+rsplit(rproc)%ievfn-rsplit(rproc)%isubg+1
             end if 
-            if ( fnuev ) then
-!cdir nodep
-               do iq = rsplit(rproc)%inubg,rsplit(rproc)%ievfn
-                  ! unpack_list(iq) is index into extended region
-                  iqz = iqq+iq-rsplit(rproc)%inubg+1
-                  iq_b = 1+(iqz-1)*kx
-                  iq_e = iqz*kx
-                  if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
-                     u(ifull+bnds(rproc)%unpack_list_uv(iq),1:kx) = bnds(rproc)%rbuf(iq_b:iq_e)
-                  else
-                     v(ifull-bnds(rproc)%unpack_list_uv(iq),1:kx) = bnds(rproc)%rbuf(iq_b:iq_e)
-                  end if
-               end do
-               iqq = iqq+rsplit(rproc)%ievfn-rsplit(rproc)%inubg+1
-            end if
             
          end do
 
@@ -4505,7 +4384,7 @@ contains
          allocate ( bnds(rproc)%uv_swap(len), bnds(rproc)%send_swap(len) )
          allocate ( bnds(rproc)%uv_neg(len), bnds(rproc)%send_neg(len) )
          bnds(rproc)%uv_neg = .false.
-         bnds(rproc)%send_neg = .false.
+         bnds(rproc)%send_neg = 1.
          bnds(rproc)%len = len
       else
          ! Just check length

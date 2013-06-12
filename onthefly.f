@@ -198,6 +198,10 @@
       ! and file i/o on myid==0, as well as the arrays are smaller
       ! on myid/=0 when they are not needed.  This way we avoid
       ! having to maintain multiple ontheflyx subroutines.
+      
+      ! Note that if histrd fails to find a variable, it returns
+      ! zero in the output array
+      
       if (myid==0) then
         call ontheflyx(nested,kdate_r,ktime_r,
      &                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
@@ -316,7 +320,7 @@
       real, dimension(:), allocatable, save :: bxs_a,bys_a,bzs_a
       real, dimension(3,3), save :: rotpoles,rotpole
       real, intent(in) :: rlong0x, rlat0x, schmidtx
-      real rlongd,rlatd
+      real rlongd, rlatd
       character(len=8) vname
       character(len=3) trnum
       logical, dimension(:), allocatable, save :: land_a,sea_a
@@ -1511,7 +1515,7 @@ c***        but needed here for onthefly (different dims) 28/8/08
               ucc=999.
               call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
      &                     ucc,6*ik*ik)
-              where (ucc>=399..or.ucc<=100.)
+              where (ucc>=399.)
                 ucc=999.
               end where
               call fill_cc(ucc,dk,0,sea_a)
@@ -1520,9 +1524,11 @@ c***        but needed here for onthefly (different dims) 28/8/08
             end if ! iotest
             if (all(atebdwn(:,k)==0.)) then
               select case(k)
-                case(21,22)
+                case(1:12)
+                  atebdwn(:,k)=300.
+                case(21:22)
                   atebdwn(:,k)=100.
-                case(23,24)
+                case(23:24)
                   atebdwn(:,k)=0.85
               end select
             end if
@@ -2279,8 +2285,10 @@ c     routine fills in interior of an array which has undefined points
       real a(ik*ik*6)
       real :: av     
       integer :: nrem, i, ii, ik, iq, ind, j, n, neighb, ndiag
+      integer :: iminb,imaxb,jminb,jmaxb
       integer, save :: oldik = 0
       integer, dimension(:), allocatable, save :: in,ie,iw,is
+      integer, dimension(0:5) :: imin,imax,jmin,jmax
       integer npann(0:5),npane(0:5),npanw(0:5),npans(0:5)
       logical land_a(ik*ik*6)
       data npann/1,103,3,105,5,101/,npane/102,2,104,4,100,0/
@@ -2292,7 +2300,7 @@ c     routine fills in interior of an array which has undefined points
       where (land_a)
         a_io=value
       end where
-      if (all(a_io==value)) return
+      if (all(abs(a_io-value)<1.E-6)) return
       
       if (ik/=oldik) then
        oldik=ik
@@ -2346,6 +2354,11 @@ c     routine fills in interior of an array which has undefined points
         endif      ! (npans(n)<100)
        enddo      ! n loop
       end if ! oldik/=ik
+
+      imin=1
+      imax=ik
+      jmin=1
+      jmax=ik
           
       nrem = 1    ! Just for first iteration
 c     nrem_gmin = 1 ! Just for first iteration
@@ -2358,7 +2371,15 @@ c808         call bounds(a)
          do iq=1,ik*ik*6
             a(iq)=a_io(iq)
          enddo
-         do iq=1,ik*ik*6
+         ! MJT restricted fill
+         do n=0,5
+          iminb=ik
+          imaxb=1
+          jminb=ik
+          jmaxb=1
+          do j=jmin(n),jmax(n)
+           do i=imin(n),imax(n)
+            iq=i+(j-1)*ik+n*ik*ik
             if(a(iq)==value)then
                neighb=0
                av=0.
@@ -2379,11 +2400,21 @@ c808         call bounds(a)
                   av=av+a(is(iq))
                endif
                if(neighb>0)then
-                  a_io(iq)=av/neighb
+                  a_io(iq)=av/real(neighb)
                else
+                  iminb=min(i,iminb)
+                  imaxb=max(i,imaxb)
+                  jminb=min(j,jminb)
+                  jmaxb=max(j,jmaxb)
                   nrem=nrem+1   ! current number of points without a neighbour
                endif
             endif
+           end do
+          end do
+          imin(n)=iminb
+          imax(n)=imaxb
+          jmin(n)=jminb
+          jmax(n)=jmaxb
          end do
       end do
       return

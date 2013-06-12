@@ -33,8 +33,6 @@
       include 'parmvert.h'  
 
       real, save, allocatable, dimension(:,:):: tnsav,unsav,vnsav              ! for npex=-1
-      real, save, allocatable, dimension(:,:):: ux_st_sav,vx_st_sav            ! for nstag=1
-      real, save, allocatable, dimension(:,:):: ux_unst_sav,vx_unst_sav        ! for nstag=1
       real, dimension(ifull+iextra,kl) :: uc, vc, wc, dd
       real, dimension(ifull+iextra) :: aa
       real, dimension(ifull,kl) :: dumt, theta
@@ -84,11 +82,11 @@
 	  vnsav(:,:) =vn(:,:)
         endif
         tx(1:ifull,:)=tx(1:ifull,:)
-     &                +dt*(tn(1:ifull,:)-.5*tnsav(1:ifull,:))            
+     &                +dt*(tn(1:ifull,:)-.5*tnsav(1:ifull,:))    !  for Ad-Bash        
         ux(1:ifull,:)=ux(1:ifull,:)
-     &                +dt*(un(1:ifull,:)-.5*unsav(1:ifull,:))           
+     &                +dt*(un(1:ifull,:)-.5*unsav(1:ifull,:))       !  for Ad-Bash          
         vx(1:ifull,:)=vx(1:ifull,:)
-     &                +dt*(vn(1:ifull,:)-.5*vnsav(1:ifull,:))
+     &                +dt*(vn(1:ifull,:)-.5*vnsav(1:ifull,:))    !  for Ad-Bash  
 !       convert un, vn to cartesian velocity components (for next step)
         do k=1,kl
          do iq=1,ifull
@@ -491,6 +489,8 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
      &                +dt*(un(1:ifull,:)-.5*unsav(1:ifull,:))    !  for Ad-Bash  npex=-2        
         vx(1:ifull,:)=vx(1:ifull,:)
      &                +dt*(vn(1:ifull,:)-.5*vnsav(1:ifull,:))    !  for Ad-Bash  npex=-2    
+	unsav(:,:) =un(:,:)
+	vnsav(:,:) =vn(:,:)
       endif  ! (npex==-2)
 
       if(nvsplit==3.or.nvsplit==4)then
@@ -510,28 +510,10 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
         enddo
       endif  ! (m==5)
 
-      if(npex>=0)tx(1:ifull,:)=tx(1:ifull,:)+.5*dt*tn(1:ifull,:) 
+      if(npex/= -1)tx(1:ifull,:)=tx(1:ifull,:)+.5*dt*tn(1:ifull,:) 
 
 !     now interpolate ux,vx to the staggered grid
-      if(nstag==1.and.ktau==1)then ! MJT notes - this looks like a bug? 
-       if (.not.allocated(ux_st_sav)) then
-        allocate(ux_st_sav(ifull,kl),vx_st_sav(ifull,kl))
-        allocate(ux_unst_sav(ifull,kl),vx_unst_sav(ifull,kl))
-       end if
-       wrk1(1:ifull,:)=ux(1:ifull,:)-ux_st_sav(1:ifull,:)  ! unst increment
-       wrk2(1:ifull,:)=vx(1:ifull,:)-vx_st_sav(1:ifull,:)  ! unst increment
-       call staguv(wrk1,wrk2,wrk1,wrk2)
-       wrk1(1:ifull,:)=wrk1(1:ifull,:)+ux_st_sav(1:ifull,:)  ! new stagg value
-       wrk2(1:ifull,:)=wrk2(1:ifull,:)+vx_st_sav(1:ifull,:)  ! new stagg value
-       ux_unst_sav(1:ifull,:)=ux(1:ifull,:)
-       vx_unst_sav(1:ifull,:)=vx(1:ifull,:)
-       ux(1:ifull,:)=wrk1(1:ifull,:)
-       vx(1:ifull,:)=wrk2(1:ifull,:)
-       ux_st_sav(1:ifull,:)=ux(1:ifull,:)
-       vx_st_sav(1:ifull,:)=vx(1:ifull,:)
-      else
-       call staguv(ux,vx,ux,vx)
-      endif   
+      call staguv(ux,vx,ux,vx)
 
       if(npex==3)then  
 !     npex=3 add un, vn on staggered grid 
