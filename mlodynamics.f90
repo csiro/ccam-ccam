@@ -268,7 +268,7 @@ real, dimension(ifull) :: cc,emi,nu,nv,nw
 logical, dimension(ifull+iextra) :: wtr
 
 ! abort if no water points on this processor
-if (ocnproc) return
+if (.not.ocnproc) return
 
 ! Define diffusion scale, land-sea mask and grid spacing
 hdif=dt*(ocnsmag/pi)**2
@@ -862,7 +862,7 @@ real, parameter :: itol   = 2.E1       ! Tolerance for SOR solver (ice)
 ! use the same index and map factor arrays from the
 ! atmospheric dynamical core.
 
-if (ocnproc) return
+if (.not.ocnproc) return
 
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: Start"
