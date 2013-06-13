@@ -4109,7 +4109,8 @@ contains
       if (lerr) then
          do iproc = 0,nproc-1
             if ( dslen(iproc) > msglen(iproc) ) then
-               write(6,*) "myid,iproc,neighbour,dslen,len ",myid,iproc,neighbour(iproc),dslen(iproc),msglen(iproc)
+               write(6,*) "myid,iproc,neighbour,lmode ",myid,iproc,neighbour(iproc),lmode
+               write(6,*) "dslen,len ",dslen(iproc),msglen(iproc)	       
                iq = dindex(iproc)%a(1,1)
                k = dindex(iproc)%a(2,1)
                write(6,*) "Example error iq,k,u,v ",iq,k,u(iq,k),v(iq,k)

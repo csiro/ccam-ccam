@@ -27,7 +27,8 @@ real, dimension(:,:), allocatable, save :: oldu1,oldu2,oldv1,oldv2
 real, dimension(:,:), allocatable, save :: stwgt
 integer, save :: comm_mlo
 integer, save :: nstagoffmlo
-integer, parameter :: salfilt  =0    ! additional salinity filter (0=off, 1=Katzfey)
+logical, save :: ocnproc
+integer, parameter :: salfilt  =0    ! badditional salinity filter (0=off, 1=Katzfey)
 integer, parameter :: usetide  =1    ! tidal forcing (0=off, 1=on)
 integer, parameter :: icemode  =2    ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
 integer, parameter :: basinmd  =3    ! basin mode (0=soil, 1=redistribute, 2=pile-up, 3=leak)
@@ -129,7 +130,8 @@ ltst=0
 stst=0
 if (any(ee>0.5)) stst=1
 call ccmpi_allgatherx(ltst(0:nproc-1),stst(1:1),comm_world)
-if (stst(1)==1) then
+ocnproc=stst(1)==1
+if (ocnproc) then
   lrank=count(ltst(0:myid)==1)-1
 else
   lrank=count(ltst(0:myid)==0)-1
@@ -266,7 +268,7 @@ real, dimension(ifull) :: cc,emi,nu,nv,nw
 logical, dimension(ifull+iextra) :: wtr
 
 ! abort if no water points on this processor
-if (all(ee<=0.5)) return
+if (ocnproc) return
 
 ! Define diffusion scale, land-sea mask and grid spacing
 hdif=dt*(ocnsmag/pi)**2
@@ -860,7 +862,7 @@ real, parameter :: itol   = 2.E1       ! Tolerance for SOR solver (ice)
 ! use the same index and map factor arrays from the
 ! atmospheric dynamical core.
 
-if (all(ee<=0.5)) return
+if (ocnproc) return
 
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: Start"
@@ -1038,8 +1040,8 @@ end if
 
 ! Estimate currents at t+1/2 for semi-Lagrangian advection
 do ii=1,wlev
-  nuh(:,ii)=(15.*nu(1:ifull,ii)-10.*oldu1(:,ii)+3.*oldu2(:,ii))/8. ! U at t+1/2
-  nvh(:,ii)=(15.*nv(1:ifull,ii)-10.*oldv1(:,ii)+3.*oldv2(:,ii))/8. ! V at t+1/2
+  nuh(:,ii)=(15.*nu(1:ifull,ii)-10.*oldu1(:,ii)+3.*oldu2(:,ii))*ee(1:ifull)/8. ! U at t+1/2
+  nvh(:,ii)=(15.*nv(1:ifull,ii)-10.*oldv1(:,ii)+3.*oldv2(:,ii))*ee(1:ifull)/8. ! V at t+1/2
 end do
 
 ! Calculate depature points
@@ -1934,6 +1936,12 @@ do ii=1,kx
       den(iq)=dxx*dyy-dyx*dxy
       ri(iq)=real(i)+real(is)*((xg(iq,ii)-xx4(i,j))*dyy-(yg(iq,ii)-yy4(i,j))*dyx)/den(iq)
       rj(iq)=real(j)+real(js)*((yg(iq,ii)-yy4(i,j))*dxx-(xg(iq,ii)-xx4(i,j))*dxy)/den(iq)
+      
+      ri(iq) = min(ri(iq),1.0+1.99999*2*il_g)
+      ri(iq) = max(ri(iq),1.0+0.00001*2*il_g)
+      rj(iq) = min(rj(iq),1.0+1.99999*2*il_g)
+      rj(iq) = max(rj(iq),1.0+0.00001*2*il_g)
+      
     end do
   end do  ! loop loop
   !      expect xg, yg to range between .5 and il+.5
@@ -3037,7 +3045,7 @@ if (.not.allocated(wtul)) then
     dtur(:,3)=0.5
 
 ! #  ##   #   * X |   E   |     unstaggered
-! #       0     X *             staggered
+! #  ##   0     X *             staggered
   elsewhere (euetest)
     wtur(1:ifull,0)=1.
     wtur(1:ifull,1)=0.
@@ -3048,7 +3056,7 @@ if (.not.allocated(wtul)) then
     dtur(:,3)=1./3.
 
 ! #  ##   #   *   |  E   #     unstaggered
-! #       #       *      #     staggered
+! #  ##   #       *      #     staggered
   elsewhere (eutest)
     wtur(1:ifull,0)=1.
     wtur(1:ifull,1)=0.
@@ -3163,10 +3171,10 @@ if (.not.allocated(wtul)) then
   ! normalise
   call boundsuv(wtur,wtvr,stag=-9,gmode=1)
   do k=1,3
-    wtur(1:ifull,k)=wtur(1:ifull,k)/wtur(1:ifull,0)
-    wtvr(1:ifull,k)=wtvr(1:ifull,k)/wtvr(1:ifull,0)
     dtur(:,k)=dtur(:,k)/wtur(1:ifull,0)
     dtvr(:,k)=dtvr(:,k)/wtvr(1:ifull,0)
+    wtur(1:ifull,k)=wtur(1:ifull,k)/wtur(1:ifull,0)
+    wtvr(1:ifull,k)=wtvr(1:ifull,k)/wtvr(1:ifull,0)
   end do
   stur=stur*wtur(iwu,0)/wtur(1:ifull,0)
   stvr=stvr*wtvr(isv,0)/wtvr(1:ifull,0)
@@ -3550,10 +3558,10 @@ if (.not.allocated(wtul)) then
   ! assign land arrays
   eutest=eeu(1:ifull)>0.5
   evtest=eev(1:ifull)>0.5
-  euwtest=eutest.and.eeu(iwu)>0.5
-  evstest=evtest.and.eev(isv)>0.5
   euetest=eutest.and.eeu(ieu)>0.5
   evntest=evtest.and.eev(inv)>0.5
+  euwtest=eutest.and.eeu(iwu)>0.5
+  evstest=evtest.and.eev(isv)>0.5
   euewtest=euetest.and.euwtest
   evnstest=evntest.and.evstest
   ewwtest=ewtest.and.ee(iww)>0.5

@@ -313,35 +313,35 @@ c      0: X=1   1: Z=1   2: Y=1   3: X=-1   4: Z=-1   5: Y=-1
 
         if(ncray.eq.1)then
 c         all these if statements are replaced by the subsequent cunning code
-          if(abs(xstr(iq)).eq.denxyz)then         ! Cray
-             if(xstr(iq).eq.denxyz)then           ! Cray
-              nface(iq,k)    =0                   ! Cray
-              xg(iq,k) =       yd                 ! Cray
-              yg(iq,k) =       zd                 ! Cray
-            else                                  ! Cray
-              nface(iq,k)    =3                   ! Cray
-              xg(iq,k) =     -zd                  ! Cray
-              yg(iq,k) =     -yd                  ! Cray
-            endif                               ! Cray
-          elseif(abs(zstr(iq)).eq.denxyz)then    ! Cray
-             if(zstr(iq).eq.denxyz)then           ! Cray
-              nface(iq,k)    =1                   ! Cray
-              xg(iq,k) =      yd                  ! Cray
-              yg(iq,k) =     -xd                  ! Cray
+          if(abs(xstr(iq)).eq.denxyz)then       ! Cray
+             if(xstr(iq).eq.denxyz)then         ! Cray
+              nface(iq,k)    =0                 ! Cray
+              xg(iq,k) =       yd               ! Cray
+              yg(iq,k) =       zd               ! Cray
             else                                ! Cray
-              nface(iq,k)    =4                   ! Cray
-              xg(iq,k) =      xd                  ! Cray
-              yg(iq,k) =     -yd                  ! Cray
+              nface(iq,k)    =3                 ! Cray
+              xg(iq,k) =     -zd                ! Cray
+              yg(iq,k) =     -yd                ! Cray
+            endif                               ! Cray
+          elseif(abs(zstr(iq)).eq.denxyz)then   ! Cray
+             if(zstr(iq).eq.denxyz)then         ! Cray
+              nface(iq,k)    =1                 ! Cray
+              xg(iq,k) =      yd                ! Cray
+              yg(iq,k) =     -xd                ! Cray
+            else                                ! Cray
+              nface(iq,k)    =4                 ! Cray
+              xg(iq,k) =      xd                ! Cray
+              yg(iq,k) =     -yd                ! Cray
             endif                               ! Cray
           else                                  ! Cray
-            if(ystr(iq).eq.denxyz)then           ! Cray
-              nface(iq,k)    =2                   ! Cray
-              xg(iq,k) =     -zd                  ! Cray
-              yg(iq,k) =     -xd                  ! Cray
+            if(ystr(iq).eq.denxyz)then          ! Cray
+              nface(iq,k)    =2                 ! Cray
+              xg(iq,k) =     -zd                ! Cray
+              yg(iq,k) =     -xd                ! Cray
             else                                ! Cray
-              nface(iq,k)    =5                   ! Cray
-              xg(iq,k) =      xd                  ! Cray
-              yg(iq,k) =      zd                  ! Cray
+              nface(iq,k)    =5                 ! Cray
+              xg(iq,k) =      xd                ! Cray
+              yg(iq,k) =      zd                ! Cray
             endif                               ! Cray
           endif                                 ! Cray
         else  ! e.g. ncray=0
@@ -413,6 +413,12 @@ c        print *,'loop,dxx,dyy,dyx,dxy,den ',loop,dxx,dyy,dyx,dxy,den
 c       endif
         ri=i+is*((xg(iq,k)-xx4(i,j))*dyy-(yg(iq,k)-yy4(i,j))*dyx)/den
         rj=j+js*((yg(iq,k)-yy4(i,j))*dxx-(xg(iq,k)-xx4(i,j))*dxy)/den
+        
+        ri = min(ri,1.0+1.99999*2*il_g)
+        ri = max(ri,1.0+0.00001*2*il_g)
+        rj = min(rj,1.0+1.99999*2*il_g)
+        rj = max(rj,1.0+0.00001*2*il_g)
+        
         if(ntest==1.and.iq==idjd.and.k==nlv)then
           print *,'B: xg,yg,ri,rj ',xg(iq,k),yg(iq,k),ri,rj
           print *,'i,j,xx4,yy4 ',i,j,xx4(i,j),yy4(i,j)
