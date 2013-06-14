@@ -2287,7 +2287,7 @@ c     routine fills in interior of an array which has undefined points
       integer :: nrem, i, ii, ik, iq, ind, j, n, neighb, ndiag
       integer :: iminb,imaxb,jminb,jmaxb
       integer, save :: oldik = 0
-      integer, dimension(:), allocatable, save :: in,ie,iw,is
+      integer, dimension(:,:), allocatable, save :: ic
       integer, dimension(0:5) :: imin,imax,jmin,jmax
       integer npann(0:5),npane(0:5),npanw(0:5),npans(0:5)
       logical land_a(ik*ik*6)
@@ -2304,52 +2304,51 @@ c     routine fills in interior of an array which has undefined points
       
       if (ik/=oldik) then
        oldik=ik
-       if (allocated(in)) then
-         deallocate(in,is,ie,iw)
+       if (allocated(ic)) then
+         deallocate(ic)
        end if
-       allocate(in(ik*ik*6),is(ik*ik*6))
-       allocate(ie(ik*ik*6),iw(ik*ik*6))
+       allocate(ic(4,ik*ik*6))
        do iq=1,ik*ik*6
-        in(iq)=iq+ik
-        is(iq)=iq-ik
-        ie(iq)=iq+1
-        iw(iq)=iq-1
+        ic(1,iq)=iq+ik
+        ic(2,iq)=iq-ik
+        ic(3,iq)=iq+1
+        ic(4,iq)=iq-1
        enddo   ! iq loop
        do n=0,npanels
         if(npann(n)<100)then
          do ii=1,ik
-          in(ind(ii,ik,n))=ind(ii,1,npann(n))
+          ic(1,ind(ii,ik,n))=ind(ii,1,npann(n))
          enddo    ! ii loop
         else
          do ii=1,ik
-          in(ind(ii,ik,n))=ind(1,ik+1-ii,npann(n)-100)
+          ic(1,ind(ii,ik,n))=ind(1,ik+1-ii,npann(n)-100)
          enddo    ! ii loop
         endif      ! (npann(n)<100)
         if(npane(n)<100)then
          do ii=1,ik
-          ie(ind(ik,ii,n))=ind(1,ii,npane(n))
+          ic(3,ind(ik,ii,n))=ind(1,ii,npane(n))
          enddo    ! ii loop
         else
          do ii=1,ik
-          ie(ind(ik,ii,n))=ind(ik+1-ii,1,npane(n)-100)
+          ic(3,ind(ik,ii,n))=ind(ik+1-ii,1,npane(n)-100)
          enddo    ! ii loop
         endif      ! (npane(n)<100)
         if(npanw(n)<100)then
          do ii=1,ik
-          iw(ind(1,ii,n))=ind(ik,ii,npanw(n))
+          ic(4,ind(1,ii,n))=ind(ik,ii,npanw(n))
          enddo    ! ii loop
         else
          do ii=1,ik
-          iw(ind(1,ii,n))=ind(ik+1-ii,ik,npanw(n)-100)
+          ic(4,ind(1,ii,n))=ind(ik+1-ii,ik,npanw(n)-100)
          enddo    ! ii loop
         endif      ! (npanw(n)<100)
         if(npans(n)<100)then
          do ii=1,ik
-          is(ind(ii,1,n))=ind(ii,ik,npans(n))
+          ic(2,ind(ii,1,n))=ind(ii,ik,npans(n))
          enddo    ! ii loop
         else
          do ii=1,ik
-          is(ind(ii,1,n))=ind(ik,ik+1-ii,npans(n)-100)
+          ic(2,ind(ii,1,n))=ind(ik,ik+1-ii,npans(n)-100)
          enddo    ! ii loop
         endif      ! (npans(n)<100)
        enddo      ! n loop
@@ -2379,27 +2378,11 @@ c808         call bounds(a)
           jmaxb=1
           do j=jmin(n),jmax(n)
            do i=imin(n),imax(n)
-            iq=i+(j-1)*ik+n*ik*ik
+            iq=ind(i,j,n)
             if(a(iq)==value)then
-               neighb=0
-               av=0.
-               if(a(in(iq))/=value)then
-                  neighb=neighb+1
-                  av=av+a(in(iq))
-               endif
-               if(a(ie(iq))/=value)then
-                  neighb=neighb+1
-                  av=av+a(ie(iq))
-               endif
-               if(a(iw(iq))/=value)then
-                  neighb=neighb+1
-                  av=av+a(iw(iq))
-               endif
-               if(a(is(iq))/=value)then
-                  neighb=neighb+1
-                  av=av+a(is(iq))
-               endif
+               neighb=count(a(ic(:,iq))/=value)
                if(neighb>0)then
+                  av=sum(a(ic(:,iq)))
                   a_io(iq)=av/real(neighb)
                else
                   iminb=min(i,iminb)
@@ -2417,6 +2400,9 @@ c808         call bounds(a)
           jmax(n)=jmaxb
          end do
       end do
+      do iq=1,ik*ik*6
+         a(iq)=a_io(iq)
+      enddo      
       return
       end
 

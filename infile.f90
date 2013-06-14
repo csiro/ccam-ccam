@@ -2361,7 +2361,6 @@ integer, intent(in) :: ncid
 integer ncstatus
 integer(kind=4) :: lncid,lncstatus
 
-#ifdef outsync
 lncid=ncid
 #ifdef usenc3
 lncstatus = nf_sync(lncid)
@@ -2370,7 +2369,6 @@ lncstatus = nf90_sync(lncid)
 #endif
 ncstatus=lncstatus
 call ncmsg("sync",ncstatus)
-#endif
 
 return
 end subroutine ccnf_sync

@@ -2114,6 +2114,11 @@ if (mp>0) then
   canopy%cansto=max(canopy%cansto,0.)
 
   ! overwritten by CABLE
+  do k=1,3
+    where (ssnow%smass(:,k)<=0.)
+      ssnow%isflag=0
+    end where
+  end do
   ssnow%osnowd=ssnow%snowd                                ! overwritten by CABLE
   bal%osnowd0=ssnow%snowd                                 ! overwritten by CABLE
   where (ssnow%isflag>0)

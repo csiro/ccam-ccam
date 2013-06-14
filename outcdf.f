@@ -271,13 +271,13 @@ c       create the attributes of the header record of the file
         call ccnf_def_var0(idnc,'dt','float',idv)
        endif ! ( iarch=1)then
 
+       call ccnf_sync(idnc)
       endif ! (myid==0.or.local)
       
       ! openhist writes some fields so needs to be called by all processes
       call openhist(iarch,itype,dim,local,idnc,iaero,nstagin)
 
       if(myid==0.or.local)then
-        call ccnf_sync(idnc)
         if(ktau==ntau)then
           call ccnf_close(idnc)
           if (myid==0) then
@@ -2415,6 +2415,7 @@ c      "extra" outputs
           if (myid==0) then
             write(6,*) "Write high frequency output"
           end if
+          call ccnf_sync(fncid)
           fiarch=ktau-nwt+1
           start(1)=fiarch
           ncount(1)=nwt
@@ -2435,6 +2436,7 @@ c      "extra" outputs
           end do
           call ccnf_put_vara(fncid,idmtimer,start,ncount,datedat)
         end if
+      
         call freqwrite(fncid,'uas',fiarch,nwt,localhist,
      &                 freqstore(:,:,1))
         call freqwrite(fncid,'vas',fiarch,nwt,localhist,
@@ -2449,7 +2451,6 @@ c      "extra" outputs
      
       ! close file at end of run
       if (myid==0.or.localhist) then
-        call ccnf_sync(fncid)
         if (ktau==ntau) then
           call ccnf_close(fncid)
         end if
