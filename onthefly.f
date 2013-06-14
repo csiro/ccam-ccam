@@ -2402,9 +2402,6 @@ c808         call bounds(a)
           jmax(n)=jmaxb
          end do
       end do
-      do iq=1,ik*ik*6
-         a(iq)=a_io(iq)
-      enddo      
       return
       end
 
