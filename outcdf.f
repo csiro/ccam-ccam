@@ -270,8 +270,6 @@ c       create the attributes of the header record of the file
         call ccnf_def_var0(idnc,'ds','float',idv)
         call ccnf_def_var0(idnc,'dt','float',idv)
        endif ! ( iarch=1)then
-
-       call ccnf_sync(idnc)
       endif ! (myid==0.or.local)
       
       ! openhist writes some fields so needs to be called by all processes
@@ -1447,6 +1445,7 @@ c       Leave define mode
          write(6,*) 'outcdf processing kdate,ktime,ktau,mtimer: ',
      &                                 kdate,ktime,ktau,mtimer
        end if
+       call ccnf_sync(idnc)
 c      set time to number of minutes since start 
        call ccnf_inq_varid(idnc,'time',idv,tst)
        call ccnf_put_var1(idnc,idv,iarch,real(mtimer))
