@@ -2291,6 +2291,7 @@ c     routine fills in interior of an array which has undefined points
       integer, dimension(0:5) :: imin,imax,jmin,jmax
       integer npann(0:5),npane(0:5),npanw(0:5),npans(0:5)
       logical land_a(ik*ik*6)
+      logical, dimension(4) :: mask
       data npann/1,103,3,105,5,101/,npane/102,2,104,4,100,0/
       data npanw/5,105,1,101,3,103/,npans/104,0,100,2,102,4/
       ind(i,j,n)=i+(j-1)*ik+n*ik*ik  ! *** for n=0,npanels
@@ -2380,9 +2381,10 @@ c808         call bounds(a)
            do i=imin(n),imax(n)
             iq=ind(i,j,n)
             if(a(iq)==value)then
-               neighb=count(a(ic(:,iq))/=value)
+               mask=a(ic(:,iq))/=value
+               neighb=count(mask)
                if(neighb>0)then
-                  av=sum(a(ic(:,iq)))
+                  av=sum(a(ic(:,iq)),mask)
                   a_io(iq)=av/real(neighb)
                else
                   iminb=min(i,iminb)
