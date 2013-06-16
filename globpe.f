@@ -112,8 +112,7 @@
       integer nstagin, nstaguin, nwrite, nwtsav, mins_rad, mtimer_sav
       integer nn, i, j, mstn, nproc_in, ierr, nperhr, nscrn, nversion
       integer ierr2, kmax, isoth, nsig, lapsbot
-      real, dimension(:,:), allocatable, save :: speed
-      real, dimension(:,:), allocatable, save :: dumc
+      real, dimension(:,:), allocatable, save :: dums
       real, dimension(:), allocatable, save :: spare1,spare2
       real, dimension(:), allocatable, save :: spmean,div
       real, dimension(9) :: temparray, gtemparray
@@ -384,7 +383,7 @@
       iextra=4*(il+jl)+24*npan
 #endif
       ! nrows_rad is a subgrid step for radiation routines
-      nrows_rad=il_g/6
+      nrows_rad=max(il_g/24,8)
       do while(mod(jl,nrows_rad)/=0)
         nrows_rad=nrows_rad-1
       end do
@@ -588,7 +587,7 @@
       call indices_init(ifull_g,ifull,iextra,npanels,npan,myid)
       call map_init(ifull_g,ifull,iextra,myid,mbd)
       call latlong_init(ifull_g,ifull,iextra,myid)      
-      call vecsuv_init(ifull_g,ifull,iextra,myid,mbd)
+      call vecsuv_init(ifull_g,ifull,iextra,myid,mbd,nud_uv)
 
 
       !--------------------------------------------------------------
@@ -670,12 +669,14 @@
         call ccmpi_bcastr8(y_g,0,comm_world)
         call ccmpi_bcastr8(z_g,0,comm_world)
         call ccmpi_bcast(em_g,0,comm_world)
-        call ccmpi_bcast(ax_g,0,comm_world)
-        call ccmpi_bcast(ay_g,0,comm_world)
-        call ccmpi_bcast(az_g,0,comm_world)
-        call ccmpi_bcast(bx_g,0,comm_world)
-        call ccmpi_bcast(by_g,0,comm_world)
-        call ccmpi_bcast(bz_g,0,comm_world)
+        if (nud_uv==9) then
+          call ccmpi_bcast(ax_g,0,comm_world)
+          call ccmpi_bcast(ay_g,0,comm_world)
+          call ccmpi_bcast(az_g,0,comm_world)
+          call ccmpi_bcast(bx_g,0,comm_world)
+          call ccmpi_bcast(by_g,0,comm_world)
+          call ccmpi_bcast(bz_g,0,comm_world)
+        end if
       end if
       deallocate(dumd)
       deallocate(dume)
@@ -689,6 +690,10 @@
         call ccmpi_distribute(rlong4_l,rlong4)
         call ccmpi_distribute(rlat4_l,rlat4)
         call workglob_end
+        deallocate(emu_g,emv_g)
+        deallocate(f_g,fu_g,fv_g)
+        deallocate(dmdx_g,dmdy_g)
+        deallocate(rlatt_g,rlongg_g)
       else
         call ccmpi_distribute(rlong4_l)
         call ccmpi_distribute(rlat4_l)
@@ -705,15 +710,14 @@
       !--------------------------------------------------------------
       ! INITIALISE LOCAL ARRAYS
       allocate(spare1(ifull),spare2(ifull))
-      allocate(speed(ifull,kl))
-      allocate(dumc(ifull,kl))
+      allocate(dums(ifull,kl))
       allocate(spmean(kl),div(kl))
       call arrays_init(ifull,iextra,kl)
       call carbpools_init(ifull,iextra,kl,nsib,ccycle)
       call cfrac_init(ifull,iextra,kl)
       call dpsdt_init(ifull,iextra,kl)
       call epst_init(ifull,iextra,kl)
-      call extraout_init(ifull,iextra,kl)
+      call extraout_init(ifull,iextra,kl,nextout)
       call gdrag_init(ifull,iextra,kl)
       call histave_init(ifull,iextra,kl,ms)
       call kuocomb_init(ifull,iextra,kl)
@@ -798,8 +802,8 @@
       ! max/min diagnostics      
       call maxmin(u,' u',ktau,1.,kl)
       call maxmin(v,' v',ktau,1.,kl)
-      speed(:,:)=sqrt(u(1:ifull,:)**2+v(1:ifull,:)**2)  ! 3D 
-      call maxmin(speed,'sp',ktau,1.,kl)
+      dums(:,:)=sqrt(u(1:ifull,:)**2+v(1:ifull,:)**2)  ! 3D 
+      call maxmin(dums,'sp',ktau,1.,kl)
       call maxmin(t,' t',ktau,1.,kl)
       call maxmin(qg,'qg',ktau,1.e3,kl)
       call maxmin(qfg,'qf',ktau,1.e3,kl)
@@ -1407,9 +1411,9 @@
       end if
       if (ldr/=0) then
         ! LDR microphysics scheme
-        dumc=cffall(1:ifull,:)
-        call leoncld(cfrac,dumc,iaero)
-        cffall(1:ifull,:)=dumc
+        dums=cffall(1:ifull,:)
+        call leoncld(cfrac,dums,iaero)
+        cffall(1:ifull,:)=dums
       end if
       do k=1,kl
        riwp_ave(1:ifull)=riwp_ave(1:ifull)
@@ -1679,14 +1683,14 @@
       if (mod(ktau,nmaxpr)==0.or.ktau==ntau)then
         call maxmin(u,' u',ktau,1.,kl)
         call maxmin(v,' v',ktau,1.,kl)
-        speed(:,:)=u(1:ifull,:)**2+v(1:ifull,:)**2 ! 3D
-        call average(speed,spmean,spavge)
+        dums(:,:)=u(1:ifull,:)**2+v(1:ifull,:)**2 ! 3D
+        call average(dums,spmean,spavge)
         do k=1,kl
          spmean(k)=sqrt(spmean(k))
         enddo
-        speed(1:ifull,1:kl)=sqrt(speed(1:ifull,1:kl)) ! 3D
+        dums(1:ifull,1:kl)=sqrt(dums(1:ifull,1:kl)) ! 3D
         spavge=sqrt(spavge)
-        call maxmin(speed,'sp',ktau,1.,kl)
+        call maxmin(dums,'sp',ktau,1.,kl)
         call maxmin(t,' t',ktau,1.,kl)
         call maxmin(qg,'qg',ktau,1.e3,kl)
         call maxmin(qfg,'qf',ktau,1.e3,kl)
@@ -1696,8 +1700,8 @@
            write(6,'("spmean ",9f8.3)') spmean
            write(6,'("spavge ",f8.3)') spavge
         end if
-        dumc=qg(1:ifull,:)
-        call average(dumc,spmean,spavge)
+        dums=qg(1:ifull,:)
+        call average(dums,spmean,spavge)
         if ( myid==0 ) then
            write(6,'("qgmean ",9f8.5)') spmean
            write(6,'("qgavge ",f8.5)') spavge

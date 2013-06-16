@@ -18,17 +18,19 @@ real, dimension(:,:), allocatable, save :: u10_3hr,v10_3hr,tscr_3hr,rh1_3hr
 
 contains
 
-subroutine extraout_init(ifull,iextra,kl)
+subroutine extraout_init(ifull,iextra,kl,nextout)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl
+integer, intent(in) :: ifull,iextra,kl,nextout
 
 allocate(cloudlo(ifull),cloudmi(ifull),cloudhi(ifull),cloudtot(ifull))
 allocate(rgsave(ifull),rtsave(ifull),sintsave(ifull),sgsave(ifull))
 allocate(rtclsave(ifull),sgclsave(ifull),taux(ifull),tauy(ifull),ustar(ifull))
 allocate(swrsave(ifull),fbeamvis(ifull),fbeamnir(ifull))
-allocate(u10_3hr(ifull,8),v10_3hr(ifull,8),tscr_3hr(ifull,8),rh1_3hr(ifull,8))
+if (nextout>=2) then
+  allocate(u10_3hr(ifull,8),v10_3hr(ifull,8),tscr_3hr(ifull,8),rh1_3hr(ifull,8))
+end if
 
 sgsave=0.
 
@@ -43,7 +45,9 @@ deallocate(cloudlo,cloudmi,cloudhi,cloudtot)
 deallocate(rgsave,rtsave,sintsave,sgsave)
 deallocate(rtclsave,sgclsave,taux,tauy,ustar)
 deallocate(swrsave,fbeamvis,fbeamnir)
-deallocate(u10_3hr,v10_3hr,tscr_3hr,rh1_3hr)
+if (allocated(u10_3hr)) then
+  deallocate(u10_3hr,v10_3hr,tscr_3hr,rh1_3hr)
+end if
 
 return
 end subroutine extraout_end
