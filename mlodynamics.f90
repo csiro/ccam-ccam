@@ -4317,6 +4317,7 @@ real xp
 do nindx=sindx,wlev-1
   if (ddin(nindx)>=ddseek) exit
 end do
+sindx=nindx
 
 xp=(ddseek-ddin(sindx-1))/(ddin(sindx)-ddin(sindx-1))
 
