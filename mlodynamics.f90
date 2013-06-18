@@ -4320,6 +4320,7 @@ end do
 sindx=nindx
 
 xp=(ddseek-ddin(sindx-1))/(ddin(sindx)-ddin(sindx-1))
+xp=max(min(xp,1.),0.)
 
 rout=ssin(sindx-1)+xp*(ssin(sindx)-ssin(sindx-1))
 
