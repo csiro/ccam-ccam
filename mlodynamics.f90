@@ -4101,7 +4101,7 @@ real xp
 ! set-up level depths
 dephladj(:,0)=0.
 do ii=1,wlev
-  dephladj(:,ii)=gosigh(ii)*max(dd(:)+neta(:),minwater)
+  dephladj(:,ii)=gosigh(ii)*(dd(:)+neta(:))
 end do
 
 ! estimate rhobar at half levels
