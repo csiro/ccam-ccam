@@ -4083,7 +4083,7 @@ subroutine finitedelta(rhobar,neta,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
 
 use indices_m
 use map_m
-use mlo, only : wlev,minwater
+use mlo, only : wlev
 
 implicit none
 
@@ -4149,7 +4149,7 @@ subroutine seekdelta(rhobar,neta,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
 
 use indices_m
 use map_m
-use mlo, only : wlev,minwater
+use mlo, only : wlev
 
 implicit none
 
@@ -4172,7 +4172,7 @@ real xp
 ! set-up level depths
 dephladj(:,0)=0.
 do ii=1,wlev
-  dephladj(:,ii)=gosigh(ii)*max(dd(:)+neta(:),minwater)
+  dephladj(:,ii)=gosigh(ii)*(dd(:)+neta(:))
 end do
 
 ! estimate rhobar at half levels
