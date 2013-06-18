@@ -41,6 +41,8 @@ integer, save :: wlev = 20
 integer, parameter :: iqx = 4148
 ! model arrays
 integer, save :: wfull,ifull,iqwt
+integer, dimension(:), allocatable, save :: wmap
+integer, dimension(:), allocatable, save :: p_mixind
 logical, dimension(:), allocatable, save :: wpack
 real, dimension(:,:), allocatable, save :: depth,dz,depth_hl,dz_hl
 real, dimension(:,:), allocatable, save :: micdwn          ! This variable is for CCAM onthefly.f
@@ -54,7 +56,6 @@ real, dimension(:), allocatable, save :: p_icevisdiralb,p_icevisdifalb,p_icenird
 real, dimension(:), allocatable, save :: p_zo,p_zoh,p_zoq,p_cd,p_cds,p_cdq,p_fg,p_eg
 real, dimension(:), allocatable, save :: p_zoice,p_zohice,p_zoqice,p_cdice,p_cdsice,p_cdqice,p_fgice,p_egice,p_wetfacice
 real, dimension(:), allocatable, save :: p_tscrn,p_uscrn,p_qgscrn,p_u10,p_taux,p_tauy,p_tauxica,p_tauyica
-integer, dimension(:), allocatable, save :: p_mixind
   
 ! mode
 integer, parameter :: incradbf  = 1 ! include shortwave in buoyancy forcing
@@ -140,6 +141,7 @@ if (wfull==0) then
   return
 end if
 
+allocate(wmap(wfull))
 allocate(w_temp(wfull,wlev),w_sal(wfull,wlev))
 allocate(w_u(wfull,wlev),w_v(wfull,wlev))
 allocate(w_eta(wfull))
@@ -163,9 +165,17 @@ allocate(depth_hl(wfull,wlev+1))
 allocate(dz_hl(wfull,2:wlev))
 
 iqw=0
+do iq=1,ifull
+  if (wpack(iq)) then
+    iqw=iqw+1
+    wmap(iqw)=iq
+  end if
+end do
+
+iqw=0
 iqwt=0
 do iq=1,ifull
-  if (depin(iq)>minwater) then
+  if (wpack(iq)) then
     iqw=iqw+1
     if (iq>=iqx) then
       iqwt=iqw
@@ -227,13 +237,10 @@ p_tauy=0.
 p_tauxica=0.
 p_tauyica=0.
 
-! MLO - 20 level (shallow)
-!depth = (/  0.25,   1.1,   3.0,   6.7,  12.8,  22.0,  35.1,  52.8,  76.7, 104.5, &
-!           140.0, 182.9, 233.8, 293.4, 362.5, 441.8, 531.9, 633.5, 747.4, 874.3 /)
-! MLO - 20 level (deep)
+! MLO - 20 level
 !depth = (/   0.5,   3.4,  11.9,  29.7,  60.7, 108.5, 176.9, 269.7, 390.6, 543.3, &
 !           731.6, 959.2,1230.0,1547.5,1915.6,2338.0,2818.5,3360.8,3968.7,4645.8 /)
-! MLO - 40 level (deep)
+! MLO - 40 level
 !depth = (/   0.5,   1.7,   3.7,   6.8,  11.5,  18.3,  27.7,  40.1,  56.0,  75.9, &
 !           100.2, 129.4, 164.0, 204.3, 251.0, 304.4, 365.1, 433.4, 509.9, 595.0, &
 !           689.2, 793.0, 906.7,1031.0,1166.2,1312.8,1471.3,1642.2,1825.9,2022.8, &
@@ -244,7 +251,7 @@ p_tauyica=0.
 !          1284.7,1502.9,1758.8,2054.3,2400.0,2800.0,3200.0,3600.0,4000.0,4400.0, &
 !          4800.0 /)
 
-deptmp(1:wfull)=pack(depin,wpack)
+deptmp(1:wfull)=depin(wmap)
 
 !smxd=maxval(deptmp(1:wfull))
 !smnd=minval(deptmp(1:wfull))
@@ -321,7 +328,7 @@ implicit none
 
 if (wfull==0) return
 
-deallocate(wpack)
+deallocate(wmap,wpack)
 deallocate(w_temp,w_sal,w_u,w_v)
 deallocate(w_eta)
 deallocate(i_tn,i_dic,i_dsn)
@@ -359,23 +366,23 @@ real, dimension(ifull), intent(in) :: shin
 if (wfull==0) return
 
 do ii=1,wlev
-  w_temp(:,ii)=pack(datain(:,ii,1),wpack)
-  w_sal(:,ii)=pack(datain(:,ii,2),wpack)
-  w_u(:,ii)=pack(datain(:,ii,3),wpack)
-  w_v(:,ii)=pack(datain(:,ii,4),wpack)
+  w_temp(:,ii)=datain(wmap,ii,1)
+  w_sal(:,ii) =datain(wmap,ii,2)
+  w_u(:,ii)   =datain(wmap,ii,3)
+  w_v(:,ii)   =datain(wmap,ii,4)
 end do
-i_tsurf=pack(icein(:,1),wpack)
-i_tn(:,0)=pack(icein(:,2),wpack)
-i_tn(:,1)=pack(icein(:,3),wpack)
-i_tn(:,2)=pack(icein(:,4),wpack)
-i_fracice=pack(icein(:,5),wpack)
-i_dic=pack(icein(:,6),wpack)
-i_dsn=pack(icein(:,7),wpack)
-i_sto=pack(icein(:,8),wpack)
-i_u=pack(icein(:,9),wpack)
-i_v=pack(icein(:,10),wpack)
-i_sal=pack(icein(:,11),wpack)
-w_eta=pack(shin,wpack)
+i_tsurf(:)  =icein(wmap,1)
+i_tn(:,0)   =icein(wmap,2)
+i_tn(:,1)   =icein(wmap,3)
+i_tn(:,2)   =icein(wmap,4)
+i_fracice(:)=icein(wmap,5)
+i_dic(:)    =icein(wmap,6)
+i_dsn(:)    =icein(wmap,7)
+i_sto(:)    =icein(wmap,8)
+i_u(:)      =icein(wmap,9)
+i_v(:)      =icein(wmap,10)
+i_sal(:)    =icein(wmap,11)
+w_eta(:)    =shin(wmap)
 
 return
 end subroutine mloload
@@ -395,28 +402,29 @@ real, dimension(ifull), intent(inout) :: depout,shout
 
 if (wfull==0) return
 
-do ii=1,wlev
-  dataout(:,ii,1)=unpack(w_temp(:,ii),wpack,dataout(:,ii,1))
-  dataout(:,ii,2)=unpack(w_sal(:,ii),wpack,dataout(:,ii,2))
-  dataout(:,ii,3)=unpack(w_u(:,ii),wpack,dataout(:,ii,3))
-  dataout(:,ii,4)=unpack(w_v(:,ii),wpack,dataout(:,ii,4))
-end do
-iceout(:,1)=unpack(i_tsurf,wpack,iceout(:,1))
-iceout(:,2)=unpack(i_tn(:,0),wpack,iceout(:,2))
-iceout(:,3)=unpack(i_tn(:,1),wpack,iceout(:,3))
-iceout(:,4)=unpack(i_tn(:,2),wpack,iceout(:,4))
-iceout(:,5)=unpack(i_fracice,wpack,iceout(:,5))
-iceout(:,6)=unpack(i_dic,wpack,iceout(:,6))
-iceout(:,7)=unpack(i_dsn,wpack,iceout(:,7))
 iceout(:,8)=0.
-iceout(:,8)=unpack(i_sto,wpack,iceout(:,8))
-iceout(:,9)=unpack(i_u,wpack,iceout(:,9))
-iceout(:,10)=unpack(i_v,wpack,iceout(:,10))
-iceout(:,11)=unpack(i_sal,wpack,iceout(:,11))
 depout=0.
-depout=unpack(depth_hl(:,wlev+1),wpack,depout)
 shout=0.
-shout=unpack(w_eta,wpack,shout)
+
+do ii=1,wlev
+  dataout(wmap,ii,1)=w_temp(:,ii)
+  dataout(wmap,ii,2)=w_sal(:,ii)
+  dataout(wmap,ii,3)=w_u(:,ii)
+  dataout(wmap,ii,4)=w_v(:,ii)
+end do
+iceout(wmap,1)  =i_tsurf(:)
+iceout(wmap,2)  =i_tn(:,0)
+iceout(wmap,3)  =i_tn(:,1)
+iceout(wmap,4)  =i_tn(:,2)
+iceout(wmap,5)  =i_fracice(:)
+iceout(wmap,6)  =i_dic(:)
+iceout(wmap,7)  =i_dsn(:)
+iceout(wmap,8)  =i_sto(:)
+iceout(wmap,9)  =i_u(:)
+iceout(wmap,10) =i_v(:)
+iceout(wmap,11) =i_sal(:)
+depout(wmap)=depth_hl(:,wlev+1)
+shout(wmap)=w_eta(:)
 
 return
 end subroutine mlosave
@@ -435,15 +443,15 @@ if (wfull==0) return
 
 select case(mode)
   case(0)
-    w_temp(:,ilev)=pack(sst,wpack)
+    w_temp(:,ilev)=sst(wmap)
   case(1)
-    w_sal(:,ilev)=pack(sst,wpack)
+    w_sal(:,ilev)=sst(wmap)
   case(2)
-    w_u(:,ilev)=pack(sst,wpack)
+    w_u(:,ilev)=sst(wmap)
   case(3)
-    w_v(:,ilev)=pack(sst,wpack)
+    w_v(:,ilev)=sst(wmap)
   case(4)
-    w_eta=pack(sst,wpack)
+    w_eta=sst(wmap)
 end select
 
 return
@@ -463,27 +471,27 @@ if (wfull==0) return
 
 select case(ilev)
   case(1)
-    i_tsurf=pack(tsn,wpack)
+    i_tsurf=tsn(wmap)
   case(2)
-    i_tn(:,0)=pack(tsn,wpack)
+    i_tn(:,0)=tsn(wmap)
   case(3)
-    i_tn(:,1)=pack(tsn,wpack)
+    i_tn(:,1)=tsn(wmap)
   case(4)
-    i_tn(:,2)=pack(tsn,wpack)
+    i_tn(:,2)=tsn(wmap)
   case(5)
-    i_fracice=pack(tsn,wpack)
+    i_fracice=tsn(wmap)
   case(6)
-    i_dic=pack(tsn,wpack)
+    i_dic=tsn(wmap)
   case(7)
-    i_dsn=pack(tsn,wpack)
+    i_dsn=tsn(wmap)
   case(8)
-    i_sto=pack(tsn,wpack)
+    i_sto=tsn(wmap)
   case(9)
-    i_u=pack(tsn,wpack)
+    i_u=tsn(wmap)
   case(10)
-    i_v=pack(tsn,wpack)
+    i_v=tsn(wmap)
   case(11)
-    i_sal=pack(tsn,wpack)
+    i_sal=tsn(wmap)
   case DEFAULT
     write(6,*) "ERROR: Invalid mode ",ilev
     stop
@@ -506,15 +514,15 @@ if (wfull==0) return
 
 select case(mode)
   case(0)
-    sst=unpack(w_temp(:,ilev),wpack,sst)
+    sst(wmap)=w_temp(:,ilev)
   case(1)
-    sst=unpack(w_sal(:,ilev),wpack,sst)
+    sst(wmap)=w_sal(:,ilev)
   case(2)
-    sst=unpack(w_u(:,ilev),wpack,sst)
+    sst(wmap)=w_u(:,ilev)
   case(3)
-    sst=unpack(w_v(:,ilev),wpack,sst)
+    sst(wmap)=w_v(:,ilev)
   case(4)
-    sst=unpack(w_eta,wpack,sst)
+    sst(wmap)=w_eta
 end select
 
 return
@@ -534,27 +542,27 @@ if (wfull==0) return
 
 select case(ilev)
   case(1)
-    tsn=unpack(i_tsurf,wpack,tsn)
+    tsn(wmap)=i_tsurf
   case(2)
-    tsn=unpack(i_tn(:,0),wpack,tsn)
+    tsn(wmap)=i_tn(:,0)
   case(3)
-    tsn=unpack(i_tn(:,1),wpack,tsn)
+    tsn(wmap)=i_tn(:,1)
   case(4)
-    tsn=unpack(i_tn(:,2),wpack,tsn)
+    tsn(wmap)=i_tn(:,2)
   case(5)
-    tsn=unpack(i_fracice,wpack,tsn)
+    tsn(wmap)=i_fracice
   case(6)
-    tsn=unpack(i_dic,wpack,tsn)
+    tsn(wmap)=i_dic
   case(7)
-    tsn=unpack(i_dsn,wpack,tsn)
+    tsn(wmap)=i_dsn
   case(8)
-    tsn=unpack(i_sto,wpack,tsn)
+    tsn(wmap)=i_sto
   case(9)
-    tsn=unpack(i_u,wpack,tsn)
+    tsn(wmap)=i_u
   case(10)
-    tsn=unpack(i_v,wpack,tsn)
+    tsn(wmap)=i_v
   case(11)
-    tsn=unpack(i_sal,wpack,tsn)
+    tsn(wmap)=i_sal
   case DEFAULT
     write(6,*) "ERROR: Invalid mode ",ilev
     stop
@@ -575,7 +583,7 @@ real, dimension(ifull), intent(out) :: mld
 
 mld=0.
 if (wfull==0) return
-mld=unpack(p_mixdepth,wpack,mld)
+mld(wmap)=p_mixdepth
 
 return
 end subroutine mlodiag
@@ -598,23 +606,23 @@ if (wfull==0) return
 
 select case(mode)
   case(0) ! zoh
-    a_zmin=pack(zmin,wpack)
+    a_zmin=zmin(wmap)
     workb=(1.-i_fracice)/(log(a_zmin/p_zo)*log(a_zmin/p_zoh))+i_fracice/(log(a_zmin/p_zoice)*log(a_zmin/p_zohice))
     workc=(1.-i_fracice)/log(a_zmin/p_zo)**2+i_fracice/log(a_zmin/p_zoice)**2
     workc=sqrt(workc)
-    zoh=unpack(a_zmin*exp(-workc/workb),wpack,zoh)
+    zoh(wmap)=a_zmin*exp(-workc/workb)
   case(1) ! taux
     workb=(1.-i_fracice)*p_taux+i_fracice*p_tauxica
-    zoh=unpack(workb,wpack,zoh)
+    zoh(wmap)=workb
   case(2) ! tauy
     workb=(1.-i_fracice)*p_tauy+i_fracice*p_tauyica
-    zoh=unpack(workb,wpack,zoh)
+    zoh(wmap)=workb
   case(3) ! zoq
-    a_zmin=pack(zmin,wpack)
+    a_zmin=zmin(wmap)
     workb=(1.-i_fracice)/(log(a_zmin/p_zo)*log(a_zmin/p_zoq))+i_fracice/(log(a_zmin/p_zoice)*log(a_zmin/p_zoqice))
     workc=(1.-i_fracice)/log(a_zmin/p_zo)**2+i_fracice/log(a_zmin/p_zoice)**2
     workc=sqrt(workc)
-    zoh=unpack(a_zmin*exp(-workc/workb),wpack,zoh)
+    zoh(wmap)=a_zmin*exp(-workc/workb)
   case default
     write(6,*) "ERROR: Invalid mode ",mode
     stop
@@ -635,10 +643,10 @@ real, dimension(ifull), intent(inout) :: tscrn,qgscrn,uscrn,u10
 
 if (wfull==0) return
 
-tscrn=unpack(p_tscrn,wpack,tscrn)
-qgscrn=unpack(p_qgscrn,wpack,qgscrn)
-uscrn=unpack(p_uscrn,wpack,uscrn)
-u10=unpack(p_u10,wpack,u10)
+tscrn(wmap) =p_tscrn
+qgscrn(wmap)=p_qgscrn
+uscrn(wmap) =p_uscrn
+u10(wmap)   =p_u10
 
 return
 end subroutine mloscrnout
@@ -664,7 +672,7 @@ ib=count(wpack(1:istart-1))+1
 ie=count(wpack(istart:ifinish))+ib-1
 if (ie<ib) return
 
-costmp(ib:ie)=pack(coszro,wpack(istart:ifinish))
+costmp(ib:ie)=coszro(wmap(ib:ie)-istart+1)
 
 !pond(ib:ie)=max(1.+.008*min(i_tsurf(ib:ie)-273.16,0.),0.)
 pond(ib:ie)=0.
@@ -675,8 +683,8 @@ waternir(ib:ie)=.05/(costmp(ib:ie)+0.15)
 ! need to factor snow age into albedo
 icevis(ib:ie)=(0.85*(1.-pond(ib:ie))+0.75*pond(ib:ie))*(1.-snow(ib:ie))+(0.95*(1.-pond(ib:ie))+0.85*pond(ib:ie))*snow(ib:ie)
 icenir(ib:ie)=(0.45*(1.-pond(ib:ie))+0.35*pond(ib:ie))*(1.-snow(ib:ie))+(0.65*(1.-pond(ib:ie))+0.55*pond(ib:ie))*snow(ib:ie)
-ovisalb=unpack(icevis(ib:ie)*i_fracice(ib:ie)+(1.-i_fracice(ib:ie))*watervis(ib:ie),wpack(istart:ifinish),ovisalb)
-oniralb=unpack(icenir(ib:ie)*i_fracice(ib:ie)+(1.-i_fracice(ib:ie))*waternir(ib:ie),wpack(istart:ifinish),oniralb)
+ovisalb(wmap(ib:ie)-istart+1)=icevis(ib:ie)*i_fracice(ib:ie)+(1.-i_fracice(ib:ie))*watervis(ib:ie)
+oniralb(wmap(ib:ie)-istart+1)=icenir(ib:ie)*i_fracice(ib:ie)+(1.-i_fracice(ib:ie))*waternir(ib:ie)
 
 p_watervisdiralb(ib:ie)=watervis(ib:ie)
 p_watervisdifalb(ib:ie)=watervis(ib:ie)
@@ -710,7 +718,7 @@ ib=count(wpack(1:istart-1))+1
 ie=count(wpack(istart:ifinish))+ib-1
 if (ie<ib) return
 
-costmp(ib:ie)=pack(coszro,wpack(istart:ifinish))
+costmp(ib:ie)=coszro(wmap(ib:ie)-istart+1)
 
 !pond(ib:ie)=max(1.+.008*min(i_tsurf(ib:ie)-273.16,0.),0.)
 pond(ib:ie)=0.
@@ -730,10 +738,10 @@ p_icevisdiralb(ib:ie)=(0.85*(1.-pond(ib:ie))+0.75*pond(ib:ie))*(1.-snow(ib:ie))+
 p_icevisdifalb(ib:ie)=p_icevisdiralb(ib:ie)
 p_icenirdiralb(ib:ie)=(0.45*(1.-pond(ib:ie))+0.35*pond(ib:ie))*(1.-snow(ib:ie))+(0.65*(1.-pond(ib:ie))+0.55*pond(ib:ie))*snow(ib:ie)
 p_icenirdifalb(ib:ie)=p_icenirdiralb(ib:ie)
-ovisdir=unpack(i_fracice(ib:ie)*p_icevisdiralb(ib:ie)+(1.-i_fracice(ib:ie))*p_watervisdiralb(ib:ie),wpack(istart:ifinish),ovisdir)
-ovisdif=unpack(i_fracice(ib:ie)*p_icevisdifalb(ib:ie)+(1.-i_fracice(ib:ie))*p_watervisdifalb(ib:ie),wpack(istart:ifinish),ovisdif)
-onirdir=unpack(i_fracice(ib:ie)*p_icenirdiralb(ib:ie)+(1.-i_fracice(ib:ie))*p_waternirdiralb(ib:ie),wpack(istart:ifinish),onirdir)
-onirdif=unpack(i_fracice(ib:ie)*p_icenirdifalb(ib:ie)+(1.-i_fracice(ib:ie))*p_waternirdifalb(ib:ie),wpack(istart:ifinish),onirdif)
+ovisdir(wmap(ib:ie)-istart+1)=i_fracice(ib:ie)*p_icevisdiralb(ib:ie)+(1.-i_fracice(ib:ie))*p_watervisdiralb(ib:ie)
+ovisdif(wmap(ib:ie)-istart+1)=i_fracice(ib:ie)*p_icevisdifalb(ib:ie)+(1.-i_fracice(ib:ie))*p_watervisdifalb(ib:ie)
+onirdir(wmap(ib:ie)-istart+1)=i_fracice(ib:ie)*p_icenirdiralb(ib:ie)+(1.-i_fracice(ib:ie))*p_waternirdiralb(ib:ie)
+onirdif(wmap(ib:ie)-istart+1)=i_fracice(ib:ie)*p_icenirdifalb(ib:ie)+(1.-i_fracice(ib:ie))*p_waternirdifalb(ib:ie)
 
 return
 end subroutine mloalb4
@@ -746,7 +754,7 @@ subroutine mloregrid(wlin,depin,mloin,mlodat,mode)
 implicit none
 
 integer, intent(in) :: wlin,mode
-integer iq,iqw,ii,pos(1),nn
+integer iqw,ii,pos(1),nn
 real, dimension(ifull), intent(in) :: depin
 real, dimension(ifull,wlin), intent(in) :: mloin
 real, dimension(ifull,wlev), intent(inout) :: mlodat
@@ -760,9 +768,9 @@ real x
 
 if (wfull==0) return
 
-deptmp=pack(depin,wpack)
+deptmp=depin(wmap)
 do ii=1,wlin
-  newdata(:,ii)=pack(mloin(:,ii),wpack)
+  newdata(:,ii)=mloin(wmap,ii)
 end do
 
 select case(mode)
@@ -808,7 +816,7 @@ select case(mode)
 end select
 
 do ii=1,wlev
-  mlodat(:,ii)=unpack(newdatb(:,ii),wpack,mlodat(:,ii))
+  mlodat(wmap,ii)=newdatb(:,ii)
 end do
 
 return
@@ -829,9 +837,9 @@ if (wfull==0) return
 
 select case(mode)
   case(0)
-    odep=unpack(depth(:,ii),wpack,odep)
+    odep(wmap)=depth(:,ii)
   case(1)
-    odep=unpack(dz(:,ii),wpack,odep)
+    odep(wmap)=dz(:,ii)
   case default
     write(6,*) "ERROR: Unknown mloexpdep mode ",mode
     stop
@@ -877,7 +885,7 @@ omelt=273.16
 if (wfull==0) return
 d_zcr=max(1.+w_eta/depth_hl(:,wlev+1),minwater/depth_hl(:,wlev+1))
 call calcmelt(tmelt,d_zcr)
-omelt=unpack(tmelt,wpack,omelt)
+omelt(wmap)=tmelt
 
 return
 end subroutine mloexpmelt
@@ -914,7 +922,7 @@ select case(mode)
     stop
 end select
 
-ogamm=unpack(gamm,wpack,ogamm)
+ogamm(wmap)=gamm
 
 return
 end subroutine mloexpscalar
@@ -929,11 +937,11 @@ subroutine mloeval(sst,zo,cd,cds,fg,eg,wetfac,epot,epan,fracice,siced,snowd, &
 implicit none
 
 integer, intent(in) :: diag
-integer iqw,ii
+integer iq,iqw,ii
 real, intent(in) :: dt
 real, dimension(ifull), intent(in) :: sg,rg,precp,precs,f,uatm,vatm,temp,qg,ps,visnirratio,fbvis,fbnir,inflow,zmin,zmins
 real, dimension(ifull), intent(inout) :: sst,zo,cd,cds,fg,eg,wetfac,fracice,siced,epot,epan,snowd
-real, dimension(wfull) :: workb
+real, dimension(wfull) :: workb,workc
 real, dimension(wfull) :: a_sg,a_rg,a_rnd,a_snd,a_f,a_vnratio,a_fbvis,a_fbnir,a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins
 real, dimension(wfull) :: a_inflow
 real, dimension(wfull,wlev) :: d_rho,d_rs,d_nsq,d_rad,d_alpha,d_beta
@@ -945,22 +953,22 @@ logical, intent(in) :: calcprog
 
 if (wfull==0) return
 
-a_sg=pack(sg,wpack)
-a_rg=pack(rg,wpack)
-a_f=pack(f,wpack)
-a_vnratio=pack(visnirratio,wpack)
-a_fbvis=pack(fbvis,wpack)
-a_fbnir=pack(fbnir,wpack)
-a_u=pack(uatm,wpack)
-a_v=pack(vatm,wpack)
-a_temp=pack(temp,wpack)
-a_qg=pack(qg,wpack)
-a_ps=pack(ps,wpack)
-a_zmin=pack(zmin,wpack)
-a_zmins=pack(zmins,wpack)
-a_inflow=pack(inflow,wpack)
-a_rnd=pack(precp-precs,wpack)
-a_snd=pack(precs,wpack)
+a_sg     =sg(wmap)
+a_rg     =rg(wmap)
+a_f      =f(wmap)
+a_vnratio=visnirratio(wmap)
+a_fbvis  =fbvis(wmap)
+a_fbnir  =fbnir(wmap)
+a_u      =uatm(wmap)
+a_v      =vatm(wmap)
+a_temp   =temp(wmap)
+a_qg     =qg(wmap)
+a_ps     =ps(wmap)
+a_zmin   =zmin(wmap)
+a_zmins  =zmins(wmap)
+a_inflow =inflow(wmap)
+a_rnd    =precp(wmap)-precs(wmap)
+a_snd    =precs(wmap)
 
 ! adjust levels for free surface
 d_zcr=max(1.+w_eta/depth_hl(:,wlev+1),minwater/depth_hl(:,wlev+1))
@@ -996,21 +1004,21 @@ end if
 call scrncalc(a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins,diag)                                          ! screen diagnostics
 
 workb=emisice**0.25*i_tsurf
-sst=unpack((1.-i_fracice)*w_temp(:,1)+i_fracice*workb,wpack,sst)
-workb=(1.-i_fracice)/log(a_zmin/p_zo)**2+i_fracice/log(a_zmin/p_zoice)**2
-zo=unpack(a_zmin*exp(-1./sqrt(workb)),wpack,zo)
-cd=unpack((1.-i_fracice)*p_cd+i_fracice*p_cdice,wpack,cd)
-cds=unpack((1.-i_fracice)*p_cds+i_fracice*p_cdsice,wpack,cds)
-fg=unpack((1.-i_fracice)*p_fg+i_fracice*p_fgice,wpack,fg)
-eg=unpack((1.-i_fracice)*p_eg+i_fracice*p_egice,wpack,eg)
-wetfac=unpack((1.-i_fracice)+i_fracice*p_wetfacice,wpack,wetfac)
-epan=unpack(p_eg,wpack,epan)
-epot=unpack((1.-i_fracice)*p_eg+i_fracice*p_egice/p_wetfacice,wpack,epot)
+workc=(1.-i_fracice)/log(a_zmin/p_zo)**2+i_fracice/log(a_zmin/p_zoice)**2
 fracice=0.
-fracice=unpack(i_fracice,wpack,fracice)
 siced=0.
-siced=unpack(i_dic,wpack,siced)
-snowd=unpack(i_dsn,wpack,snowd)
+sst(wmap)    =(1.-i_fracice)*w_temp(:,1)+i_fracice*workb
+zo(wmap)     =a_zmin*exp(-1./sqrt(workc))
+cd(wmap)     =(1.-i_fracice)*p_cd +i_fracice*p_cdice
+cds(wmap)    =(1.-i_fracice)*p_cds+i_fracice*p_cdsice
+fg(wmap)     =(1.-i_fracice)*p_fg +i_fracice*p_fgice
+eg(wmap)     =(1.-i_fracice)*p_eg +i_fracice*p_egice
+wetfac(wmap) =(1.-i_fracice)      +i_fracice*p_wetfacice
+epan(wmap)   =p_eg
+epot(wmap)   =(1.-i_fracice)*p_eg +i_fracice*p_egice/p_wetfacice
+fracice(wmap)=i_fracice
+siced(wmap)  =i_dic
+snowd(wmap)  =i_dsn
 
 return
 end subroutine mloeval
@@ -1864,12 +1872,13 @@ atv=a_v-w_v(:,1)
 vmag=sqrt(atu*atu+atv*atv)
 vmagn=max(vmag,0.01)
 rho=a_ps/(rdry*w_temp(:,1))
+ri=min(grav*(a_zmin**2/a_zmins)*(1.-w_temp(:,1)*srcp/a_temp)/vmagn**2,rimax)
 
 call getqsat(qsat,dqdt,w_temp(:,1),a_ps)
 if (zomode==0) then ! CSIRO9
   qsat=0.98*qsat ! with Zeng 1998 for sea water
 end if
-ri=min(grav*(a_zmin**2/a_zmins)*(1.-w_temp(:,1)*srcp/a_temp)/vmagn**2,rimax)
+
 select case(zomode)
   case(0,1) ! Charnock
     consea=vmag*charnck/grav
@@ -2055,9 +2064,8 @@ subroutine mloice(dt,a_rnd,a_snd,a_ps,d_alpha,d_beta,d_b0,d_wu0,d_wv0,d_wt0,d_ws
 implicit none
 
 integer, intent(in) :: diag
-integer nice,ii
+integer nice,ii,iqw
 real, intent(in) :: dt
-logical, dimension(wfull) :: cice
 real, dimension(wfull), intent(in) :: a_rnd,a_snd,a_ps
 real, dimension(wfull) :: ap_rnd,ap_snd
 real, dimension(wfull,0:2) :: ip_tn
@@ -2073,7 +2081,7 @@ real, dimension(wfull) :: dp_wavail
 real, dimension(wfull) :: d_salflxf,d_salflxs,d_wavail
 real, dimension(wfull,1) :: d_ri
 real, dimension(wfull) :: imass,ofracice,deld
-integer, dimension(wfull) :: dp_nk
+integer, dimension(wfull) :: dp_nk,cmap
 
 d_salflxf=0.
 d_salflxs=0.
@@ -2082,30 +2090,36 @@ imass=max(rhoic*i_dic+rhosn*i_dsn,10.) ! ice mass per unit area
 ofracice=i_fracice
 
 ! identify sea ice for packing
-cice=d_ndic>icemin
-nice=count(cice)
+nice=0
+do iqw=1,wfull
+  if (d_ndic(iqw)>icemin) then
+    nice=nice+1
+    cmap(nice)=iqw
+  end if
+end do
+
 if (nice>0) then
 
   ! pack data
   do ii=0,2
-    ip_tn(1:nice,ii)=pack(i_tn(:,ii),cice)
+    ip_tn(1:nice,ii)=i_tn(cmap(1:nice),ii)
   end do
-  ip_dic(1:nice)=pack(d_ndic,cice)
-  ip_dsn(1:nice)=pack(d_ndsn,cice)
-  ip_fracice(1:nice)=pack(i_fracice,cice)
-  ip_tsurf(1:nice)=pack(i_tsurf,cice)
-  ip_sto(1:nice)=pack(d_nsto,cice)
-  ap_rnd(1:nice)=pack(a_rnd,cice)
-  ap_snd(1:nice)=pack(a_snd,cice)
-  pp_egice(1:nice)=pack(p_egice,cice)
-  dp_ftop(1:nice)=pack(d_ftop,cice)
-  dp_tb(1:nice)=pack(d_tb,cice)
-  dp_fb(1:nice)=pack(d_fb,cice)
-  dp_timelt(1:nice)=pack(d_timelt,cice)
-  dp_salflxf(1:nice)=pack(d_salflxf,cice)
-  dp_salflxs(1:nice)=pack(d_salflxs,cice)
-  dp_nk(1:nice)=pack(d_nk,cice)
-  dp_wavail(1:nice)=pack(d_wavail,cice)
+  ip_dic(1:nice)=d_ndic(cmap(1:nice))
+  ip_dsn(1:nice)=d_ndsn(cmap(1:nice))
+  ip_fracice(1:nice)=i_fracice(cmap(1:nice))
+  ip_tsurf(1:nice)=i_tsurf(cmap(1:nice))
+  ip_sto(1:nice)=d_nsto(cmap(1:nice))
+  ap_rnd(1:nice)=a_rnd(cmap(1:nice))
+  ap_snd(1:nice)=a_snd(cmap(1:nice))
+  pp_egice(1:nice)=p_egice(cmap(1:nice))
+  dp_ftop(1:nice)=d_ftop(cmap(1:nice))
+  dp_tb(1:nice)=d_tb(cmap(1:nice))
+  dp_fb(1:nice)=d_fb(cmap(1:nice))
+  dp_timelt(1:nice)=d_timelt(cmap(1:nice))
+  dp_salflxf(1:nice)=d_salflxf(cmap(1:nice))
+  dp_salflxs(1:nice)=d_salflxs(cmap(1:nice))
+  dp_nk(1:nice)=d_nk(cmap(1:nice))
+  dp_wavail(1:nice)=d_wavail(cmap(1:nice))
   ! update ice prognostic variables
   call seaicecalc(nice,dt,ip_tn(1:nice,0),ip_tn(1:nice,1),ip_tn(1:nice,2),ip_dic(1:nice),ip_dsn(1:nice),ip_fracice(1:nice), &
                   ip_tsurf(1:nice),ip_sto(1:nice),ap_rnd(1:nice),ap_snd(1:nice),pp_egice(1:nice),dp_ftop(1:nice),           &
@@ -2113,19 +2127,19 @@ if (nice>0) then
                   dp_wavail(1:nice),diag)
   ! unpack ice data
   do ii=0,2
-    i_tn(:,ii)=unpack(ip_tn(1:nice,ii),cice,i_tn(:,ii))
+    i_tn(cmap(1:nice),ii)=ip_tn(1:nice,ii)
   end do
   i_fracice=0.
   i_dic=0.
   i_dsn=0.
-  i_dic=unpack(ip_dic(1:nice),cice,d_ndic)
-  i_dsn=unpack(ip_dsn(1:nice),cice,d_ndsn)
-  i_fracice=unpack(ip_fracice(1:nice),cice,i_fracice)
-  i_tsurf=unpack(ip_tsurf(1:nice),cice,i_tsurf)
-  i_sto=unpack(ip_sto(1:nice),cice,d_nsto)
-  d_salflxf=unpack(dp_salflxf(1:nice),cice,d_salflxf)
-  d_salflxs=unpack(dp_salflxs(1:nice),cice,d_salflxs)
-  d_nk=unpack(dp_nk(1:nice),cice,d_nk)
+  i_dic(cmap(1:nice))=ip_dic(1:nice)
+  i_dsn(cmap(1:nice))=ip_dsn(1:nice)
+  i_fracice(cmap(1:nice))=ip_fracice(1:nice)
+  i_tsurf(cmap(1:nice))=ip_tsurf(1:nice)
+  i_sto(cmap(1:nice))=ip_sto(1:nice)
+  d_salflxf(cmap(1:nice))=dp_salflxf(1:nice)
+  d_salflxs(cmap(1:nice))=dp_salflxs(1:nice)
+  d_nk(cmap(1:nice))=dp_nk(1:nice)
 end if
 
 ! update ice velocities due to stress terms
@@ -2314,7 +2328,6 @@ implicit none
 
 integer, intent(in) :: nice,diag
 integer iqi,nc0,nc1,nc2,nc3,ii
-logical, dimension(nice) :: pq0,pq1,pq2,pq3
 real, intent(in) :: dt
 real, dimension(nice) :: xxx,excess
 real, dimension(nice), intent(inout) :: ip_tn0,ip_tn1,ip_tn2
@@ -2325,153 +2338,162 @@ real, dimension(nice), intent(inout) :: dp_ftop,dp_tb,dp_fb,dp_timelt,dp_salflxf
 real, dimension(nice), intent(inout) :: dp_wavail
 integer, dimension(nice), intent(inout) :: dp_nk
 real, dimension(nice) :: dt_ftop,dt_tb,dt_fb,dt_timelt,dt_salflxf,dt_salflxs,dt_wavail
-integer, dimension(nice) :: dt_nk
 real, dimension(nice), intent(in) :: ap_rnd,ap_snd
 real, dimension(nice), intent(in) :: pp_egice
 real, dimension(nice) :: pt_egice
+integer, dimension(nice) :: dt_nk,pq0map,pq1map,pq2map,pq3map
 
 ! Pack different ice configurations
-pq0=dp_nk>0.and.ip_dsn>icemin ! snow + 1-2 ice layers
-nc0=count(pq0)
-pq1=dp_nk>0.and.ip_dsn<=icemin ! no snow + 1-2 ice layers
-nc1=count(pq1)
-pq2=dp_nk<=0.and.ip_dsn>icemin ! snow + 1 ice layer
-nc2=count(pq2)
-pq3=dp_nk<=0.and.ip_dsn<=icemin ! no snow + 1 ice layer
-nc3=count(pq3)
+nc0=0
+nc1=0
+nc2=0
+nc3=0
+do iqi=1,nice
+  if (dp_nk(iqi)>0.and.ip_dsn(iqi)>icemin) then        ! snow + 1-2 ice layers
+    nc0=nc0+1
+    pq0map(nc0)=iqi
+  else if (dp_nk(iqi)>0.and.ip_dsn(iqi)<=icemin) then  ! no snow + 1-2 ice layers
+    nc1=nc1+1
+    pq1map(nc1)=iqi
+  else if (dp_nk(iqi)<=0.and.ip_dsn(iqi)>icemin) then  ! snow + 1 ice layer
+    nc2=nc2+1
+    pq2map(nc2)=iqi
+  else if (dp_nk(iqi)<=0.and.ip_dsn(iqi)<=icemin) then ! no snow + 1 ice layer
+    nc3=nc3+1
+    pq3map(nc3)=iqi
+  end if
+end do
 
 ! Update ice and snow temperatures
 if (nc0>0) then
-  it_tn0(1:nc0)=pack(ip_tn0,pq0)
-  it_tn1(1:nc0)=pack(ip_tn1,pq0)
-  it_tn2(1:nc0)=pack(ip_tn2,pq0)
-  it_dic(1:nc0)=pack(ip_dic,pq0)
-  it_dsn(1:nc0)=pack(ip_dsn,pq0)
-  it_fracice(1:nc0)=pack(ip_fracice,pq0)
-  it_tsurf(1:nc0)=pack(ip_tsurf,pq0)
-  it_sto(1:nc0)=pack(ip_sto,pq0)
-  pt_egice(1:nc0)=pack(pp_egice,pq0)
-  dt_ftop(1:nc0)=pack(dp_ftop,pq0)
-  dt_tb(1:nc0)=pack(dp_tb,pq0)
-  dt_fb(1:nc0)=pack(dp_fb,pq0)
-  dt_timelt(1:nc0)=pack(dp_timelt,pq0)
-  dt_salflxf(1:nc0)=pack(dp_salflxf,pq0)
-  dt_salflxs(1:nc0)=pack(dp_salflxs,pq0)
-  dt_nk(1:nc0)=pack(dp_nk,pq0)
-  dt_wavail(1:nc0)=pack(dp_wavail,pq0)
+  it_tn0(1:nc0)=ip_tn0(pq0map(1:nc0))
+  it_tn1(1:nc0)=ip_tn1(pq0map(1:nc0))
+  it_tn2(1:nc0)=ip_tn2(pq0map(1:nc0))
+  it_dic(1:nc0)=ip_dic(pq0map(1:nc0))
+  it_dsn(1:nc0)=ip_dsn(pq0map(1:nc0))
+  it_fracice(1:nc0)=ip_fracice(pq0map(1:nc0))
+  it_tsurf(1:nc0)=ip_tsurf(pq0map(1:nc0))
+  it_sto(1:nc0)=ip_sto(pq0map(1:nc0))
+  pt_egice(1:nc0)=pp_egice(pq0map(1:nc0))
+  dt_ftop(1:nc0)=dp_ftop(pq0map(1:nc0))
+  dt_tb(1:nc0)=dp_tb(pq0map(1:nc0))
+  dt_fb(1:nc0)=dp_fb(pq0map(1:nc0))
+  dt_timelt(1:nc0)=dp_timelt(pq0map(1:nc0))
+  dt_salflxf(1:nc0)=dp_salflxf(pq0map(1:nc0))
+  dt_salflxs(1:nc0)=dp_salflxs(pq0map(1:nc0))
+  dt_nk(1:nc0)=dp_nk(pq0map(1:nc0))
+  dt_wavail(1:nc0)=dp_wavail(pq0map(1:nc0))
   call icetemps2(nc0,dt,it_tn0(1:nc0),it_tn1(1:nc0),it_tn2(1:nc0),it_dic(1:nc0),it_dsn(1:nc0),it_fracice(1:nc0), &
                  it_tsurf(1:nc0),it_sto(1:nc0),dt_ftop(1:nc0),dt_tb(1:nc0),dt_fb(1:nc0),dt_timelt(1:nc0),        &
                  dt_salflxf(1:nc0),dt_salflxs(1:nc0),dt_nk(1:nc0),dt_wavail(1:nc0),pt_egice(1:nc0),diag)
-  ip_tn0=unpack(it_tn0(1:nc0),pq0,ip_tn0)
-  ip_tn1=unpack(it_tn1(1:nc0),pq0,ip_tn1)
-  ip_tn2=unpack(it_tn2(1:nc0),pq0,ip_tn2)
-  ip_dic=unpack(it_dic(1:nc0),pq0,ip_dic)
-  ip_dsn=unpack(it_dsn(1:nc0),pq0,ip_dsn)
-  ip_fracice=unpack(it_fracice(1:nc0),pq0,ip_fracice)
-  ip_tsurf=unpack(it_tsurf(1:nc0),pq0,ip_tsurf)
-  ip_sto=unpack(it_sto(1:nc0),pq0,ip_sto)
-  dp_salflxf=unpack(dt_salflxf(1:nc0),pq0,dp_salflxf)
-  dp_salflxs=unpack(dt_salflxs(1:nc0),pq0,dp_salflxs)
-  dp_nk=unpack(dt_nk(1:nc0),pq0,dp_nk)
+  ip_tn0(pq0map(1:nc0))=it_tn0(1:nc0)
+  ip_tn1(pq0map(1:nc0))=it_tn1(1:nc0)
+  ip_tn2(pq0map(1:nc0))=it_tn2(1:nc0)
+  ip_dic(pq0map(1:nc0))=it_dic(1:nc0)
+  ip_dsn(pq0map(1:nc0))=it_dsn(1:nc0)
+  ip_fracice(pq0map(1:nc0))=it_fracice(1:nc0)
+  ip_tsurf(pq0map(1:nc0))=it_tsurf(1:nc0)
+  ip_sto(pq0map(1:nc0))=it_sto(1:nc0)
+  dp_salflxf(pq0map(1:nc0))=dt_salflxf(1:nc0)
+  dp_salflxs(pq0map(1:nc0))=dt_salflxs(1:nc0)
+  dp_nk(pq0map(1:nc0))=dt_nk(1:nc0)
 end if
 if (nc1>0) then
-  it_tn0(1:nc1)=pack(ip_tn0,pq1)
-  it_tn1(1:nc1)=pack(ip_tn1,pq1)
-  it_tn2(1:nc1)=pack(ip_tn2,pq1)
-  it_dic(1:nc1)=pack(ip_dic,pq1)
-  it_dsn(1:nc1)=pack(ip_dsn,pq1)
-  it_fracice(1:nc1)=pack(ip_fracice,pq1)
-  it_tsurf(1:nc1)=pack(ip_tsurf,pq1)
-  it_sto(1:nc1)=pack(ip_sto,pq1)
-  pt_egice(1:nc1)=pack(pp_egice,pq1)
-  dt_ftop(1:nc1)=pack(dp_ftop,pq1)
-  dt_tb(1:nc1)=pack(dp_tb,pq1)
-  dt_fb(1:nc1)=pack(dp_fb,pq1)
-  dt_timelt(1:nc1)=pack(dp_timelt,pq1)
-  dt_salflxf(1:nc1)=pack(dp_salflxf,pq1)
-  dt_salflxs(1:nc1)=pack(dp_salflxs,pq1)
-  dt_nk(1:nc1)=pack(dp_nk,pq1)
-  dt_wavail(1:nc1)=pack(dp_wavail,pq1)
+  it_tn0(1:nc1)=ip_tn0(pq1map(1:nc1))
+  it_tn1(1:nc1)=ip_tn1(pq1map(1:nc1))
+  it_tn2(1:nc1)=ip_tn2(pq1map(1:nc1))
+  it_dic(1:nc1)=ip_dic(pq1map(1:nc1))
+  it_dsn(1:nc1)=ip_dsn(pq1map(1:nc1))
+  it_fracice(1:nc1)=ip_fracice(pq1map(1:nc1))
+  it_tsurf(1:nc1)=ip_tsurf(pq1map(1:nc1))
+  it_sto(1:nc1)=ip_sto(pq1map(1:nc1))
+  pt_egice(1:nc1)=pp_egice(pq1map(1:nc1))
+  dt_ftop(1:nc1)=dp_ftop(pq1map(1:nc1))
+  dt_tb(1:nc1)=dp_tb(pq1map(1:nc1))
+  dt_fb(1:nc1)=dp_fb(pq1map(1:nc1))
+  dt_timelt(1:nc1)=dp_timelt(pq1map(1:nc1))
+  dt_salflxf(1:nc1)=dp_salflxf(pq1map(1:nc1))
+  dt_salflxs(1:nc1)=dp_salflxs(pq1map(1:nc1))
+  dt_nk(1:nc1)=dp_nk(pq1map(1:nc1))
+  dt_wavail(1:nc1)=dp_wavail(pq1map(1:nc1))
   call icetempn2(nc1,dt,it_tn0(1:nc1),it_tn1(1:nc1),it_tn2(1:nc1),it_dic(1:nc1),it_dsn(1:nc1),it_fracice(1:nc1), &
                  it_tsurf(1:nc1),it_sto(1:nc1),dt_ftop(1:nc1),dt_tb(1:nc1),dt_fb(1:nc1),dt_timelt(1:nc1),        &
                  dt_salflxf(1:nc1),dt_salflxs(1:nc1),dt_nk(1:nc1),dt_wavail(1:nc1),pt_egice(1:nc1),diag)
-  ip_tn0=unpack(it_tn0(1:nc1),pq1,ip_tn0)
-  ip_tn1=unpack(it_tn1(1:nc1),pq1,ip_tn1)
-  ip_tn2=unpack(it_tn2(1:nc1),pq1,ip_tn2)
-  ip_dic=unpack(it_dic(1:nc1),pq1,ip_dic)
-  ip_dsn=unpack(it_dsn(1:nc1),pq1,ip_dsn)
-  ip_fracice=unpack(it_fracice(1:nc1),pq1,ip_fracice)
-  ip_tsurf=unpack(it_tsurf(1:nc1),pq1,ip_tsurf)
-  ip_sto=unpack(it_sto(1:nc1),pq1,ip_sto)
-  dp_salflxf=unpack(dt_salflxf(1:nc1),pq1,dp_salflxf)
-  dp_salflxs=unpack(dt_salflxs(1:nc1),pq1,dp_salflxs)
-  dp_nk=unpack(dt_nk(1:nc1),pq1,dp_nk)
+  ip_tn0(pq1map(1:nc1))=it_tn0(1:nc1)
+  ip_tn1(pq1map(1:nc1))=it_tn1(1:nc1)
+  ip_tn2(pq1map(1:nc1))=it_tn2(1:nc1)
+  ip_dic(pq1map(1:nc1))=it_dic(1:nc1)
+  ip_dsn(pq1map(1:nc1))=it_dsn(1:nc1)
+  ip_fracice(pq1map(1:nc1))=it_fracice(1:nc1)
+  ip_tsurf(pq1map(1:nc1))=it_tsurf(1:nc1)
+  ip_sto(pq1map(1:nc1))=it_sto(1:nc1)
+  dp_salflxf(pq1map(1:nc1))=dt_salflxf(1:nc1)
+  dp_salflxs(pq1map(1:nc1))=dt_salflxs(1:nc1)
+  dp_nk(pq1map(1:nc1))=dt_nk(1:nc1)
 end if
 if (nc2>0) then
-  it_tn0(1:nc2)=pack(ip_tn0,pq2)
-  it_tn1(1:nc2)=pack(ip_tn1,pq2)
-  it_tn2(1:nc2)=pack(ip_tn2,pq2)
-  it_dic(1:nc2)=pack(ip_dic,pq2)
-  it_dsn(1:nc2)=pack(ip_dsn,pq2)
-  it_fracice(1:nc2)=pack(ip_fracice,pq2)
-  it_tsurf(1:nc2)=pack(ip_tsurf,pq2)
-  it_sto(1:nc2)=pack(ip_sto,pq2)
-  pt_egice(1:nc2)=pack(pp_egice,pq2)
-  dt_ftop(1:nc2)=pack(dp_ftop,pq2)
-  dt_tb(1:nc2)=pack(dp_tb,pq2)
-  dt_fb(1:nc2)=pack(dp_fb,pq2)
-  dt_timelt(1:nc2)=pack(dp_timelt,pq2)
-  dt_salflxf(1:nc2)=pack(dp_salflxf,pq2)
-  dt_salflxs(1:nc2)=pack(dp_salflxs,pq2)
-  dt_nk(1:nc2)=pack(dp_nk,pq2)
-  dt_wavail(1:nc2)=pack(dp_wavail,pq2)
+  it_tn1(1:nc2)=ip_tn1(pq2map(1:nc2))
+  it_tn2(1:nc2)=ip_tn2(pq2map(1:nc2))
+  it_dic(1:nc2)=ip_dic(pq2map(1:nc2))
+  it_dsn(1:nc2)=ip_dsn(pq2map(1:nc2))
+  it_fracice(1:nc2)=ip_fracice(pq2map(1:nc2))
+  it_tsurf(1:nc2)=ip_tsurf(pq2map(1:nc2))
+  it_sto(1:nc2)=ip_sto(pq2map(1:nc2))
+  pt_egice(1:nc2)=pp_egice(pq2map(1:nc2))
+  dt_ftop(1:nc2)=dp_ftop(pq2map(1:nc2))
+  dt_tb(1:nc2)=dp_tb(pq2map(1:nc2))
+  dt_fb(1:nc2)=dp_fb(pq2map(1:nc2))
+  dt_timelt(1:nc2)=dp_timelt(pq2map(1:nc2))
+  dt_salflxf(1:nc2)=dp_salflxf(pq2map(1:nc2))
+  dt_salflxs(1:nc2)=dp_salflxs(pq2map(1:nc2))
+  dt_nk(1:nc2)=dp_nk(pq2map(1:nc2))
+  dt_wavail(1:nc2)=dp_wavail(pq2map(1:nc2))
   call icetemps1(nc2,dt,it_tn0(1:nc2),it_tn1(1:nc2),it_tn2(1:nc2),it_dic(1:nc2),it_dsn(1:nc2),it_fracice(1:nc2), &
                  it_tsurf(1:nc2),it_sto(1:nc2),dt_ftop(1:nc2),dt_tb(1:nc2),dt_fb(1:nc2),dt_timelt(1:nc2),        &
                  dt_salflxf(1:nc2),dt_salflxs(1:nc2),dt_nk(1:nc2),dt_wavail(1:nc2),pt_egice(1:nc2),diag)
-  ip_tn0=unpack(it_tn0(1:nc2),pq2,ip_tn0)
-  ip_tn1=unpack(it_tn1(1:nc2),pq2,ip_tn1)
-  ip_tn2=unpack(it_tn2(1:nc2),pq2,ip_tn2)
-  ip_dic=unpack(it_dic(1:nc2),pq2,ip_dic)
-  ip_dsn=unpack(it_dsn(1:nc2),pq2,ip_dsn)
-  ip_fracice=unpack(it_fracice(1:nc2),pq2,ip_fracice)
-  ip_tsurf=unpack(it_tsurf(1:nc2),pq2,ip_tsurf)
-  ip_sto=unpack(it_sto(1:nc2),pq2,ip_sto)
-  dp_salflxf=unpack(dt_salflxf(1:nc2),pq2,dp_salflxf)
-  dp_salflxs=unpack(dt_salflxs(1:nc2),pq2,dp_salflxs)
-  dp_nk=unpack(dt_nk(1:nc2),pq2,dp_nk)
+  ip_tn0(pq2map(1:nc2))=it_tn0(1:nc2)
+  ip_tn1(pq2map(1:nc2))=it_tn1(1:nc2)
+  ip_tn2(pq2map(1:nc2))=it_tn2(1:nc2)
+  ip_dic(pq2map(1:nc2))=it_dic(1:nc2)
+  ip_dsn(pq2map(1:nc2))=it_dsn(1:nc2)
+  ip_fracice(pq2map(1:nc2))=it_fracice(1:nc2)
+  ip_tsurf(pq2map(1:nc2))=it_tsurf(1:nc2)
+  ip_sto(pq2map(1:nc2))=it_sto(1:nc2)
+  dp_salflxf(pq2map(1:nc2))=dt_salflxf(1:nc2)
+  dp_salflxs(pq2map(1:nc2))=dt_salflxs(1:nc2)
+  dp_nk(pq2map(1:nc2))=dt_nk(1:nc2)
 end if
 if (nc3>0) then
-  it_tn0(1:nc3)=pack(ip_tn0,pq3)
-  it_tn1(1:nc3)=pack(ip_tn1,pq3)
-  it_tn2(1:nc3)=pack(ip_tn2,pq3)
-  it_dic(1:nc3)=pack(ip_dic,pq3)
-  it_dsn(1:nc3)=pack(ip_dsn,pq3)
-  it_fracice(1:nc3)=pack(ip_fracice,pq3)
-  it_tsurf(1:nc3)=pack(ip_tsurf,pq3)
-  it_sto(1:nc3)=pack(ip_sto,pq3)
-  pt_egice(1:nc3)=pack(pp_egice,pq3)
-  dt_ftop(1:nc3)=pack(dp_ftop,pq3)
-  dt_tb(1:nc3)=pack(dp_tb,pq3)
-  dt_fb(1:nc3)=pack(dp_fb,pq3)
-  dt_timelt(1:nc3)=pack(dp_timelt,pq3)
-  dt_salflxf(1:nc3)=pack(dp_salflxf,pq3)
-  dt_salflxs(1:nc3)=pack(dp_salflxs,pq3)
-  dt_nk(1:nc3)=pack(dp_nk,pq3)
-  dt_wavail(1:nc3)=pack(dp_wavail,pq3)
+  it_tn1(1:nc3)=ip_tn1(pq3map(1:nc3))
+  it_tn2(1:nc3)=ip_tn2(pq3map(1:nc3))
+  it_dic(1:nc3)=ip_dic(pq3map(1:nc3))
+  it_dsn(1:nc3)=ip_dsn(pq3map(1:nc3))
+  it_fracice(1:nc3)=ip_fracice(pq3map(1:nc3))
+  it_tsurf(1:nc3)=ip_tsurf(pq3map(1:nc3))
+  it_sto(1:nc3)=ip_sto(pq3map(1:nc3))
+  pt_egice(1:nc3)=pp_egice(pq3map(1:nc3))
+  dt_ftop(1:nc3)=dp_ftop(pq3map(1:nc3))
+  dt_tb(1:nc3)=dp_tb(pq3map(1:nc3))
+  dt_fb(1:nc3)=dp_fb(pq3map(1:nc3))
+  dt_timelt(1:nc3)=dp_timelt(pq3map(1:nc3))
+  dt_salflxf(1:nc3)=dp_salflxf(pq3map(1:nc3))
+  dt_salflxs(1:nc3)=dp_salflxs(pq3map(1:nc3))
+  dt_nk(1:nc3)=dp_nk(pq3map(1:nc3))
+  dt_wavail(1:nc3)=dp_wavail(pq3map(1:nc3))
   call icetempn1(nc3,dt,it_tn0(1:nc3),it_tn1(1:nc3),it_tn2(1:nc3),it_dic(1:nc3),it_dsn(1:nc3),it_fracice(1:nc3), &
                  it_tsurf(1:nc3),it_sto(1:nc3),dt_ftop(1:nc3),dt_tb(1:nc3),dt_fb(1:nc3),dt_timelt(1:nc3),        &
                  dt_salflxf(1:nc3),dt_salflxs(1:nc3),dt_nk(1:nc3),dt_wavail(1:nc3),pt_egice(1:nc3),diag)
-  ip_tn0=unpack(it_tn0(1:nc3),pq3,ip_tn0)
-  ip_tn1=unpack(it_tn1(1:nc3),pq3,ip_tn1)
-  ip_tn2=unpack(it_tn2(1:nc3),pq3,ip_tn2)
-  ip_dic=unpack(it_dic(1:nc3),pq3,ip_dic)
-  ip_dsn=unpack(it_dsn(1:nc3),pq3,ip_dsn)
-  ip_fracice=unpack(it_fracice(1:nc3),pq3,ip_fracice)
-  ip_tsurf=unpack(it_tsurf(1:nc3),pq3,ip_tsurf)
-  ip_sto=unpack(it_sto(1:nc3),pq3,ip_sto)
-  dp_salflxf=unpack(dt_salflxf(1:nc3),pq3,dp_salflxf)
-  dp_salflxs=unpack(dt_salflxs(1:nc3),pq3,dp_salflxs)
-  dp_nk=unpack(dt_nk(1:nc3),pq3,dp_nk)
+  ip_tn0(pq3map(1:nc3))=it_tn0(1:nc3)
+  ip_tn1(pq3map(1:nc3))=it_tn1(1:nc3)
+  ip_tn2(pq3map(1:nc3))=it_tn2(1:nc3)
+  ip_dic(pq3map(1:nc3))=it_dic(1:nc3)
+  ip_dsn(pq3map(1:nc3))=it_dsn(1:nc3)
+  ip_fracice(pq3map(1:nc3))=it_fracice(1:nc3)
+  ip_tsurf(pq3map(1:nc3))=it_tsurf(1:nc3)
+  ip_sto(pq3map(1:nc3))=it_sto(1:nc3)
+  dp_salflxf(pq3map(1:nc3))=dt_salflxf(1:nc3)
+  dp_salflxs(pq3map(1:nc3))=dt_salflxs(1:nc3)
+  dp_nk(pq3map(1:nc3))=dt_nk(1:nc3)
 end if
 
 ! the following are snow to ice processes
@@ -3263,12 +3285,12 @@ lzoq=log(a_zmins/zoq)
 thetavstar=vkar*(thetav-sthetav)/lzoh
 ustar=vkar*umag/lzom
 do ic=1,nc
-  z_on_l=a_zmin*vkar*grav*thetavstar/(thetav*ustar**2)
-  z_on_l=min(z_on_l,10.)
-  zs_on_l  = z_on_l*a_zmins/a_zmin  
-  z0_on_l  = z_on_l*zo/a_zmin
-  zt_on_l  = z_on_l*zoh/a_zmin
-  zq_on_l  = z_on_l*zoq/a_zmin
+  z_on_l  = a_zmin*vkar*grav*thetavstar/(thetav*ustar**2)
+  z_on_l  = min(z_on_l,10.)
+  zs_on_l = z_on_l*a_zmins/a_zmin  
+  z0_on_l = z_on_l*zo/a_zmin
+  zt_on_l = z_on_l*zoh/a_zmin
+  zq_on_l = z_on_l*zoq/a_zmin
   where (z_on_l<0.)
     pm0     = (1.-16.*z0_on_l)**(-0.25)
     ph0     = (1.-16.*zt_on_l)**(-0.5)
@@ -3299,22 +3321,22 @@ do ic=1,nc
     integralh = lzoh-(ph1-ph0)
     integralq = lzoq-(ph1-pq0)
   endwhere
-  thetavstar=vkar*(thetav-sthetav)/integralh
-  ustar=vkar*umag/integralm
+  thetavstar = vkar*(thetav-sthetav)/integralh
+  ustar      = vkar*umag/integralm
 end do
-tstar=vkar*(a_temp-stemp)/integralh
-qstar=vkar*(a_qg-smixr)/integralq
+tstar = vkar*(a_temp-stemp)/integralh
+qstar = vkar*(a_qg-smixr)/integralq
       
 ! estimate screen diagnostics
-z0s_on_l=z0*zs_on_l/a_zmins
-z0_on_l=z0*z_on_l/a_zmin
-z10_on_l=z10*z_on_l/a_zmin
-z0s_on_l=min(z0s_on_l,10.)
-z0_on_l=min(z0_on_l,10.)
-z10_on_l=min(z10_on_l,10.)
-neutrals=log(a_zmins/z0)
-neutral=log(a_zmin/z0)
-neutral10=log(a_zmin/z10)
+z0s_on_l  = z0*zs_on_l/a_zmins
+z0_on_l   = z0*z_on_l/a_zmin
+z10_on_l  = z10*z_on_l/a_zmin
+z0s_on_l  = min(z0s_on_l,10.)
+z0_on_l   = min(z0_on_l,10.)
+z10_on_l  = min(z10_on_l,10.)
+neutrals  = log(a_zmins/z0)
+neutral   = log(a_zmin/z0)
+neutral10 = log(a_zmin/z10)
 where (z_on_l<0.)
   ph0     = (1.-16.*z0s_on_l)**(-0.50)
   ph1     = (1.-16.*zs_on_l)**(-0.50)

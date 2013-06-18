@@ -28,7 +28,6 @@ real, dimension(:,:), allocatable, save :: stwgt
 integer, save :: comm_mlo
 integer, save :: nstagoffmlo
 logical, save :: ocnproc
-integer, parameter :: salfilt  =0    ! badditional salinity filter (0=off, 1=Katzfey)
 integer, parameter :: usetide  =1    ! tidal forcing (0=off, 1=on)
 integer, parameter :: icemode  =2    ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
 integer, parameter :: basinmd  =3    ! basin mode (0=soil, 1=redistribute, 2=pile-up, 3=leak)
@@ -239,9 +238,47 @@ return
 end subroutine mlodyninit
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! This subroutine processes horizontal diffusion, if mlohadv is
+! not called.  Calling diffusion from mlodadv avoids additional
+! unpacking and packing
+subroutine mlodiffusion
+
+use mlo
+
+implicit none
+
+include 'newmpar.h'
+
+integer k
+real, dimension(ifull,wlev) :: u,v,tt,ss
+real, dimension(ifull) :: eta
+
+! abort if no water points on this processor
+if (.not.ocnproc) return
+
+! extract data from MLO
+u=0.
+v=0.
+eta=0.
+tt=0.
+ss=0.
+do k=1,wlev
+  call mloexport(0,tt(:,k),k,0)
+  call mloexport(1,ss(:,k),k,0)
+  call mloexport(2,u(:,k),k,0)
+  call mloexport(3,v(:,k),k,0)
+end do
+call mloexport(4,eta(1:ifull),0,0)
+
+call mlodiffusion_main(u,v,u,v,eta,tt,ss)
+
+return
+end subroutine mlodiffusion
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine processes horizontal diffusion, based on Griffies (2000)
 ! and McGregor's hordifg.f routines for CCAM.
-subroutine mlodiffusion
+subroutine mlodiffusion_main(uauin,uavin,u,v,etain,tt,ss)
 
 use cc_mpi
 use indices_m
@@ -258,43 +295,26 @@ include 'parm.h'
 
 integer k,i,iq
 real hdif,xp
-real, dimension(ifull+iextra,wlev) :: u,v,uc,vc,wc,uau,uav
+real, dimension(ifull,wlev), intent(in) :: uauin,uavin,u,v,tt,ss
+real, dimension(ifull), intent(in) :: etain
+real, dimension(ifull+iextra,wlev) :: uc,vc,wc,uau,uav
 real, dimension(ifull+iextra,wlev) :: xfact,yfact,gg,t_kh
 real, dimension(ifull) :: dudx,dvdx,dudy,dvdy
-real, dimension(ifull,wlev) :: ff,base
+real, dimension(ifull,wlev) :: ft,fs,base,outu,outv
 real, dimension(ifull+iextra) :: depadj,eta
 real, dimension(ifull) :: tx_fact,ty_fact
 real, dimension(ifull) :: cc,emi,nu,nv,nw
-logical, dimension(ifull+iextra) :: wtr
 
-! abort if no water points on this processor
-if (.not.ocnproc) return
-
-! Define diffusion scale, land-sea mask and grid spacing
+! Define diffusion scale and grid spacing
 hdif=dt*(ocnsmag/pi)**2
-wtr=ee>0.5
 emi=1./em(1:ifull)**2
 
 ! extract data from MLO
-u=0.
-v=0.
-eta=0.
-do k=1,wlev
-  call mloexport(2,u(1:ifull,k),k,0)
-  call mloexport(3,v(1:ifull,k),k,0)
-end do
-call mloexport(4,eta(1:ifull),0,0)
-call bounds(eta,nehalf=.true.,gmode=1)
-
-! use JLM coupling weighting
-if (abs(nmlo)>=3) then
-  uau(1:ifull,:)=av_vmod*u(1:ifull,:)+(1.-av_vmod)*oldu1
-  uav(1:ifull,:)=av_vmod*v(1:ifull,:)+(1.-av_vmod)*oldv1
-else
-  uau(1:ifull,:)=u(1:ifull,:)
-  uav(1:ifull,:)=v(1:ifull,:)
-end if
+eta(1:ifull)=etain
+uau(1:ifull,:)=uauin
+uav(1:ifull,:)=uavin
 call boundsuv(uau,uav,allvec=.true.,gmode=1)
+call bounds(eta,nehalf=.true.,gmode=1)
 
 ! calculate diffusion following Smagorinsky
 ! here we split the calculation into left, right, top, bottom in
@@ -357,11 +377,8 @@ do k=1,wlev
          yfact(1:ifull,k)*wc(in,k) +         &
          yfact(isv,k)*wc(is,k) ) / base(:,k)
 
-  u(1:ifull,k)=ax(1:ifull)*nu+ay(1:ifull)*nv+az(1:ifull)*nw
-  v(1:ifull,k)=bx(1:ifull)*nu+by(1:ifull)*nv+bz(1:ifull)*nw
-
-  call mloimport(2,u(1:ifull,k),k,0)
-  call mloimport(3,v(1:ifull,k),k,0)
+  outu(:,k)=ax(1:ifull)*nu+ay(1:ifull)*nv+az(1:ifull)*nw
+  outv(:,k)=bx(1:ifull)*nu+by(1:ifull)*nv+bz(1:ifull)*nw
 
 end do
 
@@ -371,73 +388,52 @@ end do
 !
 !  base(:,k)=emi+xfact(1:ifull,k)+xfact(iwu,k)+yfact(1:ifull,k)+yfact(isv,k)
 !
-!  nu=(u(1:ifull,k)*emi+2.*xfact(1:ifull,k)*u(ieu,k)+2.*xfact(iwu,k)*u(iwu,k) &
+!  outu(:,k)=(u(1:ifull,k)*emi+2.*xfact(1:ifull,k)*u(ieu,k)+2.*xfact(iwu,k)*u(iwu,k) &
 !    +yfact(1:ifull,k)*u(inu,k)+yfact(isv,k)*u(isu,k)                         &
 !    +(yfact(1:ifull,k)-yfact(isv,k))*0.5*(v(iev,k)-v(iwv,k))                 &
 !    +t_kh(1:ifull,k)*0.5*(v(inv,k)+v(iev,k)-v(isv,k)-v(iwv,k)))              &
 !    /(emi+2.*xfact(1:ifull,k)+2.*xfact(iwu,k)+yfact(1:ifull,k)+yfact(isv,k))
-!  nv=(v(1:ifull,k)*emi+2.*yfact(1:ifull,k)*v(inv,k)+2.*yfact(isv,k)*v(isv,k) &
+!  outv(:,k)=(v(1:ifull,k)*emi+2.*yfact(1:ifull,k)*v(inv,k)+2.*yfact(isv,k)*v(isv,k) &
 !    +xfact(1:ifull,k)*v(iev,k)+xfact(iwu,k)*v(iwv,k)                         &
 !    +(xfact(1:ifull,k)-xfact(iwu,k))*0.5*(u(inu,k)-u(isu,k))                 &
 !    +t_kh(1:ifull,k)*0.5*(u(inu,k)+u(ieu,k)-u(isu,k)-u(iwu,k)))              &
 !    /(emi+2.*yfact(1:ifull,k)+2.*yfact(isv,k)+xfact(1:ifull,k)+xfact(iwu,k))
 !
-!  call mloimport(2,nu,k,0)
-!  call mloimport(3,nv,k,0)
-!
 !end do
 
-! update scalar variables
-do i=0,1
-
-  gg=0.
-  do k=1,wlev
-    call mloexport(i,gg(1:ifull,k),k,0)
-  end do
-  select case(i)
-    case(0)
-      gg(1:ifull,:)=gg(1:ifull,:)-290.
-    case(1)
-      gg(1:ifull,:)=gg(1:ifull,:)-34.72
-  end select
-  call bounds(gg,gmode=1)
-  
-  do k=1,wlev
-    ff(:,k) = ( gg(1:ifull,k)*emi +                 &
-                xfact(1:ifull,k)*gg(ie,k) +         &
-                xfact(iwu,k)*gg(iw,k) +             &
-                yfact(1:ifull,k)*gg(in,k) +         &
-                yfact(isv,k)*gg(is,k) ) / base(:,k)
-  end do
-  select case(i)
-    case(0)
-      ff=ff+290.
-    case(1)
-      ff=ff+34.72
-      ff=max(ff,0.)
-  end select
-  do k=1,wlev
-    call mloimport(i,ff(:,k),k,0)
-  end do
-  
+! Potential temperature
+gg(1:ifull,:)=tt-290.
+call bounds(gg,gmode=1)
+do k=1,wlev
+  ft(:,k) = ( gg(1:ifull,k)*emi +                 &
+              xfact(1:ifull,k)*gg(ie,k) +         &
+              xfact(iwu,k)*gg(iw,k) +             &
+              yfact(1:ifull,k)*gg(in,k) +         &
+              yfact(isv,k)*gg(is,k) ) / base(:,k)
 end do
-  
-! Jack Katzfey salinity filter
-if (salfilt==1) then
-  gg(1:ifull,:)=ff
-  call bounds(gg,gmode=1)
-  do k=1,wlev
-    ff(:,k) = ( gg(1:ifull,k)*emi +                 &
-                xfact(1:ifull,k)*gg(ie,k) +         &
-                xfact(iwu,k)*gg(iw,k) +             &
-                yfact(1:ifull,k)*gg(in,k) +         &
-                yfact(isv,k)*gg(is,k) ) / base(:,k)
-    call mloimport(1,ff(:,k),k,0)
-  end do
-end if
+ft=ft+290.
+
+! Salinity  
+gg(1:ifull,:)=ss-34.72
+call bounds(gg,gmode=1)
+do k=1,wlev
+  fs(:,k) = ( gg(1:ifull,k)*emi +                 &
+              xfact(1:ifull,k)*gg(ie,k) +         &
+              xfact(iwu,k)*gg(iw,k) +             &
+              yfact(1:ifull,k)*gg(in,k) +         &
+              yfact(isv,k)*gg(is,k) ) / base(:,k)
+end do
+fs=max(fs+34.72,0.)
+
+do k=1,wlev
+  call mloimport(0,ft(:,k),k,0)
+  call mloimport(1,fs(:,k),k,0)
+  call mloimport(2,outu(:,k),k,0)
+  call mloimport(3,outv(:,k),k,0)
+end do
 
 return
-end subroutine mlodiffusion
+end subroutine mlodiffusion_main
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine calculates the river routing.
@@ -475,7 +471,7 @@ real, dimension(ifull) :: deta,sal,salin,depdum
 real, dimension(ifull,4) :: idp,slope,mslope,vel,flow
 real, dimension(ifull,4) :: fta,ftb,ftx,fty
 real, dimension(2) :: dumb,gdumb
-real xx,yy,ll,lssum,gssum,lwsum,gwsum,netf,netg,rate\
+real xx,yy,ll,lssum,gssum,lwsum,gwsum,netf,netg,rate
 
 ! To speed up the code, we use a (semi-)implicit solution rather than an iterative approach
 ! This avoids additional MPI calls.
@@ -513,7 +509,7 @@ call mloexport(4,neta(1:ifull),0,0)
 neta(1:ifull)=neta(1:ifull)-inflowbias*ee(1:ifull)
 do ii=1,wlev
   call mloexport(1,sallvl(:,ii),ii,0)
-  ! could modify the following to only operate on the top 5m of the ocean column
+  ! could modify the following to only operate above neta=0
   salin=salin+godsig(ii)*sallvl(:,ii)
 end do
 where (ee(1:ifull)>0.5)
@@ -538,13 +534,13 @@ dum(1:ifull,2)=salbdy(1:ifull)
 call bounds(dum(:,1:2))
 watbdy(ifull+1:ifull+iextra)=dum(ifull+1:ifull+iextra,1)
 salbdy(ifull+1:ifull+iextra)=dum(ifull+1:ifull+iextra,2)
-newwat(1:ifull)=watbdy(1:ifull)
+newwat(1:ifull+iextra)=watbdy(1:ifull+iextra)
 newsal=salbdy(1:ifull)
 
 ! predictor-corrector
 do nit=1,2
   
-  call bounds(newwat)
+  if (nit==2) call bounds(newwat)
 
   ! calculate slopes
   ! Currently this is has an explicit dependence on watbdy
@@ -760,7 +756,7 @@ do ii=1,wlev
   end where
   call mloimport(1,sallvl(:,ii),ii,0)
 end do
-  
+
 return
 end subroutine mlorouter
 
@@ -1734,17 +1730,29 @@ if (myid==0.and.(ktau<=5.or.maxglobseta>tol.or.maxglobip>itol)) then
   write(6,*) "MLODYNAMICS ",totits,itc,maxglobseta,maxglobip
 end if
 
+
+! DIFFUSION -------------------------------------------------------------------
+if (myid==0.and.nmaxpr==1) then
+  write(6,*) "mlohadv: diffusion"
+end if
+
+duma=nu(1:ifull,:)
+dumb=nv(1:ifull,:)
+uau=av_vmod*nu(1:ifull,:)+(1.-av_vmod)*oldu1
+uav=av_vmod*nv(1:ifull,:)+(1.-av_vmod)*oldv1
+dumt=nt(1:ifull,:)
+dums=ns(1:ifull,:)
+odum=neta(1:ifull)
+call mlodiffusion_main(uau,uav,duma,dumb,odum,dumt,dums)
+
+
+! EXPORT ----------------------------------------------------------------------
+! Water data is exported in mlodiffusion
+
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: Export"
 end if
 
-do ii=1,wlev
-  call mloimport(0,nt(1:ifull,ii),ii,0)
-  call mloimport(1,ns(1:ifull,ii),ii,0)
-  call mloimport(2,nu(1:ifull,ii),ii,0)
-  call mloimport(3,nv(1:ifull,ii),ii,0)
-end do
-call mloimport(4,neta(1:ifull),0,0)
 do ii=1,4
   call mloimpice(nit(1:ifull,ii),ii,0)
 end do

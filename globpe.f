@@ -722,9 +722,9 @@
       call histave_init(ifull,iextra,kl,ms)
       call kuocomb_init(ifull,iextra,kl)
       call liqwpar_init(ifull,iextra,kl)
-      call nlin_init(ifull,iextra,kl)
       call morepbl_init(ifull,iextra,kl)
       call nharrs_init(ifull,iextra,kl)
+      call nlin_init(ifull,iextra,kl)
       call nsibd_init(ifull,iextra,kl,nsib)
       call parmhdff_init(ifull,iextra,kl)
       call pbl_init(ifull,iextra,kl)
@@ -1314,7 +1314,7 @@
         call end_log(river_end)
       end if
 
-      ! DYNAMICS --------------------------------------------------------------
+      ! DYNAMICS & DIFFUSION --------------------------------------------------
       if (abs(nmlo)>=3) then
         call start_log(waterdynamics_begin)
         if (myid==0.and.nmaxpr==1) then
@@ -1330,9 +1330,7 @@
         call end_log(waterdynamics_loadbal_end)
 #endif
         call end_log(waterdynamics_end)
-      end if
-
-      if (abs(nmlo)>=2) then
+      else if (abs(nmlo)>=2) then
         ! DIFFUSION ----------------------------------------------------------
         call start_log(waterdiff_begin)
         if (myid==0.and.nmaxpr==1) then

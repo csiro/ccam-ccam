@@ -69,6 +69,7 @@ public atebinit,atebcalc,atebend,atebzo,atebload,atebsave,atebtype,atebfndef,ate
 
 ! state arrays
 integer, save :: ufull,ifull,iqut
+integer, dimension(:), allocatable, save :: umap
 logical, dimension(:), allocatable, save :: upack
 logical, save :: l_sigmavegc, l_sigmavegr
 real, dimension(:), allocatable, save :: sigmau
@@ -180,6 +181,7 @@ if (ufull==0) then
   return
 end if
 
+allocate(umap(ufull))
 allocate(f_roofdepth(ufull,3),f_walldepth(ufull,3),f_roaddepth(ufull,3))
 allocate(f_roofcp(ufull,3),f_wallcp(ufull,3),f_roadcp(ufull,3),f_vegcp(ufull,3))
 allocate(f_rooflambda(ufull,3),f_walllambda(ufull,3),f_roadlambda(ufull,3),f_veglambda(ufull,3))
@@ -199,11 +201,19 @@ allocate(we_temp(ufull,3),ww_temp(ufull,3))
 allocate(sigmau(ufull),v_watrc(ufull),v_moistc(ufull),v_watrr(ufull),v_moistr(ufull))
 
 ! define grid arrays
-sigmau=pack(sigu,upack)
+iqu=0
+do iq=1,ifull
+  if (upack(iq)) then
+    iqu=iqu+1
+    sigmau(iqu)=sigu(iq)
+    umap(iqu)=iq
+  end if
+end do
+
 iqu=0
 iqut=0
 do iq=1,ifull
-  if (sigu(iq)>0.) then
+  if (upack(iq)) then
     iqu=iqu+1
     if (iq>=iqt) then
       iqut=iqu
@@ -311,7 +321,7 @@ integer, intent(in) :: diag
 if (ufull==0) return
 if (diag>=1) write(6,*) "Deallocating aTEB arrays"
 
-deallocate(upack)
+deallocate(umap,upack)
 deallocate(f_roofdepth,f_walldepth,f_roaddepth)
 deallocate(f_roofcp,f_wallcp,f_roadcp,f_vegcp)
 deallocate(f_rooflambda,f_walllambda,f_roadlambda,f_veglambda)
@@ -348,23 +358,23 @@ if (ufull==0) return
 if (diag>=1) write(6,*) "Load aTEB state arrays"
 
 do ii=1,3
-  rf_temp(:,ii)=pack(urban(:,ii),upack)
-  we_temp(:,ii)=pack(urban(:,ii+3),upack)
-  ww_temp(:,ii)=pack(urban(:,ii+6),upack)
-  rd_temp(:,ii)=pack(urban(:,ii+9),upack)
+  rf_temp(:,ii)=urban(umap,ii)
+  we_temp(:,ii)=urban(umap,ii+3)
+  ww_temp(:,ii)=urban(umap,ii+6)
+  rd_temp(:,ii)=urban(umap,ii+9)
 end do
-v_moistc=pack(urban(:,13),upack)
-v_moistr=pack(urban(:,14),upack)
-rf_water=pack(urban(:,15),upack)
-rd_water=pack(urban(:,16),upack)
-v_watrc=pack(urban(:,17),upack)
-v_watrr=pack(urban(:,18),upack)
-rf_snow=pack(urban(:,19),upack)
-rd_snow=pack(urban(:,20),upack)
-rf_den=pack(urban(:,21),upack)
-rd_den=pack(urban(:,22),upack)
-rf_alpha=pack(urban(:,23),upack)
-rd_alpha=pack(urban(:,24),upack)
+v_moistc=urban(umap,13)
+v_moistr=urban(umap,14)
+rf_water=urban(umap,15)
+rd_water=urban(umap,16)
+v_watrc=urban(umap,17)
+v_watrr=urban(umap,18)
+rf_snow=urban(umap,19)
+rd_snow=urban(umap,20)
+rf_den=urban(umap,21)
+rd_den=urban(umap,22)
+rf_alpha=urban(umap,23)
+rd_alpha=urban(umap,24)
 
 return
 end subroutine atebload
@@ -385,13 +395,13 @@ if (ufull==0) return
 if (diag>=1) write(6,*) "Load aTEB state arrays"
 
 do ii=1,3
-  rf_temp(:,ii)=pack(urban(:,ii),upack)
-  we_temp(:,ii)=pack(urban(:,ii+3),upack)
-  ww_temp(:,ii)=pack(urban(:,ii+6),upack)
-  rd_temp(:,ii)=pack(urban(:,ii+9),upack)
+  rf_temp(:,ii)=urban(umap,ii)
+  we_temp(:,ii)=urban(umap,ii+3)
+  ww_temp(:,ii)=urban(umap,ii+6)
+  rd_temp(:,ii)=urban(umap,ii+9)
 end do
-v_moistc=pack(moist(:,1),upack)
-v_moistr=pack(moist(:,2),upack)
+v_moistc=moist(umap,1)
+v_moistr=moist(umap,2)
 
 return
 end subroutine atebloadm
@@ -523,7 +533,7 @@ namelist /atebtile/ czovegc,cvegrlaic,cvegrsminc,czovegr,cvegrlair,cvegrsminr,cs
 if (ufull==0) return
 if (diag>=1) write(6,*) "Load aTEB building properties"
 
-itmp=pack(itype,upack)
+itmp=itype(umap)
 if ((minval(itmp)<1).or.(maxval(itmp)>maxtype)) then
   write(6,*) "ERROR: Urban type is out of range"
   stop
@@ -615,46 +625,46 @@ real, dimension(ifull,54), intent(in) :: ifn
 if (ufull==0) return
 if (diag>=1) write(6,*) "Load aTEB building properties"
 
-f_hwratio=pack(ifn(:,1),upack)
-f_sigmabld=pack(ifn(:,2),upack)
-f_sigmavegc=pack(ifn(:,3),upack)/(1.-pack(ifn(:,2),upack))
+f_hwratio=ifn(umap,1)
+f_sigmabld=ifn(umap,2)
+f_sigmavegc=ifn(umap,3)/(1.-ifn(umap,2))
 l_sigmavegc=any(f_sigmavegc>0.)
-f_sigmavegr=pack(ifn(:,4),upack)
+f_sigmavegr=ifn(umap,4)
 l_sigmavegr=any(f_sigmavegr>0.)
-f_industryfg=pack(ifn(:,5),upack)
-f_trafficfg=pack(ifn(:,6),upack)
-f_bldheight=pack(ifn(:,7),upack)
-f_roofalpha=pack(ifn(:,8),upack)
-f_wallalpha=pack(ifn(:,9),upack)
-f_roadalpha=pack(ifn(:,10),upack)
-f_vegalphac=pack(ifn(:,11),upack)
-f_vegalphac=pack(ifn(:,12),upack)
-f_roofemiss=pack(ifn(:,13),upack)
-f_wallemiss=pack(ifn(:,14),upack)
-f_roademiss=pack(ifn(:,15),upack)
-f_vegemissc=pack(ifn(:,16),upack)
-f_vegemissr=pack(ifn(:,17),upack)
-f_bldtemp=pack(ifn(:,18),upack)
+f_industryfg=ifn(umap,5)
+f_trafficfg=ifn(umap,6)
+f_bldheight=ifn(umap,7)
+f_roofalpha=ifn(umap,8)
+f_wallalpha=ifn(umap,9)
+f_roadalpha=ifn(umap,10)
+f_vegalphac=ifn(umap,11)
+f_vegalphac=ifn(umap,12)
+f_roofemiss=ifn(umap,13)
+f_wallemiss=ifn(umap,14)
+f_roademiss=ifn(umap,15)
+f_vegemissc=ifn(umap,16)
+f_vegemissr=ifn(umap,17)
+f_bldtemp=ifn(umap,18)
 do ii=1,3
-  f_roofdepth(:,ii)=pack(ifn(:,18+ii),upack)
-  f_walldepth(:,ii)=pack(ifn(:,21+ii),upack)
-  f_roaddepth(:,ii)=pack(ifn(:,24+ii),upack)
-  f_roofcp(:,ii)=pack(ifn(:,27+ii),upack)
-  f_wallcp(:,ii)=pack(ifn(:,30+ii),upack)
-  f_roadcp(:,ii)=pack(ifn(:,33+ii),upack)
-  f_rooflambda(:,ii)=pack(ifn(:,36+ii),upack)
-  f_walllambda(:,ii)=pack(ifn(:,39+ii),upack)
-  f_roadlambda(:,ii)=pack(ifn(:,42+ii),upack)
+  f_roofdepth(:,ii)=ifn(umap,18+ii)
+  f_walldepth(:,ii)=ifn(umap,21+ii)
+  f_roaddepth(:,ii)=ifn(umap,24+ii)
+  f_roofcp(:,ii)=ifn(umap,27+ii)
+  f_wallcp(:,ii)=ifn(umap,30+ii)
+  f_roadcp(:,ii)=ifn(umap,33+ii)
+  f_rooflambda(:,ii)=ifn(umap,36+ii)
+  f_walllambda(:,ii)=ifn(umap,39+ii)
+  f_roadlambda(:,ii)=ifn(umap,42+ii)
 end do
-f_zovegc=pack(ifn(:,46),upack)
-f_vegrlaic=pack(ifn(:,47),upack)
-f_vegrsminc=pack(ifn(:,48),upack)
-f_zovegr=pack(ifn(:,49),upack)
-f_vegrlair=pack(ifn(:,50),upack)
-f_vegrsminr=pack(ifn(:,51),upack)
-f_swilt=pack(ifn(:,52),upack)
-f_sfc=pack(ifn(:,53),upack)
-f_ssat=pack(ifn(:,54),upack)
+f_zovegc=ifn(umap,46)
+f_vegrlaic=ifn(umap,47)
+f_vegrsminc=ifn(umap,48)
+f_zovegr=ifn(umap,49)
+f_vegrlair=ifn(umap,50)
+f_vegrsminr=ifn(umap,51)
+f_swilt=ifn(umap,52)
+f_sfc=ifn(umap,53)
+f_ssat=ifn(umap,54)
 
 return
 end subroutine atebfndef
@@ -674,23 +684,23 @@ if (ufull==0) return
 if (diag>=1) write(6,*) "Save aTEB state arrays"
 
 do ii=1,3
-  urban(:,ii)=unpack(rf_temp(:,ii),upack,urban(:,ii))
-  urban(:,ii+3)=unpack(we_temp(:,ii),upack,urban(:,ii+3))
-  urban(:,ii+6)=unpack(ww_temp(:,ii),upack,urban(:,ii+6))
-  urban(:,ii+9)=unpack(rd_temp(:,ii),upack,urban(:,ii+9))
+  urban(umap,ii)=rf_temp(:,ii)
+  urban(umap,ii+3)=we_temp(:,ii)
+  urban(umap,ii+6)=ww_temp(:,ii)
+  urban(umap,ii+9)=rd_temp(:,ii)
 end do
-urban(:,13)=unpack(v_moistc,upack,urban(:,13))
-urban(:,14)=unpack(v_moistr,upack,urban(:,14))
-urban(:,15)=unpack(rf_water,upack,urban(:,15))
-urban(:,16)=unpack(rd_water,upack,urban(:,16))
-urban(:,17)=unpack(v_watrc,upack,urban(:,17))
-urban(:,18)=unpack(v_watrr,upack,urban(:,18))
-urban(:,19)=unpack(rf_snow,upack,urban(:,19))
-urban(:,20)=unpack(rd_snow,upack,urban(:,20))
-urban(:,21)=unpack(rf_den,upack,urban(:,21))
-urban(:,22)=unpack(rd_den,upack,urban(:,22))
-urban(:,23)=unpack(rf_alpha,upack,urban(:,23))
-urban(:,24)=unpack(rd_alpha,upack,urban(:,24))
+urban(umap,13)=v_moistc(:)
+urban(umap,14)=v_moistr(:)
+urban(umap,15)=rf_water(:)
+urban(umap,16)=rd_water(:)
+urban(umap,17)=v_watrc(:)
+urban(umap,18)=v_watrr(:)
+urban(umap,19)=rf_snow(:)
+urban(umap,20)=rd_snow(:)
+urban(umap,21)=rf_den(:)
+urban(umap,22)=rd_den(:)
+urban(umap,23)=rf_alpha(:)
+urban(umap,24)=rd_alpha(:)
 
 return
 end subroutine atebsave
@@ -711,13 +721,13 @@ if (ufull==0) return
 if (diag>=1) write(6,*) "Save aTEB state arrays"
 
 do ii=1,3
-  urban(:,ii)=unpack(rf_temp(:,ii),upack,urban(:,ii))
-  urban(:,ii+3)=unpack(we_temp(:,ii),upack,urban(:,ii+3))
-  urban(:,ii+6)=unpack(ww_temp(:,ii),upack,urban(:,ii+6))
-  urban(:,ii+9)=unpack(rd_temp(:,ii),upack,urban(:,ii+9))
+  urban(umap,ii)=rf_temp(:,ii)
+  urban(umap,ii+3)=we_temp(:,ii)
+  urban(umap,ii+6)=ww_temp(:,ii)
+  urban(umap,ii+9)=rd_temp(:,ii)
 end do
-moist(:,1)=unpack(v_moistc,upack,moist(:,1))
-moist(:,2)=unpack(v_moistr,upack,moist(:,2))
+moist(umap,1)=v_moistc(:)
+moist(umap,2)=v_moistr(:)
 
 return
 end subroutine atebsavem
@@ -745,14 +755,14 @@ mode=.false.
 if (present(raw)) mode=raw
 
 if (mode) then
-  zom=unpack(p_cndzmin*exp(-p_lzom),upack,zom)
-  zoh=unpack(p_cndzmin*exp(-p_lzoh),upack,zoh)
+  zom(umap)=p_cndzmin*exp(-p_lzom)
+  zoh(umap)=p_cndzmin*exp(-p_lzoh)
   zoq=zoh
 else 
   ! evaluate at canyon displacement height (really the atmospheric model should provide a displacement height)
-  zmtmp=pack(zom,upack)
-  zhtmp=pack(zoh,upack)
-  zqtmp=pack(zoq,upack)
+  zmtmp=zom(umap)
+  zhtmp=zoh(umap)
+  zqtmp=zoq(umap)
   workb=sqrt((1.-sigmau)/log(p_cndzmin/zmtmp)**2+sigmau/p_lzom**2)
   workc=(1.-sigmau)/(log(p_cndzmin/zmtmp)*log(p_cndzmin/zhtmp))+sigmau/(p_lzom*p_lzoh)
   workc=workc/workb
@@ -761,9 +771,9 @@ else
   workb=p_cndzmin*exp(-1./workb)
   workc=max(p_cndzmin*exp(-1./workc),zr)
   workd=max(p_cndzmin*exp(-1./workd),zr)
-  zom=unpack(workb,upack,zom)
-  zoh=unpack(workc,upack,zoh)
-  zoq=unpack(workd,upack,zoq)
+  zom(umap)=workb
+  zoh(umap)=workc
+  zoq(umap)=workd
   if (minval(workc)<=zr) write(6,*) "WARN: minimum zoh reached"
 end if
 
@@ -784,13 +794,13 @@ real, dimension(ufull) :: ctmp
 
 if (ufull==0) return
 
-ctmp=pack(cduv,upack)
+ctmp=cduv(umap)
 ctmp=(1.-sigmau)*ctmp+sigmau*p_cduv
-cduv=unpack(ctmp,upack,cduv)
+cduv(umap)=ctmp
 
-ctmp=pack(cdtq,upack)
+ctmp=cdtq(umap)
 ctmp=(1.-sigmau)*ctmp+sigmau*p_cdtq
-cdtq=unpack(ctmp,upack,cdtq)
+cdtq(umap)=ctmp
 
 return
 end subroutine atebcd
@@ -815,7 +825,7 @@ if (ucount==0) return
 
 ib=count(upack(1:is-1))+1
 ie=ucount+ib-1
-f_fbeam(ib:ie)=pack(fbeam,upack(is:ifinish))
+f_fbeam(ib:ie)=fbeam(umap(ib:ie)-is+1)
 
 return
 end subroutine atebfbeam
@@ -846,8 +856,8 @@ if (ucount==0) return
 ib=count(upack(1:is-1))+1
 ie=ucount+ib-1
 
-lsg(ib:ie)=pack(sg,upack(is:ifinish))
-lcosin(ib:ie)=pack(cosin,upack(is:ifinish))
+lsg(ib:ie)=sg(umap(ib:ie)-is+1)
+lcosin(ib:ie)=cosin(umap(ib:ie)-is+1)
 
 tmpr(ib:ie)=0.847+lcosin(ib:ie)*(1.04*lcosin(ib:ie)-1.61)
 tmpk(ib:ie)=(1.47-tmpr(ib:ie))/1.66
@@ -905,11 +915,11 @@ ie=ucount+ib-1
 call atebalbcalc(ib,ucount,ualb(ib:ie),albmode,diag)
 
 if (outmode) then
-  alb=unpack(ualb(ib:ie),upack(is:ifinish),alb)
+  alb(umap(ib:ie)-is+1)=ualb(ib:ie)
 else
-  utmp(ib:ie)=pack(alb,upack(is:ifinish))
+  utmp(ib:ie)=alb(umap(ib:ie)-is+1)
   utmp(ib:ie)=(1.-sigmau(ib:ie))*utmp(ib:ie)+sigmau(ib:ie)*ualb(ib:ie)
-  alb=unpack(utmp(ib:ie),upack(is:ifinish),alb)
+  alb(umap(ib:ie)-is+1)=utmp(ib:ie)
 end if
 
 return
@@ -987,9 +997,9 @@ if (ucount==0) return
 ib=count(upack(1:is-1))+1
 ie=ucount+ib-1
 
-f_hangle(ib:ie)=0.5*pi-pack(azimuthin,upack(is:ifinish))
-f_vangle(ib:ie)=acos(pack(cosin,upack(is:ifinish)))
-f_ctime(ib:ie)=pack(ctimein,upack(is:ifinish))
+f_hangle(ib:ie)=0.5*pi-azimuthin(umap(ib:ie)-is+1)
+f_vangle(ib:ie)=acos(cosin(umap(ib:ie)-is+1))
+f_ctime(ib:ie)=ctimein(umap(ib:ie)-is+1)
 
 return
 end subroutine atebnewangle1
@@ -1027,16 +1037,16 @@ ie=ucount+ib-1
 
 cdlt=sqrt(min(max(1.-sdlt*sdlt,0.),1.))
 
-lattmp(ib:ie)=pack(rlat,upack(is:ifinish))
+lattmp(ib:ie)=rlat(umap(ib:ie)-is+1)
 
 ! from CCAM zenith.f
-hloc(ib:ie)=2.*pi*fjd+slag+pi+pack(rlon,upack(is:ifinish))+dt*pi/86400.
+hloc(ib:ie)=2.*pi*fjd+slag+pi+rlon(umap(ib:ie)-is+1)+dt*pi/86400.
 ! estimate azimuth angle
 x(ib:ie)=sin(-hloc(ib:ie))*cdlt
 y(ib:ie)=-cos(-hloc(ib:ie))*cdlt*sin(lattmp(ib:ie))+cos(lattmp(ib:ie))*sdlt
 !azimuth=atan2(x,y)
 f_hangle(ib:ie)=0.5*pi-atan2(x(ib:ie),y(ib:ie))
-f_vangle(ib:ie)=acos(pack(cosin,upack(is:ifinish)))
+f_vangle(ib:ie)=acos(cosin(umap(ib:ie)-is+1))
 f_ctime(ib:ie)=min(max(mod(0.5*hloc(ib:ie)/pi-0.5,1.),0.),1.)
 
 return
@@ -1062,23 +1072,23 @@ mode=.false.
 if (present(raw)) mode=raw
 
 if (mode) then
-  tscrn=unpack(p_tscrn,upack,tscrn)
-  qscrn=unpack(p_qscrn,upack,qscrn)
-  uscrn=unpack(p_uscrn,upack,uscrn)
-  u10=unpack(p_u10,upack,u10)
+  tscrn(umap)=p_tscrn
+  qscrn(umap)=p_qscrn
+  uscrn(umap)=p_uscrn
+  u10(umap)=p_u10
 else
-  tmp=pack(tscrn,upack)
+  tmp=tscrn(umap)
   tmp=sigmau*p_tscrn+(1.-sigmau)*tmp
-  tscrn=unpack(tmp,upack,tscrn)
-  tmp=pack(qscrn,upack)
+  tscrn(umap)=tmp
+  tmp=qscrn(umap)
   tmp=sigmau*p_qscrn+(1.-sigmau)*tmp
-  qscrn=unpack(tmp,upack,qscrn)
-  tmp=pack(uscrn,upack)
+  qscrn(umap)=tmp
+  tmp=uscrn(umap)
   tmp=sigmau*p_uscrn+(1.-sigmau)*tmp
-  uscrn=unpack(tmp,upack,uscrn)
-  tmp=pack(u10,upack)
+  uscrn(umap)=tmp
+  tmp=u10(umap)
   tmp=sigmau*p_u10+(1.-sigmau)*tmp
-  u10=unpack(tmp,upack,u10)  
+  u10(umap)=tmp
 end if
 
 return
@@ -1126,42 +1136,42 @@ if (ufull==0) return
 mode=.false.
 if (present(raw)) mode=raw
 
-a_zmin=pack(zmin,upack)
-a_sg=pack(sg,upack)
-a_rg=pack(rg,upack)
-a_rho=pack(rho,upack)
-a_temp=pack(temp,upack)
-a_mixr=pack(mixr,upack)
-a_ps=pack(ps,upack)
-a_umag=max(sqrt(pack(uu,upack)**2+pack(vv,upack)**2),umin)
-a_udir=atan2(pack(vv,upack),pack(uu,upack))
-a_rnd=pack(rnd-snd,upack)
-a_snd=pack(snd,upack)
+a_zmin=zmin(umap)
+a_sg=sg(umap)
+a_rg=rg(umap)
+a_rho=rho(umap)
+a_temp=temp(umap)
+a_mixr=mixr(umap)
+a_ps=ps(umap)
+a_umag=max(sqrt(uu(umap)**2+vv(umap)**2),umin)
+a_udir=atan2(vv(umap),uu(umap))
+a_rnd=rnd(umap)-snd(umap)
+a_snd=snd(umap)
 
 call atebeval(u_fg,u_eg,u_ts,u_wf,u_rn,dt,a_sg,a_rg,a_rho,a_temp,a_mixr,a_ps,a_umag,a_udir,a_rnd,a_snd,a_zmin,diag)
 
 if (mode) then
-  ofg=unpack(u_fg,upack,ofg)
-  oeg=unpack(u_eg,upack,oeg)
-  ots=unpack(u_ts,upack,ots)
-  owf=unpack(u_wf,upack,owf)
-  orn=unpack(u_rn,upack,orn)
+  ofg(umap)=u_fg
+  oeg(umap)=u_eg
+  ots(umap)=u_ts
+  owf(umap)=u_wf
+  orn(umap)=u_rn
 else
-  tmp=pack(ofg,upack)
+  tmp=ofg(umap)
   tmp=(1.-sigmau)*tmp+sigmau*u_fg
-  ofg=unpack(tmp,upack,ofg)
-  tmp=pack(oeg,upack)
+  ofg(umap)=tmp
+  tmp=oeg(umap)
   tmp=(1.-sigmau)*tmp+sigmau*u_eg
-  oeg=unpack(tmp,upack,oeg)
-  tmp=pack(ots,upack)
+  oeg(umap)=tmp
+  tmp=ots(umap)
   tmp=((1.-sigmau)*tmp**4+sigmau*u_ts**4)**0.25
-  ots=unpack(tmp,upack,ots)
-  tmp=pack(owf,upack)
+  ots(umap)=tmp
+  tmp=owf(umap)
   tmp=(1.-sigmau)*tmp+sigmau*u_wf
-  owf=unpack(tmp,upack,owf)
-  tmp=pack(orn,upack)
+  owf(umap)=tmp
+  tmp=orn(umap)
   tmp=(1.-sigmau)*tmp+sigmau*u_rn
-  orn=unpack(tmp,upack,orn)
+  orn(umap)=tmp
 end if
 
 return
