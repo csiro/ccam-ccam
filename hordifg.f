@@ -141,7 +141,7 @@ c     above code independent of k
      &        -qlg(1:ifull,k)-qfg(1:ifull,k))
         end do
         
-        call boundsuv(uav,vav,allvec=.true.)
+        call boundsuv_allvec(uav,vav)
         call bounds(ww)
 
         do k=1,kl
@@ -273,8 +273,6 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
          end do
 
        case(3)
-        ! Probably works better for grid scales that
-        ! are less than 500 m       
         if (nvmix==6) then
          hdif=dt*cm0/(ds*ds)
          do k=1,kl
@@ -295,8 +293,9 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
           yfact(1:ifull,k)=(t_kh(in,k)+t_kh(1:ifull,k))*0.5
          end do
 	else
-         write(6,*) "ERROR: njorjlm=3 requires nvmix=6"
-	 stop
+         t_kh=0. ! no diffusion (i.e., for pure nvmix.eq.6)
+                 ! Probably works better for grid scales that
+                 ! are less than 500 m
         end if
 
        case DEFAULT

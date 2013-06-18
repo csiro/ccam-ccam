@@ -31,7 +31,7 @@ logical, save :: ocnproc
 integer, parameter :: usetide  =1    ! tidal forcing (0=off, 1=on)
 integer, parameter :: icemode  =2    ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
 integer, parameter :: basinmd  =3    ! basin mode (0=soil, 1=redistribute, 2=pile-up, 3=leak)
-integer, parameter :: mstagf   =0    ! alternating staggering (0=off left, -1=off right, >0 alternating)
+integer, parameter :: mstagf   =100  ! alternating staggering (0=off left, -1=off right, >0 alternating)
 integer, parameter :: koff     =1    ! time split stagger relative to A-grid (koff=0) or C-grid (koff=1)
 integer, parameter :: nf       =2    ! power for horizontal diffusion reduction factor
 integer, parameter :: itnmax   =6    ! number of interations for staggering
@@ -313,7 +313,7 @@ emi=1./em(1:ifull)**2
 eta(1:ifull)=etain
 uau(1:ifull,:)=uauin
 uav(1:ifull,:)=uavin
-call boundsuv(uau,uav,allvec=.true.,gmode=1)
+call boundsuv_allvec_mlo(uau,uav)
 call bounds(eta,nehalf=.true.,gmode=1)
 
 ! calculate diffusion following Smagorinsky
@@ -336,7 +336,7 @@ call bounds(t_kh,nehalf=.true.,gmode=1)
 
 ! reduce diffusion errors where bathymetry gradients are strong
 do k=1,wlev
-  depadj=gosig(k)*max(dd+eta,minwater)
+  depadj=gosig(k)*(dd+eta)
   tx_fact=1./(1.+(abs(depadj(ie)-depadj(1:ifull))/delphi)**nf)
   ty_fact=1./(1.+(abs(depadj(in)-depadj(1:ifull))/delphi)**nf)
 
