@@ -3968,7 +3968,7 @@ contains
          do iq = ssplit(sproc)%isvbg,ssplit(sproc)%ieufn
             ! send_list_uv(iq) is point index.
             ! Use abs because sign is used as u/v flag
-            iqz = iqq+iq-ssplit(sproc)%isvbg+1
+            iqz = iq-ssplit(sproc)%isvbg+1
             iq_b = 1+(iqz-1)*kx
             iq_e = iqz*kx
             iqt = bnds(sproc)%send_list_uv(iq)
@@ -4047,7 +4047,7 @@ contains
 !cdir nodep
             do iq = rsplit(rproc)%isvbg,rsplit(rproc)%ieufn
                ! unpack_list(iq) is index into extended region
-               iqz = iqq+iq-rsplit(rproc)%isvbg+1
+               iqz = iq-rsplit(rproc)%isvbg+1
                iq_b = 1+(iqz-1)*kx
                iq_e = iqz*kx
                iqt = bnds(rproc)%unpack_list_uv(iq) 
@@ -4146,7 +4146,7 @@ contains
             do iq = ssplit(sproc)%isvbg,ssplit(sproc)%ieufn
                ! send_list_uv(iq) is point index.
                ! Use abs because sign is used as u/v flag
-               iqz = iqq+iq-ssplit(sproc)%isvbg+1
+               iqz = iq-ssplit(sproc)%isvbg+1
                iq_b = 1+(iqz-1)*kx
                iq_e = iqz*kx
                iqt = bnds(sproc)%send_list_uv(iq)
@@ -4226,7 +4226,7 @@ contains
 !cdir nodep
             do iq = rsplit(rproc)%isvbg,rsplit(rproc)%ieufn
                ! unpack_list(iq) is index into extended region
-               iqz = iqq+iq-rsplit(rproc)%isvbg+1
+               iqz = iq-rsplit(rproc)%isvbg+1
                iq_b = 1+(iqz-1)*kx
                iq_e = iqz*kx
                iqt = bnds(rproc)%unpack_list_uv(iq) 
