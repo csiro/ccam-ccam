@@ -576,11 +576,6 @@ c       Surface stresses taux, tauy: diagnostic only - unstag now       ! sice
         write(6,*) "ERROR: this option is for PCOM ocean model"         ! PCOM
         stop                                                            ! PCOM
       end if                                                            ! PCOM
-#ifdef loadbalall
-      call start_log(sfluxwater_loadbal_begin)
-      call phys_loadbal
-      call end_log(sfluxwater_loadbal_end)
-#endif
       call end_log(sfluxwater_end)
       !--------------------------------------------------------------      
       call start_log(sfluxland_begin)                                   ! land
@@ -848,11 +843,6 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
           write(6,*) "ERROR: Unknown land-use option nsib=",nsib        ! land
           stop                                                          ! land
       end select                                                        ! land
-#ifdef loadbalall
-      call start_log(sfluxland_loadbal_begin)                           ! land
-      call phys_loadbal                                                 ! land
-      call end_log(sfluxland_loadbal_end)                               ! land
-#endif
       call end_log(sfluxland_end)                                       ! land
       !----------------------------------------------------------
       call start_log(sfluxurban_begin)                                  ! urban
@@ -874,7 +864,7 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
          ! since ateb will blend non-urban and urban runoff, it is      ! urban
          ! easier to remove the new runoff and add it again after the   ! urban
          ! urban scheme has been updated                                ! urban
-         runoff=runoff-newrunoff ! remove new runoff                    ! urban
+         runoff=oldrunoff        ! remove new runoff                    ! urban
          ! call aTEB                                                    ! urban
          dumsg=sgsave/(1.-swrsave*albvisnir(:,1)-                       ! urban
      &               (1.-swrsave)*albvisnir(:,2))                       ! urban
@@ -913,11 +903,6 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
       if (myid==0.and.nmaxpr==1) then                                   ! urban
         write(6,*) "After urban"                                        ! urban
       end if                                                            ! urban
-#ifdef loadbalall
-      call start_log(sfluxurban_loadbal_begin)                          ! urban
-      call phys_loadbal                                                 ! urban
-      call end_log(sfluxurban_loadbal_end)                              ! urban
-#endif
       call end_log(sfluxurban_end)                                      ! urban
 c ----------------------------------------------------------------------
       evap(:)=evap(:)+dt*eg(:)/hl !time integ value in mm (wrong for snow)

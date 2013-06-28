@@ -856,17 +856,15 @@ subroutine mloexpdensity(odensity,alpha,beta,tt,ss,ddz,pxtr,diag)
 implicit none
 
 integer, intent(in) :: diag
-integer ii
-real, dimension(ifull), intent(in) :: pxtr
-real, dimension(ifull,wlev), intent(in) :: tt,ss,ddz
-real, dimension(ifull,wlev), intent(out) :: odensity,alpha,beta
-real, dimension(ifull,wlev) :: rs,rho0
+integer full,lev
+real, dimension(:), intent(in) :: pxtr
+real, dimension(:,:), intent(in) :: tt,ss,ddz
+real, dimension(:,:), intent(out) :: odensity,alpha,beta
+real, dimension(size(tt,1),size(tt,2)) :: rs,rho0
 
-odensity=1030.
-alpha=0.
-beta=0.
-if (wfull==0) return
-call calcdensity(ifull,wlev,odensity,alpha,beta,rs,rho0,tt,ss,ddz,pxtr)
+full=size(tt,1)
+lev=size(tt,2)
+call calcdensity(full,lev,odensity,alpha,beta,rs,rho0,tt,ss,ddz,pxtr)
 
 return
 end subroutine mloexpdensity

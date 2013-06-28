@@ -1008,11 +1008,6 @@
          call date_and_time(time=timeval,values=tvals1)
          write(6,*) "Start of loop time ", timeval
       end if
-#ifdef loadbalall
-      call start_log(globa_loadbal_begin)
-      call phys_loadbal
-      call end_log(globa_loadbal_end)
-#endif
       call log_on()
 #ifdef simple_timer
       call start_log(maincalc_begin)
@@ -1034,11 +1029,6 @@
         call start_log(nestin_begin)
         call nestin(iaero)
         call end_log(nestin_end)
-#ifdef loadbalall
-        call start_log(nestina_loadbal_begin)
-        call phys_loadbal
-        call end_log(nestina_loadbal_end)
-#endif
       end if
       
       ! TRACERS ---------------------------------------------------------------
@@ -1247,11 +1237,6 @@
         else if (nbd/=0) then
           call davies
         end if
-#ifdef loadbalall
-        call start_log(nestinb_loadbal_begin)
-        call phys_loadbal
-        call end_log(nestinb_loadbal_end)
-#endif
       end if
       call end_log(nestin_end)
 
@@ -1279,11 +1264,6 @@
         call hordifgt(iaero)  ! now not tendencies
       end if
       if (diag.and.mydiag) write(6,*) 'after hordifgt t ',t(idjd,:)
-#ifdef loadbalall
-      call start_log(hordifg_loadbal_begin)
-      call phys_loadbal
-      call end_log(hordifg_loadbal_end)
-#endif
       call end_log(hordifg_end)
 
       ! ***********************************************************************
@@ -1306,17 +1286,12 @@
         if (myid==0.and.nmaxpr==1) then
           write(6,*) "After river"
         end if
-#ifdef loadbalall
-        call start_log(river_loadbal_begin)
-        call phys_loadbal
-        call end_log(river_loadbal_end)
-#endif
         call end_log(river_end)
       end if
 
-      ! DYNAMICS & DIFFUSION --------------------------------------------------
+      call start_log(waterdynamics_begin)
       if (abs(nmlo)>=3) then
-        call start_log(waterdynamics_begin)
+        ! DYNAMICS & DIFFUSION ------------------------------------------------
         if (myid==0.and.nmaxpr==1) then
           write(6,*) "Before MLO dynamics"
         end if
@@ -1324,15 +1299,8 @@
         if (myid==0.and.nmaxpr==1) then
           write(6,*) "After MLO dynamics"
         end if
-#ifdef loadbalall
-        call start_log(waterdynamics_loadbal_begin)
-        call phys_loadbal
-        call end_log(waterdynamics_loadbal_end)
-#endif
-        call end_log(waterdynamics_end)
       else if (abs(nmlo)>=2) then
         ! DIFFUSION ----------------------------------------------------------
-        call start_log(waterdiff_begin)
         if (myid==0.and.nmaxpr==1) then
           write(6,*) "Before MLO diffusion"
         end if
@@ -1340,13 +1308,9 @@
         if (myid==0.and.nmaxpr==1) then
           write(6,*) "After MLO diffusion"
         end if
-#ifdef loadbalall
-        call start_log(waterdiff_loadbal_begin)
-        call phys_loadbal
-        call end_log(waterdiff_loadbal_end)
-#endif
-        call end_log(waterdiff_end)
       end if
+      call end_log(waterdynamics_end)
+      
 
       ! ***********************************************************************
       ! START PHYSICS 
@@ -1362,11 +1326,6 @@
       if (myid==0.and.nmaxpr==1) then
         write(6,*) "After gwdrag"
       end if
-#ifdef loadbalall
-      call start_log(gwdrag_loadbal_begin)
-      call phys_loadbal
-      call end_log(gwdrag_loadbal_end)
-#endif
       call end_log(gwdrag_end)
 
       ! CONVECTION ------------------------------------------------------------
@@ -1395,11 +1354,6 @@
       if (myid==0.and.nmaxpr==1) then
         write(6,*) "After convection"
       end if
-#ifdef loadbalall
-      call start_log(convection_loadbal_begin)
-      call phys_loadbal
-      call end_log(convection_loadbal_end)
-#endif
       call end_log(convection_end)
 
       ! CLOUD MICROPHYSICS ----------------------------------------------------
@@ -1428,11 +1382,6 @@
       if (myid==0.and.nmaxpr==1) then
         write(6,*) "After cloud microphysics"
       end if
-#ifdef loadbalall
-      call start_log(cloud_loadbal_begin)
-      call phys_loadbal
-      call end_log(cloud_loadbal_end)
-#endif
       call end_log(cloud_end)
 
       ! RADIATION -------------------------------------------------------------
@@ -1471,11 +1420,6 @@
       if (myid==0.and.nmaxpr==1) then
         write(6,*) "After radiation"
       end if
-#ifdef loadbalall
-      call start_log(radnet_loadbal_begin)
-      call phys_loadbal
-      call end_log(radnet_loadbal_end)
-#endif
       call end_log(radnet_end)
 
 
@@ -1607,11 +1551,6 @@
         call vertmix(iaero) 
         if(nmaxpr==1.and.mydiag)
      &    write (6,"('aft-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
-#ifdef loadbalall
-        call start_log(vertmix_loadbal_begin)
-        call phys_loadbal
-        call end_log(vertmix_loadbal_end)
-#endif
         call end_log(vertmix_end)
       endif  ! (ntsur>=1)
       if (myid==0.and.nmaxpr==1) then
@@ -1633,11 +1572,6 @@
         if (myid==0.and.nmaxpr==1) then
          write(6,*) "After aerosols"
         end if
-#ifdef loadbalall
-        call start_log(aerosol_loadbal_begin)
-        call phys_loadbal
-        call end_log(aerosol_loadbal_end)
-#endif
         call end_log(aerosol_end)
       end if
 
@@ -1926,12 +1860,6 @@
       end if
       call log_on()
  
-#ifdef loadbalall
-      call start_log(outfile_loadbal_begin)
-      call phys_loadbal
-      call end_log(outfile_loadbal_end)
-#endif
-
       if(mod(ktau,nperavg)==0)then   
 !       produce some diags & reset most averages once every nperavg
         if (nmaxpr==1) then
@@ -2054,12 +1982,6 @@
 #ifdef vampir
       ! Flush vampir trace information to disk to save memory.
       call vtflush(ierr)
-#endif
-
-#ifdef loadbalall
-      call start_log(globb_loadbal_begin)
-      call phys_loadbal
-      call end_log(globb_loadbal_end)
 #endif
 
 88    continue                   ! *** end of main time loop

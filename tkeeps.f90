@@ -44,7 +44,7 @@ real, dimension(:), allocatable, save :: ustar
 #endif
 
 ! model constants
-real, parameter :: b1      = 2.     ! Soares et al (2004) 1., Siebesma et al (2003) 2.
+real, parameter :: b1      = 1.     ! Soares et al (2004) 1., Siebesma et al (2003) 2.
 real, parameter :: b2      = 1./3.  ! Soares et al (2004) 2., Siebesma et al (2003) 1./3.
 real, parameter :: be      = 0.3    ! Hurley (2007) 1., Soares et al (2004) 0.3
 real, parameter :: cm0     = 0.09   ! Hurley (2007) 0.09, Duynkerke 1988 0.03
@@ -54,18 +54,18 @@ real, parameter :: ce2     = 1.83
 real, parameter :: ce3     = 0.45   ! Hurley (2007) 0.45, Dynkerke et al 1987 0.35
 real, parameter :: cq      = 2.5
 real, parameter :: ent0    = 0.5    ! MJT suggestion for mass flux
-real, parameter :: dtrn0   = 0.4    ! MJT suggestion for mass flux
-real, parameter :: dtrc0   = 1.     ! MJT suggestion for mass flux
-real, parameter :: m0      = 0.02   ! MJT suggestion for mass flux
+real, parameter :: dtrn0   = 0.6    ! MJT suggestion for mass flux
+real, parameter :: dtrc0   = 0.9    ! MJT suggestion for mass flux
+real, parameter :: m0      = 0.005  ! MJT suggestion for mass flux
 
 ! physical constants
-real, parameter :: grav  = 9.80616
-real, parameter :: lv    = 2.5104e6
-real, parameter :: lf    = 3.36e5
-real, parameter :: ls    = lv+lf
+real, parameter :: grav  = 9.80616    ! (m s^-2)
+real, parameter :: lv    = 2.5104e6   ! (J kg^-1)
+real, parameter :: lf    = 3.36e5     ! (J kg^-1)
+real, parameter :: ls    = lv+lf      ! (J kg^-1)
 real, parameter :: rd    = 287.04
 real, parameter :: rv    = 461.5
-real, parameter :: cp    = 1004.64
+real, parameter :: cp    = 1004.64    ! (J kg^-1 K^-1)
 real, parameter :: vkar  = 0.4
 real, parameter :: pi    = 3.14159265
 
@@ -75,7 +75,7 @@ real, parameter :: b_1   = 2./3.
 real, parameter :: c_1   = 5.
 real, parameter :: d_1   = 0.35
 
-integer, parameter :: icm1   = 20       ! max iterations for calculating pblh
+integer, parameter :: icm1   = 5        ! max iterations for calculating pblh
 real, parameter :: maxdts    = 100.     ! max timestep for split
 real, parameter :: mintke    = 1.E-8    ! min value for tke
 real, parameter :: mineps    = 1.E-10   ! min value for eps
@@ -158,8 +158,7 @@ real, dimension(kl), intent(in) :: sig
 real, dimension(ifull,kl,size(aero,3)) :: arup
 real, dimension(ifull,kl) :: km,thetav,thetal,temp,qsat
 real, dimension(ifull,kl) :: gamtv,gamth,gamqv,gamql,gamqf
-real, dimension(ifull,kl) :: gamqr,gamhl
-real, dimension(ifull,kl) :: gamtk
+real, dimension(ifull,kl) :: gamqr,gamhl,gamtk
 real, dimension(ifull,kl) :: thetavnc,qsatc,thetac,tempc
 real, dimension(ifull,kl) :: tkenew,epsnew,bb,cc,dd,ff,rr
 real, dimension(ifull,kl) :: rhoa,rhoahl,thetavhl,thetahl
@@ -215,6 +214,7 @@ do k=1,kl
   sigkap(k)=sig(k)**(-rd/cp)
   pres(:,k)=ps(:)*sig(k) ! pressure
   temp(:,k)=theta(:,k)/sigkap(k)
+  ! density must be updated when dz is updated so that rho*dz is conserved
   rhoa(:,k)=pres(:,k)/(rd*temp(:,k))
 
   ! Calculate first approximation to diffusion coeffs
@@ -244,9 +244,8 @@ ppb(:,kl)=0.
 ppt(:,kl)=0.
 
 ! interpolate to half levels
-call updatekmo(rhoahl,rhoa,fzzh)
 call updatekmo(kmo,   km,  fzzh)
-
+call updatekmo(rhoahl,rhoa,fzzh)
 idzm(:,2:kl)  =rhoahl(:,1:kl-1)/(rhoa(:,2:kl)*dz_fl(:,2:kl))
 idzp(:,1:kl-1)=rhoahl(:,1:kl-1)/(rhoa(:,1:kl-1)*dz_fl(:,1:kl-1))
 
@@ -261,8 +260,8 @@ do kcount=1,mcount
   tkeold=tke(1:ifull,1)
   epsold=eps(1:ifull,1)
   do k=1,kl
-    temp(:,k)  =theta(:,k)/sigkap(k)
     thetal(:,k)=theta(:,k)-sigkap(k)*(lv*(qlg(:,k)+qrg(:,k))+ls*qfg(:,k))/cp
+    temp(:,k)=theta(:,k)/sigkap(k)
     ! calculate saturated mixing ratio
     call getqsat(qsat(:,k),temp(:,k),pres(:,k))
   end do
@@ -343,7 +342,7 @@ do kcount=1,mcount
           w2up(1)=2.*dzht*b2*nn(1)/(1.+2.*dzht*b1*ent)                    ! Hurley 2007
           templ  =tlup(1)/sigkap(1)                                    ! templ,up
           tdum(1)=templ
-          call getqsat(qupsat(1:1),tdum(1:1),pres(i:i,1))
+          call getqsat(qupsat(1:1),tdum(1:1),pres(i,1:1))
           ! estimate variance of qtup in updraft
           sigqtup=1.E-5
           rng=sqrt(6.)*sigqtup               ! variance of triangle distribution
@@ -371,7 +370,7 @@ do kcount=1,mcount
             templ  =tlup(k)/sigkap(k)                                     ! templ,up
             if (.not.scond) then
               tdum(1)=templ
-              call getqsat(qupsat(k:k),tdum(1:1),pres(i:i,k))
+              call getqsat(qupsat(k:k),tdum(1:1),pres(i,k:k))
               ! estimate variance of qtup in updraft (following Hurley and TAPM)
               sigqtup=sqrt(max(1.E-10,1.6*tke(i,k)/eps(i,k)*cq*km(i,k)*((qtup(k)-qtup(k-1))/dzht)**2))
               ! MJT condensation scheme -  follow Smith 1990 and assume
@@ -434,7 +433,7 @@ do kcount=1,mcount
               tempd  =thup(i,k)/sigkap(k)
               templ  =tlup(k)/sigkap(k)                                     ! templ,up
               tdum(1)=templ
-              call getqsat(qupsat(k:k),tdum(1:1),pres(i:i,k))
+              call getqsat(qupsat(k:k),tdum(1:1),pres(i,k:k))
               ! estimate variance of qtup in updraft (following Hurley and TAPM)
               sigqtup=sqrt(max(1.E-10,1.6*tke(i,k)/eps(i,k)*cq*km(i,k)*((qtup(k)-qtup(k-1))/dzht)**2))
               ! MJT condensation scheme -  follow Smith 1990 and assume
@@ -460,7 +459,7 @@ do kcount=1,mcount
                 cff(k)=1.
               end if
               fice=min(max(273.16-tempd,0.),40.)/40. ! approximate ice fraction based on temperature
-                                                   ! (not templ)
+                                                     ! (not templ)
               lx=lv+lf*fice
               dqsdt=qupsat(k)*lx/(rv*templ*templ)
               al=cp/(cp+lx*dqsdt)
@@ -540,6 +539,8 @@ do kcount=1,mcount
         ! update reamining scalars which are not used in the iterative loop
         tkup(i,1)=tkeold(i)
         epup(i,1)=epsold(i)
+        cfup(i,1)=cfrac(i,1)
+        crup(i,1)=cfrain(i,1)
         gamtk(i,1)=0.
         do k=2,ktopmax
           dzht=dz_hl(i,k-1)
@@ -548,27 +549,17 @@ do kcount=1,mcount
           tkup(i,k)=(tkup(i,k-1)+dzht*ent*tke(i,k) )/(1.+dzht*ent)
           epup(i,k)=(epup(i,k-1)+dzht*ent*eps(i,k) )/(1.+dzht*ent)
           gamtk(i,k)=mflx(i,k)*(tkup(i,k)-tke(i,k))
-        end do
-        cfup(i,1)=cfrac(i,1)
-        do k=2,ktopmax
-          dzht=dz_hl(i,k-1)
-          zht =zz(i,k)
-          ent=entfn(zht,zi(i),zz(i,1))
           cfup(i,k)=(cfup(i,k-1)+dzht*ent*cfrac(i,k) )/(1.+dzht*ent)
-        end do
-        crup(i,1)=cfrain(i,1)
-        do k=2,ktopmax
-          dzht=dz_hl(i,k-1)
-          zht =zz(i,k)
-          ent=entfn(zht,zi(i),zz(i,1))
           crup(i,k)=(crup(i,k-1)+dzht*ent*cfrain(i,k))/(1.+dzht*ent)
         end do
         do j=1,naero
           arup(i,1,j)=aero(i,1,j)
-          do k=2,ktopmax
-            dzht=dz_hl(i,k-1)
-            zht =zz(i,k)
-            ent=entfn(zht,zi(i),zz(i,1))
+        end do
+        do k=2,ktopmax
+          dzht=dz_hl(i,k-1)
+          zht =zz(i,k)
+          ent=entfn(zht,zi(i),zz(i,1))
+          do j=1,naero
             arup(i,k,j)=(arup(i,k-1,j)+dzht*ent*aero(i,k,j))/(1.+dzht*ent)
           end do
         end do
@@ -591,6 +582,7 @@ do kcount=1,mcount
         !  end if
         !end do
         zi(i)=zz(i,1) ! MJT suggestion
+        zidry(i)=zz(i,1)
       end if
     end do
   
@@ -651,6 +643,14 @@ do kcount=1,mcount
     end do
   end do
 
+  ! Update TKE and eps terms using predictor-corrector
+
+  qq(:,2:kl-1)=-ddts*idzm(:,2:kl-1)/dz_hl(:,1:kl-2)
+  rr(:,2:kl-1)=-ddts*idzp(:,2:kl-1)/dz_hl(:,2:kl-1)
+  ! top boundary condition to avoid unphysical behaviour at the top of the model
+  tke(1:ifull,kl)=mintke
+  eps(1:ifull,kl)=mineps
+
   call updatekmo(gamhl,gamtk,fzzh)
   do k=2,kl-1
     ! Calculate buoyancy term
@@ -672,18 +672,10 @@ do kcount=1,mcount
              +gamhl(:,k-1)*idzm(:,k)-gamhl(:,k)*idzp(:,k)
   end do
 
-  ! Update TKE and eps terms
-  qq(:,2:kl-1)=-ddts*idzm(:,2:kl-1)/dz_hl(:,1:kl-2)
-  rr(:,2:kl-1)=-ddts*idzp(:,2:kl-1)/dz_hl(:,2:kl-1)
-  ! top boundary condition to avoid unphysical behaviour at the top of the model
-  tke(1:ifull,kl)=mintke
-  eps(1:ifull,kl)=mineps
-
   ! eps vertical mixing (done here as we skip level 1, instead of using trim)
   aa(:,2:kl-1)=ce0*kmo(:,1:kl-2)*qq(:,2:kl-1)
   cc(:,2:kl-1)=ce0*kmo(:,2:kl-1)*rr(:,2:kl-1)
-  bb(:,2:kl-1)=1.-aa(:,2:kl-1)-cc(:,2:kl-1) &
-               +ddts*ce2*eps(1:ifull,2:kl-1)/tke(1:ifull,2:kl-1) ! follow PH to make scheme more numerically stable
+  bb(:,2:kl-1)=1.-aa(:,2:kl-1)-cc(:,2:kl-1)+ddts*ce2*eps(1:ifull,2:kl-1)/tke(1:ifull,2:kl-1) ! follow PH to make scheme more numerically stable
   dd(:,2:kl-1)=eps(1:ifull,2:kl-1)+ddts*eps(1:ifull,2:kl-1)/tke(1:ifull,2:kl-1) &
               *ce1*(pps(:,2:kl-1)+max(ppb(:,2:kl-1),0.)+max(ppt(:,2:kl-1),0.))
   dd(:,2)     =dd(:,2)   -aa(:,2)*eps(1:ifull,1)
@@ -692,17 +684,16 @@ do kcount=1,mcount
   bb(:,2)     =bb(:,2)-ddts*(1.-fzzh(:,2))*mflx(:,2)*idzp(:,2)
   aa(:,3:kl-2)=aa(:,3:kl-2)+ddts*(1.-fzzh(:,2:kl-3))*mflx(:,2:kl-3)*idzm(:,3:kl-2)
   cc(:,3:kl-2)=cc(:,3:kl-2)-ddts*fzzh(:,3:kl-2)*mflx(:,4:kl-1)*idzp(:,3:kl-2)
-  bb(:,3:kl-2)=bb(:,3:kl-2)+ddts*(fzzh(:,2:kl-3)*mflx(:,3:kl-2)*idzm(:,3:kl-2) &
+  bb(:,3:kl-2)=bb(:,3:kl-2)+ddts*(fzzh(:,2:kl-3)*mflx(:,3:kl-2)*idzm(:,3:kl-2)        &
                           -(1.-fzzh(:,3:kl-2))*mflx(:,3:kl-2)*idzp(:,3:kl-2))
   aa(:,kl-1)  =aa(:,kl-1)+ddts*(1.-fzzh(:,kl-2))*mflx(:,kl-2)*idzm(:,kl-1)
   bb(:,kl-1)  =bb(:,kl-1)+ddts*fzzh(:,kl-2)*mflx(:,kl-1)*idzm(:,kl-1)
-  dd(:,2)     =dd(:,2)-ddts*((1.-fzzh(:,2))*mflx(:,2)*epup(:,2) &
-              +fzzh(:,2)*mflx(:,3)*epup(:,3))*idzp(:,2)
-  dd(:,3:kl-2)=dd(:,3:kl-2)+ddts*(((1.-fzzh(:,2:kl-3))*mflx(:,2:kl-3)*epup(:,2:kl-3) &
-              +fzzh(:,2:kl-3)*mflx(:,3:kl-2)*epup(:,3:kl-2))*idzm(:,3:kl-2)          &
-              -((1.-fzzh(:,3:kl-2))*mflx(:,3:kl-2)*epup(:,3:kl-2)                    &
+  dd(:,2)     =dd(:,2)-ddts*((1.-fzzh(:,2))*mflx(:,2)*epup(:,2)+fzzh(:,2)*mflx(:,3)*epup(:,3))*idzp(:,2)
+  dd(:,3:kl-2)=dd(:,3:kl-2)+ddts*(((1.-fzzh(:,2:kl-3))*mflx(:,2:kl-3)*epup(:,2:kl-3)  &
+              +fzzh(:,2:kl-3)*mflx(:,3:kl-2)*epup(:,3:kl-2))*idzm(:,3:kl-2)           &
+              -((1.-fzzh(:,3:kl-2))*mflx(:,3:kl-2)*epup(:,3:kl-2)                     &
               +fzzh(:,3:kl-2)*mflx(:,4:kl-1)*epup(:,4:kl-1))*idzp(:,3:kl-2))
-  dd(:,kl-1)  =dd(:,kl-1)+ddts*((1.-fzzh(:,kl-2))*mflx(:,kl-2)*epup(:,kl-2)  &
+  dd(:,kl-1)  =dd(:,kl-1)+ddts*((1.-fzzh(:,kl-2))*mflx(:,kl-2)*epup(:,kl-2)           &
               +fzzh(:,kl-2)*mflx(:,kl-1)*epup(:,kl-1))*idzm(:,kl-1)
   call thomas(epsnew(:,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1),kl-2)
 
@@ -741,7 +732,7 @@ do kcount=1,mcount
     
   km=cm0*tke(1:ifull,:)*tke(1:ifull,:)/eps(1:ifull,:)
   call updatekmo(kmo,km,fzzh) ! interpolate diffusion coeffs to half levels
-
+  
   ! update scalars
   qq(:,2:kl)  =-ddts*kmo(:,1:kl-1)*idzm(:,2:kl)/dz_hl(:,1:kl-1)
   rr(:,1:kl-1)=-ddts*kmo(:,1:kl-1)*idzp(:,1:kl-1)/dz_hl(:,1:kl-1)

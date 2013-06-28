@@ -1163,7 +1163,7 @@ end subroutine datefix
 
 !--------------------------------------------------------------------
 ! Set up number of minutes from beginning of year
-subroutine getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
+subroutine getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins,allleap)
 
 use cc_mpi
 
@@ -1181,6 +1181,11 @@ integer mstart,elp,ierr
 integer, dimension(12) :: ndoy
 integer, dimension(12), parameter :: odoy=(/0,31,59,90,120,151,181,212,243,273,304,334/)      ! days from beginning of year (1st Jan is 0)
 real, intent(out) :: fjd
+logical, intent(in), optional :: allleap
+logical lleap
+
+lleap=.false.
+if (present(allleap)) lleap=allleap
 
 jyear =kdate/10000
 jmonth=(kdate-jyear*10000)/100
@@ -1194,7 +1199,7 @@ if (jmonth<1.or.jmonth>12) then
 end if 
 
 ndoy=odoy
-if (leap==1) then
+if (leap==1.or.lleap) then
   if (mod(jyear,4)  ==0) ndoy(3:12)=odoy(3:12)+1
   if (mod(jyear,100)==0) ndoy(3:12)=odoy(3:12)
   if (mod(jyear,400)==0) ndoy(3:12)=odoy(3:12)+1

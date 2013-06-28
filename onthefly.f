@@ -36,9 +36,10 @@
 
       integer, save :: ik,jk,kk,ok,maxarchi
       integer, save :: ncidold=-1
+      integer, save :: nsibx
       integer, dimension(nihead) :: nahead
       integer, dimension(ifull) :: isflag
-      integer, dimension(8) :: idum
+      integer, dimension(9) :: idum
       integer kdate_r,ktime_r,nested,ier,ier2,ilen,itype,iaero
       integer idv,mtimer,k,ierx,idvkd,idvkt,idvmt
       real, dimension(nrhead) :: ahead
@@ -75,6 +76,7 @@
           ik=nahead(1)
           jk=nahead(2)
           kk=nahead(3)
+          nsibx=nahead(44)
           rlong0x =ahead(5)
           rlat0x  =ahead(6)
           schmidtx=ahead(7)
@@ -148,6 +150,7 @@
         idum(6)=kk
         idum(7)=ok
         idum(8)=iarchi
+        idum(9)=nsibx
         rdum(1)=rlong0x
         rdum(2)=rlat0x
         rdum(3)=schmidtx
@@ -155,7 +158,7 @@
 
       newfile=ncid/=ncidold
       if (.not.pfall) then
-        call ccmpi_bcast(idum(1:8),0,comm_world)
+        call ccmpi_bcast(idum(1:9),0,comm_world)
         kdate_r=idum(1)
         ktime_r=idum(2)
         newfile=(idum(3)==1)
@@ -164,6 +167,7 @@
         kk=idum(6)
         ok=idum(7)
         iarchi=idum(8)
+        nsibx=idum(9)
       end if
       if (newfile) then
         if (.not.pfall) then
@@ -208,7 +212,7 @@
      &                    tgg,wb,wbice,snowd,qfg,qlg,qrg,
      &                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
      &                    ok,ik,iaero,mlodwn,ocndwn,rlong0x,
-     &                    rlat0x,schmidtx,newfile)
+     &                    rlat0x,schmidtx,nsibx,newfile)
         write(6,*) "Leaving onthefly"
       else
         call ontheflyx(nested,kdate_r,ktime_r,
@@ -216,7 +220,7 @@
      &                    tgg,wb,wbice,snowd,qfg,qlg,qrg,
      &                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
      &                    ok,0,iaero,mlodwn,ocndwn,rlong0x,
-     &                    rlat0x,schmidtx,newfile)
+     &                    rlat0x,schmidtx,nsibx,newfile)
       end if
 
       call end_log(onthefly_end)
@@ -236,7 +240,7 @@
      &                    tgg,wb,wbice,snowd,qfg,qlg,qrg,
      &                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
      &                    ok,dk,iaero,mlodwn,ocndwn,rlong0x,
-     &                    rlat0x,schmidtx,newfile)
+     &                    rlat0x,schmidtx,nsibx,newfile)
       
       use aerosolldr, only : xtg,ssn,naero      ! LDR aerosol scheme
       use ateb, only : atebdwn                  ! Urban
@@ -288,6 +292,7 @@
       integer lev, levkk, ier, ierr, igas
       integer kdate_r, ktime_r, nemi, id2,jd2,idjd2
       integer nested, i, j, k, mm, iq, ii, jj, np, numneg
+      integer nsibx
       integer, dimension(:,:), allocatable, save :: nface4
       integer, dimension(ifull) :: isflag
       integer, dimension(:), allocatable, save :: isoilm_a
@@ -340,9 +345,11 @@
       if (nud_p==0.and.nud_t==0.and.nud_q==0) nud_test=0
       
       ! Determine if interpolation is required
-      iotest=6*ik*ik==ifull_g.and.abs(rlong0x-rlong0)<iotol.and.
-     &       abs(rlat0x-rlat0)<iotol.and.
-     &       abs(schmidtx-schmidt)<iotol
+      iotest=6*ik*ik==ifull_g           .and.
+     &       abs(rlong0x-rlong0)<iotol  .and.
+     &       abs(rlat0x-rlat0)<iotol    .and.
+     &       abs(schmidtx-schmidt)<iotol.and.
+     &       nsib==nsibx
       if (iotest) then
         io_in=1   ! no interpolation
       else

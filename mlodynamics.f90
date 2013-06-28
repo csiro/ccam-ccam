@@ -25,13 +25,13 @@ real, dimension(:), allocatable, save :: ipice,ee,eeu,eev,dd,ddu,ddv,dfdyu,dfdxv
 real, dimension(:), allocatable, save :: gosig,gosigh,godsig
 real, dimension(:,:), allocatable, save :: oldu1,oldu2,oldv1,oldv2
 real, dimension(:,:), allocatable, save :: stwgt
-integer, save :: comm_mlo
+integer, save :: comm_mlo,comm_riv
 integer, save :: nstagoffmlo
-logical, save :: ocnproc
+logical, save :: ocnproc,rivproc
 integer, parameter :: usetide  =1    ! tidal forcing (0=off, 1=on)
 integer, parameter :: icemode  =2    ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
 integer, parameter :: basinmd  =3    ! basin mode (0=soil, 1=redistribute, 2=pile-up, 3=leak)
-integer, parameter :: mstagf   =100  ! alternating staggering (0=off left, -1=off right, >0 alternating)
+integer, parameter :: mstagf   =0    ! alternating staggering (0=off left, -1=off right, >0 alternating)
 integer, parameter :: koff     =1    ! time split stagger relative to A-grid (koff=0) or C-grid (koff=1)
 integer, parameter :: nf       =2    ! power for horizontal diffusion reduction factor
 integer, parameter :: itnmax   =6    ! number of interations for staggering
@@ -66,10 +66,11 @@ include 'parm.h'
 integer ii,iq,ierr
 integer lndtst_g,lrank
 integer, dimension(1) :: stst
-integer, dimension(0:nproc-1) :: ltst
+integer, dimension(0:nproc-1) :: ltst,rtst
 real, dimension(ifull,0:wlev) :: dephl
 real, dimension(ifull,wlev) :: dep,dz
-real, dimension(ifull+iextra,2) :: dumx,dumy
+real, dimension(ifull+iextra,3) :: dumx,dumy
+real, dimension(ifull+iextra) :: ff
 real, dimension(ifull) :: tnu,tsu,tev,twv,tee,tnn
 real, dimension(wlev) :: sig,sigh,dsig
 real, dimension(3*wlev) :: dumz,gdumz
@@ -87,10 +88,14 @@ salbdy=0.
 allocate(ee(ifull+iextra))
 allocate(eeu(ifull+iextra),eev(ifull+iextra))
 ee=0.
+ff=0.
 eeu=0.
 eev=0. 
 where(.not.land)
   ee(1:ifull)=1.
+end where
+where(land)
+  ff(1:ifull)=1.
 end where
 
 ! Calculate depth arrays (free suface term is included later)
@@ -116,16 +121,20 @@ dd(1:ifull)=max(dd(1:ifull),1.E-8)
 ! update bounds values
 dumx(1:ifull,1)=ee(1:ifull)
 dumx(1:ifull,2)=dd(1:ifull)
-call bounds(dumx(:,1:2),nrows=2)
+dumx(1:ifull,3)=ff(1:ifull)
+call bounds(dumx(:,1:3),nrows=2)
 ee(ifull+1:ifull+iextra)=dumx(ifull+1:ifull+iextra,1)
 dd(ifull+1:ifull+iextra)=dumx(ifull+1:ifull+iextra,2)
+ff(ifull+1:ifull+iextra)=dumx(ifull+1:ifull+iextra,3)
 wtr=abs(ee-1.)<0.5
 where (ee>1.5.or.ee<=0.5)
   ee=0.
 end where
+where (ff>1.5.or.ff<=0.5)
+  ff=0.
+end where
 
 ! Set-up communications for ocean processors and neighbours
-ltst=0
 stst=0
 if (any(ee>0.5)) stst=1
 call ccmpi_allgatherx(ltst(0:nproc-1),stst(1:1),comm_world)
@@ -135,11 +144,30 @@ if (ocnproc) then
 else
   lrank=count(ltst(0:myid)==0)-1
 end if
-lndtst_g=count(ltst==1)
 bnds(:)%mlomsk=ltst(:)
 call ccmpi_commsplit(comm_mlo,comm_world,stst(1),lrank)
 if (myid==0) then
-  write(6,*) "Processors with water ",lndtst_g,nproc
+  lndtst_g=count(ltst==1)
+  write(6,*) "Processors with water            ",lndtst_g,nproc
+end if
+
+! Set-up communications for river processors and neighbours
+stst=0
+if (any(ff(1:ifull)>0.5)) stst=1
+call ccmpi_allgatherx(rtst(0:nproc-1),stst(1:1),comm_world)
+rivproc=stst(1)==1
+if (rivproc) then
+  lrank=count(rtst(0:myid)==1)-1
+else
+  lrank=count(rtst(0:myid)==0)-1
+end if
+bnds(:)%rivmsk=rtst(:)
+call ccmpi_commsplit(comm_riv,comm_world,stst(1),lrank)
+if (myid==0) then
+  lndtst_g=count(rtst==1)
+  write(6,*) "Processors with rivers           ",lndtst_g,nproc
+  lndtst_g=count(ltst==1.and.rtst==1)
+  write(6,*) "Processors with water and rivers ",lndtst_g,nproc
 end if
 
 ! Precompute weights for calculating staggered gradients
@@ -298,23 +326,25 @@ real hdif,xp
 real, dimension(ifull,wlev), intent(in) :: uauin,uavin,u,v,tt,ss
 real, dimension(ifull), intent(in) :: etain
 real, dimension(ifull+iextra,wlev) :: uc,vc,wc,uau,uav
-real, dimension(ifull+iextra,wlev) :: xfact,yfact,gg,t_kh
+real, dimension(ifull+iextra,wlev) :: xfact,yfact,gg
+real, dimension(ifull+iextra,wlev+1) :: t_kh
 real, dimension(ifull) :: dudx,dvdx,dudy,dvdy
 real, dimension(ifull,wlev) :: ft,fs,base,outu,outv
 real, dimension(ifull+iextra) :: depadj,eta
 real, dimension(ifull) :: tx_fact,ty_fact
 real, dimension(ifull) :: cc,emi,nu,nv,nw
 
+call start_log(waterdiff_begin)
+
 ! Define diffusion scale and grid spacing
 hdif=dt*(ocnsmag/pi)**2
-emi=1./em(1:ifull)**2
+emi=1./(em(1:ifull)*em(1:ifull))
 
 ! extract data from MLO
-eta(1:ifull)=etain
+t_kh(1:ifull,wlev+1)=etain
 uau(1:ifull,:)=uauin
 uav(1:ifull,:)=uavin
 call boundsuv_allvec_mlo(uau,uav)
-call bounds(eta,nehalf=.true.,gmode=1)
 
 ! calculate diffusion following Smagorinsky
 ! here we split the calculation into left, right, top, bottom in
@@ -333,6 +363,7 @@ do k=1,wlev
   t_kh(1:ifull,k)=sqrt(cc)*hdif*emi
 end do
 call bounds(t_kh,nehalf=.true.,gmode=1)
+eta(:)=t_kh(:,wlev+1)
 
 ! reduce diffusion errors where bathymetry gradients are strong
 do k=1,wlev
@@ -432,6 +463,8 @@ do k=1,wlev
   call mloimport(3,outv(:,k),k,0)
 end do
 
+call end_log(waterdiff_end)
+
 return
 end subroutine mlodiffusion_main
 
@@ -472,6 +505,8 @@ real, dimension(ifull,4) :: idp,slope,mslope,vel,flow
 real, dimension(ifull,4) :: fta,ftb,ftx,fty
 real, dimension(2) :: dumb,gdumb
 real xx,yy,ll,lssum,gssum,lwsum,gwsum,netf,netg,rate
+
+if (.not.rivproc) return
 
 ! To speed up the code, we use a (semi-)implicit solution rather than an iterative approach
 ! This avoids additional MPI calls.
@@ -531,7 +566,7 @@ salbdy(1:ifull)=salbdy(1:ifull)*watbdy(1:ifull) ! rescale salinity to PSU*mm for
 ! update boundaries
 dum(1:ifull,1)=watbdy(1:ifull)
 dum(1:ifull,2)=salbdy(1:ifull)
-call bounds(dum(:,1:2))
+call bounds(dum(:,1:2),gmode=2)
 watbdy(ifull+1:ifull+iextra)=dum(ifull+1:ifull+iextra,1)
 salbdy(ifull+1:ifull+iextra)=dum(ifull+1:ifull+iextra,2)
 newwat(1:ifull+iextra)=watbdy(1:ifull+iextra)
@@ -540,7 +575,7 @@ newsal=salbdy(1:ifull)
 ! predictor-corrector
 do nit=1,2
   
-  if (nit==2) call bounds(newwat)
+  if (nit==2) call bounds(newwat,gmode=2)
 
   ! calculate slopes
   ! Currently this is has an explicit dependence on watbdy
@@ -570,7 +605,7 @@ do nit=1,2
     fta(:,i)=-dt*vel(:,i)*idp(:,i)     ! outgoing flux
   end do
   netflx(1:ifull)=sum(abs(fta),2)
-  call bounds(netflx)
+  call bounds(netflx,gmode=2)
   
   ! water outflow
   do i=1,4
@@ -799,7 +834,7 @@ integer itc
 integer, dimension(ifull,wlev) :: nface
 real maxglobseta,maxglobip
 real delpos,delneg,alph_p,fjd
-real, dimension(ifull+iextra) :: neta,pice,imass
+real, dimension(ifull+iextra) :: neta,pice,imass,xodum
 real, dimension(ifull+iextra) :: nfracice,ndic,ndsn,nsto,niu,niv,nis
 real, dimension(ifull+iextra) :: snu,sou,spu,squ,ssu,snv,sov,spv,sqv,ssv
 real, dimension(ifull+iextra) :: ibu,ibv,icu,icv,idu,idv,spnet,oeu,oev,tide
@@ -818,7 +853,7 @@ real, dimension(ifull) :: pue,puw,pvn,pvs
 real, dimension(ifull) :: que,quw,qvn,qvs
 real, dimension(ifull) :: gamm,piceu,picev,tideu,tidev,ipiceu,ipicev
 real, dimension(ifull+iextra,wlev+1) :: eou,eov
-real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns,mps
+real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns,mps,xdzdum
 real, dimension(ifull+iextra,wlev) :: cou,cov,cow
 real, dimension(ifull+iextra,wlev) :: rhobar,rho,dalpha,dbeta
 real, dimension(ifull+iextra,7) :: dumc,dumd
@@ -860,6 +895,8 @@ real, parameter :: itol   = 2.E1       ! Tolerance for SOR solver (ice)
 
 if (.not.ocnproc) return
 
+call start_log(watermisc_begin)
+
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: Start"
 end if
@@ -868,7 +905,7 @@ end if
 wtr=ee>0.5
 
 ! Default values
-w_t=273.16
+w_t=293.16
 w_s=34.72
 w_u=0.
 w_v=0.
@@ -880,6 +917,9 @@ i_v=0.
 i_sal=0.
 rho=0.
 nw=0.
+pice=0.
+imass=0.
+tide=0.
 
 ! IMPORT WATER AND ICE DATA -----------------------------------------
 if (myid==0.and.nmaxpr==1) then
@@ -908,7 +948,7 @@ if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: Tides"
 end if
 if (usetide==1) then
-  call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
+  call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins,allleap=.true.)
   jstart=0
   if (jyear>1900) then
     do tyear=1900,jyear-1
@@ -924,10 +964,7 @@ if (usetide==1) then
     end do
   end if
   mins=mins+720 ! base time is 12Z 31 Dec 1899
-  if (leap==0.and.jmonth>2) mins=mins+1440 ! fix for leap==0
   call mlotide(tide(1:ifull),rlongg,rlatt,mins,jstart)
-else
-  tide(1:ifull)=0.
 end if
 
 ! initialise t+1 variables with t data
@@ -1015,6 +1052,8 @@ dttdyv=(tide(in)-tide(1:ifull))*emv(1:ifull)/ds
 tideu=0.5*(tide(1:ifull)+tide(ie))
 tidev=0.5*(tide(1:ifull)+tide(in))
 
+call end_log(watermisc_end)
+call start_log(waterdeps_begin)
 
 ! ADVECT WATER AND ICE ----------------------------------------------
 ! Water currents are advected using semi-Lagrangian advection
@@ -1049,11 +1088,15 @@ oldu1=nu(1:ifull,:)
 oldv1=nv(1:ifull,:)
 
 ! Calculate adjusted depths and thicknesses
-odum=max(1.+neta(1:ifull)/dd(1:ifull),minwater/dd(1:ifull))
+xodum=max(dd(:)+neta(:),minwater)
 do ii=1,wlev
-  depdum(:,ii)=gosig(ii)*dd(1:ifull)*odum
-  dzdum(:,ii)=godsig(ii)*dd(1:ifull)*odum
+  depdum(:,ii)=gosig(ii)*xodum(1:ifull)
+  xdzdum(:,ii)=godsig(ii)*xodum(:)
+  dzdum(:,ii)=xdzdum(1:ifull,ii)
 end do
+
+call end_log(waterdeps_end)
+call start_log(watereos_begin)
 
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: density EOS 1"
@@ -1063,17 +1106,9 @@ end if
 ! (Assume free surface correction is small so that changes in the compression 
 ! effect due to neta can be neglected.  Consequently, the neta dependence is 
 ! separable in the iterative loop)
-dumt=nt(1:ifull,:)
-dums=ns(1:ifull,:)
-call mloexpdensity(dumr,duma,dumb,dumt,dums,dzdum,pice(1:ifull),0)
-rho(1:ifull,:)=dumr
-dalpha(1:ifull,:)=duma
-dbeta(1:ifull,:)=dumb
 call bounds(nt,corner=.true.,gmode=1)
 call bounds(ns,corner=.true.,gmode=1)
-call bounds(rho,nehalf=.true.,gmode=1)
-call bounds(dalpha,nehalf=.true.,gmode=1)
-call bounds(dbeta,nehalf=.true.,gmode=1)
+call mloexpdensity(rho,dalpha,dbeta,nt,ns,xdzdum,pice,0)
 rhobar(:,1)=(rho(:,1)-1030.)*godsig(1)
 do ii=2,wlev
   rhobar(:,ii)=rhobar(:,ii-1)+(rho(:,ii)-1030.)*godsig(ii)
@@ -1102,6 +1137,9 @@ do ii=1,wlev
   drhobardyv(:,ii)=drhobardyv(:,ii)/gosigh(ii)
 end do
 
+call end_log(watereos_end)
+call start_log(waterhadv_begin)
+
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: continuity equation"
 end if
@@ -1115,9 +1153,9 @@ end if
 dumt=nu(1:ifull,:)
 dums=nv(1:ifull,:)
 call mlostaguv(dumt,dums,duma,dumb)
-! surface height at staggered coordinate
 eou(1:ifull,1:wlev)=duma
 eov(1:ifull,1:wlev)=dumb
+! surface height at staggered coordinate
 oeu(1:ifull)=0.5*(neta(1:ifull)+neta(ie))*eeu(1:ifull) ! height at staggered coordinate
 oev(1:ifull)=0.5*(neta(1:ifull)+neta(in))*eev(1:ifull) ! height at staggered coordinate
 eou(1:ifull,wlev+1)=oeu(1:ifull)
@@ -1181,6 +1219,9 @@ end do
 snu(1:ifull)=i_u-dt*ttau(:,wlev+1)
 snv(1:ifull)=i_v-dt*ttav(:,wlev+1)
 
+call end_log(waterhadv_end)
+call start_log(watervadv_begin)
+
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: water vertical advection 1"
 end if
@@ -1193,6 +1234,9 @@ call mlovadv(0.5*dt,nw,uau,uav,dums,dumt,duma,depdum,dzdum,wtr(1:ifull),1)
 ns(1:ifull,:)=dums
 nt(1:ifull,:)=dumt
 mps(1:ifull,:)=duma
+
+call end_log(watervadv_end)
+call start_log(waterhadv_begin)
 
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: horizontal advection"
@@ -1232,6 +1276,9 @@ do ii=1,wlev
   uav(:,ii)=uav(:,ii)*ee(1:ifull)
 end do
 
+call end_log(waterhadv_end)
+call start_log(watervadv_begin)
+
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: water vertical advection 2"
 end if
@@ -1254,23 +1301,18 @@ do ii=2,wlev
 end do
 xps=xps*ee(1:ifull)
 
+call end_log(watervadv_end)
+call start_log(watereos_begin)
+
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: density EOS 2"
 end if
 
 ! Approximate normalised density rhobar at t+1 (unstaggered, using T and S at t+1)
 if (nxtrrho==1) then
-  dumt=nt(1:ifull,:)
-  dums=ns(1:ifull,:)
-  call mloexpdensity(dumr,duma,dumb,dumt,dums,dzdum,pice(1:ifull),0)
-  rho(1:ifull,:)=dumr
-  dalpha(1:ifull,:)=duma
-  dbeta(1:ifull,:)=dumb
   call bounds(nt,corner=.true.,gmode=1)
   call bounds(ns,corner=.true.,gmode=1)
-  call bounds(rho,nehalf=.true.,gmode=1)
-  call bounds(dalpha,nehalf=.true.,gmode=1)
-  call bounds(dbeta,nehalf=.true.,gmode=1)
+  call mloexpdensity(rho,dalpha,dbeta,nt,ns,xdzdum,pice,0)
   rhobar(:,1)=(rho(:,1)-1030.)*godsig(1)
   do ii=2,wlev
     rhobar(:,ii)=rhobar(:,ii-1)+(rho(:,ii)-1030.)*godsig(ii)
@@ -1301,6 +1343,9 @@ if (nxtrrho==1) then
 end if
 
 ! FREE SURFACE CALCULATION ----------------------------------------
+
+call end_log(watereos_end)
+call start_log(waterhelm_begin)
 
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: free surface"
@@ -1570,6 +1615,9 @@ do ii=1,wlev
   nv(1:ifull,ii)=kkv(:,ii)+ppv(:,ii)+oov(:,ii)*oev+llv(:,ii)*max(oev(1:ifull)+ddv(1:ifull),0.)+mmv(:,ii)*detadyv+nnv(:,ii)*detadxv
 end do
 
+call end_log(waterhelm_end)
+call start_log(wateriadv_begin)
+
 ! Update ice velocity with internal pressure terms
 tnu=0.5*(ipice(in)*f(in)+ipice(ine)*f(ine))
 tee=0.5*(ipice(1:ifull)*f(1:ifull)+ipice(ie)*f(ie))
@@ -1678,6 +1726,9 @@ nv(1:ifull,:)=ttav(:,1:wlev)
 niu(1:ifull)=ttau(:,wlev+1)
 niv(1:ifull)=ttav(:,wlev+1)
 
+call end_log(wateriadv_end)
+call start_log(watermisc_begin)
+
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: conserve salinity"
 end if
@@ -1699,6 +1750,14 @@ if (nud_sss==0) then
         dum(:,ii)=0.
       end where
     end do
+    call ccglobal_posneg(dum,delpos,delneg,dsigin=godsig,comm=comm_mlo)
+    alph_p = -delneg/max(delpos,1.E-20)
+    alph_p = min(sqrt(alph_p),alph_p)
+    do ii=1,wlev
+      where(wtr(1:ifull).and.ndum>0.)
+        ns(1:ifull,ii)=w_s(:,ii)+max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)
+      end where
+    end do
   else
     do ii=1,wlev
       where(wtr(1:ifull).and.ndum>0.)
@@ -1707,17 +1766,9 @@ if (nud_sss==0) then
         dum(:,ii)=0.
       end where
     end do
-  end if
-  call ccglobal_posneg(dum,delpos,delneg,dsigin=godsig,comm=comm_mlo)
-  alph_p = -delneg/max(delpos,1.E-20)
-  alph_p = min(sqrt(alph_p),alph_p)
-  if (fixsal==0) then
-    do ii=1,wlev
-      where(wtr(1:ifull).and.ndum>0.)
-        ns(1:ifull,ii)=w_s(:,ii)+max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)
-      end where
-    end do
-  else
+    call ccglobal_posneg(dum,delpos,delneg,dsigin=godsig,comm=comm_mlo)
+    alph_p = -delneg/max(delpos,1.E-20)
+    alph_p = min(sqrt(alph_p),alph_p)
     do ii=1,wlev
       where(wtr(1:ifull).and.ndum>0.)
         ns(1:ifull,ii)=34.72+max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)
@@ -1730,6 +1781,7 @@ if (myid==0.and.(ktau<=5.or.maxglobseta>tol.or.maxglobip>itol)) then
   write(6,*) "MLODYNAMICS ",totits,itc,maxglobseta,maxglobip
 end if
 
+call end_log(watermisc_end)
 
 ! DIFFUSION -------------------------------------------------------------------
 if (myid==0.and.nmaxpr==1) then
@@ -1748,6 +1800,8 @@ call mlodiffusion_main(uau,uav,duma,dumb,odum,dumt,dums)
 
 ! EXPORT ----------------------------------------------------------------------
 ! Water data is exported in mlodiffusion
+
+call start_log(watermisc_begin)
 
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: Export"
@@ -1772,6 +1826,8 @@ end where
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: Finish"
 end if
+
+call end_log(watermisc_end)
 
 return
 end subroutine mlohadv

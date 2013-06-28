@@ -7,6 +7,12 @@ module mgsolve
 ! all processors solve for the same coarse grid (thereby avoiding MPI_Allreduce)
 ! when solving the coarse grid.
 
+! Note that the solver can be greatly optimised for grids which permit many
+! local subdivitions.  For example if the number of grid points on a processor
+! is M x M, where M = 2^N and N is an integer greater than 1, then the
+! multi-grid solver will be considerably more efficent.  Example grids which
+! typically work well include C48, C96, C192, C384, C768 and C1536.
+
 implicit none
 
 private
@@ -253,11 +259,6 @@ do itr=1,itr_mg
     call mgbounds(g,v(:,:,g),klim=klim,corner=.true.)
 
     ! interpolation
-    ! (there maybe issues interpolating near vertices, where we could
-    !  possibly use a three point interpolation)
-    ! JLM suggests using a three point (plane) fit instead of the 4
-    ! point bi-linear fit.  This treats the vertices the same as the
-    ! other points.
     ng4=mg(g)%ifull_coarse
     do k=1,klim
       w(1:ng4,k)= mg(g)%wgt_a*v(mg(g)%coarse_a,k,g) + mg(g)%wgt_bc*v(mg(g)%coarse_b,k,g) &
@@ -280,14 +281,14 @@ do itr=1,itr_mg
       do jj=1,jpan
         iq_a=1+(jj-1)*ipan+(n-1)*ipan*jpan
         iq_b=jj*ipan+(n-1)*ipan*jpan
-        iq_c=1+(ir-1)*ipan+(jj-1+(ic-1)*jpan)*jpan+(n-1)*ipan*jpan*mg(g)%merge_len
-        iq_d=ir*ipan+(jj-1+(ic-1)*jpan)*jpan+(n-1)*ipan*jpan*mg(g)%merge_len
+        iq_c=1+(ir-1)*ipan+(jj-1+(ic-1)*jpan)*ipan*mg(g)%merge_row+(n-1)*ipan*jpan*mg(g)%merge_len
+        iq_d=ir*ipan+(jj-1+(ic-1)*jpan)*ipan*mg(g)%merge_row+(n-1)*ipan*jpan*mg(g)%merge_len
         vdum(iq_a:iq_b,1:klim)=w(iq_c:iq_d,1:klim)
       end do
       j=1
       do i=1,ipan
         iq_a=i+(j-1)*ipan+(n-1)*ipan*jpan
-        iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*jpan+(n-1)*ipan*jpan*mg(g)%merge_len
+        iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*ipan*mg(g)%merge_row+(n-1)*ipan*jpan*mg(g)%merge_len
         iq_b=is(iq_a)
         iq_d=mg(1)%is(iq_c)
         vdum(iq_b,1:klim)=w(iq_d,1:klim)
@@ -295,7 +296,7 @@ do itr=1,itr_mg
       j=jpan
       do i=1,ipan
         iq_a=i+(j-1)*ipan+(n-1)*ipan*jpan
-        iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*jpan+(n-1)*ipan*jpan*mg(g)%merge_len
+        iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*ipan*mg(g)%merge_row+(n-1)*ipan*jpan*mg(g)%merge_len
         iq_b=in(iq_a)
         iq_d=mg(1)%in(iq_c)
         vdum(iq_b,1:klim)=w(iq_d,1:klim)
@@ -303,7 +304,7 @@ do itr=1,itr_mg
       i=1
       do j=1,jpan
         iq_a=i+(j-1)*ipan+(n-1)*ipan*jpan
-        iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*jpan+(n-1)*ipan*jpan*mg(g)%merge_len
+        iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*ipan*mg(g)%merge_row+(n-1)*ipan*jpan*mg(g)%merge_len
         iq_b=iw(iq_a)
         iq_d=mg(1)%iw(iq_c)
         vdum(iq_b,1:klim)=w(iq_d,1:klim)
@@ -311,7 +312,7 @@ do itr=1,itr_mg
       i=ipan
       do j=1,jpan
         iq_a=i+(j-1)*ipan+(n-1)*ipan*jpan
-        iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*jpan+(n-1)*ipan*jpan*mg(g)%merge_len
+        iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*ipan*mg(g)%merge_row+(n-1)*ipan*jpan*mg(g)%merge_len
         iq_b=ie(iq_a)
         iq_d=mg(1)%ie(iq_c)
         vdum(iq_b,1:klim)=w(iq_d,1:klim)
@@ -425,7 +426,7 @@ end do
 if (myid==0) then
   if (ktau<6.or.iters(1)>itr_mg) then
     do k=1,kl
-      write(6,*) "mg ktau,k,iter ",ktau,k,iters(k)
+      write(6,*) "mg ktau,k,iter ",ktau,k,iters(k),dsolmax_g(k)
     end do
     !write(6,*) "itc ",itc
   end if
@@ -547,11 +548,12 @@ do itr=1,itr_mgice
     new(iqx(1:ifc,nc),1)=max(new(iqx(1:ifc,nc),1),-dd(iqx(1:ifc,nc)))*ee(iqx(1:ifc,nc))
 
     
-    new(iqx(1:ifc,nc),2) = 0.
     where (izz(iqx(1:ifc,nc),2)/=0.)
       new(iqx(1:ifc,nc),2) = ( -izzn(iqx(1:ifc,nc),2)*ipice(iqn(1:ifc,nc))-izzs(iqx(1:ifc,nc),2)*ipice(iqs(1:ifc,nc)) &
                                -izze(iqx(1:ifc,nc),2)*ipice(iqe(1:ifc,nc))-izzw(iqx(1:ifc,nc),2)*ipice(iqw(1:ifc,nc)) &
                                + irhs(iqx(1:ifc,nc),2) ) / izz(iqx(1:ifc,nc),2)
+    elsewhere
+      new(iqx(1:ifc,nc),2) = 0.    
     end where
     ! cavitating fluid
     new(iqx(1:ifc,nc),2)=max(min(new(iqx(1:ifc,nc),2),ipmax(iqx(1:ifc,nc))),0.)
@@ -815,44 +817,44 @@ do itr=1,itr_mgice
       do jj=1,jpan
         iq_a=1+(jj-1)*ipan+(n-1)*ipan*jpan
         iq_b=jj*ipan+(n-1)*ipan*jpan
-        iq_c=1+(ir-1)*ipan+(jj-1+(ic-1)*jpan)*jpan+(n-1)*ipan*jpan*mg(g)%merge_len
-        iq_d=ir*ipan+(jj-1+(ic-1)*jpan)*jpan+(n-1)*ipan*jpan*mg(g)%merge_len
+        iq_c=1+(ir-1)*ipan+(jj-1+(ic-1)*jpan)*ipan*mg(g)%merge_row+(n-1)*ipan*jpan*mg(g)%merge_len
+        iq_d=ir*ipan+(jj-1+(ic-1)*jpan)*ipan*mg(g)%merge_row+(n-1)*ipan*jpan*mg(g)%merge_len
         vdum(iq_a:iq_b,1)=w(iq_c:iq_d,1)
         !vdum(iq_a:iq_b,2)=w(iq_c:iq_d,8)
       end do
       j=1
       do i=1,ipan
         iq_a=i+(j-1)*ipan+(n-1)*ipan*jpan
-        iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*jpan+(n-1)*ipan*jpan*mg(g)%merge_len
+        iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*ipan*mg(g)%merge_row+(n-1)*ipan*jpan*mg(g)%merge_len
         iq_b=is(iq_a)
-        iq_d=mg(1)%is(iq_c)
+        iq_d=mg(g)%is(iq_c)
         vdum(iq_b,1)=w(iq_d,1)
         !vdum(iq_b,2)=w(iq_d,8)
       end do
       j=jpan
       do i=1,ipan
         iq_a=i+(j-1)*ipan+(n-1)*ipan*jpan
-        iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*jpan+(n-1)*ipan*jpan*mg(g)%merge_len
+        iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*ipan*mg(g)%merge_row+(n-1)*ipan*jpan*mg(g)%merge_len
         iq_b=in(iq_a)
-        iq_d=mg(1)%in(iq_c)
+        iq_d=mg(g)%in(iq_c)
         vdum(iq_b,1)=w(iq_d,1)
         !vdum(iq_b,2)=w(iq_d,8)
       end do  
       i=1
       do j=1,jpan
         iq_a=i+(j-1)*ipan+(n-1)*ipan*jpan
-        iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*jpan+(n-1)*ipan*jpan*mg(g)%merge_len
+        iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*ipan*mg(g)%merge_row+(n-1)*ipan*jpan*mg(g)%merge_len
         iq_b=iw(iq_a)
-        iq_d=mg(1)%iw(iq_c)
+        iq_d=mg(g)%iw(iq_c)
         vdum(iq_b,1)=w(iq_d,1)
         !vdum(iq_b,2)=w(iq_d,8)
       end do
       i=ipan
       do j=1,jpan
         iq_a=i+(j-1)*ipan+(n-1)*ipan*jpan
-        iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*jpan+(n-1)*ipan*jpan*mg(g)%merge_len
+        iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*ipan*mg(g)%merge_row+(n-1)*ipan*jpan*mg(g)%merge_len
         iq_b=ie(iq_a)
-        iq_d=mg(1)%ie(iq_c)
+        iq_d=mg(g)%ie(iq_c)
         vdum(iq_b,1)=w(iq_d,1)
         !vdum(iq_b,2)=w(iq_d,8)
       end do
@@ -968,18 +970,20 @@ if (dsolmax_g(1)>=tol.or.dsolmax_g(2)>=itol) then
   
     do nc=1,maxcolour
       ifc=ifullx(nc)
-      bu(iqx(1:ifc,nc))=izz(iqx(1:ifc,nc),1)+ihh(iqx(1:ifc,nc))                                            &
+      bu(iqx(1:ifc,nc))=izz(iqx(1:ifc,nc),1)+ihh(iqx(1:ifc,nc))                                          &
                         +iyyn(iqx(1:ifc,nc))*neta(iqn(1:ifc,nc))+iyys(iqx(1:ifc,nc))*neta(iqs(1:ifc,nc)) &
                         +iyye(iqx(1:ifc,nc))*neta(iqe(1:ifc,nc))+iyyw(iqx(1:ifc,nc))*neta(iqw(1:ifc,nc))
       cu(iqx(1:ifc,nc))=izzn(iqx(1:ifc,nc),1)*neta(iqn(1:ifc,nc))+izzs(iqx(1:ifc,nc),1)*neta(iqs(1:ifc,nc)) &
                        +izze(iqx(1:ifc,nc),1)*neta(iqe(1:ifc,nc))+izzw(iqx(1:ifc,nc),1)*neta(iqw(1:ifc,nc)) &
                        -irhs(iqx(1:ifc,nc),1)        
       new(iqx(1:ifc,nc),1) = -2.*cu(iqx(1:ifc,nc))/(bu(iqx(1:ifc,nc))+sqrt(bu(iqx(1:ifc,nc))**2-4.*au(iqx(1:ifc,nc))*cu(iqx(1:ifc,nc))))
-      new(iqx(1:ifc,nc),2) = 0.
+      
       where (izz(iqx(1:ifc,nc),2)/=0.)
         new(iqx(1:ifc,nc),2) = ( -izzn(iqx(1:ifc,nc),2)*ipice(iqn(1:ifc,nc))-izzs(iqx(1:ifc,nc),2)*ipice(iqs(1:ifc,nc)) &
                                  -izze(iqx(1:ifc,nc),2)*ipice(iqe(1:ifc,nc))-izzw(iqx(1:ifc,nc),2)*ipice(iqw(1:ifc,nc)) &
                                  + irhs(iqx(1:ifc,nc),2) ) / izz(iqx(1:ifc,nc),2)
+      else where
+        new(iqx(1:ifc,nc),2) = 0.      
       end where
 
       ! cavitating fluid
@@ -1001,7 +1005,6 @@ if (dsolmax_g(1)>=tol.or.dsolmax_g(2)>=itol) then
     end do
   
     ! test for convergence
- 
     dsolmax(1)=maxval(abs(dsol(1:ifull,1)))
     dsolmax(2)=maxval(abs(dsol(1:ifull,2)))
     call ccmpi_allreduce(dsolmax(1:2),dsolmax_g(1:2),"max",comm_mlo)

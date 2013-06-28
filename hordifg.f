@@ -212,7 +212,7 @@ c     above code independent of k
            do iq=1,ifull
              cc=(dudx(iq,k)-dvdy(iq,k))**2
      &         +(dvdx(iq,k)+dudy(iq,k))**2
-             t_kh(iq,k)= .5*sqrt(cc)*hdif/(em(iq)*em(iq))
+             t_kh(iq,k)= sqrt(cc)*hdif/(em(iq)*em(iq))
            end do
          end do
          call bounds(t_kh,nehalf=.true.)
@@ -274,7 +274,7 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
 
        case(3)
         if (nvmix==6) then
-         hdif=dt*cm0/(ds*ds)
+         hdif=dt*cm0
          do k=1,kl
           tke(1:ifull,k)=max(tke(1:ifull,k),mintke)
           tdum=(cm0**0.75)*tke(1:ifull,k)
@@ -285,7 +285,7 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
      &                 tdum/maxl)
           eps(1:ifull,k)=max(eps(1:ifull,k),mineps)
           t_kh(1:ifull,k)=tke(1:ifull,k)*tke(1:ifull,k)
-     &    /eps(1:ifull,k)*hdif
+     &    /eps(1:ifull,k)*hdif/(em(1:ifull)*em(1:ifull))
          end do
          call bounds(t_kh,nehalf=.true.)
          do k=1,kl

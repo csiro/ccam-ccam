@@ -133,8 +133,8 @@ module cc_mpi
       integer :: slen_uv, rlen_uv, slen2_uv, rlen2_uv
       integer :: slenx_uv, rlenx_uv
       integer :: len, sbuflen, rbuflen
-      ! ocean mask
-      integer :: mlomsk
+      ! ocean, river masks
+      integer :: mlomsk, rivmsk
    end type bounds_info
    
    type dpoints_t
@@ -265,6 +265,13 @@ module cc_mpi
    integer, public, save :: globsum_begin, globsum_end
    integer, public, save :: precon_begin, precon_end
    integer, public, save :: waterdynamics_begin, waterdynamics_end
+   integer, public, save :: watermisc_begin, watermisc_end
+   integer, public, save :: waterdeps_begin, waterdeps_end
+   integer, public, save :: watereos_begin, watereos_end
+   integer, public, save :: waterhadv_begin, waterhadv_end
+   integer, public, save :: watervadv_begin, watervadv_end
+   integer, public, save :: waterhelm_begin, waterhelm_end
+   integer, public, save :: wateriadv_begin, wateriadv_end
    integer, public, save :: waterdiff_begin, waterdiff_end
    integer, public, save :: river_begin, river_end
    integer, public, save :: mpiwait_begin, mpiwait_end
@@ -277,25 +284,9 @@ module cc_mpi
    integer, public, save :: bcast_begin, bcast_end
    integer, public, save :: mgbounds_begin, mgbounds_end
    integer, public, save :: mgcollect_begin, mgcollect_end
-   integer, public, save :: hordifg_loadbal_begin, hordifg_loadbal_end
-   integer, public, save :: river_loadbal_begin, river_loadbal_end
-   integer, public, save :: waterdynamics_loadbal_begin, waterdynamics_loadbal_end
-   integer, public, save :: waterdiff_loadbal_begin, waterdiff_loadbal_end
-   integer, public, save :: gwdrag_loadbal_begin, gwdrag_loadbal_end
-   integer, public, save :: convection_loadbal_begin, convection_loadbal_end
-   integer, public, save :: cloud_loadbal_begin, cloud_loadbal_end
-   integer, public, save :: radnet_loadbal_begin, radnet_loadbal_end
-   integer, public, save :: vertmix_loadbal_begin, vertmix_loadbal_end
-   integer, public, save :: aerosol_loadbal_begin, aerosol_loadbal_end
-   integer, public, save :: outfile_loadbal_begin, outfile_loadbal_end
-   integer, public, save :: sfluxwater_loadbal_begin, sfluxwater_loadbal_end
-   integer, public, save :: sfluxland_loadbal_begin, sfluxland_loadbal_end
-   integer, public, save :: sfluxurban_loadbal_begin, sfluxurban_loadbal_end
-   integer, public, save :: globa_loadbal_begin, globa_loadbal_end
-   integer, public, save :: globb_loadbal_begin, globb_loadbal_end
 #ifdef simple_timer
    public :: simple_timer_finalize
-   integer, parameter :: nevents = 70
+   integer, parameter :: nevents = 61
    double precision, dimension(nevents), save :: tot_time = 0., start_time
    character(len=15), dimension(nevents), save :: event_name
 #endif 
@@ -2845,6 +2836,11 @@ contains
          rslen  = rslen*bnds(neighlistrecv)%mlomsk
          sslen  = sslen*bnds(neighlistsend)%mlomsk
          myrlen = myrlen*bnds(myid)%mlomsk
+      else if ( lmode == 2 ) then
+         t(ifull+1:ifull+iextra) = 0. ! Must be zero for rivers
+         rslen  = rslen*bnds(neighlistrecv)%rivmsk
+         sslen  = sslen*bnds(neighlistsend)%rivmsk
+         myrlen = myrlen*bnds(myid)%rivmsk
       end if
 
       ! Clear any current messages
@@ -3003,6 +2999,11 @@ contains
          rslen  = rslen*bnds(neighlistrecv)%mlomsk
          sslen  = sslen*bnds(neighlistsend)%mlomsk
          myrlen = myrlen*bnds(myid)%mlomsk
+      else if ( lmode == 2 ) then
+         t(ifull+1:ifull+iextra,1:kx) = 0. ! Must be zero for rivers
+         rslen  = rslen*bnds(neighlistrecv)%rivmsk
+         sslen  = sslen*bnds(neighlistsend)%rivmsk
+         myrlen = myrlen*bnds(myid)%rivmsk
       end if
 
       ! Clear any current messages
@@ -3124,6 +3125,7 @@ contains
          sslen = sslen*bnds(neighlistsend)%mlomsk
          myrlen = myrlen*bnds(myid)%mlomsk
       end if
+      ! river mode not supported
 
       ! Clear any current messages
       sreq = nreq - rreq
@@ -3345,6 +3347,7 @@ contains
          sslen = sslen*bnds(neighlistsend)%mlomsk
          myrlen = myrlen*bnds(myid)%mlomsk
       end if
+      ! river mode not supported
 
       ! Clear any current messages
       sreq = nreq - rreq
@@ -3674,6 +3677,7 @@ contains
          sslen = sslen*bnds(neighlistsend)%mlomsk
          myrlen = myrlen*bnds(myid)%mlomsk
       end if
+      ! river mode not supported
 
       ! Clear any current messages
       sreq = nreq - rreq 
@@ -4307,6 +4311,7 @@ contains
       if ( lmode == 1 ) then
          msglen = msglen*bnds(:)%mlomsk
       end if
+      ! river mode not supported
       
       do k=1,kx
          do iq=1,ifull
@@ -5548,77 +5553,41 @@ contains
       waterdynamics_end =  waterdynamics_begin
       event_name(waterdynamics_begin) = "Waterdynamics"
 
-      waterdiff_begin = 53
+      watermisc_begin = 53
+      watermisc_end =  watermisc_begin
+      event_name(watermisc_begin) = "Water_misc"
+
+      waterdeps_begin = 54
+      waterdeps_end =  waterdeps_begin
+      event_name(waterdeps_begin) = "Water_deps"
+
+      watereos_begin = 55
+      watereos_end =  watereos_begin
+      event_name(watereos_begin) = "Water_EOS"
+
+      waterhadv_begin = 56
+      waterhadv_end =  waterhadv_begin
+      event_name(waterhadv_begin) = "Water_Hadv"
+
+      watervadv_begin = 57
+      watervadv_end =  watervadv_begin
+      event_name(watervadv_begin) = "Water_Vadv"
+
+      waterhelm_begin = 58
+      waterhelm_end =  waterhelm_begin
+      event_name(waterhelm_begin) = "Water_helm"
+
+      wateriadv_begin = 59
+      wateriadv_end =  wateriadv_begin
+      event_name(wateriadv_begin) = "Water_Iadv"
+
+      waterdiff_begin = 60
       waterdiff_end =  waterdiff_begin
       event_name(waterdiff_begin) = "Waterdiff"
 
-      river_begin = 54
+      river_begin = 61
       river_end =  river_begin
       event_name(river_begin) = "River"
-
-      hordifg_loadbal_begin = 55
-      hordifg_loadbal_end = hordifg_loadbal_begin
-      event_name(hordifg_loadbal_begin) = "LoadBal_Hordifg"
-
-      river_loadbal_begin = 56
-      river_loadbal_end = river_loadbal_begin
-      event_name(river_loadbal_begin) = "LoadBal_River"
-
-      waterdynamics_loadbal_begin = 57
-      waterdynamics_loadbal_end = waterdynamics_loadbal_begin
-      event_name(waterdynamics_loadbal_begin) = "LoadBal_Waterdynamics"
-
-      waterdiff_loadbal_begin = 58
-      waterdiff_loadbal_end = waterdiff_loadbal_begin
-      event_name(waterdiff_loadbal_begin) = "LoadBal_Waterdiff"
-
-      gwdrag_loadbal_begin = 59
-      gwdrag_loadbal_end = gwdrag_loadbal_begin
-      event_name(gwdrag_loadbal_begin) = "LoadBal_GWDrag"
-
-      convection_loadbal_begin = 60
-      convection_loadbal_end = convection_loadbal_begin
-      event_name(convection_loadbal_begin) = "LoadBal_Convection"
-
-      cloud_loadbal_begin = 61
-      cloud_loadbal_end = cloud_loadbal_begin
-      event_name(cloud_loadbal_begin) = "LoadBal_Cloud"
-
-      radnet_loadbal_begin = 62
-      radnet_loadbal_end = radnet_loadbal_begin
-      event_name(radnet_loadbal_begin) = "LoadBal_Rad"
-
-      vertmix_loadbal_begin = 63
-      vertmix_loadbal_end = vertmix_loadbal_begin
-      event_name(vertmix_loadbal_begin) = "LoadBal_Vertmix"
-
-      aerosol_loadbal_begin = 64
-      aerosol_loadbal_end = aerosol_loadbal_begin
-      event_name(aerosol_loadbal_begin) = "LoadBal_Aerosol"
-
-      outfile_loadbal_begin = 65
-      outfile_loadbal_end = outfile_loadbal_begin
-      event_name(outfile_loadbal_begin) = "LoadBal_Outfile"
-
-      sfluxwater_loadbal_begin = 66
-      sfluxwater_loadbal_end = sfluxwater_loadbal_begin
-      event_name(sfluxwater_loadbal_begin) = "LoadBal_SFwater"
-
-      sfluxland_loadbal_begin = 67
-      sfluxland_loadbal_end = sfluxland_loadbal_begin
-      event_name(sfluxland_loadbal_begin) = "LoadBal_SFland"
-
-      sfluxurban_loadbal_begin = 68
-      sfluxurban_loadbal_end = sfluxurban_loadbal_begin
-      event_name(sfluxurban_loadbal_begin) = "LoadBal_SFurban"
-
-      globa_loadbal_begin = 69
-      globa_loadbal_end = globa_loadbal_begin
-      event_name(globa_loadbal_begin) = "LoadBal_GlobA"
-      
-      globb_loadbal_begin = 70
-      globb_loadbal_end = globb_loadbal_begin
-      event_name(globb_loadbal_begin) = "LoadBal_GlobB"
 
 #endif
    end subroutine log_setup
@@ -6978,11 +6947,12 @@ contains
          myrlen = mg_bnds(myid,g)%rlen
       end if
       if ( lmode == 1 ) then
-        vdat(mg(g)%ifull+1:mg(g)%ifull+mg(g)%iextra,1:kx) = 0. ! Must be zero for mlodynamics
-        rslen  = rslen*bnds(mg(g)%neighlistrecv)%mlomsk
-        sslen  = sslen*bnds(mg(g)%neighlistsend)%mlomsk
-        myrlen = myrlen*bnds(myid)%mlomsk
+         vdat(mg(g)%ifull+1:mg(g)%ifull+mg(g)%iextra,1:kx) = 0. ! Must be zero for mlodynamics
+         rslen  = rslen*bnds(mg(g)%neighlistrecv)%mlomsk
+         sslen  = sslen*bnds(mg(g)%neighlistsend)%mlomsk
+         myrlen = myrlen*bnds(myid)%mlomsk
       end if
+      ! river model not supported
 
       sreq = nreq - rreq
 #ifdef simple_timer
