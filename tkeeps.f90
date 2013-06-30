@@ -342,7 +342,7 @@ do kcount=1,mcount
           w2up(1)=2.*dzht*b2*nn(1)/(1.+2.*dzht*b1*ent)                    ! Hurley 2007
           templ  =tlup(1)/sigkap(1)                                    ! templ,up
           tdum(1)=templ
-          call getqsat(qupsat(1:1),tdum(1:1),pres(i,1:1))
+          call getqsat(qupsat(1:1),tdum(1:1),pres(i:i,1))
           ! estimate variance of qtup in updraft
           sigqtup=1.E-5
           rng=sqrt(6.)*sigqtup               ! variance of triangle distribution
@@ -370,7 +370,7 @@ do kcount=1,mcount
             templ  =tlup(k)/sigkap(k)                                     ! templ,up
             if (.not.scond) then
               tdum(1)=templ
-              call getqsat(qupsat(k:k),tdum(1:1),pres(i,k:k))
+              call getqsat(qupsat(k:k),tdum(1:1),pres(i:i,k))
               ! estimate variance of qtup in updraft (following Hurley and TAPM)
               sigqtup=sqrt(max(1.E-10,1.6*tke(i,k)/eps(i,k)*cq*km(i,k)*((qtup(k)-qtup(k-1))/dzht)**2))
               ! MJT condensation scheme -  follow Smith 1990 and assume
@@ -433,7 +433,7 @@ do kcount=1,mcount
               tempd  =thup(i,k)/sigkap(k)
               templ  =tlup(k)/sigkap(k)                                     ! templ,up
               tdum(1)=templ
-              call getqsat(qupsat(k:k),tdum(1:1),pres(i,k:k))
+              call getqsat(qupsat(k:k),tdum(1:1),pres(i:i,k))
               ! estimate variance of qtup in updraft (following Hurley and TAPM)
               sigqtup=sqrt(max(1.E-10,1.6*tke(i,k)/eps(i,k)*cq*km(i,k)*((qtup(k)-qtup(k-1))/dzht)**2))
               ! MJT condensation scheme -  follow Smith 1990 and assume
