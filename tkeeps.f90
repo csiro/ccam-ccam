@@ -407,10 +407,10 @@ do kcount=1,mcount
           
           if (.not.scond) then
             zi(i)=zidry(i)
-            zlcl=zidry(i)-0.1
+            zlcl=zidry(i)
           else
             zi(i)=max(zi(i),zidry(i))
-            zlcl =min(zlcl, zidry(i)-0.1)
+            zlcl =min(zlcl, zidry(i))
         
             ! updraft with condensation
             do k=klcl,kl
@@ -498,12 +498,12 @@ do kcount=1,mcount
 
         ! update mass flux
         zht =zz(i,1)
-        mflx(i,1)=m0*sqrt(w2up(1))*zht**ent0*max(zi(i)-zht,0.)**dtrn0 ! MJT suggestion
+        mflx(i,1)=m0*sqrt(max(w2up(1),0.))*zht**ent0*max(zi(i)-zht,1.)**dtrn0 ! MJT suggestion
         do k=2,ktopmax
           dzht=dz_hl(i,k-1)
           zht =zz(i,k)
           ! Entrainment and detrainment rates
-          xp  =(zht-zlcl)/(zidry(i)-zlcl)
+          xp  =(zht-zlcl)/max(zidry(i)-zlcl,0.1)
           xp  =min(max(xp,0.),1.)
           ent =entfn(zht,     zi(i),     zz(i,1))
           dtrn=dtrfn(zht,     zidry(i),  zz(i,1),dtrn0)

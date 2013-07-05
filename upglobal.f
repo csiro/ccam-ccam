@@ -62,7 +62,7 @@
          enddo     ! iq loop
         enddo      ! k loop
       endif  ! (m>=5)
-
+      
       select case(ndept)
        case(0)
         call depts(x3d,y3d,z3d)
@@ -368,6 +368,7 @@
      &                  bz(iq)*wc(iq,k)
           enddo ! iq loop
        end do   ! k loop
+       
 c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07       
        if(npex==1)then
          ux(1:ifull,:)=ux(1:ifull,:)+.5*dt*un(1:ifull,:) ! dyn contrib

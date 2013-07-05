@@ -275,6 +275,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
      &         p(idjd,nlv),p(idjd+il,nlv),p(idjd-il,nlv)
       endif
 
+
       do k=1,kl
 !cdir nodep
          do iq=1,ifull

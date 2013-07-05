@@ -1422,7 +1422,6 @@
       end if
       call end_log(radnet_end)
 
-
       ! HELD & SUAREZ ---------------------------------------------------------
       if (ntsur<=1.or.nhstest==2) then ! Held & Suarez or no surf fluxes
        eg(:)=0.
