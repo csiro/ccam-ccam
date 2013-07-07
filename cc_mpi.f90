@@ -5665,7 +5665,7 @@ contains
        delneg_l = real(local_sum(2))
 #ifdef sumdd
 #ifdef i8r8
-       ltype = MPI_COMPLEX8
+       ltype = MPI_DOUBLE_COMPLEX
 #else
        ltype = MPI_COMPLEX
 #endif   
@@ -5718,27 +5718,26 @@ contains
        lcomm = MPI_COMM_WORLD
        if (present(comm)) lcomm=comm
 
-       delpos_l = 0.
-       delneg_l = 0.
        if (present(dsigin)) then
          dsigx = -dsigin
        else
          dsigx = dsig
        end if
-       local_sum = (0.,0.)
+       local_sum(1) = (0.,0.)
+       local_sum(2) = (0.,0.)
        do k=1,kx
           do iq=1,ifull
              tmparr(iq)  = max(0.,-dsigx(k)*array(iq,k)*wts(iq))
              tmparr2(iq) = min(0.,-dsigx(k)*array(iq,k)*wts(iq))
           end do
-          call drpdr_local(tmparr, local_sum(1))
+          call drpdr_local(tmparr,  local_sum(1))
           call drpdr_local(tmparr2, local_sum(2))
-          delpos_l = real(local_sum(1))
-          delneg_l = real(local_sum(2))
        end do ! k loop
+       delpos_l = real(local_sum(1))
+       delneg_l = real(local_sum(2))
 #ifdef sumdd
 #ifdef i8r8
-       ltype = MPI_COMPLEX8
+       ltype = MPI_DOUBLE_COMPLEX
 #else
        ltype = MPI_COMPLEX
 #endif 
@@ -6272,7 +6271,7 @@ contains
       lcomm = comm
       lsize = size(ldat)
 #ifdef i8r8
-      ltype = MPI_COMPLEX8
+      ltype = MPI_DOUBLE_COMPLEX
 #else
       ltype = MPI_COMPLEX
 #endif 
@@ -6460,7 +6459,7 @@ contains
       lcomm = comm
       lsize = size(ldat)
 #ifdef i8r8
-      ltype = MPI_COMPLEX8
+      ltype = MPI_DOUBLE_COMPLEX
 #else
       ltype = MPI_COMPLEX
 #endif 

@@ -345,7 +345,24 @@ c     call jimcc(em4,ax4,ay4,az4,myid)
           endif
 c         set up x0, y0, z0 coords on cube -1 to 1
 c         avoids earlier equivalencing of x,x0  etc
-          call xxtox(i,j,ikk,xx,yy,  x,y,z)  ! creates tempry x,y,z, arrays
+          x(ind(i,j,0))= 1.
+          y(ind(i,j,0))=xx
+          z(ind(i,j,0))=yy
+          x(ind(i,j,3))=-1.
+          z(ind(i,j,3))=-xx
+          y(ind(i,j,3))=-yy
+          x(ind(i,j,1))=-yy
+          y(ind(i,j,1))=xx
+          z(ind(i,j,1))= 1.
+          y(ind(i,j,4))=-yy
+          x(ind(i,j,4))=xx
+          z(ind(i,j,4))=-1.
+          x(ind(i,j,2))=-yy
+          y(ind(i,j,2))= 1.
+          z(ind(i,j,2))=-xx
+          z(ind(i,j,5))=yy
+          y(ind(i,j,5))=-1.
+          x(ind(i,j,5))=xx
 c         if(i.eq.(ikk+1)/2.and.j.eq.(ikk+1)/2)print *,'n,xx,yy: ',n,xx,yy
          enddo  ! i loop
         enddo   ! j loop
@@ -419,7 +436,24 @@ c          average Purser em is pi/2
 
 c         set up x0, y0, z0 coords on cube -1 to 1
 c         avoids earlier equivalencing of x,x0  etc
-          call xxtox(i,j,ikk,xx,yy,  x,y,z)
+          x(ind(i,j,0))= 1.
+          y(ind(i,j,0))=xx
+          z(ind(i,j,0))=yy
+          x(ind(i,j,3))=-1.
+          z(ind(i,j,3))=-xx
+          y(ind(i,j,3))=-yy
+          x(ind(i,j,1))=-yy
+          y(ind(i,j,1))=xx
+          z(ind(i,j,1))= 1.
+          y(ind(i,j,4))=-yy
+          x(ind(i,j,4))=xx
+          z(ind(i,j,4))=-1.
+          x(ind(i,j,2))=-yy
+          y(ind(i,j,2))= 1.
+          z(ind(i,j,2))=-xx
+          z(ind(i,j,5))=yy
+          y(ind(i,j,5))=-1.
+          x(ind(i,j,5))=xx
 c         if(i.eq.(ikk+1)/2.and.j.eq.(ikk+1)/2)print *,'xx,yy: ',xx,yy
          enddo  ! i loop
         enddo   ! j loop
@@ -867,41 +901,7 @@ c    .  rlongg_g(iq)*180./pi,rlatt_g(iq)*180./pi
 
       return
       end
-      subroutine xxtox(i,j,ikk,xx,yy,  x06,y06,z06)
-!     put as subr. sept 06 to avoid equivalence of x, x06 etc    
-      implicit none
-      integer i,j,ikk  
-      real*8 x06(ikk,ikk,0:5),y06(ikk,ikk,0:5),z06(ikk,ikk,0:5)
-      real*8 xx,yy
-c          print *,'x'
-          x06(i,j,0)= 1.
-c          print *,'x'
-          y06(i,j,0)=xx
-c          print *,'x'
-          z06(i,j,0)=yy
-c          print *,'x'
-          x06(i,j,3)=-1.
-c          print *,'x'
-          z06(i,j,3)=-xx
-c          print *,'x'
-          y06(i,j,3)=-yy
-c          print *,'x'
 
-          x06(i,j,1)=-yy
-          y06(i,j,1)=xx
-          z06(i,j,1)= 1.
-          y06(i,j,4)=-yy
-          x06(i,j,4)=xx
-          z06(i,j,4)=-1.
-
-          x06(i,j,2)=-yy
-          y06(i,j,2)= 1.
-          z06(i,j,2)=-xx
-          z06(i,j,5)=yy
-          y06(i,j,5)=-1.
-          x06(i,j,5)=xx
-      return
-      end
       subroutine indv(iq,i,j,n)
 c     calculates simple i,j,n indices from supplied iq
       include 'newmpar.h'

@@ -743,11 +743,11 @@ if (myid==0) then
       der=ler
       call ncmsg("decomp",der)
 #else
-      ler=nf90_get_att(ncid,nf90_global,"nproc",lidum)
+      ler=nf90_get_att(lncid,nf90_global,"nproc",lidum)
       fnproc=lidum
       der=ler
       call ncmsg("nproc",der)
-      ler=nf90_get_att(ncid,nf90_global,"decomp",fdecomp)
+      ler=nf90_get_att(lncid,nf90_global,"decomp",fdecomp)
       der=ler
       call ncmsg("decomp",der)
 #endif
@@ -764,10 +764,10 @@ if (myid==0) then
   else
     ! nproc should only exist in multi-file input
 #ifdef usenc3
-    ler=nf_get_att_int(ncid,nf_global,"nproc",lidum)
+    ler=nf_get_att_int(lncid,nf_global,"nproc",lidum)
     if (ler==nf_noerr) then
 #else
-    ler=nf90_get_att(ncid,nf90_global,"nproc",lidum)
+    ler=nf90_get_att(lncid,nf90_global,"nproc",lidum)
     if (ler==nf90_noerr) then
 #endif
       write(6,*) "ERROR: Incorrect base filename"
@@ -2029,7 +2029,6 @@ implicit none
 
 integer, intent(in) :: ncid
 integer, intent(inout) :: dlen
-integer ncstatus
 integer(kind=4) :: lncid,lncstatus,ldid,ldlen
 character(len=*), intent(in) :: dname
 logical, intent(in), optional :: failok
@@ -2044,30 +2043,26 @@ ldlen=dlen
 lncstatus=nf_inq_dimid(lncid,dname,ldid)
 if (lncstatus/=nf_noerr) then
   if (ftest) return
-  ncstatus=lncstatus
-  write(6,*) nf_strerror(ncstatus)
+  write(6,*) nf_strerror(lncstatus)
   call ccmpi_abort(-1)
 end if
 lncstatus=nf_inq_dimlen(lncid,ldid,ldlen)
 if (lncstatus/=nf_noerr) then
   if (ftest) return
-  ncstatus=lncstatus
-  write(6,*) nf_strerror(ncstatus)
+  write(6,*) nf_strerror(lncstatus)
   call ccmpi_abort(-1)
 end if
 #else
 lncstatus=nf90_inq_dimid(lncid,dname,ldid)
 if (lncstatus/=nf90_noerr) then
   if (ftest) return
-  ncstatus=lncstatus
-  write(6,*) nf90_strerror(ncstatus)
+  write(6,*) nf90_strerror(lncstatus)
   call ccmpi_abort(-1)
 end if
 lncstatus=nf90_inquire_dimension(lncid,ldid,len=ldlen)
 if (lncstatus/=nf90_noerr) then
   if (ftest) return
-  ncstatus=lncstatus
-  write(6,*) nf90_strerror(ncstatus)
+  write(6,*) nf90_strerror(lncstatus)
   call ccmpi_abort(-1)
 end if
 #endif
@@ -2452,8 +2447,7 @@ call ncmsg("get_var",ncstatus)
 lncstatus = nf90_inq_varid(lncid,vname,lvid)
 ncstatus=lncstatus
 call ncmsg("get_var_varid",ncstatus)
-lncstatus = nf90_get_var(lncid,lvid,lvdat)
-vdat=lvdat
+lncstatus = nf90_get_var(lncid,lvid,vdat)
 ncstatus=lncstatus
 call ncmsg("get_var",ncstatus)
 #endif
@@ -2521,7 +2515,7 @@ integer(kind=4) :: lncid,lvid,lncstatus
 #ifdef usenc3
 integer(kind=4) :: lstart,ldat
 #else
-integer, dimension(1) :: lstart,lcount
+integer(kind=4), dimension(1) :: lstart,lcount
 integer, dimension(1) :: ldat
 #endif
 integer, intent(out) :: vdat
@@ -2688,10 +2682,10 @@ lstart=start
 lncount=ncount
 #ifdef usenc3
 lncstatus=nf_get_vara_int(lncid,lvid,lstart,lncount,lvdat)
-#else
-lncstatus=nf90_get_var(lncid,lvid,lvdat,start=lstart,count=lncount)
-#endif
 vdat=lvdat
+#else
+lncstatus=nf90_get_var(lncid,lvid,vdat,start=lstart,count=lncount)
+#endif
 ncstatus=lncstatus
 call ncmsg("get_vara",ncstatus)
 
@@ -3045,11 +3039,11 @@ integer(kind=4), dimension(size(vdat)) :: lvdat
 
 lncid=ncid
 lvid=vid
-lvdat=vdat
 #ifdef usenc3
+lvdat=vdat
 lncstatus = nf_put_var_int(lncid,lvid,lvdat)
 #else
-lncstatus = nf90_put_var(lncid,lvid,lvdat)
+lncstatus = nf90_put_var(lncid,lvid,vdat)
 #endif
 ncstatus=lncstatus
 call ncmsg("put_var",ncstatus)
@@ -3076,11 +3070,11 @@ integer(kind=4), dimension(size(vdat,1),size(vdat,2)) :: lvdat
 
 lncid=ncid
 lvid=vid
-lvdat=vdat
 #ifdef usenc3
+lvdat=vdat
 lncstatus = nf_put_var_int(lncid,lvid,lvdat)
 #else
-lncstatus = nf90_put_var(lncid,lvid,lvdat)
+lncstatus = nf90_put_var(lncid,lvid,vdat)
 #endif
 ncstatus=lncstatus
 call ncmsg("put_var",ncstatus)
@@ -3107,7 +3101,7 @@ integer(kind=4) :: lncid,lvid,lncstatus
 integer(kind=4) :: lstart,ldat
 #else
 integer(kind=4), dimension(1) :: lstart,lcount
-integer(kind=4), dimension(1) :: ldat
+integer, dimension(1) :: ldat
 #endif
 
 lncid=ncid
@@ -3348,11 +3342,11 @@ lncid=ncid
 lvid=vid
 lstart=start
 lncount=ncount
-lvdat=vdat
 #ifdef usenc3
+lvdat=vdat
 lncstatus=nf_put_vara_int(lncid,lvid,lstart,lncount,lvdat)
 #else
-lncstatus=nf90_put_var(lncid,lvid,lvdat,start=lstart,count=lncount)
+lncstatus=nf90_put_var(lncid,lvid,vdat,start=lstart,count=lncount)
 #endif
 ncstatus=lncstatus
 call ncmsg("put_vara",ncstatus)

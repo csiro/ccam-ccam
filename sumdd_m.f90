@@ -16,7 +16,7 @@ contains
 ! (no other optimisation options, not even -g)
 !  On APAC it works with default optimisation and on the NEC with -Cvopt.
 
-      integer, intent(in) :: len, itype
+      integer(kind=4), intent(in) :: len, itype
       complex, dimension(len), intent(in)  :: dra
       complex, dimension(len), intent(inout) :: drb
       real :: e, t1, t2 
