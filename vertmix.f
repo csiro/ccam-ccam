@@ -1032,18 +1032,6 @@ c        now do cffall
        endif    ! (ldr/=0)
       
       !--------------------------------------------------------------
-      ! NHS term
-       if (nh/=0) then
-        rhs=tnhs(:,:)
-        call trim(at,ct,rhs,0)
-        phi_nh(:,1)=bet(1)*rhs(:,1)
-        do k=2,kl
-          phi_nh(:,k)=phi_nh(:,k-1)+bet(k)*rhs(:,k)
-     &                            +betm(k)*rhs(:,k-1)
-        end do
-       end if 
-      
-      !--------------------------------------------------------------
       ! Aerosols
        if (abs(iaero)==2) then
         do l=1,naero
