@@ -473,36 +473,7 @@ c       do t diffusion based on potential temperature ff
      &                 base(iq,k)
            end do              !  iq loop
         end do
-        ! non-hydrostatic
-        ! since hydrostatic geopotential is a function of air temperature,
-        ! then we apply diffusion to the non-hydrostatic component when
-        ! it is represented as a correction to air temperature
-        if (nh/=0.and.nhorps/=-3) then
-          ee(1:ifull,1)=phi_nh(:,1)/bet(1)
-          do k=2,kl
-            ! representing non-hydrostatic term as a correction to air temperature
-            ee(1:ifull,k)=(phi_nh(:,k)-phi_nh(:,k-1)
-     &              -betm(k)*ee(1:ifull,k-1))/bet(k)
-          end do
-          do k=1,kl
-            ee(1:ifull,k)=ee(1:ifull,k)/ptemp(1:ifull)
-          end do        
-          call bounds(ee)
-          do k=1,kl
-            ff(1:ifull,k) = ptemp(1:ifull) * 
-     &      ( ee(1:ifull,k)/em(1:ifull)**2 +
-     &        xfact(1:ifull,k)*ee(ie,k) +
-     &        xfact(iwu,k)*ee(iw,k) +
-     &        yfact(1:ifull,k)*ee(in,k) +
-     &        yfact(isv,k)*ee(is,k) ) /
-     &        base(1:ifull,k)
-          end do
-          phi_nh(:,1)=bet(1)*ff(1:ifull,1)
-          do k=2,kl
-            phi_nh(:,k)=phi_nh(:,k-1)+bet(k)*ff(1:ifull,k)
-     &                            +betm(k)*ff(1:ifull,k-1)
-          end do
-        end if
+
         ! cloud microphysics
         if (ldr/=0.and.ncloud/=0) then
           ee(1:ifull,:)=qlg(1:ifull,:)
