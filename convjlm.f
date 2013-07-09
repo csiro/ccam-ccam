@@ -90,6 +90,7 @@ c     parameter (ncubase=2)              ! 2 from 4/06, more like 0 before  - us
       real, dimension(ifull) :: sbase,tdown
       real, dimension(ifull) :: entr,detrfactr,factr
       real, dimension(ifull) :: cfraclim,convtim,entrainn
+      real, dimension(ifull) :: pblx
       real, dimension(kl) :: dsk,h0,q0,t0
       real, dimension(kl) :: fluxt_k
       real, dimension(kl) :: k18
@@ -410,13 +411,18 @@ c       if(qq(iq,k)+qlg(iq,k)+qfg(iq,k)>qs(iq,k))factr(iq)=1.
 c     enddo
 
 c      following defines kb_sav (as kkbb) for use by nbase=-12     
+       if (nvmix==6.and.nlocal==7) then
+         pblx=zidry
+       else
+         pblx=pblh
+       end if
        kkbb(:)=1
        if(nbase==-12)then
         do k=2,k500   
          do iq=1,ifull
 !         find tentative cloud base ! 
 !            (middle of k-1 level, uppermost level below pblh)
-          if(phi(iq,k-1)<pblh(iq)*grav)kkbb(iq)=k-1
+          if(phi(iq,k-1)<pblx(iq)*grav)kkbb(iq)=k-1
          enddo    ! iq loop
         enddo     ! k loop
        else  ! e.g. nbase=-13
@@ -424,7 +430,7 @@ c      following defines kb_sav (as kkbb) for use by nbase=-12
          do iq=1,ifull
 !         find tentative cloud base ! 
 !            (uppermost layer, with approx. bottom of layer below pblh)
-          if(.5*(phi(iq,k-1)+phi(iq,k))<pblh(iq)*grav)kkbb(iq)=k
+          if(.5*(phi(iq,k-1)+phi(iq,k))<pblx(iq)*grav)kkbb(iq)=k
          enddo    ! iq loop
         enddo     ! k loop
        endif

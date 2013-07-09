@@ -1,40 +1,52 @@
 !  this is eig derived from eignew, but used in-line in C-CAM
-      subroutine eig(sigin,sigmhin,tbar,lapsbot,isoth,dtin,eps,nsig,
-     &               bet,betm,nh)
-      use vecs_m
+      subroutine eig(sigin,sigmhin,tbarin,lapsbot,isoth,dtin,epsin,
+     &               nsig,betin,betmin,nh)
+      use vecs_m, only : emat,einv,bam
       implicit none
       include 'newmpar.h'
-      integer nh,nsig,lapsbot,isoth
+      integer, intent(in) :: nh,nsig,lapsbot,isoth
       integer nchng,k
       integer l
       integer, parameter :: neig = 1
-      real tem
-      real eps,dtin,dt
-      real sigin(kl),sigmhin(kl)
-      real sig(kl),sigmh(kl+1),tbar(kl)
-      real bet(kl),betm(kl)
+      real(kind=8) tem
+      real(kind=8) dt,eps
+      real, intent(in) :: dtin,epsin
+      real, dimension(kl), intent(in) :: sigin,sigmhin
+      real, dimension(kl), intent(in) :: tbarin,betin,betmin
+      real(kind=8) sig(kl),sigmh(kl+1),tbar(kl)
+      real(kind=8) bet(kl),betm(kl)
+      real(kind=8) lemat(kl,kl),leinv(kl,kl)
+      real(kind=8) lbam(kl)
 
+      dt=dtin
+      eps=epsin
+      sig(:)=sigin(:)
+      sigmh(1:kl)=sigmhin(:)
+      sigmh(kl+1)=0.
+      tbar=tbarin
+      bet=betin
+      betm=betmin
+      lemat=emat
+      leinv=einv
+      lbam=bam
 !     lapsbot=1 gives zero lowest t lapse for phi calc
       write(6,*) 'this run configured with kl = ',kl
       write(6,*) 'entering eig tbar,lapsbot,isoth,dtin,eps,nh: ',
      &                      tbar(1),lapsbot,isoth,dtin,eps,nh
-      dt=dtin
-      sig(:)=sigin(:)
-      sigmh(1:kl)=sigmhin(:)
-      sigmh(kl+1)=0.
+
 !     expect data from bottom up
       if(sig(1)<sig(kl))then
         call flip3(sig,1,1,kl,1)
-        bam(1:kl)=sigmhin(:)
-        call flip3(bam,1,1,kl,1)  
+        lbam(1:kl)=sigmhin(:)
+        call flip3(lbam,1,1,kl,1)  
         sigmh(1)=0.
-        sigmh(2:kl+1)=bam(1:kl)
+        sigmh(2:kl+1)=lbam(1:kl)
       endif  ! (sig(1)<sig(kl))
       write(6,*) 'final sig values: ',sig
       write(6,*) 'final sigmh values: ',sigmh
       open(28,file='eigenv.out')
       call eigs(lapsbot,isoth,tbar,dt,eps,nh,sig,sigmh,
-     &          bet,betm)   !------------------------
+     &          bet,betm,lbam,lemat,leinv)   !------------------------
       write(6,*) 'about to write to 28 '
       write(28,*)kl,lapsbot,isoth,nsig,
      &       '   kl,lapsbot,isoth,nsig'
@@ -43,71 +55,75 @@
       do while (nchng/=0)
        nchng=0
        do k=2,kl
-        if(bam(k)<bam(k-1)) cycle
+        if(lbam(k)<lbam(k-1)) cycle
         nchng=1
-        tem=bam(k)
-        bam(k)=bam(k-1)
-        bam(k-1)=tem
+        tem=lbam(k)
+        lbam(k)=lbam(k-1)
+        lbam(k-1)=tem
         do l=1,kl
-         tem=emat(l,k)
-         emat(l,k)=emat(l,k-1)
-         emat(l,k-1)=tem
-         tem=einv(k,l)
-         einv(k,l)=einv(k-1,l)
-         einv(k-1,l)=tem
+         tem=lemat(l,k)
+         lemat(l,k)=lemat(l,k-1)
+         lemat(l,k-1)=tem
+         tem=leinv(k,l)
+         leinv(k,l)=leinv(k-1,l)
+         leinv(k-1,l)=tem
         end do
        end do
       end do
       write(6,*)'eigenvectors re-ordered'
-      write(6,*)'bam',(bam(k),k=1,kl)
+      write(6,*)'bam',(lbam(k),k=1,kl)
       if(neig==1)then
 !      write data from bottom up
        if(sig(1)<sig(kl))then
         call flip3( sig,1, 1,kl, 1)
         call flip3( sigmh,1, 1,kl+1, 1)
-        call flip3(emat,1, 1,kl,kl)
-        call flip3(einv,1,kl,kl, 1)
+        call flip3(lemat,1, 1,kl,kl)
+        call flip3(leinv,1,kl,kl, 1)
        endif
       endif
-      write(6,*) 'eig '
-      do k=1,kl
-       write(6,'(i3,15f8.4/3x,15f8.4/3x,15f8.4)')
-     &   k,(emat(k,l),l=1,kl)
-      enddo
-      write(6,*) 'einv'
-      do k=1,kl
-       write(6,'(i3,15f8.4/3x,15f8.4/3x,15f8.4)')
-     &   k,(einv(k,l),l=1,kl)
-      enddo
-      write(28,'(9e14.6)')
-     &  (sig(k),k=1,kl),(tbar(k),k=1,kl),(bam(k),k=1,kl)
-     &  ,((emat(k,l),k=1,kl),l=1,kl),((einv(k,l),k=1,kl),l=1,kl),
-     &  (bam(k),k=1,kl),((emat(k,l),k=1,kl),l=1,kl) ! just to fill space
-      write(28,'(9e14.6)') (sigmh(k),k=1,kl+1)
+      emat=lemat
+      einv=leinv
+      bam=lbam
+!      write(6,*) 'eig '
+!      do k=1,kl
+!       write(6,'(i3,15f8.4/3x,15f8.4/3x,15f8.4)')
+!     &   k,(emat(k,l),l=1,kl)
+!      enddo
+!      write(6,*) 'einv'
+!      do k=1,kl
+!       write(6,'(i3,15f8.4/3x,15f8.4/3x,15f8.4)')
+!     &   k,(einv(k,l),l=1,kl)
+!      enddo
+!      write(28,'(9e14.6)')
+!     &  (sig(k),k=1,kl),(tbar(k),k=1,kl),(bam(k),k=1,kl)
+!     &  ,((emat(k,l),k=1,kl),l=1,kl),((einv(k,l),k=1,kl),l=1,kl),
+!     &  (bam(k),k=1,kl),((emat(k,l),k=1,kl),l=1,kl) ! just to fill space
+!      write(28,'(9e14.6)') (sigmh(k),k=1,kl+1)
       end
 
       subroutine eigs(lapsbot,isoth,tbar,dt,eps,nh,sig,sigmh,
-     &                bet,betm)
-      use vecs_m
+     &                bet,betm,bam,emat,einv)
       implicit none
       include 'newmpar.h'
       integer lapsbot,isoth,nh
       integer k,l,irror
       integer indic(kl)
-      real dt,eps
-      real factg,factr,dp
+      real(kind=8) dt,eps
+      real(kind=8) factg,factr,dp
 c     units here are SI, but final output is dimensionless
-      real, parameter :: g=9.806
-      real, parameter :: cp=1004.64
-      real, parameter :: r=287.
+      real(kind=8), parameter :: g=9.806
+      real(kind=8), parameter :: cp=1004.64
+      real(kind=8), parameter :: r=287.
 c     sets up eigenvectors
-      real sig(kl),sigmh(kl+1)
-      real dsig(kl)
-      real bet(kl),betm(kl),get(kl),getm(kl),gmat(kl,kl)
-      real bmat(kl,kl),evimag(kl),veci(kl,kl),sum1(kl)
-      real tbar(kl)
-      real aa(kl,kl),ab(kl,kl),ac(kl,kl)
-      real aaa(kl,kl),cc(kl,kl)
+      real(kind=8) sig(kl),sigmh(kl+1)
+      real(kind=8) dsig(kl)
+      real(kind=8) bet(kl),betm(kl),bam(kl)
+      real(kind=8) emat(kl,kl),einv(kl,kl)
+      real(kind=8) get(kl),getm(kl),gmat(kl,kl)
+      real(kind=8) bmat(kl,kl),evimag(kl),veci(kl,kl),sum1(kl)
+      real(kind=8) tbar(kl)
+      real(kind=8) aa(kl,kl),ab(kl,kl),ac(kl,kl)
+      real(kind=8) aaa(kl,kl),cc(kl,kl)
       
       aa=0.
       bmat=0.
@@ -142,17 +158,17 @@ c     sets up eigenvectors
    
       write(6,*)'dt,eps,factg,tbar,factr ',dt,eps,factg,tbar(1),factr
       write(6,*)'bet ',bet
-      write(6,*)'bmat'
-      do k=1,kl
-       write(6,'(i3,15f8.3/3x,15f8.3/3x,15f8.3)') k,(bmat(k,l),l=1,kl)
-      enddo
+!      write(6,*)'bmat'
+!      do k=1,kl
+!       write(6,'(i3,15f8.3/3x,15f8.3/3x,15f8.3)') k,(bmat(k,l),l=1,kl)
+!      enddo
 
       write(6,*) 'get ',get
       write(6,*) 'getm ',getm
-      write(6,*) 'gmat'
-      do k=1,kl
-       write(6,'(i3,15f8.0/3x,15f8.0/3x,15f8.0)') k,(gmat(k,l),l=1,kl)
-      enddo
+!      write(6,*) 'gmat'
+!      do k=1,kl
+!       write(6,'(i3,15f8.0/3x,15f8.0/3x,15f8.0)') k,(gmat(k,l),l=1,kl)
+!      enddo
 
 !     even newer derivation section
       write(6,*) 'even newer derivation section'
@@ -172,55 +188,55 @@ c     sets up eigenvectors
        aa(k,k)=-r*tbar(1)*(sigmh(k+1)-sig(k))/(cp*sig(k))
        ac(k,k)=ac(k,k)+1.
       enddo
-      write(6,*) 'aa'
-      do k=1,kl
-       write(6,'(i3,15f8.4/3x,15f8.4/3x,15f8.4)') 
-     &   k,(aa(k,l),l=1,kl)
-      enddo
-      write(6,*) 'ac'
-      do k=1,kl
-       write(6,'(i3,15f8.3/3x,15f8.3/3x,15f8.3)')
-     &   k,(ac(k,l),l=1,kl)
-      enddo
+!      write(6,*) 'aa'
+!      do k=1,kl
+!       write(6,'(i3,15f8.4/3x,15f8.4/3x,15f8.4)') 
+!     &   k,(aa(k,l),l=1,kl)
+!      enddo
+!      write(6,*) 'ac'
+!      do k=1,kl
+!       write(6,'(i3,15f8.3/3x,15f8.3/3x,15f8.3)')
+!     &   k,(ac(k,l),l=1,kl)
+!      enddo
       if(isoth.eq.1)then  !  extra vadv terms added
         aa(:,:)=aa(:,:)+tbar(1)*ac(:,:)
       endif
       call matm(aaa,bmat,aa)
       cc(:,:)=aaa(:,:)-r*tbar(1)*ab(:,:)
-      write(6,*) 'cc'
-      do k=1,kl
-       write(6,'(i3,15f8.1/3x,15f8.1/3x,15f8.1)')
-     &   k,(cc(k,l),l=1,kl)
-      enddo
+!      write(6,*) 'cc'
+!      do k=1,kl
+!       write(6,'(i3,15f8.1/3x,15f8.1/3x,15f8.1)')
+!     &   k,(cc(k,l),l=1,kl)
+!      enddo
 
       if(nh>0)then  ! use gmat instead of bmat to derive aaa ! MJT suggestion
         gmat(:,:)=bmat(:,:)*(1.+4.*cp*tbar(1)/
      &           ((g*dt*(1.+eps))**2))
         call matm(aaa,gmat,aa)
         cc(:,:)=aaa(:,:)-r*tbar(1)*ab(:,:)
-        write(6,*) 'cc with gmat'
-        do k=1,kl
-         write(6,'(i3,15f8.1/3x,15f8.1/3x,15f8.1)')
-     &     k,(cc(k,l),l=1,kl)
-        enddo
+!        write(6,*) 'cc with gmat'
+!        do k=1,kl
+!         write(6,'(i3,15f8.1/3x,15f8.1/3x,15f8.1)')
+!     &     k,(cc(k,l),l=1,kl)
+!        enddo
       endif  ! (nh==2)
       
       aaa(:,:)=cc(:,:)
       call eigenp(aaa,bam,evimag,emat,veci,indic)
       write(6,*) 'bam',(bam(k),k=1,kl)
-      write(6,*) 'eig '
-      do k=1,kl
-       write(6,'(i3,15f8.4/3x,15f8.4/3x,15f8.4)')
-     &   k,(emat(k,l),l=1,kl)
-      enddo
+!      write(6,*) 'eig '
+!      do k=1,kl
+!       write(6,'(i3,15f8.4/3x,15f8.4/3x,15f8.4)')
+!     &   k,(emat(k,l),l=1,kl)
+!      enddo
       call matinv(cc,sum1,0,dp,irror)
       einv(:,:)=emat(:,:)
       call matinv(einv,sum1,0,dp,irror)
-      write(6,*) 'einv'
-      do k=1,kl
-       write(6,'(i3,15f8.4/3x,15f8.4/3x,15f8.4)')
-     &   k,(einv(k,l),l=1,kl)
-      enddo
+!      write(6,*) 'einv'
+!      do k=1,kl
+!       write(6,'(i3,15f8.4/3x,15f8.4/3x,15f8.4)')
+!     &   k,(einv(k,l),l=1,kl)
+!      enddo
 
       return
       end
@@ -229,8 +245,8 @@ c     sets up eigenvectors
       implicit none
       integer, intent(in) :: il,jl,kl,ll
       integer l,j,i,k
-      real, dimension(il,jl,kl,ll), intent(inout) :: a
-      real tem
+      real(kind=8), dimension(il,jl,kl,ll), intent(inout) :: a
+      real(kind=8) tem
       do l=1,ll
        do j=1,jl
         do i=1,il
@@ -250,7 +266,7 @@ c     sets up eigenvectors
       include 'newmpar.h'
 c     matrix multiplication      a = b * c
       integer k,l,ll,ivec
-      real a(kl,kl),b(kl,kl),c(kl,kl)
+      real(kind=8) a(kl,kl),b(kl,kl),c(kl,kl)
       do k=1,kl
        do l=1,kl
         a(k,l)=b(k,1)*c(1,l)
@@ -269,11 +285,11 @@ c     matrix multiplication      a = b * c
       integer, dimension(kl) :: indic
       integer i,j,k,l,m
       integer k1,l1,kon,ivec
-      real, dimension(kl*kl) :: prfact,subdia,work
-      real, dimension(kl,kl) :: a,vecr,veci
-      real, dimension(kl) :: evr,evi
-      real d1,d2,d3,enorm
-      real r,r1,ex,eps
+      real(kind=8), dimension(kl*kl) :: prfact,subdia,work
+      real(kind=8), dimension(kl,kl) :: a,vecr,veci
+      real(kind=8), dimension(kl) :: evr,evi
+      real(kind=8) d1,d2,d3,enorm
+      real(kind=8) r,r1,ex,eps
       
 c     currently set up for a general number of 10 levels
 c a.c.m. algorithm number 343
@@ -391,8 +407,8 @@ c not equal to zero then this complex eigenvector has
 c already been found from its conjugate.
     8   if(kon.ne.0)go to 9
         kon = 1
-      write(6,*) 'attempted call to comove'
-      stop
+        write(6,*) 'attempted call to comove'
+        stop
     9   kon = 0
    10   continue
 c
@@ -487,11 +503,11 @@ c subdia, eps, ex, r, shift
       integer, dimension(kl) :: indic
       integer i,j,k,l,m
       integer m1,maxst,ns
-      real, dimension(kl,kl) :: a,h
-      real, dimension(kl) :: evr,evi,subdia
-      real eps,ex
-      real sr,sr2,shift
-      real r,s,t,x,y,z
+      real(kind=8), dimension(kl,kl) :: a,h
+      real(kind=8), dimension(kl) :: evr,evi,subdia
+      real(kind=8) eps,ex
+      real(kind=8) sr,sr2,shift
+      real(kind=8) r,s,t,x,y,z
 c this sub.routine finds all the eigenvalues of a real
 c general matrix. the original matrix a of order n is
 c reduced to the upper-hessenberg form h by means of
@@ -745,9 +761,9 @@ c
       integer l,irror
       integer i,j,k,m
       integer irow,icol
-      real, dimension(kl,kl) :: a,b
-      real d
-      real amax
+      real(kind=8), dimension(kl,kl) :: a,b
+      real(kind=8) d
+      real(kind=8) amax
 c     a is an nxn matrix to be inverted,or containing equation coeffs
 c     b is an nxm rhs matrix for equations
 c     if l=0,inverse only given.l positive,solutions only.l negative
@@ -839,12 +855,12 @@ c     for inverse of a, interchange columns
       integer m
       integer i,j,k,l
       integer ivec,iter,ns
-      real, dimension(kl,kl) :: a,vecr
-      real, dimension(kl) :: evr,evi
-      real, dimension(kl) :: work
-      real eps,ex
-      real r,r1,t,evalue,previs
-      real s,sr,bound
+      real(kind=8), dimension(kl,kl) :: a,vecr
+      real(kind=8), dimension(kl) :: evr,evi
+      real(kind=8), dimension(kl) :: work
+      real(kind=8) eps,ex
+      real(kind=8) r,r1,t,evalue,previs
+      real(kind=8) s,sr,bound
 
 c the following real variables were initially single-
 c bound,eps,evalue,ex,previs,r,r1,work
@@ -1014,11 +1030,11 @@ c the following real variables were initially single prec.-
 c bound1,bound2,enorm
       integer i,j
       integer iter,ncount
-      real, dimension(kl,kl) :: a,h
-      real, dimension(kl) :: prfact
-      real enorm
-      real fnorm,column,row
-      real bound1,bound2,q,factor
+      real(kind=8), dimension(kl,kl) :: a,h
+      real(kind=8), dimension(kl) :: prfact
+      real(kind=8) enorm
+      real(kind=8) fnorm,column,row
+      real(kind=8) bound1,bound2,q,factor
 c this sub.routine stores the matrix of the order n from the
 c array a into the array h. afterward the matrix in the
 c array a is scaled so that the quotient of the absolute sum
@@ -1106,8 +1122,8 @@ c
       integer, intent(in) :: kl
       integer k
 !     these routines are written from top down
-      real, dimension(kl), intent(in) :: sig
-      real, dimension(kl+1), intent(out) :: sigmh
+      real(kind=8), dimension(kl), intent(in) :: sig
+      real(kind=8), dimension(kl+1), intent(out) :: sigmh
       sigmh(1)=1.
       sigmh(kl+1)=0.
       do k=1,kl-1
@@ -1120,8 +1136,8 @@ c
       implicit none
       integer, intent(in) :: kl
       integer k
-      real, dimension(kl), intent(out) :: sig
-      real, dimension(kl+1), intent(in) :: sigmh
+      real(kind=8), dimension(kl), intent(out) :: sig
+      real(kind=8), dimension(kl+1), intent(in) :: sigmh
       do k=1,kl
         sig(k)=.5*(sigmh(k+1)+sigmh(k))
       end do

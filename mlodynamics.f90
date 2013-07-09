@@ -31,7 +31,7 @@ logical, save :: ocnproc,rivproc
 integer, parameter :: usetide  =1    ! tidal forcing (0=off, 1=on)
 integer, parameter :: icemode  =2    ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
 integer, parameter :: basinmd  =3    ! basin mode (0=soil, 1=redistribute, 2=pile-up, 3=leak)
-integer, parameter :: mstagf   =0    ! alternating staggering (0=off left, -1=off right, >0 alternating)
+integer, parameter :: mstagf   =10   ! alternating staggering (0=off left, -1=off right, >0 alternating)
 integer, parameter :: koff     =1    ! time split stagger relative to A-grid (koff=0) or C-grid (koff=1)
 integer, parameter :: nf       =2    ! power for horizontal diffusion reduction factor
 integer, parameter :: itnmax   =6    ! number of interations for staggering
@@ -341,27 +341,27 @@ hdif=dt*(ocnsmag/pi)**2
 emi=1./(em(1:ifull)*em(1:ifull))
 
 ! extract data from MLO
-t_kh(1:ifull,wlev+1)=etain
-uau(1:ifull,:)=uauin
-uav(1:ifull,:)=uavin
+do k=1,wlev
+  uau(1:ifull,k)=uauin(:,k)*ee(1:ifull)
+  uav(1:ifull,k)=uavin(:,k)*ee(1:ifull)
+end do
 call boundsuv_allvec_mlo(uau,uav)
 
 ! calculate diffusion following Smagorinsky
-! here we split the calculation into left, right, top, bottom in
-! case of coastlines
 do k=1,wlev
-  dudx=0.5*((uau(ieu,k)-uau(1:ifull,k))*emu(1:ifull)/ds*eeu(1:ifull) &
-           +(uau(1:ifull,k)-uau(iwu,k))*emu(iwu)/ds*eeu(iwu))
-  dudy=0.5*((uau(inu,k)-uau(1:ifull,k))*emv(1:ifull)/ds*eev(1:ifull) &
-           +(uau(1:ifull,k)-uau(isu,k))*emv(isv)/ds*eev(isv))
-  dvdx=0.5*((uav(iev,k)-uav(1:ifull,k))*emu(1:ifull)/ds*eeu(1:ifull) &
-           +(uav(1:ifull,k)-uav(iwv,k))*emu(iwu)/ds*eeu(iwu))
-  dvdy=0.5*((uav(inv,k)-uav(1:ifull,k))*emv(1:ifull)/ds*eev(1:ifull) &
-           +(uav(1:ifull,k)-uav(isv,k))*emv(isv)/ds*eev(isv))
+  dudx=0.5*((uau(ieu,k)-uau(1:ifull,k))*emu(1:ifull)*eeu(1:ifull)/ds &
+           +(uau(1:ifull,k)-uau(iwu,k))*emu(iwu)*eeu(iwu)/ds)
+  dudy=0.5*((uau(inu,k)-uau(1:ifull,k))*emv(1:ifull)*eev(1:ifull)/ds &
+           +(uau(1:ifull,k)-uau(isu,k))*emv(isv)*eev(isv)/ds)
+  dvdx=0.5*((uav(iev,k)-uav(1:ifull,k))*emu(1:ifull)*eeu(1:ifull)/ds &
+           +(uav(1:ifull,k)-uav(iwv,k))*emu(iwu)*eeu(iwu)/ds)
+  dvdy=0.5*((uav(inv,k)-uav(1:ifull,k))*emv(1:ifull)*eev(1:ifull)/ds &
+           +(uav(1:ifull,k)-uav(isv,k))*emv(isv)*eev(isv)/ds)
 
   cc=(dudx-dvdy)**2+(dudy+dvdx)**2
   t_kh(1:ifull,k)=sqrt(cc)*hdif*emi
 end do
+t_kh(1:ifull,wlev+1)=etain
 call bounds(t_kh,nehalf=.true.,gmode=1)
 eta(:)=t_kh(:,wlev+1)
 
@@ -386,6 +386,7 @@ call bounds(uc,gmode=1)
 call bounds(vc,gmode=1)
 call bounds(wc,gmode=1)
 
+! allow drag on momentum along coastlines (but not for scalars, see below)
 do k=1,wlev
 
   base(:,k)=emi+xfact(1:ifull,k)+xfact(iwu,k)+yfact(1:ifull,k)+yfact(isv,k)
