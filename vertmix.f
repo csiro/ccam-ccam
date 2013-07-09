@@ -827,12 +827,8 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
        !rhos=ps(1:ifull)/(rdry*tss(:))
        rhos=sig(1)*ps(1:ifull)/(rdry*t(1:ifull,1))
        
-       if (nh/=0) then         ! Use counter gradient for non-hydrostatic adjustment
-         tnaero=1
-         dumar(:,:,1)=tnhs(:,:)
-       end if
        if (abs(iaero)==2) then ! Use counter gradient for aerosols
-         tnaero=tnaero+2*naero
+         tnaero=2*naero
          dumar(:,:,tnaero-2*naero+1:tnaero-naero)=xtg(1:ifull,:,:)
          dumar(:,:,tnaero-naero+1:tnaero)=xtosav(1:ifull,:,:)
        end if
@@ -887,14 +883,8 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
           stop
        end select
        
-       if (nh/=0) then
-         phi_nh(:,1)=bet(1)*dumar(:,1,1)
-         do k=2,kl
-           phi_nh(:,k)=phi_nh(:,k-1)+bet(k)*dumar(:,k,1)
-     &                             +betm(k)*dumar(:,k-1,1)
-         end do
-       end if
        if (abs(iaero)==2) then
+         tnaero=2*naero
          xtg(1:ifull,:,:)=dumar(:,:,tnaero-2*naero+1:tnaero-naero)
          xtosav(1:ifull,:,:)=dumar(:,:,tnaero-naero+1:tnaero)
        end if
