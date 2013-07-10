@@ -349,14 +349,14 @@ call boundsuv_allvec_mlo(uau,uav)
 
 ! calculate diffusion following Smagorinsky
 do k=1,wlev
-  dudx=0.5*((uau(ieu,k)-uau(1:ifull,k))*emu(1:ifull)*eeu(1:ifull)/ds &
-           +(uau(1:ifull,k)-uau(iwu,k))*emu(iwu)*eeu(iwu)/ds)
-  dudy=0.5*((uau(inu,k)-uau(1:ifull,k))*emv(1:ifull)*eev(1:ifull)/ds &
-           +(uau(1:ifull,k)-uau(isu,k))*emv(isv)*eev(isv)/ds)
-  dvdx=0.5*((uav(iev,k)-uav(1:ifull,k))*emu(1:ifull)*eeu(1:ifull)/ds &
-           +(uav(1:ifull,k)-uav(iwv,k))*emu(iwu)*eeu(iwu)/ds)
-  dvdy=0.5*((uav(inv,k)-uav(1:ifull,k))*emv(1:ifull)*eev(1:ifull)/ds &
-           +(uav(1:ifull,k)-uav(isv,k))*emv(isv)*eev(isv)/ds)
+  dudx=0.5*((uau(ieu,k)-uau(1:ifull,k))*emu(1:ifull)*eeu(1:ifull) &
+           +(uau(1:ifull,k)-uau(iwu,k))*emu(iwu)*eeu(iwu))/ds
+  dudy=0.5*((uau(inu,k)-uau(1:ifull,k))*emv(1:ifull)*eev(1:ifull) &
+           +(uau(1:ifull,k)-uau(isu,k))*emv(isv)*eev(isv))/ds
+  dvdx=0.5*((uav(iev,k)-uav(1:ifull,k))*emu(1:ifull)*eeu(1:ifull) &
+           +(uav(1:ifull,k)-uav(iwv,k))*emu(iwu)*eeu(iwu))/ds
+  dvdy=0.5*((uav(inv,k)-uav(1:ifull,k))*emv(1:ifull)*eev(1:ifull) &
+           +(uav(1:ifull,k)-uav(isv,k))*emv(isv)*eev(isv))/ds
 
   cc=(dudx-dvdy)**2+(dudy+dvdx)**2
   t_kh(1:ifull,k)=sqrt(cc)*hdif*emi
@@ -367,7 +367,7 @@ eta(:)=t_kh(:,wlev+1)
 
 ! reduce diffusion errors where bathymetry gradients are strong
 do k=1,wlev
-  depadj=gosig(k)*(dd+eta)
+  depadj=gosig(k)*max(dd+eta,minwater)
   tx_fact=1./(1.+(abs(depadj(ie)-depadj(1:ifull))/delphi)**nf)
   ty_fact=1./(1.+(abs(depadj(in)-depadj(1:ifull))/delphi)**nf)
 
@@ -1556,8 +1556,8 @@ qdivb=(que*ddu(1:ifull)-quw*ddu(iwu)+qvn*ddv(1:ifull)-qvs*ddv(isv))*em(1:ifull)*
 if (precon<-9999) then
   ! Multi-grid
   call mlomg(tol,itol,neta,sue,svn,suw,svs,pue,pvn,puw,pvs,que,qvn,quw,qvs,                      &
-              pdiv,pdivb,sdiv,sdivb,odiv,odivb,qdiv,qdivb,xps,                                   &
-              ipice,ibu,ibv,idu,idv,niu,niv,sicedep,ipmax,totits,itc,maxglobseta,maxglobip)
+             pdiv,pdivb,sdiv,sdivb,odiv,odivb,qdiv,qdivb,xps,                                    &
+             ipice,ibu,ibv,idu,idv,niu,niv,sicedep,ipmax,totits,itc,maxglobseta,maxglobip)
 else
   ! Usual SOR
   call mlosor(tol,itol,neta,sue,svn,suw,svs,pue,pvn,puw,pvs,que,qvn,quw,qvs,                     &
@@ -1573,15 +1573,15 @@ end if
 if (nud_sfh==0) then
   if (fixheight==0) then
     odum=(neta(1:ifull)-w_e)*ee(1:ifull)
-  else
-    odum=neta(1:ifull)*ee(1:ifull)
-  end if
-  call ccglobal_posneg(odum,delpos,delneg,comm=comm_mlo)
-  alph_p = -delneg/max(delpos,1.E-20)
-  alph_p = min(max(sqrt(alph_p),1.E-20),1.E20)
-  if (fixheight==0) then
+    call ccglobal_posneg(odum,delpos,delneg,comm=comm_mlo)
+    alph_p = -delneg/max(delpos,1.E-20)
+    alph_p = min(max(sqrt(alph_p),1.E-20),1.E20)
     neta(1:ifull)=w_e+max(0.,odum)*alph_p+min(0.,odum)/alph_p
   else
+    odum=neta(1:ifull)*ee(1:ifull)
+    call ccglobal_posneg(odum,delpos,delneg,comm=comm_mlo)
+    alph_p = -delneg/max(delpos,1.E-20)
+    alph_p = min(max(sqrt(alph_p),1.E-20),1.E20)
     neta(1:ifull)=max(0.,odum)*alph_p+min(0.,odum)/alph_p
   end if
 end if
@@ -1797,6 +1797,7 @@ dumt=nt(1:ifull,:)
 dums=ns(1:ifull,:)
 odum=neta(1:ifull)
 call mlodiffusion_main(uau,uav,duma,dumb,odum,dumt,dums)
+call mloimport(4,odum,0,0)
 
 
 ! EXPORT ----------------------------------------------------------------------
@@ -4140,7 +4141,7 @@ subroutine finitedelta(rhobar,neta,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
 
 use indices_m
 use map_m
-use mlo, only : wlev
+use mlo, only : wlev,minwater
 
 implicit none
 
@@ -4158,7 +4159,7 @@ real xp
 ! set-up level depths
 dephladj(:,0)=0.
 do ii=1,wlev
-  dephladj(:,ii)=gosigh(ii)*(dd(:)+neta(:))
+  dephladj(:,ii)=gosigh(ii)*max(dd(:)+neta(:),minwater)
 end do
 
 ! estimate rhobar at half levels
@@ -4206,7 +4207,7 @@ subroutine seekdelta(rhobar,neta,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
 
 use indices_m
 use map_m
-use mlo, only : wlev
+use mlo, only : wlev,minwater
 
 implicit none
 
@@ -4229,7 +4230,7 @@ real xp
 ! set-up level depths
 dephladj(:,0)=0.
 do ii=1,wlev
-  dephladj(:,ii)=gosigh(ii)*(dd(:)+neta(:))
+  dephladj(:,ii)=gosigh(ii)*max(dd(:)+neta(:),minwater)
 end do
 
 ! estimate rhobar at half levels
@@ -4239,6 +4240,11 @@ do ii=1,wlev-1
   rhobarhl(:,ii)=rhobar(:,ii)+xp*(rhobar(:,ii+1)-rhobar(:,ii))/(gosig(ii+1)-gosig(ii))
 end do
 rhobarhl(:,wlev)=rhobar(:,wlev)
+
+drhobardxu=0.
+drhobardyu=0.
+drhobardyv=0.
+drhobardxv=0.
 
 do iqq=1,ifull
   mxi=dd(iqq)
@@ -4251,107 +4257,106 @@ do iqq=1,ifull
   dde=gosig(:)*mxe
   ddn=gosig(:)*mxn
 
-  ! ddu
-  sdi=2
-  sde=2
-  sdn=2
-  sds=2
-  sdne=2
-  sdse=2
-  mxs=dd(is(iqq))
-  mxne=dd(ine(iqq))
-  mxse=dd(ise(iqq))
-  sss=rhobar(is(iqq),:)
-  ssne=rhobar(ine(iqq),:)
-  ssse=rhobar(ise(iqq),:)
-  dds=gosig(:)*mxs
-  ddne=gosig(:)*mxne
-  ddse=gosig(:)*mxse
-  do ii=1,wlev
-    ! process staggered u locations
-    ! use scaled depths (i.e., assume neta is small compared to dd)
-    ddux=gosig(ii)*ddu(iqq) ! seek depth
-    drhobardxu(iqq,ii)=0.
-    drhobardyu(iqq,ii)=0.
-    if (mxi>=ddux.and.mxe>=ddux) then
-      ! estimate vertical gradient
-      drhobardzu=(rhobarhl(iqq,ii)+rhobarhl(ie(iqq),ii)-rhobarhl(iqq,ii-1)-rhobarhl(ie(iqq),ii-1))          &
-                /(dephladj(iqq,ii)+dephladj(ie(iqq),ii)-dephladj(iqq,ii-1)-dephladj(ie(iqq),ii-1))
-      call seekval(ri,ssi(:),ddi(:),ddux,sdi)
-      call seekval(re,sse(:),dde(:),ddux,sde)
-      ! the following terms correct for neglecting neta in the above intepolation of depths
-      ri=ri+drhobardzu*(1.-gosig(ii))*neta(iqq)
-      re=re+drhobardzu*(1.-gosig(ii))*neta(ie(iqq))
-      drhobardxu(iqq,ii)=eeu(iqq)*(re-ri)*emu(iqq)/ds
-      if (mxn>=ddux.and.mxne>=ddux) then
-        call seekval(rn,ssn(:),ddn(:),ddux,sdn)
-        call seekval(rne,ssne(:),ddne(:),ddux,sdne)
-        ! the following terms correct for neglecting neta in the above interpolation of depths
-        rn=rn+drhobardzu*(1.-gosig(ii))*neta(in(iqq))
-        rne=rne+drhobardzu*(1.-gosig(ii))*neta(ine(iqq))
-        drhobardyu(iqq,ii)=drhobardyu(iqq,ii)+0.25*stwgt(iqq,1)*(rn*f(in(iqq))+rne*f(ine(iqq))-ri*f(iqq)-re*f(ie(iqq)))*emu(iqq)/ds
-        drhobardyu(iqq,ii)=drhobardyu(iqq,ii)-0.125*stwgt(iqq,1)*(ri+re)*(f(in(iqq))+f(ine(iqq))-f(iqq)-f(ie(iqq)))*emu(iqq)/ds
+  if (eeu(iqq)>0.5) then ! water
+    sdi=2
+    sde=2
+    sdn=2
+    sds=2
+    sdne=2
+    sdse=2
+    mxs=dd(is(iqq))
+    mxne=dd(ine(iqq))
+    mxse=dd(ise(iqq))
+    sss=rhobar(is(iqq),:)
+    ssne=rhobar(ine(iqq),:)
+    ssse=rhobar(ise(iqq),:)
+    dds=gosig(:)*mxs
+    ddne=gosig(:)*mxne
+    ddse=gosig(:)*mxse
+    do ii=1,wlev
+      ! process staggered u locations
+      ! use scaled depths (i.e., assume neta is small compared to dd)
+      ddux=gosig(ii)*ddu(iqq) ! seek depth
+      if (mxi>=ddux.and.mxe>=ddux) then
+        ! estimate vertical gradient
+        drhobardzu=(rhobarhl(iqq,ii)+rhobarhl(ie(iqq),ii)-rhobarhl(iqq,ii-1)-rhobarhl(ie(iqq),ii-1))          &
+                  /(dephladj(iqq,ii)+dephladj(ie(iqq),ii)-dephladj(iqq,ii-1)-dephladj(ie(iqq),ii-1))
+        call seekval(ri,ssi(:),ddi(:),ddux,sdi)
+        call seekval(re,sse(:),dde(:),ddux,sde)
+        ! the following terms correct for neglecting neta in the above intepolation of depths
+        ri=ri+drhobardzu*(1.-gosig(ii))*neta(iqq)
+        re=re+drhobardzu*(1.-gosig(ii))*neta(ie(iqq))
+        drhobardxu(iqq,ii)=eeu(iqq)*(re-ri)*emu(iqq)/ds
+        if (mxn>=ddux.and.mxne>=ddux) then
+          call seekval(rn, ssn(:), ddn(:), ddux,sdn)
+          call seekval(rne,ssne(:),ddne(:),ddux,sdne)
+          ! the following terms correct for neglecting neta in the above interpolation of depths
+          rn=rn+drhobardzu*(1.-gosig(ii))*neta(in(iqq))
+          rne=rne+drhobardzu*(1.-gosig(ii))*neta(ine(iqq))
+          drhobardyu(iqq,ii)=drhobardyu(iqq,ii)+0.25*stwgt(iqq,1)*(rn*f(in(iqq))+rne*f(ine(iqq))-ri*f(iqq)-re*f(ie(iqq)))*emu(iqq)/ds
+          drhobardyu(iqq,ii)=drhobardyu(iqq,ii)-0.125*stwgt(iqq,1)*(ri+re)*(f(in(iqq))+f(ine(iqq))-f(iqq)-f(ie(iqq)))*emu(iqq)/ds
+        end if
+        if (mxs>=ddux.and.mxse>=ddux) then
+          call seekval(rs, sss(:), dds(:), ddux,sds)
+          call seekval(rse,ssse(:),ddse(:),ddux,sdse)
+          ! the following terms correct for neglecting neta in the above interpolation of depths
+          rs=rs+drhobardzu*(1.-gosig(ii))*neta(is(iqq))
+          rse=rse+drhobardzu*(1.-gosig(ii))*neta(ise(iqq))
+          drhobardyu(iqq,ii)=drhobardyu(iqq,ii)+0.25*stwgt(iqq,2)*(ri*f(iqq)+re*f(ie(iqq))-rs*f(is(iqq))-rse*f(ise(iqq)))*emu(iqq)/ds
+          drhobardyu(iqq,ii)=drhobardyu(iqq,ii)-0.125*stwgt(iqq,2)*(ri+re)*(f(iqq)+f(ie(iqq))-f(is(iqq))-f(ise(iqq)))*emu(iqq)/ds
+        end if
       end if
-      if (mxs>=ddux.and.mxse>=ddux) then
-        call seekval(rs,sss(:),dds(:),ddux,sds)
-        call seekval(rse,ssse(:),ddse(:),ddux,sdse)
-        ! the following terms correct for neglecting neta in the above interpolation of depths
-        rs=rs+drhobardzu*(1.-gosig(ii))*neta(is(iqq))
-        rse=rse+drhobardzu*(1.-gosig(ii))*neta(ise(iqq))
-        drhobardyu(iqq,ii)=drhobardyu(iqq,ii)+0.25*stwgt(iqq,2)*(ri*f(iqq)+re*f(ie(iqq))-rs*f(is(iqq))-rse*f(ise(iqq)))*emu(iqq)/ds
-        drhobardyu(iqq,ii)=drhobardyu(iqq,ii)-0.125*stwgt(iqq,2)*(ri+re)*(f(iqq)+f(ie(iqq))-f(is(iqq))-f(ise(iqq)))*emu(iqq)/ds
-      end if
-    end if
-  end do
+    end do
+  end if
 
-  ! ddv
-  sdi=2
-  sdn=2
-  sde=2
-  sdw=2
-  sden=2
-  sdwn=2
-  mxw=dd(iw(iqq))
-  mxen=dd(ien(iqq))
-  mxwn=dd(iwn(iqq))
-  ssw=rhobar(iw(iqq),:)
-  ssen=rhobar(ien(iqq),:)
-  sswn=rhobar(iwn(iqq),:)
-  ddw=gosig(:)*mxw
-  dden=gosig(:)*mxen
-  ddwn=gosig(:)*mxwn
-  do ii=1,wlev
-    ! now process staggered v locations
-    ddvy=gosig(ii)*ddv(iqq) ! seek depth
-    drhobardyv(iqq,ii)=0.
-    drhobardxv(iqq,ii)=0.
-    if (mxi>=ddvy.and.mxn>=ddvy) then
-      ! estimate vertical gradient
-      drhobardzv=(rhobarhl(iqq,ii)+rhobarhl(in(iqq),ii)-rhobarhl(iqq,ii-1)-rhobarhl(in(iqq),ii-1))          &
-                /(dephladj(iqq,ii)+dephladj(in(iqq),ii)-dephladj(iqq,ii-1)-dephladj(in(iqq),ii-1))
-      call seekval(ri,ssi(:),ddi(:),ddvy,sdi)
-      call seekval(rn,ssn(:),ddn(:),ddvy,sdn)
-      ri=ri+drhobardzv*(1.-gosig(ii))*neta(iqq)
-      rn=rn+drhobardzv*(1.-gosig(ii))*neta(in(iqq))
-      drhobardyv(iqq,ii)=eev(iqq)*(rn-ri)*emv(iqq)/ds
-      if (mxe>=ddvy.and.mxen>=ddvy) then
-        call seekval(re,sse(:),dde(:),ddvy,sde)
-        call seekval(ren,ssen(:),dden(:),ddvy,sden)
-        re=re+drhobardzv*(1.-gosig(ii))*neta(ie(iqq))
-        ren=ren+drhobardzv*(1.-gosig(ii))*neta(ien(iqq))
-        drhobardxv(iqq,ii)=drhobardxv(iqq,ii)+0.25*stwgt(iqq,3)*(re*f(ie(iqq))+ren*f(ien(iqq))-ri*f(iqq)-rn*f(in(iqq)))*emv(iqq)/ds
-        drhobardxv(iqq,ii)=drhobardxv(iqq,ii)-0.125*stwgt(iqq,3)*(ri+rn)*(f(ie(iqq))+f(ien(iqq))-f(iqq)-f(in(iqq)))*emv(iqq)/ds
+  if (eev(iqq)>0.5) then ! water
+    sdi=2
+    sdn=2
+    sde=2
+    sdw=2
+    sden=2
+    sdwn=2
+    mxw=dd(iw(iqq))
+    mxen=dd(ien(iqq))
+    mxwn=dd(iwn(iqq))
+    ssw=rhobar(iw(iqq),:)
+    ssen=rhobar(ien(iqq),:)
+    sswn=rhobar(iwn(iqq),:)
+    ddw=gosig(:)*mxw
+    dden=gosig(:)*mxen
+    ddwn=gosig(:)*mxwn
+    do ii=1,wlev
+      ! now process staggered v locations
+      ddvy=gosig(ii)*ddv(iqq) ! seek depth
+
+      if (mxi>=ddvy.and.mxn>=ddvy) then
+        ! estimate vertical gradient
+        drhobardzv=(rhobarhl(iqq,ii)+rhobarhl(in(iqq),ii)-rhobarhl(iqq,ii-1)-rhobarhl(in(iqq),ii-1))          &
+                  /(dephladj(iqq,ii)+dephladj(in(iqq),ii)-dephladj(iqq,ii-1)-dephladj(in(iqq),ii-1))
+        call seekval(ri,ssi(:),ddi(:),ddvy,sdi)
+        call seekval(rn,ssn(:),ddn(:),ddvy,sdn)
+        ri=ri+drhobardzv*(1.-gosig(ii))*neta(iqq)
+        rn=rn+drhobardzv*(1.-gosig(ii))*neta(in(iqq))
+        drhobardyv(iqq,ii)=eev(iqq)*(rn-ri)*emv(iqq)/ds
+        if (mxe>=ddvy.and.mxen>=ddvy) then
+          call seekval(re, sse(:), dde(:), ddvy,sde)
+          call seekval(ren,ssen(:),dden(:),ddvy,sden)
+          re=re+drhobardzv*(1.-gosig(ii))*neta(ie(iqq))
+          ren=ren+drhobardzv*(1.-gosig(ii))*neta(ien(iqq))
+          drhobardxv(iqq,ii)=drhobardxv(iqq,ii)+0.25*stwgt(iqq,3)*(re*f(ie(iqq))+ren*f(ien(iqq))-ri*f(iqq)-rn*f(in(iqq)))*emv(iqq)/ds
+          drhobardxv(iqq,ii)=drhobardxv(iqq,ii)-0.125*stwgt(iqq,3)*(ri+rn)*(f(ie(iqq))+f(ien(iqq))-f(iqq)-f(in(iqq)))*emv(iqq)/ds
+        end if
+        if (mxw>=ddvy.and.mxwn>=ddvy) then
+          call seekval(rw, ssw(:), ddw(:), ddvy,sdw)
+          call seekval(rwn,sswn(:),ddwn(:),ddvy,sdwn)
+          rw=rw+drhobardzv*(1.-gosig(ii))*neta(iw(iqq))
+          rwn=rwn+drhobardzv*(1.-gosig(ii))*neta(iwn(iqq))
+          drhobardxv(iqq,ii)=drhobardxv(iqq,ii)+0.25*stwgt(iqq,4)*(ri*f(iqq)+rn*f(in(iqq))-rw*f(iw(iqq))-rwn*f(iwn(iqq)))*emv(iqq)/ds
+          drhobardxv(iqq,ii)=drhobardxv(iqq,ii)-0.125*stwgt(iqq,4)*(ri+rn)*(f(iqq)+f(in(iqq))-f(iw(iqq))-f(iwn(iqq)))*emv(iqq)/ds
+        end if
       end if
-      if (mxw>=ddvy.and.mxwn>=ddvy) then
-        call seekval(rw,ssw(:),ddw(:),ddvy,sdw)
-        call seekval(rwn,sswn(:),ddwn(:),ddvy,sdwn)
-        rw=rw+drhobardzv*(1.-gosig(ii))*neta(iw(iqq))
-        rwn=rwn+drhobardzv*(1.-gosig(ii))*neta(iwn(iqq))
-        drhobardxv(iqq,ii)=drhobardxv(iqq,ii)+0.25*stwgt(iqq,4)*(ri*f(iqq)+rn*f(in(iqq))-rw*f(iw(iqq))-rwn*f(iwn(iqq)))*emv(iqq)/ds
-        drhobardxv(iqq,ii)=drhobardxv(iqq,ii)-0.125*stwgt(iqq,4)*(ri+rn)*(f(iqq)+f(in(iqq))-f(iw(iqq))-f(iwn(iqq)))*emv(iqq)/ds
-      end if
-    end if
-  end do
+    end do
+  end if
 
 end do
  

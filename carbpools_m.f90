@@ -35,7 +35,7 @@ frp=0.
 frpw=0.
 frpr=0.
 frs=0.
-if (nsib.eq.4.or.nsib.ge.6) then
+if (nsib==4.or.nsib>=6) then
   if (icycle.eq.0) then
     allocate(cplant(ifull,ncp),csoil(ifull,ncs))
     cplant=0.

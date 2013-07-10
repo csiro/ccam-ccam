@@ -97,7 +97,6 @@ c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
       real entr(ifull),detrfactr(ifull),factr(ifull)
       real fluxqs,fluxt_k(kl)
       real cfraclim(ifull),convtim(ifull)
-      real ff(ifull,kl)
       real, save:: detrainin
       integer, save:: klon2,klon23,k935
       
