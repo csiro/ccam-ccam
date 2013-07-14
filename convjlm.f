@@ -20,7 +20,7 @@
       use sigs_m
       use soil_m
       use soilsnow_m  ! for fracice
-      use tkeeps, only : tke,eps 
+      use tkeeps, only : tke,eps,zidry
       use tracers_m  ! ngas, nllp, ntrac
       use vvel_m
       use work2_m   ! for wetfac    JLM
@@ -97,6 +97,7 @@ c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
       real entr(ifull),detrfactr(ifull),factr(ifull)
       real fluxqs,fluxt_k(kl)
       real cfraclim(ifull),convtim(ifull)
+      real pblx(ifull)
       real, save:: detrainin
       integer, save:: klon2,klon23,k935
       
@@ -379,6 +380,13 @@ c       k=kb_sav(iq)
 c       if(qq(iq,k)+qlg(iq,k)+qfg(iq,k)>qs(iq,k))factr(iq)=1.
 c     enddo
 
+      ! use boundary layer height for dry convection if EDMF is selected
+      if (nvmix==6.and.nlocal==7) then
+        pblx=zidry
+      else
+        pblx=pblh
+      end if
+
 c      following defines kb_sav (as kkbb) for use by nbase=-12     
         kkbb(:)=1
         s(1:ifull,1)=cp*tt(1:ifull,1)+phi(1:ifull,1)  ! dry static energy
@@ -391,13 +399,13 @@ c      following defines kb_sav (as kkbb) for use by nbase=-12
          do iq=1,ifull
 !         find tentative cloud base ! 
 !            (middle of k-1 level, uppermost level below pblh)
-          if(phi(iq,k-1)<pblh(iq)*grav)kkbb(iq)=k-1
+          if(phi(iq,k-1)<pblx(iq)*grav)kkbb(iq)=k-1
          enddo    ! iq loop
        else  ! e.g. nbase=-13
          do iq=1,ifull
 !         find tentative cloud base ! 
 !            (uppermost layer, with approx. bottom of layer below pblh)
-          if(.5*(phi(iq,k-1)+phi(iq,k))<pblh(iq)*grav)kkbb(iq)=k
+          if(.5*(phi(iq,k-1)+phi(iq,k))<pblx(iq)*grav)kkbb(iq)=k
          enddo    ! iq loop
         endif
 c        print *,'k,phi-,phi,pblh*g,kkbb',
@@ -613,7 +621,7 @@ c       0 local max already found
          kb=kb_sav(iq)
          write(6,*) 'k,kkbb,kdown,kb_sav,kt_sav ',
      &            k,kkbb(iq),kdown(iq),kb_sav(iq),kt_sav(iq)
-         write(6,*) 'phi(,k-1)/g,pblh ',phi(iq,k-1)/9.806,pblh(iq)
+         write(6,*) 'phi(,k-1)/g,pblh ',phi(iq,k-1)/9.806,pblx(iq)
          write(6,*) 'qbas,qs(.,k),qq(.,k) ',
      &              qplume(iq,kb),qs(iq,k),qq(iq,k)
          write(6,*) 'splume,qplume,(splume+hl*qplume)/cp,hs(iq,k)/cp ',
@@ -1486,7 +1494,7 @@ c      if(mydiag)print *,'methprec5 detrfactr,detrfactr(idjd)
      &   convpsav(iq),cape(iq)
        write (6,"('pblh,fldow,tdown,qdown,fluxq3',
      &             f8.2,f5.2,f7.2,3p2f8.3,1pf8.2)")
-     &     pblh(iq),fldow(iq),tdown(iq),qdown(iq),fluxq(iq)
+     &     pblx(iq),fldow(iq),tdown(iq),qdown(iq),fluxq(iq)
        write(6,"('ktau,kkbb,wetfac,alfqarr,omega8,-omgtst8',
      &             i5,i3,2f6.3,8pf9.3,f7.3)") ktau,kkbb(idjd),
      &      wetfac(idjd),alfqarr(idjd),omega(idjd),-omgtst(idjd)
