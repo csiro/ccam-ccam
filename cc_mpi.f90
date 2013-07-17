@@ -5302,6 +5302,8 @@ contains
       outfile_end =  outfile_begin
       call vtfuncdef("Onthefly", classhandle, onthefly_begin, ierr)
       onthefly_end =  onthefly_begin
+      call vtfuncdef("Precon", classhandle, precon_begin, ierr)
+      precon_end = precon_begin
       call vtfuncdef("Indata", classhandle, indata_begin, ierr)
       indata_end =  indata_begin
       call vtfuncdef("Nestin", classhandle, nestin_begin, ierr)
@@ -5334,14 +5336,24 @@ contains
       aerosol_end = aerosol_begin
       call vtfuncdef("Waterdynamics", classhandle, waterdynamics_begin, ierr)
       waterdynamics_end =  waterdynamics_begin
+      call vtfuncdef("Water_misc", classhandle, watermisc_begin, ierr)
+      watermisc_end =  watermisc_begin
+      call vtfuncdef("Water_deps", classhandle, waterdeps_begin, ierr)
+      waterdeps_end =  waterdeps_begin 
+      call vtfuncdef("Water_EOS", classhandle, watereos_begin, ierr)
+      watereos_end =  watereos_begin
+      call vtfuncdef("Water_hadv", classhandle, waterhadv_begin, ierr)
+      waterhadv_end =  waterhadv_begin 
+      call vtfuncdef("Water_vadv", classhandle, watervadv_begin, ierr)
+      watervadv_end =  watervadv_begin 
+      call vtfuncdef("Water_helm", classhandle, waterhelm_begin, ierr)
+      waterhelm_end =  waterhelm_begin 
+      call vtfuncdef("Water_iadv", classhandle, wateriadv_begin, ierr)
+      wateriadv_end =  wateriadv_begin 
       call vtfuncdef("Waterdiff", classhandle, waterdiff_begin, ierr)
       waterdiff_end =  waterdiff_begin
       call vtfuncdef("River", classhandle, river_begin, ierr)
       river_end =  river_begin
-      call vtfuncdef("Indata", classhandle, indata_begin, ierr)
-      indata_end = indata_begin
-      call vtfuncdef("Nestin", classhandle, nestin_begin, ierr)
-      nestin_end = nestin_begin
 #endif
 #ifdef simple_timer
 
