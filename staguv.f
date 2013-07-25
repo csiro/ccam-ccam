@@ -27,7 +27,7 @@ c     use diag_m             ! for calls to maxmin
       integer, parameter :: itnmax=3
       integer :: iq, itn, k, i, j
 
-      call start_log(stag_begin)
+      call start_log(stag_begin,'stag')
       if(nmaxpr==1.and.mydiag)then
         write(6,*) '  stag_ktau,nstag,nstagu',ktau,nstag,nstagu
       endif
@@ -185,7 +185,7 @@ c          vout(iq,k)=.5*(vin(inv(iq),k)+vin(iq,k))
          end do
       end do
 
-      call end_log(stag_end)
+      call end_log(stag_end,'stag')
       return
 
       end
@@ -211,7 +211,7 @@ c     staggered u & v as input; unstaggered as output
       save num
       data num/0/
 
-      call start_log(stag_begin)
+      call start_log(stag_begin,'stag')
       if(nmaxpr==1.and.mydiag)then
         write(6,*) 'unstag_ktau,nstag,nstagu',ktau,nstag,nstagu
       endif
@@ -333,6 +333,6 @@ c     staggered u & v as input; unstaggered as output
             vout(iq,k) = va(iq,k)
          end do
       end do
-      call end_log(stag_end)
+      call end_log(stag_end,'stag')
       return
       end        

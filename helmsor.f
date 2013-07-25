@@ -41,7 +41,7 @@
       integer, dimension(1) :: idum
       save  meth, nx_max, axel
 
-      call start_log(helm_begin)
+      call start_log(helm_begin,'helm')
       
       rhs=irhs ! allows subroutine to modify rhs
       
@@ -336,6 +336,6 @@ c        write (6,"('iter,k ,s',2i4,4f14.5)") iter,k,(s(iq,k),iq=1,4)
       
       end if ! precon>=-2899 ..else..
       
-      call end_log(helm_end)
+      call end_log(helm_end,'helm')
       return
       end

@@ -334,7 +334,7 @@ real, dimension(ifull+iextra) :: depadj,eta
 real, dimension(ifull) :: tx_fact,ty_fact
 real, dimension(ifull) :: cc,emi,nu,nv,nw
 
-call start_log(waterdiff_begin)
+call start_log(waterdiff_begin,'waterdiff')
 
 ! Define diffusion scale and grid spacing
 hdif=dt*(ocnsmag/pi)**2
@@ -464,7 +464,7 @@ do k=1,wlev
   call mloimport(3,outv(:,k),k,0)
 end do
 
-call end_log(waterdiff_end)
+call end_log(waterdiff_end,'water_diff')
 
 return
 end subroutine mlodiffusion_main
@@ -896,7 +896,7 @@ real, parameter :: itol   = 2.E1       ! Tolerance for SOR solver (ice)
 
 if (.not.ocnproc) return
 
-call start_log(watermisc_begin)
+call start_log(watermisc_begin,'watermisc')
 
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: Start"
@@ -1053,8 +1053,8 @@ dttdyv=(tide(in)-tide(1:ifull))*emv(1:ifull)/ds
 tideu=0.5*(tide(1:ifull)+tide(ie))
 tidev=0.5*(tide(1:ifull)+tide(in))
 
-call end_log(watermisc_end)
-call start_log(waterdeps_begin)
+call end_log(watermisc_end,'watermisc')
+call start_log(waterdeps_begin,'waterdeps')
 
 ! ADVECT WATER AND ICE ----------------------------------------------
 ! Water currents are advected using semi-Lagrangian advection
@@ -1096,8 +1096,8 @@ do ii=1,wlev
   dzdum(:,ii)=xdzdum(1:ifull,ii)
 end do
 
-call end_log(waterdeps_end)
-call start_log(watereos_begin)
+call end_log(waterdeps_end,'waterdeps')
+call start_log(watereos_begin,'watereos')
 
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: density EOS 1"
@@ -1138,8 +1138,8 @@ do ii=1,wlev
   drhobardyv(:,ii)=drhobardyv(:,ii)/gosigh(ii)
 end do
 
-call end_log(watereos_end)
-call start_log(waterhadv_begin)
+call end_log(watereos_end,'watereos')
+call start_log(waterhadv_begin,'waterhadv')
 
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: continuity equation"
@@ -1220,8 +1220,8 @@ end do
 snu(1:ifull)=i_u-dt*ttau(:,wlev+1)
 snv(1:ifull)=i_v-dt*ttav(:,wlev+1)
 
-call end_log(waterhadv_end)
-call start_log(watervadv_begin)
+call end_log(waterhadv_end,'waterhadv')
+call start_log(watervadv_begin,'watervadv')
 
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: water vertical advection 1"
@@ -1236,8 +1236,8 @@ ns(1:ifull,:)=dums
 nt(1:ifull,:)=dumt
 mps(1:ifull,:)=duma
 
-call end_log(watervadv_end)
-call start_log(waterhadv_begin)
+call end_log(watervadv_end,'watervadv')
+call start_log(waterhadv_begin,'waterhadv')
 
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: horizontal advection"
@@ -1277,8 +1277,8 @@ do ii=1,wlev
   uav(:,ii)=uav(:,ii)*ee(1:ifull)
 end do
 
-call end_log(waterhadv_end)
-call start_log(watervadv_begin)
+call end_log(waterhadv_end,'waterhadv')
+call start_log(watervadv_begin,'watervadv')
 
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: water vertical advection 2"
@@ -1302,8 +1302,8 @@ do ii=2,wlev
 end do
 xps=xps*ee(1:ifull)
 
-call end_log(watervadv_end)
-call start_log(watereos_begin)
+call end_log(watervadv_end,'watervadv')
+call start_log(watereos_begin,'watereos')
 
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: density EOS 2"
@@ -1345,8 +1345,8 @@ end if
 
 ! FREE SURFACE CALCULATION ----------------------------------------
 
-call end_log(watereos_end)
-call start_log(waterhelm_begin)
+call end_log(watereos_end,'watereos')
+call start_log(waterhelm_begin,'waterhelm')
 
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: free surface"
@@ -1616,8 +1616,8 @@ do ii=1,wlev
   nv(1:ifull,ii)=kkv(:,ii)+ppv(:,ii)+oov(:,ii)*oev+llv(:,ii)*max(oev(1:ifull)+ddv(1:ifull),0.)+mmv(:,ii)*detadyv+nnv(:,ii)*detadxv
 end do
 
-call end_log(waterhelm_end)
-call start_log(wateriadv_begin)
+call end_log(waterhelm_end,'waterhelm')
+call start_log(wateriadv_begin,'wateriadv')
 
 ! Update ice velocity with internal pressure terms
 tnu=0.5*(ipice(in)*f(in)+ipice(ine)*f(ine))
@@ -1727,8 +1727,8 @@ nv(1:ifull,:)=ttav(:,1:wlev)
 niu(1:ifull)=ttau(:,wlev+1)
 niv(1:ifull)=ttav(:,wlev+1)
 
-call end_log(wateriadv_end)
-call start_log(watermisc_begin)
+call end_log(wateriadv_end,'wateriadv')
+call start_log(watermisc_begin,'watermisc')
 
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: conserve salinity"
@@ -1782,7 +1782,7 @@ if (myid==0.and.(ktau<=5.or.maxglobseta>tol.or.maxglobip>itol)) then
   write(6,*) "MLODYNAMICS ",totits,itc,maxglobseta,maxglobip
 end if
 
-call end_log(watermisc_end)
+call end_log(watermisc_end,'watermisc')
 
 ! DIFFUSION -------------------------------------------------------------------
 if (myid==0.and.nmaxpr==1) then
@@ -1803,7 +1803,7 @@ call mloimport(4,odum,0,0)
 ! EXPORT ----------------------------------------------------------------------
 ! Water data is exported in mlodiffusion
 
-call start_log(watermisc_begin)
+call start_log(watermisc_begin,'watermisc')
 
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: Export"
@@ -1829,7 +1829,7 @@ if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: Finish"
 end if
 
-call end_log(watermisc_end)
+call end_log(watermisc_end,'watermisc')
 
 return
 end subroutine mlohadv
@@ -2899,7 +2899,7 @@ logical, dimension(ifull) :: euetest,euwtest,evntest,evstest
 logical, dimension(ifull) :: euewtest,evnstest,eutest,evtest
 logical ltest
 
-call start_log(ocnstag_begin)
+call start_log(ocnstag_begin,'ocnstag')
 
 if (.not.allocated(wtul)) then
   allocate(wtul(ifull+iextra,0:3),wtvl(ifull+iextra,0:3))
@@ -3348,7 +3348,7 @@ end if
 uout=ua(1:ifull,:)
 vout=va(1:ifull,:)
 
-call end_log(ocnstag_end)
+call end_log(ocnstag_end,'ocnstag')
 
 return
 end subroutine mlostaguv
@@ -3390,7 +3390,7 @@ logical, dimension(ifull) :: euewtest,evnstest
 logical, dimension(ifull) :: eeetest,ewwtest,enntest,esstest
 logical ltest
 
-call start_log(ocnstag_begin)
+call start_log(ocnstag_begin,'ocnstag')
 
 if (.not.allocated(wtul)) then
   allocate(wtul(ifull+iextra,0:3),wtvl(ifull+iextra,0:3))
@@ -3936,7 +3936,7 @@ end if
 uout=ua(1:ifull,:)
 vout=va(1:ifull,:)
 
-call end_log(ocnstag_end)
+call end_log(ocnstag_end,'ocnstag')
 
 return
 end subroutine mlounstaguv

@@ -2190,7 +2190,7 @@ c      "extra" outputs
       data month/'jan','feb','mar','apr','may','jun'
      &          ,'jul','aug','sep','oct','nov','dec'/      
 
-      call start_log(outfile_begin)
+      call start_log(outfile_begin,'outfile')
 
       ! allocate arrays and open new file
       if (first) then
@@ -2455,7 +2455,7 @@ c      "extra" outputs
         end if
       end if
       
-      call end_log(outfile_end)
+      call end_log(outfile_end,'outfile')
       
       return
       end subroutine freqfile

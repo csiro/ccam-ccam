@@ -173,7 +173,7 @@ c     using av_vmod (1. for no time averaging)
       if(ntsur/=7)vmod(:)=vmag(:)	! gives usual way
 
       !--------------------------------------------------------------
-      call start_log(sfluxwater_begin)
+      call start_log(sfluxwater_begin,'sfluxwater')
       if (nmlo==0) then                                                 ! sea
        if(ntest==2.and.mydiag)write(6,*) 'before sea loop'              ! sea
 !       from June '03 use basic sea temp from tgg1 (so leads is sensible)      
@@ -576,9 +576,9 @@ c       Surface stresses taux, tauy: diagnostic only - unstag now       ! sice
         write(6,*) "ERROR: this option is for PCOM ocean model"         ! PCOM
         stop                                                            ! PCOM
       end if                                                            ! PCOM
-      call end_log(sfluxwater_end)
+      call end_log(sfluxwater_end,'sfluxwater')
       !--------------------------------------------------------------      
-      call start_log(sfluxland_begin)                                   ! land
+      call start_log(sfluxland_begin,'sfluxland')                       ! land
       select case(nsib)                                                 ! land
         case(3,5)                                                       ! land
 !cdir nodep
@@ -843,9 +843,9 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
           write(6,*) "ERROR: Unknown land-use option nsib=",nsib        ! land
           stop                                                          ! land
       end select                                                        ! land
-      call end_log(sfluxland_end)                                       ! land
+      call end_log(sfluxland_end,'sfluxland')                           ! land
       !----------------------------------------------------------
-      call start_log(sfluxurban_begin)                                  ! urban
+      call start_log(sfluxurban_begin,'sfluxurban')                     ! urban
       if (myid==0.and.nmaxpr==1) then                                   ! urban
         write(6,*) "Before urban"                                       ! urban
       end if                                                            ! urban
@@ -903,7 +903,7 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
       if (myid==0.and.nmaxpr==1) then                                   ! urban
         write(6,*) "After urban"                                        ! urban
       end if                                                            ! urban
-      call end_log(sfluxurban_end)                                      ! urban
+      call end_log(sfluxurban_end,'sfluxurban')                         ! urban
 c ----------------------------------------------------------------------
       evap(:)=evap(:)+dt*eg(:)/hl !time integ value in mm (wrong for snow)
 

@@ -183,6 +183,10 @@
       data itr1/23/,jtr1/13/,itr2/25/,jtr2/11/
       data comment/' '/,comm/' '/,irest/1/,jalbfix/1/,nalpha/1/
       data mexrest/6/,mins_rad/60/,nwrite/0/,nsnowout/999999/
+
+#ifdef vampir
+#include "vt_user.inc"
+#endif
  
 #ifndef stacklimit
       ! For linux only
@@ -210,7 +214,7 @@
       call log_off()
       call log_setup()
 #ifdef simple_timer
-      call start_log(model_begin)
+      call start_log(model_begin,'model')
 #endif
 
 
@@ -1010,7 +1014,7 @@
       end if
       call log_on()
 #ifdef simple_timer
-      call start_log(maincalc_begin)
+      call start_log(maincalc_begin,'main_calc')
 #endif
 
       do 88 kktau=1,ntau   ! ****** start of main time loop
@@ -1026,9 +1030,9 @@
 
       ! NESTING ---------------------------------------------------------------
       if (nbd/=0) then
-        call start_log(nestin_begin)
+        call start_log(nestin_begin,'nestin')
         call nestin(iaero)
-        call end_log(nestin_end)
+        call end_log(nestin_end,'nestin')
       end if
       
       ! TRACERS ---------------------------------------------------------------
@@ -1230,7 +1234,7 @@
       
       ! NESTING ---------------------------------------------------------------
       ! nesting now after mass fixers
-      call start_log(nestin_begin)
+      call start_log(nestin_begin,'nestin')
       if (mspec==1) then
         if (mbd/=0) then
           call nestinb(iaero)
@@ -1238,7 +1242,7 @@
           call davies
         end if
       end if
-      call end_log(nestin_end)
+      call end_log(nestin_end,'nestin')
 
       ! DYNAMICS --------------------------------------------------------------
       if(mspec==2)then     ! for very first step restore mass & T fields
@@ -1259,12 +1263,12 @@
       endif
 
       ! DIFFUSION -------------------------------------------------------------
-      call start_log(hordifg_begin)
+      call start_log(hordifg_begin,'hordifg')
       if (nhor<0) then
         call hordifgt(iaero)  ! now not tendencies
       end if
       if (diag.and.mydiag) write(6,*) 'after hordifgt t ',t(idjd,:)
-      call end_log(hordifg_end)
+      call end_log(hordifg_end,'hordifg')
 
       ! ***********************************************************************
       ! START OCEAN DYNAMICS
@@ -1278,7 +1282,7 @@
 
       if (abs(nmlo)>=2) then
         ! RIVER ROUTING ------------------------------------------------------
-        call start_log(river_begin)
+        call start_log(river_begin,'river')
         if (myid==0.and.nmaxpr==1) then
           write(6,*) "Before river"
         end if
@@ -1286,10 +1290,10 @@
         if (myid==0.and.nmaxpr==1) then
           write(6,*) "After river"
         end if
-        call end_log(river_end)
+        call end_log(river_end,'river')
       end if
 
-      call start_log(waterdynamics_begin)
+      call start_log(waterdynamics_begin,'waterdynamics')
       if (abs(nmlo)>=3) then
         ! DYNAMICS & DIFFUSION ------------------------------------------------
         if (myid==0.and.nmaxpr==1) then
@@ -1309,16 +1313,16 @@
           write(6,*) "After MLO diffusion"
         end if
       end if
-      call end_log(waterdynamics_end)
+      call end_log(waterdynamics_end,'waterdynamics')
       
 
       ! ***********************************************************************
       ! START PHYSICS 
       ! ***********************************************************************
-      call start_log(phys_begin)
+      call start_log(phys_begin,'phys')
 
       ! GWDRAG ----------------------------------------------------------------
-      call start_log(gwdrag_begin)
+      call start_log(gwdrag_begin,'gwrag')
       if (myid==0.and.nmaxpr==1) then
         write(6,*) "Before gwdrag"
       end if
@@ -1326,10 +1330,10 @@
       if (myid==0.and.nmaxpr==1) then
         write(6,*) "After gwdrag"
       end if
-      call end_log(gwdrag_end)
+      call end_log(gwdrag_end,'gwrag')
 
       ! CONVECTION ------------------------------------------------------------
-      call start_log(convection_begin)
+      call start_log(convection_begin,'convection')
       if (myid==0.and.nmaxpr==1) then
         write(6,*) "Before convection"
       end if
@@ -1354,10 +1358,10 @@
       if (myid==0.and.nmaxpr==1) then
         write(6,*) "After convection"
       end if
-      call end_log(convection_end)
+      call end_log(convection_end,'convection')
 
       ! CLOUD MICROPHYSICS ----------------------------------------------------
-      call start_log(cloud_begin)
+      call start_log(cloud_begin,'cloud')
       if (myid==0.and.nmaxpr==1) then
         write(6,*) "Before cloud microphysics"
       end if
@@ -1382,14 +1386,14 @@
       if (myid==0.and.nmaxpr==1) then
         write(6,*) "After cloud microphysics"
       end if
-      call end_log(cloud_end)
+      call end_log(cloud_end,'cloud')
 
       ! RADIATION -------------------------------------------------------------
       
       ! nrad=4 Fels-Schwarzkopf radiation
       ! nrad=5 SEA-ESF radiation
 
-      call start_log(radnet_begin)
+      call start_log(radnet_begin,'radnet')
       if (myid==0.and.nmaxpr==1) then
         write(6,*) "Before radiation"
       end if
@@ -1420,7 +1424,7 @@
       if (myid==0.and.nmaxpr==1) then
         write(6,*) "After radiation"
       end if
-      call end_log(radnet_end)
+      call end_log(radnet_end,'radnet')
 
       ! HELD & SUAREZ ---------------------------------------------------------
       if (ntsur<=1.or.nhstest==2) then ! Held & Suarez or no surf fluxes
@@ -1442,7 +1446,7 @@
          
        ! SURFACE FLUXES ---------------------------------------------
        ! (Includes ocean dynamics and mixing, as well as ice dynamics and thermodynamics)
-       call start_log(sfluxnet_begin)
+       call start_log(sfluxnet_begin,'sfluxnet')
        if (myid==0.and.nmaxpr==1) then
         write(6,*) "Before surface fluxes"
        end if
@@ -1453,7 +1457,7 @@
        if (myid==0.and.nmaxpr==1) then
         write(6,*) "After surface fluxes"
        end if
-       call end_log(sfluxnet_end)
+       call end_log(sfluxnet_end,'sfluxnet')
        
        ! STATION OUTPUT ---------------------------------------------
        if (nstn>0.and.nrotstn(1)==0) call stationa ! write every time step
@@ -1544,13 +1548,13 @@
        write(6,*) "Before PBL mixing"
       end if
       if (ntsur>=1) then ! calls vertmix but not sflux for ntsur=1
-        call start_log(vertmix_begin)
+        call start_log(vertmix_begin,'vertmix')
         if(nmaxpr==1.and.mydiag)
      &    write (6,"('pre-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
         call vertmix(iaero) 
         if(nmaxpr==1.and.mydiag)
      &    write (6,"('aft-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
-        call end_log(vertmix_end)
+        call end_log(vertmix_end,'vertmix')
       endif  ! (ntsur>=1)
       if (myid==0.and.nmaxpr==1) then
        write(6,*) "After PBL mixing"
@@ -1563,7 +1567,7 @@
 
       ! AEROSOLS --------------------------------------------------------------
       if (abs(iaero)>=2) then
-        call start_log(aerosol_begin)
+        call start_log(aerosol_begin,'aerosol')
          if (myid==0.and.nmaxpr==1) then
          write(6,*) "Before aerosols"
         end if
@@ -1571,7 +1575,7 @@
         if (myid==0.and.nmaxpr==1) then
          write(6,*) "After aerosols"
         end if
-        call end_log(aerosol_end)
+        call end_log(aerosol_end,'aerosol')
       end if
 
       ! PHYSICS LOAD BALANCING ------------------------------------------------
@@ -1581,7 +1585,7 @@
 #ifdef loadbal
       call phys_loadbal
 #endif
-      call end_log(phys_end)
+      call end_log(phys_end,'phys')
 
       ! ***********************************************************************
       ! TRACERS
@@ -1837,14 +1841,14 @@
         if(ktau==ntau.and.irest==1) then
           ! Don't include the time for writing the restart file
 #ifdef simple_timer
-          call end_log(maincalc_end)
+          call end_log(maincalc_end,'maincalc')
 #endif
 !         write restart file
           call outfile(19,rundate,nmi,nwrite,iaero,nstagin)
           if(myid==0)
      &      write(6,*)'finished writing restart file in outfile'
 #ifdef simple_timer
-          call start_log(maincalc_begin)
+          call start_log(maincalc_begin,'maincalc')
 #endif
         endif  ! (ktau==ntau.and.irest==1)
       endif    ! (ktau==ntau.or.mod(ktau,nwt)==0)
@@ -1980,12 +1984,12 @@
 
 #ifdef vampir
       ! Flush vampir trace information to disk to save memory.
-      call vtflush(ierr)
+      VT_BUFFER_FLUSH()
 #endif
 
 88    continue                   ! *** end of main time loop
 #ifdef simple_timer
-      call end_log(maincalc_end)
+      call end_log(maincalc_end,'maincalc')
 #endif
       call log_off()
       if (myid==0) then
@@ -2001,7 +2005,7 @@
          write(6,*) "Model time in main loop",aa
       end if
 #ifdef simple_timer
-      call end_log(model_end)
+      call end_log(model_end,'model')
       call simple_timer_finalize
 #endif
 

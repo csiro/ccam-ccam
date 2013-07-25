@@ -112,7 +112,7 @@ c     Stuff from cldset
       data first /.true./
       include 'establ.h'
 
-      call start_log(radmisc_begin)
+      call start_log(radmisc_begin,'radmisc')
 
       kcl_top=kl-2
       imax=ixin
@@ -506,8 +506,8 @@ c         write(24,*)coszro2
         end do
       endif
 
-      call end_log(radmisc_end)
-      call start_log(radsw_begin)
+      call end_log(radmisc_end,'radmisc')
+      call start_log(radsw_begin,'radsw')
 c     Cloudy sky calculation
       cldoff=.false.
       if(ldr.ne.0)then  !Call LDR cloud scheme
@@ -550,15 +550,15 @@ c       print *,'soutclr ',(soutclr(i),i=1,imax)
 c       print *,'sg ',(sg(i),i=1,imax)
 c       print *,'cuvrf ',(cuvrf(i),i=1,imax)
       endif
-      call end_log(radsw_end)      
+      call end_log(radsw_end,'radsw')      
 
-      call start_log(radlw_begin)
+      call start_log(radlw_begin,'radlw')
       call clo89
       if(ndi<0.and.nmaxpr==1)
      &     write(6,*)'before lwr88 ktau,j,myid ',ktau,j,myid
       call lwr88
-      call end_log(radlw_end)
-      call start_log(radmisc_begin)
+      call end_log(radlw_end,'radlw')
+      call start_log(radmisc_begin,'radmisc')
 
       do i=1,imax
          rt(i) = ( gxcts(i)+flx1e1(i) ) * h1m3          ! longwave at top
@@ -743,7 +743,7 @@ c       endif
      .          cloudlo(idjd),cloudmi(idjd),cloudhi(idjd),cloudtot(idjd)
       endif
       
-      call end_log(radmisc_end)
+      call end_log(radmisc_end,'radmisc')
       
       return
       end

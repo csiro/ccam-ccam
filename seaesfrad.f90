@@ -125,7 +125,7 @@ type(aerosol_diagnostics_type), save ::     Aerosol_diags
 type(lw_table_type), save ::                Lw_tables
 real(kind=8), dimension(:,:,:,:), allocatable, save :: r
 
-call start_log(radmisc_begin)
+call start_log(radmisc_begin,'radmisc')
 
 if (nmaxpr==1.and.myid==0) then
   write(6,*) "seaesfrad: Starting SEA-ESF radiation"
@@ -787,8 +787,8 @@ do j=1,jl,imax/il
     Astro%fracday(:,1)=taudar
     swcount=swcount+count(coszro>0.)
 
-    call end_log(radmisc_end)
-    call start_log(radlw_begin)
+    call end_log(radmisc_end,'radmisc')
+    call start_log(radlw_begin,'radlw')
     if (nmaxpr==1.and.myid==0) then
       write(6,*) "seaesfrad: Longwave radiation"
     end if
@@ -796,9 +796,9 @@ do j=1,jl,imax/il
                           Rad_gases, Aerosol, Aerosol_props,     &
                           Cldrad_props, Cld_spec, Aerosol_diags, &
                           Lw_output)
-    call end_log(radlw_end)
+    call end_log(radlw_end,'radlw')
 
-    call start_log(radsw_begin)
+    call start_log(radsw_begin,'radsw')
     if (nmaxpr==1.and.myid==0) then
       write(6,*) "seaesfrad: Shortwave radiation"
     end if
@@ -806,8 +806,8 @@ do j=1,jl,imax/il
                            Astro, Aerosol, Aerosol_props, Rad_gases, &
                            Cldrad_props, Cld_spec, Sw_output,        &
                            Aerosol_diags, r)
-    call end_log(radsw_end)
-    call start_log(radmisc_begin)
+    call end_log(radsw_end,'radsw')
+    call start_log(radmisc_begin,'radmisc')
 
     if (nmaxpr==1.and.myid==0) then
       write(6,*) "seaesfrad: Process SEA-ESF output"
@@ -1004,7 +1004,7 @@ if (nmaxpr==1.and.myid==0) then
   write(6,*) "seaesfrad: Finishing SEA-ESF radiation"
 end if
 
-call end_log(radmisc_end)
+call end_log(radmisc_end,'radmisc')
 
 return
 end subroutine seaesfrad

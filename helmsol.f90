@@ -37,7 +37,7 @@
 !     Temporary array for the drpdr_local function
       real, dimension(ifull) :: tmparr, tmparr2 
 
-      call start_log(helm_begin)
+      call start_log(helm_begin,'helm')
       
       klim = kl ! All modes at first
 
@@ -113,7 +113,7 @@
          sigma(k)=real(local_sum(k))
          gamma_1(k)=real(local_sum(klim+k))
       end do
-      call start_log(reduce_begin)
+      call start_log(reduce_begin,'reduce')
 #ifdef sumdd
       call ccmpi_allreduce(local_sum(1:2*klim),global_sum(1:2*klim),"sumdr",comm_world)
       gsigma(1:klim) = real(global_sum(1:klim))
@@ -126,7 +126,7 @@
       ggamma_1(1:klim) = garr(klim+1:2*klim)
 #endif
       local_sum(1:2*klim) = (0.,0.) ! Still need the later part.
-      call end_log(reduce_end)
+      call end_log(reduce_end,'reduce')
       alpha(1:klim) = ggamma_1(1:klim) / gsigma(1:klim)
       do k=1,klim
          s(1:ifull,k) = s(1:ifull,k) + alpha(k) * d(1:ifull,k)
@@ -172,7 +172,7 @@
               delta(k)=real(local_sum(klim+k))
            end do
             
-           call start_log(reduce_begin)
+           call start_log(reduce_begin,'reduce')
 #ifdef sumdd
            call ccmpi_allreduce(local_sum(1:3*klim),global_sum(1:3*klim),"sumdr",comm_world)
            ggamma_1(1:klim) = real(global_sum(1:klim))
@@ -188,7 +188,7 @@
            gsmag(1:klim) = garr(2*klim+1:3*klim)
 #endif
            local_sum = (0.,0.)
-           call end_log(reduce_end)
+           call end_log(reduce_end,'reduce')
            if ( (diag .or. ktau<6 .or. itmax-iter.lt.50) .and. myid == 0 ) then
               write(6,'("Iterations",i4,i3,6g13.6/(10x,6g13.6))')   &
      &                   iter, klim, sqrt(abs(ggamma_1(1:klim)))
@@ -255,7 +255,7 @@
               gamma_1(k)=real(local_sum(k))
            end do
             
-           call start_log(reduce_begin)
+           call start_log(reduce_begin,'reduce')
 #ifdef sumdd
            call ccmpi_allreduce(local_sum(1:2*klim),global_sum(1:2*klim),"sumdr",comm_world) 
            ggamma_1(1:klim) = real(global_sum(1:klim))
@@ -268,7 +268,7 @@
            gsmag(1:klim) = garr(klim+1:2*klim)
 #endif
            local_sum = (0.,0.)
-           call end_log(reduce_end)
+           call end_log(reduce_end,'reduce')
            if ( (diag .or. ktau<6 .or. itmax-iter<50) .and. myid == 0 ) then
               write(6,'("Iterations",i4,i3,6g13.6/(10x,6g13.6))')   &
      &                   iter, klim, sqrt(abs(ggamma_1(1:klim)))
@@ -320,7 +320,7 @@
              sigma(k)=real(local_sum(k))
            end do     
 
-           call start_log(reduce_begin)
+           call start_log(reduce_begin,'reduce')
 #ifdef sumdd
            call ccmpi_allreduce(local_sum(1:klim),global_sum(1:klim),"sumdr",comm_world)
            gsigma(1:klim) = real(global_sum(1:klim))
@@ -330,7 +330,7 @@
            gsigma(1:klim) = garr(1:klim)
 #endif
            local_sum(1:klim) = (0.,0.) ! Still need the later part.
-           call end_log(reduce_end)        
+           call end_log(reduce_end,'reduce')        
          
            alpha(1:klim) = ggamma_1(1:klim) / gsigma(1:klim)
            smag(1:klim) = 0.
@@ -358,6 +358,6 @@
       
       end select
 
-      call end_log(helm_end)
+      call end_log(helm_end,'helm')
 
    end subroutine helmsol
