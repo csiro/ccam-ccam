@@ -137,7 +137,7 @@
      &             ,thlapse
 
 
-      call start_log(indata_begin)
+      call start_log(indata_begin,'indata')
 
       !--------------------------------------------------------------
       ! SET DEFAULT VALUES
@@ -2153,7 +2153,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
       endif     !  (nstn>0)
 
       
-      call end_log(indata_end)
+      call end_log(indata_end,'indata')
       return
       end
 

@@ -5084,7 +5084,9 @@ contains
       integer :: ierr
 #ifdef vampir
 #include "vt_user.inc"
-      VT_USER_START(event_name)
+      if(present(event_name)) then
+        VT_USER_START(event_name)
+      endif
 #endif
 #ifdef mpilog
       ierr = MPE_log_event(event,0,"")
@@ -5103,7 +5105,9 @@ contains
       integer :: ierr
 #ifdef vampir
 #include "vt_user.inc"
-      VT_USER_END(event_name)
+      if(present(event_name)) then
+        VT_USER_END(event_name)
+      endif
 #endif
 #ifdef mpilog
       ierr = MPE_log_event(event,0,"")

@@ -123,7 +123,7 @@ contains
       real :: tmpsum
 
 
-      call start_log(precon_begin)
+      call start_log(precon_begin,'precon')
       ! Solve Cx=rhs, where C is in sparse LU form
 
 !      ifull = size(rhs)
@@ -148,7 +148,7 @@ contains
          x(i,k) = (y(i) -tmpsum) * ppinv(i,k)
       end do
 
-      call end_log(precon_end)
+      call end_log(precon_end,'precon')
    end subroutine ilusolve
 
 end module ilu_m

@@ -15,7 +15,7 @@
       character rundate*8,qgout*20
       character co2out*80,radonout*80,surfout*80
 
-      call start_log(outfile_begin)
+      call start_log(outfile_begin,'outfile')
       
       io_outt=io_out
       if(iout==19)io_outt=io_rest  !  choice for writing restart file
@@ -123,6 +123,6 @@ c---------------------------------------------------------------------------
          end if ! (iout==19) ..else..
       endif ! (io_outt.eq.1)
 
-      call end_log(outfile_end)
+      call end_log(outfile_end,'outfile')
       return
       end
