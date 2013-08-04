@@ -1956,23 +1956,23 @@ do ii=1,kx
   yd=ystr/denxyz
   zd=zstr/denxyz
 
-  where (abs(xstr-denxyz)<1.E-6)
+  where (abs(xstr-denxyz)<1.E-8)
     nface(:,ii)    =0
     xg(:,ii) =      yd
     yg(:,ii) =      zd
-  elsewhere (abs(xstr+denxyz)<1.E-6)
+  elsewhere (abs(xstr+denxyz)<1.E-8)
     nface(:,ii)    =3
     xg(:,ii) =     -zd
     yg(:,ii) =     -yd
-  elsewhere (abs(zstr-denxyz)<1.E-6)
+  elsewhere (abs(zstr-denxyz)<1.E-8)
     nface(:,ii)    =1
     xg(:,ii) =      yd
     yg(:,ii) =     -xd
-  elsewhere (abs(zstr+denxyz)<1.E-6)
+  elsewhere (abs(zstr+denxyz)<1.E-8)
     nface(:,ii)    =4
     xg(:,ii) =      xd
     yg(:,ii) =     -yd
-  elsewhere (abs(ystr-denxyz)<1.E-6)
+  elsewhere (abs(ystr-denxyz)<1.E-8)
     nface(:,ii)    =2
     xg(:,ii) =     -zd
     yg(:,ii) =     -xd
@@ -1983,8 +1983,8 @@ do ii=1,kx
   end where
 
   !     use 4* resolution grid il --> 4*il
-  xg(:,ii)=min(max(-.99999,xg(:,ii)),.99999)
-  yg(:,ii)=min(max(-.99999,yg(:,ii)),.99999)
+  xg(:,ii)=min(max(-.999999,xg(:,ii)),.999999)
+  yg(:,ii)=min(max(-.999999,yg(:,ii)),.999999)
   !      first guess for ri, rj and nearest i,j
   ri=1.+(1.+xg(:,ii))*real(2*il_g)
   rj=1.+(1.+yg(:,ii))*real(2*il_g)
@@ -2003,10 +2003,10 @@ do ii=1,kx
       ri(iq)=real(i)+real(is)*((xg(iq,ii)-xx4(i,j))*dyy-(yg(iq,ii)-yy4(i,j))*dyx)/den(iq)
       rj(iq)=real(j)+real(js)*((yg(iq,ii)-yy4(i,j))*dxx-(xg(iq,ii)-xx4(i,j))*dxy)/den(iq)
       
-      ri(iq) = min(ri(iq),1.0+1.99999*2*il_g)
-      ri(iq) = max(ri(iq),1.0+0.00001*2*il_g)
-      rj(iq) = min(rj(iq),1.0+1.99999*2*il_g)
-      rj(iq) = max(rj(iq),1.0+0.00001*2*il_g)
+      ri(iq) = min(ri(iq),1.0+1.999999*real(2*il_g))
+      ri(iq) = max(ri(iq),1.0+0.000001*real(2*il_g))
+      rj(iq) = min(rj(iq),1.0+1.999999*real(2*il_g))
+      rj(iq) = max(rj(iq),1.0+0.000001*real(2*il_g))
       
     end do
   end do  ! loop loop

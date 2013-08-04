@@ -4351,7 +4351,11 @@ contains
                write(6,*) "myid,iproc,neighbour,dslen,len ",myid,iproc,neighbour(iproc),dslen(iproc),msglen(iproc)
                iq = dindex(iproc)%a(1,1)
                k = dindex(iproc)%a(2,1)
-               write(6,*) "Example error iq,k,u,v ",iq,k,u(iq,k),v(iq,k)
+	       if ( lmode == 0 ) then
+                  write(6,*) "Example Atm error iq,k,u,v ",iq,k,u(iq,k),v(iq,k)
+               else
+                  write(6,*) "Ocn error iq,k ",iq,k
+	       end if
                write(6,*) "dbuf ",dbuf(iproc)%a(:,1)
                write(6,*) "neighlistrecv ",neighlistrecv
                call checksize(dslen(iproc),msglen(iproc),"Deptssync")
