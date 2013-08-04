@@ -253,7 +253,7 @@ c       this is in-line ocenzo using latest coefficient, i.e. .018      ! sea
              daf=2.*af(iq)*afroot/(vkar*zo(iq))                         ! sea
              zo(iq)=max(1.5e-5,zo(iq)-(zo(iq)-con*af(iq))/              ! sea
      &                 (1.-con*daf))                                    ! sea
-             zo(iq)=min(zo(iq),13.) ! JLM fix                           ! sea
+             zo(iq)=min(zo(iq),9.) ! JLM fix                            ! sea
             enddo    ! it=1,3                                           ! sea
             afroot=vkar/log(zmin/zo(iq))                                ! sea
             af(iq)=afroot**2                                            ! sea
@@ -269,7 +269,7 @@ c       this is in-line ocenzo using latest coefficient, i.e. .018      ! sea
              dfm=2.*bprm*ri(iq)*dden/den**2                             ! sea
              zo(iq)=max(1.5e-5,zo(iq)-(zo(iq)-consea*af(iq)*fm)/        ! sea
      .                        (1.-consea*(daf*fm+af(iq)*dfm)))          ! sea
-             zo(iq)=min(zo(iq),13.) ! JLM fix                           ! sea
+             zo(iq)=min(zo(iq),9.) ! JLM fix                            ! sea
             enddo  ! it=1,3                                             ! sea
           endif    ! (xx>0.) .. else..                                  ! sea
          endif     ! (charnock<-1.) .. else ..                          ! sea

@@ -1898,7 +1898,7 @@ select case(zomode)
         dcon=consea*dfm*vmag
         p_zo=p_zo-(p_zo-con*af)/(1.-dcon*af-con*daf)
       end where
-      p_zo=min(max(p_zo,1.5e-5),13.)
+      p_zo=min(max(p_zo,1.5e-5),9.)
     enddo    ! it=1,4
   case(2) ! Beljaars
     p_zo=0.001    ! first guess
@@ -1919,7 +1919,7 @@ select case(zomode)
         dcs=(zcom1*vmag**2/grav-0.5*zcom2*gnu/(max(vmag*sqrt(fm*af),gnu)*fm*af))*(fm*daf+dfm*af)
       end where
       p_zo=p_zo-(p_zo-consea)/(1.-dcs)      
-      p_zo=min(max(p_zo,1.5e-5),13.)
+      p_zo=min(max(p_zo,1.5e-5),9.)
     enddo    ! it=1,4
 end select
 afroot=vkar/log(a_zmin/p_zo)
