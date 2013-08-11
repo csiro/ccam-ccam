@@ -269,7 +269,7 @@ c       this is in-line ocenzo using latest coefficient, i.e. .018      ! sea
              dfm=2.*bprm*ri(iq)*dden/den**2                             ! sea
              zo(iq)=max(1.5e-5,zo(iq)-(zo(iq)-consea*af(iq)*fm)/        ! sea
      .                        (1.-consea*(daf*fm+af(iq)*dfm)))          ! sea
-             zo(iq)=min(zo(iq),9.) ! JLM fix                            ! sea
+             zo(iq)=min(zo(iq),6.) ! JLM fix                            ! sea
             enddo  ! it=1,3                                             ! sea
           endif    ! (xx>0.) .. else..                                  ! sea
          endif     ! (charnock<-1.) .. else ..                          ! sea
@@ -522,7 +522,7 @@ c       Surface stresses taux, tauy: diagnostic only - unstag now       ! sice
      &               fracice,sicedep,snowd,dt,azmin,azmin,dumsg,        ! MLO
      &               dumr,dumx,dums,uav,vav,t(1:ifull,1),               ! MLO
      &               qg(1:ifull,1),ps,f,swrsave,fbeamvis,fbeamnir,      ! MLO
-     &               dumw,0,.true.)                                     ! MLO
+     &               dumw,0,.true.,oldu1,oldv1)                         ! MLO
         call mloscrnout(tscrn,qgscrn,uscrn,u10,0)                       ! MLO
         call mloextra(0,zoh,azmin,0)                                    ! MLO
         call mloextra(3,zoq,azmin,0)                                    ! MLO

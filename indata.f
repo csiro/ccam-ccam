@@ -2255,6 +2255,9 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
             call surfread(duma(:,1),'albvis',netcdfid=ncidveg)
             call surfread(duma(:,2),'albnir',netcdfid=ncidveg)
           else
+            write(6,*) "Cannot open vegfile as a netcdf file ",
+     &                  vegfile
+            write(6,*) "Assuming ASCII file format"
             lncveg=0
             call surfread(duma(:,3),'soilt',filename=soilfile)
             call surfread(duma(:,1),'albvis',filename=albfile)
