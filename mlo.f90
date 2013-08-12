@@ -34,7 +34,7 @@ implicit none
 private
 public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlodiag,mloalb2,mloalb4, &
        mloscrnout,mloextra,mloimpice,mloexpice,mloexpdep,mloexpdensity,mloexpmelt,mloexpscalar,wlev, &
-       micdwn,mxd,mindep,minwater
+       micdwn,mxd,mindep,minwater,onedice
 
 ! parameters
 integer, save :: wlev = 20
@@ -63,6 +63,7 @@ integer, parameter :: incradgam = 1 ! include shortwave in non-local term
 integer, parameter :: zomode    = 2 ! roughness calculation (0=Charnock (CSIRO9), 1=Charnock (zot=zom), 2=Beljaars)
 integer, parameter :: mixmeth   = 1 ! Refine mixed layer depth calculation (0=None, 1=Iterative)
 integer, parameter :: deprelax  = 0 ! surface height (0=vary, 1=relax, 2=set to zero)
+integer, save      :: onedice   = 1 ! use 1D ice model (0=Off, 1=On)
 ! model parameters
 real, save :: mxd      = 5002.18 ! Max depth (m)
 real, save :: mindep   = 1.      ! Thickness of first layer (m)
@@ -2254,17 +2255,19 @@ where (lnewice) ! form new sea-ice
 endwhere
 
 ! 1D model of ice break-up
-where (i_dic<icebreak.and.i_fracice>fracbreak)
-  i_fracice=i_fracice*i_dic/icebreak
-  i_dic=icebreak
-end where
-where (i_fracice<1..and.i_dic>icebreak)
-   worka=min(i_dic/icebreak,1./max(i_fracice,fracbreak))
-   worka=max(worka,1.)
-   i_fracice=i_fracice*worka
-   i_dic=i_dic/worka
-end where
-i_fracice=min(max(i_fracice,0.),1.)
+if (onedice==1) then
+  where (i_dic<icebreak.and.i_fracice>fracbreak)
+    i_fracice=i_fracice*i_dic/icebreak
+    i_dic=icebreak
+  end where
+  where (i_fracice<1..and.i_dic>icebreak)
+     worka=min(i_dic/icebreak,1./max(i_fracice,fracbreak))
+     worka=max(worka,1.)
+     i_fracice=i_fracice*worka
+     i_dic=i_dic/worka
+  end where
+  i_fracice=min(max(i_fracice,0.),1.)
+end if
 
 ! removal
 call getrho1(i_sal,a_ps,d_ri,d_zcr)

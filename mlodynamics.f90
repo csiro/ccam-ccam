@@ -186,6 +186,8 @@ where (wtr(iw).and.wtr(iwn).and.wtr(inw).and.wtr(in).and.wtr(1:ifull))
 end where
 
 if (abs(nmlo)>=3) then
+  onedice=0 ! Turn off 1D ice model
+
   ! dynamics save arrays
   allocate(oldu1(ifull,wlev),oldv1(ifull,wlev))
   allocate(oldu2(ifull,wlev),oldv2(ifull,wlev))
