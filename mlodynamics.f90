@@ -44,6 +44,7 @@ real, parameter :: delphi     = 150.      ! horizontal diffusion reduction facto
 real, save      :: ocnsmag    = 1.        ! horizontal diffusion (2. in Griffies (2000), 1.-1.4 in POM (Mellor 2004))
 real, save      :: ocneps     = 0.1       ! semi-implicit off-centring term
 real, parameter :: inflowbias = 10.       ! Bias height for inflow into ocean.  Levels above this will flow back onto land.
+real, parameter :: maxicefrac = 0.99      ! Maximum ice fraction
 
 contains
 
@@ -1663,7 +1664,7 @@ do ii=1,3
   call upwindadv(dumc(:,ii),niu,niv,spnet)
 end do  
 nfracice(1:ifull)=dumc(1:ifull,1)*em(1:ifull)*em(1:ifull)
-nfracice(1:ifull)=min(max(nfracice(1:ifull),0.),1.)
+nfracice(1:ifull)=min(max(nfracice(1:ifull),0.),maxicefrac)
 ndic(1:ifull)=dumc(1:ifull,2)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-10)
 ndsn(1:ifull)=dumc(1:ifull,3)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-10)
 

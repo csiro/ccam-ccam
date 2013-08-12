@@ -1023,8 +1023,6 @@
       mtimer=mtimer_in+nint(ktau*dtin/60.)     ! 15/6/01 to allow dt < 1 minute
       mins_gmt=mod(mtimer+60*ktime/100,24*60)
 
-      print *,"u1 ",myid,sum(u(1:ifull,:)),sum(v(1:ifull,:))
-
       ! ***********************************************************************
       ! START ATMOSPHERE DYNAMICS AND NUDGING
       ! ***********************************************************************
@@ -1245,8 +1243,6 @@
       end if
       call end_log(nestin_end)
 
-      print *,"u2 ",myid,sum(u(1:ifull,:)),sum(v(1:ifull,:))
-
       ! DYNAMICS --------------------------------------------------------------
       if(mspec==2)then     ! for very first step restore mass & T fields
         call gettin(1)
@@ -1324,8 +1320,6 @@
       ! ***********************************************************************
       call start_log(phys_begin)
 
-      print *,"u3 ",myid,sum(u(1:ifull,:)),sum(v(1:ifull,:))
-
       ! GWDRAG ----------------------------------------------------------------
       call start_log(gwdrag_begin)
       if (myid==0.and.nmaxpr==1) then
@@ -1365,8 +1359,6 @@
       end if
       call end_log(convection_end)
 
-      print *,"u4 ",myid,sum(u(1:ifull,:)),sum(v(1:ifull,:))
-
       ! CLOUD MICROPHYSICS ----------------------------------------------------
       call start_log(cloud_begin)
       if (myid==0.and.nmaxpr==1) then
@@ -1394,8 +1386,6 @@
         write(6,*) "After cloud microphysics"
       end if
       call end_log(cloud_end)
-
-      print *,"u5 ",myid,sum(u(1:ifull,:)),sum(v(1:ifull,:))
 
       ! RADIATION -------------------------------------------------------------
       
@@ -1569,8 +1559,6 @@
       if (myid==0.and.nmaxpr==1) then
        write(6,*) "After PBL mixing"
       end if
-
-      print *,"u6 ",myid,sum(u(1:ifull,:)),sum(v(1:ifull,:))
 
       ! Update diagnostics for consistancy in history file
       if (rescrn>0) then
