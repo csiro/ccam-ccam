@@ -396,6 +396,11 @@
       if (ib<0) ib=ia+3
       if (ktopdav<0) ktopdav=kl
       if (kbotmlo<0) kbotmlo=ol
+      if (kbotmlo>ol) then
+        write(6,*) "ERROR: Invalid kbotmlo"
+        write(6,*) "kbotdav,ktopdav ",kbotmlo,ktopmlo
+        call ccmpi_abort(-1)
+      end if
       if (kblock<0)  kblock=max(min(ktopdav-kbotdav+1,kl),
      &                          min(kbotmlo-ktopmlo+1,ol))
       if (kbotdav<1.or.ktopdav>kl.or.kbotdav>ktopdav) then

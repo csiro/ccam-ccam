@@ -522,7 +522,7 @@ c       Surface stresses taux, tauy: diagnostic only - unstag now       ! sice
      &               fracice,sicedep,snowd,dt,azmin,azmin,dumsg,        ! MLO
      &               dumr,dumx,dums,uav,vav,t(1:ifull,1),               ! MLO
      &               qg(1:ifull,1),ps,f,swrsave,fbeamvis,fbeamnir,      ! MLO
-     &               dumw,0,.true.,oldu1,oldv1)                         ! MLO
+     &               dumw,0,.true.,oldu=oldu1,oldv=oldv1)               ! MLO
         call mloscrnout(tscrn,qgscrn,uscrn,u10,0)                       ! MLO
         call mloextra(0,zoh,azmin,0)                                    ! MLO
         call mloextra(3,zoq,azmin,0)                                    ! MLO
