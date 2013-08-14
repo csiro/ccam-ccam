@@ -2255,11 +2255,11 @@ where (lnewice) ! form new sea-ice
 endwhere
 
 ! 1D model of ice break-up
+where (i_dic<icebreak.and.i_fracice>fracbreak)
+  i_fracice=i_fracice*i_dic/icebreak
+  i_dic=icebreak
+end where
 if (onedice==1) then
-  where (i_dic<icebreak.and.i_fracice>fracbreak)
-    i_fracice=i_fracice*i_dic/icebreak
-    i_dic=icebreak
-  end where
   where (i_fracice<1..and.i_dic>icebreak)
      worka=min(i_dic/icebreak,1./max(i_fracice,fracbreak))
      worka=max(worka,1.)
