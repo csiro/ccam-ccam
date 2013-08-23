@@ -40,7 +40,7 @@ module cc_mpi
    private :: ccmpi_distribute2, ccmpi_distribute2i, ccmpi_distribute2r8,   &
               ccmpi_distribute3, ccmpi_distribute3i, ccmpi_gather2,         &
               ccmpi_gather3, checksize, ccglobal_posneg2, ccglobal_posneg3, &
-              ccglobal_sum2, ccglobal_sum3
+              ccglobal_posneg4, ccglobal_sum2, ccglobal_sum3
    interface ccmpi_gather
       module procedure ccmpi_gather2, ccmpi_gather3
    end interface
@@ -61,7 +61,7 @@ module cc_mpi
       module procedure boundsuv2, boundsuv3
    end interface
    interface ccglobal_posneg
-      module procedure ccglobal_posneg2, ccglobal_posneg3
+      module procedure ccglobal_posneg2, ccglobal_posneg3, ccglobal_posneg4
    end interface
    interface ccglobal_sum
       module procedure ccglobal_sum2, ccglobal_sum3
@@ -467,7 +467,8 @@ contains
 #ifdef sumdd
 !     operator MPI_SUMDR is created based on an external function DRPDR.
       ltrue = .true. 
-      call MPI_OP_CREATE (DRPDR, ltrue, MPI_SUMDR, ierr) 
+      call MPI_OP_CREATE (DRPDR,  ltrue, MPI_SUMDR,  ierr)
+      call MPI_OP_CREATE (DRPDRA, ltrue, MPI_SUMDRA, ierr)
 #endif
 
    end subroutine ccmpi_setup
@@ -4351,11 +4352,11 @@ contains
                write(6,*) "myid,iproc,neighbour,dslen,len ",myid,iproc,neighbour(iproc),dslen(iproc),msglen(iproc)
                iq = dindex(iproc)%a(1,1)
                k = dindex(iproc)%a(2,1)
-	       if ( lmode == 0 ) then
+               if ( lmode == 0 ) then
                   write(6,*) "Example Atm error iq,k,u,v ",iq,k,u(iq,k),v(iq,k)
                else
                   write(6,*) "Ocn error iq,k ",iq,k
-	       end if
+               end if
                write(6,*) "dbuf ",dbuf(iproc)%a(:,1)
                write(6,*) "neighlistrecv ",neighlistrecv
                call checksize(dslen(iproc),msglen(iproc),"Deptssync")
@@ -5780,6 +5781,88 @@ contains
 
     end subroutine ccglobal_posneg3
 
+    subroutine ccglobal_posneg4 (array, delpos, delneg, dsigin, comm)
+       ! Calculate global sums of positive and negative values of array
+       ! MJT - modified to restrict calls to comm for ocean processors
+       use sigs_m
+       use sumdd_m
+       use xyzinfo_m
+       real, intent(in), dimension(:,:,:) :: array
+       real, intent(in), dimension(size(array,2)), optional :: dsigin
+       real, intent(out), dimension(size(array,3)) :: delpos, delneg
+       integer, intent(in), optional :: comm
+       real, dimension(size(array,3)) :: delpos_l, delneg_l
+       real, dimension(size(array,2)) :: dsigx
+       real, dimension(2,size(array,3)) :: delarr, delarr_l
+       integer :: i, k, iq, kx, ntr
+       integer(kind=4) ierr, lcomm, ltype, mnum
+       complex, dimension(2,size(array,3)) :: local_sum, global_sum
+!      Temporary array for the drpdr_local function
+       real, dimension(ifull) :: tmparr, tmparr2 
+
+       call start_log(posneg_begin)
+
+       kx  = size(array,2)
+       ntr = size(array,3)
+
+       lcomm = MPI_COMM_WORLD
+       if (present(comm)) lcomm = comm
+
+       if (present(dsigin)) then
+         dsigx = -dsigin
+       else
+         dsigx = dsig
+       end if
+
+       do i=1,ntr
+          local_sum(1,i) = (0.,0.)
+          local_sum(2,i) = (0.,0.)
+          do k=1,kx
+             do iq=1,ifull
+                tmparr(iq)  = max(0.,-dsigx(k)*array(iq,k,i)*wts(iq))
+                tmparr2(iq) = min(0.,-dsigx(k)*array(iq,k,i)*wts(iq))
+             end do
+             call drpdr_local(tmparr,  local_sum(1,i))
+             call drpdr_local(tmparr2, local_sum(2,i))
+          end do ! k loop
+          delpos_l(i) = real(local_sum(1,i))
+          delneg_l(i) = real(local_sum(2,i))
+       end do
+#ifdef sumdd
+#ifdef i8r8
+       ltype = MPI_DOUBLE_COMPLEX
+#else
+       ltype = MPI_COMPLEX
+#endif 
+       mnum = 2*ntr 
+       call MPI_Allreduce ( local_sum, global_sum, mnum, ltype,     &
+                            MPI_SUMDRA, lcomm, ierr )
+       do i=1,ntr
+          delpos(i) = real(global_sum(1,i))
+          delneg(i) = real(global_sum(2,i))
+       end do
+#else
+#ifdef i8r8
+       ltype = MPI_DOUBLE_PRECISION
+#else
+       ltype = MPI_REAL
+#endif   
+       mnum = 2*ntr
+       do i=1,ntr
+          delarr_l(1:2,i) = (/ delpos_l(i), delneg_l(i) /)
+       end do
+       call MPI_Allreduce ( delarr_l, delarr, mnum, ltype, MPI_SUM,    &
+                            lcomm, ierr )
+       do i=1,ntr
+          delpos(i) = delarr(1,i)
+          delneg(i) = delarr(2,i)
+       end do
+#endif
+
+       call end_log(posneg_end)
+
+    end subroutine ccglobal_posneg4
+
     subroutine ccglobal_sum2 (array, result)
        ! Calculate global sum of an array
        use sumdd_m
@@ -6967,7 +7050,7 @@ contains
          sslen  = sslen*bnds(mg(g)%neighlistsend)%mlomsk
          myrlen = myrlen*bnds(myid)%mlomsk
       end if
-      ! river model not supported
+      ! river model is not supported by mgbounds
 
       sreq = nreq - rreq
 #ifdef simple_timer

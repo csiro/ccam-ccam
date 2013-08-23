@@ -45,6 +45,7 @@
       real, dimension(ifull,kl) :: omgfnl,wrk1,wrk2,wrk3,d,e
       real, dimension(ifull,kl) :: helm,rhsl,omgf
       real, dimension(ifull,kl) :: dumu,dumv,dumc,dumd,dumt
+      real, dimension(:,:,:), allocatable, save :: dums,dumssav
       real, dimension(ifull) :: ps_sav,pslxint,pslsav
       real, dimension(ifull) :: sdmx,delps,bb
       real, dimension(3) :: delarr, delarr_l
@@ -57,6 +58,7 @@
       integer, dimension(ifull) :: nits, nvadh_pass
       integer its, k, l, iq, ng, ierr, iaero
       integer, save :: precon_in = -99999
+      logical, dimension(:), allocatable, save :: llim
 
       call start_log(adjust_begin)
 
@@ -68,6 +70,9 @@
         allocate(zzs(ifull),pfact(ifull),alff(ifull+iextra))
         allocate(alf(ifull+iextra),alfe(ifull+iextra))
         allocate(alfn(ifull+iextra),alfu(ifull),alfv(ifull))
+        k=max(4,naero,ngas)
+        allocate(dums(ifull,kl,k),dumssav(ifull,kl,k))
+        allocate(llim(k))
       end if
 
       ! time step can change during initialisation
@@ -274,7 +279,6 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
        write(6,*) 'p & direct n s ',
      &         p(idjd,nlv),p(idjd+il,nlv),p(idjd-il,nlv)
       endif
-
 
       do k=1,kl
 !cdir nodep
@@ -622,9 +626,38 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
       dpsdt(1:ifull)=(ps(1:ifull)-ps_sav(1:ifull))*24.*3600./(100.*dt)
       if(nmaxpr==1)call maxmin(dpsdt,'dp',ktau,.01,1)
 
-      !--------------------------------------------------------------
-      ! Moisture conservation
-      if (mfix_qg/=0.and.mspec==1) then
+      !------------------------------------------------------------------------
+      ! Cloud water conservation
+      if(mfix_qg/=0.and.mspec==1.and.ldr/=0)then
+        do k=1,kl
+          qg(1:ifull,k)=max(qg(1:ifull,k),
+     &      qgmin-qfg(1:ifull,k)-qlg(1:ifull,k),0.)
+        end do
+        qfg=max(qfg,0.)
+        qlg=max(qlg,0.)
+        qrg=max(qrg,0.)
+        cfrac=min(max(cfrac,0.),1.)
+        cffall=min(max(cffall,0.),1.)
+        
+        dums(:,:,1)=qg(1:ifull,:)
+        dums(:,:,2)=qfg(1:ifull,:)
+        dums(:,:,3)=qlg(1:ifull,:)
+        dums(:,:,4)=qrg(1:ifull,:)
+        dumssav(:,:,1)=qgsav
+        dumssav(:,:,2)=qfgsav
+        dumssav(:,:,3)=qlgsav
+        dumssav(:,:,4)=qrgsav
+        llim(1)=.false.
+        llim(2:4)=.true.
+        call massfix_a(mfix_qg,4,dums,dumssav,
+     &               ps(1:ifull),ps_sav,wts,
+     &               llim)
+        qg(1:ifull,:)=dums(:,:,1)
+        qfg(1:ifull,:)=dums(:,:,2)
+        qlg(1:ifull,:)=dums(:,:,3)
+        qrg(1:ifull,:)=dums(:,:,4)
+
+      else if (mfix_qg/=0.and.mspec==1) then
         do k=1,kl
           qg(1:ifull,k)=max(qg(1:ifull,k),
      &      qgmin-qfg(1:ifull,k)-qlg(1:ifull,k),0.)
@@ -634,32 +667,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
      &               ps(1:ifull),ps_sav,wts,
      &               .false.)
         qg(1:ifull,:)=dumc
-      endif       !  (mfix_qg.ne.0.and.mspec==1)
-
-      !------------------------------------------------------------------------
-      ! Cloud water conservation
-      if(mfix_qg/=0.and.mspec==1.and.ldr/=0)then
-        qfg=max(qfg,0.)
-        qlg=max(qlg,0.)
-        qrg=max(qrg,0.)
-        cfrac=min(max(cfrac,0.),1.)
-        cffall=min(max(cffall,0.),1.)
-        dumc=qfg(1:ifull,:)
-        call massfix(mfix_qg,dumc,qfgsav,
-     &               ps(1:ifull),ps_sav,wts,
-     &               .true.)
-        qfg(1:ifull,:)=dumc
-        dumc=qlg(1:ifull,:)
-        call massfix(mfix_qg,dumc,qlgsav,
-     &               ps(1:ifull),ps_sav,wts,
-     &               .true.)
-        qlg(1:ifull,:)=dumc
-        dumc=qrg(1:ifull,:)
-        call massfix(mfix_qg,dumc,qrgsav,
-     &               ps(1:ifull),ps_sav,wts,
-     &               .true.)
-        qrg(1:ifull,:)=dumc
-      endif      !  (mfix_qg.ne0.and.mspec==1.and.ldr.ne.0)
+      endif      !  (mfix_qg/=0.and.mspec==1.and.ldr/=0) ..else..
 
       !------------------------------------------------------------------------
       ! Tracer conservation
@@ -667,12 +675,15 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
         do ng=1,ngas
 !         rml 19/09/07 replace gasmin with tracmin
           tr(:,:,ng)=max(tr(:,:,ng),tracmin(ng))
-          dumc=tr(1:ifull,:,ng)
-          dumd=trsav(1:ifull,:,ng)
-          call massfix(mfix_tr,dumc,dumd,
+          dums(:,:,ng)=tr(1:ifull,:,ng)
+          dumssav(:,:,ng)=trsav(1:ifull,:,ng)
+          llim(ng)=.true.
+        end do
+        call massfix_a(mfix_tr,ngas,dums,dumssav,
      &                 ps(1:ifull),ps_sav,wts,
-     &                 .true.)
-          tr(1:ifull,:,ng)=dumc
+     &                 llim)
+        do ng=1,ngas
+          tr(1:ifull,:,ng)=dums(:,:,ng)
         end do
       endif       !  (mfix_tr.ne.0.and.mspec==1.and.ngas>0)
 
@@ -681,12 +692,15 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
       if (mfix_aero/=0.and.mspec==1.and.abs(iaero)==2) then
         xtg=max(xtg,0.)
         do ng=1,naero
-          dumc=xtg(1:ifull,:,ng)
-          dumd=xtgsav(1:ifull,:,ng)
-          call massfix(mfix_aero,dumc,
-     &                 dumd,ps(1:ifull),
-     &                 ps_sav,wts,.true.)
-          xtg(1:ifull,:,ng)=dumc
+          dums(:,:,ng)=xtg(1:ifull,:,ng)
+          dumssav(:,:,ng)=xtgsav(1:ifull,:,ng)
+          llim(ng)=.true.
+        end do
+        call massfix_a(mfix_aero,naero,dums,
+     &                 dumssav,ps(1:ifull),
+     &                 ps_sav,wts,llim)
+        do ng=1,naero
+          xtg(1:ifull,:,ng)=dums(:,:,ng)
         end do
       end if
       !--------------------------------------------------------------
@@ -878,3 +892,84 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
 
       return
       end subroutine massfix
+
+      subroutine massfix_a(mfix,ntr,s,ssav,ps,pssav,wts,llim)
+      
+      use cc_mpi
+      
+      implicit none
+      
+      include 'newmpar.h'
+      
+      integer, intent(in) :: mfix,ntr
+      integer k,i
+      real, dimension(ifull,kl,ntr), intent(inout) :: s,ssav
+      real, dimension(ifull), intent(in) :: ps,pssav,wts
+      real, dimension(ifull,kl,ntr) :: wrk1
+      real, dimension(ntr) :: delpos,delneg,ratio,alph_g
+      logical, dimension(ntr), intent(in) :: llim
+
+      if (mfix>0) then
+        do i=1,ntr
+          do k=1,kl
+            s(:,k,i)=s(:,k,i)*ps
+            ssav(:,k,i)=ssav(:,k,i)*pssav
+          enddo    ! k  loop
+        end do
+      else
+        do i=1,ntr
+          do k=1,kl
+            s(:,k,i)=s(:,k,i)*ps*wts
+            ssav(:,k,i)=ssav(:,k,i)*pssav*wts
+          enddo    ! k  loop     
+        end do
+      endif ! (mfix>0) .. else ..
+      do i=1,ntr
+        do k=1,kl
+          wrk1(:,k,i)=s(:,k,i)-ssav(:,k,i) 
+        enddo   ! k loop
+      end do
+      call ccglobal_posneg(wrk1,delpos,delneg)
+      do i=1,ntr
+        if (llim(i)) then
+          ratio(i) = -delneg(i)/max(delpos(i),1.e-30)
+        else
+          ratio(i) = -delneg(i)/delpos(i)
+        end if
+      end do
+      if (mfix==1) then
+        alph_g = min(ratio,sqrt(ratio))
+      elseif (mfix==2) then
+        do i=1,ntr
+          if (llim(i)) then
+            alph_g(i) = max(sqrt(ratio(i)),1.e-30)
+          else
+            alph_g(i) = sqrt(ratio(i))
+          end if
+        end do
+      end if ! (mfix==1) .. else ..
+      do i=1,ntr
+        do k=1,kl
+          s(:,k,i)=ssav(:,k,i)+
+     &      alph_g(i)*max(0.,wrk1(:,k,i))+min(0.,wrk1(:,k,i))
+     &      /max(1.,alph_g(i))
+        enddo    ! k  loop
+      end do
+      if (mfix>0) then
+        do i=1,ntr
+          do k=1,kl
+            s(:,k,i)=s(:,k,i)/ps
+            ssav(:,k,i)=ssav(:,k,i)/pssav
+          enddo    ! k  loop
+        end do
+      else
+        do i=1,ntr
+          do k=1,kl
+            s(:,k,i)=s(:,k,i)/(ps*wts)
+            ssav(:,k,i)=ssav(:,k,i)/(pssav*wts)
+          enddo   ! k  loop            
+        end do
+      endif ! (mfix>0) .. else ..
+
+      return
+      end subroutine massfix_a

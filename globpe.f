@@ -396,7 +396,7 @@
       if (ib<0) ib=ia+3
       if (ktopdav<0) ktopdav=kl
       if (kbotmlo<0) kbotmlo=ol
-      if (kbotmlo>ol) then
+      if (kbotmlo>ol.and.nmlo/=0) then
         write(6,*) "ERROR: Invalid kbotmlo"
         write(6,*) "kbotdav,ktopdav ",kbotmlo,ktopmlo
         call ccmpi_abort(-1)
