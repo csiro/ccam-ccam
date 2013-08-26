@@ -32,11 +32,11 @@
       real, dimension(:), allocatable, save :: accel
       real, dimension(ifull) :: aa, bb, cc
       real axel
-      !real gd, ci, itserr1, itserr2
+      !real gd, ci, itserr1, itserr2, itsaim, itsave1, itsave2
       real, save :: dtsave = 0.
       integer iq, iter, k, nx, j, jx, i, klim, klimnew, ierr, meth
       integer ifx, nx_max, iqg, ig, jg, ng, tg, n
-      !integer itstest, itc, itsave1, itsave2
+      !integer itstest, itc
       integer, dimension(kl) :: iters
       integer, dimension(1) :: idum
       save  meth, nx_max, axel
@@ -66,16 +66,22 @@
         nx_max=maxcolour
        end if
   
-       do k=1,kl
-        call optmx(il_g,schmidt,dt,bam(k),accel(k))
-        !accel(k)=1. ! gauss-seidel
+       if (il_g<=200) then
+         ! usual
+         do k=1,kl
+          call optmx(il_g,schmidt,dt,bam(k),accel(k))
+          !accel(k)=1. ! gauss-seidel
         
-        ! MJT - not sure about the following line
-        accel(k)=1.+.55*(accel(k)-1.) ! MJT suggestion
-!       if(il_g>il)accel(k)=1.+.55*(accel(k)-1.)  ! for uniform-dec 22/4/08
-c       if(il_g==il)accel(k)=1.+.55*(accel(k)-1.) ! just a test
-        if(myid==0)write(6,*)'k,accel ',k,accel(k)
-       enddo
+          ! MJT - not sure about the following line
+          accel(k)=1.+.55*(accel(k)-1.) ! MJT suggestion
+!         if(il_g>il)accel(k)=1.+.55*(accel(k)-1.)  ! for uniform-dec 22/4/08
+c         if(il_g==il)accel(k)=1.+.55*(accel(k)-1.) ! just a test
+          if(myid==0)write(6,*)'k,accel ',k,accel(k)
+         enddo
+       else
+         ! large grid
+         accel=1. ! gauss-seidel
+       end if
       endif
 
       if(precon>=-2899) then  ! e.g. not -2900 or -3900
@@ -215,10 +221,6 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
 
       klim=kl
       iter = 1
-      !itsave2=0
-      !itserr2=9.E9
-      !itstest=1
-      !itc=0
       do k=1,klim
        smax(k) = maxval(s(1:ifull,k))
        smin(k) = minval(s(1:ifull,k))
@@ -235,6 +237,13 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
         write(6,*)'ktau,smin_g ',ktau,smin_g(:)
         write(6,*)'ktau,smax_g ',ktau,smax_g(:)
       endif  ! (myid==0)
+
+      ! Anticipate convergence      
+      !itsaim=log10(restol*(smax_g(1)-smin_g(1)))
+      !itsave2=-1.
+      !itserr2=9.
+      !itstest=1
+      !itc=0
       
       ! JLM suggestion
       do k=1,kl
@@ -278,7 +287,9 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
 !       if((ntest>0.or.nmaxpr==1).and.diag)
 !     &  write (6,"('myid,Iter ,s',i4,4f14.5)")
 !     &  myid,iter,(s(iq,1),iq=1,4)
+       
        !if (iter>=itstest) then
+       
         do k=1,klim
 c        write (6,"('iter,k ,s',2i4,4f14.5)") iter,k,(s(iq,k),iq=1,4)
          dsolmax(k) = maxval(abs(dsol(1:ifull,k)))
@@ -298,23 +309,21 @@ c        write (6,"('iter,k ,s',2i4,4f14.5)") iter,k,(s(iq,k),iq=1,4)
 
        ! ! MJT - reduce collective MPI calls by anticipating convergence
        ! itsave1=itsave2
-       ! itsave2=iter
+       ! itsave2=log10(real(iter))
        ! itserr1=itserr2
        ! itserr2=log10(dsolmax_g(1))
-       ! gd=(itserr2-itserr1)/real(itsave2-itsave1)
-       ! ci=itserr2-gd*real(itsave2)
+       ! gd=(itserr2-itserr1)/(itsave2-itsave1)
+       ! ci=itserr2-gd*itsave2
        ! if (gd/=0.) then
-       !  itstest=nint((log10(restol*(smax_g(1)-smin_g(1)))-ci)/gd)
+       !  itstest=nint(10.**((itsaim-ci)/gd))
        !  itstest=max(itstest,iter+1)
        ! else
        !  itstest=iter+1
        ! end if
-       ! if (myid==0.and.nmaxpr==1) then
-       !   write(6,*) "iter,itstest ",iter,itstest
-       ! end if
        ! itc=itc+1
        ! 
        !end if ! iter>=itstest
+       
        iter = iter + 1
       enddo   ! while( iter<itmax .and. klim>1)
       

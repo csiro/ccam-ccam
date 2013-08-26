@@ -39,19 +39,17 @@ contains
       integer(kind=4), intent(in) :: len, itype
       complex, dimension(2,len/2), intent(in)  :: dra
       complex, dimension(2,len/2), intent(inout) :: drb
-      real :: e, t1, t2 
-      integer :: i, j
+      real, dimension(2) :: e, t1, t2 
+      integer :: i
 
       do i = 1, len/2
-         do j = 1, 2
-            !  Compute dra + drb using Knuth's trick. 
-            t1 = real(dra(j,i)) + real(drb(j,i)) 
-            e = t1 - real(dra(j,i)) 
-            t2 = ((real(drb(j,i)) - e) + (real(dra(j,i)) - (t1 - e)))  + &
-                 aimag(dra(j,i)) + aimag(drb(j,i)) 
-            !    The result is t1 + t2, after normalization. 
-            drb(j,i) = cmplx (t1 + t2, t2 - ((t1 + t2) - t1)) 
-         end do
+         !  Compute dra + drb using Knuth's trick. 
+         t1(:) = real(dra(:,i)) + real(drb(:,i)) 
+         e(:) = t1(:) - real(dra(:,i)) 
+         t2(:) = ((real(drb(:,i)) - e(:)) + (real(dra(:,i)) - (t1(:) - e(:))))  + &
+                 aimag(dra(:,i)) + aimag(drb(:,i)) 
+         !    The result is t1 + t2, after normalization. 
+         drb(:,i) = cmplx (t1(:) + t2(:), t2(:) - ((t1(:) + t2(:)) - t1(:))) 
       end do
    end subroutine drpdra
 
