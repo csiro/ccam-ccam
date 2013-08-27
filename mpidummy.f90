@@ -72,10 +72,16 @@ double precision function MPI_Wtick()
    MPI_Wtick = 0.0
 end function MPI_Wtick
 
-subroutine MPI_Scatter( sbuf, a, b, rbuf, c, d, iproc, e, ierr )
+subroutine MPI_Scatter( sbuf, a, type, rbuf, c, d, iproc, e, ierr )
+   implicit none
+   include 'mpif.h'   
    real, dimension(*) :: sbuf,rbuf
-   integer :: a,b,c,d,e,iproc
-   rbuf(1:a)=sbuf(1:a)
+   integer :: a,type,c,d,e,iproc,ierr
+   if ( type == MPI_DOUBLE_PRECISION ) then
+      rbuf(1:2*a)=sbuf(1:2*a)
+   else
+      rbuf(1:a)=sbuf(1:a)
+   end if
    ierr = 0
 end subroutine MPI_Scatter
 
