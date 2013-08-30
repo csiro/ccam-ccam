@@ -421,7 +421,7 @@ c       Model version
            call ccnf_put_attg(idnc,'processor_num',myid)
            call ccnf_put_attg(idnc,'nproc',nproc)
 #ifdef uniform_decomp
-           call ccnf_put_attg(idnc,'decomp','uniform')
+           call ccnf_put_attg(idnc,'decomp','uniform1')
 #else
            call ccnf_put_attg(idnc,'decomp','face')
 #endif
@@ -2324,7 +2324,7 @@ c      "extra" outputs
             call ccnf_put_attg(fncid,'processor_num',myid)
             call ccnf_put_attg(fncid,'nproc',nproc)
 #ifdef uniform_decomp
-            call ccnf_put_attg(fncid,'decomp','uniform')
+            call ccnf_put_attg(fncid,'decomp','uniform1')
 #else
             call ccnf_put_attg(fncid,'decomp','face')
 #endif

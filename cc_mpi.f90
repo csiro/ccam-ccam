@@ -28,7 +28,7 @@ module cc_mpi
              indp, indg, deptsync, intssync_send, intssync_recv, start_log, &
              end_log, log_on, log_off, log_setup, phys_loadbal,             &
              ccglobal_posneg, ccglobal_sum, iq2iqg, indv_mpi, indglobal,    &
-             readglobvar, writeglobvar, face_set, uniform_set,              &
+             readglobvar, writeglobvar, face_set, uniform_set, dix_set,     &
              ccmpi_reduce, ccmpi_allreduce, ccmpi_abort, ccmpi_bcast,       &
              ccmpi_bcastr8, ccmpi_barrier, ccmpi_gatherx, ccmpi_scatterx,   &
              ccmpi_allgatherx, ccmpi_recv, ccmpi_ssend, ccmpi_init,         &
@@ -190,12 +190,10 @@ module cc_mpi
    ! Multi-grid arrays
    type mgtype
       integer :: ifull, iextra, ixlen, ifull_fine, ifull_coarse
-      integer :: merge_len, merge_row, ipan
-      integer :: comm
-      integer :: neighnum
+      integer :: merge_len, merge_row, ipan, merge_pos
+      integer :: comm, neighnum
       integer, dimension(:,:,:), allocatable :: fproc
-      integer, dimension(:,:), allocatable :: merge_list
-      integer, dimension(:), allocatable :: merge_pos
+      integer, dimension(:), allocatable :: merge_list
       integer, dimension(:), allocatable :: in, ie, is, iw, ine, inw, ise, isw
       integer, dimension(:), allocatable :: coarse_a, coarse_b, coarse_c, coarse_d
       integer, dimension(:), allocatable :: fine, fine_n, fine_e, fine_ne
@@ -510,7 +508,7 @@ contains
 #ifdef uniform_decomp
          do n = 1,npan
             ! Panel range on the source processor
-            call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,1)
+            call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,2)
 #else
          call proc_region(iproc,0,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,0)
          do n = 1,npan
@@ -591,7 +589,7 @@ contains
 #ifdef uniform_decomp
          do n=1,npan
             ! Panel range on the source processor
-            call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,1)
+            call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,2)
 #else
          call proc_region(iproc,0,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,0)
          do n=1,npan
@@ -662,7 +660,7 @@ contains
 #ifdef uniform_decomp
          do n = 1,npan
             ! Panel range on the source processor
-            call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,1)
+            call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,2)
 #else
          call proc_region(iproc,0,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,0)
          do n = 1,npan
@@ -749,7 +747,7 @@ contains
 #ifdef uniform_decomp
          do n = 1,npan
             ! Panel range on the source processor
-            call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,1)
+            call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,2)
 #else
          call proc_region(iproc,0,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,0)
          do n = 1,npan
@@ -840,7 +838,7 @@ contains
 #ifdef uniform_decomp
          do n = 1,npan
             ! Panel range on the source processor
-            call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,1)
+            call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,2)
 #else
          call proc_region(iproc,0,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,0)
          do n = 1,npan
@@ -937,7 +935,7 @@ contains
 #ifdef uniform_decomp
          do n = 1,npan
             ! Panel range on the source processor
-            call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,1)
+            call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,2)
 #else
          call proc_region(iproc,0,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,0)
          do n = 1,npan
@@ -1022,7 +1020,7 @@ contains
 #ifdef uniform_decomp
          do n = 1,npan
             ! Panel range on the source processor
-            call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,1)
+            call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,2)
 #else
          call proc_region(iproc,0,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,0)
          do n = 1,npan
@@ -1087,7 +1085,7 @@ contains
 #ifdef uniform_decomp
          do n = 1,npan
             ! Panel range on the source processor
-            call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,1)
+            call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,2)
 #else
          call proc_region(iproc,0,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,0)
          do n = 1,npan
@@ -1137,7 +1135,7 @@ contains
 #ifdef uniform_decomp
          do n = 1,npan
             ! Panel range on the source processor
-            call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,1)
+            call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,2)
 #else
          call proc_region(iproc,0,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,0)
          do n = 1,npan
@@ -1904,7 +1902,8 @@ contains
 #endif
 
       neighnum = count( bnds(:)%rlen2 > 0 )
-      allocate( ireq(2*neighnum) )
+      ! ireq needs 1 point for the MPI_Waitall which can use ireq(rreq+1)
+      allocate( ireq(max(2*neighnum,1)) )
       allocate( rlist(neighnum) )
       allocate( status(MPI_STATUS_SIZE,2*neighnum ))
       allocate( dums(7,neighnum),dumr(7,neighnum) )
@@ -2618,10 +2617,10 @@ contains
 
 
       ! resize arrays
-      deallocate(status)
-      deallocate(dumr,dums)
-      deallocate(dumrb,dumsb)
-      deallocate(dumrl,dumsl)
+      deallocate( status )
+      deallocate( dumr, dums )
+      deallocate( dumrb, dumsb )
+      deallocate( dumrl, dumsl )
       call reducealloc 
       do iproc = 0,nproc-1
          bnds(iproc)%sbuflen = bnds(iproc)%len
@@ -4548,83 +4547,17 @@ contains
       integer :: i, j, n, iproc, nd, jdf, idjd_g
       integer(kind=4) ierr, mone
 
-      call uniform_set( ipan, jpan, noff, ioff, joff, npan, il_g, myid, nproc, nxproc, nyproc)
+      call dix_set( ipan, jpan, noff, ioff, joff, npan, il_g, myid, nproc, nxproc, nyproc)
 
-      !iproc = 0
-      !qproc = -9999 ! Mask value so any points not set are obvious.
-      !do j=1,il_g,jpan
-      !   do i=1,il_g,ipan
-      !      fproc(i:i+ipan-1,j:j+jpan-1,:) = iproc
-      !      iproc = iproc + 1
-      !   end do
-      !end do
-      
-      ! MJT suggested decomposition to improve load balance
-      ! Here, processors assigned to different faces are
-      ! (quasi-)equidistant.  For it to work correctly, we
-      ! need to invert ipan and jpan on processors 3 to 5.
-      ! Hence, the processor assignement is only quasi-equidistant
-      ! when nxproc/=nyproc
-      iproc=0
+      iproc = 0
       do j=1,il_g,jpan
-        do i=1,il_g,ipan
-          if (j<=il_g/2) then
-            fproc(i:i+ipan-1,j:j+jpan-1,0)=iproc
-          else
-            fproc(il_g-i-ipan+2:il_g-i+1,j:j+jpan-1,0)=iproc
-          end if
-          iproc = iproc + 1
-        end do
-      end do
-      iproc=0
-      do j=1,il_g,jpan
-        do i=1,il_g,ipan
-          fproc(i:i+ipan-1,j:j+jpan-1,1)=iproc
-          iproc = iproc + 1
-        end do
-      end do
-      iproc=0
-      do j=1,il_g,jpan
-        do i=1,il_g,ipan
-          if (i<=il_g/2) then
-            fproc(i:i+ipan-1,j:j+jpan-1,2)=iproc
-          else
-            fproc(i:i+ipan-1,il_g-j-jpan+2:il_g-j+1,2)=iproc
-          end if
-          iproc = iproc + 1
-        end do
-      end do
-      iproc=0
-      do i=1,il_g,ipan
-        do j=1,il_g,jpan
-          if (i<=il_g/2) then
-            fproc(i:i+ipan-1,j:j+jpan-1,3)=iproc
-          else
-            fproc(i:i+ipan-1,il_g-j-jpan+2:il_g-j+1,3)=iproc
-          end if
-          iproc = iproc + 1
-        end do
-      end do
-      iproc=0
-      do i=1,il_g,ipan
-        do j=1,il_g,jpan
-          fproc(i:i+ipan-1,j:j+jpan-1,4)=iproc
-          iproc = iproc + 1
-        end do
-      end do
-      iproc=0
-      do i=1,il_g,ipan
-        do j=1,il_g,jpan
-          if (j<=il_g/2) then
-            fproc(i:i+ipan-1,j:j+jpan-1,5)=iproc
-          else
-            fproc(il_g-i-ipan+2:il_g-i+1,j:j+jpan-1,5)=iproc
-          end if
-          iproc = iproc + 1
-        end do
+         do i=1,il_g,ipan
+            fproc(i:i+ipan-1,j:j+jpan-1,:) = iproc
+            iproc = iproc + 1
+         end do
       end do
 
-      qproc=-9999
+      qproc = -9999 ! Mask value so any points not set are obvious.
       do n=0,npanels
          do j=1,il_g
             do i=1,il_g
@@ -4670,7 +4603,61 @@ contains
 
    end subroutine proc_setup_uniform
 
+   subroutine dix_set(ipanx,jpanx,noffx,ioffx,joffx,npanx,il_gx,myidx,nprocx,nxprocx,nyprocx)
+      integer, intent(in) :: myidx, nprocx, npanx, il_gx
+      integer, intent(out) :: ipanx, jpanx, noffx, nxprocx, nyprocx
+      integer, dimension(0:npanels), intent(out) :: ioffx, joffx 
+      integer n
+      integer(kind=4) ierr, mone
+      
+      if ( npanx /= npanels+1 ) then
+         write(6,*) "Error: inconsistency in proc_setup_uniform"
+         mone = -1
+         call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
+      end if
+      !  Processor allocation: each processor gets a part of each panel
+      !  Try to factor nproc into two values are close as possible.
+      !  nxproc is the smaller of the 2.
+      nxprocx = nint(sqrt(real(nprocx)))
+      do nxprocx = nint(sqrt(real(nprocx))), 1, -1
+         ! This will always exit eventually because it's trivially true 
+         ! for nxproc=1
+         nyprocx = nprocx / nxprocx
+         if ( modulo(nprocx,nxprocx) == 0 .and. &
+              modulo(il_gx,nxprocx) == 0  .and. &
+              modulo(il_gx,nyprocx) == 0 ) exit
+      end do
+      nyprocx = nprocx / nxprocx
+      if ( nxprocx*nyprocx /= nprocx ) then
+         write(6,*) "Error in splitting up faces"
+         mone = -1
+         call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
+      end if
+
+      ! Still need to check that the processor distribution is compatible
+      ! with the grid.
+      if ( modulo(il_gx,nxprocx) /= 0 ) then
+         write(6,*) "Error, il not a multiple of nxproc", il_gx, nxprocx
+         mone = -1
+         call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
+      end if
+      if ( modulo(il_gx,nyprocx) /= 0 ) then
+         write(6,*) "Error, il not a multiple of nyproc", il_gx, nyprocx
+         mone = -1
+         call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
+      end if
+      ipanx = il_gx/nxprocx
+      jpanx = il_gx/nyprocx
+
+      ! Set offsets for this processor
+      do n=0,npanels
+         call proc_region(myidx,n,ioffx(n),joffx(n),noffx,nxprocx,nyprocx,ipanx,jpanx,npanx,il_gx,nprocx,2)
+      end do
+
+   end subroutine dix_set
+
    subroutine uniform_set(ipanx,jpanx,noffx,ioffx,joffx,npanx,il_gx,myidx,nprocx,nxprocx,nyprocx)
+      ! backwards compatibility
       integer, intent(in) :: myidx, nprocx, npanx, il_gx
       integer, intent(out) :: ipanx, jpanx, noffx, nxprocx, nyprocx
       integer, dimension(0:npanels), intent(out) :: ioffx, joffx 
@@ -4745,12 +4732,7 @@ contains
                ipoff = modulo(mtmp,nxprocx) * ipanx
             end if
       
-         case(1) ! Uniform
-            ! Set offsets for this processor (same on all faces)
-            !npoff = 1
-            !jpoff = (procid/nxprocx) * jpanx
-            !ipoff = modulo(procid,nxprocx)*ipanx
-      
+         case(1) ! Old uniform
             ! MJT suggested decomposition to improve load balance
             npoff=1
             select case(panid)
@@ -4785,6 +4767,14 @@ contains
                      ipoff=il_gx-ipoff-ipanx
                   end if        
             end select
+            
+         case(2) ! New uniform
+            ! Original Dix uniform decomposition
+            ! Set offsets for this processor (same on all faces)
+            npoff = 1
+            jpoff = (procid/nxprocx) * jpanx
+            ipoff = modulo(procid,nxprocx)*ipanx
+            
          case default
             write(6,*) "ERROR: Invalid decomposition ",dmode
             mone = -1
@@ -6813,11 +6803,11 @@ contains
 
       call end_log(mgbounds_end)
 
-      return
-      end subroutine mgbounds
+   return
+   end subroutine mgbounds
 
-      ! This subroutine merges datasets when upscaling with the multi-grid solver
-      subroutine mgcollect(g,vdat,klim)
+   ! This subroutine merges datasets when upscaling with the multi-grid solver
+   subroutine mgcollect(g,vdat,klim)
 
       integer, intent(in) :: g
       integer, intent(in), optional :: klim
@@ -6845,29 +6835,19 @@ contains
       msg_len = mg(g)%ifull/(nmax*npanx) ! message unit size
       lmsg = msg_len*kx
 
-      if ( npanx == 1 ) then ! usually face_decomp
-
-         call mgcollect_face( g, vdat, kx, nmax, msg_len, lmsg )
-
-      else ! usually npanx==6 for uniform_decomp
-
-         call mgcollect_uniform( g, vdat, kx, nmax, msg_len, lmsg )
-
-      end if
+      call mgcollect_work( g, vdat, kx, nmax, msg_len, lmsg, npanx )
 
       call end_log(mgcollect_end)
   
-      return
-      end subroutine mgcollect
+   return
+   end subroutine mgcollect
 
-      ! this version of mgcollect uses MPI_allgather and is optmised
-      ! for face decomposition
-      subroutine mgcollect_face(g,vdat,kx,nmax,msg_len,lmsg)
+   subroutine mgcollect_work(g,vdat,kx,nmax,msg_len,lmsg,npanx)
 
-      integer, intent(in) :: g, kx, nmax, msg_len, lmsg
-      integer i, k, iq_a, iq_b, iq_c, iq_d
+      integer, intent(in) :: g, kx, nmax, msg_len, lmsg, npanx
+      integer i, k, n, iq_a, iq_b, iq_c, iq_d
       integer nrow, ncol, ilen_a, ilen_b
-      integer xproc, ir, ic, is, ie, js, je, jj
+      integer yproc, ir, ic, is, ie, js, je, jj
       integer(kind=4) :: ierr, ilen, lcomm
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -6875,215 +6855,50 @@ contains
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
       real, dimension(:,:), intent(inout) :: vdat
-      real, dimension(lmsg) :: tdat
-      real, dimension(lmsg*nmax) :: tdat_g
+      real, dimension(lmsg*npanx) :: tdat
+      real, dimension(lmsg*npanx*nmax) :: tdat_g
 
       ! prep data for sending around the merge
       nrow = mg(g)%ipan/mg(g)%merge_row  ! number of points along a row per processor
       ncol = msg_len/nrow                ! number of points along a col per processor
 
-      ! Use MPI to optimise this gather
-
-      do k = 1,kx
-         iq_a = 1+(k-1)*msg_len
-         iq_b = k*msg_len
-         tdat(iq_a:iq_b) = vdat(1:msg_len,k)
+      do n = 1,npanx
+         do k = 1,kx
+            iq_a = 1+(k-1)*msg_len+(n-1)*lmsg
+            iq_b = k*msg_len+(n-1)*lmsg
+            iq_c = 1+(n-1)*msg_len
+            iq_d = n*msg_len
+            tdat(iq_a:iq_b) = vdat(iq_c:iq_d,k)
+         end do
       end do
 
-      ilen = lmsg
+      ilen = lmsg*npanx
       lcomm = mg(g)%comm
       call MPI_AllGather( tdat, ilen, ltype, tdat_g, ilen, ltype, lcomm, ierr )      
 
-      do xproc = 1,nmax
-         ir = mod(xproc-1,mg(g)%merge_row)+1   ! index for proc row
-         ic = (xproc-1)/mg(g)%merge_row+1      ! index for proc col
+      ! unpack buffers
+      do yproc = 1,nmax
+         ir = mod(yproc-1,mg(g)%merge_row)+1   ! index for proc row
+         ic = (yproc-1)/mg(g)%merge_row+1      ! index for proc col
+
          is = (ir-1)*nrow+1
-         ie = ir*nrow
          js = (ic-1)*ncol+1
          je = ic*ncol
-         do k = 1,kx
-            do jj = js,je
-               iq_a = is+(jj-1)*mg(g)%ipan
-               iq_b = iq_a+nrow-1
-               iq_c = 1+(jj-js)*nrow+(k-1)*msg_len+(xproc-1)*lmsg
-               iq_d = iq_c+nrow-1
-               vdat(iq_a:iq_b,k) = tdat_g(iq_c:iq_d)
-            end do
-         end do
-      end do
-  
-   return
-   end subroutine mgcollect_face
-
-   ! this version of mgcollect uses point-to-point communications
-   ! and is optimised for uniform decomposition
-   subroutine mgcollect_uniform(g,vdat,kx,nmax,msg_len,lmsg)
-
-      integer, intent(in) :: g, kx, nmax, msg_len, lmsg
-      integer n, k, np, nm, nx, i, nrow, ncol
-      integer xproc, yproc, msg_off
-      integer ir, ic, ida, iq_a, iq_b, iq_c, iq_d
-      integer is, js, je, jj
-      integer :: rproc, sproc, msreq, mrreq
-      integer :: rcount
-      integer(kind=4) :: ierr, itag=21, ilen, lcomm, lproc, sreq
-      integer(kind=4), dimension(2*nproc) :: dreq
-      integer(kind=4), dimension(MPI_STATUS_SIZE,2*nproc) :: status
-#ifdef i8r8
-      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4) :: ltype = MPI_REAL
-#endif
-      integer, dimension(-npan:npan*(nmax-1)) :: rarry, sarry, roff, soff
-      integer, dimension(0:nproc-1) :: rrlist, sslist, pr, ps
-      integer, dimension(nproc) :: rp, sp
-      real, dimension(:,:), intent(inout) :: vdat
-      real, dimension(lmsg*npan,0:(nmax-1)*npan) :: rrtn
-      real, dimension(lmsg*npan,(nmax-1)*npan) :: sdep
-
-      ! prep data for sending around the merge
-      nrow = mg(g)%ipan/mg(g)%merge_row  ! number of points along a row per processor
-      ncol = msg_len/nrow                ! number of points along a col per processor
-
-      ! Send them all and let MPI sort them out...
-      ! This approach allows us to send data for different panels without calling MPI_AllGather
-      ! for each panel
-
-      ! intialise arrays
-      mrreq  = 0
-      msreq  = 0
-      rrlist = 0
-      sslist = 0
-      rp     = -1
-      sp     = -1
-      pr     = 0
-      ps     = 0
-      rarry  = -1
-      sarry  = -1
-      roff   = 0
-      soff   = 0
-      rrtn = 0.
-      sdep = 0.
-
-      ! loop over panels
-      do n = 1,npan
-         nx = mg(g)%merge_pos(n)  ! the location of this processor in the merge
-         msg_off = (n-1)*msg_len  ! offset for input array
-  
-         ! loop over merge members
-         do xproc = 1,nmax-1   
-            ida = n+npan*(xproc-1) ! index for packing arrays
-    
-            ! Recv processor
-            np = modulo(nx+xproc,nmax)
-            if ( np == 0 ) np = nmax 
-            rproc = mg(g)%merge_list(np,n)
-            if ( rrlist(rproc) == 0 ) then
-               mrreq = mrreq+1     ! number of MPI Recv requests
-               rp(mrreq) = rproc   ! Processor associated with this request
-               pr(rproc) = mrreq   ! Request associated with this processor
-            end if
-            roff(ida) = rrlist(rproc)       ! Offset number as a function of packing index
-            rrlist(rproc) = rrlist(rproc)+1 ! Number of sub-messages Recv from this processor
-            rarry(ida) = pr(rproc)          ! Request number as a function of packing index
-    
-            ! Send processor
-            nm = modulo(nx-xproc,nmax) 
-            if ( nm == 0 ) nm = nmax 
-            sproc = mg(g)%merge_list(nm,n)
-            if ( sslist(sproc) == 0 ) then
-               msreq = msreq+1     ! number of MPI Send requests
-               sp(msreq) = sproc   ! Processor associated with this request
-               ps(sproc) = msreq   ! Request associated with this processor
-            end if
-            soff(ida) = sslist(sproc)       ! Offset number as a function of packing index
-            sslist(sproc) = sslist(sproc)+1 ! Number of sub-messages Send from this processor
-            sarry(ida) = ps(sproc)          ! Request number as a function of packing index
-     
-            ! Pack data into send arrays
-            do k = 1,kx
-               sdep(1+(k-1)*msg_len+soff(ida)*lmsg:k*msg_len+soff(ida)*lmsg,sarry(ida)) = vdat(1+msg_off:msg_len+msg_off,k)
-            end do
-    
-         end do
-
-         ! data for myid  
-         !xproc = 0
-         ida = n-npan                   ! index for packing arrays
-         roff(ida) = rrlist(myid)       ! Offset number as a function of packing index
-         rrlist(myid) = rrlist(myid)+1  ! Number of sub-messages Recv from this processor
-         rarry(ida) = 0                 ! Request number as a function of packing index
-         do k = 1,kx
-            rrtn(1+(k-1)*msg_len+roff(ida)*lmsg:k*msg_len+roff(ida)*lmsg,rarry(ida)) = vdat(1+msg_off:msg_len+msg_off,k)
-         end do
-
-      end do
-
-      sreq = nreq - rreq
-#ifdef simple_timer
-      call start_log(mpiwaitmg_begin)
-#endif
-      call MPI_Waitall(sreq,ireq(rreq+1),status,ierr)
-#ifdef simple_timer
-      call end_log(mpiwaitmg_end)
-#endif
-
-      ! MPI Recv
-      nreq = 0
-      do i = 1,mrreq
-         rproc = rp(i)
-         ilen = lmsg*rrlist(rproc)
-         nreq = nreq + 1
-         lproc = rproc
-         call MPI_IRecv( rrtn(:,i), ilen, ltype, lproc, itag, MPI_COMM_WORLD, dreq(nreq), ierr )
-      end do
-  
-      ! MPI Send
-      do i = 1,msreq
-         sproc = sp(i)
-         ilen = lmsg*sslist(sproc)
-         nreq = nreq + 1
-         lproc = sproc
-         call MPI_ISend( sdep(:,i), ilen, ltype, lproc, itag, MPI_COMM_WORLD, dreq(nreq), ierr )
-      end do
-
-#ifdef simple_timer
-      call start_log(mpiwaitmg_begin)
-#endif
-      call MPI_Waitall(nreq,dreq,status,ierr)
-#ifdef simple_timer
-      call end_log(mpiwaitmg_end)
-#endif
-      nreq = 0
-      rreq = 0
-  
-      ! unpack buffers
-      do n = 1,npan
-         nx = mg(g)%merge_pos(n)  ! the location of this processor in the merge
-         do yproc = 1,nmax
-            xproc = modulo(yproc-nx,nmax)         ! processor data to unpack
-            ida = n+npan*(xproc-1)                ! index for packing arrays
-    
-            ir = mod(yproc-1,mg(g)%merge_row)+1   ! index for proc row
-            ic = (yproc-1)/mg(g)%merge_row+1      ! index for proc col
-   
-            is = (ir-1)*nrow+1
-            js = (ic-1)*ncol+1
-            je = ic*ncol
+         do n = 1,npanx
             do k = 1,kx
                do jj = js,je
                   iq_a = is+(jj-1)*mg(g)%ipan+(n-1)*msg_len*nmax
                   iq_b = iq_a+nrow-1
-                  iq_c = 1+(jj-js)*nrow+(k-1)*msg_len+roff(ida)*lmsg
+                  iq_c = 1+(jj-js)*nrow+(k-1)*msg_len+(n-1)*lmsg+(yproc-1)*lmsg*npanx
                   iq_d = iq_c+nrow-1
-                  vdat(iq_a:iq_b,k) = rrtn(iq_c:iq_d,rarry(ida))
+                  vdat(iq_a:iq_b,k) = tdat_g(iq_c:iq_d)
                end do
             end do
          end do
       end do
   
    return
-   end subroutine mgcollect_uniform
+   end subroutine mgcollect_work
 
    ! Set up the indices required for the multigrid scheme.
    subroutine mg_index(g,mil_g,mipan,mjpan)
@@ -7104,13 +6919,9 @@ contains
       integer ntest, nsize
       integer neighnumrecv, neighnumsend
       integer(kind=4) :: itag=22, lproc, ierr, llen, mnum, sreq
-#ifdef uniform_decomp
-      integer(kind=4), dimension(2*nproc) :: dreq
-      integer(kind=4), dimension(MPI_STATUS_SIZE,12*nproc) :: status
-#else
-      integer(kind=4), dimension(16) :: dreq
-      integer(kind=4), dimension(MPI_STATUS_SIZE,16) :: status
-#endif
+      ! 13 is the maximum number of neigbours possible (i.e., uniform decomposition).
+      integer(kind=4), dimension(26) :: dreq
+      integer(kind=4), dimension(MPI_STATUS_SIZE,26) :: status
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_INTEGER8
 #else
@@ -7604,14 +7415,13 @@ contains
             end do
          end do
 
+
          mg(g)%neighnum = count( mg_bnds(:,g)%rlenx > 0 )
-#ifndef uniform_decomp
-         if ( mg(g)%neighnum > 16 ) then
-            write(6,*) "ERROR: More than 8 MG neighbours at level ",g
+         if ( mg(g)%neighnum > 13 ) then
+            write(6,*) "ERROR: More than 13 MG neighbours at level ",g
             mnum = -1
             call MPI_Abort( MPI_COMM_WORLD, mnum, ierr )
          end if
-#endif
 
          sreq = nreq - rreq
          call MPI_Waitall( sreq, ireq(rreq+1), status, ierr )
@@ -7621,30 +7431,14 @@ contains
          llen = 2
          do iproc = 1,nproc-1
             rproc = modulo(myid+iproc,nproc)
-#ifdef uniform_decomp
-            ! This can become very complicated in uniform decomposition
-            ! because processors can have multiple north neighbours after
-            ! upscaling the grid
-            nreq = nreq + 1
-            lproc = rproc
-            call MPI_IRecv( rdum(:,rproc), llen, ltype, lproc, itag, MPI_COMM_WORLD, dreq(nreq), ierr )
-#else
             if ( mg_bnds(rproc,g)%rlenx > 0 ) then
                nreq = nreq + 1
                lproc = rproc
                call MPI_IRecv( rdum(:,rproc), llen, ltype, lproc, itag, MPI_COMM_WORLD, dreq(nreq), ierr )
             end if
-#endif
          end do
          do iproc = 1,nproc-1
             sproc = modulo(myid-iproc,nproc)  ! Send to
-#ifdef uniform_decomp
-            nreq = nreq + 1
-            sdum(1,sproc) = mg_bnds(sproc,g)%rlenx
-            sdum(2,sproc) = mg_bnds(sproc,g)%rlen
-            lproc = sproc
-            call MPI_ISend( sdum(:,sproc), llen, ltype, lproc, itag, MPI_COMM_WORLD, dreq(nreq), ierr )
-#else
             if ( mg_bnds(sproc,g)%rlenx > 0 ) then
                nreq = nreq + 1
                sdum(1,sproc) = mg_bnds(sproc,g)%rlenx
@@ -7652,7 +7446,6 @@ contains
                lproc = sproc
                call MPI_ISend( sdum(:,sproc), llen, ltype, lproc, itag, MPI_COMM_WORLD, dreq(nreq), ierr )
             end if
-#endif
          end do
          call MPI_Waitall( nreq, dreq, status, ierr )
          nreq = 0
@@ -7660,23 +7453,18 @@ contains
 
          do iproc = 1,nproc-1
             rproc = modulo(myid+iproc,nproc)
-#ifdef uniform_decomp
-            mg_bnds(rproc,g)%slenx = rdum(1,rproc)
-            mg_bnds(rproc,g)%slen  = rdum(2,rproc)
-#else
             if ( mg_bnds(rproc,g)%rlenx > 0 ) then
                mg_bnds(rproc,g)%slenx = rdum(1,rproc)
                mg_bnds(rproc,g)%slen  = rdum(2,rproc)
             end if
-#endif       
          end do
-  
+
          ! Increase size of request list if needed
          ntest = mg(g)%neighnum
          nsize = size(ireq)
          if ( 2*ntest > nsize ) then
             deallocate( ireq, rlist )
-            allocate( ireq(2*ntest) )
+            allocate( ireq(max(2*ntest,1)) )
             allocate( rlist(ntest) )
          end if
   
@@ -7692,7 +7480,7 @@ contains
                neighnumrecv = neighnumrecv + 1
                mg(g)%neighlistrecv(neighnumrecv) = rproc
             end if
-            if ( mg_bnds(sproc,g)%slenx > 0 ) then
+            if ( mg_bnds(sproc,g)%rlenx > 0 ) then
                neighnumsend = neighnumsend + 1
                mg(g)%neighlistsend(neighnumsend) = sproc
             end if
@@ -7709,26 +7497,22 @@ contains
          nreq = 0
          do iproc = 1,mg(g)%neighnum
             rproc = mg(g)%neighlistrecv(iproc)  ! Recv from
-            if ( mg_bnds(rproc,g)%slenx > 0 ) then
-               allocate( mg_bnds(rproc,g)%send_list(mg_bnds(rproc,g)%slenx) )
-               nreq = nreq + 1
-               ! Use the maximum size in the recv call.
-               llen = mg_bnds(rproc,g)%slenx
-               lproc = rproc
-               call MPI_IRecv( mg_bnds(rproc,g)%send_list(1), llen, ltype, lproc, &
-                               itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-            end if
+            allocate( mg_bnds(rproc,g)%send_list(mg_bnds(rproc,g)%slenx) )
+            nreq = nreq + 1
+            ! Use the maximum size in the recv call.
+            llen = mg_bnds(rproc,g)%slenx
+            lproc = rproc
+            call MPI_IRecv( mg_bnds(rproc,g)%send_list(1), llen, ltype, lproc, &
+                            itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end do
          do iproc = 1,mg(g)%neighnum
             sproc = mg(g)%neighlistsend(iproc)  ! Send to
-            if ( mg_bnds(sproc,g)%rlenx > 0 ) then
-               ! Send list of requests
-               nreq = nreq + 1
-               llen = mg_bnds(sproc,g)%rlenx
-               lproc = sproc
-               call MPI_ISend( mg_bnds(sproc,g)%request_list(1), llen, ltype, lproc, &
-                               itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-            end if
+            ! Send list of requests
+            nreq = nreq + 1
+            llen = mg_bnds(sproc,g)%rlenx
+            lproc = sproc
+            call MPI_ISend( mg_bnds(sproc,g)%request_list(1), llen, ltype, lproc, &
+                            itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end do      
          call MPI_Waitall( nreq, ireq, status, ierr )
          nreq = 0

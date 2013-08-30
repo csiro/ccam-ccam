@@ -274,9 +274,9 @@ do itr=1,itr_mg
   ! convert back to local grid if required and update halo
   if (mg(g)%merge_len>1) then
     vdum=0.
+    ir=mod(mg(g)%merge_pos-1,mg(g)%merge_row)+1   ! index for proc row
+    ic=(mg(g)%merge_pos-1)/mg(g)%merge_row+1      ! index for proc col
     do n=1,npan
-      ir=mod(mg(g)%merge_pos(n)-1,mg(g)%merge_row)+1   ! index for proc row
-      ic=(mg(g)%merge_pos(n)-1)/mg(g)%merge_row+1      ! index for proc col
       do jj=1,jpan
         iq_a=1+(jj-1)*ipan+(n-1)*ipan*jpan
         iq_b=jj*ipan+(n-1)*ipan*jpan
@@ -815,9 +815,9 @@ do itr=1,itr_mgice
   ! convert back to local grid if required and update halo
   if (mg(g)%merge_len>1) then
     vdum=0.
+    ir=mod(mg(g)%merge_pos-1,mg(g)%merge_row)+1   ! index for proc row
+    ic=(mg(g)%merge_pos-1)/mg(g)%merge_row+1      ! index for proc col
     do n=1,npan
-      ir=mod(mg(g)%merge_pos(n)-1,mg(g)%merge_row)+1   ! index for proc row
-      ic=(mg(g)%merge_pos(n)-1)/mg(g)%merge_row+1      ! index for proc col
       do jj=1,jpan
         iq_a=1+(jj-1)*ipan+(n-1)*ipan*jpan
         iq_b=jj*ipan+(n-1)*ipan*jpan
@@ -1040,7 +1040,7 @@ integer mipan,mjpan,hipan,hjpan,mil_g,iia,jja
 integer i,j,n,mg_npan,mxpr,mypr
 integer cid,ix,jx,colour,rank,ncol,nrow
 integer npanx,na,nx,ny,sii,eii,sjj,ejj
-integer drow,dcol,maxmergelen
+integer drow,dcol
 logical lglob
 
 integer, parameter :: grain = 4 ! smallest subdivision
@@ -1113,92 +1113,92 @@ if (mod(mipan,2)/=0.or.mod(mjpan,2)/=0.or.mipan<grain.or.mjpan<grain.or.g==mg_ma
       write(6,*) "Multi-grid gather4 at level           ",g,mipan,mjpan
     end if
 
-    allocate(mg(1)%merge_list(4,npan),mg(1)%merge_pos(npan))
+    allocate(mg(1)%merge_list(4))
 
     ! find my processor and surrounding members of the gather
-    do n=1,npan
-      nn=n-noff
+    nn=1-noff
 
-      ix=-1
-      jx=-1
-      do jj=1,mil_g,hjpan
-        do ii=1,mil_g,hipan
-          if (mg(1)%fproc(ii,jj,nn)==myid) then
-            ix=ii
-            jx=jj
-            exit
-          end if
-        end do
-        if (ix>0) exit
-      end do
-      if (ix<1) then
-        write(6,*) "ERROR: Cannot locate processor in gather4"
-        stop
-      end if
-      ii=ix
-      jj=jx
-      if (mod((ii-1)/hipan,2)/=0) ii=ii-hipan
-      if (mod((jj-1)/hjpan,2)/=0) jj=jj-hjpan
-      ix=ix-ii ! offset for myid from ii
-      jx=jx-jj ! offset for myid from jj
-
-       
-      mg(1)%merge_list(1,n)=mg(1)%fproc(ii,      jj      ,nn)
-      mg(1)%merge_list(2,n)=mg(1)%fproc(ii+hipan,jj      ,nn)
-      mg(1)%merge_list(3,n)=mg(1)%fproc(ii,      jj+hjpan,nn)
-      mg(1)%merge_list(4,n)=mg(1)%fproc(ii+hipan,jj+hjpan,nn)
-       
-      do j=1,mil_g,mjpan
-        do i=1,mil_g,mipan
-          cid=mg(1)%fproc(i+ix,j+jx,nn) ! processor in same merge position as myid
-                                        ! we will maintain communications with this processor
-          do jja=1,mjpan
-            do iia=1,mipan
-              ! update fproc map with processor that owns this data
-              mg(1)%fproc(i+iia-1,j+jja-1,nn)=cid
-            end do
-          end do
-        end do
-      end do
-        
-      mg(1)%merge_pos(n)=-1
-      do j=1,4
-        if (mg(1)%merge_list(j,n)==myid) then
-          mg(1)%merge_pos(n)=j
+    ix=-1
+    jx=-1
+    do jj=1,mil_g,hjpan
+      do ii=1,mil_g,hipan
+        if (mg(1)%fproc(ii,jj,nn)==myid) then
+          ix=ii
+          jx=jj
           exit
         end if
       end do
-      if (mg(g)%merge_pos(n)<1) then
-        write(6,*) "ERROR: Invalid merge_pos g,n,pos ",g,n,mg(g)%merge_pos(n)
-        call ccmpi_abort(-1)
-      end if
-      
+      if (ix>0) exit
+    end do
+    if (ix<1) then
+      write(6,*) "ERROR: Cannot locate processor in gather4"
+      stop
+    end if
+    ii=ix
+    jj=jx
+    if (mod((ii-1)/hipan,2)/=0) ii=ii-hipan
+    if (mod((jj-1)/hjpan,2)/=0) jj=jj-hjpan
+    ix=ix-ii ! offset for myid from ii
+    jx=jx-jj ! offset for myid from jj
+   
+    mg(1)%merge_list(1)=mg(1)%fproc(ii,      jj      ,0)
+    mg(1)%merge_list(2)=mg(1)%fproc(ii+hipan,jj      ,0)
+    mg(1)%merge_list(3)=mg(1)%fproc(ii,      jj+hjpan,0)
+    mg(1)%merge_list(4)=mg(1)%fproc(ii+hipan,jj+hjpan,0)
+       
+    do j=1,mil_g,mjpan
+      do i=1,mil_g,mipan
+        cid=mg(1)%fproc(i+ix,j+jx,nn) ! processor in same merge position as myid
+                                      ! we will maintain communications with this processor
+        do jja=1,mjpan
+          do iia=1,mipan
+            ! update fproc map with processor that owns this data
+            mg(1)%fproc(i+iia-1,j+jja-1,nn)=cid
+          end do
+        end do
+      end do
     end do
 
+    mg(1)%merge_pos=-1
+    do j=1,4
+      if (mg(1)%merge_list(j)==myid) then
+        mg(1)%merge_pos=j
+        exit
+      end if
+    end do
+    if (mg(g)%merge_pos<1) then
+      write(6,*) "ERROR: Invalid merge_pos g,pos ",g,mg(g)%merge_pos
+      call ccmpi_abort(-1)
+    end if
+      
     ! fix any remaining panels
     if (npan==1) then
+      ! must loop over all panels
       do nn=0,npanels
         do j=1,mil_g,mjpan
           do i=1,mil_g,mipan
-            cid=mg(g)%fproc(i+ix,j+jx,nn) ! processor in same merge position as myid
+            cid=mg(1)%fproc(i+ix,j+jx,nn) ! processor in same merge position as myid
                                           ! we will maintain communications with this processor
             do jja=1,mjpan
               do iia=1,mipan
                 ! update fproc map with processor that owns this data
-                mg(g)%fproc(i+iia-1,j+jja-1,nn)=cid
+                mg(1)%fproc(i+iia-1,j+jja-1,nn)=cid
               end do
             end do
           end do
         end do
       end do
-
-      ! define local comm
-      colour=mg(1)%merge_list(1,1)
-      rank=mg(1)%merge_pos(1)-1
-      call ccmpi_commsplit(mg(1)%comm,comm_world,colour,rank)
-  
+    else
+      do nn=1,npanels
+        mg(1)%fproc(:,:,nn)=mg(1)%fproc(:,:,0)
+      end do    
     end if
-      
+
+    ! define local comm for gather
+    colour=mg(1)%merge_list(1)
+    rank=mg(1)%merge_pos-1
+    call ccmpi_commsplit(mg(1)%comm,comm_world,colour,rank)
+  
   else
     write(6,*) "ERROR: Grid g=1 requires gatherall for multi-grid solver"
     call ccmpi_abort(-1)
@@ -1292,71 +1292,68 @@ do g=2,mg_maxlevel
         write(6,*) "Multi-grid gather4 at level           ",g,mipan,mjpan
       end if
 
-      maxmergelen=npan
-      allocate(mg(g)%merge_list(4,npan),mg(g)%merge_pos(npan))
+      allocate(mg(g)%merge_list(4))
       
-      do n=1,npan
-        nn=n-noff
+      nn=1-noff
 
-        ! find my processor and surrounding members of the gather
-        ix=-1
-        jx=-1
-        do jj=1,mil_g,hjpan
-          do ii=1,mil_g,hipan
-            if (mg(g)%fproc(ii,jj,nn)==myid) then
-              ix=ii
-              jx=jj
-              exit
-            end if
-          end do
-          if (ix>0) exit
-        end do
-        if (ix<1) then
-          write(6,*) "ERROR: Cannot locate processor in gather4"
-          call ccmpi_abort(-1)
-        end if
-        ii=ix
-        jj=jx
-        if (mod((ii-1)/hipan,2)/=0) ii=ii-hipan ! left corner of merge
-        if (mod((jj-1)/hjpan,2)/=0) jj=jj-hjpan ! bottom corner of merge
-        ix=ix-ii ! offset for myid from ii
-        jx=jx-jj ! offset for myid from jj
-       
-        mg(g)%merge_list(1,n)=mg(g)%fproc(ii,      jj      ,nn)
-        mg(g)%merge_list(2,n)=mg(g)%fproc(ii+hipan,jj      ,nn)
-        mg(g)%merge_list(3,n)=mg(g)%fproc(ii,      jj+hjpan,nn)
-        mg(g)%merge_list(4,n)=mg(g)%fproc(ii+hipan,jj+hjpan,nn)
- 
-        do j=1,mil_g,mjpan
-          do i=1,mil_g,mipan
-            cid=mg(g)%fproc(i+ix,j+jx,nn) ! processor in same merge position as myid
-                                          ! we will maintain communications with this processor
-            do jja=1,mjpan
-              do iia=1,mipan
-                ! update fproc map with processor that owns this data
-                mg(g)%fproc(i+iia-1,j+jja-1,nn)=cid
-              end do
-            end do
-          end do
-        end do
-
-        mg(g)%merge_pos(n)=-1
-        do j=1,4
-          if (mg(g)%merge_list(j,n)==myid) then
-            mg(g)%merge_pos(n)=j
+      ! find my processor and surrounding members of the gather
+      ix=-1
+      jx=-1
+      do jj=1,mil_g,hjpan
+        do ii=1,mil_g,hipan
+          if (mg(g)%fproc(ii,jj,nn)==myid) then
+            ix=ii
+            jx=jj
             exit
           end if
         end do
-       
-        if (mg(g)%merge_pos(n)<1) then
-          write(6,*) "ERROR: Invalid merge_pos g,n,pos ",g,n,mg(g)%merge_pos(n)
-          call ccmpi_abort(-1)
-        end if
-
+        if (ix>0) exit
       end do
-      
+      if (ix<1) then
+        write(6,*) "ERROR: Cannot locate processor in gather4"
+        call ccmpi_abort(-1)
+      end if
+      ii=ix
+      jj=jx
+      if (mod((ii-1)/hipan,2)/=0) ii=ii-hipan ! left corner of merge
+      if (mod((jj-1)/hjpan,2)/=0) jj=jj-hjpan ! bottom corner of merge
+      ix=ix-ii ! offset for myid from ii
+      jx=jx-jj ! offset for myid from jj
+       
+      mg(g)%merge_list(1)=mg(g)%fproc(ii,      jj      ,nn)
+      mg(g)%merge_list(2)=mg(g)%fproc(ii+hipan,jj      ,nn)
+      mg(g)%merge_list(3)=mg(g)%fproc(ii,      jj+hjpan,nn)
+      mg(g)%merge_list(4)=mg(g)%fproc(ii+hipan,jj+hjpan,nn)
+ 
+      do j=1,mil_g,mjpan
+        do i=1,mil_g,mipan
+          cid=mg(g)%fproc(i+ix,j+jx,nn) ! processor in same merge position as myid
+                                        ! we will maintain communications with this processor
+          do jja=1,mjpan
+            do iia=1,mipan
+              ! update fproc map with processor that owns this data
+              mg(g)%fproc(i+iia-1,j+jja-1,nn)=cid
+            end do
+          end do
+        end do
+      end do
+
+      mg(g)%merge_pos=-1
+      do j=1,4
+        if (mg(g)%merge_list(j)==myid) then
+          mg(g)%merge_pos=j
+          exit
+        end if
+      end do
+       
+      if (mg(g)%merge_pos<1) then
+        write(6,*) "ERROR: Invalid merge_pos g,pos ",g,mg(g)%merge_pos
+        call ccmpi_abort(-1)
+      end if
+
       ! fix any remaining panels
       if (npan==1) then
+        ! must loop over all panels
         do nn=0,npanels
           do j=1,mil_g,mjpan
             do i=1,mil_g,mipan
@@ -1370,6 +1367,10 @@ do g=2,mg_maxlevel
               end do
             end do
           end do
+        end do
+      else
+        do nn=1,npanels
+          mg(g)%fproc(:,:,nn)=mg(g)%fproc(:,:,0)
         end do
       end if
     
@@ -1395,43 +1396,38 @@ do g=2,mg_maxlevel
       
       ! find gather members
 #ifdef uniform_decomp
-      maxmergelen=npan
-      allocate(mg(g)%merge_list(mg(g)%merge_len,npan),mg(g)%merge_pos(npan))
-      do n=1,npan
-        nn=n-noff
-        iqq=0
-        do jj=1,mil_g,hjpan
-          do ii=1,mil_g,hipan
-            iqq=iqq+1
-            mg(g)%merge_list(iqq,n)=mg(g)%fproc(ii,jj,nn)
-          end do
+      allocate(mg(g)%merge_list(mg(g)%merge_len))
+      iqq=0
+      do jj=1,mil_g,hjpan
+        do ii=1,mil_g,hipan
+          iqq=iqq+1
+          mg(g)%merge_list(iqq)=mg(g)%fproc(ii,jj,0)
         end do
-        if (iqq/=mg(g)%merge_len) then
-          write(6,*) "ERROR: merge_len mismatch ",iqq,mg(g)%merge_len,g
-          stop
-        end if
-        mg(g)%merge_pos(n)=-1
-        do i=1,mg(g)%merge_len
-          if (mg(g)%merge_list(i,n)==myid) then
-            mg(g)%merge_pos(n)=i
-            exit
-          end if
-        end do
-        if (mg(g)%merge_pos(n)<1) then
-          write(6,*) "ERROR: Invalid merge_pos g,n,pos ",g,n,mg(g)%merge_pos(n)
-          call ccmpi_abort(-1)
+      end do
+      if (iqq/=mg(g)%merge_len) then
+        write(6,*) "ERROR: merge_len mismatch ",iqq,mg(g)%merge_len,g
+        stop
+      end if
+      mg(g)%merge_pos=-1
+      do i=1,mg(g)%merge_len
+        if (mg(g)%merge_list(i)==myid) then
+          mg(g)%merge_pos=i
+          exit
         end if
       end do
+      if (mg(g)%merge_pos<1) then
+        write(6,*) "ERROR: Invalid merge_pos g,pos ",g,mg(g)%merge_pos
+        call ccmpi_abort(-1)
+      end if
 #else
-      maxmergelen=1
-      allocate(mg(g)%merge_list(mg(g)%merge_len,1),mg(g)%merge_pos(1))      
+      allocate(mg(g)%merge_list(mg(g)%merge_len))      
       iqq=0
       do n=1,6/npan
         nn=(n-1)*npan
         do jj=1,mil_g,hjpan
           do ii=1,mil_g,hipan
             iqq=iqq+1
-            mg(g)%merge_list(iqq,1)=mg(g)%fproc(ii,jj,nn)
+            mg(g)%merge_list(iqq)=mg(g)%fproc(ii,jj,nn)
           end do
         end do
       end do
@@ -1439,15 +1435,15 @@ do g=2,mg_maxlevel
         write(6,*) "ERROR: merge_len mismatch ",iqq,mg(g)%merge_len,g
         stop
       end if
-      mg(g)%merge_pos(1)=-1
+      mg(g)%merge_pos=-1
       do i=1,mg(g)%merge_len
-        if (mg(g)%merge_list(i,1)==myid) then
-          mg(g)%merge_pos(1)=i
+        if (mg(g)%merge_list(i)==myid) then
+          mg(g)%merge_pos=i
           exit
         end if
       end do
-      if (mg(g)%merge_pos(1)<1) then
-        write(6,*) "ERROR: Invalid merge_pos g,n,pos ",g,1,mg(g)%merge_pos(1)
+      if (mg(g)%merge_pos<1) then
+        write(6,*) "ERROR: Invalid merge_pos g,pos ",g,mg(g)%merge_pos
         call ccmpi_abort(-1)
       end if
 #endif
@@ -1463,20 +1459,14 @@ do g=2,mg_maxlevel
       if (myid==0) then
         write(6,*) "Multi-grid toplevel                   ",g,mipan,mjpan
       end if
-      maxmergelen=1
-      allocate(mg(g)%merge_pos(1))
-      mg(g)%merge_pos(1)=1
+      mg(g)%merge_pos=1
     end if
 
     ! define local comm
     if (mg(g)%merge_len>1) then
-      if (npan==1.or.mg(g)%globgath) then
-
-        colour=mg(g)%merge_list(1,1)
-        rank=mg(g)%merge_pos(1)-1
-        call ccmpi_commsplit(mg(g)%comm,comm_world,colour,rank)
-
-      end if
+      colour=mg(g)%merge_list(1)
+      rank=mg(g)%merge_pos-1
+      call ccmpi_commsplit(mg(g)%comm,comm_world,colour,rank)
     end if
   
   else
@@ -1485,9 +1475,7 @@ do g=2,mg_maxlevel
     end if
     ! no messages sent, but we allocate this arrays for the
     ! coarse calculation below
-    maxmergelen=1
-    allocate(mg(g)%merge_pos(1))
-    mg(g)%merge_pos(1)=1
+    mg(g)%merge_pos=1
   end if
   
 
@@ -1561,8 +1549,7 @@ do g=2,mg_maxlevel
  
   do n=1,npanx
   
-    nn=min(n,maxmergelen)
-    na=mg(g)%merge_pos(nn)
+    na=mg(g)%merge_pos
     nx=mod(na-1,nrow)+1
     ny=(na-1)/nrow+1
     sii=(nx-1)*drow+1
@@ -1721,6 +1708,9 @@ end do
 ! free some memory
 do g=1,mg_maxlevel
   deallocate(mg(g)%fproc)
+  if (mg(g)%merge_len>1) then
+    deallocate(mg(g)%merge_list)
+  end if
 end do
 
 mg_minsize=6*mil_g*mil_g
