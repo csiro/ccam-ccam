@@ -4420,7 +4420,7 @@ contains
       real, dimension(ifull_g), intent(out) :: qproc
       integer :: i, j, n, iproc, nd, jdf, idjd_g
 
-      call face_set(ipan,jpan,noff,ioff,joff,npan,il_g,myid,nproc,nxproc,nyproc)
+      call face_set( ipan, jpan, noff, ioff, joff, npan, il_g, myid, nproc, nxproc, nyproc)
 
       if ( nproc <= npanels+1 ) then
 
@@ -4548,7 +4548,7 @@ contains
       integer :: i, j, n, iproc, nd, jdf, idjd_g
       integer(kind=4) ierr, mone
 
-      call uniform_set(ipan,jpan,noff,ioff,joff,npan,il_g,myid,nproc,nxproc,nyproc)
+      call uniform_set( ipan, jpan, noff, ioff, joff, npan, il_g, myid, nproc, nxproc, nyproc)
 
       !iproc = 0
       !qproc = -9999 ! Mask value so any points not set are obvious.
@@ -5465,8 +5465,7 @@ contains
        ltype = MPI_COMPLEX
 #endif 
        mnum = 2  
-       call MPI_Allreduce ( local_sum, global_sum, mnum, ltype,     &
-                            MPI_SUMDR, MPI_COMM_WORLD, ierr )
+       call MPI_Allreduce ( local_sum, global_sum, mnum, ltype, MPI_SUMDR, MPI_COMM_WORLD, ierr )
        delpos = real(global_sum(1))
        delneg = real(global_sum(2))
 #else
@@ -5477,8 +5476,7 @@ contains
 #endif   
        mnum = 2
        delarr_l(1:2) = (/ delpos_l, delneg_l /)
-       call MPI_Allreduce ( delarr_l, delarr, mnum, ltype, MPI_SUM,    &
-                            MPI_COMM_WORLD, ierr )
+       call MPI_Allreduce ( delarr_l, delarr, mnum, ltype, MPI_SUM, MPI_COMM_WORLD, ierr )
        delpos = delarr(1)
        delneg = delarr(2)
 #endif
@@ -5537,8 +5535,7 @@ contains
        ltype = MPI_COMPLEX
 #endif 
        mnum = 2*ntr 
-       call MPI_Allreduce ( local_sum, global_sum, mnum, ltype,     &
-                            MPI_SUMDRA, MPI_COMM_WORLD, ierr )
+       call MPI_Allreduce ( local_sum, global_sum, mnum, ltype, MPI_SUMDRA, MPI_COMM_WORLD, ierr )
        do i=1,ntr
           delpos(i) = real(global_sum(1,i))
           delneg(i) = real(global_sum(2,i))
@@ -5553,8 +5550,7 @@ contains
        do i=1,ntr
           delarr_l(1:2,i) = (/ delpos_l(i), delneg_l(i) /)
        end do
-       call MPI_Allreduce ( delarr_l, delarr, mnum, ltype, MPI_SUM,    &
-                            MPI_COMM_WORLD, ierr )
+       call MPI_Allreduce ( delarr_l, delarr, mnum, ltype, MPI_SUM, MPI_COMM_WORLD, ierr )
        do i=1,ntr
           delpos(i) = delarr(1,i)
           delneg(i) = delarr(2,i)
@@ -5608,13 +5604,11 @@ contains
        local_sum = (0.,0.)
        call drpdr_local(tmparr, local_sum)
        mnum = 1
-       call MPI_Allreduce ( local_sum, global_sum, mnum, ltype,     &
-                            MPI_SUMDR, MPI_COMM_WORLD, ierr )
+       call MPI_Allreduce ( local_sum, global_sum, mnum, ltype, MPI_SUMDR, MPI_COMM_WORLD, ierr )
        result = real(global_sum)
 #else
        mnum = 1
-       call MPI_Allreduce ( result_l, result, mnum, ltype, MPI_SUM,    &
-                            MPI_COMM_WORLD, ierr )
+       call MPI_Allreduce ( result_l, result, mnum, ltype, MPI_SUM, MPI_COMM_WORLD, ierr )
 #endif
 
        call end_log(globsum_end)
@@ -5672,13 +5666,11 @@ contains
 
 #ifdef sumdd
        mnum = 1
-       call MPI_Allreduce ( local_sum, global_sum, mnum, ltype,    &
-                            MPI_SUMDR, MPI_COMM_WORLD, ierr )
+       call MPI_Allreduce ( local_sum, global_sum, mnum, ltype, MPI_SUMDR, MPI_COMM_WORLD, ierr )
        result = real(global_sum)
 #else
        mnum = 1
-       call MPI_Allreduce ( result_l, result, mnum, ltype, MPI_SUM,   &
-                            MPI_COMM_WORLD, ierr )
+       call MPI_Allreduce ( result_l, result, mnum, ltype, MPI_SUM, MPI_COMM_WORLD, ierr )
 #endif
 
        call end_log(globsum_end)
@@ -6855,11 +6847,11 @@ contains
 
       if ( npanx == 1 ) then ! usually face_decomp
 
-         call mgcollect_face(g,vdat,kx,nmax,msg_len,lmsg)
+         call mgcollect_face( g, vdat, kx, nmax, msg_len, lmsg )
 
       else ! usually npanx==6 for uniform_decomp
 
-         call mgcollect_uniform(g,vdat,kx,nmax,msg_len,lmsg)
+         call mgcollect_uniform( g, vdat, kx, nmax, msg_len, lmsg )
 
       end if
 
@@ -6900,7 +6892,7 @@ contains
 
       ilen = lmsg
       lcomm = mg(g)%comm
-      call MPI_AllGather(tdat,ilen,ltype,tdat_g,ilen,ltype,lcomm,ierr)      
+      call MPI_AllGather( tdat, ilen, ltype, tdat_g, ilen, ltype, lcomm, ierr )      
 
       do xproc = 1,nmax
          ir = mod(xproc-1,mg(g)%merge_row)+1   ! index for proc row
@@ -7112,8 +7104,13 @@ contains
       integer ntest, nsize
       integer neighnumrecv, neighnumsend
       integer(kind=4) :: itag=22, lproc, ierr, llen, mnum, sreq
+#ifdef uniform_decomp
       integer(kind=4), dimension(2*nproc) :: dreq
-      integer(kind=4), dimension(MPI_STATUS_SIZE,2*nproc) :: status
+      integer(kind=4), dimension(MPI_STATUS_SIZE,12*nproc) :: status
+#else
+      integer(kind=4), dimension(16) :: dreq
+      integer(kind=4), dimension(MPI_STATUS_SIZE,16) :: status
+#endif
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_INTEGER8
 #else
@@ -7608,23 +7605,46 @@ contains
          end do
 
          mg(g)%neighnum = count( mg_bnds(:,g)%rlenx > 0 )
+#ifndef uniform_decomp
+         if ( mg(g)%neighnum > 16 ) then
+            write(6,*) "ERROR: More than 8 MG neighbours at level ",g
+            mnum = -1
+            call MPI_Abort( MPI_COMM_WORLD, mnum, ierr )
+         end if
+#endif
 
          sreq = nreq - rreq
-         call MPI_Waitall(sreq,ireq(rreq+1),status,ierr)
+         call MPI_Waitall( sreq, ireq(rreq+1), status, ierr )
          
          ! Now, for each processor send the list of points I want.
          nreq = 0
          llen = 2
          do iproc = 1,nproc-1
             rproc = modulo(myid+iproc,nproc)
+#ifdef uniform_decomp
+            ! This can become very complicated in uniform decomposition
+            ! because processors can have multiple north neighbours after
+            ! upscaling the grid
+            nreq = nreq + 1
+            lproc = rproc
+            call MPI_IRecv( rdum(:,rproc), llen, ltype, lproc, itag, MPI_COMM_WORLD, dreq(nreq), ierr )
+#else
             if ( mg_bnds(rproc,g)%rlenx > 0 ) then
                nreq = nreq + 1
                lproc = rproc
                call MPI_IRecv( rdum(:,rproc), llen, ltype, lproc, itag, MPI_COMM_WORLD, dreq(nreq), ierr )
             end if
+#endif
          end do
          do iproc = 1,nproc-1
             sproc = modulo(myid-iproc,nproc)  ! Send to
+#ifdef uniform_decomp
+            nreq = nreq + 1
+            sdum(1,sproc) = mg_bnds(sproc,g)%rlenx
+            sdum(2,sproc) = mg_bnds(sproc,g)%rlen
+            lproc = sproc
+            call MPI_ISend( sdum(:,sproc), llen, ltype, lproc, itag, MPI_COMM_WORLD, dreq(nreq), ierr )
+#else
             if ( mg_bnds(sproc,g)%rlenx > 0 ) then
                nreq = nreq + 1
                sdum(1,sproc) = mg_bnds(sproc,g)%rlenx
@@ -7632,26 +7652,32 @@ contains
                lproc = sproc
                call MPI_ISend( sdum(:,sproc), llen, ltype, lproc, itag, MPI_COMM_WORLD, dreq(nreq), ierr )
             end if
+#endif
          end do
-         call MPI_Waitall(nreq,dreq,status,ierr)
+         call MPI_Waitall( nreq, dreq, status, ierr )
          nreq = 0
          rreq = 0
 
          do iproc = 1,nproc-1
             rproc = modulo(myid+iproc,nproc)
+#ifdef uniform_decomp
+            mg_bnds(rproc,g)%slenx = rdum(1,rproc)
+            mg_bnds(rproc,g)%slen  = rdum(2,rproc)
+#else
             if ( mg_bnds(rproc,g)%rlenx > 0 ) then
                mg_bnds(rproc,g)%slenx = rdum(1,rproc)
                mg_bnds(rproc,g)%slen  = rdum(2,rproc)
             end if
+#endif       
          end do
   
-         
+         ! Increase size of request list if needed
          ntest = mg(g)%neighnum
          nsize = size(ireq)
          if ( 2*ntest > nsize ) then
-            deallocate(ireq,rlist)
-            allocate(ireq(2*ntest))
-            allocate(rlist(ntest))
+            deallocate( ireq, rlist )
+            allocate( ireq(2*ntest) )
+            allocate( rlist(ntest) )
          end if
   
          ! set-up neighbour lists
@@ -7666,7 +7692,7 @@ contains
                neighnumrecv = neighnumrecv + 1
                mg(g)%neighlistrecv(neighnumrecv) = rproc
             end if
-            if ( mg_bnds(sproc,g)%rlenx > 0 ) then
+            if ( mg_bnds(sproc,g)%slenx > 0 ) then
                neighnumsend = neighnumsend + 1
                mg(g)%neighlistsend(neighnumsend) = sproc
             end if
@@ -7676,7 +7702,7 @@ contains
             write(6,*) "ERROR: Multi-grid neighnum mismatch"
             write(6,*) "neighnum, neighnumrecv, neighnumsend ",mg(g)%neighnum, neighnumrecv, neighnumsend
             mnum = -1
-            call MPI_Abort(MPI_COMM_WORLD,mnum,ierr)
+            call MPI_Abort( MPI_COMM_WORLD, mnum, ierr )
          end if
   
          ! Now start sending messages  
@@ -7684,7 +7710,7 @@ contains
          do iproc = 1,mg(g)%neighnum
             rproc = mg(g)%neighlistrecv(iproc)  ! Recv from
             if ( mg_bnds(rproc,g)%slenx > 0 ) then
-               allocate(mg_bnds(rproc,g)%send_list(mg_bnds(rproc,g)%slenx))
+               allocate( mg_bnds(rproc,g)%send_list(mg_bnds(rproc,g)%slenx) )
                nreq = nreq + 1
                ! Use the maximum size in the recv call.
                llen = mg_bnds(rproc,g)%slenx
@@ -7704,7 +7730,7 @@ contains
                                itag, MPI_COMM_WORLD, ireq(nreq), ierr )
             end if
          end do      
-         call MPI_Waitall(nreq,ireq,status,ierr)
+         call MPI_Waitall( nreq, ireq, status, ierr )
          nreq = 0
          rreq = 0
 
