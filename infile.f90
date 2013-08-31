@@ -694,7 +694,7 @@ integer(kind=4), dimension(nihead) :: lahead
 integer(kind=4) :: lncid,lier,ler,lidum
 character(len=*), intent(in) :: ifile
 character(len=170) :: pfile
-character(len=7) :: fdecomp
+character(len=8) :: fdecomp
 logical omode
 
 if (myid==0) then

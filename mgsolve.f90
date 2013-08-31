@@ -1141,10 +1141,10 @@ if (mod(mipan,2)/=0.or.mod(mjpan,2)/=0.or.mipan<grain.or.mjpan<grain.or.g==mg_ma
     ix=ix-ii ! offset for myid from ii
     jx=jx-jj ! offset for myid from jj
    
-    mg(1)%merge_list(1)=mg(1)%fproc(ii,      jj      ,0)
-    mg(1)%merge_list(2)=mg(1)%fproc(ii+hipan,jj      ,0)
-    mg(1)%merge_list(3)=mg(1)%fproc(ii,      jj+hjpan,0)
-    mg(1)%merge_list(4)=mg(1)%fproc(ii+hipan,jj+hjpan,0)
+    mg(1)%merge_list(1)=mg(1)%fproc(ii,      jj      ,nn)
+    mg(1)%merge_list(2)=mg(1)%fproc(ii+hipan,jj      ,nn)
+    mg(1)%merge_list(3)=mg(1)%fproc(ii,      jj+hjpan,nn)
+    mg(1)%merge_list(4)=mg(1)%fproc(ii+hipan,jj+hjpan,nn)
        
     do j=1,mil_g,mjpan
       do i=1,mil_g,mipan
@@ -1189,8 +1189,8 @@ if (mod(mipan,2)/=0.or.mod(mjpan,2)/=0.or.mipan<grain.or.mjpan<grain.or.g==mg_ma
         end do
       end do
     else
-      do nn=1,npanels
-        mg(1)%fproc(:,:,nn)=mg(1)%fproc(:,:,0)
+      do n=0,npanels
+        mg(1)%fproc(:,:,n)=mg(1)%fproc(:,:,nn)
       end do    
     end if
 
@@ -1369,8 +1369,8 @@ do g=2,mg_maxlevel
           end do
         end do
       else
-        do nn=1,npanels
-          mg(g)%fproc(:,:,nn)=mg(g)%fproc(:,:,0)
+        do n=0,npanels
+          mg(g)%fproc(:,:,n)=mg(g)%fproc(:,:,nn)
         end do
       end if
     
