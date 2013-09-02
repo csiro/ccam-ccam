@@ -28,6 +28,7 @@ real, dimension(:,:), allocatable, save :: stwgt
 integer, save :: nstagoffmlo
 integer, parameter :: usetide  =1    ! tidal forcing (0=off, 1=on)
 integer, parameter :: icemode  =2    ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
+integer, parameter :: icewgt   =0    ! include ice in pressure calculation (0=off, 1=on)
 integer, parameter :: basinmd  =3    ! basin mode (0=soil, 1=redistribute, 2=pile-up, 3=leak)
 integer, parameter :: mstagf   =10   ! alternating staggering (0=off left, -1=off right, >0 alternating)
 integer, parameter :: koff     =1    ! time split stagger relative to A-grid (koff=0) or C-grid (koff=1)
@@ -797,6 +798,7 @@ real, dimension(ifull+iextra) :: neta,pice,imass,xodum
 real, dimension(ifull+iextra) :: nfracice,ndic,ndsn,nsto,niu,niv,nis,tiu,tiv
 real, dimension(ifull+iextra) :: snu,sou,spu,squ,ssu,snv,sov,spv,sqv,ssv
 real, dimension(ifull+iextra) :: ibu,ibv,icu,icv,idu,idv,spnet,oeu,oev,tide
+real, dimension(ifull+iextra) :: ipmax
 real, dimension(ifull) :: i_u,i_v,i_sto,i_sal,rhobaru,rhobarv,ndum
 real, dimension(ifull) :: pdiv,qdiv,sdiv,div,odiv,w_e
 real, dimension(ifull) :: pdivb,qdivb,sdivb,odivb,xps
@@ -806,7 +808,7 @@ real, dimension(ifull) :: dttdxu,dttdyu,dttdxv,dttdyv
 real, dimension(ifull) :: detadxu,detadyu,detadxv,detadyv
 real, dimension(ifull) :: dipdxu,dipdyu,dipdxv,dipdyv
 real, dimension(ifull) :: au,bu,cu,av,bv,cv,odum
-real, dimension(ifull) :: ipmax,imu,imv
+real, dimension(ifull) :: imu,imv
 real, dimension(ifull) :: sue,suw,svn,svs,snuw,snvs
 real, dimension(ifull) :: pue,puw,pvn,pvs
 real, dimension(ifull) :: que,quw,qvn,qvs
@@ -952,36 +954,42 @@ totits=0
 
 ! surface pressure gradients (including ice)
 ! (assume ice velocity is 'slow' compared to 'fast' change in neta)
-imass(1:ifull)=ndic(1:ifull)*rhoic+ndsn(1:ifull)*rhosn          ! ice mass per unit area (kg/m^2), unstaggered at time t
-pice(1:ifull)=ps(1:ifull)+grav*nfracice(1:ifull)*imass(1:ifull) ! pressure due to atmosphere and ice at top of water column (unstaggered at t)
+imass(1:ifull)=ndic(1:ifull)*rhoic+ndsn(1:ifull)*rhosn            ! ice mass per unit area (kg/m^2), unstaggered at time t
+if (icewgt==1) then
+  pice(1:ifull)=ps(1:ifull)+grav*nfracice(1:ifull)*imass(1:ifull) ! pressure due to atmosphere and ice at top of water column (unstaggered at t)
+else
+  pice(1:ifull)=ps(1:ifull)                                       ! pressure due to atmosphere at top of water column (unstaggered at t)
+end if
+
+! Limit minimum ice mass for ice velocity calculation.  Hence we can estimate the ice velocity at
+! grid points where the ice is not yet present.  
+imass(1:ifull)=max(imass(1:ifull),10.)
 
 ! maximum pressure for cavitating fluid
 select case(icemode)
   case(2)
     ! cavitating fluid
-    ipmax=27500.*ndic(1:ifull)*exp(-20.*(1.-nfracice(1:ifull)))
+    ipmax(1:ifull)=27500.*ndic(1:ifull)*exp(-20.*(1.-nfracice(1:ifull)))
   case(1)
     ! incompressible fluid
-    ipmax=9.E9
+    ipmax(1:ifull)=9.E9*ee(1:ifull)
   case DEFAULT
     ! free drift
-    ipmax=0.
+    ipmax(1:ifull)=0.
 end select
-
-! Limit minimum ice mass for ice velocity calculation.  Hence we can estimate the ice velocity at
-! grid points where the ice is not yet present.  
-imass(1:ifull)=max(imass(1:ifull),10.)
 
 ! update scalar bounds and various gradients
 dumc(1:ifull,1)=neta(1:ifull)
 dumc(1:ifull,2)=pice(1:ifull)
 dumc(1:ifull,3)=tide(1:ifull)
 dumc(1:ifull,4)=imass(1:ifull)
-call bounds(dumc(:,1:4),corner=.true.)
+dumc(1:ifull,5)=ipmax(1:ifull)
+call bounds(dumc(:,1:5),corner=.true.)
 neta(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,1)
 pice(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,2)
 tide(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,3)
 imass(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,4)
+ipmax(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,5)
 ! surface pressure
 tnu=0.5*(pice(in)*f(in)+pice(ine)*f(ine))
 tee=0.5*(pice(1:ifull)*f(1:ifull)+pice(ie)*f(ie))
@@ -4629,7 +4637,7 @@ real, dimension(ifull+iextra), intent(inout) :: ipice
 real, dimension(ifull+iextra), intent(in) :: ibu,ibv,idu,idv
 real, dimension(ifull+iextra), intent(in) :: niu,niv
 real, dimension(ifull), intent(in) :: sicedep
-real, dimension(ifull), intent(in) :: ipmax
+real, dimension(ifull+iextra), intent(in) :: ipmax
 real, dimension(ifull,2) :: zz,zzn,zzs,zze,zzw,rhs
 real, dimension(ifull) :: yy,yyn,yys,yye,yyw
 real, dimension(ifull) :: hh
@@ -4814,7 +4822,7 @@ real, dimension(ifull), intent(in) :: pdiv,pdivb,sdiv,sdivb,odiv,odivb,qdiv,qdiv
 real, dimension(ifull+iextra), intent(in) :: ibu,ibv,idu,idv
 real, dimension(ifull+iextra), intent(in) :: niu,niv
 real, dimension(ifull), intent(in) :: sicedep
-real, dimension(ifull), intent(in) :: ipmax
+real, dimension(ifull+iextra), intent(in) :: ipmax
 real, dimension(ifull,2) :: zz,zzn,zzs,zze,zzw,rhs
 real, dimension(ifull) :: yy,yyn,yys,yye,yyw
 real, dimension(ifull) :: hh
@@ -4824,22 +4832,24 @@ call mgsor_init
 ! zz*(DIV^2 neta) + yy*neta*(DIV^2 neta) + hh*neta = rhs
 
 ! ocean
-zzn(:,1)= (1.+ocneps)*0.5*dt*(qvn+svn+pvn)*ddv(1:ifull)*em(1:ifull)**2/ds
-zzs(:,1)=-(1.+ocneps)*0.5*dt*(qvs+svs+pvs)*ddv(isv)    *em(1:ifull)**2/ds
-zze(:,1)= (1.+ocneps)*0.5*dt*(que+sue+pue)*ddu(1:ifull)*em(1:ifull)**2/ds
-zzw(:,1)=-(1.+ocneps)*0.5*dt*(quw+suw+puw)*ddu(iwu)    *em(1:ifull)**2/ds
+zzn(:,1)= (1.+ocneps)*0.5*dt*(qvn+svn+pvn)*ddv(1:ifull)*em(1:ifull)*em(1:ifull)/ds
+zzs(:,1)=-(1.+ocneps)*0.5*dt*(qvs+svs+pvs)*ddv(isv)    *em(1:ifull)*em(1:ifull)/ds
+zze(:,1)= (1.+ocneps)*0.5*dt*(que+sue+pue)*ddu(1:ifull)*em(1:ifull)*em(1:ifull)/ds
+zzw(:,1)=-(1.+ocneps)*0.5*dt*(quw+suw+puw)*ddu(iwu)    *em(1:ifull)*em(1:ifull)/ds
 zz(:,1) = (1.+ocneps)*0.5*dt*(qdivb+sdivb+pdivb)
 
-yyn= (1.+ocneps)*0.5*dt*(qvn+svn+pvn)*em(1:ifull)**2/ds
-yys=-(1.+ocneps)*0.5*dt*(qvs+svs+pvs)*em(1:ifull)**2/ds
-yye= (1.+ocneps)*0.5*dt*(que+sue+pue)*em(1:ifull)**2/ds
-yyw=-(1.+ocneps)*0.5*dt*(quw+suw+puw)*em(1:ifull)**2/ds
+yyn= (1.+ocneps)*0.5*dt*(qvn+svn+pvn)*em(1:ifull)*em(1:ifull)/ds
+yys=-(1.+ocneps)*0.5*dt*(qvs+svs+pvs)*em(1:ifull)*em(1:ifull)/ds
+yye= (1.+ocneps)*0.5*dt*(que+sue+pue)*em(1:ifull)*em(1:ifull)/ds
+yyw=-(1.+ocneps)*0.5*dt*(quw+suw+puw)*em(1:ifull)*em(1:ifull)/ds
 yy = (1.+ocneps)*0.5*dt*(qdiv+sdiv+pdiv)
 
 hh     =1.+(1.+ocneps)*0.5*dt*(odiv                                                           &
         +(pvn*dd(in)-pvs*dd(is)+pue*dd(ie)-puw*dd(iw))*em(1:ifull)**2/ds+pdiv*dd(1:ifull))
 rhs(:,1)=xps(1:ifull)-(1.+ocneps)*0.5*dt*(odivb                                               &
         +(pvn*ddv(1:ifull)*dd(in)-pvs*ddv(isv)*dd(is)+pue*ddu(1:ifull)*dd(ie)-puw*ddu(iwu)*dd(iw))*em(1:ifull)**2/ds+pdivb*dd(1:ifull))
+
+! zz*(DIV^2 ipice) = rhs
 
 ! ice
 zzn(:,2)=(-idv(1:ifull)*0.5-ibv(1:ifull))/ds
