@@ -211,11 +211,11 @@
 
       !--------------------------------------------------------------
       ! INITALISE LOGS
-      call log_off()
+!      call log_off()
       call log_setup()
-#ifdef simple_timer
+!#ifdef simple_timer
       call start_log(model_begin,'model')
-#endif
+!#endif
 
 
       !--------------------------------------------------------------
@@ -1013,9 +1013,9 @@
          write(6,*) "Start of loop time ", timeval
       end if
       call log_on()
-#ifdef simple_timer
+!#ifdef simple_timer
       call start_log(maincalc_begin,'main_calc')
-#endif
+!#endif
 
       do 88 kktau=1,ntau   ! ****** start of main time loop
       ktau=kktau
@@ -1840,16 +1840,16 @@
  
         if(ktau==ntau.and.irest==1) then
           ! Don't include the time for writing the restart file
-#ifdef simple_timer
+!#ifdef simple_timer
           call end_log(maincalc_end,'maincalc')
-#endif
+!#endif
 !         write restart file
           call outfile(19,rundate,nmi,nwrite,iaero,nstagin)
           if(myid==0)
      &      write(6,*)'finished writing restart file in outfile'
-#ifdef simple_timer
+!#ifdef simple_timer
           call start_log(maincalc_begin,'maincalc')
-#endif
+!#endif
         endif  ! (ktau==ntau.and.irest==1)
       endif    ! (ktau==ntau.or.mod(ktau,nwt)==0)
       
@@ -1988,9 +1988,9 @@
 #endif
 
 88    continue                   ! *** end of main time loop
-#ifdef simple_timer
+!#ifdef simple_timer
       call end_log(maincalc_end,'maincalc')
-#endif
+!#endif
       call log_off()
       if (myid==0) then
          call date_and_time(time=timeval,values=tvals2)
@@ -2004,8 +2004,8 @@
          if (aa<=0.) aa=aa+86400.
          write(6,*) "Model time in main loop",aa
       end if
-#ifdef simple_timer
       call end_log(model_end,'model')
+#ifdef simple_timer
       call simple_timer_finalize
 #endif
 

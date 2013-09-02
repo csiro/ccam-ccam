@@ -311,7 +311,7 @@ module cc_mpi
 #endif
 
 #ifdef vampir
-!!#include "vt_user.inc"
+#include "vt_user.inc"
 #endif
 
 contains
@@ -5083,7 +5083,6 @@ contains
       character(*), intent(in), optional :: event_name
       integer :: ierr
 #ifdef vampir
-#include "vt_user.inc"
       if(present(event_name)) then
         VT_USER_START(event_name)
       endif
@@ -5104,7 +5103,6 @@ contains
       character(*), intent(in), optional :: event_name
       integer :: ierr
 #ifdef vampir
-#include "vt_user.inc"
       if(present(event_name)) then
         VT_USER_END(event_name)
       endif
@@ -5122,21 +5120,18 @@ contains
 
    subroutine log_off()
 #ifdef vampir
-      include "vt_user.inc"
       VT_OFF()
 #endif
    end subroutine log_off
    
    subroutine log_on()
 #ifdef vampir
-      include "vt_user.inc"
       VT_ON()
 #endif
    end subroutine log_on
 
    subroutine log_setup()
 #ifdef vampir
-      include "vt_user.inc"
 #endif
       integer :: ierr
       integer :: classhandle
