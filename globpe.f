@@ -220,15 +220,13 @@
 
       !--------------------------------------------------------------
       ! READ NAMELISTS AND SET PARAMETER DEFAULTS
-      ! Currently all processors read the namelist to avoid explicitly
-      ! using MPI_Bcast.  
       ia=-1   ! diagnostic index
       ib=-1   ! diagnostic index
       ntbar=-1
       rel_lat=0.
       rel_long=0.
       ktau=0
-      ol=20
+      ol=20   ! default ocean levels
       call initialparm
 
       ! All processors read the namelist, so no MPI comms are needed
@@ -249,9 +247,9 @@
       do n3hr=1,8
        nper3hr(n3hr)=nint(n3hr*3*3600/dt)
       enddo
-      if (nwt==-99) nwt=nperday          ! set default nwt to 24 hours
+      if (nwt==-99)     nwt=nperday      ! set default nwt to 24 hours
       if (nperavg==-99) nperavg=nwt      ! set default nperavg to nwt
-      if (nwrite==0) nwrite=nperday      ! only used for outfile IEEE
+      if (nwrite==0)    nwrite=nperday   ! only used for outfile IEEE
       if (nmlo/=0.and.abs(nmlo)<=9) then
         ol=max(ol,1)
       else
@@ -266,7 +264,7 @@
       read (99, datafile)
       read (99, kuonml)
       ngas=0
-      read(99, trfiles, iostat=ierr)       ! try reading tracer namelist.  If no
+      read (99, trfiles, iostat=ierr)      ! try reading tracer namelist.  If no
       if (ierr/=0) rewind(99)              ! namelist is found, then disable
       if (tracerlist/='') call init_tracer ! tracers and rewind namelist.
 
@@ -402,8 +400,18 @@
       if (ib<0) ib=ia+3
       if (ktopdav<0) ktopdav=kl
       if (kbotmlo<0) kbotmlo=ol
+      if (kbotmlo>ol.and.nmlo/=0) then
+        write(6,*) "ERROR: Invalid kbotmlo"
+        write(6,*) "kbotdav,ktopdav ",kbotmlo,ktopmlo
+        call ccmpi_abort(-1)
+      end if
       if (kblock<0)  kblock=max(min(ktopdav-kbotdav+1,kl),
      &                          min(kbotmlo-ktopmlo+1,ol))
+      if (kbotdav<1.or.ktopdav>kl.or.kbotdav>ktopdav) then
+        write(6,*) "ERROR: Invalid kbotdav and ktopdav"
+        write(6,*) "kbotdav,ktopdav ",kbotdav,ktopdav
+        call ccmpi_abort(-1)
+      end if
       if (ldr==0) mbase=0
       dsig4=max(dsig2+.01,dsig4)
       if(kbotu==0) kbotu=kbotdav
@@ -1425,6 +1433,7 @@
         write(6,*) "After radiation"
       end if
       call end_log(radnet_end,'radnet')
+
 
       ! HELD & SUAREZ ---------------------------------------------------------
       if (ntsur<=1.or.nhstest==2) then ! Held & Suarez or no surf fluxes

@@ -34,7 +34,7 @@ implicit none
 private
 public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlodiag,mloalb2,mloalb4, &
        mloscrnout,mloextra,mloimpice,mloexpice,mloexpdep,mloexpdensity,mloexpmelt,mloexpscalar,wlev, &
-       micdwn,mxd,mindep,minwater
+       micdwn,mxd,mindep,minwater,onedice
 
 ! parameters
 integer, save :: wlev = 20
@@ -63,6 +63,7 @@ integer, parameter :: incradgam = 1 ! include shortwave in non-local term
 integer, parameter :: zomode    = 2 ! roughness calculation (0=Charnock (CSIRO9), 1=Charnock (zot=zom), 2=Beljaars)
 integer, parameter :: mixmeth   = 1 ! Refine mixed layer depth calculation (0=None, 1=Iterative)
 integer, parameter :: deprelax  = 0 ! surface height (0=vary, 1=relax, 2=set to zero)
+integer, save      :: onedice   = 1 ! use 1D ice model (0=Off, 1=On)
 ! model parameters
 real, save :: mxd      = 5002.18 ! Max depth (m)
 real, save :: mindep   = 1.      ! Thickness of first layer (m)
@@ -73,6 +74,7 @@ real, parameter :: minsfc  = 0.5    ! Minimum thickness to average surface layer
 real, parameter :: maxsal  = 50.    ! Maximum salinity used in density and melting point calculations (PSU)
 real, parameter :: mu_1    = 23.    ! VIS depth (m) - Type I
 real, parameter :: mu_2    = 0.35   ! NIR depth (m) - Type I
+real, parameter :: fluxwgt = 0.7    ! Time filter for flux calculations
 ! physical parameters
 real, parameter :: vkar=0.4               ! von Karman constant
 real, parameter :: lv=2.501e6             ! Latent heat of vaporisation (J kg^-1)
@@ -930,7 +932,7 @@ end subroutine mloexpscalar
 
 subroutine mloeval(sst,zo,cd,cds,fg,eg,wetfac,epot,epan,fracice,siced,snowd, &
                    dt,zmin,zmins,sg,rg,precp,precs,uatm,vatm,temp,qg,ps,f,   &
-                   visnirratio,fbvis,fbnir,inflow,diag,calcprog)
+                   visnirratio,fbvis,fbnir,inflow,diag,calcprog,oldu,oldv)
 
 implicit none
 
@@ -939,13 +941,14 @@ integer iq,iqw,ii
 real, intent(in) :: dt
 real, dimension(ifull), intent(in) :: sg,rg,precp,precs,f,uatm,vatm,temp,qg,ps,visnirratio,fbvis,fbnir,inflow,zmin,zmins
 real, dimension(ifull), intent(inout) :: sst,zo,cd,cds,fg,eg,wetfac,fracice,siced,epot,epan,snowd
+real, dimension(ifull), intent(in), optional :: oldu,oldv
 real, dimension(wfull) :: workb,workc
 real, dimension(wfull) :: a_sg,a_rg,a_rnd,a_snd,a_f,a_vnratio,a_fbvis,a_fbnir,a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins
 real, dimension(wfull) :: a_inflow
 real, dimension(wfull,wlev) :: d_rho,d_rs,d_nsq,d_rad,d_alpha,d_beta
 real, dimension(wfull) :: d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_ftop,d_tb,d_zcr
 real, dimension(wfull) :: d_fb,d_timelt,d_tauxicw,d_tauyicw,d_neta,d_ndsn
-real, dimension(wfull) :: d_ndic,d_nsto
+real, dimension(wfull) :: d_ndic,d_nsto,d_oldu,d_oldv
 integer, dimension(wfull) :: d_nk
 logical, intent(in) :: calcprog
 
@@ -967,6 +970,13 @@ a_zmins  =zmins(wmap)
 a_inflow =inflow(wmap)
 a_rnd    =precp(wmap)-precs(wmap)
 a_snd    =precs(wmap)
+if (present(oldu).and.present(oldv)) then
+  d_oldu=oldu(wmap)
+  d_oldv=oldv(wmap)
+else
+  d_oldu=w_u(:,1)
+  d_oldv=w_v(:,1)
+end if
 
 ! adjust levels for free surface
 d_zcr=max(1.+w_eta/depth_hl(:,wlev+1),minwater/depth_hl(:,wlev+1))
@@ -986,12 +996,12 @@ where (i_fracice>0.)
   d_ndsn=d_ndsn+0.001*dt*(a_rnd+a_snd)
 end where
 
-call fluxcalc(dt,a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins,d_rho,d_zcr,d_neta,diag)                    ! water fluxes
+call fluxcalc(dt,a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins,d_rho,d_zcr,d_neta,d_oldu,d_oldv,diag)      ! water fluxes
 call getwflux(a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,a_inflow,d_rho,d_rs,d_nsq,d_rad,     &
               d_alpha,d_beta,d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_zcr)                             ! boundary conditions
 call iceflux(dt,a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,a_u,a_v,a_temp,a_qg,a_ps,a_zmin,   &
              a_zmins,d_rho,d_ftop,d_tb,d_fb,d_timelt,d_nk,d_tauxicw,d_tauyicw,d_zcr,d_ndsn,d_ndic, &
-             d_nsto,diag)                                                                            ! ice fluxes
+             d_nsto,d_oldu,d_oldv,diag)                                                              ! ice fluxes
 if (calcprog) then
   call mloice(dt,a_rnd,a_snd,a_ps,d_alpha,d_beta,d_b0,d_wu0,d_wv0,d_wt0,d_ws0,d_ftop,d_tb,d_fb,    &
               d_timelt,d_tauxicw,d_tauyicw,d_ustar,d_rho,d_rs,d_nk,d_neta,d_ndsn,d_ndic,d_nsto,    &
@@ -1834,7 +1844,7 @@ end subroutine gettheta
 ! Calculate fluxes between MLO and atmosphere
 
 subroutine fluxcalc(dt,a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins,d_rho, &
-                    d_zcr,d_neta,diag)
+                    d_zcr,d_neta,d_oldu,d_oldv,diag)
 
 implicit none
 
@@ -1843,7 +1853,7 @@ integer it
 real, intent(in) :: dt
 real, dimension(wfull,wlev), intent(inout) :: d_rho
 real, dimension(wfull), intent(in) :: a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins
-real, dimension(wfull), intent(inout) :: d_zcr,d_neta
+real, dimension(wfull), intent(inout) :: d_zcr,d_neta,d_oldu,d_oldv
 real, dimension(wfull) :: qsat,dqdt,ri,vmag,rho,srcp
 real, dimension(wfull) :: fm,fh,fq,con,consea,afroot,af,daf
 real, dimension(wfull) :: den,dfm,dden,dcon,sig,factch,root
@@ -1865,8 +1875,8 @@ real, parameter :: zcoq2 = 0.62
 
 sig=exp(-grav*a_zmins/(rdry*a_temp))
 srcp=sig**(rdry/cp)
-atu=a_u-w_u(:,1)
-atv=a_v-w_v(:,1)
+atu=a_u-fluxwgt*w_u(:,1)-(1.-fluxwgt)*d_oldu
+atv=a_v-fluxwgt*w_v(:,1)-(1.-fluxwgt)*d_oldv
 vmag=sqrt(atu*atu+atv*atv)
 vmagn=max(vmag,0.01)
 rho=a_ps/(rdry*w_temp(:,1))
@@ -1898,7 +1908,7 @@ select case(zomode)
         dcon=consea*dfm*vmag
         p_zo=p_zo-(p_zo-con*af)/(1.-dcon*af-con*daf)
       end where
-      p_zo=min(max(p_zo,1.5e-5),9.)
+      p_zo=min(max(p_zo,1.5e-5),6.)
     enddo    ! it=1,4
   case(2) ! Beljaars
     p_zo=0.001    ! first guess
@@ -1919,7 +1929,7 @@ select case(zomode)
         dcs=(zcom1*vmag**2/grav-0.5*zcom2*gnu/(max(vmag*sqrt(fm*af),gnu)*fm*af))*(fm*daf+dfm*af)
       end where
       p_zo=p_zo-(p_zo-consea)/(1.-dcs)      
-      p_zo=min(max(p_zo,1.5e-5),9.)
+      p_zo=min(max(p_zo,1.5e-5),6.)
     enddo    ! it=1,4
 end select
 afroot=vkar/log(a_zmin/p_zo)
@@ -2249,13 +2259,15 @@ where (i_dic<icebreak.and.i_fracice>fracbreak)
   i_fracice=i_fracice*i_dic/icebreak
   i_dic=icebreak
 end where
-where (i_fracice<1..and.i_dic>icebreak)
-   worka=min(i_dic/icebreak,1./max(i_fracice,fracbreak))
-   worka=max(worka,1.)
-   i_fracice=i_fracice*worka
-   i_dic=i_dic/worka
-end where
-i_fracice=min(max(i_fracice,0.),1.)
+if (onedice==1) then
+  where (i_fracice<1..and.i_dic>icebreak)
+     worka=min(i_dic/icebreak,1./max(i_fracice,fracbreak))
+     worka=max(worka,1.)
+     i_fracice=i_fracice*worka
+     i_dic=i_dic/worka
+  end where
+  i_fracice=min(max(i_fracice,0.),1.)
+end if
 
 ! removal
 call getrho1(i_sal,a_ps,d_ri,d_zcr)
@@ -3020,7 +3032,8 @@ end subroutine icetempn1
 ! Determine ice fluxes
 
 subroutine iceflux(dt,a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins, &
-                   d_rho,d_ftop,d_tb,d_fb,d_timelt,d_nk,d_tauxicw,d_tauyicw,d_zcr,d_ndsn,d_ndic,d_nsto,diag)
+                   d_rho,d_ftop,d_tb,d_fb,d_timelt,d_nk,d_tauxicw,d_tauyicw,d_zcr,d_ndsn,d_ndic,d_nsto,d_oldu, &
+                   d_oldv,diag)
 
 implicit none
 
@@ -3029,7 +3042,7 @@ integer ll,iqw
 real, dimension(wfull), intent(in) :: a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins
 real, dimension(wfull,wlev), intent(in) :: d_rho
 real, dimension(wfull), intent(inout) :: d_ftop,d_tb,d_fb,d_timelt,d_tauxicw,d_tauyicw,d_zcr,d_ndsn,d_ndic
-real, dimension(wfull), intent(inout) :: d_nsto
+real, dimension(wfull), intent(inout) :: d_nsto,d_oldu,d_oldv
 integer, dimension(wfull), intent(inout) :: d_nk
 real, intent(in) :: dt
 real, dimension(wfull) :: qsat,dqdt,ri,vmag,rho,srcp,tnew,qsatnew,gamm,bot
@@ -3125,20 +3138,20 @@ do iqw=1,wfull
   do ll=1,20 ! max iterations
     uu(iqw)=a_u(iqw)-newiu(iqw)
     vv(iqw)=a_v(iqw)-newiv(iqw)
-    du(iqw)=w_u(iqw,1)-newiu(iqw)
-    dv(iqw)=w_v(iqw,1)-newiv(iqw)
+    du(iqw)=fluxwgt*w_u(iqw,1)+(1.-fluxwgt)*d_oldu(iqw)-newiu(iqw)
+    dv(iqw)=fluxwgt*w_v(iqw,1)+(1.-fluxwgt)*d_oldv(iqw)-newiv(iqw)
   
     vmagn(iqw)=max(sqrt(uu(iqw)*uu(iqw)+vv(iqw)*vv(iqw)),0.01)
     icemagn(iqw)=max(sqrt(du(iqw)*du(iqw)+dv(iqw)*dv(iqw)),0.0001)
 
-    g(iqw)=i_u(iqw)-newiu(iqw)+dt*(rho(iqw)*p_cdice(iqw)*vmagn(iqw)*uu(iqw) &
+    g(iqw)=i_u(iqw)-newiu(iqw)+dt*(rho(iqw)*p_cdice(iqw)*vmagn(iqw)*uu(iqw)        &
                                 +d_rho(iqw,1)*0.00536*icemagn(iqw)*du(iqw))/imass(iqw)
-    h(iqw)=i_v(iqw)-newiv(iqw)+dt*(rho(iqw)*p_cdice(iqw)*vmagn(iqw)*vv(iqw) &
+    h(iqw)=i_v(iqw)-newiv(iqw)+dt*(rho(iqw)*p_cdice(iqw)*vmagn(iqw)*vv(iqw)        &
                                 +d_rho(iqw,1)*0.00536*icemagn(iqw)*dv(iqw))/imass(iqw)
   
     dgu(iqw)=-1.-dt*(rho(iqw)*p_cdice(iqw)*vmagn(iqw)*(1.+(uu(iqw)/vmagn(iqw))**2) &
-                  +d_rho(iqw,1)*0.00536*icemagn(iqw)*(1.+(du(iqw)/icemagn(iqw))**2))/imass(iqw)
-    dhu(iqw)=-dt*(rho(iqw)*p_cdice(iqw)*uu(iqw)*vv(iqw)/vmagn(iqw) &
+               +d_rho(iqw,1)*0.00536*icemagn(iqw)*(1.+(du(iqw)/icemagn(iqw))**2))/imass(iqw)
+    dhu(iqw)=-dt*(rho(iqw)*p_cdice(iqw)*uu(iqw)*vv(iqw)/vmagn(iqw)                 &
                +d_rho(iqw,1)*0.00536*du(iqw)*dv(iqw)/icemagn(iqw))/imass(iqw)
     dgv(iqw)=dhu(iqw)
     dhv(iqw)=-1.-dt*(rho(iqw)*p_cdice(iqw)*vmagn(iqw)*(1.+(vv(iqw)/vmagn(iqw))**2) &
@@ -3161,8 +3174,8 @@ end do
 ! momentum transfer
 uu=a_u-newiu
 vv=a_v-newiv
-du=w_u(:,1)-newiu
-dv=w_v(:,1)-newiv
+du=fluxwgt*w_u(:,1)+(1.-fluxwgt)*d_oldu-newiu
+dv=fluxwgt*w_v(:,1)+(1.-fluxwgt)*d_oldv-newiv
 vmagn=max(sqrt(uu*uu+vv*vv),0.01)
 icemagn=max(sqrt(du*du+dv*dv),0.0001)
 p_tauxica=rho*p_cdice*vmagn*uu

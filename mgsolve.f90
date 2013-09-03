@@ -7,7 +7,7 @@ module mgsolve
 ! all processors solve for the same coarse grid (thereby avoiding MPI_Allreduce)
 ! when solving the coarse grid.
 
-! Note that the solver can be greatly optimised for grids which permit many
+! Note that the solver can be greatly optimised for grids that permit many
 ! local subdivitions.  For example if the number of grid points on a processor
 ! is M x M, where M = 2^N and N is an integer greater than 1, then the
 ! multi-grid solver will be considerably more efficent.  Example grids which
@@ -139,7 +139,7 @@ do itr=1,itr_mg
     end do
     call bounds_colour(iv,nc,klim=klim)
   end do
-
+  
   ! residual
   do k=1,klim
     w(1:ifull,k)=-izzn*iv(in,k)-izzw*iv(iw,k)-izze*iv(ie,k)-izzs*iv(is,k)+irhs(:,k)+iv(1:ifull,k)*(ihelm(:,k)-izz)
@@ -166,18 +166,17 @@ do itr=1,itr_mg
     ! merge grids if insufficent points on this processor
     call mgcollect(g,rhs(:,:,g),klim=klim)
     
-    ! update
-    ! possibly use colours here, although latency might be an issue as the grid size
-    ! becomes more coarse
+    ! update scalar field
+    ! (possibly use colours here, although latency might be an issue as the grid size
+    ! becomes more coarse)
     ! assume zero for first guess of residual (also avoids additional bounds call)
     !v(:,1:klim,g)=0.
     do k=1,klim
       v(1:ng,k,g)=-rhs(1:ng,k,g)/(helm(1:ng,k,g)-mg(g)%zz)
     end do
+    call mgbounds(g,v(:,:,g),klim=klim)
 
     ! residual
-    call mgbounds(g,v(:,:,g),klim=klim)
-    
     do k=1,klim
       w(1:ng,k)=-mg(g)%zze*v(mg(g)%ie,k,g)-mg(g)%zzw*v(mg(g)%iw,k,g)     &
                 -mg(g)%zzn*v(mg(g)%in,k,g)-mg(g)%zzs*v(mg(g)%is,k,g)
@@ -190,7 +189,7 @@ do itr=1,itr_mg
     rhs(1:ng4,1:klim,g+1)=0.25*(w(mg(g)%fine  ,1:klim)+w(mg(g)%fine_n ,1:klim) &
                                +w(mg(g)%fine_e,1:klim)+w(mg(g)%fine_ne,1:klim))
   end do
-
+  
   ! solve coarse grid
   g=mg_maxlevel
   ng=mg(g)%ifull
@@ -245,7 +244,7 @@ do itr=1,itr_mg
     ng=mg(g)%ifull
 
     ! extension
-    ! No mgbounds as the v halp has already been updated and
+    ! No mgbounds as the v halo has already been updated and
     ! the coarse interpolation also updates the w halo
     v(1:ng4,1:klim,g)=v(1:ng4,1:klim,g)+w(1:ng4,1:klim)
 
@@ -275,9 +274,9 @@ do itr=1,itr_mg
   ! convert back to local grid if required and update halo
   if (mg(g)%merge_len>1) then
     vdum=0.
+    ir=mod(mg(g)%merge_pos-1,mg(g)%merge_row)+1   ! index for proc row
+    ic=(mg(g)%merge_pos-1)/mg(g)%merge_row+1      ! index for proc col
     do n=1,npan
-      ir=mod(mg(g)%merge_pos(n)-1,mg(g)%merge_row)+1   ! index for proc row
-      ic=(mg(g)%merge_pos(n)-1)/mg(g)%merge_row+1      ! index for proc col
       do jj=1,jpan
         iq_a=1+(jj-1)*ipan+(n-1)*ipan*jpan
         iq_b=jj*ipan+(n-1)*ipan*jpan
@@ -357,7 +356,7 @@ do itr=1,itr_mg
     ! extension
     iv(1:ifull+iextra,1:klim)=iv(1:ifull+iextra,1:klim)+w(1:ifull+iextra,1:klim)
   end if
-
+  
   ! post smoothing
   do nc=1,maxcolour
     ifc=ifullx(nc)
@@ -439,7 +438,7 @@ end subroutine mghelm
 
 ! This version is for the ocean and ice
 subroutine mgmlo(neta,ipice,iyy,iyyn,iyys,iyye,iyyw,izz,izzn,izzs,izze,izzw,ihh,irhs,tol,itol,totits,maxglobseta,maxglobip, &
-                 ipmax,ee,dd,comm_mlo)
+                 ipmax,ee,dd)
 
 use cc_mpi
 use indices_m
@@ -448,7 +447,6 @@ implicit none
 
 include 'newmpar.h'
 
-integer, intent(in) :: comm_mlo
 integer, intent(out) :: totits
 integer itr,itrc,g,ng,ng4,n,i,j,ir,ic,jj,iq
 integer iq_a,iq_b,iq_c,iq_d
@@ -457,23 +455,26 @@ real, intent(in) :: tol,itol
 real, intent(out) :: maxglobseta,maxglobip
 real, dimension(ifull+iextra), intent(inout) :: neta,ipice
 real, dimension(ifull+iextra), intent(in) :: ee,dd
-real, dimension(ifull), intent(in) :: ipmax
+real, dimension(ifull+iextra), intent(in) :: ipmax
 real, dimension(ifull), intent(in) :: iyy,iyyn,iyys,iyye,iyyw
 real, dimension(ifull,2), intent(in) :: izz,izzn,izzs,izze,izzw
 real, dimension(ifull), intent(in) :: ihh
 real, dimension(ifull,2), intent(in) :: irhs
 real, dimension(ifull+iextra,1) :: vdum
+!real, dimension(ifull+iextra,2) :: vdum
 real, dimension(mg_maxsize) :: au,bu,cu
 real, dimension(mg_maxsize,1,mg_maxlevel) :: v
+!real, dimension(mg_maxsize,2,mg_maxlevel) :: v
 real, dimension(mg_maxsize,5,mg_maxlevel) :: yy
+!real, dimension(mg_maxsize,10,mg_maxlevel) :: yy
 real, dimension(mg_maxsize,7) :: w
+!real, dimension(mg_maxsize,8) :: w
 real, dimension(mg_maxsize,mg_maxlevel) :: zz,zzn,zzs,zze,zzw
 real, dimension(mg_maxsize,mg_maxlevel) :: hh
 real, dimension(mg_maxsize,mg_maxlevel) :: rhs
 !real, dimension(mg_maxsize,mg_maxlevel) :: rhsice
 real, dimension(mg_maxsize,2) :: dsol,new
 real, dimension(ifull+iextra,2) :: dumc
-real, dimension(2) :: alpha
 real, dimension(2) :: dsolmax,dsolmax_g
 
 real, parameter :: dfac=0.25      ! adjustment for grid spacing
@@ -504,9 +505,6 @@ end if
 ! zz*(DIV^2 i0) = rhs - F
 ! zz*(DIV^2 f) = F
 
-alpha(1)=1. ! for ocean
-alpha(2)=1. ! for sea-ice
-
 yy(1:ifull,1,1)=iyy(1:ifull)
 yy(1:ifull,2,1)=iyyn(1:ifull)
 yy(1:ifull,3,1)=iyys(1:ifull)
@@ -517,53 +515,61 @@ yy(1:ifull,5,1)=iyyw(1:ifull)
 !yy(1:ifull,8,1)=izzs(1:ifull,2)
 !yy(1:ifull,9,1)=izze(1:ifull,2)
 !yy(1:ifull,10,1)=izzw(1:ifull,2)
-call mgcollect(1,yy(:,1:5,1),gmode=1)
+call mgcollect(1,yy(:,1:5,1))
 do g=1,mg_maxlevel-1
   ng4=mg(g)%ifull_fine
   yy(1:ng4,1:5,g+1)=0.25*dfac*(yy(mg(g)%fine  ,1:5,g)+yy(mg(g)%fine_n ,1:5,g) &
                               +yy(mg(g)%fine_e,1:5,g)+yy(mg(g)%fine_ne,1:5,g))
-  call mgcollect(g+1,yy(:,1:5,g+1),gmode=1)
+  call mgcollect(g+1,yy(:,1:5,g+1))
 end do
+!call mgcollect(1,yy(:,1:10,1))
+!do g=1,mg_maxlevel-1
+!  ng4=mg(g)%ifull_fine
+!  yy(1:ng4,1:10,g+1)=0.25*dfac*(yy(mg(g)%fine  ,1:10,g)+yy(mg(g)%fine_n ,1:10,g) &
+!                               +yy(mg(g)%fine_e,1:10,g)+yy(mg(g)%fine_ne,1:10,g))
+!  call mgcollect(g+1,yy(:,1:10,g+1))
+!end do
 
 dumc(1:ifull,1)=neta(1:ifull)
 dumc(1:ifull,2)=ipice(1:ifull)
-call bounds(dumc(:,1:2),gmode=1)
+call bounds(dumc(:,1:2))
 neta(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,1)
 ipice(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,2)
 
 ! Main loop
 do itr=1,itr_mgice
 
-  au(1:ifull)=iyy
-
   do nc=1,maxcolour
     ifc=ifullx(nc)
-    bu(iqx(1:ifc,nc))=izz(iqx(1:ifc,nc),1)+ihh(iqx(1:ifc,nc))                                            &
-                      +iyyn(iqx(1:ifc,nc))*neta(iqn(1:ifc,nc))+iyys(iqx(1:ifc,nc))*neta(iqs(1:ifc,nc))   &
-                      +iyye(iqx(1:ifc,nc))*neta(iqe(1:ifc,nc))+iyyw(iqx(1:ifc,nc))*neta(iqw(1:ifc,nc))
-    cu(iqx(1:ifc,nc))=izzn(iqx(1:ifc,nc),1)*neta(iqn(1:ifc,nc))+izzs(iqx(1:ifc,nc),1)*neta(iqs(1:ifc,nc)) &
-                     +izze(iqx(1:ifc,nc),1)*neta(iqe(1:ifc,nc))+izzw(iqx(1:ifc,nc),1)*neta(iqw(1:ifc,nc)) &
-                     -irhs(iqx(1:ifc,nc),1)        
-    new(iqx(1:ifc,nc),1) = -2.*cu(iqx(1:ifc,nc))/(bu(iqx(1:ifc,nc))+sqrt(bu(iqx(1:ifc,nc))**2-4.*au(iqx(1:ifc,nc))*cu(iqx(1:ifc,nc))))
-    new(iqx(1:ifc,nc),1)=max(new(iqx(1:ifc,nc),1),-dd(iqx(1:ifc,nc)))*ee(iqx(1:ifc,nc))
-
     
+    ! ocean
+    au(1:ifc)=iyy(iqx(1:ifc,nc))
+    bu(1:ifc)=izz(iqx(1:ifc,nc),1)+ihh(iqx(1:ifc,nc))                                             &
+             +iyyn(iqx(1:ifc,nc))*neta(iqn(1:ifc,nc))+iyys(iqx(1:ifc,nc))*neta(iqs(1:ifc,nc))     &
+             +iyye(iqx(1:ifc,nc))*neta(iqe(1:ifc,nc))+iyyw(iqx(1:ifc,nc))*neta(iqw(1:ifc,nc))
+    cu(1:ifc)=izzn(iqx(1:ifc,nc),1)*neta(iqn(1:ifc,nc))+izzs(iqx(1:ifc,nc),1)*neta(iqs(1:ifc,nc)) &
+             +izze(iqx(1:ifc,nc),1)*neta(iqe(1:ifc,nc))+izzw(iqx(1:ifc,nc),1)*neta(iqw(1:ifc,nc)) &
+             -irhs(iqx(1:ifc,nc),1)        
+    new(1:ifc,1) = -2.*cu(1:ifc)/(bu(1:ifc)+sqrt(bu(1:ifc)*bu(1:ifc)-4.*au(1:ifc)*cu(1:ifc)))
+    new(1:ifc,1)=max(new(1:ifc,1),-dd(iqx(1:ifc,nc)))*ee(iqx(1:ifc,nc))
+
+    ! ice
     where (izz(iqx(1:ifc,nc),2)/=0.)
-      new(iqx(1:ifc,nc),2) = ( -izzn(iqx(1:ifc,nc),2)*ipice(iqn(1:ifc,nc))-izzs(iqx(1:ifc,nc),2)*ipice(iqs(1:ifc,nc)) &
-                               -izze(iqx(1:ifc,nc),2)*ipice(iqe(1:ifc,nc))-izzw(iqx(1:ifc,nc),2)*ipice(iqw(1:ifc,nc)) &
-                               + irhs(iqx(1:ifc,nc),2) ) / izz(iqx(1:ifc,nc),2)
+      new(1:ifc,2) = ( -izzn(iqx(1:ifc,nc),2)*ipice(iqn(1:ifc,nc))-izzs(iqx(1:ifc,nc),2)*ipice(iqs(1:ifc,nc)) &
+                       -izze(iqx(1:ifc,nc),2)*ipice(iqe(1:ifc,nc))-izzw(iqx(1:ifc,nc),2)*ipice(iqw(1:ifc,nc)) &
+                      + irhs(iqx(1:ifc,nc),2) ) / izz(iqx(1:ifc,nc),2)
     elsewhere
-      new(iqx(1:ifc,nc),2) = 0.    
+      new(1:ifc,2) = 0.    
     end where
-    ! cavitating fluid
-    new(iqx(1:ifc,nc),2)=max(min(new(iqx(1:ifc,nc),2),ipmax(iqx(1:ifc,nc))),0.)
+    ! ice cavitating fluid
+    new(1:ifc,2)=max(min(new(1:ifc,2),ipmax(iqx(1:ifc,nc))),0.)
    
-    neta(iqx(1:ifc,nc))=alpha(1)*new(iqx(1:ifc,nc),1)+(1.-alpha(1))*neta(iqx(1:ifc,nc))
-    ipice(iqx(1:ifc,nc))=alpha(2)*new(iqx(1:ifc,nc),2)+(1.-alpha(2))*ipice(iqx(1:ifc,nc))
+    neta(iqx(1:ifc,nc))=new(1:ifc,1)
+    ipice(iqx(1:ifc,nc))=new(1:ifc,2)
 
     dumc(1:ifull,1)=neta(1:ifull)
     dumc(1:ifull,2)=ipice(1:ifull)
-    call bounds_colour(dumc(:,1:2),nc,gmode=1)
+    call bounds_colour(dumc(:,1:2),nc)
     neta(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,1)
     ipice(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,2)
   end do
@@ -579,7 +585,11 @@ do itr=1,itr_mgice
   w(1:ifull,1)=-neta(1:ifull)*(     iyy*neta(1:ifull)+     iyyn*neta(in)+     iyys*neta(is)+     iyye*neta(ie)+     iyyw*neta(iw)) &
                              -(izz(:,1)*neta(1:ifull)+izzn(:,1)*neta(in)+izzs(:,1)*neta(is)+izze(:,1)*neta(ie)+izzw(:,1)*neta(iw)) &
                              -ihh*neta(1:ifull)+irhs(:,1)
-  !w(1:ifull,8)=-(izz(:,2)*ipice(1:ifull)+izzn(:,2)*ipice(in)+izzs(:,2)*ipice(is)+izze(:,2)*ipice(ie)+izzw(:,2)*ipice(iw))+irhs(:,2)
+  !where (izz(1:ifull,2)/=0..and.ipice(1:ifull)>0..and.ipice(1:ifull)<ipmax(1:ifull))
+  !  w(1:ifull,8)=-(izz(:,2)*ipice(1:ifull)+izzn(:,2)*ipice(in)+izzs(:,2)*ipice(is)+izze(:,2)*ipice(ie)+izzw(:,2)*ipice(iw))+irhs(:,2)
+  !elsewhere
+  !  w(1:ifull,8)=0.
+  !end where
                              
   w(1:ifull,1)=w(1:ifull,1)*ee(1:ifull)
   !w(1:ifull,8)=w(1:ifull,8)*ee(1:ifull)
@@ -589,7 +599,8 @@ do itr=1,itr_mgice
   ng=mg(g)%ifull
 
   ! For when the inital grid cannot be upscaled
-  call mgcollect(g,w(:,1:7),gmode=1)
+  call mgcollect(g,w(:,1:7))
+  !call mgcollect(g,w(:,1:8))
   
   ! restriction
   ! (since this always operates within a panel, then ine = ien is always true)
@@ -625,7 +636,8 @@ do itr=1,itr_mgice
     w(1:ng4,6)  =zzw(1:ng4,g)
     w(1:ng4,7)  =hh(1:ng4,g)
     !w(1:ng4,8)  =rhsice(1:ng4,g)
-    call mgcollect(g,w(:,1:7),gmode=1)
+    call mgcollect(g,w(:,1:7))
+    !call mgcollect(g,w(:,1:8))
     rhs(1:ng,g)    =w(1:ng,1)
     zz(1:ng,g)     =w(1:ng,2)
     zzn(1:ng,g)    =w(1:ng,3)
@@ -642,20 +654,21 @@ do itr=1,itr_mgice
     au(1:ng)=yy(1:ng,1,g)
     bu(1:ng)=zz(1:ng,g)+hh(1:ng,g)
     cu(1:ng)=-rhs(1:ng,g)
-    v(1:ng,1,g) = 0.
     where (bu(1:ng)/=0.)
       v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(bu(1:ng)*bu(1:ng)-4.*au(1:ng)*cu(1:ng)))
+    elsewhere
+      v(1:ng,1,g) = 0.
     end where
-    v(1:ng,1,g) = alpha(1)*v(1:ng,1,g)
 
-    !v(1:ng,2,g)=0.    
     !where (yy(1:ng,6,g)/=0.)
     !  v(1:ng,2,g) = rhsice(1:ng,g)/yy(1:ng,6,g)
+    !elsewhere
+    !  v(1:ng,2,g) = 0.    
     !end where
-    !v(1:ng,2,g) = alpha(2)*v(1:ng,2,g)
     
     ! residual
-    call mgbounds(g,v(:,1:1,g),gmode=1)
+    call mgbounds(g,v(:,1:1,g))
+    !call mgbounds(g,v(:,1:2,g))
 
     w(1:ng,2)= zz(1:ng,g)+yy(1:ng,1,g)*v(1:ng,1,g)
     w(1:ng,3)=zzn(1:ng,g)+yy(1:ng,2,g)*v(1:ng,1,g)
@@ -668,9 +681,13 @@ do itr=1,itr_mgice
     w(1:ng,1)=-v(1:ng,1,g)*(yy(1:ng,1,g)*v(1:ng,1,g)+yy(1:ng,2,g)*v(mg(g)%in,1,g)+yy(1:ng,3,g)*v(mg(g)%is,1,g)+yy(1:ng,4,g)*v(mg(g)%ie,1,g)+yy(1:ng,5,g)*v(mg(g)%iw,1,g)) &
                             -(zz(1:ng,g)*v(1:ng,1,g)+ zzn(1:ng,g)*v(mg(g)%in,1,g)+ zzs(1:ng,g)*v(mg(g)%is,1,g)+ zze(1:ng,g)*v(mg(g)%ie,1,g)+ zzw(1:ng,g)*v(mg(g)%iw,1,g)) &
                              -hh(1:ng,g)*v(1:ng,1,g)+rhs(1:ng,g)
-                             
-    !w(1:ng,8)=-(yy(1:ng,6,g)*v(1:ng,2,g)+yy(1:ng,7,g)*v(mg(g)%in,2,g)+yy(1:ng,8,g)*v(mg(g)%is,2,g) &
-    !           +yy(1:ng,9,g)*v(mg(g)%ie,2,g)+yy(1:ng,10,g)*v(mg(g)%iw,2,g))+rhsice(1:ng,g)
+
+    !where (yy(1:ng,6,g)/=0.)                            
+    !  w(1:ng,8)=-(yy(1:ng,6,g)*v(1:ng,2,g)+yy(1:ng,7,g)*v(mg(g)%in,2,g)+yy(1:ng,8,g)*v(mg(g)%is,2,g) &
+    !             +yy(1:ng,9,g)*v(mg(g)%ie,2,g)+yy(1:ng,10,g)*v(mg(g)%iw,2,g))+rhsice(1:ng,g)
+    !elsewhere
+    !  w(1:ng,8)=0.
+    !end where
 
     ! restriction
     ! (calculate finer grid before mgcollect as the messages sent/recv are shorter)
@@ -700,6 +717,7 @@ do itr=1,itr_mgice
 
   ! ensure all processors have a copy of the coarse grid
   v(1:ng,1,g)=0.
+  !v(1:ng,2,g)=0.
   
   w(1:ng4,1)  =rhs(1:ng4,g)
   w(1:ng4,2)  =zz(1:ng4,g)
@@ -709,7 +727,8 @@ do itr=1,itr_mgice
   w(1:ng4,6)  =zzw(1:ng4,g)
   w(1:ng4,7)  =hh(1:ng4,g)
   !w(1:ng4,8)  =rhsice(1:ng4,g)
-  call mgcollect(g,w(:,1:7),gmode=1)
+  call mgcollect(g,w(:,1:7))
+  !call mgcollect(g,w(:,1:8))
   rhs(1:ng,g)    =w(1:ng,1)
   zz(1:ng,g)     =w(1:ng,2)
   zzn(1:ng,g)    =w(1:ng,3)
@@ -720,8 +739,6 @@ do itr=1,itr_mgice
   !rhsice(1:ng,g) =w(1:ng,8)
 
   au(1:ng)=yy(1:ng,1,g)
-  new(1:ng,1)=0.
-  !new(1:ng,2)=0.
 
   do itrc=1,itr_max
 
@@ -735,23 +752,28 @@ do itr=1,itr_mgice
                           -rhs(col_iq(1:ifc,nc),g)
       where (bu(col_iq(1:ifc,nc))/=0.)
         new(col_iq(1:ifc,nc),1) = -2.*cu(col_iq(1:ifc,nc))/(bu(col_iq(1:ifc,nc))+sqrt(bu(col_iq(1:ifc,nc))**2-4.*au(col_iq(1:ifc,nc))*cu(col_iq(1:ifc,nc))))
+      elsewhere
+        new(col_iq(1:ifc,nc),1) = 0.
       end where
       
       !where (yy(col_iq(1:ifc,nc),6,g)/=0.)
       !  new(col_iq(1:ifc,nc),2) = ( -yy(col_iq(1:ifc,nc),7,g)*v(col_iqn(1:ifc,nc),2,g)-yy(col_iq(1:ifc,nc),8,g)*v(col_iqs(1:ifc,nc),2,g)  &
       !                              -yy(col_iq(1:ifc,nc),9,g)*v(col_iqe(1:ifc,nc),2,g)-yy(col_iq(1:ifc,nc),10,g)*v(col_iqw(1:ifc,nc),2,g) &
       !                              +rhsice(col_iq(1:ifc,nc),g) ) / yy(col_iq(1:ifc,nc),6,g)
+      !elsewhere
+      !  new(col_iq(1:ifc,nc),2) = 0.
       !end where
         
       dsol(col_iq(1:ifc,nc),1)=new(col_iq(1:ifc,nc),1)-v(col_iq(1:ifc,nc),1,g)
       !dsol(col_iq(1:ifc,nc),2)=new(col_iq(1:ifc,nc),2)-v(col_iq(1:ifc,nc),2,g)
-      v(col_iq(1:ifc,nc),1,g)=alpha(1)*new(col_iq(1:ifc,nc),1)+(1.-alpha(1))*v(col_iq(1:ifc,nc),1,g)
-      !v(col_iq(1:ifc,nc),2,g)=alpha(2)*new(col_iq(1:ifc,nc),2)+(1.-alpha(2))*v(col_iq(1:ifc,nc),2,g)
+      v(col_iq(1:ifc,nc),1,g)=new(col_iq(1:ifc,nc),1)
+      !v(col_iq(1:ifc,nc),2,g)=new(col_iq(1:ifc,nc),2)
     end do
     
     dsolmax(1)=maxval(abs(dsol(1:ng,1)))
     !dsolmax(2)=maxval(abs(dsol(1:ng,2)))
     if (dsolmax(1)<tol) exit
+    !if (dsolmax(1)<tol.and.dsolmax(2)<itol) exit
 
   end do
   
@@ -769,7 +791,7 @@ do itr=1,itr_mgice
     ng=mg(g)%ifull
 
     ! extension
-    ! No mgbounds as the v halp has already been updated and
+    ! No mgbounds as the v halo has already been updated and
     ! the coarse interpolation also updates the w halo
     v(1:ng4,1,g)=v(1:ng4,1,g)+w(1:ng4,1)
     !v(1:ng4,2,g)=v(1:ng4,2,g)+w(1:ng4,8)
@@ -779,21 +801,25 @@ do itr=1,itr_mgice
     bu(1:ng)=zz(1:ng,g)+hh(1:ng,g)+yy(1:ng,2,g)*v(mg(g)%in,1,g)+yy(1:ng,3,g)*v(mg(g)%is,1,g)+yy(1:ng,4,g)*v(mg(g)%ie,1,g)+yy(1:ng,5,g)*v(mg(g)%iw,1,g)
     cu(1:ng)=zzn(1:ng,g)*v(mg(g)%in,1,g)+zzs(1:ng,g)*v(mg(g)%is,1,g)+zze(1:ng,g)*v(mg(g)%ie,1,g)+zzw(1:ng,g)*v(mg(g)%iw,1,g)-rhs(1:ng,g)
     
-    new(1:ng,1) = 0.
     where (bu(1:ng)/=0.)
       new(1:ng,1) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(bu(1:ng)*bu(1:ng)-4.*au(1:ng)*cu(1:ng)))
+    elsewhere
+      new(1:ng,1) = 0.
     end where
     
     !where (yy(1:ng,6,g)/=0.)
     !  new(1:ng,2) = ( -yy(1:ng,7,g)*v(mg(g)%in,2,g)-yy(1:ng,8,g)*v(mg(g)%is,2,g)  &
     !                  -yy(1:ng,9,g)*v(mg(g)%ie,2,g)-yy(1:ng,10,g)*v(mg(g)%iw,2,g) &
     !                  +rhsice(1:ng,g) ) / yy(1:ng,6,g)
+    !elsewhere
+    !  new(1:ng,2) = 0.
     !end where
     
-    v(1:ng,1,g)=alpha(1)*new(1:ng,1)+(1.-alpha(1))*v(1:ng,1,g)
-    !v(1:ng,2,g)=alpha(2)*new(1:ng,2)+(1.-alpha(2))*v(1:ng,2,g)
+    v(1:ng,1,g)=new(1:ng,1)
+    !v(1:ng,2,g)=new(1:ng,2)
 
-    call mgbounds(g,v(:,1:1,g),corner=.true.,gmode=1)
+    call mgbounds(g,v(:,1:1,g),corner=.true.)
+    !call mgbounds(g,v(:,1:2,g),corner=.true.)
 
     ! interpolation
     ng4=mg(g)%ifull_coarse
@@ -811,9 +837,9 @@ do itr=1,itr_mgice
   ! convert back to local grid if required and update halo
   if (mg(g)%merge_len>1) then
     vdum=0.
+    ir=mod(mg(g)%merge_pos-1,mg(g)%merge_row)+1   ! index for proc row
+    ic=(mg(g)%merge_pos-1)/mg(g)%merge_row+1      ! index for proc col
     do n=1,npan
-      ir=mod(mg(g)%merge_pos(n)-1,mg(g)%merge_row)+1   ! index for proc row
-      ic=(mg(g)%merge_pos(n)-1)/mg(g)%merge_row+1      ! index for proc col
       do jj=1,jpan
         iq_a=1+(jj-1)*ipan+(n-1)*ipan*jpan
         iq_b=jj*ipan+(n-1)*ipan*jpan
@@ -907,99 +933,97 @@ do itr=1,itr_mgice
     !ipice(1:ifull+iextra)=ipice(1:ifull+iextra)+w(1:ifull+iextra,8)
   end if
 
-  dumc(:,1)=neta
-  !dumc(:,2)=ipice
   neta=max(neta,-dd)*ee
   !ipice=max(min(ipice,ipmax),0.) 
   
   ! post smoothing
-  au(1:ifull)=iyy
   
   do nc=1,maxcolour
     ifc=ifullx(nc)
-    bu(iqx(1:ifc,nc))=izz(iqx(1:ifc,nc),1)+ihh(iqx(1:ifc,nc))                                            &
-                      +iyyn(iqx(1:ifc,nc))*neta(iqn(1:ifc,nc))+iyys(iqx(1:ifc,nc))*neta(iqs(1:ifc,nc)) &
-                      +iyye(iqx(1:ifc,nc))*neta(iqe(1:ifc,nc))+iyyw(iqx(1:ifc,nc))*neta(iqw(1:ifc,nc))
-    cu(iqx(1:ifc,nc))=izzn(iqx(1:ifc,nc),1)*neta(iqn(1:ifc,nc))+izzs(iqx(1:ifc,nc),1)*neta(iqs(1:ifc,nc)) &
-                     +izze(iqx(1:ifc,nc),1)*neta(iqe(1:ifc,nc))+izzw(iqx(1:ifc,nc),1)*neta(iqw(1:ifc,nc)) &
-                     -irhs(iqx(1:ifc,nc),1)        
-    new(iqx(1:ifc,nc),1) = -2.*cu(iqx(1:ifc,nc))/(bu(iqx(1:ifc,nc))+sqrt(bu(iqx(1:ifc,nc))**2-4.*au(iqx(1:ifc,nc))*cu(iqx(1:ifc,nc))))
     
-    new(iqx(1:ifc,nc),2) = 0.
+    ! ocean
+    au(1:ifc)=iyy(iqx(1:ifc,nc))
+    bu(1:ifc)=izz(iqx(1:ifc,nc),1)+ihh(iqx(1:ifc,nc))                                             &
+             +iyyn(iqx(1:ifc,nc))*neta(iqn(1:ifc,nc))+iyys(iqx(1:ifc,nc))*neta(iqs(1:ifc,nc))     &
+             +iyye(iqx(1:ifc,nc))*neta(iqe(1:ifc,nc))+iyyw(iqx(1:ifc,nc))*neta(iqw(1:ifc,nc))
+    cu(1:ifc)=izzn(iqx(1:ifc,nc),1)*neta(iqn(1:ifc,nc))+izzs(iqx(1:ifc,nc),1)*neta(iqs(1:ifc,nc)) &
+             +izze(iqx(1:ifc,nc),1)*neta(iqe(1:ifc,nc))+izzw(iqx(1:ifc,nc),1)*neta(iqw(1:ifc,nc)) &
+             -irhs(iqx(1:ifc,nc),1)        
+    new(1:ifc,1) = -2.*cu(1:ifc)/(bu(1:ifc)+sqrt(bu(1:ifc)*bu(1:ifc)-4.*au(1:ifc)*cu(1:ifc)))
+    
+    ! ice
     where (izz(iqx(1:ifc,nc),2)/=0.)
-      new(iqx(1:ifc,nc),2) = ( -izzn(iqx(1:ifc,nc),2)*ipice(iqn(1:ifc,nc))-izzs(iqx(1:ifc,nc),2)*ipice(iqs(1:ifc,nc)) &
-                               -izze(iqx(1:ifc,nc),2)*ipice(iqe(1:ifc,nc))-izzw(iqx(1:ifc,nc),2)*ipice(iqw(1:ifc,nc)) &
-                               + irhs(iqx(1:ifc,nc),2) ) / izz(iqx(1:ifc,nc),2)
+      new(1:ifc,2) = ( -izzn(iqx(1:ifc,nc),2)*ipice(iqn(1:ifc,nc))-izzs(iqx(1:ifc,nc),2)*ipice(iqs(1:ifc,nc)) &
+                       -izze(iqx(1:ifc,nc),2)*ipice(iqe(1:ifc,nc))-izzw(iqx(1:ifc,nc),2)*ipice(iqw(1:ifc,nc)) &
+                      + irhs(iqx(1:ifc,nc),2) ) / izz(iqx(1:ifc,nc),2)
+    elsewhere
+      new(1:ifc,2) = 0.
     end where
 
     ! cavitating fluid
-    new(iqx(1:ifc,nc),2)=max(min(new(iqx(1:ifc,nc),2),ipmax(iqx(1:ifc,nc))),0.)
+    new(1:ifc,2)=max(min(new(1:ifc,2),ipmax(iqx(1:ifc,nc))),0.)
 
-    new(iqx(1:ifc,nc),1)=max(new(iqx(1:ifc,nc),1),-dd(iqx(1:ifc,nc)))*ee(iqx(1:ifc,nc))
-    new(iqx(1:ifc,nc),2)=new(iqx(1:ifc,nc),2)*ee(iqx(1:ifc,nc))
+    new(1:ifc,1)=max(new(1:ifc,1),-dd(iqx(1:ifc,nc)))*ee(iqx(1:ifc,nc))
                              
-    dsol(iqx(1:ifc,nc),1)=new(iqx(1:ifc,nc),1)-neta(iqx(1:ifc,nc))
-    dsol(iqx(1:ifc,nc),2)=new(iqx(1:ifc,nc),2)-ipice(iqx(1:ifc,nc))
-    neta(iqx(1:ifc,nc))=alpha(1)*new(iqx(1:ifc,nc),1)+(1.-alpha(1))*neta(iqx(1:ifc,nc))
-    ipice(iqx(1:ifc,nc))=alpha(2)*new(iqx(1:ifc,nc),2)+(1.-alpha(2))*ipice(iqx(1:ifc,nc))
+    dsol(iqx(1:ifc,nc),1)=new(1:ifc,1)-neta(iqx(1:ifc,nc))
+    dsol(iqx(1:ifc,nc),2)=new(1:ifc,2)-ipice(iqx(1:ifc,nc))
+    neta(iqx(1:ifc,nc)) =new(1:ifc,1)
+    ipice(iqx(1:ifc,nc))=new(1:ifc,2)
 
     dumc(1:ifull,1)=neta(1:ifull)
     dumc(1:ifull,2)=ipice(1:ifull)
-    call bounds_colour(dumc(:,1:2),nc,gmode=1)
-    neta(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,1)
+    call bounds_colour(dumc(:,1:2),nc)
+    neta(ifull+1:ifull+iextra) =dumc(ifull+1:ifull+iextra,1)
     ipice(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,2)
   end do
   
   ! test for convergence
  
   dsolmax(1)=maxval(abs(dsol(1:ifull,1)))
-  !dsolmax(2)=maxval(abs(dsol(1:ifull,2)))
-  call ccmpi_allreduce(dsolmax(1:1),dsolmax_g(1:1),"max",comm_mlo)
-  if (dsolmax_g(1)<tol) exit
+  dsolmax(2)=maxval(abs(dsol(1:ifull,2)))
+  call ccmpi_allreduce(dsolmax(1:2),dsolmax_g(1:2),"max",comm_world)
+  if (dsolmax_g(1)<tol.and.dsolmax_g(2)<itol) exit
   
 end do
 
 itmg=itr
-dsolmax(2)=maxval(abs(dsol(1:ifull,2)))
-call ccmpi_allreduce(dsolmax(2:2),dsolmax_g(2:2),"max",comm_mlo)
 
 ! SOR if MG fails to converge
 if (dsolmax_g(1)>=tol.or.dsolmax_g(2)>=itol) then
   do itr=itmg+1,itr_max
-    au(1:ifull)=iyy
   
     do nc=1,maxcolour
       ifc=ifullx(nc)
-      bu(iqx(1:ifc,nc))=izz(iqx(1:ifc,nc),1)+ihh(iqx(1:ifc,nc))                                          &
-                        +iyyn(iqx(1:ifc,nc))*neta(iqn(1:ifc,nc))+iyys(iqx(1:ifc,nc))*neta(iqs(1:ifc,nc)) &
-                        +iyye(iqx(1:ifc,nc))*neta(iqe(1:ifc,nc))+iyyw(iqx(1:ifc,nc))*neta(iqw(1:ifc,nc))
-      cu(iqx(1:ifc,nc))=izzn(iqx(1:ifc,nc),1)*neta(iqn(1:ifc,nc))+izzs(iqx(1:ifc,nc),1)*neta(iqs(1:ifc,nc)) &
-                       +izze(iqx(1:ifc,nc),1)*neta(iqe(1:ifc,nc))+izzw(iqx(1:ifc,nc),1)*neta(iqw(1:ifc,nc)) &
-                       -irhs(iqx(1:ifc,nc),1)        
-      new(iqx(1:ifc,nc),1) = -2.*cu(iqx(1:ifc,nc))/(bu(iqx(1:ifc,nc))+sqrt(bu(iqx(1:ifc,nc))**2-4.*au(iqx(1:ifc,nc))*cu(iqx(1:ifc,nc))))
+      au(1:ifc)=iyy(iqx(1:ifc,nc))
+      bu(1:ifc)=izz(iqx(1:ifc,nc),1)+ihh(iqx(1:ifc,nc))                                          &
+               +iyyn(iqx(1:ifc,nc))*neta(iqn(1:ifc,nc))+iyys(iqx(1:ifc,nc))*neta(iqs(1:ifc,nc)) &
+               +iyye(iqx(1:ifc,nc))*neta(iqe(1:ifc,nc))+iyyw(iqx(1:ifc,nc))*neta(iqw(1:ifc,nc))
+      cu(1:ifc)=izzn(iqx(1:ifc,nc),1)*neta(iqn(1:ifc,nc))+izzs(iqx(1:ifc,nc),1)*neta(iqs(1:ifc,nc)) &
+           +izze(iqx(1:ifc,nc),1)*neta(iqe(1:ifc,nc))+izzw(iqx(1:ifc,nc),1)*neta(iqw(1:ifc,nc)) &
+           -irhs(iqx(1:ifc,nc),1)        
+      new(1:ifc,1) = -2.*cu(1:ifc)/(bu(1:ifc)+sqrt(bu(1:ifc)*bu(1:ifc)-4.*au(1:ifc)*cu(1:ifc)))
       
       where (izz(iqx(1:ifc,nc),2)/=0.)
-        new(iqx(1:ifc,nc),2) = ( -izzn(iqx(1:ifc,nc),2)*ipice(iqn(1:ifc,nc))-izzs(iqx(1:ifc,nc),2)*ipice(iqs(1:ifc,nc)) &
-                                 -izze(iqx(1:ifc,nc),2)*ipice(iqe(1:ifc,nc))-izzw(iqx(1:ifc,nc),2)*ipice(iqw(1:ifc,nc)) &
-                                 + irhs(iqx(1:ifc,nc),2) ) / izz(iqx(1:ifc,nc),2)
+        new(1:ifc,2) = ( -izzn(iqx(1:ifc,nc),2)*ipice(iqn(1:ifc,nc))-izzs(iqx(1:ifc,nc),2)*ipice(iqs(1:ifc,nc)) &
+                         -izze(iqx(1:ifc,nc),2)*ipice(iqe(1:ifc,nc))-izzw(iqx(1:ifc,nc),2)*ipice(iqw(1:ifc,nc)) &
+                        + irhs(iqx(1:ifc,nc),2) ) / izz(iqx(1:ifc,nc),2)
       else where
-        new(iqx(1:ifc,nc),2) = 0.      
+        new(1:ifc,2) = 0.      
       end where
 
       ! cavitating fluid
-      new(iqx(1:ifc,nc),2)=max(min(new(iqx(1:ifc,nc),2),ipmax(iqx(1:ifc,nc))),0.)
+      new(1:ifc,2)=max(min(new(1:ifc,2),ipmax(iqx(1:ifc,nc))),0.)
 
-      new(iqx(1:ifc,nc),1)=max(new(iqx(1:ifc,nc),1),-dd(iqx(1:ifc,nc)))*ee(iqx(1:ifc,nc))
-      new(iqx(1:ifc,nc),2)=new(iqx(1:ifc,nc),2)*ee(iqx(1:ifc,nc))
+      new(1:ifc,1)=max(new(1:ifc,1),-dd(iqx(1:ifc,nc)))*ee(iqx(1:ifc,nc))
                              
-      dsol(iqx(1:ifc,nc),1)=new(iqx(1:ifc,nc),1)-neta(iqx(1:ifc,nc))
-      dsol(iqx(1:ifc,nc),2)=new(iqx(1:ifc,nc),2)-ipice(iqx(1:ifc,nc))
-      neta(iqx(1:ifc,nc))=alpha(1)*new(iqx(1:ifc,nc),1)+(1.-alpha(1))*neta(iqx(1:ifc,nc))
-      ipice(iqx(1:ifc,nc))=alpha(2)*new(iqx(1:ifc,nc),2)+(1.-alpha(2))*ipice(iqx(1:ifc,nc))
+      dsol(iqx(1:ifc,nc),1)=new(1:ifc,1)-neta(iqx(1:ifc,nc))
+      dsol(iqx(1:ifc,nc),2)=new(1:ifc,2)-ipice(iqx(1:ifc,nc))
+      neta(iqx(1:ifc,nc))=new(1:ifc,1)
+      ipice(iqx(1:ifc,nc))=new(1:ifc,2)
 
       dumc(1:ifull,1)=neta(1:ifull)
       dumc(1:ifull,2)=ipice(1:ifull)
-      call bounds_colour(dumc(:,1:2),nc,gmode=1)
+      call bounds_colour(dumc(:,1:2),nc)
       neta(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,1)
       ipice(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,2)
     end do
@@ -1007,7 +1031,7 @@ if (dsolmax_g(1)>=tol.or.dsolmax_g(2)>=itol) then
     ! test for convergence
     dsolmax(1)=maxval(abs(dsol(1:ifull,1)))
     dsolmax(2)=maxval(abs(dsol(1:ifull,2)))
-    call ccmpi_allreduce(dsolmax(1:2),dsolmax_g(1:2),"max",comm_mlo)
+    call ccmpi_allreduce(dsolmax(1:2),dsolmax_g(1:2),"max",comm_world)
     if (dsolmax_g(1)<tol.and.dsolmax_g(2)<itol) exit
 
   end do
@@ -1029,14 +1053,17 @@ implicit none
 
 include 'newmpar.h'
 include 'parm.h'
+include 'parmdyn.h'
 
-integer g,np,iq,iqq,iql,iproc,xlen,nn,ii,jj
+integer g,gp,np,iq,iqq,iql,iproc,xlen,nn,ii,jj
 integer mipan,mjpan,hipan,hjpan,mil_g,iia,jja
 integer i,j,n,mg_npan,mxpr,mypr
 integer cid,ix,jx,colour,rank,ncol,nrow
 integer npanx,na,nx,ny,sii,eii,sjj,ejj
-integer drow,dcol,maxmergelen
+integer drow,dcol
 logical lglob
+
+integer, parameter :: grain = 4 ! smallest subdivision
 
 if (.not.sorfirst) return
 
@@ -1049,14 +1076,13 @@ mil_g=il_g              ! global grid size
 mxpr=il_g/ipan          ! number of processors over rows
 mypr=il_g/jpan          ! number of processors over columns
 
-
 ! calculate number of levels
-! Let coarsest grid have 4 (2x2) points on each face. If grid size
-! is not a power of 2, just make it as small as possible.
 mg_maxlevel=1
 g=1
-do while (mod(il_g,2**g)==0)
+gp=2**g
+do while (mod(il_g,gp)==0.and.il_g/gp>grain)
   g=g+1
+  gp=2**g
 end do
 mg_maxlevel=g
 
@@ -1067,7 +1093,6 @@ end if
 
 allocate(mg(mg_maxlevel))
 mg(:)%comm=0
-mg(:)%comm_mlo=0
 
 allocate(mg_bnds(0:nproc-1,mg_maxlevel))
 
@@ -1086,9 +1111,9 @@ allocate(mg(1)%fproc(mil_g,mil_g,0:npanels))
 mg(1)%fproc(:,:,:)=fproc(:,:,:)
 
 ! check if coarse grid needs mgcollect
-if (mod(mipan,2)/=0.or.mod(mjpan,2)/=0) then
+if (mod(mipan,2)/=0.or.mod(mjpan,2)/=0.or.mipan<grain.or.mjpan<grain.or.g==mg_maxlevel) then
 
-  if (mod(mxpr,2)==0.and.mod(mypr,2)==0) then
+  if (mod(mxpr,2)==0.and.mod(mypr,2)==0.and.g<mg_maxlevel) then
    
    ! This case occurs when there are multiple processors on a panel.
    ! Consequently, npan should be 1 or 6.
@@ -1108,114 +1133,92 @@ if (mod(mipan,2)/=0.or.mod(mjpan,2)/=0) then
       write(6,*) "Multi-grid gather4 at level           ",g,mipan,mjpan
     end if
 
-    allocate(mg(1)%merge_list(4,npan),mg(1)%merge_pos(npan))
+    allocate(mg(1)%merge_list(4))
 
     ! find my processor and surrounding members of the gather
-    do n=1,npan
-      nn=n-noff
+    nn=1-noff
 
-      ix=-1
-      jx=-1
-      do jj=1,mil_g,hjpan
-        do ii=1,mil_g,hipan
-          if (mg(1)%fproc(ii,jj,nn)==myid) then
-            ix=ii
-            jx=jj
-            exit
-          end if
-        end do
-        if (ix>0) exit
-      end do
-      if (ix<1) then
-        write(6,*) "ERROR: Cannot locate processor in gather4"
-        stop
-      end if
-      ii=ix
-      jj=jx
-      if (mod((ii-1)/hipan,2)/=0) ii=ii-hipan
-      if (mod((jj-1)/hjpan,2)/=0) jj=jj-hjpan
-      ix=ix-ii ! offset for myid from ii
-      jx=jx-jj ! offset for myid from jj
-
-       
-      mg(1)%merge_list(1,n)=mg(1)%fproc(ii,      jj      ,nn)
-      mg(1)%merge_list(2,n)=mg(1)%fproc(ii+hipan,jj      ,nn)
-      mg(1)%merge_list(3,n)=mg(1)%fproc(ii,      jj+hjpan,nn)
-      mg(1)%merge_list(4,n)=mg(1)%fproc(ii+hipan,jj+hjpan,nn)
-       
-      do j=1,mil_g,mjpan
-        do i=1,mil_g,mipan
-          cid=mg(1)%fproc(i+ix,j+jx,nn) ! processor in same merge position as myid
-                                        ! we will maintain communications with this processor
-          do jja=1,mjpan
-            do iia=1,mipan
-              ! update fproc map with processor that owns this data
-              mg(1)%fproc(i+iia-1,j+jja-1,nn)=cid
-            end do
-          end do
-        end do
-      end do
-        
-      mg(1)%merge_pos(n)=-1
-      do j=1,4
-        if (mg(1)%merge_list(j,n)==myid) then
-          mg(1)%merge_pos(n)=j
+    ix=-1
+    jx=-1
+    do jj=1,mil_g,hjpan
+      do ii=1,mil_g,hipan
+        if (mg(1)%fproc(ii,jj,nn)==myid) then
+          ix=ii
+          jx=jj
           exit
         end if
       end do
-      if (mg(g)%merge_pos(n)<1) then
-        write(6,*) "ERROR: Invalid merge_pos g,n,pos ",g,n,mg(g)%merge_pos(n)
-        call ccmpi_abort(-1)
-      end if
-      
+      if (ix>0) exit
+    end do
+    if (ix<1) then
+      write(6,*) "ERROR: Cannot locate processor in gather4"
+      stop
+    end if
+    ii=ix
+    jj=jx
+    if (mod((ii-1)/hipan,2)/=0) ii=ii-hipan
+    if (mod((jj-1)/hjpan,2)/=0) jj=jj-hjpan
+    ix=ix-ii ! offset for myid from ii
+    jx=jx-jj ! offset for myid from jj
+   
+    mg(1)%merge_list(1)=mg(1)%fproc(ii,      jj      ,nn)
+    mg(1)%merge_list(2)=mg(1)%fproc(ii+hipan,jj      ,nn)
+    mg(1)%merge_list(3)=mg(1)%fproc(ii,      jj+hjpan,nn)
+    mg(1)%merge_list(4)=mg(1)%fproc(ii+hipan,jj+hjpan,nn)
+       
+    do j=1,mil_g,mjpan
+      do i=1,mil_g,mipan
+        cid=mg(1)%fproc(i+ix,j+jx,nn) ! processor in same merge position as myid
+                                      ! we will maintain communications with this processor
+        do jja=1,mjpan
+          do iia=1,mipan
+            ! update fproc map with processor that owns this data
+            mg(1)%fproc(i+iia-1,j+jja-1,nn)=cid
+          end do
+        end do
+      end do
     end do
 
+    mg(1)%merge_pos=-1
+    do j=1,4
+      if (mg(1)%merge_list(j)==myid) then
+        mg(1)%merge_pos=j
+        exit
+      end if
+    end do
+    if (mg(g)%merge_pos<1) then
+      write(6,*) "ERROR: Invalid merge_pos g,pos ",g,mg(g)%merge_pos
+      call ccmpi_abort(-1)
+    end if
+      
     ! fix any remaining panels
     if (npan==1) then
+      ! must loop over all panels
       do nn=0,npanels
         do j=1,mil_g,mjpan
           do i=1,mil_g,mipan
-            cid=mg(g)%fproc(i+ix,j+jx,nn) ! processor in same merge position as myid
+            cid=mg(1)%fproc(i+ix,j+jx,nn) ! processor in same merge position as myid
                                           ! we will maintain communications with this processor
             do jja=1,mjpan
               do iia=1,mipan
                 ! update fproc map with processor that owns this data
-                mg(g)%fproc(i+iia-1,j+jja-1,nn)=cid
+                mg(1)%fproc(i+iia-1,j+jja-1,nn)=cid
               end do
             end do
           end do
         end do
       end do
-
-      ! define local comm
-      colour=mg(1)%merge_list(1,1)
-      rank=mg(1)%merge_pos(1)-1
-      call ccmpi_commsplit(mg(1)%comm,comm_world,colour,rank)
-      
-      ! MLO comm
-      if (abs(nmlo)>0.and.abs(nmlo)<=9) then
-        if (bnds(myid)%mlomsk==1) then
-          rank=-1
-          jj=-1
-          do ii=1,mg(1)%merge_len
-            iproc=mg(1)%merge_list(ii,1)
-            if (bnds(iproc)%mlomsk==1) then
-              jj=jj+1
-              if (iproc==myid) then
-                rank=jj
-                exit
-              end if
-            end if
-          end do
-        else
-          colour=nproc
-          rank=count(bnds(0:myid)%mlomsk==0)-1
-        end if
-        call ccmpi_commsplit(mg(1)%comm_mlo,comm_world,colour,rank)
-      end if
-      
+    else
+      do n=0,npanels
+        mg(1)%fproc(:,:,n)=mg(1)%fproc(:,:,nn)
+      end do    
     end if
-      
+
+    ! define local comm for gather
+    colour=mg(1)%merge_list(1)
+    rank=mg(1)%merge_pos-1
+    call ccmpi_commsplit(mg(1)%comm,comm_world,colour,rank)
+  
   else
     write(6,*) "ERROR: Grid g=1 requires gatherall for multi-grid solver"
     call ccmpi_abort(-1)
@@ -1287,9 +1290,9 @@ do g=2,mg_maxlevel
   mg(g)%merge_row=1
   
   ! check for multi-grid gather
-  if (mod(mipan,2)/=0.or.mod(mjpan,2)/=0) then ! grid cannot be subdivided on current processor
+  if (mod(mipan,2)/=0.or.mod(mjpan,2)/=0.or.mipan<grain.or.mjpan<grain.or.g==mg_maxlevel) then ! grid cannot be subdivided on current processor
   
-    if (mod(mxpr,2)==0.and.mod(mypr,2)==0) then ! collect data over adjacent processors
+    if (mod(mxpr,2)==0.and.mod(mypr,2)==0.and.g<mg_maxlevel) then ! collect data over adjacent processors
 
       ! This case occurs when there are multiple processors on a panel.
       ! Consequently, npan should be 1 or 6.
@@ -1309,71 +1312,68 @@ do g=2,mg_maxlevel
         write(6,*) "Multi-grid gather4 at level           ",g,mipan,mjpan
       end if
 
-      maxmergelen=npan
-      allocate(mg(g)%merge_list(4,npan),mg(g)%merge_pos(npan))
+      allocate(mg(g)%merge_list(4))
       
-      do n=1,npan
-        nn=n-noff
+      nn=1-noff
 
-        ! find my processor and surrounding members of the gather
-        ix=-1
-        jx=-1
-        do jj=1,mil_g,hjpan
-          do ii=1,mil_g,hipan
-            if (mg(g)%fproc(ii,jj,nn)==myid) then
-              ix=ii
-              jx=jj
-              exit
-            end if
-          end do
-          if (ix>0) exit
-        end do
-        if (ix<1) then
-          write(6,*) "ERROR: Cannot locate processor in gather4"
-          call ccmpi_abort(-1)
-        end if
-        ii=ix
-        jj=jx
-        if (mod((ii-1)/hipan,2)/=0) ii=ii-hipan ! left corner of merge
-        if (mod((jj-1)/hjpan,2)/=0) jj=jj-hjpan ! bottom corner of merge
-        ix=ix-ii ! offset for myid from ii
-        jx=jx-jj ! offset for myid from jj
-       
-        mg(g)%merge_list(1,n)=mg(g)%fproc(ii,      jj      ,nn)
-        mg(g)%merge_list(2,n)=mg(g)%fproc(ii+hipan,jj      ,nn)
-        mg(g)%merge_list(3,n)=mg(g)%fproc(ii,      jj+hjpan,nn)
-        mg(g)%merge_list(4,n)=mg(g)%fproc(ii+hipan,jj+hjpan,nn)
- 
-        do j=1,mil_g,mjpan
-          do i=1,mil_g,mipan
-            cid=mg(g)%fproc(i+ix,j+jx,nn) ! processor in same merge position as myid
-                                          ! we will maintain communications with this processor
-            do jja=1,mjpan
-              do iia=1,mipan
-                ! update fproc map with processor that owns this data
-                mg(g)%fproc(i+iia-1,j+jja-1,nn)=cid
-              end do
-            end do
-          end do
-        end do
-
-        mg(g)%merge_pos(n)=-1
-        do j=1,4
-          if (mg(g)%merge_list(j,n)==myid) then
-            mg(g)%merge_pos(n)=j
+      ! find my processor and surrounding members of the gather
+      ix=-1
+      jx=-1
+      do jj=1,mil_g,hjpan
+        do ii=1,mil_g,hipan
+          if (mg(g)%fproc(ii,jj,nn)==myid) then
+            ix=ii
+            jx=jj
             exit
           end if
         end do
-       
-        if (mg(g)%merge_pos(n)<1) then
-          write(6,*) "ERROR: Invalid merge_pos g,n,pos ",g,n,mg(g)%merge_pos(n)
-          call ccmpi_abort(-1)
-        end if
-
+        if (ix>0) exit
       end do
-      
+      if (ix<1) then
+        write(6,*) "ERROR: Cannot locate processor in gather4"
+        call ccmpi_abort(-1)
+      end if
+      ii=ix
+      jj=jx
+      if (mod((ii-1)/hipan,2)/=0) ii=ii-hipan ! left corner of merge
+      if (mod((jj-1)/hjpan,2)/=0) jj=jj-hjpan ! bottom corner of merge
+      ix=ix-ii ! offset for myid from ii
+      jx=jx-jj ! offset for myid from jj
+       
+      mg(g)%merge_list(1)=mg(g)%fproc(ii,      jj      ,nn)
+      mg(g)%merge_list(2)=mg(g)%fproc(ii+hipan,jj      ,nn)
+      mg(g)%merge_list(3)=mg(g)%fproc(ii,      jj+hjpan,nn)
+      mg(g)%merge_list(4)=mg(g)%fproc(ii+hipan,jj+hjpan,nn)
+ 
+      do j=1,mil_g,mjpan
+        do i=1,mil_g,mipan
+          cid=mg(g)%fproc(i+ix,j+jx,nn) ! processor in same merge position as myid
+                                        ! we will maintain communications with this processor
+          do jja=1,mjpan
+            do iia=1,mipan
+              ! update fproc map with processor that owns this data
+              mg(g)%fproc(i+iia-1,j+jja-1,nn)=cid
+            end do
+          end do
+        end do
+      end do
+
+      mg(g)%merge_pos=-1
+      do j=1,4
+        if (mg(g)%merge_list(j)==myid) then
+          mg(g)%merge_pos=j
+          exit
+        end if
+      end do
+       
+      if (mg(g)%merge_pos<1) then
+        write(6,*) "ERROR: Invalid merge_pos g,pos ",g,mg(g)%merge_pos
+        call ccmpi_abort(-1)
+      end if
+
       ! fix any remaining panels
       if (npan==1) then
+        ! must loop over all panels
         do nn=0,npanels
           do j=1,mil_g,mjpan
             do i=1,mil_g,mipan
@@ -1387,6 +1387,10 @@ do g=2,mg_maxlevel
               end do
             end do
           end do
+        end do
+      else
+        do n=0,npanels
+          mg(g)%fproc(:,:,n)=mg(g)%fproc(:,:,nn)
         end do
       end if
     
@@ -1412,43 +1416,38 @@ do g=2,mg_maxlevel
       
       ! find gather members
 #ifdef uniform_decomp
-      maxmergelen=npan
-      allocate(mg(g)%merge_list(mg(g)%merge_len,npan),mg(g)%merge_pos(npan))
-      do n=1,npan
-        nn=n-noff
-        iqq=0
-        do jj=1,mil_g,hjpan
-          do ii=1,mil_g,hipan
-            iqq=iqq+1
-            mg(g)%merge_list(iqq,n)=mg(g)%fproc(ii,jj,nn)
-          end do
+      allocate(mg(g)%merge_list(mg(g)%merge_len))
+      iqq=0
+      do jj=1,mil_g,hjpan
+        do ii=1,mil_g,hipan
+          iqq=iqq+1
+          mg(g)%merge_list(iqq)=mg(g)%fproc(ii,jj,0)
         end do
-        if (iqq/=mg(g)%merge_len) then
-          write(6,*) "ERROR: merge_len mismatch ",iqq,mg(g)%merge_len,g
-          stop
-        end if
-        mg(g)%merge_pos(n)=-1
-        do i=1,mg(g)%merge_len
-          if (mg(g)%merge_list(i,n)==myid) then
-            mg(g)%merge_pos(n)=i
-            exit
-          end if
-        end do
-        if (mg(g)%merge_pos(n)<1) then
-          write(6,*) "ERROR: Invalid merge_pos g,n,pos ",g,n,mg(g)%merge_pos(n)
-          call ccmpi_abort(-1)
+      end do
+      if (iqq/=mg(g)%merge_len) then
+        write(6,*) "ERROR: merge_len mismatch ",iqq,mg(g)%merge_len,g
+        stop
+      end if
+      mg(g)%merge_pos=-1
+      do i=1,mg(g)%merge_len
+        if (mg(g)%merge_list(i)==myid) then
+          mg(g)%merge_pos=i
+          exit
         end if
       end do
+      if (mg(g)%merge_pos<1) then
+        write(6,*) "ERROR: Invalid merge_pos g,pos ",g,mg(g)%merge_pos
+        call ccmpi_abort(-1)
+      end if
 #else
-      maxmergelen=1
-      allocate(mg(g)%merge_list(mg(g)%merge_len,1),mg(g)%merge_pos(1))      
+      allocate(mg(g)%merge_list(mg(g)%merge_len))      
       iqq=0
       do n=1,6/npan
         nn=(n-1)*npan
         do jj=1,mil_g,hjpan
           do ii=1,mil_g,hipan
             iqq=iqq+1
-            mg(g)%merge_list(iqq,1)=mg(g)%fproc(ii,jj,nn)
+            mg(g)%merge_list(iqq)=mg(g)%fproc(ii,jj,nn)
           end do
         end do
       end do
@@ -1456,15 +1455,15 @@ do g=2,mg_maxlevel
         write(6,*) "ERROR: merge_len mismatch ",iqq,mg(g)%merge_len,g
         stop
       end if
-      mg(g)%merge_pos(1)=-1
+      mg(g)%merge_pos=-1
       do i=1,mg(g)%merge_len
-        if (mg(g)%merge_list(i,1)==myid) then
-          mg(g)%merge_pos(1)=i
+        if (mg(g)%merge_list(i)==myid) then
+          mg(g)%merge_pos=i
           exit
         end if
       end do
-      if (mg(g)%merge_pos(1)<1) then
-        write(6,*) "ERROR: Invalid merge_pos g,n,pos ",g,1,mg(g)%merge_pos(1)
+      if (mg(g)%merge_pos<1) then
+        write(6,*) "ERROR: Invalid merge_pos g,pos ",g,mg(g)%merge_pos
         call ccmpi_abort(-1)
       end if
 #endif
@@ -1475,47 +1474,19 @@ do g=2,mg_maxlevel
     else ! all data is already on one processor
       if (g/=mg_maxlevel) then
         write(6,*) "ERROR: g/=mg_maxlevel ",g,mg_maxlevel
-        stop
+        call ccmpi_abort(-1)
       end if
       if (myid==0) then
         write(6,*) "Multi-grid toplevel                   ",g,mipan,mjpan
       end if
-      maxmergelen=1
-      allocate(mg(g)%merge_pos(1))
-      mg(g)%merge_pos(1)=1
+      mg(g)%merge_pos=1
     end if
 
     ! define local comm
     if (mg(g)%merge_len>1) then
-      if (npan==1.or.mg(g)%globgath) then
-
-        colour=mg(g)%merge_list(1,1)
-        rank=mg(g)%merge_pos(1)-1
-        call ccmpi_commsplit(mg(g)%comm,comm_world,colour,rank)
-
-        ! MLO comm
-        if (abs(nmlo)>0.and.abs(nmlo)<=9) then
-          if (bnds(myid)%mlomsk==1) then
-            rank=-1
-            jj=-1
-            do ii=1,mg(g)%merge_len
-              iproc=mg(g)%merge_list(ii,1)
-              if (bnds(iproc)%mlomsk==1) then
-                jj=jj+1
-                if (iproc==myid) then
-                  rank=jj
-                  exit
-                end if
-              end if
-            end do
-          else
-            colour=nproc
-            rank=count(bnds(0:myid)%mlomsk==0)-1
-          end if
-          call ccmpi_commsplit(mg(g)%comm_mlo,comm_world,colour,rank)
-        end if
-
-      end if
+      colour=mg(g)%merge_list(1)
+      rank=mg(g)%merge_pos-1
+      call ccmpi_commsplit(mg(g)%comm,comm_world,colour,rank)
     end if
   
   else
@@ -1524,9 +1495,7 @@ do g=2,mg_maxlevel
     end if
     ! no messages sent, but we allocate this arrays for the
     ! coarse calculation below
-    maxmergelen=1
-    allocate(mg(g)%merge_pos(1))
-    mg(g)%merge_pos(1)=1
+    mg(g)%merge_pos=1
   end if
   
 
@@ -1600,8 +1569,7 @@ do g=2,mg_maxlevel
  
   do n=1,npanx
   
-    nn=min(n,maxmergelen)
-    na=mg(g)%merge_pos(nn)
+    na=mg(g)%merge_pos
     nx=mod(na-1,nrow)+1
     ny=(na-1)/nrow+1
     sii=(nx-1)*drow+1
@@ -1760,6 +1728,9 @@ end do
 ! free some memory
 do g=1,mg_maxlevel
   deallocate(mg(g)%fproc)
+  if (mg(g)%merge_len>1) then
+    deallocate(mg(g)%merge_list)
+  end if
 end do
 
 mg_minsize=6*mil_g*mil_g

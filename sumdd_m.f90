@@ -1,6 +1,6 @@
 module sumdd_m
    implicit none
-   integer(kind=4), save :: MPI_SUMDR
+   integer(kind=4), save :: MPI_SUMDR, MPI_SUMDRA
 contains
    subroutine drpdr (dra, drb, len, itype) 
 !  Modification of original codes written by David H. Bailey. 
@@ -32,6 +32,26 @@ contains
          drb(i) = cmplx (t1 + t2, t2 - ((t1 + t2) - t1)) 
       end do
    end subroutine drpdr
+
+   subroutine drpdra (dra, drb, len, itype) 
+!  Array version of drpdr
+
+      integer(kind=4), intent(in) :: len, itype
+      complex, dimension(2,len/2), intent(in)  :: dra
+      complex, dimension(2,len/2), intent(inout) :: drb
+      real, dimension(2) :: e, t1, t2 
+      integer :: i
+
+      do i = 1, len/2
+         !  Compute dra + drb using Knuth's trick. 
+         t1(:) = real(dra(:,i)) + real(drb(:,i)) 
+         e(:) = t1(:) - real(dra(:,i)) 
+         t2(:) = ((real(drb(:,i)) - e(:)) + (real(dra(:,i)) - (t1(:) - e(:))))  + &
+                 aimag(dra(:,i)) + aimag(drb(:,i)) 
+         !    The result is t1 + t2, after normalization. 
+         drb(:,i) = cmplx (t1(:) + t2(:), t2(:) - ((t1(:) + t2(:)) - t1(:))) 
+      end do
+   end subroutine drpdra
 
    subroutine drpdr_local (array, local_sum)
    ! This is a local version of drpdr that takes an array of reals on 

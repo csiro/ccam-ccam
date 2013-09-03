@@ -694,7 +694,7 @@ integer(kind=4), dimension(nihead) :: lahead
 integer(kind=4) :: lncid,lier,ler,lidum
 character(len=*), intent(in) :: ifile
 character(len=170) :: pfile
-character(len=7) :: fdecomp
+character(len=8) :: fdecomp
 logical omode
 
 if (myid==0) then
@@ -707,7 +707,7 @@ if (myid==0) then
   ncid=lncid
   ier=lier
   fnproc=1      ! number of files to be read over all processors
-  dmode=0       ! Single file (dmode=0) Face decomposition (dmode=1) or Uniform decomposiiton (dmode=2)
+  dmode=0       ! Single file (dmode=0), Face decomposition (dmode=1), Depreciated (dmode=2) or Uniform decomposition (dmode=3)
   pil=0         ! Number of X grid points within a file panel
   pjl=0         ! Number of Y grid points within a file panel
   pnpan=0       ! Number of panels in file
@@ -754,8 +754,10 @@ if (myid==0) then
       select case(fdecomp)
         case('face')
           dmode=1
-        case('uniform')
+        case('uniform')  ! old uniform
           dmode=2
+        case('uniform1') ! new uniform (Dix style)
+          dmode=3
         case default
           write(6,*) "ERROR: Unknown decomposition ",fdecomp
           call ccmpi_abort(-1)
@@ -813,10 +815,17 @@ if (myid==0) then
           pioff(ipf,:)=duma
           pjoff(ipf,:)=dumb
         end do
-      case(2) ! uniform decomposition
+      case(2) ! old uniform decomposition
         pnpan=6
         do ipf=0,fnproc-1
           call uniform_set(pil,pjl,pnoff(ipf),duma,dumb,pnpan,pil_g,ipf,fnproc,nxpr,nypr)
+          pioff(ipf,:)=duma
+          pjoff(ipf,:)=dumb
+        end do
+      case(3) ! new uniform decomposition
+        pnpan=6
+        do ipf=0,fnproc-1
+          call dix_set(pil,pjl,pnoff(ipf),duma,dumb,pnpan,pil_g,ipf,fnproc,nxpr,nypr)
           pioff(ipf,:)=duma
           pjoff(ipf,:)=dumb
         end do
@@ -824,7 +833,7 @@ if (myid==0) then
 
     ptest=.false.
 #ifdef uniform_decomp
-    if (dmode==2) then
+    if (dmode==3) then
       if (nproc==fnproc) then
         if (pil_g==il_g.and.pjl_g==jl_g) then
           ptest=.true.
