@@ -460,19 +460,15 @@ real, dimension(ifull), intent(in) :: iyy,iyyn,iyys,iyye,iyyw
 real, dimension(ifull,2), intent(in) :: izz,izzn,izzs,izze,izzw
 real, dimension(ifull), intent(in) :: ihh
 real, dimension(ifull,2), intent(in) :: irhs
-real, dimension(ifull+iextra,1) :: vdum
-!real, dimension(ifull+iextra,2) :: vdum
+real, dimension(ifull+iextra,2) :: vdum
 real, dimension(mg_maxsize) :: au,bu,cu
-real, dimension(mg_maxsize,1,mg_maxlevel) :: v
-!real, dimension(mg_maxsize,2,mg_maxlevel) :: v
-real, dimension(mg_maxsize,5,mg_maxlevel) :: yy
-!real, dimension(mg_maxsize,10,mg_maxlevel) :: yy
-real, dimension(mg_maxsize,7) :: w
-!real, dimension(mg_maxsize,8) :: w
+real, dimension(mg_maxsize,2,mg_maxlevel) :: v
+real, dimension(mg_maxsize,10,mg_maxlevel) :: yy
+real, dimension(mg_maxsize,8) :: w
 real, dimension(mg_maxsize,mg_maxlevel) :: zz,zzn,zzs,zze,zzw
 real, dimension(mg_maxsize,mg_maxlevel) :: hh
 real, dimension(mg_maxsize,mg_maxlevel) :: rhs
-!real, dimension(mg_maxsize,mg_maxlevel) :: rhsice
+real, dimension(mg_maxsize,mg_maxlevel) :: rhsice
 real, dimension(mg_maxsize,2) :: dsol,new
 real, dimension(ifull+iextra,2) :: dumc
 real, dimension(2) :: dsolmax,dsolmax_g
@@ -499,40 +495,36 @@ end if
 
 ! also
 
-! zz*(DIV^2 ipice) = rhs
+! zz*(DIV^2 ipice) + yy*ipice = rhs
 ! ipice = i0 + f
 
-! zz*(DIV^2 i0) = rhs - F
-! zz*(DIV^2 f) = F
+! zz*(DIV^2 i0) + yy*i0 = rhs - F
+! zz*(DIV^2 f) + yy*f = F
 
 yy(1:ifull,1,1)=iyy(1:ifull)
 yy(1:ifull,2,1)=iyyn(1:ifull)
 yy(1:ifull,3,1)=iyys(1:ifull)
 yy(1:ifull,4,1)=iyye(1:ifull)
 yy(1:ifull,5,1)=iyyw(1:ifull)
-!yy(1:ifull,6,1)=izz(1:ifull,2)
-!yy(1:ifull,7,1)=izzn(1:ifull,2)
-!yy(1:ifull,8,1)=izzs(1:ifull,2)
-!yy(1:ifull,9,1)=izze(1:ifull,2)
-!yy(1:ifull,10,1)=izzw(1:ifull,2)
-call mgcollect(1,yy(:,1:5,1))
+yy(1:ifull,6,1)=izz(1:ifull,2)
+yy(1:ifull,7,1)=izzn(1:ifull,2)
+yy(1:ifull,8,1)=izzs(1:ifull,2)
+yy(1:ifull,9,1)=izze(1:ifull,2)
+yy(1:ifull,10,1)=izzw(1:ifull,2)
+call mgcollect(1,yy(:,:,1))
 do g=1,mg_maxlevel-1
   ng4=mg(g)%ifull_fine
   yy(1:ng4,1:5,g+1)=0.25*dfac*(yy(mg(g)%fine  ,1:5,g)+yy(mg(g)%fine_n ,1:5,g) &
                               +yy(mg(g)%fine_e,1:5,g)+yy(mg(g)%fine_ne,1:5,g))
-  call mgcollect(g+1,yy(:,1:5,g+1))
+  ! special treatment of cavitating fluid
+  yy(1:ng4,6:10,g+1)=0.25*(yy(mg(g)%fine  ,6:10,g)+yy(mg(g)%fine_n ,6:10,g)   &
+                          +yy(mg(g)%fine_e,6:10,g)+yy(mg(g)%fine_ne,6:10,g))
+  call mgcollect(g+1,yy(:,:,g+1))
 end do
-!call mgcollect(1,yy(:,1:10,1))
-!do g=1,mg_maxlevel-1
-!  ng4=mg(g)%ifull_fine
-!  yy(1:ng4,1:10,g+1)=0.25*dfac*(yy(mg(g)%fine  ,1:10,g)+yy(mg(g)%fine_n ,1:10,g) &
-!                               +yy(mg(g)%fine_e,1:10,g)+yy(mg(g)%fine_ne,1:10,g))
-!  call mgcollect(g+1,yy(:,1:10,g+1))
-!end do
 
 dumc(1:ifull,1)=neta(1:ifull)
 dumc(1:ifull,2)=ipice(1:ifull)
-call bounds(dumc(:,1:2))
+call bounds(dumc)
 neta(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,1)
 ipice(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,2)
 
@@ -554,13 +546,11 @@ do itr=1,itr_mgice
     new(1:ifc,1)=max(new(1:ifc,1),-dd(iqx(1:ifc,nc)))*ee(iqx(1:ifc,nc))
 
     ! ice
-    where (izz(iqx(1:ifc,nc),2)/=0.)
-      new(1:ifc,2) = ( -izzn(iqx(1:ifc,nc),2)*ipice(iqn(1:ifc,nc))-izzs(iqx(1:ifc,nc),2)*ipice(iqs(1:ifc,nc)) &
-                       -izze(iqx(1:ifc,nc),2)*ipice(iqe(1:ifc,nc))-izzw(iqx(1:ifc,nc),2)*ipice(iqw(1:ifc,nc)) &
-                      + irhs(iqx(1:ifc,nc),2) ) / izz(iqx(1:ifc,nc),2)
-    elsewhere
-      new(1:ifc,2) = 0.    
-    end where
+    new(1:ifc,2) = ( -izzn(iqx(1:ifc,nc),2)*ipice(iqn(1:ifc,nc)) &
+                     -izzs(iqx(1:ifc,nc),2)*ipice(iqs(1:ifc,nc)) &
+                     -izze(iqx(1:ifc,nc),2)*ipice(iqe(1:ifc,nc)) &
+                     -izzw(iqx(1:ifc,nc),2)*ipice(iqw(1:ifc,nc)) &
+                    + irhs(iqx(1:ifc,nc),2) ) / izz(iqx(1:ifc,nc),2)
     ! ice cavitating fluid
     new(1:ifc,2)=max(min(new(1:ifc,2),ipmax(iqx(1:ifc,nc))),0.)
    
@@ -582,25 +572,26 @@ do itr=1,itr_mgice
   w(1:ifull,7)=ihh+iyy*neta(1:ifull)+iyyn*neta(in)+iyys*neta(is)+iyye*neta(ie)+iyyw*neta(iw)
 
   ! residual
-  w(1:ifull,1)=-neta(1:ifull)*(     iyy*neta(1:ifull)+     iyyn*neta(in)+     iyys*neta(is)+     iyye*neta(ie)+     iyyw*neta(iw)) &
+  w(1:ifull,1)=-neta(1:ifull)*(iyy*neta(1:ifull)     +iyyn*neta(in)     +iyys*neta(is)     +iyye*neta(ie)     +iyyw*neta(iw))      &
                              -(izz(:,1)*neta(1:ifull)+izzn(:,1)*neta(in)+izzs(:,1)*neta(is)+izze(:,1)*neta(ie)+izzw(:,1)*neta(iw)) &
                              -ihh*neta(1:ifull)+irhs(:,1)
-  !where (izz(1:ifull,2)/=0..and.ipice(1:ifull)>0..and.ipice(1:ifull)<ipmax(1:ifull))
-  !  w(1:ifull,8)=-(izz(:,2)*ipice(1:ifull)+izzn(:,2)*ipice(in)+izzs(:,2)*ipice(is)+izze(:,2)*ipice(ie)+izzw(:,2)*ipice(iw))+irhs(:,2)
-  !elsewhere
-  !  w(1:ifull,8)=0.
-  !end where
+  w(1:ifull,8)=-(izz(:,2)*ipice(1:ifull)+izzn(:,2)*ipice(in)+izzs(:,2)*ipice(is) &
+                +izze(:,2)*ipice(ie)+izzw(:,2)*ipice(iw))+irhs(:,2)
+                
+  ! patch to remove error when ipmax is reached
+  where (ipice(1:ifull)>=ipmax(1:ifull))
+    w(1:ifull,8)=0.
+  end where
                              
   w(1:ifull,1)=w(1:ifull,1)*ee(1:ifull)
-  !w(1:ifull,8)=w(1:ifull,8)*ee(1:ifull)
-
+  w(1:ifull,8)=w(1:ifull,8)*ee(1:ifull)
+  
   ! fine grid
   g=1
   ng=mg(g)%ifull
 
   ! For when the inital grid cannot be upscaled
-  call mgcollect(g,w(:,1:7))
-  !call mgcollect(g,w(:,1:8))
+  call mgcollect(g,w(:,:))
   
   ! restriction
   ! (since this always operates within a panel, then ine = ien is always true)
@@ -619,8 +610,8 @@ do itr=1,itr_mgice
                            +w(mg(g)%fine_e,6)+w(mg(g)%fine_ne,6))
   hh(1:ng4,g+1)=0.25*(w(mg(g)%fine  ,7)+w(mg(g)%fine_n ,7) &
                      +w(mg(g)%fine_e,7)+w(mg(g)%fine_ne,7))
-  !rhsice(1:ng4,g+1)=0.25*(w(mg(g)%fine  ,8)+w(mg(g)%fine_n ,8) &
-  !                       +w(mg(g)%fine_e,8)+w(mg(g)%fine_ne,8))
+  rhsice(1:ng4,g+1)=0.25*(w(mg(g)%fine  ,8)+w(mg(g)%fine_n ,8) &
+                         +w(mg(g)%fine_e,8)+w(mg(g)%fine_ne,8))
 
   ! upscale grid
   do g=2,mg_maxlevel-1
@@ -635,9 +626,8 @@ do itr=1,itr_mgice
     w(1:ng4,5)  =zze(1:ng4,g)
     w(1:ng4,6)  =zzw(1:ng4,g)
     w(1:ng4,7)  =hh(1:ng4,g)
-    !w(1:ng4,8)  =rhsice(1:ng4,g)
-    call mgcollect(g,w(:,1:7))
-    !call mgcollect(g,w(:,1:8))
+    w(1:ng4,8)  =rhsice(1:ng4,g)
+    call mgcollect(g,w(:,:))
     rhs(1:ng,g)    =w(1:ng,1)
     zz(1:ng,g)     =w(1:ng,2)
     zzn(1:ng,g)    =w(1:ng,3)
@@ -645,7 +635,7 @@ do itr=1,itr_mgice
     zze(1:ng,g)    =w(1:ng,5)
     zzw(1:ng,g)    =w(1:ng,6)
     hh(1:ng,g)     =w(1:ng,7)
-    !rhsice(1:ng,g) =w(1:ng,8)
+    rhsice(1:ng,g) =w(1:ng,8)
 
 
     ! update
@@ -654,21 +644,12 @@ do itr=1,itr_mgice
     au(1:ng)=yy(1:ng,1,g)
     bu(1:ng)=zz(1:ng,g)+hh(1:ng,g)
     cu(1:ng)=-rhs(1:ng,g)
-    where (bu(1:ng)/=0.)
-      v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(bu(1:ng)*bu(1:ng)-4.*au(1:ng)*cu(1:ng)))
-    elsewhere
-      v(1:ng,1,g) = 0.
-    end where
+    v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(bu(1:ng)*bu(1:ng)-4.*au(1:ng)*cu(1:ng)))
 
-    !where (yy(1:ng,6,g)/=0.)
-    !  v(1:ng,2,g) = rhsice(1:ng,g)/yy(1:ng,6,g)
-    !elsewhere
-    !  v(1:ng,2,g) = 0.    
-    !end where
+    v(1:ng,2,g) = rhsice(1:ng,g)/yy(1:ng,6,g)
     
     ! residual
-    call mgbounds(g,v(:,1:1,g))
-    !call mgbounds(g,v(:,1:2,g))
+    call mgbounds(g,v(:,:,g))
 
     w(1:ng,2)= zz(1:ng,g)+yy(1:ng,1,g)*v(1:ng,1,g)
     w(1:ng,3)=zzn(1:ng,g)+yy(1:ng,2,g)*v(1:ng,1,g)
@@ -682,12 +663,10 @@ do itr=1,itr_mgice
                             -(zz(1:ng,g)*v(1:ng,1,g)+ zzn(1:ng,g)*v(mg(g)%in,1,g)+ zzs(1:ng,g)*v(mg(g)%is,1,g)+ zze(1:ng,g)*v(mg(g)%ie,1,g)+ zzw(1:ng,g)*v(mg(g)%iw,1,g)) &
                              -hh(1:ng,g)*v(1:ng,1,g)+rhs(1:ng,g)
 
-    !where (yy(1:ng,6,g)/=0.)                            
-    !  w(1:ng,8)=-(yy(1:ng,6,g)*v(1:ng,2,g)+yy(1:ng,7,g)*v(mg(g)%in,2,g)+yy(1:ng,8,g)*v(mg(g)%is,2,g) &
-    !             +yy(1:ng,9,g)*v(mg(g)%ie,2,g)+yy(1:ng,10,g)*v(mg(g)%iw,2,g))+rhsice(1:ng,g)
-    !elsewhere
-    !  w(1:ng,8)=0.
-    !end where
+    w(1:ng,8)=-(yy(1:ng,6,g)*v(1:ng,2,g)                                    &
+               +yy(1:ng,7,g)*v(mg(g)%in,2,g)+yy(1:ng,8,g)*v(mg(g)%is,2,g)   &
+               +yy(1:ng,9,g)*v(mg(g)%ie,2,g)+yy(1:ng,10,g)*v(mg(g)%iw,2,g)) &
+               +rhsice(1:ng,g)
 
     ! restriction
     ! (calculate finer grid before mgcollect as the messages sent/recv are shorter)
@@ -706,8 +685,8 @@ do itr=1,itr_mgice
                              +w(mg(g)%fine_e,6)+w(mg(g)%fine_ne,6))
     hh(1:ng4,g+1)=0.25*(w(mg(g)%fine  ,7)+w(mg(g)%fine_n ,7) &
                        +w(mg(g)%fine_e,7)+w(mg(g)%fine_ne,7))
-    !rhsice(1:ng4,g+1)=0.25*(w(mg(g)%fine  ,8)+w(mg(g)%fine_n ,8) &
-    !                       +w(mg(g)%fine_e,8)+w(mg(g)%fine_ne,8))
+    rhsice(1:ng4,g+1)=0.25*(w(mg(g)%fine  ,8)+w(mg(g)%fine_n ,8) &
+                           +w(mg(g)%fine_e,8)+w(mg(g)%fine_ne,8))
 
   end do
 
@@ -716,8 +695,7 @@ do itr=1,itr_mgice
   ng=mg(g)%ifull
 
   ! ensure all processors have a copy of the coarse grid
-  v(1:ng,1,g)=0.
-  !v(1:ng,2,g)=0.
+  v(1:ng,:,g)=0.
   
   w(1:ng4,1)  =rhs(1:ng4,g)
   w(1:ng4,2)  =zz(1:ng4,g)
@@ -726,9 +704,8 @@ do itr=1,itr_mgice
   w(1:ng4,5)  =zze(1:ng4,g)
   w(1:ng4,6)  =zzw(1:ng4,g)
   w(1:ng4,7)  =hh(1:ng4,g)
-  !w(1:ng4,8)  =rhsice(1:ng4,g)
-  call mgcollect(g,w(:,1:7))
-  !call mgcollect(g,w(:,1:8))
+  w(1:ng4,8)  =rhsice(1:ng4,g)
+  call mgcollect(g,w(:,:))
   rhs(1:ng,g)    =w(1:ng,1)
   zz(1:ng,g)     =w(1:ng,2)
   zzn(1:ng,g)    =w(1:ng,3)
@@ -736,7 +713,7 @@ do itr=1,itr_mgice
   zze(1:ng,g)    =w(1:ng,5)
   zzw(1:ng,g)    =w(1:ng,6)
   hh(1:ng,g)     =w(1:ng,7)
-  !rhsice(1:ng,g) =w(1:ng,8)
+  rhsice(1:ng,g) =w(1:ng,8)
 
   au(1:ng)=yy(1:ng,1,g)
 
@@ -750,30 +727,23 @@ do itr=1,itr_mgice
       cu(col_iq(1:ifc,nc))=zzn(col_iq(1:ifc,nc),g)*v(col_iqn(1:ifc,nc),1,g)+zzs(col_iq(1:ifc,nc),g)*v(col_iqs(1:ifc,nc),1,g) &
                           +zze(col_iq(1:ifc,nc),g)*v(col_iqe(1:ifc,nc),1,g)+zzw(col_iq(1:ifc,nc),g)*v(col_iqw(1:ifc,nc),1,g) &
                           -rhs(col_iq(1:ifc,nc),g)
-      where (bu(col_iq(1:ifc,nc))/=0.)
-        new(col_iq(1:ifc,nc),1) = -2.*cu(col_iq(1:ifc,nc))/(bu(col_iq(1:ifc,nc))+sqrt(bu(col_iq(1:ifc,nc))**2-4.*au(col_iq(1:ifc,nc))*cu(col_iq(1:ifc,nc))))
-      elsewhere
-        new(col_iq(1:ifc,nc),1) = 0.
-      end where
+      new(col_iq(1:ifc,nc),1) = -2.*cu(col_iq(1:ifc,nc))/(bu(col_iq(1:ifc,nc))+sqrt(bu(col_iq(1:ifc,nc))**2-4.*au(col_iq(1:ifc,nc))*cu(col_iq(1:ifc,nc))))
       
-      !where (yy(col_iq(1:ifc,nc),6,g)/=0.)
-      !  new(col_iq(1:ifc,nc),2) = ( -yy(col_iq(1:ifc,nc),7,g)*v(col_iqn(1:ifc,nc),2,g)-yy(col_iq(1:ifc,nc),8,g)*v(col_iqs(1:ifc,nc),2,g)  &
-      !                              -yy(col_iq(1:ifc,nc),9,g)*v(col_iqe(1:ifc,nc),2,g)-yy(col_iq(1:ifc,nc),10,g)*v(col_iqw(1:ifc,nc),2,g) &
-      !                              +rhsice(col_iq(1:ifc,nc),g) ) / yy(col_iq(1:ifc,nc),6,g)
-      !elsewhere
-      !  new(col_iq(1:ifc,nc),2) = 0.
-      !end where
+      new(col_iq(1:ifc,nc),2) = ( -yy(col_iq(1:ifc,nc),7,g)*v(col_iqn(1:ifc,nc),2,g)  &
+                                  -yy(col_iq(1:ifc,nc),8,g)*v(col_iqs(1:ifc,nc),2,g)  &
+                                  -yy(col_iq(1:ifc,nc),9,g)*v(col_iqe(1:ifc,nc),2,g)  &
+                                  -yy(col_iq(1:ifc,nc),10,g)*v(col_iqw(1:ifc,nc),2,g) &
+                                  +rhsice(col_iq(1:ifc,nc),g) ) / yy(col_iq(1:ifc,nc),6,g)
         
       dsol(col_iq(1:ifc,nc),1)=new(col_iq(1:ifc,nc),1)-v(col_iq(1:ifc,nc),1,g)
-      !dsol(col_iq(1:ifc,nc),2)=new(col_iq(1:ifc,nc),2)-v(col_iq(1:ifc,nc),2,g)
+      dsol(col_iq(1:ifc,nc),2)=new(col_iq(1:ifc,nc),2)-v(col_iq(1:ifc,nc),2,g)
       v(col_iq(1:ifc,nc),1,g)=new(col_iq(1:ifc,nc),1)
-      !v(col_iq(1:ifc,nc),2,g)=new(col_iq(1:ifc,nc),2)
+      v(col_iq(1:ifc,nc),2,g)=new(col_iq(1:ifc,nc),2)
     end do
     
     dsolmax(1)=maxval(abs(dsol(1:ng,1)))
-    !dsolmax(2)=maxval(abs(dsol(1:ng,2)))
-    if (dsolmax(1)<tol) exit
-    !if (dsolmax(1)<tol.and.dsolmax(2)<itol) exit
+    dsolmax(2)=maxval(abs(dsol(1:ng,2)))
+    if (dsolmax(1)<tol.and.dsolmax(2)<itol) exit
 
   end do
   
@@ -781,8 +751,8 @@ do itr=1,itr_mgice
   ng4=mg(g)%ifull_coarse
   w(1:ng4,1)= mg(g)%wgt_a*v(mg(g)%coarse_a,1,g) + mg(g)%wgt_bc*v(mg(g)%coarse_b,1,g) &
            + mg(g)%wgt_bc*v(mg(g)%coarse_c,1,g) +  mg(g)%wgt_d*v(mg(g)%coarse_d,1,g)
-  !w(1:ng4,8)= mg(g)%wgt_a*v(mg(g)%coarse_a,2,g) + mg(g)%wgt_bc*v(mg(g)%coarse_b,2,g) &
-  !         + mg(g)%wgt_bc*v(mg(g)%coarse_c,2,g) +  mg(g)%wgt_d*v(mg(g)%coarse_d,2,g)
+  w(1:ng4,8)= mg(g)%wgt_a*v(mg(g)%coarse_a,2,g) + mg(g)%wgt_bc*v(mg(g)%coarse_b,2,g) &
+           + mg(g)%wgt_bc*v(mg(g)%coarse_c,2,g) +  mg(g)%wgt_d*v(mg(g)%coarse_d,2,g)
 
 
   ! downscale grid
@@ -794,39 +764,29 @@ do itr=1,itr_mgice
     ! No mgbounds as the v halo has already been updated and
     ! the coarse interpolation also updates the w halo
     v(1:ng4,1,g)=v(1:ng4,1,g)+w(1:ng4,1)
-    !v(1:ng4,2,g)=v(1:ng4,2,g)+w(1:ng4,8)
+    v(1:ng4,2,g)=v(1:ng4,2,g)+w(1:ng4,8)
 
     ! post smoothing
     au(1:ng)=yy(1:ng,1,g)
     bu(1:ng)=zz(1:ng,g)+hh(1:ng,g)+yy(1:ng,2,g)*v(mg(g)%in,1,g)+yy(1:ng,3,g)*v(mg(g)%is,1,g)+yy(1:ng,4,g)*v(mg(g)%ie,1,g)+yy(1:ng,5,g)*v(mg(g)%iw,1,g)
     cu(1:ng)=zzn(1:ng,g)*v(mg(g)%in,1,g)+zzs(1:ng,g)*v(mg(g)%is,1,g)+zze(1:ng,g)*v(mg(g)%ie,1,g)+zzw(1:ng,g)*v(mg(g)%iw,1,g)-rhs(1:ng,g)
     
-    where (bu(1:ng)/=0.)
-      new(1:ng,1) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(bu(1:ng)*bu(1:ng)-4.*au(1:ng)*cu(1:ng)))
-    elsewhere
-      new(1:ng,1) = 0.
-    end where
+    new(1:ng,1) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(bu(1:ng)*bu(1:ng)-4.*au(1:ng)*cu(1:ng)))
     
-    !where (yy(1:ng,6,g)/=0.)
-    !  new(1:ng,2) = ( -yy(1:ng,7,g)*v(mg(g)%in,2,g)-yy(1:ng,8,g)*v(mg(g)%is,2,g)  &
-    !                  -yy(1:ng,9,g)*v(mg(g)%ie,2,g)-yy(1:ng,10,g)*v(mg(g)%iw,2,g) &
-    !                  +rhsice(1:ng,g) ) / yy(1:ng,6,g)
-    !elsewhere
-    !  new(1:ng,2) = 0.
-    !end where
+    new(1:ng,2) = ( -yy(1:ng,7,g)*v(mg(g)%in,2,g)-yy(1:ng,8,g)*v(mg(g)%is,2,g)  &
+                    -yy(1:ng,9,g)*v(mg(g)%ie,2,g)-yy(1:ng,10,g)*v(mg(g)%iw,2,g) &
+                    +rhsice(1:ng,g) ) / yy(1:ng,6,g)
     
-    v(1:ng,1,g)=new(1:ng,1)
-    !v(1:ng,2,g)=new(1:ng,2)
+    v(1:ng,:,g)=new(1:ng,:)
 
-    call mgbounds(g,v(:,1:1,g),corner=.true.)
-    !call mgbounds(g,v(:,1:2,g),corner=.true.)
+    call mgbounds(g,v(:,:,g),corner=.true.)
 
     ! interpolation
     ng4=mg(g)%ifull_coarse
     w(1:ng4,1)= mg(g)%wgt_a*v(mg(g)%coarse_a,1,g) + mg(g)%wgt_bc*v(mg(g)%coarse_b,1,g) &
              + mg(g)%wgt_bc*v(mg(g)%coarse_c,1,g) +  mg(g)%wgt_d*v(mg(g)%coarse_d,1,g)
-    !w(1:ng4,8)= mg(g)%wgt_a*v(mg(g)%coarse_a,2,g) + mg(g)%wgt_bc*v(mg(g)%coarse_b,2,g) &
-    !         + mg(g)%wgt_bc*v(mg(g)%coarse_c,2,g) +  mg(g)%wgt_d*v(mg(g)%coarse_d,2,g)
+    w(1:ng4,8)= mg(g)%wgt_a*v(mg(g)%coarse_a,2,g) + mg(g)%wgt_bc*v(mg(g)%coarse_b,2,g) &
+             + mg(g)%wgt_bc*v(mg(g)%coarse_c,2,g) +  mg(g)%wgt_d*v(mg(g)%coarse_d,2,g)
   end do
 
 
@@ -846,7 +806,7 @@ do itr=1,itr_mgice
         iq_c=1+(ir-1)*ipan+(jj-1+(ic-1)*jpan)*ipan*mg(g)%merge_row+(n-1)*ipan*jpan*mg(g)%merge_len
         iq_d=ir*ipan+(jj-1+(ic-1)*jpan)*ipan*mg(g)%merge_row+(n-1)*ipan*jpan*mg(g)%merge_len
         vdum(iq_a:iq_b,1)=w(iq_c:iq_d,1)
-        !vdum(iq_a:iq_b,2)=w(iq_c:iq_d,8)
+        vdum(iq_a:iq_b,2)=w(iq_c:iq_d,8)
       end do
       j=1
       do i=1,ipan
@@ -855,7 +815,7 @@ do itr=1,itr_mgice
         iq_b=is(iq_a)
         iq_d=mg(g)%is(iq_c)
         vdum(iq_b,1)=w(iq_d,1)
-        !vdum(iq_b,2)=w(iq_d,8)
+        vdum(iq_b,2)=w(iq_d,8)
       end do
       j=jpan
       do i=1,ipan
@@ -864,7 +824,7 @@ do itr=1,itr_mgice
         iq_b=in(iq_a)
         iq_d=mg(g)%in(iq_c)
         vdum(iq_b,1)=w(iq_d,1)
-        !vdum(iq_b,2)=w(iq_d,8)
+        vdum(iq_b,2)=w(iq_d,8)
       end do  
       i=1
       do j=1,jpan
@@ -873,7 +833,7 @@ do itr=1,itr_mgice
         iq_b=iw(iq_a)
         iq_d=mg(g)%iw(iq_c)
         vdum(iq_b,1)=w(iq_d,1)
-        !vdum(iq_b,2)=w(iq_d,8)
+        vdum(iq_b,2)=w(iq_d,8)
       end do
       i=ipan
       do j=1,jpan
@@ -882,14 +842,14 @@ do itr=1,itr_mgice
         iq_b=ie(iq_a)
         iq_d=mg(g)%ie(iq_c)
         vdum(iq_b,1)=w(iq_d,1)
-        !vdum(iq_b,2)=w(iq_d,8)
+        vdum(iq_b,2)=w(iq_d,8)
       end do
     end do
     w(1:ifull+iextra,1)=vdum(1:ifull+iextra,1)
-    !w(1:ifull+iextra,8)=vdum(1:ifull+iextra,2)
+    w(1:ifull+iextra,8)=vdum(1:ifull+iextra,2)
     ! extension
     neta(1:ifull+iextra)=neta(1:ifull+iextra)+w(1:ifull+iextra,1)
-    !ipice(1:ifull+iextra)=ipice(1:ifull+iextra)+w(1:ifull+iextra,8)
+    ipice(1:ifull+iextra)=ipice(1:ifull+iextra)+w(1:ifull+iextra,8)
   else
     vdum=0.
     do n=1,npan
@@ -899,7 +859,7 @@ do itr=1,itr_mgice
         iq_a=is(iq)
         iq_b=mg(1)%is(iq)
         vdum(iq_a,1)=w(iq_b,1)
-        !vdum(iq_a,2)=w(iq_b,8)
+        vdum(iq_a,2)=w(iq_b,8)
       end do
       j=jpan
       do i=1,ipan
@@ -907,7 +867,7 @@ do itr=1,itr_mgice
         iq_a=in(iq)
         iq_b=mg(1)%in(iq)
         vdum(iq_a,1)=w(iq_b,1)
-        !vdum(iq_a,2)=w(iq_b,8)
+        vdum(iq_a,2)=w(iq_b,8)
       end do  
       i=1
       do j=1,jpan
@@ -915,7 +875,7 @@ do itr=1,itr_mgice
         iq_a=iw(iq)
         iq_b=mg(1)%iw(iq)
         vdum(iq_a,1)=w(iq_b,1)
-        !vdum(iq_a,2)=w(iq_b,8)
+        vdum(iq_a,2)=w(iq_b,8)
       end do
       i=ipan
       do j=1,jpan
@@ -923,18 +883,18 @@ do itr=1,itr_mgice
         iq_a=ie(iq)
         iq_b=mg(1)%ie(iq)
         vdum(iq_a,1)=w(iq_b,1)
-        !vdum(iq_a,2)=w(iq_b,8)
+        vdum(iq_a,2)=w(iq_b,8)
       end do
     end do
     w(ifull+1:ifull+iextra,1)=vdum(ifull+1:ifull+iextra,1)
-    !w(ifull+1:ifull+iextra,8)=vdum(ifull+1:ifull+iextra,2)
+    w(ifull+1:ifull+iextra,8)=vdum(ifull+1:ifull+iextra,2)
     ! extension
     neta(1:ifull+iextra)=neta(1:ifull+iextra)+w(1:ifull+iextra,1)
-    !ipice(1:ifull+iextra)=ipice(1:ifull+iextra)+w(1:ifull+iextra,8)
+    ipice(1:ifull+iextra)=ipice(1:ifull+iextra)+w(1:ifull+iextra,8)
   end if
 
   neta=max(neta,-dd)*ee
-  !ipice=max(min(ipice,ipmax),0.) 
+  ipice=max(min(ipice,ipmax),0.) 
   
   ! post smoothing
   
@@ -952,13 +912,11 @@ do itr=1,itr_mgice
     new(1:ifc,1) = -2.*cu(1:ifc)/(bu(1:ifc)+sqrt(bu(1:ifc)*bu(1:ifc)-4.*au(1:ifc)*cu(1:ifc)))
     
     ! ice
-    where (izz(iqx(1:ifc,nc),2)/=0.)
-      new(1:ifc,2) = ( -izzn(iqx(1:ifc,nc),2)*ipice(iqn(1:ifc,nc))-izzs(iqx(1:ifc,nc),2)*ipice(iqs(1:ifc,nc)) &
-                       -izze(iqx(1:ifc,nc),2)*ipice(iqe(1:ifc,nc))-izzw(iqx(1:ifc,nc),2)*ipice(iqw(1:ifc,nc)) &
-                      + irhs(iqx(1:ifc,nc),2) ) / izz(iqx(1:ifc,nc),2)
-    elsewhere
-      new(1:ifc,2) = 0.
-    end where
+    new(1:ifc,2) = ( -izzn(iqx(1:ifc,nc),2)*ipice(iqn(1:ifc,nc)) &
+                     -izzs(iqx(1:ifc,nc),2)*ipice(iqs(1:ifc,nc)) &
+                     -izze(iqx(1:ifc,nc),2)*ipice(iqe(1:ifc,nc)) &
+                     -izzw(iqx(1:ifc,nc),2)*ipice(iqw(1:ifc,nc)) &
+                    + irhs(iqx(1:ifc,nc),2) ) / izz(iqx(1:ifc,nc),2)
 
     ! cavitating fluid
     new(1:ifc,2)=max(min(new(1:ifc,2),ipmax(iqx(1:ifc,nc))),0.)
@@ -972,7 +930,7 @@ do itr=1,itr_mgice
 
     dumc(1:ifull,1)=neta(1:ifull)
     dumc(1:ifull,2)=ipice(1:ifull)
-    call bounds_colour(dumc(:,1:2),nc)
+    call bounds_colour(dumc(:,:),nc)
     neta(ifull+1:ifull+iextra) =dumc(ifull+1:ifull+iextra,1)
     ipice(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,2)
   end do
@@ -1003,13 +961,11 @@ if (dsolmax_g(1)>=tol.or.dsolmax_g(2)>=itol) then
            -irhs(iqx(1:ifc,nc),1)        
       new(1:ifc,1) = -2.*cu(1:ifc)/(bu(1:ifc)+sqrt(bu(1:ifc)*bu(1:ifc)-4.*au(1:ifc)*cu(1:ifc)))
       
-      where (izz(iqx(1:ifc,nc),2)/=0.)
-        new(1:ifc,2) = ( -izzn(iqx(1:ifc,nc),2)*ipice(iqn(1:ifc,nc))-izzs(iqx(1:ifc,nc),2)*ipice(iqs(1:ifc,nc)) &
-                         -izze(iqx(1:ifc,nc),2)*ipice(iqe(1:ifc,nc))-izzw(iqx(1:ifc,nc),2)*ipice(iqw(1:ifc,nc)) &
-                        + irhs(iqx(1:ifc,nc),2) ) / izz(iqx(1:ifc,nc),2)
-      else where
-        new(1:ifc,2) = 0.      
-      end where
+      new(1:ifc,2) = ( -izzn(iqx(1:ifc,nc),2)*ipice(iqn(1:ifc,nc)) &
+                       -izzs(iqx(1:ifc,nc),2)*ipice(iqs(1:ifc,nc)) &
+                       -izze(iqx(1:ifc,nc),2)*ipice(iqe(1:ifc,nc)) &
+                       -izzw(iqx(1:ifc,nc),2)*ipice(iqw(1:ifc,nc)) &
+                      + irhs(iqx(1:ifc,nc),2) ) / izz(iqx(1:ifc,nc),2)
 
       ! cavitating fluid
       new(1:ifc,2)=max(min(new(1:ifc,2),ipmax(iqx(1:ifc,nc))),0.)

@@ -28,7 +28,6 @@ real, dimension(:,:), allocatable, save :: stwgt
 integer, save :: nstagoffmlo
 integer, parameter :: usetide  =1    ! tidal forcing (0=off, 1=on)
 integer, parameter :: icemode  =2    ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
-integer, parameter :: icewgt   =0    ! include ice in pressure calculation (0=off, 1=on)
 integer, parameter :: basinmd  =3    ! basin mode (0=soil, 1=redistribute, 2=pile-up, 3=leak)
 integer, parameter :: mstagf   =10   ! alternating staggering (0=off left, -1=off right, >0 alternating)
 integer, parameter :: koff     =1    ! time split stagger relative to A-grid (koff=0) or C-grid (koff=1)
@@ -955,11 +954,7 @@ totits=0
 ! surface pressure gradients (including ice)
 ! (assume ice velocity is 'slow' compared to 'fast' change in neta)
 imass(1:ifull)=ndic(1:ifull)*rhoic+ndsn(1:ifull)*rhosn            ! ice mass per unit area (kg/m^2), unstaggered at time t
-if (icewgt==1) then
-  pice(1:ifull)=ps(1:ifull)+grav*nfracice(1:ifull)*imass(1:ifull) ! pressure due to atmosphere and ice at top of water column (unstaggered at t)
-else
-  pice(1:ifull)=ps(1:ifull)                                       ! pressure due to atmosphere at top of water column (unstaggered at t)
-end if
+pice(1:ifull)=ps(1:ifull)+grav*nfracice(1:ifull)*imass(1:ifull)   ! pressure due to atmosphere and ice at top of water column (unstaggered at t)
 
 ! Limit minimum ice mass for ice velocity calculation.  Hence we can estimate the ice velocity at
 ! grid points where the ice is not yet present.  
@@ -969,7 +964,7 @@ imass(1:ifull)=max(imass(1:ifull),10.)
 select case(icemode)
   case(2)
     ! cavitating fluid
-    ipmax(1:ifull)=27500.*ndic(1:ifull)*exp(-20.*(1.-nfracice(1:ifull)))
+    ipmax(1:ifull)=27500.*ndic(1:ifull)*exp(-20.*(1.-nfracice(1:ifull)))*ee(1:ifull)
   case(1)
     ! incompressible fluid
     ipmax(1:ifull)=9.E9*ee(1:ifull)
@@ -4668,16 +4663,16 @@ ipice(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,2)
 ! zz*(DIV^2 neta) + yy*neta*(DIV^2 neta) + hh*neta = rhs
 
 ! ocean
-zzn(:,1)= (1.+ocneps)*0.5*dt*(qvn+svn+pvn)*ddv(1:ifull)*em(1:ifull)**2/ds
-zzs(:,1)=-(1.+ocneps)*0.5*dt*(qvs+svs+pvs)*ddv(isv)    *em(1:ifull)**2/ds
-zze(:,1)= (1.+ocneps)*0.5*dt*(que+sue+pue)*ddu(1:ifull)*em(1:ifull)**2/ds
-zzw(:,1)=-(1.+ocneps)*0.5*dt*(quw+suw+puw)*ddu(iwu)    *em(1:ifull)**2/ds
+zzn(:,1)= (1.+ocneps)*0.5*dt*(qvn+svn+pvn)*ddv(1:ifull)*em(1:ifull)*em(1:ifull)/ds
+zzs(:,1)=-(1.+ocneps)*0.5*dt*(qvs+svs+pvs)*ddv(isv)    *em(1:ifull)*em(1:ifull)/ds
+zze(:,1)= (1.+ocneps)*0.5*dt*(que+sue+pue)*ddu(1:ifull)*em(1:ifull)*em(1:ifull)/ds
+zzw(:,1)=-(1.+ocneps)*0.5*dt*(quw+suw+puw)*ddu(iwu)    *em(1:ifull)*em(1:ifull)/ds
 zz(:,1) = (1.+ocneps)*0.5*dt*(qdivb+sdivb+pdivb)
 
-yyn= (1.+ocneps)*0.5*dt*(qvn+svn+pvn)*em(1:ifull)**2/ds
-yys=-(1.+ocneps)*0.5*dt*(qvs+svs+pvs)*em(1:ifull)**2/ds
-yye= (1.+ocneps)*0.5*dt*(que+sue+pue)*em(1:ifull)**2/ds
-yyw=-(1.+ocneps)*0.5*dt*(quw+suw+puw)*em(1:ifull)**2/ds
+yyn= (1.+ocneps)*0.5*dt*(qvn+svn+pvn)*em(1:ifull)*em(1:ifull)/ds
+yys=-(1.+ocneps)*0.5*dt*(qvs+svs+pvs)*em(1:ifull)*em(1:ifull)/ds
+yye= (1.+ocneps)*0.5*dt*(que+sue+pue)*em(1:ifull)*em(1:ifull)/ds
+yyw=-(1.+ocneps)*0.5*dt*(quw+suw+puw)*em(1:ifull)*em(1:ifull)/ds
 yy = (1.+ocneps)*0.5*dt*(qdiv+sdiv+pdiv)
 
 hh     =1.+(1.+ocneps)*0.5*dt*(odiv                                                           &
@@ -4692,7 +4687,7 @@ zze(:,2)=(-idu(1:ifull)*0.5-ibu(1:ifull))/ds
 zzw(:,2)=(-idu(iwu)*0.5    -ibu(iwu)    )/ds
 zz(:,2) =(ibu(1:ifull)+ibu(iwu)+ibv(1:ifull)+ibv(isv)-0.5*(idu(1:ifull)+idu(iwu)+idv(1:ifull)+idv(isv)))/ds
 
-rhs(:,2)=niu(1:ifull)/emu(1:ifull)-niu(iwu)/emu(iwu)+niv(1:ifull)/emv(1:ifull)-niv(isv)/emv(isv)
+rhs(:,2)=min(niu(1:ifull)/emu(1:ifull)-niu(iwu)/emu(iwu)+niv(1:ifull)/emv(1:ifull)-niv(isv)/emv(isv),0.)
 
 do nx=1,maxcolour
   ifx=ifullx(nx)
@@ -4845,20 +4840,29 @@ yyw=-(1.+ocneps)*0.5*dt*(quw+suw+puw)*em(1:ifull)*em(1:ifull)/ds
 yy = (1.+ocneps)*0.5*dt*(qdiv+sdiv+pdiv)
 
 hh     =1.+(1.+ocneps)*0.5*dt*(odiv                                                           &
-        +(pvn*dd(in)-pvs*dd(is)+pue*dd(ie)-puw*dd(iw))*em(1:ifull)**2/ds+pdiv*dd(1:ifull))
+        +(pvn*dd(in)-pvs*dd(is)+pue*dd(ie)-puw*dd(iw))*em(1:ifull)*em(1:ifull)/ds+pdiv*dd(1:ifull))
 rhs(:,1)=xps(1:ifull)-(1.+ocneps)*0.5*dt*(odivb                                               &
-        +(pvn*ddv(1:ifull)*dd(in)-pvs*ddv(isv)*dd(is)+pue*ddu(1:ifull)*dd(ie)-puw*ddu(iwu)*dd(iw))*em(1:ifull)**2/ds+pdivb*dd(1:ifull))
+        +(pvn*ddv(1:ifull)*dd(in)-pvs*ddv(isv)*dd(is)+pue*ddu(1:ifull)*dd(ie)-puw*ddu(iwu)*dd(iw))*em(1:ifull)*em(1:ifull)/ds+pdivb*dd(1:ifull))
 
-! zz*(DIV^2 ipice) = rhs
+! zz*(DIV^2 ipice) + yy*ipice = rhs
 
 ! ice
 zzn(:,2)=(-idv(1:ifull)*0.5-ibv(1:ifull))/ds
 zzs(:,2)=(-idv(isv)*0.5    -ibv(isv)    )/ds
 zze(:,2)=(-idu(1:ifull)*0.5-ibu(1:ifull))/ds
-zzw(:,2)=(-idu(iwu)*0.5    -ibu(iwu)    )/ds
-zz(:,2) =(ibu(1:ifull)+ibu(iwu)+ibv(1:ifull)+ibv(isv)-0.5*(idu(1:ifull)+idu(iwu)+idv(1:ifull)+idv(isv)))/ds
+zzw(:,2)=(-idu(iwu)        -ibu(iwu)    )/ds
+zz(:,2) =(-0.5*(idu(1:ifull)+idu(iwu)+idv(1:ifull)+idv(isv))+ibu(1:ifull)+ibu(iwu)+ibv(1:ifull)+ibv(isv))/ds
 
-rhs(:,2)=niu(1:ifull)/emu(1:ifull)-niu(iwu)/emu(iwu)+niv(1:ifull)/emv(1:ifull)-niv(isv)/emv(isv)
+rhs(:,2)=min(niu(1:ifull)/emu(1:ifull)-niu(iwu)/emu(iwu)+niv(1:ifull)/emv(1:ifull)-niv(isv)/emv(isv),0.)
+
+where (zz(:,2)>=0.)
+  zz(:,2) =-dt/(ds*10.) ! 10 is the minimum imass
+  zzn(:,2)=0.
+  zzs(:,2)=0.
+  zze(:,2)=0.
+  zzw(:,2)=0.
+  rhs(:,2)=0.
+end where
 
 call mgmlo(neta,ipice,yy,yyn,yys,yye,yyw,zz,zzn,zzs,zze,zzw,hh,rhs,tol,itol,totits,maxglobseta,maxglobip, &
            ipmax,ee,dd)
