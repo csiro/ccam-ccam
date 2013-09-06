@@ -19,7 +19,9 @@ c     modify toij5 for Cray
       real*8 x3d(ifull,kl),y3d(ifull,kl),z3d(ifull,kl)   ! upglobal depts 
       integer iq, k, intsch
 
-      call start_log(depts_begin,'depts')
+#include "log.h"
+
+      START_LOG(depts)
       do k=1,kl
          do iq=1,ifull
 c           departure point x, y, z is called x3d, y3d, z3d
@@ -112,7 +114,7 @@ c     convert to grid point numbering
 !     Share off processor departure points.
       call deptsync(nface,xg,yg)
 
-      call end_log(depts_end,'depts')
+      END_LOG(depts)
       return
       end
 
@@ -139,7 +141,7 @@ c     modify toij5 for Cray
       integer :: iq, itn, k
       real :: uc, vc, wc
 
-      call start_log(depts_begin,'depts')
+      START_LOG(depts)
       if(ntest.eq.1.and.mydiag)then
          print *,'entering depts'
          print *,'ubar,vbar ',ubar(idjd,nlv),vbar(idjd,nlv)
@@ -245,7 +247,7 @@ c     convert to grid point numbering
 !     Share off processor departure points.
       call deptsync(nface,xg,yg)
 
-      call end_log(depts_end,'depts')
+      END_LOG(depts)
       return
       end
 
@@ -271,7 +273,7 @@ c     modify toij5 for Cray
       data nmaploop/3/,ndiag/0/,num/0/
       save num
 
-      call start_log(toij_begin,'toij')
+      START_LOG(toij)
       if(num==0)then
         if(mydiag)print *,'checking for ncray = ',ncray
         If(ncray==0)then  ! check if divide by itself is working
@@ -428,7 +430,7 @@ c      expect xg, yg to range between .5 and il+.5
        xg(iq,k)=.25*(ri+3.) -.5  ! -.5 for stag; back to normal ri, rj defn
        yg(iq,k)=.25*(rj+3.) -.5  ! -.5 for stag
       enddo   ! iq loop
-      call end_log(toij_end,'toij')
+      END_LOG(toij)
       return
       end
       subroutine checkdiv(xstr,ystr,zstr)

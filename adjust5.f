@@ -60,8 +60,9 @@
       integer, save :: precon_in = -99999
       logical, dimension(:), allocatable, save :: llim
 
-      call start_log(adjust_begin,'adjust')
+#include "log.h"
 
+      START_LOG(adjust)
       hdt=dt/2.
       hdtds=hdt/ds
 
@@ -746,8 +747,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
 
       dtsave = dt
       
-      call end_log(adjust_end,'adjust')
-
+      END_LOG(adjust)
       end subroutine adjust5
 
       subroutine adjust_init(zz,zzn,zze,zzw,zzs,pfact,alff,alf,alfe,

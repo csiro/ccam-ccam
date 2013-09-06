@@ -28,7 +28,10 @@ c     doing x-interpolation before y-interpolation
       ! This is really indp, just repeated here to get inlining to work
       ind(i,j,n)=i+(j-1)*ipan+(n-1)*ipan*jpan  ! *** for n=1,npan
 
-      call start_log(ints_begin,'ints')
+#include "log.h"
+
+
+      START_LOG(ints)
       call bounds(s,nrows=2)
 
 !======================== start of intsch=1 section ====================
@@ -735,7 +738,7 @@ c                +y*(1+y)*(2-y)*c3}/2
 
       call intssync_recv(s)
       
-      call end_log(ints_end,'ints')
+      END_LOG(ints)
       return
 
       entry ints_bl(s,intsch,nface,xg,yg)  ! not usually called
@@ -743,7 +746,7 @@ c                +y*(1+y)*(2-y)*c3}/2
 c     this one does bi-linear interpolation only
 c     first extend s arrays into sx - this one -1:il+2 & -1:il+2
 c                    but for bi-linear only need 0:il+1 &  0:il+1
-      call start_log(ints_begin,'ints')
+      START_LOG(ints)
       call bounds(s,corner=.true.)
       do k=1,kl
          do n=1,npan
@@ -826,6 +829,6 @@ c                    but for bi-linear only need 0:il+1 &  0:il+1
 
       call intssync_recv(s)
 
-      call end_log(ints_end,'ints')
+      END_LOG(ints)
       return
       end

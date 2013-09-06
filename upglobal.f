@@ -49,7 +49,9 @@
       integer iaero, l
       integer, save :: num_hight = 0, numunstab = 0
 
-      call start_log(upglobal_begin,'upglobal')
+#include "log.h"
+
+      START_LOG(upglobal)
       
       intsch=mod(ktau,2)
 
@@ -565,7 +567,7 @@ c           if(numunstab==100)stop 'numunstab=30'
         write (6,"('qf_u',3p9f8.3/4x,9f8.3)") qfg(idjd,:)
       endif     
 
-      call end_log(upglobal_end,'upglobal')
+      END_LOG(upglobal)
       
       return
       end

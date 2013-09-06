@@ -57,7 +57,9 @@
      & ocndwn(ifull,2)
       logical ltest,newfile,tst
 
-      call start_log(onthefly_begin,'onthefly')
+#include "log.h"
+
+      START_LOG(onthefly)
       !--------------------------------------------------------------
       ! pfall indicates all processors have an input file and there
       ! is no need to broadcast metadata (see infile.f90)
@@ -223,7 +225,7 @@
      &                    rlat0x,schmidtx,nsibx,newfile)
       end if
 
-      call end_log(onthefly_end,'onthefly')
+      END_LOG(onthefly)
 
       return
       end

@@ -61,7 +61,9 @@ real, dimension(mg_maxsize,kl) :: w,dsol
 real, dimension(kl) :: smax,smax_g,dsolmax,dsolmax_g
 real, dimension(kl) :: smin,smin_g,savg
 
-call start_log(helm_begin,'helm')
+#include "log.h"
+
+START_LOG(helm)
 
 if (sorfirst.or.zzfirst) then
   write(6,*) "ERROR: mghelm requires mgsor_init and mgzz_init to be called first"
@@ -431,7 +433,7 @@ if (myid==0) then
   end if
 end if
 
-call end_log(helm_end,'helm')
+END_LOG(helm)
 
 return
 end subroutine mghelm
