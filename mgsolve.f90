@@ -58,8 +58,8 @@ real, dimension(mg_maxsize,kl,mg_maxlevel) :: v
 real, dimension(mg_maxsize,kl,2:mg_maxlevel) :: rhs
 real, dimension(mg_maxsize,kl,mg_maxlevel) :: helm
 real, dimension(mg_maxsize,kl) :: w,dsol
-real, dimension(kl) :: smax,smax_g,dsolmax,dsolmax_g
-real, dimension(kl) :: smin,smin_g,savg
+real, dimension(2,kl) :: smaxmin,smaxmin_g
+real, dimension(kl) :: dsolmax,dsolmax_g,savg
 
 call start_log(helm_begin)
 
@@ -75,15 +75,15 @@ end if
 ! Prepare input arrays
 klim=kl
 do k=1,kl
-  smax(k)=maxval(iv(1:ifull,k))
-  smin(k)=minval(iv(1:ifull,k))
+  smaxmin(1,k)=maxval(iv(1:ifull,k))
+  smaxmin(2,k)=minval(iv(1:ifull,k))
 end do
-call ccmpi_allreduce(smax(1:kl),smax_g(1:kl),"max",comm_world)
-call ccmpi_allreduce(smin(1:kl),smin_g(1:kl),"min",comm_world)
+! *** define MPI operator to merge max and min into single Allreduce ***
+call ccmpi_allreduce(smaxmin,smaxmin_g,"maxmin",comm_world)
 
 ! JLM suggestion
 do k=1,kl
-  savg(k)=0.5*(smax_g(k)+smin_g(k))
+  savg(k)=0.5*(smaxmin_g(1,k)+smaxmin_g(2,k))
   iv(1:ifull,k)=iv(1:ifull,k)-savg(k)
   irhs(:,k)=jrhs(:,k)+(ihelm(:,k)-izz-izzn-izzs-izze-izzw)*savg(k)
 end do
@@ -199,8 +199,8 @@ do itr=1,itr_mg
 
   do k=1,klim
     v(1:ng,k,g)=-rhs(1:ng,k,g)/(helm(1:ng,k,g)-mg(g)%zz)
-    smax(k)=maxval(v(1:ng,k,g))
-    smin(k)=minval(v(1:ng,k,g))
+    smaxmin(1,k)=maxval(v(1:ng,k,g))
+    smaxmin(2,k)=minval(v(1:ng,k,g))
   end do
 
   klimc=klim
@@ -221,7 +221,7 @@ do itr=1,itr_mg
     end do    ! convergence test
     knew=klimc
     do k=klimc,1,-1
-      if (dsolmax(k)>=restol*(smax(k)-smin(k))) exit
+      if (dsolmax(k)>=restol*(smaxmin(1,k)-smaxmin(2,k))) exit
       knew=k-1      
     end do
     klimc=knew
@@ -377,7 +377,7 @@ do itr=1,itr_mg
   knew=klim
   do k=klim,1,-1
     iters(k)=itr
-    if (dsolmax_g(k)>=restol*(smax_g(k)-smin_g(k))) exit
+    if (dsolmax_g(k)>=restol*(smaxmin_g(1,k)-smaxmin_g(2,k))) exit
     knew=k-1
   end do
   klim=knew
@@ -408,7 +408,7 @@ if (klim>0) then
     knew=klim
     do k=klim,1,-1
       iters(k)=itr
-      if (dsolmax_g(k)>=restol*(smax_g(k)-smin_g(k))) exit
+      if (dsolmax_g(k)>=restol*(smaxmin_g(1,k)-smaxmin_g(2,k))) exit
       knew=k-1
     end do
     klim=knew
@@ -663,10 +663,9 @@ do itr=1,itr_mgice
                             -(zz(1:ng,g)*v(1:ng,1,g)+ zzn(1:ng,g)*v(mg(g)%in,1,g)+ zzs(1:ng,g)*v(mg(g)%is,1,g)+ zze(1:ng,g)*v(mg(g)%ie,1,g)+ zzw(1:ng,g)*v(mg(g)%iw,1,g)) &
                              -hh(1:ng,g)*v(1:ng,1,g)+rhs(1:ng,g)
 
-    w(1:ng,8)=-(yy(1:ng,6,g)*v(1:ng,2,g)                                    &
-               +yy(1:ng,7,g)*v(mg(g)%in,2,g)+yy(1:ng,8,g)*v(mg(g)%is,2,g)   &
-               +yy(1:ng,9,g)*v(mg(g)%ie,2,g)+yy(1:ng,10,g)*v(mg(g)%iw,2,g)) &
-               +rhsice(1:ng,g)
+    w(1:ng,8)=-(yy(1:ng,7,g)*v(mg(g)%in,2,g)+yy(1:ng,8,g)*v(mg(g)%is,2,g)   &
+               +yy(1:ng,9,g)*v(mg(g)%ie,2,g)+yy(1:ng,10,g)*v(mg(g)%iw,2,g))
+              !-yy(1:ng,6,g)*v(1:ng,2,g)+rhsice(1:ng,g)
 
     ! restriction
     ! (calculate finer grid before mgcollect as the messages sent/recv are shorter)

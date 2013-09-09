@@ -1,6 +1,6 @@
 module sumdd_m
    implicit none
-   integer(kind=4), save :: MPI_SUMDR, MPI_SUMDRA
+   integer(kind=4), save :: MPI_SUMDR, MPI_SUMDRA, MPI_MAXMIN
 contains
    subroutine drpdr (dra, drb, len, itype) 
 !  Modification of original codes written by David H. Bailey. 
@@ -73,5 +73,18 @@ contains
       end do
       
    end subroutine drpdr_local
+
+   subroutine maxmin (dra, drb, len, itype) 
+!  Combine max and min into a single operation
+
+      integer(kind=4), intent(in) :: len, itype
+      real, dimension(2,len/2), intent(in)  :: dra
+      real, dimension(2,len/2), intent(inout) :: drb
+
+      drb(1,:)=max(dra(1,:),drb(1,:))
+      drb(2,:)=min(dra(2,:),drb(2,:))
+
+   end subroutine maxmin
+
 end module sumdd_m
 

@@ -45,7 +45,8 @@
       real, dimension(ifull,kl) :: omgfnl,wrk1,wrk2,wrk3,d,e
       real, dimension(ifull,kl) :: helm,rhsl,omgf
       real, dimension(ifull,kl) :: dumu,dumv,dumc,dumd,dumt
-      real, dimension(:,:,:), allocatable, save :: dums,dumssav
+      real, dimension(ifull+iextra,kl,4) :: dums
+      real, dimension(ifull,kl,4) :: dumssav
       real, dimension(ifull) :: ps_sav,pslxint,pslsav
       real, dimension(ifull) :: sdmx,delps,bb
       real, dimension(3) :: delarr, delarr_l
@@ -58,7 +59,7 @@
       integer, dimension(ifull) :: nits, nvadh_pass
       integer its, k, l, iq, ng, ierr, iaero
       integer, save :: precon_in = -99999
-      logical, dimension(:), allocatable, save :: llim
+      logical, dimension(nagg) :: llim
 
       call start_log(adjust_begin)
 
@@ -70,9 +71,6 @@
         allocate(zzs(ifull),pfact(ifull),alff(ifull+iextra))
         allocate(alf(ifull+iextra),alfe(ifull+iextra))
         allocate(alfn(ifull+iextra),alfu(ifull),alfv(ifull))
-        k=max(4,naero,ngas)
-        allocate(dums(ifull,kl,k),dumssav(ifull,kl,k))
-        allocate(llim(k))
       end if
 
       ! time step can change during initialisation
@@ -639,34 +637,36 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
         cfrac=min(max(cfrac,0.),1.)
         cffall=min(max(cffall,0.),1.)
         
-        dums(:,:,1)=qg(1:ifull,:)
-        dums(:,:,2)=qfg(1:ifull,:)
-        dums(:,:,3)=qlg(1:ifull,:)
-        dums(:,:,4)=qrg(1:ifull,:)
+        dums(1:ifull,:,1)=qg(1:ifull,:)
+        dums(1:ifull,:,2)=qfg(1:ifull,:)
+        dums(1:ifull,:,3)=qlg(1:ifull,:)
+        dums(1:ifull,:,4)=qrg(1:ifull,:)
         dumssav(:,:,1)=qgsav
         dumssav(:,:,2)=qfgsav
         dumssav(:,:,3)=qlgsav
         dumssav(:,:,4)=qrgsav
         llim(1)=.false.
         llim(2:4)=.true.
-        call massfix_a(mfix_qg,4,dums,dumssav,
+        call massfix(mfix_qg,4,dums,dumssav,
      &               ps(1:ifull),ps_sav,wts,
      &               llim)
-        qg(1:ifull,:)=dums(:,:,1)
-        qfg(1:ifull,:)=dums(:,:,2)
-        qlg(1:ifull,:)=dums(:,:,3)
-        qrg(1:ifull,:)=dums(:,:,4)
+        qg(1:ifull,:)=dums(1:ifull,:,1)
+        qfg(1:ifull,:)=dums(1:ifull,:,2)
+        qlg(1:ifull,:)=dums(1:ifull,:,3)
+        qrg(1:ifull,:)=dums(1:ifull,:,4)
 
       else if (mfix_qg/=0.and.mspec==1) then
         do k=1,kl
           qg(1:ifull,k)=max(qg(1:ifull,k),
      &      qgmin-qfg(1:ifull,k)-qlg(1:ifull,k),0.)
         end do
-        dumc=qg(1:ifull,:)
-        call massfix(mfix_qg,dumc,qgsav,
+        dums(1:ifull,:,1)=qg(1:ifull,:)
+        dumssav(1:ifull,:,1)=qgsav
+        llim(1)=.false.
+        call massfix(mfix_qg,1,dums,dumssav,
      &               ps(1:ifull),ps_sav,wts,
-     &               .false.)
-        qg(1:ifull,:)=dumc
+     &               llim)
+        qg(1:ifull,:)=dums(1:ifull,:,1)
       endif      !  (mfix_qg/=0.and.mspec==1.and.ldr/=0) ..else..
 
       !------------------------------------------------------------------------
@@ -675,33 +675,21 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
         do ng=1,ngas
 !         rml 19/09/07 replace gasmin with tracmin
           tr(:,:,ng)=max(tr(:,:,ng),tracmin(ng))
-          dums(:,:,ng)=tr(1:ifull,:,ng)
-          dumssav(:,:,ng)=trsav(1:ifull,:,ng)
           llim(ng)=.true.
         end do
-        call massfix_a(mfix_tr,ngas,dums,dumssav,
-     &                 ps(1:ifull),ps_sav,wts,
-     &                 llim)
-        do ng=1,ngas
-          tr(1:ifull,:,ng)=dums(:,:,ng)
-        end do
+        call massfix(mfix_tr,ngas,tr,trsav,
+     &               ps(1:ifull),ps_sav,wts,
+     &               llim)
       endif       !  (mfix_tr.ne.0.and.mspec==1.and.ngas>0)
 
       !--------------------------------------------------------------
       ! Aerosol conservation
       if (mfix_aero/=0.and.mspec==1.and.abs(iaero)==2) then
         xtg=max(xtg,0.)
-        do ng=1,naero
-          dums(:,:,ng)=xtg(1:ifull,:,ng)
-          dumssav(:,:,ng)=xtgsav(1:ifull,:,ng)
-          llim(ng)=.true.
-        end do
-        call massfix_a(mfix_aero,naero,dums,
-     &                 dumssav,ps(1:ifull),
-     &                 ps_sav,wts,llim)
-        do ng=1,naero
-          xtg(1:ifull,:,ng)=dums(:,:,ng)
-        end do
+        llim(1:naero)=.true.
+        call massfix(mfix_aero,naero,xtg,
+     &               xtgsav,ps(1:ifull),
+     &               ps_sav,wts,llim)
       end if
       !--------------------------------------------------------------
 
@@ -829,71 +817,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
         enddo   ! n loop
       end subroutine adjust_init
 
-      subroutine massfix(mfix,s,ssav,ps,pssav,wts,llim)
-      
-      use cc_mpi
-      
-      implicit none
-      
-      include 'newmpar.h'
-      
-      integer, intent(in) :: mfix
-      integer k
-      real, dimension(ifull,kl), intent(inout) :: s,ssav
-      real, dimension(ifull), intent(in) :: ps,pssav,wts
-      real, dimension(ifull,kl) :: wrk1
-      real delpos,delneg,ratio,alph_g
-      logical, intent(in) :: llim
-
-      if (mfix>0) then
-        do k=1,kl
-          s(:,k)=s(:,k)*ps
-          ssav(:,k)=ssav(:,k)*pssav
-        enddo    ! k  loop           
-      else
-        do k=1,kl
-          s(:,k)=s(:,k)*ps*wts
-          ssav(:,k)=ssav(:,k)*pssav*wts
-        enddo    ! k  loop     
-      endif ! (mfix>0) .. else ..
-      do k=1,kl
-        wrk1(:,k)=s(:,k)-ssav(:,k) 
-      enddo   ! k loop
-      call ccglobal_posneg(wrk1,delpos,delneg)
-      if (llim) then
-        ratio = -delneg/max(delpos,1.e-30)
-      else
-        ratio = -delneg/delpos
-      end if
-      if (mfix==1) then
-        alph_g = min(ratio,sqrt(ratio))
-      elseif (mfix==2) then
-        if (llim) then
-          alph_g = max(sqrt(ratio),1.e-30)
-        else
-          alph_g = sqrt(ratio)
-        end if
-      end if ! (mfix==1) .. else ..
-      do k=1,kl
-        s(1:ifull,k)=ssav(1:ifull,k)+
-     &    alph_g*max(0.,wrk1(:,k))+min(0.,wrk1(:,k))/max(1.,alph_g)
-      enddo    ! k  loop
-      if (mfix>0) then
-        do k=1,kl
-          s(1:ifull,k)=s(1:ifull,k)/ps
-          ssav(1:ifull,k)=ssav(1:ifull,k)/pssav
-        enddo    ! k  loop
-      else
-        do k=1,kl
-          s(1:ifull,k)=s(1:ifull,k)/(ps*wts)
-          ssav(1:ifull,k)=ssav(1:ifull,k)/(pssav*wts)
-        enddo   ! k  loop            
-      endif ! (mfix>0) .. else ..
-
-      return
-      end subroutine massfix
-
-      subroutine massfix_a(mfix,ntr,s,ssav,ps,pssav,wts,llim)
+      subroutine massfix(mfix,ntr,s,ssav,ps,pssav,wts,llim)
       
       use cc_mpi
       
@@ -903,7 +827,8 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
       
       integer, intent(in) :: mfix,ntr
       integer k,i
-      real, dimension(ifull,kl,ntr), intent(inout) :: s,ssav
+      real, dimension(ifull+iextra,kl,ntr), intent(inout) :: s
+      real, dimension(ifull,kl,ntr), intent(inout) :: ssav
       real, dimension(ifull), intent(in) :: ps,pssav,wts
       real, dimension(ifull,kl,ntr) :: wrk1
       real, dimension(ntr) :: delpos,delneg,ratio,alph_g
@@ -912,21 +837,21 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
       if (mfix>0) then
         do i=1,ntr
           do k=1,kl
-            s(:,k,i)=s(:,k,i)*ps
+            s(1:ifull,k,i)=s(1:ifull,k,i)*ps
             ssav(:,k,i)=ssav(:,k,i)*pssav
           enddo    ! k  loop
         end do
       else
         do i=1,ntr
           do k=1,kl
-            s(:,k,i)=s(:,k,i)*ps*wts
+            s(1:ifull,k,i)=s(1:ifull,k,i)*ps*wts
             ssav(:,k,i)=ssav(:,k,i)*pssav*wts
           enddo    ! k  loop     
         end do
       endif ! (mfix>0) .. else ..
       do i=1,ntr
         do k=1,kl
-          wrk1(:,k,i)=s(:,k,i)-ssav(:,k,i) 
+          wrk1(:,k,i)=s(1:ifull,k,i)-ssav(:,k,i) 
         enddo   ! k loop
       end do
       call ccglobal_posneg(wrk1,delpos,delneg)
@@ -950,7 +875,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
       end if ! (mfix==1) .. else ..
       do i=1,ntr
         do k=1,kl
-          s(:,k,i)=ssav(:,k,i)+
+          s(1:ifull,k,i)=ssav(:,k,i)+
      &      alph_g(i)*max(0.,wrk1(:,k,i))+min(0.,wrk1(:,k,i))
      &      /max(1.,alph_g(i))
         enddo    ! k  loop
@@ -958,18 +883,18 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
       if (mfix>0) then
         do i=1,ntr
           do k=1,kl
-            s(:,k,i)=s(:,k,i)/ps
+            s(1:ifull,k,i)=s(1:ifull,k,i)/ps
             ssav(:,k,i)=ssav(:,k,i)/pssav
           enddo    ! k  loop
         end do
       else
         do i=1,ntr
           do k=1,kl
-            s(:,k,i)=s(:,k,i)/(ps*wts)
+            s(1:ifull,k,i)=s(1:ifull,k,i)/(ps*wts)
             ssav(:,k,i)=ssav(:,k,i)/(pssav*wts)
           enddo   ! k  loop            
         end do
       endif ! (mfix>0) .. else ..
 
       return
-      end subroutine massfix_a
+      end subroutine massfix

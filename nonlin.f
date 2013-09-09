@@ -37,7 +37,7 @@
       real aa(ifull,kl),bb(ifull,kl)
       real p(ifull+iextra,kl),phiv(ifull+iextra,kl),tv(ifull+iextra,kl)
       real ddpds(ifull,kl)
-      real duma(ifull+iextra,kl+1)
+      real duma(ifull+iextra,2*kl)
       real const_nh, contv, delneg, delpos, ratio
       real sumdiffb, spmax2,termlin
       real, dimension(ifull) :: sdmx
@@ -382,13 +382,16 @@ c       print *,'termx ',(t(iq,k)+contv*tvv)*dpsldt(iq,k)*roncp/sig(k)
        tv(1:ifull,k)=t(1:ifull,k)+tv(1:ifull,k)  
       enddo
 
-      call bounds(p,nehalf=.true.)
-      call bounds(tv,nehalf=.true.)
+      duma(1:ifull,1:kl)     =p(1:ifull,:)
+      duma(1:ifull,kl+1:2*kl)=tv(1:ifull,:)
+      call bounds(duma(:,1:2*kl),nehalf=.true.)
+      p(ifull+1:ifull+iextra,:) =duma(ifull+1:ifull+iextra,1:kl)
+      tv(ifull+1:ifull+iextra,:)=duma(ifull+1:ifull+iextra,kl+1:2*kl)
       duma(1:ifull,1:kl)=phiv(1:ifull,:)
       duma(1:ifull,kl+1)=psl(1:ifull)
       call bounds(duma)
       phiv(ifull+1:ifull+iextra,1:kl)=duma(ifull+1:ifull+iextra,1:kl)
-      psl(ifull+1:ifull+iextra)=duma(ifull+1:ifull+iextra,kl+1)       
+      psl(ifull+1:ifull+iextra)      =duma(ifull+1:ifull+iextra,kl+1)
 
       do k=1,kl
 !cdir nodep

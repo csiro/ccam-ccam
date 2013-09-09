@@ -285,9 +285,10 @@ integer k,i,iq
 real hdif,xp
 real, dimension(ifull,wlev), intent(in) :: uauin,uavin,u,v,tt,ss
 real, dimension(ifull), intent(in) :: etain
-real, dimension(ifull+iextra,wlev) :: uc,vc,wc,uau,uav
-real, dimension(ifull+iextra,wlev) :: xfact,yfact,gg
+real, dimension(ifull+iextra,wlev) :: uau,uav
+real, dimension(ifull+iextra,wlev) :: xfact,yfact
 real, dimension(ifull+iextra,wlev+1) :: t_kh
+real, dimension(ifull+iextra,3*wlev) :: duma
 real, dimension(ifull) :: dudx,dvdx,dudy,dvdy
 real, dimension(ifull,wlev) :: ft,fs,base,outu,outv
 real, dimension(ifull+iextra) :: depadj,eta
@@ -338,36 +339,34 @@ call boundsuv(xfact,yfact,stag=-9)
 
 ! Laplacian diffusion terms (closure #1)
 do k=1,wlev
-  uc(1:ifull,k)=ax(1:ifull)*u(1:ifull,k)+bx(1:ifull)*v(1:ifull,k)
-  vc(1:ifull,k)=ay(1:ifull)*u(1:ifull,k)+by(1:ifull)*v(1:ifull,k)
-  wc(1:ifull,k)=az(1:ifull)*u(1:ifull,k)+bz(1:ifull)*v(1:ifull,k)
+  duma(1:ifull,k)     =ax(1:ifull)*u(1:ifull,k)+bx(1:ifull)*v(1:ifull,k)
+  duma(1:ifull,k+kl)  =ay(1:ifull)*u(1:ifull,k)+by(1:ifull)*v(1:ifull,k)
+  duma(1:ifull,k+2*kl)=az(1:ifull)*u(1:ifull,k)+bz(1:ifull)*v(1:ifull,k)
 end do
-call bounds(uc)
-call bounds(vc)
-call bounds(wc)
+call bounds(duma)
 
 ! allow drag on momentum along coastlines (but not for scalars, see below)
 do k=1,wlev
 
   base(:,k)=emi+xfact(1:ifull,k)+xfact(iwu,k)+yfact(1:ifull,k)+yfact(isv,k)
 
-  nu = ( uc(1:ifull,k)*emi +                 &
-         xfact(1:ifull,k)*uc(ie,k) +         &
-         xfact(iwu,k)*uc(iw,k) +             &
-         yfact(1:ifull,k)*uc(in,k) +         &
-         yfact(isv,k)*uc(is,k) ) / base(:,k)
+  nu = ( duma(1:ifull,k)*emi +                      &
+         xfact(1:ifull,k)*duma(ie,k) +              &
+         xfact(iwu,k)*duma(iw,k) +                  &
+         yfact(1:ifull,k)*duma(in,k) +              &
+         yfact(isv,k)*duma(is,k) ) / base(:,k)
 
-  nv = ( vc(1:ifull,k)*emi +                 &
-         xfact(1:ifull,k)*vc(ie,k) +         &
-         xfact(iwu,k)*vc(iw,k) +             &
-         yfact(1:ifull,k)*vc(in,k) +         &
-         yfact(isv,k)*vc(is,k) ) / base(:,k)
+  nv = ( duma(1:ifull,k+kl)*emi +                   &
+         xfact(1:ifull,k)*duma(ie,k+kl) +           &
+         xfact(iwu,k)*duma(iw,k+kl) +               &
+         yfact(1:ifull,k)*duma(in,k+kl) +           &
+         yfact(isv,k)*duma(is,k+kl) ) / base(:,k)
 
-  nw = ( wc(1:ifull,k)*emi +                 &
-         xfact(1:ifull,k)*wc(ie,k) +         &
-         xfact(iwu,k)*wc(iw,k) +             &
-         yfact(1:ifull,k)*wc(in,k) +         &
-         yfact(isv,k)*wc(is,k) ) / base(:,k)
+  nw = ( duma(1:ifull,k+2*kl)*emi +                 &
+         xfact(1:ifull,k)*duma(ie,k+2*kl) +         &
+         xfact(iwu,k)*duma(iw,k+2*kl) +             &
+         yfact(1:ifull,k)*duma(in,k+2*kl) +         &
+         yfact(isv,k)*duma(is,k+2*kl) ) / base(:,k)
 
   outu(:,k)=ax(1:ifull)*nu+ay(1:ifull)*nv+az(1:ifull)*nw
   outv(:,k)=bx(1:ifull)*nu+by(1:ifull)*nv+bz(1:ifull)*nw
@@ -394,27 +393,22 @@ end do
 !end do
 
 ! Potential temperature
-gg(1:ifull,:)=tt-290.
-call bounds(gg)
+duma(1:ifull,1:wlev)       =tt-290.
+duma(1:ifull,wlev+1:2*wlev)=ss-34.72
+call bounds(duma(:,1:2*wlev))
 do k=1,wlev
-  ft(:,k) = ( gg(1:ifull,k)*emi +                 &
-              xfact(1:ifull,k)*gg(ie,k) +         &
-              xfact(iwu,k)*gg(iw,k) +             &
-              yfact(1:ifull,k)*gg(in,k) +         &
-              yfact(isv,k)*gg(is,k) ) / base(:,k)
+  ft(:,k) = ( duma(1:ifull,k)*emi +                      &
+              xfact(1:ifull,k)*duma(ie,k) +              &
+              xfact(iwu,k)*duma(iw,k) +                  &
+              yfact(1:ifull,k)*duma(in,k) +              &
+              yfact(isv,k)*duma(is,k) ) / base(:,k)
+  fs(:,k) = ( duma(1:ifull,k+wlev)*emi +                 &
+              xfact(1:ifull,k)*duma(ie,k+wlev) +         &
+              xfact(iwu,k)*duma(iw,k+wlev) +             &
+              yfact(1:ifull,k)*duma(in,k+wlev) +         &
+              yfact(isv,k)*duma(is,k+wlev) ) / base(:,k)
 end do
 ft=ft+290.
-
-! Salinity  
-gg(1:ifull,:)=ss-34.72
-call bounds(gg)
-do k=1,wlev
-  fs(:,k) = ( gg(1:ifull,k)*emi +                 &
-              xfact(1:ifull,k)*gg(ie,k) +         &
-              xfact(iwu,k)*gg(iw,k) +             &
-              yfact(1:ifull,k)*gg(in,k) +         &
-              yfact(isv,k)*gg(is,k) ) / base(:,k)
-end do
 fs=max(fs+34.72,0.)
 
 do k=1,wlev
@@ -812,11 +806,12 @@ real, dimension(ifull) :: sue,suw,svn,svs,snuw,snvs
 real, dimension(ifull) :: pue,puw,pvn,pvs
 real, dimension(ifull) :: que,quw,qvn,qvs
 real, dimension(ifull) :: gamm,piceu,picev,tideu,tidev,ipiceu,ipicev
+real, dimension(ifull+iextra,wlev,3) :: cou
 real, dimension(ifull+iextra,wlev+1) :: eou,eov
 real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns,mps,xdzdum
-real, dimension(ifull+iextra,wlev) :: cou,cov,cow
 real, dimension(ifull+iextra,wlev) :: rhobar,rho,dalpha,dbeta
-real, dimension(ifull+iextra,7) :: dumc,dumd
+real, dimension(ifull+iextra,3*wlev) :: dume
+real, dimension(ifull+iextra,10) :: dumc,dumd
 real, dimension(ifull+iextra,4) :: nit
 real, dimension(ifull,4) :: i_it
 real, dimension(ifull,wlev+1) :: tau,tav,ttau,ttav
@@ -1066,8 +1061,11 @@ end if
 ! (Assume free surface correction is small so that changes in the compression 
 ! effect due to neta can be neglected.  Consequently, the neta dependence is 
 ! separable in the iterative loop)
-call bounds(nt,corner=.true.)
-call bounds(ns,corner=.true.)
+dume(1:ifull,1:wlev)       =nt(1:ifull,:)
+dume(1:ifull,wlev+1:2*wlev)=ns(1:ifull,:)
+call bounds(dume(:,1:2*wlev),corner=.true.)
+nt(ifull+1:ifull+iextra,:)=dume(ifull+1:ifull+iextra,1:wlev)
+ns(ifull+1:ifull+iextra,:)=dume(ifull+1:ifull+iextra,wlev+1:2*wlev)
 call mloexpdensity(rho,dalpha,dbeta,nt,ns,xdzdum,pice,0)
 rhobar(:,1)=(rho(:,1)-1030.)*godsig(1)
 do ii=2,wlev
@@ -1123,18 +1121,18 @@ eov(1:ifull,wlev+1)=oev(1:ifull)
 call boundsuv(eou,eov,stag=-9)
 oeu(ifull+1:ifull+iextra)=eou(ifull+1:ifull+iextra,wlev+1)
 oev(ifull+1:ifull+iextra)=eov(ifull+1:ifull+iextra,wlev+1)
-cou(:,1)=eou(:,1)*godsig(1)
-cov(:,1)=eov(:,1)*godsig(1)
+cou(:,1,1)=eou(:,1)*godsig(1)
+cou(:,1,2)=eov(:,1)*godsig(1)
 do ii=2,wlev
-  cou(:,ii)=(cou(:,ii-1)+eou(:,ii)*godsig(ii))
-  cov(:,ii)=(cov(:,ii-1)+eov(:,ii)*godsig(ii))
+  cou(:,ii,1)=(cou(:,ii-1,1)+eou(:,ii)*godsig(ii))
+  cou(:,ii,2)=(cou(:,ii-1,2)+eov(:,ii)*godsig(ii))
 end do
-sdiv=(cou(1:ifull,wlev)*max(ddu(1:ifull)+oeu(1:ifull),0.)/emu(1:ifull)-cou(iwu,wlev)*max(ddu(iwu)+oeu(iwu),0.)/emu(iwu)  &
-     +cov(1:ifull,wlev)*max(ddv(1:ifull)+oev(1:ifull),0.)/emv(1:ifull)-cov(isv,wlev)*max(ddv(isv)+oev(isv),0.)/emv(isv)) &
+sdiv=(cou(1:ifull,wlev,1)*max(ddu(1:ifull)+oeu(1:ifull),0.)/emu(1:ifull)-cou(iwu,wlev,1)*max(ddu(iwu)+oeu(iwu),0.)/emu(iwu)  &
+     +cou(1:ifull,wlev,2)*max(ddv(1:ifull)+oev(1:ifull),0.)/emv(1:ifull)-cou(isv,wlev,2)*max(ddv(isv)+oev(isv),0.)/emv(isv)) &
      *em(1:ifull)*em(1:ifull)/ds
 do ii=1,wlev-1
-  div=(cou(1:ifull,ii)*max(ddu(1:ifull)+oeu(1:ifull),0.)/emu(1:ifull)-cou(iwu,ii)*max(ddu(iwu)+oeu(iwu),0.)/emu(iwu)  &
-      +cov(1:ifull,ii)*max(ddv(1:ifull)+oev(1:ifull),0.)/emv(1:ifull)-cov(isv,ii)*max(ddv(isv)+oev(isv),0.)/emv(isv)) &
+  div=(cou(1:ifull,ii,1)*max(ddu(1:ifull)+oeu(1:ifull),0.)/emu(1:ifull)-cou(iwu,ii,1)*max(ddu(iwu)+oeu(iwu),0.)/emu(iwu)  &
+      +cou(1:ifull,ii,2)*max(ddv(1:ifull)+oev(1:ifull),0.)/emv(1:ifull)-cou(isv,ii,2)*max(ddv(isv)+oev(isv),0.)/emv(isv)) &
       *em(1:ifull)*em(1:ifull)/ds
   nw(:,ii)=(sdiv*gosigh(ii)-div)*ee(1:ifull)
 end do
@@ -1204,37 +1202,33 @@ end if
 
 ! Convert (u,v) to cartesian coordinates (U,V,W)
 do ii=1,wlev
-  cou(1:ifull,ii)=ax(1:ifull)*uau(:,ii)+bx(1:ifull)*uav(:,ii)
-  cov(1:ifull,ii)=ay(1:ifull)*uau(:,ii)+by(1:ifull)*uav(:,ii)
-  cow(1:ifull,ii)=az(1:ifull)*uau(:,ii)+bz(1:ifull)*uav(:,ii)
+  cou(1:ifull,ii,1)=ax(1:ifull)*uau(:,ii)+bx(1:ifull)*uav(:,ii)
+  cou(1:ifull,ii,2)=ay(1:ifull)*uau(:,ii)+by(1:ifull)*uav(:,ii)
+  cou(1:ifull,ii,3)=az(1:ifull)*uau(:,ii)+bz(1:ifull)*uav(:,ii)
 end do
 
-! Advect continuity terms
-call mlob2intsb(mps,nface,xg,yg,wtr)
-
 ! Horizontal advection for U,V,W
-call mlob2ints(cou,nface,xg,yg,wtr)
-call mlob2ints(cov,nface,xg,yg,wtr)
-call mlob2ints(cow,nface,xg,yg,wtr)
-
-! Horizontal advection for T,S
-nt(1:ifull,:)=nt(1:ifull,:)-290.
-ns(1:ifull,:)=ns(1:ifull,:)-34.72
-call mlob2intsb(nt,nface,xg,yg,wtr)
-call mlob2intsb(ns,nface,xg,yg,wtr)
-nt(1:ifull,:)=nt(1:ifull,:)+290.
-ns(1:ifull,:)=ns(1:ifull,:)+34.72
+call mlob2ints(cou(:,:,1:3),nface,xg,yg,wtr)
 
 ! Rotate vector to arrival point
-call mlorot(cou(1:ifull,:),cov(1:ifull,:),cow(1:ifull,:),x3d,y3d,z3d)
+call mlorot(cou(:,:,1),cou(:,:,2),cou(:,:,3),x3d,y3d,z3d)
 
 ! Convert (U,V,W) back to conformal cubic coordinates
 do ii=1,wlev
-  uau(:,ii)=ax(1:ifull)*cou(1:ifull,ii)+ay(1:ifull)*cov(1:ifull,ii)+az(1:ifull)*cow(1:ifull,ii)
-  uav(:,ii)=bx(1:ifull)*cou(1:ifull,ii)+by(1:ifull)*cov(1:ifull,ii)+bz(1:ifull)*cow(1:ifull,ii)
+  uau(:,ii)=ax(1:ifull)*cou(1:ifull,ii,1)+ay(1:ifull)*cou(1:ifull,ii,2)+az(1:ifull)*cou(1:ifull,ii,3)
+  uav(:,ii)=bx(1:ifull)*cou(1:ifull,ii,1)+by(1:ifull)*cou(1:ifull,ii,2)+bz(1:ifull)*cou(1:ifull,ii,3)
   uau(:,ii)=uau(:,ii)*ee(1:ifull)
   uav(:,ii)=uav(:,ii)*ee(1:ifull)
 end do
+
+! Horizontal advection for continuity terms, T and S
+cou(1:ifull,:,1)=mps(1:ifull,:)
+cou(1:ifull,:,2)=nt(1:ifull,:)-290.
+cou(1:ifull,:,3)=ns(1:ifull,:)-34.72
+call mlob2intsb(cou(:,:,1:3),nface,xg,yg,wtr)
+mps(1:ifull,:)=cou(1:ifull,:,1)
+nt(1:ifull,:) =cou(1:ifull,:,2)+290.
+ns(1:ifull,:) =cou(1:ifull,:,3)+34.72
 
 call end_log(waterhadv_end)
 call start_log(watervadv_begin)
@@ -1270,8 +1264,11 @@ end if
 
 ! Approximate normalised density rhobar at t+1 (unstaggered, using T and S at t+1)
 if (nxtrrho==1) then
-  call bounds(nt,corner=.true.)
-  call bounds(ns,corner=.true.)
+  dume(1:ifull,1:wlev)       =nt(1:ifull,:)
+  dume(1:ifull,wlev+1:2*wlev)=ns(1:ifull,:)
+  call bounds(dume(:,1:2*wlev),corner=.true.)
+  nt(ifull+1:ifull+iextra,:)=dume(ifull+1:ifull+iextra,1:wlev)
+  ns(ifull+1:ifull+iextra,:)=dume(ifull+1:ifull+iextra,wlev+1:2*wlev)
   call mloexpdensity(rho,dalpha,dbeta,nt,ns,xdzdum,pice,0)
   rhobar(:,1)=(rho(:,1)-1030.)*godsig(1)
   do ii=2,wlev
@@ -1338,13 +1335,13 @@ odum=1./(1.+(1.+ocneps)*(1.+ocneps)*0.25*dt*dt*fu(1:ifull)*fu(1:ifull))
 odum=odum*eeu(1:ifull)
 duma(:,1)=-(1.+ocneps)*0.5*dt*odum
 do ii=1,wlev
-  cou(1:ifull,ii)=ttau(:,ii)*odum ! staggered
+  cou(1:ifull,ii,1)=ttau(:,ii)*odum ! staggered
 end do
 odum=1./(1.+(1.+ocneps)*(1.+ocneps)*0.25*dt*dt*fv(1:ifull)*fv(1:ifull))
 odum=odum*eev(1:ifull)
 dumb(:,1)=-(1.+ocneps)*0.5*dt*odum
 do ii=1,wlev
-  cov(1:ifull,ii)=ttav(:,ii)*odum ! staggered
+  cou(1:ifull,ii,2)=ttav(:,ii)*odum ! staggered
 end do
 ! ice
 ! niu and niv hold the free drift solution (staggered).  Wind stress terms are updated in mlo.f90
@@ -1362,11 +1359,11 @@ do ii=1,wlev
   ! u^(t+1) = nu = au^(t*) + bu*dpdx^(t+1) + cu*dpdy^(t+1) (staggered)
   ! v^(t+1) = nv = av^(t*) + bv*dpdy^(t+1) + cv*dpdx^(t+1) (staggered)
 
-  au=cou(1:ifull,ii)
+  au=cou(1:ifull,ii,1)
   bu=duma(:,1)/rhou
   cu= (1.+ocneps)*0.5*dt*bu ! fu now included in dpdy
 
-  av=cov(1:ifull,ii)
+  av=cou(1:ifull,ii,2)
   bv=dumb(:,1)/rhov
   cv=-(1.+ocneps)*0.5*dt*bv ! fv now included in dpdx
 
@@ -1619,46 +1616,36 @@ dumc(1:ifull,1)=fracice/(em(1:ifull)*em(1:ifull)) ! dumc is an area
 dumc(1:ifull,2)=sicedep*fracice/(em(1:ifull)*em(1:ifull)) ! dumc is a volume
 ! Horizontal advection for snow volume
 dumc(1:ifull,3)=snowd*0.001*fracice/(em(1:ifull)*em(1:ifull)) ! dumc is a volume
+! Horizontal advection for ice energy store
+dumc(1:ifull,4)=i_sto*fracice/(em(1:ifull)*em(1:ifull))
+! Horizontal advection for ice salinity
+dumc(1:ifull,5)=i_sal*fracice*sicedep/(em(1:ifull)*em(1:ifull))
+! Horizontal advection for surface temperature
+call mloexpscalar(0,gamm,0)
+dumc(1:ifull,6)=i_it(1:ifull,1)*fracice*gamm/(em(1:ifull)*em(1:ifull))
+! Horizontal advection of snow temperature
+dumc(1:ifull,7)=i_it(1:ifull,2)*fracice*snowd*0.001/(em(1:ifull)*em(1:ifull))
+! Horizontal advection of ice temperature
+do ii=3,4
+  dumc(1:ifull,5+ii)=i_it(1:ifull,ii)*fracice*sicedep/(em(1:ifull)*em(1:ifull))
+end do
 ! Conservation
-dumc(1:ifull,4)=spnet(1:ifull)
-call bounds(dumc(:,1:4))
-spnet(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,4)
-do ii=1,3
+dumc(1:ifull,10)=spnet(1:ifull)
+call bounds(dumc(:,1:10))
+spnet(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,10)
+do ii=1,9
   call upwindadv(dumc(:,ii),tiu,tiv,spnet)
 end do  
 nfracice(1:ifull)=dumc(1:ifull,1)*em(1:ifull)*em(1:ifull)
 nfracice(1:ifull)=min(max(nfracice(1:ifull),0.),maxicefrac)
 ndic(1:ifull)=dumc(1:ifull,2)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-10)
 ndsn(1:ifull)=dumc(1:ifull,3)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-10)
-
-! Horizontal advection for ice energy store
-dumc(1:ifull,1)=i_sto*fracice/(em(1:ifull)*em(1:ifull))
-! Horizontal advection for ice salinity
-dumc(1:ifull,2)=i_sal*fracice*sicedep/(em(1:ifull)*em(1:ifull))
-call bounds(dumc(:,1:2))
-do ii=1,2
-  call upwindadv(dumc(:,ii),tiu,tiv,spnet)
-end do
-nsto(1:ifull)=dumc(1:ifull,1)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-10)
-nis(1:ifull)=dumc(1:ifull,2)*em(1:ifull)*em(1:ifull)/max(ndic(1:ifull)*nfracice(1:ifull),1.E-10)
-
-! Horizontal advection for surface temperature
-call mloexpscalar(0,gamm,0)
-dumc(1:ifull,1)=i_it(1:ifull,1)*fracice*gamm/(em(1:ifull)*em(1:ifull))
-! Horizontal advection of snow temperature
-dumc(1:ifull,2)=i_it(1:ifull,2)*fracice*snowd*0.001/(em(1:ifull)*em(1:ifull))
-! Horizontal advection of ice temperature
+nsto(1:ifull)=dumc(1:ifull,4)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-10)
+nis(1:ifull)=dumc(1:ifull,5)*em(1:ifull)*em(1:ifull)/max(ndic(1:ifull)*nfracice(1:ifull),1.E-10)
+nit(1:ifull,1)=dumc(1:ifull,6)*em(1:ifull)*em(1:ifull)/max(gamm*nfracice(1:ifull),1.E-10)
+nit(1:ifull,2)=dumc(1:ifull,7)*em(1:ifull)*em(1:ifull)/max(ndsn(1:ifull)*nfracice(1:ifull),1.E-10)
 do ii=3,4
-  dumc(1:ifull,ii)=i_it(1:ifull,ii)*fracice*sicedep/(em(1:ifull)*em(1:ifull))
-end do
-call bounds(dumc(:,1:4))
-do ii=1,4
-  call upwindadv(dumc(:,ii),tiu,tiv,spnet)
-end do
-nit(1:ifull,1)=dumc(1:ifull,1)*em(1:ifull)*em(1:ifull)/max(gamm*nfracice(1:ifull),1.E-10)
-nit(1:ifull,2)=dumc(1:ifull,2)*em(1:ifull)*em(1:ifull)/max(ndsn(1:ifull)*nfracice(1:ifull),1.E-10)
-do ii=3,4
-  nit(1:ifull,ii)=dumc(1:ifull,ii)*em(1:ifull)*em(1:ifull)/max(ndic(1:ifull)*nfracice(1:ifull),1.E-10)
+  nit(1:ifull,ii)=dumc(1:ifull,5+ii)*em(1:ifull)*em(1:ifull)/max(ndic(1:ifull)*nfracice(1:ifull),1.E-10)
 end do
 
 ! populate grid points that have no sea ice
@@ -1821,7 +1808,7 @@ real, dimension(ifull,size(nface,2)), intent(in) :: ubar,vbar
 real, dimension(ifull,size(nface,2)), intent(out) :: xg,yg
 real*8, dimension(ifull,size(nface,2)), intent(out) :: x3d,y3d,z3d
 real, dimension(ifull,size(nface,2)) :: uc,vc,wc
-real, dimension(ifull+iextra,size(nface,2)) :: temp
+real, dimension(ifull+iextra,size(nface,2),3) :: temp
 logical, dimension(ifull+iextra), intent(in) :: wtr
 integer, parameter :: nguess = 2
 
@@ -1844,20 +1831,14 @@ call mlotoij5(x3d,y3d,z3d,nface,xg,yg)
 call deptsync(nface,xg,yg)
 
 do n=1,nguess
-  temp(1:ifull,:) = uc
-  call mlob2ints(temp,nface,xg,yg,wtr)
+  temp(1:ifull,:,1) = uc
+  temp(1:ifull,:,2) = vc
+  temp(1:ifull,:,3) = wc
+  call mlob2ints(temp(:,:,1:3),nface,xg,yg,wtr)
   do ii=1,kx
-    x3d(:,ii) = x - 0.5*(uc(:,ii)+temp(1:ifull,ii)) ! n+1 guess
-  end do
-  temp(1:ifull,:) = vc
-  call mlob2ints(temp,nface,xg,yg,wtr)
-  do ii=1,kx
-    y3d(:,ii) = y - 0.5*(vc(:,ii)+temp(1:ifull,ii)) ! n+1 guess
-  end do
-  temp(1:ifull,:) = wc
-  call mlob2ints(temp,nface,xg,yg,wtr)
-  do ii=1,kx
-    z3d(:,ii) = z - 0.5*(wc(:,ii)+temp(1:ifull,ii)) ! n+1 guess
+    x3d(:,ii) = x - 0.5*(uc(:,ii)+temp(1:ifull,ii,1)) ! n+1 guess
+    y3d(:,ii) = y - 0.5*(vc(:,ii)+temp(1:ifull,ii,2)) ! n+1 guess
+    z3d(:,ii) = z - 0.5*(wc(:,ii)+temp(1:ifull,ii,3)) ! n+1 guess
   end do
   call mlotoij5(x3d,y3d,z3d,nface,xg,yg)
   !     Share off processor departure points.
@@ -2003,14 +1984,16 @@ include 'parmhor.h'
 
 integer idel,iq,jdel,kx
 integer i,j,k,n,ind,ip,jp,iproc,ierr,intsch,ncount
-integer ii
+integer ii,ntr,nn
 integer, dimension(:,:), intent(in) :: nface
 real, dimension(ifull,size(nface,2)), intent(in) :: xg,yg
-real, dimension(ifull+iextra,size(nface,2)), intent(inout) :: s
-real, dimension(-1:ipan+2,-1:jpan+2,1:npan,size(nface,2)) :: sx
-real, dimension(-1:2,-1:2) :: sc
+real, dimension(:,:,:), intent(inout) :: s
+real, dimension(-1:ipan+2,-1:jpan+2,1:npan,size(s,2),size(s,3)) :: sx
+real, dimension(-1:2,-1:2,size(s,3)) :: sc
+real, dimension(ifull+iextra,size(s,2)*size(s,3)) :: duma
 real, dimension(4) :: r
-real xxg,yyg,aab,aac,aad,cxx
+real xxg,yyg,cxx
+real aab,aac,aad
 logical, intent(in), optional :: bilinear
 logical, dimension(ifull+iextra), intent(in) :: wtr
 logical :: lmode
@@ -2019,18 +2002,26 @@ ind(i,j,n)=i+(j-1)*ipan+(n-1)*ipan*jpan  ! *** for n=1,npan
 lmode=.true.
 if (present(bilinear)) lmode=.not.bilinear
 
-kx=size(nface,2)
+kx=size(s,2)
+ntr=size(s,3)
 intsch=mod(ktau,2)
 cxx=-9999.
 sx=cxx-1.
 sc=cxx-1.
 
-do k=1,kx
-  where (.not.wtr(1:ifull))
-    s(1:ifull,k)=cxx-1.
-  end where
+do nn=1,ntr
+  do k=1,kx
+    where (wtr(1:ifull))
+      duma(1:ifull,k+(nn-1)*kx)=s(1:ifull,k,nn)
+    elsewhere
+      duma(1:ifull,k+(nn-1)*kx)=cxx-1.
+    end where
+  end do
 end do
-call bounds(s,nrows=2)
+call bounds(duma,nrows=2)
+do nn=1,ntr
+  s(:,:,nn)=duma(:,1+(nn-1)*kx:nn*kx)
+end do
 
 !======================== start of intsch=1 section ====================
 if(intsch==1)then
@@ -2038,47 +2029,47 @@ if(intsch==1)then
   do n=1,npan         ! first simple copy into larger array
     do j=1,jpan
       do i=1,ipan
-        sx(i,j,n,:) = s(ind(i,j,n),:)
+        sx(i,j,n,:,:) = s(ind(i,j,n),:,:)
       end do         ! i loop
-      sx(0,j,n,:)      = s(iw(ind(1,j,n)),:)
-      sx(-1,j,n,:)     = s(iww(ind(1,j,n)),:)
-      sx(ipan+1,j,n,:) = s(ie(ind(ipan,j,n)),:)
-      sx(ipan+2,j,n,:) = s(iee(ind(ipan,j,n)),:)
+      sx(0,j,n,:,:)      = s(iw(ind(1,j,n)),:,:)
+      sx(-1,j,n,:,:)     = s(iww(ind(1,j,n)),:,:)
+      sx(ipan+1,j,n,:,:) = s(ie(ind(ipan,j,n)),:,:)
+      sx(ipan+2,j,n,:,:) = s(iee(ind(ipan,j,n)),:,:)
     end do            ! j loop
     do i=1,ipan
-      sx(i,0,n,:)      = s(is(ind(i,1,n)),:)
-      sx(i,-1,n,:)     = s(iss(ind(i,1,n)),:)
-      sx(i,jpan+1,n,:) = s(in(ind(i,jpan,n)),:)
-      sx(i,jpan+2,n,:) = s(inn(ind(i,jpan,n)),:)
+      sx(i,0,n,:,:)      = s(is(ind(i,1,n)),:,:)
+      sx(i,-1,n,:,:)     = s(iss(ind(i,1,n)),:,:)
+      sx(i,jpan+1,n,:,:) = s(in(ind(i,jpan,n)),:,:)
+      sx(i,jpan+2,n,:,:) = s(inn(ind(i,jpan,n)),:,:)
     end do            ! i loop
 !   for ew interpolation, sometimes need (different from ns):
 !       (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
 !     (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
 
-    sx(-1,0,n,:)          = s(lwws(n),:)
-    sx(0,0,n,:)           = s(iws(ind(1,1,n)),:)
-    sx(0,-1,n,:)          = s(lwss(n),:)
-    sx(ipan+1,0,n,:)      = s(ies(ind(ipan,1,n)),:)
-    sx(ipan+2,0,n,:)      = s(lees(n),:)
-    sx(ipan+1,-1,n,:)     = s(less(n),:)
-    sx(-1,jpan+1,n,:)     = s(lwwn(n),:)
-    sx(0,jpan+2,n,:)      = s(lwnn(n),:)
-    sx(ipan+2,jpan+1,n,:) = s(leen(n),:)
-    sx(ipan+1,jpan+2,n,:) = s(lenn(n),:)
-    sx(0,jpan+1,n,:)      = s(iwn(ind(1,jpan,n)),:)
-    sx(ipan+1,jpan+1,n,:) = s(ien(ind(ipan,jpan,n)),:)
-    !sx(-1,0,n,:)          = s(iww(ind(1,1,n)),:)
-    !sx(0,0,n,:)           = 0.5*(s(iw(ind(1,1,n)),:)+s(is(ind(1,1,n)),:))
-    !sx(0,-1,n,:)          = s(iss(ind(1,1,n)),:)
-    !sx(ipan+1,0,n,:)      = 0.5*(s(ie(ind(ipan,1,n)),:)+s(is(ind(ipan,1,n)),:))
-    !sx(ipan+2,0,n,:)      = s(iee(ind(ipan,1,n)),:)
-    !sx(ipan+1,-1,n,:)     = s(iss(ind(ipan,1,n)),:)
-    !sx(-1,jpan+1,n,:)     = s(iww(ind(1,jpan,n)),:)
-    !sx(0,jpan+2,n,:)      = s(inn(ind(1,jpan,n)),:)
-    !sx(ipan+2,jpan+1,n,:) = s(iee(ind(ipan,jpan,n)),:)
-    !sx(ipan+1,jpan+2,n,:) = s(inn(ind(ipan,jpan,n)),:)
-    !sx(0,jpan+1,n,:)      = 0.5*(s(iw(ind(1,jpan,n)),:)+s(in(ind(1,jpan,n)),:))
-    !sx(ipan+1,jpan+1,n,:) = 0.5*(s(ie(ind(ipan,jpan,n)),:)+s(in(ind(ipan,jpan,n)),:))
+    sx(-1,0,n,:,:)          = s(lwws(n),:,:)
+    sx(0,0,n,:,:)           = s(iws(ind(1,1,n)),:,:)
+    sx(0,-1,n,:,:)          = s(lwss(n),:,:)
+    sx(ipan+1,0,n,:,:)      = s(ies(ind(ipan,1,n)),:,:)
+    sx(ipan+2,0,n,:,:)      = s(lees(n),:,:)
+    sx(ipan+1,-1,n,:,:)     = s(less(n),:,:)
+    sx(-1,jpan+1,n,:,:)     = s(lwwn(n),:,:)
+    sx(0,jpan+2,n,:,:)      = s(lwnn(n),:,:)
+    sx(ipan+2,jpan+1,n,:,:) = s(leen(n),:,:)
+    sx(ipan+1,jpan+2,n,:,:) = s(lenn(n),:,:)
+    sx(0,jpan+1,n,:,:)      = s(iwn(ind(1,jpan,n)),:,:)
+    sx(ipan+1,jpan+1,n,:,:) = s(ien(ind(ipan,jpan,n)),:,:)
+    !sx(-1,0,n,:,:)          = s(iww(ind(1,1,n)),:,:)
+    !sx(0,0,n,:,:)           = 0.5*(s(iw(ind(1,1,n)),:,:)+s(is(ind(1,1,n)),:,:))
+    !sx(0,-1,n,:,:)          = s(iss(ind(1,1,n)),:,:)
+    !sx(ipan+1,0,n,:,:)      = 0.5*(s(ie(ind(ipan,1,n)),:,:)+s(is(ind(ipan,1,n)),:,:))
+    !sx(ipan+2,0,n,:,:)      = s(iee(ind(ipan,1,n)),:,:)
+    !sx(ipan+1,-1,n,:,:)     = s(iss(ind(ipan,1,n)),:,:)
+    !sx(-1,jpan+1,n,:,:)     = s(iww(ind(1,jpan,n)),:,:)
+    !sx(0,jpan+2,n,:,:)      = s(inn(ind(1,jpan,n)),:,:)
+    !sx(ipan+2,jpan+1,n,:,:) = s(iee(ind(ipan,jpan,n)),:,:)
+    !sx(ipan+1,jpan+2,n,:,:) = s(inn(ind(ipan,jpan,n)),:,:)
+    !sx(0,jpan+1,n,:,:)      = 0.5*(s(iw(ind(1,jpan,n)),:,:)+s(in(ind(1,jpan,n)),:,:))
+    !sx(ipan+1,jpan+1,n,:,:) = 0.5*(s(ie(ind(ipan,jpan,n)),:,:)+s(in(ind(ipan,jpan,n)),:,:))
   end do               ! n loop
 
 ! Loop over points that need to be calculated for other processes
@@ -2098,50 +2089,55 @@ if(intsch==1)then
       idel = idel - ioff(n-noff)
       jdel = jdel - joff(n-noff)
 
-      sc(-1,0) = sx(idel-1,jdel,n,k)
-      sc(0,0)  = sx(idel  ,jdel,n,k)
-      sc(1,0)  = sx(idel+1,jdel,n,k)
-      sc(2,0)  = sx(idel+2,jdel,n,k)
+      sc(-1,0,:) = sx(idel-1,jdel,n,k,:)
+      sc(0,0,:)  = sx(idel  ,jdel,n,k,:)
+      sc(1,0,:)  = sx(idel+1,jdel,n,k,:)
+      sc(2,0,:)  = sx(idel+2,jdel,n,k,:)
 
-      sc(-1,1) = sx(idel-1,jdel+1,n,k)
-      sc(0,1)  = sx(idel  ,jdel+1,n,k)
-      sc(1,1)  = sx(idel+1,jdel+1,n,k)
-      sc(2,1)  = sx(idel+2,jdel+1,n,k)
+      sc(-1,1,:) = sx(idel-1,jdel+1,n,k,:)
+      sc(0,1,:)  = sx(idel  ,jdel+1,n,k,:)
+      sc(1,1,:)  = sx(idel+1,jdel+1,n,k,:)
+      sc(2,1,:)  = sx(idel+2,jdel+1,n,k,:)
 
-      sc(0,-1) = sx(idel  ,jdel-1,n,k)
-      sc(1,-1) = sx(idel+1,jdel-1,n,k)
+      sc(0,-1,:) = sx(idel  ,jdel-1,n,k,:)
+      sc(1,-1,:) = sx(idel+1,jdel-1,n,k,:)
 
-      sc(0,2) = sx(idel  ,jdel+2,n,k)
-      sc(1,2) = sx(idel+1,jdel+2,n,k)
+      sc(0,2,:) = sx(idel  ,jdel+2,n,k,:)
+      sc(1,2,:) = sx(idel+1,jdel+2,n,k,:)
 
-      ncount=count(sc>cxx)
+      ncount=count(sc(:,:,1)>cxx)
       if (ncount>=12.and.lmode) then
         ! bi-cubic interpolation
-        r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,0)-xxg*sc(-1,0)/3.) &
-             -xxg*(1.+xxg)*sc(2,0)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(1,0))/2.
-        r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,1)-xxg*sc(-1,1)/3.) &
-             -xxg*(1.+xxg)*sc(2,1)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(1,1))/2.
-        r(1) = (1.-xxg)*sc(0,-1) +xxg*sc(1,-1)
-        r(4) = (1.-xxg)*sc(0,2) +xxg*sc(1,2)
+        do nn=1,ntr
+          r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,0,nn)-xxg*sc(-1,0,nn)/3.)     &
+               -xxg*(1.+xxg)*sc(2,0,nn)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(1,0,nn))/2.
+          r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,1,nn)-xxg*sc(-1,1,nn)/3.)     &
+               -xxg*(1.+xxg)*sc(2,1,nn)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(1,1,nn))/2.
+          r(1) = (1.-xxg)*sc(0,-1,nn) +xxg*sc(1,-1,nn)
+          r(4) = (1.-xxg)*sc(0,2,nn) +xxg*sc(1,2,nn)
 
-        sextra(iproc)%a(iq) = ((1.-yyg)*((2.-yyg)* &
-             ((1.+yyg)*r(2)-yyg*r(1)/3.)           &
-             -yyg*(1.+yyg)*r(4)/3.)                &
-             +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
+          sextra(iproc)%a(nn+(iq-1)*ntr) = ((1.-yyg)*((2.-yyg)* &
+               ((1.+yyg)*r(2)-yyg*r(1)/3.)                      & 
+               -yyg*(1.+yyg)*r(4)/3.)                           &
+               +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
+        end do
       else
         ! bi-linear interpolation
-        where (sc(0:1,0:1)<=cxx)
-          sc(0:1,0:1)=0.
-        end where       
-        aad=sc(1,1)-sc(0,1)-sc(1,0)+sc(0,0)
-        aab=sc(1,0)-sc(0,0)
-        aac=sc(0,1)-sc(0,0)
-        sextra(iproc)%a(iq)=aab*xxg+aac*yyg+aad*xxg*yyg+sc(0,0)
+        do nn=1,ntr
+          where (sc(0:1,0:1,nn)<=cxx)
+            sc(0:1,0:1,nn)=0.
+          end where       
+          aad=sc(1,1,nn)-sc(0,1,nn)-sc(1,0,nn)+sc(0,0,nn)
+          aab=sc(1,0,nn)-sc(0,0,nn)
+          aac=sc(0,1,nn)-sc(0,0,nn)
+        
+          sextra(iproc)%a(nn+(iq-1)*ntr)=aab*xxg+aac*yyg+aad*xxg*yyg+sc(0,0,nn)
+        end do
       end if
     end do            ! iq loop
   end do              ! iproc loop
   
-  call intssync_send
+  call intssync_send(ntr)
 
   do iq=1,ifull
     if (wtr(iq)) then
@@ -2160,45 +2156,49 @@ if(intsch==1)then
           cycle      ! Will be calculated on another processor
         end if
 
-        sc(0,-1) = sx(idel  ,jdel-1,n,k)
-        sc(1,-1) = sx(idel+1,jdel-1,n,k)
+        sc(0,-1,:) = sx(idel  ,jdel-1,n,k,:)
+        sc(1,-1,:) = sx(idel+1,jdel-1,n,k,:)
 
-        sc(-1,0) = sx(idel-1,jdel,n,k)
-        sc(0,0)  = sx(idel  ,jdel,n,k)
-        sc(1,0)  = sx(idel+1,jdel,n,k)
-        sc(2,0)  = sx(idel+2,jdel,n,k)
+        sc(-1,0,:) = sx(idel-1,jdel,n,k,:)
+        sc(0,0,:)  = sx(idel  ,jdel,n,k,:)
+        sc(1,0,:)  = sx(idel+1,jdel,n,k,:)
+        sc(2,0,:)  = sx(idel+2,jdel,n,k,:)
 
-        sc(-1,1) = sx(idel-1,jdel+1,n,k)
-        sc(0,1)  = sx(idel  ,jdel+1,n,k)
-        sc(1,1)  = sx(idel+1,jdel+1,n,k)
-        sc(2,1)  = sx(idel+2,jdel+1,n,k)
+        sc(-1,1,:) = sx(idel-1,jdel+1,n,k,:)
+        sc(0,1,:)  = sx(idel  ,jdel+1,n,k,:)
+        sc(1,1,:)  = sx(idel+1,jdel+1,n,k,:)
+        sc(2,1,:)  = sx(idel+2,jdel+1,n,k,:)
 
-        sc(0,2) = sx(idel  ,jdel+2,n,k)
-        sc(1,2) = sx(idel+1,jdel+2,n,k)
+        sc(0,2,:) = sx(idel  ,jdel+2,n,k,:)
+        sc(1,2,:) = sx(idel+1,jdel+2,n,k,:)
 
-        ncount=count(sc>cxx)
+        ncount=count(sc(:,:,1)>cxx)
         if (ncount>=12.and.lmode) then
           ! bi-cubic interpolation
-          r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,0)-xxg*sc(-1,0)/3.) &
-               -xxg*(1.+xxg)*sc(2,0)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(1,0))/2.
-          r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,1)-xxg*sc(-1,1)/3.) &
-               -xxg*(1.+xxg)*sc(2,1)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(1,1))/2.
-          r(1) = (1.-xxg)*sc(0,-1)+xxg*sc(1,-1)
-          r(4) = (1.-xxg)*sc(0,2) +xxg*sc(1,2)
+          do nn=1,ntr
+            r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,0,nn)-xxg*sc(-1,0,nn)/3.) &
+                 -xxg*(1.+xxg)*sc(2,0,nn)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(1,0,nn))/2.
+            r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,1,nn)-xxg*sc(-1,1,nn)/3.) &
+                 -xxg*(1.+xxg)*sc(2,1,nn)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(1,1,nn))/2.
+            r(1) = (1.-xxg)*sc(0,-1,nn)+xxg*sc(1,-1,nn)
+            r(4) = (1.-xxg)*sc(0,2,nn) +xxg*sc(1,2,nn)
 
-          s(iq,k) = ((1.-yyg)*((2.-yyg)* &
-               ((1.+yyg)*r(2)-yyg*r(1)/3.)           &
-               -yyg*(1.+yyg)*r(4)/3.)                &
-               +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
+            s(iq,k,nn) = ((1.-yyg)*((2.-yyg)*         &
+                 ((1.+yyg)*r(2)-yyg*r(1)/3.)          &
+                 -yyg*(1.+yyg)*r(4)/3.)               &
+                 +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
+          end do
         else
           ! bi-linear interpolation along coastline
-          where (sc(0:1,0:1)<=cxx)
-            sc(0:1,0:1)=0.
-          end where
-          aad=sc(1,1)-sc(0,1)-sc(1,0)+sc(0,0)
-          aab=sc(1,0)-sc(0,0)
-          aac=sc(0,1)-sc(0,0)
-          s(iq,k)=aab*xxg+aac*yyg+aad*xxg*yyg+sc(0,0)
+          do nn=1,ntr
+            where (sc(0:1,0:1,nn)<=cxx)
+              sc(0:1,0:1,nn)=0.
+            end where
+            aad=sc(1,1,nn)-sc(0,1,nn)-sc(1,0,nn)+sc(0,0,nn)
+            aab=sc(1,0,nn)-sc(0,0,nn)
+            aac=sc(0,1,nn)-sc(0,0,nn)
+            s(iq,k,nn)=aab*xxg+aac*yyg+aad*xxg*yyg+sc(0,0,nn)
+          end do
         end if
       end do ! k loop
     end if   ! wtr
@@ -2213,35 +2213,35 @@ else     ! if(intsch==1)then
   do n=1,npan         ! first simple copy into larger array
     do j=1,jpan
       do i=1,ipan
-        sx(i,j,n,:) = s(ind(i,j,n),:)
+        sx(i,j,n,:,:) = s(ind(i,j,n),:,:)
       end do         ! i loop
-      sx(0,j,n,:)      = s(iw(ind(1,j,n)),:)
-      sx(-1,j,n,:)     = s(iww(ind(1,j,n)),:)
-      sx(ipan+1,j,n,:) = s(ie(ind(ipan,j,n)),:)
-      sx(ipan+2,j,n,:) = s(iee(ind(ipan,j,n)),:)
+      sx(0,j,n,:,:)      = s(iw(ind(1,j,n)),:,:)
+      sx(-1,j,n,:,:)     = s(iww(ind(1,j,n)),:,:)
+      sx(ipan+1,j,n,:,:) = s(ie(ind(ipan,j,n)),:,:)
+      sx(ipan+2,j,n,:,:) = s(iee(ind(ipan,j,n)),:,:)
     end do            ! j loop
     do i=1,ipan
-      sx(i,0,n,:)      = s(is(ind(i,1,n)),:)
-      sx(i,-1,n,:)     = s(iss(ind(i,1,n)),:)
-      sx(i,jpan+1,n,:) = s(in(ind(i,jpan,n)),:)
-      sx(i,jpan+2,n,:) = s(inn(ind(i,jpan,n)),:)
+      sx(i,0,n,:,:)      = s(is(ind(i,1,n)),:,:)
+      sx(i,-1,n,:,:)     = s(iss(ind(i,1,n)),:,:)
+      sx(i,jpan+1,n,:,:) = s(in(ind(i,jpan,n)),:,:)
+      sx(i,jpan+2,n,:,:) = s(inn(ind(i,jpan,n)),:,:)
     end do            ! i loop
 !        for ns interpolation, sometimes need (different from ew):
 !            (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
 !          (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
 
-    sx(-1,0,n,:)          = s(lsww(n),:)
-    sx(0,0,n,:)           = s(isw(ind(1,1,n)),:)
-    sx(0,-1,n,:)          = s(lssw(n),:)
-    sx(ipan+2,0,n,:)      = s(lsee(n),:)
-    sx(ipan+1,-1,n,:)     = s(lsse(n),:)
-    sx(-1,jpan+1,n,:)     = s(lnww(n),:)
-    sx(0,jpan+1,n,:)      = s(inw(ind(1,jpan,n)),:)
-    sx(0,jpan+2,n,:)      = s(lnnw(n),:)
-    sx(ipan+2,jpan+1,n,:) = s(lnee(n),:)
-    sx(ipan+1,jpan+2,n,:) = s(lnne(n),:)
-    sx(ipan+1,0,n,:)      = s(ise(ind(ipan,1,n)),:)
-    sx(ipan+1,jpan+1,n,:) = s(ine(ind(ipan,jpan,n)),:)
+    sx(-1,0,n,:,:)          = s(lsww(n),:,:)
+    sx(0,0,n,:,:)           = s(isw(ind(1,1,n)),:,:)
+    sx(0,-1,n,:,:)          = s(lssw(n),:,:)
+    sx(ipan+2,0,n,:,:)      = s(lsee(n),:,:)
+    sx(ipan+1,-1,n,:,:)     = s(lsse(n),:,:)
+    sx(-1,jpan+1,n,:,:)     = s(lnww(n),:,:)
+    sx(0,jpan+1,n,:,:)      = s(inw(ind(1,jpan,n)),:,:)
+    sx(0,jpan+2,n,:,:)      = s(lnnw(n),:,:)
+    sx(ipan+2,jpan+1,n,:,:) = s(lnee(n),:,:)
+    sx(ipan+1,jpan+2,n,:,:) = s(lnne(n),:,:)
+    sx(ipan+1,0,n,:,:)      = s(ise(ind(ipan,1,n)),:,:)
+    sx(ipan+1,jpan+1,n,:,:) = s(ine(ind(ipan,jpan,n)),:,:)
   end do               ! n loop
 
 ! For other processes
@@ -2261,49 +2261,53 @@ else     ! if(intsch==1)then
       idel = idel - ioff(n-noff)
       jdel = jdel - joff(n-noff)
 
-      sc(0,-1) = sx(idel,jdel-1,n,k)
-      sc(0,0)  = sx(idel,jdel  ,n,k)
-      sc(0,1)  = sx(idel,jdel+1,n,k)
-      sc(0,2)  = sx(idel,jdel+2,n,k)
+      sc(0,-1,:) = sx(idel,jdel-1,n,k,:)
+      sc(0,0,:)  = sx(idel,jdel  ,n,k,:)
+      sc(0,1,:)  = sx(idel,jdel+1,n,k,:)
+      sc(0,2,:)  = sx(idel,jdel+2,n,k,:)
 
-      sc(1,-1) = sx(idel+1,jdel-1,n,k)
-      sc(1,0)  = sx(idel+1,jdel  ,n,k)
-      sc(1,1)  = sx(idel+1,jdel+1,n,k)
-      sc(1,2)  = sx(idel+1,jdel+2,n,k)
+      sc(1,-1,:) = sx(idel+1,jdel-1,n,k,:)
+      sc(1,0,:)  = sx(idel+1,jdel  ,n,k,:)
+      sc(1,1,:)  = sx(idel+1,jdel+1,n,k,:)
+      sc(1,2,:)  = sx(idel+1,jdel+2,n,k,:)
 
-      sc(-1,0) = sx(idel-1,jdel  ,n,k)
-      sc(-1,1) = sx(idel-1,jdel+1,n,k)
+      sc(-1,0,:) = sx(idel-1,jdel  ,n,k,:)
+      sc(-1,1,:) = sx(idel-1,jdel+1,n,k,:)
         
-      sc(2,0) = sx(idel+2,jdel  ,n,k)
-      sc(2,1) = sx(idel+2,jdel+1,n,k)
+      sc(2,0,:) = sx(idel+2,jdel  ,n,k,:)
+      sc(2,1,:) = sx(idel+2,jdel+1,n,k,:)
 
-      ncount=count(sc>cxx)
+      ncount=count(sc(:,:,1)>cxx)
       if (ncount>=12.and.lmode) then
         ! bi-cubic interpolation
-        r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(0,0)-yyg*sc(0,-1)/3.) &
-             -yyg*(1.+yyg)*sc(0,2)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(0,1))/2.
-        r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(1,0)-yyg*sc(1,-1)/3.) &
-             -yyg*(1.+yyg)*sc(1,2)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(1,1))/2.
-        r(1) = (1.-yyg)*sc(-1,0) +yyg*sc(-1,1)
-        r(4) = (1.-yyg)*sc(2,0) +yyg*sc(2,1)
-        sextra(iproc)%a(iq) = ((1.-xxg)*((2.-xxg)* &
-             ((1.+xxg)*r(2)-xxg*r(1)/3.)           &
-             -xxg*(1.+xxg)*r(4)/3.)                &
-             +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
+        do nn=1,ntr
+          r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(0,0,nn)-yyg*sc(0,-1,nn)/3.) &
+               -yyg*(1.+yyg)*sc(0,2,nn)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(0,1,nn))/2.
+          r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(1,0,nn)-yyg*sc(1,-1,nn)/3.) &
+               -yyg*(1.+yyg)*sc(1,2,nn)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(1,1,nn))/2.
+          r(1) = (1.-yyg)*sc(-1,0,nn) +yyg*sc(-1,1,nn)
+          r(4) = (1.-yyg)*sc(2,0,nn) +yyg*sc(2,1,nn)
+          sextra(iproc)%a(nn+(iq-1)*ntr) = ((1.-xxg)*((2.-xxg)* &
+                    ((1.+xxg)*r(2)-xxg*r(1)/3.)                 &
+                       -xxg*(1.+xxg)*r(4)/3.)                   &
+                       +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
+        end do
       else
         ! bi-linear interpolation
-        where (sc(0:1,0:1)<=cxx)
-          sc(0:1,0:1)=0.
-        end where       
-        aad=sc(1,1)-sc(0,1)-sc(1,0)+sc(0,0)
-        aab=sc(1,0)-sc(0,0)
-        aac=sc(0,1)-sc(0,0)
-        sextra(iproc)%a(iq)=aab*xxg+aac*yyg+aad*xxg*yyg+sc(0,0)
+        do nn=1,ntr
+          where (sc(0:1,0:1,nn)<=cxx)
+            sc(0:1,0:1,nn)=0.
+          end where       
+          aad=sc(1,1,nn)-sc(0,1,nn)-sc(1,0,nn)+sc(0,0,nn)
+          aab=sc(1,0,nn)-sc(0,0,nn)
+          aac=sc(0,1,nn)-sc(0,0,nn)
+          sextra(iproc)%a(nn+(iq-1)*ntr)=aab*xxg+aac*yyg+aad*xxg*yyg+sc(0,0,nn)
+        end do
       end if
     end do            ! iq loop
   end do              ! iproc
 
-  call intssync_send
+  call intssync_send(ntr)
 
   do iq=1,ifull
     if (wtr(iq)) then
@@ -2322,45 +2326,49 @@ else     ! if(intsch==1)then
           cycle      ! Will be calculated on another processor
         end if
 
-        sc(0,-1) = sx(idel,jdel-1,n,k)
-        sc(0,0)  = sx(idel,jdel  ,n,k)
-        sc(0,1)  = sx(idel,jdel+1,n,k)
-        sc(0,2)  = sx(idel,jdel+2,n,k)
+        sc(0,-1,:) = sx(idel,jdel-1,n,k,:)
+        sc(0,0,:)  = sx(idel,jdel  ,n,k,:)
+        sc(0,1,:)  = sx(idel,jdel+1,n,k,:)
+        sc(0,2,:)  = sx(idel,jdel+2,n,k,:)
 
-        sc(1,-1) = sx(idel+1,jdel-1,n,k)
-        sc(1,0)  = sx(idel+1,jdel  ,n,k)
-        sc(1,1)  = sx(idel+1,jdel+1,n,k)
-        sc(1,2)  = sx(idel+1,jdel+2,n,k)
+        sc(1,-1,:) = sx(idel+1,jdel-1,n,k,:)
+        sc(1,0,:)  = sx(idel+1,jdel  ,n,k,:)
+        sc(1,1,:)  = sx(idel+1,jdel+1,n,k,:)
+        sc(1,2,:)  = sx(idel+1,jdel+2,n,k,:)
 
-        sc(-1,0) = sx(idel-1,jdel  ,n,k)
-        sc(-1,1) = sx(idel-1,jdel+1,n,k)
+        sc(-1,0,:) = sx(idel-1,jdel  ,n,k,:)
+        sc(-1,1,:) = sx(idel-1,jdel+1,n,k,:)
         
-        sc(2,0) = sx(idel+2,jdel  ,n,k)
-        sc(2,1) = sx(idel+2,jdel+1,n,k)
+        sc(2,0,:) = sx(idel+2,jdel  ,n,k,:)
+        sc(2,1,:) = sx(idel+2,jdel+1,n,k,:)
         
-        ncount=count(sc>cxx)
+        ncount=count(sc(:,:,1)>cxx)
         if (ncount>=12.and.lmode) then
           ! bi-cubic interpolation
-          r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(0,0)-yyg*sc(0,-1)/3.) &
-               -yyg*(1.+yyg)*sc(0,2)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(0,1))/2.
-          r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(1,0)-yyg*sc(1,-1)/3.) &
-               -yyg*(1.+yyg)*sc(1,2)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(1,1))/2.
-          r(1) = (1.-yyg)*sc(-1,0)+yyg*sc(-1,1)
-          r(4) = (1.-yyg)*sc(2,0) +yyg*sc(2,1)
+          do nn=1,ntr
+            r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(0,0,nn)-yyg*sc(0,-1,nn)/3.) &
+                   -yyg*(1.+yyg)*sc(0,2,nn)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(0,1,nn))/2.
+            r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(1,0,nn)-yyg*sc(1,-1,nn)/3.) &
+                   -yyg*(1.+yyg)*sc(1,2,nn)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(1,1,nn))/2.
+            r(1) = (1.-yyg)*sc(-1,0,nn)+yyg*sc(-1,1,nn)
+            r(4) = (1.-yyg)*sc(2,0,nn) +yyg*sc(2,1,nn)
 
-          s(iq,k) = ((1.-xxg)*((2.-xxg)*       &
-               ((1.+xxg)*r(2)-xxg*r(1)/3.)     &
-               -xxg*(1.+xxg)*r(4)/3.)          &
-               +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
+            s(iq,k,nn) = ((1.-xxg)*((2.-xxg)*    &
+                 ((1.+xxg)*r(2)-xxg*r(1)/3.)     &
+                 -xxg*(1.+xxg)*r(4)/3.)          &
+                 +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
+          end do
         else
           ! bi-linear interpolation
-          where (sc(0:1,0:1)<=cxx)
-            sc(0:1,0:1)=0.
-          end where      
-          aad=sc(1,1)-sc(0,1)-sc(1,0)+sc(0,0)
-          aab=sc(1,0)-sc(0,0)
-          aac=sc(0,1)-sc(0,0)
-          s(iq,k)=aab*xxg+aac*yyg+aad*xxg*yyg+sc(0,0)
+          do nn=1,ntr
+            where (sc(0:1,0:1,nn)<=cxx)
+              sc(0:1,0:1,nn)=0.
+            end where      
+            aad=sc(1,1,nn)-sc(0,1,nn)-sc(1,0,nn)+sc(0,0,nn)
+            aab=sc(1,0,nn)-sc(0,0,nn)
+            aac=sc(0,1,nn)-sc(0,0,nn)
+            s(iq,k,nn)=aab*xxg+aac*yyg+aad*xxg*yyg+sc(0,0,nn)
+          end do
         end if
       end do
     end if
@@ -2371,10 +2379,12 @@ endif                     ! (intsch==1) .. else ..
 
 call intssync_recv(s)
 
-do k=1,kx
-  where (.not.wtr(1:ifull))
-    s(1:ifull,k)=0.
-  end where
+do nn=1,ntr
+  do k=1,kx
+    where (.not.wtr(1:ifull))
+      s(1:ifull,k,nn)=0.
+    end where
+  end do
 end do
 
 return
@@ -2397,14 +2407,15 @@ include 'parmhor.h'
 
 integer idel,iq,jdel,kx
 integer i,j,k,n,ind,ip,jp,iproc,ierr,intsch,ncount
-integer ii
+integer ii,ntr,nn
 integer, dimension(:,:), intent(in) :: nface
 real, dimension(ifull,size(nface,2)), intent(in) :: xg,yg
-real, dimension(ifull+iextra,size(nface,2)), intent(inout) :: s
-real, dimension(ifull,size(nface,2)) :: ssav
-real, dimension(-1:ipan+2,-1:jpan+2,1:npan,size(nface,2)) :: sx
-real, dimension(-1:2,-1:2) :: sc
+real, dimension(:,:,:), intent(inout) :: s
+real, dimension(ifull,size(s,2),size(s,3)) :: ssav
+real, dimension(-1:ipan+2,-1:jpan+2,1:npan,size(s,2),size(s,3)) :: sx
+real, dimension(-1:2,-1:2,size(s,3)) :: sc
 real, dimension(0:1,0:1) :: scb
+real, dimension(ifull+iextra,size(s,2)*size(s,3)) :: duma
 real, dimension(4) :: r
 real xxg,yyg,aab,aac,aad
 real cmax,cmin,cxx
@@ -2416,19 +2427,27 @@ ind(i,j,n)=i+(j-1)*ipan+(n-1)*ipan*jpan  ! *** for n=1,npan
 lmode=.true.
 if (present(bilinear)) lmode=.not.bilinear
 
-kx=size(nface,2)
+kx=size(s,2)
+ntr=size(s,3)
 intsch=mod(ktau,2)
 cxx=-9999. ! missing value flag
 sx=cxx-1.
 sc=cxx-1.
-ssav(1:ifull,:)=s(1:ifull,:)
+ssav(1:ifull,:,:)=s(1:ifull,:,:)
 
-do k=1,kx
-  where (.not.wtr(1:ifull))
-    s(1:ifull,k)=cxx-1. ! missing value flag
-  end where
+do nn=1,ntr
+  do k=1,kx
+    where (.not.wtr(1:ifull))
+      duma(1:ifull,k+(nn-1)*kx)=cxx-1. ! missing value flag
+    elsewhere
+      duma(1:ifull,k+(nn-1)*kx)=s(1:ifull,k,nn)
+    end where
+  end do
 end do
-call bounds(s,nrows=2)
+call bounds(duma,nrows=2)
+do nn=1,ntr
+  s(:,:,nn)=duma(:,1+(nn-1)*kx:nn*kx)
+end do
 
 !======================== start of intsch=1 section ====================
 if(intsch==1)then
@@ -2436,35 +2455,35 @@ if(intsch==1)then
   do n=1,npan         ! first simple copy into larger array
     do j=1,jpan
       do i=1,ipan
-        sx(i,j,n,:) = s(ind(i,j,n),:)
+        sx(i,j,n,:,:) = s(ind(i,j,n),:,:)
       end do         ! i loop
-      sx(0,j,n,:)      = s(iw(ind(1,j,n)),:)
-      sx(-1,j,n,:)     = s(iww(ind(1,j,n)),:)
-      sx(ipan+1,j,n,:) = s(ie(ind(ipan,j,n)),:)
-      sx(ipan+2,j,n,:) = s(iee(ind(ipan,j,n)),:)
+      sx(0,j,n,:,:)      = s(iw(ind(1,j,n)),:,:)
+      sx(-1,j,n,:,:)     = s(iww(ind(1,j,n)),:,:)
+      sx(ipan+1,j,n,:,:) = s(ie(ind(ipan,j,n)),:,:)
+      sx(ipan+2,j,n,:,:) = s(iee(ind(ipan,j,n)),:,:)
     end do            ! j loop
     do i=1,ipan
-      sx(i,0,n,:)      = s(is(ind(i,1,n)),:)
-      sx(i,-1,n,:)     = s(iss(ind(i,1,n)),:)
-      sx(i,jpan+1,n,:) = s(in(ind(i,jpan,n)),:)
-      sx(i,jpan+2,n,:) = s(inn(ind(i,jpan,n)),:)
+      sx(i,0,n,:,:)      = s(is(ind(i,1,n)),:,:)
+      sx(i,-1,n,:,:)     = s(iss(ind(i,1,n)),:,:)
+      sx(i,jpan+1,n,:,:) = s(in(ind(i,jpan,n)),:,:)
+      sx(i,jpan+2,n,:,:) = s(inn(ind(i,jpan,n)),:,:)
     end do            ! i loop
 !   for ew interpolation, sometimes need (different from ns):
 !       (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
 !     (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
 
-    sx(-1,0,n,:)          = s(lwws(n),:)
-    sx(0,0,n,:)           = s(iws(ind(1,1,n)),:)
-    sx(0,-1,n,:)          = s(lwss(n),:)
-    sx(ipan+1,0,n,:)      = s(ies(ind(ipan,1,n)),:)
-    sx(ipan+2,0,n,:)      = s(lees(n),:)
-    sx(ipan+1,-1,n,:)     = s(less(n),:)
-    sx(-1,jpan+1,n,:)     = s(lwwn(n),:)
-    sx(0,jpan+2,n,:)      = s(lwnn(n),:)
-    sx(ipan+2,jpan+1,n,:) = s(leen(n),:)
-    sx(ipan+1,jpan+2,n,:) = s(lenn(n),:)
-    sx(0,jpan+1,n,:)      = s(iwn(ind(1,jpan,n)),:)
-    sx(ipan+1,jpan+1,n,:) = s(ien(ind(ipan,jpan,n)),:)
+    sx(-1,0,n,:,:)          = s(lwws(n),:,:)
+    sx(0,0,n,:,:)           = s(iws(ind(1,1,n)),:,:)
+    sx(0,-1,n,:,:)          = s(lwss(n),:,:)
+    sx(ipan+1,0,n,:,:)      = s(ies(ind(ipan,1,n)),:,:)
+    sx(ipan+2,0,n,:,:)      = s(lees(n),:,:)
+    sx(ipan+1,-1,n,:,:)     = s(less(n),:,:)
+    sx(-1,jpan+1,n,:,:)     = s(lwwn(n),:,:)
+    sx(0,jpan+2,n,:,:)      = s(lwnn(n),:,:)
+    sx(ipan+2,jpan+1,n,:,:) = s(leen(n),:,:)
+    sx(ipan+1,jpan+2,n,:,:) = s(lenn(n),:,:)
+    sx(0,jpan+1,n,:,:)      = s(iwn(ind(1,jpan,n)),:,:)
+    sx(ipan+1,jpan+1,n,:,:) = s(ien(ind(ipan,jpan,n)),:,:)
   end do               ! n loop
 
 ! Loop over points that need to be calculated for other processes
@@ -2484,53 +2503,59 @@ if(intsch==1)then
       idel = idel - ioff(n-noff)
       jdel = jdel - joff(n-noff)
 
-      sc(-1,0) = sx(idel-1,jdel,n,k)
-      sc(0,0)  = sx(idel  ,jdel,n,k)
-      sc(1,0)  = sx(idel+1,jdel,n,k)
-      sc(2,0)  = sx(idel+2,jdel,n,k)
+      sc(-1,0,:) = sx(idel-1,jdel,n,k,:)
+      sc(0,0,:)  = sx(idel  ,jdel,n,k,:)
+      sc(1,0,:)  = sx(idel+1,jdel,n,k,:)
+      sc(2,0,:)  = sx(idel+2,jdel,n,k,:)
 
-      sc(-1,1) = sx(idel-1,jdel+1,n,k)
-      sc(0,1)  = sx(idel  ,jdel+1,n,k)
-      sc(1,1)  = sx(idel+1,jdel+1,n,k)
-      sc(2,1)  = sx(idel+2,jdel+1,n,k)
+      sc(-1,1,:) = sx(idel-1,jdel+1,n,k,:)
+      sc(0,1,:)  = sx(idel  ,jdel+1,n,k,:)
+      sc(1,1,:)  = sx(idel+1,jdel+1,n,k,:)
+      sc(2,1,:)  = sx(idel+2,jdel+1,n,k,:)
 
-      sc(0,-1) = sx(idel  ,jdel-1,n,k)
-      sc(1,-1) = sx(idel+1,jdel-1,n,k)
+      sc(0,-1,:) = sx(idel  ,jdel-1,n,k,:)
+      sc(1,-1,:) = sx(idel+1,jdel-1,n,k,:)
 
-      sc(0,2) = sx(idel  ,jdel+2,n,k)
-      sc(1,2) = sx(idel+1,jdel+2,n,k)
+      sc(0,2,:) = sx(idel  ,jdel+2,n,k,:)
+      sc(1,2,:) = sx(idel+1,jdel+2,n,k,:)
 
-      ncount=count(sc>cxx)
+      ncount=count(sc(:,:,1)>cxx)
       if (ncount>=12.and.lmode) then
         ! bi-cubic interpolation
-        r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,0)-xxg*sc(-1,0)/3.) &
-             -xxg*(1.+xxg)*sc(2,0)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(1,0))/2.
-        r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,1)-xxg*sc(-1,1)/3.) &
-             -xxg*(1.+xxg)*sc(2,1)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(1,1))/2.
-        r(1) = (1.-xxg)*sc(0,-1) +xxg*sc(1,-1)
-        r(4) = (1.-xxg)*sc(0,2) +xxg*sc(1,2)
+        do nn=1,ntr
+          r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,0,nn)-xxg*sc(-1,0,nn)/3.) &
+               -xxg*(1.+xxg)*sc(2,0,nn)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(1,0,nn))/2.
+          r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,1,nn)-xxg*sc(-1,1,nn)/3.) &
+               -xxg*(1.+xxg)*sc(2,1,nn)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(1,1,nn))/2.
+          r(1) = (1.-xxg)*sc(0,-1,nn) +xxg*sc(1,-1,nn)
+          r(4) = (1.-xxg)*sc(0,2,nn) +xxg*sc(1,2,nn)
 
-        sextra(iproc)%a(iq) = ((1.-yyg)*((2.-yyg)* &
-             ((1.+yyg)*r(2)-yyg*r(1)/3.)           &
-             -yyg*(1.+yyg)*r(4)/3.)                &
-             +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
+          sextra(iproc)%a(nn+(iq-1)*ntr) = ((1.-yyg)*((2.-yyg)* &
+               ((1.+yyg)*r(2)-yyg*r(1)/3.)                      &
+               -yyg*(1.+yyg)*r(4)/3.)                           &
+               +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
+        end do
       else
         ! bi-linear interpolation
-        scb=sc(0:1,0:1)
-        call lfill(scb,cxx)
-        sc(0:1,0:1)=scb
-        aad=sc(1,1)-sc(0,1)-sc(1,0)+sc(0,0)
-        aab=sc(1,0)-sc(0,0)
-        aac=sc(0,1)-sc(0,0)
-        sextra(iproc)%a(iq)=aab*xxg+aac*yyg+aad*xxg*yyg+sc(0,0)
+        do nn=1,ntr
+          scb=sc(0:1,0:1,nn)
+          call lfill(scb,cxx)
+          sc(0:1,0:1,nn)=scb
+          aad=scb(1,1)-scb(0,1)-scb(1,0)+scb(0,0)
+          aab=scb(1,0)-scb(0,0)
+          aac=scb(0,1)-scb(0,0)
+          sextra(iproc)%a(nn+(iq-1)*ntr)=aab*xxg+aac*yyg+aad*xxg*yyg+scb(0,0)
+        end do
       end if
-      cmax=maxval(sc(0:1,0:1))
-      cmin=minval(sc(0:1,0:1))
-      sextra(iproc)%a(iq)=min(max(sextra(iproc)%a(iq),cmin),cmax)
+      do nn=1,ntr
+        cmax=maxval(sc(0:1,0:1,nn))
+        cmin=minval(sc(0:1,0:1,nn))
+        sextra(iproc)%a(nn+(iq-1)*ntr)=min(max(sextra(iproc)%a(nn+(iq-1)*ntr),cmin),cmax)
+      end do
     end do            ! iq loop
   end do              ! iproc loop
 
-  call intssync_send
+  call intssync_send(ntr)
 
   do iq=1,ifull
     if (wtr(iq)) then
@@ -2549,49 +2574,55 @@ if(intsch==1)then
           cycle      ! Will be calculated on another processor
         end if
 
-        sc(0,-1) = sx(idel  ,jdel-1,n,k)
-        sc(1,-1) = sx(idel+1,jdel-1,n,k)
+        sc(0,-1,:) = sx(idel  ,jdel-1,n,k,:)
+        sc(1,-1,:) = sx(idel+1,jdel-1,n,k,:)
 
-        sc(-1,0) = sx(idel-1,jdel,n,k)
-        sc(0,0)  = sx(idel  ,jdel,n,k)
-        sc(1,0)  = sx(idel+1,jdel,n,k)
-        sc(2,0)  = sx(idel+2,jdel,n,k)
+        sc(-1,0,:) = sx(idel-1,jdel,n,k,:)
+        sc(0,0,:)  = sx(idel  ,jdel,n,k,:)
+        sc(1,0,:)  = sx(idel+1,jdel,n,k,:)
+        sc(2,0,:)  = sx(idel+2,jdel,n,k,:)
 
-        sc(-1,1) = sx(idel-1,jdel+1,n,k)
-        sc(0,1)  = sx(idel  ,jdel+1,n,k)
-        sc(1,1)  = sx(idel+1,jdel+1,n,k)
-        sc(2,1)  = sx(idel+2,jdel+1,n,k)
+        sc(-1,1,:) = sx(idel-1,jdel+1,n,k,:)
+        sc(0,1,:)  = sx(idel  ,jdel+1,n,k,:)
+        sc(1,1,:)  = sx(idel+1,jdel+1,n,k,:)
+        sc(2,1,:)  = sx(idel+2,jdel+1,n,k,:)
 
-        sc(0,2) = sx(idel  ,jdel+2,n,k)
-        sc(1,2) = sx(idel+1,jdel+2,n,k)
+        sc(0,2,:) = sx(idel  ,jdel+2,n,k,:)
+        sc(1,2,:) = sx(idel+1,jdel+2,n,k,:)
 
-        ncount=count(sc>cxx)
+        ncount=count(sc(:,:,1)>cxx)
         if (ncount>=12.and.lmode) then
           ! bi-cubic interpolation
-          r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,0)-xxg*sc(-1,0)/3.) &
-               -xxg*(1.+xxg)*sc(2,0)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(1,0))/2.
-          r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,1)-xxg*sc(-1,1)/3.) &
-               -xxg*(1.+xxg)*sc(2,1)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(1,1))/2.
-          r(1) = (1.-xxg)*sc(0,-1)+xxg*sc(1,-1)
-          r(4) = (1.-xxg)*sc(0,2) +xxg*sc(1,2)
+          do nn=1,ntr
+            r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,0,nn)-xxg*sc(-1,0,nn)/3.) &
+                 -xxg*(1.+xxg)*sc(2,0,nn)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(1,0,nn))/2.
+            r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,1,nn)-xxg*sc(-1,1,nn)/3.) &
+                 -xxg*(1.+xxg)*sc(2,1,nn)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(1,1,nn))/2.
+            r(1) = (1.-xxg)*sc(0,-1,nn)+xxg*sc(1,-1,nn)
+            r(4) = (1.-xxg)*sc(0,2,nn) +xxg*sc(1,2,nn)
 
-          s(iq,k) = ((1.-yyg)*((2.-yyg)* &
-               ((1.+yyg)*r(2)-yyg*r(1)/3.)           &
-               -yyg*(1.+yyg)*r(4)/3.)                &
-               +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
+            s(iq,k,nn) = ((1.-yyg)*((2.-yyg)*          &
+                 ((1.+yyg)*r(2)-yyg*r(1)/3.)           &
+                 -yyg*(1.+yyg)*r(4)/3.)                &
+                 +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
+          end do
         else
           ! bi-linear interpolation
-          scb=sc(0:1,0:1)
-          call lfill(scb,cxx)
-          sc(0:1,0:1)=scb        
-          aad=sc(1,1)-sc(0,1)-sc(1,0)+sc(0,0)
-          aab=sc(1,0)-sc(0,0)
-          aac=sc(0,1)-sc(0,0)
-          s(iq,k)=aab*xxg+aac*yyg+aad*xxg*yyg+sc(0,0)
+          do nn=1,ntr
+            scb=sc(0:1,0:1,nn)
+            call lfill(scb,cxx)
+            sc(0:1,0:1,nn)=scb
+            aad=scb(1,1)-scb(0,1)-scb(1,0)+scb(0,0)
+            aab=scb(1,0)-scb(0,0)
+            aac=scb(0,1)-scb(0,0)
+            s(iq,k,nn)=aab*xxg+aac*yyg+aad*xxg*yyg+scb(0,0)
+          end do
         end if
-        cmax=maxval(sc(0:1,0:1))
-        cmin=minval(sc(0:1,0:1))
-        s(iq,k)=min(max(s(iq,k),cmin),cmax)
+        do nn=1,ntr
+          cmax=maxval(sc(0:1,0:1,nn))
+          cmin=minval(sc(0:1,0:1,nn))
+          s(iq,k,nn)=min(max(s(iq,k,nn),cmin),cmax)
+        end do
       end do ! k loop
     end if   ! wtr
   end do     ! iq loop
@@ -2605,35 +2636,35 @@ else     ! if(intsch==1)then
   do n=1,npan         ! first simple copy into larger array
     do j=1,jpan
       do i=1,ipan
-        sx(i,j,n,:) = s(ind(i,j,n),:)
+        sx(i,j,n,:,:) = s(ind(i,j,n),:,:)
       end do         ! i loop
-      sx(0,j,n,:)      = s(iw(ind(1,j,n)),:)
-      sx(-1,j,n,:)     = s(iww(ind(1,j,n)),:)
-      sx(ipan+1,j,n,:) = s(ie(ind(ipan,j,n)),:)
-      sx(ipan+2,j,n,:) = s(iee(ind(ipan,j,n)),:)
+      sx(0,j,n,:,:)      = s(iw(ind(1,j,n)),:,:)
+      sx(-1,j,n,:,:)     = s(iww(ind(1,j,n)),:,:)
+      sx(ipan+1,j,n,:,:) = s(ie(ind(ipan,j,n)),:,:)
+      sx(ipan+2,j,n,:,:) = s(iee(ind(ipan,j,n)),:,:)
     end do            ! j loop
     do i=1,ipan
-      sx(i,0,n,:)      = s(is(ind(i,1,n)),:)
-      sx(i,-1,n,:)     = s(iss(ind(i,1,n)),:)
-      sx(i,jpan+1,n,:) = s(in(ind(i,jpan,n)),:)
-      sx(i,jpan+2,n,:) = s(inn(ind(i,jpan,n)),:)
+      sx(i,0,n,:,:)      = s(is(ind(i,1,n)),:,:)
+      sx(i,-1,n,:,:)     = s(iss(ind(i,1,n)),:,:)
+      sx(i,jpan+1,n,:,:) = s(in(ind(i,jpan,n)),:,:)
+      sx(i,jpan+2,n,:,:) = s(inn(ind(i,jpan,n)),:,:)
     end do            ! i loop
 !        for ns interpolation, sometimes need (different from ew):
 !            (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
 !          (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
 
-    sx(-1,0,n,:)          = s(lsww(n),:)
-    sx(0,0,n,:)           = s(isw(ind(1,1,n)),:)
-    sx(0,-1,n,:)          = s(lssw(n),:)
-    sx(ipan+2,0,n,:)      = s(lsee(n),:)
-    sx(ipan+1,-1,n,:)     = s(lsse(n),:)
-    sx(-1,jpan+1,n,:)     = s(lnww(n),:)
-    sx(0,jpan+1,n,:)      = s(inw(ind(1,jpan,n)),:)
-    sx(0,jpan+2,n,:)      = s(lnnw(n),:)
-    sx(ipan+2,jpan+1,n,:) = s(lnee(n),:)
-    sx(ipan+1,jpan+2,n,:) = s(lnne(n),:)
-    sx(ipan+1,0,n,:)      = s(ise(ind(ipan,1,n)),:)
-    sx(ipan+1,jpan+1,n,:) = s(ine(ind(ipan,jpan,n)),:)
+    sx(-1,0,n,:,:)          = s(lsww(n),:,:)
+    sx(0,0,n,:,:)           = s(isw(ind(1,1,n)),:,:)
+    sx(0,-1,n,:,:)          = s(lssw(n),:,:)
+    sx(ipan+2,0,n,:,:)      = s(lsee(n),:,:)
+    sx(ipan+1,-1,n,:,:)     = s(lsse(n),:,:)
+    sx(-1,jpan+1,n,:,:)     = s(lnww(n),:,:)
+    sx(0,jpan+1,n,:,:)      = s(inw(ind(1,jpan,n)),:,:)
+    sx(0,jpan+2,n,:,:)      = s(lnnw(n),:,:)
+    sx(ipan+2,jpan+1,n,:,:) = s(lnee(n),:,:)
+    sx(ipan+1,jpan+2,n,:,:) = s(lnne(n),:,:)
+    sx(ipan+1,0,n,:,:)      = s(ise(ind(ipan,1,n)),:,:)
+    sx(ipan+1,jpan+1,n,:,:) = s(ine(ind(ipan,jpan,n)),:,:)
   end do               ! n loop
 
 ! For other processes
@@ -2653,52 +2684,58 @@ else     ! if(intsch==1)then
       idel = idel - ioff(n-noff)
       jdel = jdel - joff(n-noff)
 
-      sc(0,-1) = sx(idel,jdel-1,n,k)
-      sc(0,0)  = sx(idel,jdel  ,n,k)
-      sc(0,1)  = sx(idel,jdel+1,n,k)
-      sc(0,2)  = sx(idel,jdel+2,n,k)
+      sc(0,-1,:) = sx(idel,jdel-1,n,k,:)
+      sc(0,0,:)  = sx(idel,jdel  ,n,k,:)
+      sc(0,1,:)  = sx(idel,jdel+1,n,k,:)
+      sc(0,2,:)  = sx(idel,jdel+2,n,k,:)
 
-      sc(1,-1) = sx(idel+1,jdel-1,n,k)
-      sc(1,0)  = sx(idel+1,jdel  ,n,k)
-      sc(1,1)  = sx(idel+1,jdel+1,n,k)
-      sc(1,2)  = sx(idel+1,jdel+2,n,k)
+      sc(1,-1,:) = sx(idel+1,jdel-1,n,k,:)
+      sc(1,0,:)  = sx(idel+1,jdel  ,n,k,:)
+      sc(1,1,:)  = sx(idel+1,jdel+1,n,k,:)
+      sc(1,2,:)  = sx(idel+1,jdel+2,n,k,:)
 
-      sc(-1,0) = sx(idel-1,jdel  ,n,k)
-      sc(-1,1) = sx(idel-1,jdel+1,n,k)
+      sc(-1,0,:) = sx(idel-1,jdel  ,n,k,:)
+      sc(-1,1,:) = sx(idel-1,jdel+1,n,k,:)
         
-      sc(2,0) = sx(idel+2,jdel  ,n,k)
-      sc(2,1) = sx(idel+2,jdel+1,n,k)
+      sc(2,0,:) = sx(idel+2,jdel  ,n,k,:)
+      sc(2,1,:) = sx(idel+2,jdel+1,n,k,:)
 
-      ncount=count(sc>cxx)
+      ncount=count(sc(:,:,1)>cxx)
       if (ncount>=12.and.lmode) then
         ! bi-cubic interpolation
-        r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(0,0)-yyg*sc(0,-1)/3.) &
-             -yyg*(1.+yyg)*sc(0,2)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(0,1))/2.
-        r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(1,0)-yyg*sc(1,-1)/3.) &
-             -yyg*(1.+yyg)*sc(1,2)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(1,1))/2.
-        r(1) = (1.-yyg)*sc(-1,0) +yyg*sc(-1,1)
-        r(4) = (1.-yyg)*sc(2,0) +yyg*sc(2,1)
-        sextra(iproc)%a(iq) = ((1.-xxg)*((2.-xxg)* &
-             ((1.+xxg)*r(2)-xxg*r(1)/3.)           &
-             -xxg*(1.+xxg)*r(4)/3.)                &
-             +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
+        do nn=1,ntr
+          r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(0,0,nn)-yyg*sc(0,-1,nn)/3.) &
+               -yyg*(1.+yyg)*sc(0,2,nn)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(0,1,nn))/2.
+          r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(1,0,nn)-yyg*sc(1,-1,nn)/3.) &
+               -yyg*(1.+yyg)*sc(1,2,nn)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(1,1,nn))/2.
+          r(1) = (1.-yyg)*sc(-1,0,nn) +yyg*sc(-1,1,nn)
+          r(4) = (1.-yyg)*sc(2,0,nn) +yyg*sc(2,1,nn)
+          sextra(iproc)%a(nn+(iq-1)*ntr) = ((1.-xxg)*((2.-xxg)* &
+               ((1.+xxg)*r(2)-xxg*r(1)/3.)           &
+               -xxg*(1.+xxg)*r(4)/3.)                &
+               +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
+        end do
       else
         ! bi-linear interpolation
-        scb=sc(0:1,0:1)
-        call lfill(scb,cxx)
-        sc(0:1,0:1)=scb        
-        aad=sc(1,1)-sc(0,1)-sc(1,0)+sc(0,0)
-        aab=sc(1,0)-sc(0,0)
-        aac=sc(0,1)-sc(0,0)
-        sextra(iproc)%a(iq)=aab*xxg+aac*yyg+aad*xxg*yyg+sc(0,0)
+        do nn=1,ntr
+          scb=sc(0:1,0:1,nn)
+          call lfill(scb,cxx)
+          sc(0:1,0:1,nn)=scb        
+          aad=scb(1,1)-scb(0,1)-scb(1,0)+scb(0,0)
+          aab=scb(1,0)-scb(0,0)
+          aac=scb(0,1)-scb(0,0)
+          sextra(iproc)%a(nn+(iq-1)*ntr)=aab*xxg+aac*yyg+aad*xxg*yyg+scb(0,0)
+        end do
       end if
-      cmax=maxval(sc(0:1,0:1))
-      cmin=minval(sc(0:1,0:1))
-      sextra(iproc)%a(iq)=min(max(sextra(iproc)%a(iq),cmin),cmax)
+      do nn=1,ntr
+        cmax=maxval(sc(0:1,0:1,nn))
+        cmin=minval(sc(0:1,0:1,nn))
+        sextra(iproc)%a(nn+(iq-1)*ntr)=min(max(sextra(iproc)%a(nn+(iq-1)*ntr),cmin),cmax)
+      end do
     end do            ! iq loop
   end do              ! iproc
 
-  call intssync_send
+  call intssync_send(ntr)
 
   do iq=1,ifull
     if (wtr(iq)) then
@@ -2717,49 +2754,55 @@ else     ! if(intsch==1)then
           cycle      ! Will be calculated on another processor
         end if
 
-        sc(0,-1) = sx(idel,jdel-1,n,k)
-        sc(0,0)  = sx(idel,jdel  ,n,k)
-        sc(0,1)  = sx(idel,jdel+1,n,k)
-        sc(0,2)  = sx(idel,jdel+2,n,k)
+        sc(0,-1,:) = sx(idel,jdel-1,n,k,:)
+        sc(0,0,:)  = sx(idel,jdel  ,n,k,:)
+        sc(0,1,:)  = sx(idel,jdel+1,n,k,:)
+        sc(0,2,:)  = sx(idel,jdel+2,n,k,:)
 
-        sc(1,-1) = sx(idel+1,jdel-1,n,k)
-        sc(1,0)  = sx(idel+1,jdel  ,n,k)
-        sc(1,1)  = sx(idel+1,jdel+1,n,k)
-        sc(1,2)  = sx(idel+1,jdel+2,n,k)
+        sc(1,-1,:) = sx(idel+1,jdel-1,n,k,:)
+        sc(1,0,:)  = sx(idel+1,jdel  ,n,k,:)
+        sc(1,1,:)  = sx(idel+1,jdel+1,n,k,:)
+        sc(1,2,:)  = sx(idel+1,jdel+2,n,k,:)
 
-        sc(-1,0) = sx(idel-1,jdel  ,n,k)
-        sc(-1,1) = sx(idel-1,jdel+1,n,k)
+        sc(-1,0,:) = sx(idel-1,jdel  ,n,k,:)
+        sc(-1,1,:) = sx(idel-1,jdel+1,n,k,:)
         
-        sc(2,0) = sx(idel+2,jdel  ,n,k)
-        sc(2,1) = sx(idel+2,jdel+1,n,k)
+        sc(2,0,:) = sx(idel+2,jdel  ,n,k,:)
+        sc(2,1,:) = sx(idel+2,jdel+1,n,k,:)
         
-        ncount=count(sc>cxx)
+        ncount=count(sc(:,:,1)>cxx)
         if (ncount>=12.and.lmode) then
           ! bi-cubic interpolation
-          r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(0,0)-yyg*sc(0,-1)/3.) &
-               -yyg*(1.+yyg)*sc(0,2)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(0,1))/2.
-          r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(1,0)-yyg*sc(1,-1)/3.) &
-               -yyg*(1.+yyg)*sc(1,2)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(1,1))/2.
-          r(1) = (1.-yyg)*sc(-1,0)+yyg*sc(-1,1)
-          r(4) = (1.-yyg)*sc(2,0) +yyg*sc(2,1)
+          do nn=1,ntr
+            r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(0,0,nn)-yyg*sc(0,-1,nn)/3.) &
+                 -yyg*(1.+yyg)*sc(0,2,nn)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(0,1,nn))/2.
+            r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(1,0,nn)-yyg*sc(1,-1,nn)/3.) &
+                 -yyg*(1.+yyg)*sc(1,2,nn)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(1,1,nn))/2.
+            r(1) = (1.-yyg)*sc(-1,0,nn)+yyg*sc(-1,1,nn)
+            r(4) = (1.-yyg)*sc(2,0,nn) +yyg*sc(2,1,nn)
 
-          s(iq,k) = ((1.-xxg)*((2.-xxg)*       &
-               ((1.+xxg)*r(2)-xxg*r(1)/3.)     &
-               -xxg*(1.+xxg)*r(4)/3.)          &
-               +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
+            s(iq,k,nn) = ((1.-xxg)*((2.-xxg)*       &
+                 ((1.+xxg)*r(2)-xxg*r(1)/3.)        &
+                 -xxg*(1.+xxg)*r(4)/3.)             &
+                 +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
+          end do
         else
           ! bi-linear interpolation
-          scb=sc(0:1,0:1)
-          call lfill(scb,cxx)
-          sc(0:1,0:1)=scb        
-          aad=sc(1,1)-sc(0,1)-sc(1,0)+sc(0,0)
-          aab=sc(1,0)-sc(0,0)
-          aac=sc(0,1)-sc(0,0)
-          s(iq,k)=aab*xxg+aac*yyg+aad*xxg*yyg+sc(0,0)
+          do nn=1,ntr
+            scb=sc(0:1,0:1,nn)
+            call lfill(scb,cxx)
+            sc(0:1,0:1,nn)=scb        
+            aad=scb(1,1)-scb(0,1)-scb(1,0)+scb(0,0)
+            aab=scb(1,0)-scb(0,0)
+            aac=scb(0,1)-scb(0,0)
+            s(iq,k,nn)=aab*xxg+aac*yyg+aad*xxg*yyg+scb(0,0)
+          end do
         end if
-        cmax=maxval(sc(0:1,0:1))
-        cmin=minval(sc(0:1,0:1))
-        s(iq,k)=min(max(s(iq,k),cmin),cmax)
+        do nn=1,ntr
+          cmax=maxval(sc(0:1,0:1,nn))
+          cmin=minval(sc(0:1,0:1,nn))
+          s(iq,k,nn)=min(max(s(iq,k,nn),cmin),cmax)
+        end do
       end do
     end if
   end do
@@ -2769,14 +2812,16 @@ endif                     ! (intsch==1) .. else ..
 
 call intssync_recv(s)
 
-do k=1,kx
-  where (.not.wtr(1:ifull))
-    s(1:ifull,k)=ssav(:,k)
-  end where
+do nn=1,ntr
+  do k=1,kx
+    where (.not.wtr(1:ifull))
+      s(1:ifull,k,nn)=ssav(:,k,nn)
+    end where
+  end do
 end do
 
-where (s(1:ifull,:)<cxx+10.)
-  s(1:ifull,:)=ssav
+where (s(1:ifull,:,:)<cxx+10.)
+  s(1:ifull,:,:)=ssav
 end where
 
 return
@@ -2819,11 +2864,11 @@ do k=1,kx
     vec3x = x3d(:,k) - vecdot*x
     vec3y = y3d(:,k) - vecdot*y
     vec3z = z3d(:,k) - vecdot*z
-    vdot1 = (vec1x*cou(:,k) + vec1y*cov(:,k) + vec1z*cow(:,k))/denb
-    vdot2 = (vec2x*cou(:,k) + vec2y*cov(:,k) + vec2z*cow(:,k))/denb
-    cou(:,k) = vdot1*vec1x + vdot2*vec3x
-    cov(:,k) = vdot1*vec1y + vdot2*vec3y
-    cow(:,k) = vdot1*vec1z + vdot2*vec3z
+    vdot1 = (vec1x*cou(1:ifull,k) + vec1y*cov(1:ifull,k) + vec1z*cow(1:ifull,k))/denb
+    vdot2 = (vec2x*cou(1:ifull,k) + vec2y*cov(1:ifull,k) + vec2z*cow(1:ifull,k))/denb
+    cou(1:ifull,k) = vdot1*vec1x + vdot2*vec3x
+    cov(1:ifull,k) = vdot1*vec1y + vdot2*vec3y
+    cow(1:ifull,k) = vdot1*vec1z + vdot2*vec3z
   end where
 end do ! k
 

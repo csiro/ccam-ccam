@@ -11,7 +11,7 @@
 !                      v+ve northwards (on the panel)
 
       use aerointerface                       ! Aerosol interface
-      use aerosolldr, only : xtosav,xtg       ! LDR prognostic aerosols
+      use aerosolldr, only : xtosav,xtg,naero ! LDR prognostic aerosols
       use arrays_m                            ! Atmosphere dyamics prognostic arrays
       use bigxy4_m                            ! Grid interpolation
       use carbpools_m, only : carbpools_init  ! Carbon pools
@@ -263,6 +263,7 @@
       read (99, trfiles, iostat=ierr)      ! try reading tracer namelist.  If no
       if (ierr/=0) rewind(99)              ! namelist is found, then disable
       if (tracerlist/='') call init_tracer ! tracers and rewind namelist.
+      nagg=max(5,naero,ngas)               ! maximum size of aggregation
 
       !--------------------------------------------------------------
       ! READ TOPOGRAPHY FILE TO DEFINE CONFORMAL CUBIC GRID

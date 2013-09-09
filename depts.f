@@ -15,7 +15,8 @@ c     modify toij5 for Cray
       include 'parm.h'
 !     Work common for these?
 !     temp needs iextra becaue it's used in ints
-      real uc(ifull,kl),vc(ifull,kl),wc(ifull,kl), temp(ifull+iextra,kl)
+      real uc(ifull,kl),vc(ifull,kl),wc(ifull,kl)
+      real, dimension(ifull+iextra,kl,3) :: temp
       real*8 x3d(ifull,kl),y3d(ifull,kl),z3d(ifull,kl)   ! upglobal depts 
       integer iq, k, intsch
 
@@ -51,23 +52,17 @@ c     convert to grid point numbering
       endif
 
       intsch=mod(ktau,2)
-      temp(1:ifull,:) = uc(1:ifull,:)
-      call ints(temp,intsch,nface,xg,yg,2)
+      temp(1:ifull,:,1) = uc(1:ifull,:)
+      temp(1:ifull,:,2) = vc(1:ifull,:)
+      temp(1:ifull,:,3) = wc(1:ifull,:)
+      call ints(3,temp,intsch,nface,xg,yg,2)
       do k=1,kl
          x3d(1:ifull,k) = x(1:ifull) -
-     &                    0.5*(uc(1:ifull,k)+temp(1:ifull,k)) ! 2nd guess
-      end do
-      temp(1:ifull,:) = vc(1:ifull,:)
-      call ints(temp,intsch,nface,xg,yg,2)
-      do k=1,kl
+     &                    0.5*(uc(1:ifull,k)+temp(1:ifull,k,1)) ! 2nd guess
          y3d(1:ifull,k) = y(1:ifull) -
-     &                    0.5*(vc(1:ifull,k)+temp(1:ifull,k)) ! 2nd guess
-      end do
-      temp(1:ifull,:) = wc(1:ifull,:)
-      call ints(temp,intsch,nface,xg,yg,2)
-      do k=1,kl
+     &                    0.5*(vc(1:ifull,k)+temp(1:ifull,k,2)) ! 2nd guess
          z3d(1:ifull,k) = z(1:ifull) -
-     &                    0.5*(wc(1:ifull,k)+temp(1:ifull,k)) ! 2nd guess
+     &                    0.5*(wc(1:ifull,k)+temp(1:ifull,k,3)) ! 2nd guess
       end do
 
       do k=1,kl
@@ -81,23 +76,17 @@ c     convert to grid point numbering
         print *,'xg,yg,nface ',xg(idjd,nlv),yg(idjd,nlv),nface(idjd,nlv)
       endif
 
-      temp(1:ifull,:) = uc(1:ifull,:)
-      call ints(temp,intsch,nface,xg,yg,2)
+      temp(1:ifull,:,1) = uc(1:ifull,:)
+      temp(1:ifull,:,2) = vc(1:ifull,:)
+      temp(1:ifull,:,3) = wc(1:ifull,:)
+      call ints(3,temp,intsch,nface,xg,yg,2)
       do k=1,kl
          x3d(1:ifull,k) = x(1:ifull) -
-     &                    0.5*(uc(1:ifull,k)+temp(1:ifull,k)) ! 3rd guess
-      end do
-      temp(1:ifull,:) = vc(1:ifull,:)
-      call ints(temp,intsch,nface,xg,yg,2)
-      do k=1,kl
+     &                    0.5*(uc(1:ifull,k)+temp(1:ifull,k,1)) ! 3rd guess
          y3d(1:ifull,k) = y(1:ifull) -
-     &                    0.5*(vc(1:ifull,k)+temp(1:ifull,k)) ! 3rd guess
-      end do
-      temp(1:ifull,:) = wc(1:ifull,:)
-      call ints(temp,intsch,nface,xg,yg,2)
-      do k=1,kl
+     &                    0.5*(vc(1:ifull,k)+temp(1:ifull,k,2)) ! 3rd guess
          z3d(1:ifull,k) = z(1:ifull) -
-     &                    0.5*(wc(1:ifull,k)+temp(1:ifull,k)) ! 3rd guess
+     &                    0.5*(wc(1:ifull,k)+temp(1:ifull,k,3)) ! 3rd guess
       end do
 
       do k=1,kl

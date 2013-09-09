@@ -31,22 +31,21 @@
       include 'parmdyn.h'  
       include 'parmhor.h'  ! mhint, m_bs, nt_adv
       include 'parmvert.h'  
-
-      real, save, allocatable, dimension(:,:):: tnsav,unsav,vnsav              ! for npex=-1
+      real, save, allocatable, dimension(:,:):: tnsav,unsav,vnsav ! for npex=-1
       real, dimension(ifull+iextra,kl) :: uc, vc, wc, dd
-      real, dimension(ifull+iextra) :: aa
-      real, dimension(ifull,kl) :: dumt, theta
-      real, dimension(ifull,kl) :: wrk1, wrk2
-      real, dimension(ifull) :: sdmx
-      real, dimension(kl) :: factr
+      real aa(ifull+iextra)
+      real*8 x3d(ifull,kl),y3d(ifull,kl),z3d(ifull,kl)
+      integer idjdd
+      real theta(ifull,kl), factr(kl)
+      real, dimension(ifull,kl) :: dumt,dumu,dumv
+      integer ii,intsch, iq, jj,k, kk, ntr, ierr
+      integer iaero, l
+      integer, dimension(ifull) :: nits, nvadh_pass
       real denb, tempry, vdot1,
      &     vdot2, vec1x, vec1y, vec1z, vec2x, vec2y, vec2z, vec3x,
      &     vec3y, vec3z, vecdot
-      real*8, dimension(ifull,kl) :: x3d,y3d,z3d
-      integer, dimension(ifull) :: nits, nvadh_pass
-      integer idjdd
-      integer ii,intsch, iq, jj,k, kk, ntr, ierr
-      integer iaero, l
+      real, dimension(ifull) :: sdmx
+      real, dimension(ifull+iextra,kl,5) :: duma
       integer, save :: num_hight = 0, numunstab = 0
 
       call start_log(upglobal_begin)
@@ -62,7 +61,7 @@
          enddo     ! iq loop
         enddo      ! k loop
       endif  ! (m>=5)
-      
+
       select case(ndept)
        case(0)
         call depts(x3d,y3d,z3d)
@@ -82,11 +81,11 @@
 	  vnsav(:,:) =vn(:,:)
         endif
         tx(1:ifull,:)=tx(1:ifull,:)
-     &                +dt*(tn(1:ifull,:)-.5*tnsav(1:ifull,:))    !  for Ad-Bash        
+     &                +dt*(tn(1:ifull,:)-.5*tnsav(1:ifull,:))            
         ux(1:ifull,:)=ux(1:ifull,:)
-     &                +dt*(un(1:ifull,:)-.5*unsav(1:ifull,:))       !  for Ad-Bash          
+     &                +dt*(un(1:ifull,:)-.5*unsav(1:ifull,:))           
         vx(1:ifull,:)=vx(1:ifull,:)
-     &                +dt*(vn(1:ifull,:)-.5*vnsav(1:ifull,:))    !  for Ad-Bash  
+     &                +dt*(vn(1:ifull,:)-.5*vnsav(1:ifull,:))
 !       convert un, vn to cartesian velocity components (for next step)
         do k=1,kl
          do iq=1,ifull
@@ -96,10 +95,15 @@
          enddo                 ! iq loop
         enddo
         if(mup/=0)then
-          call ints(uc,intsch,nface,xg,yg,3)
-          call ints(vc,intsch,nface,xg,yg,3)
-          call ints(wc,intsch,nface,xg,yg,3)
-          call ints(tn,intsch,nface,xg,yg,3)
+          duma(1:ifull,:,1)=uc(1:ifull,:)
+          duma(1:ifull,:,2)=vc(1:ifull,:)
+          duma(1:ifull,:,3)=wc(1:ifull,:)
+          duma(1:ifull,:,4)=tn(1:ifull,:)
+          call ints(4,duma,intsch,nface,xg,yg,3)
+          uc(1:ifull,:)=duma(1:ifull,:,1)
+          vc(1:ifull,:)=duma(1:ifull,:,2)
+          wc(1:ifull,:)=duma(1:ifull,:,3)
+          tn(1:ifull,:)=duma(1:ifull,:,4)
         endif
 !       don't bother to rotate un,vn vector to arrival point
 !       convert back to un,vn conformal-cubic velocity components
@@ -189,12 +193,12 @@
 	  nits(:)=1+sdmx(:)/nvadh
 	  nvadh_pass(:)=nvadh*nits(:) ! use - for nvadu
         dumt=tx(1:ifull,:)
-        wrk1=ux(1:ifull,:)
-        wrk2=vx(1:ifull,:)
-        call vadvtvd(dumt,wrk1,wrk2,nvadh_pass,nits,iaero)
+        dumu=ux(1:ifull,:)
+        dumv=vx(1:ifull,:)
+        call vadvtvd(dumt,dumu,dumv,nvadh_pass,nits,iaero)
         tx(1:ifull,:)=dumt
-        ux(1:ifull,:)=wrk1
-        vx(1:ifull,:)=wrk2 
+        ux(1:ifull,:)=dumu
+        vx(1:ifull,:)=dumv 
         if( (diag.or.nmaxpr==1) .and. mydiag )then
           write(6,*) 'in upglobal after vadv1'
           write (6,"('qg  ',3p9f8.3/4x,9f8.3)")   qg(idjd,:)
@@ -205,58 +209,65 @@
       do k=1,kl   
 !      N.B. [D + dsigdot/dsig] saved in adjust5 (or updps) as pslx
        pslx(1:ifull,k)=psl(1:ifull)-pslx(1:ifull,k)*dt*.5*(1.-epst(:))
-      end do    ! k loop
-      pslx(1:ifull,:)=pslx(1:ifull,:)+dd(1:ifull,:)
-      if(nmaxpr==1.and.nproc==1)then
-	write(6,*) 'pslx_3p before advection'
-        write (6,"('pslx_b',3p9f8.4)") pslx(idjd,:)
-        write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
-        write (6,"(3p9f8.4)") 
-     &        ((pslx(max(min(ii+jj*il,ifull),1),nlv),ii=idjd-4,idjd+4)
-     &        ,jj=2,-2,-1)
-      endif
-      if(mup/=0)then
-        call ints_bl(dd,intsch,nface,xg,yg)  ! advection on all levels
-        call ints(pslx,intsch,nface,xg,yg,1)
-      endif
-      pslx(1:ifull,:)=pslx(1:ifull,:)-dd(1:ifull,:)
-!     special T advection treatments follow
-      do k=1,kl
+       pslx(1:ifull,k)=pslx(1:ifull,k)+aa(1:ifull)
        tx(1:ifull,k)=tx(1:ifull,k)+aa(1:ifull)*factr(k)   !cy  
       end do   ! k
-      if(mup/=0)call ints(tx,intsch,nface,xg,yg,3)
+!      if(nmaxpr==1.and.nproc==1)then
+!        write(6,*) 'pslx_3p before advection'
+!        write (6,"('pslx_b',3p9f8.4)") pslx(idjd,:)
+!        write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
+!        write (6,"(3p9f8.4)") 
+!     &        ((pslx(max(min(ii+jj*il,ifull),1),nlv),ii=idjd-4,idjd+4)
+!     &        ,jj=2,-2,-1)
+!      endif
+      if(mup/=0)then
+        call ints_bl(dd,intsch,nface,xg,yg)  ! advection on all levels
+        if (nh/=0) then
+          call ints(1,pslx,intsch,nface,xg,yg,1)
+          duma(1:ifull,:,1)=tx(1:ifull,:)
+          duma(1:ifull,:,2)=h_nh(1:ifull,:)
+          call ints(2,duma,intsch,nface,xg,yg,3)
+          tx(1:ifull,:)  =duma(1:ifull,:,1)
+          h_nh(1:ifull,:)=duma(1:ifull,:,2)
+        else
+          call ints(1,pslx,intsch,nface,xg,yg,1)
+          call ints(1,tx,intsch,nface,xg,yg,3)
+        end if ! nh/=0
+      endif    ! mup/=0
+
       do k=1,kl
+       pslx(1:ifull,k)=pslx(1:ifull,k)-dd(1:ifull,k)      
        tx(1:ifull,k) = tx(1:ifull,k) - dd(1:ifull,k)*factr(k)
       end do
 !------------------------------------------------------------------
-	if(nmaxpr==1.and.nproc==1)then
-         write(6,*) 'pslx_3p & dd after advection'
-         write (6,"('pslx_a',3p9f8.4)") pslx(idjd,:)
-         write (6,"('aa#',3p9f8.4)") 
-     &             ((aa(ii+jj*il),ii=idjd-1,idjd+1),jj=-1,1)
-         write (6,"('dd1#',3p9f8.4)") 
-     &             ((dd(ii+jj*il,1),ii=idjd-1,idjd+1),jj=-1,1)
-         write (6,"('dd_a',3p9f8.4)") dd(idjd,:)
-         write (6,"('nface',18i4)") nface(idjd,:)
-         write (6,"('xg',9f8.4)") xg(idjd,:)
-         write (6,"('yg',9f8.4)") yg(idjd,:)
-         write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
-	  idjdd=max(5+2*il,min(idjd,ifull-4-2*il))  ! for following prints
-         write (6,"(3p9f8.4)") 
-     &            ((pslx(ii+jj*il,nlv),ii=idjdd-4,idjdd+4),jj=2,-2,-1)
-         uc(1:ifull,1)=-pslx(1:ifull,1)*dsig(1) 
-	  do k=2,kl
-          uc(1:ifull,1)=uc(1:ifull,1)-pslx(1:ifull,k)*dsig(k)
-         enddo
-	 write(6,*) 'integ pslx after advection'
-         write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
-         write (6,"(3p9f8.4)") 
-     &            ((uc(ii+jj*il,1),ii=idjdd-4,idjdd+4),jj=2,-2,-1)
-         write(6,*) 'corresp integ ps after advection'
-         write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
-         write (6,"(-2p9f8.2)") 
-     &        ((1.e5*exp(uc(ii+jj*il,1)),ii=idjdd-4,idjdd+4),jj=2,-2,-1)
-	endif
+!	if(nmaxpr==1.and.nproc==1)then
+!         write(6,*) 'pslx_3p & dd after advection'
+!         write (6,"('pslx_a',3p9f8.4)") pslx(idjd,:)
+!         write (6,"('aa#',3p9f8.4)") 
+!     &             ((aa(ii+jj*il),ii=idjd-1,idjd+1),jj=-1,1)
+!         write (6,"('dd1#',3p9f8.4)") 
+!     &             ((dd(ii+jj*il,1),ii=idjd-1,idjd+1),jj=-1,1)
+!         write (6,"('dd_a',3p9f8.4)") dd(idjd,:)
+!         write (6,"('nface',18i4)") nface(idjd,:)
+!         write (6,"('xg',9f8.4)") xg(idjd,:)
+!         write (6,"('yg',9f8.4)") yg(idjd,:)
+!         write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
+!         idjdd=max(5+2*il,min(idjd,ifull-4-2*il))  ! for following prints
+!         write (6,"(3p9f8.4)") 
+!     &            ((pslx(ii+jj*il,nlv),ii=idjdd-4,idjdd+4),jj=2,-2,-1)
+!         uc(1:ifull,1)=-pslx(1:ifull,1)*dsig(1) 
+!         do k=2,kl
+!          uc(1:ifull,1)=uc(1:ifull,1)-pslx(1:ifull,k)*dsig(k)
+!         enddo
+!         write(6,*) 'integ pslx after advection'
+!         write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
+!         write (6,"(3p9f8.4)") 
+!     &            ((uc(ii+jj*il,1),ii=idjdd-4,idjdd+4),jj=2,-2,-1)
+!         write(6,*) 'corresp integ ps after advection'
+!         write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
+!         write (6,"(-2p9f8.2)") 
+!     &        ((1.e5*exp(uc(ii+jj*il,1)),ii=idjdd-4,idjdd+4),jj=2,-2,-1)
+!	endif
 
 !      now comes ux & vx section
        if(diag)then
@@ -296,9 +307,13 @@
           if ( mydiag ) write(6,*) 'nface ',nface(idjd,:)
        endif
        if(mup/=0)then
-          call ints(uc,intsch,nface,xg,yg,2)
-          call ints(vc,intsch,nface,xg,yg,2)
-          call ints(wc,intsch,nface,xg,yg,2)
+          duma(1:ifull,:,1)=uc(1:ifull,:)
+          duma(1:ifull,:,2)=vc(1:ifull,:)
+          duma(1:ifull,:,3)=wc(1:ifull,:)
+          call ints(3,duma,intsch,nface,xg,yg,2)
+          uc(1:ifull,:)=duma(1:ifull,:,1)
+          vc(1:ifull,:)=duma(1:ifull,:,2)
+          wc(1:ifull,:)=duma(1:ifull,:,3)
        endif
        if(diag)then
           if ( mydiag ) write(6,*) 'uc,vc,wc after advection'
@@ -368,7 +383,6 @@
      &                  bz(iq)*wc(iq,k)
           enddo ! iq loop
        end do   ! k loop
-       
 c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07       
        if(npex==1)then
          ux(1:ifull,:)=ux(1:ifull,:)+.5*dt*un(1:ifull,:) ! dyn contrib
@@ -382,17 +396,21 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
        endif
 
        if(mspec==1.and.mup/=0)then   ! advect qg after preliminary step
-          call ints(qg,intsch,nface,xg,yg,4)
           if(ldr/=0)then
-             call ints(qlg,intsch,nface,xg,yg,4)
-             call ints(qfg,intsch,nface,xg,yg,4)
-             if (ncloud>0) then
-               call ints(qrg,intsch,nface,xg,yg,4)
-               !call ints(cfrac,intsch,nface,xg,yg,4)
-               !cfrac=min(max(cfrac,0.),1.)
-               call ints(cffall,intsch,nface,xg,yg,4)
-               cffall=min(max(cffall,0.),1.)
-             end if
+             duma(1:ifull,:,1)=qg(1:ifull,:)
+             duma(1:ifull,:,2)=qlg(1:ifull,:)
+             duma(1:ifull,:,3)=qfg(1:ifull,:)
+             duma(1:ifull,:,4)=qrg(1:ifull,:)
+             duma(1:ifull,:,5)=cffall(1:ifull,:)
+             call ints(5,duma,intsch,nface,xg,yg,4)
+             qg(1:ifull,:)    =duma(1:ifull,:,1)
+             qlg(1:ifull,:)   =duma(1:ifull,:,2)
+             qfg(1:ifull,:)   =duma(1:ifull,:,3)
+             qrg(1:ifull,:)   =duma(1:ifull,:,4)
+             cffall(1:ifull,:)=duma(1:ifull,:,5)
+             cffall=min(max(cffall,0.),1.)
+          else
+             call ints(1,qg,intsch,nface,xg,yg,3)
           endif                 ! ldr.ne.0
           if(ngas>0.or.nextout>=4)then
 	     if(nmaxpr==1.and.mydiag)then
@@ -407,9 +425,9 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
               write (6,"('xpre#',9f8.2)") diagvals(tr(:,nlv,ngas+3))
 !     &           ((tr(ii+jj*il,nlv,ngas+3),ii=idjd-1,idjd+1),jj=-1,1)
 	     endif
-           do ntr=1,ntrac
-            call ints(tr(1,1,ntr),intsch,nface,xg,yg,5)
-           enddo
+           if ( ntrac > 0 ) then
+            call ints(ntrac,tr,intsch,nface,xg,yg,5)
+           end if
 	     if(nmaxpr==1.and.mydiag)then
               write (6,"('ylat#',9f8.2)") diagvals(tr(:,nlv,ngas+1))
               write (6,"('ylon#',9f8.2)") diagvals(tr(:,nlv,ngas+2))
@@ -417,18 +435,16 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
 	     endif
           endif  ! (ngas>0.or.nextout>=4)
           if(nvmix==6)then
-             call ints(tke,intsch,nface,xg,yg,3)
-             call ints(eps,intsch,nface,xg,yg,3)
+             duma(1:ifull,:,1)=tke(1:ifull,:)
+             duma(1:ifull,:,2)=eps(1:ifull,:)
+             call ints(2,duma,intsch,nface,xg,yg,3)
+             tke(1:ifull,:)=duma(1:ifull,:,1)
+             eps(1:ifull,:)=duma(1:ifull,:,2)
           endif                 ! nvmix==6
           if (abs(iaero)==2) then
-            do l=1,naero
-              call ints(xtg(:,:,l),intsch,nface,xg,yg,5)
-            end do
+            call ints(naero,xtg,intsch,nface,xg,yg,5)
           end if
        endif     ! mspec==1
-       if(nh/=0)then
-        call ints(h_nh,intsch,nface,xg,yg,3)
-       endif  ! (nh.ne.0)
 
       if(m>=6)then
 !       second part of usual m=6 coriolis treatment (before vadv)
@@ -462,12 +478,12 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
             write (6,"('qg  ',3p9f8.3/4x,9f8.3)")   qg(idjd,:)
           endif
           dumt=tx(1:ifull,:)
-          wrk1=ux(1:ifull,:)
-          wrk2=vx(1:ifull,:)
-          call vadvtvd(dumt,wrk1,wrk2,nvadh_pass,nits,iaero)
+          dumu=ux(1:ifull,:)
+          dumv=vx(1:ifull,:)
+          call vadvtvd(dumt,dumu,dumv,nvadh_pass,nits,iaero)
           tx(1:ifull,:)=dumt
-          ux(1:ifull,:)=wrk1
-          vx(1:ifull,:)=wrk2 
+          ux(1:ifull,:)=dumu
+          vx(1:ifull,:)=dumv 
           if( (diag.or.nmaxpr==1) .and. mydiag )then
             write(6,*) 'in upglobal after vadv2'
             write (6,"('qg  ',3p9f8.3/4x,9f8.3)")   qg(idjd,:)
@@ -476,24 +492,9 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
       endif     ! (nvadh==2.or.nvadh==3)
 
       if(npex==0.or.npex==5)then ! adding later (after 2nd vadv) than for npex=1
-        ux(1:ifull,:)=ux(1:ifull,:)+.5*dt*un(1:ifull,:) ! dyn contrib   unstagg RHS of (27, 2008)
-        vx(1:ifull,:)=vx(1:ifull,:)+.5*dt*vn(1:ifull,:) ! dyn contrib   unstagg RHS of (28, 2008)
-      else if (npex==-2)then   ! Adams-Bashforth just for tau+1 terms
-        if (.not.allocated(unsav)) then
-          allocate(unsav(ifull,kl),vnsav(ifull,kl))
-        end if
-        if(ktau==1)then
-	  unsav(:,:) =un(:,:)
-	  vnsav(:,:) =vn(:,:)
-        endif
-        ux(1:ifull,:)=ux(1:ifull,:)
-     &                +dt*(un(1:ifull,:)-.5*unsav(1:ifull,:))    !  for Ad-Bash  npex=-2        
-        vx(1:ifull,:)=vx(1:ifull,:)
-     &                +dt*(vn(1:ifull,:)-.5*vnsav(1:ifull,:))    !  for Ad-Bash  npex=-2    
-	unsav(:,:) =un(:,:)
-	vnsav(:,:) =vn(:,:)
-      endif  ! (npex==-2)
-
+        ux(1:ifull,:)=ux(1:ifull,:)+.5*dt*un(1:ifull,:) ! dyn contrib
+        vx(1:ifull,:)=vx(1:ifull,:)+.5*dt*vn(1:ifull,:) ! dyn contrib
+      endif
       if(nvsplit==3.or.nvsplit==4)then
         ux(1:ifull,:)=ux(1:ifull,:)+.5*dt*unn(1:ifull,:) ! phys contrib
         vx(1:ifull,:)=vx(1:ifull,:)+.5*dt*vnn(1:ifull,:) ! phys contrib
@@ -511,17 +512,18 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
         enddo
       endif  ! (m==5)
 
-      if(npex/= -1)tx(1:ifull,:)=tx(1:ifull,:)+.5*dt*tn(1:ifull,:) 
+      if(npex>=0)tx(1:ifull,:)=tx(1:ifull,:)+.5*dt*tn(1:ifull,:) 
 
 !     now interpolate ux,vx to the staggered grid
       call staguv(ux,vx,ux,vx)
 
-      if(npex==3)then  
 !     npex=3 add un, vn on staggered grid 
+      if(npex==3)then  
         ux(1:ifull,:)=ux(1:ifull,:)+.5*dt*un(1:ifull,:)
         vx(1:ifull,:)=vx(1:ifull,:)+.5*dt*vn(1:ifull,:)
-      else if (npex==6) then
+      endif
 !     npex=6 similar to npex=3, but adds all un, vn here
+      if(npex==6)then  
         ux(1:ifull,:)=ux(1:ifull,:)+dt*un(1:ifull,:)
         vx(1:ifull,:)=vx(1:ifull,:)+dt*vn(1:ifull,:)
       endif
