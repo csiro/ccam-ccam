@@ -222,15 +222,14 @@
 !      endif
       if(mup/=0)then
         call ints_bl(dd,intsch,nface,xg,yg)  ! advection on all levels
+        call ints(1,pslx,intsch,nface,xg,yg,1)
         if (nh/=0) then
-          call ints(1,pslx,intsch,nface,xg,yg,1)
           duma(1:ifull,:,1)=tx(1:ifull,:)
           duma(1:ifull,:,2)=h_nh(1:ifull,:)
           call ints(2,duma,intsch,nface,xg,yg,3)
           tx(1:ifull,:)  =duma(1:ifull,:,1)
           h_nh(1:ifull,:)=duma(1:ifull,:,2)
         else
-          call ints(1,pslx,intsch,nface,xg,yg,1)
           call ints(1,tx,intsch,nface,xg,yg,3)
         end if ! nh/=0
       endif    ! mup/=0

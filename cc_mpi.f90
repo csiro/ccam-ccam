@@ -54,7 +54,7 @@ module cc_mpi
       module procedure ccmpi_gatherall2, ccmpi_gatherall3
    end interface
    interface bounds
-      module procedure bounds2, bounds3
+      module procedure bounds2, bounds3, bounds4
    end interface
    interface boundsuv
       module procedure boundsuv2, boundsuv3
@@ -3058,6 +3058,160 @@ contains
       call end_log(bounds_end)
 
    end subroutine bounds3
+
+   subroutine bounds4(t, nrows, klim, corner, nehalf)
+      ! Copy the boundary regions. Only this routine requires the extra klim
+      ! argument (for helmsol).
+      real, dimension(:,:,:), intent(inout) :: t
+      integer, intent(in), optional :: nrows, klim
+      logical, intent(in), optional :: corner
+      logical, intent(in), optional :: nehalf
+      logical :: double, extra, single
+      integer :: iq, iproc, kx, iq_b, iq_e, rproc, sproc, send_len, recv_len
+      integer :: rcount, myrlen, jproc, lproc, ntr, k
+      integer, dimension(neighnum) :: rslen, sslen
+      integer(kind=4) :: ierr, itag = 2, llen, sreq
+      integer(kind=4) :: ldone
+      integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
+      integer(kind=4), dimension(neighnum) :: donelist
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif  
+
+      call start_log(bounds_begin)
+      
+      kx = size(t,2)
+      ntr = size(t,3)
+      double = .false.
+      extra  = .false.
+      single = .true.
+      if ( present(klim) ) then
+         kx = klim
+      end if
+      if ( present(nrows) ) then
+         if ( nrows == 2 ) then
+            double = .true.
+         end if
+      end if
+      if ( .not. double ) then
+         if ( present(corner) ) then
+            extra = corner
+         end if
+         if ( .not. extra ) then
+            if ( present(nehalf) ) then
+               single = .not. nehalf
+            end if
+         end if
+      end if
+
+      ! Split messages into corner and non-corner processors
+      if ( double ) then
+         rslen = bnds(neighlistrecv)%rlen2
+         sslen = bnds(neighlistsend)%slen2
+         myrlen = bnds(myid)%rlen2
+      else if ( extra ) then
+         rslen = bnds(neighlistrecv)%rlenx
+         sslen = bnds(neighlistsend)%slenx
+         myrlen = bnds(myid)%rlenx
+      else if ( single ) then
+         rslen = bnds(neighlistrecv)%rlen
+         sslen = bnds(neighlistsend)%slen
+         myrlen = bnds(myid)%rlen
+      else
+         rslen  = bnds(neighlistrecv)%rlenh
+         sslen  = bnds(neighlistsend)%slenh
+         myrlen = bnds(myid)%rlenh
+      end if
+
+      ! Clear any current messages
+      sreq = nreq - rreq
+#ifdef simple_timer
+      call start_log(mpiwait_begin)
+#endif
+      call MPI_Waitall(sreq,ireq(rreq+1),status,ierr)
+#ifdef simple_timer
+      call end_log(mpiwait_end)
+#endif      
+
+!     Set up the buffers to send
+      nreq = 0
+      do iproc = 1,neighnum
+         recv_len = rslen(iproc)
+         if ( recv_len > 0 ) then
+            rproc = neighlistrecv(iproc)  ! Recv from
+            nreq = nreq + 1
+            rlist(nreq) = iproc
+            llen = recv_len*kx*ntr
+            lproc = rproc
+            call MPI_IRecv( bnds(rproc)%rbuf(1), llen, ltype, lproc, &
+                 itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+         end if
+      end do
+      rreq = nreq
+      do iproc = 1,neighnum
+         send_len = sslen(iproc)
+         if ( send_len > 0 ) then
+            sproc = neighlistsend(iproc)  ! Send to
+!cdir nodep
+            do iq = 1,send_len
+               do k = 1,kx
+                  iq_b = 1+(k-1)*ntr+(iq-1)*kx*ntr
+                  iq_e = k*ntr+(iq-1)*kx*ntr
+                  bnds(sproc)%sbuf(iq_b:iq_e) = t(bnds(sproc)%send_list(iq),k,:)
+               end do
+            end do
+            nreq = nreq + 1
+            llen = send_len*kx*ntr
+            lproc = sproc
+            call MPI_ISend( bnds(sproc)%sbuf(1), llen, ltype, lproc, &
+                 itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+         end if
+      end do
+
+      ! Finally see if there are any points on my own processor that need
+      ! to be fixed up. This will only be in the case when nproc < npanels.
+!cdir nodep
+      do iq = 1,myrlen
+         ! request_list is same as send_list in this case
+         t(ifull+bnds(myid)%unpack_list(iq),1:kx,:) = t(bnds(myid)%request_list(iq),1:kx,:)
+      end do
+
+      ! Unpack incomming messages
+      rcount = rreq
+      do while ( rcount > 0 )
+
+#ifdef simple_timer
+         call start_log(mpiwait_begin)
+#endif
+         call MPI_Waitsome(rreq,ireq,ldone,donelist,status,ierr)
+#ifdef simple_timer
+         call end_log(mpiwait_end)
+#endif
+         rcount = rcount - ldone
+         
+         do jproc = 1,ldone
+
+            lproc = donelist(jproc)
+            iproc = rlist(lproc)  ! Recv from
+            rproc = neighlistrecv(iproc)
+!cdir nodep
+            do iq = 1,rslen(iproc)
+               do k=1,kx
+                  iq_b = 1+(k-1)*ntr+(iq-1)*kx*ntr
+                  iq_e = k*ntr+(iq-1)*kx*ntr
+                  t(ifull+bnds(rproc)%unpack_list(iq),k,:) = bnds(rproc)%rbuf(iq_b:iq_e)
+               end do
+            end do
+            
+         end do
+
+      end do
+
+      call end_log(bounds_end)
+
+   end subroutine bounds4
 
    subroutine bounds3_send(t, nrows, klim, corner, nehalf)
       ! Copy the boundary regions. Only this routine requires the extra klim

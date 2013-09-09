@@ -1,4 +1,4 @@
-      subroutine ints(ntr,s,intsch,nface,xg,yg,nfield)    ! with ints_bl entry
+      subroutine ints(ntr,s,intsch,nface,xg,yg,nfield)
 c     parameter (mhint):   0 for simple; 2 for Bessel (was called mbess)
 !     jlm finds Bessel (mhint=2) gives bigger overshoots near discontinuities
 c     this one includes Bermejo & Staniforth option
@@ -22,7 +22,6 @@ c     doing x-interpolation before y-interpolation
       ! Need work common for this
       real sx(-1:ipan+2,-1:jpan+2,1:npan,kl,ntr)
       real s(ifull+iextra,kl,ntr)
-      real, dimension(ifull+iextra,ntr*kl) :: dums
       integer idel, iq, jdel, nn
       real xxg, yyg
       real, dimension(ntr) :: c1, c2, c3, c4
@@ -35,9 +34,7 @@ c     doing x-interpolation before y-interpolation
       ind(i,j,n)=i+(j-1)*ipan+(n-1)*ipan*jpan  ! *** for n=1,npan
 
       call start_log(ints_begin)
-      dums=reshape(s, (/ ifull+iextra,kl*ntr /))
-      call bounds(dums,nrows=2)
-      s=reshape(dums, (/ ifull+iextra,kl,ntr /))
+      call bounds(s,nrows=2)
 
 !======================== start of intsch=1 section ====================
       if(intsch==1)then
@@ -812,9 +809,7 @@ c     this one does bi-linear interpolation only
 c     first extend s arrays into sx - this one -1:il+2 & -1:il+2
 c                    but for bi-linear only need 0:il+1 &  0:il+1
       call start_log(ints_begin)
-      duma=s(:,:,1)
-      call bounds(duma,corner=.true.)
-      s(:,:,1)=duma
+      call bounds(s,corner=.true.)
       do k=1,kl
          do n=1,npan
             do j=1,jpan

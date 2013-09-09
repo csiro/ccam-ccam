@@ -1990,7 +1990,6 @@ real, dimension(ifull,size(nface,2)), intent(in) :: xg,yg
 real, dimension(:,:,:), intent(inout) :: s
 real, dimension(-1:ipan+2,-1:jpan+2,1:npan,size(s,2),size(s,3)) :: sx
 real, dimension(-1:2,-1:2,size(s,3)) :: sc
-real, dimension(ifull+iextra,size(s,2)*size(s,3)) :: duma
 real, dimension(4) :: r
 real xxg,yyg,cxx
 real aab,aac,aad
@@ -2009,19 +2008,12 @@ cxx=-9999.
 sx=cxx-1.
 sc=cxx-1.
 
-do nn=1,ntr
-  do k=1,kx
-    where (wtr(1:ifull))
-      duma(1:ifull,k+(nn-1)*kx)=s(1:ifull,k,nn)
-    elsewhere
-      duma(1:ifull,k+(nn-1)*kx)=cxx-1.
-    end where
-  end do
+do iq=1,ifull
+  if (.not.wtr(iq)) then
+    s(iq,:,:)=cxx-1.
+  end if
 end do
-call bounds(duma,nrows=2)
-do nn=1,ntr
-  s(:,:,nn)=duma(:,1+(nn-1)*kx:nn*kx)
-end do
+call bounds(s,nrows=2)
 
 !======================== start of intsch=1 section ====================
 if(intsch==1)then
@@ -2379,12 +2371,10 @@ endif                     ! (intsch==1) .. else ..
 
 call intssync_recv(s)
 
-do nn=1,ntr
-  do k=1,kx
-    where (.not.wtr(1:ifull))
-      s(1:ifull,k,nn)=0.
-    end where
-  end do
+do iq=1,ifull
+  if (.not.wtr(iq)) then
+    s(iq,:,:)=0.
+  end if
 end do
 
 return
@@ -2415,7 +2405,6 @@ real, dimension(ifull,size(s,2),size(s,3)) :: ssav
 real, dimension(-1:ipan+2,-1:jpan+2,1:npan,size(s,2),size(s,3)) :: sx
 real, dimension(-1:2,-1:2,size(s,3)) :: sc
 real, dimension(0:1,0:1) :: scb
-real, dimension(ifull+iextra,size(s,2)*size(s,3)) :: duma
 real, dimension(4) :: r
 real xxg,yyg,aab,aac,aad
 real cmax,cmin,cxx
@@ -2435,19 +2424,12 @@ sx=cxx-1.
 sc=cxx-1.
 ssav(1:ifull,:,:)=s(1:ifull,:,:)
 
-do nn=1,ntr
-  do k=1,kx
-    where (.not.wtr(1:ifull))
-      duma(1:ifull,k+(nn-1)*kx)=cxx-1. ! missing value flag
-    elsewhere
-      duma(1:ifull,k+(nn-1)*kx)=s(1:ifull,k,nn)
-    end where
-  end do
+do iq=1,ifull
+  if (.not.wtr(iq)) then
+    s(iq,:,:)=cxx-1. ! missing value flag
+  end if
 end do
-call bounds(duma,nrows=2)
-do nn=1,ntr
-  s(:,:,nn)=duma(:,1+(nn-1)*kx:nn*kx)
-end do
+call bounds(s,nrows=2)
 
 !======================== start of intsch=1 section ====================
 if(intsch==1)then
@@ -2812,12 +2794,10 @@ endif                     ! (intsch==1) .. else ..
 
 call intssync_recv(s)
 
-do nn=1,ntr
-  do k=1,kx
-    where (.not.wtr(1:ifull))
-      s(1:ifull,k,nn)=ssav(:,k,nn)
-    end where
-  end do
+do iq=1,ifull
+  if (.not.wtr(iq)) then
+    s(iq,:,:)=ssav(iq,:,:)
+  end if
 end do
 
 where (s(1:ifull,:,:)<cxx+10.)
