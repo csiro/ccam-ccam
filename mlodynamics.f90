@@ -288,7 +288,7 @@ real, dimension(ifull), intent(in) :: etain
 real, dimension(ifull+iextra,wlev) :: uau,uav
 real, dimension(ifull+iextra,wlev) :: xfact,yfact
 real, dimension(ifull+iextra,wlev+1) :: t_kh
-real, dimension(ifull+iextra,3*wlev) :: duma
+real, dimension(ifull+iextra,wlev,3) :: duma
 real, dimension(ifull) :: dudx,dvdx,dudy,dvdy
 real, dimension(ifull,wlev) :: ft,fs,base,outu,outv
 real, dimension(ifull+iextra) :: depadj,eta
@@ -339,34 +339,34 @@ call boundsuv(xfact,yfact,stag=-9)
 
 ! Laplacian diffusion terms (closure #1)
 do k=1,wlev
-  duma(1:ifull,k)     =ax(1:ifull)*u(1:ifull,k)+bx(1:ifull)*v(1:ifull,k)
-  duma(1:ifull,k+kl)  =ay(1:ifull)*u(1:ifull,k)+by(1:ifull)*v(1:ifull,k)
-  duma(1:ifull,k+2*kl)=az(1:ifull)*u(1:ifull,k)+bz(1:ifull)*v(1:ifull,k)
+  duma(1:ifull,k,1)=ax(1:ifull)*u(1:ifull,k)+bx(1:ifull)*v(1:ifull,k)
+  duma(1:ifull,k,2)=ay(1:ifull)*u(1:ifull,k)+by(1:ifull)*v(1:ifull,k)
+  duma(1:ifull,k,3)=az(1:ifull)*u(1:ifull,k)+bz(1:ifull)*v(1:ifull,k)
 end do
-call bounds(duma)
+call bounds(duma(:,:,1:3))
 
 ! allow drag on momentum along coastlines (but not for scalars, see below)
 do k=1,wlev
 
   base(:,k)=emi+xfact(1:ifull,k)+xfact(iwu,k)+yfact(1:ifull,k)+yfact(isv,k)
 
-  nu = ( duma(1:ifull,k)*emi +                      &
-         xfact(1:ifull,k)*duma(ie,k) +              &
-         xfact(iwu,k)*duma(iw,k) +                  &
-         yfact(1:ifull,k)*duma(in,k) +              &
-         yfact(isv,k)*duma(is,k) ) / base(:,k)
+  nu = ( duma(1:ifull,k,1)*emi +                      &
+         xfact(1:ifull,k)*duma(ie,k,1) +              &
+         xfact(iwu,k)*duma(iw,k,1) +                  &
+         yfact(1:ifull,k)*duma(in,k,1) +              &
+         yfact(isv,k)*duma(is,k,1) ) / base(:,k)
 
-  nv = ( duma(1:ifull,k+kl)*emi +                   &
-         xfact(1:ifull,k)*duma(ie,k+kl) +           &
-         xfact(iwu,k)*duma(iw,k+kl) +               &
-         yfact(1:ifull,k)*duma(in,k+kl) +           &
-         yfact(isv,k)*duma(is,k+kl) ) / base(:,k)
+  nv = ( duma(1:ifull,k,2)*emi +                      &
+         xfact(1:ifull,k)*duma(ie,k,2) +              &
+         xfact(iwu,k)*duma(iw,k,2) +                  &
+         yfact(1:ifull,k)*duma(in,k,2) +              &
+         yfact(isv,k)*duma(is,k,2) ) / base(:,k)
 
-  nw = ( duma(1:ifull,k+2*kl)*emi +                 &
-         xfact(1:ifull,k)*duma(ie,k+2*kl) +         &
-         xfact(iwu,k)*duma(iw,k+2*kl) +             &
-         yfact(1:ifull,k)*duma(in,k+2*kl) +         &
-         yfact(isv,k)*duma(is,k+2*kl) ) / base(:,k)
+  nw = ( duma(1:ifull,k,3)*emi +                      &
+         xfact(1:ifull,k)*duma(ie,k,3) +              &
+         xfact(iwu,k)*duma(iw,k,3) +                  &
+         yfact(1:ifull,k)*duma(in,k,3) +              &
+         yfact(isv,k)*duma(is,k,3) ) / base(:,k)
 
   outu(:,k)=ax(1:ifull)*nu+ay(1:ifull)*nv+az(1:ifull)*nw
   outv(:,k)=bx(1:ifull)*nu+by(1:ifull)*nv+bz(1:ifull)*nw
@@ -393,20 +393,20 @@ end do
 !end do
 
 ! Potential temperature
-duma(1:ifull,1:wlev)       =tt-290.
-duma(1:ifull,wlev+1:2*wlev)=ss-34.72
-call bounds(duma(:,1:2*wlev))
+duma(1:ifull,:,1)=tt-290.
+duma(1:ifull,:,2)=ss-34.72
+call bounds(duma(:,:,1:2))
 do k=1,wlev
-  ft(:,k) = ( duma(1:ifull,k)*emi +                      &
-              xfact(1:ifull,k)*duma(ie,k) +              &
-              xfact(iwu,k)*duma(iw,k) +                  &
-              yfact(1:ifull,k)*duma(in,k) +              &
-              yfact(isv,k)*duma(is,k) ) / base(:,k)
-  fs(:,k) = ( duma(1:ifull,k+wlev)*emi +                 &
-              xfact(1:ifull,k)*duma(ie,k+wlev) +         &
-              xfact(iwu,k)*duma(iw,k+wlev) +             &
-              yfact(1:ifull,k)*duma(in,k+wlev) +         &
-              yfact(isv,k)*duma(is,k+wlev) ) / base(:,k)
+  ft(:,k) = ( duma(1:ifull,k,1)*emi +                      &
+              xfact(1:ifull,k)*duma(ie,k,1) +              &
+              xfact(iwu,k)*duma(iw,k,1) +                  &
+              yfact(1:ifull,k)*duma(in,k,1) +              &
+              yfact(isv,k)*duma(is,k,1) ) / base(:,k)
+  fs(:,k) = ( duma(1:ifull,k,2)*emi +                      &
+              xfact(1:ifull,k)*duma(ie,k,2) +              &
+              xfact(iwu,k)*duma(iw,k,2) +                  &
+              yfact(1:ifull,k)*duma(in,k,2) +              &
+              yfact(isv,k)*duma(is,k,2) ) / base(:,k)
 end do
 ft=ft+290.
 fs=max(fs+34.72,0.)
@@ -2434,39 +2434,43 @@ call bounds(s,nrows=2)
 !======================== start of intsch=1 section ====================
 if(intsch==1)then
 
-  do n=1,npan         ! first simple copy into larger array
-    do j=1,jpan
-      do i=1,ipan
-        sx(i,j,n,:,:) = s(ind(i,j,n),:,:)
-      end do         ! i loop
-      sx(0,j,n,:,:)      = s(iw(ind(1,j,n)),:,:)
-      sx(-1,j,n,:,:)     = s(iww(ind(1,j,n)),:,:)
-      sx(ipan+1,j,n,:,:) = s(ie(ind(ipan,j,n)),:,:)
-      sx(ipan+2,j,n,:,:) = s(iee(ind(ipan,j,n)),:,:)
-    end do            ! j loop
-    do i=1,ipan
-      sx(i,0,n,:,:)      = s(is(ind(i,1,n)),:,:)
-      sx(i,-1,n,:,:)     = s(iss(ind(i,1,n)),:,:)
-      sx(i,jpan+1,n,:,:) = s(in(ind(i,jpan,n)),:,:)
-      sx(i,jpan+2,n,:,:) = s(inn(ind(i,jpan,n)),:,:)
-    end do            ! i loop
+  do nn=1,ntr
+    do k=1,kx
+      do n=1,npan         ! first simple copy into larger array
+        do j=1,jpan
+          do i=1,ipan
+            sx(i,j,n,k,nn) = s(ind(i,j,n),k,nn)
+          end do         ! i loop
+          sx(0,j,n,k,nn)      = s(iw(ind(1,j,n)),k,nn)
+          sx(-1,j,n,k,nn)     = s(iww(ind(1,j,n)),k,nn)
+          sx(ipan+1,j,n,k,nn) = s(ie(ind(ipan,j,n)),k,nn)
+          sx(ipan+2,j,n,k,nn) = s(iee(ind(ipan,j,n)),k,nn)
+        end do            ! j loop
+        do i=1,ipan
+          sx(i,0,n,k,nn)      = s(is(ind(i,1,n)),k,nn)
+          sx(i,-1,n,k,nn)     = s(iss(ind(i,1,n)),k,nn)
+          sx(i,jpan+1,n,k,nn) = s(in(ind(i,jpan,n)),k,nn)
+          sx(i,jpan+2,n,k,nn) = s(inn(ind(i,jpan,n)),k,nn)
+        end do            ! i loop
 !   for ew interpolation, sometimes need (different from ns):
 !       (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
 !     (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
 
-    sx(-1,0,n,:,:)          = s(lwws(n),:,:)
-    sx(0,0,n,:,:)           = s(iws(ind(1,1,n)),:,:)
-    sx(0,-1,n,:,:)          = s(lwss(n),:,:)
-    sx(ipan+1,0,n,:,:)      = s(ies(ind(ipan,1,n)),:,:)
-    sx(ipan+2,0,n,:,:)      = s(lees(n),:,:)
-    sx(ipan+1,-1,n,:,:)     = s(less(n),:,:)
-    sx(-1,jpan+1,n,:,:)     = s(lwwn(n),:,:)
-    sx(0,jpan+2,n,:,:)      = s(lwnn(n),:,:)
-    sx(ipan+2,jpan+1,n,:,:) = s(leen(n),:,:)
-    sx(ipan+1,jpan+2,n,:,:) = s(lenn(n),:,:)
-    sx(0,jpan+1,n,:,:)      = s(iwn(ind(1,jpan,n)),:,:)
-    sx(ipan+1,jpan+1,n,:,:) = s(ien(ind(ipan,jpan,n)),:,:)
-  end do               ! n loop
+        sx(-1,0,n,k,nn)          = s(lwws(n),k,nn)
+        sx(0,0,n,k,nn)           = s(iws(ind(1,1,n)),k,nn)
+        sx(0,-1,n,k,nn)          = s(lwss(n),k,nn)
+        sx(ipan+1,0,n,k,nn)      = s(ies(ind(ipan,1,n)),k,nn)
+        sx(ipan+2,0,n,k,nn)      = s(lees(n),k,nn)
+        sx(ipan+1,-1,n,k,nn)     = s(less(n),k,nn)
+        sx(-1,jpan+1,n,k,nn)     = s(lwwn(n),k,nn)
+        sx(0,jpan+2,n,k,nn)      = s(lwnn(n),k,nn)
+        sx(ipan+2,jpan+1,n,k,nn) = s(leen(n),k,nn)
+        sx(ipan+1,jpan+2,n,k,nn) = s(lenn(n),k,nn)
+        sx(0,jpan+1,n,k,nn)      = s(iwn(ind(1,jpan,n)),k,nn)
+        sx(ipan+1,jpan+1,n,k,nn) = s(ien(ind(ipan,jpan,n)),k,nn)
+      end do               ! n loop
+    end do                 ! k loop
+  end do                   ! nn loop
 
 ! Loop over points that need to be calculated for other processes
   do ii=1,neighnum
@@ -2615,39 +2619,43 @@ else     ! if(intsch==1)then
 !       this is intsc           NS interps done first
 !       first extend s arrays into sx - this one -1:il+2 & -1:il+2
 
-  do n=1,npan         ! first simple copy into larger array
-    do j=1,jpan
-      do i=1,ipan
-        sx(i,j,n,:,:) = s(ind(i,j,n),:,:)
-      end do         ! i loop
-      sx(0,j,n,:,:)      = s(iw(ind(1,j,n)),:,:)
-      sx(-1,j,n,:,:)     = s(iww(ind(1,j,n)),:,:)
-      sx(ipan+1,j,n,:,:) = s(ie(ind(ipan,j,n)),:,:)
-      sx(ipan+2,j,n,:,:) = s(iee(ind(ipan,j,n)),:,:)
-    end do            ! j loop
-    do i=1,ipan
-      sx(i,0,n,:,:)      = s(is(ind(i,1,n)),:,:)
-      sx(i,-1,n,:,:)     = s(iss(ind(i,1,n)),:,:)
-      sx(i,jpan+1,n,:,:) = s(in(ind(i,jpan,n)),:,:)
-      sx(i,jpan+2,n,:,:) = s(inn(ind(i,jpan,n)),:,:)
-    end do            ! i loop
+  do nn=1,ntr
+    do k=1,kx
+      do n=1,npan         ! first simple copy into larger array
+        do j=1,jpan
+          do i=1,ipan
+            sx(i,j,n,k,nn) = s(ind(i,j,n),k,nn)
+          end do         ! i loop
+          sx(0,j,n,k,nn)      = s(iw(ind(1,j,n)),k,nn)
+          sx(-1,j,n,k,nn)     = s(iww(ind(1,j,n)),k,nn)
+          sx(ipan+1,j,n,k,nn) = s(ie(ind(ipan,j,n)),k,nn)
+          sx(ipan+2,j,n,k,nn) = s(iee(ind(ipan,j,n)),k,nn)
+        end do            ! j loop
+        do i=1,ipan
+          sx(i,0,n,k,nn)      = s(is(ind(i,1,n)),k,nn)
+          sx(i,-1,n,k,nn)     = s(iss(ind(i,1,n)),k,nn)
+          sx(i,jpan+1,n,k,nn) = s(in(ind(i,jpan,n)),k,nn)
+          sx(i,jpan+2,n,k,nn) = s(inn(ind(i,jpan,n)),k,nn)
+        end do            ! i loop
 !        for ns interpolation, sometimes need (different from ew):
 !            (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
 !          (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
 
-    sx(-1,0,n,:,:)          = s(lsww(n),:,:)
-    sx(0,0,n,:,:)           = s(isw(ind(1,1,n)),:,:)
-    sx(0,-1,n,:,:)          = s(lssw(n),:,:)
-    sx(ipan+2,0,n,:,:)      = s(lsee(n),:,:)
-    sx(ipan+1,-1,n,:,:)     = s(lsse(n),:,:)
-    sx(-1,jpan+1,n,:,:)     = s(lnww(n),:,:)
-    sx(0,jpan+1,n,:,:)      = s(inw(ind(1,jpan,n)),:,:)
-    sx(0,jpan+2,n,:,:)      = s(lnnw(n),:,:)
-    sx(ipan+2,jpan+1,n,:,:) = s(lnee(n),:,:)
-    sx(ipan+1,jpan+2,n,:,:) = s(lnne(n),:,:)
-    sx(ipan+1,0,n,:,:)      = s(ise(ind(ipan,1,n)),:,:)
-    sx(ipan+1,jpan+1,n,:,:) = s(ine(ind(ipan,jpan,n)),:,:)
-  end do               ! n loop
+        sx(-1,0,n,k,nn)          = s(lsww(n),k,nn)
+        sx(0,0,n,k,nn)           = s(isw(ind(1,1,n)),k,nn)
+        sx(0,-1,n,k,nn)          = s(lssw(n),k,nn)
+        sx(ipan+2,0,n,k,nn)      = s(lsee(n),k,nn)
+        sx(ipan+1,-1,n,k,nn)     = s(lsse(n),k,nn)
+        sx(-1,jpan+1,n,k,nn)     = s(lnww(n),k,nn)
+        sx(0,jpan+1,n,k,nn)      = s(inw(ind(1,jpan,n)),k,nn)
+        sx(0,jpan+2,n,k,nn)      = s(lnnw(n),k,nn)
+        sx(ipan+2,jpan+1,n,k,nn) = s(lnee(n),k,nn)
+        sx(ipan+1,jpan+2,n,k,nn) = s(lnne(n),k,nn)
+        sx(ipan+1,0,n,k,nn)      = s(ise(ind(ipan,1,n)),k,nn)
+        sx(ipan+1,jpan+1,n,k,nn) = s(ine(ind(ipan,jpan,n)),k,nn)
+      end do               ! n loop
+    end do                 ! k loop
+  end do                   ! nn loop
 
 ! For other processes
   do ii=1,neighnum

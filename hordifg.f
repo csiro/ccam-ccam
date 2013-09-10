@@ -41,7 +41,7 @@ c     has jlm nhorx option as last digit of nhor, e.g. -157
  
       real, dimension(ifull+iextra,kl) :: uc, vc, wc, xfact,
      &                                    yfact, t_kh
-      real, dimension(ifull+iextra,nagg*kl) :: duma
+      real, dimension(ifull+iextra,kl,nagg) :: ff
       real, dimension(ifull,kl) :: dudx,dudy,dvdx,dvdy
       real, dimension(ifull) :: ptemp, tx_fact, ty_fact
       real, dimension(ifull) :: sx_fact,sy_fact
@@ -53,7 +53,7 @@ c     has jlm nhorx option as last digit of nhor, e.g. -157
       real, dimension(ifull,kl) :: dwdx,dwdy,dwdz
       integer, parameter :: nf=2
 !     Local variables
-      integer iq, k, nhora, nhorx, iaero, ntr, lb
+      integer iq, k, nhora, nhorx, iaero, ntr
       real cc, delphi, emi, hdif, ucc, vcc, wcc
       integer, save :: kmax=-1
       !integer i, j, n, ind
@@ -198,14 +198,13 @@ c     above code independent of k
             wc(iq,k) = az(iq)*u(iq,k) + bz(iq)*v(iq,k)
          enddo
         end do
-        duma(1:ifull,1:kl)       =uc(1:ifull,:)
-        duma(1:ifull,kl+1:2*kl)  =vc(1:ifull,:)
-        duma(1:ifull,2*kl+1:3*kl)=wc(1:ifull,:)
-        call bounds(duma(:,1:3*kl))
-        uc(ifull+1:ifull+iextra,:)=duma(ifull+1:ifull+iextra,1:kl)
-        vc(ifull+1:ifull+iextra,:)=duma(ifull+1:ifull+iextra,kl+1:2*kl)
-        wc(ifull+1:ifull+iextra,:)=
-     &    duma(ifull+1:ifull+iextra,2*kl+1:3*kl)
+        ff(1:ifull,:,1)  =uc(1:ifull,:)
+        ff(1:ifull,:,2)  =vc(1:ifull,:)
+        ff(1:ifull,:,3)  =wc(1:ifull,:)
+        call bounds(ff(:,:,1:3))
+        uc(ifull+1:ifull+iextra,:)=ff(ifull+1:ifull+iextra,:,1)
+        vc(ifull+1:ifull+iextra,:)=ff(ifull+1:ifull+iextra,:,2)
+        wc(ifull+1:ifull+iextra,:)=ff(ifull+1:ifull+iextra,:,3)
       
       end if
 !      !--------------------------------------------------------------
@@ -421,44 +420,44 @@ c       do t diffusion based on potential temperature ff
         if(nhorps/=-3)then  ! for nhorps=-3 don't diffuse T; only qg
           do k=1,kl
             do iq=1,ifull
-              duma(iq,k)=t(iq,k)/ptemp(iq) ! watch out for Chen!
-              duma(iq,k+kl)=qg(iq,k)
+              ff(iq,k,1)=t(iq,k)/ptemp(iq) ! watch out for Chen!
+              ff(iq,k,2)=qg(iq,k)
             enddo              !  iq loop
           end do
-          call bounds(duma(:,1:2*kl))
+          call bounds(ff(:,:,1:2))
           do k=1,kl
             do iq=1,ifull
               emi=1./em(iq)**2
               t(iq,k)= ptemp(iq) *
-     &                ( duma(iq,k)*emi +
-     &                  xfact(iq,k)*duma(ie(iq),k) +
-     &                  xfact(iwu(iq),k)*duma(iw(iq),k) +
-     &                  yfact(iq,k)*duma(in(iq),k) +
-     &                  yfact(isv(iq),k)*duma(is(iq),k) ) /
+     &                ( ff(iq,k,1)*emi +
+     &                  xfact(iq,k)*ff(ie(iq),k,1) +
+     &                  xfact(iwu(iq),k)*ff(iw(iq),k,1) +
+     &                  yfact(iq,k)*ff(in(iq),k,1) +
+     &                  yfact(isv(iq),k)*ff(is(iq),k,1) ) /
      &                base(iq,k)
-              qg(iq,k) = ( duma(iq,k+kl)*emi +
-     &                  xfact(iq,k)*duma(ie(iq),k+kl) +
-     &                  xfact(iwu(iq),k)*duma(iw(iq),k+kl) +
-     &                  yfact(iq,k)*duma(in(iq),k+kl) +
-     &                  yfact(isv(iq),k)*duma(is(iq),k+kl) ) /
+              qg(iq,k) = ( ff(iq,k,2)*emi +
+     &                  xfact(iq,k)*ff(ie(iq),k,2) +
+     &                  xfact(iwu(iq),k)*ff(iw(iq),k,2) +
+     &                  yfact(iq,k)*ff(in(iq),k,2) +
+     &                  yfact(isv(iq),k)*ff(is(iq),k,2) ) /
      &                base(iq,k)
             end do              !  iq loop
           end do
         else
           do k=1,kl
             do iq=1,ifull
-              duma(iq,k)=qg(iq,k)
+              ff(iq,k,1)=qg(iq,k)
             enddo              !  iq loop
           end do
-          call bounds(duma(:,1:kl))
+          call bounds(ff(:,:,1:1))
           do k=1,kl
             do iq=1,ifull
               emi=1./em(iq)**2
-              qg(iq,k) = ( duma(iq,k)*emi +
-     &                     xfact(iq,k)*duma(ie(iq),k) +
-     &                     xfact(iwu(iq),k)*duma(iw(iq),k) +
-     &                     yfact(iq,k)*duma(in(iq),k) +
-     &                     yfact(isv(iq),k)*duma(is(iq),k) ) /
+              qg(iq,k) = ( ff(iq,k,1)*emi +
+     &                     xfact(iq,k)*ff(ie(iq),k,1) +
+     &                     xfact(iwu(iq),k)*ff(iw(iq),k,1) +
+     &                     yfact(iq,k)*ff(in(iq),k,1) +
+     &                     yfact(isv(iq),k)*ff(is(iq),k,1) ) /
      &                   base(iq,k)
              end do              !  iq loop
           end do
@@ -466,42 +465,42 @@ c       do t diffusion based on potential temperature ff
 
         ! cloud microphysics
         if (ldr/=0.and.ncloud/=0) then
-          duma(1:ifull,1:kl)       =qlg(1:ifull,:)
-          duma(1:ifull,kl+1:2*kl)  =qfg(1:ifull,:)
-          duma(1:ifull,2*kl+1:3*kl)=qrg(1:ifull,:)
-          duma(1:ifull,3*kl+1:4*kl)=cffall(1:ifull,:)
-          !duma(1:ifull,4*kl+1:5*kl)=cfrac(1:ifull,:)
-          call bounds(duma(:,1:4*kl))
+          ff(1:ifull,:,1)=qlg(1:ifull,:)
+          ff(1:ifull,:,2)=qfg(1:ifull,:)
+          ff(1:ifull,:,3)=qrg(1:ifull,:)
+          ff(1:ifull,:,4)=cffall(1:ifull,:)
+          !ff(1:ifull,:,5)=cfrac(1:ifull,:)
+          call bounds(ff(:,:,1:4))
           do k=1,kl
-            qlg(1:ifull,k) = ( duma(1:ifull,k)/em(1:ifull)**2 +
-     &        xfact(1:ifull,k)*duma(ie,k) +
-     &        xfact(iwu,k)*duma(iw,k) +
-     &        yfact(1:ifull,k)*duma(in,k) +
-     &        yfact(isv,k)*duma(is,k) ) /
+            qlg(1:ifull,k) = ( ff(1:ifull,k,1)/em(1:ifull)**2 +
+     &        xfact(1:ifull,k)*ff(ie,k,1) +
+     &        xfact(iwu,k)*ff(iw,k,1) +
+     &        yfact(1:ifull,k)*ff(in,k,1) +
+     &        yfact(isv,k)*ff(is,k,1) ) /
      &        base(1:ifull,k)
-            qfg(1:ifull,k) = ( duma(1:ifull,k+kl)/em(1:ifull)**2 +
-     &        xfact(1:ifull,k)*duma(ie,k+kl) +
-     &        xfact(iwu,k)*duma(iw,k+kl) +
-     &        yfact(1:ifull,k)*duma(in,k+kl) +
-     &        yfact(isv,k)*duma(is,k+kl) ) /
+            qfg(1:ifull,k) = ( ff(1:ifull,k,2)/em(1:ifull)**2 +
+     &        xfact(1:ifull,k)*ff(ie,k,2) +
+     &        xfact(iwu,k)*ff(iw,k,2) +
+     &        yfact(1:ifull,k)*ff(in,k,2) +
+     &        yfact(isv,k)*ff(is,k,2) ) /
      &        base(1:ifull,k)
-            qrg(1:ifull,k) = ( duma(1:ifull,k+2*kl)/em(1:ifull)**2 +
-     &        xfact(1:ifull,k)*duma(ie,k+2*kl) +
-     &        xfact(iwu,k)*duma(iw,k+2*kl) +
-     &        yfact(1:ifull,k)*duma(in,k+2*kl) +
-     &        yfact(isv,k)*duma(is,k+2*kl) ) /
+            qrg(1:ifull,k) = ( ff(1:ifull,k,3)/em(1:ifull)**2 +
+     &        xfact(1:ifull,k)*ff(ie,k,3) +
+     &        xfact(iwu,k)*ff(iw,k,3) +
+     &        yfact(1:ifull,k)*ff(in,k,3) +
+     &        yfact(isv,k)*ff(is,k,3) ) /
      &        base(1:ifull,k)
-            cffall(1:ifull,k) = ( duma(1:ifull,k+3*kl)/em(1:ifull)**2 +
-     &        xfact(1:ifull,k)*duma(ie,k+3*kl) +
-     &        xfact(iwu,k)*duma(iw,k+3*kl) +
-     &        yfact(1:ifull,k)*duma(in,k+3*kl) +
-     &        yfact(isv,k)*duma(is,k+3*kl) ) /
+            cffall(1:ifull,k) = ( ff(1:ifull,k,4)/em(1:ifull)**2 +
+     &        xfact(1:ifull,k)*ff(ie,k,4) +
+     &        xfact(iwu,k)*ff(iw,k,4) +
+     &        yfact(1:ifull,k)*ff(in,k,4) +
+     &        yfact(isv,k)*ff(is,k,4) ) /
      &        base(1:ifull,k)
-!            cfrac(1:ifull,k) = ( duma(1:ifull,k+4*kl)/em(1:ifull)**2 +
-!     &        xfact(1:ifull,k)*duma(ie,k+4*kl) +
-!     &        xfact(iwu,k)*duma(iw,k+4*kl) +
-!     &        yfact(1:ifull,k)*duma(in,k+4*kl) +
-!     &        yfact(isv,k)*duma(is,k+4*kl) ) /
+!            cfrac(1:ifull,k) = ( ff(1:ifull,k,5)/em(1:ifull)**2 +
+!     &        xfact(1:ifull,k)*ff(ie,k,5) +
+!     &        xfact(iwu,k)*ff(iw,k,5) +
+!     &        yfact(1:ifull,k)*ff(in,k,5) +
+!     &        yfact(isv,k)*ff(is,k,5) ) /
 !     &        base(1:ifull,k)
           end do
         end if                 ! (ldr.ne.0)
@@ -509,40 +508,37 @@ c       do t diffusion based on potential temperature ff
 
       ! apply horizontal diffusion to TKE and EPS terms
       if (nvmix==6) then
-         duma(1:ifull,1:kl)     =tke(1:ifull,:)
-         duma(1:ifull,kl+1:2*kl)=eps(1:ifull,:)
-         call bounds(duma(:,1:2*kl))
+         ff(1:ifull,:,1)=tke(1:ifull,:)
+         ff(1:ifull,:,2)=eps(1:ifull,:)
+         call bounds(ff(:,:,1:2))
          do k=1,kl
-           tke(1:ifull,k) = ( duma(1:ifull,k)/(em(1:ifull)**2) +
-     &                     xfact(1:ifull,k)*duma(ie,k) +
-     &                     xfact(iwu,k)*duma(iw,k) +
-     &                     yfact(1:ifull,k)*duma(in,k) +
-     &                     yfact(isv,k)*duma(is,k) ) /
+           tke(1:ifull,k) = ( ff(1:ifull,k,1)/(em(1:ifull)**2) +
+     &                     xfact(1:ifull,k)*ff(ie,k,1) +
+     &                     xfact(iwu,k)*ff(iw,k,1) +
+     &                     yfact(1:ifull,k)*ff(in,k,1) +
+     &                     yfact(isv,k)*ff(is,k,1) ) /
      &                   base(1:ifull,k)
-           eps(1:ifull,k) = ( duma(1:ifull,k+kl)/(em(1:ifull)**2) +
-     &                     xfact(1:ifull,k)*duma(ie,k+kl) +
-     &                     xfact(iwu,k)*duma(iw,k+kl) +
-     &                     yfact(1:ifull,k)*duma(in,k+kl) +
-     &                     yfact(isv,k)*duma(is,k+kl) ) /
+           eps(1:ifull,k) = ( ff(1:ifull,k,2)/(em(1:ifull)**2) +
+     &                     xfact(1:ifull,k)*ff(ie,k,2) +
+     &                     xfact(iwu,k)*ff(iw,k,2) +
+     &                     yfact(1:ifull,k)*ff(in,k,2) +
+     &                     yfact(isv,k)*ff(is,k,2) ) /
      &                   base(1:ifull,k)
          end do
       end if
        
       ! prgnostic aerosols
       if (abs(iaero)==2) then
+        ff(1:ifull,:,1:naero)=xtg(1:ifull,:,:)
+        call bounds(ff(:,:,1:naero))
         do ntr=1,naero
-          duma(1:ifull,kl*(ntr-1)+1:kl*ntr)=xtg(1:ifull,:,ntr)
-        end do
-        call bounds(duma(:,1:naero*kl))
-        do ntr=1,naero
-          lb=kl*(ntr-1)
           do k=1,kl
             xtg(1:ifull,k,ntr) =
-     &        ( duma(1:ifull,k+lb)/em(1:ifull)**2 +
-     &        xfact(1:ifull,k)*duma(ie,k+lb) +
-     &        xfact(iwu,k)*duma(iw,k+lb) +
-     &        yfact(1:ifull,k)*duma(in,k+lb) +
-     &        yfact(isv,k)*duma(is,k+lb) ) /
+     &        ( ff(1:ifull,k,ntr)/em(1:ifull)**2 +
+     &        xfact(1:ifull,k)*ff(ie,k,ntr) +
+     &        xfact(iwu,k)*ff(iw,k,ntr) +
+     &        yfact(1:ifull,k)*ff(in,k,ntr) +
+     &        yfact(isv,k)*ff(is,k,ntr) ) /
      &        base(1:ifull,k)
           end do
         end do

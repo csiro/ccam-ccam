@@ -382,6 +382,11 @@ c       print *,'termx ',(t(iq,k)+contv*tvv)*dpsldt(iq,k)*roncp/sig(k)
        tv(1:ifull,k)=t(1:ifull,k)+tv(1:ifull,k)  
       enddo
 
+
+      ! MJT notes - Some of these comms could be overlapped with
+      ! above comps.  However, this is the first bounds call
+      ! after the physics routines, so load balance is a more
+      ! significant issue.
       duma(1:ifull,1:kl)     =p(1:ifull,:)
       duma(1:ifull,kl+1:2*kl)=tv(1:ifull,:)
       call bounds(duma(:,1:2*kl),nehalf=.true.)
@@ -389,9 +394,10 @@ c       print *,'termx ',(t(iq,k)+contv*tvv)*dpsldt(iq,k)*roncp/sig(k)
       tv(ifull+1:ifull+iextra,:)=duma(ifull+1:ifull+iextra,kl+1:2*kl)
       duma(1:ifull,1:kl)=phiv(1:ifull,:)
       duma(1:ifull,kl+1)=psl(1:ifull)
-      call bounds(duma)
+      call bounds(duma(:,1:kl+1))
       phiv(ifull+1:ifull+iextra,1:kl)=duma(ifull+1:ifull+iextra,1:kl)
       psl(ifull+1:ifull+iextra)      =duma(ifull+1:ifull+iextra,kl+1)
+
 
       do k=1,kl
 !cdir nodep

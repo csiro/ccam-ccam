@@ -3275,11 +3275,11 @@ contains
       ! Clear any current messages
       sreq = nreq - rreq
 #ifdef simple_timer
-      call start_log(mpiwait_begin)
+      call start_log(mpiwaittile_begin)
 #endif
       call MPI_Waitall(sreq,ireq(rreq+1),status,ierr)
 #ifdef simple_timer
-      call end_log(mpiwait_end)
+      call end_log(mpiwaittile_end)
 #endif      
 
 !     Set up the buffers to send
@@ -3387,11 +3387,11 @@ contains
       do while ( rcount > 0 )
 
 #ifdef simple_timer
-         call start_log(mpiwait_begin)
+         call start_log(mpiwaittile_begin)
 #endif
          call MPI_Waitsome(rreq,ireq,ldone,donelist,status,ierr)
 #ifdef simple_timer
-         call end_log(mpiwait_end)
+         call end_log(mpiwaittile_end)
 #endif
          rcount = rcount - ldone
          
