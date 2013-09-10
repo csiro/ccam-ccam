@@ -806,10 +806,12 @@ real, dimension(ifull) :: sue,suw,svn,svs,snuw,snvs
 real, dimension(ifull) :: pue,puw,pvn,pvs
 real, dimension(ifull) :: que,quw,qvn,qvs
 real, dimension(ifull) :: gamm,piceu,picev,tideu,tidev,ipiceu,ipicev
+real, dimension(ifull) :: dumf,dumg
 real, dimension(ifull+iextra,wlev,3) :: cou
 real, dimension(ifull+iextra,wlev+1) :: eou,eov
 real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns,mps,xdzdum
 real, dimension(ifull+iextra,wlev) :: rhobar,rho,dalpha,dbeta
+real, dimension(ifull+iextra,wlev) :: ccu,ccv
 real, dimension(ifull+iextra,3*wlev) :: dume
 real, dimension(ifull+iextra,10) :: dumc,dumd
 real, dimension(ifull+iextra,4) :: nit
@@ -1061,11 +1063,11 @@ end if
 ! (Assume free surface correction is small so that changes in the compression 
 ! effect due to neta can be neglected.  Consequently, the neta dependence is 
 ! separable in the iterative loop)
-dume(1:ifull,1:wlev)       =nt(1:ifull,:)
-dume(1:ifull,wlev+1:2*wlev)=ns(1:ifull,:)
-call bounds(dume(:,1:2*wlev),corner=.true.)
-nt(ifull+1:ifull+iextra,:)=dume(ifull+1:ifull+iextra,1:wlev)
-ns(ifull+1:ifull+iextra,:)=dume(ifull+1:ifull+iextra,wlev+1:2*wlev)
+cou(1:ifull,:,1)=nt(1:ifull,:)
+cou(1:ifull,:,2)=ns(1:ifull,:)
+call bounds(cou(:,:,1:2),corner=.true.)
+nt(ifull+1:ifull+iextra,:)=cou(ifull+1:ifull+iextra,:,1)
+ns(ifull+1:ifull+iextra,:)=cou(ifull+1:ifull+iextra,:,2)
 call mloexpdensity(rho,dalpha,dbeta,nt,ns,xdzdum,pice,0)
 rhobar(:,1)=(rho(:,1)-1030.)*godsig(1)
 do ii=2,wlev
@@ -1121,18 +1123,18 @@ eov(1:ifull,wlev+1)=oev(1:ifull)
 call boundsuv(eou,eov,stag=-9)
 oeu(ifull+1:ifull+iextra)=eou(ifull+1:ifull+iextra,wlev+1)
 oev(ifull+1:ifull+iextra)=eov(ifull+1:ifull+iextra,wlev+1)
-cou(:,1,1)=eou(:,1)*godsig(1)
-cou(:,1,2)=eov(:,1)*godsig(1)
+ccu(:,1)=eou(:,1)*godsig(1)
+ccv(:,1)=eov(:,1)*godsig(1)
 do ii=2,wlev
-  cou(:,ii,1)=(cou(:,ii-1,1)+eou(:,ii)*godsig(ii))
-  cou(:,ii,2)=(cou(:,ii-1,2)+eov(:,ii)*godsig(ii))
+  ccu(:,ii)=(ccu(:,ii-1)+eou(:,ii)*godsig(ii))
+  ccv(:,ii)=(ccv(:,ii-1)+eov(:,ii)*godsig(ii))
 end do
-sdiv=(cou(1:ifull,wlev,1)*max(ddu(1:ifull)+oeu(1:ifull),0.)/emu(1:ifull)-cou(iwu,wlev,1)*max(ddu(iwu)+oeu(iwu),0.)/emu(iwu)  &
-     +cou(1:ifull,wlev,2)*max(ddv(1:ifull)+oev(1:ifull),0.)/emv(1:ifull)-cou(isv,wlev,2)*max(ddv(isv)+oev(isv),0.)/emv(isv)) &
+sdiv=(ccu(1:ifull,wlev)*max(ddu(1:ifull)+oeu(1:ifull),0.)/emu(1:ifull)-ccu(iwu,wlev)*max(ddu(iwu)+oeu(iwu),0.)/emu(iwu)  &
+     +ccv(1:ifull,wlev)*max(ddv(1:ifull)+oev(1:ifull),0.)/emv(1:ifull)-ccv(isv,wlev)*max(ddv(isv)+oev(isv),0.)/emv(isv)) &
      *em(1:ifull)*em(1:ifull)/ds
 do ii=1,wlev-1
-  div=(cou(1:ifull,ii,1)*max(ddu(1:ifull)+oeu(1:ifull),0.)/emu(1:ifull)-cou(iwu,ii,1)*max(ddu(iwu)+oeu(iwu),0.)/emu(iwu)  &
-      +cou(1:ifull,ii,2)*max(ddv(1:ifull)+oev(1:ifull),0.)/emv(1:ifull)-cou(isv,ii,2)*max(ddv(isv)+oev(isv),0.)/emv(isv)) &
+  div=(ccu(1:ifull,ii)*max(ddu(1:ifull)+oeu(1:ifull),0.)/emu(1:ifull)-ccu(iwu,ii)*max(ddu(iwu)+oeu(iwu),0.)/emu(iwu)  &
+      +ccv(1:ifull,ii)*max(ddv(1:ifull)+oev(1:ifull),0.)/emv(1:ifull)-ccv(isv,ii)*max(ddv(isv)+oev(isv),0.)/emv(isv)) &
       *em(1:ifull)*em(1:ifull)/ds
   nw(:,ii)=(sdiv*gosigh(ii)-div)*ee(1:ifull)
 end do
@@ -1264,11 +1266,11 @@ end if
 
 ! Approximate normalised density rhobar at t+1 (unstaggered, using T and S at t+1)
 if (nxtrrho==1) then
-  dume(1:ifull,1:wlev)       =nt(1:ifull,:)
-  dume(1:ifull,wlev+1:2*wlev)=ns(1:ifull,:)
-  call bounds(dume(:,1:2*wlev),corner=.true.)
-  nt(ifull+1:ifull+iextra,:)=dume(ifull+1:ifull+iextra,1:wlev)
-  ns(ifull+1:ifull+iextra,:)=dume(ifull+1:ifull+iextra,wlev+1:2*wlev)
+  cou(1:ifull,:,1)=nt(1:ifull,:)
+  cou(1:ifull,:,2)=ns(1:ifull,:)
+  call bounds(cou(:,:,1:2),corner=.true.)
+  nt(ifull+1:ifull+iextra,:)=cou(ifull+1:ifull+iextra,:,1)
+  ns(ifull+1:ifull+iextra,:)=cou(ifull+1:ifull+iextra,:,2)
   call mloexpdensity(rho,dalpha,dbeta,nt,ns,xdzdum,pice,0)
   rhobar(:,1)=(rho(:,1)-1030.)*godsig(1)
   do ii=2,wlev
@@ -1333,15 +1335,15 @@ call mlostaguv(tau,tav,ttau,ttav)
 ! ocean
 odum=1./(1.+(1.+ocneps)*(1.+ocneps)*0.25*dt*dt*fu(1:ifull)*fu(1:ifull))
 odum=odum*eeu(1:ifull)
-duma(:,1)=-(1.+ocneps)*0.5*dt*odum
+dumf=-(1.+ocneps)*0.5*dt*odum
 do ii=1,wlev
-  cou(1:ifull,ii,1)=ttau(:,ii)*odum ! staggered
+  ccu(1:ifull,ii)=ttau(:,ii)*odum ! staggered
 end do
 odum=1./(1.+(1.+ocneps)*(1.+ocneps)*0.25*dt*dt*fv(1:ifull)*fv(1:ifull))
 odum=odum*eev(1:ifull)
-dumb(:,1)=-(1.+ocneps)*0.5*dt*odum
+dumg=-(1.+ocneps)*0.5*dt*odum
 do ii=1,wlev
-  cou(1:ifull,ii,2)=ttav(:,ii)*odum ! staggered
+  ccv(1:ifull,ii)=ttav(:,ii)*odum ! staggered
 end do
 ! ice
 ! niu and niv hold the free drift solution (staggered).  Wind stress terms are updated in mlo.f90
@@ -1359,12 +1361,12 @@ do ii=1,wlev
   ! u^(t+1) = nu = au^(t*) + bu*dpdx^(t+1) + cu*dpdy^(t+1) (staggered)
   ! v^(t+1) = nv = av^(t*) + bv*dpdy^(t+1) + cv*dpdx^(t+1) (staggered)
 
-  au=cou(1:ifull,ii,1)
-  bu=duma(:,1)/rhou
+  au=ccu(1:ifull,ii)
+  bu=dumf/rhou
   cu= (1.+ocneps)*0.5*dt*bu ! fu now included in dpdy
 
-  av=cou(1:ifull,ii,2)
-  bv=dumb(:,1)/rhov
+  av=ccv(1:ifull,ii)
+  bv=dumg/rhov
   cv=-(1.+ocneps)*0.5*dt*bv ! fv now included in dpdx
 
   ! Note pressure gradients are along constant newz surfaces

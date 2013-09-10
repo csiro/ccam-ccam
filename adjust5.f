@@ -441,12 +441,12 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
         enddo
        
         ! extract non-hydrostatic component
-        wrk3(:,1)=zs(1:ifull)+bet(1)*(t(1:ifull,1)-280.)
-        phi_nh(:,1)=phi(:,1)-wrk3(:,1)
+        bb=zs(1:ifull)+bet(1)*(t(1:ifull,1)-280.)
+        phi_nh(:,1)=phi(:,1)-bb
         do k=2,kl
-          wrk3(:,k)=wrk3(:,k-1)+bet(k)*(t(1:ifull,k)-280.)
-     &                         +betm(k)*(t(1:ifull,k-1)-280.)
-          phi_nh(:,k)=phi(:,k)-wrk3(:,k)
+          bb=bb+bet(k)*(t(1:ifull,k)-280.)
+     &         +betm(k)*(t(1:ifull,k-1)-280.)
+          phi_nh(:,k)=phi(:,k)-bb
         end do
 
         ! correct for temperature offste
@@ -627,20 +627,14 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
       !------------------------------------------------------------------------
       ! Cloud water conservation
       if(mfix_qg/=0.and.mspec==1.and.ldr/=0)then
-        do k=1,kl
-          qg(1:ifull,k)=max(qg(1:ifull,k),
-     &      qgmin-qfg(1:ifull,k)-qlg(1:ifull,k),0.)
-        end do
-        qfg=max(qfg,0.)
-        qlg=max(qlg,0.)
-        qrg=max(qrg,0.)
         cfrac=min(max(cfrac,0.),1.)
         cffall=min(max(cffall,0.),1.)
         
-        dums(1:ifull,:,1)=qg(1:ifull,:)
-        dums(1:ifull,:,2)=qfg(1:ifull,:)
-        dums(1:ifull,:,3)=qlg(1:ifull,:)
-        dums(1:ifull,:,4)=qrg(1:ifull,:)
+        dums(1:ifull,:,1)=max(qg(1:ifull,:),
+     &      qgmin-qfg(1:ifull,:)-qlg(1:ifull,:),0.)
+        dums(1:ifull,:,2)=max(qfg(1:ifull,:),0.)
+        dums(1:ifull,:,3)=max(qlg(1:ifull,:),0.)
+        dums(1:ifull,:,4)=max(qrg(1:ifull,:),0.)
         dumssav(:,:,1)=qgsav
         dumssav(:,:,2)=qfgsav
         dumssav(:,:,3)=qlgsav
@@ -656,11 +650,8 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
         qrg(1:ifull,:)=dums(1:ifull,:,4)
 
       else if (mfix_qg/=0.and.mspec==1) then
-        do k=1,kl
-          qg(1:ifull,k)=max(qg(1:ifull,k),
-     &      qgmin-qfg(1:ifull,k)-qlg(1:ifull,k),0.)
-        end do
-        dums(1:ifull,:,1)=qg(1:ifull,:)
+        dums(1:ifull,:,1)=max(qg(1:ifull,:),
+     &      qgmin-qfg(1:ifull,:)-qlg(1:ifull,:),0.)
         dumssav(1:ifull,:,1)=qgsav
         llim(1)=.false.
         call massfix(mfix_qg,1,dums,dumssav,
@@ -855,13 +846,11 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
         enddo   ! k loop
       end do
       call ccglobal_posneg(wrk1,delpos,delneg)
-      do i=1,ntr
-        if (llim(i)) then
-          ratio(i) = -delneg(i)/max(delpos(i),1.e-30)
-        else
-          ratio(i) = -delneg(i)/delpos(i)
-        end if
-      end do
+      where (llim(:))
+        ratio(:) = -delneg(:)/max(delpos(:),1.e-30)
+      elsewhere
+        ratio(:) = -delneg(:)/delpos(:)
+      end where
       if (mfix==1) then
         alph_g = min(ratio,sqrt(ratio))
       elseif (mfix==2) then

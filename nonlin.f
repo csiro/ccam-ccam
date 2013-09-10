@@ -36,7 +36,7 @@
       integer, dimension(ifull) :: nits, nvadh_pass
       real aa(ifull,kl),bb(ifull,kl)
       real p(ifull+iextra,kl),phiv(ifull+iextra,kl),tv(ifull+iextra,kl)
-      real ddpds(ifull,kl)
+      real ddpds(ifull)
       real duma(ifull+iextra,2*kl)
       real const_nh, contv, delneg, delpos, ratio
       real sumdiffb, spmax2,termlin
@@ -73,11 +73,7 @@
         end do
       endif   ! (ldr.ne.0)
       if (abs(iaero)==2) then
-        do ng=1,naero
-          do k=1,kl
-            xtgsav(:,k,ng)=xtg(1:ifull,k,ng)
-          end do
-        end do
+        xtgsav(:,1:kl,1:naero)=xtg(1:ifull,1:kl,1:naero)
       end if
 
       if(ngas>=1)then
@@ -319,14 +315,14 @@ cx      enddo      ! k  loop
           ! and only involves phi_nh as the hydrostatic component
           ! is eliminated.
           ! ddpds is (sig/rdry)*d(phi_nh)/d(sig) or -delta T_nh
-          ddpds(:,1)=-phi_nh(:,1)/bet(1)
+          ddpds=-phi_nh(:,1)/bet(1)
+          h_nh(1:ifull,1)=h_nh(1:ifull,1)
+     &      -ddpds/(const_nh*tbar2d(:))
           do k=2,kl
-            ddpds(:,k)=-(phi_nh(:,k)-phi_nh(:,k-1))/bet(k)
-     &        -betm(k)*ddpds(:,k-1)/bet(k)
-          end do
-          do k=1,kl
+            ddpds=-(phi_nh(:,k)-phi_nh(:,k-1))/bet(k)
+     &        -betm(k)*ddpds/bet(k)
             h_nh(1:ifull,k)=h_nh(1:ifull,k)
-     &        -ddpds(:,k)/(const_nh*tbar2d(:))
+     &        -ddpds/(const_nh*tbar2d(:))
           end do
         end select
         if (nmaxpr==1) then
@@ -383,9 +379,8 @@ c       print *,'termx ',(t(iq,k)+contv*tvv)*dpsldt(iq,k)*roncp/sig(k)
       enddo
 
 
-      ! MJT notes - Some of these comms could be overlapped with
-      ! above comps.  However, this is the first bounds call
-      ! after the physics routines, so load balance is a more
+      ! MJT notes - This is the first bounds call after
+      ! the physics routines, so load balance is a
       ! significant issue.
       duma(1:ifull,1:kl)     =p(1:ifull,:)
       duma(1:ifull,kl+1:2*kl)=tv(1:ifull,:)

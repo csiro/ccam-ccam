@@ -3068,7 +3068,7 @@ contains
       logical, intent(in), optional :: nehalf
       logical :: double, extra, single
       integer :: iq, iproc, kx, iq_b, iq_e, rproc, sproc, send_len, recv_len
-      integer :: rcount, myrlen, jproc, lproc, ntr, k
+      integer :: rcount, myrlen, jproc, lproc, ntr, nn
       integer, dimension(neighnum) :: rslen, sslen
       integer(kind=4) :: ierr, itag = 2, llen, sreq
       integer(kind=4) :: ldone
@@ -3156,10 +3156,10 @@ contains
             sproc = neighlistsend(iproc)  ! Send to
 !cdir nodep
             do iq = 1,send_len
-               do k = 1,kx
-                  iq_b = 1+(k-1)*ntr+(iq-1)*kx*ntr
-                  iq_e = k*ntr+(iq-1)*kx*ntr
-                  bnds(sproc)%sbuf(iq_b:iq_e) = t(bnds(sproc)%send_list(iq),k,:)
+               do nn = 1,ntr
+                  iq_b = 1+(nn-1)*kx+(iq-1)*kx*ntr
+                  iq_e = nn*kx+(iq-1)*kx*ntr
+                  bnds(sproc)%sbuf(iq_b:iq_e) = t(bnds(sproc)%send_list(iq),1:kx,nn)
                end do
             end do
             nreq = nreq + 1
@@ -3198,10 +3198,10 @@ contains
             rproc = neighlistrecv(iproc)
 !cdir nodep
             do iq = 1,rslen(iproc)
-               do k=1,kx
-                  iq_b = 1+(k-1)*ntr+(iq-1)*kx*ntr
-                  iq_e = k*ntr+(iq-1)*kx*ntr
-                  t(ifull+bnds(rproc)%unpack_list(iq),k,:) = bnds(rproc)%rbuf(iq_b:iq_e)
+               do nn = 1,ntr
+                  iq_b = 1+(nn-1)*kx+(iq-1)*kx*ntr
+                  iq_e = nn*kx+(iq-1)*kx*ntr
+                  t(ifull+bnds(rproc)%unpack_list(iq),1:kx,nn) = bnds(rproc)%rbuf(iq_b:iq_e)
                end do
             end do
             

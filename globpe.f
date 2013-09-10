@@ -1741,7 +1741,7 @@
       qscrn_ave(1:ifull)   = qscrn_ave(1:ifull)+qgscrn 
       wb_ave(1:ifull,1:ms) = wb_ave(1:ifull,1:ms)+wb
       tsu_ave(1:ifull)     = tsu_ave(1:ifull)+tss
-      psl_ave(1:ifull)     = psl_ave(1:ifull)+psl
+      psl_ave(1:ifull)     = psl_ave(1:ifull)+ps(1:ifull)
       call mlodiag(spare1,0)
       mixdep_ave(1:ifull)  = mixdep_ave(1:ifull)+spare1
       spare1(:)=u(1:ifull,1)**2+v(1:ifull,1)**2

@@ -176,18 +176,19 @@ do itr=1,itr_mg
     end do
     call mgbounds(g,v(:,:,g),klim=klim)
 
-    ! residual
+    ng4=mg(g)%ifull_fine
     do k=1,klim
+      ! residual
       w(1:ng,k)=-mg(g)%zze*v(mg(g)%ie,k,g)-mg(g)%zzw*v(mg(g)%iw,k,g)     &
                 -mg(g)%zzn*v(mg(g)%in,k,g)-mg(g)%zzs*v(mg(g)%is,k,g)
                 !+rhs(1:ng,k,g)+(helm(1:ng,k,g)-mg(g)%zz)*v(1:ng,k,g)
+                
+      ! restriction
+      ! (calculate finer grid before mgcollect as the messages sent/recv are shorter)
+      rhs(1:ng4,k,g+1)=0.25*(w(mg(g)%fine  ,k)+w(mg(g)%fine_n ,k) &
+                            +w(mg(g)%fine_e,k)+w(mg(g)%fine_ne,k))                
     end do
-   
-    ! restriction
-    ! (calculate finer grid before mgcollect as the messages sent/recv are shorter)
-    ng4=mg(g)%ifull_fine
-    rhs(1:ng4,1:klim,g+1)=0.25*(w(mg(g)%fine  ,1:klim)+w(mg(g)%fine_n ,1:klim) &
-                               +w(mg(g)%fine_e,1:klim)+w(mg(g)%fine_ne,1:klim))
+
   end do
   
   ! solve coarse grid
@@ -284,34 +285,26 @@ do itr=1,itr_mg
         iq_d=ir*ipan+(jj-1+(ic-1)*jpan)*ipan*mg(g)%merge_row+(n-1)*ipan*jpan*mg(g)%merge_len
         vdum(iq_a:iq_b,1:klim)=w(iq_c:iq_d,1:klim)
       end do
-      j=1
       do i=1,ipan
-        iq_a=i+(j-1)*ipan+(n-1)*ipan*jpan
-        iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*ipan*mg(g)%merge_row+(n-1)*ipan*jpan*mg(g)%merge_len
+        iq_a=i+(n-1)*ipan*jpan
+        iq_c=i+(ir-1)*ipan+((ic-1)*jpan)*ipan*mg(g)%merge_row+(n-1)*ipan*jpan*mg(g)%merge_len
         iq_b=is(iq_a)
         iq_d=mg(1)%is(iq_c)
         vdum(iq_b,1:klim)=w(iq_d,1:klim)
-      end do
-      j=jpan
-      do i=1,ipan
-        iq_a=i+(j-1)*ipan+(n-1)*ipan*jpan
-        iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*ipan*mg(g)%merge_row+(n-1)*ipan*jpan*mg(g)%merge_len
+        iq_a=i+(jpan-1)*ipan+(n-1)*ipan*jpan
+        iq_c=i+(ir-1)*ipan+(jpan-1+(ic-1)*jpan)*ipan*mg(g)%merge_row+(n-1)*ipan*jpan*mg(g)%merge_len
         iq_b=in(iq_a)
         iq_d=mg(1)%in(iq_c)
         vdum(iq_b,1:klim)=w(iq_d,1:klim)
       end do  
-      i=1
       do j=1,jpan
-        iq_a=i+(j-1)*ipan+(n-1)*ipan*jpan
-        iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*ipan*mg(g)%merge_row+(n-1)*ipan*jpan*mg(g)%merge_len
+        iq_a=1+(j-1)*ipan+(n-1)*ipan*jpan
+        iq_c=1+(ir-1)*ipan+(j-1+(ic-1)*jpan)*ipan*mg(g)%merge_row+(n-1)*ipan*jpan*mg(g)%merge_len
         iq_b=iw(iq_a)
         iq_d=mg(1)%iw(iq_c)
         vdum(iq_b,1:klim)=w(iq_d,1:klim)
-      end do
-      i=ipan
-      do j=1,jpan
-        iq_a=i+(j-1)*ipan+(n-1)*ipan*jpan
-        iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*ipan*mg(g)%merge_row+(n-1)*ipan*jpan*mg(g)%merge_len
+        iq_a=ipan+(j-1)*ipan+(n-1)*ipan*jpan
+        iq_c=ipan+(ir-1)*ipan+(j-1+(ic-1)*jpan)*ipan*mg(g)%merge_row+(n-1)*ipan*jpan*mg(g)%merge_len
         iq_b=ie(iq_a)
         iq_d=mg(1)%ie(iq_c)
         vdum(iq_b,1:klim)=w(iq_d,1:klim)
@@ -323,30 +316,22 @@ do itr=1,itr_mg
   else
     vdum=0.
     do n=1,npan
-      j=1
       do i=1,ipan
-        iq=indx(i,j,n-1,ipan,jpan)
+        iq=indx(i,1,n-1,ipan,jpan)
         iq_a=is(iq)
         iq_b=mg(1)%is(iq)
         vdum(iq_a,1:klim)=w(iq_b,1:klim)
-      end do
-      j=jpan
-      do i=1,ipan
-        iq=indx(i,j,n-1,ipan,jpan)
+        iq=indx(i,jpan,n-1,ipan,jpan)
         iq_a=in(iq)
         iq_b=mg(1)%in(iq)
         vdum(iq_a,1:klim)=w(iq_b,1:klim)
       end do  
-      i=1
       do j=1,jpan
-        iq=indx(i,j,n-1,ipan,jpan)
+        iq=indx(1,j,n-1,ipan,jpan)
         iq_a=iw(iq)
         iq_b=mg(1)%iw(iq)
         vdum(iq_a,1:klim)=w(iq_b,1:klim)
-      end do
-      i=ipan
-      do j=1,jpan
-        iq=indx(i,j,n-1,ipan,jpan)
+        iq=indx(ipan,j,n-1,ipan,jpan)
         iq_a=ie(iq)
         iq_b=mg(1)%ie(iq)
         vdum(iq_a,1:klim)=w(iq_b,1:klim)
@@ -807,37 +792,29 @@ do itr=1,itr_mgice
         vdum(iq_a:iq_b,1)=w(iq_c:iq_d,1)
         vdum(iq_a:iq_b,2)=w(iq_c:iq_d,8)
       end do
-      j=1
       do i=1,ipan
-        iq_a=i+(j-1)*ipan+(n-1)*ipan*jpan
-        iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*ipan*mg(g)%merge_row+(n-1)*ipan*jpan*mg(g)%merge_len
+        iq_a=i+(n-1)*ipan*jpan
+        iq_c=i+(ir-1)*ipan+(ic-1)*jpan*ipan*mg(g)%merge_row+(n-1)*ipan*jpan*mg(g)%merge_len
         iq_b=is(iq_a)
         iq_d=mg(g)%is(iq_c)
         vdum(iq_b,1)=w(iq_d,1)
         vdum(iq_b,2)=w(iq_d,8)
-      end do
-      j=jpan
-      do i=1,ipan
-        iq_a=i+(j-1)*ipan+(n-1)*ipan*jpan
-        iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*ipan*mg(g)%merge_row+(n-1)*ipan*jpan*mg(g)%merge_len
+        iq_a=i+(jpan-1)*ipan+(n-1)*ipan*jpan
+        iq_c=i+(ir-1)*ipan+(jpan-1+(ic-1)*jpan)*ipan*mg(g)%merge_row+(n-1)*ipan*jpan*mg(g)%merge_len
         iq_b=in(iq_a)
         iq_d=mg(g)%in(iq_c)
         vdum(iq_b,1)=w(iq_d,1)
         vdum(iq_b,2)=w(iq_d,8)
       end do  
-      i=1
       do j=1,jpan
-        iq_a=i+(j-1)*ipan+(n-1)*ipan*jpan
-        iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*ipan*mg(g)%merge_row+(n-1)*ipan*jpan*mg(g)%merge_len
+        iq_a=1+(j-1)*ipan+(n-1)*ipan*jpan
+        iq_c=1+(ir-1)*ipan+(j-1+(ic-1)*jpan)*ipan*mg(g)%merge_row+(n-1)*ipan*jpan*mg(g)%merge_len
         iq_b=iw(iq_a)
         iq_d=mg(g)%iw(iq_c)
         vdum(iq_b,1)=w(iq_d,1)
         vdum(iq_b,2)=w(iq_d,8)
-      end do
-      i=ipan
-      do j=1,jpan
-        iq_a=i+(j-1)*ipan+(n-1)*ipan*jpan
-        iq_c=i+(ir-1)*ipan+(j-1+(ic-1)*jpan)*ipan*mg(g)%merge_row+(n-1)*ipan*jpan*mg(g)%merge_len
+        iq_a=ipan+(j-1)*ipan+(n-1)*ipan*jpan
+        iq_c=ipan+(ir-1)*ipan+(j-1+(ic-1)*jpan)*ipan*mg(g)%merge_row+(n-1)*ipan*jpan*mg(g)%merge_len
         iq_b=ie(iq_a)
         iq_d=mg(g)%ie(iq_c)
         vdum(iq_b,1)=w(iq_d,1)
@@ -852,33 +829,25 @@ do itr=1,itr_mgice
   else
     vdum=0.
     do n=1,npan
-      j=1
       do i=1,ipan
-        iq=indx(i,j,n-1,ipan,jpan)
+        iq=indx(i,1,n-1,ipan,jpan)
         iq_a=is(iq)
         iq_b=mg(1)%is(iq)
         vdum(iq_a,1)=w(iq_b,1)
         vdum(iq_a,2)=w(iq_b,8)
-      end do
-      j=jpan
-      do i=1,ipan
-        iq=indx(i,j,n-1,ipan,jpan)
+        iq=indx(i,jpan,n-1,ipan,jpan)
         iq_a=in(iq)
         iq_b=mg(1)%in(iq)
         vdum(iq_a,1)=w(iq_b,1)
         vdum(iq_a,2)=w(iq_b,8)
       end do  
-      i=1
       do j=1,jpan
-        iq=indx(i,j,n-1,ipan,jpan)
+        iq=indx(1,j,n-1,ipan,jpan)
         iq_a=iw(iq)
         iq_b=mg(1)%iw(iq)
         vdum(iq_a,1)=w(iq_b,1)
         vdum(iq_a,2)=w(iq_b,8)
-      end do
-      i=ipan
-      do j=1,jpan
-        iq=indx(i,j,n-1,ipan,jpan)
+        iq=indx(ipan,j,n-1,ipan,jpan)
         iq_a=ie(iq)
         iq_b=mg(1)%ie(iq)
         vdum(iq_a,1)=w(iq_b,1)
