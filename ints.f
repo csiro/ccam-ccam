@@ -20,7 +20,7 @@ c     doing x-interpolation before y-interpolation
       integer nface(ifull,kl)
       real xg(ifull,kl),yg(ifull,kl)      ! now passed through call
       ! Need work common for this
-      real sx(-1:ipan+2,-1:jpan+2,1:npan,kl,ntr)
+      real sx(ntr,-1:ipan+2,-1:jpan+2,1:npan,kl)
       real s(ifull+iextra,kl,ntr)
       integer idel, iq, jdel, nn
       real xxg, yyg
@@ -45,55 +45,55 @@ c     doing x-interpolation before y-interpolation
             do n=1,npan         ! first simple copy into larger array
               do j=1,jpan
                 do i=1,ipan
-                  sx(i,j,n,k,nn) = s(ind(i,j,n),k,nn)
+                  sx(nn,i,j,n,k) = s(ind(i,j,n),k,nn)
                 enddo         ! i loop
-              enddo            ! j loop
+              enddo           ! j loop
             
 c       this is intsb           EW interps done first
 c       first extend s arrays into sx - this one -1:il+2 & -1:il+2
               do j=1,jpan
-                sx(0,j,n,k,nn)      = s(iw(ind(1,j,n)),k,nn)
-                sx(-1,j,n,k,nn)     = s(iww(ind(1,j,n)),k,nn)
-                sx(ipan+1,j,n,k,nn) = s(ie(ind(ipan,j,n)),k,nn)
-                sx(ipan+2,j,n,k,nn) = s(iee(ind(ipan,j,n)),k,nn)
+                sx(nn,0,j,n,k)      = s(iw(ind(1,j,n)),k,nn)
+                sx(nn,-1,j,n,k)     = s(iww(ind(1,j,n)),k,nn)
+                sx(nn,ipan+1,j,n,k) = s(ie(ind(ipan,j,n)),k,nn)
+                sx(nn,ipan+2,j,n,k) = s(iee(ind(ipan,j,n)),k,nn)
               enddo            ! j loop
               do i=1,ipan
-                sx(i,0,n,k,nn)      = s(is(ind(i,1,n)),k,nn)
-                sx(i,-1,n,k,nn)     = s(iss(ind(i,1,n)),k,nn)
-                sx(i,jpan+1,n,k,nn) = s(in(ind(i,jpan,n)),k,nn)
-                sx(i,jpan+2,n,k,nn) = s(inn(ind(i,jpan,n)),k,nn)
+                sx(nn,i,0,n,k)      = s(is(ind(i,1,n)),k,nn)
+                sx(nn,i,-1,n,k)     = s(iss(ind(i,1,n)),k,nn)
+                sx(nn,i,jpan+1,n,k) = s(in(ind(i,jpan,n)),k,nn)
+                sx(nn,i,jpan+2,n,k) = s(inn(ind(i,jpan,n)),k,nn)
               enddo            ! i loop
 c        for ew interpolation, sometimes need (different from ns):
 c            (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
 c           (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
-!        sx(-1,0,n,:)=sx(0,2,n,:)            !  s(iwws6(1,1,n))
-!        sx(0,0,n,:)=sx(0,1,n,:)             !  s(iws6(1,1,n))
-!        sx(0,-1,n,:)=sx(-1,1,n,:)           !  s(iwss6(1,1,n)) or s(isws6(1,1,n))
-!        sx(il+1,0,n,:)=sx(il+1,1,n,:)       !  s(ies6(il,1,n))
-!        sx(il+2,0,n,:)=sx(il+1,2,n,:)       !  s(iees6(il,1,n))
-!        sx(il+1,-1,n,:)=sx(il+2,1,n,:)      !  s(iess6(il,1,n))
-!        sx(-1,il+1,n,:)=sx(0,il-1,n,:)      !  s(iwwn6(1,il,n))
-!        sx(0,il+2,n,:)=sx(-1,il,n,:)        !  s(iwnn6(1,il,n))
-!        sx(il+2,il+1,n,:)=sx(il+1,il-1,n,:) !  s(ieen6(il,il,n))
-!        sx(il+1,il+2,n,:)=sx(il+2,il,n,:)   !  s(ienn6(il,il,n))
-!        sx(0,il+1,n,:)=sx(0,il,n,:)         !  s(iwn6(1,il,n))   **
-!        sx(il+1,il+1,n,:)=sx(il+1,il,n,:)   !  s(ien6(il,il,n))  **
+!        sx(nn,-1,0,n)=sx(nn,0,2,n)            !  s(iwws6(1,1,n))
+!        sx(nn,0,0,n)=sx(nn,0,1,n)             !  s(iws6(1,1,n))
+!        sx(nn,0,-1,n)=sx(nn,-1,1,n)           !  s(iwss6(1,1,n)) or s(isws6(1,1,n))
+!        sx(nn,il+1,0,n)=sx(nn,il+1,1,n)       !  s(ies6(il,1,n))
+!        sx(nn,il+2,0,n)=sx(nn,il+1,2,n)       !  s(iees6(il,1,n))
+!        sx(nn,il+1,-1,n)=sx(nn,il+2,1,n)      !  s(iess6(il,1,n))
+!        sx(nn,-1,il+1,n)=sx(nn,0,il-1,n)      !  s(iwwn6(1,il,n))
+!        sx(nn,0,il+2,n)=sx(nn,-1,il,n)        !  s(iwnn6(1,il,n))
+!        sx(nn,il+2,il+1,n)=sx(nn,il+1,il-1,n) !  s(ieen6(il,il,n))
+!        sx(nn,il+1,il+2,n)=sx(nn,il+2,il,n)   !  s(ienn6(il,il,n))
+!        sx(nn,0,il+1,n)=sx(nn,0,il,n)         !  s(iwn6(1,il,n))   **
+!        sx(nn,il+1,il+1,n)=sx(nn,il+1,il,n)   !  s(ien6(il,il,n))  **
 
-              sx(-1,0,n,k,nn)          = s(lwws(n),k,nn)
-              sx(0,0,n,k,nn)           = s(iws(ind(1,1,n)),k,nn)
-              sx(0,-1,n,k,nn)          = s(lwss(n),k,nn)
-              sx(ipan+1,0,n,k,nn)      = s(ies(ind(ipan,1,n)),k,nn)
-              sx(ipan+2,0,n,k,nn)      = s(lees(n),k,nn)
-              sx(ipan+1,-1,n,k,nn)     = s(less(n),k,nn)
-              sx(-1,jpan+1,n,k,nn)     = s(lwwn(n),k,nn)
-              sx(0,jpan+2,n,k,nn)      = s(lwnn(n),k,nn)
-              sx(ipan+2,jpan+1,n,k,nn) = s(leen(n),k,nn)
-              sx(ipan+1,jpan+2,n,k,nn) = s(lenn(n),k,nn)
-              sx(0,jpan+1,n,k,nn)      = s(iwn(ind(1,jpan,n)),k,nn)
-              sx(ipan+1,jpan+1,n,k,nn) = s(ien(ind(ipan,jpan,n)),k,nn)
+              sx(nn,-1,0,n,k)          = s(lwws(n),k,nn)
+              sx(nn,0,0,n,k)           = s(iws(ind(1,1,n)),k,nn)
+              sx(nn,0,-1,n,k)          = s(lwss(n),k,nn)
+              sx(nn,ipan+1,0,n,k)      = s(ies(ind(ipan,1,n)),k,nn)
+              sx(nn,ipan+2,0,n,k)      = s(lees(n),k,nn)
+              sx(nn,ipan+1,-1,n,k)     = s(less(n),k,nn)
+              sx(nn,-1,jpan+1,n,k)     = s(lwwn(n),k,nn)
+              sx(nn,0,jpan+2,n,k)      = s(lwnn(n),k,nn)
+              sx(nn,ipan+2,jpan+1,n,k) = s(leen(n),k,nn)
+              sx(nn,ipan+1,jpan+2,n,k) = s(lenn(n),k,nn)
+              sx(nn,0,jpan+1,n,k)      = s(iwn(ind(1,jpan,n)),k,nn)
+              sx(nn,ipan+1,jpan+1,n,k) = s(ien(ind(ipan,jpan,n)),k,nn)
             enddo               ! n loop
-          end do ! k loop
-        end do   ! nn loop
+          end do                ! k loop
+        end do                  ! nn loop
 
 ! Loop over points that need to be calculated for other processes
         if(nfield<mh_bs)then
@@ -121,10 +121,10 @@ c           (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
               jdel = jdel - joff(n-noff)
               
               
-              c1 = sx(idel-1,jdel,n,k,:) ! manually unrolled loop
-              c2 = sx(idel  ,jdel,n,k,:)
-              c3 = sx(idel+1,jdel,n,k,:)
-              c4 = sx(idel+2,jdel,n,k,:)
+              c1 = sx(:,idel-1,jdel,n,k) ! manually unrolled loop
+              c2 = sx(:,idel  ,jdel,n,k)
+              c3 = sx(:,idel+1,jdel,n,k)
+              c4 = sx(:,idel+2,jdel,n,k)
               if(mhint==2)then ! Bessel interp
                 a4 = c4-c1+3.*(c2-c3)
                 a3 = c1-2.*c2+c3-a4
@@ -135,10 +135,10 @@ c           (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
      &                    -xxg*(1.+xxg)*c4/3.)
      &                    +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
               endif         !  (mhint==2)
-              c1 = sx(idel-1,jdel+1,n,k,:)
-              c2 = sx(idel  ,jdel+1,n,k,:)
-              c3 = sx(idel+1,jdel+1,n,k,:)
-              c4 = sx(idel+2,jdel+1,n,k,:)
+              c1 = sx(:,idel-1,jdel+1,n,k)
+              c2 = sx(:,idel  ,jdel+1,n,k)
+              c3 = sx(:,idel+1,jdel+1,n,k)
+              c4 = sx(:,idel+2,jdel+1,n,k)
               if(mhint==2)then ! Bessel interp
                 a4 = c4-c1+3.*(c2-c3)
                 a3 = c1-2.*c2+c3-a4
@@ -153,8 +153,8 @@ c           r = {(1-x)*{(2-x     )*[(1+x     )*c2-x     *c1/3]
 c                -x*(1+x)*c4/3}
 c                +x*(1+x)*(2-x)*c3}/2
               do nn=1,4,3   ! N.B.
-                c2 = sx(idel  ,jdel+nn-2,n,k,:)
-                c3 = sx(idel+1,jdel+nn-2,n,k,:)
+                c2 = sx(:,idel  ,jdel+nn-2,n,k)
+                c3 = sx(:,idel+1,jdel+nn-2,n,k)
                 r(:,nn) = (1.-xxg)*c2 +xxg*c3
               enddo         ! nn loop
               if(mhint==2)then ! Bessel interp
@@ -199,10 +199,10 @@ c                +x*(1+x)*(2-x)*c3}/2
               k = nint(dpoints(iproc)%a(4,iq))
               idel = idel - ioff(n-noff)
               jdel = jdel - joff(n-noff)
-              c1 = sx(idel-1,jdel,n,k,:) ! manually unrolled loop
-              c2 = sx(idel  ,jdel,n,k,:)
-              c3 = sx(idel+1,jdel,n,k,:)
-              c4 = sx(idel+2,jdel,n,k,:)
+              c1 = sx(:,idel-1,jdel,n,k) ! manually unrolled loop
+              c2 = sx(:,idel  ,jdel,n,k)
+              c3 = sx(:,idel+1,jdel,n,k)
+              c4 = sx(:,idel+2,jdel,n,k)
               cmin = min( 1.e20,c2,c3) ! Bermejo & Staniforth
               cmax = max(-1.e20,c2,c3) ! Bermejo & Staniforth
               if(mhint==2)then ! Bessel interp
@@ -215,10 +215,10 @@ c                +x*(1+x)*(2-x)*c3}/2
      &                    -xxg*(1.+xxg)*c4/3.)
      &                    +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
               endif         !  (mhint==2)
-              c1 = sx(idel-1,jdel+1,n,k,:)
-              c2 = sx(idel  ,jdel+1,n,k,:)
-              c3 = sx(idel+1,jdel+1,n,k,:)
-              c4 = sx(idel+2,jdel+1,n,k,:)
+              c1 = sx(:,idel-1,jdel+1,n,k)
+              c2 = sx(:,idel  ,jdel+1,n,k)
+              c3 = sx(:,idel+1,jdel+1,n,k)
+              c4 = sx(:,idel+2,jdel+1,n,k)
               cmin = min(cmin,c2,c3) ! Bermejo & Staniforth
               cmax = max(cmax,c2,c3) ! Bermejo & Staniforth
               if(mhint==2)then ! Bessel interp
@@ -235,8 +235,8 @@ c           r = {(1-x)*{(2-x     )*[(1+x     )*c2-x     *c1/3]
 c                -x*(1+x)*c4/3}
 c                +x*(1+x)*(2-x)*c3}/2
               do nn=1,4,3   ! N.B.
-                c2 = sx(idel  ,jdel+nn-2,n,k,:)
-                c3 = sx(idel+1,jdel+nn-2,n,k,:)
+                c2 = sx(:,idel  ,jdel+nn-2,n,k)
+                c3 = sx(:,idel+1,jdel+nn-2,n,k)
                 r(:,nn) = (1.-xxg)*c2 +xxg*c3
               enddo         ! nn loop
               if(mhint==2)then ! Bessel interp
@@ -278,10 +278,10 @@ c                +x*(1+x)*(2-x)*c3}/2
                  cycle      ! Will be calculated on another processor
               end if
 
-              c1 = sx(idel-1,jdel,n,k,:) ! manually unrolled loop
-              c2 = sx(idel  ,jdel,n,k,:)
-              c3 = sx(idel+1,jdel,n,k,:)
-              c4 = sx(idel+2,jdel,n,k,:)
+              c1 = sx(:,idel-1,jdel,n,k) ! manually unrolled loop
+              c2 = sx(:,idel  ,jdel,n,k)
+              c3 = sx(:,idel+1,jdel,n,k)
+              c4 = sx(:,idel+2,jdel,n,k)
               if(mhint==2)then ! Bessel interp
                 a4 = c4-c1+3.*(c2-c3)
                 a3 = c1-2.*c2+c3-a4
@@ -292,10 +292,10 @@ c                +x*(1+x)*(2-x)*c3}/2
      &                    -xxg*(1.+xxg)*c4/3.)
      &                    +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
               endif         !  (mhint==2)
-              c1 = sx(idel-1,jdel+1,n,k,:)
-              c2 = sx(idel  ,jdel+1,n,k,:)
-              c3 = sx(idel+1,jdel+1,n,k,:)
-              c4 = sx(idel+2,jdel+1,n,k,:)
+              c1 = sx(:,idel-1,jdel+1,n,k)
+              c2 = sx(:,idel  ,jdel+1,n,k)
+              c3 = sx(:,idel+1,jdel+1,n,k)
+              c4 = sx(:,idel+2,jdel+1,n,k)
               if(mhint==2)then ! Bessel interp
                 a4 = c4-c1+3.*(c2-c3)
                 a3 = c1-2.*c2+c3-a4
@@ -310,8 +310,8 @@ c           r = {(1-x)*{(2-x     )*[(1+x     )*c2-x     *c1/3]
 c                -x*(1+x)*c4/3}
 c                +x*(1+x)*(2-x)*c3}/2
               do nn=1,4,3   ! N.B.
-                c2 = sx(idel  ,jdel+nn-2,n,k,:)
-                c3 = sx(idel+1,jdel+nn-2,n,k,:)
+                c2 = sx(:,idel  ,jdel+nn-2,n,k)
+                c3 = sx(:,idel+1,jdel+nn-2,n,k)
                 r(:,nn) = (1.-xxg)*c2 +xxg*c3
               enddo         ! nn loop
               if(mhint==2)then ! Bessel interp
@@ -344,10 +344,10 @@ c                +x*(1+x)*(2-x)*c3}/2
                 cycle      ! Will be calculated on another processor
               end if
 
-              c1 = sx(idel-1,jdel,n,k,:) ! manually unrolled loop
-              c2 = sx(idel  ,jdel,n,k,:)
-              c3 = sx(idel+1,jdel,n,k,:)
-              c4 = sx(idel+2,jdel,n,k,:)
+              c1 = sx(:,idel-1,jdel,n,k) ! manually unrolled loop
+              c2 = sx(:,idel  ,jdel,n,k)
+              c3 = sx(:,idel+1,jdel,n,k)
+              c4 = sx(:,idel+2,jdel,n,k)
               cmin = min( 1.e20,c2,c3) ! Bermejo & Staniforth
               cmax = max(-1.e20,c2,c3) ! Bermejo & Staniforth
               if(mhint==2)then ! Bessel interp
@@ -360,10 +360,10 @@ c                +x*(1+x)*(2-x)*c3}/2
      &                    -xxg*(1.+xxg)*c4/3.)
      &                    +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
               endif         !  (mhint==2)
-              c1 = sx(idel-1,jdel+1,n,k,:)
-              c2 = sx(idel  ,jdel+1,n,k,:)
-              c3 = sx(idel+1,jdel+1,n,k,:)
-              c4 = sx(idel+2,jdel+1,n,k,:)
+              c1 = sx(:,idel-1,jdel+1,n,k)
+              c2 = sx(:,idel  ,jdel+1,n,k)
+              c3 = sx(:,idel+1,jdel+1,n,k)
+              c4 = sx(:,idel+2,jdel+1,n,k)
               cmin = min(cmin,c2,c3) ! Bermejo & Staniforth
               cmax = max(cmax,c2,c3) ! Bermejo & Staniforth
               if(mhint==2)then ! Bessel interp
@@ -380,8 +380,8 @@ c           r = {(1-x)*{(2-x     )*[(1+x     )*c2-x     *c1/3]
 c                -x*(1+x)*c4/3}
 c                +x*(1+x)*(2-x)*c3}/2
               do nn=1,4,3   ! N.B.
-                c2 = sx(idel  ,jdel+nn-2,n,k,:)
-                c3 = sx(idel+1,jdel+nn-2,n,k,:)
+                c2 = sx(:,idel  ,jdel+nn-2,n,k)
+                c3 = sx(:,idel+1,jdel+nn-2,n,k)
                 r(:,nn) = (1.-xxg)*c2 +xxg*c3
               enddo         ! nn loop
               if(mhint==2)then ! Bessel interp
@@ -410,52 +410,52 @@ c       first extend s arrays into sx - this one -1:il+2 & -1:il+2
             do n=1,npan         ! first simple copy into larger array
               do j=1,jpan
                 do i=1,ipan
-                  sx(i,j,n,k,nn)=s(ind(i,j,n),k,nn)
+                  sx(nn,i,j,n,k)=s(ind(i,j,n),k,nn)
                 enddo         ! i loop
-              enddo            ! j loop
+              enddo           ! j loop
 
               do j=1,jpan
-                sx(0,j,n,k,nn) = s(iw(ind(1,j,n)),k,nn)
-                sx(-1,j,n,k,nn) = s(iww(ind(1,j,n)),k,nn)
-                sx(ipan+1,j,n,k,nn) = s(ie(ind(ipan,j,n)),k,nn)
-                sx(ipan+2,j,n,k,nn) = s(iee(ind(ipan,j,n)),k,nn)
+                sx(nn,0,j,n,k) = s(iw(ind(1,j,n)),k,nn)
+                sx(nn,-1,j,n,k) = s(iww(ind(1,j,n)),k,nn)
+                sx(nn,ipan+1,j,n,k) = s(ie(ind(ipan,j,n)),k,nn)
+                sx(nn,ipan+2,j,n,k) = s(iee(ind(ipan,j,n)),k,nn)
               enddo            ! j loop
               do i=1,ipan
-                sx(i,0,n,k,nn) = s(is(ind(i,1,n)),k,nn)
-                sx(i,-1,n,k,nn) = s(iss(ind(i,1,n)),k,nn)
-                sx(i,jpan+1,n,k,nn) = s(in(ind(i,jpan,n)),k,nn)
-                sx(i,jpan+2,n,k,nn) = s(inn(ind(i,jpan,n)),k,nn)
+                sx(nn,i,0,n,k) = s(is(ind(i,1,n)),k,nn)
+                sx(nn,i,-1,n,k) = s(iss(ind(i,1,n)),k,nn)
+                sx(nn,i,jpan+1,n,k) = s(in(ind(i,jpan,n)),k,nn)
+                sx(nn,i,jpan+2,n,k) = s(inn(ind(i,jpan,n)),k,nn)
               enddo            ! i loop
 c        for ns interpolation, sometimes need (different from ew):
 c            (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
 c          (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
-!        sx(-1,0,n,k,nn)=sx(1,-1,n,k,nn)           !  s(isww6(1,1,n))
-!        sx(0,0,n,k,nn)=sx(1,0,n,k,nn)             !  s(isw6(1,1,n))
-!        sx(0,-1,n,k,nn)=sx(2,0,n,k,nn)            !  s(issw6(1,1,n))
-!        sx(il+2,0,n,k,nn)=sx(il,-1,n,k,nn)        !  s(isee6(il,1,n))
-!        sx(il+1,-1,n,k,nn)=sx(il-1,0,n,k,nn)      !  s(isse6(il,1,n))
-!        sx(-1,il+1,n,k,nn)=sx(1,il+2,n,k,nn)      !  s(inww6(1,il,n))
-!        sx(0,il+1,n,k,nn)=sx(1,il+1,n,k,nn)       !  s(inw6(1,il,n))
-!        sx(0,il+2,n,k,nn)=sx(2,il+1,n,k,nn)       !  s(innw6(1,il,n))
-!        sx(il+2,il+1,n,k,nn)=sx(il,il+2,n,k,nn)   !  s(inee6(il,il,n))
-!        sx(il+1,il+2,n,k,nn)=sx(il-1,il+1,n,k,nn) !  s(inne6(il,il,n))
-!        sx(il+1,0,n,k,nn)=sx(il,0,n,k,nn)         !  s(ise6(il,1,n))    **
-!        sx(il+1,il+1,n,k,nn)=sx(il,il+1,n,k,nn)   !  s(ine6(il,il,n))   **
+!        sx(nn,-1,0,n,k)=sx(nn,1,-1,n,k)           !  s(isww6(1,1,n))
+!        sx(nn,0,0,n,k)=sx(nn,1,0,n,k)             !  s(isw6(1,1,n))
+!        sx(nn,0,-1,n,k)=sx(nn,2,0,n,k)            !  s(issw6(1,1,n))
+!        sx(nn,il+2,0,n,k)=sx(nn,il,-1,n,k)        !  s(isee6(il,1,n))
+!        sx(nn,il+1,-1,n,k)=sx(nn,il-1,0,n,k)      !  s(isse6(il,1,n))
+!        sx(nn,-1,il+1,n,k)=sx(nn,1,il+2,n,k)      !  s(inww6(1,il,n))
+!        sx(nn,0,il+1,n,k)=sx(nn,1,il+1,n,k)       !  s(inw6(1,il,n))
+!        sx(nn,0,il+2,n,k)=sx(nn,2,il+1,n,k)       !  s(innw6(1,il,n))
+!        sx(nn,il+2,il+1,n,k)=sx(nn,il,il+2,n,k)   !  s(inee6(il,il,n))
+!        sx(nn,il+1,il+2,n,k)=sx(nn,il-1,il+1,n,k) !  s(inne6(il,il,n))
+!        sx(nn,il+1,0,n,k)=sx(nn,il,0,n,k)         !  s(ise6(il,1,n))    **
+!        sx(nn,il+1,il+1,n,k)=sx(nn,il,il+1,n,k)   !  s(ine6(il,il,n))   **
 
-              sx(-1,0,n,k,nn)=s(lsww(n),k,nn)
-              sx(0,0,n,k,nn) = s(isw(ind(1,1,n)),k,nn)
-              sx(0,-1,n,k,nn) = s(lssw(n),k,nn)
-              sx(ipan+2,0,n,k,nn) = s(lsee(n),k,nn)
-              sx(ipan+1,-1,n,k,nn) = s(lsse(n),k,nn)
-              sx(-1,jpan+1,n,k,nn) = s(lnww(n),k,nn)
-              sx(0,jpan+1,n,k,nn) = s(inw(ind(1,jpan,n)),k,nn)
-              sx(0,jpan+2,n,k,nn) = s(lnnw(n),k,nn)
-              sx(ipan+2,jpan+1,n,k,nn) = s(lnee(n),k,nn)
-              sx(ipan+1,jpan+2,n,k,nn) = s(lnne(n),k,nn)
-              sx(ipan+1,0,n,k,nn)    = s(ise(ind(ipan,1,n)),k,nn)
-              sx(ipan+1,jpan+1,n,k,nn) = s(ine(ind(ipan,jpan,n)),k,nn)
+              sx(nn,-1,0,n,k)=s(lsww(n),k,nn)
+              sx(nn,0,0,n,k) = s(isw(ind(1,1,n)),k,nn)
+              sx(nn,0,-1,n,k) = s(lssw(n),k,nn)
+              sx(nn,ipan+2,0,n,k) = s(lsee(n),k,nn)
+              sx(nn,ipan+1,-1,n,k) = s(lsse(n),k,nn)
+              sx(nn,-1,jpan+1,n,k) = s(lnww(n),k,nn)
+              sx(nn,0,jpan+1,n,k) = s(inw(ind(1,jpan,n)),k,nn)
+              sx(nn,0,jpan+2,n,k) = s(lnnw(n),k,nn)
+              sx(nn,ipan+2,jpan+1,n,k) = s(lnee(n),k,nn)
+              sx(nn,ipan+1,jpan+2,n,k) = s(lnne(n),k,nn)
+              sx(nn,ipan+1,0,n,k)    = s(ise(ind(ipan,1,n)),k,nn)
+              sx(nn,ipan+1,jpan+1,n,k) = s(ine(ind(ipan,jpan,n)),k,nn)
             enddo               ! n loop
-          end do                 ! k loop
+          end do                ! k loop
         end do                  ! nn loop
 
 !       For other processes
@@ -482,10 +482,10 @@ c          (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
               k = nint(dpoints(iproc)%a(4,iq))
               idel = idel - ioff(n-noff)
               jdel = jdel - joff(n-noff)
-              c1 = sx(idel,jdel-1,n,k,:) ! manually unrolled loop
-              c2 = sx(idel,jdel  ,n,k,:)
-              c3 = sx(idel,jdel+1,n,k,:)
-              c4 = sx(idel,jdel+2,n,k,:)
+              c1 = sx(:,idel,jdel-1,n,k) ! manually unrolled loop
+              c2 = sx(:,idel,jdel  ,n,k)
+              c3 = sx(:,idel,jdel+1,n,k)
+              c4 = sx(:,idel,jdel+2,n,k)
               if(mhint==2)then ! Bessel interp
                 a4 = c4-c1+3.*(c2-c3)
                 a3 = c1-2.*c2+c3-a4
@@ -496,10 +496,10 @@ c          (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
      &                    -yyg*(1.+yyg)*c4/3.)
      &                    +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
               endif         !  (mhint==2)
-              c1 = sx(idel+1,jdel-1,n,k,:)
-              c2 = sx(idel+1,jdel  ,n,k,:)
-              c3 = sx(idel+1,jdel+1,n,k,:)
-              c4 = sx(idel+1,jdel+2,n,k,:)
+              c1 = sx(:,idel+1,jdel-1,n,k)
+              c2 = sx(:,idel+1,jdel  ,n,k)
+              c3 = sx(:,idel+1,jdel+1,n,k)
+              c4 = sx(:,idel+1,jdel+2,n,k)
               if(mhint==2)then ! Bessel interp
                 a4 = c4-c1+3.*(c2-c3)
                 a3 = c1-2.*c2+c3-a4
@@ -514,8 +514,8 @@ c          r = {(1-y)*{(2-y     )*[(1+y     )*c2-y     *c1/3]
 c               -y*(1+y)*c4/3}
 c               +y*(1+y)*(2-y)*c3}/2
               do nn=1,4,3   ! N.B.
-                c2 = sx(idel+nn-2,jdel  ,n,k,:)
-                c3 = sx(idel+nn-2,jdel+1,n,k,:)
+                c2 = sx(:,idel+nn-2,jdel  ,n,k)
+                c3 = sx(:,idel+nn-2,jdel+1,n,k)
                 r(:,nn) = (1.-yyg)*c2 +yyg*c3
               enddo         ! nn loop
               if(mhint==2)then ! Bessel interp
@@ -560,10 +560,10 @@ c               +y*(1+y)*(2-y)*c3}/2
               k = nint(dpoints(iproc)%a(4,iq))
               idel = idel - ioff(n-noff)
               jdel = jdel - joff(n-noff)
-              c1 = sx(idel,jdel-1,n,k,:) ! manually unrolled loop
-              c2 = sx(idel,jdel  ,n,k,:)
-              c3 = sx(idel,jdel+1,n,k,:)
-              c4 = sx(idel,jdel+2,n,k,:)
+              c1 = sx(:,idel,jdel-1,n,k) ! manually unrolled loop
+              c2 = sx(:,idel,jdel  ,n,k)
+              c3 = sx(:,idel,jdel+1,n,k)
+              c4 = sx(:,idel,jdel+2,n,k)
               cmin = min( 1.e20,c2,c3) ! Bermejo & Staniforth
               cmax = max(-1.e20,c2,c3) ! Bermejo & Staniforth
               if(mhint==2)then ! Bessel interp
@@ -576,10 +576,10 @@ c               +y*(1+y)*(2-y)*c3}/2
      &                    -yyg*(1.+yyg)*c4/3.)
      &                    +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
               endif         !  (mhint==2)
-              c1 = sx(idel+1,jdel-1,n,k,:)
-              c2 = sx(idel+1,jdel  ,n,k,:)
-              c3 = sx(idel+1,jdel+1,n,k,:)
-              c4 = sx(idel+1,jdel+2,n,k,:)
+              c1 = sx(:,idel+1,jdel-1,n,k)
+              c2 = sx(:,idel+1,jdel  ,n,k)
+              c3 = sx(:,idel+1,jdel+1,n,k)
+              c4 = sx(:,idel+1,jdel+2,n,k)
               cmin = min(cmin,c2,c3) ! Bermejo & Staniforth
               cmax = max(cmax,c2,c3) ! Bermejo & Staniforth
               if(mhint==2)then ! Bessel interp
@@ -596,8 +596,8 @@ c           r = {(1-y)*{(2-y     )*[(1+y     )*c2-y     *c1/3]
 c                -y*(1+y)*c4/3}
 c                +y*(1+y)*(2-y)*c3}/2
               do nn=1,4,3   ! N.B.
-                c2 = sx(idel+nn-2,jdel  ,n,k,:)
-                c3 = sx(idel+nn-2,jdel+1,n,k,:)
+                c2 = sx(:,idel+nn-2,jdel  ,n,k)
+                c3 = sx(:,idel+nn-2,jdel+1,n,k)
                 r(:,nn) = (1.-yyg)*c2 +yyg*c3
               enddo         ! nn loop
               if(mhint==2)then ! Bessel interp
@@ -639,10 +639,10 @@ c                +y*(1+y)*(2-y)*c3}/2
                  cycle      ! Will be calculated on another processor
               end if
 
-              c1 = sx(idel,jdel-1,n,k,:) ! manually unrolled loop
-              c2 = sx(idel,jdel  ,n,k,:)
-              c3 = sx(idel,jdel+1,n,k,:)
-              c4 = sx(idel,jdel+2,n,k,:)
+              c1 = sx(:,idel,jdel-1,n,k) ! manually unrolled loop
+              c2 = sx(:,idel,jdel  ,n,k)
+              c3 = sx(:,idel,jdel+1,n,k)
+              c4 = sx(:,idel,jdel+2,n,k)
               if(mhint==2)then ! Bessel interp
                 a4 = c4-c1+3.*(c2-c3)
                 a3 = c1-2.*c2+c3-a4
@@ -653,10 +653,10 @@ c                +y*(1+y)*(2-y)*c3}/2
      &                    -yyg*(1.+yyg)*c4/3.)
      &                    +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
               endif         !  (mhint==2)
-              c1 = sx(idel+1,jdel-1,n,k,:)
-              c2 = sx(idel+1,jdel  ,n,k,:)
-              c3 = sx(idel+1,jdel+1,n,k,:)
-              c4 = sx(idel+1,jdel+2,n,k,:)
+              c1 = sx(:,idel+1,jdel-1,n,k)
+              c2 = sx(:,idel+1,jdel  ,n,k)
+              c3 = sx(:,idel+1,jdel+1,n,k)
+              c4 = sx(:,idel+1,jdel+2,n,k)
               if(mhint==2)then ! Bessel interp
                 a4 = c4-c1+3.*(c2-c3)
                 a3 = c1-2.*c2+c3-a4
@@ -671,8 +671,8 @@ c          r = {(1-y)*{(2-y     )*[(1+y     )*c2-y     *c1/3]
 c               -y*(1+y)*c4/3}
 c               +y*(1+y)*(2-y)*c3}/2
               do nn=1,4,3   ! N.B.
-                c2 = sx(idel+nn-2,jdel  ,n,k,:)
-                c3 = sx(idel+nn-2,jdel+1,n,k,:)
+                c2 = sx(:,idel+nn-2,jdel  ,n,k)
+                c3 = sx(:,idel+nn-2,jdel+1,n,k)
                 r(:,nn) = (1.-yyg)*c2 +yyg*c3
               enddo         ! nn loop
               if(mhint==2)then ! Bessel interp
@@ -705,10 +705,10 @@ c               +y*(1+y)*(2-y)*c3}/2
                 cycle      ! Will be calculated on another processor
               end if
 
-              c1 = sx(idel,jdel-1,n,k,:) ! manually unrolled loop
-              c2 = sx(idel,jdel  ,n,k,:)
-              c3 = sx(idel,jdel+1,n,k,:)
-              c4 = sx(idel,jdel+2,n,k,:)
+              c1 = sx(:,idel,jdel-1,n,k) ! manually unrolled loop
+              c2 = sx(:,idel,jdel  ,n,k)
+              c3 = sx(:,idel,jdel+1,n,k)
+              c4 = sx(:,idel,jdel+2,n,k)
               cmin = min( 1.e20,c2,c3) ! Bermejo & Staniforth
               cmax = max(-1.e20,c2,c3) ! Bermejo & Staniforth
               if(mhint==2)then ! Bessel interp
@@ -721,10 +721,10 @@ c               +y*(1+y)*(2-y)*c3}/2
      &                   -yyg*(1.+yyg)*c4/3.)
      &                   +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
               endif         !  (mhint==2)
-              c1 = sx(idel+1,jdel-1,n,k,:)
-              c2 = sx(idel+1,jdel  ,n,k,:)
-              c3 = sx(idel+1,jdel+1,n,k,:)
-              c4 = sx(idel+1,jdel+2,n,k,:)
+              c1 = sx(:,idel+1,jdel-1,n,k)
+              c2 = sx(:,idel+1,jdel  ,n,k)
+              c3 = sx(:,idel+1,jdel+1,n,k)
+              c4 = sx(:,idel+1,jdel+2,n,k)
               cmin = min(cmin,c2,c3) ! Bermejo & Staniforth
               cmax = max(cmax,c2,c3) ! Bermejo & Staniforth
               if(mhint==2)then ! Bessel interp
@@ -741,8 +741,8 @@ c           r = {(1-y)*{(2-y     )*[(1+y     )*c2-y     *c1/3]
 c                -y*(1+y)*c4/3}
 c                +y*(1+y)*(2-y)*c3}/2
               do nn=1,4,3   ! N.B.
-                c2 = sx(idel+nn-2,jdel  ,n,k,:)
-                c3 = sx(idel+nn-2,jdel+1,n,k,:)
+                c2 = sx(:,idel+nn-2,jdel  ,n,k)
+                c3 = sx(:,idel+nn-2,jdel+1,n,k)
                 r(:,nn) = (1.-yyg)*c2 +yyg*c3
               enddo         ! nn loop
               if(mhint==2)then ! Bessel interp

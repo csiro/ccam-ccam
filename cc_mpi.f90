@@ -6894,16 +6894,6 @@ contains
       real, dimension(:), intent(out) :: gdat
       real, dimension(:), intent(in) :: ldat
 
-#ifdef debug
-      if ( myid == lhost ) then        
-         if ( size(gdat) /= size(ldat)*nproc ) then
-            write(6,*) "ERROR: Incorrect size for ccmpi_gather"
-            mnum = -1
-            call MPI_Abort(MPI_COMM_WORLD,mnum,lerr)
-         end if
-      end if
-#endif
-      
       lcomm = comm
       lhost = host
       lsize = size(ldat)
