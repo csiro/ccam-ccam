@@ -3245,7 +3245,7 @@ if (.not.allocated(wtul)) then
   stvr=stvr*wtvr(isv,0)/wtvr(1:ifull,0)
   wtur(1:ifull,0)=1.
   wtvr(1:ifull,0)=1.
-
+  
 end if
 
 kx=size(u,2)
@@ -3834,7 +3834,7 @@ if (.not.allocated(wtul)) then
   stvr=stvr*wtvr(inv,0)/wtvr(1:ifull,0)
   wtur(1:ifull,0)=1.
   wtvr(1:ifull,0)=1.
-  
+ 
 end if
 
 kx=size(u,2)
@@ -4652,7 +4652,7 @@ include 'parm.h'
 
 integer, intent(out) :: totits,itc
 !integer itstest,itsave1,itsave2
-integer nx,ifx,ll,ierr
+integer nx,ll,ierr
 integer iq
 real, intent(in) :: tol,itol
 real, intent(out) :: maxglobseta,maxglobip
@@ -4725,65 +4725,62 @@ zz(:,2) =(ibu(1:ifull)+ibu(iwu)+ibv(1:ifull)+ibv(isv)-0.5*(idu(1:ifull)+idu(iwu)
 rhs(:,2)=min(niu(1:ifull)/emu(1:ifull)-niu(iwu)/emu(iwu)+niv(1:ifull)/emv(1:ifull)-niv(isv)/emv(isv),0.)
 
 do nx=1,maxcolour
-  ifx=ifullx(nx)
-  zznc(1:ifx,nx,:)=zzn(iqx(1:ifx,nx),:)
-  zzsc(1:ifx,nx,:)=zzs(iqx(1:ifx,nx),:)
-  zzec(1:ifx,nx,:)=zze(iqx(1:ifx,nx),:)
-  zzwc(1:ifx,nx,:)=zzw(iqx(1:ifx,nx),:)
-  zzc(1:ifx,nx,:) = zz(iqx(1:ifx,nx),:)
-  yync(1:ifx,nx)  =yyn(iqx(1:ifx,nx))
-  yysc(1:ifx,nx)  =yys(iqx(1:ifx,nx))
-  yyec(1:ifx,nx)  =yye(iqx(1:ifx,nx))
-  yywc(1:ifx,nx)  =yyw(iqx(1:ifx,nx))
-  yyc(1:ifx,nx)   = yy(iqx(1:ifx,nx))
-  hhc(1:ifx,nx)   = hh(iqx(1:ifx,nx))
-  rhsc(1:ifx,nx,:)=rhs(iqx(1:ifx,nx),:)
+  zznc(:,nx,:)=zzn(iqx(:,nx),:)
+  zzsc(:,nx,:)=zzs(iqx(:,nx),:)
+  zzec(:,nx,:)=zze(iqx(:,nx),:)
+  zzwc(:,nx,:)=zzw(iqx(:,nx),:)
+  zzc(:,nx,:) = zz(iqx(:,nx),:)
+  yync(:,nx)  =yyn(iqx(:,nx))
+  yysc(:,nx)  =yys(iqx(:,nx))
+  yyec(:,nx)  =yye(iqx(:,nx))
+  yywc(:,nx)  =yyw(iqx(:,nx))
+  yyc(:,nx)   = yy(iqx(:,nx))
+  hhc(:,nx)   = hh(iqx(:,nx))
+  rhsc(:,nx,:)=rhs(iqx(:,nx),:)
 end do
 
 do ll=1,llmax
 
   do nx=1,maxcolour
-  
-    ifx=ifullx(nx)
 
     ! ocean
     ! 5-point version -----------------------------------------------
 
     ! For now, assume Boussinesq fluid and treat density in continuity equation as constant
-    au(1:ifx)=yyc(1:ifx,nx)
-    bu(1:ifx)=zzc(1:ifx,nx,1)+hhc(1:ifx,nx)+yync(1:ifx,nx)*neta(iqn(1:ifx,nx))+yysc(1:ifx,nx)*neta(iqs(1:ifx,nx)) &
-                                           +yyec(1:ifx,nx)*neta(iqe(1:ifx,nx))+yywc(1:ifx,nx)*neta(iqw(1:ifx,nx))
-    cu(1:ifx)=-rhsc(1:ifx,nx,1)+zznc(1:ifx,nx,1)*neta(iqn(1:ifx,nx))+zzsc(1:ifx,nx,1)*neta(iqs(1:ifx,nx)) &
-                               +zzec(1:ifx,nx,1)*neta(iqe(1:ifx,nx))+zzwc(1:ifx,nx,1)*neta(iqw(1:ifx,nx))
+    au(:)=yyc(:,nx)
+    bu(:)=zzc(:,nx,1)+hhc(:,nx)+yync(:,nx)*neta(iqn(:,nx))+yysc(:,nx)*neta(iqs(:,nx)) &
+                                           +yyec(:,nx)*neta(iqe(:,nx))+yywc(:,nx)*neta(iqw(:,nx))
+    cu(:)=-rhsc(:,nx,1)+zznc(:,nx,1)*neta(iqn(:,nx))+zzsc(:,nx,1)*neta(iqs(:,nx)) &
+                               +zzec(:,nx,1)*neta(iqe(:,nx))+zzwc(:,nx,1)*neta(iqw(:,nx))
     
     ! alternative form
-    setac(1:ifx)=-neta(iqx(1:ifx,nx))-2.*cu(1:ifx)/(bu(1:ifx)+sqrt(bu(1:ifx)*bu(1:ifx)-4.*au(1:ifx)*cu(1:ifx)))
+    setac(:)=-neta(iqx(:,nx))-2.*cu(:)/(bu(:)+sqrt(bu(:)*bu(:)-4.*au(:)*cu(:)))
     
     ! The following expression limits the minimum depth
     ! (should not occur for typical eta values)
-    seta(iqx(1:ifx,nx))=max(setac(1:ifx),-(neta(iqx(1:ifx,nx))+dd(iqx(1:ifx,nx)))) ! this should become a land point
-    seta(iqx(1:ifx,nx))=seta(iqx(1:ifx,nx))*ee(iqx(1:ifx,nx))
-    neta(iqx(1:ifx,nx))=neta(iqx(1:ifx,nx))+seta(iqx(1:ifx,nx))
+    seta(iqx(:,nx))=max(setac(:),-(neta(iqx(:,nx))+dd(iqx(:,nx)))) ! this should become a land point
+    seta(iqx(:,nx))=seta(iqx(:,nx))*ee(iqx(:,nx))
+    neta(iqx(:,nx))=neta(iqx(:,nx))+seta(iqx(:,nx))
 
     ! ice
     ! 5-point version -------------------------------------------------
  
-    bu(1:ifx)=zzc(1:ifx,nx,2)
-    cu(1:ifx)=-rhsc(1:ifx,nx,2)+zznc(1:ifx,nx,2)*ipice(iqn(1:ifx,nx))+zzsc(1:ifx,nx,2)*ipice(iqs(1:ifx,nx)) &
-                               +zzec(1:ifx,nx,2)*ipice(iqe(1:ifx,nx))+zzwc(1:ifx,nx,2)*ipice(iqw(1:ifx,nx))
-    nip(1:ifx)=0.
-    where (bu(1:ifx)/=0.)
-      nip(1:ifx)=-cu(1:ifx)/bu(1:ifx)
+    bu(:)=zzc(:,nx,2)
+    cu(:)=-rhsc(:,nx,2)+zznc(:,nx,2)*ipice(iqn(:,nx))+zzsc(:,nx,2)*ipice(iqs(:,nx)) &
+                               +zzec(:,nx,2)*ipice(iqe(:,nx))+zzwc(:,nx,2)*ipice(iqw(:,nx))
+    nip(:)=0.
+    where (bu(:)/=0.)
+      nip(:)=-cu(:)/bu(:)
     end where
  
     ! cavitating fluid
-    nip(1:ifx)=max(min(nip(1:ifx),ipmax(iqx(1:ifx,nx))),0.)
+    nip(:)=max(min(nip(:),ipmax(iqx(:,nx))),0.)
 
-    setab(iqx(1:ifx,nx))=nip(1:ifx)-ipice(iqx(1:ifx,nx))
-    ipice(iqx(1:ifx,nx))=ipice(iqx(1:ifx,nx))+setab(iqx(1:ifx,nx))
+    setab(iqx(:,nx))=nip(:)-ipice(iqx(:,nx))
+    ipice(iqx(:,nx))=ipice(iqx(:,nx))+setab(iqx(:,nx))
 
-    dumc(iqx(1:ifx,nx),1)=neta(iqx(1:ifx,nx))
-    dumc(iqx(1:ifx,nx),2)=ipice(iqx(1:ifx,nx))
+    dumc(iqx(:,nx),1)=neta(iqx(:,nx))
+    dumc(iqx(:,nx),2)=ipice(iqx(:,nx))
     call bounds_colour(dumc(:,1:2),nx)
     neta(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,1)
     ipice(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,2)

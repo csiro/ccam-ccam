@@ -22,21 +22,19 @@
       real, dimension(ifull+iextra,kl), intent(inout) :: s  ! Solution
       real, dimension(ifull,kl), intent(in) :: irhs         ! RHS
       real, dimension(ifull,kl) :: rhs
-      real, dimension(ifull,maxcolour,kl) :: helmc,rhsc
+      real, dimension(ifullx,kl,maxcolour) :: helmc,rhsc
       real, dimension(ifull,kl) :: sb, sa, snew
       real, dimension(ifull,kl) :: dsol
-      real, dimension(ifull,maxcolour) :: zznc,zzec
-      real, dimension(ifull,maxcolour) :: zzwc,zzsc
+      real, dimension(ifullx,maxcolour) :: zznc,zzec
+      real, dimension(ifullx,maxcolour) :: zzwc,zzsc
       real, dimension(kl) ::  dsolmax, dsolmax_g, smax, smax_g
       real, dimension(kl) ::  smin, smin_g, savg
       real, dimension(:), allocatable, save :: accel
       real, dimension(ifull) :: aa, bb, cc
       real axel
-      !real gd, ci, itserr1, itserr2, itsaim, itsave1, itsave2
       real, save :: dtsave = 0.
       integer iq, iter, k, nx, j, jx, i, klim, klimnew, ierr, meth
-      integer ifx, nx_max, iqg, ig, jg, ng, tg, n
-      !integer itstest, itc
+      integer nx_max, iqg, ig, jg, ng, tg, n
       integer, dimension(kl) :: iters
       integer, dimension(1) :: idum
       save  meth, nx_max, axel
@@ -70,8 +68,6 @@
          ! usual
          do k=1,kl
           call optmx(il_g,schmidt,dt,bam(k),accel(k))
-          !accel(k)=1. ! gauss-seidel
-        
           ! MJT - not sure about the following line
           accel(k)=1.+.55*(accel(k)-1.) ! MJT suggestion
 !         if(il_g>il)accel(k)=1.+.55*(accel(k)-1.)  ! for uniform-dec 22/4/08
@@ -91,87 +87,84 @@ c         if(il_g==il)accel(k)=1.+.55*(accel(k)-1.) ! just a test
        call bounds(s, klim=klim)
        do k=1,klim        
         do nx=1,nx_max
-           ifx=ifullx(nx)
-           dsol(iqx(1:ifx,nx),k)=
-     &        ( zzn(iqx(1:ifx,nx))*s(iqn(1:ifx,nx),k)
-     &        + zzw(iqx(1:ifx,nx))*s(iqw(1:ifx,nx),k)
-     &        + zze(iqx(1:ifx,nx))*s(iqe(1:ifx,nx),k)
-     &        + zzs(iqx(1:ifx,nx))*s(iqs(1:ifx,nx),k)
-     &        +(zz(iqx(1:ifx,nx))
-     &        -helm(iqx(1:ifx,nx),k))*s(iqx(1:ifx,nx),k)
-     &        - rhs(iqx(1:ifx,nx),k))      
-     &        /(helm(iqx(1:ifx,nx),k)-zz(iqx(1:ifx,nx)))
-           snew(iqx(1:ifx,nx),k) = s(iqx(1:ifx,nx),k)
-     &        + dsol(iqx(1:ifx,nx),k)
-c            snew(iq,k) = s(iq,k) + dsol(iq,k)*accel(k)  ! no help
+           dsol(iqx(:,nx),k)=
+     &        ( zzn(iqx(:,nx))*s(iqn(:,nx),k)
+     &        + zzw(iqx(:,nx))*s(iqw(:,nx),k)
+     &        + zze(iqx(:,nx))*s(iqe(:,nx),k)
+     &        + zzs(iqx(:,nx))*s(iqs(:,nx),k)
+     &        +(zz(iqx(:,nx))
+     &        -helm(iqx(:,nx),k))*s(iqx(:,nx),k)
+     &        - rhs(iqx(:,nx),k))      
+     &        /(helm(iqx(:,nx),k)-zz(iqx(:,nx)))
+           snew(iqx(:,nx),k) = s(iqx(:,nx),k)
+     &        + dsol(iqx(:,nx),k)
 
 !        following are jlm methods for improving guess
          if(iter>=3)then
          select case(meth)
           case(3)
 !         if(iter>=3.and.meth==3)then   ! qls
-            aa(iqx(1:ifx,nx))=
-     &       (sb(iqx(1:ifx,nx),k)
-     &       -3.*sa(iqx(1:ifx,nx),k)
-     &       +3.*s(iqx(1:ifx,nx),k)
-     &       +19.*snew(iqx(1:ifx,nx),k))/20.  
-            bb(iqx(1:ifx,nx))=(9.*sb(iqx(1:ifx,nx),k)
-     &       -17.*sa(iqx(1:ifx,nx),k)
-     &       -13.*s(iqx(1:ifx,nx),k)
-     &       +21.*snew(iqx(1:ifx,nx),k))/20.  
+            aa(iqx(:,nx))=
+     &       (sb(iqx(:,nx),k)
+     &       -3.*sa(iqx(:,nx),k)
+     &       +3.*s(iqx(:,nx),k)
+     &       +19.*snew(iqx(:,nx),k))/20.  
+            bb(iqx(:,nx))=(9.*sb(iqx(:,nx),k)
+     &       -17.*sa(iqx(:,nx),k)
+     &       -13.*s(iqx(:,nx),k)
+     &       +21.*snew(iqx(:,nx),k))/20.  
 c           snew(iq,k)=aa+.25*bb+.0625*cc !3c
-            snew(iqx(1:ifx,nx),k)=aa(iqx(1:ifx,nx))
-     &       +axel*bb(iqx(1:ifx,nx))
+            snew(iqx(:,nx),k)=aa(iqx(:,nx))
+     &       +axel*bb(iqx(:,nx))
 !         endif  ! meth=3
           case(4)
 !         if(iter>=3.and.meth==4)then   ! oscill
-            aa(iqx(1:ifx,nx))=(7.*snew(iqx(1:ifx,nx),k)
-     &       +3.*s(iqx(1:ifx,nx),k)
-     &       -3.*sa(iqx(1:ifx,nx),k)
-     &       +sb(iqx(1:ifx,nx),k))/8. ! oscill
-            bb(iqx(1:ifx,nx))=snew(iqx(1:ifx,nx),k)
-     &       -.5*s(iqx(1:ifx,nx),k)
-     &       -sa(iqx(1:ifx,nx),k)
-     &       +.5*sb(iqx(1:ifx,nx),k)         ! oscill
+            aa(iqx(:,nx))=(7.*snew(iqx(:,nx),k)
+     &       +3.*s(iqx(:,nx),k)
+     &       -3.*sa(iqx(:,nx),k)
+     &       +sb(iqx(:,nx),k))/8. ! oscill
+            bb(iqx(:,nx))=snew(iqx(:,nx),k)
+     &       -.5*s(iqx(:,nx),k)
+     &       -sa(iqx(:,nx),k)
+     &       +.5*sb(iqx(:,nx),k)         ! oscill
 c           cc=.25*(snew(iq,k)-s(iq,k)-sa(iq,k)+sb(iq,k))         !             aa=(sb(iq,k)-3*sa(iq,k)+3*s(iq,k)+19*snew(iq,k))/20.  
-            snew(iqx(1:ifx,nx),k)=aa(iqx(1:ifx,nx))
-     &       +axel*bb(iqx(1:ifx,nx))
+            snew(iqx(:,nx),k)=aa(iqx(:,nx))
+     &       +axel*bb(iqx(:,nx))
 !         endif  ! meth=4
           case(5)
 !         if(iter>=3.and.meth==5)then   ! wqls
-            aa(iqx(1:ifx,nx))=(2.*sb(iqx(1:ifx,nx),k)
-     &       -6.*sa(iqx(1:ifx,nx),k)+6*s(iqx(1:ifx,nx),k)
-     &       +68.*snew(iqx(1:ifx,nx),k))/70.  
-            bb(iqx(1:ifx,nx))=(5.*sb(iqx(1:ifx,nx),k)
-     &       -8.*sa(iqx(1:ifx,nx),k)
-     &       -13.*s(iqx(1:ifx,nx),k)
-     &       +16.*snew(iqx(1:ifx,nx),k))/14.  
+            aa(iqx(:,nx))=(2.*sb(iqx(:,nx),k)
+     &       -6.*sa(iqx(:,nx),k)+6*s(iqx(:,nx),k)
+     &       +68.*snew(iqx(:,nx),k))/70.  
+            bb(iqx(:,nx))=(5.*sb(iqx(:,nx),k)
+     &       -8.*sa(iqx(:,nx),k)
+     &       -13.*s(iqx(:,nx),k)
+     &       +16.*snew(iqx(:,nx),k))/14.  
 c           cc=(3*sb(iq,k)-2*sa(iq,k)-5*s(iq,k)+4*snew(iq,k))/14.  
-            snew(iqx(1:ifx,nx),k)=aa(iqx(1:ifx,nx))
-     &       +axel*bb(iqx(1:ifx,nx))          
+            snew(iqx(:,nx),k)=aa(iqx(:,nx))
+     &       +axel*bb(iqx(:,nx))          
 !         endif  ! meth=5
           case(6)
 !         if(iter>=3.and.meth==6)then   ! wqls again
-            aa(iqx(1:ifx,nx))=(2.*sb(iqx(1:ifx,nx),k)
-     &       -6.*sa(iqx(1:ifx,nx),k)+6*s(iqx(1:ifx,nx),k)
-     &       +68.*snew(iqx(1:ifx,nx),k))/70.  
-            bb(iqx(1:ifx,nx))=(5.*sb(iqx(1:ifx,nx),k)
-     &       -8.*sa(iqx(1:ifx,nx),k)-13*s(iqx(1:ifx,nx),k)
-     &       +16.*snew(iqx(1:ifx,nx),k))/14.  
-            cc(iqx(1:ifx,nx))=(3.*sb(iqx(1:ifx,nx),k)
-     &       -2.*sa(iqx(1:ifx,nx),k)-5*s(iqx(1:ifx,nx),k)
-     &       +4.*snew(iqx(1:ifx,nx),k))/14.  
-            snew(iqx(1:ifx,nx),k)=aa(iqx(1:ifx,nx))
-     &       +axel*(bb(iqx(1:ifx,nx))
-     &       +axel*cc(iqx(1:ifx,nx)))          
+            aa(iqx(:,nx))=(2.*sb(iqx(:,nx),k)
+     &       -6.*sa(iqx(:,nx),k)+6*s(iqx(:,nx),k)
+     &       +68.*snew(iqx(:,nx),k))/70.  
+            bb(iqx(:,nx))=(5.*sb(iqx(:,nx),k)
+     &       -8.*sa(iqx(:,nx),k)-13*s(iqx(:,nx),k)
+     &       +16.*snew(iqx(:,nx),k))/14.  
+            cc(iqx(:,nx))=(3.*sb(iqx(:,nx),k)
+     &       -2.*sa(iqx(:,nx),k)-5*s(iqx(:,nx),k)
+     &       +4.*snew(iqx(:,nx),k))/14.  
+            snew(iqx(:,nx),k)=aa(iqx(:,nx))
+     &       +axel*(bb(iqx(:,nx))
+     &       +axel*cc(iqx(:,nx)))          
 !         endif  ! meth=5
          end select
          end if
 
-!         do iq=1,ifull
-            sb(iqx(1:ifx,nx),k)=sa(iqx(1:ifx,nx),k)
-            sa(iqx(1:ifx,nx),k)=s(iqx(1:ifx,nx),k)
-            s(iqx(1:ifx,nx),k)=snew(iqx(1:ifx,nx),k)
+            sb(iqx(:,nx),k)=sa(iqx(:,nx),k)
+            sa(iqx(:,nx),k)=s(iqx(:,nx),k)
+            s(iqx(:,nx),k)=snew(iqx(:,nx),k)
         enddo  ! nx loop
         iters(k)=iter
       enddo ! k loop   
@@ -238,13 +231,6 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
         write(6,*)'ktau,smax_g ',ktau,smax_g(:)
       endif  ! (myid==0)
 
-      ! Anticipate convergence      
-      !itsaim=log10(restol*(smax_g(1)-smin_g(1)))
-      !itsave2=-1.
-      !itserr2=9.
-      !itstest=1
-      !itc=0
-      
       ! JLM suggestion
       do k=1,kl
         savg(k)=0.5*(smax_g(k)+smin_g(k))
@@ -253,31 +239,29 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
       end do
 
       do nx=1,nx_max
-        ifx=ifullx(nx)
-        zznc(1:ifx,nx) =zzn(iqx(1:ifx,nx))
-        zzwc(1:ifx,nx) =zzw(iqx(1:ifx,nx))
-        zzec(1:ifx,nx) =zze(iqx(1:ifx,nx))
-        zzsc(1:ifx,nx) =zzs(iqx(1:ifx,nx))
+        zznc(:,nx) =zzn(iqx(:,nx))
+        zzwc(:,nx) =zzw(iqx(:,nx))
+        zzec(:,nx) =zze(iqx(:,nx))
+        zzsc(:,nx) =zzs(iqx(:,nx))
         do k=1,kl
-          helmc(1:ifx,nx,k)=helm(iqx(1:ifx,nx),k)-zz(iqx(1:ifx,nx))
-          rhsc(1:ifx,nx,k) =rhs(iqx(1:ifx,nx),k)
+          helmc(:,k,nx)=helm(iqx(:,nx),k)-zz(iqx(:,nx))
+          rhsc(:,k,nx) =rhs(iqx(:,nx),k)
         end do
       end do
       
       call bounds(s)     
       do while ( iter<itmax .and. klim>0)
        do nx=1,nx_max
-        ifx=ifullx(nx)
         do k=1,klim
-          dsol(iqx(1:ifx,nx),k)=
-     &       ( zznc(1:ifx,nx)*s(iqn(1:ifx,nx),k)
-     &       + zzwc(1:ifx,nx)*s(iqw(1:ifx,nx),k)
-     &       + zzec(1:ifx,nx)*s(iqe(1:ifx,nx),k)
-     &       + zzsc(1:ifx,nx)*s(iqs(1:ifx,nx),k)
-     &       -helmc(1:ifx,nx,k)*s(iqx(1:ifx,nx),k)
-     &       -rhsc(1:ifx,nx,k) )/helmc(1:ifx,nx,k)
-          s(iqx(1:ifx,nx),k) = s(iqx(1:ifx,nx),k)
-     &       + accel(k)*dsol(iqx(1:ifx,nx),k)
+          dsol(iqx(:,nx),k)=
+     &       ( zznc(:,nx)*s(iqn(:,nx),k)
+     &       + zzwc(:,nx)*s(iqw(:,nx),k)
+     &       + zzec(:,nx)*s(iqe(:,nx),k)
+     &       + zzsc(:,nx)*s(iqs(:,nx),k)
+     &       -helmc(:,k,nx)*s(iqx(:,nx),k)
+     &       -rhsc(:,k,nx) )/helmc(:,nx,k)
+          s(iqx(:,nx),k) = s(iqx(:,nx),k)
+     &       + accel(k)*dsol(iqx(:,nx),k)
         enddo ! k loop
         call bounds_colour(s, nx, klim=klim)
        enddo  ! nx loop  
@@ -288,42 +272,24 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
 !     &  write (6,"('myid,Iter ,s',i4,4f14.5)")
 !     &  myid,iter,(s(iq,1),iq=1,4)
        
-       !if (iter>=itstest) then
        
-        do k=1,klim
-c        write (6,"('iter,k ,s',2i4,4f14.5)") iter,k,(s(iq,k),iq=1,4)
-         dsolmax(k) = maxval(abs(dsol(1:ifull,k)))
-        enddo  ! k loop
-!        if(ntest>0)then
-!         write(6,*)'ktau,myid,iter,dsolmax ',ktau,myid,iter,dsolmax(:)
-!        endif  ! (myid==0)
-        klimnew=klim
-        call ccmpi_allreduce(dsolmax(1:klim),dsolmax_g(1:klim),"max",
-     &                       comm_world)
-        do k=klim,1,-1
-         if(dsolmax_g(k)<restol*(smax_g(k)-smin_g(k)))then
-           klimnew=k-1
-         endif
-        enddo
-        klim=klimnew
+       do k=1,klim
+c       write (6,"('iter,k ,s',2i4,4f14.5)") iter,k,(s(iq,k),iq=1,4)
+        dsolmax(k) = maxval(abs(dsol(1:ifull,k)))
+       enddo  ! k loop
+!       if(ntest>0)then
+!        write(6,*)'ktau,myid,iter,dsolmax ',ktau,myid,iter,dsolmax(:)
+!       endif  ! (myid==0)
+       klimnew=klim
+       call ccmpi_allreduce(dsolmax(1:klim),dsolmax_g(1:klim),"max",
+     &                      comm_world)
+       do k=klim,1,-1
+        if(dsolmax_g(k)<restol*(smax_g(k)-smin_g(k)))then
+          klimnew=k-1
+        endif
+       enddo
+       klim=klimnew
 
-       ! ! MJT - reduce collective MPI calls by anticipating convergence
-       ! itsave1=itsave2
-       ! itsave2=log10(real(iter))
-       ! itserr1=itserr2
-       ! itserr2=log10(dsolmax_g(1))
-       ! gd=(itserr2-itserr1)/(itsave2-itsave1)
-       ! ci=itserr2-gd*itsave2
-       ! if (gd/=0.) then
-       !  itstest=nint(10.**((itsaim-ci)/gd))
-       !  itstest=max(itstest,iter+1)
-       ! else
-       !  itstest=iter+1
-       ! end if
-       ! itc=itc+1
-       ! 
-       !end if ! iter>=itstest
-       
        iter = iter + 1
       enddo   ! while( iter<itmax .and. klim>1)
       
