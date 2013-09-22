@@ -382,7 +382,7 @@
       iextra=4*(il+jl)+24*npan
 #endif
       ! nrows_rad is a subgrid step for radiation routines
-      nrows_rad=max(il_g/24,8)
+      nrows_rad=jl/6
       do while(mod(jl,nrows_rad)/=0)
         nrows_rad=nrows_rad-1
       end do

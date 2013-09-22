@@ -12,8 +12,6 @@ module cc_mpi
    integer, save, private :: nxproc, nyproc                  ! number of processors in the x and y directions
    integer, save, public :: nagg                             ! maximum number to aggregate
 
-   integer, public, allocatable, save, dimension(:,:,:) :: fproc ! processor map (used for departure points)
-
    integer(kind=4), save, private :: nreq, rreq                        ! number of requests and number of recvs
    integer(kind=4), allocatable, dimension(:), save, private :: ireq   ! request index
    integer, allocatable, dimension(:), save, private :: rlist          ! map for processor index from request index
@@ -33,7 +31,7 @@ module cc_mpi
              ccmpi_allgatherx, ccmpi_recv, ccmpi_ssend, ccmpi_init,         &
              ccmpi_finalize, ccmpi_commsplit, ccmpi_commfree, mgbounds,     &
              mgcollect, mgbcast, mg_index, indx, bounds_colour,             &
-             boundsuv_allvec
+             boundsuv_allvec, fproc
    public :: mgbndtype
    public :: dpoints_t,dindex_t,sextra_t,bnds
    private :: ccmpi_distribute2, ccmpi_distribute2i, ccmpi_distribute2r8,   &
@@ -191,8 +189,7 @@ module cc_mpi
    type mgtype
       integer :: ifull, iextra, ixlen, ifull_fine, ifull_coarse
       integer :: merge_len, merge_row, ipan, merge_pos
-      integer :: comm_merge, comm_local, neighnum, npanx
-      integer :: nproc, myid
+      integer :: comm_merge, neighnum, npanx
       integer, dimension(:,:,:), allocatable :: fproc
       integer, dimension(:), allocatable :: merge_list
       integer, dimension(:), allocatable :: in, ie, is, iw, ine, inw, ise, isw
@@ -324,7 +321,6 @@ contains
 
       nreq = 0
 
-      allocate( fproc(il_g,il_g,0:npanels) )
       allocate( bnds(0:nproc-1) )
       allocate( dpoints(0:nproc-1) )
       allocate( dbuf(0:nproc-1) )
@@ -4480,6 +4476,22 @@ contains
 
    end function iq2iqg
 
+   function fproc(i,j,n) result(fpout)
+      ! locates processor that owns a global grid point
+      integer, intent(in) :: i, j, n
+      integer :: fpout
+      integer :: ip, jp
+
+      ip = (i-1)/ipan
+      jp = (j-1)/jpan
+#ifdef uniform_decomp
+      fpout = ip + jp*nxproc
+#else
+      fpout = ip + jp*nxproc + n*nxproc*nyproc/npan
+#endif
+   
+   end function fproc
+
    subroutine checksize(len, msize, mesg)
       integer, intent(in) :: len
       integer, intent(in) :: msize
@@ -4591,39 +4603,18 @@ contains
       include 'parm.h'
 !     Routine to set up offsets etc.
       real, dimension(ifull_g), intent(out) :: qproc
-      integer :: i, j, n, iproc, nd, jdf, idjd_g
+      integer :: i, j, n, nd, jdf, idjd_g
 
-      call face_set( ipan, jpan, noff, ioff, joff, npan, il_g, myid, nproc, nxproc, nyproc)
+      call face_set( ipan, jpan, noff, ioff, joff, npan, il_g, myid, nproc, nxproc, nyproc )
 
-      if ( nproc <= npanels+1 ) then
-
-         do n=0,npanels
-            fproc(:,:,n) = n/npan
-            qproc(1+n*il_g**2:(n+1)*il_g**2) = n/npan
-         end do
-
-      else  ! nproc >= npanels+1
-
-         iproc = 0
-         qproc = -9999 ! Mask value so any points not set are obvious.
-         do n=0,npanels
-            do j=1,il_g,jpan
-               do i=1,il_g,ipan
-                  fproc(i:i+ipan-1,j:j+jpan-1,n) = iproc
-                  iproc = iproc + 1
-               end do
+      qproc = -9999 ! Mask value so any points not set are obvious.
+      do n=0,npanels
+         do j=1,il_g
+            do i=1,il_g
+               qproc(indglobal(i,j,n)) = fproc(i,j,n)
             end do
          end do
-
-         do n=0,npanels
-            do j=1,il_g
-               do i=1,il_g
-                  qproc(indglobal(i,j,n)) = fproc(i,j,n)
-               end do
-            end do
-         end do
-
-      end if
+      end do
 
 !      ipfull = ipan*jpan*npan
 !      iextra = 4*npan*(ipan+jpan+8)
@@ -4718,18 +4709,10 @@ contains
       include 'parm.h'
 !     Routine to set up offsets etc for the uniform decomposition
       real, dimension(ifull_g), intent(out) :: qproc
-      integer :: i, j, n, iproc, nd, jdf, idjd_g
+      integer :: i, j, n, nd, jdf, idjd_g
       integer(kind=4) ierr, mone
 
       call dix_set( ipan, jpan, noff, ioff, joff, npan, il_g, myid, nproc, nxproc, nyproc)
-
-      iproc = 0
-      do j=1,il_g,jpan
-         do i=1,il_g,ipan
-            fproc(i:i+ipan-1,j:j+jpan-1,:) = iproc
-            iproc = iproc + 1
-         end do
-      end do
 
       qproc = -9999 ! Mask value so any points not set are obvious.
       do n=0,npanels
@@ -6878,7 +6861,7 @@ contains
       integer :: rcount, myrlen, jproc, lproc
       integer, dimension(mg(g)%neighnum) :: rslen, sslen
       integer(kind=4) :: ierr, itag=20, llen, sreq
-      integer(kind=4) :: ldone, lcomm
+      integer(kind=4) :: ldone
       integer(kind=4), dimension(size(ireq)) :: donelist
       integer(kind=4), dimension(MPI_STATUS_SIZE,size(ireq)) :: status
 #ifdef i8r8
@@ -6900,11 +6883,11 @@ contains
       if ( extra ) then
          rslen  = mg_bnds(mg(g)%neighlistrecv,g)%rlenx
          sslen  = mg_bnds(mg(g)%neighlistsend,g)%slenx
-         myrlen = mg_bnds(mg(g)%myid,g)%rlenx
+         myrlen = mg_bnds(myid,g)%rlenx
       else
          rslen  = mg_bnds(mg(g)%neighlistrecv,g)%rlen
          sslen  = mg_bnds(mg(g)%neighlistsend,g)%slen
-         myrlen = mg_bnds(mg(g)%myid,g)%rlen
+         myrlen = mg_bnds(myid,g)%rlen
       end if
 
       ! clear any remaining messages from previous bounds call
@@ -6918,7 +6901,6 @@ contains
 #endif
 
       !     Set up the buffers to send
-      lcomm = mg(g)%comm_local
       nreq = 0
       do iproc = 1,mg(g)%neighnum
          recv_len = rslen(iproc)
@@ -6929,7 +6911,7 @@ contains
             llen = recv_len*kx
             lproc = rproc
             call MPI_IRecv( bnds(rproc)%rbuf(1), llen, ltype, lproc, &
-                            itag, lcomm, ireq(nreq), ierr )
+                            itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end if
       end do
       rreq = nreq
@@ -6947,7 +6929,7 @@ contains
             llen = send_len*kx
             lproc = sproc
             call MPI_ISend( bnds(sproc)%sbuf(1), llen, ltype, lproc, &
-                            itag, lcomm, ireq(nreq), ierr )
+                            itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end if
       end do
 
@@ -6956,7 +6938,7 @@ contains
 !cdir nodep
       do iq = 1,myrlen
          ! request_list is same as send_list in this case
-         vdat(mg(g)%ifull+mg_bnds(mg(g)%myid,g)%unpack_list(iq),1:kx) = vdat(mg_bnds(mg(g)%myid,g)%request_list(iq),1:kx)
+         vdat(mg(g)%ifull+mg_bnds(myid,g)%unpack_list(iq),1:kx) = vdat(mg_bnds(myid,g)%request_list(iq),1:kx)
       end do
 
       rcount = rreq
@@ -7150,14 +7132,14 @@ contains
       integer, parameter, dimension(0:5) :: npans=(/ 104, 0, 100, 2, 102, 4 /)
       integer, dimension(npanels+1) :: mioff, mjoff
       integer, dimension(2*(mipan+mjpan+2)*(npanels+1)) :: dum
-      integer, dimension(2,0:mg(g)%nproc-1) :: sdum, rdum
+      integer, dimension(2,0:nproc-1) :: sdum, rdum
       integer, dimension(3) :: mg_ifullxc
       integer i, j, n, iq, iqq, iqg, iql, iqb, iqtmp, ii, mfull, mfull_g, ncount
       integer iloc, jloc, nloc
       integer iext, iproc, xlen, jx, nc, xlev, rproc, sproc
       integer ntest, nsize
       integer neighnumrecv, neighnumsend
-      integer(kind=4) :: itag=22, lproc, ierr, llen, mnum, sreq, mone, lcomm
+      integer(kind=4) :: itag=22, lproc, ierr, llen, mnum, sreq, mone
       ! 13 is the maximum number of neigbours possible (i.e., uniform decomposition).
       integer(kind=4), dimension(26) :: dreq
       integer(kind=4), dimension(MPI_STATUS_SIZE,26) :: status
@@ -7183,7 +7165,7 @@ contains
             do i = 1,mil_g
                iq = indx(i,j,n,mil_g,mil_g)
                mg_qproc(iq) = mg(g)%fproc(i,j,n)
-               if ( mg_qproc(iq) /= mg(g)%myid ) then
+               if ( mg_qproc(iq) /= myid ) then
                  lglob = .false.
                ! ncount>=npan usually indicates that a global gather has occured
                else if ( lflag ) then
@@ -7198,8 +7180,8 @@ contains
       
       if ( ncount == 0 ) then
          write(6,*) "ERROR: Cannot find myid in mg_proc"
-         write(6,*) "myid,g ",mg(g)%myid,g
-         write(6,*) "mg_proc ",maxval(mg_qproc),minval(mg_qproc),count(mg_qproc==mg(g)%myid)
+         write(6,*) "myid,g ",myid,g
+         write(6,*) "mg_proc ",maxval(mg_qproc),minval(mg_qproc),count(mg_qproc==myid)
          mnum = -1
          call MPI_Abort(MPI_COMM_WORLD,mnum,ierr)
       end if
@@ -7314,7 +7296,7 @@ contains
 
                   iqq = jn_g(iqg)    ! Global neighbour index
                   rproc = mg_qproc(iqq) ! Processor that has this point
-                  if ( rproc == mg(g)%myid ) then ! Just copy the value
+                  if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
                      call indv_mpix(iqq,iloc,jloc,nloc,mil_g,mioff,mjoff,noff)
                      mg(g)%in(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
@@ -7322,7 +7304,7 @@ contains
 
                   iqq = js_g(iqg)    ! Global neighbour index
                   rproc = mg_qproc(iqq) ! Processor that has this point
-                  if ( rproc == mg(g)%myid ) then ! Just copy the value
+                  if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
                      call indv_mpix(iqq,iloc,jloc,nloc,mil_g,mioff,mjoff,noff)
                      mg(g)%is(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
@@ -7330,7 +7312,7 @@ contains
 
                   iqq = je_g(iqg)    ! Global neighbour index
                   rproc = mg_qproc(iqq) ! Processor that has this point
-                  if ( rproc == mg(g)%myid ) then ! Just copy the value
+                  if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
                      call indv_mpix(iqq,iloc,jloc,nloc,mil_g,mioff,mjoff,noff)
                      mg(g)%ie(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
@@ -7338,7 +7320,7 @@ contains
 
                   iqq = jw_g(iqg)    ! Global neighbour index
                   rproc = mg_qproc(iqq) ! Processor that has this point
-                  if ( rproc == mg(g)%myid ) then ! Just copy the value
+                  if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
                      call indv_mpix(iqq,iloc,jloc,nloc,mil_g,mioff,mjoff,noff)
                      mg(g)%iw(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
@@ -7348,7 +7330,7 @@ contains
                   ! index arrays
                   iqq = jne_g(iqg)    ! Global neighbour index
                   rproc = mg_qproc(iqq) ! Processor that has this point
-                  if ( rproc == mg(g)%myid ) then ! Just copy the value
+                  if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
                      call indv_mpix(iqq,iloc,jloc,nloc,mil_g,mioff,mjoff,noff)
                      mg(g)%ine(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
@@ -7356,7 +7338,7 @@ contains
 
                   iqq = jse_g(iqg)    ! Global neighbour index
                   rproc = mg_qproc(iqq) ! Processor that has this point
-                  if ( rproc == mg(g)%myid ) then ! Just copy the value
+                  if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
                      call indv_mpix(iqq,iloc,jloc,nloc,mil_g,mioff,mjoff,noff)
                      mg(g)%ise(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
@@ -7364,7 +7346,7 @@ contains
 
                   iqq = jnw_g(iqg)    ! Global neighbour index
                   rproc = mg_qproc(iqq) ! Processor that has this point
-                  if ( rproc == mg(g)%myid ) then ! Just copy the value
+                  if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
                      call indv_mpix(iqq,iloc,jloc,nloc,mil_g,mioff,mjoff,noff)
                      mg(g)%inw(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
@@ -7372,7 +7354,7 @@ contains
 
                   iqq = jsw_g(iqg)    ! Global neighbour index
                   rproc = mg_qproc(iqq) ! Processor that has this point
-                  if ( rproc == mg(g)%myid ) then ! Just copy the value
+                  if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
                      call indv_mpix(iqq,iloc,jloc,nloc,mil_g,mioff,mjoff,noff)
                      mg(g)%isw(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
@@ -7394,7 +7376,7 @@ contains
                iqq = jn_g(iq)
                ! Which processor has this point
                rproc = mg_qproc(iqq)
-               if ( rproc == mg(g)%myid ) cycle ! Don't add points already on this proc.
+               if ( rproc == myid ) cycle ! Don't add points already on this proc.
                iql = indx(i,j,n-1,mipan,mjpan)  !  Local index
                ! Add this point to request list
                call mgcheck_bnds_alloc(g, rproc, iext)
@@ -7424,7 +7406,7 @@ contains
                iqq = je_g(iq)
                ! Which processor has this point
                rproc = mg_qproc(iqq)
-               if ( rproc == mg(g)%myid ) cycle ! Don't add points already on this proc.
+               if ( rproc == myid ) cycle ! Don't add points already on this proc.
                iql = indx(i,j,n-1,mipan,mjpan)  !  Local index
                ! Add this point to request list
                call mgcheck_bnds_alloc(g, rproc, iext)
@@ -7454,7 +7436,7 @@ contains
                iqq = jw_g(iq)
                ! Which processor has this point
                rproc = mg_qproc(iqq)
-               if ( rproc == mg(g)%myid ) cycle ! Don't add points already on this proc.
+               if ( rproc == myid ) cycle ! Don't add points already on this proc.
                iql = indx(i,j,n-1,mipan,mjpan)  !  Local index
                ! Add this point to request list
                call mgcheck_bnds_alloc(g, rproc, iext)
@@ -7484,7 +7466,7 @@ contains
                iqq = js_g(iq)
                ! Which processor has this point
                rproc = mg_qproc(iqq)
-               if ( rproc == mg(g)%myid ) cycle ! Don't add points already on this proc.
+               if ( rproc == myid ) cycle ! Don't add points already on this proc.
                iql = indx(i,j,n-1,mipan,mjpan)  !  Local index
                ! Add this point to request list
                call mgcheck_bnds_alloc(g, rproc, iext)
@@ -7520,7 +7502,7 @@ contains
             iqq = jne_g(iqg)
             ! Which processor has this point
             rproc = mg_qproc(iqq)
-            if ( rproc /= mg(g)%myid ) then ! Add to list
+            if ( rproc /= myid ) then ! Add to list
                call mgcheck_bnds_alloc(g, rproc, iext)
                iqtmp=-1
                do iqb=1,mg_bnds(rproc,g)%rlenx
@@ -7547,7 +7529,7 @@ contains
             iqq = jse_g(iqg)
             ! Which processor has this point
             rproc = mg_qproc(iqq)
-            if ( rproc /= mg(g)%myid ) then ! Add to list
+            if ( rproc /= myid ) then ! Add to list
                call mgcheck_bnds_alloc(g, rproc, iext)
                iqtmp=-1
                do iqb=1,mg_bnds(rproc,g)%rlenx
@@ -7574,7 +7556,7 @@ contains
             iqq = jnw_g(iqg)
             ! Which processor has this point
             rproc = mg_qproc(iqq)
-            if ( rproc /= mg(g)%myid ) then ! Add to list
+            if ( rproc /= myid ) then ! Add to list
                call mgcheck_bnds_alloc(g, rproc, iext)
                iqtmp=-1
                do iqb=1,mg_bnds(rproc,g)%rlenx
@@ -7601,7 +7583,7 @@ contains
             iqq = jsw_g(iqg)
             ! Which processor has this point
             rproc = mg_qproc(iqq)
-            if ( rproc /= mg(g)%myid ) then ! Add to list
+            if ( rproc /= myid ) then ! Add to list
                call mgcheck_bnds_alloc(g, rproc, iext)
                iqtmp=-1
                do iqb=1,mg_bnds(rproc,g)%rlenx
@@ -7666,33 +7648,32 @@ contains
          call MPI_Waitall( sreq, ireq(rreq+1), status, ierr )
          
          ! Now, for each processor send the list of points I want.
-         lcomm = mg(g)%comm_local
          nreq = 0
          llen = 2
-         do iproc = 1,mg(g)%nproc-1
-            rproc = modulo(mg(g)%myid+iproc,mg(g)%nproc)
+         do iproc = 1,nproc-1
+            rproc = modulo(myid+iproc,nproc)
             if ( mg_bnds(rproc,g)%rlenx > 0 ) then
                nreq = nreq + 1
                lproc = rproc
-               call MPI_IRecv( rdum(:,rproc), llen, ltype, lproc, itag, lcomm, dreq(nreq), ierr )
+               call MPI_IRecv( rdum(:,rproc), llen, ltype, lproc, itag, MPI_COMM_WORLD, dreq(nreq), ierr )
             end if
          end do
-         do iproc = 1,mg(g)%nproc-1
-            sproc = modulo(mg(g)%myid-iproc,mg(g)%nproc)  ! Send to
+         do iproc = 1,nproc-1
+            sproc = modulo(myid-iproc,nproc)  ! Send to
             if ( mg_bnds(sproc,g)%rlenx > 0 ) then
                nreq = nreq + 1
                sdum(1,sproc) = mg_bnds(sproc,g)%rlenx
                sdum(2,sproc) = mg_bnds(sproc,g)%rlen
                lproc = sproc
-               call MPI_ISend( sdum(:,sproc), llen, ltype, lproc, itag, lcomm, dreq(nreq), ierr )
+               call MPI_ISend( sdum(:,sproc), llen, ltype, lproc, itag, MPI_COMM_WORLD, dreq(nreq), ierr )
             end if
          end do
          call MPI_Waitall( nreq, dreq, status, ierr )
          nreq = 0
          rreq = 0
 
-         do iproc = 1,mg(g)%nproc-1
-            rproc = modulo(mg(g)%myid+iproc,mg(g)%nproc)
+         do iproc = 1,nproc-1
+            rproc = modulo(myid+iproc,nproc)
             if ( mg_bnds(rproc,g)%rlenx > 0 ) then
                mg_bnds(rproc,g)%slenx = rdum(1,rproc)
                mg_bnds(rproc,g)%slen  = rdum(2,rproc)
@@ -7713,9 +7694,9 @@ contains
          allocate ( mg(g)%neighlistsend(mg(g)%neighnum) )
          neighnumrecv = 0
          neighnumsend = 0
-         do iproc = 1,mg(g)%nproc-1
-            rproc = modulo(mg(g)%myid-iproc,mg(g)%nproc)
-            sproc = modulo(mg(g)%myid+iproc,mg(g)%nproc)
+         do iproc = 1,nproc-1
+            rproc = modulo(myid-iproc,nproc)
+            sproc = modulo(myid+iproc,nproc)
             if ( mg_bnds(rproc,g)%rlenx > 0 ) then
                neighnumrecv = neighnumrecv + 1
                mg(g)%neighlistrecv(neighnumrecv) = rproc
@@ -7743,7 +7724,7 @@ contains
             llen = mg_bnds(rproc,g)%slenx
             lproc = rproc
             call MPI_IRecv( mg_bnds(rproc,g)%send_list(1), llen, ltype, lproc, &
-                            itag, lcomm, ireq(nreq), ierr )
+                            itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end do
          do iproc = 1,mg(g)%neighnum
             sproc = mg(g)%neighlistsend(iproc)  ! Send to
@@ -7752,7 +7733,7 @@ contains
             llen = mg_bnds(sproc,g)%rlenx
             lproc = sproc
             call MPI_ISend( mg_bnds(sproc,g)%request_list(1), llen, ltype, lproc, &
-                            itag, lcomm, ireq(nreq), ierr )
+                            itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end do      
          call MPI_Waitall( nreq, ireq, status, ierr )
          nreq = 0
@@ -7768,14 +7749,14 @@ contains
                mg_bnds(sproc,g)%send_list(iq) = indx(i,j,n-1,mipan,mjpan)
             end do
          end do
-         do iq = 1,mg_bnds(mg(g)%myid,g)%rlenx
-            iqq = mg_bnds(mg(g)%myid,g)%request_list(iq)
+         do iq = 1,mg_bnds(myid,g)%rlenx
+            iqq = mg_bnds(myid,g)%request_list(iq)
             call indv_mpix(iqq,i,j,n,mil_g,mioff,mjoff,noff)
-            mg_bnds(mg(g)%myid,g)%request_list(iq) = indx(i,j,n-1,mipan,mjpan)
+            mg_bnds(myid,g)%request_list(iq) = indx(i,j,n-1,mipan,mjpan)
          end do
 
          ! reduce array size where possible
-         do iproc = 0,mg(g)%nproc-1
+         do iproc = 0,nproc-1
             xlen = mg_bnds(iproc,g)%rlenx
             if ( mg_bnds(iproc,g)%len > xlen ) then
                dum(1:xlen) = mg_bnds(iproc,g)%request_list(1:xlen)
@@ -7878,7 +7859,7 @@ contains
       else
          if ( iext>mg(g)%iextra ) then
             write(6,*) "ERROR: MG grid undersized in mgcheck_bnds_alloc"
-            write(6,*) "iext,iextra,g,iproc,myid ",iext,mg(g)%iextra,g,iproc,mg(g)%myid
+            write(6,*) "iext,iextra,g,iproc,myid ",iext,mg(g)%iextra,g,iproc,myid
             mnum = -1
             call MPI_Abort(MPI_COMM_WORLD,mnum,ierr)
          end if
