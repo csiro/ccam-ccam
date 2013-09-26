@@ -30,8 +30,8 @@ module cc_mpi
              ccmpi_bcastr8, ccmpi_barrier, ccmpi_gatherx, ccmpi_scatterx,   &
              ccmpi_allgatherx, ccmpi_recv, ccmpi_ssend, ccmpi_init,         &
              ccmpi_finalize, ccmpi_commsplit, ccmpi_commfree, mgbounds,     &
-             mgcollect, mgbcast, mg_index, indx, bounds_colour,             &
-             boundsuv_allvec, fproc
+             mgcollectreduce, mgcollect, mgbcast, mg_index, indx,           &
+             bounds_colour, boundsuv_allvec, fproc
    public :: mgbndtype
    public :: dpoints_t,dindex_t,sextra_t,bnds
    private :: ccmpi_distribute2, ccmpi_distribute2i, ccmpi_distribute2r8,   &
@@ -188,7 +188,7 @@ module cc_mpi
    ! Multi-grid arrays
    type mgtype
       integer :: ifull, iextra, ixlen, ifull_fine, ifull_coarse
-      integer :: merge_len, merge_row, ipan, merge_pos
+      integer :: merge_len, merge_row, ipan, merge_pos, nmax
       integer :: comm_merge, neighnum, npanx
       integer, dimension(:,:,:), allocatable :: fproc
       integer, dimension(:), allocatable :: merge_list
@@ -6975,13 +6975,101 @@ contains
    end subroutine mgbounds
 
    ! This subroutine merges datasets when upscaling with the multi-grid solver
+   subroutine mgcollectreduce(g,vdat,dsolmax,klim)
+
+      integer, intent(in) :: g
+      integer, intent(in), optional :: klim
+      integer nmax, npanx, kx
+      integer msg_len
+      real, dimension(:,:), intent(inout) :: vdat
+      real, dimension(:), intent(inout) :: dsolmax
+
+      ! merge length
+      nmax = mg(g)%merge_len
+      if ( nmax <= 1 ) return
+
+      call start_log(mgcollect_begin)
+
+      kx = size(vdat,2)
+      if (present(klim)) kx = klim
+
+      npanx = mg(g)%npanx
+      msg_len = mg(g)%ifull/(nmax*npanx) ! message unit size
+      nmax = mg(g)%nmax ! zero unless rank equals 0
+
+      call mgcollectreduce_work( g, vdat, dsolmax, kx, nmax, msg_len, npanx )
+
+      call end_log(mgcollect_end)
+  
+   return
+   end subroutine mgcollectreduce
+
+   subroutine mgcollectreduce_work(g,vdat,dsolmax,kx,nmax,msg_len,npanx)
+
+      integer, intent(in) :: g, kx, nmax, msg_len, npanx
+      integer i, k, n, iq_a, iq_b, iq_c, iq_d
+      integer nrow, ncol, na, nb
+      integer yproc, ir, ic, is, ie, js, je, jj
+      integer ipanx, nrm1
+      integer(kind=4) :: ierr, ilen, lcomm
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
+      real, dimension(:,:), intent(inout) :: vdat
+      real, dimension(:), intent(inout) :: dsolmax
+      real, dimension(msg_len*npanx+1,kx) :: tdat
+      real, dimension(msg_len*npanx+1,kx,nmax) :: tdat_g
+
+      ! prep data for sending around the merge
+      ipanx = mg(g)%ipan
+      nrow  = ipanx/mg(g)%merge_row       ! number of points along a row per processor
+      ncol  = msg_len/nrow                ! number of points along a col per processor
+      nrm1  = nrow - 1
+
+      do k = 1,kx
+         tdat(1:msg_len*npanx,k) = vdat(1:msg_len*npanx,k)
+         tdat(msg_len*npanx+1,k) = dsolmax(k)
+      end do
+
+      ilen = (msg_len*npanx+1)*kx
+      lcomm = mg(g)%comm_merge
+      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0, lcomm, ierr )      
+
+      ! unpack buffers (nmax is zero unless this is the host processor)
+      do yproc = 1,nmax
+         ir = mod(yproc-1,mg(g)%merge_row)+1   ! index for proc row
+         ic = (yproc-1)/mg(g)%merge_row+1      ! index for proc col
+
+         is = (ir-1)*nrow+1
+         js = (ic-1)*ncol+1
+         je = ic*ncol
+         do k = 1,kx
+            do n = 1,npanx
+               na = is + (n-1)*msg_len*nmax
+               nb =  1 + (n-1)*msg_len
+               do jj = js,je
+                  iq_a = na + (jj-1)*ipanx
+                  iq_b = iq_a + nrm1
+                  iq_c = nb + (jj-js)*nrow
+                  iq_d = iq_c + nrm1
+                  vdat(iq_a:iq_b,k) = tdat_g(iq_c:iq_d,k,yproc)
+               end do
+            end do
+            dsolmax(k)=max(dsolmax(k),tdat_g(msg_len*npanx+1,k,yproc))
+         end do
+      end do
+  
+   return
+   end subroutine mgcollectreduce_work
+
    subroutine mgcollect(g,vdat,klim)
 
       integer, intent(in) :: g
       integer, intent(in), optional :: klim
       integer nmax, npanx, kx
       integer msg_len
-      integer(kind=4) :: lcomm, lid, ierr
       real, dimension(:,:), intent(inout) :: vdat
 
       ! merge length
@@ -6995,10 +7083,7 @@ contains
 
       npanx = mg(g)%npanx
       msg_len = mg(g)%ifull/(nmax*npanx) ! message unit size
-
-      lcomm = mg(g)%comm_merge
-      call MPI_Comm_rank( lcomm, lid, ierr )
-      if ( lid /= 0 ) nmax = 0
+      nmax = mg(g)%nmax ! zero unless rank equals 0
 
       call mgcollect_work( g, vdat, kx, nmax, msg_len, npanx )
 
@@ -7007,12 +7092,13 @@ contains
    return
    end subroutine mgcollect
 
-   subroutine mgcollect_work(g, vdat, kx, nmax, msg_len, npanx)
+   subroutine mgcollect_work(g,vdat,kx,nmax,msg_len,npanx)
 
       integer, intent(in) :: g, kx, nmax, msg_len, npanx
       integer i, k, n, iq_a, iq_b, iq_c, iq_d
-      integer nrow, ncol
+      integer nrow, ncol, na, nb
       integer yproc, ir, ic, is, ie, js, je, jj
+      integer ipanx, nrm1
       integer(kind=4) :: ierr, ilen, lcomm
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -7020,17 +7106,17 @@ contains
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
       real, dimension(:,:), intent(inout) :: vdat
-      real, dimension(msg_len*npanx*kx) :: tdat
-      real, dimension(msg_len*npanx*kx*nmax) :: tdat_g
+      real, dimension(msg_len*npanx,kx) :: tdat
+      real, dimension(msg_len*npanx,kx,nmax) :: tdat_g
 
       ! prep data for sending around the merge
-      nrow = mg(g)%ipan/mg(g)%merge_row  ! number of points along a row per processor
-      ncol = msg_len/nrow                ! number of points along a col per processor
+      ipanx = mg(g)%ipan
+      nrow  = ipanx/mg(g)%merge_row       ! number of points along a row per processor
+      ncol  = msg_len/nrow                ! number of points along a col per processor
+      nrm1  = nrow - 1
 
       do k = 1,kx
-         iq_a = 1+(k-1)*msg_len*npanx
-         iq_b = k*msg_len*npanx
-         tdat(iq_a:iq_b) = vdat(1:msg_len*npanx,k)
+         tdat(1:msg_len*npanx,k) = vdat(1:msg_len*npanx,k)
       end do
 
       ilen = msg_len*npanx*kx
@@ -7047,12 +7133,14 @@ contains
          je = ic*ncol
          do k = 1,kx
             do n = 1,npanx
+               na = is + (n-1)*msg_len*nmax
+               nb =  1 + (n-1)*msg_len
                do jj = js,je
-                  iq_a = is+(jj-1)*mg(g)%ipan+(n-1)*msg_len*nmax
-                  iq_b = iq_a+nrow-1
-                  iq_c = 1+(jj-js)*nrow+(n-1)*msg_len+(k-1)*msg_len*npanx+(yproc-1)*msg_len*kx*npanx
-                  iq_d = iq_c+nrow-1
-                  vdat(iq_a:iq_b,k) = tdat_g(iq_c:iq_d)
+                  iq_a = na + (jj-1)*ipanx
+                  iq_b = iq_a + nrm1
+                  iq_c = nb + (jj-js)*nrow
+                  iq_d = iq_c + nrm1
+                  vdat(iq_a:iq_b,k) = tdat_g(iq_c:iq_d,k,yproc)
                end do
             end do
          end do
@@ -7063,12 +7151,13 @@ contains
 
    ! This subroutine merges datasets when upscaling with the multi-grid solver
    ! This version also updates the halo
-   subroutine mgbcast(g,vdat,klim)
+   subroutine mgbcast(g,vdat,dsolmax,klim)
    
       integer, intent(in) :: g
       integer, intent(in), optional :: klim
       integer kx, out_len
       real, dimension(:,:), intent(inout) :: vdat
+      real, dimension(:), intent(inout) :: dsolmax
 
       ! merge length
       if ( mg(g)%merge_len <= 1 ) return
@@ -7080,14 +7169,14 @@ contains
    
       out_len = mg(g)%ifull + mg(g)%iextra
       
-      call mgbcast_work( g, vdat, kx, out_len )
+      call mgbcast_work( g, vdat, dsolmax, kx, out_len )
    
       call end_log(mgbcast_end)
    
    return
    end subroutine mgbcast
    
-   subroutine mgbcast_work( g, vdat, kx, out_len )
+   subroutine mgbcast_work(g,vdat,dsolmax,kx,out_len)
    
       integer, intent(in) :: g, kx, out_len
       integer k, iq_a, iq_b
@@ -7098,23 +7187,22 @@ contains
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
       real, dimension(:,:), intent(inout) :: vdat
-      real, dimension(out_len*kx) :: tdat
+      real, dimension(:), intent(inout) :: dsolmax
+      real, dimension(out_len+1,kx) :: tdat
       
       do k=1,kx
-        iq_a = 1 + (k-1)*out_len
-        iq_b = k*out_len
-        tdat(iq_a:iq_b)=vdat(1:out_len,k)
+        tdat(1:out_len,k)=vdat(1:out_len,k)
+        tdat(out_len+1,k)=dsolmax(k)
       end do
       
-      ilen = out_len*kx
+      ilen = (out_len+1)*kx
       lcomm = mg(g)%comm_merge
       call MPI_Bcast( tdat, ilen, ltype, 0, lcomm, ierr )      
 
       ! extract data from distribute      
       do k = 1,kx
-         iq_a = 1 + (k-1)*out_len
-         iq_b = k*out_len
-         vdat(1:out_len,k) = tdat(iq_a:iq_b)
+         vdat(1:out_len,k) = tdat(1:out_len,k)
+         dsolmax(k) = tdat(out_len+1,k)
       end do      
    
    return

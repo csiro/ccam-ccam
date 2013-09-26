@@ -24,7 +24,6 @@ logical, save :: sorfirst=.true.
 logical, save :: zzfirst =.true.
 logical, save :: mlofirst=.true.
 
-integer, parameter :: itr_max=300 ! maximum number of iterations
 integer, parameter :: itr_mg=20
 integer, parameter :: itr_mgice=20
 
@@ -43,6 +42,7 @@ include 'parm.h'
 include 'parmdyn.h'
 
 integer, dimension(kl) :: iters
+integer, dimension(mg_minsize) :: indy
 integer itrc,itr,ng,ng4,g,gb,k,jj,i,j,iq
 integer klimc,knew,klim,ir,ic
 integer nc,n,iq_a,iq_b,iq_c,iq_d
@@ -53,14 +53,13 @@ real, dimension(ifull), intent(in) :: izz,izzn,izze,izzw,izzs
 real, dimension(ifullx,kl,maxcolour) :: rhelmc,rhsc
 real, dimension(ifullx,maxcolour) :: zznc,zzec,zzwc,zzsc
 real, dimension(ifull+iextra,kl) :: vdum
-real, dimension(mg_ifullc,3) :: zzncu,zzecu,zzwcu,zzscu
-real, dimension(mg_ifullc,kl,3) :: rhelmcu,rhscu
 real, dimension(mg_maxsize,kl,gmax+1) :: v
 real, dimension(mg_maxsize,kl,2:gmax+1) :: rhs
 real, dimension(mg_maxsize,kl,gmax+1) :: helm
 real, dimension(mg_maxsize,kl) :: w,dsol
+real, dimension(mg_minsize,mg_minsize) :: helm_m,helm_o
 real, dimension(2,kl) :: smaxmin,smaxmin_g
-real, dimension(kl) :: dsolmax,dsolmax_g,savg
+real, dimension(kl) :: dsolmax_g,savg
 
 call start_log(helm_begin)
 
@@ -111,21 +110,6 @@ do nc=1,maxcolour
   end do
 end do
 
-! pack colour arrays at coarse level
-do nc=1,3
-  do iq=1,mg_ifullc
-    zzncu(iq,nc)=mg(g)%zzn(col_iq(iq,nc))
-    zzscu(iq,nc)=mg(g)%zzs(col_iq(iq,nc))
-    zzecu(iq,nc)=mg(g)%zze(col_iq(iq,nc))
-    zzwcu(iq,nc)=mg(g)%zzw(col_iq(iq,nc))
-  end do
-  do k=1,kl
-    do iq=1,mg_ifullc
-      rhelmcu(iq,k,nc)=1./(helm(col_iq(iq,nc),k,g)-mg(g)%zz(col_iq(iq,nc)))
-    end do
-  end do
-end do
-
 ! solver assumes boundaries are updated
 call bounds(iv)
 
@@ -144,13 +128,16 @@ do itr=1,itr_mg
     call bounds_colour(iv,nc,klim=klim)
   end do
   
+  ! test for convergence
+  dsolmax_g(1:klim)=maxval(abs(dsol(1:ifull,1:klim)),dim=1)
+  
   ! residual
   do k=1,klim
     w(1:ifull,k)=-izzn*iv(in,k)-izzw*iv(iw,k)-izze*iv(ie,k)-izzs*iv(is,k)+irhs(:,k)+iv(1:ifull,k)*(ihelm(:,k)-izz)
   end do
 
   ! For when the inital grid cannot be upscaled
-  call mgcollect(1,w,klim=klim)
+  call mgcollectreduce(1,w,dsolmax_g,klim=klim)
 
   do gb=1,min(mg_maxlevel_local,1) ! same as if (mg_maxlevel_local>0) then ...
 
@@ -161,12 +148,12 @@ do itr=1,itr_mg
                              +w(mg(1)%fine_e,1:klim)+w(mg(1)%fine_ne,1:klim))
                              
     ! merge grids if insufficent points on this processor
-    call mgcollect(2,rhs(:,:,2),klim=klim)
+    call mgcollectreduce(2,rhs(:,:,2),dsolmax_g,klim=klim)
 
     ! upscale grid
     do g=2,gmax
   
-      ng=mg(g)%ifull
+      ng =mg(g)%ifull
       ng4=mg(g)%ifull_fine
                 
       ! update scalar field
@@ -190,7 +177,7 @@ do itr=1,itr_mg
       end do
 
       ! merge grids if insufficent points on this processor
-      call mgcollect(g+1,rhs(:,:,g+1),klim=klim)
+      call mgcollectreduce(g+1,rhs(:,:,g+1),dsolmax_g,klim=klim)
 
     end do
   
@@ -199,46 +186,31 @@ do itr=1,itr_mg
 
       ng=mg(g)%ifull
 
+      ! perform LU decomposition and back substitute with RHS
+      ! to solve for v on coarse grid
+      helm_o(:,:)=0.
+      do iq=1,ng
+        helm_o(mg(g)%in(iq),iq)=mg(g)%zzn(iq)
+        helm_o(mg(g)%is(iq),iq)=mg(g)%zzs(iq)
+        helm_o(mg(g)%ie(iq),iq)=mg(g)%zze(iq)
+        helm_o(mg(g)%iw(iq),iq)=mg(g)%zzw(iq)
+      end do
       do k=1,klim
-        v(1:ng,k,g)=-rhs(1:ng,k,g)/(helm(1:ng,k,g)-mg(g)%zz)
-        smaxmin(1,k)=maxval(v(1:ng,k,g))
-        smaxmin(2,k)=minval(v(1:ng,k,g))
-      end do
-
-      do nc=1,3
-        do k=1,klim
-          rhscu(:,k,nc)=rhs(col_iq(:,nc),k,g)
+        helm_m=helm_o
+        do iq=1,ng
+          helm_m(iq,iq)=mg(g)%zz(iq)-helm(iq,k,g)
         end do
+        call mdecomp(helm_m,indy) ! destroys helm_m
+        v(1:ng,k,g)=rhs(1:ng,k,g)
+        call mbacksub(helm_m,v(1:ng,k,g),indy)
       end do
-
-      klimc=klim
-      do itrc=1,itr_max
-        do nc=1,3 ! always three colours for coarse multigrid
-          do k=1,klimc
-            ! update
-            dsol(col_iq(:,nc),k)=(zzecu(:,nc)*v(col_iqe(:,nc),k,g)+zzwcu(:,nc)*v(col_iqw(:,nc),k,g)  &
-                                 +zzncu(:,nc)*v(col_iqn(:,nc),k,g)+zzscu(:,nc)*v(col_iqs(:,nc),k,g)  &
-                                 -rhscu(:,k,nc))*rhelmcu(:,k,nc)-v(col_iq(:,nc),k,g)
-            v(col_iq(:,nc),k,g)=v(col_iq(:,nc),k,g)+dsol(col_iq(:,nc),k)
-          end do
-          ! no call to bounds since all points are on this processor
-        end do
-        dsolmax(1:klimc)=maxval(abs(dsol(1:ng,1:klimc)),dim=1)
-        knew=klimc
-        do k=klimc,1,-1
-          if (dsolmax(k)>=restol*(smaxmin(1,k)-smaxmin(2,k))) exit
-          knew=k-1      
-        end do
-        klimc=knew
-        if (klimc<1) exit
-      end do
- 
+      
     end do
 
     ! downscale grid
     do g=gmax,2,-1
 
-      call mgbcast(g+1,v(:,:,g+1),klim=klim)
+      call mgbcast(g+1,v(:,:,g+1),dsolmax_g,klim=klim)
 
       ! interpolation
       ng4=mg(g+1)%ifull_coarse
@@ -265,7 +237,7 @@ do itr=1,itr_mg
     end do
     
     ! fine grid
-    call mgbcast(2,v(:,:,2),klim=klim)
+    call mgbcast(2,v(:,:,2),dsolmax_g,klim=klim)
 
     ! interpolation
     ng4=mg(2)%ifull_coarse
@@ -277,6 +249,7 @@ do itr=1,itr_mg
   end do
 
   if (mg(1)%merge_len>1) then
+    call mgbcast(1,w,dsolmax_g,klim=klim)
     vdum=0.
     ir=mod(mg(1)%merge_pos-1,mg(1)%merge_row)+1   ! index for proc row
     ic=(mg(1)%merge_pos-1)/mg(1)%merge_row+1      ! index for proc col
@@ -357,8 +330,8 @@ do itr=1,itr_mg
   end do
 
   ! test for convergence
-  dsolmax(1:klim)=maxval(abs(dsol(1:ifull,1:klim)),dim=1)
-  call ccmpi_allreduce(dsolmax(1:klim),dsolmax_g(1:klim),"max",comm_world)
+  !dsolmax(1:klim)=maxval(abs(dsol(1:ifull,1:klim)),dim=1)
+  !call ccmpi_allreduce(dsolmax(1:klim),dsolmax_g(1:klim),"max",comm_world)
   knew=klim
   do k=klim,1,-1
     iters(k)=itr
@@ -369,35 +342,6 @@ do itr=1,itr_mg
   if (klim<1) exit
   
 end do
-
-! SOR in case MG fails to converge
-if (klim>0) then
-  do itr=itr_mg+1,itr_max
-
-    do nc=1,maxcolour
-      do k=1,klim
-        dsol(iqx(:,nc),k)=( zznc(:,nc)*iv(iqn(:,nc),k) + zzwc(:,nc)*iv(iqw(:,nc),k)    &
-                          + zzec(:,nc)*iv(iqe(:,nc),k) + zzsc(:,nc)*iv(iqs(:,nc),k)    &
-                          - rhsc(:,k,nc) )*rhelmc(:,k,nc) - iv(iqx(:,nc),k)
-        iv(iqx(:,nc),k) = iv(iqx(:,nc),k) + dsol(iqx(:,nc),k)
-      end do
-      call bounds_colour(iv,nc,klim=klim)
-    end do
-
-    ! test for convergence
-    dsolmax(1:klim)=maxval(abs(dsol(1:ifull,1:klim)),dim=1)
-    call ccmpi_allreduce(dsolmax(1:klim),dsolmax_g(1:klim),"max",comm_world)
-    knew=klim
-    do k=klim,1,-1
-      iters(k)=itr
-      if (dsolmax_g(k)>=restol*(smaxmin_g(1,k)-smaxmin_g(2,k))) exit
-      knew=k-1
-    end do
-    klim=knew
-    if (klim<1) exit
-  
-  end do
-end if
 
 ! JLM suggestion
 do k=1,kl
@@ -430,9 +374,10 @@ implicit none
 include 'newmpar.h'
 
 integer, intent(out) :: totits
+integer, dimension(mg_minsize) :: indy
 integer itr,itrc,g,ng,ng4,n,i,j,ir,ic,jj,iq
 integer iq_a,iq_b,iq_c,iq_d
-integer nc,itmg,gb
+integer nc,gb
 real, intent(in) :: tol,itol
 real, intent(out) :: maxglobseta,maxglobip
 real, dimension(ifull+iextra), intent(inout) :: neta,ipice
@@ -453,7 +398,11 @@ real, dimension(mg_maxsize,gmax+1) :: rhs
 real, dimension(mg_maxsize,gmax+1) :: rhsice
 real, dimension(mg_maxsize,2) :: dsol,new
 real, dimension(ifull+iextra,2) :: dumc
-real, dimension(2) :: dsolmax,dsolmax_g
+real, dimension(mg_minsize,mg_minsize) :: helm_m
+real, dimension(mg_ifullc,3,5) :: yycu
+real, dimension(mg_ifullc,3) :: zzhhcu,zzncu,zzscu,zzecu,zzwcu,rhscu
+real, dimension(2) :: dsolmax
+real, dimension(8) :: dsolmax_g
 
 real, parameter :: dfac=0.25      ! adjustment for grid spacing
 
@@ -484,13 +433,6 @@ end if
 ! zz*(DIV^2 f) + yy*f = F
 
 
-! solver requires bounds to be updated
-dumc(1:ifull,1)=neta(1:ifull)
-dumc(1:ifull,2)=ipice(1:ifull)
-call bounds(dumc)
-neta(ifull+1:ifull+iextra) =dumc(ifull+1:ifull+iextra,1)
-ipice(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,2)
-
 ! upscale coeffs
 yy(1:ifull,1,1)=iyy(1:ifull)
 yy(1:ifull,2,1)=iyyn(1:ifull)
@@ -512,6 +454,15 @@ do g=1,gmax
                           +yy(mg(g)%fine_e,6:10,g)+yy(mg(g)%fine_ne,6:10,g))
   call mgcollect(g+1,yy(:,:,g+1))
 end do
+
+! solver requires bounds to be updated
+dumc(1:ifull,1)=neta(1:ifull)
+dumc(1:ifull,2)=ipice(1:ifull)
+call bounds(dumc)
+neta(ifull+1:ifull+iextra) =dumc(ifull+1:ifull+iextra,1)
+ipice(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,2)
+
+dsolmax_g=0.
 
 ! Main loop
 do itr=1,itr_mgice
@@ -537,7 +488,9 @@ do itr=1,itr_mgice
                        + irhs(iqx(:,nc),2) ) / izz(iqx(:,nc),2)
     ! ice cavitating fluid
     new(1:ifullx,2) = max(min(new(1:ifullx,2),ipmax(iqx(:,nc))),0.)
-   
+
+    dsol(iqx(:,nc),1)=new(1:ifullx,1)-neta(iqx(:,nc))
+    dsol(iqx(:,nc),2)=new(1:ifullx,2)-ipice(iqx(:,nc))   
     neta(iqx(:,nc)) =new(1:ifullx,1)
     ipice(iqx(:,nc))=new(1:ifullx,2)
 
@@ -547,6 +500,9 @@ do itr=1,itr_mgice
     neta(ifull+1:ifull+iextra) =dumc(ifull+1:ifull+iextra,1)
     ipice(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,2)
   end do
+
+  ! test for convergence
+  dsolmax_g(1:2)=maxval(abs(dsol(1:ifull,1:2)),dim=1)
 
   w(1:ifull,2)= izz(:,1)+ iyy*neta(1:ifull)
   w(1:ifull,3)=izzn(:,1)+iyyn*neta(1:ifull)
@@ -571,7 +527,7 @@ do itr=1,itr_mgice
   w(1:ifull,8)=w(1:ifull,8)*ee(1:ifull)
   
   ! For when the inital grid cannot be upscaled
-  call mgcollect(1,w(:,:))
+  call mgcollectreduce(1,w(:,:),dsolmax_g)
   
   do gb=1,min(mg_maxlevel_local,1) ! same as if (mg_maxlevel_local>0) then ...
   
@@ -605,7 +561,7 @@ do itr=1,itr_mgice
       w(1:ng4,6)  =zzw(1:ng4,2)
       w(1:ng4,7)  =hh(1:ng4,2)
       w(1:ng4,8)  =rhsice(1:ng4,2)
-      call mgcollect(2,w(:,:))
+      call mgcollectreduce(2,w(:,:),dsolmax_g)
       ng=mg(2)%ifull
       rhs(1:ng,2)    =w(1:ng,1)
       zz(1:ng,2)     =w(1:ng,2)
@@ -681,7 +637,7 @@ do itr=1,itr_mgice
         w(1:ng4,6)  =zzw(1:ng4,g+1)
         w(1:ng4,7)  =hh(1:ng4,g+1)
         w(1:ng4,8)  =rhsice(1:ng4,g+1)
-        call mgcollect(g+1,w(:,:))
+        call mgcollectreduce(g+1,w(:,:),dsolmax_g)
         ng=mg(g+1)%ifull
         rhs(1:ng,g+1)    =w(1:ng,1)
         zz(1:ng,g+1)     =w(1:ng,2)
@@ -699,36 +655,52 @@ do itr=1,itr_mgice
     do g=mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel==mg_maxlevel_local) then ...
 
       ng=mg(g)%ifull
+      
+      ! solve for ice using LU decomposition and back substitution with RHS
+      helm_m=0.
+      do iq=1,ng
+        helm_m(iq,iq)=yy(iq,6,g)      
+        helm_m(mg(g)%in(iq),iq)=yy(iq,7,g)
+        helm_m(mg(g)%is(iq),iq)=yy(iq,8,g)
+        helm_m(mg(g)%ie(iq),iq)=yy(iq,9,g)
+        helm_m(mg(g)%iw(iq),iq)=yy(iq,10,g)
+      end do
+      call mdecomp(helm_m,indy) ! destroys helm_m
+      v(1:ng,2,g)=rhsice(1:ng,g)
+      call mbacksub(helm_m,v(1:ng,2,g),indy)
 
-      ! ensure all processors have a copy of the coarse grid
-      v(1:ng,:,g)=0.
+      ! solve non-linear water free surface with coloured SOR
+      v(1:ng,1,g)=0.
   
-      do itrc=1,itr_max
+      ! pack yy,zz,hh and rhs by colour
+      do nc=1,3
+        yycu(1:mg_ifullc,nc,1:5)=yy(col_iq(:,nc),1:5,g)
+        zzhhcu(1:mg_ifullc,nc)=zz(col_iq(:,nc),g)+hh(col_iq(:,nc),g)
+        zzncu(1:mg_ifullc,nc)=zzn(col_iq(:,nc),g)
+        zzscu(1:mg_ifullc,nc)=zzs(col_iq(:,nc),g)
+        zzecu(1:mg_ifullc,nc)=zze(col_iq(:,nc),g)
+        zzwcu(1:mg_ifullc,nc)=zzw(col_iq(:,nc),g)
+        rhscu(1:mg_ifullc,nc)=rhs(col_iq(:,nc),g)
+      end do
+  
+      do itrc=1,itr_mgice
 
         do nc=1,3
-          au(1:mg_ifullc)=yy(col_iq(:,nc),1,g)
-          bu(1:mg_ifullc)=zz(col_iq(:,nc),g)+hh(col_iq(:,nc),g)                                               &
-                         +yy(col_iq(:,nc),2,g)*v(col_iqn(:,nc),1,g)+yy(col_iq(:,nc),3,g)*v(col_iqs(:,nc),1,g) &
-                         +yy(col_iq(:,nc),4,g)*v(col_iqe(:,nc),1,g)+yy(col_iq(:,nc),5,g)*v(col_iqw(:,nc),1,g)
-          cu(1:mg_ifullc)=zzn(col_iq(:,nc),g)*v(col_iqn(:,nc),1,g)+zzs(col_iq(:,nc),g)*v(col_iqs(:,nc),1,g) &
-                         +zze(col_iq(:,nc),g)*v(col_iqe(:,nc),1,g)+zzw(col_iq(:,nc),g)*v(col_iqw(:,nc),1,g) &
-                         -rhs(col_iq(:,nc),g)
+          au(1:mg_ifullc)=yycu(:,nc,1)
+          bu(1:mg_ifullc)=zzhhcu(:,nc)                                                        &
+                         +yycu(:,nc,2)*v(col_iqn(:,nc),1,g)+yycu(:,nc,3)*v(col_iqs(:,nc),1,g) &
+                         +yycu(:,nc,4)*v(col_iqe(:,nc),1,g)+yycu(:,nc,5)*v(col_iqw(:,nc),1,g)
+          cu(1:mg_ifullc)=zzncu(:,nc)*v(col_iqn(:,nc),1,g)+zzscu(:,nc)*v(col_iqs(:,nc),1,g)   &
+                         +zzecu(:,nc)*v(col_iqe(:,nc),1,g)+zzwcu(:,nc)*v(col_iqw(:,nc),1,g)   &
+                         -rhscu(:,nc)
           new(1:mg_ifullc,1) = -2.*cu(1:mg_ifullc)/(bu(1:mg_ifullc)+sqrt(bu(1:mg_ifullc)*bu(1:mg_ifullc)-4.*au(1:mg_ifullc)*cu(1:mg_ifullc)))
       
-          new(1:mg_ifullc,2) = ( -yy(col_iq(:,nc),7,g)*v(col_iqn(:,nc),2,g)  &
-                                 -yy(col_iq(:,nc),8,g)*v(col_iqs(:,nc),2,g)  &
-                                 -yy(col_iq(:,nc),9,g)*v(col_iqe(:,nc),2,g)  &
-                                 -yy(col_iq(:,nc),10,g)*v(col_iqw(:,nc),2,g) &
-                                 +rhsice(col_iq(:,nc),g) ) / yy(col_iq(:,nc),6,g)
-        
           dsol(col_iq(:,nc),1)=new(1:mg_ifullc,1)-v(col_iq(:,nc),1,g)
-          dsol(col_iq(:,nc),2)=new(1:mg_ifullc,2)-v(col_iq(:,nc),2,g)
           v(col_iq(:,nc),1,g)=new(1:mg_ifullc,1)
-          v(col_iq(:,nc),2,g)=new(1:mg_ifullc,2)
         end do
     
-        dsolmax(1:2)=maxval(abs(dsol(1:ng,1:2)),dim=1)
-        if (dsolmax(1)<tol.and.dsolmax(2)<itol) exit
+        dsolmax(1)=maxval(abs(dsol(1:ng,1)))
+        if (dsolmax(1)<tol) exit
 
       end do
   
@@ -737,7 +709,7 @@ do itr=1,itr_mgice
     ! downscale grid
     do g=gmax,2,-1
 
-      call mgbcast(g+1,v(:,:,g+1))
+      call mgbcast(g+1,v(:,:,g+1),dsolmax_g(1:2))
 
       ! interpolation
       ng4=mg(g+1)%ifull_coarse
@@ -771,7 +743,7 @@ do itr=1,itr_mgice
     end do
     
     ! fine grid
-    call mgbcast(2,v(:,:,2))
+    call mgbcast(2,v(:,:,2),dsolmax_g(1:2))
 
     ! interpolation
     ng4=mg(2)%ifull_coarse
@@ -783,6 +755,8 @@ do itr=1,itr_mgice
   end do
 
   if (mg(1)%merge_len>1) then
+    call mgbcast(1,w(:,1:1),dsolmax_g(1:1))
+    call mgbcast(1,w(:,8:8),dsolmax_g(2:2))
     vdum=0.
     ir=mod(mg(1)%merge_pos-1,mg(1)%merge_row)+1   ! index for proc row
     ic=(mg(1)%merge_pos-1)/mg(1)%merge_row+1      ! index for proc col
@@ -892,8 +866,8 @@ do itr=1,itr_mgice
 
     new(1:ifullx,1)=max(new(1:ifullx,1),-dd(iqx(:,nc)))*ee(iqx(:,nc))
                              
-    dsol(iqx(:,nc),1)=new(1:ifullx,1)-neta(iqx(:,nc))
-    dsol(iqx(:,nc),2)=new(1:ifullx,2)-ipice(iqx(:,nc))
+    !dsol(iqx(:,nc),1)=new(1:ifullx,1)-neta(iqx(:,nc))
+    !dsol(iqx(:,nc),2)=new(1:ifullx,2)-ipice(iqx(:,nc))
     neta(iqx(:,nc)) =new(1:ifullx,1)
     ipice(iqx(:,nc))=new(1:ifullx,2)
 
@@ -905,59 +879,11 @@ do itr=1,itr_mgice
   end do
   
   ! test for convergence
- 
-  dsolmax(1:2)=maxval(abs(dsol(1:ifull,1:2)),dim=1)
-  call ccmpi_allreduce(dsolmax(1:2),dsolmax_g(1:2),"max",comm_world)
+  !dsolmax(1:2)=maxval(abs(dsol(1:ifull,1:2)),dim=1)
+  !call ccmpi_allreduce(dsolmax(1:2),dsolmax_g(1:2),"max",comm_world)
   if (dsolmax_g(1)<tol.and.dsolmax_g(2)<itol) exit
   
 end do
-
-itmg=itr
-
-! SOR if MG fails to converge
-if (dsolmax_g(1)>=tol.or.dsolmax_g(2)>=itol) then
-  do itr=itmg+1,itr_max
-  
-    do nc=1,maxcolour
-      au(1:ifullx)=iyy(iqx(:,nc))
-      bu(1:ifullx)=izz(iqx(:,nc),1)+ihh(iqx(:,nc))                                         &
-                  +iyyn(iqx(:,nc))*neta(iqn(:,nc))+iyys(iqx(:,nc))*neta(iqs(:,nc))         &
-                  +iyye(iqx(:,nc))*neta(iqe(:,nc))+iyyw(iqx(:,nc))*neta(iqw(:,nc))
-      cu(1:ifullx)=izzn(iqx(:,nc),1)*neta(iqn(:,nc))+izzs(iqx(:,nc),1)*neta(iqs(:,nc))     &
-                  +izze(iqx(:,nc),1)*neta(iqe(:,nc))+izzw(iqx(:,nc),1)*neta(iqw(:,nc))     &
-                  -irhs(iqx(:,nc),1)        
-      new(1:ifullx,1) = -2.*cu(1:ifullx)/(bu(1:ifullx)+sqrt(bu(1:ifullx)*bu(1:ifullx)-4.*au(1:ifullx)*cu(1:ifullx)))
-      
-      new(1:ifullx,2) = ( -izzn(iqx(:,nc),2)*ipice(iqn(:,nc)) &
-                          -izzs(iqx(:,nc),2)*ipice(iqs(:,nc)) &
-                          -izze(iqx(:,nc),2)*ipice(iqe(:,nc)) &
-                          -izzw(iqx(:,nc),2)*ipice(iqw(:,nc)) &
-                         + irhs(iqx(:,nc),2) ) / izz(iqx(:,nc),2)
-
-      ! cavitating fluid
-      new(1:ifullx,2)=max(min(new(1:ifullx,2),ipmax(iqx(:,nc))),0.)
-
-      new(1:ifullx,1)=max(new(1:ifullx,1),-dd(iqx(:,nc)))*ee(iqx(:,nc))
-                             
-      dsol(iqx(:,nc),1)=new(1:ifullx,1)-neta(iqx(:,nc))
-      dsol(iqx(:,nc),2)=new(1:ifullx,2)-ipice(iqx(:,nc))
-      neta(iqx(:,nc)) =new(1:ifullx,1)
-      ipice(iqx(:,nc))=new(1:ifullx,2)
-
-      dumc(1:ifull,1)=neta(1:ifull)
-      dumc(1:ifull,2)=ipice(1:ifull)
-      call bounds_colour(dumc(:,1:2),nc)
-      neta(ifull+1:ifull+iextra) =dumc(ifull+1:ifull+iextra,1)
-      ipice(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,2)
-    end do
-  
-    ! test for convergence
-    dsolmax(1:2)=maxval(abs(dsol(1:ifull,1:2)),dim=1)
-    call ccmpi_allreduce(dsolmax(1:2),dsolmax_g(1:2),"max",comm_world)
-    if (dsolmax_g(1)<tol.and.dsolmax_g(2)<itol) exit
-
-  end do
-end if
 
 totits=itr
 maxglobseta=dsolmax_g(1)
@@ -965,6 +891,101 @@ maxglobip=dsolmax_g(2)
 
 return
 end subroutine mgmlo
+
+! LU decomposition
+subroutine mdecomp(a,indy)
+
+implicit none
+
+real, dimension(:,:), intent(inout) :: a
+real, dimension(size(a,1)) :: vv,dumv
+real aamax,sumx,dum
+integer, dimension(size(a,1)), intent(out) :: indy
+integer n,i,j,k
+integer imax
+
+n=size(a,1)
+
+do i=1,n
+  aamax=maxval(abs(a(i,:)))
+  vv(i)=1./aamax
+end do
+do j=1,n-1
+  do i=1,j-1
+    sumx=a(i,j)-sum(a(i,1:i-1)*a(1:i-1,j))
+    a(i,j)=sumx
+  end do
+  aamax=0.
+  do i=j,n
+    sumx=a(i,j)-sum(a(i,1:j-1)*a(1:j-1,j))
+    a(i,j)=sumx
+    dum=vv(i)*abs(sumx)
+    if (dum>=aamax) then
+      imax=i
+      aamax=dum
+    end if
+  end do
+  if (j/=imax) then
+    dumv(:)=a(imax,:)
+    a(imax,:)=a(j,:)
+    a(j,:)=dumv(:)
+    vv(imax)=vv(j)
+  end if
+  indy(j)=imax
+  dum=1./a(j,j)
+  a(j+1:n,j)=a(j+1:n,j)*dum
+end do
+!j=n
+do i=1,n-1
+  sumx=a(i,n)-sum(a(i,1:i-1)*a(1:i-1,n))
+  a(i,n)=sumx
+end do
+aamax=0.
+!i=n
+sumx=a(n,n)-sum(a(n,1:n-1)*a(1:n-1,n))
+a(n,n)=sumx
+dum=vv(n)*abs(sumx)
+if (dum>=aamax) then
+  imax=n
+  !aamax=dum
+end if
+indy(n)=imax
+
+return
+end subroutine mdecomp
+
+! Back substitution
+subroutine mbacksub(a,b,indy)
+
+implicit none
+
+real, dimension(:,:), intent(in) :: a
+real, dimension(size(a,1)), intent(inout) :: b
+real sumx
+integer, dimension(size(a,1)), intent(in) :: indy
+integer n,i,ii,ll
+
+n=size(a,1)
+ii=0
+do i=1,n
+  ll=indy(i)
+  sumx=b(ll)
+  b(ll)=b(i)
+  if (ii/=0) then
+    sumx=sumx-sum(a(i,ii:i-1)*b(ii:i-1))
+  else if (sumx/=0.) then
+    ii=i
+  end if
+  b(i)=sumx
+end do
+do i=n,1,-1
+  sumx=b(i)-sum(a(i,i+1:n)*b(i+1:n))
+  b(i)=sumx/a(i,i)
+end do
+
+return
+end subroutine mbacksub
+
 
 ! Initialise multi-grid arrays
 subroutine mgsor_init
@@ -1026,8 +1047,10 @@ mg_npan=npan
 mg(1)%npanx=npan
 mg(1)%merge_len=1
 mg(1)%merge_row=1
+mg(1)%nmax=1
 mg(1)%ifull_coarse=0
 
+! create processor map
 allocate(mg(1)%fproc(mil_g,mil_g,0:npanels))
 do n=0,npanels
   do j=1,mil_g
@@ -1051,6 +1074,7 @@ if (mod(mipan,2)/=0.or.mod(mjpan,2)/=0.or.g==mg_maxlevel) then
     
     mg(1)%merge_len=4
     mg(1)%merge_row=2
+    mg(1)%nmax=4
     mxpr=mxpr/2
     mypr=mypr/2
     mipan=2*mipan
@@ -1145,7 +1169,10 @@ if (mod(mipan,2)/=0.or.mod(mjpan,2)/=0.or.g==mg_maxlevel) then
     colour=mg(1)%merge_list(1)
     rank=mg(1)%merge_pos-1
     call ccmpi_commsplit(mg(1)%comm_merge,comm_world,colour,rank)
-    if (rank/=0) mg_maxlevel_local=min(0,mg_maxlevel_local)
+    if (rank/=0) then
+      mg_maxlevel_local=min(0,mg_maxlevel_local)
+      mg(1)%nmax=0
+    end if
   
   else
     write(6,*) "ERROR: Grid g=1 requires gatherall for multi-grid solver"
@@ -1216,6 +1243,7 @@ do g=2,mg_maxlevel
   mg(g)%npanx=npan
   mg(g)%merge_len=1
   mg(g)%merge_row=1
+  mg(g)%nmax=1
   
   ! check for multi-grid gather
   if (mod(mipan,2)/=0.or.mod(mjpan,2)/=0.or.g==mg_maxlevel) then ! grid cannot be subdivided on current processor
@@ -1231,6 +1259,7 @@ do g=2,mg_maxlevel
 
       mg(g)%merge_len=4
       mg(g)%merge_row=2
+      mg(g)%nmax=4
       mxpr=mxpr/2
       mypr=mypr/2
       mipan=2*mipan
@@ -1333,6 +1362,7 @@ do g=2,mg_maxlevel
 #endif
 
       mg(g)%merge_row=mxpr
+      mg(g)%nmax=mg(g)%merge_len
       mipan=mipan*mxpr
       mjpan=mjpan*mypr
       mxpr=1
@@ -1415,7 +1445,10 @@ do g=2,mg_maxlevel
       colour=mg(g)%merge_list(1)
       rank=mg(g)%merge_pos-1
       call ccmpi_commsplit(mg(g)%comm_merge,comm_world,colour,rank)
-      if (rank/=0) mg_maxlevel_local=min(g-1,mg_maxlevel_local)
+      if (rank/=0) then
+        mg_maxlevel_local=min(g-1,mg_maxlevel_local)
+        mg(g)%nmax=0
+      end if
     end if
   
   else
@@ -1650,7 +1683,10 @@ do g=2,mg_maxlevel
 end do
 
 gmax=min(mg_maxlevel-1,mg_maxlevel_local)
-mg_minsize=6*mil_g*mil_g
+mg_minsize=0
+if (mg_maxlevel_local==mg_maxlevel) then
+  mg_minsize=6*mil_g*mil_g
+end if
 
 ! free some memory
 do g=1,mg_maxlevel
