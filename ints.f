@@ -117,8 +117,8 @@ c           (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
               jdel = int(dpoints(iproc)%a(3,iq))
               yyg = dpoints(iproc)%a(3,iq) - jdel
               k = nint(dpoints(iproc)%a(4,iq))
-              idel = idel - ioff(n-noff)
-              jdel = jdel - joff(n-noff)
+              idel = idel - ioff
+              jdel = jdel - joff
               
               
               c1 = sx(:,idel-1,jdel,n,k) ! manually unrolled loop
@@ -197,8 +197,8 @@ c                +x*(1+x)*(2-x)*c3}/2
               jdel = int(dpoints(iproc)%a(3,iq))
               yyg = dpoints(iproc)%a(3,iq) - jdel
               k = nint(dpoints(iproc)%a(4,iq))
-              idel = idel - ioff(n-noff)
-              jdel = jdel - joff(n-noff)
+              idel = idel - ioff
+              jdel = jdel - joff
               c1 = sx(:,idel-1,jdel,n,k) ! manually unrolled loop
               c2 = sx(:,idel  ,jdel,n,k)
               c3 = sx(:,idel+1,jdel,n,k)
@@ -269,8 +269,8 @@ c                +x*(1+x)*(2-x)*c3}/2
               jdel=int(yg(iq,k))
               yyg=yg(iq,k)-jdel
               ! Now make them proper indices in this processor's region
-              idel = idel - ioff(nface(iq,k))
-              jdel = jdel - joff(nface(iq,k))
+              idel = idel - ioff
+              jdel = jdel - joff
               n = nface(iq,k) + noff ! Make this a local index
 
               if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or.
@@ -335,8 +335,8 @@ c                +x*(1+x)*(2-x)*c3}/2
               jdel=int(yg(iq,k))
               yyg=yg(iq,k)-jdel
               ! Now make them proper indices in this processor's region
-              idel = idel - ioff(nface(iq,k))
-              jdel = jdel - joff(nface(iq,k))
+              idel = idel - ioff
+              jdel = jdel - joff
               n = nface(iq,k) + noff ! Make this a local index
 
               if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or.
@@ -480,8 +480,8 @@ c          (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
               jdel = int(dpoints(iproc)%a(3,iq))
               yyg = dpoints(iproc)%a(3,iq) - jdel
               k = nint(dpoints(iproc)%a(4,iq))
-              idel = idel - ioff(n-noff)
-              jdel = jdel - joff(n-noff)
+              idel = idel - ioff
+              jdel = jdel - joff
               c1 = sx(:,idel,jdel-1,n,k) ! manually unrolled loop
               c2 = sx(:,idel,jdel  ,n,k)
               c3 = sx(:,idel,jdel+1,n,k)
@@ -558,8 +558,8 @@ c               +y*(1+y)*(2-y)*c3}/2
               jdel = int(dpoints(iproc)%a(3,iq))
               yyg = dpoints(iproc)%a(3,iq) - jdel
               k = nint(dpoints(iproc)%a(4,iq))
-              idel = idel - ioff(n-noff)
-              jdel = jdel - joff(n-noff)
+              idel = idel - ioff
+              jdel = jdel - joff
               c1 = sx(:,idel,jdel-1,n,k) ! manually unrolled loop
               c2 = sx(:,idel,jdel  ,n,k)
               c3 = sx(:,idel,jdel+1,n,k)
@@ -630,8 +630,8 @@ c                +y*(1+y)*(2-y)*c3}/2
               jdel=int(yg(iq,k))
               yyg=yg(iq,k)-jdel
               ! Now make them proper indices in this processor's region
-              idel = idel - ioff(nface(iq,k))
-              jdel = jdel - joff(nface(iq,k))
+              idel = idel - ioff
+              jdel = jdel - joff
               n = nface(iq,k) + noff ! Make this a local index
 
               if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or.
@@ -696,8 +696,8 @@ c               +y*(1+y)*(2-y)*c3}/2
               jdel=int(yg(iq,k))
               yyg=yg(iq,k)-jdel
               ! Now make them proper indices in this processor's region
-              idel = idel - ioff(nface(iq,k))
-              jdel = jdel - joff(nface(iq,k))
+              idel = idel - ioff
+              jdel = jdel - joff
               n = nface(iq,k) + noff ! Make this a local index
 
               if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or.
@@ -842,12 +842,12 @@ c                    but for bi-linear only need 0:il+1 &  0:il+1
             jdel = int(dpoints(iproc)%a(3,iq))
             yyg = dpoints(iproc)%a(3,iq) - jdel
             k = nint(dpoints(iproc)%a(4,iq))
-            idel = idel - ioff(n-noff)
-            jdel = jdel - joff(n-noff)
+            idel = idel - ioff
+            jdel = jdel - joff
             sextra(iproc)%a(iq) = yyg*( xxg*sx(idel+1,jdel+1,n,k)
-     &                              +(1.-xxg)*sx(idel,jdel+1,n,k))
-     &                   +(1.-yyg)*(      xxg*sx(idel+1,jdel,n,k)
-     &                               +(1.-xxg)*sx(idel,jdel,n,k))
+     &                            +(1.-xxg)*sx(  idel,jdel+1,n,k))
+     &                    +(1.-yyg)*(   xxg*sx(idel+1,  jdel,n,k)
+     &                            +(1.-xxg)*sx(  idel,  jdel,n,k))
          end do
       end do
 
@@ -861,8 +861,8 @@ c                    but for bi-linear only need 0:il+1 &  0:il+1
             jdel=int(yg(iq,k))
             yyg=yg(iq,k)-jdel
             ! Now make them proper indices in this processor's region
-            idel = idel - ioff(nface(iq,k))
-            jdel = jdel - joff(nface(iq,k))
+            idel = idel - ioff
+            jdel = jdel - joff
             n = nface(iq,k) + noff ! Make this a local index
 
             if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or.

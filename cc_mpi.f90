@@ -4,13 +4,12 @@ module cc_mpi
    private
    include 'newmpar.h'
 
-   integer, save, public :: myid                             ! Processor number
-   integer, save, public :: ipan, jpan                       ! grid size on processor
-   integer, save, dimension(0:npanels), public :: ioff, joff ! offset of processor grid relative to global grid
-   integer, save, public :: noff                             ! offset of processor panel relative to global grid
    integer, save, public :: comm_world                       ! global communication
-   integer, save, private :: nxproc, nyproc                  ! number of processors in the x and y directions
-   integer, save, public :: nagg                             ! maximum number to aggregate
+   integer, save, public :: myid                             ! processor rank number for comm_world
+   integer, save, public :: ipan, jpan                       ! grid size on processor
+   integer, save, public :: ioff, joff, noff                 ! offset of processor grid relative to global grid
+   integer, save, public :: nxproc, nyproc                   ! number of processors in the x and y directions
+   integer, save, public :: nagg                             ! maximum number of levels to aggregate for message passing
 
    integer(kind=4), save, private :: nreq, rreq                        ! number of requests and number of recvs
    integer(kind=4), allocatable, dimension(:), save, private :: ireq   ! request index
@@ -31,7 +30,8 @@ module cc_mpi
              ccmpi_allgatherx, ccmpi_recv, ccmpi_ssend, ccmpi_init,         &
              ccmpi_finalize, ccmpi_commsplit, ccmpi_commfree, mgbounds,     &
              mgcollectreduce, mgcollect, mgbcast, mg_index, indx,           &
-             bounds_colour, boundsuv_allvec, fproc
+             bounds_colour, boundsuv_allvec, fproc, proc_region,            &
+             proc_region_face, proc_region_dix
    public :: mgbndtype
    public :: dpoints_t,dindex_t,sextra_t,bnds
    private :: ccmpi_distribute2, ccmpi_distribute2i, ccmpi_distribute2r8,   &
@@ -170,7 +170,7 @@ module cc_mpi
    integer, public, save :: maxbuflen
 
    ! Flag whether processor region edge is a face edge.
-   logical, dimension(0:npanels), public, save :: edge_w, edge_n, edge_s, edge_e
+   logical, public, save :: edge_w, edge_n, edge_s, edge_e
 
    ! Off processor departure points
    type(dpoints_t), allocatable, dimension(:), public, save :: dpoints
@@ -514,13 +514,11 @@ contains
       do iproc = 0,nproc-1
          slen = 0
 #ifdef uniform_decomp
-         do n = 1,npan
-            ! Panel range on the source processor
-            call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,2)
+         call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
 #else
-         call proc_region(iproc,0,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,0)
-         do n = 1,npan
+         call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
 #endif
+         do n = 1,npan
             do j = 1,jpan
                do i = 1,ipan
                   iq = i+ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
@@ -595,13 +593,11 @@ contains
       do iproc=0,nproc-1
          slen = 0
 #ifdef uniform_decomp
-         do n=1,npan
-            ! Panel range on the source processor
-            call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,2)
+         call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
 #else
-         call proc_region(iproc,0,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,0)
-         do n=1,npan
+         call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
 #endif
+         do n = 1,npan
             do j=1,jpan
                do i=1,ipan
                   iq = i+ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
@@ -666,13 +662,11 @@ contains
       do iproc = 0,nproc-1
          slen = 0
 #ifdef uniform_decomp
-         do n = 1,npan
-            ! Panel range on the source processor
-            call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,2)
+         call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
 #else
-         call proc_region(iproc,0,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,0)
-         do n = 1,npan
+         call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
 #endif
+         do n = 1,npan
             do j = 1,jpan
                do i = 1,ipan
                   iq = i+ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
@@ -753,13 +747,11 @@ contains
       do iproc = 0,nproc-1
          slen = 0
 #ifdef uniform_decomp
-         do n = 1,npan
-            ! Panel range on the source processor
-            call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,2)
+         call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
 #else
-         call proc_region(iproc,0,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,0)
-         do n = 1,npan
+         call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
 #endif
+         do n = 1,npan
             do j = 1,jpan
                do i = 1,ipan
                   iq = i+ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
@@ -844,13 +836,11 @@ contains
       do iproc = 0,nproc-1
          slen = 0
 #ifdef uniform_decomp
-         do n = 1,npan
-            ! Panel range on the source processor
-            call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,2)
+         call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
 #else
-         call proc_region(iproc,0,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,0)
-         do n = 1,npan
+         call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
 #endif
+         do n = 1,npan
             do j = 1,jpan
                do i = 1,ipan
                   iq = i+ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
@@ -941,13 +931,11 @@ contains
       ! map array in order of processor rank
       do iproc = 0,nproc-1
 #ifdef uniform_decomp
-         do n = 1,npan
-            ! Panel range on the source processor
-            call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,2)
+         call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
 #else
-         call proc_region(iproc,0,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,0)
-         do n = 1,npan
+         call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
 #endif
+         do n = 1,npan
             ! Use the face indices for unpacking
             do j = 1,jpan
 !cdir nodep
@@ -1026,13 +1014,11 @@ contains
       ! map array in order of processor rank
       do iproc = 0,nproc-1
 #ifdef uniform_decomp
-         do n = 1,npan
-            ! Panel range on the source processor
-            call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,2)
+         call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
 #else
-         call proc_region(iproc,0,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,0)
-         do n = 1,npan
+         call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
 #endif
+         do n = 1,npan
             ! Use the face indices for unpacking
             do j = 1,jpan
 !cdir nodep
@@ -1091,13 +1077,11 @@ contains
       ! map array in order of processor rank
       do iproc = 0,nproc-1
 #ifdef uniform_decomp
-         do n = 1,npan
-            ! Panel range on the source processor
-            call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,2)
+         call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
 #else
-         call proc_region(iproc,0,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,0)
-         do n = 1,npan
+         call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
 #endif
+         do n = 1,npan
             ! Use the face indices for unpacking
             do j = 1,jpan
 !cdir nodep
@@ -1141,13 +1125,11 @@ contains
       ! map array in order of processor rank
       do iproc = 0,nproc-1
 #ifdef uniform_decomp
-         do n = 1,npan
-            ! Panel range on the source processor
-            call proc_region(iproc,n-1,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,2)
+         call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
 #else
-         call proc_region(iproc,0,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan,il_g,nproc,0)
-         do n = 1,npan
+         call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
 #endif
+         do n = 1,npan
             ! Use the face indices for unpacking
             do j = 1,jpan
 !cdir nodep
@@ -1379,10 +1361,10 @@ contains
       isu = is
 
       ! Initialise the edge variables
-      edge_w(:) = ioff(:) == 0
-      edge_s(:) = joff(:) == 0
-      edge_n(:) = joff(:) == il_g - jpan
-      edge_e(:) = ioff(:) == il_g - ipan
+      edge_w = ioff == 0
+      edge_s = joff == 0
+      edge_n = joff == il_g - jpan
+      edge_e = ioff == il_g - ipan
 
       nr = 1
 
@@ -1758,12 +1740,12 @@ contains
       do n=1,npan
          ! NE corner, lnee, leen, lenn, lnne
          iqg = indg(ipan,jpan,n)
-         if ( edge_n(n-noff) .and. edge_e(n-noff) ) then
+         if ( edge_n .and. edge_e ) then
             call fix_index2(lnee_g(n-noff),lnee,n,bnds,iext,qproc)
             call fix_index2(leen_g(n-noff),leen,n,bnds,iext,qproc)
             call fix_index2(lenn_g(n-noff),lenn,n,bnds,iext,qproc)
             call fix_index2(lnne_g(n-noff),lnne,n,bnds,iext,qproc)
-         else if ( edge_e(n-noff) ) then
+         else if ( edge_e ) then
             ! Use in first because it'll be on same face.
             call fix_index2(iee_g(in_g(iqg)),lnee,n,bnds,iext,qproc)
             leen(n) = lnee(n)
@@ -1779,12 +1761,12 @@ contains
 
          ! NW corner, lnww, lwwn, lwnn, lnnw
          iqg = indg(1,jpan,n)
-         if ( edge_n(n-noff) .and. edge_w(n-noff) ) then
+         if ( edge_n .and. edge_w ) then
             call fix_index2(lnww_g(n-noff),lnww,n,bnds,iext,qproc)
             call fix_index2(lwwn_g(n-noff),lwwn,n,bnds,iext,qproc)
             call fix_index2(lwnn_g(n-noff),lwnn,n,bnds,iext,qproc)
             call fix_index2(lnnw_g(n-noff),lnnw,n,bnds,iext,qproc)
-         else if ( edge_w(n-noff) ) then
+         else if ( edge_w ) then
             ! Use in first because it'll be on same face.
             call fix_index2(iww_g(in_g(iqg)),lnww,n,bnds,iext,qproc)
             lwwn(n) = lnww(n)
@@ -1800,12 +1782,12 @@ contains
 
          ! SE corner, lsee, lees, less, lsse
          iqg = indg(ipan,1,n)
-         if ( edge_s(n-noff) .and. edge_e(n-noff) ) then
+         if ( edge_s .and. edge_e ) then
             call fix_index2(lsee_g(n-noff),lsee,n,bnds,iext,qproc)
             call fix_index2(lees_g(n-noff),lees,n,bnds,iext,qproc)
             call fix_index2(less_g(n-noff),less,n,bnds,iext,qproc)
             call fix_index2(lsse_g(n-noff),lsse,n,bnds,iext,qproc)
-         else if ( edge_e(n-noff) ) then
+         else if ( edge_e ) then
             ! Use is first because it'll be on same face.
             call fix_index2(iee_g(is_g(iqg)),lsee,n,bnds,iext,qproc)
             lees(n) = lsee(n)
@@ -1821,12 +1803,12 @@ contains
 
          ! SW corner, lsww, lwws, lwss, lssw
          iqg = indg(1,1,n)
-         if ( edge_s(n-noff) .and. edge_w(n-noff) ) then
+         if ( edge_s .and. edge_w ) then
             call fix_index2(lsww_g(n-noff),lsww,n,bnds,iext,qproc)
             call fix_index2(lwws_g(n-noff),lwws,n,bnds,iext,qproc)
             call fix_index2(lwss_g(n-noff),lwss,n,bnds,iext,qproc)
             call fix_index2(lssw_g(n-noff),lssw,n,bnds,iext,qproc)
-         else if ( edge_w(n-noff) ) then
+         else if ( edge_w ) then
             ! Use is first because it'll be on same face.
             call fix_index2(iww_g(is_g(iqg)),lsww,n,bnds,iext,qproc)
             lwws(n) = lsww(n)
@@ -2063,7 +2045,7 @@ contains
             iqg = indg(i,j,n)
             iqq = is_g(iqg)
             rproc = qproc(iqq)
-            swap = edge_s(n-noff) .and. swap_s(n-noff)
+            swap = edge_s .and. swap_s(n-noff)
             if ( rproc == myid .and. .not. swap ) cycle
             call check_bnds_alloc(rproc, iextv)
             bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1
@@ -2090,7 +2072,7 @@ contains
             ! Only need to add to bounds region if it's on another processor
             ! or if it's on this processor and needs to be swapped.
             ! Decide if u/v need to be swapped. My face is n-noff
-            swap = edge_w(n-noff) .and. swap_w(n-noff)
+            swap = edge_w .and. swap_w(n-noff)
             if ( rproc == myid .and. .not. swap ) cycle
             call check_bnds_alloc(rproc, iextu)
             bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1
@@ -2117,7 +2099,7 @@ contains
             iqg = indg(i,j,n)
             iqq = in_g(iqg)
             rproc = qproc(iqq)
-            swap = edge_n(n-noff) .and. swap_n(n-noff)
+            swap = edge_n .and. swap_n(n-noff)
             if ( rproc == myid .and. .not. swap ) cycle
             ! Add this point to request list
             call check_bnds_alloc(rproc, iextv)
@@ -2142,7 +2124,7 @@ contains
             iqg = indg(i,j,n)
             iqq = ie_g(iqg)
             rproc = qproc(iqq)
-            swap = edge_e(n-noff) .and. swap_e(n-noff)
+            swap = edge_e .and. swap_e(n-noff)
             if ( rproc == myid .and. .not. swap ) cycle
             ! Add this point to request list
             call check_bnds_alloc(rproc, iextu)
@@ -2178,7 +2160,7 @@ contains
             iqg = indg(i,j,n)
             iqq = iss_g(iqg)
             rproc = qproc(iqq)
-            swap = edge_s(n-noff) .and. swap_s(n-noff)
+            swap = edge_s .and. swap_s(n-noff)
             if ( rproc == myid .and. .not. swap ) cycle
             call check_bnds_alloc(rproc, iextv)
             bnds(rproc)%rlen2_uv = bnds(rproc)%rlen2_uv + 1
@@ -2202,7 +2184,7 @@ contains
             iqq = iww_g(iqg)
             ! Which processor has this point
             rproc = qproc(iqq)
-            swap = edge_w(n-noff) .and. swap_w(n-noff)
+            swap = edge_w .and. swap_w(n-noff)
             if ( rproc == myid .and. .not. swap ) cycle
             ! Add this point to request list
             call check_bnds_alloc(rproc, iextu)
@@ -2231,7 +2213,7 @@ contains
             iqg = indg(i,j,n)
             iqq = inn_g(iqg)
             rproc = qproc(iqq)
-            swap = edge_n(n-noff) .and. swap_n(n-noff)
+            swap = edge_n .and. swap_n(n-noff)
             if ( rproc == myid .and. .not. swap ) cycle
             ! Add this point to request list
             call check_bnds_alloc(rproc, iextv)
@@ -2256,7 +2238,7 @@ contains
             iqg = indg(i,j,n)
             iqq = iee_g(iqg)
             rproc = qproc(iqq)
-            swap = edge_e(n-noff) .and. swap_e(n-noff)
+            swap = edge_e .and. swap_e(n-noff)
             if ( rproc == myid .and. .not. swap ) cycle
             ! Add this point to request list
             call check_bnds_alloc(rproc, iextu)
@@ -2288,7 +2270,7 @@ contains
             iqg = indg(i,j,n)
             iqq = is_g(iqg)
             rproc = qproc(iqq)
-            swap = edge_s(n-noff) .and. swap_s(n-noff)
+            swap = edge_s .and. swap_s(n-noff)
             if ( rproc == myid .and. .not. swap ) cycle
             call check_bnds_alloc(rproc, iextu)
             bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
@@ -2315,7 +2297,7 @@ contains
             ! Only need to add to bounds region if it's on another processor
             ! or if it's on this processor and needs to be swapped.
             ! Decide if u/v need to be swapped. My face is n-noff
-            swap = edge_w(n-noff) .and. swap_w(n-noff)
+            swap = edge_w .and. swap_w(n-noff)
             if ( rproc == myid .and. .not. swap ) cycle
             call check_bnds_alloc(rproc, iextv)
             bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
@@ -2339,7 +2321,7 @@ contains
             iqg = indg(i,j,n)
             iqq = in_g(iqg)
             rproc = qproc(iqq)
-            swap = edge_n(n-noff) .and. swap_n(n-noff)
+            swap = edge_n .and. swap_n(n-noff)
             if ( rproc == myid .and. .not. swap ) cycle
             ! Add this point to request list
             call check_bnds_alloc(rproc, iextu)
@@ -2363,7 +2345,7 @@ contains
             iqg = indg(i,j,n)
             iqq = ie_g(iqg)
             rproc = qproc(iqq)
-            swap = edge_e(n-noff) .and. swap_e(n-noff)
+            swap = edge_e .and. swap_e(n-noff)
             if ( rproc == myid .and. .not. swap ) cycle
             ! Add this point to request list
             call check_bnds_alloc(rproc, iextv)
@@ -4175,7 +4157,6 @@ contains
       ! Because of the boundary region, the range [0:ipan+1) can be handled.
       ! Need floor(xxg) in range [0:ipan]
       ! MJT - modified to restrict bounds calls to ocean processors with gmode=1
-      use arrays_m
       integer, dimension(:,:), intent(in) :: nface
       real, dimension(:,:), intent(in) :: xg, yg
       real :: xf, yf
@@ -4193,13 +4174,12 @@ contains
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif   
 
-      call start_log(deptsync_begin)
-
       ! This does nothing in the one processor case
       if ( neighnum < 1 ) return
+
+      call start_log(deptsync_begin)
       
       kx = size(nface,2)
-
       dslen = 0
       drlen = 0
 
@@ -4239,8 +4219,8 @@ contains
             xf = xg(iq,k)
             yf = yg(iq,k)
             nf = gf + noff ! Make this a local index
-            idel = int(xf) - ioff(gf)
-            jdel = int(yf) - joff(gf)
+            idel = int(xf) - ioff
+            jdel = int(yf) - joff
             if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. jdel > jpan &
                  .or. nf < 1 .or. nf > npan ) then
                ! If point is on a different face, add to a list 
@@ -4253,7 +4233,7 @@ contains
 
                ! Since nface is a small integer it can be exactly represented by a
                ! real. It's simpler to send like this than use a proper structure.
-               xn = max(min(dslen(iproc),bnds(iproc)%len),1)
+               xn = max(min(dslen(iproc),bnds(iproc)%len/nagg),1)
                dbuf(iproc)%a(:,xn) = (/ real(gf), xf, yf, real(k) /)
                dindex(iproc)%a(:,xn) = (/ iq, k /)
             end if
@@ -4266,7 +4246,7 @@ contains
          sproc = neighlistsend(iproc)  ! Send to
          ! Send, even if length is zero
          nreq = nreq + 1
-         llen = 4*min(dslen(sproc),bnds(sproc)%len)
+         llen = 4*min(dslen(sproc),bnds(sproc)%len/nagg)
          lproc = sproc
          call MPI_ISend( dbuf(sproc)%a, llen, ltype, lproc, &
                  itag, MPI_COMM_WORLD, ireq(nreq), ierr )
@@ -4274,14 +4254,14 @@ contains
       
       ! Error check
        do iproc = 0,nproc-1
-          if ( dslen(iproc) > bnds(iproc)%len ) then
-             write(6,*) "myid,iproc,neighbour,dslen,len ",myid,iproc,neighbour(iproc),dslen(iproc),bnds(iproc)%len
+          if ( dslen(iproc) > bnds(iproc)%len/nagg ) then
+             write(6,*) "myid,iproc,neighbour,dslen,len ",myid,iproc,neighbour(iproc),dslen(iproc),bnds(iproc)%len/nagg
              iq = dindex(iproc)%a(1,1)
              k = dindex(iproc)%a(2,1)
              write(6,*) "Example error iq,k ",iq,k
              write(6,*) "dbuf ",dbuf(iproc)%a(:,1)
              write(6,*) "neighlistrecv ",neighlistrecv
-             call checksize(dslen(iproc),bnds(iproc)%len,"Deptsync")
+             call checksize(dslen(iproc),bnds(iproc)%len/nagg,"Deptsync")
           end if
        end do
 
@@ -4428,8 +4408,8 @@ contains
          call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
       end if
       ! Reduced to values on my processor
-      j = j - joff(n)
-      i = i - ioff(n)
+      j = j - joff
+      i = i - ioff
       n = n + noff      
    end subroutine indv_mpi
 
@@ -4448,7 +4428,7 @@ contains
 
       ! Calculate a 1D global index from the local processors indices
       ! n in range 1..npan
-      iq = i+ioff(n-noff) + (j+joff(n-noff)-1)*il_g + (n-noff)*il_g*il_g
+      iq = i+ioff + (j+joff-1)*il_g + (n-noff)*il_g*il_g
    end function indg
 
    function indp(i,j,n) result(iq)
@@ -4604,8 +4584,11 @@ contains
 !     Routine to set up offsets etc.
       real, dimension(ifull_g), intent(out) :: qproc
       integer :: i, j, n, nd, jdf, idjd_g
+      integer, dimension(0:npanels) :: ipoff, jpoff
 
-      call face_set( ipan, jpan, noff, ioff, joff, npan, il_g, myid, nproc, nxproc, nyproc )
+      call face_set( ipan, jpan, noff, ipoff, jpoff, npan, il_g, myid, nproc, nxproc, nyproc )
+      ioff = ipoff(0)
+      joff = jpoff(0)
 
       qproc = -9999 ! Mask value so any points not set are obvious.
       do n=0,npanels
@@ -4634,6 +4617,64 @@ contains
       end if
 
    end subroutine proc_setup
+
+   subroutine proc_setup_uniform(qproc)
+      include 'parm.h'
+!     Routine to set up offsets etc for the uniform decomposition
+      real, dimension(ifull_g), intent(out) :: qproc
+      integer :: i, j, n, nd, jdf, idjd_g
+      integer, dimension(0:npanels) :: ipoff, jpoff
+      integer(kind=4) ierr, mone
+
+      call dix_set( ipan, jpan, noff, ipoff, jpoff, npan, il_g, myid, nproc, nxproc, nyproc)
+      ioff = ipoff(0)
+      joff = jpoff(0)
+
+      qproc = -9999 ! Mask value so any points not set are obvious.
+      do n=0,npanels
+         do j=1,il_g
+            do i=1,il_g
+               qproc(indglobal(i,j,n)) = fproc(i,j,n)
+            end do
+         end do
+      end do
+      
+      if (any(qproc<0)) then
+         write(6,*) "Error, incorrect assignment of processors to qproc"
+         mone = -1
+         call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
+      end if
+
+!     Check that the values calculated here match those set as parameters
+      if ( ipan /= il ) then
+         write(6,*) "Error, parameter mismatch, ipan /= il", ipan, il
+         mone = -1
+         call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
+      end if
+      if ( jpan*npan /= jl ) then
+         write(6,*) "Error, parameter mismatch, jpan*npan /= jl", jpan, npan, jl
+         mone = -1
+         call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
+      end if
+
+!      ipfull = ipan*jpan*npan
+!      iextra = 4*npan*(ipan+jpan+8)
+
+      ! Convert standard jd to a face index
+      nd = (jd-1)/il_g ! 0: to match fproc
+      jdf = jd - nd*il_g
+      mydiag = ( myid == fproc(id,jdf,nd) )
+      ! Convert global indices to ones on this processors region
+      idjd_g = id + (jd-1)*il_g
+      if ( mydiag ) then
+         call indv_mpi(idjd_g,i,j,n)
+         idjd = indp(i,j,n)
+      else
+         ! This should never be used so set a value that will give a bounds error
+         idjd = huge(1)
+      end if
+
+   end subroutine proc_setup_uniform
 
    subroutine face_set(ipanx,jpanx,noffx,ioffx,joffx,npanx,il_gx,myidx,nprocx,nxprocx,nyprocx)
       integer, intent(in) :: myidx,nprocx,npanx,il_gx
@@ -4698,67 +4739,12 @@ contains
          jpanx = il_gx/nyprocx
 
          ! Set offsets for this processor
-         call proc_region(myidx,0,ioffx(0),joffx(0),noffx,nxprocx,nyprocx,ipanx,jpanx,npanx,il_gx,nprocx,0)
+         call proc_region_face(myidx,ioffx(0),joffx(0),noffx,nxprocx,nyprocx,ipanx,jpanx,npanx)
          ioffx(1:npanels)=ioffx(0)
          joffx(1:npanels)=joffx(0)
       end if
    
    end subroutine face_set
-
-   subroutine proc_setup_uniform(qproc)
-      include 'parm.h'
-!     Routine to set up offsets etc for the uniform decomposition
-      real, dimension(ifull_g), intent(out) :: qproc
-      integer :: i, j, n, nd, jdf, idjd_g
-      integer(kind=4) ierr, mone
-
-      call dix_set( ipan, jpan, noff, ioff, joff, npan, il_g, myid, nproc, nxproc, nyproc)
-
-      qproc = -9999 ! Mask value so any points not set are obvious.
-      do n=0,npanels
-         do j=1,il_g
-            do i=1,il_g
-               qproc(indglobal(i,j,n)) = fproc(i,j,n)
-            end do
-         end do
-      end do
-      
-      if (any(qproc<0)) then
-         write(6,*) "Error, incorrect assignment of processors to qproc"
-         mone = -1
-         call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
-      end if
-
-!     Check that the values calculated here match those set as parameters
-      if ( ipan /= il ) then
-         write(6,*) "Error, parameter mismatch, ipan /= il", ipan, il
-         mone = -1
-         call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
-      end if
-      if ( jpan*npan /= jl ) then
-         write(6,*) "Error, parameter mismatch, jpan*npan /= jl", jpan, npan, jl
-         mone = -1
-         call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
-      end if
-
-!      ipfull = ipan*jpan*npan
-!      iextra = 4*npan*(ipan+jpan+8)
-
-      ! Convert standard jd to a face index
-      nd = (jd-1)/il_g ! 0: to match fproc
-      jdf = jd - nd*il_g
-      mydiag = ( myid == fproc(id,jdf,nd) )
-      ! Convert global indices to ones on this processors region
-      idjd_g = id + (jd-1)*il_g
-      if ( mydiag ) then
-         call indv_mpi(idjd_g,i,j,n)
-         idjd = indp(i,j,n)
-      else
-         ! This should never be used so set a value that will give a bounds error
-         idjd = huge(1)
-      end if
-
-   end subroutine proc_setup_uniform
 
    subroutine dix_set(ipanx,jpanx,noffx,ioffx,joffx,npanx,il_gx,myidx,nprocx,nxprocx,nyprocx)
       integer, intent(in) :: myidx, nprocx, npanx, il_gx
@@ -4807,9 +4793,9 @@ contains
       jpanx = il_gx/nyprocx
 
       ! Set offsets for this processor
-      do n=0,npanels
-         call proc_region(myidx,n,ioffx(n),joffx(n),noffx,nxprocx,nyprocx,ipanx,jpanx,npanx,il_gx,nprocx,2)
-      end do
+      call proc_region_dix(myidx,ioffx(0),joffx(0),noffx,nxprocx,ipanx,jpanx)
+      ioffx(1:npanels)=ioffx(0)
+      joffx(1:npanels)=joffx(0)
 
    end subroutine dix_set
 
@@ -4862,83 +4848,117 @@ contains
 
       ! Set offsets for this processor
       do n=0,npanels
-         call proc_region(myidx,n,ioffx(n),joffx(n),noffx,nxprocx,nyprocx,ipanx,jpanx,npanx,il_gx,nprocx,1)
+         call proc_region_uniform(myidx,n,ioffx(n),joffx(n),noffx,nxprocx,nyprocx,ipanx,jpanx)
       end do
 
    end subroutine uniform_set
 
-   subroutine proc_region(procid,panid,ipoff,jpoff,npoff,nxprocx,nyprocx,ipanx,jpanx,npanx,il_gx,nprocx,dmode)
+   subroutine proc_region(procid,panid,ipoff,jpoff,npoff,nxprocx,nyprocx,ipanx,jpanx,npanx,dmode)
       ! Calculate the offsets for a given processor
-      integer, intent(in) :: procid, panid, nxprocx, nyprocx, ipanx, jpanx, npanx, il_gx, nprocx, dmode
+      integer, intent(in) :: procid, panid, nxprocx, nyprocx, ipanx, jpanx, npanx
+      integer, intent(in) :: dmode
       integer, intent(out) :: ipoff, jpoff, npoff
       integer :: myface, mtmp
       integer(kind=4) ierr, mone
 
       select case(dmode)
          case(0) ! Face
-            if ( nprocx <= npanels+1 ) then
-               npoff = 1 - procid*npanx
-               ipoff = 0
-               jpoff = 0
-            else
-               myface = procid / (nxprocx*nyprocx)
-               npoff = 1 - myface
-               ! mtmp is the processor index on this face, 0:(nxprox*nyproc-1)
-               mtmp = procid - myface*(nxprocx*nyprocx)
-               jpoff = (mtmp/nxprocx) * jpanx
-               ipoff = modulo(mtmp,nxprocx) * ipanx
-            end if
+            call proc_region_face(procid,ipoff,jpoff,npoff,nxprocx,nyprocx,ipanx,jpanx,npanx)
       
          case(1) ! Old uniform
-            ! MJT suggested decomposition to improve load balance
-            npoff=1
-            select case(panid)
-               case(0)
-                  jpoff = (procid/nxprocx) * jpanx
-                  ipoff = modulo(procid,nxprocx) * ipanx
-                  if (jpoff>=il_gx/2) then
-                     ipoff=il_gx-ipoff-ipanx
-                  end if
-               case(1)
-                  jpoff = (procid/nxprocx) * jpanx
-                  ipoff = modulo(procid,nxprocx) * ipanx
-               case(2)
-                  jpoff = (procid/nxprocx) * jpanx
-                  ipoff = modulo(procid,nxprocx) * ipanx
-                  if (ipoff>=il_gx/2) then
-                     jpoff=il_gx-jpoff-jpanx
-                  end if
-               case(3)
-                  jpoff = modulo(procid,nyprocx) * jpanx
-                  ipoff = (procid/nyprocx) * ipanx
-                  if (ipoff>=il_gx/2) then
-                     jpoff=il_gx-jpoff-jpanx
-                  end if
-               case(4)
-                  jpoff = modulo(procid,nyprocx) * jpanx
-                  ipoff = (procid/nyprocx) * ipanx
-               case(5)
-                  jpoff = modulo(procid,nyprocx) * jpanx
-                  ipoff = (procid/nyprocx) * ipanx
-                  if (jpoff>=il_gx/2) then
-                     ipoff=il_gx-ipoff-ipanx
-                  end if        
-            end select
+            call proc_region_uniform(procid,panid,ipoff,jpoff,npoff,nxprocx,nyprocx,ipanx,jpanx)
             
          case(2) ! New uniform
-            ! Original Dix uniform decomposition
-            ! Set offsets for this processor (same on all faces)
-            npoff = 1
-            jpoff = (procid/nxprocx) * jpanx
-            ipoff = modulo(procid,nxprocx)*ipanx
-            
+            call proc_region_dix(procid,ipoff,jpoff,npoff,nxprocx,ipanx,jpanx)
+
+#ifdef debug            
          case default
             write(6,*) "ERROR: Invalid decomposition ",dmode
             mone = -1
             call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
+#endif
       end select
      
    end subroutine proc_region
+
+   subroutine proc_region_face(procid,ipoff,jpoff,npoff,nxprocx,nyprocx,ipanx,jpanx,npanx)
+      ! Calculate the offsets for a given processor
+      integer, intent(in) :: procid, nxprocx, nyprocx, ipanx, jpanx, npanx
+      integer, intent(out) :: ipoff, jpoff, npoff
+      integer :: myface, mtmp, nprocx
+
+      nprocx = nxprocx*nyprocx
+      if ( nprocx <= npanels+1 ) then
+         npoff = 1 - procid*npanx
+         ipoff = 0
+         jpoff = 0
+      else
+         myface = procid / nprocx
+         npoff = 1 - myface
+         ! mtmp is the processor index on this face, 0:(nxprox*nyproc-1)
+         mtmp = procid - myface*nprocx
+         jpoff = (mtmp/nxprocx) * jpanx
+         ipoff = modulo(mtmp,nxprocx) * ipanx
+      end if
+     
+   end subroutine proc_region_face
+
+   subroutine proc_region_uniform(procid,panid,ipoff,jpoff,npoff,nxprocx,nyprocx,ipanx,jpanx)
+      ! Calculate the offsets for a given processor
+      integer, intent(in) :: procid, panid, nxprocx, nyprocx, ipanx, jpanx
+      integer, intent(out) :: ipoff, jpoff, npoff
+      integer il_gx
+
+      ! MJT suggested decomposition to improve load balance
+      il_gx = ipanx*nxprocx
+      npoff = 1
+      select case(panid)
+         case(0)
+            jpoff = (procid/nxprocx) * jpanx
+            ipoff = modulo(procid,nxprocx) * ipanx
+            if (jpoff>=il_gx/2) then
+               ipoff=il_gx-ipoff-ipanx
+            end if
+         case(1)
+            jpoff = (procid/nxprocx) * jpanx
+            ipoff = modulo(procid,nxprocx) * ipanx
+         case(2)
+            jpoff = (procid/nxprocx) * jpanx
+            ipoff = modulo(procid,nxprocx) * ipanx
+            if (ipoff>=il_gx/2) then
+               jpoff=il_gx-jpoff-jpanx
+            end if
+         case(3)
+            jpoff = modulo(procid,nyprocx) * jpanx
+            ipoff = (procid/nyprocx) * ipanx
+            if (ipoff>=il_gx/2) then
+               jpoff=il_gx-jpoff-jpanx
+            end if
+         case(4)
+            jpoff = modulo(procid,nyprocx) * jpanx
+            ipoff = (procid/nyprocx) * ipanx
+         case(5)
+            jpoff = modulo(procid,nyprocx) * jpanx
+            ipoff = (procid/nyprocx) * ipanx
+            if (jpoff>=il_gx/2) then
+               ipoff=il_gx-ipoff-ipanx
+            end if        
+      end select
+     
+   end subroutine proc_region_uniform
+
+   subroutine proc_region_dix(procid,ipoff,jpoff,npoff,nxprocx,ipanx,jpanx)
+      ! Calculate the offsets for a given processor
+      integer, intent(in) :: procid, nxprocx, ipanx, jpanx
+      integer, intent(out) :: ipoff, jpoff, npoff
+
+      ! Original Dix uniform decomposition
+      ! Set offsets for this processor (same on all faces)
+      npoff = 1
+      jpoff = (procid/nxprocx) * jpanx
+      ipoff = modulo(procid,nxprocx)*ipanx
+     
+   end subroutine proc_region_dix
 
    subroutine start_log ( event )
       integer, intent(in) :: event
@@ -5532,17 +5552,14 @@ contains
 
        call start_log(posneg_begin)
 
-       delpos_l = 0.
-       delneg_l = 0.
+       local_sum(1) = (0.,0.)
+       local_sum(2) = (0.,0.)
        do iq = 1,ifull
           tmparr(iq)  = max(0.,array(iq)*wts(iq))
           tmparr2(iq) = min(0.,array(iq)*wts(iq))
        enddo
-       local_sum = (0.,0.)
        call drpdr_local(tmparr, local_sum(1))
        call drpdr_local(tmparr2, local_sum(2))
-       delpos_l = real(local_sum(1))
-       delneg_l = real(local_sum(2))
 #ifdef sumdd
 #ifdef i8r8
        ltype = MPI_DOUBLE_COMPLEX
@@ -5560,6 +5577,8 @@ contains
 #else
        ltype = MPI_REAL
 #endif   
+       delpos_l = real(local_sum(1))
+       delneg_l = real(local_sum(2))
        mnum = 2
        delarr_l(1:2) = (/ delpos_l, delneg_l /)
        call MPI_Allreduce ( delarr_l, delarr, mnum, ltype, MPI_SUM,    &
@@ -5609,8 +5628,6 @@ contains
           call drpdr_local(tmparr,  local_sum(1))
           call drpdr_local(tmparr2, local_sum(2))
        end do ! k loop
-       delpos_l = real(local_sum(1))
-       delneg_l = real(local_sum(2))
 #ifdef sumdd
 #ifdef i8r8
        ltype = MPI_DOUBLE_COMPLEX
@@ -5627,6 +5644,8 @@ contains
 #else
        ltype = MPI_REAL
 #endif   
+       delpos_l = real(local_sum(1))
+       delneg_l = real(local_sum(2))
        mnum = 2
        delarr_l(1:2) = (/ delpos_l, delneg_l /)
        call MPI_Allreduce ( delarr_l, delarr, mnum, ltype, MPI_SUM, MPI_COMM_WORLD, ierr )
@@ -7218,11 +7237,11 @@ contains
       integer, parameter, dimension(0:5) :: npane=(/ 102, 2, 104, 4, 100, 0 /)
       integer, parameter, dimension(0:5) :: npanw=(/ 5, 105, 1, 101, 3, 103 /)
       integer, parameter, dimension(0:5) :: npans=(/ 104, 0, 100, 2, 102, 4 /)
-      integer, dimension(npanels+1) :: mioff, mjoff
       integer, dimension(2*(mipan+mjpan+2)*(npanels+1)) :: dum
       integer, dimension(2,0:nproc-1) :: sdum, rdum
       integer, dimension(3) :: mg_ifullxc
-      integer i, j, n, iq, iqq, iqg, iql, iqb, iqtmp, ii, mfull, mfull_g, ncount
+      integer mioff, mjoff
+      integer i, j, n, iq, iqq, iqg, iql, iqb, iqtmp, ii, mfull, mfull_g
       integer iloc, jloc, nloc
       integer iext, iproc, xlen, jx, nc, xlev, rproc, sproc
       integer ntest, nsize
@@ -7244,29 +7263,26 @@ contains
 
 
       ! calculate processor map in iq coordinates
-      ncount = 0
       lglob = .true.
+      lflag = .true.
       mg_qproc = -1
       do n = 0,npanels
-         lflag = .true.
          do j = 1,mil_g
             do i = 1,mil_g
                iq = indx(i,j,n,mil_g,mil_g)
                mg_qproc(iq) = mg(g)%fproc(i,j,n)
                if ( mg_qproc(iq) /= myid ) then
-                 lglob = .false.
-               ! ncount>=npan usually indicates that a global gather has occured
+                  lglob = .false.
                else if ( lflag ) then
-                  ncount = ncount + 1
-                  mioff(ncount) = i-1
-                  mjoff(ncount) = j-1
+                  mioff = i-1
+                  mjoff = j-1
                   lflag = .false.
                end if
             end do
          end do
       end do
       
-      if ( ncount == 0 ) then
+      if ( lflag ) then
          write(6,*) "ERROR: Cannot find myid in mg_proc"
          write(6,*) "myid,g ",myid,g
          write(6,*) "mg_proc ",maxval(mg_qproc),minval(mg_qproc),count(mg_qproc==myid)
@@ -7380,7 +7396,7 @@ contains
             do j = 1,mjpan
                do i = 1,mipan
                   iq = indx(i,j,n-1,mipan,mjpan) ! Local
-                  iqg = indx(i+mioff(n),j+mjoff(n),n-noff,mil_g,mil_g) ! Global
+                  iqg = indx(i+mioff,j+mjoff,n-noff,mil_g,mil_g) ! Global
 
                   iqq = jn_g(iqg)    ! Global neighbour index
                   rproc = mg_qproc(iqq) ! Processor that has this point
@@ -7460,7 +7476,7 @@ contains
             !     Start with N edge
             j = mjpan
             do i = 1,mipan
-               iq = indx(i+mioff(n),j+mjoff(n),n-noff,mil_g,mil_g)
+               iq = indx(i+mioff,j+mjoff,n-noff,mil_g,mil_g)
                iqq = jn_g(iq)
                ! Which processor has this point
                rproc = mg_qproc(iqq)
@@ -7490,7 +7506,7 @@ contains
             !     E edge
             i = mipan
             do j=1,mjpan
-               iq = indx(i+mioff(n),j+mjoff(n),n-noff,mil_g,mil_g)
+               iq = indx(i+mioff,j+mjoff,n-noff,mil_g,mil_g)
                iqq = je_g(iq)
                ! Which processor has this point
                rproc = mg_qproc(iqq)
@@ -7520,7 +7536,7 @@ contains
             !     W edge
             i = 1
             do j = 1,mjpan
-               iq = indx(i+mioff(n),j+mjoff(n),n-noff,mil_g,mil_g)
+               iq = indx(i+mioff,j+mjoff,n-noff,mil_g,mil_g)
                iqq = jw_g(iq)
                ! Which processor has this point
                rproc = mg_qproc(iqq)
@@ -7550,7 +7566,7 @@ contains
             !     S edge
             j = 1
             do i = 1,mipan
-               iq = indx(i+mioff(n),j+mjoff(n),n-noff,mil_g,mil_g)
+               iq = indx(i+mioff,j+mjoff,n-noff,mil_g,mil_g)
                iqq = js_g(iq)
                ! Which processor has this point
                rproc = mg_qproc(iqq)
@@ -7586,7 +7602,7 @@ contains
          do n = 1,npan
             ! NE
             iq = indx(mipan,mjpan,n-1,mipan,mjpan)
-            iqg = indx(mipan+mioff(n),mjpan+mjoff(n),n-noff,mil_g,mil_g)
+            iqg = indx(mipan+mioff,mjpan+mjoff,n-noff,mil_g,mil_g)
             iqq = jne_g(iqg)
             ! Which processor has this point
             rproc = mg_qproc(iqq)
@@ -7613,7 +7629,7 @@ contains
 
             ! SE
             iq = indx(mipan,1,n-1,mipan,mjpan)
-            iqg = indx(mipan+mioff(n),1+mjoff(n),n-noff,mil_g,mil_g)
+            iqg = indx(mipan+mioff,1+mjoff,n-noff,mil_g,mil_g)
             iqq = jse_g(iqg)
             ! Which processor has this point
             rproc = mg_qproc(iqq)
@@ -7640,7 +7656,7 @@ contains
 
             ! WN
             iq = indx(1,mjpan,n-1,mipan,mjpan)
-            iqg = indx(1+mioff(n),mjpan+mjoff(n),n-noff,mil_g,mil_g)
+            iqg = indx(1+mioff,mjpan+mjoff,n-noff,mil_g,mil_g)
             iqq = jnw_g(iqg)
             ! Which processor has this point
             rproc = mg_qproc(iqq)
@@ -7667,7 +7683,7 @@ contains
 
             ! SW
             iq = indx(1,1,n-1,mipan,mjpan)
-            iqg = indx(1+mioff(n),1+mjoff(n),n-noff,mil_g,mil_g)
+            iqg = indx(1+mioff,1+mjoff,n-noff,mil_g,mil_g)
             iqq = jsw_g(iqg)
             ! Which processor has this point
             rproc = mg_qproc(iqq)
@@ -7958,11 +7974,11 @@ contains
 
    subroutine indv_mpix(iq, i, j, n, mil_g, mioff, mjoff, mnoff)
 
-      integer , intent(in) :: iq, mil_g, mnoff
-      integer, dimension(npanels+1), intent(in) :: mioff, mjoff
-      integer , intent(out) :: i
-      integer , intent(out) :: j
-      integer , intent(out) :: n
+      integer, intent(in) :: iq, mil_g, mnoff
+      integer, intent(in) :: mioff, mjoff
+      integer, intent(out) :: i
+      integer, intent(out) :: j
+      integer, intent(out) :: n
       integer :: ierr,ierr2
 
       ! Calculate local i, j, n from global iq
@@ -7974,8 +7990,8 @@ contains
 
       ! Reduced to values on my processor
       n = n + mnoff  
-      j = j - mjoff(n)
-      i = i - mioff(n)
+      j = j - mjoff
+      i = i - mioff
 
    return
    end subroutine indv_mpix

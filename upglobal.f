@@ -163,6 +163,7 @@
         end do
        endif
 
+#ifdef debug
       if ( mydiag ) then
          if(tx(idjd,kl)>264.)then  !cb
            write(6,*)
@@ -179,7 +180,8 @@
 	    num_hight=num_hight+1
          endif
 	 enddo
-      endif           
+      endif 
+#endif          
 
       aa(1:ifull)=zs(1:ifull)/(rdry*nritch_t)    ! save zs/(r*t) for nt_adv schemes 
       do k=1,kl   

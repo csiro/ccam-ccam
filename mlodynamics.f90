@@ -2080,8 +2080,8 @@ if(intsch==1)then
       jdel = int(dpoints(iproc)%a(3,iq))
       yyg = dpoints(iproc)%a(3,iq) - jdel
       k = nint(dpoints(iproc)%a(4,iq))
-      idel = idel - ioff(n-noff)
-      jdel = jdel - joff(n-noff)
+      idel = idel - ioff
+      jdel = jdel - joff
 
       sc(-1,0,:) = sx(idel-1,jdel,n,k,:)
       sc(0,0,:)  = sx(idel  ,jdel,n,k,:)
@@ -2142,8 +2142,8 @@ if(intsch==1)then
         jdel=int(yg(iq,k))
         yyg=yg(iq,k)-jdel
         ! Now make them proper indices in this processor's region
-        idel = idel - ioff(nface(iq,k))
-        jdel = jdel - joff(nface(iq,k))
+        idel = idel - ioff
+        jdel = jdel - joff
         n = nface(iq,k) + noff ! Make this a local index
         if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. &
              jdel > jpan .or. n < 1 .or. n > npan ) then
@@ -2252,8 +2252,8 @@ else     ! if(intsch==1)then
       jdel = int(dpoints(iproc)%a(3,iq))
       yyg = dpoints(iproc)%a(3,iq) - jdel
       k = nint(dpoints(iproc)%a(4,iq))
-      idel = idel - ioff(n-noff)
-      jdel = jdel - joff(n-noff)
+      idel = idel - ioff
+      jdel = jdel - joff
 
       sc(0,-1,:) = sx(idel,jdel-1,n,k,:)
       sc(0,0,:)  = sx(idel,jdel  ,n,k,:)
@@ -2312,8 +2312,8 @@ else     ! if(intsch==1)then
         jdel=int(yg(iq,k))
         yyg=yg(iq,k)-jdel
         ! Now make them proper indices in this processor's region
-        idel = idel - ioff(nface(iq,k))
-        jdel = jdel - joff(nface(iq,k))
+        idel = idel - ioff
+        jdel = jdel - joff
         n = nface(iq,k) + noff ! Make this a local index
         if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. &
              jdel > jpan .or. n < 1 .or. n > npan ) then
@@ -2488,8 +2488,8 @@ if(intsch==1)then
       jdel = int(dpoints(iproc)%a(3,iq))
       yyg = dpoints(iproc)%a(3,iq) - jdel
       k = nint(dpoints(iproc)%a(4,iq))
-      idel = idel - ioff(n-noff)
-      jdel = jdel - joff(n-noff)
+      idel = idel - ioff
+      jdel = jdel - joff
 
       sc(-1,0,:) = sx(idel-1,jdel,n,k,:)
       sc(0,0,:)  = sx(idel  ,jdel,n,k,:)
@@ -2554,8 +2554,8 @@ if(intsch==1)then
         jdel=int(yg(iq,k))
         yyg=yg(iq,k)-jdel
         ! Now make them proper indices in this processor's region
-        idel = idel - ioff(nface(iq,k))
-        jdel = jdel - joff(nface(iq,k))
+        idel = idel - ioff
+        jdel = jdel - joff
         n = nface(iq,k) + noff ! Make this a local index
         if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. &
              jdel > jpan .or. n < 1 .or. n > npan ) then
@@ -2673,8 +2673,8 @@ else     ! if(intsch==1)then
       jdel = int(dpoints(iproc)%a(3,iq))
       yyg = dpoints(iproc)%a(3,iq) - jdel
       k = nint(dpoints(iproc)%a(4,iq))
-      idel = idel - ioff(n-noff)
-      jdel = jdel - joff(n-noff)
+      idel = idel - ioff
+      jdel = jdel - joff
 
       sc(0,-1,:) = sx(idel,jdel-1,n,k,:)
       sc(0,0,:)  = sx(idel,jdel  ,n,k,:)
@@ -2738,8 +2738,8 @@ else     ! if(intsch==1)then
         jdel=int(yg(iq,k))
         yyg=yg(iq,k)-jdel
         ! Now make them proper indices in this processor's region
-        idel = idel - ioff(nface(iq,k))
-        jdel = jdel - joff(nface(iq,k))
+        idel = idel - ioff
+        jdel = jdel - joff
         n = nface(iq,k) + noff ! Make this a local index
         if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. &
              jdel > jpan .or. n < 1 .or. n > npan ) then

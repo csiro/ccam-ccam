@@ -1372,7 +1372,7 @@ c       Leave define mode
         if(local)then
            ! Set these to global indices (relative to panel 0 in uniform decomp)
            do i=1,ipan
-              xpnt(i) = float(i) + ioff(0)
+              xpnt(i) = float(i) + ioff
            end do
            iduma(1)=1
            iduma(2)=il
@@ -1381,7 +1381,7 @@ c       Leave define mode
            i=1
            do n=1,npan
              do j=1,jpan
-               ypnt(i) = float(j) + joff(n-noff) + (n-noff)*il_g
+               ypnt(i) = float(j) + joff + (n-noff)*il_g
                i=i+1
              end do
            end do
@@ -2353,7 +2353,7 @@ c      "extra" outputs
           if (localhist) then
            ! Set these to global indices (relative to panel 0 in uniform decomp)
            do i=1,ipan
-              xpnt(i) = float(i) + ioff(0)
+              xpnt(i) = float(i) + ioff
            end do
            iduma(1)=1
            iduma(2)=il
@@ -2362,7 +2362,7 @@ c      "extra" outputs
            i=1
            do n=1,npan
              do j=1,jpan
-               ypnt(i) = float(j) + joff(n-noff) + (n-noff)*il_g
+               ypnt(i) = float(j) + joff + (n-noff)*il_g
                i=i+1
              end do
            end do

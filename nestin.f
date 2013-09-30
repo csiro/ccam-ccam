@@ -8,8 +8,8 @@
       ! Current tests suggest the 1D is a good approximation of the 2D filter where the grid stretching
       ! is not too large.
 
-      ! nbd/=0     Far-field or relaxation nudging
-      ! mbd/=0     Spectral filter (1D and 2D versions, see nud_uv)
+      ! nbd/=0       Far-field or relaxation nudging
+      ! mbd/=0       Spectral filter (1D and 2D versions, see nud_uv)
       ! nud_uv =1    Nudge winds (=9 for 2D filter)
       ! nud_t  =1    Nudge air temperature
       ! nud_qg =1    Nudge mixing ratio
@@ -688,10 +688,12 @@
       real, dimension(ifull), intent(inout) :: pslb
       real, dimension(ifull,klt), intent(inout) :: ub,vb
       real, dimension(ifull,klt), intent(inout) :: tb,qb
+      real, dimension(ifull,klt) :: wb
       real, dimension(ifull_g) :: psls
       real, dimension(ifull_g,klt) :: uu,vv,ww
       real, dimension(ifull_g,klt) :: tt,qgg
-      real, dimension(ifull_g) :: r,da,db
+      real, dimension(ifull_g) :: r
+      real, dimension(ifull) :: da,db
       real, dimension(klt) :: ud,vd,wd
       real cq,psum
       logical, intent(in) :: lblock
@@ -704,15 +706,16 @@
       if (nud_uv==3) then
         call ccmpi_gatherall(ub(:,1:klt),ww(:,1:klt))
       else if (nud_uv>0) then
-        call ccmpi_gatherall(ub(:,1:klt),uu(:,1:klt))
-        call ccmpi_gatherall(vb(:,1:klt),vv(:,1:klt))
         do k=1,klt
           da=ub(:,k)
           db=vb(:,k)
-          uu(:,k)=ax_g(:)*da+bx_g(:)*db
-          vv(:,k)=ay_g(:)*da+by_g(:)*db
-          ww(:,k)=az_g(:)*da+bz_g(:)*db
+          ub(:,k)=ax(1:ifull)*da+bx(1:ifull)*db
+          vb(:,k)=ay(1:ifull)*da+by(1:ifull)*db
+          wb(:,k)=az(1:ifull)*da+bz(1:ifull)*db
         end do
+        call ccmpi_gatherall(ub(:,1:klt),uu(:,1:klt))
+        call ccmpi_gatherall(vb(:,1:klt),vv(:,1:klt))
+        call ccmpi_gatherall(wb(:,1:klt),ww(:,1:klt))
       endif
       if (nud_t>0) then
         call ccmpi_gatherall(tb(:,1:klt),tt(:,1:klt))
@@ -872,13 +875,15 @@
       real, dimension(ifull), intent(inout) :: pslb
       real, dimension(ifull,klt), intent(inout) :: ub,vb
       real, dimension(ifull,klt), intent(inout) :: tb,qb
+      real, dimension(ifull,klt) :: wb
       real, dimension(ifg) :: psls
       real, dimension(ifg,klt) :: uu,vv,ww
       real, dimension(ifg,klt) :: tt,qgg
-      real, dimension(ifg) :: qp,qsum,zp,x_g,xx_g
+      real, dimension(ifg) :: qp,qsum,zp
       real, dimension(ifg,klt) :: qu,qv,qw,qt,qq
       real, dimension(ifg,klt) :: zu,zv,zw,zt,zq
       real, dimension(ifg*klt) :: dd,ff
+      real, dimension(ifull) :: xa_l,xb_l
       real cq
       logical, intent(in) :: lblock
       logical, save :: first = .true.
@@ -899,53 +904,56 @@
       cq=sqrt(4.5)*cin ! filter length scale
 
       ! gather data onto myid==0
-      if (nud_p>0.and.lblock) then
-        if (myid==0) then
+      if (myid==0) then
+        if (nud_p>0.and.lblock) then
           call ccmpi_gather(pslb(:), psls(:))
-        else
-          call ccmpi_gather(pslb(:))
         end if
-      end if
-      if (nud_uv==3) then
-        if (myid==0) then
+        if (nud_uv==3) then
           call ccmpi_gather(ub(:,1:klt),ww(:,1:klt))
-        else
-          call ccmpi_gather(ub(:,1:klt))
-        end if
-      else if (nud_uv>0) then
-        if (myid==0) then
+        else if (nud_uv>0) then
+          do k=1,klt
+            xa_l=ub(:,k)
+            xb_l=vb(:,k)
+            ub(:,k)=ax(1:ifull)*xa_l+bx(1:ifull)*xb_l
+            vb(:,k)=ay(1:ifull)*xa_l+by(1:ifull)*xb_l
+            wb(:,k)=az(1:ifull)*xa_l+bz(1:ifull)*xb_l
+          end do
           call ccmpi_gather(ub(:,1:klt),uu(:,1:klt))
           call ccmpi_gather(vb(:,1:klt),vv(:,1:klt))
-          ! we assume that the coordinate transform on a single 
-          ! processor is faster than sending three components 
-          ! of the wind vector with gather
+          call ccmpi_gather(wb(:,1:klt),ww(:,1:klt))
+        end if
+        if (nud_t>0) then
+          call ccmpi_gather(tb(:,1:klt),tt(:,1:klt))
+        end if
+        if (nud_q>0) then
+          call ccmpi_gather(qb(:,1:klt),qgg(:,1:klt))
+        end if
+      else
+        if (nud_p>0.and.lblock) then
+          call ccmpi_gather(pslb(:))
+        end if
+        if (nud_uv==3) then
+          call ccmpi_gather(ub(:,1:klt))
+        else if (nud_uv>0) then
           do k=1,klt
-            x_g =uu(:,k)
-            xx_g=vv(:,k)
-            uu(:,k)=ax_g(:)*x_g+bx_g(:)*xx_g
-            vv(:,k)=ay_g(:)*x_g+by_g(:)*xx_g
-            ww(:,k)=az_g(:)*x_g+bz_g(:)*xx_g
+            xa_l=ub(:,k)
+            xb_l=vb(:,k)
+            ub(:,k)=ax(1:ifull)*xa_l+bx(1:ifull)*xb_l
+            vb(:,k)=ay(1:ifull)*xa_l+by(1:ifull)*xb_l
+            wb(:,k)=az(1:ifull)*xa_l+bz(1:ifull)*xb_l
           end do
-        else
           call ccmpi_gather(ub(:,1:klt))
           call ccmpi_gather(vb(:,1:klt))
+          call ccmpi_gather(wb(:,1:klt))
         end if
-      end if
-      if (nud_t>0) then
-        if (myid==0) then
-          call ccmpi_gather(tb(:,1:klt),tt(:,1:klt))
-        else
+        if (nud_t>0) then
           call ccmpi_gather(tb(:,1:klt))
-        end if
-      end if
-      if (nud_q>0) then
-        if (myid==0) then
-          call ccmpi_gather(qb(:,1:klt),qgg(:,1:klt))
-        else
+        end if          
+        if (nud_q>0) then
           call ccmpi_gather(qb(:,1:klt))
         end if
       end if
-
+      
       if (ns<=ne) then
 #ifdef debug
         if (myid==0) write(6,*) "Start 1D filter"
@@ -1147,45 +1155,54 @@
       end if
       
       ! distribute data to processors
-      if (nud_p>0.and.lblock) then
-        if (myid==0) then
+      if (myid==0) then
+        if (nud_p>0.and.lblock) then
           call ccmpi_distribute(pslb,zp)
-        else
-          call ccmpi_distribute(pslb)
         end if
-      end if
-      if (nud_uv==3) then
-        if (myid==0) then
+        if (nud_uv==3) then
           call ccmpi_distribute(ub(:,1:klt),zw(:,1:klt))
-        else
-          call ccmpi_distribute(ub(:,1:klt))
-        end if
-      else if (nud_uv>0) then
-        if (myid==0) then
-          do k=1,klt
-            x_g=ax_g(:)*zu(:,k)+ay_g(:)*zv(:,k)+az_g(:)*zw(:,k)
-            xx_g=bx_g(:)*zu(:,k)+by_g(:)*zv(:,k)+bz_g(:)*zw(:,k)
-            zu(:,k)=x_g
-            zv(:,k)=xx_g
-          end do
+        else if (nud_uv>0) then
           call ccmpi_distribute(ub(:,1:klt),zu(:,1:klt))
           call ccmpi_distribute(vb(:,1:klt),zv(:,1:klt))
-        else
+          call ccmpi_distribute(wb(:,1:klt),zw(:,1:klt))
+          do k=1,klt
+            xa_l=ax(1:ifull)*ub(:,k)+ay(1:ifull)*vb(:,k)
+     &          +az(1:ifull)*wb(:,k)
+            xb_l=bx(1:ifull)*ub(:,k)+by(1:ifull)*vb(:,k)
+     &          +bz(1:ifull)*wb(:,k)
+            ub(:,k)=xa_l
+            vb(:,k)=xb_l
+          end do
+        end if
+        if (nud_t>0) then
+          call ccmpi_distribute(tb(:,1:klt),zt(:,1:klt))
+        end if
+        if (nud_q>0) then
+          call ccmpi_distribute(qb(:,1:klt),zq(:,1:klt))
+        end if
+      else
+        if (nud_p>0.and.lblock) then
+          call ccmpi_distribute(pslb)
+        end if
+        if (nud_uv==3) then
+          call ccmpi_distribute(ub(:,1:klt))
+        else if (nud_uv>0) then
           call ccmpi_distribute(ub(:,1:klt))
           call ccmpi_distribute(vb(:,1:klt))
+          call ccmpi_distribute(wb(:,1:klt))
+          do k=1,klt
+            xa_l=ax(1:ifull)*ub(:,k)+ay(1:ifull)*vb(:,k)
+     &          +az(1:ifull)*wb(:,k)
+            xb_l=bx(1:ifull)*ub(:,k)+by(1:ifull)*vb(:,k)
+     &          +bz(1:ifull)*wb(:,k)
+            ub(:,k)=xa_l
+            vb(:,k)=xb_l
+          end do
         end if
-      end if
-      if (nud_t>0) then
-        if (myid==0) then
-          call ccmpi_distribute(tb(:,1:klt),zt(:,1:klt))
-        else
+        if (nud_t>0) then
           call ccmpi_distribute(tb(:,1:klt))
         end if
-      end if
-      if (nud_q>0) then
-        if (myid==0) then
-          call ccmpi_distribute(qb(:,1:klt),zq(:,1:klt))
-        else
+        if (nud_q>0) then
           call ccmpi_distribute(qb(:,1:klt))
         end if
       end if
@@ -1216,12 +1233,14 @@
       real, dimension(ifull), intent(inout) :: pslb
       real, dimension(ifull,klt), intent(inout) :: ub,vb
       real, dimension(ifull,klt), intent(inout) :: tb,qb
+      real, dimension(ifull,klt) :: wb
       real, dimension(ifg) :: psls
       real, dimension(ifg,klt) :: uu,vv,ww
       real, dimension(ifg,klt) :: tt,qgg
       real, dimension(ifg*klt) :: dd
       real, dimension(il_g*il_g*klt) :: ff
-      real, dimension(ifg) :: qsum,x_g,xx_g
+      real, dimension(ifg) :: qsum
+      real, dimension(ifull) :: xa_l,xb_l
       logical, intent(in) :: lblock
       logical, save :: first = .true.
 
@@ -1241,46 +1260,52 @@
       cq=sqrt(4.5)*cin ! filter length scale
 
       ! gather data onto myid==0
-      if (nud_p>0.and.lblock) then
-        if (myid==0) then
+      if (myid==0) then
+        if (nud_p>0.and.lblock) then
           call ccmpi_gather(pslb(:), psls(:))
-        else
-          call ccmpi_gather(pslb(:))
         end if
-      end if
-      if (nud_uv==3) then
-        if (myid==0) then
+        if (nud_uv==3) then
           call ccmpi_gather(ub(:,1:klt),ww(:,1:klt))
-        else
-          call ccmpi_gather(ub(:,1:klt))
-        end if
-      else if (nud_uv>0) then
-        if (myid==0) then
+        else if (nud_uv>0) then
+          do k=1,klt
+            xa_l=ub(:,k)
+            xb_l=vb(:,k)
+            ub(:,k)=ax(1:ifull)*xa_l+bx(1:ifull)*xb_l
+            vb(:,k)=ay(1:ifull)*xa_l+by(1:ifull)*xb_l
+            wb(:,k)=az(1:ifull)*xa_l+bz(1:ifull)*xb_l
+          end do
           call ccmpi_gather(ub(:,1:klt),uu(:,1:klt))
           call ccmpi_gather(vb(:,1:klt),vv(:,1:klt))
+          call ccmpi_gather(wb(:,1:klt),ww(:,1:klt))
+        end if
+        if (nud_t>0) then
+          call ccmpi_gather(tb(:,1:klt),tt(:,1:klt))
+        end if
+        if (nud_q>0) then
+          call ccmpi_gather(qb(:,1:klt),qgg(:,1:klt))
+        end if
+      else
+        if (nud_p>0.and.lblock) then
+          call ccmpi_gather(pslb(:))
+        end if
+        if (nud_uv==3) then
+          call ccmpi_gather(ub(:,1:klt))
+        else if (nud_uv>0) then
           do k=1,klt
-            x_g =uu(:,k)
-            xx_g=vv(:,k)
-            uu(:,k)=ax_g(:)*x_g+bx_g(:)*xx_g
-            vv(:,k)=ay_g(:)*x_g+by_g(:)*xx_g
-            ww(:,k)=az_g(:)*x_g+bz_g(:)*xx_g
+            xa_l=ub(:,k)
+            xb_l=vb(:,k)
+            ub(:,k)=ax(1:ifull)*xa_l+bx(1:ifull)*xb_l
+            vb(:,k)=ay(1:ifull)*xa_l+by(1:ifull)*xb_l
+            wb(:,k)=az(1:ifull)*xa_l+bz(1:ifull)*xb_l
           end do
-        else
           call ccmpi_gather(ub(:,1:klt))
           call ccmpi_gather(vb(:,1:klt))
+          call ccmpi_gather(wb(:,1:klt))
         end if
-      end if
-      if (nud_t>0) then
-        if (myid==0) then
-          call ccmpi_gather(tb(:,1:klt),tt(:,1:klt))
-        else
+        if (nud_t>0) then
           call ccmpi_gather(tb(:,1:klt))
-        end if
-      end if
-      if (nud_q>0) then
-        if (myid==0) then
-          call ccmpi_gather(qb(:,1:klt),qgg(:,1:klt))
-        else
+        end if          
+        if (nud_q>0) then
           call ccmpi_gather(qb(:,1:klt))
         end if
       end if
@@ -1453,45 +1478,54 @@
       end if
       
       ! distribute data to processors
-      if (nud_p>0.and.lblock) then
-        if (myid==0) then
+      if (myid==0) then
+        if (nud_p>0.and.lblock) then
           call ccmpi_distribute(pslb,psls)
-        else
-          call ccmpi_distribute(pslb)
         end if
-      end if
-      if (nud_uv==3) then
-        if (myid==0) then
+        if (nud_uv==3) then
           call ccmpi_distribute(ub(:,1:klt),ww(:,1:klt))
-        else
-          call ccmpi_distribute(ub(:,1:klt))
-        end if
-      else if (nud_uv>0) then
-        if (myid==0) then
-          do k=1,klt
-            x_g=ax_g(:)*uu(:,k)+ay_g(:)*vv(:,k)+az_g(:)*ww(:,k)
-            xx_g=bx_g(:)*uu(:,k)+by_g(:)*vv(:,k)+bz_g(:)*ww(:,k)
-            uu(:,k)=x_g
-            vv(:,k)=xx_g
-          end do
+        else if (nud_uv>0) then
           call ccmpi_distribute(ub(:,1:klt),uu(:,1:klt))
           call ccmpi_distribute(vb(:,1:klt),vv(:,1:klt))
-        else
+          call ccmpi_distribute(wb(:,1:klt),ww(:,1:klt))
+          do k=1,klt
+            xa_l=ax(1:ifull)*ub(:,k)+ay(1:ifull)*vb(:,k)
+     &          +az(1:ifull)*wb(:,k)
+            xb_l=bx(1:ifull)*ub(:,k)+by(1:ifull)*vb(:,k)
+     &          +bz(1:ifull)*wb(:,k)
+            ub(:,k)=xa_l
+            vb(:,k)=xb_l
+          end do
+        end if
+        if (nud_t>0) then
+          call ccmpi_distribute(tb(:,1:klt),tt(:,1:klt))
+        end if
+        if (nud_q>0) then
+          call ccmpi_distribute(qb(:,1:klt),qgg(:,1:klt))
+        end if       
+      else
+        if (nud_p>0.and.lblock) then
+          call ccmpi_distribute(pslb)
+        end if
+        if (nud_uv==3) then
+          call ccmpi_distribute(ub(:,1:klt))
+        else if (nud_uv>0) then
           call ccmpi_distribute(ub(:,1:klt))
           call ccmpi_distribute(vb(:,1:klt))
+          call ccmpi_distribute(wb(:,1:klt))
+          do k=1,klt
+            xa_l=ax(1:ifull)*ub(:,k)+ay(1:ifull)*vb(:,k)
+     &          +az(1:ifull)*wb(:,k)
+            xb_l=bx(1:ifull)*ub(:,k)+by(1:ifull)*vb(:,k)
+     &          +bz(1:ifull)*wb(:,k)
+            ub(:,k)=xa_l
+            vb(:,k)=xb_l
+          end do
         end if
-      end if
-      if (nud_t>0) then
-        if (myid==0) then
-          call ccmpi_distribute(tb(:,1:klt),tt(:,1:klt))
-        else
+        if (nud_t>0) then
           call ccmpi_distribute(tb(:,1:klt))
         end if
-      end if
-      if (nud_q>0) then
-        if (myid==0) then
-          call ccmpi_distribute(qb(:,1:klt),qgg(:,1:klt))
-        else
+        if (nud_q>0) then
           call ccmpi_distribute(qb(:,1:klt))
         end if
       end if
@@ -2354,11 +2388,12 @@
       real, dimension(ifull,1), intent(inout) :: diffh_l
       real, dimension(ifull,kd), intent(inout) :: diff_l,diffs_l
       real, dimension(ifull,kd), intent(inout) :: diffu_l,diffv_l
+      real, dimension(ifull,kd) :: diffw_l
       real, dimension(ifull_g,1) :: diffh_g
       real, dimension(ifull_g,kd) :: diff_g,diffs_g
       real, dimension(ifull_g,kd) :: diffu_g,diffv_g
       real, dimension(ifull_g,kd) :: diffw_g
-      real, dimension(ifull_g) :: x_g, xx_g
+      real, dimension(ifull) :: xa_l, xb_l
       logical, intent(in) :: lblock
       logical, dimension(ifull_g) :: landg
 
@@ -2371,20 +2406,21 @@
         landg=abs(diffs_g(:,1)-miss)<0.1
       end if
       if (nud_ouv/=0) then
-        call ccmpi_gatherall(diffu_l(:,1:kd),diffu_g(:,1:kd))
-        call ccmpi_gatherall(diffv_l(:,1:kd),diffv_g(:,1:kd))
         do k=1,kd
-          x_g =diffu_g(:,k)
-          xx_g=diffv_g(:,k)
-          diffu_g(:,k)=ax_g*x_g+bx_g*xx_g
-          diffv_g(:,k)=ay_g*x_g+by_g*xx_g
-          diffw_g(:,k)=az_g*x_g+bz_g*xx_g
-          where (abs(x_g-miss)<0.1)
-            diffu_g(:,k)=miss
-            diffv_g(:,k)=miss
-            diffw_g(:,k)=miss
+          xa_l=diffu_l(:,k)
+          xb_l=diffv_l(:,k)
+          diffu_l(:,k)=ax(1:ifull)*xa_l+bx(1:ifull)*xb_l
+          diffv_l(:,k)=ay(1:ifull)*xa_l+by(1:ifull)*xb_l
+          diffw_l(:,k)=az(1:ifull)*xa_l+bz(1:ifull)*xb_l
+          where (abs(xa_l-miss)<0.1)
+            diffu_l(:,k)=miss
+            diffv_l(:,k)=miss
+            diffw_l(:,k)=miss
           end where
         end do        
+        call ccmpi_gatherall(diffu_l(:,1:kd),diffu_g(:,1:kd))
+        call ccmpi_gatherall(diffv_l(:,1:kd),diffv_g(:,1:kd))
+        call ccmpi_gatherall(diffw_l(:,1:kd),diffw_g(:,1:kd))
         landg=abs(diffw_g(:,1)-miss)<0.1
       end if
       if (nud_sfh/=0.and.lblock) then
@@ -2646,14 +2682,16 @@
       real, dimension(ifull,1), intent(inout) :: diffh_l
       real, dimension(ifull,kd), intent(inout) :: diff_l,diffs_l
       real, dimension(ifull,kd), intent(inout) :: diffu_l,diffv_l
+      real, dimension(ifull,kd) :: diffw_l
       real, dimension(ifg,1) :: diffh_g
       real, dimension(ifg,kd) :: diff_g,diffs_g
       real, dimension(ifg,kd) :: diffu_g,diffv_g
       real, dimension(ifg,kd) :: diffw_g
-      real, dimension(ifg) :: qsum,rsum,zph,qph,x_g,xx_g
+      real, dimension(ifg) :: qsum,rsum,zph,qph
       real, dimension(ifg,kd) :: zp,zps,zpu,zpv,zpw
       real, dimension(ifg,kd) :: qp,qps,qpu,qpv,qpw
       real, dimension(ifg*kd) :: zz,yy
+      real, dimension(ifull) :: xa_l,xb_l
       logical, intent(in) :: lblock
       logical, dimension(ifg) :: landg
       logical, save :: first = .true.
@@ -2673,45 +2711,58 @@
       til=il_g*il_g 
 
       ! gather data onto myid==0
-      if (nud_sst/=0) then
-        if (myid==0) then
+      if (myid==0) then
+        if (nud_sst/=0) then
           call ccmpi_gather(diff_l(:,1:kd),diff_g(:,1:kd))
-        else
-          call ccmpi_gather(diff_l(:,1:kd))
         end if
-      end if
-      if (nud_sss/=0) then
-        if (myid==0) then
+        if (nud_sss/=0) then
           call ccmpi_gather(diffs_l(:,1:kd),diffs_g(:,1:kd))
-        else
-          call ccmpi_gather(diffs_l(:,1:kd))
         end if
-      end if
-      if (nud_ouv/=0) then
-        if (myid==0) then
-          call ccmpi_gather(diffu_l(:,1:kd),diffu_g(:,1:kd))
-          call ccmpi_gather(diffv_l(:,1:kd),diffv_g(:,1:kd))
+        if (nud_ouv/=0) then
           do k=1,kd
-            x_g =diffu_g(:,k)
-            xx_g=diffv_g(:,k)
-            diffu_g(:,k)=ax_g*x_g+bx_g*xx_g
-            diffv_g(:,k)=ay_g*x_g+by_g*xx_g
-            diffw_g(:,k)=az_g*x_g+bz_g*xx_g
-            where (abs(x_g-miss)<0.1)
-              diffu_g(:,k)=miss
-              diffv_g(:,k)=miss
-              diffw_g(:,k)=miss
+            xa_l=diffu_l(:,k)
+            xb_l=diffv_l(:,k)
+            diffu_l(:,k)=ax(1:ifull)*xa_l+bx(1:ifull)*xb_l
+            diffv_l(:,k)=ay(1:ifull)*xa_l+by(1:ifull)*xb_l
+            diffw_l(:,k)=az(1:ifull)*xa_l+bz(1:ifull)*xb_l
+            where (abs(xa_l-miss)<0.1)
+              diffu_l(:,k)=miss
+              diffv_l(:,k)=miss
+              diffw_l(:,k)=miss
             end where
           end do
-        else
           call ccmpi_gather(diffu_l(:,1:kd),diffu_g(:,1:kd))
           call ccmpi_gather(diffv_l(:,1:kd),diffv_g(:,1:kd))
-        end if        
-      end if
-      if (nud_sfh/=0.and.lblock) then
-        if (myid==0) then
+          call ccmpi_gather(diffw_l(:,1:kd),diffw_g(:,1:kd))
+        end if
+        if (nud_sfh/=0.and.lblock) then
           call ccmpi_gather(diffh_l(:,1),diffh_g(:,1))
-        else
+        end if
+      else
+        if (nud_sst/=0) then
+          call ccmpi_gather(diff_l(:,1:kd))
+        end if
+        if (nud_sss/=0) then
+          call ccmpi_gather(diffs_l(:,1:kd))
+        end if
+        if (nud_ouv/=0) then
+          do k=1,kd
+            xa_l=diffu_l(:,k)
+            xb_l=diffv_l(:,k)
+            diffu_l(:,k)=ax(1:ifull)*xa_l+bx(1:ifull)*xb_l
+            diffv_l(:,k)=ay(1:ifull)*xa_l+by(1:ifull)*xb_l
+            diffw_l(:,k)=az(1:ifull)*xa_l+bz(1:ifull)*xb_l
+            where (abs(xa_l-miss)<0.1)
+              diffu_l(:,k)=miss
+              diffv_l(:,k)=miss
+              diffw_l(:,k)=miss
+            end where
+          end do
+          call ccmpi_gather(diffu_l(:,1:kd))
+          call ccmpi_gather(diffv_l(:,1:kd))
+          call ccmpi_gather(diffw_l(:,1:kd))
+        end if        
+        if (nud_sfh/=0.and.lblock) then
           call ccmpi_gather(diffh_l(:,1))
         end if
       end if
@@ -2947,41 +2998,50 @@
       end if
       
       ! distribute data to processors
-      if (nud_sst/=0) then
-        if (myid == 0) then
+      if (myid==0) then
+        if (nud_sst/=0) then
           call ccmpi_distribute(diff_l(:,1:kd), zp(:,1:kd))
-        else
-          call ccmpi_distribute(diff_l(:,1:kd))
         end if
-      end if
-      if (nud_sss/=0) then
-        if (myid == 0) then
+        if (nud_sss/=0) then
           call ccmpi_distribute(diffs_l(:,1:kd), zps(:,1:kd))
-        else
-          call ccmpi_distribute(diffs_l(:,1:kd))
         end if
-      end if
-      if (nud_ouv/=0) then
-        if (myid == 0) then
-          do k=1,kd
-            x_g =ax_g*zpu(:,k)+ay_g*zpv(:,k)
-     &        +az_g*zpw(:,k)
-            xx_g=bx_g*zpu(:,k)+by_g*zpv(:,k)
-     &        +bz_g*zpw(:,k)
-            zpu(:,k)=x_g
-            zpv(:,k)=xx_g
-          end do
+        if (nud_ouv/=0) then
           call ccmpi_distribute(diffu_l(:,1:kd), zpu(:,1:kd))
           call ccmpi_distribute(diffv_l(:,1:kd), zpv(:,1:kd))
-        else
+          call ccmpi_distribute(diffw_l(:,1:kd), zpw(:,1:kd))
+          do k=1,kd
+            xa_l=ax(1:ifull)*diffu_l(:,k)+ay(1:ifull)*diffv_l(:,k)
+     &          +az(1:ifull)*diffw_l(:,k)
+            xb_l=bx(1:ifull)*diffu_l(:,k)+by(1:ifull)*diffv_l(:,k)
+     &          +bz(1:ifull)*diffw_l(:,k)
+            diffu_l(:,k)=xa_l
+            diffv_l(:,k)=xb_l
+          end do
+        end if
+        if (nud_sfh/=0.and.lblock) then
+          call ccmpi_distribute(diffh_l(:,1), zph(:))
+        end if
+      else
+        if (nud_sst/=0) then
+          call ccmpi_distribute(diff_l(:,1:kd))
+        end if
+        if (nud_sss/=0) then
+          call ccmpi_distribute(diffs_l(:,1:kd))
+        end if
+        if (nud_ouv/=0) then
           call ccmpi_distribute(diffu_l(:,1:kd))
           call ccmpi_distribute(diffv_l(:,1:kd))
+          call ccmpi_distribute(diffw_l(:,1:kd))
+          do k=1,kd
+            xa_l=ax(1:ifull)*diffu_l(:,k)+ay(1:ifull)*diffv_l(:,k)
+     &          +az(1:ifull)*diffw_l(:,k)
+            xb_l=bx(1:ifull)*diffu_l(:,k)+by(1:ifull)*diffv_l(:,k)
+     &          +bz(1:ifull)*diffw_l(:,k)
+            diffu_l(:,k)=xa_l
+            diffv_l(:,k)=xb_l
+          end do
         end if
-      end if
-      if (nud_sfh/=0.and.lblock) then
-        if (myid == 0) then
-          call ccmpi_distribute(diffh_l(:,1), zph(:))
-        else
+        if (nud_sfh/=0.and.lblock) then
           call ccmpi_distribute(diffh_l(:,1))
         end if
       end if
@@ -3011,11 +3071,13 @@
       real, dimension(ifull,1), intent(inout) :: diffh_l
       real, dimension(ifull,kd), intent(inout) :: diff_l,diffs_l
       real, dimension(ifull,kd), intent(inout) :: diffu_l,diffv_l
+      real, dimension(ifull,kd) :: diffw_l
       real, dimension(ifg,1) :: diffh_g
       real, dimension(ifg,kd) :: diff_g,diffs_g
       real, dimension(ifg,kd) :: diffu_g,diffv_g,diffw_g
-      real, dimension(ifg) :: qsum,rsum,x_g,xx_g
+      real, dimension(ifg) :: qsum,rsum
       real, dimension(ifg*kd) :: zz,yy
+      real, dimension(ifull) :: xa_l,xb_l
       logical, intent(in) :: lblock
       logical, dimension(ifg) :: landg
       logical, save :: first = .true.
@@ -3035,45 +3097,58 @@
       til=il_g*il_g 
 
       ! gather data onto myid==0
-      if (nud_sst/=0) then
-        if (myid==0) then
+      if (myid==0) then
+        if (nud_sst/=0) then
           call ccmpi_gather(diff_l(:,1:kd),diff_g(:,1:kd))
-        else
-          call ccmpi_gather(diff_l(:,1:kd))
         end if
-      end if
-      if (nud_sss/=0) then
-        if (myid==0) then
+        if (nud_sss/=0) then
           call ccmpi_gather(diffs_l(:,1:kd),diffs_g(:,1:kd))
-        else
-          call ccmpi_gather(diffs_l(:,1:kd))
         end if
-      end if
-      if (nud_ouv/=0) then
-        if (myid==0) then
-          call ccmpi_gather(diffu_l(:,1:kd),diffu_g(:,1:kd))
-          call ccmpi_gather(diffv_l(:,1:kd),diffv_g(:,1:kd))
+        if (nud_ouv/=0) then
           do k=1,kd
-            x_g =diffu_g(:,k)
-            xx_g=diffv_g(:,k)
-            diffu_g(:,k)=ax_g*x_g+bx_g*xx_g
-            diffv_g(:,k)=ay_g*x_g+by_g*xx_g
-            diffw_g(:,k)=az_g*x_g+bz_g*xx_g
-            where (abs(x_g-miss)<0.1)
-              diffu_g(:,k)=miss
-              diffv_g(:,k)=miss
-              diffw_g(:,k)=miss
+            xa_l=diffu_l(:,k)
+            xb_l=diffv_l(:,k)
+            diffu_l(:,k)=ax(1:ifull)*xa_l+bx(1:ifull)*xb_l
+            diffv_l(:,k)=ay(1:ifull)*xa_l+by(1:ifull)*xb_l
+            diffw_l(:,k)=az(1:ifull)*xa_l+bz(1:ifull)*xb_l
+            where (abs(xa_l-miss)<0.1)
+              diffu_l(:,k)=miss
+              diffv_l(:,k)=miss
+              diffw_l(:,k)=miss
             end where
           end do
-        else
           call ccmpi_gather(diffu_l(:,1:kd),diffu_g(:,1:kd))
           call ccmpi_gather(diffv_l(:,1:kd),diffv_g(:,1:kd))
+          call ccmpi_gather(diffw_l(:,1:kd),diffw_g(:,1:kd))
         end if        
-      end if
-      if (nud_sfh/=0.and.lblock) then
-        if (myid==0) then
+        if (nud_sfh/=0.and.lblock) then
           call ccmpi_gather(diffh_l(:,1),diffh_g(:,1))
-        else
+        end if
+      else
+        if (nud_sst/=0) then
+          call ccmpi_gather(diff_l(:,1:kd))
+        end if
+        if (nud_sss/=0) then
+          call ccmpi_gather(diffs_l(:,1:kd))
+        end if
+        if (nud_ouv/=0) then
+          do k=1,kd
+            xa_l=diffu_l(:,k)
+            xb_l=diffv_l(:,k)
+            diffu_l(:,k)=ax(1:ifull)*xa_l+bx(1:ifull)*xb_l
+            diffv_l(:,k)=ay(1:ifull)*xa_l+by(1:ifull)*xb_l
+            diffw_l(:,k)=az(1:ifull)*xa_l+bz(1:ifull)*xb_l
+            where (abs(xa_l-miss)<0.1)
+              diffu_l(:,k)=miss
+              diffv_l(:,k)=miss
+              diffw_l(:,k)=miss
+            end where
+          end do
+          call ccmpi_gather(diffu_l(:,1:kd))
+          call ccmpi_gather(diffv_l(:,1:kd))
+          call ccmpi_gather(diffw_l(:,1:kd))
+        end if        
+        if (nud_sfh/=0.and.lblock) then
           call ccmpi_gather(diffh_l(:,1))
         end if
       end if
@@ -3284,41 +3359,50 @@
       end if
 
       ! distribute data to processors
-      if (nud_sst/=0) then
-        if (myid == 0) then
+      if (myid==0) then
+        if (nud_sst/=0) then
           call ccmpi_distribute(diff_l(:,1:kd), diff_g(:,1:kd))
-        else
-          call ccmpi_distribute(diff_l(:,1:kd))
         end if
-      end if
-      if (nud_sss/=0) then
-        if (myid == 0) then
+        if (nud_sss/=0) then
           call ccmpi_distribute(diffs_l(:,1:kd), diffs_g(:,1:kd))
-        else
-          call ccmpi_distribute(diffs_l(:,1:kd))
         end if
-      end if
-      if (nud_ouv/=0) then
-        if (myid == 0) then
-          do k=1,kd
-            x_g =ax_g*diffu_g(:,k)+ay_g*diffv_g(:,k)
-     &        +az_g*diffw_g(:,k)
-            xx_g=bx_g*diffu_g(:,k)+by_g*diffv_g(:,k)
-     &        +bz_g*diffw_g(:,k)
-            diffu_g(:,k)=x_g
-            diffv_g(:,k)=xx_g
-          end do
+        if (nud_ouv/=0) then
           call ccmpi_distribute(diffu_l(:,1:kd), diffu_g(:,1:kd))
           call ccmpi_distribute(diffv_l(:,1:kd), diffv_g(:,1:kd))
-        else
+          call ccmpi_distribute(diffw_l(:,1:kd), diffw_g(:,1:kd))
+          do k=1,kd
+            xa_l=ax(1:ifull)*diffu_l(:,k)+ay(1:ifull)*diffv_l(:,k)
+     &          +az(1:ifull)*diffw_l(:,k)
+            xb_l=bx(1:ifull)*diffu_l(:,k)+by(1:ifull)*diffv_l(:,k)
+     &          +bz(1:ifull)*diffw_l(:,k)
+            diffu_l(:,k)=xa_l
+            diffv_l(:,k)=xb_l
+          end do
+        end if
+        if (nud_sfh/=0.and.lblock) then
+          call ccmpi_distribute(diffh_l(:,1:1), diffh_g(:,1:1))
+        end if
+      else
+        if (nud_sst/=0) then
+          call ccmpi_distribute(diff_l(:,1:kd))
+        end if
+        if (nud_sss/=0) then
+          call ccmpi_distribute(diffs_l(:,1:kd))
+        end if
+        if (nud_ouv/=0) then
           call ccmpi_distribute(diffu_l(:,1:kd))
           call ccmpi_distribute(diffv_l(:,1:kd))
+          call ccmpi_distribute(diffw_l(:,1:kd))
+          do k=1,kd
+            xa_l=ax(1:ifull)*diffu_l(:,k)+ay(1:ifull)*diffv_l(:,k)
+     &          +az(1:ifull)*diffw_l(:,k)
+            xb_l=bx(1:ifull)*diffu_l(:,k)+by(1:ifull)*diffv_l(:,k)
+     &          +bz(1:ifull)*diffw_l(:,k)
+            diffu_l(:,k)=xa_l
+            diffv_l(:,k)=xb_l
+          end do
         end if
-      end if
-      if (nud_sfh/=0.and.lblock) then
-        if (myid == 0) then
-          call ccmpi_distribute(diffh_l(:,1:1), diffh_g(:,1:1))
-        else
+        if (nud_sfh/=0.and.lblock) then
           call ccmpi_distribute(diffh_l(:,1:1))
         end if
       end if

@@ -63,18 +63,18 @@ contains
                fact = 1.0
             end if
          end if
-         print 9 ,name,ktau,level,bias,fact
+         write(6,9) name,ktau,level,bias,fact
  9       format(/1x,a4,' ktau =',i7,'  level =',i3,'  addon =',g8.2,   &      
      & '  has been mult by',1pe8.1)
-         print 91,(j,j=j1,j2)
+         write(6,91) (j,j=j1,j2)
 91       format(4x,25i11)
          do i=i1,i2
             write(unit=*,fmt="(i5)", advance="no") i
             do j=ja,jb
                n = (j-1)/il_g ! Global n
                nlocal = n + noff
-               ilocal = i - ioff(n)
-               jlocal = j - n*il_g - joff(n)
+               ilocal = i - ioff
+               jlocal = j - n*il_g - joff
                write(unit=*,fmt="(f11.6)", advance="no")                &
      &              (a(indp(ilocal,jlocal,nlocal))-bias)*fact
             end do
@@ -142,56 +142,56 @@ contains
            gmax=max(gmax,gumax(1,k))
            gmin=min(gmin,gumin(1,k))
           enddo
-          print *,char,'Gmax,Gmin ',gmax,gmin
+          write(6,*) 'Gmax,Gmin ',gmax,gmin
           if(gmax==0.)gmax=1.
           if(gmin==0.)gmin=1.
-          print 981,ktau,char,gumax(1,1:10)/abs(gmax),     &
-     &                   char,gumax(1,11:kup)/abs(gmax)
-          print 977,ktau,ijumax
-          print 982,ktau,char,gumin(1,:)/abs(gmin)
-          print 977,ktau,ijumin
+          write(6,981) ktau,char,gumax(1,1:10)/abs(gmax),     &
+     &                    char,gumax(1,11:kup)/abs(gmax)
+          write(6,977) ktau,ijumax
+          write(6,982) ktau,char,gumin(1,:)/abs(gmin)
+          write(6,977) ktau,ijumin
           return
         endif  ! (fact==0.)
         
         gumax(1,:)=gumax(1,:)*fact
         gumin(1,:)=gumin(1,:)*fact
 
-       if(kup.eq.1)then
-        print 970,ktau,char,gumax(1,1),char,gumin(1,1)
+       if(kup==1)then
+        write(6,970) ktau,char,gumax(1,1),char,gumin(1,1)
 970     format(i7,1x,a2,'max ',f8.3,3x,a2,'min ',f8.3)
-        print 9705,ktau,ijumax(:,1),ijumin(:,1)
+        write(6,9705) ktau,ijumax(:,1),ijumin(:,1)
 9705    format(i7,'  posij',i4,i4,10x,i3,i4)
         return
        endif   !  (kup.eq.1)
 
-       if(gumax(1,1).ge.1000.)then   ! for radon
-        print 961,ktau,char,gumax(1,:)
+       if(gumax(1,1)>=1000.)then   ! for radon
+        write(6,961) ktau,char,gumax(1,:)
 961     format(i7,1x,a2,'max ',10f7.1/(14x,10f7.1)/(14x,10f7.1))
-        print 977,ktau,ijumax
-        print 962,ktau,char,gumin(1,:)
+        write(6,977) ktau,ijumax
+        write(6,962) ktau,char,gumin(1,:)
 962     format(i7,1x,a2,'min ',10f7.1/(14x,10f7.1)/(14x,10f7.1))
-        print 977,ktau,ijumin
-       elseif(kup.le.10)then  ! format for tggsn
-        print 971,ktau,char,(gumax(1,k),k=1,kup)
-        print 977,ktau,ijumax
-        print 972,ktau,char,(gumin(1,k),k=1,kup)
-        print 977,ktau,ijumin
-       elseif(gumax(1,kup).gt.30.)then  ! format for T, & usually u,v
-        print 971,ktau,char,gumax(1,1:10),char,gumax(1,11:kup)
+        write(6,977) ktau,ijumin
+       elseif(kup<=10)then  ! format for tggsn
+        write(6,971) ktau,char,(gumax(1,k),k=1,kup)
+        write(6,977) ktau,ijumax
+        write(6,972) ktau,char,(gumin(1,k),k=1,kup)
+        write(6,977) ktau,ijumin
+       elseif(gumax(1,kup)>30.)then  ! format for T, & usually u,v
+        write(6,971) ktau,char,gumax(1,1:10),char,gumax(1,11:kup)
 !!!971  format(i7,1x,a2,'max ',10f7.2/(14x,10f7.2)/(14x,10f7.2))
 971     format(i7,1x,a2,'max ',10f7.2/(a10,'maX ',10f7.2)/(14x,10f7.2))
-        print 977,ktau,ijumax
-        print 972,ktau,char,gumin(1,:)
+        write(6,977) ktau,ijumax
+        write(6,972) ktau,char,gumin(1,:)
 972     format(i7,1x,a2,'min ',10f7.2/(14x,10f7.2)/(14x,10f7.2))
-        print 977,ktau,ijumin
+        write(6,977) ktau,ijumin
 977     format(i7,'  posij',10(i3,i4)/(14x,10(i3,i4))/(14x,10(i3,i4)))
        else  ! for qg & sd
-        print 981,ktau,char,gumax(1,1:10),char,gumax(1,11:kup)
+        write(6,981) ktau,char,gumax(1,1:10),char,gumax(1,11:kup)
 981     format(i7,1x,a2,'max ',10f7.3/(a10,'maX ',10f7.3)/(14x,10f7.3))
-        print 977,ktau,ijumax
-        print 982,ktau,char,gumin(1,:)
+        write(6,977) ktau,ijumax
+        write(6,982) ktau,char,gumin(1,:)
 982     format(i7,1x,a2,'min ',10f7.3/(14x,10f7.3)/(14x,10f7.3))
-        print 977,ktau,ijumin
+        write(6,977) ktau,ijumin
        endif
       endif ! myid == 0
       return
@@ -237,9 +237,9 @@ contains
         i = iqg - (j-1)*il_g
         ijumin(:) = (/ i, j /)
 
-        print 970,ktau,char,gumax(1),char,gumin(1)
+        write(6,970) ktau,char,gumax(1),char,gumin(1)
 970     format(i7,1x,a2,'max ',f8.3,3x,a2,'min ',f8.3)
-        print 9705,ktau,ijumax,ijumin
+        write(6,9705) ktau,ijumax,ijumin
 9705    format(i7,'  posij',i4,i4,10x,i3,i4)
       end if ! myid == 0
       return
@@ -300,8 +300,8 @@ contains
             jf = j - n*il_g ! Value on face
             if ( fproc(i, jf, n) == myid ) then
                nloc = n + noff
-               ilocal = i - ioff(n)
-               jlocal = j - n*il_g - joff(n)
+               ilocal = i - ioff
+               jlocal = j - n*il_g - joff
                res(iq) = a(indp(ilocal,jlocal,nloc))
             end if
          end do
@@ -326,8 +326,8 @@ contains
             jf = j - n*il_g ! Value on face
             if ( fproc(i, jf, n) == myid ) then
                nloc = n + noff
-               ilocal = i - ioff(n)
-               jlocal = j - n*il_g - joff(n)
+               ilocal = i - ioff
+               jlocal = j - n*il_g - joff
                res(iq) = a(indp(ilocal,jlocal,nloc))
             end if
          end do
@@ -352,8 +352,8 @@ contains
             jf = j - n*il_g ! Value on face
             if ( fproc(i, jf, n) == myid ) then
                nloc = n + noff
-               ilocal = i - ioff(n)
-               jlocal = j - n*il_g - joff(n)
+               ilocal = i - ioff
+               jlocal = j - n*il_g - joff
                res(iq) = a(indp(ilocal,jlocal,nloc))
             end if
          end do

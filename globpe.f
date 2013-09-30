@@ -596,7 +596,7 @@
       call indices_init(ifull_g,ifull,iextra,npanels,npan,myid)
       call map_init(ifull_g,ifull,iextra,myid,mbd)
       call latlong_init(ifull_g,ifull,iextra,myid)      
-      call vecsuv_init(ifull_g,ifull,iextra,myid,mbd,nud_uv)
+      call vecsuv_init(ifull_g,ifull,iextra,myid)
 
 
       !--------------------------------------------------------------
@@ -678,14 +678,6 @@
         call ccmpi_bcastr8(y_g,0,comm_world)
         call ccmpi_bcastr8(z_g,0,comm_world)
         call ccmpi_bcast(em_g,0,comm_world)
-        if (nud_uv==9) then
-          call ccmpi_bcast(ax_g,0,comm_world)
-          call ccmpi_bcast(ay_g,0,comm_world)
-          call ccmpi_bcast(az_g,0,comm_world)
-          call ccmpi_bcast(bx_g,0,comm_world)
-          call ccmpi_bcast(by_g,0,comm_world)
-          call ccmpi_bcast(bz_g,0,comm_world)
-        end if
       end if
       deallocate(dumd)
       deallocate(dume)
@@ -990,7 +982,7 @@
 
 
       !--------------------------------------------------------------
-      ! INITIALISE DYNAMICS AND NUDGING
+      ! INITIALISE DYNAMICS
       dtin=dt
       n3hr=1   ! initial value at start of run
       if (myid==0) then
@@ -1030,7 +1022,7 @@
       mins_gmt=mod(mtimer+60*ktime/100,24*60)
 
       ! ***********************************************************************
-      ! START ATMOSPHERE DYNAMICS AND NUDGING
+      ! START ATMOSPHERE DYNAMICS
       ! ***********************************************************************
 
       ! NESTING ---------------------------------------------------------------
