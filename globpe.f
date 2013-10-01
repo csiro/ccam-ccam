@@ -1734,7 +1734,7 @@
       wb_ave(1:ifull,1:ms) = wb_ave(1:ifull,1:ms)+wb
       tsu_ave(1:ifull)     = tsu_ave(1:ifull)+tss
       dums=t(1:ifull,:)
-      call mslp(spare2,psl_ave,zs,dums)
+      call mslp(spare2,psl,zs,dums)
       spare2=spare2/100.      
       psl_ave(1:ifull)     = psl_ave(1:ifull)+spare2
       call mlodiag(spare1,0)

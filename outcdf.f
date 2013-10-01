@@ -858,7 +858,7 @@ c       For time varying surface fields
         lname = 'Avg albedo'
         call attrib(idnc,idim,3,'alb_ave',lname,'none',0.,1.,0,itype)
         lname = 'Avg mean sea level pressure'
-        call attrib(idnc,idim,3,'pmsl_ave',lname,'none',800.,1200.,0,
+        call attrib(idnc,idim,3,'pmsl_ave',lname,'hPa',800.,1200.,0,
      &              itype)
         if (abs(nmlo)>0.and.abs(nmlo)<=9) then
           lname = 'Avg mixed layer depth'
