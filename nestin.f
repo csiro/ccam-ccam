@@ -1514,7 +1514,7 @@
           call ccmpi_bcast(ff(1:me*ipan),0,comm_cols)
           do j=ns,ne
             do n=1,me
-              asum(n,j)=ff(n+me*(j-1))
+              asum(n,j)=ff(n+me*(j-ns))
             end do
           end do
           if(nud_p>0.and.lblock)then
@@ -1530,7 +1530,7 @@
             call ccmpi_bcast(ff(1:me*ipan),0,comm_cols)
             do j=ns,ne
               do n=1,me
-                ap(n,j)=ff(n+me*(j-1))
+                ap(n,j)=ff(n+me*(j-ns))
               end do
             end do
           end if
