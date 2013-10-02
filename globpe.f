@@ -2040,9 +2040,9 @@
      &         ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
         if ( ierr == 0 ) then
           write(6,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
-          if(ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.
-     &         or.rlat0x/=rlat0.or.schmidtx/=schmidt)
-     &         then
+          if(ilx/=il_g.or.jlx/=jl_g.or.abs(rlong0x-rlong0)>1.e-6
+     &        .or.abs(rlat0x-rlat0)>1.E-6
+     &        .or.abs(schmidtx-schmidt)>1.E-6) then
             write(6,*) 'wrong data file supplied'
             call ccmpi_abort(-1)
 	  end if
@@ -2101,9 +2101,9 @@
      &         ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
         if ( ierr == 0 ) then
           write(6,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
-          if(ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.
-     &         or.rlat0x/=rlat0.or.schmidtx/=schmidt)
-     &         then
+          if(ilx/=il_g.or.jlx/=jl_g.or.abs(rlong0x-rlong0)>1.e-6
+     &        .or.abs(rlat0x-rlat0)>1.E-6
+     &        .or.abs(schmidtx-schmidt)>1.E-6) then
             write(6,*) 'wrong data file supplied'
             call ccmpi_abort(-1)
 	  end if

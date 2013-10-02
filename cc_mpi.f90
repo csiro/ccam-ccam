@@ -4887,16 +4887,16 @@ contains
       integer, intent(out) :: ipoff, jpoff, npoff
       integer :: myface, mtmp, nprocx
 
-      nprocx = nxprocx*nyprocx
+      nprocx = nxprocx*nyprocx*(npanels+1)/npanx
       if ( nprocx <= npanels+1 ) then
          npoff = 1 - procid*npanx
          ipoff = 0
          jpoff = 0
       else
-         myface = procid / nprocx
+         myface = procid / (nxprocx*nyprocx)
          npoff = 1 - myface
          ! mtmp is the processor index on this face, 0:(nxprox*nyproc-1)
-         mtmp = procid - myface*nprocx
+         mtmp = procid - myface*nxprocx*nyprocx
          jpoff = (mtmp/nxprocx) * jpanx
          ipoff = modulo(mtmp,nxprocx) * ipanx
       end if
