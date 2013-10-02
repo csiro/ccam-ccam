@@ -11,6 +11,9 @@ module cc_mpi
    integer, save, public :: nxproc, nyproc                   ! number of processors in the x and y directions
    integer, save, public :: nagg                             ! maximum number of levels to aggregate for message passing
 
+   integer, save, public :: comm_host, comm_proc, comm_rows, comm_cols
+   integer, save, public :: hproc, mproc, npta, pprocn, pprocx
+
    integer(kind=4), save, private :: nreq, rreq                        ! number of requests and number of recvs
    integer(kind=4), allocatable, dimension(:), save, private :: ireq   ! request index
    integer, allocatable, dimension(:), save, private :: rlist          ! map for processor index from request index
@@ -314,6 +317,7 @@ contains
       use xyzinfo_m
       integer iproc, iq, iqg, i, j, n, mcc
       integer(kind=4) ierr, mone
+      integer(kind=4) colour, rank, lcommin, lcommout
       integer, dimension(ifull) :: colourmask
       integer, dimension(3) :: ifullxc
       real, dimension(ifull_g) :: qproc
@@ -473,6 +477,60 @@ contains
       call MPI_OP_CREATE (DRPDRA, ltrue, MPI_SUMDRA, ierr)
 #endif
       call MPI_OP_CREATE (MAXMIN, ltrue, MPI_MAXMIN, ierr)
+
+      ! prepare comm groups - used by scale-selective filter
+#ifdef uniform_decomp
+      npta = 6                            ! number of panels per processor
+      mproc = nproc                       ! number of processors per panel
+      pprocn = 0                          ! start panel
+      pprocx = 5                          ! end panel
+      hproc = 0                           ! host processor for panel
+#else
+      npta = max(6/nproc,1)               ! number of panels per processor
+      mproc = max(nproc/6,1)              ! number of processors per panel
+      pprocn = myid*npta/mproc            ! start panel
+      pprocx = pprocn+npta-1              ! end panel
+      hproc = pprocn*mproc/npta           ! host processor for panel
+#endif
+
+      ! comm between host processors
+      if ( myid == hproc ) then
+         colour = 0
+         rank = hproc/mproc
+      else
+         colour = 1
+         rank = myid-hproc-1
+      end if
+      call MPI_Comm_Split(MPI_COMM_WORLD,colour,rank,lcommout,ierr)
+      comm_host = lcommout
+      
+      ! comm between work groups with captain hproc
+      colour = hproc
+      rank = myid-hproc
+      call MPI_Comm_Split(MPI_COMM_WORLD,colour,rank,lcommout,ierr)
+      comm_proc = lcommout
+      
+      ! comm between columns in work group
+      colour = ioff
+      rank = joff/jpan
+      lcommin = comm_proc
+      call MPI_Comm_Split(lcommin,colour,rank,lcommout,ierr)
+      comm_cols = lcommout
+      
+      ! comm between rows in work group      
+      colour = joff
+      rank = ioff/ipan
+      call MPI_Comm_Split(lcommin,colour,rank,lcommout,ierr)
+      comm_rows = lcommout
+      
+      if ( myid == hproc ) then
+         if ( ioff/=0 .or. joff/=0 ) then
+            write(6,*) "ERROR: hproc incorrectly assigned"
+            mone = -1
+            call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
+         end if
+      end if
+      
 
    end subroutine ccmpi_setup
 

@@ -602,21 +602,16 @@
      &                  ,psld(:),ud(:,1:klt),vd(:,1:klt)
      &                  ,td(:,1:klt),qd(:,1:klt),lblock,klt)
         else
+          if (myid==0) then
 #ifdef uniform_decomp
-          if (myid==0) then
             write(6,*) "Separable 1D filter (MPI)            ",kb
-          end if
-          call fourspecmpi(myid,.1*real(mbd)/(pi*schmidt)
-     &                  ,psld(:),ud(:,1:klt),vd(:,1:klt)
-     &                  ,td(:,1:klt),qd(:,1:klt),lblock,klt)
 #else
-          if (myid==0) then
             write(6,*) "Separable 1D filter (MPI optimised)  ",kb
+#endif
           end if
-          call specfastmpi(myid,.1*real(mbd)/(pi*schmidt)
+          call specfastmpi(.1*real(mbd)/(pi*schmidt)
      &                  ,psld(:),ud(:,1:klt),vd(:,1:klt)
      &                  ,td(:,1:klt),qd(:,1:klt),lblock,klt)
-#endif        
         endif  ! (nud_uv==9) .. else ..
         !-----------------------------------------------------------------------
 
@@ -774,67 +769,24 @@
       !---------------------------------------------------------------------------------
 
       !---------------------------------------------------------------------------------
-      ! Four pass spectral downscaling (symmetric)
-      ! Used with uniform decomposition
-      subroutine fourspecmpi(myid,cin,psls,uu,vv,tt,qgg,lblock,klt)
+      ! Four pass spectral downscaling
+      subroutine specfastmpi(cin,psls,uu,vv,tt,qgg,lblock,klt)
+      
+      use cc_mpi             ! CC MPI routines
       
       implicit none
       
       include 'newmpar.h'    ! Grid parameters
       include 'parm.h'       ! Model configuration
       
-      integer, intent(in) :: myid,klt
-      integer pn,px,hproc,mproc,npta
+      integer, intent(in) :: klt
+      integer ifg
       real, intent(in) :: cin
       real, dimension(ifull), intent(inout) :: psls
       real, dimension(ifull,klt), intent(inout) :: uu,vv
       real, dimension(ifull,klt), intent(inout) :: tt,qgg
       logical, intent(in) :: lblock
       
-      npta=6                              ! number of panels per processor
-      mproc=nproc                         ! number of processors per panel
-      pn=0                                ! start panel
-      px=5                                ! end panel
-      hproc=0                             ! host processor for panel
-
-      if (myid==0) then
-        call spechost(mproc,hproc,npta,pn,px,cin,psls,uu,vv,
-     &       tt,qgg,lblock,klt,ifull_g)
-      else
-        call spechost(mproc,hproc,npta,pn,px,cin,psls,uu,vv,
-     &       tt,qgg,lblock,klt,0)
-      end if
-
-          
-      return
-      end subroutine fourspecmpi
-      !---------------------------------------------------------------------------------
-
-
-      !---------------------------------------------------------------------------------
-      ! Four pass spectral downscaling (symmetric)
-      ! Used for face decomposition
-      subroutine specfastmpi(myid,cin,psls,uu,vv,tt,qgg,lblock,klt)
-      
-      implicit none
-      
-      include 'newmpar.h'    ! Grid parameters
-      include 'parm.h'       ! Model configuration
-      
-      integer, intent(in) :: myid,klt
-      integer pn,px,hproc,mproc,npta,ifg
-      real, intent(in) :: cin
-      real, dimension(ifull), intent(inout) :: psls
-      real, dimension(ifull,klt), intent(inout) :: uu,vv
-      real, dimension(ifull,klt), intent(inout) :: tt,qgg
-      logical, intent(in) :: lblock
-      
-      npta=max(6/nproc,1)                       ! number of panels per processor
-      mproc=max(nproc/6,1)                      ! number of processors per panel
-      pn=myid*npta/mproc                        ! start panel
-      px=(myid+mproc)*npta/mproc-1              ! end panel
-      hproc=pn*mproc/npta                       ! host processor for panel
-
       if (myid==hproc) then
         ifg=ifull_g
       else
@@ -842,12 +794,10 @@
       end if
       if (npta==1) then
         ! reduced memory version
-        call spechost_n(mproc,hproc,pn,cin,psls,uu,vv,
-     &         tt,qgg,lblock,klt,ifg)
+        call spechost_n(cin,psls,uu,vv,tt,qgg,lblock,klt,ifg)
       else
         ! normal version
-        call spechost(mproc,hproc,npta,pn,px,cin,psls,uu,vv,
-     &         tt,qgg,lblock,klt,ifg)
+        call spechost(cin,psls,uu,vv,tt,qgg,lblock,klt,ifg)
       end if
 
       return
@@ -858,8 +808,7 @@
       !---------------------------------------------------------------------------------
       ! This is the main routine for the scale-selective filter
       ! (see spechost_n for a reduced memory version)
-      subroutine spechost(mproc,hproc,npta,pn,px,cin,pslb,
-     &                    ub,vb,tb,qb,lblock,klt,ifg)
+      subroutine spechost(cin,pslb,ub,vb,tb,qb,lblock,klt,ifg)
 
       use cc_mpi            ! CC MPI routines
       use map_m             ! Grid map arrays
@@ -870,11 +819,9 @@
       include 'newmpar.h'   ! Grid parameters
       include 'parm.h'      ! Model configuration
       
-      integer, intent(in) :: mproc,hproc,npta,pn,px,klt,ifg
+      integer, intent(in) :: klt,ifg
       integer k,ppass,iy,ppn,ppx,nne,nns,iproc
-      integer n,til,colour,rank
-      integer, save :: comm_host,comm_proc,comm_cols
-      integer, save :: comm_rows
+      integer n,til
       real, intent(in) :: cin
       real, dimension(ifull), intent(inout) :: pslb
       real, dimension(ifull,klt), intent(inout) :: ub,vb
@@ -890,35 +837,7 @@
       real, dimension(ifg*klt) :: dd,ff
       real cq
       logical, intent(in) :: lblock
-      logical, save :: first = .true.
 
-      if (first) then
-        if (myid==hproc) then
-          colour=0
-          rank=hproc/mproc
-        else
-          colour=1
-          rank=myid-hproc-1
-        end if
-        call ccmpi_commsplit(comm_host,comm_world,colour,rank)
-        colour=hproc
-        rank=myid-hproc
-        call ccmpi_commsplit(comm_proc,comm_world,colour,rank)
-        colour=ioff
-        rank=joff/jpan
-        call ccmpi_commsplit(comm_cols,comm_proc,colour,rank)
-        colour=joff
-        rank=ioff/ipan
-        call ccmpi_commsplit(comm_rows,comm_proc,colour,rank)
-        if (myid==hproc) then
-          if (ioff/=0.or.joff/=0) then
-            write(6,*) "ERROR: hproc incorrectly assigned"
-            call ccmpi_abort(-1)
-          end if
-        end if
-        first=.false.
-      end if
-      
       til=il_g*il_g
       cq=sqrt(4.5)*cin ! filter length scale
 
@@ -1008,7 +927,7 @@
         end if
       end if
 
-      do ppass=pn,px
+      do ppass=pprocn,pprocx
 
         ! reset nudging fields for the next panel
         if (myid==hproc) then
@@ -1036,9 +955,8 @@
         end if
 
         ! computations for the local processor group
-        call speclocal(mproc,hproc,cq,ppass,qsum,qp,
-     &         qu,qv,qw,qt,qq,lblock,klt,ifg,
-     &         comm_proc,comm_cols,comm_rows)
+        call speclocal(cq,ppass,qsum,qp,qu,qv,qw,qt,qq,lblock,klt,
+     &         ifg)
         
         ! store the filtered results for this panel
         if (myid==hproc) then
@@ -1078,7 +996,7 @@
         iy=til*npta
         if(nud_p>0.and.lblock)then
           do n=1,til*npta
-            ff(n)=zp(n+pn*til)
+            ff(n)=zp(n+pprocn*til)
           end do
           call ccmpi_gatherx(zp(1:ifg),ff(1:iy),0,comm_host)
         end if
@@ -1086,7 +1004,7 @@
         if(nud_uv>0)then
           do k=1,klt
             do n=1,til*npta
-              ff(n+(k-1)*til*npta)=zu(n+pn*til,k)
+              ff(n+(k-1)*til*npta)=zu(n+pprocn*til,k)
             end do
           end do
           call ccmpi_gatherx(dd(1:ifg*klt),ff(1:iy),0,comm_host)
@@ -1102,7 +1020,7 @@
           end if
           do k=1,klt
             do n=1,til*npta
-              ff(n+(k-1)*til*npta)=zv(n+pn*til,k)
+              ff(n+(k-1)*til*npta)=zv(n+pprocn*til,k)
             end do
           end do
           call ccmpi_gatherx(dd(1:ifg*klt),ff(1:iy),0,comm_host)
@@ -1118,7 +1036,7 @@
           end if
           do k=1,klt
             do n=1,til*npta
-             ff(n+(k-1)*til*npta)=zw(n+pn*til,k)
+             ff(n+(k-1)*til*npta)=zw(n+pprocn*til,k)
             end do
           end do
           call ccmpi_gatherx(dd(1:ifg*klt),ff(1:iy),0,comm_host)
@@ -1136,7 +1054,7 @@
         if(nud_t>0)then
           do k=1,klt
             do n=1,til*npta
-              ff(n+(k-1)*til*npta)=zt(n+pn*til,k)
+              ff(n+(k-1)*til*npta)=zt(n+pprocn*til,k)
             end do
           end do
           call ccmpi_gatherx(dd(1:ifg*klt),ff(1:iy),0,comm_host)
@@ -1154,7 +1072,7 @@
         if(nud_q>0)then
           do k=1,klt
             do n=1,til*npta
-              ff(n+(k-1)*til*npta)=zq(n+pn*til,k)
+              ff(n+(k-1)*til*npta)=zq(n+pprocn*til,k)
             end do
           end do
           call ccmpi_gatherx(dd(1:ifg*klt),ff(1:iy),0,comm_host)
@@ -1229,8 +1147,7 @@
       !---------------------------------------------------------------------------------
 
       ! This version is for one panel per processor (reduced memory)
-      subroutine spechost_n(mproc,hproc,pn,cin,pslb,ub,vb,
-     &                      tb,qb,lblock,klt,ifg)
+      subroutine spechost_n(cin,pslb,ub,vb,tb,qb,lblock,klt,ifg)
 
       use cc_mpi            ! CC MPI routines
       use map_m             ! Grid map arrays
@@ -1241,11 +1158,9 @@
       include 'newmpar.h'   ! Grid parameters
       include 'parm.h'      ! Model configuration
       
-      integer, intent(in) :: mproc,hproc,pn,klt,ifg
+      integer, intent(in) :: klt,ifg
       integer k,iy,ppn,nne,nns,iproc
-      integer n,til,colour,rank
-      integer, save :: comm_host,comm_proc,comm_cols
-      integer, save :: comm_rows
+      integer n,til
       real, intent(in) :: cin
       real cq
       real, dimension(ifull), intent(inout) :: pslb
@@ -1259,35 +1174,7 @@
       real, dimension(ifg) :: qsum
       real, dimension(ifull) :: xa_l,xb_l
       logical, intent(in) :: lblock
-      logical, save :: first = .true.
 
-      if (first) then
-        if (myid==hproc) then
-          colour=0
-          rank=hproc/mproc
-        else
-          colour=1
-          rank=myid-hproc-1
-        end if
-        call ccmpi_commsplit(comm_host,comm_world,colour,rank)
-        colour=hproc
-        rank=myid-hproc
-        call ccmpi_commsplit(comm_proc,comm_world,colour,rank)
-        colour=ioff
-        rank=joff/jpan
-        call ccmpi_commsplit(comm_cols,comm_proc,colour,rank)
-        colour=joff
-        rank=ioff/ipan
-        call ccmpi_commsplit(comm_rows,comm_proc,colour,rank)
-        if (myid==hproc) then
-          if (ioff/=0.or.joff/=0) then
-            write(6,*) "ERROR: hproc incorrectly assigned"
-            call ccmpi_abort(-1)
-          end if
-        end if
-        first=.false.
-      end if
-      
       til=il_g*il_g
       cq=sqrt(4.5)*cin ! filter length scale
 
@@ -1378,14 +1265,12 @@
       end if
 
       ! computations for the local processor group
-      call speclocal(mproc,hproc,cq,pn,qsum,psls,
-     &         uu,vv,ww,tt,qgg,lblock,klt,ifg,
-     &         comm_proc,comm_cols,comm_rows)
+      call speclocal(cq,pprocn,qsum,psls,uu,vv,ww,tt,qgg,lblock,klt,ifg)
 
       ! store results on host processor
       if (myid==hproc) then
-        nns=pn*til+1
-        nne=pn*til+til
+        nns=pprocn*til+1
+        nne=pprocn*til+til
         if (nud_p>0.and.lblock) then
           psls(nns:nne)=psls(nns:nne)/qsum(nns:nne)
         end if
@@ -1419,7 +1304,7 @@
         iy=til
         if(nud_p>0.and.lblock)then
           do n=1,til
-            ff(n)=psls(n+pn*til)
+            ff(n)=psls(n+pprocn*til)
           end do
           call ccmpi_gatherx(psls(1:ifg),ff(1:iy),0,comm_host)
         end if
@@ -1427,7 +1312,7 @@
         if(nud_uv>0)then
           do k=1,klt
             do n=1,til
-              ff(n+til*(k-1))=uu(n+pn*til,k)
+              ff(n+til*(k-1))=uu(n+pprocn*til,k)
             end do
           end do
           call ccmpi_gatherx(dd(1:ifg*klt),ff(1:iy),0,comm_host)
@@ -1442,7 +1327,7 @@
           end if
           do k=1,klt
             do n=1,til
-              ff(n+til*(k-1))=vv(n+pn*til,k)
+              ff(n+til*(k-1))=vv(n+pprocn*til,k)
             end do
           end do
           call ccmpi_gatherx(dd(1:ifg*klt),ff(1:iy),0,comm_host)
@@ -1457,7 +1342,7 @@
           end if
           do k=1,klt
             do n=1,til
-              ff(n+til*(k-1))=ww(n+pn*til,k)
+              ff(n+til*(k-1))=ww(n+pprocn*til,k)
             end do
           end do
           call ccmpi_gatherx(dd(1:ifg*klt),ff(1:iy),0,comm_host)
@@ -1474,7 +1359,7 @@
         if(nud_t>0)then
           do k=1,klt
             do n=1,til
-              ff(n+til*(k-1))=tt(n+pn*til,k)
+              ff(n+til*(k-1))=tt(n+pprocn*til,k)
             end do
           end do
           call ccmpi_gatherx(dd(1:ifg*klt),ff(1:iy),0,comm_host)
@@ -1491,7 +1376,7 @@
         if(nud_q>0)then
           do k=1,klt
             do n=1,til
-              ff(n+til*(k-1))=qgg(n+pn*til,k)
+              ff(n+til*(k-1))=qgg(n+pprocn*til,k)
             end do
           end do
           call ccmpi_gatherx(dd(1:ifg*klt),ff(1:iy),0,comm_host)
@@ -1565,9 +1450,8 @@
       
       !---------------------------------------------------------------------------------
       ! This code runs between the local processors
-      subroutine speclocal(mproc,hproc,cq,ppass,qsum,qp,qu,qv,qw,qt,
-     &                     qq,lblock,klt,ifg,comm_proc,comm_cols,
-     &                     comm_rows)
+      subroutine speclocal(cq,ppass,qsum,qp,qu,qv,qw,qt,
+     &                     qq,lblock,klt,ifg)
 
       use cc_mpi            ! CC MPI routines
       use xyzinfo_m         ! Grid coordinate arrays
@@ -1577,8 +1461,7 @@
       include 'newmpar.h'   ! Grid parameters
       include 'parm.h'      ! Model configuration
       
-      integer, intent(in) :: mproc,hproc,ppass,klt,ifg
-      integer, intent(in) :: comm_proc,comm_cols,comm_rows
+      integer, intent(in) :: ppass,klt,ifg
       integer j,k,n,ipass,iproc
       integer ipoff,jpoff,npoff
       integer nne,nns,ooe,oos,me,ns,ne,os,oe
@@ -2694,7 +2577,7 @@
       include 'parmgeom.h'        ! Coordinate data
 
       integer, intent(in) :: kd
-      integer pn,px,hproc,mproc,npta,ifg
+      integer ifg
       real, intent(in) :: miss      
       real, dimension(ifull,1), intent(inout) :: diffh_l
       real, dimension(ifull,kd), intent(inout) :: diff_l,diffs_l
@@ -2715,11 +2598,6 @@
           write(6,*) "Multiple level filter"
         end if
       end if        
-      npta=6                              ! number of panels per processor
-      mproc=nproc                         ! number of processors per panel
-      pn=0                                ! start panel
-      px=5                                ! end panel
-      hproc=0                             ! host processor for panel
 #else
       if (myid==0) then
         write(6,*) "MLO 1D scale-selective filter (MPI optimised)"
@@ -2729,11 +2607,6 @@
           write(6,*) "Multiple level filter"
         end if
       end if
-      npta=max(6/nproc,1)                       ! number of panels per processor
-      mproc=max(nproc/6,1)                      ! number of processors per panel
-      pn=myid*npta/mproc                        ! start panel
-      px=pn+npta-1                              ! end panel
-      hproc=pn*mproc/npta                       ! host processor for panel
 #endif
 
       if (myid==hproc) then
@@ -2741,25 +2614,24 @@
       else
         ifg=0
       end if
-      if (pn==px) then
-        call mlospechost_n(mproc,hproc,pn,cq,
-     &                   diff_l,diffs_l,diffu_l,diffv_l,
+      if (pprocn==pprocx) then
+        call mlospechost_n(cq,diff_l,diffs_l,diffu_l,diffv_l,
      &                   diffh_l,miss,lblock,kd,ifg)
       else
-        call mlospechost(mproc,hproc,npta,pn,px,cq,
-     &                   diff_l,diffs_l,diffu_l,diffv_l,
+        call mlospechost(cq,diff_l,diffs_l,diffu_l,diffv_l,
      &                   diffh_l,miss,lblock,kd,ifg)
       end if
 
+#ifdef debug
       if (myid==0.and.nmaxpr==1) then
         write(6,*) "MLO end 1D filter"
       end if
+#endif
 
       return
       end subroutine mlofilterfast
 
-      subroutine mlospechost(mproc,hproc,npta,pn,px,cq,
-     &                       diff_l,diffs_l,diffu_l,diffv_l,
+      subroutine mlospechost(cq,diff_l,diffs_l,diffu_l,diffv_l,
      &                       diffh_l,miss,lblock,kd,ifg)
 
       use cc_mpi             ! CC MPI routines
@@ -2771,11 +2643,9 @@
       include 'newmpar.h'    ! Grid parameters
       include 'parm.h'       ! Model configuration
       
-      integer, intent(in) :: mproc,hproc,npta,pn,px,kd,ifg
+      integer, intent(in) :: kd,ifg
       integer ppass,iy,ppn,ppx,nne,nns,iproc
-      integer n,k,til,colour,rank
-      integer, save :: comm_host,comm_proc,comm_cols
-      integer, save :: comm_rows
+      integer n,k,til
       real, intent(in) :: cq,miss
       real, dimension(ifull,1), intent(inout) :: diffh_l
       real, dimension(ifull,kd), intent(inout) :: diff_l,diffs_l
@@ -2792,35 +2662,7 @@
       real, dimension(ifull) :: xa_l,xb_l
       logical, intent(in) :: lblock
       logical, dimension(ifg) :: landg
-      logical, save :: first = .true.
 
-      if (first) then
-        if (myid==hproc) then
-          colour=0
-          rank=hproc/mproc
-        else
-          colour=1
-          rank=myid-hproc-1
-        end if
-        call ccmpi_commsplit(comm_host,comm_world,colour,rank)
-        colour=hproc
-        rank=myid-hproc
-        call ccmpi_commsplit(comm_proc,comm_world,colour,rank)
-        colour=ioff
-        rank=joff/jpan
-        call ccmpi_commsplit(comm_cols,comm_proc,colour,rank)
-        colour=joff
-        rank=ioff/ipan
-        call ccmpi_commsplit(comm_rows,comm_proc,colour,rank)
-        if (myid==hproc) then
-          if (ioff/=0.or.joff/=0) then
-            write(6,*) "ERROR: hproc incorrectly assigned"
-            call ccmpi_abort(-1)
-          end if
-        end if
-        first=.false.
-      end if
-      
       til=il_g*il_g 
 
       ! gather data onto myid==0
@@ -2941,7 +2783,7 @@
         zph=0.
       end if
 
-      do ppass=pn,px
+      do ppass=pprocn,pprocx
 
         if (myid==hproc) then
           qsum(:)=1./(em_g(:)*em_g(:))
@@ -2969,9 +2811,8 @@
         end if
 
         ! computations for the local processor group
-        call mlospeclocal(mproc,hproc,cq,ppass,qsum,
-     &                    qp,qps,qpu,qpv,qpw,qph,kd,lblock,
-     &                    ifg,comm_proc,comm_cols,comm_rows)
+        call mlospeclocal(cq,ppass,qsum,qp,qps,qpu,qpv,qpw,qph,kd,
+     &                    lblock,ifg)
         
         ! store results on host processors
         if (myid==hproc) then
@@ -3020,7 +2861,7 @@
         if (nud_sst/=0) then
           do k=1,kd
             do n=1,til*npta
-              yy(n+(k-1)*til*npta)=zp(n+pn*til,k)
+              yy(n+(k-1)*til*npta)=zp(n+pprocn*til,k)
             end do
           end do
           call ccmpi_gatherx(zz(1:ifg*kd),yy(1:iy),0,comm_host)
@@ -3037,7 +2878,7 @@
         if (nud_sss/=0) then
           do k=1,kd
             do n=1,til*npta
-              yy(n+(k-1)*til*npta)=zps(n+pn*til,k)
+              yy(n+(k-1)*til*npta)=zps(n+pprocn*til,k)
             end do
           end do
           call ccmpi_gatherx(zz(1:ifg*kd),yy(1:iy),0,comm_host)
@@ -3054,7 +2895,7 @@
         if (nud_ouv/=0) then
           do k=1,kd
             do n=1,til*npta
-              yy(n+(k-1)*til*npta)=zpu(n+pn*til,k)
+              yy(n+(k-1)*til*npta)=zpu(n+pprocn*til,k)
             end do
           end do
           call ccmpi_gatherx(zz(1:ifg*kd),yy(1:iy),0,comm_host)
@@ -3069,7 +2910,7 @@
           end if
           do k=1,kd
             do n=1,til*npta
-              yy(n+(k-1)*til*npta)=zpv(n+pn*til,k)
+              yy(n+(k-1)*til*npta)=zpv(n+pprocn*til,k)
             end do
           end do
           call ccmpi_gatherx(zz(1:ifg*kd),yy(1:iy),0,comm_host)
@@ -3084,7 +2925,7 @@
           end if        
           do k=1,kd
             do n=1,til*npta
-              yy(n+(k-1)*til*npta)=zpw(n+pn*til,k)
+              yy(n+(k-1)*til*npta)=zpw(n+pprocn*til,k)
             end do
           end do
           call ccmpi_gatherx(zz(1:ifg*kd),yy(1:iy),0,comm_host)
@@ -3101,7 +2942,7 @@
         iy=til*npta
         if (nud_sfh/=0.and.lblock) then
           do n=1,til
-            yy(n)=zph(n+pn*til)
+            yy(n)=zph(n+pprocn*til)
           end do
           call ccmpi_gatherx(zph(1:ifg),yy(1:iy),0,comm_host)
         end if
@@ -3160,8 +3001,7 @@
       end subroutine mlospechost
       !---------------------------------------------------------------------------------
       ! memory reduced version
-      subroutine mlospechost_n(mproc,hproc,pn,cq,
-     &                       diff_l,diffs_l,diffu_l,diffv_l,
+      subroutine mlospechost_n(cq,diff_l,diffs_l,diffu_l,diffv_l,
      &                       diffh_l,miss,lblock,kd,ifg)
 
       use cc_mpi             ! CC MPI routines
@@ -3173,11 +3013,9 @@
       include 'newmpar.h'    ! Grid parameters
       include 'parm.h'       ! Model configuration
       
-      integer, intent(in) :: mproc,hproc,pn,kd,ifg
+      integer, intent(in) :: kd,ifg
       integer iy,ppn,nne,nns,iproc
-      integer n,k,til,colour,rank
-      integer, save :: comm_host,comm_proc,comm_cols
-      integer, save :: comm_rows
+      integer n,k,til
       real, intent(in) :: cq,miss
       real, dimension(ifull,1), intent(inout) :: diffh_l
       real, dimension(ifull,kd), intent(inout) :: diff_l,diffs_l
@@ -3191,34 +3029,6 @@
       real, dimension(ifull) :: xa_l,xb_l
       logical, intent(in) :: lblock
       logical, dimension(ifg) :: landg
-      logical, save :: first = .true.
-
-      if (first) then
-        if (myid==hproc) then
-          colour=0
-          rank=hproc/mproc
-        else
-          colour=1
-          rank=myid-hproc-1
-        end if
-        call ccmpi_commsplit(comm_host,comm_world,colour,rank)
-        colour=hproc
-        rank=myid-hproc
-        call ccmpi_commsplit(comm_proc,comm_world,colour,rank)
-        colour=ioff
-        rank=joff/jpan
-        call ccmpi_commsplit(comm_cols,comm_proc,colour,rank)
-        colour=joff
-        rank=ioff/ipan
-        call ccmpi_commsplit(comm_rows,comm_proc,colour,rank)
-        if (myid==hproc) then
-          if (ioff/=0.or.joff/=0) then
-            write(6,*) "ERROR: hproc incorrectly assigned"
-            call ccmpi_abort(-1)
-          end if
-        end if
-        first=.false.
-      end if
       
       til=il_g*il_g 
 
@@ -3334,15 +3144,13 @@
       end if
 
         ! computations for the local processor group
-      call mlospeclocal(mproc,hproc,cq,pn,qsum,
-     &                  diff_g,diffs_g,diffu_g,diffv_g,diffw_g,
-     &                  diffh_g,kd,lblock,ifg,comm_proc,comm_cols,
-     &                  comm_rows)
+      call mlospeclocal(cq,pprocn,qsum,diff_g,diffs_g,diffu_g,
+     &                  diffv_g,diffw_g,diffh_g,kd,lblock,ifg)
       
       ! store results on host processor  
       if (myid==hproc) then
-        nns=pn*til+1
-        nne=pn*til+til
+        nns=pprocn*til+1
+        nne=pprocn*til+til
         if (nud_sst/=0) then
           do k=1,kd
             where (qsum(nns:nne)>1.E-8)
@@ -3394,7 +3202,7 @@
         if (nud_sst/=0) then
           do k=1,kd
             do n=1,til
-              yy(n+(k-1)*til)=diff_g(n+pn*til,k)
+              yy(n+(k-1)*til)=diff_g(n+pprocn*til,k)
             end do
           end do
           call ccmpi_gatherx(zz(1:ifg*kd),yy(1:iy),0,comm_host)
@@ -3411,7 +3219,7 @@
         if (nud_sss/=0) then
           do k=1,kd
             do n=1,til
-              yy(n+(k-1)*til)=diffs_g(n+pn*til,k)
+              yy(n+(k-1)*til)=diffs_g(n+pprocn*til,k)
             end do
           end do
           call ccmpi_gatherx(zz(1:ifg*kd),yy(1:iy),0,comm_host)
@@ -3428,7 +3236,7 @@
         if (nud_ouv/=0) then
           do k=1,kd
             do n=1,til
-              yy(n+(k-1)*til)=diffu_g(n+pn*til,k)
+              yy(n+(k-1)*til)=diffu_g(n+pprocn*til,k)
             end do
           end do
           call ccmpi_gatherx(zz(1:ifg*kd),yy(1:iy),0,comm_host)
@@ -3443,7 +3251,7 @@
           end if
           do k=1,kd
             do n=1,til
-              yy(n+(k-1)*til)=diffv_g(n+pn*til,k)
+              yy(n+(k-1)*til)=diffv_g(n+pprocn*til,k)
             end do
           end do
           call ccmpi_gatherx(zz(1:ifg*kd),yy(1:iy),0,comm_host)
@@ -3458,7 +3266,7 @@
           end if        
           do k=1,kd
             do n=1,til
-              yy(n+(k-1)*til)=diffw_g(n+pn*til,k)
+              yy(n+(k-1)*til)=diffw_g(n+pprocn*til,k)
             end do
           end do
           call ccmpi_gatherx(zz(1:ifg*kd),yy(1:iy),0,comm_host)
@@ -3475,7 +3283,7 @@
         iy=til
         if (nud_sfh/=0.and.lblock) then
           do n=1,til
-            yy(n)=diffh_g(n+pn*til,1)
+            yy(n)=diffh_g(n+pprocn*til,1)
           end do
           call ccmpi_gatherx(zz(1:ifg),yy(1:iy),0,comm_host)
           diffh_g(1:ifg,1)=zz(1:ifg)
@@ -3537,9 +3345,8 @@
       
       !---------------------------------------------------------------------------------
       ! This version is for asymmetric decomposition
-      subroutine mlospeclocal(mproc,hproc,cq,ppass,
-     &             qsum,qp,qps,qpu,qpv,qpw,qph,kd,lblock,
-     &             ifg,comm_proc,comm_cols,comm_rows)
+      subroutine mlospeclocal(cq,ppass,qsum,qp,qps,qpu,qpv,qpw,qph,
+     &             kd,lblock,ifg)
 
       use cc_mpi             ! CC MPI routines
       use xyzinfo_m          ! Grid coordinate arrays
@@ -3549,8 +3356,7 @@
       include 'newmpar.h'    ! Grid parameters
       include 'parm.h'       ! Model configuration
       
-      integer, intent(in) :: mproc,hproc,ppass,kd,ifg
-      integer, intent(in) :: comm_proc,comm_cols,comm_rows
+      integer, intent(in) :: ppass,kd,ifg
       integer j,n,ipass,ns,ne,os,oe
       integer iproc,istep
       integer ipoff,jpoff,npoff
