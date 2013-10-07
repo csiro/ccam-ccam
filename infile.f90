@@ -1459,7 +1459,7 @@ include 'newmpar.h'      ! Grid parameters
 include 'parm.h'         ! Model configuration
       
 integer, intent(in) :: idnc,iarch,istep
-integer ier
+integer ier, iq, i
 integer(kind=4) :: lidnc, lier, mid, vtype
 integer(kind=4), dimension(3) :: start, ncount
 integer(kind=2), dimension(ifull,istep) :: ipack
@@ -1497,7 +1497,11 @@ if(vtype == nf90_short)then
 #endif
     addoff=laddoff
     scale_f=lscale_f
-    ipack=max(min(nint((var-addoff)/scale_f),maxv),minv)
+    do i=1,istep
+      do iq=1,ifull
+        ipack(iq,i)=max(min(nint((var(iq,i)-addoff)/scale_f,2),maxv),minv)
+      end do
+    end do
   end if
 #ifdef usenc3
   lier=nf_put_vara_int2(lidnc,mid,start,ncount,ipack)
@@ -1547,7 +1551,7 @@ include 'parm.h'         ! Model configuration
 
 integer, intent(in) :: idnc, iarch, istep
 integer ier
-integer imn, imx, jmn, jmx, iq
+integer imn, imx, jmn, jmx, iq, i
 integer(kind=4) :: lidnc, mid, vtype, lier
 integer(kind=4), dimension(3) :: start, ncount
 integer(kind=2), dimension(ifull_g,istep) :: ipack
@@ -1590,7 +1594,11 @@ if (vtype == nf90_short) then
 #endif
     addoff=laddoff
     scale_f=lscale_f
-    ipack=max(min(nint((globvar-addoff)/scale_f),maxv),minv)
+    do i=1,istep
+      do iq=1,ifull_g
+        ipack(iq,i)=max(min(nint((globvar(iq,i)-addoff)/scale_f,2),maxv),minv)
+      end do
+    end do
   endif
 #ifdef usenc3
   lier=nf_put_vara_int2(lidnc,mid,start,ncount,ipack)
@@ -1694,7 +1702,7 @@ include 'newmpar.h'      ! Grid parameters
 include 'parm.h'         ! Model configuration
 
 integer, intent(in) :: idnc, iarch
-integer ier
+integer ier, iq, k
 integer(kind=4) :: mid, vtype, lier, lidnc
 integer(kind=4), dimension(4) :: start, ncount
 integer(kind=2), dimension(ifull,kl) :: ipack
@@ -1732,7 +1740,11 @@ if(vtype == nf90_short)then
 #endif
     addoff=laddoff
     scale_f=lscale_f
-    ipack=max(min(nint((var-addoff)/scale_f),maxv),minv)
+    do k=1,kl
+      do iq=1,ifull
+        ipack(iq,k)=max(min(nint((var(iq,k)-addoff)/scale_f,2),maxv),minv)
+      end do
+    end do
   endif
 #ifdef usenc3
   lier=nf_put_vara_int2(lidnc,mid,start,ncount,ipack)
@@ -1782,7 +1794,7 @@ include 'parm.h'        ! Model configuration
 
 integer, intent(in) :: idnc, iarch
 integer ier
-integer imx, jmx, kmx, iq
+integer imx, jmx, kmx, iq, k
 integer(kind=4) :: mid, vtype, lier, lidnc
 integer(kind=4), dimension(4) :: start, ncount
 integer, dimension(2) :: max_result
@@ -1825,7 +1837,11 @@ if(vtype == nf90_short)then
 #endif
     addoff=laddoff
     scale_f=lscale_f
-    ipack=max(min(nint((globvar-addoff)/scale_f),maxv),minv)
+    do k=1,kl
+      do iq=1,ifull_g
+        ipack(iq,k)=max(min(nint((globvar(iq,k)-addoff)/scale_f,2),maxv),minv)
+      end do
+    end do
   endif
 #ifdef usenc3
   lier=nf_put_vara_int2(lidnc,mid,start,ncount,ipack)

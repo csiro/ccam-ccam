@@ -47,8 +47,10 @@
       call start_log(nonlin_begin)
      
       if(epsp<-2.)then
-        if (.not.allocated(epstsav)) allocate(epstsav(ifull))
-        if (num==0) epstsav(:)=epst(:)
+        if (.not.allocated(epstsav)) then
+           allocate(epstsav(ifull))
+           epstsav(:)=epst(:)
+        end if
         do iq=1,ifull
          spmax2=max(u(iq,3*kl/4)**2+v(iq,3*kl/4)**2,
      &              u(iq,  kl  )**2+v(iq,  kl  )**2) 
@@ -104,6 +106,7 @@
         enddo     ! ng loop
       endif       ! (ngas>=1)
  
+#ifdef debug
       if ( diag.or.nmaxpr==1 ) then
        call bounds(ps)
        if ( mydiag ) then
@@ -143,15 +146,18 @@
         write (6,"('qg  ',3p9f8.3/4x,9f8.3)")   qg(idjd,:)
        end if
       endif
+#endif
 
 !     do vertical advection in split mode
       if(nvad==4.or.nvad==9)then
         sdmx(:) = maxval(abs(sdot),2)
         nits(:)=1+sdmx(:)/nvadh
         nvadh_pass(:)=nvadh*nits(:)
+#ifdef debug
         if (mydiag.and.mod(ktau,nmaxpr)==0)
      &    print *,'in nonlin sdmx,nits,nvadh_pass ',
      &             sdmx(idjd),nits(idjd),nvadh_pass(idjd)
+#endif
           dumt=t(1:ifull,:)
           dumu=u(1:ifull,:)
           dumv=v(1:ifull,:)
@@ -170,6 +176,7 @@ cx!       N.B. [D + dsigdot/dsig] saved in adjust5 (or updps) as pslx
 cx        pslx(1:ifull,k)=psl(1:ifull)-pslx(1:ifull,k)*dt*.5*(1.-epst(:)) !ca
 cx      enddo      ! k  loop
 
+#ifdef debug
       if(nvad>0.and.(diag.or.nmaxpr==1).and.mydiag)then
        print *,'in nonlin after vertical advection'
        write (6,"('t   ',9f8.2/4x,9f8.2)") t(idjd,:)
@@ -206,11 +213,13 @@ cx      enddo      ! k  loop
      &                  v(inv(idjd),9),v(isv(idjd),9)
          endif
       endif
+#endif
 
       if(nhstest==1) then ! Held and Suarez test case
          call hs_phys
       endif
 
+#ifdef debug
       if (diag)then
          call printa('sdot',sdot,ktau,nlv+1,ia,ib,ja,jb,0.,10.)
          call printa('omgf',dpsldt,ktau,nlv,ia,ib,ja,jb,0.,1.e5)
@@ -221,6 +230,7 @@ cx      enddo      ! k  loop
      &      print *,'k,aa,emu,emv',nlv,aa(idjd,1),emu(idjd),emv(idjd)
          call printa('sgdf',aa(:,1),ktau,nlv,ia,ib,ja,jb,0.,10.)
       endif   ! (diag)
+#endif
 
 !     extra qfg & qlg terms included in tv from April 04
       tv(1:ifull,:) = (.61*qg(1:ifull,:)-qfg(1:ifull,:)-qlg(1:ifull,:))*
@@ -265,9 +275,11 @@ cx      enddo      ! k  loop
         do k=1,kl
          h_nh(1:ifull,k)=(1.+epst(:))*tbar(1)*dpsldt(:,k)/sig(k)
         enddo
+#ifdef debug
         if (nmaxpr==1) then
           if(mydiag) write(6,*) 'h_nh.a ',(h_nh(idjd,k),k=1,kl)
         end if
+#endif
         select case(nh)
          case(3)
           do k=2,kl-1
@@ -325,6 +337,7 @@ cx      enddo      ! k  loop
      &        -ddpds/(const_nh*tbar2d(:))
           end do
         end select
+#ifdef debug
         if (nmaxpr==1) then
           if (mydiag)then
             print *,'h_nh.b ',(h_nh(idjd,k),k=1,kl)
@@ -333,6 +346,7 @@ cx      enddo      ! k  loop
           endif
           call maxmin(h_nh,'h_',ktau,1.,kl)
         endif
+#endif
       else
         phi_nh=0. ! set to hydrostatic approximation
         h_nh=0.
@@ -348,7 +362,8 @@ cx      enddo      ! k  loop
 cy      tx(iq,k)=.5*dt*termlin  ! t and epst later  cy
        enddo     ! iq loop
       enddo      ! k  loop
-      
+
+#ifdef debug      
       if( (diag.or.nmaxpr==1) .and. mydiag )then
         iq=idjd
         k=nlv
@@ -359,6 +374,7 @@ cy      tx(iq,k)=.5*dt*termlin  ! t and epst later  cy
         print *,'tv,tn ',tv(iq,k),tn(iq,k)
 c       print *,'termx ',(t(iq,k)+contv*tvv)*dpsldt(iq,k)*roncp/sig(k)
       endif
+#endif
                
 !     calculate augmented geopotential height terms and save in p
       do k=1,kl
@@ -427,6 +443,7 @@ c       print *,'termx ',(t(iq,k)+contv*tvv)*dpsldt(iq,k)*roncp/sig(k)
           aa(1:ifull,:)=aa(1:ifull,:)+.5*dt*un(1:ifull,:) ! still staggered
           bb(1:ifull,:)=bb(1:ifull,:)+.5*dt*vn(1:ifull,:) ! still staggered
         endif  ! (npex.ne.6)
+#ifdef debug
         if(diag)then
           if(mydiag)then
             print *,'tv ',tv(idjd,:)
@@ -435,14 +452,17 @@ c       print *,'termx ',(t(iq,k)+contv*tvv)*dpsldt(iq,k)*roncp/sig(k)
             write (6,"('vn1*dt',9f8.3/6x,9f8.3)") vn(idjd,:)*dt
           endif
         endif                     ! (diag)
+#endif
       endif  ! (npex==5 ... else ...)
 
       call unstaguv(aa,bb,ux,vx) ! convert to unstaggered positions
 
+#ifdef debug
       if(diag)then
         call printa('aa  ',aa,ktau,nlv,ia,ib,ja,jb,0.,1.)
         call printa('bb  ',bb,ktau,nlv,ia,ib,ja,jb,0.,1.)
       endif                     ! (diag)
+#endif
 
       ux(1:ifull,:)=u(1:ifull,:)+ux(1:ifull,:)
       vx(1:ifull,:)=v(1:ifull,:)+vx(1:ifull,:)
@@ -461,10 +481,12 @@ c       print *,'termx ',(t(iq,k)+contv*tvv)*dpsldt(iq,k)*roncp/sig(k)
          un(1:ifull,k)=un(1:ifull,k)+aa(1:ifull,k)*v(1:ifull,k) 
          vn(1:ifull,k)=vn(1:ifull,k)-aa(1:ifull,k)*u(1:ifull,k)   
         enddo
+#ifdef debug
         if (diag.and.mydiag)then
           print *,'fm ',aa(idjd,:)
           write (6,"('fm#  ',4p9f8.2)") diagvals(aa(:,nlv)) 
         endif
+#endif
       endif  ! (nxmap==2)
 
       tx(1:ifull,:) = tx(1:ifull,:) + .5*dt*tn(1:ifull,:)
@@ -474,6 +496,7 @@ c       print *,'termx ',(t(iq,k)+contv*tvv)*dpsldt(iq,k)*roncp/sig(k)
       endif
 !     N.B. don't add npex==0,1,2 (or 3) dyn contribs here, as already added
 
+#ifdef debug
       if (diag)then
          if(mydiag) then
            print *,'at end of nonlin; nvad,idjd = ', nvad,idjd
@@ -495,6 +518,7 @@ c       print *,'termx ',(t(iq,k)+contv*tvv)*dpsldt(iq,k)*roncp/sig(k)
          call printa('ux  ',ux,ktau,nlv,ia,ib,ja,jb,0.,1.)
          call printa('vx  ',vx,ktau,nlv,ia,ib,ja,jb,0.,1.)
       endif
+#endif
 
       num=1
 

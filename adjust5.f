@@ -86,6 +86,7 @@
          end if
       end if
 
+#ifdef debug
       if (diag.or.nmaxpr==1)then
          if (mydiag ) then
            write(6,*) 'entering adjust5'
@@ -106,6 +107,7 @@
          call maxmin(alfe,'ae',ktau,1.,1)
          call maxmin(alfn,'an',ktau,1.,1)
       endif
+#endif
 
 !     recompute nonlinear sigma-dot contribution for updating tn, tx
 !     e contains intgrl{-pslx x dsigma} from 0 to sigma (dsig is -ve)
@@ -166,7 +168,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
         end if
         do k=1,kl
          ! MJT suggestion
-         ! omgfnl already includes (1+epst)
+         ! omgfnl already includes (1+epsp)
          wrk2(:,k)=const_nh*tbar2d(:)*
      &     (tbar(1)*omgfnl(:,k)/sig(k)-h_nh(1:ifull,k))
         enddo
@@ -174,14 +176,16 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
         do k=2,kl
          wrk1(:,k)=wrk1(:,k-1)+bet(k)*wrk2(:,k)+betm(k)*wrk2(:,k-1)
         enddo   ! k loop
+#ifdef debug
         if ((diag.or.nmaxpr==1).and.mydiag)then
           write(6,*) 'adjust5 omgfnl ',(omgfnl(idjd,k),k=1,kl)
           write(6,*) 'adjust5 h_nh ',(h_nh(idjd,k),k=1,kl)
           write(6,*) 'adjust5 pa ',(p(idjd,k),k=1,kl)
           write(6,*) 'adjust5 wrk1 ',(wrk1(idjd,k),k=1,kl)
         endif
+#endif
         p(1:ifull,:)=p(1:ifull,:)+wrk1(:,:)  ! nh
-      endif     ! (nh.ne.0.and.(ktau.gt.knh.or.lrestart))
+      endif     ! (nh/=0.and.(ktau>knh.or.lrestart))
 
 !     form divergence of rhs (xu & xv) terms
       do k=1,kl
@@ -226,6 +230,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
         call helmsol(zz,zzn,zze,zzw,zzs,helm,pe,rhsl)
       endif ! (precon<-9999) .. else ..
 
+#ifdef debug
       if (diag.or.nmaxpr==1)then   !  only for last k of loop (i.e. 1)
          ! Some diagnostics requiring extra bounds calls have been removed
          if (mydiag ) then
@@ -246,6 +251,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
          call printa('rhsl',rhsl,ktau,1,ia,ib,ja,jb,0.,0.)
          call printa('pe  ',pe,ktau,1,ia,ib,ja,jb,0.,0.)
       endif
+#endif
 
       do k=1,kl
 !        first p from pe
@@ -262,6 +268,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
       call bounds(p,corner=.true.)
 
 !      now u & v
+#ifdef debug
       if ((diag.or.nmaxpr==1).and.mydiag)then
        write(6,*) 'iq,k,fu,alfu,alfu*ux(iq,k) ',
      &         idjd,nlv,fu(idjd),alfu(idjd),alfu(idjd)*ux(idjd,nlv)
@@ -277,6 +284,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
        write(6,*) 'p & direct n s ',
      &         p(idjd,nlv),p(idjd+il,nlv),p(idjd-il,nlv)
       endif
+#endif
 
       do k=1,kl
 !cdir nodep
@@ -307,12 +315,14 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
      &          *em(iq)**2/ds
          enddo                  ! iq loop
       enddo     ! k  loop
+#ifdef debug
       if(nmaxpr==1)then
         call maxmin(d,'dv',ktau,0.,kl)
         if(nproc==1)write(6,*) 'cc,cc-,dd,dd-',
      &     cc(idjd,nlv)/emu(idjd),cc(iwu(idjd),nlv)/emu(iwu(idjd)),
      &     dd(idjd,nlv)/emv(idjd),dd(isv(idjd),nlv)/emv(isv(idjd))      
       endif   ! (nmaxpr==1)
+#endif
 
 !     npex=4 add un, vn on staggered grid in belated split manner
       if(npex==4)then  
@@ -326,6 +336,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
       if(nstag==0)then
         call staguv(u(1:ifull,:),v(1:ifull,:),        
      &              wrk1(1:ifull,:),wrk2(1:ifull,:)) 
+#ifdef debug
         if(nmaxpr==1.and.nproc==1)then
           its=ifull+iextra
           write (6,"('u_u0 ',10f8.2)") (u(iq,nlv),iq=idjd-3,idjd+3)
@@ -338,17 +349,20 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
           write (6,"('v_s1 ',10f8.2)") 
      &               (dd(iq,nlv),iq=idjd-3*its,idjd+3*its,its)       
         endif
+#endif
         wrk1(1:ifull,:)=cc(1:ifull,:)-wrk1(1:ifull,:) ! staggered increment
         wrk2(1:ifull,:)=dd(1:ifull,:)-wrk2(1:ifull,:) ! staggered increment
         call unstaguv(wrk1(1:ifull,:),wrk2(1:ifull,:),        
      &                wrk1(1:ifull,:),wrk2(1:ifull,:)) 
         u(1:ifull,:)=u(1:ifull,:)+wrk1(1:ifull,:)
         v(1:ifull,:)=v(1:ifull,:)+wrk2(1:ifull,:)
+#ifdef debug
         if(nmaxpr==1.and.nproc==1)then
           write (6,"('u_u1 ',10f8.2)") (u(iq,nlv),iq=idjd-3,idjd+3)
           write (6,"('v_u1 ',10f8.2)") 
      &               (v(iq,nlv),iq=idjd-3*its,idjd+3*its,its)
         endif
+#endif
       else
         dumc=cc(1:ifull,:)
         dumd=dd(1:ifull,:)
@@ -409,6 +423,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
         call maxmin(vx,'ac',ktau,100.,kl)  ! max min of accln * 100
       endif
 
+#ifdef debug
       if ((diag.or.nmaxpr==1) .and. mydiag ) then
          write(6,*) 'm ',m
          if(m<=6)write (6,"('diva5p ',5p10f8.2)") d(idjd,:)
@@ -420,6 +435,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
          write (6,"('pslx_3p',3p9f8.4)") pslx(idjd,:)
          write (6,"('sdot_a2',10f8.3)") sdot(idjd,1:kl)
       endif
+#endif
 
       do k=1,kl
        do iq=1,ifull
@@ -430,9 +446,11 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
      &           +hdt*(1.+epst(iq))*tbar2d(iq)*omgf(iq,k)*roncp/sig(k)
        enddo    ! iq loop
       enddo     ! k  loop
+#ifdef debug
       if ((diag.or.nmaxpr==1).and.mydiag)then
         write(6,"('omgf_a2',10f8.3)") ps(idjd)*dpsldt(idjd,1:kl)
       endif
+#endif
 
       if(nh/=0)then
 !       update phi for use in next time step
@@ -444,25 +462,27 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
         bb=zs(1:ifull)+bet(1)*(t(1:ifull,1)-280.)
         phi_nh(:,1)=phi(:,1)-bb
         do k=2,kl
-          bb=bb+bet(k)*(t(1:ifull,k)-280.)
-     &         +betm(k)*(t(1:ifull,k-1)-280.)
+          bb=bb+bet(k)*(t(1:ifull,k)  -280.)
+     &        +betm(k)*(t(1:ifull,k-1)-280.)
           phi_nh(:,k)=phi(:,k)-bb
         end do
 
-        ! correct for temperature offste
+        ! correct for temperature offset
         dum=bet(1)*280.
         phi(1:ifull,1)=phi(1:ifull,1)+dum
         do k=2,kl
           dum=dum+(bet(k)+betm(k))*280.
           phi(:,k)=phi(:,k)+dum
         end do
-        
+#ifdef debug        
         if(nmaxpr==1.and.mydiag)then
           write(6,*) 'phi_adj ',(phi(idjd,k),k=1,kl)
         endif
+#endif
       endif  ! (nh.ne.0)
 
       if(nvadh==2.and.nvad>0)then                 ! final dt/2 's worth
+#ifdef debug
         if ((diag.or.nmaxpr==1) .and. mydiag ) then
          write(6,*) 'before vertical advection in adjust5 for ktau= ',
      &               ktau
@@ -475,14 +495,17 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
          write (6,"('v_a2 ',10f8.2)") v(idjd,:)
          write (6,"('qg_a2 ',3p10f8.3)") qg(idjd,:)
         endif
+#endif
         if(nvad==4 .or. nvad==9 ) then
          if(mup==-3)call updps(1)
           sdmx(:) = maxval(abs(sdot),2)
           nits(:)=1+sdmx(:)/nvadh
           nvadh_pass(:)=nvadh*nits(:)
+#ifdef debug
           if (mydiag.and.mod(ktau,nmaxpr)==0)
      &      write(6,*) 'in adjust5 sdmx,nits,nvadh_pass ',
      &                  sdmx(idjd),nits(idjd),nvadh_pass(idjd)
+#endif
           ! For now use this form of call so that vadvtvd doesn't need to 
           ! be changed. With assumed shape arguments this wouldn't be necessary
           dumt=t(1:ifull,:)
@@ -496,6 +519,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
         if(nvad>=7) call vadv30(t(1:ifull,:),
      &                            u(1:ifull,:),
      &                            v(1:ifull,:),iaero) ! for vadvbess
+#ifdef debug
         if (( diag.or.nmaxpr==1) .and. mydiag ) then
           write(6,*) 'after vertical advection in adjust5'
           write (6,"('qg_a3',3p10f8.3)") qg(idjd,:)
@@ -504,6 +528,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
           write (6,"('u_a3',10f8.2)") u(idjd,:)
           write (6,"('v_a3',10f8.2)") v(idjd,:)
         endif
+#endif
       endif     !  (nvadh==2.and.nvad>0)
 
       if (mfix==-1) then   ! perform conservation fix on psl
@@ -513,6 +538,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
 !            _l means local to this processor        
          delps(1:ifull) = psl(1:ifull)-pslsav(1:ifull)
          call ccglobal_posneg(delps,delpos,delneg)
+#ifdef debug
 	 if(ntest==1)then
            if(myid==0)then
               write(6,*) 'psl_delpos,delneg ',delpos,delneg
@@ -521,18 +547,21 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
            call ccglobal_sum(pslsav,sumsav)
            call ccglobal_sum(psl,sumin)
 	 endif  ! (ntest==1)
+#endif
          alph_p = sqrt( -delneg/delpos)
          alph_pm=1./alph_p
          do iq=1,ifull
             psl(iq) = pslsav(iq) +
      &           alph_p*max(0.,delps(iq)) + alph_pm*min(0.,delps(iq))
          enddo
+#ifdef debug
 	 if(ntest==1)then
            if(myid==0)write(6,*) 'alph_p,alph_pm ',alph_p,alph_pm
            call ccglobal_sum(psl,sumout)
            if(myid==0)
      &       write(6,*) 'psl_sumsav,sumin,sumout ',sumsav,sumin,sumout
 	 endif  ! (ntest==1)
+#endif
       endif                     !  (mfix==-1)
 
       if(mfix/=3)ps(1:ifull)=1.e5*exp(psl(1:ifull))     
@@ -545,6 +574,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
          bb(1:ifull)=ps(1:ifull)   
          delps(1:ifull) = ps(1:ifull)-ps_sav(1:ifull)
          call ccglobal_posneg(delps,delpos,delneg)
+#ifdef debug
          if(ntest==1)then
            if(myid==0)then
               write(6,*) 'psl_delpos,delneg ',delpos,delneg
@@ -553,6 +583,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
            call ccglobal_sum(ps_sav,sumsav)
            call ccglobal_sum(ps,sumin)
          endif  ! (ntest==1)
+#endif
          if(mfix==1)then
             alph_p = sqrt( -delneg/max(1.e-20,delpos))
             alph_pm=1./max(1.e-20,alph_p)
@@ -570,12 +601,14 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
             ps(iq) = ps_sav(iq) +
      &           alph_p*max(0.,delps(iq)) + alph_pm*min(0.,delps(iq))
          enddo
+#ifdef debug
         if(ntest==1)then
            if(myid==0) write(6,*) 'alph_p,alph_pm ',alph_p,alph_pm
            call ccglobal_sum(ps,sumout)
            if (myid==0)
      &       write(6,*) 'ps_sumsav,sumin,sumout ',sumsav,sumin,sumout
         endif  ! (ntest==1)
+#endif
 !       psl(1:ifull)=log(1.e-5*ps(1:ifull))
 !       following is cheaper and maintains full precision of psl
         psl(1:ifull)=psl(1:ifull)+  ! just using mass flux increment
@@ -592,6 +625,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
         delps(1:ifull)=ps_sav(1:ifull)*
      &                 delps(1:ifull)*(1.+.5*delps(1:ifull))         
         call ccglobal_posneg(delps,delpos,delneg)
+#ifdef debug
         if(ntest==1)then
           if(myid==0)then
             write(6,*) 'psl_delpos,delneg ',delpos,delneg
@@ -601,6 +635,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
           call ccglobal_sum(ps_sav,sumsav)
           call ccglobal_sum(ps,sumin)
         endif  ! (ntest==1)
+#endif
         alph_p = sqrt( -delneg/max(1.e-20,delpos))
         alph_pm=1./max(1.e-20,alph_p)
         do iq=1,ifull
@@ -610,12 +645,14 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
         psl(1:ifull)=pslsav(1:ifull)+
      &               delps(1:ifull)*(1.-.5*delps(1:ifull))
         ps(1:ifull)=1.e5*exp(psl(1:ifull))     
+#ifdef debug
 	  if(ntest==1)then
           if(myid==0) write(6,*) 'alph_p,alph_pm ',alph_p,alph_pm
           call ccglobal_sum(ps,sumout)
           if(myid==0)
      &      write(6,*) 'ps_sumsav,sumin,sumout ',sumsav,sumin,sumout
 	  endif  ! (ntest==1)
+#endif
       endif                   !  (mfix==3)
       
 !     following dpsdt diagnostic is in hPa/day  
@@ -684,6 +721,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
       end if
       !--------------------------------------------------------------
 
+#ifdef debug
       if ((diag.or.nmaxpr==1) .and. mydiag ) then
         write(6,*) 'at end of adjust5 for ktau= ',ktau
         write(6,*) 'ps_sav,ps ',ps_sav(idjd),ps(idjd)
@@ -722,6 +760,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
             call printa('qg  ',qg,ktau,nlv,ia,ib,ja,jb,0.,1.e3)
          endif
       endif
+#endif
 
       dtsave = dt
       

@@ -121,7 +121,6 @@
       real gke, hourst, hrs_dt, evapavge, precavge, preccavge, psavge
       real pslavge, pwater, rel_lat, rel_long, rlwup, spavge, pwatr
       real pwatr_l, qtot, aa, bb, cc, bb_2, cc_2, rat
-      double precision, dimension(:,:,:), allocatable, save :: dume
       character(len=60) comm,comment
       character(len=47) header
       character(len=10) timeval
@@ -603,24 +602,19 @@
       ! SET UP CC GEOMETRY
       ! Only one processor calls setxyz to save memory with large grids
       if (myid==0) then
+        write(6,*) "Calling setxyz"
         call workglob_init(ifull_g)
         call setxyz(il_g,rlong0,rlat0,schmidt,x_g,y_g,z_g,wts_g,ax_g,
      &     ay_g,az_g,bx_g,by_g,bz_g,xx4,yy4,myid)
       end if
-      allocate(dume(iquad,iquad,2))
       allocate(dumd(npanels+1,16))
       ! Broadcast the following global arrays so that they can be
       ! decomposed into local arrays with ccmpi_setup
       rdum(1)=ds
       call ccmpi_bcast(rdum(1:1),0,comm_world)
       ds=rdum(1)
-      if (myid==0) then
-        dume(:,:,1)=xx4
-        dume(:,:,2)=yy4
-      end if
-      call ccmpi_bcastr8(dume,0,comm_world)
-      xx4=dume(:,:,1)
-      yy4=dume(:,:,2)
+      call ccmpi_bcastr8(xx4,0,comm_world)
+      call ccmpi_bcastr8(yy4,0,comm_world)
       call ccmpi_bcast(iw_g,0,comm_world)
       call ccmpi_bcast(is_g,0,comm_world)
       call ccmpi_bcast(ise_g,0,comm_world)
@@ -680,7 +674,9 @@
         call ccmpi_bcast(em_g,0,comm_world)
       end if
       deallocate(dumd)
-      deallocate(dume)
+      if (myid==0) then
+        write(6,*) "Calling ccmpi_setup"
+      end if
       call ccmpi_setup()
 
       

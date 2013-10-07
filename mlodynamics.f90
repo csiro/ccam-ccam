@@ -852,9 +852,11 @@ real, parameter :: itol   = 2.E1       ! Tolerance for SOR solver (ice)
 
 call start_log(watermisc_begin)
 
+#ifdef debug
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: Start"
 end if
+#endif
 
 ! Define land/sea mask
 wtr=ee>0.5
@@ -877,9 +879,11 @@ imass=0.
 tide=0.
 
 ! IMPORT WATER AND ICE DATA -----------------------------------------
+#ifdef debug
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: Import"
 end if
+#endif
 do ii=1,wlev
   call mloexport(0,w_t(:,ii),ii,0)
   call mloexport(1,w_s(:,ii),ii,0)
@@ -899,9 +903,11 @@ call mloexpice(i_v,10,0)
 call mloexpice(i_sal,11,0)
 
 ! estimate tidal forcing (assumes leap days)
+#ifdef debug
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: Tides"
 end if
+#endif
 if (usetide==1) then
   call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins,allleap=.true.)
   jstart=0
@@ -1017,9 +1023,11 @@ call start_log(waterdeps_begin)
 ! based on McGregor's CCAM advection routines.
 ! Velocity is set to zero at ocean boundaries.
 
+#ifdef debug
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: Departure points"
 end if
+#endif
 
 ! save arrays
 if (ktau==1.and..not.lrestart) then
@@ -1055,9 +1063,11 @@ end do
 call end_log(waterdeps_end)
 call start_log(watereos_begin)
 
+#ifdef debug
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: density EOS 1"
 end if
+#endif
 
 ! Calculate normalised density rhobar (unstaggered at time t)
 ! (Assume free surface correction is small so that changes in the compression 
@@ -1100,9 +1110,11 @@ end do
 call end_log(watereos_end)
 call start_log(waterhadv_begin)
 
+#ifdef debug
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: continuity equation"
 end if
+#endif
 
 ! Advect continuity equation to tstar
 ! Calculate velocity on C-grid for consistancy with iterative free surface calculation
@@ -1148,9 +1160,11 @@ do ii=1,wlev
   mps(1:ifull,ii)=mps(1:ifull,ii)*ee(1:ifull)
 end do
 
+#ifdef debug
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: pressure gradient terms"
 end if
+#endif
 
 ! ocean
 ! Prepare pressure gradient terms at t=t and incorporate into velocity field
@@ -1182,9 +1196,11 @@ snv(1:ifull)=i_v-dt*ttav(:,wlev+1)
 call end_log(waterhadv_end)
 call start_log(watervadv_begin)
 
+#ifdef debug
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: water vertical advection 1"
 end if
+#endif
 
 ! Vertical advection (first call for 0.5*dt)
 dums=ns(1:ifull,:)
@@ -1198,9 +1214,11 @@ mps(1:ifull,:)=duma
 call end_log(watervadv_end)
 call start_log(waterhadv_begin)
 
+#ifdef debug
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: horizontal advection"
 end if
+#endif
 
 ! Convert (u,v) to cartesian coordinates (U,V,W)
 do ii=1,wlev
@@ -1235,9 +1253,11 @@ ns(1:ifull,:) =cou(1:ifull,:,3)+34.72
 call end_log(waterhadv_end)
 call start_log(watervadv_begin)
 
+#ifdef debug
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: water vertical advection 2"
 end if
+#endif
 
 ! Vertical advection (second call for 0.5*dt)
 ! use explicit nw and depdum,dzdum from t=tau step (i.e., following JLM in CCAM atmospheric dynamics)
@@ -1260,9 +1280,11 @@ xps=xps*ee(1:ifull)
 call end_log(watervadv_end)
 call start_log(watereos_begin)
 
+#ifdef debug
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: density EOS 2"
 end if
+#endif
 
 ! Approximate normalised density rhobar at t+1 (unstaggered, using T and S at t+1)
 if (nxtrrho==1) then
@@ -1306,9 +1328,11 @@ end if
 call end_log(watereos_end)
 call start_log(waterhelm_begin)
 
+#ifdef debug
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: free surface"
 end if
+#endif
 
 ! Prepare integral terms
 sou=0.
@@ -1523,9 +1547,11 @@ else
               ipice,ibu,ibv,idu,idv,niu,niv,sicedep,ipmax,totits,itc,maxglobseta,maxglobip)
 end if
 
+#ifdef debug
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: free surface conservation"
 end if
+#endif
 
 ! volume conservation for water ---------------------------------------
 if (nud_sfh==0) then
@@ -1544,9 +1570,11 @@ if (nud_sfh==0) then
   end if
 end if
 
+#ifdef debug
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: update currents"
 end if
+#endif
 
 dumc(1:ifull,1)=neta(1:ifull)
 dumc(1:ifull,2)=ipice(1:ifull)
@@ -1608,9 +1636,11 @@ spnet(1:ifull)=(-min(tiu(iwu)*emu(iwu),0.)+max(tiu(1:ifull)*emu(1:ifull),0.) &
 ! ADVECT ICE ------------------------------------------------------
 ! use simple upwind scheme
 
+#ifdef debug
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: Ice advection"
 end if
+#endif
 
 ! Horizontal advection for ice area
 dumc(1:ifull,1)=fracice/(em(1:ifull)*em(1:ifull)) ! dumc is an area
@@ -1683,9 +1713,11 @@ niv(1:ifull)=ttav(:,wlev+1)
 call end_log(wateriadv_end)
 call start_log(watermisc_begin)
 
+#ifdef debug
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: conserve salinity"
 end if
+#endif
   
   
 ! salinity conservation
@@ -1738,9 +1770,11 @@ end if
 call end_log(watermisc_end)
 
 ! DIFFUSION -------------------------------------------------------------------
+#ifdef debug
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: diffusion"
 end if
+#endif
 
 duma=nu(1:ifull,:)
 dumb=nv(1:ifull,:)
@@ -1758,9 +1792,11 @@ call mloimport(4,odum,0,0)
 
 call start_log(watermisc_begin)
 
+#ifdef debug
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: Export"
 end if
+#endif
 
 do ii=1,4
   call mloimpice(nit(1:ifull,ii),ii,0)
@@ -1778,9 +1814,11 @@ where (wtr(1:ifull))
   snowd=ndsn(1:ifull)*1000.
 end where
 
+#ifdef debug
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: Finish"
 end if
+#endif
 
 call end_log(watermisc_end)
 
@@ -1985,7 +2023,7 @@ include 'parm.h'
 include 'parmhor.h'
 
 integer idel,iq,jdel,kx
-integer i,j,k,n,ind,ip,jp,iproc,ierr,intsch,ncount
+integer i,j,k,n,ind,ip,jp,ierr,intsch,ncount
 integer ii,ntr,nn
 integer, dimension(:,:), intent(in) :: nface
 real, dimension(ifull,size(nface,2)), intent(in) :: xg,yg
@@ -2067,19 +2105,18 @@ if(intsch==1)then
   end do               ! n loop
 
 ! Loop over points that need to be calculated for other processes
-  do ii=1,neighnum
-    iproc=neighlistsend(ii)
-    do iq=1,drlen(iproc)
+  do ii=neighnum,1,-1
+    do iq=1,drlen(ii)
       !  Convert face index from 0:npanels to array indices
-      ip = min(il_g,max(1,nint(dpoints(iproc)%a(2,iq))))
-      jp = min(il_g,max(1,nint(dpoints(iproc)%a(3,iq))))
-      n = nint(dpoints(iproc)%a(1,iq)) + noff ! Local index
+      ip = min(il_g,max(1,nint(dpoints(ii)%a(2,iq))))
+      jp = min(il_g,max(1,nint(dpoints(ii)%a(3,iq))))
+      n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
       !  Need global face index in fproc call
-      idel = int(dpoints(iproc)%a(2,iq))
-      xxg = dpoints(iproc)%a(2,iq) - idel
-      jdel = int(dpoints(iproc)%a(3,iq))
-      yyg = dpoints(iproc)%a(3,iq) - jdel
-      k = nint(dpoints(iproc)%a(4,iq))
+      idel = int(dpoints(ii)%a(2,iq))
+      xxg = dpoints(ii)%a(2,iq) - idel
+      jdel = int(dpoints(ii)%a(3,iq))
+      yyg = dpoints(ii)%a(3,iq) - jdel
+      k = nint(dpoints(ii)%a(4,iq))
       idel = idel - ioff
       jdel = jdel - joff
 
@@ -2110,7 +2147,7 @@ if(intsch==1)then
           r(1) = (1.-xxg)*sc(0,-1,nn) +xxg*sc(1,-1,nn)
           r(4) = (1.-xxg)*sc(0,2,nn) +xxg*sc(1,2,nn)
 
-          sextra(iproc)%a(nn+(iq-1)*ntr) = ((1.-yyg)*((2.-yyg)* &
+          sextra(ii)%a(nn+(iq-1)*ntr) = ((1.-yyg)*((2.-yyg)* &
                ((1.+yyg)*r(2)-yyg*r(1)/3.)                      & 
                -yyg*(1.+yyg)*r(4)/3.)                           &
                +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
@@ -2125,11 +2162,11 @@ if(intsch==1)then
           aab=sc(1,0,nn)-sc(0,0,nn)
           aac=sc(0,1,nn)-sc(0,0,nn)
         
-          sextra(iproc)%a(nn+(iq-1)*ntr)=aab*xxg+aac*yyg+aad*xxg*yyg+sc(0,0,nn)
+          sextra(ii)%a(nn+(iq-1)*ntr)=aab*xxg+aac*yyg+aad*xxg*yyg+sc(0,0,nn)
         end do
       end if
     end do            ! iq loop
-  end do              ! iproc loop
+  end do              ! ii loop
   
   call intssync_send(ntr)
 
@@ -2239,19 +2276,18 @@ else     ! if(intsch==1)then
   end do               ! n loop
 
 ! For other processes
-  do ii=1,neighnum
-    iproc=neighlistsend(ii)
-    do iq=1,drlen(iproc)
+  do ii=neighnum,1,-1
+    do iq=1,drlen(ii)
       !  Convert face index from 0:npanels to array indices
-      ip = min(il_g,max(1,nint(dpoints(iproc)%a(2,iq))))
-      jp = min(il_g,max(1,nint(dpoints(iproc)%a(3,iq))))
-      n = nint(dpoints(iproc)%a(1,iq)) + noff ! Local index
+      ip = min(il_g,max(1,nint(dpoints(ii)%a(2,iq))))
+      jp = min(il_g,max(1,nint(dpoints(ii)%a(3,iq))))
+      n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
       !  Need global face index in fproc call
-      idel = int(dpoints(iproc)%a(2,iq))
-      xxg = dpoints(iproc)%a(2,iq) - idel
-      jdel = int(dpoints(iproc)%a(3,iq))
-      yyg = dpoints(iproc)%a(3,iq) - jdel
-      k = nint(dpoints(iproc)%a(4,iq))
+      idel = int(dpoints(ii)%a(2,iq))
+      xxg = dpoints(ii)%a(2,iq) - idel
+      jdel = int(dpoints(ii)%a(3,iq))
+      yyg = dpoints(ii)%a(3,iq) - jdel
+      k = nint(dpoints(ii)%a(4,iq))
       idel = idel - ioff
       jdel = jdel - joff
 
@@ -2281,10 +2317,10 @@ else     ! if(intsch==1)then
                -yyg*(1.+yyg)*sc(1,2,nn)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(1,1,nn))/2.
           r(1) = (1.-yyg)*sc(-1,0,nn) +yyg*sc(-1,1,nn)
           r(4) = (1.-yyg)*sc(2,0,nn) +yyg*sc(2,1,nn)
-          sextra(iproc)%a(nn+(iq-1)*ntr) = ((1.-xxg)*((2.-xxg)* &
-                    ((1.+xxg)*r(2)-xxg*r(1)/3.)                 &
-                       -xxg*(1.+xxg)*r(4)/3.)                   &
-                       +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
+          sextra(ii)%a(nn+(iq-1)*ntr) = ((1.-xxg)*((2.-xxg)* &
+                 ((1.+xxg)*r(2)-xxg*r(1)/3.)                 &
+                    -xxg*(1.+xxg)*r(4)/3.)                   &
+                    +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
         end do
       else
         ! bi-linear interpolation
@@ -2295,11 +2331,11 @@ else     ! if(intsch==1)then
           aad=sc(1,1,nn)-sc(0,1,nn)-sc(1,0,nn)+sc(0,0,nn)
           aab=sc(1,0,nn)-sc(0,0,nn)
           aac=sc(0,1,nn)-sc(0,0,nn)
-          sextra(iproc)%a(nn+(iq-1)*ntr)=aab*xxg+aac*yyg+aad*xxg*yyg+sc(0,0,nn)
+          sextra(ii)%a(nn+(iq-1)*ntr)=aab*xxg+aac*yyg+aad*xxg*yyg+sc(0,0,nn)
         end do
       end if
     end do            ! iq loop
-  end do              ! iproc
+  end do              ! ii
 
   call intssync_send(ntr)
 
@@ -2398,7 +2434,7 @@ include 'parm.h'
 include 'parmhor.h'
 
 integer idel,iq,jdel,kx
-integer i,j,k,n,ind,ip,jp,iproc,ierr,intsch,ncount
+integer i,j,k,n,ind,ip,jp,ierr,intsch,ncount
 integer ii,ntr,nn
 integer, dimension(:,:), intent(in) :: nface
 real, dimension(ifull,size(nface,2)), intent(in) :: xg,yg
@@ -2475,19 +2511,18 @@ if(intsch==1)then
   end do                   ! nn loop
 
 ! Loop over points that need to be calculated for other processes
-  do ii=1,neighnum
-    iproc=neighlistsend(ii)
-    do iq=1,drlen(iproc)
+  do ii=neighnum,1,-1
+    do iq=1,drlen(ii)
       !  Convert face index from 0:npanels to array indices
-      ip = min(il_g,max(1,nint(dpoints(iproc)%a(2,iq))))
-      jp = min(il_g,max(1,nint(dpoints(iproc)%a(3,iq))))
-      n = nint(dpoints(iproc)%a(1,iq)) + noff ! Local index
+      ip = min(il_g,max(1,nint(dpoints(ii)%a(2,iq))))
+      jp = min(il_g,max(1,nint(dpoints(ii)%a(3,iq))))
+      n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
       !  Need global face index in fproc call
-      idel = int(dpoints(iproc)%a(2,iq))
-      xxg = dpoints(iproc)%a(2,iq) - idel
-      jdel = int(dpoints(iproc)%a(3,iq))
-      yyg = dpoints(iproc)%a(3,iq) - jdel
-      k = nint(dpoints(iproc)%a(4,iq))
+      idel = int(dpoints(ii)%a(2,iq))
+      xxg = dpoints(ii)%a(2,iq) - idel
+      jdel = int(dpoints(ii)%a(3,iq))
+      yyg = dpoints(ii)%a(3,iq) - jdel
+      k = nint(dpoints(ii)%a(4,iq))
       idel = idel - ioff
       jdel = jdel - joff
 
@@ -2518,9 +2553,9 @@ if(intsch==1)then
           r(1) = (1.-xxg)*sc(0,-1,nn) +xxg*sc(1,-1,nn)
           r(4) = (1.-xxg)*sc(0,2,nn) +xxg*sc(1,2,nn)
 
-          sextra(iproc)%a(nn+(iq-1)*ntr) = ((1.-yyg)*((2.-yyg)* &
-               ((1.+yyg)*r(2)-yyg*r(1)/3.)                      &
-               -yyg*(1.+yyg)*r(4)/3.)                           &
+          sextra(ii)%a(nn+(iq-1)*ntr) = ((1.-yyg)*((2.-yyg)* &
+               ((1.+yyg)*r(2)-yyg*r(1)/3.)                   &
+               -yyg*(1.+yyg)*r(4)/3.)                        &
                +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
         end do
       else
@@ -2532,16 +2567,16 @@ if(intsch==1)then
           aad=scb(1,1)-scb(0,1)-scb(1,0)+scb(0,0)
           aab=scb(1,0)-scb(0,0)
           aac=scb(0,1)-scb(0,0)
-          sextra(iproc)%a(nn+(iq-1)*ntr)=aab*xxg+aac*yyg+aad*xxg*yyg+scb(0,0)
+          sextra(ii)%a(nn+(iq-1)*ntr)=aab*xxg+aac*yyg+aad*xxg*yyg+scb(0,0)
         end do
       end if
       do nn=1,ntr
         cmax=maxval(sc(0:1,0:1,nn))
         cmin=minval(sc(0:1,0:1,nn))
-        sextra(iproc)%a(nn+(iq-1)*ntr)=min(max(sextra(iproc)%a(nn+(iq-1)*ntr),cmin),cmax)
+        sextra(ii)%a(nn+(iq-1)*ntr)=min(max(sextra(ii)%a(nn+(iq-1)*ntr),cmin),cmax)
       end do
     end do            ! iq loop
-  end do              ! iproc loop
+  end do              ! ii loop
 
   call intssync_send(ntr)
 
@@ -2660,19 +2695,18 @@ else     ! if(intsch==1)then
   end do                   ! nn loop
 
 ! For other processes
-  do ii=1,neighnum
-    iproc=neighlistsend(ii)
-    do iq=1,drlen(iproc)
+  do ii=neighnum,1,-1
+    do iq=1,drlen(ii)
       !  Convert face index from 0:npanels to array indices
-      ip = min(il_g,max(1,nint(dpoints(iproc)%a(2,iq))))
-      jp = min(il_g,max(1,nint(dpoints(iproc)%a(3,iq))))
-      n = nint(dpoints(iproc)%a(1,iq)) + noff ! Local index
+      ip = min(il_g,max(1,nint(dpoints(ii)%a(2,iq))))
+      jp = min(il_g,max(1,nint(dpoints(ii)%a(3,iq))))
+      n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
       !  Need global face index in fproc call
-      idel = int(dpoints(iproc)%a(2,iq))
-      xxg = dpoints(iproc)%a(2,iq) - idel
-      jdel = int(dpoints(iproc)%a(3,iq))
-      yyg = dpoints(iproc)%a(3,iq) - jdel
-      k = nint(dpoints(iproc)%a(4,iq))
+      idel = int(dpoints(ii)%a(2,iq))
+      xxg = dpoints(ii)%a(2,iq) - idel
+      jdel = int(dpoints(ii)%a(3,iq))
+      yyg = dpoints(ii)%a(3,iq) - jdel
+      k = nint(dpoints(ii)%a(4,iq))
       idel = idel - ioff
       jdel = jdel - joff
 
@@ -2702,10 +2736,10 @@ else     ! if(intsch==1)then
                -yyg*(1.+yyg)*sc(1,2,nn)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(1,1,nn))/2.
           r(1) = (1.-yyg)*sc(-1,0,nn) +yyg*sc(-1,1,nn)
           r(4) = (1.-yyg)*sc(2,0,nn) +yyg*sc(2,1,nn)
-          sextra(iproc)%a(nn+(iq-1)*ntr) = ((1.-xxg)*((2.-xxg)* &
-               ((1.+xxg)*r(2)-xxg*r(1)/3.)           &
-               -xxg*(1.+xxg)*r(4)/3.)                &
-               +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
+          sextra(ii)%a(nn+(iq-1)*ntr) = ((1.-xxg)*((2.-xxg)* &
+                       ((1.+xxg)*r(2)-xxg*r(1)/3.)           &
+                       -xxg*(1.+xxg)*r(4)/3.)                &
+                       +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
         end do
       else
         ! bi-linear interpolation
@@ -2716,16 +2750,16 @@ else     ! if(intsch==1)then
           aad=scb(1,1)-scb(0,1)-scb(1,0)+scb(0,0)
           aab=scb(1,0)-scb(0,0)
           aac=scb(0,1)-scb(0,0)
-          sextra(iproc)%a(nn+(iq-1)*ntr)=aab*xxg+aac*yyg+aad*xxg*yyg+scb(0,0)
+          sextra(ii)%a(nn+(iq-1)*ntr)=aab*xxg+aac*yyg+aad*xxg*yyg+scb(0,0)
         end do
       end if
       do nn=1,ntr
         cmax=maxval(sc(0:1,0:1,nn))
         cmin=minval(sc(0:1,0:1,nn))
-        sextra(iproc)%a(nn+(iq-1)*ntr)=min(max(sextra(iproc)%a(nn+(iq-1)*ntr),cmin),cmax)
+        sextra(ii)%a(nn+(iq-1)*ntr)=min(max(sextra(ii)%a(nn+(iq-1)*ntr),cmin),cmax)
       end do
     end do            ! iq loop
-  end do              ! iproc
+  end do              ! ii
 
   call intssync_send(ntr)
 

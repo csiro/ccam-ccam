@@ -28,7 +28,7 @@ c     doing x-interpolation before y-interpolation
       real, dimension(ntr) :: a3, a4, sss
       real, dimension(ntr) :: cmax, cmin
       real, dimension(ntr,4) :: r
-      integer i, j, k, n, ind, ip, jp, iproc
+      integer i, j, k, n, ind, ip, jp
       integer ii
       ! This is really indp, just repeated here to get inlining to work
       ind(i,j,n)=i+(j-1)*ipan+(n-1)*ipan*jpan  ! *** for n=1,npan
@@ -97,26 +97,25 @@ c           (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
 
 ! Loop over points that need to be calculated for other processes
         if(nfield<mh_bs)then
-          do ii=1,neighnum
-            iproc=neighlistsend(ii)
-            do iq=1,drlen(iproc)
+          do ii=neighnum,1,-1
+            do iq=1,drlen(ii)
               !  Convert face index from 0:npanels to array indices
-              ip = min(il_g,max(1,nint(dpoints(iproc)%a(2,iq))))
-              jp = min(il_g,max(1,nint(dpoints(iproc)%a(3,iq))))
-              n = nint(dpoints(iproc)%a(1,iq)) + noff ! Local index
+              ip = min(il_g,max(1,nint(dpoints(ii)%a(2,iq))))
+              jp = min(il_g,max(1,nint(dpoints(ii)%a(3,iq))))
+              n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
               !  Need global face index in fproc call
 #ifdef debug
               if ( fproc(ip,jp,n-noff) /= myid ) then
-                print*, "Error in ints", myid, n, iq, iproc,
-     &                  dpoints(iproc)%a(:,iq)
+                print*, "Error in ints", myid, n, iq, ii,
+     &                  dpoints(ii)%a(:,iq)
                 call ccmpi_abort(-1)
               end if
 #endif
-              idel = int(dpoints(iproc)%a(2,iq))
-              xxg = dpoints(iproc)%a(2,iq) - idel
-              jdel = int(dpoints(iproc)%a(3,iq))
-              yyg = dpoints(iproc)%a(3,iq) - jdel
-              k = nint(dpoints(iproc)%a(4,iq))
+              idel = int(dpoints(ii)%a(2,iq))
+              xxg = dpoints(ii)%a(2,iq) - idel
+              jdel = int(dpoints(ii)%a(3,iq))
+              yyg = dpoints(ii)%a(3,iq) - jdel
+              k = nint(dpoints(ii)%a(4,iq))
               idel = idel - ioff
               jdel = jdel - joff
               
@@ -161,13 +160,13 @@ c                +x*(1+x)*(2-x)*c3}/2
                 a4 = r(:,4)-r(:,1)+3.*(r(:,2)-r(:,3))
                 a3 = r(:,1)-2.*r(:,2)+r(:,3)-a4
                 do nn=1,ntr
-                  sextra(iproc)%a(nn+(iq-1)*ntr) = r(nn,2) +
+                  sextra(ii)%a(nn+(iq-1)*ntr) = r(nn,2) +
      &                    0.5*yyg*(r(nn,3)-r(nn,1)
      &                    +yyg*(a3(nn)+yyg*a4(nn)))
                 end do
               else
                 do nn=1,ntr
-                  sextra(iproc)%a(nn+(iq-1)*ntr) =
+                  sextra(ii)%a(nn+(iq-1)*ntr) =
      &                    ((1.-yyg)*((2.-yyg)*
      &                    ((1.+yyg)*r(nn,2)-yyg*r(nn,1)/3.)
      &                    -yyg*(1.+yyg)*r(nn,4)/3.)
@@ -175,28 +174,27 @@ c                +x*(1+x)*(2-x)*c3}/2
                 end do
               endif         !  (mhint==2)
             enddo            ! iq loop
-          end do              ! iproc loop
+          end do              ! ii loop
         else                   ! (nfield<mh_bs)
-          do ii=1,neighnum
-            iproc=neighlistsend(ii)
-            do iq=1,drlen(iproc)
+          do ii=neighnum,1,-1
+            do iq=1,drlen(ii)
               !  Convert face index from 0:npanels to array indices
-              ip = min(il_g,max(1,nint(dpoints(iproc)%a(2,iq))))
-              jp = min(il_g,max(1,nint(dpoints(iproc)%a(3,iq))))
-              n = nint(dpoints(iproc)%a(1,iq)) + noff ! Local index
+              ip = min(il_g,max(1,nint(dpoints(ii)%a(2,iq))))
+              jp = min(il_g,max(1,nint(dpoints(ii)%a(3,iq))))
+              n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
               !  Need global face index in fproc call
 #ifdef debug
               if ( fproc(ip,jp,n-noff) /= myid ) then
-                print*, "Error in ints", myid, n, iq, iproc,
-     &                   dpoints(iproc)%a(:,iq)
+                print*, "Error in ints", myid, n, iq, ii,
+     &                   dpoints(ii)%a(:,iq)
                 call ccmpi_abort(-1)
               end if
 #endif
-              idel = int(dpoints(iproc)%a(2,iq))
-              xxg = dpoints(iproc)%a(2,iq) - idel
-              jdel = int(dpoints(iproc)%a(3,iq))
-              yyg = dpoints(iproc)%a(3,iq) - jdel
-              k = nint(dpoints(iproc)%a(4,iq))
+              idel = int(dpoints(ii)%a(2,iq))
+              xxg = dpoints(ii)%a(2,iq) - idel
+              jdel = int(dpoints(ii)%a(3,iq))
+              yyg = dpoints(ii)%a(3,iq) - jdel
+              k = nint(dpoints(ii)%a(4,iq))
               idel = idel - ioff
               jdel = jdel - joff
               c1 = sx(:,idel-1,jdel,n,k) ! manually unrolled loop
@@ -251,11 +249,11 @@ c                +x*(1+x)*(2-x)*c3}/2
      &                +yyg*(1.+yyg)*(2.-yyg)*r(:,3))/2.
               endif         !  (mhint==2)
               do nn=1,ntr
-                sextra(iproc)%a(nn+(iq-1)*ntr) = 
+                sextra(ii)%a(nn+(iq-1)*ntr) = 
      &             min(max(cmin(nn),sss(nn)),cmax(nn)) ! Bermejo & Staniforth
               end do
             enddo            ! iq loop
-          end do              ! iproc loop
+          end do              ! ii loop
         endif                  ! (nfield<mh_bs)  .. else ..
 
         call intssync_send(ntr)
@@ -460,26 +458,25 @@ c          (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
 
 !       For other processes
         if(nfield<mh_bs)then
-          do ii=1,neighnum
-            iproc=neighlistsend(ii)
-            do iq=1,drlen(iproc)
+          do ii=neighnum,1,-1
+            do iq=1,drlen(ii)
               !  Convert face index from 0:npanels to array indices
-              ip = min(il_g,max(1,nint(dpoints(iproc)%a(2,iq))))
-              jp = min(il_g,max(1,nint(dpoints(iproc)%a(3,iq))))
-              n = nint(dpoints(iproc)%a(1,iq)) + noff ! Local index
+              ip = min(il_g,max(1,nint(dpoints(ii)%a(2,iq))))
+              jp = min(il_g,max(1,nint(dpoints(ii)%a(3,iq))))
+              n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
               !  Need global face index in fproc call
 #ifdef debug
               if ( fproc(ip,jp,n-noff) /= myid ) then
-                 print*, "Error in ints_bl", myid, n, iq, iproc,
-     &             dpoints(iproc)%a(:,iq)
+                 print*, "Error in ints_bl", myid, n, iq, ii,
+     &             dpoints(ii)%a(:,iq)
                  call ccmpi_abort(-1)
               end if
 #endif
-              idel = int(dpoints(iproc)%a(2,iq))
-              xxg = dpoints(iproc)%a(2,iq) - idel
-              jdel = int(dpoints(iproc)%a(3,iq))
-              yyg = dpoints(iproc)%a(3,iq) - jdel
-              k = nint(dpoints(iproc)%a(4,iq))
+              idel = int(dpoints(ii)%a(2,iq))
+              xxg = dpoints(ii)%a(2,iq) - idel
+              jdel = int(dpoints(ii)%a(3,iq))
+              yyg = dpoints(ii)%a(3,iq) - jdel
+              k = nint(dpoints(ii)%a(4,iq))
               idel = idel - ioff
               jdel = jdel - joff
               c1 = sx(:,idel,jdel-1,n,k) ! manually unrolled loop
@@ -522,13 +519,13 @@ c               +y*(1+y)*(2-y)*c3}/2
                 a4 = r(:,4)-r(:,1)+3.*(r(:,2)-r(:,3))
                 a3 = r(:,1)-2.*r(:,2)+r(:,3)-a4
                 do nn=1,ntr
-                  sextra(iproc)%a(nn+(iq-1)*ntr) = r(nn,2)+
+                  sextra(ii)%a(nn+(iq-1)*ntr) = r(nn,2)+
      &                   0.5*xxg*(r(nn,3)-r(nn,1) +xxg*(a3(nn)
      &                   +xxg*a4(nn)))
                 end do
               else
                 do nn=1,ntr
-                  sextra(iproc)%a(nn+(iq-1)*ntr) =
+                  sextra(ii)%a(nn+(iq-1)*ntr) =
      &                   ((1.-xxg)*((2.-xxg)*
      &                   ((1.+xxg)*r(nn,2)-xxg*r(nn,1)/3.)
      &                   -xxg*(1.+xxg)*r(nn,4)/3.)
@@ -536,28 +533,27 @@ c               +y*(1+y)*(2-y)*c3}/2
                 end do
               endif         !  (mhint==2)
             enddo            ! iq loop
-          end do              ! iproc
+          end do              ! ii
         else                   ! (nfield<mh_bs)
-          do ii=1,neighnum
-            iproc=neighlistsend(ii)
-            do iq=1,drlen(iproc)
+          do ii=neighnum,1,-1
+            do iq=1,drlen(ii)
               !  Convert face index from 0:npanels to array indices
-              ip = min(il_g,max(1,nint(dpoints(iproc)%a(2,iq))))
-              jp = min(il_g,max(1,nint(dpoints(iproc)%a(3,iq))))
-              n = nint(dpoints(iproc)%a(1,iq)) + noff ! Local index
+              ip = min(il_g,max(1,nint(dpoints(ii)%a(2,iq))))
+              jp = min(il_g,max(1,nint(dpoints(ii)%a(3,iq))))
+              n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
               !  Need global face index in fproc call
 #ifdef debug
               if ( fproc(ip,jp,n-noff) /= myid ) then
-                 print*, "Error in ints_bl", myid, n, iq, iproc,
-     &             dpoints(iproc)%a(:,iq)
+                 print*, "Error in ints_bl", myid, n, iq, ii,
+     &             dpoints(ii)%a(:,iq)
                  call ccmpi_abort(-1)
               end if
 #endif
-              idel = int(dpoints(iproc)%a(2,iq))
-              xxg = dpoints(iproc)%a(2,iq) - idel
-              jdel = int(dpoints(iproc)%a(3,iq))
-              yyg = dpoints(iproc)%a(3,iq) - jdel
-              k = nint(dpoints(iproc)%a(4,iq))
+              idel = int(dpoints(ii)%a(2,iq))
+              xxg = dpoints(ii)%a(2,iq) - idel
+              jdel = int(dpoints(ii)%a(3,iq))
+              yyg = dpoints(ii)%a(3,iq) - jdel
+              k = nint(dpoints(ii)%a(4,iq))
               idel = idel - ioff
               jdel = jdel - joff
               c1 = sx(:,idel,jdel-1,n,k) ! manually unrolled loop
@@ -612,11 +608,11 @@ c                +y*(1+y)*(2-y)*c3}/2
      &               +xxg*(1.+xxg)*(2.-xxg)*r(:,3))/2.
               endif         !  (mhint==2)
               do nn=1,ntr
-                sextra(iproc)%a(nn+(iq-1)*ntr) =
+                sextra(ii)%a(nn+(iq-1)*ntr) =
      &             min(max(cmin(nn),sss(nn)),cmax(nn)) ! Bermejo & Staniforth
               end do
             enddo            ! iq loop
-          end do              ! iproc
+          end do              ! ii
         endif                  ! (nfield<mh_bs)  .. else ..
 
         call intssync_send(ntr)
@@ -788,7 +784,7 @@ c                +y*(1+y)*(2-y)*c3}/2
       real duma(ifull+iextra,kl)
       integer idel, iq, jdel, nn
       real xxg, yyg
-      integer i, j, k, n, ind, ip, jp, iproc
+      integer i, j, k, n, ind, ip, jp
       integer ii
       ! This is really indp, just repeated here to get inlining to work
       ind(i,j,n)=i+(j-1)*ipan+(n-1)*ipan*jpan  ! *** for n=1,npan
@@ -822,32 +818,31 @@ c                    but for bi-linear only need 0:il+1 &  0:il+1
       enddo                     ! k loop
 
 ! Loop over points that need to be calculated for other processes
-      do ii=1,neighnum
-         iproc=neighlistsend(ii)
-         do iq=1,drlen(iproc)
+      do ii=neighnum,1,-1
+         do iq=1,drlen(ii)
            !  Convert face index from 0:npanels to array indices
-            ip = min(il_g,max(1,nint(dpoints(iproc)%a(2,iq))))
-            jp = min(il_g,max(1,nint(dpoints(iproc)%a(3,iq))))
-            n = nint(dpoints(iproc)%a(1,iq)) + noff ! Local index
+            ip = min(il_g,max(1,nint(dpoints(ii)%a(2,iq))))
+            jp = min(il_g,max(1,nint(dpoints(ii)%a(3,iq))))
+            n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
          !  Need global face index in fproc call
 #ifdef debug
             if ( fproc(ip,jp,n-noff) /= myid ) then
-               print*, "Error in ints_bl", myid, n, iq, iproc,
-     &              dpoints(iproc)%a(:,iq)
+               print*, "Error in ints_bl", myid, n, iq, ii,
+     &              dpoints(ii)%a(:,iq)
                call ccmpi_abort(-1)
             end if
 #endif
-            idel = int(dpoints(iproc)%a(2,iq))
-            xxg = dpoints(iproc)%a(2,iq) - idel
-            jdel = int(dpoints(iproc)%a(3,iq))
-            yyg = dpoints(iproc)%a(3,iq) - jdel
-            k = nint(dpoints(iproc)%a(4,iq))
+            idel = int(dpoints(ii)%a(2,iq))
+            xxg = dpoints(ii)%a(2,iq) - idel
+            jdel = int(dpoints(ii)%a(3,iq))
+            yyg = dpoints(ii)%a(3,iq) - jdel
+            k = nint(dpoints(ii)%a(4,iq))
             idel = idel - ioff
             jdel = jdel - joff
-            sextra(iproc)%a(iq) = yyg*( xxg*sx(idel+1,jdel+1,n,k)
-     &                            +(1.-xxg)*sx(  idel,jdel+1,n,k))
-     &                    +(1.-yyg)*(   xxg*sx(idel+1,  jdel,n,k)
-     &                            +(1.-xxg)*sx(  idel,  jdel,n,k))
+            sextra(ii)%a(iq) = yyg*( xxg*sx(idel+1,jdel+1,n,k)
+     &                         +(1.-xxg)*sx(  idel,jdel+1,n,k))
+     &                 +(1.-yyg)*(   xxg*sx(idel+1,  jdel,n,k)
+     &                         +(1.-xxg)*sx(  idel,  jdel,n,k))
          end do
       end do
 
