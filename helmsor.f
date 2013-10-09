@@ -259,7 +259,7 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
      &       + zzec(:,nx)*s(iqe(:,nx),k)
      &       + zzsc(:,nx)*s(iqs(:,nx),k)
      &       -helmc(:,k,nx)*s(iqx(:,nx),k)
-     &       -rhsc(:,k,nx) )/helmc(:,nx,k)
+     &       -rhsc(:,k,nx) )/helmc(:,k,nx)
           s(iqx(:,nx),k) = s(iqx(:,nx),k)
      &       + accel(k)*dsol(iqx(:,nx),k)
         enddo ! k loop

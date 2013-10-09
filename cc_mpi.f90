@@ -163,7 +163,6 @@ module cc_mpi
    type(coloursplit), allocatable, dimension(:), save, private :: scolsp
    integer, save, public :: ifullx
    integer, dimension(:,:), allocatable, save, public :: iqx, iqn, iqe, iqw, iqs
-   integer, dimension(:,:), allocatable, save, public :: iqwu, iqsv
 #ifdef uniform_decomp
    integer, parameter, public :: maxcolour = 3
 #else
@@ -442,15 +441,12 @@ contains
       allocate ( iqx(ifullx,maxcolour) )
       allocate ( iqn(ifullx,maxcolour), iqe(ifullx,maxcolour) )
       allocate ( iqw(ifullx,maxcolour), iqs(ifullx,maxcolour) )
-      allocate ( iqwu(ifullx,maxcolour), iqsv(ifullx,maxcolour) )
       ifullxc = 0
       iqx = 0
       iqn = 0
       iqe = 0
       iqw = 0
       iqs = 0
-      iqwu = 0
-      iqsv = 0
       do iq = 1,ifull
          ifullxc(colourmask(iq)) = ifullxc(colourmask(iq))+1
          iqx(ifullxc(colourmask(iq)),colourmask(iq)) = iq
@@ -458,8 +454,6 @@ contains
          iqe(ifullxc(colourmask(iq)),colourmask(iq)) = ie(iq)
          iqw(ifullxc(colourmask(iq)),colourmask(iq)) = iw(iq)
          iqs(ifullxc(colourmask(iq)),colourmask(iq)) = is(iq)
-         iqwu(ifullxc(colourmask(iq)),colourmask(iq)) = iwu(iq)
-         iqsv(ifullxc(colourmask(iq)),colourmask(iq)) = isv(iq)
       end do
 
       ltrue = .true. 
@@ -3245,7 +3239,6 @@ contains
       integer, intent(in), optional :: klim
       integer :: iq, iproc, kx, iqz, iq_b, iq_e, rproc, sproc, send_len, recv_len, iqq
       integer :: rcount, myrlen, jproc, mproc
-      integer, dimension(neighnum) :: rslen, sslen
       integer(kind=4) :: ierr, itag = 3, llen, sreq, lproc
       integer(kind=4) :: ldone
       integer(kind=4), dimension(MPI_STATUS_SIZE,size(ireq)) :: status
@@ -3261,8 +3254,6 @@ contains
       kx = size(t,2)
       if ( present(klim) ) kx = klim
       
-      rslen = bnds(neighlist)%rlen
-      sslen = bnds(neighlist)%slen
       myrlen = bnds(myid)%rlen
 
       ! Clear any current messages
@@ -6448,7 +6439,7 @@ contains
       use sumdd_m
    
       integer, intent(in) :: comm
-      integer(kind=4) ltype,lop,lcomm,lerr,lsize,mnum
+      integer(kind=4) :: ltype, lop, lcomm, lerr, lsize, mnum
       complex, dimension(:), intent(in) :: ldat
       complex, dimension(:), intent(out) :: gdat
       character(len=*), intent(in) :: op
@@ -8077,7 +8068,6 @@ contains
          ncount = 0
          do iproc = 1,nproc-1
             rproc = modulo(myid-iproc,nproc)
-            sproc = modulo(myid+iproc,nproc)
             if ( mg_bnds(rproc,g)%rlenx > 0 ) then
                ncount = ncount + 1
                mg(g)%neighlist(ncount) = rproc

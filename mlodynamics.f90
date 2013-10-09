@@ -4705,10 +4705,11 @@ real, dimension(ifull+iextra), intent(in) :: ipmax
 real, dimension(ifull,2) :: zz,zzn,zzs,zze,zzw,rhs
 real, dimension(ifull) :: yy,yyn,yys,yye,yyw
 real, dimension(ifull) :: hh
-real, dimension(ifull) :: au,bu,cu,seta,setab,setac,nip
-real, dimension(ifull,maxcolour,2) :: zzc,zznc,zzsc,zzec,zzwc,rhsc
-real, dimension(ifull,maxcolour) :: yyc,yync,yysc,yyec,yywc
-real, dimension(ifull,maxcolour) :: hhc
+real, dimension(ifull) :: setab
+real, dimension(ifullx) :: au,bu,cu,seta,setac,nip
+real, dimension(ifullx,maxcolour,2) :: zzc,zznc,zzsc,zzec,zzwc,rhsc
+real, dimension(ifullx,maxcolour) :: yyc,yync,yysc,yyec,yywc
+real, dimension(ifullx,maxcolour) :: hhc
 real, dimension(ifull+iextra,2) :: dumc
 real, dimension(2) :: dume,dumf
 
