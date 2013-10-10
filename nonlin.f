@@ -264,7 +264,7 @@ cx      enddo      ! k  loop
        phi(:,k)=phi(:,k-1)+bet(k)*t(1:ifull,k)+betm(k)*t(1:ifull,k-1)
       enddo    ! k  loop
       ! update non-hydrostatic terms from Miller-White height equation
-      if (nh/=0.and.(ktau>knh.or.lrestart)) then
+      if (nh/=0) then
         phi=phi+phi_nh
         if (abs(epsp)<=1.) then
           ! MJT exact treatment of constant epsp terms

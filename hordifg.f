@@ -48,7 +48,7 @@ c     has jlm nhorx option as last digit of nhor, e.g. -157
       real, dimension(ifull) :: r1,r2,tdum
       real, dimension(ifull+iextra,kl) :: ww,uav,vav
       real, dimension(ifull,0:kl-1) :: zgh
-      real, dimension(ifull,kl) :: zg,base
+      real, dimension(ifull,kl) :: zg,base,tnhs
       real, dimension(ifull,kl) :: dudz,dvdz
       real, dimension(ifull,kl) :: dwdx,dwdy,dwdz
       integer, parameter :: nf=2
@@ -114,11 +114,14 @@ c     above code independent of k
       if (nhorjlm==0.or.nvmix==6) then
         ! Calculate du/dx,dv/dx,du/dy,dv/dy, etc 
 
-        ! calculate height on full levels
+        ! calculate height on full levels and non-hydrostatic temp correction
         zg(:,1)=(zs(1:ifull)+bet(1)*t(1:ifull,1))/grav
+        tnhs(:,1)=phi_nh(:,1)/bet(1)
         do k=2,kl
          zg(:,k)=zg(:,k-1)+(bet(k)*t(1:ifull,k)
-     &                     +betm(k)*t(1:ifull,k-1))/grav
+     &                    +betm(k)*t(1:ifull,k-1))/grav
+         tnhs(:,k)=(phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:,k-1))
+     &             /bet(k)
         end do ! k  loop
         zg=zg+phi_nh/grav ! add non-hydrostatic component
 
@@ -128,18 +131,19 @@ c     above code independent of k
           zgh(:,k)=ratha(k)*zg(:,k+1)+rathb(k)*zg(:,k)
         end do
 
-        ! weighted horizontal velocities
-        uav(1:ifull,:)=av_vmod*u(1:ifull,:)
-     &               +(1.-av_vmod)*savu(1:ifull,:)
-        vav(1:ifull,:)=av_vmod*v(1:ifull,:)
-     &               +(1.-av_vmod)*savv(1:ifull,:)
-
-        ! calculate vertical velocity in m/s
         do k=1,kl        
+          ! weighted horizontal velocities
+          uav(1:ifull,k)=av_vmod*u(1:ifull,k)
+     &                 +(1.-av_vmod)*savu(1:ifull,k)
+          vav(1:ifull,k)=av_vmod*v(1:ifull,k)
+     &                 +(1.-av_vmod)*savv(1:ifull,k)
+        
+          ! calculate vertical velocity in m/s
           ! omega=ps*dpsldt
-          ww(1:ifull,k)=(dpsldt(:,k)/sig(k)-dpsdt/(860.*ps(1:ifull)))
-     &        *(-rdry/grav)*t(1:ifull,k)*(1.+0.61*qg(1:ifull,k)
-     &        -qlg(1:ifull,k)-qfg(1:ifull,k))
+          ! 864 converts from hPa/day to Pa/s
+          ww(1:ifull,k)=(dpsldt(:,k)/sig(k)-dpsdt/(864.*ps(1:ifull)))
+     &        *(-rdry/grav)*(t(1:ifull,k)*(1.+0.61*qg(1:ifull,k)
+     &        -qlg(1:ifull,k)-qfg(1:ifull,k))+tnhs(:,k))
         end do
         
         call boundsuv_allvec(uav,vav)
@@ -400,6 +404,7 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
          end do
       endif   ! nhorps.ge.0
 
+#ifdef debug
       if(diag.and.mydiag)then
           do k=1,kl
              print *,'k,id,jd,idjd ',k,id,jd,idjd
@@ -414,6 +419,7 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
      &            k,u(idjd,k),v(idjd,k)
           end do
       endif
+#endif
 
       if(nhorps/=-2)then   ! for nhorps=-2 don't diffuse T, qg
 c       do t diffusion based on potential temperature ff

@@ -185,7 +185,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
         endif
 #endif
         p(1:ifull,:)=p(1:ifull,:)+wrk1(:,:)  ! nh
-      endif     ! (nh/=0.and.(ktau>knh.or.lrestart))
+      endif     ! (nh/=0)
 
 !     form divergence of rhs (xu & xv) terms
       do k=1,kl
@@ -452,7 +452,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
       endif
 #endif
 
-      if(nh/=0)then
+      if(nh/=0.and.(ktau>knh.or.lrestart))then
 !       update phi for use in next time step
         do k=1,kl
          phi(:,k)=p(1:ifull,k)-rdry*tbar2d(:)*psl(1:ifull)

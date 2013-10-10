@@ -1,19 +1,19 @@
       ! CCAM boundary layer turbulent mixing routines
 
-      ! Currently local Ri and prognostic TKE-eps schemes are supported.
+      ! Currently local Ri and prognostic k-e schemes are supported.
       ! Also, options for non-local counter gradient terms are included.
       ! Local Ri supports Gelyen and Tiedtke schemes for shallow
-      ! convection, whereas the TKE-eps follows the EDMF approach where
+      ! convection, whereas the k-e follows the EDMF approach where
       ! shallow convection is represented in the mass flux terms.
 
       ! nvmix=3  Local Ri mixing
-      ! nvmix=6  Prognostic TKE-eps tubulence closure
+      ! nvmix=6  Prognostic k-e tubulence closure
 
       ! nlocal=0 No counter gradient term
       ! nlocal=6 Holtslag and Boville non-local term
       ! nlocal=7 Mass flux based counter gradient (requires nvmix=6)
       
-      ! kscmom   0 off, 1 turns on shal_conv momentum (usual)
+      ! kscmom   0 off, 1 turns on shal_conv momentum (usual) (requires nvmix<6)
 
       !--------------------------------------------------------------
       ! Control subroutine for vertical mixing
@@ -88,8 +88,8 @@
         tnhs(:,k)=(phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:,k-1))/bet(k)
       end do
       do k=1,kl
-        ! scale factor to convert air temperature to pertubed air temperature
-        dnhs(:,k)=(t(1:ifull,k)+tnhs(:,k))/t(1:ifull,k)
+        ! scale factor to convert hydrostatic to non-hydrostatic
+        dnhs(:,k)=1.+tnhs(:,k)/t(1:ifull,k)
       end do
 
       rong=rdry/grav
@@ -804,7 +804,7 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
       else
       
        !-------------------------------------------------------------
-       ! TKE-eps closure scheme
+       ! k-e closure scheme
       
        ! note ksc/=0 options are clobbered when nvmix=6
        ! However, nvmix=6 with nlocal=7 supports its own shallow

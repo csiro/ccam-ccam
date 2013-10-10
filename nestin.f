@@ -931,7 +931,7 @@
           call ccmpi_bcast(qgg,0,comm_host)
         end if
       end if
-
+      
       do ppass=pprocn,pprocx
 
         ! reset nudging fields for the next panel
@@ -987,7 +987,7 @@
           end if
           call ccmpi_scatterx(dd(1:til),ff(1:ipan*jpan),0,comm_proc)
           do n=1,ipan*jpan
-            pslb(n+ipan*jpan*ppass)=ff(n)
+            pslb(n+ipan*jpan*(ppass-pprocn))=ff(n)
           end do
         end if
         if (nud_uv==3) then
@@ -1019,7 +1019,7 @@
      &           comm_proc)
           do k=1,klt
             do n=1,ipan*jpan
-              ub(n+ipan*jpan*ppass,k)=ff(n+ipan*jpan*(k-1))
+              ub(n+ipan*jpan*(ppass-pprocn),k)=ff(n+ipan*jpan*(k-1))
             end do
           end do
         else if(nud_uv>0)then
@@ -1051,7 +1051,7 @@
      &           comm_proc)
           do k=1,klt
             do n=1,ipan*jpan
-              ub(n+ipan*jpan*ppass,k)=ff(n+ipan*jpan*(k-1))
+              ub(n+ipan*jpan*(ppass-pprocn),k)=ff(n+ipan*jpan*(k-1))
             end do
           end do
           if (myid==hproc) then
@@ -1082,7 +1082,7 @@
      &           comm_proc)
           do k=1,klt
             do n=1,ipan*jpan
-              vb(n+ipan*jpan*ppass,k)=ff(n+ipan*jpan*(k-1))
+              vb(n+ipan*jpan*(ppass-pprocn),k)=ff(n+ipan*jpan*(k-1))
             end do
           end do
           if (myid==hproc) then
@@ -1113,11 +1113,11 @@
      &           comm_proc)
           do k=1,klt
             do n=1,ipan*jpan
-              wb(n+ipan*jpan*ppass,k)=ff(n+ipan*jpan*(k-1))
+              wb(n+ipan*jpan*(ppass-pprocn),k)=ff(n+ipan*jpan*(k-1))
             end do
           end do
           do k=1,klt
-            do n=1+ipan*jpan*ppass,ipan*jpan*(ppass+1)
+            do n=1+ipan*jpan*(ppass-pprocn),ipan*jpan*(ppass-pprocn+1)
               xa_l(n)=ax(n)*ub(n,k)+ay(n)*vb(n,k)
      &               +az(n)*wb(n,k)
               xb_l(n)=bx(n)*ub(n,k)+by(n)*vb(n,k)
@@ -1156,7 +1156,7 @@
      &           comm_proc)
           do k=1,klt
             do n=1,ipan*jpan
-              tb(n+ipan*jpan*ppass,k)=ff(n+ipan*jpan*(k-1))
+              tb(n+ipan*jpan*(ppass-pprocn),k)=ff(n+ipan*jpan*(k-1))
             end do
           end do
         end if
@@ -1189,7 +1189,7 @@
      &           comm_proc)
           do k=1,klt
             do n=1,ipan*jpan
-              qb(n+ipan*jpan*ppass,k)=ff(n+ipan*jpan*(k-1))
+              qb(n+ipan*jpan*(ppass-pprocn),k)=ff(n+ipan*jpan*(k-1))
             end do
           end do
         end if
@@ -3035,7 +3035,7 @@
      &           comm_proc)
           do k=1,kd
             do n=1,ipan*jpan
-              diff_l(n+ipan*jpan*ppass,k)=yy(n+ipan*jpan*(k-1))
+              diff_l(n+ipan*jpan*(ppass-pprocn),k)=yy(n+ipan*jpan*(k-1))
             end do
           end do
         end if
@@ -3068,7 +3068,8 @@
      &           comm_proc)
           do k=1,kd
             do n=1,ipan*jpan
-              diffs_l(n+ipan*jpan*ppass,k)=yy(n+ipan*jpan*(k-1))
+              diffs_l(n+ipan*jpan*(ppass-pprocn),k)=
+     &          yy(n+ipan*jpan*(k-1))
             end do
           end do
         end if
@@ -3101,7 +3102,8 @@
      &           comm_proc)
           do k=1,kd
             do n=1,ipan*jpan
-              diffu_l(n+ipan*jpan*ppass,k)=yy(n+ipan*jpan*(k-1))
+              diffu_l(n+ipan*jpan*(ppass-pprocn),k)=
+     &          yy(n+ipan*jpan*(k-1))
             end do
           end do
           if (myid==hproc) then
@@ -3132,7 +3134,8 @@
      &           comm_proc)
           do k=1,kd
             do n=1,ipan*jpan
-              diffv_l(n+ipan*jpan*ppass,k)=yy(n+ipan*jpan*(k-1))
+              diffv_l(n+ipan*jpan*(ppass-pprocn),k)=
+     &          yy(n+ipan*jpan*(k-1))
             end do
           end do
           if (myid==hproc) then
@@ -3163,11 +3166,12 @@
      &           comm_proc)
           do k=1,kd
             do n=1,ipan*jpan
-              diffw_l(n+ipan*jpan*ppass,k)=yy(n+ipan*jpan*(k-1))
+              diffw_l(n+ipan*jpan*(ppass-pprocn),k)=
+     &          yy(n+ipan*jpan*(k-1))
             end do
           end do
           do k=1,kd
-            do n=1+ipan*jpan*ppass,ipan*jpan*(ppass+1)
+            do n=1+ipan*jpan*(ppass-pprocn),ipan*jpan*(ppass-pprocn+1)
               xa_l(n)=ax(n)*diffu_l(n,k)+ay(n)*diffv_l(n,k)
      &               +az(n)*diffw_l(n,k)
               xb_l(n)=bx(n)*diffu_l(n,k)+by(n)*diffv_l(n,k)
@@ -3203,7 +3207,7 @@
           call ccmpi_scatterx(zz(1:ifg),yy(1:ipan*jpan),0,
      &           comm_proc)
           do n=1,ipan*jpan
-            diffh_l(n+ipan*jpan*ppass,1)=yy(n)
+            diffh_l(n+ipan*jpan*(ppass-pprocn),1)=yy(n)
           end do
         end if
         
