@@ -166,8 +166,9 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
         else
           const_nh=2.*rdry/(dt*grav*grav)
         end if
+        ! note that linear part of omega/ps for tau+1 is included in eig.g
+        ! wrk2 contains the tstar and non-linear part of omega/ps at tau+1
         do k=1,kl
-         ! MJT suggestion
          ! omgfnl already includes (1+epsp)
          wrk2(:,k)=const_nh*tbar2d(:)*
      &     (tbar(1)*omgfnl(:,k)/sig(k)-h_nh(1:ifull,k))
@@ -176,6 +177,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
         do k=2,kl
          wrk1(:,k)=wrk1(:,k-1)+bet(k)*wrk2(:,k)+betm(k)*wrk2(:,k-1)
         enddo   ! k loop
+
 #ifdef debug
         if ((diag.or.nmaxpr==1).and.mydiag)then
           write(6,*) 'adjust5 omgfnl ',(omgfnl(idjd,k),k=1,kl)
@@ -388,7 +390,9 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
       ps_sav(1:ifull)=ps(1:ifull)  ! saved for gas fixers below, and diags
       if(mfix==-1.or.mfix==3)pslsav(1:ifull)=psl(1:ifull) 
 
+#ifdef debug
       if (mod(ktau,nmaxpr)==0)vx(1:ifull,:)=sdot(1:ifull,1:kl) ! for accln
+#endif
 
       if(m<=6)then
         do k=1,kl
@@ -413,17 +417,17 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
        enddo   ! iq loop
       enddo    ! k  loop
 
+#ifdef debug
       if (mod(ktau,nmaxpr)==0)then
         vx(1:ifull,:)=sdot(1:ifull,1:kl)-vx(1:ifull,:)
 !       convert to approx m/s/s
         do k=2,kl
          vx(1:ifull,k)=vx(1:ifull,k)*rdry*(sig(k-1)-sig(k))*
-     &      .5*(t(1:ifull,k)+t(1:ifull,k-1))/(sigmh(k)*grav*dtin*dt)        
+     &      .5*(t(1:ifull,k)+t(1:ifull,k-1))/(sigmh(k)*grav*dtin*dt)
         enddo
         call maxmin(vx,'ac',ktau,100.,kl)  ! max min of accln * 100
       endif
 
-#ifdef debug
       if ((diag.or.nmaxpr==1) .and. mydiag ) then
          write(6,*) 'm ',m
          if(m<=6)write (6,"('diva5p ',5p10f8.2)") d(idjd,:)
@@ -453,7 +457,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
 #endif
 
       if(nh/=0.and.(ktau>knh.or.lrestart))then
-!       update phi for use in next time step
+        ! update phi for use in next time step
         do k=1,kl
          phi(:,k)=p(1:ifull,k)-rdry*tbar2d(:)*psl(1:ifull)
         enddo
@@ -474,12 +478,13 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
           dum=dum+(bet(k)+betm(k))*280.
           phi(:,k)=phi(:,k)+dum
         end do
+        
 #ifdef debug        
         if(nmaxpr==1.and.mydiag)then
           write(6,*) 'phi_adj ',(phi(idjd,k),k=1,kl)
         endif
 #endif
-      endif  ! (nh.ne.0)
+      endif  ! (nh/=0.and.(ktau>knh.or.lrestart))
 
       if(nvadh==2.and.nvad>0)then                 ! final dt/2 's worth
 #ifdef debug

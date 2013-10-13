@@ -105,15 +105,12 @@
      &                bet,betm,bam,emat,einv)
       implicit none
       include 'newmpar.h'
+      include 'const_phys.h'
       integer lapsbot,isoth,nh
       integer k,l,irror
       integer indic(kl)
       real(kind=8) dt,eps
       real(kind=8) factg,factr,dp
-c     units here are SI, but final output is dimensionless
-      real(kind=8), parameter :: g=9.806
-      real(kind=8), parameter :: cp=1004.64
-      real(kind=8), parameter :: r=287.
 c     sets up eigenvectors
       real(kind=8) sig(kl),sigmh(kl+1)
       real(kind=8) dsig(kl)
@@ -134,14 +131,14 @@ c     sets up eigenvectors
       write(6,*) 'sigmh ',(sigmh(k),k=1,kl)
       write(6,*) 'dsig ',(dsig(k),k=1,kl)
 
-      get(1)=bet(1)/(r*sig(1))
+      get(1)=bet(1)/(rdry*sig(1))
       getm(1)=0.
       do k=2,kl
-        get(k)=bet(k)/(r*sig(k))
-        getm(k)=betm(k)/(r*sig(k-1))
+        get(k)=bet(k)/(rdry*sig(k))
+        getm(k)=betm(k)/(rdry*sig(k-1))
       enddo      
       factg=2./(dt*(1.+eps))      
-      factr=factg*r*r*tbar(1)*tbar(1)/(g*g)
+      factr=factg*rdry*rdry*tbar(1)*tbar(1)/(grav*grav)
       
       bmat(:,:)=0.  ! N.B. bmat includes effect of r/sig weighting
       gmat(:,:)=0.  ! N.B. gmat may include effect of 1/sig**2 weighting
@@ -181,11 +178,11 @@ c     sets up eigenvectors
       enddo
       do k=1,kl
        do l=k,kl
-        aa(k,l)=-r*tbar(1)*dsig(l)/(cp*sig(k))
+        aa(k,l)=-rdry*tbar(1)*dsig(l)/(cp*sig(k))
        enddo
       enddo
       do k=1,kl
-       aa(k,k)=-r*tbar(1)*(sigmh(k+1)-sig(k))/(cp*sig(k))
+       aa(k,k)=-rdry*tbar(1)*(sigmh(k+1)-sig(k))/(cp*sig(k))
        ac(k,k)=ac(k,k)+1.
       enddo
 !      write(6,*) 'aa'
@@ -202,24 +199,24 @@ c     sets up eigenvectors
         aa(:,:)=aa(:,:)+tbar(1)*ac(:,:)
       endif
       call matm(aaa,bmat,aa)
-      cc(:,:)=aaa(:,:)-r*tbar(1)*ab(:,:)
+      cc(:,:)=aaa(:,:)-rdry*tbar(1)*ab(:,:)
 !      write(6,*) 'cc'
 !      do k=1,kl
 !       write(6,'(i3,15f8.1/3x,15f8.1/3x,15f8.1)')
 !     &   k,(cc(k,l),l=1,kl)
 !      enddo
 
-      if(nh>0)then  ! use gmat instead of bmat to derive aaa ! MJT suggestion
+      if(nh>0)then  ! use gmat instead of bmat to derive aaa
         gmat(:,:)=bmat(:,:)*(1.+4.*cp*tbar(1)/
-     &           ((g*dt*(1.+eps))**2))
+     &           ((grav*dt*(1.+eps))**2))
         call matm(aaa,gmat,aa)
-        cc(:,:)=aaa(:,:)-r*tbar(1)*ab(:,:)
+        cc(:,:)=aaa(:,:)-rdry*tbar(1)*ab(:,:)
 !        write(6,*) 'cc with gmat'
 !        do k=1,kl
 !         write(6,'(i3,15f8.1/3x,15f8.1/3x,15f8.1)')
 !     &     k,(cc(k,l),l=1,kl)
 !        enddo
-      endif  ! (nh==2)
+      endif  ! (nh>0)
       
       aaa(:,:)=cc(:,:)
       call eigenp(aaa,bam,evimag,emat,veci,indic)

@@ -141,6 +141,8 @@ c     above code independent of k
           ! calculate vertical velocity in m/s
           ! omega=ps*dpsldt
           ! 864 converts from hPa/day to Pa/s
+          ! also sdot/sig = omega/(sig*ps) - d ln(ps) / dt = dpsldt/sig - (dpsdt)/ps 
+          ! ww = -R/g (T + tnhs) *(sdot/sig)
           ww(1:ifull,k)=(dpsldt(:,k)/sig(k)-dpsdt/(864.*ps(1:ifull)))
      &        *(-rdry/grav)*(t(1:ifull,k)*(1.+0.61*qg(1:ifull,k)
      &        -qlg(1:ifull,k)-qfg(1:ifull,k))+tnhs(:,k))
@@ -407,15 +409,15 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
 #ifdef debug
       if(diag.and.mydiag)then
           do k=1,kl
-             print *,'k,id,jd,idjd ',k,id,jd,idjd
-             print *,'k, xfact, xfactw ',k,xfact(idjd,k),
+            write(6,*) 'k,id,jd,idjd ',k,id,jd,idjd
+            write(6,*) 'k, xfact, xfactw ',k,xfact(idjd,k),
      &                                   xfact(iwu(idjd),k)
-             print *,'k, yfact, yfacts ',k,yfact(idjd,k),
+            write(6,*) 'k, yfact, yfacts ',k,yfact(idjd,k),
      &                                   yfact(isv(idjd),k)
-             print *,'k, uc,uce,ucw,ucn,ucs '
+            write(6,*) 'k, uc,uce,ucw,ucn,ucs '
      &        ,k,uc(idjd,k),uc(ie(idjd),k),uc(iw(idjd),k)
      &        ,uc(in(idjd),k),uc(is(idjd),k)
-             print *,'k,u,v ',
+            write(6,*) 'k,u,v ',
      &            k,u(idjd,k),v(idjd,k)
           end do
       endif

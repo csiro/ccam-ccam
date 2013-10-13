@@ -76,9 +76,9 @@
           allocate(tnsav(ifull,kl),unsav(ifull,kl),vnsav(ifull,kl))
         end if
         if(ktau==1)then
-	  tnsav(:,:) =tn(:,:)
-	  unsav(:,:) =un(:,:)
-	  vnsav(:,:) =vn(:,:)
+	    tnsav(:,:) =tn(:,:)
+	    unsav(:,:) =un(:,:)
+	    vnsav(:,:) =vn(:,:)
         endif
         tx(1:ifull,:)=tx(1:ifull,:)
      &                +dt*(tn(1:ifull,:)-.5*tnsav(1:ifull,:))            
@@ -216,6 +216,7 @@
        pslx(1:ifull,k)=pslx(1:ifull,k)+aa(1:ifull)
        tx(1:ifull,k)=tx(1:ifull,k)+aa(1:ifull)*factr(k)   !cy  
       end do   ! k
+
 #ifdef debug
       if(nmaxpr==1.and.nproc==1)then
         write(6,*) 'pslx_3p before advection'
@@ -226,23 +227,24 @@
      &        ,jj=2,-2,-1)
       endif
 #endif
+
       if(mup/=0)then
         call ints_bl(dd,intsch,nface,xg,yg)  ! advection on all levels
-        call ints(1,pslx,intsch,nface,xg,yg,1)
         if (nh/=0) then
-          duma(1:ifull,:,1)=tx(1:ifull,:)
+          duma(1:ifull,:,1)=pslx(1:ifull,:)
           duma(1:ifull,:,2)=h_nh(1:ifull,:)
-          call ints(2,duma,intsch,nface,xg,yg,3)
-          tx(1:ifull,:)  =duma(1:ifull,:,1)
+          call ints(2,duma,intsch,nface,xg,yg,1)
+          pslx(1:ifull,:)=duma(1:ifull,:,1)
           h_nh(1:ifull,:)=duma(1:ifull,:,2)
         else
-          call ints(1,tx,intsch,nface,xg,yg,3)
+          call ints(1,pslx,intsch,nface,xg,yg,1)
         end if ! nh/=0
+        call ints(1,tx,intsch,nface,xg,yg,3)
       endif    ! mup/=0
 
       do k=1,kl
        pslx(1:ifull,k)=pslx(1:ifull,k)-dd(1:ifull,k)      
-       tx(1:ifull,k) = tx(1:ifull,k) - dd(1:ifull,k)*factr(k)
+       tx(1:ifull,k) = tx(1:ifull,k)  -dd(1:ifull,k)*factr(k)
       end do
 !------------------------------------------------------------------
 #ifdef debug

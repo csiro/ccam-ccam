@@ -46,10 +46,6 @@ c     variables; except extrap at bottom for qg and trace gases  Thu  06-19-1997
 
       call start_log(vadv_begin)
 
-#ifdef loadbalall
-      call phys_loadbal
-#endif
-
       tfact=1./real(nvadh_pass)
 
       if(num==0)then
@@ -58,11 +54,13 @@ c     variables; except extrap at bottom for qg and trace gases  Thu  06-19-1997
 	   ratha(:)=.5
 	   rathb(:)=.5
         endif
+#ifdef debug
         if(mydiag)then
           print *,'In vadvtvd nvad,nvadh_pass,nqq,npslx,ntvdr ',
      .             nvad,nvadh_pass(idjd),nqq,npslx,ntvdr
           print *,'nimp,nthub,ntvd,tfact ',nimp,nthub,ntvd,tfact(idjd)
         endif
+#endif
       endif
 
       do k=1,kl-1
@@ -72,30 +70,36 @@ c     variables; except extrap at bottom for qg and trace gases  Thu  06-19-1997
 
 c     t
       call vadvsub(tarr,tfact,nits,kp,kx)
+#ifdef debug
       if( (diag.or.nmaxpr==1) .and. mydiag )then
 !       These diagnostics don't work with single input/output argument
         write (6,"('tout',9f8.2/4x,9f8.2)") (tarr(idjd,k),k=1,kl)
         write (6,"('t#  ',9f8.2)") diagvals(tarr(:,nlv)) 
 !     .           ((tarr(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
       endif
+#endif
 
 c     u
       call vadvsub(uarr,tfact,nits,kp,kx)
+#ifdef debug
       if( diag .and. mydiag )then
         write (6,"('uout',9f8.2/4x,9f8.2)") (uarr(idjd,k),k=1,kl)
         write (6,"('u#  ',9f8.2)") diagvals(uarr(:,nlv)) 
 !     .           ((uarr(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=-1,1)
       endif
+#endif
 
 c     v
       call vadvsub(varr,tfact,nits,kp,kx)
+#ifdef debug
       if( diag .and. mydiag )then
         write (6,"('vout',9f8.2/4x,9f8.2)") (varr(idjd,k),k=1,kl)
         write (6,"('v#  ',9f8.2)") diagvals(varr(:,nlv)) 
       endif
+#endif
 
 c     h_nh
-      if(nh/=0)then
+      if(nh/=0.and.npslx==1.and.nvad<=-4)then
         dum=h_nh(1:ifull,:)
         call vadvsub(dum,tfact,nits,kp,kx)
         h_nh(1:ifull,:)=dum
@@ -116,10 +120,12 @@ c      qg
        call vadvsub(dum,tfact,nits,kp,kx)
        dum=dum**3
        qg(1:ifull,:)=dum
+#ifdef debug
        if( diag .and. mydiag )then
         write (6,"('qout',9f8.2/4x,9f8.2)") (1000.*qg(idjd,k),k=1,kl)
         write (6,"('qg# ',3p9f8.2)") diagvals(qg(:,nlv)) 
        endif
+#endif
 
        if(ldr/=0)then
         dum=qlg(1:ifull,:)
@@ -137,12 +143,14 @@ c      qg
         dum=cffall(1:ifull,:)
         call vadvsub(dum,tfact,nits,kp,kx)
         cffall(1:ifull,:)=dum
+#ifdef debug
         if( diag .and. mydiag )then
          write (6,"('lout',9f8.2/4x,9f8.2)") (1000.*qlg(idjd,k),k=1,kl)
          write (6,"('qlg#',3p9f8.2)") diagvals(qlg(:,nlv)) 
          write (6,"('fout',9f8.2/4x,9f8.2)") (1000.*qfg(idjd,k),k=1,kl)
          write (6,"('qfg#',3p9f8.2)") diagvals(qfg(:,nlv)) 
         endif
+#endif
        endif      ! if(ldr.ne.0)
 
        if(ngas>0.or.nextout>=4)then

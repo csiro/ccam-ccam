@@ -155,7 +155,7 @@
         nvadh_pass(:)=nvadh*nits(:)
 #ifdef debug
         if (mydiag.and.mod(ktau,nmaxpr)==0)
-     &    print *,'in nonlin sdmx,nits,nvadh_pass ',
+     &   write(6,*) 'in nonlin sdmx,nits,nvadh_pass ',
      &             sdmx(idjd),nits(idjd),nvadh_pass(idjd)
 #endif
           dumt=t(1:ifull,:)
@@ -171,14 +171,9 @@
          call vadv30(t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),iaero)  ! for vadvbess
       endif
 
-cx      do k=1,kl  ! following done in upglobal from 04/09
-cx!       N.B. [D + dsigdot/dsig] saved in adjust5 (or updps) as pslx
-cx        pslx(1:ifull,k)=psl(1:ifull)-pslx(1:ifull,k)*dt*.5*(1.-epst(:)) !ca
-cx      enddo      ! k  loop
-
 #ifdef debug
       if(nvad>0.and.(diag.or.nmaxpr==1).and.mydiag)then
-       print *,'in nonlin after vertical advection'
+       write(6,*) 'in nonlin after vertical advection'
        write (6,"('t   ',9f8.2/4x,9f8.2)") t(idjd,:)
        write (6,"('thet',9f8.2/4x,9f8.2)") t(idjd,:)*sig(:)**(-roncp)
        write (6,"('qg  ',9f8.3/4x,9f8.3)") 1000.*qg(idjd,:)
@@ -227,7 +222,7 @@ cx      enddo      ! k  loop
             aa(iq,1)=rata(nlv)*sdot(iq,nlv+1)+ratb(nlv)*sdot(iq,nlv)
          enddo
          if ( mydiag )
-     &      print *,'k,aa,emu,emv',nlv,aa(idjd,1),emu(idjd),emv(idjd)
+     &    write(6,*) 'k,aa,emu,emv',nlv,aa(idjd,1),emu(idjd),emv(idjd)
          call printa('sgdf',aa(:,1),ktau,nlv,ia,ib,ja,jb,0.,10.)
       endif   ! (diag)
 #endif
@@ -267,7 +262,7 @@ cx      enddo      ! k  loop
       if (nh/=0) then
         phi=phi+phi_nh
         if (abs(epsp)<=1.) then
-          ! MJT exact treatment of constant epsp terms
+          ! exact treatment of constant epsp terms
           const_nh=2.*rdry/(dt*grav*grav*(1.-epsp*epsp))
         else
           const_nh=2.*rdry/(dt*grav*grav)  
@@ -326,23 +321,23 @@ cx      enddo      ! k  loop
           ! This is the similar to nh==2, but works for all lapsbot
           ! and only involves phi_nh as the hydrostatic component
           ! is eliminated.
-          ! ddpds is (sig/rdry)*d(phi_nh)/d(sig) or -delta T_nh
-          ddpds=-phi_nh(:,1)/bet(1)
+          ! ddpds is -(sig/rdry)*d(phi_nh)/d(sig) or delta T_nh
+          ddpds=phi_nh(:,1)/bet(1)
           h_nh(1:ifull,1)=h_nh(1:ifull,1)
-     &      -ddpds/(const_nh*tbar2d(:))
+     &      +ddpds/(const_nh*tbar2d(:))
           do k=2,kl
-            ddpds=-(phi_nh(:,k)-phi_nh(:,k-1))/bet(k)
-     &        -betm(k)*ddpds/bet(k)
+            ddpds=(phi_nh(:,k)-phi_nh(:,k-1)
+     &        -betm(k)*ddpds)/bet(k)
             h_nh(1:ifull,k)=h_nh(1:ifull,k)
-     &        -ddpds/(const_nh*tbar2d(:))
+     &        +ddpds/(const_nh*tbar2d(:))
           end do
         end select
 #ifdef debug
         if (nmaxpr==1) then
           if (mydiag)then
-            print *,'h_nh.b ',(h_nh(idjd,k),k=1,kl)
-            print *,'phi ',(phi(idjd,k),k=1,kl)
-            print *,'phi_nh ',(phi_nh(idjd,k),k=1,kl)
+           write(6,*) 'h_nh.b ',(h_nh(idjd,k),k=1,kl)
+           write(6,*) 'phi ',(phi(idjd,k),k=1,kl)
+           write(6,*) 'phi_nh ',(phi_nh(idjd,k),k=1,kl)
           endif
           call maxmin(h_nh,'h_',ktau,1.,kl)
         endif
@@ -367,12 +362,12 @@ cy      tx(iq,k)=.5*dt*termlin  ! t and epst later  cy
       if( (diag.or.nmaxpr==1) .and. mydiag )then
         iq=idjd
         k=nlv
-        print *,'dpsldt,roncp,sig ',
+        write(6,*) 'dpsldt,roncp,sig ',
      &           dpsldt(iq,k),roncp,sig(k)
-        print *,'contv,tbar2d,termlin_nlv ',
+        write(6,*) 'contv,tbar2d,termlin_nlv ',
      &           contv,tbar2d(iq),tbar2d(iq)*dpsldt(iq,k)*roncp/sig(k)
-        print *,'tv,tn ',tv(iq,k),tn(iq,k)
-c       print *,'termx ',(t(iq,k)+contv*tvv)*dpsldt(iq,k)*roncp/sig(k)
+        write(6,*) 'tv,tn ',tv(iq,k),tn(iq,k)
+c       write(6,*) 'termx ',(t(iq,k)+contv*tvv)*dpsldt(iq,k)*roncp/sig(k)
       endif
 #endif
                
@@ -446,7 +441,7 @@ c       print *,'termx ',(t(iq,k)+contv*tvv)*dpsldt(iq,k)*roncp/sig(k)
 #ifdef debug
         if(diag)then
           if(mydiag)then
-            print *,'tv ',tv(idjd,:)
+            write(6,*) 'tv ',tv(idjd,:)
             write (6,"('tn1*dt',9f8.3/6x,9f8.3)") tn(idjd,:)*dt
             write (6,"('un1*dt',9f8.3/6x,9f8.3)") un(idjd,:)*dt
             write (6,"('vn1*dt',9f8.3/6x,9f8.3)") vn(idjd,:)*dt
@@ -483,7 +478,7 @@ c       print *,'termx ',(t(iq,k)+contv*tvv)*dpsldt(iq,k)*roncp/sig(k)
         enddo
 #ifdef debug
         if (diag.and.mydiag)then
-          print *,'fm ',aa(idjd,:)
+          write(6,*) 'fm ',aa(idjd,:)
           write (6,"('fm#  ',4p9f8.2)") diagvals(aa(:,nlv)) 
         endif
 #endif
@@ -499,10 +494,10 @@ c       print *,'termx ',(t(iq,k)+contv*tvv)*dpsldt(iq,k)*roncp/sig(k)
 #ifdef debug
       if (diag)then
          if(mydiag) then
-           print *,'at end of nonlin; nvad,idjd = ', nvad,idjd
-           print *,'p1 . & e ',p(idjd,nlv),p(ie(idjd),nlv)
-           print *,'p1 . & n ',p(idjd,nlv),p(in(idjd),nlv)
-           print *,'tx ',tx(idjd,:)
+           write(6,*) 'at end of nonlin; nvad,idjd = ', nvad,idjd
+           write(6,*) 'p1 . & e ',p(idjd,nlv),p(ie(idjd),nlv)
+           write(6,*) 'p1 . & n ',p(idjd,nlv),p(in(idjd),nlv)
+           write(6,*) 'tx ',tx(idjd,:)
            write (6,"('tn2*dt',9f8.3/6x,9f8.3)")   tn(idjd,:)*dt
            write (6,"('un2*dt',9f8.3/6x,9f8.3)")   un(idjd,:)*dt
            write (6,"('vn2*dt',9f8.3/6x,9f8.3)")   vn(idjd,:)*dt

@@ -22,8 +22,8 @@ module cc_mpi
    integer, allocatable, dimension(:), save, private :: neighmap       ! map from processor to neighbour index
    integer, save, public :: neighnum                                   ! number of neigbours
 
-   public :: bounds, boundsuv, ccmpi_setup, ccmpi_distribute, ccmpi_gather, &
-             ccmpi_distributer8, ccmpi_gatherall,                           &
+   public :: ccmpi_setup, ccmpi_distribute, ccmpi_gather,                   &
+             ccmpi_distributer8, ccmpi_gatherall, bounds, boundsuv,         &
              indp, indg, deptsync, intssync_send, intssync_recv, start_log, &
              end_log, log_on, log_off, log_setup, phys_loadbal,             &
              ccglobal_posneg, ccglobal_sum, iq2iqg, indv_mpi, indglobal,    &
@@ -448,7 +448,7 @@ contains
       iqw = 0
       iqs = 0
       do iq = 1,ifull
-         ifullxc(colourmask(iq)) = ifullxc(colourmask(iq))+1
+         ifullxc(colourmask(iq)) = ifullxc(colourmask(iq)) + 1
          iqx(ifullxc(colourmask(iq)),colourmask(iq)) = iq
          iqn(ifullxc(colourmask(iq)),colourmask(iq)) = in(iq)
          iqe(ifullxc(colourmask(iq)),colourmask(iq)) = ie(iq)
@@ -3003,7 +3003,7 @@ contains
       call end_log(mpiwait_end)
 #endif      
 
-!     Set up the buffers to send
+!     Set up the buffers to send and recv
       nreq = 0
       do iproc = 1,neighnum
          recv_len = rslen(iproc)
@@ -3266,7 +3266,7 @@ contains
       call end_log(mpiwait_end)
 #endif
 
-!     Set up the buffers to send
+!     Set up the buffers to send and recv
       nreq = 0
       do iproc = 1,neighnum
          rproc = neighlist(iproc)  ! Recv from
@@ -3372,7 +3372,6 @@ contains
       logical :: fsvwu, fnveu, fssvwwu, fnnveeu
       integer :: iq, iqz, iqt, iproc, rproc, sproc, iqq, send_len, recv_len
       integer :: rcount, myrlen, jproc, mproc, stagmode
-      integer, dimension(neighnum) :: rslen, sslen
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -3400,64 +3399,48 @@ contains
          fnveu = .true.
          fssvwwu = .true.
          fnnveeu = .true.
-         rslen = bnds(neighlist)%rlen2_uv
-         sslen = bnds(neighlist)%slen2_uv
          myrlen = bnds(myid)%rlen2_uv
       else if ( stagmode == 1 ) then
          fsvwu = .false.
          fnveu = .true.
          fssvwwu = .false.
          fnnveeu = .true.
-         rslen = bnds(neighlist)%rlen2_uv
-         sslen = bnds(neighlist)%slen2_uv
          myrlen = bnds(myid)%rlen2_uv
       else if ( stagmode == 2 ) then
          fsvwu = .true.
          fnveu = .true.
          fssvwwu = .false.
          fnnveeu = .true. ! fnnveeu requires fnveu
-         rslen = bnds(neighlist)%rlen2_uv
-         sslen = bnds(neighlist)%slen2_uv
          myrlen = bnds(myid)%rlen2_uv
       else if ( stagmode == 3 ) then
          fsvwu = .true.
          fnveu = .true.
          fssvwwu = .true. ! fssvwwu requires fsvwu
          fnnveeu = .false.
-         rslen = bnds(neighlist)%rlen2_uv
-         sslen = bnds(neighlist)%slen2_uv
          myrlen = bnds(myid)%rlen2_uv
       else if ( stagmode == 5 ) then
          fsvwu = .true.
          fnveu = .false.
          fssvwwu = .true.
          fnnveeu = .false.
-         rslen = bnds(neighlist)%rlen2_uv
-         sslen = bnds(neighlist)%slen2_uv
          myrlen = bnds(myid)%rlen2_uv
       else if ( stagmode == -9 ) then
          fsvwu = .true.
          fnveu = .false.
          fssvwwu = .false.
          fnnveeu = .false.
-         rslen = bnds(neighlist)%rlen_uv
-         sslen = bnds(neighlist)%slen_uv
          myrlen = bnds(myid)%rlen_uv
       else if ( stagmode == -10 ) then
          fsvwu = .false.
          fnveu = .true.
          fssvwwu = .false.
          fnnveeu = .false.
-         rslen = bnds(neighlist)%rlen_uv
-         sslen = bnds(neighlist)%slen_uv
          myrlen = bnds(myid)%rlen_uv
       else
          fsvwu = .true.
          fnveu = .true.
          fssvwwu = .false.
          fnnveeu = .false.
-         rslen = bnds(neighlist)%rlen_uv
-         sslen = bnds(neighlist)%slen_uv
          myrlen = bnds(myid)%rlen_uv
       end if
 
@@ -3682,7 +3665,6 @@ contains
       logical :: fsvwu, fnveu, fssvwwu, fnnveeu
       integer :: iq, iqz, iq_b, iq_e, iqt, iproc, kx, rproc, sproc, iqq, send_len, recv_len
       integer :: rcount, myrlen, jproc, mproc, stagmode
-      integer, dimension(neighnum) :: rslen, sslen
       integer(kind=4) :: ierr, itag = 5, llen, sreq, lproc
       integer(kind=4) :: ldone
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
@@ -3713,64 +3695,48 @@ contains
          fnveu = .true.
          fssvwwu = .true.
          fnnveeu = .true.
-         rslen = bnds(neighlist)%rlen2_uv
-         sslen = bnds(neighlist)%slen2_uv
          myrlen = bnds(myid)%rlen2_uv
       else if ( stagmode == 1 ) then
          fsvwu = .false.
          fnveu = .true.
          fssvwwu = .false.
          fnnveeu = .true.
-         rslen = bnds(neighlist)%rlen2_uv
-         sslen = bnds(neighlist)%slen2_uv
          myrlen = bnds(myid)%rlen2_uv
       else if ( stagmode == 2 ) then
          fsvwu = .true.
          fnveu = .true.
          fssvwwu = .false.
          fnnveeu = .true. ! fnnveeu requires fnveu
-         rslen = bnds(neighlist)%rlen2_uv
-         sslen = bnds(neighlist)%slen2_uv
          myrlen = bnds(myid)%rlen2_uv
       else if ( stagmode == 3 ) then
          fsvwu = .true.
          fnveu = .true.
          fssvwwu = .true. ! fssvwwu requires fsvwu
          fnnveeu = .false.
-         rslen = bnds(neighlist)%rlen2_uv
-         sslen = bnds(neighlist)%slen2_uv
          myrlen = bnds(myid)%rlen2_uv
       else if ( stagmode == 5 ) then
          fsvwu = .true.
          fnveu = .false.
          fssvwwu = .true.
          fnnveeu = .false.
-         rslen = bnds(neighlist)%rlen2_uv
-         sslen = bnds(neighlist)%slen2_uv
          myrlen = bnds(myid)%rlen2_uv
       else if ( stagmode == -9 ) then
          fsvwu = .true.
          fnveu = .false.
          fssvwwu = .false.
          fnnveeu = .false.
-         rslen = bnds(neighlist)%rlen_uv
-         sslen = bnds(neighlist)%slen_uv
          myrlen = bnds(myid)%rlen_uv
       else if ( stagmode == -10 ) then
          fsvwu = .false.
          fnveu = .true.
          fssvwwu = .false.
          fnnveeu = .false.
-         rslen = bnds(neighlist)%rlen_uv
-         sslen = bnds(neighlist)%slen_uv
          myrlen = bnds(myid)%rlen_uv
       else
          fsvwu = .true.
          fnveu = .true.
          fssvwwu = .false.
          fnnveeu = .false.
-         rslen = bnds(neighlist)%rlen_uv
-         sslen = bnds(neighlist)%slen_uv
          myrlen = bnds(myid)%rlen_uv
       end if
 
@@ -3784,7 +3750,7 @@ contains
       call end_log(mpiwaituv_end)
 #endif
 
-!     Set up the buffers to send
+!     Set up the buffers to send and recv
       nreq = 0
       do iproc = 1,neighnum
          rproc = neighlist(iproc)  ! Recv from
@@ -4006,7 +3972,7 @@ contains
       call end_log(boundsuv_end)
 
    end subroutine boundsuv3
-
+   
    subroutine boundsuv_allvec(u, v)
       ! Copy the boundary regions of u and v. This doesn't require the
       ! diagonal points like (0,0), but does have to take care of the
@@ -6948,7 +6914,7 @@ contains
       call end_log(mpiwaitmg_end)
 #endif
 
-      !     Set up the buffers to recv and send
+      !     Set up the buffers to send and recv
       nreq = 0
       do iproc = 1,mg(g)%neighnum
          recv_len = rslen(iproc)

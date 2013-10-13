@@ -20,6 +20,9 @@ integer, intent(in) :: ifull,iextra,kl
 
 allocate(kbsav(ifull),ktsav(ifull))
 allocate(convpsav(ifull))
+kbsav=kl-1
+ktsav=kl-1
+convpsav=0.
 
 return
 end subroutine kuocomb_init
