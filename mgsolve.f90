@@ -47,7 +47,7 @@ include 'parm.h'
 include 'parmdyn.h'
 
 integer, dimension(kl) :: iters
-integer, dimension(mg_minsize) :: indy
+integer, dimension(mg_minsize,kl) :: indy
 integer itrc,itr,ng,ng4,g,gb,k,jj,i,j,iq
 integer klimc,knew,klim,ir,ic
 integer nc,n,iq_a,iq_b,iq_c,iq_d
@@ -62,7 +62,8 @@ real, dimension(mg_maxsize,kl,gmax+1) :: v
 real, dimension(mg_maxsize,kl,2:gmax+1) :: rhs
 real, dimension(mg_maxsize,kl,gmax+1) :: helm
 real, dimension(mg_maxsize,kl) :: w,dsol
-real, dimension(mg_minsize,mg_minsize) :: helm_m,helm_o
+real, dimension(mg_minsize,mg_minsize) :: helm_m
+real, dimension(mg_minsize,mg_minsize,kl) :: helm_o
 real, dimension(mg_maxsize) :: ws
 real, dimension(2,kl) :: smaxmin_g
 real, dimension(kl) :: dsolmax_g,savg
@@ -97,12 +98,16 @@ end do
 ! store data for LU decomposition of coarse grid
 do g=mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxlevel) then ...
   ng=mg(g)%ifull
-  helm_o(:,:)=0.
-  do iq=1,ng
-    helm_o(mg(g)%in(iq),iq)=mg(g)%zzn(iq)
-    helm_o(mg(g)%is(iq),iq)=mg(g)%zzs(iq)
-    helm_o(mg(g)%ie(iq),iq)=mg(g)%zze(iq)
-    helm_o(mg(g)%iw(iq),iq)=mg(g)%zzw(iq)
+  helm_o(:,:,:)=0.
+  do k=1,kl
+    do iq=1,ng
+      helm_o(mg(g)%in(iq),iq,k)=mg(g)%zzn(iq)
+      helm_o(mg(g)%is(iq),iq,k)=mg(g)%zzs(iq)
+      helm_o(mg(g)%ie(iq),iq,k)=mg(g)%zze(iq)
+      helm_o(mg(g)%iw(iq),iq,k)=mg(g)%zzw(iq)
+      helm_o(iq,iq,k)=mg(g)%zz(iq)-helm(iq,k,g)
+    end do
+    call mdecomp(helm_o(:,:,k),indy(:,k)) ! destroys helm_m
   end do
 end do
 do g=gmax,0,-1
@@ -209,13 +214,9 @@ do itr=1,itr_mg
     ! perform LU decomposition and back substitute with RHS
     ! to solve for v on coarse grid
     do k=1,klim
-      helm_m=helm_o
-      do iq=1,ng
-        helm_m(iq,iq)=mg(g)%zz(iq)-helm(iq,k,g)
-      end do
-      call mdecomp(helm_m,indy) ! destroys helm_m
+      helm_m=helm_o(:,:,k)
       v(1:ng,k,g)=rhs(1:ng,k,g)
-      call mbacksub(helm_m,v(1:ng,k,g),indy)
+      call mbacksub(helm_m,v(1:ng,k,g),indy(:,k))
     end do
       
   end do
@@ -411,7 +412,7 @@ real, dimension(mg_maxsize,gmax+1) :: rhsice
 real, dimension(mg_maxsize,2) :: dsol
 real, dimension(mg_maxsize) :: ws,new
 real, dimension(ifull+iextra,2) :: dumc
-real, dimension(mg_minsize,mg_minsize) :: helm_m
+real, dimension(mg_minsize,mg_minsize) :: helm_m,helm_o
 real, dimension(mg_ifullc,3) :: yyzcu,yyncu,yyscu,yyecu,yywcu
 real, dimension(mg_ifullc,3) :: zzhhcu,zzncu,zzscu,zzecu,zzwcu,rhscu
 real, dimension(1) :: dsolmax
@@ -463,6 +464,17 @@ do g=1,gmax
   yy(1:ng4,6:10,g+1)=0.25*(yy(mg(g)%fine  ,6:10,g)+yy(mg(g)%fine_n ,6:10,g)   &
                           +yy(mg(g)%fine_e,6:10,g)+yy(mg(g)%fine_ne,6:10,g))
   call mgcollect(g+1,yy(:,:,g+1))
+end do
+do g=mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxlevel) then ...
+  helm_o=0.
+  do iq=1,ng
+    helm_o(iq,iq)=yy(iq,6,g)      
+    helm_o(mg(g)%in(iq),iq)=yy(iq,7,g)
+    helm_o(mg(g)%is(iq),iq)=yy(iq,8,g)
+    helm_o(mg(g)%ie(iq),iq)=yy(iq,9,g)
+    helm_o(mg(g)%iw(iq),iq)=yy(iq,10,g)
+  end do
+  call mdecomp(helm_o,indy) ! destroys helm_m
 end do
 
 ! solver requires bounds to be updated
@@ -669,15 +681,7 @@ do itr=1,itr_mgice
     ng=mg(g)%ifull
       
     ! solve for ice using LU decomposition and back substitution with RHS
-    helm_m=0.
-    do iq=1,ng
-      helm_m(iq,iq)=yy(iq,6,g)      
-      helm_m(mg(g)%in(iq),iq)=yy(iq,7,g)
-      helm_m(mg(g)%is(iq),iq)=yy(iq,8,g)
-      helm_m(mg(g)%ie(iq),iq)=yy(iq,9,g)
-      helm_m(mg(g)%iw(iq),iq)=yy(iq,10,g)
-    end do
-    call mdecomp(helm_m,indy) ! destroys helm_m
+    helm_m=helm_o
     v(1:ng,2,g)=rhsice(1:ng,g)
     call mbacksub(helm_m,v(1:ng,2,g),indy)
 

@@ -1,6 +1,15 @@
       module tracermodule
-c
+
       implicit none
+      
+      private
+      public tractype,tracname,sitefile,shipfile
+      public co2em,unit_trout,init_tracer,trfiles
+      public tracer_mass,interp_tracerflux,tracerlist
+      public trout,tracvalin,writetrpm,tracmin,tracmax
+      public tracini,readtracerflux,tracunit,tracdaytime
+      public oh,strloss,mcfdep,jmcf
+      
       real, dimension(:,:,:), save, allocatable :: co2emhr,co2em123
       real, dimension(:,:), save, allocatable :: co2hr,co2em
       integer, dimension(:), save, allocatable :: nghr
@@ -9,9 +18,9 @@ c
       character(len=13), dimension(:), save, allocatable :: tracunit
       character(len=50), dimension(:), save, allocatable :: tracfile
       real, dimension(:), save, allocatable :: tracival,trmass
-c     rml 18/09/07 added tracmin, tracmax (tracmin to replace gasmin in
-c     tracers.h, used in adjust5.f and outcdf.f, tracmax to be used
-c     in outcdf.f (current setting of trmax unreliable)
+!     rml 18/09/07 added tracmin, tracmax (tracmin to replace gasmin in
+!     tracers.h, used in adjust5.f and outcdf.f, tracmax to be used
+!     in outcdf.f (current setting of trmax unreliable)
       real, dimension(:), save, allocatable :: tracmin,tracmax
       integer, dimension(:), save, allocatable :: tracinterp,igashr
       real, dimension(:,:), save, allocatable :: tracdaytime
@@ -40,7 +49,7 @@ c     in outcdf.f (current setting of trmax unreliable)
 
       contains
 
-c ***************************************************************************
+! ***************************************************************************
       subroutine init_tracer
       use cc_mpi, only : myid
       use tracers_m
@@ -58,7 +67,7 @@ c ***************************************************************************
        open(unit=unit_trout,file=trout,form='formatted',
      &      status='replace')
       end if
-c     first read in a list of tracers, then determine what emission data is required
+!     first read in a list of tracers, then determine what emission data is required
 !     Each processor read this, perhaps not necessary?
 
 !     rml 16/2/10 addition for Transcom methane
@@ -116,7 +125,7 @@ c     first read in a list of tracers, then determine what emission data is requ
 ! rml 16/2/10 addition for TC methane
         if (tracname(nt)(1:7).eq.'methane') methane = .true.
         if (tracname(nt)(1:3).eq.'mcf') mcf = .true.
-c
+!
       enddo
       if (nhr.gt.0) then
         allocate(nghr(nhr))
@@ -144,9 +153,9 @@ c
       return
       end subroutine
 
-c ***********************************************************************
+! ***********************************************************************
       subroutine tracini
-c     initial value now read from tracerlist 
+!     initial value now read from tracerlist 
       use infile
       use tracers_m
       implicit none
@@ -154,8 +163,8 @@ c     initial value now read from tracerlist
       real in(ilt*jlt,klt)
 
       do i=1,ngas
-c rml 15/11/06 facility to introduce new tracers to simulation
-c i.e. some read from restart, others initialised here
+! rml 15/11/06 facility to introduce new tracers to simulation
+! i.e. some read from restart, others initialised here
         if (tracival(i).ne.-999) then
 ! rml 16/2/10 addition for TC methane to get 3d initial condition
             if (tracname(i)(1:7)=='methane') then
@@ -175,9 +184,9 @@ c i.e. some read from restart, others initialised here
       return
       end subroutine
 
-c ***********************************************************************
+! ***********************************************************************
       subroutine tr_back
-c     remove a background value for tracer fields for more accurate transport
+!     remove a background value for tracer fields for more accurate transport
       use cc_mpi
       use tracers_m
       implicit none
@@ -214,10 +223,10 @@ c     remove a background value for tracer fields for more accurate transport
       return
       end subroutine
 
-c *********************************************************************
+! *********************************************************************
       subroutine readtracerflux(kdate)
-c     needs to happen further down the code than reading the tracer
-c     list file
+!     needs to happen further down the code than reading the tracer
+!     list file
       use cc_mpi, only : myid
       use tracers_m
       implicit none
@@ -233,7 +242,7 @@ c     list file
       do nt=1,numtracer
         select case(tracinterp(nt))
           case (0:1)
-c           monthly data
+!           monthly data
             if (.not.allocated(co2em123)) then
               allocate(co2em123(ilt*jlt,3,numtracer))
             end if
@@ -242,7 +251,7 @@ c           monthly data
             end if
             call readrco2(nt,jyear,jmonth,3,co2em123(:,:,nt),ajunk)
           case (2)
-c           daily, 3 hourly, hourly
+!           daily, 3 hourly, hourly
             if (.not.allocated(co2emhr)) then
               allocate(co2emhr(ilt*jlt,31*24+2,nhr))
               allocate(co2hr(31*24+2,nhr))
@@ -289,24 +298,23 @@ c           daily, 3 hourly, hourly
       return
       end subroutine
 
-c *************************************************************************
+! *************************************************************************
       subroutine readrco2(igas,iyr,imon,nflux,fluxin,co2time)
-c     rml 23/09/03 largely rewritten to use netcdf files
+!     rml 23/09/03 largely rewritten to use netcdf files
       use cc_mpi
       use infile
       use tracers_m
       implicit none
       include 'newmpar.h' !il,jl,kl
       include 'parm.h' !nperday
-c     include 'trcom2.h'
       character*50 filename
-c     rml 25/08/04 added fluxunit variable
+!     rml 25/08/04 added fluxunit variable
       character*13 fluxtype,fluxname,fluxunit
       integer nflux,iyr,imon,igas,ntime,lc,regnum,kount
       integer nprev,nnext,ncur,n1,n2,ntot,n,timx,gridid,ierr
       real timeinc
-c     nflux =3 for month interp case - last month, this month, next month
-c     nflux=31*24+2 for daily, hourly, 3 hourly case
+!     nflux =3 for month interp case - last month, this month, next month
+!     nflux=31*24+2 for daily, hourly, 3 hourly case
       real fluxin(il*jl,nflux),co2time(nflux),hr
       real, dimension(2) :: dum
       integer ncidfl,fluxid
@@ -327,10 +335,10 @@ c     nflux=31*24+2 for daily, hourly, 3 hourly case
         fluxname=tracname(igas)
         filename=tracfile(igas)
       endif
-c
+
       if (trim(fluxtype)=='pulseoff'.or.
      &    trim(fluxtype)=='daypulseoff') then
-c       no surface fluxes to read
+!       no surface fluxes to read
         fluxin = 0.
         tracunit(igas)=''
         return
@@ -349,20 +357,20 @@ c       no surface fluxes to read
         allocate(fluxyr(ntime),fluxmon(ntime))
         call ccnf_get_var(ncidfl,'year',fluxyr)
         call ccnf_get_var(ncidfl,'month',fluxmon)
-c       read hours variable for daily, hourly, 3 hourly data
+!       read hours variable for daily, hourly, 3 hourly data
         if (nflux==(31*24+2)) then
           allocate(fluxhr(ntime))
           call ccnf_get_var(ncidfl,'hour',fluxhr)
         endif
-c       check fluxname first otherwise default to 'flux'
+!       check fluxname first otherwise default to 'flux'
         call ccnf_inq_varid(ncidfl,fluxname,fluxid,tst)
         if (tst) then
           call ccnf_inq_varid(ncidfl,'flux',fluxid,tst)
           if (tst) stop 'flux variable not found'
         endif
-c       rml 25/08/04 read flux units attribute
+!       rml 25/08/04 read flux units attribute
         call ccnf_get_att(ncidfl,fluxid,'units',fluxunit)
-c rml 08/11/04 added radon units
+! rml 08/11/04 added radon units
 ! rml 30/4/10 exclude mcf deposition case
         if (igas<=ngas) then
           tracunit(igas)=fluxunit
@@ -382,21 +390,21 @@ c rml 08/11/04 added radon units
           endif
         endif
         if (trim(fluxtype)=='daypulseon') then
-c         need to read sunset/sunrise times
+!         need to read sunset/sunrise times
           call ccnf_inq_dimlen(ncidfl,'nregion',nregion)
           call ccnf_inq_varid(ncidfl,'daylight',dayid,tst)
         endif
-c
-c       find required records
+!
+!       find required records
         if (nflux==3) then
-c         monthly/annual cases
+!         monthly/annual cases
           nprev=0
           nnext=0
           ncur=0
           if (trim(fluxtype)=='constant'.or.
      &        trim(fluxtype)=='pulseon'.or.
      &        trim(fluxtype)=='daypulseon') then
-c           check ntime
+!           check ntime
             if (ntime/=1) stop 'flux file wrong ntime'
             ncur = 1
           elseif (trim(fluxtype)=='annual') then
@@ -415,25 +423,25 @@ c           check ntime
               endif
             enddo
           else
-c           monthly case
+!           monthly case
             do n=1,ntime
               if (fluxyr(n)==iyr.and.fluxmon(n)==imon) then
                 ncur=n
                 nprev=n-1
-c               keep flux constant at ends of data
+!               keep flux constant at ends of data
                 if (nprev==0) nprev=n
                 nnext=n+1
                 if (nnext==ntime+1) nnext=n
               endif
             enddo
           endif
-c
+!
           if (ncur==0) stop 'current year/month not in flux file'
           if ( myid == 0 ) then
            write(6,*)'reading ',ncur,fluxyr(ncur),fluxmon(ncur)
            write(unit_trout,*)'reading ',ncur,fluxyr(ncur),fluxmon(ncur)
           end if
-c    
+!    
           fluxin_g=0.
           if (gridpts) then
             start(1)=1
@@ -444,27 +452,27 @@ c
             count(1)=il_g; count(2)=jl_g; count(3)=1
             timx=3
           end if
-c         read preceeding month if needed
+!         read preceeding month if needed
           if (nprev/=0) then
             start(timx)=nprev
             call ccnf_get_vara(ncidfl,fluxid,start,count,
      &                            fluxin_g(:,1))
           endif
-c         read current month/year
+!         read current month/year
           start(timx)=ncur
           call ccnf_get_vara(ncidfl,fluxid,start,count,
      &                          fluxin_g(:,2))
-c         read next month
+!         read next month
           if (nnext/=0) then
             start(timx)=nnext
             call ccnf_get_vara(ncidfl,fluxid,start,count,
      &                            fluxin_g(:,3))
           endif
         else
-c         daily, hourly, 3 hourly case
-c         find first time in month
-c         rml 06/01/06 extend case to cope with annually repeating or
-c         real year fluxes
+!         daily, hourly, 3 hourly case
+!         find first time in month
+!         rml 06/01/06 extend case to cope with annually repeating or
+!         real year fluxes
           do n=1,ntime
             if ( ( (fluxyr(n)==0).or.(fluxyr(n)==iyr) ) .and. 
      &           (fluxmon(n)==imon) ) then
@@ -472,7 +480,7 @@ c         real year fluxes
               exit
             endif
           enddo
-c         find last time in month
+!         find last time in month
           do n=ntime,1,-1
             if ( ( (fluxyr(n)==0).or.(fluxyr(n)==iyr) ) .and. 
      &           (fluxmon(n)==imon) ) then
@@ -480,7 +488,7 @@ c         find last time in month
               exit
             endif
           enddo
-c         read fluxes
+!         read fluxes
           ntot=n2-n1+1
           if (gridpts) then
             start(1)=1; count(1)=ifull_g
@@ -494,12 +502,12 @@ c         read fluxes
           end if
           call ccnf_get_vara(ncidfl,fluxid,start,count,
      &                                fluxin_g(:,2:ntot+1))
-c         read in last time of prev month and first time of next month
+!         read in last time of prev month and first time of next month
           if ((n1==1).and.(fluxyr(n1)==0)) then
-c           loop
+!           loop
             nprev=ntime
           elseif ((n1==1).and.(fluxyr(n1)/=0)) then
-c           keep constant
+!           keep constant
             nprev=n1
           else
             nprev=n1-1
@@ -517,16 +525,16 @@ c           keep constant
           start(timx)=nnext; count(timx)=1
           call ccnf_get_vara(ncidfl,fluxid,start,count,
      &                                      fluxin_g(:,ntot+2))
-c
-c         need to make an array with the hour data in
+!
+!         need to make an array with the hour data in
           co2time(2:ntot+1)=fluxhr(n1:n2)
           timeinc = fluxhr(n1+1)-fluxhr(n1)
           co2time(1)=co2time(2)-timeinc
           co2time(ntot+2)=co2time(ntot+1)+timeinc
         endif
-c
+!
         if (trim(fluxtype)=='daypulseon') then
-c         read sunrise/sunset times for this month, region from file
+!         read sunrise/sunset times for this month, region from file
           lc=len_trim(fluxname)
           read(fluxname(lc-2:lc),'(i3)') regnum
           if (regnum>nregion) stop 'region number > nregion'
@@ -560,7 +568,7 @@ c         read sunrise/sunset times for this month, region from file
         call ccmpi_bcast(dum(1:2),0,comm_world)
         tracdaytime(igas,:)=dum(1:2)
 
-c       count number of timesteps that source emitting for
+!       count number of timesteps that source emitting for
         kount=0
         do n=1,nperday
           hr = 24.*float(n)/float(nperday)
@@ -571,8 +579,8 @@ c       count number of timesteps that source emitting for
      &        (tracdaytime(igas,1)<=hr .or.
      &        tracdaytime(igas,2)>=hr)) kount=kount+1 
         enddo
-c       scale flux to allow for emission over fraction of day
-c       just set flux to zero if no daylight
+!       scale flux to allow for emission over fraction of day
+!       just set flux to zero if no daylight
         if (kount/=0) then
           fluxin = fluxin*float(nperday)/float(kount)
         else
@@ -582,7 +590,7 @@ c       just set flux to zero if no daylight
 
       end subroutine
 
-c *************************************************************************
+! *************************************************************************
       subroutine readoh(imon,nfield,ohfile,varname,ohin)
 ! rml 16/2/10 New subroutine to read oh and strat loss for Transcom methane
       use cc_mpi
@@ -594,7 +602,7 @@ c *************************************************************************
       character*13 varname
       integer nfield,imon,ntime,ierr
       integer nprev,nnext,ncur,n,timx,gridid
-c     nflux =3 for month interp case - last month, this month, next month
+!     nflux =3 for month interp case - last month, this month, next month
       real ohin(il*jl,kl,nfield)
       integer ncidfl,fluxid
       integer, dimension(:), allocatable :: ohmon
@@ -612,12 +620,12 @@ c     nflux =3 for month interp case - last month, this month, next month
         call ccnf_inq_dimlen(ncidfl,'time',ntime)
         allocate(ohmon(ntime))
         call ccnf_get_var(ncidfl,'month',ohmon)
-c       check fluxname 
+!       check fluxname 
         call ccnf_inq_varid(ncidfl,varname,fluxid,tst)
-c
-c       find required records
+!
+!       find required records
         if (nfield==3) then
-c         monthly case
+!         monthly case
           nprev=0
           nnext=0
           ncur=0
@@ -631,13 +639,13 @@ c         monthly case
               if (nnext==13) nnext=1
             endif
           enddo
-c
+
           if ( myid == 0 ) then
            write(6,*)'reading ',ncur,ohmon(ncur)
            write(unit_trout,*)'reading ',ncur,ohmon(ncur)
           end if
           if (ncur==0) stop 'current month not in flux file'
-c    
+
           ohin_g=0.
           if (gridpts) then
             start(1)=1 ; start(2)=1 ; start(3)=1
@@ -648,17 +656,17 @@ c
             count(1)=il_g; count(2)=jl_g; count(3)=kl; count(4)=1
             timx=4
           end if
-c         read preceeding month if needed
+!         read preceeding month if needed
           if (nprev/=0) then
             start(timx)=nprev
             call ccnf_get_vara(ncidfl,fluxid,start,count,
      &                            ohin_g(:,:,1))
           endif
-c         read current month/year
+!         read current month/year
           start(timx)=ncur
           call ccnf_get_vara(ncidfl,fluxid,start,count,
      &                            ohin_g(:,:,2))
-c         read next month
+!         read next month
           if (nnext/=0) then
             start(timx)=nnext
             call ccnf_get_vara(ncidfl,fluxid,start,count,
@@ -684,12 +692,12 @@ c         read next month
 
 
    
-c *************************************************************************
+! *************************************************************************
       subroutine interp_tracerflux(kdate,hrs_dt)
-c     interpolates tracer flux to current timestep if required
-c     tracinterp 0 for no interpolation, 1 for monthly, 2 for daily/hourly
-c     co2em123(:,1,:) contains prev month, co2em123(:,2,:) current month/year 
-c     co2em123(:,3,:) next month
+!     interpolates tracer flux to current timestep if required
+!     tracinterp 0 for no interpolation, 1 for monthly, 2 for daily/hourly
+!     co2em123(:,1,:) contains prev month, co2em123(:,2,:) current month/year 
+!     co2em123(:,3,:) next month
       use cc_mpi, only : myid
       implicit none
       include 'newmpar.h' !kl needed for parm.h
@@ -702,9 +710,9 @@ c     co2em123(:,3,:) next month
       logical found
       common/leap_yr/leap  ! 1 to allow leap years
    
-c     this could go in the case section but then we'd do it for
-c     every monthly tracer.  This way we do it once but may not
-c     need it.
+!     this could go in the case section but then we'd do it for
+!     every monthly tracer.  This way we do it once but may not
+!     need it.
       iyr=kdate/10000
       month=(kdate-10000*iyr)/100
       mdays=(/31,31,28,31,30,31,30,31,31,30,31,30,31,31/)
@@ -726,11 +734,11 @@ c     need it.
            a2 = float(nperday*mdays(month))/2.
            a3 = float(nperday*mdays(month+1))/2.
            if (ktau.lt.a2) then
-c            first half of month
+!            first half of month
              ratlm = (a1+float(ktau))/(a1+a2)
              m1 = 1; m2 = 2
            else
-c            second half of month
+!            second half of month
              ratlm = (float(ktau)-a2)/(a2+a3)
              m1 = 2; m2 = 3
            endif
@@ -765,7 +773,7 @@ c            second half of month
      &                           +  ratlm2*co2emhr(:,nghr(igh)+1,igh)
                else
                  nghr(igh) = nghr(igh)+1
-c                this error check only useful for hourly resolution
+!                this error check only useful for hourly resolution
                  if (nghr(igh).eq.(31*24+2)) stop 'hr flux error'
                endif
              enddo
@@ -807,9 +815,9 @@ c                this error check only useful for hourly resolution
       return
       end subroutine
 
-c ***************************************************************************
+! ***************************************************************************
       subroutine tracer_mass(ktau,ntau)
-c     rml 16/10/03 check tracer mass - just write out for <= 6 tracers
+!     rml 16/10/03 check tracer mass - just write out for <= 6 tracers
       use arrays_m   ! ps
       use cc_mpi
       use latlong_m
@@ -854,7 +862,7 @@ c     rml 16/10/03 check tracer mass - just write out for <= 6 tracers
 #endif
 
 
-c     scaling assumes CO2 with output in GtC?
+!     scaling assumes CO2 with output in GtC?
       if ( myid == 0 ) then
          if (ngas.gt.11) then
             write(unit_trout,*) 'Trmass: ',ktau,
@@ -879,7 +887,7 @@ c     scaling assumes CO2 with output in GtC?
         enddo
       endif
 
-c     also update tracer average array here
+!     also update tracer average array here
       do igas=1,ngas
 
         ! Moved to globpe.f by MJT
