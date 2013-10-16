@@ -467,6 +467,7 @@ do g=1,gmax
 end do
 do g=mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxlevel) then ...
   helm_o=0.
+  ng=mg(g)%ifull
   do iq=1,ng
     helm_o(iq,iq)=yy(iq,6,g)      
     helm_o(mg(g)%in(iq),iq)=yy(iq,7,g)
