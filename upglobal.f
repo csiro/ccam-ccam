@@ -15,6 +15,7 @@
       use tkeeps, only : tke,eps
       use tracers_m
       use unn_m
+      use vadv
       use vecsuv_m
       use vvel_m     ! sdot
       use work3f_m
@@ -497,13 +498,7 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
             write (6,"('qg  ',3p9f8.3/4x,9f8.3)")   qg(idjd,:)
           endif
 #endif
-          dumt=tx(1:ifull,:)
-          dumu=ux(1:ifull,:)
-          dumv=vx(1:ifull,:)
-          call vadvtvd(dumt,dumu,dumv,nvadh_pass,nits,iaero)
-          tx(1:ifull,:)=dumt
-          ux(1:ifull,:)=dumu
-          vx(1:ifull,:)=dumv 
+          call vadvtvd(tx,ux,vx,nvadh_pass,nits,iaero)
 #ifdef debug
           if( (diag.or.nmaxpr==1) .and. mydiag )then
             write(6,*) 'in upglobal after vadv2'

@@ -16,6 +16,7 @@
       use tbar2d_m
       use tracers_m
       use unn_m
+      use vadv
       use vecsuv_m
       use vvel_m
       use work3sav_m
@@ -158,13 +159,7 @@
      &   write(6,*) 'in nonlin sdmx,nits,nvadh_pass ',
      &             sdmx(idjd),nits(idjd),nvadh_pass(idjd)
 #endif
-          dumt=t(1:ifull,:)
-          dumu=u(1:ifull,:)
-          dumv=v(1:ifull,:)
-          call vadvtvd(dumt,dumu,dumv,nvadh_pass,nits,iaero)
-          t(1:ifull,:)=dumt
-          u(1:ifull,:)=dumu
-          v(1:ifull,:)=dumv 
+          call vadvtvd(t,u,v,nvadh_pass,nits,iaero)
       endif  ! (nvad==4.or.nvad==9)
 
       if(nvad>=7)then
@@ -188,7 +183,7 @@
        write (6,"('qf# ',3p9f8.3)") diagvals(qfg(:,nlv)) 
        write (6,"('u#  ',9f8.2)") diagvals(u(:,nlv)) 
        write (6,"('v#  ',9f8.2)") diagvals(v(:,nlv)) 
-       print *,'pslx ',pslx(idjd,:)
+       write(6,*) 'pslx ',pslx(idjd,:)
       endif  ! (nvad>0.and.(diag.or.nmaxpr==1).and.mydiag)
       if (diag)then
          if ( mydiag ) write (6,"('qg ',3p9f8.5/4x,9f8.5)") qg(idjd,:)

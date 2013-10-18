@@ -1731,9 +1731,6 @@
       os=ioff+1
       oe=ioff+ipan
       
-      if (joff==0) qsum=0. ! test
-      asum=0.
-      
       do ipass=0,2
         me=maps(ipass)
         call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)

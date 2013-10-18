@@ -522,6 +522,7 @@ dum(1:ifull,2)=salbdy(1:ifull)
 call bounds(dum(:,1:2))
 watbdy(ifull+1:ifull+iextra)=dum(ifull+1:ifull+iextra,1)
 salbdy(ifull+1:ifull+iextra)=dum(ifull+1:ifull+iextra,2)
+
 newwat(1:ifull+iextra)=watbdy(1:ifull+iextra)
 newsal=salbdy(1:ifull)
 
@@ -531,7 +532,6 @@ do nit=1,2
   if (nit==2) call bounds(newwat)
 
   ! calculate slopes
-  ! Currently this is has an explicit dependence on watbdy
   do i=1,4
     where ((ee(1:ifull)*ee(xp(:,i)))>0.5)
       slope(:,i)=0. ! no orographic slope within ocean bounds
@@ -1203,13 +1203,7 @@ end if
 #endif
 
 ! Vertical advection (first call for 0.5*dt)
-dums=ns(1:ifull,:)
-dumt=nt(1:ifull,:)
-duma=mps(1:ifull,:)
-call mlovadv(0.5*dt,nw,uau,uav,dums,dumt,duma,depdum,dzdum,wtr(1:ifull),1)
-ns(1:ifull,:)=dums
-nt(1:ifull,:)=dumt
-mps(1:ifull,:)=duma
+call mlovadv(0.5*dt,nw,uau,uav,ns,nt,mps,depdum,dzdum,wtr(1:ifull),1)
 
 call end_log(watervadv_end)
 call start_log(waterhadv_begin)
@@ -1262,13 +1256,7 @@ end if
 ! Vertical advection (second call for 0.5*dt)
 ! use explicit nw and depdum,dzdum from t=tau step (i.e., following JLM in CCAM atmospheric dynamics)
 ! Could use nuh and nvh to estimate nw at t+1/2, but also require an estimate of neta at t+1/2
-dums=ns(1:ifull,:)
-dumt=nt(1:ifull,:)
-duma=mps(1:ifull,:)
-call mlovadv(0.5*dt,nw,uau,uav,dums,dumt,duma,depdum,dzdum,wtr(1:ifull),2)
-ns(1:ifull,:)=dums
-nt(1:ifull,:)=dumt
-mps(1:ifull,:)=duma
+call mlovadv(0.5*dt,nw,uau,uav,ns,nt,mps,depdum,dzdum,wtr(1:ifull),2)
 
 ! Integrate advected mps
 xps=mps(1:ifull,1)*godsig(1)
@@ -3994,7 +3982,7 @@ real, intent(in) :: dtin
 real, dimension(ifull) :: dtnew
 real, dimension(ifull,0:wlev), intent(in) :: ww
 real, dimension(ifull,wlev), intent(in) :: depdum,idzdum
-real, dimension(ifull,wlev), intent(inout) :: uu,vv,ss,tt,mm
+real, dimension(:,:), intent(inout) :: uu,vv,ss,tt,mm
 real, dimension(ifull,wlev) :: dzdum
 logical, dimension(ifull), intent(in) :: wtr
 
@@ -4050,7 +4038,7 @@ integer, dimension(ifull,wlev-1), intent(in) :: kp,kx
 real, dimension(ifull), intent(in) :: dtnew
 real, dimension(ifull,0:wlev), intent(in) :: ww
 real, dimension(ifull,wlev), intent(in) :: depadj,dzadj
-real, dimension(ifull,wlev), intent(inout) :: uu
+real, dimension(:,:), intent(inout) :: uu
 real, dimension(ifull,wlev-1) :: ff
 real, dimension(ifull,0:wlev) :: delu
 real, dimension(ifull) :: fl,fh,cc,rr,xx
@@ -4060,7 +4048,7 @@ real, dimension(ifull) :: fl,fh,cc,rr,xx
 
 delu(:,0)=0.
 do ii=1,wlev-1
-  delu(:,ii)=uu(:,ii+1)-uu(:,ii)
+  delu(:,ii)=uu(1:ifull,ii+1)-uu(1:ifull,ii)
 end do
 delu(:,wlev)=0.
 
@@ -4071,17 +4059,17 @@ do ii=1,wlev-1
     rr(iq)=delu(iq,ii-kp(iq,ii))/xx(iq)
     fl(iq)=ww(iq,ii)*uu(iq,kx(iq,ii))
   end do
-  fh=ww(:,ii)*0.5*(uu(:,ii)+uu(:,ii+1)) &
-     -0.5*(uu(:,ii+1)-uu(:,ii))*ww(:,ii)**2*dtnew/max(depadj(:,ii+1)-depadj(:,ii),1.E-10)
+  fh=ww(:,ii)*0.5*(uu(1:ifull,ii)+uu(1:ifull,ii+1)) &
+     -0.5*(uu(1:ifull,ii+1)-uu(1:ifull,ii))*ww(:,ii)**2*dtnew/max(depadj(:,ii+1)-depadj(:,ii),1.E-10)
   cc=max(0.,min(1.,2.*rr),min(2.,rr)) ! superbee
   ff(:,ii)=fl+cc*(fh-fl)
-  !ff(:,ii)=ww(:,ii)*0.5*(uu(:,ii)+uu(:,ii+1)) ! explicit
+  !ff(:,ii)=ww(:,ii)*0.5*(uu(1:ifull,ii)+uu(1:ifull,ii+1)) ! explicit
 end do
-uu(:,1)=uu(:,1)+dtnew*(uu(:,1)*ww(:,1)-ff(:,1))/dzadj(:,1)
+uu(1:ifull,1)=uu(1:ifull,1)+dtnew*(uu(1:ifull,1)*ww(:,1)-ff(:,1))/dzadj(:,1)
 do ii=2,wlev-1
-  uu(:,ii)=uu(:,ii)+dtnew*(uu(:,ii)*(ww(:,ii)-ww(:,ii-1))-ff(:,ii)+ff(:,ii-1))/dzadj(:,ii)
+  uu(1:ifull,ii)=uu(1:ifull,ii)+dtnew*(uu(1:ifull,ii)*(ww(:,ii)-ww(:,ii-1))-ff(:,ii)+ff(:,ii-1))/dzadj(:,ii)
 end do
-uu(:,wlev)=uu(:,wlev)+dtnew*(-uu(:,wlev)*ww(:,wlev-1)+ff(:,wlev-1))/dzadj(:,wlev)
+uu(1:ifull,wlev)=uu(1:ifull,wlev)+dtnew*(-uu(1:ifull,wlev)*ww(:,wlev-1)+ff(:,wlev-1))/dzadj(:,wlev)
 
 
 do iq=1,ifull

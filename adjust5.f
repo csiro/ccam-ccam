@@ -19,6 +19,7 @@
 !     rml 19/09/07 replace gasmin from tracers.h with tracmin from tracermodule
       use tracermodule, only: tracmin
       use tracers_m
+      use vadv
       use vecsuv_m
       use vecs_m
       use vvel_m     ! sdot
@@ -513,13 +514,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
 #endif
           ! For now use this form of call so that vadvtvd doesn't need to 
           ! be changed. With assumed shape arguments this wouldn't be necessary
-          dumt=t(1:ifull,:)
-          dumu=u(1:ifull,:)
-          dumv=v(1:ifull,:)
-          call vadvtvd(dumt,dumu,dumv,nvadh_pass,nits,iaero)
-          t(1:ifull,:)=dumt
-          u(1:ifull,:)=dumu
-          v(1:ifull,:)=dumv 
+          call vadvtvd(t,u,v,nvadh_pass,nits,iaero)
         endif  !  nvad==4 .or. nvad==9
         if(nvad>=7) call vadv30(t(1:ifull,:),
      &                            u(1:ifull,:),
