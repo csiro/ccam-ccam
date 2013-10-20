@@ -1,5 +1,9 @@
 module cc_mpi
+#ifdef usempif
    use mpif_m
+#else
+   use mpi
+#endif
    implicit none
    private
    include 'newmpar.h'
@@ -195,6 +199,7 @@ module cc_mpi
       integer, dimension(:), allocatable :: coarse_a, coarse_b, coarse_c, coarse_d
       integer, dimension(:), allocatable :: fine, fine_n, fine_e, fine_ne
       integer, dimension(:), allocatable :: neighlist
+      real, dimension(:,:), allocatable :: v, rhs, helm
       real, dimension(:), allocatable :: zzn, zze, zzs, zzw, zz
       real, dimension(:), allocatable :: wgt_a, wgt_bc, wgt_d
    end type mgtype
@@ -2851,7 +2856,7 @@ contains
 #ifdef simple_timer
       call start_log(mpiwait_begin)
 #endif
-      call MPI_Waitall(sreq,ireq(rreq+1),status,ierr)
+      call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
 #ifdef simple_timer
       call end_log(mpiwait_end)
 #endif
@@ -2998,7 +3003,7 @@ contains
 #ifdef simple_timer
       call start_log(mpiwait_begin)
 #endif
-      call MPI_Waitall(sreq,ireq(rreq+1),status,ierr)
+      call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
 #ifdef simple_timer
       call end_log(mpiwait_end)
 #endif      
@@ -3148,7 +3153,7 @@ contains
 #ifdef simple_timer
       call start_log(mpiwait_begin)
 #endif
-      call MPI_Waitall(sreq,ireq(rreq+1),status,ierr)
+      call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
 #ifdef simple_timer
       call end_log(mpiwait_end)
 #endif      
@@ -3261,7 +3266,7 @@ contains
 #ifdef simple_timer
       call start_log(mpiwait_begin)
 #endif
-      call MPI_Waitall(sreq,ireq(rreq+1),status,ierr)
+      call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
 #ifdef simple_timer
       call end_log(mpiwait_end)
 #endif
@@ -3338,17 +3343,17 @@ contains
             rproc = neighlist(iproc)
             iqq = -rcolsp(rproc)%ihbg(lcolour)+1
 !cdir nodep
-            do iq=rcolsp(rproc)%ihbg(lcolour),rcolsp(rproc)%ihfn(lcolour)
-               iqz = iqq+iq
-               iq_b = 1+(iqz-1)*kx
+            do iq = rcolsp(rproc)%ihbg(lcolour),rcolsp(rproc)%ihfn(lcolour)
+               iqz = iqq + iq
+               iq_b = 1 + (iqz-1)*kx
                iq_e = iqz*kx
                t(ifull+bnds(rproc)%unpack_list(iq),1:kx) = bnds(rproc)%rbuf(iq_b:iq_e)
             end do
             iqq = iqq+rcolsp(rproc)%ihfn(lcolour)-rcolsp(rproc)%ifbg(lcolour)+1
 !cdir nodep
-            do iq=rcolsp(rproc)%ifbg(lcolour),rcolsp(rproc)%iffn(lcolour)
-               iqz = iqq+iq
-               iq_b = 1+(iqz-1)*kx
+            do iq = rcolsp(rproc)%ifbg(lcolour),rcolsp(rproc)%iffn(lcolour)
+               iqz = iqq + iq
+               iq_b = 1 + (iqz-1)*kx
                iq_e = iqz*kx
                t(ifull+bnds(rproc)%unpack_list(iq),1:kx) = bnds(rproc)%rbuf(iq_b:iq_e)
             end do
@@ -3449,7 +3454,7 @@ contains
 #ifdef simple_timer
       call start_log(mpiwaituv_begin)
 #endif
-      call MPI_Waitall(sreq,ireq(rreq+1),status,ierr)
+      call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
 #ifdef simple_timer
       call end_log(mpiwaituv_end)
 #endif
@@ -3745,7 +3750,7 @@ contains
 #ifdef simple_timer
       call start_log(mpiwaituv_begin)
 #endif
-      call MPI_Waitall(sreq,ireq(rreq+1),status,ierr)
+      call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
 #ifdef simple_timer
       call end_log(mpiwaituv_end)
 #endif
@@ -4001,7 +4006,7 @@ contains
 #ifdef simple_timer
       call start_log(mpiwaituv_begin)
 #endif
-      call MPI_Waitall(sreq,ireq(rreq+1),status,ierr)
+      call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
 #ifdef simple_timer
       call end_log(mpiwaituv_end)
 #endif
@@ -4182,7 +4187,7 @@ contains
 #ifdef simple_timer
       call start_log(mpiwaitdep_begin)
 #endif
-      call MPI_Waitall(sreq,ireq(rreq+1),status,ierr)
+      call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
 #ifdef simple_timer
       call end_log(mpiwaitdep_end)
 #endif
@@ -4332,7 +4337,7 @@ contains
 #ifdef simple_timer
       call start_log(mpiwaitdep_begin)
 #endif
-      call MPI_Waitall(sreq, ireq(rreq+1), status, ierr)
+      call MPI_Waitall(sreq, ireq(rreq+1:nreq), status, ierr)
 #ifdef simple_timer
       call end_log(mpiwaitdep_end)
 #endif
@@ -6909,7 +6914,7 @@ contains
 #ifdef simple_timer
       call start_log(mpiwaitmg_begin)
 #endif
-      call MPI_Waitall(sreq,ireq(rreq+1),status,ierr)
+      call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
 #ifdef simple_timer      
       call end_log(mpiwaitmg_end)
 #endif
@@ -7050,11 +7055,7 @@ contains
       do yproc = 1,nmax
          vdat(yproc,1:kx) = tdat_g(1:kx,1,yproc)
       end do
-      do yproc = 1,nmax
-         do k = 1,kx
-            dsolmax(k) = max( dsolmax(k), tdat_g(k,2,yproc) )
-         end do
-      end do
+      dsolmax(1:kx) = maxval( tdat_g(1:kx,2,1:nmax), dim=2 )
   
    return
    end subroutine mgcollectreduce_sing
@@ -7062,7 +7063,7 @@ contains
    subroutine mgcollectreduce_work(g,vdat,dsolmax,kx,nmax,msg_len,npanx)
 
       integer, intent(in) :: g, kx, nmax, msg_len, npanx
-      integer i, k, n, iq_a, iq_b, iq_c, iq_d
+      integer k, n, iq_a, iq_b, iq_c, iq_d
       integer nrow, ncol, na, nb
       integer yproc, ir, ic, is, ie, js, je, jj
       integer ipanx, nrm1
@@ -7100,25 +7101,19 @@ contains
          is = (ir-1)*nrow+1
          js = (ic-1)*ncol+1
          je = ic*ncol
-         do k = 1,kx
-            do n = 1,npanx
-               na = is + (n-1)*msg_len*nmax
-               nb =  1 + (n-1)*msg_len
-               do jj = js,je
-                  iq_a = na + (jj-1)*ipanx
-                  iq_b = iq_a + nrm1
-                  iq_c = nb + (jj-js)*nrow
-                  iq_d = iq_c + nrm1
-                  vdat(iq_a:iq_b,k) = tdat_g(iq_c:iq_d,k,yproc)
-               end do
+         do n = 1,npanx
+            na = is + (n-1)*msg_len*nmax
+            nb =  1 + (n-1)*msg_len
+            do jj = js,je
+               iq_a = na + (jj-1)*ipanx
+               iq_b = iq_a + nrm1
+               iq_c = nb + (jj-js)*nrow
+               iq_d = iq_c + nrm1
+               vdat(iq_a:iq_b,1:kx) = tdat_g(iq_c:iq_d,1:kx,yproc)
             end do
          end do
       end do
-      do yproc = 1,nmax
-         do k = 1,kx
-            dsolmax(k) = max( dsolmax(k), tdat_g(msg_len*npanx+1,k,yproc) )
-         end do
-      end do
+      dsolmax(1:kx) = maxval( tdat_g(msg_len*npanx+1,1:kx,1:nmax), dim=2 )
   
    return
    end subroutine mgcollectreduce_work
@@ -7223,17 +7218,15 @@ contains
          is = (ir-1)*nrow+1
          js = (ic-1)*ncol+1
          je = ic*ncol
-         do k = 1,kx
-            do n = 1,npanx
-               na = is + (n-1)*msg_len*nmax
-               nb =  1 + (n-1)*msg_len
-               do jj = js,je
-                  iq_a = na + (jj-1)*ipanx
-                  iq_b = iq_a + nrm1
-                  iq_c = nb + (jj-js)*nrow
-                  iq_d = iq_c + nrm1
-                  vdat(iq_a:iq_b,k) = tdat_g(iq_c:iq_d,k,yproc)
-               end do
+         do n = 1,npanx
+            na = is + (n-1)*msg_len*nmax
+            nb =  1 + (n-1)*msg_len
+            do jj = js,je
+               iq_a = na + (jj-1)*ipanx
+               iq_b = iq_a + nrm1
+               iq_c = nb + (jj-js)*nrow
+               iq_d = iq_c + nrm1
+               vdat(iq_a:iq_b,1:kx) = tdat_g(iq_c:iq_d,1:kx,yproc)
             end do
          end do
       end do
@@ -7302,11 +7295,9 @@ contains
       ! unpack buffers (nmax is zero unless this is the host processor)
       do yproc = 1,nmax
          vdat(yproc,1:kx) = tdat_g(1:kx,1,yproc)
-         do k = 1,kx
-            smaxmin(1,k) = max( smaxmin(1,k), tdat_g(k,2,yproc) )
-            smaxmin(2,k) = min( smaxmin(2,k), tdat_g(k,3,yproc) )
-         end do
       end do
+      smaxmin(1,1:kx) = maxval( tdat_g(1:kx,2,1:nmax), dim=2 )
+      smaxmin(2,1:kx) = minval( tdat_g(1:kx,3,1:nmax), dim=2 )
   
    return
    end subroutine mgcollectxn_sing
@@ -7353,24 +7344,20 @@ contains
          is = (ir-1)*nrow+1
          js = (ic-1)*ncol+1
          je = ic*ncol
-         do k = 1,kx
-            do n = 1,npanx
-               na = is + (n-1)*msg_len*nmax
-               nb =  1 + (n-1)*msg_len
-               do jj = js,je
-                  iq_a = na + (jj-1)*ipanx
-                  iq_b = iq_a + nrm1
-                  iq_c = nb + (jj-js)*nrow
-                  iq_d = iq_c + nrm1
-                  vdat(iq_a:iq_b,k) = tdat_g(iq_c:iq_d,k,yproc)
-               end do
+         do n = 1,npanx
+            na = is + (n-1)*msg_len*nmax
+            nb =  1 + (n-1)*msg_len
+            do jj = js,je
+               iq_a = na + (jj-1)*ipanx
+               iq_b = iq_a + nrm1
+               iq_c = nb + (jj-js)*nrow
+               iq_d = iq_c + nrm1
+               vdat(iq_a:iq_b,1:kx) = tdat_g(iq_c:iq_d,1:kx,yproc)
             end do
          end do
-         do k = 1,kx
-            smaxmin(1,k) = max( smaxmin(1,k), tdat_g(msg_len*npanx+1,k,yproc) )
-            smaxmin(2,k) = min( smaxmin(2,k), tdat_g(msg_len*npanx+2,k,yproc) )
-         end do
       end do
+      smaxmin(1,1:kx) = maxval( tdat_g(msg_len*npanx+1,1:kx,1:nmax), dim=2 )
+      smaxmin(2,1:kx) = minval( tdat_g(msg_len*npanx+2,1:kx,1:nmax), dim=2 )
   
    return
    end subroutine mgcollectxn_work
@@ -7985,7 +7972,7 @@ contains
          end if
 
          sreq = nreq - rreq
-         call MPI_Waitall( sreq, ireq(rreq+1), status, ierr )
+         call MPI_Waitall( sreq, ireq(rreq+1:nreq), status, ierr )
          
          ! Now, for each processor send the list of points I want.
          nreq = 0
