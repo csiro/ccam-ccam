@@ -24,6 +24,7 @@ integer, save :: mg_maxsize,mg_minsize,gmax
 
 integer, parameter :: itr_mg   =20
 integer, parameter :: itr_mgice=20
+integer, parameter :: itr_smooth=2
 
 real, parameter :: dfac=0.25 ! adjustment for grid spacing
 
@@ -48,19 +49,19 @@ include 'parmdyn.h'
 
 integer, dimension(kl) :: iters
 integer, dimension(mg_minsize,kl) :: indy
-integer itrc,itr,ng,ng4,g,gb,k,jj,i,j,iq
+integer itrc,itr,ng,ng4,g,gb,k,jj,i,j,iq,itrb
 integer klimc,knew,klim,ir,ic
 integer nc,n,iq_a,iq_b,iq_c,iq_d
 real, dimension(ifull+iextra,kl), intent(inout) :: iv
+real, dimension(ifull+iextra,kl) :: vdum
 real, dimension(ifull,kl), intent(in) :: ihelm,jrhs
 real, dimension(ifull,kl) :: irhs,dsol
 real, dimension(ifull), intent(in) :: izz,izzn,izze,izzw,izzs
 real, dimension(ifullx,kl,maxcolour) :: rhelmc,rhsc
 real, dimension(ifullx,maxcolour) :: zznc,zzec,zzwc,zzsc
-real, dimension(ifull+iextra,kl) :: vdum
 real, dimension(mg_maxsize) :: ws
-real, dimension(mg_minsize,mg_minsize) :: helm_m
 real, dimension(mg_minsize,mg_minsize,kl) :: helm_o
+real, dimension(mg_minsize,mg_minsize) :: helm_m
 real, dimension(2,kl) :: smaxmin_g
 real, dimension(kl) :: dsolmax_g,savg
 
@@ -235,15 +236,21 @@ do itr=1,itr_mg
       ! extension
       ! No mgbounds as the v halo has already been updated and
       ! the coarse interpolation also updates the w halo
-      ws(1:ng4)=mg(g)%v(1:ng4,k)+ws(1:ng4)
-
-      ! post smoothing
-      mg(g)%v(1:ng,k)=(mg(g)%zze*ws(mg(g)%ie)+mg(g)%zzw*ws(mg(g)%iw) &
-                      +mg(g)%zzn*ws(mg(g)%in)+mg(g)%zzs*ws(mg(g)%is) &
-                      -mg(g)%rhs(1:ng,k))/(mg(g)%helm(1:ng,k)-mg(g)%zz)
+      mg(g)%v(1:ng4,k)=mg(g)%v(1:ng4,k)+ws(1:ng4)
     end do
 
-    call mgbounds(g,mg(g)%v,klim=klim,corner=.true.)
+    do itrb=1,itr_smooth
+
+      do k=1,klim
+        ! post smoothing
+        mg(g)%v(1:ng,k)=(mg(g)%zze*mg(g)%v(mg(g)%ie,k)+mg(g)%zzw*mg(g)%v(mg(g)%iw,k) &
+                        +mg(g)%zzn*mg(g)%v(mg(g)%in,k)+mg(g)%zzs*mg(g)%v(mg(g)%is,k) &
+                        -mg(g)%rhs(1:ng,k))/(mg(g)%helm(1:ng,k)-mg(g)%zz)
+      end do
+
+      call mgbounds(g,mg(g)%v,klim=klim,corner=.true.)
+    
+    end do
 
   end do
 
@@ -331,15 +338,19 @@ do itr=1,itr_mg
   ! extension
   iv(1:ifull+iextra,1:klim)=iv(1:ifull+iextra,1:klim)+mg(1)%rhs(1:ifull+iextra,1:klim)
   
-  ! post smoothing
-  do nc=1,maxcolour
-    do k=1,klim
-      dsol(1:ifullx,k)=( zznc(:,nc)*iv(iqn(:,nc),k) + zzwc(:,nc)*iv(iqw(:,nc),k)    &
-                       + zzec(:,nc)*iv(iqe(:,nc),k) + zzsc(:,nc)*iv(iqs(:,nc),k)    &
-                       - rhsc(:,k,nc))*rhelmc(:,k,nc) - iv(iqx(:,nc),k)
-      iv(iqx(:,nc),k) = iv(iqx(:,nc),k) + dsol(1:ifullx,k)
+  do itrb=1,max(itr_smooth-1,1)
+  
+    ! post smoothing
+    do nc=1,maxcolour
+      do k=1,klim
+        dsol(1:ifullx,k)=( zznc(:,nc)*iv(iqn(:,nc),k) + zzwc(:,nc)*iv(iqw(:,nc),k)    &
+                         + zzec(:,nc)*iv(iqe(:,nc),k) + zzsc(:,nc)*iv(iqs(:,nc),k)    &
+                         - rhsc(:,k,nc))*rhelmc(:,k,nc) - iv(iqx(:,nc),k)
+        iv(iqx(:,nc),k) = iv(iqx(:,nc),k) + dsol(1:ifullx,k)
+      end do
+      call bounds_colour(iv,nc,klim=klim)
     end do
-    call bounds_colour(iv,nc,klim=klim)
+    
   end do
 
   ! test for convergence
@@ -387,7 +398,7 @@ include 'newmpar.h'
 integer, intent(out) :: totits
 integer, dimension(mg_minsize) :: indy
 integer itr,itrc,g,ng,ng4,n,i,j,ir,ic,jj,iq
-integer iq_a,iq_b,iq_c,iq_d
+integer iq_a,iq_b,iq_c,iq_d,itrb
 integer nc,gb
 real, intent(in) :: tol,itol
 real, intent(out) :: maxglobseta,maxglobip
@@ -687,14 +698,7 @@ do itr=1,itr_mgice
     ! extension
     ! No mgbounds as the v halo has already been updated and
     ! the coarse interpolation also updates the w halo
-    ws(1:ng4)=mg(g)%v(1:ng4,1)+ws(1:ng4)
-
-    ! post smoothing
-    ng=mg(g)%ifull
-    au(1:ng)=mg(g)%helm(1:ng,1)
-    bu(1:ng)=mg(g)%rhs(1:ng,2)+mg(g)%rhs(1:ng,7)+mg(g)%helm(1:ng,3)*ws(mg(g)%in)+mg(g)%helm(1:ng,4)*ws(mg(g)%is)+mg(g)%helm(1:ng,5)*ws(mg(g)%ie)+mg(g)%helm(1:ng,6)*ws(mg(g)%iw)
-    cu(1:ng)=mg(g)%rhs(1:ng,3)*ws(mg(g)%in)+mg(g)%rhs(1:ng,4)*ws(mg(g)%is)+mg(g)%rhs(1:ng,5)*ws(mg(g)%ie)+mg(g)%rhs(1:ng,6)*ws(mg(g)%iw)-mg(g)%rhs(1:ng,1)
-    mg(g)%v(1:ng,1) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(bu(1:ng)*bu(1:ng)-4.*au(1:ng)*cu(1:ng)))
+    mg(g)%v(1:ng4,1)=mg(g)%v(1:ng4,1)+ws(1:ng4)
 
     ! ice
     ! interpolation
@@ -704,13 +708,27 @@ do itr=1,itr_mgice
     ! extension
     ! No mgbounds as the v halo has already been updated and
     ! the coarse interpolation also updates the w halo
-    ws(1:ng4)=mg(g)%v(1:ng4,2)+ws(1:ng4)
-    
-    mg(g)%v(1:ng,2) = ( -mg(g)%helm(1:ng,7)*ws(mg(g)%in)- mg(g)%helm(1:ng,8)*ws(mg(g)%is) &
-                        -mg(g)%helm(1:ng,9)*ws(mg(g)%ie)-mg(g)%helm(1:ng,10)*ws(mg(g)%iw) &
-                        +mg(g)%rhs(1:ng,8) ) / mg(g)%helm(1:ng,6)
+    mg(g)%v(1:ng4,2)=mg(g)%v(1:ng4,2)+ws(1:ng4)
 
-    call mgbounds(g,mg(g)%v(:,1:2),corner=.true.)
+    ng=mg(g)%ifull
+    do itrb=1,itr_smooth
+
+      ! ocean
+      ! post smoothing
+      au(1:ng)=mg(g)%helm(1:ng,1)
+      bu(1:ng)=mg(g)%rhs(1:ng,2)+mg(g)%rhs(1:ng,7)+mg(g)%helm(1:ng,3)*mg(g)%v(mg(g)%in,1)+mg(g)%helm(1:ng,4)*mg(g)%v(mg(g)%is,1) &
+                                                  +mg(g)%helm(1:ng,5)*mg(g)%v(mg(g)%ie,1)+mg(g)%helm(1:ng,6)*mg(g)%v(mg(g)%iw,1)
+      cu(1:ng)=mg(g)%rhs(1:ng,3)*mg(g)%v(mg(g)%in,1)+mg(g)%rhs(1:ng,4)*mg(g)%v(mg(g)%is,1)                   &
+              +mg(g)%rhs(1:ng,5)*mg(g)%v(mg(g)%ie,1)+mg(g)%rhs(1:ng,6)*mg(g)%v(mg(g)%iw,1)-mg(g)%rhs(1:ng,1)
+      mg(g)%v(1:ng,1) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(bu(1:ng)*bu(1:ng)-4.*au(1:ng)*cu(1:ng)))
+
+      ! ice
+      mg(g)%v(1:ng,2) = ( -mg(g)%helm(1:ng,7)*mg(g)%v(mg(g)%in,2)- mg(g)%helm(1:ng,8)*mg(g)%v(mg(g)%is,2) &
+                          -mg(g)%helm(1:ng,9)*mg(g)%v(mg(g)%ie,2)-mg(g)%helm(1:ng,10)*mg(g)%v(mg(g)%iw,2) &
+                          +mg(g)%rhs(1:ng,8) ) / mg(g)%helm(1:ng,6)
+
+      call mgbounds(g,mg(g)%v(:,1:2),corner=.true.)
+    end do
 
   end do
 
@@ -818,33 +836,37 @@ do itr=1,itr_mgice
   
   ! post smoothing
   
-  do nc=1,maxcolour
+  do itrb=1,max(itr_smooth-1,1)
   
-    ! ocean
-    au(1:ifullx)=iyy(iqx(:,nc))
-    bu(1:ifullx)=izz(iqx(:,nc),1)+ihh(iqx(:,nc))                                     &
-                +iyyn(iqx(:,nc))*neta(iqn(:,nc))+iyys(iqx(:,nc))*neta(iqs(:,nc))     &
-                +iyye(iqx(:,nc))*neta(iqe(:,nc))+iyyw(iqx(:,nc))*neta(iqw(:,nc))
-    cu(1:ifullx)=izzn(iqx(:,nc),1)*neta(iqn(:,nc))+izzs(iqx(:,nc),1)*neta(iqs(:,nc)) &
-                +izze(iqx(:,nc),1)*neta(iqe(:,nc))+izzw(iqx(:,nc),1)*neta(iqw(:,nc)) &
-                -irhs(iqx(:,nc),1)        
-    new(1:ifullx) = -2.*cu(1:ifullx)/(bu(1:ifullx)+sqrt(bu(1:ifullx)*bu(1:ifullx)-4.*au(1:ifullx)*cu(1:ifullx)))
-    neta(iqx(:,nc))=max(new(1:ifullx),-dd(iqx(:,nc)))*ee(iqx(:,nc))
+    do nc=1,maxcolour
+  
+      ! ocean
+      au(1:ifullx)=iyy(iqx(:,nc))
+      bu(1:ifullx)=izz(iqx(:,nc),1)+ihh(iqx(:,nc))                                     &
+                  +iyyn(iqx(:,nc))*neta(iqn(:,nc))+iyys(iqx(:,nc))*neta(iqs(:,nc))     &
+                  +iyye(iqx(:,nc))*neta(iqe(:,nc))+iyyw(iqx(:,nc))*neta(iqw(:,nc))
+      cu(1:ifullx)=izzn(iqx(:,nc),1)*neta(iqn(:,nc))+izzs(iqx(:,nc),1)*neta(iqs(:,nc)) &
+                  +izze(iqx(:,nc),1)*neta(iqe(:,nc))+izzw(iqx(:,nc),1)*neta(iqw(:,nc)) &
+                  -irhs(iqx(:,nc),1)        
+      new(1:ifullx) = -2.*cu(1:ifullx)/(bu(1:ifullx)+sqrt(bu(1:ifullx)*bu(1:ifullx)-4.*au(1:ifullx)*cu(1:ifullx)))
+      neta(iqx(:,nc))=max(new(1:ifullx),-dd(iqx(:,nc)))*ee(iqx(:,nc))
     
-    ! ice
-    new(1:ifullx) = ( -izzn(iqx(:,nc),2)*ipice(iqn(:,nc)) &
-                      -izzs(iqx(:,nc),2)*ipice(iqs(:,nc)) &
-                      -izze(iqx(:,nc),2)*ipice(iqe(:,nc)) &
-                      -izzw(iqx(:,nc),2)*ipice(iqw(:,nc)) &
-                     + irhs(iqx(:,nc),2) ) / izz(iqx(:,nc),2)
-    ! cavitating fluid
-    ipice(iqx(:,nc))=max(min(new(1:ifullx),ipmax(iqx(:,nc))),0.)
+      ! ice
+      new(1:ifullx) = ( -izzn(iqx(:,nc),2)*ipice(iqn(:,nc)) &
+                        -izzs(iqx(:,nc),2)*ipice(iqs(:,nc)) &
+                        -izze(iqx(:,nc),2)*ipice(iqe(:,nc)) &
+                        -izzw(iqx(:,nc),2)*ipice(iqw(:,nc)) &
+                       + irhs(iqx(:,nc),2) ) / izz(iqx(:,nc),2)
+      ! cavitating fluid
+      ipice(iqx(:,nc))=max(min(new(1:ifullx),ipmax(iqx(:,nc))),0.)
 
-    dumc(1:ifull,1)=neta(1:ifull)
-    dumc(1:ifull,2)=ipice(1:ifull)
-    call bounds_colour(dumc(:,:),nc)
-    neta(ifull+1:ifull+iextra) =dumc(ifull+1:ifull+iextra,1)
-    ipice(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,2)
+      dumc(1:ifull,1)=neta(1:ifull)
+      dumc(1:ifull,2)=ipice(1:ifull)
+      call bounds_colour(dumc(:,:),nc)
+      neta(ifull+1:ifull+iextra) =dumc(ifull+1:ifull+iextra,1)
+      ipice(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,2)
+    end do
+    
   end do
   
   ! test for convergence
