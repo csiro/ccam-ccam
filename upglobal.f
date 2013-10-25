@@ -195,13 +195,7 @@
         sdmx(:) = maxval(abs(sdot),2)
 	  nits(:)=1+sdmx(:)/nvadh
 	  nvadh_pass(:)=nvadh*nits(:) ! use - for nvadu
-        dumt=tx(1:ifull,:)
-        dumu=ux(1:ifull,:)
-        dumv=vx(1:ifull,:)
-        call vadvtvd(dumt,dumu,dumv,nvadh_pass,nits,iaero)
-        tx(1:ifull,:)=dumt
-        ux(1:ifull,:)=dumu
-        vx(1:ifull,:)=dumv 
+        call vadvtvd(tx,ux,vx,nvadh_pass,nits,iaero)
 #ifdef debug
         if( (diag.or.nmaxpr==1) .and. mydiag )then
           write(6,*) 'in upglobal after vadv1'

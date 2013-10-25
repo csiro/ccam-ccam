@@ -199,7 +199,6 @@ module cc_mpi
       integer, dimension(:), allocatable :: coarse_a, coarse_b, coarse_c, coarse_d
       integer, dimension(:), allocatable :: fine, fine_n, fine_e, fine_ne
       integer, dimension(:), allocatable :: neighlist
-      real, dimension(:,:), allocatable :: v, rhs, helm
       real, dimension(:), allocatable :: zzn, zze, zzs, zzw, zz
       real, dimension(:), allocatable :: wgt_a, wgt_bc, wgt_d
    end type mgtype
@@ -2866,12 +2865,11 @@ contains
       do iproc = 1,neighnum
          recv_len = rslen(iproc)
          if ( recv_len > 0 ) then
-            rproc = neighlist(iproc)  ! Recv from
-            nreq = nreq + 1
+            lproc = neighlist(iproc)  ! Recv from
+            nreq  = nreq + 1
             rlist(nreq) = iproc
-            llen = recv_len
-            lproc = rproc
-            call MPI_IRecv( bnds(rproc)%rbuf(1), llen, ltype, lproc, &
+            llen  = recv_len
+            call MPI_IRecv( bnds(lproc)%rbuf(1), llen, ltype, lproc, &
                    itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end if
       end do
@@ -2880,15 +2878,14 @@ contains
          ! Build up list of points
          send_len = sslen(iproc)
          if ( send_len > 0 ) then
-            sproc = neighlist(iproc)  ! Send to
+            lproc = neighlist(iproc)  ! Send to
 !cdir nodep
             do iq = 1,send_len
-               bnds(sproc)%sbuf(iq) = t(bnds(sproc)%send_list(iq))
+               bnds(lproc)%sbuf(iq) = t(bnds(lproc)%send_list(iq))
             end do
-            nreq = nreq + 1
-            llen = send_len
-            lproc = sproc
-            call MPI_ISend( bnds(sproc)%sbuf(1), llen, ltype, lproc, &
+            nreq  = nreq + 1
+            llen  = send_len
+            call MPI_ISend( bnds(lproc)%sbuf(1), llen, ltype, lproc, &
                  itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end if
       end do
@@ -2918,11 +2915,11 @@ contains
          
             mproc = donelist(jproc)
             iproc = rlist(mproc)  ! Recv from
-            rproc = neighlist(iproc)
+            lproc = neighlist(iproc)
             ! unpack_list(iq) is index into extended region
 !cdir nodep
             do iq = 1,rslen(iproc)
-               t(ifull+bnds(rproc)%unpack_list(iq)) = bnds(rproc)%rbuf(iq)
+               t(ifull+bnds(lproc)%unpack_list(iq)) = bnds(lproc)%rbuf(iq)
             end do
             
          end do
@@ -2941,7 +2938,7 @@ contains
       logical, intent(in), optional :: corner
       logical, intent(in), optional :: nehalf
       logical :: extra, single, double
-      integer :: iq, iproc, kx, iq_b, iq_e, rproc, sproc, send_len, recv_len
+      integer :: iq, iproc, kx, send_len, recv_len
       integer :: rcount, myrlen, jproc, mproc
       integer, dimension(neighnum) :: rslen, sslen
       integer(kind=4) :: ierr, itag = 2, llen, sreq, lproc
@@ -3013,12 +3010,11 @@ contains
       do iproc = 1,neighnum
          recv_len = rslen(iproc)
          if ( recv_len > 0 ) then
-            rproc = neighlist(iproc)  ! Recv from
+            lproc = neighlist(iproc)  ! Recv from
             nreq = nreq + 1
             rlist(nreq) = iproc
             llen = recv_len*kx
-            lproc = rproc
-            call MPI_IRecv( bnds(rproc)%rbuf(1), llen, ltype, lproc, &
+            call MPI_IRecv( bnds(lproc)%rbuf(1), llen, ltype, lproc, &
                  itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end if
       end do
@@ -3026,17 +3022,14 @@ contains
       do iproc = neighnum,1,-1
          send_len = sslen(iproc)
          if ( send_len > 0 ) then
-            sproc = neighlist(iproc)  ! Send to
+            lproc = neighlist(iproc)  ! Send to
 !cdir nodep
             do iq = 1,send_len
-               iq_b = 1+(iq-1)*kx
-               iq_e = iq*kx
-               bnds(sproc)%sbuf(iq_b:iq_e) = t(bnds(sproc)%send_list(iq),1:kx)
+               bnds(lproc)%sbuf(1+(iq-1)*kx:iq*kx) = t(bnds(lproc)%send_list(iq),1:kx)
             end do
             nreq = nreq + 1
             llen = send_len*kx
-            lproc = sproc
-            call MPI_ISend( bnds(sproc)%sbuf(1), llen, ltype, lproc, &
+            call MPI_ISend( bnds(lproc)%sbuf(1), llen, ltype, lproc, &
                  itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end if
       end do
@@ -3066,12 +3059,10 @@ contains
 
             mproc = donelist(jproc)
             iproc = rlist(mproc)  ! Recv from
-            rproc = neighlist(iproc)
+            lproc = neighlist(iproc)
 !cdir nodep
             do iq = 1,rslen(iproc)
-               iq_b = 1+(iq-1)*kx
-               iq_e = iq*kx
-               t(ifull+bnds(rproc)%unpack_list(iq),1:kx) = bnds(rproc)%rbuf(iq_b:iq_e)
+               t(ifull+bnds(lproc)%unpack_list(iq),1:kx) = bnds(lproc)%rbuf(1+(iq-1)*kx:iq*kx)
             end do
             
          end do
@@ -3090,7 +3081,7 @@ contains
       logical, intent(in), optional :: corner
       logical, intent(in), optional :: nehalf
       logical :: extra, single, double
-      integer :: iq, iproc, kx, iq_b, iq_e, rproc, sproc, send_len, recv_len
+      integer :: iq, iproc, kx, send_len, recv_len
       integer :: rcount, myrlen, jproc, mproc, ntr, nn
       integer, dimension(neighnum) :: rslen, sslen
       integer(kind=4) :: ierr, itag = 2, llen, sreq, lproc
@@ -3163,12 +3154,11 @@ contains
       do iproc = 1,neighnum
          recv_len = rslen(iproc)
          if ( recv_len > 0 ) then
-            rproc = neighlist(iproc)  ! Recv from
+            lproc = neighlist(iproc)  ! Recv from
             nreq = nreq + 1
             rlist(nreq) = iproc
             llen = recv_len*kx*ntr
-            lproc = rproc
-            call MPI_IRecv( bnds(rproc)%rbuf(1), llen, ltype, lproc, &
+            call MPI_IRecv( bnds(lproc)%rbuf(1), llen, ltype, lproc, &
                  itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end if
       end do
@@ -3176,19 +3166,16 @@ contains
       do iproc = neighnum,1,-1
          send_len = sslen(iproc)
          if ( send_len > 0 ) then
-            sproc = neighlist(iproc)  ! Send to
+            lproc = neighlist(iproc)  ! Send to
 !cdir nodep
             do iq = 1,send_len
                do nn = 1,ntr
-                  iq_b = 1+(nn-1)*kx+(iq-1)*kx*ntr
-                  iq_e = nn*kx+(iq-1)*kx*ntr
-                  bnds(sproc)%sbuf(iq_b:iq_e) = t(bnds(sproc)%send_list(iq),1:kx,nn)
+                  bnds(lproc)%sbuf(1+(nn-1)*kx+(iq-1)*kx*ntr:nn*kx+(iq-1)*kx*ntr) = t(bnds(lproc)%send_list(iq),1:kx,nn)
                end do
             end do
             nreq = nreq + 1
             llen = send_len*kx*ntr
-            lproc = sproc
-            call MPI_ISend( bnds(sproc)%sbuf(1), llen, ltype, lproc, &
+            call MPI_ISend( bnds(lproc)%sbuf(1), llen, ltype, lproc, &
                  itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end if
       end do
@@ -3218,13 +3205,11 @@ contains
 
             mproc = donelist(jproc)
             iproc = rlist(mproc)  ! Recv from
-            rproc = neighlist(iproc)
+            lproc = neighlist(iproc)
 !cdir nodep
             do iq = 1,rslen(iproc)
                do nn = 1,ntr
-                  iq_b = 1+(nn-1)*kx+(iq-1)*kx*ntr
-                  iq_e = nn*kx+(iq-1)*kx*ntr
-                  t(ifull+bnds(rproc)%unpack_list(iq),1:kx,nn) = bnds(rproc)%rbuf(iq_b:iq_e)
+                  t(ifull+bnds(lproc)%unpack_list(iq),1:kx,nn) = bnds(lproc)%rbuf(1+(nn-1)*kx+(iq-1)*kx*ntr:nn*kx+(iq-1)*kx*ntr)
                end do
             end do
             
@@ -3242,10 +3227,9 @@ contains
       real, dimension(:,:), intent(inout) :: t
       integer, intent(in) :: lcolour
       integer, intent(in), optional :: klim
-      integer :: iq, iproc, kx, iqz, iq_b, iq_e, rproc, sproc, send_len, recv_len, iqq
+      integer :: iq, iproc, kx, send_len, recv_len, iqq
       integer :: rcount, myrlen, jproc, mproc
-      integer(kind=4) :: ierr, itag = 3, llen, sreq, lproc
-      integer(kind=4) :: ldone
+      integer(kind=4) :: ierr, itag = 3, llen, sreq, lproc, ldone
       integer(kind=4), dimension(MPI_STATUS_SIZE,size(ireq)) :: status
       integer(kind=4), dimension(neighnum) :: donelist
 #ifdef i8r8
@@ -3274,43 +3258,35 @@ contains
 !     Set up the buffers to send and recv
       nreq = 0
       do iproc = 1,neighnum
-         rproc = neighlist(iproc)  ! Recv from
-         recv_len = rcolsp(rproc)%ihfn(lcolour)-rcolsp(rproc)%ihbg(lcolour)   &
-                   +rcolsp(rproc)%iffn(lcolour)-rcolsp(rproc)%ifbg(lcolour)+2
+         lproc = neighlist(iproc)  ! Recv from
+         recv_len = rcolsp(lproc)%ihfn(lcolour)-rcolsp(lproc)%ihbg(lcolour)   &
+                   +rcolsp(lproc)%iffn(lcolour)-rcolsp(lproc)%ifbg(lcolour)+2
          if ( recv_len > 0 ) then
             nreq = nreq + 1
             rlist(nreq) = iproc
             llen = recv_len*kx
-            lproc = rproc
-            call MPI_IRecv( bnds(rproc)%rbuf(1), llen, ltype, lproc, &
+            call MPI_IRecv( bnds(lproc)%rbuf(1), llen, ltype, lproc, &
                  itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end if
       end do
       rreq = nreq
       do iproc = neighnum,1,-1
-         sproc = neighlist(iproc)  ! Send to
-         iqq = -scolsp(sproc)%ihbg(lcolour)+1
+         lproc = neighlist(iproc)  ! Send to
+         iqq = -scolsp(lproc)%ihbg(lcolour)+1
 !cdir nodep
-         do iq=scolsp(sproc)%ihbg(lcolour),scolsp(sproc)%ihfn(lcolour)
-            iqz = iqq+iq
-            iq_b = 1+(iqz-1)*kx
-            iq_e = iqz*kx
-            bnds(sproc)%sbuf(iq_b:iq_e) = t(bnds(sproc)%send_list(iq),1:kx)
+         do iq=scolsp(lproc)%ihbg(lcolour),scolsp(lproc)%ihfn(lcolour)
+            bnds(lproc)%sbuf(1+(iqq+iq-1)*kx:(iqq+iq)*kx) = t(bnds(lproc)%send_list(iq),1:kx)
          end do
-         iqq = iqq+scolsp(sproc)%ihfn(lcolour)-scolsp(sproc)%ifbg(lcolour)+1
+         iqq = iqq+scolsp(lproc)%ihfn(lcolour)-scolsp(lproc)%ifbg(lcolour)+1
 !cdir nodep
-         do iq=scolsp(sproc)%ifbg(lcolour),scolsp(sproc)%iffn(lcolour)
-            iqz = iqq+iq
-            iq_b = 1+(iqz-1)*kx
-            iq_e = iqz*kx
-            bnds(sproc)%sbuf(iq_b:iq_e) = t(bnds(sproc)%send_list(iq),1:kx)
+         do iq=scolsp(lproc)%ifbg(lcolour),scolsp(lproc)%iffn(lcolour)
+            bnds(lproc)%sbuf(1+(iqq+iq-1)*kx:(iqq+iq)*kx) = t(bnds(lproc)%send_list(iq),1:kx)
          end do
-         iqq = iqq+scolsp(sproc)%iffn(lcolour)
+         iqq = iqq+scolsp(lproc)%iffn(lcolour)
          if ( iqq > 0 ) then
             nreq = nreq + 1
             llen = iqq*kx
-            lproc = sproc
-            call MPI_ISend( bnds(sproc)%sbuf(1), llen, ltype, lproc, &
+            call MPI_ISend( bnds(lproc)%sbuf(1), llen, ltype, lproc, &
                  itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end if
       end do
@@ -3340,22 +3316,16 @@ contains
     
             mproc = donelist(jproc)
             iproc = rlist(mproc)  ! Recv from
-            rproc = neighlist(iproc)
-            iqq = -rcolsp(rproc)%ihbg(lcolour)+1
+            lproc = neighlist(iproc)
+            iqq = -rcolsp(lproc)%ihbg(lcolour)+1
 !cdir nodep
-            do iq = rcolsp(rproc)%ihbg(lcolour),rcolsp(rproc)%ihfn(lcolour)
-               iqz = iqq + iq
-               iq_b = 1 + (iqz-1)*kx
-               iq_e = iqz*kx
-               t(ifull+bnds(rproc)%unpack_list(iq),1:kx) = bnds(rproc)%rbuf(iq_b:iq_e)
+            do iq = rcolsp(lproc)%ihbg(lcolour),rcolsp(lproc)%ihfn(lcolour)
+               t(ifull+bnds(lproc)%unpack_list(iq),1:kx) = bnds(lproc)%rbuf(1+(iqq+iq-1)*kx:(iqq+iq)*kx)
             end do
-            iqq = iqq+rcolsp(rproc)%ihfn(lcolour)-rcolsp(rproc)%ifbg(lcolour)+1
+            iqq = iqq+rcolsp(lproc)%ihfn(lcolour)-rcolsp(lproc)%ifbg(lcolour)+1
 !cdir nodep
-            do iq = rcolsp(rproc)%ifbg(lcolour),rcolsp(rproc)%iffn(lcolour)
-               iqz = iqq + iq
-               iq_b = 1 + (iqz-1)*kx
-               iq_e = iqz*kx
-               t(ifull+bnds(rproc)%unpack_list(iq),1:kx) = bnds(rproc)%rbuf(iq_b:iq_e)
+            do iq = rcolsp(lproc)%ifbg(lcolour),rcolsp(lproc)%iffn(lcolour)
+               t(ifull+bnds(lproc)%unpack_list(iq),1:kx) = bnds(lproc)%rbuf(1+(iqq+iq-1)*kx:(iqq+iq)*kx)
             end do
             
          end do
@@ -3375,7 +3345,7 @@ contains
       integer, intent(in), optional :: stag
       logical :: double
       logical :: fsvwu, fnveu, fssvwwu, fnnveeu
-      integer :: iq, iqz, iqt, iproc, rproc, sproc, iqq, send_len, recv_len
+      integer :: iq, iqz, iqt, iproc, iqq, send_len, recv_len
       integer :: rcount, myrlen, jproc, mproc, stagmode
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -3462,95 +3432,93 @@ contains
 !     Set up the buffers to send
       nreq = 0
       do iproc = 1,neighnum
-         rproc = neighlist(iproc)  ! Recv from
+         lproc = neighlist(iproc)  ! Recv from
          recv_len=0
          if ( fsvwu ) then
-            recv_len = recv_len+rsplit(rproc)%iwufn-rsplit(rproc)%isvbg+1
+            recv_len = recv_len+rsplit(lproc)%iwufn-rsplit(lproc)%isvbg+1
          end if
          if ( fnveu ) then
-            recv_len = recv_len+rsplit(rproc)%ieufn-rsplit(rproc)%invbg+1
+            recv_len = recv_len+rsplit(lproc)%ieufn-rsplit(lproc)%invbg+1
          end if         
          if ( fssvwwu ) then
-            recv_len = recv_len+rsplit(rproc)%iwwufn-rsplit(rproc)%issvbg+1
+            recv_len = recv_len+rsplit(lproc)%iwwufn-rsplit(lproc)%issvbg+1
          end if         
          if ( fnnveeu ) then
-            recv_len = recv_len+rsplit(rproc)%ieeufn-rsplit(rproc)%innvbg+1
+            recv_len = recv_len+rsplit(lproc)%ieeufn-rsplit(lproc)%innvbg+1
          end if         
          if ( recv_len > 0 ) then 
             nreq = nreq + 1
             rlist(nreq) = iproc
             llen = recv_len
-            lproc = rproc
-            call MPI_IRecv( bnds(rproc)%rbuf(1), llen, ltype, lproc, &
+            call MPI_IRecv( bnds(lproc)%rbuf(1), llen, ltype, lproc, &
                  itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end if
       end do
       rreq = nreq
       do iproc = neighnum,1,-1
-         sproc = neighlist(iproc)  ! Send to
+         lproc = neighlist(iproc)  ! Send to
          ! Build up list of points
          iqq = 0
          if ( fsvwu ) then
 !cdir nodep
-            do iq=ssplit(sproc)%isvbg,ssplit(sproc)%iwufn
+            do iq=ssplit(lproc)%isvbg,ssplit(lproc)%iwufn
                ! Use abs because sign is used as u/v flag
-               iqz = iqq+iq-ssplit(sproc)%isvbg+1
-               iqt = bnds(sproc)%send_list_uv(iq)
-               if ( (iqt > 0) .neqv. bnds(sproc)%send_swap(iq) ) then
-                  bnds(sproc)%sbuf(iqz) = bnds(sproc)%send_neg(iq)*u(abs(iqt))
+               iqz = iqq+iq-ssplit(lproc)%isvbg+1
+               iqt = bnds(lproc)%send_list_uv(iq)
+               if ( (iqt > 0) .neqv. bnds(lproc)%send_swap(iq) ) then
+                  bnds(lproc)%sbuf(iqz) = bnds(lproc)%send_neg(iq)*u(abs(iqt))
                else
-                  bnds(sproc)%sbuf(iqz) = bnds(sproc)%send_neg(iq)*v(abs(iqt))
+                  bnds(lproc)%sbuf(iqz) = bnds(lproc)%send_neg(iq)*v(abs(iqt))
                end if 
             end do
-            iqq = iqq+ssplit(sproc)%iwufn-ssplit(sproc)%isvbg+1
+            iqq = iqq+ssplit(lproc)%iwufn-ssplit(lproc)%isvbg+1
          end if
          if ( fnveu ) then
 !cdir nodep
-            do iq=ssplit(sproc)%invbg,ssplit(sproc)%ieufn
+            do iq=ssplit(lproc)%invbg,ssplit(lproc)%ieufn
                ! Use abs because sign is used as u/v flag
-               iqz = iqq+iq-ssplit(sproc)%invbg+1
-               iqt = bnds(sproc)%send_list_uv(iq)
-               if ( (iqt > 0) .neqv. bnds(sproc)%send_swap(iq) ) then
-                  bnds(sproc)%sbuf(iqz) = bnds(sproc)%send_neg(iq)*u(abs(iqt))
+               iqz = iqq+iq-ssplit(lproc)%invbg+1
+               iqt = bnds(lproc)%send_list_uv(iq)
+               if ( (iqt > 0) .neqv. bnds(lproc)%send_swap(iq) ) then
+                  bnds(lproc)%sbuf(iqz) = bnds(lproc)%send_neg(iq)*u(abs(iqt))
                else
-                  bnds(sproc)%sbuf(iqz) = bnds(sproc)%send_neg(iq)*v(abs(iqt))
+                  bnds(lproc)%sbuf(iqz) = bnds(lproc)%send_neg(iq)*v(abs(iqt))
                end if 
             end do
-            iqq = iqq+ssplit(sproc)%ieufn-ssplit(sproc)%invbg+1
+            iqq = iqq+ssplit(lproc)%ieufn-ssplit(lproc)%invbg+1
          end if
          if ( fssvwwu ) then
 !cdir nodep
-            do iq=ssplit(sproc)%issvbg,ssplit(sproc)%iwwufn
+            do iq=ssplit(lproc)%issvbg,ssplit(lproc)%iwwufn
                ! Use abs because sign is used as u/v flag
-               iqz = iqq+iq-ssplit(sproc)%issvbg+1
-               iqt = bnds(sproc)%send_list_uv(iq)
-               if ( (iqt > 0) .neqv. bnds(sproc)%send_swap(iq) ) then
-                  bnds(sproc)%sbuf(iqz) = bnds(sproc)%send_neg(iq)*u(abs(iqt))
+               iqz = iqq+iq-ssplit(lproc)%issvbg+1
+               iqt = bnds(lproc)%send_list_uv(iq)
+               if ( (iqt > 0) .neqv. bnds(lproc)%send_swap(iq) ) then
+                  bnds(lproc)%sbuf(iqz) = bnds(lproc)%send_neg(iq)*u(abs(iqt))
                else
-                  bnds(sproc)%sbuf(iqz) = bnds(sproc)%send_neg(iq)*v(abs(iqt))
+                  bnds(lproc)%sbuf(iqz) = bnds(lproc)%send_neg(iq)*v(abs(iqt))
                end if 
             end do
-            iqq = iqq+ssplit(sproc)%iwwufn-ssplit(sproc)%issvbg+1
+            iqq = iqq+ssplit(lproc)%iwwufn-ssplit(lproc)%issvbg+1
          end if
          if ( fnnveeu ) then
 !cdir nodep
-            do iq=ssplit(sproc)%innvbg,ssplit(sproc)%ieeufn
+            do iq=ssplit(lproc)%innvbg,ssplit(lproc)%ieeufn
                ! Use abs because sign is used as u/v flag
-               iqz = iqq+iq-ssplit(sproc)%innvbg+1
-               iqt = bnds(sproc)%send_list_uv(iq)
-               if ( (iqt > 0) .neqv. bnds(sproc)%send_swap(iq) ) then
-                  bnds(sproc)%sbuf(iqz) = bnds(sproc)%send_neg(iq)*u(abs(iqt))
+               iqz = iqq+iq-ssplit(lproc)%innvbg+1
+               iqt = bnds(lproc)%send_list_uv(iq)
+               if ( (iqt > 0) .neqv. bnds(lproc)%send_swap(iq) ) then
+                  bnds(lproc)%sbuf(iqz) = bnds(lproc)%send_neg(iq)*u(abs(iqt))
                else
-                  bnds(sproc)%sbuf(iqz) = bnds(sproc)%send_neg(iq)*v(abs(iqt))
+                  bnds(lproc)%sbuf(iqz) = bnds(lproc)%send_neg(iq)*v(abs(iqt))
                end if 
             end do
-            iqq = iqq+ssplit(sproc)%ieeufn-ssplit(sproc)%innvbg+1
+            iqq = iqq+ssplit(lproc)%ieeufn-ssplit(lproc)%innvbg+1
          end if
          if ( iqq > 0 ) then
             nreq = nreq + 1
             llen = iqq
-            lproc = sproc
-            call MPI_ISend( bnds(sproc)%sbuf(1), llen, ltype, lproc, &
+            call MPI_ISend( bnds(lproc)%sbuf(1), llen, ltype, lproc, &
                  itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end if
       end do
@@ -3592,63 +3560,63 @@ contains
 
             mproc = donelist(jproc)
             iproc = rlist(mproc)  ! Recv from
-            rproc = neighlist(iproc)
+            lproc = neighlist(iproc)
             iqq = 0
             if ( fsvwu ) then
 !cdir nodep
-               do iq=rsplit(rproc)%isvbg,rsplit(rproc)%iwufn
+               do iq=rsplit(lproc)%isvbg,rsplit(lproc)%iwufn
                   ! unpack_list(iq) is index into extended region
-                  iqz = iqq+iq-rsplit(rproc)%isvbg+1
-                  iqt = bnds(rproc)%unpack_list_uv(iq) 
+                  iqz = iqq+iq-rsplit(lproc)%isvbg+1
+                  iqt = bnds(lproc)%unpack_list_uv(iq) 
                   if ( iqt > 0 ) then
-                     u(ifull+iqt) = bnds(rproc)%rbuf(iqz)
+                     u(ifull+iqt) = bnds(lproc)%rbuf(iqz)
                   else
-                     v(ifull-iqt) = bnds(rproc)%rbuf(iqz)
+                     v(ifull-iqt) = bnds(lproc)%rbuf(iqz)
                   end if
                end do
-               iqq = iqq+rsplit(rproc)%iwufn-rsplit(rproc)%isvbg+1
+               iqq = iqq+rsplit(lproc)%iwufn-rsplit(lproc)%isvbg+1
             end if
             if ( fnveu ) then
 !cdir nodep
-               do iq=rsplit(rproc)%invbg,rsplit(rproc)%ieufn
+               do iq=rsplit(lproc)%invbg,rsplit(lproc)%ieufn
                   ! unpack_list(iq) is index into extended region
-                  iqz = iqq+iq-rsplit(rproc)%invbg+1
-                  iqt = bnds(rproc)%unpack_list_uv(iq) 
+                  iqz = iqq+iq-rsplit(lproc)%invbg+1
+                  iqt = bnds(lproc)%unpack_list_uv(iq) 
                   if ( iqt > 0 ) then
-                     u(ifull+iqt) = bnds(rproc)%rbuf(iqz)
+                     u(ifull+iqt) = bnds(lproc)%rbuf(iqz)
                   else
-                     v(ifull-iqt) = bnds(rproc)%rbuf(iqz)
+                     v(ifull-iqt) = bnds(lproc)%rbuf(iqz)
                   end if
                end do
-               iqq = iqq+rsplit(rproc)%ieufn-rsplit(rproc)%invbg+1
+               iqq = iqq+rsplit(lproc)%ieufn-rsplit(lproc)%invbg+1
             end if
             if ( fssvwwu ) then
 !cdir nodep
-               do iq=rsplit(rproc)%issvbg,rsplit(rproc)%iwwufn
+               do iq=rsplit(lproc)%issvbg,rsplit(lproc)%iwwufn
                   ! unpack_list(iq) is index into extended region
-                  iqz = iqq+iq-rsplit(rproc)%issvbg+1
-                  iqt = bnds(rproc)%unpack_list_uv(iq)
+                  iqz = iqq+iq-rsplit(lproc)%issvbg+1
+                  iqt = bnds(lproc)%unpack_list_uv(iq)
                   if ( iqt > 0 ) then
-                     u(ifull+iqt) = bnds(rproc)%rbuf(iqz)
+                     u(ifull+iqt) = bnds(lproc)%rbuf(iqz)
                   else
-                     v(ifull-iqt) = bnds(rproc)%rbuf(iqz)
+                     v(ifull-iqt) = bnds(lproc)%rbuf(iqz)
                   end if
                end do
-               iqq = iqq+rsplit(rproc)%iwwufn-rsplit(rproc)%issvbg+1
+               iqq = iqq+rsplit(lproc)%iwwufn-rsplit(lproc)%issvbg+1
             end if
             if ( fnnveeu ) then
 !cdir nodep
-               do iq=rsplit(rproc)%innvbg,rsplit(rproc)%ieeufn
+               do iq=rsplit(lproc)%innvbg,rsplit(lproc)%ieeufn
                   ! unpack_list(iq) is index into extended region
-                  iqz = iqq+iq-rsplit(rproc)%innvbg+1
-                  iqt = bnds(rproc)%unpack_list_uv(iq) 
+                  iqz = iqq+iq-rsplit(lproc)%innvbg+1
+                  iqt = bnds(lproc)%unpack_list_uv(iq) 
                   if ( iqt > 0 ) then
-                     u(ifull+iqt) = bnds(rproc)%rbuf(iqz)
+                     u(ifull+iqt) = bnds(lproc)%rbuf(iqz)
                   else
-                     v(ifull-iqt) = bnds(rproc)%rbuf(iqz)
+                     v(ifull-iqt) = bnds(lproc)%rbuf(iqz)
                   end if
                end do
-               iqq = iqq+rsplit(rproc)%ieeufn-rsplit(rproc)%innvbg+1
+               iqq = iqq+rsplit(lproc)%ieeufn-rsplit(lproc)%innvbg+1
             end if
 
          end do
@@ -6051,7 +6019,12 @@ contains
    subroutine ccmpi_reduce2i(ldat,gdat,op,host,comm)
    
       integer, intent(in) :: host,comm
-      integer(kind=4) ltype,lop,lcomm,ierr,lsize,lkind,lhost,mnum
+      integer(kind=4) :: lop, lcomm, ierr, lsize, lkind, lhost, mnum
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_INTEGER8
+#else
+      integer(kind=4), parameter :: ltype = MPI_INTEGER
+#endif 
       integer, dimension(:), intent(in) :: ldat
       integer, dimension(:), intent(out) :: gdat
       character(len=*), intent(in) :: op
@@ -6074,11 +6047,6 @@ contains
       lhost = host
       lcomm = comm
       lsize = size(ldat)
-#ifdef i8r8
-      ltype = MPI_INTEGER8
-#else
-      ltype = MPI_INTEGER
-#endif 
 
       call MPI_Reduce(ldat, gdat, lsize, ltype, lop, lhost, lcomm, ierr )
  
@@ -6088,8 +6056,8 @@ contains
 
    subroutine ccmpi_reduce2r(ldat,gdat,op,host,comm)
    
-      integer, intent(in) :: host,comm
-      integer(kind=4) ltype,lop,lcomm,lerr,lsize,lhost,mnum
+      integer, intent(in) :: host, comm
+      integer(kind=4) :: ltype, lop, lcomm, lerr, lsize, lhost, mnum
       real, dimension(:), intent(in) :: ldat
       real, dimension(:), intent(out) :: gdat
       character(len=*), intent(in) :: op
@@ -6219,7 +6187,12 @@ contains
       use sumdd_m
    
       integer, intent(in) :: host,comm
-      integer(kind=4) ltype,lop,lcomm,lerr,lsize,lhost,mnum
+      integer(kind=4) :: lop, lcomm, lerr, lsize, lhost, mnum
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
+#else
+      integer(kind=4), parameter :: ltype = MPI_COMPLEX
+#endif 
       complex, dimension(:), intent(in) :: ldat
       complex, dimension(:), intent(out) :: gdat
       character(len=*), intent(in) :: op
@@ -6244,12 +6217,6 @@ contains
       lhost = host
       lcomm = comm
       lsize = size(ldat)
-#ifdef i8r8
-      ltype = MPI_DOUBLE_COMPLEX
-#else
-      ltype = MPI_COMPLEX
-#endif 
-     
       call MPI_Reduce(ldat, gdat, lsize, ltype, lop, lhost, lcomm, lerr )
    
       call end_log(reduce_end)
@@ -6259,7 +6226,12 @@ contains
    subroutine ccmpi_allreduce2i(ldat,gdat,op,comm)
    
       integer, intent(in) :: comm
-      integer(kind=4) ltype,lop,lcomm,lerr,lsize,mnum
+      integer(kind=4) :: lop, lcomm, lerr, lsize, mnum
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_INTEGER8
+#else
+      integer(kind=4), parameter :: ltype = MPI_INTEGER
+#endif 
       integer, dimension(:), intent(in) :: ldat
       integer, dimension(:), intent(out) :: gdat
       character(len=*), intent(in) :: op
@@ -6281,12 +6253,6 @@ contains
       
       lcomm = comm
       lsize = size(ldat)
-#ifdef i8r8
-      ltype = MPI_INTEGER8
-#else
-      ltype = MPI_INTEGER
-#endif 
-     
       call MPI_AllReduce(ldat, gdat, lsize, ltype, lop, lcomm, lerr )
  
       call end_log(reduce_end)
@@ -6410,7 +6376,12 @@ contains
       use sumdd_m
    
       integer, intent(in) :: comm
-      integer(kind=4) :: ltype, lop, lcomm, lerr, lsize, mnum
+      integer(kind=4) :: lop, lcomm, lerr, lsize, mnum
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
+#else
+      integer(kind=4), parameter :: ltype = MPI_COMPLEX
+#endif 
       complex, dimension(:), intent(in) :: ldat
       complex, dimension(:), intent(out) :: gdat
       character(len=*), intent(in) :: op
@@ -6434,12 +6405,6 @@ contains
       
       lcomm = comm
       lsize = size(ldat)
-#ifdef i8r8
-      ltype = MPI_DOUBLE_COMPLEX
-#else
-      ltype = MPI_COMPLEX
-#endif 
-     
       call MPI_AllReduce(ldat, gdat, lsize, ltype, lop, lcomm, lerr )
    
       call end_log(reduce_end)
@@ -6449,7 +6414,7 @@ contains
    subroutine ccmpi_abort(ierrin)
    
       integer, intent(in) :: ierrin
-      integer(kind=4) lerrin,ierr
+      integer(kind=4) :: lerrin, ierr
       
       lerrin = ierrin
       call MPI_Abort(MPI_COMM_WORLD,lerrin,ierr)
@@ -6458,21 +6423,20 @@ contains
 
    subroutine ccmpi_bcast1i(ldat,host,comm)
 
-      integer, intent(in) :: host,comm
-      integer(kind=4) ltype,lcomm,lhost,lerr,lsize
-      integer, intent(in) :: ldat
+      integer, intent(in) :: host, comm
+      integer(kind=4) :: lcomm, lhost, lerr, lsize
+#ifdef i8r8
+      integer(kind=4) :: ltype = MPI_INTEGER8
+#else
+      integer(kind=4) :: ltype = MPI_INTEGER
+#endif
+      integer, intent(inout) :: ldat
 
       call start_log(bcast_begin)
 
       lhost = host
       lcomm = comm
       lsize = 1
-#ifdef i8r8
-      ltype = MPI_INTEGER8
-#else
-      ltype = MPI_INTEGER
-#endif 
-   
       call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,lerr)
          
       call end_log(bcast_end)
@@ -6481,21 +6445,20 @@ contains
 
    subroutine ccmpi_bcast2i(ldat,host,comm)
 
-      integer, intent(in) :: host,comm
-      integer(kind=4) ltype,lcomm,lhost,lerr,lsize
-      integer, dimension(:), intent(in) :: ldat
+      integer, intent(in) :: host, comm
+      integer(kind=4) :: lcomm, lhost, lerr, lsize
+#ifdef i8r8
+      integer(kind=4) :: ltype = MPI_INTEGER8
+#else
+      integer(kind=4) :: ltype = MPI_INTEGER
+#endif
+      integer, dimension(:), intent(inout) :: ldat
 
       call start_log(bcast_begin)
 
       lhost = host
       lcomm = comm
       lsize = size(ldat)
-#ifdef i8r8
-      ltype = MPI_INTEGER8
-#else
-      ltype = MPI_INTEGER
-#endif 
-   
       call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,lerr)
          
       call end_log(bcast_end)
@@ -6504,21 +6467,20 @@ contains
 
    subroutine ccmpi_bcast3i(ldat,host,comm)
 
-      integer, intent(in) :: host,comm
-      integer(kind=4) ltype,lcomm,lhost,lerr,lsize
-      integer, dimension(:,:), intent(in) :: ldat
+      integer, intent(in) :: host, comm
+      integer(kind=4) :: lcomm, lhost, lerr, lsize
+#ifdef i8r8
+      integer(kind=4) :: ltype = MPI_INTEGER8
+#else
+      integer(kind=4) :: ltype = MPI_INTEGER
+#endif
+      integer, dimension(:,:), intent(inout) :: ldat
 
       call start_log(bcast_begin)
 
       lhost = host
       lcomm = comm
       lsize = size(ldat)
-#ifdef i8r8
-      ltype = MPI_INTEGER8
-#else
-      ltype = MPI_INTEGER
-#endif   
-   
       call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,lerr)
       
       call end_log(bcast_end)   
@@ -6527,21 +6489,20 @@ contains
    
    subroutine ccmpi_bcast2r(ldat,host,comm)
    
-      integer, intent(in) :: host,comm
-      integer(kind=4) ltype,lcomm,lhost,lerr,lsize
-      real, dimension(:), intent(in) :: ldat
+      integer, intent(in) :: host, comm
+      integer(kind=4) :: lcomm, lhost, lerr, lsize
+#ifdef i8r8
+      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4) :: ltype = MPI_REAL
+#endif
+      real, dimension(:), intent(inout) :: ldat
 
       call start_log(bcast_begin)
 
       lhost = host
       lcomm = comm
       lsize = size(ldat)
-#ifdef i8r8
-      ltype = MPI_DOUBLE_PRECISION
-#else
-      ltype = MPI_REAL
-#endif 
-   
       call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,lerr)
    
       call end_log(bcast_end)
@@ -6550,21 +6511,20 @@ contains
 
    subroutine ccmpi_bcast3r(ldat,host,comm)
    
-      integer, intent(in) :: host,comm
-      integer(kind=4) ltype,lcomm,lhost,lerr,lsize
-      real, dimension(:,:), intent(in) :: ldat
+      integer, intent(in) :: host, comm
+      integer(kind=4) :: lcomm, lhost, lerr, lsize
+#ifdef i8r8
+      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4) :: ltype = MPI_REAL
+#endif
+      real, dimension(:,:), intent(inout) :: ldat
 
       call start_log(bcast_begin)
 
       lhost = host
       lcomm = comm
       lsize = size(ldat)
-#ifdef i8r8
-      ltype = MPI_DOUBLE_PRECISION
-#else
-      ltype = MPI_REAL
-#endif   
-   
       call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,lerr)
    
       call end_log(bcast_end)
@@ -6573,21 +6533,20 @@ contains
 
    subroutine ccmpi_bcast4r(ldat,host,comm)
    
-      integer, intent(in) :: host,comm
-      integer(kind=4) ltype,lcomm,lhost,lerr,lsize
-      real, dimension(:,:,:), intent(in) :: ldat
+      integer, intent(in) :: host, comm
+      integer(kind=4) :: lcomm, lhost, lerr, lsize
+#ifdef i8r8
+      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4) :: ltype = MPI_REAL
+#endif
+      real, dimension(:,:,:), intent(inout) :: ldat
 
       call start_log(bcast_begin)
 
       lhost = host
       lcomm = comm
       lsize = size(ldat)
-#ifdef i8r8
-      ltype = MPI_DOUBLE_PRECISION
-#else
-      ltype = MPI_REAL
-#endif  
-   
       call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,lerr)
    
       call end_log(bcast_end)
@@ -6596,20 +6555,20 @@ contains
 
    subroutine ccmpi_bcast5r(ldat,host,comm)
    
-      integer, intent(in) :: host,comm
-      integer(kind=4) ltype,lcomm,lhost,lerr,lsize
-      real, dimension(:,:,:,:), intent(in) :: ldat
+      integer, intent(in) :: host, comm
+      integer(kind=4) :: lcomm, lhost, lerr, lsize
+#ifdef i8r8
+      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4) :: ltype = MPI_REAL
+#endif
+      real, dimension(:,:,:,:), intent(inout) :: ldat
 
       call start_log(bcast_begin)
 
       lhost = host
       lcomm = comm
       lsize = size(ldat)
-#ifdef i8r8
-      ltype = MPI_DOUBLE_PRECISION
-#else
-      ltype = MPI_REAL
-#endif
       call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,lerr)
    
       call end_log(bcast_end)
@@ -6618,17 +6577,16 @@ contains
 
    subroutine ccmpi_bcast2s(ldat,host,comm)
    
-      integer, intent(in) :: host,comm
-      integer(kind=4) ltype,lcomm,lhost,lerr,lsize
-      character(len=*), dimension(:), intent(in) :: ldat
+      integer, intent(in) :: host, comm
+      integer(kind=4) :: lcomm, lhost, lerr, lsize
+      integer(kind=4), parameter :: ltype = MPI_CHARACTER
+      character(len=*), dimension(:), intent(inout) :: ldat
 
       call start_log(bcast_begin)
 
       lhost = host
       lcomm = comm
       lsize = size(ldat)*len(ldat(1))
-      ltype = MPI_CHARACTER
-   
       call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,lerr)
    
       call end_log(bcast_end)
@@ -6637,17 +6595,16 @@ contains
    
    subroutine ccmpi_bcast2r8(ldat,host,comm)
    
-      integer, intent(in) :: host,comm
-      integer(kind=4) ltype,lcomm,lhost,ierr,lsize
-      double precision, dimension(:), intent(in) :: ldat
+      integer, intent(in) :: host, comm
+      integer(kind=4) :: lcomm, lhost, ierr, lsize
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+      double precision, dimension(:), intent(inout) :: ldat
    
       call start_log(bcast_begin)
       
       lhost = host
       lcomm = comm
       lsize = size(ldat)
-      ltype = MPI_DOUBLE_PRECISION
-   
       call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,ierr)
    
       call end_log(bcast_end)
@@ -6657,16 +6614,15 @@ contains
    subroutine ccmpi_bcast3r8(ldat,host,comm)
    
       integer, intent(in) :: host,comm
-      integer(kind=4) ltype,lcomm,lhost,ierr,lsize
-      double precision, dimension(:,:), intent(in) :: ldat
+      integer(kind=4) :: lcomm, lhost, ierr, lsize
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+      double precision, dimension(:,:), intent(inout) :: ldat
    
       call start_log(bcast_begin)
       
       lhost = host
       lcomm = comm
       lsize = size(ldat)
-      ltype = MPI_DOUBLE_PRECISION
-   
       call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,ierr)
    
       call end_log(bcast_end)
@@ -6676,16 +6632,15 @@ contains
    subroutine ccmpi_bcast4r8(ldat,host,comm)
    
       integer, intent(in) :: host,comm
-      integer(kind=4) ltype,lcomm,lhost,ierr,lsize
-      double precision, dimension(:,:,:), intent(in) :: ldat
+      integer(kind=4) :: lcomm, lhost, ierr, lsize
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+      double precision, dimension(:,:,:), intent(inout) :: ldat
 
       call start_log(bcast_begin)
 
       lhost = host
       lcomm = comm
       lsize = size(ldat)
-      ltype = MPI_DOUBLE_PRECISION
-   
       call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,ierr)
    
       call end_log(bcast_end)
@@ -6695,7 +6650,7 @@ contains
    subroutine ccmpi_barrier(comm)
    
       integer, intent(in) :: comm
-      integer(kind=4) lcomm,ierr
+      integer(kind=4) :: lcomm, ierr
       
       lcomm = comm
       call MPI_Barrier( lcomm, ierr )
@@ -6705,19 +6660,18 @@ contains
    subroutine ccmpi_gatherx2r(gdat,ldat,host,comm)
 
       integer, intent(in) :: host, comm
-      integer(kind=4) lsize, ltype, lhost, lcomm, lerr, mnum
+      integer(kind=4) :: lsize, lhost, lcomm, lerr
+#ifdef i8r8
+      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4) :: ltype = MPI_REAL
+#endif
       real, dimension(:), intent(out) :: gdat
       real, dimension(:), intent(in) :: ldat
 
       lcomm = comm
       lhost = host
       lsize = size(ldat)
-#ifdef i8r8
-      ltype = MPI_DOUBLE_PRECISION
-#else
-      ltype = MPI_REAL
-#endif     
-   
       call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
    
    end subroutine ccmpi_gatherx2r
@@ -6725,19 +6679,18 @@ contains
    subroutine ccmpi_scatterx2r(gdat,ldat,host,comm)
    
       integer, intent(in) :: host, comm
-      integer(kind=4) lsize, ltype, lhost, lcomm, lerr, mnum
+      integer(kind=4) :: lsize, lhost, lcomm, lerr
+#ifdef i8r8
+      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4) :: ltype = MPI_REAL
+#endif
       real, dimension(:), intent(in) :: gdat
       real, dimension(:), intent(out) :: ldat
 
       lcomm = comm
       lhost = host
       lsize = size(ldat)
-#ifdef i8r8
-      ltype = MPI_DOUBLE_PRECISION
-#else
-      ltype = MPI_REAL
-#endif     
-   
       call MPI_Scatter(gdat,lsize,ltype,ldat,lsize,ltype,lhost,lcomm,lerr)
    
    end subroutine ccmpi_scatterx2r
@@ -6775,7 +6728,6 @@ contains
    
       lcomm = comm
       lsize = size(ldat)
-      
       call MPI_AllGather(ldat,lsize,ltype,gdat,lsize,ltype,lcomm,lerr)
       
    end subroutine ccmpi_allgatherx2r
@@ -6783,7 +6735,12 @@ contains
    subroutine ccmpi_recv2r(ldat,iproc,itag,comm)
    
       integer, intent(in) :: iproc, itag, comm
-      integer(kind=4) lproc, ltag, lcomm, lerr, lsize, ltype
+      integer(kind=4) :: lproc, ltag, lcomm, lerr, lsize
+#ifdef i8r8
+      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4) :: ltype = MPI_REAL
+#endif
       integer(kind=4), dimension(MPI_STATUS_SIZE) :: lstatus
       real, dimension(:), intent(out) :: ldat
    
@@ -6791,12 +6748,6 @@ contains
       ltag = itag
       lcomm = comm
       lsize = size(ldat)      
-#ifdef i8r8
-      ltype = MPI_DOUBLE_PRECISION
-#else
-      ltype = MPI_REAL
-#endif
-      
       call MPI_Recv(ldat,lsize,ltype,lproc,ltag,lcomm,lstatus,lerr)
    
    end subroutine ccmpi_recv2r
@@ -6804,7 +6755,12 @@ contains
    subroutine ccmpi_ssend2r(ldat,iproc,itag,comm)
    
       integer, intent(in) :: iproc, itag, comm
-      integer(kind=4) lproc, ltag, lcomm, lerr, lsize, ltype
+      integer(kind=4) :: lproc, ltag, lcomm, lerr, lsize
+#ifdef i8r8
+      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4) :: ltype = MPI_REAL
+#endif
       integer(kind=4), dimension(MPI_STATUS_SIZE) :: lstatus
       real, dimension(:), intent(in) :: ldat
 
@@ -6812,19 +6768,13 @@ contains
       ltag = itag
       lcomm = comm
       lsize = size(ldat)      
-#ifdef i8r8
-      ltype = MPI_DOUBLE_PRECISION
-#else
-      ltype = MPI_REAL
-#endif
-  
       call MPI_SSend(ldat,lsize,ltype,lproc,ltag,lcomm,lerr)
    
    end subroutine ccmpi_ssend2r
 
    subroutine ccmpi_init
 
-      integer(kind=4) lerr, lproc, lid
+      integer(kind=4) :: lerr, lproc, lid
 
       call MPI_Init(lerr)
       call MPI_Comm_size(MPI_COMM_WORLD, lproc, lerr) ! Find number of processes
@@ -6838,7 +6788,7 @@ contains
    
    subroutine ccmpi_finalize
    
-      integer(kind=4) lerr
+      integer(kind=4) :: lerr
    
       call MPI_Finalize(lerr)
    
@@ -6848,7 +6798,7 @@ contains
    
       integer, intent(out) :: commout
       integer, intent(in) :: comm, colour, rank
-      integer(kind=4) lcomm, lcommout, lerr, lrank, lcolour
+      integer(kind=4) :: lcomm, lcommout, lerr, lrank, lcolour
    
       lcomm = comm
       lcolour = colour
@@ -6861,7 +6811,7 @@ contains
    subroutine ccmpi_commfree(comm)
    
       integer, intent(in) :: comm
-      integer(kind=4) lcomm, lerr
+      integer(kind=4) :: lcomm, lerr
       
       lcomm = comm
       call MPI_Comm_Free(lcomm,lerr)
@@ -6876,7 +6826,7 @@ contains
       integer, intent(in) :: g
       integer, intent(in), optional :: klim
       integer :: kx, iq
-      integer :: iproc, iq_b, iq_e, rproc, sproc, recv_len, send_len
+      integer :: iproc, recv_len, send_len
       integer :: rcount, myrlen, jproc, mproc
       integer, dimension(mg(g)%neighnum) :: rslen, sslen
       integer(kind=4) :: ierr, itag=20, llen, sreq, lproc
@@ -6894,10 +6844,16 @@ contains
 
       call start_log(mgbounds_begin)
       
-      kx = size(vdat,2)
-      extra = .false.
-      if (present(klim)  ) kx = klim
-      if (present(corner)) extra = corner
+      if (present(klim)  ) then
+         kx = klim
+      else
+         kx = size(vdat,2)
+      end if
+      if (present(corner)) then
+         extra = corner
+      else
+         extra = .false.
+      end if
 
       if ( extra ) then
          rslen  = mg_bnds(mg(g)%neighlist,g)%rlenx
@@ -6924,12 +6880,11 @@ contains
       do iproc = 1,mg(g)%neighnum
          recv_len = rslen(iproc)
          if ( recv_len > 0 ) then
-            rproc = mg(g)%neighlist(iproc)  ! Recv from
+            lproc = mg(g)%neighlist(iproc)  ! Recv from
             nreq = nreq + 1
             rlist(nreq) = iproc
             llen = recv_len*kx
-            lproc = rproc
-            call MPI_IRecv( bnds(rproc)%rbuf(1), llen, ltype, lproc, &
+            call MPI_IRecv( bnds(lproc)%rbuf(1), llen, ltype, lproc, &
                             itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end if
       end do
@@ -6937,17 +6892,14 @@ contains
       do iproc = mg(g)%neighnum,1,-1
          send_len = sslen(iproc)
          if ( send_len > 0 ) then
-            sproc = mg(g)%neighlist(iproc)  ! Send to
+            lproc = mg(g)%neighlist(iproc)  ! Send to
 !cdir nodep
             do iq = 1,send_len
-               iq_b = 1+(iq-1)*kx
-               iq_e = iq*kx
-               bnds(sproc)%sbuf(iq_b:iq_e) = vdat(mg_bnds(sproc,g)%send_list(iq),1:kx)
+               bnds(lproc)%sbuf(1+(iq-1)*kx:iq*kx) = vdat(mg_bnds(lproc,g)%send_list(iq),1:kx)
             end do
             nreq = nreq + 1
             llen = send_len*kx
-            lproc = sproc
-            call MPI_ISend( bnds(sproc)%sbuf(1), llen, ltype, lproc, &
+            call MPI_ISend( bnds(lproc)%sbuf(1), llen, ltype, lproc, &
                             itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end if
       end do
@@ -6976,12 +6928,10 @@ contains
          
             mproc = donelist(jproc)
             iproc = rlist(mproc)  ! Recv from
-            rproc = mg(g)%neighlist(iproc)
+            lproc = mg(g)%neighlist(iproc)
 !cdir nodep
             do iq = 1,rslen(iproc)
-               iq_b = 1+(iq-1)*kx
-               iq_e = iq*kx
-               vdat(mg(g)%ifull+mg_bnds(rproc,g)%unpack_list(iq),1:kx) = bnds(rproc)%rbuf(iq_b:iq_e)
+               vdat(mg(g)%ifull+mg_bnds(lproc,g)%unpack_list(iq),1:kx) = bnds(lproc)%rbuf(1+(iq-1)*kx:iq*kx)
             end do
             
          end do
@@ -6998,8 +6948,7 @@ contains
 
       integer, intent(in) :: g
       integer, intent(in), optional :: klim
-      integer nmax, npanx, kx
-      integer msg_len
+      integer :: nmax, npanx, kx, msg_len
       real, dimension(:,:), intent(inout) :: vdat
       real, dimension(:), intent(inout) :: dsolmax
 
@@ -7009,8 +6958,11 @@ contains
 
       call start_log(mgcollect_begin)
 
-      kx = size(vdat,2)
-      if (present(klim)) kx = klim
+      if (present(klim)) then
+         kx = klim
+      else
+         kx = size(vdat,2)      
+      end if
 
       npanx = mg(g)%npanx
       msg_len = mg(g)%ifull/(nmax*npanx) ! message unit size
@@ -7030,8 +6982,6 @@ contains
    subroutine mgcollectreduce_sing(g,vdat,dsolmax,kx,nmax)
 
       integer, intent(in) :: g, kx, nmax
-      integer k, iq_a, yproc, ir, ic
-      integer ipanx
       integer(kind=4) :: ierr, ilen, lcomm
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -7052,9 +7002,7 @@ contains
       call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0, lcomm, ierr )      
 
       ! unpack buffers (nmax is zero unless this is the host processor)
-      do yproc = 1,nmax
-         vdat(yproc,1:kx) = tdat_g(1:kx,1,yproc)
-      end do
+      vdat(1:nmax,1:kx) = transpose( tdat_g(1:kx,1,1:nmax) )
       dsolmax(1:kx) = maxval( tdat_g(1:kx,2,1:nmax), dim=2 )
   
    return
@@ -7063,7 +7011,7 @@ contains
    subroutine mgcollectreduce_work(g,vdat,dsolmax,kx,nmax,msg_len,npanx)
 
       integer, intent(in) :: g, kx, nmax, msg_len, npanx
-      integer k, n, iq_a, iq_b, iq_c, iq_d
+      integer n, iq_a, iq_c
       integer nrow, ncol, na, nb
       integer yproc, ir, ic, is, ie, js, je, jj
       integer ipanx, nrm1
@@ -7084,9 +7032,7 @@ contains
       ncol  = msg_len/nrow                ! number of points along a col per processor
       nrm1  = nrow - 1
 
-      do k = 1,kx
-         tdat(1:msg_len*npanx,k) = vdat(1:msg_len*npanx,k)
-      end do
+      tdat(1:msg_len*npanx,1:kx) = vdat(1:msg_len*npanx,1:kx)
       tdat(msg_len*npanx+1,1:kx) = dsolmax(1:kx)
 
       ilen = (msg_len*npanx+1)*kx
@@ -7106,10 +7052,8 @@ contains
             nb =  1 + (n-1)*msg_len
             do jj = js,je
                iq_a = na + (jj-1)*ipanx
-               iq_b = iq_a + nrm1
                iq_c = nb + (jj-js)*nrow
-               iq_d = iq_c + nrm1
-               vdat(iq_a:iq_b,1:kx) = tdat_g(iq_c:iq_d,1:kx,yproc)
+               vdat(iq_a:iq_a+nrm1,1:kx) = tdat_g(iq_c:iq_c+nrm1,1:kx,yproc)
             end do
          end do
       end do
@@ -7132,8 +7076,11 @@ contains
 
       call start_log(mgcollect_begin)
 
-      kx = size(vdat,2)
-      if (present(klim)) kx = klim
+      if (present(klim)) then
+         kx = klim
+      else
+         kx = size(vdat,2)      
+      end if
 
       npanx = mg(g)%npanx
       msg_len = mg(g)%ifull/(nmax*npanx) ! message unit size
@@ -7153,7 +7100,6 @@ contains
    subroutine mgcollect_sing(g,vdat,kx,nmax)
 
       integer, intent(in) :: g, kx, nmax
-      integer k, yproc
       integer(kind=4) :: ierr, ilen, lcomm
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -7172,9 +7118,7 @@ contains
       call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0, lcomm, ierr )      
 
       ! unpack buffers (nmax is zero unless this is the host processor)
-      do yproc = 1,nmax
-         vdat(yproc,1:kx) = tdat_g(1:kx,yproc)
-      end do
+      vdat(1:nmax,1:kx) = transpose( tdat_g(1:kx,1:nmax) )
   
    return
    end subroutine mgcollect_sing
@@ -7182,7 +7126,7 @@ contains
    subroutine mgcollect_work(g,vdat,kx,nmax,msg_len,npanx)
 
       integer, intent(in) :: g, kx, nmax, msg_len, npanx
-      integer i, k, n, iq_a, iq_b, iq_c, iq_d
+      integer n, iq_a, iq_c
       integer nrow, ncol, na, nb
       integer yproc, ir, ic, is, ie, js, je, jj
       integer ipanx, nrm1
@@ -7202,9 +7146,7 @@ contains
       ncol  = msg_len/nrow                ! number of points along a col per processor
       nrm1  = nrow - 1
 
-      do k = 1,kx
-         tdat(1:msg_len*npanx,k) = vdat(1:msg_len*npanx,k)
-      end do
+      tdat(1:msg_len*npanx,1:kx) = vdat(1:msg_len*npanx,1:kx)
 
       ilen = msg_len*npanx*kx
       lcomm = mg(g)%comm_merge
@@ -7223,10 +7165,8 @@ contains
             nb =  1 + (n-1)*msg_len
             do jj = js,je
                iq_a = na + (jj-1)*ipanx
-               iq_b = iq_a + nrm1
                iq_c = nb + (jj-js)*nrow
-               iq_d = iq_c + nrm1
-               vdat(iq_a:iq_b,1:kx) = tdat_g(iq_c:iq_d,1:kx,yproc)
+               vdat(iq_a:iq_a+nrm1,1:kx) = tdat_g(iq_c:iq_c+nrm1,1:kx,yproc)
             end do
          end do
       end do
@@ -7249,8 +7189,11 @@ contains
 
       call start_log(mgcollect_begin)
 
-      kx = size(vdat,2)
-      if (present(klim)) kx = klim
+      if (present(klim)) then
+         kx = klim
+      else
+         kx = size(vdat,2)      
+      end if
 
       npanx = mg(g)%npanx
       msg_len = mg(g)%ifull/(nmax*npanx) ! message unit size
@@ -7270,7 +7213,6 @@ contains
    subroutine mgcollectxn_sing(g,vdat,smaxmin,kx,nmax)
 
       integer, intent(in) :: g, kx, nmax
-      integer k, yproc
       integer(kind=4) :: ierr, ilen, lcomm
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -7286,16 +7228,14 @@ contains
 
       tdat(1:kx,1) = vdat(1,1:kx)
       tdat(1:kx,2) = smaxmin(1,1:kx)
-      tdat(1:kx,3) = smaxmin(2,1:kx) 
+      tdat(1:kx,3) = smaxmin(2,1:kx)
 
       ilen = 3*kx
       lcomm = mg(g)%comm_merge
       call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0, lcomm, ierr )      
 
       ! unpack buffers (nmax is zero unless this is the host processor)
-      do yproc = 1,nmax
-         vdat(yproc,1:kx) = tdat_g(1:kx,1,yproc)
-      end do
+      vdat(1:nmax,1:kx) = transpose( tdat_g(1:kx,1,1:nmax) )
       smaxmin(1,1:kx) = maxval( tdat_g(1:kx,2,1:nmax), dim=2 )
       smaxmin(2,1:kx) = minval( tdat_g(1:kx,3,1:nmax), dim=2 )
   
@@ -7305,10 +7245,10 @@ contains
    subroutine mgcollectxn_work(g,vdat,smaxmin,kx,nmax,msg_len,npanx)
 
       integer, intent(in) :: g, kx, nmax, msg_len, npanx
-      integer i, k, n, iq_a, iq_b, iq_c, iq_d
-      integer nrow, ncol, na, nb
-      integer yproc, ir, ic, is, ie, js, je, jj
-      integer ipanx, nrm1
+      integer :: n, iq_a, iq_c
+      integer :: nrow, ncol, na, nb
+      integer :: yproc, ir, ic, is, ie, js, je, jj
+      integer :: ipanx, nrm1
       integer(kind=4) :: ierr, ilen, lcomm
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -7326,9 +7266,7 @@ contains
       ncol  = msg_len/nrow                ! number of points along a col per processor
       nrm1  = nrow - 1
 
-      do k = 1,kx
-         tdat(1:msg_len*npanx,k) = vdat(1:msg_len*npanx,k)
-      end do
+      tdat(1:msg_len*npanx,1:kx) = vdat(1:msg_len*npanx,1:kx)
       tdat(msg_len*npanx+1,1:kx) = smaxmin(1,1:kx)
       tdat(msg_len*npanx+2,1:kx) = smaxmin(2,1:kx)
 
@@ -7349,10 +7287,8 @@ contains
             nb =  1 + (n-1)*msg_len
             do jj = js,je
                iq_a = na + (jj-1)*ipanx
-               iq_b = iq_a + nrm1
                iq_c = nb + (jj-js)*nrow
-               iq_d = iq_c + nrm1
-               vdat(iq_a:iq_b,1:kx) = tdat_g(iq_c:iq_d,1:kx,yproc)
+               vdat(iq_a:iq_a+nrm1,1:kx) = tdat_g(iq_c:iq_c+nrm1,1:kx,yproc)
             end do
          end do
       end do
@@ -7368,7 +7304,7 @@ contains
    
       integer, intent(in) :: g
       integer, intent(in), optional :: klim
-      integer kx, out_len
+      integer :: kx, out_len
       real, dimension(:,:), intent(inout) :: vdat
       real, dimension(:), intent(inout) :: dsolmax
 
@@ -7377,11 +7313,13 @@ contains
    
       call start_log(mgbcast_begin)
    
-      kx = size(vdat,2)
-      if (present(klim)) kx = klim
+      if (present(klim)) then
+         kx = klim
+      else
+         kx = size(vdat,2)      
+      end if
    
       out_len = mg(g)%ifull + mg(g)%iextra
-      
       call mgbcast_work( g, vdat, dsolmax, kx, out_len )
    
       call end_log(mgbcast_end)
@@ -7392,7 +7330,6 @@ contains
    subroutine mgbcast_work(g,vdat,dsolmax,kx,out_len)
    
       integer, intent(in) :: g, kx, out_len
-      integer k, iq_a, iq_b
       integer(kind=4) :: ierr, ilen, lcomm
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -7403,20 +7340,16 @@ contains
       real, dimension(:), intent(inout) :: dsolmax
       real, dimension(out_len+1,kx) :: tdat
       
-      do k = 1,kx
-        tdat(1:out_len,k) = vdat(1:out_len,k)
-        tdat(out_len+1,k) = dsolmax(k)
-      end do
+      tdat(1:out_len,1:kx) = vdat(1:out_len,1:kx)
+      tdat(out_len+1,1:kx) = dsolmax(1:kx)
       
       ilen = (out_len+1)*kx
       lcomm = mg(g)%comm_merge
       call MPI_Bcast( tdat, ilen, ltype, 0, lcomm, ierr )      
 
       ! extract data from distribute      
-      do k = 1,kx
-         vdat(1:out_len,k) = tdat(1:out_len,k)
-         dsolmax(k) = tdat(out_len+1,k)
-      end do      
+      vdat(1:out_len,1:kx) = tdat(1:out_len,1:kx)
+      dsolmax(1:kx) = tdat(out_len+1,1:kx)
    
    return
    end subroutine mgbcast_work
@@ -7425,7 +7358,7 @@ contains
    
       integer, intent(in) :: g
       integer, intent(in), optional :: klim
-      integer kx
+      integer :: kx
       integer(kind=4) :: ierr, ilen, lcomm
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -7438,9 +7371,12 @@ contains
       if ( mg(g)%merge_len <= 1 ) return
    
       call start_log(mgbcast_begin)
-   
-      kx = size(smaxmin,2)
-      if (present(klim)) kx = klim
+
+      if (present(klim)) then
+         kx = klim
+      else
+         kx = size(smaxmin,2)
+      end if
    
       ilen = 2*kx
       lcomm = mg(g)%comm_merge

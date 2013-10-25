@@ -100,7 +100,8 @@ implicit none
 private
 public sib4,loadcbmparm,loadtile,savetiledef,savetile,cableinflow,cbmemiss
 
-integer, parameter :: proglai        = 0 ! 0 prescribed LAI, 1 prognostic LAI 
+integer, parameter :: proglai        = 0 ! 0 prescribed LAI, 1 prognostic LAI
+integer, parameter :: tracerco2      = 0 ! 0 use radiation CO2, 1 use tracer CO2 
 real, parameter :: minfrac = 0.01 ! minimum non-zero tile fraction (improves load balancing)
 
 integer, dimension(:), allocatable, save :: cmap
@@ -356,39 +357,36 @@ sum_flux%sumrs  = sum_flux%sumrs  + canopy%frs*dt
 ! be used by the radiadiation scheme at the next time step.  albvisnir(:,1) and
 ! albvisnir(:,2) are the VIS and NIR albedo used by the radiation scheme for the
 ! current time step.
-tgg(iperm(1:ipland),:)=0.
-wb(iperm(1:ipland),:)=0.
-wbice(iperm(1:ipland),:)=0.
-cplant(iperm(1:ipland),:)=0.
-csoil(iperm(1:ipland),:)=0.
-albsav(iperm(1:ipland))=0.
-albnirsav(iperm(1:ipland))=0.
-albvisdir(iperm(1:ipland))=0.
-albvisdif(iperm(1:ipland))=0.
-albnirdir(iperm(1:ipland))=0.
-albnirdif(iperm(1:ipland))=0.
-! From 11/8/98 runoff() is accumulated & zeroed with precip
-rnet(iperm(1:ipland))=0.
-fg(iperm(1:ipland))=0.
-eg(iperm(1:ipland))=0.
-ga(iperm(1:ipland))=0.
-epot(iperm(1:ipland))=0.
-tss(iperm(1:ipland))=0.
-zo(iperm(1:ipland))=0.
-zoh(iperm(1:ipland))=0.
-cduv(iperm(1:ipland))=0.
-cdtq(iperm(1:ipland))=0.
-ustar(iperm(1:ipland))=0.
-wetfac(iperm(1:ipland))=0.
-rsmin(iperm(1:ipland))=0.
+where (land)
+  albsav(:)=0.
+  albnirsav(:)=0.
+  albvisdir(:)=0.
+  albvisdif(:)=0.
+  albnirdir(:)=0.
+  albnirdif(:)=0.
+  ! From 11/8/98 runoff() is accumulated & zeroed with precip
+  rnet(:)=0.
+  fg(:)=0.
+  eg(:)=0.
+  ga(:)=0.
+  epot(:)=0.
+  tss(:)=0.
+  zo(:)=0.
+  zoh(:)=0.
+  cduv(:)=0.
+  cdtq(:)=0.
+  ustar(:)=0.
+  wetfac(:)=0.
+  rsmin(:)=0.
+  ! screen and 10m diagnostics - rhscrn calculated in sflux.f
+  tscrn(:)=0.
+  uscrn(:)=0.
+  qgscrn(:)=0.
+  u10(:)=0.
+end where
 tmps=0. ! average isflag
       
-! screen and 10m diagnostics - rhscrn calculated in sflux.f
-tscrn(iperm(1:ipland))=0.
-uscrn(iperm(1:ipland))=0.
-qgscrn(iperm(1:ipland))=0.
-u10(iperm(1:ipland))=0.
-
+! carbon pools
 if (icycle==0) then
   cplant=0.
   csoil=0.
@@ -544,12 +542,18 @@ end do
 ! Here we estimate whether the majority of snow points is 1 layer or 3 layers and then
 ! convert each snow tile to that number of layers.  Note these calculations are purely
 ! diagnoistic.  They are not fed back into the CCAM simulation.
-tggsn(iperm(1:ipland),:)=0.
-smass(iperm(1:ipland),:)=0.
-ssdn(iperm(1:ipland),:)=0.
-ssdnn(iperm(1:ipland))=0.
-snowd(iperm(1:ipland))=0.
-snage(iperm(1:ipland))=0.
+do k=1,3
+  where (land)
+    tggsn(:,k)=0.
+    smass(:,k)=0.
+    ssdn(:,k)=0.
+  end where
+end do
+where (land)
+  ssdnn(:)=0.
+  snowd(:)=0.
+  snage(:)=0.
+end where
 where (land.and.tmps>=0.5) ! tmps is average isflag
   isflag=1
 elsewhere
@@ -619,11 +623,10 @@ subroutine setco2for(atmco2)
 ! host: atmospheric co2 follows that from CCAM radiation scheme
 ! interactive: atmospheric co2 taken from tracer (usually cable+fos+ocean)
 
-use radisw_m, only : rrco2,ssolar,rrvco2
-use tracermodule, only : tractype,tracname
-use tracers_m
-
 use cc_mpi, only : myid
+use radisw_m, only : rrvco2
+use tracermodule, only : tractype,tracname
+use tracers_m, only : tr,ngas
 
 implicit none
 
@@ -634,20 +637,22 @@ integer ico2,igas
 real, dimension(ifull), intent(out) :: atmco2
 
 ico2=0
-do igas=1,ngas
-  if (trim(tractype(igas))=='online') then
-    if (trim(tracname(igas))=='cbmnep') then
-      ico2=igas
-      exit
+if (tracerco2==1) then
+  do igas=1,ngas
+    if (trim(tractype(igas))=='online') then
+      if (trim(tracname(igas))=='cbmnep') then
+        ico2=igas
+        exit
+      end if
     end if
+  end do
+  if (ico2>0) then
+    atmco2 = tr(1:ifull,1,ico2) ! use interactive tracers
+  else
+    atmco2 = 1.E6*rrvco2        ! from radiative CO2 forcings
   end if
-end do
-if (ico2>0) then
-  atmco2 = tr(1:ifull,1,ico2) ! use interactive tracers
-  if (any(atmco2<0.)) ico2=0
-end if
-if (ico2==0) then
-  atmco2 = 1.E6*rrvco2        ! from radiative CO2 forcings
+else
+  atmco2 = 1.E6*rrvco2          ! from radiative CO2 forcings
 end if
 if (myid==0.and.ktau==1) then
   if (ico2==0) then

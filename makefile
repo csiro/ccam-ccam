@@ -150,7 +150,7 @@ leoncld.o : aerointerface.o arrays_m.o cc_mpi.o diag_m.o kuocomb_m.o latlong_m.o
 longwave_clouds.o : rad_utilities.o
 longwave_fluxes.o : rad_utilities.o
 longwave_tables.o : longwave_params.o rad_utilities.o
-lw_gases_stdtf.o : cc_mpi.o infile.o gas_tf.o rad_utilities.o filnames.h
+lw_gases_stdtf.o : cc_mpi.o infile.o gas_tf.o rad_utilities.o filnames.h newmpar.h
 lwr88.o : co2dta_m.o kdacom_m.o radisw_m.o tfcom_m.o work3lwr_m.o hcon.h newmpar.h parm.h rdparm.h rnddta.h
 mgsolve.o : cc_mpi.o indices_m.o newmpar.h parm.h parmdyn.h
 microphys_rad.o : esfsw_parameters.o longwave_params.o rad_utilities.o

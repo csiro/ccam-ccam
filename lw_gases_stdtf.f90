@@ -5597,10 +5597,11 @@ end subroutine rctrns
 subroutine read_lbltfs (gas_type, callrctrns, nstd_lo, nstd_hi, nf,   &
                         ntbnd, trns_std_hi_nf, trns_std_lo_nf )
  
- use cc_mpi
- use infile
+use cc_mpi
+use infile
   
- include 'filnames.h'
+include 'newmpar.h'
+include 'filnames.h'
  
 !--------------------------------------------------------------------
 !
@@ -5629,8 +5630,6 @@ real,    dimension(:,:,:),  intent(out)  :: trns_std_hi_nf,   &
       character(len=24) name_lo
       character(len=24) name_hi
       character(len=110) filename, ncname ! MJT
-
-      real, dimension(:,:), allocatable, save  :: trns_in
 
       integer        :: n, nt, nrec_inhi, inrad, nrec_inlo
       
@@ -5724,18 +5723,73 @@ real,    dimension(:,:,:),  intent(out)  :: trns_std_hi_nf,   &
         name_hi = input_lbln2oname(nf,nstd_hi)
       endif
 
+      if (nproc>1.and.callrctrns) then
+
 !-------------------------------------------------------------------
 !    read in tfs of higher std gas concentration
 !-------------------------------------------------------------------
-      !filename = 'INPUT/' // trim(name_hi)
-      filename = trim(cnsdir) // '/' // trim(name_hi)
-      ncname = trim(filename) // '.nc'
+      if (myid == 0) then
+        filename = trim(cnsdir) // '/' // trim(name_hi)
+        ncname = trim(filename) // '.nc'
 
-      startpos=1
-      npos(1)=size(trns_std_hi_nf(:,:,1:ntbnd(nf)),1)
-      npos(2)=size(trns_std_hi_nf(:,:,1:ntbnd(nf)),2)
-      npos(3)=ntbnd(nf)
-      if (myid==0) then
+        startpos=1
+        npos(1)=size(trns_std_hi_nf(:,:,1:ntbnd(nf)),1)
+        npos(2)=size(trns_std_hi_nf(:,:,1:ntbnd(nf)),2)
+        npos(3)=ntbnd(nf)
+        call ccnf_open(ncname,ncid,ncstatus)
+        if (ncstatus/=0) then
+          write(6,*) "ERROR: Cannot open ",trim(ncname)
+          call ccmpi_abort(-1)
+        end if
+        write(6,*) "Reading ",trim(ncname)
+        call ccnf_inq_varid(ncid,"trns_std_nf",varid,tst)
+        if (tst) then
+          write(6,*) "trns_std_nf not found"
+          call ccmpi_abort(-1)
+        end if
+        call ccnf_get_vara(ncid,varid,startpos,npos,trns_std_hi_nf(:,:,1:ntbnd(nf)))
+        call ccnf_close(ncid)
+      else if (myid == nproc-1) then
+!--------------------------------------------------------------------
+!    if necessary, read in tfs of lower standard gas concentration
+!-------------------------------------------------------------------
+        filename = trim(cnsdir) // '/' // trim(name_lo )
+        ncname = trim(filename) // '.nc'
+
+        startpos=1
+        npos(1)=size(trns_std_lo_nf(:,:,1:ntbnd(nf)),1)
+        npos(2)=size(trns_std_lo_nf(:,:,1:ntbnd(nf)),2)
+        npos(3)=ntbnd(nf)
+        call ccnf_open(ncname,ncid,ncstatus)
+        if (ncstatus/=0) then
+          write(6,*) "ERROR: Cannot open ",trim(ncname)
+          call ccmpi_abort(-1)
+        end if
+        write(6,*) "Reading ",trim(ncname)
+        call ccnf_inq_varid(ncid,"trns_std_nf",varid,tst)
+        if (tst) then
+          write(6,*) "trns_std_nf not found"
+          call ccmpi_abort(-1)
+        end if
+        call ccnf_get_vara(ncid,varid,startpos,npos,trns_std_lo_nf(:,:,1:ntbnd(nf)))
+        call ccnf_close(ncid)
+      end if
+      call ccmpi_bcastr8(trns_std_hi_nf(:,:,1:ntbnd(nf)),0,comm_world)
+      call ccmpi_bcastr8(trns_std_lo_nf(:,:,1:ntbnd(nf)),nproc-1,comm_world)
+      
+      else
+
+!-------------------------------------------------------------------
+!    read in tfs of higher std gas concentration
+!-------------------------------------------------------------------
+      if ( myid == 0 ) then
+        filename = trim(cnsdir) // '/' // trim(name_hi)
+        ncname = trim(filename) // '.nc'
+
+        startpos=1
+        npos(1)=size(trns_std_hi_nf(:,:,1:ntbnd(nf)),1)
+        npos(2)=size(trns_std_hi_nf(:,:,1:ntbnd(nf)),2)
+        npos(3)=ntbnd(nf)
         call ccnf_open(ncname,ncid,ncstatus)
         if (ncstatus/=0) then
           write(6,*) "ERROR: Cannot open ",trim(ncname)
@@ -5751,47 +5805,23 @@ real,    dimension(:,:,:),  intent(out)  :: trns_std_hi_nf,   &
         call ccnf_close(ncid)
       end if
       call ccmpi_bcastr8(trns_std_hi_nf(:,:,1:ntbnd(nf)),0,comm_world)
-      
-      !write(6,*) "UNSUPPORTED read ",ncname
-      !stop
-      
-!      if(file_exist(trim(ncname))) then
-!         if (mpp_pe() == mpp_root_pe()) call mpp_error ('lw_gases_stdtf_mod', &
-!              'Reading NetCDF formatted input data file: ' // ncname, NOTE)
-!         call read_data(ncname, 'trns_std_nf', trns_std_hi_nf(:,:,1:ntbnd(nf)), no_domain=.true.)
-!      else
-!         if (mpp_pe() == mpp_root_pe()) call mpp_error ('lw_gases_stdtf_mod', &
-!              'Reading native formatted input data file: ' // filename, NOTE)
-!         allocate (trns_in(NSTDCO2LVLS,NSTDCO2LVLS))
-!         inrad = open_direct_file (file=filename, action='read', &
-!              recl = NSTDCO2LVLS*NSTDCO2LVLS*8)
-!         nrec_inhi = 0
-!         do nt=1,ntbnd(nf)
-!            nrec_inhi = nrec_inhi + 1
-!            read (inrad, rec = nrec_inhi) trns_in
-!            trns_std_hi_nf(:,:,nt) = trns_in(:,:)
-!         enddo
-!         call close_file (inrad)
-!         deallocate (trns_in)
-!      endif
 
 !--------------------------------------------------------------------
 !    if necessary, read in tfs of lower standard gas concentration
 !-------------------------------------------------------------------
       if (callrctrns) then
-        !filename = 'INPUT/' // trim(name_lo )
-        filename = trim(cnsdir) // '/' // trim(name_lo )
-        ncname = trim(filename) // '.nc'
-
-        startpos=1
-        npos(1)=size(trns_std_lo_nf(:,:,1:ntbnd(nf)),1)
-        npos(2)=size(trns_std_lo_nf(:,:,1:ntbnd(nf)),2)
-        npos(3)=ntbnd(nf)
         if (myid==0) then
+          filename = trim(cnsdir) // '/' // trim(name_lo )
+          ncname = trim(filename) // '.nc'
+
+          startpos=1
+          npos(1)=size(trns_std_lo_nf(:,:,1:ntbnd(nf)),1)
+          npos(2)=size(trns_std_lo_nf(:,:,1:ntbnd(nf)),2)
+          npos(3)=ntbnd(nf)
           call ccnf_open(ncname,ncid,ncstatus)
           if (ncstatus/=0) then
             write(6,*) "ERROR: Cannot open ",trim(ncname)
-            stop
+            call ccmpi_abort(-1)
           end if
           write(6,*) "Reading ",trim(ncname)
           call ccnf_inq_varid(ncid,"trns_std_nf",varid,tst)
@@ -5803,30 +5833,9 @@ real,    dimension(:,:,:),  intent(out)  :: trns_std_hi_nf,   &
           call ccnf_close(ncid)
         end if
         call ccmpi_bcastr8(trns_std_lo_nf(:,:,1:ntbnd(nf)),0,comm_world)
-        
-        !write(6,*) "UNSUPPORTED read ",ncname
-        !stop
-        
-!        if(file_exist(trim(ncname))) then
-!           if (mpp_pe() == mpp_root_pe()) call mpp_error ('lw_gases_stdtf_mod', &
-!                'Reading NetCDF formatted input data file: ' // ncname, NOTE)
-!           call read_data(ncname, 'trns_std_nf', trns_std_lo_nf(:,:,1:ntbnd(nf)), no_domain=.true.)
-!        else
-!           if (mpp_pe() == mpp_root_pe()) call mpp_error ('lw_gases_stdtf_mod', &
-!                'Reading native formatted input data file: ' // filename, NOTE)
-!           allocate (trns_in(NSTDCO2LVLS,NSTDCO2LVLS))
-!           inrad = open_direct_file (file=filename, action='read', &
-!                recl = NSTDCO2LVLS*NSTDCO2LVLS*8)
-!           nrec_inlo = 0
-!           do nt=1,ntbnd(nf)
-!              nrec_inlo = nrec_inlo + 1
-!              read (inrad, rec = nrec_inlo) trns_in
-!              trns_std_lo_nf(:,:,nt) = trns_in(:,:)
-!           enddo
-!           call close_file (inrad)
-!           deallocate (trns_in)
-!        endif
-     endif
+      endif
+      
+      end if
  
 !--------------------------------------------------------------------
 

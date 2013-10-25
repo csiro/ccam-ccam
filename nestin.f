@@ -912,6 +912,7 @@
       if (myid==0) write(6,*) "Start 1D filter"
 #endif
 
+#ifndef uniform_decomp
       ! distribute data over host processors
       if (myid==hproc) then
         if (nud_p>0.and.lblock) then
@@ -929,6 +930,7 @@
           call ccmpi_bcast(qgg,0,comm_host)
         end if
       end if
+#endif
       
       do ppass=pprocn,pprocx
 
@@ -1047,6 +1049,11 @@
       real, dimension(ifg) :: psls
       real, dimension(ifull) :: xa_l,xb_l
       logical, intent(in) :: lblock
+      
+      ! MJT notes - Currently there is a bottleneck gathering data onto all host processors,
+      ! and then scattering to cols or rows.  This could be replaced by gathering my part of
+      ! a panel from other panels (i.e., a sort of uniform decomposition), then gathering along
+      ! a col or row as required by the filter pass.
 
       til=il_g*il_g
       cq=sqrt(4.5)*cin ! filter length scale
@@ -1666,7 +1673,7 @@
         if (nud_p>0.and.lblock) then
           do j=1,jpan
             do n=1,ipan
-              ff(n+jpan*(j-1))=pp(n,j)
+              ff(n+ipan*(j-1))=pp(n,j)
             end do
           end do
           call ccmpi_gatherx(dd(1:il_g*ipan),ff(1:ipan*jpan),0,
@@ -1678,7 +1685,7 @@
               nne=jpoff+jpan
               do j=nns,nne
                 do n=os,oe
-                  qp(a*n+b*j+c)=dd(n-os+1+jpan*(j-nns)
+                  qp(a*n+b*j+c)=dd(n-os+1+ipan*(j-nns)
      &                            +ipan*jpan*sy)
                 end do
               end do
@@ -1689,7 +1696,7 @@
           do k=1,klt
             do j=1,jpan
               do n=1,ipan
-                ff(n+jpan*(j-1)+ipan*jpan*(k-1))=pu(n,j,k)
+                ff(n+ipan*(j-1)+ipan*jpan*(k-1))=pu(n,j,k)
               end do
             end do
           end do
@@ -1703,7 +1710,7 @@
               do k=1,klt
                 do j=nns,nne
                   do n=os,oe
-                    qu(a*n+b*j+c,k)=dd(n-os+1+jpan*(j-nns)
+                    qu(a*n+b*j+c,k)=dd(n-os+1+ipan*(j-nns)
      &                +ipan*jpan*(k-1)+ipan*jpan*klt*sy)
                   end do
                 end do
@@ -1713,7 +1720,7 @@
           do k=1,klt
             do j=1,jpan
               do n=1,ipan
-                ff(n+jpan*(j-1)+ipan*jpan*(k-1))=pv(n,j,k)
+                ff(n+ipan*(j-1)+ipan*jpan*(k-1))=pv(n,j,k)
               end do
             end do
           end do
@@ -1727,7 +1734,7 @@
               do k=1,klt
                 do j=nns,nne
                   do n=os,oe
-                    qv(a*n+b*j+c,k)=dd(n-os+1+jpan*(j-nns)
+                    qv(a*n+b*j+c,k)=dd(n-os+1+ipan*(j-nns)
      &                +ipan*jpan*(k-1)+ipan*jpan*klt*sy)
                   end do
                 end do
@@ -1737,7 +1744,7 @@
           do k=1,klt
             do j=1,jpan
               do n=1,ipan
-                ff(n+jpan*(j-1)+ipan*jpan*(k-1))=pw(n,j,k)
+                ff(n+ipan*(j-1)+ipan*jpan*(k-1))=pw(n,j,k)
               end do
             end do
           end do
@@ -1751,7 +1758,7 @@
               do k=1,klt
                 do j=nns,nne
                   do n=os,oe
-                    qw(a*n+b*j+c,k)=dd(n-os+1+jpan*(j-nns)
+                    qw(a*n+b*j+c,k)=dd(n-os+1+ipan*(j-nns)
      &                +ipan*jpan*(k-1)+ipan*jpan*klt*sy)
                   end do
                 end do
@@ -1763,7 +1770,7 @@
           do k=1,klt
             do j=1,jpan
               do n=1,ipan
-                ff(n+jpan*(j-1)+ipan*jpan*(k-1))=pt(n,j,k)
+                ff(n+ipan*(j-1)+ipan*jpan*(k-1))=pt(n,j,k)
               end do
             end do
           end do
@@ -1777,7 +1784,7 @@
               do k=1,klt
                 do j=nns,nne
                   do n=os,oe
-                    qt(a*n+b*j+c,k)=dd(n-os+1+jpan*(j-nns)
+                    qt(a*n+b*j+c,k)=dd(n-os+1+ipan*(j-nns)
      &                +ipan*jpan*(k-1)+ipan*jpan*klt*sy)
                   end do
                 end do
@@ -1789,7 +1796,7 @@
           do k=1,klt
             do j=1,jpan
               do n=1,ipan
-                ff(n+jpan*(j-1)+ipan*jpan*(k-1))=pq(n,j,k)
+                ff(n+ipan*(j-1)+ipan*jpan*(k-1))=pq(n,j,k)
               end do
             end do
           end do
@@ -1803,7 +1810,7 @@
               do k=1,klt
                 do j=nns,nne
                   do n=os,oe
-                    qq(a*n+b*j+c,k)=dd(n-os+1+jpan*(j-nns)
+                    qq(a*n+b*j+c,k)=dd(n-os+1+ipan*(j-nns)
      &                 +ipan*jpan*(k-1)+ipan*jpan*klt*sy)
                   end do
                 end do
@@ -2417,7 +2424,7 @@
         if (nud_p>0.and.lblock) then
           do j=1,ipan
             do n=1,jpan
-              ff(n+ipan*(j-1))=pp(n,j)
+              ff(n+jpan*(j-1))=pp(n,j)
             end do
           end do
           call ccmpi_gatherx(dd(1:il_g*jpan),ff(1:ipan*jpan),0,
@@ -2429,7 +2436,7 @@
               nne=jpoff+ipan
               do j=nns,nne
                 do n=os,oe
-                  qp(a*n+b*j+c)=dd(n-os+1+ipan*(j-nns)
+                  qp(a*n+b*j+c)=dd(n-os+1+jpan*(j-nns)
      &                            +ipan*jpan*sy)
                 end do
               end do
@@ -2440,7 +2447,7 @@
           do k=1,klt
             do j=1,ipan
               do n=1,jpan
-                ff(n+ipan*(j-1)+ipan*jpan*(k-1))=pu(n,j,k)
+                ff(n+jpan*(j-1)+ipan*jpan*(k-1))=pu(n,j,k)
               end do
             end do
           end do
@@ -2454,7 +2461,7 @@
               do k=1,klt
                 do j=nns,nne
                   do n=os,oe
-                    qu(a*n+b*j+c,k)=dd(n-os+1+ipan*(j-nns)
+                    qu(a*n+b*j+c,k)=dd(n-os+1+jpan*(j-nns)
      &                +ipan*jpan*(k-1)+ipan*jpan*klt*sy)
                   end do
                 end do
@@ -2464,7 +2471,7 @@
           do k=1,klt
             do j=1,ipan
               do n=1,jpan
-                ff(n+ipan*(j-1)+ipan*jpan*(k-1))=pv(n,j,k)
+                ff(n+jpan*(j-1)+ipan*jpan*(k-1))=pv(n,j,k)
               end do
             end do
           end do
@@ -2478,7 +2485,7 @@
               do k=1,klt
                 do j=nns,nne
                   do n=os,oe
-                    qv(a*n+b*j+c,k)=dd(n-os+1+ipan*(j-nns)
+                    qv(a*n+b*j+c,k)=dd(n-os+1+jpan*(j-nns)
      &                +ipan*jpan*(k-1)+ipan*jpan*klt*sy)
                   end do
                 end do
@@ -2488,7 +2495,7 @@
           do k=1,klt
             do j=1,ipan
               do n=1,jpan
-                ff(n+ipan*(j-1)+ipan*jpan*(k-1))=pw(n,j,k)
+                ff(n+jpan*(j-1)+ipan*jpan*(k-1))=pw(n,j,k)
               end do
             end do
           end do
@@ -2502,7 +2509,7 @@
               do k=1,klt
                 do j=nns,nne
                   do n=os,oe
-                    qw(a*n+b*j+c,k)=dd(n-os+1+ipan*(j-nns)
+                    qw(a*n+b*j+c,k)=dd(n-os+1+jpan*(j-nns)
      &                +ipan*jpan*(k-1)+ipan*jpan*klt*sy)
                   end do
                 end do
@@ -2514,7 +2521,7 @@
           do k=1,klt
             do j=1,ipan
               do n=1,jpan
-                ff(n+ipan*(j-1)+ipan*jpan*(k-1))=pt(n,j,k)
+                ff(n+jpan*(j-1)+ipan*jpan*(k-1))=pt(n,j,k)
               end do
             end do
           end do
@@ -2528,7 +2535,7 @@
               do k=1,klt
                 do j=nns,nne
                   do n=os,oe
-                    qt(a*n+b*j+c,k)=dd(n-os+1+ipan*(j-nns)
+                    qt(a*n+b*j+c,k)=dd(n-os+1+jpan*(j-nns)
      &                +ipan*jpan*(k-1)+ipan*jpan*klt*sy)
                   end do
                 end do
@@ -2540,7 +2547,7 @@
           do k=1,klt
             do j=1,ipan
               do n=1,jpan
-                ff(n+ipan*(j-1)+ipan*jpan*(k-1))=pq(n,j,k)
+                ff(n+jpan*(j-1)+ipan*jpan*(k-1))=pq(n,j,k)
               end do
             end do
           end do
@@ -2554,7 +2561,7 @@
               do k=1,klt
                 do j=nns,nne
                   do n=os,oe
-                    qq(a*n+b*j+c,k)=dd(n-os+1+ipan*(j-nns)
+                    qq(a*n+b*j+c,k)=dd(n-os+1+jpan*(j-nns)
      &                 +ipan*jpan*(k-1)+ipan*jpan*klt*sy)
                   end do
                 end do
@@ -3531,7 +3538,7 @@
       logical, intent(in) :: lblock
 
       til=il_g*il_g 
-
+      
       ! gather data onto myid==0
       if (myid==0) then
         if (nud_sst/=0) then
@@ -3588,9 +3595,29 @@
           call ccmpi_gather(diffh_l(:,1))
         end if
       end if
-     
+      
 #ifdef debug
       if (myid==0) write(6,*) "MLO Start 1D filter"
+#endif
+
+#ifndef uniform_decomp
+      ! for face decomposition with less than 6 processors
+      if (myid==hproc) then
+        if (nud_sst/=0) then
+          call ccmpi_bcast(diff_g,0,comm_host)
+        end if
+        if (nud_sss/=0) then
+          call ccmpi_bcast(diffs_g,0,comm_host)
+        end if
+        if (nud_ouv/=0) then
+          call ccmpi_bcast(diffu_g,0,comm_host)
+          call ccmpi_bcast(diffv_g,0,comm_host)
+          call ccmpi_bcast(diffw_g,0,comm_host)
+        end if
+        if (nud_sfh/=0.and.lblock) then
+          call ccmpi_bcast(diffh_g,0,comm_host)
+        end if
+      end if
 #endif
 
       do ppass=pprocn,pprocx
@@ -3647,14 +3674,6 @@
         if (nud_ouv/=0) then
           do k=1,kd
             do n=1,ipan*jpan
-              diffu_l(n+ipan*jpan*(ppass-pprocn),k)=
-     &          qpu(n,k)
-              diffv_l(n+ipan*jpan*(ppass-pprocn),k)=
-     &          qpv(n,k)
-              diffw_l(n+ipan*jpan*(ppass-pprocn),k)=
-     &          qpw(n,k)
-            end do
-            do n=1+ipan*jpan*(ppass-pprocn),ipan*jpan*(ppass-pprocn+1)
               diffu_l(n+ipan*jpan*(ppass-pprocn),k)=
      &                ax(n+ipan*jpan*(ppass-pprocn))*qpu(n,k)
      &               +ay(n+ipan*jpan*(ppass-pprocn))*qpv(n,k)
@@ -4785,7 +4804,7 @@
           end do
         end do
       end if
-          
+      
       return  
       end subroutine mlospeclocal_left
 
@@ -5590,7 +5609,7 @@
           end do
         end do
       end if
-          
+      
       return  
       end subroutine mlospeclocal_right
 
