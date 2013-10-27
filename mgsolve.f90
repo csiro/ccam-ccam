@@ -15,6 +15,9 @@ module mgsolve
 ! C48, C96, C192, C384, C768 and C1536.  An alternate family of grids includes
 ! C32, C64, C128, C256, C512 and C1024.
 
+! Using the idleproc preprocessor directive (e.g., -Didleproc) removes redundant
+! work, but leaves processors idle.
+
 implicit none
 
 private
@@ -1197,10 +1200,12 @@ if (mod(mipan,2)/=0.or.mod(mjpan,2)/=0.or.g==mg_maxlevel) then
     colour=mg(1)%merge_list(1)
     rank=mg(1)%merge_pos-1
     call ccmpi_commsplit(mg(1)%comm_merge,comm_world,colour,rank)
+#ifdef idleproc
     if (rank/=0) then
       mg_maxlevel_local=0
       mg(1)%nmax=0
     end if
+#endif
   
   else
     write(6,*) "ERROR: Grid g=1 requires gatherall for multi-grid solver"
@@ -1475,10 +1480,12 @@ do g=2,mg_maxlevel
       colour=mg(g)%merge_list(1)
       rank=mg(g)%merge_pos-1
       call ccmpi_commsplit(mg(g)%comm_merge,comm_world,colour,rank)
+#ifdef idleproc
       if (rank/=0) then
         mg_maxlevel_local=min(g-1,mg_maxlevel_local)
         mg(g)%nmax=0
       end if
+#endif
     end if
   
   else
