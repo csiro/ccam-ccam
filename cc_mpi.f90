@@ -25,6 +25,10 @@ module cc_mpi
    integer, allocatable, dimension(:), save, public :: neighlist       ! list of neighbour processor
    integer, allocatable, dimension(:), save, private :: neighmap       ! map from processor to neighbour index
    integer, save, public :: neighnum                                   ! number of neigbours
+   
+   integer(kind=4), save, private :: localwin
+   integer(kind=4), allocatable, dimension(:), save, public :: specmap ! gather map for spectral filter
+   real, allocatable, dimension(:,:), save, private :: specstore       ! window for gather map
 
    public :: ccmpi_setup, ccmpi_distribute, ccmpi_gather,                   &
              ccmpi_distributer8, ccmpi_gatherall, bounds, boundsuv,         &
@@ -34,11 +38,11 @@ module cc_mpi
              readglobvar, writeglobvar, face_set, uniform_set, dix_set,     &
              ccmpi_reduce, ccmpi_allreduce, ccmpi_abort, ccmpi_bcast,       &
              ccmpi_bcastr8, ccmpi_barrier, ccmpi_gatherx, ccmpi_scatterx,   &
-             ccmpi_allgatherx, ccmpi_recv, ccmpi_ssend, ccmpi_init,         &
-             ccmpi_finalize, ccmpi_commsplit, ccmpi_commfree, mgbounds,     &
-             mgcollectreduce, mgcollect, mgcollectxn, mgbcast, mgbcastxn,   &
-             mg_index, indx, bounds_colour, boundsuv_allvec, fproc,         &
-             proc_region, proc_region_face, proc_region_dix
+             ccmpi_allgatherx, ccmpi_gathermap, ccmpi_recv, ccmpi_ssend,    &
+             ccmpi_init, ccmpi_finalize, ccmpi_commsplit, ccmpi_commfree,   &
+             mgbounds, mgcollectreduce, mgcollect, mgcollectxn, mgbcast,    &
+             mgbcastxn, mg_index, indx, bounds_colour, boundsuv_allvec,     &
+             fproc, proc_region, proc_region_face, proc_region_dix
    public :: mgbndtype
    public :: dpoints_t,dindex_t,sextra_t,bnds
    private :: ccmpi_distribute2, ccmpi_distribute2i, ccmpi_distribute2r8,   &
@@ -104,6 +108,9 @@ module cc_mpi
    interface ccmpi_ssend
       module procedure ccmpi_ssend2r
    end interface ccmpi_ssend
+   interface ccmpi_gathermap
+      module procedure ccmpi_gathermap2, ccmpi_gathermap3
+   end interface ccmpi_gathermap
 
    ! Define neighbouring faces
    integer, parameter, private, dimension(0:npanels) ::    &
@@ -316,11 +323,26 @@ contains
       use vecsuv_m
       use xyzinfo_m
       integer iproc, dproc, iq, iqg, i, j, n, mcc
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
       integer(kind=4) ierr, mone
       integer(kind=4) colour, rank, lcommin, lcommout
+      integer(kind=4) asize
+      integer(kind=INT_PTR_KIND()) wsize
       integer, dimension(ifull) :: colourmask
       integer, dimension(3) :: ifullxc
       logical(kind=4) :: ltrue
+
+      !integer(kind=MPI_ADDRESS_KIND) is broken with ifort, but
+      !at least we can check for errors
+      if ( MPI_ADDRESS_KIND /= INT_PTR_KIND() ) then
+         write(6,*) "ERROR: Invalid MPI_ADDRESS_KIND"
+         mone = -1
+         call MPI_abort(MPI_COMM_WORLD,mone,ierr)
+      end if
 
       nreq = 0
 
@@ -483,6 +505,8 @@ contains
 #endif
 
       ! comm between host processors
+      ! colour = myid-hproc
+      ! rank = hproc/mproc
       if ( myid == hproc ) then
          colour = 0
          rank = hproc/mproc
@@ -520,9 +544,20 @@ contains
          end if
       end if
       
+      ! prep windows for gathermap
+      if ( nproc > 1 ) then
+         allocate(specstore(ifull,max(kl,ol)))
+         !call MPI_Info_create(info,ierr)
+         !call MPI_Info_set(info,"no_locks","true",ierr)
+         call MPI_Type_size(ltype,asize,ierr)
+         wsize=asize*ifull*max(kl,ol)
+         call MPI_Win_create(specstore,wsize,asize,MPI_INFO_NULL,MPI_COMM_WORLD,localwin,ierr)
+         !call MPI_Info_free(info,ierr)
+      end if
+      
 
    end subroutine ccmpi_setup
-
+   
    subroutine ccmpi_distribute2(af,a1)
       ! Convert standard 1D arrays to face form and distribute to processors
       real, dimension(ifull), intent(out) :: af
@@ -1184,6 +1219,132 @@ contains
       call end_log(gather_end)
 
    end subroutine ccmpi_gatherall3
+
+   subroutine ccmpi_gathermap2(a,ag)
+
+      real, dimension(ifull), intent(in) :: a
+      real, dimension(ifull_g), intent(out) :: ag
+      real, dimension(ifull,size(specmap)) :: abuf 
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
+      integer(kind=4) :: ierr, lsize, mnum
+      integer(kind=INT_PTR_KIND()) :: displ
+      integer :: ncount, w, iproc, n, i, j, iqg, iq
+      integer :: ipoff, jpoff, npoff
+      
+      if ( nproc == 1 ) then
+         call ccmpi_gatherall2(a,ag)
+         return
+      end if
+   
+      call start_log(gather_begin)
+   
+      ncount=size(specmap)
+      specstore(1:ifull,1)=a(1:ifull)
+   
+      lsize = ifull
+      displ = 0
+      call MPI_Win_fence(MPI_MODE_NOPRECEDE,localwin,ierr)
+   
+      do w = 1,ncount
+         call MPI_Get(abuf(:,w),lsize,ltype,specmap(w),displ,lsize,ltype,localwin,ierr)
+      end do
+   
+      call MPI_Win_fence(MPI_MODE_NOSUCCEED.or.MPI_MODE_NOPUT,localwin,ierr)
+   
+      do w = 1,ncount
+         iproc = specmap(w)
+#ifdef uniform_decomp
+         call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+#else
+         call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+#endif
+         do n = 1,npan
+            do j = 1,jpan
+               do i = 1,ipan
+                  ! Global indices are i+ipoff, j+jpoff, n-npoff
+                  iqg = i+ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+                  iq = i + (j-1)*ipan + (n-1)*ipan*jpan
+                  ag(iqg) = abuf(iq,w)
+               end do
+            end do
+         end do
+      end do
+   
+      call end_log(gather_end)
+   
+   end subroutine ccmpi_gathermap2
+
+   subroutine ccmpi_gathermap3(a,ag)
+
+      real, dimension(:,:), intent(in) :: a
+      real, dimension(:,:), intent(out) :: ag
+      real, dimension(ifull,size(a,2),size(specmap)) :: abuf 
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
+      integer(kind=4) :: ierr, mnum, lsize
+      integer(kind=INT_PTR_KIND()) :: displ
+      integer :: ncount, w, iproc, k, n, i, j, iqg, iq, kx
+      integer :: ipoff, jpoff, npoff
+      
+      if ( nproc == 1 ) then
+         call ccmpi_gatherall3(a,ag)
+         return
+      end if
+   
+      call start_log(gather_begin)
+   
+      kx = size(a,2)
+      ncount = size(specmap)
+      
+      if ( kx > size(specstore,2) ) then
+         write(6,*) "ERROR: gathermap array is too big for window buffer"
+         mnum = -1
+         call MPI_Abort(MPI_COMM_WORLD,mnum,ierr)
+      end if
+      
+      specstore(1:ifull,1:kx) = a(1:ifull,:)
+
+      lsize = ifull*kx
+      displ = 0   
+      call MPI_Win_fence(MPI_MODE_NOPRECEDE,localwin,ierr)
+   
+      do w = 1,ncount
+         call MPI_Get(abuf(:,:,w),lsize,ltype,specmap(w),displ,lsize,ltype,localwin,ierr)
+      end do
+   
+      call MPI_Win_fence(MPI_MODE_NOSUCCEED.or.MPI_MODE_NOPUT,localwin,ierr)
+   
+      do w = 1,ncount
+         iproc = specmap(w)
+#ifdef uniform_decomp
+         call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+#else
+         call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+#endif
+         do k = 1,kx
+            do n = 1,npan
+               do j = 1,jpan
+                  do i = 1,ipan
+                     ! Global indices are i+ipoff, j+jpoff, n-npoff
+                     iqg = i+ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+                     iq = i + (j-1)*ipan + (n-1)*ipan*jpan
+                     ag(iqg,k) = abuf(iq,k,w)
+                  end do
+               end do
+            end do
+         end do
+      end do
+   
+      call end_log(gather_end)
+   
+   end subroutine ccmpi_gathermap3
       
    subroutine bounds_setup
 

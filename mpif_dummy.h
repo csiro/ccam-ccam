@@ -31,6 +31,11 @@
       integer, parameter :: MPI_COMM_WORLD  = 91
       
       integer, parameter :: MPI_STATUS_SIZE = 6
+      integer, parameter :: MPI_ADDRESS_KIND = INT_PTR_KIND()
+      integer, parameter :: MPI_INFO_NULL = 469762048
+      integer, parameter :: MPI_MODE_NOPUT = 4096
+      integer, parameter :: MPI_MODE_NOPRECEDE = 8192
+      integer, parameter :: MPI_MODE_NOSUCCEED = 16384
 
 !
 !     All other MPI routines are subroutines

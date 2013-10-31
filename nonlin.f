@@ -248,11 +248,12 @@
         enddo   ! iq loop
       endif     ! (ntbar==-4)
       
-      ! update hydrostatic phi and add non-hydrostatic component
+      ! update hydrostatic phi
       phi(:,1)=zs(1:ifull)+bet(1)*t(1:ifull,1) 
       do k=2,kl
        phi(:,k)=phi(:,k-1)+bet(k)*t(1:ifull,k)+betm(k)*t(1:ifull,k-1)
       enddo    ! k  loop
+      
       ! update non-hydrostatic terms from Miller-White height equation
       if (nh/=0) then
         phi=phi+phi_nh
@@ -316,15 +317,15 @@
           ! This is the similar to nh==2, but works for all lapsbot
           ! and only involves phi_nh as the hydrostatic component
           ! is eliminated.
-          ! ddpds is -(sig/rdry)*d(phi_nh)/d(sig) or delta T_nh
+          ! ddpds is (sig/rdry)*d(phi_nh)/d(sig) or delta T_nh
           ddpds=phi_nh(:,1)/bet(1)
           h_nh(1:ifull,1)=h_nh(1:ifull,1)
-     &      +ddpds/(const_nh*tbar2d(:))
+     &      -ddpds/(const_nh*tbar2d(:))
           do k=2,kl
             ddpds=(phi_nh(:,k)-phi_nh(:,k-1)
      &        -betm(k)*ddpds)/bet(k)
             h_nh(1:ifull,k)=h_nh(1:ifull,k)
-     &        +ddpds/(const_nh*tbar2d(:))
+     &        -ddpds/(const_nh*tbar2d(:))
           end do
         end select
 #ifdef debug
@@ -340,7 +341,7 @@
       else
         phi_nh=0. ! set to hydrostatic approximation
         h_nh=0.
-      endif      ! (nh.ne.0.and.(ktau.gt.knh.or.lrestart)) ..else..
+      endif      ! (nh/=0) ..else..
 
       do k=1,kl
        do iq=1,ifull

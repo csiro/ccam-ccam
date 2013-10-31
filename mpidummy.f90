@@ -155,7 +155,30 @@ subroutine MPI_Get_count(status, a, count, ierr)
 end subroutine MPI_Get_count
 
 subroutine MPI_OP_Create(fn,l,a, ierr)
-  integer a,ierr
-  logical l
-  external fn
+   integer :: a,ierr
+   logical :: l
+   external :: fn
 end subroutine MPI_OP_Create
+
+subroutine MPI_TYPE_SIZE(a,b,c)
+   integer :: a,b,c
+   print*, "Error, dummy MPI_Get called"
+   stop
+end subroutine MPI_TYPE_SIZE
+
+subroutine MPI_WIN_CREATE(a,b,c,d,e,f,g)
+   integer :: c,d,e,f,g
+   integer(kind=INT_PTR_KIND()) :: b
+   real, dimension(*) :: a
+end subroutine MPI_WIN_CREATE
+
+subroutine MPI_WIN_FENCE(a,b,c)
+   integer :: a,b,c
+end subroutine MPI_WIN_FENCE
+
+subroutine MPI_GET(a,b,c,d,e,f,g,h,i)
+   integer :: b,c,d,e,f,g,h,i
+   real, dimension(*) :: a
+   print*, "Error, dummy MPI_Get called"
+   stop
+end subroutine MPI_GET
