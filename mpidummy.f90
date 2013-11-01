@@ -182,3 +182,7 @@ subroutine MPI_GET(a,b,c,d,e,f,g,h,i)
    print*, "Error, dummy MPI_Get called"
    stop
 end subroutine MPI_GET
+
+subroutine MPI_WIN_FREE(a,b)
+   integer :: a,b
+end subroutine MPI_WIN_FREE

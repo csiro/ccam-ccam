@@ -6910,6 +6910,7 @@ contains
    
       integer(kind=4) :: lerr
    
+      call MPI_Win_free(localwin,lerr)
       call MPI_Finalize(lerr)
    
    end subroutine ccmpi_finalize

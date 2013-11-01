@@ -357,6 +357,13 @@ sum_flux%sumrs  = sum_flux%sumrs  + canopy%frs*dt
 ! be used by the radiadiation scheme at the next time step.  albvisnir(:,1) and
 ! albvisnir(:,2) are the VIS and NIR albedo used by the radiation scheme for the
 ! current time step.
+do k=1,ms
+  where(land)
+    tgg(:,k)=0.
+    wb(:,k)=0.
+    wbice(:,k)=0.
+  end where
+end do
 where (land)
   albsav(:)=0.
   albnirsav(:)=0.
