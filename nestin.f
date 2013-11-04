@@ -1076,8 +1076,8 @@
       real, dimension(xpan,xpan,klt) :: pt
       real, dimension(xpan,xpan) :: psum,stsum
       real, dimension(4*il_g) :: ra,xa,ya,za
-      real, dimension(4*il_g*il_g*klt) :: dd
-      real, dimension(4*il_g*xpan*klt) :: ff
+      real, dimension(il_g*xpan*klt) :: dd
+      real, dimension(xpan*xpan*klt) :: ff
       
       ! matched for panels 1,2 and 3
       
@@ -1307,8 +1307,8 @@
       real, dimension(xpan,xpan,klt) :: pt
       real, dimension(xpan,xpan) :: psum
       real, dimension(4*il_g) :: ra,xa,ya,za
-      real, dimension(4*il_g*il_g*klt) :: dd
-      real, dimension(4*il_g*xpan*klt) :: ff
+      real, dimension(il_g*xpan*klt) :: dd
+      real, dimension(xpan*xpan*klt) :: ff
       
       ! matched for panels 0, 4 and 5
       
@@ -2401,8 +2401,8 @@
       real, dimension(4*il_g,xpan,kd) :: ap
       real, dimension(xpan,xpan) :: psum
       real, dimension(xpan,xpan,kd) :: pp
-      real, dimension(4*il_g*il_g*kd) :: zz
-      real, dimension(4*il_g*xpan*kd) :: yy
+      real, dimension(il_g*xpan*kd) :: zz
+      real, dimension(xpan*xpan*kd) :: yy
       logical, dimension(4*il_g,xpan) :: landl
       
       maps=(/ il_g, il_g, 4*il_g, 3*il_g /)
@@ -2637,8 +2637,8 @@
       real, dimension(4*il_g,xpan,kd) :: ap
       real, dimension(xpan,xpan) :: psum
       real, dimension(xpan,xpan,kd) :: pp
-      real, dimension(4*il_g*il_g*kd) :: zz
-      real, dimension(4*il_g*xpan*kd) :: yy
+      real, dimension(il_g*xpan*kd) :: zz
+      real, dimension(xpan*xpan*kd) :: yy
       logical, dimension(4*il_g,xpan) :: landl
       
       maps=(/ il_g, il_g, 4*il_g, 3*il_g /)

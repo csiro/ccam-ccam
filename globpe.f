@@ -1275,6 +1275,7 @@
 
       if (abs(nmlo)>=2) then
         ! RIVER ROUTING ------------------------------------------------------
+        ! This option can also be used with PCOM
         call start_log(river_begin)
         if (myid==0.and.nmaxpr==1) then
           write(6,*) "Before river"
@@ -1287,7 +1288,7 @@
       end if
 
       call start_log(waterdynamics_begin)
-      if (abs(nmlo)>=3) then
+      if (abs(nmlo)>=3.and.abs(nmlo)<=9) then
         ! DYNAMICS & DIFFUSION ------------------------------------------------
         if (myid==0.and.nmaxpr==1) then
           write(6,*) "Before MLO dynamics"
@@ -1296,8 +1297,8 @@
         if (myid==0.and.nmaxpr==1) then
           write(6,*) "After MLO dynamics"
         end if
-      else if (abs(nmlo)>=2) then
-        ! DIFFUSION ----------------------------------------------------------
+      else if (abs(nmlo)>=2.and.abs(nmlo)<=9) then
+        ! DIFFUSION ONLY ------------------------------------------------------
         if (myid==0.and.nmaxpr==1) then
           write(6,*) "Before MLO diffusion"
         end if
@@ -1370,12 +1371,14 @@
        rlwp_ave(1:ifull)=rlwp_ave(1:ifull)
      &   -qlrad(:,k)*dsig(k)*ps(1:ifull)/grav ! liq water path
       enddo
+      rnd_3hr(1:ifull,8)=rnd_3hr(1:ifull,8)+condx(:)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
+#ifdef debug
       if(nmaxpr==1.and.mydiag)then
         write (6,"('qfrad',3p9f8.3/5x,9f8.3)") qfrad(idjd,:)
         write (6,"('qlrad',3p9f8.3/5x,9f8.3)") qlrad(idjd,:)
         write (6,"('qf   ',3p9f8.3/5x,9f8.3)") qfg(idjd,:)
       endif
-      rnd_3hr(1:ifull,8)=rnd_3hr(1:ifull,8)+condx(:)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
+#endif
       if (myid==0.and.nmaxpr==1) then
         write(6,*) "After cloud microphysics"
       end if

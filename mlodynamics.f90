@@ -66,8 +66,6 @@ include 'parmdyn.h'
 integer ii,iq,ierr
 real, dimension(ifull,0:wlev) :: dephl
 real, dimension(ifull,wlev) :: dep,dz
-real, dimension(ifull+iextra,3) :: dumx,dumy
-real, dimension(ifull+iextra) :: ff
 real, dimension(ifull) :: tnu,tsu,tev,twv,tee,tnn
 real, dimension(wlev) :: sig,sigh,dsig
 real, dimension(3*wlev) :: dumz,gdumz
@@ -85,15 +83,26 @@ salbdy=0.
 allocate(ee(ifull+iextra))
 allocate(eeu(ifull+iextra),eev(ifull+iextra))
 ee=0.
-ff=0.
 eeu=0.
 eev=0. 
 where(.not.land)
   ee(1:ifull)=1.
 end where
-where(land)
-  ff(1:ifull)=1.
+
+call bounds(ee,nrows=2)
+wtr=abs(ee-1.)<0.5
+where (ee>1.5.or.ee<=0.5)
+  ee=0.
 end where
+
+eeu(1:ifull)=ee(1:ifull)*ee(ie)
+eev(1:ifull)=ee(1:ifull)*ee(in)
+call boundsuv(eeu,eev,nrows=2)
+
+if (abs(nmlo)>=9) return ! only allocate for river routing with PCOM
+
+
+
 
 ! Calculate depth arrays (free suface term is included later)
 allocate(dd(ifull+iextra))
@@ -116,20 +125,18 @@ dd(1:ifull)=dephl(:,wlev)
 dd(1:ifull)=max(dd(1:ifull),1.E-8)
 
 ! update bounds values
-dumx(1:ifull,1)=ee(1:ifull)
-dumx(1:ifull,2)=dd(1:ifull)
-dumx(1:ifull,3)=ff(1:ifull)
-call bounds(dumx(:,1:3),nrows=2)
-ee(ifull+1:ifull+iextra)=dumx(ifull+1:ifull+iextra,1)
-dd(ifull+1:ifull+iextra)=dumx(ifull+1:ifull+iextra,2)
-ff(ifull+1:ifull+iextra)=dumx(ifull+1:ifull+iextra,3)
-wtr=abs(ee-1.)<0.5
-where (ee>1.5.or.ee<=0.5)
-  ee=0.
+call bounds(dd,nrows=2)
+
+! update staggered bounds values
+ddu(1:ifull)=0.5*(dd(1:ifull)+dd(ie))
+ddv(1:ifull)=0.5*(dd(1:ifull)+dd(in))
+where (eeu(1:ifull)==0.)
+  ddu(1:ifull)=1.E-8
 end where
-where (ff>1.5.or.ff<=0.5)
-  ff=0.
+where (eev(1:ifull)==0.)
+  ddv(1:ifull)=1.E-8
 end where
+call boundsuv(ddu,ddv,nrows=2)
 
 ! Precompute weights for calculating staggered gradients
 allocate(stwgt(ifull,4))
@@ -169,27 +176,6 @@ if (abs(nmlo)>=3) then
   dfdyu=0.5*(stwgt(:,1)*(tnu-tee)+stwgt(:,2)*(tee-tsu))*emu(1:ifull)/ds
   dfdxv=0.5*(stwgt(:,3)*(tev-tnn)+stwgt(:,4)*(tnn-twv))*emv(1:ifull)/ds
 end if
-
-! update staggered bounds values
-eeu(1:ifull)=ee(1:ifull)*ee(ie)
-eev(1:ifull)=ee(1:ifull)*ee(in)
-ddu(1:ifull)=0.5*(dd(1:ifull)+dd(ie))
-ddv(1:ifull)=0.5*(dd(1:ifull)+dd(in))
-where (eeu(1:ifull)==0.)
-  ddu(1:ifull)=1.E-8
-end where
-where (eev(1:ifull)==0.)
-  ddv(1:ifull)=1.E-8
-end where
-dumx(1:ifull,1)=eeu(1:ifull)
-dumy(1:ifull,1)=eev(1:ifull)
-dumx(1:ifull,2)=ddu(1:ifull)
-dumy(1:ifull,2)=ddv(1:ifull)
-call boundsuv(dumx(:,1:2),dumy(:,1:2),nrows=2)
-eeu(ifull+1:ifull+iextra)=dumx(ifull+1:ifull+iextra,1)
-eev(ifull+1:ifull+iextra)=dumy(ifull+1:ifull+iextra,1)
-ddu(ifull+1:ifull+iextra)=dumx(ifull+1:ifull+iextra,2)
-ddv(ifull+1:ifull+iextra)=dumy(ifull+1:ifull+iextra,2)
 
 ! sigma coordinates should be the same for all iq
 allocate(gosig(wlev),gosigh(wlev),godsig(wlev))
@@ -490,31 +476,33 @@ idp(:,3)=emv(isv)/ds
 idp(:,4)=emu(iwu)/ds
 
 ! update bounds and initial conditions
-neta=0.
-salin=0.
-sallvl=0.
-call mloexport(4,neta(1:ifull),0,0)
-neta(1:ifull)=neta(1:ifull)-inflowbias*ee(1:ifull)
-do ii=1,wlev
-  call mloexport(1,sallvl(:,ii),ii,0)
-  ! could modify the following to only operate above neta=0
-  salin=salin+godsig(ii)*sallvl(:,ii)
-end do
-where (ee(1:ifull)>0.5)
-  depdum=max(neta(1:ifull)+dd(1:ifull),minwater)
-  ! collect any left over water over ocean
-  salin=(salin*depdum+salbdy(1:ifull)*watbdy(1:ifull)*0.001)/(depdum+watbdy(1:ifull)*0.001)
-  neta(1:ifull)=neta(1:ifull)+0.001*watbdy(1:ifull)
-  ! move water from neta to watbdy for transport
-  deta=1000.*max(neta(1:ifull),0.)
-  salbdy(1:ifull)=salin
-  watbdy(1:ifull)=deta
-  neta(1:ifull)=min(neta(1:ifull),0.)
-elsewhere
-  deta=0.
-  depdum=0.
-end where
-salbdy(1:ifull)=salbdy(1:ifull)*watbdy(1:ifull) ! rescale salinity to PSU*mm for advection
+if (abs(nmlo)<=9) then
+  neta=0.
+  salin=0.
+  sallvl=0.
+  call mloexport(4,neta(1:ifull),0,0)
+  neta(1:ifull)=neta(1:ifull)-inflowbias*ee(1:ifull)
+  do ii=1,wlev
+    call mloexport(1,sallvl(:,ii),ii,0)
+    ! could modify the following to only operate above neta=0
+    salin=salin+godsig(ii)*sallvl(:,ii)
+  end do
+  where (ee(1:ifull)>0.5)
+    depdum=max(neta(1:ifull)+dd(1:ifull),minwater)
+    ! collect any left over water over ocean
+    salin=(salin*depdum+salbdy(1:ifull)*watbdy(1:ifull)*0.001)/(depdum+watbdy(1:ifull)*0.001)
+    neta(1:ifull)=neta(1:ifull)+0.001*watbdy(1:ifull)
+    ! move water from neta to watbdy for transport
+    deta=1000.*max(neta(1:ifull),0.)
+    salbdy(1:ifull)=salin
+    watbdy(1:ifull)=deta
+    neta(1:ifull)=min(neta(1:ifull),0.)
+  elsewhere
+    deta=0.
+    depdum=0.
+  end where
+  salbdy(1:ifull)=salbdy(1:ifull)*watbdy(1:ifull) ! rescale salinity to PSU*mm for advection
+end if
 
 ! update boundaries
 dum(1:ifull,1)=watbdy(1:ifull)
@@ -715,35 +703,37 @@ if (any(salbdy(1:ifull)>0..and.watbdy(1:ifull)==0.)) then
   write(6,*) "WARN: Patch river salinity"
 end if
 
-! update ocean
-where (ee(1:ifull)>0.5)
-  depdum=max(dd(1:ifull)+neta(1:ifull),minwater)
-  ! salbdy is already multiplied by watbdy
-  sal=(salin*depdum+0.001*salbdy(1:ifull))/(depdum+0.001*watbdy(1:ifull))
-  neta(1:ifull)=neta(1:ifull)+0.001*watbdy(1:ifull)
-  watbdy(1:ifull)=0.
-  salbdy(1:ifull)=sal   ! ocean default
-elsewhere (watbdy(1:ifull)>1.E-10)
-  salbdy(1:ifull)=salbdy(1:ifull)/watbdy(1:ifull) ! rescale salinity back to PSU
-  sal=0.
-elsewhere
-  salbdy(1:ifull)=0.    ! land default
-  sal=0.
-end where
-
-! import ocean data
-neta(1:ifull)=neta(1:ifull)+inflowbias*ee(1:ifull)
-call mloimport(4,neta(1:ifull),0,0)
-do ii=1,wlev
-  where (ee(1:ifull)>0.5.and.salin>0.)
-    ! rescale salinity profile
-    sallvl(:,ii)=sallvl(:,ii)*sal/salin
-  elsewhere (ee(1:ifull)>0.5)
-    ! set new uniform salinity profile
-    sallvl(:,ii)=sal
+if (abs(nmlo)<=9) then
+  ! update ocean
+  where (ee(1:ifull)>0.5)
+    depdum=max(dd(1:ifull)+neta(1:ifull),minwater)
+    ! salbdy is already multiplied by watbdy
+    sal=(salin*depdum+0.001*salbdy(1:ifull))/(depdum+0.001*watbdy(1:ifull))
+    neta(1:ifull)=neta(1:ifull)+0.001*watbdy(1:ifull)
+    watbdy(1:ifull)=0.
+    salbdy(1:ifull)=sal   ! ocean default
+  elsewhere (watbdy(1:ifull)>1.E-10)
+    salbdy(1:ifull)=salbdy(1:ifull)/watbdy(1:ifull) ! rescale salinity back to PSU
+    sal=0.
+  elsewhere
+    salbdy(1:ifull)=0.    ! land default
+    sal=0.
   end where
-  call mloimport(1,sallvl(:,ii),ii,0)
-end do
+
+  ! import ocean data
+  neta(1:ifull)=neta(1:ifull)+inflowbias*ee(1:ifull)
+  call mloimport(4,neta(1:ifull),0,0)
+  do ii=1,wlev
+    where (ee(1:ifull)>0.5.and.salin>0.)
+      ! rescale salinity profile
+      sallvl(:,ii)=sallvl(:,ii)*sal/salin
+    elsewhere (ee(1:ifull)>0.5)
+      ! set new uniform salinity profile
+      sallvl(:,ii)=sal
+    end where
+    call mloimport(1,sallvl(:,ii),ii,0)
+  end do
+end if
 
 return
 end subroutine mlorouter
