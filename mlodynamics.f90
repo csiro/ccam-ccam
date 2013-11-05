@@ -236,12 +236,10 @@ v=0.
 eta=0.
 tt=0.
 ss=0.
-do k=1,wlev
-  call mloexport(0,tt(:,k),k,0)
-  call mloexport(1,ss(:,k),k,0)
-  call mloexport(2,u(:,k),k,0)
-  call mloexport(3,v(:,k),k,0)
-end do
+call mloexport3d(0,tt,0)
+call mloexport3d(1,ss,0)
+call mloexport3d(2,u,0)
+call mloexport3d(3,v,0)
 call mloexport(4,eta(1:ifull),0,0)
 
 call mlodiffusion_main(u,v,u,v,eta,tt,ss)
@@ -397,12 +395,10 @@ end do
 ft=ft+290.
 fs=max(fs+34.72,0.)
 
-do k=1,wlev
-  call mloimport(0,ft(:,k),k,0)
-  call mloimport(1,fs(:,k),k,0)
-  call mloimport(2,outu(:,k),k,0)
-  call mloimport(3,outv(:,k),k,0)
-end do
+call mloimport3d(0,ft,0)
+call mloimport3d(1,fs,0)
+call mloimport3d(2,outu,0)
+call mloimport3d(3,outv,0)
 
 call end_log(waterdiff_end)
 
@@ -482,8 +478,8 @@ if (abs(nmlo)<=9) then
   sallvl=0.
   call mloexport(4,neta(1:ifull),0,0)
   neta(1:ifull)=neta(1:ifull)-inflowbias*ee(1:ifull)
+  call mloexport3d(1,sallvl,0)
   do ii=1,wlev
-    call mloexport(1,sallvl(:,ii),ii,0)
     ! could modify the following to only operate above neta=0
     salin=salin+godsig(ii)*sallvl(:,ii)
   end do
@@ -731,8 +727,8 @@ if (abs(nmlo)<=9) then
       ! set new uniform salinity profile
       sallvl(:,ii)=sal
     end where
-    call mloimport(1,sallvl(:,ii),ii,0)
   end do
+  call mloimport3d(1,sallvl,0)
 end if
 
 return
@@ -874,12 +870,10 @@ if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: Import"
 end if
 #endif
-do ii=1,wlev
-  call mloexport(0,w_t(:,ii),ii,0)
-  call mloexport(1,w_s(:,ii),ii,0)
-  call mloexport(2,w_u(:,ii),ii,0)
-  call mloexport(3,w_v(:,ii),ii,0)
-end do
+call mloexport3d(0,w_t,0)
+call mloexport3d(1,w_s,0)
+call mloexport3d(2,w_u,0)
+call mloexport3d(3,w_v,0)
 call mloexport(4,w_e,0,0)
 do ii=1,4
   call mloexpice(i_it(:,ii),ii,0)
@@ -1762,7 +1756,7 @@ dumt=nt(1:ifull,:)
 dums=ns(1:ifull,:)
 odum=neta(1:ifull)
 call mlodiffusion_main(uau,uav,duma,dumb,odum,dumt,dums)
-call mloimport(4,odum,0,0)
+call mloimport(4,odum,0,0) ! neta
 
 
 ! EXPORT ----------------------------------------------------------------------

@@ -34,7 +34,7 @@ implicit none
 private
 public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlodiag,mloalb2,mloalb4, &
        mloscrnout,mloextra,mloimpice,mloexpice,mloexpdep,mloexpdensity,mloexpmelt,mloexpscalar,wlev, &
-       micdwn,mxd,mindep,minwater,onedice
+       micdwn,mxd,mindep,minwater,onedice,mloimport3d,mloexport3d
 
 ! parameters
 integer, save :: wlev = 20
@@ -360,18 +360,18 @@ subroutine mloload(datain,shin,icein,diag)
 implicit none
 
 integer, intent(in) :: diag
-integer ii
+integer iqw
 real, dimension(ifull,wlev,4), intent(in) :: datain
 real, dimension(ifull,11), intent(in) :: icein
 real, dimension(ifull), intent(in) :: shin
 
 if (wfull==0) return
 
-do ii=1,wlev
-  w_temp(:,ii)=datain(wmap,ii,1)
-  w_sal(:,ii) =datain(wmap,ii,2)
-  w_u(:,ii)   =datain(wmap,ii,3)
-  w_v(:,ii)   =datain(wmap,ii,4)
+do iqw=1,wfull
+  w_temp(iqw,:)=datain(wmap(iqw),:,1)
+  w_sal(iqw,:) =datain(wmap(iqw),:,2)
+  w_u(iqw,:)   =datain(wmap(iqw),:,3)
+  w_v(iqw,:)   =datain(wmap(iqw),:,4)
 end do
 i_tsurf(:)  =icein(wmap,1)
 i_tn(:,0)   =icein(wmap,2)
@@ -397,7 +397,7 @@ subroutine mlosave(dataout,depout,shout,iceout,diag)
 implicit none
 
 integer, intent(in) :: diag
-integer ii
+integer iqw
 real, dimension(ifull,wlev,4), intent(inout) :: dataout
 real, dimension(ifull,11), intent(inout) :: iceout
 real, dimension(ifull), intent(inout) :: depout,shout
@@ -408,11 +408,11 @@ iceout(:,8)=0.
 depout=0.
 shout=0.
 
-do ii=1,wlev
-  dataout(wmap,ii,1)=w_temp(:,ii)
-  dataout(wmap,ii,2)=w_sal(:,ii)
-  dataout(wmap,ii,3)=w_u(:,ii)
-  dataout(wmap,ii,4)=w_v(:,ii)
+do iqw=1,wfull
+  dataout(wmap(iqw),:,1)=w_temp(iqw,:)
+  dataout(wmap(iqw),:,2)=w_sal(iqw,:)
+  dataout(wmap(iqw),:,3)=w_u(iqw,:)
+  dataout(wmap(iqw),:,4)=w_v(iqw,:)
 end do
 iceout(wmap,1)  =i_tsurf(:)
 iceout(wmap,2)  =i_tn(:,0)
@@ -458,6 +458,37 @@ end select
 
 return
 end subroutine mloimport
+
+subroutine mloimport3d(mode,sst,diag)
+
+implicit none
+
+integer, intent(in) :: mode,diag
+integer iqw
+real, dimension(ifull,wlev), intent(in) :: sst
+
+select case(mode)
+  case(0)
+    do iqw=1,ifull
+      w_temp(iqw,:)=sst(wmap(iqw),:)
+    end do
+  case(1)
+    do iqw=1,ifull
+      w_sal(iqw,:)=sst(wmap(iqw),:)
+    end do
+  case(2)
+    do iqw=1,ifull
+      w_u(iqw,:)=sst(wmap(iqw),:)
+    end do
+  case(3)
+    do iqw=1,ifull
+      w_v(iqw,:)=sst(wmap(iqw),:)
+    end do
+end select
+
+return
+end subroutine mloimport3d
+
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Export ice temp
@@ -529,6 +560,36 @@ end select
 
 return
 end subroutine mloexport
+
+subroutine mloexport3d(mode,sst,diag)
+
+implicit none
+
+integer, intent(in) :: mode,diag
+integer iqw
+real, dimension(ifull,wlev), intent(inout) :: sst
+
+select case(mode)
+  case(0)
+    do iqw=1,wfull
+      sst(wmap(iqw),:)=w_temp(iqw,:)
+    end do
+  case(1)
+    do iqw=1,wfull
+      sst(wmap(iqw),:)=w_sal(iqw,:)
+    end do
+  case(2)
+    do iqw=1,wfull
+      sst(wmap(iqw),:)=w_u(iqw,:)
+    end do
+  case(3)
+    do iqw=1,wfull
+      sst(wmap(iqw),:)=w_v(iqw,:)
+    end do
+end select
+
+return
+end subroutine mloexport3d
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Export ice temp

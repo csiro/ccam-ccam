@@ -106,9 +106,7 @@
             sssb(:,:,3)=0.
             sssb(:,:,4)=0.
             do i=1,4
-              do k=1,wlev
-                call mloexport(i-1,sssb(:,k,i),k,0)
-              end do
+              call mloexport3d(i-1,sssb(:,:,i),0)
             end do
           end if
         
