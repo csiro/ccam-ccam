@@ -469,19 +469,19 @@ real, dimension(ifull,wlev), intent(in) :: sst
 
 select case(mode)
   case(0)
-    do iqw=1,ifull
+    do iqw=1,wfull
       w_temp(iqw,:)=sst(wmap(iqw),:)
     end do
   case(1)
-    do iqw=1,ifull
+    do iqw=1,wfull
       w_sal(iqw,:)=sst(wmap(iqw),:)
     end do
   case(2)
-    do iqw=1,ifull
+    do iqw=1,wfull
       w_u(iqw,:)=sst(wmap(iqw),:)
     end do
   case(3)
-    do iqw=1,ifull
+    do iqw=1,wfull
       w_v(iqw,:)=sst(wmap(iqw),:)
     end do
 end select
