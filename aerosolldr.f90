@@ -214,29 +214,30 @@ real, dimension(ifull) :: so2em,so4em,dmsem,bem,oem,bbem
 real, dimension(ifull) :: so2dd,so4dd
 real, dimension(ifull) :: so2wd,so4wd,dustwd
 real, dimension(ifull) :: so2oh,so2h2,so2o3,dmsoh,dmsn3
-real, dimension(ifull) :: v10n,dumsnowd
+real, dimension(ifull) :: dumsnowd
 real, dimension(ifull) :: veff,vefn,dustdd,duste
+real, dimension(ifull) :: cstrat,qtot
 real, dimension(ifull) :: rrate,wstar3,vgust_free,vgust_deep
-real, dimension(ifull) :: cstrat,qlgx,qfgx
+real, dimension(ifull) :: v10n
 real, dimension(kl) :: isig
 real, parameter :: beta=0.65
 integer nt,k
 
 conwd=0.
-v10n=ustar*log(10./zo)/vkar
 dumsnowd=1.E-3*snowd
 
 ! Calculate sub-grid Vgust
+v10n=ustar(:)*log(10./zo(:))/vkar
 ! Mesoscale enhancement follows Redelsperger et al. (2000), J. Climate 13, 402-421.
 ! Equation numbers follow Fairall et al. 1996, JGR 101, 3747-3764.
-rrate(:) = 8640.*rcondx(:)/dt !Rainfall rate in cm/day
+rrate = 8640.*rcondx(:)/dt !Rainfall rate in cm/day
 ! Calculate convective scaling velocity (Eq.17) and gustiness velocity (Eq.16)
-Wstar3(:) = max(0.,(grav*pblh(:)/ttg(:,1))*(fg(:)/(rhoa(:,1)*cp)+0.61*ttg(:,1)*eg(:)/(rhoa(:,1)*hl)))
-Vgust_free = beta*Wstar3(:)**(1./3.)
+Wstar3 = max(0.,(grav*pblh(:)/ttg(:,1))*(fg(:)/(rhoa(:,1)*cp)+0.61*ttg(:,1)*eg(:)/(rhoa(:,1)*hl)))
+Vgust_free = beta*Wstar3**(1./3.)
 ! Calculate the Redelsperger-based Vgust_deep if deep convection is present, and then take
 ! the maximum of these. Note that Redelspreger gives two other parameterizations, based on
 ! the updraft or downdraught mass fluxes respectively.
-Vgust_deep(:) = (19.8*rrate(:)*rrate(:)/(1.5+rrate(:)+rrate(:)*rrate(:)))**0.4
+Vgust_deep = (19.8*rrate*rrate/(1.5+rrate+rrate*rrate))**0.4
 ! Calculate effective 10m wind (Eq. 15)
 ! These can plausibly be added in quadrature, or linearly, the latter giving a much larger
 ! effect (Lunt & Valdes, JGR, 2002).
@@ -244,8 +245,8 @@ Vgust_deep(:) = (19.8*rrate(:)*rrate(:)/(1.5+rrate(:)+rrate(:)*rrate(:)))**0.4
 ! Stick for now to the quadrature method for vefn (used for DMS), though it would be better to
 ! make these consistent.
 ! Go back to quadrature method for veff (dust and sea salt) for T63 (09/06)
-veff(:) = v10m(:) + Vgust_free(:) + Vgust_deep(:)
-vefn(:) = v10n(:) + Vgust_free(:) + Vgust_deep(:)
+veff(:) = v10m(:) + Vgust_free + Vgust_deep
+vefn(:) = v10n    + Vgust_free + Vgust_deep
 
 ! Need to invert vertical levels for ECHAM code... Don't you hate that?
 do k=1,kl+1
@@ -309,14 +310,13 @@ do k=1,kl
   prhop1(:,kl+1-k)=rhoa(:,k)
   ptp1(:,kl+1-k)=ttg(:,k)
   pclcon(:,kl+1-k)=clcon(:,k)
-  qlgx(:)=max(qlg(:,k),0.)
-  qfgx(:)=max(qfg(:,k),0.)
-  where (qlgx(:)+qfgx(:)>1.e-8)
+  qtot=qlg(:,k)+qfg(:,k)
+  where (qtot>1.e-8)
     cstrat(:)=min(cfrac(:,k),1.-clcon(:,k))
-    pclcover(:,kl+1-k)=cstrat(:)*qlgx(:)/(qlgx(:)+qfgx(:)) !Liquid-cloud fraction
-    pcfcover(:,kl+1-k)=cstrat(:)*qfgx(:)/(qlgx(:)+qfgx(:)) !Ice-cloud fraction
-    pmlwc(:,kl+1-k)=qlgx(:)
-    pmiwc(:,kl+1-k)=qfgx(:)
+    pclcover(:,kl+1-k)=cstrat(:)*qlg(:,k)/qtot !Liquid-cloud fraction
+    pcfcover(:,kl+1-k)=cstrat(:)*qfg(:,k)/qtot !Ice-cloud fraction
+    pmlwc(:,kl+1-k)=qlg(:,k)
+    pmiwc(:,kl+1-k)=qfg(:,k)
   elsewhere
     pclcover(:,kl+1-k)=0.
     pcfcover(:,kl+1-k)=0.
@@ -2073,18 +2073,16 @@ real duste(ifull)      !Dust emission flux into lowest layer (diagnostic; kg/m2/
 
 
 ! Local work arrays and variables
-real a(ifull),b(ifull)
 integer ipoint(ndust) !Pointer used for dust classes (sand, silt, clay)
 real frac_s(ndust)
 real den(ndust),diam(ndust)
-real dxdt(ifull)
 real snowa(ifull)     !Estimated snow areal coverage
-real xold(ifull)
 real water(ifull)
-real ch_dust(ifull)
-real hsnow(ifull),rhoa(ifull),u_ts0(ifull)
-real cw(ifull),u_ts(ifull),srce(ifull),dsrc(ifull)
-real airmas(ifull),cz1(ifull),veff(ifull),xtendd(ifull)
+real ch_dust
+real u_ts0(ifull)
+real u_ts(ifull)
+real srce(ifull),dsrc(ifull),airmas(ifull),cw(ifull),dxdt(ifull)
+real hsnow(ifull),a(ifull),b(ifull),xold(ifull),xtendd(ifull),veff(ifull)
 
 real g
 integer n,m,k
@@ -2103,31 +2101,23 @@ where (land)
 elsewhere
   water=1.
 end where
-Ch_dust = 1.e-9  ! Transfer coeff for type natural source (kg*s2/m5)
 
-! Convert snow depth to estimated areal coverage (see Zender et al 2003, JGR 108, D14, 4416)
-! Must convert from mm to m, then adjust by rho_l/rho_s=10.
-! 0.05 m is the geometrical snow thickness for 100% areal coverage.
-hsnow = snowd*0.01 !Geometrical snow thickness in metres
-snowa = min(1.0, hsnow/0.05)
+Ch_dust = 1.e-9  ! Transfer coeff for type natural source (kg*s2/m5)
+g=grav*1.e2
 
 do n = 1, ndust
   ! Threshold velocity as a function of the dust density and the diameter
   ! from Bagnold (1941)
   den(n)=dustden(n)*1.e-3
   diam(n)=2.*dustreff(n)*1.e2
-  g=grav*1.e2
   ! Pointer to the 3 classes considered in the source data files
   m=ipoint(n)
   do k = 1, NDSRC
     ! No flux if wet soil 
 
     ! Following is from Ginoux et al (2004) Env. Modelling & Software.
-    rhoa=airden*1.e-3 
-    u_ts0=0.13*1.e-2*sqrt(den(n)*g*diam(n)/rhoa)*sqrt(1.+0.006/den(n)/g/(diam(n))**2.5)/ &
+    u_ts0=0.13*1.e-2*sqrt(den(n)*g*diam(n)/(airden*1.e-3))*sqrt(1.+0.006/den(n)/g/(diam(n))**2.5)/ &
             sqrt(1.928*(1331.*(diam(n))**1.56+0.38)**0.092-1.)
-    ! Fraction of emerged surfaces (subtract lakes, coastal ocean,...)
-    cw=1.-water
     ! Case of surface dry enough to erode
     where (wg<0.1) 
       !Tuning suggested for Asian source by P. Ginoux
@@ -2136,35 +2126,44 @@ do n = 1, ndust
       ! Case of wet surface, no erosion
       u_ts=100.
     end where
+    
+    ! Fraction of emerged surfaces (subtract lakes, coastal ocean,...)
+    cw=1.-water(:)
+
+    ! Convert snow depth to estimated areal coverage (see Zender et al 2003, JGR 108, D14, 4416)
+    ! Must convert from mm to m, then adjust by rho_l/rho_s=10.
+    ! 0.05 m is the geometrical snow thickness for 100% areal coverage.
+    hsnow = snowd(:)*0.01 !Geometrical snow thickness in metres
+    snowa = min(1.0, hsnow/0.05)
+
     !SRCE=frac_s(n)*EROD(i,m,k)*DXY(i) ! (m2)
     SRCE=frac_s(n)*EROD(:,m,k) ! (fraction) - MJT suggestion
-    DSRC=(1.-snowa)*cw*Ch_dust*SRCE*W10m*W10m * (W10m-u_ts) ! (kg/s/m2)
+    DSRC=(1.-snowa)*cw*Ch_dust*SRCE*W10m(:)*W10m(:) * (W10m(:)-u_ts(:)) ! (kg/s/m2)
     dsrc = max ( 0., dsrc )
 
 ! Calculate dust mixing ratio tendency at first model level.
     !airmas = dxy(i) * dz1(i) * airden(i) ! kg
-    airmas = dz1 * airden ! kg/m2 - MJT suggestion
+    airmas = dz1(:) * airden(:) ! kg/m2 - MJT suggestion
     dxdt = DSRC / AIRMAS
     !duste(i) = duste(i) + dxdt*airden(i)*dz1(i)
-    duste = duste + dsrc ! MJT suggestion
+    duste(:) = duste(:) + dsrc ! MJT suggestion
 
 ! Calculate turbulent dry deposition at surface
 ! Use the tau-1 value of dust m.r. for now, but may modify this...
 
 ! Use full layer thickness for CSIRO model (should be correct if Vt is relative to mid-layer)
-    veff = Vt * (wg+(1.-wg)*exp(-max(0.,w10m-u_ts0)))
+    veff = Vt(:) * (wg(:)+(1.-wg(:))*exp(-max(0.,w10m(:)-u_ts0(:))))
 
 ! Update mixing ratio
 ! Write in form dx/dt = a - bx (a = source term, b = drydep term) and use time-centered scheme
     a = dxdt
-    b = Veff / dz1
+    b = Veff / dz1(:)
     xold = xd(:,1,n)
     xd(:,1,n) = (xold+a*tdt)/(1.+b*tdt) ! MJT suggestion
     !xd(i,1,n) = (xold*(1.-0.5*b*tdt)+a*tdt)/(1.+0.5*b*tdt)
     xd(:,1,n) = max (0.,xd(:,1,n))
     xtendd = (xd(:,1,n)-xold)/tdt - dxdt
-    dustd = dustd - xtendd*airden*dz1 !Diagnostic
-
+    dustd(:) = dustd(:) - xtendd*airden(:)*dz1(:) !Diagnostic
   enddo
 enddo
 
@@ -2236,7 +2235,7 @@ real zmid(ifull,kl)  !Height of full level (m)
 real pblh(ifull)     !PBL height (m)
 real v10m(ifull)     !10m windpseed, including effect of sub-grid gustiness (m/s)
 
-real Veff(ifull)
+real Veff
 
 integer k,mg
 
@@ -2251,17 +2250,19 @@ integer k,mg
 !             Jones et al. (2001) JGR 106, 20293-20310.
 !             Nilsson et al. (2001) JGR 106, 32139-32154.
 
-! Jones et al. give different windspeed relations for v10m < 2, 2 <= v10m <= 17.5,
-! and v10m > 17.5, but let's apply the middle one everywhere, since a min. windspeed 
-! of 2 m/s seems reasonable, and the model gives few points with v10m > 17.5.
-Veff=max(2.,v10m)
+
 
 ! Number-to-mass conversion factors are derived from the parameters of the two
 ! lognormal modes given by Nilsson, together with rhosalt=2.0e3 kg/m3.
 do mg=1,ifull
   if (.not.land(mg)) then
-    ssn(mg,1,1)=10.**(0.0950*Veff(mg)+6.2830) 
-    ssn(mg,1,2)=10.**(0.0422*Veff(mg)+5.7122)  
+    ! Jones et al. give different windspeed relations for v10m < 2, 2 <= v10m <= 17.5,
+    ! and v10m > 17.5, but let's apply the middle one everywhere, since a min. windspeed 
+    ! of 2 m/s seems reasonable, and the model gives few points with v10m > 17.5.
+    Veff=max(2.,v10m(mg))
+
+    ssn(mg,1,1)=10.**(0.0950*Veff+6.2830) 
+    ssn(mg,1,2)=10.**(0.0422*Veff+5.7122)  
     do k=2,kl
       if (zmid(mg,k)<pblh(mg)) then
         ssn(mg,k,1)=ssn(mg,1,1)
@@ -2279,8 +2280,8 @@ end do
 
 ! Reduce over sea ice...
 do k=1,kl
-  ssn(:,kl,1)=(1.-sicef(:))*ssn(:,kl,1)
-  ssn(:,kl,2)=(1.-sicef(:))*ssn(:,kl,2)
+  ssn(:,k,1)=(1.-sicef(:))*ssn(:,k,1)
+  ssn(:,k,2)=(1.-sicef(:))*ssn(:,k,2)
 enddo
 
 ! These relations give ssm in kg/m3 based on ssn in m^{-3}...
@@ -2320,13 +2321,13 @@ ie=istart+imax-1
 if (convmode) then
   ! total grid-box
   xtgso2 = xtg(is:ie,:,itracso2+1)
-  xtgbc = xtg(is:ie,:,itracbc+1)
-  xtgoc = xtg(is:ie,:,itracoc+1)
+  xtgbc  = xtg(is:ie,:,itracbc+1)
+  xtgoc  = xtg(is:ie,:,itracoc+1)
 else
   ! outside convective fraction of grid-box
   xtgso2 = xtosav(is:ie,:,itracso2+1)
-  xtgbc = xtosav(is:ie,:,itracbc+1)
-  xtgoc = xtosav(is:ie,:,itracoc+1)
+  xtgbc  = xtosav(is:ie,:,itracbc+1)
+  xtgoc  = xtosav(is:ie,:,itracoc+1)
 end if
 
 do k=1,kl
@@ -2335,7 +2336,7 @@ do k=1,kl
   ! from Penner et al (1998).
   ! 1.69e17 converts from mass (kg/m3) to number concentration (/m3) for dist'n 
   ! from IPCC (2001), Table 5.1, as used by Minghuai Wang for lookup optical properties.
-  so4_n(:) = 1.24e17 * (132.14/32.06) * rhoa(:,k) * xtgso2(:,k)
+  so4_n = 1.24e17 * (132.14/32.06) * rhoa(:,k) * xtgso2(:,k)
 
   ! Factor of 1.3 converts from OC to organic matter (OM) 
   ! 1.25e17 converts from hydrophilic mass (kg/m3) to number concentration (/m3) for
@@ -2344,7 +2345,7 @@ do k=1,kl
   ! biomass regional haze distribution from IPCC (2001), Table 5.1. Using rho_a=1250 kg/m3.
 
   ! Following line counts Aitken mode as well as accumulation mode carb aerosols
-  cphil_n(:) = 2.30e17 * rhoa(:,k) * (xtgbc(:,k)+1.3*xtgoc(:,k))
+  cphil_n = 2.30e17 * rhoa(:,k) * (xtgbc(:,k)+1.3*xtgoc(:,k))
 
   ! The dust particles are the accumulation mode only (80.2% of the hydrophilic 
   ! "small dust" particles)
@@ -2352,10 +2353,11 @@ do k=1,kl
   !aero_n(:) = max (10.e6, so4_n(:) + cphil_n(:) + ssn(is:ie,k,1) + ssn(is:ie,k,2) + dust_n(:))
 
   ! Jones et al., modified to account for hydrophilic carb aerosols as well
-  Atot(:) = so4_n(:) + cphil_n(:) + ssn(is:ie,k,1) + ssn(is:ie,k,2)
+  Atot = so4_n + cphil_n + ssn(is:ie,k,1) + ssn(is:ie,k,2)
   !cdn_strat(:,k)=max(10.e6, 375.e6*(1.-exp(-2.5e-9*Atot(:))))
   !cdn_conv(:,k) = cdn_strat(:,k)
-  cdn(:,k)=max(10.e6, 375.e6*(1.-exp(-2.5e-9*Atot(:))))
+  cdn(:,k)=max(10.e6, 375.e6*(1.-exp(-2.5e-9*Atot)))
+
 enddo
 
 return
@@ -2381,7 +2383,7 @@ logical, dimension(ifull), intent(in) :: bwkp1 ! condensate in parcel is liquid
 ! Note that value for SO2 (index 2) is overwritten by Henry coefficient f_so2 below.
 real, dimension(11) :: scav_effl,scav_effi
 real, dimension(ifull,naero) :: scav_eff
-real, dimension(ifull) :: zqtp1,ze2,ze3,zlwc,zfac,zso4l,zso2l,zqhp
+real, dimension(ifull) :: zqtp1,ze2,ze3,zfac,zso4l,zso2l,zqhp
 real, dimension(ifull) :: zza,zzb,zzp,zzq,zzp2,zhp,zqhr,zheneff,p_so2
 integer nt
 ! These ones are for 3 SULF, 4 CARB and 4 or 8 DUST (and include dummy variables at end)
@@ -2394,13 +2396,12 @@ where (xpold>0.and.bwkp1(:))
   ZQTP1=1./tt-1./298.
   ZE2=1.23*EXP(3020.*ZQTP1)
   ZE3=1.2E-02*EXP(2010.*ZQTP1)
-  ZLWC=xpold        !m.r. of l.w. before precip
-  ZFAC=1000./(ZLWC*32.064)
+  ZFAC=1000./(xpold*32.064)
   ZSO4L=xs*ZFAC
   ZSO4L=AMAX1(ZSO4L,0.)
   ZSO2L=xs*ZFAC
   ZSO2L=AMAX1(ZSO2L,0.)
-  ZZA=ZE2*8.2E-02*tt*ZLWC*rho*1.E-03
+  ZZA=ZE2*8.2E-02*tt*xpold*rho*1.E-03
   ZZB=2.5E-06+ZSO4L
   ZZP=(ZZA*ZE3-ZZB-ZZA*ZZB)/(1.+ZZA)
   ZZQ=-ZZA*ZE3*(ZZB+ZSO2L)/(1.+ZZA)

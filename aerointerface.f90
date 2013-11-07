@@ -501,17 +501,18 @@ sigh(1:kl) = sigmh(1:kl) ! store half-levels
 sigh(kl+1) = 0.
 
 ! Non-hydrostatic terms
+
+do k=2,kl
+
+end do
+
 tnhs(:,1)=phi_nh(:,1)/bet(1)
+zg(:,1)=bet(1)*(t(1:ifull,1)+tnhs(:,1))/grav
 do k=2,kl
   ! representing non-hydrostatic term as a correction to air temperature
   tnhs(:,k)=(phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:,k-1))/bet(k)
+  zg(:,k)=zg(:,k-1)+(bet(k)*(t(1:ifull,k)+tnhs(:,k))+betm(k)*(t(1:ifull,k-1)+tnhs(:,k-1)))/grav ! height above surface in meters
 end do
-
-zg(:,1)=bet(1)*t(1:ifull,1)/grav
-do k=2,kl
-  zg(:,k)=zg(:,k-1)+(bet(k)*t(1:ifull,k)+betm(k)*t(1:ifull,k-1))/grav ! height above surface in meters
-end do
-zg=zg+phi_nh/grav
 do k=1,kl
   dz(:,k)=-rdry*dsig(k)*(t(1:ifull,k)+tnhs(:,k))/(grav*sig(k))
 end do

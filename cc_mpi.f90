@@ -7112,8 +7112,8 @@ contains
       real, dimension(kx,2,nmax) :: tdat_g
 
       ! prep data for sending around the merge
-      tdat(1:kx,1) = vdat(1,1:kx)
-      tdat(1:kx,2) = dsolmax(1:kx)
+      tdat(:,1) = vdat(1,1:kx)
+      tdat(:,2) = dsolmax(1:kx)
 
       ilen = 2*kx
       lcomm = mg(g)%comm_merge
@@ -7124,8 +7124,8 @@ contains
 #endif
 
       ! unpack buffers (nmax is zero unless this is the host processor)
-      vdat(1:nmax,1:kx) = transpose( tdat_g(1:kx,1,1:nmax) )
-      dsolmax(1:kx) = maxval( tdat_g(1:kx,2,1:nmax), dim=2 )
+      vdat(1:nmax,1:kx) = transpose( tdat_g(:,1,:) )
+      dsolmax(1:kx) = maxval( tdat_g(:,2,:), dim=2 )
   
    return
    end subroutine mgcollectreduce_sing
@@ -7154,8 +7154,8 @@ contains
       ncol  = msg_len/nrow                ! number of points along a col per processor
       nrm1  = nrow - 1
 
-      tdat(1:msg_len*npanx,1:kx) = vdat(1:msg_len*npanx,1:kx)
-      tdat(msg_len*npanx+1,1:kx) = dsolmax(1:kx)
+      tdat(1:msg_len*npanx,:) = vdat(1:msg_len*npanx,1:kx)
+      tdat(msg_len*npanx+1,:) = dsolmax(1:kx)
 
       ilen = (msg_len*npanx+1)*kx
       lcomm = mg(g)%comm_merge
@@ -7179,11 +7179,11 @@ contains
             do jj = js,je
                iq_a = na + (jj-1)*ipanx
                iq_c = nb + (jj-js)*nrow
-               vdat(iq_a:iq_a+nrm1,1:kx) = tdat_g(iq_c:iq_c+nrm1,1:kx,yproc)
+               vdat(iq_a:iq_a+nrm1,1:kx) = tdat_g(iq_c:iq_c+nrm1,:,yproc)
             end do
          end do
       end do
-      dsolmax(1:kx) = maxval( tdat_g(msg_len*npanx+1,1:kx,1:nmax), dim=2 )
+      dsolmax(1:kx) = maxval( tdat_g(msg_len*npanx+1,:,:), dim=2 )
   
    return
    end subroutine mgcollectreduce_work
@@ -7237,7 +7237,7 @@ contains
       real, dimension(kx,nmax) :: tdat_g
 
       ! prep data for sending around the merge
-      tdat(1:kx) = vdat(1,1:kx)
+      tdat(:) = vdat(1,1:kx)
 
       ilen = kx
       lcomm = mg(g)%comm_merge
@@ -7248,7 +7248,7 @@ contains
 #endif
 
       ! unpack buffers (nmax is zero unless this is the host processor)
-      vdat(1:nmax,1:kx) = transpose( tdat_g(1:kx,1:nmax) )
+      vdat(1:nmax,1:kx) = transpose( tdat_g(:,:) )
   
    return
    end subroutine mgcollect_sing
@@ -7276,7 +7276,7 @@ contains
       ncol  = msg_len/nrow                ! number of points along a col per processor
       nrm1  = nrow - 1
 
-      tdat(1:msg_len*npanx,1:kx) = vdat(1:msg_len*npanx,1:kx)
+      tdat(1:msg_len*npanx,:) = vdat(1:msg_len*npanx,1:kx)
 
       ilen = msg_len*npanx*kx
       lcomm = mg(g)%comm_merge
@@ -7300,7 +7300,7 @@ contains
             do jj = js,je
                iq_a = na + (jj-1)*ipanx
                iq_c = nb + (jj-js)*nrow
-               vdat(iq_a:iq_a+nrm1,1:kx) = tdat_g(iq_c:iq_c+nrm1,1:kx,yproc)
+               vdat(iq_a:iq_a+nrm1,1:kx) = tdat_g(iq_c:iq_c+nrm1,:,yproc)
             end do
          end do
       end do
@@ -7360,9 +7360,9 @@ contains
 
       ! prep data for sending around the merge
 
-      tdat(1:kx,1) = vdat(1,1:kx)
-      tdat(1:kx,2) = smaxmin(1,1:kx)
-      tdat(1:kx,3) = smaxmin(2,1:kx)
+      tdat(:,1) = vdat(1,1:kx)
+      tdat(:,2) = smaxmin(1,1:kx)
+      tdat(:,3) = smaxmin(2,1:kx)
 
       ilen = 3*kx
       lcomm = mg(g)%comm_merge
@@ -7373,9 +7373,9 @@ contains
 #endif
 
       ! unpack buffers (nmax is zero unless this is the host processor)
-      vdat(1:nmax,1:kx) = transpose( tdat_g(1:kx,1,1:nmax) )
-      smaxmin(1,1:kx) = maxval( tdat_g(1:kx,2,1:nmax), dim=2 )
-      smaxmin(2,1:kx) = minval( tdat_g(1:kx,3,1:nmax), dim=2 )
+      vdat(1:nmax,1:kx) = transpose( tdat_g(:,1,:) )
+      smaxmin(1,1:kx) = maxval( tdat_g(:,2,:), dim=2 )
+      smaxmin(2,1:kx) = minval( tdat_g(:,3,:), dim=2 )
   
    return
    end subroutine mgcollectxn_sing
@@ -7404,9 +7404,9 @@ contains
       ncol  = msg_len/nrow                ! number of points along a col per processor
       nrm1  = nrow - 1
 
-      tdat(1:msg_len*npanx,1:kx) = vdat(1:msg_len*npanx,1:kx)
-      tdat(msg_len*npanx+1,1:kx) = smaxmin(1,1:kx)
-      tdat(msg_len*npanx+2,1:kx) = smaxmin(2,1:kx)
+      tdat(1:msg_len*npanx,:) = vdat(1:msg_len*npanx,1:kx)
+      tdat(msg_len*npanx+1,:) = smaxmin(1,1:kx)
+      tdat(msg_len*npanx+2,:) = smaxmin(2,1:kx)
 
       ilen = (msg_len*npanx+2)*kx
       lcomm = mg(g)%comm_merge
@@ -7430,12 +7430,12 @@ contains
             do jj = js,je
                iq_a = na + (jj-1)*ipanx
                iq_c = nb + (jj-js)*nrow
-               vdat(iq_a:iq_a+nrm1,1:kx) = tdat_g(iq_c:iq_c+nrm1,1:kx,yproc)
+               vdat(iq_a:iq_a+nrm1,1:kx) = tdat_g(iq_c:iq_c+nrm1,:,yproc)
             end do
          end do
       end do
-      smaxmin(1,1:kx) = maxval( tdat_g(msg_len*npanx+1,1:kx,1:nmax), dim=2 )
-      smaxmin(2,1:kx) = minval( tdat_g(msg_len*npanx+2,1:kx,1:nmax), dim=2 )
+      smaxmin(1,1:kx) = maxval( tdat_g(msg_len*npanx+1,:,:), dim=2 )
+      smaxmin(2,1:kx) = minval( tdat_g(msg_len*npanx+2,:,:), dim=2 )
   
    return
    end subroutine mgcollectxn_work
@@ -7484,18 +7484,16 @@ contains
       real, dimension(:), intent(inout) :: dsolmax
       real, dimension(out_len+1,kx) :: tdat
 
-#ifdef idleproc      
-      tdat(1:out_len,1:kx) = vdat(1:out_len,1:kx)
-      tdat(out_len+1,1:kx) = dsolmax(1:kx)
+      tdat(1:out_len,:) = vdat(1:out_len,1:kx)
+      tdat(out_len+1,:) = dsolmax(1:kx)
       
       ilen = (out_len+1)*kx
       lcomm = mg(g)%comm_merge
       call MPI_Bcast( tdat, ilen, ltype, 0, lcomm, ierr )      
 
       ! extract data from distribute      
-      vdat(1:out_len,1:kx) = tdat(1:out_len,1:kx)
-      dsolmax(1:kx) = tdat(out_len+1,1:kx)
-#endif
+      vdat(1:out_len,1:kx) = tdat(1:out_len,:)
+      dsolmax(1:kx) = tdat(out_len+1,:)
    
    return
    end subroutine mgbcast_work
@@ -7905,7 +7903,6 @@ contains
          mg_bnds(:,g)%rlenx = mg_bnds(:,g)%rlen  ! so that they're appended.
       
          ! Now handle the special corner values that need to be remapped
-         ! This adds to rlen, so needs to come before the _XX stuff.
          do n = 1,npan
             ! NE
             iq = indx(mipan,mjpan,n-1,mipan,mjpan)
@@ -8018,10 +8015,7 @@ contains
          end do
          mg(g)%iextra = iext
 
-         ! Set up the diagonal index arrays. Most of the points here will have
-         ! already been added to copy lists above. The corners are handled
-         ! separately here. This means some points may be copied twice but it's
-         ! a small overhead.
+         ! Set up the diagonal index arrays.
          do n = 1,npan
             do j = 1,mjpan
                do i = 1,mipan

@@ -145,7 +145,7 @@ subroutine tkemix(kmo,theta,qg,qlg,qfg,qrg,cfrac,cfrain,zi,fg,eg,ps,ustar, &
 implicit none
 
 integer, intent(in) :: diag,mode,naero
-integer k,i,j,ktopmax,klcl
+integer iq,k,i,j,ktopmax,klcl
 integer kcount,mcount,icount
 real, intent(in) :: dt,qgmin
 real, dimension(ifull,kl,naero), intent(inout) :: aero
@@ -175,8 +175,7 @@ real, dimension(ifull,kl-1) :: fzzh
 real, dimension(ifull) :: wt0,wq0
 real, dimension(ifull) :: wstar,z_on_l,phim,wtv0,dum
 real, dimension(ifull) :: tkeold,epsold
-real, dimension(ifull) :: tbb,tcc,tff,tgg,tqq
-real, dimension(ifull) :: qgnc
+real, dimension(ifull) :: tff,tbb,tcc,tgg,tqq,qgnc
 #ifdef offline
 real, dimension(ifull) :: umag
 #endif
@@ -184,11 +183,11 @@ real, dimension(kl) :: sigkap
 real, dimension(kl) :: w2up,nn,dqdash
 real, dimension(kl) :: qtup,qupsat,ttup,tvup,tlup
 real, dimension(kl) :: cff
-real, dimension(1) :: tdum
+real, dimension(1) :: templ
 real xp,as,bs,cs,cm12,cm34,qcup
-real zht,dzht,ziold,ent,entc,entn,dtr,dtrc,dtrn
+real dzht,ziold,ent,entc,entn,dtr,dtrc,dtrn,dtrx
 real ddts,zlcl
-real lx,tempd,templ,fice,qxup,txup,dqsdt,al
+real lx,tempd,fice,qxup,txup,dqsdt,al
 real sigqtup,rng
 logical, dimension(ifull,kl) :: lta
 logical scond
@@ -205,10 +204,9 @@ if (diag>0) write(6,*) "Update PBL mixing with TKE-eps turbulence closure"
 do k=1,kl
   ! Impose limits after host advection
   tke(1:ifull,k)=max(tke(1:ifull,k),mintke)
-  tff=cm34*tke(1:ifull,k)*sqrt(tke(1:ifull,k))/minl
-  eps(1:ifull,k)=min(eps(1:ifull,k),tff)
-  tff=max(tff*minl/maxl,mineps)
-  eps(1:ifull,k)=max(eps(1:ifull,k),tff)
+  tff=cm34*tke(1:ifull,k)*sqrt(tke(1:ifull,k))
+  eps(1:ifull,k)=min(eps(1:ifull,k),tff/minl)
+  eps(1:ifull,k)=max(eps(1:ifull,k),tff/maxl,mineps)
 
   ! Calculate air density - must use same theta for calculating dz
   sigkap(k)=sig(k)**(-rd/cp)
@@ -319,10 +317,9 @@ do kcount=1,mcount
           w2up=0.
           cff=0.
           scond=.false.
-          zht =zz(i,1)
           dzht=zz(i,1)
           ! Entrainment and detrainment rates
-          ent=entfn(zht,zi(i),zz(i,1))
+          ent=entfn(zz(i,1),zi(i),zz(i,1))
           
           ! first level -----------------
           ! initial thermodynamic state
@@ -342,9 +339,8 @@ do kcount=1,mcount
           ! update updraft velocity and mass flux
           nn(1)  =grav*be*wtv0(i)/(thetav(i,1)*sqrt(max(tke(i,1),1.E-4))) ! Hurley 2007
           w2up(1)=2.*dzht*b2*nn(1)/(1.+2.*dzht*b1*ent)                    ! Hurley 2007
-          templ  =tlup(1)/sigkap(1)                                    ! templ,up
-          tdum(1)=templ
-          call getqsat(qupsat(1:1),tdum(1:1),pres(i:i,1))
+          templ(1)=tlup(1)/sigkap(1)                                   ! templ,up
+          call getqsat(qupsat(1:1),templ(1:1),pres(i:i,1))
           ! estimate variance of qtup in updraft
           sigqtup=1.E-5
           rng=sqrt(6.)*sigqtup               ! variance of triangle distribution
@@ -354,9 +350,8 @@ do kcount=1,mcount
           ! updraft without condensation
           do k=2,kl
             dzht=dz_hl(i,k-1)
-            zht =zz(i,k)
             ! Entrainment and detrainment rates
-            ent=entfn(zht,zi(i),zz(i,1))
+            ent=entfn(zz(i,k),zi(i),zz(i,1))
             ! update thermodynamics of plume
             ! split thetal and qtot into components (conservation is maintained)
             ! (use upwind as centred scheme requires vertical spacing less than 250m)
@@ -369,10 +364,9 @@ do kcount=1,mcount
             tlup(k)=thup(i,k)-(lv*(qlup(i,k)+qrup(i,k))+ls*qfup(i,k))/cp  ! thetal,up
             qtup(k)=qvup(i,k)+qlup(i,k)+qfup(i,k)+qrup(i,k)               ! qtot,up
             ! estimate air temperature
-            templ  =tlup(k)/sigkap(k)                                     ! templ,up
+            templ(1)  =tlup(k)/sigkap(k)                                  ! templ,up
             if (.not.scond) then
-              tdum(1)=templ
-              call getqsat(qupsat(k:k),tdum(1:1),pres(i:i,k))
+              call getqsat(qupsat(k:k),templ(1:1),pres(i:i,k))
               ! estimate variance of qtup in updraft (following Hurley and TAPM)
               sigqtup=sqrt(max(1.E-10,1.6*tke(i,k)/eps(i,k)*cq*km(i,k)*((qtup(k)-qtup(k-1))/dzht)**2))
               ! MJT condensation scheme -  follow Smith 1990 and assume
@@ -388,7 +382,7 @@ do kcount=1,mcount
                 zlcl=xp+zz(i,k-1)
               end if
             end if
-            ttup(k)=templ                                          ! temp,up
+            ttup(k)=templ(1)                                       ! temp,up
             tvup(k)=tlup(k)+theta(i,k)*0.61*qtup(k)                ! thetav,up after redistribution
             ! calculate buoyancy
             nn(k)  =grav*(tvup(k)-thetav(i,k))/thetav(i,k)
@@ -417,9 +411,8 @@ do kcount=1,mcount
             ! updraft with condensation
             do k=klcl,kl
               dzht=dz_hl(i,k-1)
-              zht =zz(i,k)
               ! Entrainment and detrainment rates
-              ent=entfn(zht,     zi(i),  zz(i,1))
+              ent=entfn(zz(i,k),     zi(i),  zz(i,1))
               ! update thermodynamics of plume
               ! split thetal and qtot into components (conservation is maintained)
               ! (use upwind as centred scheme requires vertical spacing less than 250m)
@@ -432,10 +425,9 @@ do kcount=1,mcount
               tlup(k)=thup(i,k)-(lv*(qlup(i,k)+qrup(i,k))+ls*qfup(i,k))/cp  ! thetal,up
               qtup(k)=qvup(i,k)+qlup(i,k)+qfup(i,k)+qrup(i,k)               ! qtot,up
               ! estimate air temperature
-              tempd  =thup(i,k)/sigkap(k)
-              templ  =tlup(k)/sigkap(k)                                     ! templ,up
-              tdum(1)=templ
-              call getqsat(qupsat(k:k),tdum(1:1),pres(i:i,k))
+              tempd   =thup(i,k)/sigkap(k)
+              templ(1)=tlup(k)/sigkap(k)                                    ! templ,up
+              call getqsat(qupsat(k:k),templ(1:1),pres(i:i,k))
               ! estimate variance of qtup in updraft (following Hurley and TAPM)
               sigqtup=sqrt(max(1.E-10,1.6*tke(i,k)/eps(i,k)*cq*km(i,k)*((qtup(k)-qtup(k-1))/dzht)**2))
               ! MJT condensation scheme -  follow Smith 1990 and assume
@@ -463,11 +455,11 @@ do kcount=1,mcount
               fice=min(max(273.16-tempd,0.),40.)/40. ! approximate ice fraction based on temperature
                                                      ! (not templ)
               lx=lv+lf*fice
-              dqsdt=qupsat(k)*lx/(rv*templ*templ)
+              dqsdt=qupsat(k)*lx/(rv*templ(1)*templ(1))
               al=cp/(cp+lx*dqsdt)
               qcup=(qtup(k)-qxup)*al
               qxup=qtup(k)-qcup
-              ttup(k)=templ+lx*qcup/cp                               ! temp,up
+              ttup(k)=templ(1)+lx*qcup/cp                            ! temp,up
               txup   =ttup(k)*sigkap(k)                              ! theta,up after redistribution
               tvup(k)=txup+theta(i,k)*(1.61*qxup-qtup(k))            ! thetav,up after redistribution
               ! calculate buoyancy
@@ -499,20 +491,18 @@ do kcount=1,mcount
         end do
 
         ! update mass flux
-        zht =zz(i,1)
-        mflx(i,1)=m0*sqrt(max(w2up(1),0.))*zht**ent0*max(zi(i)-zht,1.)**dtrn0 ! MJT suggestion
+        mflx(i,1)=m0*sqrt(max(w2up(1),0.))*zz(i,1)**ent0*max(zi(i)-zz(i,1),1.)**dtrn0 ! MJT suggestion
         do k=2,ktopmax
           dzht=dz_hl(i,k-1)
-          zht =zz(i,k)
           ! Entrainment and detrainment rates
-          xp  =(zht-zlcl)/max(zidry(i)-zlcl,0.1)
+          xp  =(zz(i,k)-zlcl)/max(zidry(i)-zlcl,0.1)
           xp  =min(max(xp,0.),1.)
-          ent =entfn(zht,     zi(i),     zz(i,1))
-          dtrn=dtrfn(zht,     zidry(i),  zz(i,1),dtrn0)
-          dtrc=dtrfn(zht,     zi(i),     zz(i,1),dtrn0)
-          dtr =(1.-xp)*dtrn+xp*dtrc
-          dtrc=dtrfn(zht,     zi(i),     zz(i,1),dtrc0)
-          dtr =(1.-cff(k))*dtr+cff(k)*dtrc
+          ent =entfn(zz(i,k),     zi(i),     zz(i,1))
+          dtrn=dtrfn(zz(i,k),     zidry(i),  zz(i,1),dtrn0)
+          dtrc=dtrfn(zz(i,k),     zi(i),     zz(i,1),dtrn0)
+          dtrc=dtrfn(zz(i,k),     zi(i),     zz(i,1),dtrc0)
+          dtrx=(1.-xp)*dtrn+xp*dtrc
+          dtr =(1.-cff(k))*dtrx+cff(k)*dtrc
           mflx(i,k)=mflx(i,k-1)/(1.+dzht*(dtr-ent))
         end do
 
@@ -546,8 +536,7 @@ do kcount=1,mcount
         gamtk(i,1)=0.
         do k=2,ktopmax
           dzht=dz_hl(i,k-1)
-          zht =zz(i,k)
-          ent=entfn(zht,zi(i),zz(i,1))
+          ent=entfn(zz(i,k),zi(i),zz(i,1))
           tkup(i,k)=(tkup(i,k-1)+dzht*ent*tke(i,k) )/(1.+dzht*ent)
           epup(i,k)=(epup(i,k-1)+dzht*ent*eps(i,k) )/(1.+dzht*ent)
           gamtk(i,k)=mflx(i,k)*(tkup(i,k)-tke(i,k))
@@ -559,8 +548,7 @@ do kcount=1,mcount
         end do
         do k=2,ktopmax
           dzht=dz_hl(i,k-1)
-          zht =zz(i,k)
-          ent=entfn(zht,zi(i),zz(i,1))
+          ent=entfn(zz(i,k),zi(i),zz(i,1))
           do j=1,naero
             arup(i,k,j)=(arup(i,k-1,j)+dzht*ent*aero(i,k,j))/(1.+dzht*ent)
           end do
@@ -604,19 +592,17 @@ do kcount=1,mcount
   eps(1:ifull,1)=ustar*ustar*ustar*phim/(vkar*zz(:,1))+grav*wtv0/thetav(:,1)
   !eps(1:ifull,1)=ustar*ustar*ustar*(phim-z_on_l)/(vkar*zz(:,1))
   tke(1:ifull,1)=max(tke(1:ifull,1),mintke)
-  tff=cm34*tke(1:ifull,1)*sqrt(tke(1:ifull,1))/minl
-  eps(1:ifull,1)=min(eps(1:ifull,1),tff)
-  tff=max(tff*minl/maxl,mineps)
-  eps(1:ifull,1)=max(eps(1:ifull,1),tff)
+  tff=cm34*tke(1:ifull,1)*sqrt(tke(1:ifull,1))
+  eps(1:ifull,1)=min(eps(1:ifull,1),tff/minl)
+  eps(1:ifull,1)=max(eps(1:ifull,1),tff/maxl,mineps)
 
 
   ! Calculate sources and sinks for TKE and eps
   ! prepare arrays for calculating buoyancy of saturated air
   ! (i.e., related to the saturated adiabatic lapse rate)
   qsatc=max(qsat,qg)                                                       ! assume qg is saturated inside cloud
-  dd=qlg/max(cfrac,1.E-6)                                                  ! inside cloud value
   ff=qfg/max(cfrac,1.E-6)                                                  ! inside cloud value
-  dd=dd+qrg/max(cfrac,cfrain,1.E-6)                                        ! inside cloud value assuming max overlap
+  dd=qlg/max(cfrac,1.E-6)+qrg/max(cfrac,cfrain,1.E-6)                      ! inside cloud value assuming max overlap
   do k=1,kl
     tbb=max(1.-cfrac(:,k),1.E-6)
     qgnc=(qg(:,k)-(1.-tbb)*qsatc(:,k))/tbb                                 ! outside cloud value
@@ -634,15 +620,13 @@ do kcount=1,mcount
   ! fixes for clear/cloudy interface
   lta(:,2:kl)=cfrac(:,2:kl)<=1.E-6
   do k=2,kl-1
-    do i=1,ifull
-      if (lta(i,k).and..not.lta(i,k+1)) then
-        qlhl(i,k)=dd(i,k+1)
-        qfhl(i,k)=ff(i,k+1)
-      else if (.not.lta(i,k).and.lta(i,k+1)) then
-        qlhl(i,k)=dd(i,k)
-        qfhl(i,k)=ff(i,k)
-      end if
-    end do
+    where(lta(:,k).and..not.lta(:,k+1))
+      qlhl(:,k)=dd(:,k+1)
+      qfhl(:,k)=ff(:,k+1)
+    else where (.not.lta(:,k).and.lta(:,k+1))
+      qlhl(:,k)=dd(:,k)
+      qfhl(:,k)=ff(:,k)
+    end where
   end do
 
   ! Update TKE and eps terms using predictor-corrector
@@ -661,7 +645,7 @@ do kcount=1,mcount
     tbb=-grav*km(:,k)*(tqq*((thetahl(:,k)-thetahl(:,k-1))/thetac(:,k)                              &
            +lv*(qshl(:,k)-qshl(:,k-1))/(cp*tempc(:,k)))-qshl(:,k)-qlhl(:,k)-qfhl(:,k)              &
            +qshl(:,k-1)+qlhl(:,k-1)+qfhl(:,k-1))/dz_fl(:,k)
-    tbb=tbb+grav*(tqq*(gamth(:,k)/thetac(:,k)+lv*gamqv(:,k)/(cp*tempc(:,k)))         &
+    tbb=tbb+grav*(tqq*(gamth(:,k)/thetac(:,k)+lv*gamqv(:,k)/(cp*tempc(:,k)))                       &
            -gamqv(:,k)-gamql(:,k)-gamqf(:,k)-gamqr(:,k))
     ! unsaturated
     tcc=-grav*km(:,k)*(thetavhl(:,k)-thetavhl(:,k-1))/(thetavnc(:,k)*dz_fl(:,k))
@@ -669,9 +653,9 @@ do kcount=1,mcount
     ppb(:,k)=(1.-cfrac(:,k))*tcc+cfrac(:,k)*tbb ! cloud fraction weighted (e.g., Smith 1990)
 
     ! Calculate transport term on full levels
-    ppt(:,k)=   kmo(:,k)*idzp(:,k)*(tke(1:ifull,k+1)-tke(1:ifull,k))/dz_hl(:,k)   &
-             -kmo(:,k-1)*idzm(:,k)*(tke(1:ifull,k)-tke(1:ifull,k-1))/dz_hl(:,k-1) &
-             +gamhl(:,k-1)*idzm(:,k)-gamhl(:,k)*idzp(:,k)
+    ppt(:,k)=   kmo(:,k)*idzp(:,k)*(tke(:,k+1)-tke(:,k))/dz_hl(:,k)      &
+               -kmo(:,k-1)*idzm(:,k)*(tke(:,k)-tke(:,k-1))/dz_hl(:,k-1)  &
+               +gamhl(:,k-1)*idzm(:,k)-gamhl(:,k)*idzp(:,k)
   end do
 
   ! eps vertical mixing (done here as we skip level 1, instead of using trim)
@@ -726,10 +710,9 @@ do kcount=1,mcount
 
   do k=2,kl-1
     tke(1:ifull,k)=max(tkenew(:,k),mintke)
-    tff=cm34*tke(1:ifull,k)*sqrt(tke(1:ifull,k))/minl
-    eps(1:ifull,k)=min(epsnew(:,k),tff)
-    tff=max(tff*minl/maxl,mineps)
-    eps(1:ifull,k)=max(eps(1:ifull,k),tff)
+    tff=cm34*tke(1:ifull,k)*sqrt(tke(1:ifull,k))
+    eps(1:ifull,k)=min(epsnew(:,k),tff/minl)
+    eps(1:ifull,k)=max(eps(1:ifull,k),tff/maxl,mineps)
   end do
     
   km=cm0*tke(1:ifull,:)*tke(1:ifull,:)/eps(1:ifull,:)
@@ -829,8 +812,8 @@ do kcount=1,mcount
     qfg(:,k)=max(qfg(:,k),0.)
     qrg(:,k)=max(qrg(:,k),0.)
     qg(:,k)=max(qg(:,k),0.)
-    tff=max(qg(:,k)+qlg(:,k)+qfg(:,k)+qrg(:,k),qgmin) ! qtot after phase transition
-    tgg=tgg/tff                                       ! scale factor for conservation
+    tff=max(qg(:,k)+qlg(:,k)+qfg(:,k)+qrg(:,k),qgmin)
+    tgg=tgg/tff ! scale factor for conservation
     qg(:,k)=qg(:,k)*tgg
     qlg(:,k)=qlg(:,k)*tgg
     qfg(:,k)=qfg(:,k)*tgg
@@ -906,6 +889,7 @@ subroutine thomas(out,aa,xtr,cc,ddi,klin)
 implicit none
 
 integer, intent(in) :: klin
+integer iq
 real, dimension(ifull,2:klin), intent(in) :: aa
 real, dimension(ifull,1:klin), intent(in) :: xtr,ddi
 real, dimension(ifull,1:klin-1), intent(in) :: cc
@@ -914,13 +898,13 @@ real, dimension(ifull,1:klin) :: bb,dd
 real, dimension(ifull) :: n
 integer k
 
-bb=xtr
-dd=ddi
+bb(:,1)=xtr(:,1)
+dd(:,1)=ddi(:,1)
 
 do k=2,klin
   n=aa(:,k)/bb(:,k-1)
-  bb(:,k)=bb(:,k)-n*cc(:,k-1)
-  dd(:,k)=dd(:,k)-n*dd(:,k-1)
+  bb(:,k)=xtr(:,k)-n*cc(:,k-1)
+  dd(:,k)=ddi(:,k)-n*dd(:,k-1)
 end do
 out(:,klin)=dd(:,klin)/bb(:,klin)
 do k=klin-1,1,-1
@@ -981,11 +965,11 @@ if (first) then
   first=.false.
 end if
 
-tdiff=min(max( temp-123.16, 0.), 219.)
+tdiff=min(max( temp(:)-123.16, 0.), 219.)
 rx=tdiff-aint(tdiff)
 ix=int(tdiff)
 esatf=(1.-rx)*table(ix)+ rx*table(ix+1)
-qsat=0.622*esatf/max(ps-esatf,0.1)
+qsat(:)=0.622*esatf/max(ps(:)-esatf,0.1)
 
 return
 end subroutine getqsat

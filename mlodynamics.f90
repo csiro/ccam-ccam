@@ -265,19 +265,20 @@ include 'newmpar.h'
 include 'const_phys.h'
 include 'parm.h'
 
-integer k,i,iq
+integer k,i
 real hdif,xp
 real, dimension(ifull,wlev), intent(in) :: uauin,uavin,u,v,tt,ss
 real, dimension(ifull), intent(in) :: etain
+real, dimension(ifull+iextra,wlev,3) :: duma
 real, dimension(ifull+iextra,wlev) :: uau,uav
 real, dimension(ifull+iextra,wlev) :: xfact,yfact
 real, dimension(ifull+iextra,wlev+1) :: t_kh
-real, dimension(ifull+iextra,wlev,3) :: duma
-real, dimension(ifull) :: dudx,dvdx,dudy,dvdy
 real, dimension(ifull,wlev) :: ft,fs,base,outu,outv
 real, dimension(ifull+iextra) :: depadj,eta
+real, dimension(ifull) :: dudx,dvdx,dudy,dvdy
+real, dimension(ifull) :: nu,nv,nw
 real, dimension(ifull) :: tx_fact,ty_fact
-real, dimension(ifull) :: cc,emi,nu,nv,nw
+real, dimension(ifull) :: emi
 
 call start_log(waterdiff_begin)
 
@@ -303,8 +304,7 @@ do k=1,wlev
   dvdy=0.5*((uav(inv,k)-uav(1:ifull,k))*emv(1:ifull)*eev(1:ifull) &
            +(uav(1:ifull,k)-uav(isv,k))*emv(isv)*eev(isv))/ds
 
-  cc=(dudx-dvdy)**2+(dudy+dvdx)**2
-  t_kh(1:ifull,k)=sqrt(cc)*hdif*emi
+  t_kh(1:ifull,k)=sqrt((dudx-dvdy)**2+(dudy+dvdx)**2)*hdif*emi
 end do
 t_kh(1:ifull,wlev+1)=etain
 call bounds(t_kh,nehalf=.true.)
@@ -329,16 +329,16 @@ do k=1,wlev
 end do
 call bounds(duma(:,:,1:3))
 
-! allow drag on momentum along coastlines (but not for scalars, see below)
+! no slip boundary condition for coastlines
 do k=1,wlev
 
   base(:,k)=emi+xfact(1:ifull,k)+xfact(iwu,k)+yfact(1:ifull,k)+yfact(isv,k)
-
+  
   nu = ( duma(1:ifull,k,1)*emi +                      &
-         xfact(1:ifull,k)*duma(ie,k,1) +              &
-         xfact(iwu,k)*duma(iw,k,1) +                  &
-         yfact(1:ifull,k)*duma(in,k,1) +              &
-         yfact(isv,k)*duma(is,k,1) ) / base(:,k)
+           xfact(1:ifull,k)*duma(ie,k,1) +            &
+           xfact(iwu,k)*duma(iw,k,1) +                &
+           yfact(1:ifull,k)*duma(in,k,1) +            &
+           yfact(isv,k)*duma(is,k,1) ) / base(:,k)
 
   nv = ( duma(1:ifull,k,2)*emi +                      &
          xfact(1:ifull,k)*duma(ie,k,2) +              &
@@ -352,8 +352,8 @@ do k=1,wlev
          yfact(1:ifull,k)*duma(in,k,3) +              &
          yfact(isv,k)*duma(is,k,3) ) / base(:,k)
 
-  outu(:,k)=ax(1:ifull)*nu+ay(1:ifull)*nv+az(1:ifull)*nw
-  outv(:,k)=bx(1:ifull)*nu+by(1:ifull)*nv+bz(1:ifull)*nw
+  outu(1:ifull,k)=ax(1:ifull)*nu+ay(1:ifull)*nv+az(1:ifull)*nw
+  outv(1:ifull,k)=bx(1:ifull)*nu+by(1:ifull)*nv+bz(1:ifull)*nw
 
 end do
 
@@ -436,9 +436,9 @@ real, dimension(ifull,wlev) :: sallvl
 real, dimension(ifull+iextra) :: neta,netflx,cc
 real, dimension(ifull+iextra) :: newwat
 real, dimension(ifull+iextra,2) :: dum
-real, dimension(ifull) :: newsal,cover
+real, dimension(ifull) :: newsal,cover,vel
 real, dimension(ifull) :: deta,sal,salin,depdum
-real, dimension(ifull,4) :: idp,slope,mslope,vel,flow
+real, dimension(ifull,4) :: idp,slope,flow
 real, dimension(ifull,4) :: fta,ftb,ftx,fty
 real, dimension(2) :: dumb,gdumb
 real xx,yy,ll,lssum,gssum,lwsum,gwsum,netf,netg,rate
@@ -535,11 +535,10 @@ do nit=1,2
   ! m(t+1)-m(t) = dt*sum(inflow)-dt*sum(outflow)
 
   ! outflow
-  mslope=max(slope,0.)
-  vel=min(0.35*sqrt(mslope/0.00005),5.) ! from Miller et al (1994)
   ! compute net outgoing flux for a grid box so that total water is conserved
   do i=1,4
-    fta(:,i)=-dt*vel(:,i)*idp(:,i)     ! outgoing flux
+    vel=min(0.35*sqrt(max(slope(:,i),0.)/0.00005),5.) ! from Miller et al (1994)
+    fta(:,i)=-dt*vel*idp(:,i)     ! outgoing flux
   end do
   netflx(1:ifull)=sum(abs(fta),2)
   call bounds(netflx)
@@ -556,12 +555,10 @@ do nit=1,2
   newwat(1:ifull)=newwat(1:ifull)+sum(flow,2)
 
   ! inflow
-  mslope=max(-slope,0.)
-  vel=min(0.35*sqrt(mslope/0.00005),5.) ! from Miller et al (1994)
-
   ! water inflow
   do i=1,4
-    ftb(:,i)=dt*vel(:,i)*idp(:,i)     ! incomming flux
+    vel=min(0.35*sqrt(max(-slope(:,i),0.)/0.00005),5.) ! from Miller et al (1994)
+    ftb(:,i)=dt*vel*idp(:,i)     ! incomming flux
     where (netflx(xp(:,i))>1.E-10)
       fty(:,i)=ftb(:,i)/netflx(xp(:,i)) ! max fraction of flux from outgoing cel
       flow(:,i)=watbdy(xp(:,i))*min(ftb(:,i),fty(:,i)) ! (kg/m^2)
@@ -779,7 +776,7 @@ real, dimension(ifull+iextra) :: snu,sou,spu,squ,ssu,snv,sov,spv,sqv,ssv
 real, dimension(ifull+iextra) :: ibu,ibv,icu,icv,idu,idv,spnet,oeu,oev,tide
 real, dimension(ifull+iextra) :: ipmax
 real, dimension(ifull) :: i_u,i_v,i_sto,i_sal,rhobaru,rhobarv,ndum
-real, dimension(ifull) :: pdiv,qdiv,sdiv,div,odiv,w_e
+real, dimension(ifull) :: pdiv,qdiv,sdiv,odiv,w_e
 real, dimension(ifull) :: pdivb,qdivb,sdivb,odivb,xps
 real, dimension(ifull) :: tnu,tsu,tev,twv,tee,tnn,rhou,rhov
 real, dimension(ifull) :: dpsdxu,dpsdyu,dpsdxv,dpsdyv
@@ -811,7 +808,7 @@ real, dimension(ifull,wlev) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
 real, dimension(ifull,wlev) :: depdum,dzdum
 real, dimension(ifull,wlev) :: dumq,dumt,dums,dumr,duma,dumb
 real, dimension(ifull,0:wlev) :: nw
-real*8, dimension(ifull,wlev) :: x3d,y3d,z3d
+real(kind=8), dimension(ifull,wlev) :: x3d,y3d,z3d
 logical, dimension(ifull+iextra) :: wtr
 logical lleap
 
@@ -909,7 +906,7 @@ if (usetide==1) then
     end do
   end if
   mins=mins+720 ! base time is 12Z 31 Dec 1899
-  call mlotide(tide(1:ifull),rlongg,rlatt,mins,jstart)
+  call mlotide(tide,rlongg,rlatt,mins,jstart)
 end if
 
 ! initialise t+1 variables with t data
@@ -1129,19 +1126,17 @@ sdiv=(ccu(1:ifull,wlev)*max(ddu(1:ifull)+oeu(1:ifull),0.)/emu(1:ifull)-ccu(iwu,w
      +ccv(1:ifull,wlev)*max(ddv(1:ifull)+oev(1:ifull),0.)/emv(1:ifull)-ccv(isv,wlev)*max(ddv(isv)+oev(isv),0.)/emv(isv)) &
      *em(1:ifull)*em(1:ifull)/ds
 do ii=1,wlev-1
-  div=(ccu(1:ifull,ii)*max(ddu(1:ifull)+oeu(1:ifull),0.)/emu(1:ifull)-ccu(iwu,ii)*max(ddu(iwu)+oeu(iwu),0.)/emu(iwu)  &
+  nw(:,ii)=ee(1:ifull)*(sdiv*gosigh(ii)-                                                                              &
+      (ccu(1:ifull,ii)*max(ddu(1:ifull)+oeu(1:ifull),0.)/emu(1:ifull)-ccu(iwu,ii)*max(ddu(iwu)+oeu(iwu),0.)/emu(iwu)  &
       +ccv(1:ifull,ii)*max(ddv(1:ifull)+oev(1:ifull),0.)/emv(1:ifull)-ccv(isv,ii)*max(ddv(isv)+oev(isv),0.)/emv(isv)) &
-      *em(1:ifull)*em(1:ifull)/ds
-  nw(:,ii)=(sdiv*gosigh(ii)-div)*ee(1:ifull)
+      *em(1:ifull)*em(1:ifull)/ds)
 end do
 ! compute contunity equation horizontal transport terms
 do ii=1,wlev
-  div=(eou(1:ifull,ii)*(ddu(1:ifull)+neta(1:ifull))/emu(1:ifull)-eou(iwu,ii)*(ddu(iwu)+neta(1:ifull))/emu(iwu)  &
+  mps(1:ifull,ii)=neta(1:ifull)-(1.-ocneps)*0.5*dt*ee(1:ifull)*                                                 &
+     ((eou(1:ifull,ii)*(ddu(1:ifull)+neta(1:ifull))/emu(1:ifull)-eou(iwu,ii)*(ddu(iwu)+neta(1:ifull))/emu(iwu)  &
       +eov(1:ifull,ii)*(ddv(1:ifull)+neta(1:ifull))/emv(1:ifull)-eov(isv,ii)*(ddv(isv)+neta(1:ifull))/emv(isv)) &
-      *em(1:ifull)*em(1:ifull)/ds
-  div=div+(nw(:,ii)-nw(:,ii-1))/godsig(ii) ! nw is at half levels
-  mps(1:ifull,ii)=neta(1:ifull)-(1.-ocneps)*0.5*dt*div
-  mps(1:ifull,ii)=mps(1:ifull,ii)*ee(1:ifull)
+      *em(1:ifull)*em(1:ifull)/ds+(nw(:,ii)-nw(:,ii-1))/godsig(ii)) ! nw is at half levels
 end do
 
 #ifdef debug
@@ -1813,22 +1808,20 @@ implicit none
 include 'newmpar.h'
 include 'const_phys.h'
 
-integer ii,n,kx
-integer, dimension(:,:), intent(out) :: nface
+integer ii,n
+integer, dimension(ifull,wlev), intent(out) :: nface
 real, intent(in) :: dtin
-real, dimension(ifull,size(nface,2)), intent(in) :: ubar,vbar
-real, dimension(ifull,size(nface,2)), intent(out) :: xg,yg
-real*8, dimension(ifull,size(nface,2)), intent(out) :: x3d,y3d,z3d
-real, dimension(ifull,size(nface,2)) :: uc,vc,wc
-real, dimension(ifull+iextra,size(nface,2),3) :: temp
+real, dimension(ifull,wlev), intent(in) :: ubar,vbar
+real, dimension(ifull,wlev), intent(out) :: xg,yg
+real(kind=8), dimension(ifull,wlev), intent(out) :: x3d,y3d,z3d
+real, dimension(ifull,wlev) :: uc,vc,wc
+real, dimension(ifull+iextra,wlev,3) :: temp
 logical, dimension(ifull+iextra), intent(in) :: wtr
 integer, parameter :: nguess = 2
 
-kx=size(nface,2)
-
 ! departure point x, y, z is called x3d, y3d, z3d
 ! first find corresponding cartesian vels
-do ii=1,kx
+do ii=1,wlev
   uc(:,ii)=(ax(1:ifull)*ubar(:,ii)+bx(1:ifull)*vbar(:,ii))*dtin/rearth ! unit sphere 
   vc(:,ii)=(ay(1:ifull)*ubar(:,ii)+by(1:ifull)*vbar(:,ii))*dtin/rearth ! unit sphere 
   wc(:,ii)=(az(1:ifull)*ubar(:,ii)+bz(1:ifull)*vbar(:,ii))*dtin/rearth ! unit sphere 
@@ -1847,7 +1840,7 @@ do n=1,nguess
   temp(1:ifull,:,2) = vc
   temp(1:ifull,:,3) = wc
   call mlob2ints(temp(:,:,1:3),nface,xg,yg,wtr)
-  do ii=1,kx
+  do ii=1,wlev
     x3d(:,ii) = x - 0.5*(uc(:,ii)+temp(1:ifull,ii,1)) ! n+1 guess
     y3d(:,ii) = y - 0.5*(vc(:,ii)+temp(1:ifull,ii,2)) ! n+1 guess
     z3d(:,ii) = z - 0.5*(wc(:,ii)+temp(1:ifull,ii,3)) ! n+1 guess
@@ -1868,6 +1861,7 @@ subroutine mlotoij5(x3d,y3d,z3d,nface,xg,yg)
 
 use bigxy4_m
 use cc_mpi
+use mlo
 use xyzinfo_m
 
 implicit none
@@ -1877,25 +1871,23 @@ include 'parm.h'
 include 'parmgeom.h'
 
 integer loop,iq,i,j,is,js
-integer ii,kx
-integer, dimension(:,:), intent(out) :: nface
-real, dimension(ifull,size(nface,2)), intent(out) :: xg,yg
+integer ii
+integer, dimension(ifull,wlev), intent(out) :: nface
+real, dimension(ifull,wlev), intent(out) :: xg,yg
 real, dimension(ifull) :: xstr,ystr,zstr
 real, dimension(ifull) :: denxyz,xd,yd,zd
 real, dimension(ifull) :: ri,rj
 real dxx,dxy,dyx,dyy
-real(kind=8), dimension(ifull,size(nface,2)), intent(inout) :: x3d,y3d,z3d
+real(kind=8), dimension(ifull,wlev), intent(inout) :: x3d,y3d,z3d
 real(kind=8), dimension(ifull) :: den
 real(kind=8) alf,alfonsch
 real(kind=8), parameter :: one = 1.
 integer, parameter :: nmaploop = 3
 
-kx=size(nface,2)
-
 alf=(one-schmidt**2)/(one+schmidt**2)
 alfonsch=2.*schmidt/(one+schmidt**2)  ! same but bit more accurate
 
-do ii=1,kx
+do ii=1,wlev
 
   !     if necessary, transform (x3d, y3d, z3d) to equivalent
   !     coordinates (xstr, ystr, zstr) on regular gnomonic panels
@@ -1994,13 +1986,13 @@ include 'newmpar.h'
 include 'parm.h'
 include 'parmhor.h'
 
-integer idel,iq,jdel,kx
+integer idel,iq,jdel
 integer i,j,k,n,ind,ip,jp,ierr,intsch,ncount
 integer ii,ntr,nn
-integer, dimension(:,:), intent(in) :: nface
-real, dimension(ifull,size(nface,2)), intent(in) :: xg,yg
+integer, dimension(ifull,wlev), intent(in) :: nface
+real, dimension(ifull,wlev), intent(in) :: xg,yg
 real, dimension(:,:,:), intent(inout) :: s
-real, dimension(size(s,3),-1:ipan+2,-1:jpan+2,1:npan,size(s,2)) :: sx
+real, dimension(size(s,3),-1:ipan+2,-1:jpan+2,1:npan,wlev) :: sx
 real, dimension(size(s,3),-1:2,-1:2) :: sc
 real, dimension(size(s,3),4) :: r
 real, dimension(size(s,3)) :: aab,aac,aad
@@ -2018,7 +2010,6 @@ else
   lmode=.true.
 end if
 
-kx=size(s,2)
 ntr=size(s,3)
 intsch=mod(ktau,2)
 sc=cxx-1.
@@ -2034,7 +2025,7 @@ call bounds(s,nrows=2)
 if(intsch==1)then
 
   do nn=1,ntr
-    do k=1,kx
+    do k=1,wlev
       do n=1,npan         ! first simple copy into larger array
         do j=1,jpan
           do i=1,ipan
@@ -2145,7 +2136,7 @@ if(intsch==1)then
   
   call intssync_send(ntr)
 
-  do k=1,kx
+  do k=1,wlev
     do iq=1,ifull
       if (wtr(iq)) then
 !       Convert face index from 0:npanels to array indices
@@ -2213,7 +2204,7 @@ else     ! if(intsch==1)then
 !       first extend s arrays into sx - this one -1:il+2 & -1:il+2
 
   do nn=1,ntr
-    do k=1,kx
+    do k=1,wlev
       do n=1,npan         ! first simple copy into larger array
         do j=1,jpan
           do i=1,ipan
@@ -2310,7 +2301,7 @@ else     ! if(intsch==1)then
 
   call intssync_send(ntr)
 
-  do k=1,kx
+  do k=1,wlev
     do iq=1,ifull
       if (wtr(iq)) then
 !       Convert face index from 0:npanels to array indices
@@ -2400,14 +2391,14 @@ include 'newmpar.h'
 include 'parm.h'
 include 'parmhor.h'
 
-integer idel,iq,jdel,kx
+integer idel,iq,jdel
 integer i,j,k,n,ind,ip,jp,ierr,intsch,ncount
 integer ii,ntr,nn
-integer, dimension(:,:), intent(in) :: nface
-real, dimension(ifull,size(nface,2)), intent(in) :: xg,yg
+integer, dimension(ifull,wlev), intent(in) :: nface
+real, dimension(ifull,wlev), intent(in) :: xg,yg
 real, dimension(:,:,:), intent(inout) :: s
-real, dimension(ifull,size(s,2),size(s,3)) :: ssav
-real, dimension(size(s,3),-1:ipan+2,-1:jpan+2,1:npan,size(s,2)) :: sx
+real, dimension(ifull,wlev,size(s,3)) :: ssav
+real, dimension(size(s,3),-1:ipan+2,-1:jpan+2,1:npan,wlev) :: sx
 real, dimension(size(s,3),-1:2,-1:2) :: sc
 real, dimension(size(s,3),4) :: r
 real, dimension(size(s,3)) :: aab,aac,aad,cmax,cmin,sans
@@ -2422,7 +2413,6 @@ ind(i,j,n)=i+(j-1)*ipan+(n-1)*ipan*jpan  ! *** for n=1,npan
 lmode=.true.
 if (present(bilinear)) lmode=.not.bilinear
 
-kx=size(s,2)
 ntr=size(s,3)
 intsch=mod(ktau,2)
 sc=cxx-1.
@@ -2439,7 +2429,7 @@ call bounds(s,nrows=2)
 if(intsch==1)then
 
   do nn=1,ntr
-    do k=1,kx
+    do k=1,wlev
       do n=1,npan         ! first simple copy into larger array
         do j=1,jpan
           do i=1,ipan
@@ -2538,7 +2528,7 @@ if(intsch==1)then
 
   call intssync_send(ntr)
 
-  do k=1,kx        
+  do k=1,wlev      
     do iq=1,ifull
       if (wtr(iq)) then
 !       Convert face index from 0:npanels to array indices
@@ -2607,7 +2597,7 @@ else     ! if(intsch==1)then
 !       first extend s arrays into sx - this one -1:il+2 & -1:il+2
 
   do nn=1,ntr
-    do k=1,kx
+    do k=1,wlev
       do n=1,npan         ! first simple copy into larger array
         do j=1,jpan
           do i=1,ipan
@@ -2705,7 +2695,7 @@ else     ! if(intsch==1)then
 
   call intssync_send(ntr)
 
-  do k=1,kx
+  do k=1,wlev
     do iq=1,ifull
       if (wtr(iq)) then
 !       Convert face index from 0:npanels to array indices
@@ -2797,16 +2787,14 @@ implicit none
 
 include 'newmpar.h'
 
-integer k,kx
-real, dimension(:,:), intent(inout) :: cou,cov,cow
+integer k
+real, dimension(ifull+iextra,wlev), intent(inout) :: cou,cov,cow
 real, dimension(ifull) :: vec1x,vec1y,vec1z,denb
 real, dimension(ifull) :: vec2x,vec2y,vec2z,vecdot
 real, dimension(ifull) :: vec3x,vec3y,vec3z,vdot1,vdot2
-real*8, dimension(ifull,size(cou,2)), intent(in) :: x3d,y3d,z3d
+real(kind=8), dimension(ifull,size(cou,2)), intent(in) :: x3d,y3d,z3d
 
-kx=size(cou,2)
-
-do k=1,kx
+do k=1,wlev
 !         cross product n1xn2 into vec1
   vec1x = y3d(:,k)*z - y*z3d(:,k)
   vec1y = z3d(:,k)*x - z*x3d(:,k)
@@ -3987,7 +3975,7 @@ real, dimension(ifull,wlev), intent(in) :: depadj,dzadj
 real, dimension(:,:), intent(inout) :: uu
 real, dimension(ifull,wlev-1) :: ff
 real, dimension(ifull,0:wlev) :: delu
-real, dimension(ifull) :: fl,fh,cc,rr,xx
+real, dimension(ifull) :: fl,fh,cc,rr
 
 ! f=(w*u) at half levels
 ! du/dt = u*dw/dz-df/dz = -w*du/dz
@@ -4000,14 +3988,13 @@ delu(:,wlev)=0.
 
 ! TVD part
 do ii=1,wlev-1
-  xx=delu(:,ii)+sign(1.E-20,delu(:,ii))
   do iq=1,ifull
-    rr(iq)=delu(iq,ii-kp(iq,ii))/xx(iq)
+    rr(iq)=delu(iq,ii-kp(iq,ii))/(delu(iq,ii)+sign(1.E-20,delu(iq,ii)))
     fl(iq)=ww(iq,ii)*uu(iq,kx(iq,ii))
   end do
-  fh=ww(:,ii)*0.5*(uu(1:ifull,ii)+uu(1:ifull,ii+1)) &
-     -0.5*(uu(1:ifull,ii+1)-uu(1:ifull,ii))*ww(:,ii)**2*dtnew/max(depadj(:,ii+1)-depadj(:,ii),1.E-10)
   cc=max(0.,min(1.,2.*rr),min(2.,rr)) ! superbee
+  fh=ww(:,ii)*0.5*(uu(:,ii)+uu(:,ii+1)) &
+   -0.5*(uu(:,ii+1)-uu(:,ii))*ww(:,ii)**2*dtnew(:)/max(depadj(:,ii+1)-depadj(:,ii),1.E-10)
   ff(:,ii)=fl+cc*(fh-fl)
   !ff(:,ii)=ww(:,ii)*0.5*(uu(1:ifull,ii)+uu(1:ifull,ii+1)) ! explicit
 end do
@@ -4027,12 +4014,11 @@ do iq=1,ifull
 
     ! TVD part
     do ii=1,wlev-1
-      rr(iq)=delu(iq,ii-kp(iq,ii))
+      rr(iq)=delu(iq,ii-kp(iq,ii))/(delu(iq,ii)+sign(1.E-20,delu(iq,ii)))
       fl(iq)=ww(iq,ii)*uu(iq,kx(iq,ii))
+      cc(iq)=max(0.,min(1.,2.*rr(iq)),min(2.,rr(iq))) ! superbee
       fh(iq)=ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1)) &
         -0.5*(uu(iq,ii+1)-uu(iq,ii))*ww(iq,ii)**2*dtnew(iq)/max(depadj(iq,ii+1)-depadj(iq,ii),1.E-10)
-      xx(iq)=delu(iq,ii)+sign(1.E-20,delu(iq,ii))
-      cc(iq)=max(0.,min(1.,2.*rr(iq)),min(2.,rr(iq))) ! superbee
       ff(iq,ii)=fl(iq)+cc(iq)*(fh(iq)-fl(iq))
     end do
   
@@ -4061,25 +4047,18 @@ implicit none
 
 include 'newmpar.h'
 
-integer ii
+integer ii,iq
 real, dimension(ifull+iextra,wlev), intent(in) :: nti,nsi,alphabar,betabar
 real, dimension(ifull+iextra), intent(in) :: neta
 real, dimension(ifull,wlev), intent(out) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
 real, dimension(ifull+iextra,wlev) :: nt,ns
-real, dimension(ifull,wlev) :: absu,bbsu,absv,bbsv
+real absu,bbsu,absv,bbsv
 real, dimension(ifull,wlev) :: dntdxu,dntdxv,dntdyu,dntdyv
 real, dimension(ifull,wlev) :: dnsdxu,dnsdxv,dnsdyu,dnsdyv
 integer, parameter :: rhogradmeth = 1 ! Density gradient method (0 = finite difference, 1 = local interpolation)
 
 nt=min(max(271.,nti),373.)-290.
 ns=min(max(0.,nsi),50.)-34.72
-
-do ii=1,wlev
-  absu(:,ii)=0.5*(alphabar(1:ifull,ii)+alphabar(ie,ii))*eeu(1:ifull)
-  bbsu(:,ii)=0.5*(betabar(1:ifull,ii)+betabar(ie,ii))*eeu(1:ifull)
-  absv(:,ii)=0.5*(alphabar(1:ifull,ii)+alphabar(in,ii))*eev(1:ifull)
-  bbsv(:,ii)=0.5*(betabar(1:ifull,ii)+betabar(in,ii))*eev(1:ifull)
-end do
 
 select case(rhogradmeth)
   case(0) ! finite difference
@@ -4093,10 +4072,19 @@ select case(rhogradmeth)
     stop
 end select
 
-drhobardxu=-absu*dntdxu+bbsu*dnsdxu
-drhobardxv=-absv*dntdxv+bbsv*dnsdxv
-drhobardyu=-absu*dntdyu+bbsu*dnsdyu
-drhobardyv=-absv*dntdyv+bbsv*dnsdyv
+do ii=1,wlev
+  do iq=1,ifull
+    absu=0.5*(alphabar(iq,ii)+alphabar(ie(iq),ii))*eeu(iq)
+    bbsu=0.5*(betabar(iq,ii)+betabar(ie(iq),ii))*eeu(iq)
+    absv=0.5*(alphabar(iq,ii)+alphabar(in(iq),ii))*eev(iq)
+    bbsv=0.5*(betabar(iq,ii)+betabar(in(iq),ii))*eev(iq)
+
+    drhobardxu(iq,ii)=-absu*dntdxu(iq,ii)+bbsu*dnsdxu(iq,ii)
+    drhobardxv(iq,ii)=-absv*dntdxv(iq,ii)+bbsv*dnsdxv(iq,ii)
+    drhobardyu(iq,ii)=-absu*dntdyu(iq,ii)+bbsu*dnsdyu(iq,ii)
+    drhobardyv(iq,ii)=-absv*dntdyv(iq,ii)+bbsv*dnsdyv(iq,ii)
+  end do
+end do
 
 return
 end subroutine tsjacobi
@@ -4365,12 +4353,11 @@ implicit none
 
 include 'newmpar.h'
 
-integer i
 integer, intent(in) :: mtimer,jstart
 real, dimension(ifull), intent(out) :: eta
 real, dimension(ifull), intent(in) :: slon,slat
-real :: ltime,stime,ctime,mn,sn,pn
-real, dimension(ifull) :: sinlon,coslon,sinlat,coslat
+real ltime,stime,ctime,mn,sn,pn
+real, dimension(ifull) :: sinlat,coslat
 real, dimension(4) :: aa,ab,ba,bb
 real, parameter :: pi = 3.1415927
 
@@ -4418,15 +4405,14 @@ ltime=stime+sn-mn                    ! lunar time (rad)
 coslat=cos(slat)**2
 sinlat=sin(2.*slat)
 
-eta=0.
-eta=eta+ba(1)*aa(1)*sinlat*cos(ltime+mn-slon)             ! K1 (note sign change)
-eta=eta-ba(2)*aa(2)*sinlat*cos(ltime-mn-slon)             ! O1
-eta=eta-ba(3)*aa(3)*sinlat*cos(stime-sn-slon)             ! P1
-eta=eta-ba(4)*aa(4)*sinlat*cos(ltime+pn-slon)             ! Q1
-eta=eta-bb(1)*ab(1)*coslat*cos(2.*ltime-2.*slon)          ! M2
-eta=eta-bb(2)*ab(2)*coslat*cos(2.*stime-2.*slon)          ! S2
-eta=eta-bb(3)*ab(3)*coslat*cos(2.*ltime-mn+pn-2.*slon)    ! N2
-eta=eta-bb(4)*ab(4)*coslat*cos(2.*stime+2.*sn-2.*slon)    ! K2
+eta=ba(1)*aa(1)*sinlat*cos(ltime+mn-slon)          &    ! K1 (note sign change)
+   -ba(2)*aa(2)*sinlat*cos(ltime-mn-slon)          &    ! O1
+   -ba(3)*aa(3)*sinlat*cos(stime-sn-slon)          &    ! P1
+   -ba(4)*aa(4)*sinlat*cos(ltime+pn-slon)          &    ! Q1
+   -bb(1)*ab(1)*coslat*cos(2.*ltime-2.*slon)       &    ! M2
+   -bb(2)*ab(2)*coslat*cos(2.*stime-2.*slon)       &    ! S2
+   -bb(3)*ab(3)*coslat*cos(2.*ltime-mn+pn-2.*slon) &    ! N2
+   -bb(4)*ab(4)*coslat*cos(2.*stime+2.*sn-2.*slon)      ! K2
 
 !sinlon=sin(2.*slon)
 !coslon=cos(2.*slon)

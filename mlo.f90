@@ -360,31 +360,47 @@ subroutine mloload(datain,shin,icein,diag)
 implicit none
 
 integer, intent(in) :: diag
-integer iqw
 real, dimension(ifull,wlev,4), intent(in) :: datain
 real, dimension(ifull,11), intent(in) :: icein
 real, dimension(ifull), intent(in) :: shin
 
-if (wfull==0) return
-
-do iqw=1,wfull
-  w_temp(iqw,:)=datain(wmap(iqw),:,1)
-  w_sal(iqw,:) =datain(wmap(iqw),:,2)
-  w_u(iqw,:)   =datain(wmap(iqw),:,3)
-  w_v(iqw,:)   =datain(wmap(iqw),:,4)
-end do
-i_tsurf(:)  =icein(wmap,1)
-i_tn(:,0)   =icein(wmap,2)
-i_tn(:,1)   =icein(wmap,3)
-i_tn(:,2)   =icein(wmap,4)
-i_fracice(:)=icein(wmap,5)
-i_dic(:)    =icein(wmap,6)
-i_dsn(:)    =icein(wmap,7)
-i_sto(:)    =icein(wmap,8)
-i_u(:)      =icein(wmap,9)
-i_v(:)      =icein(wmap,10)
-i_sal(:)    =icein(wmap,11)
-w_eta(:)    =shin(wmap)
+if (wfull==0) then
+  return
+else if (wfull==ifull) then
+  w_temp(:,:)=datain(:,:,1)
+  w_sal(:,:) =datain(:,:,2)
+  w_u(:,:)   =datain(:,:,3)
+  w_v(:,:)   =datain(:,:,4)
+  i_tsurf(:)  =icein(:,1)
+  i_tn(:,0)   =icein(:,2)
+  i_tn(:,1)   =icein(:,3)
+  i_tn(:,2)   =icein(:,4)
+  i_fracice(:)=icein(:,5)
+  i_dic(:)    =icein(:,6)
+  i_dsn(:)    =icein(:,7)
+  i_sto(:)    =icein(:,8)
+  i_u(:)      =icein(:,9)
+  i_v(:)      =icein(:,10)
+  i_sal(:)    =icein(:,11)
+  w_eta(:)    =shin(:)
+else
+  w_temp(:,:)=datain(wmap,:,1)
+  w_sal(:,:) =datain(wmap,:,2)
+  w_u(:,:)   =datain(wmap,:,3)
+  w_v(:,:)   =datain(wmap,:,4)
+  i_tsurf(:)  =icein(wmap,1)
+  i_tn(:,0)   =icein(wmap,2)
+  i_tn(:,1)   =icein(wmap,3)
+  i_tn(:,2)   =icein(wmap,4)
+  i_fracice(:)=icein(wmap,5)
+  i_dic(:)    =icein(wmap,6)
+  i_dsn(:)    =icein(wmap,7)
+  i_sto(:)    =icein(wmap,8)
+  i_u(:)      =icein(wmap,9)
+  i_v(:)      =icein(wmap,10)
+  i_sal(:)    =icein(wmap,11)
+  w_eta(:)    =shin(wmap)
+end if
 
 return
 end subroutine mloload
@@ -397,36 +413,53 @@ subroutine mlosave(dataout,depout,shout,iceout,diag)
 implicit none
 
 integer, intent(in) :: diag
-integer iqw
 real, dimension(ifull,wlev,4), intent(inout) :: dataout
 real, dimension(ifull,11), intent(inout) :: iceout
 real, dimension(ifull), intent(inout) :: depout,shout
 
-if (wfull==0) return
+if (wfull==0) then
+  return
+else if (wfull==ifull) then
+  dataout(:,:,1)=w_temp(:,:)
+  dataout(:,:,2)=w_sal(:,:)
+  dataout(:,:,3)=w_u(:,:)
+  dataout(:,:,4)=w_v(:,:)
+  iceout(:,1)  =i_tsurf(:)
+  iceout(:,2)  =i_tn(:,0)
+  iceout(:,3)  =i_tn(:,1)
+  iceout(:,4)  =i_tn(:,2)
+  iceout(:,5)  =i_fracice(:)
+  iceout(:,6)  =i_dic(:)
+  iceout(:,7)  =i_dsn(:)
+  iceout(:,8)  =i_sto(:)
+  iceout(:,9)  =i_u(:)
+  iceout(:,10) =i_v(:)
+  iceout(:,11) =i_sal(:)
+  depout(:)=depth_hl(:,wlev+1)
+  shout(:)=w_eta(:)
+else
+  iceout(:,8)=0.
+  depout=0.
+  shout=0.
 
-iceout(:,8)=0.
-depout=0.
-shout=0.
-
-do iqw=1,wfull
-  dataout(wmap(iqw),:,1)=w_temp(iqw,:)
-  dataout(wmap(iqw),:,2)=w_sal(iqw,:)
-  dataout(wmap(iqw),:,3)=w_u(iqw,:)
-  dataout(wmap(iqw),:,4)=w_v(iqw,:)
-end do
-iceout(wmap,1)  =i_tsurf(:)
-iceout(wmap,2)  =i_tn(:,0)
-iceout(wmap,3)  =i_tn(:,1)
-iceout(wmap,4)  =i_tn(:,2)
-iceout(wmap,5)  =i_fracice(:)
-iceout(wmap,6)  =i_dic(:)
-iceout(wmap,7)  =i_dsn(:)
-iceout(wmap,8)  =i_sto(:)
-iceout(wmap,9)  =i_u(:)
-iceout(wmap,10) =i_v(:)
-iceout(wmap,11) =i_sal(:)
-depout(wmap)=depth_hl(:,wlev+1)
-shout(wmap)=w_eta(:)
+  dataout(wmap,:,1)=w_temp(:,:)
+  dataout(wmap,:,2)=w_sal(:,:)
+  dataout(wmap,:,3)=w_u(:,:)
+  dataout(wmap,:,4)=w_v(:,:)
+  iceout(wmap,1)  =i_tsurf(:)
+  iceout(wmap,2)  =i_tn(:,0)
+  iceout(wmap,3)  =i_tn(:,1)
+  iceout(wmap,4)  =i_tn(:,2)
+  iceout(wmap,5)  =i_fracice(:)
+  iceout(wmap,6)  =i_dic(:)
+  iceout(wmap,7)  =i_dsn(:)
+  iceout(wmap,8)  =i_sto(:)
+  iceout(wmap,9)  =i_u(:)
+  iceout(wmap,10) =i_v(:)
+  iceout(wmap,11) =i_sal(:)
+  depout(wmap)=depth_hl(:,wlev+1)
+  shout(wmap)=w_eta(:)
+end if
 
 return
 end subroutine mlosave
@@ -441,20 +474,35 @@ implicit none
 integer, intent(in) :: mode,ilev,diag
 real, dimension(ifull), intent(in) :: sst
 
-if (wfull==0) return
-
-select case(mode)
-  case(0)
-    w_temp(:,ilev)=sst(wmap)
-  case(1)
-    w_sal(:,ilev)=sst(wmap)
-  case(2)
-    w_u(:,ilev)=sst(wmap)
-  case(3)
-    w_v(:,ilev)=sst(wmap)
-  case(4)
-    w_eta=sst(wmap)
-end select
+if (wfull==0) then
+  return
+else if (wfull==ifull) then
+  select case(mode)
+    case(0)
+      w_temp(:,ilev)=sst(:)
+    case(1)
+      w_sal(:,ilev)=sst(:)
+    case(2)
+      w_u(:,ilev)=sst(:)
+    case(3)
+      w_v(:,ilev)=sst(:)
+    case(4)
+      w_eta=sst(:)
+  end select
+else
+  select case(mode)
+    case(0)
+      w_temp(:,ilev)=sst(wmap)
+    case(1)
+      w_sal(:,ilev)=sst(wmap)
+    case(2)
+      w_u(:,ilev)=sst(wmap)
+    case(3)
+      w_v(:,ilev)=sst(wmap)
+    case(4)
+      w_eta=sst(wmap)
+  end select
+end if
 
 return
 end subroutine mloimport
@@ -464,27 +512,33 @@ subroutine mloimport3d(mode,sst,diag)
 implicit none
 
 integer, intent(in) :: mode,diag
-integer iqw
 real, dimension(ifull,wlev), intent(in) :: sst
 
-select case(mode)
-  case(0)
-    do iqw=1,wfull
-      w_temp(iqw,:)=sst(wmap(iqw),:)
-    end do
-  case(1)
-    do iqw=1,wfull
-      w_sal(iqw,:)=sst(wmap(iqw),:)
-    end do
-  case(2)
-    do iqw=1,wfull
-      w_u(iqw,:)=sst(wmap(iqw),:)
-    end do
-  case(3)
-    do iqw=1,wfull
-      w_v(iqw,:)=sst(wmap(iqw),:)
-    end do
-end select
+if (wfull==0) then
+  return
+else if (wfull==ifull) then
+  select case(mode)
+    case(0)
+      w_temp(:,:)=sst(:,:)
+    case(1)
+      w_sal(:,:) =sst(:,:)
+    case(2)
+      w_u(:,:)   =sst(:,:)
+    case(3)
+      w_v(:,:)   =sst(:,:)
+  end select
+else
+  select case(mode)
+    case(0)
+      w_temp(:,:)=sst(wmap,:)
+    case(1)
+      w_sal(:,:) =sst(wmap,:)
+    case(2)
+      w_u(:,:)   =sst(wmap,:)
+    case(3)
+      w_v(:,:)   =sst(wmap,:)
+  end select
+end if
 
 return
 end subroutine mloimport3d
@@ -500,35 +554,65 @@ implicit none
 integer, intent(in) :: ilev,diag
 real, dimension(ifull), intent(inout) :: tsn
 
-if (wfull==0) return
-
-select case(ilev)
-  case(1)
-    i_tsurf=tsn(wmap)
-  case(2)
-    i_tn(:,0)=tsn(wmap)
-  case(3)
-    i_tn(:,1)=tsn(wmap)
-  case(4)
-    i_tn(:,2)=tsn(wmap)
-  case(5)
-    i_fracice=tsn(wmap)
-  case(6)
-    i_dic=tsn(wmap)
-  case(7)
-    i_dsn=tsn(wmap)
-  case(8)
-    i_sto=tsn(wmap)
-  case(9)
-    i_u=tsn(wmap)
-  case(10)
-    i_v=tsn(wmap)
-  case(11)
-    i_sal=tsn(wmap)
-  case DEFAULT
-    write(6,*) "ERROR: Invalid mode ",ilev
-    stop
-end select
+if (wfull==0) then
+  return
+else if (wfull==ifull) then
+  select case(ilev)
+    case(1)
+      i_tsurf=tsn(:)
+    case(2)
+      i_tn(:,0)=tsn(:)
+    case(3)
+      i_tn(:,1)=tsn(:)
+    case(4)
+      i_tn(:,2)=tsn(:)
+    case(5)
+      i_fracice=tsn(:)
+    case(6)
+      i_dic=tsn(:)
+    case(7)
+      i_dsn=tsn(:)
+    case(8)
+      i_sto=tsn(:)
+    case(9)
+      i_u=tsn(:)
+    case(10)
+      i_v=tsn(:)
+    case(11)
+      i_sal=tsn(:)
+    case DEFAULT
+      write(6,*) "ERROR: Invalid mode ",ilev
+      stop
+  end select
+else
+  select case(ilev)
+    case(1)
+      i_tsurf=tsn(wmap)
+    case(2)
+      i_tn(:,0)=tsn(wmap)
+    case(3)
+      i_tn(:,1)=tsn(wmap)
+    case(4)
+      i_tn(:,2)=tsn(wmap)
+    case(5)
+      i_fracice=tsn(wmap)
+    case(6)
+      i_dic=tsn(wmap)
+    case(7)
+      i_dsn=tsn(wmap)
+    case(8)
+      i_sto=tsn(wmap)
+    case(9)
+      i_u=tsn(wmap)
+    case(10)
+      i_v=tsn(wmap)
+    case(11)
+      i_sal=tsn(wmap)
+    case DEFAULT
+      write(6,*) "ERROR: Invalid mode ",ilev
+      stop
+  end select
+end if
 
 return
 end subroutine mloimpice
@@ -543,20 +627,35 @@ implicit none
 integer, intent(in) :: mode,ilev,diag
 real, dimension(ifull), intent(inout) :: sst
 
-if (wfull==0) return
-
-select case(mode)
-  case(0)
-    sst(wmap)=w_temp(:,ilev)
-  case(1)
-    sst(wmap)=w_sal(:,ilev)
-  case(2)
-    sst(wmap)=w_u(:,ilev)
-  case(3)
-    sst(wmap)=w_v(:,ilev)
-  case(4)
-    sst(wmap)=w_eta
-end select
+if (wfull==0) then
+  return
+else if (wfull==ifull) then
+  select case(mode)
+    case(0)
+      sst(:)=w_temp(:,ilev)
+    case(1)
+      sst(:)=w_sal(:,ilev)
+    case(2)
+      sst(:)=w_u(:,ilev)
+    case(3)
+      sst(:)=w_v(:,ilev)
+    case(4)
+      sst(:)=w_eta
+  end select
+else
+  select case(mode)
+    case(0)
+      sst(wmap)=w_temp(:,ilev)
+    case(1)
+      sst(wmap)=w_sal(:,ilev)
+    case(2)
+      sst(wmap)=w_u(:,ilev)
+    case(3)
+      sst(wmap)=w_v(:,ilev)
+    case(4)
+      sst(wmap)=w_eta
+  end select
+end if
 
 return
 end subroutine mloexport
@@ -566,27 +665,33 @@ subroutine mloexport3d(mode,sst,diag)
 implicit none
 
 integer, intent(in) :: mode,diag
-integer iqw
 real, dimension(ifull,wlev), intent(inout) :: sst
 
-select case(mode)
-  case(0)
-    do iqw=1,wfull
-      sst(wmap(iqw),:)=w_temp(iqw,:)
-    end do
-  case(1)
-    do iqw=1,wfull
-      sst(wmap(iqw),:)=w_sal(iqw,:)
-    end do
-  case(2)
-    do iqw=1,wfull
-      sst(wmap(iqw),:)=w_u(iqw,:)
-    end do
-  case(3)
-    do iqw=1,wfull
-      sst(wmap(iqw),:)=w_v(iqw,:)
-    end do
-end select
+if (wfull==0) then
+  return
+else if (wfull==ifull) then
+  select case(mode)
+    case(0)
+      sst(:,:)=w_temp(:,:)
+    case(1)
+      sst(:,:)=w_sal(:,:)
+    case(2)
+      sst(:,:)=w_u(:,:)
+    case(3)
+      sst(:,:)=w_v(:,:)
+  end select
+else
+  select case(mode)
+    case(0)
+      sst(wmap,:)=w_temp(:,:)
+    case(1)
+      sst(wmap,:)=w_sal(:,:)
+    case(2)
+      sst(wmap,:)=w_u(:,:)
+    case(3)
+      sst(wmap,:)=w_v(:,:)
+  end select
+end if
 
 return
 end subroutine mloexport3d
@@ -601,35 +706,65 @@ implicit none
 integer, intent(in) :: ilev,diag
 real, dimension(ifull), intent(inout) :: tsn
 
-if (wfull==0) return
-
-select case(ilev)
-  case(1)
-    tsn(wmap)=i_tsurf
-  case(2)
-    tsn(wmap)=i_tn(:,0)
-  case(3)
-    tsn(wmap)=i_tn(:,1)
-  case(4)
-    tsn(wmap)=i_tn(:,2)
-  case(5)
-    tsn(wmap)=i_fracice
-  case(6)
-    tsn(wmap)=i_dic
-  case(7)
-    tsn(wmap)=i_dsn
-  case(8)
-    tsn(wmap)=i_sto
-  case(9)
-    tsn(wmap)=i_u
-  case(10)
-    tsn(wmap)=i_v
-  case(11)
-    tsn(wmap)=i_sal
-  case DEFAULT
-    write(6,*) "ERROR: Invalid mode ",ilev
-    stop
-end select
+if (wfull==0) then
+  return
+else if (wfull==ifull) then
+  select case(ilev)
+    case(1)
+      tsn(:)=i_tsurf
+    case(2)
+      tsn(:)=i_tn(:,0)
+    case(3)
+      tsn(:)=i_tn(:,1)
+    case(4)
+      tsn(:)=i_tn(:,2)
+    case(5)
+      tsn(:)=i_fracice
+    case(6)
+      tsn(:)=i_dic
+    case(7)
+      tsn(:)=i_dsn
+    case(8)
+      tsn(:)=i_sto
+    case(9)
+      tsn(:)=i_u
+    case(10)
+      tsn(:)=i_v
+    case(11)
+      tsn(:)=i_sal
+    case DEFAULT
+      write(6,*) "ERROR: Invalid mode ",ilev
+      stop
+  end select
+else
+  select case(ilev)
+    case(1)
+      tsn(wmap)=i_tsurf
+    case(2)
+      tsn(wmap)=i_tn(:,0)
+    case(3)
+      tsn(wmap)=i_tn(:,1)
+    case(4)
+      tsn(wmap)=i_tn(:,2)
+    case(5)
+      tsn(wmap)=i_fracice
+    case(6)
+      tsn(wmap)=i_dic
+    case(7)
+      tsn(wmap)=i_dsn
+    case(8)
+      tsn(wmap)=i_sto
+    case(9)
+      tsn(wmap)=i_u
+    case(10)
+      tsn(wmap)=i_v
+    case(11)
+      tsn(wmap)=i_sal
+    case DEFAULT
+      write(6,*) "ERROR: Invalid mode ",ilev
+      stop
+  end select
+end if
 
 return
 end subroutine mloexpice
@@ -919,15 +1054,14 @@ subroutine mloexpdensity(odensity,alpha,beta,tt,ss,ddz,pxtr,diag)
 implicit none
 
 integer, intent(in) :: diag
-integer full,lev
-real, dimension(:), intent(in) :: pxtr
-real, dimension(:,:), intent(in) :: tt,ss,ddz
-real, dimension(:,:), intent(out) :: odensity,alpha,beta
-real, dimension(size(tt,1),size(tt,2)) :: rs,rho0
+real, dimension(:,:), intent(in) :: tt
+real, dimension(size(tt,1)), intent(in) :: pxtr
+real, dimension(size(tt,1),size(tt,2)), intent(in) :: ss,ddz
+real, dimension(size(tt,1),size(tt,2)), intent(out) :: odensity,alpha,beta
+real, dimension(size(tt,1),size(tt,2)) :: rs
+real, dimension(size(tt,1)) :: rho0
 
-full=size(tt,1)
-lev=size(tt,2)
-call calcdensity(full,lev,odensity,alpha,beta,rs,rho0,tt,ss,ddz,pxtr)
+call calcdensity(odensity,alpha,beta,rs,rho0,tt,ss,ddz,pxtr)
 
 return
 end subroutine mloexpdensity
@@ -1614,7 +1748,7 @@ pxtr=a_ps+grav*i_fracice*(i_dic*rhoic+i_dsn*rhosn)
 do ii=1,wlev
   d_dz(:,ii)=dz(:,ii)*d_zcr
 end do
-call calcdensity(wfull,wlev,d_rho,d_alpha,d_beta,d_rs,rho0,w_temp,w_sal,d_dz,pxtr)
+call calcdensity(d_rho,d_alpha,d_beta,d_rs,rho0,w_temp,w_sal,d_dz,pxtr)
 
 return
 end subroutine getrho
@@ -1636,7 +1770,7 @@ real, dimension(wfull), intent(inout) :: d_zcr
 pxtr=a_ps+grav*i_fracice*(i_dic*rhoic+i_dsn*rhosn)
 d_dz(:,1)=dz(:,1)*d_zcr
 d_isal(:,1)=salin
-call calcdensity(wfull,1,d_rho,d_alpha,d_beta,d_rs,rho0,w_temp,d_isal,d_dz,pxtr)
+call calcdensity(d_rho(:,1:1),d_alpha(:,1:1),d_beta(:,1:1),d_rs(:,1:1),rho0,w_temp(:,1:1),d_isal(:,1:1),d_dz(:,1:1),pxtr)
 
 return
 end subroutine getrho1
@@ -1699,22 +1833,24 @@ end subroutine getwflux
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate density
 
-subroutine calcdensity(full,wlx,d_rho,d_alpha,d_beta,rs,rho0,tt,ss,ddz,pxtr)
+subroutine calcdensity(d_rho,d_alpha,d_beta,rs,rho0,tt,ss,ddz,pxtr)
 
 implicit none
 
-integer, intent(in) :: full,wlx
-integer i,ii
+integer full,wlx,i,ii
 !integer, parameter :: nits=1 ! iterate for density (nits=1 recommended)
-real, dimension(full,wlx), intent(in) :: tt,ss,ddz
-real, dimension(full,wlx), intent(out) :: d_rho,d_alpha,d_beta,rs
-real, dimension(full), intent(in) :: pxtr
-real, dimension(full), intent(out) :: rho0
-real, dimension(full) :: t,s,p1,p2,t2,t3,t4,t5,s2,s3,s32,ptot
-real, dimension(full) :: drho0dt,drho0ds,dskdt,dskds,sk,sks
-real, dimension(full) :: drhodt,drhods,rs0
+real, dimension(:,:), intent(in) :: tt
+real, dimension(size(tt,1),size(tt,2)), intent(in) :: ss,ddz
+real, dimension(size(tt,1),size(tt,2)), intent(out) :: d_rho,d_alpha,d_beta,rs
+real, dimension(size(tt,1)), intent(in) :: pxtr
+real, dimension(size(tt,1)), intent(out) :: rho0
+real, dimension(size(tt,1)) :: t,s,p1,p2,t2,t3,t4,t5,s2,s3,s32,ptot
+real, dimension(size(tt,1)) :: drho0dt,drho0ds,dskdt,dskds,sk,sks
+real, dimension(size(tt,1)) :: drhodt,drhods,rs0
 real, parameter :: density = 1035.
 
+full=size(tt,1)
+wlx=size(tt,2)
 d_rho=density
 
 t = min(max(tt(:,1)-273.16,-2.2),100.)

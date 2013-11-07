@@ -3,7 +3,7 @@ FC = mpif90
 
 #FFLAGS = -xHost -ftz -fpp -I $(NETCDF_ROOT)/include -Dsumdd -Dvampir
 #FFLAGS = -O -xHost -ftz -fpp -I $(NETCDF_ROOT)/include -assume buffered_io -Dsimple_timer -Duniform_decomp -Dsumdd -fp-model strict -Doutsync
-FFLAGS = -xHost -ftz -fpp -I $(NETCDF_ROOT)/include -Dsimple_timer -Dsumdd
+FFLAGS = -xHost -ftz -fpp -I $(NETCDF_ROOT)/include -Dsimple_timer -Dsumdd -Didleproc
 #FFLAGS = -O -xHost -ftz -fpp -I $(NETCDF_ROOT)/include -Dsimple_timer -Duniform_decomp -Dsumdd
 #FFLAGS = -O -xHost -ftz -fpp -r8 -i8 -I $(NETCDF_ROOT)/include -assume buffered_io -Dsimple_timer -Duniform_decomp -Dsumdd -Di8r8
 LIBS = -L $(NETCDF_ROOT)/lib -lnetcdf -lnetcdff 

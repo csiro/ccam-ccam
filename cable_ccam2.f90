@@ -358,38 +358,37 @@ sum_flux%sumrs  = sum_flux%sumrs  + canopy%frs*dt
 ! albvisnir(:,2) are the VIS and NIR albedo used by the radiation scheme for the
 ! current time step.
 do k=1,ms
-  where(land)
+  where (land)
     tgg(:,k)=0.
     wb(:,k)=0.
     wbice(:,k)=0.
   end where
 end do
 where (land)
-  albsav(:)=0.
-  albnirsav(:)=0.
-  albvisdir(:)=0.
-  albvisdif(:)=0.
-  albnirdir(:)=0.
-  albnirdif(:)=0.
-  ! From 11/8/98 runoff() is accumulated & zeroed with precip
-  rnet(:)=0.
-  fg(:)=0.
-  eg(:)=0.
-  ga(:)=0.
-  epot(:)=0.
-  tss(:)=0.
-  zo(:)=0.
-  zoh(:)=0.
-  cduv(:)=0.
-  cdtq(:)=0.
-  ustar(:)=0.
-  wetfac(:)=0.
-  rsmin(:)=0.
+  albsav=0.
+  albnirsav=0.
+  albvisdir=0.
+  albvisdif=0.
+  albnirdir=0.
+  albnirdif=0.
+  rnet=0.
+  fg=0.
+  eg=0.
+  ga=0.
+  epot=0.
+  tss=0.
+  zo=0.
+  zoh=0.
+  cduv=0.
+  cdtq=0.
+  ustar=0.
+  wetfac=0.
+  rsmin=0.
   ! screen and 10m diagnostics - rhscrn calculated in sflux.f
-  tscrn(:)=0.
-  uscrn(:)=0.
-  qgscrn(:)=0.
-  u10(:)=0.
+  tscrn=0.
+  uscrn=0.
+  qgscrn=0.
+  u10=0.
 end where
 tmps=0. ! average isflag
       
@@ -557,9 +556,9 @@ do k=1,3
   end where
 end do
 where (land)
-  ssdnn(:)=0.
-  snowd(:)=0.
-  snage(:)=0.
+  ssdnn=0.
+  snowd=0.
+  snage=0.
 end where
 where (land.and.tmps>=0.5) ! tmps is average isflag
   isflag=1
@@ -802,34 +801,34 @@ integer jyear,jmonth,jday,jhour,jmin,mins
 integer, dimension(1) :: lndtst,lndtst_g
 real totdepth,fc3,fc4,ftu,fg3,fg4,clat,nsum
 real fjd,xp
+real, dimension(ifull,mxvt,0:2) :: newlai
 real, dimension(mxvt,ms) :: froot2
-real, dimension(ifull,5) :: svs,vlin,vlinprev,vlinnext
-real, dimension(ncp) :: ratecp
-real, dimension(ncs) :: ratecs
 real, dimension(mxvt,ncp) :: tcplant
 real, dimension(mxvt,ncs) :: tcsoil
-real, dimension(mxvt)   :: canst1,leaf_w,leaf_l,ejmax,frac4,hc,rp20
-real, dimension(mxvt)   :: rpcoef,shelrb,vcmax,xfang
-real, dimension(mxvt)   :: tminvj,tmaxvj,vbeta
-real, dimension(mxvt)   :: extkn,rootbeta,vegcf,c4frac
-real, dimension(mxvt,2) :: taul,refl  
-real, dimension(mxvt)   :: leafage,woodage,frootage,metage
-real, dimension(mxvt)   :: strage,cwdage,micage,slowage,passage
-real, dimension(mxvt)   :: xfherbivore,xxkleafcoldmax,xxkleafdrymax
-real, dimension(mxvt)   :: xratioNPleafmin,xratioNPleafmax,xratioNPwoodmin,xratioNPwoodmax
-real, dimension(mxvt)   :: xratioNPfrootmin,xratioNPfrootmax,xfNminloss,xfNminleach,xnfixrate
-real, dimension(mxvt)   :: xnsoilmin,xplab,xpsorb,xpocc
-real, dimension(mxvt)   :: cleaf,cwood,cfroot,cmet,cstr,ccwd,cmic,cslow,cpass,nleaf
-real, dimension(mxvt)   :: nwood,nfroot,nmet,nstr,ncwd,nmic,nslow,npass,xpleaf,xpwood
-real, dimension(mxvt)   :: xpfroot,xpmet,xpstr,xpcwd,xpmic,xpslow,xppass,clabileage
 real, dimension(mxvt,mplant) :: ratiocnplant
-real, dimension(mxvt,msoil)  :: ratiocnsoil,ratiocnsoilmax,ratiocnsoilmin
-real, dimension(12)       :: xkmlabp,xpsorbmax,xfPleach
-real, dimension(12,msoil) :: rationpsoil
-real, dimension(ifull)   :: albsoil
+real, dimension(mxvt,msoil) :: ratiocnsoil,ratiocnsoilmax,ratiocnsoilmin
+real, dimension(mxvt,2) :: taul,refl  
+real, dimension(ifull,mxvt) :: newgrid
+real, dimension(ifull,5) :: svs,vlin,vlinprev,vlinnext
 real, dimension(ifull,2) :: albsoilsn
-real, dimension(ifull,mxvt)     :: newgrid
-real, dimension(ifull,mxvt,0:2) :: newlai
+real, dimension(12,msoil) :: rationpsoil
+real, dimension(ncp) :: ratecp
+real, dimension(ncs) :: ratecs
+real, dimension(mxvt) :: canst1,leaf_w,leaf_l,ejmax,frac4,hc,rp20
+real, dimension(mxvt) :: rpcoef,shelrb,vcmax,xfang
+real, dimension(mxvt) :: tminvj,tmaxvj,vbeta
+real, dimension(mxvt) :: extkn,rootbeta,vegcf,c4frac
+real, dimension(mxvt) :: leafage,woodage,frootage,metage
+real, dimension(mxvt) :: strage,cwdage,micage,slowage,passage
+real, dimension(mxvt) :: xfherbivore,xxkleafcoldmax,xxkleafdrymax
+real, dimension(mxvt) :: xratioNPleafmin,xratioNPleafmax,xratioNPwoodmin,xratioNPwoodmax
+real, dimension(mxvt) :: xratioNPfrootmin,xratioNPfrootmax,xfNminloss,xfNminleach,xnfixrate
+real, dimension(mxvt) :: xnsoilmin,xplab,xpsorb,xpocc
+real, dimension(mxvt) :: cleaf,cwood,cfroot,cmet,cstr,ccwd,cmic,cslow,cpass,nleaf
+real, dimension(mxvt) :: nwood,nfroot,nmet,nstr,ncwd,nmic,nslow,npass,xpleaf,xpwood
+real, dimension(mxvt) :: xpfroot,xpmet,xpstr,xpcwd,xpmic,xpslow,xppass,clabileage
+real, dimension(ifull) :: albsoil
+real, dimension(12) :: xkmlabp,xpsorbmax,xfPleach
 character(len=*), intent(in) :: fveg,fvegprev,fvegnext,fphen,casafile
 
 if (myid==0) write(6,*) "Initialising CABLE"
