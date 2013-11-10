@@ -41,7 +41,8 @@ module cc_mpi
              ccmpi_allgatherx, ccmpi_gathermap, ccmpi_recv, ccmpi_ssend,    &
              ccmpi_init, ccmpi_finalize, ccmpi_commsplit, ccmpi_commfree,   &
              mgbounds, mgcollectreduce, mgcollect, mgcollectxn, mgbcast,    &
-             mgbcastxn, mg_index, indx, bounds_colour, boundsuv_allvec,     &
+             mgbcastxn, mg_index, mgcollectreduce_mlo, mgbounds_mlo,        &
+             mgbcast_mlo, indx, bounds_colour, boundsuv_allvec,             &
              fproc, proc_region, proc_region_face, proc_region_dix
    public :: mgbndtype
    public :: dpoints_t,dindex_t,sextra_t,bnds
@@ -3376,7 +3377,7 @@ contains
       integer, intent(in) :: lcolour
       integer, intent(in), optional :: klim
       integer :: iq, iproc, kx, send_len, recv_len, iqq
-      integer :: rcount, myrlen, jproc, mproc
+      integer :: rcount, myrlen, jproc
       integer(kind=4) :: ierr, itag = 3, llen, sreq, lproc, ldone
       integer(kind=4), dimension(MPI_STATUS_SIZE,size(ireq)) :: status
       integer(kind=4), dimension(neighnum) :: donelist
@@ -3462,8 +3463,7 @@ contains
          
          do jproc = 1,ldone
     
-            mproc = donelist(jproc)
-            iproc = rlist(mproc)  ! Recv from
+            iproc = rlist(donelist(jproc))  ! Recv from
             lproc = neighlist(iproc)
             iqq = -rcolsp(lproc)%ihbg(lcolour)+1
 !cdir nodep
@@ -3862,7 +3862,7 @@ contains
       end if
 
       ! Clear any current messages
-      sreq = nreq - rreq 
+      sreq = nreq - rreq
 #ifdef simple_timer
       call start_log(mpiwaituv_begin)
 #endif
@@ -4102,7 +4102,7 @@ contains
       myrlen = bnds(myid)%rlenx_uv
 
       ! Clear any current messages
-      sreq = nreq - rreq 
+      sreq = nreq - rreq
 #ifdef simple_timer
       call start_log(mpiwaituv_begin)
 #endif
@@ -4251,10 +4251,10 @@ contains
       integer, dimension(:,:), intent(in) :: nface
       real, dimension(:,:), intent(in) :: xg, yg
       real :: xf, yf
-      integer :: iproc, rproc, sproc, jproc, dproc
+      integer :: iproc, jproc, dproc
       integer :: ip, jp, xn, kx
       integer :: iq, k, idel, jdel, nf, gf
-      integer :: rcount, mproc
+      integer :: rcount
       integer(kind=4) :: itag = 99, ierr, llen, ncount, mone, sreq, lproc
       integer(kind=4) :: ldone
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
@@ -4291,12 +4291,11 @@ contains
       do iproc = 1,neighnum
          ! Is there any advantage to this ordering here or would send/recv
          ! to the same processor be just as good?
-         rproc = neighlist(iproc)  ! Recv from
+         lproc = neighlist(iproc)  ! Recv from
          nreq = nreq + 1
          rlist(nreq) = iproc
          ! Use the maximum size in the recv call.
-         llen = 4*bnds(rproc)%len/nagg
-         lproc = rproc
+         llen = 4*bnds(lproc)%len/nagg
          call MPI_IRecv( dpoints(iproc)%a, llen, ltype, lproc, &
                       itag, MPI_COMM_WORLD, ireq(nreq), ierr )
       end do
@@ -4333,11 +4332,10 @@ contains
       ! Send request list
       rreq = nreq
       do iproc = neighnum,1,-1
-         sproc = neighlist(iproc)  ! Send to
+         lproc = neighlist(iproc)  ! Send to
          ! Send, even if length is zero
          nreq = nreq + 1
-         llen = 4*min(dslen(iproc),bnds(sproc)%len/nagg)
-         lproc = sproc
+         llen = 4*min(dslen(iproc),bnds(lproc)%len/nagg)
          call MPI_ISend( dbuf(iproc)%a, llen, ltype, lproc, &
                  itag, MPI_COMM_WORLD, ireq(nreq), ierr )
       end do
@@ -4398,9 +4396,8 @@ contains
          rcount = rcount - ldone
          
          do jproc = 1,ldone
-            mproc = donelist(jproc)
 !           Now get the actual sizes from the status
-            iproc = rlist(mproc)  ! Recv from
+            iproc = rlist(donelist(jproc))  ! Recv from
             call MPI_Get_count(status(:,jproc), ltype, ncount, ierr)
             drlen(iproc) = ncount/4
          end do
@@ -4463,7 +4460,7 @@ contains
 
    subroutine intssync_recv(s)
       real, dimension(:,:,:), intent(inout) :: s
-      integer :: iproc, iq, jproc, mproc
+      integer :: iproc, iq, jproc
       integer :: rcount, ntr, nn
       integer(kind=4) :: ierr, ldone
       integer(kind=4), dimension(neighnum) :: donelist
@@ -4487,8 +4484,7 @@ contains
          rcount = rcount - ldone
          
          do jproc = 1,ldone
-            mproc = donelist(jproc)
-            iproc = rlist(mproc)
+            iproc = rlist(donelist(jproc))
             do iq = 1,dslen(iproc)
                s(dindex(iproc)%a(1,iq),dindex(iproc)%a(2,iq),1:ntr) = dbuf(iproc)%b(1+(iq-1)*ntr:iq*ntr)
             end do
@@ -6968,8 +6964,122 @@ contains
       if (present(klim)  ) then
          kx = klim
       else
-         kx = size(vdat,2)
+         kx = size(vdat,1)
       end if
+      if (present(corner)) then
+         extra = corner
+      else
+         extra = .false.
+      end if
+
+      if ( extra ) then
+         rslen  = mg_bnds(mg(g)%neighlist,g)%rlenx
+         sslen  = mg_bnds(mg(g)%neighlist,g)%slenx
+         myrlen = mg_bnds(myid,g)%rlenx
+      else
+         rslen  = mg_bnds(mg(g)%neighlist,g)%rlen
+         sslen  = mg_bnds(mg(g)%neighlist,g)%slen
+         myrlen = mg_bnds(myid,g)%rlen
+      end if
+
+      ! clear any remaining messages from previous bounds call
+      sreq = nreq - rreq
+#ifdef simple_timer
+      call start_log(mpiwaitmg_begin)
+#endif
+      call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
+#ifdef simple_timer      
+      call end_log(mpiwaitmg_end)
+#endif
+
+      !     Set up the buffers to send and recv
+      nreq = 0
+      do iproc = 1,mg(g)%neighnum
+         recv_len = rslen(iproc)
+         if ( recv_len > 0 ) then
+            lproc = mg(g)%neighlist(iproc)  ! Recv from
+            nreq = nreq + 1
+            rlist(nreq) = iproc
+            llen = recv_len*kx
+            call MPI_IRecv( bnds(lproc)%rbuf(1), llen, ltype, lproc, &
+                            itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+         end if
+      end do
+      rreq = nreq
+      do iproc = mg(g)%neighnum,1,-1
+         send_len = sslen(iproc)
+         if ( send_len > 0 ) then
+            lproc = mg(g)%neighlist(iproc)  ! Send to
+!cdir nodep
+            do iq = 1,send_len
+               bnds(lproc)%sbuf(1+(iq-1)*kx:iq*kx) = vdat(1:kx,mg_bnds(lproc,g)%send_list(iq))
+            end do
+            nreq = nreq + 1
+            llen = send_len*kx
+            call MPI_ISend( bnds(lproc)%sbuf(1), llen, ltype, lproc, &
+                            itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+         end if
+      end do
+
+      ! Finally see if there are any points on my own processor that need
+      ! to be fixed up. This will only be in the case when nproc < npanels.
+!cdir nodep
+      do iq = 1,myrlen
+         ! request_list is same as send_list in this case
+         vdat(1:kx,mg(g)%ifull+mg_bnds(myid,g)%unpack_list(iq)) = vdat(1:kx,mg_bnds(myid,g)%request_list(iq))
+      end do
+
+      rcount = rreq
+      do while ( rcount > 0 )
+
+#ifdef simple_timer      
+         call start_log(mpiwaitmg_begin)
+#endif
+         call MPI_Waitsome(rreq,ireq,ldone,donelist,status,ierr)
+#ifdef simple_timer
+         call end_log(mpiwaitmg_end)
+#endif
+
+         rcount = rcount - ldone
+         do jproc = 1,ldone
+            iproc = rlist(donelist(jproc))  ! Recv from
+            lproc = mg(g)%neighlist(iproc)
+!cdir nodep
+            do iq = 1,rslen(iproc)
+               vdat(1:kx,mg(g)%ifull+mg_bnds(lproc,g)%unpack_list(iq)) = bnds(lproc)%rbuf(1+(iq-1)*kx:iq*kx)
+            end do
+         end do
+
+      end do
+
+      call end_log(mgbounds_end)
+
+   return
+   end subroutine mgbounds
+
+   subroutine mgbounds_mlo(g,vdat,corner)
+
+      integer, intent(in) :: g
+      integer :: kx, iq
+      integer :: iproc, recv_len, send_len
+      integer :: rcount, myrlen, jproc
+      integer, dimension(mg(g)%neighnum) :: rslen, sslen
+      integer(kind=4) :: ierr, itag=20, llen, sreq, lproc
+      integer(kind=4) :: ldone
+      integer(kind=4), dimension(size(ireq)) :: donelist
+      integer(kind=4), dimension(MPI_STATUS_SIZE,size(ireq)) :: status
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
+      real, dimension(:,:), intent(inout) :: vdat
+      logical, intent(in), optional :: corner
+      logical extra
+
+      call start_log(mgbounds_begin)
+      
+      kx = size(vdat,2)
       if (present(corner)) then
          extra = corner
       else
@@ -7059,7 +7169,7 @@ contains
       call end_log(mgbounds_end)
 
    return
-   end subroutine mgbounds
+   end subroutine mgbounds_mlo
 
    ! This subroutine merges datasets when upscaling with the multi-grid solver
    subroutine mgcollectreduce(g,vdat,dsolmax,klim)
@@ -7079,7 +7189,7 @@ contains
       if (present(klim)) then
          kx = klim
       else
-         kx = size(vdat,2)      
+         kx = size(vdat,1)      
       end if
 
       npanx = mg(g)%npanx
@@ -7112,7 +7222,7 @@ contains
       real, dimension(kx,2,nmax) :: tdat_g
 
       ! prep data for sending around the merge
-      tdat(:,1) = vdat(1,1:kx)
+      tdat(:,1) = vdat(1:kx,1)
       tdat(:,2) = dsolmax(1:kx)
 
       ilen = 2*kx
@@ -7124,7 +7234,7 @@ contains
 #endif
 
       ! unpack buffers (nmax is zero unless this is the host processor)
-      vdat(1:nmax,1:kx) = transpose( tdat_g(:,1,:) )
+      vdat(1:kx,1:nmax) = tdat_g(:,1,:)
       dsolmax(1:kx) = maxval( tdat_g(:,2,:), dim=2 )
   
    return
@@ -7145,8 +7255,8 @@ contains
 #endif
       real, dimension(:,:), intent(inout) :: vdat
       real, dimension(:), intent(inout) :: dsolmax
-      real, dimension(msg_len*npanx+1,kx) :: tdat
-      real, dimension(msg_len*npanx+1,kx,nmax) :: tdat_g
+      real, dimension(kx,msg_len*npanx+1) :: tdat
+      real, dimension(kx,msg_len*npanx+1,nmax) :: tdat_g
 
       ! prep data for sending around the merge
       ipanx = mg(g)%ipan
@@ -7154,8 +7264,8 @@ contains
       ncol  = msg_len/nrow                ! number of points along a col per processor
       nrm1  = nrow - 1
 
-      tdat(1:msg_len*npanx,:) = vdat(1:msg_len*npanx,1:kx)
-      tdat(msg_len*npanx+1,:) = dsolmax(1:kx)
+      tdat(:,1:msg_len*npanx) = vdat(1:kx,1:msg_len*npanx)
+      tdat(:,msg_len*npanx+1) = dsolmax(1:kx)
 
       ilen = (msg_len*npanx+1)*kx
       lcomm = mg(g)%comm_merge
@@ -7179,14 +7289,134 @@ contains
             do jj = js,je
                iq_a = na + (jj-1)*ipanx
                iq_c = nb + (jj-js)*nrow
-               vdat(iq_a:iq_a+nrm1,1:kx) = tdat_g(iq_c:iq_c+nrm1,:,yproc)
+               vdat(1:kx,iq_a:iq_a+nrm1) = tdat_g(:,iq_c:iq_c+nrm1,yproc)
             end do
          end do
       end do
-      dsolmax(1:kx) = maxval( tdat_g(msg_len*npanx+1,:,:), dim=2 )
+      dsolmax(1:kx) = maxval( tdat_g(:,msg_len*npanx+1,:), dim=2 )
   
    return
    end subroutine mgcollectreduce_work
+
+   subroutine mgcollectreduce_mlo(g,vdat,dsolmax)
+
+      integer, intent(in) :: g
+      integer :: nmax, npanx, kx, msg_len
+      real, dimension(:,:), intent(inout) :: vdat
+      real, dimension(:), intent(inout) :: dsolmax
+
+      ! merge length
+      nmax = mg(g)%merge_len
+      if ( nmax <= 1 ) return
+
+      call start_log(mgcollect_begin)
+
+      kx = size(vdat,2)
+      npanx = mg(g)%npanx
+      msg_len = mg(g)%ifull/(nmax*npanx) ! message unit size
+      nmax = mg(g)%nmax                  ! zero unless rank equals 0
+      
+      if ( msg_len*npanx == 1 ) then
+         call mgcollectreduce_mlo_sing( g, vdat, dsolmax, kx, nmax )
+      else
+         call mgcollectreduce_mlo_work( g, vdat, dsolmax, kx, nmax, msg_len, npanx )
+      end if
+
+      call end_log(mgcollect_end)
+  
+   return
+   end subroutine mgcollectreduce_mlo
+
+   subroutine mgcollectreduce_mlo_sing(g,vdat,dsolmax,kx,nmax)
+
+      integer, intent(in) :: g, kx, nmax
+      integer(kind=4) :: ierr, ilen, lcomm
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
+      real, dimension(:,:), intent(inout) :: vdat
+      real, dimension(:), intent(inout) :: dsolmax
+      real, dimension(kx+2) :: tdat
+      real, dimension(kx+2,nmax) :: tdat_g
+
+      ! prep data for sending around the merge
+      tdat(1:kx) = vdat(1,1:kx)
+      tdat(kx+1:kx+2) = dsolmax(1:2)
+
+      ilen = kx+2
+      lcomm = mg(g)%comm_merge
+#ifdef idleproc
+      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0, lcomm, ierr )      
+#else
+      call MPI_AllGather( tdat, ilen, ltype, tdat_g, ilen, ltype, lcomm, ierr )      
+#endif
+
+      ! unpack buffers (nmax is zero unless this is the host processor)
+      vdat(1:nmax,1:kx) = transpose( tdat_g(1:kx,:) )
+      dsolmax(1:2) = maxval( tdat_g(kx+1:kx+2,:), dim=2 )
+  
+   return
+   end subroutine mgcollectreduce_mlo_sing
+
+   subroutine mgcollectreduce_mlo_work(g,vdat,dsolmax,kx,nmax,msg_len,npanx)
+
+      integer, intent(in) :: g, kx, nmax, msg_len, npanx
+      integer n, iq_a, iq_c
+      integer nrow, ncol, na, nb
+      integer yproc, ir, ic, is, ie, js, je, jj
+      integer ipanx, nrm1
+      integer(kind=4) :: ierr, ilen, lcomm
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
+      real, dimension(:,:), intent(inout) :: vdat
+      real, dimension(:), intent(inout) :: dsolmax
+      real, dimension(kx,msg_len*npanx+1) :: tdat
+      real, dimension(kx,msg_len*npanx+1,nmax) :: tdat_g
+
+      ! prep data for sending around the merge
+      ipanx = mg(g)%ipan
+      nrow  = ipanx/mg(g)%merge_row       ! number of points along a row per processor
+      ncol  = msg_len/nrow                ! number of points along a col per processor
+      nrm1  = nrow - 1
+
+      tdat(:,1:msg_len*npanx) = transpose( vdat(1:msg_len*npanx,1:kx) )
+      tdat(:,msg_len*npanx+1) = dsolmax(1:kx)
+
+      ilen = (msg_len*npanx+1)*kx
+      lcomm = mg(g)%comm_merge
+#ifdef idleproc
+      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0, lcomm, ierr )      
+#else
+      call MPI_AllGather( tdat, ilen, ltype, tdat_g, ilen, ltype, lcomm, ierr )      
+#endif
+
+      ! unpack buffers (nmax is zero unless this is the host processor)
+      do yproc = 1,nmax
+         ir = mod(yproc-1,mg(g)%merge_row)+1   ! index for proc row
+         ic = (yproc-1)/mg(g)%merge_row+1      ! index for proc col
+
+         is = (ir-1)*nrow+1
+         js = (ic-1)*ncol+1
+         je = ic*ncol
+         do n = 1,npanx
+            na = is + (n-1)*msg_len*nmax
+            nb =  1 + (n-1)*msg_len
+            do jj = js,je
+               iq_a = na + (jj-1)*ipanx
+               iq_c = nb + (jj-js)*nrow
+               vdat(iq_a:iq_a+nrm1,:) = transpose( tdat_g(:,iq_c:iq_c+nrm1,yproc) )
+            end do
+         end do
+      end do
+      dsolmax(1:kx) = maxval( tdat_g(:,msg_len*npanx+1,:), dim=2 )
+  
+   return
+   end subroutine mgcollectreduce_mlo_work
 
    subroutine mgcollect(g,vdat,klim)
 
@@ -7205,7 +7435,7 @@ contains
       if (present(klim)) then
          kx = klim
       else
-         kx = size(vdat,2)      
+         kx = size(vdat,1)
       end if
 
       npanx = mg(g)%npanx
@@ -7237,7 +7467,7 @@ contains
       real, dimension(kx,nmax) :: tdat_g
 
       ! prep data for sending around the merge
-      tdat(:) = vdat(1,1:kx)
+      tdat(:) = vdat(1:kx,1)
 
       ilen = kx
       lcomm = mg(g)%comm_merge
@@ -7248,7 +7478,7 @@ contains
 #endif
 
       ! unpack buffers (nmax is zero unless this is the host processor)
-      vdat(1:nmax,1:kx) = transpose( tdat_g(:,:) )
+      vdat(1:kx,1:nmax) = tdat_g(:,:)
   
    return
    end subroutine mgcollect_sing
@@ -7267,8 +7497,8 @@ contains
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
       real, dimension(:,:), intent(inout) :: vdat
-      real, dimension(msg_len*npanx,kx) :: tdat
-      real, dimension(msg_len*npanx,kx,nmax) :: tdat_g
+      real, dimension(kx,msg_len*npanx) :: tdat
+      real, dimension(kx,msg_len*npanx,nmax) :: tdat_g
 
       ! prep data for sending around the merge
       ipanx = mg(g)%ipan
@@ -7276,7 +7506,7 @@ contains
       ncol  = msg_len/nrow                ! number of points along a col per processor
       nrm1  = nrow - 1
 
-      tdat(1:msg_len*npanx,:) = vdat(1:msg_len*npanx,1:kx)
+      tdat(:,1:msg_len*npanx) = vdat(1:kx,1:msg_len*npanx)
 
       ilen = msg_len*npanx*kx
       lcomm = mg(g)%comm_merge
@@ -7300,7 +7530,7 @@ contains
             do jj = js,je
                iq_a = na + (jj-1)*ipanx
                iq_c = nb + (jj-js)*nrow
-               vdat(iq_a:iq_a+nrm1,1:kx) = tdat_g(iq_c:iq_c+nrm1,:,yproc)
+               vdat(1:kx,iq_a:iq_a+nrm1) = tdat_g(:,iq_c:iq_c+nrm1,yproc)
             end do
          end do
       end do
@@ -7326,7 +7556,7 @@ contains
       if (present(klim)) then
          kx = klim
       else
-         kx = size(vdat,2)      
+         kx = size(vdat,1)
       end if
 
       npanx = mg(g)%npanx
@@ -7360,9 +7590,9 @@ contains
 
       ! prep data for sending around the merge
 
-      tdat(:,1) = vdat(1,1:kx)
-      tdat(:,2) = smaxmin(1,1:kx)
-      tdat(:,3) = smaxmin(2,1:kx)
+      tdat(:,1) = vdat(1:kx,1)
+      tdat(:,2) = smaxmin(1:kx,1)
+      tdat(:,3) = smaxmin(1:kx,2)
 
       ilen = 3*kx
       lcomm = mg(g)%comm_merge
@@ -7373,9 +7603,9 @@ contains
 #endif
 
       ! unpack buffers (nmax is zero unless this is the host processor)
-      vdat(1:nmax,1:kx) = transpose( tdat_g(:,1,:) )
-      smaxmin(1,1:kx) = maxval( tdat_g(:,2,:), dim=2 )
-      smaxmin(2,1:kx) = minval( tdat_g(:,3,:), dim=2 )
+      vdat(1:kx,1:nmax) = tdat_g(:,1,:)
+      smaxmin(1:kx,1) = maxval( tdat_g(:,2,:), dim=2 )
+      smaxmin(1:kx,2) = minval( tdat_g(:,3,:), dim=2 )
   
    return
    end subroutine mgcollectxn_sing
@@ -7395,8 +7625,8 @@ contains
 #endif
       real, dimension(:,:), intent(inout) :: vdat
       real, dimension(:,:), intent(inout) :: smaxmin
-      real, dimension(msg_len*npanx+2,kx) :: tdat
-      real, dimension(msg_len*npanx+2,kx,nmax) :: tdat_g
+      real, dimension(kx,msg_len*npanx+2) :: tdat
+      real, dimension(kx,msg_len*npanx+2,nmax) :: tdat_g
 
       ! prep data for sending around the merge
       ipanx = mg(g)%ipan
@@ -7404,9 +7634,9 @@ contains
       ncol  = msg_len/nrow                ! number of points along a col per processor
       nrm1  = nrow - 1
 
-      tdat(1:msg_len*npanx,:) = vdat(1:msg_len*npanx,1:kx)
-      tdat(msg_len*npanx+1,:) = smaxmin(1,1:kx)
-      tdat(msg_len*npanx+2,:) = smaxmin(2,1:kx)
+      tdat(:,1:msg_len*npanx) = vdat(1:kx,1:msg_len*npanx)
+      tdat(:,msg_len*npanx+1) = smaxmin(1:kx,1)
+      tdat(:,msg_len*npanx+2) = smaxmin(1:kx,2)
 
       ilen = (msg_len*npanx+2)*kx
       lcomm = mg(g)%comm_merge
@@ -7430,12 +7660,12 @@ contains
             do jj = js,je
                iq_a = na + (jj-1)*ipanx
                iq_c = nb + (jj-js)*nrow
-               vdat(iq_a:iq_a+nrm1,1:kx) = tdat_g(iq_c:iq_c+nrm1,:,yproc)
+               vdat(1:kx,iq_a:iq_a+nrm1) = tdat_g(:,iq_c:iq_c+nrm1,yproc)
             end do
          end do
       end do
-      smaxmin(1,1:kx) = maxval( tdat_g(msg_len*npanx+1,:,:), dim=2 )
-      smaxmin(2,1:kx) = minval( tdat_g(msg_len*npanx+2,:,:), dim=2 )
+      smaxmin(1:kx,1) = maxval( tdat_g(:,msg_len*npanx+1,:), dim=2 )
+      smaxmin(1:kx,2) = minval( tdat_g(:,msg_len*npanx+2,:), dim=2 )
   
    return
    end subroutine mgcollectxn_work
@@ -7459,7 +7689,7 @@ contains
       if (present(klim)) then
          kx = klim
       else
-         kx = size(vdat,2)      
+         kx = size(vdat,1)
       end if
    
       out_len = mg(g)%ifull + mg(g)%iextra
@@ -7472,6 +7702,56 @@ contains
    end subroutine mgbcast
    
    subroutine mgbcast_work(g,vdat,dsolmax,kx,out_len)
+   
+      integer, intent(in) :: g, kx, out_len
+      integer(kind=4) :: ierr, ilen, lcomm
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
+      real, dimension(:,:), intent(inout) :: vdat
+      real, dimension(:), intent(inout) :: dsolmax
+      real, dimension(kx,out_len+1) :: tdat
+
+      tdat(:,1:out_len) = vdat(1:kx,1:out_len)
+      tdat(:,out_len+1) = dsolmax(1:kx)
+      
+      ilen = (out_len+1)*kx
+      lcomm = mg(g)%comm_merge
+      call MPI_Bcast( tdat, ilen, ltype, 0, lcomm, ierr )      
+
+      ! extract data from distribute      
+      vdat(1:kx,1:out_len) = tdat(:,1:out_len)
+      dsolmax(1:kx) = tdat(:,out_len+1)
+   
+   return
+   end subroutine mgbcast_work
+
+   subroutine mgbcast_mlo(g,vdat,dsolmax)
+   
+      integer, intent(in) :: g
+      integer :: kx, out_len
+      real, dimension(:,:), intent(inout) :: vdat
+      real, dimension(:), intent(inout) :: dsolmax
+
+#ifdef idleproc
+      ! merge length
+      if ( mg(g)%merge_len <= 1 ) return
+   
+      call start_log(mgbcast_begin)
+   
+      kx = size(vdat,2)
+      out_len = mg(g)%ifull + mg(g)%iextra
+      call mgbcast_mlo_work( g, vdat, dsolmax, kx, out_len )
+   
+      call end_log(mgbcast_end)
+#endif
+   
+   return
+   end subroutine mgbcast_mlo
+   
+   subroutine mgbcast_mlo_work(g,vdat,dsolmax,kx,out_len)
    
       integer, intent(in) :: g, kx, out_len
       integer(kind=4) :: ierr, ilen, lcomm
@@ -7496,7 +7776,7 @@ contains
       dsolmax(1:kx) = tdat(out_len+1,:)
    
    return
-   end subroutine mgbcast_work
+   end subroutine mgbcast_mlo_work
 
    subroutine mgbcastxn(g,smaxmin,klim)
    
@@ -7520,7 +7800,7 @@ contains
       if (present(klim)) then
          kx = klim
       else
-         kx = size(smaxmin,2)
+         kx = size(smaxmin,1)
       end if
    
       ilen = 2*kx
