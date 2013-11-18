@@ -15,7 +15,7 @@ module cc_mpi
    integer, save, public :: nxproc, nyproc                   ! number of processors in the x and y directions
    integer, save, public :: nagg                             ! maximum number of levels to aggregate for message passing
 
-   integer, save, public :: comm_host, comm_proc, comm_rows, comm_cols ! comm groups for scale-selective filter
+   integer, save, public :: comm_proc, comm_rows, comm_cols            ! comm groups for scale-selective filter
    integer, save, public :: hproc, mproc, npta, pprocn, pprocx         ! decomposition parameters for scale-selective filter
 
    integer(kind=4), save, private :: nreq, rreq                        ! number of requests and number of recvs
@@ -288,9 +288,14 @@ module cc_mpi
    integer, public, save :: mgbounds_begin, mgbounds_end
    integer, public, save :: mgcollect_begin, mgcollect_end
    integer, public, save :: mgbcast_begin, mgbcast_end
+   integer, public, save :: mgsetup_begin, mgsetup_end
+   integer, public, save :: mgfine_begin, mgfine_end
+   integer, public, save :: mgup_begin, mgup_end
+   integer, public, save :: mgcoarse_begin, mgcoarse_end
+   integer, public, save :: mgdown_begin, mgdown_end
 #ifdef simple_timer
    public :: simple_timer_finalize
-   integer, parameter :: nevents = 62
+   integer, parameter :: nevents = 67
    double precision, dimension(nevents), save :: tot_time = 0., start_time
    character(len=15), dimension(nevents), save :: event_name
 #endif 
@@ -447,7 +452,7 @@ contains
             do i = 1,ipan
                iq = indp(i,j,n)   ! Local
                iqg = indg(i,j,n)  ! Global
-               colourmask(iq)=findcolour(iqg)
+               colourmask(iq) = findcolour(iqg)
             end do
          end do
       end do
@@ -469,11 +474,6 @@ contains
       allocate ( iqn(ifullx,maxcolour), iqe(ifullx,maxcolour) )
       allocate ( iqw(ifullx,maxcolour), iqs(ifullx,maxcolour) )
       ifullxc = 0
-      iqx = 0
-      iqn = 0
-      iqe = 0
-      iqw = 0
-      iqs = 0
       do iq = 1,ifull
          ifullxc(colourmask(iq)) = ifullxc(colourmask(iq)) + 1
          iqx(ifullxc(colourmask(iq)),colourmask(iq)) = iq
@@ -505,20 +505,7 @@ contains
       hproc = pprocn*mproc/npta           ! host processor for panel
 #endif
 
-      ! comm between host processors
-      ! colour = myid-hproc
-      ! rank = hproc/mproc
-      if ( myid == hproc ) then
-         colour = 0
-         rank = hproc/mproc
-      else
-         colour = 1
-         rank = myid-hproc-1
-      end if
-      call MPI_Comm_Split(MPI_COMM_WORLD,colour,rank,lcommout,ierr)
-      comm_host = lcommout
-      
-      ! comm between work groups with captain hproc
+     ! comm between work groups with captain hproc
       colour = hproc
       rank = myid-hproc
       call MPI_Comm_Split(MPI_COMM_WORLD,colour,rank,lcommout,ierr)
@@ -1237,7 +1224,7 @@ contains
       integer :: ipoff, jpoff, npoff
       
       if ( nproc == 1 ) then
-         call ccmpi_gatherall2(a,ag)
+         ag=a
          return
       end if
    
@@ -1295,7 +1282,7 @@ contains
       integer :: ipoff, jpoff, npoff
       
       if ( nproc == 1 ) then
-         call ccmpi_gatherall3(a,ag)
+         ag=a
          return
       end if
    
@@ -3226,11 +3213,11 @@ contains
 
    end subroutine bounds3
 
-   subroutine bounds4(t, nrows, klim, corner, nehalf)
+   subroutine bounds4(t, nrows, corner, nehalf)
       ! Copy the boundary regions. Only this routine requires the extra klim
       ! argument (for helmsol).
       real, dimension(:,:,:), intent(inout) :: t
-      integer, intent(in), optional :: nrows, klim
+      integer, intent(in), optional :: nrows
       logical, intent(in), optional :: corner
       logical, intent(in), optional :: nehalf
       logical :: extra, single, double
@@ -3254,9 +3241,6 @@ contains
       double = .false.
       extra  = .false.
       single = .true.
-      if ( present(klim) ) then
-         kx = klim
-      end if
       if ( present(nrows) ) then
          if ( nrows == 2 ) then
             double = .true.
@@ -3389,8 +3373,11 @@ contains
 
       call start_log(bounds_begin)
       
-      kx = size(t,2)
-      if ( present(klim) ) kx = klim
+      if ( present(klim) ) then
+         kx = klim
+      else
+         kx = size(t,2)
+      end if
       
       myrlen = bnds(myid)%rlen
 
@@ -5335,6 +5322,16 @@ contains
       waterdiff_end =  waterdiff_begin
       call vtfuncdef("River", classhandle, river_begin, ierr)
       river_end =  river_begin
+      call vtfuncdef("MG_Setup", classhandle, mgsetup_begin, ierr)
+      mgsetup_end =  mgsetup_begin
+      call vtfuncdef("MG_Fine", classhandle, mgfine_begin, ierr)
+      mgfine_end =  mgfine_begin
+      call vtfuncdef("MG_Up", classhandle, mgup_begin, ierr)
+      mgup_end =  mgup_begin
+      call vtfuncdef("MG_Coarse", classhandle, mgcoarse_begin, ierr)
+      mgcoarse_end =  mgcoarse_begin
+      call vtfuncdef("MG_Down", classhandle, mgdown_begin, ierr)
+      mgdown_end =  mgdown_begin
 #endif
 #ifdef simple_timer
 
@@ -5586,6 +5583,26 @@ contains
       river_end =  river_begin
       event_name(river_begin) = "River"
 
+      mgsetup_begin = 63
+      mgsetup_end =  mgsetup_begin
+      event_name(mgsetup_begin) = "MG_Setup"
+
+      mgfine_begin = 64
+      mgfine_end =  mgfine_begin
+      event_name(mgfine_begin) = "MG_Fine"
+
+      mgup_begin = 65
+      mgup_end =  mgup_begin
+      event_name(mgup_begin) = "MG_Up"
+
+      mgcoarse_begin = 66
+      mgcoarse_end =  mgcoarse_begin
+      event_name(mgcoarse_begin) = "MG_Coarse"
+
+      mgdown_begin = 67
+      mgdown_end =  mgdown_begin
+      event_name(mgdown_begin) = "MG_Down"
+
 #endif
    end subroutine log_setup
    
@@ -5599,32 +5616,32 @@ contains
    end subroutine phys_loadbal
 
 #ifdef simple_timer
-      subroutine simple_timer_finalize()
-         ! Calculate the mean, min and max times for each case
-         integer :: i
-         !integer :: p
-         integer(kind=4) :: ierr, llen
-         double precision, dimension(nevents) :: emean, emax, emin
-         llen=nevents
-         call MPI_Reduce(tot_time, emean, llen, MPI_DOUBLE_PRECISION, &
-                         MPI_SUM, 0, MPI_COMM_WORLD, ierr )
-         call MPI_Reduce(tot_time, emax, llen, MPI_DOUBLE_PRECISION, &
-                         MPI_MAX, 0, MPI_COMM_WORLD, ierr )
-         call MPI_Reduce(tot_time, emin, llen, MPI_DOUBLE_PRECISION, &
-                         MPI_MIN, 0, MPI_COMM_WORLD, ierr )
-         if ( myid == 0 ) then
-            write(6,*) "==============================================="
-            write(6,*) "  Times over all processes"
-            write(6,*) "  Routine        Mean time  Min time  Max time"
-            do i=1,nevents
-               if ( emean(i) > 0. ) then
-                  ! This stops boundsa, b getting written when they're not used.
-                  write(*,"(a,3f10.3)") event_name(i), emean(i)/nproc, emin(i), emax(i)
-               end if
-            end do
-         end if
+   subroutine simple_timer_finalize()
+      ! Calculate the mean, min and max times for each case
+      integer :: i
+      !integer :: p
+      integer(kind=4) :: ierr, llen
+      double precision, dimension(nevents) :: emean, emax, emin
+      llen=nevents
+      call MPI_Reduce(tot_time, emean, llen, MPI_DOUBLE_PRECISION, &
+                      MPI_SUM, 0, MPI_COMM_WORLD, ierr )
+      call MPI_Reduce(tot_time, emax, llen, MPI_DOUBLE_PRECISION, &
+                      MPI_MAX, 0, MPI_COMM_WORLD, ierr )
+      call MPI_Reduce(tot_time, emin, llen, MPI_DOUBLE_PRECISION, &
+                      MPI_MIN, 0, MPI_COMM_WORLD, ierr )
+      if ( myid == 0 ) then
+         write(6,*) "==============================================="
+         write(6,*) "  Times over all processes"
+         write(6,*) "  Routine        Mean time  Min time  Max time"
+         do i=1,nevents
+            if ( emean(i) > 0. ) then
+               ! This stops boundsa, b getting written when they're not used.
+               write(*,"(a,3f10.3)") event_name(i), emean(i)/nproc, emin(i), emax(i)
+            end if
+         end do
+      end if
          
-      end subroutine simple_timer_finalize
+   end subroutine simple_timer_finalize
 #endif
 
     subroutine ccglobal_posneg2 (array, delpos, delneg)
@@ -6938,6 +6955,7 @@ contains
    ! this routine allows multi-grid bounds updates
    ! This is based on cc_mpi bounds routines, but
    ! accomodates the g-th multi-grid
+   
    subroutine mgbounds(g,vdat,klim,corner)
 
       integer, intent(in) :: g
@@ -7463,18 +7481,14 @@ contains
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
       real, dimension(:,:), intent(inout) :: vdat
-      real, dimension(kx) :: tdat
       real, dimension(kx,nmax) :: tdat_g
-
-      ! prep data for sending around the merge
-      tdat(:) = vdat(1:kx,1)
 
       ilen = kx
       lcomm = mg(g)%comm_merge
 #ifdef idleproc
-      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0, lcomm, ierr )
+      call MPI_Gather( vdat(1:kx,1), ilen, ltype, tdat_g, ilen, ltype, 0, lcomm, ierr )
 #else
-      call MPI_AllGather( tdat, ilen, ltype, tdat_g, ilen, ltype, lcomm, ierr )
+      call MPI_AllGather( vdat(1:kx,1), ilen, ltype, tdat_g, ilen, ltype, lcomm, ierr )
 #endif
 
       ! unpack buffers (nmax is zero unless this is the host processor)
@@ -7542,14 +7556,12 @@ contains
 
       integer, intent(in) :: g
       integer, intent(in), optional :: klim
-      integer nmax, npanx, kx
-      integer msg_len
+      integer kx, msg_len
       real, dimension(:,:), intent(inout) :: vdat
       real, dimension(:,:), intent(inout) :: smaxmin
 
       ! merge length
-      nmax = mg(g)%merge_len
-      if ( nmax <= 1 ) return
+      if ( mg(g)%merge_len <= 1 ) return
 
       call start_log(mgcollect_begin)
 
@@ -7559,14 +7571,11 @@ contains
          kx = size(vdat,1)
       end if
 
-      npanx = mg(g)%npanx
-      msg_len = mg(g)%ifull/(nmax*npanx) ! message unit size
-      nmax = mg(g)%nmax                  ! zero unless rank equals 0
-
-      if ( msg_len*npanx == 1 ) then
-         call mgcollectxn_sing( g, vdat, smaxmin, kx, nmax )
+      if ( mg(g)%ifull == mg(g)%merge_len ) then
+         call mgcollectxn_sing( g, vdat, smaxmin, kx, mg(g)%nmax )
       else
-         call mgcollectxn_work( g, vdat, smaxmin, kx, nmax, msg_len, npanx )
+         msg_len = mg(g)%ifull/(mg(g)%merge_len*mg(g)%npanx) ! message unit size
+         call mgcollectxn_work( g, vdat, smaxmin, kx, mg(g)%nmax, msg_len, mg(g)%npanx )
       end if
 
       call end_log(mgcollect_end)
@@ -7578,6 +7587,7 @@ contains
 
       integer, intent(in) :: g, kx, nmax
       integer(kind=4) :: ierr, ilen, lcomm
+      integer(kind=4), parameter :: zero = 0
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7593,11 +7603,11 @@ contains
       tdat(:,1) = vdat(1:kx,1)
       tdat(:,2) = smaxmin(1:kx,1)
       tdat(:,3) = smaxmin(1:kx,2)
-
+      
       ilen = 3*kx
       lcomm = mg(g)%comm_merge
 #ifdef idleproc
-      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0, lcomm, ierr )
+      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, zero, lcomm, ierr )
 #else
       call MPI_AllGather( tdat, ilen, ltype, tdat_g, ilen, ltype, lcomm, ierr )
 #endif
@@ -7606,7 +7616,7 @@ contains
       vdat(1:kx,1:nmax) = tdat_g(:,1,:)
       smaxmin(1:kx,1) = maxval( tdat_g(:,2,:), dim=2 )
       smaxmin(1:kx,2) = minval( tdat_g(:,3,:), dim=2 )
-  
+      
    return
    end subroutine mgcollectxn_sing
 
@@ -8378,7 +8388,7 @@ contains
          allocate ( mg(g)%neighlist(mg(g)%neighnum) )
          ncount = 0
          do iproc = 1,nproc-1
-            rproc = modulo(myid-iproc,nproc)
+            rproc = modulo(myid+iproc,nproc)
             if ( mg_bnds(rproc,g)%rlenx > 0 ) then
                ncount = ncount + 1
                mg(g)%neighlist(ncount) = rproc
@@ -8395,22 +8405,20 @@ contains
          ! Now start sending messages  
          nreq = 0
          do iproc = 1,mg(g)%neighnum
-            rproc = mg(g)%neighlist(iproc)  ! Recv from
-            allocate( mg_bnds(rproc,g)%send_list(mg_bnds(rproc,g)%slenx) )
+            lproc = mg(g)%neighlist(iproc)  ! Recv from
+            allocate( mg_bnds(lproc,g)%send_list(mg_bnds(lproc,g)%slenx) )
             nreq = nreq + 1
             ! Use the maximum size in the recv call.
-            llen = mg_bnds(rproc,g)%slenx
-            lproc = rproc
-            call MPI_IRecv( mg_bnds(rproc,g)%send_list(1), llen, ltype, lproc, &
+            llen = mg_bnds(lproc,g)%slenx
+            call MPI_IRecv( mg_bnds(lproc,g)%send_list(1), llen, ltype, lproc, &
                             itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end do
          do iproc = mg(g)%neighnum,1,-1
-            sproc = mg(g)%neighlist(iproc)  ! Send to
+            lproc = mg(g)%neighlist(iproc)  ! Send to
             ! Send list of requests
             nreq = nreq + 1
-            llen = mg_bnds(sproc,g)%rlenx
-            lproc = sproc
-            call MPI_ISend( mg_bnds(sproc,g)%request_list(1), llen, ltype, lproc, &
+            llen = mg_bnds(lproc,g)%rlenx
+            call MPI_ISend( mg_bnds(lproc,g)%request_list(1), llen, ltype, lproc, &
                             itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end do      
          call MPI_Waitall( nreq, ireq, status, ierr )

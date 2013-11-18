@@ -962,9 +962,6 @@
       real, dimension(ifull) :: da,db
       logical, intent(in) :: lblock
       
-      ! MJT notes - better to replace gatherall with a
-      ! RMA based global array
-      
       if (nud_p>0.and.lblock) then
         call ccmpi_gathermap(pslb, tt(:,1))
         call fastspecmpi_work(cin,tt(:,1),1,pprocn)
@@ -1045,8 +1042,6 @@
       !---------------------------------------------------------------------------------
       ! This code runs between the local processors
       
-      ! hproc is the captian processor that farms out the convolution to the comm_host
-      ! group of processors.
       subroutine speclocal_left(cq,ppass,qt,klt,xpan)
 
       use cc_mpi            ! CC MPI routines
@@ -1062,8 +1057,7 @@
       integer j,k,n,ipass,iproc
       integer ipoff,jpoff,npoff
       integer nne,nns,ooe,oos,me,ns,ne,os,oe
-      integer til
-      integer a,b,c,sn,sy,jj,nn
+      integer til,a,b,c,sn,sy,jj,nn
       integer, dimension(0:3) :: astr,bstr,cstr
       integer, dimension(0:3) :: maps
       real, intent(in) :: cq
@@ -1293,8 +1287,7 @@
       integer j,k,n,ipass,iproc
       integer ipoff,jpoff,npoff
       integer nne,nns,ooe,oos,me,ns,ne,os,oe
-      integer til
-      integer a,b,c,sn,sy,jj,nn
+      integer til,a,b,c,sn,sy,jj,nn
       integer, dimension(0:3) :: astr,bstr,cstr
       integer, dimension(0:3) :: maps
       real, intent(in) :: cq
@@ -2979,11 +2972,11 @@
         end select
       end do
       
-      ncount = count(lproc)
+      ncount=count(lproc)
       allocate(specmap(ncount))
       ncount=0
       do iproc=0,nproc-1
-        rproc = modulo(myid+iproc,nproc)
+        rproc=modulo(myid+iproc,nproc)
         if (lproc(rproc)) then
           ncount=ncount+1
           specmap(ncount)=rproc
