@@ -29,6 +29,7 @@ integer, save :: mg_maxsize,mg_minsize,gmax
 
 integer, parameter :: itr_mg   =20
 integer, parameter :: itr_mgice=20
+integer, parameter :: itrend   =1
 
 real, parameter :: dfac=0.25 ! adjustment for grid spacing
 
@@ -71,7 +72,7 @@ real, dimension(mg_maxsize,kl) :: dsol
 real, dimension(mg_minsize,mg_minsize,kl) :: helm_o
 real, dimension(mg_minsize) :: v_o
 real, dimension(kl,2) :: smaxmin_g
-real, dimension(kl) :: dsolmax_g,savg,sdif
+real, dimension(kl) :: dsolmax_g,savg,sdif,dsolmax_l
 
 call start_log(helm_begin)
 
@@ -88,6 +89,7 @@ call start_log(mgsetup_begin)
 
 ! determine max/min for convergence calculations
 klim=kl
+vdum=0.
 smaxmin_g(:,1)=maxval(iv(1:ifull,:),dim=1)
 smaxmin_g(:,2)=minval(iv(1:ifull,:),dim=1)
 
@@ -174,7 +176,7 @@ do itr=1,itr_mg
     vdum(1:ifull,k)=-izzn*iv(in,k)-izzw*iv(iw,k)-izze*iv(ie,k)-izzs*iv(is,k)+irhs(:,k)+iv(1:ifull,k)*(ihelm(:,k)-izz)
   end do
   w(1:klim,1:ifull)=transpose(vdum(1:ifull,1:kl))
-
+  
   ! For when the inital grid cannot be upscaled
   ng_x=mg(1)%ifull
   call mgcollectreduce(1,w(:,1:ng_x),dsolmax_g,klim=klim)
@@ -271,6 +273,8 @@ do itr=1,itr_mg
       w(1:klim,iq)=v(1:klim,iq,g)+w(1:klim,iq)
     end do
 
+    ! MJT notes - The first correction is usually sufficient to produce a good approximation
+    ! to the converged solution
     do iq=1,mg(g)%ifull
       ! post smoothing
       v(1:klim,iq,g)=(mg(g)%zze(iq)*w(1:klim,mg(g)%ie(iq))+mg(g)%zzw(iq)*w(1:klim,mg(g)%iw(iq)) &
@@ -303,7 +307,6 @@ do itr=1,itr_mg
 
   if (mg(1)%merge_len>1) then
     call mgbcast(1,w,dsolmax_g,klim=klim)
-    vdum=0.
     ir=mod(mg(1)%merge_pos-1,mg(1)%merge_row)+1   ! index for proc row
     ic=(mg(1)%merge_pos-1)/mg(1)%merge_row+1      ! index for proc col
     do n=1,npan
@@ -341,7 +344,6 @@ do itr=1,itr_mg
     end do
   else
     ! remap mg halo to normal halo
-    vdum(ifull+1:ifull+iextra,1:klim)=0.
     vdum(1:ifull,1:klim)=transpose(w(1:klim,1:ifull))
     do n=0,npan-1
       do i=1,ipan
@@ -370,19 +372,27 @@ do itr=1,itr_mg
   ! extension
   iv(1:ifull+iextra,1:klim)=iv(1:ifull+iextra,1:klim)+vdum(1:ifull+iextra,1:klim)
   
-  ! post smoothing
-  do nc=1,maxcolour
-    do k=1,klim
-      dsol(1+(nc-1)*ifullx:nc*ifullx,k)=( zznc(:,nc)*iv(iqn(:,nc),k) + zzwc(:,nc)*iv(iqw(:,nc),k)    &
-                                        + zzec(:,nc)*iv(iqe(:,nc),k) + zzsc(:,nc)*iv(iqs(:,nc),k)    &
-                                        - rhsc(:,k,nc))*rhelmc(:,k,nc) - iv(iqx(:,nc),k)
+  do i=1,itrend
+    ! post smoothing
+    do nc=1,maxcolour
+      do k=1,klim
+        dsol(1+(nc-1)*ifullx:nc*ifullx,k)=( zznc(:,nc)*iv(iqn(:,nc),k) + zzwc(:,nc)*iv(iqw(:,nc),k)    &
+                                          + zzec(:,nc)*iv(iqe(:,nc),k) + zzsc(:,nc)*iv(iqs(:,nc),k)    &
+                                          - rhsc(:,k,nc))*rhelmc(:,k,nc) - iv(iqx(:,nc),k)
+      end do
+      iv(iqx(:,nc),1:klim) = iv(iqx(:,nc),1:klim) + dsol(1+(nc-1)*ifullx:nc*ifullx,1:klim)
+      call bounds_colour(iv,nc,klim=klim)
     end do
-    iv(iqx(:,nc),1:klim) = iv(iqx(:,nc),1:klim) + dsol(1+(nc-1)*ifullx:nc*ifullx,1:klim)
-    call bounds_colour(iv,nc,klim=klim)
   end do
+
+  call end_log(mgfine_end)
 
   ! test for convergence
   knew=klim
+  !if (dsolmax_g(1)<10.*restol*sdif(1)) then
+  !  dsolmax_l(1:klim)=maxval(abs(dsol(1:ifull,1:klim)),dim=1)
+  !  call ccmpi_allreduce(dsolmax_l(1:klim),dsolmax_g(1:klim),"max",comm_world)
+  !end if
   do k=klim,1,-1
     iters(k)=itr
     if (dsolmax_g(k)>=restol*sdif(k)) exit
@@ -390,9 +400,7 @@ do itr=1,itr_mg
   end do
   klim=knew
   if (klim<1) exit
-  
-  call end_log(mgfine_end)
-  
+ 
 end do
 
 ! JLM suggestion
@@ -461,7 +469,7 @@ real, dimension(mg_maxsize,2) :: dumc_n,dumc_s,dumc_e,dumc_w
 real, dimension(mg_minsize,mg_minsize) :: helm_o
 real, dimension(mg_ifullc,3) :: yyzcu,yyncu,yyscu,yyecu,yywcu
 real, dimension(mg_ifullc,3) :: zzhhcu,zzncu,zzscu,zzecu,zzwcu,rhscu
-real, dimension(1) :: dsolmax
+real, dimension(2) :: dsolmax
 real, dimension(8) :: dsolmax_g
 
 if (sorfirst) then
@@ -489,6 +497,11 @@ end if
 
 ! zz*(DIV^2 i0) + yy*i0 = rhs - F
 ! zz*(DIV^2 f) + yy*f = F
+
+call start_log(mgmlosetup_begin)
+
+vduma=0.
+vdumb=0.
 
 ! upscale coeffs
 dumyy(1,1:ifull,1)=iyy(1:ifull)
@@ -544,7 +557,7 @@ end do
 ! solver requires bounds to be updated
 dumc(1:ifull,1)=neta(1:ifull)
 dumc(1:ifull,2)=ipice(1:ifull)
-call bounds(dumc)
+call bounds(dumc,mlo=1)
 
 ! pack colour arrays
 do nc=1,maxcolour
@@ -570,8 +583,12 @@ do nc=1,maxcolour
   ipmaxc(:,nc)=ipmax(iqx(:,nc))
 end do
 
+call end_log(mgmlosetup_end)
+
 ! Main loop
 do itr=1,itr_mgice
+
+  call start_log(mgmlofine_begin)
 
   do nc=1,maxcolour
   
@@ -598,7 +615,7 @@ do itr=1,itr_mgice
          -zzwcice(:,nc)*dumc_w(1:ifullx,2) &
         + rhscice(:,nc) ) / zzcice(:,nc) ))
 
-    call bounds_colour(dumc,nc)
+    call bounds_colour(dumc,nc,mlo=1)
 
   end do
   dsol(1:ifull,1)      =dumc(1:ifull,1)-neta(1:ifull)
@@ -682,6 +699,10 @@ do itr=1,itr_mgice
     end if
     
   end do
+  
+  call end_log(mgmlofine_end)
+
+  call start_log(mgmloup_begin)
 
   ! upscale grid
   do g=2,gmax
@@ -765,6 +786,10 @@ do itr=1,itr_mgice
 
   end do
 
+  call end_log(mgmloup_end)
+
+  call start_log(mgmlocoarse_begin)
+
   ! solve coarse grid    
   do g=mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel==mg_maxlevel_local) then ...
 
@@ -818,6 +843,10 @@ do itr=1,itr_mgice
     end do
   
   end do
+  
+  call end_log(mgmlocoarse_end)
+  
+  call start_log(mgmlodown_begin)
     
   ! downscale grid
   do g=gmax,2,-1
@@ -883,10 +912,12 @@ do itr=1,itr_mgice
 
   end do
 
+  call end_log(mgmlodown_end)
+
+  call start_log(mgmlofine_begin)
+
   if (mg(1)%merge_len>1) then
     call mgbcast_mlo(1,w(:,1:2),dsolmax_g(1:2))
-    vduma=0.
-    vdumb=0.
     ir=mod(mg(1)%merge_pos-1,mg(1)%merge_row)+1   ! index for proc row
     ic=(mg(1)%merge_pos-1)/mg(1)%merge_row+1      ! index for proc col
     do n=0,npan-1
@@ -929,8 +960,6 @@ do itr=1,itr_mgice
     end do
   else
     ! remap mg halo to normal halo 
-    vduma(ifull+1:ifull+iextra)=0.
-    vdumb(ifull+1:ifull+iextra)=0.
     vduma(1:ifull)=w(1:ifull,1)
     vdumb(1:ifull)=w(1:ifull,2)
     do n=0,npan-1
@@ -962,46 +991,58 @@ do itr=1,itr_mgice
   end if
  
   ! extension
-  neta(1:ifull+iextra)=neta(1:ifull+iextra)+vduma(1:ifull+iextra)
-  ipice(1:ifull+iextra)=ipice(1:ifull+iextra)+vdumb(1:ifull+iextra)
+  neta(1:ifull+iextra)=max(neta(1:ifull+iextra)+vduma(1:ifull+iextra),-dd)*ee
+  ipice(1:ifull+iextra)=max(min(ipice(1:ifull+iextra)+vdumb(1:ifull+iextra),ipmax),0.) 
  
-  dumc(1:ifull+iextra,1)=max(neta,-dd)*ee
-  dumc(1:ifull+iextra,2)=max(min(ipice,ipmax),0.) 
+  dumc(1:ifull+iextra,1)=neta
+  dumc(1:ifull+iextra,2)=ipice
   
-  ! post smoothing
-  do nc=1,maxcolour
+  do i=1,itrend
+  
+    ! post smoothing
+    do nc=1,maxcolour
 
-    dumc_n(1:ifullx,:)=dumc(iqn(:,nc),:)
-    dumc_s(1:ifullx,:)=dumc(iqs(:,nc),:)
-    dumc_e(1:ifullx,:)=dumc(iqe(:,nc),:)
-    dumc_w(1:ifullx,:)=dumc(iqw(:,nc),:)
+      dumc_n(1:ifullx,:)=dumc(iqn(:,nc),:)
+      dumc_s(1:ifullx,:)=dumc(iqs(:,nc),:)
+      dumc_e(1:ifullx,:)=dumc(iqe(:,nc),:)
+      dumc_w(1:ifullx,:)=dumc(iqw(:,nc),:)
     
-    ! ocean
-    bu(1:ifullx)=zzhhc(:,nc)                                                 &
-                +yync(:,nc)*dumc_n(1:ifullx,1)+yysc(:,nc)*dumc_s(1:ifullx,1) &
-                +yyec(:,nc)*dumc_e(1:ifullx,1)+yywc(:,nc)*dumc_w(1:ifullx,1)
-    cu(1:ifullx)=zznc(:,nc)*dumc_n(1:ifullx,1)+zzsc(:,nc)*dumc_s(1:ifullx,1) &
-                +zzec(:,nc)*dumc_e(1:ifullx,1)+zzwc(:,nc)*dumc_w(1:ifullx,1) &
-                -rhsc(:,nc)        
-    dumc(iqx(:,nc),1)=eec(:,nc)*max(-ddc(:,nc), &
-        -2.*cu(1:ifullx)/(bu(1:ifullx)+sqrt(bu(1:ifullx)*bu(1:ifullx)-4.*yyc(:,nc)*cu(1:ifullx))) )
+      ! ocean
+      bu(1:ifullx)=zzhhc(:,nc)                                                 &
+                  +yync(:,nc)*dumc_n(1:ifullx,1)+yysc(:,nc)*dumc_s(1:ifullx,1) &
+                  +yyec(:,nc)*dumc_e(1:ifullx,1)+yywc(:,nc)*dumc_w(1:ifullx,1)
+      cu(1:ifullx)=zznc(:,nc)*dumc_n(1:ifullx,1)+zzsc(:,nc)*dumc_s(1:ifullx,1) &
+                  +zzec(:,nc)*dumc_e(1:ifullx,1)+zzwc(:,nc)*dumc_w(1:ifullx,1) &
+                  -rhsc(:,nc)        
+      dumc(iqx(:,nc),1)=eec(:,nc)*max(-ddc(:,nc), &
+          -2.*cu(1:ifullx)/(bu(1:ifullx)+sqrt(bu(1:ifullx)*bu(1:ifullx)-4.*yyc(:,nc)*cu(1:ifullx))) )
     
-    ! ice - cavitating fluid
-    dumc(iqx(:,nc),2)=max(0.,min(ipmaxc(:,nc),          &
-       ( -zzncice(:,nc)*dumc_n(1:ifullx,2)              &
-         -zzscice(:,nc)*dumc_s(1:ifullx,2)              &
-         -zzecice(:,nc)*dumc_e(1:ifullx,2)              &
-         -zzwcice(:,nc)*dumc_w(1:ifullx,2)              &
-        + rhscice(:,nc) ) / zzcice(:,nc) ))
+      ! ice - cavitating fluid
+      dumc(iqx(:,nc),2)=max(0.,min(ipmaxc(:,nc),          &
+         ( -zzncice(:,nc)*dumc_n(1:ifullx,2)              &
+           -zzscice(:,nc)*dumc_s(1:ifullx,2)              &
+           -zzecice(:,nc)*dumc_e(1:ifullx,2)              &
+           -zzwcice(:,nc)*dumc_w(1:ifullx,2)              &
+          + rhscice(:,nc) ) / zzcice(:,nc) ))
 
-    call bounds_colour(dumc(:,:),nc)
+      call bounds_colour(dumc(:,:),nc,mlo=1)
+    end do
+    dsol(1:ifull,1)      =dumc(1:ifull,1)-neta(1:ifull)
+    dsol(1:ifull,2)      =dumc(1:ifull,2)-ipice(1:ifull)
+    
+    ! store for convergence test
+    neta(1:ifull+iextra) =dumc(1:ifull,1)
+    ipice(1:ifull+iextra)=dumc(1:ifull,2)
+    
   end do
   
-  ! store for convergence test
-  neta(1:ifull+iextra) =dumc(1:ifull,1)
-  ipice(1:ifull+iextra)=dumc(1:ifull,2)
+  call end_log(mgmlofine_end)
  
   ! test for convergence
+  !if (dsolmax_g(1)<10.*tol.and.dsolmax_g(2)<10.*itol) then
+  !  dsolmax(1:2)=maxval(abs(dsol(1:ifull,1:2)),dim=1)
+  !  call ccmpi_allreduce(dsolmax(1:2),dsolmax_g(1:2),"max",comm_world)
+  !end if  
   if (dsolmax_g(1)<tol.and.dsolmax_g(2)<itol) exit
   
 end do
@@ -1410,7 +1451,7 @@ do g=2,mg_maxlevel
       do j=1,mil_g,mjpan
         do i=1,mil_g,mipan
           cid=mg(g)%fproc(i+ix,j+jx,nn) ! processor in same merge position as myid
-                                          ! we will maintain communications with this processor
+                                        ! we will maintain communications with this processor
           do jja=1,mjpan
             do iia=1,mipan
               ! update fproc map with processor that owns this data

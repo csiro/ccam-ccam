@@ -53,9 +53,17 @@ end subroutine MPI_Reduce
 
 subroutine MPI_Allreduce ( xin, xout, n, type, op, comm, ierr )
    ! Just copy input to output
+   implicit none
+   include 'mpif.h'
    integer ::  n, type, op, comm, ierr
-   real, dimension(n) :: xin, xout
-   xout = xin
+   real, dimension(*) :: xin, xout
+   if ( type == MPI_COMPLEX ) then
+      xout(1:2*n) = xin(1:2*n)
+   else if ( type == MPI_DOUBLE_COMPLEX ) then
+      xout(1:4*n) = xin(1:4*n)
+   else
+      xout(1:n) = xin(1:n)
+   end if
    ierr = 0
 end subroutine MPI_Allreduce
 

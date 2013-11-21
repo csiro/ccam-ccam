@@ -44,7 +44,7 @@ real, dimension(:), allocatable, save :: ustar
 #endif
 
 ! model constants
-real, parameter :: b1      = 1.     ! Soares et al (2004) 1., Siebesma et al (2003) 2.
+real, parameter :: b1      = 2.     ! Soares et al (2004) 1., Siebesma et al (2003) 2.
 real, parameter :: b2      = 1./3.  ! Soares et al (2004) 2., Siebesma et al (2003) 1./3.
 real, parameter :: be      = 0.3    ! Hurley (2007) 1., Soares et al (2004) 0.3
 real, parameter :: cm0     = 0.09   ! Hurley (2007) 0.09, Duynkerke 1988 0.03
@@ -145,7 +145,7 @@ subroutine tkemix(kmo,theta,qg,qlg,qfg,qrg,cfrac,cfrain,zi,fg,eg,ps,ustar, &
 implicit none
 
 integer, intent(in) :: diag,mode,naero
-integer iq,k,i,j,ktopmax,klcl
+integer k,i,j,ktopmax,klcl
 integer kcount,mcount,icount
 real, intent(in) :: dt,qgmin
 real, dimension(ifull,kl,naero), intent(inout) :: aero
@@ -889,7 +889,6 @@ subroutine thomas(out,aa,xtr,cc,ddi,klin)
 implicit none
 
 integer, intent(in) :: klin
-integer iq
 real, dimension(ifull,2:klin), intent(in) :: aa
 real, dimension(ifull,1:klin), intent(in) :: xtr,ddi
 real, dimension(ifull,1:klin-1), intent(in) :: cc

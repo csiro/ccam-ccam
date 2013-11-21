@@ -357,7 +357,7 @@ do iq=1,ipts
       elseif (prf(m)<fpres(nlev)) then
         out(iq,ilev-m+1)=o3inp(nlev)
       else
-        do k1=2,nlev
+        do k1=2,nlev-1
           if (prf(m)>fpres(k1)) exit
         end do
         fp=(prf(m)-fpres(k1))/(fpres(k1-1)-fpres(k1))
@@ -398,7 +398,7 @@ do iq=1,ipts
       elseif (prf(m)<fpres(nlev)) then
         o3new(m)=o3sum(nlev)
       else
-        do k1=2,nlev
+        do k1=2,nlev-1
           if (prf(m)>fpres(k1)) exit
         end do
         fp=(prf(m)-fpres(k1))/(fpres(k1-1)-fpres(k1))

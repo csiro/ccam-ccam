@@ -153,8 +153,8 @@ c**** solve for uu at t+1 (implicit solution)
 
 c**** form dv/dt due to gw-drag at each level
 c**** = -alam.v*/wmag.uu(t+1)**2.max(--,0)
-      do k=1,kl
        if(npanels.eq.0)then
+        do k=1,kl
          do j=2,jl-1                            ! darlam
           do i=2,il-1                           ! darlam
 	    iq=i+(j-1)*il
@@ -165,8 +165,10 @@ c**** = -alam.v*/wmag.uu(t+1)**2.max(--,0)
            v(iq,k)=v(iq,k)+sonout*dt          ! darlam
           enddo ! i loop                        ! darlam
          enddo  ! j loop                        ! darlam
+        enddo     ! k loop
        else
          if(ngwd.gt.0)then   ! tendencies used
+          do k=1,kl
            do iq=1,ifull  ! globpe
             xxx=uu(iq,k)*uu(iq,k)*fni(iq,k)
             ronout=-apuw(iq)*xxx
@@ -174,7 +176,9 @@ c**** = -alam.v*/wmag.uu(t+1)**2.max(--,0)
             un(iq,k)=un(iq,k)+ronout    !  globpex
             vn(iq,k)=vn(iq,k)+sonout    !  globpex
            enddo  ! iq loop
+          enddo     ! k loop 
          else   ! non-tendencies for ngwd<0
+          do k=1,kl
            do iq=1,ifull  ! globpe
             xxx=uu(iq,k)*uu(iq,k)*fni(iq,k)
             ronout=-apuw(iq)*xxx
@@ -182,10 +186,11 @@ c**** = -alam.v*/wmag.uu(t+1)**2.max(--,0)
             u(iq,k)=u(iq,k)+ronout*dt
             v(iq,k)=v(iq,k)+sonout*dt
            enddo  ! iq loop
+          enddo     ! k loop
          endif  ! (ngwd.gt.0)then   ! tendencies used
        endif    ! (npanels.eq.0) then .. else ..
-      enddo     ! k loop
-      
+
+#ifdef debug      
       if(ntest==1)then
         write(6,*) 'from gwdrag, ngwd,alam,fnii,apuw,apvw,wmag',
      &    ngwd,alam(idjd),fnii(idjd),apuw(idjd),apvw(idjd),wmag(idjd)
@@ -200,6 +205,7 @@ c**** = -alam.v*/wmag.uu(t+1)**2.max(--,0)
         write(6,*) 'un',vn(idjd,:)
         write(6,*) 'vn',vn(idjd,:)
       endif
+#endif
 
       return
       end
