@@ -4695,10 +4695,10 @@ rhs(:,1)=xps-(1.+ocneps)*0.5*dt*(odivb                                          
 
 ! ice
 zzn(:,2)=(-idv(1:ifull)*0.5-ibv(1:ifull))/ds
-zzs(:,2)=(-idv(isv)*0.5    -ibv(isv)    )/ds
+zzs(:,2)=( idv(isv)*0.5    -ibv(isv)    )/ds
 zze(:,2)=(-idu(1:ifull)*0.5-ibu(1:ifull))/ds
-zzw(:,2)=(-idu(iwu)*0.5    -ibu(iwu)    )/ds
-zz(:,2) =(ibu(1:ifull)+ibu(iwu)+ibv(1:ifull)+ibv(isv)-0.5*(idu(1:ifull)+idu(iwu)+idv(1:ifull)+idv(isv)))/ds
+zzw(:,2)=( idu(iwu)*0.5    -ibu(iwu)    )/ds
+zz(:,2) =(ibu(1:ifull)+ibu(iwu)+ibv(1:ifull)+ibv(isv)-0.5*(idu(1:ifull)-idu(iwu)+idv(1:ifull)-idv(isv)))/ds
 
 rhs(:,2)=min(niu(1:ifull)/emu(1:ifull)-niu(iwu)/emu(iwu)+niv(1:ifull)/emv(1:ifull)-niv(isv)/emv(isv),0.)
 
@@ -4854,14 +4854,14 @@ hh     =1.+(1.+ocneps)*0.5*dt*(odiv                                             
 rhs(:,1)=xps(1:ifull)-(1.+ocneps)*0.5*dt*(odivb                                               &
         +(pvn*ddv(1:ifull)*dd(in)-pvs*ddv(isv)*dd(is)+pue*ddu(1:ifull)*dd(ie)-puw*ddu(iwu)*dd(iw))*em(1:ifull)*em(1:ifull)/ds+pdivb*dd(1:ifull))
 
-! zz*(DIV^2 ipice) + yy*ipice = rhs
+! zz*(DIV^2 ipice) = rhs
 
 ! ice
 zzn(:,2)=(-idv(1:ifull)*0.5-ibv(1:ifull))/ds
-zzs(:,2)=(-idv(isv)*0.5    -ibv(isv)    )/ds
+zzs(:,2)=( idv(isv)*0.5    -ibv(isv)    )/ds
 zze(:,2)=(-idu(1:ifull)*0.5-ibu(1:ifull))/ds
-zzw(:,2)=(-idu(iwu)        -ibu(iwu)    )/ds
-zz(:,2) =(-0.5*(idu(1:ifull)+idu(iwu)+idv(1:ifull)+idv(isv))+ibu(1:ifull)+ibu(iwu)+ibv(1:ifull)+ibv(isv))/ds
+zzw(:,2)=( idu(iwu)*0.5    -ibu(iwu)    )/ds
+zz(:,2) =(-0.5*(idu(1:ifull)-idu(iwu)+idv(1:ifull)-idv(isv))+ibu(1:ifull)+ibu(iwu)+ibv(1:ifull)+ibv(isv))/ds
 
 rhs(:,2)=min(niu(1:ifull)/emu(1:ifull)-niu(iwu)/emu(iwu)+niv(1:ifull)/emv(1:ifull)-niv(isv)/emv(isv),0.)
 

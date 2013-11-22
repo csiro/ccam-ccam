@@ -2141,7 +2141,7 @@ contains
       ncount = 0
       neighmap = 0 ! missing
       do iproc = 1,nproc-1
-         rproc = modulo(myid-iproc,nproc)
+         rproc = modulo(myid+iproc,nproc)
          if ( bnds(rproc)%rlen2 > 0 ) then
             ncount = ncount + 1
             neighlist(ncount) = rproc
