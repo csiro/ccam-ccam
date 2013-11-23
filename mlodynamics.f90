@@ -783,7 +783,7 @@ integer, dimension(ifull,wlev) :: nface
 real maxglobseta,maxglobip
 real delpos,delneg,alph_p,fjd
 real, dimension(ifull+iextra) :: neta,pice,imass,xodum
-real, dimension(ifull+iextra) :: nfracice,ndic,ndsn,nsto,niu,niv,nis,tiu,tiv
+real, dimension(ifull+iextra) :: nfracice,ndic,ndsn,nsto,niu,niv,nis
 real, dimension(ifull+iextra) :: snu,sou,spu,squ,ssu,snv,sov,spv,sqv,ssv
 real, dimension(ifull+iextra) :: ibu,ibv,icu,icv,idu,idv,spnet,oeu,oev,tide
 real, dimension(ifull+iextra) :: ipmax
@@ -1597,20 +1597,15 @@ dipdxv=0.5*(stwgt(:,3)*(tev-tnn)+stwgt(:,4)*(tnn-twv))*emv(1:ifull)/ds
 dipdyv=(ipice(in)-ipice(1:ifull))*emv(1:ifull)/ds
 ipiceu=0.5*(ipice(1:ifull)+ipice(ie))
 ipicev=0.5*(ipice(1:ifull)+ipice(in))
-! tiu and tiv average the velocity over the timestep
-tiu(1:ifull)=niu(1:ifull)+0.5*(idu(1:ifull)*ipiceu+ibu(1:ifull)*dipdxu+icu(1:ifull)*dipdyu)
-tiv(1:ifull)=niv(1:ifull)+0.5*(idv(1:ifull)*ipicev+ibv(1:ifull)*dipdyv+icv(1:ifull)*dipdxv)
-tiu(1:ifull)=tiu(1:ifull)*eeu(1:ifull)
-tiv(1:ifull)=tiv(1:ifull)*eev(1:ifull)
 niu(1:ifull)=niu(1:ifull)+idu(1:ifull)*ipiceu+ibu(1:ifull)*dipdxu+icu(1:ifull)*dipdyu
 niv(1:ifull)=niv(1:ifull)+idv(1:ifull)*ipicev+ibv(1:ifull)*dipdyv+icv(1:ifull)*dipdxv
 niu(1:ifull)=niu(1:ifull)*eeu(1:ifull)
 niv(1:ifull)=niv(1:ifull)*eev(1:ifull)
-call boundsuv(tiu,tiv,stag=-9,mlo=1)
+call boundsuv(niu,niv,stag=-9,mlo=1)
 
 ! Normalisation factor for conserving ice flow in and out of gridbox
-spnet(1:ifull)=(-min(tiu(iwu)*emu(iwu),0.)+max(tiu(1:ifull)*emu(1:ifull),0.) &
-                -min(tiv(isv)*emv(isv),0.)+max(tiv(1:ifull)*emv(1:ifull),0.))/ds
+spnet(1:ifull)=(-min(niu(iwu)*emu(iwu),0.)+max(niu(1:ifull)*emu(1:ifull),0.) &
+                -min(niv(isv)*emv(isv),0.)+max(niv(1:ifull)*emv(1:ifull),0.))/ds
 
 ! ADVECT ICE ------------------------------------------------------
 ! use simple upwind scheme
@@ -1645,7 +1640,7 @@ dumc(1:ifull,10)=spnet(1:ifull)
 call bounds(dumc(:,1:10),mlo=1)
 spnet(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,10)
 do ii=1,9
-  call upwindadv(dumc(:,ii),tiu,tiv,spnet)
+  call upwindadv(dumc(:,ii),niu,niv,spnet)
 end do  
 nfracice(1:ifull)=dumc(1:ifull,1)*em(1:ifull)*em(1:ifull)
 nfracice(1:ifull)=min(max(nfracice(1:ifull),0.),maxicefrac)
@@ -4849,10 +4844,11 @@ yye= (1.+ocneps)*0.5*dt*(que+sue+pue)*em(1:ifull)*em(1:ifull)/ds
 yyw=-(1.+ocneps)*0.5*dt*(quw+suw+puw)*em(1:ifull)*em(1:ifull)/ds
 yy = (1.+ocneps)*0.5*dt*(qdiv+sdiv+pdiv)
 
-hh     =1.+(1.+ocneps)*0.5*dt*(odiv                                                           &
+hh     =1.+(1.+ocneps)*0.5*dt*(odiv                                                                                           &
         +(pvn*dd(in)-pvs*dd(is)+pue*dd(ie)-puw*dd(iw))*em(1:ifull)*em(1:ifull)/ds+pdiv*dd(1:ifull))
-rhs(:,1)=xps(1:ifull)-(1.+ocneps)*0.5*dt*(odivb                                               &
-        +(pvn*ddv(1:ifull)*dd(in)-pvs*ddv(isv)*dd(is)+pue*ddu(1:ifull)*dd(ie)-puw*ddu(iwu)*dd(iw))*em(1:ifull)*em(1:ifull)/ds+pdivb*dd(1:ifull))
+rhs(:,1)=xps(1:ifull)-(1.+ocneps)*0.5*dt*(odivb                                                                               &
+        +(pvn*ddv(1:ifull)*dd(in)-pvs*ddv(isv)*dd(is)+pue*ddu(1:ifull)*dd(ie)-puw*ddu(iwu)*dd(iw))*em(1:ifull)*em(1:ifull)/ds &
+        +pdivb*dd(1:ifull))
 
 ! zz*(DIV^2 ipice) = rhs
 

@@ -8507,7 +8507,7 @@ contains
          nsize = size(ireq)
          if ( 2*ntest > nsize ) then
             deallocate( ireq, rlist )
-            allocate( ireq(max(2*ntest,1)) )
+            allocate( ireq(2*ntest) )
             allocate( rlist(ntest) )
          end if
   
