@@ -41,9 +41,10 @@ module cc_mpi
              ccmpi_allgatherx, ccmpi_gathermap, ccmpi_recv, ccmpi_ssend,    &
              ccmpi_init, ccmpi_finalize, ccmpi_commsplit, ccmpi_commfree,   &
              mgbounds, mgcollectreduce, mgcollect, mgcollectxn, mgbcast,    &
-             mgbcastxn, mg_index, mgcollectreduce_mlo, mgbounds_mlo,        &
-             mgbcast_mlo, indx, bounds_colour, boundsuv_allvec,             &
-             fproc, proc_region, proc_region_face, proc_region_dix
+             mgbcastxn, mg_index, mgcollect_mlo, mgcollectreduce_mlo,       &
+             mgbounds_mlo, mgbcast_mlo, mgbcasta_mlo, indx, bounds_colour,  &
+             boundsuv_allvec, fproc, proc_region, proc_region_face,         &
+             proc_region_dix
    public :: mgbndtype
    public :: dpoints_t,dindex_t,sextra_t,bnds
    private :: ccmpi_distribute2, ccmpi_distribute2i, ccmpi_distribute2r8,   &
@@ -3006,16 +3007,6 @@ contains
          if ( bnds(myid)%mlomsk == 0 ) return
       end if
 
-      ! Clear any current messages
-      sreq = nreq - rreq
-#ifdef simple_timer
-      call start_log(mpiwait_begin)
-#endif
-      call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
-#ifdef simple_timer
-      call end_log(mpiwait_end)
-#endif
-
 !     Set up the buffers to send
       nreq = 0
       do iproc = 1,neighnum
@@ -3081,6 +3072,21 @@ contains
          end do
 
       end do
+
+      ! Clear any remaining messages
+      ! MJT notes - We could also call Waitall at the start of the next
+      ! call to bounds or boundsuv.  However, this assumes MPI will
+      ! process the message in the background which is not always the case.
+      ! Instead we call Waitall here to ensure the MPI messages are
+      ! progressed.
+      sreq = nreq - rreq
+#ifdef simple_timer
+      call start_log(mpiwait_begin)
+#endif
+      call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
+#ifdef simple_timer
+      call end_log(mpiwait_end)
+#endif
 
       call end_log(bounds_end)
 
@@ -3161,16 +3167,6 @@ contains
          if ( bnds(myid)%mlomsk == 0 ) return
       end if
 
-      ! Clear any current messages
-      sreq = nreq - rreq
-#ifdef simple_timer
-      call start_log(mpiwait_begin)
-#endif
-      call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
-#ifdef simple_timer
-      call end_log(mpiwait_end)
-#endif      
-
 !     Set up the buffers to send and recv
       nreq = 0
       do iproc = 1,neighnum
@@ -3234,6 +3230,16 @@ contains
          end do
 
       end do
+
+      ! Clear any remaining messages
+      sreq = nreq - rreq
+#ifdef simple_timer
+      call start_log(mpiwait_begin)
+#endif
+      call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
+#ifdef simple_timer
+      call end_log(mpiwait_end)
+#endif 
 
       call end_log(bounds_end)
 
@@ -3312,16 +3318,6 @@ contains
          if ( bnds(myid)%mlomsk == 0 ) return
       end if
 
-      ! Clear any current messages
-      sreq = nreq - rreq
-#ifdef simple_timer
-      call start_log(mpiwait_begin)
-#endif
-      call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
-#ifdef simple_timer
-      call end_log(mpiwait_end)
-#endif      
-
 !     Set up the buffers to send
       nreq = 0
       do iproc = 1,neighnum
@@ -3386,6 +3382,16 @@ contains
 
       end do
 
+      ! Clear any remaining messages
+      sreq = nreq - rreq
+#ifdef simple_timer
+      call start_log(mpiwait_begin)
+#endif
+      call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
+#ifdef simple_timer
+      call end_log(mpiwait_end)
+#endif 
+
       call end_log(bounds_end)
 
    end subroutine bounds4
@@ -3425,16 +3431,6 @@ contains
       if ( mlomode == 1 ) then
          if ( bnds(myid)%mlomsk == 0 ) return
       end if
-
-      ! Clear any current messages
-      sreq = nreq - rreq
-#ifdef simple_timer
-      call start_log(mpiwait_begin)
-#endif
-      call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
-#ifdef simple_timer
-      call end_log(mpiwait_end)
-#endif
 
 !     Set up the buffers to send and recv
       nreq = 0
@@ -3517,6 +3513,16 @@ contains
          end do
 
       end do
+
+      ! Clear any remaining messages
+      sreq = nreq - rreq
+#ifdef simple_timer
+      call start_log(mpiwait_begin)
+#endif
+      call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
+#ifdef simple_timer
+      call end_log(mpiwait_end)
+#endif
 
       call end_log(bounds_end)
 
@@ -3613,16 +3619,6 @@ contains
          myrlen = bnds(myid)%rlen_uv
       end if
 
-      ! Clear any current messages
-      sreq = nreq - rreq
-#ifdef simple_timer
-      call start_log(mpiwaituv_begin)
-#endif
-      call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
-#ifdef simple_timer
-      call end_log(mpiwaituv_end)
-#endif
-      
 !     Set up the buffers to send
       nreq = 0
       do iproc = 1,neighnum
@@ -3823,6 +3819,16 @@ contains
          
       end do
 
+      ! Clear any remaining messages
+      sreq = nreq - rreq
+#ifdef simple_timer
+      call start_log(mpiwaituv_begin)
+#endif
+      call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
+#ifdef simple_timer
+      call end_log(mpiwaituv_end)
+#endif
+
       call end_log(boundsuv_end)
 
    end subroutine boundsuv2
@@ -3921,16 +3927,6 @@ contains
          fnnveeu = .false.
          myrlen = bnds(myid)%rlen_uv
       end if
-
-      ! Clear any current messages
-      sreq = nreq - rreq
-#ifdef simple_timer
-      call start_log(mpiwaituv_begin)
-#endif
-      call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
-#ifdef simple_timer
-      call end_log(mpiwaituv_end)
-#endif
 
 !     Set up the buffers to send and recv
       nreq = 0
@@ -4141,6 +4137,16 @@ contains
 
       end do
 
+      ! Clear any remaining messages
+      sreq = nreq - rreq
+#ifdef simple_timer
+      call start_log(mpiwaituv_begin)
+#endif
+      call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
+#ifdef simple_timer
+      call end_log(mpiwaituv_end)
+#endif
+
       call end_log(boundsuv_end)
 
    end subroutine boundsuv3
@@ -4178,16 +4184,6 @@ contains
          v(ifull+1:ifull+iextra,:) = 0.
          if ( bnds(myid)%mlomsk == 0 ) return
       end if
-
-      ! Clear any current messages
-      sreq = nreq - rreq
-#ifdef simple_timer
-      call start_log(mpiwaituv_begin)
-#endif
-      call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
-#ifdef simple_timer
-      call end_log(mpiwaituv_end)
-#endif
 
 !     Set up the buffers to recv and send
       nreq = 0
@@ -4319,6 +4315,16 @@ contains
 
       end do
 
+      ! Clear any remaining messages
+      sreq = nreq - rreq
+#ifdef simple_timer
+      call start_log(mpiwaituv_begin)
+#endif
+      call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
+#ifdef simple_timer
+      call end_log(mpiwaituv_end)
+#endif
+
       call end_log(boundsuv_end)
 
    end subroutine boundsuv_allvec
@@ -4358,16 +4364,6 @@ contains
       dslen = 0
       drlen = 0
 
-      ! Clear any current messages
-      sreq = nreq - rreq
-#ifdef simple_timer
-      call start_log(mpiwaitdep_begin)
-#endif
-      call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
-#ifdef simple_timer
-      call end_log(mpiwaitdep_end)
-#endif
- 
 !     In this case the length of each buffer is unknown and will not
 !     be symmetric between processors. Therefore need to get the length
 !     from the message status
@@ -4487,6 +4483,16 @@ contains
          end do
 
       end do
+
+      ! Clear any remaining messages
+      sreq = nreq - rreq
+#ifdef simple_timer
+      call start_log(mpiwaitdep_begin)
+#endif
+      call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
+#ifdef simple_timer
+      call end_log(mpiwaitdep_end)
+#endif
       
       call end_log(deptsync_end)
 
@@ -4495,7 +4501,7 @@ contains
    subroutine intssync_send(ntr)
       integer, intent(in) :: ntr
       integer :: iproc
-      integer(kind=4) :: itag = 98, ierr, llen, lproc, sreq
+      integer(kind=4) :: itag = 98, ierr, llen, lproc
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -4505,16 +4511,6 @@ contains
 
       call start_log(intssync_begin)
       
-      ! Clear any current messages
-      sreq = nreq - rreq
-#ifdef simple_timer
-      call start_log(mpiwaitdep_begin)
-#endif
-      call MPI_Waitall(sreq, ireq(rreq+1:nreq), status, ierr)
-#ifdef simple_timer
-      call end_log(mpiwaitdep_end)
-#endif
-
       ! When sending the results, roles of dslen and drlen are reversed
       nreq = 0
       do iproc = 1,neighnum
@@ -4546,7 +4542,7 @@ contains
       real, dimension(:,:,:), intent(inout) :: s
       integer :: iproc, iq, jproc
       integer :: rcount, ntr, nn
-      integer(kind=4) :: ierr, ldone
+      integer(kind=4) :: ierr, ldone, sreq
       integer(kind=4), dimension(neighnum) :: donelist
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
 
@@ -4575,6 +4571,16 @@ contains
          end do
 
       end do
+
+      ! Clear any remaining messages
+      sreq = nreq - rreq
+#ifdef simple_timer
+      call start_log(mpiwaitdep_begin)
+#endif
+      call MPI_Waitall(sreq, ireq(rreq+1:nreq), status, ierr)
+#ifdef simple_timer
+      call end_log(mpiwaitdep_end)
+#endif
 
       call end_log(intssync_end)
 
@@ -7079,8 +7085,8 @@ contains
    
    end subroutine ccmpi_commfree
 
-   ! this routine allows multi-grid bounds updates
-   ! This is based on cc_mpi bounds routines, but
+   ! This routine allows multi-grid bounds updates
+   ! The code is based on cc_mpi bounds routines, but
    ! accomodates the g-th multi-grid
    
    subroutine mgbounds(g,vdat,klim,corner)
@@ -7126,16 +7132,6 @@ contains
          sslen  = mg_bnds(mg(g)%neighlist,g)%slen
          myrlen = mg_bnds(myid,g)%rlen
       end if
-
-      ! clear any remaining messages from previous bounds call
-      sreq = nreq - rreq
-#ifdef simple_timer
-      call start_log(mpiwaitmg_begin)
-#endif
-      call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
-#ifdef simple_timer      
-      call end_log(mpiwaitmg_end)
-#endif
 
       !     Set up the buffers to send and recv
       nreq = 0
@@ -7197,6 +7193,16 @@ contains
 
       end do
 
+      ! clear any remaining messages
+      sreq = nreq - rreq
+#ifdef simple_timer
+      call start_log(mpiwaitmg_begin)
+#endif
+      call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
+#ifdef simple_timer      
+      call end_log(mpiwaitmg_end)
+#endif
+
       call end_log(mgbounds_end)
 
    return
@@ -7240,16 +7246,6 @@ contains
          sslen  = mg_bnds(mg(g)%neighlist,g)%slen
          myrlen = mg_bnds(myid,g)%rlen
       end if
-
-      ! clear any remaining messages from previous bounds call
-      sreq = nreq - rreq
-#ifdef simple_timer
-      call start_log(mpiwaitmg_begin)
-#endif
-      call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
-#ifdef simple_timer      
-      call end_log(mpiwaitmg_end)
-#endif
 
       !     Set up the buffers to send and recv
       nreq = 0
@@ -7310,6 +7306,16 @@ contains
          end do
 
       end do
+
+      ! clear any remaining messages
+      sreq = nreq - rreq
+#ifdef simple_timer
+      call start_log(mpiwaitmg_begin)
+#endif
+      call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
+#ifdef simple_timer      
+      call end_log(mpiwaitmg_end)
+#endif
 
       call end_log(mgbounds_end)
 
@@ -7679,6 +7685,116 @@ contains
    return
    end subroutine mgcollect_work
 
+   subroutine mgcollect_mlo(g,vdat)
+
+      integer, intent(in) :: g
+      integer :: kx, msg_len
+      real, dimension(:,:), intent(inout) :: vdat
+
+      ! merge length
+      if ( mg(g)%merge_len <= 1 ) return
+
+      call start_log(mgcollect_begin)
+
+      kx = size(vdat,2)
+      
+      if ( mg(g)%ifull == mg(g)%merge_len ) then
+         call mgcollect_mlo_sing( g, vdat, kx, mg(g)%nmax )
+      else
+         msg_len = mg(g)%ifull/(mg(g)%merge_len*mg(g)%npanx) ! message unit size
+         call mgcollect_mlo_work( g, vdat, kx, mg(g)%nmax, msg_len, mg(g)%npanx )
+      end if
+
+      call end_log(mgcollect_end)
+  
+   return
+   end subroutine mgcollect_mlo
+
+   subroutine mgcollect_mlo_sing(g,vdat,kx,nmax)
+
+      integer, intent(in) :: g, kx, nmax
+      integer(kind=4) :: ierr, ilen, lcomm
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
+      real, dimension(:,:), intent(inout) :: vdat
+      real, dimension(kx) :: tdat
+      real, dimension(kx,nmax) :: tdat_g
+
+      ! prep data for sending around the merge
+      tdat(1:kx) = vdat(1,1:kx)
+
+      ilen = kx
+      lcomm = mg(g)%comm_merge
+#ifdef idleproc
+      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0, lcomm, ierr )      
+#else
+      call MPI_AllGather( tdat, ilen, ltype, tdat_g, ilen, ltype, lcomm, ierr )      
+#endif
+
+      ! unpack buffers (nmax is zero unless this is the host processor)
+      vdat(1:nmax,1:kx) = transpose( tdat_g(1:kx,:) )
+  
+   return
+   end subroutine mgcollect_mlo_sing
+
+   subroutine mgcollect_mlo_work(g,vdat,kx,nmax,msg_len,npanx)
+
+      integer, intent(in) :: g, kx, nmax, msg_len, npanx
+      integer n, iq_a, iq_c
+      integer nrow, ncol, na, nb
+      integer yproc, ir, ic, is, ie, js, je, jj
+      integer ipanx, nrm1
+      integer(kind=4) :: ierr, ilen, lcomm
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
+      real, dimension(:,:), intent(inout) :: vdat
+      real, dimension(kx,msg_len*npanx) :: tdat
+      real, dimension(kx,msg_len*npanx,nmax) :: tdat_g
+
+      ! prep data for sending around the merge
+      ipanx = mg(g)%ipan
+      nrow  = ipanx/mg(g)%merge_row       ! number of points along a row per processor
+      ncol  = msg_len/nrow                ! number of points along a col per processor
+      nrm1  = nrow - 1
+
+      tdat(:,1:msg_len*npanx) = transpose( vdat(1:msg_len*npanx,1:kx) )
+
+      ilen = msg_len*npanx*kx
+      lcomm = mg(g)%comm_merge
+#ifdef idleproc
+      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0, lcomm, ierr )      
+#else
+      call MPI_AllGather( tdat, ilen, ltype, tdat_g, ilen, ltype, lcomm, ierr )      
+#endif
+
+      ! unpack buffers (nmax is zero unless this is the host processor)
+      do yproc = 1,nmax
+         ir = mod(yproc-1,mg(g)%merge_row)+1   ! index for proc row
+         ic = (yproc-1)/mg(g)%merge_row+1      ! index for proc col
+
+         is = (ir-1)*nrow+1
+         js = (ic-1)*ncol+1
+         je = ic*ncol
+         do n = 1,npanx
+            na = is + (n-1)*msg_len*nmax
+            nb =  1 + (n-1)*msg_len
+            do jj = js,je
+               iq_a = na + (jj-1)*ipanx
+               iq_c = nb + (jj-js)*nrow
+               vdat(iq_a:iq_a+nrm1,:) = transpose( tdat_g(:,iq_c:iq_c+nrm1,yproc) )
+            end do
+         end do
+      end do
+  
+   return
+   end subroutine mgcollect_mlo_work
+
    subroutine mgcollectxn(g,vdat,smaxmin,klim)
 
       integer, intent(in) :: g
@@ -7915,17 +8031,58 @@ contains
    return
    end subroutine mgbcast_mlo_work
 
-   subroutine mgbcastxn(g,smaxmin,klim)
+   subroutine mgbcasta_mlo(g,vdat)
    
       integer, intent(in) :: g
-      integer, intent(in), optional :: klim
-      integer :: kx
+      integer :: kx, out_len
+      real, dimension(:,:), intent(inout) :: vdat
+
+#ifdef idleproc
+      ! merge length
+      if ( mg(g)%merge_len <= 1 ) return
+   
+      call start_log(mgbcast_begin)
+   
+      kx = size(vdat,2)
+      out_len = mg(g)%ifull + mg(g)%iextra
+      call mgbcasta_mlo_work( g, vdat, kx, out_len )
+   
+      call end_log(mgbcast_end)
+#endif
+   
+   return
+   end subroutine mgbcasta_mlo
+   
+   subroutine mgbcasta_mlo_work(g,vdat,kx,out_len)
+   
+      integer, intent(in) :: g, kx, out_len
       integer(kind=4) :: ierr, ilen, lcomm
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
+      real, dimension(:,:), intent(inout) :: vdat
+      real, dimension(out_len,kx) :: tdat
+
+      tdat(1:out_len,:) = vdat(1:out_len,1:kx)
+      
+      ilen = out_len*kx
+      lcomm = mg(g)%comm_merge
+      call MPI_Bcast( tdat, ilen, ltype, 0, lcomm, ierr )      
+
+      ! extract data from distribute      
+      vdat(1:out_len,1:kx) = tdat(1:out_len,:)
+   
+   return
+   end subroutine mgbcasta_mlo_work
+
+   subroutine mgbcastxn(g,vdat,smaxmin,klim)
+   
+      integer, intent(in) :: g
+      integer, intent(in), optional :: klim
+      integer :: kx, out_len
+      real, dimension(:,:), intent(inout) :: vdat
       real, dimension(:,:), intent(inout) :: smaxmin
 
 #ifdef idleproc
@@ -7933,22 +8090,48 @@ contains
       if ( mg(g)%merge_len <= 1 ) return
    
       call start_log(mgbcast_begin)
-
+   
       if (present(klim)) then
          kx = klim
       else
-         kx = size(smaxmin,1)
+         kx = size(vdat,1)
       end if
    
-      ilen = 2*kx
-      lcomm = mg(g)%comm_merge
-      call MPI_Bcast( smaxmin, ilen, ltype, 0, lcomm, ierr )      
+      out_len = mg(g)%ifull + mg(g)%iextra
+      call mgbcastxn_work( g, vdat, smaxmin, kx, out_len )
    
       call end_log(mgbcast_end)
 #endif
    
    return
    end subroutine mgbcastxn
+   
+   subroutine mgbcastxn_work(g,vdat,smaxmin,kx,out_len)
+   
+      integer, intent(in) :: g, kx, out_len
+      integer(kind=4) :: ierr, ilen, lcomm
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
+      real, dimension(:,:), intent(inout) :: vdat
+      real, dimension(:,:), intent(inout) :: smaxmin
+      real, dimension(kx,out_len+2) :: tdat
+
+      tdat(:,1:out_len) = vdat(1:kx,1:out_len)
+      tdat(:,out_len+1:out_len+2) = smaxmin(1:kx,1:2)
+      
+      ilen = (out_len+2)*kx
+      lcomm = mg(g)%comm_merge
+      call MPI_Bcast( tdat, ilen, ltype, 0, lcomm, ierr )      
+
+      ! extract data from distribute      
+      vdat(1:kx,1:out_len) = tdat(:,1:out_len)
+      smaxmin(1:kx,1:2) = tdat(:,out_len+1:out_len+2)
+   
+   return
+   end subroutine mgbcastxn_work
 
    ! Set up the indices required for the multigrid scheme.
    subroutine mg_index(g,mil_g,mipan,mjpan)
@@ -8466,9 +8649,6 @@ contains
             call MPI_Abort( MPI_COMM_WORLD, mnum, ierr )
          end if
 
-         sreq = nreq - rreq
-         call MPI_Waitall( sreq, ireq(rreq+1:nreq), status, ierr )
-         
          ! Now, for each processor send the list of points I want.
          nreq = 0
          llen = 2
