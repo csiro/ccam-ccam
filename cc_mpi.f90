@@ -40,8 +40,8 @@ module cc_mpi
              ccmpi_bcastr8, ccmpi_barrier, ccmpi_gatherx, ccmpi_scatterx,   &
              ccmpi_allgatherx, ccmpi_gathermap, ccmpi_recv, ccmpi_ssend,    &
              ccmpi_init, ccmpi_finalize, ccmpi_commsplit, ccmpi_commfree,   &
-             mgbounds, mgcollectreduce, mgcollect, mgcollectxn, mgbcast,    &
-             mgbcastxn, mg_index, mgcollect_mlo, mgcollectreduce_mlo,       &
+             mgbounds, mgcollect, mgcollect_mlo, mgbcast,                   &
+             mgbcastxn, mg_index,                                           &
              mgbounds_mlo, mgbcast_mlo, mgbcasta_mlo, indx, bounds_colour,  &
              boundsuv_allvec, fproc, proc_region, proc_region_face,         &
              proc_region_dix
@@ -113,6 +113,12 @@ module cc_mpi
    interface ccmpi_gathermap
       module procedure ccmpi_gathermap2, ccmpi_gathermap3
    end interface ccmpi_gathermap
+   interface mgcollect
+      module procedure mgcollect1, mgcollectreduce, mgcollectxn
+   end interface
+   interface mgcollect_mlo
+      module procedure mgcollect_mlo1, mgcollectreduce_mlo
+   end interface
 
    ! Define neighbouring faces
    integer, parameter, private, dimension(0:npanels) ::    &
@@ -215,6 +221,7 @@ module cc_mpi
 
    type mgbndtype
       integer :: len, rlen, rlenx, slen, slenx
+      integer :: mlomsk
       integer, dimension(:), allocatable :: send_list
       integer, dimension(:), allocatable :: unpack_list
       integer, dimension(:), allocatable :: request_list
@@ -7230,6 +7237,9 @@ contains
 
       call start_log(mgbounds_begin)
       
+      vdat(mg(g)%ifull+1:mg(g)%ifull+mg(g)%iextra,:)=0.
+      if ( mg_bnds(myid,g)%mlomsk == 0 ) return
+      
       kx = size(vdat,2)
       if (present(corner)) then
          extra = corner
@@ -7246,6 +7256,8 @@ contains
          sslen  = mg_bnds(mg(g)%neighlist,g)%slen
          myrlen = mg_bnds(myid,g)%rlen
       end if
+      rslen = rslen*mg_bnds(mg(g)%neighlist,g)%mlomsk
+      sslen = sslen*mg_bnds(mg(g)%neighlist,g)%mlomsk
 
       !     Set up the buffers to send and recv
       nreq = 0
@@ -7327,13 +7339,12 @@ contains
 
       integer, intent(in) :: g
       integer, intent(in), optional :: klim
-      integer :: nmax, npanx, kx, msg_len
+      integer :: kx, msg_len
       real, dimension(:,:), intent(inout) :: vdat
       real, dimension(:), intent(inout) :: dsolmax
 
       ! merge length
-      nmax = mg(g)%merge_len
-      if ( nmax <= 1 ) return
+      if ( mg(g)%merge_len <= 1 ) return
 
       call start_log(mgcollect_begin)
 
@@ -7343,14 +7354,11 @@ contains
          kx = size(vdat,1)      
       end if
 
-      npanx = mg(g)%npanx
-      msg_len = mg(g)%ifull/(nmax*npanx) ! message unit size
-      nmax = mg(g)%nmax                  ! zero unless rank equals 0
-      
-      if ( msg_len*npanx == 1 ) then
-         call mgcollectreduce_sing( g, vdat, dsolmax, kx, nmax )
+      if (mg(g)%ifull == mg(g)%merge_len ) then
+         call mgcollectreduce_sing( g, vdat, dsolmax, kx, mg(g)%nmax )
       else
-         call mgcollectreduce_work( g, vdat, dsolmax, kx, nmax, msg_len, npanx )
+         msg_len = mg(g)%ifull/(mg(g)%merge_len*mg(g)%npanx) ! message unit size
+         call mgcollectreduce_work( g, vdat, dsolmax, kx, mg(g)%nmax, msg_len, mg(g)%npanx )
       end if
 
       call end_log(mgcollect_end)
@@ -7397,7 +7405,7 @@ contains
       integer n, iq_a, iq_c
       integer nrow, ncol, na, nb
       integer yproc, ir, ic, is, ie, js, je, jj
-      integer ipanx, nrm1
+      integer nrm1
       integer(kind=4) :: ierr, ilen, lcomm
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -7410,8 +7418,7 @@ contains
       real, dimension(kx,msg_len*npanx+1,nmax) :: tdat_g
 
       ! prep data for sending around the merge
-      ipanx = mg(g)%ipan
-      nrow  = ipanx/mg(g)%merge_row       ! number of points along a row per processor
+      nrow  = mg(g)%ipan/mg(g)%merge_row  ! number of points along a row per processor
       ncol  = msg_len/nrow                ! number of points along a col per processor
       nrm1  = nrow - 1
 
@@ -7438,7 +7445,7 @@ contains
             na = is + (n-1)*msg_len*nmax
             nb =  1 + (n-1)*msg_len
             do jj = js,je
-               iq_a = na + (jj-1)*ipanx
+               iq_a = na + (jj-1)*mg(g)%ipan
                iq_c = nb + (jj-js)*nrow
                vdat(1:kx,iq_a:iq_a+nrm1) = tdat_g(:,iq_c:iq_c+nrm1,yproc)
             end do
@@ -7452,25 +7459,22 @@ contains
    subroutine mgcollectreduce_mlo(g,vdat,dsolmax)
 
       integer, intent(in) :: g
-      integer :: nmax, npanx, kx, msg_len
+      integer :: kx, msg_len
       real, dimension(:,:), intent(inout) :: vdat
       real, dimension(:), intent(inout) :: dsolmax
 
       ! merge length
-      nmax = mg(g)%merge_len
-      if ( nmax <= 1 ) return
-
+      if ( mg(g)%merge_len <= 1 ) return
+      
       call start_log(mgcollect_begin)
 
       kx = size(vdat,2)
-      npanx = mg(g)%npanx
-      msg_len = mg(g)%ifull/(nmax*npanx) ! message unit size
-      nmax = mg(g)%nmax                  ! zero unless rank equals 0
       
-      if ( msg_len*npanx == 1 ) then
-         call mgcollectreduce_mlo_sing( g, vdat, dsolmax, kx, nmax )
+      if ( mg(g)%ifull == mg(g)%merge_len ) then
+         call mgcollectreduce_mlo_sing( g, vdat, dsolmax, kx, mg(g)%nmax )
       else
-         call mgcollectreduce_mlo_work( g, vdat, dsolmax, kx, nmax, msg_len, npanx )
+         msg_len = mg(g)%ifull/(mg(g)%merge_len*mg(g)%npanx) ! message unit size
+         call mgcollectreduce_mlo_work( g, vdat, dsolmax, kx, mg(g)%nmax, msg_len, mg(g)%npanx )
       end if
 
       call end_log(mgcollect_end)
@@ -7517,7 +7521,7 @@ contains
       integer n, iq_a, iq_c
       integer nrow, ncol, na, nb
       integer yproc, ir, ic, is, ie, js, je, jj
-      integer ipanx, nrm1
+      integer nrm1
       integer(kind=4) :: ierr, ilen, lcomm
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -7530,8 +7534,7 @@ contains
       real, dimension(kx,msg_len*npanx+1,nmax) :: tdat_g
 
       ! prep data for sending around the merge
-      ipanx = mg(g)%ipan
-      nrow  = ipanx/mg(g)%merge_row       ! number of points along a row per processor
+      nrow  = mg(g)%ipan/mg(g)%merge_row  ! number of points along a row per processor
       ncol  = msg_len/nrow                ! number of points along a col per processor
       nrm1  = nrow - 1
 
@@ -7558,7 +7561,7 @@ contains
             na = is + (n-1)*msg_len*nmax
             nb =  1 + (n-1)*msg_len
             do jj = js,je
-               iq_a = na + (jj-1)*ipanx
+               iq_a = na + (jj-1)*mg(g)%ipan
                iq_c = nb + (jj-js)*nrow
                vdat(iq_a:iq_a+nrm1,:) = transpose( tdat_g(:,iq_c:iq_c+nrm1,yproc) )
             end do
@@ -7569,17 +7572,15 @@ contains
    return
    end subroutine mgcollectreduce_mlo_work
 
-   subroutine mgcollect(g,vdat,klim)
+   subroutine mgcollect1(g,vdat,klim)
 
       integer, intent(in) :: g
       integer, intent(in), optional :: klim
-      integer nmax, npanx, kx
-      integer msg_len
+      integer kx, msg_len
       real, dimension(:,:), intent(inout) :: vdat
 
       ! merge length
-      nmax = mg(g)%merge_len
-      if ( nmax <= 1 ) return
+      if ( mg(g)%merge_len <= 1 ) return
 
       call start_log(mgcollect_begin)
 
@@ -7589,20 +7590,17 @@ contains
          kx = size(vdat,1)
       end if
 
-      npanx = mg(g)%npanx
-      msg_len = mg(g)%ifull/(nmax*npanx) ! message unit size
-      nmax = mg(g)%nmax                  ! zero unless rank equals 0
-
-      if ( msg_len*npanx == 1 ) then
-         call mgcollect_sing( g, vdat, kx, nmax )
+      if ( mg(g)%ifull == mg(g)%merge_len ) then
+         call mgcollect_sing( g, vdat, kx, mg(g)%nmax  )
       else
-         call mgcollect_work( g, vdat, kx, nmax, msg_len, npanx )
+         msg_len = mg(g)%ifull/(mg(g)%merge_len*mg(g)%npanx) ! message unit size
+         call mgcollect_work( g, vdat, kx, mg(g)%nmax, msg_len, mg(g)%npanx )
       end if
 
       call end_log(mgcollect_end)
   
    return
-   end subroutine mgcollect
+   end subroutine mgcollect1
 
    subroutine mgcollect_sing(g,vdat,kx,nmax)
 
@@ -7636,7 +7634,7 @@ contains
       integer n, iq_a, iq_c
       integer nrow, ncol, na, nb
       integer yproc, ir, ic, is, ie, js, je, jj
-      integer ipanx, nrm1
+      integer nrm1
       integer(kind=4) :: ierr, ilen, lcomm
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -7648,8 +7646,7 @@ contains
       real, dimension(kx,msg_len*npanx,nmax) :: tdat_g
 
       ! prep data for sending around the merge
-      ipanx = mg(g)%ipan
-      nrow  = ipanx/mg(g)%merge_row       ! number of points along a row per processor
+      nrow  = mg(g)%ipan/mg(g)%merge_row       ! number of points along a row per processor
       ncol  = msg_len/nrow                ! number of points along a col per processor
       nrm1  = nrow - 1
 
@@ -7675,7 +7672,7 @@ contains
             na = is + (n-1)*msg_len*nmax
             nb =  1 + (n-1)*msg_len
             do jj = js,je
-               iq_a = na + (jj-1)*ipanx
+               iq_a = na + (jj-1)*mg(g)%ipan
                iq_c = nb + (jj-js)*nrow
                vdat(1:kx,iq_a:iq_a+nrm1) = tdat_g(:,iq_c:iq_c+nrm1,yproc)
             end do
@@ -7685,7 +7682,7 @@ contains
    return
    end subroutine mgcollect_work
 
-   subroutine mgcollect_mlo(g,vdat)
+   subroutine mgcollect_mlo1(g,vdat)
 
       integer, intent(in) :: g
       integer :: kx, msg_len
@@ -7708,7 +7705,7 @@ contains
       call end_log(mgcollect_end)
   
    return
-   end subroutine mgcollect_mlo
+   end subroutine mgcollect_mlo1
 
    subroutine mgcollect_mlo_sing(g,vdat,kx,nmax)
 
@@ -7746,7 +7743,7 @@ contains
       integer n, iq_a, iq_c
       integer nrow, ncol, na, nb
       integer yproc, ir, ic, is, ie, js, je, jj
-      integer ipanx, nrm1
+      integer nrm1
       integer(kind=4) :: ierr, ilen, lcomm
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -7758,8 +7755,7 @@ contains
       real, dimension(kx,msg_len*npanx,nmax) :: tdat_g
 
       ! prep data for sending around the merge
-      ipanx = mg(g)%ipan
-      nrow  = ipanx/mg(g)%merge_row       ! number of points along a row per processor
+      nrow  = mg(g)%ipan/mg(g)%merge_row       ! number of points along a row per processor
       ncol  = msg_len/nrow                ! number of points along a col per processor
       nrm1  = nrow - 1
 
@@ -7785,7 +7781,7 @@ contains
             na = is + (n-1)*msg_len*nmax
             nb =  1 + (n-1)*msg_len
             do jj = js,je
-               iq_a = na + (jj-1)*ipanx
+               iq_a = na + (jj-1)*mg(g)%ipan
                iq_c = nb + (jj-js)*nrow
                vdat(iq_a:iq_a+nrm1,:) = transpose( tdat_g(:,iq_c:iq_c+nrm1,yproc) )
             end do
@@ -7869,7 +7865,7 @@ contains
       integer :: n, iq_a, iq_c
       integer :: nrow, ncol, na, nb
       integer :: yproc, ir, ic, is, ie, js, je, jj
-      integer :: ipanx, nrm1
+      integer :: nrm1
       integer(kind=4) :: ierr, ilen, lcomm
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -7882,8 +7878,7 @@ contains
       real, dimension(kx,msg_len*npanx+2,nmax) :: tdat_g
 
       ! prep data for sending around the merge
-      ipanx = mg(g)%ipan
-      nrow  = ipanx/mg(g)%merge_row       ! number of points along a row per processor
+      nrow  = mg(g)%ipan/mg(g)%merge_row  ! number of points along a row per processor
       ncol  = msg_len/nrow                ! number of points along a col per processor
       nrm1  = nrow - 1
 
@@ -7911,7 +7906,7 @@ contains
             na = is + (n-1)*msg_len*nmax
             nb =  1 + (n-1)*msg_len
             do jj = js,je
-               iq_a = na + (jj-1)*ipanx
+               iq_a = na + (jj-1)*mg(g)%ipan
                iq_c = nb + (jj-js)*nrow
                vdat(1:kx,iq_a:iq_a+nrm1) = tdat_g(:,iq_c:iq_c+nrm1,yproc)
             end do
@@ -7991,7 +7986,7 @@ contains
 #ifdef idleproc
       ! merge length
       if ( mg(g)%merge_len <= 1 ) return
-   
+
       call start_log(mgbcast_begin)
    
       kx = size(vdat,2)
