@@ -333,6 +333,13 @@ module cc_mpi
    end interface
 #endif
 
+#include "log.h"
+
+#ifdef vampir
+#include "vt_user.inc"
+#endif
+
+
 contains
 
    subroutine ccmpi_setup()
@@ -566,7 +573,7 @@ contains
       real, dimension(ifull_g), intent(in), optional :: a1
       integer(kind=4) :: ierr, mone
 
-      call start_log(distribute_begin)
+      START_LOG(distribute)
 
       ! Copy internal region
       if ( myid == 0 ) then
@@ -580,7 +587,8 @@ contains
          call proc_distribute2(af)
       end if
 
-      call end_log(distribute_end)
+      END_LOG(distribute)
+
    end subroutine ccmpi_distribute2
 
    subroutine host_distribute2(af,a1)
@@ -645,7 +653,7 @@ contains
       real*8, dimension(ifull_g), intent(in), optional :: a1
       integer(kind=4) :: ierr, mone
 
-      call start_log(distribute_begin)
+      START_LOG(distribute)
 
       if ( myid == 0 ) then
          if ( .not. present(a1) ) then
@@ -658,7 +666,7 @@ contains
          call proc_distribute2r8(af)
       end if
 
-      call end_log(distribute_end)
+      END_LOG(distribute)
    end subroutine ccmpi_distribute2r8
 
    subroutine host_distribute2r8(af,a1)
@@ -713,7 +721,7 @@ contains
       integer, dimension(ifull_g), intent(in), optional :: a1
       integer(kind=4) :: ierr, mone
 
-      call start_log(distribute_begin)
+      START_LOG(distribute)
 
       if ( myid == 0 ) then
          if ( .not. present(a1) ) then
@@ -726,7 +734,7 @@ contains
          call proc_distribute2i(af)
       end if
 
-      call end_log(distribute_end)
+      END_LOG(distribute)
    end subroutine ccmpi_distribute2i
 
    subroutine host_distribute2i(af,a1)
@@ -793,7 +801,7 @@ contains
       real, dimension(:,:), intent(in), optional :: a1
       integer(kind=4) :: ierr, mone
 
-      call start_log(distribute_begin)
+      START_LOG(distribute)
 
       if ( myid == 0 ) then
          if ( .not. present(a1) ) then
@@ -806,7 +814,7 @@ contains
          call proc_distribute3(af)
       end if
 
-      call end_log(distribute_end)
+      END_LOG(distribute)
    end subroutine ccmpi_distribute3
 
    subroutine host_distribute3(af,a1)
@@ -883,7 +891,7 @@ contains
       integer, dimension(:,:), intent(in), optional :: a1
       integer(kind=4) :: ierr, mone
 
-      call start_log(distribute_begin)
+      START_LOG(distribute)
       if ( myid == 0 ) then
          if ( .not. present(a1) ) then
             write(6,*) "Error: ccmpi_distribute argument required on proc 0"
@@ -895,7 +903,7 @@ contains
          call proc_distribute3i(af)
       end if
 
-      call end_log(distribute_end)
+      END_LOG(distribute)
    end subroutine ccmpi_distribute3i
 
    subroutine host_distribute3i(af,a1)
@@ -971,7 +979,7 @@ contains
       real, dimension(ifull_g), intent(out), optional :: ag
       integer(kind=4) :: ierr, mone
 
-      call start_log(gather_begin)
+      START_LOG(gather)
 
       if ( myid == 0 ) then
          if ( .not. present(ag) ) then
@@ -984,7 +992,7 @@ contains
          call proc_gather2(a)
       end if
 
-      call end_log(gather_end)
+      END_LOG(gather)
 
    end subroutine ccmpi_gather2
 
@@ -1054,7 +1062,7 @@ contains
       real, dimension(:,:), intent(out), optional :: ag
       integer(kind=4) :: ierr, mone
 
-      call start_log(gather_begin)
+      START_LOG(gather)
 
       if ( myid == 0 ) then
          if ( .not. present(ag) ) then
@@ -1067,7 +1075,7 @@ contains
          call proc_gather3(a)
       end if
       
-      call end_log(gather_end)
+      END_LOG(gather)
 
    end subroutine ccmpi_gather3
 
@@ -1147,7 +1155,7 @@ contains
       integer :: ipoff, jpoff, npoff
       integer :: i, j, n, iq, iqg
 
-      call start_log(gather_begin)
+      START_LOG(gather)
 
       lsize = ifull
       call MPI_AllGather(a,lsize,ltype,abuf,lsize,ltype,MPI_COMM_WORLD,ierr)
@@ -1171,7 +1179,7 @@ contains
          end do
       end do
 
-      call end_log(gather_end)
+      END_LOG(gather)
 
    end subroutine ccmpi_gatherall2
    
@@ -1191,7 +1199,7 @@ contains
       integer :: ipoff, jpoff, npoff
       integer :: i, j, n, k, iq, iqg, kx
 
-      call start_log(gather_begin)
+      START_LOG(gather)
 
       kx = size(a,2)
       lsize = ifull*kx
@@ -1218,7 +1226,7 @@ contains
          end do
       end do
 
-      call end_log(gather_end)
+      END_LOG(gather)
 
    end subroutine ccmpi_gatherall3
 
@@ -1242,7 +1250,7 @@ contains
          return
       end if
    
-      call start_log(gather_begin)
+      START_LOG(gather)
    
       ncount=size(specmap)
       specstore(1:ifull,1)=a(1:ifull)
@@ -1276,7 +1284,7 @@ contains
          end do
       end do
    
-      call end_log(gather_end)
+      END_LOG(gather)
    
    end subroutine ccmpi_gathermap2
 
@@ -1300,7 +1308,7 @@ contains
          return
       end if
    
-      call start_log(gather_begin)
+      START_LOG(gather)
    
       kx = size(a,2)
       ncount = size(specmap)
@@ -1344,7 +1352,7 @@ contains
          end do
       end do
    
-      call end_log(gather_end)
+      END_LOG(gather)
    
    end subroutine ccmpi_gathermap3
       
@@ -2964,7 +2972,7 @@ contains
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif   
 
-      call start_log(bounds_begin)
+      START_LOG(bounds)
 
       double = .false.
       extra = .false.
@@ -3056,13 +3064,10 @@ contains
       rcount = rreq
       do while ( rcount > 0 )
 
-#ifdef simple_timer      
-         call start_log(mpiwait_begin)
-#endif
+         START_LOG(mpiwait)
          call MPI_Waitsome(rreq,ireq,ldone,donelist,status,ierr)
-#ifdef simple_timer
-         call end_log(mpiwait_end)
-#endif
+         END_LOG(mpiwait)
+
          rcount = rcount - ldone
          
          do jproc = 1,ldone
@@ -3087,15 +3092,11 @@ contains
       ! Instead we call Waitall here to ensure the MPI messages are
       ! progressed.
       sreq = nreq - rreq
-#ifdef simple_timer
-      call start_log(mpiwait_begin)
-#endif
+      START_LOG(mpiwait)
       call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
-#ifdef simple_timer
-      call end_log(mpiwait_end)
-#endif
+      END_LOG(mpiwait)
 
-      call end_log(bounds_end)
+      END_LOG(bounds)
 
    end subroutine bounds2
 
@@ -3120,7 +3121,7 @@ contains
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif  
 
-      call start_log(bounds_begin)
+      START_LOG(bounds)
       
       kx = size(t,2)
       double = .false.
@@ -3215,13 +3216,9 @@ contains
       rcount = rreq
       do while ( rcount > 0 )
 
-#ifdef simple_timer
-         call start_log(mpiwait_begin)
-#endif
+         START_LOG(mpiwait)
          call MPI_Waitsome(rreq,ireq,ldone,donelist,status,ierr)
-#ifdef simple_timer
-         call end_log(mpiwait_end)
-#endif
+         END_LOG(mpiwait)
          rcount = rcount - ldone
          
          do jproc = 1,ldone
@@ -3240,15 +3237,11 @@ contains
 
       ! Clear any remaining messages
       sreq = nreq - rreq
-#ifdef simple_timer
-      call start_log(mpiwait_begin)
-#endif
+      START_LOG(mpiwait)
       call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
-#ifdef simple_timer
-      call end_log(mpiwait_end)
-#endif 
+      END_LOG(mpiwait)
 
-      call end_log(bounds_end)
+      END_LOG(bounds)
 
    end subroutine bounds3
 
@@ -3273,7 +3266,7 @@ contains
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif  
 
-      call start_log(bounds_begin)
+      START_LOG(bounds)
       
       kx = size(t,2)
       ntr = size(t,3)
@@ -3366,13 +3359,9 @@ contains
       rcount = rreq
       do while ( rcount > 0 )
 
-#ifdef simple_timer
-         call start_log(mpiwait_begin)
-#endif
+         START_LOG(mpiwait)
          call MPI_Waitsome(rreq,ireq,ldone,donelist,status,ierr)
-#ifdef simple_timer
-         call end_log(mpiwait_end)
-#endif
+         END_LOG(mpiwait)
          rcount = rcount - ldone
          
          do jproc = 1,ldone
@@ -3391,15 +3380,11 @@ contains
 
       ! Clear any remaining messages
       sreq = nreq - rreq
-#ifdef simple_timer
-      call start_log(mpiwait_begin)
-#endif
+      START_LOG(mpiwait)
       call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
-#ifdef simple_timer
-      call end_log(mpiwait_end)
-#endif 
+      END_LOG(mpiwait)
 
-      call end_log(bounds_end)
+      END_LOG(bounds)
 
    end subroutine bounds4
 
@@ -3420,7 +3405,7 @@ contains
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif 
 
-      call start_log(bounds_begin)
+      START_LOG(bounds)
       
       if ( present(klim) ) then
          kx = klim
@@ -3493,13 +3478,9 @@ contains
       rcount = rreq
       do while ( rcount > 0 )
 
-#ifdef simple_timer
-         call start_log(mpiwait_begin)
-#endif
+         START_LOG(mpiwait)
          call MPI_Waitsome(rreq,ireq,ldone,donelist,status,ierr)
-#ifdef simple_timer
-         call end_log(mpiwait_end)
-#endif
+         END_LOG(mpiwait)
          rcount = rcount - ldone
          
          do jproc = 1,ldone
@@ -3523,15 +3504,11 @@ contains
 
       ! Clear any remaining messages
       sreq = nreq - rreq
-#ifdef simple_timer
-      call start_log(mpiwait_begin)
-#endif
+      START_LOG(mpiwait)
       call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
-#ifdef simple_timer
-      call end_log(mpiwait_end)
-#endif
+      END_LOG(mpiwait)
 
-      call end_log(bounds_end)
+      END_LOG(bounds)
 
    end subroutine bounds_colour
 
@@ -3556,7 +3533,7 @@ contains
       integer(kind=4), dimension(neighnum) :: donelist
       real :: tmp, negmul
 
-      call start_log(boundsuv_begin)
+      START_LOG(boundsuv)
       
       double = .false.
       stagmode = 0
@@ -3750,13 +3727,9 @@ contains
       rcount = rreq
       do while ( rcount > 0 )
 
-#ifdef simple_timer      
-         call start_log(mpiwaituv_begin)
-#endif
+         START_LOG(mpiwaituv)
          call MPI_Waitsome(rreq,ireq,ldone,donelist,status,ierr)
-#ifdef simple_timer
-         call end_log(mpiwaituv_end)
-#endif
+         END_LOG(mpiwaituv)
          rcount = rcount - ldone
          
          do jproc = 1,ldone
@@ -3828,15 +3801,11 @@ contains
 
       ! Clear any remaining messages
       sreq = nreq - rreq
-#ifdef simple_timer
-      call start_log(mpiwaituv_begin)
-#endif
+      START_LOG(mpiwaituv)
       call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
-#ifdef simple_timer
-      call end_log(mpiwaituv_end)
-#endif
+      END_LOG(mpiwaituv)
 
-      call end_log(boundsuv_end)
+      END_LOG(boundsuv)
 
    end subroutine boundsuv2
 
@@ -3862,7 +3831,7 @@ contains
 #endif   
       real, dimension(maxbuflen) :: tmp
       
-      call start_log(boundsuv_begin)
+      START_LOG(boundsuv)
       
       kx = size(u,2)
       double = .false.
@@ -4068,13 +4037,10 @@ contains
       rcount = rreq
       do while ( rcount > 0 )
 
-#ifdef simple_timer         
-         call start_log(mpiwaituv_begin)
-#endif
+         START_LOG(mpiwaituv)
          call MPI_Waitsome(rreq,ireq,ldone,donelist,status,ierr)
-#ifdef simple_timer
-         call end_log(mpiwaituv_end)
-#endif
+         END_LOG(mpiwaituv)
+
          rcount = rcount - ldone
          
          do jproc = 1,ldone
@@ -4146,15 +4112,12 @@ contains
 
       ! Clear any remaining messages
       sreq = nreq - rreq
-#ifdef simple_timer
-      call start_log(mpiwaituv_begin)
-#endif
-      call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
-#ifdef simple_timer
-      call end_log(mpiwaituv_end)
-#endif
 
-      call end_log(boundsuv_end)
+      START_LOG(mpiwaituv)
+      call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
+      END_LOG(mpiwaituv)
+
+      END_LOG(boundsuv)
 
    end subroutine boundsuv3
    
@@ -4177,7 +4140,7 @@ contains
 #endif   
       real, dimension(maxbuflen) :: tmp
       
-      call start_log(boundsuv_begin)
+      START_LOG(boundsuv)
       
       kx = size(u,2)
       myrlen = bnds(myid)%rlenx_uv
@@ -4279,13 +4242,10 @@ contains
       rcount = rreq
       do while ( rcount > 0 )
 
-#ifdef simple_timer         
-         call start_log(mpiwaituv_begin)
-#endif
+         START_LOG(mpiwaituv)
          call MPI_Waitsome(rreq,ireq,ldone,donelist,status,ierr)
-#ifdef simple_timer
-         call end_log(mpiwaituv_end)
-#endif
+         END_LOG(mpiwaituv)
+
          rcount = rcount - ldone
          
          do jproc = 1,ldone
@@ -4324,15 +4284,11 @@ contains
 
       ! Clear any remaining messages
       sreq = nreq - rreq
-#ifdef simple_timer
-      call start_log(mpiwaituv_begin)
-#endif
+      START_LOG(mpiwaituv)
       call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
-#ifdef simple_timer
-      call end_log(mpiwaituv_end)
-#endif
+      END_LOG(mpiwaituv)
 
-      call end_log(boundsuv_end)
+      END_LOG(boundsuv)
 
    end subroutine boundsuv_allvec
 
@@ -4365,7 +4321,7 @@ contains
       ! This does nothing in the one processor case
       if ( neighnum < 1 ) return
 
-      call start_log(deptsync_begin)
+      START_LOG(deptsync)
       
       kx = size(nface,2)
       dslen = 0
@@ -4473,13 +4429,10 @@ contains
       rcount = rreq
       do while ( rcount > 0 )
 
-#ifdef simple_timer      
-         call start_log(mpiwaitdep_begin)
-#endif
+         START_LOG(mpiwaitdep)
          call MPI_Waitsome(rreq, ireq, ldone, donelist, status, ierr)
-#ifdef simple_timer
-         call end_log(mpiwaitdep_end)
-#endif
+         END_LOG(mpiwaitdep)
+
          rcount = rcount - ldone
          
          do jproc = 1,ldone
@@ -4493,15 +4446,11 @@ contains
 
       ! Clear any remaining messages
       sreq = nreq - rreq
-#ifdef simple_timer
-      call start_log(mpiwaitdep_begin)
-#endif
+      START_LOG(mpiwaitdep)
       call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
-#ifdef simple_timer
-      call end_log(mpiwaitdep_end)
-#endif
+      END_LOG(mpiwaitdep)
       
-      call end_log(deptsync_end)
+      END_LOG(deptsync)
 
    end subroutine deptsync
 
@@ -4516,7 +4465,7 @@ contains
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
 
-      call start_log(intssync_begin)
+      START_LOG(intssync)
       
       ! When sending the results, roles of dslen and drlen are reversed
       nreq = 0
@@ -4541,7 +4490,7 @@ contains
          end if
       end do
       
-      call end_log(intssync_end)
+      END_LOG(intssync)
 
    end subroutine intssync_send
 
@@ -4553,7 +4502,7 @@ contains
       integer(kind=4), dimension(neighnum) :: donelist
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
 
-      call start_log(intssync_begin)
+      START_LOG(intssync)
       
       ntr = size( s, 3)
       
@@ -4561,13 +4510,9 @@ contains
       rcount = rreq
       do while ( rcount > 0 )
 
-#ifdef simple_timer      
-         call start_log(mpiwaitdep_begin)
-#endif
+         START_LOG(mpiwaitdep)
          call MPI_Waitsome(rreq, ireq, ldone, donelist, status, ierr)
-#ifdef simple_timer
-         call end_log(mpiwaitdep_end)
-#endif
+         END_LOG(mpiwaitdep)
          rcount = rcount - ldone
          
          do jproc = 1,ldone
@@ -4581,15 +4526,11 @@ contains
 
       ! Clear any remaining messages
       sreq = nreq - rreq
-#ifdef simple_timer
-      call start_log(mpiwaitdep_begin)
-#endif
+      START_LOG(mpiwaitdep)
       call MPI_Waitall(sreq, ireq(rreq+1:nreq), status, ierr)
-#ifdef simple_timer
-      call end_log(mpiwaitdep_end)
-#endif
+      END_LOG(mpiwaitdep)
 
-      call end_log(intssync_end)
+      END_LOG(intssync)
 
    end subroutine intssync_recv
 
@@ -5150,12 +5091,14 @@ contains
      
    end subroutine proc_region_dix
 
-   subroutine start_log ( event )
+   subroutine start_log ( event, event_name )
       integer, intent(in) :: event
+      character(*), intent(in), optional :: event_name
       integer :: ierr
 #ifdef vampir
-      include "VT.inc"
-      call vtenter(event, VT_NOSCL, ierr)
+      if(present(event_name)) then
+        VT_USER_START(event_name)
+      endif
 #endif
 #ifdef mpilog
       ierr = MPE_log_event(event,0,"")
@@ -5168,12 +5111,15 @@ contains
 #endif 
    end subroutine start_log
 
-   subroutine end_log ( event )
+   subroutine end_log ( event, event_name )
       integer, intent(in) :: event
+      character(*), intent(in), optional :: event_name
+
       integer :: ierr
 #ifdef vampir
-      include "VT.inc"
-      call vtleave(VT_NOSCL, ierr)
+      if(present(event_name)) then
+        VT_USER_END(event_name)
+      endif
 #endif
 #ifdef mpilog
       ierr = MPE_log_event(event,0,"")
@@ -5188,22 +5134,17 @@ contains
 
    subroutine log_off()
 #ifdef vampir
-      include "VT.inc"
-      call vttraceoff()
+       VT_OFF()
 #endif
    end subroutine log_off
    
    subroutine log_on()
 #ifdef vampir
-      include "VT.inc"
-      call vttraceon()
+      VT_ON()
 #endif
    end subroutine log_on
 
    subroutine log_setup()
-#ifdef vampir
-      include "VT.inc"
-#endif
       integer :: ierr
       integer :: classhandle
 #ifdef mpilog
@@ -5324,134 +5265,6 @@ contains
       write(6,*) "ERROR: vampir and simple_timer should not be compiled together"
       stop
 #endif
-      call vtfuncdef("Bounds", classhandle, bounds_begin, ierr)
-      bounds_end = bounds_begin
-      call vtfuncdef("BoundsUV", classhandle, boundsuv_begin, ierr)
-      boundsuv_end = boundsuv_begin
-      call vtfuncdef("MG_bounds", classhandle, mgbounds_begin, ierr)
-      mgbounds_end = mgbounds_begin
-      call vtfuncdef("MG_collect", classhandle, mgcollect_begin, ierr)
-      mgcollect_end = mgcollect_begin
-      call vtfuncdef("MG_bcast", classhandle, mgbcast_begin, ierr)
-      mgbcast_end = mgbcast_begin
-      call vtfuncdef("Gather", classhandle, gather_begin, ierr)
-      gather_end = gather_begin
-      call vtfuncdef("Distribute", classhandle, distribute_begin, ierr)
-      distribute_end = distribute_begin
-      call vtfuncdef("Posneg", classhandle, posneg_begin, ierr)
-      posneg_end = posneg_begin
-      call vtfuncdef("Globsum", classhandle, globsum_begin, ierr)
-      globsum_end = globsum_begin
-      call vtfuncdef("Reduce", classhandle, reduce_begin, ierr)
-      reduce_end = reduce_begin
-      call vtfuncdef("Bcast", classhandle, bcast_begin, ierr)
-      bcast_end = bcast_begin
-      call vtfuncdef("Ints", classhandle, ints_begin, ierr)
-      ints_end = ints_begin 
-      call vtfuncdef("Nonlin", classhandle, nonlin_begin, ierr)
-      nonlin_end = nonlin_begin 
-      call vtfuncdef("Helm", classhandle, helm_begin, ierr)
-      helm_end = helm_begin
-      call vtfuncdef("Adjust", classhandle, adjust_begin, ierr)
-      adjust_end = adjust_begin
-      call vtfuncdef("Upglobal", classhandle, upglobal_begin, ierr)
-      upglobal_end = upglobal_begin
-      call vtfuncdef("Hordifg", classhandle, hordifg_begin, ierr)
-      hordifg_end = hordifg_begin
-      call vtfuncdef("Vadv", classhandle, vadv_begin, ierr)
-      vadv_end = vadv_begin
-      call vtfuncdef("Depts", classhandle, depts_begin, ierr)
-      depts_end = depts_begin
-      call vtfuncdef("Deptsync", classhandle, deptsync_begin, ierr)
-      deptsync_end = deptsync_begin
-      call vtfuncdef("Intssync", classhandle, intssync_begin, ierr)
-      intssync_end = intssync_begin
-      call vtfuncdef("Stag", classhandle, stag_begin, ierr)
-      stag_end = stag_begin
-      call vtfuncdef("Ocnstag", classhandle, ocnstag_begin, ierr)
-      ocnstag_end = ocnstag_begin
-      call vtfuncdef("Toij", classhandle, toij_begin, ierr)
-      toij_end =  toij_begin
-      call vtfuncdef("PhysLBal", classhandle, physloadbal_begin, ierr)
-      physloadbal_end =  physloadbal_begin
-      call vtfuncdef("Phys", classhandle, phys_begin, ierr)
-      phys_end =  physloadbal_begin
-      call vtfuncdef("Outfile", classhandle, outfile_begin, ierr)
-      outfile_end =  outfile_begin
-      call vtfuncdef("Onthefly", classhandle, onthefly_begin, ierr)
-      onthefly_end =  onthefly_begin
-      call vtfuncdef("Precon", classhandle, precon_begin, ierr)
-      precon_end = precon_begin
-      call vtfuncdef("Indata", classhandle, indata_begin, ierr)
-      indata_end =  indata_begin
-      call vtfuncdef("Nestin", classhandle, nestin_begin, ierr)
-      nestin_end =  nestin_begin
-      call vtfuncdef("GWdrag", classhandle, gwdrag_begin, ierr)
-      gwdrag_end =  gwdrag_begin
-      call vtfuncdef("Convection", classhandle, convection_begin, ierr)
-      convection_end =  convection_begin
-      call vtfuncdef("Cloud", classhandle, cloud_begin, ierr)
-      cloud_end =  cloud_begin
-      call vtfuncdef("Rad_net", classhandle, radnet_begin, ierr)
-      radnet_end =  radnet_begin
-      call vtfuncdef("Rad_misc", classhandle, radmisc_begin, ierr)
-      radmisc_end =  radmisc_begin
-      call vtfuncdef("Rad_SW", classhandle, radsw_begin, ierr)
-      radsw_end =  radsw_begin
-      call vtfuncdef("Rad_LW", classhandle, radlw_begin, ierr)
-      radlw_end =  radlw_begin      
-      call vtfuncdef("Sflux_net", classhandle, sfluxnet_begin, ierr)
-      sfluxnet_end =  sfluxnet_begin
-      call vtfuncdef("Sflux_water", classhandle, sfluxwater_begin, ierr)
-      sfluxwater_end =  sfluxwater_begin
-      call vtfuncdef("Sflux_land", classhandle, sfluxland_begin, ierr)
-      sfluxland_end =  sfluxland_begin
-      call vtfuncdef("Sflux_urban", classhandle, sfluxurban_begin, ierr)
-      sfluxurban_end =  sfluxurban_begin
-      call vtfuncdef("Vertmix", classhandle, vertmix_begin, ierr)
-      vertmix_end =  vertmix_begin
-      call vtfuncdef("Aerosol", classhandle, aerosol_begin, ierr)
-      aerosol_end = aerosol_begin
-      call vtfuncdef("Waterdynamics", classhandle, waterdynamics_begin, ierr)
-      waterdynamics_end =  waterdynamics_begin
-      call vtfuncdef("Water_misc", classhandle, watermisc_begin, ierr)
-      watermisc_end =  watermisc_begin
-      call vtfuncdef("Water_deps", classhandle, waterdeps_begin, ierr)
-      waterdeps_end =  waterdeps_begin 
-      call vtfuncdef("Water_EOS", classhandle, watereos_begin, ierr)
-      watereos_end =  watereos_begin
-      call vtfuncdef("Water_hadv", classhandle, waterhadv_begin, ierr)
-      waterhadv_end =  waterhadv_begin 
-      call vtfuncdef("Water_vadv", classhandle, watervadv_begin, ierr)
-      watervadv_end =  watervadv_begin 
-      call vtfuncdef("Water_helm", classhandle, waterhelm_begin, ierr)
-      waterhelm_end =  waterhelm_begin 
-      call vtfuncdef("Water_iadv", classhandle, wateriadv_begin, ierr)
-      wateriadv_end =  wateriadv_begin 
-      call vtfuncdef("Waterdiff", classhandle, waterdiff_begin, ierr)
-      waterdiff_end =  waterdiff_begin
-      call vtfuncdef("River", classhandle, river_begin, ierr)
-      river_end =  river_begin
-      call vtfuncdef("MG_Setup", classhandle, mgsetup_begin, ierr)
-      mgsetup_end =  mgsetup_begin
-      call vtfuncdef("MG_Fine", classhandle, mgfine_begin, ierr)
-      mgfine_end =  mgfine_begin
-      call vtfuncdef("MG_Up", classhandle, mgup_begin, ierr)
-      mgup_end =  mgup_begin
-      call vtfuncdef("MG_Coarse", classhandle, mgcoarse_begin, ierr)
-      mgcoarse_end =  mgcoarse_begin
-      call vtfuncdef("MG_Down", classhandle, mgdown_begin, ierr)
-      mgdown_end =  mgdown_begin
-      call vtfuncdef("MGMLO_Setup", classhandle, mgmlosetup_begin, ierr)
-      mgmlosetup_end =  mgmlosetup_begin
-      call vtfuncdef("MGMLO_Fine", classhandle, mgmlofine_begin, ierr)
-      mgmlofine_end =  mgmlofine_begin
-      call vtfuncdef("MGMLO_Up", classhandle, mgmloup_begin, ierr)
-      mgmloup_end =  mgmloup_begin
-      call vtfuncdef("MGMLO_Coarse", classhandle, mgmlocoarse_begin, ierr)
-      mgmlocoarse_end =  mgmlocoarse_begin
-      call vtfuncdef("MGMLO_Down", classhandle, mgmlodown_begin, ierr)
-      mgmlodown_end =  mgmlodown_begin
 #endif
 #ifdef simple_timer
 
@@ -5750,9 +5563,10 @@ contains
 !     This forces a sychronisation to make the physics load imbalance overhead
 !     explicit. 
       integer(kind=4) :: ierr
-      call start_log(physloadbal_begin)
+
+      START_LOG(physloadbal)
       call MPI_Barrier( MPI_COMM_WORLD, ierr )
-      call end_log(physloadbal_end)
+      END_LOG(physloadbal)
    end subroutine phys_loadbal
 
 #ifdef simple_timer
@@ -5800,7 +5614,7 @@ contains
 !      Temporary array for the drpdr_local function
        real, dimension(ifull) :: tmparr, tmparr2 
 
-       call start_log(posneg_begin)
+       START_LOG(posneg)
 
        local_sum(1) = (0.,0.)
        local_sum(2) = (0.,0.)
@@ -5837,7 +5651,7 @@ contains
        delneg = delarr(2)
 #endif
 
-       call end_log(posneg_end)
+       END_LOG(posneg)
 
     end subroutine ccglobal_posneg2
     
@@ -5859,7 +5673,7 @@ contains
 !      Temporary array for the drpdr_local function
        real, dimension(ifull) :: tmparr, tmparr2 
 
-       call start_log(posneg_begin)
+       START_LOG(posneg)
 
        kx = size(array,2)
 
@@ -5903,7 +5717,7 @@ contains
        delneg = delarr(2)
 #endif
 
-       call end_log(posneg_end)
+       END_LOG(posneg)
 
     end subroutine ccglobal_posneg3
 
@@ -5925,7 +5739,7 @@ contains
 !      Temporary array for the drpdr_local function
        real, dimension(ifull) :: tmparr, tmparr2 
 
-       call start_log(posneg_begin)
+       START_LOG(posneg)
 
        kx  = size(array,2)
        ntr = size(array,3)
@@ -5979,7 +5793,7 @@ contains
        end do
 #endif
 
-       call end_log(posneg_end)
+       END_LOG(posneg)
 
     end subroutine ccglobal_posneg4
 
@@ -5998,7 +5812,7 @@ contains
        real, dimension(ifull) :: tmparr
 #endif
 
-       call start_log(globsum_begin)
+       START_LOG(globsum)
 
 #ifdef sumdd
 #ifdef i8r8
@@ -6033,7 +5847,7 @@ contains
        call MPI_Allreduce ( result_l, result, mnum, ltype, MPI_SUM, MPI_COMM_WORLD, ierr )
 #endif
 
-       call end_log(globsum_end)
+       END_LOG(globsum)
 
     end subroutine ccglobal_sum2
 
@@ -6053,7 +5867,7 @@ contains
        real, dimension(ifull) :: tmparr
 #endif
 
-       call start_log(globsum_begin)
+       START_LOG(globsum)
 
 #ifdef sumdd
 #ifdef i8r8
@@ -6095,7 +5909,7 @@ contains
        call MPI_Allreduce ( result_l, result, mnum, ltype, MPI_SUM, MPI_COMM_WORLD, ierr )
 #endif
 
-       call end_log(globsum_end)
+       END_LOG(globsum)
 
     end subroutine ccglobal_sum3
 
@@ -6302,7 +6116,7 @@ contains
       integer, dimension(:), intent(out) :: gdat
       character(len=*), intent(in) :: op
       
-      call start_log(reduce_begin)
+      START_LOG(reduce)
       
       select case( op )
          case( "max" )
@@ -6323,7 +6137,7 @@ contains
 
       call MPI_Reduce(ldat, gdat, lsize, ltype, lop, lhost, lcomm, ierr )
  
-      call end_log(reduce_end)
+      END_LOG(reduce)
    
    end subroutine ccmpi_reduce2i
 
@@ -6335,7 +6149,7 @@ contains
       real, dimension(:), intent(out) :: gdat
       character(len=*), intent(in) :: op
       
-      call start_log(reduce_begin)
+      START_LOG(reduce)
       
       lhost = host
       lcomm = comm
@@ -6387,7 +6201,7 @@ contains
      
       call MPI_Reduce(ldat, gdat, lsize, ltype, lop, lhost, lcomm, lerr )
    
-      call end_log(reduce_end)
+      END_LOG(reduce)
    
    end subroutine ccmpi_reduce2r
 
@@ -6399,7 +6213,7 @@ contains
       real, dimension(:,:), intent(out) :: gdat
       character(len=*), intent(in) :: op
       
-      call start_log(reduce_begin)
+      START_LOG(reduce)
 
       lhost = host
       lcomm = comm
@@ -6451,7 +6265,7 @@ contains
       
       call MPI_Reduce(ldat, gdat, lsize, ltype, lop, lhost, lcomm, lerr )
    
-      call end_log(reduce_end)
+      END_LOG(reduce)
    
    end subroutine ccmpi_reduce3r
 
@@ -6470,7 +6284,7 @@ contains
       complex, dimension(:), intent(out) :: gdat
       character(len=*), intent(in) :: op
       
-      call start_log(reduce_begin)
+      START_LOG(reduce)
       
       select case( op )
          case( "max" )
@@ -6492,7 +6306,7 @@ contains
       lsize = size(ldat)
       call MPI_Reduce(ldat, gdat, lsize, ltype, lop, lhost, lcomm, lerr )
    
-      call end_log(reduce_end)
+      END_LOG(reduce)
    
    end subroutine ccmpi_reduce2c
       
@@ -6509,7 +6323,7 @@ contains
       integer, dimension(:), intent(out) :: gdat
       character(len=*), intent(in) :: op
       
-      call start_log(reduce_begin)
+      START_LOG(reduce)
       
       select case( op )
          case( "max" )
@@ -6528,7 +6342,7 @@ contains
       lsize = size(ldat)
       call MPI_AllReduce(ldat, gdat, lsize, ltype, lop, lcomm, lerr )
  
-      call end_log(reduce_end)
+      END_LOG(reduce)
    
    end subroutine ccmpi_allreduce2i
 
@@ -6540,7 +6354,7 @@ contains
       real, dimension(:), intent(out) :: gdat
       character(len=*), intent(in) :: op
       
-      call start_log(reduce_begin)
+      START_LOG(reduce)
       
       lcomm = comm
       lsize = size(ldat)
@@ -6575,7 +6389,7 @@ contains
      
       call MPI_AllReduce(ldat, gdat, lsize, ltype, lop, lcomm, lerr )
    
-      call end_log(reduce_end)
+      END_LOG(reduce)
    
    end subroutine ccmpi_allreduce2r
   
@@ -6589,7 +6403,7 @@ contains
       real, dimension(:,:), intent(out) :: gdat
       character(len=*), intent(in) :: op
       
-      call start_log(reduce_begin)
+      START_LOG(reduce)
       
       lcomm = comm
       lsize = size(ldat)
@@ -6640,7 +6454,7 @@ contains
       
       call MPI_AllReduce(ldat, gdat, lsize, ltype, lop, lcomm, lerr )
    
-      call end_log(reduce_end)
+      END_LOG(reduce)
    
    end subroutine ccmpi_allreduce3r
    
@@ -6659,7 +6473,7 @@ contains
       complex, dimension(:), intent(out) :: gdat
       character(len=*), intent(in) :: op
       
-      call start_log(reduce_begin)
+      START_LOG(reduce)
       
       select case( op )
          case( "max" )
@@ -6680,7 +6494,7 @@ contains
       lsize = size(ldat)
       call MPI_AllReduce(ldat, gdat, lsize, ltype, lop, lcomm, lerr )
    
-      call end_log(reduce_end)
+      END_LOG(reduce)
    
    end subroutine ccmpi_allreduce2c
    
@@ -6705,14 +6519,14 @@ contains
 #endif
       integer, intent(inout) :: ldat
 
-      call start_log(bcast_begin)
+      START_LOG(bcast)
 
       lhost = host
       lcomm = comm
       lsize = 1
       call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,lerr)
          
-      call end_log(bcast_end)
+      END_LOG(bcast)
          
    end subroutine ccmpi_bcast1i
 
@@ -6727,14 +6541,14 @@ contains
 #endif
       integer, dimension(:), intent(inout) :: ldat
 
-      call start_log(bcast_begin)
+      START_LOG(bcast)
 
       lhost = host
       lcomm = comm
       lsize = size(ldat)
       call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,lerr)
          
-      call end_log(bcast_end)
+      END_LOG(bcast)
          
    end subroutine ccmpi_bcast2i
 
@@ -6749,14 +6563,14 @@ contains
 #endif
       integer, dimension(:,:), intent(inout) :: ldat
 
-      call start_log(bcast_begin)
+      START_LOG(bcast)
 
       lhost = host
       lcomm = comm
       lsize = size(ldat)
       call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,lerr)
       
-      call end_log(bcast_end)   
+      END_LOG(bcast)   
       
    end subroutine ccmpi_bcast3i
    
@@ -6771,14 +6585,14 @@ contains
 #endif
       real, dimension(:), intent(inout) :: ldat
 
-      call start_log(bcast_begin)
+      START_LOG(bcast)
 
       lhost = host
       lcomm = comm
       lsize = size(ldat)
       call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,lerr)
    
-      call end_log(bcast_end)
+      END_LOG(bcast)
    
    end subroutine ccmpi_bcast2r
 
@@ -6793,14 +6607,14 @@ contains
 #endif
       real, dimension(:,:), intent(inout) :: ldat
 
-      call start_log(bcast_begin)
+      START_LOG(bcast)
 
       lhost = host
       lcomm = comm
       lsize = size(ldat)
       call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,lerr)
    
-      call end_log(bcast_end)
+      END_LOG(bcast)
    
    end subroutine ccmpi_bcast3r
 
@@ -6815,14 +6629,14 @@ contains
 #endif
       real, dimension(:,:,:), intent(inout) :: ldat
 
-      call start_log(bcast_begin)
+      START_LOG(bcast)
 
       lhost = host
       lcomm = comm
       lsize = size(ldat)
       call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,lerr)
    
-      call end_log(bcast_end)
+      END_LOG(bcast)
    
    end subroutine ccmpi_bcast4r
 
@@ -6837,14 +6651,14 @@ contains
 #endif
       real, dimension(:,:,:,:), intent(inout) :: ldat
 
-      call start_log(bcast_begin)
+      START_LOG(bcast)
 
       lhost = host
       lcomm = comm
       lsize = size(ldat)
       call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,lerr)
    
-      call end_log(bcast_end)
+      END_LOG(bcast)
    
    end subroutine ccmpi_bcast5r
 
@@ -6855,14 +6669,14 @@ contains
       integer(kind=4), parameter :: ltype = MPI_CHARACTER
       character(len=*), dimension(:), intent(inout) :: ldat
 
-      call start_log(bcast_begin)
+      START_LOG(bcast)
 
       lhost = host
       lcomm = comm
       lsize = size(ldat)*len(ldat(1))
       call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,lerr)
    
-      call end_log(bcast_end)
+      END_LOG(bcast)
    
    end subroutine ccmpi_bcast2s
    
@@ -6873,14 +6687,14 @@ contains
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
       double precision, dimension(:), intent(inout) :: ldat
    
-      call start_log(bcast_begin)
+      START_LOG(bcast)
       
       lhost = host
       lcomm = comm
       lsize = size(ldat)
       call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,ierr)
    
-      call end_log(bcast_end)
+      END_LOG(bcast)
    
    end subroutine ccmpi_bcast2r8
    
@@ -6891,14 +6705,14 @@ contains
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
       double precision, dimension(:,:), intent(inout) :: ldat
    
-      call start_log(bcast_begin)
+      START_LOG(bcast)
       
       lhost = host
       lcomm = comm
       lsize = size(ldat)
       call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,ierr)
    
-      call end_log(bcast_end)
+      END_LOG(bcast)
    
    end subroutine ccmpi_bcast3r8   
    
@@ -6909,14 +6723,14 @@ contains
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
       double precision, dimension(:,:,:), intent(inout) :: ldat
 
-      call start_log(bcast_begin)
+      START_LOG(bcast)
 
       lhost = host
       lcomm = comm
       lsize = size(ldat)
       call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,ierr)
    
-      call end_log(bcast_end)
+      END_LOG(bcast)
    
    end subroutine ccmpi_bcast4r8
 
@@ -7117,7 +6931,7 @@ contains
       logical, intent(in), optional :: corner
       logical extra
 
-      call start_log(mgbounds_begin)
+      START_LOG(mgbounds)
       
       if (present(klim)  ) then
          kx = klim
@@ -7180,13 +6994,9 @@ contains
       rcount = rreq
       do while ( rcount > 0 )
 
-#ifdef simple_timer      
-         call start_log(mpiwaitmg_begin)
-#endif
+         START_LOG(mpiwaitmg)
          call MPI_Waitsome(rreq,ireq,ldone,donelist,status,ierr)
-#ifdef simple_timer
-         call end_log(mpiwaitmg_end)
-#endif
+         END_LOG(mpiwaitmg)
 
          rcount = rcount - ldone
          do jproc = 1,ldone
@@ -7202,15 +7012,11 @@ contains
 
       ! clear any remaining messages
       sreq = nreq - rreq
-#ifdef simple_timer
-      call start_log(mpiwaitmg_begin)
-#endif
+      START_LOG(mpiwaitmg)
       call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
-#ifdef simple_timer      
-      call end_log(mpiwaitmg_end)
-#endif
+      END_LOG(mpiwaitmg)
 
-      call end_log(mgbounds_end)
+      END_LOG(mgbounds)
 
    return
    end subroutine mgbounds
@@ -7235,7 +7041,7 @@ contains
       logical, intent(in), optional :: corner
       logical extra
 
-      call start_log(mgbounds_begin)
+      START_LOG(mgbounds)
       
       vdat(mg(g)%ifull+1:mg(g)%ifull+mg(g)%iextra,:)=0.
       if ( mg_bnds(myid,g)%mlomsk == 0 ) return
@@ -7299,13 +7105,9 @@ contains
       rcount = rreq
       do while ( rcount > 0 )
 
-#ifdef simple_timer      
-         call start_log(mpiwaitmg_begin)
-#endif
+         START_LOG(mpiwaitmg)
          call MPI_Waitsome(rreq,ireq,ldone,donelist,status,ierr)
-#ifdef simple_timer
-         call end_log(mpiwaitmg_end)
-#endif
+         END_LOG(mpiwaitmg)
 
          rcount = rcount - ldone
          do jproc = 1,ldone
@@ -7321,15 +7123,11 @@ contains
 
       ! clear any remaining messages
       sreq = nreq - rreq
-#ifdef simple_timer
-      call start_log(mpiwaitmg_begin)
-#endif
+      START_LOG(mpiwaitmg)
       call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
-#ifdef simple_timer      
-      call end_log(mpiwaitmg_end)
-#endif
+      END_LOG(mpiwaitmg)
 
-      call end_log(mgbounds_end)
+      END_LOG(mgbounds)
 
    return
    end subroutine mgbounds_mlo
@@ -7346,7 +7144,7 @@ contains
       ! merge length
       if ( mg(g)%merge_len <= 1 ) return
 
-      call start_log(mgcollect_begin)
+      START_LOG(mgcollect)
 
       if (present(klim)) then
          kx = klim
@@ -7361,7 +7159,7 @@ contains
          call mgcollectreduce_work( g, vdat, dsolmax, kx, mg(g)%nmax, msg_len, mg(g)%npanx )
       end if
 
-      call end_log(mgcollect_end)
+      END_LOG(mgcollect)
   
    return
    end subroutine mgcollectreduce
@@ -7466,7 +7264,7 @@ contains
       ! merge length
       if ( mg(g)%merge_len <= 1 ) return
       
-      call start_log(mgcollect_begin)
+      START_LOG(mgcollect)
 
       kx = size(vdat,2)
       
@@ -7477,7 +7275,7 @@ contains
          call mgcollectreduce_mlo_work( g, vdat, dsolmax, kx, mg(g)%nmax, msg_len, mg(g)%npanx )
       end if
 
-      call end_log(mgcollect_end)
+      END_LOG(mgcollect)
   
    return
    end subroutine mgcollectreduce_mlo
@@ -7582,7 +7380,7 @@ contains
       ! merge length
       if ( mg(g)%merge_len <= 1 ) return
 
-      call start_log(mgcollect_begin)
+      START_LOG(mgcollect)
 
       if (present(klim)) then
          kx = klim
@@ -7597,7 +7395,7 @@ contains
          call mgcollect_work( g, vdat, kx, mg(g)%nmax, msg_len, mg(g)%npanx )
       end if
 
-      call end_log(mgcollect_end)
+      END_LOG(mgcollect)
   
    return
    end subroutine mgcollect1
@@ -7691,7 +7489,7 @@ contains
       ! merge length
       if ( mg(g)%merge_len <= 1 ) return
 
-      call start_log(mgcollect_begin)
+      START_LOG(mgcollect)
 
       kx = size(vdat,2)
       
@@ -7702,7 +7500,7 @@ contains
          call mgcollect_mlo_work( g, vdat, kx, mg(g)%nmax, msg_len, mg(g)%npanx )
       end if
 
-      call end_log(mgcollect_end)
+      END_LOG(mgcollect)
   
    return
    end subroutine mgcollect_mlo1
@@ -7802,7 +7600,7 @@ contains
       ! merge length
       if ( mg(g)%merge_len <= 1 ) return
 
-      call start_log(mgcollect_begin)
+      START_LOG(mgcollect)
 
       if (present(klim)) then
          kx = klim
@@ -7817,7 +7615,7 @@ contains
          call mgcollectxn_work( g, vdat, smaxmin, kx, mg(g)%nmax, msg_len, mg(g)%npanx )
       end if
 
-      call end_log(mgcollect_end)
+      END_LOG(mgcollect)
   
    return
    end subroutine mgcollectxn
@@ -7932,7 +7730,7 @@ contains
       ! merge length
       if ( mg(g)%merge_len <= 1 ) return
    
-      call start_log(mgbcast_begin)
+      START_LOG(mgbcast)
    
       if (present(klim)) then
          kx = klim
@@ -7943,7 +7741,7 @@ contains
       out_len = mg(g)%ifull + mg(g)%iextra
       call mgbcast_work( g, vdat, dsolmax, kx, out_len )
    
-      call end_log(mgbcast_end)
+      END_LOG(mgbcast)
 #endif
    
    return
@@ -7987,13 +7785,13 @@ contains
       ! merge length
       if ( mg(g)%merge_len <= 1 ) return
 
-      call start_log(mgbcast_begin)
+      START_LOG(mgbcast)
    
       kx = size(vdat,2)
       out_len = mg(g)%ifull + mg(g)%iextra
       call mgbcast_mlo_work( g, vdat, dsolmax, kx, out_len )
    
-      call end_log(mgbcast_end)
+      END_LOG(mgbcast)
 #endif
    
    return
@@ -8036,13 +7834,13 @@ contains
       ! merge length
       if ( mg(g)%merge_len <= 1 ) return
    
-      call start_log(mgbcast_begin)
+      START_LOG(mgbcast)
    
       kx = size(vdat,2)
       out_len = mg(g)%ifull + mg(g)%iextra
       call mgbcasta_mlo_work( g, vdat, kx, out_len )
    
-      call end_log(mgbcast_end)
+      END_LOG(mgbcast)
 #endif
    
    return
@@ -8084,7 +7882,7 @@ contains
       ! merge length
       if ( mg(g)%merge_len <= 1 ) return
    
-      call start_log(mgbcast_begin)
+      START_LOG(mgbcast)
    
       if (present(klim)) then
          kx = klim
@@ -8095,7 +7893,7 @@ contains
       out_len = mg(g)%ifull + mg(g)%iextra
       call mgbcastxn_work( g, vdat, smaxmin, kx, out_len )
    
-      call end_log(mgbcast_end)
+      END_LOG(mgbcast)
 #endif
    
    return

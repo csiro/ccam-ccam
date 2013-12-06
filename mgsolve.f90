@@ -72,7 +72,9 @@ real, dimension(mg_minsize) :: v_o
 real, dimension(2*kl,2) :: smaxmin_g
 real, dimension(kl) :: dsolmax_g,savg,sdif,dsolmax_l
 
-call start_log(helm_begin)
+#include "log.h"
+ 
+START_LOG(helm)
 
 if (sorfirst.or.zzfirst) then
   write(6,*) "ERROR: mghelm requires mgsor_init and mgzz_init to be called first"
@@ -87,7 +89,7 @@ end if
 ! parameters during the first iteration of the solution.  Effectively the mgsetup
 ! stage also becomes the first iteration of the solution.
 
-call start_log(mgsetup_begin)
+START_LOG(mgsetup)
 
 ! solver assumes boundaries are updated
 call bounds(iv)
@@ -354,13 +356,13 @@ do nc=1,maxcolour
   end do
 end do
 
-call end_log(mgsetup_end)
+END_LOG(mgsetup)
 
 ! Main loop
 iters=0
 do itr=2,itr_mg
 
-  call start_log(mgfine_begin)
+  START_LOG(mgfine)
 
   ! update on model grid using colours
   do nc=1,maxcolour
@@ -397,9 +399,9 @@ do itr=2,itr_mg
   
   end do
   
-  call end_log(mgfine_end)
+  END_LOG(mgfine)
   
-  call start_log(mgup_begin)
+  START_LOG(mgup)
   
   ! upscale grid
   do g=2,gmax
@@ -433,9 +435,9 @@ do itr=2,itr_mg
 
   end do
   
-  call end_log(mgup_end)
+  END_LOG(mgup)
   
-  call start_log(mgcoarse_begin)
+  START_LOG(mgcoarse)
 
   ! solve coarse grid
   do g=mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxlevel) then ...
@@ -452,9 +454,9 @@ do itr=2,itr_mg
       
   end do
 
-  call end_log(mgcoarse_end)
+  END_LOG(mgcoarse)
   
-  call start_log(mgdown_begin)
+  START_LOG(mgdown)
 
   ! downscale grid
   do g=gmax,2,-1
@@ -507,9 +509,9 @@ do itr=2,itr_mg
     
   end do
   
-  call end_log(mgdown_end)
+  END_LOG(mgdown)
   
-  call start_log(mgfine_begin)
+  START_LOG(mgfine)
 
   if (mg(1)%merge_len>1) then
     call mgbcast(1,w,dsolmax_g,klim=klim)
@@ -591,7 +593,7 @@ do itr=2,itr_mg
     end do
   end do
 
-  call end_log(mgfine_end)
+  END_LOG(mgfine)
 
   ! test for convergence
   knew=klim
@@ -623,7 +625,7 @@ if (myid==0) then
   end if
 end if
 
-call end_log(helm_end)
+END_LOG(helm)
 
 return
 end subroutine mghelm
@@ -740,7 +742,7 @@ end if
 ! zz*(DIV^2 i0) = rhs - F
 ! zz*(DIV^2 f) = F
 
-call start_log(mgmlosetup_begin)
+START_LOG(mgmlosetup)
 
 vduma=0.
 vdumb=0.
@@ -1301,12 +1303,12 @@ do i=1,itrend
     
 end do
 
-call end_log(mgmlosetup_end)
+END_LOG(mgmlosetup)
 
 ! Main loop
 do itr=2,itr_mgice
 
-  call start_log(mgmlofine_begin)
+  START_LOG(mgmlofine)
 
   do nc=1,maxcolour
   
@@ -1418,9 +1420,9 @@ do itr=2,itr_mgice
     
   end do
   
-  call end_log(mgmlofine_end)
+  END_LOG(mgmlofine)
 
-  call start_log(mgmloup_begin)
+  START_LOG(mgmloup)
 
   ! upscale grid
   do g=2,gmax
@@ -1504,9 +1506,9 @@ do itr=2,itr_mgice
 
   end do
 
-  call end_log(mgmloup_end)
+  END_LOG(mgmloup)
 
-  call start_log(mgmlocoarse_begin)
+  START_LOG(mgmlocoarse)
 
   ! solve coarse grid    
   do g=mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel==mg_maxlevel_local) then ...
@@ -1562,9 +1564,9 @@ do itr=2,itr_mgice
   
   end do
   
-  call end_log(mgmlocoarse_end)
+  END_LOG(mgmlocoarse)
   
-  call start_log(mgmlodown_begin)
+  START_LOG(mgmlodown)
     
   ! downscale grid
   do g=gmax,2,-1
@@ -1630,9 +1632,9 @@ do itr=2,itr_mgice
 
   end do
 
-  call end_log(mgmlodown_end)
+  END_LOG(mgmlodown)
 
-  call start_log(mgmlofine_begin)
+  START_LOG(mgmlofine)
 
   if (mg(1)%merge_len>1) then
     call mgbcast_mlo(1,w(:,1:2),dsolmax_g(1:2))
@@ -1754,7 +1756,7 @@ do itr=2,itr_mgice
     
   end do
   
-  call end_log(mgmlofine_end)
+  END_LOG(mgmlofine)
  
   ! test for convergence
   !if (dsolmax_g(1)<10.*tol.and.dsolmax_g(2)<10.*itol) then

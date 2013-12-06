@@ -26,8 +26,10 @@ c     unstaggered u & v as input; staggered as output
       integer, parameter :: itnmax=3
       integer :: iq, itn, k, i, j
 
-      call start_log(stag_begin)
-      
+#include "log.h"
+
+      START_LOG(stag)
+
       if(nmaxpr==1.and.mydiag)then
         write(6,*) '  stag_ktau,nstag,nstagu',ktau,nstag,nstagu
       endif
@@ -182,7 +184,7 @@ c          vout(iq,k)=.5*(vin(inv(iq),k)+vin(iq,k))
          end do
       end do
 
-      call end_log(stag_end)
+      END_LOG(stag)
       return
 
       end
@@ -208,7 +210,7 @@ c     staggered u & v as input; unstaggered as output
       save num
       data num/0/
 
-      call start_log(stag_begin)
+      START_LOG(stag)
 
       if(nmaxpr==1.and.mydiag)then
         write(6,*) 'unstag_ktau,nstag,nstagu',ktau,nstag,nstagu
@@ -330,7 +332,7 @@ c     staggered u & v as input; unstaggered as output
          end do
       end do
 
-      call end_log(stag_end)
+      END_LOG(stag)
 
       return
       end        

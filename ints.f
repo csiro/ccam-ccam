@@ -30,10 +30,13 @@ c     doing x-interpolation before y-interpolation
       real, dimension(ntr,4) :: r
       integer i, j, k, n, ind, ip, jp
       integer ii
+
+#include "log.h"
+
       ! This is really indp, just repeated here to get inlining to work
       ind(i,j,n)=i+(j-1)*ipan+(n-1)*ipan*jpan  ! *** for n=1,npan
 
-      call start_log(ints_begin)
+      START_LOG(ints)
       call bounds(s,nrows=2)
 
 !======================== start of intsch=1 section ====================
@@ -762,7 +765,7 @@ c                +y*(1+y)*(2-y)*c3}/2
 
       call intssync_recv(s)
       
-      call end_log(ints_end)
+      END_LOG(ints)
       return
       end
 
@@ -786,13 +789,16 @@ c                +y*(1+y)*(2-y)*c3}/2
       real xxg, yyg
       integer i, j, k, n, ind, ip, jp
       integer ii
+
+#include "log.h"
+
       ! This is really indp, just repeated here to get inlining to work
       ind(i,j,n)=i+(j-1)*ipan+(n-1)*ipan*jpan  ! *** for n=1,npan
 
 c     this one does bi-linear interpolation only
 c     first extend s arrays into sx - this one -1:il+2 & -1:il+2
 c                    but for bi-linear only need 0:il+1 &  0:il+1
-      call start_log(ints_begin)
+      START_LOG(ints)
       call bounds(s,corner=.true.)
       do k=1,kl
          do n=1,npan
@@ -874,6 +880,6 @@ c                    but for bi-linear only need 0:il+1 &  0:il+1
 
       call intssync_recv(s)
 
-      call end_log(ints_end)
+      END_LOG(ints)
       return
       end

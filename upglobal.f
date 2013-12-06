@@ -49,8 +49,10 @@
       real, dimension(ifull+iextra,kl,5) :: duma
       integer, save :: num_hight = 0, numunstab = 0
 
-      call start_log(upglobal_begin)
-      
+#include "log.h"
+
+      START_LOG(upglobal)
+
       intsch=mod(ktau,2)
 
       if(m>=5)then
@@ -580,7 +582,7 @@ c           if(numunstab==100)stop 'numunstab=30'
       endif 
 #endif    
 
-      call end_log(upglobal_end)
+      END_LOG(upglobal)
       
       return
       end

@@ -1,11 +1,33 @@
 FC = mpif90
-#FC = vtfort -vt:fc mpif90
 
-#FFLAGS = -xHost -ftz -fpp -I $(NETCDF_ROOT)/include -Dsumdd -Dvampir
-#FFLAGS = -O -xHost -ftz -fpp -I $(NETCDF_ROOT)/include -assume buffered_io -Dsimple_timer -Duniform_decomp -Dsumdd -fp-model strict -Doutsync
-FFLAGS = -xHost -ftz -fpp -I $(NETCDF_ROOT)/include -Dsimple_timer -Dsumdd -Didleproc
-#FFLAGS = -O -xHost -ftz -fpp -I $(NETCDF_ROOT)/include -Dsimple_timer -Duniform_decomp -Dsumdd
-#FFLAGS = -O -xHost -ftz -fpp -r8 -i8 -I $(NETCDF_ROOT)/include -assume buffered_io -Dsimple_timer -Duniform_decomp -Dsumdd -Di8r8
+# Common compiler flags
+FFLAGS = -xHost -ftz -fpp -I $(NETCDF_ROOT)/include -Dsumdd -Didleproc
+
+# Options for building with VAMPIRTrace
+ifeq ($(VT),yes)
+FC = vtfort -vt:fc mpif90 -vt:inst manual
+FFLAGS += -Dvampir -DVTRACE
+else
+FFLAGS += -Dsimple_timer
+endif
+
+
+#Decomposition method
+ifeq ($(DECOMP),uniform)
+FFLAGS += -Duniform_decomp
+endif
+
+# Testing - I/O and fpmodel
+ifeq ($(TEST),yes)
+FFLAGS += -assume buffered_io -fp-model strict -Doutsync
+endif
+
+# Build with 64 ints/reals
+ifeq ($(I8R8),yes)
+FFLAGS += -r8 -i8 -Di8r8
+endif
+
+
 LIBS = -L $(NETCDF_ROOT)/lib -lnetcdf -lnetcdff 
 
 LDFLAGS = 

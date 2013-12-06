@@ -45,8 +45,10 @@
       real, allocatable, save, dimension(:) :: epstsav
       real, dimension(ifull,kl) :: dumt,dumu,dumv
       
-      call start_log(nonlin_begin)
-     
+#include "log.h"
+       
+      START_LOG(nonlin)
+
       if(epsp<-2.)then
         if (.not.allocated(epstsav)) then
            allocate(epstsav(ifull))
@@ -513,7 +515,7 @@ c       write(6,*) 'termx ',(t(iq,k)+contv*tvv)*dpsldt(iq,k)*roncp/sig(k)
 
       num=1
 
-      call end_log(nonlin_end)
-      
+      END_LOG(nonlin)
+
       return
       end

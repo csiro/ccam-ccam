@@ -10,12 +10,14 @@
       include 'filnames.h' ! list of files, read in once only
       include 'parm.h'
 
+#include "log.h"
+
       integer io_outt
       integer iout,nmi,nwrite,iaero,nstagin
       character rundate*8,qgout*20
       character co2out*80,radonout*80,surfout*80
 
-      call start_log(outfile_begin)
+      START_LOG(outfile)
       
       io_outt=io_out
       if(iout==19)io_outt=io_rest  !  choice for writing restart file
@@ -123,6 +125,6 @@ c---------------------------------------------------------------------------
          end if ! (iout==19) ..else..
       endif ! (io_outt.eq.1)
 
-      call end_log(outfile_end)
+      END_LOG(outfile)
       return
       end

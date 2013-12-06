@@ -292,7 +292,9 @@ real, dimension(ifull) :: nu,nv,nw
 real, dimension(ifull) :: tx_fact,ty_fact
 real, dimension(ifull) :: emi
 
-call start_log(waterdiff_begin)
+#include "log.h"
+
+START_LOG(waterdiff)
 
 ! Define diffusion scale and grid spacing
 hdif=dt*(ocnsmag/pi)**2
@@ -412,7 +414,7 @@ call mloimport3d(1,fs,0)
 call mloimport3d(2,outu,0)
 call mloimport3d(3,outv,0)
 
-call end_log(waterdiff_end)
+END_LOG(waterdiff)
 
 return
 end subroutine mlodiffusion_main
@@ -845,7 +847,7 @@ real, parameter :: itol   = 2.E1       ! Tolerance for SOR solver (ice)
 ! use the same index and map factor arrays from the
 ! atmospheric dynamical core.
 
-call start_log(watermisc_begin)
+START_LOG(watermisc)
 
 #ifdef debug
 if (myid==0.and.nmaxpr==1) then
@@ -1008,8 +1010,9 @@ dttdyv=(tide(in)-tide(1:ifull))*emv(1:ifull)/ds
 tideu=0.5*(tide(1:ifull)+tide(ie))
 tidev=0.5*(tide(1:ifull)+tide(in))
 
-call end_log(watermisc_end)
-call start_log(waterdeps_begin)
+END_LOG(watermisc)
+
+START_LOG(waterdeps)
 
 ! ADVECT WATER AND ICE ----------------------------------------------
 ! Water currents are advected using semi-Lagrangian advection
@@ -1053,8 +1056,8 @@ do ii=1,wlev
   dzdum(:,ii)=xdzdum(1:ifull,ii)
 end do
 
-call end_log(waterdeps_end)
-call start_log(watereos_begin)
+END_LOG(waterdeps)
+START_LOG(watereos)
 
 #ifdef debug
 if (myid==0.and.nmaxpr==1) then
@@ -1100,8 +1103,8 @@ do ii=1,wlev
   drhobardyv(:,ii)=drhobardyv(:,ii)/gosigh(ii)
 end do
 
-call end_log(watereos_end)
-call start_log(waterhadv_begin)
+END_LOG(watereos)
+START_LOG(waterhadv)
 
 #ifdef debug
 if (myid==0.and.nmaxpr==1) then
@@ -1184,8 +1187,8 @@ end do
 snu(1:ifull)=i_u-dt*ttau(:,wlev+1)
 snv(1:ifull)=i_v-dt*ttav(:,wlev+1)
 
-call end_log(waterhadv_end)
-call start_log(watervadv_begin)
+END_LOG(waterhadv)
+START_LOG(watervadv)
 
 #ifdef debug
 if (myid==0.and.nmaxpr==1) then
@@ -1196,8 +1199,8 @@ end if
 ! Vertical advection (first call for 0.5*dt)
 call mlovadv(0.5*dt,nw,uau,uav,ns,nt,mps,depdum,dzdum,wtr(1:ifull),1)
 
-call end_log(watervadv_end)
-call start_log(waterhadv_begin)
+END_LOG(watervadv)
+START_LOG(waterhadv)
 
 #ifdef debug
 if (myid==0.and.nmaxpr==1) then
@@ -1235,8 +1238,8 @@ mps(1:ifull,:)=cou(1:ifull,:,1)
 nt(1:ifull,:) =cou(1:ifull,:,2)+290.
 ns(1:ifull,:) =cou(1:ifull,:,3)+34.72
 
-call end_log(waterhadv_end)
-call start_log(watervadv_begin)
+END_LOG(waterhadv)
+START_LOG(watervadv)
 
 #ifdef debug
 if (myid==0.and.nmaxpr==1) then
@@ -1256,8 +1259,8 @@ do ii=2,wlev
 end do
 xps=xps*ee(1:ifull)
 
-call end_log(watervadv_end)
-call start_log(watereos_begin)
+END_LOG(watervadv)
+START_LOG(watereos)
 
 #ifdef debug
 if (myid==0.and.nmaxpr==1) then
@@ -1304,8 +1307,8 @@ end if
 
 ! FREE SURFACE CALCULATION ----------------------------------------
 
-call end_log(watereos_end)
-call start_log(waterhelm_begin)
+END_LOG(watereos)
+START_LOG(waterhelm)
 
 #ifdef debug
 if (myid==0.and.nmaxpr==1) then
@@ -1581,8 +1584,8 @@ do ii=1,wlev
   nv(1:ifull,ii)=kkv(:,ii)+ppv(:,ii)+oov(:,ii)*oev+llv(:,ii)*max(oev(1:ifull)+ddv(1:ifull),0.)+mmv(:,ii)*detadyv+nnv(:,ii)*detadxv
 end do
 
-call end_log(waterhelm_end)
-call start_log(wateriadv_begin)
+END_LOG(waterhelm)
+START_LOG(wateriadv)
 
 ! Update ice velocity with internal pressure terms
 tnu=0.5*(ipice(in)*f(in)+ipice(ine)*f(ine))
@@ -1684,8 +1687,8 @@ nv(1:ifull,:)=ttav(:,1:wlev)
 niu(1:ifull)=ttau(:,wlev+1)
 niv(1:ifull)=ttav(:,wlev+1)
 
-call end_log(wateriadv_end)
-call start_log(watermisc_begin)
+END_LOG(wateriadv)
+START_LOG(watermisc)
 
 #ifdef debug
 if (myid==0.and.nmaxpr==1) then
@@ -1741,7 +1744,7 @@ if (myid==0.and.(ktau<=5.or.maxglobseta>tol.or.maxglobip>itol)) then
   write(6,*) "MLODYNAMICS ",totits,itc,maxglobseta,maxglobip
 end if
 
-call end_log(watermisc_end)
+END_LOG(watermisc)
 
 ! DIFFUSION -------------------------------------------------------------------
 #ifdef debug
@@ -1764,7 +1767,7 @@ call mloimport(4,odum,0,0) ! neta
 ! EXPORT ----------------------------------------------------------------------
 ! Water data is exported in mlodiffusion
 
-call start_log(watermisc_begin)
+START_LOG(watermisc)
 
 #ifdef debug
 if (myid==0.and.nmaxpr==1) then
@@ -1794,7 +1797,7 @@ if (myid==0.and.nmaxpr==1) then
 end if
 #endif
 
-call end_log(watermisc_end)
+END_LOG(watermisc)
 
 return
 end subroutine mlohadv
@@ -2864,7 +2867,7 @@ logical, dimension(ifull) :: euetest,euwtest,evntest,evstest
 logical, dimension(ifull) :: euewtest,evnstest,eutest,evtest
 logical ltest
 
-call start_log(ocnstag_begin)
+START_LOG(ocnstag)
 
 if (.not.allocated(wtul)) then
   allocate(wtul(ifull+iextra,0:3),wtvl(ifull+iextra,0:3))
@@ -3313,7 +3316,7 @@ end if
 uout=ua(1:ifull,:)
 vout=va(1:ifull,:)
 
-call end_log(ocnstag_end)
+END_LOG(ocnstag)
 
 return
 end subroutine mlostaguv
@@ -3355,7 +3358,7 @@ logical, dimension(ifull) :: euewtest,evnstest
 logical, dimension(ifull) :: eeetest,ewwtest,enntest,esstest
 logical ltest
 
-call start_log(ocnstag_begin)
+START_LOG(ocnstag)
 
 if (.not.allocated(wtul)) then
   allocate(wtul(ifull+iextra,0:3),wtvl(ifull+iextra,0:3))
@@ -3901,7 +3904,7 @@ end if
 uout=ua(1:ifull,:)
 vout=va(1:ifull,:)
 
-call end_log(ocnstag_end)
+END_LOG(ocnstag)
 
 return
 end subroutine mlounstaguv

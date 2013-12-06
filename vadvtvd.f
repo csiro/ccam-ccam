@@ -50,7 +50,9 @@ c     variables; except extrap at bottom for qg and trace gases  Thu  06-19-1997
 !                            3 superbee flux-limiter
 !                            0 (not available now) was equivalent to van Leer
 
-      call start_log(vadv_begin)
+#include "log.h"
+ 
+      START_LOG(vadv)
 
       tfact=1./real(nvadh_pass)
 
@@ -161,7 +163,7 @@ c      qg
 
       endif       ! if(mspec==1.and.abs(nvad).ne.9)
 
-      call end_log(vadv_end)
+      END_LOG(vadv)
  
       return
       end subroutine vadvtvd
