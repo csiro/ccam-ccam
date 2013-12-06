@@ -1531,29 +1531,6 @@ end if
 
 #ifdef debug
 if (myid==0.and.nmaxpr==1) then
-  write(6,*) "mlohadv: free surface conservation"
-end if
-#endif
-
-! volume conservation for water ---------------------------------------
-if (nud_sfh==0) then
-  if (fixheight==0) then
-    odum=(neta(1:ifull)-w_e)*ee(1:ifull)
-    call ccglobal_posneg(odum,delpos,delneg)
-    alph_p = -delneg/max(delpos,1.E-20)
-    alph_p = min(max(sqrt(alph_p),1.E-20),1.E20)
-    neta(1:ifull)=w_e+max(0.,odum)*alph_p+min(0.,odum)/alph_p
-  else
-    odum=neta(1:ifull)*ee(1:ifull)
-    call ccglobal_posneg(odum,delpos,delneg)
-    alph_p = -delneg/max(delpos,1.E-20)
-    alph_p = min(max(sqrt(alph_p),1.E-20),1.E20)
-    neta(1:ifull)=max(0.,odum)*alph_p+min(0.,odum)/alph_p
-  end if
-end if
-
-#ifdef debug
-if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: update currents"
 end if
 #endif
@@ -1692,11 +1669,27 @@ START_LOG(watermisc)
 
 #ifdef debug
 if (myid==0.and.nmaxpr==1) then
-  write(6,*) "mlohadv: conserve salinity"
+  write(6,*) "mlohadv: conserve free surface and salinity"
 end if
 #endif
-  
-  
+
+! volume conservation for water ---------------------------------------
+if (nud_sfh==0) then
+  if (fixheight==0) then
+    odum=(neta(1:ifull)-w_e)*ee(1:ifull)
+    call ccglobal_posneg(odum,delpos,delneg)
+    alph_p = -delneg/max(delpos,1.E-20)
+    alph_p = min(max(sqrt(alph_p),1.E-20),1.E20)
+    neta(1:ifull)=w_e+max(0.,odum)*alph_p+min(0.,odum)/alph_p
+  else
+    odum=neta(1:ifull)*ee(1:ifull)
+    call ccglobal_posneg(odum,delpos,delneg)
+    alph_p = -delneg/max(delpos,1.E-20)
+    alph_p = min(max(sqrt(alph_p),1.E-20),1.E20)
+    neta(1:ifull)=max(0.,odum)*alph_p+min(0.,odum)/alph_p
+  end if
+end if
+
 ! salinity conservation
 if (nud_sss==0) then
   delpos=0.
@@ -1739,7 +1732,7 @@ if (nud_sss==0) then
     end do
   end if
 end if
-
+  
 if (myid==0.and.(ktau<=5.or.maxglobseta>tol.or.maxglobip>itol)) then
   write(6,*) "MLODYNAMICS ",totits,itc,maxglobseta,maxglobip
 end if
