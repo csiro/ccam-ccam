@@ -53,10 +53,10 @@ real, parameter :: ce1     = 1.46
 real, parameter :: ce2     = 1.83
 real, parameter :: ce3     = 0.45   ! Hurley (2007) 0.45, Dynkerke et al 1987 0.35
 real, parameter :: cq      = 2.5
-real, parameter :: ent0    = 0.5    ! MJT suggestion for mass flux
-real, parameter :: dtrn0   = 0.6    ! MJT suggestion for mass flux
+real, parameter :: ent0    = 0.3    ! MJT suggestion for mass flux
+real, parameter :: dtrn0   = 0.4    ! MJT suggestion for mass flux
 real, parameter :: dtrc0   = 0.9    ! MJT suggestion for mass flux
-real, parameter :: m0      = 0.005  ! MJT suggestion for mass flux
+real, parameter :: m0      = 0.05   ! MJT suggestion for mass flux
 
 ! physical constants
 real, parameter :: grav  = 9.80616    ! (m s^-2)

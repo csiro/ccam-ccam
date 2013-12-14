@@ -7,7 +7,7 @@ module mgsolve
 ! local subdivisions.  For example if the number of grid points on a processor
 ! is M x M, where M = 2^N and N is an integer greater than 1, then the
 ! multi-grid solver will be considerably more efficent as more processors can
-! be applied in parallel.  Example grids which typically work well include
+! be applied in parallel.  Example grids that typically work well include
 ! C48, C96, C192, C384, C768 and C1536.  An alternate family of grids includes
 ! C32, C64, C128, C256, C512 and C1024.
 
@@ -236,7 +236,7 @@ do g=gmax,2,-1
                    -rhs(1:kl,iq,g))/(helm(1:kl,iq,g)-mg(g)%zz(iq))
     end do
     call mgbounds(g,v(:,:,g))
-    w(1:kl,1:mg(g)%ifull)=v(1:kl,1:mg(g)%ifull,g)
+    w(1:kl,1:mg(g)%ifull+mg(g)%iextra)=v(1:kl,1:mg(g)%ifull+mg(g)%iextra,g)
   end do
   do iq=1,mg(g)%ifull
     ! post smoothing
@@ -484,7 +484,7 @@ do itr=2,itr_mg
                        -rhs(1:klim,iq,g))/(helm(1:klim,iq,g)-mg(g)%zz(iq))
       end do
       call mgbounds(g,v(:,:,g),klim=klim)
-      w(1:klim,1:mg(g)%ifull)=v(1:klim,1:mg(g)%ifull,g)
+      w(1:klim,1:mg(g)%ifull+mg(g)%iextra)=v(1:klim,1:mg(g)%ifull+mg(g)%iextra,g)
     end do
     do iq=1,mg(g)%ifull
       ! post smoothing
@@ -1149,6 +1149,27 @@ do g=gmax,2,-1
   w(1:ng4,1:2)=v(1:ng4,1:2,g)+w(1:ng4,1:2)
 
   ng=mg(g)%ifull
+  do i=1,itrend-1
+    dumc_n(1:ng,:)=w(mg(g)%in,1:2)
+    dumc_s(1:ng,:)=w(mg(g)%is,1:2)
+    dumc_e(1:ng,:)=w(mg(g)%ie,1:2)
+    dumc_w(1:ng,:)=w(mg(g)%iw,1:2)
+
+    ! ocean
+    ! post smoothing
+    bu(1:ng)=zz(1:ng,g)+hh(1:ng,g)+yyn(1:ng,g)*dumc_n(1:ng,1)+yys(1:ng,g)*dumc_s(1:ng,1)+yye(1:ng,g)*dumc_e(1:ng,1)+yyw(1:ng,g)*dumc_w(1:ng,1)
+    cu(1:ng)=zzn(1:ng,g)*dumc_n(1:ng,1)+zzs(1:ng,g)*dumc_s(1:ng,1)+zze(1:ng,g)*dumc_e(1:ng,1)+zzw(1:ng,g)*dumc_w(1:ng,1)-rhs(1:ng,g)
+    v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(bu(1:ng)*bu(1:ng)-4.*yyz(1:ng,g)*cu(1:ng)))
+
+    ! ice
+    v(1:ng,2,g) = ( -zznice(1:ng,g)*dumc_n(1:ng,2)-zzsice(1:ng,g)*dumc_s(1:ng,2) &
+                    -zzeice(1:ng,g)*dumc_e(1:ng,2)-zzwice(1:ng,g)*dumc_w(1:ng,2) &
+                    +rhsice(1:ng,g) ) / zzzice(1:ng,g)
+
+    call mgbounds_mlo(g,v(:,:,g))
+    w(1:ng+mg(g)%iextra,1:2)=v(1:ng+mg(g)%iextra,1:2,g)
+  end do
+
   dumc_n(1:ng,:)=w(mg(g)%in,1:2)
   dumc_s(1:ng,:)=w(mg(g)%is,1:2)
   dumc_e(1:ng,:)=w(mg(g)%ie,1:2)
@@ -1592,6 +1613,27 @@ do itr=2,itr_mgice
     w(1:ng4,1:2)=v(1:ng4,1:2,g)+w(1:ng4,1:2)
 
     ng=mg(g)%ifull
+    do i=1,itrend-1
+      dumc_n(1:ng,:)=w(mg(g)%in,1:2)
+      dumc_s(1:ng,:)=w(mg(g)%is,1:2)
+      dumc_e(1:ng,:)=w(mg(g)%ie,1:2)
+      dumc_w(1:ng,:)=w(mg(g)%iw,1:2)
+
+      ! ocean
+      ! post smoothing
+      bu(1:ng)=zz(1:ng,g)+hh(1:ng,g)+yyn(1:ng,g)*dumc_n(1:ng,1)+yys(1:ng,g)*dumc_s(1:ng,1)+yye(1:ng,g)*dumc_e(1:ng,1)+yyw(1:ng,g)*dumc_w(1:ng,1)
+      cu(1:ng)=zzn(1:ng,g)*dumc_n(1:ng,1)+zzs(1:ng,g)*dumc_s(1:ng,1)+zze(1:ng,g)*dumc_e(1:ng,1)+zzw(1:ng,g)*dumc_w(1:ng,1)-rhs(1:ng,g)
+      v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(bu(1:ng)*bu(1:ng)-4.*yyz(1:ng,g)*cu(1:ng)))
+
+      ! ice
+      v(1:ng,2,g) = ( -zznice(1:ng,g)*dumc_n(1:ng,2)-zzsice(1:ng,g)*dumc_s(1:ng,2) &
+                      -zzeice(1:ng,g)*dumc_e(1:ng,2)-zzwice(1:ng,g)*dumc_w(1:ng,2) &
+                      +rhsice(1:ng,g) ) / zzzice(1:ng,g)
+
+      call mgbounds_mlo(g,v(:,:,g))
+      w(1:ng+mg(g)%iextra,1:2)=v(1:ng+mg(g)%iextra,1:2,g)
+    end do
+
     dumc_n(1:ng,:)=w(mg(g)%in,1:2)
     dumc_s(1:ng,:)=w(mg(g)%is,1:2)
     dumc_e(1:ng,:)=w(mg(g)%ie,1:2)

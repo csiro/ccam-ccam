@@ -25,6 +25,7 @@ real, dimension(:), allocatable, save :: ipice,ee,eeu,eev,dd,ddu,ddv,dfdyu,dfdxv
 real, dimension(:), allocatable, save :: gosig,gosigh,godsig
 real, dimension(:,:), allocatable, save :: oldu1,oldu2,oldv1,oldv2
 real, dimension(:,:), allocatable, save :: stwgt
+integer, save :: comm_mlo
 integer, save :: nstagoffmlo
 integer, parameter :: usetide  =1    ! tidal forcing (0=off, 1=on)
 integer, parameter :: icemode  =2    ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
@@ -63,7 +64,7 @@ include 'newmpar.h'
 include 'parm.h'
 include 'parmdyn.h'
 
-integer ii,iq,ierr
+integer ii,iq,ierr,lrank
 integer, dimension(1) :: stst
 integer, dimension(0:nproc-1) :: ltst
 real, dimension(ifull,0:wlev) :: dephl
@@ -106,7 +107,9 @@ ltst=0
 stst=0
 if (any(ee>0.5)) stst=1
 call ccmpi_allgatherx(ltst,stst,comm_world)
+lrank=count(ltst(0:myid)==1)-1
 bnds(:)%mlomsk=ltst
+call ccmpi_commsplit(comm_mlo,comm_world,stst(1),lrank)
 if (myid==0) then
   write(6,*) "Processors with water ",count(ltst==1),nproc
 end if
@@ -114,7 +117,7 @@ end if
 if (abs(nmlo)>=9) return ! only allocate for river routing with PCOM
 
 
-
+! The following is for the in-line MLO ocean model ------------------
 
 ! Calculate depth arrays (free suface term is included later)
 allocate(dd(ifull+iextra))
@@ -1465,7 +1468,7 @@ dumc(1:ifull,6)=idu(1:ifull)
 dumd(1:ifull,6)=idv(1:ifull)
 dumc(1:ifull,7)=niu(1:ifull)
 dumd(1:ifull,7)=niv(1:ifull)
-call boundsuv(dumc(:,1:7),dumd(:,1:7),stag=-9,mlo=1)
+call boundsuv(dumc(:,1:7),dumd(:,1:7),stag=-9,mlo=1) ! stag=-9 updates iwu and isv
 sou(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,1)
 sov(ifull+1:ifull+iextra)=dumd(ifull+1:ifull+iextra,1)
 spu(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,2)
@@ -1673,64 +1676,68 @@ if (myid==0.and.nmaxpr==1) then
 end if
 #endif
 
-! volume conservation for water ---------------------------------------
-if (nud_sfh==0) then
-  if (fixheight==0) then
-    odum=(neta(1:ifull)-w_e)*ee(1:ifull)
-    call ccglobal_posneg(odum,delpos,delneg)
-    alph_p = -delneg/max(delpos,1.E-20)
-    alph_p = min(max(sqrt(alph_p),1.E-20),1.E20)
-    neta(1:ifull)=w_e+max(0.,odum)*alph_p+min(0.,odum)/alph_p
-  else
-    odum=neta(1:ifull)*ee(1:ifull)
-    call ccglobal_posneg(odum,delpos,delneg)
-    alph_p = -delneg/max(delpos,1.E-20)
-    alph_p = min(max(sqrt(alph_p),1.E-20),1.E20)
-    neta(1:ifull)=max(0.,odum)*alph_p+min(0.,odum)/alph_p
-  end if
-end if
+if (bnds(myid)%mlomsk==1) then
 
-! salinity conservation
-if (nud_sss==0) then
-  delpos=0.
-  delneg=0.
-  ndum=0.
-  do ii=1,wlev
-    ndum=ndum+w_s(1:ifull,ii)*godsig(ii)
-  end do
-  if (fixsal==0) then
-    do ii=1,wlev
-      where(wtr(1:ifull).and.ndum>0.)
-        dum(:,ii)=ns(1:ifull,ii)-w_s(:,ii)
-      elsewhere
-        dum(:,ii)=0.
-      end where
-    end do
-    call ccglobal_posneg(dum,delpos,delneg,dsigin=godsig)
-    alph_p = -delneg/max(delpos,1.E-20)
-    alph_p = min(sqrt(alph_p),alph_p)
-    do ii=1,wlev
-      where(wtr(1:ifull).and.ndum>0.)
-        ns(1:ifull,ii)=w_s(:,ii)+max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)
-      end where
-    end do
-  else
-    do ii=1,wlev
-      where(wtr(1:ifull).and.ndum>0.)
-        dum(:,ii)=ns(1:ifull,ii)-34.72
-      elsewhere
-        dum(:,ii)=0.
-      end where
-    end do
-    call ccglobal_posneg(dum,delpos,delneg,dsigin=godsig)
-    alph_p = -delneg/max(delpos,1.E-20)
-    alph_p = min(sqrt(alph_p),alph_p)
-    do ii=1,wlev
-      where(wtr(1:ifull).and.ndum>0.)
-        ns(1:ifull,ii)=34.72+max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)
-      end where
-    end do
+  ! volume conservation for water
+  if (nud_sfh==0) then
+    if (fixheight==0) then
+      odum=(neta(1:ifull)-w_e)*ee(1:ifull)
+      call ccglobal_posneg(odum,delpos,delneg,comm=comm_mlo)
+      alph_p = -delneg/max(delpos,1.E-20)
+      alph_p = min(max(sqrt(alph_p),1.E-20),1.E20)
+      neta(1:ifull)=w_e+max(0.,odum)*alph_p+min(0.,odum)/alph_p
+    else
+      odum=neta(1:ifull)*ee(1:ifull)
+      call ccglobal_posneg(odum,delpos,delneg,comm=comm_mlo)
+      alph_p = -delneg/max(delpos,1.E-20)
+      alph_p = min(max(sqrt(alph_p),1.E-20),1.E20)
+      neta(1:ifull)=max(0.,odum)*alph_p+min(0.,odum)/alph_p
+    end if
   end if
+
+  ! salinity conservation
+  if (nud_sss==0) then
+    delpos=0.
+    delneg=0.
+    ndum=0.
+    do ii=1,wlev
+      ndum=ndum+w_s(1:ifull,ii)*godsig(ii)
+    end do
+    if (fixsal==0) then
+      do ii=1,wlev
+        where(wtr(1:ifull).and.ndum>0.)
+          dum(:,ii)=ns(1:ifull,ii)-w_s(:,ii)
+        elsewhere
+          dum(:,ii)=0.
+        end where
+      end do
+      call ccglobal_posneg(dum,delpos,delneg,dsigin=godsig,comm=comm_mlo)
+      alph_p = -delneg/max(delpos,1.E-20)
+      alph_p = min(sqrt(alph_p),alph_p)
+      do ii=1,wlev
+        where(wtr(1:ifull).and.ndum>0.)
+          ns(1:ifull,ii)=w_s(:,ii)+max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)
+        end where
+      end do
+    else
+      do ii=1,wlev
+        where(wtr(1:ifull).and.ndum>0.)
+          dum(:,ii)=ns(1:ifull,ii)-34.72
+        elsewhere
+          dum(:,ii)=0.
+        end where
+      end do
+      call ccglobal_posneg(dum,delpos,delneg,dsigin=godsig,comm=comm_mlo)
+      alph_p = -delneg/max(delpos,1.E-20)
+      alph_p = min(sqrt(alph_p),alph_p)
+      do ii=1,wlev
+        where(wtr(1:ifull).and.ndum>0.)
+          ns(1:ifull,ii)=34.72+max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)
+        end where
+      end do
+    end if
+  end if
+  
 end if
   
 if (myid==0.and.(ktau<=5.or.maxglobseta>tol.or.maxglobip>itol)) then
@@ -1836,7 +1843,7 @@ end do
 ! convert to grid point numbering
 call mlotoij5(x3d,y3d,z3d,nface,xg,yg)
 ! Share off processor departure points.
-call deptsync(nface,xg,yg)
+call deptsync(nface,xg,yg,mlo=1)
 
 do n=1,nguess
   temp(1:ifull,:,1) = uc
@@ -1850,7 +1857,7 @@ do n=1,nguess
   end do
   call mlotoij5(x3d,y3d,z3d,nface,xg,yg)
   !     Share off processor departure points.
-  call deptsync(nface,xg,yg)
+  call deptsync(nface,xg,yg,mlo=1)
 end do
 
 return
@@ -2022,7 +2029,8 @@ do iq=1,ifull
     s(iq,:,:)=cxx-1.
   end if
 end do
-call bounds(s,nrows=2)
+s(ifull+1:,:,:)=cxx-1.
+call bounds(s,nrows=2,mlo=1)
 
 !======================== start of intsch=1 section ====================
 if(intsch==1)then
@@ -2422,14 +2430,15 @@ if (present(bilinear)) lmode=.not.bilinear
 ntr=size(s,3)
 intsch=mod(ktau,2)
 sc=cxx-1.
-ssav(1:ifull,:,:)=s(1:ifull,:,:)
+ssav=s(1:ifull,:,:)
 
 do iq=1,ifull
   if (.not.wtr(iq)) then
     s(iq,:,:)=cxx-1. ! missing value flag
   end if
 end do
-call bounds(s,nrows=2)
+s(ifull+1:,:,:)=cxx-1.
+call bounds(s,nrows=2,mlo=1)
 
 !======================== start of intsch=1 section ====================
 if(intsch==1)then

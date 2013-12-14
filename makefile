@@ -43,7 +43,7 @@ e3v88.o fst88.o hconst.o lwr88.o ozoneread.o resetd.o spa88.o \
 swr99.o table.o zenith.o cc_mpi.o diag_m.o sumdd_m.o ilu_m.o davies.o \
 utilities.o onthefly.o o3read_amip.o o3set_amip.o tracermodule.o timeseries.o \
 trvmix.o mgsolve.o betts.o bett_cuc.o bettinit.o bettrain.o bettspli.o \
-mpif_m.o netcdf_m.o stacklimit.o \
+netcdf_m.o stacklimit.o \
 xyzinfo_m.o vecsuv_m.o map_m.o latlong_m.o indices_m.o bigxy4_m.o \
 arrays_m.o betts1_m.o carbpools_m.o cldcom_m.o co2dta_m.o cfrac_m.o dava_m.o \
 davb_m.o dpsdt_m.o epst_m.o extraout_m.o gdrag_m.o histave_m.o kdacom_m.o \
@@ -71,8 +71,6 @@ clean:
 
 .SUFFIXES:.f90 .F90
 
-mpif_m.o: mpif_m.f90
-	$(FC) -c $<
 netcdf_m.o: netcdf_m.f90
 	$(FC) -c -I $(NETCDF_ROOT)/include $<
 esfsw_driver.o: esfsw_driver.f90
@@ -135,7 +133,7 @@ cable_soilsnow.o : cable_common.o cable_data.o cable_define_types.o
 carbpools_m.o : cable_define_types.o casa_variable.o
 casa_cnp.o : cable_define_types.o casa_variable.o
 casa_variable.o : cable_define_types.o
-cc_mpi.o : arrays_m.o indices_m.o latlong_m.o map_m.o mpif_m.o sigs_m.o sumdd_m.o vecsuv_m.o xyzinfo_m.o newmpar.h parm.h 
+cc_mpi.o : arrays_m.o indices_m.o latlong_m.o map_m.o sigs_m.o sumdd_m.o vecsuv_m.o xyzinfo_m.o newmpar.h parm.h 
 clddia.o : arrays_m.o cc_mpi.o davb_m.o map_m.o morepbl_m.o pbl_m.o sigs_m.o soil_m.o vvel_m.o const_phys.h kuocom.h newmpar.h parm.h
 cldset.o : const_phys.h 
 clo89.o : cldcom_m.o radisw_m.o rdparm.h newmpar.h parm.h 

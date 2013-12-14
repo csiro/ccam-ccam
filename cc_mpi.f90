@@ -1,4 +1,9 @@
 module cc_mpi
+
+! This module manages all MPI communications between processors.  The system was originally developed
+! by Martin Dix and subsequently modified my Marcus Thatcher.  Thanks to Aaron McDonough for developing
+! the Vampir trace routines and upgrading the timer calls.
+
 #ifdef usempif
    use mpif_m
 #else
@@ -2972,8 +2977,6 @@ contains
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif   
 
-      START_LOG(bounds)
-
       double = .false.
       extra = .false.
       single = .true.
@@ -3021,6 +3024,8 @@ contains
          t(ifull+1:ifull+iextra) = 0.
          if ( bnds(myid)%mlomsk == 0 ) return
       end if
+
+      START_LOG(bounds)
 
 !     Set up the buffers to send
       nreq = 0
@@ -3121,8 +3126,6 @@ contains
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif  
 
-      START_LOG(bounds)
-      
       kx = size(t,2)
       double = .false.
       extra  = .false.
@@ -3174,6 +3177,8 @@ contains
          t(ifull+1:ifull+iextra,:) = 0.
          if ( bnds(myid)%mlomsk == 0 ) return
       end if
+
+      START_LOG(bounds)
 
 !     Set up the buffers to send and recv
       nreq = 0
@@ -3266,8 +3271,6 @@ contains
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif  
 
-      START_LOG(bounds)
-      
       kx = size(t,2)
       ntr = size(t,3)
       double = .false.
@@ -3317,6 +3320,8 @@ contains
          t(ifull+1:ifull+iextra,:,:) = 0.
          if ( bnds(myid)%mlomsk == 0 ) return
       end if
+
+      START_LOG(bounds)
 
 !     Set up the buffers to send
       nreq = 0
@@ -3405,8 +3410,6 @@ contains
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif 
 
-      START_LOG(bounds)
-      
       if ( present(klim) ) then
          kx = klim
       else
@@ -3417,12 +3420,12 @@ contains
       else
          mlomode = 0
       end if
-      
       myrlen = bnds(myid)%rlen
-      
       if ( mlomode == 1 ) then
          if ( bnds(myid)%mlomsk == 0 ) return
       end if
+
+      START_LOG(bounds)
 
 !     Set up the buffers to send and recv
       nreq = 0
@@ -3533,8 +3536,6 @@ contains
       integer(kind=4), dimension(neighnum) :: donelist
       real :: tmp, negmul
 
-      START_LOG(boundsuv)
-      
       double = .false.
       stagmode = 0
       mlomode = 0
@@ -3553,6 +3554,8 @@ contains
          if ( bnds(myid)%mlomsk == 0 ) return
       end if
 
+      START_LOG(boundsuv)
+      
       if ( double ) then
          fsvwu = .true.
          fnveu = .true.
@@ -3831,8 +3834,6 @@ contains
 #endif   
       real, dimension(maxbuflen) :: tmp
       
-      START_LOG(boundsuv)
-      
       kx = size(u,2)
       double = .false.
       stagmode = 0
@@ -3853,6 +3854,8 @@ contains
          v(ifull+1:ifull+iextra,:) = 0.
          if ( bnds(myid)%mlomsk == 0 ) return
       end if
+
+      START_LOG(boundsuv)
       
       if ( double ) then
          fsvwu = .true.
@@ -4140,8 +4143,6 @@ contains
 #endif   
       real, dimension(maxbuflen) :: tmp
       
-      START_LOG(boundsuv)
-      
       kx = size(u,2)
       myrlen = bnds(myid)%rlenx_uv
       if ( present(mlo) ) then
@@ -4154,6 +4155,8 @@ contains
          v(ifull+1:ifull+iextra,:) = 0.
          if ( bnds(myid)%mlomsk == 0 ) return
       end if
+
+      START_LOG(boundsuv)
 
 !     Set up the buffers to recv and send
       nreq = 0
@@ -4292,7 +4295,7 @@ contains
 
    end subroutine boundsuv_allvec
 
-   subroutine deptsync(nface,xg,yg)
+   subroutine deptsync(nface,xg,yg,mlo)
       ! Different levels will have different winds, so the list of points is
       ! different on each level.
       ! xg ranges from 0.5 to il+0.5 on a face. A given processors range
@@ -4304,10 +4307,11 @@ contains
       integer, dimension(:,:), intent(in) :: nface
       real, dimension(:,:), intent(in) :: xg, yg
       real :: xf, yf
+      integer, intent(in), optional :: mlo
       integer :: iproc, jproc, dproc
       integer :: ip, jp, xn, kx
       integer :: iq, k, idel, jdel, nf, gf
-      integer :: rcount
+      integer :: rcount, mlomode
       integer(kind=4) :: itag = 99, ierr, llen, ncount, mone, sreq, lproc
       integer(kind=4) :: ldone
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
@@ -4321,26 +4325,33 @@ contains
       ! This does nothing in the one processor case
       if ( neighnum < 1 ) return
 
-      START_LOG(deptsync)
-      
       kx = size(nface,2)
+      if ( present(mlo) ) then
+         mlomode = mlo
+      else
+         mlomode = 0
+      end if
       dslen = 0
       drlen = 0
+      
+      if ( mlomode == 1 .and. bnds(myid)%mlomsk == 0 ) return      
 
+      START_LOG(deptsync)      
+      
 !     In this case the length of each buffer is unknown and will not
 !     be symmetric between processors. Therefore need to get the length
 !     from the message status
       nreq = 0
       do iproc = 1,neighnum
-         ! Is there any advantage to this ordering here or would send/recv
-         ! to the same processor be just as good?
          lproc = neighlist(iproc)  ! Recv from
-         nreq = nreq + 1
-         rlist(nreq) = iproc
-         ! Use the maximum size in the recv call.
-         llen = 4*bnds(lproc)%len/nagg
-         call MPI_IRecv( dpoints(iproc)%a, llen, ltype, lproc, &
-                      itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+         if ( bnds(lproc)%mlomsk == 1 .or. mlomode == 0 ) then
+            nreq = nreq + 1
+            rlist(nreq) = iproc
+            ! Use the maximum size in the recv call.
+            llen = 4*bnds(lproc)%len/nagg
+            call MPI_IRecv( dpoints(iproc)%a, llen, ltype, lproc, &
+                         itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+         end if
       end do
       
       ! Calculate request list
@@ -4358,11 +4369,9 @@ contains
                ip = min(il_g,max(1,nint(xf)))
                jp = min(il_g,max(1,nint(yf)))
                iproc = fproc(ip,jp,gf)
-               dproc = neighmap(iproc)
-
+               dproc = neighmap(iproc) ! returns 0 if not in neighlist
                ! Add this point to the list of requests I need to send to iproc
                dslen(dproc) = dslen(dproc) + 1
-
                ! Since nface is a small integer it can be exactly represented by a
                ! real. It's simpler to send like this than use a proper structure.
                xn = max( min( dslen(dproc), bnds(iproc)%len/nagg ), 1 )
@@ -4376,11 +4385,13 @@ contains
       rreq = nreq
       do iproc = neighnum,1,-1
          lproc = neighlist(iproc)  ! Send to
-         ! Send, even if length is zero
-         nreq = nreq + 1
-         llen = 4*min(dslen(iproc),bnds(lproc)%len/nagg)
-         call MPI_ISend( dbuf(iproc)%a, llen, ltype, lproc, &
-                 itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+         if ( bnds(lproc)%mlomsk == 1 .or. mlomode == 0 ) then
+            ! Send, even if length is zero
+            nreq = nreq + 1
+            llen = 4*min(dslen(iproc),bnds(lproc)%len/nagg)
+            call MPI_ISend( dbuf(iproc)%a, llen, ltype, lproc, &
+                    itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+         end if
       end do
       
       ! Error check
@@ -4428,20 +4439,16 @@ contains
       ! Unpack incomming messages
       rcount = rreq
       do while ( rcount > 0 )
-
          START_LOG(mpiwaitdep)
          call MPI_Waitsome(rreq, ireq, ldone, donelist, status, ierr)
          END_LOG(mpiwaitdep)
-
          rcount = rcount - ldone
-         
          do jproc = 1,ldone
 !           Now get the actual sizes from the status
             iproc = rlist(donelist(jproc))  ! Recv from
             call MPI_Get_count(status(:,jproc), ltype, ncount, ierr)
             drlen(iproc) = ncount/4
          end do
-
       end do
 
       ! Clear any remaining messages
@@ -5598,7 +5605,7 @@ contains
    end subroutine simple_timer_finalize
 #endif
 
-    subroutine ccglobal_posneg2 (array, delpos, delneg)
+    subroutine ccglobal_posneg2 (array, delpos, delneg, comm)
        ! Calculate global sums of positive and negative values of array
        ! MJT - modified to restrict calls to comm for ocean processors
        use sumdd_m
@@ -5608,13 +5615,33 @@ contains
        real, intent(out) :: delpos, delneg
        real :: delpos_l, delneg_l
        real, dimension(2) :: delarr, delarr_l
+       integer, intent(in), optional :: comm
        integer :: iq
-       integer(kind=4) :: ierr, ltype, mnum
+       integer(kind=4) :: ierr, mnum, lcomm
+#ifdef sumdd
+#ifdef i8r8
+       integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
+#else
+       integer(kind=4), parameter :: ltype = MPI_COMPLEX
+#endif   
+#else
+#ifdef i8r8
+       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+       integer(kind=4), parameter :: ltype = MPI_REAL
+#endif   
+#endif
        complex, dimension(2) :: local_sum, global_sum
 !      Temporary array for the drpdr_local function
        real, dimension(ifull) :: tmparr, tmparr2 
 
        START_LOG(posneg)
+       
+       if (present(comm)) then
+          lcomm = comm
+       else
+          lcomm = MPI_COMM_WORLD
+       end if
 
        local_sum(1) = (0.,0.)
        local_sum(2) = (0.,0.)
@@ -5625,28 +5652,18 @@ contains
        call drpdr_local(tmparr, local_sum(1))
        call drpdr_local(tmparr2, local_sum(2))
 #ifdef sumdd
-#ifdef i8r8
-       ltype = MPI_DOUBLE_COMPLEX
-#else
-       ltype = MPI_COMPLEX
-#endif   
        mnum = 2
        call MPI_Allreduce ( local_sum, global_sum, mnum, ltype,     &
-                            MPI_SUMDR, MPI_COMM_WORLD, ierr )
+                            MPI_SUMDR, lcomm, ierr )
        delpos = real(global_sum(1))
        delneg = real(global_sum(2))
 #else
-#ifdef i8r8
-       ltype = MPI_DOUBLE_PRECISION
-#else
-       ltype = MPI_REAL
-#endif   
        delpos_l = real(local_sum(1))
        delneg_l = real(local_sum(2))
        mnum = 2
        delarr_l(1:2) = (/ delpos_l, delneg_l /)
        call MPI_Allreduce ( delarr_l, delarr, mnum, ltype, MPI_SUM,    &
-                            MPI_COMM_WORLD, ierr )
+                            lcomm, ierr )
        delpos = delarr(1)
        delneg = delarr(2)
 #endif
@@ -5655,7 +5672,7 @@ contains
 
     end subroutine ccglobal_posneg2
     
-    subroutine ccglobal_posneg3 (array, delpos, delneg, dsigin)
+    subroutine ccglobal_posneg3 (array, delpos, delneg, dsigin, comm)
        ! Calculate global sums of positive and negative values of array
        ! MJT - modified to restrict calls to comm for ocean processors
        use sigs_m
@@ -5667,8 +5684,22 @@ contains
        real :: delpos_l, delneg_l
        real, dimension(size(array,2)) :: dsigx
        real, dimension(2) :: delarr, delarr_l
+       integer, intent(in), optional :: comm
        integer :: k, iq, kx
-       integer(kind=4) ierr, ltype, mnum
+       integer(kind=4) ierr, mnum, lcomm
+#ifdef sumdd
+#ifdef i8r8
+       integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
+#else
+       integer(kind=4), parameter :: ltype = MPI_COMPLEX
+#endif   
+#else
+#ifdef i8r8
+       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+       integer(kind=4), parameter :: ltype = MPI_REAL
+#endif   
+#endif
        complex, dimension(2) :: local_sum, global_sum
 !      Temporary array for the drpdr_local function
        real, dimension(ifull) :: tmparr, tmparr2 
@@ -5676,12 +5707,17 @@ contains
        START_LOG(posneg)
 
        kx = size(array,2)
-
+       if (present(comm)) then
+          lcomm = comm
+       else
+          lcomm = MPI_COMM_WORLD
+       end if
        if (present(dsigin)) then
          dsigx = -dsigin
        else
          dsigx = dsig
        end if
+       
        local_sum(1) = (0.,0.)
        local_sum(2) = (0.,0.)
        do k=1,kx
@@ -5693,26 +5729,16 @@ contains
           call drpdr_local(tmparr2, local_sum(2))
        end do ! k loop
 #ifdef sumdd
-#ifdef i8r8
-       ltype = MPI_DOUBLE_COMPLEX
-#else
-       ltype = MPI_COMPLEX
-#endif 
        mnum = 2  
-       call MPI_Allreduce ( local_sum, global_sum, mnum, ltype, MPI_SUMDR, MPI_COMM_WORLD, ierr )
+       call MPI_Allreduce ( local_sum, global_sum, mnum, ltype, MPI_SUMDR, lcomm, ierr )
        delpos = real(global_sum(1))
        delneg = real(global_sum(2))
 #else
-#ifdef i8r8
-       ltype = MPI_DOUBLE_PRECISION
-#else
-       ltype = MPI_REAL
-#endif   
        delpos_l = real(local_sum(1))
        delneg_l = real(local_sum(2))
        mnum = 2
        delarr_l(1:2) = (/ delpos_l, delneg_l /)
-       call MPI_Allreduce ( delarr_l, delarr, mnum, ltype, MPI_SUM, MPI_COMM_WORLD, ierr )
+       call MPI_Allreduce ( delarr_l, delarr, mnum, ltype, MPI_SUM, lcomm, ierr )
        delpos = delarr(1)
        delneg = delarr(2)
 #endif
@@ -5721,7 +5747,7 @@ contains
 
     end subroutine ccglobal_posneg3
 
-    subroutine ccglobal_posneg4 (array, delpos, delneg, dsigin)
+    subroutine ccglobal_posneg4 (array, delpos, delneg, dsigin, comm)
        ! Calculate global sums of positive and negative values of array
        ! MJT - modified to restrict calls to comm for ocean processors
        use sigs_m
@@ -5733,8 +5759,22 @@ contains
        real, dimension(size(array,3)) :: delpos_l, delneg_l
        real, dimension(size(array,2)) :: dsigx
        real, dimension(2,size(array,3)) :: delarr, delarr_l
+       integer, intent(in), optional :: comm
        integer :: i, k, iq, kx, ntr
-       integer(kind=4) ierr, ltype, mnum
+       integer(kind=4) ierr, mnum, lcomm
+#ifdef sumdd
+#ifdef i8r8
+       integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
+#else
+       integer(kind=4), parameter :: ltype = MPI_COMPLEX
+#endif   
+#else
+#ifdef i8r8
+       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+       integer(kind=4), parameter :: ltype = MPI_REAL
+#endif   
+#endif
        complex, dimension(2,size(array,3)) :: local_sum, global_sum
 !      Temporary array for the drpdr_local function
        real, dimension(ifull) :: tmparr, tmparr2 
@@ -5743,7 +5783,11 @@ contains
 
        kx  = size(array,2)
        ntr = size(array,3)
-
+       if (present(comm)) then
+          lcomm = comm
+       else
+          lcomm = MPI_COMM_WORLD
+       end if
        if (present(dsigin)) then
          dsigx = -dsigin
        else
@@ -5765,28 +5809,18 @@ contains
           delneg_l(i) = real(local_sum(2,i))
        end do
 #ifdef sumdd
-#ifdef i8r8
-       ltype = MPI_DOUBLE_COMPLEX
-#else
-       ltype = MPI_COMPLEX
-#endif 
        mnum = 2*ntr 
-       call MPI_Allreduce ( local_sum, global_sum, mnum, ltype, MPI_SUMDRA, MPI_COMM_WORLD, ierr )
+       call MPI_Allreduce ( local_sum, global_sum, mnum, ltype, MPI_SUMDRA, lcomm, ierr )
        do i=1,ntr
           delpos(i) = real(global_sum(1,i))
           delneg(i) = real(global_sum(2,i))
        end do
 #else
-#ifdef i8r8
-       ltype = MPI_DOUBLE_PRECISION
-#else
-       ltype = MPI_REAL
-#endif   
        mnum = 2*ntr
        do i=1,ntr
           delarr_l(1:2,i) = (/ delpos_l(i), delneg_l(i) /)
        end do
-       call MPI_Allreduce ( delarr_l, delarr, mnum, ltype, MPI_SUM, MPI_COMM_WORLD, ierr )
+       call MPI_Allreduce ( delarr_l, delarr, mnum, ltype, MPI_SUM, lcomm, ierr )
        do i=1,ntr
           delpos(i) = delarr(1,i)
           delneg(i) = delarr(2,i)
@@ -7041,10 +7075,10 @@ contains
       logical, intent(in), optional :: corner
       logical extra
 
-      START_LOG(mgbounds)
-      
       vdat(mg(g)%ifull+1:mg(g)%ifull+mg(g)%iextra,:)=0.
       if ( mg_bnds(myid,g)%mlomsk == 0 ) return
+
+      START_LOG(mgbounds)
       
       kx = size(vdat,2)
       if (present(corner)) then
