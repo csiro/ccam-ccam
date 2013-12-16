@@ -28,6 +28,7 @@
       use mlo                                  ! Ocean physics and prognostic arrays
       use mlodynamics                          ! Ocean dynamics
       use morepbl_m                            ! Additional boundary layer diagnostics
+      use nharrs_m, only : lrestart            ! Non-hydrostatic atmosphere arrays
       use nsibd_m                              ! Land-surface arrays
       use pbl_m                                ! Boundary layer arrays
       use permsurf_m                           ! Fixed surface arrays
@@ -696,7 +697,7 @@
           write(6,*)'newtop, zsold, zs,tss_in,land '
      &            ,newtop,zss(idjd),zs(idjd),tss(idjd),land(idjd)
         end if
-        if(newtop>=1)then    
+        if(newtop>=1.and..not.lrestart)then    
           if(nproc==1)then
             pslavge=0.
             do iq=1,ifull
