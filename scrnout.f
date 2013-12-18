@@ -577,7 +577,6 @@ c-------Beljaars and Holtslag (1991) heat function
       real, parameter :: vkar = 0.4
       
       zminx=(bet(1)*t(1:ifull,1)+phi_nh(:,1))/grav
-      ps(1:ifull)=1.E5*exp(psl(1:ifull))
       ou=0.
       ov=0.
       if (nmlo/=0) then

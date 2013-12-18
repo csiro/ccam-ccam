@@ -5653,6 +5653,8 @@ contains
        call drpdr_local(tmparr2, local_sum(2))
 #ifdef sumdd
        mnum = 2
+       global_sum(1) = (0.,0.)
+       global_sum(2) = (0.,0.)
        call MPI_Allreduce ( local_sum, global_sum, mnum, ltype,     &
                             MPI_SUMDR, lcomm, ierr )
        delpos = real(global_sum(1))
@@ -5729,7 +5731,9 @@ contains
           call drpdr_local(tmparr2, local_sum(2))
        end do ! k loop
 #ifdef sumdd
-       mnum = 2  
+       mnum = 2
+       global_sum(1) = (0.,0.)
+       global_sum(2) = (0.,0.)  
        call MPI_Allreduce ( local_sum, global_sum, mnum, ltype, MPI_SUMDR, lcomm, ierr )
        delpos = real(global_sum(1))
        delneg = real(global_sum(2))
@@ -5794,7 +5798,7 @@ contains
          dsigx = dsig
        end if
 
-       do i=1,ntr
+       do i = 1,ntr
           local_sum(1,i) = (0.,0.)
           local_sum(2,i) = (0.,0.)
           do k=1,kx
@@ -5809,7 +5813,11 @@ contains
           delneg_l(i) = real(local_sum(2,i))
        end do
 #ifdef sumdd
-       mnum = 2*ntr 
+       mnum = 2*ntr
+       do i = 1,ntr 
+          global_sum(1,i) = (0.,0.)
+          global_sum(2,i) = (0.,0.)
+       end do
        call MPI_Allreduce ( local_sum, global_sum, mnum, ltype, MPI_SUMDRA, lcomm, ierr )
        do i=1,ntr
           delpos(i) = real(global_sum(1,i))
