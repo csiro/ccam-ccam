@@ -115,6 +115,9 @@ do nc=1,maxcolour
   end do
 end do
 
+! Before sending convegence testing data in smaxmin_g and ihelm weights, we perform one iteration of the solver
+! that can be updated with the smaxmin_g and ihelm arrays
+
 ! update on model grid using colours
 do nc=1,maxcolour
   do k=1,kl
@@ -130,9 +133,10 @@ end do
 do k=1,kl
   w(k,1:ifull)=-izzn*iv(in,k)-izzw*iv(iw,k)-izze*iv(ie,k)-izzs*iv(is,k)+jrhs(:,k)+iv(1:ifull,k)*(ihelm(:,k)-izz)
 end do
+! also include ihelm weights for upscaled grid
 w(kl+1:2*kl,1:ifull)=transpose(ihelm(1:ifull,1:kl))
   
-! For when the inital grid cannot be upscaled
+! For when the inital grid cannot be upscaled - note helm and smaxmin_g are also included
 call mgcollect(1,w,smaxmin_g)
 helm(1:kl,1:mg(1)%ifull,1)=w(kl+1:2*kl,1:mg(1)%ifull)
 
@@ -144,7 +148,7 @@ do g=1,min(mg_maxlevel_local,1) ! same as if (mg_maxlevel_local>0) then ...
   rhs(1:2*kl,1:ng4,2)=0.25*(w(1:2*kl,mg(1)%fine  )+w(1:2*kl,mg(1)%fine_n )  &
                            +w(1:2*kl,mg(1)%fine_e)+w(1:2*kl,mg(1)%fine_ne))
                              
-  ! merge grids if insufficent points on this processor
+  ! merge grids if insufficent points on this processor - note helm and smaxmin_g are also included
   call mgcollect(2,rhs(:,:,2),smaxmin_g)
   helm(1:kl,1:mg(2)%ifull,2)=rhs(kl+1:2*kl,1:mg(2)%ifull,2)
   
@@ -168,6 +172,7 @@ do g=2,gmax
     w(1:kl,iq)=-mg(g)%zze(iq)*v(1:kl,mg(g)%ie(iq),g)-mg(g)%zzw(iq)*v(1:kl,mg(g)%iw(iq),g) &
                -mg(g)%zzn(iq)*v(1:kl,mg(g)%in(iq),g)-mg(g)%zzs(iq)*v(1:kl,mg(g)%is(iq),g)
               !+rhs(1:kl,iq,g)+(helm(1:kl,iq,g)-mg(g)%zz(iq))*v(1:kl,iq,g)
+    ! upscale helm weights
     w(kl+1:2*kl,iq)=helm(1:kl,iq,g)
   end do
 
@@ -178,7 +183,7 @@ do g=2,gmax
                             +w(1:2*kl,mg(g)%fine_e(iq))+w(1:2*kl,mg(g)%fine_ne(iq)))
   end do
 
-  ! merge grids if insufficent points on this processor
+  ! merge grids if insufficent points on this processor - note helm and smaxmin_g are also included
   call mgcollect(g+1,rhs(:,:,g+1),smaxmin_g)
   helm(1:kl,1:mg(g+1)%ifull,g+1)=rhs(kl+1:2*kl,1:mg(g+1)%ifull,g+1)
 
@@ -187,32 +192,29 @@ end do
 ! store data for LU decomposition of coarse grid
 do g=mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxlevel) then ...
   helm_o(:,:,:)=0.
-
   ! solve coarse grid
   ng=mg(g)%ifull
-
   do k=1,kl
-    do iq=1,mg(g)%ifull
+    do iq=1,ng
       helm_o(mg(g)%in(iq),iq,k)=mg(g)%zzn(iq)
       helm_o(mg(g)%is(iq),iq,k)=mg(g)%zzs(iq)
       helm_o(mg(g)%ie(iq),iq,k)=mg(g)%zze(iq)
       helm_o(mg(g)%iw(iq),iq,k)=mg(g)%zzw(iq)
       helm_o(iq,iq,k)=mg(g)%zz(iq)-helm(k,iq,g)
     end do
-    call mdecomp(helm_o(:,:,k),indy(:,k)) ! destroys helm_m
-
+    call mdecomp(helm_o(:,:,k),indy(:,k))
     ! perform LU decomposition and back substitute with RHS
     ! to solve for v on coarse grid
     v_o(1:ng)=rhs(k,1:ng,g)
     call mbacksub(helm_o(:,:,k),v_o(1:ng),indy(:,k))
     v(k,1:ng,g)=v_o(1:ng)
   end do
-      
 end do
 
 ! downscale grid
 do g=gmax,2,-1
 
+  ! send coarse grid solution to processors and also bcast global smaxmin_g
   call mgbcastxn(g+1,v(:,:,g+1),smaxmin_g)
 
   do iq=1,mg(g+1)%ifull_coarse
@@ -250,7 +252,7 @@ end do
   
 do g=1,min(mg_maxlevel_local,1) ! same as if (mg_maxlevel_local>0) then ...
     
-  ! fine grid
+  ! broadcast coarse solution to fine grid, as well as global smaxmin_g
   call mgbcastxn(2,v(:,:,2),smaxmin_g)
 
   ! interpolation
@@ -261,6 +263,7 @@ do g=1,min(mg_maxlevel_local,1) ! same as if (mg_maxlevel_local>0) then ...
     
 end do
 
+! multi-grid solver bounds indicies do not match standard iextra indicies, so we need to remap the halo
 if (mg(1)%merge_len>1) then
   call mgbcastxn(1,w,smaxmin_g,klim=kl)
   ir=mod(mg(1)%merge_pos-1,mg(1)%merge_row)+1   ! index for proc row
@@ -513,6 +516,7 @@ do itr=2,itr_mg
   
   START_LOG(mgfine)
 
+  ! multi-grid solver bounds indicies do not match standard iextra indicies, so we need to remap the halo
   if (mg(1)%merge_len>1) then
     call mgbcast(1,w,dsolmax_g,klim=klim)
     ir=mod(mg(1)%merge_pos-1,mg(1)%merge_row)+1   ! index for proc row
@@ -686,8 +690,7 @@ if (sorfirst) then
   call ccmpi_abort(-1)
 end if
 
-! remove trivial bounds calls with processors that only see land
-! points
+! remove trivial bounds calls with processors that only see land points
 if (localfirst) then
   allocate(stst(1),ltst(0:nproc-1))
   w(1:ifull+iextra,1)=ee(1:ifull+iextra)
@@ -746,6 +749,8 @@ START_LOG(mgmlosetup)
 
 vduma=0.
 vdumb=0.
+v=0.
+dumc=0.
 
 ! pack colour arrays
 do nc=1,maxcolour

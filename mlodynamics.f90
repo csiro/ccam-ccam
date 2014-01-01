@@ -303,6 +303,13 @@ START_LOG(waterdiff)
 hdif=dt*(ocnsmag/pi)**2
 emi=1./(em(1:ifull)*em(1:ifull))
 
+uau(ifull+1:,:)=0.
+uav(ifull+1:,:)=0.
+t_kh(ifull+1:,:)=0.
+xfact(ifull+1:,:)=0.
+yfact(ifull+1:,:)=0.
+duma=0.
+
 ! extract data from MLO
 do k=1,wlev
   uau(1:ifull,k)=uauin(:,k)*ee(1:ifull)
@@ -877,6 +884,12 @@ nw=0.
 pice=0.
 imass=0.
 tide=0.
+niu=0.
+niv=0.
+dumc=0.
+cou=0.
+eou=0.
+eov=0.
 
 ! IMPORT WATER AND ICE DATA -----------------------------------------
 #ifdef debug
@@ -2878,6 +2891,11 @@ if (.not.allocated(wtul)) then
   allocate(dtur(ifull,3),dtvr(ifull,3))
   allocate(stul(ifull),stvl(ifull))
   allocate(stur(ifull),stvr(ifull))
+  
+  wtul(ifull+1:,:)=0.
+  wtvl(ifull+1:,:)=0.
+  wtur(ifull+1:,:)=0.
+  wtvr(ifull+1:,:)=0.
 
   ! assign land arrays
   eutest=eeu(1:ifull)>0.5
@@ -3221,6 +3239,13 @@ end if
 
 kx=size(u,2)
 
+uin(ifull+1:,:)=0.
+vin(ifull+1:,:)=0.
+ud(ifull+1:,:)=0.
+vd(ifull+1:,:)=0.
+ua(ifull+1:,:)=0.
+va(ifull+1:,:)=0.
+
 do k=1,kx
   uin(1:ifull,k)=u(:,k)*ee(1:ifull)
   vin(1:ifull,k)=v(:,k)*ee(1:ifull)
@@ -3369,6 +3394,11 @@ if (.not.allocated(wtul)) then
   allocate(dtur(ifull,3),dtvr(ifull,3))
   allocate(stul(ifull),stvl(ifull))
   allocate(stur(ifull),stvr(ifull))
+
+  wtul(ifull+1:,:)=0.
+  wtvl(ifull+1:,:)=0.
+  wtur(ifull+1:,:)=0.
+  wtvr(ifull+1:,:)=0.
   
   ! assign land arrays
   eetest=ee(1:ifull)*ee(ie)>0.5
@@ -3809,6 +3839,13 @@ if (.not.allocated(wtul)) then
 end if
 
 kx=size(u,2)
+
+uin(ifull+1:,:)=0.
+vin(ifull+1:,:)=0.
+ud(ifull+1:,:)=0.
+vd(ifull+1:,:)=0.
+ua(ifull+1:,:)=0.
+va(ifull+1:,:)=0.
 
 zoff=0
 if (present(toff)) then
@@ -4667,6 +4704,8 @@ integer, parameter :: llmax      = 400 ! Iterations for calculating surface heig
 !itstest=1
 !itc=0
 
+dumc(ifull+1:,:)=0.
+
 dumc(1:ifull,1)=neta(1:ifull)
 dumc(1:ifull,2)=ipice(1:ifull)
 call bounds(dumc(:,1:2),mlo=1)
@@ -4866,6 +4905,7 @@ zz(:,2) =(-0.5*(idu(1:ifull)-idu(iwu)+idv(1:ifull)-idv(isv))+ibu(1:ifull)+ibu(iw
 
 rhs(:,2)=min(niu(1:ifull)/emu(1:ifull)-niu(iwu)/emu(iwu)+niv(1:ifull)/emv(1:ifull)-niv(isv)/emv(isv),0.)
 
+! Ensure that zero is a valid solution for ice free grid points
 where (zz(:,2)>=0.)
   zz(:,2) =-dt/(ds*10.) ! 10 is the minimum imass
   zzn(:,2)=0.

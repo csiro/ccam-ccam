@@ -29,7 +29,7 @@ public mintke,mineps,cm0,cq,minl,maxl
 #ifdef offline
 public wth,wqv,wql,wqf
 public mf,w_up,th_up,qv_up,ql_up,qf_up,cf_up
-public u,v,ustar
+public u,v,ustar,ents,dtrs
 #endif
 
 integer, save :: ifull,iextra,kl
@@ -39,7 +39,7 @@ real, dimension(:), allocatable, save :: zidry
 #ifdef offline
 real, dimension(:,:), allocatable, save :: wth,wqv,wql,wqf
 real, dimension(:,:), allocatable, save :: mf,w_up,th_up,qv_up,ql_up,qf_up,cf_up
-real, dimension(:,:), allocatable, save :: u,v
+real, dimension(:,:), allocatable, save :: u,v,ents,dtrs
 real, dimension(:), allocatable, save :: ustar
 #endif
 
@@ -114,6 +114,7 @@ allocate(wth(ifull,kl),wqv(ifull,kl),wql(ifull,kl),wqf(ifull,kl))
 allocate(mf(ifull,kl),w_up(ifull,kl),th_up(ifull,kl),qv_up(ifull,kl))
 allocate(ql_up(ifull,kl),qf_up(ifull,kl),cf_up(ifull,kl))
 allocate(u(ifull,kl),v(ifull,kl),ustar(ifull))
+allocate(ents(ifull,kl),dtrs(ifull,kl))
 wth=0.
 wqv=0.
 wql=0.
@@ -128,6 +129,8 @@ cf_up=0.
 u=0.
 v=0.
 ustar=0.
+ents=0.
+dtrs=0.
 #endif
 
 return
@@ -298,6 +301,8 @@ do kcount=1,mcount
   ql_up=0.
   qf_up=0.
   cf_up=0.
+  ents=0.
+  dtrs=0.
 #endif
 
   ! Note that wstar is actually based on zidry, not zi
@@ -336,6 +341,9 @@ do kcount=1,mcount
           ttup(1)=txup/sigkap(1)                                       ! temp,up
           qxup   =qtup(1)                                              ! qv,up after evaporation of ql,up and qf,up
           tvup(1)=txup+theta(i,1)*0.61*qxup                            ! thetav,up after evaporation of ql,up and qf,up
+#ifdef offline
+          qv_up(i,1)=qxup
+#endif
           ! update updraft velocity and mass flux
           nn(1)  =grav*be*wtv0(i)/(thetav(i,1)*sqrt(max(tke(i,1),1.E-4))) ! Hurley 2007
           w2up(1)=2.*dzht*b2*nn(1)/(1.+2.*dzht*b1*ent)                    ! Hurley 2007
@@ -363,6 +371,9 @@ do kcount=1,mcount
             ! calculate conserved variables
             tlup(k)=thup(i,k)-(lv*(qlup(i,k)+qrup(i,k))+ls*qfup(i,k))/cp  ! thetal,up
             qtup(k)=qvup(i,k)+qlup(i,k)+qfup(i,k)+qrup(i,k)               ! qtot,up
+#ifdef offline
+              qv_up(i,k)=qtup(k)
+#endif
             ! estimate air temperature
             templ(1)  =tlup(k)/sigkap(k)                                  ! templ,up
             if (.not.scond) then
@@ -407,6 +418,11 @@ do kcount=1,mcount
           else
             zi(i)=max(zi(i),zidry(i))
             zlcl =min(zlcl, zidry(i))
+
+#ifdef offline
+            ql_up(i,:)=0.
+            qf_up(i,:)=0.
+#endif
         
             ! updraft with condensation
             do k=klcl,kl
@@ -459,6 +475,11 @@ do kcount=1,mcount
               al=cp/(cp+lx*dqsdt)
               qcup=(qtup(k)-qxup)*al
               qxup=qtup(k)-qcup
+#ifdef offline
+              ql_up(i,k)=qcup*(1.-fice)
+              qf_up(i,k)=qcup*fice
+              qv_up(i,k)=qxup
+#endif
               ttup(k)=templ(1)+lx*qcup/cp                            ! temp,up
               txup   =ttup(k)*sigkap(k)                              ! theta,up after redistribution
               tvup(k)=txup+theta(i,k)*(1.61*qxup-qtup(k))            ! thetav,up after redistribution
@@ -511,10 +532,34 @@ do kcount=1,mcount
           mf(i,k)=mflx(i,k)
           w_up(i,k)=sqrt(w2up(k))
           th_up(i,k)=thup(i,k)
-          qv_up(i,k)=qvup(i,k)
-          ql_up(i,k)=qlup(i,k)
-          qf_up(i,k)=qfup(i,k)
           cf_up(i,k)=cff(k)*min(mflx(i,k)/sqrt(w2up(k)),1.)
+        end do
+          
+        dzht=zz(i,1)
+        ! Entrainment and detrainment rates
+        xp  =(zz(i,1)-zlcl)/max(zidry(i)-zlcl,0.1)
+        xp  =min(max(xp,0.),1.)
+        ent =entfn(zz(i,1),     zi(i),     zz(i,1))
+        dtrn=dtrfn(zz(i,1),     zidry(i),  zz(i,1),dtrn0)
+        dtrc=dtrfn(zz(i,1),     zi(i),     zz(i,1),dtrn0)
+        dtrc=dtrfn(zz(i,1),     zi(i),     zz(i,1),dtrc0)
+        dtrx=(1.-xp)*dtrn+xp*dtrc
+        dtr =(1.-cff(1))*dtrx+cff(1)*dtrc
+        ents(i,1)=ent
+        dtrs(i,1)=dtr
+        do k=2,ktopmax
+          dzht=dz_hl(i,k-1)
+          ! Entrainment and detrainment rates
+          xp  =(zz(i,k)-zlcl)/max(zidry(i)-zlcl,0.1)
+          xp  =min(max(xp,0.),1.)
+          ent =entfn(zz(i,k),     zi(i),     zz(i,1))
+          dtrn=dtrfn(zz(i,k),     zidry(i),  zz(i,1),dtrn0)
+          dtrc=dtrfn(zz(i,k),     zi(i),     zz(i,1),dtrn0)
+          dtrc=dtrfn(zz(i,k),     zi(i),     zz(i,1),dtrc0)
+          dtrx=(1.-xp)*dtrn+xp*dtrc
+          dtr =(1.-cff(k))*dtrx+cff(k)*dtrc
+          ents(i,k)=ent
+          dtrs(i,k)=dtr
         end do
 #endif
 

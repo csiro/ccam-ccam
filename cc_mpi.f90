@@ -3021,7 +3021,6 @@ contains
       if ( mlomode == 1 ) then
          rslen = rslen*bnds(neighlist)%mlomsk
          sslen = sslen*bnds(neighlist)%mlomsk
-         t(ifull+1:ifull+iextra) = 0.
          if ( bnds(myid)%mlomsk == 0 ) return
       end if
 
@@ -3174,7 +3173,6 @@ contains
       if ( mlomode == 1 ) then
          rslen = rslen*bnds(neighlist)%mlomsk
          sslen = sslen*bnds(neighlist)%mlomsk
-         t(ifull+1:ifull+iextra,:) = 0.
          if ( bnds(myid)%mlomsk == 0 ) return
       end if
 
@@ -3317,7 +3315,6 @@ contains
       if ( mlomode == 1 ) then
          rslen = rslen*bnds(neighlist)%mlomsk
          sslen = sslen*bnds(neighlist)%mlomsk
-         t(ifull+1:ifull+iextra,:,:) = 0.
          if ( bnds(myid)%mlomsk == 0 ) return
       end if
 
@@ -3549,8 +3546,6 @@ contains
          mlomode = mlo
       end if
       if ( mlomode == 1 ) then
-         u(ifull+1:ifull+iextra) = 0.
-         v(ifull+1:ifull+iextra) = 0.
          if ( bnds(myid)%mlomsk == 0 ) return
       end if
 
@@ -3850,8 +3845,6 @@ contains
          mlomode = mlo
       end if
       if ( mlomode == 1 ) then
-         u(ifull+1:ifull+iextra,:) = 0.
-         v(ifull+1:ifull+iextra,:) = 0.
          if ( bnds(myid)%mlomsk == 0 ) return
       end if
 
@@ -4151,8 +4144,6 @@ contains
          mlomode = 0
       end if
       if ( mlomode == 1 ) then
-         u(ifull+1:ifull+iextra,:) = 0.
-         v(ifull+1:ifull+iextra,:) = 0.
          if ( bnds(myid)%mlomsk == 0 ) return
       end if
 
@@ -7083,7 +7074,6 @@ contains
       logical, intent(in), optional :: corner
       logical extra
 
-      vdat(mg(g)%ifull+1:mg(g)%ifull+mg(g)%iextra,:)=0.
       if ( mg_bnds(myid,g)%mlomsk == 0 ) return
 
       START_LOG(mgbounds)
