@@ -157,7 +157,6 @@ module cc_mpi
       integer :: slen_uv, rlen_uv, slen2_uv, rlen2_uv
       integer :: slenx_uv, rlenx_uv
       integer :: len, sbuflen, rbuflen
-      integer :: mlomsk
    end type bounds_info
    
    type dpoints_t
@@ -226,7 +225,6 @@ module cc_mpi
 
    type mgbndtype
       integer :: len, rlen, rlenx, slen, slenx
-      integer :: mlomsk
       integer, dimension(:), allocatable :: send_list
       integer, dimension(:), allocatable :: unpack_list
       integer, dimension(:), allocatable :: request_list
@@ -564,7 +562,7 @@ contains
          !call MPI_Info_create(info,ierr)
          !call MPI_Info_set(info,"no_locks","true",ierr)
          call MPI_Type_size(ltype,asize,ierr)
-         wsize=asize*ifull*max(kl,ol)
+         wsize = asize*ifull*max(kl,ol)
          call MPI_Win_create(specstore,wsize,asize,MPI_INFO_NULL,MPI_COMM_WORLD,localwin,ierr)
          !call MPI_Info_free(info,ierr)
       end if
@@ -2957,15 +2955,15 @@ contains
       end if
    end subroutine check_set
 
-   subroutine bounds2(t, nrows, corner, nehalf, mlo)
+   subroutine bounds2(t, nrows, corner, nehalf)
       ! Copy the boundary regions
       real, dimension(ifull+iextra), intent(inout) :: t
-      integer, intent(in), optional :: nrows, mlo
+      integer, intent(in), optional :: nrows
       logical, intent(in), optional :: corner
       logical, intent(in), optional :: nehalf
       logical :: extra, single, double
       integer :: iq, iproc, rproc, sproc, send_len, recv_len
-      integer :: rcount, myrlen, jproc, mproc, mlomode
+      integer :: rcount, myrlen, jproc, mproc
       integer, dimension(neighnum) :: rslen, sslen
       integer(kind=4) :: ierr, itag = 1, llen, sreq, lproc
       integer(kind=4) :: ldone
@@ -2980,7 +2978,6 @@ contains
       double = .false.
       extra = .false.
       single = .true.
-      mlomode = 0
       if ( present(nrows) ) then
          if ( nrows == 2 ) then
             double = .true.
@@ -2995,9 +2992,6 @@ contains
                single = .not. nehalf
             end if
          end if
-      end if
-      if ( present(mlo) ) then
-         mlomode = mlo
       end if
       
       ! Split messages into corner and non-corner processors
@@ -3017,11 +3011,6 @@ contains
          rslen  = bnds(neighlist)%rlenh
          sslen  = bnds(neighlist)%slenh
          myrlen = bnds(myid)%rlenh
-      end if
-      if ( mlomode == 1 ) then
-         rslen = rslen*bnds(neighlist)%mlomsk
-         sslen = sslen*bnds(neighlist)%mlomsk
-         if ( bnds(myid)%mlomsk == 0 ) return
       end if
 
       START_LOG(bounds)
@@ -3104,16 +3093,16 @@ contains
 
    end subroutine bounds2
 
-   subroutine bounds3(t, nrows, klim, corner, nehalf, mlo)
+   subroutine bounds3(t, nrows, klim, corner, nehalf)
       ! Copy the boundary regions. Only this routine requires the extra klim
       ! argument (for helmsol).
       real, dimension(:,:), intent(inout) :: t
-      integer, intent(in), optional :: nrows, klim, mlo
+      integer, intent(in), optional :: nrows, klim
       logical, intent(in), optional :: corner
       logical, intent(in), optional :: nehalf
       logical :: extra, single, double
       integer :: iq, iproc, kx, send_len, recv_len
-      integer :: rcount, myrlen, jproc, mproc, mlomode
+      integer :: rcount, myrlen, jproc, mproc
       integer, dimension(neighnum) :: rslen, sslen
       integer(kind=4) :: ierr, itag = 2, llen, sreq, lproc
       integer(kind=4) :: ldone
@@ -3129,7 +3118,6 @@ contains
       double = .false.
       extra  = .false.
       single = .true.
-      mlomode = 0
       if ( present(klim) ) then
          kx = klim
       end if
@@ -3147,9 +3135,6 @@ contains
                single = .not. nehalf
             end if
          end if
-      end if
-      if ( present(mlo) ) then
-         mlomode = mlo
       end if
 
       ! Split messages into corner and non-corner processors
@@ -3169,11 +3154,6 @@ contains
          rslen  = bnds(neighlist)%rlenh
          sslen  = bnds(neighlist)%slenh
          myrlen = bnds(myid)%rlenh
-      end if
-      if ( mlomode == 1 ) then
-         rslen = rslen*bnds(neighlist)%mlomsk
-         sslen = sslen*bnds(neighlist)%mlomsk
-         if ( bnds(myid)%mlomsk == 0 ) return
       end if
 
       START_LOG(bounds)
@@ -3248,16 +3228,16 @@ contains
 
    end subroutine bounds3
 
-   subroutine bounds4(t, nrows, corner, nehalf, mlo)
+   subroutine bounds4(t, nrows, corner, nehalf)
       ! Copy the boundary regions. Only this routine requires the extra klim
       ! argument (for helmsol).
       real, dimension(:,:,:), intent(inout) :: t
-      integer, intent(in), optional :: nrows, mlo
+      integer, intent(in), optional :: nrows
       logical, intent(in), optional :: corner
       logical, intent(in), optional :: nehalf
       logical :: extra, single, double
       integer :: iq, iproc, kx, send_len, recv_len
-      integer :: rcount, myrlen, jproc, mproc, ntr, nn, mlomode
+      integer :: rcount, myrlen, jproc, mproc, ntr, nn
       integer, dimension(neighnum) :: rslen, sslen
       integer(kind=4) :: ierr, itag = 2, llen, sreq, lproc
       integer(kind=4) :: ldone
@@ -3274,7 +3254,6 @@ contains
       double = .false.
       extra  = .false.
       single = .true.
-      mlomode = 0
       if ( present(nrows) ) then
          if ( nrows == 2 ) then
             double = .true.
@@ -3289,9 +3268,6 @@ contains
                single = .not. nehalf
             end if
          end if
-      end if
-      if ( present(mlo) ) then
-         mlomode = mlo
       end if
 
       ! Split messages into corner and non-corner processors
@@ -3311,11 +3287,6 @@ contains
          rslen  = bnds(neighlist)%rlenh
          sslen  = bnds(neighlist)%slenh
          myrlen = bnds(myid)%rlenh
-      end if
-      if ( mlomode == 1 ) then
-         rslen = rslen*bnds(neighlist)%mlomsk
-         sslen = sslen*bnds(neighlist)%mlomsk
-         if ( bnds(myid)%mlomsk == 0 ) return
       end if
 
       START_LOG(bounds)
@@ -3390,14 +3361,14 @@ contains
 
    end subroutine bounds4
 
-   subroutine bounds_colour(t, lcolour, klim, mlo)
+   subroutine bounds_colour(t, lcolour, klim)
       ! Copy the boundary regions. This version allows supports updating
       ! different gridpoint colours
       real, dimension(:,:), intent(inout) :: t
       integer, intent(in) :: lcolour
-      integer, intent(in), optional :: klim, mlo
+      integer, intent(in), optional :: klim
       integer :: iq, iproc, kx, send_len, recv_len, iqq
-      integer :: rcount, myrlen, jproc, mlomode
+      integer :: rcount, myrlen, jproc
       integer(kind=4) :: ierr, itag = 3, llen, sreq, lproc, ldone
       integer(kind=4), dimension(MPI_STATUS_SIZE,size(ireq)) :: status
       integer(kind=4), dimension(neighnum) :: donelist
@@ -3412,15 +3383,7 @@ contains
       else
          kx = size(t,2)
       end if
-      if ( present(mlo) ) then
-         mlomode = mlo
-      else
-         mlomode = 0
-      end if
       myrlen = bnds(myid)%rlen
-      if ( mlomode == 1 ) then
-         if ( bnds(myid)%mlomsk == 0 ) return
-      end if
 
       START_LOG(bounds)
 
@@ -3430,9 +3393,6 @@ contains
          lproc = neighlist(iproc)  ! Recv from
          recv_len = rcolsp(lproc)%ihfn(lcolour)-rcolsp(lproc)%ihbg(lcolour)   &
                    +rcolsp(lproc)%iffn(lcolour)-rcolsp(lproc)%ifbg(lcolour)+2
-         if ( mlomode == 1 ) then
-            recv_len = recv_len*bnds(lproc)%mlomsk
-         end if
          if ( recv_len > 0 ) then
             nreq = nreq + 1
             rlist(nreq) = iproc
@@ -3455,9 +3415,6 @@ contains
             bnds(lproc)%sbuf(1+(iqq+iq-1)*kx:(iqq+iq)*kx) = t(bnds(lproc)%send_list(iq),1:kx)
          end do
          iqq = iqq+scolsp(lproc)%iffn(lcolour)
-         if ( mlomode == 1 ) then
-            iqq = iqq*bnds(lproc)%mlomsk
-         end if
          if ( iqq > 0 ) then
             nreq = nreq + 1
             llen = iqq*kx
@@ -3512,16 +3469,16 @@ contains
 
    end subroutine bounds_colour
 
-   subroutine boundsuv2(u, v, nrows, stag, mlo)
+   subroutine boundsuv2(u, v, nrows, stag)
       ! Copy the boundary regions of u and v. This doesn't require the
       ! diagonal points like (0,0), but does have to take care of the
       ! direction changes.
       real, dimension(ifull+iextra), intent(inout) :: u, v
-      integer, intent(in), optional :: nrows, stag, mlo
+      integer, intent(in), optional :: nrows, stag
       logical :: double
       logical :: fsvwu, fnveu, fssvwwu, fnnveeu
       integer :: iq, iqz, iqt, iproc, iqq, send_len, recv_len
-      integer :: rcount, myrlen, jproc, mproc, stagmode, mlomode
+      integer :: rcount, myrlen, jproc, mproc, stagmode
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -3535,18 +3492,11 @@ contains
 
       double = .false.
       stagmode = 0
-      mlomode = 0
       if ( present(nrows)) then
          if ( nrows == 2 ) double = .true.
       end if
       if ( present(stag) ) then
          stagmode = stag
-      end if
-      if ( present(mlo) ) then
-         mlomode = mlo
-      end if
-      if ( mlomode == 1 ) then
-         if ( bnds(myid)%mlomsk == 0 ) return
       end if
 
       START_LOG(boundsuv)
@@ -3618,9 +3568,6 @@ contains
          if ( fnnveeu ) then
             recv_len = recv_len+rsplit(lproc)%ieeufn-rsplit(lproc)%innvbg+1
          end if
-         if ( mlomode == 1 ) then
-            recv_len = recv_len*bnds(lproc)%mlomsk
-         end if
          if ( recv_len > 0 ) then 
             nreq = nreq + 1
             rlist(nreq) = iproc
@@ -3689,9 +3636,6 @@ contains
                end if 
             end do
             iqq = iqq+ssplit(lproc)%ieeufn-ssplit(lproc)%innvbg+1
-         end if
-         if ( mlomode == 1 ) then
-            iqq = iqq*bnds(lproc)%mlomsk
          end if
          if ( iqq > 0 ) then
             nreq = nreq + 1
@@ -3807,17 +3751,17 @@ contains
 
    end subroutine boundsuv2
 
-   subroutine boundsuv3(u, v, nrows, stag, mlo)
+   subroutine boundsuv3(u, v, nrows, stag)
       ! Copy the boundary regions of u and v. This doesn't require the
       ! diagonal points like (0,0), but does have to take care of the
       ! direction changes.
       real, dimension(:,:), intent(inout) :: u, v
-      integer, intent(in), optional :: nrows, mlo
+      integer, intent(in), optional :: nrows
       integer, intent(in), optional :: stag
       logical :: double
       logical :: fsvwu, fnveu, fssvwwu, fnnveeu
       integer :: iq, iqz, iq_b, iq_e, iqt, iproc, kx, rproc, sproc, iqq, send_len, recv_len
-      integer :: rcount, myrlen, jproc, mproc, stagmode, mlomode
+      integer :: rcount, myrlen, jproc, mproc, stagmode
       integer(kind=4) :: ierr, itag = 5, llen, sreq, lproc
       integer(kind=4) :: ldone
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
@@ -3832,7 +3776,6 @@ contains
       kx = size(u,2)
       double = .false.
       stagmode = 0
-      mlomode = 0
       if ( present(nrows) ) then
          if ( nrows == 2 ) then
             double = .true.
@@ -3840,12 +3783,6 @@ contains
       end if
       if ( present(stag) ) then
          stagmode = stag
-      end if
-      if ( present(mlo) ) then
-         mlomode = mlo
-      end if
-      if ( mlomode == 1 ) then
-         if ( bnds(myid)%mlomsk == 0 ) return
       end if
 
       START_LOG(boundsuv)
@@ -3916,9 +3853,6 @@ contains
          end if         
          if ( fnnveeu ) then
             recv_len = recv_len+rsplit(rproc)%ieeufn-rsplit(rproc)%innvbg+1
-         end if
-         if ( mlomode == 1 ) then
-            recv_len = recv_len*bnds(rproc)%mlomsk
          end if
          if ( recv_len > 0 ) then 
             nreq = nreq + 1
@@ -3993,9 +3927,6 @@ contains
                end if
             end do
             iqq = iqq+ssplit(sproc)%ieeufn-ssplit(sproc)%innvbg+1
-         end if
-         if ( mlomode == 1 ) then
-            iqq = iqq*bnds(sproc)%mlomsk
          end if
          if ( iqq > 0 ) then
             nreq = nreq + 1
@@ -4117,14 +4048,13 @@ contains
 
    end subroutine boundsuv3
    
-   subroutine boundsuv_allvec(u, v, mlo)
+   subroutine boundsuv_allvec(u, v)
       ! Copy the boundary regions of u and v. This doesn't require the
       ! diagonal points like (0,0), but does have to take care of the
       ! direction changes.
       real, dimension(:,:), intent(inout) :: u, v
-      integer, intent(in), optional :: mlo
       integer :: iq, iqz, iq_b, iq_e, iqt, iproc, kx, rproc, sproc, iqq, send_len, recv_len
-      integer :: rcount, myrlen, jproc, mproc, mlomode
+      integer :: rcount, myrlen, jproc, mproc
       integer(kind=4) :: ierr, itag = 5, llen, sreq, lproc
       integer(kind=4) :: ldone
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
@@ -4138,14 +4068,6 @@ contains
       
       kx = size(u,2)
       myrlen = bnds(myid)%rlenx_uv
-      if ( present(mlo) ) then
-         mlomode = mlo
-      else
-         mlomode = 0
-      end if
-      if ( mlomode == 1 ) then
-         if ( bnds(myid)%mlomsk == 0 ) return
-      end if
 
       START_LOG(boundsuv)
 
@@ -4155,9 +4077,6 @@ contains
          rproc = neighlist(iproc)  ! Recv from
          recv_len = rsplit(rproc)%ieufn-rsplit(rproc)%isvbg+1
          recv_len = recv_len+rsplit(rproc)%ievfn-rsplit(rproc)%isubg+1
-         if ( mlomode == 1 ) then
-            recv_len = recv_len*bnds(rproc)%mlomsk
-         end if
          if ( recv_len > 0 ) then 
             nreq = nreq + 1
             rlist(nreq) = iproc
@@ -4197,9 +4116,6 @@ contains
             end if 
          end do
          iqq = iqq+ssplit(sproc)%ievfn-ssplit(sproc)%isubg+1
-         if ( mlomode == 1 ) then
-            iqq = iqq*bnds(sproc)%mlomsk
-         end if
          if ( iqq > 0 ) then
             nreq = nreq + 1
             llen = iqq*kx
@@ -4286,7 +4202,7 @@ contains
 
    end subroutine boundsuv_allvec
 
-   subroutine deptsync(nface,xg,yg,mlo)
+   subroutine deptsync(nface,xg,yg)
       ! Different levels will have different winds, so the list of points is
       ! different on each level.
       ! xg ranges from 0.5 to il+0.5 on a face. A given processors range
@@ -4298,11 +4214,10 @@ contains
       integer, dimension(:,:), intent(in) :: nface
       real, dimension(:,:), intent(in) :: xg, yg
       real :: xf, yf
-      integer, intent(in), optional :: mlo
       integer :: iproc, jproc, dproc
       integer :: ip, jp, xn, kx
       integer :: iq, k, idel, jdel, nf, gf
-      integer :: rcount, mlomode
+      integer :: rcount
       integer(kind=4) :: itag = 99, ierr, llen, ncount, mone, sreq, lproc
       integer(kind=4) :: ldone
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
@@ -4317,15 +4232,8 @@ contains
       if ( neighnum < 1 ) return
 
       kx = size(nface,2)
-      if ( present(mlo) ) then
-         mlomode = mlo
-      else
-         mlomode = 0
-      end if
       dslen = 0
       drlen = 0
-      
-      if ( mlomode == 1 .and. bnds(myid)%mlomsk == 0 ) return      
 
       START_LOG(deptsync)      
       
@@ -4335,14 +4243,12 @@ contains
       nreq = 0
       do iproc = 1,neighnum
          lproc = neighlist(iproc)  ! Recv from
-         if ( bnds(lproc)%mlomsk == 1 .or. mlomode == 0 ) then
-            nreq = nreq + 1
-            rlist(nreq) = iproc
-            ! Use the maximum size in the recv call.
-            llen = 4*bnds(lproc)%len/nagg
-            call MPI_IRecv( dpoints(iproc)%a, llen, ltype, lproc, &
-                         itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-         end if
+         nreq = nreq + 1
+         rlist(nreq) = iproc
+         ! Use the maximum size in the recv call.
+         llen = 4*bnds(lproc)%len/nagg
+         call MPI_IRecv( dpoints(iproc)%a, llen, ltype, lproc, &
+                      itag, MPI_COMM_WORLD, ireq(nreq), ierr )
       end do
       
       ! Calculate request list
@@ -4376,13 +4282,11 @@ contains
       rreq = nreq
       do iproc = neighnum,1,-1
          lproc = neighlist(iproc)  ! Send to
-         if ( bnds(lproc)%mlomsk == 1 .or. mlomode == 0 ) then
-            ! Send, even if length is zero
-            nreq = nreq + 1
-            llen = 4*min(dslen(iproc),bnds(lproc)%len/nagg)
-            call MPI_ISend( dbuf(iproc)%a, llen, ltype, lproc, &
-                    itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-         end if
+         ! Send, even if length is zero
+         nreq = nreq + 1
+         llen = 4*min(dslen(iproc),bnds(lproc)%len/nagg)
+         call MPI_ISend( dbuf(iproc)%a, llen, ltype, lproc, &
+                 itag, MPI_COMM_WORLD, ireq(nreq), ierr )
       end do
       
       ! Error check
@@ -6382,7 +6286,12 @@ contains
    subroutine ccmpi_allreduce2r(ldat,gdat,op,comm)
    
       integer, intent(in) :: comm
-      integer(kind=4) ltype,lop,lcomm,lerr,lsize,mnum
+      integer(kind=4) lop,lcomm,lerr,lsize,mnum
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
       real, dimension(:), intent(in) :: ldat
       real, dimension(:), intent(out) :: gdat
       character(len=*), intent(in) :: op
@@ -6395,25 +6304,10 @@ contains
       select case( op )
          case( "max" )
             lop = MPI_MAX
-#ifdef i8r8
-            ltype = MPI_DOUBLE_PRECISION
-#else
-            ltype = MPI_REAL
-#endif 
          case( "min" )
             lop = MPI_MIN
-#ifdef i8r8
-            ltype = MPI_DOUBLE_PRECISION
-#else
-            ltype = MPI_REAL
-#endif 
          case( "sum" )
             lop = MPI_SUM
-#ifdef i8r8
-            ltype = MPI_DOUBLE_PRECISION
-#else
-            ltype = MPI_REAL
-#endif 
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_allreduce ",op
             mnum = -1
@@ -7054,6 +6948,8 @@ contains
    return
    end subroutine mgbounds
 
+   ! This is the mlo version of mgbounds where the order of the vdat indexing
+   ! is switched
    subroutine mgbounds_mlo(g,vdat,corner)
 
       integer, intent(in) :: g
@@ -7074,8 +6970,6 @@ contains
       logical, intent(in), optional :: corner
       logical extra
 
-      if ( mg_bnds(myid,g)%mlomsk == 0 ) return
-
       START_LOG(mgbounds)
       
       kx = size(vdat,2)
@@ -7094,8 +6988,6 @@ contains
          sslen  = mg_bnds(mg(g)%neighlist,g)%slen
          myrlen = mg_bnds(myid,g)%rlen
       end if
-      rslen = rslen*mg_bnds(mg(g)%neighlist,g)%mlomsk
-      sslen = sslen*mg_bnds(mg(g)%neighlist,g)%mlomsk
 
       !     Set up the buffers to send and recv
       nreq = 0

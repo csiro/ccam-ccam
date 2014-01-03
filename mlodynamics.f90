@@ -25,7 +25,6 @@ real, dimension(:), allocatable, save :: ipice,ee,eeu,eev,dd,ddu,ddv,dfdyu,dfdxv
 real, dimension(:), allocatable, save :: gosig,gosigh,godsig
 real, dimension(:,:), allocatable, save :: oldu1,oldu2,oldv1,oldv2
 real, dimension(:,:), allocatable, save :: stwgt
-integer, save :: comm_mlo
 integer, save :: nstagoffmlo
 integer, parameter :: usetide  =1    ! tidal forcing (0=off, 1=on)
 integer, parameter :: icemode  =2    ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
@@ -102,17 +101,6 @@ eeu(1:ifull)=ee(1:ifull)*ee(ie)
 eev(1:ifull)=ee(1:ifull)*ee(in)
 call boundsuv(eeu,eev,nrows=2)
 
-! set-up communications
-ltst=0
-stst=0
-if (any(ee>0.5)) stst=1
-call ccmpi_allgatherx(ltst,stst,comm_world)
-lrank=count(ltst(0:myid)==1)-1
-bnds(:)%mlomsk=ltst
-call ccmpi_commsplit(comm_mlo,comm_world,stst(1),lrank)
-if (myid==0) then
-  write(6,*) "Processors with water ",count(ltst==1),nproc
-end if
 
 if (abs(nmlo)>=9) return ! only allocate for river routing with PCOM
 
@@ -303,19 +291,12 @@ START_LOG(waterdiff)
 hdif=dt*(ocnsmag/pi)**2
 emi=1./(em(1:ifull)*em(1:ifull))
 
-uau(ifull+1:,:)=0.
-uav(ifull+1:,:)=0.
-t_kh(ifull+1:,:)=0.
-xfact(ifull+1:,:)=0.
-yfact(ifull+1:,:)=0.
-duma=0.
-
 ! extract data from MLO
 do k=1,wlev
   uau(1:ifull,k)=uauin(:,k)*ee(1:ifull)
   uav(1:ifull,k)=uavin(:,k)*ee(1:ifull)
 end do
-call boundsuv_allvec(uau,uav,mlo=1)
+call boundsuv_allvec(uau,uav)
 
 ! calculate diffusion following Smagorinsky
 do k=1,wlev
@@ -331,7 +312,7 @@ do k=1,wlev
   t_kh(1:ifull,k)=sqrt((dudx-dvdy)**2+(dudy+dvdx)**2)*hdif*emi
 end do
 t_kh(1:ifull,wlev+1)=etain
-call bounds(t_kh,nehalf=.true.,mlo=1)
+call bounds(t_kh,nehalf=.true.)
 eta(:)=t_kh(:,wlev+1)
 
 ! reduce diffusion errors where bathymetry gradients are strong
@@ -343,7 +324,7 @@ do k=1,wlev
   xfact(1:ifull,k)=0.5*(t_kh(1:ifull,k)+t_kh(ie,k))*tx_fact*eeu(1:ifull) ! reduction factor
   yfact(1:ifull,k)=0.5*(t_kh(1:ifull,k)+t_kh(in,k))*ty_fact*eev(1:ifull) ! reduction factor
 end do
-call boundsuv(xfact,yfact,stag=-9,mlo=1)
+call boundsuv(xfact,yfact,stag=-9)
 
 ! Laplacian diffusion terms (closure #1)
 do k=1,wlev
@@ -351,7 +332,7 @@ do k=1,wlev
   duma(1:ifull,k,2)=ay(1:ifull)*u(1:ifull,k)+by(1:ifull)*v(1:ifull,k)
   duma(1:ifull,k,3)=az(1:ifull)*u(1:ifull,k)+bz(1:ifull)*v(1:ifull,k)
 end do
-call bounds(duma(:,:,1:3),mlo=1)
+call bounds(duma(:,:,1:3))
 
 ! no slip boundary condition for coastlines
 do k=1,wlev
@@ -403,7 +384,7 @@ end do
 ! Potential temperature
 duma(1:ifull,:,1)=tt-290.
 duma(1:ifull,:,2)=ss-34.72
-call bounds(duma(:,:,1:2),mlo=1)
+call bounds(duma(:,:,1:2))
 do k=1,wlev
   ft(:,k) = ( duma(1:ifull,k,1)*emi +                      &
               xfact(1:ifull,k)*duma(ie,k,1) +              &
@@ -884,12 +865,6 @@ nw=0.
 pice=0.
 imass=0.
 tide=0.
-niu=0.
-niv=0.
-dumc=0.
-cou=0.
-eou=0.
-eov=0.
 
 ! IMPORT WATER AND ICE DATA -----------------------------------------
 #ifdef debug
@@ -993,7 +968,7 @@ dumc(1:ifull,2)=pice(1:ifull)
 dumc(1:ifull,3)=tide(1:ifull)
 dumc(1:ifull,4)=imass(1:ifull)
 dumc(1:ifull,5)=ipmax(1:ifull)
-call bounds(dumc(:,1:5),corner=.true.,mlo=1)
+call bounds(dumc(:,1:5),corner=.true.)
 neta(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,1)
 pice(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,2)
 tide(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,3)
@@ -1087,7 +1062,7 @@ end if
 ! separable in the iterative loop)
 cou(1:ifull,:,1)=nt(1:ifull,:)
 cou(1:ifull,:,2)=ns(1:ifull,:)
-call bounds(cou(:,:,1:2),corner=.true.,mlo=1)
+call bounds(cou(:,:,1:2),corner=.true.)
 nt(ifull+1:ifull+iextra,:)=cou(ifull+1:ifull+iextra,:,1)
 ns(ifull+1:ifull+iextra,:)=cou(ifull+1:ifull+iextra,:,2)
 call mloexpdensity(rho,dalpha,dbeta,nt,ns,xdzdum,pice,0)
@@ -1144,7 +1119,7 @@ oeu(1:ifull)=0.5*(neta(1:ifull)+neta(ie))*eeu(1:ifull) ! height at staggered coo
 oev(1:ifull)=0.5*(neta(1:ifull)+neta(in))*eev(1:ifull) ! height at staggered coordinate
 eou(1:ifull,wlev+1)=oeu(1:ifull)
 eov(1:ifull,wlev+1)=oev(1:ifull)
-call boundsuv(eou,eov,stag=-9,mlo=1)
+call boundsuv(eou,eov,stag=-9)
 oeu(ifull+1:ifull+iextra)=eou(ifull+1:ifull+iextra,wlev+1)
 oev(ifull+1:ifull+iextra)=eov(ifull+1:ifull+iextra,wlev+1)
 ccu(:,1)=eou(:,1)*godsig(1)
@@ -1288,7 +1263,7 @@ end if
 if (nxtrrho==1) then
   cou(1:ifull,:,1)=nt(1:ifull,:)
   cou(1:ifull,:,2)=ns(1:ifull,:)
-  call bounds(cou(:,:,1:2),corner=.true.,mlo=1)
+  call bounds(cou(:,:,1:2),corner=.true.)
   nt(ifull+1:ifull+iextra,:)=cou(ifull+1:ifull+iextra,:,1)
   ns(ifull+1:ifull+iextra,:)=cou(ifull+1:ifull+iextra,:,2)
   call mloexpdensity(rho,dalpha,dbeta,nt,ns,xdzdum,pice,0)
@@ -1481,7 +1456,7 @@ dumc(1:ifull,6)=idu(1:ifull)
 dumd(1:ifull,6)=idv(1:ifull)
 dumc(1:ifull,7)=niu(1:ifull)
 dumd(1:ifull,7)=niv(1:ifull)
-call boundsuv(dumc(:,1:7),dumd(:,1:7),stag=-9,mlo=1) ! stag=-9 updates iwu and isv
+call boundsuv(dumc(:,1:7),dumd(:,1:7),stag=-9) ! stag=-9 updates iwu and isv
 sou(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,1)
 sov(ifull+1:ifull+iextra)=dumd(ifull+1:ifull+iextra,1)
 spu(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,2)
@@ -1553,7 +1528,7 @@ end if
 
 dumc(1:ifull,1)=neta(1:ifull)
 dumc(1:ifull,2)=ipice(1:ifull)
-call bounds(dumc(:,1:2),corner=.true.,mlo=1)
+call bounds(dumc(:,1:2),corner=.true.)
 neta(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,1)
 ipice(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,2)
 
@@ -1597,7 +1572,7 @@ niu(1:ifull)=niu(1:ifull)+idu(1:ifull)*ipiceu+ibu(1:ifull)*dipdxu+icu(1:ifull)*d
 niv(1:ifull)=niv(1:ifull)+idv(1:ifull)*ipicev+ibv(1:ifull)*dipdyv+icv(1:ifull)*dipdxv
 niu(1:ifull)=niu(1:ifull)*eeu(1:ifull)
 niv(1:ifull)=niv(1:ifull)*eev(1:ifull)
-call boundsuv(niu,niv,stag=-9,mlo=1)
+call boundsuv(niu,niv,stag=-9)
 
 ! Normalisation factor for conserving ice flow in and out of gridbox
 spnet(1:ifull)=(-min(niu(iwu)*emu(iwu),0.)+max(niu(1:ifull)*emu(1:ifull),0.) &
@@ -1633,7 +1608,7 @@ do ii=3,4
 end do
 ! Conservation
 dumc(1:ifull,10)=spnet(1:ifull)
-call bounds(dumc(:,1:10),mlo=1)
+call bounds(dumc(:,1:10))
 spnet(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,10)
 do ii=1,9
   call upwindadv(dumc(:,ii),niu,niv,spnet)
@@ -1689,68 +1664,64 @@ if (myid==0.and.nmaxpr==1) then
 end if
 #endif
 
-if (bnds(myid)%mlomsk==1) then
-
-  ! volume conservation for water
-  if (nud_sfh==0) then
-    if (fixheight==0) then
-      odum=(neta(1:ifull)-w_e)*ee(1:ifull)
-      call ccglobal_posneg(odum,delpos,delneg,comm=comm_mlo)
-      alph_p = -delneg/max(delpos,1.E-20)
-      alph_p = min(max(sqrt(alph_p),1.E-20),1.E20)
-      neta(1:ifull)=w_e+max(0.,odum)*alph_p+min(0.,odum)/alph_p
-    else
-      odum=neta(1:ifull)*ee(1:ifull)
-      call ccglobal_posneg(odum,delpos,delneg,comm=comm_mlo)
-      alph_p = -delneg/max(delpos,1.E-20)
-      alph_p = min(max(sqrt(alph_p),1.E-20),1.E20)
-      neta(1:ifull)=max(0.,odum)*alph_p+min(0.,odum)/alph_p
-    end if
+! volume conservation for water
+if (nud_sfh==0) then
+  if (fixheight==0) then
+    odum=(neta(1:ifull)-w_e)*ee(1:ifull)
+    call ccglobal_posneg(odum,delpos,delneg)
+    alph_p = -delneg/max(delpos,1.E-20)
+    alph_p = min(max(sqrt(alph_p),1.E-20),1.E20)
+    neta(1:ifull)=w_e+max(0.,odum)*alph_p+min(0.,odum)/alph_p
+  else
+    odum=neta(1:ifull)*ee(1:ifull)
+    call ccglobal_posneg(odum,delpos,delneg)
+    alph_p = -delneg/max(delpos,1.E-20)
+    alph_p = min(max(sqrt(alph_p),1.E-20),1.E20)
+    neta(1:ifull)=max(0.,odum)*alph_p+min(0.,odum)/alph_p
   end if
+end if
 
-  ! salinity conservation
-  if (nud_sss==0) then
-    delpos=0.
-    delneg=0.
-    ndum=0.
+! salinity conservation
+if (nud_sss==0) then
+  delpos=0.
+  delneg=0.
+  ndum=0.
+  do ii=1,wlev
+    ndum=ndum+w_s(1:ifull,ii)*godsig(ii)
+  end do
+  if (fixsal==0) then
     do ii=1,wlev
-      ndum=ndum+w_s(1:ifull,ii)*godsig(ii)
+      where(wtr(1:ifull).and.ndum>0.)
+        dum(:,ii)=ns(1:ifull,ii)-w_s(:,ii)
+      elsewhere
+        dum(:,ii)=0.
+      end where
     end do
-    if (fixsal==0) then
-      do ii=1,wlev
-        where(wtr(1:ifull).and.ndum>0.)
-          dum(:,ii)=ns(1:ifull,ii)-w_s(:,ii)
-        elsewhere
-          dum(:,ii)=0.
-        end where
-      end do
-      call ccglobal_posneg(dum,delpos,delneg,dsigin=godsig,comm=comm_mlo)
-      alph_p = -delneg/max(delpos,1.E-20)
-      alph_p = min(sqrt(alph_p),alph_p)
-      do ii=1,wlev
-        where(wtr(1:ifull).and.ndum>0.)
-          ns(1:ifull,ii)=w_s(:,ii)+max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)
-        end where
-      end do
-    else
-      do ii=1,wlev
-        where(wtr(1:ifull).and.ndum>0.)
-          dum(:,ii)=ns(1:ifull,ii)-34.72
-        elsewhere
-          dum(:,ii)=0.
-        end where
-      end do
-      call ccglobal_posneg(dum,delpos,delneg,dsigin=godsig,comm=comm_mlo)
-      alph_p = -delneg/max(delpos,1.E-20)
-      alph_p = min(sqrt(alph_p),alph_p)
-      do ii=1,wlev
-        where(wtr(1:ifull).and.ndum>0.)
-          ns(1:ifull,ii)=34.72+max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)
-        end where
-      end do
-    end if
+    call ccglobal_posneg(dum,delpos,delneg,dsigin=godsig)
+    alph_p = -delneg/max(delpos,1.E-20)
+    alph_p = min(sqrt(alph_p),alph_p)
+    do ii=1,wlev
+      where(wtr(1:ifull).and.ndum>0.)
+        ns(1:ifull,ii)=w_s(:,ii)+max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)
+      end where
+    end do
+  else
+    do ii=1,wlev
+      where(wtr(1:ifull).and.ndum>0.)
+        dum(:,ii)=ns(1:ifull,ii)-34.72
+      elsewhere
+        dum(:,ii)=0.
+      end where
+    end do
+    call ccglobal_posneg(dum,delpos,delneg,dsigin=godsig)
+    alph_p = -delneg/max(delpos,1.E-20)
+    alph_p = min(sqrt(alph_p),alph_p)
+    do ii=1,wlev
+      where(wtr(1:ifull).and.ndum>0.)
+        ns(1:ifull,ii)=34.72+max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)
+      end where
+    end do
   end if
-  
 end if
   
 if (myid==0.and.(ktau<=5.or.maxglobseta>tol.or.maxglobip>itol)) then
@@ -1856,7 +1827,7 @@ end do
 ! convert to grid point numbering
 call mlotoij5(x3d,y3d,z3d,nface,xg,yg)
 ! Share off processor departure points.
-call deptsync(nface,xg,yg,mlo=1)
+call deptsync(nface,xg,yg)
 
 do n=1,nguess
   temp(1:ifull,:,1) = uc
@@ -1870,7 +1841,7 @@ do n=1,nguess
   end do
   call mlotoij5(x3d,y3d,z3d,nface,xg,yg)
   !     Share off processor departure points.
-  call deptsync(nface,xg,yg,mlo=1)
+  call deptsync(nface,xg,yg)
 end do
 
 return
@@ -2043,7 +2014,7 @@ do iq=1,ifull
   end if
 end do
 s(ifull+1:,:,:)=cxx-1.
-call bounds(s,nrows=2,mlo=1)
+call bounds(s,nrows=2)
 
 !======================== start of intsch=1 section ====================
 if(intsch==1)then
@@ -2451,7 +2422,7 @@ do iq=1,ifull
   end if
 end do
 s(ifull+1:,:,:)=cxx-1.
-call bounds(s,nrows=2,mlo=1)
+call bounds(s,nrows=2)
 
 !======================== start of intsch=1 section ====================
 if(intsch==1)then
@@ -2892,11 +2863,6 @@ if (.not.allocated(wtul)) then
   allocate(stul(ifull),stvl(ifull))
   allocate(stur(ifull),stvr(ifull))
   
-  wtul(ifull+1:,:)=0.
-  wtvl(ifull+1:,:)=0.
-  wtur(ifull+1:,:)=0.
-  wtvr(ifull+1:,:)=0.
-
   ! assign land arrays
   eutest=eeu(1:ifull)>0.5
   evtest=eev(1:ifull)>0.5
@@ -3009,7 +2975,7 @@ if (.not.allocated(wtul)) then
   end where
 
   ! Apply JLM's preconditioner
-  call boundsuv(wtul,wtvl,stag=-10,mlo=1)
+  call boundsuv(wtul,wtvl,stag=-10)
   where (abs(wtul(ieu,0))>1.E-4.and.abs(wtul(1:ifull,1))>1.E-4)
     stul=-wtul(1:ifull,1)/wtul(ieu,0)
     nwtu(1:ifull,0)=wtul(1:ifull,0)+stul*wtul(ieu,2)
@@ -3060,7 +3026,7 @@ if (.not.allocated(wtul)) then
   end where
 
   ! normalise
-  call boundsuv(wtul,wtvl,stag=-10,mlo=1)
+  call boundsuv(wtul,wtvl,stag=-10)
   do k=1,3
     dtul(:,k)=dtul(:,k)/wtul(1:ifull,0)
     dtvl(:,k)=dtvl(:,k)/wtvl(1:ifull,0)
@@ -3172,7 +3138,7 @@ if (.not.allocated(wtul)) then
   end where
 
   ! Apply JLM's preconditioner
-  call boundsuv(wtur,wtvr,stag=-9,mlo=1)
+  call boundsuv(wtur,wtvr,stag=-9)
   where (abs(wtur(iwu,0))>1.E-4.and.abs(wtur(1:ifull,2))>1.E-4)
     stur=-wtur(1:ifull,2)/wtur(iwu,0)
     nwtu(1:ifull,0)=wtur(1:ifull,0)+stur*wtur(iwu,1)
@@ -3223,7 +3189,7 @@ if (.not.allocated(wtul)) then
   end where
 
   ! normalise
-  call boundsuv(wtur,wtvr,stag=-9,mlo=1)
+  call boundsuv(wtur,wtvr,stag=-9)
   do k=1,3
     dtur(:,k)=dtur(:,k)/wtur(1:ifull,0)
     dtvr(:,k)=dtvr(:,k)/wtvr(1:ifull,0)
@@ -3238,13 +3204,6 @@ if (.not.allocated(wtul)) then
 end if
 
 kx=size(u,2)
-
-uin(ifull+1:,:)=0.
-vin(ifull+1:,:)=0.
-ud(ifull+1:,:)=0.
-vd(ifull+1:,:)=0.
-ua(ifull+1:,:)=0.
-va(ifull+1:,:)=0.
 
 do k=1,kx
   uin(1:ifull,k)=u(:,k)*ee(1:ifull)
@@ -3262,13 +3221,13 @@ end if
 
 if (ltest) then
 
-  call boundsuv(uin,vin,stag=1,mlo=1)
+  call boundsuv(uin,vin,stag=1)
   do k=1,kx
     ud(1:ifull,k)=dtul(:,1)*uin(ieeu,k)+dtul(:,2)*uin(ieu,k)+dtul(:,3)*uin(1:ifull,k)
     vd(1:ifull,k)=dtvl(:,1)*vin(innv,k)+dtvl(:,2)*vin(inv,k)+dtvl(:,3)*vin(1:ifull,k)
   end do
   
-  call boundsuv(ud,vd,stag=-10,mlo=1)
+  call boundsuv(ud,vd,stag=-10)
   do k=1,kx
     ! Apply JLM's preconditioner
     nud=ud(1:ifull,k)-stul*ud(ieu,k)
@@ -3290,12 +3249,12 @@ if (ltest) then
   ! - The wave amplitude should be preserved
 
   do itn=1,itnmax        ! each loop is a double iteration
-    call boundsuv(ua,va,stag=2,mlo=1)
+    call boundsuv(ua,va,stag=2)
     do k=1,kx
       uin(1:ifull,k)=ud(1:ifull,k)+wtul(:,1)*ua(ieu,k)+wtul(:,2)*ua(iwu,k)+wtul(:,3)*ua(ieeu,k)
       vin(1:ifull,k)=vd(1:ifull,k)+wtvl(:,1)*va(inv,k)+wtvl(:,2)*va(isv,k)+wtvl(:,3)*va(innv,k)
     end do
-    call boundsuv(uin,vin,stag=2,mlo=1)
+    call boundsuv(uin,vin,stag=2)
     do k=1,kx
       ua(1:ifull,k)=ud(1:ifull,k)+wtul(:,1)*uin(ieu,k)+wtul(:,2)*uin(iwu,k)+wtul(:,3)*uin(ieeu,k)
       va(1:ifull,k)=vd(1:ifull,k)+wtvl(:,1)*vin(inv,k)+wtvl(:,2)*vin(isv,k)+wtvl(:,3)*vin(innv,k)
@@ -3304,13 +3263,13 @@ if (ltest) then
 
 else
 
-  call boundsuv(uin,vin,mlo=1)
+  call boundsuv(uin,vin)
   do k=1,kx
     ud(1:ifull,k)=dtur(:,1)*uin(iwu,k)+dtur(:,2)*uin(1:ifull,k)+dtur(:,3)*uin(ieu,k)
     vd(1:ifull,k)=dtvr(:,1)*vin(isv,k)+dtvr(:,2)*vin(1:ifull,k)+dtvr(:,3)*vin(inv,k)
   end do
 
-  call boundsuv(ud,vd,stag=-9,mlo=1)
+  call boundsuv(ud,vd,stag=-9)
   do k=1,kx
     ! Apply JLM's preconditioner
     nud=ud(1:ifull,k)-stur*ud(iwu,k)
@@ -3326,12 +3285,12 @@ else
   end do
 
   do itn=1,itnmax        ! each loop is a double iteration
-    call boundsuv(ua,va,stag=3,mlo=1)
+    call boundsuv(ua,va,stag=3)
     do k=1,kx
       uin(1:ifull,k)=ud(1:ifull,k)+wtur(:,1)*ua(ieu,k)+wtur(:,2)*ua(iwu,k)+wtur(:,3)*ua(iwwu,k)
       vin(1:ifull,k)=vd(1:ifull,k)+wtvr(:,1)*va(inv,k)+wtvr(:,2)*va(isv,k)+wtvr(:,3)*va(issv,k)
     end do
-    call boundsuv(uin,vin,stag=3,mlo=1)
+    call boundsuv(uin,vin,stag=3)
     do k=1,kx
       ua(1:ifull,k)=ud(1:ifull,k)+wtur(:,1)*uin(ieu,k)+wtur(:,2)*uin(iwu,k)+wtur(:,3)*uin(iwwu,k)
       va(1:ifull,k)=vd(1:ifull,k)+wtvr(:,1)*vin(inv,k)+wtvr(:,2)*vin(isv,k)+wtvr(:,3)*vin(issv,k)
@@ -3395,11 +3354,6 @@ if (.not.allocated(wtul)) then
   allocate(stul(ifull),stvl(ifull))
   allocate(stur(ifull),stvr(ifull))
 
-  wtul(ifull+1:,:)=0.
-  wtvl(ifull+1:,:)=0.
-  wtur(ifull+1:,:)=0.
-  wtvr(ifull+1:,:)=0.
-  
   ! assign land arrays
   eetest=ee(1:ifull)*ee(ie)>0.5
   ewtest=ee(iw)*ee(1:ifull)>0.5
@@ -3558,7 +3512,7 @@ if (.not.allocated(wtul)) then
   end where
     
   ! Apply JLM's preconditioner
-  call boundsuv(wtul,wtvl,stag=-9,mlo=1)
+  call boundsuv(wtul,wtvl,stag=-9)
   where (abs(wtul(iwu,0))>1.E-4.and.abs(wtul(1:ifull,2))>1.E-4)
     stul=-wtul(1:ifull,2)/wtul(iwu,0)
     nwtu(:,0)=wtul(1:ifull,0)+stul*wtul(iwu,1)
@@ -3609,7 +3563,7 @@ if (.not.allocated(wtul)) then
   end where
 
   ! normalise
-  call boundsuv(wtul,wtvl,stag=-9,mlo=1)
+  call boundsuv(wtul,wtvl,stag=-9)
   do k=1,3
     wtul(1:ifull,k)=wtul(1:ifull,k)/wtul(1:ifull,0)
     wtvl(1:ifull,k)=wtvl(1:ifull,k)/wtvl(1:ifull,0)
@@ -3773,7 +3727,7 @@ if (.not.allocated(wtul)) then
   end where
 
   ! Apply JLM's preconditioner
-  call boundsuv(wtur,wtvr,stag=-10,mlo=1)
+  call boundsuv(wtur,wtvr,stag=-10)
   where (abs(wtur(ieu,0))>1.E-4.and.abs(wtur(1:ifull,1))>1.E-4)
     stur=-wtur(1:ifull,1)/wtur(ieu,0)
     nwtu(1:ifull,0)=wtur(1:ifull,0)+stur*wtur(ieu,2)
@@ -3824,7 +3778,7 @@ if (.not.allocated(wtul)) then
   end where
 
   ! normalise
-  call boundsuv(wtur,wtvr,stag=-10,mlo=1)
+  call boundsuv(wtur,wtvr,stag=-10)
   do k=1,3
     wtur(1:ifull,k)=wtur(1:ifull,k)/wtur(1:ifull,0)
     wtvr(1:ifull,k)=wtvr(1:ifull,k)/wtvr(1:ifull,0)
@@ -3839,13 +3793,6 @@ if (.not.allocated(wtul)) then
 end if
 
 kx=size(u,2)
-
-uin(ifull+1:,:)=0.
-vin(ifull+1:,:)=0.
-ud(ifull+1:,:)=0.
-vd(ifull+1:,:)=0.
-ua(ifull+1:,:)=0.
-va(ifull+1:,:)=0.
 
 zoff=0
 if (present(toff)) then
@@ -3867,13 +3814,13 @@ end if
 
 if (ltest) then
   
-  call boundsuv(uin,vin,stag=5,mlo=1)
+  call boundsuv(uin,vin,stag=5)
   do k=1,kx
     ud(1:ifull,k)=dtul(:,1)*uin(iwwu,k)+dtul(:,2)*uin(iwu,k)+dtul(:,3)*uin(1:ifull,k)
     vd(1:ifull,k)=dtvl(:,1)*vin(issv,k)+dtvl(:,2)*vin(isv,k)+dtvl(:,3)*vin(1:ifull,k)
   end do
   
-  call boundsuv(ud,vd,stag=-9,mlo=1)
+  call boundsuv(ud,vd,stag=-9)
   do k=1,kx
     ! Apply JLM's preconditioner
     nud=ud(1:ifull,k)-stul*ud(iwu,k)
@@ -3889,12 +3836,12 @@ if (ltest) then
   end do
 
   do itn=1,itnmax        ! each loop is a double iteration
-    call boundsuv(ua,va,stag=3,mlo=1)
+    call boundsuv(ua,va,stag=3)
     do k=1,kx
       uin(1:ifull,k)=ud(1:ifull,k)+wtul(:,1)*ua(ieu,k)+wtul(:,2)*ua(iwu,k)+wtul(:,3)*ua(iwwu,k)
       vin(1:ifull,k)=vd(1:ifull,k)+wtvl(:,1)*va(inv,k)+wtvl(:,2)*va(isv,k)+wtvl(:,3)*va(issv,k)
     end do
-    call boundsuv(uin,vin,stag=3,mlo=1)
+    call boundsuv(uin,vin,stag=3)
     do k=1,kx
       ua(1:ifull,k)=ud(1:ifull,k)+wtul(:,1)*uin(ieu,k)+wtul(:,2)*uin(iwu,k)+wtul(:,3)*uin(iwwu,k)
       va(1:ifull,k)=vd(1:ifull,k)+wtvl(:,1)*vin(inv,k)+wtvl(:,2)*vin(isv,k)+wtvl(:,3)*vin(issv,k)
@@ -3904,13 +3851,13 @@ if (ltest) then
   
 else
 
-  call boundsuv(uin,vin,mlo=1)
+  call boundsuv(uin,vin)
   do k=1,kx
     ud(1:ifull,k)=dtur(:,1)*uin(ieu,k)+dtur(:,2)*uin(1:ifull,k)+dtur(:,3)*uin(iwu,k)
     vd(1:ifull,k)=dtvr(:,1)*vin(inv,k)+dtvr(:,2)*vin(1:ifull,k)+dtvr(:,3)*vin(isv,k)
   end do
 
-  call boundsuv(ud,vd,stag=-10,mlo=1)
+  call boundsuv(ud,vd,stag=-10)
   do k=1,kx
     ! Apply JLM's preconditioner
     nud=ud(1:ifull,k)-stur*ud(ieu,k)
@@ -3926,12 +3873,12 @@ else
   end do
 
   do itn=1,itnmax        ! each loop is a double iteration
-    call boundsuv(ua,va,stag=2,mlo=1)
+    call boundsuv(ua,va,stag=2)
     do k=1,kx
       uin(1:ifull,k)=ud(1:ifull,k)+wtur(:,1)*ua(ieu,k)+wtur(:,2)*ua(iwu,k)+wtur(:,3)*ua(ieeu,k)
       vin(1:ifull,k)=vd(1:ifull,k)+wtvr(:,1)*va(inv,k)+wtvr(:,2)*va(isv,k)+wtvr(:,3)*va(innv,k)
     end do
-    call boundsuv(uin,vin,stag=2,mlo=1)
+    call boundsuv(uin,vin,stag=2)
     do k=1,kx
       ua(1:ifull,k)=ud(1:ifull,k)+wtur(:,1)*uin(ieu,k)+wtur(:,2)*uin(iwu,k)+wtur(:,3)*uin(ieeu,k)
       va(1:ifull,k)=vd(1:ifull,k)+wtvr(:,1)*vin(inv,k)+wtvr(:,2)*vin(isv,k)+wtvr(:,3)*vin(innv,k)
@@ -4704,11 +4651,9 @@ integer, parameter :: llmax      = 400 ! Iterations for calculating surface heig
 !itstest=1
 !itc=0
 
-dumc(ifull+1:,:)=0.
-
 dumc(1:ifull,1)=neta(1:ifull)
 dumc(1:ifull,2)=ipice(1:ifull)
-call bounds(dumc(:,1:2),mlo=1)
+call bounds(dumc(:,1:2))
 neta(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,1)
 ipice(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,2)
 
@@ -4798,7 +4743,7 @@ do ll=1,llmax
 
     dumc(iqx(:,nx),1)=neta(iqx(:,nx))
     dumc(iqx(:,nx),2)=ipice(iqx(:,nx))
-    call bounds_colour(dumc(:,1:2),nx,mlo=1)
+    call bounds_colour(dumc(:,1:2),nx)
     neta(ifull+1:ifull+iextra) =dumc(ifull+1:ifull+iextra,1)
     ipice(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,2)
   

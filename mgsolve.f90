@@ -647,7 +647,6 @@ include 'newmpar.h'
 
 integer, intent(out) :: totits
 integer, dimension(mg_minsize) :: indy
-integer, dimension(:), allocatable, save :: stst,ltst
 integer itr,itrc,g,ng,ng4,n,i,j,ir,ic,jj,iq,k
 integer iq_a,iq_b,iq_c,iq_d
 integer nc,gb
@@ -683,45 +682,10 @@ real, dimension(mg_ifullc,3) :: yyzcu,yyncu,yyscu,yyecu,yywcu
 real, dimension(mg_ifullc,3) :: zzhhcu,zzncu,zzscu,zzecu,zzwcu,rhscu
 real, dimension(2) :: dsolmax
 real, dimension(8) :: dsolmax_g
-logical, save :: localfirst=.true.
 
 if (sorfirst) then
   write(6,*) "ERROR: mgsormlo requires mgsor_init to be called first"
   call ccmpi_abort(-1)
-end if
-
-! remove trivial bounds calls with processors that only see land points
-if (localfirst) then
-  allocate(stst(1),ltst(0:nproc-1))
-  w(1:ifull+iextra,1)=ee(1:ifull+iextra)
-  call mgcollect_mlo(1,w(:,1:1))
-
-  ng4=mg(1)%ifull_fine
-  ws(1:ng4)=max(w(mg(1)%fine  ,1),w(mg(1)%fine_n ,1),   &
-                w(mg(1)%fine_e,1),w(mg(1)%fine_ne,1))  
-  w(1:ng4,1)=ws(1:ng4)
-  call mgcollect_mlo(2,w(:,1:1))
-
-  do g=2,mg_maxlevel-1
-    call mgbounds_mlo(g,w(:,1:1),corner=.true.)
-    ng=mg(g)%ifull+mg(g)%iextra
-    stst=1
-    if (all(w(1:ng,1)==0.)) stst=0
-    call ccmpi_allgatherx(ltst,stst,comm_world)
-    mg_bnds(:,g)%mlomsk=ltst
-    if (myid==0) then
-      write(6,*) "Water procs at level ",g,count(ltst==1),nproc
-    end if
-    
-    ng4=mg(g)%ifull_fine
-    ws(1:ng4)=max(w(mg(g)%fine  ,1),w(mg(g)%fine_n ,1),   &
-                  w(mg(g)%fine_e,1),w(mg(g)%fine_ne,1))  
-    w(1:ng4,1)=ws(1:ng4)
-     
-    call mgcollect_mlo(g+1,w(:,1:1))
-  end do  
-  deallocate(stst,ltst)
-  localfirst=.false.
 end if
 
 ! The following expressions describe the residual terms of the ocean model
@@ -749,8 +713,6 @@ START_LOG(mgmlosetup)
 
 vduma=0.
 vdumb=0.
-v=0.
-dumc=0.
 
 ! pack colour arrays
 do nc=1,maxcolour
@@ -779,7 +741,7 @@ end do
 ! solver requires bounds to be updated
 dumc(1:ifull,1)=neta(1:ifull)
 dumc(1:ifull,2)=ipice(1:ifull)
-call bounds(dumc,mlo=1)
+call bounds(dumc)
 
 do nc=1,maxcolour
   
@@ -806,7 +768,7 @@ do nc=1,maxcolour
        -zzwcice(:,nc)*dumc_w(1:ifullx,2) &
       + rhscice(:,nc) ) / zzcice(:,nc) ))
 
-  call bounds_colour(dumc,nc,mlo=1)
+  call bounds_colour(dumc,nc)
 
 end do
 neta(1:ifull+iextra) =dumc(1:ifull+iextra,1)
@@ -1324,7 +1286,7 @@ do i=1,itrend
          -zzwcice(:,nc)*dumc_w(1:ifullx,2)              &
         + rhscice(:,nc) ) / zzcice(:,nc) ))
 
-    call bounds_colour(dumc(:,:),nc,mlo=1)
+    call bounds_colour(dumc,nc)
   end do
     
 end do
@@ -1361,7 +1323,7 @@ do itr=2,itr_mgice
          -zzwcice(:,nc)*dumc_w(1:ifullx,2) &
         + rhscice(:,nc) ) / zzcice(:,nc) ))
 
-    call bounds_colour(dumc,nc,mlo=1)
+    call bounds_colour(dumc,nc)
 
   end do
   dsol(1:ifull,1)      =dumc(1:ifull,1)-neta(1:ifull)
@@ -1792,7 +1754,7 @@ do itr=2,itr_mgice
            -zzwcice(:,nc)*dumc_w(1:ifullx,2)              &
           + rhscice(:,nc) ) / zzcice(:,nc) ))
 
-      call bounds_colour(dumc(:,:),nc,mlo=1)
+      call bounds_colour(dumc,nc)
     end do
     dsol(1:ifull,1)      =dumc(1:ifull,1)-neta(1:ifull)
     dsol(1:ifull,2)      =dumc(1:ifull,2)-ipice(1:ifull)
@@ -1945,7 +1907,6 @@ allocate(mg(mg_maxlevel))
 mg(:)%comm_merge=0
 
 allocate(mg_bnds(0:nproc-1,mg_maxlevel))
-mg_bnds(:,:)%mlomsk=1
 
 hipan=mipan
 hjpan=mjpan
@@ -2619,10 +2580,10 @@ do g=gmax+2,mg_maxlevel
   deallocate(mg(g)%wgt_a,mg(g)%wgt_bc,mg(g)%wgt_d)
 end do
 
-!do g=gmax+1,mg_maxlevel-1
-!  deallocate(mg(g)%fine,mg(g)%fine_n)
-!  deallocate(mg(g)%fine_e,mg(g)%fine_ne)
-!end do
+do g=gmax+1,mg_maxlevel-1
+  deallocate(mg(g)%fine,mg(g)%fine_n)
+  deallocate(mg(g)%fine_e,mg(g)%fine_ne)
+end do
 
 sorfirst=.false.
 if (myid==0) then
