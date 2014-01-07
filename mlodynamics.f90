@@ -458,14 +458,6 @@ real xx,yy,ll,lssum,gssum,lwsum,gwsum,netf,netg,rate
 
 ! This version supports salinity in rivers and overflow from lakes
 
-! MJT notes - Usually for MPI we would update the water level on the boundaries (MPI), estimate
-! the fluxes between grid boxes, then update the fluxes on the boundaries (MPI), then update the
-! new water levels at t+1.  However, in this case we already know the fluxes due to the slope
-! (avoiding a MPI) so the second MPI is simply to constrain water avaliability so that the net amount
-! of water is conserved (i.e., netvel in the code below).
-
-! Currently fluxes are explicit.  May need iterative loop for implicit solver.
-
 ! setup indices and grid spacing
 xp(:,1)=in
 xp(:,2)=ie
@@ -4046,43 +4038,38 @@ implicit none
 
 include 'newmpar.h'
 
-integer ii,iq
+integer ii
 real, dimension(ifull+iextra,wlev), intent(in) :: nti,nsi,alphabar,betabar
 real, dimension(ifull+iextra), intent(in) :: neta
 real, dimension(ifull,wlev), intent(out) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
-real, dimension(ifull+iextra,wlev) :: nt,ns
-real absu,bbsu,absv,bbsv
-real, dimension(ifull,wlev) :: dntdxu,dntdxv,dntdyu,dntdyv
-real, dimension(ifull,wlev) :: dnsdxu,dnsdxv,dnsdyu,dnsdyv
+real, dimension(ifull+iextra,wlev,2) :: na
+real, dimension(ifull) :: absu,bbsu,absv,bbsv
+real, dimension(ifull,wlev,2) :: dnadxu,dnadxv,dnadyu,dnadyv
 integer, parameter :: rhogradmeth = 1 ! Density gradient method (0 = finite difference, 1 = local interpolation)
 
-nt=min(max(271.,nti),373.)-290.
-ns=min(max(0.,nsi),50.)-34.72
+na(:,:,1)=min(max(271.,nti),373.)-290.
+na(:,:,2)=min(max(0.,nsi),50.)-34.72
 
 select case(rhogradmeth)
   case(0) ! finite difference
-    call finitedelta(nt,neta,dntdxu,dntdyu,dntdxv,dntdyv)
-    call finitedelta(ns,neta,dnsdxu,dnsdyu,dnsdxv,dnsdyv)
+    call finitedelta(na,neta,dnadxu,dnadyu,dnadxv,dnadyv)
   case(1) ! local interpolation
-    call seekdelta(nt,neta,dntdxu,dntdyu,dntdxv,dntdyv)
-    call seekdelta(ns,neta,dnsdxu,dnsdyu,dnsdxv,dnsdyv)
+    call seekdelta(na,neta,dnadxu,dnadyu,dnadxv,dnadyv)
   case default
     write(6,*) "ERROR: Invalid choice of rhogradmeth ",rhogradmeth
     stop
 end select
 
 do ii=1,wlev
-  do iq=1,ifull
-    absu=0.5*(alphabar(iq,ii)+alphabar(ie(iq),ii))*eeu(iq)
-    bbsu=0.5*(betabar(iq,ii)+betabar(ie(iq),ii))*eeu(iq)
-    absv=0.5*(alphabar(iq,ii)+alphabar(in(iq),ii))*eev(iq)
-    bbsv=0.5*(betabar(iq,ii)+betabar(in(iq),ii))*eev(iq)
+  absu=0.5*(alphabar(1:ifull,ii)+alphabar(ie,ii))*eeu(1:ifull)
+  bbsu=0.5*(betabar(1:ifull,ii) +betabar(ie,ii) )*eeu(1:ifull)
+  absv=0.5*(alphabar(1:ifull,ii)+alphabar(in,ii))*eev(1:ifull)
+  bbsv=0.5*(betabar(1:ifull,ii) +betabar(in,ii) )*eev(1:ifull)
 
-    drhobardxu(iq,ii)=-absu*dntdxu(iq,ii)+bbsu*dnsdxu(iq,ii)
-    drhobardxv(iq,ii)=-absv*dntdxv(iq,ii)+bbsv*dnsdxv(iq,ii)
-    drhobardyu(iq,ii)=-absu*dntdyu(iq,ii)+bbsu*dnsdyu(iq,ii)
-    drhobardyv(iq,ii)=-absv*dntdyv(iq,ii)+bbsv*dnsdyv(iq,ii)
-  end do
+  drhobardxu(1:ifull,ii)=-absu*dnadxu(1:ifull,ii,1)+bbsu*dnadxu(1:ifull,ii,2)
+  drhobardxv(1:ifull,ii)=-absv*dnadxv(1:ifull,ii,1)+bbsv*dnadxv(1:ifull,ii,2)
+  drhobardyu(1:ifull,ii)=-absu*dnadyu(1:ifull,ii,1)+bbsu*dnadyu(1:ifull,ii,2)
+  drhobardyv(1:ifull,ii)=-absv*dnadyv(1:ifull,ii,1)+bbsv*dnadyv(1:ifull,ii,2)
 end do
 
 return
@@ -4102,10 +4089,10 @@ implicit none
 include 'newmpar.h'
 include 'parm.h'
 
-integer ii
-real, dimension(ifull+iextra,wlev), intent (in) :: rhobar
+integer ii,j
+real, dimension(ifull+iextra,wlev,2), intent (in) :: rhobar
 real, dimension(ifull+iextra), intent(in) :: neta
-real, dimension(ifull,wlev), intent(out) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
+real, dimension(ifull,wlev,2), intent(out) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
 real, dimension(ifull) :: drhobardzu,drhobardzv,tnu,tsu,tev,twv,tee,tnn
 real, dimension(ifull+iextra,0:wlev) :: rhobarhl,dephladj
 real xp
@@ -4116,39 +4103,43 @@ do ii=1,wlev
   dephladj(:,ii)=gosigh(ii)*max(dd(:)+neta(:),minwater)
 end do
 
-! estimate rhobar at half levels
-rhobarhl(:,0)=rhobar(:,1)
-do ii=1,wlev-1
-  xp=gosigh(ii)-gosig(ii)
-  rhobarhl(:,ii)=rhobar(:,ii)+xp*(rhobar(:,ii+1)-rhobar(:,ii))/(gosig(ii+1)-gosig(ii))
-end do
-rhobarhl(:,wlev)=rhobar(:,wlev)
+do j=1,2
 
-do ii=1,wlev
-  drhobardzu=(rhobarhl(1:ifull,ii)+rhobarhl(ie,ii)-rhobarhl(1:ifull,ii-1)-rhobarhl(ie,ii-1))          &
-            /(dephladj(1:ifull,ii)+dephladj(ie,ii)-dephladj(1:ifull,ii-1)-dephladj(ie,ii-1))
-  drhobardzv=(rhobarhl(1:ifull,ii)+rhobarhl(in,ii)-rhobarhl(1:ifull,ii-1)-rhobarhl(in,ii-1))          &
-            /(dephladj(1:ifull,ii)+dephladj(in,ii)-dephladj(1:ifull,ii-1)-dephladj(in,ii-1))
-  tnu=0.5*(( rhobar(in,ii)+drhobardzu*((1.-gosig(ii))*neta(in) -gosig(ii)*dd(in) ))*f(in) &
-          +(rhobar(ine,ii)+drhobardzu*((1.-gosig(ii))*neta(ine)-gosig(ii)*dd(ine)))*f(ine))
-  tee=0.5*(( rhobar(1:ifull,ii)+drhobardzu*((1.-gosig(ii))*neta(1:ifull) -gosig(ii)*dd(1:ifull) ))*f(1:ifull) &
-          +(rhobar(ie,ii)+drhobardzu*((1.-gosig(ii))*neta(ie)-gosig(ii)*dd(ie)))*f(ie))
-  tsu=0.5*(( rhobar(is,ii)+drhobardzu*((1.-gosig(ii))*neta(is) -gosig(ii)*dd(is) ))*f(is) &
-          +(rhobar(ise,ii)+drhobardzu*((1.-gosig(ii))*neta(ise)-gosig(ii)*dd(ise)))*f(ise))
-  tev=0.5*(( rhobar(ie,ii)+drhobardzv*((1.-gosig(ii))*neta(ie) -gosig(ii)*dd(ie) ))*f(ie) &
-          +(rhobar(ien,ii)+drhobardzv*((1.-gosig(ii))*neta(ien)-gosig(ii)*dd(ien)))*f(ien))
-  tnn=0.5*(( rhobar(1:ifull,ii)+drhobardzv*((1.-gosig(ii))*neta(1:ifull) -gosig(ii)*dd(1:ifull) ))*f(1:ifull) &
-          +(rhobar(in,ii)+drhobardzv*((1.-gosig(ii))*neta(in)-gosig(ii)*dd(in)))*f(in))
-  twv=0.5*(( rhobar(iw,ii)+drhobardzv*((1.-gosig(ii))*neta(iw) -gosig(ii)*dd(iw) ))*f(iw) &
-          +(rhobar(iwn,ii)+drhobardzv*((1.-gosig(ii))*neta(iwn)-gosig(ii)*dd(iwn)))*f(iwn))
-  drhobardxu(:,ii)=(rhobar(ie,ii)-rhobar(1:ifull,ii)+drhobardzu*((1.-gosig(ii))*(neta(ie)-neta(1:ifull)) &
-                                                     -gosig(ii)*(dd(ie)-dd(1:ifull))))*emu(1:ifull)/ds
-  drhobardxu(:,ii)=drhobardxu(:,ii)*eeu(1:ifull)                                                   
-  drhobardyu(:,ii)=0.5*(stwgt(:,1)*(tnu-tee)+stwgt(:,2)*(tee-tsu))*emu(1:ifull)/ds-0.5*(rhobar(1:ifull,ii)+rhobar(ie,ii))*dfdyu
-  drhobardxv(:,ii)=0.5*(stwgt(:,3)*(tev-tnn)+stwgt(:,4)*(tnn-twv))*emv(1:ifull)/ds-0.5*(rhobar(1:ifull,ii)+rhobar(in,ii))*dfdxv
-  drhobardyv(:,ii)=(rhobar(in,ii)-rhobar(1:ifull,ii)+drhobardzv*((1.-gosig(ii))*(neta(in)-neta(1:ifull)) &
-                                                     -gosig(ii)*(dd(in)-dd(1:ifull))))*emv(1:ifull)/ds
-  drhobardyv(:,ii)=drhobardyv(:,ii)*eev(1:ifull)
+  ! estimate rhobar at half levels
+  rhobarhl(:,0)=rhobar(:,1,j)
+  do ii=1,wlev-1
+    xp=gosigh(ii)-gosig(ii)
+    rhobarhl(:,ii)=rhobar(:,ii,j)+xp*(rhobar(:,ii+1,j)-rhobar(:,ii,j))/(gosig(ii+1)-gosig(ii))
+  end do
+  rhobarhl(:,wlev)=rhobar(:,wlev,j)
+
+  do ii=1,wlev
+    drhobardzu=(rhobarhl(1:ifull,ii)+rhobarhl(ie,ii)-rhobarhl(1:ifull,ii-1)-rhobarhl(ie,ii-1))          &
+              /(dephladj(1:ifull,ii)+dephladj(ie,ii)-dephladj(1:ifull,ii-1)-dephladj(ie,ii-1))
+    drhobardzv=(rhobarhl(1:ifull,ii)+rhobarhl(in,ii)-rhobarhl(1:ifull,ii-1)-rhobarhl(in,ii-1))          &
+              /(dephladj(1:ifull,ii)+dephladj(in,ii)-dephladj(1:ifull,ii-1)-dephladj(in,ii-1))
+    tnu=0.5*(( rhobar(in,ii,j)+drhobardzu*((1.-gosig(ii))*neta(in) -gosig(ii)*dd(in) ))*f(in) &
+            +(rhobar(ine,ii,j)+drhobardzu*((1.-gosig(ii))*neta(ine)-gosig(ii)*dd(ine)))*f(ine))
+    tee=0.5*(( rhobar(1:ifull,ii,j)+drhobardzu*((1.-gosig(ii))*neta(1:ifull) -gosig(ii)*dd(1:ifull) ))*f(1:ifull) &
+            +(rhobar(ie,ii,j)+drhobardzu*((1.-gosig(ii))*neta(ie)-gosig(ii)*dd(ie)))*f(ie))
+    tsu=0.5*(( rhobar(is,ii,j)+drhobardzu*((1.-gosig(ii))*neta(is) -gosig(ii)*dd(is) ))*f(is) &
+            +(rhobar(ise,ii,j)+drhobardzu*((1.-gosig(ii))*neta(ise)-gosig(ii)*dd(ise)))*f(ise))
+    tev=0.5*(( rhobar(ie,ii,j)+drhobardzv*((1.-gosig(ii))*neta(ie) -gosig(ii)*dd(ie) ))*f(ie) &
+            +(rhobar(ien,ii,j)+drhobardzv*((1.-gosig(ii))*neta(ien)-gosig(ii)*dd(ien)))*f(ien))
+    tnn=0.5*(( rhobar(1:ifull,ii,j)+drhobardzv*((1.-gosig(ii))*neta(1:ifull) -gosig(ii)*dd(1:ifull) ))*f(1:ifull) &
+            +(rhobar(in,ii,j)+drhobardzv*((1.-gosig(ii))*neta(in)-gosig(ii)*dd(in)))*f(in))
+    twv=0.5*(( rhobar(iw,ii,j)+drhobardzv*((1.-gosig(ii))*neta(iw) -gosig(ii)*dd(iw) ))*f(iw) &
+            +(rhobar(iwn,ii,j)+drhobardzv*((1.-gosig(ii))*neta(iwn)-gosig(ii)*dd(iwn)))*f(iwn))
+    drhobardxu(:,ii,j)=(rhobar(ie,ii,j)-rhobar(1:ifull,ii,j)+drhobardzu*((1.-gosig(ii))*(neta(ie)-neta(1:ifull)) &
+                                                       -gosig(ii)*(dd(ie)-dd(1:ifull))))*emu(1:ifull)/ds
+    drhobardxu(:,ii,j)=drhobardxu(:,ii,j)*eeu(1:ifull)                                                   
+    drhobardyu(:,ii,j)=0.5*(stwgt(:,1)*(tnu-tee)+stwgt(:,2)*(tee-tsu))*emu(1:ifull)/ds-0.5*(rhobar(1:ifull,ii,j)+rhobar(ie,ii,j))*dfdyu
+    drhobardxv(:,ii,j)=0.5*(stwgt(:,3)*(tev-tnn)+stwgt(:,4)*(tnn-twv))*emv(1:ifull)/ds-0.5*(rhobar(1:ifull,ii,j)+rhobar(in,ii,j))*dfdxv
+    drhobardyv(:,ii,j)=(rhobar(in,ii,j)-rhobar(1:ifull,ii,j)+drhobardzv*((1.-gosig(ii))*(neta(in)-neta(1:ifull)) &
+                                                       -gosig(ii)*(dd(in)-dd(1:ifull))))*emv(1:ifull)/ds
+    drhobardyv(:,ii,j)=drhobardyv(:,ii,j)*eev(1:ifull)
+  end do
+  
 end do
 
 return
@@ -4168,18 +4159,21 @@ implicit none
 include 'newmpar.h'
 include 'parm.h'
 
-integer iqq,ii
+integer iqq,ii,j
 integer sdi,sde,sdw,sdn,sds,sden,sdse,sdne,sdwn
-real ddux,ddvy,ri,re,rw,rn,rs,ren,rse,rne,rwn
+real ddux,ddvy
 real mxi,mxe,mxw,mxn,mxs,mxen,mxse,mxne,mxwn
-real drhobardzu,drhobardzv
-real, dimension(wlev) :: ddi,dde,ddw,ddn,dds,dden,ddse,ddne,ddwn
-real, dimension(wlev) :: ssi,sse,ssw,ssn,sss,ssen,ssse,ssne,sswn
-real, dimension(ifull+iextra,wlev), intent (in) :: rhobar
-real, dimension(ifull+iextra), intent(in) :: neta
-real, dimension(ifull,wlev), intent(out) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
-real, dimension(ifull+iextra,0:wlev) :: rhobarhl,dephladj
 real xp
+real, dimension(2) :: ri,re,rw,rn,rs,ren,rse,rne,rwn
+real, dimension(2) :: drhobardzu,drhobardzv
+real, dimension(wlev) :: ddi,dde,ddw,ddn,dds,dden,ddse,ddne,ddwn
+real, dimension(wlev,2) :: ssi,sse,ssw,ssn,sss,ssen,ssse,ssne,sswn
+real, dimension(ifull+iextra,wlev,2), intent (in) :: rhobar
+real, dimension(ifull+iextra), intent(in) :: neta
+real, dimension(ifull,wlev,2), intent(out) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
+real, dimension(ifull+iextra,0:wlev,2) :: rhobarhl
+real, dimension(ifull+iextra,0:wlev) :: dephladj
+
 
 ! set-up level depths
 dephladj(:,0)=0.
@@ -4188,12 +4182,12 @@ do ii=1,wlev
 end do
 
 ! estimate rhobar at half levels
-rhobarhl(:,0)=rhobar(:,1)
+rhobarhl(:,0,:)=rhobar(:,1,:)
 do ii=1,wlev-1
   xp=gosigh(ii)-gosig(ii)
-  rhobarhl(:,ii)=rhobar(:,ii)+xp*(rhobar(:,ii+1)-rhobar(:,ii))/(gosig(ii+1)-gosig(ii))
+  rhobarhl(:,ii,:)=rhobar(:,ii,:)+xp*(rhobar(:,ii+1,:)-rhobar(:,ii,:))/(gosig(ii+1)-gosig(ii))
 end do
-rhobarhl(:,wlev)=rhobar(:,wlev)
+rhobarhl(:,wlev,:)=rhobar(:,wlev,:)
 
 drhobardxu=0.
 drhobardyu=0.
@@ -4204,9 +4198,9 @@ do iqq=1,ifull
   mxi=dd(iqq)
   mxe=dd(ie(iqq))
   mxn=dd(in(iqq))
-  ssi=rhobar(iqq,:)
-  sse=rhobar(ie(iqq),:)
-  ssn=rhobar(in(iqq),:)
+  ssi=rhobar(iqq,:,:)
+  sse=rhobar(ie(iqq),:,:)
+  ssn=rhobar(in(iqq),:,:)
   ddi=gosig(:)*mxi
   dde=gosig(:)*mxe
   ddn=gosig(:)*mxn
@@ -4220,9 +4214,9 @@ do iqq=1,ifull
   mxs=dd(is(iqq))
   mxne=dd(ine(iqq))
   mxse=dd(ise(iqq))
-  sss=rhobar(is(iqq),:)
-  ssne=rhobar(ine(iqq),:)
-  ssse=rhobar(ise(iqq),:)
+  sss=rhobar(is(iqq),:,:)
+  ssne=rhobar(ine(iqq),:,:)
+  ssse=rhobar(ise(iqq),:,:)
   dds=gosig(:)*mxs
   ddne=gosig(:)*mxne
   ddse=gosig(:)*mxse
@@ -4232,31 +4226,31 @@ do iqq=1,ifull
     ddux=gosig(ii)*ddu(iqq) ! seek depth
     if (mxi>=ddux.and.mxe>=ddux) then
       ! estimate vertical gradient
-      drhobardzu=(rhobarhl(iqq,ii)+rhobarhl(ie(iqq),ii)-rhobarhl(iqq,ii-1)-rhobarhl(ie(iqq),ii-1))          &
+      drhobardzu=(rhobarhl(iqq,ii,:)+rhobarhl(ie(iqq),ii,:)-rhobarhl(iqq,ii-1,:)-rhobarhl(ie(iqq),ii-1,:))          &
                 /(dephladj(iqq,ii)+dephladj(ie(iqq),ii)-dephladj(iqq,ii-1)-dephladj(ie(iqq),ii-1))
-      call seekval(ri,ssi(:),ddi(:),ddux,sdi)
-      call seekval(re,sse(:),dde(:),ddux,sde)
+      call seekval(ri(:),ssi(:,:),ddi(:),ddux,sdi)
+      call seekval(re(:),sse(:,:),dde(:),ddux,sde)
       ! the following terms correct for neglecting neta in the above intepolation of depths
       ri=ri+drhobardzu*(1.-gosig(ii))*neta(iqq)
       re=re+drhobardzu*(1.-gosig(ii))*neta(ie(iqq))
-      drhobardxu(iqq,ii)=eeu(iqq)*(re-ri)*emu(iqq)/ds
+      drhobardxu(iqq,ii,:)=eeu(iqq)*(re-ri)*emu(iqq)/ds
       if (mxn>=ddux.and.mxne>=ddux) then
-        call seekval(rn, ssn(:), ddn(:), ddux,sdn)
-        call seekval(rne,ssne(:),ddne(:),ddux,sdne)
+        call seekval(rn(:), ssn(:,:), ddn(:), ddux,sdn)
+        call seekval(rne(:),ssne(:,:),ddne(:),ddux,sdne)
         ! the following terms correct for neglecting neta in the above interpolation of depths
         rn=rn+drhobardzu*(1.-gosig(ii))*neta(in(iqq))
         rne=rne+drhobardzu*(1.-gosig(ii))*neta(ine(iqq))
-        drhobardyu(iqq,ii)=drhobardyu(iqq,ii)+0.25*stwgt(iqq,1)*(rn*f(in(iqq))+rne*f(ine(iqq))-ri*f(iqq)-re*f(ie(iqq)))*emu(iqq)/ds
-        drhobardyu(iqq,ii)=drhobardyu(iqq,ii)-0.125*stwgt(iqq,1)*(ri+re)*(f(in(iqq))+f(ine(iqq))-f(iqq)-f(ie(iqq)))*emu(iqq)/ds
+        drhobardyu(iqq,ii,:)=drhobardyu(iqq,ii,:)+0.25*stwgt(iqq,1)*(rn*f(in(iqq))+rne*f(ine(iqq))-ri*f(iqq)-re*f(ie(iqq)))*emu(iqq)/ds
+        drhobardyu(iqq,ii,:)=drhobardyu(iqq,ii,:)-0.125*stwgt(iqq,1)*(ri+re)*(f(in(iqq))+f(ine(iqq))-f(iqq)-f(ie(iqq)))*emu(iqq)/ds
       end if
       if (mxs>=ddux.and.mxse>=ddux) then
-        call seekval(rs, sss(:), dds(:), ddux,sds)
-        call seekval(rse,ssse(:),ddse(:),ddux,sdse)
+        call seekval(rs(:), sss(:,:), dds(:), ddux,sds)
+        call seekval(rse(:),ssse(:,:),ddse(:),ddux,sdse)
         ! the following terms correct for neglecting neta in the above interpolation of depths
         rs=rs+drhobardzu*(1.-gosig(ii))*neta(is(iqq))
         rse=rse+drhobardzu*(1.-gosig(ii))*neta(ise(iqq))
-        drhobardyu(iqq,ii)=drhobardyu(iqq,ii)+0.25*stwgt(iqq,2)*(ri*f(iqq)+re*f(ie(iqq))-rs*f(is(iqq))-rse*f(ise(iqq)))*emu(iqq)/ds
-        drhobardyu(iqq,ii)=drhobardyu(iqq,ii)-0.125*stwgt(iqq,2)*(ri+re)*(f(iqq)+f(ie(iqq))-f(is(iqq))-f(ise(iqq)))*emu(iqq)/ds
+        drhobardyu(iqq,ii,:)=drhobardyu(iqq,ii,:)+0.25*stwgt(iqq,2)*(ri*f(iqq)+re*f(ie(iqq))-rs*f(is(iqq))-rse*f(ise(iqq)))*emu(iqq)/ds
+        drhobardyu(iqq,ii,:)=drhobardyu(iqq,ii,:)-0.125*stwgt(iqq,2)*(ri+re)*(f(iqq)+f(ie(iqq))-f(is(iqq))-f(ise(iqq)))*emu(iqq)/ds
       end if
     else
       exit
@@ -4272,9 +4266,9 @@ do iqq=1,ifull
   mxw=dd(iw(iqq))
   mxen=dd(ien(iqq))
   mxwn=dd(iwn(iqq))
-  ssw=rhobar(iw(iqq),:)
-  ssen=rhobar(ien(iqq),:)
-  sswn=rhobar(iwn(iqq),:)
+  ssw=rhobar(iw(iqq),:,:)
+  ssen=rhobar(ien(iqq),:,:)
+  sswn=rhobar(iwn(iqq),:,:)
   ddw=gosig(:)*mxw
   dden=gosig(:)*mxen
   ddwn=gosig(:)*mxwn
@@ -4283,27 +4277,27 @@ do iqq=1,ifull
     ddvy=gosig(ii)*ddv(iqq) ! seek depth
     if (mxi>=ddvy.and.mxn>=ddvy) then
       ! estimate vertical gradient
-      drhobardzv=(rhobarhl(iqq,ii)+rhobarhl(in(iqq),ii)-rhobarhl(iqq,ii-1)-rhobarhl(in(iqq),ii-1))          &
+      drhobardzv=(rhobarhl(iqq,ii,:)+rhobarhl(in(iqq),ii,:)-rhobarhl(iqq,ii-1,:)-rhobarhl(in(iqq),ii-1,:))          &
                 /(dephladj(iqq,ii)+dephladj(in(iqq),ii)-dephladj(iqq,ii-1)-dephladj(in(iqq),ii-1))
-      call seekval(ri,ssi(:),ddi(:),ddvy,sdi)
-      call seekval(rn,ssn(:),ddn(:),ddvy,sdn)
+      call seekval(ri(:),ssi(:,:),ddi(:),ddvy,sdi)
+      call seekval(rn(:),ssn(:,:),ddn(:),ddvy,sdn)
       ri=ri+drhobardzv*(1.-gosig(ii))*neta(iqq)
       rn=rn+drhobardzv*(1.-gosig(ii))*neta(in(iqq))
-      drhobardyv(iqq,ii)=eev(iqq)*(rn-ri)*emv(iqq)/ds
+      drhobardyv(iqq,ii,:)=eev(iqq)*(rn-ri)*emv(iqq)/ds
       if (mxe>=ddvy.and.mxen>=ddvy) then
-        call seekval(re, sse(:), dde(:), ddvy,sde)
-        call seekval(ren,ssen(:),dden(:),ddvy,sden)
+        call seekval(re(:), sse(:,:), dde(:), ddvy,sde)
+        call seekval(ren(:),ssen(:,:),dden(:),ddvy,sden)
         re=re+drhobardzv*(1.-gosig(ii))*neta(ie(iqq))
         ren=ren+drhobardzv*(1.-gosig(ii))*neta(ien(iqq))
-        drhobardxv(iqq,ii)=drhobardxv(iqq,ii)+0.25*stwgt(iqq,3)*(re*f(ie(iqq))+ren*f(ien(iqq))-ri*f(iqq)-rn*f(in(iqq)))*emv(iqq)/ds
-        drhobardxv(iqq,ii)=drhobardxv(iqq,ii)-0.125*stwgt(iqq,3)*(ri+rn)*(f(ie(iqq))+f(ien(iqq))-f(iqq)-f(in(iqq)))*emv(iqq)/ds
+        drhobardxv(iqq,ii,:)=drhobardxv(iqq,ii,:)+0.25*stwgt(iqq,3)*(re*f(ie(iqq))+ren*f(ien(iqq))-ri*f(iqq)-rn*f(in(iqq)))*emv(iqq)/ds
+        drhobardxv(iqq,ii,:)=drhobardxv(iqq,ii,:)-0.125*stwgt(iqq,3)*(ri+rn)*(f(ie(iqq))+f(ien(iqq))-f(iqq)-f(in(iqq)))*emv(iqq)/ds
       end if
       if (mxw>=ddvy.and.mxwn>=ddvy) then
-        call seekval(rw, ssw(:), ddw(:), ddvy,sdw)
-        call seekval(rwn,sswn(:),ddwn(:),ddvy,sdwn)
+        call seekval(rw(:), ssw(:,:), ddw(:), ddvy,sdw)
+        call seekval(rwn(:),sswn(:,:),ddwn(:),ddvy,sdwn)
         rwn=rwn+drhobardzv*(1.-gosig(ii))*neta(iwn(iqq))
-        drhobardxv(iqq,ii)=drhobardxv(iqq,ii)+0.25*stwgt(iqq,4)*(ri*f(iqq)+rn*f(in(iqq))-rw*f(iw(iqq))-rwn*f(iwn(iqq)))*emv(iqq)/ds
-        drhobardxv(iqq,ii)=drhobardxv(iqq,ii)-0.125*stwgt(iqq,4)*(ri+rn)*(f(iqq)+f(in(iqq))-f(iw(iqq))-f(iwn(iqq)))*emv(iqq)/ds
+        drhobardxv(iqq,ii,:)=drhobardxv(iqq,ii,:)+0.25*stwgt(iqq,4)*(ri*f(iqq)+rn*f(in(iqq))-rw*f(iw(iqq))-rwn*f(iwn(iqq)))*emv(iqq)/ds
+        drhobardxv(iqq,ii,:)=drhobardxv(iqq,ii,:)-0.125*stwgt(iqq,4)*(ri+rn)*(f(iqq)+f(in(iqq))-f(iw(iqq))-f(iwn(iqq)))*emv(iqq)/ds
       end if
     else
       exit
@@ -4324,8 +4318,9 @@ implicit none
 integer, intent(inout) :: sindx
 integer nindx
 real, intent(in) :: ddseek
-real, intent(out) :: rout
-real, dimension(wlev), intent(in) :: ssin,ddin
+real, dimension(2), intent(out) :: rout
+real, dimension(wlev,2), intent(in) :: ssin
+real, dimension(wlev), intent(in) :: ddin
 real xp
 
 do nindx=sindx,wlev-1
@@ -4336,7 +4331,7 @@ sindx=nindx
 xp=(ddseek-ddin(sindx-1))/(ddin(sindx)-ddin(sindx-1))
 xp=max(min(xp,1.),0.)
 
-rout=ssin(sindx-1)+xp*(ssin(sindx)-ssin(sindx-1))
+rout(:)=ssin(sindx-1,:)+xp*(ssin(sindx,:)-ssin(sindx-1,:))
 
 return
 end subroutine seekval

@@ -318,25 +318,29 @@ c     typical tied_con=10,20 for C48, increasing for smaller ds  (i.e. 14, 28 fo
 c      following defines kb_sav (as kkbb) for use by nbase=-12     
         kkbb(:)=1
         s(1:ifull,1)=cp*tt(1:ifull,1)+phi(1:ifull,1)  ! dry static energy
-       do k=2,k500   
         if(nbase==-11)then
+         do k=2,k500  	
          do iq=1,ifull
            if(cp*tt(iq,k)+phi(iq,k)<s(iq,1)+cp)kkbb(iq)=k  ! simple +1deg s check for within PBL  
          enddo    ! iq loop
+         enddo     ! k loop
         elseif(nbase==-12)then
+         do k=2,k500  
          do iq=1,ifull
 !         find tentative cloud base ! 
 !            (middle of k-1 level, uppermost level below pblh)
           if(phi(iq,k-1)<pblx(iq)*grav)kkbb(iq)=k-1
          enddo    ! iq loop
+         enddo     ! k loop
        else  ! e.g. nbase=-13
+         do k=2,k500         
          do iq=1,ifull
 !         find tentative cloud base ! 
 !            (uppermost layer, with approx. bottom of layer below pblh)
           if(.5*(phi(iq,k-1)+phi(iq,k))<pblx(iq)*grav)kkbb(iq)=k
          enddo    ! iq loop
+         enddo     ! k loop
         endif
-       enddo     ! k loop
 
         do iq=1,ifull
           if(land(iq))then
