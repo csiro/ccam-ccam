@@ -3,6 +3,19 @@ FC = mpif90
 # Common compiler flags
 FFLAGS = -xHost -ftz -fpp -I $(NETCDF_ROOT)/include -Dsumdd -Didleproc
 
+# Options for building with OpenMP
+ifeq ($(OPENMP),yes)
+FFLAGS += -openmp -openmp-report 
+endif
+
+ifeq ($(REPORT),yes)
+FFLAGS += -vec-report 
+endif
+
+ifeq ($(PROFILE),yes)
+FFLAGS +=  -pg
+endif
+
 # Options for building with VAMPIRTrace
 ifeq ($(VT),yes)
 FC = vtfort -vt:fc mpif90 -vt:inst manual
