@@ -4168,6 +4168,7 @@ real, dimension(2) :: ri,re,rw,rn,rs,ren,rse,rne,rwn
 real, dimension(2) :: drhobardzu,drhobardzv
 real, dimension(wlev) :: ddi,dde,ddw,ddn,dds,dden,ddse,ddne,ddwn
 real, dimension(wlev,2) :: ssi,sse,ssw,ssn,sss,ssen,ssse,ssne,sswn
+real, dimension(wlev,2) :: y2i,y2e,y2w,y2n,y2s,y2en,y2se,y2ne,y2wn
 real, dimension(ifull+iextra,wlev,2), intent (in) :: rhobar
 real, dimension(ifull+iextra), intent(in) :: neta
 real, dimension(ifull,wlev,2), intent(out) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
@@ -4204,6 +4205,9 @@ do iqq=1,ifull
   ddi=gosig(:)*mxi
   dde=gosig(:)*mxe
   ddn=gosig(:)*mxn
+  call mlospline(ddi,ssi,y2i)
+  call mlospline(dde,sse,y2e)
+  call mlospline(ddn,ssn,y2n)
 
   sdi=2
   sde=2
@@ -4220,6 +4224,10 @@ do iqq=1,ifull
   dds=gosig(:)*mxs
   ddne=gosig(:)*mxne
   ddse=gosig(:)*mxse
+  call mlospline(dds,sss,y2s)
+  call mlospline(ddne,ssne,y2ne)
+  call mlospline(ddse,ssse,y2se)
+  
   do ii=1,wlev
     ! process staggered u locations
     ! use scaled depths (i.e., assume neta is small compared to dd)
@@ -4228,15 +4236,15 @@ do iqq=1,ifull
       ! estimate vertical gradient
       drhobardzu=(rhobarhl(iqq,ii,:)+rhobarhl(ie(iqq),ii,:)-rhobarhl(iqq,ii-1,:)-rhobarhl(ie(iqq),ii-1,:))          &
                 /(dephladj(iqq,ii)+dephladj(ie(iqq),ii)-dephladj(iqq,ii-1)-dephladj(ie(iqq),ii-1))
-      call seekval(ri(:),ssi(:,:),ddi(:),ddux,sdi)
-      call seekval(re(:),sse(:,:),dde(:),ddux,sde)
+      call seekval(ri(:),ssi(:,:),ddi(:),ddux,sdi,y2i)
+      call seekval(re(:),sse(:,:),dde(:),ddux,sde,y2e)
       ! the following terms correct for neglecting neta in the above intepolation of depths
       ri=ri+drhobardzu*(1.-gosig(ii))*neta(iqq)
       re=re+drhobardzu*(1.-gosig(ii))*neta(ie(iqq))
       drhobardxu(iqq,ii,:)=eeu(iqq)*(re-ri)*emu(iqq)/ds
       if (mxn>=ddux.and.mxne>=ddux) then
-        call seekval(rn(:), ssn(:,:), ddn(:), ddux,sdn)
-        call seekval(rne(:),ssne(:,:),ddne(:),ddux,sdne)
+        call seekval(rn(:), ssn(:,:), ddn(:), ddux,sdn, y2n)
+        call seekval(rne(:),ssne(:,:),ddne(:),ddux,sdne,y2ne)
         ! the following terms correct for neglecting neta in the above interpolation of depths
         rn=rn+drhobardzu*(1.-gosig(ii))*neta(in(iqq))
         rne=rne+drhobardzu*(1.-gosig(ii))*neta(ine(iqq))
@@ -4244,8 +4252,8 @@ do iqq=1,ifull
         drhobardyu(iqq,ii,:)=drhobardyu(iqq,ii,:)-0.125*stwgt(iqq,1)*(ri+re)*(f(in(iqq))+f(ine(iqq))-f(iqq)-f(ie(iqq)))*emu(iqq)/ds
       end if
       if (mxs>=ddux.and.mxse>=ddux) then
-        call seekval(rs(:), sss(:,:), dds(:), ddux,sds)
-        call seekval(rse(:),ssse(:,:),ddse(:),ddux,sdse)
+        call seekval(rs(:), sss(:,:), dds(:), ddux,sds, y2s)
+        call seekval(rse(:),ssse(:,:),ddse(:),ddux,sdse,y2se)
         ! the following terms correct for neglecting neta in the above interpolation of depths
         rs=rs+drhobardzu*(1.-gosig(ii))*neta(is(iqq))
         rse=rse+drhobardzu*(1.-gosig(ii))*neta(ise(iqq))
@@ -4272,6 +4280,10 @@ do iqq=1,ifull
   ddw=gosig(:)*mxw
   dden=gosig(:)*mxen
   ddwn=gosig(:)*mxwn
+  call mlospline(dds,sss,y2w)
+  call mlospline(ddne,ssne,y2en)
+  call mlospline(ddse,ssse,y2wn)
+
   do ii=1,wlev
     ! now process staggered v locations
     ddvy=gosig(ii)*ddv(iqq) ! seek depth
@@ -4279,22 +4291,22 @@ do iqq=1,ifull
       ! estimate vertical gradient
       drhobardzv=(rhobarhl(iqq,ii,:)+rhobarhl(in(iqq),ii,:)-rhobarhl(iqq,ii-1,:)-rhobarhl(in(iqq),ii-1,:))          &
                 /(dephladj(iqq,ii)+dephladj(in(iqq),ii)-dephladj(iqq,ii-1)-dephladj(in(iqq),ii-1))
-      call seekval(ri(:),ssi(:,:),ddi(:),ddvy,sdi)
-      call seekval(rn(:),ssn(:,:),ddn(:),ddvy,sdn)
+      call seekval(ri(:),ssi(:,:),ddi(:),ddvy,sdi,y2i)
+      call seekval(rn(:),ssn(:,:),ddn(:),ddvy,sdn,y2n)
       ri=ri+drhobardzv*(1.-gosig(ii))*neta(iqq)
       rn=rn+drhobardzv*(1.-gosig(ii))*neta(in(iqq))
       drhobardyv(iqq,ii,:)=eev(iqq)*(rn-ri)*emv(iqq)/ds
       if (mxe>=ddvy.and.mxen>=ddvy) then
-        call seekval(re(:), sse(:,:), dde(:), ddvy,sde)
-        call seekval(ren(:),ssen(:,:),dden(:),ddvy,sden)
+        call seekval(re(:), sse(:,:), dde(:), ddvy,sde, y2e)
+        call seekval(ren(:),ssen(:,:),dden(:),ddvy,sden,y2en)
         re=re+drhobardzv*(1.-gosig(ii))*neta(ie(iqq))
         ren=ren+drhobardzv*(1.-gosig(ii))*neta(ien(iqq))
         drhobardxv(iqq,ii,:)=drhobardxv(iqq,ii,:)+0.25*stwgt(iqq,3)*(re*f(ie(iqq))+ren*f(ien(iqq))-ri*f(iqq)-rn*f(in(iqq)))*emv(iqq)/ds
         drhobardxv(iqq,ii,:)=drhobardxv(iqq,ii,:)-0.125*stwgt(iqq,3)*(ri+rn)*(f(ie(iqq))+f(ien(iqq))-f(iqq)-f(in(iqq)))*emv(iqq)/ds
       end if
       if (mxw>=ddvy.and.mxwn>=ddvy) then
-        call seekval(rw(:), ssw(:,:), ddw(:), ddvy,sdw)
-        call seekval(rwn(:),sswn(:,:),ddwn(:),ddvy,sdwn)
+        call seekval(rw(:), ssw(:,:), ddw(:), ddvy,sdw, y2w)
+        call seekval(rwn(:),sswn(:,:),ddwn(:),ddvy,sdwn,y2wn)
         rwn=rwn+drhobardzv*(1.-gosig(ii))*neta(iwn(iqq))
         drhobardxv(iqq,ii,:)=drhobardxv(iqq,ii,:)+0.25*stwgt(iqq,4)*(ri*f(iqq)+rn*f(in(iqq))-rw*f(iw(iqq))-rwn*f(iwn(iqq)))*emv(iqq)/ds
         drhobardxv(iqq,ii,:)=drhobardxv(iqq,ii,:)-0.125*stwgt(iqq,4)*(ri+rn)*(f(iqq)+f(in(iqq))-f(iw(iqq))-f(iwn(iqq)))*emv(iqq)/ds
@@ -4309,7 +4321,7 @@ end do
 return
 end subroutine seekdelta
 
-subroutine seekval(rout,ssin,ddin,ddseek,sindx)
+subroutine seekval(rout,ssin,ddin,ddseek,sindx,y2)
 
 use mlo, only : wlev
 
@@ -4319,22 +4331,60 @@ integer, intent(inout) :: sindx
 integer nindx
 real, intent(in) :: ddseek
 real, dimension(2), intent(out) :: rout
-real, dimension(wlev,2), intent(in) :: ssin
+real, dimension(wlev,2), intent(in) :: ssin,y2
 real, dimension(wlev), intent(in) :: ddin
-real xp
+!real xp
+real h,a,b
 
 do nindx=sindx,wlev-1
   if (ddin(nindx)>=ddseek) exit
 end do
 sindx=nindx
 
-xp=(ddseek-ddin(sindx-1))/(ddin(sindx)-ddin(sindx-1))
-xp=max(min(xp,1.),0.)
+! linear
+!xp=(ddseek-ddin(sindx-1))/(ddin(sindx)-ddin(sindx-1))
+!xp=max(min(xp,1.),0.)
+!rout(:)=ssin(sindx-1,:)+xp*(ssin(sindx,:)-ssin(sindx-1,:))
 
-rout(:)=ssin(sindx-1,:)+xp*(ssin(sindx,:)-ssin(sindx-1,:))
+! cubic spline
+h=ddin(sindx)-ddin(sindx-1)
+a=(ddin(sindx)-ddseek)/h
+b=(ddseek-ddin(sindx-1))/h
+rout(:)=a*ssin(sindx-1,:)+b*ssin(sindx,:)+((a*a*a-a)*y2(sindx-1,:)+(b*b*b-b)*y2(sindx,:))*h*h/6.
 
 return
 end subroutine seekval
+
+subroutine mlospline(x,y,y2)
+
+use mlo, only : wlev
+
+implicit none
+
+integer ii
+real, dimension(wlev), intent(in) :: x
+real, dimension(wlev,2), intent(in) :: y
+real, dimension(wlev,2), intent(out) :: y2
+real, dimension(wlev,2) :: u
+real, dimension(2) :: p
+real sig
+
+y2(1,:)=0.
+u(1,:)=0.
+do ii=2,wlev-1
+  sig=(x(ii)-x(ii-1))/(x(ii+1)-x(ii-1))
+  p=sig*y2(ii-1,:)+2.
+  y2(ii,:)=(sig-1.)/p
+  u(ii,:)=(6.*((y(ii+1,:)-y(ii,:))/(x(ii+1)-x(ii))-(y(ii,:)-y(ii-1,:)) &
+          /(x(ii)-x(ii-1)))/(x(ii+1)-x(ii-1))-sig*u(ii-1,:))/p
+end do
+y2(wlev,:)=0.
+do ii=wlev-1,1,-1
+  y2(ii,:)=y2(ii,:)*y2(ii+1,:)+u(ii,:)
+end do
+
+return
+end subroutine mlospline
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate tidal potential

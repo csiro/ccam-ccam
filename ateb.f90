@@ -93,7 +93,7 @@ real, dimension(:), allocatable, save :: p_lzom,p_lzoh,p_cndzmin,p_cduv,p_cdtq,p
 real, dimension(:), allocatable, save :: p_tscrn,p_qscrn,p_uscrn,p_u10,p_emiss
 
 ! model parameters
-integer, parameter :: nmlfile=0       ! Read configuration from nml file (0=off, >0 unit number (default=11))
+integer, parameter :: nmlfile=11      ! Read configuration from nml file (0=off, >0 unit number (default=11))
 integer, save :: resmeth=1            ! Canyon sensible heat transfer (0=Masson, 1=Harman (varying width), 2=Kusaka, 3=Harman (fixed width))
 integer, save :: useonewall=0         ! Combine both wall energy budgets into a single wall (0=two walls, 1=single wall) 
 integer, save :: zohmeth=1            ! Urban roughness length for heat (0=0.1*zom, 1=Kanda, 2=0.003*zom)

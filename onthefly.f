@@ -2294,7 +2294,7 @@ c     routine fills in interior of an array which has undefined points
       real a(ik*ik*6)
       real :: av     
       integer :: nrem, i, ii, ik, iq, ind, j, n, neighb, ndiag
-      integer :: iminb,imaxb,jminb,jmaxb
+      integer :: iminb, imaxb, jminb, jmaxb
       integer, save :: oldik = 0
       integer, dimension(:,:), allocatable, save :: ic
       integer, dimension(0:5) :: imin,imax,jmin,jmax
@@ -2311,6 +2311,8 @@ c     routine fills in interior of an array which has undefined points
         a_io=value
       end where
       if (all(abs(a_io-value)<1.E-6)) return
+
+      START_LOG(otf_fill)
       
       if (ik/=oldik) then
        oldik=ik
@@ -2370,47 +2372,45 @@ c     routine fills in interior of an array which has undefined points
       jmax=ik
           
       nrem = 1    ! Just for first iteration
-c     nrem_gmin = 1 ! Just for first iteration
-!     nrem_gmin used to avoid infinite loops, e.g. for no sice
       do while ( nrem > 0)
-         ! This has to loop until all are finished otherwise the bounds call
-         ! doesn't work.
-c808         call bounds(a)
-         nrem=0
-         do iq=1,ik*ik*6
-            a(iq)=a_io(iq)
-         enddo
-         ! MJT restricted fill
-         do n=0,5
-          iminb=ik
-          imaxb=1
-          jminb=ik
-          jmaxb=1
-          do j=jmin(n),jmax(n)
-           do i=imin(n),imax(n)
-            iq=ind(i,j,n)
-            if(a(iq)==value)then
-               mask=a(ic(:,iq))/=value
-               neighb=count(mask)
-               if(neighb>0)then
-                  av=sum(a(ic(:,iq)),mask)
-                  a_io(iq)=av/real(neighb)
-               else
-                  iminb=min(i,iminb)
-                  imaxb=max(i,imaxb)
-                  jminb=min(j,jminb)
-                  jmaxb=max(j,jmaxb)
-                  nrem=nrem+1   ! current number of points without a neighbour
-               endif
-            endif
-           end do
-          end do
-          imin(n)=iminb
-          imax(n)=imaxb
-          jmin(n)=jminb
-          jmax(n)=jmaxb
+       nrem=0
+       do iq=1,ik*ik*6
+        a(iq)=a_io(iq)
+       enddo
+       ! MJT restricted fill
+       do n=0,5
+        iminb=ik
+        imaxb=1
+        jminb=ik
+        jmaxb=1
+        do j=jmin(n),jmax(n)
+         do i=imin(n),imax(n)
+          iq=ind(i,j,n)
+          if(a(iq)==value)then
+           mask=a(ic(:,iq))/=value
+           neighb=count(mask)
+           if(neighb>0)then
+            av=sum(a(ic(:,iq)),mask)
+            a_io(iq)=av/real(neighb)
+           else
+            iminb=min(i,iminb)
+            imaxb=max(i,imaxb)
+            jminb=min(j,jminb)
+            jmaxb=max(j,jmaxb)
+            nrem=nrem+1   ! current number of points without a neighbour
+           endif
+          endif
          end do
+        end do
+        imin(n)=iminb
+        imax(n)=imaxb
+        jmin(n)=jminb
+        jmax(n)=jmaxb
+       end do
       end do
+      
+      END_LOG(otf_fill)
+      
       return
       end
 
