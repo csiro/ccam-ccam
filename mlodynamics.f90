@@ -4163,7 +4163,6 @@ integer iqq,ii,j
 integer sdi,sde,sdw,sdn,sds,sden,sdse,sdne,sdwn
 real ddux,ddvy
 real mxi,mxe,mxw,mxn,mxs,mxen,mxse,mxne,mxwn
-real xp
 real, dimension(2) :: ri,re,rw,rn,rs,ren,rse,rne,rwn
 real, dimension(2) :: drhobardzu,drhobardzv
 real, dimension(wlev) :: ddi,dde,ddw,ddn,dds,dden,ddse,ddne,ddwn
@@ -4172,33 +4171,11 @@ real, dimension(wlev,2) :: y2i,y2e,y2w,y2n,y2s,y2en,y2se,y2ne,y2wn
 real, dimension(ifull+iextra,wlev,2), intent (in) :: rhobar
 real, dimension(ifull+iextra), intent(in) :: neta
 real, dimension(ifull,wlev,2), intent(out) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
-real, dimension(ifull+iextra,0:wlev,2) :: rhobarhl
-real, dimension(ifull+iextra,0:wlev) :: dephladj
-
-
-! set-up level depths
-dephladj(:,0)=0.
-do ii=1,wlev
-  dephladj(:,ii)=gosigh(ii)*max(dd(:)+neta(:),minwater)
-end do
-
-! estimate rhobar at half levels
-rhobarhl(:,0,:)=rhobar(:,1,:)
-do ii=1,wlev-1
-  xp=gosigh(ii)-gosig(ii)
-  rhobarhl(:,ii,:)=rhobar(:,ii,:)+xp*(rhobar(:,ii+1,:)-rhobar(:,ii,:))/(gosig(ii+1)-gosig(ii))
-end do
-rhobarhl(:,wlev,:)=rhobar(:,wlev,:)
-
-drhobardxu=0.
-drhobardyu=0.
-drhobardyv=0.
-drhobardxv=0.
 
 do iqq=1,ifull
-  mxi=dd(iqq)
-  mxe=dd(ie(iqq))
-  mxn=dd(in(iqq))
+  mxi=dd(iqq)+neta(iqq)
+  mxe=dd(ie(iqq))+neta(ie(iqq))
+  mxn=dd(in(iqq))+neta(in(iqq))
   ssi=rhobar(iqq,:,:)
   sse=rhobar(ie(iqq),:,:)
   ssn=rhobar(in(iqq),:,:)
@@ -4215,9 +4192,9 @@ do iqq=1,ifull
   sds=2  
   sdne=2
   sdse=2
-  mxs=dd(is(iqq))
-  mxne=dd(ine(iqq))
-  mxse=dd(ise(iqq))
+  mxs=dd(is(iqq))+neta(is(iqq))
+  mxne=dd(ine(iqq))+neta(ine(iqq))
+  mxse=dd(ise(iqq))+neta(ise(iqq))
   sss=rhobar(is(iqq),:,:)
   ssne=rhobar(ine(iqq),:,:)
   ssse=rhobar(ise(iqq),:,:)
@@ -4231,38 +4208,18 @@ do iqq=1,ifull
   do ii=1,wlev
     ! process staggered u locations
     ! use scaled depths (i.e., assume neta is small compared to dd)
-    ddux=gosig(ii)*ddu(iqq) ! seek depth
-    if (mxi>=ddux.and.mxe>=ddux) then
-      ! estimate vertical gradient
-      drhobardzu=(rhobarhl(iqq,ii,:)+rhobarhl(ie(iqq),ii,:)-rhobarhl(iqq,ii-1,:)-rhobarhl(ie(iqq),ii-1,:))          &
-                /(dephladj(iqq,ii)+dephladj(ie(iqq),ii)-dephladj(iqq,ii-1)-dephladj(ie(iqq),ii-1))
-      call seekval(ri(:),ssi(:,:),ddi(:),ddux,sdi,y2i)
-      call seekval(re(:),sse(:,:),dde(:),ddux,sde,y2e)
-      ! the following terms correct for neglecting neta in the above intepolation of depths
-      ri=ri+drhobardzu*(1.-gosig(ii))*neta(iqq)
-      re=re+drhobardzu*(1.-gosig(ii))*neta(ie(iqq))
-      drhobardxu(iqq,ii,:)=eeu(iqq)*(re-ri)*emu(iqq)/ds
-      if (mxn>=ddux.and.mxne>=ddux) then
-        call seekval(rn(:), ssn(:,:), ddn(:), ddux,sdn, y2n)
-        call seekval(rne(:),ssne(:,:),ddne(:),ddux,sdne,y2ne)
-        ! the following terms correct for neglecting neta in the above interpolation of depths
-        rn=rn+drhobardzu*(1.-gosig(ii))*neta(in(iqq))
-        rne=rne+drhobardzu*(1.-gosig(ii))*neta(ine(iqq))
-        drhobardyu(iqq,ii,:)=drhobardyu(iqq,ii,:)+0.25*stwgt(iqq,1)*(rn*f(in(iqq))+rne*f(ine(iqq))-ri*f(iqq)-re*f(ie(iqq)))*emu(iqq)/ds
-        drhobardyu(iqq,ii,:)=drhobardyu(iqq,ii,:)-0.125*stwgt(iqq,1)*(ri+re)*(f(in(iqq))+f(ine(iqq))-f(iqq)-f(ie(iqq)))*emu(iqq)/ds
-      end if
-      if (mxs>=ddux.and.mxse>=ddux) then
-        call seekval(rs(:), sss(:,:), dds(:), ddux,sds, y2s)
-        call seekval(rse(:),ssse(:,:),ddse(:),ddux,sdse,y2se)
-        ! the following terms correct for neglecting neta in the above interpolation of depths
-        rs=rs+drhobardzu*(1.-gosig(ii))*neta(is(iqq))
-        rse=rse+drhobardzu*(1.-gosig(ii))*neta(ise(iqq))
-        drhobardyu(iqq,ii,:)=drhobardyu(iqq,ii,:)+0.25*stwgt(iqq,2)*(ri*f(iqq)+re*f(ie(iqq))-rs*f(is(iqq))-rse*f(ise(iqq)))*emu(iqq)/ds
-        drhobardyu(iqq,ii,:)=drhobardyu(iqq,ii,:)-0.125*stwgt(iqq,2)*(ri+re)*(f(iqq)+f(ie(iqq))-f(is(iqq))-f(ise(iqq)))*emu(iqq)/ds
-      end if
-    else
-      exit
-    end if
+    ddux=gosig(ii)*(ddu(iqq)+0.5*(neta(iqq)+neta(ie(iqq)))) ! seek depth
+    call seekval(ri(:),ssi(:,:),ddi(:),ddux,sdi,y2i)
+    call seekval(re(:),sse(:,:),dde(:),ddux,sde,y2e)
+    drhobardxu(iqq,ii,:)=eeu(iqq)*(re-ri)*emu(iqq)/ds
+    call seekval(rn(:), ssn(:,:), ddn(:), ddux,sdn, y2n)
+    call seekval(rne(:),ssne(:,:),ddne(:),ddux,sdne,y2ne)
+    drhobardyu(iqq,ii,:)=0.25*stwgt(iqq,1)*(rn*f(in(iqq))+rne*f(ine(iqq))-ri*f(iqq)-re*f(ie(iqq)))*emu(iqq)/ds &
+                       -0.125*stwgt(iqq,1)*(ri+re)*(f(in(iqq))+f(ine(iqq))-f(iqq)-f(ie(iqq)))*emu(iqq)/ds
+    call seekval(rs(:), sss(:,:), dds(:), ddux,sds, y2s)
+    call seekval(rse(:),ssse(:,:),ddse(:),ddux,sdse,y2se)
+    drhobardyu(iqq,ii,:)=0.25*stwgt(iqq,2)*(ri*f(iqq)+re*f(ie(iqq))-rs*f(is(iqq))-rse*f(ise(iqq)))*emu(iqq)/ds &
+                       -0.125*stwgt(iqq,2)*(ri+re)*(f(iqq)+f(ie(iqq))-f(is(iqq))-f(ise(iqq)))*emu(iqq)/ds
   end do
 
   sdi=2
@@ -4271,9 +4228,9 @@ do iqq=1,ifull
   sdw=2
   sden=2
   sdwn=2
-  mxw=dd(iw(iqq))
-  mxen=dd(ien(iqq))
-  mxwn=dd(iwn(iqq))
+  mxw=dd(iw(iqq))+neta(iw(iqq))
+  mxen=dd(ien(iqq))+neta(ien(iqq))
+  mxwn=dd(iwn(iqq))+neta(iwn(iqq))
   ssw=rhobar(iw(iqq),:,:)
   ssen=rhobar(ien(iqq),:,:)
   sswn=rhobar(iwn(iqq),:,:)
@@ -4286,34 +4243,18 @@ do iqq=1,ifull
 
   do ii=1,wlev
     ! now process staggered v locations
-    ddvy=gosig(ii)*ddv(iqq) ! seek depth
-    if (mxi>=ddvy.and.mxn>=ddvy) then
-      ! estimate vertical gradient
-      drhobardzv=(rhobarhl(iqq,ii,:)+rhobarhl(in(iqq),ii,:)-rhobarhl(iqq,ii-1,:)-rhobarhl(in(iqq),ii-1,:))          &
-                /(dephladj(iqq,ii)+dephladj(in(iqq),ii)-dephladj(iqq,ii-1)-dephladj(in(iqq),ii-1))
-      call seekval(ri(:),ssi(:,:),ddi(:),ddvy,sdi,y2i)
-      call seekval(rn(:),ssn(:,:),ddn(:),ddvy,sdn,y2n)
-      ri=ri+drhobardzv*(1.-gosig(ii))*neta(iqq)
-      rn=rn+drhobardzv*(1.-gosig(ii))*neta(in(iqq))
-      drhobardyv(iqq,ii,:)=eev(iqq)*(rn-ri)*emv(iqq)/ds
-      if (mxe>=ddvy.and.mxen>=ddvy) then
-        call seekval(re(:), sse(:,:), dde(:), ddvy,sde, y2e)
-        call seekval(ren(:),ssen(:,:),dden(:),ddvy,sden,y2en)
-        re=re+drhobardzv*(1.-gosig(ii))*neta(ie(iqq))
-        ren=ren+drhobardzv*(1.-gosig(ii))*neta(ien(iqq))
-        drhobardxv(iqq,ii,:)=drhobardxv(iqq,ii,:)+0.25*stwgt(iqq,3)*(re*f(ie(iqq))+ren*f(ien(iqq))-ri*f(iqq)-rn*f(in(iqq)))*emv(iqq)/ds
-        drhobardxv(iqq,ii,:)=drhobardxv(iqq,ii,:)-0.125*stwgt(iqq,3)*(ri+rn)*(f(ie(iqq))+f(ien(iqq))-f(iqq)-f(in(iqq)))*emv(iqq)/ds
-      end if
-      if (mxw>=ddvy.and.mxwn>=ddvy) then
-        call seekval(rw(:), ssw(:,:), ddw(:), ddvy,sdw, y2w)
-        call seekval(rwn(:),sswn(:,:),ddwn(:),ddvy,sdwn,y2wn)
-        rwn=rwn+drhobardzv*(1.-gosig(ii))*neta(iwn(iqq))
-        drhobardxv(iqq,ii,:)=drhobardxv(iqq,ii,:)+0.25*stwgt(iqq,4)*(ri*f(iqq)+rn*f(in(iqq))-rw*f(iw(iqq))-rwn*f(iwn(iqq)))*emv(iqq)/ds
-        drhobardxv(iqq,ii,:)=drhobardxv(iqq,ii,:)-0.125*stwgt(iqq,4)*(ri+rn)*(f(iqq)+f(in(iqq))-f(iw(iqq))-f(iwn(iqq)))*emv(iqq)/ds
-      end if
-    else
-      exit
-    end if
+    ddvy=gosig(ii)*(ddv(iqq)+0.5*(neta(iqq)+neta(in(iqq)))) ! seek depth
+    call seekval(ri(:),ssi(:,:),ddi(:),ddvy,sdi,y2i)
+    call seekval(rn(:),ssn(:,:),ddn(:),ddvy,sdn,y2n)
+    drhobardyv(iqq,ii,:)=eev(iqq)*(rn-ri)*emv(iqq)/ds
+    call seekval(re(:), sse(:,:), dde(:), ddvy,sde, y2e)
+    call seekval(ren(:),ssen(:,:),dden(:),ddvy,sden,y2en)
+    drhobardxv(iqq,ii,:)=0.25*stwgt(iqq,3)*(re*f(ie(iqq))+ren*f(ien(iqq))-ri*f(iqq)-rn*f(in(iqq)))*emv(iqq)/ds &
+                       -0.125*stwgt(iqq,3)*(ri+rn)*(f(ie(iqq))+f(ien(iqq))-f(iqq)-f(in(iqq)))*emv(iqq)/ds
+    call seekval(rw(:), ssw(:,:), ddw(:), ddvy,sdw, y2w)
+    call seekval(rwn(:),sswn(:,:),ddwn(:),ddvy,sdwn,y2wn)
+    drhobardxv(iqq,ii,:)=0.25*stwgt(iqq,4)*(ri*f(iqq)+rn*f(in(iqq))-rw*f(iw(iqq))-rwn*f(iwn(iqq)))*emv(iqq)/ds &
+                       -0.125*stwgt(iqq,4)*(ri+rn)*(f(iqq)+f(in(iqq))-f(iw(iqq))-f(iwn(iqq)))*emv(iqq)/ds
   end do
 
 end do
@@ -4343,13 +4284,13 @@ sindx=nindx
 
 ! linear
 !xp=(ddseek-ddin(sindx-1))/(ddin(sindx)-ddin(sindx-1))
-!xp=max(min(xp,1.),0.)
+!xp=min(max(xp,0.),1.)
 !rout(:)=ssin(sindx-1,:)+xp*(ssin(sindx,:)-ssin(sindx-1,:))
 
 ! cubic spline
 h=ddin(sindx)-ddin(sindx-1)
-a=(ddin(sindx)-ddseek)/h
-b=(ddseek-ddin(sindx-1))/h
+a=min(max(ddin(sindx)-ddseek,0.),h)/h
+b=min(max(ddseek-ddin(sindx-1),0.),h)/h
 rout(:)=a*ssin(sindx-1,:)+b*ssin(sindx,:)+((a*a*a-a)*y2(sindx-1,:)+(b*b*b-b)*y2(sindx,:))*h*h/6.
 
 return
