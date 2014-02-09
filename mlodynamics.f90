@@ -4179,9 +4179,9 @@ do iqq=1,ifull
   ssi=rhobar(iqq,:,:)
   sse=rhobar(ie(iqq),:,:)
   ssn=rhobar(in(iqq),:,:)
-  ddi=gosig(:)*mxi
-  dde=gosig(:)*mxe
-  ddn=gosig(:)*mxn
+  ddi=gosig(:)*mxi-neta(iqq)
+  dde=gosig(:)*mxe-neta(ie(iqq))
+  ddn=gosig(:)*mxn-neta(in(iqq))
   call mlospline(ddi,ssi,y2i)
   call mlospline(dde,sse,y2e)
   call mlospline(ddn,ssn,y2n)
@@ -4198,9 +4198,9 @@ do iqq=1,ifull
   sss=rhobar(is(iqq),:,:)
   ssne=rhobar(ine(iqq),:,:)
   ssse=rhobar(ise(iqq),:,:)
-  dds=gosig(:)*mxs
-  ddne=gosig(:)*mxne
-  ddse=gosig(:)*mxse
+  dds=gosig(:)*mxs-neta(is(iqq))
+  ddne=gosig(:)*mxne-neta(ine(iqq))
+  ddse=gosig(:)*mxse-neta(ise(iqq))
   call mlospline(dds,sss,y2s)
   call mlospline(ddne,ssne,y2ne)
   call mlospline(ddse,ssse,y2se)
@@ -4208,7 +4208,7 @@ do iqq=1,ifull
   do ii=1,wlev
     ! process staggered u locations
     ! use scaled depths (i.e., assume neta is small compared to dd)
-    ddux=gosig(ii)*(ddu(iqq)+0.5*(neta(iqq)+neta(ie(iqq)))) ! seek depth
+    ddux=gosig(ii)*(ddu(iqq)+0.5*(neta(iqq)+neta(ie(iqq))))-0.5*(neta(iqq)+neta(ie(iqq))) ! seek depth
     call seekval(ri(:),ssi(:,:),ddi(:),ddux,sdi,y2i)
     call seekval(re(:),sse(:,:),dde(:),ddux,sde,y2e)
     drhobardxu(iqq,ii,:)=eeu(iqq)*(re-ri)*emu(iqq)/ds
@@ -4234,16 +4234,16 @@ do iqq=1,ifull
   ssw=rhobar(iw(iqq),:,:)
   ssen=rhobar(ien(iqq),:,:)
   sswn=rhobar(iwn(iqq),:,:)
-  ddw=gosig(:)*mxw
-  dden=gosig(:)*mxen
-  ddwn=gosig(:)*mxwn
+  ddw=gosig(:)*mxw-neta(iw(iqq))
+  dden=gosig(:)*mxen-neta(ien(iqq))
+  ddwn=gosig(:)*mxwn-neta(iwn(iqq))
   call mlospline(dds,sss,y2w)
   call mlospline(ddne,ssne,y2en)
   call mlospline(ddse,ssse,y2wn)
 
   do ii=1,wlev
     ! now process staggered v locations
-    ddvy=gosig(ii)*(ddv(iqq)+0.5*(neta(iqq)+neta(in(iqq)))) ! seek depth
+    ddvy=gosig(ii)*(ddv(iqq)+0.5*(neta(iqq)+neta(in(iqq))))-0.5*(neta(iqq)+neta(in(iqq))) ! seek depth
     call seekval(ri(:),ssi(:,:),ddi(:),ddvy,sdi,y2i)
     call seekval(rn(:),ssn(:,:),ddn(:),ddvy,sdn,y2n)
     drhobardyv(iqq,ii,:)=eev(iqq)*(rn-ri)*emv(iqq)/ds
