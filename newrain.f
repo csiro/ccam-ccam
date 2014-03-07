@@ -682,7 +682,6 @@ c          write(25,9)'qsl ',(qsl(mg,k),k=1,nl)
  91   format(a,30f10.3)
  9    format(a,30g10.3)
 
-
       return
 
       end

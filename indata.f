@@ -738,7 +738,7 @@
             enddo
             write (6,"('after retopo pslavge ',f10.6)") pslavge
           endif 
-        endif   ! (newtop>=1)
+        endif   ! (newtop>=1.and..not.lrestart)
 
         qg(1:ifull,:)=max(qg(1:ifull,:),0.)
         ps(1:ifull)=1.e5*exp(psl(1:ifull))
@@ -918,7 +918,7 @@
          vmer=0.
 !       assign u and v from zonal and meridional winds
          do iq=1,ifull
-            den=sqrt( max(x(iq)**2 + y(iq)**2,1.e-7) ) ! allow for poles
+            den=sqrt( max(x(iq)**2 + y(iq)**2,real(1.e-7,8)) ) ! allow for poles
             costh=(-y(iq)*ax(iq) + x(iq)*ay(iq))/den
             sinth=az(iq)/den
             uzon=2.*pi*rearth/(10.*86400) * abs(cos(rlatt(iq)))

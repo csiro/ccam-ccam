@@ -25,7 +25,7 @@ c     modify for Cray; used by plotg.f and topgencc.f
       real*8 xx4(1+4*ik,1+4*ik),yy4(1+4*ik,1+4*ik)
       real*8 dxx,dyy,dxy,dyx,denxyz,x,y,z 
       real*8 alf
-      double precision, parameter :: one=1.
+      real*8, parameter :: one=1.
       real den,ri,rj,xout,yout,xa,ya,za,xgrid,ygrid,xx,yy,zz,x1,z1
       real rlatin,rlongin,rlong0,rlat0,schmidt 
       integer ig,jg,ik,is,js,loop,nf

@@ -65,7 +65,7 @@ implicit none
 private
 public atebinit,atebcalc,atebend,atebzo,atebload,atebsave,atebtype,atebfndef,atebalb1, &
        atebnewangle1,atebccangle,atebdisable,atebloadm,atebsavem,atebcd,vegmode,       &
-       atebdwn,atebscrnout,atebfbeam,atebspitter
+       atebdwn,atebscrnout,atebfbeam,atebspitter,atebsigmau
 
 ! state arrays
 integer, save :: ufull,ifull,iqut
@@ -93,13 +93,13 @@ real, dimension(:), allocatable, save :: p_lzom,p_lzoh,p_cndzmin,p_cduv,p_cdtq,p
 real, dimension(:), allocatable, save :: p_tscrn,p_qscrn,p_uscrn,p_u10,p_emiss
 
 ! model parameters
-integer, parameter :: nmlfile=11      ! Read configuration from nml file (0=off, >0 unit number (default=11))
+integer, parameter :: nmlfile=0       ! Read configuration from nml file (0=off, >0 unit number (default=11))
 integer, save :: resmeth=1            ! Canyon sensible heat transfer (0=Masson, 1=Harman (varying width), 2=Kusaka, 3=Harman (fixed width))
 integer, save :: useonewall=0         ! Combine both wall energy budgets into a single wall (0=two walls, 1=single wall) 
 integer, save :: zohmeth=1            ! Urban roughness length for heat (0=0.1*zom, 1=Kanda, 2=0.003*zom)
 integer, save :: acmeth=1             ! AC heat pump into canyon (0=Off, 1=On)
 integer, save :: nrefl=3              ! Number of canyon reflections (default=3)
-integer, save :: vegmode=2            ! In-canyon vegetation mode (0=50%/50%, 1=100%/0%, 2=0%/100%, where out/in=X/Y)
+integer, save :: vegmode=2            ! In-canyon vegetation mode (0=50%/50%, 1=100%/0%, 2=0%/100%, where out/in=X/Y. Negative values are X=abs(vegmode))
 integer, save :: scrnmeth=1           ! Screen diagnostic method (0=Slab, 1=Hybrid, 2=Canyon)
 integer, save :: wbrelaxc=0           ! Relax canyon soil moisture for irrigation (0=Off, 1=On)
 integer, save :: wbrelaxr=0           ! Relax roof soil moisture for irrigation (0=Off, 1=On)
@@ -418,6 +418,7 @@ integer ii,ierr
 integer, dimension(ifull), intent(in) :: itype
 integer, dimension(ufull) :: itmp
 integer, parameter :: maxtype = 8
+real x
 real, dimension(ufull) :: tsigveg,tsigmabld
 ! In-canyon vegetation fraction
 real, dimension(maxtype) ::    csigvegc=(/ 0.38, 0.45, 0.38, 0.34, 0.05, 0.40, 0.30, 0.20 /)
@@ -555,21 +556,31 @@ select case(vegmode)
   case(0)
     tsigveg=1./(2./csigvegc(itmp)-1.)
     tsigmabld=csigmabld(itmp)*(1.-tsigveg)/(1.-csigvegc(itmp))
+    sigmau=sigmau*(1.-0.5*csigvegc(itmp))
   case(1)
     tsigveg=0.
     tsigmabld=csigmabld(itmp)/(1.-csigvegc(itmp))
+    sigmau=sigmau*(1.-csigvegc(itmp))
   case(2)
     tsigveg=csigvegc(itmp)
     tsigmabld=csigmabld(itmp)
   case DEFAULT
-    write(6,*) "ERROR: Unsupported vegmode ",vegmode
-    stop
+    if (vegmode<0) then
+      x=real(abs(vegmode))/100.
+      x=max(min(x,1.),0.)
+      tsigveg=x*csigvegc(itmp)/(1.-(1.-x)*csigvegc(itmp))
+      tsigmabld=csigmabld(itmp)/(1.-(1.-x)*csigvegc(itmp))
+      sigmau=sigmau*(1.-(1.-x)*csigvegc(itmp))
+    else
+      write(6,*) "ERROR: Unsupported vegmode ",vegmode
+      stop
+    end if
 end select
-f_sigmavegc=tsigveg/(1.-tsigmabld)
+f_sigmavegc=max(min(tsigveg/(1.-tsigmabld),1.),0.)
 l_sigmavegc=any(f_sigmavegc>0.)
-f_sigmavegr=csigvegr(itmp)
+f_sigmavegr=max(min(csigvegr(itmp),1.),0.)
 l_sigmavegr=any(f_sigmavegr>0.)
-f_sigmabld=tsigmabld
+f_sigmabld=max(min(tsigmabld,1.),0.)
 f_hwratio=chwratio(itmp)*f_sigmabld/(1.-f_sigmabld) ! MJT suggested new definition
 f_industryfg=cindustryfg(itmp)
 f_trafficfg=ctrafficfg(itmp)
@@ -866,12 +877,12 @@ where (lcosin(ib:ie)>1.0e-10 .and. lsg(ib:ie)>10.)
 elsewhere
   tmprat(ib:ie)=0.
 end where
-where (tmprat(ib:ie)>0.22)
-  f_fbeam(ib:ie)=6.4*(tmprat(ib:ie)-0.22)**2
+where (tmprat(ib:ie)>tmpk(ib:ie))
+  f_fbeam(ib:ie)=max(1.-tmpr(ib:ie),0.)
 elsewhere (tmprat(ib:ie)>0.35)
   f_fbeam(ib:ie)=min(1.66*tmprat(ib:ie)-0.4728,1.)
-elsewhere (tmprat(ib:ie)>tmpk(ib:ie))
-  f_fbeam(ib:ie)=max(1.-tmpr(ib:ie),0.)
+elsewhere (tmprat(ib:ie)>0.22)
+  f_fbeam(ib:ie)=6.4*(tmprat(ib:ie)-0.22)**2
 elsewhere
   f_fbeam(ib:ie)=0.
 end where
@@ -1093,6 +1104,23 @@ end if
 
 return
 end subroutine atebscrnout
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Extract urban fraction
+subroutine atebsigmau(sigu,diag)
+
+implicit none
+
+integer, intent(in) :: diag
+real, dimension(ifull), intent(out) :: sigu
+
+sigu=0.
+if (ufull==0) return
+
+sigu(umap)=sigmau
+
+return
+end subroutine atebsigmau
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Main routine for calculating urban flux contrabution
@@ -1367,11 +1395,11 @@ p_cndzmin=a_zmin                                 ! distance to canyon displaceme
 select case(resmeth)
   case(0) ! Masson (2000)
     cu=exp(-0.25*effhwratio)
-    acond_road=cu ! bulk transfer coefficents are updated in solvecanyon
+    acond_road =cu ! bulk transfer coefficents are updated in solvecanyon
     acond_walle=cu
     acond_wallw=cu
-    acond_rdsn=cu
-    acond_vegc=cu
+    acond_rdsn =cu
+    acond_vegc =cu
   case(1,3) ! Harman et al (2004)
     if (resmeth==1) then
       call getincanwind(we,ww,wr,a_udir,zonet)
@@ -1396,11 +1424,11 @@ select case(resmeth)
     acond_rdsn=a*wr                  ! road snow bulk transfer
   case(2) ! Kusaka et al (2001)
     cu=exp(-0.25*effhwratio)
-    acond_road=cu ! bulk transfer coefficents are updated in solvecanyon
+    acond_road =cu ! bulk transfer coefficents are updated in solvecanyon
     acond_walle=cu
     acond_wallw=cu
-    acond_rdsn=cu
-    acond_vegc=cu
+    acond_rdsn =cu
+    acond_vegc =cu
 end select
 
 ! join two walls into a single wall (testing only)

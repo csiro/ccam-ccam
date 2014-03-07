@@ -469,7 +469,7 @@ do j=1,jl,imax/il
     else
       call o3set(imax,istart,mins,duo3n,sig,ps(istart:iend))
     end if
-    Rad_gases%qo3(:,1,:)=dble(max(1.e-10,duo3n))
+    Rad_gases%qo3(:,1,:)=max(1.e-10_8,real(duo3n,8))
 
     ! Set-up albedo
     ! Land albedo ---------------------------------------------------
@@ -611,7 +611,7 @@ do j=1,jl,imax/il
           !Aerosol%aerosol(:,1,kr,11)=9.1e-15*ssn(istart:iend,k,2) &
           !                           /rhoa(:,k)*dprf/grav  ! Large sea salt (0.5)
         end do
-        Aerosol%aerosol=max(Aerosol%aerosol,0.)
+        Aerosol%aerosol=max(Aerosol%aerosol,0._8)
       case DEFAULT
         write(6,*) "ERROR: unknown iaero option ",iaero
         call ccmpi_abort(-1)
@@ -758,8 +758,8 @@ do j=1,jl,imax/il
     call cloud3(Cloud_microphysics%size_drop,Cloud_microphysics%size_ice,       &
                 Cloud_microphysics%conc_drop,Cloud_microphysics%conc_ice,       &
                 dumcf,dumql,dumqf,p2,dumt,cd2,imax,kl)
-    Cloud_microphysics%size_drop=max(Cloud_microphysics%size_drop,1.e-20)
-    Cloud_microphysics%size_ice =max(Cloud_microphysics%size_ice,1.e-20)                
+    Cloud_microphysics%size_drop=max(Cloud_microphysics%size_drop,1.e-20_8)
+    Cloud_microphysics%size_ice =max(Cloud_microphysics%size_ice,1.e-20_8)                
     Cloud_microphysics%size_rain=1.e-20
     Cloud_microphysics%conc_rain=0.
     Cloud_microphysics%size_snow=1.e-20
@@ -922,7 +922,7 @@ do j=1,jl,imax/il
       ! The sun isn't up at all over the radiation period so no 
       ! fitting need be done.
       sga(1:imax)=0.
-    else where
+    elsewhere
       sga(1:imax)=sg(1:imax)/(coszro(1:imax)*taudar(1:imax))
     end where
 
@@ -1379,17 +1379,21 @@ end do
 
 do k=1,kl
   kr=kl+1-k
-  Rdrop(:,kr)=2.E6*dble(reffl(:,k)) ! convert to diameter and microns
-  Rice(:,kr) =2.E6*dble(reffi(:,k))
-  conl(:,kr) =1000.*dble(scale_factor*Wliq(:,k)) !g/m^3
-  coni(:,kr) =1000.*dble(scale_factor*Wice(:,k))
+  Rdrop(:,kr)=2.E6*real(reffl(:,k),8) ! convert to diameter and microns
+  Rice(:,kr) =2.E6*real(reffi(:,k),8)
+  conl(:,kr) =1000.*real(scale_factor*Wliq(:,k),8) !g/m^3
+  coni(:,kr) =1000.*real(scale_factor*Wice(:,k),8)
 end do
 
 where (Rdrop>0.)
-  Rdrop=min(max(Rdrop,8.4),33.2) ! constrain diameter to acceptable range (see microphys_rad.f90)
+  Rdrop=min(max(Rdrop,8.4_8),33.2_8) ! constrain diameter to acceptable range (see microphys_rad.f90)
+elsewhere
+  Rdrop=0.
 endwhere
 where (Rice>0.)
-  Rice=min(max(Rice,18.6),130.2)
+  Rice=min(max(Rice,18.6_8),130.2_8)
+elsewhere
+  Rice=0.
 endwhere
 
 return
@@ -1424,7 +1428,10 @@ aerosol_optical_names( 9:12)=(/ "sulfate_70%", "sulfate_75%", "sulfate_80%", "su
 aerosol_optical_names(13:16)=(/ "sulfate_84%", "sulfate_86%", "sulfate_88%", "sulfate_90%" /)
 aerosol_optical_names(17:20)=(/ "sulfate_91%", "sulfate_92%", "sulfate_93%", "sulfate_94%" /)
 aerosol_optical_names(21:24)=(/ "sulfate_95%", "sulfate_96%", "sulfate_97%", "sulfate_98%" /)
-aerosol_optical_names(25:28)=(/ "sulfate_99%", "sulfate_100%","organic_carbon","soot" /)
+aerosol_optical_names(25)="sulfate_99%"
+aerosol_optical_names(26)="sulfate_100%"
+aerosol_optical_names(27)="organic_carbon"
+aerosol_optical_names(28)="soot"
 aerosol_optical_names(29:32)=(/ "sea_salt",    "dust_0.1",    "dust_0.2",    "dust_0.4" /)
 aerosol_optical_names(33:36)=(/ "dust_0.8",    "dust_1.0",    "dust_2.0",    "dust_4.0" /)
 aerosol_optical_names(37)   =   "dust_8.0"

@@ -1,12 +1,15 @@
       ! CCAM nudging/assimilation routines
       
       ! These routines preturb the regional model with the large scale circulation of the host model.
-      ! Currently, relaxiation, far-field and scale-selective filter options are supported for both
+      ! Currently, relaxation, far-field and scale-selective filter options are supported for both
       ! the atmosphere and ocean.
       
       ! We support both 1D and 2D versions of the scale-selective filter.  2D is exact, but expensive.
       ! Current tests suggest the 1D is a good approximation of the 2D filter where the grid stretching
       ! is not too large.
+      
+      ! With MPI-3, we can use MPI_Win_Allocate_Shared to use a shared window of memory for all processors
+      ! on a node.  This should considerably reduce the memory footprint.
 
       ! nbd/=0       Far-field or relaxation nudging
       ! mbd/=0       Spectral filter (1D and 2D versions, see nud_uv)
@@ -25,7 +28,7 @@
       ! mloalpha     Weight of water nudging strength
 
       !--------------------------------------------------------------
-      ! FAR-FIELD NUDGING AND RELAXIATION ROUTINES
+      ! FAR-FIELD NUDGING AND RELAXATION ROUTINES
       ! Called for nbd/=0
       subroutine nestin(iaero)
       
@@ -352,7 +355,9 @@
         allocate(pslb(ifull),tssb(ifull),fraciceb(ifull))
         allocate(sicedepb(ifull),ocndep(ifull,2))
         allocate(sssb(ifull,wlev,4))
-        call specinit
+        if (nud_uv/=9) then
+          call specinit
+        end if
       end if
 
 !     mtimer, mtimeb are in minutes
@@ -622,7 +627,7 @@
       
       if (nud_p>0) then
         psl(1:ifull)=psl(1:ifull)+pslb(:)
-        ps=1.e5*exp(psl(1:ifull))
+        ps(1:ifull)=1.e5*exp(psl(1:ifull))
       end if
       if (nud_uv/=0) then
         if (nud_uv==3) then
@@ -1010,6 +1015,11 @@
 
       return
       end subroutine spechost_n
+
+      ! determine if panel is 'left' or 'right'.  This
+      ! basically reorders the convolution so that the
+      ! final convolution leaves the local processors
+      ! data in the correct orientation.
 
       subroutine fastspecmpi_work(cin,tt,klt,ppass)
 

@@ -2179,7 +2179,7 @@ c      "extra" outputs
       real, dimension(il_g) :: xpnt
       real, dimension(jl_g) :: ypnt
       real, dimension(nrhead) :: ahead
-      double precision, dimension(nwt) :: tpnt
+      real(kind=8), dimension(nwt) :: tpnt
       logical, save :: first = .true.
       character(len=180) :: ffile
       character(len=40) :: lname

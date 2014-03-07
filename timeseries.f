@@ -3,7 +3,7 @@
 c     rml 25/08/03 declarations from sflux
       implicit none
       integer, save :: indextime,ntsfreq,ngrdpts,ngrdpts1,n3d,n2d
-      double precision, save :: tstime
+      real(kind=8), save :: tstime
       integer, pointer, dimension(:,:), save :: listijk
       logical, pointer, dimension(:), save :: writesurf
       integer, pointer, dimension(:), save :: tsid
@@ -350,7 +350,7 @@ c
 
       if (ngrdpts.eq.0) return
       if (mod(ktau,ntsfreq).eq.0) then
-        tstime = dble(jyear) + dble(mins)/dble(365.*24.*60.)
+        tstime = real(jyear,8) + real(mins,8)/real(365.*24.*60.,8)
         call ccnf_put_var1(tsid(1),tsid(2),indextime,tstime)
         allocate(cts(ngrdpts,ntrac))
         do n=1,ngrdpts

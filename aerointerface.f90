@@ -501,11 +501,6 @@ sigh(1:kl) = sigmh(1:kl) ! store half-levels
 sigh(kl+1) = 0.
 
 ! Non-hydrostatic terms
-
-do k=2,kl
-
-end do
-
 tnhs(:,1)=phi_nh(:,1)/bet(1)
 zg(:,1)=bet(1)*(t(1:ifull,1)+tnhs(:,1))/grav
 do k=2,kl
@@ -516,9 +511,9 @@ end do
 do k=1,kl
   dz(:,k)=-rdry*dsig(k)*(t(1:ifull,k)+tnhs(:,k))/(grav*sig(k))
 end do
-dxy=ds*ds/(em*em)       ! grid spacing in m**2
+dxy=ds*ds/(em(1:ifull)*em(1:ifull))       ! grid spacing in m**2
 do k=1,kl
-  rhoa(:,k)=ps*sig(k)/(rdry*t(1:ifull,k)) !density of air (kg/m**3)
+  rhoa(:,k)=ps(1:ifull)*sig(k)/(rdry*t(1:ifull,k)) !density of air (kg/m**3)
 end do
 
 ! estimate convective cloud fraction
@@ -585,7 +580,7 @@ call aldrcalc(dt,sig,sigh,dsig,zg,dz,cansto,fwet,wg,pblh,ps,   &
 ! Factor 1.e3 to convert to g/m2, x 3 to get sulfate from sulfur
 so4t(:)=0.
 do k=1,kl
-  so4t(:)=so4t(:)+1.e3*xtg(:,k,3)*(-ps(:)*dsig(k))/grav
+  so4t(:)=so4t(:)+1.e3*xtg(1:ifull,k,3)*(-ps(1:ifull)*dsig(k))/grav
 enddo
 
 return
@@ -622,11 +617,11 @@ select case(abs(iaero))
   case default
     where (land(:).and.rlatt(:)>0.)
       cdn(:,1)=cdropl_nh
-    else where (land(:))
+    elsewhere (land(:))
       cdn(:,1)=cdropl_sh
-    else where (rlatt(:)>0.)
+    elsewhere (rlatt(:)>0.)
       cdn(:,1)=cdrops_nh
-    else where
+    elsewhere
       cdn(:,1)=cdrops_sh
     end where
     do k=2,kl

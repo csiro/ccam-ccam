@@ -1,7 +1,7 @@
       subroutine leoncld(cfrac,cffall,iaero)
       use aerointerface
       use arrays_m
-      use cc_mpi, only : mydiag, myid
+      use cc_mpi, only : mydiag, myid, ccmpi_abort
       use diag_m
       use kuocomb_m
       use latlong_m
@@ -113,6 +113,7 @@ c These outputs are not used in this model at present
       ktop(:) =0  ! default
       dz(:,:)=100.*dprf(:,:)/(rhoa(:,:)*grav)
      &        *(1.+tnhs(1:ifull,:)/t(1:ifull,:))
+      dz=max(dz,1.)
 c     fluxc(:,:)=rnrt3d(:,:)*1.e-3*dt ! kg/m2 (should be same level as rnrt3d)
       fluxc(:,:)=0. !For now... above line may be wrong
       ccrain(:,:)=0.1  !Assume this for now

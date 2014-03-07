@@ -70,7 +70,7 @@
       real, dimension(ifull,kl) :: betatt,betaqt,rhs,delthet,thebas
       real, dimension(ifull,kl) :: cu,thee,qs,uav,vav,au,ct,gt
       real, dimension(ifull,kl) :: guv,ri,rkm,rkh,rk_shal,zg
-      real, dimension(ifull,kl) :: tnhs,dnhs,zh
+      real, dimension(ifull,kl) :: tnhs,zh
       real, dimension(ifull,kl) :: dumqg,dumql,dumqf,dumqr,dumcr
       real, dimension(ifull,kl-1) :: dnhsh
       real, dimension(ifull) :: dqtot,csq,dvmod,dz,dzr,fm,fh,sqmxl
@@ -86,10 +86,6 @@
       do k=2,kl
         ! representing non-hydrostatic term as a correction to air temperature
         tnhs(:,k)=(phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:,k-1))/bet(k)
-      end do
-      do k=1,kl
-        ! scale factor to convert hydrostatic to non-hydrostatic
-        dnhs(:,k)=1.+tnhs(:,k)/t(1:ifull,k)
       end do
 
       rong=rdry/grav
@@ -125,18 +121,18 @@
       dnhsh(:,1)=1.+(tnhs(:,2)*rlogs1-tnhs(:,1)*rlogs2+
      &           (tnhs(:,1)-tnhs(:,2))*rlogh1)*rlog12/tmnht(1:ifull,1)
 !     n.b. an approximate zh (in m) is quite adequate for this routine
-      zh(:,1)=t(1:ifull,1)*delh(1)*dnhs(:,1)
+      zh(:,1)=(t(1:ifull,1)+tnhs(:,1))*delh(1)
       do k=2,kl-1
        do iq=1,ifull
-        zh(iq,k)=zh(iq,k-1)+t(iq,k)*delh(k)*dnhs(iq,k)
+        zh(iq,k)=zh(iq,k-1)+(t(iq,k)+tnhs(iq,k))*delh(k)
         !tmnht(iq,k) =(t(iq,k)+t(iq,k+1))*.5
-        tmnht(iq,k)=ratha(k)*t(iq,k+1)+rathb(k)*t(iq,k)       ! MJT suggestion
+        tmnht(iq,k)=ratha(k)*t(iq,k+1)+rathb(k)*t(iq,k)         ! MJT suggestion
         ! non-hydrostatic temperature correction at half level height
         dnhsh(iq,k)=1.+(ratha(k)*tnhs(iq,k+1)
-     &              +rathb(k)*tnhs(iq,k))/tmnht(iq,k)         ! MJT suggestion
+     &              +rathb(k)*tnhs(iq,k))/tmnht(iq,k)           ! MJT suggestion
        enddo     ! iq loop
       enddo      !  k loop
-      zh(:,kl)=zh(:,kl-1)+t(1:ifull,kl)*delh(kl)*dnhs(:,kl)   ! MJT suggestion
+      zh(:,kl)=zh(:,kl-1)+(t(1:ifull,kl)+tnhs(:,kl))*delh(kl)   ! MJT suggestion
       do k=1,kl
         rhs(:,k)=t(1:ifull,k)*sigkap(k)  ! rhs is theta here
       enddo      !  k loop
@@ -609,7 +605,7 @@ c     ************ section for Tiedtke shallow convection *******************
               rk_shal(iq,k-1)=tied_con     !  m**2/sec  6., originally 10.
               rk_shal(iq,k)=tied_over      !  m**2/sec
               if(ntest==3.and.k==ksctop)then
-                write(6,*),'ktau,iq,theeb,thee,delthee ',
+                write(6,*) 'ktau,iq,theeb,thee,delthee ',
      &                 ktau,iq,theeb(iq),thee(iq,k),theeb(iq)-thee(iq,k)
               endif
             endif ! (qg(iq,kscbase)>rhscon*qs(iq,kscbase).....
@@ -899,8 +895,8 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
         do iq=1,ifull
           dz(iq) =-tmnht(iq,k)*delons(k)*dnhsh(iq,k)  ! this is z(k+1)-z(k)
           dzr(iq)=1./dz(iq)
-          guv(iq,k)= rkm(iq,k)*dt *delsig*dnhsh(iq,k) *dzr(iq)**2
-          gt(iq,k)=  rkh(iq,k)*dt *delsig*dnhsh(iq,k) *dzr(iq)**2
+          guv(iq,k)= rkm(iq,k)*dt *delsig *dzr(iq)**2
+          gt(iq,k)=  rkh(iq,k)*dt *delsig *dzr(iq)**2
          enddo   ! iq loop
       enddo      ! k loop
       guv(:,kl)=0.
@@ -944,12 +940,12 @@ c     first do theta (then convert back to t)
 
       do k=2,kl
        do iq=1,ifull
-        at(iq,k) =-gt(iq,k-1)/(dsig(k)*dnhs(iq,k))
+        at(iq,k) =-gt(iq,k-1)/dsig(k)
        end do
       end do
       do k=1,kl-1
        do iq=1,ifull
-        ct(iq,k) =-gt(iq,k)/(dsig(k)*dnhs(iq,k))
+        ct(iq,k) =-gt(iq,k)/dsig(k)
        enddo   ! iq loop
       enddo    !  k loop
       if((diag.or.ntest==2).and.mydiag)then
@@ -964,7 +960,7 @@ c     first do theta (then convert back to t)
       if (nvmix/=6) then
        if(nmaxpr==1.and.mydiag)
      &   write (6,"('thet_inx',9f8.3/8x,9f8.3)") rhs(idjd,:)
-       rhs(:,1)=rhs(:,1)-(conflux/cp)*fg/(ps(1:ifull)*dnhs(:,1))
+       rhs(:,1)=rhs(:,1)-(conflux/cp)*fg/ps(1:ifull)
        call trim(at,ct,rhs,0)   ! for t
        if(nmaxpr==1.and.mydiag)
      &   write (6,"('thet_out',9f8.3/8x,9f8.3)") rhs(idjd,:)
@@ -984,7 +980,7 @@ c     first do theta (then convert back to t)
       !--------------------------------------------------------------
       ! Moisture
        rhs=qg(1:ifull,:)
-       rhs(:,1)=rhs(:,1)-(conflux/hl)*eg/(ps(1:ifull)*dnhs(:,1))
+       rhs(:,1)=rhs(:,1)-(conflux/hl)*eg/ps(1:ifull)
 c      could add extra sfce moisture flux term for crank-nicholson
        call trim(at,ct,rhs,0)    ! for qg
        qg(1:ifull,:)=rhs
@@ -1061,12 +1057,12 @@ c        now do cffall
       cu(:,kl)=0.
       do k=2,kl
        do iq=1,ifull
-        au(iq,k) =-guv(iq,k-1)/(dsig(k)*dnhs(iq,k))
+        au(iq,k) =-guv(iq,k-1)/dsig(k)
        enddo   ! iq loop
       enddo    !  k loop
       do k=1,kl-1
        do iq=1,ifull
-        cu(iq,k) =-guv(iq,k)/(dsig(k)*dnhs(iq,k))
+        cu(iq,k) =-guv(iq,k)/dsig(k)
        enddo   ! iq loop
       enddo    !  k loop
       if((diag.or.ntest==2).and.mydiag)then

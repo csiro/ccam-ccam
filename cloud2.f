@@ -855,7 +855,7 @@ C Local shared common blocks (see TASK COMMON/TASKLOCAL above)
 C Global data blocks
 
 C Local work arrays and variables
-      double precision exparg,denom,epsilon,omega,f,omwf
+      real(kind=8) exparg,denom,epsilon,omega,f,omwf
 
       integer i
       integer k
@@ -938,7 +938,7 @@ C Start code : ----------------------------------------------------------
      &               /denom 
                gam2=(-omwf*alpha4-mu0(mg)*(alpha1*alpha4+alpha2*alpha3))
      &               /denom
-               exparg=dmin1(70.0d0,omwf*tau(mg,k)/mu0(mg))
+               exparg=min(real(70.0,8),omwf*tau(mg,k)/mu0(mg))
                Tdb=exp(-exparg)
                Rdif=rM*(1-E**2)/(1-(E*rM)**2)
                Tdif=E*(1-rM**2)/(1-(E*rM)**2)
@@ -994,8 +994,8 @@ C Local shared common blocks (see TASK COMMON/TASKLOCAL above)
 C Global data blocks
 
 C Local work arrays and variables
-      double precision vm !For 32 bit
-      double precision exparg,denom,epsilon,omega,f,omwf
+      real(kind=8) vm !For 32 bit
+      real(kind=8) exparg,denom,epsilon,omega,f,omwf
 
       integer i
       integer k
@@ -1070,7 +1070,7 @@ C Start code : ----------------------------------------------------------
      &               /denom
                gam2=(-omwf*alpha4-mu0(mg)*(alpha1*alpha4+alpha2*alpha3))
      &               /denom
-               exparg=dmin1(70.0d0,omwf*tau(mg,k)/mu0(mg))
+               exparg=min(real(70.0,8),omwf*tau(mg,k)/mu0(mg))
                Tdb=exp(-exparg)
                Rdif=rM*(1-E**2)/(1-(E*rM)**2)
                Tdif=E*(1-rM**2)/(1-(E*rM)**2)

@@ -1255,6 +1255,7 @@
       endif
 
       ! DIFFUSION -------------------------------------------------------------
+
       START_LOG(hordifg)
       if (nhor<0) then
         call hordifgt(iaero)  ! now not tendencies
@@ -1420,7 +1421,6 @@
         write(6,*) "After radiation"
       end if
       END_LOG(radnet)
-
 
       ! HELD & SUAREZ ---------------------------------------------------------
       if (ntsur<=1.or.nhstest==2) then ! Held & Suarez or no surf fluxes

@@ -242,6 +242,10 @@ p_tauyica=0.
 ! MLO - 20 level
 !depth = (/   0.5,   3.4,  11.9,  29.7,  60.7, 108.5, 176.9, 269.7, 390.6, 543.3, &
 !           731.6, 959.2,1230.0,1547.5,1915.6,2338.0,2818.5,3360.8,3968.7,4645.8 /)
+! MLO - 30 level
+!depth = (/   0.5,   2.1,   5.3,  11.3,  21.1,  36.0,  56.9,  85.0, 121.5, 167.3, &
+!           223.7, 291.7, 372.4, 467.0, 576.5, 702.1, 844.8,1005.8,1186.2,1387.1, &
+!          1609.6,1854.7,2123.7,2417.6,2737.5,3084.6,3456.9,3864.5,4299.6,4766.2 /)
 ! MLO - 40 level
 !depth = (/   0.5,   1.7,   3.7,   6.8,  11.5,  18.3,  27.7,  40.1,  56.0,  75.9, &
 !           100.2, 129.4, 164.0, 204.3, 251.0, 304.4, 365.1, 433.4, 509.9, 595.0, &
@@ -1239,9 +1243,9 @@ integer ii,iqw
 real, intent(in) :: dt
 real, dimension(wfull,wlev) :: km,ks,gammas
 real, dimension(wfull,wlev) :: rhs
-double precision, dimension(wfull,2:wlev) :: aa
-double precision, dimension(wfull,wlev) :: bb,dd
-double precision, dimension(wfull,1:wlev-1) :: cc
+real(kind=8), dimension(wfull,2:wlev) :: aa
+real(kind=8), dimension(wfull,wlev) :: bb,dd
+real(kind=8), dimension(wfull,1:wlev-1) :: cc
 real, dimension(wfull,wlev), intent(in) :: d_rho,d_nsq,d_rad,d_alpha,d_beta
 real, dimension(wfull) :: xp,xm,dumt0,umag
 real, dimension(wfull), intent(in) :: a_f
@@ -1351,12 +1355,12 @@ subroutine thomas(outo,aa,bbi,cc,ddi)
 implicit none
 
 integer ii
-double precision, dimension(wfull,2:wlev), intent(in) :: aa
-double precision, dimension(wfull,wlev), intent(in) :: bbi,ddi
-double precision, dimension(wfull,wlev-1), intent(in) :: cc
+real(kind=8), dimension(wfull,2:wlev), intent(in) :: aa
+real(kind=8), dimension(wfull,wlev), intent(in) :: bbi,ddi
+real(kind=8), dimension(wfull,wlev-1), intent(in) :: cc
 real, dimension(wfull,wlev), intent(out) :: outo
-double precision, dimension(wfull,wlev) :: bb,dd,out
-double precision, dimension(wfull) :: n
+real(kind=8), dimension(wfull,wlev) :: bb,dd,out
+real(kind=8), dimension(wfull) :: n
 
 bb=bbi
 dd=ddi
@@ -2792,7 +2796,7 @@ it_tsurf=it_tsurf+dt*(dt_ftop+fs)/gamms
 ! fluxes between snow and ice layers
 where (it_dsn<0.05)
   fl(:,0)=fs
-else where
+elsewhere
   fl(:,0)=conb*(it_tn1-it_tn0)
   it_tn0=it_tn0+dt*(fl(:,0)-fs)/(it_dsn*cps)
 end where

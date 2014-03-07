@@ -849,7 +849,7 @@ if (myid==0) then
 end if
 
 ! Broadcast file metadata
-call ccmpi_bcast(idum(1:5),0,comm_world)
+call ccmpi_bcast(idum(1:6),0,comm_world)
 fnproc=idum(1)
 pil=idum(2)
 pjl=idum(3)
@@ -2565,7 +2565,7 @@ integer ncstatus
 integer(kind=4) :: lncid,lvid,lncstatus
 integer(kind=4), dimension(size(start)) :: lstart
 integer(kind=4), dimension(size(ncount)) :: lncount
-double precision, dimension(:,:,:), intent(out) :: vdat
+real(kind=8), dimension(:,:,:), intent(out) :: vdat
 
 lncid=ncid
 lvid=vid
@@ -2974,9 +2974,9 @@ integer(kind=4) :: lncid,lvid,lncstatus
 integer(kind=4) :: lstart
 #else
 integer(kind=4), dimension(1) :: lstart,lcount
-double precision, dimension(1) :: ldat
+real(kind=8), dimension(1) :: ldat
 #endif
-double precision, intent(in) :: vdat
+real(kind=8), intent(in) :: vdat
 
 lncid=ncid
 lvid=vid
@@ -3075,7 +3075,7 @@ integer, dimension(:), intent(in) :: start,ncount
 integer(kind=4) :: lncid,lvid,lncstatus
 integer(kind=4), dimension(size(start)) :: lstart
 integer(kind=4), dimension(size(ncount)) :: lncount
-double precision, dimension(:), intent(in) :: vdat
+real(kind=8), dimension(:), intent(in) :: vdat
 
 lncid=ncid
 lvid=vid

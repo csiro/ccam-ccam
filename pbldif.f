@@ -116,7 +116,6 @@ C
       real fac                  ! interpolation factor
 c     real pblmin               ! min pbl height due to mechanical mixing
       real tnhs(ifull,kl)       ! Non-hydrostatic term represented as temperature adjustment
-      real dnhs(ifull,kl)       ! Correction for non-hydrostatic tempertuare
 
 c     logical unstbl(il)        ! pts w/unstbl pbl (positive virtual ht flx)
 C------------------------------Commons----------------------------------
@@ -143,7 +142,8 @@ C Initialize COMCON
       data fakn,fak,vk,zkmin,c1/7.2, 8.5, 0.4, 0.01, 0.61/
       data ricr /0.25/
       
-      kmax=3*kl/4
+      !kmax=3*kl/4
+      kmax=kl-1
       fac=100.
       if(nlocal==6)fac=10.
       binh   = betah*sffrac
@@ -165,10 +165,6 @@ C****************************************************************
       do k=2,kl
         ! representing non-hydrostatic term as a correction to air temperature
         tnhs(:,k)=(phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:,k-1))/bet(k)
-      end do
-      do k=1,kl
-        ! scale factor to convert air temperature to pertubed air temperature
-        dnhs(:,k)=(t(1:ifull,k)+tnhs(:,k))/t(1:ifull,k)
       end do
       cgh(:,:)=0.   ! 3D
       cgq(:,:)=0.   ! 3D
@@ -435,10 +431,12 @@ c but reverts to Louis stable treatment for nlocal=-1
 C     update theta and qtg due to counter gradient
       do k=2,kmax-1
          do iq=1,ifull
-            delsig = (sigmh(k+1)-sigmh(k))*dnhs(iq,k)
+            delsig = sigmh(k+1)-sigmh(k)
             tmp1 = ztodtgor/delsig
-            sigotbk=sigmh(k+1)/(0.5*(t(iq,k+1) + t(iq,k)))
-            sigotbkm1=sigmh(k)/(0.5*(t(iq,k-1) + t(iq,k)))
+            sigotbk=sigmh(k+1)/(0.5*(t(iq,k+1) + t(iq,k)
+     &                       + tnhs(iq,k+1) + tnhs(iq,k)))
+            sigotbkm1=sigmh(k)/(0.5*(t(iq,k-1) + t(iq,k)
+     &                       + tnhs(iq,k-1) + tnhs(iq,k)))
             theta(iq,k) = theta(iq,k) + tmp1*
      $        (sigotbk*rkh(iq,k)*cgh(iq,k) -
      $         sigotbkm1*rkh(iq,k-1)*cgh(iq,k-1))
@@ -450,9 +448,10 @@ C     update theta and qtg due to counter gradient
       end do
       k=1
       do iq=1,ifull
-         delsig = (sigmh(k+1)-sigmh(k))*dnhs(iq,k)
+         delsig = sigmh(k+1)-sigmh(k)
          tmp1 = ztodtgor/delsig
-         sigotbk=sigmh(k+1)/(0.5*(t(iq,k+1) + t(iq,k)))
+         sigotbk=sigmh(k+1)/(0.5*(t(iq,k+1) + t(iq,k)
+     &                    + tnhs(iq,k+1) + tnhs(iq,k)))
          theta(iq,k) = theta(iq,k) + tmp1*
      $        sigotbk*rkh(iq,k)*cgh(iq,k)
          qg(iq,k) = qg(iq,k) + tmp1*

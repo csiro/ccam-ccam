@@ -790,10 +790,13 @@ C  <-- XE       three cartesian components.                                    C
 C------------------------------------------------------------------------------C
       SUBROUTINE STOE(DLAT,DLON,XE)
       DIMENSION XE(3)
+#ifdef i8r8
 C  FOR 64-BIT PRECISION, USE:
-C      DATA DTOR/.01745329251994329577/
+      DATA DTOR/.01745329251994329577/
+#else
 C  FOR 32-BIT PRECISION, USE:
       DATA DTOR/.017453293/
+#endif
       RLAT=DTOR*DLAT
       RLON=DTOR*DLON
       SLA=SIN(RLAT)
@@ -941,6 +944,7 @@ C------------------------------------------------------------------------------C
       ENDDO
       RETURN
       END
+      
       SUBROUTINE MULMM(A,B,C,MI,MJ,MK,NA,NB,NC)
       LOGICAL OMUL
       DIMENSION A(NA,*),B(NB,*),C(NC,*)

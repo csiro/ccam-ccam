@@ -314,7 +314,7 @@ module cc_mpi
 #ifdef simple_timer
    public :: simple_timer_finalize
    integer, parameter :: nevents = 73
-   double precision, dimension(nevents), save :: tot_time = 0., start_time
+   real(kind=8), dimension(nevents), save :: tot_time = 0., start_time
    character(len=15), dimension(nevents), save :: event_name
 #endif 
 
@@ -362,18 +362,24 @@ contains
       integer(kind=4) ierr, mone
       integer(kind=4) colour, rank, lcommin, lcommout
       integer(kind=4) asize
+#ifdef mswin
       integer(kind=INT_PTR_KIND()) wsize
+#else
+      integer(kind=MPI_ADDRESS_KIND) wsize
+#endif
       integer, dimension(ifull) :: colourmask
       integer, dimension(3) :: ifullxc
       logical(kind=4) :: ltrue
 
-      !integer(kind=MPI_ADDRESS_KIND) is broken with ifort, but
+#ifdef mswin
+      !integer(kind=MPI_ADDRESS_KIND) is broken with MS MPI and ifort, but
       !at least we can check for errors
       if ( MPI_ADDRESS_KIND /= INT_PTR_KIND() ) then
          write(6,*) "ERROR: Invalid MPI_ADDRESS_KIND"
          mone = -1
          call MPI_abort(MPI_COMM_WORLD,mone,ierr)
       end if
+#endif
 
       nreq = 0
 
@@ -1244,8 +1250,12 @@ contains
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
-      integer(kind=4) :: ierr, lsize, mnum
+      integer(kind=4) :: ierr, lsize, mnum, itest
+#ifdef mswin
       integer(kind=INT_PTR_KIND()) :: displ
+#else
+      integer(kind=MPI_ADDRESS_KIND) :: displ
+#endif
       integer :: ncount, w, iproc, n, i, j, iqg, iq
       integer :: ipoff, jpoff, npoff
       
@@ -1267,7 +1277,8 @@ contains
          call MPI_Get(abuf(:,w),lsize,ltype,specmap(w),displ,lsize,ltype,localwin,ierr)
       end do
    
-      call MPI_Win_fence(MPI_MODE_NOSUCCEED.or.MPI_MODE_NOPUT,localwin,ierr)
+      itest = ior(MPI_MODE_NOSUCCEED,MPI_MODE_NOPUT)
+      call MPI_Win_fence(itest,localwin,ierr)
    
       do w = 1,ncount
          iproc = specmap(w)
@@ -1302,8 +1313,12 @@ contains
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
-      integer(kind=4) :: ierr, mnum, lsize
+      integer(kind=4) :: ierr, mnum, lsize, itest
+#ifdef mswin
       integer(kind=INT_PTR_KIND()) :: displ
+#else
+      integer(kind=MPI_ADDRESS_KIND) :: displ
+#endif
       integer :: ncount, w, iproc, k, n, i, j, iqg, iq, kx
       integer :: ipoff, jpoff, npoff
       
@@ -1333,7 +1348,8 @@ contains
          call MPI_Get(abuf(:,:,w),lsize,ltype,specmap(w),displ,lsize,ltype,localwin,ierr)
       end do
    
-      call MPI_Win_fence(MPI_MODE_NOSUCCEED.or.MPI_MODE_NOPUT,localwin,ierr)
+      itest = ior(MPI_MODE_NOSUCCEED,MPI_MODE_NOPUT)
+      call MPI_Win_fence(itest,localwin,ierr)
    
       do w = 1,ncount
          iproc = specmap(w)
@@ -5483,16 +5499,16 @@ contains
    subroutine simple_timer_finalize()
       ! Calculate the mean, min and max times for each case
       integer :: i
-      !integer :: p
       integer(kind=4) :: ierr, llen
-      double precision, dimension(nevents) :: emean, emax, emin
+      integer(kind=4), parameter :: zero = 0
+      real(kind=8), dimension(nevents) :: emean, emax, emin
       llen=nevents
       call MPI_Reduce(tot_time, emean, llen, MPI_DOUBLE_PRECISION, &
-                      MPI_SUM, 0, MPI_COMM_WORLD, ierr )
+                      MPI_SUM, zero, MPI_COMM_WORLD, ierr )
       call MPI_Reduce(tot_time, emax, llen, MPI_DOUBLE_PRECISION, &
-                      MPI_MAX, 0, MPI_COMM_WORLD, ierr )
+                      MPI_MAX, zero, MPI_COMM_WORLD, ierr )
       call MPI_Reduce(tot_time, emin, llen, MPI_DOUBLE_PRECISION, &
-                      MPI_MIN, 0, MPI_COMM_WORLD, ierr )
+                      MPI_MIN, zero, MPI_COMM_WORLD, ierr )
       if ( myid == 0 ) then
          write(6,*) "==============================================="
          write(6,*) "  Times over all processes"
@@ -6620,7 +6636,7 @@ contains
       integer, intent(in) :: host, comm
       integer(kind=4) :: lcomm, lhost, ierr, lsize
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
-      double precision, dimension(:), intent(inout) :: ldat
+      real(kind=8), dimension(:), intent(inout) :: ldat
    
       START_LOG(bcast)
       
@@ -6638,7 +6654,7 @@ contains
       integer, intent(in) :: host,comm
       integer(kind=4) :: lcomm, lhost, ierr, lsize
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
-      double precision, dimension(:,:), intent(inout) :: ldat
+      real(kind=8), dimension(:,:), intent(inout) :: ldat
    
       START_LOG(bcast)
       
@@ -6656,7 +6672,7 @@ contains
       integer, intent(in) :: host,comm
       integer(kind=4) :: lcomm, lhost, ierr, lsize
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
-      double precision, dimension(:,:,:), intent(inout) :: ldat
+      real(kind=8), dimension(:,:,:), intent(inout) :: ldat
 
       START_LOG(bcast)
 
@@ -7100,6 +7116,7 @@ contains
 
       integer, intent(in) :: g, kx, nmax
       integer(kind=4) :: ierr, ilen, lcomm
+      integer(kind=4), parameter :: zero = 0
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7117,7 +7134,7 @@ contains
       ilen = 2*kx
       lcomm = mg(g)%comm_merge
 #ifdef idleproc
-      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0, lcomm, ierr )      
+      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, zero, lcomm, ierr )      
 #else
       call MPI_AllGather( tdat, ilen, ltype, tdat_g, ilen, ltype, lcomm, ierr )      
 #endif
@@ -7137,6 +7154,7 @@ contains
       integer yproc, ir, ic, is, ie, js, je, jj
       integer nrm1
       integer(kind=4) :: ierr, ilen, lcomm
+      integer(kind=4), parameter :: zero = 0
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7158,7 +7176,7 @@ contains
       ilen = (msg_len*npanx+1)*kx
       lcomm = mg(g)%comm_merge
 #ifdef idleproc
-      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0, lcomm, ierr )      
+      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, zero, lcomm, ierr )      
 #else
       call MPI_AllGather( tdat, ilen, ltype, tdat_g, ilen, ltype, lcomm, ierr )      
 #endif
@@ -7216,6 +7234,7 @@ contains
 
       integer, intent(in) :: g, kx, nmax
       integer(kind=4) :: ierr, ilen, lcomm
+      integer(kind=4), parameter :: zero = 0
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7233,7 +7252,7 @@ contains
       ilen = kx+2
       lcomm = mg(g)%comm_merge
 #ifdef idleproc
-      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0, lcomm, ierr )      
+      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, zero, lcomm, ierr )      
 #else
       call MPI_AllGather( tdat, ilen, ltype, tdat_g, ilen, ltype, lcomm, ierr )      
 #endif
@@ -7253,6 +7272,7 @@ contains
       integer yproc, ir, ic, is, ie, js, je, jj
       integer nrm1
       integer(kind=4) :: ierr, ilen, lcomm
+      integer(kind=4), parameter :: zero = 0
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7274,7 +7294,7 @@ contains
       ilen = (msg_len*npanx+1)*kx
       lcomm = mg(g)%comm_merge
 #ifdef idleproc
-      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0, lcomm, ierr )      
+      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, zero, lcomm, ierr )      
 #else
       call MPI_AllGather( tdat, ilen, ltype, tdat_g, ilen, ltype, lcomm, ierr )      
 #endif
@@ -7336,6 +7356,7 @@ contains
 
       integer, intent(in) :: g, kx, nmax
       integer(kind=4) :: ierr, ilen, lcomm
+      integer(kind=4), parameter :: zero = 0
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7347,7 +7368,7 @@ contains
       ilen = kx
       lcomm = mg(g)%comm_merge
 #ifdef idleproc
-      call MPI_Gather( vdat(1:kx,1), ilen, ltype, tdat_g, ilen, ltype, 0, lcomm, ierr )
+      call MPI_Gather( vdat(1:kx,1), ilen, ltype, tdat_g, ilen, ltype, zero, lcomm, ierr )
 #else
       call MPI_AllGather( vdat(1:kx,1), ilen, ltype, tdat_g, ilen, ltype, lcomm, ierr )
 #endif
@@ -7366,6 +7387,7 @@ contains
       integer yproc, ir, ic, is, ie, js, je, jj
       integer nrm1
       integer(kind=4) :: ierr, ilen, lcomm
+      integer(kind=4), parameter :: zero = 0
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7385,7 +7407,7 @@ contains
       ilen = msg_len*npanx*kx
       lcomm = mg(g)%comm_merge
 #ifdef idleproc
-      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0, lcomm, ierr )
+      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, zero, lcomm, ierr )
 #else
       call MPI_AllGather( tdat, ilen, ltype, tdat_g, ilen, ltype, lcomm, ierr )
 #endif
@@ -7441,6 +7463,7 @@ contains
 
       integer, intent(in) :: g, kx, nmax
       integer(kind=4) :: ierr, ilen, lcomm
+      integer(kind=4), parameter :: zero = 0
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7456,7 +7479,7 @@ contains
       ilen = kx
       lcomm = mg(g)%comm_merge
 #ifdef idleproc
-      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0, lcomm, ierr )      
+      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, zero, lcomm, ierr )      
 #else
       call MPI_AllGather( tdat, ilen, ltype, tdat_g, ilen, ltype, lcomm, ierr )      
 #endif
@@ -7475,6 +7498,7 @@ contains
       integer yproc, ir, ic, is, ie, js, je, jj
       integer nrm1
       integer(kind=4) :: ierr, ilen, lcomm
+      integer(kind=4), parameter :: zero = 0
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7494,7 +7518,7 @@ contains
       ilen = msg_len*npanx*kx
       lcomm = mg(g)%comm_merge
 #ifdef idleproc
-      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0, lcomm, ierr )      
+      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, zero, lcomm, ierr )      
 #else
       call MPI_AllGather( tdat, ilen, ltype, tdat_g, ilen, ltype, lcomm, ierr )      
 #endif
@@ -7597,6 +7621,7 @@ contains
       integer :: yproc, ir, ic, is, ie, js, je, jj
       integer :: nrm1
       integer(kind=4) :: ierr, ilen, lcomm
+      integer(kind=4), parameter :: zero = 0
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7619,7 +7644,7 @@ contains
       ilen = (msg_len*npanx+2)*kx
       lcomm = mg(g)%comm_merge
 #ifdef idleproc
-      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0, lcomm, ierr )
+      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, zero, lcomm, ierr )
 #else
       call MPI_AllGather( tdat, ilen, ltype, tdat_g, ilen, ltype, lcomm, ierr )
 #endif
@@ -7683,6 +7708,7 @@ contains
    
       integer, intent(in) :: g, kx, out_len
       integer(kind=4) :: ierr, ilen, lcomm
+      integer(kind=4), parameter :: zero = 0
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7697,7 +7723,7 @@ contains
       
       ilen = (out_len+1)*kx
       lcomm = mg(g)%comm_merge
-      call MPI_Bcast( tdat, ilen, ltype, 0, lcomm, ierr )      
+      call MPI_Bcast( tdat, ilen, ltype, zero, lcomm, ierr )      
 
       ! extract data from distribute      
       vdat(1:kx,1:out_len) = tdat(:,1:out_len)
@@ -7733,6 +7759,7 @@ contains
    
       integer, intent(in) :: g, kx, out_len
       integer(kind=4) :: ierr, ilen, lcomm
+      integer(kind=4), parameter :: zero = 0
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7747,7 +7774,7 @@ contains
       
       ilen = (out_len+1)*kx
       lcomm = mg(g)%comm_merge
-      call MPI_Bcast( tdat, ilen, ltype, 0, lcomm, ierr )      
+      call MPI_Bcast( tdat, ilen, ltype, zero, lcomm, ierr )      
 
       ! extract data from distribute      
       vdat(1:out_len,1:kx) = tdat(1:out_len,:)
@@ -7782,6 +7809,7 @@ contains
    
       integer, intent(in) :: g, kx, out_len
       integer(kind=4) :: ierr, ilen, lcomm
+      integer(kind=4), parameter :: zero = 0
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7794,7 +7822,7 @@ contains
       
       ilen = out_len*kx
       lcomm = mg(g)%comm_merge
-      call MPI_Bcast( tdat, ilen, ltype, 0, lcomm, ierr )      
+      call MPI_Bcast( tdat, ilen, ltype, zero, lcomm, ierr )      
 
       ! extract data from distribute      
       vdat(1:out_len,1:kx) = tdat(1:out_len,:)
@@ -7835,6 +7863,7 @@ contains
    
       integer, intent(in) :: g, kx, out_len
       integer(kind=4) :: ierr, ilen, lcomm
+      integer(kind=4), parameter :: zero = 0
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7849,7 +7878,7 @@ contains
       
       ilen = (out_len+2)*kx
       lcomm = mg(g)%comm_merge
-      call MPI_Bcast( tdat, ilen, ltype, 0, lcomm, ierr )      
+      call MPI_Bcast( tdat, ilen, ltype, zero, lcomm, ierr )      
 
       ! extract data from distribute      
       vdat(1:kx,1:out_len) = tdat(:,1:out_len)

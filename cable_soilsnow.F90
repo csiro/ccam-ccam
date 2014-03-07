@@ -520,13 +520,16 @@ SUBROUTINE snowdensity (dels, ssnow, soil)
     
    TYPE(soil_parameter_type), INTENT(INOUT) :: soil
 
-   INTEGER, DIMENSION(mp,3) :: ssnow_isflag_ssdn 
+   ! MJT bug fix
+   !INTEGER, DIMENSION(mp,3) :: ssnow_isflag_ssdn 
    REAL, DIMENSION(mp) :: ssnow_tgg_min1
-   REAL, DIMENSION(mp,3) :: dels_ssdn, ssnow_tgg_min
-     
-   ssnow_isflag_ssdn = SPREAD( ssnow%isflag,2,mp) 
+   ! MJT bug fix
+   !REAL, DIMENSION(mp,3) :: dels_ssdn, ssnow_tgg_min
+    
+   ! MJT bug fix 
+   !ssnow_isflag_ssdn = SPREAD( ssnow%isflag,2,mp) 
+   !dels_ssdn = SPREAD( SPREAD( dels, 1, mp ), 2,  mp ) 
    
-   dels_ssdn = SPREAD( SPREAD( dels, 1, mp ), 2,  mp ) 
    ssnow_tgg_min1 = MIN( C%TFRZ, ssnow%tgg(:,1) )
    
    WHERE( ssnow%snowd > 0.1 .AND. ssnow%isflag == 0 )

@@ -1756,7 +1756,8 @@ c***        but needed here for onthefly (different dims) 28/8/08
             ! Factor 1.e3 to convert to g/m2, x 3 to get sulfate from sulfur
             so4t(:)=0.
             do k=1,kl
-              so4t(:)=so4t(:)+3.e3*xtg(:,k,3)*(-psl(:)*dsig(k))/grav
+              so4t(:)=so4t(:)+3.e3*xtg(1:ifull,k,3)*
+     &          (-1.e5*exp(psl(1:ifull))*dsig(k))/grav
             enddo
           end if
         end if

@@ -46,17 +46,17 @@ real, dimension(:), allocatable, save :: ustar
 ! model constants
 real, parameter :: b1      = 2.     ! Soares et al (2004) 1., Siebesma et al (2003) 2.
 real, parameter :: b2      = 1./3.  ! Soares et al (2004) 2., Siebesma et al (2003) 1./3.
-real, parameter :: be      = 0.3    ! Hurley (2007) 1., Soares et al (2004) 0.3
+real, parameter :: be      = 0.1    ! Hurley (2007) 1., Soares et al (2004) 0.3
 real, parameter :: cm0     = 0.09   ! Hurley (2007) 0.09, Duynkerke 1988 0.03
 real, parameter :: ce0     = 0.69   ! Hurley (2007) 0.69, Duynkerke 1988 0.42
 real, parameter :: ce1     = 1.46
 real, parameter :: ce2     = 1.83
 real, parameter :: ce3     = 0.45   ! Hurley (2007) 0.45, Dynkerke et al 1987 0.35
-real, parameter :: cq      = 2.5
-real, parameter :: ent0    = 0.3    ! MJT suggestion for mass flux
-real, parameter :: dtrn0   = 0.4    ! MJT suggestion for mass flux
-real, parameter :: dtrc0   = 0.9    ! MJT suggestion for mass flux
-real, parameter :: m0      = 0.05   ! MJT suggestion for mass flux
+real, parameter :: cq      = 2.5    ! Adjustment to ED in absence of MF
+real, parameter :: ent0    = 0.25   ! Entrainment constant (Controls height of boundary layer)
+real, parameter :: dtrn0   = 0.4    ! Unsaturated detrainment constant
+real, parameter :: dtrc0   = 0.9    ! Saturated detrainment constant
+real, parameter :: m0      = 0.06   ! Mass flux amplitude constant
 
 ! physical constants
 real, parameter :: grav  = 9.80616    ! (m s^-2)
@@ -185,7 +185,6 @@ real, dimension(ifull) :: umag
 real, dimension(kl) :: sigkap
 real, dimension(kl) :: w2up,nn,dqdash
 real, dimension(kl) :: qtup,qupsat,ttup,tvup,tlup
-real, dimension(kl) :: cff
 real, dimension(1) :: templ
 real xp,as,bs,cs,cm12,cm34,qcup
 real dzht,ziold,ent,entc,entn,dtr,dtrc,dtrn,dtrx
@@ -245,17 +244,17 @@ ppb(:,kl)=0.
 ppt(:,kl)=0.
 
 ! default
-thup=0.
-qvup=0.
-qlup=0.
-qfup=0.
-qrup=0.
-tkup=0.
-epup=0.
-cfup=0.
-crup=0.
+thup=theta
+qvup=qg
+qlup=qlg
+qfup=qfg
+qrup=qrg
+tkup=tke(1:ifull,:)
+epup=eps(1:ifull,:)
+cfup=cfrac
+crup=cfrain
 if (naero>0) then
-  arup=0.
+  arup=aero
 end if
 
 ! interpolate to half levels
@@ -296,10 +295,10 @@ do kcount=1,mcount
 #ifdef offline
   mf=0.
   w_up=0.
-  th_up=0.
-  qv_up=0.
-  ql_up=0.
-  qf_up=0.
+  th_up=theta
+  qv_up=qg
+  ql_up=qlg
+  qf_up=qfg
   cf_up=0.
   ents=0.
   dtrs=0.
@@ -320,7 +319,8 @@ do kcount=1,mcount
           ktopmax=0
           klcl=kl+1
           w2up=0.
-          cff=0.
+          cfup(i,:)=0.
+          crup(i,:)=0.
           scond=.false.
           dzht=zz(i,1)
           ! Entrainment and detrainment rates
@@ -329,25 +329,26 @@ do kcount=1,mcount
           ! first level -----------------
           ! initial thermodynamic state
           ! split thetal and qtot into components (conservation of thetal and qtot is maintained)
-          thup(i,1)=theta(i,1)+be*wt0(i)/sqrt(max(tke(i,1),1.E-4))   ! Hurley 2007
-          qvup(i,1)=qg(i,1)   +be*wq0(i)/sqrt(max(tke(i,1),1.E-4))   ! Hurley 2007
+          thup(i,1)=theta(i,1)+be*wt0(i)/sqrt(tke(i,1))   ! Hurley 2007
+          qvup(i,1)=qg(i,1)   +be*wq0(i)/sqrt(tke(i,1))   ! Hurley 2007
           qlup(i,1)=qlg(i,1)
           qfup(i,1)=qfg(i,1)
           qrup(i,1)=qrg(i,1)
           ! diagnose thermodynamic variables assuming no condensation
-          tlup(1)=thup(i,1)-(lv*(qlup(i,1)+qrup(i,1))+ls*qfup(i,1))/cp ! thetal,up
-          qtup(1)=qvup(i,1)+qlup(i,1)+qfup(i,1)+qrup(i,1)              ! qtot,up
-          txup   =tlup(1)                                              ! theta,up after evaporation of ql,up and qf,up
-          ttup(1)=txup/sigkap(1)                                       ! temp,up
-          qxup   =qtup(1)                                              ! qv,up after evaporation of ql,up and qf,up
-          tvup(1)=txup+theta(i,1)*0.61*qxup                            ! thetav,up after evaporation of ql,up and qf,up
-#ifdef offline
-          qv_up(i,1)=qxup
-#endif
+          tlup(1)=thup(i,1)-sigkap(1)*(lv*(qlup(i,1)+qrup(i,1))+ls*qfup(i,1))/cp ! thetal,up
+          qtup(1)=qvup(i,1)+qlup(i,1)+qfup(i,1)+qrup(i,1)                        ! qtot,up
+          ttup(1)=tlup(1)/sigkap(1)                                              ! temp,up
+          tvup(1)=tlup(1)+theta(i,1)*0.61*qtup(1)                                ! thetav,up after evaporation of ql,up, qr,up and qf,up
+          ! state of plume after evaporation
+          qvup(i,1)=qtup(1)
+          qlup(i,1)=0.
+          qfup(i,1)=0.
+          qrup(i,1)=0.
+          thup(i,1)=tlup(1) !+sigkap(1)*(lv*(qlup(i,1)+qrup(i,1))+ls*qfup(i,1))/cp
           ! update updraft velocity and mass flux
-          nn(1)  =grav*be*wtv0(i)/(thetav(i,1)*sqrt(max(tke(i,1),1.E-4))) ! Hurley 2007
-          w2up(1)=2.*dzht*b2*nn(1)/(1.+2.*dzht*b1*ent)                    ! Hurley 2007
-          templ(1)=tlup(1)/sigkap(1)                                   ! templ,up
+          nn(1)  =grav*be*wtv0(i)/(thetav(i,1)*sqrt(tke(i,1)))                  ! Hurley 2007
+          w2up(1)=2.*dzht*b2*nn(1)/(1.+2.*dzht*b1*ent)                          ! Hurley 2007
+          templ(1)=tlup(1)/sigkap(1)                                            ! templ,up
           call getqsat(qupsat(1:1),templ(1:1),pres(i:i,1))
           ! estimate variance of qtup in updraft
           sigqtup=1.E-5
@@ -369,13 +370,10 @@ do kcount=1,mcount
             qfup(i,k)=(qfup(i,k-1)+dzht*ent*qfg(i,k)  )/(1.+dzht*ent)
             qrup(i,k)=(qrup(i,k-1)+dzht*ent*qrg(i,k)  )/(1.+dzht*ent)
             ! calculate conserved variables
-            tlup(k)=thup(i,k)-(lv*(qlup(i,k)+qrup(i,k))+ls*qfup(i,k))/cp  ! thetal,up
-            qtup(k)=qvup(i,k)+qlup(i,k)+qfup(i,k)+qrup(i,k)               ! qtot,up
-#ifdef offline
-              qv_up(i,k)=qtup(k)
-#endif
+            tlup(k)=thup(i,k)-sigkap(k)*(lv*(qlup(i,k)+qrup(i,k))+ls*qfup(i,k))/cp  ! thetal,up
+            qtup(k)=qvup(i,k)+qlup(i,k)+qfup(i,k)+qrup(i,k)                         ! qtot,up
             ! estimate air temperature
-            templ(1)  =tlup(k)/sigkap(k)                                  ! templ,up
+            templ(1)  =tlup(k)/sigkap(k)                                            ! templ,up
             if (.not.scond) then
               call getqsat(qupsat(k:k),templ(1:1),pres(i:i,k))
               ! estimate variance of qtup in updraft (following Hurley and TAPM)
@@ -395,6 +393,12 @@ do kcount=1,mcount
             end if
             ttup(k)=templ(1)                                       ! temp,up
             tvup(k)=tlup(k)+theta(i,k)*0.61*qtup(k)                ! thetav,up after redistribution
+            ! state of plume after redistribution
+            qvup(i,k)=qtup(k)
+            qlup(i,k)=0.
+            qfup(i,k)=0.
+            qrup(i,k)=0.
+            thup(i,k)=tlup(k) !+sigkap(k)*(lv*(qlup(i,k)+qrup(i,k))+ls*qfup(i,k))/cp
             ! calculate buoyancy
             nn(k)  =grav*(tvup(k)-thetav(i,k))/thetav(i,k)
             ! update updraft velocity
@@ -419,54 +423,48 @@ do kcount=1,mcount
             zi(i)=max(zi(i),zidry(i))
             zlcl =min(zlcl, zidry(i))
 
-#ifdef offline
-            ql_up(i,:)=0.
-            qf_up(i,:)=0.
-#endif
-        
             ! updraft with condensation
             do k=klcl,kl
               dzht=dz_hl(i,k-1)
               ! Entrainment and detrainment rates
-              ent=entfn(zz(i,k),     zi(i),  zz(i,1))
+              ent=entfn(zz(i,k),zi(i),zz(i,1))
               ! update thermodynamics of plume
               ! split thetal and qtot into components (conservation is maintained)
-              ! (use upwind as centred scheme requires vertical spacing less than 250m)
               thup(i,k)=(thup(i,k-1)+dzht*ent*theta(i,k))/(1.+dzht*ent)
               qvup(i,k)=(qvup(i,k-1)+dzht*ent*qg(i,k)   )/(1.+dzht*ent)
               qlup(i,k)=(qlup(i,k-1)+dzht*ent*qlg(i,k)  )/(1.+dzht*ent)
               qfup(i,k)=(qfup(i,k-1)+dzht*ent*qfg(i,k)  )/(1.+dzht*ent)
               qrup(i,k)=(qrup(i,k-1)+dzht*ent*qrg(i,k)  )/(1.+dzht*ent)
               ! calculate conserved variables
-              tlup(k)=thup(i,k)-(lv*(qlup(i,k)+qrup(i,k))+ls*qfup(i,k))/cp  ! thetal,up
-              qtup(k)=qvup(i,k)+qlup(i,k)+qfup(i,k)+qrup(i,k)               ! qtot,up
+              tlup(k)=thup(i,k)-sigkap(k)*(lv*(qlup(i,k)+qrup(i,k))+ls*qfup(i,k))/cp  ! thetal,up
+              qtup(k)=qvup(i,k)+qlup(i,k)+qfup(i,k)+qrup(i,k)                         ! qtot,up
               ! estimate air temperature
               tempd   =thup(i,k)/sigkap(k)
-              templ(1)=tlup(k)/sigkap(k)                                    ! templ,up
+              templ(1)=tlup(k)/sigkap(k)                                              ! templ,up
               call getqsat(qupsat(k:k),templ(1:1),pres(i:i,k))
               ! estimate variance of qtup in updraft (following Hurley and TAPM)
               sigqtup=sqrt(max(1.E-10,1.6*tke(i,k)/eps(i,k)*cq*km(i,k)*((qtup(k)-qtup(k-1))/dzht)**2))
               ! MJT condensation scheme -  follow Smith 1990 and assume
               ! triangle distribution for qtup.  The average qtup is qxup
               ! after accounting for saturation
-              rng=sqrt(6.)*sigqtup            ! variance of triangle distribution
+              rng=sqrt(6.)*sigqtup               ! variance of triangle distribution
               dqdash(k)=(qtup(k)-qupsat(k))/rng  ! scaled variance
               if (dqdash(k)<-1.) then
                 ! gridbox all unsaturated
                 qxup=qtup(k)
-                cff(k)=0.
+                cfup(i,k)=0.
               else if (dqdash(k)<0.) then
                 ! gridbox minority saturated
                 qxup=qtup(k)+0.5*rng*(-1./3.-dqdash(k)-dqdash(k)**2-1./3.*dqdash(k)**3)
-                cff(k)=0.5*(dqdash(k)+1.)**2
+                cfup(i,k)=0.5*(dqdash(k)+1.)**2
               else if (dqdash(k)<1.) then              
                 ! gridbox majority saturated
                 qxup=qtup(k)+0.5*rng*(-1./3.-dqdash(k)-dqdash(k)**2+1./3.*dqdash(k)**3)
-                cff(k)=1.-0.5*(dqdash(k)-1.)**2
+                cfup(i,k)=1.-0.5*(dqdash(k)-1.)**2
               else
                 ! gridbox all saturated              
                 qxup=qupsat(k)
-                cff(k)=1.
+                cfup(i,k)=1.
               end if
               fice=min(max(273.16-tempd,0.),40.)/40. ! approximate ice fraction based on temperature
                                                      ! (not templ)
@@ -475,14 +473,15 @@ do kcount=1,mcount
               al=cp/(cp+lx*dqsdt)
               qcup=(qtup(k)-qxup)*al
               qxup=qtup(k)-qcup
-#ifdef offline
-              ql_up(i,k)=qcup*(1.-fice)
-              qf_up(i,k)=qcup*fice
-              qv_up(i,k)=qxup
-#endif
               ttup(k)=templ(1)+lx*qcup/cp                            ! temp,up
               txup   =ttup(k)*sigkap(k)                              ! theta,up after redistribution
               tvup(k)=txup+theta(i,k)*(1.61*qxup-qtup(k))            ! thetav,up after redistribution
+              ! state of plume after redistribution
+              qvup(i,k)=qxup
+              qlup(i,k)=qcup*(1.-fice)
+              qfup(i,k)=qcup*fice
+              qrup(i,k)=0.
+              thup(i,k)=tlup(k)+sigkap(k)*(lv*(qlup(i,k)+qrup(i,k))+ls*qfup(i,k))/cp
               ! calculate buoyancy
               nn(k)  =grav*(tvup(k)-thetav(i,k))/thetav(i,k)
               ! update updraft velocity
@@ -518,13 +517,14 @@ do kcount=1,mcount
           ! Entrainment and detrainment rates
           xp  =(zz(i,k)-zlcl)/max(zidry(i)-zlcl,0.1)
           xp  =min(max(xp,0.),1.)
-          ent =entfn(zz(i,k),     zi(i),     zz(i,1))
-          dtrn=dtrfn(zz(i,k),     zidry(i),  zz(i,1),dtrn0)
-          dtrc=dtrfn(zz(i,k),     zi(i),     zz(i,1),dtrn0)
-          dtrc=dtrfn(zz(i,k),     zi(i),     zz(i,1),dtrc0)
+          ent =entfn(zz(i,k),zi(i),   zz(i,1))
+          dtrn=dtrfn(zz(i,k),zidry(i),zz(i,1),dtrn0)
+          dtrc=dtrfn(zz(i,k),zi(i),   zz(i,1),dtrn0)
           dtrx=(1.-xp)*dtrn+xp*dtrc
-          dtr =(1.-cff(k))*dtrx+cff(k)*dtrc
+          dtrc=dtrfn(zz(i,k),zi(i),   zz(i,1),dtrc0)
+          dtr =(1.-cfup(i,k))*dtrx+cfup(i,k)*dtrc
           mflx(i,k)=mflx(i,k-1)/(1.+dzht*(dtr-ent))
+          !mflx(i,k)=min(mflx(i,k),mflx(i,k-1)*sqrt(w2up(k))/sqrt(max(w2up(k-1),1.E-10)))
         end do
 
 #ifdef offline
@@ -532,19 +532,22 @@ do kcount=1,mcount
           mf(i,k)=mflx(i,k)
           w_up(i,k)=sqrt(w2up(k))
           th_up(i,k)=thup(i,k)
-          cf_up(i,k)=cff(k)*min(mflx(i,k)/sqrt(w2up(k)),1.)
+          cf_up(i,k)=cfup(i,k)*min(mflx(i,k)/sqrt(w2up(k)),1.)
+          qv_up(i,k)=qvup(i,k)
+          ql_up(i,k)=qlup(i,k)
+          qf_up(i,k)=qfup(i,k)
         end do
           
         dzht=zz(i,1)
         ! Entrainment and detrainment rates
         xp  =(zz(i,1)-zlcl)/max(zidry(i)-zlcl,0.1)
         xp  =min(max(xp,0.),1.)
-        ent =entfn(zz(i,1),     zi(i),     zz(i,1))
-        dtrn=dtrfn(zz(i,1),     zidry(i),  zz(i,1),dtrn0)
-        dtrc=dtrfn(zz(i,1),     zi(i),     zz(i,1),dtrn0)
-        dtrc=dtrfn(zz(i,1),     zi(i),     zz(i,1),dtrc0)
+        ent =entfn(zz(i,1),zi(i),   zz(i,1))
+        dtrn=dtrfn(zz(i,1),zidry(i),zz(i,1),dtrn0)
+        dtrc=dtrfn(zz(i,1),zi(i),   zz(i,1),dtrn0)
+        dtrc=dtrfn(zz(i,1),zi(i),   zz(i,1),dtrc0)
         dtrx=(1.-xp)*dtrn+xp*dtrc
-        dtr =(1.-cff(1))*dtrx+cff(1)*dtrc
+        dtr =(1.-cfup(i,1))*dtrx+cfup(i,1)*dtrc
         ents(i,1)=ent
         dtrs(i,1)=dtr
         do k=2,ktopmax
@@ -552,12 +555,12 @@ do kcount=1,mcount
           ! Entrainment and detrainment rates
           xp  =(zz(i,k)-zlcl)/max(zidry(i)-zlcl,0.1)
           xp  =min(max(xp,0.),1.)
-          ent =entfn(zz(i,k),     zi(i),     zz(i,1))
-          dtrn=dtrfn(zz(i,k),     zidry(i),  zz(i,1),dtrn0)
-          dtrc=dtrfn(zz(i,k),     zi(i),     zz(i,1),dtrn0)
-          dtrc=dtrfn(zz(i,k),     zi(i),     zz(i,1),dtrc0)
+          ent =entfn(zz(i,k),zi(i),   zz(i,1))
+          dtrn=dtrfn(zz(i,k),zidry(i),zz(i,1),dtrn0)
+          dtrc=dtrfn(zz(i,k),zi(i),   zz(i,1),dtrn0)
+          dtrc=dtrfn(zz(i,k),zi(i),   zz(i,1),dtrc0)
           dtrx=(1.-xp)*dtrn+xp*dtrc
-          dtr =(1.-cff(k))*dtrx+cff(k)*dtrc
+          dtr =(1.-cfup(i,k))*dtrx+cfup(i,k)*dtrc
           ents(i,k)=ent
           dtrs(i,k)=dtr
         end do
@@ -566,7 +569,7 @@ do kcount=1,mcount
         ! update explicit counter gradient terms
         do k=1,ktopmax
           gamth(i,k)=mflx(i,k)*(thup(i,k)-theta(i,k))
-          gamqv(i,k)=mflx(i,k)*(qvup(i,k)-qg(i,k))
+          gamqv(i,k)=mflx(i,k)*(qvup(i,k)-qg(i,k) )
           gamql(i,k)=mflx(i,k)*(qlup(i,k)-qlg(i,k))
           gamqf(i,k)=mflx(i,k)*(qfup(i,k)-qfg(i,k))
           gamqr(i,k)=mflx(i,k)*(qrup(i,k)-qrg(i,k))
@@ -576,8 +579,6 @@ do kcount=1,mcount
         ! update reamining scalars which are not used in the iterative loop
         tkup(i,1)=tkeold(i)
         epup(i,1)=epsold(i)
-        cfup(i,1)=cfrac(i,1)
-        crup(i,1)=cfrain(i,1)
         gamtk(i,1)=0.
         do k=2,ktopmax
           dzht=dz_hl(i,k-1)
@@ -585,8 +586,6 @@ do kcount=1,mcount
           tkup(i,k)=(tkup(i,k-1)+dzht*ent*tke(i,k) )/(1.+dzht*ent)
           epup(i,k)=(epup(i,k-1)+dzht*ent*eps(i,k) )/(1.+dzht*ent)
           gamtk(i,k)=mflx(i,k)*(tkup(i,k)-tke(i,k))
-          cfup(i,k)=(cfup(i,k-1)+dzht*ent*cfrac(i,k) )/(1.+dzht*ent)
-          crup(i,k)=(crup(i,k-1)+dzht*ent*cfrain(i,k))/(1.+dzht*ent)
         end do
         do j=1,naero
           arup(i,1,j)=aero(i,1,j)
@@ -668,7 +667,7 @@ do kcount=1,mcount
     where(lta(:,k).and..not.lta(:,k+1))
       qlhl(:,k)=dd(:,k+1)
       qfhl(:,k)=ff(:,k+1)
-    else where (.not.lta(:,k).and.lta(:,k+1))
+    elsewhere (.not.lta(:,k).and.lta(:,k+1))
       qlhl(:,k)=dd(:,k)
       qfhl(:,k)=ff(:,k)
     end where
@@ -1063,7 +1062,7 @@ real, intent(in) :: zht,zi,zmin
 !entfn=2./max(100.,zi)                                     ! Angevine et al (2010)
 !entfn=1./zht                                              ! Siebesma et al (2003)
 !entfn=0.5*(1./min(zht,zi-zmin)+1./max(zi-zht,zmin))       ! Soares et al (2004)
-entfn=ent0*(1./max(zht,50.)+1./max(zi-zht,50.))
+entfn=ent0*(1./max(zht,1.)+1./max(zi-zht,100.))
 
 return
 end function entfn
@@ -1075,7 +1074,7 @@ implicit none
 real, intent(in) :: zht,zi,zmin,rat
 
 !dtrfn=ent+0.05/max(zi-zht,zmin)   ! Angevine et al (2010)
-dtrfn=(rat+ent0)/max(zi-zht,1.)
+dtrfn=rat/max(zi-zht,10.)+ent0/max(zi-zht,100.)
 
 ! results in analytic solution
 !mflx(k)=A*(zht**ent0)*((zi-zht)**rat)

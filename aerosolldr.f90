@@ -24,10 +24,10 @@ integer, parameter :: nsulf = 3
 integer, parameter :: ncarb = 4
 integer, parameter :: ndust = 4
 integer, parameter :: naero = nsulf+ncarb+ndust ! Tracers: DMS, SO2, SO4, BCO, BCI, OCO, OCI, DUST(4)
-integer, parameter :: ITRACSO2=2                ! Index for SO2 tracer
-integer, parameter :: ITRACBC=NSULF+1           ! Index for BC    "
-integer, parameter :: ITRACOC=NSULF+3           ! Index for OC    "
-integer, parameter :: ITRACDU=NSULF+NCARB+1     ! Index for dust  "
+integer, parameter :: itracso2=2                ! Index for SO2 tracer
+integer, parameter :: itracbc=nsulf+1           ! Index for BC    "
+integer, parameter :: itracoc=nsulf+3           ! Index for OC    "
+integer, parameter :: itracdu=nsulf+ncarb+1     ! Index for dust  "
 
 ! physical constants
 real, parameter :: grav     = 9.80616        ! Gravitation constant
@@ -217,7 +217,7 @@ real, dimension(ifull) :: so2oh,so2h2,so2o3,dmsoh,dmsn3
 real, dimension(ifull) :: dumsnowd
 real, dimension(ifull) :: veff,vefn,dustdd,duste
 real, dimension(ifull) :: cstrat,qtot
-real, dimension(ifull) :: rrate,wstar3,vgust_free,vgust_deep
+real, dimension(ifull) :: rrate,Wstar3,Vgust_free,Vgust_deep
 real, dimension(ifull) :: v10n
 real, dimension(kl) :: isig
 real, parameter :: beta=0.65
@@ -301,7 +301,7 @@ call seasalt(land,sicef,zz,pblh,veff)
 ! Aerosol chemistry and wet deposition
 do nt=1,naero
   do k=1,kl
-    pxtm1(:,kl+1-k,nt)=xtg(:,k,nt)
+    pxtm1(:,kl+1-k,nt)=xtg(1:ifull,k,nt)
     xtu(:,kl+1-k,nt)=xtusav(:,k,nt)
   end do
 end do
@@ -552,21 +552,21 @@ DO JL=1,ifull
     ! which will be much reduced over leads.
     ZDMSCON=FIELD(JL,idmso)*(1.-SEAICEM(JL))**2
     ZSST=TSM1M(JL)-273.15
-    zsst=min(zsst, 45.) !Even Saltzman Sc formula has trouble over 45 deg C
+    ZSST=min(ZSST, 45.) !Even Saltzman Sc formula has trouble over 45 deg C
     !  G3X01:  10-M WINDS
     ZZSPEED=G3X01(JL)
     ! Nightingale (2000) scheme (J. Biogeochem. Cycles, 14, 373-387)
     ! For this scheme, zzspeed is the 10m wind adjusted to neutral stability.
     ! The formula for ScDMS from Saltzman et al (1993) is given by Kettle & Andreae (ref below)
-    VpCO2 = 0.222*zzspeed**2 + 0.333*zzspeed !Nightingale et al
+    VpCO2 = 0.222*ZZSPEED**2 + 0.333*ZZSPEED !Nightingale et al
     ! Phase in Liss & Merlivat from 13 to 18 m/s, since Nightingale is doubtful for high windspeeds,
     ! due to limited data.
     VpCO2liss=5.9*ZZSPEED-49.3        
-    wtliss=dim(min(18.,zzspeed),13.)/5.
+    wtliss=dim(min(18.,ZZSPEED),13.)/5.
     VpCO2=wtliss*VpCO2liss+(1.-wtliss)*VpCO2
     ScCO2=600.
-    ScDMS = 2674 - 147.12*zsst + 3.726*zsst**2 - 0.038*zsst**3 !Sc for DMS (Saltzman et al.)
-    if(zzspeed<3.6)then
+    ScDMS = 2674 - 147.12*ZSST + 3.726*ZSST**2 - 0.038*ZSST**3 !Sc for DMS (Saltzman et al.)
+    if(ZZSPEED<3.6)then
       zVdms = VpCO2 * (ScCO2/ScDMS)**(2./3.)
     else
       zVdms = VpCO2 * sqrt(ScCO2/ScDMS)
