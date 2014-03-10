@@ -290,14 +290,19 @@ c      gives relatively larger downdraft fluxes near surface
        if(dsig2==0.)omega(1:ifull)=dpsldt(1:ifull,k900)
 c     N.B. omgtst (and tied_con) only used for mbase=-19      
 c     typical tied_con=10,20 for C48, increasing for smaller ds  (i.e. 14, 28 for C96 100 km)
-       if(tied_con>0.)omgtst(:)=1.e-8*tied_con *sqrt(em(:)*208498./ds)  
-       if(tied_con<0.)omgtst(:)=-1.e-8*tied_con *em(:)*208498./ds  
+       if(tied_con>0.) then
+         omgtst(:)=1.e-8*tied_con
+     &             *sqrt(em(1:ifull)*208498./ds)
+       else
+         omgtst(:)=-1.e-8*tied_con 
+     &             *em(1:ifull)*208498./ds  
+       end if
 
       ! use boundary layer height for dry convection if EDMF is selected
       if (nvmix==6.and.nlocal==7) then
        pblx(:)=zidry
       else
-        pblx(:)=pblh
+       pblx(:)=pblh
       end if
 
       tt(1:ifull,:)=t(1:ifull,:)       
