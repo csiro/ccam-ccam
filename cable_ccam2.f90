@@ -224,7 +224,7 @@ call setlai(sigmf,jyear,jmonth,jday,jhour,jmin)
 
 rough%hruff=max(0.01,veg%hc-1.2*ssnow%snowd/max(ssnow%ssdnn,100.))
 rough%hruff_grmx=rough%hruff ! Does nothing in CABLE v2.0
-  
+ 
 !--------------------------------------------------------------
 ! CABLE
 ktau_gl=900

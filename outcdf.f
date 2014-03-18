@@ -320,6 +320,7 @@ c       create the attributes of the header record of the file
       use pbl_m                                 ! Boundary layer arrays
       use prec_m                                ! Precipitation
       use raddiag_m                             ! Radiation diagnostic
+      use river                                 ! River routing
       use savuvt_m                              ! Saved dynamic arrays
       use savuv1_m                              ! Saved dynamic arrays
       use screen_m                              ! Screen level diagnostics

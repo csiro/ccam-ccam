@@ -45,6 +45,7 @@
       use permsurf_m, only : permsurf_init    ! Fixed surface arrays
       use prec_m                              ! Precipitation
       use raddiag_m                           ! Radiation diagnostic
+      use river                               ! River routing
       use savuvt_m                            ! Saved dynamic arrays
       use savuv1_m                            ! Saved dynamic arrays
       use sbar_m                              ! Saved dynamic arrays
@@ -211,6 +212,7 @@
 
       !--------------------------------------------------------------
       ! INITALISE LOGS
+      call log_off()
       call log_setup()
       START_LOG(model)
 
@@ -263,7 +265,7 @@
       ngas=0
       read (99, trfiles, iostat=ierr)      ! try reading tracer namelist.  If no
       if (ierr/=0) rewind(99)              ! namelist is found, then disable
-      if (tracerlist/='') call init_tracer ! tracers and rewind namelist.
+      if (tracerlist/=' ') call init_tracer ! tracers and rewind namelist.
       nagg=max(5,naero,ngas)               ! maximum size of aggregation
 
       !--------------------------------------------------------------
@@ -1007,6 +1009,7 @@
          call date_and_time(time=timeval,values=tvals1)
          write(6,*) "Start of loop time ", timeval
       end if
+      call log_on()
       START_LOG(maincalc)
 
       do 88 kktau=1,ntau   ! ****** start of main time loop
@@ -1255,7 +1258,6 @@
       endif
 
       ! DIFFUSION -------------------------------------------------------------
-
       START_LOG(hordifg)
       if (nhor<0) then
         call hordifgt(iaero)  ! now not tendencies
@@ -1280,7 +1282,7 @@
         if (myid==0.and.nmaxpr==1) then
           write(6,*) "Before river"
         end if
-        call mlorouter
+        call rvrrouter
         if (myid==0.and.nmaxpr==1) then
           write(6,*) "After river"
         end if
@@ -1833,6 +1835,7 @@
         frp_ave(1:ifull)    = frp_ave(1:ifull)/min(ntau,nperavg)
       end if    ! (ktau==ntau.or.mod(ktau,nperavg)==0)
 
+      call log_off()
       if(ktau==ntau.or.mod(ktau,nwt)==0)then
         call outfile(20,rundate,nmi,nwrite,iaero,nstagin)  ! which calls outcdf
  
@@ -1855,6 +1858,7 @@
       if (surfile/=' ') then
         call freqfile
       end if
+      call log_on()
  
       if(mod(ktau,nperavg)==0)then   
 !       produce some diags & reset most averages once every nperavg
@@ -1982,6 +1986,7 @@
 
 88    continue                   ! *** end of main time loop
       END_LOG(maincalc)
+      call log_off()
       if (myid==0) then
          call date_and_time(time=timeval,values=tvals2)
          write(6,*) "End of time loop ", timeval

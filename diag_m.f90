@@ -218,8 +218,8 @@ contains
       ! MJT bug fix
       !umax(2) = maxloc(u(1:ifull),dim=1) + myid*ifull
       !umin(2) = minloc(u(1:ifull),dim=1) + myid*ifull
-      imax=maxloc(u(1:ifull),dim=1)
-      imin=minloc(u(1:ifull),dim=1)
+      imax=maxloc(u(1:ifull))
+      imin=minloc(u(1:ifull))
       umax(2)=real(iq2iqg(imax(1)))
       umin(2)=real(iq2iqg(imin(1)))
       !-----------------------------------------------------------

@@ -32,6 +32,7 @@
       use pbl_m                          ! Boundary layer arrays
       use permsurf_m                     ! Fixed surface arrays
       use prec_m                         ! Precipitation
+      use river                          ! River routing
       use savuvt_m                       ! Saved dynamic arrays
       use screen_m                       ! Screen level diagnostics
       use sigs_m                         ! Atmosphere sigma levels
@@ -171,8 +172,8 @@ c     using av_vmod (1. for no time averaging)
       uav(:)=av_vmod*u(1:ifull,1)+(1.-av_vmod)*savu(:,1)   
       vav(:)=av_vmod*v(1:ifull,1)+(1.-av_vmod)*savv(:,1)  
       vmod(:)=sqrt(uav(:)**2+vav(:)**2)  ! i.e. vmod for tss_sh
-      vmag(:)=max( vmod(:) , vmodmin) ! vmag used to calculate ri
-      if(ntsur/=7)vmod(:)=vmag(:)	! gives usual way
+      vmag(:)=max( vmod(:) , vmodmin)    ! vmag used to calculate ri
+      if(ntsur/=7) vmod(:)=vmag(:)       ! gives usual way
 
       !--------------------------------------------------------------
       START_LOG(sfluxwater)
@@ -485,21 +486,24 @@ c       Surface stresses taux, tauy: diagnostic only - unstag now       ! sice
          snowd=0.                                                       ! sice
        end where                                                        ! sice
        if(mydiag.and.nmaxpr==1)then                                     ! sice
-          write(6,*) 'after sice loop'                                  ! sice
-          iq=idjd                                                       ! sice
-          b1=dirad(iq)+degdt(iq)+dfgdt(iq)+cie(iq)                      ! sice
-          gbot=(gamm(iq)/dt)+b1                                         ! sice
-          deltat=ga(iq)/gbot                                            ! sice
-          write(6,*) 'ri,vmag,vmod,cduv ',ri(iq),vmag(iq),vmod(iq)      ! sice
-     &                                  ,cduv(iq)                       ! sice
-          write(6,*) 'fh,tss,tpan,tggsn1 ',fh(iq),tss(iq),tpan(iq)      ! sice
-     &                                 ,tggsn(iq,1)                     ! sice
-          write(6,*) 'theta,t1,deltat ',theta(iq),t(iq,1),deltat        ! sice
-          write(6,*) 'b1,ga,gbot,af,aft ',b1,ga(iq),gbot,af(iq),aft(iq) ! sice
-          write(6,*) 'fg,fgice,factch ',fg(iq),fgf(iq),factch(iq)       ! sice
-          write(6,*) 'cie ',cie(iq)                                     ! sice
-          write(6,*) 'eg,egice(fev),ustar ',eg(iq),fev(iq),ustar(iq)    ! sice
-       endif   ! (mydiag.and.nmaxpr==1)                                 ! sice
+         write(6,*) 'after sice loop'                                   ! sice
+         iq=idjd                                                        ! sice
+         if(sicedep(iq)>0.)then                                         ! sice
+           b1=dirad(iq)+degdt(iq)+dfgdt(iq)+cie(iq)                     ! sice
+           gbot=(gamm(iq)/dt)+b1                                        ! sice
+           deltat=ga(iq)/gbot                                           ! sice
+           write(6,*) 'ri,vmag,vmod,cduv ',ri(iq),vmag(iq),vmod(iq)     ! sice
+     &                                   ,cduv(iq)                      ! sice
+           write(6,*) 'fh,tss,tpan,tggsn1 ',fh(iq),tss(iq),tpan(iq)     ! sice
+     &                                  ,tggsn(iq,1)                    ! sice
+           write(6,*) 'theta,t1,deltat ',theta(iq),t(iq,1),deltat       ! sice
+           write(6,*) 'b1,ga,gbot,af,aft ',b1,ga(iq),gbot,af(iq)        ! sice
+     &                                  ,aft(iq)                        ! sice
+           write(6,*) 'fg,fgice,factch ',fg(iq),fgf(iq),factch(iq)      ! sice
+           write(6,*) 'cie ',cie(iq)                                    ! sice
+           write(6,*) 'eg,egice(fev),ustar ',eg(iq),fev(iq),ustar(iq)   ! sice
+         end if ! sicedep(iq)>0.                                        ! sice
+       endif    ! (mydiag.and.nmaxpr==1)                                ! sice
 
       elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                       ! MLO
                                                                         ! MLO
@@ -912,9 +916,8 @@ c ----------------------------------------------------------------------
       ! Update runoff for river routing
       if (abs(nmlo)>=2) then
         newrunoff=runoff-oldrunoff
-        where (watbdy(1:ifull)>1.E-10)
-          salbdy(1:ifull)=salbdy(1:ifull)/(1.+newrunoff/watbdy(1:ifull))
-        end where
+        salbdy(1:ifull)=salbdy(1:ifull)*watbdy(1:ifull)
+     &        /max(watbdy(1:ifull)+newrunoff,1.E-10)
         watbdy(1:ifull)=watbdy(1:ifull)+newrunoff ! runoff in mm
       end if
 

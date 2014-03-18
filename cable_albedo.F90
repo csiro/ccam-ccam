@@ -198,6 +198,16 @@ SUBROUTINE surface_albedosn(ssnow, veg, met, soil)
    snrat=0.
    alir =0.
    alv  =0.
+   ! MJT bug fix for IBM fortran
+   dnsnow=0.
+   tmp   =0.
+   ar1   =0.
+   ar2   =0.
+   ar3   =0.
+   snr   =0.
+   dtau  =0.
+   fage  =0.
+   fzenm =0.
 
    WHERE ( ssnow%snowd > 1. .AND. .NOT. cable_runtime%um_radiation ) 
        
@@ -264,7 +274,7 @@ SUBROUTINE surface_albedosn(ssnow, veg, met, soil)
    
    ! when it is called from cable_rad_driver (UM) 
    ! no need to recalculate snage 
-   WHERE (ssnow%snowd > 1 .and. cable_runtime%um_radiation )
+   WHERE (ssnow%snowd > 1. .and. cable_runtime%um_radiation )
       
       snr = ssnow%snowd / MAX (ssnow%ssdnn, 200.)
       

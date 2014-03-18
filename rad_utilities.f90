@@ -1131,7 +1131,7 @@ end type table_axis_type
 !------- public data ------
 
 
-type (longwave_control_type),  public   ::    &
+type (longwave_control_type),  public, save   ::    &
      Lw_control = longwave_control_type( '    ', '    ', '    ', &
                                          .false., .false., .false.,  &
                                          .false., .false., .false.,  &
@@ -1142,7 +1142,7 @@ type (longwave_control_type),  public   ::    &
                                          .false., .false.,  &
                                          .false., .false., .false.   )
 
-type (shortwave_control_type), public   ::  &
+type (shortwave_control_type), public, save   ::  &
     Sw_control = shortwave_control_type( .false., .false., .false. , &
                                          .false., .false., .false., &
                                          .false., &
@@ -1151,7 +1151,7 @@ type (shortwave_control_type), public   ::  &
                                          .false., &
                                          .false., .false., .false.)
 
-type (radiation_control_type), public   ::  &
+type (radiation_control_type), public, save   ::  &
    Rad_control = radiation_control_type( .false., .false., 0,    &
                                          0.0,  .true.,  .false.,&
                                          .false.,  0.0, &
@@ -1176,7 +1176,7 @@ type (radiation_control_type), public   ::  &
                                          .false., .false.,   &
                                          .false., .false.)
 
-type (cloudrad_control_type), public    ::   &
+type (cloudrad_control_type), public, save    ::   &
  Cldrad_control = cloudrad_control_type( .false., .false., .false., &
                                          .false., .false., .false., &
                                          .false., .false., .false., &
@@ -1194,12 +1194,12 @@ type (cloudrad_control_type), public    ::   &
                                          .false., .false.)
 
 
-type (longwave_parameter_type), public  ::   &
+type (longwave_parameter_type), public, save  ::   &
 Lw_parameters = longwave_parameter_type( 0, 0, 0, 0, 0, 10.0, &
                                          .false., .false., .false.,  &
                                          .false., .false., .true.)
 
-type (table_axis_type),        public   ::    &
+type (table_axis_type),        public, save   ::    &
                temp_1 = table_axis_type( 1, 100.0, 370.0, 10.0), &
                mass_1 = table_axis_type( 1, -16.0,   1.9,  0.1)
 
@@ -1208,7 +1208,7 @@ type (table_axis_type),        public   ::    &
 !------- private data ------
 
 
-logical :: module_is_initialized=.false.   ! module is initialized ?
+logical, save :: module_is_initialized=.false.   ! module is initialized ?
 
 
 !---------------------------------------------------------------------
@@ -1688,11 +1688,11 @@ integer,                     intent(in)  :: k_min, k_max
       do k=k_min, k_max
         do j=j_min, j_max
           do i=i_min, i_max
-            answer(i,j,k) =                                         &
+            answer(i,j,k) =                                            &
                                       tab%vae (ix(i,j,k), iy(i,j,k)) + &
                             dx(i,j,k)*tab%td  (ix(i,j,k), iy(i,j,k)) + &
                             dy(i,j,k)*tab%md  (ix(i,j,k), iy(i,j,k)) + &
-                  dx(i,j,k)*dy(i,j,k)*tab%cd(ix(i,j,k), iy(i,j,k))
+                  dx(i,j,k)*dy(i,j,k)*tab%cd  (ix(i,j,k), iy(i,j,k))
           end do
         end do
       end do

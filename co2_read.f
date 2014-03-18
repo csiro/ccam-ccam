@@ -41,11 +41,11 @@ c  was unit 15 for DARLAM, unit 17 for conformal-cubic
         print *,'Radiative data read from file ',trim(radfile)
         open(lu,file=radfile,form='formatted',status='old')
       end if
-      if (nrad.eq.5) then
+      if (nrad==5) then
         if (myid==0) then
           nlev=0
           read(lu,*,iostat=ierr) nlev
-          if (nlev.gt.0) then ! old format
+          if (ierr==0) then ! old format
             read(lu,*) (sigin(1),i=nlev,1,-1)
             read(lu,*) rrvco2
             rrvch4=0.

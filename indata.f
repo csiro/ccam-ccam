@@ -32,6 +32,7 @@
       use nsibd_m                              ! Land-surface arrays
       use pbl_m                                ! Boundary layer arrays
       use permsurf_m                           ! Fixed surface arrays
+      use river                                ! River routing
       use sigs_m                               ! Atmosphere sigma levels
       use soil_m                               ! Soil and surface data
       use soilsnow_m                           ! Soil, snow and surface data
@@ -527,6 +528,7 @@
         end where
         call mloinit(ifull,dep,0)
         call mlodyninit
+        call rvrinit
       end if
 
 

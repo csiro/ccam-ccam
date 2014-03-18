@@ -81,16 +81,16 @@ private   &
 !---------------------------------------------------------------------
 !------     namelist  -----
 
-character(len=16) :: interp_form='log'
-logical           :: do_calcstdco2tfs = .true.,   &
-                     do_writestdco2tfs = .false., &
-                     do_readstdco2tfs = .false.
-logical           :: do_calcstdch4tfs = .true.,   &
-                     do_writestdch4tfs = .false., &
-                     do_readstdch4tfs = .false.
-logical           :: do_calcstdn2otfs = .true.,   &
-                     do_writestdn2otfs = .false., &
-                     do_readstdn2otfs = .false.
+character(len=16), save :: interp_form='log'
+logical, save           :: do_calcstdco2tfs = .true.,   &
+                           do_writestdco2tfs = .false., &
+                           do_readstdco2tfs = .false.
+logical, save           :: do_calcstdch4tfs = .true.,   &
+                           do_writestdch4tfs = .false., &
+                           do_readstdch4tfs = .false.
+logical, save           :: do_calcstdn2otfs = .true.,   &
+                           do_writestdn2otfs = .false., &
+                           do_readstdn2otfs = .false.
 
 
 namelist / gas_tf_nml /  &
@@ -315,23 +315,23 @@ real, dimension (:),       allocatable, save   :: stemp, gtemp
 !    250k in the planck function used in evaluating planck-weighted co2
 !    transmission functions. (see reference(1).)
 !----------------------------------------------------------------------
-real     :: b0 = -0.51926410E-04
-real     :: b1 = -0.18113332E-03
-real     :: b2 = -0.10680132E-05
-real     :: b3 = -0.67303519E-07
+real, save     :: b0 = -0.51926410E-04
+real, save     :: b1 = -0.18113332E-03
+real, save     :: b2 = -0.10680132E-05
+real, save     :: b3 = -0.67303519E-07
 
-integer               :: israd, ierad, jsrad, jerad, ksrad, kerad
-integer, parameter    :: nvalids=1
-integer               :: ixprkminh2o
-logical               :: do_linearlblint, do_loglblint
-character(len=8)      :: co2_name_save, ch4_name_save, n2o_name_save
-real                  :: co2_amount_save, ch4_amount_save, &
-                         n2o_amount_save
-integer               :: nstdlvls_save, kbegin_save, kend_save
+integer, save          :: israd, ierad, jsrad, jerad, ksrad, kerad
+integer, parameter     :: nvalids=1
+integer, save          :: ixprkminh2o
+logical, save          :: do_linearlblint, do_loglblint
+character(len=8), save :: co2_name_save, ch4_name_save, n2o_name_save
+real, save             :: co2_amount_save, ch4_amount_save, &
+                          n2o_amount_save
+integer, save          :: nstdlvls_save, kbegin_save, kend_save
 
 real, dimension(:), allocatable, save      :: pa_save, pd_save, plm_save
-character(len=8), dimension(nvalids) :: valid_versions= 'v1.00'
-logical :: module_is_initialized = .false.  ! module is initialized ?
+character(len=8), dimension(nvalids), save :: valid_versions= 'v1.00'
+logical, save :: module_is_initialized = .false.  ! module is initialized ?
 
 
 !---------------------------------------------------------------------

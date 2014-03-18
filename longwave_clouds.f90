@@ -85,8 +85,8 @@ real, parameter :: CP_AIR = RDGAS/KAPPA
 real, parameter :: SECONDS_PER_DAY  = 8.640000E+04
 real, parameter :: RADCON = ((1.0E+02*GRAV)/(1.0E+04*CP_AIR))*SECONDS_PER_DAY
 
-integer  :: NLWCLDB
-logical  :: module_is_initialized = .false.    ! module is initialized ?
+integer, save  :: NLWCLDB
+logical, save  :: module_is_initialized = .false.    ! module is initialized ?
 
 
 !---------------------------------------------------------------------

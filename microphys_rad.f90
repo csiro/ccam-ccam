@@ -88,10 +88,10 @@ private         &
 !---------------------------------------------------------------------
 !-------- namelist  ---------
 
-character(len=16)   :: lwem_form='fuliou' ! longwave emissivity param-
-                                         ! eterization; either 'fuliou'
-                                         ! or 'ebertcurry'
-logical       ::  do_orig_donner_stoch = .true.
+character(len=16), save :: lwem_form='fuliou' ! longwave emissivity param-
+                                              ! eterization; either 'fuliou'
+                                              ! or 'ebertcurry'
+logical, save           ::  do_orig_donner_stoch = .true.
 
 namelist /microphys_rad_nml /     &
                                lwem_form, &
@@ -125,7 +125,7 @@ integer, parameter       :: N_EMISS_BDS = 7
 !    cldbandlo : low wave number  boundary for the emissivity band
 !    cldbandhi : high wave number  boundary for the emissivity band
 !----------------------------------------------------------------------
-real, dimension (N_EMISS_BDS)     :: cldbandlo, cldbandhi
+real, dimension (N_EMISS_BDS), save :: cldbandlo, cldbandhi
 
 data cldbandlo /                    &
              0.0, 560.0, 800.0, 900.0, 990.0, 1070.0, 1200.0 /
@@ -141,7 +141,7 @@ data cldbandhi /                    &
 !     istartcldband : starting wave number index for emissivity band
 !     iendcldband   : ending wave number index for emissivity band
 !----------------------------------------------------------------------
-integer, dimension (N_EMISS_BDS + 1) :: istartcldband, iendcldband
+integer, dimension (N_EMISS_BDS + 1), save :: istartcldband, iendcldband
 
 data istartcldband /                &
                1,   57,   81,    91,   100,    108,   121,   141 /
@@ -180,8 +180,8 @@ integer, parameter  :: NBD = 3
 !    iendfubands : index of model 10 cm-1 bands corresponding to
 !                  the value of endfubands. computed in the code.
 !----------------------------------------------------------------------
-real,    dimension (NBFL)        :: endfubands
-integer, dimension (NBFL)        :: iendfubands
+real,    dimension (NBFL), save  :: endfubands
+integer, dimension (NBFL), save  :: iendfubands
 
 data endfubands /                  &
                  280,    400,    540,   670,  800,  980,  1100,  1250, &
@@ -199,8 +199,8 @@ data endfubands /                  &
 !                      the spectrum common to emissivity band n and 
 !                      fu band ni. 
 !----------------------------------------------------------------------
-real,    dimension (N_EMISS_BDS, NBFL)     :: fulwwts
-real,    dimension (N_EMISS_BDS + 1, NBFL) :: planckivlicecld
+real,    dimension (N_EMISS_BDS, NBFL), save     :: fulwwts
+real,    dimension (N_EMISS_BDS + 1, NBFL), save :: planckivlicecld
 
 !---------------------------------------------------------------------
 !    nivl1lwicecld  :  fu band index corresponding to the lowest wave
@@ -210,8 +210,8 @@ real,    dimension (N_EMISS_BDS + 1, NBFL) :: planckivlicecld
 !    planckcldband  :  sum of the planck function over the given emis-
 !                      sivity band
 !---------------------------------------------------------------------
-integer, dimension (N_EMISS_BDS + 1) :: nivl1lwicecld, nivl2lwicecld
-real,    dimension (N_EMISS_BDS)     :: planckcldband
+integer, dimension (N_EMISS_BDS + 1), save :: nivl1lwicecld, nivl2lwicecld
+real,    dimension (N_EMISS_BDS), save     :: planckcldband
 
 !----------------------------------------------------------------------
 !    parameters for shortwave cloud-radiation parameterizations.
@@ -244,7 +244,7 @@ integer, parameter         ::   NSNOWCLDIVLS     = 6
 !---------------------------------------------------------------------
 !    wavenumber limits for slingo cloud drop intervals.             
 !---------------------------------------------------------------------
-integer, dimension (NLIQCLDIVLS)       :: endliqcldwvn
+integer, dimension (NLIQCLDIVLS), save :: endliqcldwvn
  
 data endliqcldwvn /  2924,  3437,  4202,  4695,  6098,  6536,  7813,   &
                      8404,  9091, 10000, 11494, 12821, 13333, 14493,   &
@@ -254,21 +254,21 @@ data endliqcldwvn /  2924,  3437,  4202,  4695,  6098,  6536,  7813,   &
 !-------------------------------------------------------------------
 !    wavenumber limits for Savijarvi rain drop intervals.
 !-------------------------------------------------------------------
-integer, dimension (NRAINCLDIVLS)      :: endraincldwvn
+integer, dimension (NRAINCLDIVLS), save :: endraincldwvn
  
 data endraincldwvn / 4202, 8403, 14493, 57600 /
  
 !----------------------------------------------------------------------
 !    wavenumber limits for icesolar ice crystal intervals.
 !---------------------------------------------------------------------- 
-integer, dimension (NICESOLARCLDIVLS)  :: endicesolcldwvn
+integer, dimension (NICESOLARCLDIVLS), save :: endicesolcldwvn
  
 data endicesolcldwvn / 2857, 4000, 5263, 7692, 14493, 57600 /
  
 !---------------------------------------------------------------------
 !    wavenumber limits for fu ice crystal intervals.
 !--------------------------------------------------------------------
-integer, dimension (NICECLDIVLS)       :: endicecldwvn
+integer, dimension (NICECLDIVLS), save :: endicecldwvn
  
 data endicecldwvn /  2000,  2924,  3437,  4202,  4695,  6098,  6536,   &
                      7092,  8404,  9091, 10000, 11494, 12821, 13333,   &
@@ -278,7 +278,7 @@ data endicecldwvn /  2000,  2924,  3437,  4202,  4695,  6098,  6536,   &
 !---------------------------------------------------------------------
 !    wavenumber limits for the Fu snow intervals                       
 !--------------------------------------------------------------------
-integer, dimension (NSNOWCLDIVLS)      :: endsnowcldwvn
+integer, dimension (NSNOWCLDIVLS), save :: endsnowcldwvn
  
 data endsnowcldwvn / 2857, 4000, 5263, 7692, 14493, 57600 /
  
@@ -356,18 +356,18 @@ real, dimension(:), allocatable, save  :: lats, lons ! lat and lon of columns
 !----------------------------------------------------------------------
 !    diagnostics variables
 !----------------------------------------------------------------------
-character(len=16)   :: mod_name = 'microphys_rad'
-real                :: missing_value = -999.
+character(len=16), save :: mod_name = 'microphys_rad'
+real, save              :: missing_value = -999.
 
-integer :: id_stoch_cell_cf_mean, id_stoch_meso_cf_mean, &
-           id_stoch_lsc_cf_mean
+integer, save :: id_stoch_cell_cf_mean, id_stoch_meso_cf_mean, &
+                 id_stoch_lsc_cf_mean
  
 integer, dimension(:), allocatable, save :: id_stoch_cloud_type
 
 !-------------------------------------------------------------------
 !    logical variables:
 !-------------------------------------------------------------------
-logical    :: module_is_initialized = .false. ! module is initialized ?
+logical, save :: module_is_initialized = .false. ! module is initialized ?
 
 !--------------------------------------------------------------------
 !--------------------------------------------------------------------
@@ -3685,6 +3685,8 @@ integer, intent(in), optional             ::   starting_band,  &
                 end do
               else
                 write(6,*) "ERROR: cloud droplet size out of range"
+                write(6,*) "i,j,k,size_d ",i,j,k,size_d(i,j,k)
+                write(6,*) "conc_drop ",conc_drop(i,j,k)
                 !call error_mesg('microphys_rad_mod',  &
                 !              'cloud droplet size out of range', FATAL)
                 stop

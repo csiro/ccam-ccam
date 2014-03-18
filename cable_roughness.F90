@@ -82,7 +82,8 @@ SUBROUTINE ruff_resist(veg, rough, ssnow, canopy)
       canopy%rghlai = MIN( 3., canopy%vlaiw )
 
    ! Roughness length of bare soil (m):
-   rough%z0soil = 1.e-6
+   !rough%z0soil = 1.e-6 ! EAK suggestion
+   rough%z0soil = 1.e-2
    rough%z0soilsn = MAX( rough%z0soil - 0.5e-7 * MIN( ssnow%snowd, 20. ),      &
                     0.1e-7 )
 

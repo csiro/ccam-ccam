@@ -32,7 +32,7 @@
       use mlo                             ! Ocean physics and prognostic arrays
       use morepbl_m                       ! Additional boundary layer diagnostics
       use nharrs_m                        ! Non-hydrostatic atmosphere arrays
-      use nlin_m, tmnht => un, at => un   ! Atmosphere non-linear dynamics
+      use nlin_m                          ! Atmosphere non-linear dynamics
       use pbl_m                           ! Boundary layer arrays
       use permsurf_m                      ! Fixed surface arrays
       use savuvt_m                        ! Saved dynamic arrays
@@ -68,11 +68,11 @@
       real rlog12,rlogh1,rlogs1,rlogs2
       real, dimension(ifull,kl,2*naero) :: dumar
       real, dimension(ifull,kl) :: betatt,betaqt,rhs,delthet,thebas
-      real, dimension(ifull,kl) :: cu,thee,qs,uav,vav,au,ct,gt
+      real, dimension(ifull,kl) :: cu,thee,qs,uav,vav,au,ct,gt,at
       real, dimension(ifull,kl) :: guv,ri,rkm,rkh,rk_shal,zg
       real, dimension(ifull,kl) :: tnhs,zh
       real, dimension(ifull,kl) :: dumqg,dumql,dumqf,dumqr,dumcr
-      real, dimension(ifull,kl-1) :: dnhsh
+      real, dimension(ifull,kl-1) :: dnhsh,tmnht
       real, dimension(ifull) :: dqtot,csq,dvmod,dz,dzr,fm,fh,sqmxl
       real, dimension(ifull) :: x,zhv,theeb,sigsp,rhos
       real, dimension(ifull) :: ou,ov,iu,iv

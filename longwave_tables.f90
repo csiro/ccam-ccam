@@ -103,16 +103,16 @@ real, dimension(:), allocatable, save :: acomb, bcomb, apcm, bpcm, atpcm,  &
 integer, parameter              :: NTTABH2O   = 28
 integer, parameter              :: NUTABH2O   = 181
 
-real, dimension (NBLW)          :: bandlo, bandhi, arndm, brndm, betad
-integer, dimension(40)          :: iband
-real, dimension(3)              :: ao3cm, bo3cm
-real, dimension(2)              :: ab15cm
+real, dimension (NBLW), save    :: bandlo, bandhi, arndm, brndm, betad
+integer, dimension(40), save    :: iband
+real, dimension(3), save        :: ao3cm, bo3cm
+real, dimension(2), save        :: ab15cm
 
-integer                         :: NBTRG, NBTRGE, NBLY
-real                            :: apwd, bpwd, atpwd, btpwd, bdlowd, &
+integer, save                   :: NBTRG, NBTRGE, NBLY
+real, save                      :: apwd, bpwd, atpwd, btpwd, bdlowd, &
                                    bdhiwd 
 
-logical :: module_is_initialized = .false.   !  module is initialized ?
+logical, save :: module_is_initialized = .false.   !  module is initialized ?
 
 
 !---------------------------------------------------------------------

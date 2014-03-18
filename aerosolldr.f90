@@ -225,6 +225,9 @@ integer nt,k
 
 conwd=0.
 dumsnowd=1.E-3*snowd
+so2wd=0.
+so4wd=0.
+dustwd=0.
 
 ! Calculate sub-grid Vgust
 v10n=ustar(:)*log(10./zo(:))/vkar
@@ -311,18 +314,11 @@ do k=1,kl
   ptp1(:,kl+1-k)=ttg(:,k)
   pclcon(:,kl+1-k)=clcon(:,k)
   qtot=qlg(:,k)+qfg(:,k)
-  where (qtot>1.e-8)
-    cstrat(:)=min(cfrac(:,k),1.-clcon(:,k))
-    pclcover(:,kl+1-k)=cstrat(:)*qlg(:,k)/qtot !Liquid-cloud fraction
-    pcfcover(:,kl+1-k)=cstrat(:)*qfg(:,k)/qtot !Ice-cloud fraction
-    pmlwc(:,kl+1-k)=qlg(:,k)
-    pmiwc(:,kl+1-k)=qfg(:,k)
-  elsewhere
-    pclcover(:,kl+1-k)=0.
-    pcfcover(:,kl+1-k)=0.
-    pmlwc(:,kl+1-k)=0.
-    pmiwc(:,kl+1-k)=0.
-  end where
+  cstrat(:)=min(cfrac(:,k),1.-clcon(:,k))
+  pclcover(:,kl+1-k)=cstrat(:)*qlg(:,k)/max(qtot,1.E-8) !Liquid-cloud fraction
+  pcfcover(:,kl+1-k)=cstrat(:)*qfg(:,k)/max(qtot,1.E-8) !Ice-cloud fraction
+  pmlwc(:,kl+1-k)=qlg(:,k)
+  pmiwc(:,kl+1-k)=qfg(:,k)
 end do
 call xtchemie (1, dt,zdayfac,aphp1(:,1:kl), ppmrate, ppfprec,                   & !Inputs
                pclcover, pmlwc, prhop1, ptp1, sg, pxtm1, ppfevap,               & !Inputs
@@ -1486,6 +1482,7 @@ DO JT=ITRACSO2,naero
       enddo
       so4wd(:)=so4wd(:)+stratwd(:)
     elseif(jt>=itracdu.and.jt<itracdu+ndust)then
+      dustwd(:)=0.
       do jk=1,kl
         dustwd(:)=dustwd(:)+zdep3d(:,jk)*pdpp1(:,jk)/(grav*ptmst)
       enddo

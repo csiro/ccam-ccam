@@ -99,26 +99,26 @@ private     &
 !---------------------------------------------------------------------
 !-------- namelist  ---------
 
- logical     ::  do_ica_calcs=.false.           ! do independent column
-                                                ! calculations when sto-
-                                                ! chastic clouds are
-                                                ! active ?
-logical      ::  do_rayleigh_all_bands = .true. ! rayleigh scattering 
-                                                ! calculated in all sw 
-                                                ! bands ?
-logical      ::  do_herzberg = .false.          ! include the herzberg 
-                                                ! effect on the o2 
-                                                ! optical depth ?
-logical      ::  do_quench = .false.            ! include the quenching
-                                                ! effect of non-LTE 
-                                                ! processes on the co2 
-                                                ! optical depth ?
-logical      ::  do_ch4_sw_effects = .true.     ! the shortwave effects
-                                                ! of ch4 are included ?
-logical      ::  do_n2o_sw_effects = .true.     ! the shortwave effects
-                                                ! of n2o are included ?
-logical      ::  do_coupled_stratozone = .false. ! include the coupled
-                                                 ! stratospheric ozone effects?
+ logical, save ::  do_ica_calcs=.false.           ! do independent column
+                                                 ! calculations when sto-
+                                                 ! chastic clouds are
+                                                 ! active ?
+logical, save ::  do_rayleigh_all_bands = .true. ! rayleigh scattering 
+                                                 ! calculated in all sw 
+                                                 ! bands ?
+logical, save ::  do_herzberg = .false.          ! include the herzberg 
+                                                 ! effect on the o2 
+                                                 ! optical depth ?
+logical, save ::  do_quench = .false.            ! include the quenching
+                                                 ! effect of non-LTE 
+                                                 ! processes on the co2 
+                                                 ! optical depth ?
+logical, save ::  do_ch4_sw_effects = .true.     ! the shortwave effects
+                                                 ! of ch4 are included ?
+logical, save ::  do_n2o_sw_effects = .true.     ! the shortwave effects
+                                                 ! of n2o are included ?
+logical, save ::  do_coupled_stratozone = .false. ! include the coupled
+                                                  ! stratospheric ozone effects?
   
 
 !namelist / esfsw_driver_nml /    &
@@ -165,19 +165,19 @@ logical      ::  do_coupled_stratozone = .false. ! include the coupled
 !                absorption coefficient is assigned a non-scaled        
 !                (true) or pressure-scaled (false) gas amount           
 !---------------------------------------------------------------------
-real, dimension (:), allocatable, save    :: c1co2, c1co2str, c1o2, c1o2str, &
-                                       c2co2, c2co2str, c2o2, c2o2str, &
-                                       c3co2, c3co2str, c3o2, c3o2str, &
-                                       c4co2, c4co2str, c4o2, c4o2str, &
-                                       c1ch4, c1ch4str, c2ch4,         &
-                                       c2ch4str, c3ch4, c3ch4str,      &
-                                       c4ch4, c4ch4str,                &
-                                       c1n2o, c1n2ostr, c2n2o,         &
-                                       c2n2ostr, c3n2o, c3n2ostr,      &
-                                       c4n2o, c4n2ostr,                &
-                                       powph2o, p0h2o
-real                                :: c1o2strschrun, c2o2strschrun, &
-                                       c3o2strschrun, c4o2strschrun
+real, dimension (:), allocatable, save :: c1co2, c1co2str, c1o2, c1o2str, &
+                                          c2co2, c2co2str, c2o2, c2o2str, &
+                                          c3co2, c3co2str, c3o2, c3o2str, &
+                                          c4co2, c4co2str, c4o2, c4o2str, &
+                                          c1ch4, c1ch4str, c2ch4,         &
+                                          c2ch4str, c3ch4, c3ch4str,      &
+                                          c4ch4, c4ch4str,                &
+                                          c1n2o, c1n2ostr, c2n2o,         &
+                                          c2n2ostr, c3n2o, c3n2ostr,      &
+                                          c4n2o, c4n2ostr,                &
+                                          powph2o, p0h2o
+real, save                             :: c1o2strschrun, c2o2strschrun,   &
+                                          c3o2strschrun, c4o2strschrun
 real, dimension (:), allocatable, save    :: kh2o, ko3, wtfreq
 logical, dimension(:), allocatable, save  :: strterm
 
@@ -201,22 +201,22 @@ logical, dimension(:), allocatable, save  :: strterm
 ! vis_wvnum    = the wavenumber of visible light (corresponds to
 !                wavelength of 0.55 microns) [ cm **(-1) ]
 !---------------------------------------------------------------------
-real                                :: refquanray, solflxtotal
-integer                             :: firstrayband, nirbands
+real, save                                :: refquanray, solflxtotal
+integer, save                             :: firstrayband, nirbands
 integer, dimension (:), allocatable, save :: nfreqpts
 real,    dimension(:), allocatable, save  :: solflxband
 real,    dimension(:), allocatable, save  :: solflxbandref
 real, dimension(:), allocatable, save     :: wtstr, cosangstr
-real, dimension(4)                  :: wtstr_4 =      &
+real, dimension(4), save                  :: wtstr_4 =      &
                                        (/0.347854845, 0.652145155,&
                                          0.347854845, 0.652145155/)
 
-integer :: nbands, tot_wvnums, nfrqpts, nh2obands, nstreams
-logical :: nstr4 = .false.
-real    :: vis_wvnum = 1.0E+04/0.55
-real    :: one_micron_wvnum = 1.0E+04/1.00
-real    :: onepsix_micron_wvnum = 1.0E+04/1.61
-integer :: onepsix_band_indx
+integer, save :: nbands, tot_wvnums, nfrqpts, nh2obands, nstreams
+logical, save :: nstr4 = .false.
+real, save    :: vis_wvnum = 1.0E+04/0.55
+real, save    :: one_micron_wvnum = 1.0E+04/1.00
+real, save    :: onepsix_micron_wvnum = 1.0E+04/1.61
+integer, save :: onepsix_band_indx
 
 !---------------------------------------------------------------------
 !    variables associated with rayleigh scattering
@@ -226,11 +226,11 @@ real, dimension (:), allocatable, save    :: betaddensitymol
 !----------------------------------------------------------------------
 !    variables associated with total optical path of species ? - smf
 !----------------------------------------------------------------------
-real                            :: toto2strmaxschrun
+real, save                            :: toto2strmaxschrun
 real, dimension(:), allocatable, save :: totco2max, totco2strmax, &
-                                   toto2max, toto2strmax, &
-                                   totch4max, totch4strmax, &
-                                   totn2omax, totn2ostrmax
+                                         toto2max, toto2strmax,   &
+                                         totch4max, totch4strmax, &
+                                         totn2omax, totn2ostrmax
 
 !----------------------------------------------------------------------
 !    variables associated with the herzberg effect. wtmo2 is the mol-
@@ -249,12 +249,12 @@ real, parameter   :: herzberg_fac = 9.9488377E-3
 !    "quenching" due to non-LTE processes. co2_quenchfac_height is the 
 !    reference height for co2_quenchfac [ meters ].
 !----------------------------------------------------------------------
-real, dimension(30) :: co2_quenchfac
+real, dimension(30), save :: co2_quenchfac
 data co2_quenchfac /1.0,.954,.909,.853,.800,.747,.693,.637,.583, .526,&
                     .467,.416,.368,.325,.285,.253,.229,.206,.186,.170,&
                     .163,.156,.151,.144,.138,.132,.127,.124,.068,.037/
 
-real, dimension(30) :: co2_quenchfac_height
+real, dimension(30), save :: co2_quenchfac_height
 data co2_quenchfac_height /67304.,68310.,69303.,70288.,71267.,72245.,&
                            73221.,74195.,75169.,76141.,77112.,78082.,&
                            79051.,80018.,80985.,81950.,82914.,83876.,&
@@ -267,10 +267,10 @@ data co2_quenchfac_height /67304.,68310.,69303.,70288.,71267.,72245.,&
 !    miscellaneous variables
 !---------------------------------------------------------------------
 integer, parameter :: NSOLWG = 1
-logical        :: module_is_initialized = .false.
-integer        :: ijk
-logical        :: do_esfsw_band_diagnostics = .false.
-integer        :: naerosol_optical, naerosoltypes_used
+logical, save      :: module_is_initialized = .false.
+integer, save      :: ijk
+logical, save      :: do_esfsw_band_diagnostics = .false.
+integer, save      :: naerosol_optical, naerosoltypes_used
 
 
 !---------------------------------------------------------------------
@@ -720,7 +720,8 @@ subroutine esfsw_driver_init
         nintsolar=6064
         allocate ( nwvnsolar (nintsolar) )
         allocate ( solint    (nintsolar) )
-        nwvnsolar=(/ 100,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1, &
+        nwvnsolar(1:1400)=(/                                                               &
+                     100,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1, &
                        1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1, &
                        1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1, &
                        1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1, &
@@ -819,6 +820,8 @@ subroutine esfsw_driver_init
                        1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1, &
                        1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1, &
                        1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1, &
+                       1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1 /)
+        nwvnsolar(1401:2800)=(/                                                            &
                        1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1, &
                        1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1, &
                        1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1, &
@@ -918,8 +921,8 @@ subroutine esfsw_driver_init
                        1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1, &
                        1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1, &
                        1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1, &
-                       1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1, &
-                       1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1, &
+                       1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1 /)
+        nwvnsolar(2801:4200)=(/                                                            &
                        1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1, &
                        1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1, &
                        1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1, &
@@ -1019,7 +1022,8 @@ subroutine esfsw_driver_init
                        2,   2,   3,   2,   2,   3,   2,   2,   3,   2,   2,   3,   2,   2, &
                        3,   2,   2,   3,   2,   2,   3,   2,   2,   3,   2,   2,   3,   2, &
                        3,   2,   2,   3,   2,   3,   2,   2,   3,   2,   2,   3,   2,   3, &
-                       2,   2,   3,   2,   3,   2,   3,   2,   2,   3,   2,   3,   2,   3, &
+                       2,   2,   3,   2,   3,   2,   3,   2,   2,   3,   2,   3,   2,   3 /)
+        nwvnsolar(4201:5600)=(/                                                            &
                        2,   2,   3,   2,   3,   2,   3,   2,   3,   2,   3,   2,   2,   3, &
                        2,   3,   2,   3,   2,   3,   2,   3,   2,   3,   2,   3,   2,   3, &
                        2,   3,   2,   3,   2,   3,   2,   3,   2,   3,   2,   3,   3,   2, &
@@ -1119,7 +1123,8 @@ subroutine esfsw_driver_init
                       21,  22,  21,  22,  22,  21,  22,  22,  22,  22,  23,  22,  22,  22, &
                       23,  22,  23,  22,  23,  23,  23,  23,  23,  23,  23,  23,  23,  23, &
                       24,  23,  24,  23,  24,  24,  24,  23,  24,  24,  25,  24,  24,  24, &
-                      25,  24,  25,  24,  25,  25,  25,  25,  25,  25,  25,  25,  26,  25, &
+                      25,  24,  25,  24,  25,  25,  25,  25,  25,  25,  25,  25,  26,  25 /)
+        nwvnsolar(5601:6064)=(/                                                            &
                       26,  25,  26,  26,  26,  26,  26,  26,  26,  26,  26,  27,  26,  27, &
                       27,  27,  26,  27,  27,  28,  27,  27,  28,  27,  28,  27,  28,  20, &
                        8,  28,  28,  28,  28,  29,  28,  29,  28,  29,  29,  29,  29,  29, &
@@ -1154,7 +1159,8 @@ subroutine esfsw_driver_init
                      242, 245, 248, 250, 252, 255, 258, 260, 263, 266, 269, 271, 274, 277, &
                      280, 283, 286, 289, 292, 295, 299, 302, 305, 309, 312, 316, 319, 323, &
                      326, 294 /)
-        solint=(/   0.00000E+00,   0.27147E-04,   0.27587E-04,   0.28238E-04,   0.28696E-04,   0.29369E-04,   0.29847E-04, &
+        solint(1:700)=(/                                                                                                   &
+                    0.00000E+00,   0.27147E-04,   0.27587E-04,   0.28238E-04,   0.28696E-04,   0.29369E-04,   0.29847E-04, &
                     0.30337E-04,   0.30836E-04,   0.31550E-04,   0.31868E-04,   0.32601E-04,   0.33141E-04,   0.33491E-04, &
                     0.34255E-04,   0.34625E-04,   0.35408E-04,   0.36001E-04,   0.36403E-04,   0.37016E-04,   0.37841E-04, &
                     0.38273E-04,   0.38918E-04,   0.39572E-04,   0.40237E-04,   0.40911E-04,   0.41199E-04,   0.42092E-04, &
@@ -1253,7 +1259,8 @@ subroutine esfsw_driver_init
                     0.14709E-02,   0.14751E-02,   0.14798E-02,   0.14830E-02,   0.14858E-02,   0.14906E-02,   0.14954E-02, &
                     0.14982E-02,   0.15011E-02,   0.15061E-02,   0.15090E-02,   0.15140E-02,   0.15169E-02,   0.15200E-02, &
                     0.15246E-02,   0.15281E-02,   0.15328E-02,   0.15359E-02,   0.15405E-02,   0.15437E-02,   0.15469E-02, &
-                    0.15516E-02,   0.15549E-02,   0.15592E-02,   0.15625E-02,   0.15658E-02,   0.15707E-02,   0.15736E-02, &
+                    0.15516E-02,   0.15549E-02,   0.15592E-02,   0.15625E-02,   0.15658E-02,   0.15707E-02,   0.15736E-02 /)
+        solint(701:1400)=(/                                                                                                 &
                     0.15785E-02,   0.15820E-02,   0.15850E-02,   0.15900E-02,   0.15930E-02,   0.15981E-02,   0.15998E-02, &
                     0.16044E-02,   0.16082E-02,   0.16129E-02,   0.16177E-02,   0.16200E-02,   0.16248E-02,   0.16282E-02, &
                     0.16331E-02,   0.16365E-02,   0.16400E-02,   0.16434E-02,   0.16485E-02,   0.16520E-02,   0.16571E-02, &
@@ -1353,7 +1360,8 @@ subroutine esfsw_driver_init
                     0.51245E-02,   0.51332E-02,   0.51392E-02,   0.51451E-02,   0.51540E-02,   0.51602E-02,   0.51634E-02, &
                     0.51723E-02,   0.51754E-02,   0.51843E-02,   0.51906E-02,   0.51971E-02,   0.52034E-02,   0.52129E-02, &
                     0.52194E-02,   0.52259E-02,   0.52328E-02,   0.52397E-02,   0.52471E-02,   0.52539E-02,   0.52609E-02, &
-                    0.52678E-02,   0.52748E-02,   0.52812E-02,   0.52878E-02,   0.52942E-02,   0.53009E-02,   0.53109E-02, &
+                    0.52678E-02,   0.52748E-02,   0.52812E-02,   0.52878E-02,   0.52942E-02,   0.53009E-02,   0.53109E-02 /)
+        solint(1401:2100)=(/                                                                                               &
                     0.53149E-02,   0.53219E-02,   0.53285E-02,   0.53354E-02,   0.53422E-02,   0.53493E-02,   0.53567E-02, &
                     0.53636E-02,   0.53706E-02,   0.53774E-02,   0.53814E-02,   0.53915E-02,   0.53955E-02,   0.54054E-02, &
                     0.54093E-02,   0.54161E-02,   0.54234E-02,   0.54305E-02,   0.54347E-02,   0.54421E-02,   0.54493E-02, &
@@ -1453,7 +1461,8 @@ subroutine esfsw_driver_init
                     0.10111E-01,   0.10119E-01,   0.10129E-01,   0.10136E-01,   0.10144E-01,   0.10156E-01,   0.10164E-01, &
                     0.10173E-01,   0.10180E-01,   0.10191E-01,   0.10203E-01,   0.10217E-01,   0.10224E-01,   0.10224E-01, &
                     0.10234E-01,   0.10243E-01,   0.10251E-01,   0.10268E-01,   0.10274E-01,   0.10286E-01,   0.10303E-01, &
-                    0.10318E-01,   0.10330E-01,   0.10335E-01,   0.10338E-01,   0.10331E-01,   0.10328E-01,   0.10329E-01, &
+                    0.10318E-01,   0.10330E-01,   0.10335E-01,   0.10338E-01,   0.10331E-01,   0.10328E-01,   0.10329E-01 /)
+        solint(2101:2800)=(/                                                                                               &
                     0.10345E-01,   0.10358E-01,   0.10376E-01,   0.10384E-01,   0.10392E-01,   0.10406E-01,   0.10412E-01, &
                     0.10412E-01,   0.10416E-01,   0.10431E-01,   0.10452E-01,   0.10459E-01,   0.10473E-01,   0.10480E-01, &
                     0.10491E-01,   0.10502E-01,   0.10516E-01,   0.10525E-01,   0.10532E-01,   0.10544E-01,   0.10558E-01, &
@@ -1553,7 +1562,8 @@ subroutine esfsw_driver_init
                     0.17844E-01,   0.17857E-01,   0.17878E-01,   0.17885E-01,   0.17901E-01,   0.17911E-01,   0.17920E-01, &
                     0.17937E-01,   0.17946E-01,   0.17955E-01,   0.17965E-01,   0.17979E-01,   0.17991E-01,   0.18006E-01, &
                     0.18010E-01,   0.18025E-01,   0.18029E-01,   0.18051E-01,   0.18066E-01,   0.18072E-01,   0.18089E-01, &
-                    0.18099E-01,   0.18120E-01,   0.18130E-01,   0.18135E-01,   0.18151E-01,   0.18161E-01,   0.18180E-01, &
+                    0.18099E-01,   0.18120E-01,   0.18130E-01,   0.18135E-01,   0.18151E-01,   0.18161E-01,   0.18180E-01 /)
+        solint(2801:3500)=(/                                                                                               &
                     0.18189E-01,   0.18193E-01,   0.18207E-01,   0.18215E-01,   0.18223E-01,   0.18230E-01,   0.18236E-01, &
                     0.18240E-01,   0.18256E-01,   0.18265E-01,   0.18284E-01,   0.18289E-01,   0.18305E-01,   0.18313E-01, &
                     0.18313E-01,   0.18318E-01,   0.18319E-01,   0.18333E-01,   0.18338E-01,   0.18352E-01,   0.18355E-01, &
@@ -1653,7 +1663,8 @@ subroutine esfsw_driver_init
                     0.26959E-01,   0.26984E-01,   0.27033E-01,   0.27076E-01,   0.27104E-01,   0.27134E-01,   0.27174E-01, &
                     0.27205E-01,   0.27231E-01,   0.27252E-01,   0.27269E-01,   0.27286E-01,   0.27306E-01,   0.27326E-01, &
                     0.27350E-01,   0.27361E-01,   0.27366E-01,   0.27367E-01,   0.27380E-01,   0.27389E-01,   0.27405E-01, &
-                    0.27421E-01,   0.27438E-01,   0.27474E-01,   0.27497E-01,   0.27508E-01,   0.27519E-01,   0.27532E-01, &
+                    0.27421E-01,   0.27438E-01,   0.27474E-01,   0.27497E-01,   0.27508E-01,   0.27519E-01,   0.27532E-01 /)
+        solint(3501:4200)=(/                                                                                               &
                     0.27549E-01,   0.27569E-01,   0.27588E-01,   0.27598E-01,   0.27606E-01,   0.27617E-01,   0.27636E-01, &
                     0.27675E-01,   0.27690E-01,   0.27702E-01,   0.27713E-01,   0.27730E-01,   0.27753E-01,   0.27777E-01, &
                     0.27792E-01,   0.27808E-01,   0.27829E-01,   0.27860E-01,   0.27875E-01,   0.27886E-01,   0.27898E-01, &
@@ -1753,7 +1764,8 @@ subroutine esfsw_driver_init
                     0.43949E-01,   0.44019E-01,   0.44076E-01,   0.44139E-01,   0.44216E-01,   0.44312E-01,   0.44384E-01, &
                     0.44458E-01,   0.44509E-01,   0.44424E-01,   0.44375E-01,   0.44454E-01,   0.44450E-01,   0.44391E-01, &
                     0.44450E-01,   0.44510E-01,   0.44574E-01,   0.44538E-01,   0.44499E-01,   0.44548E-01,   0.44793E-01, &
-                    0.44844E-01,   0.44893E-01,   0.45038E-01,   0.45082E-01,   0.45095E-01,   0.45070E-01,   0.45027E-01, &
+                    0.44844E-01,   0.44893E-01,   0.45038E-01,   0.45082E-01,   0.45095E-01,   0.45070E-01,   0.45027E-01 /)
+        solint(4201:4900)=(/                                                                                               &
                     0.45171E-01,   0.45277E-01,   0.45323E-01,   0.45368E-01,   0.45409E-01,   0.45472E-01,   0.45503E-01, &
                     0.45549E-01,   0.45636E-01,   0.45819E-01,   0.45905E-01,   0.45928E-01,   0.45956E-01,   0.46006E-01, &
                     0.45963E-01,   0.45977E-01,   0.45978E-01,   0.45942E-01,   0.45968E-01,   0.46019E-01,   0.46052E-01, &
@@ -1853,7 +1865,8 @@ subroutine esfsw_driver_init
                     0.67800E-01,   0.67676E-01,   0.67672E-01,   0.67633E-01,   0.67648E-01,   0.67842E-01,   0.67975E-01, &
                     0.67962E-01,   0.67982E-01,   0.68051E-01,   0.68109E-01,   0.67763E-01,   0.67777E-01,   0.67820E-01, &
                     0.67968E-01,   0.68014E-01,   0.68490E-01,   0.68638E-01,   0.68617E-01,   0.68395E-01,   0.68470E-01, &
-                    0.68305E-01,   0.67888E-01,   0.68350E-01,   0.68261E-01,   0.68427E-01,   0.68920E-01,   0.69051E-01, &
+                    0.68305E-01,   0.67888E-01,   0.68350E-01,   0.68261E-01,   0.68427E-01,   0.68920E-01,   0.69051E-01 /)
+        solint(4901:5600)=(/                                                                                               &
                     0.69175E-01,   0.69212E-01,   0.69225E-01,   0.69266E-01,   0.69421E-01,   0.69318E-01,   0.69471E-01, &
                     0.68946E-01,   0.68746E-01,   0.68937E-01,   0.68344E-01,   0.68487E-01,   0.69155E-01,   0.69254E-01, &
                     0.69702E-01,   0.69996E-01,   0.70036E-01,   0.70084E-01,   0.70002E-01,   0.69779E-01,   0.69650E-01, &
@@ -1953,7 +1966,8 @@ subroutine esfsw_driver_init
                     0.67164E-01,   0.67553E-01,   0.68379E-01,   0.67865E-01,   0.65383E-01,   0.67219E-01,   0.67243E-01, &
                     0.66608E-01,   0.66360E-01,   0.66775E-01,   0.66515E-01,   0.66577E-01,   0.65718E-01,   0.65831E-01, &
                     0.66189E-01,   0.67376E-01,   0.67249E-01,   0.66171E-01,   0.66185E-01,   0.66052E-01,   0.65672E-01, &
-                    0.65875E-01,   0.64911E-01,   0.65692E-01,   0.65847E-01,   0.66445E-01,   0.66257E-01,   0.65297E-01, &
+                    0.65875E-01,   0.64911E-01,   0.65692E-01,   0.65847E-01,   0.66445E-01,   0.66257E-01,   0.65297E-01 /)
+        solint(5601:6064)=(/                                                                                               &
                     0.63888E-01,   0.63959E-01,   0.64389E-01,   0.64594E-01,   0.64842E-01,   0.65137E-01,   0.64398E-01, &
                     0.63851E-01,   0.62765E-01,   0.61654E-01,   0.62679E-01,   0.63033E-01,   0.62931E-01,   0.63582E-01, &
                     0.63730E-01,   0.63476E-01,   0.63306E-01,   0.63505E-01,   0.63959E-01,   0.64074E-01,   0.64166E-01, &

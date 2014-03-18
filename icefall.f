@@ -188,49 +188,47 @@ c Set up ice fall speed field and other arrays
         slopes(mg,nl)=0.
       enddo
 
-      if(abs(ldr)==1)then  ! 1 for R21 runs, like prev lw=22
+      select case(abs(ldr))
+        case(1)  ! 1 for R21 runs, like prev lw=22
         do k=nl-1,1,-1
           do mg=1,ln2
-            vi2(mg,k)=vi2(mg,k+1)
-            if(cifr(mg,k)>0.)then
+            if(cifr(mg,k)>=1.e-10)then
               vi2(mg,k)=3.23*(rhoi(mg,k)/cifr(mg,k))**0.17
+            else
+              vi2(mg,k)=vi2(mg,k+1)
             endif
           enddo
         enddo
-      endif   ! (abs(ldr)==1)
 
-      if(abs(ldr)==2)then  
+        case(2)
         do k=nl-1,1,-1
           do mg=1,ln2
             vi2(mg,k)=vi2(mg,k+1)
-            if(cifr(mg,k)>0.)then
+            if(cifr(mg,k)>=1.e-10)then
               vi2(mg,k)=0.9*3.23*(rhoi(mg,k)/cifr(mg,k))**0.17
             endif
           enddo
         enddo
-      endif   ! (abs(ldr)==2)
 
-      if(abs(ldr)==3)then  
+        case(3)
         do k=nl-1,1,-1
           do mg=1,ln2
             vi2(mg,k)=vi2(mg,k+1)
-            if(cifr(mg,k)>0.)then
+            if(cifr(mg,k)>=1.e-10)then
               vi2(mg,k)=max(0.1,2.05+0.35*log10(qfg(mg,k)/cifr(mg,k)))
             endif
           enddo
         enddo
-      endif   ! (abs(ldr)==3)
 
-      if(abs(ldr)==4)then  
+        case(4)
         do k=nl-1,1,-1
           do mg=1,ln2
             vi2(mg,k)=vi2(mg,k+1)
-            if(cifr(mg,k)>0.)then
+            if(cifr(mg,k)>=1.e-10)then
               vi2(mg,k)=1.4*3.23*(rhoi(mg,k)/cifr(mg,k))**0.17
             endif
           enddo
         enddo
-      endif   ! (abs(ldr)==4)
 
 c     following are alternative slightly-different versions of above
 c     used for I runs from 29/4/05 till 30/8/05
@@ -238,25 +236,23 @@ c     for given qfg, large cifr implies small ice crystals,
 c     with a small fall speed. 
 c     Note that for very small qfg, cifr is small.
 c     But rhoi is like qfg, so ratio should also be small and OK.
-      if(abs(ldr)==11)then  ! 1 for R21 runs, like prev lw=22
+        case(11) ! 1 for R21 runs, like prev lw=22
         do k=nl-1,1,-1
           do mg=1,ln2
             vi2(mg,k)=max( vi2(mg,k+1),3.23*(rhoi(mg,k)/
      &                                max(cifr(mg,k),1.e-30))**0.17 )
           enddo
         enddo
-      endif   ! (abs(ldr)==11)
 
-      if(abs(ldr)==22)then  
+        case(22)
         do k=nl-1,1,-1
           do mg=1,ln2
             vi2(mg,k)=max( vi2(mg,k+1),.9*3.23*(rhoi(mg,k)/
      &                                max(cifr(mg,k),1.e-30))**0.17 )
           enddo
         enddo
-      endif   ! (abs(ldr)==22)
 
-      if(abs(ldr)==33)then  
+        case(33)
         do k=nl-1,1,-1
          do mg=1,ln2
 c          following max gives vi2=.1 for qfg=cifr=0
@@ -264,7 +260,7 @@ c          following max gives vi2=.1 for qfg=cifr=0
      &      log10(max(qfg(mg,k),2.68e-36)/max(cifr(mg,k),1.e-30)) )
           enddo
         enddo
-      endif   ! (abs(ldr)==33)
+      end select
 
       do k=nl-1,1,-1
         do mg=1,ln2
@@ -340,7 +336,7 @@ c Now work down through the levels...
 
             ! The following flag detects max/random overlap clouds
             ! that are separated by a clear layer
-            if (cifr(mg,k).eq.0..or.nmr.eq.0) then
+            if (cifr(mg,k)<1.e-10.or.nmr==0) then
               ! combine max overlap from last cloud with net random overlap
               rdclfr(mg)=max(0.01,rdclfr(mg)+mxclfr(mg)
      &                           -rdclfr(mg)*mxclfr(mg))
@@ -366,29 +362,7 @@ c Melt falling ice if > 0 deg C
 c Compute the sublimation of ice falling from level k+1 into level k
 
             fsclr=(1.-cifr(mg,k)-clfr(mg,k))*fluxice(mg)
-            if(fluxice(mg)>0.and.qtg(mg,k)<qsg(mg,k))then ! sublime snow
-              ! Re-calculate rate of snow sublimation (MJT)
-              if (ncloud>1) then
-                rhoiin=fluxice(mg)/dz(mg,k)
-                viin=0.1
-                if (cifra(mg)>0.) then
-                  viin=3.23*(rhoiin/cifra(mg))**0.17 ! from ldr==1 above
-                  viin=max(viin,0.1)
-                end if
-                ! Set up the Rate constant for snow sublimation
-                Tk=ttg(mg,k)
-                pk=100.*prf(mg,k)
-                es=qsg(mg,k)*pk/epsil
-                Aprpr=(hls/(rKa*Tk))*(hls/(rvap*Tk)-1.)
-                Bprpr=rvap*Tk/((Dva/pk)*es)
-                curly=0.65*slopes(mg,k)**2+0.493*slopes(mg,k)!Factor in curly brackets
-     &               *sqrt(slopes(mg,k)*viin*rhoa(mg,k)/um)
-                if (nevapls==-1.or.(nevapls==-2.and.condx(mg)>0.
-     &           .and.k<=ktsav(mg))) curly=0.
-                ! Define the rate constant for sublimation of snow, omitting factor rhoi
-                Csbsav(mg,k)=4*curly/(rhoa(mg,k)*qsg(mg,k)*(Aprpr+Bprpr)
-     &            *pi*viin*rhosno)              
-              end if
+            if(fluxice(mg)>0..and.qtg(mg,k)<qsg(mg,k))then ! sublime snow
               Csb=Csbsav(mg,k)*fluxice(mg)/delt !LDR
               bf=1.+0.5*Csb*delt*(1.+gam(mg,k))
               dqs=max(0.,delt*(Csb/bf)*(qsg(mg,k)-qtg(mg,k)))
@@ -412,7 +386,7 @@ c Accretion of cloud water by falling ice
 c This calculation uses the incoming fluxice without subtracting sublimation
 c (since subl occurs only outside cloud), so add sublflux back to fluxice.
             
-            if(fluxice(mg)+sublflux>0.and.qlg(mg,k)>0.)then
+            if(fluxice(mg)+sublflux>0.and.qlg(mg,k)>1.e-10)then
               ql=qlg(mg,k)
               cdt=Eac*slopes(mg,k)*(fluxice(mg)+sublflux)/(2.*rhosno)
               dqf=min(ql,cifra(mg)*ql,ql*cdt/(1.+0.5*cdt))
@@ -428,7 +402,7 @@ c (since subl occurs only outside cloud), so add sublflux back to fluxice.
             endif
 
 
-            if(fsclr==0.)then
+            if(fsclr<1.e-15)then
               rdclfr(mg)=0.
               mxclfr(mg)=0.
             end if
@@ -436,19 +410,6 @@ c (since subl occurs only outside cloud), so add sublflux back to fluxice.
             mxclfr(mg)=max(mxclfr(mg),ci) !max overlap
             cifra(mg)=max(0.01,
      &        mxclfr(mg)+rdclfr(mg)-mxclfr(mg)*rdclfr(mg)) !rnd overlap the mx and rd ice fractions
-
-            ! Re-calculate ice fall speed (MJT)
-            if (ncloud>1) then
-              rhoiin=fluxice(mg)/dz(mg,k)
-              vi2(mg,k)=0.1
-              if (cifra(mg)>0.) then
-                vi2(mg,k)=3.23*((rhoi(mg,k)+rhoiin)/cifra(mg))**0.17 ! from ldr==1 above
-                vi2(mg,k)=max(vi2(mg,k),0.1)
-              end if
-              alph=delt*vi2(mg,k)/dz(mg,k)
-              fout(mg,k)=1.-exp(-alph) !analytical
-              fthru(mg,k)=1.-fout(mg,k)/alph !analytical
-            end if
 
 c Compute fluxes into the box
             
@@ -463,7 +424,7 @@ c Compute fluxes into the box
 
 c Compute the fluxes of ice and cloud amount leaving the box
             
-            if(cifr(mg,k)>0.)then
+            if(cifr(mg,k)>=1.e-10)then
 
 c Use the flux-divergent form as in Rotstayn (QJRMS, 1997)
               rhoiout=rhoi(mg,k)*fout(mg,k)
@@ -508,7 +469,7 @@ c End of Kessler-type formulation
 c Update the rhoi and cifr fields
 
             cifr(mg,k)=min(1.-clfr(mg,k),
-     &                (cifr(mg,k)-cffluxout)+cffluxin*(1.-fthru(mg,k)))
+     &             (cifr(mg,k)-cffluxout)+cffluxin*(1.-fthru(mg,k)))
             rhoi(mg,k)=(rhoi(mg,k)-rhoiout)+rhoiin*(1.-fthru(mg,k))
             fluxice(mg)=rhoiout*dz(mg,k)+fluxice(mg)*fthru(mg,k) 
 c Now fluxice is flux leaving layer k

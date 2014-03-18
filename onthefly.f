@@ -260,6 +260,7 @@
       use morepbl_m                             ! Additional boundary layer diagnostics
       use nharrs_m, only : phi_nh,lrestart      ! Non-hydrostatic atmosphere arrays
       use nsibd_m, only : isoilm                ! Land-surface arrays
+      use river                                 ! River routing
       use savuvt_m                              ! Saved dynamic arrays
       use savuv1_m                              ! Saved dynamic arrays
       use screen_m                              ! Screen level diagnostics

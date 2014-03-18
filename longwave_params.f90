@@ -83,7 +83,7 @@ integer, parameter, public   :: NBLX        = 48
 !-------------------------------------------------------------------
 !----- private data --------
 
-logical :: module_is_initialized = .false.  ! module is initialized ?
+logical, save :: module_is_initialized = .false.  ! module is initialized ?
 
 
 !---------------------------------------------------------------------

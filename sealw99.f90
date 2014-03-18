@@ -95,7 +95,7 @@ private
 
     character(len=128)  :: version =  '$Id: sealw99.f90,v 13.0 2006/03/28 21:13:36 fms Exp $'
     character(len=128)  :: tagname =  '$Name: latest $'
-    logical             ::  module_is_initialized = .false.
+    logical, save       ::  module_is_initialized = .false.
 
 !---------------------------------------------------------------------
 !-------  interfaces --------
@@ -115,44 +115,44 @@ private   &
 !---------------------------------------------------------------------
 !-------- namelist  ---------
 
-logical            ::    &
+logical, save      ::    &
                 do_thick = .false.  ! perform "pseudo-convective  
                                     ! adjustment" for maximally 
                                     ! overlapped clouds ?
-logical            ::    &
+logical, save      ::    &
             do_lwcldemiss = .true. ! use multiple bands to calculate
                                     ! lw cloud emissivites ? 
-logical            ::    &
+logical, save      ::    &
       do_ch4lbltmpint  = .false.    ! perform and save intermediate
                                     ! flux calculations for ch4?
-logical            ::    &
+logical, save      ::    &
       do_n2olbltmpint  = .false. ! perform and save intermediate
                                     ! flux calculations for n2o?
-logical            ::   &
+logical, save      ::   &
            do_nlte = .false.        ! there is a non-local thermodynamic
                                     ! equilibrium region at top 
                                     ! of model ?
-character(len=16)  ::  &
+character(len=16), save  ::  &
             continuum_form = 'ckd2.1' ! continuum specification; either
                                     ! 'ckd2.1', 'ckd2.4', 'mt_ckd1.0', 
                                     ! 'rsb' or 'none'
-character(len=16)  ::  &
+character(len=16), save  ::  &
         linecatalog_form = 'hitran_2000' ! line catalog specification; either
                                     ! 'hitran_1992' or 'hitran_2000'
-real               ::  &
+real, save         ::  &
         co2_tf_calc_intrvl = 1.0E6  ! interval between recalculating co2
                                     ! transmission functions, relevant
                                     ! for time-varying co2 cases 
                                     ! [ hours ]
-logical            ::  &
+logical, save      ::  &
         calc_co2_tfs_on_first_step = .true. 
                                     ! always calculate co2 tfs on 
                                     ! first time step of job ?
-logical            ::  &
+logical, save      ::  &
         use_current_co2_for_tf = .false.  
                                     ! use current co2 mixing ratio for  
                                     ! calculating tfs ?
-real               ::  &
+real, save         ::  &
         co2_tf_time_displacement = 0.0 
                                     ! time displacement from job start 
                                     ! to the point in time where co2 
@@ -160,20 +160,20 @@ real               ::  &
                                     ! 0.0 or (+); used only when
                                     ! calc_co2_tfs_on_first_step is true
                                     ! [ hours ]
-real               ::  &
+real, save         ::  &
         ch4_tf_calc_intrvl = 1.0E6  ! interval between recalculating ch4
                                     ! transmission functions, relevant
                                     ! for time-varying ch4 cases 
                                     ! [ hours ]
-logical            ::  &
+logical, save      ::  &
         calc_ch4_tfs_on_first_step = .true. 
                                     ! always calculate ch4 tfs on 
                                     ! first time step of job ?
-logical            ::  &
+logical, save      ::  &
         use_current_ch4_for_tf = .false. 
                                     ! use current ch4 mixing ratio for  
                                     ! calculating tfs ?
-real               ::  &
+real, save         ::  &
         ch4_tf_time_displacement = 0.0 
                                     ! time displacement from job start 
                                     ! to the point in time where ch4 
@@ -181,20 +181,20 @@ real               ::  &
                                     ! 0.0 or (+); used only when
                                     ! calc_ch4_tfs_on_first_step is true
                                     ! [ hours ]
-real               ::  &
+real, save         ::  &
         n2o_tf_calc_intrvl = 1.0E6  ! interval between recalculating n2o
                                     ! transmission functions, relevant
                                     ! for time-varying n2o cases 
                                     ! [ hours ]
-logical            ::  &
+logical, save      ::  &
         calc_n2o_tfs_on_first_step = .true. 
                                     ! always calculate n2o tfs on 
                                     ! first time step of job ?
-logical            ::  &
+logical, save      ::  &
         use_current_n2o_for_tf = .false. 
                                     ! use current n2o mixing ratio for  
                                     ! calculating tfs ?
-real               ::  &
+real, save         ::  &
         n2o_tf_time_displacement = 0.0 
                                     ! time displacement from job start 
                                     ! to the point in time where n2o 
@@ -202,22 +202,22 @@ real               ::  &
                                     ! 0.0 or (+); used only when
                                     ! calc_n2o_tfs_on_first_step is true
                                     ! [ hours ]
-integer            ::  &
+integer, save      ::  &
         verbose = 0                 ! verbosity level, ranges from 0
                                     ! (min output) to 5 (max output)
-logical            ::  &
+logical, save      ::  &
        calc_co2_tfs_monthly = .false.
-logical            ::  &
+logical, save      ::  &
        calc_ch4_tfs_monthly = .false.
-logical            ::  &
+logical, save      ::  &
        calc_n2o_tfs_monthly = .false.
-integer            ::      &
+integer, save      ::      &
        no_h2o_bands_1200_1400 = 1 ! number of bands in the lw par-
                                   ! ameterization between 1200 and 1400
                                   ! cm (-1); 0 and 1 have been
                                   ! tested. other potentially available
                                   ! values are 2, 4, 10  and 20. 
-logical            ::      &
+logical, save      ::      &
     use_bnd1_cldtf_for_h2o_bands = .false. ! the 1200-1400 cm(-1) band
                                              ! uses the same radiative
                                              ! properties as the 0-160,
@@ -287,9 +287,9 @@ type (longwave_tables2_type), save       :: tab1a, tab2a, tab3a
 !-------------------------------------------------------------------
 !
 !--------------------------------------------------------------------
-integer, parameter                  ::  no_combined_bands = 8
-real, dimension(no_combined_bands)  ::  band_no_start, band_no_end
-integer, dimension(NBLY_CKD-1)      ::  cld_indx_table
+integer, parameter                        ::  no_combined_bands = 8
+real, dimension(no_combined_bands), save  ::  band_no_start, band_no_end
+integer, dimension(NBLY_CKD-1), save      ::  cld_indx_table
 
 !---------------------------------------------------------------------
 !
@@ -300,21 +300,21 @@ integer, dimension (:), allocatable, save    ::  cld_indx
 !---------------------------------------------------------------------
 !    miscellaneous variables.
 !---------------------------------------------------------------------
-integer    ::  nbly      ! number of frequency bands for exact
-                         ! cool-to-space computations.
-integer    ::  nbtrge, nbtrg
-integer    ::  ixprnlte
-integer    ::  ks, ke
-logical    ::  do_co2_tf_calc = .true.
-logical    ::  do_ch4_tf_calc = .true.
-logical    ::  do_n2o_tf_calc = .true.
-logical    ::  do_co2_tf_calc_init = .true.
-logical    ::  do_ch4_tf_calc_init = .true.
-logical    ::  do_n2o_tf_calc_init = .true.
+integer, save    ::  nbly      ! number of frequency bands for exact
+                               ! cool-to-space computations.
+integer, save    ::  nbtrge, nbtrg
+integer, save    ::  ixprnlte
+integer, save    ::  ks, ke
+logical, save    ::  do_co2_tf_calc = .true.
+logical, save    ::  do_ch4_tf_calc = .true.
+logical, save    ::  do_n2o_tf_calc = .true.
+logical, save    ::  do_co2_tf_calc_init = .true.
+logical, save    ::  do_ch4_tf_calc_init = .true.
+logical, save    ::  do_n2o_tf_calc_init = .true.
 
-integer    ::  month_of_co2_tf_calc = 0
-integer    ::  month_of_ch4_tf_calc = 0
-integer    ::  month_of_n2o_tf_calc = 0
+integer, save    ::  month_of_co2_tf_calc = 0
+integer, save    ::  month_of_ch4_tf_calc = 0
+integer, save    ::  month_of_n2o_tf_calc = 0
 
 !integer    :: co2_pts_processed
 !integer    :: ch4_pts_processed
@@ -1168,18 +1168,18 @@ subroutine sealw99 (is, ie, js, je, Rad_time, Atmos_input, Rad_gases, &
 !     certified:  radiation version 1.0
 !---------------------------------------------------------------------
 
-integer,                       intent(in)    ::  is, ie, js, je
-type(time_type),               intent(in)    ::  Rad_time
-type(atmos_input_type),        intent(in)    ::  Atmos_input  
-type(radiative_gases_type),    intent(inout)    ::  Rad_gases   
-type(aerosol_type),            intent(in)    ::  Aerosol      
-type(aerosol_properties_type), intent(inout) ::  Aerosol_props      
+integer,                        intent(in)    ::  is, ie, js, je
+type(time_type),                intent(in)    ::  Rad_time
+type(atmos_input_type),         intent(in)    ::  Atmos_input  
+type(radiative_gases_type),     intent(inout)    ::  Rad_gases   
+type(aerosol_type),             intent(in)    ::  Aerosol      
+type(aerosol_properties_type),  intent(inout) ::  Aerosol_props      
 type(aerosol_diagnostics_type), intent(inout) ::  Aerosol_diags      
-type(cldrad_properties_type),  intent(in)    ::  Cldrad_props
-type(cld_specification_type),  intent(in)    ::  Cld_spec
-type(lw_output_type),          intent(inout) ::  Lw_output   
-type(lw_diagnostics_type),     intent(inout) ::  Lw_diagnostics
-logical,                   intent(in)            :: including_aerosols  
+type(cldrad_properties_type),   intent(in)    ::  Cldrad_props
+type(cld_specification_type),   intent(in)    ::  Cld_spec
+type(lw_output_type),           intent(inout) ::  Lw_output   
+type(lw_diagnostics_type),      intent(inout) ::  Lw_diagnostics
+logical,                        intent(in)    :: including_aerosols  
 
 !-----------------------------------------------------------------------
 !  intent(in) variables:
@@ -1295,18 +1295,18 @@ logical,                   intent(in)            :: including_aerosols
                        size(Atmos_input%press,2),  &
                        size(Atmos_input%press,3) )  :: flxnet_save
 
-      type(lw_clouds_type)       :: Lw_clouds
-      type(optical_path_type)    :: Optical
-      type(gas_tf_type)          :: Gas_tf   
-      logical                    :: calc_co2, calc_n2o, calc_ch4
+      type(lw_clouds_type), save    :: Lw_clouds
+      type(optical_path_type), save :: Optical
+      type(gas_tf_type), save       :: Gas_tf   
+      logical                       :: calc_co2, calc_n2o, calc_ch4
 
-      integer                    :: ix, jx, kx
-      integer                    ::  k, kp, m, j
-      integer                    :: kk, i, l
-      integer                    :: nprofiles, nnn
-      character(len=4)           :: gas_name
-      integer                    :: year, month, day, hour, minute, &
-                                    second
+      integer                       :: ix, jx, kx
+      integer                       ::  k, kp, m, j
+      integer                       :: kk, i, l
+      integer                       :: nprofiles, nnn
+      character(len=4)              :: gas_name
+      integer                       :: year, month, day, hour, minute, &
+                                       second
 
 !---------------------------------------------------------------------
 !  local variables:

@@ -231,9 +231,12 @@ C layers allowed
 C Improve estimate of pbl height for the unstable points.
 C Find unstable points (virtual heat flux is positive):
 C
+         phiminv=0. ! MJT bug fix for IBM compiler
+         tlv=thvref
+
          do iq=1,ifull
           if(heatv(iq)>0.)then  ! unstable case
-            phiminv(iq) =     (1. - binm*pblh(iq)/obklen(iq))**(1./3.)
+            phiminv(iq) = (1. - binm*pblh(iq)/obklen(iq))**(1./3.)
             wm(iq)= ustar(iq)*phiminv(iq)
 C           therm: 2nd term in eq. (4.d.19):
 C           temperature excess due to convective thermal

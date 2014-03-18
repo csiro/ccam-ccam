@@ -62,10 +62,10 @@ public       &
 !---------------------------------------------------------------------
 !-------- namelist  ---------
 
-character(len=16)  :: sw_resolution = 'low' ! either 'high' or 'low'
-integer            :: sw_diff_streams = 1   ! number of streams of
-                                            ! diffuse radiation that
-                                            ! are considered (1 or 4)
+character(len=16), save :: sw_resolution = 'low' ! either 'high' or 'low'
+integer, save           :: sw_diff_streams = 1   ! number of streams of
+                                                 ! diffuse radiation that
+                                                 ! are considered (1 or 4)
 
 
 namelist /esfsw_parameters_nml/    &
@@ -88,7 +88,7 @@ type(solar_spectrum_type), public, save :: Solar_spect
 !-------------------------------------------------------------------
 !----- private data --------
 
-logical :: module_is_initialized = .false.  ! module is initialized ?
+logical, save :: module_is_initialized = .false.  ! module is initialized ?
 
 
 !---------------------------------------------------------------------

@@ -82,8 +82,8 @@ private        &
 !---------------------------------------------------------------------
 !-------- namelist  ---------
 
-logical    :: do_coeintdiag = .false.
-integer    :: NSTDCO2LVLS = 496 ! # of levels at which lbl tfs exist
+logical, save    :: do_coeintdiag = .false.
+integer, save    :: NSTDCO2LVLS = 496 ! # of levels at which lbl tfs exist
 
 
 namelist/lw_gases_stdtf_nml/ &
@@ -139,88 +139,88 @@ real, dimension(:), allocatable, save   :: pa
 !----------------------------------------------------------------------
 !    ch4 data
 !----------------------------------------------------------------------
-integer, parameter                        ::  number_std_ch4_vmrs = 8
-real,    dimension(number_std_ch4_vmrs)   ::   ch4_std_vmr
+integer, parameter                              ::  number_std_ch4_vmrs = 8
+real,    dimension(number_std_ch4_vmrs), save   ::   ch4_std_vmr
 data ch4_std_vmr / 0., 300., 700., 1250., 1750., 2250., 2800., 4000. /
 
-integer, parameter                        ::  nfreq_bands_sea_ch4 = 1
+integer, parameter                              ::  nfreq_bands_sea_ch4 = 1
 
-logical, dimension(nfreq_bands_sea_ch4)   ::  do_lyrcalc_ch4_nf, &
-                                              do_lvlcalc_ch4_nf, &
-                                              do_lvlctscalc_ch4_nf
+logical, dimension(nfreq_bands_sea_ch4), save   ::  do_lyrcalc_ch4_nf, &
+                                                    do_lvlcalc_ch4_nf, &
+                                                    do_lvlctscalc_ch4_nf
 data   do_lyrcalc_ch4_nf    /  .true.  /
 data   do_lvlcalc_ch4_nf    /  .true.  /
 data   do_lvlctscalc_ch4_nf /  .false. /
 
-integer, dimension(nfreq_bands_sea_ch4)   ::  ntbnd_ch4
+integer, dimension(nfreq_bands_sea_ch4), save   ::  ntbnd_ch4
 data   ntbnd_ch4      /  3  /
 
 !----------------------------------------------------------------------
 !    n2o data
 !----------------------------------------------------------------------
-integer, parameter                        ::  number_std_n2o_vmrs = 7
-real,    dimension(number_std_n2o_vmrs)   ::  n2o_std_vmr
+integer, parameter                              ::  number_std_n2o_vmrs = 7
+real,    dimension(number_std_n2o_vmrs), save   ::  n2o_std_vmr
 data n2o_std_vmr / 0., 180., 275., 310., 340., 375., 500. /
 
-integer, parameter                        ::  nfreq_bands_sea_n2o = 3
-logical, dimension(nfreq_bands_sea_n2o)   ::  do_lyrcalc_n2o_nf, &
-                                              do_lvlcalc_n2o_nf, &
-                                              do_lvlctscalc_n2o_nf
+integer, parameter                              ::  nfreq_bands_sea_n2o = 3
+logical, dimension(nfreq_bands_sea_n2o), save   ::  do_lyrcalc_n2o_nf, &
+                                                    do_lvlcalc_n2o_nf, &
+                                                    do_lvlctscalc_n2o_nf
 data do_lyrcalc_n2o_nf    / .true., .true., .true./
 data do_lvlcalc_n2o_nf    / .true., .true., .true./
 data do_lvlctscalc_n2o_nf / .false., .false., .false./
 
-integer, dimension(nfreq_bands_sea_n2o)   ::  ntbnd_n2o
+integer, dimension(nfreq_bands_sea_n2o), save   ::  ntbnd_n2o
 data ntbnd_n2o /  3, 3, 3/
 
 !----------------------------------------------------------------------
 !    co2 data
 !----------------------------------------------------------------------
-integer, parameter                        ::  number_std_co2_vmrs = 10
-real,    dimension(number_std_co2_vmrs)   ::  co2_std_vmr
+integer, parameter                              ::  number_std_co2_vmrs = 10
+real,    dimension(number_std_co2_vmrs), save   ::  co2_std_vmr
 data co2_std_vmr / 0., 165.0, 300.0, 330.0, 348.0, 356.0, 360.0,  &
                    600.0, 660.0, 1320.0/
 
-integer, parameter                        ::  nfreq_bands_sea_co2 = 5
-logical, dimension(nfreq_bands_sea_co2)   ::  do_lyrcalc_co2_nf, &
-                                              do_lvlcalc_co2_nf, &
-                                              do_lvlctscalc_co2_nf
+integer, parameter                              ::  nfreq_bands_sea_co2 = 5
+logical, dimension(nfreq_bands_sea_co2), save   ::  do_lyrcalc_co2_nf, &
+                                                    do_lvlcalc_co2_nf, &
+                                                    do_lvlctscalc_co2_nf
 data do_lyrcalc_co2_nf    / .true., .false., .false., .false., .true./
 data do_lvlcalc_co2_nf    / .true., .true., .true., .true., .true./
 data do_lvlctscalc_co2_nf / .false., .true., .true., .true., .false./
 
-integer, dimension(nfreq_bands_sea_co2)   ::  ntbnd_co2
+integer, dimension(nfreq_bands_sea_co2), save   ::  ntbnd_co2
 data ntbnd_co2 / 3, 3, 3, 3, 1/
 
 real,  dimension (:,:), allocatable, save   :: dgasdt8_lvl, dgasdt10_lvl, &
-                                         d2gast8_lvl, d2gast10_lvl, &
-                                         gasp10_lvl, gasp8_lvl,   &  
-                                         dgasdt8_lyr, dgasdt10_lyr, &
-                                         d2gast8_lyr, d2gast10_lyr, &
-                                         gasp10_lyr, gasp8_lyr
+                                               d2gast8_lvl, d2gast10_lvl, &
+                                               gasp10_lvl, gasp8_lvl,   &  
+                                               dgasdt8_lyr, dgasdt10_lyr, &
+                                               d2gast8_lyr, d2gast10_lyr, &
+                                               gasp10_lyr, gasp8_lyr
 real,  dimension (:), allocatable, save :: dgasdt8_lvlcts, dgasdt10_lvlcts, &
-                                     d2gast8_lvlcts, d2gast10_lvlcts, &
-                                     gasp10_lvlcts, gasp8_lvlcts
+                                           d2gast8_lvlcts, d2gast10_lvlcts, &
+                                           gasp10_lvlcts, gasp8_lvlcts
 
 real,  dimension (:,:), allocatable, save   :: trns_interp_lyr_ps, &
-                                         trns_interp_lyr_ps8, &
-                                         trns_interp_lvl_ps, &
-                                         trns_interp_lvl_ps8
+                                               trns_interp_lyr_ps8, &
+                                               trns_interp_lvl_ps, &
+                                               trns_interp_lvl_ps8
 real,  dimension (:,:,:), allocatable, save :: trns_interp_lyr_ps_nf, &
-                                         trns_interp_lyr_ps8_nf, &
-                                         trns_interp_lvl_ps_nf, &
-                                         trns_interp_lvl_ps8_nf
+                                               trns_interp_lyr_ps8_nf, &
+                                               trns_interp_lvl_ps_nf, &
+                                               trns_interp_lvl_ps8_nf
  
  
 real, dimension(:), allocatable, save  :: plm, plm8, pd, pd8
 
 !!$integer             :: k, kp, nf, nt
-integer             :: ndimkp, ndimk, nlev
+integer, save       :: ndimkp, ndimk, nlev
 real, parameter     :: dop_core0 = 25.0
-real                :: dop_core 
-logical             :: do_calcstdco2tfs
-logical             :: do_calcstdch4tfs
-logical             :: do_calcstdn2otfs
+real, save          :: dop_core 
+logical, save       :: do_calcstdco2tfs
+logical, save       :: do_calcstdch4tfs
+logical, save       :: do_calcstdn2otfs
 
 !--------------------------------------------------------------------
 !       NBLWCFC =  number of frequency bands with cfc band strengths
@@ -233,7 +233,7 @@ integer, parameter :: NBLWCFC = 8
 !--------------------------------------------------------------------
 !   data for averaged f11 band strength
 !--------------------------------------------------------------------
-real strf11(NBLWCFC) 
+real, dimension(nblwcfc), save :: strf11
 
 data  strf11 /       &
          0.000000E+00,  0.000000E+00,  0.527655E+02,  0.297523E+04,  &
@@ -242,7 +242,7 @@ data  strf11 /       &
 !--------------------------------------------------------------------
 !   data for averaged f12 band strength
 !--------------------------------------------------------------------
-real strf12(NBLWCFC) 
+real, dimension(nblwcfc), save :: strf12
 
 data strf12 /       &
          0.552499E+01,  0.136436E+03,  0.243867E+02,  0.612532E+03, &
@@ -251,7 +251,7 @@ data strf12 /       &
 !--------------------------------------------------------------------
 !   data for averaged f113 band strength
 !--------------------------------------------------------------------
-real strf113(NBLWCFC)
+real, dimension(nblwcfc), save :: strf113
 
 data strf113 /     &
          0.627223E+01,  0.690936E+02,  0.506764E+02,  0.122039E+04,  &
@@ -260,7 +260,7 @@ data strf113 /     &
 !--------------------------------------------------------------------
 !   data for averaged f22 band strength
 !--------------------------------------------------------------------
-real strf22(NBLWCFC) 
+real, dimension(nblwcfc), save :: strf22
 
 data strf22 /    &
          0.301881E+02,  0.550826E+01,  0.397496E+03,  0.124802E+04,  &
@@ -269,45 +269,45 @@ data strf22 /    &
 !--------------------------------------------------------------------
 !   data for averaged f11 560-800 cm-1 band strength
 !--------------------------------------------------------------------
-real  :: sf1115=0.219856E+02
+real, save  :: sf1115=0.219856E+02
 
 !--------------------------------------------------------------------
 !   data for averaged f12 560-800 cm-1 band strength
 !--------------------------------------------------------------------
-real  :: sf1215=0.515665E+02
+real, save  :: sf1215=0.515665E+02
 
 !--------------------------------------------------------------------
 !   data for averaged f113 560-800 cm-1 band strength
 !--------------------------------------------------------------------
-real  :: sf11315=0.430969E+02
+real, save  :: sf11315=0.430969E+02
 
 !--------------------------------------------------------------------
 !   data for averaged f22 560-800 cm-1 band strength
 !--------------------------------------------------------------------
-real  :: sf2215=0.176035E+03
+real, save  :: sf2215=0.176035E+03
 
 !--------------------------------------------------------------------
 !   data for averaged f11 800-990, 1070-1200 cm-1 band strength
 !--------------------------------------------------------------------
-real  :: sf11ct=0.125631E+04
+real, save  :: sf11ct=0.125631E+04
 
 !--------------------------------------------------------------------
 !   data for averaged f12 800-990, 1070-1200 cm-1 band strength
 !--------------------------------------------------------------------
-real  :: sf12ct=0.201821E+04
+real, save  :: sf12ct=0.201821E+04
 
 !--------------------------------------------------------------------
 !   data for averaged f113 800-990, 1070-1200 cm-1 band strength
 !--------------------------------------------------------------------
-real  :: sf113ct=0.105362E+04
+real, save  :: sf113ct=0.105362E+04
 
 !--------------------------------------------------------------------
 !   data for averaged f22 800-990, 1070-1200 cm-1 band strength
 !--------------------------------------------------------------------
-real  :: sf22ct=0.188775E+04
+real, save  :: sf22ct=0.188775E+04
 
-integer :: ksrad, kerad
-logical   :: module_is_initialized = .false.
+integer, save :: ksrad, kerad
+logical, save   :: module_is_initialized = .false.
 
 
 !---------------------------------------------------------------------
@@ -5774,7 +5774,7 @@ real,    dimension(:,:,:),  intent(out)  :: trns_std_hi_nf,   &
         call ccnf_get_vara(ncid,varid,startpos,npos,trns_std_lo_nf(:,:,1:ntbnd(nf)))
         call ccnf_close(ncid)
       end if
-      call ccmpi_bcastr8(trns_std_hi_nf(:,:,1:ntbnd(nf)),0,comm_world)
+      call ccmpi_bcastr8(trns_std_hi_nf(:,:,1:ntbnd(nf)),0      ,comm_world)
       call ccmpi_bcastr8(trns_std_lo_nf(:,:,1:ntbnd(nf)),nproc-1,comm_world)
       
       else

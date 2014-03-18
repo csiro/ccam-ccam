@@ -72,7 +72,7 @@ namelist / longwave_fluxes_nml /        &
 !---------------------------------------------------------------------
 !------- private data ------
 
-logical :: module_is_initialized = .false. ! module is initialized ?
+logical, save :: module_is_initialized = .false. ! module is initialized ?
 
 
 !---------------------------------------------------------------------

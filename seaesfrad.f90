@@ -593,23 +593,23 @@ do j=1,jl,imax/il
         do k=1,kl
           kr=kl+1-k
           dprf=ps(istart:iend)*(sigh(k)-sigh(k+1))
-          Aerosol%aerosol(:,1,kr,1) =xtg(istart:iend,k,3)*dprf/grav  ! so4
-          Aerosol%aerosol(:,1,kr,2) =xtg(istart:iend,k,4)*dprf/grav  ! bc hydrophobic
-          Aerosol%aerosol(:,1,kr,3) =xtg(istart:iend,k,5)*dprf/grav  ! bc hydrophilic
-          Aerosol%aerosol(:,1,kr,4) =xtg(istart:iend,k,6)*dprf/grav  ! oc hydrophobic
-          Aerosol%aerosol(:,1,kr,5) =xtg(istart:iend,k,7)*dprf/grav  ! oc hydrophilic
-          Aerosol%aerosol(:,1,kr,6) =xtg(istart:iend,k,8)*dprf/grav  ! dust 0.1-1
-          Aerosol%aerosol(:,1,kr,7) =xtg(istart:iend,k,9)*dprf/grav  ! dust 1-2
-          Aerosol%aerosol(:,1,kr,8) =xtg(istart:iend,k,10)*dprf/grav ! dust 2-3
-          Aerosol%aerosol(:,1,kr,9) =xtg(istart:iend,k,11)*dprf/grav ! dust 3-6
-          Aerosol%aerosol(:,1,kr,10)=2.64e-18*ssn(istart:iend,k,1) &
-                                     /rhoa(:,k)*dprf/grav  ! Small sea salt (0.035)
-          Aerosol%aerosol(:,1,kr,11)=1.38e-15*ssn(istart:iend,k,2) &
-                                     /rhoa(:,k)*dprf/grav  ! Large sea salt (0.35)
-          !Aerosol%aerosol(:,1,kr,10)=5.3e-17*ssn(istart:iend,k,1) &
-          !                           /rhoa(:,k)*dprf/grav  ! Small sea salt (0.1)
-          !Aerosol%aerosol(:,1,kr,11)=9.1e-15*ssn(istart:iend,k,2) &
-          !                           /rhoa(:,k)*dprf/grav  ! Large sea salt (0.5)
+          Aerosol%aerosol(:,1,kr,1) =real(xtg(istart:iend,k,3)*dprf/grav,8)  ! so4
+          Aerosol%aerosol(:,1,kr,2) =real(xtg(istart:iend,k,4)*dprf/grav,8)  ! bc hydrophobic
+          Aerosol%aerosol(:,1,kr,3) =real(xtg(istart:iend,k,5)*dprf/grav,8)  ! bc hydrophilic
+          Aerosol%aerosol(:,1,kr,4) =real(xtg(istart:iend,k,6)*dprf/grav,8)  ! oc hydrophobic
+          Aerosol%aerosol(:,1,kr,5) =real(xtg(istart:iend,k,7)*dprf/grav,8)  ! oc hydrophilic
+          Aerosol%aerosol(:,1,kr,6) =real(xtg(istart:iend,k,8)*dprf/grav,8)  ! dust 0.1-1
+          Aerosol%aerosol(:,1,kr,7) =real(xtg(istart:iend,k,9)*dprf/grav,8)  ! dust 1-2
+          Aerosol%aerosol(:,1,kr,8) =real(xtg(istart:iend,k,10)*dprf/grav,8) ! dust 2-3
+          Aerosol%aerosol(:,1,kr,9) =real(xtg(istart:iend,k,11)*dprf/grav,8) ! dust 3-6
+          Aerosol%aerosol(:,1,kr,10)=real(2.64e-18*ssn(istart:iend,k,1) &
+                                     /rhoa(:,k)*dprf/grav,8)  ! Small sea salt (0.035)
+          Aerosol%aerosol(:,1,kr,11)=real(1.38e-15*ssn(istart:iend,k,2) &
+                                     /rhoa(:,k)*dprf/grav,8)  ! Large sea salt (0.35)
+          !Aerosol%aerosol(:,1,kr,10)=real(5.3e-17*ssn(istart:iend,k,1) &
+          !                           /rhoa(:,k)*dprf/grav,8)  ! Small sea salt (0.1)
+          !Aerosol%aerosol(:,1,kr,11)=real(9.1e-15*ssn(istart:iend,k,2) &
+          !                           /rhoa(:,k)*dprf/grav,8)  ! Large sea salt (0.5)
         end do
         Aerosol%aerosol=max(Aerosol%aerosol,0._8)
       case DEFAULT
@@ -673,54 +673,54 @@ do j=1,jl,imax/il
       dumt(:,k)=t(istart:iend,k)
       p2(:,k)=ps(istart:iend)*sig(k)
       call getqsat(imax,qsat,dumt(:,k),p2(:,k))
-      Atmos_input%deltaz(:,1,kr) =(-dsig(k)/sig(k))*rdry*(dumt(:,k)+tnhs(:,k))/grav
-      Atmos_input%rh2o(:,1,kr)   =max(qg(istart:iend,k),2.E-7)
-      Atmos_input%temp(:,1,kr)   =min(max(dumt(:,k),100.),370.)    
-      Atmos_input%press(:,1,kr)  =p2(:,k)
-      Atmos_input%rel_hum(:,1,kr)=min(qg(istart:iend,k)/qsat,1.)
+      Atmos_input%deltaz(:,1,kr)  = real((-dsig(k)/sig(k))*rdry*(dumt(:,k)+tnhs(:,k))/grav,8)
+      Atmos_input%rh2o(:,1,kr)    = max(real(qg(istart:iend,k),8),2.E-7_8)
+      Atmos_input%temp(:,1,kr)    = min(max(real(dumt(:,k),8),100._8),370._8)    
+      Atmos_input%press(:,1,kr)   = real(p2(:,k),8)
+      Atmos_input%rel_hum(:,1,kr) = min(real(qg(istart:iend,k)/qsat,8),1._8)
     end do
-    Atmos_input%temp(:,1,kl+1)  = min(max(tss(istart:iend),100.),370.)
-    Atmos_input%press(:,1,kl+1) = ps(istart:iend)
-    Atmos_input%pflux(:,1,1  )  = 0.
-    Atmos_input%tflux(:,1,1  )  = Atmos_input%temp(:,1,1)
+    Atmos_input%temp(:,1,kl+1)  = min(max(real(tss(istart:iend),8),100._8),370._8)
+    Atmos_input%press(:,1,kl+1) = real(ps(istart:iend),8)
+    Atmos_input%pflux(:,1,1  )  = 0._8
+    Atmos_input%tflux(:,1,1  )  = real(Atmos_input%temp(:,1,1),8)
     do k=1,kl-1
       kr=kl+1-k
-      Atmos_input%pflux(:,1,kr) = rathb(k)*p2(:,k)+ratha(k)*p2(:,k+1)
-      Atmos_input%tflux(:,1,kr) = min(max(rathb(k)*dumt(:,k)+ratha(k)*dumt(:,k+1),100.),370.)
+      Atmos_input%pflux(:,1,kr) = real(rathb(k)*p2(:,k)+ratha(k)*p2(:,k+1),8)
+      Atmos_input%tflux(:,1,kr) = min(max(real(rathb(k)*dumt(:,k)+ratha(k)*dumt(:,k+1),8),100._8),370._8)
     end do
-    Atmos_input%pflux(:,1,kl+1) = ps(istart:iend)
-    Atmos_input%tflux(:,1,kl+1) = min(max(tss(istart:iend),100.),370.)
-    Atmos_input%clouddeltaz     = Atmos_input%deltaz        
+    Atmos_input%pflux(:,1,kl+1) = real(ps(istart:iend),8)
+    Atmos_input%tflux(:,1,kl+1) = min(max(real(tss(istart:iend),8),100._8),370._8)
+    Atmos_input%clouddeltaz     = real(Atmos_input%deltaz,8)        
 
-    Atmos_input%psfc(:,1)    =ps(istart:iend)
-    Atmos_input%tsfc(:,1)    =min(max(tss(istart:iend),100.),370.)
-    Atmos_input%phalf(:,1,1) =0.
+    Atmos_input%psfc(:,1)    = real(ps(istart:iend),8)
+    Atmos_input%tsfc(:,1)    = min(max(real(tss(istart:iend),8),100._8),370._8)
+    Atmos_input%phalf(:,1,1) = 0._8
     do k=1,kl-1
       kr=kl+1-k
-      Atmos_input%phalf(:,1,kr)=rathb(k)*p2(:,k)+ratha(k)*p2(:,k+1)
+      Atmos_input%phalf(:,1,kr) = real(rathb(k)*p2(:,k)+ratha(k)*p2(:,k+1),8)
     end do
-    Atmos_input%phalf(:,1,kl+1)=ps(istart:iend)
+    Atmos_input%phalf(:,1,kl+1) = real(ps(istart:iend),8)
 
     if (do_aerosol_forcing) then
-      Atmos_input%aerosolrelhum=Atmos_input%rel_hum
+      Atmos_input%aerosolrelhum = Atmos_input%rel_hum
     end if
     
-    Rad_gases%rrvco2 =rrvco2
-    Rad_gases%rrvch4 =rrvch4
-    Rad_gases%rrvn2o =rrvn2o
-    Rad_gases%rrvf11 =rrvf11
-    Rad_gases%rrvf12 =rrvf12
-    Rad_gases%rrvf113=rrvf113
-    Rad_gases%rrvf22 =rrvf22
+    Rad_gases%rrvco2  = real(rrvco2,8)
+    Rad_gases%rrvch4  = real(rrvch4,8)
+    Rad_gases%rrvn2o  = real(rrvn2o,8)
+    Rad_gases%rrvf11  = real(rrvf11,8)
+    Rad_gases%rrvf12  = real(rrvf12,8)
+    Rad_gases%rrvf113 = real(rrvf113,8)
+    Rad_gases%rrvf22  = real(rrvf22,8)
     
     if (nmr==0) then
       do i=1,imax ! random overlap
         iq=i+istart-1
         do k=1,kl
           kr=kl+1-k
-          Cld_spec%camtsw(i,1,kr)=cfrac(iq,k) ! Max+Rnd overlap clouds for SW
-          Cld_spec%crndlw(i,1,kr)=cfrac(iq,k) ! Rnd overlap for LW
-          Cld_spec%cmxolw(i,1,kr)=0.
+          Cld_spec%camtsw(i,1,kr)=real(cfrac(iq,k),8) ! Max+Rnd overlap clouds for SW
+          Cld_spec%crndlw(i,1,kr)=real(cfrac(iq,k),8) ! Rnd overlap for LW
+          Cld_spec%cmxolw(i,1,kr)=0._8
         end do
       end do
     else
@@ -728,7 +728,7 @@ do j=1,jl,imax/il
         iq=i+istart-1
         do k=1,kl
           kr=kl+1-k
-          Cld_spec%camtsw(i,1,kr)=cfrac(iq,k) ! Max+Rnd overlap clouds for SW
+          Cld_spec%camtsw(i,1,kr)=real(cfrac(iq,k),8) ! Max+Rnd overlap clouds for SW
           maxover=.false.
           if (k>1) then
             if (cfrac(iq,k-1)>0.) maxover=.true.
@@ -737,11 +737,11 @@ do j=1,jl,imax/il
             if (cfrac(iq,k+1)>0.) maxover=.true.
           end if
           if (maxover) then
-            Cld_spec%cmxolw(i,1,kr)=cfrac(iq,k) ! Max overlap for LW
-            Cld_spec%crndlw(i,1,kr)=0.
+            Cld_spec%cmxolw(i,1,kr)=min(real(cfrac(iq,k),8),0.999_8) ! Max overlap for LW
+            Cld_spec%crndlw(i,1,kr)=1._8-Cld_spec%cmxolw(i,1,kr)
           else
-            Cld_spec%crndlw(i,1,kr)=cfrac(iq,k) ! Rnd overlap for LW
-            Cld_spec%cmxolw(i,1,kr)=0.
+            Cld_spec%crndlw(i,1,kr)=min(real(cfrac(iq,k),8),0.999_8) ! Rnd overlap for LW
+            Cld_spec%cmxolw(i,1,kr)=1._8-Cld_spec%crndlw(i,1,kr)
           end if
         end do
       end do
@@ -760,15 +760,15 @@ do j=1,jl,imax/il
                 dumcf,dumql,dumqf,p2,dumt,cd2,imax,kl)
     Cloud_microphysics%size_drop=max(Cloud_microphysics%size_drop,1.e-20_8)
     Cloud_microphysics%size_ice =max(Cloud_microphysics%size_ice,1.e-20_8)                
-    Cloud_microphysics%size_rain=1.e-20
-    Cloud_microphysics%conc_rain=0.
-    Cloud_microphysics%size_snow=1.e-20
-    Cloud_microphysics%conc_snow=0.
+    Cloud_microphysics%size_rain=1.e-20_8
+    Cloud_microphysics%conc_rain=0._8
+    Cloud_microphysics%size_snow=1.e-20_8
+    Cloud_microphysics%conc_snow=0._8
 
-    Lscrad_props%cldext   = 0.
-    Lscrad_props%cldsct   = 0.
-    Lscrad_props%cldasymm = 1.
-    Lscrad_props%abscoeff = 0.
+    Lscrad_props%cldext   = 0._8
+    Lscrad_props%cldsct   = 0._8
+    Lscrad_props%cldasymm = 1._8
+    Lscrad_props%abscoeff = 0._8
     call microphys_lw_driver(1, imax, 1, 1, Cloud_microphysics,Micro_rad_props=Lscrad_props)
     call microphys_sw_driver(1, imax, 1, 1, Cloud_microphysics,Micro_rad_props=Lscrad_props)
     Cldrad_props%cldsct(:,:,:,:,1)  =Lscrad_props%cldsct(:,:,:,:)   ! Large scale cloud properties only
@@ -780,13 +780,13 @@ do j=1,jl,imax/il
     Cldrad_props%emmxolw = Cldrad_props%cldemiss
     Cldrad_props%emrndlw = Cldrad_props%cldemiss
 
-    Surface%asfc_vis_dir(:,1)=cuvrf_dir(:)
-    Surface%asfc_nir_dir(:,1)=cirrf_dir(:)
-    Surface%asfc_vis_dif(:,1)=cuvrf_dif(:)
-    Surface%asfc_nir_dif(:,1)=cirrf_dif(:)
+    Surface%asfc_vis_dir(:,1)=real(cuvrf_dir(:),8)
+    Surface%asfc_nir_dir(:,1)=real(cirrf_dir(:),8)
+    Surface%asfc_vis_dif(:,1)=real(cuvrf_dif(:),8)
+    Surface%asfc_nir_dif(:,1)=real(cirrf_dif(:),8)
    
-    Astro%cosz(:,1)   =max(coszro,0.)
-    Astro%fracday(:,1)=taudar
+    Astro%cosz(:,1)   =max(real(coszro,8),0._8)
+    Astro%fracday(:,1)=real(taudar,8)
     swcount=swcount+count(coszro>0.)
 
     END_LOG(radmisc)
@@ -817,62 +817,50 @@ do j=1,jl,imax/il
     end if
 
     ! store shortwave and fbeam data --------------------------------
-    sgdn=Sw_output(1)%dfsw(:,1,kl+1)
-    sgdnvis=Sw_output(1)%dfsw_vis_sfc(:,1)
-    sgdnnir=sgdn-sgdnvis
-    sg=sgdn-Sw_output(1)%ufsw(:,1,kl+1)
-    sgvis=sgdnvis-Sw_output(1)%ufsw_vis_sfc(:,1)
-    !sgvisdir=Sw_output(1)%dfsw_vis_sfc_dir(:,1)
-    !sgvisdif=Sw_output(1)%dfsw_vis_sfc_dif(:,1)-Sw_output(1)%ufsw_vis_sfc_dif(:,1)
-    !sgnirdir=Sw_output(1)%dfsw_dir_sfc(:,1)-sgvisdir
-    !sgnirdif=Sw_output(1)%dfsw_dif_sfc(:,1)-Sw_output(1)%ufsw_dif_sfc(:,1)-sgvisdif
-    !sgdir=Sw_output(1)%dfsw_dir_sfc(:,1)
-    !sgdif=Sw_output(1)%dfsw_dif_sfc(:,1)-Sw_output(1)%ufsw_dif_sfc(:,1)
-    sgdnvisdir=Sw_output(1)%dfsw_vis_sfc_dir(:,1)
-    sgdnvisdif=Sw_output(1)%dfsw_vis_sfc_dif(:,1)
-    sgdnnirdir=Sw_output(1)%dfsw_dir_sfc(:,1)-sgdnvisdir
-    sgdnnirdif=Sw_output(1)%dfsw_dif_sfc(:,1)-sgdnvisdif
+    sgdn    = real(Sw_output(1)%dfsw(:,1,kl+1))
+    sgdnvis = real(Sw_output(1)%dfsw_vis_sfc(:,1))
+    sgdnnir = sgdn-sgdnvis
+    sg      = sgdn-real(Sw_output(1)%ufsw(:,1,kl+1))
+    sgvis   = sgdnvis-real(Sw_output(1)%ufsw_vis_sfc(:,1))
+    !sgvisdir = Sw_output(1)%dfsw_vis_sfc_dir(:,1)
+    !sgvisdif = Sw_output(1)%dfsw_vis_sfc_dif(:,1)-Sw_output(1)%ufsw_vis_sfc_dif(:,1)
+    !sgnirdir = Sw_output(1)%dfsw_dir_sfc(:,1)-sgvisdir
+    !sgnirdif = Sw_output(1)%dfsw_dif_sfc(:,1)-Sw_output(1)%ufsw_dif_sfc(:,1)-sgvisdif
+    !sgdir    = Sw_output(1)%dfsw_dir_sfc(:,1)
+    !sgdif    = Sw_output(1)%dfsw_dif_sfc(:,1)-Sw_output(1)%ufsw_dif_sfc(:,1)
+    sgdnvisdir = real(Sw_output(1)%dfsw_vis_sfc_dir(:,1))
+    sgdnvisdif = real(Sw_output(1)%dfsw_vis_sfc_dif(:,1))
+    sgdnnirdir = real(Sw_output(1)%dfsw_dir_sfc(:,1))-sgdnvisdir
+    sgdnnirdif = real(Sw_output(1)%dfsw_dif_sfc(:,1))-sgdnvisdif
     
-    where (sgdn>0.1)
-      swrsave(istart:iend)=sgdnvis/sgdn
-    elsewhere
-      swrsave(istart:iend)=0.5
-    end where
-    where (sgdnvis>0.1)
-      fbeamvis(istart:iend)=sgdnvisdir/sgdnvis
-    elsewhere
-      fbeamvis(istart:iend)=0.5
-    end where
-    where (sgdnnir>0.1)
-      fbeamnir(istart:iend)=sgdnnirdir/sgdnnir
-    elsewhere
-      fbeamnir(istart:iend)=0.5
-    end where
+    swrsave(istart:iend)=sgdnvis/max(sgdn,0.01)
+    fbeamvis(istart:iend)=sgdnvisdir/max(sgdnvis,0.01)
+    fbeamnir(istart:iend)=sgdnnirdir/max(sgdnnir,0.01)
     
     ! Store albedo data ---------------------------------------------
-    albvisnir(istart:iend,1)=Surface%asfc_vis_dir(:,1)*fbeamvis(istart:iend) &
-                            +Surface%asfc_vis_dif(:,1)*(1.-fbeamvis(istart:iend))
-    albvisnir(istart:iend,2)=Surface%asfc_nir_dir(:,1)*fbeamnir(istart:iend) &
-                            +Surface%asfc_nir_dif(:,1)*(1.-fbeamnir(istart:iend))
+    albvisnir(istart:iend,1) = real(Surface%asfc_vis_dir(:,1))*fbeamvis(istart:iend) &
+                              +real(Surface%asfc_vis_dif(:,1))*(1.-fbeamvis(istart:iend))
+    albvisnir(istart:iend,2) = real(Surface%asfc_nir_dir(:,1))*fbeamnir(istart:iend) &
+                              +real(Surface%asfc_nir_dif(:,1))*(1.-fbeamnir(istart:iend))
     
     ! longwave output -----------------------------------------------
-    rg(1:imax) = Lw_output(1)%flxnet(:,1,kl+1)          ! longwave at surface
-    rt(1:imax) = Lw_output(1)%flxnet(:,1,1)             ! longwave at top
+    rg(1:imax) = real(Lw_output(1)%flxnet(:,1,kl+1))          ! longwave at surface
+    rt(1:imax) = real(Lw_output(1)%flxnet(:,1,1))             ! longwave at top
     ! rg is net upwards = sigma T^4 - Rdown
     rgdn(1:imax) = stefbo*tss(istart:iend)**4 - rg(1:imax)
 
     ! shortwave output ----------------------------------------------
-    sint(1:imax) = Sw_output(1)%dfsw(:,1,1)   ! solar in top
-    sout(1:imax) = Sw_output(1)%ufsw(:,1,1)   ! solar out top
+    sint(1:imax) = real(Sw_output(1)%dfsw(:,1,1))   ! solar in top
+    sout(1:imax) = real(Sw_output(1)%ufsw(:,1,1))   ! solar out top
     !sgdn(1:imax) = sg(1:imax) / ( 1. - swrsave(istart:iend)*albvisnir(istart:iend,1) &
     !              -(1.-swrsave(istart:iend))*albvisnir(istart:iend,2) )
 
     ! Clear sky calculation -----------------------------------------
     if (do_totcld_forcing) then
-      soutclr(1:imax) = Sw_output(1)%ufswcf(:,1,1)      ! solar out top
-      sgclr(1:imax)   = -Sw_output(1)%fswcf(:,1,kl+1)   ! solar absorbed at the surface
-      rtclr(1:imax)   = Lw_output(1)%flxnetcf(:,1,1)    ! clr sky lw at top
-      rgclr(1:imax)   = Lw_output(1)%flxnetcf(:,1,kl+1) ! clear sky longwave at surface
+      soutclr(1:imax) = real(Sw_output(1)%ufswcf(:,1,1))      ! solar out top
+      sgclr(1:imax)   = -real(Sw_output(1)%fswcf(:,1,kl+1))   ! solar absorbed at the surface
+      rtclr(1:imax)   = real(Lw_output(1)%flxnetcf(:,1,1))    ! clr sky lw at top
+      rgclr(1:imax)   = real(Lw_output(1)%flxnetcf(:,1,kl+1)) ! clear sky longwave at surface
     else
       soutclr(1:imax) = 0.
       sgclr(1:imax)   = 0.
@@ -883,7 +871,7 @@ do j=1,jl,imax/il
     ! heating rate --------------------------------------------------
     do k=1,kl
       ! total heating rate (convert deg K/day to deg K/sec)
-      rtt(istart:iend,kl+1-k)=-(Sw_output(1)%hsw(:,1,k)+Lw_output(1)%heatra(:,1,k))/86400.
+      rtt(istart:iend,kl+1-k)=-real(Sw_output(1)%hsw(:,1,k)+Lw_output(1)%heatra(:,1,k))/86400.
     end do
     
     ! aerosol optical depths ----------------------------------------
@@ -891,24 +879,24 @@ do j=1,jl,imax/il
       opticaldepth(istart:iend,:,:)=0.
       do k=1,kl
         ! Small dust
-        opticaldepth(istart:iend,1,1)=opticaldepth(istart:iend,1,1)+Aerosol_diags%extopdep(1:imax,1,k,6,1) ! Visible
-        opticaldepth(istart:iend,1,2)=opticaldepth(istart:iend,1,2)+Aerosol_diags%extopdep(1:imax,1,k,6,2) ! Near IR
-        opticaldepth(istart:iend,1,3)=opticaldepth(istart:iend,1,3)+Aerosol_diags%extopdep(1:imax,1,k,6,3) ! Longwave
+        opticaldepth(istart:iend,1,1)=opticaldepth(istart:iend,1,1)+real(Aerosol_diags%extopdep(1:imax,1,k,6,1)) ! Visible
+        opticaldepth(istart:iend,1,2)=opticaldepth(istart:iend,1,2)+real(Aerosol_diags%extopdep(1:imax,1,k,6,2)) ! Near IR
+        opticaldepth(istart:iend,1,3)=opticaldepth(istart:iend,1,3)+real(Aerosol_diags%extopdep(1:imax,1,k,6,3)) ! Longwave
         ! Large dust
         do nr=7,9
-          opticaldepth(istart:iend,2,1)=opticaldepth(istart:iend,2,1)+Aerosol_diags%extopdep(1:imax,1,k,nr,1) ! Visible
-          opticaldepth(istart:iend,2,2)=opticaldepth(istart:iend,2,2)+Aerosol_diags%extopdep(1:imax,1,k,nr,2) ! Near IR
-          opticaldepth(istart:iend,2,3)=opticaldepth(istart:iend,2,3)+Aerosol_diags%extopdep(1:imax,1,k,nr,3) ! Longwave
+          opticaldepth(istart:iend,2,1)=opticaldepth(istart:iend,2,1)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,1)) ! Visible
+          opticaldepth(istart:iend,2,2)=opticaldepth(istart:iend,2,2)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,2)) ! Near IR
+          opticaldepth(istart:iend,2,3)=opticaldepth(istart:iend,2,3)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,3)) ! Longwave
         end do
         ! Sulfate
-        opticaldepth(istart:iend,3,1)=opticaldepth(istart:iend,3,1)+Aerosol_diags%extopdep(1:imax,1,k,1,1) ! Visible
-        opticaldepth(istart:iend,3,2)=opticaldepth(istart:iend,3,2)+Aerosol_diags%extopdep(1:imax,1,k,1,2) ! Near IR
-        opticaldepth(istart:iend,3,3)=opticaldepth(istart:iend,3,3)+Aerosol_diags%extopdep(1:imax,1,k,1,3) ! Longwave
+        opticaldepth(istart:iend,3,1)=opticaldepth(istart:iend,3,1)+real(Aerosol_diags%extopdep(1:imax,1,k,1,1)) ! Visible
+        opticaldepth(istart:iend,3,2)=opticaldepth(istart:iend,3,2)+real(Aerosol_diags%extopdep(1:imax,1,k,1,2)) ! Near IR
+        opticaldepth(istart:iend,3,3)=opticaldepth(istart:iend,3,3)+real(Aerosol_diags%extopdep(1:imax,1,k,1,3)) ! Longwave
         ! Aerosol
         do nr=1,nfields
-          opticaldepth(istart:iend,4,1)=opticaldepth(istart:iend,4,1)+Aerosol_diags%extopdep(1:imax,1,k,nr,1) ! Visible
-          opticaldepth(istart:iend,4,2)=opticaldepth(istart:iend,4,2)+Aerosol_diags%extopdep(1:imax,1,k,nr,2) ! Near IR
-          opticaldepth(istart:iend,4,3)=opticaldepth(istart:iend,4,3)+Aerosol_diags%extopdep(1:imax,1,k,nr,3) ! Longwave
+          opticaldepth(istart:iend,4,1)=opticaldepth(istart:iend,4,1)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,1)) ! Visible
+          opticaldepth(istart:iend,4,2)=opticaldepth(istart:iend,4,2)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,2)) ! Near IR
+          opticaldepth(istart:iend,4,3)=opticaldepth(istart:iend,4,3)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,3)) ! Longwave
         end do
       end do
     end if
@@ -1173,32 +1161,32 @@ real(kind=8), dimension(:,:,:,:),        intent(inout) :: r
 !    (fsw), upward sw flux (ufsw), downward sw flux(dfsw) at flux 
 !    levels and sw heating in model layers (hsw).
 !--------------------------------------------------------------------
-      Sw_output(1)%fsw   (:,:,:) = 0.0
-      Sw_output(1)%dfsw  (:,:,:) = 0.0
-      Sw_output(1)%ufsw  (:,:,:) = 0.0
-      Sw_output(1)%hsw   (:,:,:) = 0.0
-      Sw_output(1)%dfsw_dir_sfc = 0.0
-      Sw_output(1)%dfsw_dif_sfc  = 0.0
-      Sw_output(1)%ufsw_dif_sfc = 0.0
-      Sw_output(1)%dfsw_vis_sfc = 0.
-      Sw_output(1)%ufsw_vis_sfc = 0.
-      Sw_output(1)%dfsw_vis_sfc_dir = 0.
-      Sw_output(1)%dfsw_vis_sfc_dif = 0.
-      Sw_output(1)%ufsw_vis_sfc_dif = 0.
-      Sw_output(1)%bdy_flx(:,:,:) = 0.0       
+      Sw_output(1)%fsw   (:,:,:) = 0.0_8
+      Sw_output(1)%dfsw  (:,:,:) = 0.0_8
+      Sw_output(1)%ufsw  (:,:,:) = 0.0_8
+      Sw_output(1)%hsw   (:,:,:) = 0.0_8
+      Sw_output(1)%dfsw_dir_sfc = 0.0_8
+      Sw_output(1)%dfsw_dif_sfc  = 0.0_8
+      Sw_output(1)%ufsw_dif_sfc = 0.0_8
+      Sw_output(1)%dfsw_vis_sfc = 0._8
+      Sw_output(1)%ufsw_vis_sfc = 0._8
+      Sw_output(1)%dfsw_vis_sfc_dir = 0._8
+      Sw_output(1)%dfsw_vis_sfc_dif = 0._8
+      Sw_output(1)%ufsw_vis_sfc_dif = 0._8
+      Sw_output(1)%bdy_flx(:,:,:) = 0.0_8       
 
 !---------------------------------------------------------------------
 !    if the cloud-free values are desired, allocate and initialize 
 !    arrays for the fluxes and heating rate in the absence of clouds.
 !----------------------------------------------------------------------
       if (Rad_control%do_totcld_forcing) then
-        Sw_output(1)%fswcf (:,:,:) = 0.0
-        Sw_output(1)%dfswcf(:,:,:) = 0.0
-        Sw_output(1)%ufswcf(:,:,:) = 0.0
-        Sw_output(1)%hswcf (:,:,:) = 0.0
-        Sw_output(1)%dfsw_dir_sfc_clr = 0.0
-        Sw_output(1)%dfsw_dif_sfc_clr  = 0.0
-        Sw_output(1)%bdy_flx_clr (:,:,:) = 0.0
+        Sw_output(1)%fswcf (:,:,:) = 0.0_8
+        Sw_output(1)%dfswcf(:,:,:) = 0.0_8
+        Sw_output(1)%ufswcf(:,:,:) = 0.0_8
+        Sw_output(1)%hswcf (:,:,:) = 0.0_8
+        Sw_output(1)%dfsw_dir_sfc_clr = 0.0_8
+        Sw_output(1)%dfsw_dif_sfc_clr  = 0.0_8
+        Sw_output(1)%bdy_flx_clr (:,:,:) = 0.0_8
       endif
 
 !--------------------------------------------------------------------
@@ -1209,20 +1197,20 @@ real(kind=8), dimension(:,:,:,:),        intent(inout) :: r
       !skipswrad = .not.any(Astro%cosz > 0.0)
       
       ! MJT - Need to disable skipswrad for aerosol diagnostics
-      skipswrad = .false.
+      !skipswrad = .false.
 
 !--------------------------------------------------------------------
 !    if the sun is shining nowhere in the physics window allocate
 !    output fields which will be needed later, set them to a flag
 !    value and return.
 !--------------------------------------------------------------------
-      if (skipswrad)  then
+      !if (skipswrad)  then
 
 !---------------------------------------------------------------------
 !    calculate shortwave radiative forcing and fluxes using the 
 !    exponential-sum-fit parameterization.
 !---------------------------------------------------------------------
-      else 
+      !else 
  
 !----------------------------------------------------------------------
 !    standard call, where radiation output feeds back into the model.
@@ -1237,7 +1225,7 @@ real(kind=8), dimension(:,:,:,:),        intent(inout) :: r
                        Cld_spec, include_volcanoes,                        &
                        Sw_output(1), Aerosol_diags, r,                     &
                        do_aerosol_forcing, naerosol_optical)
-      endif
+      !endif
 !--------------------------------------------------------------------
 
 end subroutine shortwave_driver
@@ -1379,21 +1367,21 @@ end do
 
 do k=1,kl
   kr=kl+1-k
-  Rdrop(:,kr)=2.E6*real(reffl(:,k),8) ! convert to diameter and microns
-  Rice(:,kr) =2.E6*real(reffi(:,k),8)
-  conl(:,kr) =1000.*real(scale_factor*Wliq(:,k),8) !g/m^3
-  coni(:,kr) =1000.*real(scale_factor*Wice(:,k),8)
+  Rdrop(:,kr)=real(2.E6*reffl(:,k),8) ! convert to diameter and microns
+  Rice(:,kr) =real(2.E6*reffi(:,k),8)
+  conl(:,kr) =real(1000.*scale_factor*Wliq(:,k),8) !g/m^3
+  coni(:,kr) =real(1000.*scale_factor*Wice(:,k),8)
 end do
 
-where (Rdrop>0.)
+where (Rdrop>0._8)
   Rdrop=min(max(Rdrop,8.4_8),33.2_8) ! constrain diameter to acceptable range (see microphys_rad.f90)
 elsewhere
-  Rdrop=0.
+  Rdrop=0._8
 endwhere
-where (Rice>0.)
+where (Rice>0._8)
   Rice=min(max(Rice,18.6_8),130.2_8)
 elsewhere
-  Rice=0.
+  Rice=0._8
 endwhere
 
 return
@@ -1510,20 +1498,20 @@ if (myid==0) then
   !    ties on the solar spectral intervals.
   !--------------------------------------------------------------------
   nivl3 = 1
-  sumsol3 = 0.0
+  sumsol3 = 0.0_8
   nband = 1
-  solivlaero(:,:) = 0.0
+  solivlaero(:,:) = 0.0_8
   nivl1aero(1) = 1
   do nw = 1,Solar_spect%endwvnbands(Solar_spect%nbands)
     sumsol3 = sumsol3 + Solar_spect%solarfluxtoa(nw)
     if (nw == endaerwvnsf(nivl3) ) then
       solivlaero(nband,nivl3) = sumsol3
-      sumsol3 = 0.0
+      sumsol3 = 0.0_8
     end if
     if ( nw == Solar_spect%endwvnbands(nband) ) then
       if ( nw /= endaerwvnsf(nivl3) ) then
         solivlaero(nband,nivl3) = sumsol3 
-        sumsol3 = 0.0
+        sumsol3 = 0.0_8
       end if
       nivl2aero(nband) = nivl3
       nband = nband + 1
@@ -1538,9 +1526,9 @@ if (myid==0) then
     if ( nw == endaerwvnsf(nivl3) ) nivl3 = nivl3 + 1
   end do
 
-  Aerosol_props%aerextband=0.
-  Aerosol_props%aerssalbband=0.
-  Aerosol_props%aerasymmband=0.
+  Aerosol_props%aerextband=0._8
+  Aerosol_props%aerssalbband=0._8
+  Aerosol_props%aerasymmband=0._8
 
   do nmodel=1,naermodels
     call thickavg (nivl1aero, nivl2aero, num_wavenumbers,   &
@@ -1562,10 +1550,10 @@ if (myid==0) then
 !    units (m**2/Kg) consistent with the units in FMS models, one
 !    must multiply by 1000. this is done below.
   
-  Aerosol_props%aerextbandlw=0.
-  Aerosol_props%aerssalbbandlw=0.
-  Aerosol_props%aerextbandlw_cn=0.
-  Aerosol_props%aerssalbbandlw_cn=0.
+  Aerosol_props%aerextbandlw=0._8
+  Aerosol_props%aerssalbbandlw=0._8
+  Aerosol_props%aerextbandlw_cn=0._8
+  Aerosol_props%aerssalbbandlw_cn=0._8
 
   do nw=1,naermodels    
     do na=1,N_AEROSOL_BANDS  
@@ -1573,7 +1561,7 @@ if (myid==0) then
         Aerosol_props%aerextbandlw(na,nw) =    &
                         Aerosol_props%aerextbandlw(na,nw) + &
                         aeroextivl(ni,nw)*sflwwts(na,ni)*  &
-                        1.0E+03
+                        1.0E+03_8
         Aerosol_props%aerssalbbandlw(na,nw) =     &
                         Aerosol_props%aerssalbbandlw(na,nw) +&
                         aerossalbivl(ni,nw)*sflwwts(na,ni)
@@ -1586,7 +1574,7 @@ if (myid==0) then
         Aerosol_props%aerextbandlw_cn(na,nw) =    &
                         Aerosol_props%aerextbandlw_cn(na,nw) + &
                         aeroextivl(ni,nw)*sflwwts_cn(na,ni)*  &
-                        1.0E+03
+                        1.0E+03_8
         Aerosol_props%aerssalbbandlw_cn(na,nw) =     &
                         Aerosol_props%aerssalbbandlw_cn(na,nw) +&
                         aerossalbivl(ni,nw)*sflwwts_cn(na,ni)
@@ -1668,10 +1656,10 @@ real(kind=8), dimension(N_AEROSOL_BANDS_CN, num_wavenumbers), intent(out) :: sfl
 !
 !----------------------------------------------------------------------
       real(kind=8), dimension (N_AEROSOL_BANDS_FR)     :: aerbandlo_fr =  &
-      (/ 560.0, 630.0, 700.0, 800.0, 900.0,  990.0, 1070.0, 1200.0 /)
+      (/ 560.0_8, 630.0_8, 700.0_8, 800.0_8, 900.0_8,  990.0_8, 1070.0_8, 1200.0_8 /)
 
       real(kind=8), dimension (N_AEROSOL_BANDS_FR)     :: aerbandhi_fr =  &
-      (/ 630.0, 700.0, 800.0, 900.0, 990.0, 1070.0, 1200.0, 1400.0 /)
+      (/ 630.0_8, 700.0_8, 800.0_8, 900.0_8, 990.0_8, 1070.0_8, 1200.0_8, 1400.0_8 /)
 
       integer, dimension (N_AEROSOL_BANDS_FR)  :: istartaerband_fr =  &
       (/ 57,  64,  71,  81,  91, 100, 108, 121 /)
@@ -1680,10 +1668,10 @@ real(kind=8), dimension(N_AEROSOL_BANDS_CN, num_wavenumbers), intent(out) :: sfl
       (/ 63,  70,  80,  90,  99, 107, 120, 140 /)
 
       real(kind=8), dimension (N_AEROSOL_BANDS_CO)     :: aerbandlo_co =  &
-      (/ 560.0 /)
+      (/ 560.0_8 /)
 
       real(kind=8), dimension (N_AEROSOL_BANDS_CO)     :: aerbandhi_co =  &
-      (/ 800.0 /)
+      (/ 800.0_8 /)
 
       integer, dimension (N_AEROSOL_BANDS_CO)  :: istartaerband_co =  &
       (/ 57  /)
@@ -1691,10 +1679,10 @@ real(kind=8), dimension(N_AEROSOL_BANDS_CN, num_wavenumbers), intent(out) :: sfl
       integer, dimension (N_AEROSOL_BANDS_CO)  :: iendaerband_co =  &
       (/ 80  /)
       real(kind=8), dimension (N_AEROSOL_BANDS_CN)     :: aerbandlo_cn =  &
-      (/ 800.0 /)
+      (/ 800.0_8 /)
 
       real(kind=8), dimension (N_AEROSOL_BANDS_CN)     :: aerbandhi_cn =  &
-      (/ 1200.0 /)
+      (/ 1200.0_8 /)
 
       integer, dimension (N_AEROSOL_BANDS_CN)  :: istartaerband_cn =  &
       (/ 81  /)
@@ -1846,20 +1834,20 @@ real(kind=8), dimension(N_AEROSOL_BANDS_CN, num_wavenumbers), intent(out) :: sfl
 !    define the ending aerosol band index for each of the aerosol
 !    parameterization bands.
 !--------------------------------------------------------------------
-      iendsfbands(:) = INT((endaerwvnsf(:) + 0.01)/10.0)
+      iendsfbands(:) = INT((endaerwvnsf(:) + 0.01_8)/10.0_8)
 
 !--------------------------------------------------------------------
 !    compute the planck function at 10C over each of the longwave
 !    parameterization bands to be used as the weighting function. 
 !--------------------------------------------------------------------
       do n=1,NBLW 
-        del  = 10.0E+00
-        xtemv = 283.15
-        centnb(n) = 5.0 + (n - 1)*del
-        c1(n)     = (3.7412E-05)*centnb(n)**3
-        x(n)      = 1.4387E+00*centnb(n)/xtemv
+        del  = 10.0E+00_8
+        xtemv = 283.15_8
+        centnb(n) = 5.0_8 + real(n - 1,8)*del
+        c1(n)     = (3.7412E-05_8)*centnb(n)**3
+        x(n)      = 1.4387E+00_8*centnb(n)/xtemv
         x1(n)     = EXP(x(n))
-        sc(n)     = c1(n)/(x1(n) - 1.0E+00)
+        sc(n)     = c1(n)/(x1(n) - 1.0E+00_8)
         src1nb(n) = del*sc(n)
       end do
  
@@ -1868,13 +1856,13 @@ real(kind=8), dimension(N_AEROSOL_BANDS_CN, num_wavenumbers), intent(out) :: sfl
 !    eterization bands that are contained in each of the aerosol 
 !    emissivity bands. 
 !--------------------------------------------------------------------
-      planckaerband(:) = 0.0E+00
+      planckaerband(:) = 0.0E+00_8
       do n = 1,N_AEROSOL_BANDS
         do ib = istartaerband(n),iendaerband(n)
           planckaerband(n) = planckaerband(n) + src1nb(ib)
         end do
       end do
-      planckaerband_cn(:) = 0.0E+00
+      planckaerband_cn(:) = 0.0E+00_8
       do n = 1,N_AEROSOL_BANDS_CN
         do ib = istartaerband_cn(n),iendaerband_cn(n)
           planckaerband_cn(n) = planckaerband_cn(n) + src1nb(ib)
@@ -1888,9 +1876,9 @@ real(kind=8), dimension(N_AEROSOL_BANDS_CN, num_wavenumbers), intent(out) :: sfl
 !    single-scattering properties on the ir aerosol emissivity bands.
 !--------------------------------------------------------------------
       nivl = 1
-      sumplanck = 0.0
+      sumplanck = 0.0_8
       nband = 1
-      planckivlaer_fr(:,:) = 0.0
+      planckivlaer_fr(:,:) = 0.0_8
       nivl1aer_fr(1) = 1
       do_band1 = .true.
  
@@ -1898,12 +1886,12 @@ real(kind=8), dimension(N_AEROSOL_BANDS_CN, num_wavenumbers), intent(out) :: sfl
         sumplanck = sumplanck + src1nb(nw)
         if ( nw == iendsfbands(nivl) ) then
           planckivlaer_fr(nband,nivl) = sumplanck
-          sumplanck = 0.0
+          sumplanck = 0.0_8
         end if
         if ( nw == iendaerband_fr(nband) ) then
           if ( nw /= iendsfbands(nivl) ) then
             planckivlaer_fr(nband,nivl) = sumplanck 
-            sumplanck = 0.0
+            sumplanck = 0.0_8
           end if
           nivl2aer_fr(nband) = nivl
           nband = nband + 1
@@ -1936,9 +1924,9 @@ real(kind=8), dimension(N_AEROSOL_BANDS_CN, num_wavenumbers), intent(out) :: sfl
 !    single-scattering properties on the ir aerosol emissivity bands.
 !--------------------------------------------------------------------
       nivl = 1
-      sumplanck = 0.0
+      sumplanck = 0.0_8
       nband = 1
-      planckivlaer_co(:,:) = 0.0
+      planckivlaer_co(:,:) = 0.0_8
       nivl1aer_co(1) = 1
       do_band1 = .true.
  
@@ -1946,12 +1934,12 @@ real(kind=8), dimension(N_AEROSOL_BANDS_CN, num_wavenumbers), intent(out) :: sfl
         sumplanck = sumplanck + src1nb(nw)
         if ( nw == iendsfbands(nivl) ) then
           planckivlaer_co(nband,nivl) = sumplanck
-          sumplanck = 0.0
+          sumplanck = 0.0_8
         end if
         if ( nw == iendaerband_co(nband) ) then
           if ( nw /= iendsfbands(nivl) ) then
             planckivlaer_co(nband,nivl) = sumplanck 
-            sumplanck = 0.0
+            sumplanck = 0.0_8
           end if
           nivl2aer_co(nband) = nivl
           nband = nband + 1
@@ -1984,9 +1972,9 @@ real(kind=8), dimension(N_AEROSOL_BANDS_CN, num_wavenumbers), intent(out) :: sfl
 !    single-scattering properties on the ir aerosol emissivity bands.
 !--------------------------------------------------------------------
       nivl = 1
-      sumplanck = 0.0
+      sumplanck = 0.0_8
       nband = 1
-      planckivlaer_cn(:,:) = 0.0
+      planckivlaer_cn(:,:) = 0.0_8
       nivl1aer_cn(1) = 1
       do_band1 = .true.
  
@@ -1994,12 +1982,12 @@ real(kind=8), dimension(N_AEROSOL_BANDS_CN, num_wavenumbers), intent(out) :: sfl
         sumplanck = sumplanck + src1nb(nw)
         if ( nw == iendsfbands(nivl) ) then
           planckivlaer_cn(nband,nivl) = sumplanck
-          sumplanck = 0.0
+          sumplanck = 0.0_8
         end if
         if ( nw == iendaerband_cn(nband) ) then
           if ( nw /= iendsfbands(nivl) ) then
             planckivlaer_cn(nband,nivl) = sumplanck 
-            sumplanck = 0.0
+            sumplanck = 0.0_8
           end if
           nivl2aer_cn(nband) = nivl
           nband = nband + 1
@@ -2030,20 +2018,20 @@ real(kind=8), dimension(N_AEROSOL_BANDS_CN, num_wavenumbers), intent(out) :: sfl
 !    parameterization bands onto the non-continuum and continuum ir 
 !    aerosol emissivity bands.
 !--------------------------------------------------------------------
-      sflwwts_fr(:,:) = 0.0E+00
+      sflwwts_fr(:,:) = 0.0E+00_8
       do n=1,N_AEROSOL_BANDS_FR
         do ni=nivl1aer_fr(n),nivl2aer_fr(n)
           sflwwts_fr(n,ni) = planckivlaer_fr(n,ni)/planckaerband(n)
         end do
       end do
-      sflwwts_co(:,:) = 0.0E+00
+      sflwwts_co(:,:) = 0.0E+00_8
       do n=1,N_AEROSOL_BANDS_CO
         do ni=nivl1aer_co(n),nivl2aer_co(n)
           sflwwts_co(n,ni) = planckivlaer_co(n,ni)/     &
                              planckaerband(N_AEROSOL_BANDS_FR+n)
         end do
       end do
-      sflwwts_cn(:,:) = 0.0E+00
+      sflwwts_cn(:,:) = 0.0E+00_8
       do n=1,N_AEROSOL_BANDS_CN
         do ni=nivl1aer_cn(n),nivl2aer_cn(n)
           sflwwts_cn(n,ni) = planckivlaer_cn(n,ni)/     &

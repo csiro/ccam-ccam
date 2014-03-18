@@ -1725,14 +1725,10 @@
       real, dimension(ifull,1) :: diffh_l
       real, dimension(ifull,kblock) :: diff_l,diffs_l
       real, dimension(ifull,kblock) :: diffu_l,diffv_l
-      real, dimension(ifull) :: old,oldt
+      real, dimension(ifull) :: old,oldt,olds,new
       real, dimension(ifull,ktopmlo:kbotmlo) :: rho,nsq
       logical lblock
-      integer, parameter :: tempfix=1 ! delta temp (0=linear, 1=buoyancy)
-      real, parameter :: rho0=1030.   ! linear density offset
-      real, parameter :: a0=-0.3      ! linear density temp gradient
       real, parameter :: miss = 999999.
-      
       
       kc=min(kbotmlo,ktopmlo+wl-1)
 
@@ -1793,9 +1789,6 @@
             elsewhere
               diffu_l(:,kb)=miss
             end where
-          end do
-          do k=kln,klx
-            kb=k-kln+1
             old=suvb(:,k,2)
             call mloexport(3,old,k,0)
             where (.not.land)
@@ -1821,56 +1814,23 @@
         end if
 
         if (nud_sst/=0) then
-          ! correct temp pertubation to minimise change in buoyancy
-          if (tempfix==1.and.kc==1) then
-            if (ktopmlo/=1) then
-              write(6,*) "ERROR: nud_sst with SST input"
-              write(6,*) "requires ktopmlo=1"
-              stop
-            end if
-            old=293.
-            do k=1,kbotmlo
-              call mloexport(0,old,k,0)
-              rho(:,k)=rho0+a0*old ! linear approximation to density
-            end do
-            do k=1,kbotmlo-1
-              !nsq=-2.*grav*(rho(:,k)-rho(:,k+1))/((dep(:,k+1)-dep(:,k))*(rho(:,k)+rho(:,k+1)))
-              nsq(:,k)=-(rho(:,k)-rho(:,k+1))/(rho(:,k)+rho(:,k+1))
-              !nsq(:,k)=max(nsq(:,k),0.)
-            end do
-            ! nsq(:,k-1)=-(a0*(oldt-old))/(2.*rho0+a0*(oldt+old))
-            ! old*(1.-nsq(:,k-1))=oldt*(1.+nsq(:,k-1))+2.*rho0/a0*nsq(:,k-1)
-            call mloexport(0,old,1,0)
-            old=old+diff_l(:,1)*10./real(mloalpha)
+          do k=kln,klx
+            ka=min(wl,k)
+            kb=k-kln+1
+            old=sstb(:,ka)
+            call mloexport(0,old,k,0)
+            old=old+diff_l(:,kb)*10./real(mloalpha)
             old=max(old,271.)
-            call mloimport(0,old,1,0)
-            oldt=old
-            do k=2,kbotmlo
-              old=(oldt*(1.+nsq(:,k-1))+2.*nsq(:,k-1)*rho0/a0)
-     &          /(1.-nsq(:,k-1))
-              old=max(old,271.)  
-              call mloimport(0,old,k,0)
-              oldt=old
-            end do
-          else
-            do k=kln,klx
-              ka=min(wl,k)
-              kb=k-kln+1
+            call mloimport(0,old,k,0)
+          end do
+          if (klx==kc) then
+            do k=kc+1,kbotmlo
               old=sstb(:,ka)
               call mloexport(0,old,k,0)
-              old=old+diff_l(:,kb)*10./real(mloalpha)
-              old=max(old,271.)
+              old=old+diff_l(:,kb)*10./real(mloalpha) ! kb saved from above loop
+              old=max(old,271.)	  
               call mloimport(0,old,k,0)
             end do
-            if (klx==kc) then
-              do k=kc+1,kbotmlo
-                old=sstb(:,ka)
-                call mloexport(0,old,k,0)
-                old=old+diff_l(:,kb)*10./real(mloalpha) ! kb saved from above loop
-                old=max(old,271.)	  
-                call mloimport(0,old,k,0)
-              end do
-            end if
           end if
         end if
 
