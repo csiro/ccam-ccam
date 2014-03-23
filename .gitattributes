@@ -28,6 +28,7 @@
 /epst_m.f90 -text
 /esfsw_driver.f90 -text
 /esfsw_parameters.f90 -text
+/estab.f90 -text
 /extraout_m.f90 -text
 /gas_tf.f90 -text
 /gdrag_m.f90 -text
@@ -85,7 +86,9 @@
 /tabcom_m.f90 -text
 /tbar2d_m.f90 -text
 /tfcom_m.f90 -text
+/timeseries.f90 -text
 /tkeeps.f90 -text
+/tracermodule.f90 -text
 /tracers_m.f90 -text
 /unn_m.f90 -text
 /uvbar_m.f90 -text

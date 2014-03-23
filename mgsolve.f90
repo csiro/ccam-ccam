@@ -91,6 +91,8 @@ end if
 
 START_LOG(mgsetup)
 
+iv(ifull+1:ifull+iextra,:)=0. ! for IBM compiler
+
 ! solver assumes boundaries are updated
 call bounds(iv)
 
@@ -713,6 +715,7 @@ START_LOG(mgmlosetup)
 
 vduma=0.
 vdumb=0.
+dumc=0.
 
 ! pack colour arrays
 do nc=1,maxcolour
@@ -944,8 +947,10 @@ do g=2,gmax
   hh(1:ng4,g+1)=0.25*(ws(mg(g)%fine  )+ws(mg(g)%fine_n ) &
                      +ws(mg(g)%fine_e)+ws(mg(g)%fine_ne))
    ! ocean
-  ws(1:ng)=-v(1:ng,1,g)*(yyz(1:ng,g)*v(1:ng,1,g)+yyn(1:ng,g)*dumc_n(1:ng,1)+yys(1:ng,g)*dumc_s(1:ng,1)+yye(1:ng,g)*dumc_e(1:ng,1)+yyw(1:ng,g)*dumc_w(1:ng,1)) &
-                        -(zz(1:ng,g)*v(1:ng,1,g)+zzn(1:ng,g)*dumc_n(1:ng,1)+zzs(1:ng,g)*dumc_s(1:ng,1)+zze(1:ng,g)*dumc_e(1:ng,1)+zzw(1:ng,g)*dumc_w(1:ng,1)) &
+  ws(1:ng)=-v(1:ng,1,g)*(yyz(1:ng,g)*v(1:ng,1,g)+yyn(1:ng,g)*dumc_n(1:ng,1)+yys(1:ng,g)*dumc_s(1:ng,1)  &
+                                                +yye(1:ng,g)*dumc_e(1:ng,1)+yyw(1:ng,g)*dumc_w(1:ng,1)) &
+                        -(zz(1:ng,g)*v(1:ng,1,g)+zzn(1:ng,g)*dumc_n(1:ng,1)+zzs(1:ng,g)*dumc_s(1:ng,1)  &
+                                                +zze(1:ng,g)*dumc_e(1:ng,1)+zzw(1:ng,g)*dumc_w(1:ng,1)) &
                         -hh(1:ng,g)*v(1:ng,1,g)+rhs(1:ng,g)
   rhs(1:ng4,g+1)=0.25*(ws(mg(g)%fine  )+ws(mg(g)%fine_n ) &
                       +ws(mg(g)%fine_e)+ws(mg(g)%fine_ne))
@@ -1080,7 +1085,8 @@ do g=mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxlevel)
       cu(1:mg_ifullc)=zzncu(:,nc)*dumc_n(1:mg_ifullc,1)+zzscu(:,nc)*dumc_s(1:mg_ifullc,1)   &
                      +zzecu(:,nc)*dumc_e(1:mg_ifullc,1)+zzwcu(:,nc)*dumc_w(1:mg_ifullc,1)   &
                      -rhscu(:,nc)
-      v(col_iq(:,nc),1,g) = -2.*cu(1:mg_ifullc)/(bu(1:mg_ifullc)+sqrt(bu(1:mg_ifullc)*bu(1:mg_ifullc)-4.*yyzcu(:,nc)*cu(1:mg_ifullc)))
+      v(col_iq(:,nc),1,g) = -2.*cu(1:mg_ifullc)/(bu(1:mg_ifullc)               &
+        +sqrt(bu(1:mg_ifullc)*bu(1:mg_ifullc)-4.*yyzcu(:,nc)*cu(1:mg_ifullc)))
     end do
       
     ! test for convergence
@@ -1124,7 +1130,8 @@ do g=gmax,2,-1
 
     ! ocean
     ! post smoothing
-    bu(1:ng)=zz(1:ng,g)+hh(1:ng,g)+yyn(1:ng,g)*dumc_n(1:ng,1)+yys(1:ng,g)*dumc_s(1:ng,1)+yye(1:ng,g)*dumc_e(1:ng,1)+yyw(1:ng,g)*dumc_w(1:ng,1)
+    bu(1:ng)=zz(1:ng,g)+hh(1:ng,g)+yyn(1:ng,g)*dumc_n(1:ng,1)+yys(1:ng,g)*dumc_s(1:ng,1) &
+                                  +yye(1:ng,g)*dumc_e(1:ng,1)+yyw(1:ng,g)*dumc_w(1:ng,1)
     cu(1:ng)=zzn(1:ng,g)*dumc_n(1:ng,1)+zzs(1:ng,g)*dumc_s(1:ng,1)+zze(1:ng,g)*dumc_e(1:ng,1)+zzw(1:ng,g)*dumc_w(1:ng,1)-rhs(1:ng,g)
     v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(bu(1:ng)*bu(1:ng)-4.*yyz(1:ng,g)*cu(1:ng)))
 
@@ -1144,7 +1151,8 @@ do g=gmax,2,-1
 
   ! ocean
   ! post smoothing
-  bu(1:ng)=zz(1:ng,g)+hh(1:ng,g)+yyn(1:ng,g)*dumc_n(1:ng,1)+yys(1:ng,g)*dumc_s(1:ng,1)+yye(1:ng,g)*dumc_e(1:ng,1)+yyw(1:ng,g)*dumc_w(1:ng,1)
+  bu(1:ng)=zz(1:ng,g)+hh(1:ng,g)+yyn(1:ng,g)*dumc_n(1:ng,1)+yys(1:ng,g)*dumc_s(1:ng,1) &
+                                +yye(1:ng,g)*dumc_e(1:ng,1)+yyw(1:ng,g)*dumc_w(1:ng,1)
   cu(1:ng)=zzn(1:ng,g)*dumc_n(1:ng,1)+zzs(1:ng,g)*dumc_s(1:ng,1)+zze(1:ng,g)*dumc_e(1:ng,1)+zzw(1:ng,g)*dumc_w(1:ng,1)-rhs(1:ng,g)
   v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(bu(1:ng)*bu(1:ng)-4.*yyz(1:ng,g)*cu(1:ng)))
 
@@ -1457,8 +1465,10 @@ do itr=2,itr_mgice
                        +ws(mg(g)%fine_e)+ws(mg(g)%fine_ne))
 
     ! ocean
-    ws(1:ng)=-v(1:ng,1,g)*(yyz(1:ng,g)*v(1:ng,1,g)+yyn(1:ng,g)*dumc_n(1:ng,1)+yys(1:ng,g)*dumc_s(1:ng,1)+yye(1:ng,g)*dumc_e(1:ng,1)+yyw(1:ng,g)*dumc_w(1:ng,1)) &
-                          -(zz(1:ng,g)*v(1:ng,1,g)+zzn(1:ng,g)*dumc_n(1:ng,1)+zzs(1:ng,g)*dumc_s(1:ng,1)+zze(1:ng,g)*dumc_e(1:ng,1)+zzw(1:ng,g)*dumc_w(1:ng,1)) &
+    ws(1:ng)=-v(1:ng,1,g)*(yyz(1:ng,g)*v(1:ng,1,g)+yyn(1:ng,g)*dumc_n(1:ng,1)+yys(1:ng,g)*dumc_s(1:ng,1)  &
+                                                  +yye(1:ng,g)*dumc_e(1:ng,1)+yyw(1:ng,g)*dumc_w(1:ng,1)) &
+                          -(zz(1:ng,g)*v(1:ng,1,g)+zzn(1:ng,g)*dumc_n(1:ng,1)+zzs(1:ng,g)*dumc_s(1:ng,1)  &
+                                                  +zze(1:ng,g)*dumc_e(1:ng,1)+zzw(1:ng,g)*dumc_w(1:ng,1)) &
                           -hh(1:ng,g)*v(1:ng,1,g)+rhs(1:ng,g)
     rhs(1:ng4,g+1)=0.25*(ws(mg(g)%fine  )+ws(mg(g)%fine_n ) &
                         +ws(mg(g)%fine_e)+ws(mg(g)%fine_ne))
@@ -1540,7 +1550,8 @@ do itr=2,itr_mgice
         cu(1:mg_ifullc)=zzncu(:,nc)*dumc_n(1:mg_ifullc,1)+zzscu(:,nc)*dumc_s(1:mg_ifullc,1)   &
                        +zzecu(:,nc)*dumc_e(1:mg_ifullc,1)+zzwcu(:,nc)*dumc_w(1:mg_ifullc,1)   &
                        -rhscu(:,nc)
-        v(col_iq(:,nc),1,g) = -2.*cu(1:mg_ifullc)/(bu(1:mg_ifullc)+sqrt(bu(1:mg_ifullc)*bu(1:mg_ifullc)-4.*yyzcu(:,nc)*cu(1:mg_ifullc)))
+        v(col_iq(:,nc),1,g) = -2.*cu(1:mg_ifullc)/(bu(1:mg_ifullc)               &
+          +sqrt(bu(1:mg_ifullc)*bu(1:mg_ifullc)-4.*yyzcu(:,nc)*cu(1:mg_ifullc)))
       end do
       
       ! test for convergence
@@ -1588,8 +1599,10 @@ do itr=2,itr_mgice
 
       ! ocean
       ! post smoothing
-      bu(1:ng)=zz(1:ng,g)+hh(1:ng,g)+yyn(1:ng,g)*dumc_n(1:ng,1)+yys(1:ng,g)*dumc_s(1:ng,1)+yye(1:ng,g)*dumc_e(1:ng,1)+yyw(1:ng,g)*dumc_w(1:ng,1)
-      cu(1:ng)=zzn(1:ng,g)*dumc_n(1:ng,1)+zzs(1:ng,g)*dumc_s(1:ng,1)+zze(1:ng,g)*dumc_e(1:ng,1)+zzw(1:ng,g)*dumc_w(1:ng,1)-rhs(1:ng,g)
+      bu(1:ng)=zz(1:ng,g)+hh(1:ng,g)+yyn(1:ng,g)*dumc_n(1:ng,1)+yys(1:ng,g)*dumc_s(1:ng,1) &
+                                    +yye(1:ng,g)*dumc_e(1:ng,1)+yyw(1:ng,g)*dumc_w(1:ng,1)
+      cu(1:ng)=zzn(1:ng,g)*dumc_n(1:ng,1)+zzs(1:ng,g)*dumc_s(1:ng,1)             &
+              +zze(1:ng,g)*dumc_e(1:ng,1)+zzw(1:ng,g)*dumc_w(1:ng,1)-rhs(1:ng,g)
       v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(bu(1:ng)*bu(1:ng)-4.*yyz(1:ng,g)*cu(1:ng)))
 
       ! ice
@@ -1608,8 +1621,10 @@ do itr=2,itr_mgice
 
     ! ocean
     ! post smoothing
-    bu(1:ng)=zz(1:ng,g)+hh(1:ng,g)+yyn(1:ng,g)*dumc_n(1:ng,1)+yys(1:ng,g)*dumc_s(1:ng,1)+yye(1:ng,g)*dumc_e(1:ng,1)+yyw(1:ng,g)*dumc_w(1:ng,1)
-    cu(1:ng)=zzn(1:ng,g)*dumc_n(1:ng,1)+zzs(1:ng,g)*dumc_s(1:ng,1)+zze(1:ng,g)*dumc_e(1:ng,1)+zzw(1:ng,g)*dumc_w(1:ng,1)-rhs(1:ng,g)
+    bu(1:ng)=zz(1:ng,g)+hh(1:ng,g)+yyn(1:ng,g)*dumc_n(1:ng,1)+yys(1:ng,g)*dumc_s(1:ng,1) &
+                                  +yye(1:ng,g)*dumc_e(1:ng,1)+yyw(1:ng,g)*dumc_w(1:ng,1)
+    cu(1:ng)=zzn(1:ng,g)*dumc_n(1:ng,1)+zzs(1:ng,g)*dumc_s(1:ng,1)             &
+            +zze(1:ng,g)*dumc_e(1:ng,1)+zzw(1:ng,g)*dumc_w(1:ng,1)-rhs(1:ng,g)
     v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(bu(1:ng)*bu(1:ng)-4.*yyz(1:ng,g)*cu(1:ng)))
 
     ! ice

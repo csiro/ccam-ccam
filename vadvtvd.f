@@ -59,8 +59,8 @@ c     variables; except extrap at bottom for qg and trace gases  Thu  06-19-1997
       if(num==0)then
         num=1
         if(ntvdr==0)then  ! to produce old nvad=4 interps for fluxhi
-	   ratha(:)=.5
-	   rathb(:)=.5
+         ratha(:)=.5
+         rathb(:)=.5
         endif
 #ifdef debug
         if(mydiag)then

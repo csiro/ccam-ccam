@@ -1,8 +1,9 @@
       subroutine leoncld(cfrac,cffall,iaero)
       use aerointerface
       use arrays_m
-      use cc_mpi, only : mydiag, myid, ccmpi_abort
+      use cc_mpi, only : mydiag, myid
       use diag_m
+      use estab
       use kuocomb_m
       use latlong_m
       use liqwpar_m  ! ifullw
@@ -80,7 +81,6 @@ c These outputs are not used in this model at present
       real prscav(ifullw,kl)
 
       integer kbase(ifullw),ktop(ifullw) !Bottom and top of convective cloud 
-      include 'establ.h' ! provides qsat formula
 
       ! set-up params.h
       ln2=ifull
@@ -113,7 +113,6 @@ c These outputs are not used in this model at present
       ktop(:) =0  ! default
       dz(:,:)=100.*dprf(:,:)/(rhoa(:,:)*grav)
      &        *(1.+tnhs(1:ifull,:)/t(1:ifull,:))
-      dz=max(dz,1.)
 c     fluxc(:,:)=rnrt3d(:,:)*1.e-3*dt ! kg/m2 (should be same level as rnrt3d)
       fluxc(:,:)=0. !For now... above line may be wrong
       ccrain(:,:)=0.1  !Assume this for now
@@ -267,16 +266,14 @@ c     Weight output variables according to non-convective fraction of grid-box
 !     Moved up 16/1/06 (and ccov,cfrac NOT UPDATED in newrain)
 !     done because sometimes newrain drops out all qlg, ending up with 
 !     zero cloud (although it will be rediagnosed as 1 next timestep)
-      if (ncloud==0) then
-        do k=1,kl
-          do iq=1,ifull
-c           cfrac(iq,k)=min(1.,ccov(iq,k)+clcon(iq,k))
-            fl=max(0.0,min(1.0,(t(iq,k)-ticon)/(273.15-ticon)))
-            qlrad(iq,k)=qlg(iq,k)+fl*qccon(iq,k)
-            qfrad(iq,k)=qfg(iq,k)+(1.-fl)*qccon(iq,k)
-          enddo
+      do k=1,kl
+        do iq=1,ifull
+c         cfrac(iq,k)=min(1.,ccov(iq,k)+clcon(iq,k))
+          fl=max(0.0,min(1.0,(t(iq,k)-ticon)/(273.15-ticon)))
+          qlrad(iq,k)=qlg(iq,k)+fl*qccon(iq,k)
+          qfrad(iq,k)=qfg(iq,k)+(1.-fl)*qccon(iq,k)
         enddo
-      end if
+      enddo
 
 c     Calculate precipitation and related processes
       dumt=t(1:ifull,:)
@@ -347,25 +344,14 @@ c     Calculate precipitation and related processes
 !     Moved up 16/1/06 (and ccov,cfrac NOT UPDATED in newrain)
 !     done because sometimes newrain drops out all qlg, ending up with 
 !     zero cloud (although it will be rediagnosed as 1 next timestep)
-      if (ncloud==0) then
-        do k=1,kl
-          do iq=1,ifull
-            cfrac(iq,k)=min(1.,ccov(iq,k)+clcon(iq,k))
-c            fl=max(0.0,min(1.0,(t(iq,k)-ticon)/(273.15-ticon)))
-c            qlrad(iq,k)=qlg(iq,k)+fl*qccon(iq,k)
-c            qfrad(iq,k)=qfg(iq,k)+(1.-fl)*qccon(iq,k)
-          enddo
+      do k=1,kl
+        do iq=1,ifull
+          cfrac(iq,k)=min(1.,ccov(iq,k)+clcon(iq,k))
+c          fl=max(0.0,min(1.0,(t(iq,k)-ticon)/(273.15-ticon)))
+c          qlrad(iq,k)=qlg(iq,k)+fl*qccon(iq,k)
+c          qfrad(iq,k)=qfg(iq,k)+(1.-fl)*qccon(iq,k)
         enddo
-      else
-        do k=1,kl
-          do iq=1,ifull
-            cfrac(iq,k)=min(1.,ccov(iq,k)+clcon(iq,k))
-            fl=max(0.0,min(1.0,(t(iq,k)-ticon)/(273.15-ticon)))
-            qlrad(iq,k)=qlg(iq,k)+fl*qccon(iq,k)
-            qfrad(iq,k)=qfg(iq,k)+(1.-fl)*qccon(iq,k)
-          enddo
-        enddo
-      end if
+      enddo
 
 !========================= Jack's diag stuff =========================
        if(ncfrp==1)then  ! from here to near end; Jack's diag stuff

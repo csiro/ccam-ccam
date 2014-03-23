@@ -454,7 +454,7 @@
           endif  ! (zs(iq)<=0.)
          enddo
         end if ! (nsib==6.or.nsib==7) ..else..
-	if (nsib/=6.and.nsib/=7) then
+        if (nsib/=6.and.nsib/=7) then
          ! JJK special option for adjusting surface albedo and roughness
          if(nspecial<-10)then
           do iq=1,ifull
@@ -470,15 +470,15 @@
             if ( newzo  > 1. ) zolnd(iq)=newzo/1000. ! input mm, output m
             if ( visalb > 1. ) albvisnir(iq,1)=visalb/100. ! (to make 0-1)
             if ( niralb > 1. ) albvisnir(iq,2)=niralb/100. ! (to make 0-1)
-	    if ( .not. land(iq) ) then
-	      land(iq)=.true.
-	      ivegt(iq)=42
-	      isoilm(iq)=7
-	    end if
+            if ( .not. land(iq) ) then
+              land(iq)=.true.
+              ivegt(iq)=42
+              isoilm(iq)=7
+            end if
            endif
           enddo
          endif  ! (nspecial<-10)	
-	end if ! (nsib/=6.and.nsib/=7)
+        end if ! (nsib/=6.and.nsib/=7)
       end if   ! nsib>=1
 
       !**************************************************************
@@ -556,7 +556,7 @@
         sigmu(:)=0.
         call atebdisable(0) ! disable urban
       end if
-      
+
       if (myid==0) then
         if (lncveg==1) then
           call ccnf_close(ncidveg)
@@ -637,27 +637,6 @@
           qfg(1:ifull,:)=dumb(:,:,5)
           qlg(1:ifull,:)=dumb(:,:,6)
           qrg(1:ifull,:)=dumb(:,:,7)
-	  
-    !  ! MJT patch for very poor initial conditions
-    !	  if (any(t(1:ifull,:)<100.)) then
-    !	    write(6,*) "WARN: Poor initial conditions"
-    !	    write(6,*) "for t ",minval(t(1:ifull,:))
-    !	    t(1:ifull,:)=max(t(1:ifull,:),100.)
-    !	  end if
-    !	  dumb(:,:,1)=(t(1:ifull,:)-100.)/hlcp
-    !	  if (any(qlg(1:ifull,:)>dumb(:,:,1))) then
-    !	    write(6,*) "WARN: Poor initial conditions"
-    !	    write(6,*) "for qlg ",maxval(qlg(1:ifull,:))
-    !	    qlg(1:ifull,:)=min(qlg(1:ifull,:),dumb(:,:,1))
-    !	  end if
-    !	  dumb(:,:,1)=(t(1:ifull,:)-100.-hlcp*qlg(1:ifull,:)) 
-    !&              /(hlcp+hlfcp)
-    !	  if (any(qfg(1:ifull,:)>dumb(:,:,1))) then
-    !	    write(6,*) "WARN: Poor initial conditions"
-    !	    write(6,*) "for qfg ",maxval(qfg(1:ifull,:))
-    !	    qfg(1:ifull,:)=min(qfg(1:ifull,:),dumb(:,:,1))
-    !	  end if
-	  
         endif   ! (abs(io_in)==1)
         if(mydiag)then
           write(6,*)'ds,zss',ds,zss(idjd)
@@ -673,7 +652,7 @@
           write(6,*) "kdate_sav,ktime_sav ",kdate_sav,ktime_sav
           call ccmpi_abort(-1)
         endif
- 
+
         ! adjust input for differences in orography
         if(newtop==2)then
 !         reduce sea tss to mslp      e.g. for qcca in ncep gcm
@@ -1407,7 +1386,7 @@ c     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
        call caispecial
        do iq=1,ifull
         rlongd=rlongg(iq)*180./pi
-        rlatd=rlatt(iq)*180./pi	
+        rlatd=rlatt(iq)*180./pi
         if (rlatd.ge.-6..and.rlatd.le.6.) then
          if (rlongd.ge.180..and.rlongd.le.290.) then
           if (.not.land(iq)) then
@@ -1963,18 +1942,18 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
       if (nurban/=0) then
         if (myid==0) write(6,*) 'Importing ateb urban data'
         where(atebdwn(:,1)>=399.) ! must be the same as spval in onthefly.f
-          atebdwn(:,1)=tgg(:,1)
-          atebdwn(:,2)=0.5*(tgg(:,1)+291.16)
+          atebdwn(:,1)=tss
+          atebdwn(:,2)=0.5*(tss+291.16)
           atebdwn(:,3)=291.16
-          atebdwn(:,4)=tgg(:,1)
-          atebdwn(:,5)=0.5*(tgg(:,1)+291.16)
+          atebdwn(:,4)=tss
+          atebdwn(:,5)=0.5*(tss+291.16)
           atebdwn(:,6)=291.16
-          atebdwn(:,7)=tgg(:,1)
-          atebdwn(:,8)=0.5*(tgg(:,1)+291.16)
+          atebdwn(:,7)=tss
+          atebdwn(:,8)=0.5*(tss+291.16)
           atebdwn(:,9)=291.16
-          atebdwn(:,10)=tgg(:,1)
-          atebdwn(:,11)=0.5*(tgg(:,1)+tgg(:,ms))
-          atebdwn(:,12)=tgg(:,ms)
+          atebdwn(:,10)=tss
+          atebdwn(:,11)=tss
+          atebdwn(:,12)=tss
           atebdwn(:,13)=0.5*0.26+0.5*0.18
           atebdwn(:,14)=0.18
           atebdwn(:,15)=0.   ! roof water
@@ -1988,7 +1967,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
           atebdwn(:,23)=0.85 ! roof snow albedo
           atebdwn(:,24)=0.85 ! road snow albedo
         end where
-        call atebload(atebdwn,0)	
+        call atebload(atebdwn,0)
         deallocate(atebdwn)
       end if
 
@@ -2344,7 +2323,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
       real fld(ifull)
       logical rdatacheck,xrdatacheck
       logical mask(ifull)
-      character*(*) lbl
+      character(len=*) lbl
 
       rdatacheck=xrdatacheck(mask,fld,lbl,idfix,0.,val)
       
@@ -2362,7 +2341,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
       real fld(ifull)
       logical sdatacheck,xrdatacheck
       logical mask(ifull)
-      character*(*) lbl
+      character(len=*) lbl
 
       sdatacheck=xrdatacheck(mask,fld,lbl,idfix,val,0.)
       
@@ -2384,7 +2363,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
       logical mask(ifull)
       logical xrdatacheck
       logical err
-      character*(*) lbl
+      character(len=*) lbl
 
       if (myid==0) write(6,*)' datacheck: verifying field ',lbl
 
@@ -2419,7 +2398,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
       integer ifld(ifull)
       logical idatacheck,xidatacheck
       logical mask(ifull)
-      character*(*) lbl
+      character(len=*) lbl
 
       idatacheck=xidatacheck(mask,ifld,lbl,idfix,0,ival)
       
@@ -2436,7 +2415,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
       integer ifld(ifull)
       logical jdatacheck,xidatacheck
       logical mask(ifull)
-      character*(*) lbl
+      character(len=*) lbl
 
       jdatacheck=xidatacheck(mask,ifld,lbl,idfix,ival,0)
       
@@ -2456,7 +2435,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
       logical mask(ifull)
       logical xidatacheck
       logical err
-      character*(*) lbl
+      character(len=*) lbl
       
       if(myid==0) write(6,*)' datacheck: verifying field ',lbl
       err =.false.
@@ -2809,29 +2788,29 @@ c find coexp: see notes "simplified wind model ..." eq 34a
       
       if (myid==0) then
         write(6,*) "Reading nspecial=42 SSTs"
-	  spos=1
+        spos=1
         call ccnf_open('sst_djf.cdf',ncid,ncs)
-	  if (ncs/=0) then
-	    write(6,*) "ERROR: Cannot open sst_djf.cdf"
-	    call ccmpi_abort(-1)
-	  end if
-	  npos=1
-	  npos(1)=300
-	  call ccnf_inq_varid(ncid,'SST_DJF',varid,tst)
-	  if (tst) then
-	    write(6,*) "ERROR: Cannot read SST_DJF"
-	    call ccmpi_abort(-1)
-	  end if
-	  call ccnf_get_vara(ncid,varid,spos(1:1),npos(1:1),sdata)
-	  npos=1
-	  npos(1)=300
-	  call ccnf_inq_varid(ncid,'YT_OCEAN',varid,tst)
-	  if (tst) then
-	    write(6,*) "ERROR: Cannot read SST_DJF"
-	    call ccmpi_abort(-1)
-	  end if
-	  call ccnf_get_vara(ncid,varid,spos(1:1),npos(1:1),ldata)	
-	  call ccnf_close(ncid)
+        if (ncs/=0) then
+          write(6,*) "ERROR: Cannot open sst_djf.cdf"
+          call ccmpi_abort(-1)
+        end if
+        npos=1
+        npos(1)=300
+        call ccnf_inq_varid(ncid,'SST_DJF',varid,tst)
+        if (tst) then
+          write(6,*) "ERROR: Cannot read SST_DJF"
+          call ccmpi_abort(-1)
+        end if
+        call ccnf_get_vara(ncid,varid,spos(1:1),npos(1:1),sdata)
+        npos=1
+        npos(1)=300
+        call ccnf_inq_varid(ncid,'YT_OCEAN',varid,tst)
+        if (tst) then
+          write(6,*) "ERROR: Cannot read SST_DJF"
+          call ccmpi_abort(-1)
+        end if
+        call ccnf_get_vara(ncid,varid,spos(1:1),npos(1:1),ldata)
+        call ccnf_close(ncid)
         sdata=sdata+273.16
       end if
       call ccmpi_bcast(sdata,0,comm_world)

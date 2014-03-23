@@ -532,6 +532,17 @@ nw=0.
 pice=0.
 imass=0.
 tide=0.
+nt=0.
+ns=0.
+nu=0.
+nv=0.
+neta=0.
+cou=0.
+dumc=0.
+eou=0.
+eov=0.
+niu=0.
+niv=0.
 
 ! IMPORT WATER AND ICE DATA -----------------------------------------
 #ifdef debug
@@ -610,7 +621,8 @@ totits=0
 ! surface pressure gradients (including ice)
 ! (assume ice velocity is 'slow' compared to 'fast' change in neta)
 imass(1:ifull)=ndic(1:ifull)*rhoic+ndsn(1:ifull)*rhosn            ! ice mass per unit area (kg/m^2), unstaggered at time t
-pice(1:ifull)=ps(1:ifull)+grav*nfracice(1:ifull)*imass(1:ifull)   ! pressure due to atmosphere and ice at top of water column (unstaggered at t)
+pice(1:ifull)=ps(1:ifull)+grav*nfracice(1:ifull)*imass(1:ifull)   ! pressure due to atmosphere and ice at top of water
+                                                                  ! column (unstaggered at t)
 
 ! Limit minimum ice mass for ice velocity calculation.  Hence we can estimate the ice velocity at
 ! grid points where the ice is not yet present.  
@@ -1648,7 +1660,7 @@ include 'parm.h'
 include 'parmhor.h'
 
 integer idel,iq,jdel
-integer i,j,k,n,ind,ip,jp,ierr,intsch,ncount
+integer i,j,k,n,ip,jp,ierr,intsch,ncount
 integer ii,ntr,nn
 integer, dimension(ifull,wlev), intent(in) :: nface
 real, dimension(ifull,wlev), intent(in) :: xg,yg
@@ -1662,8 +1674,6 @@ real, parameter :: cxx = -9999. ! missing value flag
 logical, intent(in), optional :: bilinear
 logical, dimension(ifull+iextra), intent(in) :: wtr
 logical :: lmode
-
-ind(i,j,n)=i+(j-1)*ipan+(n-1)*ipan*jpan  ! *** for n=1,npan
 
 if (present(bilinear)) then
   lmode=.not.bilinear
@@ -2057,7 +2067,7 @@ include 'parm.h'
 include 'parmhor.h'
 
 integer idel,iq,jdel
-integer i,j,k,n,ind,ip,jp,ierr,intsch,ncount
+integer i,j,k,n,ip,jp,ierr,intsch,ncount
 integer ii,ntr,nn
 integer, dimension(ifull,wlev), intent(in) :: nface
 real, dimension(ifull,wlev), intent(in) :: xg,yg
@@ -2072,8 +2082,6 @@ real, parameter :: cxx = -9999. ! missing value flag
 logical, intent(in), optional :: bilinear
 logical, dimension(ifull+iextra), intent(in) :: wtr
 logical :: lmode
-
-ind(i,j,n)=i+(j-1)*ipan+(n-1)*ipan*jpan  ! *** for n=1,npan
 
 lmode=.true.
 if (present(bilinear)) lmode=.not.bilinear
@@ -4254,8 +4262,9 @@ yy = (1.+ocneps)*0.5*dt*(qdiv+sdiv+pdiv)
 
 hh     =1.+(1.+ocneps)*0.5*dt*(odiv                                                           &
         +(pvn*dd(in)-pvs*dd(is)+pue*dd(ie)-puw*dd(iw))*em(1:ifull)**2/ds+pdiv*dd(1:ifull))
-rhs(:,1)=xps-(1.+ocneps)*0.5*dt*(odivb                                                        &
-        +(pvn*ddv(1:ifull)*dd(in)-pvs*ddv(isv)*dd(is)+pue*ddu(1:ifull)*dd(ie)-puw*ddu(iwu)*dd(iw))*em(1:ifull)**2/ds+pdivb*dd(1:ifull))
+rhs(:,1)=xps-(1.+ocneps)*0.5*dt*(odivb                                                                               &
+        +(pvn*ddv(1:ifull)*dd(in)-pvs*ddv(isv)*dd(is)+pue*ddu(1:ifull)*dd(ie)-puw*ddu(iwu)*dd(iw))*em(1:ifull)**2/ds &
+        +pdivb*dd(1:ifull))
 
 ! ice
 zzn(:,2)=(-idv(1:ifull)*0.5-ibv(1:ifull))/ds
@@ -4446,6 +4455,5 @@ itc=totits
 
 return
 end subroutine mlomg
-
 
 end module mlodynamics

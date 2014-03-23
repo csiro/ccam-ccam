@@ -1,6 +1,6 @@
       subroutine updps(iadj)    
       use arrays_m
-      use cc_mpi
+      use cc_mpi, only : boundsuv,bounds,mydiag
       use diag_m             ! for calls to maxmin
       use indices_m
       use map_m
@@ -9,14 +9,17 @@
       use savuv1_m
       use sigs_m
       use vecsuv_m
-      use vvel_m, omgf => dpsldt
+      use vvel_m
       use xarrs_m
       use xyzinfo_m
+      implicit none
       include 'newmpar.h'
       include 'const_phys.h'
       include 'parm.h'
       include 'parmdyn.h'
       include 'parmhor.h'
+      integer, save :: num = 0
+      integer iq,k,ind,iadj
       real derpsl(ifull),cc(ifull+iextra,kl),dd(ifull+iextra,kl)
       real d(ifull,kl)   ! NOT shared adjust5 or nonlin
       real e(ifull,kl)
@@ -24,8 +27,6 @@
       real pse(ifull+iextra),psn(ifull+iextra),psz(ifull+iextra)
       real, dimension(ifull+iextra,kl) :: uc, vc, wc
       real pslx_k(kl)
-      save num
-      data num/0/
 !     Always called for first time step
 !     Called every step for mup.ne.1
 !     Usual is mup=1, using simple centred (only first step)
@@ -39,7 +40,7 @@
           return
         else
           sdotin(:,1:kl)=sdot(:,1:kl)
-          omgfin(:,1:kl)=omgf(:,1:kl)
+          omgfin(:,1:kl)=dpsldt(:,1:kl)
           pslxin(:,1:kl)=pslx(1:ifull,1:kl)
 	 endif
       endif  ! (mup<=-4)
@@ -75,6 +76,13 @@
      .        *em(iq)**2/(2.*ds)  
           enddo   ! iq loop
          enddo    ! k  loop
+         if (mydiag.and.nmaxpr==1) then
+           write(6,*) "d,em,ds ",d(idjd,nlv),em(idjd),ds
+           write(6,*) "u ",u(ieu(idjd),nlv),u(iwu(idjd),nlv)
+           write(6,*) "v ",v(inv(idjd),nlv),v(isv(idjd),nlv)
+           write(6,*) "1em ",em(ie(idjd)),em(iw(idjd))
+           write(6,*) "2em ",em(in(idjd)),em(is(idjd))
+         end if
       endif       ! (mup<5) 
 	
       if(mup==-1.or.mup<=-4.or.(mup==-3.and.iadj==0))then
@@ -140,21 +148,27 @@
      .               +v(iq,k)*(psl(in(iq))-psl(is(iq))))/(2.*ds)
           enddo   ! iq loop
          enddo    ! k  loop
+         if (mydiag.and.nmaxpr==1) then
+           write(6,*) "pslx,em,ds ",pslx(idjd,nlv),em(idjd),ds
+           write(6,*) "u,v ",u(idjd,nlv),v(idjd,nlv)
+           write(6,*) "psl ",psl(ie(idjd)),psl(iw(idjd)),
+     &                    psl(in(idjd)),psl(is(idjd))
+         end if
          if(diag)then
 	    call bounds(ps)
-	    print *,'after bounds in updps'
+	    write(6,*) 'after bounds in updps'
 	    if(mydiag)then
  	     iq=idjd
-	     print *,'in updps'
-	     print *,'dhatA ',(d(iq,k)-pslx(iq,k),k=1,kl)
+	     write(6,*) 'in updps'
+	     write(6,*) 'dhatA ',(d(iq,k)-pslx(iq,k),k=1,kl)
             do k=1,kl
              pslx_k(k)=-em(iq)*(
      .                 u(iq,k)*(ps(ie(iq))-ps(iw(iq)))
      .                +v(iq,k)*(ps(in(iq))-ps(is(iq))))/(2.*ds*ps(iq))
             enddo    ! k  loop
-	     print *,'dhatAA ',(d(iq,k)-pslx_k(k),k=1,kl)
-	     print *,'part1AA ',(d(iq,k),k=1,kl)
-	     print *,'part2AA ',(-pslx_k(k),k=1,kl)
+	     write(6,*) 'dhatAA ',(d(iq,k)-pslx_k(k),k=1,kl)
+	     write(6,*) 'part1AA ',(d(iq,k),k=1,kl)
+	     write(6,*) 'part2AA ',(-pslx_k(k),k=1,kl)
 	    endif
 	  endif
        endif       ! (mup<4.or.num==0)
@@ -168,6 +182,10 @@
        do k=1,kl
         pslx(1:ifull,k)=-derpsl(:)+pslx(1:ifull,k)
        enddo      ! k  loop
+       if (mydiag.and.nmaxpr==1) then
+         write(6,*) "pslx,derpsl ",pslx(idjd,nlv),derpsl(idjd)
+         write(6,*) "dsig,d ",dsig(nlv),d(idjd,nlv)
+       end if
 
 !     calculate sdot (at level k-.5) by vert. integ. {0 to sig(k-.5)} 
       sdot(:,1)=0.
@@ -178,7 +196,7 @@
 
 !     full-level omega/ps into omgf (equivalenced to dpsldt)
       do k=1,kl
-       omgf(:,k)=rata(k)*sdot(:,k+1)+ratb(k)*sdot(:,k)
+       dpsldt(:,k)=rata(k)*sdot(:,k+1)+ratb(k)*sdot(:,k)
      .           -sig(k)*pslx(1:ifull,k)
       enddo      ! k  loop
       
@@ -199,7 +217,7 @@
 	  if(ind==0)then
 	    do k=1,kl
 	     sdot(iq,k)=sdotin(iq,k)
-	     omgf(iq,k)=omgfin(iq,k)
+	     dpsldt(iq,k)=omgfin(iq,k)
 	     pslx(iq,k)=pslxin(iq,k)
 	    enddo
 	  else
@@ -219,17 +237,17 @@
 
       if(diag.or.nmaxpr==1)then
         if(mydiag)then
-          print *,'in updps'
+          write(6,*) 'in updps'
           write (6,"('div5p',5p10f8.2)") d(idjd,:)
           iq=idjd
           k=nlv
-          print *,'iq,ie,iw,in,is ',iq,ie(iq),iw(iq),in(iq),is(iq)
-          print *,'em_iq,ie,iw,in,is ',
+          write(6,*) 'iq,ie,iw,in,is ',iq,ie(iq),iw(iq),in(iq),is(iq)
+          write(6,*) 'em_iq,ie,iw,in,is ',
      &             em(iq),em(ie(iq)),em(iw(iq)),em(in(iq)),em(is(iq))
-          print *,'iq,ieu,iwu,inv,isv ',
+          write(6,*) 'iq,ieu,iwu,inv,isv ',
      &             iq,ieu(iq),iwu(iq),inv(iq),isv(iq)
-          print *,'u_iq,ieu,iwu ',u(iq,k),u(ieu(iq),k),u(iwu(iq),k)
-          print *,'v_iq,inv,isv ',v(iq,k),v(inv(iq),k),v(isv(iq),k)
+          write(6,*) 'u_iq,ieu,iwu ',u(iq,k),u(ieu(iq),k),u(iwu(iq),k)
+          write(6,*) 'v_iq,inv,isv ',v(iq,k),v(inv(iq),k),v(isv(iq),k)
         endif
         call printa('div5',d,ktau,nlv,ia,ib,ja,jb,0.,1.e5)
         call printa('u',u,ktau,nlv,ia,ib,ja,jb,0.,1.)

@@ -7,9 +7,9 @@ public x_g,y_g,z_g,wts_g
 public x,y,z,wts
 public xyzinfo_init,xyzinfo_end
 
-real*8, dimension(:), allocatable, save :: x_g,y_g,z_g
+real(kind=8), dimension(:), allocatable, save :: x_g,y_g,z_g
 real, dimension(:), allocatable, save :: wts_g
-real*8, dimension(:), allocatable, save :: x,y,z
+real(kind=8), dimension(:), allocatable, save :: x,y,z
 real, dimension(:), allocatable, save :: wts
 
 contains

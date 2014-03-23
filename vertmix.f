@@ -24,6 +24,7 @@
       use cc_mpi                          ! CC MPI routines
       use cfrac_m                         ! Cloud fraction
       use diag_m                          ! Diagnostic routines
+      use estab                           ! Liquid saturation function
       use extraout_m                      ! Additional diagnostics
       use indices_m                       ! Grid index arrays
       use kuocomb_m                       ! JLM convection
@@ -32,7 +33,6 @@
       use mlo                             ! Ocean physics and prognostic arrays
       use morepbl_m                       ! Additional boundary layer diagnostics
       use nharrs_m                        ! Non-hydrostatic atmosphere arrays
-      use nlin_m                          ! Atmosphere non-linear dynamics
       use pbl_m                           ! Boundary layer arrays
       use permsurf_m                      ! Fixed surface arrays
       use savuvt_m                        ! Saved dynamic arrays
@@ -49,7 +49,6 @@
       include 'newmpar.h'                 ! Grid parameters
       include 'const_phys.h'              ! Physical constants
       include 'dates.h'                   ! Date data
-      include 'establ.h'                  ! Liquid saturation function
       include 'kuocom.h'                  ! Convection parameters
       include 'parm.h'                    ! Model configuration
       include 'parmdyn.h'                 ! Dynamics parameters

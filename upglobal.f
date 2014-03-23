@@ -35,7 +35,7 @@
       real, save, allocatable, dimension(:,:):: tnsav,unsav,vnsav ! for npex=-1
       real, dimension(ifull+iextra,kl) :: uc, vc, wc, dd
       real aa(ifull+iextra)
-      real*8 x3d(ifull,kl),y3d(ifull,kl),z3d(ifull,kl)
+      real(kind=8) x3d(ifull,kl),y3d(ifull,kl),z3d(ifull,kl)
       integer idjdd
       real theta(ifull,kl), factr(kl)
       real, dimension(ifull,kl) :: dumt,dumu,dumv
@@ -79,9 +79,9 @@
           allocate(tnsav(ifull,kl),unsav(ifull,kl),vnsav(ifull,kl))
         end if
         if(ktau==1)then
-	    tnsav(:,:) =tn(:,:)
-	    unsav(:,:) =un(:,:)
-	    vnsav(:,:) =vn(:,:)
+          tnsav(:,:) =tn(:,:)
+          unsav(:,:) =un(:,:)
+          vnsav(:,:) =vn(:,:)
         endif
         tx(1:ifull,:)=tx(1:ifull,:)
      &                +dt*(tn(1:ifull,:)-.5*tnsav(1:ifull,:))            
@@ -195,8 +195,8 @@
       if(nvad==-4.and.nvadh/=3)then 
 !       N.B. this moved one is doing vadv on just extra pslx terms      
         sdmx(:) = maxval(abs(sdot),2)
-	  nits(:)=1+sdmx(:)/nvadh
-	  nvadh_pass(:)=nvadh*nits(:) ! use - for nvadu
+        nits(:)=1+sdmx(:)/nvadh
+        nvadh_pass(:)=nvadh*nits(:) ! use - for nvadu
         call vadvtvd(tx,ux,vx,nvadh_pass,nits,iaero)
 #ifdef debug
         if( (diag.or.nmaxpr==1) .and. mydiag )then
@@ -368,14 +368,14 @@
           end do ! k
           if(diag)then
             if ( mydiag )then
-	         iq=idjd
-	         k=nlv
+                iq=idjd
+                k=nlv
                 vec1x = y3d(iq,k)*z(iq) - y(iq)*z3d(iq,k)
                 vec1y = z3d(iq,k)*x(iq) - z(iq)*x3d(iq,k)
                 vec1z = x3d(iq,k)*y(iq) - x(iq)*y3d(iq,k)
                 denb = vec1x**2 + vec1y**2 + vec1z**2
-	         write(6,*) 'uc,vc,wc after nrot; denb = ',denb
-	     endif
+                write(6,*) 'uc,vc,wc after nrot; denb = ',denb
+            endif
             call printa('uc  ',uc,ktau,nlv,ia,ib,ja,jb,0.,1.)
             call printa('vc  ',vc,ktau,nlv,ia,ib,ja,jb,0.,1.)
             call printa('wc  ',wc,ktau,nlv,ia,ib,ja,jb,0.,1.)

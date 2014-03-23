@@ -313,8 +313,8 @@ c       c1=0.
       real rlon_in,rlat_in,schmidt_in
       real of,sc
       logical ltest,tst
-      character*22 header
-      character*10 unitstr
+      character(len=22) header
+      character(len=10) unitstr
 
       iyr_m=iyr
       imo_m=imo-1
@@ -428,7 +428,7 @@ c       c1=0.
         end if
         write(6,*) "Reading AMIP file in ASCII format"
         iyear=-999
-        imonth=-999	  
+        imonth=-999
         do while(iyr_m/=iyear.or.imo_m/=imonth)
           write(6,*) 'about to read amipsst file'
           read(75,*)
@@ -461,7 +461,7 @@ c       c1=0.
         ssta_g(:)=ssta_g(:)*.01 -50. +273.16
         write(6,*) 'sstb(idjd) ',ssta_g(idjd_g)
         call ccmpi_distribute(sstb, ssta_g)
-	  
+
 c       extra read from Oct 08        
         read(75,'(i2,i5,a22)') imonth,iyear,header
         write(6,*) 'reading sstc data:',imonth,iyear,header
@@ -509,9 +509,9 @@ c       extra read from Oct 08
             write(6,*) "ERROR: Cannot read AMIP icefile ",trim(icefile)
             call ccmpi_abort(-1)
           end if
-	    iyear=-999
-	    imonth=-999	   
-	    do while(iyr_m/=iyear.or.imo_m/=imonth)
+          iyear=-999
+          imonth=-999
+          do while(iyr_m/=iyear.or.imo_m/=imonth)
             read(76,*)
      &       imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
             write(6,'("reading ice ",i2,i5,2i4,2f6.1,f6.3,a22)')
@@ -530,7 +530,7 @@ c       extra read from Oct 08
      &                  ssta_g(idjd_g)
           enddo
           call ccmpi_distribute(aice, ssta_g)
-	   
+
           read(76,'(i2,i5,a22)') imonth,iyear,header
           write(6,*) 'reading b_sice data:',imonth,iyear,header
           write(6,*) 'should agree with imo,iyr ',imo,iyr
@@ -540,7 +540,7 @@ c       extra read from Oct 08
           read(76,*) ssta_g
           write(6,*) 'bice(idjd) ',ssta_g(idjd_g)
           call ccmpi_distribute(bice, ssta_g)
-	    	    
+
 c         extra cice read from Oct 08        
           read(76,'(i2,i5,a22)') imonth,iyear,header
           write(6,*) 'reading c_sice data:',imonth,iyear,header
@@ -548,11 +548,11 @@ c         extra cice read from Oct 08
           write(6,*) 'cice(idjd) ',ssta_g(idjd_g)
           call ccmpi_distribute(cice, ssta_g)
           close(76)
-	  end if ! (iernc==0) ..else..    	    
+        end if ! (iernc==0) ..else..    	    
       endif   ! (namip>=2) 
-	if (namip>=5) then
-	  if (iernc==0) then
-	    ! NETCDF
+      if (namip>=5) then
+        if (iernc==0) then
+          ! NETCDF
           spos(3)=iarchx
           call ccnf_inq_varid(ncidx,'sss',varid,tst)
           if (tst) then
@@ -575,7 +575,7 @@ c         extra cice read from Oct 08
           call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g)
           ssta_g=sc*ssta_g+of        
           call ccmpi_distribute(csal, ssta_g)
-          
+
         else
           ! ASCII
           open(unit=77,file=salfile,status='old',form='formatted',
@@ -584,9 +584,9 @@ c         extra cice read from Oct 08
             write(6,*) "ERROR: Cannot read AMIP salfile ",trim(salfile)
             call ccmpi_abort(-1)
           end if
-	    iyear=-999
-	    imonth=-999
-	    do while (iyr_m/=iyear.or.imo_m/=imonth)
+          iyear=-999
+          imonth=-999
+          do while (iyr_m/=iyear.or.imo_m/=imonth)
             read(77,*)
      &       imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
             write(6,'("reading sal ",i2,i5,2i4,2f6.1,f6.3,a22)')
@@ -605,7 +605,7 @@ c         extra cice read from Oct 08
      &                  ssta_g(idjd_g)
           end do
           call ccmpi_distribute(asal, ssta_g)
-	   
+
           read(77,'(i2,i5,a22)') imonth,iyear,header
           write(6,*) 'reading b_sal data:',imonth,iyear,header
           write(6,*) 'should agree with imo,iyr ',imo,iyr
@@ -615,7 +615,7 @@ c         extra cice read from Oct 08
           read(77,*) ssta_g
           write(6,*) 'bsal(idjd) ',ssta_g(idjd_g)
           call ccmpi_distribute(bsal, ssta_g)
-	   
+
           read(77,'(i2,i5,a22)') imonth,iyear,header
           write(6,*) 'reading c_sal data:',imonth,iyear,header
           read(77,*) ssta_g
@@ -624,15 +624,15 @@ c         extra cice read from Oct 08
           close(77)
 
         end if ! (iernc==0) ..else..
-	else
-	  asal=0.
-	  bsal=0.
-	  csal=0.
-	endif
+      else
+        asal=0.
+        bsal=0.
+        csal=0.
+      endif
 
       if (iernc==0) then
         call ccnf_close(ncidx)
       end if
-      
+
       return
       end subroutine amiprd

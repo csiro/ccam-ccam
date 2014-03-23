@@ -239,7 +239,7 @@ SUBROUTINE define_canopy(bal,rad,rough,air,met,dels,ssnow,soil,veg, canopy)
                         veg%dleaf(j) * (canopy%us(j) / MAX(rough%usuh(j),1.e-6)&
                         * veg%dleaf(j) / air%visc(j) )**0.5                    &
                         * C%prandt**(1.0/3.0) / veg%shelrb(j)
-            gbvtop(j) = MAX (0.05,gbvtop(j) )      ! for testing (BP aug2010)
+            gbvtop(j) = MAX (0.05_r_2,gbvtop(j) )      ! for testing (BP aug2010)
             
             ! Forced convection boundary layer conductance                     
             ! (see Wang & Leuning 1998, AFM):
@@ -395,7 +395,7 @@ SUBROUTINE define_canopy(bal,rad,rough,air,met,dels,ssnow,soil,veg, canopy)
          IF ( canopy%wetfac_cs(j) .LE. 0. )                                    &
             canopy%wetfac_cs(j) = MAX( 0., MIN( 1.,                            &
                                   MAX( canopy%fev(j)/canopy%fevw_pot(j),       &
-                                  canopy%fes(j)/ssnow%potev(j) ) ) )
+                                  real(canopy%fes(j))/ssnow%potev(j) ) ) )
       
       ENDDO 
 
@@ -674,15 +674,15 @@ SUBROUTINE Latent_heat_flux()
       IF(ssnow%snowd(j) < 0.1 .AND. canopy%fess(j) .GT. 0. ) THEN
 
          flower_limit(j) = REAL(ssnow%wb(j,1))-soil%swilt(j)/2.0
-         fupper_limit(j) = MAX( 0._r_2,                                        &
+         fupper_limit(j) = MAX( 0.,                                            &
                            flower_limit(j) * frescale(j)                       &
                            - ssnow%evapfbl(j,1)*air%rlam(j)/dels)
 
-         canopy%fess(j) = MIN(canopy%fess(j), fupper_limit(j))
+         canopy%fess(j) = MIN(real(canopy%fess(j)), fupper_limit(j))
          
          fupper_limit(j) = REAL(ssnow%wb(j,1)-ssnow%wbice(j,1)) * frescale(j)
 
-         canopy%fess(j) = min(canopy%fess(j), fupper_limit(j))
+         canopy%fess(j) = min(real(canopy%fess(j)), fupper_limit(j))
 
       END IF
 
@@ -1184,7 +1184,7 @@ SUBROUTINE Surf_wetness_fact( cansat, canopy, ssnow,veg, met, soil, dels )
    
       IF( ssnow%wbice(j,1) > 0. )                                              &
          ssnow%wetfac(j) = ssnow%wetfac(j) * MAX( 0.5, 1. - MIN( 0.2,          &
-                           ( ssnow%wbice(j,1) / ssnow%wb(j,1) )**2 ) )
+                           real( ssnow%wbice(j,1) / ssnow%wb(j,1) )**2 ) )
 
       IF( ssnow%snowd(j) > 0.1) ssnow%wetfac(j) = 0.9
       
@@ -1413,7 +1413,7 @@ SUBROUTINE dryLeaf( dels, rad, rough, air, met,                                &
                        * ( gras(i)**0.25 ) / veg%dleaf(i)
             gbhf(i,2) = rad%fvlai(i,2) * air%cmolar(i) * 0.5 * C%dheat         &
                         * ( gras(i)**0.25 ) / veg%dleaf(i)
-            gbhf(i,:) = MAX( 1.e-6, gbhf(i,:) )
+            gbhf(i,:) = MAX( 1.e-6_r_2, gbhf(i,:) )
       
             ! Conductance for heat:
             gh(i,:) = 2.0 * (gbhu(i,:) + gbhf(i,:))
@@ -1511,7 +1511,7 @@ SUBROUTINE dryLeaf( dels, rad, rough, air, met,                                &
 
                   csx(i,kk) = met%ca(i) - C%RGBWC*anx(i,kk) / (                &
                               gbhu(i,kk) + gbhf(i,kk) )
-                  csx(i,kk) = MAX( 1.0e-4, csx(i,kk) )
+                  csx(i,kk) = MAX( 1.0e-4_r_2, csx(i,kk) )
 
                   canopy%gswx(i,kk) = MAX( 1.e-3, gswmin(i,kk) +               &
                                       MAX( 0.0, C%RGSWC * xleuning(i,kk) *     &
@@ -1994,8 +1994,8 @@ SUBROUTINE fwsoil_calc_std(fwsoil, soil, ssnow, veg)
    REAL, INTENT(OUT), DIMENSION(:):: fwsoil ! soil water modifier of stom. cond
    REAL, DIMENSION(mp) :: rwater ! soil water availability
 
-   rwater = MAX(1.0e-4_r_2,                                                    &
-            SUM(veg%froot * MAX(0.024,MIN(1.0_r_2,ssnow%wb -                   &
+   rwater = MAX(1.0e-4,                                                        &
+            SUM(veg%froot * MAX(0.024,MIN(1.0,real(ssnow%wb) -                 &
             SPREAD(soil%swilt, 2, ms))),2) /(soil%sfc-soil%swilt))
   
    fwsoil = MAX(1.0e-4,MIN(1.0, veg%vbeta * rwater))
@@ -2014,8 +2014,8 @@ SUBROUTINE fwsoil_calc_non_linear(fwsoil, soil, ssnow, veg)
    REAL, DIMENSION(mp,3)          :: xi, ti, si
    INTEGER :: j
 
-   rwater = MAX(1.0e-4_r_2,                                                    &
-            SUM(veg%froot * MAX(0.024,MIN(1.0_r_2,ssnow%wb -                   &
+   rwater = MAX(1.0e-4,                                                        &
+            SUM(veg%froot * MAX(0.024,MIN(1.0,real(ssnow%wb) -                 &
             SPREAD(soil%swilt, 2, ms))),2) /(soil%sfc-soil%swilt))
 
    fwsoil = 1.
@@ -2069,9 +2069,9 @@ SUBROUTINE fwsoil_calc_Lai_Ktaul(fwsoil, soil, ssnow, veg)
 
    DO ns=1,ms
      
-      dummy(:) = rootgamma/max(1.0e-3,ssnow%wb(:,ns)-soil%swilt(:))
+      dummy(:) = rootgamma/max(1.0e-3,real(ssnow%wb(:,ns))-soil%swilt(:))
 
-      frwater(:,ns) = MAX(1.0e-4,((ssnow%wb(:,ns)-soil%swilt(:))/soil%ssat(:)) &
+      frwater(:,ns) = MAX(1.0e-4,((real(ssnow%wb(:,ns))-soil%swilt(:))/soil%ssat(:)) &
                       ** dummy)
       
       fwsoil(:) = min(1.0,max(fwsoil(:),frwater(:,ns)))

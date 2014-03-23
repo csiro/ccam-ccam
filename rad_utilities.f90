@@ -347,7 +347,7 @@ type cld_specification_type
                                          cloud_water, &
                                          cloud_ice,  &
                                          cloud_area, &
-					 cloud_droplet, &
+                                         cloud_droplet, &
                                          reff_liq_micro,   &
                                          reff_ice_micro,&
                                          camtsw,   &

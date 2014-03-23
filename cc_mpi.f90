@@ -45,11 +45,10 @@ module cc_mpi
              ccmpi_bcastr8, ccmpi_barrier, ccmpi_gatherx, ccmpi_scatterx,   &
              ccmpi_allgatherx, ccmpi_gathermap, ccmpi_recv, ccmpi_ssend,    &
              ccmpi_init, ccmpi_finalize, ccmpi_commsplit, ccmpi_commfree,   &
-             mgbounds, mgcollect, mgcollect_mlo, mgbcast,                   &
-             mgbcastxn, mg_index,                                           &
-             mgbounds_mlo, mgbcast_mlo, mgbcasta_mlo, indx, bounds_colour,  &
-             boundsuv_allvec, fproc, proc_region, proc_region_face,         &
-             proc_region_dix
+             mgbounds, mgcollect, mgcollect_mlo, mgbcast, mgbcastxn,        &
+             mg_index, mgbounds_mlo, mgbcast_mlo, mgbcasta_mlo, ind,        &
+             indx, bounds_colour, boundsuv_allvec, fproc, proc_region,      &
+             proc_region_face, proc_region_dix
    public :: mgbndtype
    public :: dpoints_t,dindex_t,sextra_t,bnds
    private :: ccmpi_distribute2, ccmpi_distribute2i, ccmpi_distribute2r8,   &
@@ -659,8 +658,8 @@ contains
 
    subroutine ccmpi_distribute2r8(af,a1)
       ! Convert standard 1D arrays to face form and distribute to processors
-      real*8, dimension(ifull), intent(out) :: af
-      real*8, dimension(ifull_g), intent(in), optional :: a1
+      real(kind=8), dimension(ifull), intent(out) :: af
+      real(kind=8), dimension(ifull_g), intent(in), optional :: a1
       integer(kind=4) :: ierr, mone
 
       START_LOG(distribute)
@@ -681,11 +680,11 @@ contains
 
    subroutine host_distribute2r8(af,a1)
       ! Convert standard 1D arrays to face form and distribute to processors
-      real*8, dimension(ifull), intent(out) :: af
-      real*8, dimension(ifull_g), intent(in) :: a1
+      real(kind=8), dimension(ifull), intent(out) :: af
+      real(kind=8), dimension(ifull_g), intent(in) :: a1
       integer :: i, j, n, iq, iproc
       integer(kind=4) :: ierr, lsize, zero
-      real*8, dimension(ifull,0:nproc-1) :: sbuf
+      real(kind=8), dimension(ifull,0:nproc-1) :: sbuf
       integer :: npoff, ipoff, jpoff ! Offsets for target
       integer :: slen
 
@@ -715,9 +714,9 @@ contains
    
    subroutine proc_distribute2r8(af)
       ! Convert standard 1D arrays to face form and distribute to processors
-      real*8, dimension(ifull), intent(out) :: af
+      real(kind=8), dimension(ifull), intent(out) :: af
       integer(kind=4) :: ierr, lsize, zero
-      real*8, dimension(0,0) :: sbuf
+      real(kind=8), dimension(0,0) :: sbuf
 
       lsize = ifull
       zero = 0
@@ -3361,7 +3360,8 @@ contains
             lproc = neighlist(iproc)
 !cdir nodep
             do iq = 1,rslen(iproc)
-               t(ifull+bnds(lproc)%unpack_list(iq),1:kx,1:ntr) = reshape( bnds(lproc)%rbuf(1+(iq-1)*kx*ntr:iq*kx*ntr), (/ kx, ntr /) )
+               t(ifull+bnds(lproc)%unpack_list(iq),1:kx,1:ntr)                           &
+                 = reshape( bnds(lproc)%rbuf(1+(iq-1)*kx*ntr:iq*kx*ntr), (/ kx, ntr /) )
             end do
             
          end do
@@ -8648,6 +8648,16 @@ contains
 
    return
    end function indx
+   
+   function ind(i,j,n) result(iq)
+
+   integer, intent(in) :: i, j, n
+   integer iq
+
+   iq = i+(j-1)*ipan+(n-1)*ipan*jpan
+
+   return
+   end function ind
    
    function findcolour(iqg) result(icol)
    

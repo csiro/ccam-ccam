@@ -1828,7 +1828,7 @@
               old=sstb(:,ka)
               call mloexport(0,old,k,0)
               old=old+diff_l(:,kb)*10./real(mloalpha) ! kb saved from above loop
-              old=max(old,271.)	  
+              old=max(old,271.)
               call mloimport(0,old,k,0)
             end do
           end if
@@ -2844,7 +2844,7 @@
           old=sssb(:,ka)
           call mloexport(1,old,k,0)
           old=old*(1.-wgt)+sssb(:,ka)*wgt
-          old=max(old,0.)	  
+          old=max(old,0.)
           call mloimport(1,old,k,0)
         end do
       end if

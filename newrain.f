@@ -57,6 +57,7 @@ c
      &                  fluxm,pfstay,pqfsed,slopes,prscav)     !Outputs
 
       use cc_mpi, only : mydiag
+      use estab, only : esdiffx, qsati, pow75
       use kuocomb_m
       use morepbl_m  !condx        
       implicit none
@@ -123,7 +124,7 @@ C Local work arrays and variables
       real fout(ln2,nl-1)
       real fthru(ln2,nl-1)
 
-      integer k,mb,mg,njumps,ns,nt,ntest
+      integer k,mb,mg,ns,nt,ntest
 
       real apr
       real bpr
@@ -163,36 +164,6 @@ C Local work arrays and variables
 
 C Local data, functions etc
       parameter (ntest=0)  ! 0=off, 1=on
-      real tdiffx,tx_,esdiffx                                                  ! MJT suggestion
-
-      real esdiff(-40:1)  !Table of es(liq) - es(ice) (MKS), -40 <= t <= 0 C   ! MJT suggestion
-      data esdiff / 
-     & 6.22, 6.76, 7.32, 7.92, 8.56, 9.23, 9.94,10.68,11.46,12.27,
-     & 13.11,13.99,14.89,15.82,16.76,17.73,18.70,19.68,20.65,21.61,
-     & 22.55,23.45,24.30,25.08,25.78,26.38,26.86,27.18,27.33,27.27,
-     & 26.96,26.38,25.47,24.20,22.51,20.34,17.64,14.34,10.37, 5.65,
-     & 0.08, 0. /                                                              ! MJT suggestion
-      tdiffx(tx_)=min(max( tx_-tfrz, -40.), 0.)                                ! MJT suggestion
-      esdiffx(tx_) =                                                           ! MJT suggestion
-     &  (1.-(tdiffx(tx_)-aint(tdiffx(tx_))))*esdiff(int(tdiffx(tx_)))        ! MJT suggestion
-     & +(tdiffx(tx_)-aint(tdiffx(tx_)))*esdiff(int(tdiffx(tx_))+1)           ! MJT suggestion
-      real tablei
-      common /esitable/ tablei(0:220) !Table of es values wrt ice
-
-c Arithmetic statement functions to replace call to establ.
-c T is temp in Kelvin, which should lie between 123.16 and 343.16;
-c TDIFF is difference between T and 123.16, subject to 0 <= TDIFF <= 220
-
-      real t, tdiff, pp, estabi, qsati
-      tdiff(t)=min(max( t-123.16, 0.), 219.)
-
-c These give the ice values needed for the qcloud scheme
-      estabi(t) = (1.-(tdiff(t)-aint(tdiff(t))))*tablei(int(tdiff(t)))
-     &           + (tdiff(t)-aint(tdiff(t)))*tablei(int(tdiff(t))+1)
-      qsati(pp,t) = epsil*estabi(t)/max(.1,pp-estabi(t)) !Usual formula
-
-      real pow75,x
-      pow75(x)=sqrt(x*sqrt(x))
 
 C Start code : ----------------------------------------------------------
 
@@ -217,8 +188,8 @@ C Start code : ----------------------------------------------------------
         endif  ! (ntest>0)
 
       delt=tdt
-      njumps=nint(tdt/delt)
-      delt=tdt/real(njumps) !To make sure tdt it a multiple of delt
+      !njumps=nint(tdt/delt)
+      !delt=tdt/real(njumps) !To make sure tdt it a multiple of delt
 
       do k=1,nl
         do mg=1,ln2
@@ -253,25 +224,25 @@ c Using new (subgrid) autoconv scheme...
             cfrain(mg,k)=0.0
             rhodz=rhoa(mg,k)*dz(mg,k)
 
-            if(clfr(mg,k)>=1.e-10)then
+            if(clfr(mg,k)>0.)then
 
               ql=qlg(mg,k)
               cfla=0.
               dqla=0.
-              if(cfa(mg,k)>=1.e-10)then
+              if(cfa(mg,k)>0.)then
                 cfla=cfa(mg,k)*clfr(mg,k)/(clfr(mg,k)+cifr(mg,k))
                 qla=qca(mg,k)/cfa(mg,k)
 
 c Following few lines are for Yangang Liu's new scheme (2004: JAS, GRL)
 
-                Wliq = 1000. * qla * rhoa(mg,k) !g/m3
+                Wliq = max(1.e-10, 1000. * qla * rhoa(mg,k)) !g/m3
                 R6c = 4.09e-4
-     &               * ( 1.15e23*1.e-6*cdrop(mg,k) / Wliq**2 ) ** (1./6)
+     &               * ( 1.15e23*1.e-6*cdrop(mg,k) / Wliq**2 )**(1./6.)
                 eps = 1. - 0.7 * exp(-0.003e-6*cdrop(mg,k)) !mid range
-                beta6 = ((1.+3*eps**2)*(1.+4*eps**2)*(1.+5*eps**2)
-     &               / ((1.+eps**2)*(1.+2*eps**2)) )**(1./6)
+                beta6 = ((1.+3.*eps**2)*(1.+4.*eps**2)*(1.+5.*eps**2)
+     &               / ((1.+eps**2)*(1.+2.*eps**2)) )**(1./6.)
                 R3c = 1.e-6*R6c/beta6 !in metres
-                qcrit=(4*pi/3)*rhow*R3c**3*Cdrop(mg,k)/rhoa(mg,k) !New qcrit
+                qcrit=(4.*pi/3.)*rhow*R3c**3*Cdrop(mg,k)/rhoa(mg,k) !New qcrit
 
                 if(qla<=qcrit)then
                   ql2=qla
@@ -280,7 +251,7 @@ c Following few lines are for Yangang Liu's new scheme (2004: JAS, GRL)
 c Following is Liu & Daum (JAS, 2004)
                   Crate=1.9e17*
      &               (0.75*rhoa(mg,k)/(pi*rhow))**2*beta6**6/cdrop(mg,k)
-                  ql1=qla/sqrt(1.+2*crate*qla**2*delt)
+                  ql1=qla/sqrt(1.+2.*crate*qla**2*delt)
 
                   ql1=max(ql1, qcrit) !Intermediate qlg after auto
                   Frb=dz(mg,k)*rhoa(mg,k)*(qla-ql1)/delt
@@ -290,7 +261,7 @@ c Following is Liu & Daum (JAS, 2004)
                   cfrain(mg,k)=cfla
                 endif
                 dqla=cfla*(qla-ql2)
-                ql=max(1.e-8,qlg(mg,k)-dqla)
+                ql=max(1.e-10,qlg(mg,k)-dqla)
               endif
               dql=qlg(mg,k)-ql
 
@@ -308,9 +279,9 @@ c Or, using old autoconv scheme...
             cfrain(mg,k)=0.0
             rhodz=rhoa(mg,k)*dz(mg,k)
 
-            if(clfr(mg,k)>=1.e-10)then
+            if(clfr(mg,k)>0.)then
        
-              qcrit=(4*pi/3)*rhow*Rcm**3*cdrop(mg,k)/rhoa(mg,k)
+              qcrit=(4.*pi/3.)*rhow*Rcm**3*cdrop(mg,k)/rhoa(mg,k)
               qcic=qlg(mg,k)/clfr(mg,k) !In cloud value
 
               if(qcic<qcrit)then
@@ -318,8 +289,8 @@ c Or, using old autoconv scheme...
                 dqlo=0.
               else
                 Crate=Aurate*
-     &                rhoa(mg,k)*(rhoa(mg,k)/(cdrop(mg,k)*rhow))**(1./3)
-                ql1=1./pow75(qcic**(-4./3)+(4./3)*Crate*delt)
+     &               rhoa(mg,k)*(rhoa(mg,k)/(cdrop(mg,k)*rhow))**(1./3.)
+                ql1=1./pow75(qcic**(-4./3.)+(4./3.)*Crate*delt)
                 ql1=max(ql1, qcrit) !Intermediate qlg after auto
                 Frb=dz(mg,k)*rhoa(mg,k)*(qcic-ql1)/delt
                 cdt=delt*0.5*Ecol*0.24*pow75(Frb) !old
@@ -403,13 +374,14 @@ c Now work down through the levels...
 
 c Add flux of melted snow to fluxrain
 
-            fluxrain(mg)=fluxrain(mg)+fluxm(mg,k)/real(njumps)
+            !fluxrain(mg)=fluxrain(mg)+fluxm(mg,k)/real(njumps)
+            fluxrain(mg)=fluxrain(mg)+fluxm(mg,k)
             
 c Evaporation of rain
 
             qpf=fluxrain(mg)/rhodz !Mix ratio of rain which falls into layer  ! MJT suggestion
             clrevap=(1.-clfr(mg,k))*qpf                                       ! MJT suggestion
-            if(fluxrain(mg)>0..and.cfrac(mg,k)<1.0)then
+            if(fluxrain(mg)>0.)then
               pk=100.0*prf(mg,k)
               qsg(mg,k)=qsati(pk,ttg(mg,k))
               if(ttg(mg,k)<tfrz.and.ttg(mg,k)>=tice)then
@@ -422,15 +394,15 @@ c Evaporation of rain
               endif             !qsl is qs value over liquid surface
               Tk=ttg(mg,k)
               es=qsl(mg,k)*pk/epsil 
-              Apr=(hl/(rKa*Tk))*(hl/(rvap*Tk)-1)
+              Apr=(hl/(rKa*Tk))*(hl/(rvap*Tk)-1.)
               Bpr=rvap*Tk/((Dva/pk)*es)
               Fr=fluxrain(mg)/delt/clfra(mg)
               Cev=clfra(mg)
      &       *3.8e2*sqrt(Fr/rhoa(mg,k))/(qsl(mg,k)*(Apr+Bpr))
               dqsdt=hl*qsl(mg,k)/(rvap*ttg(mg,k)**2)
-              bl=1+0.5*Cev*delt*(1+hlcp*dqsdt)
+              bl=1.+0.5*Cev*delt*(1.+hlcp*dqsdt)
               evap=delt*(Cev/bl)*(qsl(mg,k)-qtg(mg,k))
-              satevap=(qsl(mg,k)-qtg(mg,k))/(1+hlcp*dqsdt) !Evap to saturate
+              satevap=(qsl(mg,k)-qtg(mg,k))/(1.+hlcp*dqsdt) !Evap to saturate
 c              Vr=11.3*Fr**(1./9.)/sqrt(rhoa(mg,k))  !Actual fall speed
 c              Vr=5./sqrt(rhoa(mg,k))                !Nominal fall speed
 
@@ -508,13 +480,8 @@ c and convective (ccra).
 
             ! Calculate rain fall speed (MJT)
             if (ncloud>1) then
-              rhorin=fluxrain(mg)/dz(mg,k)
-              if (clfra(mg)>=1.E-10) then
-                vr(mg,k)=15.3*((rhor(mg,k)+rhorin)
-     &             /clfra(mg))**0.125/sqrt(rhoa(mg,k))
-              else
-                vr(mg,k)=vr(mg,k+1)
-              end if
+              Fr=fluxrain(mg)/delt/clfra(mg)
+              vr(mg,k)=11.3*Fr**(1./9.)/sqrt(rhoa(mg,k))  !Actual fall speed
               vr(mg,k)=max(vr(mg,k),0.1)
               alph=delt*vr(mg,k)/dz(mg,k)
               fout(mg,k)=1.-exp(-alph)       !analytical

@@ -19,6 +19,7 @@
       use cldcom_m
       use co2dta_m, only : co2dta_init
       use diag_m
+      use estab
       use extraout_m ! sintsave, etc
       use histave_m, only : alb_ave,fbeam_ave
       use infile
@@ -110,7 +111,6 @@ c     Stuff from cldset
       data ndoy/ 0,31,59,90,120,151,181,212,243,273,304,334/
       save first
       data first /.true./
-      include 'establ.h'
 
 
 #include "log.h"

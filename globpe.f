@@ -23,6 +23,7 @@
       use diag_m                              ! Diagnostic routines
       use dpsdt_m                             ! Vertical velocity
       use epst_m                              ! Off-centre terms
+      use estab                               ! Liquid saturation function
       use extraout_m                          ! Additional diagnostics
       use gdrag_m, only : gdrag_init          ! Gravity wave drag
       use histave_m                           ! Time average arrays
@@ -81,7 +82,6 @@
       include 'const_phys.h'                  ! Physical constants
       include 'darcdf.h'                      ! Netcdf data
       include 'dates.h'                       ! Date data
-      include 'establ.h'                      ! Liquid saturation function
       include 'filnames.h'                    ! Filenames
       include 'kuocom.h'                      ! Convection parameters
       include 'parm.h'                        ! Model configuration
@@ -424,7 +424,7 @@
 !     for 6-hourly output of sint_ave etc, want 6*60 = N*mins_rad      
       if ((nrad==4.or.nrad==5).and.mod(6*60,mins_rad)/=0) then
         write(6,*) 'prefer 6*60 = N*mins_rad '
-        call ccmpi_abort(-1)	
+        call ccmpi_abort(-1)
       end if
 
 
@@ -561,7 +561,7 @@
 
         write (6, cardin)
         if(nllp==0.and.nextout>=4) then
-	  write(6,*) 'need nllp=3 for nextout>=4'
+          write(6,*) 'need nllp=3 for nextout>=4'
           call ccmpi_abort(-1)	  
 	end if
         write (6, skyin)
@@ -718,6 +718,7 @@
       call cfrac_init(ifull,iextra,kl)
       call dpsdt_init(ifull,iextra,kl)
       call epst_init(ifull,iextra,kl)
+      call estab_init
       call extraout_init(ifull,iextra,kl,nextout)
       call gdrag_init(ifull,iextra,kl)
       call histave_init(ifull,iextra,kl,ms)
@@ -1044,7 +1045,7 @@
         endif
       endif
 
-      do 79 mspec=mspeca,1,-1    ! start of introductory time loop
+      do mspec=mspeca,1,-1    ! start of introductory time loop
       dtds=dt/ds
       if(nvsplit<3.or.ktau==1)then
         un(1:ifull,:)=0. 
@@ -1249,8 +1250,11 @@
         qg(1:ifull,:)=max(qg(1:ifull,:),qgmin-qlg(1:ifull,:)
      &                   -qfg(1:ifull,:),0.) 
       endif  ! (mfix_qg==0.or.mspec==2)
-79    dt=dtin                    ! ****** end of introductory time loop
+
+      dt=dtin
+      end do ! ****** end of introductory time loop
       mspeca=1
+
       if(nvsplit>=3)then
         tx(1:ifull,:)=t(1:ifull,:)   ! saved for beginning of next step
         ux(1:ifull,:)=u(1:ifull,:)   
@@ -1423,6 +1427,7 @@
         write(6,*) "After radiation"
       end if
       END_LOG(radnet)
+
 
       ! HELD & SUAREZ ---------------------------------------------------------
       if (ntsur<=1.or.nhstest==2) then ! Held & Suarez or no surf fluxes
@@ -2020,8 +2025,8 @@
       include 'parm.h'      ! Model configuration
       include 'parmgeom.h'  ! Coordinate data
             
-      character *(*) filename
-      character header*47
+      character(len=*) filename
+      character(len=47) header
       integer ifully,ilx,jlx,ierr
       integer itss(ifully)
       integer glob2d(ifull_g)
@@ -2039,7 +2044,7 @@
      &        .or.abs(schmidtx-schmidt)>1.E-6) then
             write(6,*) 'wrong data file supplied'
             call ccmpi_abort(-1)
-	  end if
+          end if
           read(87,*) glob2d
           close(87)
         else if ( ierr < 0 ) then ! Error, so really unformatted file
@@ -2050,7 +2055,7 @@
           close(87)
         else ! ierr > 0
           write(6,*) 'End of file occurred in readint'
-          call ccmpi_abort(-1)	  
+          call ccmpi_abort(-1)
         end if
         if (ifully==ifull) then
           call ccmpi_distribute(itss, glob2d)
@@ -2080,8 +2085,8 @@
       include 'parm.h'      ! Model configuration
       include 'parmgeom.h'  ! Coordinate data
 
-      character *(*) filename
-      character header*47
+      character(len=*) filename
+      character(len=47) header
       real tss(ifully)
       real glob2d(ifull_g)
       real rlong0x,rlat0x,schmidtx,dsx
@@ -2100,7 +2105,7 @@
      &        .or.abs(schmidtx-schmidt)>1.E-6) then
             write(6,*) 'wrong data file supplied'
             call ccmpi_abort(-1)
-	  end if
+          end if
           read(87,*) glob2d
           close(87)
         else if ( ierr < 0 ) then ! Error, so really unformatted file
@@ -2155,7 +2160,6 @@
       
       n=ilt*jlt
       do k=1,klt
-!dir$ ivdep
        do iq=1,n       
         tr(iq,k,ngas+1)=rlatt(iq)*180./pi
         tr(iq,k,ngas+2)=rlongg(iq)*180./pi
@@ -2166,7 +2170,7 @@
         do k=1,klt
          do iq=1,n  
           tr(iq,k,ngas+4)=
-     .	               t(iq,k)*(1.e-5*ps(iq)*sig(k))**(-rdry/cp)
+     &      t(iq,k)*(1.e-5*ps(iq)*sig(k))**(-rdry/cp)
          enddo
         enddo
       endif   ! (nllp>=4)
@@ -2375,6 +2379,7 @@ c     stuff from insoil  for soilv.h
       use arrays_m           ! Atmosphere dyamics prognostic arrays
       use cc_mpi             ! CC MPI routines
       use diag_m             ! Diagnostic routines
+      use estab              ! Liquid saturation function
       use extraout_m         ! Additional diagnostics
       use map_m              ! Grid map arrays
       use morepbl_m          ! Additional boundary layer diagnostics
@@ -2397,7 +2402,6 @@ c     stuff from insoil  for soilv.h
       include 'newmpar.h'    ! Grid parameters
       include 'const_phys.h' ! Physical constants
       include 'dates.h'      ! Date data
-      include 'establ.h'     ! Liquid saturation function
       include 'parm.h'       ! Model configuration
       include 'parmgeom.h'   ! Coordinate data
       include 'soilv.h'      ! Soil parameters
@@ -2480,7 +2484,7 @@ c     stuff from insoil  for soilv.h
 954       format("#sigmf,swilt,sfc,ssat,alb: ",5f7.3)
         endif
       enddo
-      return	    
+      return
       end               
 
       !--------------------------------------------------------------
@@ -2491,6 +2495,7 @@ c     stuff from insoil  for soilv.h
       use cc_mpi              ! CC MPI routines
       use cfrac_m             ! Cloud fraction
       use diag_m              ! Diagnostic routines
+      use estab              ! Liquid saturation function
       use extraout_m          ! Additional diagnostics
       use histave_m           ! Time average arrays
       use infile              ! Input file routines
@@ -2514,7 +2519,6 @@ c     stuff from insoil  for soilv.h
       include 'newmpar.h'     ! Grid parameters
       include 'const_phys.h'  ! Physical constants
       include 'dates.h'       ! Date data
-      include 'establ.h'      ! Liquid saturation function
       include 'parm.h'        ! Model configuration
       include 'parmgeom.h'    ! Coordinate data
       include 'soilv.h'       ! Soil parameters
@@ -2597,21 +2601,21 @@ c     stuff from insoil  for soilv.h
          enddo     ! niq=1,9
          do k=1,kl
           write (iunp(nn),"('T         ',i6,3i3,i4,f8.0,g8.1,9f8.3)") 
-     &	         iyr,imo,iday,itim,k,off,sca,t(iqq(:),k)
+     &           iyr,imo,iday,itim,k,off,sca,t(iqq(:),k)
           write (iunp(nn),"('U         ',i6,3i3,i4,f8.0,g8.1,9f8.3)") 
-     &	         iyr,imo,iday,itim,k,off,sca,uzon(:,k)
+     &           iyr,imo,iday,itim,k,off,sca,uzon(:,k)
           write (iunp(nn),"('V         ',i6,3i3,i4,f8.0,g8.1,9f8.3)") 
-     &	         iyr,imo,iday,itim,k,off,sca,vmer(:,k)
+     &           iyr,imo,iday,itim,k,off,sca,vmer(:,k)
           write (iunp(nn),"('GPH       ',i6,3i3,i4,f8.0,g8.1,9f8.0)") 
-     &	         iyr,imo,iday,itim,k,off,sca,p(iqq(:),k)
+     &           iyr,imo,iday,itim,k,off,sca,p(iqq(:),k)
           write (iunp(nn),"('QV        ',i6,3i3,i4,f8.0,g8.1,9f8.5)") 
-     &	         iyr,imo,iday,itim,k,off,sca,qg(iqq(:),k)
+     &           iyr,imo,iday,itim,k,off,sca,qg(iqq(:),k)
           write (iunp(nn),"('QC        ',i6,3i3,i4,f8.0,g8.1,9f8.5)") 
-     &	         iyr,imo,iday,itim,k,off,sca,qlg(iqq(:),k)
+     &           iyr,imo,iday,itim,k,off,sca,qlg(iqq(:),k)
           write (iunp(nn),"('QI        ',i6,3i3,i4,f8.0,g8.1,9f8.5)") 
-     &	         iyr,imo,iday,itim,k,off,sca,qfg(iqq(:),k)
+     &           iyr,imo,iday,itim,k,off,sca,qfg(iqq(:),k)
           write (iunp(nn),"('CLC       ',i6,3i3,i4,f8.0,g8.1,9f8.3)") 
-     &	         iyr,imo,iday,itim,k,off,sca,cfrac(iqq(:),k)
+     &           iyr,imo,iday,itim,k,off,sca,cfrac(iqq(:),k)
          enddo   ! k  loop
 !        default values for 850, 700, 500, 250 (in case below ground)	  
          uu(:,:)=-99.
@@ -2641,45 +2645,45 @@ c     stuff from insoil  for soilv.h
           if(k>2.and.npres>0)go to 22  
          enddo   ! niq loop
          write (iunp(nn),"('T         ',i6,3i3,' 850',f8.0,g8.1,9f8.3)") 
-     &	  iyr,imo,iday,itim,off,sca,tt(:,1)
+     &    iyr,imo,iday,itim,off,sca,tt(:,1)
          write (iunp(nn),"('U         ',i6,3i3,' 850',f8.0,g8.1,9f8.3)") 
-     &	  iyr,imo,iday,itim,off,sca,uu(:,1)
+     &    iyr,imo,iday,itim,off,sca,uu(:,1)
          write (iunp(nn),"('V         ',i6,3i3,' 850',f8.0,g8.1,9f8.3)") 
-     &	  iyr,imo,iday,itim,off,sca,vv(:,1)
+     &    iyr,imo,iday,itim,off,sca,vv(:,1)
          write (iunp(nn),"('GPH       ',i6,3i3,' 850',f8.0,g8.1,9f8.0)")
-     &	  iyr,imo,iday,itim,off,sca,pp(:,1)
+     &    iyr,imo,iday,itim,off,sca,pp(:,1)
          write (iunp(nn),"('QV        ',i6,3i3,' 850',f8.0,g8.1,9f8.5)")
-     &	  iyr,imo,iday,itim,off,sca,qgg(:,1)
+     &    iyr,imo,iday,itim,off,sca,qgg(:,1)
          write (iunp(nn),"('T         ',i6,3i3,' 700',f8.0,g8.1,9f8.3)") 
-     &	  iyr,imo,iday,itim,off,sca,tt(:,2)
+     &    iyr,imo,iday,itim,off,sca,tt(:,2)
          write (iunp(nn),"('U         ',i6,3i3,' 700',f8.0,g8.1,9f8.3)") 
-     &	  iyr,imo,iday,itim,off,sca,uu(:,2)
+     &    iyr,imo,iday,itim,off,sca,uu(:,2)
          write (iunp(nn),"('V         ',i6,3i3,' 700',f8.0,g8.1,9f8.3)") 
-     &	  iyr,imo,iday,itim,off,sca,vv(:,2)
+     &    iyr,imo,iday,itim,off,sca,vv(:,2)
          write (iunp(nn),"('GPH       ',i6,3i3,' 700',f8.0,g8.1,9f8.0)") 
-     &	  iyr,imo,iday,itim,off,sca,pp(:,2)
+     &    iyr,imo,iday,itim,off,sca,pp(:,2)
          write (iunp(nn),"('QV        ',i6,3i3,' 700',f8.0,g8.1,9f8.5)") 
-     &	  iyr,imo,iday,itim,off,sca,qgg(:,2)
+     &    iyr,imo,iday,itim,off,sca,qgg(:,2)
          write (iunp(nn),"('T         ',i6,3i3,' 500',f8.0,g8.1,9f8.3)") 
-     &	  iyr,imo,iday,itim,off,sca,tt(:,3)
+     &    iyr,imo,iday,itim,off,sca,tt(:,3)
          write (iunp(nn),"('U         ',i6,3i3,' 500',f8.0,g8.1,9f8.3)") 
-     &	  iyr,imo,iday,itim,off,sca,uu(:,3)
+     &    iyr,imo,iday,itim,off,sca,uu(:,3)
          write (iunp(nn),"('V         ',i6,3i3,' 500',f8.0,g8.1,9f8.3)") 
-     &	  iyr,imo,iday,itim,off,sca,vv(:,3)
+     &    iyr,imo,iday,itim,off,sca,vv(:,3)
          write (iunp(nn),"('GPH       ',i6,3i3,' 500',f8.0,g8.1,9f8.0)")
-     &	  iyr,imo,iday,itim,off,sca,pp(:,3)
+     &    iyr,imo,iday,itim,off,sca,pp(:,3)
          write (iunp(nn),"('QV        ',i6,3i3,' 500',f8.0,g8.1,9f8.5)")
-     &	  iyr,imo,iday,itim,off,sca,qgg(:,3)
+     &    iyr,imo,iday,itim,off,sca,qgg(:,3)
          write (iunp(nn),"('T         ',i6,3i3,' 250',f8.0,g8.1,9f8.3)") 
-     &	  iyr,imo,iday,itim,off,sca,tt(:,4)
+     &    iyr,imo,iday,itim,off,sca,tt(:,4)
          write (iunp(nn),"('U         ',i6,3i3,' 250',f8.0,g8.1,9f8.3)") 
-     &	  iyr,imo,iday,itim,off,sca,uu(:,4)
+     &    iyr,imo,iday,itim,off,sca,uu(:,4)
          write (iunp(nn),"('V         ',i6,3i3,' 250',f8.0,g8.1,9f8.3)") 
-     &	  iyr,imo,iday,itim,off,sca,vv(:,4)
+     &    iyr,imo,iday,itim,off,sca,vv(:,4)
          write (iunp(nn),"('GPH       ',i6,3i3,' 250',f8.0,g8.1,9f8.0)")
-     &	  iyr,imo,iday,itim,off,sca,pp(:,4)
+     &    iyr,imo,iday,itim,off,sca,pp(:,4)
          write (iunp(nn),"('QV        ',i6,3i3,' 250',f8.0,g8.1,9f8.5)") 
-     &	  iyr,imo,iday,itim,off,sca,qgg(:,4)
+     &    iyr,imo,iday,itim,off,sca,qgg(:,4)
 
          do niq=1,9
           iq=iqq(niq)
@@ -2710,57 +2714,56 @@ c     stuff from insoil  for soilv.h
           div_inte=div_inte-div*dsig(k)*ps(iq)/grav
         enddo  ! k   loop
          write (iunp(nn),"('CLCT      ',i6,3i3,'   1',f8.0,g8.1,9f8.3)") 
-     &	         iyr,imo,iday,itim,off,sca,cloudtot(iqq(:)) 
+     &           iyr,imo,iday,itim,off,sca,cloudtot(iqq(:)) 
          write (iunp(nn),"('DZ_PBL    ',i6,3i3,'   1',f8.0,g8.1,9f8.1)") 
-     &	         iyr,imo,iday,itim,off,sca,pblh(iqq(:))
+     &           iyr,imo,iday,itim,off,sca,pblh(iqq(:))
          write (iunp(nn),"('EVAP_S    ',i6,3i3,'   1',f8.0,g8.1,9f8.3)") 
-     &	         iyr,imo,iday,itim,off,sca,evap(iqq(:))
+     &           iyr,imo,iday,itim,off,sca,evap(iqq(:))
          write(iunp(nn),"('IDIV_ENERG',i6,3i3,'   1',f8.0,2f8.0,8g8.1)") 
-     &	         iyr,imo,iday,itim,off,sca,div_inte,(1.e20,k=2,9) ! niq=1 
+     &           iyr,imo,iday,itim,off,sca,div_inte,(1.e20,k=2,9) ! niq=1 
          write(iunp(nn),"('IDIV_WATER',i6,3i3,'   1',f8.0,2f8.1,8g8.1)") 
-     &	         iyr,imo,iday,itim,off,sca,div_intq,(1.e20,k=2,9) ! niq=1 
+     &           iyr,imo,iday,itim,off,sca,div_intq,(1.e20,k=2,9) ! niq=1 
          sca=1.e9
          write(iunp(nn),"('IENERGY ',i8,3i3,'   1',f8.0,g8.1,-9p9f8.5)")
-     &	         iyr,imo,iday,itim,off,sca,energint(:)
+     &           iyr,imo,iday,itim,off,sca,energint(:)
          sca=1.
          write (iunp(nn),"('ISOILW    ',i6,3i3,'   1',f8.0,g8.1,9f8.3)")
-     &	   iyr,imo,iday,itim,off,sca,
+     &     iyr,imo,iday,itim,off,sca,
      &                  wb(iqq(:),1)*zse(1)+wb(iqq(:),2)*zse(2)+
      &                  wb(iqq(:),3)*zse(3)+wb(iqq(:),4)*zse(4)+
      &                  wb(iqq(:),5)*zse(5)+wb(iqq(:),6)*zse(6)  !  check
          write (iunp(nn),"('IWATER    ',i6,3i3,'   1',f8.0,g8.1,9f8.3)")
-     &	         iyr,imo,iday,itim,off,sca,pwater(:)
+     &           iyr,imo,iday,itim,off,sca,pwater(:)
          write (iunp(nn),"('PMSL      ',i6,3i3,'   1',f8.0,g8.1,9f8.2)")
-     &	         iyr,imo,iday,itim,off,sca,pmsl(iqq(:))*.01
+     &           iyr,imo,iday,itim,off,sca,pmsl(iqq(:))*.01
          write (iunp(nn),"('PS        ',i6,3i3,'   1',f8.0,g8.1,9f8.2)") 
-     &	         iyr,imo,iday,itim,off,sca,ps(iqq(:))*.01
+     &           iyr,imo,iday,itim,off,sca,ps(iqq(:))*.01
          write (iunp(nn),"('QV_2M     ',i6,3i3,'   1',f8.0,g8.1,9f8.5)") 
-     &	         iyr,imo,iday,itim,off,sca,qgscrn(iqq(:))
+     &           iyr,imo,iday,itim,off,sca,qgscrn(iqq(:))
          write (iunp(nn),"('RELHUM_2M ',i6,3i3,'   1',f8.0,g8.1,9f8.2)")
-     &	         iyr,imo,iday,itim,off,sca,rhscrn(iqq(:))
-c     &	         rh_s(:)
+     &           iyr,imo,iday,itim,off,sca,rhscrn(iqq(:))
          write (iunp(nn),"('RUNOFF    ',i6,3i3,'   1',f8.0,g8.1,9f8.3)")
-     &	         iyr,imo,iday,itim,off,sca,runoff(iqq(:))
+     &           iyr,imo,iday,itim,off,sca,runoff(iqq(:))
          write (iunp(nn),"('T_2M      ',i6,3i3,'   1',f8.0,g8.1,9f8.2)") 
-     &	         iyr,imo,iday,itim,off,sca,tscrn(iqq(:))
+     &           iyr,imo,iday,itim,off,sca,tscrn(iqq(:))
          write (iunp(nn),"('T_SKIN    ',i6,3i3,'   1',f8.0,g8.1,9f8.2)") 
-     &	         iyr,imo,iday,itim,off,sca,tss(iqq(:))
+     &           iyr,imo,iday,itim,off,sca,tss(iqq(:))
          write (iunp(nn),"('TMAX_2M   ',i6,3i3,'   1',f8.0,g8.1,9f8.2)") 
-     &	         iyr,imo,iday,itim,off,sca,tmaxscr(iqq(:))
+     &           iyr,imo,iday,itim,off,sca,tmaxscr(iqq(:))
          write (iunp(nn),"('TMIN_2M   ',i6,3i3,'   1',f8.0,g8.1,9f8.2)") 
-     &	         iyr,imo,iday,itim,off,sca,tminscr(iqq(:))
+     &           iyr,imo,iday,itim,off,sca,tminscr(iqq(:))
          write (iunp(nn),"('TOT_PREC  ',i6,3i3,'   1',f8.0,g8.1,9f8.2)")
-     &	         iyr,imo,iday,itim,off,sca,precip(iqq(:))
+     &           iyr,imo,iday,itim,off,sca,precip(iqq(:))
          write (iunp(nn),"('VABS_10M  ',i6,3i3,'   1',f8.0,g8.1,9f8.3)")
-     &	         iyr,imo,iday,itim,off,sca,u10(iqq(:))
+     &           iyr,imo,iday,itim,off,sca,u10(iqq(:))
          write (iunp(nn),"('W_SNOW    ',i6,3i3,'   1',f8.0,g8.1,9f8.3)") 
-     &	         iyr,imo,iday,itim,off,sca,snowd(iqq(:))*.001  ! converts mm to m
+     &           iyr,imo,iday,itim,off,sca,snowd(iqq(:))*.001  ! converts mm to m
          write (iunp(nn),"('SHFL_S    ',i6,3i3,'   1',f8.0,g8.1,9f8.2)")
-     &	         iyr,imo,iday,itim,off,sca,fg(iqq(:))
+     &           iyr,imo,iday,itim,off,sca,fg(iqq(:))
          write (iunp(nn),"('LHFL_S    ',i6,3i3,'   1',f8.0,g8.1,9f8.2)")
-     &	         iyr,imo,iday,itim,off,sca,eg(iqq(:))
+     &           iyr,imo,iday,itim,off,sca,eg(iqq(:))
          write (iunp(nn),"('SMHFL     ',i6,3i3,'   1',f8.0,g8.1,9f8.2)") 
-     &	         iyr,imo,iday,itim,off,sca,snowflx(iqq(:))
+     &           iyr,imo,iday,itim,off,sca,snowflx(iqq(:))
       enddo   ! nn=1,nstn
       return    
       end

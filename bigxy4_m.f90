@@ -6,7 +6,7 @@ private
 public xx4,yy4
 public bigxy4_init,bigxy4_end
 
-real*8, dimension(:,:), allocatable, save :: xx4,yy4
+real(kind=8), dimension(:,:), allocatable, save :: xx4,yy4
 
 contains
 

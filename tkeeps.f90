@@ -338,7 +338,8 @@ do kcount=1,mcount
           tlup(1)=thup(i,1)-sigkap(1)*(lv*(qlup(i,1)+qrup(i,1))+ls*qfup(i,1))/cp ! thetal,up
           qtup(1)=qvup(i,1)+qlup(i,1)+qfup(i,1)+qrup(i,1)                        ! qtot,up
           ttup(1)=tlup(1)/sigkap(1)                                              ! temp,up
-          tvup(1)=tlup(1)+theta(i,1)*0.61*qtup(1)                                ! thetav,up after evaporation of ql,up, qr,up and qf,up
+          tvup(1)=tlup(1)+theta(i,1)*0.61*qtup(1)                                ! thetav,up after evaporation of ql,up,
+                                                                                 ! qr,up and qf,up
           ! state of plume after evaporation
           qvup(i,1)=qtup(1)
           qlup(i,1)=0.
@@ -705,7 +706,8 @@ do kcount=1,mcount
   ! eps vertical mixing (done here as we skip level 1, instead of using trim)
   aa(:,2:kl-1)=ce0*kmo(:,1:kl-2)*qq(:,2:kl-1)
   cc(:,2:kl-1)=ce0*kmo(:,2:kl-1)*rr(:,2:kl-1)
-  bb(:,2:kl-1)=1.-aa(:,2:kl-1)-cc(:,2:kl-1)+ddts*ce2*eps(1:ifull,2:kl-1)/tke(1:ifull,2:kl-1) ! follow PH to make scheme more numerically stable
+  ! follow PH to make scheme more numerically stable
+  bb(:,2:kl-1)=1.-aa(:,2:kl-1)-cc(:,2:kl-1)+ddts*ce2*eps(1:ifull,2:kl-1)/tke(1:ifull,2:kl-1)
   dd(:,2:kl-1)=eps(1:ifull,2:kl-1)+ddts*eps(1:ifull,2:kl-1)/tke(1:ifull,2:kl-1) &
               *ce1*(pps(:,2:kl-1)+max(ppb(:,2:kl-1),0.)+max(ppt(:,2:kl-1),0.))
   dd(:,2)     =dd(:,2)   -aa(:,2)*eps(1:ifull,1)

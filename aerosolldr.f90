@@ -44,8 +44,10 @@ real, parameter :: dyn_visc = 1.5E-5
 logical, dimension(naero), parameter :: lwetdep = (/.false.,.true.,.true.,       & ! DMS, SO2, SO4
                                                  .true.,.true.,.true.,.true.,    & ! BCO, BCI, OCO, OCI
                                                  .true.,.true.,.true.,.true. /)    ! Dust
-real, dimension(ndust), parameter :: dustden = (/ 2500., 2650., 2650., 2650. /)    ! Density of dust (kg/m3)   (Clay, small silt, small slit, small silt)
-real, dimension(ndust), parameter :: dustreff = (/ 0.73e-6,1.4e-6,2.4e-6,4.5e-6 /) ! Main effective radius (m) (Clay, small silt, small slit, small silt)
+real, dimension(ndust), parameter :: dustden = (/ 2500., 2650., 2650., 2650. /)    ! Density of dust (kg/m3)
+                                                                                   ! (Clay, small silt, small slit, small silt)
+real, dimension(ndust), parameter :: dustreff = (/ 0.73e-6,1.4e-6,2.4e-6,4.5e-6 /) ! Main effective radius (m)
+                                                                                   ! (Clay, small silt, small slit, small silt)
 integer, parameter :: ndsrc = 1     ! No. of dust source types (1 = natural only)
 integer, parameter :: ndcls = 3     ! No. of dust emission classes (sand, silt, clay)
 integer, parameter :: ndsiz = ndust ! No. of dust size bins (note that NDUST may be larger than NDSIZ)
@@ -1041,7 +1043,7 @@ real xto(ifull,kl,naero),zx(ifull)
 integer ZRDAYL(ifull)
 real, dimension(ifull), intent(in) :: zdayfac
 integer, parameter :: nfastox=0 !1 for "fast" in-cloud oxidation; 0 for "slow"
-real xtoc,ctox,zfarr,x,y,zk,zh,ztpq
+real x
 real pcons2,zmin,pdtime,pqtmst
 real zk2i,zk2,zk2f,zk3,zmolgs,zmolgh2o2
 real zmolgair,zmolgw,zhpbase,ze1k,ze1h
@@ -1061,15 +1063,6 @@ real zrhoair,zkno2o3,zkn2o5aq,zrx1,zrx2
 real zkno2no3,zeqn2o5,ztk3,ztk2,zkn2o5
 real zno3,zxtp1so2
 integer niter,jt,jk,jl,js1,js2,js3,js4,jn
-
-! Local data, functions etc
-
-!     DEFINE FUNCTION FOR CHANGING THE UNITS
-!     FROM MASS-MIXING RATIO TO MOLECULES PER CM**3 AND VICE VERSA
-XTOC(X,Y)=X*6.022E+20/Y
-CTOX(X,Y)=Y/(6.022E+20*X)
-!   X = DENSITY OF AIR, Y = MOL WEIGHT IN GRAMM
-ZFARR(ZK,ZH,ZTPQ)=ZK*EXP(ZH*ZTPQ)
 
 ! Start code : ----------------------------------------------------------
 dmsoh(:)=0.
@@ -1689,15 +1682,11 @@ real zcollefr(maxnaero), zcollefs(maxnaero), Ecols(maxnaero), &
      Rcoeff(maxnaero), Evfac(maxnaero)
 
 integer kbase(ifull)
-real pow75,x
 real pqtmst,zmin,ziicscav,xdep,zicscav,xicscav,zevap
 real zilcscav,plambda,zbcscav,xbcscav,zstay,xstay
 real xevap,fracc,frc,pcevap
 
 integer ktop,jk,jl
-
-! Local data, functions etc
-pow75(x)=sqrt(x*sqrt(x))
 
 ! Start code : ----------------------------------------------------------
 
@@ -2431,5 +2420,36 @@ enddo
 
 return
 end subroutine convscav
+
+function xtoc(x,y) result(ans)
+implicit none
+real, intent(in) :: x, y
+real ans
+!     DEFINE FUNCTION FOR CHANGING THE UNITS
+!     FROM MASS-MIXING RATIO TO MOLECULES PER CM**3 AND VICE VERSA
+ans=X*6.022E+20/Y
+end function xtoc
+
+function ctox(x,y) result(ans)
+implicit none
+real, intent(in) :: x, y
+real ans
+ans=Y/(6.022E+20*X)
+end function ctox
+
+function zfarr(zk,zh,ztpq) result(ans)
+implicit none
+real, intent(in) :: zk, zh, ztpq
+real ans
+!   X = DENSITY OF AIR, Y = MOL WEIGHT IN GRAMM
+ans=ZK*EXP(ZH*ZTPQ)
+end function zfarr
+
+function pow75(x) result(ans)
+implicit none
+real, intent(in) :: x
+real ans
+ans=sqrt(x*sqrt(x))
+end function pow75
 
 end module aerosolldr

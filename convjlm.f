@@ -4,9 +4,10 @@
 !     N.B. old nevapcc option has been removed - now affects entrainment
       use aerosolldr
       use arrays_m   
-      use cc_mpi, only : mydiag, myid, bounds
+      use cc_mpi, only : mydiag, myid, bounds, ccmpi_abort
       use cfrac_m
       use diag_m
+      use estab
       use extraout_m
       use indices_m
       use kuocomb_m
@@ -31,7 +32,6 @@
       include 'kuocom.h'   ! kbsav,ktsav,convfact,convpsav,ndavconv
       include 'parm.h'
       include 'parmdyn.h'
-      include 'establ.h'
 
       integer itn,iq,k,k13,k23
      .       ,khalf,khalfp,kt
@@ -68,11 +68,10 @@ c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
 !     parameter (nuv=0)        ! usually 0, >0 to turn on new momentum mixing (base layers too)
       integer kcl_top          ! max level for cloud top (convjlm,radrive,vertmix)
 !     nevapls:  turn off/on ls evap - through parm.h; 0 off, 5 newer UK
-!     could reinstate nbase=0 & kbsav_b from .f0406
       integer ktmax(ifull),kbsav_ls(ifull),kb_sav(ifull),kt_sav(ifull)
       integer kkbb(ifull),kmin(ifull)
       integer iaero
-      integer, save :: k500,k900
+      integer, save :: k500,k900,klon2,klon23,k935,k972
       real, dimension(:), allocatable, save ::  timeconv,entrainn
       real, dimension(:,:), allocatable, save :: downex,upin,upin4
       real, dimension(:,:,:), allocatable, save :: detrarr
@@ -99,7 +98,6 @@ c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
       real fluxqs,fluxt_k(kl)
       real cfraclim(ifull),convtim(ifull),pblx(ifull)
       real ff(ifull,kl)
-      integer, save:: klon2,klon23,k935,k972
       
       if (.not.allocated(upin)) then
         k900=1
@@ -133,11 +131,11 @@ c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
         entrainn(:)=entrain  ! N.B. for nevapcc.ne.0, entrain handles type of scheme
      
         if (alflnd<0.or.alfsea<0.or.
-     &  (mbase<0.and.mbase.ne.-10.and.mbase.ne.-19.and.mbase.ne.-23).or.
-     &  (nbase.ne.-4.and.(nbase>-11.or.nbase<-13)))then
+     &  (mbase<0.and.mbase/=-10.and.mbase/=-19.and.mbase/=-23).or.
+     &  (nbase<=0.and.nbase/=-4.and.(nbase>-11.or.nbase<-13)))then
           write(6,*) "ERROR: negative alflnd and alfsea or"
           write(6,*) "unsupported mbase or nbase convjlm"
-          stop
+          call ccmpi_abort(-1)
         endif
         kb_saved(:)=kl-1
         kt_saved(:)=kl-1
@@ -317,35 +315,45 @@ c     typical tied_con=10,20 for C48, increasing for smaller ds  (i.e. 14, 28 fo
       if(nh.ne.0)phi(:,:)=phi(:,:)+phi_nh(:,:)  ! add non-hydrostatic component - MJT
 
 c      following defines kb_sav (as kkbb) for use by nbase=-12     
-        kkbb(:)=1
-        s(1:ifull,1)=cp*tt(1:ifull,1)+phi(1:ifull,1)  ! dry static energy
-       do k=2,k500   
-        if(nbase==-11)then
-         do iq=1,ifull
-           if(cp*tt(iq,k)+phi(iq,k)<s(iq,1)+cp)kkbb(iq)=k  ! simple +1deg s check for within PBL  
-         enddo    ! iq loop
-        elseif(nbase==-12)then
-         do iq=1,ifull
-!         find tentative cloud base ! 
-!            (middle of k-1 level, uppermost level below pblh)
-          if(phi(iq,k-1)<pblx(iq)*grav)kkbb(iq)=k-1
-         enddo    ! iq loop
-       else  ! e.g. nbase=-13
-         do iq=1,ifull
-!         find tentative cloud base ! 
-!            (uppermost layer, with approx. bottom of layer below pblh)
-          if(.5*(phi(iq,k-1)+phi(iq,k))<pblx(iq)*grav)kkbb(iq)=k
-         enddo    ! iq loop
-        endif
-       enddo     ! k loop
-
+       kkbb(:)=1
+       s(1:ifull,1)=cp*tt(1:ifull,1)+phi(1:ifull,1)  ! dry static energy
+       if(nbase>0)then
+        do k=2,k500
         do iq=1,ifull
-          if(land(iq))then
-            alfqarr(iq)=alflnd
-          else
-            alfqarr(iq)=alfsea
-          endif   ! (land(iq)) .. else ..
-        enddo
+         if(cp*tt(iq,k)+phi(iq,k)<s(iq,1)+.1*cp*nbase)kkbb(iq)=k  ! simple +.1*n deg s check for within PBL  
+        enddo    ! iq loop
+        enddo    ! k loop
+       elseif(nbase==-11)then
+        do k=2,k500   
+        do iq=1,ifull
+         if(cp*tt(iq,k)+phi(iq,k)<s(iq,1)+cp)kkbb(iq)=k  ! simple +1deg s check for within PBL  
+        enddo    ! iq loop
+        enddo     ! k loop	 
+       elseif(nbase==-12)then
+        do k=2,k500   
+        do iq=1,ifull
+!        find tentative cloud base ! 
+!           (middle of k-1 level, uppermost level below pblh)
+         if(phi(iq,k-1)<pblx(iq)*grav)kkbb(iq)=k-1
+        enddo    ! iq loop
+        enddo     ! k loop	 
+      else  ! e.g. nbase=-13
+        do k=2,k500   
+        do iq=1,ifull
+!        find tentative cloud base ! 
+!           (uppermost layer, with approx. bottom of layer below pblh)
+         if(.5*(phi(iq,k-1)+phi(iq,k))<pblx(iq)*grav)kkbb(iq)=k
+        enddo    ! iq loop
+        enddo     ! k loop	 
+       endif
+
+       do iq=1,ifull
+         if(land(iq))then
+           alfqarr(iq)=alflnd
+         else
+           alfqarr(iq)=alfsea
+         endif   ! (land(iq)) .. else ..
+       enddo
 
         if(mbase<=-20.and.mbase>-30)then
          do iq=1,ifull
@@ -379,19 +387,21 @@ c        briefly mbase=+9 had no wetfac test; briefly 0 same as -06
         endif  ! (mbase>=0)
 
 c        alfqarrx reduces over land and sea for finer resolution than 200 km grid            
+         alfqarrx(:)=alfqarr(:)
           if(tied_over>1.)then  ! e.g. 20 or 26
            do iq=1,ifull
             sum=ds/(em(iq)*208498.)
             alfqarrx(iq)=1.+(alfqarr(iq)-1.) *
      &      (1.+tied_over)*sum/(1.+tied_over*sum)
            enddo
-          else
-           do iq=1,ifull
-             sum=ds/(em(iq)*208498.)
-             alfqarrx(iq)=1.+(alfqarr(iq)-1.) *sqrt(sum)  ! early eqn
-           enddo
+c         else
+c          do iq=1,ifull
+c            sum=ds/(em(iq)*208498.)
+c            alfqarrx(iq)=1.+(alfqarr(iq)-1.) *sqrt(sum)  ! early eqn
+c          enddo
+c         endif
+          alfqarr(:)=alfqarrx(:)   ! general default, allowing for ds effects above
           endif
-         alfqarr(:)=alfqarrx(:)   ! general default, allowing for ds effects above
         if(nproc==1)then
           sum=0.
           do iq=1,ifull
@@ -932,7 +942,7 @@ c         if(fluxt(iq,k)<convpsav(iq))then
            idjd=iq
            convmax=convpsav(iq)
          endif
-        enddo	
+        enddo
       endif   !  (ntest==2)
       
       if(ntest>0.and.mydiag)then
@@ -1112,7 +1122,7 @@ c        diff=0, .14, .2, .3, .4, .5, .6, .7 gives detrainn=1, 1., 1., .69, .35,
           endif
          enddo
         enddo
-        if(nmaxpr==1.and.mydiag)print *,'timeconvb',timeconv(idjd)
+        if(nmaxpr==1.and.mydiag)write(6,*) 'timeconvb',timeconv(idjd)
         do iq=1,ifull
          if(convpsav(iq)>0.)then ! used by mdelay options
            timeconv(iq)=timeconv(iq)+dt/3600.
@@ -1120,8 +1130,10 @@ c        diff=0, .14, .2, .3, .4, .5, .6, .7 gives detrainn=1, 1., 1., .69, .35,
            timeconv(iq)=0.
          endif
         enddo
-        if(nmaxpr==1.and.mydiag)print *,'timeconvc,convpsav',
+        if(nmaxpr==1.and.mydiag)write(6,*) 'timeconvc,convpsav',
      &    timeconv(idjd),convpsav(idjd)
+      endif    ! (itn==1)   ! moved up before factr on 7/3/14
+      
         if(convtime<0.)then
 c         options to define factr so it is small for (longer-lived) shallow clouds       
          if(nint(convtime)==-1)then  ! -1.
@@ -1148,8 +1160,20 @@ c         options to define factr so it is small for (longer-lived) shallow clou
      &                        (sig(kb_sav(iq))-sig(kt_sav(iq)))/.6)  ! -24
           enddo
          endif
+          if(nint(convtime)==-26)then  
+          do iq=1,ifull     ! 60 mins for .6; 80m for .45; 120m for .3; 240m for .15
+           factr(iq)=min(1.,(dt/3600.)*
+     &                        (sig(kb_sav(iq))-sig(kt_sav(iq)))/.6)  ! -24
+          enddo
+         endif
         endif  ! (convtime<0.)
-      endif    ! (itn==1)
+          if(tied_over<0)then  ! e.g. -10 giving .55 for 20 km
+           do iq=1,ifull
+            sum=ds/(em(iq)*208498.)
+            factr(iq)=factr(iq)*(1.-tied_over)*sum/(1.-tied_over*sum)
+           enddo
+        endif  ! (tied_over<0)
+c     endif    ! (itn==1)
 
       if(nmaxpr==1.and.nevapcc.ne.0.and.mydiag)then
        write (6,
@@ -1175,9 +1199,10 @@ c         options to define factr so it is small for (longer-lived) shallow clou
        endif  ! (ktsav(iq)==kl-1.and.convpsav(iq)>0.)
       enddo   ! iq loop
 
-      if(itn<iterconv.or.iterconv<0)then   ! iterconv<0 calls convjlm twice, and does convfact*
-        convpsav(:)=convfact*convpsav(:) ! typically convfact=1.02  
-      endif                              ! (itn<iterconv.or.iterconv<0)
+c      if(itn<iterconv.or.iterconv<0)then   ! iterconv<0 calls convjlm twice, and does convfact*
+c       convpsav(:)=convfact*convpsav(:) ! typically convfact=1.05
+        convpsav(:)=convfact*convpsav(:)*factr(:) ! typically convfact=1.05, factr  from 7/3/14 
+c      endif                              ! (itn<iterconv.or.iterconv<0)
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       rnrtcn(:)=rnrtcn(:)-qxcess(:)
 
@@ -1449,12 +1474,12 @@ c          itns 2 & 3 only update saved values if convection occurred
         write(6,*) 'convtime,factr,kb_sav,kt_sav',convtime,factr(idjd)
      &          ,kb_sav(idjd),kt_sav(idjd)
       endif
-      rnrtc(:)=factr(:)*rnrtc(:)
-      do k=1,kl
-      qq(1:ifull,k)=qg(1:ifull,k)+factr(:)*(qq(1:ifull,k)-qg(1:ifull,k))
-      qliqw(1:ifull,k)=factr(:)*qliqw(1:ifull,k)      
-      tt(1:ifull,k)= t(1:ifull,k)+factr(:)*(tt(1:ifull,k)- t(1:ifull,k))
-      enddo
+c     rnrtc(:)=factr(:)*rnrtc(:)   factr uncluded in convpsav from 7/3/14
+c      do k=1,kl
+c      qq(1:ifull,k)=qg(1:ifull,k)+factr(:)*(qq(1:ifull,k)-qg(1:ifull,k))
+c      qliqw(1:ifull,k)=factr(:)*qliqw(1:ifull,k)      
+c      tt(1:ifull,k)= t(1:ifull,k)+factr(:)*(tt(1:ifull,k)- t(1:ifull,k))
+c      enddo
 
 !     update qq, tt for evap of qliqw (qliqw arose from moistening)
       if(ldr.ne.0)then
@@ -1604,7 +1629,7 @@ c           if(evapls>0.)write(6,*) 'iq,k,evapls ',iq,k,evapls
       precc(1:ifull)=precc(1:ifull)+condc(1:ifull)       
 c    N.B. condx used to update rnd03,...,rnd24. LS added in leoncld.f       
       condx(1:ifull)=condc(1:ifull)+.001*dt*rnrt(1:ifull) ! total precip for this timestep
-      conds(1:ifull)=0.
+      conds(:)=0.   ! (:) here for easy use in VCAM
       precip(1:ifull)=precip(1:ifull)+condx(1:ifull)
       t(1:ifull,:)=tt(1:ifull,:)             
 

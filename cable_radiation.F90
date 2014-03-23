@@ -120,6 +120,7 @@ SUBROUTINE init_radiation( met, rad, veg, canopy )
 
    ENDDO
    
+   ! MJT bug fix ----------------------------------------------------
    !IF( .NOT. cable_runtime%um) THEN
    !
    !   ! Define beam fraction, fbeam:
@@ -133,6 +134,7 @@ SUBROUTINE init_radiation( met, rad, veg, canopy )
    !   END WHERE
    ! 
    !ENDIF
+   ! ----------------------------------------------------------------
    
    ! In gridcells where vegetation exists....
    WHERE (canopy%vlaiw > C%LAI_THRESH)    
@@ -259,7 +261,7 @@ SUBROUTINE radiation( ssnow, veg, air, met, rad, canopy )
 
    ! Convert radiative conductance from m/s to mol/m2/s:
    rad%gradis=SPREAD(air%cmolar, 2, mf)*rad%gradis
-   rad%gradis = MAX(1.0e-3_r_2,rad%gradis)
+   rad%gradis = MAX(1.0e-3,rad%gradis)
 
    ! Update extinction coefficients and fractional transmittance for 
    ! leaf transmittance and REFLection (ie. NOT black leaves):

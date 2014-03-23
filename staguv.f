@@ -174,7 +174,7 @@ c          vout(iq,k)=.5*(vin(inv(iq),k)+vin(iq,k))
                enddo
             end do
          end do                 ! itn=1,itnmax
-	 
+ 
       end if
 
       do k=1,kl

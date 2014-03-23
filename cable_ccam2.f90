@@ -135,6 +135,7 @@ subroutine sib4
 
 use arrays_m
 use carbpools_m
+use estab
 use extraout_m
 use infile
 use latlong_m
@@ -158,7 +159,6 @@ implicit none
 include 'newmpar.h'
 include 'const_phys.h'
 include 'dates.h'
-include 'establ.h'
 include 'parm.h'
 
 ! for calculation of zenith angle
@@ -224,7 +224,7 @@ call setlai(sigmf,jyear,jmonth,jday,jhour,jmin)
 
 rough%hruff=max(0.01,veg%hc-1.2*ssnow%snowd/max(ssnow%ssdnn,100.))
 rough%hruff_grmx=rough%hruff ! Does nothing in CABLE v2.0
- 
+  
 !--------------------------------------------------------------
 ! CABLE
 ktau_gl=900
@@ -567,48 +567,54 @@ elsewhere
 endwhere
 do nb=1,maxnb ! update snow (diagnostic only)
   do k=1,3
-    where (ssnow%isflag(pind(nb,1):pind(nb,2))<isflag(cmap(pind(nb,1):pind(nb,2))).and.k==1)               ! pack 1-layer into 3-layer
-      tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k) &                          ! pack 1-layer into 3-layer
-                                       +sv(pind(nb,1):pind(nb,2))*ssnow%tgg(pind(nb,1):pind(nb,2),1)       ! pack 1-layer into 3-layer
-      smass(cmap(pind(nb,1):pind(nb,2)),k)=smass(cmap(pind(nb,1):pind(nb,2)),k) &                          ! pack 1-layer into 3-layer
-                                       +sv(pind(nb,1):pind(nb,2))*0.05*ssnow%ssdn(pind(nb,1):pind(nb,2),1) ! pack 1-layer into 3-layer
-      ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k) &                            ! pack 1-layer into 3-layer
-                                       +sv(pind(nb,1):pind(nb,2))*ssnow%ssdn(pind(nb,1):pind(nb,2),1)      ! pack 1-layer into 3-layer
-    elsewhere (ssnow%isflag(pind(nb,1):pind(nb,2))<isflag(cmap(pind(nb,1):pind(nb,2))).and.k==2)           ! pack 1-layer into 3-layer
-      tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k) &                          ! pack 1-layer into 3-layer
-                                       +sv(pind(nb,1):pind(nb,2))*ssnow%tgg(pind(nb,1):pind(nb,2),1)       ! pack 1-layer into 3-layer
-      smass(cmap(pind(nb,1):pind(nb,2)),k)=smass(cmap(pind(nb,1):pind(nb,2)),k) &                          ! pack 1-layer into 3-layer
-                                       +sv(pind(nb,1):pind(nb,2))*(ssnow%snowd(pind(nb,1):pind(nb,2)) &    ! pack 1-layer into 3-layer
-                                       -0.05*ssnow%ssdn(pind(nb,1):pind(nb,2),1))*0.4                      ! pack 1-layer into 3-layer
-      ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k) &                            ! pack 1-layer into 3-layer
-                                       +sv(pind(nb,1):pind(nb,2))*ssnow%ssdn(pind(nb,1):pind(nb,2),1)      ! pack 1-layer into 3-layer
-    elsewhere (ssnow%isflag(pind(nb,1):pind(nb,2))<isflag(cmap(pind(nb,1):pind(nb,2))).and.k==3)           ! pack 1-layer into 3-layer
-      tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k) &                          ! pack 1-layer into 3-layer
-                                       +sv(pind(nb,1):pind(nb,2))*ssnow%tgg(pind(nb,1):pind(nb,2),1)       ! pack 1-layer into 3-layer
-      smass(cmap(pind(nb,1):pind(nb,2)),k)=smass(cmap(pind(nb,1):pind(nb,2)),k) &                          ! pack 1-layer into 3-layer
-                                       +sv(pind(nb,1):pind(nb,2))*(ssnow%snowd(pind(nb,1):pind(nb,2)) &    ! pack 1-layer into 3-layer
-                                       -0.05*ssnow%ssdn(pind(nb,1):pind(nb,2),1))*0.6                      ! pack 1-layer into 3-layer
-      ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k) &                            ! pack 1-layer into 3-layer
-                                       +sv(pind(nb,1):pind(nb,2))*ssnow%ssdn(pind(nb,1):pind(nb,2),1)      ! pack 1-layer into 3-layer
-    elsewhere (ssnow%isflag(pind(nb,1):pind(nb,2))>isflag(cmap(pind(nb,1):pind(nb,2))).and.k==1)           ! pack 3-layer into 1-layer
-      tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k) &                          ! pack 3-layer into 1-layer
-                                       +sv(pind(nb,1):pind(nb,2))*273.16                                   ! pack 3-layer into 1-layer
-      smass(cmap(pind(nb,1):pind(nb,2)),k)=smass(cmap(pind(nb,1):pind(nb,2)),k) &                          ! pack 3-layer into 1-layer
-                                       +sv(pind(nb,1):pind(nb,2))*ssnow%snowd(pind(nb,1):pind(nb,2))       ! pack 3-layer into 1-layer
-      ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k) &                            ! pack 3-layer into 1-layer
-                                      +sv(pind(nb,1):pind(nb,2))*ssnow%ssdnn(pind(nb,1):pind(nb,2))        ! pack 3-layer into 1-layer
-    elsewhere (ssnow%isflag(pind(nb,1):pind(nb,2))>isflag(cmap(pind(nb,1):pind(nb,2))).and.k>=2)           ! pack 3-layer into 1-layer
-      tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k) &                          ! pack 3-layer into 1-layer
-                                       +sv(pind(nb,1):pind(nb,2))*273.16                                   ! pack 3-layer into 1-layer
-      ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k) &                            ! pack 3-layer into 1-layer
-                                       +sv(pind(nb,1):pind(nb,2))*ssnow%ssdn(pind(nb,1):pind(nb,2),k)      ! pack 3-layer into 1-layer
-    elsewhere                                                                                              ! no change in layers
-      tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k) &                          ! no change in layers
-                                       +sv(pind(nb,1):pind(nb,2))*ssnow%tggsn(pind(nb,1):pind(nb,2),k)     ! no change in layers
-      smass(cmap(pind(nb,1):pind(nb,2)),k)=smass(cmap(pind(nb,1):pind(nb,2)),k) &                          ! no change in layers
-                                       +sv(pind(nb,1):pind(nb,2))*ssnow%smass(pind(nb,1):pind(nb,2),k)     ! no change in layers
-      ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k) &                            ! no change in layers
-                                       +sv(pind(nb,1):pind(nb,2))*ssnow%ssdn(pind(nb,1):pind(nb,2),k)      ! no change in layers
+    ! pack 1-layer into 3-layer
+    where (ssnow%isflag(pind(nb,1):pind(nb,2))<isflag(cmap(pind(nb,1):pind(nb,2))).and.k==1)               
+      tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k)                            &
+                                       +sv(pind(nb,1):pind(nb,2))*ssnow%tgg(pind(nb,1):pind(nb,2),1) 
+      smass(cmap(pind(nb,1):pind(nb,2)),k)=smass(cmap(pind(nb,1):pind(nb,2)),k)                            &
+                                       +sv(pind(nb,1):pind(nb,2))*0.05*ssnow%ssdn(pind(nb,1):pind(nb,2),1)
+      ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k)                              &
+                                       +sv(pind(nb,1):pind(nb,2))*ssnow%ssdn(pind(nb,1):pind(nb,2),1)
+    ! pack 1-layer into 3-layer
+    elsewhere (ssnow%isflag(pind(nb,1):pind(nb,2))<isflag(cmap(pind(nb,1):pind(nb,2))).and.k==2)     
+      tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k)                            &
+                                       +sv(pind(nb,1):pind(nb,2))*ssnow%tgg(pind(nb,1):pind(nb,2),1)       
+      smass(cmap(pind(nb,1):pind(nb,2)),k)=smass(cmap(pind(nb,1):pind(nb,2)),k)                            &
+                                       +sv(pind(nb,1):pind(nb,2))*(ssnow%snowd(pind(nb,1):pind(nb,2))      &
+                                       -0.05*ssnow%ssdn(pind(nb,1):pind(nb,2),1))*0.4                      
+      ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k)                              &
+                                       +sv(pind(nb,1):pind(nb,2))*ssnow%ssdn(pind(nb,1):pind(nb,2),1) 
+    ! pack 1-layer into 3-layer
+    elsewhere (ssnow%isflag(pind(nb,1):pind(nb,2))<isflag(cmap(pind(nb,1):pind(nb,2))).and.k==3)   
+      tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k)                            &
+                                       +sv(pind(nb,1):pind(nb,2))*ssnow%tgg(pind(nb,1):pind(nb,2),1)       
+      smass(cmap(pind(nb,1):pind(nb,2)),k)=smass(cmap(pind(nb,1):pind(nb,2)),k)                            &
+                                       +sv(pind(nb,1):pind(nb,2))*(ssnow%snowd(pind(nb,1):pind(nb,2))      &
+                                       -0.05*ssnow%ssdn(pind(nb,1):pind(nb,2),1))*0.6                      
+      ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k)                              &
+                                       +sv(pind(nb,1):pind(nb,2))*ssnow%ssdn(pind(nb,1):pind(nb,2),1)
+    ! pack 3-layer into 1-layer
+    elsewhere (ssnow%isflag(pind(nb,1):pind(nb,2))>isflag(cmap(pind(nb,1):pind(nb,2))).and.k==1)
+      tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k)                            &
+                                       +sv(pind(nb,1):pind(nb,2))*273.16                                  
+      smass(cmap(pind(nb,1):pind(nb,2)),k)=smass(cmap(pind(nb,1):pind(nb,2)),k)                            &
+                                       +sv(pind(nb,1):pind(nb,2))*ssnow%snowd(pind(nb,1):pind(nb,2))      
+      ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k)                              &
+                                      +sv(pind(nb,1):pind(nb,2))*ssnow%ssdnn(pind(nb,1):pind(nb,2))        
+    ! pack 3-layer into 1-layer
+    elsewhere (ssnow%isflag(pind(nb,1):pind(nb,2))>isflag(cmap(pind(nb,1):pind(nb,2))).and.k>=2)
+      tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k)                            &
+                                       +sv(pind(nb,1):pind(nb,2))*273.16                        
+      ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k)                              &
+                                       +sv(pind(nb,1):pind(nb,2))*ssnow%ssdn(pind(nb,1):pind(nb,2),k) 
+    ! no change in layers
+    elsewhere                                                                                              
+      tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k)                            &
+                                       +sv(pind(nb,1):pind(nb,2))*ssnow%tggsn(pind(nb,1):pind(nb,2),k)
+      smass(cmap(pind(nb,1):pind(nb,2)),k)=smass(cmap(pind(nb,1):pind(nb,2)),k)                            &
+                                       +sv(pind(nb,1):pind(nb,2))*ssnow%smass(pind(nb,1):pind(nb,2),k)   
+      ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k)                              &
+                                       +sv(pind(nb,1):pind(nb,2))*ssnow%ssdn(pind(nb,1):pind(nb,2),k)
     end where
   end do
   ssdnn(cmap(pind(nb,1):pind(nb,2)))=ssdnn(cmap(pind(nb,1):pind(nb,2))) &
@@ -1477,12 +1483,18 @@ if (mp>0) then
     xfherbivore   =(/ 0.068,0.406,0.068,0.134,0.022,0.109,0.109,0.109,0.140,0.140,0.000,0.000,0.000,0.010,0.000,0.000,0.000 /)
     xxkleafcoldmax=(/   0.2,  0.1,  0.1,  0.6,   1.,  0.2,  0.2,  0.2,  0.3,  0.3,  0.1,  0.1,  0.1,  0.1,  0.1,  0.1,  0.1 /)
     xxkleafdrymax =(/   0.1,  0.1,  0.1,   1.,  0.1,  0.1,  0.1,  0.1,  0.1,  0.1,  0.1,  0.1,  0.1,  0.1,  0.1,  0.1,  0.1 /)
-    xratioNPleafmin =(/ 10.92308,15.95339,9.254839,12.73848,12.07217,13.51473,   14.05,12.57800,15.12262,10.,13.,10.,10., 16.2336,10.,10.,10. /)
-    xratioNPleafmax =(/ 12.07288, 17.6327,10.22903,14.07938,13.34292,14.93733,15.52895,  13.902,16.71447,10.,13.,10.,10., 17.9424,10.,10.,10. /)
-    xratioNPwoodmin =(/ 20.30167,15.89425,17.48344,19.08018,22.46035,     15.,     15.,   15.96,   20.52,15.,15.,15.,15., 17.5275,15.,15.,15. /)
-    xratioNPwoodmax =(/ 22.43869,17.56733, 19.3238,21.08862, 24.8246,     15.,     15.,   17.64,   20.52,15.,15.,15.,15., 19.3725,15.,15.,15. /)
-    xratioNPfrootmin=(/ 20.29341,15.87155,17.39767, 19.0601,22.49363,15.63498,16.08255,14.49241,22.69109,15.,15.,15.,15.,22.13268,15.,15.,15. /)
-    xratioNPfrootmax=(/ 22.42955,17.54224,  19.229,21.06643,24.86138,17.28077,17.77545,16.01793,25.07962,15.,15.,15.,15.,24.46244,15.,15.,15. /)
+    xratioNPleafmin =(/ 10.92308,15.95339,9.254839,12.73848,12.07217,13.51473,   14.05,12.57800,15.12262,10.,13.,10.,10., 16.2336, &
+                        10.,10.,10. /)
+    xratioNPleafmax =(/ 12.07288, 17.6327,10.22903,14.07938,13.34292,14.93733,15.52895,  13.902,16.71447,10.,13.,10.,10., 17.9424, &
+                        10.,10.,10. /)
+    xratioNPwoodmin =(/ 20.30167,15.89425,17.48344,19.08018,22.46035,     15.,     15.,   15.96,   20.52,15.,15.,15.,15., 17.5275, &
+                        15.,15.,15. /)
+    xratioNPwoodmax =(/ 22.43869,17.56733, 19.3238,21.08862, 24.8246,     15.,     15.,   17.64,   20.52,15.,15.,15.,15., 19.3725, &
+                        15.,15.,15. /)
+    xratioNPfrootmin=(/ 20.29341,15.87155,17.39767, 19.0601,22.49363,15.63498,16.08255,14.49241,22.69109,15.,15.,15.,15.,22.13268, &
+                        15.,15.,15. /)
+    xratioNPfrootmax=(/ 22.42955,17.54224,  19.229,21.06643,24.86138,17.28077,17.77545,16.01793,25.07962,15.,15.,15.,15.,24.46244, &
+                        15.,15.,15. /)
     xfNminloss=0.05
     xfNminleach=0.05
     xnfixrate=(/ 0.08,2.6,0.21,1.64,0.37,0.95,0.95,0.95,4.,4.,0.,0.,0.,0.35,0.,0.,0. /)
@@ -1502,36 +1514,66 @@ if (mp>0) then
     ratiocnsoilmax(:,3)=15.
      
     ! Initial values for CNP pools over 3*plant, 3*litter and 3*soil (=27 pools in total)
-    cleaf  =(/ 384.6037,    273.,96.59814,150.2638,     88.,137.1714,137.1714,137.1714,    160.,    160.,0.,0.,0.,      0.,0.,0.,0. /)
-    cwood  =(/ 7865.396,  11451.,5683.402,10833.74,    372.,      0.,      0.,      0.,      0.,      0.,0.,0.,0.,      0.,0.,0.,0. /)
-    cfroot =(/     250.,   2586.,    220.,    220.,    140.,    263.,    263.,    263.,    240.,    240.,0.,0.,0.,      0.,0.,0.,0. /)
-    cmet   =(/ 6.577021,44.63457,7.127119,10.97797,3.229374,28.57245,28.57245,28.57245,28.57245,28.57245,0.,0.,0.,1.457746,0.,0.,0. /)
-    cstr   =(/ 209.1728,433.7626,277.7733,312.5492,39.44449,50.91091,50.91091,50.91091,50.91091,50.91091,0.,0.,0.,4.956338,0.,0.,0. /)
-    ccwd   =(/ 606.0255,1150.765,776.7331,888.5864,111.5864,      0.,      0.,      0.,      0.,      0.,0.,0.,0.,28.44085,0.,0.,0. /) 
-    cmic   =(/  528.664,11.37765,597.0785,405.5554,168.0451,425.6431,425.6431,425.6431,512.4247,512.4247,0.,0.,0.,57.77585,0.,0.,0. /)
-    cslow  =(/ 13795.94,311.8092,16121.12,11153.25,4465.478,5694.437,5694.437,5694.437,6855.438,6855.438,0.,0.,0.,1325.052,0.,0.,0. /)
-    cpass  =(/ 4425.396,13201.81,5081.802,5041.192,1386.477, 4179.92, 4179.92, 4179.92,5032.137,5032.137,0.,0.,0.,517.1719,0.,0.,0. /)
-    nleaf  =(/ 7.541249,     9.9,1.609969,3.756594,2.933333,4.572381,4.572381,4.572381,5.333333,5.333333,0.,0.,0.,     0.5,0.,0.,0. /)
-    nwood  =(/ 31.46159,    102.,22.73361,80.24989,2.755555,      0.,      0.,      0.,      0.,      0.,0.,0.,0.,0.125926,0.,0.,0. /)
-    nfroot =(/ 6.097561,     38.,5.365854,5.365854,3.414634,6.414634,6.414634,6.414634,5.853659,5.853659,0.,0.,0.,1.536585,0.,0.,0. /)
-    nmet   =(/ 0.064481, 0.74391,0.059393,0.137225,0.053823,0.476208,0.476208,0.476208,0.476208,0.476208,0.,0.,0.,0.018222,0.,0.,0. /)
-    nstr   =(/ 1.394485,2.891751,1.851822,2.083661,0.262963,0.339406,0.339406,0.339406,0.339406,0.339406,0.,0.,0.,0.033042,0.,0.,0. /)
-    ncwd   =(/ 2.424102,8.524183,3.106932,6.581996,0.826566,      0.,      0.,      0.,      0.,      0.,0.,0.,0.,0.210673,0.,0.,0. /)
-    nmic   =(/  52.8664,1.137765,59.70785,40.55554,16.80451,42.56431,42.56431,42.56431,51.24247,51.24247,0.,0.,0.,5.777585,0.,0.,0. /)
-    nslow  =(/ 919.7293,20.78728,1074.741,743.5501,297.6985,379.6291,379.6291,379.6291,457.0292,457.0292,0.,0.,0.,88.33682,0.,0.,0. /)
-    npass  =(/ 295.0264,880.1209,338.7868,336.0795, 92.4318,278.6613,278.6613,278.6613,335.4758,335.4758,0.,0.,0.,34.47813,0.,0.,0. /)
-    xpleaf =(/ 0.191648,   0.415,0.115988,0.135453,0.022821, 0.15125, 0.15125, 0.15125, 0.15125, 0.15125,0.,0.,0.,   0.007,0.,0.,0. /)
-    xpwood =(/ 0.953979,    5.88, 0.64438,2.424778,      0.,      0.,      0.,      0.,      0.,      0.,0.,0.,0.,      0.,0.,0.,0. /)
-    xpfroot=(/ 0.076659,    1.95,0.080548,0.141097,0.037083, 0.15125, 0.15125, 0.15125, 0.15125, 0.15125,0.,0.,0., 0.00875,0.,0.,0. /)
-    xpmet  =(/ 0.004385,0.029756,0.004751,0.007319,0.002153,0.019048,0.019048,0.019048,0.019048,0.019048,0.,0.,0.,0.000972,0.,0.,0. /)
-    xpstr  =(/ 0.069724,0.144588,0.092591,0.104183,0.013148, 0.01697, 0.01697, 0.01697, 0.01697, 0.01697,0.,0.,0.,0.001652,0.,0.,0. /)
-    xpcwd  =(/ 0.101004,0.191794,0.129456,0.148095,0.018598,      0.,      0.,      0.,      0.,      0.,0.,0.,0.,      0.,0.,0.,0. /)
-    xpmic  =(/ 6.872632, 0.14791,7.762021, 5.27222,2.184586,5.533361,5.533361,5.533361,6.661522,6.661522,0.,0.,0.,0.751086,0.,0.,0. /)
-    xpslow =(/ 119.5648,2.702347,139.7164,96.66152,38.70081,49.35178,49.35178,49.35178, 59.4138, 59.4138,0.,0.,0.,11.48379,0.,0.,0. /)
-    xppass =(/ 38.35343,114.4157,44.04228,43.69033,12.01613,36.22598,36.22598,36.22598,43.61185,43.61185,0.,0.,0.,4.482157,0.,0.,0. /)
-    xplab  =(/   26.737,  19.947,  29.107,  30.509,  23.206,  25.538,  25.538,  25.538,  27.729,  27.729,0.,0.,0.,  21.038,0.,0.,0.103 /)
-    xpsorb =(/   126.73,  92.263, 134.639, 132.012,  173.47, 186.207, 186.207, 186.207, 155.518, 155.518,0.,0.,0.,  255.79,0.,0.,1.176 /)
-    xpocc  =(/  138.571, 120.374,  138.22, 148.083, 114.496, 145.163, 145.163, 145.163, 158.884, 158.884,0.,0.,0., 108.897,0.,0.,0.688 /)
+    cleaf  =(/ 384.6037,    273.,96.59814,150.2638,     88.,137.1714,137.1714,137.1714,    160.,    160.,0.,0.,0.,      0.,0.,0., &
+              0. /)
+    cwood  =(/ 7865.396,  11451.,5683.402,10833.74,    372.,      0.,      0.,      0.,      0.,      0.,0.,0.,0.,      0.,0.,0., &
+              0. /)
+    cfroot =(/     250.,   2586.,    220.,    220.,    140.,    263.,    263.,    263.,    240.,    240.,0.,0.,0.,      0.,0.,0., &
+              0. /)
+    cmet   =(/ 6.577021,44.63457,7.127119,10.97797,3.229374,28.57245,28.57245,28.57245,28.57245,28.57245,0.,0.,0.,1.457746,0.,0., &
+              0. /)
+    cstr   =(/ 209.1728,433.7626,277.7733,312.5492,39.44449,50.91091,50.91091,50.91091,50.91091,50.91091,0.,0.,0.,4.956338,0.,0., &
+              0. /)
+    ccwd   =(/ 606.0255,1150.765,776.7331,888.5864,111.5864,      0.,      0.,      0.,      0.,      0.,0.,0.,0.,28.44085,0.,0., &
+              0. /) 
+    cmic   =(/  528.664,11.37765,597.0785,405.5554,168.0451,425.6431,425.6431,425.6431,512.4247,512.4247,0.,0.,0.,57.77585,0.,0., &
+              0. /)
+    cslow  =(/ 13795.94,311.8092,16121.12,11153.25,4465.478,5694.437,5694.437,5694.437,6855.438,6855.438,0.,0.,0.,1325.052,0.,0., &
+              0. /)
+    cpass  =(/ 4425.396,13201.81,5081.802,5041.192,1386.477, 4179.92, 4179.92, 4179.92,5032.137,5032.137,0.,0.,0.,517.1719,0.,0., &
+              0. /)
+    nleaf  =(/ 7.541249,     9.9,1.609969,3.756594,2.933333,4.572381,4.572381,4.572381,5.333333,5.333333,0.,0.,0.,     0.5,0.,0., &
+              0. /)
+    nwood  =(/ 31.46159,    102.,22.73361,80.24989,2.755555,      0.,      0.,      0.,      0.,      0.,0.,0.,0.,0.125926,0.,0., &
+              0. /)
+    nfroot =(/ 6.097561,     38.,5.365854,5.365854,3.414634,6.414634,6.414634,6.414634,5.853659,5.853659,0.,0.,0.,1.536585,0.,0., &
+              0. /)
+    nmet   =(/ 0.064481, 0.74391,0.059393,0.137225,0.053823,0.476208,0.476208,0.476208,0.476208,0.476208,0.,0.,0.,0.018222,0.,0., &
+              0. /)
+    nstr   =(/ 1.394485,2.891751,1.851822,2.083661,0.262963,0.339406,0.339406,0.339406,0.339406,0.339406,0.,0.,0.,0.033042,0.,0., &
+              0. /)
+    ncwd   =(/ 2.424102,8.524183,3.106932,6.581996,0.826566,      0.,      0.,      0.,      0.,      0.,0.,0.,0.,0.210673,0.,0., &
+              0. /)
+    nmic   =(/  52.8664,1.137765,59.70785,40.55554,16.80451,42.56431,42.56431,42.56431,51.24247,51.24247,0.,0.,0.,5.777585,0.,0., &
+               0. /)
+    nslow  =(/ 919.7293,20.78728,1074.741,743.5501,297.6985,379.6291,379.6291,379.6291,457.0292,457.0292,0.,0.,0.,88.33682,0.,0., &
+               0. /)
+    npass  =(/ 295.0264,880.1209,338.7868,336.0795, 92.4318,278.6613,278.6613,278.6613,335.4758,335.4758,0.,0.,0.,34.47813,0.,0., &
+               0. /)
+    xpleaf =(/ 0.191648,   0.415,0.115988,0.135453,0.022821, 0.15125, 0.15125, 0.15125, 0.15125, 0.15125,0.,0.,0.,   0.007,0.,0., &
+               0. /)
+    xpwood =(/ 0.953979,    5.88, 0.64438,2.424778,      0.,      0.,      0.,      0.,      0.,      0.,0.,0.,0.,      0.,0.,0., &
+               0. /)
+    xpfroot=(/ 0.076659,    1.95,0.080548,0.141097,0.037083, 0.15125, 0.15125, 0.15125, 0.15125, 0.15125,0.,0.,0., 0.00875,0.,0., &
+               0. /)
+    xpmet  =(/ 0.004385,0.029756,0.004751,0.007319,0.002153,0.019048,0.019048,0.019048,0.019048,0.019048,0.,0.,0.,0.000972,0.,0., &
+               0. /)
+    xpstr  =(/ 0.069724,0.144588,0.092591,0.104183,0.013148, 0.01697, 0.01697, 0.01697, 0.01697, 0.01697,0.,0.,0.,0.001652,0.,0., &
+               0. /)
+    xpcwd  =(/ 0.101004,0.191794,0.129456,0.148095,0.018598,      0.,      0.,      0.,      0.,      0.,0.,0.,0.,      0.,0.,0., &
+               0. /)
+    xpmic  =(/ 6.872632, 0.14791,7.762021, 5.27222,2.184586,5.533361,5.533361,5.533361,6.661522,6.661522,0.,0.,0.,0.751086,0.,0., &
+               0. /)
+    xpslow =(/ 119.5648,2.702347,139.7164,96.66152,38.70081,49.35178,49.35178,49.35178, 59.4138, 59.4138,0.,0.,0.,11.48379,0.,0., &
+               0. /)
+    xppass =(/ 38.35343,114.4157,44.04228,43.69033,12.01613,36.22598,36.22598,36.22598,43.61185,43.61185,0.,0.,0.,4.482157,0.,0., &
+               0. /)
+    xplab  =(/   26.737,  19.947,  29.107,  30.509,  23.206,  25.538,  25.538,  25.538,  27.729,  27.729,0.,0.,0.,  21.038,0.,0., &
+                 0.103 /)
+    xpsorb =(/   126.73,  92.263, 134.639, 132.012,  173.47, 186.207, 186.207, 186.207, 155.518, 155.518,0.,0.,0.,  255.79,0.,0., &
+                 1.176 /)
+    xpocc  =(/  138.571, 120.374,  138.22, 148.083, 114.496, 145.163, 145.163, 145.163, 158.884, 158.884,0.,0.,0., 108.897,0.,0., &
+                0.688 /)
  
     xkmlabp  =(/ 74.5408, 68.1584,  77.952,64.41918,64.41918,70.5856, 64.5888,54.1692, 9.7704, 28.29,  63.963,  32.402 /)
     xpsorbmax=(/ 745.408,788.0815,1110.816, 744.847, 744.847,816.146,746.8081,722.256,293.112,311.19,373.1175,615.6381 /)
@@ -1562,15 +1604,22 @@ if (mp>0) then
     casabiome%fracligninplant(:,xroot)=(/ 0.25,0.20,0.20,0.20,0.20,0.10,0.10,0.10,0.10,0.10,0.15,0.15,0.15,0.15,0.15,0.25,0.10 /)
     casabiome%glaimax=(/ 7.,7.,7.,7.,3.,3.,3.,3.,6.,6., 5., 5., 5., 1.,6., 1.,0. /)
     casabiome%glaimin=(/ 1.,1.,.5,.5,.1,.1,.1,.1,.1,.1,.05,.05,.05,.05,0.,.05,0. /)
-    phen%TKshed=(/ 268.,260.,263.15,268.15,277.15,275.15,275.15,275.15,278.15,278.15,277.15,277.15,277.15,277.15,277.15,277.15,283.15 /)
+    phen%TKshed=(/ 268.,260.,263.15,268.15,277.15,275.15,275.15,275.15,278.15,278.15,277.15,277.15,277.15,277.15,277.15,277.15, &
+                   283.15 /)
     casabiome%xkleafcoldexp=3.
     casabiome%xkleafdryexp=3.
-    casabiome%ratioNCplantmin(:,leaf) =(/     0.02,    0.04,0.016667,0.028571,   0.025, 0.02631,    0.02,    0.02,    0.04,    0.04,0.033333,   0.025,   0.025,0.018182,   0.025,   0.025,   0.025 /)
-    casabiome%ratioNCplantmax(:,leaf) =(/    0.024,   0.048,    0.02,0.034286,    0.03,0.031572,   0.024,   0.024,   0.048,   0.048,    0.04,    0.03,    0.03,0.022222,    0.03,    0.03,    0.03 /)
-    casabiome%ratioNCplantmin(:,wood) =(/    0.004,0.006667,   0.004,0.005714,0.006667,0.006667,0.006667,0.006667,   0.008,   0.008,0.006667,0.006667,0.006667,0.006667,0.006667,0.007307,0.006667 /)
-    casabiome%ratioNCplantmax(:,wood) =(/   0.0048,   0.008,  0.0048,0.006857,   0.008,   0.008,   0.008,   0.008,  0.0096,  0.0096,   0.008,   0.008,   0.008,   0.008,   0.008,0.008889,   0.008 /)
-    casabiome%ratioNCplantmin(:,xroot)=(/ 0.012821,0.014706,0.012821,0.014085,0.014085,0.014085,0.014085,0.014085,0.014085,0.014085,0.014085,0.014085,0.014085,0.014085,0.014085,0.014085,0.014085 /)
-    casabiome%ratioNCplantmax(:,xroot)=(/ 0.015385,0.017647,0.015385,0.016901,0.016901,0.016901,0.016901,0.016901,0.016901,0.016901,0.016901,0.016901,0.016901,0.016901,0.016901,0.016901,0.016901 /)
+    casabiome%ratioNCplantmin(:,leaf) =(/     0.02,    0.04,0.016667,0.028571,   0.025, 0.02631,    0.02,    0.02,    0.04, &
+                                              0.04,0.033333,   0.025,   0.025,0.018182,   0.025,   0.025,   0.025 /)
+    casabiome%ratioNCplantmax(:,leaf) =(/    0.024,   0.048,    0.02,0.034286,    0.03,0.031572,   0.024,   0.024,   0.048, &
+                                             0.048,    0.04,    0.03,    0.03,0.022222,    0.03,    0.03,    0.03 /)
+    casabiome%ratioNCplantmin(:,wood) =(/    0.004,0.006667,   0.004,0.005714,0.006667,0.006667,0.006667,0.006667,   0.008, &
+                                             0.008,0.006667,0.006667,0.006667,0.006667,0.006667,0.007307,0.006667 /)
+    casabiome%ratioNCplantmax(:,wood) =(/   0.0048,   0.008,  0.0048,0.006857,   0.008,   0.008,   0.008,   0.008,  0.0096, &
+                                            0.0096,   0.008,   0.008,   0.008,   0.008,   0.008,0.008889,   0.008 /)
+    casabiome%ratioNCplantmin(:,xroot)=(/ 0.012821,0.014706,0.012821,0.014085,0.014085,0.014085,0.014085,0.014085,0.014085, &
+                                          0.014085,0.014085,0.014085,0.014085,0.014085,0.014085,0.014085,0.014085 /)
+    casabiome%ratioNCplantmax(:,xroot)=(/ 0.015385,0.017647,0.015385,0.016901,0.016901,0.016901,0.016901,0.016901,0.016901, &
+                                          0.016901,0.016901,0.016901,0.016901,0.016901,0.016901,0.016901,0.016901 /)
     casabiome%ftransPPtoL(:,leaf)=0.5
     casabiome%ftransPPtoL(:,wood)=0.95
     casabiome%ftransPPtoL(:,xroot)=0.9
@@ -2116,8 +2165,8 @@ if (mp>0) then
     totdepth = totdepth + soil%zse(k)*100.
   enddo
 
-  ssnow%wb=max(ssnow%wb,0.)
-  ssnow%wbice=max(ssnow%wbice,0.)
+  ssnow%wb=max(ssnow%wb,0._r_2)
+  ssnow%wbice=max(ssnow%wbice,0._r_2)
   ssnow%smass=max(ssnow%smass,0.)
   ssnow%rtsoil=max(ssnow%rtsoil,0.)
   ssnow%snowd=max(ssnow%snowd,0.)
@@ -2157,8 +2206,8 @@ if (mp>0) then
     ssnow%wbtot=ssnow%wbtot+ssnow%wb(:,k)*1000.0*soil%zse(k)
     ssnow%tggav=ssnow%tggav+soil%zse(k)*ssnow%tgg(:,k)/(totdepth/100.)
     ssnow%gammzz(:,k)=max((1.-soil%ssat)*soil%css* soil%rhosoil &
-       & +(ssnow%wb(:,k)-ssnow%wbice(:,k))*4.218e3* 1000.       &
-       & +ssnow%wbice(:,k)*2.100e3*1000.*0.9,soil%css*soil%rhosoil)*soil%zse(k)
+       & +real(ssnow%wb(:,k)-ssnow%wbice(:,k))*4.218e3* 1000.       &
+       & +real(ssnow%wbice(:,k))*2.100e3*1000.*0.9,soil%css*soil%rhosoil)*soil%zse(k)
   end do
   bal%wbtot0=ssnow%wbtot
 
@@ -2166,9 +2215,9 @@ if (mp>0) then
     bgc%cplant=max(bgc%cplant,0.)
     bgc%csoil=max(bgc%csoil,0.)
   else
-    casapool%cplant     = max(0.,casapool%cplant)
-    casapool%clitter    = max(0.,casapool%clitter)
-    casapool%csoil      = max(0.,casapool%csoil)
+    casapool%cplant     = max(0._r_2,casapool%cplant)
+    casapool%clitter    = max(0._r_2,casapool%clitter)
+    casapool%csoil      = max(0._r_2,casapool%csoil)
     casabal%cplantlast(1:mp,1:mplant)   = casapool%cplant(1:mp,1:mplant)
     casabal%clitterlast(1:mp,1:mlitter) = casapool%clitter(1:mp,1:mlitter)
     casabal%csoillast(1:mp,1:msoil)     = casapool%csoil(1:mp,1:msoil)
@@ -2179,10 +2228,10 @@ if (mp>0) then
     casabal%FCnppyear   = 0.
     casabal%FCrsyear    = 0.
     casabal%FCneeyear   = 0.
-    casapool%nplant     = max(1.e-6,casapool%nplant)
-    casapool%nlitter    = max(1.e-6,casapool%nlitter)
-    casapool%nsoil      = max(1.e-6,casapool%nsoil)
-    casapool%nsoilmin   = max(1.e-6,casapool%nsoilmin)
+    casapool%nplant     = max(1.e-6_r_2,casapool%nplant)
+    casapool%nlitter    = max(1.e-6_r_2,casapool%nlitter)
+    casapool%nsoil      = max(1.e-6_r_2,casapool%nsoil)
+    casapool%nsoilmin   = max(1.e-6_r_2,casapool%nsoilmin)
     casabal%nplantlast(1:mp,1:mplant)   = casapool%nplant(1:mp,1:mplant)
     casabal%nlitterlast(1:mp,1:mlitter) = casapool%nlitter(1:mp,1:mlitter)
     casabal%nsoillast(1:mp,1:msoil)     = casapool%nsoil(1:mp,1:msoil)      
@@ -2194,12 +2243,12 @@ if (mp>0) then
     casabal%FNupyear    = 0.
     casabal%FNleachyear = 0.
     casabal%FNlossyear  = 0.
-    casapool%pplant     = max(1.0e-7,casapool%pplant)
-    casapool%plitter    = max(1.0e-7,casapool%plitter)
-    casapool%psoil      = max(1.0e-7,casapool%psoil)
-    casapool%Psoillab   = max(1.0e-7,casapool%psoillab)
-    casapool%psoilsorb  = max(1.0e-7,casapool%psoilsorb)
-    casapool%psoilocc   = max(1.0e-7,casapool%psoilocc)
+    casapool%pplant     = max(1.0e-7_r_2,casapool%pplant)
+    casapool%plitter    = max(1.0e-7_r_2,casapool%plitter)
+    casapool%psoil      = max(1.0e-7_r_2,casapool%psoil)
+    casapool%Psoillab   = max(1.0e-7_r_2,casapool%psoillab)
+    casapool%psoilsorb  = max(1.0e-7_r_2,casapool%psoilsorb)
+    casapool%psoilocc   = max(1.0e-7_r_2,casapool%psoilocc)
     casabal%pplantlast(1:mp,1:mplant)   = casapool%pplant(1:mp,1:mplant)
     casabal%plitterlast(1:mp,1:mlitter) = casapool%plitter(1:mp,1:mlitter)
     casabal%psoillast(1:mp,1:msoil)     = casapool%psoil(1:mp,1:msoil)       
@@ -2595,7 +2644,7 @@ do n=1,maxnb
   do iq=pind(n,1),pind(n,2)
     if (cmap(iq)==iqin) then
       do k=1,cbm_ms
-        ll=max(soil%sfc(iq)-ssnow%wb(iq,k),0.)*1000.*soil%zse(k)
+        ll=max(soil%sfc(iq)-real(ssnow%wb(iq,k)),0.)*1000.*soil%zse(k)
         ll=ll*rate*lmax
         yy=min(xx(n),ll)
         ssnow%wb(iq,k)=ssnow%wb(iq,k)+yy/(1000.*soil%zse(k))

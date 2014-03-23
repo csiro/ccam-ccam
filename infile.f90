@@ -1168,7 +1168,8 @@ integer, intent(out) :: jyear,jmonth,jday,jhour,jmin ! start date of run
 integer, intent(out) :: mins                         ! elapsed time from start of year
 integer mstart,elp,ierr
 integer, dimension(12) :: ndoy
-integer, dimension(12), parameter :: odoy=(/0,31,59,90,120,151,181,212,243,273,304,334/)      ! days from beginning of year (1st Jan is 0)
+! days from beginning of year (1st Jan is 0)
+integer, dimension(12), parameter :: odoy=(/0,31,59,90,120,151,181,212,243,273,304,334/) 
 real, intent(out) :: fjd
 logical, intent(in), optional :: allleap
 logical lleap

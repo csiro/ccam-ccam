@@ -17,7 +17,7 @@ c     modify toij5 for Cray
 !     temp needs iextra becaue it's used in ints
       real uc(ifull,kl),vc(ifull,kl),wc(ifull,kl)
       real, dimension(ifull+iextra,kl,3) :: temp
-      real*8 x3d(ifull,kl),y3d(ifull,kl),z3d(ifull,kl)   ! upglobal depts 
+      real(kind=8) x3d(ifull,kl),y3d(ifull,kl),z3d(ifull,kl)   ! upglobal depts 
       integer iq, k, intsch
 
 #include "log.h"
@@ -125,7 +125,7 @@ c     modify toij5 for Cray
       ! Is there an appropriate work common for this?
       real, dimension(ifull,kl) :: gx, gy, gz
       real, dimension(ifull+iextra,kl) :: derx, dery, derz
-      real*8 x3d(ifull,kl),y3d(ifull,kl),z3d(ifull,kl)
+      real(kind=8) x3d(ifull,kl),y3d(ifull,kl),z3d(ifull,kl)
       integer, parameter :: nit=3, ndiag=0
       integer :: iq, itn, k
       real :: uc, vc, wc
@@ -247,22 +247,27 @@ c     convert to grid point numbering
       use cc_mpi
       use work3f_m
       use xyzinfo_m
-c     modify toij5 for Cray
-      parameter (ncray=1)    ! 0 for most computers, 1 for Cray
-      parameter (ntest=0)
+      implicit none
       include 'newmpar.h'
       include 'parm.h'
       include 'parmgeom.h'  ! rlong0,rlat0,schmidt  
-      real*8 x3d(ifull),y3d(ifull),z3d(ifull)
+c     modify toij5 for Cray
+      integer, parameter :: ncray = 1 ! 0 for most computers, 1 for Cray
+      integer, parameter :: ntest = 0
+      integer, parameter :: nmaploop = 3
+      integer, parameter :: ndiag = 0
+      integer, save :: num = 0
+      integer iq,k,nf,loop,i,j,is,js
+      real(kind=8) x3d(ifull),y3d(ifull),z3d(ifull)
       real xstr(ifull),ystr(ifull),zstr(ifull)
-      real*8 alf,alfonsch,den,one  ! 6/11/07 esp for 200m
-      data one/1./             ! to force real*8
-      dimension xgx(0:5),xgy(0:5),xgz(0:5),ygx(0:5),ygy(0:5),ygz(0:5)
+      real denxyz,xd,yd,zd,ri,rj
+      real(kind=8) alf,alfonsch,den  ! 6/11/07 esp for 200m
+      real(kind=8) dxx,dxy,dyx,dyy
+      real(kind=8), parameter :: one = 1._8 ! to force real*8
+      real, dimension(0:5) :: xgx,xgy,xgz,ygx,ygy,ygz
       data xgx/0., 0., 0., 0., 1., 1./, ygx/0.,-1.,-1., 0., 0., 0./,
      .     xgy/1., 1., 0., 0., 0., 0./, ygy/0., 0., 0.,-1.,-1., 0./,
      .     xgz/0., 0.,-1.,-1., 0., 0./, ygz/1., 0., 0., 0., 0., 1./
-      data nmaploop/3/,ndiag/0/,num/0/
-      save num
 
 #include "log.h"
 
@@ -351,20 +356,20 @@ c         max() allows for 2 of x,y,z being 1.  This is the cunning code:
           yg(iq,k)=ygx(nf)*xd+ygy(nf)*yd+ygz(nf)*zd
         endif    ! (ncray.eq.1)
        enddo   ! iq loop   
-	if(ntest==1.and.k==nlv)then
-	 iq=idjd
-	 print *,'x3d,y3d,z3d ',x3d(iq),y3d(iq),z3d(iq)
+       if(ntest==1.and.k==nlv)then
+       iq=idjd
+       print *,'x3d,y3d,z3d ',x3d(iq),y3d(iq),z3d(iq)
          den=one-alf*z3d(iq) ! to force real*8
          print *,'den ',den
          denxyz=max( abs(xstr(iq)),abs(ystr(iq)),abs(zstr(iq)) )
          xd=xstr(iq)/denxyz
          yd=ystr(iq)/denxyz
          zd=zstr(iq)/denxyz
-	 print *,'k,xstr,ystr,zstr,denxyz ',
+         print *,'k,xstr,ystr,zstr,denxyz ',
      .            k,xstr(iq),ystr(iq),zstr(iq),denxyz
-	 print *,'abs(xstr,ystr,zstr) ',
+         print *,'abs(xstr,ystr,zstr) ',
      .            abs(xstr(iq)),abs(ystr(iq)),abs(zstr(iq))
-	 print *,'xd,yd,zd,nface ',xd,yd,zd,nface(iq,k)
+         print *,'xd,yd,zd,nface ',xd,yd,zd,nface(iq,k)
          print *,'alf,alfonsch ',alf,alfonsch
        endif
        if(ndiag.eq.2)then
@@ -383,8 +388,8 @@ c      if(iq<10.and.k==nlv)print *,'iq,xg,yg ',iq,xg(iq,k),yg(iq,k)
        xg(iq,k)=min(max(-.99999,xg(iq,k)),.99999)
        yg(iq,k)=min(max(-.99999,yg(iq,k)),.99999)
 c      first guess for ri, rj and nearest i,j
-       ri=1.+(1.+xg(iq,k))*2*il_g
-       rj=1.+(1.+yg(iq,k))*2*il_g
+       ri=1.+(1.+xg(iq,k))*real(2*il_g)
+       rj=1.+(1.+yg(iq,k))*real(2*il_g)
        if(ntest==1.and.iq==idjd.and.k==nlv)then
          print *,'A: xg,yg,ri,rj ',xg(iq,k),yg(iq,k),ri,rj
        endif
@@ -409,10 +414,10 @@ c       endif
         ri=i+is*((xg(iq,k)-xx4(i,j))*dyy-(yg(iq,k)-yy4(i,j))*dyx)/den
         rj=j+js*((yg(iq,k)-yy4(i,j))*dxx-(xg(iq,k)-xx4(i,j))*dxy)/den
         
-        ri = min(ri,1.0+1.99999*2*il_g)
-        ri = max(ri,1.0+0.00001*2*il_g)
-        rj = min(rj,1.0+1.99999*2*il_g)
-        rj = max(rj,1.0+0.00001*2*il_g)
+        ri = min(ri,1.0+1.99999*real(2*il_g))
+        ri = max(ri,1.0+0.00001*real(2*il_g))
+        rj = min(rj,1.0+1.99999*real(2*il_g))
+        rj = max(rj,1.0+0.00001*real(2*il_g))
         
         if(ntest==1.and.iq==idjd.and.k==nlv)then
           print *,'B: xg,yg,ri,rj ',xg(iq,k),yg(iq,k),ri,rj

@@ -4,6 +4,7 @@
       use arrays_m
       use cc_mpi, only : mydiag,myid
       use diag_m
+      use estab
       use liqwpar_m  ! ifullw,qfg,qlg  just for diags
       use morepbl_m  ! condx,fg,eg
       use nsibd_m    ! rsmin,ivegt,sigmf,ssdn,rmc
@@ -41,7 +42,6 @@
       real fm2(ifull),fm10(ifull),fm38(ifull)
       real aft2ice,aft10ice,aft38ice,zt,zscrt,z10t
       real bprm,cms,chs,denha,denma,ri2x,root,vmag,zlog,es
-      include 'establ.h'
 
       srcp =sig(1)**(rdry/cp)
       ztv=exp(vkar/sqrt(chn10)) /10.  ! proper inverse of ztsea
@@ -263,7 +263,7 @@ c      screen wind speeds
            write (6,"('strange u iq,land,uscrn,u10,vmag,vmod,'
      .     'tstarx ',i5,l2,6f7.3)") iq,land(iq),
      .     uscrn(iq),u10(iq),vmag,vmod(iq),tstarx(iq)
-           write (6,"('more u isoil,iveg,snowd,fg',	     
+           write (6,"('more u isoil,iveg,snowd,fg',
      .     2i3,6f8.2)") isoilm(iq),ivegt(iq),snowd(iq),fg(iq)
            print *,'tgg1,tggsn1,tss,theta ',
      .              tgg(iq,1),tggsn(iq,1),tss(iq),theta(iq)
@@ -402,11 +402,12 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
       
       subroutine scrncalc(pfull,qscrn,tscrn,uscrn,u10,rhscrn,zo,zoh,
      &                    zoq,stemp,temp,smixr,mixr,umag,ps,zmin,sig)
+ 
+      use estab
       
       implicit none
 
       include 'const_phys.h'
-      include 'establ.h'
       include 'parm.h'
 
       integer, intent(in) :: pfull
@@ -453,7 +454,7 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
         z0_on_l  = z_on_l*zo/zmin
         zt_on_l  = z_on_l*zoh/zmin
         zq_on_l  = z_on_l*zoq/zmin
-        where (z_on_l<0.)
+        where (z_on_l.lt.0.)
           pm0     = (1.-16.*z0_on_l)**(-0.25)
           ph0     = (1.-16.*zt_on_l)**(-0.5)
           pq0     = (1.-16.*zq_on_l)**(-0.5)
@@ -500,7 +501,7 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
       z10_on_l  = min(z10_on_l,10.)
       neutral   = log(zmin/z0)
       neutral10 = log(zmin/z10)
-      where (z_on_l<0.)
+      where (z_on_l.lt.0.)
         ph0     = (1.-16.*z0_on_l)**(-0.50)
         ph1     = (1.-16.*z_on_l)**(-0.50)
         pm0     = (1.-16.*z0_on_l)**(-0.25)
@@ -552,6 +553,7 @@ c-------Beljaars and Holtslag (1991) heat function
       subroutine autoscrn
       
       use arrays_m
+      use estab
       use mlo
       use nharrs_m
       use pbl_m
@@ -566,7 +568,6 @@ c-------Beljaars and Holtslag (1991) heat function
       
       include 'newmpar.h'
       include 'const_phys.h'
-      include 'establ.h'
       include 'parm.h'
       
       integer iq

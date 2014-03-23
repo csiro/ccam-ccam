@@ -516,9 +516,9 @@ do j=1,jl,imax/il
             else
               snage(iq)=max(0.,(snage(iq) + dtau)*(1.-dnsnow))
             endif
-            alvo = 0.95	        !alb. for vis. on a new snow
+            alvo = 0.95         !alb. for vis. on a new snow
             aliro = 0.65        !alb. for near-infr. on a new snow
-            fage = 1.-1./(1.+snage(iq))	 !age factor
+            fage = 1.-1./(1.+snage(iq))  !age factor
             cczen=max(.17365, coszro(i))
             fzen=( 1.+1./2.)/(1.+2.*2.*cczen) -1./2.
             if( cczen > 0.5 ) fzen = 0.
@@ -634,6 +634,7 @@ do j=1,jl,imax/il
           mx=0.
         end where
       end do
+      cloudlo(istart:iend)=cloudlo(istart:iend)+mx*(1.-cloudlo(istart:iend))
       mx=0.
       do k=nlow+1,nmid
         mx=max(mx,cfrac(istart:iend,k))
@@ -642,6 +643,7 @@ do j=1,jl,imax/il
           mx=0.
         end where
       end do
+      cloudmi(istart:iend)=cloudmi(istart:iend)+mx*(1.-cloudmi(istart:iend))
       mx=0.
       do k=nmid+1,kl-1
         mx=max(mx,cfrac(istart:iend,k))
@@ -649,7 +651,8 @@ do j=1,jl,imax/il
           cloudhi(istart:iend)=cloudhi(istart:iend)+mx*(1.-cloudhi(istart:iend))
           mx=0.
         end where
-      end do  
+      end do
+      cloudhi(istart:iend)=cloudhi(istart:iend)+mx*(1.-cloudhi(istart:iend))  
     else
       do k=1,nlow
         cloudlo(istart:iend)=cloudlo(istart:iend)*(1.-cfrac(istart:iend,k))+cfrac(istart:iend,k)
@@ -682,7 +685,7 @@ do j=1,jl,imax/il
     Atmos_input%temp(:,1,kl+1)  = min(max(real(tss(istart:iend),8),100._8),370._8)
     Atmos_input%press(:,1,kl+1) = real(ps(istart:iend),8)
     Atmos_input%pflux(:,1,1  )  = 0._8
-    Atmos_input%tflux(:,1,1  )  = real(Atmos_input%temp(:,1,1),8)
+    Atmos_input%tflux(:,1,1  )  = Atmos_input%temp(:,1,1)
     do k=1,kl-1
       kr=kl+1-k
       Atmos_input%pflux(:,1,kr) = real(rathb(k)*p2(:,k)+ratha(k)*p2(:,k+1),8)
@@ -690,7 +693,7 @@ do j=1,jl,imax/il
     end do
     Atmos_input%pflux(:,1,kl+1) = real(ps(istart:iend),8)
     Atmos_input%tflux(:,1,kl+1) = min(max(real(tss(istart:iend),8),100._8),370._8)
-    Atmos_input%clouddeltaz     = real(Atmos_input%deltaz,8)        
+    Atmos_input%clouddeltaz     = Atmos_input%deltaz
 
     Atmos_input%psfc(:,1)    = real(ps(istart:iend),8)
     Atmos_input%tsfc(:,1)    = min(max(real(tss(istart:iend),8),100._8),370._8)
@@ -726,24 +729,44 @@ do j=1,jl,imax/il
     else
       do i=1,imax ! maximum-random overlap
         iq=i+istart-1
-        do k=1,kl
+        k=1
+        kr=kl
+        Cld_spec%camtsw(i,1,kr)=real(cfrac(iq,k),8) ! Max+Rnd overlap clouds for SW
+        maxover=.false.
+        if (cfrac(iq,k+1)>0.) maxover=.true.
+        if (maxover) then
+          Cld_spec%cmxolw(i,1,kr)=min(real(cfrac(iq,k),8),0.999_8) ! Max overlap for LW
+          Cld_spec%crndlw(i,1,kr)=real(cfrac(iq,k),8)-Cld_spec%cmxolw(i,1,kr)
+        else
+          Cld_spec%crndlw(i,1,kr)=real(cfrac(iq,k),8)              ! Rnd overlap for LW
+          Cld_spec%cmxolw(i,1,kr)=0._8
+        end if
+        do k=2,kl-1
           kr=kl+1-k
           Cld_spec%camtsw(i,1,kr)=real(cfrac(iq,k),8) ! Max+Rnd overlap clouds for SW
           maxover=.false.
-          if (k>1) then
-            if (cfrac(iq,k-1)>0.) maxover=.true.
-          end if
-          if (k<kl) then
-            if (cfrac(iq,k+1)>0.) maxover=.true.
-          end if
+          if (cfrac(iq,k-1)>0.) maxover=.true.
+          if (cfrac(iq,k+1)>0.) maxover=.true.
           if (maxover) then
             Cld_spec%cmxolw(i,1,kr)=min(real(cfrac(iq,k),8),0.999_8) ! Max overlap for LW
-            Cld_spec%crndlw(i,1,kr)=1._8-Cld_spec%cmxolw(i,1,kr)
+            Cld_spec%crndlw(i,1,kr)=real(cfrac(iq,k),8)-Cld_spec%cmxolw(i,1,kr)
           else
-            Cld_spec%crndlw(i,1,kr)=min(real(cfrac(iq,k),8),0.999_8) ! Rnd overlap for LW
-            Cld_spec%cmxolw(i,1,kr)=1._8-Cld_spec%crndlw(i,1,kr)
+            Cld_spec%crndlw(i,1,kr)=real(cfrac(iq,k),8)              ! Rnd overlap for LW
+            Cld_spec%cmxolw(i,1,kr)=0._8
           end if
         end do
+        k=kl
+        kr=1
+        Cld_spec%camtsw(i,1,kr)=real(cfrac(iq,k),8) ! Max+Rnd overlap clouds for SW
+        maxover=.false.
+        if (cfrac(iq,k-1)>0.) maxover=.true.
+        if (maxover) then
+          Cld_spec%cmxolw(i,1,kr)=min(real(cfrac(iq,k),8),0.999_8) ! Max overlap for LW
+          Cld_spec%crndlw(i,1,kr)=real(cfrac(iq,k),8)-Cld_spec%cmxolw(i,1,kr)
+        else
+          Cld_spec%crndlw(i,1,kr)=real(cfrac(iq,k),8)              ! Rnd overlap for LW
+          Cld_spec%cmxolw(i,1,kr)=0._8
+        end if
       end do
     end if
 
@@ -846,7 +869,7 @@ do j=1,jl,imax/il
     ! longwave output -----------------------------------------------
     rg(1:imax) = real(Lw_output(1)%flxnet(:,1,kl+1))          ! longwave at surface
     rt(1:imax) = real(Lw_output(1)%flxnet(:,1,1))             ! longwave at top
-    ! rg is net upwards = sigma T^4 - Rdown
+    ! rg is net upwards = stefbo T^4 - Rdown
     rgdn(1:imax) = stefbo*tss(istart:iend)**4 - rg(1:imax)
 
     ! shortwave output ----------------------------------------------
@@ -1232,10 +1255,9 @@ end subroutine shortwave_driver
 
 subroutine getqsat(ilen,qsatout,temp,psin)
 
-implicit none
+use estab
 
-include 'const_phys.h'
-include 'establ.h'
+implicit none
 
 integer, intent(in) :: ilen
 integer iq
@@ -1263,24 +1285,23 @@ integer iq,k,kr
 real, dimension(imax,kl), intent(in) :: cfrac,qlg,qfg,prf,ttg
 real, dimension(imax,kl), intent(in) :: cdrop
 real(kind=8), dimension(imax,kl), intent(out) :: Rdrop,Rice,conl,coni
-real, dimension(imax,kl) :: reffl,reffi,fice,Wliq,rhoa
+real, dimension(imax,kl) :: reffl,reffi,Wliq,rhoa
 real, dimension(imax,kl) :: eps,rk,Wice
 real, parameter :: scale_factor = 1. ! account for the plane-parallel homo-
                                      ! genous cloud bias  (e.g. Cahalan effect)
 logical, parameter :: do_brenguier = .false. ! Adjust effective radius for vertically
                                              ! stratified cloud
 
-fice=qfg/max(qfg+qlg,1.e-12)
 rhoa=prf/(rdry*ttg)
 
 ! Reffl is the effective radius calculated following
 ! Martin etal 1994, JAS 51, 1823-1842
-where (qlg>1.E-8.and.cfrac>0.)
+where (qlg>1.E-10.and.cfrac>0.)
   Wliq=rhoa*qlg/cfrac !kg/m^3
   ! This is the Liu and Daum scheme for relative dispersion (Nature, 419, 580-581 and pers. comm.)
   !eps = 1.-0.7*exp(-0.008e-6*cdrop) !upper bound
-  !eps = 1.-0.7*exp(-0.003e-6*cdrop) !mid range
-  eps = 1.-0.7*exp(-0.001e-6*cdrop)  !lower bound
+  eps = 1.-0.7*exp(-0.003e-6*cdrop) !mid range
+  !eps = 1.-0.7*exp(-0.001e-6*cdrop)  !lower bound
   rk  = (1.+eps**2)/(1.+2.*eps**2)**2
   
   ! k_ratio = rk**(-1./3.)  
@@ -1330,7 +1351,7 @@ if (do_brenguier) then
 end if
 
 
-where (qfg>1.E-8.and.cfrac>0.)
+where (qfg>1.E-10.and.cfrac>0.)
   Wice=rhoa*qfg/cfrac !kg/m**3
 !Lohmann et al.(1999)
 !  reffi=min(150.e-6,3.73e-4*Wice**0.216) 
@@ -1341,7 +1362,7 @@ end where
 !Donner et al (1997)
 do k=1,kl
   do iq=1,imax
-    if (qfg(iq,k)>1.E-8.and.cfrac(iq,k)>0.) then
+    if (qfg(iq,k)>1.E-10.and.cfrac(iq,k)>0.) then
       if (ttg(iq,k)>248.16) then
         reffi(iq,k)=5.E-7*100.6
       elseif (ttg(iq,k)>243.16) then
@@ -1373,15 +1394,17 @@ do k=1,kl
   coni(:,kr) =real(1000.*scale_factor*Wice(:,k),8)
 end do
 
-where (Rdrop>0._8)
+where (Rdrop>0.1_8)
   Rdrop=min(max(Rdrop,8.4_8),33.2_8) ! constrain diameter to acceptable range (see microphys_rad.f90)
 elsewhere
   Rdrop=0._8
+  conl=0._8
 endwhere
-where (Rice>0._8)
+where (Rice>0.1_8)
   Rice=min(max(Rice,18.6_8),130.2_8)
 elsewhere
   Rice=0._8
+  coni=0._8
 endwhere
 
 return

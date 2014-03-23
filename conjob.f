@@ -3,6 +3,7 @@
       use arrays_m
       use cc_mpi, only : mydiag
       use epst_m
+      use estab
       use kuocomb_m  ! also with kbsav,ktsav,convpsav,ndavconv
       use morepbl_m
       use nlin_m
@@ -42,7 +43,6 @@ c     Hal's ds() renamed dsh()
 !     data convtime/1./,rhcv/.75/,rhmois/.6/ ! usually 1., .75, .6 now in kuocom
       data epsconv/0./
 
-      include 'establ.h'
       Aev(tm) = 2.008e-9*tm**2 - 1.385e-6*tm + 2.424e-4  !For UKMO evap scheme
       Asb(tm) = max (-5.2e-9*tm**2+2.5332e-6*tm-2.9111e-4,1.e-5) !For UKMO subl
 !!!   ntest=3   !!!

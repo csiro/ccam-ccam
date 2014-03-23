@@ -4,6 +4,7 @@ c     subroutine setxyz(ik,rlat0,rlong0,schmidt,xx4,yy4,myid)
 !     this routine modified sept '06 to accept smaller il_g via abs(ik)
 !     essentially to temporarily provide xx4, yy4, ax...bz for onthefly  
 !     note that ax6 etc not needed for onthefly     
+      use cc_mpi, only : indx
       use indices_m
       use latlong_m
       use map_m
@@ -23,7 +24,7 @@ c     suffix 6 denotes hex (6)
       include 'const_phys.h'   ! rearth
       include 'parm.h'
 c     include 'xyzinfo_gx.h'  ! x,y,z,wts
-      real*8 x(ik*ik*6),y(ik*ik*6),z(ik*ik*6)
+      real(kind=8) x(ik*ik*6),y(ik*ik*6),z(ik*ik*6)
 c     include 'vecsuv_gx.h'   ! vecsuv info
       real ax(ik*ik*6),ay(ik*ik*6),az(ik*ik*6),wts(ik*ik*6)
       real bx(ik*ik*6),by(ik*ik*6),bz(ik*ik*6)
@@ -32,7 +33,7 @@ c      real bx6(abs(ik),abs(ik),0:5),by6(abs(ik),abs(ik),0:5)
 c      real az6(abs(ik),abs(ik),0:5),bz6(abs(ik),abs(ik),0:5)
 c      equivalence (ax6,ax),(ay6,ay),(az6,az),(bx6,bx),(by6,by),(bz6,bz)
 c     real*8 xx4(1+4*abs(ik),1+4*abs(ik)),yy4(1+4*abs(ik),1+4*abs(ik))
-      real*8 xx4(1+4*ik,1+4*ik),yy4(1+4*ik,1+4*ik)
+      real(kind=8) xx4(1+4*ik,1+4*ik),yy4(1+4*ik,1+4*ik)
 !     next one shared with cctocc4 & onthefly
       integer :: myid  ! This is passed as an argument just to control the 
                        ! diagnostic prints
@@ -49,7 +50,7 @@ c     &    ,az4(1+4*abs(ik),1+4*abs(ik))
      .    ,bxx(ik*ik*6),byy(ik*ik*6),bzz(ik*ik*6)
       real rlong0,rlat0,schmidt,schmidtin
       real rotpole(3,3)
-      real*8 alf,den1,one,xx,yy,zz,x4_iq_m,y4_iq_m,z4_iq_m
+      real(kind=8) alf,den1,one,xx,yy,zz,x4_iq_m,y4_iq_m,z4_iq_m
       data one/1./    ! just to force real*8 calculation
 !     dimension npann_g(0:13),npane_g(0:13),npanw_g(0:13),npans_g(0:13)  ! in indices.h
       integer npan6n(0:5),npan6e(0:5),npan6w(0:5),npan6s(0:5)
@@ -61,7 +62,7 @@ c     &    ,az4(1+4*abs(ik),1+4*abs(ik))
       data npan6n/1,103,3,105,5,101/,npan6e/102,2,104,4,100,0/
       data npan6w/5,105,1,101,3,103/,npan6s/104,0,100,2,102,4/
 c     character*80 chars
-      integer num,ndiag,ind,i,j,n,ikk,idjd_g,iq,ii,i0,j0,n0,in0,jn0,nn0
+      integer num,ndiag,i,j,n,ikk,idjd_g,iq,ii,i0,j0,n0,in0,jn0,nn0
       integer is0,js0,ns0,ie0,je0,ne0,iw0,jw0,nw0,inn0,jnn0
       integer iss0,jss0,nss0,nnn0,iee0,jee0,nee0,iww0,jww0,nww0,m
       integer iq11,iq12,iq13,iq22,iq32,iqcc,iqnn
@@ -73,7 +74,6 @@ c     character*80 chars
       real rlatdeg,rlondeg
       save num
       data ndiag/0/,num/0/
-      ind(i,j,n)=i+(j-1)*ikk+n*ikk*ikk  ! *** for n=0,npanels
       num=num+1
 c     When using the ifull_g notation: in_g, ie_g, iw_g and is_g give the
 c     indices for the n, e, w, s neighbours respectively
@@ -102,44 +102,48 @@ c     a, b denote unit vectors in the direction of x, y (e & n) respectively
 c     print *,'ina ikk/2,n ',in_g(ind(ikk/2,ikk,n)),n
       if(npann_g(n).lt.100)then
         do ii=1,ikk
-         in_g(ind(ii,ikk,n))=ind(ii,1,npann_g(n))
+         in_g(indx(ii,ikk,n,ikk,ikk))=indx(ii,1,npann_g(n),ikk,ikk)
         enddo    ! ii loop
       else
         do ii=1,ikk
-         in_g(ind(ii,ikk,n))=ind(1,ikk+1-ii,npann_g(n)-100)
+         in_g(indx(ii,ikk,n,ikk,ikk))=
+     &      indx(1,ikk+1-ii,npann_g(n)-100,ikk,ikk)
         enddo    ! ii loop
       endif      ! (npann_g(n).lt.100)
 c     print *,'inb ikk/2,n ',in_g(ind(ikk/2,ikk,n)),n
 c     print *,'iea ikk/2,n ',ie_g(ind(ikk,ikk/2,n)),n
       if(npane_g(n).lt.100)then
         do ii=1,ikk
-         ie_g(ind(ikk,ii,n))=ind(1,ii,npane_g(n))
+         ie_g(indx(ikk,ii,n,ikk,ikk))=indx(1,ii,npane_g(n),ikk,ikk)
         enddo    ! ii loop
       else
         do ii=1,ikk
-         ie_g(ind(ikk,ii,n))=ind(ikk+1-ii,1,npane_g(n)-100)
+         ie_g(indx(ikk,ii,n,ikk,ikk))=
+     &     indx(ikk+1-ii,1,npane_g(n)-100,ikk,ikk)
         enddo    ! ii loop
       endif      ! (npane_g(n).lt.100)
 c     print *,'ieb ikk/2,n ',ie_g(ind(ikk,ikk/2,n)),n
 c     print *,'iwa ikk/2,n ',iw_g(ind(1,ikk/2,n)),n
       if(npanw_g(n).lt.100)then
         do ii=1,ikk
-         iw_g(ind(1,ii,n))=ind(ikk,ii,npanw_g(n))
+         iw_g(indx(1,ii,n,ikk,ikk))=indx(ikk,ii,npanw_g(n),ikk,ikk)
         enddo    ! ii loop
       else
         do ii=1,ikk
-         iw_g(ind(1,ii,n))=ind(ikk+1-ii,ikk,npanw_g(n)-100)
+         iw_g(indx(1,ii,n,ikk,ikk))=
+     &     indx(ikk+1-ii,ikk,npanw_g(n)-100,ikk,ikk)
         enddo    ! ii loop
       endif      ! (npanw_g(n).lt.100)
 c     print *,'iwb ikk/2,n ',iw_g(ind(1,ikk/2,n)),n
 c     print *,'isa ikk/2,n ',is_g(ind(ikk/2,1,n)),n
       if(npans_g(n).lt.100)then
         do ii=1,ikk
-         is_g(ind(ii,1,n))=ind(ii,ikk,npans_g(n))
+         is_g(indx(ii,1,n,ikk,ikk))=indx(ii,ikk,npans_g(n),ikk,ikk)
         enddo    ! ii loop
       else
         do ii=1,ikk
-         is_g(ind(ii,1,n))=ind(ikk,ikk+1-ii,npans_g(n)-100)
+         is_g(indx(ii,1,n,ikk,ikk))=
+     &     indx(ikk,ikk+1-ii,npans_g(n)-100,ikk,ikk)
         enddo    ! ii loop
       endif      ! (npans_g(n).lt.100)
 c     print *,'isb ikk/2,n ',is_g(ind(ikk/2,1,n)),n
@@ -178,14 +182,14 @@ c      following treats unusual panel boundaries
 c      print *,'ina ikk/2,n ',in_g(ind(ikk/2,ikk,n)),n
        if(npann_g(n).ge.100)then
         do i=1,ikk
-         iq=ind(i,ikk,n)
+         iq=indx(i,ikk,n,ikk,ikk)
          inn_g(iq)=ie_g(in_g(iq))
          ien_g(iq)=is_g(in_g(iq))
          iwn_g(iq)=in_g(in_g(iq))
          inv2_g(iq)=in_g(iq) - ifull_g   ! converts 2D v array into u array
          inv_g(iq)=in_g(iq) - ijk_g      ! converts 3D v array into u array
          innv2_g(iq)=inn_g(iq) - ifull_g ! converts 2D v array into u array
-         iq=ind(i,ikk-1,n)
+         iq=indx(i,ikk-1,n,ikk,ikk)
          innv2_g(iq)=inn_g(iq) - ifull_g ! converts 2D v array into u array
         enddo  ! i loop
       endif      ! (npann_g(n).ge.100)
@@ -193,14 +197,14 @@ c     print *,'inb ikk/2,n ',in_g(ind(ikk/2,ikk,n)),n
 c     print *,'iea ikk/2,n ',ie_g(ind(ikk,ikk/2,n)),n
       if(npane_g(n).ge.100)then
         do j=1,ikk
-         iq=ind(ikk,j,n)
+         iq=indx(ikk,j,n,ikk,ikk)
          iee_g(iq)=in_g(ie_g(iq))
          ine_g(iq)=iw_g(ie_g(iq))
          ise_g(iq)=ie_g(ie_g(iq))
          ieu2_g(iq)=ie_g(iq) + ifull_g   ! converts 2D u array into v array
          ieu_g(iq)=ie_g(iq) + ijk_g      ! converts 3D u array into v array
          ieeu2_g(iq)=iee_g(iq) + ifull_g ! converts 2D u array into v array
-         iq=ind(ikk-1,j,n)
+         iq=indx(ikk-1,j,n,ikk,ikk)
          ieeu2_g(iq)=iee_g(iq) + ifull_g ! converts 2D u array into v array
         enddo   ! j loop
       endif      ! (npane_g(n).ge.100)
@@ -208,14 +212,14 @@ c     print *,'ieb ikk/2,n ',ie_g(ind(ikk,ikk/2,n)),n
 c     print *,'iwa ikk/2,n ',iw_g(ind(1,ikk/2,n)),n
       if(npanw_g(n).ge.100)then
         do j=1,ikk
-         iq=ind(1,j,n)
+         iq=indx(1,j,n,ikk,ikk)
          iww_g(iq)=is_g(iw_g(iq))
          inw_g(iq)=iw_g(iw_g(iq))
          isw_g(iq)=ie_g(iw_g(iq))
          iwu2_g(iq)=iw_g(iq) + ifull_g   ! converts 2D u array into v array
          iwu_g(iq)=iw_g(iq) + ijk_g      ! converts 3D u array into v array
          iwwu2_g(iq)=iww_g(iq) + ifull_g ! converts 2D u array into v array
-         iq=ind(2,j,n)
+         iq=indx(2,j,n,ikk,ikk)
          iwwu2_g(iq)=iww_g(iq) + ifull_g ! converts 2D u array into v array
         enddo   ! j loop
       endif      ! (npanw_g(n).ge.100)
@@ -223,14 +227,14 @@ c     print *,'iwb ikk/2,n ',iw_g(ind(1,ikk/2,n)),n
 c     print *,'isa ikk/2,n ',is_g(ind(ikk/2,1,n)),n
       if(npans_g(n).ge.100)then
         do i=1,ikk
-         iq=ind(i,1,n)
+         iq=indx(i,1,n,ikk,ikk)
          iss_g(iq)=iw_g(is_g(iq))
          ies_g(iq)=is_g(is_g(iq))
          iws_g(iq)=in_g(is_g(iq))
          isv2_g(iq)=is_g(iq) - ifull_g   ! converts 2D v array into u array
          isv_g(iq)=is_g(iq) - ijk_g      ! converts 3D v array into u array
          issv2_g(iq)=iss_g(iq) - ifull_g ! converts 2D v array into u array
-         iq=ind(i,2,n)
+         iq=indx(i,2,n,ikk,ikk)
          issv2_g(iq)=iss_g(iq) - ifull_g ! converts 2D v array into u array
         enddo   ! i loop
       endif      ! (npans_g(n).ge.100)
@@ -238,45 +242,45 @@ c     print *,'isb ikk/2,n ',is_g(ind(ikk/2,1,n)),n
       enddo      ! n loop
 
       do n=0,npanels
-       leen_g(n)=iee_g(in_g( ind(ikk,ikk,n) ))
-       lenn_g(n)=ien_g(in_g( ind(ikk,ikk,n) ))
-       lwnn_g(n)=iwn_g(in_g( ind( 1,ikk,n) ))
-       lsee_g(n)=ise_g(ie_g( ind(ikk, 1,n) ))
-       lnee_g(n)=ine_g(ie_g( ind(ikk,ikk,n) ))
-       lnne_g(n)=inn_g(ie_g( ind(ikk,ikk,n) ))
-       lsww_g(n)=isw_g(iw_g( ind( 1, 1,n) ))
-       lssw_g(n)=iss_g(iw_g( ind( 1, 1,n) ))
-       lnww_g(n)=inw_g(iw_g( ind( 1,ikk,n) ))
-       lwws_g(n)=iww_g(is_g( ind( 1, 1,n) ))
-       lwss_g(n)=iws_g(is_g( ind( 1, 1,n) ))
-       less_g(n)=ies_g(is_g( ind(ikk, 1,n) ))
-       lwwn_g(n)=iww_g(in_g( ind( 1,ikk,n) ))
-       lsse_g(n)=iss_g(ie_g( ind(ikk, 1,n) ))
-       lnnw_g(n)=inn_g(iw_g( ind( 1,ikk,n) ))
-       lees_g(n)=iee_g(is_g( ind(ikk, 1,n) ))
+       leen_g(n)=iee_g(in_g( indx(ikk,ikk,n,ikk,ikk) ))
+       lenn_g(n)=ien_g(in_g( indx(ikk,ikk,n,ikk,ikk) ))
+       lwnn_g(n)=iwn_g(in_g( indx( 1,ikk,n,ikk,ikk) ))
+       lsee_g(n)=ise_g(ie_g( indx(ikk, 1,n,ikk,ikk) ))
+       lnee_g(n)=ine_g(ie_g( indx(ikk,ikk,n,ikk,ikk) ))
+       lnne_g(n)=inn_g(ie_g( indx(ikk,ikk,n,ikk,ikk) ))
+       lsww_g(n)=isw_g(iw_g( indx( 1, 1,n,ikk,ikk) ))
+       lssw_g(n)=iss_g(iw_g( indx( 1, 1,n,ikk,ikk) ))
+       lnww_g(n)=inw_g(iw_g( indx( 1,ikk,n,ikk,ikk) ))
+       lwws_g(n)=iww_g(is_g( indx( 1, 1,n,ikk,ikk) ))
+       lwss_g(n)=iws_g(is_g( indx( 1, 1,n,ikk,ikk) ))
+       less_g(n)=ies_g(is_g( indx(ikk, 1,n,ikk,ikk) ))
+       lwwn_g(n)=iww_g(in_g( indx( 1,ikk,n,ikk,ikk) ))
+       lsse_g(n)=iss_g(ie_g( indx(ikk, 1,n,ikk,ikk) ))
+       lnnw_g(n)=inn_g(iw_g( indx( 1,ikk,n,ikk,ikk) ))
+       lees_g(n)=iee_g(is_g( indx(ikk, 1,n,ikk,ikk) ))
        if(npann_g(n).ge.100)then
-         leen_g(n)=iss_g(in_g( ind(ikk,ikk,n) ))
-         lenn_g(n)=ise_g(in_g( ind(ikk,ikk,n) ))
-         lwnn_g(n)=ine_g(in_g( ind( 1,ikk,n) ))
-         lwwn_g(n)=inn_g(in_g( ind( 1,ikk,n) ))
+         leen_g(n)=iss_g(in_g( indx(ikk,ikk,n,ikk,ikk) ))
+         lenn_g(n)=ise_g(in_g( indx(ikk,ikk,n,ikk,ikk) ))
+         lwnn_g(n)=ine_g(in_g( indx( 1,ikk,n,ikk,ikk) ))
+         lwwn_g(n)=inn_g(in_g( indx( 1,ikk,n,ikk,ikk) ))
        endif      ! (npann_g(n).ge.100)
        if(npane_g(n).ge.100)then
-         lsee_g(n)=ien_g(ie_g( ind(ikk, 1,n) ))
-         lnee_g(n)=iwn_g(ie_g( ind(ikk,ikk,n) ))
-         lnne_g(n)=iww_g(ie_g( ind(ikk,ikk,n) ))
-         lsse_g(n)=iee_g(ie_g( ind(ikk, 1,n) ))
+         lsee_g(n)=ien_g(ie_g( indx(ikk, 1,n,ikk,ikk) ))
+         lnee_g(n)=iwn_g(ie_g( indx(ikk,ikk,n,ikk,ikk) ))
+         lnne_g(n)=iww_g(ie_g( indx(ikk,ikk,n,ikk,ikk) ))
+         lsse_g(n)=iee_g(ie_g( indx(ikk, 1,n,ikk,ikk) ))
        endif      ! (npane_g(n).ge.100)
        if(npanw_g(n).ge.100)then
-         lsww_g(n)=ies_g(iw_g( ind( 1, 1,n) ))
-         lssw_g(n)=iee_g(iw_g( ind( 1, 1,n) ))
-         lnww_g(n)=iws_g(iw_g( ind( 1,ikk,n) ))
-         lnnw_g(n)=iww_g(iw_g( ind( 1,ikk,n) ))
+         lsww_g(n)=ies_g(iw_g( indx( 1, 1,n,ikk,ikk) ))
+         lssw_g(n)=iee_g(iw_g( indx( 1, 1,n,ikk,ikk) ))
+         lnww_g(n)=iws_g(iw_g( indx( 1,ikk,n,ikk,ikk) ))
+         lnnw_g(n)=iww_g(iw_g( indx( 1,ikk,n,ikk,ikk) ))
        endif      ! (npanw_g(n).ge.100)
        if(npans_g(n).ge.100)then
-         lwws_g(n)=inn_g(is_g( ind( 1, 1,n) ))
-         lwss_g(n)=inw_g(is_g( ind( 1, 1,n) ))
-         less_g(n)=isw_g(is_g( ind(ikk, 1,n) ))
-         lees_g(n)=iss_g(is_g( ind(ikk, 1,n) ))
+         lwws_g(n)=inn_g(is_g( indx( 1, 1,n,ikk,ikk) ))
+         lwss_g(n)=inw_g(is_g( indx( 1, 1,n,ikk,ikk) ))
+         less_g(n)=isw_g(is_g( indx(ikk, 1,n,ikk,ikk) ))
+         lees_g(n)=iss_g(is_g( indx(ikk, 1,n,ikk,ikk) ))
        endif      ! (npans_g(n).ge.100)
       enddo       ! n loop
 
@@ -284,7 +288,7 @@ c     print *,'isb ikk/2,n ',is_g(ind(ikk/2,1,n)),n
         do n=0,npanels
          do j=1,ikk
           do i=1,ikk
-           iq=ind(i,j,n)
+           iq=indx(i,j,n,ikk,ikk)
            call indv(iq,i0,j0,n0)
            call indv(in_g(iq),in0,jn0,nn0)
            call indv(is_g(iq),is0,js0,ns0)
@@ -345,24 +349,24 @@ c     call jimcc(em4,ax4,ay4,az4,myid)
           endif
 c         set up x0, y0, z0 coords on cube -1 to 1
 c         avoids earlier equivalencing of x,x0  etc
-          x(ind(i,j,0))= 1.
-          y(ind(i,j,0))=xx
-          z(ind(i,j,0))=yy
-          x(ind(i,j,3))=-1.
-          z(ind(i,j,3))=-xx
-          y(ind(i,j,3))=-yy
-          x(ind(i,j,1))=-yy
-          y(ind(i,j,1))=xx
-          z(ind(i,j,1))= 1.
-          y(ind(i,j,4))=-yy
-          x(ind(i,j,4))=xx
-          z(ind(i,j,4))=-1.
-          x(ind(i,j,2))=-yy
-          y(ind(i,j,2))= 1.
-          z(ind(i,j,2))=-xx
-          z(ind(i,j,5))=yy
-          y(ind(i,j,5))=-1.
-          x(ind(i,j,5))=xx
+          x(indx(i,j,0,ikk,ikk))= 1.
+          y(indx(i,j,0,ikk,ikk))=xx
+          z(indx(i,j,0,ikk,ikk))=yy
+          x(indx(i,j,3,ikk,ikk))=-1.
+          z(indx(i,j,3,ikk,ikk))=-xx
+          y(indx(i,j,3,ikk,ikk))=-yy
+          x(indx(i,j,1,ikk,ikk))=-yy
+          y(indx(i,j,1,ikk,ikk))=xx
+          z(indx(i,j,1,ikk,ikk))= 1.
+          y(indx(i,j,4,ikk,ikk))=-yy
+          x(indx(i,j,4,ikk,ikk))=xx
+          z(indx(i,j,4,ikk,ikk))=-1.
+          x(indx(i,j,2,ikk,ikk))=-yy
+          y(indx(i,j,2,ikk,ikk))= 1.
+          z(indx(i,j,2,ikk,ikk))=-xx
+          z(indx(i,j,5,ikk,ikk))=yy
+          y(indx(i,j,5,ikk,ikk))=-1.
+          x(indx(i,j,5,ikk,ikk))=xx
 c         if(i.eq.(ikk+1)/2.and.j.eq.(ikk+1)/2)print *,'n,xx,yy: ',n,xx,yy
          enddo  ! i loop
         enddo   ! j loop
@@ -414,20 +418,23 @@ c       extend em4 to uppermost i and j rows
          do i=1,ikk
           do n=0,5
 c          average Purser em is pi/2
-           em_g(ind(i,j,n))=pi/(2.*em4(4*i-1,4*j-1))
-           emu_g(ind(i,j,n))=pi/(2.*em4(4*i+1,4*j-1))
-           emv_g(ind(i,j,n))=pi/(2.*em4(4*i-1,4*j+1))
+           em_g(indx(i,j,n,ikk,ikk))=pi/(2.*em4(4*i-1,4*j-1))
+           emu_g(indx(i,j,n,ikk,ikk))=pi/(2.*em4(4*i+1,4*j-1))
+           emv_g(indx(i,j,n,ikk,ikk))=pi/(2.*em4(4*i-1,4*j+1))
           enddo ! n loop
-          ax(ind(i,j,0))=ax4(4*i-1,4*j-1)
-          ay(ind(i,j,0))=ay4(4*i-1,4*j-1)
-          az(ind(i,j,0))=az4(4*i-1,4*j-1)
+          ax(indx(i,j,0,ikk,ikk))=ax4(4*i-1,4*j-1)
+          ay(indx(i,j,0,ikk,ikk))=ay4(4*i-1,4*j-1)
+          az(indx(i,j,0,ikk,ikk))=az4(4*i-1,4*j-1)
          enddo  ! i loop
         enddo   ! j loop
-	 if(ktau<=1.and.myid==0)then
-          print *,'ax6 (1,1,0) & (2,2,0) ',ax(ind(1,1,0)),ax(ind(2,2,0))
-          print *,'ay6 (1,1,0) & (2,2,0) ',ay(ind(1,1,0)),ay(ind(2,2,0))
-          print *,'az6 (1,1,0) & (2,2,0) ',az(ind(1,1,0)),az(ind(2,2,0))
-	 endif ! (ktau<=1)
+        if(ktau<=1.and.myid==0)then
+          print *,'ax6 (1,1,0) & (2,2,0) ',ax(indx(1,1,0,ikk,ikk)),
+     &                                     ax(indx(2,2,0,ikk,ikk))
+          print *,'ay6 (1,1,0) & (2,2,0) ',ay(indx(1,1,0,ikk,ikk)),
+     &                                     ay(indx(2,2,0,ikk,ikk))
+          print *,'az6 (1,1,0) & (2,2,0) ',az(indx(1,1,0,ikk,ikk)),
+     &                                     az(indx(2,2,0,ikk,ikk))
+        endif ! (ktau<=1)
          
 3       do j=1,ikk
          do i=1,ikk
@@ -436,24 +443,24 @@ c          average Purser em is pi/2
 
 c         set up x0, y0, z0 coords on cube -1 to 1
 c         avoids earlier equivalencing of x,x0  etc
-          x(ind(i,j,0))= 1.
-          y(ind(i,j,0))=xx
-          z(ind(i,j,0))=yy
-          x(ind(i,j,3))=-1.
-          z(ind(i,j,3))=-xx
-          y(ind(i,j,3))=-yy
-          x(ind(i,j,1))=-yy
-          y(ind(i,j,1))=xx
-          z(ind(i,j,1))= 1.
-          y(ind(i,j,4))=-yy
-          x(ind(i,j,4))=xx
-          z(ind(i,j,4))=-1.
-          x(ind(i,j,2))=-yy
-          y(ind(i,j,2))= 1.
-          z(ind(i,j,2))=-xx
-          z(ind(i,j,5))=yy
-          y(ind(i,j,5))=-1.
-          x(ind(i,j,5))=xx
+          x(indx(i,j,0,ikk,ikk))= 1.
+          y(indx(i,j,0,ikk,ikk))=xx
+          z(indx(i,j,0,ikk,ikk))=yy
+          x(indx(i,j,3,ikk,ikk))=-1.
+          z(indx(i,j,3,ikk,ikk))=-xx
+          y(indx(i,j,3,ikk,ikk))=-yy
+          x(indx(i,j,1,ikk,ikk))=-yy
+          y(indx(i,j,1,ikk,ikk))=xx
+          z(indx(i,j,1,ikk,ikk))= 1.
+          y(indx(i,j,4,ikk,ikk))=-yy
+          x(indx(i,j,4,ikk,ikk))=xx
+          z(indx(i,j,4,ikk,ikk))=-1.
+          x(indx(i,j,2,ikk,ikk))=-yy
+          y(indx(i,j,2,ikk,ikk))= 1.
+          z(indx(i,j,2,ikk,ikk))=-xx
+          z(indx(i,j,5,ikk,ikk))=yy
+          y(indx(i,j,5,ikk,ikk))=-1.
+          x(indx(i,j,5,ikk,ikk))=xx
 c         if(i.eq.(ikk+1)/2.and.j.eq.(ikk+1)/2)print *,'xx,yy: ',xx,yy
          enddo  ! i loop
         enddo   ! j loop
@@ -493,13 +500,13 @@ c         if(i.eq.(ikk+1)/2.and.j.eq.(ikk+1)/2)print *,'xx,yy: ',xx,yy
         print *,'On each panel (ntang=0)_em_g for ',
      .          '(1,1),(1,2),(1,3),(2,2),(3,2),(ic,ic),(ikk,ikk)'
         do n=0,npanels
-         iq11=ind(1,1,n)
-         iq12=ind(1,2,n)
-         iq13=ind(1,3,n)
-         iq22=ind(2,2,n)
-         iq32=ind(3,2,n)
-         iqcc=ind((ikk+1)/2,(ikk+1)/2,n)
-         iqnn=ind(ikk,ikk,n)
+         iq11=indx(1,1,n,ikk,ikk)
+         iq12=indx(1,2,n,ikk,ikk)
+         iq13=indx(1,3,n,ikk,ikk)
+         iq22=indx(2,2,n,ikk,ikk)
+         iq32=indx(3,2,n,ikk,ikk)
+         iqcc=indx((ikk+1)/2,(ikk+1)/2,n,ikk,ikk)
+         iqnn=indx(ikk,ikk,n,ikk,ikk)
          print '(i3,7f8.3)',n,em_g(iq11),em_g(iq12),em_g(iq13),
      .                        em_g(iq22),em_g(iq32),em_g(iqcc),
      &                        em_g(iqnn)
@@ -507,13 +514,13 @@ c         if(i.eq.(ikk+1)/2.and.j.eq.(ikk+1)/2)print *,'xx,yy: ',xx,yy
         print *,'On each panel (ntang=0)_emu_g for ',
      .          '(1,1),(1,2),(1,3),(2,2),(3,2),(ic,ic),(ikk,ikk)'
         do n=0,npanels
-         iq11=ind(1,1,n)
-         iq12=ind(1,2,n)
-         iq13=ind(1,3,n)
-         iq22=ind(2,2,n)
-         iq32=ind(3,2,n)
-         iqcc=ind((ikk+1)/2,(ikk+1)/2,n)
-         iqnn=ind(ikk,ikk,n)
+         iq11=indx(1,1,n,ikk,ikk)
+         iq12=indx(1,2,n,ikk,ikk)
+         iq13=indx(1,3,n,ikk,ikk)
+         iq22=indx(2,2,n,ikk,ikk)
+         iq32=indx(3,2,n,ikk,ikk)
+         iqcc=indx((ikk+1)/2,(ikk+1)/2,n,ikk,ikk)
+         iqnn=indx(ikk,ikk,n,ikk,ikk)
          print '(i3,7f8.3)',n,emu_g(iq11),emu_g(iq12),emu_g(iq13),
      .                        emu_g(iq22),emu_g(iq32),emu_g(iqcc),
      &                        emu_g(iqnn)
@@ -521,13 +528,13 @@ c         if(i.eq.(ikk+1)/2.and.j.eq.(ikk+1)/2)print *,'xx,yy: ',xx,yy
         print *,'On each panel (ntang=0)_emv_g for ',
      .          '(1,1),(1,2),(1,3),(2,2),(3,2),(ic,ic),(ikk,ikk)'
         do n=0,npanels
-         iq11=ind(1,1,n)
-         iq12=ind(1,2,n)
-         iq13=ind(1,3,n)
-         iq22=ind(2,2,n)
-         iq32=ind(3,2,n)
-         iqcc=ind((ikk+1)/2,(ikk+1)/2,n)
-         iqnn=ind(ikk,ikk,n)
+         iq11=indx(1,1,n,ikk,ikk)
+         iq12=indx(1,2,n,ikk,ikk)
+         iq13=indx(1,3,n,ikk,ikk)
+         iq22=indx(2,2,n,ikk,ikk)
+         iq32=indx(3,2,n,ikk,ikk)
+         iqcc=indx((ikk+1)/2,(ikk+1)/2,n,ikk,ikk)
+         iqnn=indx(ikk,ikk,n,ikk,ikk)
          print '(i3,7f8.3)',n,emv_g(iq11),emv_g(iq12),emv_g(iq13),
      .                        emv_g(iq22),emv_g(iq32),emv_g(iqcc),
      &                        emv_g(iqnn)
@@ -544,18 +551,18 @@ c       same as below but avoids recalc in_g, ie_g, iw_g, is_g)
          n_s=mod(n+4,6)
          do j=1,ikk
           do i=1,ikk
-           iq=ind(i,j,n)
+           iq=indx(i,j,n,ikk,ikk)
            iqp=iq+1
            iqm=iq-1
-           if(i==1)iqm=ind(ikk,j,n_w)
-           if(i==ikk)iqp=ind(ikk+1-j,1,n_e)
+           if(i==1)iqm=indx(ikk,j,n_w,ikk,ikk)
+           if(i==ikk)iqp=indx(ikk+1-j,1,n_e,ikk,ikk)
            ax(iq)=x(iqp)-x(iqm)
            az(iq)=z(iqp)-z(iqm)
            ay(iq)=y(iqp)-y(iqm)
            iqp=iq+ikk
            iqm=iq-ikk
-           if(j==1)iqm=ind(ikk,ikk+1-i,n_s)
-           if(j==ikk)iqp=ind(i,1,n_n)
+           if(j==1)iqm=indx(ikk,ikk+1-i,n_s,ikk,ikk)
+           if(j==ikk)iqp=indx(i,1,n_n,ikk,ikk)
            bx(iq)=x(iqp)-x(iqm)
            by(iq)=y(iqp)-y(iqm)
            bz(iq)=z(iqp)-z(iqm)
@@ -569,18 +576,18 @@ c       same as below but avoids recalc in_g, ie_g, iw_g, is_g)
          n_s=mod(n+5,6)
          do j=1,ikk
           do i=1,ikk
-           iq=ind(i,j,n)
+           iq=indx(i,j,n,ikk,ikk)
            iqp=iq+1
            iqm=iq-1
-           if(i==1)iqm=ind(ikk+1-j,ikk,n_w)
-           if(i==ikk)iqp=ind(1,j,n_e)
+           if(i==1)iqm=indx(ikk+1-j,ikk,n_w,ikk,ikk)
+           if(i==ikk)iqp=indx(1,j,n_e,ikk,ikk)
            ax(iq)=x(iqp)-x(iqm)
            ay(iq)=y(iqp)-y(iqm)
            az(iq)=z(iqp)-z(iqm)
            iqp=iq+ikk
            iqm=iq-ikk
-           if(j==1)iqm=ind(i,ikk,n_s)
-           if(j==ikk)iqp=ind(1,ikk+1-i,n_n)
+           if(j==1)iqm=indx(i,ikk,n_s,ikk,ikk)
+           if(j==ikk)iqp=indx(1,ikk+1-i,n_n,ikk,ikk)
            bx(iq)=x(iqp)-x(iqm)
            by(iq)=y(iqp)-y(iqm)
            bz(iq)=z(iqp)-z(iqm)
@@ -769,21 +776,21 @@ c    .  rlongg_g(iq)*180./pi,rlatt_g(iq)*180./pi
       if(ktau.eq.0.and.myid==0)then
         print *,'At centre of the faces:'
         do n=0,npanels
-         iq=ind((ikk+1)/2,(ikk+1)/2,n)
+         iq=indx((ikk+1)/2,(ikk+1)/2,n,ikk,ikk)
          print '('' n,iq,x,y,z,long,lat,f ''i2,i7,3f7.3,2f8.2,f9.5)',n,
      .     iq,x(iq),y(iq),z(iq),
      .     rlongg_g(iq)*180./pi,rlatt_g(iq)*180./pi,f_g(iq)
         enddo
         print *,'At mid-x along edges:'
         do n=0,npanels
-         iq=ind((ikk+1)/2,1,n)
+         iq=indx((ikk+1)/2,1,n,ikk,ikk)
          print '('' n,iq,x,y,z,long,lat,f_g ''i2,i7,3f7.3,2f8.2,f9.5)',
      &     n,iq,x(iq),y(iq),z(iq),
      .     rlongg_g(iq)*180./pi,rlatt_g(iq)*180./pi,f_g(iq)
         enddo
         print *,'At mid-y along edges:'
         do n=0,npanels
-         iq=ind(1,(ikk+1)/2,n)
+         iq=indx(1,(ikk+1)/2,n,ikk,ikk)
          print '('' n,iq,x,y,z,long,lat,f_g ''i2,i7,3f7.3,2f8.2,f9.5)',
      &     n,iq,x(iq),y(iq),z(iq),
      .     rlongg_g(iq)*180./pi,rlatt_g(iq)*180./pi,f_g(iq)
@@ -791,13 +798,13 @@ c    .  rlongg_g(iq)*180./pi,rlatt_g(iq)*180./pi
         print *,'On each panel final_em_g for ',
      .          '(1,1),(1,2),(1,3),(2,2),(3,2),(ic,ic),(ikk,ikk)'
         do n=0,npanels
-         iq11=ind(1,1,n)
-         iq12=ind(1,2,n)
-         iq13=ind(1,3,n)
-         iq22=ind(2,2,n)
-         iq32=ind(3,2,n)
-         iqcc=ind((ikk+1)/2,(ikk+1)/2,n)
-         iqnn=ind(ikk,ikk,n)
+         iq11=indx(1,1,n,ikk,ikk)
+         iq12=indx(1,2,n,ikk,ikk)
+         iq13=indx(1,3,n,ikk,ikk)
+         iq22=indx(2,2,n,ikk,ikk)
+         iq32=indx(3,2,n,ikk,ikk)
+         iqcc=indx((ikk+1)/2,(ikk+1)/2,n,ikk,ikk)
+         iqnn=indx(ikk,ikk,n,ikk,ikk)
          print '(i3,7f8.3)',n,em_g(iq11),em_g(iq12),em_g(iq13),
      .                        em_g(iq22),em_g(iq32),em_g(iqcc),
      &                        em_g(iqnn)
@@ -805,13 +812,13 @@ c    .  rlongg_g(iq)*180./pi,rlatt_g(iq)*180./pi
         print *,'On each panel final_emu_g for ',
      .          '(1,1),(1,2),(1,3),(2,2),(3,2),(ic,ic),(ikk,ikk)'
         do n=0,npanels
-         iq11=ind(1,1,n)
-         iq12=ind(1,2,n)
-         iq13=ind(1,3,n)
-         iq22=ind(2,2,n)
-         iq32=ind(3,2,n)
-         iqcc=ind((ikk+1)/2,(ikk+1)/2,n)
-         iqnn=ind(ikk,ikk,n)
+         iq11=indx(1,1,n,ikk,ikk)
+         iq12=indx(1,2,n,ikk,ikk)
+         iq13=indx(1,3,n,ikk,ikk)
+         iq22=indx(2,2,n,ikk,ikk)
+         iq32=indx(3,2,n,ikk,ikk)
+         iqcc=indx((ikk+1)/2,(ikk+1)/2,n,ikk,ikk)
+         iqnn=indx(ikk,ikk,n,ikk,ikk)
          print '(i3,7f8.3)',n,emu_g(iq11),emu_g(iq12),emu_g(iq13),
      .                        emu_g(iq22),emu_g(iq32),emu_g(iqcc),
      &                        emu_g(iqnn)
@@ -819,13 +826,13 @@ c    .  rlongg_g(iq)*180./pi,rlatt_g(iq)*180./pi
         print *,'On each panel final_emv_g for ',
      .          '(1,1),(1,2),(1,3),(2,2),(3,2),(ic,ic),(ikk,ikk)'
         do n=0,npanels
-         iq11=ind(1,1,n)
-         iq12=ind(1,2,n)
-         iq13=ind(1,3,n)
-         iq22=ind(2,2,n)
-         iq32=ind(3,2,n)
-         iqcc=ind((ikk+1)/2,(ikk+1)/2,n)
-         iqnn=ind(ikk,ikk,n)
+         iq11=indx(1,1,n,ikk,ikk)
+         iq12=indx(1,2,n,ikk,ikk)
+         iq13=indx(1,3,n,ikk,ikk)
+         iq22=indx(2,2,n,ikk,ikk)
+         iq32=indx(3,2,n,ikk,ikk)
+         iqcc=indx((ikk+1)/2,(ikk+1)/2,n,ikk,ikk)
+         iqnn=indx(ikk,ikk,n,ikk,ikk)
          print '(i3,7f8.3)',n,emv_g(iq11),emv_g(iq12),emv_g(iq13),
      .                        emv_g(iq22),emv_g(iq32),emv_g(iqcc),
      &                        emv_g(iqnn)
@@ -841,10 +848,10 @@ c    .  rlongg_g(iq)*180./pi,rlatt_g(iq)*180./pi
       enddo   ! iq loop
       if(myid==0)then
         ratmin=100.
-	 ratmax=0.
+        ratmax=0.
         do n=0,npanels
          do i=1,ikk
-	   iq=ind(i,ikk/2,n)
+	   iq=indx(i,ikk/2,n,ikk,ikk)
 	   rat=em_g(iq)/em_g(ie_g(iq))
 	    if(rat<ratmin)then
 	      ratmin=rat
@@ -858,7 +865,8 @@ c    .  rlongg_g(iq)*180./pi,rlatt_g(iq)*180./pi
           if(num==1)then
 	    print *,'em_g ratio for j=ikk/2 on npanel ',n
             write (6,"(12f6.3)")
-     &            (em_g(ind(i,ikk/2,n))/em_g(ie_g(ind(i,ikk/2,n))),
+     &            (em_g(indx(i,ikk/2,n,ikk,ikk))
+     &            /em_g(ie_g(indx(i,ikk/2,n,ikk,ikk))),
      &            i=1,ikk)
           endif
 	 enddo
@@ -870,7 +878,7 @@ c    .  rlongg_g(iq)*180./pi,rlatt_g(iq)*180./pi
         do n=0,npanels
 	  do j=1,ikk
           do i=1,ikk
-	    iq=ind(i,j,n)
+	    iq=indx(i,j,n,ikk,ikk)
 	    rat=em_g(iq)/em_g(ie_g(iq))
 	    if(rat<ratmin)then
 	      ratmin=rat
@@ -918,7 +926,7 @@ c     calculates simple i,j,n indices from supplied iq
       return
       end
       subroutine norm8(a,b,c,den)
-      real*8 a,b,c,den
+      real(kind=8) a,b,c,den
       den=sqrt(a**2+b**2+c**2)
       a=a/den
       b=b/den
@@ -956,7 +964,7 @@ c     define vectors on panels 1:5 from panel 0
 
       subroutine printp(name,s6)
       include 'newmpar.h'
-      character *4 name
+      character(len=4) name
       dimension s6(il_g,il_g,0:5)  ! no longer access s(ifull_g-1), s(ifull_g)
       dimension s1f(0:il_g+1,3*il_g),s2f(0:il_g+1,3*il_g)
 
@@ -977,20 +985,21 @@ c     s2 is Oz-SP section i.e.  2-4-5
       end
 
       subroutine strip2(s,s6,s1,s2)
+      use cc_mpi, only : indx
       use indices_m
+      implicit none
       include 'newmpar.h'
-      integer ind
+      integer i,j
 !      dimension in6(il_g,il_g,0:5),is6(il_g,il_g,0:5),iw6(il_g,il_g,0:5)
 !     .         ,ie6(il_g,il_g,0:5)
 !      equivalence (in_g,in6),(is_g,is6),(iw_g,iw6),(ie_g,ie6)
-      dimension s(ifull_g),s6(il_g,il_g,0:5)
+      real s(ifull_g),s6(il_g,il_g,0:5)
 c     N.B.  s & s6 are equivalenced via the call
 c     dimension s1f(0:il_g+1,3*il_g),s2f(0:il_g+1,3*il_g)
-      dimension s1(0:il_g+1,il_g,3),s2(0:il_g+1,il_g,3)  ! equiv to s1f, s2f via call
+      real s1(0:il_g+1,il_g,3),s2(0:il_g+1,il_g,3)  ! equiv to s1f, s2f via call
 c     s1 is Grenwich-NP section i.e.  0-1-3
 c     s2 is Oz-SP section i.e.  2-4-5
 c     for gnewst, these are extended on the sides only (i=0 & il_g+1)
-      ind(i,j,n)=i+(j-1)*il_g+n*il_g*il_g
       do j=1,il_g
        do i=1,il_g
         s1(i,j,1)=s6(i,j,0)
@@ -1001,19 +1010,19 @@ c     for gnewst, these are extended on the sides only (i=0 & il_g+1)
         s2(i,j,3)=s6(i,j,5)
        enddo  ! i loop
        
-       s1(0,j,1)=s(iw_g(ind(1,j,0)))
+       s1(0,j,1)=s(iw_g(indx(1,j,0,il_g,il_g)))
 c      print *,'j,iw6(1,j,0),s1(0,j,1) ',j,iw6(1,j,0),s1(0,j,1)
-       s1(0,j,2)=s(iw_g(ind(1,j,1)))
-       s1(0,j,3)=s(in_g(ind(j,il_g,3)))
-       s2(0,j,1)=s(in_g(ind(j,il_g,2)))
-       s2(0,j,2)=s(iw_g(ind(1,j,4)))
-       s2(0,j,3)=s(iw_g(ind(1,j,5)))
-       s1(il_g+1,j,1)=s(ie_g(ind(il_g,j,0)))
-       s1(il_g+1,j,2)=s(ie_g(ind(il_g,j,1)))
-       s1(il_g+1,j,3)=s(is_g(ind(j,1,3)))
-       s2(il_g+1,j,1)=s(is_g(ind(j,1,2)))
-       s2(il_g+1,j,2)=s(ie_g(ind(il_g,j,4)))
-       s2(il_g+1,j,3)=s(ie_g(ind(il_g,j,5)))
+       s1(0,j,2)=s(iw_g(indx(1,j,1,il_g,il_g)))
+       s1(0,j,3)=s(in_g(indx(j,il_g,3,il_g,il_g)))
+       s2(0,j,1)=s(in_g(indx(j,il_g,2,il_g,il_g)))
+       s2(0,j,2)=s(iw_g(indx(1,j,4,il_g,il_g)))
+       s2(0,j,3)=s(iw_g(indx(1,j,5,il_g,il_g)))
+       s1(il_g+1,j,1)=s(ie_g(indx(il_g,j,0,il_g,il_g)))
+       s1(il_g+1,j,2)=s(ie_g(indx(il_g,j,1,il_g,il_g)))
+       s1(il_g+1,j,3)=s(is_g(indx(j,1,3,il_g,il_g)))
+       s2(il_g+1,j,1)=s(is_g(indx(j,1,2,il_g,il_g)))
+       s2(il_g+1,j,2)=s(ie_g(indx(il_g,j,4,il_g,il_g)))
+       s2(il_g+1,j,3)=s(ie_g(indx(il_g,j,5,il_g,il_g)))
       enddo   ! j loop
       return
       end
@@ -1023,7 +1032,7 @@ c     calculate vector components of c = a x b
 c     where each RHS component represents 3 vector components
 c     this one need not have contiguous memory in common
 c     include 'newmpar_gx.h'
-      real*8    a1(ifull_g),a2(ifull_g),a3(ifull_g)
+      real(kind=8)    a1(ifull_g),a2(ifull_g),a3(ifull_g)
       dimension b1(ifull_g),b2(ifull_g),b3(ifull_g)
       dimension c1(ifull_g),c2(ifull_g),c3(ifull_g)
       do i=1,ifull_g
@@ -1040,7 +1049,7 @@ c     where each RHS component represents 3 vector components
 c     this one need not have contiguous memory in common
 c     include 'newmpar_gx.h'
       dimension a1(ifull_g),a2(ifull_g),a3(ifull_g)
-      real*8    b1(ifull_g),b2(ifull_g),b3(ifull_g)
+      real(kind=8)    b1(ifull_g),b2(ifull_g),b3(ifull_g)
       dimension c1(ifull_g),c2(ifull_g),c3(ifull_g)
       do i=1,ifull_g
        c1(i)=a2(i)*b3(i)-b2(i)*a3(i)

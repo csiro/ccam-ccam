@@ -28,13 +28,10 @@ c     doing x-interpolation before y-interpolation
       real, dimension(ntr) :: a3, a4, sss
       real, dimension(ntr) :: cmax, cmin
       real, dimension(ntr,4) :: r
-      integer i, j, k, n, ind, ip, jp
+      integer i, j, k, n, ip, jp
       integer ii
 
 #include "log.h"
-
-      ! This is really indp, just repeated here to get inlining to work
-      ind(i,j,n)=i+(j-1)*ipan+(n-1)*ipan*jpan  ! *** for n=1,npan
 
       START_LOG(ints)
       call bounds(s,nrows=2)
@@ -787,13 +784,10 @@ c                +y*(1+y)*(2-y)*c3}/2
       real duma(ifull+iextra,kl)
       integer idel, iq, jdel, nn
       real xxg, yyg
-      integer i, j, k, n, ind, ip, jp
+      integer i, j, k, n, ip, jp
       integer ii
 
 #include "log.h"
-
-      ! This is really indp, just repeated here to get inlining to work
-      ind(i,j,n)=i+(j-1)*ipan+(n-1)*ipan*jpan  ! *** for n=1,npan
 
 c     this one does bi-linear interpolation only
 c     first extend s arrays into sx - this one -1:il+2 & -1:il+2

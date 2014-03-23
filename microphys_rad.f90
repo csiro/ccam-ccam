@@ -104,7 +104,7 @@ namelist /microphys_rad_nml /     &
 !----------------------------------------------------------------------
 !----  private data -------
 
-real, public, parameter :: DIFFAC = 1.660000E+00
+real, public, parameter :: diffac = 1.660000E+00
 
 !----------------------------------------------------------------------
 !    parameters and data needed when frequency-dependent longwave 
@@ -1441,9 +1441,9 @@ logical,                        intent(in),                         &
 !    compute multi-band emissivities based on fu parameterizations for
 !    cloud drop, cloud ice, snow and rain. 
 !---------------------------------------------------------------------
-      if (trim(lwem_form) == 'fuliou') then
-      if (present(Cloud_rad_props)) then
-      do nnn=1,nbprofiles ! loop over profiles
+    if (trim(lwem_form) == 'fuliou') then
+    if (present(Cloud_rad_props)) then
+     do nnn=1,nbprofiles ! loop over profiles
         nonly = 0
         call cloud_lwpar (nonly, nbmax, nnn, size_drop, size_ice,   &
                           Cloud_microphysics%size_rain,              &
@@ -1461,7 +1461,7 @@ logical,                        intent(in),                         &
                           Cloud_microphysics%conc_rain, &
                           Cloud_microphysics%conc_snow, do_dge_lw,   &
                           Micro_rad_props%abscoeff)
-     endif   ! ((present(Cloud_rad_props))
+    endif   ! ((present(Cloud_rad_props))
 
 !---------------------------------------------------------------------
 !    if the ebert-curry emissivity was selected, call cloud_lwem_oneband
@@ -4879,21 +4879,21 @@ real, dimension (:,:,:,:), intent(out)  ::   abscoeff
 !----------------------------------------------------------------------
       if (nonly == 0) then
         do n=1,Cldrad_control%nlwcldb
-          abscoeff(:,:,:,n) = cldextbndicelw(:,:,:,n)*       &
+          abscoeff(:,:,:,n) = cldextbndicelw(:,:,:,n)*                 &
                               (1.0E+00 - cldssalbbndicelw(:,:,:,n)) +  &
                               cldextbnddroplw(:,:,:,n)              +  &
-                              cldextbndsnowlw(:,:,:,n)*               &
+                              cldextbndsnowlw(:,:,:,n)*                &
                               (1.0E+00 - cldssalbbndsnowlw(:,:,:,n)) + &
                               cldextbndrainlw(:,:,:,n)*                &
                               (1.0E+00 - cldssalbbndrainlw(:,:,:,n))
         end do
       else 
-        abscoeff(:,:,:,nonly) = cldextbndicelw(:,:,:,nonly)*       &
+        abscoeff(:,:,:,nonly) = cldextbndicelw(:,:,:,nonly)*           &
                            (1.0E+00 - cldssalbbndicelw(:,:,:,nonly)) + &
-                           cldextbnddroplw(:,:,:,nonly)          +    &
-                           cldextbndsnowlw(:,:,:,nonly)*           &
+                           cldextbnddroplw(:,:,:,nonly)              + &
+                           cldextbndsnowlw(:,:,:,nonly)*               &
                            (1.0E+00 - cldssalbbndsnowlw(:,:,:,nonly)) +&
-                           cldextbndrainlw(:,:,:,nonly)*           &
+                           cldextbndrainlw(:,:,:,nonly)*               &
                            (1.0E+00 - cldssalbbndrainlw(:,:,:,nonly))
       endif
  
@@ -5309,7 +5309,8 @@ subroutine el_dge (nb, conc_ice, size_ice, cldextbndicelw,    &
                    cldssalbbndicelw, cldasymmbndicelw)
  
 !-----------------------------------------------------------------------
-!    subroutine el_dge calculates the total optical depth and scattering!    optical depth for infrared radiation using Fu et al (J. Clim., 11,
+!    subroutine el_dge calculates the total optical depth and scattering
+!    optical depth for infrared radiation using Fu et al (J. Clim., 11,
 !    2223 (1998)). this parameterization will be used for crystal 
 !    generalized effective diameters from 18.6 to 130.2 um to match 
 !    shortwave limits.
@@ -5594,7 +5595,6 @@ real, dimension (:,:,:), intent(out)  ::  cldextbnddroplw
 !--------------------------------------------------------------------
         do iz=1,nz
           do iy=1,ny
-!dir$ ivdep
             do ix=1,nx
               cldextbnddroplw(ix,iy,iz  ) = 1.0E+03*alpha*conc_drop(ix,iy,iz)
             end do

@@ -20,6 +20,7 @@
       use cable_ccam, only : sib4        ! CABLE interface
       use cc_mpi                         ! CC MPI routines
       use diag_m                         ! Diagnostic routines
+      use estab                          ! Liquid saturation function
       use extraout_m                     ! Additional diagnostics
       use gdrag_m                        ! Gravity wave drag
       use liqwpar_m                      ! Cloud water mixing ratios
@@ -48,7 +49,6 @@
       
       include 'newmpar.h'                ! Grid parameters
       include 'const_phys.h'             ! Physical constants
-      include 'establ.h'                 ! Liquid saturation function
       include 'parm.h'                   ! Model configuration
       include 'parmgeom.h'               ! Coordinate data
       include 'parmsurf.h'               ! Surface parameters
@@ -959,6 +959,7 @@ c***  end of surface updating loop
       
       use arrays_m                     ! Atmosphere dyamics prognostic arrays
       use cc_mpi                       ! CC MPI routines
+      use estab                        ! Liquid saturation function
       use extraout_m                   ! Additional diagnostics
       use latlong_m                    ! Lat/lon coordinates
       use liqwpar_m                    ! Cloud water mixing ratios
@@ -979,7 +980,6 @@ c***  end of surface updating loop
       include 'newmpar.h'              ! Grid parameters
       include 'const_phys.h'           ! Physical constants
       include 'dates.h'                ! Date data
-      include 'establ.h'               ! Liquid saturation function
       include 'parm.h'                 ! Model configuration
       include 'soilv.h'                ! Soil parameters
       include 'trcom2.h'               ! Station data

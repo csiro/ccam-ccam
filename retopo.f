@@ -29,7 +29,7 @@ c     now alter temperatures to compensate for new topography
         if(nproc==1)then
           write (6,"('100*psl(b)old#',9f8.2)") 100.*diagvals(pslold)
           write (6,"('100*psl(b)new#',9f8.2)") 100.*diagvals(psl)
-	endif
+        endif
         print *,'retopo: zsold,zs,psold,psnew ',
      .           zsold(idjd),zs(idjd),psold(idjd),psnew(idjd)
         print *,'retopo: old t ',(t(idjd,k),k=1,kl)

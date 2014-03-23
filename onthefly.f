@@ -304,8 +304,8 @@
       integer, dimension(6) :: ierc
       integer, dimension(3), save :: iers
       integer, dimension(2) :: dumb
-      real*8, dimension(:,:), allocatable, save :: xx4,yy4
-      real*8, dimension(dk*dk*6):: z_a,x_a,y_a
+      real(kind=8), dimension(:,:), allocatable, save :: xx4,yy4
+      real(kind=8), dimension(dk*dk*6):: z_a,x_a,y_a
       real, dimension(ifull,wlev,4) :: mlodwn
       real, dimension(ifull,ok,2) :: mloin
       real, dimension(ifull,2) :: ocndwn
@@ -2070,6 +2070,8 @@ c     this one does linear interp in x on outer y sides
 c     doing x-interpolation before y-interpolation
 !     This is a global routine 
 
+      use cc_mpi, only : indx
+
       implicit none
       
       include 'newmpar.h'  ! Grid parameters
@@ -2079,20 +2081,18 @@ c     doing x-interpolation before y-interpolation
       real, dimension(ifull), intent(inout) :: sout
       integer, dimension(ifull), intent(in) :: nface
       integer idel, jdel, ik, nn
-      integer :: ind, i, j, n, iq, n_n, n_e, n_w, n_s
+      integer :: i, j, n, iq, n_n, n_e, n_w, n_s
       real aaa, c1, c2, c3, c4, xxg, yyg
       real, intent(in), dimension(ifull) :: xg, yg
       real sx(-1:ik+2,-1:ik+2,0:npanels)
       real r(4)
 
-ch      include 'indices_g.h' ! in,is,iw,ie,inn,iss,iww,iee
-      ind(i,j,n)=i+(j-1)*ik+n*ik*ik  ! *** for n=0,npanels
 c     this is intsb           EW interps done first
 c     first extend s arrays into sx - this one -1:il+2 & -1:il+2
       do n=0,npanels
        do j=1,ik
         do i=1,ik
-         sx(i,j,n)=s(ind(i,j,n))
+         sx(i,j,n)=s(indx(i,j,n,ik,ik))
         enddo  ! i loop
        enddo   ! j loop
       enddo    ! n loop
@@ -2102,29 +2102,29 @@ c     first extend s arrays into sx - this one -1:il+2 & -1:il+2
        n_n=mod(n+1,6)
        n_s=mod(n+4,6)
        do j=1,ik
-        sx(0,j,n)=s(ind(ik,j,n_w))
-        sx(-1,j,n)=s(ind(ik-1,j,n_w))
-        sx(ik+1,j,n)=s(ind(ik+1-j,1,n_e))
-        sx(ik+2,j,n)=s(ind(ik+1-j,2,n_e))
+        sx(0,j,n)=s(indx(ik,j,n_w,ik,ik))
+        sx(-1,j,n)=s(indx(ik-1,j,n_w,ik,ik))
+        sx(ik+1,j,n)=s(indx(ik+1-j,1,n_e,ik,ik))
+        sx(ik+2,j,n)=s(indx(ik+1-j,2,n_e,ik,ik))
        enddo
        do i=1,ik
-        sx(i,ik+1,n)=s(ind(i,1,n+1))
-        sx(i,ik+2,n)=s(ind(i,2,n+1))
-        sx(i,0,n)=s(ind(ik,ik+1-i,n_s))
-        sx(i,-1,n)=s(ind(ik-1,ik+1-i,n_s))
+        sx(i,ik+1,n)=s(indx(i,1,n+1,ik,ik))
+        sx(i,ik+2,n)=s(indx(i,2,n+1,ik,ik))
+        sx(i,0,n)=s(indx(ik,ik+1-i,n_s,ik,ik))
+        sx(i,-1,n)=s(indx(ik-1,ik+1-i,n_s,ik,ik))
        enddo
-       sx(-1,0,n)=s(ind(ik,2,n_w))       ! wws
-       sx(0,-1,n)=s(ind(ik,ik-1,n_s))    ! wss
-       sx(0,0,n)=s(ind(ik,1,n_w))        ! ws
-       sx(ik+1,0,n)=s(ind(ik,1,n_e))     ! es  
-       sx(ik+2,0,n)=s(ind(ik-1,1,n_e))   ! ees 
-       sx(-1,ik+1,n)=s(ind(ik,ik-1,n_w)) ! wwn
-       sx(0,ik+2,n)=s(ind(ik-1,ik,n_w))  ! wnn
-       sx(ik+2,ik+1,n)=s(ind(2,1,n_e))   ! een  
-       sx(ik+1,ik+2,n)=s(ind(1,2,n_e))   ! enn  
-       sx(0,ik+1,n)   =s(ind(ik,ik,n_w)) ! wn  
-       sx(ik+1,ik+1,n)=s(ind(1,1,n_e))   ! en  
-       sx(ik+1,-1,n)=s(ind(ik,2,n_e))    ! ess  
+       sx(-1,0,n)=s(indx(ik,2,n_w,ik,ik))       ! wws
+       sx(0,-1,n)=s(indx(ik,ik-1,n_s,ik,ik))    ! wss
+       sx(0,0,n)=s(indx(ik,1,n_w,ik,ik))        ! ws
+       sx(ik+1,0,n)=s(indx(ik,1,n_e,ik,ik))     ! es  
+       sx(ik+2,0,n)=s(indx(ik-1,1,n_e,ik,ik))   ! ees 
+       sx(-1,ik+1,n)=s(indx(ik,ik-1,n_w,ik,ik)) ! wwn
+       sx(0,ik+2,n)=s(indx(ik-1,ik,n_w,ik,ik))  ! wnn
+       sx(ik+2,ik+1,n)=s(indx(2,1,n_e,ik,ik))   ! een  
+       sx(ik+1,ik+2,n)=s(indx(1,2,n_e,ik,ik))   ! enn  
+       sx(0,ik+1,n)   =s(indx(ik,ik,n_w,ik,ik)) ! wn  
+       sx(ik+1,ik+1,n)=s(indx(1,1,n_e,ik,ik))   ! en  
+       sx(ik+1,-1,n)=s(indx(ik,2,n_e,ik,ik))    ! ess  
       enddo  ! n loop
       do n=1,npanels,2
        n_w=mod(n+4,6)
@@ -2132,29 +2132,29 @@ c     first extend s arrays into sx - this one -1:il+2 & -1:il+2
        n_n=mod(n+2,6)
        n_s=mod(n+5,6)
        do j=1,ik
-        sx(0,j,n)=s(ind(ik+1-j,ik,n_w))
-        sx(-1,j,n)=s(ind(ik+1-j,ik-1,n_w))
-        sx(ik+1,j,n)=s(ind(1,j,n_e))
-        sx(ik+2,j,n)=s(ind(2,j,n_e))
+        sx(0,j,n)=s(indx(ik+1-j,ik,n_w,ik,ik))
+        sx(-1,j,n)=s(indx(ik+1-j,ik-1,n_w,ik,ik))
+        sx(ik+1,j,n)=s(indx(1,j,n_e,ik,ik))
+        sx(ik+2,j,n)=s(indx(2,j,n_e,ik,ik))
        enddo
        do i=1,ik
-        sx(i,ik+1,n)=s(ind(1,ik+1-i,n_n))
-        sx(i,ik+2,n)=s(ind(2,ik+1-i,n_n))
-        sx(i,0,n)=s(ind(i,ik,n-1))
-        sx(i,-1,n)=s(ind(i,ik-1,n-1))
+        sx(i,ik+1,n)=s(indx(1,ik+1-i,n_n,ik,ik))
+        sx(i,ik+2,n)=s(indx(2,ik+1-i,n_n,ik,ik))
+        sx(i,0,n)=s(indx(i,ik,n-1,ik,ik))
+        sx(i,-1,n)=s(indx(i,ik-1,n-1,ik,ik))
        enddo
-       sx(-1,0,n)=s(ind(ik-1,ik,n_w))     ! wws
-       sx(0,-1,n)=s(ind(2,ik,n_s))        ! wss
-       sx(0,0,n)=s(ind(ik,ik,n_w))        ! ws
-       sx(ik+1,0,n)=s(ind(1,1,n_e))       ! es
-       sx(ik+2,0,n)=s(ind(1,2,n_e))       ! ees
-       sx(-1,ik+1,n)=s(ind(2,ik,n_w))     ! wwn   
-       sx(0,ik+2,n)=s(ind(1,ik-1,n_w))    ! wnn  
-       sx(ik+2,ik+1,n)=s(ind(1,ik-1,n_e)) ! een  
-       sx(ik+1,ik+2,n)=s(ind(2,ik,n_e))   ! enn  
-       sx(0,ik+1,n)   =s(ind(1,ik,n_w))   ! wn  
-       sx(ik+1,ik+1,n)=s(ind(1,ik,n_e))   ! en  
-       sx(ik+1,-1,n)=s(ind(2,1,n_e))      ! ess  
+       sx(-1,0,n)=s(indx(ik-1,ik,n_w,ik,ik))     ! wws
+       sx(0,-1,n)=s(indx(2,ik,n_s,ik,ik))        ! wss
+       sx(0,0,n)=s(indx(ik,ik,n_w,ik,ik))        ! ws
+       sx(ik+1,0,n)=s(indx(1,1,n_e,ik,ik))       ! es
+       sx(ik+2,0,n)=s(indx(1,2,n_e,ik,ik))       ! ees
+       sx(-1,ik+1,n)=s(indx(2,ik,n_w,ik,ik))     ! wwn   
+       sx(0,ik+2,n)=s(indx(1,ik-1,n_w,ik,ik))    ! wnn  
+       sx(ik+2,ik+1,n)=s(indx(1,ik-1,n_e,ik,ik)) ! een  
+       sx(ik+1,ik+2,n)=s(indx(2,ik,n_e,ik,ik))   ! enn  
+       sx(0,ik+1,n)   =s(indx(1,ik,n_w,ik,ik))   ! wn  
+       sx(ik+1,ik+1,n)=s(indx(1,ik,n_e,ik,ik))   ! en  
+       sx(ik+1,-1,n)=s(indx(2,1,n_e,ik,ik))      ! ess  
       enddo  ! n loop
 c     for ew interpolation, sometimes need (different from ns):
 c          (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
@@ -2203,6 +2203,8 @@ c      following does Bermejo Staniforth
       
 c     this one does bi-linear interpolation only
 
+      use cc_mpi, only : indx
+
       implicit none
       
       include 'newmpar.h'  ! Grid parameters
@@ -2214,16 +2216,16 @@ c     this one does bi-linear interpolation only
       real, intent(in), dimension(ifull) :: xg, yg
       real sx(-1:ik+2,-1:ik+2,0:npanels)
 c     include 'indices_g.h' ! in,is,iw,ie,inn,iss,iww,iee
-      integer :: ind, i, j, n, iq, idel, jdel, ik
+      integer :: i, j, n, iq, idel, jdel, ik
       integer :: n_n, n_e, n_w, n_s
       real :: xxg, yyg
-      ind(i,j,n)=i+(j-1)*ik+n*ik*ik  ! *** for n=0,npanels
+
 c     first extend s arrays into sx - this one -1:il+2 & -1:il+2
 c                    but for bi-linear only need 0:il+1 &  0:il+1
       do n=0,npanels
        do j=1,ik
         do i=1,ik
-         sx(i,j,n)=s(ind(i,j,n))
+         sx(i,j,n)=s(indx(i,j,n,ik,ik))
         enddo  ! i loop
        enddo   ! j loop
       enddo    ! n loop
@@ -2233,17 +2235,17 @@ c                    but for bi-linear only need 0:il+1 &  0:il+1
        n_n=mod(n+1,6)
        n_s=mod(n+4,6)
        do j=1,ik
-        sx(0,j,n)=s(ind(ik,j,n_w))
-        sx(ik+1,j,n)=s(ind(ik+1-j,1,n_e))
+        sx(0,j,n)=s(indx(ik,j,n_w,ik,ik))
+        sx(ik+1,j,n)=s(indx(ik+1-j,1,n_e,ik,ik))
        enddo
        do i=1,ik
-        sx(i,ik+1,n)=s(ind(i,1,n+1))
-        sx(i,0,n)=s(ind(ik,ik+1-i,n_s))
+        sx(i,ik+1,n)=s(indx(i,1,n+1,ik,ik))
+        sx(i,0,n)=s(indx(ik,ik+1-i,n_s,ik,ik))
        enddo
-       sx(0,0,n)=s(ind(ik,1,n_w))        ! ws
-       sx(ik+1,0,n)=s(ind(ik,1,n_e))     ! es  
-       sx(0,ik+1,n)   =s(ind(ik,ik,n_w)) ! wn  
-       sx(ik+1,ik+1,n)=s(ind(1,1,n_e))   ! en  
+       sx(0,0,n)=s(indx(ik,1,n_w,ik,ik))        ! ws
+       sx(ik+1,0,n)=s(indx(ik,1,n_e,ik,ik))     ! es  
+       sx(0,ik+1,n)   =s(indx(ik,ik,n_w,ik,ik)) ! wn  
+       sx(ik+1,ik+1,n)=s(indx(1,1,n_e,ik,ik))   ! en  
       enddo  ! n loop
       do n=1,npanels,2
        n_w=mod(n+4,6)
@@ -2251,17 +2253,17 @@ c                    but for bi-linear only need 0:il+1 &  0:il+1
        n_n=mod(n+2,6)
        n_s=mod(n+5,6)
        do j=1,ik
-        sx(0,j,n)=s(ind(ik+1-j,ik,n_w))
-        sx(ik+1,j,n)=s(ind(1,j,n_e))
+        sx(0,j,n)=s(indx(ik+1-j,ik,n_w,ik,ik))
+        sx(ik+1,j,n)=s(indx(1,j,n_e,ik,ik))
        enddo
        do i=1,ik
-        sx(i,ik+1,n)=s(ind(1,ik+1-i,n_n))
-        sx(i,0,n)=s(ind(i,ik,n-1))
+        sx(i,ik+1,n)=s(indx(1,ik+1-i,n_n,ik,ik))
+        sx(i,0,n)=s(indx(i,ik,n-1,ik,ik))
        enddo
-       sx(0,0,n)=s(ind(ik,ik,n_w))        ! ws
-       sx(ik+1,0,n)=s(ind(1,1,n_e))       ! es
-       sx(0,ik+1,n)   =s(ind(1,ik,n_w))   ! wn  
-       sx(ik+1,ik+1,n)=s(ind(1,ik,n_e))   ! en  
+       sx(0,0,n)=s(indx(ik,ik,n_w,ik,ik))        ! ws
+       sx(ik+1,0,n)=s(indx(1,1,n_e,ik,ik))       ! es
+       sx(0,ik+1,n)   =s(indx(1,ik,n_w,ik,ik))   ! wn  
+       sx(ik+1,ik+1,n)=s(indx(1,ik,n_e,ik,ik))   ! en  
       enddo  ! n loop
       
 
@@ -2295,7 +2297,7 @@ c     routine fills in interior of an array which has undefined points
       real a_io(ik*ik*6)         ! input and output array
       real a(ik*ik*6)
       real :: av     
-      integer :: nrem, i, ii, ik, iq, ind, j, n, neighb, ndiag
+      integer :: nrem, i, ii, ik, iq, j, n, neighb, ndiag
       integer :: iminb, imaxb, jminb, jmaxb
       integer, save :: oldik = 0
       integer, dimension(:,:), allocatable, save :: ic
@@ -2305,7 +2307,6 @@ c     routine fills in interior of an array which has undefined points
       logical, dimension(4) :: mask
       data npann/1,103,3,105,5,101/,npane/102,2,104,4,100,0/
       data npanw/5,105,1,101,3,103/,npans/104,0,100,2,102,4/
-      ind(i,j,n)=i+(j-1)*ik+n*ik*ik  ! *** for n=0,npanels
 
       if (myid/=0) return
 
@@ -2331,38 +2332,38 @@ c     routine fills in interior of an array which has undefined points
        do n=0,npanels
         if(npann(n)<100)then
          do ii=1,ik
-          ic(1,ind(ii,ik,n))=ind(ii,1,npann(n))
+          ic(1,indx(ii,ik,n,ik,ik))=indx(ii,1,npann(n),ik,ik)
          enddo    ! ii loop
         else
          do ii=1,ik
-          ic(1,ind(ii,ik,n))=ind(1,ik+1-ii,npann(n)-100)
+          ic(1,indx(ii,ik,n,ik,ik))=indx(1,ik+1-ii,npann(n)-100,ik,ik)
          enddo    ! ii loop
         endif      ! (npann(n)<100)
         if(npane(n)<100)then
          do ii=1,ik
-          ic(3,ind(ik,ii,n))=ind(1,ii,npane(n))
+          ic(3,indx(ik,ii,n,ik,ik))=indx(1,ii,npane(n),ik,ik)
          enddo    ! ii loop
         else
          do ii=1,ik
-          ic(3,ind(ik,ii,n))=ind(ik+1-ii,1,npane(n)-100)
+          ic(3,indx(ik,ii,n,ik,ik))=indx(ik+1-ii,1,npane(n)-100,ik,ik)
          enddo    ! ii loop
         endif      ! (npane(n)<100)
         if(npanw(n)<100)then
          do ii=1,ik
-          ic(4,ind(1,ii,n))=ind(ik,ii,npanw(n))
+          ic(4,indx(1,ii,n,ik,ik))=indx(ik,ii,npanw(n),ik,ik)
          enddo    ! ii loop
         else
          do ii=1,ik
-          ic(4,ind(1,ii,n))=ind(ik+1-ii,ik,npanw(n)-100)
+          ic(4,indx(1,ii,n,ik,ik))=indx(ik+1-ii,ik,npanw(n)-100,ik,ik)
          enddo    ! ii loop
         endif      ! (npanw(n)<100)
         if(npans(n)<100)then
          do ii=1,ik
-          ic(2,ind(ii,1,n))=ind(ii,ik,npans(n))
+          ic(2,indx(ii,1,n,ik,ik))=indx(ii,ik,npans(n),ik,ik)
          enddo    ! ii loop
         else
          do ii=1,ik
-          ic(2,ind(ii,1,n))=ind(ik,ik+1-ii,npans(n)-100)
+          ic(2,indx(ii,1,n,ik,ik))=indx(ik,ik+1-ii,npans(n)-100,ik,ik)
          enddo    ! ii loop
         endif      ! (npans(n)<100)
        enddo      ! n loop
@@ -2387,7 +2388,7 @@ c     routine fills in interior of an array which has undefined points
         jmaxb=1
         do j=jmin(n),jmax(n)
          do i=imin(n),imax(n)
-          iq=ind(i,j,n)
+          iq=indx(i,j,n,ik,ik)
           if(a(iq)==value)then
            mask=a(ic(:,iq))/=value
            neighb=count(mask)

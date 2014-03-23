@@ -1766,7 +1766,7 @@ c      set time to number of minutes since start
          enddo
         enddo
 !       N.B. does not yet properly handle across Grenwich Meridion
-        tmpry=tr(1:ifull,:,ngas+1)	   
+        tmpry=tr(1:ifull,:,ngas+1)
         call histwrt4(tmpry,'del_lat',idnc,iarch,local,
      &                .true.)
         tmpry=tr(1:ifull,:,ngas+2)
