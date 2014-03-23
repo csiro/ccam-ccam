@@ -1371,12 +1371,12 @@ real, dimension(ifull,1) :: wvar
 character(len=*), intent(in) :: sname
 logical, intent(in) :: local, lwrite
 
-wvar(:,1)=var
+wvar(:,1)=var(:)
 if (.not.lwrite) then
 #ifdef usenc3
-  wvar=real(nf_fill_float)
+  wvar(:,1)=real(nf_fill_float)
 #else
-  wvar=real(nf90_fill_float)
+  wvar(:,1)=real(nf90_fill_float)
 #endif
 end if
 
@@ -1444,32 +1444,19 @@ ier=lier
 call ncmsg(sname,ier)
 lier=nf_inq_vartype(lidnc,mid,vtype)
 if(vtype == nf_short)then
-#else
-lier=nf90_inq_varid(lidnc,sname,mid)
-ier=lier
-call ncmsg(sname,ier)
-lier=nf90_inquire_variable(lidnc,mid,xtype=vtype)
-if(vtype == nf90_short)then
-#endif
   if (all(var>9.8E36)) then
     ipack=missval
   else
-#ifdef usenc3  
     lier=nf_get_att_real(lidnc,mid,'add_offset',laddoff)
     lier=nf_get_att_real(lidnc,mid,'scale_factor',lscale_f)
-#else
-    lier=nf90_get_att(lidnc,mid,'add_offset',laddoff)
-    lier=nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
-#endif
-    addoff=laddoff
-    scale_f=lscale_f
+    addoff=real(laddoff)
+    scale_f=real(lscale_f)
     do i=1,istep
       do iq=1,ifull
-        ipack(iq,i)=max(min(nint((var(iq,i)-addoff)/scale_f,2),maxv),minv)
+        ipack(iq,i)=nint(max(min((var(iq,i)-addoff)/scale_f,real(maxv)),real(minv)),2)
       end do
     end do
   end if
-#ifdef usenc3
   lier=nf_put_vara_int2(lidnc,mid,start,ncount,ipack)
 else
 #ifdef i8r8
@@ -1477,26 +1464,49 @@ else
 #else
   lier=nf_put_vara_real(lidnc,mid,start,ncount,var)
 #endif
-#else
-  lier=nf90_put_var(lidnc,mid,ipack,start=start,count=ncount)
-else
-lier=nf90_put_var(lidnc,mid,var,start=start,count=ncount)
-#endif
 end if
 ier=lier
 call ncmsg(sname,ier)
-
 if (mod(ktau,nmaxpr)==0.and.myid==0) then
-#ifdef usenc3
   if (any(var==real(nf_fill_float))) then
-#else
-  if (any(var==real(nf90_fill_float))) then
-#endif
     write(6,'("histwrt3 ",a7,i4,a7)') sname,iarch,"missing"
   else
     write(6,'("histwrt3 ",a7,i4)') sname,iarch
   end if
 end if
+#else
+lier=nf90_inq_varid(lidnc,sname,mid)
+ier=lier
+call ncmsg(sname,ier)
+lier=nf90_inquire_variable(lidnc,mid,xtype=vtype)
+if(vtype == nf90_short)then
+  if (all(var>9.8E36)) then
+    ipack=missval
+  else
+    lier=nf90_get_att(lidnc,mid,'add_offset',laddoff)
+    lier=nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
+    addoff=real(laddoff)
+    scale_f=real(lscale_f)
+    do i=1,istep
+      do iq=1,ifull
+        ipack(iq,i)=nint(max(min((var(iq,i)-addoff)/scale_f,real(maxv)),real(minv)),2)
+      end do
+    end do
+  end if
+  lier=nf90_put_var(lidnc,mid,ipack,start=start,count=ncount)
+else
+  lier=nf90_put_var(lidnc,mid,var,start=start,count=ncount)
+end if
+ier=lier
+call ncmsg(sname,ier)
+if (mod(ktau,nmaxpr)==0.and.myid==0) then
+  if (any(var==real(nf90_fill_float))) then
+    write(6,'("histwrt3 ",a7,i4,a7)') sname,iarch,"missing"
+  else
+    write(6,'("histwrt3 ",a7,i4)') sname,iarch
+  end if
+end if
+#endif
 
 return
 end subroutine fw3l
@@ -1557,7 +1567,7 @@ if (vtype == nf90_short) then
     scale_f=lscale_f
     do i=1,istep
       do iq=1,ifull_g
-        ipack(iq,i)=max(min(nint((globvar(iq,i)-addoff)/scale_f,2),maxv),minv)
+        ipack(iq,i)=nint(max(min((globvar(iq,i)-addoff)/scale_f,real(maxv)),real(minv)),2)
       end do
     end do
   endif
@@ -1693,7 +1703,7 @@ if(vtype == nf90_short)then
     scale_f=lscale_f
     do k=1,kl
       do iq=1,ifull
-        ipack(iq,k)=max(min(nint((var(iq,k)-addoff)/scale_f,2),maxv),minv)
+        ipack(iq,k)=nint(max(min((var(iq,k)-addoff)/scale_f,real(maxv)),real(minv)),2)
       end do
     end do
   endif
@@ -1785,7 +1795,7 @@ if(vtype == nf90_short)then
     scale_f=lscale_f
     do k=1,kl
       do iq=1,ifull_g
-        ipack(iq,k)=max(min(nint((globvar(iq,k)-addoff)/scale_f,2),maxv),minv)
+        ipack(iq,k)=nint(max(min((globvar(iq,k)-addoff)/scale_f,real(maxv)),real(minv)),2)
       end do
     end do
   endif
