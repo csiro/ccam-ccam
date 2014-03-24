@@ -6,7 +6,7 @@
       contains
 
       subroutine vadvtvd(tarr,uarr,varr,nvadh_pass,nits,iaero)   ! globpea  version
-c                              vadvbott & vadvyu at bottom
+!                              vadvbott & vadvyu at bottom
 !     can show adding tbar has no effect
       use aerosolldr
       use arrays_m
@@ -23,9 +23,9 @@ c                              vadvbott & vadvyu at bottom
       use xarrs_m
       implicit none
       include 'newmpar.h'
-c     split vertical advection routine; tvd scheme; used with nonlin or upglobal
-c     In flux limiter, assuming zero gradient for all top and bottom
-c     variables; except extrap at bottom for qg and trace gases  Thu  06-19-1997
+!     split vertical advection routine; tvd scheme; used with nonlin or upglobal
+!     In flux limiter, assuming zero gradient for all top and bottom
+!     variables; except extrap at bottom for qg and trace gases  Thu  06-19-1997
       include 'kuocom.h'     ! also with kbsav,ktsav
       include 'parm.h'
       include 'parmdyn.h'
@@ -77,7 +77,7 @@ c     variables; except extrap at bottom for qg and trace gases  Thu  06-19-1997
         kx(:,k)=k+(1-kp(:,k))/2 !  k for sdot +ve,  k+1 for sdot -ve
       end do
 
-c     t
+!     t
       call vadvsub(tarr,tfact,nits,kp,kx)
 #ifdef debug
       if( (diag.or.nmaxpr==1) .and. mydiag )then
@@ -88,7 +88,7 @@ c     t
       endif
 #endif
 
-c     u
+!     u
       call vadvsub(uarr,tfact,nits,kp,kx)
 #ifdef debug
       if( diag .and. mydiag )then
@@ -98,7 +98,7 @@ c     u
       endif
 #endif
 
-c     v
+!     v
       call vadvsub(varr,tfact,nits,kp,kx)
 #ifdef debug
       if( diag .and. mydiag )then
@@ -107,19 +107,19 @@ c     v
       endif
 #endif
 
-c     h_nh
+!     h_nh
       if(nh/=0.and.npslx==1.and.nvad<=-4)then
         call vadvsub(h_nh,tfact,nits,kp,kx)
       endif     ! (nh.ne.0)
 
-c     pslx
+!     pslx
       if(npslx==1.and.nvad<=-4)then  ! handles -9 too
         call vadvsub(pslx,tfact,nits,kp,kx)
       endif  ! (npslx==1.and.nvad==-4)
 
       if(mspec==1.and.abs(nvad)/=9)then   ! advect qg and gases after preliminary step
 
-c      qg
+!      qg
        call vadvsub(qg,tfact,nits,kp,kx)
 #ifdef debug
        if( diag .and. mydiag )then
@@ -188,7 +188,7 @@ c      qg
       real, dimension(ifull,0:kl) :: delt,fluxh
       real, dimension(ifull,kl) :: xin
 
-c     fluxh(k) is located at level k+.5
+!     fluxh(k) is located at level k+.5
       fluxh(:,0)=0.
       fluxh(:,kl)=0.
       

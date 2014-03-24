@@ -136,10 +136,10 @@ module cable_data_module
 
 
    ! instantiate major types of constants 
-   type( physical_constants ), TARGET :: phys
-   type( math_constants ), TARGET  :: math
-   type( other_constants ), TARGET  :: other
-   type( photosynthetic_constants ), TARGET :: photo
+   type( physical_constants ), TARGET, save :: phys
+   type( math_constants ), TARGET, save  :: math
+   type( other_constants ), TARGET, save  :: other
+   type( photosynthetic_constants ), TARGET, save :: photo
    
 
    ! TYPEs of local pointers to global constants defined above 
