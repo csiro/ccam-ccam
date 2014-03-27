@@ -6,6 +6,7 @@ c     subroutine setxyz(ik,rlat0,rlong0,schmidt,xx4,yy4,myid)
 !     note that ax6 etc not needed for onthefly     
       use cc_mpi, only : indx
       use indices_m
+      use jimcc_m
       use latlong_m
       use map_m
       use utilities

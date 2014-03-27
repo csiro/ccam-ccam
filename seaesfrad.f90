@@ -1394,18 +1394,8 @@ do k=1,kl
   coni(:,kr) =real(1000.*scale_factor*Wice(:,k),8)
 end do
 
-where (Rdrop>0.1_8)
-  Rdrop=min(max(Rdrop,8.4_8),33.2_8) ! constrain diameter to acceptable range (see microphys_rad.f90)
-elsewhere
-  Rdrop=0._8
-  conl=0._8
-endwhere
-where (Rice>0.1_8)
-  Rice=min(max(Rice,18.6_8),130.2_8)
-elsewhere
-  Rice=0._8
-  coni=0._8
-endwhere
+Rdrop=min(max(Rdrop,8.4_8),33.2_8) ! constrain diameter to acceptable range (see microphys_rad.f90)
+Rice=min(max(Rice,18.6_8),130.2_8)
 
 return
 end subroutine cloud3

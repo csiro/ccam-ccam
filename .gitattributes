@@ -35,6 +35,7 @@
 /histave_m.f90 -text
 /indices_m.f90 -text
 /infile.f90 -text
+/jimcc.f90 -text
 /kdacom_m.f90 -text
 /kuocomb_m.f90 -text
 /latlong_m.f90 -text
