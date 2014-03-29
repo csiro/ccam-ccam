@@ -1,4 +1,4 @@
-      subroutine vadv30(tarr,uarr,varr,iaero)   
+      subroutine vadv30(tarr,uarr,varr)   
 !     only calls vadvbess or vadvbess8 (nvad=7,8) from Aug 2003
       use aerosolldr      
       use arrays_m
@@ -31,7 +31,7 @@ c     does t, u,v then qg, [q1, q2,]
       include 'parmdyn.h'
       include 'parmvert.h'
       real wrk1(ifull,kl),ders(ifull,kl)   ! just work arrays here
-      integer kdel(ifull,kl),iaero,l
+      integer kdel(ifull,kl),l
       real sd(ifull,kl)
       real st(ifull,kl),anew(ifull,kl),gwrk(ifull,kl)
       real tarr(ifull,kl),uarr(ifull,kl),varr(ifull,kl)

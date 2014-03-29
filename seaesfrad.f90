@@ -51,7 +51,7 @@ contains
 ! CCAM interface with GFDL SEA-ESF radiation
 !
 
-subroutine seaesfrad(imax,odcalc,iaero)
+subroutine seaesfrad(imax,odcalc)
 
 use aerointerface
 use aerosolldr
@@ -84,7 +84,7 @@ include 'newmpar.h'
 include 'kuocom.h'
 
 logical, intent(in) :: odcalc  ! True for full radiation calculation
-integer, intent(in) :: imax,iaero
+integer, intent(in) :: imax
 integer jyear,jmonth,jday,jhour,jmin
 integer k,ksigtop,mins
 integer i,j,iq,istart,iend,kr,nr
@@ -618,7 +618,7 @@ do j=1,jl,imax/il
     end select
 
     ! define droplet size distribution ------------------------------
-    call aerodrop(iaero,istart,imax,kl,cd2,rhoa,land(istart:iend),rlatt(istart:iend))
+    call aerodrop(istart,imax,kl,cd2,rhoa,land(istart:iend),rlatt(istart:iend))
     
     ! Cloud fraction diagnostics ------------------------------------
     cloudlo(istart:iend)=0.

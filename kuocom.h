@@ -58,8 +58,8 @@
      &  ,ncloud                                                           ! New options for microphysics 0 = original
 
       common/ldr/                                                       &
-     &   acon                                                           & ! Cloud fraction for non-precipitating convection   [.2]
-     &  ,bcon                                                           & ! Rate at which conv cloud frac increases with R    [.07]
-     &  ,rcm                                                            & ! Threshold cloud dropl R for coalescence to begin  [1.e-5]
-     &  ,rcrit_l                                                        & ! rcrit_land for ldr newcloud                       [.75]
-     &  ,rcrit_s                                                          ! rcrit_sea  for ldr newcloud                       [.85]
+     &   acon                                                           & ! Cloud fraction for non-precipitating convection  [.2]
+     &  ,bcon                                                           & ! Rate at which conv cloud frac increases with R   [.07]
+     &  ,rcm                                                            & ! Threshold cloud dropl R for coalescence to begin [1e-5]
+     &  ,rcrit_l                                                        & ! rcrit_land for ldr newcloud                      [.75]
+     &  ,rcrit_s                                                          ! rcrit_sea  for ldr newcloud                      [.85]

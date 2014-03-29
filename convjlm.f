@@ -1,4 +1,4 @@
-      subroutine convjlm(iaero)     ! jlm convective scheme
+      subroutine convjlm     ! jlm convective scheme
 !     version 1403 with preferred mbase = 0
 !     has +ve fldownn depending on delta sigma; -ve uses older abs(fldown)   
 !     N.B. old nevapcc option has been removed - now affects entrainment
@@ -70,7 +70,6 @@ c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
 !     nevapls:  turn off/on ls evap - through parm.h; 0 off, 5 newer UK
       integer ktmax(ifull),kbsav_ls(ifull),kb_sav(ifull),kt_sav(ifull)
       integer kkbb(ifull),kmin(ifull)
-      integer iaero
       integer, save :: k500,k900,klon2,klon23,k935,k972
       real, dimension(:), allocatable, save ::  timeconv,entrainn
       real, dimension(:,:), allocatable, save :: downex,upin,upin4

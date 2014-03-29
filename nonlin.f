@@ -1,4 +1,4 @@
-      subroutine nonlin(iaero)
+      subroutine nonlin
       use aerosolldr      
       use arrays_m
       use cc_mpi
@@ -31,7 +31,7 @@
       include 'parm.h'
       include 'parmdyn.h'  
       include 'parmvert.h'
-      integer iq, k, ng, ii, jj, iaero
+      integer iq, k, ng, ii, jj
       integer ierr
       integer, save :: num = 0
       integer, dimension(ifull) :: nits, nvadh_pass
@@ -161,11 +161,11 @@
      &   write(6,*) 'in nonlin sdmx,nits,nvadh_pass ',
      &             sdmx(idjd),nits(idjd),nvadh_pass(idjd)
 #endif
-          call vadvtvd(t,u,v,nvadh_pass,nits,iaero)
+          call vadvtvd(t,u,v,nvadh_pass,nits)
       endif  ! (nvad==4.or.nvad==9)
 
       if(nvad>=7)then
-         call vadv30(t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),iaero)  ! for vadvbess
+         call vadv30(t(1:ifull,:),u(1:ifull,:),v(1:ifull,:))  ! for vadvbess
       endif
 
 #ifdef debug

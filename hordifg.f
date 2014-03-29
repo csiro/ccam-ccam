@@ -1,4 +1,4 @@
-      subroutine hordifgt(iaero)    !  globpea version    N.B. k loop in here
+      subroutine hordifgt   !  globpea version    N.B. k loop in here
 !     usual scheme
       use aerosolldr
       use arrays_m
@@ -54,7 +54,7 @@ c     has jlm nhorx option as last digit of nhor, e.g. -157
       real, dimension(ifull,kl) :: zg,tnhs
       integer, parameter :: nf=2
 !     Local variables
-      integer iq, k, nhora, nhorx, iaero, ntr
+      integer iq, k, nhora, nhorx, ntr
       real cc, delphi, hdif, ucc, vcc, wcc
       integer, save :: kmax=-1
       !integer i, j, n, ind

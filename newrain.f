@@ -367,7 +367,7 @@ c Now work down through the levels...
             ! that are separated by a clear layer
             if ((clfr(mg,k)<1.e-10.and.cfrain(mg,k)<1.e-10)
      &          .or.nmr==0) then
-              ! combine max overlap from last cloud with net random overlap
+              ! combine max overlap from above cloud with net random overlap
               rdclfr(mg)=rdclfr(mg)+mxclfr(mg)-rdclfr(mg)*mxclfr(mg)
               mxclfr(mg)=0.
             end if

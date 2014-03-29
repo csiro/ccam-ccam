@@ -1,4 +1,4 @@
-      subroutine radrive (ixin,odcalc,iaero)
+      subroutine radrive (ixin,odcalc)
 ! Radiation driver routine for the conformal cubic model.
 ! This calls the GFDL radiation routines for each row of each face.
 ! At the moment it does not support the new liquid water cloud scheme
@@ -474,7 +474,7 @@ c       Stuff needed for cloud2 routine...
         do k=1,kl
           rhoa(:,k)=ps(istart:iend)*sig(k)/(rdry*t(istart:iend,k)) !density of air
         end do
-        call aerodrop(iaero,istart,imax,kl,cd2,rhoa,
+        call aerodrop(istart,imax,kl,cd2,rhoa,
      &                land(istart:iend),rlatt(istart:iend))
       endif  ! (ldr.ne.0)
       

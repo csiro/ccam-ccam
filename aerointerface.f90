@@ -588,7 +588,7 @@ end subroutine aerocalc
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Estimate cloud droplet size
-subroutine aerodrop(iaero,istart,imax,kl,cdn,rhoa,land,rlatt,outconv)
+subroutine aerodrop(istart,imax,kl,cdn,rhoa,land,rlatt,outconv)
 
 use aerosolldr
 
@@ -596,8 +596,9 @@ implicit none
 
 include 'const_phys.h'
 include 'cparams.h'
+include 'parm.h'
 
-integer, intent(in) :: iaero,istart,imax,kl
+integer, intent(in) :: istart,imax,kl
 integer k
 real, dimension(imax,kl), intent(out) :: cdn
 real, dimension(imax,kl), intent(in) :: rhoa

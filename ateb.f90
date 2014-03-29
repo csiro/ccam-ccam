@@ -94,12 +94,14 @@ real, dimension(:), allocatable, save :: p_tscrn,p_qscrn,p_uscrn,p_u10,p_emiss
 
 ! model parameters
 integer, parameter :: nmlfile=0       ! Read configuration from nml file (0=off, >0 unit number (default=11))
-integer, save :: resmeth=1            ! Canyon sensible heat transfer (0=Masson, 1=Harman (varying width), 2=Kusaka, 3=Harman (fixed width))
+integer, save :: resmeth=1            ! Canyon sensible heat transfer (0=Masson, 1=Harman (varying width), 2=Kusaka,
+                                      ! 3=Harman (fixed width))
 integer, save :: useonewall=0         ! Combine both wall energy budgets into a single wall (0=two walls, 1=single wall) 
 integer, save :: zohmeth=1            ! Urban roughness length for heat (0=0.1*zom, 1=Kanda, 2=0.003*zom)
 integer, save :: acmeth=1             ! AC heat pump into canyon (0=Off, 1=On)
 integer, save :: nrefl=3              ! Number of canyon reflections (default=3)
-integer, save :: vegmode=2            ! In-canyon vegetation mode (0=50%/50%, 1=100%/0%, 2=0%/100%, where out/in=X/Y. Negative values are X=abs(vegmode))
+integer, save :: vegmode=2            ! In-canyon vegetation mode (0=50%/50%, 1=100%/0%, 2=0%/100%, where out/in=X/Y.
+                                      ! Negative values are X=abs(vegmode))
 integer, save :: scrnmeth=1           ! Screen diagnostic method (0=Slab, 1=Hybrid, 2=Canyon)
 integer, save :: wbrelaxc=0           ! Relax canyon soil moisture for irrigation (0=Off, 1=On)
 integer, save :: wbrelaxr=0           ! Relax roof soil moisture for irrigation (0=Off, 1=On)
@@ -1337,11 +1339,14 @@ call getc1(d_c1r,v_moistr)
 
 ! calculate heat pumped into canyon by air conditioning (COP updated in solvecanyon)
 ! (use split form to estimate G_{*,3} flux into room for AC.  n is an estimate of the temperature at tau+1)
-n=rf_temp(:,3)-2.*f_rooflambda(:,3)*(rf_temp(:,3)-f_bldtemp)/(f_roofcp(:,3)*f_roofdepth(:,3)*f_roofdepth(:,3)/ddt+2.*f_rooflambda(:,3))
+n=rf_temp(:,3)-2.*f_rooflambda(:,3)*(rf_temp(:,3)-f_bldtemp)/(f_roofcp(:,3)*f_roofdepth(:,3)*f_roofdepth(:,3)/ddt &
+  +2.*f_rooflambda(:,3))
 gflxroof=(1.-f_sigmavegr)*2.*f_rooflambda(:,3)*(n-f_bldtemp)/f_roofdepth(:,3)
-n=we_temp(:,3)-2.*f_walllambda(:,3)*(we_temp(:,3)-f_bldtemp)/(f_wallcp(:,3)*f_walldepth(:,3)*f_walldepth(:,3)/ddt+2.*f_walllambda(:,3))
+n=we_temp(:,3)-2.*f_walllambda(:,3)*(we_temp(:,3)-f_bldtemp)/(f_wallcp(:,3)*f_walldepth(:,3)*f_walldepth(:,3)/ddt &
+  +2.*f_walllambda(:,3))
 gflxwalle=2.*f_walllambda(:,3)*(n-f_bldtemp)/f_walldepth(:,3)
-n=ww_temp(:,3)-2.*f_walllambda(:,3)*(ww_temp(:,3)-f_bldtemp)/(f_wallcp(:,3)*f_walldepth(:,3)*f_walldepth(:,3)/ddt+2.*f_walllambda(:,3))
+n=ww_temp(:,3)-2.*f_walllambda(:,3)*(ww_temp(:,3)-f_bldtemp)/(f_wallcp(:,3)*f_walldepth(:,3)*f_walldepth(:,3)/ddt &
+ +2.*f_walllambda(:,3))
 gflxwallw=2.*f_walllambda(:,3)*(n-f_bldtemp)/f_walldepth(:,3)
 if (acmeth==1) then
   d_acout=max(0.,gflxroof*f_sigmabld/(1.-f_sigmabld)+f_hwratio*(gflxwalle+gflxwallw))
@@ -2049,7 +2054,8 @@ integer k
 real, dimension(:), intent(in) :: rdsndelta
 real, dimension(size(rdsndelta)), intent(in) :: ird_alpha
 real, dimension(size(rdsndelta)), intent(out) :: wallpsi,roadpsi
-real, dimension(size(rdsndelta)), intent(in) :: if_hwratio,if_vangle,if_hangle,if_fbeam,if_sigmavegc,if_roadalpha,if_vegalphac,if_wallalpha
+real, dimension(size(rdsndelta)), intent(in) :: if_hwratio,if_vangle,if_hangle,if_fbeam,if_sigmavegc,if_roadalpha,if_vegalphac
+real, dimension(size(rdsndelta)), intent(in) :: if_wallalpha
 real, dimension(size(rdsndelta)), intent(out) :: sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn
 real, dimension(size(rdsndelta)) :: thetazero,walles,wallws,roads,ta,tc,xa,ya,roadnetalpha
 real, dimension(size(rdsndelta)) :: nwalles,nwallws,nroads
@@ -2254,26 +2260,26 @@ if (if_sigmavegc>0.) then ! in-canyon vegetation
   ctmax=max(d_tempc,ird_temp,iwe_temp,iww_temp,rdsntemp)+10. ! max temp
   ctmin=min(d_tempc,ird_temp,iwe_temp,iww_temp,rdsntemp)-10. ! min temp
   ip_vegtempc=ip_vegtempc+0.5
-  call solvecanyon(evctveg,rg_road,rg_walle,rg_wallw,rg_vegc,rg_rdsn,fg_road,fg_walle,fg_wallw,fg_vegc,fg_rdsn,eg_road,eg_vegc,    &
-                   eg_rdsn,gardsn,rdsnmelt,rdsntemp,ird_temp,ird_water,ird_snow,ird_den,iwe_temp,iww_temp,iv_watrc,                &
-                   iv_moistc,d_canyontemp,d_canyonmix,d_sigd,d_tempc,d_mixrc,d_topu,d_roaddelta,d_vegdeltac,d_rdsndelta,d_netrad,  &
-                   d_netemiss,d_tranc,d_evapc,d_cwa,d_cra,d_cwe,d_cww,d_crw,d_crr,d_cwr,d_accool,d_totdepth,d_c1c,                 &
-                   d_acout,d_canyonrgout,sg_vegc,a_umag,a_rho,a_rg,a_rnd,a_snd,ddt,acond_road,acond_walle,acond_wallw,acond_vegc,  &
-                   acond_rdsn,wallpsi,roadpsi,if_bldheight,if_hwratio,if_sigmavegc,if_roademiss,if_vegemissc,if_wallemiss,         &
-                   if_bldtemp,if_zovegc,if_vegrlaic,if_vegrsminc,if_swilt,if_sfc,ip_vegtempc,ip_lzom,ip_lzoh,ip_cndzmin,           &
-                   d_traf,ldratio,roadqsat,rdsnqsat)
+  call solvecanyon(evctveg,rg_road,rg_walle,rg_wallw,rg_vegc,rg_rdsn,fg_road,fg_walle,fg_wallw,fg_vegc,fg_rdsn,eg_road,eg_vegc, &
+                   eg_rdsn,gardsn,rdsnmelt,rdsntemp,ird_temp,ird_water,ird_snow,ird_den,iwe_temp,iww_temp,iv_watrc,             &
+                   iv_moistc,d_canyontemp,d_canyonmix,d_sigd,d_tempc,d_mixrc,d_topu,d_roaddelta,d_vegdeltac,d_rdsndelta,        &
+                   d_netrad,d_netemiss,d_tranc,d_evapc,d_cwa,d_cra,d_cwe,d_cww,d_crw,d_crr,d_cwr,d_accool,d_totdepth,d_c1c,     &
+                   d_acout,d_canyonrgout,sg_vegc,a_umag,a_rho,a_rg,a_rnd,a_snd,ddt,acond_road,acond_walle,acond_wallw,          &
+                   acond_vegc,acond_rdsn,wallpsi,roadpsi,if_bldheight,if_hwratio,if_sigmavegc,if_roademiss,if_vegemissc,        &
+                   if_wallemiss,if_bldtemp,if_zovegc,if_vegrlaic,if_vegrsminc,if_swilt,if_sfc,ip_vegtempc,ip_lzom,ip_lzoh,      &
+                   ip_cndzmin,d_traf,ldratio,roadqsat,rdsnqsat)
   oldval=ip_vegtempc
   ip_vegtempc=ip_vegtempc-0.5
   do k=1,nfgits ! Sectant
     evctx=evctveg
-    call solvecanyon(evctveg,rg_road,rg_walle,rg_wallw,rg_vegc,rg_rdsn,fg_road,fg_walle,fg_wallw,fg_vegc,fg_rdsn,eg_road,eg_vegc,    &
-                     eg_rdsn,gardsn,rdsnmelt,rdsntemp,ird_temp,ird_water,ird_snow,ird_den,iwe_temp,iww_temp,iv_watrc,                &
-                     iv_moistc,d_canyontemp,d_canyonmix,d_sigd,d_tempc,d_mixrc,d_topu,d_roaddelta,d_vegdeltac,d_rdsndelta,d_netrad,  &
-                     d_netemiss,d_tranc,d_evapc,d_cwa,d_cra,d_cwe,d_cww,d_crw,d_crr,d_cwr,d_accool,d_totdepth,d_c1c,                 &
-                     d_acout,d_canyonrgout,sg_vegc,a_umag,a_rho,a_rg,a_rnd,a_snd,ddt,acond_road,acond_walle,acond_wallw,acond_vegc,  &
-                     acond_rdsn,wallpsi,roadpsi,if_bldheight,if_hwratio,if_sigmavegc,if_roademiss,if_vegemissc,if_wallemiss,         &
-                     if_bldtemp,if_zovegc,if_vegrlaic,if_vegrsminc,if_swilt,if_sfc,ip_vegtempc,ip_lzom,ip_lzoh,ip_cndzmin,           &
-                     d_traf,ldratio,roadqsat,rdsnqsat)
+    call solvecanyon(evctveg,rg_road,rg_walle,rg_wallw,rg_vegc,rg_rdsn,fg_road,fg_walle,fg_wallw,fg_vegc,fg_rdsn,eg_road,eg_vegc, &
+                     eg_rdsn,gardsn,rdsnmelt,rdsntemp,ird_temp,ird_water,ird_snow,ird_den,iwe_temp,iww_temp,iv_watrc,             &
+                     iv_moistc,d_canyontemp,d_canyonmix,d_sigd,d_tempc,d_mixrc,d_topu,d_roaddelta,d_vegdeltac,d_rdsndelta,        &
+                     d_netrad,d_netemiss,d_tranc,d_evapc,d_cwa,d_cra,d_cwe,d_cww,d_crw,d_crr,d_cwr,d_accool,d_totdepth,d_c1c,     &
+                     d_acout,d_canyonrgout,sg_vegc,a_umag,a_rho,a_rg,a_rnd,a_snd,ddt,acond_road,acond_walle,acond_wallw,          &
+                     acond_vegc,acond_rdsn,wallpsi,roadpsi,if_bldheight,if_hwratio,if_sigmavegc,if_roademiss,if_vegemissc,        &
+                     if_wallemiss,if_bldtemp,if_zovegc,if_vegrlaic,if_vegrsminc,if_swilt,if_sfc,ip_vegtempc,ip_lzom,ip_lzoh,      &
+                     ip_cndzmin,d_traf,ldratio,roadqsat,rdsnqsat)
     evctx=evctveg-evctx
     if (abs(evctx)>tol) then
       newval=ip_vegtempc-alpha*evctveg*(ip_vegtempc-oldval)/evctx
@@ -2285,14 +2291,14 @@ if (if_sigmavegc>0.) then ! in-canyon vegetation
   end do
 else ! no in-canyon vegetation
   do k=1,2 ! See solvecanyon notes
-    call solvecanyon(evctveg,rg_road,rg_walle,rg_wallw,rg_vegc,rg_rdsn,fg_road,fg_walle,fg_wallw,fg_vegc,fg_rdsn,eg_road,eg_vegc,    &
-                     eg_rdsn,gardsn,rdsnmelt,rdsntemp,ird_temp,ird_water,ird_snow,ird_den,iwe_temp,iww_temp,iv_watrc,                &
-                     iv_moistc,d_canyontemp,d_canyonmix,d_sigd,d_tempc,d_mixrc,d_topu,d_roaddelta,d_vegdeltac,d_rdsndelta,d_netrad,  &
-                     d_netemiss,d_tranc,d_evapc,d_cwa,d_cra,d_cwe,d_cww,d_crw,d_crr,d_cwr,d_accool,d_totdepth,d_c1c,                 &
-                     d_acout,d_canyonrgout,sg_vegc,a_umag,a_rho,a_rg,a_rnd,a_snd,ddt,acond_road,acond_walle,acond_wallw,acond_vegc,  &
-                     acond_rdsn,wallpsi,roadpsi,if_bldheight,if_hwratio,if_sigmavegc,if_roademiss,if_vegemissc,if_wallemiss,         &
-                     if_bldtemp,if_zovegc,if_vegrlaic,if_vegrsminc,if_swilt,if_sfc,ip_vegtempc,ip_lzom,ip_lzoh,ip_cndzmin,           &
-                     d_traf,ldratio,roadqsat,rdsnqsat)
+    call solvecanyon(evctveg,rg_road,rg_walle,rg_wallw,rg_vegc,rg_rdsn,fg_road,fg_walle,fg_wallw,fg_vegc,fg_rdsn,eg_road,eg_vegc, &
+                     eg_rdsn,gardsn,rdsnmelt,rdsntemp,ird_temp,ird_water,ird_snow,ird_den,iwe_temp,iww_temp,iv_watrc,             &
+                     iv_moistc,d_canyontemp,d_canyonmix,d_sigd,d_tempc,d_mixrc,d_topu,d_roaddelta,d_vegdeltac,d_rdsndelta,        &
+                     d_netrad,d_netemiss,d_tranc,d_evapc,d_cwa,d_cra,d_cwe,d_cww,d_crw,d_crr,d_cwr,d_accool,d_totdepth,d_c1c,     &
+                     d_acout,d_canyonrgout,sg_vegc,a_umag,a_rho,a_rg,a_rnd,a_snd,ddt,acond_road,acond_walle,acond_wallw,          &
+                     acond_vegc,acond_rdsn,wallpsi,roadpsi,if_bldheight,if_hwratio,if_sigmavegc,if_roademiss,if_vegemissc,        &
+                     if_wallemiss,if_bldtemp,if_zovegc,if_vegrlaic,if_vegrsminc,if_swilt,if_sfc,ip_vegtempc,ip_lzom,ip_lzoh,      &
+                     ip_cndzmin,d_traf,ldratio,roadqsat,rdsnqsat)
   end do
 end if
 ! ---------------------------------------------------------------    
@@ -2309,13 +2315,13 @@ end subroutine solverdsn
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! solve for canyon temperature
 
-subroutine solvecanyon(evct,rg_road,rg_walle,rg_wallw,rg_vegc,rg_rdsn,fg_road,fg_walle,fg_wallw,fg_vegc,fg_rdsn,eg_road,eg_vegc,    &
-                       eg_rdsn,gardsn,rdsnmelt,rdsntemp,ird_temp,ird_water,ird_snow,ird_den,iwe_temp,iww_temp,                      &
-                       iv_watrc,iv_moistc,d_canyontemp,d_canyonmix,d_sigd,d_tempc,d_mixrc,d_topu,d_roaddelta,d_vegdeltac,           &
-                       d_rdsndelta,d_netrad,d_netemiss,d_tranc,d_evapc,d_cwa,d_cra,d_cwe,d_cww,d_crw,d_crr,d_cwr,d_accool,          &
-                       d_totdepth,d_c1c,d_acout,d_canyonrgout,sg_vegc,a_umag,a_rho,a_rg,a_rnd,a_snd,ddt,acond_road,                 &
-                       acond_walle,acond_wallw,acond_vegc,acond_rdsn,wallpsi,roadpsi,if_bldheight,if_hwratio,if_sigmavegc,          &
-                       if_roademiss,if_vegemissc,if_wallemiss,if_bldtemp,if_zovegc,if_vegrlaic,if_vegrsminc,if_swilt,if_sfc,        &
+subroutine solvecanyon(evct,rg_road,rg_walle,rg_wallw,rg_vegc,rg_rdsn,fg_road,fg_walle,fg_wallw,fg_vegc,fg_rdsn,eg_road,eg_vegc, &
+                       eg_rdsn,gardsn,rdsnmelt,rdsntemp,ird_temp,ird_water,ird_snow,ird_den,iwe_temp,iww_temp,                   &
+                       iv_watrc,iv_moistc,d_canyontemp,d_canyonmix,d_sigd,d_tempc,d_mixrc,d_topu,d_roaddelta,d_vegdeltac,        &
+                       d_rdsndelta,d_netrad,d_netemiss,d_tranc,d_evapc,d_cwa,d_cra,d_cwe,d_cww,d_crw,d_crr,d_cwr,d_accool,       &
+                       d_totdepth,d_c1c,d_acout,d_canyonrgout,sg_vegc,a_umag,a_rho,a_rg,a_rnd,a_snd,ddt,acond_road,              &
+                       acond_walle,acond_wallw,acond_vegc,acond_rdsn,wallpsi,roadpsi,if_bldheight,if_hwratio,if_sigmavegc,       &
+                       if_roademiss,if_vegemissc,if_wallemiss,if_bldtemp,if_zovegc,if_vegrlaic,if_vegrsminc,if_swilt,if_sfc,     &
                        ip_vegtempc,ip_lzom,ip_lzoh,ip_cndzmin,d_traf,ldratio,roadqsat,rdsnqsat)
 
 implicit none
@@ -2505,14 +2511,14 @@ if (l_sigmavegr) then
     ctmin=d_tempr(iq)-10. ! min temp
     p_vegtempr(iq)=0.4*ctmax+0.6*ctmin
     call solvegreenroof(iq,evctveg,rg_vegr(iq),fg_vegr(iq),eg_vegr(iq),acond_vegr(iq),a_rg(iq),a_umag(iq),a_rho(iq),a_rnd(iq), &
-                        sg_vegr(iq),d_tempr(iq),d_mixrr(iq),d_rfdzmin(iq),d_tranr(iq),d_evapr(iq),d_c1r(iq),d_sigr(iq),     &
+                        sg_vegr(iq),d_tempr(iq),d_mixrr(iq),d_rfdzmin(iq),d_tranr(iq),d_evapr(iq),d_c1r(iq),d_sigr(iq),        &
                         d_vegdeltar(iq),ddt)
     oldval=p_vegtempr(iq)
     p_vegtempr(iq)=0.6*ctmax+0.4*ctmin
     do k=1,nfgits
       evctx=evctveg
       call solvegreenroof(iq,evctveg,rg_vegr(iq),fg_vegr(iq),eg_vegr(iq),acond_vegr(iq),a_rg(iq),a_umag(iq),a_rho(iq),a_rnd(iq), &
-                          sg_vegr(iq),d_tempr(iq),d_mixrr(iq),d_rfdzmin(iq),d_tranr(iq),d_evapr(iq),d_c1r(iq),d_sigr(iq),     &
+                          sg_vegr(iq),d_tempr(iq),d_mixrr(iq),d_rfdzmin(iq),d_tranr(iq),d_evapr(iq),d_c1r(iq),d_sigr(iq),        &
                           d_vegdeltar(iq),ddt)
       evctx=evctveg-evctx
       if (abs(evctx)>tol) then

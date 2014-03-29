@@ -109,7 +109,7 @@
       integer, dimension(8) :: nper3hr
       integer, dimension(5) :: idum
       integer, dimension(:,:), allocatable, save :: dumd
-      integer iaero, ier, igas, ilx, io_nest, iq, irest, isoil, itr1
+      integer ier, igas, ilx, io_nest, iq, irest, isoil, itr1
       integer itr2, jalbfix, jlx, jtr1, jtr2, k,k2, kktau, mexrest
       integer mins_dt, mins_gmt, mspeca, mtimer_in, nalpha, newsnow
       integer ng, nlx, nmaxprsav, nmi, npa, npb, npc, n3hr, nsnowout
@@ -182,7 +182,7 @@
      &        ,acon,bcon,rcm,rcrit_l,rcrit_s,ncloud
 
       data nscrn/0/,nversion/0/,lapsbot/0/
-      data npc/40/,nmi/0/,io_nest/1/,iaero/0/,newsnow/0/      
+      data npc/40/,nmi/0/,io_nest/1/,newsnow/0/      
       data itr1/23/,jtr1/13/,itr2/25/,jtr2/11/
       data comment/' '/,comm/' '/,irest/1/,jalbfix/1/,nalpha/1/
       data mexrest/6/,mins_rad/60/,nwrite/0/,nsnowout/999999/
@@ -394,7 +394,7 @@
         write(6,*) "nxp,nyp         ",nxp,nyp
         write(6,*) "nrows_rad     = ",nrows_rad
       end if
-      
+
       ! some default values for unspecified parameters
       if (ia<0) ia=il/2
       if (ib<0) ib=ia+3
@@ -562,15 +562,15 @@
         write (6, cardin)
         if(nllp==0.and.nextout>=4) then
           write(6,*) 'need nllp=3 for nextout>=4'
-          call ccmpi_abort(-1)	  
-	end if
+          call ccmpi_abort(-1)
+        end if
         write (6, skyin)
         write (6, datafile)
         write(6, kuonml)
       end if ! myid=0
       if (newtop>2) then
         write(6,*) 'newtop>2 no longer allowed'
-        call ccmpi_abort(-1)	
+        call ccmpi_abort(-1)
       end if
       if (mfix_qg>0.and.(nkuo==4.or.nvad==44)) then
         write(6,*) 'nkuo=4,nvad=44: mfix_qg>0 not allowed'
@@ -791,7 +791,7 @@
         write(6,*)'ncid,ifile ',ncid,ifile
         write(6,*)'calling indata; will read from file ',ifile
       end if
-      call indata(hourst,newsnow,jalbfix,iaero,lapsbot,isoth,nsig)
+      call indata(hourst,newsnow,jalbfix,lapsbot,isoth,nsig)
       ! onthefly.f will close ncid
 
       if (ntbar<0) then
@@ -973,7 +973,7 @@
       if(nmi==0.and.nwt>0)then
 !       write out the first ofile data set
         if (myid==0) write(6,*)'calling outfile'
-        call outfile(20,rundate,nmi,nwrite,iaero,nstagin)  ! which calls outcdf
+        call outfile(20,rundate,nmi,nwrite,nstagin)  ! which calls outcdf
         if(newtop<0) then
           if (myid==0) write(6,*) 'newtop<0 requires a stop here'
           ! just for outcdf to plot zs  & write fort.22
@@ -1027,7 +1027,7 @@
       ! NESTING ---------------------------------------------------------------
       if (nbd/=0) then
         START_LOG(nestin)
-        call nestin(iaero)
+        call nestin
         END_LOG(nestin)
       end if
       
@@ -1189,7 +1189,7 @@
       endif      ! (ngas>=1)
 
       ! update non-linear dynamic terms
-      call nonlin(iaero)
+      call nonlin
       if (diag)then
          if (mydiag) write(6,*) 'before hadv'
          call printa('tx  ',tx,ktau,nlv,ia,ib,ja,jb,0.,1.)
@@ -1206,7 +1206,7 @@
       endif
 
 !     evaluate horizontal advection for combined quantities
-      call upglobal(iaero)
+      call upglobal
       if (diag)then
         if (mydiag) then
           write(6,*) 'after hadv'
@@ -1226,14 +1226,14 @@
           nstagu=nstag
         end if
       end if
-      call adjust5(iaero)
+      call adjust5
       
       ! NESTING ---------------------------------------------------------------
       ! nesting now after mass fixers
       START_LOG(nestin)
       if (mspec==1) then
         if (mbd/=0) then
-          call nestinb(iaero)
+          call nestinb
         else if (nbd/=0) then
           call davies
         end if
@@ -1264,7 +1264,7 @@
       ! DIFFUSION -------------------------------------------------------------
       START_LOG(hordifg)
       if (nhor<0) then
-        call hordifgt(iaero)  ! now not tendencies
+        call hordifgt  ! now not tendencies
       end if
       if (diag.and.mydiag) write(6,*) 'after hordifgt t ',t(idjd,:)
       END_LOG(hordifg)
@@ -1349,9 +1349,9 @@
         case(5)
           call betts(t,qg,tn,land,ps) ! not called these days
         case(23,24)
-          call convjlm(iaero)         ! split convjlm 
+          call convjlm         ! split convjlm 
         case(46)
-          call conjob(iaero)          ! split Arakawa-Gordon scheme
+          call conjob          ! split Arakawa-Gordon scheme
       end select
       cbas_ave(:)=cbas_ave(:)+condc(:)*(1.1-sig(kbsav(:)))      ! diagnostic
       ctop_ave(:)=ctop_ave(:)+condc(:)*(1.1-sig(abs(ktsav(:)))) ! diagnostic
@@ -1368,7 +1368,7 @@
       if (ldr/=0) then
         ! LDR microphysics scheme
         dums=cffall(1:ifull,:)
-        call leoncld(cfrac,dums,iaero)
+        call leoncld(cfrac,dums)
         cffall(1:ifull,:)=dums
       end if
       do k=1,kl
@@ -1408,10 +1408,10 @@
       select case(nrad)
        case(4)
 !       Fels-Schwarzkopf radiation
-        call radrive(il*nrows_rad,odcalc,iaero)
+        call radrive(il*nrows_rad,odcalc)
        case(5)
         ! GFDL SEA-EFS radiation
-        call seaesfrad(il*nrows_rad,odcalc,iaero)
+        call seaesfrad(il*nrows_rad,odcalc)
        case DEFAULT
 !       use preset slwa array (use +ve nrad)
         slwa(:)=-10*nrad  
@@ -1469,7 +1469,7 @@
        if (mod(ktau,nmaxpr)==0.and.mydiag) then
          write(6,*)
          write (6,
-     .	  "('ktau =',i5,' gmt(h,m):',f6.2,i5,' runtime(h,m):',f7.2,i6)")
+     .   "('ktau =',i5,' gmt(h,m):',f6.2,i5,' runtime(h,m):',f7.2,i6)")
      .      ktau,timeg,mins_gmt,timer,mtimer
 !        some surface (or point) diagnostics
          isoil = isoilm(idjd)
@@ -1554,7 +1554,7 @@
         START_LOG(vertmix)
         if(nmaxpr==1.and.mydiag)
      &    write (6,"('pre-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
-        call vertmix(iaero) 
+        call vertmix
         if(nmaxpr==1.and.mydiag)
      &    write (6,"('aft-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
         END_LOG(vertmix)
@@ -1842,13 +1842,13 @@
 
       call log_off()
       if(ktau==ntau.or.mod(ktau,nwt)==0)then
-        call outfile(20,rundate,nmi,nwrite,iaero,nstagin)  ! which calls outcdf
+        call outfile(20,rundate,nmi,nwrite,nstagin)  ! which calls outcdf
  
         if(ktau==ntau.and.irest==1) then
           ! Don't include the time for writing the restart file
           END_LOG(maincalc)
 !         write restart file
-          call outfile(19,rundate,nmi,nwrite,iaero,nstagin)
+          call outfile(19,rundate,nmi,nwrite,nstagin)
           if(myid==0)
      &      write(6,*)'finished writing restart file in outfile'
           START_LOG(maincalc)
@@ -2283,6 +2283,8 @@ c     data nstag/99/,nstagu/99/
      &     zstn/nstnmax*0./,name_stn/nstnmax*'   '/,nrotstn/nstnmax*0/  
 !     Ocean options
       data nmlo/0/
+!     Aerosol options
+      data iaero/0/
 
 c     initialize file names to something
       data albfile/' '/,icefile/' '/,maskfile/' '/

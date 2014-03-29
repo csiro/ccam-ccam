@@ -50,17 +50,17 @@ c     update land points.
           wblf(iq,k)   = -99.  ! just to put something in array
          enddo
         enddo
-	 do iq=1,ifull
-	  if(isflag(iq)==0)then
+        do iq=1,ifull
+         if(isflag(iq)==0)then
            ssdnn(iq) = ssdn(iq,1)
-	  else
+         else
            sdepth(iq,1)=smass(iq,1)/ssdn(iq,1)
            sdepth(iq,2)=smass(iq,2)/ssdn(iq,2)
            sdepth(iq,3)=smass(iq,3)/ssdn(iq,3)
            z1snow = sdepth(iq,1)+sdepth(iq,2)+sdepth(iq,3) ! real snow depth in m
            ssdnn(iq)  = snowd(iq)/z1snow
-	  endif
-	 enddo
+         endif
+        enddo
       endif   ! (ktau==1)
 
       snowflx(:)=0.   ! 23/12/05
@@ -119,12 +119,12 @@ c     update land points.
          endif
 
          ossdn2 = ssdn(iq,2)
-	  if(ntest>0.and.iq==idjd.and.mydiag)then
-   	    print *,'soilsnow  snowd,osnowd ',snowd(iq),osnowd(iq)
-	    print *,'ssdn a ',(ssdn(iq,k),k=1,3)
-	    print *,'smass a ',(smass(iq,k),k=1,3)
-	    print *,'sdepth a ',(sdepth(iq,k),k=1,3)
-	  endif
+         if(ntest>0.and.iq==idjd.and.mydiag)then
+          print *,'soilsnow  snowd,osnowd ',snowd(iq),osnowd(iq)
+          print *,'ssdn a ',(ssdn(iq,k),k=1,3)
+          print *,'smass a ',(smass(iq,k),k=1,3)
+          print *,'sdepth a ',(sdepth(iq,k),k=1,3)
+         endif
          do k=1,3
           ccoef  = 0.
           if(ssdn(iq,k) >=150.) ccoef=4.6e-2
@@ -144,9 +144,9 @@ c     update land points.
          tr1  =  snowd(iq)-osnowd(iq)
          xx=max(0. , .07-smass(iq,1)/ssdn(iq,1))
          pr=min(smass(iq,2)/(smass(iq,3)+smass(iq,2)) , .9)
-	  if(ntest>0.and.iq==idjd.and.mydiag)then
-	    print *,'ssdn b ',(ssdn(iq,k),k=1,3)
-	  endif
+         if(ntest>0.and.iq==idjd.and.mydiag)then
+          print *,'ssdn b ',(ssdn(iq,k),k=1,3)
+         endif
          if(tr1>=0.) then
 c          tr1        =  tr1/140.
            ssdn(iq,1)=max(
@@ -196,11 +196,11 @@ c            smass(iq,2)=max(0.,.45*(snowd(iq)-smass(iq,1)))  ! jlm fix
            smass(iq,3)  = max(.01 , snowd(iq)-smass(iq,1)-smass(iq,2))
            sdepth(iq,3) = max(.02 , smass(iq,3)/ssdn(iq,3))
          endif   ! (tr1>=0.) .. else ..
-	  if(ntest>0.and.iq==idjd.and.mydiag)then
-	    print *,'ssdn c ',(ssdn(iq,k),k=1,3)
-  	    print *,'smass c ',(smass(iq,k),k=1,3)
-	    print *,'sdepth c ',(sdepth(iq,k),k=1,3)
-	  endif
+         if(ntest>0.and.iq==idjd.and.mydiag)then
+          print *,'ssdn c ',(ssdn(iq,k),k=1,3)
+          print *,'smass c ',(smass(iq,k),k=1,3)
+          print *,'sdepth c ',(sdepth(iq,k),k=1,3)
+         endif
 
 !        --------------------end of snowprv-------------------------------
          isflag(iq) = 1
@@ -255,7 +255,7 @@ c         wbice(iq,k)=max(wbice(iq,k),0.)  ! superfluous
      &                                    cgsnow*snowd(iq)  ! changed back 21/5/01
 c    &                                    cgsnow*snowd(iq)/ssdnn(iq)
           tgg(iq,k)=tgg(iq,k)+sicefreeze*hlf/gammzz(iq,k)
-	  if(ntest>0.and.iq==idjd.and.mydiag)then
+          if(ntest>0.and.iq==idjd.and.mydiag)then
             print *,'D k,tgg,sicefreeze,wbice,gammzz ',
      &                 k,tgg(iq,k),sicefreeze,wbice(iq,k),gammzz(iq,k)
           endif
@@ -273,7 +273,7 @@ c         if(wbice(iq,k)<.001) wbice(iq,k)=0.
      &                                    cgsnow*snowd(iq)  ! changed back 21/5/01
 c    &                                    cgsnow*snowd(iq)/ssdnn(iq)
           tgg(iq,k)=tgg(iq,k)-sicemelt*hlf/gammzz(iq,k)
-	  if(ntest>0.and.iq==idjd.
+          if(ntest>0.and.iq==idjd.
      &               and.mydiag)print *,'E tgg k',k,tgg(iq,k)
         endif
        enddo   ! k=1,ms
@@ -356,54 +356,54 @@ c      runoff(iq)=0.  ! already re-set in globpe.f
        osnowd(iq)=snowd(iq)
        if(condxpr(iq)>0.)then  ! just using ncondxpr=1 treatment now
          if(isflag(iq)==0)then
-	    if(t(iq,2)<tfrz.and.tgg(iq,1)<tfrz)then
+          if(t(iq,2)<tfrz.and.tgg(iq,1)<tfrz)then
              snowd(iq)=max(snowd(iq) + condxpr(iq), 0.)
-	      sno(iq)=sno(iq)+condxpr(iq)  ! snow precip accum in mm
+             sno(iq)=sno(iq)+condxpr(iq)  ! snow precip accum in mm
 !            update air temperatures to allow for freezing of rain
              dtemp=hlf*grav*condxpr(iq)/
-     .                (cp*(sigmh(kl/3)-sigmh(kl/2+1))*ps(iq))
+     &                (cp*(sigmh(kl/3)-sigmh(kl/2+1))*ps(iq))
              do k=kl/3,kl/2    ! 6,9 for 18 level
               t(iq,k)=t(iq,k)+dtemp    ! jlm suggestion
              enddo ! k loop
              condxpr(iq)=0.
-	    elseif(t(iq,2)>=tfrz.and.tgg(iq,1)<tfrz )then
+          elseif(t(iq,2)>=tfrz.and.tgg(iq,1)<tfrz )then
              snowd(iq)=max(snowd(iq) + condxpr(iq), 0.)
-	      sno(iq)=sno(iq)+condxpr(iq)  ! snow precip accum in mm
+             sno(iq)=sno(iq)+condxpr(iq)  ! snow precip accum in mm
              tgg(iq,1)=tgg(iq,1)+condxpr(iq)*hlf/gammzz(iq,1)
              condxpr(iq)=0.
-	    endif   ! (t(iq,2)<tfrz.and.tgg(iq,1)<tfrz ) 
+          endif   ! (t(iq,2)<tfrz.and.tgg(iq,1)<tfrz ) 
          else  ! i.e. isflag(iq)=1
-	    if(t(iq,2)<tfrz)then
+          if(t(iq,2)<tfrz)then
               snowd(iq)=max(snowd(iq) + condxpr(iq), 0.)
-	      sno(iq)=sno(iq)+condxpr(iq)  ! snow precip accum in mm
+              sno(iq)=sno(iq)+condxpr(iq)  ! snow precip accum in mm
 !             update air temperatures to allow for freezing of rain
               dtemp=hlf*grav*condxpr(iq)/
-     .                (cp*(sigmh(kl/3)-sigmh(kl/2+1))*ps(iq))
+     &                (cp*(sigmh(kl/3)-sigmh(kl/2+1))*ps(iq))
               do k=kl/3,kl/2    ! 6,9 for 18 level
                t(iq,k)=t(iq,k)+dtemp    ! jlm suggestion
               enddo ! k loop
               condxpr(iq)=0.
-	    elseif(t(iq,2)>=tfrz)then
+          elseif(t(iq,2)>=tfrz)then
               snowd(iq)=max(snowd(iq) + condxpr(iq), 0.)
-	      sno(iq)=sno(iq)+condxpr(iq)  ! snow precip accum in mm
-	      do k=1,3
+              sno(iq)=sno(iq)+condxpr(iq)  ! snow precip accum in mm
+              do k=1,3
                sgamm  = ssdn(iq,k)*2105. * sdepth(iq,k)
                tggsn(iq,k)=tggsn(iq,k)+condxpr(iq)*hlf*smass(iq,k)/
      &                                           (sgamm*osnowd(iq))
               enddo
               condxpr(iq)=0.
-	    endif   ! (t(iq,2)<tfrz) 
+          endif   ! (t(iq,2)<tfrz) 
          endif     ! (isflag(iq)==0) ... else ...
        endif       ! (condxpr(iq)>0.)
-	
+
 c      snow evaporation and melting
        segg=fes(iq)/hl
        if(snowd(iq)>.1)then
          evapsn=min(snowd(iq),dt*fes(iq)/(hl+hlf))
          snowd(iq)=snowd(iq)-evapsn
-	 segg=0.
-	endif
-	
+         segg=0.
+       endif
+
        if(snowd(iq)>0.)then
          if(isflag(iq)==0) then
 c          snow covered land
@@ -416,11 +416,11 @@ c            prevent snow depth going negative
              smelt= min(snowflx0/hlf ,snowd(iq))
              snowd(iq)=snowd(iq)-smelt
              tgg(iq,1)= tgg(iq,1)-smelt*hlf/gammzz(iq,1)
-	     snowflx(iq)=smelt*hlf/dt
+             snowflx(iq)=smelt*hlf/dt
              if(ntest>0.and.iq==idjd.and.mydiag)then
                print *,'in surfbv b'
                print *,'tgg ',(tgg(idjd,k),k=1,ms)
-	       print *,'snowflx0,snowflx,gammzz,smelt,snowd ',
+               print *,'snowflx0,snowflx,gammzz,smelt,snowd ',
      &                snowflx0,snowflx(iq),gammzz(iq,1),smelt,snowd(iq) 
              endif
            endif  ! (tgg(iq,1)>=tfrz)then
@@ -474,7 +474,7 @@ c            prevent snow depth going negative
             endif   ! (tggsn(iq,k)>tfrz)
            smelt=smelt1(1)+smelt1(2)+smelt1(3)
            snowd(iq)=snowd(iq) - smelt
-	    snowflx(iq)=smelt*hlf/dt
+           snowflx(iq)=smelt*hlf/dt
          endif  ! (isflag(iq)==0) .. else ..
        endif    !  (snowd(iq)>0.)t
 
@@ -538,7 +538,7 @@ c----      change local tg to account for energy - clearly not best method
            tggsn(iq,1)=tggsn(iq,1)-rnof5*hlf/sgamm
            snowd(iq)=400.
          endif ! (snowd(iq)>400.)
-	 enddo  ! iq loop
+        enddo  ! iq loop
       endif    ! (nglacier==0)
       if(nglacier==2)then  ! new from Eva 3/10/02           
         do iq=1,ifull
@@ -560,7 +560,7 @@ c----      change local tg to account for energy - clearly not best method
              enddo
            endif ! (isflag(iq)==0) ... else ...
          endif   ! (snowd(iq)>400.)
-	 enddo    ! iq loop
+        enddo    ! iq loop
       endif     ! (nglacier==2)
 
       if((ntest>0.or.diag).and.mydiag)then
@@ -619,19 +619,19 @@ c
         do isoil=1,mxst
          pwb_min(isoil)=(swilt(isoil)/ssat(isoil))**ibp2(isoil)
         enddo
-	if (myid==0) then
+        if (myid==0) then
           print *,'in smoisturev; nmeth,ntest = ',nmeth,ntest  
-	end if
+        end if
       endif  ! (ktau==1)
       if((ntest>0.or.diag).and.mydiag)then
        if(land(idjd))then !MJT bugfix
         isoil=isoilm(idjd)
         print *,'entering smoisturev i2bp3,swilt,sfc,ssat: ',
      .                i2bp3(isoil),swilt(isoil),sfc(isoil),ssat(isoil)
-	 if(ntest==2)then   ! just to test conservation
-	   if(ktau==1)wb(idjd,ms)=swilt(isoil)
-	   fwtop(idjd)=0.
-	 endif 
+        if(ntest==2)then   ! just to test conservation
+         if(ktau==1)wb(idjd,ms)=swilt(isoil)
+         fwtop(idjd)=0.
+        endif 
         write (6,"('wb   ',6f8.3)") (wb(idjd,k),k=1,ms)
         write (6,"('wbice',6f8.3)") (wbice(idjd,k),k=1,ms)
         totwba=0.
@@ -683,17 +683,17 @@ c
          fluxhi=wh
          fluxlo=wbl_k
          if(ntest>0.and.iq==idjd.and.mydiag)then
-  	   print *,'in TVD for k= ',k
-	   print *,'wbl,wh,hydss ',wbl_k,wh,hydss
-	   print *,'speeda,speedb,fluxhi,fluxlo,delt,rat,phi ',
+         print *,'in TVD for k= ',k
+         print *,'wbl,wh,hydss ',wbl_k,wh,hydss
+         print *,'speeda,speedb,fluxhi,fluxlo,delt,rat,phi ',
      .             speed_k,.5*zse(k)/dt,fluxhi,fluxlo,delt(iq,k),rat,phi
- 	 endif
+         endif
 !        scale speed to grid lengths per dt & limit speed for stability
          speed_k=min(speed_k,.5*zse(k)/dt)  !  1. OK too for stability
          fluxh(iq,k)=speed_k*(fluxlo+phi*(fluxhi-fluxlo))
         enddo    ! ip loop
        enddo  ! k loop
-	 
+
 !      update wb by TVD method
        do k=ms,1,-1
 !cdir nodep
@@ -702,7 +702,7 @@ c
          isoil = isoilm(iq)
          if(nmeth==-1)then  ! each new wb constrained by ssat
            fluxh(iq,k-1)=min(fluxh(iq,k-1),
-     .	                 (ssat(isoil)-wb(iq,k))*zse(k)/dt +fluxh(iq,k))
+     &                 (ssat(isoil)-wb(iq,k))*zse(k)/dt +fluxh(iq,k))
          endif   ! (nmeth==-1)
          wb(iq,k)=wb(iq,k)+dt*(fluxh(iq,k-1)-fluxh(iq,k))/zse(k)
 !        re-calculate wblf
@@ -713,7 +713,7 @@ c
          wblf(iq,k)=(wb(iq,k)-wbice(iq,k))/ssatcurr_k
         enddo   ! ip loop
        enddo    ! k=ms,1,-1 loop
-	 
+
        do k=2,ms ! wbh_k represents wblf(k-.5)
 !cdir nodep
         do ip=1,ipland  ! all land points in this nsib=1 or 3 loop
@@ -754,9 +754,9 @@ c           endif
 c          enddo
 c        endif
         if((ntest>0.or.diag).and.mydiag)then
-	 if(land(idjd))then !MJT bugfix
-	   print *,'midway through nmeth<=0'
-	   print *,'fluxh ',(fluxh(iq,k),k=1,ms)
+         if(land(idjd))then !MJT bugfix
+          print *,'midway through nmeth<=0'
+          print *,'fluxh ',(fluxh(iq,k),k=1,ms)
           write (6,"('wb   ',6f8.3)") (wb(idjd,k),k=1,ms)
           write (6,"('wblf ',6f8.3)") (wblf(idjd,k),k=1,ms)    
 c          totwbla=0.
@@ -783,7 +783,7 @@ c          print *,'zshh ',zshh
           print *,'at ',(at(idjd,k),k=1,ms)
           print *,'bt ',(bt(idjd,k),k=1,ms)
           print *,'ct ',(ct(idjd,k),k=1,ms)
-	 endif
+         endif
         endif  ! (ntest>0)
 
 !  xcdir nodep
@@ -940,7 +940,7 @@ c            rhs(k) = wblf(iq,k)      ! for A
           write (6,"('wblf ',6f8.3)") (wblf(idjd,k),k=1,ms)
           write (6,"('wbh  ',7f8.3)") wbh
           write (6,"('ssatcurr',6f8.3)") ssatcurr
-	   print *,'pwb_wbh,pwb_min* for ms ',
+          print *,'pwb_wbh,pwb_min* for ms ',
      .             pwb_wbh,hsbh(isoil)*pwb_min(isoil)
           print *,'wblfmx,wblfmn,iqmx,iqmn ',wblfmx,wblfmn,iqmx,iqmn
 c         print *,'dtt ',dtt
@@ -1104,10 +1104,10 @@ c     dt  - time step
       enddo   ! ip=1,ipland           land points
       if(ntest>0.and.mydiag)then
         iq=idjd
-	isoil=isoilm(iq)
+        isoil=isoilm(iq)
         print *,'ga,gammzz ',ga(iq),gammzz(iq,1)
         print *,'rhs_tgg ',(tgg(iq,k),k=1,ms)
-	print *,'dgdtg ',dgdtg(iq)
+        print *,'dgdtg ',dgdtg(iq)
         print *,'ssat,css,rhos,cswat,rhowat,csice ',
      .            ssat(isoil),css(isoil),rhos(isoil),cswat,rhowat,csice
         print *,'wblf1,wbfice1,zse1,cgsnow ',
@@ -1125,14 +1125,14 @@ c     dt  - time step
        iq=iperm(ip)
        if( isflag(iq).ne.0) then   ! 3-layer snow points done here
          isoil = isoilm(iq)
-	  do k=1,3
+         do k=1,3
           sconds(k)=max(.2,min(2.576e-6*ssdn(iq,k)*ssdn(iq,k)+.074,1.))
-	  enddo
+         enddo
          coeff(1)=2./(sdepth(iq,3)/sconds(3) +zse(1)/ccnsw(iq,1))
          do k=2,ms
           coeff(k)=2./(zse(k-1)/ccnsw(iq,k-1)+zse(k)/ccnsw(iq,k))
-	  enddo
-	  k=3
+         enddo
+         k=3
          coeff(k-3)=2./(sdepth(iq,k-1)/sconds(k-1)  ! coeff(0)
      .                   +sdepth(iq,k)/sconds(k))
          sgamm   = ssdn(iq,k)*2105. * sdepth(iq,k)
@@ -1140,7 +1140,7 @@ c     dt  - time step
          at(iq,k-3) = -dtg*coeff(k-3)
          ct(iq,k-3) = -dtg*coeff(k-2)
          bt(iq,k-3)= 1.-at(iq,k-3)-ct(iq,k-3)
-	  k=2  
+         k=2  
          coeff(k-3)=2./(sdepth(iq,k-1)/sconds(k-1)  ! coeff(-1)
      .                   +sdepth(iq,k)/sconds(k))
          sgamm   = ssdn(iq,k)*2105. * sdepth(iq,k)
@@ -1148,7 +1148,7 @@ c     dt  - time step
          at(iq,k-3) = -dtg*coeff(k-3)
          ct(iq,k-3) = -dtg*coeff(k-2)
          bt(iq,k-3)= 1.-at(iq,k-3)-ct(iq,k-3)
-	  k=1 
+         k=1 
          sgamm   = ssdn(iq,k)*2105. * sdepth(iq,k)
          dtg=dt/sgamm
          at(iq,k-3) = -dtg*coeff(k-3)
@@ -1177,8 +1177,8 @@ c     dt  - time step
          if(ntest>0.and.iq==idjd.and.mydiag)then
            print *,'in stempv 3-layer snow code '
            print *,'ccnsw ',(ccnsw(iq,k),k=1,ms)
-	   print *,'sdepth d ',(sdepth(iq,k),k=1,3)
-	   print *,'sconds ',sconds
+           print *,'sdepth d ',(sdepth(iq,k),k=1,3)
+           print *,'sconds ',sconds
            print *,'coeff ',coeff
            print *,'at ',(at(iq,k),k=-2,ms)
            print *,'bt ',(bt(iq,k),k=-2,ms)
@@ -1226,9 +1226,9 @@ c      endif ! (myid==0.and.nmaxpr==1)
       if((ntest>0.or.diag).and.mydiag)then
        if(land(idjd))then !MJT bugfix
         print *,'at end of stempv '
-	 write (6,"('wb   ',6f8.3)") (wb(idjd,k),k=1,ms)
-	 write (6,"('wbice',6f8.3)") (wbice(idjd,k),k=1,ms)
-	 write (6,"('wblf ',6f8.3)") (wblf(idjd,k),k=1,ms)
+        write (6,"('wb   ',6f8.3)") (wb(idjd,k),k=1,ms)
+        write (6,"('wbice',6f8.3)") (wbice(idjd,k),k=1,ms)
+        write (6,"('wblf ',6f8.3)") (wblf(idjd,k),k=1,ms)
         print *,'tggsn ',(tggsn(idjd,k),k=1,3)
         print *,'tgg ',(tgg(idjd,k),k=1,ms)
        endif
@@ -1328,7 +1328,7 @@ c                                            snow melting
         smass(iq,1)=max(140.*.07,
      &            min(500. , sd1*ssdn(iq,1)+excd*ssdn(iq,2) ) )
         ssdn(iq,1)=smass(iq,1)/.07
-	 if(newsmlt==0)then  ! old way
+        if(newsmlt==0)then  ! old way
           excm        = smass(iq,1)-sm1
           excd        = excm/ssdn(iq,1)
           osm2        = smass(iq,2)
@@ -1342,8 +1342,8 @@ c                                            snow melting
           endif
           smass(iq,3)  = max(.01 , snowd(iq)-smass(iq,1)-smass(iq,2))
           sdepth(iq,3) = max(.02 , smass(iq,3)/ssdn(iq,3))
-	 endif  ! (newsmlt==0)
-	 if(newsmlt==1)then  ! new way
+        endif  ! (newsmlt==0)
+        if(newsmlt==1)then  ! new way
           excm       = max(0.,smass(iq,1)-sm1)
           otggsn1    = tggsn(iq,1)
           tggsn(iq,1)= tggsn(iq,1)*sm1/smass(iq,1) + 
@@ -1358,7 +1358,7 @@ c                                            snow melting
             smass(iq,3) = max(.01 , snowd(iq)-smass(iq,1)-smass(iq,2))
             sdepth(iq,3)= max(.02 , smass(iq,3)/ssdn(iq,3))
           endif  ! (sdepth(iq,3)<sdepth(iq,2))
-	 endif    ! (newsmlt==1)
+        endif    ! (newsmlt==1)
       endif      ! ( tr1>=0.) ... else ...
 
       return

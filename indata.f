@@ -5,8 +5,7 @@
       ! Note that nested files are split over processors (see
       ! onthefly.f).
 
-      subroutine indata(hourst,newsnow,jalbfix,iaero,lapsbot,isoth,
-     &                  nsig)
+      subroutine indata(hourst,newsnow,jalbfix,lapsbot,isoth,nsig)
      
       use aerointerface                        ! Aerosol interface
       use arrays_m                             ! Atmosphere dyamics prognostic arrays
@@ -69,7 +68,7 @@
       real, parameter :: deltheta = 10. ! vertical variation
       real, parameter :: rkappa = 2./7.
 
-      integer, intent(in) :: newsnow,jalbfix,iaero
+      integer, intent(in) :: newsnow,jalbfix
       integer, dimension(3) :: spos,npos
       integer i1, ii, imo, indexi, indexl, indexs, ip, iq, isoil, isoth,
      &     iveg, iyr, j1, jj, k, kdate_sav, ktime_sav, l,
@@ -629,7 +628,7 @@
      &         fracice,dumb(:,:,1),dumb(:,:,2),dumb(:,:,3),
      &         dumb(:,:,4),tgg,wb,wbice,snowd,dumb(:,:,5),
      &         dumb(:,:,6),dumb(:,:,7),tggsn,smass,ssdn,ssdnn,
-     &         snage,isflag,iaero,mlodwn,ocndwn)
+     &         snage,isflag,mlodwn,ocndwn)
           t(1:ifull,:)=dumb(:,:,1)
           u(1:ifull,:)=dumb(:,:,2)
           v(1:ifull,:)=dumb(:,:,3)
@@ -1171,7 +1170,7 @@
      &       duma(:,4),duma(:,5),dumb(:,:,1),dumb(:,:,2),dumb(:,:,3),
      &       dumb(:,:,4),tgg,wb,wbice,snowd,dumb(:,:,5),
      &       dumb(:,:,6),dumb(:,:,7),tggsn,smass,ssdn,ssdnn,snage,
-     &       isflag,iaero,mlodwn,ocndwn)
+     &       isflag,mlodwn,ocndwn)
          if(kdate/=kdate_sav.or.ktime/=ktime_sav)then
           if (myid==0) then
            write(6,*) 'WARN: Could not locate correct date/time'

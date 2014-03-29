@@ -1,4 +1,4 @@
-      subroutine conjob(iaero)      ! globpea & rcsb (non-chen); nkuo=46 only
+      subroutine conjob      ! globpea & rcsb (non-chen); nkuo=46 only
       use aerosolldr
       use arrays_m
       use cc_mpi, only : mydiag
@@ -36,9 +36,8 @@ c     Hal's ds() renamed dsh()
       real ss(ifull,kl),uh(ifull,kl)
       real dsh(ifull,kl)
       real dq(ifull,kl)
-      real*8 cam(kl-1,kl)
+      real(kind=8) cam(kl-1,kl)
       real algf(kl),delt(kl),dsk(kl),rhs(kl),sigadd(kl),s(kl)
-      integer iaero
 !     set convective relaxation time (convtime [was btcnv], usually 1 hour)
 !     data convtime/1./,rhcv/.75/,rhmois/.6/ ! usually 1., .75, .6 now in kuocom
       data epsconv/0./

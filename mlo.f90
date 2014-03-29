@@ -2716,7 +2716,7 @@ elsewhere
   excess=0.
 end where
 where (excess>0..and.dp_nk==2)
-  ip_tn1=(0.5*ip_dic*ip_tn1+rhowt/rhoic*excess*ip_tn0*cps/cpi)/(0.5*ip_dic+rhowt/rhoic*excess) ! Assume 2 levels of ice, hence 0.5*hi
+  ip_tn1=(0.5*ip_dic*ip_tn1+rhowt/rhoic*excess*ip_tn0*cps/cpi)/(0.5*ip_dic+rhowt/rhoic*excess) ! Assume 2 levels of ice
 elsewhere (excess>0..and.dp_nk==1)
   ip_tn1=(ip_dic*ip_tn1+rhowt/rhoic*excess*ip_tn0*cps/cpi)/(ip_dic+rhowt/rhoic*excess)         ! Assume 1 level of ice
 elsewhere (excess>0.)

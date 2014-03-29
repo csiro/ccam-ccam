@@ -16,7 +16,7 @@
      &                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
      &                    tgg,wb,wbice,snowd,qfg,qlg,qrg,
      &                    tggsn,smass,ssdn,ssdnn,snage,isflag,
-     &                    iaero,mlodwn,ocndwn)
+     &                    mlodwn,ocndwn)
 
       use cc_mpi           ! CC MPI routines
       use infile           ! Input file routines
@@ -40,7 +40,7 @@
       integer, dimension(nihead) :: nahead
       integer, dimension(ifull) :: isflag
       integer, dimension(9) :: idum
-      integer kdate_r,ktime_r,nested,ier,ier2,ilen,itype,iaero
+      integer kdate_r,ktime_r,nested,ier,ier2,ilen,itype
       integer idv,mtimer,k,ierx,idvkd,idvkt,idvmt
       real, dimension(nrhead) :: ahead
       real, dimension(3) :: rdum
@@ -213,7 +213,7 @@
      &                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
      &                    tgg,wb,wbice,snowd,qfg,qlg,qrg,
      &                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
-     &                    ok,ik,iaero,mlodwn,ocndwn,rlong0x,
+     &                    ok,ik,mlodwn,ocndwn,rlong0x,
      &                    rlat0x,schmidtx,nsibx,newfile)
         write(6,*) "Leaving onthefly"
       else
@@ -221,7 +221,7 @@
      &                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
      &                    tgg,wb,wbice,snowd,qfg,qlg,qrg,
      &                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
-     &                    ok,0,iaero,mlodwn,ocndwn,rlong0x,
+     &                    ok,0,mlodwn,ocndwn,rlong0x,
      &                    rlat0x,schmidtx,nsibx,newfile)
       end if
 
@@ -241,7 +241,7 @@
      &                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
      &                    tgg,wb,wbice,snowd,qfg,qlg,qrg,
      &                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
-     &                    ok,dk,iaero,mlodwn,ocndwn,rlong0x,
+     &                    ok,dk,mlodwn,ocndwn,rlong0x,
      &                    rlat0x,schmidtx,nsibx,newfile)
       
       use aerosolldr, only : xtg,ssn,naero      ! LDR aerosol scheme
@@ -290,7 +290,7 @@
       integer, parameter :: nord=3        ! 1 for bilinear, 3 for bicubic
       real, parameter :: iotol=1.E-5      ! tolarance for iotest
       
-      integer ik, kk, ok, idv, iaero, isoil, nud_test
+      integer ik, kk, ok, idv, isoil, nud_test
       integer dk ! controls automatic array size
       integer lev, levkk, ier, ierr, igas
       integer kdate_r, ktime_r, nemi, id2,jd2,idjd2

@@ -1,4 +1,4 @@
-      subroutine upglobal(iaero)      ! globpea version   use ritchie 103
+      subroutine upglobal      ! globpea version   use ritchie 103
       use aerosolldr
       use arrays_m
       use cc_mpi
@@ -40,7 +40,7 @@
       real theta(ifull,kl), factr(kl)
       real, dimension(ifull,kl) :: dumt,dumu,dumv
       integer ii,intsch, iq, jj,k, kk, ntr, ierr
-      integer iaero, l
+      integer l
       integer, dimension(ifull) :: nits, nvadh_pass
       real denb, tempry, vdot1,
      &     vdot2, vec1x, vec1y, vec1z, vec2x, vec2y, vec2z, vec3x,
@@ -197,7 +197,7 @@
         sdmx(:) = maxval(abs(sdot),2)
         nits(:)=1+sdmx(:)/nvadh
         nvadh_pass(:)=nvadh*nits(:) ! use - for nvadu
-        call vadvtvd(tx,ux,vx,nvadh_pass,nits,iaero)
+        call vadvtvd(tx,ux,vx,nvadh_pass,nits)
 #ifdef debug
         if( (diag.or.nmaxpr==1) .and. mydiag )then
           write(6,*) 'in upglobal after vadv1'
@@ -494,7 +494,7 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
             write (6,"('qg  ',3p9f8.3/4x,9f8.3)")   qg(idjd,:)
           endif
 #endif
-          call vadvtvd(tx,ux,vx,nvadh_pass,nits,iaero)
+          call vadvtvd(tx,ux,vx,nvadh_pass,nits)
 #ifdef debug
           if( (diag.or.nmaxpr==1) .and. mydiag )then
             write(6,*) 'in upglobal after vadv2'

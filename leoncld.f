@@ -1,4 +1,4 @@
-      subroutine leoncld(cfrac,cffall,iaero)
+      subroutine leoncld(cfrac,cffall)
       use aerointerface
       use arrays_m
       use cc_mpi, only : mydiag, myid
@@ -18,7 +18,7 @@
       use work3f_m
       implicit none
       include 'newmpar.h'
-      integer  ncfrp,icfrp,iaero
+      integer  ncfrp,icfrp
       parameter (ncfrp=0,icfrp=1)        ! cfrp diags off      
 !     parameter (ncfrp=1,icfrp=ifullw)   ! cfrp diags on     
       include 'const_phys.h' !Input physical constants
@@ -106,8 +106,7 @@ c These outputs are not used in this model at present
       end do
       
       ! Calculate droplet concentration from aerosols (for non-convective faction of grid-box)
-      call aerodrop(iaero,1,ifull,kl,cdso4,rhoa,land,rlatt,
-     &              outconv=.true.)
+      call aerodrop(1,ifull,kl,cdso4,rhoa,land,rlatt,outconv=.true.)
 
       kbase(:)=0  ! default
       ktop(:) =0  ! default

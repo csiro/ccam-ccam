@@ -17,7 +17,7 @@
 
       !--------------------------------------------------------------
       ! Control subroutine for vertical mixing
-      subroutine vertmix(iaero)
+      subroutine vertmix
 
       use aerosolldr                      ! LDR prognostic aerosols
       use arrays_m                        ! Atmosphere dyamics prognostic arrays
@@ -55,7 +55,7 @@
 
       integer, parameter :: ntest=0
       integer, parameter :: ndvmod=0    ! 0 default, 1+ for dvmod tests
-      integer kcl_top,iaero,l,iq,k,iqmax,ierr,tnaero              
+      integer kcl_top,l,iq,k,iqmax,ierr,tnaero              
       integer, save :: kscbase,ksctop
       integer, dimension(ifull) :: kbase,ktop
       real, parameter :: bprm=4.7,cm=7.4,ch=5.3,amxlsq=100.   ! coefficients for Louis scheme
@@ -70,7 +70,6 @@
       real, dimension(ifull,kl) :: cu,thee,qs,uav,vav,au,ct,gt,at
       real, dimension(ifull,kl) :: guv,ri,rkm,rkh,rk_shal,zg
       real, dimension(ifull,kl) :: tnhs,zh
-      real, dimension(ifull,kl) :: dumqg,dumql,dumqf,dumqr,dumcr
       real, dimension(ifull,kl-1) :: dnhsh,tmnht
       real, dimension(ifull) :: dqtot,csq,dvmod,dz,dzr,fm,fh,sqmxl
       real, dimension(ifull) :: x,zhv,theeb,sigsp,rhos
@@ -812,14 +811,8 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
      &                    +betm(k)*t(1:ifull,k-1))/grav
        end do ! k  loop
        zg=zg+phi_nh/grav ! add non-hydrostatic component
-       dumqg=qg(1:ifull,:)
-       dumql=qlg(1:ifull,:)
-       dumqf=qfg(1:ifull,:)
-       dumqr=qrg(1:ifull,:)
-       dumcr=cffall(1:ifull,:)
        tnaero=0
        
-       !rhos=ps(1:ifull)/(rdry*tss(:))
        rhos=sig(1)*ps(1:ifull)/(rdry*t(1:ifull,1))
        
        if (abs(iaero)==2) then ! Use counter gradient for aerosols
@@ -830,30 +823,20 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
        
        select case(nlocal)
         case(0) ! no counter gradient
-         call tkemix(rkm,rhs,dumqg,dumql,
-     &             dumqf,dumqr,cfrac,dumcr,
+         call tkemix(rkm,rhs,qg,qlg,
+     &             qfg,qrg,cfrac,cffall,
      &             pblh,fg,eg,ps(1:ifull),
      &             ustar,zg,zh,sig,rhos,
      &             dt,qgmin,1,0,
      &             tnaero,dumar)
-         qg(1:ifull,:)=dumqg
-         qlg(1:ifull,:)=dumql
-         qfg(1:ifull,:)=dumqf
-         qrg(1:ifull,:)=dumqr
-         cffall(1:ifull,:)=dumcr
          rkh=rkm
         case(1,2,3,4,5,6) ! KCN counter gradient method
-         call tkemix(rkm,rhs,dumqg,dumql,
-     &             dumqf,dumqr,cfrac,dumcr,
+         call tkemix(rkm,rhs,qg,qlg,
+     &             qfg,qrg,cfrac,cffall,
      &             pblh,fg,eg,ps(1:ifull),
      &             ustar,zg,zh,sig,rhos,
      &             dt,qgmin,1,0,
      &             tnaero,dumar)
-         qg(1:ifull,:)=dumqg
-         qlg(1:ifull,:)=dumql
-         qfg(1:ifull,:)=dumqf
-         qrg(1:ifull,:)=dumqr
-         cffall(1:ifull,:)=dumcr
          rkh=rkm
          uav(1:ifull,:)=av_vmod*u(1:ifull,:)
      &                 +(1.-av_vmod)*savu(1:ifull,:)
@@ -861,17 +844,12 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
      &                 +(1.-av_vmod)*savv(1:ifull,:)
          call pbldif(rhs,rkh,rkm,uav,vav)
         case(7) ! mass-flux counter gradient
-         call tkemix(rkm,rhs,dumqg,dumql,
-     &             dumqf,dumqr,cfrac,dumcr,
+         call tkemix(rkm,rhs,qg,qlg,
+     &             qfg,qrg,cfrac,cffall,
      &             pblh,fg,eg,ps(1:ifull),
      &             ustar,zg,zh,sig,rhos,
      &             dt,qgmin,0,0,
      &             tnaero,dumar)
-         qg(1:ifull,:)=dumqg
-         qlg(1:ifull,:)=dumql
-         qfg(1:ifull,:)=dumqf
-         qrg(1:ifull,:)=dumqr
-         cffall(1:ifull,:)=dumcr
          rkh=rkm
         case DEFAULT
           write(6,*) "ERROR: Unknown nlocal option for nvmix=6"
@@ -1023,9 +1001,7 @@ c        now do cffall
           rhs=xtg(1:ifull,:,l) ! Total grid-box
           call trim(at,ct,rhs,0)
           xtg(1:ifull,:,l)=rhs
-          rhs=xtosav(:,:,l)    ! Outside convective cloud
-          call trim(at,ct,rhs,0)
-          xtosav(:,:,l)=rhs
+          call trim(at,ct,xtosav(:,:,l),0) ! Outside convective cloud
         end do
        end if ! (abs(iaero)==2)
       

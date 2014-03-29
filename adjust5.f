@@ -1,4 +1,4 @@
-      subroutine adjust5(iaero)
+      subroutine adjust5
       use aerosolldr
       use arrays_m
       use cc_mpi
@@ -58,7 +58,7 @@
       real delpos_l, delneg_l, const_nh
       real, save :: dtsave = 0.
       integer, dimension(ifull) :: nits, nvadh_pass
-      integer its, k, l, iq, ng, ierr, iaero
+      integer its, k, l, iq, ng, ierr
       integer, save :: precon_in = -99999
       logical, dimension(nagg) :: llim
 
@@ -277,11 +277,11 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
       if ((diag.or.nmaxpr==1).and.mydiag)then
        write(6,*) 'iq,k,fu,alfu,alfu*ux(iq,k) ',
      &         idjd,nlv,fu(idjd),alfu(idjd),alfu(idjd)*ux(idjd,nlv)
-       write(6,*) 'alfF & n e w s (in(iq)),alfF(ine(iq)),alfF(is(iq))',
-     &        'alfF(ise(iq)),alfe(iq) ',alfF(in(idjd)),alfF(ine(idjd))
-     &         ,alfF(is(idjd)),alfF(ise(idjd)),alfe(idjd)
-       sumx = alf(ie(idjd))-alf(idjd)+.25*(alfF(in(idjd))+
-     &      alfF(ine(idjd))-alfF(is(idjd))-alfF(ise(idjd)))-alfe(idjd)
+       write(6,*) 'alff & n e w s (in(iq)),alff(ine(iq)),alff(is(iq))',
+     &        'alff(ise(iq)),alfe(iq) ',alff(in(idjd)),alff(ine(idjd))
+     &         ,alff(is(idjd)),alff(ise(idjd)),alfe(idjd)
+       sumx = alf(ie(idjd))-alf(idjd)+.25*(alff(in(idjd))+
+     &      alff(ine(idjd))-alff(is(idjd))-alff(ise(idjd)))-alfe(idjd)
        write(6,*) 'sum  ',sumx
        write(6,*) 'p & n e w s ne se ',p(idjd,nlv),p(in(idjd),nlv),
      &         p(ie(idjd),nlv),p(iw(idjd),nlv),p(is(idjd),nlv),
@@ -298,14 +298,14 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
      &       -hdtds*emu(iq)*
      &       ( alf(ie(iq))*p(ie(iq),k)-alf(iq)*p(iq,k)
      &       -.5*alfe(iq)*(p(iq,k)+p(ie(iq),k))
-     &       +.25*(alfF(in(iq))*p(in(iq),k) +alfF(ine(iq))*p(ine(iq),k)
-     &       -alfF(is(iq))*p(is(iq),k) -alfF(ise(iq))*p(ise(iq),k)) )
+     &       +.25*(alff(in(iq))*p(in(iq),k) +alff(ine(iq))*p(ine(iq),k)
+     &       -alff(is(iq))*p(is(iq),k) -alff(ise(iq))*p(ise(iq),k)) )
             dd(iq,k) = alfv(iq)*vx(iq,k) ! Eq. 140
      &       -hdtds*emv(iq)*
      &       ( alf(in(iq))*p(in(iq),k)-alf(iq)*p(iq,k)
      &       -.5*alfn(iq)*(p(iq,k)+p(in(iq),k))
-     &       -.25*(alfF(ien(iq))*p(ien(iq),k) +alfF(ie(iq))*p(ie(iq),k)
-     &       -alfF(iwn(iq))*p(iwn(iq),k) -alfF(iw(iq))*p(iw(iq),k)) )
+     &       -.25*(alff(ien(iq))*p(ien(iq),k) +alff(ie(iq))*p(ie(iq),k)
+     &       -alff(iwn(iq))*p(iwn(iq),k) -alff(iw(iq))*p(iw(iq),k)) )
          enddo  ! iq loop   
       enddo     !  k loop 
 
@@ -516,11 +516,11 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
 #endif
           ! For now use this form of call so that vadvtvd doesn't need to 
           ! be changed. With assumed shape arguments this wouldn't be necessary
-          call vadvtvd(t,u,v,nvadh_pass,nits,iaero)
+          call vadvtvd(t,u,v,nvadh_pass,nits)
         endif  !  nvad==4 .or. nvad==9
         if(nvad>=7) call vadv30(t(1:ifull,:),
      &                            u(1:ifull,:),
-     &                            v(1:ifull,:),iaero) ! for vadvbess
+     &                            v(1:ifull,:)) ! for vadvbess
 #ifdef debug
         if (( diag.or.nmaxpr==1) .and. mydiag ) then
           write(6,*) 'after vertical advection in adjust5'
@@ -550,8 +550,8 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
            call ccglobal_sum(psl,sumin)
 	 endif  ! (ntest==1)
 #endif
-         alph_p = sqrt( -delneg/delpos)
-         alph_pm=1./alph_p
+         alph_p = sqrt( -delneg/max(1.e-20,delpos))
+         alph_pm=1./max(1.e-20,alph_p)
          do iq=1,ifull
             psl(iq) = pslsav(iq) +
      &           alph_p*max(0.,delps(iq)) + alph_pm*min(0.,delps(iq))
@@ -661,7 +661,9 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
       dpsdtbb(:)=dpsdtb(:)    
       dpsdtb(:)=dpsdt(:)    
       dpsdt(1:ifull)=(ps(1:ifull)-ps_sav(1:ifull))*24.*3600./(100.*dt)
+#ifdef debug
       if(nmaxpr==1)call maxmin(dpsdt,'dp',ktau,.01,1)
+#endif
 
       !------------------------------------------------------------------------
       ! Cloud water conservation
@@ -796,7 +798,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
       else
         do iq=1,ifull
          alf(iq)=(1.+epsu)/(1.+(hdt*(1.+epsf)*f(iq))**2) ! Eq. 138
-         alfF(iq)=alf(iq)*f(iq)*hdt*(1.+epsf)       ! now includes hdt in alfF
+         alff(iq)=alf(iq)*f(iq)*hdt*(1.+epsf)       ! now includes hdt in alff
          alfu(iq)=1./(1.+(hdt*(1.+epsf)*fu(iq))**2) ! i.e. alf/(1+epsu)
          alfv(iq)=1./(1.+(hdt*(1.+epsf)*fv(iq))**2) ! i.e. alf/(1+epsu)
         enddo     ! iq loop
@@ -808,9 +810,9 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
       do iq=1,ifull
        pfact(iq)=4.*( ds/(dt*em(iq)) )**2    
        alfe(iq)=alf(ie(iq))-alf(iq)    ! alf3 Eq. 141 times ds
-     &     +.25*(alff(ine(iq))+alfF(in(iq))-alfF(ise(iq))-alfF(is(iq)))
+     &     +.25*(alff(ine(iq))+alff(in(iq))-alff(ise(iq))-alff(is(iq)))
        alfn(iq)=alf(in(iq))-alf(iq)    ! alf4 Eq. 142 times ds
-     &     -.25*(alfF(ien(iq))+alfF(ie(iq))-alfF(iwn(iq))-alfF(iw(iq)))
+     &     -.25*(alff(ien(iq))+alff(ie(iq))-alff(iwn(iq))-alff(iw(iq)))
       enddo     ! iq loop
       call boundsuv(alfe,alfn)
 
@@ -828,23 +830,23 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
          do n=1,npan            ! 1,6
             if(edge_s .and. edge_w ) then
                iq=indp(1,1,n)
-               zzs(iq)=zzs(iq)+.25*alfF(is(iq)) ! i,j-1 coeff
-               zzw(iq)=zzw(iq)-.25*alfF(iw(iq)) ! i-1,j coeff
+               zzs(iq)=zzs(iq)+.25*alff(is(iq)) ! i,j-1 coeff
+               zzw(iq)=zzw(iq)-.25*alff(iw(iq)) ! i-1,j coeff
             end if
             if(edge_n .and. edge_e ) then
                iq=indp(ipan,jpan,n)
-               zzn(iq)=zzn(iq)+.25*alfF(in(iq)) ! i,j+1 coeff
-               zze(iq)=zze(iq)-.25*alfF(ie(iq)) ! i+1,j coeff
+               zzn(iq)=zzn(iq)+.25*alff(in(iq)) ! i,j+1 coeff
+               zze(iq)=zze(iq)-.25*alff(ie(iq)) ! i+1,j coeff
             end if
             if(edge_s .and. edge_e ) then
                iq=indp(ipan,1,n)
-               zzs(iq)=zzs(iq)-.25*alfF(is(iq)) ! i,j-1 coeff
-               zze(iq)=zze(iq)+.25*alfF(ie(iq)) ! i+1,j coeff
+               zzs(iq)=zzs(iq)-.25*alff(is(iq)) ! i,j-1 coeff
+               zze(iq)=zze(iq)+.25*alff(ie(iq)) ! i+1,j coeff
             end if
             if(edge_n .and. edge_w ) then
                iq=indp(1,jpan,n)
-               zzn(iq)=zzn(iq)-.25*alfF(in(iq)) ! i,j+1 coeff
-               zzw(iq)=zzw(iq)+.25*alfF(iw(iq)) ! i-1,j coeff
+               zzn(iq)=zzn(iq)-.25*alff(in(iq)) ! i,j+1 coeff
+               zzw(iq)=zzw(iq)+.25*alff(iw(iq)) ! i-1,j coeff
             end if
         enddo   ! n loop
       end subroutine adjust_init

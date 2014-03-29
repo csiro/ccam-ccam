@@ -7,7 +7,7 @@
 
       !--------------------------------------------------------------
       ! CONFIGURE DIMENSIONS FOR OUTPUT NETCDF FILES
-      subroutine outcdf(rundate,nmi,itype,iaero,nstagin)
+      subroutine outcdf(rundate,nmi,itype,nstagin)
 
       use cc_mpi                            ! CC MPI routines
       use infile                            ! Input file routines
@@ -38,7 +38,7 @@
       integer, parameter :: nrhead=14
       integer, dimension(nihead) :: nahead
       integer, dimension(4), save :: dim,dims,dimo
-      integer nmi, itype, iaero, nstagin
+      integer nmi, itype, nstagin
       integer xdim,ydim,zdim,tdim,msdim,ocdim
       integer icy, icm, icd, ich, icmi, ics, idv, imode
       integer, save :: idnc=0, iarch=0, idnc0=0
@@ -273,7 +273,7 @@ c       create the attributes of the header record of the file
       endif ! (myid==0.or.local)
       
       ! openhist writes some fields so needs to be called by all processes
-      call openhist(iarch,itype,dim,local,idnc,iaero,nstagin)
+      call openhist(iarch,itype,dim,local,idnc,nstagin)
 
       if(myid==0.or.local)then
         if(ktau==ntau)then
@@ -289,7 +289,7 @@ c       create the attributes of the header record of the file
       
       !--------------------------------------------------------------
       ! CREATE ATTRIBUTES AND WRITE OUTPUT
-      subroutine openhist(iarch,itype,dim,local,idnc,iaero,nstagin)
+      subroutine openhist(iarch,itype,dim,local,idnc,nstagin)
 
       use aerointerface                         ! Aerosol interface
       use aerosolldr                            ! LDR prognostic aerosols
@@ -356,7 +356,7 @@ c       create the attributes of the header record of the file
 
       integer i, idkdate, idktau, idktime, idmtimer, idnteg, idnter
       integer idv, iq, isoil, j, k, n, igas, idnc
-      integer iarch, itype, iaero, nstagin, idum
+      integer iarch, itype, nstagin, idum
       integer, dimension(4), intent(in) :: dim
       integer, dimension(3) :: idim
       integer, dimension(2) :: iduma

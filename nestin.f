@@ -30,7 +30,7 @@
       !--------------------------------------------------------------
       ! FAR-FIELD NUDGING AND RELAXATION ROUTINES
       ! Called for nbd/=0
-      subroutine nestin(iaero)
+      subroutine nestin
       
       use arrays_m                     ! Atmosphere dyamics prognostic arrays
       use cc_mpi                       ! CC MPI routines
@@ -52,7 +52,7 @@
 
       integer, dimension(ifull) :: dumm
       integer, save :: num,mtimea,mtimeb
-      integer iq,iaero,k,i,wl,ierr
+      integer iq,k,i,wl,ierr
       integer kdate_r,ktime_r,kdhour,kdmin,iabsdate
       real timerm,cona,conb,rduma
       real, save :: rdumg = -999.
@@ -166,7 +166,7 @@
           call onthefly(1,kdate_r,ktime_r,
      &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb, 
      &                 dumg,dumg,dumg,duma,dumv,dumv,dumv,dums,dums,
-     &                 dums,duma,duma,dumm,iaero,sssb,ocndep)
+     &                 dums,duma,duma,dumm,sssb,ocndep)
         else
           write(6,*) 'ERROR: Nudging requires abs(io_in)=1'
           call ccmpi_abort(-1)
@@ -313,7 +313,7 @@
       !--------------------------------------------------------------
       ! SCALE SELECTIVE FILTER ASSIMILATION
       ! Called for mbd/=0
-      subroutine nestinb(iaero)
+      subroutine nestinb
 
       use arrays_m                     ! Atmosphere dyamics prognostic arrays
       use cc_mpi                       ! CC MPI routines
@@ -335,7 +335,7 @@
       integer, dimension(ifull) :: dumm
       integer, save :: mtimeb = -1
       integer, save :: wl = -1
-      integer kdate_r,ktime_r,iaero,ierr
+      integer kdate_r,ktime_r,ierr
       integer iabsdate,iq,k,kdhour,kdmin
       real ds_r,timeg_b
       real, dimension(2) :: dumbb
@@ -376,7 +376,7 @@
           call onthefly(1,kdate_r,ktime_r,
      &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb, 
      &                 dumg,dumg,dumg,duma,dumv,dumv,dumv,dums,dums,
-     &                 dums,duma,duma,dumm,iaero,sssb,ocndep)
+     &                 dums,duma,duma,dumm,sssb,ocndep)
         else
           write(6,*) 'ERROR: Scale-selective filter requires ',
      &               'abs(io_in)=1'
