@@ -24,35 +24,32 @@ c     suffix 6 denotes hex (6)
       include 'newmpar.h'
       include 'const_phys.h'   ! rearth
       include 'parm.h'
-c     include 'xyzinfo_gx.h'  ! x,y,z,wts
+      integer, intent(in) :: myid  ! This is passed as an argument just to control the 
+                                   ! diagnostic prints
+      integer, intent(in) :: ik  ! passed as argument. Actual i dimension.
+!                                  if negative, suppress calc of rlat4, rlong4, indices,em_g                             
+      integer i,j,n,ikk,idjd_g,iq,ii,i0,j0,n0,in0,jn0,nn0
+      integer is0,js0,ns0,ie0,je0,ne0,iw0,jw0,nw0,inn0,jnn0
+      integer iss0,jss0,nss0,nnn0,iee0,jee0,nee0,iww0,jww0,nww0,m
+      integer iq11,iq12,iq13,iq22,iq32,iqcc,iqnn
+      integer imin,imax,jmin,jmax,numpts
+      integer iqm,iqp, n_n, n_e, n_w, n_s
+      integer iquadx
+      integer, save :: num = 0
+      integer, parameter :: ndiag = 0
       real(kind=8) x(ik*ik*6),y(ik*ik*6),z(ik*ik*6)
-c     include 'vecsuv_gx.h'   ! vecsuv info
       real ax(ik*ik*6),ay(ik*ik*6),az(ik*ik*6),wts(ik*ik*6)
       real bx(ik*ik*6),by(ik*ik*6),bz(ik*ik*6)
-c      real ax6(abs(ik),abs(ik),0:5),ay6(abs(ik),abs(ik),0:5)
-c      real bx6(abs(ik),abs(ik),0:5),by6(abs(ik),abs(ik),0:5)
-c      real az6(abs(ik),abs(ik),0:5),bz6(abs(ik),abs(ik),0:5)
-c      equivalence (ax6,ax),(ay6,ay),(az6,az),(bx6,bx),(by6,by),(bz6,bz)
-c     real*8 xx4(1+4*abs(ik),1+4*abs(ik)),yy4(1+4*abs(ik),1+4*abs(ik))
       real(kind=8) xx4(1+4*ik,1+4*ik),yy4(1+4*ik,1+4*ik)
-!     next one shared with cctocc4 & onthefly
-      integer :: myid  ! This is passed as an argument just to control the 
-                       ! diagnostic prints
-      integer :: ik  ! passed as argument. Actual i dimension.
-!                  if negative, suppress calc of rlat4, rlong4, indices,em_g                             
-!     These can no longer be shared because they use true global ifull_g.
-c      real em4(1+4*abs(ik),1+4*abs(ik))
-c     .    ,ax4(1+4*abs(ik),1+4*abs(ik)),ay4(1+4*abs(ik),1+4*abs(ik))
-c     &    ,az4(1+4*abs(ik),1+4*abs(ik))
-       real em4(1+4*ik,1+4*ik)
+      real em4(1+4*ik,1+4*ik)
      .    ,ax4(1+4*ik,1+4*ik),ay4(1+4*ik,1+4*ik)
      &    ,az4(1+4*ik,1+4*ik)
      .    ,axx(ik*ik*6),ayy(ik*ik*6),azz(ik*ik*6)
      .    ,bxx(ik*ik*6),byy(ik*ik*6),bzz(ik*ik*6)
       real rlong0,rlat0,schmidt,schmidtin
       real rotpole(3,3)
-      real(kind=8) alf,den1,one,xx,yy,zz,x4_iq_m,y4_iq_m,z4_iq_m
-      data one/1./    ! just to force real*8 calculation
+      real(kind=8) alf,den1,xx,yy,zz,x4_iq_m,y4_iq_m,z4_iq_m
+      real(kind=8), parameter :: one = 1._8
 !     dimension npann_g(0:13),npane_g(0:13),npanw_g(0:13),npans_g(0:13)  ! in indices.h
       integer npan6n(0:5),npan6e(0:5),npan6w(0:5),npan6s(0:5)
 !                  0  1   2   3   4   5   6   7   8   9  10  11  12  13
@@ -63,18 +60,9 @@ c     &    ,az4(1+4*abs(ik),1+4*abs(ik))
       data npan6n/1,103,3,105,5,101/,npan6e/102,2,104,4,100,0/
       data npan6w/5,105,1,101,3,103/,npan6s/104,0,100,2,102,4/
 c     character*80 chars
-      integer num,ndiag,i,j,n,ikk,idjd_g,iq,ii,i0,j0,n0,in0,jn0,nn0
-      integer is0,js0,ns0,ie0,je0,ne0,iw0,jw0,nw0,inn0,jnn0
-      integer iss0,jss0,nss0,nnn0,iee0,jee0,nee0,iww0,jww0,nww0,m
-      integer iq11,iq12,iq13,iq22,iq32,iqcc,iqnn
-      integer imin,imax,jmin,jmax,numpts
-      integer ::  iqm,iqp, n_n, n_e, n_w, n_s
-      integer iquadx
       real dsfact,xin,yin,zin
       real den, dot,eps,dx2,dy2,sumwts,rlat,rlong,ratmin,ratmax,rat
       real rlatdeg,rlondeg
-      save num
-      data ndiag/0/,num/0/
       num=num+1
 c     When using the ifull_g notation: in_g, ie_g, iw_g and is_g give the
 c     indices for the n, e, w, s neighbours respectively
@@ -851,61 +839,60 @@ c    .  rlongg_g(iq)*180./pi,rlatt_g(iq)*180./pi
         ratmin=100.
         ratmax=0.
         do n=0,npanels
-         do i=1,ikk
-	   iq=indx(i,ikk/2,n,ikk,ikk)
-	   rat=em_g(iq)/em_g(ie_g(iq))
-	    if(rat<ratmin)then
-	      ratmin=rat
-	      imin=i
-	    endif
-	    if(rat>ratmax)then
-	      ratmax=rat
-	      imax=i
-	    endif
-	  enddo
+          do i=1,ikk
+           iq=indx(i,ikk/2,n,ikk,ikk)
+           rat=em_g(iq)/em_g(ie_g(iq))
+           if(rat<ratmin)then
+             ratmin=rat
+             imin=i
+           endif
+           if(rat>ratmax)then
+             ratmax=rat
+             imax=i
+           endif
+          enddo
           if(num==1)then
-	    print *,'em_g ratio for j=ikk/2 on npanel ',n
+            print *,'em_g ratio for j=ikk/2 on npanel ',n
             write (6,"(12f6.3)")
      &            (em_g(indx(i,ikk/2,n,ikk,ikk))
      &            /em_g(ie_g(indx(i,ikk/2,n,ikk,ikk))),
      &            i=1,ikk)
           endif
-	 enddo
-	 print *,'for j=ikk/2 & myid=0, ratmin,ratmax = ',ratmin,ratmax
-	 !print *,'with imin,imax ',imin,jmin,imax,jmax ! MJT bug
-	 print *,'with imin,imax ',imin,imax            ! MJT bug
+        enddo
+        print *,'for j=ikk/2 & myid=0, ratmin,ratmax = ',ratmin,ratmax
+        print *,'with imin,imax ',imin,imax
         ratmin=100.
-	 ratmax=0.
+        ratmax=0.
         do n=0,npanels
-	  do j=1,ikk
+         do j=1,ikk
           do i=1,ikk
-	    iq=indx(i,j,n,ikk,ikk)
-	    rat=em_g(iq)/em_g(ie_g(iq))
-	    if(rat<ratmin)then
-	      ratmin=rat
-	      imin=i
-	      jmin=j
-	    endif
-	    if(rat>ratmax)then
-	      ratmax=rat
-	      imax=i
-	      jmax=j
-	    endif
-	   enddo
-	  enddo
-	 enddo
-	 print *,'for all j & myid=0, ratmin,ratmax = ',ratmin,ratmax
-	 print *,'with imin,jmin,imax,jmax ',imin,jmin,imax,jmax
+           iq=indx(i,j,n,ikk,ikk)
+           rat=em_g(iq)/em_g(ie_g(iq))
+           if(rat<ratmin)then
+            ratmin=rat
+            imin=i
+            jmin=j
+           endif
+           if(rat>ratmax)then
+            ratmax=rat
+            imax=i
+            jmax=j
+           endif
+          enddo
+         enddo
+        enddo
+        print *,'for all j & myid=0, ratmin,ratmax = ',ratmin,ratmax
+        print *,'with imin,jmin,imax,jmax ',imin,jmin,imax,jmax
         write (6,"('1st 10 ratios',10f6.3)") (em_g(iq)/em_g(ie_g(iq)),
      &                                       iq=1,10)
-	 numpts=0
-	 do iq=1,ifull_g
-	   rlatdeg=rlatt_g(iq)*180./pi
-	   rlondeg=rlongg_g(iq)*180./pi
-	  if(rlatdeg>20..and.rlatdeg<60.
+        numpts=0
+        do iq=1,ifull_g
+         rlatdeg=rlatt_g(iq)*180./pi
+         rlondeg=rlongg_g(iq)*180./pi
+         if(rlatdeg>20..and.rlatdeg<60.
      &      .and.rlondeg>230..and.rlatdeg<300.)numpts=numpts+1
         enddo
-	 print *,'points in SGMIP region ',numpts
+        print *,'points in SGMIP region ',numpts
       endif
 
       return

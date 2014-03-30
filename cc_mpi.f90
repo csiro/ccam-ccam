@@ -317,25 +317,6 @@ module cc_mpi
    character(len=15), dimension(nevents), save :: event_name
 #endif 
 
-#ifdef mpilog
-   public :: mpe_log_event, mpe_log_get_event_number, mpe_describe_state
-   interface 
-      function mpe_log_event (event, idata, string) result(val)
-         integer, intent(in) :: event, idata
-         character(len=*), intent(in) :: string
-         integer :: val
-      end function mpe_log_event
-      function mpe_log_get_event_number() result(val)
-         integer :: val
-      end function mpe_log_get_event_number
-      function mpe_describe_state(start,finish, name, color) result(val)
-         integer, intent(in) :: start, finish
-         character(len=*), intent(in) :: name, color
-         integer :: val
-      end function mpe_describe_state
-   end interface
-#endif
-
 #include "log.h"
 
 #ifdef vampir
@@ -358,27 +339,13 @@ contains
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
-      integer(kind=4) ierr, mone
+      integer(kind=4) ierr
       integer(kind=4) colour, rank, lcommin, lcommout
       integer(kind=4) asize
-#ifdef mswin
-      integer(kind=INT_PTR_KIND()) wsize
-#else
       integer(kind=MPI_ADDRESS_KIND) wsize
-#endif
       integer, dimension(ifull) :: colourmask
       integer, dimension(3) :: ifullxc
       logical(kind=4) :: ltrue
-
-#ifdef mswin
-      !integer(kind=MPI_ADDRESS_KIND) is broken with MS MPI and ifort, but
-      !at least we can check for errors
-      if ( MPI_ADDRESS_KIND /= INT_PTR_KIND() ) then
-         write(6,*) "ERROR: Invalid MPI_ADDRESS_KIND"
-         mone = -1
-         call MPI_abort(MPI_COMM_WORLD,mone,ierr)
-      end if
-#endif
 
       nreq = 0
 
@@ -490,14 +457,12 @@ contains
       ifullx = count( colourmask == 1 )
       if ( ifullx /= count( colourmask == 2 ) ) then
          write(6,*) "ERROR: Unbalanced colours in ccmpi_setup"
-         mone = -1
-         call MPI_abort(MPI_COMM_WORLD,mone,ierr)
+         call MPI_abort(MPI_COMM_WORLD,-1_4,ierr)
       end if
       if ( maxcolour == 3 ) then
          if ( ifullx /= count( colourmask == 3 ) ) then
             write(6,*) "ERROR: Unbalanced colours in ccmpi_setup"
-            mone = -1
-            call MPI_abort(MPI_COMM_WORLD,mone,ierr)
+            call MPI_abort(MPI_COMM_WORLD,-1_4,ierr)
          end if
       end if
       allocate ( iqx(ifullx,maxcolour) )
@@ -557,8 +522,7 @@ contains
       if ( myid == hproc ) then
          if ( ioff/=0 .or. joff/=0 ) then
             write(6,*) "ERROR: hproc incorrectly assigned"
-            mone = -1
-            call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
+            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
          end if
       end if
       
@@ -580,7 +544,7 @@ contains
       ! Convert standard 1D arrays to face form and distribute to processors
       real, dimension(ifull), intent(out) :: af
       real, dimension(ifull_g), intent(in), optional :: a1
-      integer(kind=4) :: ierr, mone
+      integer(kind=4) :: ierr
 
       START_LOG(distribute)
 
@@ -588,8 +552,7 @@ contains
       if ( myid == 0 ) then
          if ( .not. present(a1) ) then
             write(6,*) "Error: ccmpi_distribute argument required on proc 0"
-            mone = -1
-            call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
+            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
          end if
          call host_distribute2(af,a1)
       else
@@ -660,15 +623,14 @@ contains
       ! Convert standard 1D arrays to face form and distribute to processors
       real(kind=8), dimension(ifull), intent(out) :: af
       real(kind=8), dimension(ifull_g), intent(in), optional :: a1
-      integer(kind=4) :: ierr, mone
+      integer(kind=4) :: ierr
 
       START_LOG(distribute)
 
       if ( myid == 0 ) then
          if ( .not. present(a1) ) then
             write(6,*) "Error: ccmpi_distribute argument required on proc 0"
-            mone = -1
-            call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
+            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
          end if
          call host_distribute2r8(af,a1)
       else
@@ -728,15 +690,14 @@ contains
       ! Convert standard 1D arrays to face form and distribute to processors
       integer, dimension(ifull), intent(out) :: af
       integer, dimension(ifull_g), intent(in), optional :: a1
-      integer(kind=4) :: ierr, mone
+      integer(kind=4) :: ierr
 
       START_LOG(distribute)
 
       if ( myid == 0 ) then
          if ( .not. present(a1) ) then
             write(6,*) "Error: ccmpi_distribute argument required on proc 0"
-            mone=-1
-            call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
+            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
          end if
          call host_distribute2i(af,a1)
       else
@@ -808,15 +769,14 @@ contains
       ! the number of levels
       real, dimension(:,:), intent(out) :: af
       real, dimension(:,:), intent(in), optional :: a1
-      integer(kind=4) :: ierr, mone
+      integer(kind=4) :: ierr
 
       START_LOG(distribute)
 
       if ( myid == 0 ) then
          if ( .not. present(a1) ) then
             write(6,*) "Error: ccmpi_distribute argument required on proc 0"
-            mone = -1
-            call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
+            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
          end if
          call host_distribute3(af,a1)
       else
@@ -898,14 +858,13 @@ contains
       ! the number of levels
       integer, dimension(:,:), intent(out) :: af
       integer, dimension(:,:), intent(in), optional :: a1
-      integer(kind=4) :: ierr, mone
+      integer(kind=4) :: ierr
 
       START_LOG(distribute)
       if ( myid == 0 ) then
          if ( .not. present(a1) ) then
             write(6,*) "Error: ccmpi_distribute argument required on proc 0"
-            mone = -1
-            call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
+            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
          end if
          call host_distribute3i(af,a1)
       else
@@ -986,15 +945,14 @@ contains
 
       real, dimension(ifull), intent(in) :: a
       real, dimension(ifull_g), intent(out), optional :: ag
-      integer(kind=4) :: ierr, mone
+      integer(kind=4) :: ierr
 
       START_LOG(gather)
 
       if ( myid == 0 ) then
          if ( .not. present(ag) ) then
             write(6,*) "Error: ccmpi_gather argument required on proc 0"
-            mone = -1
-            call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
+            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
          end if
          call host_gather2(a,ag)
       else
@@ -1069,15 +1027,14 @@ contains
 
       real, dimension(:,:), intent(in) :: a
       real, dimension(:,:), intent(out), optional :: ag
-      integer(kind=4) :: ierr, mone
+      integer(kind=4) :: ierr
 
       START_LOG(gather)
 
       if ( myid == 0 ) then
          if ( .not. present(ag) ) then
             write(6,*) "Error: ccmpi_gather argument required on proc 0"
-            mone = -1
-            call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
+            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
          end if
          call host_gather3(a,ag)
       else
@@ -1249,12 +1206,8 @@ contains
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
-      integer(kind=4) :: ierr, lsize, mnum, itest
-#ifdef mswin
-      integer(kind=INT_PTR_KIND()) :: displ
-#else
+      integer(kind=4) :: ierr, lsize, itest
       integer(kind=MPI_ADDRESS_KIND) :: displ
-#endif
       integer :: ncount, w, iproc, n, i, j, iqg, iq
       integer :: ipoff, jpoff, npoff
       
@@ -1312,12 +1265,8 @@ contains
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
-      integer(kind=4) :: ierr, mnum, lsize, itest
-#ifdef mswin
-      integer(kind=INT_PTR_KIND()) :: displ
-#else
+      integer(kind=4) :: ierr, lsize, itest
       integer(kind=MPI_ADDRESS_KIND) :: displ
-#endif
       integer :: ncount, w, iproc, k, n, i, j, iqg, iq, kx
       integer :: ipoff, jpoff, npoff
       
@@ -1333,8 +1282,7 @@ contains
       
       if ( kx > size(specstore,2) ) then
          write(6,*) "ERROR: gathermap array is too big for window buffer"
-         mnum = -1
-         call MPI_Abort(MPI_COMM_WORLD,mnum,ierr)
+         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
       end if
       
       specstore(1:ifull,1:kx) = a(1:ifull,:)
@@ -1383,11 +1331,17 @@ contains
       integer :: iproc, rproc, sproc
       integer(kind=4), dimension(:,:), allocatable :: status
       integer(kind=4) :: ierr, itag=0, ncount
-      integer(kind=4) :: ltype, llen, lproc, mnum
+      integer(kind=4) :: llen, lproc
       integer, dimension(:,:), allocatable :: dums, dumr
       integer, dimension(:,:), allocatable :: dumsb, dumrb
       integer :: iqg, iql, iloc, jloc, nloc, icol
       integer :: iext, iextu, iextv
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_INTEGER8
+#else
+      integer(kind=4), parameter :: ltype = MPI_INTEGER
+#endif
+      
       logical :: swap
       logical(kind=4), dimension(:,:), allocatable :: dumsl, dumrl
 
@@ -2107,15 +2061,8 @@ contains
 
       if ( iext > iextra ) then
          write(6,*) "IEXT too large", iext, iextra
-         mnum = -1
-         call MPI_Abort(MPI_COMM_WORLD,mnum,ierr)
+         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
       end if
-
-#ifdef i8r8
-      ltype = MPI_INTEGER8
-#else
-      ltype = MPI_INTEGER
-#endif
 
       neighnum = count( bnds(:)%rlen2 > 0 )
       ! ireq needs 1 point for the MPI_Waitall which can use ireq(rreq+1)
@@ -2187,8 +2134,7 @@ contains
       if ( ncount /= neighnum ) then
          write(6,*) "ERROR: neighnum mismatch"
          write(6,*) "neighnum, ncount ",neighnum, ncount
-         mnum = -1
-         call MPI_Abort(MPI_COMM_WORLD,mnum,ierr)
+         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
       end if
 
 
@@ -2201,12 +2147,11 @@ contains
       scolsp(:)%iffn(2) = 0
       scolsp(:)%iffn(3) = 0
       nreq = 0
-      mnum = 9
       do iproc = 1,neighnum
          rproc = neighlist(iproc) ! Recv from
          nreq = nreq + 1
          lproc = rproc
-         call MPI_IRecv( dumrb(:,iproc), mnum, ltype, lproc, &
+         call MPI_IRecv( dumrb(:,iproc), 9_4, ltype, lproc, &
               itag, MPI_COMM_WORLD, ireq(nreq), ierr )
       end do
       do iproc = neighnum,1,-1
@@ -2223,7 +2168,7 @@ contains
          dumsb(8,iproc) = rcolsp(sproc)%iffn(2)
          dumsb(9,iproc) = rcolsp(sproc)%iffn(3)
          lproc = sproc
-         call MPI_ISend( dumsb(:,iproc), mnum, ltype, lproc, &
+         call MPI_ISend( dumsb(:,iproc), 9_4, ltype, lproc, &
               itag, MPI_COMM_WORLD, ireq(nreq), ierr )
       end do
       call MPI_Waitall(nreq,ireq,status,ierr)
@@ -2587,14 +2532,12 @@ contains
 
       if ( iextu > iextra ) then
          write(6,*) "IEXTU too large", iextu, iextra
-         mnum = -1
-         call MPI_Abort(MPI_COMM_WORLD,mnum,ierr)
+         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
       end if
 
       if ( iextv > iextra ) then
          write(6,*) "IEXTV too large", iextv, iextra
-         mnum = -1
-         call MPI_Abort(MPI_COMM_WORLD,mnum,ierr)
+         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
       end if
 
 #ifdef DEBUG
@@ -2658,13 +2601,12 @@ contains
       ssplit(:)%ieeufn = 0
       ssplit(:)%ievfn  = 0
       nreq = 0
-      mnum = 7
       do iproc = 1,neighnum
          rproc = neighlist(iproc)  ! Recv from
          if ( bnds(rproc)%rlenx_uv > 0 ) then
             nreq = nreq + 1
             lproc = rproc
-            call MPI_IRecv( dumr(:,iproc), mnum, ltype, lproc, &
+            call MPI_IRecv( dumr(:,iproc), 7_4, ltype, lproc, &
                  itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end if
       end do
@@ -2680,7 +2622,7 @@ contains
             dums(6,iproc) = rsplit(sproc)%ieeufn
             dums(7,iproc) = rsplit(sproc)%ievfn
             lproc = sproc
-            call MPI_ISend( dums(:,iproc), mnum, ltype, lproc, &
+            call MPI_ISend( dums(:,iproc), 7_4, ltype, lproc, &
                  itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end if
       end do
@@ -2898,7 +2840,7 @@ contains
    subroutine reducealloc
       ! free memory   
       integer iproc,nlen
-      integer(kind=4) ierr, mnum
+      integer(kind=4) ierr
       real, dimension(maxbuflen) :: rdum
       integer, dimension(maxbuflen) :: idum
       logical, dimension(maxbuflen) :: ldum
@@ -2906,7 +2848,6 @@ contains
       do iproc = 0,nproc-1
          nlen = max(nagg*kl,3*ol)*max(bnds(iproc)%rlen2,bnds(iproc)%rlenx_uv,bnds(iproc)%slen2,bnds(iproc)%slenx_uv)
          if ( nlen < bnds(iproc)%len ) then
-            !write(6,*) "Reducing array size.  myid,iproc,nlen,len ",myid,iproc,nlen,bnds(iproc)%len
             bnds(iproc)%len = nlen
             if ( iproc /= myid ) then
                idum(1:bnds(iproc)%len) = bnds(iproc)%request_list(1:bnds(iproc)%len)
@@ -2954,20 +2895,18 @@ contains
             write(6,*) "ERROR reducing array size"
             write(6,*) "myid,iproc,nlen,len ",myid,iproc,nlen,bnds(iproc)%len
             write(6,*) "maxbuflen ",maxbuflen
-            mnum = -1
-            call MPI_Abort(MPI_COMM_WORLD,mnum,ierr)
+            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
          end if
       end do
    end subroutine reducealloc
 
    subroutine check_set(ind,str,i,j,n,iq)
       integer, intent(in) :: ind,i,j,n,iq
-      integer(kind=4) :: ierr, mnum
+      integer(kind=4) :: ierr
       character(len=*) :: str
       if ( ind == huge(1) ) then
          write(6,*) str, " not set", myid, i, j, n, iq
-         mnum = -1
-         call MPI_Abort(MPI_COMM_WORLD,mnum,ierr)
+         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
       end if
    end subroutine check_set
 
@@ -4235,7 +4174,7 @@ contains
       integer :: ip, jp, xn, kx
       integer :: iq, k, idel, jdel, nf, gf
       integer :: rcount
-      integer(kind=4) :: itag = 99, ierr, llen, ncount, mone, sreq, lproc
+      integer(kind=4) :: itag = 99, ierr, llen, ncount, sreq, lproc
       integer(kind=4) :: ldone
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
       integer(kind=4), dimension(neighnum) :: donelist
@@ -4458,7 +4397,7 @@ contains
       integer , intent(out) :: i
       integer , intent(out) :: j
       integer , intent(out) :: n
-      integer(kind=4) :: ierr, mone
+      integer(kind=4) :: ierr
 
       ! Calculate local i, j, n from global iq
 
@@ -4468,8 +4407,7 @@ contains
       i = iq - (j - 1)*il_g - n*il_g*il_g
       if ( fproc(i,j,n) /= myid ) then
          write(*,"(a,5i5)") "Consistency failure in indv_mpi", myid, iq, i, j, n
-         mone=-1
-         call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
+         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
       end if
       ! Reduced to values on my processor
       j = j - joff
@@ -4554,11 +4492,10 @@ contains
       integer, intent(in) :: len
       integer, intent(in) :: msize
       character(len=*), intent(in) :: mesg
-      integer(kind=4) :: ierr, mone
+      integer(kind=4) :: ierr
       if ( len > msize ) then
          write(6,*) "Error, maxsize exceeded in ", mesg
-         mone=-1
-         call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
+         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
       end if
    end subroutine checksize
 
@@ -4566,7 +4503,7 @@ contains
       integer, intent(in) :: rproc
       integer, intent(in) :: iext
       integer :: len
-      integer(kind=4) ierr, mone
+      integer(kind=4) ierr
 
 !     Allocate the components of the bnds array. It's too much work to
 !     get the exact sizes, so allocate a fixed size for each case where
@@ -4592,14 +4529,12 @@ contains
          if ( max(kl,ol)*bnds(rproc)%rlen >=  bnds(rproc)%len ) then
             write(6,*) "Error, maximum length error in check_bnds_alloc"
             write(6,*) myid, rproc, bnds(rproc)%rlen,  bnds(rproc)%len, max(kl,ol)
-            mone = -1
-            call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
+            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
          end if
          if ( iext >= iextra ) then
             write(6,*) "Error, iext maximum length error in check_bnds_alloc"
             write(6,*) myid, iext, iextra
-            mone = -1
-            call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
+            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
          end if
       end if
    end subroutine check_bnds_alloc
@@ -4689,7 +4624,7 @@ contains
 !     Routine to set up offsets etc for the uniform decomposition
       integer :: i, j, n, nd, jdf, idjd_g
       integer, dimension(0:npanels) :: ipoff, jpoff
-      integer(kind=4) ierr, mone
+      integer(kind=4) ierr
 
       call dix_set( ipan, jpan, noff, ipoff, jpoff, npan, il_g, myid, nproc, nxproc, nyproc)
       ioff = ipoff(0)
@@ -4698,13 +4633,11 @@ contains
 !     Check that the values calculated here match those set as parameters
       if ( ipan /= il ) then
          write(6,*) "Error, parameter mismatch, ipan /= il", ipan, il
-         mone = -1
-         call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
+         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
       end if
       if ( jpan*npan /= jl ) then
          write(6,*) "Error, parameter mismatch, jpan*npan /= jl", jpan, npan, jl
-         mone = -1
-         call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
+         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
       end if
 
 !      ipfull = ipan*jpan*npan
@@ -4731,15 +4664,14 @@ contains
       integer, intent(out) :: ipanx,jpanx,noffx,nxprocx,nyprocx
       integer, dimension(0:npanels), intent(out) :: ioffx,joffx 
       integer n
-      integer(kind=4) ierr, mone
+      integer(kind=4) ierr
 
       !  Processor allocation
       !  if  nprocx <= npanels+1, then each gets a number of full panels
       if ( nprocx <= npanels+1 ) then
          if ( modulo(npanels+1,nprocx) /= 0 ) then
             write(6,*) "Error, number of processors must divide number of panels"
-            mone=-1
-            call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
+            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
          end if
 !         npanx = (npanels+1)/nprocx
          ipanx = il_gx
@@ -4752,8 +4684,7 @@ contains
       else  ! nprocx >= npanels+1
          if ( modulo (nprocx, npanels+1) /= 0 ) then
             write(6,*) "Error, number of processors must be a multiple of number of panels"
-            mone=-1
-            call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
+            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
          end if
 !         npanx = 1
          n = nprocx / (npanels+1)
@@ -4769,21 +4700,18 @@ contains
          end do
          if ( nxprocx*nyprocx /= n ) then
             write(6,*) "Error in splitting up faces"
-            mone=-1
-            call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
+            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
          end if
 
          ! Still need to check that the processor distribution is compatible
          ! with the grid.
          if ( modulo(il_gx,nxprocx) /= 0 ) then
             write(6,*) "Error, il not a multiple of nxproc", il_gx, nxprocx
-            mone=-1
-            call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
+            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
          end if
          if ( modulo(il_gx,nyprocx) /= 0 ) then
             write(6,*) "Error, il not a multiple of nyproc", il_gx, nyprocx
-            mone=-1
-            call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
+            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
          end if
          ipanx = il_gx/nxprocx
          jpanx = il_gx/nyprocx
@@ -4801,12 +4729,11 @@ contains
       integer, intent(out) :: ipanx, jpanx, noffx, nxprocx, nyprocx
       integer, dimension(0:npanels), intent(out) :: ioffx, joffx 
       integer n
-      integer(kind=4) ierr, mone
+      integer(kind=4) ierr
       
       if ( npanx /= npanels+1 ) then
          write(6,*) "Error: inconsistency in proc_setup_uniform"
-         mone = -1
-         call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
+         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
       end if
       !  Processor allocation: each processor gets a part of each panel
       !  Try to factor nproc into two values are close as possible.
@@ -4823,21 +4750,18 @@ contains
       nyprocx = nprocx / nxprocx
       if ( nxprocx*nyprocx /= nprocx ) then
          write(6,*) "Error in splitting up faces"
-         mone = -1
-         call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
+         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
       end if
 
       ! Still need to check that the processor distribution is compatible
       ! with the grid.
       if ( modulo(il_gx,nxprocx) /= 0 ) then
          write(6,*) "Error, il not a multiple of nxproc", il_gx, nxprocx
-         mone = -1
-         call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
+         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
       end if
       if ( modulo(il_gx,nyprocx) /= 0 ) then
          write(6,*) "Error, il not a multiple of nyproc", il_gx, nyprocx
-         mone = -1
-         call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
+         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
       end if
       ipanx = il_gx/nxprocx
       jpanx = il_gx/nyprocx
@@ -4855,12 +4779,11 @@ contains
       integer, intent(out) :: ipanx, jpanx, noffx, nxprocx, nyprocx
       integer, dimension(0:npanels), intent(out) :: ioffx, joffx 
       integer n
-      integer(kind=4) ierr, mone
+      integer(kind=4) ierr
       
       if ( npanx /= npanels+1 ) then
          write(6,*) "Error: inconsistency in proc_setup_uniform"
-         mone = -1
-         call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
+         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
       end if
       !  Processor allocation: each processor gets a part of each panel
       !  Try to factor nproc into two values are close as possible.
@@ -4877,21 +4800,18 @@ contains
       nyprocx = nprocx / nxprocx
       if ( nxprocx*nyprocx /= nprocx ) then
          write(6,*) "Error in splitting up faces"
-         mone = -1
-         call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
+         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
       end if
 
       ! Still need to check that the processor distribution is compatible
       ! with the grid.
       if ( modulo(il_gx,nxprocx) /= 0 ) then
          write(6,*) "Error, il not a multiple of nxproc", il_gx, nxprocx
-         mone = -1
-         call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
+         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
       end if
       if ( modulo(il_gx,nyprocx) /= 0 ) then
          write(6,*) "Error, il not a multiple of nyproc", il_gx, nyprocx
-         mone = -1
-         call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
+         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
       end if
       ipanx = il_gx/nxprocx
       jpanx = il_gx/nyprocx
@@ -4909,7 +4829,7 @@ contains
       integer, intent(in) :: dmode
       integer, intent(out) :: ipoff, jpoff, npoff
       integer :: myface, mtmp
-      integer(kind=4) ierr, mone
+      integer(kind=4) :: ierr
 
       select case(dmode)
          case(0) ! Face
@@ -4924,8 +4844,7 @@ contains
 #ifdef debug            
          case default
             write(6,*) "ERROR: Invalid decomposition ",dmode
-            mone = -1
-            call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
+            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
 #endif
       end select
      
@@ -5019,13 +4938,7 @@ contains
         VT_USER_START(event_name)
       endif
 #endif
-#ifdef mpilog
-      ierr = MPE_log_event(event,0,"")
-#endif
 #ifdef simple_timer
-#ifdef scyld
-      double precision :: MPI_Wtime
-#endif
       start_time(event) = MPI_Wtime()
 #endif 
    end subroutine start_log
@@ -5040,13 +4953,8 @@ contains
         VT_USER_END(event_name)
       endif
 #endif
-#ifdef mpilog
-      ierr = MPE_log_event(event,0,"")
-#endif
+
 #ifdef simple_timer
-#ifdef scyld
-      double precision :: MPI_Wtime
-#endif
       tot_time(event) = tot_time(event) + MPI_Wtime() - start_time(event)
 #endif 
    end subroutine end_log
@@ -5066,122 +4974,6 @@ contains
    subroutine log_setup()
       integer :: ierr
       integer :: classhandle
-#ifdef mpilog
-      bounds_begin = MPE_Log_get_event_number()
-      bounds_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(bounds_begin, bounds_end, "Bounds", "yellow")
-      boundsuv_begin = MPE_Log_get_event_number()
-      boundsuv_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(boundsuv_begin, boundsuv_end, "BoundsUV", "khaki")
-      ints_begin = MPE_Log_get_event_number()
-      ints_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(ints_begin, ints_end, "Ints","goldenrod")
-      nonlin_begin = MPE_Log_get_event_number()
-      nonlin_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(nonlin_begin, nonlin_end, "Nonlin", "IndianRed")
-      helm_begin = MPE_Log_get_event_number()
-      helm_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(helm_begin, helm_end, "Helm", "magenta1")
-      adjust_begin = MPE_Log_get_event_number()
-      adjust_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(adjust_begin, adjust_end, "Adjust", "blue")
-      upglobal_begin = MPE_Log_get_event_number()
-      upglobal_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(upglobal_begin, upglobal_end, "Upglobal", "ForestGreen")
-      hordifg_begin = MPE_Log_get_event_number()
-      hordifg_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(hordifg_begin, hordifg_end, "Hordifg", "blue")
-      vadv_begin = MPE_Log_get_event_number()
-      vadv_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(vadv_begin, vadv_end, "Vadv", "blue")
-      depts_begin = MPE_Log_get_event_number()
-      depts_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(depts_begin, depts_end, "Depts", "pink1")
-      deptsync_begin = MPE_Log_get_event_number()
-      deptsync_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(deptsync_begin, deptsync_end, "Deptsync", "YellowGreen")
-      intssync_begin = MPE_Log_get_event_number()
-      intssync_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(intssync_begin, intssync_end, "Intssync", "YellowGreen")
-      stag_begin = MPE_Log_get_event_number()
-      stag_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(stag_begin, stag_end, "Stag", "YellowGreen")
-      ocnstag_begin = MPE_Log_get_event_number()
-      ocnstag_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(ocnstag_begin, ocnstag_end, "Ocnstag", "YellowGreen")
-      toij_begin = MPE_Log_get_event_number()
-      toij_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(toij_begin, toij_end, "Toij", "blue")
-      physloadbal_begin = MPE_Log_get_event_number()
-      physloadbal_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(physloadbal_begin, physloadbal_end, "PhysLBbal", "blue")
-      phys_begin = MPE_Log_get_event_number()
-      phys_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(phys_begin, phys_end, "Phys", "Yellow")
-      outfile_begin = MPE_Log_get_event_number()
-      outfile_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(outfile_begin, outfile_end, "Outfile", "Yellow")
-      onthefly_begin = MPE_Log_get_event_number()
-      onthefly_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(onthefly_begin, onthefly_end, "Onthefly", "Yellow")
-      otf_fill_begin = MPE_Log_get_event_number()
-      otf_fill_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(otf_fill_begin, otf_fill_end, "OTF_Fill", "Yellow")
-      indata_begin = MPE_Log_get_event_number()
-      indata_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(indata_begin, indata_end, "Indata", "Yellow")
-      nestin_begin = MPE_Log_get_event_number()
-      nestin_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(nestin_begin, nestin_end, "Nestin", "Yellow")
-      gwdrag_begin = MPE_Log_get_event_number()
-      gwdrag_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(gwdrag_begin, gwdrag_end, "GWdrag", "Yellow")
-      convection_begin = MPE_Log_get_event_number()
-      convection_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(convection_begin, convection_end, "Convection", "Yellow")
-      cloud_begin = MPE_Log_get_event_number()
-      cloud_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(cloud_begin, cloud_end, "Cloud", "Yellow")
-      radnet_begin = MPE_Log_get_event_number()
-      radnet_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(radnet_begin, radnet_end, "Rad_net", "Yellow")
-      radmisc_begin = MPE_Log_get_event_number()
-      radmisc_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(radmisc_begin, radmisc_end, "Rad_misc", "Yellow")
-      radsw_begin = MPE_Log_get_event_number()
-      radsw_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(radsw_begin, radsw_end, "Rad_SW", "Yellow")      
-      radlw_begin = MPE_Log_get_event_number()
-      radlw_end = MPE_Log_get_event_number()      
-      ierr = MPE_Describe_state(radlw_begin, radlw_end, "Rad_LW", "Yellow")
-      sfluxnet_begin = MPE_Log_get_event_number()
-      sfluxnet_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(sfluxnet_begin, sfluxnet_end, "Sflux_net", "Yellow")
-      sfluxwater_begin = MPE_Log_get_event_number()
-      sfluxwater_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(sfluxwater_begin, sfluxwater_end, "Sflux_water", "Yellow")
-      sfluxland_begin = MPE_Log_get_event_number()
-      sfluxland_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(sfluxland_begin, sfluxland_end, "Sflux_land", "Yellow")
-      sfluxurban_begin = MPE_Log_get_event_number()
-      sfluxurban_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(sfluxurban_begin, sfluxurban_end, "Sflux_urban", "Yellow")
-      vertmix_begin = MPE_Log_get_event_number()
-      vertmix_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(vertmix_begin, vertmix_end, "Vertmix", "Yellow")
-      aerosol_begin = MPE_Log_get_event_number()
-      aerosol_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(aerosol_begin, aerosol_end, "Aerosol", "Yellow")
-      waterdynamics_begin = MPE_Log_get_event_number()
-      waterdynamics_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(waterdynamics_begin, waterdynamics_end, "Waterdynamics", "blue")
-      waterdiff_begin = MPE_Log_get_event_number()
-      waterdiff_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(waterdiff_begin, waterdiff_end, "Waterdiff", "blue")
-      river_begin = MPE_Log_get_event_number()
-      river_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(river_begin, river_end, "River", "Yellow")
-#endif
 #ifdef vampir
 #ifdef simple_timer
       write(6,*) "ERROR: vampir and simple_timer should not be compiled together"
@@ -5536,7 +5328,7 @@ contains
        real, dimension(2) :: delarr, delarr_l
        integer, intent(in), optional :: comm
        integer :: iq
-       integer(kind=4) :: ierr, mnum, lcomm
+       integer(kind=4) :: ierr, lcomm
 #ifdef sumdd
 #ifdef i8r8
        integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
@@ -5571,19 +5363,17 @@ contains
        call drpdr_local(tmparr, local_sum(1))
        call drpdr_local(tmparr2, local_sum(2))
 #ifdef sumdd
-       mnum = 2
        global_sum(1) = (0.,0.)
        global_sum(2) = (0.,0.)
-       call MPI_Allreduce ( local_sum, global_sum, mnum, ltype,     &
+       call MPI_Allreduce ( local_sum, global_sum, 2_4, ltype,     &
                             MPI_SUMDR, lcomm, ierr )
        delpos = real(global_sum(1))
        delneg = real(global_sum(2))
 #else
        delpos_l = real(local_sum(1))
        delneg_l = real(local_sum(2))
-       mnum = 2
        delarr_l(1:2) = (/ delpos_l, delneg_l /)
-       call MPI_Allreduce ( delarr_l, delarr, mnum, ltype, MPI_SUM,    &
+       call MPI_Allreduce ( delarr_l, delarr, 2_4, ltype, MPI_SUM,    &
                             lcomm, ierr )
        delpos = delarr(1)
        delneg = delarr(2)
@@ -5607,7 +5397,7 @@ contains
        real, dimension(2) :: delarr, delarr_l
        integer, intent(in), optional :: comm
        integer :: k, iq, kx
-       integer(kind=4) ierr, mnum, lcomm
+       integer(kind=4) ierr, lcomm
 #ifdef sumdd
 #ifdef i8r8
        integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
@@ -5650,18 +5440,16 @@ contains
           call drpdr_local(tmparr2, local_sum(2))
        end do ! k loop
 #ifdef sumdd
-       mnum = 2
        global_sum(1) = (0.,0.)
        global_sum(2) = (0.,0.)  
-       call MPI_Allreduce ( local_sum, global_sum, mnum, ltype, MPI_SUMDR, lcomm, ierr )
+       call MPI_Allreduce ( local_sum, global_sum, 2_4, ltype, MPI_SUMDR, lcomm, ierr )
        delpos = real(global_sum(1))
        delneg = real(global_sum(2))
 #else
        delpos_l = real(local_sum(1))
        delneg_l = real(local_sum(2))
-       mnum = 2
        delarr_l(1:2) = (/ delpos_l, delneg_l /)
-       call MPI_Allreduce ( delarr_l, delarr, mnum, ltype, MPI_SUM, lcomm, ierr )
+       call MPI_Allreduce ( delarr_l, delarr, 2_4, ltype, MPI_SUM, lcomm, ierr )
        delpos = delarr(1)
        delneg = delarr(2)
 #endif
@@ -5766,7 +5554,7 @@ contains
        real, intent(out) :: result
        real :: result_l
        integer :: iq
-       integer(kind=4) :: ierr, ltype, mnum
+       integer(kind=4) :: ierr, ltype
 #ifdef sumdd
        complex :: local_sum, global_sum
 !      Temporary array for the drpdr_local function
@@ -5800,12 +5588,10 @@ contains
 #ifdef sumdd
        local_sum = (0.,0.)
        call drpdr_local(tmparr, local_sum)
-       mnum = 1
-       call MPI_Allreduce ( local_sum, global_sum, mnum, ltype, MPI_SUMDR, MPI_COMM_WORLD, ierr )
+       call MPI_Allreduce ( local_sum, global_sum, 1_4, ltype, MPI_SUMDR, MPI_COMM_WORLD, ierr )
        result = real(global_sum)
 #else
-       mnum = 1
-       call MPI_Allreduce ( result_l, result, mnum, ltype, MPI_SUM, MPI_COMM_WORLD, ierr )
+       call MPI_Allreduce ( result_l, result, 1_4, ltype, MPI_SUM, MPI_COMM_WORLD, ierr )
 #endif
 
        END_LOG(globsum)
@@ -5821,7 +5607,7 @@ contains
        real, intent(out) :: result
        real :: result_l
        integer :: k, iq
-       integer(kind=4) ierr, ltype, mnum
+       integer(kind=4) ierr, ltype
 #ifdef sumdd
        complex :: local_sum, global_sum
 !      Temporary array for the drpdr_local function
@@ -5862,12 +5648,10 @@ contains
        end do ! k
 
 #ifdef sumdd
-       mnum = 1
-       call MPI_Allreduce ( local_sum, global_sum, mnum, ltype, MPI_SUMDR, MPI_COMM_WORLD, ierr )
+       call MPI_Allreduce ( local_sum, global_sum, 1_4, ltype, MPI_SUMDR, MPI_COMM_WORLD, ierr )
        result = real(global_sum)
 #else
-       mnum = 1
-       call MPI_Allreduce ( result_l, result, mnum, ltype, MPI_SUM, MPI_COMM_WORLD, ierr )
+       call MPI_Allreduce ( result_l, result, 1_4, ltype, MPI_SUM, MPI_COMM_WORLD, ierr )
 #endif
 
        END_LOG(globsum)
@@ -6067,7 +5851,7 @@ contains
    subroutine ccmpi_reduce2i(ldat,gdat,op,host,comm)
    
       integer, intent(in) :: host,comm
-      integer(kind=4) :: lop, lcomm, ierr, lsize, lkind, lhost, mnum
+      integer(kind=4) :: lop, lcomm, ierr, lsize, lkind, lhost
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_INTEGER8
 #else
@@ -6088,8 +5872,7 @@ contains
             lop = MPI_SUM
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
-            mnum = -1
-            call MPI_Abort(MPI_COMM_WORLD,mnum,ierr)
+            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
       end select
       
       lhost = host
@@ -6105,7 +5888,7 @@ contains
    subroutine ccmpi_reduce2r(ldat,gdat,op,host,comm)
    
       integer, intent(in) :: host, comm
-      integer(kind=4) :: ltype, lop, lcomm, lerr, lsize, lhost, mnum
+      integer(kind=4) :: ltype, lop, lcomm, lerr, lsize, lhost
       real, dimension(:), intent(in) :: ldat
       real, dimension(:), intent(out) :: gdat
       character(len=*), intent(in) :: op
@@ -6156,8 +5939,7 @@ contains
 #endif 
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
-            mnum = -1
-            call MPI_Abort(MPI_COMM_WORLD,mnum,lerr)
+            call MPI_Abort(MPI_COMM_WORLD,-1_4,lerr)
       end select
      
       call MPI_Reduce(ldat, gdat, lsize, ltype, lop, lhost, lcomm, lerr )
@@ -6168,8 +5950,8 @@ contains
 
    subroutine ccmpi_reduce3r(ldat,gdat,op,host,comm)
    
-      integer, intent(in) :: host,comm
-      integer(kind=4) ltype,lop,lcomm,lerr,lsize,lhost,mnum
+      integer, intent(in) :: host, comm
+      integer(kind=4) ltype, lop, lcomm, lerr, lsize, lhost
       real, dimension(:,:), intent(in) :: ldat
       real, dimension(:,:), intent(out) :: gdat
       character(len=*), intent(in) :: op
@@ -6220,8 +6002,7 @@ contains
 #endif 
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
-            mnum = -1
-            call MPI_Abort(MPI_COMM_WORLD,mnum,lerr)
+            call MPI_Abort(MPI_COMM_WORLD,-1_4,lerr)
       end select
       
       call MPI_Reduce(ldat, gdat, lsize, ltype, lop, lhost, lcomm, lerr )
@@ -6235,7 +6016,7 @@ contains
       use sumdd_m
    
       integer, intent(in) :: host,comm
-      integer(kind=4) :: lop, lcomm, lerr, lsize, lhost, mnum
+      integer(kind=4) :: lop, lcomm, lerr, lsize, lhost
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
 #else
@@ -6258,8 +6039,7 @@ contains
             lop = MPI_SUMDR
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
-            mnum = -1
-            call MPI_Abort(MPI_COMM_WORLD,mnum,lerr)
+            call MPI_Abort(MPI_COMM_WORLD,-1_4,lerr)
       end select
       
       lhost = host
@@ -6274,7 +6054,7 @@ contains
    subroutine ccmpi_allreduce2i(ldat,gdat,op,comm)
    
       integer, intent(in) :: comm
-      integer(kind=4) :: lop, lcomm, lerr, lsize, mnum
+      integer(kind=4) :: lop, lcomm, lerr, lsize
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_INTEGER8
 #else
@@ -6295,8 +6075,7 @@ contains
             lop = MPI_SUM
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_allreduce ",op
-            mnum = -1
-            call MPI_Abort(MPI_COMM_WORLD,mnum,lerr)
+            call MPI_Abort(MPI_COMM_WORLD,-1_4,lerr)
       end select
       
       lcomm = comm
@@ -6310,7 +6089,7 @@ contains
    subroutine ccmpi_allreduce2r(ldat,gdat,op,comm)
    
       integer, intent(in) :: comm
-      integer(kind=4) lop,lcomm,lerr,lsize,mnum
+      integer(kind=4) lop, lcomm, lerr, lsize
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -6334,8 +6113,7 @@ contains
             lop = MPI_SUM
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_allreduce ",op
-            mnum = -1
-            call MPI_Abort(MPI_COMM_WORLD,mnum,lerr)
+            call MPI_Abort(MPI_COMM_WORLD,-1_4,lerr)
       end select
      
       call MPI_AllReduce(ldat, gdat, lsize, ltype, lop, lcomm, lerr )
@@ -6349,7 +6127,7 @@ contains
       use sumdd_m
    
       integer, intent(in) :: comm
-      integer(kind=4) ltype,lop,lcomm,lerr,lsize,mnum
+      integer(kind=4) ltype, lop, lcomm, lerr, lsize
       real, dimension(:,:), intent(in) :: ldat
       real, dimension(:,:), intent(out) :: gdat
       character(len=*), intent(in) :: op
@@ -6399,8 +6177,7 @@ contains
 #endif 
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_allreduce ",op
-            mnum = -1
-            call MPI_Abort(MPI_COMM_WORLD,mnum,lerr)
+            call MPI_Abort(MPI_COMM_WORLD,-1_4,lerr)
       end select
       
       call MPI_AllReduce(ldat, gdat, lsize, ltype, lop, lcomm, lerr )
@@ -6414,7 +6191,7 @@ contains
       use sumdd_m
    
       integer, intent(in) :: comm
-      integer(kind=4) :: lop, lcomm, lerr, lsize, mnum
+      integer(kind=4) :: lop, lcomm, lerr, lsize
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
 #else
@@ -6437,8 +6214,7 @@ contains
             lop = MPI_SUMDR
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_allreduce ",op
-            mnum = -1
-            call MPI_Abort(MPI_COMM_WORLD,mnum,lerr)
+            call MPI_Abort(MPI_COMM_WORLD,-1_4,lerr)
       end select
       
       lcomm = comm
@@ -6462,7 +6238,7 @@ contains
    subroutine ccmpi_bcast1i(ldat,host,comm)
 
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lcomm, lhost, lerr, lsize
+      integer(kind=4) :: lcomm, lhost, lerr
 #ifdef i8r8
       integer(kind=4) :: ltype = MPI_INTEGER8
 #else
@@ -6474,8 +6250,7 @@ contains
 
       lhost = host
       lcomm = comm
-      lsize = 1
-      call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,lerr)
+      call MPI_Bcast(ldat,1_4,ltype,lhost,lcomm,lerr)
          
       END_LOG(bcast)
          
@@ -6736,7 +6511,7 @@ contains
    subroutine ccmpi_allgatherx2i(gdat,ldat,comm)
    
       integer, intent(in) :: comm
-      integer(kind=4) lsize, lcomm, lerr, mnum
+      integer(kind=4) lsize, lcomm, lerr
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_INTEGER8
 #else
@@ -6755,7 +6530,7 @@ contains
    subroutine ccmpi_allgatherx2r(gdat,ldat,comm)
    
       integer, intent(in) :: comm
-      integer(kind=4) lsize, lcomm, lerr, mnum
+      integer(kind=4) lsize, lcomm, lerr
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7906,7 +7681,7 @@ contains
       integer iext, iproc, xlen, jx, nc, xlev, rproc, sproc
       integer ntest, nsize
       integer ncount
-      integer(kind=4) :: itag=22, lproc, ierr, llen, mnum, sreq, mone
+      integer(kind=4) :: itag=22, lproc, ierr, llen, sreq
       ! 13 is the maximum number of neigbours possible (i.e., uniform decomposition).
       integer(kind=4), dimension(26) :: dreq
       integer(kind=4), dimension(MPI_STATUS_SIZE,26) :: status
@@ -7946,14 +7721,12 @@ contains
          write(6,*) "ERROR: Cannot find myid in mg_proc"
          write(6,*) "myid,g ",myid,g
          write(6,*) "mg_proc ",maxval(mg_qproc),minval(mg_qproc),count(mg_qproc==myid)
-         mnum = -1
-         call MPI_Abort(MPI_COMM_WORLD,mnum,ierr)
+         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
       end if
       
       if ( any( mg_qproc < 0 ) ) then
          write(6,*) "ERROR: Invalid mg_qproc"
-         mnum = -1
-         call MPI_Abort(MPI_COMM_WORLD,mnum,ierr)
+         call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
       end if
 
 
@@ -8399,8 +8172,7 @@ contains
          mg(g)%neighnum = count( mg_bnds(:,g)%rlenx > 0 )
          if ( mg(g)%neighnum > 13 ) then
             write(6,*) "ERROR: More than 13 MG neighbours at level ",g
-            mnum = -1
-            call MPI_Abort( MPI_COMM_WORLD, mnum, ierr )
+            call MPI_Abort( MPI_COMM_WORLD, -1_4, ierr )
          end if
 
          ! Now, for each processor send the list of points I want.
@@ -8459,8 +8231,7 @@ contains
          if ( ncount /= mg(g)%neighnum ) then
             write(6,*) "ERROR: Multi-grid neighnum mismatch"
             write(6,*) "neighnum, ncount ",mg(g)%neighnum, ncount
-            mnum = -1
-            call MPI_Abort( MPI_COMM_WORLD, mnum, ierr )
+            call MPI_Abort( MPI_COMM_WORLD, -1_4, ierr )
          end if
   
          ! Now start sending messages  
@@ -8565,8 +8336,7 @@ contains
          mg_ifullc = count( mg_colourmask == 1 )
          if ( mg_ifullc /= count( mg_colourmask == 2 ) .or. mg_ifullc /= count( mg_colourmask == 3 ) ) then
            write(6,*) "ERROR: Unbalanced MG colours"
-           mone = - 1
-           call MPI_Abort(MPI_COMM_WORLD,mone,ierr)
+           call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
          end if
          allocate( col_iq(mg_ifullc,3),  col_iqn(mg_ifullc,3), col_iqe(mg_ifullc,3) )
          allocate( col_iqs(mg_ifullc,3), col_iqw(mg_ifullc,3) )
@@ -8597,7 +8367,7 @@ contains
 
       integer, intent(in) :: iproc
       integer, intent(in) :: g,iext
-      integer(kind=4) :: ierr, mnum
+      integer(kind=4) :: ierr
 
       if ( mg_bnds(iproc,g)%len <= 0 ) then
          allocate( mg_bnds(iproc,g)%request_list(mg(g)%iextra) )
@@ -8607,8 +8377,7 @@ contains
          if ( iext>mg(g)%iextra ) then
             write(6,*) "ERROR: MG grid undersized in mgcheck_bnds_alloc"
             write(6,*) "iext,iextra,g,iproc,myid ",iext,mg(g)%iextra,g,iproc,myid
-            mnum = -1
-            call MPI_Abort(MPI_COMM_WORLD,mnum,ierr)
+            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
          end if
       end if
 

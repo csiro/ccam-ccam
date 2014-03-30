@@ -142,14 +142,13 @@ c       interpolate sdot to full-level sd with cubic polynomials
      .                 -sdot(iq,k-1)-sdot(iq,k+2))/16.   
          enddo    ! iq loop
         enddo     ! k loop
-	 ders=-tfact*sd  ! 3D
+        ders=-tfact*sd  ! 3D
         do k=1,kl    
          do iq=1,ifull
           st(iq,k)=k+ders(iq,k) 
          enddo  ! iq loop
         enddo   ! k loop
-	 do itn=2,3
-c	 do itn=2,2  
+        do itn=2,3
          do k=2,kl-1
           do iq=1,ifull
            wrk1(iq,k)=-.5*tfact*sd(iq,k)*(ders(iq,k+1)-ders(iq,k-1))/itn
@@ -162,7 +161,7 @@ c	 do itn=2,2
          enddo  ! iq loop
          ders=wrk1   ! 3D
          st=st+ders  ! 3D
-	 enddo  ! itn loop
+        enddo  ! itn loop
       endif    ! (nvdep==4) 
        
       if(nvdep==5)then  !  newer method similar to depts3d  itn=2
@@ -177,13 +176,13 @@ c       interpolate sdot to full-level sd with cubic polynomials
      .                 -sdot(iq,k-1)-sdot(iq,k+2))/16.   
          enddo    ! iq loop
         enddo     ! k loop
-	 ders=-tfact*sd  ! 3D
+        ders=-tfact*sd  ! 3D
         do k=1,kl    
          do iq=1,ifull
           st(iq,k)=k+ders(iq,k) 
          enddo  ! iq loop
         enddo   ! k loop
-	 itn=2   ! spell it out as for nvdep=3
+        itn=2   ! spell it out as for nvdep=3
          do k=1,kl
           do iq=1,ifull
            wrk1(iq,k)=.5*tfact*(sdot(iq,k+1)**2-sdot(iq,k)**2)/itn
@@ -191,7 +190,7 @@ c       interpolate sdot to full-level sd with cubic polynomials
          enddo   ! k loop
          ders=wrk1   ! 3D
          st=st+ders  ! 3D
- 	 itn=3
+         itn=3
          do k=2,kl-1
           do iq=1,ifull
            wrk1(iq,k)=-.5*tfact*sd(iq,k)*(ders(iq,k+1)-ders(iq,k-1))/itn
@@ -205,7 +204,7 @@ c       interpolate sdot to full-level sd with cubic polynomials
          ders=wrk1   ! 3D
          st=st+ders  ! 3D
       endif    ! (nvdep==5) 
-       
+
       if(nvdep==6)then  !  newer method similar to depts3d  
         do iq=1,ifull
          sd(iq,1) =.25*sdot(iq,2)     ! quadratic right at end
@@ -218,7 +217,7 @@ c       interpolate sdot to full-level sd with cubic polynomials
      .                 -sdot(iq,k-1)-sdot(iq,k+2))/16.   
          enddo    ! iq loop
         enddo     ! k loop
-	 ders=-tfact*sd  ! 3D
+        ders=-tfact*sd  ! 3D
         do k=1,kl-1    
          do iq=1,ifull
           dersh(iq,k)=-tfact*sdot(iq,k+1) ! N.B. dersh(,0)=dersh(,kl)=0
@@ -229,7 +228,7 @@ c       interpolate sdot to full-level sd with cubic polynomials
           st(iq,k)=k+ders(iq,k) 
          enddo  ! iq loop
         enddo   ! k loop
-	 itn=2   ! spell it out 
+        itn=2   ! spell it out 
         do iq=1,ifull
          wrk1(iq,1)=-tfact*sdot(iq,2)*(ders(iq,2)-ders(iq,1))/itn  ! new dersh
          ders(iq,1)=-tfact*sd(iq,1)*dersh(iq,1)/itn    ! new ders
@@ -244,7 +243,7 @@ c       interpolate sdot to full-level sd with cubic polynomials
          ders(iq,kl)=tfact*sd(iq,kl)*dersh(iq,kl-1)/itn  ! new ders
         enddo  ! iq loop
         st=st+ders  ! 3D
-  	 itn=3
+        itn=3
         do iq=1,ifull
          ders(iq,1)=-tfact*sd(iq,1)*wrk1(iq,k)/itn    ! new ders
         enddo  ! iq loop
@@ -354,55 +353,55 @@ c       interpolate sdot to full-level sd with cubic polynomials
          write (6,"('Bess st',9f8.3/4x,9f8.3)") (st(idjd,kk),kk=1,kl)
           print *,'new kdel ',(kdel(idjd,k),k=1,kl)
         endif
-	 if(abs(nvad)==7)then
+        if(abs(nvad)==7)then
           call vadvbess(tarr,st,kdel,1)                          
           call vadvbess(uarr,st,kdel,2)                          
           call vadvbess(varr,st,kdel,2)                          
           if(mspec==1)then
-	     call vadvbess(qg(1:ifull,:),st,kdel,3)    
-	     if(ldr.ne.0)then
-	       call vadvbess8(qlg(1:ifullw,:),st,kdel,3) ! bess8 as no consv yet   
-	       call vadvbess8(qfg(1:ifullw,:),st,kdel,3) ! bess8 as no consv yet   
-	     endif  ! (ldr.ne.0)                      
-            if(ilt>1)then
+           call vadvbess(qg(1:ifull,:),st,kdel,3)    
+           if(ldr.ne.0)then
+             call vadvbess8(qlg(1:ifullw,:),st,kdel,3) ! bess8 as no consv yet   
+             call vadvbess8(qfg(1:ifullw,:),st,kdel,3) ! bess8 as no consv yet   
+           endif  ! (ldr.ne.0)                      
+           if(ilt>1)then
               do ntr=1,ntrac
                call vadvbess(tr(1:ilt*jlt,:,ntr),st,kdel,3)    ! tr next
               enddo
             endif   ! (ilt>1)
-	     if(nvmix.eq.6)then                                                 ! MJT tke
-	       call vadvbess8(tke(1:ifull,:),st,kdel,3) ! bess8 as no consv yet ! MJT tke
-	       call vadvbess8(eps(1:ifull,:),st,kdel,3) ! bess8 as no consv yet ! MJT tke
-	     endif  ! (nvmix.eq.6)                                              ! MJT tke
-	     if(abs(iaero)==2)then                                                  ! MJT aerosol
-	       do l=1,naero                                                         ! MJT aerosol
-	         call vadvbess8(xtg(1:ifull,:,l),st,kdel,3) ! bess8 as no consv yet ! MJT aerosol
-	       end do                                                               ! MJT aerosol
-	     endif  ! (iaero==2)                                                    ! MJT aerosol
+           if(nvmix.eq.6)then                                                 ! MJT tke
+             call vadvbess8(tke(1:ifull,:),st,kdel,3) ! bess8 as no consv yet ! MJT tke
+             call vadvbess8(eps(1:ifull,:),st,kdel,3) ! bess8 as no consv yet ! MJT tke
+           endif  ! (nvmix.eq.6)                                              ! MJT tke
+           if(abs(iaero)==2)then                                                  ! MJT aerosol
+             do l=1,naero                                                         ! MJT aerosol
+               call vadvbess8(xtg(1:ifull,:,l),st,kdel,3) ! bess8 as no consv yet ! MJT aerosol
+             end do                                                               ! MJT aerosol
+           endif  ! (iaero==2)                                                    ! MJT aerosol
           endif     ! (mspec==1)
          elseif(abs(nvad)==8)then 
           call vadvbess8(tarr,st,kdel,1)                          
           call vadvbess8(uarr,st,kdel,2)                          
           call vadvbess8(varr,st,kdel,2)                          
           if(mspec==1)then
-	     call vadvbess8(qg(1:ifull,:),st,kdel,3)                          
-	     if(ldr.ne.0)then
-	       call vadvbess8(qlg(1:ifullw,:),st,kdel,3)  
-	       call vadvbess8(qfg(1:ifullw,:),st,kdel,3)  
-	     endif  ! (ldr.ne.0)                      
+           call vadvbess8(qg(1:ifull,:),st,kdel,3)
+           if(ldr.ne.0)then
+             call vadvbess8(qlg(1:ifullw,:),st,kdel,3)  
+             call vadvbess8(qfg(1:ifullw,:),st,kdel,3)  
+           endif  ! (ldr.ne.0)                      
             if(ilt>1)then
               do ntr=1,ntrac
                call vadvbess8(tr(1:ilt*jlt,:,ntr),st,kdel,3)    ! tr next
               enddo
             endif   ! (ilt>1)
-	     if(nvmix.eq.6)then                          ! MJT tke
-	       call vadvbess8(tke(1:ifull,:),st,kdel,3)  ! MJT tke
-	       call vadvbess8(eps(1:ifull,:),st,kdel,3)  ! MJT tke
-	     endif  ! (nvmix.eq.6)                       ! MJT tke
-	     if(abs(iaero)==2)then                                                  ! MJT aerosol
-	       do l=1,naero                                                         ! MJT aerosol
-	         call vadvbess8(xtg(1:ifull,:,l),st,kdel,3) ! bess8 as no consv yet ! MJT aerosol
-	       end do                                                               ! MJT aerosol
-	     endif  ! (iaero==2)                                                    ! MJT aerosol
+            if(nvmix.eq.6)then                          ! MJT tke
+             call vadvbess8(tke(1:ifull,:),st,kdel,3)  ! MJT tke
+             call vadvbess8(eps(1:ifull,:),st,kdel,3)  ! MJT tke
+            endif  ! (nvmix.eq.6)                       ! MJT tke
+           if(abs(iaero)==2)then                                                  ! MJT aerosol
+             do l=1,naero                                                         ! MJT aerosol
+               call vadvbess8(xtg(1:ifull,:,l),st,kdel,3) ! bess8 as no consv yet ! MJT aerosol
+             end do                                                               ! MJT aerosol
+           endif  ! (iaero==2)                                                    ! MJT aerosol
           endif     ! (mspec==1)
          elseif(abs(nvad)==9)then   !  just qg and gases  
           if(mspec==1)then
@@ -427,7 +426,7 @@ c       interpolate sdot to full-level sd with cubic polynomials
              endif  ! (iaero==2)                                                    ! MJT aerosol
           endif     ! (mspec==1)
          endif     ! (abs(nvad)==7)  .. else .. ..
-	 return
+         return
       end
 
       subroutine vadvbess(t,st,kdel,ifield)

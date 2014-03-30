@@ -2076,12 +2076,12 @@ c     doing x-interpolation before y-interpolation
       
       include 'newmpar.h'  ! Grid parameters
       include 'parm.h'     ! Model configuration
-      
+
+      integer, dimension(ifull), intent(in) :: nface
+      integer :: idel, jdel, ik, nn
+      integer :: i, j, n, iq, n_n, n_e, n_w, n_s
       real, dimension(ik*ik*6), intent(in) :: s
       real, dimension(ifull), intent(inout) :: sout
-      integer, dimension(ifull), intent(in) :: nface
-      integer idel, jdel, ik, nn
-      integer :: i, j, n, iq, n_n, n_e, n_w, n_s
       real aaa, c1, c2, c3, c4, xxg, yyg
       real, intent(in), dimension(ifull) :: xg, yg
       real sx(-1:ik+2,-1:ik+2,0:npanels)
@@ -2209,15 +2209,14 @@ c     this one does bi-linear interpolation only
       
       include 'newmpar.h'  ! Grid parameters
       include 'parm.h'     ! Model configuration
-      
-      real, dimension(ik*ik*6), intent(inout) :: s
-      real, dimension(ifull), intent(inout) :: sout
-      integer, intent(in), dimension(ifull) :: nface
-      real, intent(in), dimension(ifull) :: xg, yg
-      real sx(-1:ik+2,-1:ik+2,0:npanels)
-c     include 'indices_g.h' ! in,is,iw,ie,inn,iss,iww,iee
+
       integer :: i, j, n, iq, idel, jdel, ik
       integer :: n_n, n_e, n_w, n_s
+      integer, intent(in), dimension(ifull) :: nface
+      real, dimension(ik*ik*6), intent(inout) :: s
+      real, dimension(ifull), intent(inout) :: sout
+      real, intent(in), dimension(ifull) :: xg, yg
+      real sx(-1:ik+2,-1:ik+2,0:npanels)
       real :: xxg, yyg
 
 c     first extend s arrays into sx - this one -1:il+2 & -1:il+2
@@ -2292,17 +2291,16 @@ c     routine fills in interior of an array which has undefined points
       
       include 'newmpar.h' ! Grid parameters
 
-      real, parameter :: value=999.       ! missing value flag
-
-      real a_io(ik*ik*6)         ! input and output array
-      real a(ik*ik*6)
-      real :: av     
       integer :: nrem, i, ii, ik, iq, j, n, neighb, ndiag
       integer :: iminb, imaxb, jminb, jmaxb
       integer, save :: oldik = 0
       integer, dimension(:,:), allocatable, save :: ic
       integer, dimension(0:5) :: imin,imax,jmin,jmax
       integer npann(0:5),npane(0:5),npanw(0:5),npans(0:5)
+      real, parameter :: value=999.       ! missing value flag
+      real a_io(ik*ik*6)         ! input and output array
+      real a(ik*ik*6)
+      real :: av     
       logical land_a(ik*ik*6)
       logical, dimension(4) :: mask
       data npann/1,103,3,105,5,101/,npane/102,2,104,4,100,0/
