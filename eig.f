@@ -286,7 +286,7 @@ c amount of work in the eigenvector problem may be
 c minimised in this way.
       i = 1
       local(1) = 1
-      do j=kl,1,-1
+      do j=kl,2,-1
         if(abs(subdia(j-1))<=eps) then
           i = i+1
           local(i)=0
