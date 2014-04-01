@@ -1550,21 +1550,20 @@ real, dimension(ifull,wlev), intent(out) :: xg,yg
 real, dimension(ifull) :: xstr,ystr,zstr
 real, dimension(ifull) :: denxyz,xd,yd,zd
 real, dimension(ifull) :: ri,rj
-real dxx,dxy,dyx,dyy
 real(kind=8), dimension(ifull,wlev), intent(inout) :: x3d,y3d,z3d
 real(kind=8), dimension(ifull) :: den
 real(kind=8) alf,alfonsch
-real(kind=8), parameter :: one = 1.
+real(kind=8) dxx,dxy,dyx,dyy
 integer, parameter :: nmaploop = 3
 
-alf=(one-schmidt**2)/(one+schmidt**2)
-alfonsch=2.*schmidt/(one+schmidt**2)  ! same but bit more accurate
+alf=(1._8-schmidt*schmidt)/(1._8+schmidt*schmidt)
+alfonsch=2._8*schmidt/(1._8+schmidt*schmidt)
 
 do ii=1,wlev
 
   !     if necessary, transform (x3d, y3d, z3d) to equivalent
   !     coordinates (xstr, ystr, zstr) on regular gnomonic panels
-  den=one-alf*z3d(:,ii) ! to force real*8
+  den=1._8-alf*z3d(:,ii) ! to force real*8
   xstr=x3d(:,ii)*(alfonsch/den)
   ystr=y3d(:,ii)*(alfonsch/den)
   zstr=    (z3d(:,ii)-alf)/den

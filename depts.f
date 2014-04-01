@@ -263,7 +263,6 @@ c     modify toij5 for Cray
       real denxyz,xd,yd,zd,ri,rj
       real(kind=8) alf,alfonsch,den  ! 6/11/07 esp for 200m
       real(kind=8) dxx,dxy,dyx,dyy
-      real(kind=8), parameter :: one = 1._8 ! to force real*8
       real, dimension(0:5) :: xgx,xgy,xgz,ygx,ygy,ygz
       data xgx/0., 0., 0., 0., 1., 1./, ygx/0.,-1.,-1., 0., 0., 0./,
      .     xgy/1., 1., 0., 0., 0., 0./, ygy/0., 0., 0.,-1.,-1., 0./,
@@ -289,11 +288,11 @@ c     modify toij5 for Cray
          zstr(iq)=z3d(iq)
         enddo   ! iq loop
       else      ! (schmidt.ne.1.)
-        alf=(one-schmidt**2)/(one+schmidt**2)
+        alf=(1._8-schmidt*schmidt)/(1._8+schmidt*schmidt)
 !       alfonsch=(1.-alf)/schmidt
-        alfonsch=2.*schmidt/(one+schmidt**2)  ! same but bit more accurate
+        alfonsch=2._8*schmidt/(1._8+schmidt*schmidt)  ! same but bit more accurate
         do iq=1,ifull
-         den=one-alf*z3d(iq) ! to force real*8
+         den=1._8-alf*z3d(iq) ! to force real*8
          xstr(iq)=x3d(iq)*(alfonsch/den)
          ystr(iq)=y3d(iq)*(alfonsch/den)
          zstr(iq)=   (z3d(iq)-alf)/den
@@ -357,9 +356,9 @@ c         max() allows for 2 of x,y,z being 1.  This is the cunning code:
         endif    ! (ncray.eq.1)
        enddo   ! iq loop   
        if(ntest==1.and.k==nlv)then
-       iq=idjd
-       print *,'x3d,y3d,z3d ',x3d(iq),y3d(iq),z3d(iq)
-         den=one-alf*z3d(iq) ! to force real*8
+         iq=idjd
+         print *,'x3d,y3d,z3d ',x3d(iq),y3d(iq),z3d(iq)
+         den=1._8-alf*z3d(iq) ! to force real*8
          print *,'den ',den
          denxyz=max( abs(xstr(iq)),abs(ystr(iq)),abs(zstr(iq)) )
          xd=xstr(iq)/denxyz

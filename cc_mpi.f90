@@ -5,6 +5,7 @@ module cc_mpi
 ! the Vampir trace routines and upgrading the timer calls.
 
 #ifdef usempif
+   ! This directive is for using the f77 interface
    use mpif_m
 #else
    use mpi
@@ -13,25 +14,25 @@ module cc_mpi
    private
    include 'newmpar.h'
 
-   integer, save, public :: comm_world                       ! global communication
-   integer, save, public :: myid                             ! processor rank number for comm_world
-   integer, save, public :: ipan, jpan                       ! grid size on processor
-   integer, save, public :: ioff, joff, noff                 ! offset of processor grid relative to global grid
-   integer, save, public :: nxproc, nyproc                   ! number of processors in the x and y directions
-   integer, save, public :: nagg                             ! maximum number of levels to aggregate for message passing
+   integer, save, public :: comm_world                                 ! global communication group
+   integer, save, public :: myid                                       ! processor rank number for comm_world
+   integer, save, public :: ipan, jpan                                 ! grid size on processor
+   integer, save, public :: ioff, joff, noff                           ! offset of processor grid relative to global grid
+   integer, save, public :: nxproc, nyproc                             ! number of processors in the x and y directions
+   integer, save, public :: nagg                                       ! maximum number of levels to aggregate for message passing
 
    integer, save, public :: comm_proc, comm_rows, comm_cols            ! comm groups for scale-selective filter
    integer, save, public :: hproc, mproc, npta, pprocn, pprocx         ! decomposition parameters for scale-selective filter
 
-   integer(kind=4), save, private :: nreq, rreq                        ! number of requests and number of recvs
-   integer(kind=4), allocatable, dimension(:), save, private :: ireq   ! request index
-   integer, allocatable, dimension(:), save, private :: rlist          ! map for processor index from request index
+   integer(kind=4), save, private :: nreq, rreq                        ! number of messages requested and to be received
+   integer(kind=4), allocatable, dimension(:), save, private :: ireq   ! requested message index
+   integer, allocatable, dimension(:), save, private :: rlist          ! map of processor index from requested message index
    
-   integer, allocatable, dimension(:), save, public :: neighlist       ! list of neighbour processor
-   integer, allocatable, dimension(:), save, private :: neighmap       ! map from processor to neighbour index
+   integer, allocatable, dimension(:), save, public :: neighlist       ! list of neighbour processors
+   integer, allocatable, dimension(:), save, private :: neighmap       ! map of processor to neighbour index
    integer, save, public :: neighnum                                   ! number of neigbours
    
-   integer(kind=4), save, private :: localwin
+   integer(kind=4), save, private :: localwin                          ! local window handle for spectral filter
    integer(kind=4), allocatable, dimension(:), save, public :: specmap ! gather map for spectral filter
    real, allocatable, dimension(:,:), save, private :: specstore       ! window for gather map
 
@@ -180,12 +181,13 @@ module cc_mpi
 
    type(bounds_info), allocatable, dimension(:), save :: bnds
 
+   ! partition boundary indices into geometric groups or colours
    type(boundsplit), allocatable, dimension(:), save, private :: rsplit
    type(boundsplit), allocatable, dimension(:), save, private :: ssplit
    type(coloursplit), allocatable, dimension(:), save, private :: rcolsp
    type(coloursplit), allocatable, dimension(:), save, private :: scolsp
-   integer, save, public :: ifullx
    integer, dimension(:,:), allocatable, save, public :: iqx, iqn, iqe, iqw, iqs
+   integer, save, public :: ifullx
 #ifdef uniform_decomp
    integer, parameter, public :: maxcolour = 3
 #else
@@ -228,13 +230,13 @@ module cc_mpi
       integer, dimension(:), allocatable :: unpack_list
       integer, dimension(:), allocatable :: request_list
    end type mgbndtype
-   
-   integer, save, public :: mg_maxlevel, mg_maxlevel_local
+
+   ! Multi-grid levels and buffers
    type(mgtype), dimension(:), allocatable, save, public :: mg
    type(mgbndtype), dimension(:,:), allocatable, save, public :: mg_bnds
-
+   integer, save, public :: mg_maxlevel, mg_maxlevel_local
    integer, save, public :: mg_ifullc
-   integer, dimension(:,:), allocatable, save, public :: col_iq,col_iqn,col_iqe,col_iqs,col_iqw
+   integer, dimension(:,:), allocatable, save, public :: col_iq, col_iqn, col_iqe, col_iqs, col_iqw
 
    ! Timer
    integer, public, save :: bounds_begin, bounds_end
@@ -361,7 +363,7 @@ contains
       call proc_setup
       if ( nproc < npanels+1 ) then
          ! This is the maximum size, each face has 4 edges
-         maxbuflen = npan*4*(il_g+4)*3*max(nagg*kl,3*ol) !*3 for extra vector row (e.g., inu,isu,iev,iwv)
+         maxbuflen = npan*4*(il_g+4)*3*max(nagg*kl,3*ol)    !*3 for extra vector row (e.g., inu,isu,iev,iwv)
       else
          maxbuflen = (max(ipan,jpan)+4)*3*max(nagg*kl,3*ol) !*3 for extra vector row (e.g., inu,isu,iev,iwv)
       end if
@@ -568,14 +570,13 @@ contains
       real, dimension(ifull), intent(out) :: af
       real, dimension(ifull_g), intent(in) :: a1
       real, dimension(ifull,0:nproc-1) :: sbuf
-      integer :: i, j, n, iq, iproc
+      integer :: j, n, iq, iproc
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
       integer(kind=4) :: ierr, lsize
-      integer(kind=4), parameter :: zero = 0
       integer :: npoff, ipoff, jpoff ! Offsets for target
       integer :: slen
 
@@ -588,17 +589,15 @@ contains
 #endif
          do n = 1,npan
             do j = 1,jpan
-               do i = 1,ipan
-                  iq = i+ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
-                  slen = i + (j-1)*ipan + (n-1)*ipan*jpan
-                  sbuf(slen,iproc) = a1(iq)
-               end do
+               iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+               slen = (j-1)*ipan + (n-1)*ipan*jpan
+               sbuf(slen+1:slen+ipan,iproc) = a1(iq+1:iq+ipan)
             end do
          end do
       end do
 
       lsize = ifull
-      call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,zero,MPI_COMM_WORLD,ierr)
+      call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,0_4,MPI_COMM_WORLD,ierr)
 
    end subroutine host_distribute2
 
@@ -611,11 +610,10 @@ contains
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
       integer(kind=4) :: ierr, lsize
-      integer(kind=4), parameter :: zero = 0
       real, dimension(0,0) :: sbuf
 
       lsize = ifull
-      call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,zero,MPI_COMM_WORLD,ierr)
+      call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,0_4,MPI_COMM_WORLD,ierr)
 
    end subroutine proc_distribute2
 
@@ -644,8 +642,8 @@ contains
       ! Convert standard 1D arrays to face form and distribute to processors
       real(kind=8), dimension(ifull), intent(out) :: af
       real(kind=8), dimension(ifull_g), intent(in) :: a1
-      integer :: i, j, n, iq, iproc
-      integer(kind=4) :: ierr, lsize, zero
+      integer :: j, n, iq, iproc
+      integer(kind=4) :: ierr, lsize
       real(kind=8), dimension(ifull,0:nproc-1) :: sbuf
       integer :: npoff, ipoff, jpoff ! Offsets for target
       integer :: slen
@@ -659,30 +657,26 @@ contains
 #endif
          do n = 1,npan
             do j=1,jpan
-               do i=1,ipan
-                  iq = i+ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
-                  slen = i + (j-1)*ipan + (n-1)*ipan*jpan
-                  sbuf(slen,iproc) = a1(iq)
-               end do
+               iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+               slen = (j-1)*ipan + (n-1)*ipan*jpan
+               sbuf(slen+1:slen+ipan,iproc) = a1(iq+1:iq+ipan)
             end do
          end do
       end do
 
       lsize = ifull
-      zero = 0
-      call MPI_Scatter(sbuf,lsize,MPI_DOUBLE_PRECISION,af,lsize,MPI_DOUBLE_PRECISION,zero,MPI_COMM_WORLD,ierr)
+      call MPI_Scatter(sbuf,lsize,MPI_DOUBLE_PRECISION,af,lsize,MPI_DOUBLE_PRECISION,0_4,MPI_COMM_WORLD,ierr)
 
    end subroutine host_distribute2r8
    
    subroutine proc_distribute2r8(af)
       ! Convert standard 1D arrays to face form and distribute to processors
       real(kind=8), dimension(ifull), intent(out) :: af
-      integer(kind=4) :: ierr, lsize, zero
+      integer(kind=4) :: ierr, lsize
       real(kind=8), dimension(0,0) :: sbuf
 
       lsize = ifull
-      zero = 0
-      call MPI_Scatter(sbuf,lsize,MPI_DOUBLE_PRECISION,af,lsize,MPI_DOUBLE_PRECISION,zero,MPI_COMM_WORLD,ierr)
+      call MPI_Scatter(sbuf,lsize,MPI_DOUBLE_PRECISION,af,lsize,MPI_DOUBLE_PRECISION,0_4,MPI_COMM_WORLD,ierr)
 
    end subroutine proc_distribute2r8
 
@@ -711,13 +705,13 @@ contains
       ! Convert standard 1D arrays to face form and distribute to processors
       integer, dimension(ifull), intent(out) :: af
       integer, dimension(ifull_g), intent(in) :: a1
-      integer :: i, j, n, iq, iproc
+      integer :: j, n, iq, iproc
 #ifdef i8r8
       integer(kind=4),parameter :: ltype = MPI_INTEGER8
 #else
       integer(kind=4),parameter :: ltype = MPI_INTEGER
 #endif
-      integer(kind=4) :: ierr, lsize, zero
+      integer(kind=4) :: ierr, lsize
       integer, dimension(ifull,0:nproc-1) :: sbuf
       integer :: npoff, ipoff, jpoff ! Offsets for target
       integer :: slen
@@ -731,18 +725,15 @@ contains
 #endif
          do n = 1,npan
             do j = 1,jpan
-               do i = 1,ipan
-                  iq = i+ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
-                  slen = i + (j-1)*ipan + (n-1)*ipan*jpan
-                  sbuf(slen,iproc) = a1(iq)
-               end do
+               iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+               slen = (j-1)*ipan + (n-1)*ipan*jpan
+               sbuf(slen+1:slen+ipan,iproc) = a1(iq+1:iq+ipan)
             end do
          end do
       end do
 
       lsize = ifull
-      zero = 0
-      call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,zero,MPI_COMM_WORLD,ierr)
+      call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,0_4,MPI_COMM_WORLD,ierr)
  
    end subroutine host_distribute2i
 
@@ -754,12 +745,11 @@ contains
 #else
       integer(kind=4),parameter :: ltype = MPI_INTEGER
 #endif
-      integer(kind=4) :: ierr, lsize, zero
+      integer(kind=4) :: ierr, lsize
       integer, dimension(0,0) :: sbuf
 
       lsize = ifull
-      zero = 0
-      call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,zero,MPI_COMM_WORLD,ierr)
+      call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,0_4,MPI_COMM_WORLD,ierr)
  
    end subroutine proc_distribute2i
 
@@ -792,13 +782,13 @@ contains
       ! the number of levels
       real, dimension(:,:), intent(out) :: af
       real, dimension(:,:), intent(in) :: a1
-      integer :: i, j, n, k, iq, iproc
+      integer :: j, n, k, iq, iproc
 #ifdef i8r8
       integer(kind=4),parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
       integer(kind=4),parameter :: ltype = MPI_REAL
 #endif
-      integer(kind=4) :: ierr, lsize, zero
+      integer(kind=4) :: ierr, lsize
       real, dimension(ifull,size(af,2),0:nproc-1) :: sbuf
       integer :: npoff, ipoff, jpoff ! Offsets for target
       integer :: slen, kx
@@ -815,19 +805,16 @@ contains
          do k = 1,kx
             do n = 1,npan
                do j = 1,jpan
-                  do i = 1,ipan
-                     iq = i+ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
-                     slen = i + (j-1)*ipan + (n-1)*ipan*jpan
-                     sbuf(slen,k,iproc) = a1(iq,k)
-                  end do
+                  iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+                  slen = (j-1)*ipan + (n-1)*ipan*jpan
+                  sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
                end do
             end do
          end do
       end do
 
       lsize = ifull*kx
-      zero = 0
-      call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,zero,MPI_COMM_WORLD,ierr)      
+      call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,0_4,MPI_COMM_WORLD,ierr)      
 
    end subroutine host_distribute3
 
@@ -841,14 +828,13 @@ contains
 #else
       integer(kind=4),parameter :: ltype = MPI_REAL
 #endif
-      integer(kind=4) :: ierr, lsize, zero
+      integer(kind=4) :: ierr, lsize
       real, dimension(0,0,0) :: sbuf
       integer :: kx
 
       kx = size(af,2)
       lsize = ifull*kx
-      zero = 0
-      call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,zero,MPI_COMM_WORLD,ierr)      
+      call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,0_4,MPI_COMM_WORLD,ierr)      
 
    end subroutine proc_distribute3
 
@@ -885,8 +871,8 @@ contains
 #else
       integer(kind=4),parameter :: ltype = MPI_INTEGER
 #endif
-      integer :: i, j, n, k, iq, iproc
-      integer(kind=4) :: ierr, lsize, zero
+      integer :: j, n, k, iq, iproc
+      integer(kind=4) :: ierr, lsize
       integer, dimension(ifull,size(af,2),0:nproc-1) :: sbuf
       integer :: npoff, ipoff, jpoff ! Offsets for target
       integer :: slen, kx
@@ -903,19 +889,16 @@ contains
          do k = 1,kx
             do n = 1,npan
                do j = 1,jpan
-                  do i = 1,ipan
-                     iq = i+ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
-                     slen = i + (j-1)*ipan + (n-1)*ipan*jpan
-                     sbuf(slen,k,iproc) = a1(iq,k)
-                  end do
+                  iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+                  slen = (j-1)*ipan + (n-1)*ipan*jpan
+                  sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
                end do
             end do
          end do
       end do
 
       lsize = ifull*kx
-      zero = 0
-      call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,zero,MPI_COMM_WORLD,ierr)      
+      call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,0_4,MPI_COMM_WORLD,ierr)      
 
    end subroutine host_distribute3i
 
@@ -929,14 +912,13 @@ contains
 #else
       integer(kind=4),parameter :: ltype = MPI_INTEGER
 #endif
-      integer(kind=4) :: ierr, lsize, zero
+      integer(kind=4) :: ierr, lsize
       integer, dimension(0,0,0) :: sbuf
       integer :: kx
 
       kx = size(af,2)
       lsize = ifull*kx
-      zero = 0
-      call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,zero,MPI_COMM_WORLD,ierr)      
+      call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,0_4,MPI_COMM_WORLD,ierr)      
 
    end subroutine proc_distribute3i   
 
@@ -974,14 +956,13 @@ contains
 #else
       integer(kind=4),parameter :: ltype = MPI_REAL
 #endif
-      integer(kind=4) :: ierr, lsize, zero
+      integer(kind=4) :: ierr, lsize
       real, dimension(ifull,0:nproc-1) :: abuf
       integer :: ipoff, jpoff, npoff
-      integer :: i, j, n, iq, iqg
+      integer :: j, n, iq, iqg
 
       lsize = ifull
-      zero = 0
-      call MPI_Gather(a,lsize,ltype,abuf,lsize,ltype,zero,MPI_COMM_WORLD,ierr)
+      call MPI_Gather(a,lsize,ltype,abuf,lsize,ltype,0_4,MPI_COMM_WORLD,ierr)
 
       ! map array in order of processor rank
       do iproc = 0,nproc-1
@@ -993,13 +974,10 @@ contains
          do n = 1,npan
             ! Use the face indices for unpacking
             do j = 1,jpan
-!cdir nodep
-               do i = 1,ipan
-                  ! Global indices are i+ipoff, j+jpoff, n-npoff
-                  iqg = i+ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
-                  iq = i + (j-1)*ipan + (n-1)*ipan*jpan
-                  ag(iqg) = abuf(iq,iproc)
-               end do
+               ! Global indices are i+ipoff, j+jpoff, n-npoff
+               iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+               iq = (j-1)*ipan + (n-1)*ipan*jpan
+               ag(iqg+1:iqg+ipan) = abuf(iq+1:iq+ipan,iproc)
             end do
          end do
       end do
@@ -1013,12 +991,11 @@ contains
 #else
       integer(kind=4),parameter :: ltype = MPI_REAL
 #endif
-      integer(kind=4) :: ierr, lsize, zero
+      integer(kind=4) :: ierr, lsize
       real, dimension(0,0) :: abuf
 
       lsize = ifull
-      zero = 0
-      call MPI_Gather(a,lsize,ltype,abuf,lsize,ltype,zero,MPI_COMM_WORLD,ierr)
+      call MPI_Gather(a,lsize,ltype,abuf,lsize,ltype,0_4,MPI_COMM_WORLD,ierr)
 
    end subroutine proc_gather2
 
@@ -1054,15 +1031,14 @@ contains
 #else
       integer(kind=4),parameter :: ltype = MPI_REAL
 #endif
-      integer(kind=4) :: ierr, lsize, zero
+      integer(kind=4) :: ierr, lsize
       real, dimension(ifull,size(a,2),0:nproc-1) :: abuf
       integer :: ipoff, jpoff, npoff
-      integer :: i, j, n, k, iq, iqg, kx
+      integer :: j, n, k, iq, iqg, kx
 
       kx = size(a,2)
       lsize = ifull*kx
-      zero = 0
-      call MPI_Gather(a,lsize,ltype,abuf,lsize,ltype,zero,MPI_COMM_WORLD,ierr)
+      call MPI_Gather(a,lsize,ltype,abuf,lsize,ltype,0_4,MPI_COMM_WORLD,ierr)
 
       ! map array in order of processor rank
       do iproc = 0,nproc-1
@@ -1074,12 +1050,10 @@ contains
          do k = 1,kx
             do n = 1,npan
                do j = 1,jpan
-                  do i = 1,ipan
-                     ! Global indices are i+ipoff, j+jpoff, n-npoff
-                     iqg = i+ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
-                     iq = i + (j-1)*ipan + (n-1)*ipan*jpan
-                     ag(iqg,k) = abuf(iq,k,iproc)
-                  end do
+                  ! Global indices are i+ipoff, j+jpoff, n-npoff
+                  iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+                  iq = (j-1)*ipan + (n-1)*ipan*jpan
+                  ag(iqg+1:iqg+ipan,k) = abuf(iq+1:iq+ipan,k,iproc)
                end do
             end do
          end do
@@ -1094,14 +1068,13 @@ contains
 #else
       integer(kind=4),parameter :: ltype = MPI_REAL
 #endif
-      integer(kind=4) :: ierr, lsize, zero
+      integer(kind=4) :: ierr, lsize
       real, dimension(0,0,0) :: abuf
       integer :: kx
 
       kx = size(a,2)
       lsize = ifull*kx
-      zero = 0
-      call MPI_Gather(a,lsize,ltype,abuf,lsize,ltype,zero,MPI_COMM_WORLD,ierr)
+      call MPI_Gather(a,lsize,ltype,abuf,lsize,ltype,0_4,MPI_COMM_WORLD,ierr)
 
    end subroutine proc_gather3
 
@@ -1119,7 +1092,7 @@ contains
 #endif
       integer(kind=4) :: ierr, lsize
       integer :: ipoff, jpoff, npoff
-      integer :: i, j, n, iq, iqg
+      integer :: j, n, iq, iqg
 
       START_LOG(gather)
 
@@ -1135,12 +1108,10 @@ contains
 #endif
          do n = 1,npan
             do j = 1,jpan
-               do i = 1,ipan
-                  ! Global indices are i+ipoff, j+jpoff, n-npoff
-                  iqg = i+ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
-                  iq = i + (j-1)*ipan + (n-1)*ipan*jpan
-                  ag(iqg) = abuf(iq,iproc)
-               end do
+               ! Global indices are i+ipoff, j+jpoff, n-npoff
+               iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+               iq = (j-1)*ipan + (n-1)*ipan*jpan
+               ag(iqg+1:iqg+ipan) = abuf(iq+1:iq+ipan,iproc)
             end do
          end do
       end do
@@ -1163,7 +1134,7 @@ contains
       integer(kind=4) :: ierr, lsize
       real, dimension(ifull,size(a,2),0:nproc-1) :: abuf
       integer :: ipoff, jpoff, npoff
-      integer :: i, j, n, k, iq, iqg, kx
+      integer :: j, n, k, iq, iqg, kx
 
       START_LOG(gather)
 
@@ -1181,12 +1152,10 @@ contains
          do k = 1,kx
             do n = 1,npan
                do j = 1,jpan
-                  do i = 1,ipan
-                     ! Global indices are i+ipoff, j+jpoff, n-npoff
-                     iqg = i+ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
-                     iq = i + (j-1)*ipan + (n-1)*ipan*jpan
-                     ag(iqg,k) = abuf(iq,k,iproc)
-                  end do
+                  ! Global indices are i+ipoff, j+jpoff, n-npoff
+                  iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+                  iq = (j-1)*ipan + (n-1)*ipan*jpan
+                  ag(iqg+1:iqg+ipan,k) = abuf(iq+1:iq+ipan,k,iproc)
                end do
             end do
          end do
@@ -1208,7 +1177,7 @@ contains
 #endif
       integer(kind=4) :: ierr, lsize, itest
       integer(kind=MPI_ADDRESS_KIND) :: displ
-      integer :: ncount, w, iproc, n, i, j, iqg, iq
+      integer :: ncount, w, iproc, n, j, iqg, iq
       integer :: ipoff, jpoff, npoff
       
       if ( nproc == 1 ) then
@@ -1241,12 +1210,10 @@ contains
 #endif
          do n = 1,npan
             do j = 1,jpan
-               do i = 1,ipan
-                  ! Global indices are i+ipoff, j+jpoff, n-npoff
-                  iqg = i+ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
-                  iq = i + (j-1)*ipan + (n-1)*ipan*jpan
-                  ag(iqg) = abuf(iq,w)
-               end do
+               ! Global indices are i+ipoff, j+jpoff, n-npoff
+               iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+               iq = (j-1)*ipan + (n-1)*ipan*jpan
+               ag(iqg+1:iqg+ipan) = abuf(iq+1:iq+ipan,w)
             end do
          end do
       end do
@@ -1267,7 +1234,7 @@ contains
 #endif
       integer(kind=4) :: ierr, lsize, itest
       integer(kind=MPI_ADDRESS_KIND) :: displ
-      integer :: ncount, w, iproc, k, n, i, j, iqg, iq, kx
+      integer :: ncount, w, iproc, k, n, j, iqg, iq, kx
       integer :: ipoff, jpoff, npoff
       
       if ( nproc == 1 ) then
@@ -1308,12 +1275,10 @@ contains
          do k = 1,kx
             do n = 1,npan
                do j = 1,jpan
-                  do i = 1,ipan
-                     ! Global indices are i+ipoff, j+jpoff, n-npoff
-                     iqg = i+ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
-                     iq = i + (j-1)*ipan + (n-1)*ipan*jpan
-                     ag(iqg,k) = abuf(iq,k,w)
-                  end do
+                  ! Global indices are i+ipoff, j+jpoff, n-npoff
+                  iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+                  iq = (j-1)*ipan + (n-1)*ipan*jpan
+                  ag(iqg+1:iqg+ipan,k) = abuf(iq+1:iq+ipan,k,w)
                end do
             end do
          end do
@@ -2540,15 +2505,6 @@ contains
          call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
       end if
 
-#ifdef DEBUG
-      write(6,*) "Bounds", myid, "SLEN ", bnds(:)%slen
-      write(6,*) "Bounds", myid, "RLEN ", bnds(:)%rlen
-      write(6,*) "Bounds", myid, "SLENX", bnds(:)%slenx
-      write(6,*) "Bounds", myid, "RLENX", bnds(:)%rlenx
-      write(6,*) "Bounds", myid, "SLEN2", bnds(:)%slen2
-      write(6,*) "Bounds", myid, "RLEN2", bnds(:)%rlen2
-#endif
-
 !     Now, for each processor send the list of points I want.
 !     Send all possible pairs and don't assume anything about the symmetry.
 !     For completeness, send zero length messages too.
@@ -2728,13 +2684,6 @@ contains
             innv(indp(i,jpan-1,n)) = inv(indp(i,jpan,n))
          end do
       end do
-
-#ifdef DEBUG
-      write(6,*) "Bounds", myid, "SLEN_UV ", bnds(:)%slen_uv
-      write(6,*) "Bounds", myid, "RLEN_UV ", bnds(:)%rlen_uv
-      write(6,*) "Bounds", myid, "SLEN2_UV ", bnds(:)%slen2_uv
-      write(6,*) "Bounds", myid, "RLEN2_UV ", bnds(:)%rlen2_uv
-#endif
 
 !  At the moment send_lists use global indices. Convert these to local.
       do iproc = neighnum,1,-1
@@ -3184,8 +3133,7 @@ contains
    end subroutine bounds3
 
    subroutine bounds4(t, nrows, corner, nehalf)
-      ! Copy the boundary regions. Only this routine requires the extra klim
-      ! argument (for helmsol).
+      ! Copy the boundary regions.
       real, dimension(:,:,:), intent(inout) :: t
       integer, intent(in), optional :: nrows
       logical, intent(in), optional :: corner
@@ -3280,7 +3228,7 @@ contains
 !cdir nodep
       do iq = 1,myrlen
          ! request_list is same as send_list in this case
-         t(ifull+bnds(myid)%unpack_list(iq),1:kx,:) = t(bnds(myid)%request_list(iq),1:kx,:)
+         t(ifull+bnds(myid)%unpack_list(iq),1:kx,1:ntr) = t(bnds(myid)%request_list(iq),1:kx,1:ntr)
       end do
 
       ! Unpack incomming messages
@@ -5292,15 +5240,14 @@ contains
       ! Calculate the mean, min and max times for each case
       integer :: i
       integer(kind=4) :: ierr, llen
-      integer(kind=4), parameter :: zero = 0
       real(kind=8), dimension(nevents) :: emean, emax, emin
       llen=nevents
       call MPI_Reduce(tot_time, emean, llen, MPI_DOUBLE_PRECISION, &
-                      MPI_SUM, zero, MPI_COMM_WORLD, ierr )
+                      MPI_SUM, 0_4, MPI_COMM_WORLD, ierr )
       call MPI_Reduce(tot_time, emax, llen, MPI_DOUBLE_PRECISION, &
-                      MPI_MAX, zero, MPI_COMM_WORLD, ierr )
+                      MPI_MAX, 0_4, MPI_COMM_WORLD, ierr )
       call MPI_Reduce(tot_time, emin, llen, MPI_DOUBLE_PRECISION, &
-                      MPI_MIN, zero, MPI_COMM_WORLD, ierr )
+                      MPI_MIN, 0_4, MPI_COMM_WORLD, ierr )
       if ( myid == 0 ) then
          write(6,*) "==============================================="
          write(6,*) "  Times over all processes"
@@ -6891,7 +6838,6 @@ contains
 
       integer, intent(in) :: g, kx, nmax
       integer(kind=4) :: ierr, ilen, lcomm
-      integer(kind=4), parameter :: zero = 0
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -6909,7 +6855,7 @@ contains
       ilen = 2*kx
       lcomm = mg(g)%comm_merge
 #ifdef idleproc
-      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, zero, lcomm, ierr )      
+      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0_4, lcomm, ierr )      
 #else
       call MPI_AllGather( tdat, ilen, ltype, tdat_g, ilen, ltype, lcomm, ierr )      
 #endif
@@ -6929,7 +6875,6 @@ contains
       integer yproc, ir, ic, is, ie, js, je, jj
       integer nrm1
       integer(kind=4) :: ierr, ilen, lcomm
-      integer(kind=4), parameter :: zero = 0
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -6951,7 +6896,7 @@ contains
       ilen = (msg_len*npanx+1)*kx
       lcomm = mg(g)%comm_merge
 #ifdef idleproc
-      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, zero, lcomm, ierr )      
+      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0_4, lcomm, ierr )      
 #else
       call MPI_AllGather( tdat, ilen, ltype, tdat_g, ilen, ltype, lcomm, ierr )      
 #endif
@@ -7009,7 +6954,6 @@ contains
 
       integer, intent(in) :: g, kx, nmax
       integer(kind=4) :: ierr, ilen, lcomm
-      integer(kind=4), parameter :: zero = 0
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7027,7 +6971,7 @@ contains
       ilen = kx+2
       lcomm = mg(g)%comm_merge
 #ifdef idleproc
-      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, zero, lcomm, ierr )      
+      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0_4, lcomm, ierr )      
 #else
       call MPI_AllGather( tdat, ilen, ltype, tdat_g, ilen, ltype, lcomm, ierr )      
 #endif
@@ -7047,7 +6991,6 @@ contains
       integer yproc, ir, ic, is, ie, js, je, jj
       integer nrm1
       integer(kind=4) :: ierr, ilen, lcomm
-      integer(kind=4), parameter :: zero = 0
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7069,7 +7012,7 @@ contains
       ilen = (msg_len*npanx+1)*kx
       lcomm = mg(g)%comm_merge
 #ifdef idleproc
-      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, zero, lcomm, ierr )      
+      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0_4, lcomm, ierr )      
 #else
       call MPI_AllGather( tdat, ilen, ltype, tdat_g, ilen, ltype, lcomm, ierr )      
 #endif
@@ -7131,7 +7074,6 @@ contains
 
       integer, intent(in) :: g, kx, nmax
       integer(kind=4) :: ierr, ilen, lcomm
-      integer(kind=4), parameter :: zero = 0
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7143,7 +7085,7 @@ contains
       ilen = kx
       lcomm = mg(g)%comm_merge
 #ifdef idleproc
-      call MPI_Gather( vdat(1:kx,1), ilen, ltype, tdat_g, ilen, ltype, zero, lcomm, ierr )
+      call MPI_Gather( vdat(1:kx,1), ilen, ltype, tdat_g, ilen, ltype, 0_4, lcomm, ierr )
 #else
       call MPI_AllGather( vdat(1:kx,1), ilen, ltype, tdat_g, ilen, ltype, lcomm, ierr )
 #endif
@@ -7162,7 +7104,6 @@ contains
       integer yproc, ir, ic, is, ie, js, je, jj
       integer nrm1
       integer(kind=4) :: ierr, ilen, lcomm
-      integer(kind=4), parameter :: zero = 0
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7182,7 +7123,7 @@ contains
       ilen = msg_len*npanx*kx
       lcomm = mg(g)%comm_merge
 #ifdef idleproc
-      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, zero, lcomm, ierr )
+      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0_4, lcomm, ierr )
 #else
       call MPI_AllGather( tdat, ilen, ltype, tdat_g, ilen, ltype, lcomm, ierr )
 #endif
@@ -7238,7 +7179,6 @@ contains
 
       integer, intent(in) :: g, kx, nmax
       integer(kind=4) :: ierr, ilen, lcomm
-      integer(kind=4), parameter :: zero = 0
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7254,7 +7194,7 @@ contains
       ilen = kx
       lcomm = mg(g)%comm_merge
 #ifdef idleproc
-      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, zero, lcomm, ierr )      
+      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0_4, lcomm, ierr )      
 #else
       call MPI_AllGather( tdat, ilen, ltype, tdat_g, ilen, ltype, lcomm, ierr )      
 #endif
@@ -7273,7 +7213,6 @@ contains
       integer yproc, ir, ic, is, ie, js, je, jj
       integer nrm1
       integer(kind=4) :: ierr, ilen, lcomm
-      integer(kind=4), parameter :: zero = 0
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7293,7 +7232,7 @@ contains
       ilen = msg_len*npanx*kx
       lcomm = mg(g)%comm_merge
 #ifdef idleproc
-      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, zero, lcomm, ierr )      
+      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0_4, lcomm, ierr )      
 #else
       call MPI_AllGather( tdat, ilen, ltype, tdat_g, ilen, ltype, lcomm, ierr )      
 #endif
@@ -7355,7 +7294,6 @@ contains
 
       integer, intent(in) :: g, kx, nmax
       integer(kind=4) :: ierr, ilen, lcomm
-      integer(kind=4), parameter :: zero = 0
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7375,7 +7313,7 @@ contains
       ilen = 3*kx
       lcomm = mg(g)%comm_merge
 #ifdef idleproc
-      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, zero, lcomm, ierr )
+      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0_4, lcomm, ierr )
 #else
       call MPI_AllGather( tdat, ilen, ltype, tdat_g, ilen, ltype, lcomm, ierr )
 #endif
@@ -7396,7 +7334,6 @@ contains
       integer :: yproc, ir, ic, is, ie, js, je, jj
       integer :: nrm1
       integer(kind=4) :: ierr, ilen, lcomm
-      integer(kind=4), parameter :: zero = 0
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7419,7 +7356,7 @@ contains
       ilen = (msg_len*npanx+2)*kx
       lcomm = mg(g)%comm_merge
 #ifdef idleproc
-      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, zero, lcomm, ierr )
+      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0_4, lcomm, ierr )
 #else
       call MPI_AllGather( tdat, ilen, ltype, tdat_g, ilen, ltype, lcomm, ierr )
 #endif
@@ -7483,7 +7420,6 @@ contains
    
       integer, intent(in) :: g, kx, out_len
       integer(kind=4) :: ierr, ilen, lcomm
-      integer(kind=4), parameter :: zero = 0
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7498,7 +7434,7 @@ contains
       
       ilen = (out_len+1)*kx
       lcomm = mg(g)%comm_merge
-      call MPI_Bcast( tdat, ilen, ltype, zero, lcomm, ierr )      
+      call MPI_Bcast( tdat, ilen, ltype, 0_4, lcomm, ierr )      
 
       ! extract data from distribute      
       vdat(1:kx,1:out_len) = tdat(:,1:out_len)
@@ -7534,7 +7470,6 @@ contains
    
       integer, intent(in) :: g, kx, out_len
       integer(kind=4) :: ierr, ilen, lcomm
-      integer(kind=4), parameter :: zero = 0
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7549,7 +7484,7 @@ contains
       
       ilen = (out_len+1)*kx
       lcomm = mg(g)%comm_merge
-      call MPI_Bcast( tdat, ilen, ltype, zero, lcomm, ierr )      
+      call MPI_Bcast( tdat, ilen, ltype, 0_4, lcomm, ierr )      
 
       ! extract data from distribute      
       vdat(1:out_len,1:kx) = tdat(1:out_len,:)
@@ -7584,7 +7519,6 @@ contains
    
       integer, intent(in) :: g, kx, out_len
       integer(kind=4) :: ierr, ilen, lcomm
-      integer(kind=4), parameter :: zero = 0
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7597,7 +7531,7 @@ contains
       
       ilen = out_len*kx
       lcomm = mg(g)%comm_merge
-      call MPI_Bcast( tdat, ilen, ltype, zero, lcomm, ierr )      
+      call MPI_Bcast( tdat, ilen, ltype, 0_4, lcomm, ierr )      
 
       ! extract data from distribute      
       vdat(1:out_len,1:kx) = tdat(1:out_len,:)
@@ -7638,7 +7572,6 @@ contains
    
       integer, intent(in) :: g, kx, out_len
       integer(kind=4) :: ierr, ilen, lcomm
-      integer(kind=4), parameter :: zero = 0
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7653,7 +7586,7 @@ contains
       
       ilen = (out_len+2)*kx
       lcomm = mg(g)%comm_merge
-      call MPI_Bcast( tdat, ilen, ltype, zero, lcomm, ierr )      
+      call MPI_Bcast( tdat, ilen, ltype, 0_4, lcomm, ierr )      
 
       ! extract data from distribute      
       vdat(1:kx,1:out_len) = tdat(:,1:out_len)
@@ -7682,7 +7615,7 @@ contains
       integer ntest, nsize
       integer ncount
       integer(kind=4) :: itag=22, lproc, ierr, llen, sreq
-      ! 13 is the maximum number of neigbours possible (i.e., uniform decomposition).
+      ! 13 is the maximum number of possibe neigbours (i.e., uniform decomposition).
       integer(kind=4), dimension(26) :: dreq
       integer(kind=4), dimension(MPI_STATUS_SIZE,26) :: status
 #ifdef i8r8
@@ -8366,7 +8299,7 @@ contains
    subroutine mgcheck_bnds_alloc(g,iproc,iext)
 
       integer, intent(in) :: iproc
-      integer, intent(in) :: g,iext
+      integer, intent(in) :: g, iext
       integer(kind=4) :: ierr
 
       if ( mg_bnds(iproc,g)%len <= 0 ) then
@@ -8391,7 +8324,6 @@ contains
       integer, intent(out) :: i
       integer, intent(out) :: j
       integer, intent(out) :: n
-      integer :: ierr,ierr2
 
       ! Calculate local i, j, n from global iq
 
