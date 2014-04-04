@@ -3,6 +3,8 @@ FC = mpif90
 # Common compiler flags
 FFLAGS = -xHost -ftz -fpp -I $(NETCDF_ROOT)/include -Dsumdd -Didleproc -fpe0 -check all -traceback -debug all -ftrapuv -fp-stack-check
 
+FFLAGS = -xHost -ftz -fpp -I $(NETCDF_ROOT)/include -Dsumdd -Didleproc
+
 # Options for building with VAMPIRTrace
 ifeq ($(VT),yes)
 FC = vtfort -vt:fc mpif90 -vt:inst manual
