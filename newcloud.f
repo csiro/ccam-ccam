@@ -86,11 +86,6 @@ C Argument list
 
 C Local shared common blocks (see TASK COMMON/TASKLOCAL above)
 
-C Global data blocks
-c      include 'CNSTA.f'
-c      include 'FEWFLAGS.f'   !Input debug, lgdebug etc.
-c     include 'TIMEX.f'
-
 C Local work arrays and variables
       real qcg(ln2,nl)
       real qtot(ln2,nl),tliq(ln2,nl)
@@ -351,7 +346,7 @@ c Need to do first-order estimate of qcrit using mean in-cloud qc (qcic)
                 R3c = 1.e-6*R6c/beta6 !in metres
                 qcrit=(4.*pi/3.)*rhow*R3c**3*cdrop(mg,k)/rhoa(mg,k) !New qcrit
 
-                qc2=qtot(mg,k)-qs-qcrit/al 
+                qc2=qtot(mg,k)-qs-qcrit/al
                 cfa(mg,k)=1.
                 qca(mg,k)=al*qc
                 if(qc2<delq)then
@@ -363,12 +358,15 @@ c Need to do first-order estimate of qcrit using mean in-cloud qc (qcic)
                 if(qc2<=0.)then
                   cfa(mg,k)=max(1.e-6,0.5*((qc2+delq)/delq)**2)        ! for roundoff
                   qca(mg,k)=max(1.e-8,
-     &               cfa(mg,k)*(al/3.)*(2.*qcrit/al + qc+delq))         ! for roundoff
+     &               cfa(mg,k)*(al/3.)*(2.*qcrit/al + qc+delq))        ! for roundoff
                 endif
                 if(qc2<=-delq)then
                   cfa(mg,k)=0.
                   qca(mg,k)=0.
                 endif
+              else
+                cfa(mg,k)=0.
+                qca(mg,k)=0.
               endif
 
             enddo
@@ -387,8 +385,7 @@ c using the triangular PDF of Smith (1990)
 c Calculate qs and gam=(L/cp)*dqsdt,  at temperature tliq
               pk=100.0*prf(mg,k)
               qsi(mg,k)=qsati(pk,tliq(mg,k))           !Ice value
-              !deles=esdiff(min(max(-40,(nint(tliq(mg,k)-tfrz))),1)) ! MJT suggestion
-              deles=esdiffx(tliq(mg,k))                              ! MJT suggestion
+              deles=esdiffx(tliq(mg,k))
               qsl(mg,k)=qsi(mg,k)+epsil*deles/pk       !qs over liquid
               qsw(mg,k)=fice(mg,k)*qsi(mg,k)+(1.-fice(mg,k))*qsl(mg,k) !Weighted qs at temperature Tliq
               qs=qsw(mg,k)
@@ -470,7 +467,7 @@ C***            endif
         write(6,*) "Prognositc cloud not implemented"
         stop
       
-        !call progcloud(cfrac,qcg)
+        !call progcloud(cfrac,qcg,cfa,qca)
 
       end if ! ncloud<3 ..else..
 
@@ -486,9 +483,9 @@ c The grid-box-mean values of qtg and ttg are adjusted later on (below).
             qfg(mg,k) = fice(mg,k)*qcg(mg,k)
             qlg(mg,k) = qcg(mg,k) - qfg(mg,k)
 
-          else                                   ! Cirrus T range
+          else                                    ! Cirrus T range
             decayfac = exp ( (-1./7200.) * tdt )  ! Try 2 hrs
-c           decayfac = 0.                        ! Instant adjustment (old scheme)
+c           decayfac = 0.                         ! Instant adjustment (old scheme)
             qfg(mg,k) = qcold(mg,k)*decayfac + qcg(mg,k)*(1.-decayfac)
             qcg(mg,k) = qfg(mg,k)
           endif
@@ -510,9 +507,7 @@ c liquid and ice values.
               es=qs*pk/0.622 !ice value
               Aprpr=hl/(rKa*Tk)*(hls/(rvap*Tk)-1.)
               Bprpr=rvap*Tk/((Dva/pk)*es)
-!              deles=(1.-fice(mg,k))                           ! MJT suggestion
-!     &              *esdiff(min(max(-40,(nint(Tk-tfrz))),1))  ! MJT suggestion
-              deles=(1.-fice(mg,k))*esdiffx(Tk)                ! MJT suggestion
+              deles=(1.-fice(mg,k))*esdiffx(Tk)
               Cice=1.e3*exp(12.96*deles/es - 0.639) !Meyers et al 1992
 
               cm0=1.e-12 !Initial crystal mass
@@ -551,33 +546,21 @@ c Calculate new values of vapour mixing ratio and temperature
         do mg=1,ln2
           qtg(mg,k)=qtot(mg,k)-qcg(mg,k)
           ttg(mg,k)=tliq(mg,k)+hlcp*qcg(mg,k)+hlfcp*qfg(mg,k)
-c         pk=100.0*prf(mg,k)                         ! moved to bottom
-c         qsg(mg,k)=qsati(pk,ttg(mg,k)) !Ice value   ! moved to bottom
           ccov(mg,k)=cfrac(mg,k)      !Do this for now
         enddo
       enddo
 
 c Vertically sub-grid cloud
 
-!      if(nl.lt.18)then
-!        do k=1,nl-1
-!          do mg=1,ln2
-!            if(cfrac(mg,k).gt.1.0e-2)then
-!              ccov(mg,k)=cfrac(mg,k)**(2./3)
-!            endif
-!          enddo
-!        enddo
-!      else
-        do k=2,nl-1
-          do mg=1,ln2
-            if(cfrac(mg,k)>1.0e-2
-     &           .and.cfrac(mg,k+1)==0..and.cfrac(mg,k-1)==0.)then
-c            ccov(mg,k)=cfrac(mg,k)**(2./3) ! Mk3.6
-              ccov(mg,k)=sqrt(cfrac(mg,k))
-            endif
-          enddo
+      do k=2,nl-1
+        do mg=1,ln2
+          if(cfrac(mg,k)>1.0e-2
+     &         .and.cfrac(mg,k+1)==0..and.cfrac(mg,k-1)==0.)then
+c           ccov(mg,k)=cfrac(mg,k)**(2./3) ! Mk3.6
+            ccov(mg,k)=sqrt(cfrac(mg,k))
+          endif
         enddo
-!      endif
+      enddo
      
       if(diag.and.mydiag)then
           write(6,*) 'at end of newcloud'

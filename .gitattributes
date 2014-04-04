@@ -25,6 +25,7 @@
 /dava_m.f90 -text
 /davb_m.f90 -text
 /dpsdt_m.f90 -text
+/eig.f90 -text
 /epst_m.f90 -text
 /esfsw_driver.f90 -text
 /esfsw_parameters.f90 -text

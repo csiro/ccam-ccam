@@ -5,18 +5,17 @@
       !   nested=2  Surface data recycling
       
       ! This version supports the parallel file routines contained
-      ! in infile.f.  Hence restart files do not require any
+      ! in infile.f90.  Hence, restart files do not require any
       ! gathers and scatters.
 
       ! In the case where the grid needs to be interpolated, a copy
       ! of the input data is sent to all processors and each
       ! processor performs its own interpolation.
       
-      subroutine onthefly(nested,kdate_r,ktime_r,
-     &                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
-     &                    tgg,wb,wbice,snowd,qfg,qlg,qrg,
-     &                    tggsn,smass,ssdn,ssdnn,snage,isflag,
-     &                    mlodwn,ocndwn)
+      subroutine onthefly(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,
+     &                    fracice,t,u,v,qg,tgg,wb,wbice,snowd,qfg,
+     &                    qlg,qrg,tggsn,smass,ssdn,ssdnn,snage,
+     &                    isflag,mlodwn,ocndwn)
 
       use cc_mpi           ! CC MPI routines
       use infile           ! Input file routines
@@ -34,9 +33,8 @@
       integer, parameter :: nihead=54
       integer, parameter :: nrhead=14
 
-      integer, save :: ik,jk,kk,ok,maxarchi
-      integer, save :: ncidold=-1
-      integer, save :: nsibx
+      integer, save :: ik,jk,kk,ok,maxarchi,nsibx
+      integer, save :: ncidold = -1
       integer, dimension(nihead) :: nahead
       integer, dimension(ifull) :: isflag
       integer, dimension(9) :: idum
@@ -48,13 +46,13 @@
       real timer
 !     These are local arrays, not the versions in arrays.h
 !     Use in call to infile, so are dimensioned ifull rather than ifull_g
-      real psl(ifull),zss(ifull),tss(ifull),fracice(ifull),
-     & wb(ifull,ms),wbice(ifull,ms),snowd(ifull),sicedep(ifull),
-     & t(ifull,kl),u(ifull,kl),v(ifull,kl),qg(ifull,kl),
-     & tgg(ifull,ms),tggsn(ifull,3),smass(ifull,3),ssdn(ifull,3),
-     & ssdnn(ifull),snage(ifull),qfg(ifull,kl),
-     & qlg(ifull,kl),qrg(ifull,kl),mlodwn(ifull,wlev,4),
-     & ocndwn(ifull,2)
+      real, dimension(ifull) :: psl,zss,tss,fracice,snowd,sicedep
+      real, dimension(ifull) :: ssdnn,snage
+      real, dimension(ifull,ms) :: wb,wbice,tgg
+      real, dimension(ifull,3) :: tggsn,smass,ssdn
+      real, dimension(ifull,kl) :: t,u,v,qg,qfg,qlg,qrg
+      real, dimension(ifull,wlev,4) :: mlodwn
+      real, dimension(ifull,2) :: ocndwn
       logical ltest,newfile,tst
 
 #include "log.h"

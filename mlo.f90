@@ -2078,10 +2078,10 @@ sig=exp(-grav*a_zmins/(rdry*a_temp))
 srcp=sig**(rdry/cp)
 atu=a_u-fluxwgt*w_u(:,1)-(1.-fluxwgt)*d_oldu
 atv=a_v-fluxwgt*w_v(:,1)-(1.-fluxwgt)*d_oldv
-vmag=sqrt(atu*atu+atv*atv)
+vmag=sqrt(max(atu*atu+atv*atv,0.))
 vmagn=max(vmag,0.01)
 rho=a_ps/(rdry*w_temp(:,1))
-ri=min(grav*(a_zmin**2/a_zmins)*(1.-w_temp(:,1)*srcp/a_temp)/vmagn**2,rimax)
+ri=min(grav*(a_zmin*a_zmin/a_zmins)*(1.-w_temp(:,1)*srcp/a_temp)/vmagn**2,rimax)
 
 call getqsat(qsat,dqdt,w_temp(:,1),a_ps)
 if (zomode==0) then ! CSIRO9
@@ -2101,11 +2101,11 @@ select case(zomode)
         con=consea*fm*vmag
         p_zo=p_zo-(p_zo-con*af)/(1.-con*daf)
       elsewhere     ! unstable water points
-        den=1.+af*cms*2.*bprm*sqrt(-ri*a_zmin/p_zo)
+        den=1.+af*cms*2.*bprm*sqrt(max(-ri*a_zmin/p_zo,0.))
         fm=1.-2.*bprm*ri/den
         con=consea*fm*vmag
-        dden=daf*cms*2.*bprm*sqrt(-ri*a_zmin/p_zo)+af*cms*bprm*ri*a_zmin/(sqrt(-ri*a_zmin/p_zo)*p_zo*p_zo)
-        dfm=2.*bprm*ri*dden/(den**2)
+        dden=daf*cms*2.*bprm*sqrt(max(-ri*a_zmin/p_zo,0.))+af*cms*bprm*sqrt(max(-ri,0.))*a_zmin/(sqrt(a_zmin/p_zo)*p_zo*p_zo)
+        dfm=2.*bprm*ri*dden/(den*den)
         dcon=consea*dfm*vmag
         p_zo=p_zo-(p_zo-con*af)/(1.-dcon*af-con*daf)
       end where
@@ -2119,22 +2119,22 @@ select case(zomode)
       daf=2.*af*afroot/(vkar*p_zo)
       where (ri>0.) ! stable water points                                                 
         fm=1./(1.+bprm*ri)**2
-        consea=zcom1*vmag**2*fm*af/grav+zcom2*gnu/max(vmag*sqrt(fm*af),gnu)
-        dcs=(zcom1*vmag**2/grav-0.5*zcom2*gnu/(max(vmag*sqrt(fm*af),gnu)*fm*af))*(fm*daf)
+        consea=zcom1*vmag*vmag*fm*af/grav+zcom2*gnu/max(vmag*sqrt(fm*af),gnu)
+        dcs=(zcom1*vmag*vmag/grav-0.5*zcom2*gnu/(max(vmag*sqrt(fm*af),gnu)*fm*af))*(fm*daf)
       elsewhere     ! unstable water points
-        con=cms*2.*bprm*sqrt(-ri*a_zmin/p_zo)
+        con=cms*2.*bprm*sqrt(max(-ri*a_zmin/p_zo,0.))
         den=1.+af*con
         fm=1.-2.*bprm*ri/den
-        dfm=2.*bprm*ri*(con*daf+af*cms*bprm*ri*a_zmin/(sqrt(-ri*a_zmin/p_zo)*p_zo*p_zo))/(den*den) ! MJT suggestion
-        consea=zcom1*vmag**2*af*fm/grav+zcom2*gnu/max(vmag*sqrt(fm*af),gnu)
-        dcs=(zcom1*vmag**2/grav-0.5*zcom2*gnu/(max(vmag*sqrt(fm*af),gnu)*fm*af))*(fm*daf+dfm*af)
+        dfm=2.*bprm*ri*(con*daf+af*cms*bprm*sqrt(max(-ri,0.))*a_zmin/(sqrt(a_zmin/p_zo)*p_zo*p_zo))/(den*den) ! MJT suggestion
+        consea=zcom1*vmag*vmag*af*fm/grav+zcom2*gnu/max(vmag*sqrt(fm*af),gnu)
+        dcs=(zcom1*vmag*vmag/grav-0.5*zcom2*gnu/(max(vmag*sqrt(fm*af),gnu)*fm*af))*(fm*daf+dfm*af)
       end where
       p_zo=p_zo-(p_zo-consea)/(1.-dcs)      
       p_zo=min(max(p_zo,1.5e-5),6.)
     enddo    ! it=1,4
 end select
 afroot=vkar/log(a_zmin/p_zo)
-af=afroot**2
+af=afroot*afroot
 
 select case(zomode)
   case(0) ! Charnock CSIRO9
@@ -2157,8 +2157,8 @@ select case(zomode)
     p_zoq=max(zcoq1+zcoq2*gnu/max(vmag*sqrt(fm*af),gnu),1.5E-7)
     factch=sqrt(p_zo/p_zoh)
     facqch=sqrt(p_zo/p_zoq)
-    aft=vkar**2/(log(a_zmins/p_zo)*log(a_zmins/p_zoh))
-    afq=vkar**2/(log(a_zmins/p_zo)*log(a_zmins/p_zoq))
+    aft=vkar*vkar/(log(a_zmins/p_zo)*log(a_zmins/p_zoh))
+    afq=vkar*vkar/(log(a_zmins/p_zo)*log(a_zmins/p_zoq))
 end select
 
 where (ri>0.)
@@ -2166,10 +2166,10 @@ where (ri>0.)
   fh=fm
   fq=fm
 elsewhere        ! ri is -ve
-  root=sqrt(-ri*a_zmin/p_zo)
+  root=sqrt(max(-ri*a_zmin/p_zo,0.))
   den=1.+cms*2.*bprm*af*root
   fm=1.-2.*bprm*ri/den
-  root=sqrt(-ri*a_zmins/p_zo)
+  root=sqrt(max(-ri*a_zmins/p_zo,0.))
   den=1.+chs*2.*bprm*factch*aft*root
   fh=1.-2.*bprm*ri/den
   den=1.+chs*2.*bprm*facqch*afq*root
@@ -2184,7 +2184,7 @@ p_cdq=afq*fq
 ! turn off lake evaporation when minimum depth is reached
 ! fg should be replaced with bare ground value
 d_wavail=max(depth_hl(:,wlev+1)+d_neta-minwater,0.)
-egmax=1000.*lv*d_wavail/(dt*max(1.-i_fracice,0.01))
+egmax=1000.*lv*d_wavail/(dt*max(1.-i_fracice,0.001))
 
 ! explicit estimate of fluxes
 ! (replace with implicit scheme if water becomes too shallow)

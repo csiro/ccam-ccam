@@ -3,8 +3,6 @@ FC = mpif90
 # Common compiler flags
 FFLAGS = -xHost -ftz -fpp -I $(NETCDF_ROOT)/include -Dsumdd -Didleproc -fpe0 -check all -traceback -debug all -ftrapuv -fp-stack-check
 
-FFLAGS = -xHost -ftz -fpp -I $(NETCDF_ROOT)/include -Dsumdd -Didleproc
-
 # Options for building with VAMPIRTrace
 ifeq ($(VT),yes)
 FC = vtfort -vt:fc mpif90 -vt:inst manual
@@ -45,7 +43,7 @@ e3v88.o fst88.o hconst.o lwr88.o ozoneread.o resetd.o spa88.o \
 swr99.o table.o zenith.o cc_mpi.o diag_m.o sumdd_m.o ilu_m.o davies.o \
 utilities.o onthefly.o o3read_amip.o o3set_amip.o tracermodule.o timeseries.o \
 trvmix.o mgsolve.o betts.o bett_cuc.o bettinit.o bettrain.o bettspli.o \
-netcdf_m.o stacklimit.o \
+stacklimit.o \
 xyzinfo_m.o vecsuv_m.o map_m.o latlong_m.o indices_m.o bigxy4_m.o \
 arrays_m.o betts1_m.o carbpools_m.o cldcom_m.o co2dta_m.o cfrac_m.o dava_m.o \
 davb_m.o dpsdt_m.o epst_m.o extraout_m.o gdrag_m.o histave_m.o kdacom_m.o \
@@ -73,8 +71,6 @@ clean:
 
 .SUFFIXES:.f90 .F90
 
-netcdf_m.o: netcdf_m.f90
-	$(FC) -c -I $(NETCDF_ROOT)/include $<
 esfsw_driver.o: esfsw_driver.f90
 	$(FC)  -c -r8 $(FFLAGS) $<
 esfsw_parameters.o: esfsw_parameters.f90
@@ -166,7 +162,7 @@ hs_phys.o : arrays_m.o latlong_m.o nlin_m.o sigs_m.o newmpar.h parm.h
 icefall.o : cc_mpi.o kuocomb_m.o morepbl_m.o const_phys.h cparams.h kuocom.h newmpar.h parm.h params.h
 ilu_m.o : cc_mpi.o indices_m.o newmpar.h
 indata.o : aerointerface.o arrays_m.o ateb.o bigxy4_m.o cable_ccam2.o cc_mpi.o dava_m.o diag_m.o epst_m.o extraout_m.o gdrag_m.o indices_m.o infile.o latlong_m.o liqwpar_m.o map_m.o mlo.o mlodynamics.o morepbl_m.o nharrs_m.o nsibd_m.o pbl_m.o permsurf_m.o river.o sigs_m.o soil_m.o soilsnow_m.o timeseries.o tracermodule.o tracers_m.o vecs_m.o vecsuv_m.o vegpar_m.o xyzinfo_m.o const_phys.h darcdf.h dates.h filnames.h newmpar.h parm.h parmdyn.h parmgeom.h soilv.h stime.h trcom2.h
-infile.o : cc_mpi.o netcdf_m.o dates.h newmpar.h parm.h parmgeom.h
+infile.o : cc_mpi.o dates.h newmpar.h parm.h parmgeom.h
 ints.o : cc_mpi.o indices_m.o newmpar.h parm.h parmhor.h
 latltoij.o : utilities.o const_phys.h newmpar.h parm.h parmdyn.h
 leoncld.o : aerointerface.o arrays_m.o cc_mpi.o diag_m.o estab.o kuocomb_m.o latlong_m.o liqwpar_m.o morepbl_m.o nharrs_m.o nlin_m.o prec_m.o sigs_m.o soil_m.o tracers_m.o vvel_m.o work3f_m.o const_phys.h cparams.h kuocom.h newmpar.h parm.h params.h

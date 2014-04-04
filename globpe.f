@@ -33,8 +33,8 @@
       use latlong_m                           ! Lat/lon coordinates
       use liqwpar_m                           ! Cloud water mixing ratios
       use map_m                               ! Grid map arrays
-      use mlo, only : mlodiag,wlev,mxd        ! Ocean physics and prognostic arrays
-     &   ,mindep,minwater
+      use mlo, only : mlodiag,wlev,mxd,mindep ! Ocean physics and prognostic arrays
+     &   ,minwater
       use mlodynamics                         ! Ocean dynamics
       use morepbl_m                           ! Additional boundary layer diagnostics
       use nharrs_m, only : nharrs_init        ! Non-hydrostatic atmosphere arrays
@@ -102,8 +102,6 @@
       common/leap_yr/leap                     ! Leap year (1 to allow leap years)
       integer nbarewet,nsigmf
       common/nsib/nbarewet,nsigmf             ! Land-surface options
-      integer nnrad,idcld
-      common/radnml/nnrad,idcld               ! Radiation options
 
       integer, dimension(8) :: tvals1, tvals2
       integer, dimension(8) :: nper3hr
@@ -138,7 +136,7 @@
      & ,m,mex,mbd,nbd,ndi,ndi2,nem,nhor,nlv,nscrn
      & ,nmaxpr,nmi,nonl,nrot,nrad,ntaft,ntsea
      & ,ntsur,ntvdr,nvad,nvadh,nvmix,nxmap
-     & ,restol,precon,kdate_s,ktime_s,leap,newtop,idcld,mup
+     & ,restol,precon,kdate_s,ktime_s,leap,newtop,mup
      & ,lgwd,ngwd,rhsat
      & ,nextout,hdifmax,jalbfix
      & ,nalpha
@@ -318,13 +316,13 @@
       
       call ccmpi_bcast(idum(1:5),0,comm_world)
       call ccmpi_bcast(rdum(1:3),0,comm_world)
-      il_g=idum(1)
-      kl=idum(2)
+      il_g   =idum(1)
+      kl     =idum(2)
       lapsbot=idum(3)
-      isoth=idum(4)
-      nsig=idum(5)
-      rlong0=rdum(1)
-      rlat0=rdum(2)
+      isoth  =idum(4)
+      nsig   =idum(5)
+      rlong0 =rdum(1)
+      rlat0  =rdum(2)
       schmidt=rdum(3)
 
       !--------------------------------------------------------------
@@ -1400,7 +1398,6 @@
         write(6,*) "Before radiation"
       end if
       odcalc=mod(ktau,kountr)==0.or.ktau==1 ! ktau-1 better
-      nnrad=kountr
       if (nhstest<0) then ! aquaplanet test -1 to -8  
        mtimer_sav=mtimer
        mtimer=mins_gmt     ! so radn scheme repeatedly works thru same day
@@ -2025,12 +2022,12 @@
       include 'parm.h'      ! Model configuration
       include 'parmgeom.h'  ! Coordinate data
             
-      character(len=*) filename
-      character(len=47) header
       integer ifully,ilx,jlx,ierr
       integer itss(ifully)
       integer glob2d(ifull_g)
       real rlong0x,rlat0x,schmidtx,dsx
+      character(len=*) filename
+      character(len=47) header
 
       if ( myid == 0 ) then
         write(6,*) 'reading data via readint from ',filename
@@ -2085,13 +2082,13 @@
       include 'parm.h'      ! Model configuration
       include 'parmgeom.h'  ! Coordinate data
 
-      character(len=*) filename
-      character(len=47) header
+      integer ierr
+      integer ilx,jlx,ifully
       real tss(ifully)
       real glob2d(ifull_g)
       real rlong0x,rlat0x,schmidtx,dsx
-      integer ierr
-      integer ilx,jlx,ifully
+      character(len=*) filename
+      character(len=47) header
 
       if ( myid == 0 ) then
         write(6,*) 'reading data via readreal from ',trim(filename)
@@ -2210,8 +2207,6 @@
       common/leap_yr/leap          ! Leap year (1 to allow leap years)
       integer nbarewet,nsigmf
       common/nsib/nbarewet,nsigmf  ! Land-surface options
-      integer nnrad,idcld
-      common/radnml/nnrad,idcld    ! Radiation options
 
 !     for cardin
       data ia/1/,ib/3/,id/2/,ja/1/,jb/10/,jd/5/,nlv/1/,
@@ -2254,7 +2249,7 @@ c     data nstag/99/,nstagu/99/
       data acon/.2/,bcon/.07/,qgmin/1.e-6/,rcm/.92e-5/,
      &     rcrit_l/.75/,rcrit_s/.85/ 
 !     Radiation options
-      data nrad/4/,ndiur/1/,idcld/1/
+      data nrad/4/,ndiur/1/
       data nmr/0/,bpyear/0./
 !     Cloud options
       data ldr/1/,nclddia/1/,nstab_cld/0/,nrhcrit/10/,sigcll/.95/ 
@@ -2284,7 +2279,7 @@ c     data nstag/99/,nstagu/99/
 !     Ocean options
       data nmlo/0/
 !     Aerosol options
-      data iaero/0/
+      data iaero/0/      
 
 c     initialize file names to something
       data albfile/' '/,icefile/' '/,maskfile/' '/
