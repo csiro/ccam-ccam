@@ -1,4 +1,4 @@
-      subroutine outfile(iout,rundate,nmi,nwrite,nstagin)
+      subroutine outfile(iout,rundate,nwrite,nstagin)
       use arrays_m
       use cc_mpi
       use pbl_m
@@ -13,7 +13,7 @@
 #include "log.h"
 
       integer io_outt
-      integer iout,nmi,nwrite,nstagin
+      integer iout,nwrite,nstagin
       character(len=80) :: co2out,radonout,surfout
       character(len=20) :: qgout
       character(len=8) :: rundate
@@ -119,10 +119,10 @@ c---------------------------------------------------------------------------
       if(io_outt==1)then  ! for netcdf
          if(iout==19)then
             if ( myid==0 ) write(6,*) 'restart write of data to cdf'
-            call outcdf(rundate,nmi,-1,nstagin)
+            call outcdf(rundate,-1,nstagin)
          else
             if ( myid==0 ) write(6,*) 'calling outcdf from outfile'
-            call outcdf(rundate,nmi,1,nstagin)
+            call outcdf(rundate,1,nstagin)
          end if ! (iout==19) ..else..
       endif ! (io_outt.eq.1)
 

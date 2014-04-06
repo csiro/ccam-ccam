@@ -5,7 +5,7 @@
       ! Note that nested files are split over processors (see
       ! onthefly.f).
 
-      subroutine indata(hourst,newsnow,jalbfix,lapsbot,isoth,nsig)
+      subroutine indata(hourst,jalbfix,lapsbot,isoth,nsig)
      
       use aerointerface                        ! Aerosol interface
       use arrays_m                             ! Atmosphere dyamics prognostic arrays
@@ -68,7 +68,7 @@
       real, parameter :: deltheta = 10. ! vertical variation
       real, parameter :: rkappa = 2./7.
 
-      integer, intent(in) :: newsnow,jalbfix
+      integer, intent(in) :: jalbfix
       integer, dimension(3) :: spos,npos
       integer i1, ii, imo, indexi, indexl, indexs, ip, iq, isoil, isoth,
      &     iveg, iyr, j1, jj, k, kdate_sav, ktime_sav, l,
@@ -739,12 +739,6 @@
         if (myid==0) write(6, tin)
 
       endif   ! (io_in<4)
-
-      if(newsnow==1)then  ! don't do this for restarts
-!       snowd is read & used in cm (i.e. as mm of water)
-        call readreal(snowfile,snowd,ifull)
-        if (mydiag) write(6,"('snowd# in',9f8.2)") diagvals(snowd)
-      endif    !  (newsnow==1) .. else ..
 
 
       !-----------------------------------------------------------------

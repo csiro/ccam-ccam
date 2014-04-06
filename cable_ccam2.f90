@@ -13,6 +13,8 @@ module cable_ccam
 !   since the input files can be modified at runtime (not all months are loaded
 !   at once), then we can support off-line evolving/dynamic vegetation, etc.
 
+! The following mappings between IGBP and CSIRO PFT were recommended by RL
+    
 ! ivegt   IGBP type                             CSIRO PFT
 ! 1       Evergreen Needleleaf Forest           1.  Evergreen Needleleaf
 ! 2       Evergreen Broadleaf Forest            1.  Evergreen Broadleaf
@@ -100,9 +102,10 @@ implicit none
 private
 public sib4,loadcbmparm,loadtile,savetiledef,savetile,cableinflow,cbmemiss
 
+! The following options will eventually be moved to the globpe.f namelist
 integer, parameter :: proglai        = 0 ! 0 prescribed LAI, 1 prognostic LAI
 integer, parameter :: tracerco2      = 0 ! 0 use radiation CO2, 1 use tracer CO2 
-real, parameter :: minfrac = 0.01 ! minimum non-zero tile fraction (improves load balancing)
+real, parameter :: minfrac = 0.01        ! minimum non-zero tile fraction (improves load balancing)
 
 integer, dimension(:), allocatable, save :: cmap
 integer, dimension(5,2), save :: pind  
@@ -161,7 +164,6 @@ include 'const_phys.h'
 include 'dates.h'
 include 'parm.h'
 
-! for calculation of zenith angle
 real fjd,r1,dlt,slag,dhr,alp,x,esatf
 real, dimension(ifull) :: coszro2,taudar2,tmps,hruff_grmx,atmco2
 real, dimension(mp) :: swdwn
@@ -170,7 +172,7 @@ real(r_2), dimension(mp) :: xkleaf,xnplimit,xNPuptake,xklitter
 real(r_2), dimension(mp) :: xksoil
 integer jyear,jmonth,jday,jhour,jmin
 integer k,mins,nb,iq,j
-integer :: idoy
+integer idoy
 
 cansto=0.
 fwet=0.
@@ -186,58 +188,63 @@ vlai=0.
 ! abort calculation if no land points on this processor  
 if (mp<=0) return
 
-! set meteorological forcing
+! calculate zenith angle
 dhr = dt/3600.
 call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
 fjd = float(mod(mins,525600))/1440.
 call solargh(fjd,bpyear,r1,dlt,alp,slag)
 call zenith(fjd,r1,dlt,slag,rlatt,rlongg,dhr,ifull,coszro2,taudar2)
-met%doy=fjd
-met%tk=theta(cmap)
-met%tvair=met%tk
-met%tvrad=met%tk
-met%ua=vmod(cmap)
-met%ua=max(met%ua,c%umin)
+
+! calculate CO2 concentration
 call setco2for(atmco2)
-met%ca=1.e-6*atmco2(cmap)
-met%coszen=max(1.e-8,coszro2(cmap)) ! use instantaneous value
-met%qv=qg(cmap,1)         ! specific humidity in kg/kg
-met%pmb=0.01*ps(cmap)     ! pressure in mb at ref height
-met%precip=condx(cmap)    ! in mm not mm/sec
-met%precip_sn=conds(cmap) ! in mm not mm/sec
-met%hod=real(mtimer+jhour*60+jmin)/60.+rlongg(cmap)*12./pi
-met%hod=mod(met%hod,24.)
-rough%za_tq=(bet(1)*t(cmap,1)+phi_nh(cmap,1))/grav ! reference height
-rough%za_uv=rough%za_tq
+
+! set meteorological forcing
+met%doy         =fjd
+met%tk          =theta(cmap)
+met%tvair       =met%tk
+met%tvrad       =met%tk
+met%ua          =vmod(cmap)
+met%ua          =max(met%ua,c%umin)
+met%ca          =1.e-6*atmco2(cmap)
+met%coszen      =max(1.e-8,coszro2(cmap)) ! use instantaneous value
+met%qv          =qg(cmap,1)               ! specific humidity in kg/kg
+met%pmb         =0.01*ps(cmap)            ! pressure in mb at ref height
+met%precip      =condx(cmap)              ! in mm not mm/sec
+met%precip_sn   =conds(cmap)              ! in mm not mm/sec
+met%hod         =real(mtimer+jhour*60+jmin)/60.+rlongg(cmap)*12./pi
+met%hod         =mod(met%hod,24.)
+rough%za_tq     =(bet(1)*t(cmap,1)+phi_nh(cmap,1))/grav ! reference height
+rough%za_uv     =rough%za_tq
 ! swrsave indicates the fraction of net VIS radiation (compared to NIR)
 ! fbeamvis indicates the beam fraction of downwelling direct radiation (compared to diffuse) for VIS
 ! fbeamnir indicates the beam fraction of downwelling direct radiation (compared to diffuse) for NIR
-swdwn=sgsave(cmap)/(1.-swrsave(cmap)*albvisnir(cmap,1)-(1.-swrsave(cmap))*albvisnir(cmap,2)) ! short wave down (positive) W/m^2
-met%fsd(:,1)=swrsave(cmap)*swdwn
-met%fsd(:,2)=(1.-swrsave(cmap))*swdwn
-rad%fbeam(:,1)=fbeamvis(cmap)
-rad%fbeam(:,2)=fbeamnir(cmap)
-rad%fbeam(:,3)=0. ! dummy for now
-met%fld=-rgsave(cmap) ! long wave down (positive) W/m^2
-! Interpolate lai.  Also need sigmf for LDR prognostic aerosols.
+! swdwn is downwelling shortwave (positive) W/m^2
+swdwn           =sgsave(cmap)/(1.-swrsave(cmap)*albvisnir(cmap,1)-(1.-swrsave(cmap))*albvisnir(cmap,2))
+met%fsd(:,1)    =swrsave(cmap)*swdwn
+met%fsd(:,2)    =(1.-swrsave(cmap))*swdwn
+rad%fbeam(:,1)  =fbeamvis(cmap)
+rad%fbeam(:,2)  =fbeamnir(cmap)
+rad%fbeam(:,3)  =0.            ! dummy for now
+met%fld         =-rgsave(cmap) ! long wave down (positive) W/m^2
+rough%hruff     =max(0.01,veg%hc-1.2*ssnow%snowd/max(ssnow%ssdnn,100.))
+rough%hruff_grmx=rough%hruff ! Does nothing in CABLE v2.0
+
+! Interpolate LAI.  Also need sigmf for LDR prognostic aerosols.
 call setlai(sigmf,jyear,jmonth,jday,jhour,jmin)
 
-rough%hruff=max(0.01,veg%hc-1.2*ssnow%snowd/max(ssnow%ssdnn,100.))
-rough%hruff_grmx=rough%hruff ! Does nothing in CABLE v2.0
-  
 !--------------------------------------------------------------
 ! CABLE
-ktau_gl=900
-kend_gl=999
-ssnow%owetfac = ssnow%wetfac
-canopy%oldcansto=canopy%cansto
+ktau_gl          = 900
+kend_gl          = 999
+ssnow%owetfac    = ssnow%wetfac
+canopy%oldcansto = canopy%cansto
 call ruff_resist(veg,rough,ssnow,canopy)
 call define_air(met,air)
 call init_radiation(met,rad,veg,canopy)
 call surface_albedo(ssnow,veg,met,rad,soil,canopy)
 call define_canopy(bal,rad,rough,air,met,dt,ssnow,soil,veg,canopy)
-ssnow%otss_0 = ssnow%otss
-ssnow%otss = ssnow%tss
+ssnow%otss_0  = ssnow%otss
+ssnow%otss    = ssnow%tss
 ssnow%owetfac = ssnow%wetfac
 call soil_snow(dt,soil,ssnow,canopy,met,bal,veg)
 ! adjust for new soil temperature
@@ -331,11 +338,7 @@ select case (icycle)
     canopy%frpw = casaflux%crmplant(:,wood)/86400.
     canopy%frpr = casaflux%crmplant(:,xroot)/86400.
     ! Set net ecosystem exchange after adjustments to frs:
-    !if (l_vcmaxFeedbk) then
-    !  canopy%fnee = canopy%fpn+canopy%frs+canopy%frp+casaflux%clabloss/86400.
-    !else
-      canopy%fnee = (casaflux%Crsoil-casaflux%cnpp+casaflux%clabloss)/86400.
-    !end if
+    canopy%fnee = (casaflux%Crsoil-casaflux%cnpp+casaflux%clabloss)/86400.
   case default
     write(6,*) "ERROR: Unknown icycle ",icycle
     stop
@@ -746,29 +749,30 @@ real x
 common/leap_yr/leap  ! 1 to allow leap years
 
 select case(proglai)
-  case(0)
-    imonth = (/31,28,31,30,31,30,31,31,30,31,30,31/)
+  case(0) ! PWCB interpolated LAI
+    imonth = (/ 31,28,31,30,31,30,31,31,30,31,30,31 /)
     if (leap==1) then
       if (mod(jyear,4)  ==0) imonth(2)=29
       if (mod(jyear,100)==0) imonth(2)=28
       if (mod(jyear,400)==0) imonth(2)=29
     end if
-
     monthstart=1440*(jday-1) + 60*jhour + jmin ! mins from start month
     x=min(max(real(mtimer+monthstart)/real(1440*imonth(jmonth)),0.),1.)
-    veg%vlai=vl1+vl2*x+vl3*x*x ! LAI as a function of time
-  case(1)
+    veg%vlai(:)=vl1(:)+vl2(:)*x+vl3(:)*x*x     ! LAI as a function of time
+
+  case(1) ! prognostic LAI
     if (icycle==0) then
       write(6,*) "ERROR: CASA CNP LAI is not operational"
       call ccmpi_abort(-1)
     end if
-    veg%vlai=casamet%glai
+    veg%vlai(:)=casamet%glai(:)
+
   case default
     write(6,*) "ERROR: Unknown proglai option ",proglai
     stop
 end select
 
-sigmf=0.
+sigmf(:)=0.
 do nb=1,maxnb
   sigmf(cmap(pind(nb,1):pind(nb,2)))=sigmf(cmap(pind(nb,1):pind(nb,2))) &
     +sv(pind(nb,1):pind(nb,2))*(1.-exp(-vextkn*veg%vlai(pind(nb,1):pind(nb,2))))
@@ -845,42 +849,40 @@ if (cbm_ms/=ms) then
 end if
 
 ! redefine rhos
-rhos=(/ 1600.,1595.,1381.,1373.,1476.,1521.,1373.,1537.,1455.,2600.,2600.,2600.,2600. /)
+rhos=(/ 1600., 1595., 1381., 1373., 1476., 1521., 1373., 1537., 1455., 2600., 2600., 2600., 2600. /)
 
-hc=(/ 17.,35.,15.5,20.,0.6,0.567,0.567,0.567,0.55,0.55,0.567,0.2,6.017,0.2,0.2,0.2,0.2 /)
-xfang=(/ 0.01,0.1,0.01,0.25,0.01,-0.3,-0.3,-0.3,-0.3,-0.3,-0.3,0.1,0.,0.,0.,0.,0. /)
-leaf_w=(/ 0.001,0.05,0.001,0.08,0.005,0.01,0.01,0.01,0.01,0.01,0.01,0.03,0.015,0.00,0.00,0.00,0.00 /)
-leaf_l=(/ 0.055,0.10,0.040,0.15,0.100,0.30,0.30,0.30,0.30,0.30,0.30,0.30,0.242,0.03,0.03,0.03,0.03 /)
+! biophysical parameter tablesa
+hc=(/ 17., 35., 15.5, 20., 0.6, 0.567, 0.567, 0.567, 0.55, 0.55, 0.567, 0.2, 6.017, 0.2, 0.2, 0.2, 0.2 /)
+xfang=(/ 0.01, 0.1, 0.01, 0.25, 0.01, -0.3, -0.3, -0.3, -0.3, -0.3, -0.3, 0.1, 0., 0., 0., 0., 0. /)
+leaf_w=(/ 0.001, 0.05, 0.001, 0.08, 0.005, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.03, 0.015, 0.00, 0.00, 0.00, 0.00 /)
+leaf_l=(/ 0.055, 0.10, 0.040, 0.15, 0.100, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.242, 0.03, 0.03, 0.03, 0.03 /)
 canst1=0.1
 shelrb=2.
-extkn=0.001 ! new definition for nitrogen (CABLE v1.9b)
+extkn=0.001 ! new definition for nitrogen (since CABLE v1.9b)
 refl(:,1)=(/ 0.043,0.053,0.050,0.064,0.120,0.099,0.080,0.058,0.080,0.050,0.060,0.031,0.051,0.175,0.079,0.079,0.159 /)
 refl(:,2)=(/ 0.211,0.245,0.242,0.266,0.480,0.423,0.320,0.171,0.320,0.200,0.191,0.105,0.172,0.336,0.153,0.153,0.305 /)
 taul(:,1)=(/ 0.035,0.035,0.040,0.035,0.060,0.063,0.080,0.040,0.080,0.050,0.041,0.013,0.033,0.029,0.013,0.013,0.026 /)
 taul(:,2)=(/ 0.120,0.250,0.120,0.250,0.192,0.200,0.165,0.124,0.165,0.125,0.081,0.110,0.181,0.126,0.063,0.063,0.063 /)
 vegcf=(/ 9., 14., 9., 8., 5., 7., 7., 5., 7., 1., 7., 1., 1., 1., 1., 1., 1. /)
-vcmax=(/ 40.E-6,55.E-6,40.E-6,60.E-6,40.E-6,60.E-6,10.E-6,40.E-6,80.E-6,80.E-6,60.E-6,17.E-6,1.E-6,17.E-6, &
-         17.E-6,17.E-6,17.E-6 /)
+vcmax=(/ 40.E-6, 55.E-6, 40.E-6, 60.E-6, 40.E-6, 60.E-6, 10.E-6, 40.E-6, 80.E-6, 80.E-6, & 
+         60.E-6, 17.E-6, 1.E-6, 17.E-6, 17.E-6, 17.E-6, 17.E-6 /)
 ejmax=2.*vcmax
-rp20=(/ 3.,0.6,3.,2.2,1.,1.5,2.8,2.5,1.5,1.,1.5,1.,1.,1.,1.,1.,1. /)
+rp20=(/ 3., 0.6, 3., 2.2, 1., 1.5, 2.8, 2.5, 1.5, 1., 1.5, 1., 1., 1., 1., 1., 1. /)
 rpcoef=0.0832
-rs20=(/ 1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,0.,1.,0.,0.,0.,0. /)
-tminvj=(/ -15.,-15., 5., 5.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15. /)
-tmaxvj=(/ -10.,-10.,10.,15.,-10.,-10.,-10.,-10.,-10.,-10.,-10.,-10.,-10.,-10.,-10.,-10.,-10. /)
-!vbeta=(/ 2.,2.,2.,2.,4.,4.,4.,4.,2.,2.,4.,4.,2.,4.,4.,4.,4. /)
-vbeta=(/ 1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1. /)
-rootbeta=(/ 0.943,0.962,0.966,0.961,0.964,0.943,0.943,0.943,0.961,0.961,0.943,0.975,0.961,0.961,0.961,0.961,0.961 /)
-tcplant(:,1)=(/ 200.  ,300.  ,200.  ,300.  ,159.  ,250. ,250. ,250. ,150. ,150. ,250.,1.  ,0.1,0.  ,1.,1.,0. /)
-tcplant(:,2)=(/ 10217.,16833.,5967. ,12000.,5000. ,0.   ,0.   ,0.   ,0.   ,0.   ,0.  ,0.  ,0. ,0.  ,0.,0.,0. /)
-tcplant(:,3)=(/ 876.  ,1443. ,511.  ,1029. ,500.  ,500. ,500. ,500. ,607. ,607. ,500.,1.  ,0.1,0.  ,1.,1.,0. /)
-tcsoil(:,1)=(/ 184.   ,303.  ,107.  ,216.  ,100.  ,275. ,275. ,275. ,149. ,149. ,275.,1.  ,0.1,1.  ,1.,1.,1. /)
-tcsoil(:,2)=(/ 367.   ,606.  ,214.  ,432.  ,250.  ,314. ,314. ,314. ,300. ,300. ,314.,1.  ,0.1,1.  ,1.,1.,1. /)
-ratecp(1)=1.
-ratecp(2)=0.03
-ratecp(3)=0.14
-ratecs(1)=2.
-ratecs(2)=0.5
-c4frac=(/ 0.,0.,0.,0.,0.,0.,1.,0.,0.,1.,0.,0.,0.,0.,0.,0.,0. /)
+rs20=(/ 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 0., 1., 0., 0., 0., 0. /)
+tminvj=(/ -15., -15., 5.,  5.,  -15., -15., -15., -15., -15., -15., -15., -15., -15., -15., -15., -15., -15. /)
+tmaxvj=(/ -10., -10., 10., 15., -10., -10., -10., -10., -10., -10., -10., -10., -10., -10., -10., -10., -10. /)
+vbeta=1.
+rootbeta=(/ 0.943, 0.962, 0.966, 0.961, 0.964, 0.943, 0.943, 0.943, 0.961, 0.961, &
+            0.943, 0.975, 0.961, 0.961, 0.961, 0.961, 0.961 /)
+tcplant(:,1)=(/ 200.  , 300.  , 200.  , 300.  , 159.  , 250. , 250. , 250. , 150. , 150. , 250., 1., 0.1, 0., 1., 1., 0. /)
+tcplant(:,2)=(/ 10217., 16833., 5967. , 12000., 5000. , 0.   , 0.   , 0.   , 0.   , 0.   , 0.  , 0., 0.,  0., 0., 0., 0. /)
+tcplant(:,3)=(/ 876.  , 1443. , 511.  , 1029. , 500.  , 500. , 500. , 500. , 607. , 607. , 500., 1., 0.1, 0., 1., 1., 0. /)
+tcsoil(:,1)=(/ 184.   , 303.  , 107.  , 216.  , 100.  , 275. , 275. , 275. , 149. , 149. , 275., 1., 0.1, 1., 1., 1., 1. /)
+tcsoil(:,2)=(/ 367.   , 606.  , 214.  , 432.  , 250.  , 314. , 314. , 314. , 300. , 300. , 314., 1., 0.1, 1., 1., 1., 1. /)
+ratecp(1:3)=(/ 1., 0.03, 0.14 /)
+ratecs(1:2)=(/ 2., 0.5 /)
+c4frac=(/ 0., 0., 0., 0., 0., 0., 1., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0. /)
 
 ! read CABLE biome and LAI data
 if (myid==0) then

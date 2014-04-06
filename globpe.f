@@ -107,12 +107,12 @@
       integer, dimension(8) :: nper3hr
       integer, dimension(5) :: idum
       integer, dimension(:,:), allocatable, save :: dumd
-      integer ier, igas, ilx, io_nest, iq, irest, isoil, itr1
-      integer itr2, jalbfix, jlx, jtr1, jtr2, k,k2, kktau, mexrest
-      integer mins_dt, mins_gmt, mspeca, mtimer_in, nalpha, newsnow
-      integer ng, nlx, nmaxprsav, nmi, npa, npb, npc, n3hr, nsnowout
+      integer ier, igas, ilx, io_nest, iq, irest, isoil
+      integer jalbfix, jlx, k, k2, kktau
+      integer mins_dt, mins_gmt, mspeca, mtimer_in, nalpha
+      integer ng, nlx, nmaxprsav, npa, npb, n3hr
       integer nstagin, nstaguin, nwrite, nwtsav, mins_rad, mtimer_sav
-      integer nn, i, j, mstn, nproc_in, ierr, nperhr, nscrn, nversion
+      integer nn, i, j, mstn, nproc_in, ierr, nperhr, nversion
       integer ierr2, kmax, isoth, nsig, lapsbot
       real, dimension(:,:), allocatable, save :: dums
       real, dimension(:), allocatable, save :: spare1,spare2
@@ -123,7 +123,7 @@
       real gke, hourst, hrs_dt, evapavge, precavge, preccavge, psavge
       real pslavge, pwater, rel_lat, rel_long, rlwup, spavge, pwatr
       real pwatr_l, qtot, aa, bb, cc, bb_2, cc_2, rat
-      character(len=60) comm,comment
+      character(len=60) comm, comment
       character(len=47) header
       character(len=10) timeval
       character(len=8) rundate
@@ -131,32 +131,31 @@
       logical odcalc
 
       namelist/defaults/nversion
-      namelist/cardin/comment,dt,ntau,nwt,npa,npb,npc,nhorps,nperavg
-     & ,ia,ib,ja,jb,itr1,jtr1,itr2,jtr2,id,jd,iaero,khdif,khor,nhorjlm
-     & ,m,mex,mbd,nbd,ndi,ndi2,nem,nhor,nlv,nscrn
-     & ,nmaxpr,nmi,nonl,nrot,nrad,ntaft,ntsea
-     & ,ntsur,ntvdr,nvad,nvadh,nvmix,nxmap
-     & ,restol,precon,kdate_s,ktime_s,leap,newtop,mup
-     & ,lgwd,ngwd,rhsat
-     & ,nextout,hdifmax,jalbfix
-     & ,nalpha
-     & ,nstag,nstagu,ntbar,nwrite
-     & ,irest,nrun,nstn,rel_lat,rel_long,nrungcm,nsib
-     & ,istn,jstn,iunp,nrotstn,slat,slon,zstn,name_stn
-     & ,mexrest,mh_bs,ndept,nritch_t,nt_adv
-     & ,mfix,mfix_qg,namip,amipo3,nh,npex,nhstest,nsemble
-     & ,nspecial,panfg,panzo,nplens,rlatdn,rlatdx,rlongdn,rlongdx
-     & ,newsnow,nsnowout,newrough,newsoilm,nglacier,newztsea
-     & ,epsp,epsu,epsf
-     & ,av_vmod,charnock,chn10,snmin,tss_sh,vmodmin,zobgin
-     & ,rlong0,rlat0,schmidt
-     & ,kbotdav,kbotu,nbox,nud_p,nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs
-     & ,nlocal,nvsplit,nbarewet,nsigmf,qgmin
-     & ,io_clim ,io_in,io_nest,io_out,io_rest,io_spec,localhist   
-     & ,m_fly,mstn,nqg,nurban,nmr,ktopdav,nud_sst,nud_sss
-     & ,mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv
-     & ,nud_sfh,bpyear,rescrn,helmmeth,nmlo,ol,mxd,mindep,minwater
-     & ,ocnsmag,ocneps,fixsal,fixheight,knh,ccycle,kblock
+      namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,
+     &    ia,ib,ja,jb,id,jd,iaero,khdif,khor,
+     &    nhorjlm,m,mex,mbd,nbd,ndi,ndi2,nem,nhor,nlv,
+     &    nmaxpr,nonl,nrot,nrad,ntaft,ntsea,
+     &    ntsur,ntvdr,nvad,nvadh,nvmix,nxmap,
+     &    restol,precon,kdate_s,ktime_s,leap,newtop,mup,
+     &    lgwd,ngwd,rhsat,
+     &    nextout,hdifmax,jalbfix,nalpha,
+     &    nstag,nstagu,ntbar,nwrite,
+     &    irest,nrun,nstn,rel_lat,rel_long,nrungcm,nsib,
+     &    istn,jstn,iunp,nrotstn,slat,slon,zstn,name_stn,
+     &    mh_bs,ndept,nritch_t,nt_adv,
+     &    mfix,mfix_qg,namip,amipo3,nh,npex,nhstest,nsemble,
+     &    nspecial,panfg,panzo,nplens,rlatdn,rlatdx,rlongdn,rlongdx,
+     &    newrough,newsoilm,nglacier,newztsea,
+     &    epsp,epsu,epsf,
+     &    av_vmod,charnock,chn10,snmin,tss_sh,vmodmin,zobgin,
+     &    rlong0,rlat0,schmidt,
+     &    kbotdav,kbotu,nbox,nud_p,nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs,
+     &    nlocal,nvsplit,nbarewet,nsigmf,qgmin,
+     &    io_clim ,io_in,io_nest,io_out,io_rest,io_spec,localhist,
+     &    m_fly,mstn,nqg,nurban,nmr,ktopdav,nud_sst,nud_sss,
+     &    mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,
+     &    nud_sfh,bpyear,rescrn,helmmeth,nmlo,ol,mxd,mindep,minwater,
+     &    ocnsmag,ocneps,fixsal,fixheight,knh,ccycle,kblock
       namelist/skyin/mins_rad,ndiur
       namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,
      &    hfile,icefile,mesonest,nmifile,o3file,radfile,restfile,
@@ -166,39 +165,38 @@
      &    co2_00,radon_00,surf_00,co2_12,radon_12,surf_12,
      &    laifile,albnirfile,urbanfile,bathfile,vegprev,vegnext,
      &    cnsdir,salfile,oxidantfile,casafile,phenfile
-      namelist/kuonml/alflnd,alfsea
-     &        ,cldh_lnd,cldm_lnd,cldl_lnd
-     &        ,cldh_sea,cldm_sea,cldl_sea
-     &        ,convfact,convtime,shaltime
-     &        ,detrain,detrainx,dsig2,dsig4,entrain,fldown,iterconv
-     &        ,ksc,kscmom,kscsea,ldr,mbase,mdelay,methdetr,methprec
-     &        ,nbase,nclddia,ncvcloud
-     &        ,ncvmix,nevapcc,nevapls,nkuo,nrhcrit,nstab_cld
-     &        ,nuvconv,rhcv,rhmois,rhsat
-     &        ,sigcb,sigcll,sig_ct,sigkscb,sigksct
-     &        ,tied_con,tied_over,tied_rh,comm
-     &        ,acon,bcon,rcm,rcrit_l,rcrit_s,ncloud
+      namelist/kuonml/alflnd,alfsea,
+     &    cldh_lnd,cldm_lnd,cldl_lnd,
+     &    cldh_sea,cldm_sea,cldl_sea,
+     &    convfact,convtime,shaltime,
+     &    detrain,detrainx,dsig2,dsig4,entrain,fldown,iterconv,
+     &    ksc,kscmom,kscsea,ldr,mbase,mdelay,methdetr,methprec,
+     &    nbase,nclddia,ncvcloud,
+     &    ncvmix,nevapcc,nevapls,nkuo,nrhcrit,nstab_cld,
+     &    nuvconv,rhcv,rhmois,rhsat,
+     &    sigcb,sigcll,sig_ct,sigkscb,sigksct,
+     &    tied_con,tied_over,tied_rh,comm,
+     &    acon,bcon,rcm,rcrit_l,rcrit_s,ncloud
 
-      data nscrn/0/,nversion/0/,lapsbot/0/
-      data npc/40/,nmi/0/,io_nest/1/,newsnow/0/      
-      data itr1/23/,jtr1/13/,itr2/25/,jtr2/11/
+      data nversion/0/
       data comment/' '/,comm/' '/,irest/1/,jalbfix/1/,nalpha/1/
-      data mexrest/6/,mins_rad/60/,nwrite/0/,nsnowout/999999/
-
+      data mins_rad/60/,nwrite/0/
+      data lapsbot/0/,io_nest/1/                                 ! depreciated
+      
 #include "log.h"
  
 #ifndef stacklimit
-      ! For linux only
+      ! For linux only - removes stacklimit on all processors
       call setstacklimit(-1)
 #endif
 
 #ifdef i8r8
-      if (kind(iq)/=8) then
+      if (kind(iq)/=8.or.kind(es)/=8) then
         write(6,*) "ERROR: CCAM configured for double precision"
         stop
       end if
 #else
-      if (kind(iq)/=4) then
+      if (kind(iq)/=4.or.kind(es)/=4) then
         write(6,*) "ERROR: CCAM configured for single precision"
         stop
       end if
@@ -238,7 +236,6 @@
         call change_defaults(nversion)
       end if
       read (99, cardin)
-      npc     =max(npc,1)
       nperday =nint(24.*3600./dt)
       nperhr  =nint(3600./dt)
       do n3hr=1,8
@@ -261,10 +258,10 @@
       read (99, datafile)
       read (99, kuonml)
       ngas=0
-      read (99, trfiles, iostat=ierr)      ! try reading tracer namelist.  If no
-      if (ierr/=0) rewind(99)              ! namelist is found, then disable
+      read (99, trfiles, iostat=ierr)       ! try reading tracer namelist.  If no
+      if (ierr/=0) rewind(99)               ! namelist is found, then disable
       if (tracerlist/=' ') call init_tracer ! tracers and rewind namelist.
-      nagg=max(5,naero,ngas)               ! maximum size of aggregation
+      nagg=max(5,naero,ngas)                ! maximum size of aggregation
 
       !--------------------------------------------------------------
       ! READ TOPOGRAPHY FILE TO DEFINE CONFORMAL CUBIC GRID
@@ -548,9 +545,9 @@
         write (6,'(i4,i7)') knh,rescrn
         write(6,*)'I/O options:'
         write(6,*)' m_fly  io_in io_nest io_out io_rest  nwt',
-     &            '  nperavg   nscrn'
+     &            '  nperavg'
         write (6,'(i5,4i7,3i8)') 
-     &        m_fly,io_in,io_nest,io_out,io_rest,nwt,nperavg,nscrn
+     &        m_fly,io_in,io_nest,io_out,io_rest,nwt,nperavg
         if(ntrac/=0)then
           write(6,*)'Trace gas options:'
           write(6,*)' ngas   nllp   ntrac'
@@ -789,7 +786,7 @@
         write(6,*)'ncid,ifile ',ncid,ifile
         write(6,*)'calling indata; will read from file ',ifile
       end if
-      call indata(hourst,newsnow,jalbfix,lapsbot,isoth,nsig)
+      call indata(hourst,jalbfix,lapsbot,isoth,nsig)
       ! onthefly.f will close ncid
 
       if (ntbar<0) then
@@ -968,16 +965,16 @@
 
       !--------------------------------------------------------------
       ! OPEN OUTPUT FILES AND SAVE INITAL CONDITIONS
-      if(nmi==0.and.nwt>0)then
+      if(nwt>0)then
 !       write out the first ofile data set
         if (myid==0) write(6,*)'calling outfile'
-        call outfile(20,rundate,nmi,nwrite,nstagin)  ! which calls outcdf
+        call outfile(20,rundate,nwrite,nstagin)  ! which calls outcdf
         if(newtop<0) then
           if (myid==0) write(6,*) 'newtop<0 requires a stop here'
           ! just for outcdf to plot zs  & write fort.22
           call ccmpi_abort(-1)
         end if
-      endif    ! (nmi==0.and.nwt/=0)
+      endif    ! (nwt>0)
 
 
       !--------------------------------------------------------------
@@ -993,7 +990,7 @@
         mspeca=2
         dt=dtin*.5
       endif
-      call gettin(0)            ! preserve initial mass & T fields; nmi too
+      call gettin(0)            ! preserve initial mass & T fields
 
       nmaxprsav=nmaxpr
       nwtsav=nwt
@@ -1839,13 +1836,13 @@
 
       call log_off()
       if(ktau==ntau.or.mod(ktau,nwt)==0)then
-        call outfile(20,rundate,nmi,nwrite,nstagin)  ! which calls outcdf
+        call outfile(20,rundate,nwrite,nstagin)  ! which calls outcdf
  
         if(ktau==ntau.and.irest==1) then
           ! Don't include the time for writing the restart file
           END_LOG(maincalc)
 !         write restart file
-          call outfile(19,rundate,nmi,nwrite,nstagin)
+          call outfile(19,rundate,nwrite,nstagin)
           if(myid==0)
      &      write(6,*)'finished writing restart file in outfile'
           START_LOG(maincalc)

@@ -7,7 +7,7 @@
 
       !--------------------------------------------------------------
       ! CONFIGURE DIMENSIONS FOR OUTPUT NETCDF FILES
-      subroutine outcdf(rundate,nmi,itype,nstagin)
+      subroutine outcdf(rundate,itype,nstagin)
 
       use cc_mpi                            ! CC MPI routines
       use infile                            ! Input file routines
@@ -38,7 +38,7 @@
       integer, parameter :: nrhead=14
       integer, dimension(nihead) :: nahead
       integer, dimension(4), save :: dim,dims,dimo
-      integer nmi, itype, nstagin
+      integer itype, nstagin
       integer xdim,ydim,zdim,tdim,msdim,ocdim
       integer icy, icm, icd, ich, icmi, ics, idv, imode
       integer, save :: idnc=0, iarch=0, idnc0=0
@@ -203,7 +203,7 @@ c       create the attributes of the header record of the file
         nahead(10)=mup
         nahead(11)=nem
         nahead(12)=mtimer
-        nahead(13)=nmi
+        nahead(13)=0         ! nmi
         nahead(14)=nint(dt)  ! needed by cc2hist
         nahead(15)=0         ! not needed now 
         nahead(16)=nhor
