@@ -116,7 +116,7 @@ C Local work arrays and variables
       real pk
       real qc
       real qfdep
-      real qfnew
+      real qfnew(ln2,nl)
       real qi0
       real qs
       real rhoic
@@ -168,14 +168,14 @@ c Note that qcg is the total cloud water (liquid+frozen)
           else
             fice(mg,k)=1.
           endif
-          qcg(mg,k)=qlg(mg,k)+qfg(mg,k)
-          qcold(mg,k)=qcg(mg,k)
-          qfnew=fice(mg,k)*qcg(mg,k)
-          ttg(mg,k)=ttg(mg,k)+hlfcp*(qfnew-qfg(mg,k)) !Release L.H. of fusion
-          qfg(mg,k)=fice(mg,k)*qcg(mg,k)
-          qlg(mg,k)=max(0.,qcg(mg,k)-qfg(mg,k))
-        enddo
-      enddo
+        end do
+      end do
+      qcg(:,:)=qlg(:,:)+qfg(:,:)
+      qcold(:,:)=qcg(:,:)
+      qfnew=fice(:,:)*qcg(:,:)
+      ttg(:,:)=ttg(:,:)+hlfcp*(qfnew-qfg(:,:)) !Release L.H. of fusion
+      qfg(:,:)=fice(:,:)*qcg(:,:)
+      qlg(:,:)=max(0.,qcg(:,:)-qfg(:,:))
 
       if(diag.and.mydiag)then
           write(6,*) 'within newcloud'
@@ -189,97 +189,79 @@ c Note that qcg is the total cloud water (liquid+frozen)
       
       if (ncloud<3) then ! usual diagnostic cloud
       
-c Precompute the array of critical relative humidities 
+! Precompute the array of critical relative humidities 
 
         if(nclddia==-3)then
           do k=1,nl
-           do mg=1,ln2
-            if(land(mg))then
-              rcrit(mg,k)=max( rcrit_l , (1.-16.*(1.-sig(k))**3) ) 
-            else
-              rcrit(mg,k)=max( rcrit_s , (1.-16.*(1.-sig(k))**3) ) 
-            endif 
-           enddo
+           where(land(1:ifull))
+            rcrit(:,k)=max( rcrit_l, (1.-16.*(1.-sig(k))**3) )
+           elsewhere
+            rcrit(:,k)=max( rcrit_s, (1.-16.*(1.-sig(k))**3) )
+           end where
           enddo
         elseif(nclddia<0)then
           do k=1,nl
-           do mg=1,ln2
-            if(land(mg))then
-              rcrit(mg,k)=max( rcrit_l , (1.-4.*(1.-sig(k))**2) ) 
-            else
-              rcrit(mg,k)=max( rcrit_s , (1.-4.*(1.-sig(k))**2) ) 
-            endif 
-           enddo
+           where(land(1:ifull))
+            rcrit(:,k)=max( rcrit_l, (1.-4.*(1.-sig(k))**2) )
+           elsewhere
+            rcrit(:,k)=max( rcrit_s, (1.-4.*(1.-sig(k))**2) )
+           end where
           enddo
          elseif(nclddia==1)then
           do k=1,nl
-           do mg=1,ln2
-            if(land(mg))then
-              rcrit(mg,k)=max(rcrit_l,sig(k)**3)          ! .75 for R21 Mk2
-            else
-              rcrit(mg,k)=max(rcrit_s,sig(k)**3)          ! .85 for R21 Mk2
-            endif
-           enddo
+           where(land(1:ifull))
+            rcrit(:,k)=max( rcrit_l, sig(k)**3 )
+           elsewhere
+            rcrit(:,k)=max( rcrit_s, sig(k)**3 )
+           end where
           enddo
         elseif(nclddia==2)then
           do k=1,nl
-           do mg=1,ln2
-            if(land(mg))then
-              rcrit(mg,k)=rcrit_l
-            else
-              rcrit(mg,k)=rcrit_s
-            endif
-           enddo
+           where(land(1:ifull))
+            rcrit(:,k)=rcrit_l
+           elsewhere
+            rcrit(:,k)=rcrit_s
+           end where
           enddo
          elseif(nclddia==3)then
           do k=1,nl
-           do mg=1,ln2
-            if(land(mg))then
-              rcrit(mg,k)=max(rcrit_l,sig(k)**2)          ! .75 for R21 Mk2
-            else
-              rcrit(mg,k)=max(rcrit_s,sig(k)**2)          ! .85 for R21 Mk2
-            endif
-           enddo
+           where(land(1:ifull))
+            rcrit(:,k)=max( rcrit_l, sig(k)**2 )          ! .75 for R21 Mk2
+           elsewhere
+            rcrit(:,k)=max( rcrit_s, sig(k)**2 )          ! .85 for R21 Mk2
+           end where
           enddo
         elseif(nclddia==4)then
           do k=1,nl
-           do mg=1,ln2
-            if(land(mg))then
-              rcrit(mg,k)=max(rcrit_l,sig(k))          ! .75 for test Mk2/3
-            else
-              rcrit(mg,k)=max(rcrit_s,sig(k))          ! .9  for test Mk2/3
-            endif
-           enddo
+           where(land(1:ifull))
+            rcrit(:,k)=max( rcrit_l, sig(k) )             ! .75 for test Mk2/3
+           elsewhere
+            rcrit(:,k)=max( rcrit_s, sig(k) )             ! .9  for test Mk2/3
+           end where
           enddo
         elseif(nclddia==5)then  ! default till May 08
           do k=1,nl
-           do mg=1,ln2
-            if(land(mg))then
-              rcrit(mg,k)=max(rcrit_l,min(.99,sig(k))) ! .75 for same as T63
-            else
-              rcrit(mg,k)=max(rcrit_s,min(.99,sig(k))) ! .85 for same as T63
-            endif
-           enddo
+           where(land(1:ifull))
+            rcrit(:,k)=max( rcrit_l, min(.99,sig(k)) )    ! .75 for same as T63
+           elsewhere
+            rcrit(:,k)=max( rcrit_s, min(.99,sig(k)) )    ! .85 for same as T63
+           end where
           enddo
          elseif(nclddia==6)then
           do k=1,nl
-           do mg=1,ln2
-            if(land(mg))then
-              rcrit(mg,k)=max(rcrit_l*(1.-.15*sig(k)),sig(k)**4)
-            else
-              rcrit(mg,k)=max(rcrit_s*(1.-.15*sig(k)),sig(k)**4)
-            endif
-           enddo
+           where(land(1:ifull))
+            rcrit(:,k)=max(rcrit_l*(1.-.15*sig(k)),sig(k)**4)
+           elsewhere
+            rcrit(:,k)=max(rcrit_s*(1.-.15*sig(k)),sig(k)**4)
+           end where
           enddo
          elseif(nclddia==7)then
           do k=1,nl
-           do mg=1,ln2
-            if(land(mg))then
-              rcrit(mg,k)=max(rcrit_l*(1.-.2*sig(k)),sig(k)**4)
-            else
-              rcrit(mg,k)=max(rcrit_s*(1.-.2*sig(k)),sig(k)**4)
-            endif
-           enddo
+           where(land(1:ifull))
+            rcrit(:,k)=max(rcrit_l*(1.-.2*sig(k)),sig(k)**4)
+           elsewhere
+            rcrit(:,k)=max(rcrit_s*(1.-.2*sig(k)),sig(k)**4)
+           end where
           enddo
         endif  ! (nclddia<0)  .. else ..
 
@@ -350,15 +332,13 @@ c Need to do first-order estimate of qcrit using mean in-cloud qc (qcic)
                 cfa(mg,k)=1.
                 qca(mg,k)=al*qc
                 if(qc2<delq)then
-                  cfa(mg,k)=max(1.e-6,1.-0.5*((qc2-delq)/delq)**2)     ! for roundoff
+                  cfa(mg,k)=1.-0.5*((qc2-delq)/delq)**2
                   qto=(qtot(mg,k)-delq+2.*(qs+qcrit/al))/3.
-                  qca(mg,k)=max(1.e-8,
-     &              al*(qtot(mg,k) - qto + cfa(mg,k)*(qto-qs)))        ! for roundoff
+                  qca(mg,k)=al*(qtot(mg,k) - qto + cfa(mg,k)*(qto-qs))
                 endif
                 if(qc2<=0.)then
-                  cfa(mg,k)=max(1.e-6,0.5*((qc2+delq)/delq)**2)        ! for roundoff
-                  qca(mg,k)=max(1.e-8,
-     &               cfa(mg,k)*(al/3.)*(2.*qcrit/al + qc+delq))        ! for roundoff
+                  cfa(mg,k)=0.5*((qc2+delq)/delq)**2
+                  qca(mg,k)=cfa(mg,k)*(al/3.)*(2.*qcrit/al + qc+delq)
                 endif
                 if(qc2<=-delq)then
                   cfa(mg,k)=0.
@@ -523,7 +503,7 @@ c              fd=fl   !Or, use option of adjacent ql,qf
               rhoic=700.
               Crate=7.8*((Cice/rhoa(mg,k))**2/rhoic)**(1./3.) !Spheres
      &              *deles/((Aprpr+Bprpr)*es)
-              qfdep=fd*cfrac(mg,k)*sqrt                         !Spheres
+              qfdep=fd*cfrac(mg,k)*sqrt                       !Spheres
      &             (((2./3.)*Crate*tdt+qi0**(2./3.))**3)
 
 c Also need this line for fully-mixed option...
@@ -542,13 +522,9 @@ c Also need this line for fully-mixed option...
 
 c Calculate new values of vapour mixing ratio and temperature
 
-      do k=1,nl
-        do mg=1,ln2
-          qtg(mg,k)=qtot(mg,k)-qcg(mg,k)
-          ttg(mg,k)=tliq(mg,k)+hlcp*qcg(mg,k)+hlfcp*qfg(mg,k)
-          ccov(mg,k)=cfrac(mg,k)      !Do this for now
-        enddo
-      enddo
+      qtg(:,:)=qtot(:,:)-qcg(:,:)
+      ttg(:,:)=tliq(:,:)+hlcp*qcg(:,:)+hlfcp*qfg(:,:)
+      ccov(:,:)=cfrac(:,:)      !Do this for now
 
 c Vertically sub-grid cloud
 

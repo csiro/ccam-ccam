@@ -1291,8 +1291,8 @@ c          detrfactr(iq)=detrfactr(iq)+detrarr(k,kb_sav(iq),kt_sav(iq))   ! just
         endif
         do k=1,kl-2   
          do iq=1,ifull
-          u(iq,k)=u(iq,k)+facuv*factr(iq)*convpsav(iq)*delu(iq,k)/dsk(k)
-          v(iq,k)=v(iq,k)+facuv*factr(iq)*convpsav(iq)*delv(iq,k)/dsk(k)
+          u(iq,k)=u(iq,k)+facuv*convpsav(iq)*delu(iq,k)/dsk(k)
+          v(iq,k)=v(iq,k)+facuv*convpsav(iq)*delv(iq,k)/dsk(k)
          enddo  ! iq loop
         enddo   ! k loop
         if(ntest>0.and.mydiag)then
@@ -1314,7 +1314,7 @@ c          detrfactr(iq)=detrfactr(iq)+detrarr(k,kb_sav(iq),kt_sav(iq))   ! just
           if(kt_sav(iq)<kl-1)then
             kb=kb_sav(iq)
             kt=kt_sav(iq)
-            veldt=factr(iq)*convpsav(iq)*(1.-fldow(iq)) ! simple treatment
+            veldt=convpsav(iq)*(1.-fldow(iq)) ! simple treatment
             fluxup=veldt*s(iq,kb)
 !           remove gas from cloud base layer
             tr(iq,kb,ntr)=tr(iq,kb,ntr)-fluxup/dsk(kb)
@@ -1336,7 +1336,7 @@ c          detrfactr(iq)=detrfactr(iq)+detrarr(k,kb_sav(iq),kt_sav(iq))   ! just
          if(kt_sav(iq)<kl-1)then
            kb=kb_sav(iq)
            kt=kt_sav(iq)
-           veldt=factr(iq)*convpsav(iq)*(1.-fldow(iq)) ! simple treatment
+           veldt=convpsav(iq)*(1.-fldow(iq)) ! simple treatment
            fluxup=veldt*s(iq,kb)
 !          remove tke from cloud base layer
            tke(iq,kb)=tke(iq,kb)-fluxup/dsk(kb)
@@ -1353,7 +1353,7 @@ c          detrfactr(iq)=detrfactr(iq)+detrarr(k,kb_sav(iq),kt_sav(iq))   ! just
          if(kt_sav(iq)<kl-1)then
            kb=kb_sav(iq)
            kt=kt_sav(iq)
-           veldt=factr(iq)*convpsav(iq)*(1.-fldow(iq)) ! simple treatment
+           veldt=convpsav(iq)*(1.-fldow(iq)) ! simple treatment
            fluxup=veldt*s(iq,kb)
 !          remove eps from cloud base layer
            eps(iq,kb)=eps(iq,kb)-fluxup/dsk(kb)
@@ -1388,7 +1388,7 @@ c          detrfactr(iq)=detrfactr(iq)+detrarr(k,kb_sav(iq),kt_sav(iq))   ! just
            if(kt_sav(iq)<kl-1)then
              kb=kb_sav(iq)
              kt=kt_sav(iq)
-             veldt=factr(iq)*convpsav(iq)*(1.-fldow(iq)) ! simple treatment
+             veldt=convpsav(iq)*(1.-fldow(iq)) ! simple treatment
              fluxup=veldt*s(iq,kb)
 !            remove aerosol from lower layer
              xtg(iq,kb,ntr)=xtg(iq,kb,ntr)-fluxup/dsk(kb)
