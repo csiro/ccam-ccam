@@ -103,10 +103,9 @@
       integer nbarewet,nsigmf
       common/nsib/nbarewet,nsigmf             ! Land-surface options
 
-      integer, dimension(8) :: tvals1, tvals2
-      integer, dimension(8) :: nper3hr
-      integer, dimension(5) :: idum
       integer, dimension(:,:), allocatable, save :: dumd
+      integer, dimension(8) :: tvals1, tvals2, nper3hr
+      integer, dimension(5) :: idum
       integer ier, igas, ilx, io_nest, iq, irest, isoil
       integer jalbfix, jlx, k, k2, kktau
       integer mins_dt, mins_gmt, mspeca, mtimer_in, nalpha
@@ -115,8 +114,8 @@
       integer nn, i, j, mstn, nproc_in, ierr, nperhr, nversion
       integer ierr2, kmax, isoth, nsig, lapsbot
       real, dimension(:,:), allocatable, save :: dums
-      real, dimension(:), allocatable, save :: spare1,spare2
-      real, dimension(:), allocatable, save :: spmean,div
+      real, dimension(:), allocatable, save :: spare1, spare2
+      real, dimension(:), allocatable, save :: spmean, div
       real, dimension(9) :: temparray, gtemparray
       real, dimension(3) :: rdum
       real clhav, cllav, clmav, cltav, con, div_int, dsx, dtds, es
@@ -1315,7 +1314,7 @@
       ! START PHYSICS 
       ! ***********************************************************************
       START_LOG(phys)
-
+      
       ! GWDRAG ----------------------------------------------------------------
       START_LOG(gwdrag)
       if (myid==0.and.nmaxpr==1) then
@@ -1326,7 +1325,7 @@
         write(6,*) "After gwdrag"
       end if
       END_LOG(gwdrag)
-
+      
       ! CONVECTION ------------------------------------------------------------
       START_LOG(convection)
       if (myid==0.and.nmaxpr==1) then
@@ -1354,7 +1353,7 @@
         write(6,*) "After convection"
       end if
       END_LOG(convection)
-
+      
       ! CLOUD MICROPHYSICS ----------------------------------------------------
       START_LOG(cloud)
       if (myid==0.and.nmaxpr==1) then
@@ -1540,6 +1539,21 @@
        endif  ! (mod(ktau,nmaxpr)==0.and.mydiag)
       endif   ! (ntsur>1)
 
+      ! AEROSOLS --------------------------------------------------------------
+      ! MJT notes - put aerosols before vertical mixing so that convective and
+      ! strat cloud can be separated consistently with cloud microphysics
+      if (abs(iaero)>=2) then
+        START_LOG(aerosol)
+        if (myid==0.and.nmaxpr==1) then
+         write(6,*) "Before aerosols"
+        end if
+        call aerocalc
+        if (myid==0.and.nmaxpr==1) then
+         write(6,*) "After aerosols"
+        end if
+        END_LOG(aerosol)
+      end if
+      
       ! VERTICAL MIXING ------------------------------------------------------
       if (myid==0.and.nmaxpr==1) then
        write(6,*) "Before PBL mixing"
@@ -1556,23 +1570,10 @@
       if (myid==0.and.nmaxpr==1) then
        write(6,*) "After PBL mixing"
       end if
-
+      
       ! Update diagnostics for consistancy in history file
       if (rescrn>0) then
         call autoscrn
-      end if
-
-      ! AEROSOLS --------------------------------------------------------------
-      if (abs(iaero)>=2) then
-        START_LOG(aerosol)
-         if (myid==0.and.nmaxpr==1) then
-         write(6,*) "Before aerosols"
-        end if
-        call aerocalc
-        if (myid==0.and.nmaxpr==1) then
-         write(6,*) "After aerosols"
-        end if
-        END_LOG(aerosol)
       end if
 
       ! PHYSICS LOAD BALANCING ------------------------------------------------
@@ -1585,7 +1586,7 @@
       END_LOG(phys)
 
       ! ***********************************************************************
-      ! TRACERS
+      ! TRACER OUTPUT
       ! ***********************************************************************
 !     rml 16/02/06 call tracer_mass, write_ts
       if(ngas>0) then

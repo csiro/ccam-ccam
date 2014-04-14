@@ -192,9 +192,9 @@ real, dimension(ifull), intent(in) :: vt       ! transfer velocity
 real, dimension(ifull), intent(in) :: zdayfac  ! scale factor for day length
 real, dimension(ifull,kl), intent(in) :: zz    ! Height of vertical level (meters)
 real, dimension(ifull,kl), intent(in) :: dz
-real, dimension(ifull,kl), intent(in) :: ttg   ! Air temperature
-real, dimension(ifull,kl), intent(in) :: qlg   ! liquid water mixing ratio
-real, dimension(ifull,kl), intent(in) :: qfg   ! frozen water mixing ratio
+real, dimension(:,:), intent(in) :: ttg        ! Air temperature
+real, dimension(:,:), intent(in) :: qlg        ! liquid water mixing ratio
+real, dimension(:,:), intent(in) :: qfg        ! frozen water mixing ratio
 real, dimension(ifull,kl), intent(in) :: cfrac ! cloud fraction
 real, dimension(ifull,kl), intent(in) :: clcon ! convective cloud fraction
 real, dimension(ifull,kl), intent(in) :: pccw
@@ -232,12 +232,12 @@ so4wd=0.
 dustwd=0.
 
 ! Calculate sub-grid Vgust
-v10n=ustar(:)*log(10./zo(:))/vkar
+v10n=ustar*log(10./zo)/vkar ! neutral wind speed
 ! Mesoscale enhancement follows Redelsperger et al. (2000), J. Climate 13, 402-421.
 ! Equation numbers follow Fairall et al. 1996, JGR 101, 3747-3764.
-rrate = 8640.*rcondx(:)/dt !Rainfall rate in cm/day
+rrate = 8640.*rcondx/dt !Rainfall rate in cm/day
 ! Calculate convective scaling velocity (Eq.17) and gustiness velocity (Eq.16)
-Wstar3 = max(0.,(grav*pblh(:)/ttg(:,1))*(fg(:)/(rhoa(:,1)*cp)+0.61*ttg(:,1)*eg(:)/(rhoa(:,1)*hl)))
+Wstar3 = max(0.,(grav*pblh/ttg(1:ifull,1))*(fg/(rhoa(:,1)*cp)+0.61*ttg(1:ifull,1)*eg/(rhoa(:,1)*hl)))
 Vgust_free = beta*Wstar3**(1./3.)
 ! Calculate the Redelsperger-based Vgust_deep if deep convection is present, and then take
 ! the maximum of these. Note that Redelspreger gives two other parameterizations, based on
@@ -250,15 +250,19 @@ Vgust_deep = (19.8*rrate*rrate/(1.5+rrate+rrate*rrate))**0.4
 ! Stick for now to the quadrature method for vefn (used for DMS), though it would be better to
 ! make these consistent.
 ! Go back to quadrature method for veff (dust and sea salt) for T63 (09/06)
-veff(:) = v10m(:) + Vgust_free + Vgust_deep
-vefn(:) = v10n    + Vgust_free + Vgust_deep
+veff = v10m + Vgust_free + Vgust_deep
+vefn = v10n + Vgust_free + Vgust_deep
 
 ! Need to invert vertical levels for ECHAM code... Don't you hate that?
 do k=1,kl+1
   aphp1(:,kl+2-k)=prf(:)*sigh(k)
 enddo
+do nt=1,naero
+  do k=1,kl
+    xtm1(:,kl+1-k,nt)=xtg(1:ifull,k,nt)
+  end do
+enddo
 do k=1,kl
-  xtm1(:,kl+1-k,:)=xtg(1:ifull,k,:)
   isig(kl+1-k)=sig(k)
 enddo
 ! Emission and dry deposition (sulfur cycle and carbonaceous aerosols)
@@ -311,16 +315,16 @@ do nt=1,naero
   end do
 end do
 do k=1,kl
-  aphp1(:,kl+1-k)=-prf(:)*dsig(k)
-  prhop1(:,kl+1-k)=rhoa(:,k)
-  ptp1(:,kl+1-k)=ttg(:,k)
-  pclcon(:,kl+1-k)=clcon(:,k)
-  qtot=qlg(:,k)+qfg(:,k)
-  cstrat(:)=min(cfrac(:,k),1.-clcon(:,k))
-  pclcover(:,kl+1-k)=cstrat(:)*qlg(:,k)/max(qtot,1.E-8) !Liquid-cloud fraction
-  pcfcover(:,kl+1-k)=cstrat(:)*qfg(:,k)/max(qtot,1.E-8) !Ice-cloud fraction
-  pmlwc(:,kl+1-k)=qlg(:,k)
-  pmiwc(:,kl+1-k)=qfg(:,k)
+  aphp1(:,kl+1-k)=-prf(:)*dsig(k)                             ! delta pressure
+  prhop1(:,kl+1-k)=rhoa(:,k)                                  ! air density
+  ptp1(:,kl+1-k)=ttg(1:ifull,k)                               ! air temperature
+  pclcon(:,kl+1-k)=clcon(:,k)                                 ! convective cloud fraction
+  qtot=qlg(1:ifull,k)+qfg(1:ifull,k)                          ! total liquid and ice mixing ratio
+  cstrat(:)=max(min(cfrac(:,k)-clcon(:,k),1.),0.)             ! strat cloud fraction (i.e., ccov from leoncld.f)
+  pclcover(:,kl+1-k)=cstrat(:)*qlg(1:ifull,k)/max(qtot,1.E-8) ! Liquid-cloud fraction
+  pcfcover(:,kl+1-k)=cstrat(:)*qfg(1:ifull,k)/max(qtot,1.E-8) ! Ice-cloud fraction
+  pmlwc(:,kl+1-k)=qlg(1:ifull,k)
+  pmiwc(:,kl+1-k)=qfg(1:ifull,k)
 end do
 call xtchemie (1, dt,zdayfac,aphp1(:,1:kl), ppmrate, ppfprec,                   & !Inputs
                pclcover, pmlwc, prhop1, ptp1, sg, pxtm1, ppfevap,               & !Inputs
@@ -1930,7 +1934,7 @@ implicit none
 
 !     Inputs:
 real tdt              !Leapfrog timestep
-real tmp(ifull,kl)    !temperature
+real tmp(:,:)         !temperature
 real delz(ifull,kl)   !Lowest layer thickness (m)
 real prf(ifull,kl)    !Pressure (hPa)
 real dustd(ifull)     !Dry deposition flux out of lowest layer
@@ -1953,7 +1957,7 @@ integer n,k,mg,l
 
 ! Calculate integrated column dust before settling
 
-rhoa(:,:)=100.*prf(:,:)/(rdry*tmp(:,:)) !density of air
+rhoa(:,:)=100.*prf(:,:)/(rdry*tmp(1:ifull,:)) !density of air
 
 dcol1(:)=0.
 do n=1,ndust
@@ -1992,9 +1996,9 @@ do k = 1, NDUST
     l=kl
     pres = prf(:,l)     !Looks like mb is correct units
 ! Dynamic viscosity
-    C_Stokes = 1.458E-6 * TMP(:,l)**1.5/(TMP(:,l)+110.4) 
+    C_Stokes = 1.458E-6 * TMP(1:ifull,l)**1.5/(TMP(1:ifull,l)+110.4) 
 ! Cuningham correction
-    Corr=6.6E-8*pres/1013.*TMP(:,l)/293.15
+    Corr=6.6E-8*pres/1013.*TMP(1:ifull,l)/293.15
     C_Cun = 1.+ 1.249*corr/dustreff(k)
 ! Settling velocity
     Vd_cor=2./9.*grav*dustden(k)*dustreff(k)**2/C_Stokes*C_Cun
@@ -2006,12 +2010,12 @@ do k = 1, NDUST
 ! Pressure
       pres = prf(:,l)
 ! Dynamic viscosity
-      C_Stokes = 1.458E-6 * TMP(:,l)**1.5/(TMP(:,l)+110.4) 
+      C_Stokes = 1.458E-6 * TMP(1:ifull,l)**1.5/(TMP(1:ifull,l)+110.4) 
 ! Cuningham correction
-      Corr=6.6E-8*pres/1013.*TMP(:,l)/293.15
+      Corr=6.6E-8*pres/1013.*TMP(1:ifull,l)/293.15
       C_Cun = 1.+ 1.249*corr/dustreff(k)
 ! Settling velocity
-      Vd_cor=2./9.*grav*dustden(k)*dustreff(k)**2/C_Stokes*C_Cun
+      Vd_cor=2./9.*grav*dustden(k)*dustreff(k)*dustreff(k)/C_Stokes*C_Cun
 ! Update mixing ratio
       TC(:,l,k)=1./(1.+ dt_settl(k)*Vd_cor/DELZ(:,l))*(TC(:,l,k) + dt_settl(k)*Vd_cor /DELZ(:,l+1) * TC(:,l+1,k))
     enddo

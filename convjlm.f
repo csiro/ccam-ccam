@@ -443,7 +443,7 @@ c     convective first, then possibly L/S rainfall
       kbsav(:)=kl-1    ! preset value to show no deep or shallow convection
 
       convtim(:)=3600.*convtime        ! less-common -ve defns come lfurther down
-      factr(:)=dt/max(dt,convtim(:))          ! to re-scale rainfall etc, AFTER iterconv loop
+      factr(:)=dt/max(dt,convtim(:))   ! to re-scale rainfall etc, AFTER iterconv loop
 c     following modification was found to be not much use
 c     do iq=1,ifull
 c       k=kb_sav(iq)

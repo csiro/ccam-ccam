@@ -378,15 +378,15 @@ if ( first ) then
     Aerosol_diags%absopdep=0.
 
     if (include_volcanoes) then
+      write(6,*) "ERROR: Prescribed aerosol properties for"
+      write(6,*) "volcanoes is currently unsupported"
+      call ccmpi_abort(-1)
       !allocate(Aerosol_props%sw_ext(imax,1,kl,Solar_spect%nbands)
       !allocate(Aerosol_props%sw_ssa(imax,1,kl,Solar_spect%nbands)
       !allocate(Aerosol_props%sw_asy(imax,1,kl,Solar_spect%nbands)
       !allocate(Aerosol_props%lw_ext(imax,1,kl,N_AEROSOL_BANDS))      
       !allocate(Aerosol_diags%lw_extopdep_vlcno(imax,1,kl+1,2))
       !allocate(Aerosol_diags%lw_absopdep_vlcno(imax,1,kl+1,2))
-      write(6,*) "ERROR: Prescribed aerosol properties for"
-      write(6,*) "volcanoes is currently unsupported"
-      call ccmpi_abort(-1)
     end if
 
   end if
@@ -708,13 +708,13 @@ do j=1,jl,imax/il
       Atmos_input%aerosolrelhum = Atmos_input%rel_hum
     end if
     
-    Rad_gases%rrvco2  = real(rrvco2,8)
-    Rad_gases%rrvch4  = real(rrvch4,8)
-    Rad_gases%rrvn2o  = real(rrvn2o,8)
-    Rad_gases%rrvf11  = real(rrvf11,8)
-    Rad_gases%rrvf12  = real(rrvf12,8)
+    Rad_gases%rrvco2  = real(rrvco2 ,8)
+    Rad_gases%rrvch4  = real(rrvch4 ,8)
+    Rad_gases%rrvn2o  = real(rrvn2o ,8)
+    Rad_gases%rrvf11  = real(rrvf11 ,8)
+    Rad_gases%rrvf12  = real(rrvf12 ,8)
     Rad_gases%rrvf113 = real(rrvf113,8)
-    Rad_gases%rrvf22  = real(rrvf22,8)
+    Rad_gases%rrvf22  = real(rrvf22 ,8)
     
     if (nmr==0) then
       do i=1,imax ! random overlap
@@ -782,7 +782,7 @@ do j=1,jl,imax/il
                 Cloud_microphysics%conc_drop,Cloud_microphysics%conc_ice,       &
                 dumcf,dumql,dumqf,p2,dumt,cd2,imax,kl)
     Cloud_microphysics%size_drop=max(Cloud_microphysics%size_drop,1.e-20_8)
-    Cloud_microphysics%size_ice =max(Cloud_microphysics%size_ice,1.e-20_8)                
+    Cloud_microphysics%size_ice =max(Cloud_microphysics%size_ice, 1.e-20_8)                
     Cloud_microphysics%size_rain=1.e-20_8
     Cloud_microphysics%conc_rain=0._8
     Cloud_microphysics%size_snow=1.e-20_8
@@ -810,7 +810,7 @@ do j=1,jl,imax/il
    
     Astro%cosz(:,1)   =max(real(coszro,8),0._8)
     Astro%fracday(:,1)=real(taudar,8)
-    swcount=swcount+count(coszro>0.)
+    swcount           =swcount+count(coszro>0.)
 
     END_LOG(radmisc)
 
@@ -1184,19 +1184,19 @@ real(kind=8), dimension(:,:,:,:),        intent(inout) :: r
 !    (fsw), upward sw flux (ufsw), downward sw flux(dfsw) at flux 
 !    levels and sw heating in model layers (hsw).
 !--------------------------------------------------------------------
-      Sw_output(1)%fsw   (:,:,:) = 0.0_8
-      Sw_output(1)%dfsw  (:,:,:) = 0.0_8
-      Sw_output(1)%ufsw  (:,:,:) = 0.0_8
-      Sw_output(1)%hsw   (:,:,:) = 0.0_8
-      Sw_output(1)%dfsw_dir_sfc = 0.0_8
-      Sw_output(1)%dfsw_dif_sfc  = 0.0_8
-      Sw_output(1)%ufsw_dif_sfc = 0.0_8
-      Sw_output(1)%dfsw_vis_sfc = 0._8
-      Sw_output(1)%ufsw_vis_sfc = 0._8
+      Sw_output(1)%fsw   (:,:,:)    = 0.0_8
+      Sw_output(1)%dfsw  (:,:,:)    = 0.0_8
+      Sw_output(1)%ufsw  (:,:,:)    = 0.0_8
+      Sw_output(1)%hsw   (:,:,:)    = 0.0_8
+      Sw_output(1)%dfsw_dir_sfc     = 0.0_8
+      Sw_output(1)%dfsw_dif_sfc     = 0.0_8
+      Sw_output(1)%ufsw_dif_sfc     = 0.0_8
+      Sw_output(1)%dfsw_vis_sfc     = 0._8
+      Sw_output(1)%ufsw_vis_sfc     = 0._8
       Sw_output(1)%dfsw_vis_sfc_dir = 0._8
       Sw_output(1)%dfsw_vis_sfc_dif = 0._8
       Sw_output(1)%ufsw_vis_sfc_dif = 0._8
-      Sw_output(1)%bdy_flx(:,:,:) = 0.0_8       
+      Sw_output(1)%bdy_flx(:,:,:)   = 0.0_8       
 
 !---------------------------------------------------------------------
 !    if the cloud-free values are desired, allocate and initialize 
@@ -1212,29 +1212,6 @@ real(kind=8), dimension(:,:,:,:),        intent(inout) :: r
         Sw_output(1)%bdy_flx_clr (:,:,:) = 0.0_8
       endif
 
-!--------------------------------------------------------------------
-!    determine when the no-sun case exists at all points within the 
-!    physics window and bypass the sw radiation calculations for that 
-!    window.
-!--------------------------------------------------------------------
-      !skipswrad = .not.any(Astro%cosz > 0.0)
-      
-      ! MJT - Need to disable skipswrad for aerosol diagnostics
-      !skipswrad = .false.
-
-!--------------------------------------------------------------------
-!    if the sun is shining nowhere in the physics window allocate
-!    output fields which will be needed later, set them to a flag
-!    value and return.
-!--------------------------------------------------------------------
-      !if (skipswrad)  then
-
-!---------------------------------------------------------------------
-!    calculate shortwave radiative forcing and fluxes using the 
-!    exponential-sum-fit parameterization.
-!---------------------------------------------------------------------
-      !else 
- 
 !----------------------------------------------------------------------
 !    standard call, where radiation output feeds back into the model.
 !----------------------------------------------------------------------
@@ -1248,7 +1225,6 @@ real(kind=8), dimension(:,:,:,:),        intent(inout) :: r
                        Cld_spec, include_volcanoes,                        &
                        Sw_output(1), Aerosol_diags, r,                     &
                        do_aerosol_forcing, naerosol_optical)
-      !endif
 !--------------------------------------------------------------------
 
 end subroutine shortwave_driver

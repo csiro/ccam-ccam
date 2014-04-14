@@ -65,7 +65,6 @@
       real conflux,qbas,xold,delthet_old,rhskp,rhsk,diffmax
       real w1,w2,al,betaq,betac,betat,pk,qc,dqsdt,fice,es,delta
       real rlog12,rlogh1,rlogs1,rlogs2
-      real, dimension(ifull,kl,2*naero) :: dumar
       real, dimension(ifull,kl) :: betatt,betaqt,rhs,delthet,thebas
       real, dimension(ifull,kl) :: cu,thee,qs,uav,vav,au,ct,gt,at
       real, dimension(ifull,kl) :: guv,ri,rkm,rkh,rk_shal,zg
@@ -811,14 +810,13 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
      &                    +betm(k)*t(1:ifull,k-1))/grav
        end do ! k  loop
        zg=zg+phi_nh/grav ! add non-hydrostatic component
-       tnaero=0
        
        rhos=sig(1)*ps(1:ifull)/(rdry*t(1:ifull,1))
        
        if (abs(iaero)==2) then ! Use counter gradient for aerosols
-         tnaero=2*naero
-         dumar(:,:,1:naero)=xtg(1:ifull,:,:)
-         dumar(:,:,naero+1:2*naero)=xtosav(1:ifull,:,:)
+         tnaero=naero
+       else
+         tnaero=0
        end if
        
        select case(nlocal)
@@ -828,7 +826,7 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
      &             pblh,fg,eg,ps(1:ifull),
      &             ustar,zg,zh,sig,rhos,
      &             dt,qgmin,1,0,
-     &             tnaero,dumar)
+     &             tnaero,xtg)
          rkh=rkm
         case(1,2,3,4,5,6) ! KCN counter gradient method
          call tkemix(rkm,rhs,qg,qlg,
@@ -836,7 +834,7 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
      &             pblh,fg,eg,ps(1:ifull),
      &             ustar,zg,zh,sig,rhos,
      &             dt,qgmin,1,0,
-     &             tnaero,dumar)
+     &             tnaero,xtg)
          rkh=rkm
          uav(1:ifull,:)=av_vmod*u(1:ifull,:)
      &                 +(1.-av_vmod)*savu(1:ifull,:)
@@ -849,18 +847,12 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
      &             pblh,fg,eg,ps(1:ifull),
      &             ustar,zg,zh,sig,rhos,
      &             dt,qgmin,0,0,
-     &             tnaero,dumar)
+     &             tnaero,xtg)
          rkh=rkm
         case DEFAULT
           write(6,*) "ERROR: Unknown nlocal option for nvmix=6"
           stop
        end select
-       
-       if (abs(iaero)==2) then
-         tnaero=2*naero
-         xtg(1:ifull,:,:)=dumar(:,:,1:naero)
-         xtosav(1:ifull,:,:)=dumar(:,:,naero+1:2*naero)
-       end if
          
       end if ! nvmix/=6
 

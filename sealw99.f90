@@ -17,16 +17,6 @@
 !
 !  shared modules:
 
-!use fms_mod,             only: open_namelist_file, fms_init, &
-!                               mpp_pe, mpp_root_pe, stdlog, &
-!                               file_exist, write_version_number, &
-!                               check_nml_error, error_mesg, &
-!                               FATAL, NOTE, WARNING, close_file
-!use time_manager_mod,    only: time_type, operator(>=), get_time, &
-!                               operator(-), get_date
-!use constants_mod,       only: constants_init, diffac, radcon_mks, &
-!                               SECONDS_PER_DAY, radcon
-
 !  radiation package shared modules:
 
 use rad_utilities_mod,   only: rad_utilities_init, Lw_control, &
@@ -95,7 +85,7 @@ private
 
     character(len=128)  :: version =  '$Id: sealw99.f90,v 13.0 2006/03/28 21:13:36 fms Exp $'
     character(len=128)  :: tagname =  '$Name: latest $'
-    logical, save       ::  module_is_initialized = .false.
+    logical, save       :: module_is_initialized = .false.
 
 !---------------------------------------------------------------------
 !-------  interfaces --------
@@ -116,28 +106,28 @@ private   &
 !-------- namelist  ---------
 
 logical, save      ::    &
-                do_thick = .false.  ! perform "pseudo-convective  
+                 do_thick = .false. ! perform "pseudo-convective  
                                     ! adjustment" for maximally 
                                     ! overlapped clouds ?
 logical, save      ::    &
-            do_lwcldemiss = .true. ! use multiple bands to calculate
+             do_lwcldemiss = .true. ! use multiple bands to calculate
                                     ! lw cloud emissivites ? 
 logical, save      ::    &
-      do_ch4lbltmpint  = .false.    ! perform and save intermediate
+         do_ch4lbltmpint  = .false. ! perform and save intermediate
                                     ! flux calculations for ch4?
 logical, save      ::    &
-      do_n2olbltmpint  = .false. ! perform and save intermediate
+         do_n2olbltmpint  = .false. ! perform and save intermediate
                                     ! flux calculations for n2o?
 logical, save      ::   &
-           do_nlte = .false.        ! there is a non-local thermodynamic
+                  do_nlte = .false. ! there is a non-local thermodynamic
                                     ! equilibrium region at top 
                                     ! of model ?
 character(len=16), save  ::  &
-            continuum_form = 'ckd2.1' ! continuum specification; either
+          continuum_form = 'ckd2.1' ! continuum specification; either
                                     ! 'ckd2.1', 'ckd2.4', 'mt_ckd1.0', 
                                     ! 'rsb' or 'none'
 character(len=16), save  ::  &
-        linecatalog_form = 'hitran_2000' ! line catalog specification; either
+   linecatalog_form = 'hitran_2000' ! line catalog specification; either
                                     ! 'hitran_1992' or 'hitran_2000'
 real, save         ::  &
         co2_tf_calc_intrvl = 1.0E6  ! interval between recalculating co2
@@ -226,30 +216,6 @@ logical, save      ::      &
                                              ! ity
 
 
-namelist / sealw99_nml /                          &
-                          do_thick, do_lwcldemiss, &
-!                         do_nlte, do_ch4n2olbltmpint, &
-                          do_nlte, do_ch4lbltmpint, do_n2olbltmpint, &
-                          continuum_form, linecatalog_form, &
-                          verbose, &
-                          no_h2o_bands_1200_1400, &
-                          use_bnd1_cldtf_for_h2o_bands, &
-                          calc_co2_tfs_monthly, &
-                          calc_ch4_tfs_monthly, &
-                          calc_n2o_tfs_monthly, &
-                          calc_co2_tfs_on_first_step, &
-                          use_current_co2_for_tf, &
-                          co2_tf_calc_intrvl, &
-                          co2_tf_time_displacement, &
-                          calc_ch4_tfs_on_first_step, &
-                          use_current_ch4_for_tf, &
-                          ch4_tf_calc_intrvl, &
-                          ch4_tf_time_displacement, &
-                          calc_n2o_tfs_on_first_step, &
-                          use_current_n2o_for_tf, &
-                          n2o_tf_calc_intrvl, &
-                          n2o_tf_time_displacement
-
 !---------------------------------------------------------------------
 !------- public data ------
 
@@ -257,14 +223,14 @@ namelist / sealw99_nml /                          &
 !---------------------------------------------------------------------
 !------- private data ------
 
-real, parameter :: GRAV   = 9.80
-real, parameter :: DIFFAC = 1.660000E+00
-real, parameter :: RDGAS  = 287.04 
-real, parameter :: KAPPA  = 2./7.  
-real, parameter :: CP_AIR = RDGAS/KAPPA
+real, parameter :: GRAV             = 9.80
+real, parameter :: DIFFAC           = 1.660000E+00
+real, parameter :: RDGAS            = 287.04 
+real, parameter :: KAPPA            = 2./7.  
+real, parameter :: CP_AIR           = RDGAS/KAPPA
 real, parameter :: SECONDS_PER_DAY  = 8.640000E+04
-real, parameter :: RADCON_MKS  = (GRAV/CP_AIR)*SECONDS_PER_DAY
-real, parameter :: RADCON = ((1.0E+02*GRAV)/(1.0E+04*CP_AIR))*SECONDS_PER_DAY
+real, parameter :: RADCON_MKS       = (GRAV/CP_AIR)*SECONDS_PER_DAY
+real, parameter :: RADCON           = ((1.0E+02*GRAV)/(1.0E+04*CP_AIR))*SECONDS_PER_DAY
 
 !---------------------------------------------------------------------
 !     apcm, bpcm    capphi coefficients for NBLY bands.
@@ -272,8 +238,8 @@ real, parameter :: RADCON = ((1.0E+02*GRAV)/(1.0E+04*CP_AIR))*SECONDS_PER_DAY
 !     acomb         random "a" parameter for NBLY bands.
 !     bcomb         random "b" parameter for NBLY bands.
 !---------------------------------------------------------------------
-real, dimension (:), allocatable, save    ::  apcm, bpcm, atpcm, btpcm,&
-                                        acomb, bcomb
+real, dimension (:), allocatable, save    ::  apcm, bpcm, atpcm, btpcm, &
+                                              acomb, bcomb
 
 !-------------------------------------------------------------------
 !    the following longwave tables are retained for the life of the
@@ -315,11 +281,6 @@ logical, save    ::  do_n2o_tf_calc_init = .true.
 integer, save    ::  month_of_co2_tf_calc = 0
 integer, save    ::  month_of_ch4_tf_calc = 0
 integer, save    ::  month_of_n2o_tf_calc = 0
-
-!integer    :: co2_pts_processed
-!integer    :: ch4_pts_processed
-!integer    :: n2o_pts_processed
-!integer    :: total_points 
 
 !----------------------------------------------------------------------
 !----------------------------------------------------------------------
@@ -371,7 +332,6 @@ subroutine sealw99_init (pref, Lw_tables)
 !    sealw99_init is the constructor for sealw99_mod.
 !---------------------------------------------------------------------
 
-!real, dimension(:), intent(in) :: latb, lonb
 real, dimension(:,:), intent(in) :: pref
 type(lw_table_type), intent(inout) :: Lw_tables
 
@@ -398,8 +358,8 @@ type(lw_table_type), intent(inout) :: Lw_tables
 !  local variables:
 
        real, dimension (no_combined_bands)  :: band_no_start_rsb,   &
-                                           band_no_start_ckd, &
-                                             band_no_end_rsb,    &
+                                           band_no_start_ckd,       &
+                                             band_no_end_rsb,       &
                                            band_no_end_ckd
 
        data band_no_start_ckd / 1, 25, 41, 42, 43, 44, 46, 47 /
@@ -426,7 +386,7 @@ type(lw_table_type), intent(inout) :: Lw_tables
        integer         :: unit, ierr, io, k, n,  nn
        integer         :: ioffset
        real            :: prnlte
-       integer         ::     kmax, kmin
+       integer         :: kmax, kmin
        integer         :: inrad
        real            :: dum
        character(len=4)  :: gas_name
@@ -477,28 +437,7 @@ type(lw_table_type), intent(inout) :: Lw_tables
 !    verify that modules used by this module that are not called later
 !    have already been initialized.
 !---------------------------------------------------------------------
-!      call fms_init
-!      call constants_init
       call rad_utilities_init
-
-!!-----------------------------------------------------------------------
-!!    read namelist.
-!!-----------------------------------------------------------------------
-!      if ( file_exist('input.nml')) then
-!        unit =  open_namelist_file ( )
-!        ierr=1; do while (ierr /= 0)
-!        read  (unit, nml=sealw99_nml, iostat=io, end=10)
-!        ierr = check_nml_error(io,'sealw99_nml')
-!        end do
-!10      call close_file (unit)
-!      endif
- 
-!!---------------------------------------------------------------------
-!!    write version number and namelist to logfile.
-!!---------------------------------------------------------------------
-!      call write_version_number (version, tagname)
-!      if (mpp_pe() == mpp_root_pe() ) &
-!                          write (stdlog(), nml=sealw99_nml)
 
 !---------------------------------------------------------------------
 !
@@ -514,8 +453,6 @@ type(lw_table_type), intent(inout) :: Lw_tables
       if (Rad_control%rad_time_step_iz) then
       else
         write(6,*) "ERROR: must define rad_time_step before using it"
-        !call error_mesg ('sealw99_mod', &
-        !       'must define rad_time_step before using it', FATAL)
         stop
       endif
 
@@ -615,8 +552,6 @@ type(lw_table_type), intent(inout) :: Lw_tables
           trim(continuum_form) == 'none'        )      then
       else
         write(6,*) "continuum_form is not specified correctly"
-        !call error_mesg ( 'sealw99_mod', &
-        !   'continuum_form is not specified correctly', FATAL)
         stop
       endif
 
@@ -627,8 +562,6 @@ type(lw_table_type), intent(inout) :: Lw_tables
           trim(linecatalog_form) == 'hitran_2000' )  then
       else
         write(6,*) "linecatalog_form is not specified correctly"
-        !call error_mesg ( 'sealw99_mod', &
-        !   'linecatalog_form is not specified correctly', FATAL)
         stop
       endif
 
@@ -1301,7 +1234,7 @@ logical,                        intent(in)    :: including_aerosols
       logical                       :: calc_co2, calc_n2o, calc_ch4
 
       integer                       :: ix, jx, kx
-      integer                       ::  k, kp, m, j
+      integer                       :: k, kp, m, j
       integer                       :: kk, i, l
       integer                       :: nprofiles, nnn
       character(len=4)              :: gas_name
@@ -1674,7 +1607,7 @@ logical,                        intent(in)    :: including_aerosols
 !    lw_diagnostics_type variables.
 !----------------------------------------------------------------------
       call sealw99_alloc (ix, jx, kx, Lw_diagnostics)
-
+      
 !----------------------------------------------------------------------
 !
 !--------------------------------------------------------------------
@@ -1904,7 +1837,6 @@ logical,                        intent(in)    :: including_aerosols
                              trans_band2, cldtf, cld_indx , &
                                           Lw_diagnostics)  
 
- 
      do kk = KS,KE+1
         do j = 1,size(trans_band1(:,:,:,:),2)
            do i = 1,size(trans_band1(:,:,:,:),1)
@@ -2036,7 +1968,7 @@ logical,                        intent(in)    :: including_aerosols
       call longwave_fluxes_k_down  (k, dsrcdp_band, trans_band1, &
                                     trans_band2, cldtf, cld_indx,  &
                                     Lw_diagnostics          )  
-   end do   ! (end of k=KS+1,KE-1 loop)
+    end do   ! (end of k=KS+1,KE-1 loop)
 
 !-----------------------------------------------------------------------
 !     compute remaining flux terms. these include:
@@ -2296,7 +2228,7 @@ logical,                        intent(in)    :: including_aerosols
 !-----------------------------------------------------------------------
     call longwave_fluxes_diag (dsrcdp_band, trans_band1, cldtf , &
                                cld_indx, Lw_diagnostics )
-
+    
 !--------------------------------------------------------------------
 !      sum up fluxes over bands
 !-----------------------------------------------------------------------
@@ -2733,9 +2665,6 @@ logical,          intent(in) :: calc_gas_tfs_on_first_step,  &
             Rad_control%rad_time_step) then
           write(6,*) trim(gas)//' tf calculation interval must be greater'
           write(6,*) 'than or equal to the radiation time step'
-          !call error_mesg ('sealw99_mod', &
-          !   trim(gas)// ' tf calculation interval must be greater&
-          !          & than or equal to the radiation time step', FATAL)
           stop
         endif
 
@@ -2747,9 +2676,6 @@ logical,          intent(in) :: calc_gas_tfs_on_first_step,  &
                 Rad_control%rad_time_step) /= 0) then
           write(6,*) trim(gas)//' transmission function calculation interval'
           write(6,*) 'must be integral multiple of radiation time step'
-          !call  error_mesg ('sealw99_mod',  &
-          ! trim(gas)//' transmission function calculation interval &
-          ! &must be integral multiple of radiation time step', FATAL)
           stop
         endif
       endif ! (.not. calc_gas_tfs_on_first_step)
@@ -2766,21 +2692,13 @@ logical,          intent(in) :: calc_gas_tfs_on_first_step,  &
           write(6,*) 'for tfs when calculating tfs on first step; instead'
           write(6,*) 'set use_current_'//trim(gas)//'_for_tf to false and set'
           write(6,*) trim(gas)//'_tf_time_displacement =    0.0'
-          !call error_mesg ('sealw99_mod', &
-          !    'cannot specify use of current '//trim(gas)//' value&
-          !    & for tfs when calculating tfs on first step; instead   &
-          !    &set use_current_'//trim(gas)//'_for_tf to false and set &
-          !    & '//trim(gas)//'_tf_time_displacement =    0.0', FATAL)
           stop
         endif
       endif
 
       if (calc_gas_tfs_on_first_step .and. &
           calc_gas_tfs_monthly) then
-          write(6,*) "cannot request calc of tfs both on first step and monthly"
-        !call error_mesg ( 'sealw99_mod',  &
-        !  'cannot request calc of tfs both on first step and monthly',&
-        !                                                        FATAL)
+        write(6,*) "cannot request calc of tfs both on first step and monthly"
         stop
       endif
 
@@ -3310,14 +3228,15 @@ type(lw_diagnostics_type), intent(inout) :: Lw_diagnostics
 
       integer ::  NBTRGE, NBLY
 
+      NBTRGE = Lw_parameters%NBTRGE
+      NBLY   = Lw_parameters%NBLY
+      
       ! gol124: allocate only if not done previously!
       IF (.NOT. allocated(Lw_diagnostics%flx1e1)) THEN
 !---------------------------------------------------------------------
 !    allocate (and initialize where necessary) lw_diagnostics_type 
 !    component arrays.
 !---------------------------------------------------------------------
-      NBTRGE = Lw_parameters%NBTRGE
-      NBLY   = Lw_parameters%NBLY
 
       allocate ( Lw_diagnostics%flx1e1   (ix, jx                ) )
       allocate ( Lw_diagnostics%fluxn    (ix, jx, kx+1, 6+NBTRGE) )
@@ -7485,15 +7404,6 @@ real, intent(in) :: rrvch4
          ch4_vmr = rrvch4*1.0E+09
          call Ch4_lblinterp  (ch4_vmr)
 
-!---------------------------------------------------------------------
-!  the n2o volume mixing ratio is set to initial value (rn2o) and the 
-!  mass mixing ratio is defined on the first access of this routine. 
-!  routines are called to calculate the lbl transmission functions for 
-!  n2o. after first access, this routine does nothing. 
-!--------------------------------------------------------------------
-!        n2o_vmr = rrvn2o*1.0E+09
-!        call N2o_lblinterp (n2o_vmr)
-
 !----------------------------------------------------------------------
 
 end subroutine ch4_time_vary
@@ -7539,17 +7449,7 @@ real, intent(in) :: rrvn2o
 !---------------------------------------------------------------------
 !  local variables:
  
-!    real   ::  ch4_vmr !
      real   ::  n2o_vmr !
-
-!---------------------------------------------------------------------
-!  the ch4 volume mixing ratio is set to the initial value (rch4) and 
-!  the mass mixing ratio is defined on the first access of this
-!  routine. then the lbl transmission function is calculated. after 
-!  first access, this routine does nothing. 
-!--------------------------------------------------------------------
-!        ch4_vmr = rrvch4*1.0E+09
-!        call Ch4_lblinterp  (ch4_vmr)
 
 !---------------------------------------------------------------------
 !  the n2o volume mixing ratio is set to initial value (rn2o) and the 

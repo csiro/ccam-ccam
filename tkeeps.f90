@@ -151,7 +151,7 @@ integer, intent(in) :: diag,mode,naero
 integer k,i,j,ktopmax,klcl
 integer kcount,mcount,icount
 real, intent(in) :: dt,qgmin
-real, dimension(ifull,kl,naero), intent(inout) :: aero
+real, dimension(:,:,:), intent(inout) :: aero
 real, dimension(:,:), intent(inout) :: theta,cfrac,cfrain
 real, dimension(:,:), intent(inout) :: qvg,qlg,qfg,qrg
 real, dimension(ifull,kl), intent(out) :: kmo
@@ -255,7 +255,7 @@ epup=eps(1:ifull,:)
 cfup=cfrac(1:ifull,:)
 crup=cfrain(1:ifull,:)
 if (naero>0) then
-  arup=aero
+  arup=aero(1:ifull,1:kl,1:naero)
 end if
 
 ! interpolate to half levels
@@ -331,7 +331,7 @@ do kcount=1,mcount
           ! initial thermodynamic state
           ! split thetal and qtot into components (conservation of thetal and qtot is maintained)
           thup(i,1)=theta(i,1)+be*wt0(i)/sqrt(tke(i,1))   ! Hurley 2007
-          qvup(i,1)=qvg(i,1)   +be*wq0(i)/sqrt(tke(i,1))  ! Hurley 2007
+          qvup(i,1)=qvg(i,1)  +be*wq0(i)/sqrt(tke(i,1))   ! Hurley 2007
           qlup(i,1)=qlg(i,1)
           qfup(i,1)=qfg(i,1)
           qrup(i,1)=qrg(i,1)
@@ -433,7 +433,7 @@ do kcount=1,mcount
               ! update thermodynamics of plume
               ! split thetal and qtot into components (conservation is maintained)
               thup(i,k)=(thup(i,k-1)+dzht*ent*theta(i,k))/(1.+dzht*ent)
-              qvup(i,k)=(qvup(i,k-1)+dzht*ent*qvg(i,k)   )/(1.+dzht*ent)
+              qvup(i,k)=(qvup(i,k-1)+dzht*ent*qvg(i,k)  )/(1.+dzht*ent)
               qlup(i,k)=(qlup(i,k-1)+dzht*ent*qlg(i,k)  )/(1.+dzht*ent)
               qfup(i,k)=(qfup(i,k-1)+dzht*ent*qfg(i,k)  )/(1.+dzht*ent)
               qrup(i,k)=(qrup(i,k-1)+dzht*ent*qrg(i,k)  )/(1.+dzht*ent)
@@ -459,12 +459,12 @@ do kcount=1,mcount
                 ! gridbox minority saturated
                 qxup=qtup(k)+0.5*rng*(-1./3.-dqdash(k)-dqdash(k)**2-1./3.*dqdash(k)**3)
                 cfup(i,k)=0.5*(dqdash(k)+1.)**2
-              else if (dqdash(k)<1.) then              
+              else if (dqdash(k)<1.) then
                 ! gridbox majority saturated
                 qxup=qtup(k)+0.5*rng*(-1./3.-dqdash(k)-dqdash(k)**2+1./3.*dqdash(k)**3)
                 cfup(i,k)=1.-0.5*(dqdash(k)-1.)**2
               else
-                ! gridbox all saturated              
+                ! gridbox all saturated
                 qxup=qupsat(k)
                 cfup(i,k)=1.
               end if
@@ -585,8 +585,8 @@ do kcount=1,mcount
         do k=2,ktopmax
           dzht=dz_hl(i,k-1)
           ent=entfn(zz(i,k),zi(i),zz(i,1))
-          tkup(i,k)=(tkup(i,k-1)+dzht*ent*tke(i,k) )/(1.+dzht*ent)
-          epup(i,k)=(epup(i,k-1)+dzht*ent*eps(i,k) )/(1.+dzht*ent)
+          tkup(i,k)=(tkup(i,k-1)+dzht*ent*tke(i,k))/(1.+dzht*ent)
+          epup(i,k)=(epup(i,k-1)+dzht*ent*eps(i,k))/(1.+dzht*ent)
           gamtk(i,k)=mflx(i,k)*(tkup(i,k)-tke(i,k))
         end do
         do j=1,naero
@@ -648,7 +648,7 @@ do kcount=1,mcount
   ! (i.e., related to the saturated adiabatic lapse rate)
   qsatc=max(qsat,qvg(1:ifull,:))                                             ! assume qvg is saturated inside cloud
   ff=qfg(1:ifull,:)/max(cfrac(1:ifull,:),1.E-6)                              ! inside cloud value
-  dd=qlg(1:ifull,:)/max(cfrac(1:ifull,:),1.E-6)                   &
+  dd=qlg(1:ifull,:)/max(cfrac(1:ifull,:),1.E-6)                            &
     +qrg(1:ifull,:)/max(cfrac(1:ifull,:),cfrain(1:ifull,:),1.E-6)            ! inside cloud value assuming max overlap
   do k=1,kl
     tbb=max(1.-cfrac(1:ifull,k),1.E-6)
@@ -656,7 +656,6 @@ do kcount=1,mcount
     qgnc=min(max(qgnc,qgmin),qsatc(:,k))
     thetac(:,k)=thetal(:,k)+sigkap(k)*(lv*dd(:,k)+ls*ff(:,k))/cp             ! inside cloud value
     tempc(:,k)=thetac(:,k)/sigkap(k)                                         ! inside cloud value
-    !thetanc(:,k)=thetal(:,k)                                                ! outside cloud value
     thetavnc(:,k)=thetal(:,k)*(1.+0.61*qgnc)                                 ! outside cloud value
   end do
   call updatekmo(thetahl,thetac,fzzh)                                        ! inside cloud value
@@ -700,8 +699,8 @@ do kcount=1,mcount
     ppb(:,k)=(1.-cfrac(1:ifull,k))*tcc+cfrac(1:ifull,k)*tbb ! cloud fraction weighted (e.g., Smith 1990)
 
     ! Calculate transport term on full levels
-    ppt(:,k)=   kmo(:,k)*idzp(:,k)*(tke(:,k+1)-tke(:,k))/dz_hl(:,k)      &
-               -kmo(:,k-1)*idzm(:,k)*(tke(:,k)-tke(:,k-1))/dz_hl(:,k-1)  &
+    ppt(:,k)=   kmo(:,k)*idzp(:,k)*(tke(:,k+1)-tke(:,k))/dz_hl(:,k)                                &
+               -kmo(:,k-1)*idzm(:,k)*(tke(:,k)-tke(:,k-1))/dz_hl(:,k-1)                            &
                +gamhl(:,k-1)*idzm(:,k)-gamhl(:,k)*idzp(:,k)
   end do
 
@@ -710,7 +709,7 @@ do kcount=1,mcount
   cc(:,2:kl-1)=ce0*kmo(:,2:kl-1)*rr(:,2:kl-1)
   ! follow PH to make scheme more numerically stable
   bb(:,2:kl-1)=1.-aa(:,2:kl-1)-cc(:,2:kl-1)+ddts*ce2*eps(1:ifull,2:kl-1)/tke(1:ifull,2:kl-1)
-  dd(:,2:kl-1)=eps(1:ifull,2:kl-1)+ddts*eps(1:ifull,2:kl-1)/tke(1:ifull,2:kl-1) &
+  dd(:,2:kl-1)=eps(1:ifull,2:kl-1)+ddts*eps(1:ifull,2:kl-1)/tke(1:ifull,2:kl-1)                    &
               *ce1*(pps(:,2:kl-1)+max(ppb(:,2:kl-1),0.)+max(ppt(:,2:kl-1),0.))
   dd(:,2)     =dd(:,2)   -aa(:,2)*eps(1:ifull,1)
   dd(:,kl-1)  =dd(:,kl-1)-cc(:,kl-1)*mineps
@@ -718,16 +717,16 @@ do kcount=1,mcount
   bb(:,2)     =bb(:,2)-ddts*(1.-fzzh(:,2))*mflx(:,2)*idzp(:,2)
   aa(:,3:kl-2)=aa(:,3:kl-2)+ddts*(1.-fzzh(:,2:kl-3))*mflx(:,2:kl-3)*idzm(:,3:kl-2)
   cc(:,3:kl-2)=cc(:,3:kl-2)-ddts*fzzh(:,3:kl-2)*mflx(:,4:kl-1)*idzp(:,3:kl-2)
-  bb(:,3:kl-2)=bb(:,3:kl-2)+ddts*(fzzh(:,2:kl-3)*mflx(:,3:kl-2)*idzm(:,3:kl-2)        &
+  bb(:,3:kl-2)=bb(:,3:kl-2)+ddts*(fzzh(:,2:kl-3)*mflx(:,3:kl-2)*idzm(:,3:kl-2)                     &
                           -(1.-fzzh(:,3:kl-2))*mflx(:,3:kl-2)*idzp(:,3:kl-2))
   aa(:,kl-1)  =aa(:,kl-1)+ddts*(1.-fzzh(:,kl-2))*mflx(:,kl-2)*idzm(:,kl-1)
   bb(:,kl-1)  =bb(:,kl-1)+ddts*fzzh(:,kl-2)*mflx(:,kl-1)*idzm(:,kl-1)
   dd(:,2)     =dd(:,2)-ddts*((1.-fzzh(:,2))*mflx(:,2)*epup(:,2)+fzzh(:,2)*mflx(:,3)*epup(:,3))*idzp(:,2)
-  dd(:,3:kl-2)=dd(:,3:kl-2)+ddts*(((1.-fzzh(:,2:kl-3))*mflx(:,2:kl-3)*epup(:,2:kl-3)  &
-              +fzzh(:,2:kl-3)*mflx(:,3:kl-2)*epup(:,3:kl-2))*idzm(:,3:kl-2)           &
-              -((1.-fzzh(:,3:kl-2))*mflx(:,3:kl-2)*epup(:,3:kl-2)                     &
+  dd(:,3:kl-2)=dd(:,3:kl-2)+ddts*(((1.-fzzh(:,2:kl-3))*mflx(:,2:kl-3)*epup(:,2:kl-3)               &
+              +fzzh(:,2:kl-3)*mflx(:,3:kl-2)*epup(:,3:kl-2))*idzm(:,3:kl-2)                        &
+              -((1.-fzzh(:,3:kl-2))*mflx(:,3:kl-2)*epup(:,3:kl-2)                                  &
               +fzzh(:,3:kl-2)*mflx(:,4:kl-1)*epup(:,4:kl-1))*idzp(:,3:kl-2))
-  dd(:,kl-1)  =dd(:,kl-1)+ddts*((1.-fzzh(:,kl-2))*mflx(:,kl-2)*epup(:,kl-2)           &
+  dd(:,kl-1)  =dd(:,kl-1)+ddts*((1.-fzzh(:,kl-2))*mflx(:,kl-2)*epup(:,kl-2)                        &
               +fzzh(:,kl-2)*mflx(:,kl-1)*epup(:,kl-1))*idzm(:,kl-1)
   call thomas(epsnew(:,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1),kl-2)
 
@@ -748,11 +747,11 @@ do kcount=1,mcount
   bb(:,kl-1)  =bb(:,kl-1)+ddts*fzzh(:,kl-2)*mflx(:,kl-1)*idzm(:,kl-1)
   dd(:,2)     =dd(:,2)-ddts*((1.-fzzh(:,2))*mflx(:,2)*tkup(:,2) &
               +fzzh(:,2)*mflx(:,3)*tkup(:,3))*idzp(:,2)
-  dd(:,3:kl-2)=dd(:,3:kl-2)+ddts*(((1.-fzzh(:,2:kl-3))*mflx(:,2:kl-3)*tkup(:,2:kl-3) &
-              +fzzh(:,2:kl-3)*mflx(:,3:kl-2)*tkup(:,3:kl-2))*idzm(:,3:kl-2)          &
-              -((1.-fzzh(:,3:kl-2))*mflx(:,3:kl-2)*tkup(:,3:kl-2)                    &
+  dd(:,3:kl-2)=dd(:,3:kl-2)+ddts*(((1.-fzzh(:,2:kl-3))*mflx(:,2:kl-3)*tkup(:,2:kl-3)               &
+              +fzzh(:,2:kl-3)*mflx(:,3:kl-2)*tkup(:,3:kl-2))*idzm(:,3:kl-2)                        &
+              -((1.-fzzh(:,3:kl-2))*mflx(:,3:kl-2)*tkup(:,3:kl-2)                                  &
               +fzzh(:,3:kl-2)*mflx(:,4:kl-1)*tkup(:,4:kl-1))*idzp(:,3:kl-2))
-  dd(:,kl-1)  =dd(:,kl-1)+ddts*((1.-fzzh(:,kl-2))*mflx(:,kl-2)*tkup(:,kl-2)  &
+  dd(:,kl-1)  =dd(:,kl-1)+ddts*((1.-fzzh(:,kl-2))*mflx(:,kl-2)*tkup(:,kl-2)                        &
               +fzzh(:,kl-2)*mflx(:,kl-1)*tkup(:,kl-1))*idzm(:,kl-1)
   call thomas(tkenew(:,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1),kl-2)
 
@@ -775,80 +774,80 @@ do kcount=1,mcount
   bb(:,1)     =1.-rr(:,1)-ddts*(1.-fzzh(:,1))*mflx(:,1)*idzp(:,1)
   aa(:,2:kl-1)=qq(:,2:kl-1)+ddts*(1.-fzzh(:,1:kl-2))*mflx(:,1:kl-2)*idzm(:,2:kl-1)
   cc(:,2:kl-1)=rr(:,2:kl-1)-ddts*fzzh(:,2:kl-1)*mflx(:,3:kl)*idzp(:,2:kl-1)
-  bb(:,2:kl-1)=1.-qq(:,2:kl-1)-rr(:,2:kl-1)                                                   &
-               +ddts*(fzzh(:,1:kl-2)*mflx(:,2:kl-1)*idzm(:,2:kl-1)                            &
+  bb(:,2:kl-1)=1.-qq(:,2:kl-1)-rr(:,2:kl-1)                                                        &
+               +ddts*(fzzh(:,1:kl-2)*mflx(:,2:kl-1)*idzm(:,2:kl-1)                                 &
                     -(1.-fzzh(:,2:kl-1))*mflx(:,2:kl-1)*idzp(:,2:kl-1))
   aa(:,kl)    =qq(:,kl)+ddts*(1.-fzzh(:,kl-1))*mflx(:,kl-1)*idzm(:,kl)
   bb(:,kl)    =1.-qq(:,kl)+ddts*fzzh(:,kl-1)*mflx(:,kl)*idzm(:,kl)
-  dd(:,1)     =theta(1:ifull,1)-ddts*((1.-fzzh(:,1))*mflx(:,1)*thup(:,1)                      &
-              +fzzh(:,1)*mflx(:,2)*thup(:,2))*idzp(:,1)                                       &
+  dd(:,1)     =theta(1:ifull,1)-ddts*((1.-fzzh(:,1))*mflx(:,1)*thup(:,1)                           &
+              +fzzh(:,1)*mflx(:,2)*thup(:,2))*idzp(:,1)                                            &
               +ddts*rhos*wt0/(rhoa(:,1)*dz_fl(:,1))
-  dd(:,2:kl-1)=theta(1:ifull,2:kl-1)+ddts*(((1.-fzzh(:,1:kl-2))*mflx(:,1:kl-2)*thup(:,1:kl-2) &
-              +fzzh(:,1:kl-2)*mflx(:,2:kl-1)*thup(:,2:kl-1))*idzm(:,2:kl-1)                   &
-              -((1.-fzzh(:,2:kl-1))*mflx(:,2:kl-1)*thup(:,2:kl-1)                             &
+  dd(:,2:kl-1)=theta(1:ifull,2:kl-1)+ddts*(((1.-fzzh(:,1:kl-2))*mflx(:,1:kl-2)*thup(:,1:kl-2)      &
+              +fzzh(:,1:kl-2)*mflx(:,2:kl-1)*thup(:,2:kl-1))*idzm(:,2:kl-1)                        &
+              -((1.-fzzh(:,2:kl-1))*mflx(:,2:kl-1)*thup(:,2:kl-1)                                  &
               +fzzh(:,2:kl-1)*mflx(:,3:kl)*thup(:,3:kl))*idzp(:,2:kl-1))
-  dd(:,kl)    =theta(1:ifull,kl)+ddts*((1.-fzzh(:,kl-1))*mflx(:,kl-1)*thup(:,kl-1)            &
+  dd(:,kl)    =theta(1:ifull,kl)+ddts*((1.-fzzh(:,kl-1))*mflx(:,kl-1)*thup(:,kl-1)                 &
               +fzzh(:,kl-1)*mflx(:,kl)*thup(:,kl))*idzm(:,kl)
   call thomas(theta,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
 #ifdef offline
-  wth(:,1:kl-1)=-kmo(:,1:kl-1)*(theta(1:ifull,2:kl)-theta(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)    &
-                +(1.-fzzh(:,1:kl-1))*mflx(:,1:kl-1)*(thup(:,1:kl-1)-theta(1:ifull,1:kl-1))    &
+  wth(:,1:kl-1)=-kmo(:,1:kl-1)*(theta(1:ifull,2:kl)-theta(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)         &
+                +(1.-fzzh(:,1:kl-1))*mflx(:,1:kl-1)*(thup(:,1:kl-1)-theta(1:ifull,1:kl-1))         &
                 +fzzh(:,1:kl-1)*mflx(:,2:kl)*(thup(:,2:kl)-theta(1:ifull,2:kl))
 #endif
   
-  dd(:,1)     =qvg(1:ifull,1)-ddts*((1.-fzzh(:,1))*mflx(:,1)*qvup(:,1)                        &
-              +fzzh(:,1)*mflx(:,2)*qvup(:,2))*idzp(:,1)                                       &
+  dd(:,1)     =qvg(1:ifull,1)-ddts*((1.-fzzh(:,1))*mflx(:,1)*qvup(:,1)                             &
+              +fzzh(:,1)*mflx(:,2)*qvup(:,2))*idzp(:,1)                                            &
               +ddts*rhos*wq0/(rhoa(:,1)*dz_fl(:,1))
-  dd(:,2:kl-1)=qvg(1:ifull,2:kl-1)+ddts*(((1.-fzzh(:,1:kl-2))*mflx(:,1:kl-2)*qvup(:,1:kl-2)   &
-              +fzzh(:,1:kl-2)*mflx(:,2:kl-1)*qvup(:,2:kl-1))*idzm(:,2:kl-1)                   &
-              -((1.-fzzh(:,2:kl-1))*mflx(:,2:kl-1)*qvup(:,2:kl-1)                             &
+  dd(:,2:kl-1)=qvg(1:ifull,2:kl-1)+ddts*(((1.-fzzh(:,1:kl-2))*mflx(:,1:kl-2)*qvup(:,1:kl-2)        &
+              +fzzh(:,1:kl-2)*mflx(:,2:kl-1)*qvup(:,2:kl-1))*idzm(:,2:kl-1)                        &
+              -((1.-fzzh(:,2:kl-1))*mflx(:,2:kl-1)*qvup(:,2:kl-1)                                  &
               +fzzh(:,2:kl-1)*mflx(:,3:kl)*qvup(:,3:kl))*idzp(:,2:kl-1))
-  dd(:,kl)    =qvg(1:ifull,kl)+ddts*((1.-fzzh(:,kl-1))*mflx(:,kl-1)*qvup(:,kl-1)              &
+  dd(:,kl)    =qvg(1:ifull,kl)+ddts*((1.-fzzh(:,kl-1))*mflx(:,kl-1)*qvup(:,kl-1)                   &
               +fzzh(:,kl-1)*mflx(:,kl)*qvup(:,kl))*idzm(:,kl)
   call thomas(qvg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
 #ifdef offline
-  wqv(:,1:kl-1)=-kmo(:,1:kl-1)*(qvg(1:ifull,2:kl)-qg(:,1:kl-1))/dz_hl(:,1:kl-1)               &
-                +(1.-fzzh(:,1:kl-1))*mflx(:,1:kl-1)*(qvup(:,1:kl-1)-qvg(1:ifull,1:kl-1))      &
+  wqv(:,1:kl-1)=-kmo(:,1:kl-1)*(qvg(1:ifull,2:kl)-qg(:,1:kl-1))/dz_hl(:,1:kl-1)                    &
+                +(1.-fzzh(:,1:kl-1))*mflx(:,1:kl-1)*(qvup(:,1:kl-1)-qvg(1:ifull,1:kl-1))           &
                 +fzzh(:,1:kl-1)*mflx(:,2:kl)*(qvup(:,2:kl)-qvg(1:ifull,2:kl))
 #endif
 
-  dd(:,1)     =qlg(1:ifull,1)-ddts*((1.-fzzh(:,1))*mflx(:,1)*qlup(:,1)                        &
+  dd(:,1)     =qlg(1:ifull,1)-ddts*((1.-fzzh(:,1))*mflx(:,1)*qlup(:,1)                             &
               +fzzh(:,1)*mflx(:,2)*qlup(:,2))*idzp(:,1)
-  dd(:,2:kl-1)=qlg(1:ifull,2:kl-1)+ddts*(((1.-fzzh(:,1:kl-2))*mflx(:,1:kl-2)*qlup(:,1:kl-2)   &
-              +fzzh(:,1:kl-2)*mflx(:,2:kl-1)*qlup(:,2:kl-1))*idzm(:,2:kl-1)                   &
-              -((1.-fzzh(:,2:kl-1))*mflx(:,2:kl-1)*qlup(:,2:kl-1)                             &
+  dd(:,2:kl-1)=qlg(1:ifull,2:kl-1)+ddts*(((1.-fzzh(:,1:kl-2))*mflx(:,1:kl-2)*qlup(:,1:kl-2)        &
+              +fzzh(:,1:kl-2)*mflx(:,2:kl-1)*qlup(:,2:kl-1))*idzm(:,2:kl-1)                        &
+              -((1.-fzzh(:,2:kl-1))*mflx(:,2:kl-1)*qlup(:,2:kl-1)                                  &
               +fzzh(:,2:kl-1)*mflx(:,3:kl)*qlup(:,3:kl))*idzp(:,2:kl-1))
-  dd(:,kl)    =qlg(1:ifull,kl)+ddts*((1.-fzzh(:,kl-1))*mflx(:,kl-1)*qlup(:,kl-1)              &
+  dd(:,kl)    =qlg(1:ifull,kl)+ddts*((1.-fzzh(:,kl-1))*mflx(:,kl-1)*qlup(:,kl-1)                   &
               +fzzh(:,kl-1)*mflx(:,kl)*qlup(:,kl))*idzm(:,kl)
   call thomas(qlg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
 #ifdef offline
-  wql(:,1:kl-1)=-kmo(:,1:kl-1)*(qlg(1:ifull,2:kl)-qlg(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)        &
-                +(1.-fzzh(:,1:kl-1))*mflx(:,1:kl-1)*(qlup(:,1:kl-1)-qlg(1:ifull,1:kl-1))      &
+  wql(:,1:kl-1)=-kmo(:,1:kl-1)*(qlg(1:ifull,2:kl)-qlg(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)             &
+                +(1.-fzzh(:,1:kl-1))*mflx(:,1:kl-1)*(qlup(:,1:kl-1)-qlg(1:ifull,1:kl-1))           &
                 +fzzh(:,1:kl-1)*mflx(:,2:kl)*(qlup(:,2:kl)-qlg(1:ifull,2:kl))
 #endif
 
-  dd(:,1)     =qfg(1:ifull,1)-ddts*((1.-fzzh(:,1))*mflx(:,1)*qfup(:,1)                        &
+  dd(:,1)     =qfg(1:ifull,1)-ddts*((1.-fzzh(:,1))*mflx(:,1)*qfup(:,1)                             &
               +fzzh(:,1)*mflx(:,2)*qfup(:,2))*idzp(:,1)
-  dd(:,2:kl-1)=qfg(1:ifull,2:kl-1)+ddts*(((1.-fzzh(:,1:kl-2))*mflx(:,1:kl-2)*qfup(:,1:kl-2)   &
-              +fzzh(:,1:kl-2)*mflx(:,2:kl-1)*qfup(:,2:kl-1))*idzm(:,2:kl-1)                   &
-              -((1.-fzzh(:,2:kl-1))*mflx(:,2:kl-1)*qfup(:,2:kl-1)                             &
+  dd(:,2:kl-1)=qfg(1:ifull,2:kl-1)+ddts*(((1.-fzzh(:,1:kl-2))*mflx(:,1:kl-2)*qfup(:,1:kl-2)        &
+              +fzzh(:,1:kl-2)*mflx(:,2:kl-1)*qfup(:,2:kl-1))*idzm(:,2:kl-1)                        &
+              -((1.-fzzh(:,2:kl-1))*mflx(:,2:kl-1)*qfup(:,2:kl-1)                                  &
               +fzzh(:,2:kl-1)*mflx(:,3:kl)*qfup(:,3:kl))*idzp(:,2:kl-1))
-  dd(:,kl)    =qfg(1:ifull,kl)+ddts*((1.-fzzh(:,kl-1))*mflx(:,kl-1)*qfup(:,kl-1)              &
+  dd(:,kl)    =qfg(1:ifull,kl)+ddts*((1.-fzzh(:,kl-1))*mflx(:,kl-1)*qfup(:,kl-1)                   &
               +fzzh(:,kl-1)*mflx(:,kl)*qfup(:,kl))*idzm(:,kl)
   call thomas(qfg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
 #ifdef offline
-  wqf(:,1:kl-1)=-kmo(:,1:kl-1)*(qfg(1:ifull,2:kl)-qfg(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)        &
-                +(1.-fzzh(:,1:kl-1))*mflx(:,1:kl-1)*(qfup(:,1:kl-1)-qfg(1:ifull,1:kl-1))      &
+  wqf(:,1:kl-1)=-kmo(:,1:kl-1)*(qfg(1:ifull,2:kl)-qfg(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)             &
+                +(1.-fzzh(:,1:kl-1))*mflx(:,1:kl-1)*(qfup(:,1:kl-1)-qfg(1:ifull,1:kl-1))           &
                 +fzzh(:,1:kl-1)*mflx(:,2:kl)*(qfup(:,2:kl)-qfg(1:ifull,2:kl))
 #endif
 
-  dd(:,1)     =qrg(1:ifull,1)-ddts*((1.-fzzh(:,1))*mflx(:,1)*qrup(:,1)                        &
+  dd(:,1)     =qrg(1:ifull,1)-ddts*((1.-fzzh(:,1))*mflx(:,1)*qrup(:,1)                             &
               +fzzh(:,1)*mflx(:,2)*qrup(:,2))*idzp(:,1)
-  dd(:,2:kl-1)=qrg(1:ifull,2:kl-1)+ddts*(((1.-fzzh(:,1:kl-2))*mflx(:,1:kl-2)*qrup(:,1:kl-2)   &
-              +fzzh(:,1:kl-2)*mflx(:,2:kl-1)*qrup(:,2:kl-1))*idzm(:,2:kl-1)                   &
-              -((1.-fzzh(:,2:kl-1))*mflx(:,2:kl-1)*qrup(:,2:kl-1)                             &
+  dd(:,2:kl-1)=qrg(1:ifull,2:kl-1)+ddts*(((1.-fzzh(:,1:kl-2))*mflx(:,1:kl-2)*qrup(:,1:kl-2)        &
+              +fzzh(:,1:kl-2)*mflx(:,2:kl-1)*qrup(:,2:kl-1))*idzm(:,2:kl-1)                        &
+              -((1.-fzzh(:,2:kl-1))*mflx(:,2:kl-1)*qrup(:,2:kl-1)                                  &
               +fzzh(:,2:kl-1)*mflx(:,3:kl)*qrup(:,3:kl))*idzp(:,2:kl-1))
-  dd(:,kl)    =qrg(1:ifull,kl)+ddts*((1.-fzzh(:,kl-1))*mflx(:,kl-1)*qrup(:,kl-1)              &
+  dd(:,kl)    =qrg(1:ifull,kl)+ddts*((1.-fzzh(:,kl-1))*mflx(:,kl-1)*qrup(:,kl-1)                   &
               +fzzh(:,kl-1)*mflx(:,kl)*qrup(:,kl))*idzm(:,kl)
   call thomas(qrg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
 
@@ -870,13 +869,13 @@ do kcount=1,mcount
   end do
 
   ! update cloud fraction terms
-  dd(:,1)     =cfrac(1:ifull,1)-ddts*((1.-fzzh(:,1))*mflx(:,1)*cfup(:,1)                       &
+  dd(:,1)     =cfrac(1:ifull,1)-ddts*((1.-fzzh(:,1))*mflx(:,1)*cfup(:,1)                           &
               +fzzh(:,1)*mflx(:,2)*cfup(:,2))*idzp(:,1)
-  dd(:,2:kl-1)=cfrac(1:ifull,2:kl-1)+ddts*(((1.-fzzh(:,1:kl-2))*mflx(:,1:kl-2)*cfup(:,1:kl-2)  &
-              +fzzh(:,1:kl-2)*mflx(:,2:kl-1)*cfup(:,2:kl-1))*idzm(:,2:kl-1)                    &
-              -((1.-fzzh(:,2:kl-1))*mflx(:,2:kl-1)*cfup(:,2:kl-1)                              &
+  dd(:,2:kl-1)=cfrac(1:ifull,2:kl-1)+ddts*(((1.-fzzh(:,1:kl-2))*mflx(:,1:kl-2)*cfup(:,1:kl-2)      &
+              +fzzh(:,1:kl-2)*mflx(:,2:kl-1)*cfup(:,2:kl-1))*idzm(:,2:kl-1)                        &
+              -((1.-fzzh(:,2:kl-1))*mflx(:,2:kl-1)*cfup(:,2:kl-1)                                  &
               +fzzh(:,2:kl-1)*mflx(:,3:kl)*cfup(:,3:kl))*idzp(:,2:kl-1))
-  dd(:,kl)    =cfrac(1:ifull,kl)+ddts*((1.-fzzh(:,kl-1))*mflx(:,kl-1)*cfup(:,kl-1)             &
+  dd(:,kl)    =cfrac(1:ifull,kl)+ddts*((1.-fzzh(:,kl-1))*mflx(:,kl-1)*cfup(:,kl-1)                 &
               +fzzh(:,kl-1)*mflx(:,kl)*cfup(:,kl))*idzm(:,kl)
   call thomas(cfrac,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
   cfrac(1:ifull,:)=min(max(cfrac(1:ifull,:),0.),1.)
@@ -884,13 +883,13 @@ do kcount=1,mcount
     cfrac(1:ifull,:)=max(cfrac(1:ifull,:),1.E-6)
   end where
 
-  dd(:,1)     =cfrain(1:ifull,1)-ddts*((1.-fzzh(:,1))*mflx(:,1)*crup(:,1)                      &
+  dd(:,1)     =cfrain(1:ifull,1)-ddts*((1.-fzzh(:,1))*mflx(:,1)*crup(:,1)                          &
               +fzzh(:,1)*mflx(:,2)*crup(:,2))*idzp(:,1)
-  dd(:,2:kl-1)=cfrain(1:ifull,2:kl-1)+ddts*(((1.-fzzh(:,1:kl-2))*mflx(:,1:kl-2)*crup(:,1:kl-2) &
-              +fzzh(:,1:kl-2)*mflx(:,2:kl-1)*crup(:,2:kl-1))*idzm(:,2:kl-1)                    &
-              -((1.-fzzh(:,2:kl-1))*mflx(:,2:kl-1)*crup(:,2:kl-1)                              &
+  dd(:,2:kl-1)=cfrain(1:ifull,2:kl-1)+ddts*(((1.-fzzh(:,1:kl-2))*mflx(:,1:kl-2)*crup(:,1:kl-2)     &
+              +fzzh(:,1:kl-2)*mflx(:,2:kl-1)*crup(:,2:kl-1))*idzm(:,2:kl-1)                        &
+              -((1.-fzzh(:,2:kl-1))*mflx(:,2:kl-1)*crup(:,2:kl-1)                                  &
               +fzzh(:,2:kl-1)*mflx(:,3:kl)*crup(:,3:kl))*idzp(:,2:kl-1))
-  dd(:,kl)    =cfrain(1:ifull,kl)+ddts*((1.-fzzh(:,kl-1))*mflx(:,kl-1)*crup(:,kl-1)            &
+  dd(:,kl)    =cfrain(1:ifull,kl)+ddts*((1.-fzzh(:,kl-1))*mflx(:,kl-1)*crup(:,kl-1)                &
               +fzzh(:,kl-1)*mflx(:,kl)*crup(:,kl))*idzm(:,kl)
   call thomas(cfrain,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
   cfrain(1:ifull,:)=min(max(cfrain(1:ifull,:),0.),1.)
@@ -900,13 +899,13 @@ do kcount=1,mcount
   
   ! Aerosols
   do j=1,naero
-    dd(:,1)     =aero(:,1,j)-ddts*((1.-fzzh(:,1))*mflx(:,1)*arup(:,1,j)                      &
+    dd(:,1)     =aero(1:ifull,1,j)-ddts*((1.-fzzh(:,1))*mflx(:,1)*arup(:,1,j)                      &
                 +fzzh(:,1)*mflx(:,2)*arup(:,2,j))*idzp(:,1)
-    dd(:,2:kl-1)=aero(:,2:kl-1,j)+ddts*(((1.-fzzh(:,1:kl-2))*mflx(:,1:kl-2)*arup(:,1:kl-2,j) &
-                +fzzh(:,1:kl-2)*mflx(:,2:kl-1)*arup(:,2:kl-1,j))*idzm(:,2:kl-1)              &
-                -((1.-fzzh(:,2:kl-1))*mflx(:,2:kl-1)*arup(:,2:kl-1,j)                        &
+    dd(:,2:kl-1)=aero(1:ifull,2:kl-1,j)+ddts*(((1.-fzzh(:,1:kl-2))*mflx(:,1:kl-2)*arup(:,1:kl-2,j) &
+                +fzzh(:,1:kl-2)*mflx(:,2:kl-1)*arup(:,2:kl-1,j))*idzm(:,2:kl-1)                    &
+                -((1.-fzzh(:,2:kl-1))*mflx(:,2:kl-1)*arup(:,2:kl-1,j)                              &
                 +fzzh(:,2:kl-1)*mflx(:,3:kl)*arup(:,3:kl,j))*idzp(:,2:kl-1))
-    dd(:,kl)    =aero(:,kl,j)+ddts*((1.-fzzh(:,kl-1))*mflx(:,kl-1)*arup(:,kl-1,j)            &
+    dd(:,kl)    =aero(1:ifull,kl,j)+ddts*((1.-fzzh(:,kl-1))*mflx(:,kl-1)*arup(:,kl-1,j)            &
                 +fzzh(:,kl-1)*mflx(:,kl)*arup(:,kl,j))*idzm(:,kl)
     call thomas(aero(:,:,j),aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
   end do

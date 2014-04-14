@@ -47,6 +47,7 @@ include 'parmgeom.h'
 integer, intent(in) :: kdatein
 integer ncstatus,ncid,i,j,varid,tilg
 integer ierr,jyear,jmonth
+integer premonth,nxtmonth
 integer, dimension(2) :: spos,npos
 integer, dimension(3) :: idum
 integer, dimension(4) :: sposs,nposs
@@ -55,9 +56,9 @@ real, dimension(ifull) :: duma
 real, dimension(:,:,:,:), allocatable, save :: oxidantdum
 real, dimension(:), allocatable, save :: rlon,rlat
 real tlat,tlon,tschmidt
+real, parameter :: iotol=1.E-5 ! tolarance for iotest
 character(len=*), intent(in) :: aerofile,oxidantfile
 logical tst
-real, parameter :: iotol=1.E-5 ! tolarance for iotest
 
 if (myid==0) write(6,*) "Initialising prognostic aerosols"
 
@@ -311,6 +312,10 @@ if (myid==0) then
   ! use kdate_s as kdate has not yet been defined
   jyear=kdatein/10000
   jmonth=(kdatein-jyear*10000)/100
+  premonth=jmonth-1
+  if (premonth<1) premonth=12
+  nxtmonth=jmonth+1
+  if (nxtmonth>12) nxtmonth=1
   write(6,*) "Processing oxidant file for month ",jmonth
   call ccnf_inq_varid(ncid,'lon',varid,tst)
   if (tst) then
@@ -367,8 +372,7 @@ if (myid==0) then
     do i=1,3
       select case(i)
         case(1)
-          sposs(4)=jmonth-1
-          if (sposs(4)<1) sposs(4)=12
+          sposs(4)=premonth
           call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,1))
           call ccmpi_bcast(oxidantdum(:,:,:,1),0,comm_world)
         case(2)
@@ -376,8 +380,7 @@ if (myid==0) then
           call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,2))
           call ccmpi_bcast(oxidantdum(:,:,:,2),0,comm_world)
         case(3)
-          sposs(4)=jmonth+1
-          if (sposs(4)>12) sposs(4)=1
+          sposs(4)=nxtmonth
           call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,3))
           call ccmpi_bcast(oxidantdum(:,:,:,3),0,comm_world)
       end select
@@ -459,19 +462,19 @@ include 'soilv.h'
 integer jyear,jmonth,jday,jhour,jmin,mins,smins
 integer j,k,tt,ttx,iq
 integer, save :: sday=-9999
+integer, parameter :: updateoxidant = 1440 ! update prescribed oxidant fields once per day
 real dhr,fjd,sfjd,r1,dlt,alp,slag
 real, dimension(ifull) :: coszro,taudar
 real, dimension(ifull,kl) :: oxout,zg,clcon,pccw,rhoa
 real, dimension(ifull,kl) :: tnhs,dz,ctmp
-real, dimension(ifull,kl) :: dumt,dumql,dumqf
 real, dimension(ifull,kl,naero) :: xtusav
 real, dimension(ifull) :: dxy,cldcon,wg
 real, dimension(kl+1) :: sigh
 
 ! timer calculations
 call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
-! update prescribed oxidant fields once per day
-if (sday<=mins-1440) then
+! update prescribed oxidant fields
+if (sday<=mins-updateoxidant) then
   sday=mins
   do j=1,4      
     call fieldinterpolate(oxout,oxidantprev(:,:,j),oxidantnow(:,:,j),oxidantnext(:,:,j), &
@@ -511,13 +514,12 @@ end do
 do k=1,kl
   dz(:,k)=-rdry*dsig(k)*(t(1:ifull,k)+tnhs(:,k))/(grav*sig(k))
 end do
-dxy=ds*ds/(em(1:ifull)*em(1:ifull))       ! grid spacing in m**2
+dxy=ds*ds/(em(1:ifull)*em(1:ifull))                ! grid spacing in m**2
 do k=1,kl
-  rhoa(:,k)=ps(1:ifull)*sig(k)/(rdry*t(1:ifull,k)) !density of air (kg/m**3)
+  rhoa(:,k)=ps(1:ifull)*sig(k)/(rdry*t(1:ifull,k)) ! density of air (kg/m**3)
 end do
 
-! estimate convective cloud fraction
-! from leoncld.f
+! estimate convective cloud fraction from leoncld.f
 where (ktsav<kl-1)
   cldcon=min(acon+bcon*log(1.+condc*86400./dt),0.8) !NCAR
 elsewhere
@@ -557,21 +559,19 @@ end if
 
 ! Convert from aerosol concentration outside convective cloud (used by CCAM)
 ! to aerosol concentration inside convective cloud
-ctmp=max(clcon,1.E-6)
+ctmp=max(clcon,1.E-8)
 do j=1,naero
   xtusav(:,:,j)=(xtg(1:ifull,:,j)-(1.-ctmp)*xtosav(:,:,j))/ctmp
 end do
 
+! Water converage at surface
 wg=min(max(wetfac,0.),1.)
 
 ! update prognostic aerosols
-dumt=t(1:ifull,:)
-dumql=qlg(1:ifull,:)
-dumqf=qfg(1:ifull,:)
 call aldrcalc(dt,sig,sigh,dsig,zg,dz,cansto,fwet,wg,pblh,ps,   &
-              tss,dumt,condx,condc,snowd,sgsave,fg,            &
+              tss,t,condx,condc,snowd,sgsave,fg,               &
               eg,u10,ustar,zo,land,fracice,sigmf,              &
-              dumql,dumqf,cfrac,clcon,                         &
+              qlg,qfg,cfrac,clcon,                             &
               pccw,dxy,rhoa,cdtq,ppfprec,ppfmelt,ppfsnow,      &
               ppfconv,ppfevap,ppfsubl,pplambs,ppmrate,         &
               ppmaccr,ppfstay,ppqfsed,pprscav,zdayfac,xtusav)
