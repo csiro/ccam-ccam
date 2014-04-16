@@ -35,15 +35,15 @@
 
       integer, save :: ik,jk,kk,ok,maxarchi,nsibx
       integer, save :: ncidold = -1
+      integer kdate_r,ktime_r,nested,ier,ier2,ilen,itype
+      integer idv,mtimer,k,ierx,idvkd,idvkt,idvmt
       integer, dimension(nihead) :: nahead
       integer, dimension(ifull) :: isflag
       integer, dimension(9) :: idum
-      integer kdate_r,ktime_r,nested,ier,ier2,ilen,itype
-      integer idv,mtimer,k,ierx,idvkd,idvkt,idvmt
-      real, dimension(nrhead) :: ahead
-      real, dimension(3) :: rdum
       real, save :: rlong0x, rlat0x, schmidtx
       real timer
+      real, dimension(nrhead) :: ahead
+      real, dimension(3) :: rdum
 !     These are local arrays, not the versions in arrays.h
 !     Use in call to infile, so are dimensioned ifull rather than ifull_g
       real, dimension(ifull) :: psl,zss,tss,fracice,snowd,sicedep
@@ -73,14 +73,15 @@
           iarchi=1
           call ccnf_get_attg(ncid,'int_header',nahead)
           call ccnf_get_attg(ncid,'real_header',ahead)
-          ik=nahead(1)
-          jk=nahead(2)
-          kk=nahead(3)
-          nsibx=nahead(44)
+          ik      =nahead(1)
+          jk      =nahead(2)
+          kk      =nahead(3)
+          nsibx   =nahead(44)
           rlong0x =ahead(5)
           rlat0x  =ahead(6)
           schmidtx=ahead(7)
           if(schmidtx<=0..or.schmidtx>1.)then
+            ! backwards compatibility option
             rlong0x =ahead(6)
             rlat0x  =ahead(7)
             schmidtx=ahead(8)
@@ -113,6 +114,7 @@
           call ccnf_inq_varid(ncid,'timer',idvmt,tst)
         end if
         do while(ltest.and.iarchi<maxarchi)
+          ! could read this as one array, but we only usually need to advance 1 step
           iarchi=iarchi+1
           call ccnf_get_var1(ncid,idvkd,iarchi,kdate_r)
           call ccnf_get_var1(ncid,idvkt,iarchi,ktime_r)
@@ -127,6 +129,7 @@
           if (mtimer>0) then
             call datefix(kdate_r,ktime_r,mtimer)
           end if
+          ! ltest = .false. when correct date is found
           ltest=2400*(kdate_r-kdate_s)-1200*nsemble
      &              +(ktime_r-ktime_s)<0
         end do
@@ -135,6 +138,7 @@
           ktime_r=ktime_s
         end if
         if (ltest) then
+          ! ran out of file before correct date was located
           ktime_r=-1
         end if
         if (myid==0) then
@@ -156,8 +160,9 @@
         rdum(3)=schmidtx
       endif  ! ( myid==0 .or. pfall )
 
-      newfile=ncid/=ncidold
+      newfile=(ncid/=ncidold)
       if (.not.pfall) then
+        ! if metadata is not read by all processors, then broadcast
         call ccmpi_bcast(idum(1:9),0,comm_world)
         kdate_r=idum(1)
         ktime_r=idum(2)
@@ -171,6 +176,7 @@
       end if
       if (newfile) then
         if (.not.pfall) then
+          ! is metadata is not read by all processors, then broadcast
           call ccmpi_bcast(rdum(1:3),0,comm_world)
           rlong0x=rdum(1)
           rlat0x=rdum(2)
@@ -418,11 +424,6 @@
           enddo
           write(6,*)'xx4,yy4 ',xx4(id,jd),yy4(id,jd)
           write(6,*)'before latltoij for id,jd: ',id,jd
-          if ( nproc==1 ) then
-             ! Diagnostics will only be correct if nproc==1
-             write(6,*)'rlong4(1-4) ',(rlong4(idjd,mm),mm=1,4)
-             write(6,*)'rlat4(1-4) ',(rlat4(idjd,mm),mm=1,4)
-          end if
           write(6,*)'rlong0x,rlat0x,schmidtx ',rlong0x,rlat0x,
      &               schmidtx
        endif                  ! (nmaxpr==1.and.myid==0)
@@ -1275,20 +1276,20 @@ c***        but needed here for onthefly (different dims) 28/8/08
 
         !--------------------------------------------------
         ! Read boundary layer height for TKE-eps mixing
+        if (iotest) then
+          call histrd1(ncid,iarchi,ier,'pblh',ik,6*ik,pblh,ifull)
+        else
+          call histrd1(ncid,iarchi,ier,'pblh',ik,6*ik,ucc,6*ik*ik)
+          call doints4(ucc,pblh,nface4,xg4,yg4,nord,ik)
+        end if ! iotest
+        pblh=max(pblh,1.)
         if (nvmix==6.and.nested==0) then
           if (iotest) then
-            call histrd1(ncid,iarchi,ier,'pblh',ik,6*ik,pblh,ifull)
             call histrd1(ncid,iarchi,ier,'dpblh',ik,6*ik,zidry,ifull)
           else
-            call histrd1(ncid,iarchi,ier,'pblh',ik,6*ik,ucc,6*ik*ik)
-            call doints4(ucc,pblh,nface4,xg4,yg4,
-     &                     nord,ik)
             zidry=pblh 
           end if ! iotest
-          if (all(pblh==0.)) then
-            pblh=1000.
-            zidry=pblh
-          end if
+          zidry=max(zidry,1.)
         end if
 
         !--------------------------------------------------
