@@ -993,7 +993,6 @@ c        now do cffall
           rhs=xtg(1:ifull,:,l) ! Total grid-box
           call trim(at,ct,rhs,0)
           xtg(1:ifull,:,l)=rhs
-          call trim(at,ct,xtosav(:,:,l),0) ! Outside convective cloud
         end do
        end if ! (abs(iaero)==2)
       

@@ -313,6 +313,7 @@ do kcount=1,mcount
     do i=1,ifull
       if (wtv0(i)>0.) then ! unstable
         do icount=1,icm1
+          ! Initialise updraft
           ziold=zidry(i)
           zlcl=0.
           tke(i,1)=cm12*ustar(i)*ustar(i)+ce3*wstar(i)*wstar(i)
@@ -321,7 +322,6 @@ do kcount=1,mcount
           klcl=kl+1
           w2up=0.
           cfup(i,:)=0.
-          crup(i,:)=0.
           scond=.false.
           dzht=zz(i,1)
           ! Entrainment and detrainment rates
@@ -581,12 +581,14 @@ do kcount=1,mcount
         ! update reamining scalars which are not used in the iterative loop
         tkup(i,1)=tkeold(i)
         epup(i,1)=epsold(i)
+        crup(i,:)=0.
         gamtk(i,1)=0.
         do k=2,ktopmax
           dzht=dz_hl(i,k-1)
           ent=entfn(zz(i,k),zi(i),zz(i,1))
-          tkup(i,k)=(tkup(i,k-1)+dzht*ent*tke(i,k))/(1.+dzht*ent)
-          epup(i,k)=(epup(i,k-1)+dzht*ent*eps(i,k))/(1.+dzht*ent)
+          tkup(i,k)=(tkup(i,k-1)+dzht*ent*tke(i,k)   )/(1.+dzht*ent)
+          epup(i,k)=(epup(i,k-1)+dzht*ent*eps(i,k)   )/(1.+dzht*ent)
+          crup(i,k)=(crup(i,k-1)+dzht*ent*cfrain(i,k))/(1.+dzht*ent)
           gamtk(i,k)=mflx(i,k)*(tkup(i,k)-tke(i,k))
         end do
         do j=1,naero
@@ -647,11 +649,11 @@ do kcount=1,mcount
   ! prepare arrays for calculating buoyancy of saturated air
   ! (i.e., related to the saturated adiabatic lapse rate)
   qsatc=max(qsat,qvg(1:ifull,:))                                             ! assume qvg is saturated inside cloud
-  ff=qfg(1:ifull,:)/max(cfrac(1:ifull,:),1.E-6)                              ! inside cloud value
-  dd=qlg(1:ifull,:)/max(cfrac(1:ifull,:),1.E-6)                            &
-    +qrg(1:ifull,:)/max(cfrac(1:ifull,:),cfrain(1:ifull,:),1.E-6)            ! inside cloud value assuming max overlap
+  ff=qfg(1:ifull,:)/max(cfrac(1:ifull,:),1.E-8)                              ! inside cloud value
+  dd=qlg(1:ifull,:)/max(cfrac(1:ifull,:),1.E-8)                            &
+    +qrg(1:ifull,:)/max(cfrac(1:ifull,:),cfrain(1:ifull,:),1.E-8)            ! inside cloud value assuming max overlap
   do k=1,kl
-    tbb=max(1.-cfrac(1:ifull,k),1.E-6)
+    tbb=max(1.-cfrac(1:ifull,k),1.E-8)
     qgnc=(qvg(1:ifull,k)-(1.-tbb)*qsatc(:,k))/tbb                            ! outside cloud value
     qgnc=min(max(qgnc,qgmin),qsatc(:,k))
     thetac(:,k)=thetal(:,k)+sigkap(k)*(lv*dd(:,k)+ls*ff(:,k))/cp             ! inside cloud value
@@ -880,7 +882,7 @@ do kcount=1,mcount
   call thomas(cfrac,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
   cfrac(1:ifull,:)=min(max(cfrac(1:ifull,:),0.),1.)
   where (qlg(1:ifull,:)+qfg(1:ifull,:)>1.E-12)
-    cfrac(1:ifull,:)=max(cfrac(1:ifull,:),1.E-6)
+    cfrac(1:ifull,:)=max(cfrac(1:ifull,:),1.E-8)
   end where
 
   dd(:,1)     =cfrain(1:ifull,1)-ddts*((1.-fzzh(:,1))*mflx(:,1)*crup(:,1)                          &
@@ -894,7 +896,7 @@ do kcount=1,mcount
   call thomas(cfrain,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
   cfrain(1:ifull,:)=min(max(cfrain(1:ifull,:),0.),1.)
   where (qrg(1:ifull,:)>1.E-12)
-    cfrain(1:ifull,:)=max(cfrain(1:ifull,:),1.E-6)
+    cfrain(1:ifull,:)=max(cfrain(1:ifull,:),1.E-8)
   end where
   
   ! Aerosols
