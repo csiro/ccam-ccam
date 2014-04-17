@@ -160,7 +160,7 @@ end subroutine aldrloaderod
 ! Main routine
 
 subroutine aldrcalc(dt,sig,sigh,dsig,zz,dz,mc,fwet,wg,pblh,prf,ts,ttg,rcondx,condc,snowd,sg,fg,eg,v10m,  &
-                    ustar,zo,land,sicef,tsigmf,qlg,qfg,cfrac,clcon,pccw,dxy,rhoa,vt,ppfprec,ppfmelt,     &
+                    ustar,zo,land,sicef,tsigmf,qvg,qlg,qfg,cfrac,clcon,pccw,dxy,rhoa,vt,ppfprec,ppfmelt, &
                     ppfsnow,ppfconv,ppfevap,ppfsubl,pplambs,ppmrate,ppmaccr,ppfstay,ppqfsed,pprscav,     &
                     zdayfac,xtusav)
 
@@ -193,6 +193,7 @@ real, dimension(ifull), intent(in) :: zdayfac  ! scale factor for day length
 real, dimension(ifull,kl), intent(in) :: zz    ! Height of vertical level (meters)
 real, dimension(ifull,kl), intent(in) :: dz
 real, dimension(:,:), intent(in) :: ttg        ! Air temperature
+real, dimension(:,:), intent(in) :: qvg        ! liquid water mixing ratio
 real, dimension(:,:), intent(in) :: qlg        ! liquid water mixing ratio
 real, dimension(:,:), intent(in) :: qfg        ! frozen water mixing ratio
 real, dimension(ifull,kl), intent(in) :: cfrac ! cloud fraction
@@ -220,7 +221,7 @@ real, dimension(ifull) :: dumsnowd
 real, dimension(ifull) :: veff,vefn,dustdd,duste
 real, dimension(ifull) :: cstrat,qtot
 real, dimension(ifull) :: rrate,Wstar3,Vgust_free,Vgust_deep
-real, dimension(ifull) :: v10n
+real, dimension(ifull) :: v10n,thetav
 real, dimension(kl) :: isig
 real, parameter :: beta=0.65
 integer nt,k
@@ -237,10 +238,11 @@ v10n=ustar*log(10./zo)/vkar ! neutral wind speed
 ! Equation numbers follow Fairall et al. 1996, JGR 101, 3747-3764.
 rrate = 8640.*rcondx/dt !Rainfall rate in cm/day
 ! Calculate convective scaling velocity (Eq.17) and gustiness velocity (Eq.16)
-Wstar3 = max(0.,(grav*pblh/ttg(1:ifull,1))*(fg/(rhoa(:,1)*cp)+0.61*ttg(1:ifull,1)*eg/(rhoa(:,1)*hl)))
+thetav = ttg(1:ifull,1)*(1.+0.61*qvg(1:ifull,1))
+Wstar3 = max(0.,(grav*pblh/thetav)*(fg/cp+0.61*ttg(1:ifull,1)*eg/hl)/rhoa(:,1))
 Vgust_free = beta*Wstar3**(1./3.)
-! Calculate the Redelsperger-based Vgust_deep if deep convection is present, and then take
-! the maximum of these. Note that Redelspreger gives two other parameterizations, based on
+! Calculate the Redelsperger-based Vgust_deep if deep convection is present.
+! Note that Redelspreger gives two other parameterizations, based on
 ! the updraft or downdraught mass fluxes respectively.
 Vgust_deep = (19.8*rrate*rrate/(1.5+rrate+rrate*rrate))**0.4
 ! Calculate effective 10m wind (Eq. 15)
@@ -2344,8 +2346,6 @@ do k=1,kl
 
   ! Jones et al., modified to account for hydrophilic carb aerosols as well
   Atot = so4_n + cphil_n + ssn(is:ie,k,1) + ssn(is:ie,k,2)
-  !cdn_strat(:,k)=max(10.e6, 375.e6*(1.-exp(-2.5e-9*Atot(:))))
-  !cdn_conv(:,k) = cdn_strat(:,k)
   cdn(:,k)=max(10.e6, 375.e6*(1.-exp(-2.5e-9*Atot)))
 
 enddo

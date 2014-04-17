@@ -561,17 +561,23 @@ end if
 ! to aerosol concentration inside convective cloud
 ctmp=max(clcon,1.E-8)
 do j=1,naero
-  xtusav(:,:,j)=(xtg(1:ifull,:,j)-(1.-ctmp)*xtosav(:,:,j))/ctmp
+  xtusav(:,:,j)=max(xtg(1:ifull,:,j)-(1.-ctmp)*xtosav(:,:,j),0.)/ctmp
 end do
 
 ! Water converage at surface
 wg=min(max(wetfac,0.),1.)
 
+! MJT notes - We have an option to update the aerosols before the vertical mixing
+! or after the vertical mixing.  Updating aerosols before the vertical mixing
+! ensures that we can split the convective and non-convective aerosol
+! concentrations.  However, updating aerosols after vertical mixing provides a
+! better estimate of u10 and pblh.
+
 ! update prognostic aerosols
 call aldrcalc(dt,sig,sigh,dsig,zg,dz,cansto,fwet,wg,pblh,ps,   &
               tss,t,condx,condc,snowd,sgsave,fg,               &
               eg,u10,ustar,zo,land,fracice,sigmf,              &
-              qlg,qfg,cfrac,clcon,                             &
+              qg,qlg,qfg,cfrac,clcon,                          &
               pccw,dxy,rhoa,cdtq,ppfprec,ppfmelt,ppfsnow,      &
               ppfconv,ppfevap,ppfsubl,pplambs,ppmrate,         &
               ppmaccr,ppfstay,ppqfsed,pprscav,zdayfac,xtusav)
