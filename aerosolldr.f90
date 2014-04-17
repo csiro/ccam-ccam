@@ -236,7 +236,9 @@ dustwd=0.
 v10n=ustar*log(10./zo)/vkar ! neutral wind speed
 ! Mesoscale enhancement follows Redelsperger et al. (2000), J. Climate 13, 402-421.
 ! Equation numbers follow Fairall et al. 1996, JGR 101, 3747-3764.
-rrate = 8640.*rcondx/dt !Rainfall rate in cm/day
+! MJT notes - rrate should be replaced with convective rainfall for regional models
+!rrate = 8640.*rcondx/dt
+rrate = 8640.*condc/dt !Rainfall rate in cm/day
 ! Calculate convective scaling velocity (Eq.17) and gustiness velocity (Eq.16)
 thetav = ttg(1:ifull,1)*(1.+0.61*qvg(1:ifull,1))
 Wstar3 = max(0.,(grav*pblh/thetav)*(fg/cp+0.61*ttg(1:ifull,1)*eg/hl)/rhoa(:,1))
