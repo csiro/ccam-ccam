@@ -374,7 +374,6 @@ where (land)
   albvisdif=0.
   albnirdir=0.
   albnirdif=0.
-  rnet=0.
   fg=0.
   eg=0.
   ga=0.
@@ -472,8 +471,6 @@ do nb=1,maxnb
                                     +sv(pind(nb,1):pind(nb,2))*rad%reffdf(pind(nb,1):pind(nb,2),2)
   runoff(cmap(pind(nb,1):pind(nb,2)))=runoff(cmap(pind(nb,1):pind(nb,2))) &
                                     +sv(pind(nb,1):pind(nb,2))*ssnow%runoff(pind(nb,1):pind(nb,2))*dt ! convert mm/s to mm
-  rnet(cmap(pind(nb,1):pind(nb,2)))=rnet(cmap(pind(nb,1):pind(nb,2))) &
-                                    +sv(pind(nb,1):pind(nb,2))*canopy%rnet(pind(nb,1):pind(nb,2))
   fg(cmap(pind(nb,1):pind(nb,2)))=fg(cmap(pind(nb,1):pind(nb,2))) &
                                     +sv(pind(nb,1):pind(nb,2))*canopy%fh(pind(nb,1):pind(nb,2))
   eg(cmap(pind(nb,1):pind(nb,2)))=eg(cmap(pind(nb,1):pind(nb,2))) &
@@ -538,6 +535,7 @@ where (land)
   tscrn=tscrn+273.16 ! convert from degC to degK
   tss=tss**0.25
   rsmin=1./rsmin
+  rnet=sgsave-rgsave-stefbo*tss**4
 end where
 do iq=1,ifull
   if (land(iq)) then
@@ -1223,6 +1221,9 @@ if (mp>0) then
   call alloc_cbm_var(sum_flux, mp)
   call alloc_cbm_var(veg, mp)
 
+  ! Cable configuration
+  cable_user%ssnow_POTEV = ""
+  
   ! soil parameters
   soil%zse        = zse ! soil layer thickness
   soil%zshh(1)    = 0.5 * soil%zse(1)

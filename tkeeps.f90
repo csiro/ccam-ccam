@@ -730,6 +730,10 @@ do kcount=1,mcount
               +fzzh(:,3:kl-2)*mflx(:,4:kl-1)*epup(:,4:kl-1))*idzp(:,3:kl-2))
   dd(:,kl-1)  =dd(:,kl-1)+ddts*((1.-fzzh(:,kl-2))*mflx(:,kl-2)*epup(:,kl-2)                        &
               +fzzh(:,kl-2)*mflx(:,kl-1)*epup(:,kl-1))*idzm(:,kl-1)
+  if (any(bb(:,2:kl-1)<0.001)) then
+    print *,"ERROR with tkeeps, epsnew bb ",minval(bb(:,2:kl-1))
+    stop
+  end if
   call thomas(epsnew(:,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1),kl-2)
 
   ! TKE vertical mixing (done here as we skip level 1, instead of using trim)
@@ -755,6 +759,10 @@ do kcount=1,mcount
               +fzzh(:,3:kl-2)*mflx(:,4:kl-1)*tkup(:,4:kl-1))*idzp(:,3:kl-2))
   dd(:,kl-1)  =dd(:,kl-1)+ddts*((1.-fzzh(:,kl-2))*mflx(:,kl-2)*tkup(:,kl-2)                        &
               +fzzh(:,kl-2)*mflx(:,kl-1)*tkup(:,kl-1))*idzm(:,kl-1)
+  if (any(bb(:,2:kl-1)<0.001)) then
+    print *,"ERROR with tkeeps, tkenew bb ",minval(bb(:,2:kl-1))
+    stop
+  end if
   call thomas(tkenew(:,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1),kl-2)
 
   do k=2,kl-1
@@ -790,6 +798,10 @@ do kcount=1,mcount
               +fzzh(:,2:kl-1)*mflx(:,3:kl)*thup(:,3:kl))*idzp(:,2:kl-1))
   dd(:,kl)    =theta(1:ifull,kl)+ddts*((1.-fzzh(:,kl-1))*mflx(:,kl-1)*thup(:,kl-1)                 &
               +fzzh(:,kl-1)*mflx(:,kl)*thup(:,kl))*idzm(:,kl)
+  if (any(bb(:,1:kl)<0.001)) then
+    print *,"ERROR with tkeeps, theta bb ",minval(bb(:,2:kl-1))
+    stop
+  end if
   call thomas(theta,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
 #ifdef offline
   wth(:,1:kl-1)=-kmo(:,1:kl-1)*(theta(1:ifull,2:kl)-theta(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)         &
@@ -949,13 +961,30 @@ integer k
 bb(:,1)=xtr(:,1)
 dd(:,1)=ddi(:,1)
 
+if (any(bb(:,1)<0.001)) then
+  print *,"ERROR thomas1 bb1 ",minval(bb(:,1))
+  stop
+end if
+
 do k=2,klin
+if (any(bb(:,k-1)<0.001)) then
+  print *,"ERROR thomas1 bbk-1 ",k-1,minval(bb(:,k-1))
+  stop
+end if  
   n=aa(:,k)/bb(:,k-1)
   bb(:,k)=xtr(:,k)-n*cc(:,k-1)
   dd(:,k)=ddi(:,k)-n*dd(:,k-1)
 end do
+if (any(bb(:,klin)<0.001)) then
+  print *,"ERROR thomas2 bb(klin) ",minval(bb(:,klin))
+  stop
+end if
 out(1:ifull,klin)=dd(:,klin)/bb(:,klin)
 do k=klin-1,1,-1
+  if (any(bb(:,k)<0.001)) then
+    print *,"ERROR thomas3 bb(k) ",minval(bb(:,k))
+    stop
+  end if
   out(1:ifull,k)=(dd(:,k)-cc(:,k)*out(1:ifull,k+1))/bb(:,k)
 end do
 

@@ -34,15 +34,15 @@ contains
 ! Load aerosols emissions from netcdf
 subroutine load_aerosolldr(aerofile,oxidantfile,kdatein)
       
-use aerosolldr
-use cc_mpi
-use infile
-use ozoneread
+use aerosolldr          ! LDR prognostic aerosols
+use cc_mpi              ! CC MPI routines
+use infile              ! Input file routines
+use ozoneread           ! Ozone input routines
       
 implicit none
 
-include 'newmpar.h'
-include 'parmgeom.h'
+include 'newmpar.h'     ! Grid parameters
+include 'parmgeom.h'    ! Coordinate data
       
 integer, intent(in) :: kdatein
 integer ncstatus,ncid,i,j,varid,tilg
@@ -429,35 +429,35 @@ end subroutine load_aerosolldr
 ! Update prognostic aerosols
 subroutine aerocalc
 
-use aerosolldr
-use arrays_m
-use cfrac_m
-use extraout_m
-use infile
-use kuocomb_m
-use latlong_m
-use liqwpar_m
-use map_m
-use morepbl_m
-use nharrs_m
-use nsibd_m
-use ozoneread
-use pbl_m
-use screen_m
-use sigs_m
-use soil_m
-use soilsnow_m
-use vegpar_m
-use work2_m
-use zenith_m
+use aerosolldr          ! LDR prognostic aerosols
+use arrays_m            ! Atmosphere dyamics prognostic arrays
+use cfrac_m             ! Cloud fraction
+use extraout_m          ! Additional diagnostics
+use infile              ! Input file routines
+use kuocomb_m           ! JLM convection
+use latlong_m           ! Lat/lon coordinates
+use liqwpar_m           ! Cloud water mixing ratios
+use map_m               ! Grid map arrays
+use morepbl_m           ! Additional boundary layer diagnostics
+use nharrs_m            ! Non-hydrostatic atmosphere arrays
+use nsibd_m             ! Land-surface arrays
+use ozoneread           ! Ozone input routines
+use pbl_m               ! Boundary layer arrays
+use screen_m            ! Screen level diagnostics
+use sigs_m              ! Atmosphere sigma levels
+use soil_m              ! Soil and surface data
+use soilsnow_m          ! Soil, snow and surface data
+use vegpar_m            ! Vegetation arrays
+use work2_m             ! Diagnostic arrays
+use zenith_m            ! Astronomy routines
 
 implicit none
 
-include 'newmpar.h'
-include 'const_phys.h'
-include 'kuocom.h'
-include 'parm.h'
-include 'soilv.h'
+include 'newmpar.h'     ! Grid parameters
+include 'const_phys.h'  ! Physical constants
+include 'kuocom.h'      ! Convection parameters
+include 'parm.h'        ! Model configuration
+include 'soilv.h'       ! Soil parameters
 
 integer jyear,jmonth,jday,jhour,jmin,mins,smins
 integer j,k,tt,ttx,iq
@@ -596,13 +596,13 @@ end subroutine aerocalc
 ! Estimate cloud droplet size
 subroutine aerodrop(istart,imax,kl,cdn,rhoa,land,rlatt,outconv)
 
-use aerosolldr
+use aerosolldr          ! LDR prognostic aerosols
 
 implicit none
 
-include 'const_phys.h'
-include 'cparams.h'
-include 'parm.h'
+include 'const_phys.h'  ! Physical constants
+include 'cparams.h'     ! Input cloud scheme parameters
+include 'parm.h'        ! Model configuration
 
 integer, intent(in) :: istart,imax,kl
 integer k

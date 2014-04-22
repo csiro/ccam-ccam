@@ -49,7 +49,7 @@ c      pfstay - incoming flux of ice staying in layer  (kg/m**2/s)
 c
 c******************************************************************************
 
-      subroutine icefall (lg,tdt,rhoa,dz,prf,               !Inputs
+      subroutine icefall (tdt,rhoa,dz,prf,                  !Inputs
      &                   ttg,qsg,qlg,qfg,qtg,cfrac,cfmelt,  !In and Out
      &                   fluxi,fluxm,clfr,cifr,qsubl,qaccr, !Outputs
      &                   pfstay,pqfsed,slopes)              !Outputs
@@ -67,7 +67,6 @@ C Global parameters
       include 'params.h'     !Input model grid dimensions (modified PARAMS.f for CCAM)
 
 C Argument list
-      integer lg
       real tdt
       real rhoa(ln2,nl)
       real dz(ln2,nl)

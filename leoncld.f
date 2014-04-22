@@ -215,7 +215,7 @@ c     before calling newcloud
 c     Calculate cloud fraction and cloud water mixing ratios
       dumql=qlg(1:ifull,:)
       dumqf=qfg(1:ifull,:)
-      call newcloud(dt,1,land,prf,kbase,ktop,rhoa,cdso4, !Inputs
+      call newcloud(dt,land,prf,kbase,ktop,rhoa,cdso4, !Inputs
      &     tenv,qenv,dumql,dumqf,   !In and out  t here is tenv
      &     cfrac,ccov,cfa,qca)      !Outputs
       qlg(1:ifull,:)=dumql
@@ -281,7 +281,7 @@ c     Calculate precipitation and related processes
       dumqr=qrg(1:ifull,:)
       dumqg=qg(1:ifull,:)
       dumcr=cffall(1:ifull,:)
-      call newrain(land,1,dt,fluxc,rhoa,dz,ccrain,prf,cdso4,  !Inputs
+      call newrain(land,dt,fluxc,rhoa,dz,ccrain,prf,cdso4,    !Inputs
      &    cfa,qca,                                            !Inputs
      &    dumt,dumql,dumqf,dumqr,
      &    precs,dumqg,cfrac,dumcr,ccov,                     !In and Out

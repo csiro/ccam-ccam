@@ -5,12 +5,12 @@ module infile
 ! This module also contains the interface to the netcdf
 ! library.
       
-! This version supports parallel localhist input files
-! Multiple processors read as many input files as
-! supplied in parallel and then send this data to the
-! head processor (i.e., for interpolation and redistribution)
-! The code can also identify restart files, in which case
-! no additional message passing is required.
+! This version of infile.f90 supports parallel localhist input
+! files.  Multiple processors read as many input files as
+! supplied in parallel and then send this data to the head
+! processor (i.e., for interpolation and redistribution). The
+! code can also identify restart files, in which case no
+! additional message passing is required.
 
 #ifdef usenc3
 use netcdf_m

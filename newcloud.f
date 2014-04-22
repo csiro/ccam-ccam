@@ -22,7 +22,6 @@ c                        cparams.h    (cloud scheme parameters)
 c
 c from arguments
 c      tdt - leapfrog timestep (seconds)
-c      lg - latitude index (always 1 for CCAM)
 c      
 c      land - logical variable for surface type ( = T for land points)
 c      prf - pressure at full levels (in hPa. NB: not SI units)
@@ -45,7 +44,7 @@ c      ccov - cloud cover looking from above (currently = cloud fraction)
 c 
 c******************************************************************************
 
-      subroutine newcloud(tdt,lg,land,prf,kbase,ktop,rhoa,cdrop,  !Inputs
+      subroutine newcloud(tdt,land,prf,kbase,ktop,rhoa,cdrop,     !Inputs
      &                    ttg,qtg,qlg,qfg,                        !In and out
      &                    cfrac,ccov,cfa,qca)                     !Outputs
 
@@ -66,7 +65,6 @@ C Global parameters
 
 C Argument list
       real tdt,den1
-      integer lg
       logical land(ln2)
       real prf(ln2,nl)
       integer kbase(ln2)
@@ -265,47 +263,45 @@ c Note that qcg is the total cloud water (liquid+frozen)
           enddo
         endif  ! (nclddia<0)  .. else ..
 
-        if (ncloud>0) then
-
 c Calculate cloudy fraction of grid box (cfrac) and gridbox-mean cloud water
 c using the triangular PDF of Smith (1990)
 
-          do k=1,nl
-            do mg=1,ln2
-              fi=fice(mg,k)
-              hlrvap=(hl+fi*hlf)/rvap
-              qtot(mg,k)=qtg(mg,k)+qcg(mg,k)
-              tliq(mg,k)=ttg(mg,k)-hlcp*qcg(mg,k)-hlfcp*qfg(mg,k)
+        do k=1,nl
+          do mg=1,ln2
+            fi=fice(mg,k)
+            hlrvap=(hl+fi*hlf)/rvap
+            qtot(mg,k)=qtg(mg,k)+qcg(mg,k)
+            tliq(mg,k)=ttg(mg,k)-hlcp*qcg(mg,k)-hlfcp*qfg(mg,k)
 
 c Calculate qs and gam=(L/cp)*dqsdt,  at temperature tliq
-              pk=100.0*prf(mg,k)
-              qsi(mg,k)=qsati(pk,tliq(mg,k))           !Ice value
-              !deles=esdiff(min(max(-40,(nint(tliq(mg,k)-tfrz))),1)) ! MJT suggestion
-              deles=esdiffx(tliq(mg,k))                              ! MJT suggestion
-              qsl(mg,k)=qsi(mg,k)+epsil*deles/pk       !qs over liquid
-              qsw(mg,k)=fi*qsi(mg,k)+(1.-fi)*qsl(mg,k) !Weighted qs at temperature Tliq
-              qs=qsw(mg,k)
-              dqsdt=qs*hlrvap/tliq(mg,k)**2
-c             qvc(mg,k)=qs !Vapour mixing ratio in cloud
+            pk=100.0*prf(mg,k)
+            qsi(mg,k)=qsati(pk,tliq(mg,k))           !Ice value
+            !deles=esdiff(min(max(-40,(nint(tliq(mg,k)-tfrz))),1)) ! MJT suggestion
+            deles=esdiffx(tliq(mg,k))                              ! MJT suggestion
+            qsl(mg,k)=qsi(mg,k)+epsil*deles/pk       !qs over liquid
+            qsw(mg,k)=fi*qsi(mg,k)+(1.-fi)*qsl(mg,k) !Weighted qs at temperature Tliq
+            qs=qsw(mg,k)
+            dqsdt=qs*hlrvap/tliq(mg,k)**2
+c           qvc(mg,k)=qs !Vapour mixing ratio in cloud
 
-              al=1./(1.+(hlcp+fi*hlfcp)*dqsdt)    !Smith's notation
-              qc=qtot(mg,k)-qs
+            al=1./(1.+(hlcp+fi*hlfcp)*dqsdt)    !Smith's notation
+            qc=qtot(mg,k)-qs
 
-              delq=(1.-rcrit(mg,k))*qs      !UKMO style (equivalent to above)
-              cfrac(mg,k)=1.
-              qcg(mg,k)=al*qc
-              if(qc<delq)then
-                cfrac(mg,k)=max(1.e-6 , 1.-.5*((qc-delq)/delq)**2)     ! for roundoff
-                qcg(mg,k)=max(1.e-8,al*(qc-(qc-delq)**3/(6.*delq**2))) ! for roundoff
-              endif
-              if(qc<=0.)then
-                cfrac(mg,k)=max(1.e-6 , .5*((qc+delq)/delq)**2)    ! for roundoff
-                qcg(mg,k)=max(1.e-8, al*(qc+delq)**3/(6.*delq**2)) ! for roundoff
-              endif
-              if(qc<=-delq)then
-                cfrac(mg,k)=0.
-                qcg(mg,k)=0.
-              endif
+            delq=(1.-rcrit(mg,k))*qs      !UKMO style (equivalent to above)
+            cfrac(mg,k)=1.
+            qcg(mg,k)=al*qc
+            if(qc<delq)then
+              cfrac(mg,k)=max(1.e-6 , 1.-.5*((qc-delq)/delq)**2)     ! for roundoff
+              qcg(mg,k)=max(1.e-8,al*(qc-(qc-delq)**3/(6.*delq**2))) ! for roundoff
+            endif
+            if(qc<=0.)then
+              cfrac(mg,k)=max(1.e-6 , .5*((qc+delq)/delq)**2)    ! for roundoff
+              qcg(mg,k)=max(1.e-8, al*(qc+delq)**3/(6.*delq**2)) ! for roundoff
+            endif
+            if(qc<=-delq)then
+              cfrac(mg,k)=0.
+              qcg(mg,k)=0.
+            endif
 
 c Calculate the cloud fraction (cfa) in which ql exceeds qcrit, and
 c the corresponding gridbox-mean cloud water mixing ratio qca. 
@@ -313,120 +309,44 @@ c This (qca) is the cloud-water mixing ratio inside cfa times cfa.
 c The new variable qc2 is like qc above, but is used for integration limits
 c only, not the integrand
 
-              if(cfrac(mg,k)>0.)then
-                qcic=qcg(mg,k)/cfrac(mg,k) !Mean in cloud value
+            if(cfrac(mg,k)>0.)then
+              qcic=qcg(mg,k)/cfrac(mg,k) !Mean in cloud value
 
 c Following few lines are for Yangang Liu's new scheme (2004: JAS, GRL)
 c Need to do first-order estimate of qcrit using mean in-cloud qc (qcic)
 
-                Wliq = max( 1.e-10, 1000. * qcic * rhoa(mg,k)) !g/m3
-                R6c = 4.09e-4
-     &             * ( 1.15e23*1.e-6*cdrop(mg,k) / Wliq**2 ) ** (1./6.)
-                eps = 1. - 0.7 * exp(-0.003e-6*cdrop(mg,k)) !mid range
-                beta6 = ((1.+3.*eps**2)*(1.+4.*eps**2)*(1.+5.*eps**2)
-     &               / ((1.+eps**2)*(1.+2.*eps**2)) )**(1./6.)
-                R3c = 1.e-6*R6c/beta6 !in metres
-                qcrit=(4.*pi/3.)*rhow*R3c**3*cdrop(mg,k)/rhoa(mg,k) !New qcrit
+              Wliq = max( 1.e-10, 1000. * qcic * rhoa(mg,k)) !g/m3
+              R6c = 4.09e-4
+     &           * ( 1.15e23*1.e-6*cdrop(mg,k) / Wliq**2 ) ** (1./6.)
+              eps = 1. - 0.7 * exp(-0.003e-6*cdrop(mg,k)) !mid range
+              beta6 = ((1.+3.*eps**2)*(1.+4.*eps**2)*(1.+5.*eps**2)
+     &             / ((1.+eps**2)*(1.+2.*eps**2)) )**(1./6.)
+              R3c = 1.e-6*R6c/beta6 !in metres
+              qcrit=(4.*pi/3.)*rhow*R3c**3*cdrop(mg,k)/rhoa(mg,k) !New qcrit
 
-                qc2=qtot(mg,k)-qs-qcrit/al
-                cfa(mg,k)=1.
-                qca(mg,k)=al*qc
-                if(qc2<delq)then
-                  cfa(mg,k)=1.-0.5*((qc2-delq)/delq)**2
-                  qto=(qtot(mg,k)-delq+2.*(qs+qcrit/al))/3.
-                  qca(mg,k)=al*(qtot(mg,k) - qto + cfa(mg,k)*(qto-qs))
-                endif
-                if(qc2<=0.)then
-                  cfa(mg,k)=0.5*((qc2+delq)/delq)**2
-                  qca(mg,k)=cfa(mg,k)*(al/3.)*(2.*qcrit/al + qc+delq)
-                endif
-                if(qc2<=-delq)then
-                  cfa(mg,k)=0.
-                  qca(mg,k)=0.
-                endif
-              else
+              qc2=qtot(mg,k)-qs-qcrit/al
+              cfa(mg,k)=1.
+              qca(mg,k)=al*qc
+              if(qc2<delq)then
+                cfa(mg,k)=1.-0.5*((qc2-delq)/delq)**2
+                qto=(qtot(mg,k)-delq+2.*(qs+qcrit/al))/3.
+                qca(mg,k)=al*(qtot(mg,k) - qto + cfa(mg,k)*(qto-qs))
+              endif
+              if(qc2<=0.)then
+                cfa(mg,k)=0.5*((qc2+delq)/delq)**2
+                qca(mg,k)=cfa(mg,k)*(al/3.)*(2.*qcrit/al + qc+delq)
+              endif
+              if(qc2<=-delq)then
                 cfa(mg,k)=0.
                 qca(mg,k)=0.
               endif
-
-            enddo
-          enddo
-        
-        else
-c Calculate cloudy fraction of grid box (cfrac) and gridbox-mean cloud water
-c using the triangular PDF of Smith (1990)
-
-          do k=1,nl
-            do mg=1,ln2
-              hlrvap=(hl+fice(mg,k)*hlf)/rvap
-              qtot(mg,k)=qtg(mg,k)+qcg(mg,k)
-              tliq(mg,k)=ttg(mg,k)-hlcp*qcg(mg,k)-hlfcp*qfg(mg,k)
-
-c Calculate qs and gam=(L/cp)*dqsdt,  at temperature tliq
-              pk=100.0*prf(mg,k)
-              qsi(mg,k)=qsati(pk,tliq(mg,k))           !Ice value
-              deles=esdiffx(tliq(mg,k))
-              qsl(mg,k)=qsi(mg,k)+epsil*deles/pk       !qs over liquid
-              qsw(mg,k)=fice(mg,k)*qsi(mg,k)+(1.-fice(mg,k))*qsl(mg,k) !Weighted qs at temperature Tliq
-              qs=qsw(mg,k)
-              dqsdt=qs*hlrvap/tliq(mg,k)**2
-c             qvc(mg,k)=qs !Vapour mixing ratio in cloud
-
-              al=1./(1.+(hlcp+fice(mg,k)*hlfcp)*dqsdt)    !Smith's notation
-              qc=qtot(mg,k)-qs
-
-              delq=(1.-rcrit(mg,k))*qs      !UKMO style (equivalent to above)
-              cfrac(mg,k)=1.
-              qcg(mg,k)=al*qc
-              if(qc<delq)then
-                cfrac(mg,k)=max(1.e-6 , 1.-.5*((qc-delq)/delq)**2)     ! for roundoff
-                qcg(mg,k)=max(1.e-8,al*(qc-(qc-delq)**3/(6.*delq**2))) ! for roundoff
-              endif
-              if(qc<=0.)then
-                cfrac(mg,k)=max(1.e-6 , .5*((qc+delq)/delq)**2)    ! for roundoff
-                qcg(mg,k)=max(1.e-8, al*(qc+delq)**3/(6.*delq**2)) ! for roundoff
-              endif
-              if(qc<=-delq)then
-                cfrac(mg,k)=0.
-                qcg(mg,k)=0.
-              endif
-c              ! Roundoff check
-c              if ( qcg(mg,k) <= 0. ) then
-c                 cfrac(mg,k) = 0.
-c                 qcg  (mg,k) = 0.  ! added Oct '06
-c              end if
-
-c Calculate the cloud fraction (cfa) in which ql exceeds qcrit, and
-c the corresponding gridbox-mean cloud water mixing ratio qca. 
-c This (qca) is the cloud-water mixing ratio inside cfa divided by cfa.
-c The new variable qc2 is like qc above, but is used for integration limits
-c only, not the integrand
-
-C***            qcrit=(4*pi/3)*rhow*Rcm**3*cdrop(mg,k)/rhoa(mg,k)
-C***            qc2=qtot(mg,k)-qs-qcrit/al 
-C***            cfa(mg,k)=1.
-C***            qca(mg,k)=al*qc
-C***            if(qc2.lt.delq)then
-C***              cfa(mg,k)=1-0.5*((qc2-delq)/delq)**2
-C***              qto=(qtot(mg,k)-delq+2*(qs+qcrit/al))/3.
-C***              qca(mg,k)=al*(qtot(mg,k) - qto + cfa(mg,k)*(qto-qs))
-C***            endif
-C***            if(qc2.le.0.)then
-C***              cfa(mg,k)=0.5*((qc2+delq)/delq)**2
-C***              qca(mg,k)=cfa(mg,k)*(al/3.)*(2*qcrit/al + qc+delq)
-C***            endif
-C***            if(qc2.le.-delq)then
-C***              cfa(mg,k)=0.
-C***              qca(mg,k)=0.
-C***            endif
-              ! Set these to zero so negative indefinite initialisation works
+            else
               cfa(mg,k)=0.
               qca(mg,k)=0.
+            endif
 
-            enddo
           enddo
-
-        end if ! (ncloud>0) ..else..
+        enddo
 
         if(diag.and.mydiag)then
             write(6,*) 'rcrit ',rcrit(idjd,:)
@@ -446,8 +366,14 @@ C***            endif
         ! Tiedtke prognostic cloud model
         write(6,*) "Prognositc cloud not implemented"
         stop
-      
-        !call progcloud(cfrac,qcg,cfa,qca)
+
+        qtot(:,:)=qtg(:,:)+qcg(:,:)
+        tliq(:,:)=ttg(:,:)-hlcp*qcg(:,:)-hlfcp*qfg(:,:)
+        !call progcloud(cfrac,qcg,qtg,ttg,prf,rho,fice)
+        
+        ! Use 'old' autoconversion with prognostic cloud
+        cfa(:,:)=0.
+        qca(:,:)=0.
 
       end if ! ncloud<3 ..else..
 

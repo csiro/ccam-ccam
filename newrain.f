@@ -20,7 +20,6 @@ c
 c from arguments
 c      land - logical variable for surface type ( = T for land points)
 c      tdt - leapfrog timestep (seconds)
-c      lg - latitude index (ranges from 1 at poles to LAT at equator)
 c      fluxc - flux of convective rain in timestep (kg/m**2)
 c      rhoa - air density (kg/m**3)
 c      dz - layer thicknes (m)
@@ -50,7 +49,7 @@ c      qaccr - accretion by snow of cloud liquid water (kg/kg)
 c
 ***************************************************************************
 
-      subroutine newrain(land,lg,tdt,fluxc,rhoa,dz,ccrain,prf,cdrop,!Inputs
+      subroutine newrain(land,tdt,fluxc,rhoa,dz,ccrain,prf,cdrop,!Inputs
      &                  cfa,qca,
      &                  ttg,qlg,qfg,qrg,precs,qtg,cfrac,cffall,ccov,   !In and Out
      &                  preci,qevap,qsubl,qauto,qcoll,qaccr,fluxr,fluxi,
@@ -71,7 +70,6 @@ C Global parameters
 
 C Argument list
       logical land(ln2)
-      integer lg
       real tdt
       real fluxc(ln2,nl)
       real rhoa(ln2,nl)
@@ -217,7 +215,7 @@ c Previous line not good for roundoff; next few lines are better
 c Define cdrop  - passed through as cdso4, defined in leoncld.f
 
 ***************** Cut here to insert new auto scheme ********************            
-      if (ncloud>0) then
+      if (ncloud>0.and.ncloud<3) then
 c Using new (subgrid) autoconv scheme... 
         do k=nl-1,1,-1
           do mg=1,ln2
@@ -272,7 +270,7 @@ c Following is Liu & Daum (JAS, 2004)
           enddo
         enddo
 
-c Or, using old autoconv scheme...
+c Or, using old autoconv scheme... also used by prognostic cloud scheme
        else
         do k=nl-1,1,-1
           do mg=1,ln2
@@ -312,10 +310,10 @@ c               selfcoll=min(ql1,ql1*cdt/(1+0.5*cdt))
 
 c Call frozen precipitation routine
 
-      call icefall(lg,tdt,rhoa,dz,prf, !Inputs
-     &             ttg,qsg,qlg,qfg,qtg,cfrac,cfmelt,            !In and Out
+      call icefall(tdt,rhoa,dz,prf,                                 !Inputs
+     &             ttg,qsg,qlg,qfg,qtg,cfrac,cfmelt,                !In and Out
      &             fluxi,fluxm,clfr,cifr,qsubl,qaccr,pfstay,pqfsed,
-     &             slopes)            !Outputs
+     &             slopes)                                          !Outputs
 
       ! Set up prognostic rain - MJT
       ! The following has been modified according to LDR's flux divergence calculation
@@ -587,7 +585,7 @@ c      enddo
                 print*,'qfg, qlg=', qfg(mg,k),qlg(mg,k)
                 ns=(mg-1+lon)/lon
                 mb=mg-(ns-1)*lon
-                print*,'lg,ns,mg,k ',lg,ns,mb,k
+                print*,'ns,mg,k ',ns,mb,k
                 print*
               endif
             else
@@ -597,7 +595,7 @@ c      enddo
                print*,'cifr ,clfr ',cifr(mg,k),clfr(mg,k)
                ns=(mg-1+lon)/lon
                mb=mg-(ns-1)*lon
-               print*,'ns,lg,k,mg ',ns,lg,k,mb
+               print*,'ns,k,mg ',ns,k,mb
                print*
               endif
             endif
