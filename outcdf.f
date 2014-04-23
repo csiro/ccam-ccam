@@ -82,7 +82,7 @@
        endif ! ( itype==1)then
 
        if (myid==0.and.iarch>1) then
-         write(6,'("outcdf itype,idnc,iarch,cdffile=",3i5," ",a80)')
+        write(6,'("outcdf itype,idnc,iarch,cdffile=",i5,i8,i5," ",a80)')
      &                   itype,idnc,iarch,cdffile
        end if
 

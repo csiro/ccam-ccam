@@ -556,8 +556,8 @@ end if
 
 select case(vegmode)
   case(0)
-    tsigveg=1./(2./csigvegc(itmp)-1.)
-    tsigmabld=csigmabld(itmp)*(1.-tsigveg)/(1.-csigvegc(itmp))
+    tsigveg=0.5*csigvegc(itmp)/(1.-0.5*csigvegc(itmp))
+    tsigmabld=csigmabld(itmp)/(1.-0.5*csigvegc(itmp))
     sigmau=sigmau*(1.-0.5*csigvegc(itmp))
   case(1)
     tsigveg=0.
@@ -612,10 +612,10 @@ do ii=1,3
 end do
 f_zovegc=czovegc(itmp)
 f_vegrlaic=cvegrlaic(itmp)
-f_vegrsminc=cvegrsminc(itmp)/max(f_vegrlaic,0.0001)
+f_vegrsminc=cvegrsminc(itmp)/max(f_vegrlaic,1.E-8)
 f_zovegr=czovegr(itmp)
 f_vegrlair=cvegrlair(itmp)
-f_vegrsminr=cvegrsminr(itmp)/max(f_vegrlair,0.0001)
+f_vegrsminr=cvegrsminr(itmp)/max(f_vegrlair,1.E-8)
 f_swilt=cswilt(itmp)
 f_sfc=csfc(itmp)
 f_ssat=cssat(itmp)
@@ -1280,26 +1280,6 @@ real, dimension(ufull) :: d_canyontemp,d_canyonmix,d_acout,d_traf
 
 if (diag>=1) write(6,*) "Evaluating aTEB"
 
-! limit prognostic state variables
-!do ii=1,3
-!  rf_temp(:,ii)=min(max(rf_temp(:,ii),200.),400.)
-!  we_temp(:,ii)=min(max(we_temp(:,ii),200.),400.)
-!  ww_temp(:,ii)=min(max(ww_temp(:,ii),200.),400.)
-!  rd_temp(:,ii)=min(max(rd_temp(:,ii),200.),400.)
-!end do
-!v_moistc(1:ufull)=min(max(v_moistc(1:ufull),f_swilt),f_ssat)
-!v_moistr(1:ufull)=min(max(v_moistr(1:ufull),f_swilt),f_ssat)
-!rf_water(1:ufull)=min(max(rf_water(1:ufull),0.),maxrfwater)
-!rd_water(1:ufull)=min(max(rd_water(1:ufull),0.),maxrdwater)
-!v_watrc(1:ufull)=min(max(v_watrc(1:ufull),0.),maxvwatf*f_vegrlaic)
-!v_watrr(1:ufull)=min(max(v_watrr(1:ufull),0.),maxvwatf*f_vegrlair)
-!rf_snow(1:ufull)=min(max(rf_snow(1:ufull),0.),maxrfsn)
-!rd_snow(1:ufull)=min(max(rd_snow(1:ufull),0.),maxrdsn)
-!rf_den(1:ufull)=min(max(rf_den(1:ufull),minsnowden),maxsnowden)
-!rd_den(1:ufull)=min(max(rd_den(1:ufull),minsnowden),maxsnowden)
-!rf_alpha(1:ufull)=min(max(rf_alpha(1:ufull),minsnowalpha),maxsnowalpha)
-!rd_alpha(1:ufull)=min(max(rd_alpha(1:ufull),minsnowalpha),maxsnowalpha)
-
 ! new snowfall
 where (a_snd>1.e-10)
   rf_den=(rf_snow*rf_den+a_snd*ddt*minsnowden)/(rf_snow+ddt*a_snd)
@@ -1307,12 +1287,12 @@ where (a_snd>1.e-10)
   rf_alpha=maxsnowalpha
   rd_alpha=maxsnowalpha
 end where
-    
+
 ! water and snow cover fractions
-d_roofdelta=(rf_water/maxrfwater)**(2./3.)
-d_roaddelta=(rd_water/maxrdwater)**(2./3.)
-d_vegdeltac=(v_watrc/(maxvwatf*max(f_vegrlaic,0.0001)))**(2./3.)
-d_vegdeltar=(v_watrr/(maxvwatf*max(f_vegrlair,0.0001)))**(2./3.)
+d_roofdelta=max(rf_water/maxrfwater,0.)**(2./3.)
+d_roaddelta=max(rd_water/maxrdwater,0.)**(2./3.)
+d_vegdeltac=max(v_watrc/max(maxvwatf*f_vegrlaic,1.E-8),0.)**(2./3.)
+d_vegdeltar=max(v_watrr/max(maxvwatf*f_vegrlair,1.E-8),0.)**(2./3.)
 d_rfsndelta=rf_snow/(rf_snow+maxrfsn)
 d_rdsndelta=rd_snow/(rd_snow+maxrdsn)
 
@@ -1726,13 +1706,7 @@ u_rn=max(rf_water-maxrfwater,0.)*f_sigmabld                                   &
     +max(v_moistc-f_ssat,0.)*waterden*d_totdepth*(1.-d_rdsndelta)*f_sigmavegc &
     +max(v_moistr-f_ssat,0.)*waterden*f_vegdepthr*f_sigmavegr
 
-! limit temperatures to sensible values
-!do ii=1,3
-!  rf_temp(:,ii)=min(max(rf_temp(:,ii),200.),400.)
-!  we_temp(:,ii)=min(max(we_temp(:,ii),200.),400.)
-!  ww_temp(:,ii)=min(max(ww_temp(:,ii),200.),400.)
-!  rd_temp(:,ii)=min(max(rd_temp(:,ii),200.),400.)
-!end do
+! remove round-off problems
 v_moistc(1:ufull)=min(max(v_moistc(1:ufull),f_swilt),f_ssat)
 v_moistr(1:ufull)=min(max(v_moistr(1:ufull),f_swilt),f_ssat)
 rf_water(1:ufull)=min(max(rf_water(1:ufull),0.),maxrfwater)
@@ -1781,7 +1755,7 @@ select case(zohmeth)
   case(2) ! Use Kanda parameterisation
     p_lzoh=6.+p_lzom
     call getinvres(p_cdtq,p_cduv,z_on_l,p_lzoh,p_lzom,p_cndzmin,dts,dtt,a_umag,4)
-end select
+  end select
 
 ! calculate screen level diagnostics
 call scrncalc(a_mixr,a_umag,a_temp,u_ts,d_tempc,d_mixrc,d_rdsndelta,d_roaddelta,d_vegdeltac,d_sigd,a,rdsntemp,zonet)
@@ -1815,7 +1789,7 @@ call scrncalc(a_mixr,a_umag,a_temp,u_ts,d_tempc,d_mixrc,d_rdsndelta,d_roaddelta,
 !    write(62,*) xw(1),n(1)-pg(iqut)%lzom
 !  end if
 !end if
-  
+
 return
 end subroutine atebeval
 
@@ -2357,9 +2331,9 @@ call getqsat(vegqsat,ip_vegtempc,d_sigd) ! evaluate using pressure at displaceme
 
 ! transpiration terms (developed by Eva in CCAM sflux.f and CSIRO9)
 if (if_zovegc<0.5) then
-  ff=1.1*sg_vegc/(max(if_vegrlaic,0.0001)*150.)
+  ff=1.1*sg_vegc/max(if_vegrlaic*150.,1.E-8)
 else
-  ff=1.1*sg_vegc/(max(if_vegrlaic,0.0001)*30.)
+  ff=1.1*sg_vegc/max(if_vegrlaic*30.,1.E-8)
 end if
 f1=(1.+ff)/(ff+if_vegrsminc*if_vegrlaic/5000.)
 f2=max(0.5*(if_sfc-if_swilt)/max(iv_moistc-if_swilt,1.E-9),1.)
@@ -2568,9 +2542,9 @@ end if
 
 ! transpiration terms (developed by Eva in CCAM sflux.f and CSIRO9)
 if (f_zovegr(iq)<0.5) then
-  ff=1.1*sg_vegr/(max(f_vegrlair(iq),0.0001)*150.)
+  ff=1.1*sg_vegr/max(f_vegrlair(iq)*150.,1.E-8)
 else
-  ff=1.1*sg_vegr/(max(f_vegrlair(iq),0.0001)*30.)
+  ff=1.1*sg_vegr/max(f_vegrlair(iq)*30.,1.E-8)
 end if
 f1=(1.+ff)/(ff+f_vegrsminr(iq)*f_vegrlair(iq)/5000.)
 f2=max(0.5*(f_sfc(iq)-f_swilt(iq))/max(v_moistr(iq)-f_swilt(iq),1.E-9),1.)
