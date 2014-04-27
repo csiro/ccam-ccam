@@ -4,9 +4,11 @@ module cc_mpi
 ! by Martin Dix and subsequently modified my Marcus Thatcher.  Thanks to Aaron McDonough for developing
 ! the Vampir trace routines and upgrading the timer calls.
 
+! TO DO:
+!   - Use sharded memory for spectral filter with MPI-3
+    
 #ifdef usempif
-   ! This directive is for using the f77 interface
-   use mpif_m
+   use mpif_m  ! This directive is for using the f77 interface
 #else
    use mpi
 #endif
@@ -94,8 +96,8 @@ module cc_mpi
       module procedure ccmpi_allreduce2i, ccmpi_allreduce2r, ccmpi_allreduce3r, ccmpi_allreduce2c
    end interface ccmpi_allreduce
    interface ccmpi_bcast
-      module procedure ccmpi_bcast1i, ccmpi_bcast2i, ccmpi_bcast3i, ccmpi_bcast2r, ccmpi_bcast3r, &
-                       ccmpi_bcast4r, ccmpi_bcast5r, ccmpi_bcast2s
+      module procedure ccmpi_bcast1i, ccmpi_bcast2i, ccmpi_bcast3i, ccmpi_bcast1r, ccmpi_bcast2r, &
+                       ccmpi_bcast3r, ccmpi_bcast4r, ccmpi_bcast5r, ccmpi_bcast2s
    end interface ccmpi_bcast
    interface ccmpi_bcastr8
       module procedure ccmpi_bcast2r8, ccmpi_bcast3r8, ccmpi_bcast4r8
@@ -539,7 +541,7 @@ contains
          !call MPI_Info_free(info,ierr)
       end if
       
-
+   return
    end subroutine ccmpi_setup
    
    subroutine ccmpi_distribute2(af,a1)
@@ -4487,7 +4489,7 @@ contains
       end if
    end subroutine check_bnds_alloc
 
-   subroutine fix_index(iqq,larray,n,bnds,iext)
+   subroutine fix_index(iqq, larray, n, bnds, iext)
       integer, intent(in) :: iqq, n
       integer, dimension(:), intent(out) :: larray
       integer, intent(inout) :: iext
@@ -4607,173 +4609,173 @@ contains
 
    end subroutine proc_setup_uniform
 
-   subroutine face_set(ipanx,jpanx,noffx,ioffx,joffx,npanx,il_gx,myidx,nprocx,nxprocx,nyprocx)
-      integer, intent(in) :: myidx,nprocx,npanx,il_gx
-      integer, intent(out) :: ipanx,jpanx,noffx,nxprocx,nyprocx
-      integer, dimension(0:npanels), intent(out) :: ioffx,joffx 
+   subroutine face_set(ipan_l, jpan_l, noff_l, ioff_l, joff_l, npan_l, il_gx, myid_l, nproc_l, nxproc_l, nyproc_l)
+      integer, intent(in) :: myid_l, nproc_l, npan_l, il_gx
+      integer, intent(out) :: ipan_l, jpan_l, noff_l, nxproc_l, nyproc_l
+      integer, dimension(0:npanels), intent(out) :: ioff_l, joff_l 
       integer n
       integer(kind=4) ierr
 
       !  Processor allocation
-      !  if  nprocx <= npanels+1, then each gets a number of full panels
-      if ( nprocx <= npanels+1 ) then
-         if ( modulo(npanels+1,nprocx) /= 0 ) then
+      !  if  nproc_l <= npanels+1, then each gets a number of full panels
+      if ( nproc_l <= npanels+1 ) then
+         if ( modulo(npanels+1,nproc_l) /= 0 ) then
             write(6,*) "Error, number of processors must divide number of panels"
             call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
          end if
-!         npanx = (npanels+1)/nprocx
-         ipanx = il_gx
-         jpanx = il_gx
-         noffx = 1 - myidx*npanx
-         ioffx(:) = 0
-         joffx(:) = 0
-         nxprocx = 1
-         nyprocx = 1
-      else  ! nprocx >= npanels+1
-         if ( modulo (nprocx, npanels+1) /= 0 ) then
+!         npan_l = (npanels+1)/nproc_l
+         ipan_l = il_gx
+         jpan_l = il_gx
+         noff_l = 1 - myid_l*npan_l
+         ioff_l(:) = 0
+         joff_l(:) = 0
+         nxproc_l = 1
+         nyproc_l = 1
+      else  ! nproc_l >= npanels+1
+         if ( modulo (nproc_l, npanels+1) /= 0 ) then
             write(6,*) "Error, number of processors must be a multiple of number of panels"
             call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
          end if
-!         npanx = 1
-         n = nprocx / (npanels+1)
+!         npan_l = 1
+         n = nproc_l / (npanels+1)
          !  n is the number of processors on each face
          !  Try to factor this into two values are close as possible.
          !  nxproc is the smaller of the 2.
-         nxprocx = nint(sqrt(real(n)))
-         nyprocx = n / nxprocx
-         do nxprocx = nint(sqrt(real(n))), 1, -1
-            nyprocx = n / nxprocx
-            if ( modulo(il_gx,nxprocx) == 0 .and. modulo(il_gx,nyprocx) == 0 .and. &
-                 nxprocx*nyprocx == n ) exit
+         nxproc_l = nint(sqrt(real(n)))
+         nyproc_l = n / nxproc_l
+         do nxproc_l = nint(sqrt(real(n))), 1, -1
+            nyproc_l = n / nxproc_l
+            if ( modulo(il_gx,nxproc_l) == 0 .and. modulo(il_gx,nyproc_l) == 0 .and. &
+                 nxproc_l*nyproc_l == n ) exit
          end do
-         if ( nxprocx*nyprocx /= n ) then
+         if ( nxproc_l*nyproc_l /= n ) then
             write(6,*) "Error in splitting up faces"
             call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
          end if
 
          ! Still need to check that the processor distribution is compatible
          ! with the grid.
-         if ( modulo(il_gx,nxprocx) /= 0 ) then
-            write(6,*) "Error, il not a multiple of nxproc", il_gx, nxprocx
+         if ( modulo(il_gx,nxproc_l) /= 0 ) then
+            write(6,*) "Error, il not a multiple of nxproc", il_gx, nxproc_l
             call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
          end if
-         if ( modulo(il_gx,nyprocx) /= 0 ) then
-            write(6,*) "Error, il not a multiple of nyproc", il_gx, nyprocx
+         if ( modulo(il_gx,nyproc_l) /= 0 ) then
+            write(6,*) "Error, il not a multiple of nyproc", il_gx, nyproc_l
             call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
          end if
-         ipanx = il_gx/nxprocx
-         jpanx = il_gx/nyprocx
+         ipan_l = il_gx/nxproc_l
+         jpan_l = il_gx/nyproc_l
 
          ! Set offsets for this processor
-         call proc_region_face(myidx,ioffx(0),joffx(0),noffx,nxprocx,nyprocx,ipanx,jpanx,npanx)
-         ioffx(1:npanels)=ioffx(0)
-         joffx(1:npanels)=joffx(0)
+         call proc_region_face(myid_l,ioff_l(0),joff_l(0),noff_l,nxproc_l,nyproc_l,ipan_l,jpan_l,npan_l)
+         ioff_l(1:npanels)=ioff_l(0)
+         joff_l(1:npanels)=joff_l(0)
       end if
    
    end subroutine face_set
 
-   subroutine dix_set(ipanx,jpanx,noffx,ioffx,joffx,npanx,il_gx,myidx,nprocx,nxprocx,nyprocx)
-      integer, intent(in) :: myidx, nprocx, npanx, il_gx
-      integer, intent(out) :: ipanx, jpanx, noffx, nxprocx, nyprocx
-      integer, dimension(0:npanels), intent(out) :: ioffx, joffx 
+   subroutine dix_set(ipan_l,jpan_l,noff_l,ioff_l,joff_l,npan_l,il_gx,myid_l,nproc_l,nxproc_l,nyproc_l)
+      integer, intent(in) :: myid_l, nproc_l, npan_l, il_gx
+      integer, intent(out) :: ipan_l, jpan_l, noff_l, nxproc_l, nyproc_l
+      integer, dimension(0:npanels), intent(out) :: ioff_l, joff_l 
       integer n
       integer(kind=4) ierr
       
-      if ( npanx /= npanels+1 ) then
+      if ( npan_l /= npanels+1 ) then
          write(6,*) "Error: inconsistency in proc_setup_uniform"
          call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
       end if
       !  Processor allocation: each processor gets a part of each panel
       !  Try to factor nproc into two values are close as possible.
       !  nxproc is the smaller of the 2.
-      nxprocx = nint(sqrt(real(nprocx)))
-      do nxprocx = nint(sqrt(real(nprocx))), 1, -1
+      nxproc_l = nint(sqrt(real(nproc_l)))
+      do nxproc_l = nint(sqrt(real(nproc_l))), 1, -1
          ! This will always exit eventually because it's trivially true 
          ! for nxproc=1
-         nyprocx = nprocx / nxprocx
-         if ( modulo(nprocx,nxprocx) == 0 .and. &
-              modulo(il_gx,nxprocx) == 0  .and. &
-              modulo(il_gx,nyprocx) == 0 ) exit
+         nyproc_l = nproc_l / nxproc_l
+         if ( modulo(nproc_l,nxproc_l) == 0 .and. &
+              modulo(il_gx,nxproc_l) == 0  .and. &
+              modulo(il_gx,nyproc_l) == 0 ) exit
       end do
-      nyprocx = nprocx / nxprocx
-      if ( nxprocx*nyprocx /= nprocx ) then
+      nyproc_l = nproc_l / nxproc_l
+      if ( nxproc_l*nyproc_l /= nproc_l ) then
          write(6,*) "Error in splitting up faces"
          call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
       end if
 
       ! Still need to check that the processor distribution is compatible
       ! with the grid.
-      if ( modulo(il_gx,nxprocx) /= 0 ) then
-         write(6,*) "Error, il not a multiple of nxproc", il_gx, nxprocx
+      if ( modulo(il_gx,nxproc_l) /= 0 ) then
+         write(6,*) "Error, il not a multiple of nxproc", il_gx, nxproc_l
          call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
       end if
-      if ( modulo(il_gx,nyprocx) /= 0 ) then
-         write(6,*) "Error, il not a multiple of nyproc", il_gx, nyprocx
+      if ( modulo(il_gx,nyproc_l) /= 0 ) then
+         write(6,*) "Error, il not a multiple of nyproc", il_gx, nyproc_l
          call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
       end if
-      ipanx = il_gx/nxprocx
-      jpanx = il_gx/nyprocx
+      ipan_l = il_gx/nxproc_l
+      jpan_l = il_gx/nyproc_l
 
       ! Set offsets for this processor
-      call proc_region_dix(myidx,ioffx(0),joffx(0),noffx,nxprocx,ipanx,jpanx)
-      ioffx(1:npanels)=ioffx(0)
-      joffx(1:npanels)=joffx(0)
+      call proc_region_dix(myid_l,ioff_l(0),joff_l(0),noff_l,nxproc_l,ipan_l,jpan_l)
+      ioff_l(1:npanels)=ioff_l(0)
+      joff_l(1:npanels)=joff_l(0)
 
    end subroutine dix_set
 
-   subroutine uniform_set(ipanx,jpanx,noffx,ioffx,joffx,npanx,il_gx,myidx,nprocx,nxprocx,nyprocx)
+   subroutine uniform_set(ipan_l,jpan_l,noff_l,ioff_l,joff_l,npan_l,il_gx,myid_l,nproc_l,nxproc_l,nyproc_l)
       ! backwards compatibility
-      integer, intent(in) :: myidx, nprocx, npanx, il_gx
-      integer, intent(out) :: ipanx, jpanx, noffx, nxprocx, nyprocx
-      integer, dimension(0:npanels), intent(out) :: ioffx, joffx 
+      integer, intent(in) :: myid_l, nproc_l, npan_l, il_gx
+      integer, intent(out) :: ipan_l, jpan_l, noff_l, nxproc_l, nyproc_l
+      integer, dimension(0:npanels), intent(out) :: ioff_l, joff_l 
       integer n
       integer(kind=4) ierr
       
-      if ( npanx /= npanels+1 ) then
+      if ( npan_l /= npanels+1 ) then
          write(6,*) "Error: inconsistency in proc_setup_uniform"
          call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
       end if
       !  Processor allocation: each processor gets a part of each panel
       !  Try to factor nproc into two values are close as possible.
       !  nxproc is the smaller of the 2.
-      nxprocx = nint(sqrt(real(nprocx)))
-      do nxprocx = nint(sqrt(real(nprocx))), 1, -1
+      nxproc_l = nint(sqrt(real(nproc_l)))
+      do nxproc_l = nint(sqrt(real(nproc_l))), 1, -1
          ! This will always exit eventually because it's trivially true 
          ! for nxproc=1
-         nyprocx = nprocx / nxprocx
-         if ( modulo(nprocx,nxprocx) == 0 .and. &
-              modulo(il_gx,nxprocx) == 0  .and. &
-              modulo(il_gx,nyprocx) == 0 ) exit
+         nyproc_l = nproc_l / nxproc_l
+         if ( modulo(nproc_l,nxproc_l) == 0 .and. &
+              modulo(il_gx,nxproc_l) == 0  .and. &
+              modulo(il_gx,nyproc_l) == 0 ) exit
       end do
-      nyprocx = nprocx / nxprocx
-      if ( nxprocx*nyprocx /= nprocx ) then
+      nyproc_l = nproc_l / nxproc_l
+      if ( nxproc_l*nyproc_l /= nproc_l ) then
          write(6,*) "Error in splitting up faces"
          call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
       end if
 
       ! Still need to check that the processor distribution is compatible
       ! with the grid.
-      if ( modulo(il_gx,nxprocx) /= 0 ) then
-         write(6,*) "Error, il not a multiple of nxproc", il_gx, nxprocx
+      if ( modulo(il_gx,nxproc_l) /= 0 ) then
+         write(6,*) "Error, il not a multiple of nxproc", il_gx, nxproc_l
          call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
       end if
-      if ( modulo(il_gx,nyprocx) /= 0 ) then
-         write(6,*) "Error, il not a multiple of nyproc", il_gx, nyprocx
+      if ( modulo(il_gx,nyproc_l) /= 0 ) then
+         write(6,*) "Error, il not a multiple of nyproc", il_gx, nyproc_l
          call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
       end if
-      ipanx = il_gx/nxprocx
-      jpanx = il_gx/nyprocx
+      ipan_l = il_gx/nxproc_l
+      jpan_l = il_gx/nyproc_l
 
       ! Set offsets for this processor
       do n=0,npanels
-         call proc_region_uniform(myidx,n,ioffx(n),joffx(n),noffx,nxprocx,nyprocx,ipanx,jpanx)
+         call proc_region_uniform(myid_l,n,ioff_l(n),joff_l(n),noff_l,nxproc_l,nyproc_l,ipan_l,jpan_l)
       end do
 
    end subroutine uniform_set
 
-   subroutine proc_region(procid,panid,ipoff,jpoff,npoff,nxprocx,nyprocx,ipanx,jpanx,npanx,dmode)
+   subroutine proc_region(procid,panid,ipoff,jpoff,npoff,nxproc_l,nyproc_l,ipan_l,jpan_l,npan_l,dmode)
       ! Calculate the offsets for a given processor
-      integer, intent(in) :: procid, panid, nxprocx, nyprocx, ipanx, jpanx, npanx
+      integer, intent(in) :: procid, panid, nxproc_l, nyproc_l, ipan_l, jpan_l, npan_l
       integer, intent(in) :: dmode
       integer, intent(out) :: ipoff, jpoff, npoff
       integer :: myface, mtmp
@@ -4781,13 +4783,13 @@ contains
 
       select case(dmode)
          case(0) ! Face
-            call proc_region_face(procid,ipoff,jpoff,npoff,nxprocx,nyprocx,ipanx,jpanx,npanx)
+            call proc_region_face(procid,ipoff,jpoff,npoff,nxproc_l,nyproc_l,ipan_l,jpan_l,npan_l)
       
          case(1) ! Old uniform
-            call proc_region_uniform(procid,panid,ipoff,jpoff,npoff,nxprocx,nyprocx,ipanx,jpanx)
+            call proc_region_uniform(procid,panid,ipoff,jpoff,npoff,nxproc_l,nyproc_l,ipan_l,jpan_l)
             
          case(2) ! New uniform
-            call proc_region_dix(procid,ipoff,jpoff,npoff,nxprocx,ipanx,jpanx)
+            call proc_region_dix(procid,ipoff,jpoff,npoff,nxproc_l,ipan_l,jpan_l)
 
 #ifdef debug            
          case default
@@ -4798,82 +4800,82 @@ contains
      
    end subroutine proc_region
 
-   subroutine proc_region_face(procid,ipoff,jpoff,npoff,nxprocx,nyprocx,ipanx,jpanx,npanx)
+   subroutine proc_region_face(procid,ipoff,jpoff,npoff,nxproc_l,nyproc_l,ipan_l,jpan_l,npan_l)
       ! Calculate the offsets for a given processor
-      integer, intent(in) :: procid, nxprocx, nyprocx, ipanx, jpanx, npanx
+      integer, intent(in) :: procid, nxproc_l, nyproc_l, ipan_l, jpan_l, npan_l
       integer, intent(out) :: ipoff, jpoff, npoff
-      integer :: myface, mtmp, nprocx
+      integer :: myface, mtmp, nproc_l
 
-      nprocx = nxprocx*nyprocx*(npanels+1)/npanx
-      if ( nprocx <= npanels+1 ) then
-         npoff = 1 - procid*npanx
+      nproc_l = nxproc_l*nyproc_l*(npanels+1)/npan_l
+      if ( nproc_l <= npanels+1 ) then
+         npoff = 1 - procid*npan_l
          ipoff = 0
          jpoff = 0
       else
-         myface = procid / (nxprocx*nyprocx)
+         myface = procid / (nxproc_l*nyproc_l)
          npoff = 1 - myface
          ! mtmp is the processor index on this face, 0:(nxprox*nyproc-1)
-         mtmp = procid - myface*nxprocx*nyprocx
-         jpoff = (mtmp/nxprocx) * jpanx
-         ipoff = modulo(mtmp,nxprocx) * ipanx
+         mtmp = procid - myface*nxproc_l*nyproc_l
+         jpoff = (mtmp/nxproc_l) * jpan_l
+         ipoff = modulo(mtmp,nxproc_l) * ipan_l
       end if
      
    end subroutine proc_region_face
 
-   subroutine proc_region_uniform(procid,panid,ipoff,jpoff,npoff,nxprocx,nyprocx,ipanx,jpanx)
+   subroutine proc_region_uniform(procid,panid,ipoff,jpoff,npoff,nxproc_l,nyproc_l,ipan_l,jpan_l)
       ! Calculate the offsets for a given processor
-      integer, intent(in) :: procid, panid, nxprocx, nyprocx, ipanx, jpanx
+      integer, intent(in) :: procid, panid, nxproc_l, nyproc_l, ipan_l, jpan_l
       integer, intent(out) :: ipoff, jpoff, npoff
       integer il_gx
 
       ! MJT suggested decomposition to improve load balance
-      il_gx = ipanx*nxprocx
+      il_gx = ipan_l*nxproc_l
       npoff = 1
       select case(panid)
          case(0)
-            jpoff = (procid/nxprocx) * jpanx
-            ipoff = modulo(procid,nxprocx) * ipanx
+            jpoff = (procid/nxproc_l) * jpan_l
+            ipoff = modulo(procid,nxproc_l) * ipan_l
             if (jpoff>=il_gx/2) then
-               ipoff=il_gx-ipoff-ipanx
+               ipoff=il_gx-ipoff-ipan_l
             end if
          case(1)
-            jpoff = (procid/nxprocx) * jpanx
-            ipoff = modulo(procid,nxprocx) * ipanx
+            jpoff = (procid/nxproc_l) * jpan_l
+            ipoff = modulo(procid,nxproc_l) * ipan_l
          case(2)
-            jpoff = (procid/nxprocx) * jpanx
-            ipoff = modulo(procid,nxprocx) * ipanx
+            jpoff = (procid/nxproc_l) * jpan_l
+            ipoff = modulo(procid,nxproc_l) * ipan_l
             if (ipoff>=il_gx/2) then
-               jpoff=il_gx-jpoff-jpanx
+               jpoff=il_gx-jpoff-jpan_l
             end if
          case(3)
-            jpoff = modulo(procid,nyprocx) * jpanx
-            ipoff = (procid/nyprocx) * ipanx
+            jpoff = modulo(procid,nyproc_l) * jpan_l
+            ipoff = (procid/nyproc_l) * ipan_l
             if (ipoff>=il_gx/2) then
-               jpoff=il_gx-jpoff-jpanx
+               jpoff=il_gx-jpoff-jpan_l
             end if
          case(4)
-            jpoff = modulo(procid,nyprocx) * jpanx
-            ipoff = (procid/nyprocx) * ipanx
+            jpoff = modulo(procid,nyproc_l) * jpan_l
+            ipoff = (procid/nyproc_l) * ipan_l
          case(5)
-            jpoff = modulo(procid,nyprocx) * jpanx
-            ipoff = (procid/nyprocx) * ipanx
+            jpoff = modulo(procid,nyproc_l) * jpan_l
+            ipoff = (procid/nyproc_l) * ipan_l
             if (jpoff>=il_gx/2) then
-               ipoff=il_gx-ipoff-ipanx
+               ipoff=il_gx-ipoff-ipan_l
             end if        
       end select
      
    end subroutine proc_region_uniform
 
-   subroutine proc_region_dix(procid,ipoff,jpoff,npoff,nxprocx,ipanx,jpanx)
+   subroutine proc_region_dix(procid,ipoff,jpoff,npoff,nxproc_l,ipan_l,jpan_l)
       ! Calculate the offsets for a given processor
-      integer, intent(in) :: procid, nxprocx, ipanx, jpanx
+      integer, intent(in) :: procid, nxproc_l, ipan_l, jpan_l
       integer, intent(out) :: ipoff, jpoff, npoff
 
       ! Original Dix uniform decomposition
       ! Set offsets for this processor (same on all faces)
       npoff = 1
-      jpoff = (procid/nxprocx) * jpanx
-      ipoff = modulo(procid,nxprocx)*ipanx
+      jpoff = (procid/nxproc_l) * jpan_l
+      ipoff = modulo(procid,nxproc_l)*ipan_l
      
    end subroutine proc_region_dix
 
@@ -6246,6 +6248,27 @@ contains
       END_LOG(bcast)   
       
    end subroutine ccmpi_bcast3i
+
+   subroutine ccmpi_bcast1r(ldat,host,comm)
+   
+      integer, intent(in) :: host, comm
+      integer(kind=4) :: lcomm, lhost, lerr
+#ifdef i8r8
+      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4) :: ltype = MPI_REAL
+#endif
+      real, intent(inout) :: ldat
+
+      START_LOG(bcast)
+
+      lhost = host
+      lcomm = comm
+      call MPI_Bcast(ldat,1_4,ltype,lhost,lcomm,lerr)
+   
+      END_LOG(bcast)
+   
+   end subroutine ccmpi_bcast1r
    
    subroutine ccmpi_bcast2r(ldat,host,comm)
    

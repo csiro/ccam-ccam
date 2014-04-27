@@ -83,7 +83,7 @@
 
        if (myid==0.and.iarch>1) then
         write(6,'("outcdf itype,idnc,iarch,cdffile=",i5,i8,i5," ",a80)')
-     &                   itype,idnc,iarch,cdffile
+     &                  itype,idnc,iarch,cdffile
        end if
 
        ! Open new file
@@ -1187,6 +1187,9 @@ c       For time varying surface fields
         call attrib(idnc,dim,4,'omega',lname,'Pa/s',-50.,50.,0,itype)
         lname= 'Water mixing ratio'
         call attrib(idnc,dim,4,'mixr',lname,'kg/kg',0.,.05,0,itype)
+        lname='covective heating'
+        call attrib(idnc,dim,4,'convh_ave',lname,'K/day',-10.,20.,0,
+     &              itype)
         
         ! MICROPHYSICS ----------------------------------------------
         if(ldr/=0)then
@@ -1196,14 +1199,20 @@ c       For time varying surface fields
      &               0,itype)
          call attrib(idnc,dim,4,'qrg','Rain','kg/kg',0.,.065,
      &               0,itype)
-    !     call attrib(idnc,dim,4,'qsg','Snow','kg/kg',0.,.02,
-    ! &               0,itype)
-    !     call attrib(idnc,dim,4,'qgrau','Grauple','kg/kg',0.,.02,
-    ! &               0,itype)
          call attrib(idnc,dim,4,'cfrac','Cloud fraction','none',0.,1.,
      &               0,itype)
          call attrib(idnc,dim,4,'cfrain','Rain fraction','none',0.,
-     &               1.,0,itype)          
+     &               1.,0,itype)
+         !if (ncloud>=3) then
+         !  call attrib(idnc,dim,4,'stratcf','Strat cloud fraction',
+         ! &          'none',0.,1.,itype)
+         !  if (itype==-1) then
+         !    call attrib(idnc,dim,4,'strat_nt','Strat net temp tendency',
+         ! &            'K/s',0.,1.,itype)
+         !    call attrib(idnc,dim,4,'strat_mf','Strat net mass flux',
+         ! &            'kg/m2/s',0.,1.,itype)
+         !  end if
+         !end if
         endif
         
         ! TURBULENT MIXING ------------------------------------------
@@ -1982,20 +1991,29 @@ c      "extra" outputs
       tmpry=qg(1:ifull,:)
       call histwrt4(tmpry,'mixr',idnc,iarch,local,.true.)
       
+      lwrite=(mod(ktau,nperavg)==0.or.ktau==ntau).and.ktau>0
+      call histwrt4(convh_ave,'convh_ave',idnc,iarch,local,lwrite)
+      
       ! MICROPHYSICS ------------------------------------------------
       if(ldr/=0)then
-        tmpry=qfg(1:ifullw,:)
+        tmpry=qfg(1:ifull,:)
         call histwrt4(tmpry,'qfg',idnc,iarch,local,.true.)
-        tmpry=qlg(1:ifullw,:)
+        tmpry=qlg(1:ifull,:)
         call histwrt4(tmpry,'qlg',idnc,iarch,local,.true.)
-        tmpry=qrg(1:ifullw,:)
+        tmpry=qrg(1:ifull,:)
         call histwrt4(tmpry,'qrg',idnc,iarch,local,.true.)
-        !call histwrt4(qsg(1:ifullw,:),'qsg',idnc,iarch,local,.true.)
-        !call histwrt4(qgrau(1:ifullw,:),'qgrau',idnc,iarch,local,.true.)
         call histwrt4(cfrac,'cfrac',idnc,iarch,local,.true.)
-        tmpry=cffall(1:ifullw,:)
+        tmpry=cffall(1:ifull,:)
         call histwrt4(tmpry,'cfrain',idnc,iarch,local,
      &                .true.)
+        !if (ncloud>=3) then
+        !  tmpry=stratcloud(1:ifull,:)
+        !  call histwrt4(tmpry,'stratcf',idnc,iarch,local,.true.)  
+        !  if (itype==-1) then
+        !    call histwrt4(nettend,'strat_nt',idnc,iarch,local,.true.)
+        !    call histwrt4(cmflx,'strat_mf',idnc,iarch,local,.true.)
+        !  end if
+        !end if
       endif
       
       ! TURBULENT MIXING --------------------------------------------

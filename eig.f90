@@ -1,5 +1,6 @@
 !  this is eig derived from eignew, but used in-line in C-CAM
 subroutine eig(sigin,sigmhin,tbarin,lapsbot,isoth,dtin,epsin,nsig,betin,betmin,nh)
+use cc_mpi, only : myid
 use vecs_m, only : emat,einv,bam
 implicit none
 include 'newmpar.h'
@@ -12,7 +13,7 @@ real, dimension(kl), intent(in) :: tbarin,betin,betmin
 real(kind=8) :: tem,dt,eps
 real(kind=8), dimension(kl) :: sig,tbar,bet,betm,lbam
 real(kind=8), dimension(kl+1) :: sigmh
- real(kind=8), dimension(kl,kl) :: lemat,leinv
+real(kind=8), dimension(kl,kl) :: lemat,leinv
 
 dt=dtin
 eps=epsin
@@ -26,8 +27,10 @@ lemat=emat
 leinv=einv
 lbam=bam
 ! lapsbot=1 gives zero lowest t lapse for phi calc
-write(6,*) 'this run configured with kl = ',kl
-write(6,*) 'entering eig tbar,lapsbot,isoth,dtin,eps,nh: ',tbar(1),lapsbot,isoth,dtin,eps,nh
+if (myid==0) then
+  write(6,*) 'this run configured with kl = ',kl
+  write(6,*) 'entering eig tbar,lapsbot,isoth,dtin,eps,nh: ',tbar(1),lapsbot,isoth,dtin,eps,nh
+end if
 
 !     expect data from bottom up
 if(sig(1)<sig(kl))then
@@ -37,12 +40,16 @@ if(sig(1)<sig(kl))then
   sigmh(1)=0.
   sigmh(2:kl+1)=lbam(1:kl)
 endif  ! (sig(1)<sig(kl))
-write(6,*) 'final sig values: ',sig
-write(6,*) 'final sigmh values: ',sigmh
-open(28,file='eigenv.out')
+if (myid==0) then
+  write(6,*) 'final sig values: ',sig
+  write(6,*) 'final sigmh values: ',sigmh
+  open(28,file='eigenv.out')
+end if
 call eigs(lapsbot,isoth,tbar,dt,eps,nh,sig,sigmh,bet,betm,lbam,lemat,leinv)
-write(6,*) 'about to write to 28 '
-write(28,*)kl,lapsbot,isoth,nsig,'   kl,lapsbot,isoth,nsig'
+if (myid==0) then
+  write(6,*) 'about to write to 28 '
+  write(28,*)kl,lapsbot,isoth,nsig,'   kl,lapsbot,isoth,nsig'
+end if
 !     re-order the eigenvectors if necessary
 nchng=1
 do while (nchng/=0)
@@ -63,8 +70,10 @@ do while (nchng/=0)
     end do
   end do
 end do
-write(6,*)'eigenvectors re-ordered'
-write(6,*)'bam',(lbam(k),k=1,kl)
+if (myid==0) then
+  write(6,*)'eigenvectors re-ordered'
+  write(6,*)'bam',(lbam(k),k=1,kl)
+end if
 if(neig==1)then
 !      write data from bottom up
   if(sig(1)<sig(kl))then
@@ -80,6 +89,7 @@ bam=lbam
 end subroutine eig
 
 subroutine eigs(lapsbot,isoth,tbar,dt,eps,nh,sig,sigmh,bet,betm,bam,emat,einv)
+use cc_mpi, only : myid
 implicit none
 include 'newmpar.h'
 include 'const_phys.h'
@@ -105,8 +115,10 @@ bmat=0.
 do k=1,kl
   dsig(k)=sigmh(k+1)-sigmh(k)
 enddo
-write(6,*) 'sigmh ',(sigmh(k),k=1,kl)
-write(6,*) 'dsig ',(dsig(k),k=1,kl)
+if (myid==0) then
+  write(6,*) 'sigmh ',(sigmh(k),k=1,kl)
+  write(6,*) 'dsig ',(dsig(k),k=1,kl)
+end if
 
 get(1)=bet(1)/(rdry*sig(1))
 getm(1)=0.
@@ -129,15 +141,17 @@ do k=1,kl
   bmat(k,k)=bet(k)
   gmat(k,k)=factr*get(k)
 enddo
-   
-write(6,*)'dt,eps,factg,tbar,factr ',dt,eps,factg,tbar(1),factr
-write(6,*)'bet ',bet
 
-write(6,*) 'get ',get
-write(6,*) 'getm ',getm
+if (myid==0) then
+  write(6,*)'dt,eps,factg,tbar,factr ',dt,eps,factg,tbar(1),factr
+  write(6,*)'bet ',bet
 
-!     even newer derivation section
-write(6,*) 'even newer derivation section'
+  write(6,*) 'get ',get
+  write(6,*) 'getm ',getm
+
+  !     even newer derivation section
+  write(6,*) 'even newer derivation section'
+end if
 
 do k=1,kl
   do l=1,kl
@@ -168,7 +182,9 @@ endif  ! (nh>0)
       
 aaa(:,:)=cc(:,:)
 call eigenp(aaa,bam,evimag,emat,veci,indic)
-write(6,*) 'bam',(bam(k),k=1,kl)
+if (myid==0) then
+  write(6,*) 'bam',(bam(k),k=1,kl)
+end if
 call matinv(cc,sum1,0,dp,irror)
 einv(:,:)=emat(:,:)
 call matinv(einv,sum1,0,dp,irror)

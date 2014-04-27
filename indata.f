@@ -87,7 +87,7 @@
       real, dimension(ifull,kl,7) :: dumb
       real, dimension(:,:), allocatable :: glob2d
       real, dimension(:), allocatable :: davt_g
-      real, dimension(2*kl*kl+kl) :: dumc
+      real, dimension(3*kl+1) :: dumc
       real, dimension(2) :: dumd
       real rlonx,rlatx,alf
       real aamax, aamax_g, c, cent, 
@@ -166,12 +166,6 @@
       land(:)=.false.
       kdate=kdate_s
       ktime=ktime_s
-      sig(:)=0.
-      sigmh(:)=0.
-      tbar(:)=0.
-      emat=0.
-      einv=0.
-      bam=0.
 
       !--------------------------------------------------------------
       ! READ AND PROCESS ATMOSPHERE SIGMA LEVELS
@@ -187,15 +181,28 @@
        close(28) 
        write(6,*) 'tbar: ',tbar
        write(6,*) 'bam: ',bam
+       dumc(1:kl)       =sig
+       dumc(kl+1:2*kl)  =sigmh
+       dumc(2*kl+1:3*kl)=tbar
+       
+       ! test netcdf for CABLE input
+       if (nsib>=6) then
+         call ccnf_open(vegfile,ncidveg,ierr)
+         if (ierr==0) then
+           dumc(3*kl+1)=1.
+         else
+           dumc(3*kl+1)=0.  
+         end if
+       else
+         dumc(3*kl+1)=0.
+       end if
       endif ! (myid==0)
 
-      dumc(1:kl)=sig
-      dumc(kl+1:2*kl)=sigmh
-      dumc(2*kl+1:3*kl)=tbar
-      call ccmpi_bcast(dumc(1:3*kl),0,comm_world)
-      sig=dumc(1:kl)
-      sigmh=dumc(kl+1:2*kl)
-      tbar=dumc(2*kl+1:3*kl)
+      call ccmpi_bcast(dumc(1:3*kl+1),0,comm_world)
+      sig   =dumc(1:kl)
+      sigmh =dumc(kl+1:2*kl)
+      tbar  =dumc(2*kl+1:3*kl)
+      lncveg=nint(dumc(3*kl+1))
 
       do k=1,kl-1
        dsig(k)=sigmh(k+1)-sigmh(k)
@@ -251,11 +258,13 @@
         enddo
         bet(1)=-rdry*log(sig(1))
       endif
-    
+
       if(myid==0)then
        write(6,*) 'bet ',bet
        write(6,*) 'betm ',betm
-       if (nh/=0) then
+      end if
+      if (nh/=0) then
+        ! Non-hydrostatic case
         if(nh==2.and.lapsbot/=3)stop 'nh=2 needs lapsbot=3'
         if (abs(epsp)<=1.) then
          ! exact treatment when epsp is constant
@@ -265,12 +274,17 @@
          call eig(sig,sigmh,tbar,lapsbot,isoth,dt,0.,nsig,
      &            bet,betm,nh)
         end if
-       endif  ! (nh.ne.0)
-      endif !myid==0
+      else
+        ! MJT notes - The hydrostatic case could have called
+        ! eig and avoided a ccmpi_bcast.  However, since eig
+        ! does not always exactly reproduce the input file 
+        ! emat, einv and bam, then we keep the bcast for 
+        ! backwards compatibility
+        call ccmpi_bcast(bam,0,comm_world)
+        call ccmpi_bcast(emat,0,comm_world)
+        call ccmpi_bcast(einv,0,comm_world)
+      endif  ! (nh/=0)
 
-      call ccmpi_bcast(bam,0,comm_world)
-      call ccmpi_bcast(emat,0,comm_world)
-      call ccmpi_bcast(einv,0,comm_world)
 
 !     zmin here is approx height of the lowest level in the model
       zmin=-rdry*280.*log(sig(1))/grav
@@ -547,9 +561,6 @@
         where (.not.land(:).or.sigmu<0.01)
           sigmu(:)=0.
         end where
-        if (nmaxpr==1) then
-          write(6,*) "myid,urban ",myid,count(sigmu>0.)
-        end if
         call atebinit(ifull,sigmu(:),0)
       else
         sigmu(:)=0.
@@ -629,10 +640,10 @@
      &         dumb(:,:,4),tgg,wb,wbice,snowd,dumb(:,:,5),
      &         dumb(:,:,6),dumb(:,:,7),tggsn,smass,ssdn,ssdnn,
      &         snage,isflag,mlodwn,ocndwn)
-          t(1:ifull,:)=dumb(:,:,1)
-          u(1:ifull,:)=dumb(:,:,2)
-          v(1:ifull,:)=dumb(:,:,3)
-          qg(1:ifull,:)=dumb(:,:,4)
+          t(1:ifull,:)  =dumb(:,:,1)
+          u(1:ifull,:)  =dumb(:,:,2)
+          v(1:ifull,:)  =dumb(:,:,3)
+          qg(1:ifull,:) =dumb(:,:,4)
           qfg(1:ifull,:)=dumb(:,:,5)
           qlg(1:ifull,:)=dumb(:,:,6)
           qrg(1:ifull,:)=dumb(:,:,7)
@@ -892,7 +903,7 @@
          vmer=0.
 !       assign u and v from zonal and meridional winds
          do iq=1,ifull
-            den=sqrt( max(x(iq)**2 + y(iq)**2,real(1.e-7,8)) ) ! allow for poles
+            den=sqrt( max(x(iq)**2 + y(iq)**2,1.e-7_8) ) ! allow for poles
             costh=(-y(iq)*ax(iq) + x(iq)*ay(iq))/den
             sinth=az(iq)/den
             uzon=2.*pi*rearth/(10.*86400) * abs(cos(rlatt(iq)))
@@ -2199,7 +2210,6 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
         zolnd=dumb(:,3)
         ivegt=idumb(:,1)
         isoilm=idumb(:,2)
-        lncveg=0
       else if (nsib==5) then
         if (myid==0) then
           allocate(duma(ifull_g,5))
@@ -2220,22 +2230,18 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
         vlai=0.01*dumb(:,5)
         ivegt=1 ! updated later
         call readint(soilfile,isoilm,ifull)
-        lncveg=0
       else if (nsib>=6) then
         if (myid==0) then
           allocate(duma(ifull_g,3))
-          call ccnf_open(vegfile,ncidveg,ierr)
-          if (ierr==0) then
-            lncveg=1
-            call surfread(duma(:,3),'soilt',netcdfid=ncidveg)
+          if (lncveg==1) then
+            call surfread(duma(:,3),'soilt', netcdfid=ncidveg)
             call surfread(duma(:,1),'albvis',netcdfid=ncidveg)
             call surfread(duma(:,2),'albnir',netcdfid=ncidveg)
           else
             write(6,*) "Cannot open vegfile as a netcdf file ",
      &                  vegfile
             write(6,*) "Assuming ASCII file format"
-            lncveg=0
-            call surfread(duma(:,3),'soilt',filename=soilfile)
+            call surfread(duma(:,3),'soilt', filename=soilfile)
             call surfread(duma(:,1),'albvis',filename=albfile)
             call surfread(duma(:,2),'albnir',filename=albnirfile)
           end if
@@ -2245,7 +2251,6 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
           call ccmpi_distribute(dumb(:,1:3))
         end if
         ! communicate netcdf status to all processors
-        call ccmpi_bcast(lncveg,0,comm_world)
         albvisnir(:,1)=dumb(:,1)
         albvisnir(:,2)=dumb(:,2)
         isoilm=nint(dumb(:,3))

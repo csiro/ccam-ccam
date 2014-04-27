@@ -105,7 +105,6 @@
 
       integer, dimension(:,:), allocatable, save :: dumd
       integer, dimension(8) :: tvals1, tvals2, nper3hr
-      integer, dimension(5) :: idum
       integer ier, igas, ilx, io_nest, iq, irest, isoil
       integer jalbfix, jlx, k, k2, kktau
       integer mins_dt, mins_gmt, mspeca, mtimer_in, nalpha
@@ -117,7 +116,7 @@
       real, dimension(:), allocatable, save :: spare1, spare2
       real, dimension(:), allocatable, save :: spmean, div
       real, dimension(9) :: temparray, gtemparray
-      real, dimension(3) :: rdum
+      real, dimension(8) :: rdum
       real clhav, cllav, clmav, cltav, con, div_int, dsx, dtds, es
       real gke, hourst, hrs_dt, evapavge, precavge, preccavge, psavge
       real pslavge, pwater, rel_lat, rel_long, rlwup, spavge, pwatr
@@ -201,12 +200,14 @@
       end if
 #endif
 
+
       !--------------------------------------------------------------
       ! INITALISE MPI ROUTINES
       call ccmpi_init
 
+
       !--------------------------------------------------------------
-      ! INITALISE LOGS
+      ! INITALISE TIMING LOGS
       call log_off()
       call log_setup()
       START_LOG(model)
@@ -262,6 +263,7 @@
       if (tracerlist/=' ') call init_tracer ! tracers and rewind namelist.
       nagg=max(5,naero,ngas)                ! maximum size of aggregation
 
+
       !--------------------------------------------------------------
       ! READ TOPOGRAPHY FILE TO DEFINE CONFORMAL CUBIC GRID
       il_g=48
@@ -271,10 +273,11 @@
       if (myid==0.and.io_in<=4) then
 !       open new topo file and check its dimensions
 !       here used to supply rlong0,rlat0,schmidt
-!       Remanded of file is read in indata.f
+!       Remander of file is read in indata.f
         write(6,*) 'reading topofile header'
         call ccnf_open(topofile,ncidtopo,ierr)
         if (ierr==0) then
+          ! Netcdf format
           lnctopo=1
           call ccnf_inq_dimlen(ncidtopo,'longitude',ilx)
           call ccnf_inq_dimlen(ncidtopo,'latitude',jlx)
@@ -282,18 +285,21 @@
           call ccnf_get_attg(ncidtopo,'lat0',rlat0)
           call ccnf_get_attg(ncidtopo,'schmidt',schmidt) 
         else
+          ! ASCII format      
           lnctopo=0
           open(66,file=topofile,recl=2000,status='old')
           read(66,*) ilx,jlx,rlong0,rlat0,schmidt,dsx,header
-        end if
+        end if ! (ierr==0) ..else..
         il_g=ilx        
         write(6,*) 'ilx,jlx,rlong0,rlat0,schmidt ',
      &              ilx,jlx,rlong0,rlat0,schmidt
-      end if      ! (io_in<=4)
-      idum(1)=il_g
+      end if      ! (myid==0.and.io_in<=4)
+      ! store grid dimensions for broadcast below
       rdum(1)=rlong0
       rdum(2)=rlat0
       rdum(3)=schmidt
+      rdum(4)=real(il_g)
+
 
       !--------------------------------------------------------------
       ! READ EIGENV FILE TO DEFINE VERTICAL LEVELS
@@ -304,23 +310,26 @@
         kl=kmax
         write(6,*)'kl,ol,lapsbot,isoth,nsig: ',
      &             kl,ol,lapsbot,isoth,nsig
-        idum(2)=kl
-        idum(3)=lapsbot
-        idum(4)=isoth
-        idum(5)=nsig
+        rdum(5)=real(kl)
+        rdum(6)=real(lapsbot)
+        rdum(7)=real(isoth)
+        rdum(8)=real(nsig)
       end if
       
-      call ccmpi_bcast(idum(1:5),0,comm_world)
-      call ccmpi_bcast(rdum(1:3),0,comm_world)
-      il_g   =idum(1)
-      kl     =idum(2)
-      lapsbot=idum(3)
-      isoth  =idum(4)
-      nsig   =idum(5)
+      ! Broadcast grid to all processors
+      ! (Since integers are small, then they can be exactly
+      !  represented as reals)
+      call ccmpi_bcast(rdum(1:8),0,comm_world)
       rlong0 =rdum(1)
       rlat0  =rdum(2)
       schmidt=rdum(3)
+      il_g   =nint(rdum(4))
+      kl     =nint(rdum(5))
+      lapsbot=nint(rdum(6))
+      isoth  =nint(rdum(7))
+      nsig   =nint(rdum(8))
 
+      
       !--------------------------------------------------------------
       ! DEFINE newmpar VARIABLES AND DEFAULTS
       jl_g=il_g+npanels*il_g      
@@ -372,7 +381,6 @@
 !     be some optimisation.
 #ifdef uniform_decomp
       npan=npanels+1
-!     This should use jpan rather than jl. Will be far too big.
       iextra=(4*(il+jl)+24)*npan
 #else      
       npan=max(1,(npanels+1)/nproc)
@@ -603,14 +611,12 @@
         write(6,*) "Calling setxyz"
         call workglob_init(ifull_g)
         call setxyz(il_g,rlong0,rlat0,schmidt,x_g,y_g,z_g,wts_g,ax_g,
-     &     ay_g,az_g,bx_g,by_g,bz_g,xx4,yy4,myid)
+     &              ay_g,az_g,bx_g,by_g,bz_g,xx4,yy4,myid)
       end if
-      allocate(dumd(npanels+1,16))
       ! Broadcast the following global arrays so that they can be
       ! decomposed into local arrays with ccmpi_setup
-      rdum(1)=ds
-      call ccmpi_bcast(rdum(1:1),0,comm_world)
-      ds=rdum(1)
+      call ccmpi_bcast(ds,0,comm_world)
+      ! send ifull_g and iquad*iquad arrays separately to reduce memory
       call ccmpi_bcastr8(xx4,0,comm_world)
       call ccmpi_bcastr8(yy4,0,comm_world)
       call ccmpi_bcast(iw_g,0,comm_world)
@@ -629,6 +635,8 @@
       call ccmpi_bcast(iss_g,0,comm_world)
       call ccmpi_bcast(iww_g,0,comm_world)
       call ccmpi_bcast(iee_g,0,comm_world)
+      ! pack smaller arrays to reduce number of broadcasts
+      allocate(dumd(npanels+1,16))
       if (myid==0) then
         dumd(:,1)=lwws_g
         dumd(:,2)=lwss_g
@@ -664,14 +672,15 @@
       lnnw_g=dumd(:,14)
       lnee_g=dumd(:,15)
       lnne_g=dumd(:,16)
+      deallocate(dumd)
       ! The following are only needed for the scale-selective filter
+      ! (Use sharded memory with MPI-3 for these arrays)
       if (mbd/=0) then
         call ccmpi_bcastr8(x_g,0,comm_world)
         call ccmpi_bcastr8(y_g,0,comm_world)
         call ccmpi_bcastr8(z_g,0,comm_world)
         call ccmpi_bcast(em_g,0,comm_world)
       end if
-      deallocate(dumd)
       if (myid==0) then
         write(6,*) "Calling ccmpi_setup"
       end if
@@ -778,9 +787,9 @@
 
       !--------------------------------------------------------------
       ! READ INITIAL CONDITIONS
-      ncid=-1 ! initialise with no files open
-      call histopen(ncid,ifile,ier)
-      call ncmsg("ifile",ier)
+      ncid=-1                       ! initialise nc handle with no files open
+      call histopen(ncid,ifile,ier) ! open parallel initial condition files
+      call ncmsg("ifile",ier)       ! report error messages
       if (myid==0) then
         write(6,*)'ncid,ifile ',ncid,ifile
         write(6,*)'calling indata; will read from file ',ifile
@@ -796,6 +805,8 @@
       end if
 
       ! max/min diagnostics      
+      if (nextout>=4) call setllp
+#ifdef debug
       call maxmin(u,' u',ktau,1.,kl)
       call maxmin(v,' v',ktau,1.,kl)
       dums(:,:)=sqrt(u(1:ifull,:)**2+v(1:ifull,:)**2)  ! 3D 
@@ -816,24 +827,24 @@
       enddo
       pwatr_l=pwatr_l/grav
       rdum(1)=pwatr_l
-      call ccmpi_reduce( rdum(1:1), rdum(2:2), "sum", 0, comm_world)
+      call ccmpi_reduce( rdum(1:1), rdum(2:2), "sum", 0, comm_world )
       pwatr=rdum(2)
       if (myid==0) write (6,"('pwatr0 ',12f7.3)") pwatr
-      if (nextout>=4) call setllp
       if (ntrac>0) then
         do ng=1,ntrac
           write (text,'("g",i1)')ng
           call maxmin(tr(:,:,ng),text,ktau,1.,kl)
         end do
       end if   ! (ntrac>0)
+#endif
 
 
       !--------------------------------------------------------------
       ! OPEN MESONEST FILE
       if(mbd/=0.or.nbd/=0)then
-         io_in=io_nest ! Needs to be seen by all processors
-         call histopen(ncid,mesonest,ier)
-         call ncmsg("mesonest",ier)
+         io_in=io_nest                    ! Needs to be seen by all processors
+         call histopen(ncid,mesonest,ier) ! open parallel mesonest files
+         call ncmsg("mesonest",ier)       ! report error messages
          if ( myid == 0 ) then
            write(6,*)'ncid,mesonest ',ncid,mesonest
          endif ! myid == 0
@@ -872,14 +883,13 @@
         if(myid==0)write(6,*)'khor,hdiff: ',khor,hdiff
       endif
 
-!     *** be careful not to choose ia,ib,ja,jb to cover more than
-!         one processor, or myid=0 may stop here!!!
       call printa('zs  ',zs,0,0,ia,ib,ja,jb,0.,.01)
       call printa('tss ',tss,0,0,ia,ib,ja,jb,200.,1.)
       if(mydiag)write(6,*)'wb(idjd) ',(wb(idjd,k),k=1,6)
       call printa('wb1   ',wb ,0,1,ia,ib,ja,jb,0.,100.)
       call printa('wb6  ',wb,0,ms,ia,ib,ja,jb,0.,100.)
 
+      
       !--------------------------------------------------------------
       ! NRUN COUNTER
       if (myid==0) then
@@ -927,6 +937,7 @@
       evap(:)=0.
       precc(:)=0.
       precip(:)=0.
+      convh_ave(:,:)=0.
       rnd_3hr(:,8)=0. ! i.e. rnd24(:)=0.
       cbas_ave(:)=0.
       ctop_ave(:)=0.
@@ -1007,7 +1018,7 @@
       call log_on()
       START_LOG(maincalc)
 
-      do 88 kktau=1,ntau   ! ****** start of main time loop
+      do kktau=1,ntau   ! ****** start of main time loop
       ktau=kktau
       timer = timer + hrs_dt      ! timer now only used to give timeg
       timeg=mod(timer+hourst,24.)
@@ -1331,6 +1342,7 @@
       if (myid==0.and.nmaxpr==1) then
         write(6,*) "Before convection"
       end if
+      convh_ave=convh_ave-t(1:ifull,:)*real(nperday/nperavg)
       condc=0.
       condx=0.
       conds=0.
@@ -1371,6 +1383,7 @@
        rlwp_ave(1:ifull)=rlwp_ave(1:ifull)
      &   -qlrad(:,k)*dsig(k)*ps(1:ifull)/grav ! liq water path
       enddo
+      convh_ave=convh_ave+t(1:ifull,:)*real(nperday/nperavg)
       rnd_3hr(1:ifull,8)=rnd_3hr(1:ifull,8)+condx(:)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
 #ifdef debug
       if(nmaxpr==1.and.mydiag)then
@@ -1540,8 +1553,8 @@
       endif   ! (ntsur>1)
 
       ! AEROSOLS --------------------------------------------------------------
-      ! MJT notes - put aerosols before vertical mixing so that convective and
-      ! strat cloud can be separated consistently with cloud microphysics
+      ! MJT notes - aerosols called before vertical mixing so that convective
+      ! and strat cloud can be separated consistently with cloud microphysics
       if (abs(iaero)>=2) then
         START_LOG(aerosol)
         if (myid==0.and.nmaxpr==1) then
@@ -1888,47 +1901,48 @@
         end if
 !       also zero most averaged fields every nperavg
         if (myid==0) write(6,*) 'resetting tscr_ave for ktau = ',ktau
-        cbas_ave(:)  =0.
-        ctop_ave(:)  =0.
-        dew_ave(:)   =0.
-        epan_ave(:)  =0.
-        epot_ave(:)  =0.
-        eg_ave(:)    =0.
-        fg_ave(:)    =0.
-        rnet_ave(:)  =0.
-        sunhours(:)  =0.
-        riwp_ave(:)  =0.
-        rlwp_ave(:)  =0.
-        qscrn_ave(:) =0.
-        tscr_ave(:)  =0.
-        wb_ave(:,:)  =0.
-        tsu_ave(:)   =0.
-        alb_ave(:)   =0.
-        fbeam_ave(:) =0.
-        psl_ave(:)   =0.
-        mixdep_ave(:)=0.
-        koundiag     =0
-        sint_ave(:)  =0.
-        sot_ave(:)   =0.
-        soc_ave(:)   =0.
-        sgdn_ave(:)  =0.
-        sgn_ave(:)   =0.
-        rtu_ave(:)   =0.
-        rtc_ave(:)   =0.
-        rgdn_ave(:)  =0.
-        rgn_ave(:)   =0.
-        rgc_ave(:)   =0.
-        sgc_ave(:)   =0.
-        cld_ave(:)   =0.
-        cll_ave(:)   =0.
-        clm_ave(:)   =0.
-        clh_ave(:)   =0.
+        convh_ave(:,:)=0.
+        cbas_ave(:)   =0.
+        ctop_ave(:)   =0.
+        dew_ave(:)    =0.
+        epan_ave(:)   =0.
+        epot_ave(:)   =0.
+        eg_ave(:)     =0.
+        fg_ave(:)     =0.
+        rnet_ave(:)   =0.
+        sunhours(:)   =0.
+        riwp_ave(:)   =0.
+        rlwp_ave(:)   =0.
+        qscrn_ave(:)  =0.
+        tscr_ave(:)   =0.
+        wb_ave(:,:)   =0.
+        tsu_ave(:)    =0.
+        alb_ave(:)    =0.
+        fbeam_ave(:)  =0.
+        psl_ave(:)    =0.
+        mixdep_ave(:) =0.
+        koundiag      =0
+        sint_ave(:)   =0.
+        sot_ave(:)    =0.
+        soc_ave(:)    =0.
+        sgdn_ave(:)   =0.
+        sgn_ave(:)    =0.
+        rtu_ave(:)    =0.
+        rtc_ave(:)    =0.
+        rgdn_ave(:)   =0.
+        rgn_ave(:)    =0.
+        rgc_ave(:)    =0.
+        sgc_ave(:)    =0.
+        cld_ave(:)    =0.
+        cll_ave(:)    =0.
+        clm_ave(:)    =0.
+        clh_ave(:)    =0.
 !       zero evap, precip, precc, sno, runoff fields each nperavg (3/12/04) 
-        evap(:)      =0.  
-        precip(:)    =0.  ! converted to mm/day in outcdf
-        precc(:)     =0.  ! converted to mm/day in outcdf
-        sno(:)       =0.  ! converted to mm/day in outcdf
-        runoff(:)    =0.  ! converted to mm/day in outcdf
+        evap(:)       =0.  
+        precip(:)     =0.  ! converted to mm/day in outcdf
+        precc(:)      =0.  ! converted to mm/day in outcdf
+        sno(:)        =0.  ! converted to mm/day in outcdf
+        runoff(:)     =0.  ! converted to mm/day in outcdf
         if (ngas>0) then
           traver=0.
         end if
@@ -1984,7 +1998,7 @@
       VT_BUFFER_FLUSH()
 #endif
 
-88    continue                   ! *** end of main time loop
+      end do                  ! *** end of main time loop
       END_LOG(maincalc)
       call log_off()
       if (myid==0) then

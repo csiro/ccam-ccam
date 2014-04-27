@@ -707,19 +707,11 @@ if (myid==0) then
     ncid=lncid
     ier=lier
     if (lier/=nf_noerr) then
-#else
-  if (lier/=nf90_noerr) then
-    write(pfile,"(a,'.',i6.6)") trim(ifile), 0
-    lier=nf90_open(pfile,nf90_nowrite,lncid)
-    ncid=lncid
-    ier=lier
-    if (lier/=nf90_noerr) then
-#endif
       write(6,*) "WARN: Cannot open ",pfile
+      write(6,*) "WARN: Cannot open ",ifile
     else  
       write(6,*) "Found parallel input file ",ifile
       fdecomp=''
-#ifdef usenc3
       ler=nf_get_att_int(lncid,nf_global,"nproc",lidum)
       fnproc=lidum
       der=ler
@@ -728,6 +720,17 @@ if (myid==0) then
       der=ler
       call ncmsg("decomp",der)
 #else
+  if (lier/=nf90_noerr) then
+    write(pfile,"(a,'.',i6.6)") trim(ifile), 0
+    lier=nf90_open(pfile,nf90_nowrite,lncid)
+    ncid=lncid
+    ier=lier
+    if (lier/=nf90_noerr) then
+      write(6,*) "WARN: Cannot open ",pfile
+      write(6,*) "WARN: Cannot open ",ifile
+    else  
+      write(6,*) "Found parallel input file ",ifile
+      fdecomp=''
       ler=nf90_get_att(lncid,nf90_global,"nproc",lidum)
       fnproc=lidum
       der=ler
@@ -843,19 +846,22 @@ if (myid==0) then
   idum(2)=pil
   idum(3)=pjl
   idum(4)=pnpan
-  idum(5)=0
-  if (ptest) idum(5)=1
+  if (ptest) then
+    idum(5)=1
+  else
+    idum(5)=0      
+  end if
   idum(6)=ier  
 end if
 
 ! Broadcast file metadata
 call ccmpi_bcast(idum(1:6),0,comm_world)
 fnproc=idum(1)
-pil=idum(2)
-pjl=idum(3)
-pnpan=idum(4)
-ptest=(idum(5)==1)
-ier=idum(6)
+pil   =idum(2)
+pjl   =idum(3)
+pnpan =idum(4)
+ptest =(idum(5)==1)
+ier   =idum(6)
 
 lier=ier
 #ifdef usenc3

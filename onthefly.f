@@ -39,11 +39,10 @@
       integer idv,mtimer,k,ierx,idvkd,idvkt,idvmt
       integer, dimension(nihead) :: nahead
       integer, dimension(ifull) :: isflag
-      integer, dimension(9) :: idum
       real, save :: rlong0x, rlat0x, schmidtx
       real timer
       real, dimension(nrhead) :: ahead
-      real, dimension(3) :: rdum
+      real, dimension(14) :: rdum
 !     These are local arrays, not the versions in arrays.h
 !     Use in call to infile, so are dimensioned ifull rather than ifull_g
       real, dimension(ifull) :: psl,zss,tss,fracice,snowd,sicedep
@@ -89,9 +88,7 @@
           maxarchi=0
           call ccnf_inq_dimlen(ncid,'time',maxarchi)
           ok=0
-          if (nmlo/=0.and.abs(nmlo)<=9) then
-            call ccnf_inq_dimlen(ncid,'olev',ok,failok=.true.)
-          end if
+          call ccnf_inq_dimlen(ncid,'olev',ok,failok=.true.)
           if (myid==0) then
             write(6,*) "Found ik,jk,kk,ok ",ik,jk,kk,ok
             write(6,*) "      maxarchi ",maxarchi
@@ -108,10 +105,11 @@
         call ccnf_inq_varid(ncid,'kdate',idvkd,tst)
         call ccnf_inq_varid(ncid,'ktime',idvkt,tst)
         call ccnf_inq_varid(ncid,'mtimer',idvmt,tst)
-        ierx=0
         if (tst) then
           ierx=1
           call ccnf_inq_varid(ncid,'timer',idvmt,tst)
+        else
+          ierx=0
         end if
         do while(ltest.and.iarchi<maxarchi)
           ! could read this as one array, but we only usually need to advance 1 step
@@ -145,43 +143,47 @@
           write(6,*) 'After search ltest,iarchi =',ltest,iarchi
           write(6,*) '             kdate_r,ktime_r =',kdate_r,ktime_r
         end if
-        idum(1)=kdate_r
-        idum(2)=ktime_r
-        idum(3)=0
-        if (ncid/=ncidold) idum(3)=1
-        idum(4)=ik
-        idum(5)=jk
-        idum(6)=kk
-        idum(7)=ok
-        idum(8)=iarchi
-        idum(9)=nsibx
         rdum(1)=rlong0x
         rdum(2)=rlat0x
         rdum(3)=schmidtx
+        ! kdate_r is too large to represent as a single real, so
+        ! we split kdate_r into year, month and day
+        rdum(4)=real(kdate_r/10000)
+        rdum(5)=real(kdate_r/100-nint(rdum(4))*100)
+        rdum(6)=real(kdate_r-nint(rdum(4))*10000-nint(rdum(5))*100)
+        rdum(7)=real(ktime_r)
+        if (ncid/=ncidold) then
+          rdum(8)=1.
+        else
+          rdum(8)=0.
+        end if
+        rdum(9) =real(ik)
+        rdum(10)=real(jk)
+        rdum(11)=real(kk)
+        rdum(12)=real(ok)
+        rdum(13)=real(iarchi)
+        rdum(14)=real(nsibx)
       endif  ! ( myid==0 .or. pfall )
 
-      newfile=(ncid/=ncidold)
       if (.not.pfall) then
         ! if metadata is not read by all processors, then broadcast
-        call ccmpi_bcast(idum(1:9),0,comm_world)
-        kdate_r=idum(1)
-        ktime_r=idum(2)
-        newfile=(idum(3)==1)
-        ik=idum(4)
-        jk=idum(5)
-        kk=idum(6)
-        ok=idum(7)
-        iarchi=idum(8)
-        nsibx=idum(9)
+        call ccmpi_bcast(rdum(1:14),0,comm_world)
+        rlong0x =rdum(1)
+        rlat0x  =rdum(2)
+        schmidtx=rdum(3)
+        kdate_r =nint(rdum(4))*10000+nint(rdum(5))*100+nint(rdum(6))
+        ktime_r =nint(rdum(7))
+        newfile=(nint(rdum(8))==1)
+        ik     =nint(rdum(9))
+        jk     =nint(rdum(10))
+        kk     =nint(rdum(11))
+        ok     =nint(rdum(12))
+        iarchi =nint(rdum(13))
+        nsibx  =nint(rdum(14))
+      else
+        newfile=(ncid/=ncidold)            
       end if
       if (newfile) then
-        if (.not.pfall) then
-          ! is metadata is not read by all processors, then broadcast
-          call ccmpi_bcast(rdum(1:3),0,comm_world)
-          rlong0x=rdum(1)
-          rlat0x=rdum(2)
-          schmidtx=rdum(3)
-        end if
         if (ncidold/=-1) then
           if (myid==0) then
             write(6,*) 'Closing old input file'
@@ -332,6 +334,7 @@
       real, dimension(:), allocatable, save :: bxs_a,bys_a,bzs_a
       real, dimension(3,3), save :: rotpoles,rotpole
       real, intent(in) :: rlong0x, rlat0x, schmidtx
+      real, dimension(kk+3) :: dumr
       real rlongd, rlatd
       character(len=8) vname
       character(len=3) trnum
@@ -493,8 +496,11 @@
          if (tst) iers(3)=-1
        end if
        if (.not.pfall) then
-         call ccmpi_bcast(sigin,0,comm_world)
-         call ccmpi_bcast(iers(1:3),0,comm_world)
+         dumr(1:kk)     =sigin
+         dumr(kk+1:kk+3)=real(iers(1:3))
+         call ccmpi_bcast(dumr(1:kk+3),0,comm_world)
+         sigin    =dumr(1:kk)
+         iers(1:3)=nint(dumr(kk+1:kk+3))
        end if
       end if ! newfile
       tsstest=(iers(2)==0.and.iers(3)==0.and.iotest)
@@ -1032,9 +1038,9 @@ c***        but needed here for onthefly (different dims) 28/8/08
           end if
           lrestart=(ierc(1)==1)
           if (lrestart) then
-            nstag=ierc(3)
-            nstagu=ierc(4)
-            nstagoff=ierc(5)
+            nstag      =ierc(3)
+            nstagu     =ierc(4)
+            nstagoff   =ierc(5)
             nstagoffmlo=ierc(6)
             if (myid==0) then
               write(6,*) "Continue stagging from"
@@ -1642,6 +1648,46 @@ c***        but needed here for onthefly (different dims) 28/8/08
           enddo  ! k loop
           call vertint(u_k,dum,5,kk,sigin)
           cffall(1:ifull,:)=dum
+          ! STRAT CLOUD FRACTION !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+          !do k=1,kk
+          ! if (iotest) then
+          !   call histrd4s(ncid,iarchi,ier,'stratcf',ik,6*ik,k,
+     &    !                 u_k(:,k),ifull)
+          ! else 
+          !   ucc=0. ! dummy for cffall
+          !   call histrd4s(ncid,iarchi,ier,'stratcf',ik,6*ik,k,ucc,
+     &    !                 6*ik*ik)
+          !   call doints4(ucc,u_k(:,k),nface4,xg4,yg4,nord,ik)
+          ! end if ! iotest
+          !enddo  ! k loop
+          !call vertint(u_k,dum,5,kk,sigin)
+          !stratcloud(1:ifull,:)=dum
+          ! STRAT NET TENDENCY !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+          !do k=1,kk
+          ! if (iotest) then
+          !   call histrd4s(ncid,iarchi,ier,'strat_nt',ik,6*ik,k,
+     &    !                 u_k(:,k),ifull)
+          ! else 
+          !   ucc=0. ! dummy for cffall
+          !   call histrd4s(ncid,iarchi,ier,'strat_nt',ik,6*ik,k,ucc,
+     &    !                 6*ik*ik)
+          !   call doints4(ucc,u_k(:,k),nface4,xg4,yg4,nord,ik)
+          ! end if ! iotest
+          !enddo  ! k loop
+          !call vertint(u_k,nettend,5,kk,sigin)
+          ! STRAT NET MASS FLUX !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+          !do k=1,kk
+          ! if (iotest) then
+          !   call histrd4s(ncid,iarchi,ier,'strat_mf',ik,6*ik,k,
+     &    !                 u_k(:,k),ifull)
+          ! else 
+          !   ucc=0. ! dummy for cffall
+          !   call histrd4s(ncid,iarchi,ier,'strat_mf',ik,6*ik,k,ucc,
+     &    !                 6*ik*ik)
+          !   call doints4(ucc,u_k(:,k),nface4,xg4,yg4,nord,ik)
+          ! end if ! iotest
+          !enddo  ! k loop
+          !call vertint(u_k,cmflx,5,kk,sigin)
         end if ! (nested==0)
 
         !--------------------------------------------------

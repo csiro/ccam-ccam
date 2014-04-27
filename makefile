@@ -145,7 +145,7 @@ depts.o : bigxy4_m.o cc_mpi.o indices_m.o map_m.o uvbar_m.o vecsuv_m.o work3f_m.
 diag_m.o : cc_mpi.o sigs_m.o sumdd_m.o xyzinfo_m.o newmpar.h parm.h
 e1e288.o : kdacom_m.o radisw_m.o tabcom_m.o tfcom_m.o hcon.h newmpar.h rdparm.h
 e3v88.o : tabcom_m.o hcon.h newmpar.h rdparm.h
-eig.o : vecs_m.o const_phys.h newmpar.h
+eig.o : cc_mpi.o vecs_m.o const_phys.h newmpar.h
 esfsw_driver.o : esfsw_parameters.o rad_utilities.o
 esfsw_parameters.o : rad_utilities.o
 estab.o : const_phys.h
