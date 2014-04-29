@@ -145,8 +145,6 @@ end subroutine tkeinit
 subroutine tkemix(kmo,theta,qvg,qlg,qfg,qrg,cfrac,cfrain,zi,fg,eg,ps,ustar, &
                   zz,zzh,sig,rhos,dt,qgmin,mode,diag,naero,aero)
 
-use cc_mpi, only : ccmpi_barrier, comm_world
-
 implicit none
 
 integer, intent(in) :: diag,mode,naero
@@ -196,9 +194,6 @@ real lx,tempd,fice,qxup,txup,dqsdt,al
 real sigqtup,rng
 logical, dimension(ifull,kl) :: lta
 logical scond
-
-print *,"hi a"
-call ccmpi_barrier(comm_world)
 
 cm12=1./sqrt(cm0)
 cm34=sqrt(sqrt(cm0**3))
@@ -274,9 +269,6 @@ mcount=int(dt/(maxdts+0.01))+1
 ddts  =dt/real(mcount)
 do kcount=1,mcount
 
-  print *,"hi b",kcount
-  call ccmpi_barrier(comm_world)
-
   ! Set-up thermodynamic variables temp, theta_l, theta_v and surface fluxes
   thetav=theta(1:ifull,:)*(1.+0.61*qvg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:)-qrg(1:ifull,:))
   wtv0  =wt0+theta(1:ifull,1)*0.61*wq0
@@ -288,9 +280,6 @@ do kcount=1,mcount
     ! calculate saturated mixing ratio
     call getqsat(qsat(:,k),temp(:,k),pres(:,k))
   end do
-
-  print *,"hi c",kcount
-  call ccmpi_barrier(comm_world)
 
   ! Calculate non-local mass-flux terms for theta_l and qtot
   ! Plume rise equations currently assume that the air density
@@ -418,10 +407,10 @@ do kcount=1,mcount
             w2up(k)=(w2up(k-1)+2.*dzht*b2*nn(k))/(1.+2.*dzht*b1*ent)
             ! test if maximum plume height is reached
             if (w2up(k)<=0.) then
-              as=2.*b2*(nn(k)-nn(k-1))/dzht
+              as=min(2.*b2*(nn(k)-nn(k-1))/dzht,-1.E-20)
               bs=2.*b2*nn(k-1)
               cs=w2up(k-1)
-              xp=0.5*(-bs-sqrt(bs*bs-4.*as*cs))/as
+              xp=0.5*(-bs-sqrt(max(bs*bs-4.*as*cs,0.)))/as
               xp=min(max(xp,0.),dzht)
               zidry(i)=xp+zz(i,k-1)
               ktopmax=max(ktopmax,k-1)
@@ -501,10 +490,10 @@ do kcount=1,mcount
               w2up(k)=(w2up(k-1)+2.*dzht*b2*nn(k))/(1.+2.*dzht*b1*ent)
               ! test if maximum plume height is reached
               if (w2up(k)<=0.) then
-                as=2.*b2*(nn(k)-nn(k-1))/dzht
+                as=min(2.*b2*(nn(k)-nn(k-1))/dzht,-1.E-20)
                 bs=2.*b2*nn(k-1)
                 cs=w2up(k-1)
-                xp=0.5*(-bs-sqrt(bs*bs-4.*as*cs))/as
+                xp=0.5*(-bs-sqrt(max(bs*bs-4.*as*cs,0.)))/as
                 xp=min(max(xp,0.),dzht)
                 zi(i)=xp+zz(i,k-1)
                 ktopmax=max(ktopmax,k-1)
@@ -515,7 +504,7 @@ do kcount=1,mcount
           end if
 
           ! update surface boundary conditions
-          wstar(i)=(grav*zidry(i)*wtv0(i)/thetav(i,1))**(1./3.)
+          wstar(i)=(grav*zidry(i)*max(wtv0(i),0.)/thetav(i,1))**(1./3.)
           
           zi(i)=max(zidry(i),zi(i))
 
@@ -639,9 +628,6 @@ do kcount=1,mcount
     zidry=zi     
   end if
 
-  print *,"hi d",kcount
-  call ccmpi_barrier(comm_world)  
-
   ! calculate tke and eps at 1st level
   z_on_l=-vkar*zz(:,1)*grav*wtv0/(thetav(:,1)*max(ustar*ustar*ustar,1.E-20))
   z_on_l=min(z_on_l,10.)
@@ -720,9 +706,6 @@ do kcount=1,mcount
                +gamhl(:,k-1)*idzm(:,k)-gamhl(:,k)*idzp(:,k)
   end do
 
-  print *,"hi e",kcount
-  call ccmpi_barrier(comm_world)
-
   ! eps vertical mixing (done here as we skip level 1, instead of using trim)
   aa(:,2:kl-1)=ce0*kmo(:,1:kl-2)*qq(:,2:kl-1)
   cc(:,2:kl-1)=ce0*kmo(:,2:kl-1)*rr(:,2:kl-1)
@@ -784,9 +767,6 @@ do kcount=1,mcount
   km=cm0*tke(1:ifull,:)*tke(1:ifull,:)/eps(1:ifull,:)
   call updatekmo(kmo,km,fzzh) ! interpolate diffusion coeffs to half levels
   
-  print *,"hi f ",kcount
-  call ccmpi_barrier(comm_world)
-
   ! update scalars
   qq(:,2:kl)  =-ddts*kmo(:,1:kl-1)*idzm(:,2:kl)/dz_hl(:,1:kl-1)
   rr(:,1:kl-1)=-ddts*kmo(:,1:kl-1)*idzp(:,1:kl-1)/dz_hl(:,1:kl-1)
@@ -873,9 +853,6 @@ do kcount=1,mcount
               +fzzh(:,kl-1)*mflx(:,kl)*qrup(:,kl))*idzm(:,kl)
   call thomas(qrg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
 
-  print *,"hi g ",kcount
-  call ccmpi_barrier(comm_world)
-
   ! account for phase transitions
   do k=1,kl
     tbb=theta(1:ifull,k)-sigkap(k)*(lv*(qlg(1:ifull,k)+qrg(1:ifull,k))+ls*qfg(1:ifull,k))/cp ! thetal
@@ -949,9 +926,6 @@ do kcount=1,mcount
 #endif
 
 end do
-
-print *,"hi z"
-call ccmpi_barrier(comm_world)
 
 return
 end subroutine tkemix

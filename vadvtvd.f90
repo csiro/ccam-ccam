@@ -12,6 +12,7 @@ use aerosolldr
 use arrays_m
 use cc_mpi
 use cfrac_m
+use cloudmod
 use diag_m
 use liqwpar_m  ! ifullw
 use map_m
@@ -118,6 +119,9 @@ if(mspec==1.and.abs(nvad)/=9)then   ! advect qg and gases after preliminary step
   call vadvsub(qfg,tfact,nits,kp,kx)
   call vadvsub(qrg,tfact,nits,kp,kx)
   call vadvsub(cffall,tfact,nits,kp,kx)
+  if (ncloud>=3) then
+    call vadvsub(stratcloud,tfact,nits,kp,kx)
+  end if
   if( diag .and. mydiag )then
    write (6,"('lout',9f8.2/4x,9f8.2)") (1000.*qlg(idjd,k),k=1,kl)
    write (6,"('qlg#',3p9f8.2)") diagvals(qlg(:,nlv)) 
@@ -192,9 +196,9 @@ end do
 
 select case(ntvd)
   case(1)
-    phitvd=(rat+abs(rat))/(1.+abs(rat))       ! 0 for -ve rat
+    phitvd=(rat+abs(rat))/(1.+abs(rat))        ! 0 for -ve rat
   case(2)
-    phitvd=max(0.,min(2.*rat,.5+.5*rat,2.))   ! 0 for -ve rat
+    phitvd=max(0.,min(2.*rat,.5+.5*rat,2.))    ! 0 for -ve rat
   case(3)
     phitvd=max(0.,min(1.,2.*rat),min(2.,rat))  ! 0 for -ve rat
 end select
@@ -253,8 +257,7 @@ do iq=1,ifull
       case(1)
         fluxhi(iq,1:kl-1)=rathb(1:kl-1)*tarr(iq,1:kl-1)+ratha(1:kl-1)*tarr(iq,2:kl)
       case(2) ! higher order scheme
-        fluxhi(iq,1:kl-1)=rathb(1:kl-1)*tarr(iq,1:kl-1)+ratha(1:kl-1)*tarr(iq,2:kl) &
-                          -.5*delt(iq,1:kl-1)*tfact(iq)*sdot(iq,2:kl)
+        fluxhi(iq,1:kl-1)=rathb(1:kl-1)*tarr(iq,1:kl-1)+ratha(1:kl-1)*tarr(iq,2:kl)-.5*delt(iq,1:kl-1)*tfact(iq)*sdot(iq,2:kl)
     end select
     do k=1,kl-1
       fluxlo(iq,k)=tarr(iq,kx(iq,k))

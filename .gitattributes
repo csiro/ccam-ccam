@@ -21,6 +21,7 @@
 /casa_variable.F90 -text
 /cfrac_m.f90 -text
 /cldcom_m.f90 -text
+/cloudmod.f90 -text
 /co2dta_m.f90 -text
 /dava_m.f90 -text
 /davb_m.f90 -text

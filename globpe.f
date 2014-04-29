@@ -18,6 +18,7 @@
      &    ,fpn,frs,frp
       use cc_mpi                              ! CC MPI routines
       use cfrac_m                             ! Cloud fraction
+      use cloudmod                            ! Prognostic strat cloud
       use dava_m                              ! Far-field nudging (weights)
       use davb_m                              ! Far-field nudging (host store)
       use diag_m                              ! Diagnostic routines
@@ -719,6 +720,7 @@
       call arrays_init(ifull,iextra,kl)
       call carbpools_init(ifull,iextra,kl,nsib,ccycle)
       call cfrac_init(ifull,iextra,kl)
+      call cloudmod_init(ifull,iextra,kl,ncloud)
       call dpsdt_init(ifull,iextra,kl)
       call epst_init(ifull,iextra,kl)
       call estab_init
@@ -1406,6 +1408,9 @@
       if (myid==0.and.nmaxpr==1) then
         write(6,*) "Before radiation"
       end if
+      if (ncloud>=3) then
+        nettend=nettend+t(1:ifull,:)
+      end if
       odcalc=mod(ktau,kountr)==0.or.ktau==1 ! ktau-1 better
       if (nhstest<0) then ! aquaplanet test -1 to -8  
        mtimer_sav=mtimer
@@ -1580,6 +1585,9 @@
      &    write (6,"('aft-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
         END_LOG(vertmix)
       endif  ! (ntsur>=1)
+      if (ncloud>=3) then
+        nettend=nettend-t(1:ifull,:)
+      end if
       if (myid==0.and.nmaxpr==1) then
        write(6,*) "After PBL mixing"
       end if
@@ -2504,7 +2512,7 @@ c     stuff from insoil  for soilv.h
       use cc_mpi              ! CC MPI routines
       use cfrac_m             ! Cloud fraction
       use diag_m              ! Diagnostic routines
-      use estab              ! Liquid saturation function
+      use estab               ! Liquid saturation function
       use extraout_m          ! Additional diagnostics
       use histave_m           ! Time average arrays
       use infile              ! Input file routines

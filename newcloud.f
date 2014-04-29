@@ -50,6 +50,7 @@ c******************************************************************************
 
 c This routine is part of the prognostic cloud water scheme
 
+      use cloudmod
       use estab, only : esdiffx, qsati
       use diag_m
       use cc_mpi, only : mydiag
@@ -364,12 +365,9 @@ c Need to do first-order estimate of qcrit using mean in-cloud qc (qcic)
       else ! prognostic cloud
       
         ! Tiedtke prognostic cloud model
-        write(6,*) "Prognositc cloud not implemented"
-        stop
-
         qtot(:,:)=qtg(:,:)+qcg(:,:)
         tliq(:,:)=ttg(:,:)-hlcp*qcg(:,:)-hlfcp*qfg(:,:)
-        !call progcloud(cfrac,qcg,qtg,ttg,prf,rho,fice)
+        call progcloud(cfrac,qcg,qtg,ttg,prf,rhoa,fice)
         
         ! Use 'old' autoconversion with prognostic cloud
         cfa(:,:)=0.

@@ -4,6 +4,7 @@
       use arrays_m
       use cc_mpi
       use cfrac_m
+      use cloudmod
       use diag_m
       use dpsdt_m
       use indices_m
@@ -466,8 +467,12 @@ c       do t diffusion based on potential temperature ff
           ff(1:ifull,:,2)=qfg(1:ifull,:)
           ff(1:ifull,:,3)=qrg(1:ifull,:)
           ff(1:ifull,:,4)=cffall(1:ifull,:)
-          !ff(1:ifull,:,5)=cfrac(1:ifull,:)
-          call bounds(ff(:,:,1:4))
+          if (ncloud>=3) then
+            ff(1:ifull,:,5)=stratcloud(1:ifull,:)
+            call bounds(ff(:,:,1:5))
+          else
+            call bounds(ff(:,:,1:4))
+          end if
           do k=1,kl
            do iq=1,ifull
             qlg(iq,k) = ( ff(iq,k,1)*emi(iq) +
@@ -494,14 +499,20 @@ c       do t diffusion based on potential temperature ff
      &        yfact(iq,k)*ff(in(iq),k,4) +
      &        yfact(isv(iq),k)*ff(is(iq),k,4) ) /
      &        base(iq,k)
-!            cfrac(iq,k) = ( ff(iq,k,5)*emi(iq) +
-!     &        xfact(iq,k)*ff(ie(iq),k,5) +
-!     &        xfact(iwu(iq),k)*ff(iw(iq),k,5) +
-!     &        yfact(iq,k)*ff(in(iq),k,5) +
-!     &        yfact(isv(iq),k)*ff(is(iq),k,5) ) /
-!     &        base(iq,k)
            end do
           end do
+          if (ncloud>=3) then
+            do k=1,kl
+              do iq=1,ifull
+                stratcloud(iq,k) = ( ff(iq,k,5)*emi(iq) +
+     &            xfact(iq,k)*ff(ie(iq),k,5) +
+     &            xfact(iwu(iq),k)*ff(iw(iq),k,5) +
+     &            yfact(iq,k)*ff(in(iq),k,5) +
+     &            yfact(isv(iq),k)*ff(is(iq),k,5) ) /
+     &           base(iq,k)
+              end do
+            end do
+          end if
         end if                 ! (ldr.ne.0)
       endif                    ! (nhorps.ne.-2)
 

@@ -3,6 +3,7 @@
       use arrays_m
       use cc_mpi
       use cfrac_m
+      use cloudmod
       use diag_m
       use epst_m
       use indices_m
@@ -46,7 +47,7 @@
      &     vdot2, vec1x, vec1y, vec1z, vec2x, vec2y, vec2z, vec3x,
      &     vec3y, vec3z, vecdot
       real, dimension(ifull) :: sdmx
-      real, dimension(ifull+iextra,kl,5) :: duma
+      real, dimension(ifull+iextra,kl,6) :: duma
       integer, save :: num_hight = 0, numunstab = 0
 
 #include "log.h"
@@ -413,13 +414,18 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
              duma(1:ifull,:,3)=qfg(1:ifull,:)
              duma(1:ifull,:,4)=qrg(1:ifull,:)
              duma(1:ifull,:,5)=cffall(1:ifull,:)
-             call ints(5,duma,intsch,nface,xg,yg,4)
+             if (ncloud>=3) then
+               duma(1:ifull,:,6)=stratcloud(1:ifull,:)
+               call ints(6,duma,intsch,nface,xg,yg,4)
+               stratcloud(1:ifull,:)=min(max(duma(1:ifull,:,6),0.),1.)
+             else
+               call ints(5,duma,intsch,nface,xg,yg,4)
+             end if
              qg(1:ifull,:)    =duma(1:ifull,:,1)
              qlg(1:ifull,:)   =duma(1:ifull,:,2)
              qfg(1:ifull,:)   =duma(1:ifull,:,3)
              qrg(1:ifull,:)   =duma(1:ifull,:,4)
-             cffall(1:ifull,:)=duma(1:ifull,:,5)
-             cffall=min(max(cffall,0.),1.)
+             cffall(1:ifull,:)=min(max(duma(1:ifull,:,5),0.),1.)
           else
              call ints(1,qg,intsch,nface,xg,yg,3)
           endif                 ! ldr.ne.0

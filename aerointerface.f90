@@ -369,22 +369,15 @@ if (myid==0) then
           call ccmpi_abort(-1)
         end if
     end select
-    do i=1,3
-      select case(i)
-        case(1)
-          sposs(4)=premonth
-          call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,1))
-          call ccmpi_bcast(oxidantdum(:,:,:,1),0,comm_world)
-        case(2)
-          sposs(4)=jmonth
-          call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,2))
-          call ccmpi_bcast(oxidantdum(:,:,:,2),0,comm_world)
-        case(3)
-          sposs(4)=nxtmonth
-          call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,3))
-          call ccmpi_bcast(oxidantdum(:,:,:,3),0,comm_world)
-      end select
-    end do
+    sposs(4)=premonth
+    call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,1))
+    call ccmpi_bcast(oxidantdum(:,:,:,1),0,comm_world)
+    sposs(4)=jmonth
+    call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,2))
+    call ccmpi_bcast(oxidantdum(:,:,:,2),0,comm_world)
+    sposs(4)=nxtmonth
+    call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,3))
+    call ccmpi_bcast(oxidantdum(:,:,:,3),0,comm_world)
     call o3regrid(oxidantprev(:,:,j),oxidantnow(:,:,j),oxidantnext(:,:,j),oxidantdum,rlon,rlat,ilon,ilat,ilev)
   end do
   call ccnf_close(ncid)

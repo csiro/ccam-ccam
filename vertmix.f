@@ -23,6 +23,7 @@
       use arrays_m                        ! Atmosphere dyamics prognostic arrays
       use cc_mpi                          ! CC MPI routines
       use cfrac_m                         ! Cloud fraction
+      use cloudmod                        ! Prognostic strat cloud
       use diag_m                          ! Diagnostic routines
       use estab                           ! Liquid saturation function
       use extraout_m                      ! Additional diagnostics
@@ -68,7 +69,7 @@
       real, dimension(ifull,kl) :: betatt,betaqt,rhs,delthet,thebas
       real, dimension(ifull,kl) :: cu,thee,qs,uav,vav,au,ct,gt,at
       real, dimension(ifull,kl) :: guv,ri,rkm,rkh,rk_shal,zg
-      real, dimension(ifull,kl) :: tnhs,zh
+      real, dimension(ifull,kl) :: tnhs,zh,cldtmp
       real, dimension(ifull,kl-1) :: dnhsh,tmnht
       real, dimension(ifull) :: dqtot,csq,dvmod,dz,dzr,fm,fh,sqmxl
       real, dimension(ifull) :: x,zhv,theeb,sigsp,rhos
@@ -135,7 +136,7 @@
       enddo      !  k loop
       if(nmaxpr==1.and.mydiag)
      &  write (6,"('thet_in',9f8.3/7x,9f8.3)") rhs(idjd,:)
-
+      
       if (nvmix/=6) then
 
       !--------------------------------------------------------------
@@ -811,29 +812,30 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
        end do ! k  loop
        zg=zg+phi_nh/grav ! add non-hydrostatic component
        
+       ! near surface air density (see sflux.f and cable_ccam2.f90)
        rhos=sig(1)*ps(1:ifull)/(rdry*t(1:ifull,1))
        
-       if (abs(iaero)==2) then ! Use counter gradient for aerosols
+       if (abs(iaero)==2) then ! Use counter gradient for aerosol tracers
          tnaero=naero
        else
          tnaero=0
        end if
        
+       if (ncloud>=3) then
+         cldtmp=stratcloud(1:ifull,:)
+       else
+         cldtmp=cfrac
+       end if
+       
        select case(nlocal)
         case(0) ! no counter gradient
-         call tkemix(rkm,rhs,qg,qlg,
-     &             qfg,qrg,cfrac,cffall,
-     &             pblh,fg,eg,ps(1:ifull),
-     &             ustar,zg,zh,sig,rhos,
-     &             dt,qgmin,1,0,
+         call tkemix(rkm,rhs,qg,qlg,qfg,qrg,cldtmp,cffall,pblh,fg,eg,
+     &             ps(1:ifull),ustar,zg,zh,sig,rhos,dt,qgmin,1,0,
      &             tnaero,xtg)
          rkh=rkm
         case(1,2,3,4,5,6) ! KCN counter gradient method
-         call tkemix(rkm,rhs,qg,qlg,
-     &             qfg,qrg,cfrac,cffall,
-     &             pblh,fg,eg,ps(1:ifull),
-     &             ustar,zg,zh,sig,rhos,
-     &             dt,qgmin,1,0,
+         call tkemix(rkm,rhs,qg,qlg,qfg,qrg,cldtmp,cffall,pblh,fg,eg,
+     &             ps(1:ifull),ustar,zg,zh,sig,rhos,dt,qgmin,1,0,
      &             tnaero,xtg)
          rkh=rkm
          uav(1:ifull,:)=av_vmod*u(1:ifull,:)
@@ -842,17 +844,21 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
      &                 +(1.-av_vmod)*savv(1:ifull,:)
          call pbldif(rhs,rkh,rkm,uav,vav)
         case(7) ! mass-flux counter gradient
-         call tkemix(rkm,rhs,qg,qlg,
-     &             qfg,qrg,cfrac,cffall,
-     &             pblh,fg,eg,ps(1:ifull),
-     &             ustar,zg,zh,sig,rhos,
-     &             dt,qgmin,0,0,
+         call tkemix(rkm,rhs,qg,qlg,qfg,qrg,cldtmp,cffall,pblh,fg,eg,
+     &             ps(1:ifull),ustar,zg,zh,sig,rhos,dt,qgmin,0,0,
      &             tnaero,xtg)
          rkh=rkm
         case DEFAULT
           write(6,*) "ERROR: Unknown nlocal option for nvmix=6"
           stop
-       end select
+        end select
+        
+        if (ncloud>=3) then
+          stratcloud(1:ifull,:)=cldtmp
+          call combinecloudfrac
+        else
+          cfrac=cldtmp
+        endif
          
       end if ! nvmix/=6
 
@@ -964,25 +970,33 @@ c      could add extra sfce moisture flux term for crank-nicholson
        if(ldr/=0)then
 c       now do qfg
         rhs=qfg(1:ifull,:)
-        call trim(at,ct,rhs,0)    ! for qfg
+        call trim(at,ct,rhs,0)     ! for qfg
         qfg(1:ifull,:)=rhs
 c       now do qlg
         rhs=qlg(1:ifull,:)
-        call trim(at,ct,rhs,0)    ! for qlg
+        call trim(at,ct,rhs,0)     ! for qlg
         qlg(1:ifull,:)=rhs
         if (ncloud>0) then
 c        now do qrg
          rhs=qrg(1:ifull,:)
          call trim(at,ct,rhs,0)    ! for qrg
          qrg(1:ifull,:)=rhs
-c        now do cfrac
-         rhs=cfrac(1:ifull,:)
-         call trim(at,ct,rhs,0)    ! for cfrac
-         cfrac(1:ifull,:)=min(max(rhs,0.),1.)
 c        now do cffall
          rhs=cffall(1:ifull,:)
          call trim(at,ct,rhs,0)    ! for cffall
          cffall(1:ifull,:)=min(max(rhs,0.),1.)
+         if (ncloud>=3) then
+           ! now do cldfrac
+           rhs=stratcloud(1:ifull,:)
+           call trim(at,ct,rhs,0)    ! for cldfrac
+           stratcloud(1:ifull,:)=min(max(rhs,0.),1.)
+           call combinecloudfrac
+         else
+           ! now do cfrac
+           rhs=cfrac(1:ifull,:)
+           call trim(at,ct,rhs,0)    ! for cfrac
+           cfrac(1:ifull,:)=min(max(rhs,0.),1.)
+         end if
         end if
        endif    ! (ldr/=0)
       
@@ -997,6 +1011,7 @@ c        now do cffall
        end if ! (abs(iaero)==2)
       
       else
+       ! k-e closure
 
        ! convert from theta to temp
        do k=1,kl
@@ -1070,7 +1085,7 @@ c     now do v; with properly unstaggered au,cu
       do k=1,kl
         v(1:ifull,k)=rhs(:,k)+ov
       end do
- 
+
       if((diag.or.ntest>=1).and.mydiag)then
         write(6,*)'after trim in vertmix '
         write (6,"('thet',9f7.2/(8x,9f7.2))") 

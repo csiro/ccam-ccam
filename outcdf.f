@@ -297,12 +297,13 @@ c       create the attributes of the header record of the file
       use ateb, only : atebsave                 ! Urban
       use cable_ccam, only : savetile,          ! CABLE interface
      &      savetiledef
+      use cable_def_types_mod, only : ncs, ncp  ! CABLE dimensions
       use casadimension, only : mplant,mlitter, ! CASA dimensions
      &      msoil
       use carbpools_m                           ! Carbon pools
       use cc_mpi                                ! CC MPI routines
       use cfrac_m                               ! Cloud fraction
-      use cable_def_types_mod, only : ncs, ncp  ! CABLE dimensions
+      use cloudmod                              ! Prognostic strat cloud
       use dpsdt_m                               ! Vertical velocity
       use extraout_m                            ! Additional diagnostics
       use gdrag_m                               ! Gravity wave drag
@@ -1203,16 +1204,16 @@ c       For time varying surface fields
      &               0,itype)
          call attrib(idnc,dim,4,'cfrain','Rain fraction','none',0.,
      &               1.,0,itype)
-         !if (ncloud>=3) then
-         !  call attrib(idnc,dim,4,'stratcf','Strat cloud fraction',
-         ! &          'none',0.,1.,itype)
-         !  if (itype==-1) then
-         !    call attrib(idnc,dim,4,'strat_nt','Strat net temp tendency',
-         ! &            'K/s',0.,1.,itype)
+         if (ncloud>=3) then
+           call attrib(idnc,dim,4,'stratcf','Strat cloud fraction',
+     &          'none',0.,1.,0,itype)
+           if (itype==-1) then
+             call attrib(idnc,dim,4,'strat_nt',
+     &            'Strat net temp tendency','K/s',0.,1.,0,itype)
          !    call attrib(idnc,dim,4,'strat_mf','Strat net mass flux',
-         ! &            'kg/m2/s',0.,1.,itype)
-         !  end if
-         !end if
+         ! &            'kg/m2/s',0.,1.,0,itype)
+           end if
+         end if
         endif
         
         ! TURBULENT MIXING ------------------------------------------
@@ -2006,14 +2007,14 @@ c      "extra" outputs
         tmpry=cffall(1:ifull,:)
         call histwrt4(tmpry,'cfrain',idnc,iarch,local,
      &                .true.)
-        !if (ncloud>=3) then
-        !  tmpry=stratcloud(1:ifull,:)
-        !  call histwrt4(tmpry,'stratcf',idnc,iarch,local,.true.)  
-        !  if (itype==-1) then
-        !    call histwrt4(nettend,'strat_nt',idnc,iarch,local,.true.)
-        !    call histwrt4(cmflx,'strat_mf',idnc,iarch,local,.true.)
-        !  end if
-        !end if
+        if (ncloud>=3) then
+          tmpry=stratcloud(1:ifull,:)
+          call histwrt4(tmpry,'stratcf',idnc,iarch,local,.true.)  
+          if (itype==-1) then
+            call histwrt4(nettend,'strat_nt',idnc,iarch,local,.true.)
+            !call histwrt4(cmflx,'strat_mf',idnc,iarch,local,.true.)
+          end if
+        end if
       endif
       
       ! TURBULENT MIXING --------------------------------------------
