@@ -358,12 +358,17 @@
       else
         io_in=-1  ! interpolation
       end if
-      if (myid==0) write(6,*) "Interpolation iotest,io_in =",
-     &                                       iotest,io_in
+      if (myid==0) then
+        write(6,*) "Interpolation iotest,io_in =",iotest,io_in
+      end if
 
       if (.not.allocated(nface4)) then
         allocate(nface4(ifull,4),xg4(ifull,4),yg4(ifull,4))
+      end if
+      if (newfile) then
+        if (allocated(land_a)) deallocate(sigin,land_a,sea_a)
         allocate(land_a(dk*dk*6),sea_a(dk*dk*6))
+        allocate(sigin(kk))        
       end if
       
       !--------------------------------------------------------------
@@ -461,8 +466,6 @@
       ! need global zss_a for (potentially) landsea mask and psl interpolation
       ! need global isoilm_a for (potentially) landsea mask
       if (newfile) then
-       if (allocated(sigin)) deallocate(sigin)
-       allocate(sigin(kk))
        if (myid==0.or.pfall) then
          if (myid==0) then
            write(6,*) "Reading time invariant fields"
@@ -2183,7 +2186,7 @@ c     routine fills in interior of an array which has undefined points
       end subroutine gethist1
      
       subroutine filhist1(ncid,iarchi,vname,ik,dk,varout,iotest,
-     &                    nface4,xg4,yg4,nord,land_a)
+     &                    nface4,xg4,yg4,nord,mask_a)
       
       use infile             ! Input file routines
       
@@ -2197,14 +2200,14 @@ c     routine fills in interior of an array which has undefined points
       real, dimension(ifull), intent(out) :: varout
       real, dimension(6*ik*ik) :: ucc
       logical, intent(in) :: iotest
-      logical, dimension(6*dk*dk), intent(in) :: land_a
+      logical, dimension(6*dk*dk), intent(in) :: mask_a
       character(len=*), intent(in) :: vname
       
       if (iotest) then
         call histrd1(ncid,iarchi,ier,vname,ik,6*ik,varout,ifull)
       else
         call histrd1(ncid,iarchi,ier,vname,ik,6*ik,ucc,6*ik*ik)
-        call fill_cc(ucc,dk,0,land_a)
+        call fill_cc(ucc,dk,0,mask_a)
         call doints4(ucc,varout,nface4,xg4,yg4,nord,ik)
       end if ! iotest
       

@@ -1344,7 +1344,7 @@
       if (myid==0.and.nmaxpr==1) then
         write(6,*) "Before convection"
       end if
-      convh_ave=convh_ave-t(1:ifull,:)*real(nperday/nperavg)
+      convh_ave=convh_ave-t(1:ifull,:)*real(nperday)/real(nperavg)
       condc=0.
       condx=0.
       conds=0.
@@ -1385,7 +1385,7 @@
        rlwp_ave(1:ifull)=rlwp_ave(1:ifull)
      &   -qlrad(:,k)*dsig(k)*ps(1:ifull)/grav ! liq water path
       enddo
-      convh_ave=convh_ave+t(1:ifull,:)*real(nperday/nperavg)
+      convh_ave=convh_ave+t(1:ifull,:)*real(nperday)/real(nperavg)
       rnd_3hr(1:ifull,8)=rnd_3hr(1:ifull,8)+condx(:)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
 #ifdef debug
       if(nmaxpr==1.and.mydiag)then
