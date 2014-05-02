@@ -21,13 +21,13 @@ use netcdf
 implicit none
             
 private
-public vertint,datefix,getzinp,ncmsg
-public histopen,histclose,histrd1,histrd4s,pfall
-public attrib,histwrt3,histwrt4,freqwrite,surfread
-public ccnf_open,ccnf_create,ccnf_close,ccnf_sync,ccnf_enddef,ccnf_redef,ccnf_nofill,ccnf_inq_varid,ccnf_inq_dimid
-public ccnf_inq_dimlen,ccnf_def_dim,ccnf_def_dimu,ccnf_def_var,ccnf_def_var0,ccnf_get_var
-public ccnf_get_vara,ccnf_get_var1,ccnf_get_att,ccnf_get_attg,ccnf_read,ccnf_put_var,ccnf_put_var1
-public ccnf_put_vara,ccnf_put_att,ccnf_put_attg
+public vertint, datefix, getzinp, ncmsg
+public histopen, histclose, histrd1, histrd4s, pfall
+public attrib, histwrt3, histwrt4, freqwrite, surfread
+public ccnf_open, ccnf_create, ccnf_close, ccnf_sync, ccnf_enddef, ccnf_redef, ccnf_nofill, ccnf_inq_varid, ccnf_inq_dimid
+public ccnf_inq_dimlen, ccnf_def_dim, ccnf_def_dimu, ccnf_def_var, ccnf_def_var0, ccnf_get_var
+public ccnf_get_vara, ccnf_get_var1, ccnf_get_att, ccnf_get_attg, ccnf_read, ccnf_put_var, ccnf_put_var1
+public ccnf_put_vara, ccnf_put_att, ccnf_put_attg
 
 interface ccnf_get_att
   module procedure ccnf_get_att_text, ccnf_get_att_real
@@ -92,66 +92,38 @@ contains
 
 !--------------------------------------------------------------
 ! Interface for reading 2D+time fields
-subroutine histrd1(ncid,iarchi,ier,name,ik,jk,var,ifull)
+subroutine histrd1(ncid, iarchi, ier, name, ik, var, ifull)
       
 use cc_mpi
       
 include 'parm.h'
       
-integer ncid,iarchi,ier,ik,jk,ifull
+integer, intent(in) :: ncid, iarchi, ik, ifull
+integer, intent(out) :: ier
 character(len=*) name
 real, dimension(:), intent(inout) :: var ! may be dummy argument from myid/=0
 
-if (ifull/=ik*jk.and.ptest) then
+if ( ifull/=6*ik .and. ptest ) then
   ! read local arrays without gather and distribute
-
-#ifdef debug       
-  if (size(var)/=ifull) then
-    write(6,*) "ERROR: Incorrect use of dummy var in histrd1"
-    call ccmpi_abort(-1)
-  end if
-#endif
-
   call hr1p(iarchi,ier,name,.true.,var)
-
-  if(ier==0.and.mod(ktau,nmaxpr)==0.and.myid==0)then
+  if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then
     write(6,'("done histrd1 ",a8,i4,i3)') name,ier,iarchi
   end if
 
-else        
-      
+else if ( myid==0 ) then
   ! split up processors to save memory.  No need to allocate global
   ! arrays on myid/=0.
-  if (myid==0) then
-#ifdef debug
-    if (size(var)/=ifull) then
-      write(6,*) "ERROR: Incorrect use of dummy var in histrd1"
-      call ccmpi_abort(-1)
-    end if
-#endif
+  call hr1a(ncid,iarchi,ier,name,ik,var,ifull)
+  
+else if ( ifull/=6*ik )then
+  ! read local arrays with gather and distribute
+  call hr1p(iarchi,ier,name,.false.)
+  call ccmpi_distribute(var)
 
-    call hr1a(ncid,iarchi,ier,name,ik,jk,var,ifull)
-  else
-    if(ifull/=ik*jk)then
-      ! read local arrays with gather and distribute
+else
+  ! read global arrays for myid==0
+  call hr1p(iarchi,ier,name,.false.)
 
-#ifdef debug
-      if (size(var)/=ifull) then
-        write(6,*) "ERROR: Incorrect use of dummy var in histrd"
-        call ccmpi_abort(-1)
-      end if
-#endif
-
-      call hr1p(iarchi,ier,name,.false.)
-      call ccmpi_distribute(var)
-
-    else
-      ! read global arrays for myid==0
-
-      call hr1p(iarchi,ier,name,.false.)
-
-    end if
-  end if
 end if
       
 return
@@ -159,7 +131,7 @@ end subroutine histrd1
 
 !--------------------------------------------------------------------
 ! Gather 2D+time fields on myid==0
-subroutine hr1a(ncid,iarchi,ier,name,ik,jk,var,ifull)
+subroutine hr1a(ncid, iarchi, ier, name, ik, var, ifull)
       
 use cc_mpi
       
@@ -167,24 +139,24 @@ implicit none
       
 include 'parm.h'
       
-integer, intent(in) :: ncid,iarchi,ik,jk,ifull
+integer, intent(in) :: ncid, iarchi, ik, ifull
 integer, intent(out) :: ier
 character(len=*), intent(in) :: name
 real, dimension(:), intent(inout) :: var
-real, dimension(ik*jk) :: globvar
-real vmax,vmin
+real, dimension(6*ik*ik) :: globvar
+real vmax, vmin
 
 call hr1p(iarchi,ier,name,.false.,globvar)
 
-if(ier==0.and.mod(ktau,nmaxpr)==0)then
+if ( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
   vmax = maxval(globvar)
   vmin = minval(globvar)
   write(6,'("done histrd1 ",a8,i4,i3,3e14.6)') name,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*ik)
 end if
       
-if (ifull==ik*jk) then
+if ( ifull==6*ik*ik ) then
   ! read global arrays for myid==0
-  var(:)=globvar(:)
+  var(1:ifull)=globvar(:)
 else
   ! read local arrays with gather and distribute
   call ccmpi_distribute(var,globvar)
@@ -199,7 +171,7 @@ end subroutine hr1a
 ! when qtest=.true. the input grid decomposition should
 ! match the current processor decomposition.  We can then
 ! skip the MPI gather and distribute steps.
-subroutine hr1p(iarchi,ier,name,qtest,var)
+subroutine hr1p(iarchi, ier, name, qtest, var)
       
 use cc_mpi
       
@@ -209,64 +181,29 @@ include 'newmpar.h'
 
 integer, intent(in) :: iarchi
 integer, intent(out) :: ier
-integer(kind=4), dimension(3) :: start,count
-integer ipf,jpmax,iptst2,lcomm
-integer(kind=4) :: idv,lier,ler
+integer(kind=4), dimension(3) :: start, count
+integer ipf, jpmax, iptst2, lcomm
+integer(kind=4) :: idv, lier, ler
 real, dimension(:), intent(inout), optional :: var
 real, dimension(pil*pjl*pnpan) :: rvar
-real addoff,sf
-real(kind=4) :: laddoff,lsf
+real addoff, sf
+real(kind=4) :: laddoff, lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 
-#ifdef debug
-if (qtest) then
-  if (mynproc>1) then
-    write(6,*) "ERROR: Invalid use of qtest"
-    write(6,*) "Expecting 1 file, but required to load ",mynproc
-    call ccmpi_abort(-1)
-  end if
-  if (.not.present(var)) then
-    write(6,*) "ERROR: Missing var in hr1p with qtest"
-    call ccmpi_abort(-1)
-  end if
-  if (size(var)/=pil*pjl*pnpan) then
-    write(6,*) "ERROR: Invalid var size in hr1p with qtest"
-    write(6,*) "size(var),pil,pjl,pnpan ",size(var),pil,pjl,pnpan
-    call ccmpi_abort(-1)
-  end if
-else
-  if (myid==0) then
-    if (.not.present(var)) then
-      write(6,*) "ERROR: Missing var in hr1p"
-      call ccmpi_abort(-1)
-    end if
-    if (size(var)/=pil_g*pjl_g) then
-      write(6,*) "ERROR: Invalid var size in hr1p"
-      write(6,*) "size(var),pil_g,pjl_g ",size(var),pil_g,pjl_g
-      call ccmpi_abort(-1)
-    end if
-  else
-    if (present(var)) then
-      write(6,*) "ERROR: Invalid use of var in hr1p"
-      call ccmpi_abort(-1)
-    end if
-  end if
-end if
-#endif
-
 start = (/ 1, 1, iarchi /)
 count = (/ pil, pjl*pnpan, 1 /)
-ier=0
+ier = 0
 
-iptst2=mod(fnproc,nproc)
+iptst2 = mod(fnproc,nproc)
       
-do ipf=0,mynproc-1
-  rvar=0.
+do ipf = 0,mynproc-1
+  rvar = 0. ! default value if field is missing
 
-  jpmax=nproc
-  if (ipf==mynproc-1.and.myid<iptst2) then
-    jpmax=iptst2
+  if ( ipf==mynproc-1 .and. myid<iptst2 ) then
+    jpmax = iptst2
+  else
+    jpmax = nproc      
   end if
   
   ! get variable idv
@@ -274,17 +211,11 @@ do ipf=0,mynproc-1
   lier=nf_inq_varid(pncid(ipf),name,idv)
   ier=lier
   if(lier/=nf_noerr)then
-#else
-  lier=nf90_inq_varid(pncid(ipf),name,idv)
-  ier=lier
-  if(lier/=nf90_noerr)then
-#endif
     if (myid==0.and.ipf==0) then
       write(6,*) '***absent field for ncid,name,idv,ier: ',pncid(0),name,idv,ier
     end if
   else
     ! obtain scaling factors and offsets from attributes
-#ifdef usenc3
     ler=nf_get_att_real(pncid(ipf),idv,'add_offset',laddoff)
     addoff=laddoff
     if (ler/=nf_noerr) addoff=0.
@@ -298,7 +229,18 @@ do ipf=0,mynproc-1
 #endif
     ier=lier
     call ncmsg(name,ier)
+    ! unpack compressed data
+    rvar=rvar*sf+addoff
+  end if ! ier
 #else
+  lier=nf90_inq_varid(pncid(ipf),name,idv)
+  ier=lier
+  if(lier/=nf90_noerr)then
+    if (myid==0.and.ipf==0) then
+      write(6,*) '***absent field for ncid,name,idv,ier: ',pncid(0),name,idv,ier
+    end if
+  else
+    ! obtain scaling factors and offsets from attributes
     ler=nf90_get_att(pncid(ipf),idv,'add_offset',addoff)
     if (ler/=nf90_noerr) addoff=0.
     ler=nf90_get_att(pncid(ipf),idv,'scale_factor',sf)
@@ -306,10 +248,10 @@ do ipf=0,mynproc-1
     lier=nf90_get_var(pncid(ipf),idv,rvar,start=start,count=count)
     ier=lier
     call ncmsg(name,ier)
-#endif
     ! unpack compressed data
     rvar=rvar*sf+addoff
   end if ! ier
+#endif
       
   if (qtest) then
     ! e.g., restart file
@@ -382,7 +324,7 @@ end subroutine proc_hr1p
 
 !--------------------------------------------------------------   
 ! Interface for reading 3D+time fields
-subroutine histrd4s(ncid,iarchi,ier,name,ik,jk,kk,var,ifull)
+subroutine histrd4s(ncid, iarchi, ier, name, ik, kk, var, ifull)
       
 use cc_mpi
       
@@ -390,60 +332,32 @@ implicit none
       
 include 'parm.h'
       
-integer, intent(in) :: ncid,iarchi,ik,jk,kk,ifull
+integer, intent(in) :: ncid, iarchi, ik, kk, ifull
 integer, intent(out) :: ier
 character(len=*), intent(in) :: name
 real, dimension(:), intent(inout) :: var ! may be dummy argument from myid/=0
       
-if (ifull/=ik*jk.and.ptest) then
+if ( ifull/=6*ik*ik .and. ptest ) then
   ! read local arrays without gather and distribute
-
-#ifdef debug       
-  if (size(var)/=ifull) then
-    write(6,*) "ERROR: Incorrect use of dummy var in histrd4s"
-    call ccmpi_abort(-1)
-  end if
-#endif
-
   call hr4p(iarchi,ier,name,kk,.true.,var)
-
   if(ier==0.and.mod(ktau,nmaxpr)==0.and.myid==0)then
     write(6,'("done histrd4 ",a8,i3,i4,i3)') name,kk,ier,iarchi
   endif
 
-else        
-      
+else if ( myid==0 ) then
   ! split up processors to save memory.  No need to allocate global
   ! arrays on myid/=0.
-  if (myid==0) then
-#ifdef debug
-    if (size(var)/=ifull) then
-      write(6,*) "ERROR: Incorrect use of dummy var in histrd4s"
-      call ccmpi_abort(-1)
-    end if
-#endif
- 
-    call hr4sa(ncid,iarchi,ier,name,ik,jk,kk,var,ifull)
-  else
-    if(ifull/=ik*jk)then
-      ! read local arrays with gather and distribute
+  call hr4sa(ncid,iarchi,ier,name,ik,kk,var,ifull)
 
-#ifdef debug
-      if (size(var)/=ifull) then
-        write(6,*) "ERROR: Incorrect use of dummy var in histrd"
-        call ccmpi_abort(-1)
-      end if
-#endif
- 
-      call hr4p(iarchi,ier,name,kk,.false.)
-      call ccmpi_distribute(var)
+else if ( ifull/=6*ik*ik ) then
+  ! read local arrays with gather and distribute
+  call hr4p(iarchi,ier,name,kk,.false.)
+  call ccmpi_distribute(var)
 
-    else
-      ! read global arrays for myid==0
-      call hr4p(iarchi,ier,name,kk,.false.)
+else
+  ! read global arrays for myid==0
+  call hr4p(iarchi,ier,name,kk,.false.)
 
-    end if
-  end if
 end if
 
 return
@@ -452,7 +366,7 @@ end subroutine histrd4s
 !--------------------------------------------------------------------
 ! Gather 3D+time fields on myid==0
 
-subroutine hr4sa(ncid,iarchi,ier,name,ik,jk,kk,var,ifull)
+subroutine hr4sa(ncid, iarchi, ier, name, ik, kk, var, ifull)
       
 use cc_mpi
       
@@ -460,16 +374,16 @@ implicit none
       
 include 'parm.h'
       
-integer, intent(in) :: ncid,iarchi,ik,jk,kk,ifull
+integer, intent(in) :: ncid, iarchi, ik, kk, ifull
 integer, intent(out) :: ier
 character(len=*), intent(in) :: name
 real, dimension(:) :: var
-real, dimension(ik*jk) :: globvar
+real, dimension(6*ik*ik) :: globvar
 real vmax,vmin
       
 call hr4p(iarchi,ier,name,kk,.false.,globvar)     
 
-if(ier==0.and.mod(ktau,nmaxpr)==0)then
+if ( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
   vmax = maxval(globvar)
   vmin = minval(globvar)
   write(6,'("done histrd4s ",a6,i3,i4,i3,3f12.4)') name,kk,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*ik)
@@ -477,9 +391,9 @@ end if
 
 ! Have to return correct value of ier on all processes because it's 
 ! used for initialisation in calling routine
-if(ifull==ik*jk)then
+if( ifull==6*ik*ik ) then
   ! read global arrays for myid==0
-  var(:)=globvar(:)
+  var(1:ifull)=globvar(:)
 else
   ! read local arrays with gather and distribute
   call ccmpi_distribute(var,globvar)
@@ -515,41 +429,6 @@ real(kind=4) :: laddoff,lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 
-#ifdef debug
-if (qtest) then
-  if (mynproc>1) then
-     write(6,*) "ERROR: Invalid use of qtest"
-     call ccmpi_abort(-1)
-  end if
-  if (.not.present(var)) then
-    write(6,*) "ERROR: Missing var in hr4p with qtest"
-    call ccmpi_abort(-1)
-  end if
-  if (size(var)/=pil*pjl*pnpan) then
-    write(6,*) "ERROR: Invalid var size in hr4p with qtest"
-    write(6,*) "size(var),pil,pjl,pnpan ",size(var),pil,pjl,pnpan
-    call ccmpi_abort(-1)
-  end if
-else
-  if (myid==0) then
-    if (.not.present(var)) then
-      write(6,*) "ERROR: Missing var in hr4p"
-      call ccmpi_abort(-1)
-    end if
-    if (size(var)/=pil_g*pjl_g) then
-      write(6,*) "ERROR: Invalid var size in hr4p"
-      write(6,*) "size(var),pil_g,pjl_g ",size(var),pil_g,pjl_g
-      call ccmpi_abort(-1)
-    end if
-  else
-    if (present(var)) then
-      write(6,*) "ERROR: Invalid use of var in hr4p"
-      call ccmpi_abort(-1)
-    end if
-  end if
-end if
-#endif
-
 start = (/ 1, 1, kk, iarchi /)
 ncount = (/ pil, pjl*pnpan, 1, 1 /)
 ier=0
@@ -557,7 +436,7 @@ ier=0
 iptst2=mod(fnproc,nproc)
       
 do ipf=0,mynproc-1
-  rvar=0.
+  rvar=0. ! default value for missing field
 
   jpmax=nproc
   if (ipf==mynproc-1.and.myid<iptst2) then
@@ -569,17 +448,11 @@ do ipf=0,mynproc-1
   lier=nf_inq_varid(pncid(ipf),name,idv)
   ier=lier
   if(lier/=nf_noerr)then
-#else
-  lier=nf90_inq_varid(pncid(ipf),name,idv)
-  ier=lier
-  if(lier/=nf90_noerr)then
-#endif
     if (myid==0.and.ipf==0.and.kk==1) then
       write(6,*) '***absent field for ncid,name,idv,ier: ',pncid(0),name,idv,ier
     end if
   else
     ! obtain scaling factors and offsets from attributes
-#ifdef usenc3
     ler=nf_get_att_real(pncid(ipf),idv,'add_offset',laddoff)
     addoff=laddoff
     if (ler/=nf_noerr) addoff=0.
@@ -593,7 +466,18 @@ do ipf=0,mynproc-1
 #endif
     ier=lier
     call ncmsg(name,ier)
+    ! unpack data
+    rvar=rvar*sf+addoff
+  end if ! ier
 #else
+  lier=nf90_inq_varid(pncid(ipf),name,idv)
+  ier=lier
+  if(lier/=nf90_noerr)then
+    if (myid==0.and.ipf==0.and.kk==1) then
+      write(6,*) '***absent field for ncid,name,idv,ier: ',pncid(0),name,idv,ier
+    end if
+  else
+    ! obtain scaling factors and offsets from attributes
     ler=nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
     addoff=laddoff
     if (ler/=nf90_noerr) addoff=0.
@@ -603,19 +487,22 @@ do ipf=0,mynproc-1
     lier=nf90_get_var(pncid(ipf),idv,rvar,start=start,count=ncount)
     ier=lier
     call ncmsg(name,ier)
-#endif
     ! unpack data
     rvar=rvar*sf+addoff
   end if ! ier
+#endif
 
   if (qtest) then
     ! expected restart file
     var=rvar
   else
     ! expected mesonest file
-
-    lcomm=comm_world
-    if (jpmax<nproc) lcomm=comm_ip
+    
+    if (jpmax<nproc) then
+      lcomm=comm_ip
+    else
+      lcomm=comm_world
+    end if
 
     if (myid==0) then
       call host_hr1p(lcomm,jpmax,ipf,rvar,var)
