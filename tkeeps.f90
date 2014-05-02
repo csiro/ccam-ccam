@@ -950,10 +950,6 @@ bb(:,1)=bbi(:,1)
 dd(:,1)=ddi(:,1)
 
 do k=2,klin
-  if (any(bb(:,k-1)<0.1)) then
-    print *,"error bb(k-1) ",k-1,minval(bb(:,k-1))
-    stop
-  end if
   n=aa(:,k)/bb(:,k-1)
   bb(:,k)=bbi(:,k)-n*cc(:,k-1)
   dd(:,k)=ddi(:,k)-n*dd(:,k-1)
