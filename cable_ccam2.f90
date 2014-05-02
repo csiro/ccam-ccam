@@ -2764,7 +2764,7 @@ integer np,nx,ilat,ierr,ivp
 integer, dimension(271,mxvt) :: greenup,fall,phendoy1
 integer, dimension(nphen) :: greenupx,fallx,xphendoy1
 integer, dimension(nphen) :: ivtx
-real, dimension(271) :: xlat
+real :: xlat
 character(len=*), intent(in) :: fphen
 
 ! initilize for evergreen PFTs
@@ -2778,12 +2778,10 @@ if (myid==0) then
   read(87,*)
   read(87,*) ivtx
   do ilat=271,1,-1
-    read(87,*) xlat(ilat),greenupx,fallx,xphendoy1 
-    do nx=1,nphen
-      greenup(ilat,ivtx) = greenupx
-      fall(ilat,ivtx)    = fallx
-      phendoy1(ilat,ivtx)= xphendoy1
-    end do
+    read(87,*) xlat,greenupx,fallx,xphendoy1 
+    greenup(ilat,ivtx(:)) = greenupx(:)
+    fall(ilat,ivtx(:))    = fallx(:)
+    phendoy1(ilat,ivtx(:))= xphendoy1(:)
   end do
   close(87)
 end if
@@ -2792,7 +2790,7 @@ call ccmpi_bcast(fall,0,comm_world)
 call ccmpi_bcast(phendoy1,0,comm_world)
 
 do np=1,mp
-  ilat=(rad%latitude(np)+55.25)/0.5+1
+  ilat=nint((rad%latitude(np)+55.25)*2.)+1
   ilat=min(271,max(1,ilat))
   ivp=veg%iveg(np)
   phen%phase(np)      = phendoy1(ilat,ivp)

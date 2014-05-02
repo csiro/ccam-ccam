@@ -338,48 +338,62 @@ if (myid==0) then
   call ccmpi_bcast(rlon,0,comm_world)
   call ccmpi_bcast(rlat,0,comm_world)
   call ccmpi_bcast(rlev,0,comm_world)
-  do j=1,4
-    select case(j)
-      case(1)
-        write(6,*) "Reading OH"
-        call ccnf_inq_varid(ncid,'OH',varid,tst)
-        if (tst) then
-          write(6,*) "ERROR: Cannot locate OH"
-          call ccmpi_abort(-1)
-        end if
-      case(2)
-        write(6,*) "Reading H2O2"
-        call ccnf_inq_varid(ncid,'H2O2',varid,tst)
-        if (tst) then
-          write(6,*) "ERROR: Cannot locate H2O2"
-          call ccmpi_abort(-1)
-        end if
-      case(3)
-        write(6,*) "Reading O3"
-        call ccnf_inq_varid(ncid,'O3',varid,tst)
-        if (tst) then
-          write(6,*) "ERROR: Cannot locate O3"
-          call ccmpi_abort(-1)
-        end if
-      case(4)
-        write(6,*) "Reading NO2"
-        call ccnf_inq_varid(ncid,'NO2',varid,tst)
-        if (tst) then
-          write(6,*) "ERROR: Cannot locate NO2"
-          call ccmpi_abort(-1)
-        end if
-    end select
-    sposs(4)=premonth
-    call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,1))
-    call ccmpi_bcast(oxidantdum(:,:,:,1),0,comm_world)
-    sposs(4)=jmonth
-    call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,2))
-    call ccmpi_bcast(oxidantdum(:,:,:,2),0,comm_world)
-    sposs(4)=nxtmonth
-    call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,3))
-    call ccmpi_bcast(oxidantdum(:,:,:,3),0,comm_world)
-    call o3regrid(oxidantprev(:,:,j),oxidantnow(:,:,j),oxidantnext(:,:,j),oxidantdum,rlon,rlat,ilon,ilat,ilev)
-  end do
+  write(6,*) "Reading OH"
+  call ccnf_inq_varid(ncid,'OH',varid,tst)
+  if (tst) then
+    write(6,*) "ERROR: Cannot locate OH"
+    call ccmpi_abort(-1)
+  end if
+  sposs(4)=premonth
+  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,1))
+  sposs(4)=jmonth
+  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,2))
+  sposs(4)=nxtmonth
+  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,3))
+  call ccmpi_bcast(oxidantdum(:,:,:,1:3),0,comm_world)
+  call o3regrid(oxidantprev(:,:,1),oxidantnow(:,:,1),oxidantnext(:,:,1),oxidantdum,rlon,rlat,ilon,ilat,ilev)
+  write(6,*) "Reading H2O2"
+  call ccnf_inq_varid(ncid,'H2O2',varid,tst)
+  if (tst) then
+    write(6,*) "ERROR: Cannot locate H2O2"
+    call ccmpi_abort(-1)
+  end if
+  sposs(4)=premonth
+  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,1))
+  sposs(4)=jmonth
+  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,2))
+  sposs(4)=nxtmonth
+  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,3))
+  call ccmpi_bcast(oxidantdum(:,:,:,1:3),0,comm_world)
+  call o3regrid(oxidantprev(:,:,2),oxidantnow(:,:,2),oxidantnext(:,:,2),oxidantdum,rlon,rlat,ilon,ilat,ilev)
+  write(6,*) "Reading O3"
+  call ccnf_inq_varid(ncid,'O3',varid,tst)
+  if (tst) then
+    write(6,*) "ERROR: Cannot locate O3"
+    call ccmpi_abort(-1)
+  end if
+  sposs(4)=premonth
+  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,1))
+  sposs(4)=jmonth
+  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,2))
+  sposs(4)=nxtmonth
+  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,3))
+  call ccmpi_bcast(oxidantdum(:,:,:,1:3),0,comm_world)
+  call o3regrid(oxidantprev(:,:,3),oxidantnow(:,:,3),oxidantnext(:,:,3),oxidantdum,rlon,rlat,ilon,ilat,ilev)
+  write(6,*) "Reading NO2"
+  call ccnf_inq_varid(ncid,'NO2',varid,tst)
+  if (tst) then
+    write(6,*) "ERROR: Cannot locate NO2"
+    call ccmpi_abort(-1)
+  end if
+  sposs(4)=premonth
+  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,1))
+  sposs(4)=jmonth
+  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,2))
+  sposs(4)=nxtmonth
+  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,3))
+  call ccmpi_bcast(oxidantdum(:,:,:,1:3),0,comm_world)
+  call o3regrid(oxidantprev(:,:,4),oxidantnow(:,:,4),oxidantnext(:,:,4),oxidantdum,rlon,rlat,ilon,ilat,ilev)
   call ccnf_close(ncid)
   deallocate(oxidantdum,rlat,rlon)
 else
@@ -407,9 +421,7 @@ else
   call ccmpi_bcast(rlat,0,comm_world)
   call ccmpi_bcast(rlev,0,comm_world)
   do j=1,4
-    do i=1,3
-      call ccmpi_bcast(oxidantdum(:,:,:,i),0,comm_world)
-    end do
+    call ccmpi_bcast(oxidantdum(:,:,:,1:3),0,comm_world)
     call o3regrid(oxidantprev(:,:,j),oxidantnow(:,:,j),oxidantnext(:,:,j),oxidantdum,rlon,rlat,ilon,ilat,ilev)    
   end do
   deallocate(oxidantdum,rlat,rlon)

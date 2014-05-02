@@ -1384,16 +1384,15 @@ implicit none
 
 include 'filnames.h'
 
-integer :: n,nmodel,unit,num_wavenumbers,num_input_categories
-integer :: noptical,nivl3,nband,nw,ierr,na,ni
+integer :: n, nmodel, unit, num_wavenumbers, num_input_categories
+integer :: noptical, nivl3, nband, nw, ierr, na, ni
 integer, dimension(:), allocatable, save :: endaerwvnsf
 integer, dimension(:), allocatable, save :: nivl1aero,nivl2aero
 real(kind=8) :: sumsol3
-real(kind=8), dimension(:,:), allocatable, save :: aeroextivl,aerossalbivl,aeroasymmivl
-real(kind=8), dimension(:,:), allocatable, save :: sflwwts,sflwwts_cn
+real(kind=8), dimension(:,:), allocatable, save :: aeroextivl, aerossalbivl, aeroasymmivl
+real(kind=8), dimension(:,:), allocatable, save :: sflwwts, sflwwts_cn
 real(kind=8), dimension(:,:), allocatable, save :: solivlaero
-real(kind=8), dimension(:), allocatable, save :: aeroext_in,aerossalb_in,aeroasymm_in
-logical, dimension(:), allocatable, save :: found
+real(kind=8), dimension(:), allocatable, save :: aeroext_in, aerossalb_in, aeroasymm_in
 character(len=64), dimension(naermodels) :: aerosol_optical_names
 character(len=64) :: name_in
 character(len=110) :: filename
@@ -1430,6 +1429,8 @@ if (myid==0) then
   !----------------------------------------------------------------------
   read ( unit,* ) num_wavenumbers
   read ( unit,* ) num_input_categories
+  
+  call ccmpi_bcast(num_wavenumbers,0,comm_world)
 
   !----------------------------------------------------------------------
   !    read wavenumber limits for aerosol parameterization bands from 
@@ -1441,8 +1442,7 @@ if (myid==0) then
            aeroasymmivl (num_wavenumbers, naermodels) )
   allocate (aeroext_in   (num_wavenumbers ),           &
           aerossalb_in (num_wavenumbers ),           &
-          aeroasymm_in (num_wavenumbers ),           &
-          found        (naermodels ) )
+          aeroasymm_in (num_wavenumbers ) )
   allocate ( nivl1aero  (Solar_spect%nbands) )
   allocate ( nivl2aero  (Solar_spect%nbands) )
   allocate ( solivlaero (Solar_spect%nbands, num_wavenumbers))
@@ -1455,9 +1455,8 @@ if (myid==0) then
   !----------------------------------------------------------------------
   !    match the names of optical property categories from input file with
   !    those specified in the namelist, and store the following data
-  !    appropriately. indicate that the data has been found.
+  !    appropriately.
   !----------------------------------------------------------------------
-  found(:) = .false.
   do n=1,num_input_categories
     read( unit,* ) name_in
     read( unit,* )
@@ -1472,120 +1471,126 @@ if (myid==0) then
         aeroextivl(:,noptical)   = aeroext_in
         aerossalbivl(:,noptical) = aerossalb_in
         aeroasymmivl(:,noptical) = aeroasymm_in
-        found( noptical ) = .true.
         exit
       endif
     end do
   end do
 
   close(unit)
+  deallocate (aeroasymm_in,aerossalb_in,aeroext_in)
 
-  !---------------------------------------------------------------------
-  !    define the solar weights and interval counters that are needed to  
-  !    map the aerosol parameterization spectral intervals onto the solar
-  !    spectral intervals and so determine the single-scattering proper-
-  !    ties on the solar spectral intervals.
-  !--------------------------------------------------------------------
-  nivl3 = 1
-  sumsol3 = 0.0_8
-  nband = 1
-  solivlaero(:,:) = 0.0_8
-  nivl1aero(1) = 1
-  do nw = 1,Solar_spect%endwvnbands(Solar_spect%nbands)
-    sumsol3 = sumsol3 + Solar_spect%solarfluxtoa(nw)
-    if (nw == endaerwvnsf(nivl3) ) then
-      solivlaero(nband,nivl3) = sumsol3
+else
+  call ccmpi_bcast(num_wavenumbers,0,comm_world)
+  allocate (endaerwvnsf(num_wavenumbers) )
+  allocate (aeroextivl   (num_wavenumbers, naermodels), &
+           aerossalbivl (num_wavenumbers, naermodels), &
+           aeroasymmivl (num_wavenumbers, naermodels) )
+  allocate ( nivl1aero  (Solar_spect%nbands) )
+  allocate ( nivl2aero  (Solar_spect%nbands) )
+  allocate ( solivlaero (Solar_spect%nbands, num_wavenumbers))
+  allocate (sflwwts (N_AEROSOL_BANDS, num_wavenumbers))
+  allocate (sflwwts_cn (N_AEROSOL_BANDS_CN, num_wavenumbers))  
+end if
+
+call ccmpi_bcast(endaerwvnsf,0,comm_world)
+call ccmpi_bcastr8(aeroextivl,0,comm_world)
+call ccmpi_bcastr8(aerossalbivl,0,comm_world)
+call ccmpi_bcastr8(aeroasymmivl,0,comm_world)
+
+!---------------------------------------------------------------------
+!    define the solar weights and interval counters that are needed to  
+!    map the aerosol parameterization spectral intervals onto the solar
+!    spectral intervals and so determine the single-scattering proper-
+!    ties on the solar spectral intervals.
+!--------------------------------------------------------------------
+nivl3 = 1
+sumsol3 = 0.0_8
+nband = 1
+solivlaero(:,:) = 0.0_8
+nivl1aero(1) = 1
+do nw = 1,Solar_spect%endwvnbands(Solar_spect%nbands)
+  sumsol3 = sumsol3 + Solar_spect%solarfluxtoa(nw)
+  if (nw == endaerwvnsf(nivl3) ) then
+    solivlaero(nband,nivl3) = sumsol3
+    sumsol3 = 0.0_8
+  end if
+  if ( nw == Solar_spect%endwvnbands(nband) ) then
+    if ( nw /= endaerwvnsf(nivl3) ) then
+      solivlaero(nband,nivl3) = sumsol3 
       sumsol3 = 0.0_8
     end if
-    if ( nw == Solar_spect%endwvnbands(nband) ) then
-      if ( nw /= endaerwvnsf(nivl3) ) then
-        solivlaero(nband,nivl3) = sumsol3 
-        sumsol3 = 0.0_8
-      end if
-      nivl2aero(nband) = nivl3
-      nband = nband + 1
-      if ( nband <= Solar_spect%nbands ) then
-        if ( nw == endaerwvnsf(nivl3) ) then
-          nivl1aero(nband) = nivl3 + 1
-        else
-          nivl1aero(nband) = nivl3
-        end if
+    nivl2aero(nband) = nivl3
+    nband = nband + 1
+    if ( nband <= Solar_spect%nbands ) then
+      if ( nw == endaerwvnsf(nivl3) ) then
+        nivl1aero(nband) = nivl3 + 1
+      else
+        nivl1aero(nband) = nivl3
       end if
     end if
-    if ( nw == endaerwvnsf(nivl3) ) nivl3 = nivl3 + 1
-  end do
+  end if
+  if ( nw == endaerwvnsf(nivl3) ) nivl3 = nivl3 + 1
+end do
 
-  Aerosol_props%aerextband=0._8
-  Aerosol_props%aerssalbband=0._8
-  Aerosol_props%aerasymmband=0._8
+Aerosol_props%aerextband=0._8
+Aerosol_props%aerssalbband=0._8
+Aerosol_props%aerasymmband=0._8
 
-  do nmodel=1,naermodels
-    call thickavg (nivl1aero, nivl2aero, num_wavenumbers,   &
-                   Solar_spect%nbands, aeroextivl(:,nmodel), &
-                   aerossalbivl(:,nmodel),    &
-                   aeroasymmivl(:,nmodel), solivlaero,   &
-                   Solar_spect%solflxbandref,       & 
-                   Aerosol_props%aerextband(:,nmodel),    &
-                   Aerosol_props%aerssalbband(:,nmodel),   &
-                   Aerosol_props%aerasymmband(:,nmodel))
-  end do
+do nmodel=1,naermodels
+  call thickavg (nivl1aero, nivl2aero, num_wavenumbers,   &
+                 Solar_spect%nbands, aeroextivl(:,nmodel), &
+                 aerossalbivl(:,nmodel),    &
+                 aeroasymmivl(:,nmodel), solivlaero,   &
+                 Solar_spect%solflxbandref,       & 
+                 Aerosol_props%aerextband(:,nmodel),    &
+                 Aerosol_props%aerssalbband(:,nmodel),   &
+                 Aerosol_props%aerasymmband(:,nmodel))
+end do
 
-  ! longwave optical models
-
-  call lw_aerosol_interaction(num_wavenumbers,sflwwts,sflwwts_cn,endaerwvnsf)
+! longwave optical models
+call lw_aerosol_interaction(num_wavenumbers,sflwwts,sflwwts_cn,endaerwvnsf)
 
 !    the units of extinction coefficient (aeroextivl) are m**2/gm.
 !    to make the lw band extinction coefficient (aerextbandlw) have
 !    units (m**2/Kg) consistent with the units in FMS models, one
 !    must multiply by 1000. this is done below.
   
-  Aerosol_props%aerextbandlw=0._8
-  Aerosol_props%aerssalbbandlw=0._8
-  Aerosol_props%aerextbandlw_cn=0._8
-  Aerosol_props%aerssalbbandlw_cn=0._8
+Aerosol_props%aerextbandlw=0._8
+Aerosol_props%aerssalbbandlw=0._8
+Aerosol_props%aerextbandlw_cn=0._8
+Aerosol_props%aerssalbbandlw_cn=0._8
 
-  do nw=1,naermodels    
-    do na=1,N_AEROSOL_BANDS  
-      do ni=1,num_wavenumbers 
-        Aerosol_props%aerextbandlw(na,nw) =    &
-                        Aerosol_props%aerextbandlw(na,nw) + &
-                        aeroextivl(ni,nw)*sflwwts(na,ni)*  &
-                        1.0E+03_8
-        Aerosol_props%aerssalbbandlw(na,nw) =     &
-                        Aerosol_props%aerssalbbandlw(na,nw) +&
-                        aerossalbivl(ni,nw)*sflwwts(na,ni)
-      end do
+do nw=1,naermodels    
+  do na=1,N_AEROSOL_BANDS  
+    do ni=1,num_wavenumbers 
+      Aerosol_props%aerextbandlw(na,nw) =    &
+                      Aerosol_props%aerextbandlw(na,nw) + &
+                      aeroextivl(ni,nw)*sflwwts(na,ni)*  &
+                      1.0E+03_8
+      Aerosol_props%aerssalbbandlw(na,nw) =     &
+                      Aerosol_props%aerssalbbandlw(na,nw) +&
+                      aerossalbivl(ni,nw)*sflwwts(na,ni)
     end do
   end do
-  do nw=1,naermodels    
-    do na=1,N_AEROSOL_BANDS_CN
-      do ni=1,num_wavenumbers 
-        Aerosol_props%aerextbandlw_cn(na,nw) =    &
-                        Aerosol_props%aerextbandlw_cn(na,nw) + &
-                        aeroextivl(ni,nw)*sflwwts_cn(na,ni)*  &
-                        1.0E+03_8
-        Aerosol_props%aerssalbbandlw_cn(na,nw) =     &
-                        Aerosol_props%aerssalbbandlw_cn(na,nw) +&
-                        aerossalbivl(ni,nw)*sflwwts_cn(na,ni)
-      end do
+end do
+do nw=1,naermodels    
+  do na=1,N_AEROSOL_BANDS_CN
+    do ni=1,num_wavenumbers 
+      Aerosol_props%aerextbandlw_cn(na,nw) =    &
+                      Aerosol_props%aerextbandlw_cn(na,nw) + &
+                      aeroextivl(ni,nw)*sflwwts_cn(na,ni)*  &
+                      1.0E+03_8
+      Aerosol_props%aerssalbbandlw_cn(na,nw) =     &
+                      Aerosol_props%aerssalbbandlw_cn(na,nw) +&
+                      aerossalbivl(ni,nw)*sflwwts_cn(na,ni)
     end do
   end do
+end do
 
-  deallocate (sflwwts_cn,sflwwts)
-  deallocate (solivlaero,nivl2aero,nivl1aero) 
-  deallocate (found,aeroasymm_in,aerossalb_in,aeroext_in)
-  deallocate (aeroasymmivl,aerossalbivl,aeroextivl)
-  deallocate (endaerwvnsf)
-
-end if
-
-call ccmpi_bcastr8(Aerosol_props%aerextband,0,comm_world)
-call ccmpi_bcastr8(Aerosol_props%aerssalbband,0,comm_world)
-call ccmpi_bcastr8(Aerosol_props%aerasymmband,0,comm_world)
-call ccmpi_bcastr8(Aerosol_props%aerextbandlw,0,comm_world)
-call ccmpi_bcastr8(Aerosol_props%aerssalbbandlw,0,comm_world)
-call ccmpi_bcastr8(Aerosol_props%aerextbandlw_cn,0,comm_world)
-call ccmpi_bcastr8(Aerosol_props%aerssalbbandlw_cn,0,comm_world)
+deallocate (sflwwts_cn,sflwwts)
+deallocate (solivlaero,nivl2aero,nivl1aero) 
+deallocate (aeroasymmivl,aerossalbivl,aeroextivl)
+deallocate (endaerwvnsf)
 
 return
 end subroutine loadaerooptical
