@@ -1165,7 +1165,55 @@ c         options to define factr so it is small for (longer-lived) shallow clou
      &                        (sig(kb_sav(iq))-sig(kt_sav(iq)))/.6)  ! -24
           enddo
          endif
-        endif  ! (convtime<0.)
+         if(nint(convtime)==-4)then  !  -4.
+          do iq=1,ifull    ! 20 mins for .6; 31m for .45; 57m for .3; 160m for .15
+           frac=(sig(kb_sav(iq))-sig(kt_sav(iq)))/.6  ! 28/10/11
+           factr(iq)=min(1.,(dt/1200.)*frac*sqrt(frac))   ! -4
+          enddo
+         endif
+         if(nint(convtime)==-43)then  !  -43.
+          do iq=1,ifull    ! 30 mins for .6; 46m for .45; 86m for .3; 240m for .15
+           frac=(sig(kb_sav(iq))-sig(kt_sav(iq)))/.6  
+           factr(iq)=min(1.,(dt/1800.)*frac*sqrt(frac))   ! -43
+          enddo
+         endif
+         if(nint(convtime)==-44)then  !  -44
+          do iq=1,ifull    ! 40 mins for .6; 62m for .45; 114m for .3; 320m for .15
+           frac=(sig(kb_sav(iq))-sig(kt_sav(iq)))/.6  
+           factr(iq)=min(1.,(dt/2400.)*frac*sqrt(frac))   ! -44
+          enddo
+         endif
+         if(nint(convtime)==-45)then  !  -45.
+          do iq=1,ifull    ! 50 mins for .6; 73m for .45; 152m for .3; 400m for .15
+           frac=(sig(kb_sav(iq))-sig(kt_sav(iq)))/.6  
+           factr(iq)=min(1.,(dt/3000.)*frac*sqrt(frac))   ! -45
+          enddo
+         endif
+         if(nint(convtime)==-5)then  !  -5.
+          do iq=1,ifull    ! 20 mins for .6; 36m for .45; 80m for .3; 320m for .15
+           frac=(sig(kb_sav(iq))-sig(kt_sav(iq)))/.6  ! 28/10/11
+           factr(iq)=min(1.,(dt/1200.)*frac**2)   ! -5
+          enddo
+         endif
+         if(nint(convtime)==-53)then  !  -53.
+          do iq=1,ifull    ! 30 mins for .6; 53m for .45; 120m for .3; 480m for .15
+           frac=(sig(kb_sav(iq))-sig(kt_sav(iq)))/.6  
+           factr(iq)=min(1.,(dt/1800.)*frac**2)   ! -53
+          enddo
+         endif
+         if(nint(convtime)==-6)then  
+          do iq=1,ifull    ! 20 mins for .6; 36m for .45; 80m for .3; 320m for .15
+           frac=(sig(kb_sav(iq))-sig(kt_sav(iq)))/.6  ! 28/10/11
+           factr(iq)=min(1.,(dt/1200.)**sqrt(frac)*frac**2)   ! -6
+          enddo
+         endif
+         if(nint(convtime)==-63)then  
+          do iq=1,ifull    ! 30 mins for .6; 53m for .45; 120m for .3; 480m for .15
+           frac=(sig(kb_sav(iq))-sig(kt_sav(iq)))/.6  
+           factr(iq)=min(1.,(dt/1800.)**sqrt(frac)*frac**2)   ! -63
+          enddo
+         endif
+       endif  ! (convtime<0.)
           if(tied_over<0)then  ! e.g. -10 giving .55 for 20 km
            do iq=1,ifull
             sum=ds/(em(iq)*208498.)
@@ -1199,8 +1247,8 @@ c     endif    ! (itn==1)
       enddo   ! iq loop
 
 c      if(itn<iterconv.or.iterconv<0)then   ! iterconv<0 calls convjlm twice, and does convfact*
-c       convpsav(:)=convfact*convpsav(:) ! typically convfact=1.05
-        convpsav(:)=convfact*convpsav(:)*factr(:) ! typically convfact=1.05, factr  from 7/3/14 
+         convpsav(:)=convfact*convpsav(:) ! typically convfact=1.05
+c        convpsav(:)=convfact*convpsav(:)*factr(:) ! dangerous tried on 7/3/14 
 c      endif                              ! (itn<iterconv.or.iterconv<0)
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       rnrtcn(:)=rnrtcn(:)-qxcess(:)
@@ -1291,8 +1339,8 @@ c          detrfactr(iq)=detrfactr(iq)+detrarr(k,kb_sav(iq),kt_sav(iq))   ! just
         endif
         do k=1,kl-2   
          do iq=1,ifull
-          u(iq,k)=u(iq,k)+facuv*convpsav(iq)*delu(iq,k)/dsk(k)
-          v(iq,k)=v(iq,k)+facuv*convpsav(iq)*delv(iq,k)/dsk(k)
+          u(iq,k)=u(iq,k)+facuv*factr(iq)*convpsav(iq)*delu(iq,k)/dsk(k)
+          v(iq,k)=v(iq,k)+facuv*factr(iq)*convpsav(iq)*delv(iq,k)/dsk(k)
          enddo  ! iq loop
         enddo   ! k loop
         if(ntest>0.and.mydiag)then
@@ -1314,7 +1362,7 @@ c          detrfactr(iq)=detrfactr(iq)+detrarr(k,kb_sav(iq),kt_sav(iq))   ! just
           if(kt_sav(iq)<kl-1)then
             kb=kb_sav(iq)
             kt=kt_sav(iq)
-            veldt=convpsav(iq)*(1.-fldow(iq)) ! simple treatment
+            veldt=factr(iq)*convpsav(iq)*(1.-fldow(iq)) ! simple treatment
             fluxup=veldt*s(iq,kb)
 !           remove gas from cloud base layer
             tr(iq,kb,ntr)=tr(iq,kb,ntr)-fluxup/dsk(kb)
@@ -1336,7 +1384,7 @@ c          detrfactr(iq)=detrfactr(iq)+detrarr(k,kb_sav(iq),kt_sav(iq))   ! just
          if(kt_sav(iq)<kl-1)then
            kb=kb_sav(iq)
            kt=kt_sav(iq)
-           veldt=convpsav(iq)*(1.-fldow(iq)) ! simple treatment
+           veldt=factr(iq)*convpsav(iq)*(1.-fldow(iq)) ! simple treatment
            fluxup=veldt*s(iq,kb)
 !          remove tke from cloud base layer
            tke(iq,kb)=tke(iq,kb)-fluxup/dsk(kb)
@@ -1353,7 +1401,7 @@ c          detrfactr(iq)=detrfactr(iq)+detrarr(k,kb_sav(iq),kt_sav(iq))   ! just
          if(kt_sav(iq)<kl-1)then
            kb=kb_sav(iq)
            kt=kt_sav(iq)
-           veldt=convpsav(iq)*(1.-fldow(iq)) ! simple treatment
+           veldt=factr(iq)*convpsav(iq)*(1.-fldow(iq)) ! simple treatment
            fluxup=veldt*s(iq,kb)
 !          remove eps from cloud base layer
            eps(iq,kb)=eps(iq,kb)-fluxup/dsk(kb)
@@ -1388,7 +1436,7 @@ c          detrfactr(iq)=detrfactr(iq)+detrarr(k,kb_sav(iq),kt_sav(iq))   ! just
            if(kt_sav(iq)<kl-1)then
              kb=kb_sav(iq)
              kt=kt_sav(iq)
-             veldt=convpsav(iq)*(1.-fldow(iq)) ! simple treatment
+             veldt=factr(iq)*convpsav(iq)*(1.-fldow(iq)) ! simple treatment
              fluxup=veldt*s(iq,kb)
 !            remove aerosol from lower layer
              xtg(iq,kb,ntr)=xtg(iq,kb,ntr)-fluxup/dsk(kb)
@@ -1473,12 +1521,12 @@ c          itns 2 & 3 only update saved values if convection occurred
         write(6,*) 'convtime,factr,kb_sav,kt_sav',convtime,factr(idjd)
      &          ,kb_sav(idjd),kt_sav(idjd)
       endif
-c     rnrtc(:)=factr(:)*rnrtc(:)   factr uncluded in convpsav from 7/3/14
-c      do k=1,kl
-c      qq(1:ifull,k)=qg(1:ifull,k)+factr(:)*(qq(1:ifull,k)-qg(1:ifull,k))
-c      qliqw(1:ifull,k)=factr(:)*qliqw(1:ifull,k)      
-c      tt(1:ifull,k)= t(1:ifull,k)+factr(:)*(tt(1:ifull,k)- t(1:ifull,k))
-c      enddo
+      rnrtc(:)=factr(:)*rnrtc(:)
+      do k=1,kl
+      qq(1:ifull,k)=qg(1:ifull,k)+factr(:)*(qq(1:ifull,k)-qg(1:ifull,k))
+      qliqw(1:ifull,k)=factr(:)*qliqw(1:ifull,k)      
+      tt(1:ifull,k)= t(1:ifull,k)+factr(:)*(tt(1:ifull,k)- t(1:ifull,k))
+      enddo
 
 !     update qq, tt for evap of qliqw (qliqw arose from moistening)
       if(ldr.ne.0)then

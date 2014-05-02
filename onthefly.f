@@ -361,12 +361,14 @@
       if (myid==0) write(6,*) "Interpolation iotest,io_in =",
      &                                       iotest,io_in
 
+      if (.not.allocated(nface4)) then
+        allocate(nface4(ifull,4),xg4(ifull,4),yg4(ifull,4))
+        allocate(land_a(dk*dk*6),sea_a(dk*dk*6))
+      end if
+      
       !--------------------------------------------------------------
       ! Determine input grid coordinates and interpolation arrays
       if (newfile.and..not.iotest) then
-       if (.not.allocated(nface4)) then
-         allocate(nface4(ifull,4),xg4(ifull,4),yg4(ifull,4))
-       end if
        if (allocated(axs_a)) then
          deallocate(axs_a,ays_a,azs_a)
          deallocate(bxs_a,bys_a,bzs_a)
@@ -452,7 +454,7 @@
      &          ((wb(ii+(jj-1)*il,ms),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
          endif  ! (nested==0)
        endif
-      end if ! newfile .and. iotest
+      end if ! newfile .and. .not.iotest
       
        
       ! read time invariant data when file is first opened
@@ -575,10 +577,6 @@
       
         ! set up land-sea mask from either soilt, tss or zss
         if (newfile) then
-         if (allocated(land_a)) then
-           deallocate(land_a,sea_a)
-         end if
-         allocate(land_a(dk*dk*6),sea_a(dk*dk*6))
          if (myid==0) then
           if (nemi==3) then 
            land_a(:)=isoilm_a(:)>0
