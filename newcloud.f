@@ -73,8 +73,8 @@ C Argument list
       real rhoa(ln2,nl)
       real ttg(ln2,nl)
       real qtg(ln2,nl)
-      real qlg(ln2,nl)
-      real qfg(ln2,nl)
+      real qlg(ln2+iextra,nl)
+      real qfg(ln2+iextra,nl)
       real cfrac(ln2,nl)
       real ccov(ln2,nl)
       real cfa(ln2,nl)
@@ -169,12 +169,12 @@ c Note that qcg is the total cloud water (liquid+frozen)
           endif
         end do
       end do
-      qcg(:,:)=qlg(:,:)+qfg(:,:)
+      qcg(:,:)=qlg(1:ifull,:)+qfg(1:ifull,:)
       qcold(:,:)=qcg(:,:)
       qfnew=fice(:,:)*qcg(:,:)
-      ttg(:,:)=ttg(:,:)+hlfcp*(qfnew-qfg(:,:)) !Release L.H. of fusion
-      qfg(:,:)=fice(:,:)*qcg(:,:)
-      qlg(:,:)=max(0.,qcg(:,:)-qfg(:,:))
+      ttg(:,:)=ttg(:,:)+hlfcp*(qfnew-qfg(1:ifull,:)) !Release L.H. of fusion
+      qfg(1:ifull,:)=fice(:,:)*qcg(:,:)
+      qlg(1:ifull,:)=max(0.,qcg(:,:)-qfg(1:ifull,:))
 
       if(diag.and.mydiag)then
           write(6,*) 'within newcloud'
@@ -366,7 +366,7 @@ c Need to do first-order estimate of qcrit using mean in-cloud qc (qcic)
       
         ! Tiedtke prognostic cloud model
         qtot(:,:)=qtg(:,:)+qcg(:,:)
-        tliq(:,:)=ttg(:,:)-hlcp*qcg(:,:)-hlfcp*qfg(:,:)
+        tliq(:,:)=ttg(:,:)-hlcp*qcg(:,:)-hlfcp*qfg(1:ifull,:)
         call progcloud(cfrac,qcg,qtg,ttg,prf,rhoa,fice)
         
         ! Use 'old' autoconversion with prognostic cloud
@@ -447,7 +447,7 @@ c Also need this line for fully-mixed option...
 c Calculate new values of vapour mixing ratio and temperature
 
       qtg(:,:)=qtot(:,:)-qcg(:,:)
-      ttg(:,:)=tliq(:,:)+hlcp*qcg(:,:)+hlfcp*qfg(:,:)
+      ttg(:,:)=tliq(:,:)+hlcp*qcg(:,:)+hlfcp*qfg(1:ifull,:)
       ccov(:,:)=cfrac(:,:)      !Do this for now
 
 c Vertically sub-grid cloud

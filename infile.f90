@@ -7,10 +7,9 @@ module infile
       
 ! This version of infile.f90 supports parallel localhist input
 ! files.  Multiple processors read as many input files as
-! supplied in parallel and then send this data to the head
-! processor (i.e., for interpolation and redistribution). The
-! code can also identify restart files, in which case no
-! additional message passing is required.
+! supplied in parallel and then send this data to all processors
+! for interpolation. The code can also identify restart files,
+! in which case no additional message passing is required.
 
 #ifdef usenc3
 use netcdf_m
@@ -21,13 +20,13 @@ use netcdf
 implicit none
             
 private
-public vertint, datefix, getzinp, ncmsg
-public histopen, histclose, histrd1, histrd4s, pfall
-public attrib, histwrt3, histwrt4, freqwrite, surfread
-public ccnf_open, ccnf_create, ccnf_close, ccnf_sync, ccnf_enddef, ccnf_redef, ccnf_nofill, ccnf_inq_varid, ccnf_inq_dimid
-public ccnf_inq_dimlen, ccnf_def_dim, ccnf_def_dimu, ccnf_def_var, ccnf_def_var0, ccnf_get_var
-public ccnf_get_vara, ccnf_get_var1, ccnf_get_att, ccnf_get_attg, ccnf_read, ccnf_put_var, ccnf_put_var1
-public ccnf_put_vara, ccnf_put_att, ccnf_put_attg
+public vertint,datefix,getzinp,ncmsg
+public histopen,histclose,histrd1,histrd4s,pfall
+public attrib,histwrt3,histwrt4,freqwrite,surfread
+public ccnf_open,ccnf_create,ccnf_close,ccnf_sync,ccnf_enddef,ccnf_redef,ccnf_nofill,ccnf_inq_varid
+public ccnf_inq_dimid,ccnf_inq_dimlen,ccnf_def_dim,ccnf_def_dimu,ccnf_def_var,ccnf_def_var0
+public ccnf_get_var,ccnf_get_vara,ccnf_get_var1,ccnf_get_att,ccnf_get_attg,ccnf_read,ccnf_put_var
+public ccnf_put_var1,ccnf_put_vara,ccnf_put_att,ccnf_put_attg
 
 interface ccnf_get_att
   module procedure ccnf_get_att_text, ccnf_get_att_real
@@ -39,7 +38,7 @@ end interface ccnf_get_attg
 interface ccnf_get_vara
   module procedure ccnf_get_vara_real2r, ccnf_get_vara_real3r, ccnf_get_vara_real4r 
   module procedure ccnf_get_vara_int2i
-#ifndef i8r8 
+#ifndef i8r8
   module procedure ccnf_get_vara_double4d
 #endif
 end interface ccnf_get_vara
@@ -85,37 +84,38 @@ integer, save :: comm_ip,comm_ipold
 logical, save :: ptest,pfall
 
 integer(kind=2), parameter :: minv = -32500
-integer(kind=2), parameter :: maxv = 32500
+integer(kind=2), parameter :: maxv =  32500
 integer(kind=2), parameter :: missval = -32501
       
 contains
 
 !--------------------------------------------------------------
 ! Interface for reading 2D+time fields
-subroutine histrd1(ncid, iarchi, ier, name, ik, var, ifull)
+subroutine histrd1(iarchi,ier,name,ik,var,ifull)
       
 use cc_mpi
-      
+
+implicit none
+
 include 'parm.h'
       
-integer, intent(in) :: ncid, iarchi, ik, ifull
-integer, intent(out) :: ier
+integer iarchi,ier,ik,ifull
 character(len=*) name
 real, dimension(:), intent(inout) :: var ! may be dummy argument from myid/=0
 
-if ( ifull/=6*ik .and. ptest ) then
+if (ifull/=6*ik*ik.and.ptest) then
   ! read local arrays without gather and distribute
   call hr1p(iarchi,ier,name,.true.,var)
-  if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then
+  if (ier==0.and.mod(ktau,nmaxpr)==0.and.myid==0) then
     write(6,'("done histrd1 ",a8,i4,i3)') name,ier,iarchi
   end if
 
-else if ( myid==0 ) then
+else if (myid==0) then
   ! split up processors to save memory.  No need to allocate global
   ! arrays on myid/=0.
-  call hr1a(ncid,iarchi,ier,name,ik,var,ifull)
-  
-else if ( ifull/=6*ik )then
+  call hr1a(iarchi,ier,name,ik,var,ifull)
+
+else if (ifull/=6*ik*ik) then
   ! read local arrays with gather and distribute
   call hr1p(iarchi,ier,name,.false.)
   call ccmpi_distribute(var)
@@ -131,7 +131,7 @@ end subroutine histrd1
 
 !--------------------------------------------------------------------
 ! Gather 2D+time fields on myid==0
-subroutine hr1a(ncid, iarchi, ier, name, ik, var, ifull)
+subroutine hr1a(iarchi,ier,name,ik,var,ifull)
       
 use cc_mpi
       
@@ -139,22 +139,22 @@ implicit none
       
 include 'parm.h'
       
-integer, intent(in) :: ncid, iarchi, ik, ifull
+integer, intent(in) :: iarchi,ik,ifull
 integer, intent(out) :: ier
 character(len=*), intent(in) :: name
 real, dimension(:), intent(inout) :: var
 real, dimension(6*ik*ik) :: globvar
-real vmax, vmin
+real vmax,vmin
 
 call hr1p(iarchi,ier,name,.false.,globvar)
 
-if ( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
+if(ier==0.and.mod(ktau,nmaxpr)==0)then
   vmax = maxval(globvar)
   vmin = minval(globvar)
   write(6,'("done histrd1 ",a8,i4,i3,3e14.6)') name,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*ik)
 end if
-      
-if ( ifull==6*ik*ik ) then
+
+if (ifull==6*ik*ik) then
   ! read global arrays for myid==0
   var(1:ifull)=globvar(:)
 else
@@ -171,7 +171,7 @@ end subroutine hr1a
 ! when qtest=.true. the input grid decomposition should
 ! match the current processor decomposition.  We can then
 ! skip the MPI gather and distribute steps.
-subroutine hr1p(iarchi, ier, name, qtest, var)
+subroutine hr1p(iarchi,ier,name,qtest,var)
       
 use cc_mpi
       
@@ -181,30 +181,25 @@ include 'newmpar.h'
 
 integer, intent(in) :: iarchi
 integer, intent(out) :: ier
-integer(kind=4), dimension(3) :: start, count
-integer ipf, jpmax, iptst2, lcomm
-integer(kind=4) :: idv, lier, ler
+integer(kind=4), dimension(3) :: start,ncount
+integer ipf,jpmax,iptst2,lcomm
+integer(kind=4) :: idv,lier,ler
 real, dimension(:), intent(inout), optional :: var
 real, dimension(pil*pjl*pnpan) :: rvar
-real addoff, sf
-real(kind=4) :: laddoff, lsf
+real addoff,sf
+real(kind=4) :: laddoff,lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 
-start = (/ 1, 1, iarchi /)
-count = (/ pil, pjl*pnpan, 1 /)
-ier = 0
+start  = (/ 1, 1, iarchi /)
+ncount = (/ pil, pjl*pnpan, 1 /)
+ier=0
 
-iptst2 = mod(fnproc,nproc)
+iptst2=mod(fnproc,nproc)
       
-do ipf = 0,mynproc-1
-  rvar = 0. ! default value if field is missing
+do ipf=0,mynproc-1
 
-  if ( ipf==mynproc-1 .and. myid<iptst2 ) then
-    jpmax = iptst2
-  else
-    jpmax = nproc      
-  end if
+  rvar=0. ! default for missing field
   
   ! get variable idv
 #ifdef usenc3
@@ -223,9 +218,9 @@ do ipf = 0,mynproc-1
     sf=lsf
     if (ler/=nf_noerr) sf=1.
 #ifdef i8r8
-    lier=nf_get_vara_double(pncid(ipf),idv,start,count,rvar)
+    lier=nf_get_vara_double(pncid(ipf),idv,start,ncount,rvar)
 #else
-    lier=nf_get_vara_real(pncid(ipf),idv,start,count,rvar)
+    lier=nf_get_vara_real(pncid(ipf),idv,start,ncount,rvar)
 #endif
     ier=lier
     call ncmsg(name,ier)
@@ -245,7 +240,7 @@ do ipf = 0,mynproc-1
     if (ler/=nf90_noerr) addoff=0.
     ler=nf90_get_att(pncid(ipf),idv,'scale_factor',sf)
     if (ler/=nf90_noerr) sf=1.
-    lier=nf90_get_var(pncid(ipf),idv,rvar,start=start,count=count)
+    lier=nf90_get_var(pncid(ipf),idv,rvar,start=start,count=ncount)
     ier=lier
     call ncmsg(name,ier)
     ! unpack compressed data
@@ -255,19 +250,21 @@ do ipf = 0,mynproc-1
       
   if (qtest) then
     ! e.g., restart file
-    var=rvar
+    var(1:pil*pjl*pnpan)=rvar
   else
     ! e.g., mesonest file
-    
-    lcomm=comm_world
-    if (jpmax<nproc) lcomm=comm_ip
-    
+    if (ipf==mynproc-1.and.myid<iptst2) then
+      jpmax=iptst2
+      lcomm=comm_ip
+    else
+      jpmax=nproc    
+      lcomm=comm_world    
+    end if
     if (myid==0) then
       call host_hr1p(lcomm,jpmax,ipf,rvar,var)
     else
       call proc_hr1p(lcomm,rvar)
     end if
-  
   end if ! qtest
 
 end do ! ipf
@@ -324,7 +321,7 @@ end subroutine proc_hr1p
 
 !--------------------------------------------------------------   
 ! Interface for reading 3D+time fields
-subroutine histrd4s(ncid, iarchi, ier, name, ik, kk, var, ifull)
+subroutine histrd4s(iarchi,ier,name,ik,kk,var,ifull)
       
 use cc_mpi
       
@@ -332,24 +329,24 @@ implicit none
       
 include 'parm.h'
       
-integer, intent(in) :: ncid, iarchi, ik, kk, ifull
+integer, intent(in) :: iarchi,ik,kk,ifull
 integer, intent(out) :: ier
 character(len=*), intent(in) :: name
 real, dimension(:), intent(inout) :: var ! may be dummy argument from myid/=0
       
-if ( ifull/=6*ik*ik .and. ptest ) then
+if (ifull/=6*ik*ik.and.ptest) then
   ! read local arrays without gather and distribute
   call hr4p(iarchi,ier,name,kk,.true.,var)
   if(ier==0.and.mod(ktau,nmaxpr)==0.and.myid==0)then
     write(6,'("done histrd4 ",a8,i3,i4,i3)') name,kk,ier,iarchi
   endif
 
-else if ( myid==0 ) then
+else if (myid==0) then  
   ! split up processors to save memory.  No need to allocate global
   ! arrays on myid/=0.
-  call hr4sa(ncid,iarchi,ier,name,ik,kk,var,ifull)
+  call hr4sa(iarchi,ier,name,ik,kk,var,ifull)
 
-else if ( ifull/=6*ik*ik ) then
+else if(ifull/=6*ik*ik)then
   ! read local arrays with gather and distribute
   call hr4p(iarchi,ier,name,kk,.false.)
   call ccmpi_distribute(var)
@@ -366,7 +363,7 @@ end subroutine histrd4s
 !--------------------------------------------------------------------
 ! Gather 3D+time fields on myid==0
 
-subroutine hr4sa(ncid, iarchi, ier, name, ik, kk, var, ifull)
+subroutine hr4sa(iarchi,ier,name,ik,kk,var,ifull)
       
 use cc_mpi
       
@@ -374,7 +371,7 @@ implicit none
       
 include 'parm.h'
       
-integer, intent(in) :: ncid, iarchi, ik, kk, ifull
+integer, intent(in) :: iarchi,ik,kk,ifull
 integer, intent(out) :: ier
 character(len=*), intent(in) :: name
 real, dimension(:) :: var
@@ -383,7 +380,7 @@ real vmax,vmin
       
 call hr4p(iarchi,ier,name,kk,.false.,globvar)     
 
-if ( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
+if(ier==0.and.mod(ktau,nmaxpr)==0)then
   vmax = maxval(globvar)
   vmin = minval(globvar)
   write(6,'("done histrd4s ",a6,i3,i4,i3,3f12.4)') name,kk,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*ik)
@@ -391,7 +388,7 @@ end if
 
 ! Have to return correct value of ier on all processes because it's 
 ! used for initialisation in calling routine
-if( ifull==6*ik*ik ) then
+if(ifull==6*ik*ik)then
   ! read global arrays for myid==0
   var(1:ifull)=globvar(:)
 else
@@ -436,12 +433,8 @@ ier=0
 iptst2=mod(fnproc,nproc)
       
 do ipf=0,mynproc-1
-  rvar=0. ! default value for missing field
 
-  jpmax=nproc
-  if (ipf==mynproc-1.and.myid<iptst2) then
-    jpmax=iptst2
-  end if
+  rvar=0. ! default value for missing field
 
   ! get variable idv
 #ifdef usenc3
@@ -494,22 +487,21 @@ do ipf=0,mynproc-1
 
   if (qtest) then
     ! expected restart file
-    var=rvar
+    var(1:pil*pjl*pnpan)=rvar
   else
     ! expected mesonest file
-    
-    if (jpmax<nproc) then
+    if (ipf==mynproc-1.and.myid<iptst2) then
+      jpmax=iptst2
       lcomm=comm_ip
     else
+      jpmax=nproc
       lcomm=comm_world
     end if
-
     if (myid==0) then
       call host_hr1p(lcomm,jpmax,ipf,rvar,var)
     else
       call proc_hr1p(lcomm,rvar)
     end if
-
   end if ! qtest
 
 end do ! ipf
@@ -862,7 +854,7 @@ integer, intent(in) :: kk,n
 integer klapse,k,kin,iq
 integer, dimension(kl) :: ka,kb
 real, dimension(ifull,kl), intent(out) :: t
-real, dimension(ifull,kk) :: told
+real, dimension(ifull,kk), intent(in) :: told
 real, dimension(kk), intent(in) :: sigin
 real, dimension(kl) :: wta,wtb
       
@@ -907,18 +899,14 @@ if (myid==0) then
 endif   !  (myid==0)
 
 do k=1,kl
-  do iq=1,ifull
-    ! N.B. "a" denotes "above", "b" denotes "below"
-    t(iq,k)=wta(k)*told(iq,ka(k))+wtb(k)*told(iq,kb(k))
-  enddo   ! iq loop
+  ! N.B. "a" denotes "above", "b" denotes "below"
+  t(:,k)=wta(k)*told(:,ka(k))+wtb(k)*told(:,kb(k))
 enddo    ! k loop
 
 if(n==1.and.klapse/=0)then  ! for T lapse correction
   do k=1,klapse
-    do iq=1,ifull
-      ! assume 6.5 deg/km, with dsig=.1 corresponding to 1 km
-      t(iq,k)=t(iq,k)+(sig(k)-sigin(1))*6.5/.1
-    enddo   ! iq loop
+    ! assume 6.5 deg/km, with dsig=.1 corresponding to 1 km
+    t(:,k)=t(:,k)+(sig(k)-sigin(1))*6.5/.1
   enddo    ! k loop
 else if (n==2)then  ! for qg do a -ve fix
   t(:,:)=max(t(:,:),1.e-6)

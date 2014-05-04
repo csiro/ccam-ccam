@@ -355,14 +355,23 @@ c      following defines kb_sav (as kkbb) for use by nbase=-12
        enddo
 
         if(mbase<=-20.and.mbase>-30)then
-         do iq=1,ifull
-          if(.not.land(iq))then
+         if (nmlo/=0.and.abs(nmlo)<=9) then
+          do iq=1,ifull
+           if(.not.land(iq))then
+             alfqarr(iq)=alfsea
+             alfqarr(iq)=fracice(iq)*alflnd+(1.-fracice(iq))*alfqarr(iq)
+           endif   ! (.not.land(iq))
+          enddo
+         else
+          do iq=1,ifull
+           if(.not.land(iq))then
               dtsol=.01*sgsave(iq)/(1.+.25*(u(iq,1)**2+v(iq,1)**2))   ! solar heating   ! sea
 c            tpan-tss   is .3*dtsol.  Suggest add .1 to alfqarr for dtsol=1 and mbase=-x1         
               alfqarr(iq)=alfsea-.1*(mbase+20)*dtsol ! =alfsea+(tpan-tsea) for mbase=-23
-             alfqarr(iq)=fracice(iq)*alflnd+(1.-fracice(iq))*alfqarr(iq) ! MJT suggestion
+             alfqarr(iq)=fracice(iq)*alflnd+(1.-fracice(iq))*alfqarr(iq)
            endif   ! (.not.land(iq))
           enddo
+         end if             
         endif
           
       if(mbase==-10)then ! fg; qg1   

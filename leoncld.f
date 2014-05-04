@@ -47,7 +47,7 @@ c Local variables
       real dz(ifullw,kl)      !Layer thickness (m)
       real cdso4(ifullw,kl)   !Cloud droplet conc (#/m3)
       real cfrac(ifullw,kl)   !Cloud fraction (passed back to globpe)
-      real cffall(ifullw,kl)  !Rain fraction (passed back to globpe)
+      real cffall(ifullw+iextra,kl)  !Rain fraction (passed back to globpe)
       real ccov(ifullw,kl)    !Cloud cover (may differ from cloud frac if vertically subgrid)
       real cfa(ifullw,kl)     !Cloud fraction in which autoconv occurs (option in newrain.f)
       real qca(ifullw,kl)     !Cloud water mixing ratio in cfa(:,:)    (  "    "     "     )
@@ -63,8 +63,6 @@ c Local variables
       real qenv(ifullw,kl)    !Vapour mixing ratio outside convective cloud
       real tenv(ifullw,kl)    !Temperature outside convective cloud
       real tnhs(ifullw,kl)    !Non-hydrostatic temperature adjusement
-      real dumql(ifullw,kl),dumqf(ifullw,kl),dumqg(ifullw,kl)
-      real dumt(ifullw,kl),dumqr(ifullw,kl),dumcr(ifullw,kl)
 
 c These outputs are not used in this model at present
       real qevap(ifullw,kl)
@@ -213,13 +211,9 @@ c     before calling newcloud
       endif
 
 c     Calculate cloud fraction and cloud water mixing ratios
-      dumql=qlg(1:ifull,:)
-      dumqf=qfg(1:ifull,:)
       call newcloud(dt,land,prf,kbase,ktop,rhoa,cdso4, !Inputs
-     &     tenv,qenv,dumql,dumqf,   !In and out  t here is tenv
+     &     tenv,qenv,qlg,qfg,   !In and out  t here is tenv
      &     cfrac,ccov,cfa,qca)      !Outputs
-      qlg(1:ifull,:)=dumql
-      qfg(1:ifull,:)=dumqf
 
       if(nmaxpr==1.and.mydiag)then
         print *,'after newcloud',ktau
@@ -275,24 +269,12 @@ c         cfrac(iq,k)=min(1.,ccov(iq,k)+clcon(iq,k))
       enddo
 
 c     Calculate precipitation and related processes
-      dumt=t(1:ifull,:)
-      dumql=qlg(1:ifull,:)
-      dumqf=qfg(1:ifull,:)
-      dumqr=qrg(1:ifull,:)
-      dumqg=qg(1:ifull,:)
-      dumcr=cffall(1:ifull,:)
       call newrain(land,dt,fluxc,rhoa,dz,ccrain,prf,cdso4,    !Inputs
      &    cfa,qca,                                            !Inputs
-     &    dumt,dumql,dumqf,dumqr,
-     &    precs,dumqg,cfrac,dumcr,ccov,                     !In and Out
+     &    t,qlg,qfg,qrg,
+     &    precs,qg,cfrac,cffall,ccov,                       !In and Out
      &    preci,qevap,qsubl,qauto,qcoll,qaccr,fluxr,fluxi,  !Outputs
      &    fluxm,pfstay,pqfsed,slopes,prscav)                !Outputs
-      t(1:ifull,:)=dumt
-      qlg(1:ifull,:)=dumql
-      qfg(1:ifull,:)=dumqf
-      qrg(1:ifull,:)=dumqr
-      qg(1:ifull,:)=dumqg
-      cffall(1:ifull,:)=dumcr
       if(nmaxpr==1.and.mydiag)then
         print *,'after newrain',ktau
         write (6,"('t   ',9f8.2/4x,9f8.2)") t(idjd,:)

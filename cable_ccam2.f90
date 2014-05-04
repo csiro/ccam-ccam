@@ -2027,137 +2027,136 @@ else
   do n=1,5
     do k=1,ms
       write(vname,'("tgg",I1.1,"_",I1.1)') k,n
-      call histrd1(ncid,iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
       if (pind(n,1)<=mp) ssnow%tgg(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
       write(vname,'("wb",I1.1,"_",I1.1)') k,n
-      call histrd1(ncid,iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
       if (pind(n,1)<=mp) ssnow%wb(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
       write(vname,'("wbice",I1.1,"_",I1.1)') k,n
-      call histrd1(ncid,iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
       if (pind(n,1)<=mp) ssnow%wbice(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
     end do
     do k=1,3
       write(vname,'("tggsn",I1.1,"_",I1.1)') k,n
-      call histrd1(ncid,iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
       if (pind(n,1)<=mp) ssnow%tggsn(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
       write(vname,'("smass",I1.1,"_",I1.1)') k,n
-      call histrd1(ncid,iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
       if (pind(n,1)<=mp) ssnow%smass(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
       write(vname,'("ssdn",I1.1,"_",I1.1)') k,n
-      call histrd1(ncid,iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
       if (pind(n,1)<=mp) ssnow%ssdn(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
     end do
     write(vname,'("sflag_",I1.1)') n
-    call histrd1(ncid,iarchi-1,ierr,vname,il_g,dat,ifull)
+    call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
     if (pind(n,1)<=mp) ssnow%isflag(pind(n,1):pind(n,2))=nint(dat(cmap(pind(n,1):pind(n,2))))
     write(vname,'("snd_",I1.1)') n
-    call histrd1(ncid,iarchi-1,ierr,vname,il_g,dat,ifull)
+    call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
     if (pind(n,1)<=mp) ssnow%snowd(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
     write(vname,'("snage_",I1.1)') n
-    call histrd1(ncid,iarchi-1,ierr,vname,il_g,dat,ifull)
+    call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
     if (pind(n,1)<=mp) ssnow%snage(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
     write(vname,'("rtsoil_",I1.1)') n
-    call histrd1(ncid,iarchi-1,ierr,vname,il_g,dat,ifull)
+    call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
     if (pind(n,1)<=mp) ssnow%rtsoil(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
     write(vname,'("cansto_",I1.1)') n
-    call histrd1(ncid,iarchi-1,ierr,vname,il_g,dat,ifull)
+    call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
     if (pind(n,1)<=mp) canopy%cansto(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
     write(vname,'("pudsto_",I1.1)') n
-    call histrd1(ncid,iarchi-1,ierr,vname,il_g,dat,ifull)
+    call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
     if (pind(n,1)<=mp) ssnow%pudsto(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
     write(vname,'("wetfac_",I1.1)') n
-    call histrd1(ncid,iarchi-1,ierr,vname,il_g,dat,ifull)
+    call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
     if (pind(n,1)<=mp) ssnow%wetfac(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
     if (icycle==0) then
       do k=1,ncp
         write(vname,'("cplant",I1.1,"_",I1.1)') k,n
-        call histrd1(ncid,iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
         if (pind(n,1)<=mp) bgc%cplant(pind(n,1):pind(n,2),k) = dat(cmap(pind(n,1):pind(n,2))) 
       enddo
       do k=1,ncs
         write(vname,'("csoil",I1.1,"_",I1.1)') k,n
-        call histrd1(ncid,iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
         if (pind(n,1)<=mp) bgc%csoil(pind(n,1):pind(n,2),k) = dat(cmap(pind(n,1):pind(n,2)))
       enddo
     else
       do k=1,mplant
         write(vname,'("cplant",I1.1,"_",I1.1)') k,n
-        call histrd1(ncid,iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
         if (pind(n,1)<=mp) casapool%cplant(pind(n,1):pind(n,2),k) = dat(cmap(pind(n,1):pind(n,2)))
         write(vname,'("nplant",I1.1,"_",I1.1)') k,n
-        call histrd1(ncid,iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
         if (pind(n,1)<=mp) casapool%nplant(pind(n,1):pind(n,2),k) = dat(cmap(pind(n,1):pind(n,2)))
         write(vname,'("pplant",I1.1,"_",I1.1)') k,n
-        call histrd1(ncid,iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
         if (pind(n,1)<=mp) casapool%pplant(pind(n,1):pind(n,2),k) = dat(cmap(pind(n,1):pind(n,2)))
       end do
       do k=1,mlitter
         write(vname,'("clitter",I1.1,"_",I1.1)') k,n
-        call histrd1(ncid,iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
         if (pind(n,1)<=mp) casapool%clitter(pind(n,1):pind(n,2),k) = dat(cmap(pind(n,1):pind(n,2)))
         write(vname,'("nlitter",I1.1,"_",I1.1)') k,n
-        call histrd1(ncid,iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
         if (pind(n,1)<=mp) casapool%nlitter(pind(n,1):pind(n,2),k) = dat(cmap(pind(n,1):pind(n,2)))
         write(vname,'("plitter",I1.1,"_",I1.1)') k,n
-        call histrd1(ncid,iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
         if (pind(n,1)<=mp) casapool%plitter(pind(n,1):pind(n,2),k) = dat(cmap(pind(n,1):pind(n,2)))
       end do
       do k=1,msoil
         write(vname,'("csoil",I1.1,"_",I1.1)') k,n
-        call histrd1(ncid,iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
         if (pind(n,1)<=mp) casapool%csoil(pind(n,1):pind(n,2),k) = dat(cmap(pind(n,1):pind(n,2)))
         write(vname,'("nsoil",I1.1,"_",I1.1)') k,n
-        call histrd1(ncid,iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
         if (pind(n,1)<=mp) casapool%nsoil(pind(n,1):pind(n,2),k) = dat(cmap(pind(n,1):pind(n,2)))
         write(vname,'("psoil",I1.1,"_",I1.1)') k,n
-        call histrd1(ncid,iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
         if (pind(n,1)<=mp) casapool%psoil(pind(n,1):pind(n,2),k) = dat(cmap(pind(n,1):pind(n,2)))
       end do
       write(vname,'("glai_",I1.1)') n
-      call histrd1(ncid,iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
       if (pind(n,1)<=mp) casamet%glai(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
       write(vname,'("phenphase_",I1.1)') n
-      call histrd1(ncid,iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
       if (pind(n,1)<=mp) phen%phase(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
       write(vname,'("clabile_",I1.1)') n
-      call histrd1(ncid,iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
       if (pind(n,1)<=mp) casapool%clabile(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
       write(vname,'("nsoilmin_",I1.1)') n
-      call histrd1(ncid,iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
       if (pind(n,1)<=mp) casapool%nsoilmin(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
       write(vname,'("psoillab_",I1.1)') n
-      call histrd1(ncid,iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
       if (pind(n,1)<=mp) casapool%psoillab(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
       write(vname,'("psoilsorb_",I1.1)') n
-      call histrd1(ncid,iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
       if (pind(n,1)<=mp) casapool%psoilsorb(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
       write(vname,'("psoilocc_",I1.1)') n
-      call histrd1(ncid,iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
       if (pind(n,1)<=mp) casapool%psoilocc(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
     end if
     ! CABLE correction terms
-    dat=0.
     write(vname,'("fhscor_",I1.1)') n
-    call histrd1(ncid,iarchi-1,ierr,vname,il_g,dat,ifull)
+    call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
     if (pind(n,1)<=mp) canopy%fhs_cor(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))    
     write(vname,'("fescor_",I1.1)') n
-    call histrd1(ncid,iarchi-1,ierr,vname,il_g,dat,ifull)
+    call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
     if (pind(n,1)<=mp) canopy%fes_cor(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))   
   end do
   ! albvisdir, albvisdif, albnirdir, albnirdif are used when nrad=5
   vname='albvisdir'
-  call histrd1(ncid,iarchi-1,ierr,vname,il_g,albvisdir,ifull)
+  call histrd1(iarchi-1,ierr,vname,il_g,albvisdir,ifull)
   vname='albvisdif'
-  call histrd1(ncid,iarchi-1,ierr,vname,il_g,albvisdif,ifull)
+  call histrd1(iarchi-1,ierr,vname,il_g,albvisdif,ifull)
   vname='albnirdir'
-  call histrd1(ncid,iarchi-1,ierr,vname,il_g,albnirdir,ifull)
+  call histrd1(iarchi-1,ierr,vname,il_g,albnirdir,ifull)
   vname='albnirdif'
-  call histrd1(ncid,iarchi-1,ierr,vname,il_g,albnirdif,ifull)
+  call histrd1(iarchi-1,ierr,vname,il_g,albnirdif,ifull)
   ! albvis and albnir are used when nrad=4
   vname='albvis'
-  call histrd1(ncid,iarchi-1,ierr,vname,il_g,albvisnir(:,1),ifull)
+  call histrd1(iarchi-1,ierr,vname,il_g,albvisnir(:,1),ifull)
   vname='albnir'
-  call histrd1(ncid,iarchi-1,ierr,vname,il_g,albvisnir(:,2),ifull)
+  call histrd1(iarchi-1,ierr,vname,il_g,albvisnir(:,2),ifull)
 end if
   
 ! Some fixes for rounding errors
