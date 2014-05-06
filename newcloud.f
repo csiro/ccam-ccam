@@ -365,9 +365,19 @@ c Need to do first-order estimate of qcrit using mean in-cloud qc (qcic)
       else ! prognostic cloud
       
         ! Tiedtke prognostic cloud model
+        ! MJT notes - we use ttg instead of tliq
         qtot(:,:)=qtg(:,:)+qcg(:,:)
         tliq(:,:)=ttg(:,:)-hlcp*qcg(:,:)-hlfcp*qfg(1:ifull,:)
-        call progcloud(cfrac,qcg,qtg,ttg,prf,rhoa,fice)
+        do k=1,nl
+          do mg=1,ln2
+            pk=100.0*prf(mg,k)
+            qsi(mg,k)=qsati(pk,ttg(mg,k))     !Ice value
+            deles=esdiffx(ttg(mg,k))
+            qsl(mg,k)=qsi(mg,k)+epsil*deles/pk ! Liquid value
+          end do
+        end do
+        qsw(:,:)=fice*qsi+(1.-fice)*qsl !Weighted qs at temperature Tliq
+        call progcloud(cfrac,qcg,qtot,prf,rhoa,fice,qsw,ttg)
         
         ! Use 'old' autoconversion with prognostic cloud
         cfa(:,:)=0.
@@ -383,10 +393,8 @@ c The grid-box-mean values of qtg and ttg are adjusted later on (below).
       do k=1,nl
         do mg=1,ln2
           if(ttg(mg,k)>=Tice)then
-
             qfg(mg,k) = fice(mg,k)*qcg(mg,k)
             qlg(mg,k) = qcg(mg,k) - qfg(mg,k)
-
           else                                    ! Cirrus T range
             decayfac = exp ( (-1./7200.) * tdt )  ! Try 2 hrs
 c           decayfac = 0.                         ! Instant adjustment (old scheme)

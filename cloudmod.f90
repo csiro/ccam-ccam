@@ -31,10 +31,8 @@ end if
 return
 end subroutine cloudmod_init
     
-subroutine progcloud(cloudfrac,qc,qv,t,ps,rho,fice)
+subroutine progcloud(cloudfrac,qc,qtot,ps,rho,fice,qs,t)
 
-use estab                ! Liquid saturation function
-use sigs_m               ! Atmosphere sigma levels
 use vvel_m               ! Additional vertical velocity
 
 implicit none
@@ -45,27 +43,16 @@ include 'parm.h'         ! Model configuration
 
 real, dimension(ifull,kl), intent(out) :: cloudfrac
 real, dimension(ifull,kl), intent(inout) :: qc ! condensate = qf + ql
-real, dimension(ifull,kl), intent(in) :: qv, t, rho, fice
+real, dimension(ifull,kl), intent(in) :: qtot, rho, fice, qs, t
 real, dimension(ifull), intent(in) :: ps
 real, dimension(ifull,kl) :: u00p, erosion_scale
 real, dimension(ifull,kl) :: da, dqs, cfbar
 real, dimension(ifull,kl) :: cf1, cfeq, a_dt, b_dt
-real, dimension(ifull,kl) :: qs, qtot, dqsdT, mflx, gamma
-real, dimension(ifull,kl) :: aa, bb, cc, omega, hlrvap
-real es, pk
-integer iq, k
+real, dimension(ifull,kl) :: dqsdT, mflx, gamma
+real, dimension(ifull,kl) :: aa, bb, cc, omega
+integer k
 
 stratcloud(1:ifull,:)=max( min( stratcloud(1:ifull,:), 1. ), 0. )
-qtot = qc + qv
-
-! saturated water mixing ratio
-do k=1,kl
-  do iq=1,ifull
-    es=establ(t(iq,k))
-    pk=ps(iq)*sig(k)
-    qs(iq,k)=0.622*es/(pk-es)
-  end do
-end do
 
 ! Critical relative humidity (neglected profile option)
 u00p(:,:) = 0.8
@@ -73,14 +60,12 @@ u00p(:,:) = 0.8
 ! background erosion scale
 erosion_scale(:,:) = 1.E-6
 
-! calculate the condensation without supersaturation
-
+! calculaate vertical velocity, dqs/dT and gamma
 do k=1,kl
   omega(:,k) = ps(1:ifull)*dpsldt(:,k)
 end do
-hlrvap = (hl+fice*hlf)/rvap
-dqsdT  = qs*hlrvap/(t*t)
-gamma  = (hl+fice*hlf)/rvap
+gamma = (hl+fice*hlf)/rvap
+dqsdT = qs*gamma/(t*t)
 
 ! calculate dqs = (((omega + grav*Mc)/(cp*rho)+nettend)*dqsdT*dt)
 !                 -------------------------------------------------------
@@ -89,62 +74,68 @@ gamma  = (hl+fice*hlf)/rvap
 ! Follow GFDL CM3 approach since da=da(dqs), hence need to solve the above
 ! quadratic equation for dqs if da/=0
 
+! MJT notes - if we use tliq, then nettend and omega should also be modified
+! to account for changes in ql and qf
+
 ! dqs = (-BB + sqrt( BB*BB - 4*AA*CC ))/(2*AA)
-! AA = 0.25*gamma*(1-cf)^2/(qs-qv)
+! AA = 0.25*gamma*(1-cf)^2/(qs-qtot)
 ! BB = -(1+gamma*cf)
 ! CC = ((omega + grav*mflx)/(cp*rho)+netten)*dqsdT*dt
 
 cc = ((omega + grav*cmflx)/(cp*rho)+nettend)*dt*dqsdT
-where (cc<=0. .and. qv>u00p*qs)
-  aa = 0.25*gamma*(1.-stratcloud(1:ifull,:))*(1.-stratcloud(1:ifull,:))/max(qs-qv,1.E-20)
-  bb = -(1.+gamma*stratcloud(1:ifull,:))
-  dqs = ( -bb - sqrt( bb*bb - 4.*aa*cc ) ) / (2.*aa)
-  !dqs = min( tmp, cc/(1.+0.5*gamm*(1.+stratcloud(1:ifull,:))) )
+aa = 0.5*gamma*(1.-stratcloud(1:ifull,:))*(1.-stratcloud(1:ifull,:))/max(qs-qtot,1.E-20)
+bb = 1.+gamma*stratcloud(1:ifull,:)
+where ( cc<=0. .and. qtot>u00p*qs )
+  dqs = 2.*cc/( bb + sqrt( bb*bb - 2.*aa*cc ) ) ! alternative form of quadratic equation
+                                                ! note that aa has been multipled by 2.
 elsewhere
-  ! da = 0
-  dqs = cc/(1.+gamma*stratcloud(1:ifull,:))
+  ! da = 0, so dqs can be solved from a linear equation
+  dqs = cc/bb
 end where
 
 ! Change in saturated volume fraction
-where( dqs<=0. .and. qv>u00p*qs )
-  da = -0.5*(1.-stratcloud(1:ifull,:))*(1.-stratcloud(1:ifull,:))*dqs/max(qs-qv,1.E-20)
+! da = - 0.5*(1.-cf)^2*dqs/(qs-qtot)
+where( dqs<=0. .and. qtot>u00p*qs )
+  da = -aa*dqs/gamma
 elsewhere
   da = 0.
 end where
 
 ! Large scale cloud formation (A)
-a_dt = da/max(1.-stratcloud(1:ifull,:),1.e-10)
+a_dt = da/max( 1.-stratcloud(1:ifull,:), 1.e-20 )
 
 ! Large scale cloud destruction (B)
-b_dt = stratcloud(1:ifull,:)*erosion_scale*dt*max(qs-qv,0.)/max(qc,1.e-8 )
+b_dt = stratcloud(1:ifull,:)*erosion_scale*dt*max(qs-qtot,0.)/max(qc,1.e-8 )
 
 ! Integrate
 !   dcf/dt = (1-cf)*A - cf*B
-! to give
-!   cf(t=1) = cfeq - (cfeq - cf(t=0))*exp(-(A+B)*dt)
+! to give (use cf' = A-cf*(A+B))
+!   cf(t=1) = cfeq + (cf(t=0) - cfeq)*exp(-(A+B)*dt)
 !   cfeq = A/(A+B)
 ! Average cloud fraction over the interval t=tau to t=tau+1
-!   cfbar = cfeq - (cf(t=1) - cf(t=0))/(dt*(A+B))
+!   cfbar = cfeq - (cf(t=1) - cf(t=0))/((A+B)*dt)
 ! cfeq is the equilibrum cloud fraction that is approached with
 ! a time scale of 1/(A+B)
-where (a_dt>1.e-8.or.b_dt>1.e-8)
-  cfeq = a_dt/(a_dt + b_dt)
-  cf1 = min(max( cfeq - (cfeq - stratcloud(1:ifull,:))*exp(-(a_dt + b_dt)), 0.), 1.)
-  cfbar = min(max( cfeq - (cf1 - stratcloud(1:ifull,:))/(a_dt + b_dt), 0.), 1.)
+where ( a_dt>1.E-20 .or. b_dt>1.E-20 )
+  cfeq  = a_dt/(a_dt+b_dt)
+  cf1   = min(max( cfeq + (stratcloud(1:ifull,:) - cfeq)*exp(-a_dt-b_dt), 0.), 1.)
+  cfbar = min(max( cfeq + (stratcloud(1:ifull,:) - cf1 )/(a_dt+b_dt),     0.), 1.)
 elsewhere
-  cf1 = stratcloud(1:ifull,:)
+  cfeq  = stratcloud(1:ifull,:)
+  cf1   = stratcloud(1:ifull,:)
   cfbar = stratcloud(1:ifull,:)
 end where
 
 ! Change in condensate
-! dqc/dt = -dqs*(stratcloud+0.5*da) = -dqs*cfbar
+! dqc = -dqs*(stratcloud+0.5*da) = -dqs*cfbar
 qc = qc - cfbar*dqs
 qc = min( max( qc, 0. ), qtot - qgmin )
 
 ! Change in cloud fraction
-stratcloud(1:ifull,:) = min( max( cf1, 0. ), 1. )
-where(qc>0.)
-  stratcloud(1:ifull,:) = 1.E-8
+where( qc>0. )
+  stratcloud(1:ifull,:) = max( min( cf1, 1. ), 1.E-8 )
+elsewhere
+  stratcloud(1:ifull,:) = 0.
 end where
 cloudfrac = stratcloud(1:ifull,:)
 
@@ -182,10 +173,10 @@ elsewhere
 end where
 if (nmr>=1) then
   do iq=1,ifull
-    do k=1,kbsav(iq)
+    do k=1,kbsav(iq)-1
       clcon(iq,k)=0.
     end do
-    do k=kbsav(iq)+1,ktsav(iq)
+    do k=kbsav(iq),ktsav(iq)
       clcon(iq,k)=cldcon(iq) ! maximum overlap
     end do
     do k=ktsav(iq)+1,kl
@@ -194,11 +185,11 @@ if (nmr>=1) then
   end do  
 else
   do iq=1,ifull
-    do k=1,kbsav(iq)
+    do k=1,kbsav(iq)-1
       clcon(iq,k)=0.
     end do
-    do k=kbsav(iq)+1,ktsav(iq)
-      clcon(iq,k)=1.-(1.-cldcon(iq))**(1./real(ktsav(iq)-kbsav(iq)+2)) !Random overlap
+    do k=kbsav(iq),ktsav(iq)
+      clcon(iq,k)=1.-(1.-cldcon(iq))**(1./real(ktsav(iq)-kbsav(iq)+1)) !Random overlap
     end do
     do k=ktsav(iq)+1,kl
       clcon(iq,k)=0.

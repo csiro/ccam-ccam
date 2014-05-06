@@ -4137,11 +4137,11 @@ contains
       ! This does nothing in the one processor case
       if ( neighnum < 1 ) return
 
+      START_LOG(deptsync)      
+
       kx = size(nface,2)
       dslen = 0
       drlen = 0
-
-      START_LOG(deptsync)      
       
 !     In this case the length of each buffer is unknown and will not
 !     be symmetric between processors. Therefore need to get the length
@@ -4168,10 +4168,10 @@ contains
             jdel = int(yf) - joff
             if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. jdel > jpan &
                  .or. nf < 1 .or. nf > npan ) then
-               ! If point is on a different face, add to a list 
+               ! If point is on a different processor, add to a list 
                ip = min(il_g,max(1,nint(xf)))
                jp = min(il_g,max(1,nint(yf)))
-               iproc = fproc(ip,jp,gf)
+               iproc = fproc(ip,jp,gf) ! processor that owns global grid point
                dproc = neighmap(iproc) ! returns 0 if not in neighlist
                ! Add this point to the list of requests I need to send to iproc
                dslen(dproc) = dslen(dproc) + 1
@@ -4198,39 +4198,20 @@ contains
       ! Error check
       if ( dslen(0) > 0 ) then
          write(6,*) "myid,dslen(0) ",myid,dslen(0)
-         do k=1,kx
-            do iq=1,ifull
-               gf = nface(iq,k)
-               xf = xg(iq,k)
-               yf = yg(iq,k)
-               nf = gf + noff ! Make this a local index
-               idel = int(xf) - ioff
-               jdel = int(yf) - joff
-               if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. jdel > jpan &
-                    .or. nf < 1 .or. nf > npan ) then
-                  ! If point is on a different face, add to a list 
-                  ip = min(il_g,max(1,nint(xf)))
-                  jp = min(il_g,max(1,nint(yf)))
-                  iproc = fproc(ip,jp,gf)
-                  dproc = neighmap(iproc)
-                  
-                  if ( dproc == 0 ) then
-                     write(6,*) "Example error iq,k,iproc ",iq,k,iproc
-                     write(6,*) "dbuf ", gf, xf, yf, k
-                     write(6,*) "neighlist ",neighlist
-                     call checksize(dslen(0),0,"Deptsync")
-                  end if
-               end if
-            end do
-         end do
+         gf = nint(dbuf(dproc)%a(1,1))
+         ip = min(il_g,max(1,nint(dbuf(dproc)%a(2,1))))
+         jp = min(il_g,max(1,nint(dbuf(dproc)%a(3,1))))
+         iproc = fproc(ip,jp,gf)
+         write(6,*) "Example error iq,k,iproc ",dindex(0)%a(:,1),iproc
+         write(6,*) "dbuf ", dbuf(0)%a(:,1)
+         write(6,*) "neighlist ",neighlist
+         call checksize(dslen(0),0,"Deptsync")
       end if
       do dproc = 1,neighnum
          iproc = neighlist(dproc)
          if ( dslen(dproc) > bnds(iproc)%len/nagg ) then
             write(6,*) "myid,iproc,dslen,len ",myid,iproc,dslen(dproc),bnds(iproc)%len/nagg
-            iq = dindex(dproc)%a(1,1)
-            k = dindex(dproc)%a(2,1)
-            write(6,*) "Example error iq,k ",iq,k
+            write(6,*) "Example error iq,k, ",dindex(dproc)%a(:,1)
             write(6,*) "dbuf ",dbuf(dproc)%a(:,1)
             write(6,*) "neighlist ",neighlist
             call checksize(dslen(dproc),bnds(iproc)%len/nagg,"Deptsync")

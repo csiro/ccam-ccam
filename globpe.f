@@ -1584,7 +1584,7 @@
         END_LOG(vertmix)
       endif  ! (ntsur>=1)
       if (ncloud>=3) then
-        nettend=nettend-t(1:ifull,:)
+        nettend=(nettend-t(1:ifull,:))/dt
       end if
       if (myid==0.and.nmaxpr==1) then
        write(6,*) "After PBL mixing"

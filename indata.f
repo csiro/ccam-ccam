@@ -170,20 +170,18 @@
       !--------------------------------------------------------------
       ! READ AND PROCESS ATMOSPHERE SIGMA LEVELS
       if (myid==0) then
-       read(28,*)(sig(k),k=1,kl),(tbar(k),k=1,kl),(bam(k),k=1,kl)
-     &  ,((emat(k,l),k=1,kl),l=1,kl),((einv(k,l),k=1,kl),l=1,kl)
-     &  ,(qvec(k),k=1,kl),((tmat(k,l),k=1,kl),l=1,kl)
+       read(28,*)(dumc(k),k=1,kl),(dumc(2*kl+k),k=1,kl),
+     &  (bam(k),k=1,kl),((emat(k,l),k=1,kl),l=1,kl),
+     &  ((einv(k,l),k=1,kl),l=1,kl),(qvec(k),k=1,kl),
+     &  ((tmat(k,l),k=1,kl),l=1,kl)
        write(6,*) 'kl,lapsbot,sig from eigenv file: ',
      &             kl,lapsbot,sig
        ! File has an sigmh(kl+1) which isn't required. Causes bounds violation
        ! to read this.
-       read(28,*)(sigmh(k),k=1,kl)
+       read(28,*)(dumc(kl+k),k=1,kl)
        close(28) 
-       write(6,*) 'tbar: ',tbar
-       write(6,*) 'bam: ',bam
-       dumc(1:kl)       =sig
-       dumc(kl+1:2*kl)  =sigmh
-       dumc(2*kl+1:3*kl)=tbar
+       write(6,*) 'tbar: ',dumc(2*kl+1:3*kl)
+       write(6,*) 'bam:  ',bam
        
        ! test netcdf for CABLE input
        if (nsib>=6) then
@@ -198,6 +196,9 @@
        end if
       endif ! (myid==0)
 
+      ! distribute vertical and vegfile data to all processors
+      ! dumc(1:kl)   = sig,   dumc(kl+1:2*kl) = sigmh, dumc(2*kl+1:3*kl) = tbar
+      ! dumc(3*kl+1) = lncveg
       call ccmpi_bcast(dumc(1:3*kl+1),0,comm_world)
       sig   =dumc(1:kl)
       sigmh =dumc(kl+1:2*kl)
@@ -329,9 +330,9 @@
         else
           call ccmpi_distribute(duma(:,1:3))
         end if
-        zs(1:ifull)=duma(:,1)
+        zs(1:ifull)    =duma(:,1)
         zsmask(1:ifull)=duma(:,2)
-        he(1:ifull)=duma(:,3)
+        he(1:ifull)    =duma(:,3)
         if ( mydiag ) write(6,*)'he read in from topofile',he(idjd)
 
         ! special options for orography         
@@ -403,7 +404,7 @@
         if (nsib==6.or.nsib==7) then
           ! albvisnir at this point holds soil albedo for cable initialisation
           call loadcbmparm(vegfile,vegprev,vegnext,phenfile,casafile)
-          ! albvisnir now is the net albedo
+          ! albvisnir at this point holds net albedo
         elseif (nsib==3) then
          ! special options for standard land surface scheme
          if(nspecial==35)then      ! test for Andy Cottrill
@@ -567,10 +568,8 @@
         call atebdisable(0) ! disable urban
       end if
 
-      if (myid==0) then
-        if (lncveg==1) then
-          call ccnf_close(ncidveg)
-        end if
+      if (myid==0.and.lncveg==1) then
+        call ccnf_close(ncidveg)
       end if
 
 
@@ -597,7 +596,7 @@
       if (ngas>0) then
         if(myid==0)write(6,*)'Initialising tracers'
 !       tracer initialisation (if start of run)
-        if (tracvalin.ne.-999) call tracini
+        if (tracvalin/=-999) call tracini
         call init_ts(ngas,dt)
         call readtracerflux(kdate)
       endif
@@ -624,7 +623,7 @@
           iperm(indexs)=iq    ! sea point
         endif  ! (sicedep(iq)>0.)
       enddo   ! iq loop
-      ipsice=indexi
+      ipsice=indexs-1
       if (mydiag) write(6,*)'ipland,ipsea: ',ipland,ipsea
 
       !-----------------------------------------------------------------
@@ -734,14 +733,6 @@
         qg(1:ifull,:)=max(qg(1:ifull,:),0.)
         ps(1:ifull)=1.e5*exp(psl(1:ifull))
         
-        ! old options
-        !qg(1:ifull,:)=max(qg(1:ifull,:),qgmin)
-        !do k=1,kl
-        !  if (sig(k)<0.005) then
-        !    qg(1:ifull,:)=min(qg(1:ifull,:),1.E-5)
-        !  end if
-        !end do
-
       else
 
         ! read in namelist for uin,vin,tbarr etc. for special runs
@@ -780,7 +771,7 @@
       endif
 
       if(io_in>=5)then
-        if (nsib.ne.0) then
+        if (nsib/=0) then
           stop 'ERROR: io_in>=5 requiers nsib=0'
         end if
 !       for rotated coordinate version, see jmcg's notes
