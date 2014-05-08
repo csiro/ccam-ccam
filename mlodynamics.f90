@@ -1469,9 +1469,10 @@ end subroutine mlohadv
 ! Calculate depature points for MLO semi-Lagrangian advection
 ! (This subroutine is based on depts.f)
 
-subroutine mlodeps(dtin,ubar,vbar,nface,xg,yg,x3d,y3d,z3d,wtr)
+subroutine mlodeps(dt_in,ubar,vbar,nface,xg,yg,x3d,y3d,z3d,wtr)
 
 use cc_mpi
+use indices_m
 use mlo
 use vecsuv_m
 use xyzinfo_m
@@ -1480,27 +1481,34 @@ implicit none
 
 include 'newmpar.h'
 include 'const_phys.h'
+include 'parm.h'
+include 'parmhor.h'
 
-integer ii,n
+integer iq,i,j,k,n,nn,idel,jdel,ip,jp,ierr,intsch,ncount,ii
 integer, dimension(ifull,wlev), intent(out) :: nface
-real, intent(in) :: dtin
+real, intent(in) :: dt_in
 real, dimension(ifull,wlev), intent(in) :: ubar,vbar
 real, dimension(ifull,wlev), intent(out) :: xg,yg
 real(kind=8), dimension(ifull,wlev), intent(out) :: x3d,y3d,z3d
 real, dimension(ifull,wlev) :: uc,vc,wc
-real, dimension(ifull+iextra,wlev,3) :: temp
+real, dimension(ifull+iextra,wlev,3) :: s
+real, dimension(3,-1:ipan+2,-1:jpan+2,1:npan,wlev) :: sx
+real, dimension(3,-1:2,-1:2) :: sc
+real, dimension(3,4) :: r
+real, dimension(3) :: aab,aac,aad
+real xxg,yyg
+real, parameter :: cxx = -9999. ! missing value flag
 logical, dimension(ifull+iextra), intent(in) :: wtr
-integer, parameter :: nguess = 2
 
 ! departure point x, y, z is called x3d, y3d, z3d
 ! first find corresponding cartesian vels
-do ii=1,wlev
-  uc(:,ii)=(ax(1:ifull)*ubar(:,ii)+bx(1:ifull)*vbar(:,ii))*dtin/rearth ! unit sphere 
-  vc(:,ii)=(ay(1:ifull)*ubar(:,ii)+by(1:ifull)*vbar(:,ii))*dtin/rearth ! unit sphere 
-  wc(:,ii)=(az(1:ifull)*ubar(:,ii)+bz(1:ifull)*vbar(:,ii))*dtin/rearth ! unit sphere 
-  x3d(:,ii)=x-uc(:,ii) ! 1st guess
-  y3d(:,ii)=y-vc(:,ii)
-  z3d(:,ii)=z-wc(:,ii)
+do k=1,wlev
+  uc(:,k)=(ax(1:ifull)*ubar(:,k)+bx(1:ifull)*vbar(:,k))*dt_in/rearth ! unit sphere 
+  vc(:,k)=(ay(1:ifull)*ubar(:,k)+by(1:ifull)*vbar(:,k))*dt_in/rearth ! unit sphere 
+  wc(:,k)=(az(1:ifull)*ubar(:,k)+bz(1:ifull)*vbar(:,k))*dt_in/rearth ! unit sphere 
+  x3d(:,k)=x-uc(:,k) ! 1st guess
+  y3d(:,k)=y-vc(:,k)
+  z3d(:,k)=z-wc(:,k)
 end do
 
 ! convert to grid point numbering
@@ -1508,20 +1516,578 @@ call mlotoij5(x3d,y3d,z3d,nface,xg,yg)
 ! Share off processor departure points.
 call deptsync(nface,xg,yg)
 
-do n=1,nguess
-  temp(1:ifull,:,1) = uc
-  temp(1:ifull,:,2) = vc
-  temp(1:ifull,:,3) = wc
-  call mlob2ints(temp(:,:,1:3),nface,xg,yg,wtr)
-  do ii=1,wlev
-    x3d(:,ii) = x - 0.5*(uc(:,ii)+temp(1:ifull,ii,1)) ! n+1 guess
-    y3d(:,ii) = y - 0.5*(vc(:,ii)+temp(1:ifull,ii,2)) ! n+1 guess
-    z3d(:,ii) = z - 0.5*(wc(:,ii)+temp(1:ifull,ii,3)) ! n+1 guess
-  end do
-  call mlotoij5(x3d,y3d,z3d,nface,xg,yg)
-  !     Share off processor departure points.
-  call deptsync(nface,xg,yg)
+s(1:ifull,:,1) = uc
+s(1:ifull,:,2) = vc
+s(1:ifull,:,3) = wc
+
+intsch=mod(ktau,2)
+sc=cxx-1.
+
+do iq=1,ifull
+  if (.not.wtr(iq)) then
+    s(iq,:,:)=cxx-1.
+  end if
 end do
+s(ifull+1:,:,:)=cxx-1.
+call bounds(s,nrows=2)
+
+!======================== start of intsch=1 section ====================
+if(intsch==1)then
+
+  do nn=1,3
+    sx(nn,1:ipan,1:jpan,1:npan,1:wlev) = reshape( s(1:ipan*jpan*npan,1:wlev,nn), (/ ipan, jpan, npan, wlev /) )
+    do k=1,wlev
+      do n=1,npan
+        do j=1,jpan
+          sx(nn,0,j,n,k)      = s( iw(1+(j-1)*ipan+(n-1)*ipan*jpan),k,nn)
+          sx(nn,-1,j,n,k)     = s(iww(1+(j-1)*ipan+(n-1)*ipan*jpan),k,nn)
+          sx(nn,ipan+1,j,n,k) = s( ie(j*ipan+(n-1)*ipan*jpan),      k,nn)
+          sx(nn,ipan+2,j,n,k) = s(iee(j*ipan+(n-1)*ipan*jpan),      k,nn)
+        end do
+        do i=1,ipan
+          sx(nn,i,0,n,k)      = s( is(i+(n-1)*ipan*jpan), k,nn)
+          sx(nn,i,-1,n,k)     = s(iss(i+(n-1)*ipan*jpan), k,nn)
+          sx(nn,i,jpan+1,n,k) = s( in(i-ipan+n*ipan*jpan),k,nn)
+          sx(nn,i,jpan+2,n,k) = s(inn(i-ipan+n*ipan*jpan),k,nn)
+        end do
+        sx(nn,-1,0,n,k)          = s(lwws(n),k,nn)
+        sx(nn,0,0,n,k)           = s(iws(1+(n-1)*ipan*jpan),   k,nn)
+        sx(nn,0,-1,n,k)          = s(lwss(n),k,nn)
+        sx(nn,ipan+1,0,n,k)      = s(ies(ipan+(n-1)*ipan*jpan),k,nn)
+        sx(nn,ipan+2,0,n,k)      = s(lees(n),k,nn)
+        sx(nn,ipan+1,-1,n,k)     = s(less(n),k,nn)
+        sx(nn,-1,jpan+1,n,k)     = s(lwwn(n),k,nn)
+        sx(nn,0,jpan+2,n,k)      = s(lwnn(n),k,nn)
+        sx(nn,ipan+2,jpan+1,n,k) = s(leen(n),k,nn)
+        sx(nn,ipan+1,jpan+2,n,k) = s(lenn(n),k,nn)
+        sx(nn,0,jpan+1,n,k)      = s(iwn(1-ipan+n*ipan*jpan),  k,nn)
+        sx(nn,ipan+1,jpan+1,n,k) = s(ien(n*ipan*jpan),         k,nn)
+      end do               ! n loop
+    end do                 ! k loop
+  end do                   ! nn loop
+
+! Loop over points that need to be calculated for other processes
+  do ii=neighnum,1,-1
+    do iq=1,drlen(ii)
+      !  Convert face index from 0:npanels to array indices
+      ip = min(il_g,max(1,nint(dpoints(ii)%a(2,iq))))
+      jp = min(il_g,max(1,nint(dpoints(ii)%a(3,iq))))
+      n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
+      !  Need global face index in fproc call
+      idel = int(dpoints(ii)%a(2,iq))
+      xxg = dpoints(ii)%a(2,iq) - idel
+      jdel = int(dpoints(ii)%a(3,iq))
+      yyg = dpoints(ii)%a(3,iq) - jdel
+      k = nint(dpoints(ii)%a(4,iq))
+      idel = idel - ioff
+      jdel = jdel - joff
+      sc(:,0,-1) = sx(:,idel  ,jdel-1,n,k)
+      sc(:,1,-1) = sx(:,idel+1,jdel-1,n,k)
+      sc(:,-1,0) = sx(:,idel-1,jdel,n,k)
+      sc(:,0,0)  = sx(:,idel  ,jdel,n,k)
+      sc(:,1,0)  = sx(:,idel+1,jdel,n,k)
+      sc(:,2,0)  = sx(:,idel+2,jdel,n,k)
+      sc(:,-1,1) = sx(:,idel-1,jdel+1,n,k)
+      sc(:,0,1)  = sx(:,idel  ,jdel+1,n,k)
+      sc(:,1,1)  = sx(:,idel+1,jdel+1,n,k)
+      sc(:,2,1)  = sx(:,idel+2,jdel+1,n,k)
+      sc(:,0,2)  = sx(:,idel  ,jdel+2,n,k)
+      sc(:,1,2)  = sx(:,idel+1,jdel+2,n,k)
+
+      ncount=count(sc(1,:,:)>cxx)
+      if (ncount>=12) then
+        ! bi-cubic interpolation
+        r(:,1) = (1.-xxg)*sc(:,0,-1)+xxg*sc(:,1,-1)
+        r(:,2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(:,0,0)-xxg*sc(:,-1,0)/3.)     &
+             -xxg*(1.+xxg)*sc(:,2,0)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(:,1,0))/2.
+        r(:,3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(:,0,1)-xxg*sc(:,-1,1)/3.)     &
+             -xxg*(1.+xxg)*sc(:,2,1)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(:,1,1))/2.
+        r(:,4) = (1.-xxg)*sc(:,0,2) +xxg*sc(:,1,2)
+        sextra(ii)%a(1+(iq-1)*3:iq*3) = ((1.-yyg)*((2.-yyg)* &
+             ((1.+yyg)*r(:,2)-yyg*r(:,1)/3.)                 & 
+             -yyg*(1.+yyg)*r(:,4)/3.)                        &
+             +yyg*(1.+yyg)*(2.-yyg)*r(:,3))/2.
+      else
+        ! bi-linear interpolation
+        where (sc(:,0:1,0:1)<=cxx)
+          sc(:,0:1,0:1)=0.
+        end where       
+        aad(:)=sc(:,1,1)-sc(:,0,1)-sc(:,1,0)+sc(:,0,0)
+        aab(:)=sc(:,1,0)-sc(:,0,0)
+        aac(:)=sc(:,0,1)-sc(:,0,0)
+        sextra(ii)%a(1+(iq-1)*3:iq*3)=aab(:)*xxg+aac(:)*yyg+aad(:)*xxg*yyg+sc(:,0,0)
+      end if
+    end do            ! iq loop
+  end do              ! ii loop
+  
+  call intssync_send(3)
+
+  do k=1,wlev
+    do iq=1,ifull
+      if (wtr(iq)) then
+!       Convert face index from 0:npanels to array indices
+        idel = int(xg(iq,k))
+        xxg  = xg(iq,k) - idel
+        jdel = int(yg(iq,k))
+        yyg  = yg(iq,k) - jdel
+        ! Now make them proper indices in this processor's region
+        idel = idel - ioff
+        jdel = jdel - joff
+        n = nface(iq,k) + noff ! Make this a local index
+        if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. &
+             jdel > jpan .or. n < 1 .or. n > npan ) then
+          cycle      ! Will be calculated on another processor
+        end if
+        sc(:,0,-1) = sx(:,idel  ,jdel-1,n,k)
+        sc(:,1,-1) = sx(:,idel+1,jdel-1,n,k)
+        sc(:,-1,0) = sx(:,idel-1,jdel,n,k)
+        sc(:,0,0)  = sx(:,idel  ,jdel,n,k)
+        sc(:,1,0)  = sx(:,idel+1,jdel,n,k)
+        sc(:,2,0)  = sx(:,idel+2,jdel,n,k)
+        sc(:,-1,1) = sx(:,idel-1,jdel+1,n,k)
+        sc(:,0,1)  = sx(:,idel  ,jdel+1,n,k)
+        sc(:,1,1)  = sx(:,idel+1,jdel+1,n,k)
+        sc(:,2,1)  = sx(:,idel+2,jdel+1,n,k)
+        sc(:,0,2)  = sx(:,idel  ,jdel+2,n,k)
+        sc(:,1,2)  = sx(:,idel+1,jdel+2,n,k)
+
+        ncount=count(sc(1,:,:)>cxx)
+        if (ncount>=12) then
+          ! bi-cubic interpolation
+          r(:,1) = (1.-xxg)*sc(:,0,-1)+xxg*sc(:,1,-1)
+          r(:,2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(:,0,0)-xxg*sc(:,-1,0)/3.) &
+               -xxg*(1.+xxg)*sc(:,2,0)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(:,1,0))/2.
+          r(:,3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(:,0,1)-xxg*sc(:,-1,1)/3.) &
+               -xxg*(1.+xxg)*sc(:,2,1)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(:,1,1))/2.
+          r(:,4) = (1.-xxg)*sc(:,0,2) +xxg*sc(:,1,2)
+          s(iq,k,:) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*r(:,2)-yyg*r(:,1)/3.)     &
+               -yyg*(1.+yyg)*r(:,4)/3.)+yyg*(1.+yyg)*(2.-yyg)*r(:,3))/2.
+        else
+          ! bi-linear interpolation along coastline
+          where (sc(:,0:1,0:1)<=cxx)
+            sc(:,0:1,0:1)=0.
+          end where
+          aad(:)=sc(:,1,1)-sc(:,0,1)-sc(:,1,0)+sc(:,0,0)
+          aab(:)=sc(:,1,0)-sc(:,0,0)
+          aac(:)=sc(:,0,1)-sc(:,0,0)
+          s(iq,k,:)=aab(:)*xxg+aac(:)*yyg+aad(:)*xxg*yyg+sc(:,0,0)
+        end if
+      end if     ! wtr
+    end do       ! iq loop
+  end do         ! k loop
+       
+!========================   end of intsch=1 section ====================
+else     ! if(intsch==1)then
+!======================== start of intsch=2 section ====================
+
+  do nn=1,3
+    sx(nn,1:ipan,1:jpan,1:npan,1:wlev) = reshape( s(1:ipan*jpan*npan,1:wlev,nn), (/ ipan, jpan, npan, wlev /) )
+    do k=1,wlev
+      do n=1,npan
+        do j=1,jpan
+          sx(nn,0,j,n,k)      = s( iw(1+(j-1)*ipan+(n-1)*ipan*jpan),k,nn)
+          sx(nn,-1,j,n,k)     = s(iww(1+(j-1)*ipan+(n-1)*ipan*jpan),k,nn)
+          sx(nn,ipan+1,j,n,k) = s( ie(j*ipan+(n-1)*ipan*jpan),      k,nn)
+          sx(nn,ipan+2,j,n,k) = s(iee(j*ipan+(n-1)*ipan*jpan),      k,nn)
+        end do            ! j loop
+        do i=1,ipan
+          sx(nn,i,0,n,k)      = s( is(i+(n-1)*ipan*jpan), k,nn)
+          sx(nn,i,-1,n,k)     = s(iss(i+(n-1)*ipan*jpan), k,nn)
+          sx(nn,i,jpan+1,n,k) = s( in(i-ipan+n*ipan*jpan),k,nn)
+          sx(nn,i,jpan+2,n,k) = s(inn(i-ipan+n*ipan*jpan),k,nn)
+        end do            ! i loop
+        sx(nn,-1,0,n,k)          = s(lsww(n),k,nn)
+        sx(nn,0,0,n,k)           = s(isw(1+(n-1)*ipan*jpan),   k,nn)
+        sx(nn,0,-1,n,k)          = s(lssw(n),k,nn)
+        sx(nn,ipan+2,0,n,k)      = s(lsee(n),k,nn)
+        sx(nn,ipan+1,-1,n,k)     = s(lsse(n),k,nn)
+        sx(nn,-1,jpan+1,n,k)     = s(lnww(n),k,nn)
+        sx(nn,0,jpan+1,n,k)      = s(inw(1-ipan+n*ipan*jpan),  k,nn)
+        sx(nn,0,jpan+2,n,k)      = s(lnnw(n),k,nn)
+        sx(nn,ipan+2,jpan+1,n,k) = s(lnee(n),k,nn)
+        sx(nn,ipan+1,jpan+2,n,k) = s(lnne(n),k,nn)
+        sx(nn,ipan+1,0,n,k)      = s(ise(ipan+(n-1)*ipan*jpan),k,nn)
+        sx(nn,ipan+1,jpan+1,n,k) = s(ine(n*ipan*jpan),         k,nn)
+      end do               ! n loop
+    end do                 ! k loop
+  end do                   ! nn loop
+
+! For other processes
+  do ii=neighnum,1,-1
+    do iq=1,drlen(ii)
+      !  Convert face index from 0:npanels to array indices
+      ip = min(il_g,max(1,nint(dpoints(ii)%a(2,iq))))
+      jp = min(il_g,max(1,nint(dpoints(ii)%a(3,iq))))
+      n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
+      !  Need global face index in fproc call
+      idel = int(dpoints(ii)%a(2,iq))
+      xxg = dpoints(ii)%a(2,iq) - idel
+      jdel = int(dpoints(ii)%a(3,iq))
+      yyg = dpoints(ii)%a(3,iq) - jdel
+      k = nint(dpoints(ii)%a(4,iq))
+      idel = idel - ioff
+      jdel = jdel - joff
+      sc(:,0,-1) = sx(:,idel  ,jdel-1,n,k)
+      sc(:,1,-1) = sx(:,idel+1,jdel-1,n,k)
+      sc(:,-1,0) = sx(:,idel-1,jdel  ,n,k)
+      sc(:,0,0)  = sx(:,idel,  jdel  ,n,k)
+      sc(:,1,0)  = sx(:,idel+1,jdel  ,n,k)
+      sc(:,2,0)  = sx(:,idel+2,jdel  ,n,k)
+      sc(:,-1,1) = sx(:,idel-1,jdel+1,n,k)
+      sc(:,0,1)  = sx(:,idel,  jdel+1,n,k)
+      sc(:,1,1)  = sx(:,idel+1,jdel+1,n,k)
+      sc(:,2,1)  = sx(:,idel+2,jdel+1,n,k)
+      sc(:,0,2)  = sx(:,idel,  jdel+2,n,k)
+      sc(:,1,2)  = sx(:,idel+1,jdel+2,n,k)
+
+      ncount=count(sc(1,:,:)>cxx)
+      if (ncount>=12) then
+        ! bi-cubic interpolation
+        r(:,1) = (1.-yyg)*sc(:,-1,0)+yyg*sc(:,-1,1)
+        r(:,2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(:,0,0)-yyg*sc(:,0,-1)/3.) &
+             -yyg*(1.+yyg)*sc(:,0,2)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(:,0,1))/2.
+        r(:,3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(:,1,0)-yyg*sc(:,1,-1)/3.) &
+             -yyg*(1.+yyg)*sc(:,1,2)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(:,1,1))/2.
+        r(:,4) = (1.-yyg)*sc(:,2,0) +yyg*sc(:,2,1)
+        sextra(ii)%a(1+(iq-1)*3:iq*3) = ((1.-xxg)*((2.-xxg)* &
+               ((1.+xxg)*r(:,2)-xxg*r(:,1)/3.)               &
+                  -xxg*(1.+xxg)*r(:,4)/3.)                   &
+                  +xxg*(1.+xxg)*(2.-xxg)*r(:,3))/2.
+      else
+        ! bi-linear interpolation
+        where (sc(:,0:1,0:1)<=cxx)
+          sc(:,0:1,0:1)=0.
+        end where       
+        aad(:)=sc(:,1,1)-sc(:,0,1)-sc(:,1,0)+sc(:,0,0)
+        aab(:)=sc(:,1,0)-sc(:,0,0)
+        aac(:)=sc(:,0,1)-sc(:,0,0)
+        sextra(ii)%a(1+(iq-1)*3:iq*3)=aab(:)*xxg+aac(:)*yyg+aad(:)*xxg*yyg+sc(:,0,0)
+      end if
+    end do            ! iq loop
+  end do              ! ii loop
+
+  call intssync_send(3)
+
+  do k=1,wlev
+    do iq=1,ifull
+      if (wtr(iq)) then
+!       Convert face index from 0:npanels to array indices
+        idel=int(xg(iq,k))
+        xxg=xg(iq,k)-idel
+        jdel=int(yg(iq,k))
+        yyg=yg(iq,k)-jdel
+        ! Now make them proper indices in this processor's region
+        idel = idel - ioff
+        jdel = jdel - joff
+        n = nface(iq,k) + noff ! Make this a local index
+        if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. &
+             jdel > jpan .or. n < 1 .or. n > npan ) then
+          cycle      ! Will be calculated on another processor
+        end if
+        sc(:,0,-1) = sx(:,idel  ,jdel-1,n,k)
+        sc(:,1,-1) = sx(:,idel+1,jdel-1,n,k)
+        sc(:,-1,0) = sx(:,idel-1,jdel  ,n,k)
+        sc(:,0,0)  = sx(:,idel,  jdel  ,n,k)
+        sc(:,1,0)  = sx(:,idel+1,jdel  ,n,k)
+        sc(:,2,0)  = sx(:,idel+2,jdel  ,n,k)
+        sc(:,-1,1) = sx(:,idel-1,jdel+1,n,k)
+        sc(:,0,1)  = sx(:,idel,  jdel+1,n,k)
+        sc(:,1,1)  = sx(:,idel+1,jdel+1,n,k)
+        sc(:,2,1)  = sx(:,idel+2,jdel+1,n,k)
+        sc(:,0,2)  = sx(:,idel,  jdel+2,n,k)
+        sc(:,1,2)  = sx(:,idel+1,jdel+2,n,k)
+        
+        ncount=count(sc(1,:,:)>cxx)
+        if (ncount>=12) then
+          ! bi-cubic interpolation
+          r(:,1) = (1.-yyg)*sc(:,-1,0)+yyg*sc(:,-1,1)
+          r(:,2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(:,0,0)-yyg*sc(:,0,-1)/3.) &
+                 -yyg*(1.+yyg)*sc(:,0,2)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(:,0,1))/2.
+          r(:,3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(:,1,0)-yyg*sc(:,1,-1)/3.) &
+                 -yyg*(1.+yyg)*sc(:,1,2)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(:,1,1))/2.
+          r(:,4) = (1.-yyg)*sc(:,2,0) +yyg*sc(:,2,1)
+          s(iq,k,:) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*r(:,2)-xxg*r(:,1)/3.)     &
+               -xxg*(1.+xxg)*r(:,4)/3.)+xxg*(1.+xxg)*(2.-xxg)*r(:,3))/2.
+        else
+          ! bi-linear interpolation
+          where (sc(:,0:1,0:1)<=cxx)
+            sc(:,0:1,0:1)=0.
+          end where      
+          aad(:)=sc(:,1,1)-sc(:,0,1)-sc(:,1,0)+sc(:,0,0)
+          aab(:)=sc(:,1,0)-sc(:,0,0)
+          aac(:)=sc(:,0,1)-sc(:,0,0)
+          s(iq,k,:)=aab(:)*xxg+aac(:)*yyg+aad(:)*xxg*yyg+sc(:,0,0)
+        end if
+      end if
+    end do
+  end do
+
+endif                     ! (intsch==1) .. else ..
+!========================   end of intsch=1 section ====================
+
+call intssync_recv(s)
+
+do iq=1,ifull
+  if (.not.wtr(iq)) then
+    s(iq,:,:)=0.
+  end if
+end do
+
+do k=1,wlev
+  x3d(:,k) = x - 0.5*(uc(:,k)+s(1:ifull,k,1)) ! n+1 guess
+  y3d(:,k) = y - 0.5*(vc(:,k)+s(1:ifull,k,2)) ! n+1 guess
+  z3d(:,k) = z - 0.5*(wc(:,k)+s(1:ifull,k,3)) ! n+1 guess
+end do
+call mlotoij5(x3d,y3d,z3d,nface,xg,yg)
+!     Share off processor departure points.
+call deptsync(nface,xg,yg)
+
+!======================== start of intsch=1 section ====================
+if(intsch==1)then
+
+! Loop over points that need to be calculated for other processes
+  do ii=neighnum,1,-1
+    do iq=1,drlen(ii)
+      !  Convert face index from 0:npanels to array indices
+      ip = min(il_g,max(1,nint(dpoints(ii)%a(2,iq))))
+      jp = min(il_g,max(1,nint(dpoints(ii)%a(3,iq))))
+      n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
+      !  Need global face index in fproc call
+      idel = int(dpoints(ii)%a(2,iq))
+      xxg = dpoints(ii)%a(2,iq) - idel
+      jdel = int(dpoints(ii)%a(3,iq))
+      yyg = dpoints(ii)%a(3,iq) - jdel
+      k = nint(dpoints(ii)%a(4,iq))
+      idel = idel - ioff
+      jdel = jdel - joff
+      sc(:,0,-1) = sx(:,idel  ,jdel-1,n,k)
+      sc(:,1,-1) = sx(:,idel+1,jdel-1,n,k)
+      sc(:,-1,0) = sx(:,idel-1,jdel,n,k)
+      sc(:,0,0)  = sx(:,idel  ,jdel,n,k)
+      sc(:,1,0)  = sx(:,idel+1,jdel,n,k)
+      sc(:,2,0)  = sx(:,idel+2,jdel,n,k)
+      sc(:,-1,1) = sx(:,idel-1,jdel+1,n,k)
+      sc(:,0,1)  = sx(:,idel  ,jdel+1,n,k)
+      sc(:,1,1)  = sx(:,idel+1,jdel+1,n,k)
+      sc(:,2,1)  = sx(:,idel+2,jdel+1,n,k)
+      sc(:,0,2)  = sx(:,idel  ,jdel+2,n,k)
+      sc(:,1,2)  = sx(:,idel+1,jdel+2,n,k)
+
+      ncount=count(sc(1,:,:)>cxx)
+      if (ncount>=12) then
+        ! bi-cubic interpolation
+        r(:,1) = (1.-xxg)*sc(:,0,-1)+xxg*sc(:,1,-1)
+        r(:,2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(:,0,0)-xxg*sc(:,-1,0)/3.)     &
+             -xxg*(1.+xxg)*sc(:,2,0)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(:,1,0))/2.
+        r(:,3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(:,0,1)-xxg*sc(:,-1,1)/3.)     &
+             -xxg*(1.+xxg)*sc(:,2,1)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(:,1,1))/2.
+        r(:,4) = (1.-xxg)*sc(:,0,2) +xxg*sc(:,1,2)
+        sextra(ii)%a(1+(iq-1)*3:iq*3) = ((1.-yyg)*((2.-yyg)* &
+             ((1.+yyg)*r(:,2)-yyg*r(:,1)/3.)                 & 
+             -yyg*(1.+yyg)*r(:,4)/3.)                        &
+             +yyg*(1.+yyg)*(2.-yyg)*r(:,3))/2.
+      else
+        ! bi-linear interpolation
+        where (sc(:,0:1,0:1)<=cxx)
+          sc(:,0:1,0:1)=0.
+        end where       
+        aad(:)=sc(:,1,1)-sc(:,0,1)-sc(:,1,0)+sc(:,0,0)
+        aab(:)=sc(:,1,0)-sc(:,0,0)
+        aac(:)=sc(:,0,1)-sc(:,0,0)
+        sextra(ii)%a(1+(iq-1)*3:iq*3)=aab(:)*xxg+aac(:)*yyg+aad(:)*xxg*yyg+sc(:,0,0)
+      end if
+    end do            ! iq loop
+  end do              ! ii loop
+  
+  call intssync_send(3)
+
+  do k=1,wlev
+    do iq=1,ifull
+      if (wtr(iq)) then
+!       Convert face index from 0:npanels to array indices
+        idel=int(xg(iq,k))
+        xxg=xg(iq,k)-idel
+        jdel=int(yg(iq,k))
+        yyg=yg(iq,k)-jdel
+        ! Now make them proper indices in this processor's region
+        idel = idel - ioff
+        jdel = jdel - joff
+        n = nface(iq,k) + noff ! Make this a local index
+        if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. &
+             jdel > jpan .or. n < 1 .or. n > npan ) then
+          cycle      ! Will be calculated on another processor
+        end if
+        sc(:,0,-1) = sx(:,idel  ,jdel-1,n,k)
+        sc(:,1,-1) = sx(:,idel+1,jdel-1,n,k)
+        sc(:,-1,0) = sx(:,idel-1,jdel,n,k)
+        sc(:,0,0)  = sx(:,idel  ,jdel,n,k)
+        sc(:,1,0)  = sx(:,idel+1,jdel,n,k)
+        sc(:,2,0)  = sx(:,idel+2,jdel,n,k)
+        sc(:,-1,1) = sx(:,idel-1,jdel+1,n,k)
+        sc(:,0,1)  = sx(:,idel  ,jdel+1,n,k)
+        sc(:,1,1)  = sx(:,idel+1,jdel+1,n,k)
+        sc(:,2,1)  = sx(:,idel+2,jdel+1,n,k)
+        sc(:,0,2)  = sx(:,idel  ,jdel+2,n,k)
+        sc(:,1,2)  = sx(:,idel+1,jdel+2,n,k)
+
+        ncount=count(sc(1,:,:)>cxx)
+        if (ncount>=12) then
+          ! bi-cubic interpolation
+          r(:,1) = (1.-xxg)*sc(:,0,-1)+xxg*sc(:,1,-1)
+          r(:,2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(:,0,0)-xxg*sc(:,-1,0)/3.) &
+               -xxg*(1.+xxg)*sc(:,2,0)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(:,1,0))/2.
+          r(:,3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(:,0,1)-xxg*sc(:,-1,1)/3.) &
+               -xxg*(1.+xxg)*sc(:,2,1)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(:,1,1))/2.
+          r(:,4) = (1.-xxg)*sc(:,0,2) +xxg*sc(:,1,2)
+          s(iq,k,:) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*r(:,2)-yyg*r(:,1)/3.)     &
+               -yyg*(1.+yyg)*r(:,4)/3.)+yyg*(1.+yyg)*(2.-yyg)*r(:,3))/2.
+        else
+          ! bi-linear interpolation along coastline
+          where (sc(:,0:1,0:1)<=cxx)
+            sc(:,0:1,0:1)=0.
+          end where
+          aad(:)=sc(:,1,1)-sc(:,0,1)-sc(:,1,0)+sc(:,0,0)
+          aab(:)=sc(:,1,0)-sc(:,0,0)
+          aac(:)=sc(:,0,1)-sc(:,0,0)
+          s(iq,k,:)=aab(:)*xxg+aac(:)*yyg+aad(:)*xxg*yyg+sc(:,0,0)
+        end if
+      end if     ! wtr
+    end do       ! iq loop
+  end do         ! k loop
+       
+!========================   end of intsch=1 section ====================
+else     ! if(intsch==1)then
+!======================== start of intsch=2 section ====================
+
+! For other processes
+  do ii=neighnum,1,-1
+    do iq=1,drlen(ii)
+      !  Convert face index from 0:npanels to array indices
+      ip = min(il_g,max(1,nint(dpoints(ii)%a(2,iq))))
+      jp = min(il_g,max(1,nint(dpoints(ii)%a(3,iq))))
+      n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
+      !  Need global face index in fproc call
+      idel = int(dpoints(ii)%a(2,iq))
+      xxg = dpoints(ii)%a(2,iq) - idel
+      jdel = int(dpoints(ii)%a(3,iq))
+      yyg = dpoints(ii)%a(3,iq) - jdel
+      k = nint(dpoints(ii)%a(4,iq))
+      idel = idel - ioff
+      jdel = jdel - joff
+      sc(:,0,-1) = sx(:,idel  ,jdel-1,n,k)
+      sc(:,1,-1) = sx(:,idel+1,jdel-1,n,k)
+      sc(:,-1,0) = sx(:,idel-1,jdel  ,n,k)
+      sc(:,0,0)  = sx(:,idel,  jdel  ,n,k)
+      sc(:,1,0)  = sx(:,idel+1,jdel  ,n,k)
+      sc(:,2,0)  = sx(:,idel+2,jdel  ,n,k)
+      sc(:,-1,1) = sx(:,idel-1,jdel+1,n,k)
+      sc(:,0,1)  = sx(:,idel,  jdel+1,n,k)
+      sc(:,1,1)  = sx(:,idel+1,jdel+1,n,k)
+      sc(:,2,1)  = sx(:,idel+2,jdel+1,n,k)
+      sc(:,0,2)  = sx(:,idel,  jdel+2,n,k)
+      sc(:,1,2)  = sx(:,idel+1,jdel+2,n,k)
+
+      ncount=count(sc(1,:,:)>cxx)
+      if (ncount>=12) then
+        ! bi-cubic interpolation
+        r(:,1) = (1.-yyg)*sc(:,-1,0)+yyg*sc(:,-1,1)
+        r(:,2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(:,0,0)-yyg*sc(:,0,-1)/3.) &
+             -yyg*(1.+yyg)*sc(:,0,2)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(:,0,1))/2.
+        r(:,3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(:,1,0)-yyg*sc(:,1,-1)/3.) &
+             -yyg*(1.+yyg)*sc(:,1,2)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(:,1,1))/2.
+        r(:,4) = (1.-yyg)*sc(:,2,0) +yyg*sc(:,2,1)
+        sextra(ii)%a(1+(iq-1)*3:iq*3) = ((1.-xxg)*((2.-xxg)* &
+               ((1.+xxg)*r(:,2)-xxg*r(:,1)/3.)               &
+                  -xxg*(1.+xxg)*r(:,4)/3.)                   &
+                  +xxg*(1.+xxg)*(2.-xxg)*r(:,3))/2.
+      else
+        ! bi-linear interpolation
+        where (sc(:,0:1,0:1)<=cxx)
+          sc(:,0:1,0:1)=0.
+        end where       
+        aad(:)=sc(:,1,1)-sc(:,0,1)-sc(:,1,0)+sc(:,0,0)
+        aab(:)=sc(:,1,0)-sc(:,0,0)
+        aac(:)=sc(:,0,1)-sc(:,0,0)
+        sextra(ii)%a(1+(iq-1)*3:iq*3)=aab(:)*xxg+aac(:)*yyg+aad(:)*xxg*yyg+sc(:,0,0)
+      end if
+    end do            ! iq loop
+  end do              ! ii loop
+
+  call intssync_send(3)
+
+  do k=1,wlev
+    do iq=1,ifull
+      if (wtr(iq)) then
+!       Convert face index from 0:npanels to array indices
+        idel=int(xg(iq,k))
+        xxg=xg(iq,k)-idel
+        jdel=int(yg(iq,k))
+        yyg=yg(iq,k)-jdel
+        ! Now make them proper indices in this processor's region
+        idel = idel - ioff
+        jdel = jdel - joff
+        n = nface(iq,k) + noff ! Make this a local index
+        if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. &
+             jdel > jpan .or. n < 1 .or. n > npan ) then
+          cycle      ! Will be calculated on another processor
+        end if
+        sc(:,0,-1) = sx(:,idel  ,jdel-1,n,k)
+        sc(:,1,-1) = sx(:,idel+1,jdel-1,n,k)
+        sc(:,-1,0) = sx(:,idel-1,jdel  ,n,k)
+        sc(:,0,0)  = sx(:,idel,  jdel  ,n,k)
+        sc(:,1,0)  = sx(:,idel+1,jdel  ,n,k)
+        sc(:,2,0)  = sx(:,idel+2,jdel  ,n,k)
+        sc(:,-1,1) = sx(:,idel-1,jdel+1,n,k)
+        sc(:,0,1)  = sx(:,idel,  jdel+1,n,k)
+        sc(:,1,1)  = sx(:,idel+1,jdel+1,n,k)
+        sc(:,2,1)  = sx(:,idel+2,jdel+1,n,k)
+        sc(:,0,2)  = sx(:,idel,  jdel+2,n,k)
+        sc(:,1,2)  = sx(:,idel+1,jdel+2,n,k)
+        
+        ncount=count(sc(1,:,:)>cxx)
+        if (ncount>=12) then
+          ! bi-cubic interpolation
+          r(:,1) = (1.-yyg)*sc(:,-1,0)+yyg*sc(:,-1,1)
+          r(:,2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(:,0,0)-yyg*sc(:,0,-1)/3.) &
+                 -yyg*(1.+yyg)*sc(:,0,2)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(:,0,1))/2.
+          r(:,3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(:,1,0)-yyg*sc(:,1,-1)/3.) &
+                 -yyg*(1.+yyg)*sc(:,1,2)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(:,1,1))/2.
+          r(:,4) = (1.-yyg)*sc(:,2,0) +yyg*sc(:,2,1)
+          s(iq,k,:) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*r(:,2)-xxg*r(:,1)/3.)     &
+               -xxg*(1.+xxg)*r(:,4)/3.)+xxg*(1.+xxg)*(2.-xxg)*r(:,3))/2.
+        else
+          ! bi-linear interpolation
+          where (sc(:,0:1,0:1)<=cxx)
+            sc(:,0:1,0:1)=0.
+          end where      
+          aad(:)=sc(:,1,1)-sc(:,0,1)-sc(:,1,0)+sc(:,0,0)
+          aab(:)=sc(:,1,0)-sc(:,0,0)
+          aac(:)=sc(:,0,1)-sc(:,0,0)
+          s(iq,k,:)=aab(:)*xxg+aac(:)*yyg+aad(:)*xxg*yyg+sc(:,0,0)
+        end if
+      end if
+    end do
+  end do
+
+endif                     ! (intsch==1) .. else ..
+!========================   end of intsch=1 section ====================
+
+call intssync_recv(s)
+
+do iq=1,ifull
+  if (.not.wtr(iq)) then
+    s(iq,:,:)=0.
+  end if
+end do
+
+do k=1,wlev
+  x3d(:,k) = x - 0.5*(uc(:,k)+s(1:ifull,k,1)) ! n+1 guess
+  y3d(:,k) = y - 0.5*(vc(:,k)+s(1:ifull,k,2)) ! n+1 guess
+  z3d(:,k) = z - 0.5*(wc(:,k)+s(1:ifull,k,3)) ! n+1 guess
+end do
+call mlotoij5(x3d,y3d,z3d,nface,xg,yg)
+!     Share off processor departure points.
+call deptsync(nface,xg,yg)
 
 return
 end subroutine mlodeps
@@ -1646,7 +2212,7 @@ end subroutine mlotoij5
 
 ! This version is for velocity as the interpolated value is zero over land
 ! We use bi-cubic based on JLM's ints.f routines
-subroutine mlob2ints(s,nface,xg,yg,wtr,bilinear)
+subroutine mlob2ints(s,nface,xg,yg,wtr)
 
 use cc_mpi
 use indices_m
@@ -1670,15 +2236,7 @@ real, dimension(size(s,3),4) :: r
 real, dimension(size(s,3)) :: aab,aac,aad
 real xxg,yyg
 real, parameter :: cxx = -9999. ! missing value flag
-logical, intent(in), optional :: bilinear
 logical, dimension(ifull+iextra), intent(in) :: wtr
-logical :: lmode
-
-if (present(bilinear)) then
-  lmode=.not.bilinear
-else
-  lmode=.true.
-end if
 
 ntr=size(s,3)
 intsch=mod(ktau,2)
@@ -1699,39 +2257,37 @@ if(intsch==1)then
   ! innermost loop and can be vectorised.
 
   do nn=1,ntr
+    sx(nn,1:ipan,1:jpan,1:npan,1:wlev) = reshape( s(1:ipan*jpan*npan,1:wlev,nn), (/ ipan, jpan, npan, wlev /) )
     do k=1,wlev
-      do n=1,npan         ! first simple copy into larger array
+      do n=1,npan
         do j=1,jpan
-          do i=1,ipan
-            sx(nn,i,j,n,k) = s(ind(i,j,n),k,nn)
-          end do
-          sx(nn,0,j,n,k)      = s(iw(ind(1,j,n)),k,nn)
-          sx(nn,-1,j,n,k)     = s(iww(ind(1,j,n)),k,nn)
-          sx(nn,ipan+1,j,n,k) = s(ie(ind(ipan,j,n)),k,nn)
-          sx(nn,ipan+2,j,n,k) = s(iee(ind(ipan,j,n)),k,nn)
+          sx(nn,0,j,n,k)      = s( iw(1+(j-1)*ipan+(n-1)*ipan*jpan),k,nn)
+          sx(nn,-1,j,n,k)     = s(iww(1+(j-1)*ipan+(n-1)*ipan*jpan),k,nn)
+          sx(nn,ipan+1,j,n,k) = s( ie(j*ipan+(n-1)*ipan*jpan),      k,nn)
+          sx(nn,ipan+2,j,n,k) = s(iee(j*ipan+(n-1)*ipan*jpan),      k,nn)
         end do
         do i=1,ipan
-          sx(nn,i,0,n,k)      = s(is(ind(i,1,n)),k,nn)
-          sx(nn,i,-1,n,k)     = s(iss(ind(i,1,n)),k,nn)
-          sx(nn,i,jpan+1,n,k) = s(in(ind(i,jpan,n)),k,nn)
-          sx(nn,i,jpan+2,n,k) = s(inn(ind(i,jpan,n)),k,nn)
+          sx(nn,i,0,n,k)      = s( is(i+(n-1)*ipan*jpan), k,nn)
+          sx(nn,i,-1,n,k)     = s(iss(i+(n-1)*ipan*jpan), k,nn)
+          sx(nn,i,jpan+1,n,k) = s( in(i-ipan+n*ipan*jpan),k,nn)
+          sx(nn,i,jpan+2,n,k) = s(inn(i-ipan+n*ipan*jpan),k,nn)
         end do
 !   for ew interpolation, sometimes need (different from ns):
 !       (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
 !     (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
 
         sx(nn,-1,0,n,k)          = s(lwws(n),k,nn)
-        sx(nn,0,0,n,k)           = s(iws(ind(1,1,n)),k,nn)
+        sx(nn,0,0,n,k)           = s(iws(1+(n-1)*ipan*jpan),   k,nn)
         sx(nn,0,-1,n,k)          = s(lwss(n),k,nn)
-        sx(nn,ipan+1,0,n,k)      = s(ies(ind(ipan,1,n)),k,nn)
+        sx(nn,ipan+1,0,n,k)      = s(ies(ipan+(n-1)*ipan*jpan),k,nn)
         sx(nn,ipan+2,0,n,k)      = s(lees(n),k,nn)
         sx(nn,ipan+1,-1,n,k)     = s(less(n),k,nn)
         sx(nn,-1,jpan+1,n,k)     = s(lwwn(n),k,nn)
         sx(nn,0,jpan+2,n,k)      = s(lwnn(n),k,nn)
         sx(nn,ipan+2,jpan+1,n,k) = s(leen(n),k,nn)
         sx(nn,ipan+1,jpan+2,n,k) = s(lenn(n),k,nn)
-        sx(nn,0,jpan+1,n,k)      = s(iwn(ind(1,jpan,n)),k,nn)
-        sx(nn,ipan+1,jpan+1,n,k) = s(ien(ind(ipan,jpan,n)),k,nn)
+        sx(nn,0,jpan+1,n,k)      = s(iwn(1-ipan+n*ipan*jpan),  k,nn)
+        sx(nn,ipan+1,jpan+1,n,k) = s(ien(n*ipan*jpan),         k,nn)
         !sx(nn,-1,0,n,k)          = s(iww(ind(1,1,n)),k,nn)
         !sx(nn,0,0,n,k)           = 0.5*(s(iw(ind(1,1,n)),k,nn)+s(is(ind(1,1,n)),k,nn))
         !sx(nn,0,-1,n,k)          = s(iss(ind(1,1,n)),k,nn)
@@ -1781,7 +2337,7 @@ if(intsch==1)then
       sc(:,1,2) = sx(:,idel+1,jdel+2,n,k)
 
       ncount=count(sc(1,:,:)>cxx)
-      if (ncount>=12.and.lmode) then
+      if (ncount>=12) then
         ! bi-cubic interpolation
         r(:,1) = (1.-xxg)*sc(:,0,-1)+xxg*sc(:,1,-1)
         r(:,2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(:,0,0)-xxg*sc(:,-1,0)/3.)     &
@@ -1844,7 +2400,7 @@ if(intsch==1)then
         sc(:,1,2) = sx(:,idel+1,jdel+2,n,k)
 
         ncount=count(sc(1,:,:)>cxx)
-        if (ncount>=12.and.lmode) then
+        if (ncount>=12) then
           ! bi-cubic interpolation
           r(:,1) = (1.-xxg)*sc(:,0,-1)+xxg*sc(:,1,-1)
           r(:,2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(:,0,0)-xxg*sc(:,-1,0)/3.) &
@@ -1853,10 +2409,8 @@ if(intsch==1)then
                -xxg*(1.+xxg)*sc(:,2,1)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(:,1,1))/2.
           r(:,4) = (1.-xxg)*sc(:,0,2) +xxg*sc(:,1,2)
 
-          s(iq,k,:) = ((1.-yyg)*((2.-yyg)*         &
-               ((1.+yyg)*r(:,2)-yyg*r(:,1)/3.)     &
-               -yyg*(1.+yyg)*r(:,4)/3.)            &
-               +yyg*(1.+yyg)*(2.-yyg)*r(:,3))/2.
+          s(iq,k,:) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*r(:,2)-yyg*r(:,1)/3.)     &
+               -yyg*(1.+yyg)*r(:,4)/3.)+yyg*(1.+yyg)*(2.-yyg)*r(:,3))/2.
         else
           ! bi-linear interpolation along coastline
           where (sc(:,0:1,0:1)<=cxx)
@@ -1878,39 +2432,37 @@ else     ! if(intsch==1)then
 !       first extend s arrays into sx - this one -1:il+2 & -1:il+2
 
   do nn=1,ntr
+    sx(nn,1:ipan,1:jpan,1:npan,1:wlev) = reshape( s(1:ipan*jpan*npan,1:wlev,nn), (/ ipan, jpan, npan, wlev /) )
     do k=1,wlev
-      do n=1,npan         ! first simple copy into larger array
-        do j=1,jpan
-          do i=1,ipan
-            sx(nn,i,j,n,k) = s(ind(i,j,n),k,nn)
-          end do         ! i loop
-          sx(nn,0,j,n,k)      = s(iw(ind(1,j,n)),k,nn)
-          sx(nn,-1,j,n,k)     = s(iww(ind(1,j,n)),k,nn)
-          sx(nn,ipan+1,j,n,k) = s(ie(ind(ipan,j,n)),k,nn)
-          sx(nn,ipan+2,j,n,k) = s(iee(ind(ipan,j,n)),k,nn)
+      do n=1,npan
+        do j=1,ipan
+          sx(nn,0,j,n,k)      = s( iw(1+(j-1)*ipan+(n-1)*ipan*jpan),k,nn)
+          sx(nn,-1,j,n,k)     = s(iww(1+(j-1)*ipan+(n-1)*ipan*jpan),k,nn)
+          sx(nn,ipan+1,j,n,k) = s( ie(j*ipan+(n-1)*ipan*jpan),      k,nn)
+          sx(nn,ipan+2,j,n,k) = s(iee(j*ipan+(n-1)*ipan*jpan),      k,nn)
         end do            ! j loop
         do i=1,ipan
-          sx(nn,i,0,n,k)      = s(is(ind(i,1,n)),k,nn)
-          sx(nn,i,-1,n,k)     = s(iss(ind(i,1,n)),k,nn)
-          sx(nn,i,jpan+1,n,k) = s(in(ind(i,jpan,n)),k,nn)
-          sx(nn,i,jpan+2,n,k) = s(inn(ind(i,jpan,n)),k,nn)
+          sx(nn,i,0,n,k)      = s( is(i+(n-1)*ipan*jpan), k,nn)
+          sx(nn,i,-1,n,k)     = s(iss(i+(n-1)*ipan*jpan), k,nn)
+          sx(nn,i,jpan+1,n,k) = s( in(i-ipan+n*ipan*jpan),k,nn)
+          sx(nn,i,jpan+2,n,k) = s(inn(i-ipan+n*ipan*jpan),k,nn)
         end do            ! i loop
 !        for ns interpolation, sometimes need (different from ew):
 !            (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
 !          (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
 
         sx(nn,-1,0,n,k)          = s(lsww(n),k,nn)
-        sx(nn,0,0,n,k)           = s(isw(ind(1,1,n)),k,nn)
+        sx(nn,0,0,n,k)           = s(isw(1+(n-1)*ipan*jpan),   k,nn)
         sx(nn,0,-1,n,k)          = s(lssw(n),k,nn)
         sx(nn,ipan+2,0,n,k)      = s(lsee(n),k,nn)
         sx(nn,ipan+1,-1,n,k)     = s(lsse(n),k,nn)
         sx(nn,-1,jpan+1,n,k)     = s(lnww(n),k,nn)
-        sx(nn,0,jpan+1,n,k)      = s(inw(ind(1,jpan,n)),k,nn)
+        sx(nn,0,jpan+1,n,k)      = s(inw(1-ipan+n*ipan*jpan),  k,nn)
         sx(nn,0,jpan+2,n,k)      = s(lnnw(n),k,nn)
         sx(nn,ipan+2,jpan+1,n,k) = s(lnee(n),k,nn)
         sx(nn,ipan+1,jpan+2,n,k) = s(lnne(n),k,nn)
-        sx(nn,ipan+1,0,n,k)      = s(ise(ind(ipan,1,n)),k,nn)
-        sx(nn,ipan+1,jpan+1,n,k) = s(ine(ind(ipan,jpan,n)),k,nn)
+        sx(nn,ipan+1,0,n,k)      = s(ise(ipan+(n-1)*ipan*jpan),k,nn)
+        sx(nn,ipan+1,jpan+1,n,k) = s(ine(n*ipan*jpan),         k,nn)
       end do               ! n loop
     end do                 ! k loop
   end do                   ! nn loop
@@ -1948,7 +2500,7 @@ else     ! if(intsch==1)then
       sc(:,1,2)  = sx(:,idel+1,jdel+2,n,k)
 
       ncount=count(sc(1,:,:)>cxx)
-      if (ncount>=12.and.lmode) then
+      if (ncount>=12) then
         ! bi-cubic interpolation
         r(:,1) = (1.-yyg)*sc(:,-1,0)+yyg*sc(:,-1,1)
         r(:,2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(:,0,0)-yyg*sc(:,0,-1)/3.) &
@@ -2009,7 +2561,7 @@ else     ! if(intsch==1)then
         sc(:,1,2)  = sx(:,idel+1,jdel+2,n,k)
         
         ncount=count(sc(1,:,:)>cxx)
-        if (ncount>=12.and.lmode) then
+        if (ncount>=12) then
           ! bi-cubic interpolation
           r(:,1) = (1.-yyg)*sc(:,-1,0)+yyg*sc(:,-1,1)
           r(:,2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(:,0,0)-yyg*sc(:,0,-1)/3.) &
@@ -2018,10 +2570,8 @@ else     ! if(intsch==1)then
                  -yyg*(1.+yyg)*sc(:,1,2)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(:,1,1))/2.
           r(:,4) = (1.-yyg)*sc(:,2,0) +yyg*sc(:,2,1)
 
-          s(iq,k,:) = ((1.-xxg)*((2.-xxg)*         &
-               ((1.+xxg)*r(:,2)-xxg*r(:,1)/3.)     &
-               -xxg*(1.+xxg)*r(:,4)/3.)            &
-               +xxg*(1.+xxg)*(2.-xxg)*r(:,3))/2.
+          s(iq,k,:) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*r(:,2)-xxg*r(:,1)/3.)     &
+               -xxg*(1.+xxg)*r(:,4)/3.)+xxg*(1.+xxg)*(2.-xxg)*r(:,3))/2.
         else
           ! bi-linear interpolation
           where (sc(:,0:1,0:1)<=cxx)
@@ -2053,7 +2603,7 @@ end subroutine mlob2ints
 ! This version is for scalars which is same as above, but
 ! missing land values are filled from non-trivial values
 ! instead of being set to zero
-subroutine mlob2intsb(s,nface,xg,yg,wtr,bilinear)
+subroutine mlob2intsb(s,nface,xg,yg,wtr)
 
 use cc_mpi
 use indices_m
@@ -2078,12 +2628,7 @@ real, dimension(size(s,3),4) :: r
 real, dimension(size(s,3)) :: aab,aac,aad,cmax,cmin,sans
 real xxg,yyg
 real, parameter :: cxx = -9999. ! missing value flag
-logical, intent(in), optional :: bilinear
 logical, dimension(ifull+iextra), intent(in) :: wtr
-logical :: lmode
-
-lmode=.true.
-if (present(bilinear)) lmode=.not.bilinear
 
 ntr=size(s,3)
 intsch=mod(ktau,2)
@@ -2102,39 +2647,37 @@ call bounds(s,nrows=2)
 if(intsch==1)then
 
   do nn=1,ntr
+    sx(nn,1:ipan,1:jpan,1:npan,1:wlev) = reshape( s(1:ipan*jpan*npan,1:wlev,nn), (/ ipan, jpan, npan, wlev /) )
     do k=1,wlev
-      do n=1,npan         ! first simple copy into larger array
+      do n=1,npan
         do j=1,jpan
-          do i=1,ipan
-            sx(nn,i,j,n,k) = s(ind(i,j,n),k,nn)
-          end do         ! i loop
-          sx(nn,0,j,n,k)      = s(iw(ind(1,j,n)),k,nn)
-          sx(nn,-1,j,n,k)     = s(iww(ind(1,j,n)),k,nn)
-          sx(nn,ipan+1,j,n,k) = s(ie(ind(ipan,j,n)),k,nn)
-          sx(nn,ipan+2,j,n,k) = s(iee(ind(ipan,j,n)),k,nn)
+          sx(nn,0,j,n,k)      = s( iw(1+(j-1)*ipan+(n-1)*ipan*jpan),k,nn)
+          sx(nn,-1,j,n,k)     = s(iww(1+(j-1)*ipan+(n-1)*ipan*jpan),k,nn)
+          sx(nn,ipan+1,j,n,k) = s( ie(j*ipan+(n-1)*ipan*jpan),      k,nn)
+          sx(nn,ipan+2,j,n,k) = s(iee(j*ipan+(n-1)*ipan*jpan),      k,nn)
         end do            ! j loop
         do i=1,ipan
-          sx(nn,i,0,n,k)      = s(is(ind(i,1,n)),k,nn)
-          sx(nn,i,-1,n,k)     = s(iss(ind(i,1,n)),k,nn)
-          sx(nn,i,jpan+1,n,k) = s(in(ind(i,jpan,n)),k,nn)
-          sx(nn,i,jpan+2,n,k) = s(inn(ind(i,jpan,n)),k,nn)
+          sx(nn,i,0,n,k)      = s( is(i+(n-1)*ipan*jpan), k,nn)
+          sx(nn,i,-1,n,k)     = s(iss(i+(n-1)*ipan*jpan), k,nn)
+          sx(nn,i,jpan+1,n,k) = s( in(i-ipan+n*ipan*jpan),k,nn)
+          sx(nn,i,jpan+2,n,k) = s(inn(i-ipan+n*ipan*jpan),k,nn)
         end do            ! i loop
 !   for ew interpolation, sometimes need (different from ns):
 !       (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
 !     (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
 
         sx(nn,-1,0,n,k)          = s(lwws(n),k,nn)
-        sx(nn,0,0,n,k)           = s(iws(ind(1,1,n)),k,nn)
+        sx(nn,0,0,n,k)           = s(iws(1+(n-1)*ipan*jpan),   k,nn)
         sx(nn,0,-1,n,k)          = s(lwss(n),k,nn)
-        sx(nn,ipan+1,0,n,k)      = s(ies(ind(ipan,1,n)),k,nn)
+        sx(nn,ipan+1,0,n,k)      = s(ies(ipan+(n-1)*ipan*jpan),k,nn)
         sx(nn,ipan+2,0,n,k)      = s(lees(n),k,nn)
         sx(nn,ipan+1,-1,n,k)     = s(less(n),k,nn)
         sx(nn,-1,jpan+1,n,k)     = s(lwwn(n),k,nn)
         sx(nn,0,jpan+2,n,k)      = s(lwnn(n),k,nn)
         sx(nn,ipan+2,jpan+1,n,k) = s(leen(n),k,nn)
         sx(nn,ipan+1,jpan+2,n,k) = s(lenn(n),k,nn)
-        sx(nn,0,jpan+1,n,k)      = s(iwn(ind(1,jpan,n)),k,nn)
-        sx(nn,ipan+1,jpan+1,n,k) = s(ien(ind(ipan,jpan,n)),k,nn)
+        sx(nn,0,jpan+1,n,k)      = s(iwn(1-ipan+n*ipan*jpan),  k,nn)
+        sx(nn,ipan+1,jpan+1,n,k) = s(ien(n*ipan*jpan),         k,nn)
       end do               ! n loop
     end do                 ! k loop
   end do                   ! nn loop
@@ -2172,7 +2715,7 @@ if(intsch==1)then
       sc(:,1,2) = sx(:,idel+1,jdel+2,n,k)
 
       ncount=count(sc(1,:,:)>cxx)
-      if (ncount>=12.and.lmode) then
+      if (ncount>=12) then
         ! bi-cubic interpolation
         r(:,1) = (1.-xxg)*sc(:,0,-1)+xxg*sc(:,1,-1)
         r(:,2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(:,0,0)-xxg*sc(:,-1,0)/3.) &
@@ -2181,10 +2724,8 @@ if(intsch==1)then
              -xxg*(1.+xxg)*sc(:,2,1)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(:,1,1))/2.
         r(:,4) = (1.-xxg)*sc(:,0,2) +xxg*sc(:,1,2)
 
-        sans(:) = ((1.-yyg)*((2.-yyg)*                           &
-             ((1.+yyg)*r(:,2)-yyg*r(:,1)/3.)                     &
-             -yyg*(1.+yyg)*r(:,4)/3.)                            &
-             +yyg*(1.+yyg)*(2.-yyg)*r(:,3))/2.
+        sans(:) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*r(:,2)-yyg*r(:,1)/3.)       &
+             -yyg*(1.+yyg)*r(:,4)/3.)+yyg*(1.+yyg)*(2.-yyg)*r(:,3))/2.
       else
         ! bi-linear interpolation
         call lfill(sc,cxx)
@@ -2235,7 +2776,7 @@ if(intsch==1)then
         sc(:,1,2) = sx(:,idel+1,jdel+2,n,k)
 
         ncount=count(sc(1,:,:)>cxx)
-        if (ncount>=12.and.lmode) then
+        if (ncount>=12) then
           ! bi-cubic interpolation
           r(:,1) = (1.-xxg)*sc(:,0,-1)+xxg*sc(:,1,-1)
           r(:,2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(:,0,0)-xxg*sc(:,-1,0)/3.) &
@@ -2244,10 +2785,8 @@ if(intsch==1)then
                -xxg*(1.+xxg)*sc(:,2,1)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(:,1,1))/2.
           r(:,4) = (1.-xxg)*sc(:,0,2) +xxg*sc(:,1,2)
 
-          sans(:) = ((1.-yyg)*((2.-yyg)*                 &
-               ((1.+yyg)*r(:,2)-yyg*r(:,1)/3.)           &
-               -yyg*(1.+yyg)*r(:,4)/3.)                  &
-               +yyg*(1.+yyg)*(2.-yyg)*r(:,3))/2.
+          sans(:) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*r(:,2)-yyg*r(:,1)/3.)       &
+               -yyg*(1.+yyg)*r(:,4)/3.)+yyg*(1.+yyg)*(2.-yyg)*r(:,3))/2.
         else
           ! bi-linear interpolation
           call lfill(sc,cxx)
@@ -2270,39 +2809,37 @@ else     ! if(intsch==1)then
 !       first extend s arrays into sx - this one -1:il+2 & -1:il+2
 
   do nn=1,ntr
+    sx(nn,1:ipan,1:jpan,1:npan,1:wlev) = reshape( s(1:ipan*jpan*npan,1:wlev,nn), (/ ipan, jpan, npan, wlev /) )
     do k=1,wlev
-      do n=1,npan         ! first simple copy into larger array
+      do n=1,npan
         do j=1,jpan
-          do i=1,ipan
-            sx(nn,i,j,n,k) = s(ind(i,j,n),k,nn)
-          end do         ! i loop
-          sx(nn,0,j,n,k)      = s(iw(ind(1,j,n)),k,nn)
-          sx(nn,-1,j,n,k)     = s(iww(ind(1,j,n)),k,nn)
-          sx(nn,ipan+1,j,n,k) = s(ie(ind(ipan,j,n)),k,nn)
-          sx(nn,ipan+2,j,n,k) = s(iee(ind(ipan,j,n)),k,nn)
+          sx(nn,0,j,n,k)      = s( iw(1+(j-1)*ipan+(n-1)*ipan*jpan),k,nn)
+          sx(nn,-1,j,n,k)     = s(iww(1+(j-1)*ipan+(n-1)*ipan*jpan),k,nn)
+          sx(nn,ipan+1,j,n,k) = s( ie(j*ipan+(n-1)*ipan*jpan),      k,nn)
+          sx(nn,ipan+2,j,n,k) = s(iee(j*ipan+(n-1)*ipan*jpan),      k,nn)
         end do            ! j loop
         do i=1,ipan
-          sx(nn,i,0,n,k)      = s(is(ind(i,1,n)),k,nn)
-          sx(nn,i,-1,n,k)     = s(iss(ind(i,1,n)),k,nn)
-          sx(nn,i,jpan+1,n,k) = s(in(ind(i,jpan,n)),k,nn)
-          sx(nn,i,jpan+2,n,k) = s(inn(ind(i,jpan,n)),k,nn)
+          sx(nn,i,0,n,k)      = s( is(i+(n-1)*ipan*jpan), k,nn)
+          sx(nn,i,-1,n,k)     = s(iss(i+(n-1)*ipan*jpan), k,nn)
+          sx(nn,i,jpan+1,n,k) = s( in(i-ipan+n*ipan*jpan),k,nn)
+          sx(nn,i,jpan+2,n,k) = s(inn(i-ipan+n*ipan*jpan),k,nn)
         end do            ! i loop
 !        for ns interpolation, sometimes need (different from ew):
 !            (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
 !          (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
 
         sx(nn,-1,0,n,k)          = s(lsww(n),k,nn)
-        sx(nn,0,0,n,k)           = s(isw(ind(1,1,n)),k,nn)
+        sx(nn,0,0,n,k)           = s(isw(1+(n-1)*ipan*jpan),   k,nn)
         sx(nn,0,-1,n,k)          = s(lssw(n),k,nn)
         sx(nn,ipan+2,0,n,k)      = s(lsee(n),k,nn)
         sx(nn,ipan+1,-1,n,k)     = s(lsse(n),k,nn)
         sx(nn,-1,jpan+1,n,k)     = s(lnww(n),k,nn)
-        sx(nn,0,jpan+1,n,k)      = s(inw(ind(1,jpan,n)),k,nn)
+        sx(nn,0,jpan+1,n,k)      = s(inw(1-ipan+n*ipan*jpan),  k,nn)
         sx(nn,0,jpan+2,n,k)      = s(lnnw(n),k,nn)
         sx(nn,ipan+2,jpan+1,n,k) = s(lnee(n),k,nn)
         sx(nn,ipan+1,jpan+2,n,k) = s(lnne(n),k,nn)
-        sx(nn,ipan+1,0,n,k)      = s(ise(ind(ipan,1,n)),k,nn)
-        sx(nn,ipan+1,jpan+1,n,k) = s(ine(ind(ipan,jpan,n)),k,nn)
+        sx(nn,ipan+1,0,n,k)      = s(ise(ipan+(n-1)*ipan*jpan),k,nn)
+        sx(nn,ipan+1,jpan+1,n,k) = s(ine(n*ipan*jpan),         k,nn)
       end do               ! n loop
     end do                 ! k loop
   end do                   ! nn loop
@@ -2340,7 +2877,7 @@ else     ! if(intsch==1)then
       sc(:,1,2)  = sx(:,idel+1,jdel+2,n,k)
 
       ncount=count(sc(1,:,:)>cxx)
-      if (ncount>=12.and.lmode) then
+      if (ncount>=12) then
         ! bi-cubic interpolation
         r(:,1) = (1.-yyg)*sc(:,-1,0) +yyg*sc(:,-1,1)
         r(:,2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(:,0,0)-yyg*sc(:,0,-1)/3.) &
@@ -2348,10 +2885,8 @@ else     ! if(intsch==1)then
         r(:,3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(:,1,0)-yyg*sc(:,1,-1)/3.) &
              -yyg*(1.+yyg)*sc(:,1,2)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(:,1,1))/2.
         r(:,4) = (1.-yyg)*sc(:,2,0) +yyg*sc(:,2,1)
-        sans(:) = ((1.-xxg)*((2.-xxg)*                         &
-                     ((1.+xxg)*r(:,2)-xxg*r(:,1)/3.)           &
-                     -xxg*(1.+xxg)*r(:,4)/3.)                  &
-                     +xxg*(1.+xxg)*(2.-xxg)*r(:,3))/2.
+        sans(:) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*r(:,2)-xxg*r(:,1)/3.)       &
+                  -xxg*(1.+xxg)*r(:,4)/3.)+xxg*(1.+xxg)*(2.-xxg)*r(:,3))/2.
       else
         ! bi-linear interpolation
         call lfill(sc,cxx)
@@ -2402,7 +2937,7 @@ else     ! if(intsch==1)then
         sc(:,1,2)  = sx(:,idel+1,jdel+2,n,k)
         
         ncount=count(sc(1,:,:)>cxx)
-        if (ncount>=12.and.lmode) then
+        if (ncount>=12) then
           ! bi-cubic interpolation
           r(:,1) = (1.-yyg)*sc(:,-1,0)+yyg*sc(:,-1,1)
           r(:,2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(:,0,0)-yyg*sc(:,0,-1)/3.) &
@@ -2411,10 +2946,8 @@ else     ! if(intsch==1)then
                 -yyg*(1.+yyg)*sc(:,1,2)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(:,1,1))/2.
           r(:,4) = (1.-yyg)*sc(:,2,0) +yyg*sc(:,2,1)
 
-          sans(:) = ((1.-xxg)*((2.-xxg)*              &
-               ((1.+xxg)*r(:,2)-xxg*r(:,1)/3.)        &
-               -xxg*(1.+xxg)*r(:,4)/3.)               &
-               +xxg*(1.+xxg)*(2.-xxg)*r(:,3))/2.
+          sans(:) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*r(:,2)-xxg*r(:,1)/3.)       &
+               -xxg*(1.+xxg)*r(:,4)/3.)+xxg*(1.+xxg)*(2.-xxg)*r(:,3))/2.
         else
           ! bi-linear interpolation
           call lfill(sc,cxx)

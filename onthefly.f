@@ -1381,7 +1381,7 @@ c***        but needed here for onthefly (different dims) 28/8/08
                 vname='seasalt2'
               case default
                 write(6,*) "ERROR: Unknown aerosol type ",i
-                stop
+                call ccmpi_abort(-1)
             end select
             call gethist4s(iarchi,vname,ik,kk,dum,iotest,
      &                     nface4,xg4,yg4,nord,sigin,5)
@@ -1660,13 +1660,8 @@ c     doing x-interpolation before y-interpolation
 
 c     this is intsb           EW interps done first
 c     first extend s arrays into sx - this one -1:il+2 & -1:il+2
-      do n=0,npanels
-       do j=1,ik
-        do i=1,ik
-         sx(i,j,n)=s(indx(i,j,n,ik,ik))
-        enddo  ! i loop
-       enddo   ! j loop
-      enddo    ! n loop
+      sx(1:ik,1:ik,0:npanels) = reshape(
+     &  s(1:ik*ik*6), (/ik,ik,6/))
       do n=0,npanels,2
        n_w=mod(n+5,6)
        n_e=mod(n+2,6)
@@ -1792,13 +1787,8 @@ c     this one does bi-linear interpolation only
 
 c     first extend s arrays into sx - this one -1:il+2 & -1:il+2
 c                    but for bi-linear only need 0:il+1 &  0:il+1
-      do n=0,npanels
-       do j=1,ik
-        do i=1,ik
-         sx(i,j,n)=s(indx(i,j,n,ik,ik))
-        enddo  ! i loop
-       enddo   ! j loop
-      enddo    ! n loop
+      sx(1:ik,1:ik,0:npanels) = reshape(
+     &  s(1:ik*ik*6), (/ik,ik,6/))
       do n=0,npanels,2
        n_w=mod(n+5,6)
        n_e=mod(n+2,6)
@@ -1888,9 +1878,7 @@ c     routine fills in interior of an array which has undefined points
       
       if (ik/=oldik) then
        oldik=ik
-       if (allocated(ic)) then
-         deallocate(ic)
-       end if
+       if (allocated(ic)) deallocate(ic)
        allocate(ic(4,ik*ik*6))
        do iq=1,ik*ik*6
         ic(1,iq)=iq+ik

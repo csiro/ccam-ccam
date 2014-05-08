@@ -103,19 +103,19 @@ integer iarchi,ier,ik,ifull
 character(len=*) name
 real, dimension(:), intent(inout) :: var ! may be dummy argument from myid/=0
 
-if (ifull/=6*ik*ik.and.ptest) then
+if ( ifull/=6*ik*ik .and. ptest ) then
   ! read local arrays without gather and distribute
   call hr1p(iarchi,ier,name,.true.,var)
-  if (ier==0.and.mod(ktau,nmaxpr)==0.and.myid==0) then
+  if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then
     write(6,'("done histrd1 ",a8,i4,i3)') name,ier,iarchi
   end if
 
-else if (myid==0) then
+else if ( myid==0 ) then
   ! split up processors to save memory.  No need to allocate global
   ! arrays on myid/=0.
   call hr1a(iarchi,ier,name,ik,var,ifull)
 
-else if (ifull/=6*ik*ik) then
+else if ( ifull/=6*ik*ik ) then
   ! read local arrays with gather and distribute
   call hr1p(iarchi,ier,name,.false.)
   call ccmpi_distribute(var)
@@ -139,22 +139,22 @@ implicit none
       
 include 'parm.h'
       
-integer, intent(in) :: iarchi,ik,ifull
+integer, intent(in) :: iarchi, ik, ifull
 integer, intent(out) :: ier
 character(len=*), intent(in) :: name
 real, dimension(:), intent(inout) :: var
 real, dimension(6*ik*ik) :: globvar
-real vmax,vmin
+real vmax, vmin
 
 call hr1p(iarchi,ier,name,.false.,globvar)
 
-if(ier==0.and.mod(ktau,nmaxpr)==0)then
+if ( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
   vmax = maxval(globvar)
   vmin = minval(globvar)
   write(6,'("done histrd1 ",a8,i4,i3,3e14.6)') name,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*ik)
 end if
 
-if (ifull==6*ik*ik) then
+if ( ifull==6*ik*ik ) then
   ! read global arrays for myid==0
   var(1:ifull)=globvar(:)
 else
@@ -853,34 +853,34 @@ include 'parm.h'
 integer, intent(in) :: kk,n
 integer klapse,k,kin,iq
 integer, dimension(kl) :: ka,kb
-real, dimension(ifull,kl), intent(out) :: t
+real, dimension(:,:), intent(out) :: t
 real, dimension(ifull,kk), intent(in) :: told
 real, dimension(kk), intent(in) :: sigin
 real, dimension(kl) :: wta,wtb
       
 if (kk==kl) then
   if (all(abs(sig-sigin)<0.0001)) then
-     t=told
+     t(1:ifull,1:kl)=told(:,:)
      return
    end if
 end if
       
 klapse=0
 do k=1,kl
-  if(sig(k)>=sigin(1))then
+  if ( sig(k)>=sigin(1) ) then
     ka(k)=2
     kb(k)=1
     wta(k)=0.
     wtb(k)=1.
     klapse=k   ! i.e. T lapse correction for k<=klapse
-  elseif(sig(k)<=sigin(kk))then   ! at top
+  else if ( sig(k)<=sigin(kk) ) then   ! at top
     ka(k)=kk
     kb(k)=kk-1
     wta(k)=1.
     wtb(k)=0.
   else
     do kin=2,kk-1
-      if(sig(k)>sigin(kin)) exit
+      if ( sig(k)>sigin(kin) ) exit
     enddo     ! kin loop
     ka(k)=kin
     kb(k)=kin-1
@@ -888,7 +888,8 @@ do k=1,kl
     wtb(k)=(sig(k)-sigin(kin)  )/(sigin(kin-1)-sigin(kin))
   endif  !  (sig(k)>=sigin(1)) ... ...
 enddo   !  k loop
-if (myid==0) then
+#ifdef debug
+if ( myid==0 ) then
   write(6,*) 'in vertint kk,kl ',kk,kl
   write(6,"('sigin',10f7.4)") (sigin(k),k=1,kk)
   write(6,"('sig  ',10f7.4)") sig
@@ -897,21 +898,22 @@ if (myid==0) then
   write(6,"('wta',10f7.4)") wta
   write(6,"('wtb',10f7.4)") wtb
 endif   !  (myid==0)
+#endif
 
 do k=1,kl
   ! N.B. "a" denotes "above", "b" denotes "below"
-  t(:,k)=wta(k)*told(:,ka(k))+wtb(k)*told(:,kb(k))
+  t(1:ifull,k)=wta(k)*told(:,ka(k))+wtb(k)*told(:,kb(k))
 enddo    ! k loop
 
-if(n==1.and.klapse/=0)then  ! for T lapse correction
+if ( n==1 .and. klapse/=0 ) then  ! for T lapse correction
   do k=1,klapse
     ! assume 6.5 deg/km, with dsig=.1 corresponding to 1 km
-    t(:,k)=t(:,k)+(sig(k)-sigin(1))*6.5/.1
+    t(1:ifull,k)=t(1:ifull,k)+(sig(k)-sigin(1))*6.5/.1
   enddo    ! k loop
-else if (n==2)then  ! for qg do a -ve fix
-  t(:,:)=max(t(:,:),1.e-6)
-else if (n==5)then  ! for qfg, qlg do a -ve fix
-  t(:,:)=max(t(:,:),0.)
+else if ( n==2 ) then  ! for qg do a -ve fix
+  t(1:ifull,:)=max(t(1:ifull,:),1.e-6)
+else if ( n==5 ) then  ! for qfg, qlg do a -ve fix
+  t(1:ifull,:)=max(t(1:ifull,:),0.)
 endif
       
 return

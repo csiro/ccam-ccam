@@ -4146,16 +4146,14 @@ contains
 !     In this case the length of each buffer is unknown and will not
 !     be symmetric between processors. Therefore need to get the length
 !     from the message status
-      nreq = 0
       do iproc = 1,neighnum
          lproc = neighlist(iproc)  ! Recv from
-         nreq = nreq + 1
-         rlist(nreq) = iproc
          ! Use the maximum size in the recv call.
          llen = 4*bnds(lproc)%len/nagg
          call MPI_IRecv( dpoints(iproc)%a, llen, ltype, lproc, &
-                      itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+                      itag, MPI_COMM_WORLD, ireq(iproc), ierr )
       end do
+      nreq = neighnum
       
       ! Calculate request list
       do k=1,kx
@@ -4227,9 +4225,8 @@ contains
          rcount = rcount - ldone
          do jproc = 1,ldone
 !           Now get the actual sizes from the status
-            iproc = rlist(donelist(jproc))  ! Recv from
             call MPI_Get_count(status(:,jproc), ltype, ncount, ierr)
-            drlen(iproc) = ncount/4
+            drlen(donelist(jproc)) = ncount/4
          end do
       end do
 
@@ -4247,7 +4244,6 @@ contains
       integer, intent(in) :: ntr
       integer :: iproc
       integer(kind=4) :: itag = 98, ierr, llen, lproc
-      integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -4264,18 +4260,22 @@ contains
             rlist(nreq) = iproc
             llen = dslen(iproc)*ntr
             lproc = neighlist(iproc)  ! Recv from
-            call MPI_IRecv( dbuf(iproc)%b, llen, ltype, lproc, &
-                            itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+            call MPI_IRecv( dbuf(iproc)%b, llen, ltype, lproc, itag, &
+                            MPI_COMM_WORLD, ireq(nreq), ierr )
          end if
       end do
+      ! MJT notes - we could further split this subroutine into two subroutines,
+      ! so that work can be done between the IRecv and ISend.  However, it is
+      ! not clear if there is enough work to ensure IRecv are posted early given
+      ! the load imbalance arising from the physics.
       rreq = nreq
       do iproc = neighnum,1,-1
          if ( drlen(iproc) > 0 ) then
             nreq = nreq + 1
             llen = drlen(iproc)*ntr
             lproc = neighlist(iproc)  ! Send to
-            call MPI_ISend( sextra(iproc)%a, llen, ltype, lproc, & 
-                 itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+            call MPI_ISend( sextra(iproc)%a, llen, ltype, lproc, itag, & 
+                            MPI_COMM_WORLD, ireq(nreq), ierr )
          end if
       end do
       
@@ -8345,6 +8345,7 @@ contains
    end subroutine indv_mpix
 
    function indx(i,j,n,il,jl) result(iq)
+      ! more general version of ind function
 
       integer, intent(in) :: i, j, n, il, jl
       integer iq

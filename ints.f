@@ -40,28 +40,28 @@ c     doing x-interpolation before y-interpolation
       if(intsch==1)then
 
         do nn=1,ntr
-          do k=1,kl              ! A single main k loop uses cache better
-
-            do n=1,npan         ! first simple copy into larger array
-              do j=1,jpan
-                do i=1,ipan
-                  sx(nn,i,j,n,k) = s(ind(i,j,n),k,nn)
-                enddo         ! i loop
-              enddo           ! j loop
+          sx(nn,1:ipan,1:jpan,1:npan,1:kl) = reshape(
+     &       s(1:ipan*jpan*npan,1:kl,nn), (/ipan,jpan,npan,kl/))
             
 c       this is intsb           EW interps done first
 c       first extend s arrays into sx - this one -1:il+2 & -1:il+2
+          do k=1,kl
+            do n=1,npan
               do j=1,jpan
-                sx(nn,0,j,n,k)      = s(iw(ind(1,j,n)),k,nn)
-                sx(nn,-1,j,n,k)     = s(iww(ind(1,j,n)),k,nn)
-                sx(nn,ipan+1,j,n,k) = s(ie(ind(ipan,j,n)),k,nn)
-                sx(nn,ipan+2,j,n,k) = s(iee(ind(ipan,j,n)),k,nn)
+                sx(nn,0,j,n,k)      =
+     &            s(iw(1+(j-1)*ipan+(n-1)*ipan*jpan),k,nn)
+                sx(nn,-1,j,n,k)     =
+     &            s(iww(1+(j-1)*ipan+(n-1)*ipan*jpan),k,nn)
+                sx(nn,ipan+1,j,n,k) =
+     &            s(ie(j*ipan+(n-1)*ipan*jpan),k,nn)
+                sx(nn,ipan+2,j,n,k) =
+     &            s(iee(j*ipan+(n-1)*ipan*jpan),k,nn)
               enddo            ! j loop
               do i=1,ipan
-                sx(nn,i,0,n,k)      = s(is(ind(i,1,n)),k,nn)
-                sx(nn,i,-1,n,k)     = s(iss(ind(i,1,n)),k,nn)
-                sx(nn,i,jpan+1,n,k) = s(in(ind(i,jpan,n)),k,nn)
-                sx(nn,i,jpan+2,n,k) = s(inn(ind(i,jpan,n)),k,nn)
+                sx(nn,i,0,n,k)      = s(is(i+(n-1)*ipan*jpan),k,nn)
+                sx(nn,i,-1,n,k)     = s(iss(i+(n-1)*ipan*jpan),k,nn)
+                sx(nn,i,jpan+1,n,k) = s(in(i-ipan+n*ipan*jpan),k,nn)
+                sx(nn,i,jpan+2,n,k) = s(inn(i-ipan+n*ipan*jpan),k,nn)
               enddo            ! i loop
 c        for ew interpolation, sometimes need (different from ns):
 c            (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
@@ -80,17 +80,20 @@ c           (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
 !        sx(nn,il+1,il+1,n)=sx(nn,il+1,il,n)   !  s(ien6(il,il,n))  **
 
               sx(nn,-1,0,n,k)          = s(lwws(n),k,nn)
-              sx(nn,0,0,n,k)           = s(iws(ind(1,1,n)),k,nn)
+              sx(nn,0,0,n,k)           =
+     &          s(iws(1+(n-1)*ipan*jpan),k,nn)
               sx(nn,0,-1,n,k)          = s(lwss(n),k,nn)
-              sx(nn,ipan+1,0,n,k)      = s(ies(ind(ipan,1,n)),k,nn)
+              sx(nn,ipan+1,0,n,k)      =
+     &          s(ies(ipan+(n-1)*ipan*jpan),k,nn)
               sx(nn,ipan+2,0,n,k)      = s(lees(n),k,nn)
               sx(nn,ipan+1,-1,n,k)     = s(less(n),k,nn)
               sx(nn,-1,jpan+1,n,k)     = s(lwwn(n),k,nn)
               sx(nn,0,jpan+2,n,k)      = s(lwnn(n),k,nn)
               sx(nn,ipan+2,jpan+1,n,k) = s(leen(n),k,nn)
               sx(nn,ipan+1,jpan+2,n,k) = s(lenn(n),k,nn)
-              sx(nn,0,jpan+1,n,k)      = s(iwn(ind(1,jpan,n)),k,nn)
-              sx(nn,ipan+1,jpan+1,n,k) = s(ien(ind(ipan,jpan,n)),k,nn)
+              sx(nn,0,jpan+1,n,k)      =
+     &          s(iwn(1-ipan+n*ipan*jpan),k,nn)
+              sx(nn,ipan+1,jpan+1,n,k) = s(ien(n*ipan*jpan),k,nn)
             enddo               ! n loop
           end do                ! k loop
         end do                  ! nn loop
@@ -404,25 +407,26 @@ c                +x*(1+x)*(2-x)*c3}/2
 c       this is intsc           NS interps done first
 c       first extend s arrays into sx - this one -1:il+2 & -1:il+2
         do nn=1,ntr
-          do k=1,kl              ! A single main k loop uses cache better
-            do n=1,npan         ! first simple copy into larger array
-              do j=1,jpan
-                do i=1,ipan
-                  sx(nn,i,j,n,k)=s(ind(i,j,n),k,nn)
-                enddo         ! i loop
-              enddo           ! j loop
+          sx(nn,1:ipan,1:jpan,1:npan,1:kl) = reshape(
+     &      s(1:ipan*jpan*npan,1:kl,nn), (/ipan,jpan,npan,kl/))
 
+          do k=1,kl
+            do n=1,npan
               do j=1,jpan
-                sx(nn,0,j,n,k) = s(iw(ind(1,j,n)),k,nn)
-                sx(nn,-1,j,n,k) = s(iww(ind(1,j,n)),k,nn)
-                sx(nn,ipan+1,j,n,k) = s(ie(ind(ipan,j,n)),k,nn)
-                sx(nn,ipan+2,j,n,k) = s(iee(ind(ipan,j,n)),k,nn)
+                sx(nn,0,j,n,k)      =
+     &            s(iw(1+(j-1)*ipan+(n-1)*ipan*jpan),k,nn)
+                sx(nn,-1,j,n,k)     =
+     &            s(iww(1+(j-1)*ipan+(n-1)*ipan*jpan),k,nn)
+                sx(nn,ipan+1,j,n,k) =
+     &            s(ie(j*ipan+(n-1)*ipan*jpan),k,nn)
+                sx(nn,ipan+2,j,n,k) =
+     &            s(iee(j*ipan+(n-1)*ipan*jpan),k,nn)
               enddo            ! j loop
               do i=1,ipan
-                sx(nn,i,0,n,k) = s(is(ind(i,1,n)),k,nn)
-                sx(nn,i,-1,n,k) = s(iss(ind(i,1,n)),k,nn)
-                sx(nn,i,jpan+1,n,k) = s(in(ind(i,jpan,n)),k,nn)
-                sx(nn,i,jpan+2,n,k) = s(inn(ind(i,jpan,n)),k,nn)
+                sx(nn,i,0,n,k)      = s(is(i+(n-1)*ipan*jpan),k,nn)
+                sx(nn,i,-1,n,k)     = s(iss(i+(n-1)*ipan*jpan),k,nn)
+                sx(nn,i,jpan+1,n,k) = s(in(i-ipan+n*ipan*jpan),k,nn)
+                sx(nn,i,jpan+2,n,k) = s(inn(i-ipan+n*ipan*jpan),k,nn)
               enddo            ! i loop
 c        for ns interpolation, sometimes need (different from ew):
 c            (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
@@ -440,18 +444,21 @@ c          (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
 !        sx(nn,il+1,0,n,k)=sx(nn,il,0,n,k)         !  s(ise6(il,1,n))    **
 !        sx(nn,il+1,il+1,n,k)=sx(nn,il,il+1,n,k)   !  s(ine6(il,il,n))   **
 
-              sx(nn,-1,0,n,k)=s(lsww(n),k,nn)
-              sx(nn,0,0,n,k) = s(isw(ind(1,1,n)),k,nn)
-              sx(nn,0,-1,n,k) = s(lssw(n),k,nn)
-              sx(nn,ipan+2,0,n,k) = s(lsee(n),k,nn)
-              sx(nn,ipan+1,-1,n,k) = s(lsse(n),k,nn)
-              sx(nn,-1,jpan+1,n,k) = s(lnww(n),k,nn)
-              sx(nn,0,jpan+1,n,k) = s(inw(ind(1,jpan,n)),k,nn)
-              sx(nn,0,jpan+2,n,k) = s(lnnw(n),k,nn)
+              sx(nn,-1,0,n,k)          = s(lsww(n),k,nn)
+              sx(nn,0,0,n,k)           =
+     &          s(isw(1+(n-1)*ipan*jpan),k,nn)
+              sx(nn,0,-1,n,k)          = s(lssw(n),k,nn)
+              sx(nn,ipan+2,0,n,k)      = s(lsee(n),k,nn)
+              sx(nn,ipan+1,-1,n,k)     = s(lsse(n),k,nn)
+              sx(nn,-1,jpan+1,n,k)     = s(lnww(n),k,nn)
+              sx(nn,0,jpan+1,n,k)      =
+     &          s(inw(1-ipan+n*ipan*jpan),k,nn)
+              sx(nn,0,jpan+2,n,k)      = s(lnnw(n),k,nn)
               sx(nn,ipan+2,jpan+1,n,k) = s(lnee(n),k,nn)
               sx(nn,ipan+1,jpan+2,n,k) = s(lnne(n),k,nn)
-              sx(nn,ipan+1,0,n,k)    = s(ise(ind(ipan,1,n)),k,nn)
-              sx(nn,ipan+1,jpan+1,n,k) = s(ine(ind(ipan,jpan,n)),k,nn)
+              sx(nn,ipan+1,0,n,k)      =
+     &          s(ise(j*ipan+(n-1)*ipan*jpan),k,nn)
+              sx(nn,ipan+1,jpan+1,n,k) = s(ine(n*ipan*jpan),k,nn)
             enddo               ! n loop
           end do                ! k loop
         end do                  ! nn loop
@@ -794,26 +801,25 @@ c     first extend s arrays into sx - this one -1:il+2 & -1:il+2
 c                    but for bi-linear only need 0:il+1 &  0:il+1
       START_LOG(ints)
       call bounds(s,corner=.true.)
+      sx(1:ipan,1:jpan,1:npan,1:kl) = reshape(
+     &  s(1:ipan*jpan*npan,1:kl,1), (/ipan,jpan,npan,kl/))
       do k=1,kl
          do n=1,npan
             do j=1,jpan
-               do i=1,ipan
-                  sx(i,j,n,k) = s(ind(i,j,n),k,1)
-               enddo            ! i loop
-            enddo               ! j loop
-            do j=1,jpan
-               sx(0,j,n,k) = s(iw(ind(1,j,n)),k,1)
-               sx(ipan+1,j,n,k) = s(ie(ind(ipan,j,n)),k,1)
+               sx(0,j,n,k)      =
+     &           s(iw(1+(j-1)*ipan+(n-1)*ipan*jpan),k,1)
+               sx(ipan+1,j,n,k) =
+     &           s(ie(j*ipan+(n-1)*ipan*jpan),k,1)
             enddo               ! j loop
             do i=1,ipan
-               sx(i,0,n,k) = s(is(ind(i,1,n)),k,1)
-               sx(i,jpan+1,n,k) = s(in(ind(i,jpan,n)),k,1)
+               sx(i,0,n,k)      = s(is(i+(n-1)*ipan*jpan),k,1)
+               sx(i,jpan+1,n,k) = s(in(i-ipan+n*ipan*jpan),k,1)
             enddo               ! i loop
 
-            sx(0,0,n,k) = s(iws(ind(1,1,n)),k,1)
-            sx(ipan+1,0,n,k) = s(ies(ind(ipan,1,n)),k,1)
-            sx(0,jpan+1,n,k)    = s(iwn(ind(1,jpan,n)),k,1)
-            sx(ipan+1,jpan+1,n,k) = s(ien(ind(ipan,jpan,n)),k,1)
+            sx(0,0,n,k)           = s(iws(1+(n-1)*ipan*jpan),k,1)
+            sx(ipan+1,0,n,k)      = s(ies(ipan+(n-1)*ipan*jpan),k,1)
+            sx(0,jpan+1,n,k)      = s(iwn(1-ipan+n*ipan*jpan),k,1)
+            sx(ipan+1,jpan+1,n,k) = s(ien(n*ipan*jpan),k,1)
          enddo                  ! n loop
       enddo                     ! k loop
 
