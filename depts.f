@@ -278,7 +278,7 @@ c     convert to grid point numbering
               sx(nn,ipan+2,jpan+1,n,k) = s(lnee(n),k,nn)
               sx(nn,ipan+1,jpan+2,n,k) = s(lnne(n),k,nn)
               sx(nn,ipan+1,0,n,k)      =
-     &          s(ise(j*ipan+(n-1)*ipan*jpan),k,nn)
+     &          s(ise(ipan+(n-1)*ipan*jpan),k,nn)
               sx(nn,ipan+1,jpan+1,n,k) = s(ine(n*ipan*jpan),k,nn)
             enddo               ! n loop
           end do                ! k loop

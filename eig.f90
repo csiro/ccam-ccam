@@ -595,7 +595,7 @@ else
 ! find any decompositions of the matrix.
     if(k<0) then
       return
-    else if (k==0.or.abs(a(m,k))<=eps) then
+    else if (k==0.or.abs(a(m,max(k,1)))<=eps) then
       ! compute the last eigenvalue.
       evr(m) = a(m,m)
       evi(m) = 0.0
