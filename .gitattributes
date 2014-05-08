@@ -74,6 +74,7 @@
 /raddiag_m.f90 -text
 /radisw_m.f90 -text
 /rdflux_m.f90 -text
+/river.f90 -text
 /savuv1_m.f90 -text
 /savuvt_m.f90 -text
 /sbar_m.f90 -text
