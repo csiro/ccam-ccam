@@ -2288,7 +2288,7 @@ c      "extra" outputs
           ahead(14)=epsp
           nahead(1)=il_g       ! needed by cc2hist
           nahead(2)=jl_g       ! needed by cc2hist
-          nahead(3)=kl         ! needed by cc2hist
+          nahead(3)=1          ! needed by cc2hist (turns off 3D fields)
           nahead(4)=m
           nahead(5)=0          ! nsd not used now
           nahead(6)=io_in
