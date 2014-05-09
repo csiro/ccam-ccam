@@ -88,7 +88,7 @@ integer, intent(in) :: imax
 integer jyear,jmonth,jday,jhour,jmin
 integer k,ksigtop,mins
 integer i,j,iq,istart,iend,kr,nr
-integer swcount,ierr
+integer swcount,ierr,ktop,kbot
 integer, save :: nlow,nmid
 real, dimension(:), allocatable, save :: sgamp
 real, dimension(:,:), allocatable, save :: rtt
@@ -107,7 +107,6 @@ real ttbg,ar1,exp_ar1,ar2,exp_ar2,ar3,snr
 real dnsnow,snrat,dtau,alvo,aliro,fage,cczen,fzen,fzenm
 real alvd,alv,alird,alir
 real f1,f2,cosz,delta
-logical maxover
 logical, save :: first = .true.
 
 type(time_type), save ::                    Rad_time
@@ -729,44 +728,27 @@ do j=1,jl,imax/il
     else
       do i=1,imax ! maximum-random overlap
         iq=i+istart-1
+        Cld_spec%cmxolw(i,1,:)=0._8
         k=1
-        kr=kl
-        Cld_spec%camtsw(i,1,kr)=real(cfrac(iq,k),8) ! Max+Rnd overlap clouds for SW
-        maxover=.false.
-        if (cfrac(iq,k+1)>0.) maxover=.true.
-        if (maxover) then
-          Cld_spec%cmxolw(i,1,kr)=min(real(cfrac(iq,k),8),0.999_8) ! Max overlap for LW
-          Cld_spec%crndlw(i,1,kr)=real(cfrac(iq,k),8)-Cld_spec%cmxolw(i,1,kr)
-        else
-          Cld_spec%crndlw(i,1,kr)=real(cfrac(iq,k),8)              ! Rnd overlap for LW
-          Cld_spec%cmxolw(i,1,kr)=0._8
-        end if
-        do k=2,kl-1
-          kr=kl+1-k
-          Cld_spec%camtsw(i,1,kr)=real(cfrac(iq,k),8) ! Max+Rnd overlap clouds for SW
-          maxover=.false.
-          if (cfrac(iq,k-1)>0.) maxover=.true.
-          if (cfrac(iq,k+1)>0.) maxover=.true.
-          if (maxover) then
-            Cld_spec%cmxolw(i,1,kr)=min(real(cfrac(iq,k),8),0.999_8) ! Max overlap for LW
-            Cld_spec%crndlw(i,1,kr)=real(cfrac(iq,k),8)-Cld_spec%cmxolw(i,1,kr)
-          else
-            Cld_spec%crndlw(i,1,kr)=real(cfrac(iq,k),8)              ! Rnd overlap for LW
-            Cld_spec%cmxolw(i,1,kr)=0._8
+        do while (k<kl)
+          ktop=k
+          if (cfrac(iq,k)>0.) then
+            kbot=k ! found bottom of cloud
+            do while (ktop<kl.and.cfrac(iq,ktop+1)>0.)
+              ktop=ktop+1 ! search for top of cloud
+            end do
+            if (ktop>kbot) then ! if multi-layer cloud, calculate common max overlap fraction
+              Cld_spec%cmxolw(i,1,kl+1-ktop:kl+1-kbot)=real(minval(cfrac(iq,kbot:ktop)),8)
+            end if
           end if
+          k=ktop+1
         end do
-        k=kl
-        kr=1
-        Cld_spec%camtsw(i,1,kr)=real(cfrac(iq,k),8) ! Max+Rnd overlap clouds for SW
-        maxover=.false.
-        if (cfrac(iq,k-1)>0.) maxover=.true.
-        if (maxover) then
-          Cld_spec%cmxolw(i,1,kr)=min(real(cfrac(iq,k),8),0.999_8) ! Max overlap for LW
-          Cld_spec%crndlw(i,1,kr)=real(cfrac(iq,k),8)-Cld_spec%cmxolw(i,1,kr)
-        else
-          Cld_spec%crndlw(i,1,kr)=real(cfrac(iq,k),8)              ! Rnd overlap for LW
-          Cld_spec%cmxolw(i,1,kr)=0._8
-        end if
+        do k=1,kl
+          kr=kl+1-k
+          Cld_spec%camtsw(i,1,kr)=real(cfrac(iq,k),8)                         ! Max+Rnd overlap clouds for SW
+          Cld_spec%cmxolw(i,1,kr)=min(Cld_spec%cmxolw(i,1,kr),0.999_8)        ! Max overlap for LW
+          Cld_spec%crndlw(i,1,kr)=real(cfrac(iq,k),8)-Cld_spec%cmxolw(i,1,kr) ! Rnd overlap for LW
+        end do
       end do
     end if
 
@@ -1430,12 +1412,11 @@ if (myid==0) then
   read ( unit,* ) num_wavenumbers
   read ( unit,* ) num_input_categories
   
-  call ccmpi_bcast(num_wavenumbers,0,comm_world)
-
   !----------------------------------------------------------------------
   !    read wavenumber limits for aerosol parameterization bands from 
   !    the input file.
   !----------------------------------------------------------------------
+  call ccmpi_bcast(num_wavenumbers,0,comm_world)
   allocate (endaerwvnsf(num_wavenumbers) )
   allocate (aeroextivl   (num_wavenumbers, naermodels), &
            aerossalbivl (num_wavenumbers, naermodels), &

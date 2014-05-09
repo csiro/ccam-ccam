@@ -2435,7 +2435,7 @@ else     ! if(intsch==1)then
     sx(nn,1:ipan,1:jpan,1:npan,1:wlev) = reshape( s(1:ipan*jpan*npan,1:wlev,nn), (/ ipan, jpan, npan, wlev /) )
     do k=1,wlev
       do n=1,npan
-        do j=1,ipan
+        do j=1,jpan
           sx(nn,0,j,n,k)      = s( iw(1+(j-1)*ipan+(n-1)*ipan*jpan),k,nn)
           sx(nn,-1,j,n,k)     = s(iww(1+(j-1)*ipan+(n-1)*ipan*jpan),k,nn)
           sx(nn,ipan+1,j,n,k) = s( ie(j*ipan+(n-1)*ipan*jpan),      k,nn)
