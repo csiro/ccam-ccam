@@ -76,7 +76,8 @@ real, parameter :: c_1   = 5.
 real, parameter :: d_1   = 0.35
 
 integer, parameter :: icm1   = 5        ! max iterations for calculating pblh
-real, parameter :: maxdts    = 60.     ! max timestep for split
+real, parameter :: maxdts    = 300.     ! max timestep for ED/MF split
+real, parameter :: Ke_dt     = 100.     ! max timestep for TKE and eps
 real, parameter :: mintke    = 1.E-8    ! min value for tke
 real, parameter :: mineps    = 1.E-10   ! min value for eps
 real, parameter :: minl      = 1.       ! min value for L (constraint on eps)
@@ -150,6 +151,7 @@ implicit none
 integer, intent(in) :: diag,mode,naero
 integer k,i,j,ktopmax,klcl
 integer kcount,mcount,icount
+integer lcount,ncount
 real, intent(in) :: dt,qgmin
 real, dimension(:,:,:), intent(inout) :: aero
 real, dimension(:,:), intent(inout) :: theta,cfrac,cfrain
@@ -189,7 +191,7 @@ real, dimension(kl) :: qtup,qupsat,ttup,tvup,tlup
 real, dimension(1) :: templ
 real xp,as,bs,cs,cm12,cm34,qcup
 real dzht,ziold,ent,entc,entn,dtr,dtrc,dtrn,dtrx
-real ddts,zlcl
+real ddts,Ke_ddts,zlcl
 real lx,tempd,fice,qxup,txup,dqsdt,al
 real sigqtup,rng
 logical, dimension(ifull,kl) :: lta
@@ -198,25 +200,24 @@ logical scond
 cm12=1./sqrt(cm0)
 cm34=sqrt(sqrt(cm0**3))
 
-if (diag>0) write(6,*) "Update PBL mixing with TKE-eps turbulence closure"
+if (diag>0) write(6,*) "Update PBL mixing with TKE-eps + MF turbulence closure"
 
 ! Here TKE and eps are on full levels to use CCAM advection routines
 ! Idealy we would reversibly stagger to vertical half-levels for this
 ! calculation
 
 do k=1,kl
-  ! Impose limits after host advection
+  ! Impose limits on tke and eps after being advected by the host model
   tke(1:ifull,k)=max(tke(1:ifull,k),mintke)
   tff=cm34*tke(1:ifull,k)*sqrt(tke(1:ifull,k))
   eps(1:ifull,k)=min(eps(1:ifull,k),tff/minl)
   eps(1:ifull,k)=max(eps(1:ifull,k),tff/maxl,mineps)
 
-  ! Calculate air density - must use same theta for calculating dz
+  ! Calculate air density - must use same theta for calculating dz so that rho*dz is conserved
   sigkap(k)=sig(k)**(-rd/cp)
   pres(:,k)=ps(:)*sig(k) ! pressure
-  temp(:,k)=theta(1:ifull,k)/sigkap(k)
   ! density must be updated when dz is updated so that rho*dz is conserved
-  rhoa(:,k)=pres(:,k)/(rd*temp(:,k))
+  rhoa(:,k)=sigkap(k)*pres(:,k)/(rd*theta(1:ifull,k))
 
   ! Calculate first approximation to diffusion coeffs
   km(:,k)=cm0*tke(1:ifull,k)*tke(1:ifull,k)/eps(1:ifull,k)
@@ -244,7 +245,7 @@ pps(:,kl)=0.
 ppb(:,kl)=0.
 ppt(:,kl)=0.
 
-! default
+! default values for updraft
 thup=theta(1:ifull,:)
 qvup=qvg(1:ifull,:)
 qlup=qlg(1:ifull,:)
@@ -258,7 +259,7 @@ if (naero>0) then
   arup=aero(1:ifull,1:kl,1:naero)
 end if
 
-! interpolate to half levels
+! interpolate diffusion coeff and air density to half levels
 call updatekmo(kmo,   km,  fzzh)
 call updatekmo(rhoahl,rhoa,fzzh)
 idzm(:,2:kl)  =rhoahl(:,1:kl-1)/(rhoa(:,2:kl)*dz_fl(:,2:kl))
@@ -277,7 +278,7 @@ do kcount=1,mcount
   do k=1,kl
     thetal(:,k)=theta(1:ifull,k)-sigkap(k)*(lv*(qlg(1:ifull,k)+qrg(1:ifull,k))+ls*qfg(1:ifull,k))/cp
     temp(:,k)=theta(1:ifull,k)/sigkap(k)
-    ! calculate saturated mixing ratio
+    ! calculate saturated air mixing ratio
     call getqsat(qsat(:,k),temp(:,k),pres(:,k))
   end do
 
@@ -375,8 +376,12 @@ do kcount=1,mcount
             tlup(k)=thup(i,k)-sigkap(k)*(lv*(qlup(i,k)+qrup(i,k))+ls*qfup(i,k))/cp  ! thetal,up
             qtup(k)=qvup(i,k)+qlup(i,k)+qfup(i,k)+qrup(i,k)                         ! qtot,up
             ! estimate air temperature
-            templ(1)  =tlup(k)/sigkap(k)                                            ! templ,up
+            templ(1)=tlup(k)/sigkap(k)                                              ! templ,up
             if (.not.scond) then
+              ! MJT notes - here we determine a fraction of the updraft that has undergone condensation
+              ! More correctly, we estimate a fraction of the number of updrafts at different locations
+              ! in the grid-box whihch have undergone condesation.  For this reason, the variance of
+              ! the moisture between updrafts is estimated from the grid-box mean.
               call getqsat(qupsat(k:k),templ(1:1),pres(i:i,k))
               ! estimate variance of qtup in updraft (following Hurley and TAPM)
               sigqtup=sqrt(max(1.E-10,1.6*tke(i,k)/eps(i,k)*cq*km(i,k)*((qtup(k)-qtup(k-1))/dzht)**2))
@@ -468,8 +473,7 @@ do kcount=1,mcount
                 qxup=qupsat(k)
                 cfup(i,k)=1.
               end if
-              fice=min(max(273.16-tempd,0.),40.)/40. ! approximate ice fraction based on temperature
-                                                     ! (not templ)
+              fice=min(max(273.16-tempd,0.),40.)/40. ! approximate ice fraction based on temperature (not templ)
               lx=lv+lf*fice
               dqsdt=qupsat(k)*lx/(rv*templ(1)*templ(1))
               al=cp/(cp+lx*dqsdt)
@@ -490,7 +494,7 @@ do kcount=1,mcount
               w2up(k)=(w2up(k-1)+2.*dzht*b2*nn(k))/(1.+2.*dzht*b1*ent)
               ! test if maximum plume height is reached
               if (w2up(k)<=0.) then
-                as=min(2.*b2*(nn(k)-nn(k-1))/dzht,-1.E-20)
+                as=min(2.*b2*(nn(k)-nn(k-1))/dzht,-1.e-20)
                 bs=2.*b2*nn(k-1)
                 cs=w2up(k-1)
                 xp=0.5*(-bs-sqrt(max(bs*bs-4.*as*cs,0.)))/as
@@ -503,7 +507,7 @@ do kcount=1,mcount
           
           end if
 
-          ! update surface boundary conditions
+          ! update surface boundary conditions (note zidry, rather than zi)
           wstar(i)=(grav*zidry(i)*max(wtv0(i),0.)/thetav(i,1))**(1./3.)
           
           zi(i)=max(zidry(i),zi(i))
@@ -526,7 +530,6 @@ do kcount=1,mcount
           dtrc=dtrfn(zz(i,k),zi(i),   zz(i,1),dtrc0)
           dtr =(1.-cfup(i,k))*dtrx+cfup(i,k)*dtrc
           mflx(i,k)=mflx(i,k-1)/(1.+dzht*(dtr-ent))
-          !mflx(i,k)=min(mflx(i,k),mflx(i,k-1)*sqrt(w2up(k))/sqrt(max(w2up(k-1),1.E-10)))
         end do
 
 #ifdef offline
@@ -638,7 +641,6 @@ do kcount=1,mcount
   end where
   tke(1:ifull,1)=cm12*ustar*ustar+ce3*wstar*wstar
   eps(1:ifull,1)=ustar*ustar*ustar*phim/(vkar*zz(:,1))+grav*wtv0/thetav(:,1)
-  !eps(1:ifull,1)=ustar*ustar*ustar*(phim-z_on_l)/(vkar*zz(:,1))
   tke(1:ifull,1)=max(tke(1:ifull,1),mintke)
   tff=cm34*tke(1:ifull,1)*sqrt(tke(1:ifull,1))
   eps(1:ifull,1)=min(eps(1:ifull,1),tff/minl)
@@ -706,62 +708,69 @@ do kcount=1,mcount
                +gamhl(:,k-1)*idzm(:,k)-gamhl(:,k)*idzp(:,k)
   end do
 
-  ! eps vertical mixing (done here as we skip level 1, instead of using trim)
-  aa(:,2:kl-1)=ce0*kmo(:,1:kl-2)*qq(:,2:kl-1)
-  cc(:,2:kl-1)=ce0*kmo(:,2:kl-1)*rr(:,2:kl-1)
-  ! follow PH to make scheme more numerically stable
-  bb(:,2:kl-1)=1.-aa(:,2:kl-1)-cc(:,2:kl-1)+ddts*ce2*eps(1:ifull,2:kl-1)/tke(1:ifull,2:kl-1)
-  dd(:,2:kl-1)=eps(1:ifull,2:kl-1)+ddts*eps(1:ifull,2:kl-1)/tke(1:ifull,2:kl-1)                    &
-              *ce1*(pps(:,2:kl-1)+max(ppb(:,2:kl-1),0.)+max(ppt(:,2:kl-1),0.))
-  dd(:,2)     =dd(:,2)   -aa(:,2)*eps(1:ifull,1)
-  dd(:,kl-1)  =dd(:,kl-1)-cc(:,kl-1)*mineps
-  cc(:,2)     =cc(:,2)-ddts*fzzh(:,2)*mflx(:,3)*idzp(:,2)
-  bb(:,2)     =bb(:,2)-ddts*(1.-fzzh(:,2))*mflx(:,2)*idzp(:,2)
-  aa(:,3:kl-2)=aa(:,3:kl-2)+ddts*(1.-fzzh(:,2:kl-3))*mflx(:,2:kl-3)*idzm(:,3:kl-2)
-  cc(:,3:kl-2)=cc(:,3:kl-2)-ddts*fzzh(:,3:kl-2)*mflx(:,4:kl-1)*idzp(:,3:kl-2)
-  bb(:,3:kl-2)=bb(:,3:kl-2)+ddts*(fzzh(:,2:kl-3)*mflx(:,3:kl-2)*idzm(:,3:kl-2)                     &
-                          -(1.-fzzh(:,3:kl-2))*mflx(:,3:kl-2)*idzp(:,3:kl-2))
-  aa(:,kl-1)  =aa(:,kl-1)+ddts*(1.-fzzh(:,kl-2))*mflx(:,kl-2)*idzm(:,kl-1)
-  bb(:,kl-1)  =bb(:,kl-1)+ddts*fzzh(:,kl-2)*mflx(:,kl-1)*idzm(:,kl-1)
-  dd(:,2)     =dd(:,2)-ddts*((1.-fzzh(:,2))*mflx(:,2)*epup(:,2)+fzzh(:,2)*mflx(:,3)*epup(:,3))*idzp(:,2)
-  dd(:,3:kl-2)=dd(:,3:kl-2)+ddts*(((1.-fzzh(:,2:kl-3))*mflx(:,2:kl-3)*epup(:,2:kl-3)               &
-              +fzzh(:,2:kl-3)*mflx(:,3:kl-2)*epup(:,3:kl-2))*idzm(:,3:kl-2)                        &
-              -((1.-fzzh(:,3:kl-2))*mflx(:,3:kl-2)*epup(:,3:kl-2)                                  &
-              +fzzh(:,3:kl-2)*mflx(:,4:kl-1)*epup(:,4:kl-1))*idzp(:,3:kl-2))
-  dd(:,kl-1)  =dd(:,kl-1)+ddts*((1.-fzzh(:,kl-2))*mflx(:,kl-2)*epup(:,kl-2)                        &
-              +fzzh(:,kl-2)*mflx(:,kl-1)*epup(:,kl-1))*idzm(:,kl-1)
-  call thomas(epsnew(:,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1),kl-2)
+  ncount=int(ddts/(Ke_dt+0.01))+1
+  Ke_ddts  =ddts/real(ncount)
+  do lcount=1,ncount
+  
+    ! eps vertical mixing (done here as we skip level 1, instead of using trim)
+    aa(:,2:kl-1)=ce0*kmo(:,1:kl-2)*qq(:,2:kl-1)
+    cc(:,2:kl-1)=ce0*kmo(:,2:kl-1)*rr(:,2:kl-1)
+    ! follow PH to make scheme more numerically stable
+    bb(:,2:kl-1)=1.-aa(:,2:kl-1)-cc(:,2:kl-1)+Ke_ddts*ce2*eps(1:ifull,2:kl-1)/tke(1:ifull,2:kl-1)
+    dd(:,2:kl-1)=eps(1:ifull,2:kl-1)+Ke_ddts*eps(1:ifull,2:kl-1)/tke(1:ifull,2:kl-1)                    &
+                *ce1*(pps(:,2:kl-1)+max(ppb(:,2:kl-1),0.)+max(ppt(:,2:kl-1),0.))
+    dd(:,2)     =dd(:,2)   -aa(:,2)*eps(1:ifull,1)
+    dd(:,kl-1)  =dd(:,kl-1)-cc(:,kl-1)*mineps
+    cc(:,2)     =cc(:,2)-Ke_ddts*fzzh(:,2)*mflx(:,3)*idzp(:,2)
+    bb(:,2)     =bb(:,2)-Ke_ddts*(1.-fzzh(:,2))*mflx(:,2)*idzp(:,2)
+    aa(:,3:kl-2)=aa(:,3:kl-2)+Ke_ddts*(1.-fzzh(:,2:kl-3))*mflx(:,2:kl-3)*idzm(:,3:kl-2)
+    cc(:,3:kl-2)=cc(:,3:kl-2)-Ke_ddts*fzzh(:,3:kl-2)*mflx(:,4:kl-1)*idzp(:,3:kl-2)
+    bb(:,3:kl-2)=bb(:,3:kl-2)+Ke_ddts*(fzzh(:,2:kl-3)*mflx(:,3:kl-2)*idzm(:,3:kl-2)                     &
+                            -(1.-fzzh(:,3:kl-2))*mflx(:,3:kl-2)*idzp(:,3:kl-2))
+    aa(:,kl-1)  =aa(:,kl-1)+Ke_ddts*(1.-fzzh(:,kl-2))*mflx(:,kl-2)*idzm(:,kl-1)
+    bb(:,kl-1)  =bb(:,kl-1)+Ke_ddts*fzzh(:,kl-2)*mflx(:,kl-1)*idzm(:,kl-1)
+    dd(:,2)     =dd(:,2)-Ke_ddts*((1.-fzzh(:,2))*mflx(:,2)*epup(:,2)                                    &
+                +fzzh(:,2)*mflx(:,3)*epup(:,3))*idzp(:,2)
+    dd(:,3:kl-2)=dd(:,3:kl-2)+Ke_ddts*(((1.-fzzh(:,2:kl-3))*mflx(:,2:kl-3)*epup(:,2:kl-3)               &
+                +fzzh(:,2:kl-3)*mflx(:,3:kl-2)*epup(:,3:kl-2))*idzm(:,3:kl-2)                           &
+                -((1.-fzzh(:,3:kl-2))*mflx(:,3:kl-2)*epup(:,3:kl-2)                                     &
+                +fzzh(:,3:kl-2)*mflx(:,4:kl-1)*epup(:,4:kl-1))*idzp(:,3:kl-2))
+    dd(:,kl-1)  =dd(:,kl-1)+Ke_ddts*((1.-fzzh(:,kl-2))*mflx(:,kl-2)*epup(:,kl-2)                        &
+                +fzzh(:,kl-2)*mflx(:,kl-1)*epup(:,kl-1))*idzm(:,kl-1)
+    call thomas(epsnew(:,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1),kl-2)
 
-  ! TKE vertical mixing (done here as we skip level 1, instead of using trim)
-  aa(:,2:kl-1)=kmo(:,1:kl-2)*qq(:,2:kl-1)
-  cc(:,2:kl-1)=kmo(:,2:kl-1)*rr(:,2:kl-1)
-  bb(:,2:kl-1)=1.-aa(:,2:kl-1)-cc(:,2:kl-1)
-  dd(:,2:kl-1)=tke(1:ifull,2:kl-1)+ddts*(pps(:,2:kl-1)+ppb(:,2:kl-1)-epsnew(:,2:kl-1))
-  dd(:,2)     =dd(:,2)   -aa(:,2)*tke(1:ifull,1)
-  dd(:,kl-1)  =dd(:,kl-1)-cc(:,kl-1)*mintke
-  cc(:,2)     =cc(:,2)-ddts*fzzh(:,2)*mflx(:,3)*idzp(:,2)
-  bb(:,2)     =bb(:,2)-ddts*(1.-fzzh(:,2))*mflx(:,2)*idzp(:,2)
-  aa(:,3:kl-2)=aa(:,3:kl-2)+ddts*(1.-fzzh(:,2:kl-3))*mflx(:,2:kl-3)*idzm(:,3:kl-2)
-  cc(:,3:kl-2)=cc(:,3:kl-2)-ddts*fzzh(:,3:kl-2)*mflx(:,4:kl-1)*idzp(:,3:kl-2)
-  bb(:,3:kl-2)=bb(:,3:kl-2)+ddts*(fzzh(:,2:kl-3)*mflx(:,3:kl-2)*idzm(:,3:kl-2) &
-                          -(1.-fzzh(:,3:kl-2))*mflx(:,3:kl-2)*idzp(:,3:kl-2))
-  aa(:,kl-1)  =aa(:,kl-1)+ddts*(1.-fzzh(:,kl-2))*mflx(:,kl-2)*idzm(:,kl-1)
-  bb(:,kl-1)  =bb(:,kl-1)+ddts*fzzh(:,kl-2)*mflx(:,kl-1)*idzm(:,kl-1)
-  dd(:,2)     =dd(:,2)-ddts*((1.-fzzh(:,2))*mflx(:,2)*tkup(:,2) &
-              +fzzh(:,2)*mflx(:,3)*tkup(:,3))*idzp(:,2)
-  dd(:,3:kl-2)=dd(:,3:kl-2)+ddts*(((1.-fzzh(:,2:kl-3))*mflx(:,2:kl-3)*tkup(:,2:kl-3)               &
-              +fzzh(:,2:kl-3)*mflx(:,3:kl-2)*tkup(:,3:kl-2))*idzm(:,3:kl-2)                        &
-              -((1.-fzzh(:,3:kl-2))*mflx(:,3:kl-2)*tkup(:,3:kl-2)                                  &
-              +fzzh(:,3:kl-2)*mflx(:,4:kl-1)*tkup(:,4:kl-1))*idzp(:,3:kl-2))
-  dd(:,kl-1)  =dd(:,kl-1)+ddts*((1.-fzzh(:,kl-2))*mflx(:,kl-2)*tkup(:,kl-2)                        &
-              +fzzh(:,kl-2)*mflx(:,kl-1)*tkup(:,kl-1))*idzm(:,kl-1)
-  call thomas(tkenew(:,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1),kl-2)
+    ! TKE vertical mixing (done here as we skip level 1, instead of using trim)
+    aa(:,2:kl-1)=kmo(:,1:kl-2)*qq(:,2:kl-1)
+    cc(:,2:kl-1)=kmo(:,2:kl-1)*rr(:,2:kl-1)
+    bb(:,2:kl-1)=1.-aa(:,2:kl-1)-cc(:,2:kl-1)
+    dd(:,2:kl-1)=tke(1:ifull,2:kl-1)+Ke_ddts*(pps(:,2:kl-1)+ppb(:,2:kl-1)-epsnew(:,2:kl-1))
+    dd(:,2)     =dd(:,2)   -aa(:,2)*tke(1:ifull,1)
+    dd(:,kl-1)  =dd(:,kl-1)-cc(:,kl-1)*mintke
+    cc(:,2)     =cc(:,2)-Ke_ddts*fzzh(:,2)*mflx(:,3)*idzp(:,2)
+    bb(:,2)     =bb(:,2)-Ke_ddts*(1.-fzzh(:,2))*mflx(:,2)*idzp(:,2)
+    aa(:,3:kl-2)=aa(:,3:kl-2)+Ke_ddts*(1.-fzzh(:,2:kl-3))*mflx(:,2:kl-3)*idzm(:,3:kl-2)
+    cc(:,3:kl-2)=cc(:,3:kl-2)-Ke_ddts*fzzh(:,3:kl-2)*mflx(:,4:kl-1)*idzp(:,3:kl-2)
+    bb(:,3:kl-2)=bb(:,3:kl-2)+Ke_ddts*(fzzh(:,2:kl-3)*mflx(:,3:kl-2)*idzm(:,3:kl-2)                     &
+                            -(1.-fzzh(:,3:kl-2))*mflx(:,3:kl-2)*idzp(:,3:kl-2))
+    aa(:,kl-1)  =aa(:,kl-1)+Ke_ddts*(1.-fzzh(:,kl-2))*mflx(:,kl-2)*idzm(:,kl-1)
+    bb(:,kl-1)  =bb(:,kl-1)+Ke_ddts*fzzh(:,kl-2)*mflx(:,kl-1)*idzm(:,kl-1)
+    dd(:,2)     =dd(:,2)-Ke_ddts*((1.-fzzh(:,2))*mflx(:,2)*tkup(:,2)                                    &
+                +fzzh(:,2)*mflx(:,3)*tkup(:,3))*idzp(:,2)
+    dd(:,3:kl-2)=dd(:,3:kl-2)+Ke_ddts*(((1.-fzzh(:,2:kl-3))*mflx(:,2:kl-3)*tkup(:,2:kl-3)               &
+                +fzzh(:,2:kl-3)*mflx(:,3:kl-2)*tkup(:,3:kl-2))*idzm(:,3:kl-2)                           &
+                -((1.-fzzh(:,3:kl-2))*mflx(:,3:kl-2)*tkup(:,3:kl-2)                                     &
+                +fzzh(:,3:kl-2)*mflx(:,4:kl-1)*tkup(:,4:kl-1))*idzp(:,3:kl-2))
+    dd(:,kl-1)  =dd(:,kl-1)+Ke_ddts*((1.-fzzh(:,kl-2))*mflx(:,kl-2)*tkup(:,kl-2)                        &
+                +fzzh(:,kl-2)*mflx(:,kl-1)*tkup(:,kl-1))*idzm(:,kl-1)
+    call thomas(tkenew(:,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1),kl-2)
 
-  do k=2,kl-1
-    tke(1:ifull,k)=max(tkenew(:,k),mintke)
-    tff=cm34*tke(1:ifull,k)*sqrt(tke(1:ifull,k))
-    eps(1:ifull,k)=min(epsnew(:,k),tff/minl)
-    eps(1:ifull,k)=max(eps(1:ifull,k),tff/maxl,mineps)
+    do k=2,kl-1
+      tke(1:ifull,k)=max(tkenew(:,k),mintke)
+      tff=cm34*tke(1:ifull,k)*sqrt(tke(1:ifull,k))
+      eps(1:ifull,k)=min(epsnew(:,k),tff/minl)
+      eps(1:ifull,k)=max(eps(1:ifull,k),tff/maxl,mineps)
+    end do
+    
   end do
     
   km=cm0*tke(1:ifull,:)*tke(1:ifull,:)/eps(1:ifull,:)
