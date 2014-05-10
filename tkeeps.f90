@@ -681,8 +681,6 @@ do kcount=1,mcount
 
   ! Update TKE and eps terms using predictor-corrector
 
-  qq(:,2:kl-1)=-ddts*idzm(:,2:kl-1)/dz_hl(:,1:kl-2)
-  rr(:,2:kl-1)=-ddts*idzp(:,2:kl-1)/dz_hl(:,2:kl-1)
   ! top boundary condition to avoid unphysical behaviour at the top of the model
   tke(1:ifull,kl)=mintke
   eps(1:ifull,kl)=mineps
@@ -710,6 +708,8 @@ do kcount=1,mcount
 
   ncount=int(ddts/(Ke_dt+0.01))+1
   Ke_ddts  =ddts/real(ncount)
+  qq(:,2:kl-1)=-Ke_ddts*idzm(:,2:kl-1)/dz_hl(:,1:kl-2)
+  rr(:,2:kl-1)=-Ke_ddts*idzp(:,2:kl-1)/dz_hl(:,2:kl-1)
   do lcount=1,ncount
   
     ! eps vertical mixing (done here as we skip level 1, instead of using trim)
@@ -771,11 +771,11 @@ do kcount=1,mcount
       eps(1:ifull,k)=max(eps(1:ifull,k),tff/maxl,mineps)
     end do
     
+    km=cm0*tke(1:ifull,:)*tke(1:ifull,:)/eps(1:ifull,:)
+    call updatekmo(kmo,km,fzzh) ! interpolate diffusion coeffs to half levels
+
   end do
     
-  km=cm0*tke(1:ifull,:)*tke(1:ifull,:)/eps(1:ifull,:)
-  call updatekmo(kmo,km,fzzh) ! interpolate diffusion coeffs to half levels
-  
   ! update scalars
   qq(:,2:kl)  =-ddts*kmo(:,1:kl-1)*idzm(:,2:kl)/dz_hl(:,1:kl-1)
   rr(:,1:kl-1)=-ddts*kmo(:,1:kl-1)*idzp(:,1:kl-1)/dz_hl(:,1:kl-1)
