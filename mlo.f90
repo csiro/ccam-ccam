@@ -1350,30 +1350,30 @@ end subroutine mlocalc
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! tri-diagonal solver
 
-subroutine thomas(outo,aa,bbi,cc,ddi)
+subroutine thomas(outo,aai,bbi,cci,ddi)
 
 implicit none
 
 integer ii
-real(kind=8), dimension(wfull,2:wlev), intent(in) :: aa
+real(kind=8), dimension(wfull,2:wlev), intent(in) :: aai
 real(kind=8), dimension(wfull,wlev), intent(in) :: bbi,ddi
-real(kind=8), dimension(wfull,wlev-1), intent(in) :: cc
+real(kind=8), dimension(wfull,wlev-1), intent(in) :: cci
 real, dimension(wfull,wlev), intent(out) :: outo
-real(kind=8), dimension(wfull,wlev) :: bb,dd,out
+real(kind=8), dimension(wfull,wlev) :: cc,dd
 real(kind=8), dimension(wfull) :: n
 
-bb=bbi
-dd=ddi
+cc(:,1)=cci(:,1)/bbi(:,1)
+dd(:,1)=ddi(:,1)/bbi(:,1)
+
 do ii=2,wlev
-  n=aa(:,ii)/bb(:,ii-1)
-  bb(:,ii)=bb(:,ii)-n*cc(:,ii-1)
-  dd(:,ii)=dd(:,ii)-n*dd(:,ii-1)
+  n=bbi(:,ii)-cc(:,ii-1)*aai(:,ii)
+  cc(:,ii)=cci(:,ii)/n
+  dd(:,ii)=(ddi(:,ii)-dd(:,ii-1)*aai(:,ii))/n
 end do
-out(:,wlev)=dd(:,wlev)/bb(:,wlev)
+outo(:,wlev)=dd(:,wlev)
 do ii=wlev-1,1,-1
-  out(:,ii)=(dd(:,ii)-cc(:,ii)*out(:,ii+1))/bb(:,ii)
+  outo(:,ii)=dd(:,ii)-cc(:,ii)*outo(:,ii+1)
 end do
-outo=out
 
 return
 end subroutine thomas
@@ -3497,7 +3497,7 @@ lzoq=log(a_zmins/zoq)
 thetavstar=vkar*(thetav-sthetav)/lzoh
 ustar=vkar*umag/lzom
 do ic=1,nc
-  z_on_l  = a_zmin*vkar*grav*thetavstar/(thetav*ustar**2)
+  z_on_l  = a_zmin*vkar*grav*thetavstar/(thetav*ustar*ustar)
   z_on_l  = min(z_on_l,10.)
   zs_on_l = z_on_l*a_zmins/a_zmin  
   z0_on_l = z_on_l*zo/a_zmin

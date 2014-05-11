@@ -76,7 +76,7 @@ real, parameter :: c_1   = 5.
 real, parameter :: d_1   = 0.35
 
 integer, parameter :: icm1   = 5        ! max iterations for calculating pblh
-real, parameter :: maxdts    = 60.      ! max timestep for split
+real, parameter :: maxdts    = 120.     ! max timestep for split
 real, parameter :: mintke    = 1.E-8    ! min value for tke
 real, parameter :: mineps    = 1.E-10   ! min value for eps
 real, parameter :: minl      = 1.       ! min value for L (constraint on eps)
@@ -677,10 +677,8 @@ do kcount=1,mcount
     end where
   end do
 
-  ! Update TKE and eps terms using predictor-corrector
+  ! Update TKE and eps terms
 
-  qq(:,2:kl-1)=-ddts*idzm(:,2:kl-1)/dz_hl(:,1:kl-2)
-  rr(:,2:kl-1)=-ddts*idzp(:,2:kl-1)/dz_hl(:,2:kl-1)
   ! top boundary condition to avoid unphysical behaviour at the top of the model
   tke(1:ifull,kl)=mintke
   eps(1:ifull,kl)=mineps
@@ -706,6 +704,9 @@ do kcount=1,mcount
                +gamhl(:,k-1)*idzm(:,k)-gamhl(:,k)*idzp(:,k)
   end do
 
+  qq(:,2:kl-1)=-ddts*idzm(:,2:kl-1)/dz_hl(:,1:kl-2)
+  rr(:,2:kl-1)=-ddts*idzp(:,2:kl-1)/dz_hl(:,2:kl-1)
+  
   ! eps vertical mixing (done here as we skip level 1, instead of using trim)
   aa(:,2:kl-1)=ce0*kmo(:,1:kl-2)*qq(:,2:kl-1)
   cc(:,2:kl-1)=ce0*kmo(:,2:kl-1)*rr(:,2:kl-1)
@@ -723,7 +724,8 @@ do kcount=1,mcount
                           -(1.-fzzh(:,3:kl-2))*mflx(:,3:kl-2)*idzp(:,3:kl-2))
   aa(:,kl-1)  =aa(:,kl-1)+ddts*(1.-fzzh(:,kl-2))*mflx(:,kl-2)*idzm(:,kl-1)
   bb(:,kl-1)  =bb(:,kl-1)+ddts*fzzh(:,kl-2)*mflx(:,kl-1)*idzm(:,kl-1)
-  dd(:,2)     =dd(:,2)-ddts*((1.-fzzh(:,2))*mflx(:,2)*epup(:,2)+fzzh(:,2)*mflx(:,3)*epup(:,3))*idzp(:,2)
+  dd(:,2)     =dd(:,2)-ddts*((1.-fzzh(:,2))*mflx(:,2)*epup(:,2)                                    &
+              +fzzh(:,2)*mflx(:,3)*epup(:,3))*idzp(:,2)
   dd(:,3:kl-2)=dd(:,3:kl-2)+ddts*(((1.-fzzh(:,2:kl-3))*mflx(:,2:kl-3)*epup(:,2:kl-3)               &
               +fzzh(:,2:kl-3)*mflx(:,3:kl-2)*epup(:,3:kl-2))*idzm(:,3:kl-2)                        &
               -((1.-fzzh(:,3:kl-2))*mflx(:,3:kl-2)*epup(:,3:kl-2)                                  &
@@ -743,11 +745,11 @@ do kcount=1,mcount
   bb(:,2)     =bb(:,2)-ddts*(1.-fzzh(:,2))*mflx(:,2)*idzp(:,2)
   aa(:,3:kl-2)=aa(:,3:kl-2)+ddts*(1.-fzzh(:,2:kl-3))*mflx(:,2:kl-3)*idzm(:,3:kl-2)
   cc(:,3:kl-2)=cc(:,3:kl-2)-ddts*fzzh(:,3:kl-2)*mflx(:,4:kl-1)*idzp(:,3:kl-2)
-  bb(:,3:kl-2)=bb(:,3:kl-2)+ddts*(fzzh(:,2:kl-3)*mflx(:,3:kl-2)*idzm(:,3:kl-2) &
+  bb(:,3:kl-2)=bb(:,3:kl-2)+ddts*(fzzh(:,2:kl-3)*mflx(:,3:kl-2)*idzm(:,3:kl-2)                     &
                           -(1.-fzzh(:,3:kl-2))*mflx(:,3:kl-2)*idzp(:,3:kl-2))
   aa(:,kl-1)  =aa(:,kl-1)+ddts*(1.-fzzh(:,kl-2))*mflx(:,kl-2)*idzm(:,kl-1)
   bb(:,kl-1)  =bb(:,kl-1)+ddts*fzzh(:,kl-2)*mflx(:,kl-1)*idzm(:,kl-1)
-  dd(:,2)     =dd(:,2)-ddts*((1.-fzzh(:,2))*mflx(:,2)*tkup(:,2) &
+  dd(:,2)     =dd(:,2)-ddts*((1.-fzzh(:,2))*mflx(:,2)*tkup(:,2)                                    &
               +fzzh(:,2)*mflx(:,3)*tkup(:,3))*idzp(:,2)
   dd(:,3:kl-2)=dd(:,3:kl-2)+ddts*(((1.-fzzh(:,2:kl-3))*mflx(:,2:kl-3)*tkup(:,2:kl-3)               &
               +fzzh(:,2:kl-3)*mflx(:,3:kl-2)*tkup(:,3:kl-2))*idzm(:,3:kl-2)                        &
@@ -933,30 +935,30 @@ end subroutine tkemix
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Tri-diagonal solver (array version)
 
-subroutine thomas(outdat,aa,bbi,cc,ddi,klin)
+subroutine thomas(outdat,aai,bbi,cci,ddi,klin)
 
 implicit none
 
 integer, intent(in) :: klin
-real, dimension(ifull,2:klin), intent(in) :: aa
+real, dimension(ifull,2:klin), intent(in) :: aai
 real, dimension(ifull,1:klin), intent(in) :: bbi,ddi
-real, dimension(ifull,1:klin-1), intent(in) :: cc
+real, dimension(ifull,1:klin-1), intent(in) :: cci
 real, dimension(:,:), intent(out) :: outdat
-real, dimension(ifull,1:klin) :: bb,dd
+real, dimension(ifull,1:klin) :: cc,dd
 real, dimension(ifull) :: n
 integer k
 
-bb(:,1)=bbi(:,1)
-dd(:,1)=ddi(:,1)
+cc(:,1)=cci(:,1)/bbi(:,1)
+dd(:,1)=ddi(:,1)/bbi(:,1)
 
 do k=2,klin
-  n=aa(:,k)/bb(:,k-1)
-  bb(:,k)=bbi(:,k)-n*cc(:,k-1)
-  dd(:,k)=ddi(:,k)-n*dd(:,k-1)
+  n=bbi(:,k)-cc(:,k-1)*aai(:,k)
+  cc(:,k)=cci(:,k)/n
+  dd(:,k)=(ddi(:,k)-dd(:,k-1)*aai(:,k))/n
 end do
-outdat(1:ifull,klin)=dd(:,klin)/bb(:,klin)
+outdat(1:ifull,klin)=dd(:,klin)
 do k=klin-1,1,-1
-  outdat(1:ifull,k)=(dd(:,k)-cc(:,k)*outdat(1:ifull,k+1))/bb(:,k)
+  outdat(1:ifull,k)=dd(:,k)-cc(:,k)*outdat(1:ifull,k+1)
 end do
 
 return
