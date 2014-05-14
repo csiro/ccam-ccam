@@ -159,6 +159,7 @@ C Local work arrays and variables
       real alph
       real rhorin,rhorout
       real cffluxin,cffluxout
+      real mxovr,rdovr
 
 C Local data, functions etc
       parameter (ntest=0)  ! 0=off, 1=on
@@ -385,10 +386,10 @@ c Evaporation of rain
               if(ttg(mg,k)<tfrz.and.ttg(mg,k)>=tice)then
 !              qsl(mg,k)=qsg(mg,k)+epsil                            ! MJT suggestion
 !     &             *esdiff(nint(ttg(mg,k)-tfrz))/(100.0*prf(mg,k)) ! MJT suggestion
-              qsl(mg,k)=qsg(mg,k)+epsil                             ! MJT suggestion
+               qsl(mg,k)=qsg(mg,k)+epsil                            ! MJT suggestion
      &             *esdiffx(ttg(mg,k))/(100.0*prf(mg,k))            ! MJT suggestion
               else
-                qsl(mg,k)=qsg(mg,k)
+               qsl(mg,k)=qsg(mg,k)
               endif             !qsl is qs value over liquid surface
               Tk=ttg(mg,k)
               es=qsl(mg,k)*pk/epsil 
@@ -420,41 +421,41 @@ c              Vr=5./sqrt(rhoa(mg,k))                !Nominal fall speed
 
 c Now do the collection term.
 
-c            if(qlg(mg,k)>1.e-10)then
-              if(fluxrain(mg)>0.)then
-                Fr=fluxrain(mg)/clfra(mg)/delt
-                cfrain(mg,k)=max(cfrain(mg,k),
-     &                       min(mxclfr(mg),clfr(mg,k))                ! max overlap
-     &                      +rdclfr(mg)*max(clfr(mg,k)-mxclfr(mg),0.)) ! rnd overlap
-              else
-                Fr=0.
-              endif
+            if(fluxrain(mg)>0.)then
+              Fr=fluxrain(mg)/clfra(mg)/delt
+              mxovr=min(mxclfr(mg),clfr(mg,k))                ! max overlap
+              mxovr=max(cfrain(mg,k),mxovr)
+              rdovr=rdclfr(mg)*clfr(mg,k)                     ! rnd overlap
+              cfrain(mg,k)=mxovr+rdovr-mxovr*rdovr            ! combine collection
+            else
+              Fr=0.
+            endif
 
-              if(fluxc(mg,k+1)>0.)then
-                Frc=max(0.,fluxc(mg,k+1)/max(ccra(mg),0.01)/tdt) ! over tdt
-                cfrain(mg,k)=max(cfrain(mg,k),clfr(mg,k)*ccra(mg))       ! rnd overlap
-                !cfrain(mg,k)=max(cfrain(mg,k),min(clfr(mg,k),ccra(mg))) ! max overlap
-              else
-                Frc=0.
-              endif
+            if(fluxc(mg,k+1)>0.)then
+              Frc=max(0.,fluxc(mg,k+1)/max(ccra(mg),0.01)/tdt) ! over tdt
+              rdovr=clfr(mg,k)*ccra(mg)                                ! rnd overlap
+              cfrain(mg,k)=cfrain(mg,k)+rdovr-cfrain(mg,k)*rdovr  
+              !cfrain(mg,k)=max(cfrain(mg,k),min(clfr(mg,k),ccra(mg))) ! max overlap
+            else
+              Frc=0.
+            endif
 
 c The collection term comprises collection by stratiform rain falling from
 c above (Fr), stratiform rain released in this grid box (Frb), and
 c convective rain (Frc).
 c Frb term now done above.
 
-              fcol=min(1.,mxclfr(mg)/(1.e-20+clfr(mg,k))) !max overlap
-              fcol=fcol+rdclfr(mg)-fcol*rdclfr(mg)        !rnd overlap
-              cdt=delt*Ecol*0.24*(fcol*pow75(Fr)
-     &                           +ccra(mg)*pow75(Frc))
-c              prscav(mg,nlp-k)=cdt/Ecol !Inc conv part
-              prscav(mg,nlp-k)=delt*0.24*fcol*pow75(Fr) !Strat only
+            fcol=min(1.,mxclfr(mg)/(1.e-20+clfr(mg,k))) !max overlap
+            fcol=fcol+rdclfr(mg)-fcol*rdclfr(mg)        !rnd overlap
+            cdt=delt*Ecol*0.24*(fcol*pow75(Fr)
+     &                         +ccra(mg)*pow75(Frc))
+c            prscav(mg,nlp-k)=cdt/Ecol !Inc conv part
+            prscav(mg,nlp-k)=delt*0.24*fcol*pow75(Fr) !Strat only
 
-              coll=min(qlg(mg,k),qlg(mg,k)*cdt/(1.+0.5*cdt))
-              qcoll(mg,k)=qcoll(mg,k)+coll
-              qlg(mg,k)=qlg(mg,k)-coll
-              fluxrain(mg)=fluxrain(mg)+coll*rhodz
-c            endif
+            coll=min(qlg(mg,k),qlg(mg,k)*cdt/(1.+0.5*cdt))
+            qcoll(mg,k)=qcoll(mg,k)+coll
+            qlg(mg,k)=qlg(mg,k)-coll
+            fluxrain(mg)=fluxrain(mg)+coll*rhodz
 
 c subtract evaporated rain
 
@@ -465,7 +466,7 @@ c Calculate the raining cloud cover down to this level, for stratiform (clfra)
 c and convective (ccra).
 
             cfrain(mg,k)=min(1.,
-     &             cfrain(mg,k)+cfmelt(mg,k)-cfrain(mg,k)*cfmelt(mg,k))
+     &             cfrain(mg,k)+cfmelt(mg,k)-cfrain(mg,k)*cfmelt(mg,k)) ! rnd overlap
             if (frclr(mg,k)<1.e-15) then
               rdclfr(mg)=0.
               mxclfr(mg)=0.

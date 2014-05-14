@@ -121,7 +121,6 @@ c     real qaggi(ln2,nl)
       real cdt
       real cffluxin
       real cffluxout
-      real ci
       real csb
       real curly
       real delt
@@ -337,8 +336,7 @@ c Now work down through the levels...
             ! that are separated by a clear layer
             if (cifr(mg,k)<1.e-10.or.nmr==0) then
               ! combine max overlap from last cloud with net random overlap
-              rdclfr(mg)=max(0.01,rdclfr(mg)+mxclfr(mg)
-     &                           -rdclfr(mg)*mxclfr(mg))
+              rdclfr(mg)=rdclfr(mg)+mxclfr(mg)-rdclfr(mg)*mxclfr(mg)
               mxclfr(mg)=0.
             end if
 
@@ -405,8 +403,7 @@ c (since subl occurs only outside cloud), so add sublflux back to fluxice.
               rdclfr(mg)=0.
               mxclfr(mg)=0.
             end if
-            ci=cifr(mg,k)+caccr
-            mxclfr(mg)=max(mxclfr(mg),ci) !max overlap
+            mxclfr(mg)=max(mxclfr(mg),cifr(mg,k)+caccr) !max overlap
             cifra(mg)=max(0.01,
      &        mxclfr(mg)+rdclfr(mg)-mxclfr(mg)*rdclfr(mg)) !rnd overlap the mx and rd ice fractions
 
