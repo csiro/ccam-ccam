@@ -1320,8 +1320,8 @@ if( vtype==nf90_short )then
   if ( all(var>9.8E36) ) then
     ipack=missval
   else
-    lier=nf90_get_att(lidnc,mid,'add_offset',laddoff)
-    lier=nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
+    ier=nf90_get_att(lidnc,mid,'add_offset',laddoff)
+    ier=nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
     do i=1,istep
       do iq=1,ifull
         ipack(iq,i)=nint(max(min((var(iq,i)-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
@@ -1399,7 +1399,6 @@ endif
 call ncmsg(sname,ier)
 #else
 ier=nf90_inq_varid(lidnc,sname,mid)
-er=lier
 call ncmsg(sname,ier)
 ier=nf90_inquire_variable(lidnc,mid,xtype=vtype)
 if ( vtype==nf90_short ) then
