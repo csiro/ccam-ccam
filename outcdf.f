@@ -29,8 +29,6 @@
       include 'parmvert.h'                  ! Vertical advection parameters
 
       integer ixp,iyp,idlev,idnt,idms,idoc
-      common/cdfind/ixp,iyp,idlev,idnt,
-     &  idms,idoc                           ! Output file dimension data
       integer leap
       common/leap_yr/leap                   ! Leap year (1 to allow leap years)
 
@@ -48,24 +46,18 @@
       character(len=20) timorg
       character(len=8) rundate
       character(len=3), dimension(12) :: month
-      logical local
 
       data month/'jan','feb','mar','apr','may','jun'
      &          ,'jul','aug','sep','oct','nov','dec'/
 
 
-      ! The localhist variable controls whether the local file option
-      !  is used.
-      !local = localhist .and. itype == 1 ! Only for outfile
-      local = localhist                   ! outfile and restfile
-
       ! Determine file names depending on output
-      if(myid==0 .or. local)then
+      if(myid==0 .or. localhist)then
        ! File setup follows
        if(itype==1)then
         ! itype=1 outfile
         iarch=iarch+1
-        if(local)then
+        if(localhist)then
            write(cdffile,"(a,'.',i6.6)") trim(ofile), myid
         else
            cdffile=ofile
@@ -73,7 +65,7 @@
        else
         ! itype=-1 restfile
         iarch=1
-        if(local)then
+        if(localhist)then
            write(cdffile,"(a,'.',i6.6)") trim(restfile), myid
         else
            cdffile=restfile
@@ -96,7 +88,7 @@
         ! Turn off the data filling
         call ccnf_nofill(idnc)
         ! Create dimensions, lon, runtopo.shlat
-        if(local)then
+        if(localhist)then
            call ccnf_def_dim(idnc,'longitude',il,xdim)
            call ccnf_def_dim(idnc,'latitude',jl,ydim)
         else
@@ -270,12 +262,13 @@ c       create the attributes of the header record of the file
         call ccnf_def_var0(idnc,'ds','float',idv)
         call ccnf_def_var0(idnc,'dt','float',idv)
        endif ! ( iarch=1)then
-      endif ! (myid==0.or.local)
+      endif ! (myid==0.or.localhist)
       
       ! openhist writes some fields so needs to be called by all processes
-      call openhist(iarch,itype,dim,local,idnc,nstagin)
+      call openhist(iarch,itype,dim,localhist,idnc,nstagin,
+     &              ixp,iyp,idlev,idnt,idms,idoc)
 
-      if(myid==0.or.local)then
+      if(myid==0.or.localhist)then
         if(ktau==ntau)then
           call ccnf_close(idnc)
           if (myid==0) then
@@ -289,7 +282,8 @@ c       create the attributes of the header record of the file
       
       !--------------------------------------------------------------
       ! CREATE ATTRIBUTES AND WRITE OUTPUT
-      subroutine openhist(iarch,itype,dim,local,idnc,nstagin)
+      subroutine openhist(iarch,itype,dim,local,idnc,nstagin,
+     &                    ixp,iyp,idlev,idnt,idms,idoc)
 
       use aerointerface                         ! Aerosol interface
       use aerosolldr                            ! LDR prognostic aerosols
@@ -352,9 +346,6 @@ c       create the attributes of the header record of the file
       include 'version.h'                       ! Model version data
 
       integer ixp,iyp,idlev,idnt,idms,idoc
-      common/cdfind/ixp,iyp,idlev,idnt,idms,
-     &  idoc                                    ! Output file dimension data
-
       integer i, idkdate, idktau, idktime, idmtimer, idnteg, idnter
       integer idv, iq, isoil, j, k, n, igas, idnc
       integer iarch, itype, nstagin, idum
@@ -395,7 +386,7 @@ c       create the attributes of the header record of the file
       idim(2)=dim(2)
       idim(3)=dim(4)
 
-      if(myid == 0 .or. local)then
+      if(myid==0.or.local)then
        if (myid==0) then
         write(6,*) 'openhist itype,iarch,idnc=',itype,iarch,idnc
        end if
