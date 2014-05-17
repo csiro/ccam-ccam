@@ -823,14 +823,15 @@ include 'newmpar.h'
 include 'parm.h'
 
 integer, intent(in) :: kk, n
-integer klapse, k, kin, iq
-integer, dimension(:), allocatable :: ka, kb
+integer k, kin, iq
+integer, dimension(:), allocatable, save :: ka, kb
 integer, save :: kk_save = -1
+integer, save :: klapse = 0
 real, dimension(:,:), intent(out) :: t
 real, dimension(ifull,kk), intent(in) :: told
 real, dimension(kk), intent(in) :: sigin
-real, dimension(:), allocatable :: sigin_save
-real, dimension(:), allocatable :: wta, wtb
+real, dimension(:), allocatable, save :: sigin_save
+real, dimension(:), allocatable, save :: wta, wtb
       
 if ( kk==kl ) then
   if ( all(abs(sig-sigin)<0.0001) ) then

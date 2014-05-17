@@ -128,18 +128,12 @@ real(kind=8), dimension(:,:,:,:), allocatable, save :: r
 
 START_LOG(radmisc)
 
-if (nmaxpr==1.and.myid==0) then
+if ( nmaxpr==1 .and. myid==0 ) then
   write(6,*) "seaesfrad: Starting SEA-ESF radiation"
 end if
 
-! Fix qgmin
-if (qgmin>2.E-7) then
-  if (myid==0) write(6,*) "WARN: Adjust qgmin to 2.E-7 for nrad=5"
-  qgmin=2.E-7
-end if
-
 ! Aerosol flag
-do_aerosol_forcing=abs(iaero)>=2
+do_aerosol_forcing = abs(iaero)>=2
 
 ! set-up half levels ------------------------------------------------
 sigh(1:kl) = sigmh(1:kl)
@@ -165,7 +159,7 @@ call solargh(fjd,bpyear,r1,dlt,alp,slag)
 if ( first ) then
   first = .false.
 
-  if (myid==0) write(6,*) "Initalising SEA-ESF radiation"
+  if ( myid==0 ) write(6,*) "Initalising SEA-ESF radiation"
   allocate(sgamp(ifull),rtt(ifull,kl))
 
   ! initialise co2
@@ -173,8 +167,8 @@ if ( first ) then
   rrco2=rrvco2*ratco2mw
 
   ! initialise ozone
-  if(amipo3)then
-    if (myid==0) write(6,*) 'AMIP2 ozone input'
+  if ( amipo3 ) then
+    if ( myid==0 ) write(6,*) 'AMIP2 ozone input'
     call o3read_amip
   else
     call o3_read(sig,jyear,jmonth)
@@ -433,6 +427,14 @@ if(mod(ifull,imax)/=0)then
   call ccmpi_abort(-1)
 endif
 
+Rad_gases%rrvco2  = real(rrvco2 ,8)
+Rad_gases%rrvch4  = real(rrvch4 ,8)
+Rad_gases%rrvn2o  = real(rrvn2o ,8)
+Rad_gases%rrvf11  = real(rrvf11 ,8)
+Rad_gases%rrvf12  = real(rrvf12 ,8)
+Rad_gases%rrvf113 = real(rrvf113,8)
+Rad_gases%rrvf22  = real(rrvf22 ,8)
+
 ! main loop ---------------------------------------------------------
 swcount=0
 do j=1,jl,imax/il
@@ -559,7 +561,7 @@ do j=1,jl,imax/il
       call mloalb4(istart,imax,coszro,cuvrf_dir,cuvrf_dif,cirrf_dir,cirrf_dif,0)
     else
       ! PCOM
-      write(6,*) "ERROR: This option for nmlo is not currently supported"
+      write(6,*) "ERROR: This PCOM option for SEA-ESF radiation is not currently supported"
       call ccmpi_abort(-1)
     end if
 
@@ -581,7 +583,7 @@ do j=1,jl,imax/il
         do i=1,imax
           iq=i+(j-1)*il
           cosz = max ( coszro(i), 1.e-4)
-          delta =  coszro(i)*0.29*8.*so4t(iq)*((1.-0.25*(cuvrf_dir(i)+cuvrf_dif(i)+cirrf_dir(i)+cirrf_dif(i)))/cosz)**2
+          delta = coszro(i)*0.29*8.*so4t(iq)*((1.-0.25*(cuvrf_dir(i)+cuvrf_dif(i)+cirrf_dir(i)+cirrf_dif(i)))/cosz)**2
           cuvrf_dir(i)=min(0.99, delta+cuvrf_dir(i)) ! still broadband
           cirrf_dir(i)=min(0.99, delta+cirrf_dir(i)) ! still broadband
           cuvrf_dif(i)=min(0.99, delta+cuvrf_dif(i)) ! still broadband
@@ -625,6 +627,7 @@ do j=1,jl,imax/il
     cloudhi(istart:iend)=0.
     ! Diagnose low, middle and high clouds
     if (nmr>0) then
+      ! max-rnd cloud overlap
       mx=0.
       do k=1,nlow
         mx=max(mx,cfrac(istart:iend,k))
@@ -653,14 +656,15 @@ do j=1,jl,imax/il
       end do
       cloudhi(istart:iend)=cloudhi(istart:iend)+mx*(1.-cloudhi(istart:iend))  
     else
+      ! rnd cloud overlap
       do k=1,nlow
-        cloudlo(istart:iend)=cloudlo(istart:iend)*(1.-cfrac(istart:iend,k))+cfrac(istart:iend,k)
+        cloudlo(istart:iend)=cloudlo(istart:iend)+cfrac(istart:iend,k)*(1.-cloudlo(istart:iend))
       enddo
       do k=nlow+1,nmid
-        cloudmi(istart:iend)=cloudmi(istart:iend)*(1.-cfrac(istart:iend,k))+cfrac(istart:iend,k)
+        cloudmi(istart:iend)=cloudmi(istart:iend)+cfrac(istart:iend,k)*(1.-cloudmi(istart:iend))
       enddo
       do k=nmid+1,kl-1
-        cloudhi(istart:iend)=cloudhi(istart:iend)*(1.-cfrac(istart:iend,k))+cfrac(istart:iend,k)
+        cloudhi(istart:iend)=cloudhi(istart:iend)+cfrac(istart:iend,k)*(1.-cloudhi(istart:iend))
       enddo
     end if
 
@@ -707,25 +711,7 @@ do j=1,jl,imax/il
       Atmos_input%aerosolrelhum = Atmos_input%rel_hum
     end if
     
-    Rad_gases%rrvco2  = real(rrvco2 ,8)
-    Rad_gases%rrvch4  = real(rrvch4 ,8)
-    Rad_gases%rrvn2o  = real(rrvn2o ,8)
-    Rad_gases%rrvf11  = real(rrvf11 ,8)
-    Rad_gases%rrvf12  = real(rrvf12 ,8)
-    Rad_gases%rrvf113 = real(rrvf113,8)
-    Rad_gases%rrvf22  = real(rrvf22 ,8)
-    
-    if (nmr==0) then
-      do i=1,imax ! random overlap
-        iq=i+istart-1
-        do k=1,kl
-          kr=kl+1-k
-          Cld_spec%camtsw(i,1,kr)=real(cfrac(iq,k),8) ! Max+Rnd overlap clouds for SW
-          Cld_spec%crndlw(i,1,kr)=real(cfrac(iq,k),8) ! Rnd overlap for LW
-          Cld_spec%cmxolw(i,1,kr)=0._8
-        end do
-      end do
-    else
+    if (nmr>0) then
       do i=1,imax ! maximum-random overlap
         iq=i+istart-1
         Cld_spec%cmxolw(i,1,:)=0._8
@@ -748,6 +734,16 @@ do j=1,jl,imax/il
           Cld_spec%camtsw(i,1,kr)=real(cfrac(iq,k),8)                         ! Max+Rnd overlap clouds for SW
           Cld_spec%cmxolw(i,1,kr)=min(Cld_spec%cmxolw(i,1,kr),0.999_8)        ! Max overlap for LW
           Cld_spec%crndlw(i,1,kr)=real(cfrac(iq,k),8)-Cld_spec%cmxolw(i,1,kr) ! Rnd overlap for LW
+        end do
+      end do
+    else
+      do i=1,imax ! random overlap
+        iq=i+istart-1
+        do k=1,kl
+          kr=kl+1-k
+          Cld_spec%camtsw(i,1,kr)=real(cfrac(iq,k),8) ! Max+Rnd overlap clouds for SW
+          Cld_spec%crndlw(i,1,kr)=real(cfrac(iq,k),8) ! Rnd overlap for LW
+          Cld_spec%cmxolw(i,1,kr)=0._8
         end do
       end do
     end if
@@ -984,7 +980,7 @@ do j=1,jl,imax/il
   ! slwa is negative net radiational htg at ground
   ! Note that this does not include the upward LW radiation from the surface.
   ! That is included in sflux.f
-  sgsave(istart:iend) = sg(1:imax)   ! this is the repeat after solarfit 26/7/02
+  sgsave(istart:iend) = sg(1:imax)   ! this is the repeat after solarfit
   slwa(istart:iend) = -sgsave(istart:iend)+rgsave(istart:iend)
 
 end do  ! Row loop (j)  j=1,jl,imax/il
@@ -1287,10 +1283,7 @@ end where
 !    this correction, 0.9*(2**(1./3.)) = 1.134, is applied only to 
 !    single layer liquid or mixed phase clouds.
 if (do_brenguier) then
-  if (nmr==0) then
-    !reffl=reffl*1.134
-    reffl=reffl*1.2599
-  else
+  if (nmr>0) then
     where (cfrac(:,2)==0.)
       !reffl(:,1)=reffl(:,1)*1.134
       reffl(:,1)=reffl(:,1)*1.2599
@@ -1304,7 +1297,10 @@ if (do_brenguier) then
     where (cfrac(:,kl-1)==0.)
       !reffl(:,kl)=reffl(:,kl)*1.134
       reffl(:,kl)=reffl(:,kl)*1.2599
-    end where  
+    end where 
+  else
+    !reffl=reffl*1.134
+    reffl=reffl*1.2599
   end if
 end if
 
