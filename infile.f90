@@ -928,7 +928,7 @@ integer, intent(inout) :: kdate_r,ktime_r,mtimer_r
 integer, dimension(12) :: mdays
 integer iyr,imo,iday,ihr,imins
 integer mtimerh,mtimerm,mtimer
-integer minsday,minsyr
+integer minsday,minsyr,mdays_save
 
 data mdays/31,28,31,30,31,30,31,31,30,31,30,31/
 data minsday/1440/,minsyr/525600/
@@ -1004,8 +1004,9 @@ ihr=mod(ihr,24)
 if(diag)write(6,*)'e datefix iyr,imo,iday,ihr,imins,mtimer_r: ', &
                              iyr,imo,iday,ihr,imins,mtimer_r
 
+mdays_save=mdays(imo)
 imo=imo+(iday-1)/mdays(imo)
-iday=mod(iday-1,mdays(imo))+1
+iday=mod(iday-1,mdays_save)+1
 
 iyr=iyr+(imo-1)/12
 imo=mod(imo-1,12)+1
