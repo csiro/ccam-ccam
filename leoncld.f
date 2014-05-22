@@ -1,4 +1,7 @@
+      ! This subroutine is the interface for the LDR cloud microphysics
+      
       subroutine leoncld(cfrac,cffall)
+      
       use aerointerface
       use arrays_m
       use cc_mpi, only : mydiag, myid
@@ -16,17 +19,20 @@
       use tracers_m  ! ngas, nllp, ntrac
       use vvel_m
       use work3f_m
+      
       implicit none
+      
       include 'newmpar.h'
-      integer  ncfrp,icfrp
-      parameter (ncfrp=0,icfrp=1)        ! cfrp diags off      
-!     parameter (ncfrp=1,icfrp=ifullw)   ! cfrp diags on     
       include 'const_phys.h' !Input physical constants
       include 'cparams.h'    !Input cloud scheme parameters
-      include 'kuocom.h'  ! acon,bcon,Rcm
+      include 'kuocom.h'     ! acon,bcon,Rcm
       include 'parm.h'
       include 'params.h'
 
+      integer  ncfrp,icfrp
+      parameter (ncfrp=0,icfrp=1)        ! cfrp diags off      
+!     parameter (ncfrp=1,icfrp=ifullw)   ! cfrp diags on     
+      
 c for cfrp
       integer kcldfmax(icfrp)
       real taul(icfrp,kl)
@@ -83,13 +89,12 @@ c These outputs are not used in this model at present
 
       ! set-up params.h
       ln2=ifull
-      lon=ln2/2
       nl=kl
       nlp=nl+1
       nlm=nl-1
 
       do k=1,kl   
-        prf(:,k)=0.01*ps(1:ifull)*sig(k) !Looks like ps is SI units
+        prf(:,k)=0.01*ps(1:ifull)*sig(k)    !ps is SI units
         dprf(:,k)=-0.01*ps(1:ifull)*dsig(k) !dsig is -ve
         rhoa(:,k)=100.*prf(:,k)/(rdry*t(1:ifull,k))
         do iq=1,ifull
@@ -146,18 +151,18 @@ c     Calculate convective cloud fraction and adjust moisture variables
 c     before calling newcloud
       if ( nmr>0 ) then ! Max/Rnd cloud overlap
         do k=1,kl
-          where ( k<=ktop(1:ifull) .and. k>=kbase(1:ifull) )
-            clcon(:,k)=cldcon(:) ! maximum overlap
+          where ( k<=ktop .and. k>=kbase .and. cldcon>0. )
+            clcon(:,k) = cldcon(:) ! maximum overlap
             !ccw=wcon(:)/rhoa(:,k)  !In-cloud l.w. mixing ratio
-            qccon(:,k)=clcon(:,k)*wcon(:)/rhoa(:,k)
-            qcl(:,k)=max(qsg(:,k),qg(1:ifull,k))  ! jlm
-            qenv(1:ifull,k)=max(1.e-8,
+            qccon(:,k) = clcon(:,k)*wcon(:)/rhoa(:,k)
+            qcl(:,k)   = max(qsg(:,k),qg(1:ifull,k))  ! jlm
+            qenv(1:ifull,k) = max(1.e-8,
      &                 qg(1:ifull,k)-clcon(:,k)*qcl(:,k))
      &                 /(1.-clcon(:,k))
-            qcl(:,k)=(qg(1:ifull,k)-(1.-clcon(:,k))
+            qcl(:,k) = (qg(1:ifull,k)-(1.-clcon(:,k))
      &                *qenv(1:ifull,k))/clcon(:,k)
-            qlg(1:ifull,k)=qlg(1:ifull,k)/(1.-clcon(:,k))
-            qfg(1:ifull,k)=qfg(1:ifull,k)/(1.-clcon(:,k))
+            qlg(1:ifull,k) = qlg(1:ifull,k)/(1.-clcon(:,k))
+            qfg(1:ifull,k) = qfg(1:ifull,k)/(1.-clcon(:,k))
           elsewhere
             clcon(:,k)      = 0.
             qccon(:,k)      = 0.
@@ -169,7 +174,7 @@ c     before calling newcloud
       else ! usual random cloud overlap
         do k=1,kl
           do iq=1,ifull
-            if(k<=ktop(iq).and.k>=kbase(iq))then
+            if(k<=ktop(iq).and.k>=kbase(iq).and.cldcon(iq)>0.)then
               ncl=ktop(iq)-kbase(iq)+1
               clcon(iq,k)=1.0-(1.0-cldcon(iq))**(1.0/ncl) !Random overlap
               ccw=wcon(iq)/rhoa(iq,k)  !In-cloud l.w. mixing ratio
