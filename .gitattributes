@@ -62,6 +62,7 @@
 /nlin_m.f90 -text
 /nsibd_m.f90 -text
 /o3amip_m.f90 -text
+/onthefly.f90 -text
 /optical_path.f90 -text
 /outcdf.f -text
 /ozoneread.f90 -text

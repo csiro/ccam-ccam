@@ -249,11 +249,11 @@ c     n.b. we now always assume b = 1-a-c
       implicit none
       include 'newmpar.h'
 !     N.B.  e, g, temp are just work arrays (not passed through at all)     
+      integer it,iq,k,ngas
       real e(ifull,kl),g(ifull,kl,ngas)
       real temp(ifull,kl)
       real a(ifull,kl),c(ifull,kl),rhs(ifull,kl,ngas)
       real b
-      integer it,iq,k,ngas
 
 
 c     this routine solves the system

@@ -413,115 +413,115 @@ end if
  
 do nb=1,maxnb
   do k=1,ms
-    tgg(cmap(pind(nb,1):pind(nb,2)),k)=tgg(cmap(pind(nb,1):pind(nb,2)),k) &
+    tgg(cmap(pind(nb,1):pind(nb,2)),k)=tgg(cmap(pind(nb,1):pind(nb,2)),k)                                  &
                                     +sv(pind(nb,1):pind(nb,2))*ssnow%tgg(pind(nb,1):pind(nb,2),k)
-    wb(cmap(pind(nb,1):pind(nb,2)),k)=wb(cmap(pind(nb,1):pind(nb,2)),k) &
+    wb(cmap(pind(nb,1):pind(nb,2)),k)=wb(cmap(pind(nb,1):pind(nb,2)),k)                                    &
                                     +sv(pind(nb,1):pind(nb,2))*ssnow%wb(pind(nb,1):pind(nb,2),k)
-    wbice(cmap(pind(nb,1):pind(nb,2)),k)=wbice(cmap(pind(nb,1):pind(nb,2)),k) &
+    wbice(cmap(pind(nb,1):pind(nb,2)),k)=wbice(cmap(pind(nb,1):pind(nb,2)),k)                              &
                                     +sv(pind(nb,1):pind(nb,2))*ssnow%wbice(pind(nb,1):pind(nb,2),k)
   end do
   if (icycle==0) then
     do k=1,ncp
-      cplant(cmap(pind(nb,1):pind(nb,2)),k)=cplant(cmap(pind(nb,1):pind(nb,2)),k) &
+      cplant(cmap(pind(nb,1):pind(nb,2)),k)=cplant(cmap(pind(nb,1):pind(nb,2)),k)                          &
                                       +sv(pind(nb,1):pind(nb,2))*bgc%cplant(pind(nb,1):pind(nb,2),k)
     enddo
     do k=1,ncs
-      csoil(cmap(pind(nb,1):pind(nb,2)),k)=csoil(cmap(pind(nb,1):pind(nb,2)),k) &
+      csoil(cmap(pind(nb,1):pind(nb,2)),k)=csoil(cmap(pind(nb,1):pind(nb,2)),k)                            &
                                     +sv(pind(nb,1):pind(nb,2))*bgc%csoil(pind(nb,1):pind(nb,2),k)
     enddo
   else
     do k=1,mplant
-      cplant(cmap(pind(nb,1):pind(nb,2)),k)=cplant(cmap(pind(nb,1):pind(nb,2)),k) &
+      cplant(cmap(pind(nb,1):pind(nb,2)),k)=cplant(cmap(pind(nb,1):pind(nb,2)),k)                          &
                                       +sv(pind(nb,1):pind(nb,2))*casapool%cplant(pind(nb,1):pind(nb,2),k)
-      niplant(cmap(pind(nb,1):pind(nb,2)),k)=niplant(cmap(pind(nb,1):pind(nb,2)),k) &
+      niplant(cmap(pind(nb,1):pind(nb,2)),k)=niplant(cmap(pind(nb,1):pind(nb,2)),k)                        &
                                       +sv(pind(nb,1):pind(nb,2))*casapool%nplant(pind(nb,1):pind(nb,2),k)
-      pplant(cmap(pind(nb,1):pind(nb,2)),k)=pplant(cmap(pind(nb,1):pind(nb,2)),k) &
+      pplant(cmap(pind(nb,1):pind(nb,2)),k)=pplant(cmap(pind(nb,1):pind(nb,2)),k)                          &
                                       +sv(pind(nb,1):pind(nb,2))*casapool%pplant(pind(nb,1):pind(nb,2),k)
     end do
     do k=1,mlitter
-      clitter(cmap(pind(nb,1):pind(nb,2)),k)=clitter(cmap(pind(nb,1):pind(nb,2)),k) &
+      clitter(cmap(pind(nb,1):pind(nb,2)),k)=clitter(cmap(pind(nb,1):pind(nb,2)),k)                        &
                                       +sv(pind(nb,1):pind(nb,2))*casapool%clitter(pind(nb,1):pind(nb,2),k)
-      nilitter(cmap(pind(nb,1):pind(nb,2)),k)=nilitter(cmap(pind(nb,1):pind(nb,2)),k) &
+      nilitter(cmap(pind(nb,1):pind(nb,2)),k)=nilitter(cmap(pind(nb,1):pind(nb,2)),k)                      &
                                       +sv(pind(nb,1):pind(nb,2))*casapool%nlitter(pind(nb,1):pind(nb,2),k)
-      plitter(cmap(pind(nb,1):pind(nb,2)),k)=plitter(cmap(pind(nb,1):pind(nb,2)),k) &
+      plitter(cmap(pind(nb,1):pind(nb,2)),k)=plitter(cmap(pind(nb,1):pind(nb,2)),k)                        &
                                       +sv(pind(nb,1):pind(nb,2))*casapool%plitter(pind(nb,1):pind(nb,2),k)
     end do
     do k=1,msoil
-      csoil(cmap(pind(nb,1):pind(nb,2)),k)=csoil(cmap(pind(nb,1):pind(nb,2)),k) &
+      csoil(cmap(pind(nb,1):pind(nb,2)),k)=csoil(cmap(pind(nb,1):pind(nb,2)),k)                            &
                                       +sv(pind(nb,1):pind(nb,2))*casapool%csoil(pind(nb,1):pind(nb,2),k)
-      nisoil(cmap(pind(nb,1):pind(nb,2)),k)=nisoil(cmap(pind(nb,1):pind(nb,2)),k) &
+      nisoil(cmap(pind(nb,1):pind(nb,2)),k)=nisoil(cmap(pind(nb,1):pind(nb,2)),k)                          &
                                       +sv(pind(nb,1):pind(nb,2))*casapool%nsoil(pind(nb,1):pind(nb,2),k)
-      psoil(cmap(pind(nb,1):pind(nb,2)),k)=psoil(cmap(pind(nb,1):pind(nb,2)),k) &
+      psoil(cmap(pind(nb,1):pind(nb,2)),k)=psoil(cmap(pind(nb,1):pind(nb,2)),k)                            &
                                       +sv(pind(nb,1):pind(nb,2))*casapool%psoil(pind(nb,1):pind(nb,2),k)
     end do
-    glai(cmap(pind(nb,1):pind(nb,2)))=glai(cmap(pind(nb,1):pind(nb,2))) &
+    glai(cmap(pind(nb,1):pind(nb,2)))=glai(cmap(pind(nb,1):pind(nb,2)))                                    &
                                     +sv(pind(nb,1):pind(nb,2))*casamet%glai(pind(nb,1):pind(nb,2))
   end if
-  albsav(cmap(pind(nb,1):pind(nb,2)))=albsav(cmap(pind(nb,1):pind(nb,2))) &
+  albsav(cmap(pind(nb,1):pind(nb,2)))=albsav(cmap(pind(nb,1):pind(nb,2)))                                  &
                                     +sv(pind(nb,1):pind(nb,2))*rad%albedo(pind(nb,1):pind(nb,2),1)
-  albnirsav(cmap(pind(nb,1):pind(nb,2)))=albnirsav(cmap(pind(nb,1):pind(nb,2))) &
+  albnirsav(cmap(pind(nb,1):pind(nb,2)))=albnirsav(cmap(pind(nb,1):pind(nb,2)))                            &
                                     +sv(pind(nb,1):pind(nb,2))*rad%albedo(pind(nb,1):pind(nb,2),2)
-  albvisdir(cmap(pind(nb,1):pind(nb,2)))=albvisdir(cmap(pind(nb,1):pind(nb,2))) &
+  albvisdir(cmap(pind(nb,1):pind(nb,2)))=albvisdir(cmap(pind(nb,1):pind(nb,2)))                            &
                                     +sv(pind(nb,1):pind(nb,2))*rad%reffbm(pind(nb,1):pind(nb,2),1)
-  albnirdir(cmap(pind(nb,1):pind(nb,2)))=albnirdir(cmap(pind(nb,1):pind(nb,2))) &
+  albnirdir(cmap(pind(nb,1):pind(nb,2)))=albnirdir(cmap(pind(nb,1):pind(nb,2)))                            &
                                     +sv(pind(nb,1):pind(nb,2))*rad%reffbm(pind(nb,1):pind(nb,2),2)
-  albvisdif(cmap(pind(nb,1):pind(nb,2)))=albvisdif(cmap(pind(nb,1):pind(nb,2))) &
+  albvisdif(cmap(pind(nb,1):pind(nb,2)))=albvisdif(cmap(pind(nb,1):pind(nb,2)))                            &
                                     +sv(pind(nb,1):pind(nb,2))*rad%reffdf(pind(nb,1):pind(nb,2),1)
-  albnirdif(cmap(pind(nb,1):pind(nb,2)))=albnirdif(cmap(pind(nb,1):pind(nb,2))) &
+  albnirdif(cmap(pind(nb,1):pind(nb,2)))=albnirdif(cmap(pind(nb,1):pind(nb,2)))                            &
                                     +sv(pind(nb,1):pind(nb,2))*rad%reffdf(pind(nb,1):pind(nb,2),2)
-  runoff(cmap(pind(nb,1):pind(nb,2)))=runoff(cmap(pind(nb,1):pind(nb,2))) &
+  runoff(cmap(pind(nb,1):pind(nb,2)))=runoff(cmap(pind(nb,1):pind(nb,2)))                                  &
                                     +sv(pind(nb,1):pind(nb,2))*ssnow%runoff(pind(nb,1):pind(nb,2))*dt ! convert mm/s to mm
-  fg(cmap(pind(nb,1):pind(nb,2)))=fg(cmap(pind(nb,1):pind(nb,2))) &
+  fg(cmap(pind(nb,1):pind(nb,2)))=fg(cmap(pind(nb,1):pind(nb,2)))                                          &
                                     +sv(pind(nb,1):pind(nb,2))*canopy%fh(pind(nb,1):pind(nb,2))
-  eg(cmap(pind(nb,1):pind(nb,2)))=eg(cmap(pind(nb,1):pind(nb,2))) &
+  eg(cmap(pind(nb,1):pind(nb,2)))=eg(cmap(pind(nb,1):pind(nb,2)))                                          &
                                     +sv(pind(nb,1):pind(nb,2))*canopy%fe(pind(nb,1):pind(nb,2))
-  ga(cmap(pind(nb,1):pind(nb,2)))=ga(cmap(pind(nb,1):pind(nb,2))) &
+  ga(cmap(pind(nb,1):pind(nb,2)))=ga(cmap(pind(nb,1):pind(nb,2)))                                          &
                                     +sv(pind(nb,1):pind(nb,2))*canopy%ga(pind(nb,1):pind(nb,2))
-  epot(cmap(pind(nb,1):pind(nb,2)))=epot(cmap(pind(nb,1):pind(nb,2))) &
+  epot(cmap(pind(nb,1):pind(nb,2)))=epot(cmap(pind(nb,1):pind(nb,2)))                                      &
                                     +sv(pind(nb,1):pind(nb,2))*ssnow%potev(pind(nb,1):pind(nb,2))
-  tss(cmap(pind(nb,1):pind(nb,2)))=tss(cmap(pind(nb,1):pind(nb,2))) &
+  tss(cmap(pind(nb,1):pind(nb,2)))=tss(cmap(pind(nb,1):pind(nb,2)))                                        &
                                     +sv(pind(nb,1):pind(nb,2))*rad%trad(pind(nb,1):pind(nb,2))**4 ! ave longwave radiation
-  cansto(cmap(pind(nb,1):pind(nb,2)))=cansto(cmap(pind(nb,1):pind(nb,2))) &
+  cansto(cmap(pind(nb,1):pind(nb,2)))=cansto(cmap(pind(nb,1):pind(nb,2)))                                  &
                                     +sv(pind(nb,1):pind(nb,2))*canopy%cansto(pind(nb,1):pind(nb,2))
-  fwet(cmap(pind(nb,1):pind(nb,2)))=fwet(cmap(pind(nb,1):pind(nb,2))) &
+  fwet(cmap(pind(nb,1):pind(nb,2)))=fwet(cmap(pind(nb,1):pind(nb,2)))                                      &
                                     +sv(pind(nb,1):pind(nb,2))*canopy%fwet(pind(nb,1):pind(nb,2))
-  fnee(cmap(pind(nb,1):pind(nb,2)))=fnee(cmap(pind(nb,1):pind(nb,2))) &
+  fnee(cmap(pind(nb,1):pind(nb,2)))=fnee(cmap(pind(nb,1):pind(nb,2)))                                      &
                                     +sv(pind(nb,1):pind(nb,2))*canopy%fnee(pind(nb,1):pind(nb,2))
-  fpn(cmap(pind(nb,1):pind(nb,2)))=fpn(cmap(pind(nb,1):pind(nb,2))) &
+  fpn(cmap(pind(nb,1):pind(nb,2)))=fpn(cmap(pind(nb,1):pind(nb,2)))                                        &
                                     +sv(pind(nb,1):pind(nb,2))*canopy%fpn(pind(nb,1):pind(nb,2))
-  frd(cmap(pind(nb,1):pind(nb,2)))=frd(cmap(pind(nb,1):pind(nb,2))) &
+  frd(cmap(pind(nb,1):pind(nb,2)))=frd(cmap(pind(nb,1):pind(nb,2)))                                        &
                                     +sv(pind(nb,1):pind(nb,2))*canopy%frday(pind(nb,1):pind(nb,2))
-  frp(cmap(pind(nb,1):pind(nb,2)))=frp(cmap(pind(nb,1):pind(nb,2))) &
+  frp(cmap(pind(nb,1):pind(nb,2)))=frp(cmap(pind(nb,1):pind(nb,2)))                                        &
                                     +sv(pind(nb,1):pind(nb,2))*canopy%frp(pind(nb,1):pind(nb,2))
-  frpw(cmap(pind(nb,1):pind(nb,2)))=frpw(cmap(pind(nb,1):pind(nb,2))) &
+  frpw(cmap(pind(nb,1):pind(nb,2)))=frpw(cmap(pind(nb,1):pind(nb,2)))                                      &
                                     +sv(pind(nb,1):pind(nb,2))*canopy%frpw(pind(nb,1):pind(nb,2))
-  frs(cmap(pind(nb,1):pind(nb,2)))=frs(cmap(pind(nb,1):pind(nb,2))) &
+  frs(cmap(pind(nb,1):pind(nb,2)))=frs(cmap(pind(nb,1):pind(nb,2)))                                        &
                                    +sv(pind(nb,1):pind(nb,2))*canopy%frs(pind(nb,1):pind(nb,2))
-  zo(cmap(pind(nb,1):pind(nb,2)))=zo(cmap(pind(nb,1):pind(nb,2))) &
+  zo(cmap(pind(nb,1):pind(nb,2)))=zo(cmap(pind(nb,1):pind(nb,2)))                                          &
                                     +sv(pind(nb,1):pind(nb,2))/log(zmin/rough%z0m(pind(nb,1):pind(nb,2)))**2
-  zoh(cmap(pind(nb,1):pind(nb,2)))=zoh(cmap(pind(nb,1):pind(nb,2))) &
+  zoh(cmap(pind(nb,1):pind(nb,2)))=zoh(cmap(pind(nb,1):pind(nb,2)))                                        &
                                     +sv(pind(nb,1):pind(nb,2))/(log(zmin/rough%z0m(pind(nb,1):pind(nb,2))) &
                                                            *log(10.*zmin/rough%z0m(pind(nb,1):pind(nb,2))))
-  cduv(cmap(pind(nb,1):pind(nb,2)))=cduv(cmap(pind(nb,1):pind(nb,2))) &
+  cduv(cmap(pind(nb,1):pind(nb,2)))=cduv(cmap(pind(nb,1):pind(nb,2)))                                      &
                                     +sv(pind(nb,1):pind(nb,2))*canopy%cduv(pind(nb,1):pind(nb,2))
-  cdtq(cmap(pind(nb,1):pind(nb,2)))=cdtq(cmap(pind(nb,1):pind(nb,2))) &
+  cdtq(cmap(pind(nb,1):pind(nb,2)))=cdtq(cmap(pind(nb,1):pind(nb,2)))                                      &
                                    +sv(pind(nb,1):pind(nb,2))*canopy%cdtq(pind(nb,1):pind(nb,2))
-  wetfac(cmap(pind(nb,1):pind(nb,2)))=wetfac(cmap(pind(nb,1):pind(nb,2))) &
+  wetfac(cmap(pind(nb,1):pind(nb,2)))=wetfac(cmap(pind(nb,1):pind(nb,2)))                                  &
                                     +sv(pind(nb,1):pind(nb,2))*ssnow%wetfac(pind(nb,1):pind(nb,2))
-  rsmin(cmap(pind(nb,1):pind(nb,2)))=rsmin(cmap(pind(nb,1):pind(nb,2))) &
+  rsmin(cmap(pind(nb,1):pind(nb,2)))=rsmin(cmap(pind(nb,1):pind(nb,2)))                                    &
                                     +sv(pind(nb,1):pind(nb,2))*canopy%gswx_T(pind(nb,1):pind(nb,2))
-  tmps(cmap(pind(nb,1):pind(nb,2)))=tmps(cmap(pind(nb,1):pind(nb,2))) &
+  tmps(cmap(pind(nb,1):pind(nb,2)))=tmps(cmap(pind(nb,1):pind(nb,2)))                                      &
                                     +sv(pind(nb,1):pind(nb,2))*real(ssnow%isflag(pind(nb,1):pind(nb,2)))
-  vlai(cmap(pind(nb,1):pind(nb,2)))=vlai(cmap(pind(nb,1):pind(nb,2))) &
+  vlai(cmap(pind(nb,1):pind(nb,2)))=vlai(cmap(pind(nb,1):pind(nb,2)))                                      &
                                     +sv(pind(nb,1):pind(nb,2))*veg%vlai(pind(nb,1):pind(nb,2))
 
-  tscrn(cmap(pind(nb,1):pind(nb,2)))=tscrn(cmap(pind(nb,1):pind(nb,2))) &
+  tscrn(cmap(pind(nb,1):pind(nb,2)))=tscrn(cmap(pind(nb,1):pind(nb,2)))                                    &
                                     +sv(pind(nb,1):pind(nb,2))*canopy%tscrn(pind(nb,1):pind(nb,2))
-  uscrn(cmap(pind(nb,1):pind(nb,2)))=uscrn(cmap(pind(nb,1):pind(nb,2))) &
+  uscrn(cmap(pind(nb,1):pind(nb,2)))=uscrn(cmap(pind(nb,1):pind(nb,2)))                                    &
                                     +sv(pind(nb,1):pind(nb,2))*canopy%uscrn(pind(nb,1):pind(nb,2))
-  qgscrn(cmap(pind(nb,1):pind(nb,2)))=qgscrn(cmap(pind(nb,1):pind(nb,2))) &
+  qgscrn(cmap(pind(nb,1):pind(nb,2)))=qgscrn(cmap(pind(nb,1):pind(nb,2)))                                  &
                                     +sv(pind(nb,1):pind(nb,2))*canopy%qscrn(pind(nb,1):pind(nb,2))
-  !u10(cmap(pind(nb,1):pind(nb,2)))=u10(cmap(pind(nb,1):pind(nb,2))) &
+  !u10(cmap(pind(nb,1):pind(nb,2)))=u10(cmap(pind(nb,1):pind(nb,2)))                                       &
   !                                  +sv(pind(nb,1):pind(nb,2))*canopy%ua_10m(pind(nb,1):pind(nb,2))
 end do
 
@@ -618,11 +618,11 @@ do nb=1,maxnb ! update snow (diagnostic only)
                                        +sv(pind(nb,1):pind(nb,2))*ssnow%ssdn(pind(nb,1):pind(nb,2),k)
     end where
   end do
-  ssdnn(cmap(pind(nb,1):pind(nb,2)))=ssdnn(cmap(pind(nb,1):pind(nb,2))) &
+  ssdnn(cmap(pind(nb,1):pind(nb,2)))=ssdnn(cmap(pind(nb,1):pind(nb,2)))                                    &
                                        +sv(pind(nb,1):pind(nb,2))*ssnow%ssdnn(pind(nb,1):pind(nb,2))
-  snage(cmap(pind(nb,1):pind(nb,2)))=snage(cmap(pind(nb,1):pind(nb,2))) &
+  snage(cmap(pind(nb,1):pind(nb,2)))=snage(cmap(pind(nb,1):pind(nb,2)))                                    &
                                        +sv(pind(nb,1):pind(nb,2))*ssnow%snage(pind(nb,1):pind(nb,2))
-  snowd(cmap(pind(nb,1):pind(nb,2)))=snowd(cmap(pind(nb,1):pind(nb,2))) &
+  snowd(cmap(pind(nb,1):pind(nb,2)))=snowd(cmap(pind(nb,1):pind(nb,2)))                                    &
                                        +sv(pind(nb,1):pind(nb,2))*ssnow%snowd(pind(nb,1):pind(nb,2))
 end do
 
@@ -652,11 +652,9 @@ real, dimension(ifull), intent(out) :: atmco2
 ico2=0
 if (tracerco2==1) then
   do igas=1,ngas
-    if (trim(tractype(igas))=='online') then
-      if (trim(tracname(igas))=='cbmnep') then
-        ico2=igas
-        exit
-      end if
+    if (trim(tractype(igas))=='online'.and.trim(tracname(igas))=='cbmnep') then
+      ico2=igas
+      exit
     end if
   end do
   if (ico2>0) then
@@ -767,7 +765,7 @@ select case(proglai)
 
   case default
     write(6,*) "ERROR: Unknown proglai option ",proglai
-    stop
+    call ccmpi_abort(-1)
 end select
 
 sigmf(:)=0.
@@ -843,7 +841,7 @@ if (myid==0) write(6,*) "Initialising CABLE"
 
 if (cbm_ms/=ms) then
   write(6,*) "ERROR: CABLE and CCAM soil levels do not match"
-  stop
+  call ccmpi_abort(-1)
 end if
 
 ! redefine rhos
@@ -1148,7 +1146,7 @@ do iq=1,ifull
           newlai(iq,16,2)=newlai(iq,16,2)+svs(iq,n)*vlinnext(iq,n)
         case DEFAULT
           write(6,*) "ERROR: Land-type/lsmask mismatch at myid,iq,ivs,land=",myid,iq,ivs(iq,n),land(iq)
-          stop
+          call ccmpi_abort(-1)
       end select
     end do
     where (newgrid(iq,:)>0.)
@@ -1173,11 +1171,11 @@ do iq=1,ifull
     ipos=count(newgrid(iq,:)>0.)
     if (ipos>5) then
       write(6,*) "ERROR: Too many CABLE tiles"
-      stop
+      call ccmpi_abort(-1)
     end if
     if (ipos<1) then
       write(6,*) "ERROR: Missing CABLE tiles"
-      stop
+      call ccmpi_abort(-1)
     end if    
     mp=mp+ipos
   end if
@@ -1300,7 +1298,7 @@ if (mp>0) then
   
   if (ipos/=mp) then
     write(6,*) "ERROR: Internal memory allocation error for CABLE set-up"
-    stop
+    call ccmpi_abort(-1)
   end if
 
   ! Load CABLE arrays
@@ -2695,13 +2693,13 @@ if (myid==0) then
     write(6,*) "ERROR: Grid mismatch for ",trim(casafile)
     write(6,*) "rlong0,rlat0,schmidt ",rlong0,rlat0,schmidt
     write(6,*) "tlon,tlat,tschmidt   ",tlon,tlat,tschmidt
-    stop
+    call ccmpi_abort(-1)
   end if
   call ccnf_inq_dimlen(ncid,'longitude',tilg)
   if (tilg/=il_g) then
     write (6,*) "ERROR: Grid mismatch for ",trim(casafile)
     write (6,*) "il_g,tilg ",il_g,tilg
-    stop
+    call ccmpi_abort(-1)
   end if
   ! load casa fields
   spos=1
@@ -2743,7 +2741,7 @@ end where
 
 if (any(casamet%isorder<1.or.casamet%isorder>12)) then
   write(6,*) "ERROR: Invalid isorder in ",trim(casafile)
-  stop
+  call ccmpi_abort(-1)
 end if
 
 end subroutine casa_readpoint

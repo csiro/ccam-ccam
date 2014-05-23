@@ -39,6 +39,7 @@
       use indices_m                    ! Grid index arrays
       use latlong_m                    ! Lat/lon coordinates
       use mlo                          ! Ocean physics and prognostic arrays
+      use onthefly_m                   ! Input interpolation routines
       use pbl_m                        ! Boundary layer arrays
       use soil_m                       ! Soil and surface data
       use soilsnow_m                   ! Soil, snow and surface data
@@ -51,11 +52,13 @@
       include 'stime.h'                ! File date data
 
       integer, dimension(ifull) :: dumm
-      integer, save :: num,mtimea,mtimeb
-      integer iq,k,i,wl,ierr
+      integer, save :: num = 0
+      integer, save :: mtimea = 0
+      integer, save :: mtimeb = 0
+      integer, save :: wl = -1
+      integer iq,k,i,ierr
       integer kdate_r,ktime_r,kdhour,kdmin,iabsdate
-      real timerm,cona,conb,rduma
-      real, save :: rdumg = -999.
+      real timerm,cona,conb
       real, dimension(2) :: dumbb
       real, dimension(:,:), allocatable, save :: ta,ua,va,qa
       real, dimension(:,:), allocatable, save :: tb,ub,vb,qb,ocndep
@@ -68,7 +71,6 @@
       real, dimension(ifull,kl) :: dumv
       real, dimension(ifull,3) :: dums
       character(len=12) dimnam
-      data num/0/,mtimea/0/,mtimeb/-1/
       
 !     mtimer, mtimeb are in minutes
       if(ktau<100.and.myid==0)then
@@ -202,8 +204,8 @@
 !       ensure qb big enough, but not too big in top levels (from Sept '04)
         qb(1:ifull,:)=max(qb(1:ifull,:),0.)
 
-!       following is useful if troublesome data is read in
 #ifdef debug
+!       following is useful if troublesome data is read in
         if(mod(ktau,nmaxpr)==0.or.ktau==2.or.diag)then
           if ( myid == 0 ) then
             write(6,*) 'following max/min values printed from nestin'
@@ -283,20 +285,21 @@
      &        nud_sfh/=0) then
             ! nudge mlo
             dumaa=cona*sssa+conb*sssb
-            wl=wlev
-            if (rdumg<-1.) then
-              rduma=maxval(ocndep(:,1)) ! check if 3D data exists
-              dumbb(1)=rduma
+            if (wl<1) then
+              ! determine if multiple levels of ocean data exist in host
+              dumbb(1)=maxval(ocndep(:,1)) ! check if 3D data exists
               call ccmpi_allreduce(dumbb(1:1),dumbb(2:2),"max",
      &                             comm_world)
-              rdumg=dumbb(2)
+              if (dumbb(2)<0.5) then
+                wl=1
+              else
+                wl=wlev
+              end if
             end if
-            if (rdumg<0.5) wl=1
             if (wl==1) then ! switch to 2D if 3D data is missing
-              !call mloexpmelt(timelt)
               call mloexport(0,timelt,1,0)
               dumaa(:,1,1)=cona*tssa+conb*tssb
-              where (fraciceb>0.)
+              where (fraciceb>0.) ! no relaxation under ice for SST nudging
                 dumaa(:,1,1)=timelt
               end where
             end if
@@ -321,6 +324,7 @@
       use indices_m                    ! Grid index arrays
       use latlong_m                    ! Lat/lon coordinates
       use mlo                          ! Ocean physics and prognostic arrays
+      use onthefly_m                   ! Input interpolation routines
       use pbl_m                        ! Boundary layer arrays
       use soil_m                       ! Soil and surface data
       use soilsnow_m                   ! Soil, snow and surface data
@@ -437,13 +441,6 @@
 #endif
         call retopo(pslb,zsb,zs(1:ifull),tb,qb)
 
-        ! Removed by MJT for conservation
-!       ensure qb big enough, but not too big in top levels (from Sept '04)
-        !qb(1:ifull,:)=max(qb(1:ifull,:),qgmin)
-        !do k=kl-2,kl
-        !  qb(1:ifull,k)=min(qb(1:ifull,k),10.*qgmin)
-        !enddo
-
       end if ! ((mtimer>mtimeb).or.firstcall)
 
       ! Apply filter to model data using previously loaded host data
@@ -502,7 +499,8 @@
             ! nudge Mixed-Layer-Ocean
             if (nud_sst/=0.or.nud_sss/=0.or.nud_ouv/=0.or.
      &          nud_sfh/=0) then
-              if (wl==-1) then
+              ! check host for 2D or 3D data
+              if (wl<1) then
                 dumbb(1)=maxval(ocndep(:,1)) ! check for 3D data
                 call ccmpi_allreduce(dumbb(1:1),dumbb(2:2),"max",
      &                               comm_world)
@@ -515,7 +513,7 @@
               if (wl==1) then ! switch to 2D data if 3D is missing
                 call mloexport(0,timelt,1,0)
                 sssb(:,1,1)=tssb
-                where (fraciceb>0.)
+                where (fraciceb>0.) ! no nudging under ice for 2D data
                   sssb(:,1,1)=timelt
                 end where
               end if
@@ -702,15 +700,19 @@
 
       cq=sqrt(4.5)*cin
 
-      ! Create global map on each processor.  This can require a lot of memory
+      
       if (nud_p>0.and.lblock) then
+        ! Create global copy of host data on each processor.  This can require a lot of memory
         call ccmpi_gatherall(pslb(:), tt(:,1))
+        ! Apply 2D filter
         call slowspecmpi_work(cin,tt(:,1),pslb,1)
       end if
       if (nud_uv==3) then
         call ccmpi_gatherall(ub(:,1:klt),tt(:,1:klt))
         call slowspecmpi_work(cin,tt,ub,klt)
       else if (nud_uv>0) then
+        ! vectors are processed as Cartesian coordinates (X,Y,Z),
+        ! avoiding complications along panel boundaries
         do k=1,klt
           da=ub(:,k)
           db=vb(:,k)
@@ -724,6 +726,7 @@
         call slowspecmpi_work(cin,tt,vb,klt)
         call ccmpi_gatherall(wb(:,1:klt),tt(:,1:klt))
         call slowspecmpi_work(cin,tt,wb,klt)
+        ! Convert Cartesian vectors back to Conformal Cubic vectors
         do k=1,klt
           da=ax(1:ifull)*ub(:,k)+ay(1:ifull)*vb(:,k)
      &      +az(1:ifull)*wb(:,k)
@@ -768,16 +771,21 @@
         write(6,*) "Start 2D filter"
       end if
 #endif
-   
+
+      ! evaluate the 2D convolution
       do n=1,npan
         do j=1,jpan
           do i=1,ipan
             iqg=i+ioff+(j+joff-1)*il_g+(n-noff)*il_g*il_g
             iq =i+(j-1)*ipan+(n-1)*ipan*jpan
+            ! calculate distance between targer grid point and all other grid points
             r(:)=x_g(iqg)*x_g(:)+y_g(iqg)*y_g(:)+z_g(iqg)*z_g(:)
             r(:)=acos(max(min(r(:),1.),-1.))
+            ! evaluate Gaussian weights as a function of distance
             r(:)=exp(-(cq*r(:))**2)/(em_g(:)*em_g(:))
+            ! discrete normalisation factor
             psum=sum(r(:))
+            ! apply low band pass filter
             do k=1,klt
               tb(iq,k)=sum(r(:)*tt(:,k))/psum
             end do
@@ -2870,7 +2878,10 @@
       
       return
       end subroutine mlonudge
-      
+
+      !--------------------------------------------------------------
+      ! Initialise RMA windows used by 1D convolutions to retrieve
+      ! data from other processor ranks
       subroutine specinit
       
       use cc_mpi
@@ -2888,9 +2899,13 @@
       integer, dimension(0:3) :: astr,bstr,cstr
       logical, dimension(0:nproc-1) :: lproc
       
+      ! length of the 1D convolution for each 'pass'
       maps=(/ il_g, il_g, 4*il_g, 3*il_g /)
+      ! flag for data required from processor rank
       lproc=.false.
       
+      ! loop over 1D convolutions and determine rank of the required data
+      ! Note that convolution directions are ordered to minimise message passing
       do ppass=pprocn,pprocx
         select case(ppass)
           case(1,2,3)
@@ -2911,6 +2926,7 @@
                     ng = (iqg - 1)/(il_g*il_g)
                     jg = 1 + (iqg - ng*il_g*il_g - 1)/il_g
                     ig = iqg - (jg - 1)*il_g - ng*il_g*il_g
+                    ! fproc converts global indices to processor rank
                     lproc(fproc(ig,jg,ng))=.true.
                   end do
                 end do
@@ -2934,6 +2950,7 @@
                     ng = (iqg - 1)/(il_g*il_g)
                     jg = 1 + (iqg - ng*il_g*il_g - 1)/il_g
                     ig = iqg - (jg - 1)*il_g - ng*il_g*il_g
+                    ! fproc converts global indices to processor rank
                     lproc(fproc(ig,jg,ng))=.true.
                   end do
                 end do
@@ -2942,10 +2959,13 @@
         end select
       end do
       
+      ! specify required RMA windows from the list of processor ranks in specmap
+      ! cc_mpi employs specmap when calling gathermap
       ncount=count(lproc)
       allocate(specmap(ncount))
       ncount=0
       do iproc=0,nproc-1
+        ! stagger reading of windows - does this make any difference with active RMA?
         rproc=modulo(myid+iproc,nproc)
         if (lproc(rproc)) then
           ncount=ncount+1

@@ -29,6 +29,7 @@
       use morepbl_m                            ! Additional boundary layer diagnostics
       use nharrs_m, only : lrestart            ! Non-hydrostatic atmosphere arrays
       use nsibd_m                              ! Land-surface arrays
+      use onthefly_m                           ! Input interpolation routines
       use pbl_m                                ! Boundary layer arrays
       use permsurf_m                           ! Fixed surface arrays
       use river                                ! River routing
