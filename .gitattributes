@@ -34,6 +34,7 @@
 /extraout_m.f90 -text
 /gas_tf.f90 -text
 /gdrag_m.f90 -text
+/gettin.f90 -text
 /histave_m.f90 -text
 /indices_m.f90 -text
 /infile.f90 -text

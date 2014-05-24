@@ -635,18 +635,9 @@
         ktime_sav=ktime_s
         zss=zs(1:ifull)
         if (abs(io_in)==1) then
-          call onthefly(0,kdate,ktime,psl(1:ifull),zss,tss,sicedep,
-     &         fracice,dumb(:,:,1),dumb(:,:,2),dumb(:,:,3),
-     &         dumb(:,:,4),tgg,wb,wbice,snowd,dumb(:,:,5),
-     &         dumb(:,:,6),dumb(:,:,7),tggsn,smass,ssdn,ssdnn,
-     &         snage,isflag,mlodwn,ocndwn)
-          t(1:ifull,:)  =dumb(:,:,1)
-          u(1:ifull,:)  =dumb(:,:,2)
-          v(1:ifull,:)  =dumb(:,:,3)
-          qg(1:ifull,:) =dumb(:,:,4)
-          qfg(1:ifull,:)=dumb(:,:,5)
-          qlg(1:ifull,:)=dumb(:,:,6)
-          qrg(1:ifull,:)=dumb(:,:,7)
+          call onthefly(0,kdate,ktime,psl,zss,tss,sicedep,
+     &         fracice,t,u,v,qg,tgg,wb,wbice,snowd,qfg,qlg,qrg,
+     &         tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,ocndwn)
         endif   ! (abs(io_in)==1)
         if(mydiag)then
           write(6,*)'ds,zss',ds,zss(idjd)

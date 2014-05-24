@@ -45,24 +45,26 @@ include 'stime.h'    ! File date data
 integer, parameter :: nihead=54
 integer, parameter :: nrhead=14
 
+integer, intent(in) :: nested
+integer, intent(out) :: kdate_r,ktime_r
 integer, save :: maxarchi
 integer, save :: ncidold = -1
-integer kdate_r,ktime_r,nested,ier,ier2,ilen,itype
+integer ier,ier2,ilen,itype
 integer idv,mtimer,k,ierx,idvkd,idvkt,idvmt
 integer, dimension(nihead) :: nahead
-integer, dimension(ifull) :: isflag
+integer, dimension(ifull), intent(out) :: isflag
 real timer
 real, dimension(nrhead) :: ahead
 real, dimension(14) :: rdum
 !     These are local arrays, not the versions in arrays.h
 !     Use in call to infile, so are dimensioned ifull rather than ifull_g
-real, dimension(ifull) :: psl,zss,tss,fracice,snowd,sicedep
-real, dimension(ifull) :: ssdnn,snage
-real, dimension(ifull,ms) :: wb,wbice,tgg
-real, dimension(ifull,3) :: tggsn,smass,ssdn
-real, dimension(ifull,kl) :: t,u,v,qg,qfg,qlg,qrg
-real, dimension(ifull,wlev,4) :: mlodwn
-real, dimension(ifull,2) :: ocndwn
+real, dimension(ifull), intent(out) :: psl,zss,tss,fracice,snowd,sicedep
+real, dimension(ifull), intent(out) :: ssdnn,snage
+real, dimension(ifull,ms), intent(out) :: wb,wbice,tgg
+real, dimension(ifull,3), intent(out) :: tggsn,smass,ssdn
+real, dimension(:,:), intent(out) :: t,u,v,qg,qfg,qlg,qrg
+real, dimension(ifull,wlev,4), intent(out) :: mlodwn
+real, dimension(ifull,2), intent(out) :: ocndwn
 logical ltest,tst
 
 #include "log.h"
@@ -295,27 +297,28 @@ include 'stime.h'                              ! File date data
 
 real, parameter :: iotol=1.E-5      ! tolarance for iotest grid matching
       
+integer, intent(in) :: kdate_r, ktime_r, nested, dk
 integer idv, isoil, nud_test
-integer dk ! controls automatic array size
 integer lev, levkk, ier, ierr, igas
-integer kdate_r, ktime_r, nemi, id2,jd2,idjd2
-integer nested, i, j, k, mm, iq, ii, jj, np, numneg
+integer nemi, id2, jd2, idjd2
+integer i, j, k, mm, iq, ii, jj, np, numneg
 integer, dimension(:), allocatable, save :: isoilm_a
-integer, dimension(ifull) :: isflag
+integer, dimension(ifull), intent(out) :: isflag
 integer, dimension(7+3*ms) :: ierc
 integer, dimension(3), save :: iers
 integer, dimension(1) :: str, cnt
 real(kind=8), dimension(:,:), allocatable, save :: xx4,yy4
 real(kind=8), dimension(dk*dk*6):: z_a,x_a,y_a
-real, dimension(ifull,wlev,4) :: mlodwn
+real, dimension(ifull,wlev,4), intent(out) :: mlodwn
 real, dimension(ifull,ok,2) :: mloin
-real, dimension(ifull,2) :: ocndwn
-real, dimension(ifull,ms) :: wb,wbice,tgg
-real, dimension(ifull,3) :: tggsn,smass,ssdn
-real, dimension(ifull,kl) :: t,u,v,qg,qfg,qlg,qrg
+real, dimension(ifull,2), intent(out) :: ocndwn
+real, dimension(ifull,ms), intent(out) :: wb,wbice,tgg
+real, dimension(ifull,3), intent(out) :: tggsn,smass,ssdn
+real, dimension(:,:), intent(out) :: t,u,v,qg,qfg,qlg,qrg
 real, dimension(ifull,kk) :: u_k,v_k
-real, dimension(ifull) :: psl,zss,tss,fracice
-real, dimension(ifull) :: snowd,sicedep,ssdnn,snage,dum6
+real, dimension(ifull), intent(out) :: psl,zss,tss,fracice
+real, dimension(ifull), intent(out) :: snowd,sicedep,ssdnn,snage
+real, dimension(ifull) :: dum6
 real, dimension(ifull) :: tss_l, tss_s, pmsl
 real, dimension(ik*ik*6) :: ucc,vcc
 real, dimension(ik*ik*6) :: fracice_a,sicedep_a
@@ -747,7 +750,6 @@ end if
 
 ! air temperature
 ! read for nested=0 or nested=1.and.(nud_t/=0.or.nud_p/=0)
-t=300.
 if ( nested==0 .or. ( nested==1 .and. nud_test/=0 ) ) then
   if ( iotest ) then
     do k=1,kk
@@ -761,6 +763,8 @@ if ( nested==0 .or. ( nested==1 .and. nud_test/=0 ) ) then
     end do
   end if ! iotest
   call vertint(u_k ,t, 1,kk,sigin)
+else
+  t(1:ifull,:)=300.    
 end if ! (nested==0.or.(nested==1.and.(nud_t/=0.or.nud_p/=0)))
 ! winds
 ! read for nested=0 or nested=1.and.nud_uv/=0
@@ -785,8 +789,8 @@ if ( nested==0 .or. ( nested==1 .and. nud_uv/=0 ) ) then
   call vertint(u_k ,u, 3,kk,sigin)
   call vertint(v_k ,v, 4,kk,sigin)
 else
-  u=0.
-  v=0.
+  u(1:ifull,:)=0.
+  v(1:ifull,:)=0.
 end if ! (nested==0.or.(nested==1.and.nud_uv/=0))
 ! mixing ratio
 ! read for nested=0 or nested=1.and.nud_q/=0
@@ -797,7 +801,7 @@ if ( nested==0 .or. ( nested==1 .and. nud_q/=0 ) ) then
     call gethist4('q',qg,2)                                     !     mixing ratio
   end if
 else
-  qg=qgmin
+  qg(1:ifull,:)=qgmin
 end if ! (nested==0.or.(nested==1.and.nud_q/=0))
 
 ! re-grid surface pressure by mapping to MSLP, interpolating and then map to surface pressure
