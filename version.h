@@ -1,2 +1,2 @@
       ! Symbolic version name
-      character(len=10), parameter :: version = "CCAM 1405"
+      character(len=10), parameter :: version = "CCAM 1406"

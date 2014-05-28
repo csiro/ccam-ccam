@@ -51,7 +51,8 @@ SUBROUTINE define_canopy(bal,rad,rough,air,met,dels,ssnow,soil,veg, canopy)
    USE cable_def_types_mod
    USE cable_radiation_module
    USE cable_air_module
-   USE cable_common_module   
+   USE cable_common_module
+   USE cable_roughness_module      
 
    TYPE (balances_type), INTENT(INOUT)  :: bal
    TYPE (radiation_type), INTENT(INOUT) :: rad
@@ -94,7 +95,7 @@ SUBROUTINE define_canopy(bal,rad,rough,air,met,dels,ssnow,soil,veg, canopy)
    ! temporary buffers to simplify equations
    REAL, DIMENSION(mp) ::                                                      &
       ftemp,z_eff,psim_arg, psim_1, psim_2, rlower_limit,                      &
-      term1, term2, term3, term5, dum 
+      term1, term2, term3, term5, dum, duma, dumb, dumc 
 
    REAL, DIMENSION(mp) ::                                                      & 
       cansat,        & ! max canopy intercept. (mm)
@@ -130,7 +131,6 @@ SUBROUTINE define_canopy(bal,rad,rough,air,met,dels,ssnow,soil,veg, canopy)
    ! assign local ptrs to constants defined in cable_data_module
    CALL point2constants(C)    
 
-   ! ACCESS version has this statement but elsewhere?
    IF( .NOT. cable_runtime%um)                                                 &
       canopy%cansto =  canopy%oldcansto
 
@@ -184,6 +184,9 @@ SUBROUTINE define_canopy(bal,rad,rough,air,met,dels,ssnow,soil,veg, canopy)
       ! resistances rt0, rt1 (elements of dispersion matrix):
       ! See CSIRO SCAM, Raupach et al 1997, eq. 3.46:
       CALL comp_friction_vel()
+
+      CALL ruff_resist(veg, rough, ssnow, canopy)
+
       
       ! Turbulent aerodynamic resistance from roughness sublayer depth 
       ! to reference height, x=1 if zref+disp>zruffs, 
@@ -355,7 +358,8 @@ SUBROUTINE define_canopy(bal,rad,rough,air,met,dels,ssnow,soil,veg, canopy)
 
       ! Soil sensible heat:
       canopy%fhs = air%rho*C%CAPP*(ssnow%tss - met%tvair) /ssnow%rtsoil
-      canopy%ga = canopy%fns-canopy%fhs-canopy%fes*ssnow%cls
+      !canopy%ga = canopy%fns-canopy%fhs-canopy%fes*ssnow%cls
+      canopy%ga = canopy%fns-canopy%fhs-canopy%fes
       
       ! Set total latent heat:
       canopy%fe = canopy%fev + canopy%fes
@@ -385,8 +389,9 @@ SUBROUTINE define_canopy(bal,rad,rough,air,met,dels,ssnow,soil,veg, canopy)
       canopy%epot = ((1.-rad%transd)*canopy%fevw_pot +                         &
                     rad%transd*ssnow%potev) * dels/air%rlam  
 
-      ! convert to mm/day
       rlower_limit = canopy%epot * air%rlam / dels
+      where (rlower_limit == 0 ) rlower_limit = 1.e-7 !prevent from 0. by adding 1.e-7 (W/m2)      
+
       
       canopy%wetfac_cs = max(0., min(1.0,canopy%fe / rlower_limit ))
       
@@ -411,13 +416,21 @@ SUBROUTINE define_canopy(bal,rad,rough,air,met,dels,ssnow,soil,veg, canopy)
                    * canopy%gswx(:,1) + rad%fvlai(:,2) / MAX(C%LAI_THRESH,     &
                    canopy%vlaiw(:))*canopy%gswx(:,2)
 
-   canopy%gswx_T = max(1.e-05,canopy%gswx_T )
-    
-   dum = canopy%zetar(:,NITER) * rough%zref_uv/rough%zref_tq      
-   canopy%cdtq = canopy%cduv *( LOG( rough%zref_uv / rough%z0m) -              &
-                 psim( dum )                                                   &
-                 ) / ( LOG( rough%zref_uv /(0.1*rough%z0m) )                   &
-                 - psis( canopy%zetar(:,NITER)) )
+    ! The surface conductance below is required by dust scheme; it is composed from canopy and soil conductances
+    canopy%gswx_T = (1.-rad%transd)*max(1.e-06,canopy%gswx_T ) +  &   !contribution from  canopy conductance
+                  rad%transd*(.01*ssnow%wb(:,1)/soil%sfc)**2 ! + soil conductance; this part is done as in Moses
+    where ( soil%isoilm == 9 ) canopy%gswx_T = 1.e6   ! this is a value taken from Moses for ice points
+
+    duma = canopy%zetar(:,NITER) * rough%zref_uv/rough%zref_tq
+    dumb = canopy%zetar(:,NITER) * rough%z0m/rough%zref_tq
+    dumc = canopy%zetar(:,NITER) * 0.1 * rough%z0m/rough%zref_tq
+    canopy%cdtq = canopy%cduv *( LOG( rough%zref_uv / rough%z0m) -              &
+                 psim( duma )   &
+               + psim( dumb )   & ! new term from Ian Harman
+                 ) / ( LOG( rough%zref_tq /(0.1*rough%z0m) )                   &
+               - psis( canopy%zetar(:,NITER))                                  &
+               + psis( dumc ) ) ! n
+
 
    ! Calculate screen temperature: 1) original method from SCAM
    ! screen temp., windspeed and relative humidity at 1.5m
@@ -542,6 +555,10 @@ SUBROUTINE define_canopy(bal,rad,rough,air,met,dels,ssnow,soil,veg, canopy)
    ! Initialise 'throughfall to soil' as 'throughfall from canopy'; 
    ! snow may absorb
    canopy%precis = max(0.,canopy%through)
+
+   ! this change of units does not affect next timestep as canopy%through is
+   ! re-calc in surf_wetness_fact routine
+   canopy%through = canopy%through / dels   ! change units for stash output
    
    ! Update canopy storage term:
    canopy%cansto=canopy%cansto - canopy%spill
@@ -555,12 +572,12 @@ SUBROUTINE define_canopy(bal,rad,rough,air,met,dels,ssnow,soil,veg, canopy)
    ! d(canopy%fes)/d(dq)
    ssnow%dfn_dtg = (-1.)*4.*C%EMSOIL*C%SBOLTZ*tss4/ssnow%tss  
    ssnow%dfh_dtg = air%rho*C%CAPP/ssnow%rtsoil      
-   ssnow%dfe_ddq = ssnow%wetfac*air%rho*air%rlam/ssnow%rtsoil  
+   ssnow%dfe_ddq = ssnow%wetfac*air%rho*air%rlam*ssnow%cls/ssnow%rtsoil  
   
    ssnow%ddq_dtg = (C%rmh2o/C%rmair) /met%pmb * C%TETENA*C%TETENB * C%TETENC   &
                    / ( ( C%TETENC + ssnow%tss-C%tfrz )**2 )*EXP( C%TETENB *       &
                    ( ssnow%tss-C%tfrz ) / ( C%TETENC + ssnow%tss-C%tfrz ) )
-   canopy%dgdtg = ssnow%dfn_dtg - ssnow%dfh_dtg - ssnow%cls*ssnow%dfe_ddq *    &
+   canopy%dgdtg = ssnow%dfn_dtg - ssnow%dfh_dtg - ssnow%dfe_ddq *    &
                   ssnow%ddq_dtg
 
    bal%drybal = REAL(ecy+hcy) - SUM(rad%rniso,2)                               &

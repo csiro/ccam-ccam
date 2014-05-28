@@ -37,10 +37,13 @@ module cable_data_module
    TYPE physical_constants
       real ::                                                                  & 
       capp   = 1004.64, & ! air spec. heat (J/kg/K)
-      hl = 2.5104e6, & ! air spec. heat (J/kg/K)
-      hlf = 0.335e6, & ! latent heat of fusion
+      hl = 2.5014e6, & ! air spec. heat (J/kg/K)
+      hlf = 0.334e6, & ! latent heat of fusion
+      !hl = 2.5104e6, & ! air spec. heat (J/kg/K)
+      !hlf = 0.335e6, & ! latent heat of fusion
       dheat  = 21.5E-6, & ! molecular diffusivity for heat
-      grav   = 9.80, & ! gravity acceleration (m/s2)
+      !grav   = 9.80, & ! gravity acceleration (m/s2)
+      grav   = 9.8086, & ! gravity acceleration (m/s2)
       rgas   = 8.3143, & ! universal gas const  (J/mol/K)
       rmair  = 0.02897, & ! molecular wt: dry air (kg/mol)
       rmh2o  = 0.018016, & ! molecular wt: water	(kg/mol)
@@ -230,7 +233,7 @@ module cable_data_module
       REAL, POINTER ::                                                         &
          ! physical constants
          CSD, CRD, CCD, CCW_C, USUHM, VONK,                                    &
-         A33, CTL,  ZDLIN, CSW   
+         A33, CTL,  ZDLIN, CSW, GRAV   
    END TYPE irough_type
 
 
@@ -416,7 +419,8 @@ SUBROUTINE rough_type_ptr(C)
          C%VONK  => PHYS%VONK                                                   
          C%A33   => PHYS%A33                                                      
          C%CTL   => PHYS%CTL                                                    
-         C%ZDLIN => PHYS%ZDLIN                                                    
+         C%ZDLIN => PHYS%ZDLIN
+         C%GRAV  => PHYS%GRAV                                                    
 END SUBROUTINE rough_type_ptr 
 
 ! ------------------------------------------------------------------------------
