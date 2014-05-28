@@ -92,6 +92,7 @@ c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
       real qbass(ifull,kl-1)
       real rnrt(ifull),rnrtc(ifull),rnrtcn(ifull)
       real s(ifull,kl),sbase(ifull),tdown(ifull),tt(ifull,kl)
+      real fluxtot(ifull,kl)  ! diag for MJT      
       real dsk(kl),h0(kl),q0(kl),t0(kl)  
       real qplume(ifull,kl),splume(ifull,kl)
       integer kdown(ifull)
@@ -466,6 +467,7 @@ c     convective first, then possibly L/S rainfall
 
       nuv=0
       fluxt(:,:)=0.  ! just for some compilers
+      fluxtot(:,:)=0.  ! diag for MJT  - total mass flux at level k-.5      
    
 !__________beginning of convective calculation loop______________
       do itn=1,abs(iterconv)
@@ -632,6 +634,9 @@ c       0 local max already found
 
       entracc(:,:)=0.
       entrsav(:,:)=0.
+      do iq=1,ifull
+        entracc(iq,kb_sav(iq))=1.e-7  ! as marker when calculating diagnostic fluxtot
+      enddo
 c     set up entrainn() which may vary vertically and with time (for non-zero nevapcc)
       if(itn==1.and.nevapcc.ne.0)then ! removed -ve mdelay option 20/2/14
           entr(:)=sig(kb_saved(:)) -sig(kt_saved(:))
@@ -689,6 +694,8 @@ c            for dsig (.1,.2,.3,.4,.5,.6) 2nd term is (1.09,.59, .38, .26 .19,  
           endif   ! (kt_sav(iq)==k-1.and.k<ktmax(iq))
          enddo    ! iq loop
       enddo     ! k loop
+      if(ntest>0.and.mydiag)
+     &    write (6,"('B k,entracc',i3,f9.4)") (k,entracc(idjd,k),k=1,kl)
       
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -1446,10 +1453,18 @@ c          itns 2 & 3 only update saved values if convection occurred
          endif
         enddo
       endif
+      do k=1,kl-1
+         do iq=1,ifull
+          if(entracc(iq,k)>0.)fluxtot(iq,k)=fluxtot(iq,k)+
+     &          (1.+entracc(iq,k))*factr(iq)*convpsav(iq)/dt  ! needs div by dt (check)
+        enddo
+      enddo
 
       enddo     ! itn=1,abs(iterconv)
 !------------------------------------------------ end of iterations -------------------      
 
+      if(ntest>0.and.mydiag) write (6,"('C k,fluxtot6',i3,f7.2)")
+     &                                   (k,1.e6*fluxtot(idjd,k),k=1,kl)
       if(nmaxpr==1.and.mydiag)then
         write(6,*) 'convtime,factr,kb_sav,kt_sav',convtime,factr(idjd)
      &          ,kb_sav(idjd),kt_sav(idjd)
