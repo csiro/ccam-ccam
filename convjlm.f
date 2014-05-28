@@ -1,6 +1,6 @@
       subroutine convjlm     ! jlm convective scheme
-!     version 1403 with preferred mbase = 0
-!     has +ve fldownn depending on delta sigma; -ve uses older abs(fldown)   
+!     version 1405 with preferred mbase = 0, new convtime options and -ve fldown option
+!     has +ve fldownn depending on delta sigma; (-ve fldown descends from sig=.6))   
 !     N.B. old nevapcc option has been removed - now affects entrainment
       use aerosolldr
       use arrays_m   
@@ -43,22 +43,22 @@
      .    ,facuv,fldownn,fluxa,fluxb,fluxd,fluxup
      .    ,frac,fraca,fracb,gam,hbas,hbase,heatlev
      .    ,pwater,pwater0,qavg,qentrr,qprec,qsk,rkmid
-     .    ,savg,savgb,sentrr,sum,totprec,veldt
+     .    ,savg,savgb,sentrr,totprec,veldt
      .    ,rKa,Dva,cfls,cflscon,rhodz,qpf,pk,Apr,Bpr,Fr,rhoa,dz,Vr
      .    ,dtev,qr,qgdiff,Cev2,qr2,Cevx,alphal,blx,evapls,revq
-     .    ,deluu,delvv,pb,sumb
+     .    ,deluu,delvv,pb,sumb,summ
       real delthet,tmnht1,delons,rino,dtsol,detrainn
 
       parameter (ntest=0)      ! 1 or 2 to turn on; -1 for ldr writes
 !                               -2,-3 for other detrainn test      
 !     parameter (iterconv=1)   ! to kuocom.h
-!     parameter (fldown=.6)    ! to kuocom.h
+!     parameter (fldown=.3)    ! to kuocom.h
 !     parameter (detrain=.05)  ! to kuocom.h
 !     parameter (alflnd=1.15)  ! e.g. 1.15  
 !     parameter (alfsea=1.05)  ! e.g. 1.05  
-!                                3:for RH-enhanced base
+!                                 3:for RH-enhanced base
 c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
-      parameter (ncubase=3)    ! 3 ensure takes local maxima
+      parameter (ncubase=3) ! 3 ensure takes local maxima
 !                ncubase=0       ktmax limited in later itns
 !                        1       cloud base not below that of itn 1     
 !     parameter (mbase=0)     
@@ -70,7 +70,9 @@ c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
 !     nevapls:  turn off/on ls evap - through parm.h; 0 off, 5 newer UK
       integer ktmax(ifull),kbsav_ls(ifull),kb_sav(ifull),kt_sav(ifull)
       integer kkbb(ifull),kmin(ifull)
-      integer, save :: k500,k900,klon2,klon23,k935,k972
+      integer, save :: k500,k600,k900,klon2,klon23,k935,k972
+      integer, save :: mcontlnd,mcontsea
+      real,save :: convt_frac
       real, dimension(:), allocatable, save ::  timeconv,entrainn
       real, dimension(:,:), allocatable, save :: downex,upin,upin4
       real, dimension(:,:,:), allocatable, save :: detrarr
@@ -97,23 +99,26 @@ c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
       real fluxqs,fluxt_k(kl)
       real cfraclim(ifull),convtim(ifull),pblx(ifull)
       real ff(ifull,kl)
+      integer kpos(1)
       
       if (.not.allocated(upin)) then
         k900=1
         do while(sig(k900)>0.9)
           k900=k900+1
         end do
+        kpos=minloc(abs(sig-.6)) ! finds k value closest to sig=.6
+        k600=kpos(1)
         k500=1
         do while(sig(k500)>=0.6)
           k500=k500+1
         end do
-        if (myid == 0) then
-          write(6,*) 'k900,k500',k900,k500
+        if ( myid==0 ) then
+          write(6,*) 'k900,k600,k500',k900,k600,k500
         end if
-        allocate(timeconv(ifull))
-        allocate(entrainn(ifull))
-        allocate(kb_saved(ifull))
-        allocate(kt_saved(ifull))
+        allocate(timeconv(ifull)) ! init for ktau=1 (allocate needed for mdelay>0)
+        allocate(entrainn(ifull)) ! init for ktau=1 (allocate needed for nevapcc.ne.0)
+        allocate(kb_saved(ifull)) ! init for ktau=1 (allocate needed for nevapcc.ne.0)
+        allocate(kt_saved(ifull)) ! init for ktau=1 (allocate needed for nevapcc.ne.0)
         allocate(upin(kl,kl))
         allocate(upin4(kl,kl))
         allocate(downex(kl,kl))
@@ -139,16 +144,14 @@ c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
         kb_saved(:)=kl-1
         kt_saved(:)=kl-1
         timeconv(:)=0.
-        kb_sav(:)=kl-1
-        kt_sav(:)=kl-1
         do k=1,kl
          if(sig(k)>.25)klon23=k  ! JLM
          if(sig(k)> .5)klon2=k
          if(sig(k)> .935)k935=k
          if(sig(k)> .972)k972=k   ! 2 for L18, 4 for L27
         enddo
-        if(mydiag)write(6,*)'klon23,klon2,k500,k935,k972',
-     &                     klon23,klon2,k500,k935,k972
+        if(myid==0)write(6,*)'klon23,klon2,k500,k935,k972',
+     &                        klon23,klon2,k500,k935,k972
 c      precalculate detrainment arrays for various methprec
 c      methprec gives the vertical distribution of the detrainment
 c      methdetr gives the fraction of precip detrained (going into qxcess)
@@ -201,12 +204,12 @@ c      methdetr gives the fraction of precip detrained (going into qxcess)
        do kt=1,kl-1
          frac=min(1.,(sig(kb)-sig(kt))/.6)
          nlayers=kt-kb
-         sum=.5*nlayers*(nlayers+1)
+         summ=.5*nlayers*(nlayers+1)
         do k=kb+1,kt
          detrarr(k,kb,kt)=((1.-frac)*(kt-kb)+
      &        (2.*frac-1.)*(k-kb))/
      &       (((1.-frac)*(kt-kb)**2+    
-     &        (2.*frac-1.)*sum)) 
+     &        (2.*frac-1.)*summ)) 
         enddo
        enddo
        enddo   
@@ -215,14 +218,14 @@ c      methdetr gives the fraction of precip detrained (going into qxcess)
        do kb=1,k500
        do kt=1,kl-1
          nlayers=kt-kb
-         sum=.5*nlayers*(nlayers+1)
+         summ=.5*nlayers*(nlayers+1)
         do k=kb+1,kt
-         detrarr(k,kb,kt)=(k-kb)/(sum) 
+         detrarr(k,kb,kt)=(k-kb)/(summ) 
         enddo
        enddo
        enddo   
        endif  ! (methprec==8)
-      if(mydiag)then
+      if(myid==0)then
         write (6,*) "following gives kb=1 values for methprec=",methprec
         do kt=2,kl-1
          write (6,"('detrarr2-kt',17f7.3)") (detrarr(k,1,kt),k=2,kt)  ! just printed for kb=1
@@ -231,16 +234,16 @@ c      methdetr gives the fraction of precip detrained (going into qxcess)
 
 c     precalculate below-base downdraft & updraft environmental contrib terms (ktau=1)
        do kb=1,kl-1   ! original proposal, kscsea=0 (small upin near sfce, large downex)
-        sum=0.
+        summ=0.
         sumb=0.
         do k=1,kb
          downex(k,kb)=(sig(k)-sigmh(kb+1))*dsig(k)
-         sum=sum+downex(k,kb)
+         summ=summ+downex(k,kb)
          upin(k,kb)=(sig(k)-1.)*dsig(k)
          sumb=sumb+upin(k,kb)
         enddo
         do k=1,kb
-         downex(k,kb)=downex(k,kb)/sum
+         downex(k,kb)=downex(k,kb)/summ
          upin(k,kb)=upin(k,kb)/sumb
         enddo
        enddo
@@ -262,17 +265,17 @@ c      this one gives linearly increasing mass fluxes at each half level
       if(kscsea<=-2)then   ! trying to be backward compatible for downex
 c      gives relatively larger downdraft fluxes near surface      
        do kb=1,k500
-        sum=0.
+        summ=0.
         do k=1,kb
          downex(k,kb)=dsig(k)
-         sum=sum+downex(k,kb)
+         summ=summ+downex(k,kb)
         enddo
         do k=1,kb
-         downex(k,kb)=downex(k,kb)/sum
+         downex(k,kb)=downex(k,kb)/summ
         enddo
        enddo
       endif  ! kscsea<=-2
-      if(mydiag)then
+      if(myid==0)then
         do kb=1,kl-1
          write (6,"('upin1-kb ',17f7.3)") (upin(k,kb),k=1,kb)
         if(ntest==1)write (6,"('downex',17f7.3)") (downex(k,kb),k=1,kb)
@@ -281,6 +284,27 @@ c      gives relatively larger downdraft fluxes near surface
          write (6,"('downex',17f7.3)") (downex(k,kb),k=1,kb)
         enddo
       endif
+      
+        if(convtime>100.)then   ! new general style  May 2014
+c         1836.45 is old 36;  4040.6 is old -24; 2020.001 is old .33
+          mcontlnd=.01*convtime         ! in minutes
+          mcontsea=convtime-100*mcontlnd ! in minutes
+          convt_frac=convtime-100*mcontlnd-mcontsea  ! changeover sigma value of cloud thickness
+        elseif(nint(convtime)==-23)then
+          mcontlnd=30         ! in minutes
+          mcontsea=30        ! in minutes
+          convt_frac=.6
+         elseif(nint(convtime)==-24)then
+          mcontlnd=40         ! in minutes
+          mcontsea=40        ! in minutes
+          convt_frac=.6
+         else
+          mcontlnd=nint(60.*convtime)   ! in minutes
+          mcontsea=mcontlnd               ! in minutes
+          convt_frac=.001
+        endif  ! (convtime >100)
+        write(6,*),'convtime,mcontlnd,mcontsea,convt_frac',
+     &              convtime,mcontlnd,mcontsea,convt_frac
       endif    ! (ktau==1)   !----------------------------------------------------------------
 
        omega(1:ifull)=dpsldt(1:ifull,1)
@@ -354,7 +378,7 @@ c      following defines kb_sav (as kkbb) for use by nbase=-12
          endif   ! (land(iq)) .. else ..
        enddo
 
-        if(mbase<=-20.and.mbase>-30)then
+        if(mbase==-23)then
          if (nmlo/=0.and.abs(nmlo)<=9) then
           do iq=1,ifull
            if(.not.land(iq))then
@@ -383,7 +407,6 @@ c            tpan-tss   is .3*dtsol.  Suggest add .1 to alfqarr for dtsol=1 and 
         endif  ! (mbase-=-10)
           
       if(mbase>=0)then ! fg; qg1     from 28/2/14
-c        briefly mbase=+9 had no wetfac test; briefly 0 same as -06
          do iq=1,ifull
           es(iq,1)=establ(tt(iq,1))
           pk=ps(iq)*sig(1)
@@ -394,29 +417,19 @@ c        briefly mbase=+9 had no wetfac test; briefly 0 same as -06
          enddo 
         endif  ! (mbase>=0)
 
-c        alfqarrx reduces over land and sea for finer resolution than 200 km grid            
-         alfqarrx(:)=alfqarr(:)
-          if(tied_over>1.)then  ! e.g. 20 or 26
-           do iq=1,ifull
-            sum=ds/(em(iq)*208498.)
-            alfqarrx(iq)=1.+(alfqarr(iq)-1.) *
-     &      (1.+tied_over)*sum/(1.+tied_over*sum)
-           enddo
-c         else
-c          do iq=1,ifull
-c            sum=ds/(em(iq)*208498.)
-c            alfqarrx(iq)=1.+(alfqarr(iq)-1.) *sqrt(sum)  ! early eqn
-c          enddo
-c         endif
-          alfqarr(:)=alfqarrx(:)   ! general default, allowing for ds effects above
-          endif
-        if(nproc==1)then
-          sum=0.
+c       alfqarrx may be reduced over land and sea for finer resolution than 200 km grid            
+        alfqarrx(:)=alfqarr(:)
+        if(tied_over>1.)then  ! e.g. 20 or 26  (N.B. recently use tied_over -ve)
           do iq=1,ifull
-           sum=max(sum,alfqarrx(iq))
+            summ=ds/(em(iq)*208498.)
+            alfqarrx(iq)=1.+(alfqarr(iq)-1.) *
+     &      (1.+tied_over)*summ/(1.+tied_over*summ)
+c           tied_over=26 gives factor [1, .964, .900, .794] for ds = [200, 100, 50, 25} km     
+c           tied_over=10 gives factor [1, .917, .786, .611] for ds = [200, 100, 50, 25} km     
           enddo
-          print *,'max_alfqarrx:',sum
-        endif  ! (nproc==1)
+          alfqarr(:)=alfqarrx(:)   ! general default, allowing for ds effects above
+        endif
+        if(nproc==1)write(6,*) 'max_alfqarrx:',maxval(alfqarrx)
 
       if(mbase==-19)then ! with wetfac over land and sea 
        do iq=1,ifull
@@ -450,14 +463,6 @@ c     convective first, then possibly L/S rainfall
       kbsav_ls(:)=0    ! for L/S
       ktsav(:)=kl-1    ! preset value to show no deep or shallow convection
       kbsav(:)=kl-1    ! preset value to show no deep or shallow convection
-
-      convtim(:)=3600.*convtime        ! less-common -ve defns come lfurther down
-      factr(:)=dt/max(dt,convtim(:))   ! to re-scale rainfall etc, AFTER iterconv loop
-c     following modification was found to be not much use
-c     do iq=1,ifull
-c       k=kb_sav(iq)
-c       if(qq(iq,k)+qlg(iq,k)+qfg(iq,k)>qs(iq,k))factr(iq)=1.
-c     enddo
 
       nuv=0
       fluxt(:,:)=0.  ! just for some compilers
@@ -549,6 +554,8 @@ c***    Also entrain may slow convergence   N.B. qbass only used in next few lin
         enddo
         write (6,"('qbas  ',12f7.3/(5x,12f7.3))") 1000.*qplume(iq,:)
         write (6,"('tt    ',12f7.2/(5x,12f7.2))") tt(iq,:)
+        write (6,"('s_h/cp',12f7.2/(5x,12f7.2))") 
+     &            (s(iq,:)-phi_nh(iq,:))/cp
         write (6,"('s/cp  ',12f7.2/(5x,12f7.2))") s(iq,:)/cp
         write (6,"('h/cp  ',12f7.2/(5x,12f7.2))") 
      .             s(iq,:)/cp+hlcp*qq(iq,:)
@@ -559,11 +566,11 @@ c***    Also entrain may slow convergence   N.B. qbass only used in next few lin
         write (6,"('k   ',12i7/(4x,12i7))") (k,k=1,kl)
         write (6,"('es     ',9f7.1/(7x,9f7.1))") es(iq,:)
         write (6,"('dqsdt6p',6p9f7.1/(7x,9f7.1))") dqsdt(iq,:)
-        sum=0.
+        summ=0.
         do k=1,kl
-         sum=sum-dsig(k)*(s(iq,k)/cp+hlcp*qq(iq,k))
+         summ=summ-dsig(k)*(s(iq,k)/cp+hlcp*qq(iq,k))
         enddo
-        write(6,*) 'h_sum   ',sum
+        write(6,*) 'h_sum   ',summ
       endif
 
       sbase(:)=0.  ! just for tracking running max, working downwards
@@ -608,7 +615,7 @@ c       0 local max already found
      &           (splume(iq,kb)+hl*qplume(iq,kb))/cp,hs(iq,k)/cp
         endif    ! (ntest>0.and.mydiag) 
        enddo     ! ******************** k loop ****************************
-      else !  nbase=-11, -12 and everything except -4
+      else !  nbase=10, -11, -12 and everything except -4
          do iq=1,ifull
 !         prescribe tentative cloud base ! 
 !          (e.g. middle of k-1 level, uppermost level below pblh)
@@ -625,7 +632,7 @@ c       0 local max already found
 
       entracc(:,:)=0.
       entrsav(:,:)=0.
-c     set up entrainn() which may vary vertically and with time for non-zero nevapcc      
+c     set up entrainn() which may vary vertically and with time (for non-zero nevapcc)
       if(itn==1.and.nevapcc.ne.0)then ! removed -ve mdelay option 20/2/14
           entr(:)=sig(kb_saved(:)) -sig(kt_saved(:))
          if(entrain<1.1)then  ! handles older -ve nevapcc too
@@ -649,7 +656,8 @@ c           for dsig (.1,.2,.3,.4,.5,.6) 2nd term is (.73, .51, .34, .22 .13,  .
 c            for dsig (.1,.2,.3,.4,.5,.6) 2nd term is (1.09,.59, .38, .26 .19,  .14)
          enddo
         endif  ! (nint(entrain)==2)...else...
-        if(nmaxpr==1.and.mydiag)print *,'kb_sd,kt_sd,entr,timeconva',
+        if(nmaxpr==1.and.mydiag)write(6,*) 
+     &       'kb_saved,kt_saved,entr,timeconva',
      &       kb_saved(idjd), kt_saved(idjd),entr(idjd),timeconv(idjd)
       endif    ! (nevapcc.ne.0)
       do k=kuocb+1,kl   ! upwards to find cloud top
@@ -701,19 +709,7 @@ c      entrradd=1.+entrain*(sigmh(kb_sav(iq)+1)-sigmh(kt_sav(iq)))
        delq(iq,kt_sav(iq))=entrradd*qsk  
        dels(iq,kt_sav(iq))=dels(iq,kt_sav(iq))+hl*qprec    ! precip. heating
        kdown(iq)=min(kl,kb_sav(iq)+nint(.6+.75*(kt_sav(iq)-kb_sav(iq))))
-       if(nkuo>23)then 
-!       following refines calc of kdown to be more accurately .75 of cloud depth       
-        if(ntest>0.and.iq==idjd.and.mydiag)then
-          pb=(.75*sig(kt_sav(iq))+.25*sig(kb_sav(iq))
-     &            -sig(kdown(iq)))/dsig(kdown(iq))
-          write(6,*) 'kdown1,kb_sav,kt_sav,dsig,pb,nint ',
-     &      kdown(iq),kb_sav(iq),kt_sav(iq),dsig(kdown(iq)),pb,nint(pb)
-        endif
-        kdown(iq)=kdown(iq)+nint( (.75*sig(kt_sav(iq))
-     &            +.25*sig(kb_sav(iq))-sig(kdown(iq)))/dsig(kdown(iq)) )
-        if(ntest>0.and.iq==idjd.and.mydiag)write(6,*) 'kdown1b,sig ',
-     &           kdown(iq),.75*sig(kt_sav(iq))+.25*sig(kb_sav(iq))
-       endif  ! (nkuo>23)
+       if(fldown<0.)kdown(iq)=min(kdown(iq),k600) ! makes downdraft below sig=.6       
 c      qsk is value entering downdraft, qdown is value leaving downdraft
 c      tdown is temperature emerging from downdraft (at cloud base)       
        qsk=min(qs(iq,kdown(iq)),qq(iq,kdown(iq))) ! N.B. min for downdraft subs
@@ -725,8 +721,9 @@ c    .           (tdown(iq)-t(iq,kb_sav(iq)))*dqsdt(iq,kb_sav(iq)) )
        qdown(iq)= qs(iq,kb_sav(iq))+
      .           (tdown(iq)-t(iq,kb_sav(iq)))*dqsdt(iq,kb_sav(iq)) 
        dprec=qdown(iq)-qsk                      ! to be mult by fldownn
-!      typically fldown=.6 or -.2        
-       fldownn=max(-fldown,fldown*(sig(kb_sav(iq))-sig(kt_sav(iq))))
+!      typically fldown=.3 or -.3      
+       fldownn=max(-abs(fldown),
+     &                abs(fldown)*(sig(kb_sav(iq))-sig(kt_sav(iq))))
        totprec=qprec-fldownn*dprec 
        if(tdown(iq)>t(iq,kb_sav(iq)).or.totprec<0.)then
          fldow(iq)=0.
@@ -863,11 +860,11 @@ c    &                k,dels(iq,k),fluxv(iq,k),s(iq,k)
      &             (dels(iq,k)+hl*delq(iq,k),k=1,kl)
         write (6,"('delhb',9f8.0/(5x,9f8.0))")
      &             (dels(iq,k)+alfqarr(iq)*hl*delq(iq,k),k=1,kl)
-        sum=0.
+        summ=0.
         do k=kb_sav(iq),kt_sav(iq)
-         sum=sum+dels(iq,k)+hl*delq(iq,k)
+         summ=summ+dels(iq,k)+hl*delq(iq,k)
         enddo
-        write(6,*) 'qplume,sum_delh ',qplume(iq,kb_sav(iq)),sum
+        write(6,*) 'qplume,sum_delh ',qplume(iq,kb_sav(iq)),summ
       endif
 
 !     calculate actual delq and dels
@@ -914,16 +911,13 @@ c    &                k,dels(iq,k),fluxv(iq,k),s(iq,k)
      .       max(1.e-9,dels(iq,k)*(1.+hlcp*dqsdt(iq,k))       ! 0804 for max
      .                -dels(iq,kb_sav(iq))                    ! to avoid zero
      .                -alfqarr(iq)*hl*delq(iq,kb_sav(iq)) )   ! with real*4
-c           if(mydiag.and.iq==idjd)print *,'k,sigs,fluxt',k,kb_sav(iq),
-c     &           kt_sav(iq),sig(k),sig(kb_sav(iq)),sig(kt_sav(iq)),
-c     &    .9*sig(kb_sav(iq))+.1*sig(kt_sav(iq)),fluxt(iq,k),convpsav(iq)
-          if(sig(k)<sig(kb_sav(iq)) 
-     &       -rhcv*(sig(kb_sav(iq))-sig(kt_sav(iq))).and.                   !  typically rhcv=.1
+          if(sig(k)<sig(kb_sav(iq))                 ! rhcv not RH but for depth-related flux test
+     &       -rhcv*(sig(kb_sav(iq))-sig(kt_sav(iq))).and.    !  typically rhcv=.1; 0 for backward-compat
      &       fluxt(iq,k)<convpsav(iq))then  
-c         if(fluxt(iq,k)<convpsav(iq))then  
+c         if(fluxt(iq,k)<convpsav(iq))then  ! superseded by preceding line
             convpsav(iq)=fluxt(iq,k)
             kmin(iq)=k   ! level where fluxt is a minimum (diagnostic)
-          endif    ! (fluxt(iq,k)<convpsav(iq))
+          endif    ! (sig(k)<sig(kb_sav(iq)-....and.)
           if(dels(iq,kb_sav(iq))+alfqarr(iq)*hl*delq(iq,kb_sav(iq))>0.)
      &             convpsav(iq)=0. 
         endif   ! (k>kb_sav(iq).and.k<kt_sav(iq))
@@ -1119,7 +1113,7 @@ c        diff=0, .14, .2, .3, .4, .5, .6, .7 gives detrainn=1, 1., 1., .69, .35,
         enddo
       endif   ! (methdetr==6)     
 
-      if(itn==1)then
+      if(itn==1)then   ! ************************************************
         cape(:)=0.
         do k=2,kl-1
          do iq=1,ifull
@@ -1140,97 +1134,27 @@ c        diff=0, .14, .2, .3, .4, .5, .6, .7 gives detrainn=1, 1., 1., .69, .35,
         enddo
         if(nmaxpr==1.and.mydiag)write(6,*) 'timeconvc,convpsav',
      &    timeconv(idjd),convpsav(idjd)
-      endif    ! (itn==1)   ! moved up before factr on 7/3/14
-      
-        if(convtime<0.)then
-c         options to define factr so it is small for (longer-lived) shallow clouds       
-         if(nint(convtime)==-1)then  ! -1.
-          do iq=1,ifull    ! 20 mins for .6; 28 mins for .3; 40 mins for .15
-           frac=(sig(kb_sav(iq))-sig(kt_sav(iq)))/.6  ! 28/10/11
-           factr(iq)=min(1.,(dt/1200.)*sqrt(frac))       ! -1
-          enddo
+     
+        do iq=1,ifull    
+         if(land(iq))then
+           factr(iq)=min(1.,  (sig(kb_sav(iq))-sig(kt_sav(iq)))*
+     ^                dt/(60*mcontlnd  *convt_frac))
+         else    
+           factr(iq)=min(1.,  (sig(kb_sav(iq))-sig(kt_sav(iq)))*
+     ^                dt/(60*mcontsea  *convt_frac))
          endif
-         if(nint(convtime)==-2)then  ! -2. a common setting
-          do iq=1,ifull     ! 20 mins for .6; 27m for .45; 40m for .3; 80m for .15
-           factr(iq)=min(1.,(dt/1200.)*
-     &                        (sig(kb_sav(iq))-sig(kt_sav(iq)))/.6)  ! -2
-          enddo
-         endif
-         if(nint(convtime)==-23)then  ! -23. was a common setting
-          do iq=1,ifull     ! 30 mins for .6; 40m for .45; 60m for .3; 120m for .15
-           factr(iq)=min(1.,(dt/1800.)*
-     &                        (sig(kb_sav(iq))-sig(kt_sav(iq)))/.6)  ! -23
-          enddo
-         endif
-         if(nint(convtime)==-24)then  ! -24.
-          do iq=1,ifull     ! 40 mins for .6
-           factr(iq)=min(1.,(dt/2400.)*
-     &                        (sig(kb_sav(iq))-sig(kt_sav(iq)))/.6)  ! -24
-          enddo
-         endif
-          if(nint(convtime)==-26)then  
-          do iq=1,ifull     ! 60 mins for .6; 80m for .45; 120m for .3; 240m for .15
-           factr(iq)=min(1.,(dt/3600.)*
-     &                        (sig(kb_sav(iq))-sig(kt_sav(iq)))/.6)  ! -24
-          enddo
-         endif
-         if(nint(convtime)==-4)then  !  -4.
-          do iq=1,ifull    ! 20 mins for .6; 31m for .45; 57m for .3; 160m for .15
-           frac=(sig(kb_sav(iq))-sig(kt_sav(iq)))/.6  ! 28/10/11
-           factr(iq)=min(1.,(dt/1200.)*frac*sqrt(frac))   ! -4
-          enddo
-         endif
-         if(nint(convtime)==-43)then  !  -43.
-          do iq=1,ifull    ! 30 mins for .6; 46m for .45; 86m for .3; 240m for .15
-           frac=(sig(kb_sav(iq))-sig(kt_sav(iq)))/.6  
-           factr(iq)=min(1.,(dt/1800.)*frac*sqrt(frac))   ! -43
-          enddo
-         endif
-         if(nint(convtime)==-44)then  !  -44
-          do iq=1,ifull    ! 40 mins for .6; 62m for .45; 114m for .3; 320m for .15
-           frac=(sig(kb_sav(iq))-sig(kt_sav(iq)))/.6  
-           factr(iq)=min(1.,(dt/2400.)*frac*sqrt(frac))   ! -44
-          enddo
-         endif
-         if(nint(convtime)==-45)then  !  -45.
-          do iq=1,ifull    ! 50 mins for .6; 73m for .45; 152m for .3; 400m for .15
-           frac=(sig(kb_sav(iq))-sig(kt_sav(iq)))/.6  
-           factr(iq)=min(1.,(dt/3000.)*frac*sqrt(frac))   ! -45
-          enddo
-         endif
-         if(nint(convtime)==-5)then  !  -5.
-          do iq=1,ifull    ! 20 mins for .6; 36m for .45; 80m for .3; 320m for .15
-           frac=(sig(kb_sav(iq))-sig(kt_sav(iq)))/.6  ! 28/10/11
-           factr(iq)=min(1.,(dt/1200.)*frac**2)   ! -5
-          enddo
-         endif
-         if(nint(convtime)==-53)then  !  -53.
-          do iq=1,ifull    ! 30 mins for .6; 53m for .45; 120m for .3; 480m for .15
-           frac=(sig(kb_sav(iq))-sig(kt_sav(iq)))/.6  
-           factr(iq)=min(1.,(dt/1800.)*frac**2)   ! -53
-          enddo
-         endif
-         if(nint(convtime)==-6)then  
-          do iq=1,ifull    ! 20 mins for .6; 36m for .45; 80m for .3; 320m for .15
-           frac=(sig(kb_sav(iq))-sig(kt_sav(iq)))/.6  ! 28/10/11
-           factr(iq)=min(1.,(dt/1200.)**sqrt(frac)*frac**2)   ! -6
-          enddo
-         endif
-         if(nint(convtime)==-63)then  
-          do iq=1,ifull    ! 30 mins for .6; 53m for .45; 120m for .3; 480m for .15
-           frac=(sig(kb_sav(iq))-sig(kt_sav(iq)))/.6  
-           factr(iq)=min(1.,(dt/1800.)**sqrt(frac)*frac**2)   ! -63
-          enddo
-         endif
-       endif  ! (convtime<0.)
-          if(tied_over<0)then  ! e.g. -10 giving .55 for 20 km
-           do iq=1,ifull
-            sum=ds/(em(iq)*208498.)
-            factr(iq)=factr(iq)*(1.-tied_over)*sum/(1.-tied_over*sum)
-           enddo
-        endif  ! (tied_over<0)
-c     endif    ! (itn==1)
+        enddo
 
+        if(tied_over<0)then 
+c         tied_over=-26 gives factr [1, .964, .900, .794,.409.216] for ds = [200, 100, 50, 25,5,2} km     
+c         tied_over=-10 gives factr [1, .917, .786, .611,.220,.100] for ds = [200, 100, 50, 25,5,2} km     
+          do iq=1,ifull
+            summ=ds/(em(iq)*208498.)
+            factr(iq)=factr(iq)*(1.-tied_over)*summ/(1.-tied_over*summ)
+          enddo
+        endif  ! (tied_over<0)
+      endif    ! (itn==1)     ! ************************************************
+      
       if(nmaxpr==1.and.nevapcc.ne.0.and.mydiag)then
        write (6,
      & "('itn,kb_sd,kt_sd,kb,kt,delS,entr,timeconv,entrainn,factr',
@@ -1255,10 +1179,10 @@ c     endif    ! (itn==1)
        endif  ! (ktsav(iq)==kl-1.and.convpsav(iq)>0.)
       enddo   ! iq loop
 
-c      if(itn<iterconv.or.iterconv<0)then   ! iterconv<0 calls convjlm twice, and does convfact*
+      if(itn<iterconv.or.iterconv<0)then   ! iterconv<0 calls convjlm twice, and does convfact*
          convpsav(:)=convfact*convpsav(:) ! typically convfact=1.05
 c        convpsav(:)=convfact*convpsav(:)*factr(:) ! dangerous tried on 7/3/14 
-c      endif                              ! (itn<iterconv.or.iterconv<0)
+      endif                              ! (itn<iterconv.or.iterconv<0)
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       rnrtcn(:)=rnrtcn(:)-qxcess(:)
 
@@ -1294,7 +1218,7 @@ c        fluxt here denotes delt, phi denotes del_phi
         enddo     ! k loop
       endif       ! (ncvcloud==0) .. else ..
       
-!!!!!!!!!!!!!!! "deep" detrainnment using detrainn !!!!!v3!!!!!!    
+!!!!!!!!!!!!!!! "deep" detrainnment using detrainn !!!!! v3 !!!!!!    
 !     N.B. convpsav has been updated here with convfact, but without factr term  
 !    includes methprec=7 & 8 but using detrarr array
 c      detrfactr(:)=0.
@@ -1498,16 +1422,16 @@ c          detrfactr(iq)=detrfactr(iq)+detrarr(k,kb_sav(iq),kt_sav(iq))   ! just
         write (6,"('s/cp_y',12f7.2/(5x,12f7.2))") (s(iq,k)/cp,k=1,kl)
         write (6,"('h/cp_y',12f7.2/(5x,12f7.2))") 
      .             (s(iq,k)/cp+hlcp*qq(iq,k),k=1,kl)
-        sum=0.
+        summ=0.
         do k=1,kl
-         sum=sum-dsig(k)*(s(iq,k)/cp+hlcp*qq(iq,k))
+         summ=summ-dsig(k)*(s(iq,k)/cp+hlcp*qq(iq,k))
         enddo
-        write(6,*) 'h_sumnew',sum
-        sum=0.
+        write(6,*) 'h_sumnew',summ
+        summ=0.
         do k=1,kl
-         sum=sum-dsig(k)*(dels(iq,k)/cp+hlcp*delq(iq,k))
+         summ=summ-dsig(k)*(dels(iq,k)/cp+hlcp*delq(iq,k))
         enddo
-        write(6,*) 'non-scaled delh_sum   ',sum
+        write(6,*) 'non-scaled delh_sum   ',summ
       endif  ! (ntest>0.and.nmaxpr==1.and.mydiag)
       
       if(itn==1)then
