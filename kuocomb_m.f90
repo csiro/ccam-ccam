@@ -4,10 +4,11 @@ implicit none
 
 private
 public kbsav,ktsav
-public convpsav
+public convpsav,fluxtot
 public kuocomb_init,kuocomb_end
 
 integer, dimension(:), allocatable, save :: kbsav,ktsav
+real, dimension(:,:), allocatable, save :: fluxtot
 real, dimension(:), allocatable, save :: convpsav
 
 contains
@@ -19,10 +20,11 @@ implicit none
 integer, intent(in) :: ifull,iextra,kl
 
 allocate(kbsav(ifull),ktsav(ifull))
-allocate(convpsav(ifull))
+allocate(convpsav(ifull),fluxtot(ifull,kl))
 kbsav=kl-1
 ktsav=kl-1
 convpsav=0.
+fluxtot=0.
 
 return
 end subroutine kuocomb_init
@@ -32,7 +34,7 @@ subroutine kuocomb_end
 implicit none
 
 deallocate(kbsav,ktsav)
-deallocate(convpsav)
+deallocate(convpsav,fluxtot)
 
 return
 end subroutine kuocomb_end

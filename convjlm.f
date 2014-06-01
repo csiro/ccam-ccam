@@ -92,7 +92,6 @@ c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
       real qbass(ifull,kl-1)
       real rnrt(ifull),rnrtc(ifull),rnrtcn(ifull)
       real s(ifull,kl),sbase(ifull),tdown(ifull),tt(ifull,kl)
-      real fluxtot(ifull,kl)  ! diag for MJT      
       real dsk(kl),h0(kl),q0(kl),t0(kl)  
       real qplume(ifull,kl),splume(ifull,kl)
       integer kdown(ifull)

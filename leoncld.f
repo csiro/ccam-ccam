@@ -149,55 +149,63 @@ c     Set up convective cloud column
 
 c     Calculate convective cloud fraction and adjust moisture variables 
 c     before calling newcloud
-      if ( nmr>0 ) then ! Max/Rnd cloud overlap
-        do k=1,kl
-          where ( k<=ktop .and. k>=kbase .and. cldcon>0. )
-            clcon(:,k) = cldcon(:) ! maximum overlap
-            !ccw=wcon(:)/rhoa(:,k)  !In-cloud l.w. mixing ratio
-            qccon(:,k) = clcon(:,k)*wcon(:)/rhoa(:,k)
-            qcl(:,k)   = max(qsg(:,k),qg(1:ifull,k))  ! jlm
-            qenv(1:ifull,k) = max(1.e-8,
+      if ( ncloud<=3 ) then
+        if ( nmr>0 ) then ! Max/Rnd cloud overlap
+          do k=1,kl
+            where ( k<=ktop .and. k>=kbase .and. cldcon>0. )
+              clcon(:,k) = cldcon(:) ! maximum overlap
+              !ccw=wcon(:)/rhoa(:,k)  !In-cloud l.w. mixing ratio
+              qccon(:,k) = clcon(:,k)*wcon(:)/rhoa(:,k)
+              qcl(:,k)   = max(qsg(:,k),qg(1:ifull,k))  ! jlm
+              qenv(1:ifull,k) = max(1.e-8,
      &                 qg(1:ifull,k)-clcon(:,k)*qcl(:,k))
      &                 /(1.-clcon(:,k))
-            qcl(:,k) = (qg(1:ifull,k)-(1.-clcon(:,k))
+              qcl(:,k) = (qg(1:ifull,k)-(1.-clcon(:,k))
      &                *qenv(1:ifull,k))/clcon(:,k)
-            qlg(1:ifull,k) = qlg(1:ifull,k)/(1.-clcon(:,k))
-            qfg(1:ifull,k) = qfg(1:ifull,k)/(1.-clcon(:,k))
-          elsewhere
-            clcon(:,k)      = 0.
-            qccon(:,k)      = 0.
-            qcl(1:ifull,k)  = 0.
-            qenv(1:ifull,k) = qg(1:ifull,k)
-          endwhere
-        end do
+              qlg(1:ifull,k) = qlg(1:ifull,k)/(1.-clcon(:,k))
+              qfg(1:ifull,k) = qfg(1:ifull,k)/(1.-clcon(:,k))
+            elsewhere
+              clcon(:,k)      = 0.
+              qccon(:,k)      = 0.
+              qcl(1:ifull,k)  = 0.
+              qenv(1:ifull,k) = qg(1:ifull,k)
+            endwhere
+          end do
         
-      else ! usual random cloud overlap
-        do k=1,kl
-          do iq=1,ifull
-            if(k<=ktop(iq).and.k>=kbase(iq).and.cldcon(iq)>0.)then
-              ncl=ktop(iq)-kbase(iq)+1
-              clcon(iq,k)=1.0-(1.0-cldcon(iq))**(1.0/ncl) !Random overlap
-              ccw=wcon(iq)/rhoa(iq,k)  !In-cloud l.w. mixing ratio
-!!27/4/04     qccon(iq,k)=clcon(iq,k)*ccw*0.25 ! 0.25 reduces updraft value to cloud value
-              qccon(iq,k)=clcon(iq,k)*ccw
-              !qcl(iq,k)=qsg(iq,k)
-!             N.B. get silly qenv (becoming >qg) if qg>qsg (jlm)	     
-              qcl(iq,k)=max(qsg(iq,k),qg(iq,k))  ! jlm
-              qenv(iq,k)=max(1.e-8,
+        else ! usual random cloud overlap
+          do k=1,kl
+            do iq=1,ifull
+              if(k<=ktop(iq).and.k>=kbase(iq).and.cldcon(iq)>0.)then
+                ncl=ktop(iq)-kbase(iq)+1
+                clcon(iq,k)=1.0-(1.0-cldcon(iq))**(1.0/ncl) !Random overlap
+                ccw=wcon(iq)/rhoa(iq,k)  !In-cloud l.w. mixing ratio
+!!27/4/04       qccon(iq,k)=clcon(iq,k)*ccw*0.25 ! 0.25 reduces updraft value to cloud value
+                qccon(iq,k)=clcon(iq,k)*ccw
+                !qcl(iq,k)=qsg(iq,k)
+!               N.B. get silly qenv (becoming >qg) if qg>qsg (jlm)	     
+                qcl(iq,k)=max(qsg(iq,k),qg(iq,k))  ! jlm
+                qenv(iq,k)=max(1.e-8,
      &               qg(iq,k)-clcon(iq,k)*qcl(iq,k))/(1.-clcon(iq,k))
-              qcl(iq,k)=(qg(iq,k)-(1.-clcon(iq,k))*qenv(iq,k))
+                qcl(iq,k)=(qg(iq,k)-(1.-clcon(iq,k))*qenv(iq,k))
      &               /clcon(iq,k)
-              qlg(iq,k)=qlg(iq,k)/(1.-clcon(iq,k))
-              qfg(iq,k)=qfg(iq,k)/(1.-clcon(iq,k))
-            else
-              clcon(iq,k)=0.
-              qccon(iq,k)=0.
-              qcl(iq,k)=0.
-              qenv(iq,k)=qg(iq,k)
-            endif
+                qlg(iq,k)=qlg(iq,k)/(1.-clcon(iq,k))
+                qfg(iq,k)=qfg(iq,k)/(1.-clcon(iq,k))
+              else
+                clcon(iq,k)=0.
+                qccon(iq,k)=0.
+                qcl(iq,k)=0.
+                qenv(iq,k)=qg(iq,k)
+              endif
+            enddo
           enddo
-        enddo
       
+        end if
+      else
+        ! prognostic cloud  
+        clcon(:,:)      = 0.
+        qccon(:,:)      = 0.
+        qcl(1:ifull,:)  = 0.
+        qenv(1:ifull,:) = qg(1:ifull,:)
       end if
       
       tenv(:,:)=t(1:ifull,:) !Assume T is the same in and out of convective cloud

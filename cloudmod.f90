@@ -6,11 +6,10 @@ implicit none
     
 private
 public progcloud, cloudmod_init, combinecloudfrac
-public stratcloud, nettend, cmflx
+public stratcloud, nettend
 
 real, dimension(:,:), allocatable, save :: stratcloud  ! prognostic cloud fraction
 real, dimension(:,:), allocatable, save :: nettend     ! change in temperature from radiation and vertical mixing
-real, dimension(:,:), allocatable, save :: cmflx       ! mass flux from convection
 
 contains
 
@@ -22,10 +21,9 @@ integer, intent(in) :: ifull, iextra, kl, ncloud
 
 if (ncloud>=3) then
   allocate(stratcloud(ifull+iextra,kl))
-  allocate(nettend(ifull,kl),cmflx(ifull,kl))
+  allocate(nettend(ifull,kl))
   stratcloud=0.
   nettend=0.
-  cmflx=0.
 end if
 
 return
@@ -33,12 +31,15 @@ end subroutine cloudmod_init
     
 subroutine progcloud(cloudfrac,qc,qtot,ps,rho,fice,qs,t)
 
+use kuocomb_m            ! JLM convection
+use sigs_m               ! Atmosphere sigma levels
 use vvel_m               ! Additional vertical velocity
 
 implicit none
 
 include 'newmpar.h'      ! Grid parameters
 include 'const_phys.h'   ! Physical constants
+include 'kuocom.h'       ! Convection parameters
 include 'parm.h'         ! Model configuration
 
 real, dimension(ifull,kl), intent(out) :: cloudfrac
@@ -50,6 +51,7 @@ real, dimension(ifull,kl) :: da, dqs, cfbar
 real, dimension(ifull,kl) :: cf1, cfeq, a_dt, b_dt
 real, dimension(ifull,kl) :: dqsdT, mflx, gamma
 real, dimension(ifull,kl) :: aa, bb, cc, omega
+real, dimension(ifull,kl) :: cmflx
 integer k
 
 stratcloud(1:ifull,:)=max( min( stratcloud(1:ifull,:), 1. ), 0. )
@@ -66,6 +68,14 @@ do k=1,kl
 end do
 gamma = (hl+fice*hlf)/rvap
 dqsdT = qs*gamma/(t*t)
+if ( ncloud>=4 ) then
+  do k=1,kl-1
+    cmflx(:,k)=rathb(k)*fluxtot(:,k)+ratha(k)*fluxtot(:,k+1)
+  end do
+  cmflx(:,kl)=rathb(kl)*fluxtot(:,kl)
+else ! ncloud==3
+  cmflx=0.
+end if
 
 ! calculate dqs = (((omega + grav*Mc)/(cp*rho)+nettend)*dqsdT*dt)
 !                 -------------------------------------------------------
@@ -141,7 +151,6 @@ cloudfrac = stratcloud(1:ifull,:)
 
 ! Reset tendency and mass flux for next time-step
 nettend=0.
-cmflx=0.
 
 return
 end subroutine progcloud
@@ -165,6 +174,8 @@ integer k
 real, dimension(ifull) :: cldcon
 real, dimension(ifull,kl) :: clcon
 real, dimension(ifull) :: n, crnd
+
+if ( ncloud>=4 ) return
 
 ! estimate convective cloud fraction from leoncld.f
 
