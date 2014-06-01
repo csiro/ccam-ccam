@@ -175,7 +175,9 @@ real, dimension(ifull) :: cldcon
 real, dimension(ifull,kl) :: clcon
 real, dimension(ifull) :: n, crnd
 
-if ( ncloud>=4 ) return
+if ( ncloud>=4 ) then
+  cfrac(:,:)=stratcloud(1:ifull,:)
+else
 
 ! estimate convective cloud fraction from leoncld.f
 
