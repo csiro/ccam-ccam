@@ -179,43 +179,45 @@ if ( ncloud>=4 ) then
   cfrac(:,:)=stratcloud(1:ifull,:)
 else
 
-! estimate convective cloud fraction from leoncld.f
+  ! estimate convective cloud fraction from leoncld.f
 
-! MJT notes - This is an old parameterisation from NCAR.  acon and
-! bcon represent shallow and deep convection, respectively.  It can
-! be argued that acon should be zero in CCAM to avoid discontinuous
-! evolution of the model.  Furthermore, a much better fit can be
-! obtained from the mass flux, rather than rainfall.  It also
-! should be noted that acon and bcon are likely to depend on the
-! spatial resolution.
-where ( ktsav<kl-1 )
-  cldcon=min(acon+bcon*log(1.+condc*86400./dt),0.8) !NCAR
-elsewhere
-  cldcon=0.
-end where
+  ! MJT notes - This is an old parameterisation from NCAR.  acon and
+  ! bcon represent shallow and deep convection, respectively.  It can
+  ! be argued that acon should be zero in CCAM to avoid discontinuous
+  ! evolution of the model.  Furthermore, a much better fit can be
+  ! obtained from the mass flux, rather than rainfall.  It also
+  ! should be noted that acon and bcon are likely to depend on the
+  ! spatial resolution.
+  where ( ktsav<kl-1 )
+    cldcon=min(acon+bcon*log(1.+condc*86400./dt),0.8) !NCAR
+  elsewhere
+    cldcon=0.
+  end where
 
-! Impose cloud overlap assumption
-if ( nmr>=1 ) then
-  do k=1,kl
-    where( k<kbsav(:) .or. k>ktsav(:) )
-      clcon(:,k)=0.
-    elsewhere
-      clcon(:,k)=cldcon ! maximum overlap
-    end where
-  end do
-else
-  n=1./real(ktsav-kbsav+1)
-  crnd=1.-(1.-cldcon)**n
-  do k=1,kl
-    where( k<kbsav .or. k>ktsav )
-      clcon(:,k)=0.
-    elsewhere
-      clcon(:,k)=cldcon  ! random overlap
-    end where
-  end do
+  ! Impose cloud overlap assumption
+  if ( nmr>=1 ) then
+    do k=1,kl
+      where( k<kbsav(:) .or. k>ktsav(:) )
+        clcon(:,k)=0.
+      elsewhere
+        clcon(:,k)=cldcon ! maximum overlap
+      end where
+    end do
+  else
+    n=1./real(ktsav-kbsav+1)
+    crnd=1.-(1.-cldcon)**n
+    do k=1,kl
+      where( k<kbsav .or. k>ktsav )
+        clcon(:,k)=0.
+      elsewhere
+        clcon(:,k)=cldcon  ! random overlap
+      end where
+    end do
+  end if
+
+  cfrac(:,:)=stratcloud(1:ifull,:)*(1.-clcon(:,:))+clcon(:,:)
+  
 end if
-
-cfrac(:,:)=stratcloud(1:ifull,:)*(1.-clcon(:,:))+clcon(:,:)
 
 return
 end subroutine combinecloudfrac
