@@ -302,9 +302,11 @@ c         1836.45 is old 36;  4040.6 is old -24; 2020.001 is old .33
           mcontlnd=nint(60.*convtime)   ! in minutes
           mcontsea=mcontlnd               ! in minutes
           convt_frac=.001
-        endif  ! (convtime >100)
-        write(6,*),'convtime,mcontlnd,mcontsea,convt_frac',
-     &              convtime,mcontlnd,mcontsea,convt_frac
+         endif  ! (convtime >100)
+         if (myid==0) then
+           write(6,*),'convtime,mcontlnd,mcontsea,convt_frac',
+     &                 convtime,mcontlnd,mcontsea,convt_frac
+         end if
       endif    ! (ktau==1)   !----------------------------------------------------------------
 
        omega(1:ifull)=dpsldt(1:ifull,1)
