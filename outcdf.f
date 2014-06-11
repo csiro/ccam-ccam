@@ -1968,39 +1968,30 @@ c      "extra" outputs
       ! ATMOSPHERE DYNAMICS ------------------------------------------
       if(myid == 0 ) write(6,*) 'netcdf save of 3d variables'
       lwrite=ktau>0
-      tmpry=t(1:ifull,:)
-      call histwrt4(tmpry,'temp',idnc,iarch,local,.true.)
-      tmpry=u(1:ifull,:)
-      call histwrt4(tmpry,'u',idnc,iarch,local,.true.)
-      tmpry=v(1:ifull,:)
-      call histwrt4(tmpry,'v',idnc,iarch,local,.true.)
+      call histwrt4(t,'temp',idnc,iarch,local,.true.)
+      call histwrt4(u,'u',idnc,iarch,local,.true.)
+      call histwrt4(v,'v',idnc,iarch,local,.true.)
       do k=1,kl
        do iq=1,ifull
         tmpry(iq,k)=ps(iq)*dpsldt(iq,k)
        enddo
       enddo
       call histwrt4(tmpry,'omega',idnc,iarch,local,lwrite)
-      tmpry=qg(1:ifull,:)
-      call histwrt4(tmpry,'mixr',idnc,iarch,local,.true.)
+      call histwrt4(qg,'mixr',idnc,iarch,local,.true.)
       
       lwrite=(mod(ktau,nperavg)==0.or.ktau==ntau).and.ktau>0
       call histwrt4(convh_ave,'convh_ave',idnc,iarch,local,lwrite)
       
       ! MICROPHYSICS ------------------------------------------------
       if(ldr/=0)then
-        tmpry=qfg(1:ifull,:)
-        call histwrt4(tmpry,'qfg',idnc,iarch,local,.true.)
-        tmpry=qlg(1:ifull,:)
-        call histwrt4(tmpry,'qlg',idnc,iarch,local,.true.)
-        tmpry=qrg(1:ifull,:)
-        call histwrt4(tmpry,'qrg',idnc,iarch,local,.true.)
+        call histwrt4(qfg,'qfg',idnc,iarch,local,.true.)
+        call histwrt4(qlg,'qlg',idnc,iarch,local,.true.)
+        call histwrt4(qrg,'qrg',idnc,iarch,local,.true.)
         call histwrt4(cfrac,'cfrac',idnc,iarch,local,.true.)
-        tmpry=cffall(1:ifull,:)
-        call histwrt4(tmpry,'cfrain',idnc,iarch,local,
+        call histwrt4(cffall,'cfrain',idnc,iarch,local,
      &                .true.)
         if (ncloud>=3) then
-          tmpry=stratcloud(1:ifull,:)
-          call histwrt4(tmpry,'stratcf',idnc,iarch,local,.true.)  
+          call histwrt4(stratcloud,'stratcf',idnc,iarch,local,.true.)  
           if (itype==-1) then
             call histwrt4(nettend,'strat_nt',idnc,iarch,local,.true.)
             !call histwrt4(cmflx,'strat_mf',idnc,iarch,local,.true.)
@@ -2010,10 +2001,8 @@ c      "extra" outputs
       
       ! TURBULENT MIXING --------------------------------------------
       if (nvmix==6.and.(nextout>=1.or.itype==-1))then
-        tmpry=tke(1:ifull,:)
-        call histwrt4(tmpry,'tke',idnc,iarch,local,.true.)
-        tmpry=eps(1:ifull,:)
-        call histwrt4(tmpry,'eps',idnc,iarch,local,.true.)
+        call histwrt4(tke,'tke',idnc,iarch,local,.true.)
+        call histwrt4(eps,'eps',idnc,iarch,local,.true.)
       end if
 
       ! TRACERS -----------------------------------------------------
@@ -2046,37 +2035,24 @@ c      "extra" outputs
 
       ! AEROSOLS ----------------------------------------------------
       if (iaero<=-2.or.(iaero>=2.and.itype==-1)) then
-        tmpry=xtg(1:ifull,:,1)
-        call histwrt4(tmpry,'dms',idnc,iarch,local,.true.)
-        tmpry=xtg(1:ifull,:,2)
-        call histwrt4(tmpry,'so2',idnc,iarch,local,.true.)
-        tmpry=xtg(1:ifull,:,3)
-        call histwrt4(tmpry,'so4',idnc,iarch,local,.true.)
-        tmpry=xtg(1:ifull,:,4)
-        call histwrt4(tmpry,'bco',idnc,iarch,local,.true.)
-        tmpry=xtg(1:ifull,:,5)
-        call histwrt4(tmpry,'bci',idnc,iarch,local,.true.)
-        tmpry=xtg(1:ifull,:,6)
-        call histwrt4(tmpry,'oco',idnc,iarch,local,.true.)
-        tmpry=xtg(1:ifull,:,7)
-        call histwrt4(tmpry,'oci',idnc,iarch,local,.true.)
-        tmpry=xtg(1:ifull,:,8)
-        call histwrt4(tmpry,'dust1',idnc,iarch,local,
+        call histwrt4(xtg(:,:,1),'dms',idnc,iarch,local,.true.)
+        call histwrt4(xtg(:,:,2),'so2',idnc,iarch,local,.true.)
+        call histwrt4(xtg(:,:,3),'so4',idnc,iarch,local,.true.)
+        call histwrt4(xtg(:,:,4),'bco',idnc,iarch,local,.true.)
+        call histwrt4(xtg(:,:,5),'bci',idnc,iarch,local,.true.)
+        call histwrt4(xtg(:,:,6),'oco',idnc,iarch,local,.true.)
+        call histwrt4(xtg(:,:,7),'oci',idnc,iarch,local,.true.)
+        call histwrt4(xtg(:,:,8),'dust1',idnc,iarch,local,
      &                .true.)
-        tmpry=xtg(1:ifull,:,9)
-        call histwrt4(tmpry,'dust2',idnc,iarch,local,
+        call histwrt4(xtg(:,:,9),'dust2',idnc,iarch,local,
      &                .true.)
-        tmpry=xtg(1:ifull,:,10)
-        call histwrt4(tmpry,'dust3',idnc,iarch,local,
+        call histwrt4(xtg(:,:,10),'dust3',idnc,iarch,local,
      &                .true.)
-        tmpry=xtg(1:ifull,:,11)
-        call histwrt4(tmpry,'dust4',idnc,iarch,local,
+        call histwrt4(xtg(:,:,11),'dust4',idnc,iarch,local,
      &                .true.)
-        tmpry=ssn(1:ifull,:,1)
-        call histwrt4(tmpry,'seasalt1',idnc,iarch,local,
+        call histwrt4(ssn(:,:,1),'seasalt1',idnc,iarch,local,
      &                .true.)
-        tmpry=ssn(1:ifull,:,2)
-        call histwrt4(tmpry,'seasalt2',idnc,iarch,local,
+        call histwrt4(ssn(:,:,2),'seasalt2',idnc,iarch,local,
      &                .true.)
       end if
 
@@ -2086,9 +2062,8 @@ c      "extra" outputs
 
       if(itype==-1)then
        call histwrt4(phi_nh,'zgnhs',idnc,iarch,local,.true.)
-       call histwrt4(sdot(1,2),'sdot',idnc,iarch,local,.true.)
-       tmpry=pslx(1:ifull,:)
-       call histwrt4(tmpry,'pslx',idnc,iarch,local,.true.)
+       call histwrt4(sdot(:,2:),'sdot',idnc,iarch,local,.true.)
+       call histwrt4(pslx,'pslx',idnc,iarch,local,.true.)
        call histwrt4(savu,'savu',idnc,iarch,local,.true.)
        call histwrt4(savv,'savv',idnc,iarch,local,.true.)
        call histwrt4(savu1,'savu1',idnc,iarch,local,.true.)

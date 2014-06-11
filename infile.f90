@@ -1048,8 +1048,11 @@ real, intent(out) :: fjd
 logical, intent(in), optional :: allleap
 logical lleap
 
-lleap=.false.
-if ( present(allleap) ) lleap=allleap
+if ( present(allleap) ) then
+  lleap=allleap
+else
+  lleap=.false.    
+end if
 
 jyear =kdate/10000
 jmonth=(kdate-jyear*10000)/100
@@ -1462,7 +1465,7 @@ implicit none
 include 'newmpar.h'     ! Grid parameters
 
 integer, intent(in) :: idnc, iarch
-real, dimension(ifull,kl), intent(in) :: var
+real, dimension(:,:), intent(in) :: var
 real, dimension(ifull,kl) :: wvar
 character(len=*), intent(in) :: sname
 logical, intent(in) :: local, lwrite
@@ -1474,7 +1477,7 @@ if ( .not.lwrite ) then
   wvar=real(nf90_fill_float)
 #endif
 else
-  wvar=var
+  wvar=var(1:ifull,:)
 endif
 
 if ( local ) then
@@ -1811,8 +1814,11 @@ character(len=*), intent(in) :: dname
 logical, intent(in), optional :: failok
 logical ftest
 
-ftest=.false.
-if (present(failok)) ftest=failok
+if (present(failok)) then
+  ftest=failok
+else
+  ftest=.false.
+end if
 
 lncid=ncid
 ldlen=dlen

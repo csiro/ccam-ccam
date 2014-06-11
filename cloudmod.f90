@@ -210,7 +210,7 @@ else
       where( k<kbsav .or. k>ktsav )
         clcon(:,k)=0.
       elsewhere
-        clcon(:,k)=cldcon  ! random overlap
+        clcon(:,k)=crnd  ! random overlap
       end where
     end do
   end if
