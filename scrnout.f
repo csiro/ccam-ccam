@@ -581,6 +581,8 @@ c-------Beljaars and Holtslag (1991) heat function
       if ( nmlo/=0 ) then
         iu = 0.
         iv = 0.
+	ou = 0.
+	ov = 0.
         call mloexport(2,ou,1,0)
         call mloexport(3,ov,1,0)
         call mloexpice(iu,9,0)
