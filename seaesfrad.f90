@@ -92,14 +92,14 @@ integer swcount,ierr,ktop,kbot
 integer, save :: nlow,nmid
 real, dimension(:), allocatable, save :: sgamp
 real, dimension(:,:), allocatable, save :: rtt
+real, dimension(imax,kl) :: duo3n,rhoa
+real, dimension(imax,kl) :: p2,cd2,dumcf,dumql,dumqf,dumt,tnhs
 real, dimension(imax) :: qsat,coszro2,taudar2,coszro,taudar,mx
 real, dimension(imax) :: sg,sint,sout,sgdn,rg,rt,rgdn,sgdnvis,sgdnnir
 real, dimension(imax) :: soutclr,sgclr,rtclr,rgclr,sga
 real, dimension(imax) :: sgvis,sgdnvisdir,sgdnvisdif,sgdnnirdir,sgdnnirdif
-real, dimension(imax) :: dprf,dumfbeam
-real, dimension(imax,kl) :: duo3n,rhoa
+real, dimension(imax) :: dprf,dumfbeam,tv
 real, dimension(imax) :: cuvrf_dir,cirrf_dir,cuvrf_dif,cirrf_dif
-real, dimension(imax,kl) :: p2,cd2,dumcf,dumql,dumqf,dumt,tnhs
 real, dimension(kl+1) :: sigh
 real(kind=8), dimension(kl+1,2) :: pref
 real r1,dlt,alp,slag,dhr,fjd
@@ -677,9 +677,10 @@ do j=1,jl,imax/il
     do k=1,kl
       kr=kl+1-k
       dumt(:,k)=t(istart:iend,k)
+      tv=dumt(:,k)*(1.+0.61*qg(istart:iend,k)-qlrad(istart:iend,k)-qfrad(istart:iend,k))
       p2(:,k)=ps(istart:iend)*sig(k)
       call getqsat(imax,qsat,dumt(:,k),p2(:,k))
-      Atmos_input%deltaz(:,1,kr)  = real((-dsig(k)/sig(k))*rdry*(dumt(:,k)+tnhs(:,k))/grav,8)
+      Atmos_input%deltaz(:,1,kr)  = real((-dsig(k)/sig(k))*rdry*(tv+tnhs(:,k))/grav,8)
       Atmos_input%rh2o(:,1,kr)    = max(real(qg(istart:iend,k),8),2.E-7_8)
       Atmos_input%temp(:,1,kr)    = min(max(real(dumt(:,k),8),100._8),370._8)    
       Atmos_input%press(:,1,kr)   = real(p2(:,k),8)

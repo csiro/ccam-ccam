@@ -115,7 +115,8 @@ c These outputs are not used in this model at present
       kbase(:)=0  ! default
       ktop(:) =0  ! default
       dz(:,:)=100.*dprf(:,:)/(rhoa(:,:)*grav)
-     &        *(1.+tnhs(1:ifull,:)/t(1:ifull,:))
+     &        *(1.+0.61*qg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:)
+     &          +tnhs(1:ifull,:)/t(1:ifull,:))
 c     fluxc(:,:)=rnrt3d(:,:)*1.e-3*dt ! kg/m2 (should be same level as rnrt3d)
       fluxc(:,:)=0. !For now... above line may be wrong
       ccrain(:,:)=0.1  !Assume this for now
@@ -169,7 +170,7 @@ c     before calling newcloud
               qccon(:,k)      = 0.
               qcl(1:ifull,k)  = 0.
               qenv(1:ifull,k) = qg(1:ifull,k)
-            endwhere
+            end where
           end do
         
         else ! usual random cloud overlap

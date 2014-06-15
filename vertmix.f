@@ -69,7 +69,7 @@
       real, dimension(ifull,kl) :: betatt,betaqt,rhs,delthet,thebas
       real, dimension(ifull,kl) :: cu,thee,qs,uav,vav,au,ct,gt,at
       real, dimension(ifull,kl) :: guv,ri,rkm,rkh,rk_shal,zg
-      real, dimension(ifull,kl) :: tnhs,zh,cldtmp
+      real, dimension(ifull,kl) :: tnhs,zh,cldtmp,tv
       real, dimension(ifull,kl-1) :: dnhsh,tmnht
       real, dimension(ifull) :: dqtot,csq,dvmod,dz,dzr,fm,fh,sqmxl
       real, dimension(ifull) :: x,zhv,theeb,sigsp,rhos
@@ -805,10 +805,11 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
        ! convection options
        
        ! calculate height on full levels
-       zg(:,1)=bet(1)*t(1:ifull,1)/grav
+       tv=t(1:ifull,:)*(1.+0.61*qg(1:ifull,:)-qlg(1:ifull,:)
+     &   -qfg(1:ifull,:))
+       zg(:,1)=bet(1)*tv(:,1)/grav
        do k=2,kl
-        zg(:,k)=zg(:,k-1)+(bet(k)*t(1:ifull,k)
-     &                    +betm(k)*t(1:ifull,k-1))/grav
+        zg(:,k)=zg(:,k-1)+(bet(k)*tv(:,k)+betm(k)*tv(:,k-1))/grav
        end do ! k  loop
        zg=zg+phi_nh/grav ! add non-hydrostatic component
        

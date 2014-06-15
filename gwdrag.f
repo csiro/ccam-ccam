@@ -2,6 +2,7 @@
 !     this is vectorized jlm version
       use arrays_m
       use gdrag_m
+      use liqwpar_m
       use morepbl_m
       use nharrs_m
       use nlin_m
@@ -16,7 +17,7 @@
       include 'parm.h'
       real uu(ifull,kl),fni(ifull,kl),bvnf(ifull,kl)
      .            ,thf(ifull,kl)
-      real tnhs(ifull,kl)
+      real tnhs(ifull,kl),tv(ifull,kl)
       real dthdz(ifull,kl)
       real bvng(ifull),temp(ifull),fnii(ifull),unst(ifull)
      . ,apuw(ifull),apvw(ifull),alam(ifull),wmag(ifull),frsav(ifull)
@@ -31,6 +32,8 @@ c     interface mods for darlam & globpe
       delt(kl)=0.
       
       ! Non-hydrostatic terms
+      tv=t(1:ifull,:)*(1.+0.61*qg(1:ifull,:)-qlg(1:ifull,:)
+     &   -qfg(1:ifull,:))
       tnhs(:,1)=phi_nh(:,1)/bet(1)
       do k=2,kl
         ! representing non-hydrostatic term as a correction to air temperature
@@ -48,7 +51,7 @@ c     calc d(theta)/dz  at half-levels , using 1/dz at level k-.5
       if(ndzx.eq.0)dzx=-grav*sig(1)/(dsig(1)*rdry)                ! Hal's
       if(ndzx.eq.1)dzx=.5*grav*(1.+sig(1))/((1.-sig(1))*rdry)     ! fixup by jlm
       do iq=1,ifull
-       dzi=dzx/(t(iq,1)+tnhs(iq,1))
+       dzi=dzx/(tv(iq,1)+tnhs(iq,1))
        dthdz(iq,1)=max(thf(iq,1)-tss(iq),0.)*dzi  ! was wrong dzi - jlm
 c      form new wmag at surface
        wmag(iq)=max(sqrt(u(iq,1)**2+v(iq,1)**2),1.)
@@ -57,7 +60,7 @@ c      form new wmag at surface
        if(ndzx.eq.0)dzx=-2.*grav*sig(k)/(dsig(k)*rdry)                  ! Hal's
        if(ndzx.eq.1)dzx=grav*(sig(k-1)+sig(k))/((sig(k-1)-sig(k))*rdry) ! fixup by jlm
        do iq=1,ifull
-        dzi=dzx/(t(iq,k-1)+t(iq,k)+tnhs(iq,k-1)+tnhs(iq,k))  ! gwdrag
+        dzi=dzx/(tv(iq,k-1)+tv(iq,k)+tnhs(iq,k-1)+tnhs(iq,k))  ! gwdrag
         dthdz(iq,k)=(thf(iq,k)-thf(iq,k-1))*dzi
        enddo   ! iq loop
       enddo    ! k loop

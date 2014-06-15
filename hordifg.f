@@ -1,5 +1,7 @@
+      ! This subroutine calculates horizontal diffusion for atmospheric fields
+      
       subroutine hordifgt   !  globpea version    N.B. k loop in here
-!     usual scheme
+
       use aerosolldr
       use arrays_m
       use cc_mpi
@@ -39,27 +41,25 @@ c     has jlm nhorx option as last digit of nhor, e.g. -157
       include 'kuocom.h'
       include 'parm.h'
       include 'parmdyn.h'
- 
-      real, dimension(ifull+iextra,kl) :: uc, vc, wc, xfact,
-     &                                    yfact, t_kh
+
       real, dimension(ifull+iextra,kl,nagg) :: ff
+      real, dimension(ifull+iextra,kl) :: uc, vc, wc, xfact
+      real, dimension(ifull+iextra,kl) :: yfact, t_kh
+      real, dimension(ifull+iextra,kl) :: ww,uav,vav
       real, dimension(ifull,kl) :: dudx,dudy,dudz
       real, dimension(ifull,kl) :: dvdx,dvdy,dvdz
       real, dimension(ifull,kl) :: dwdx,dwdy,dwdz
       real, dimension(ifull,kl) :: base
+      real, dimension(ifull,kl) :: zg,tnhs,tv
+      real, dimension(ifull,2) :: zgh      
       real, dimension(ifull) :: ptemp, tx_fact, ty_fact
       real, dimension(ifull) :: sx_fact, sy_fact
       real, dimension(ifull) :: emi,r1,r2
-      real, dimension(ifull,2) :: zgh      
-      real, dimension(ifull+iextra,kl) :: ww,uav,vav
-      real, dimension(ifull,kl) :: zg,tnhs
       integer, parameter :: nf=2
 !     Local variables
       integer iq, k, nhora, nhorx, ntr
       real cc, delphi, hdif, ucc, vcc, wcc
       integer, save :: kmax=-1
-      !integer i, j, n, ind
-      !ind(i,j,n)=i+(j-1)*il+n*il*il  ! *** for n=0,5
 
 c     nhorx used in hordif  ! previous code effectively has nhorx=0
 c           = 1 u, v, T, qg  diffusion reduced near mountains
@@ -120,13 +120,15 @@ c     above code independent of k
         ! Calculate du/dx,dv/dx,du/dy,dv/dy, etc 
 
         ! calculate height on full levels and non-hydrostatic temp correction
+        tv=t(1:ifull,:)*(1.+0.61*qg(1:ifull,:)-qlg(1:ifull,:)
+     &     -qfg(1:ifull,:))
         tnhs(:,1)=phi_nh(:,1)/bet(1)
-        zg(:,1)=(zs(1:ifull)+bet(1)*(t(1:ifull,1)+tnhs(:,1)))/grav
+        zg(:,1)=(zs(1:ifull)+bet(1)*(tv(:,1)+tnhs(:,1)))/grav
         do k=2,kl
          tnhs(:,k)=(phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:,k-1))
      &             /bet(k)
-         zg(:,k)=zg(:,k-1)+(bet(k)*(t(1:ifull,k)+tnhs(:,k))
-     &                    +betm(k)*(t(1:ifull,k-1)+tnhs(:,k-1)))/grav
+         zg(:,k)=zg(:,k-1)+(bet(k)*(tv(:,k)+tnhs(:,k))
+     &           +betm(k)*(tv(:,k-1)+tnhs(:,k-1)))/grav
         end do ! k  loop
 
         do k=1,kl        
@@ -140,8 +142,7 @@ c     above code independent of k
           ! omega=ps*dpsldt
           ! ww = -R/g * (T+Tnhs) * dpsldt/sig
           ww(1:ifull,k)=(dpsldt(:,k)/sig(k))
-     &        *(-rdry/grav)*(t(1:ifull,k)+tnhs(:,k))
-     &        *(1.+0.61*qg(1:ifull,k)-qlg(1:ifull,k)-qfg(1:ifull,k))
+     &        *(-rdry/grav)*(tv(:,k)+tnhs(:,k))
         end do
         
         call boundsuv_allvec(uav,vav)
@@ -195,38 +196,35 @@ c     above code independent of k
       
       if (nhorjlm==1.or.nhorjlm==2.or.
      &    nhorps==0.or.nhorps==-2) then ! usual deformation for nhorjlm=1 or nhorjlm=2
-        
         do k=1,kl
 !        in hordifgt, need to calculate Cartesian components 
-         do iq=1,ifull
-            ff(iq,k,1) = ax(iq)*u(iq,k) + bx(iq)*v(iq,k)
-            ff(iq,k,2) = ay(iq)*u(iq,k) + by(iq)*v(iq,k)
-            ff(iq,k,3) = az(iq)*u(iq,k) + bz(iq)*v(iq,k)
-         enddo
+         ff(1:ifull,k,1) = ax(1:ifull)*u(1:ifull,k)
+     &                   + bx(1:ifull)*v(1:ifull,k)
+         ff(1:ifull,k,2) = ay(1:ifull)*u(1:ifull,k)
+     &                   + by(1:ifull)*v(1:ifull,k)
+         ff(1:ifull,k,3) = az(1:ifull)*u(1:ifull,k)
+     &                   + bz(1:ifull)*v(1:ifull,k)
         end do
         call bounds(ff(:,:,1:3))
         uc(:,:)=ff(:,:,1)
         vc(:,:)=ff(:,:,2)
         wc(:,:)=ff(:,:,3)
-      
       end if
-!      !--------------------------------------------------------------
+      !--------------------------------------------------------------
 
       select case(nhorjlm)
        case(0)
          ! This is based on 2D Smagorinsky closure
          do k=1,kl
            hdif=dt*hdiff(k) ! N.B.  hdiff(k)=khdif*.1
-           r1=(dudx(:,k)-dvdy(:,k))**2
-     &       +(dvdx(:,k)+dudy(:,k))**2
-           t_kh(1:ifull,k)= sqrt(r1)*hdif*emi(:)
+           r1(:)=(dudx(:,k)-dvdy(:,k))**2
+     &          +(dvdx(:,k)+dudy(:,k))**2
+           t_kh(1:ifull,k)=sqrt(r1(:))*hdif*emi(:)
          end do
          call bounds(t_kh,nehalf=.true.)
          do k=1,kl
-            do iq=1,ifull
-               xfact(iq,k) = (t_kh(ie(iq),k)+t_kh(iq,k))*.5
-               yfact(iq,k) = (t_kh(in(iq),k)+t_kh(iq,k))*.5
-            end do
+           xfact(1:ifull,k) = (t_kh(ie,k)+t_kh(1:ifull,k))*.5
+           yfact(1:ifull,k) = (t_kh(in,k)+t_kh(1:ifull,k))*.5
          end do
              
        case(1)
@@ -316,34 +314,28 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
       if (nvmix==6) then
         if (nhorx==1) then
           do k=1,kl
-            shear(:,k)=2.*((dudx(:,k)*sx_fact)**2
-     &                    +(dvdy(:,k)*sy_fact)**2+dwdz(:,k)**2)
-     &              +(dudy(:,k)*sy_fact
-     &               +dvdx(:,k)*sx_fact)**2
+            shear(:,k)=2.*(dwdz(:,k)**2
+     &              +(dudx(:,k)*sx_fact)**2+(dvdy(:,k)*sy_fact)**2)
+     &              +(dudy(:,k)*sy_fact+dvdx(:,k)*sx_fact)**2
      &              +(dudz(:,k)+dwdx(:,k)*sx_fact)**2
      &              +(dvdz(:,k)+dwdy(:,k)*sy_fact)**2
           end do
         else if (nhorx>=7) then
           do k=1,kmax
-            shear(:,k)=2.*((dudx(:,k)*sx_fact)**2
-     &                    +(dvdy(:,k)*sy_fact)**2+dwdz(:,k)**2)
-     &              +(dudy(:,k)*sy_fact
-     &               +dvdx(:,k)*sx_fact)**2
+            shear(:,k)=2.*(dwdz(:,k)**2
+     &              +(dudx(:,k)*sx_fact)**2+(dvdy(:,k)*sy_fact)**2)
+     &              +(dudy(:,k)*sy_fact+dvdx(:,k)*sx_fact)**2
      &              +(dudz(:,k)+dwdx(:,k)*sx_fact)**2
      &              +(dvdz(:,k)+dwdy(:,k)*sy_fact)**2
           end do
           do k=kmax+1,kl
-            shear(:,k)=2.*(dudx(:,k)**2+dvdy(:,k)**2
-     &                    +dwdz(:,k)**2)
-     &              +(dudy(:,k)+dvdx(:,k))**2
-     &              +(dudz(:,k)+dwdx(:,k))**2
+            shear(:,k)=2.*(dudx(:,k)**2+dvdy(:,k)**2+dwdz(:,k)**2)
+     &              +(dudy(:,k)+dvdx(:,k))**2+(dudz(:,k)+dwdx(:,k))**2
      &              +(dvdz(:,k)+dwdy(:,k))**2
           end do
         else
-          shear(:,:)=2.*(dudx(:,:)**2+dvdy(:,:)**2
-     &            +dwdz(:,:)**2)
-     &            +(dudy(:,:)+dvdx(:,:))**2
-     &            +(dudz(:,:)+dwdx(:,:))**2
+          shear(:,:)=2.*(dudx(:,:)**2+dvdy(:,:)**2+dwdz(:,:)**2)
+     &            +(dudy(:,:)+dvdx(:,:))**2+(dudz(:,:)+dwdx(:,:))**2
      &            +(dvdz(:,:)+dwdy(:,:))**2
         end if
       end if

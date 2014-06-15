@@ -142,6 +142,7 @@ use estab
 use extraout_m
 use infile
 use latlong_m
+use liqwpar_m
 use morepbl_m
 use nharrs_m
 use nsibd_m
@@ -166,6 +167,7 @@ include 'parm.h'
 
 real fjd,r1,dlt,slag,dhr,alp,x,esatf
 real, dimension(ifull) :: coszro2,taudar2,tmps,hruff_grmx,atmco2
+real, dimension(ifull) :: tv
 real, dimension(mp) :: swdwn
 real(r_2), dimension(mp) :: xKNlimiting,xkleafcold,xkleafdry
 real(r_2), dimension(mp) :: xkleaf,xnplimit,xNPuptake,xklitter
@@ -213,7 +215,8 @@ met%precip      =condx(cmap)              ! in mm not mm/sec
 met%precip_sn   =conds(cmap)              ! in mm not mm/sec
 met%hod         =real(mtimer+jhour*60+jmin)/60.+rlongg(cmap)*12./pi
 met%hod         =mod(met%hod,24.)
-rough%za_tq     =(bet(1)*t(cmap,1)+phi_nh(cmap,1))/grav ! reference height
+tv=t(1:ifull,1)*(1.+0.61*qg(1:ifull,1)-qlg(1:ifull,1)-qfg(1:ifull,1))
+rough%za_tq     =(bet(1)*tv(cmap)+phi_nh(cmap,1))/grav ! reference height
 rough%za_uv     =rough%za_tq
 ! swrsave indicates the fraction of net VIS radiation (compared to NIR)
 ! fbeamvis indicates the beam fraction of downwelling direct radiation (compared to diffuse) for VIS
@@ -525,23 +528,23 @@ do nb=1,maxnb
   !                                  +sv(pind(nb,1):pind(nb,2))*canopy%ua_10m(pind(nb,1):pind(nb,2))
 end do
 
-where (land)
+where ( land )
   ustar=sqrt(cduv)*vmod
-  zoh=zmin*exp(-sqrt(zo)/zoh)
-  zoq=zoh
-  zo=zmin*exp(-1./sqrt(zo))
-  zoh=max(zoh,0.1*zobgin) ! MJT suggestion
-  zoq=max(zoq,0.1*zobgin) ! MJT suggestion
-  zo=max(zo,zobgin)       ! MJT suggestion
-  cduv=cduv*vmod     ! cduv is Cd*vmod in CCAM
-  cdtq=cdtq*vmod
-  tscrn=tscrn+273.16 ! convert from degC to degK
-  tss=tss**0.25
+  zoh  =zmin*exp(-sqrt(zo)/zoh)
+  zoq  =zoh
+  zo   =zmin*exp(-1./sqrt(zo))
+  zoh  =max(zoh,0.1*zobgin) ! MJT suggestion for scrn diagnostics
+  zoq  =max(zoq,0.1*zobgin) ! MJT suggestion for scrn diagnostics
+  zo   =max(zo,zobgin)      ! MJT suggestion for scrn diagnostics
+  cduv =cduv*vmod           ! cduv is Cd*vmod in CCAM
+  cdtq =cdtq*vmod
+  tscrn=tscrn+273.16        ! convert from degC to degK
+  tss  =tss**0.25
   rsmin=1./rsmin
-  rnet=sgsave-rgsave-stefbo*tss**4
+  rnet =sgsave-rgsave-stefbo*tss**4
 end where
 do iq=1,ifull
-  if (land(iq)) then
+  if ( land(iq) ) then
     esatf=establ(tss(iq))
     qsttg(iq)=.622*esatf/(ps(iq)-esatf)
   end if
@@ -553,13 +556,13 @@ end do
 ! convert each snow tile to that number of layers.  Note these calculations are purely
 ! diagnoistic.  They are not fed back into the CCAM simulation.
 do k=1,3
-  where (land)
+  where ( land )
     tggsn(:,k)=0.
     smass(:,k)=0.
     ssdn(:,k)=0.
   end where
 end do
-where (land)
+where ( land )
   ssdnn=0.
   snowd=0.
   snage=0.
@@ -848,10 +851,9 @@ if ( cbm_ms/=ms ) then
 end if
 
 ! redefine rhos
-!rhos=(/ 2600., 2600., 2600., 2600., 2600., 2600., 2600., 1300., 910., 2600., 2600., 2600., 2600. /) ! original
 rhos=(/ 1600., 1595., 1381., 1373., 1476., 1521., 1373., 1537., 1455., 2600., 2600., 2600., 2600. /)
 
-! biophysical parameter tablesa
+! biophysical parameter tables
 hc    =(/   17.,  35.,  15.5,  20.,   0.6, 0.567, 0.567, 0.567, 0.55, 0.55, 0.567,  0.2, 6.017,  0.2,  0.2,  0.2,  0.2 /)
 xfang =(/  0.01,  0.1,  0.01, 0.25,  0.01,  -0.3,  -0.3,  -0.3, -0.3, -0.3,  -0.3,  0.1,    0.,   0.,   0.,   0.,   0. /)
 leaf_w=(/ 0.001, 0.05, 0.001, 0.08, 0.005,  0.01,  0.01,  0.01, 0.01, 0.01,  0.01, 0.03, 0.015, 0.00,   0.,   0.,   0. /)

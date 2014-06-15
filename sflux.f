@@ -78,7 +78,7 @@
       real, dimension(ifull) :: neta,oldrunoff,newrunoff,rid,fhd
       real, dimension(ifull) :: fgf,rgg,fev,af,dirad,dfgdt,factch
       real, dimension(ifull) :: degdt,cie,aft,fh,ri,gamm,smixr,rho
-      real, dimension(ifull) :: dumsg,dumr,dumx,dums,dumw
+      real, dimension(ifull) :: dumsg,dumr,dumx,dums,dumw,tv
       logical, dimension(ifull) :: duml
 
       integer, parameter :: nblend=0  ! 0 for original non-blended, 1 for blended af
@@ -155,7 +155,7 @@ c     degdt is degdt (was ceva in surfupa/b)
           write(6,*) 't1,tss ',t(idjd,1),tss(idjd)
           write(6,*) 'wb ',(wb(idjd,k),k=1,ms)
           write(6,*) 'tgg ',(tgg(idjd,k),k=1,ms)
-	   endif
+          endif
         end if
         call maxmin(t,' t',ktau,1.,kl)
       endif
@@ -164,7 +164,9 @@ c     using av_vmod (1. for no time averaging)
 !      *****  check next comment
 !       sflux called at beginning of time loop, hence savu, savv
 
-      azmin=(bet(1)*t(1:ifull,1)+phi_nh(:,1))/grav
+      tv=t(1:ifull,1)*(1.+0.61*qg(1:ifull,1)-qlg(1:ifull,1)
+     &   -qfg(1:ifull,1))
+      azmin=(bet(1)*tv+phi_nh(:,1))/grav
       srcp =sig(1)**(rdry/cp)
       ga(:)=0.              !  for ocean points in ga_ave diagnostic
       theta(:)=t(1:ifull,1)/srcp
@@ -173,7 +175,7 @@ c     using av_vmod (1. for no time averaging)
       vav(:)=av_vmod*v(1:ifull,1)+(1.-av_vmod)*savv(:,1)  
       vmod(:)=sqrt(uav(:)**2+vav(:)**2)  ! i.e. vmod for tss_sh
       vmag(:)=max( vmod(:) , vmodmin)    ! vmag used to calculate ri
-      if(ntsur/=7) vmod(:)=vmag(:)       ! gives usual way
+      if (ntsur/=7) vmod(:)=vmag(:)      ! gives usual way
 
       !--------------------------------------------------------------
       START_LOG(sfluxwater)
@@ -708,7 +710,7 @@ c          Surface stresses taux, tauy: diagnostic only - unstaggered now
              endif                                                      ! land
             enddo                                                       ! land
           elseif(ntaft==3)then                                          ! land
-!           do vegetation calulation for taftfh	                        ! land
+!           do vegetation calulation for taftfh	                      ! land
             do iq=1,ifull                                               ! land
              if(land(iq))then                                           ! land
                xx=grav*zmin*(1.-tgf(iq)*srcp/t(iq,1)) ! actually otgf   ! land
