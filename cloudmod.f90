@@ -5,11 +5,12 @@ module cloudmod
 implicit none
     
 private
-public progcloud, cloudmod_init, combinecloudfrac
+public progcloud, cloudmod_init, combinecloudfrac, u00crit
 public stratcloud, nettend
 
 real, dimension(:,:), allocatable, save :: stratcloud  ! prognostic cloud fraction
 real, dimension(:,:), allocatable, save :: nettend     ! change in temperature from radiation and vertical mixing
+real, save :: u00crit = 0.8                            ! critical relative humidity above which clouds can form
 
 contains
 
@@ -20,8 +21,7 @@ implicit none
 integer, intent(in) :: ifull, iextra, kl, ncloud
 
 if (ncloud>=3) then
-  allocate(stratcloud(ifull+iextra,kl))
-  allocate(nettend(ifull,kl))
+  allocate(stratcloud(ifull+iextra,kl),nettend(ifull,kl))
   stratcloud=0.
   nettend=0.
 end if
@@ -51,13 +51,13 @@ real, dimension(ifull,kl) :: da, dqs, cfbar
 real, dimension(ifull,kl) :: cf1, cfeq, a_dt, b_dt
 real, dimension(ifull,kl) :: dqsdT, mflx, gamma
 real, dimension(ifull,kl) :: aa, bb, cc, omega
-real, dimension(ifull,kl) :: cmflx
+real, dimension(ifull,kl) :: cmflx, hlrvap
 integer k
 
 stratcloud(1:ifull,:)=max( min( stratcloud(1:ifull,:), 1. ), 0. )
 
 ! Critical relative humidity (neglected profile option)
-u00p(:,:) = 0.8
+u00p(:,:) = u00crit
 
 ! background erosion scale
 erosion_scale(:,:) = 1.E-6
@@ -66,14 +66,17 @@ erosion_scale(:,:) = 1.E-6
 do k=1,kl
   omega(:,k) = ps(1:ifull)*dpsldt(:,k)
 end do
-gamma = (hl+fice*hlf)/rvap
-dqsdT = qs*gamma/(t*t)
+hlrvap = (hl+fice*hlf)/rvap
+dqsdT = qs*hlrvap/(t*t)
+gamma = (hlcp+fice*hlfcp)*dqsdT
 if ( ncloud>=4 ) then
+  ! convert convective mass flux from half levels to full levels
   do k=1,kl-1
     cmflx(:,k)=rathb(k)*fluxtot(:,k)+ratha(k)*fluxtot(:,k+1)
   end do
   cmflx(:,kl)=rathb(kl)*fluxtot(:,kl)
 else ! ncloud==3
+  ! use convective area fraction in leoncld.f, instead of convective mass flux
   cmflx=0.
 end if
 
@@ -93,7 +96,7 @@ end if
 ! CC = ((omega + grav*mflx)/(cp*rho)+netten)*dqsdT*dt
 
 cc = ((omega + grav*cmflx)/(cp*rho)+nettend)*dt*dqsdT
-aa = 0.5*gamma*(1.-stratcloud(1:ifull,:))*(1.-stratcloud(1:ifull,:))/max(qs-qtot,1.E-20)
+aa = 0.5*gamma*(1.-stratcloud(1:ifull,:))*(1.-stratcloud(1:ifull,:))/max( qs-qtot, 1.E-20 )
 bb = 1.+gamma*stratcloud(1:ifull,:)
 where ( cc<=0. .and. qtot>u00p*qs )
   dqs = 2.*cc/( bb + sqrt( bb*bb - 2.*aa*cc ) ) ! alternative form of quadratic equation
@@ -115,7 +118,7 @@ end where
 a_dt = da/max( 1.-stratcloud(1:ifull,:), 1.e-20 )
 
 ! Large scale cloud destruction (B)
-b_dt = stratcloud(1:ifull,:)*erosion_scale*dt*max(qs-qtot,0.)/max(qc,1.e-8 )
+b_dt = stratcloud(1:ifull,:)*erosion_scale*dt*max( qs-qtot, 0. )/max( qc, 1.e-8 )
 
 ! Integrate
 !   dcf/dt = (1-cf)*A - cf*B
@@ -128,8 +131,8 @@ b_dt = stratcloud(1:ifull,:)*erosion_scale*dt*max(qs-qtot,0.)/max(qc,1.e-8 )
 ! a time scale of 1/(A+B)
 where ( a_dt>1.E-20 .or. b_dt>1.E-20 )
   cfeq  = a_dt/(a_dt+b_dt)
-  cf1   = min(max( cfeq + (stratcloud(1:ifull,:) - cfeq)*exp(-a_dt-b_dt), 0.), 1.)
-  cfbar = min(max( cfeq + (stratcloud(1:ifull,:) - cf1 )/(a_dt+b_dt),     0.), 1.)
+  cf1   = min(max( cfeq + (stratcloud(1:ifull,:) - cfeq)*exp(-a_dt-b_dt), 0. ), 1. )
+  cfbar = min(max( cfeq + (stratcloud(1:ifull,:) - cf1 )/(a_dt+b_dt),     0. ), 1. )
 elsewhere
   cfeq  = stratcloud(1:ifull,:)
   cf1   = stratcloud(1:ifull,:)
@@ -173,10 +176,12 @@ include 'parm.h'     ! Model configuration
 integer k
 real, dimension(ifull) :: cldcon
 real, dimension(ifull,kl) :: clcon
-real, dimension(ifull) :: n, crnd
+real, dimension(ifull) :: n, crand
 
 if ( ncloud>=4 ) then
+
   cfrac(:,:)=stratcloud(1:ifull,:)
+  
 else
 
   ! estimate convective cloud fraction from leoncld.f
@@ -205,12 +210,12 @@ else
     end do
   else
     n=1./real(ktsav-kbsav+1)
-    crnd=1.-(1.-cldcon)**n
+    crand=1.-(1.-cldcon)**n
     do k=1,kl
       where( k<kbsav .or. k>ktsav )
         clcon(:,k)=0.
       elsewhere
-        clcon(:,k)=crnd  ! random overlap
+        clcon(:,k)=crand  ! random overlap
       end where
     end do
   end if

@@ -524,18 +524,14 @@ do nb=1,maxnb
                                     +sv(pind(nb,1):pind(nb,2))*canopy%uscrn(pind(nb,1):pind(nb,2))
   qgscrn(cmap(pind(nb,1):pind(nb,2)))=qgscrn(cmap(pind(nb,1):pind(nb,2)))                                  &
                                     +sv(pind(nb,1):pind(nb,2))*canopy%qscrn(pind(nb,1):pind(nb,2))
-  !u10(cmap(pind(nb,1):pind(nb,2)))=u10(cmap(pind(nb,1):pind(nb,2)))                                       &
-  !                                  +sv(pind(nb,1):pind(nb,2))*canopy%ua_10m(pind(nb,1):pind(nb,2))
 end do
 
 where ( land )
+  u10  =vmod                ! MJT suggestion for 10m wind speed
   ustar=sqrt(cduv)*vmod
   zoh  =zmin*exp(-sqrt(zo)/zoh)
   zoq  =zoh
   zo   =zmin*exp(-1./sqrt(zo))
-  zoh  =max(zoh,0.1*zobgin) ! MJT suggestion for scrn diagnostics
-  zoq  =max(zoq,0.1*zobgin) ! MJT suggestion for scrn diagnostics
-  zo   =max(zo,zobgin)      ! MJT suggestion for scrn diagnostics
   cduv =cduv*vmod           ! cduv is Cd*vmod in CCAM
   cdtq =cdtq*vmod
   tscrn=tscrn+273.16        ! convert from degC to degK
