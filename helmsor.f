@@ -39,9 +39,7 @@
       integer, dimension(1) :: idum
       save  meth, nx_max, axel
 
-#include "log.h"
-
-      START_LOG(helm)
+      call START_LOG(helm_begin)
       
       rhs=irhs ! allows subroutine to modify rhs
       
@@ -80,11 +78,13 @@ c         if(il_g==il)accel(k)=1.+.55*(accel(k)-1.) ! just a test
          ! large grid
          accel=1. ! gauss-seidel
        end if
-      endif
+      endif ! dt/=dtsave
 
       if(precon>=-2899) then  ! e.g. not -2900 or -3900
       klim=kl
       iter = 1
+      sa=s(1:ifull,:)
+      sb=s(1:ifull,:)
       do while ( iter<itmax .and. klim>1)
        call bounds(s, klim=klim)
        do k=1,klim        
@@ -313,6 +313,7 @@ c       write (6,"('iter,k ,s',2i4,4f14.5)") iter,k,(s(iq,k),iq=1,4)
       
       end if ! precon>=-2899 ..else..
       
-      END_LOG(helm)
+      call END_LOG(helm_end)
+      
       return
       end

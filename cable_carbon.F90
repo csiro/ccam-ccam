@@ -143,8 +143,7 @@ SUBROUTINE carbon_pl(dels, soil, ssnow, veg, canopy, bgc)
       
       CASE DEFAULT
         
-         PRINT *, 'Error! Dimension not compatible with CASA                   &
-                   or CSIRO or IGBP types!'
+         PRINT *, 'Error! Dimension not compatible with CASA or CSIRO or IGBP types!'
          PRINT *, 'Dimension =', mvtype
          PRINT *, 'At the rw section.'
          STOP

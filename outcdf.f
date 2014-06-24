@@ -1176,9 +1176,9 @@ c       For time varying surface fields
         lname= 'y-component wind'
         call attrib(idnc,dim,4,'v',lname,'m/s',-150.,150.,0,itype)
         lname= 'vertical velocity'
-        call attrib(idnc,dim,4,'omega',lname,'Pa/s',-50.,50.,0,itype)
+        call attrib(idnc,dim,4,'omega',lname,'Pa/s',-65.,65.,0,itype)
         lname= 'Water mixing ratio'
-        call attrib(idnc,dim,4,'mixr',lname,'kg/kg',0.,.05,0,itype)
+        call attrib(idnc,dim,4,'mixr',lname,'kg/kg',0.,.065,0,itype)
         lname='covective heating'
         call attrib(idnc,dim,4,'convh_ave',lname,'K/day',-10.,20.,0,
      &              itype)
@@ -2177,9 +2177,7 @@ c      "extra" outputs
       data month/'jan','feb','mar','apr','may','jun'
      &          ,'jul','aug','sep','oct','nov','dec'/      
 
-#include "log.h"
-
-      START_LOG(outfile)
+      call START_LOG(outfile_begin)
 
       ! allocate arrays and open new file
       if (first) then
@@ -2445,7 +2443,7 @@ c      "extra" outputs
         end if
       end if
       
-      END_LOG(outfile)
+      call END_LOG(outfile_end)
       
       return
       end subroutine freqfile

@@ -37,9 +37,7 @@
 !     Temporary array for the drpdr_local function
       real, dimension(ifull) :: tmparr, tmparr2 
 
-#include "log.h"
-
-      START_LOG(helm)
+      call START_LOG(helm_begin)
       
       klim = kl ! All modes at first
 
@@ -352,6 +350,6 @@
       
       end select
 
-      END_LOG(helm)
+      call END_LOG(helm_end)
 
    end subroutine helmsol

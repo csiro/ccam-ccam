@@ -97,7 +97,7 @@ c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
       integer kdown(ifull)
       real entr(ifull),detrfactr(ifull),factr(ifull)
       real fluxqs,fluxt_k(kl)
-      real cfraclim(ifull),convtim(ifull),pblx(ifull)
+      real pblx(ifull)
       real ff(ifull,kl)
       integer kpos(1)
       
@@ -304,7 +304,7 @@ c         1836.45 is old 36;  4040.6 is old -24; 2020.001 is old .33
           convt_frac=.001
          endif  ! (convtime >100)
          if (myid==0) then
-           write(6,*),'convtime,mcontlnd,mcontsea,convt_frac',
+           write(6,*) 'convtime,mcontlnd,mcontsea,convt_frac',
      &                 convtime,mcontlnd,mcontsea,convt_frac
          end if
       endif    ! (ktau==1)   !----------------------------------------------------------------
@@ -526,8 +526,8 @@ c***    Also entrain may slow convergence   N.B. qbass only used in next few lin
      .           ntest,methdetr,methprec,detrain
       write(6,*) 'fldown,ncubase ',fldown,ncubase
       write(6,*) 'alflnd,alfsea ',alflnd,alfsea
-      write(6,*) 'cfraclim,convtim,factr ',
-     &           cfraclim(idjd),convtim(idjd),factr(idjd)
+      write(6,*) 'factr ',
+     &           factr(idjd)
       endif
       if((ntest>0.or.nmaxpr==1).and.mydiag) then
         iq=idjd

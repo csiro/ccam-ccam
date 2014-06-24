@@ -50,9 +50,7 @@ parameter (npslx=1)  ! 0 off, 1 on for nvad=-4
 !                            3 superbee flux-limiter
 !                            0 (not available now) was equivalent to van Leer
 
-#include "log.h"
- 
-START_LOG(vadv)
+call START_LOG(vadv_begin)
 
 tfact=1./real(nvadh_pass)
 
@@ -149,7 +147,7 @@ if(mspec==1.and.abs(nvad)/=9)then   ! advect qg and gases after preliminary step
 
 endif       ! if(mspec==1.and.abs(nvad).ne.9)
 
-END_LOG(vadv)
+call END_LOG(vadv_end)
  
 return
 end subroutine vadvtvd

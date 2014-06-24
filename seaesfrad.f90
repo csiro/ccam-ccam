@@ -45,8 +45,6 @@ logical, save :: do_aerosol_forcing
 
 contains
 
-#include "log.h"
-
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! CCAM interface with GFDL SEA-ESF radiation
 !
@@ -126,7 +124,7 @@ type(aerosol_diagnostics_type), save ::     Aerosol_diags
 type(lw_table_type), save ::                Lw_tables
 real(kind=8), dimension(:,:,:,:), allocatable, save :: r
 
-START_LOG(radmisc)
+call START_LOG(radmisc_begin)
 
 if ( nmaxpr==1 .and. myid==0 ) then
   write(6,*) "seaesfrad: Starting SEA-ESF radiation"
@@ -791,9 +789,9 @@ do j=1,jl,imax/il
     Astro%fracday(:,1)=real(taudar,8)
     swcount           =swcount+count(coszro>0.)
 
-    END_LOG(radmisc)
+    call END_LOG(radmisc_end)
 
-    START_LOG(radlw)
+    call START_LOG(radlw_begin)
     if (nmaxpr==1.and.myid==0) then
       write(6,*) "seaesfrad: Longwave radiation"
     end if
@@ -801,9 +799,9 @@ do j=1,jl,imax/il
                           Rad_gases, Aerosol, Aerosol_props,     &
                           Cldrad_props, Cld_spec, Aerosol_diags, &
                           Lw_output)
-    END_LOG(radlw)
+    call END_LOG(radlw_end)
 
-    START_LOG(radsw)
+    call START_LOG(radsw_begin)
     if (nmaxpr==1.and.myid==0) then
       write(6,*) "seaesfrad: Shortwave radiation"
     end if
@@ -811,8 +809,9 @@ do j=1,jl,imax/il
                            Astro, Aerosol, Aerosol_props, Rad_gases, &
                            Cldrad_props, Cld_spec, Sw_output,        &
                            Aerosol_diags, r)
-    END_LOG(radsw)
-    START_LOG(radmisc)
+    call END_LOG(radsw_end)
+    
+    call START_LOG(radmisc_begin)
 
     if (nmaxpr==1.and.myid==0) then
       write(6,*) "seaesfrad: Process SEA-ESF output"
@@ -997,7 +996,7 @@ if (nmaxpr==1.and.myid==0) then
   write(6,*) "seaesfrad: Finishing SEA-ESF radiation"
 end if
 
-END_LOG(radmisc)
+call END_LOG(radmisc_end)
 
 return
 end subroutine seaesfrad

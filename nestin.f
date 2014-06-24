@@ -705,11 +705,11 @@
         ! Create global copy of host data on each processor.  This can require a lot of memory
         call ccmpi_gatherall(pslb(:), tt(:,1))
         ! Apply 2D filter
-        call slowspecmpi_work(cin,tt(:,1),pslb,1)
+        call slowspecmpi_work(cq,tt(:,1),pslb,1)
       end if
       if (nud_uv==3) then
         call ccmpi_gatherall(ub(:,1:klt),tt(:,1:klt))
-        call slowspecmpi_work(cin,tt,ub,klt)
+        call slowspecmpi_work(cq,tt,ub,klt)
       else if (nud_uv>0) then
         ! vectors are processed as Cartesian coordinates (X,Y,Z),
         ! avoiding complications along panel boundaries
@@ -721,11 +721,11 @@
           wb(:,k)=az(1:ifull)*da+bz(1:ifull)*db
         end do
         call ccmpi_gatherall(ub(:,1:klt),tt(:,1:klt))
-        call slowspecmpi_work(cin,tt,ub,klt)
+        call slowspecmpi_work(cq,tt,ub,klt)
         call ccmpi_gatherall(vb(:,1:klt),tt(:,1:klt))
-        call slowspecmpi_work(cin,tt,vb,klt)
+        call slowspecmpi_work(cq,tt,vb,klt)
         call ccmpi_gatherall(wb(:,1:klt),tt(:,1:klt))
-        call slowspecmpi_work(cin,tt,wb,klt)
+        call slowspecmpi_work(cq,tt,wb,klt)
         ! Convert Cartesian vectors back to Conformal Cubic vectors
         do k=1,klt
           da=ax(1:ifull)*ub(:,k)+ay(1:ifull)*vb(:,k)
@@ -738,17 +738,17 @@
       end if
       if (nud_t>0) then
         call ccmpi_gatherall(tb(:,1:klt),tt(:,1:klt))
-        call slowspecmpi_work(cin,tt,tb,klt)
+        call slowspecmpi_work(cq,tt,tb,klt)
       end if
       if (nud_q>0) then
         call ccmpi_gatherall(qb(:,1:klt),tt(:,1:klt))
-        call slowspecmpi_work(cin,tt,qb,klt)
+        call slowspecmpi_work(cq,tt,qb,klt)
       end if
 
       return
       end subroutine slowspecmpi
 
-      subroutine slowspecmpi_work(cin,tt,tb,klt)
+      subroutine slowspecmpi_work(cq,tt,tb,klt)
 
       use cc_mpi            ! CC MPI routines
       use map_m             ! Grid map arrays
@@ -760,11 +760,11 @@
 
       integer, intent(in) :: klt
       integer i,j,n,iq,iqg,k
-      real, intent(in) :: cin
+      real, intent(in) :: cq
       real, dimension(ifull,klt), intent(out) :: tb
       real, dimension(ifull_g,klt), intent(in) :: tt
       real, dimension(ifull_g) :: r
-      real cq,psum
+      real psum
 
 #ifdef debug
       if (myid==0.and.nmaxpr==1) then

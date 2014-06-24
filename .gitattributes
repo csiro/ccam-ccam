@@ -43,7 +43,6 @@
 /kuocomb_m.f90 -text
 /latlong_m.f90 -text
 /liqwpar_m.f90 -text
-/log.h -text
 /longwave_clouds.f90 -text
 /longwave_fluxes.f90 -text
 /longwave_params.f90 -text

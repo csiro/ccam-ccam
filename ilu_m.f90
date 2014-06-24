@@ -122,9 +122,7 @@ contains
       integer :: i, itmp
       real :: tmpsum
 
-#include "log.h"
- 
-      START_LOG(precon)
+      call START_LOG(precon_begin)
 
       ! Solve Cx=rhs, where C is in sparse LU form
 
@@ -150,7 +148,8 @@ contains
          x(i,k) = (y(i) -tmpsum) * ppinv(i,k)
       end do
 
-      END_LOG(precon)
+      call END_LOG(precon_end)
+      
    end subroutine ilusolve
 
 end module ilu_m

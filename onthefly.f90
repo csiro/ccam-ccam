@@ -14,16 +14,16 @@ module onthefly_m
 ! of the input data is sent to all processors and each
 ! processor performs its own interpolation.
 
-integer, parameter :: nord=3        ! 1 for bilinear, 3 for bicubic interpolation
-integer, save :: ik,jk,kk,ok,nsibx
+integer, parameter :: nord = 3        ! 1 for bilinear, 3 for bicubic interpolation
+integer, save :: ik, jk, kk, ok, nsibx
 integer, dimension(:,:), allocatable, save :: nface4
 real, save :: rlong0x, rlat0x, schmidtx
-real, dimension(3,3), save :: rotpoles,rotpole
-real, dimension(:,:), allocatable, save :: xg4,yg4
-real, dimension(:), allocatable, save :: axs_a,ays_a,azs_a
-real, dimension(:), allocatable, save :: bxs_a,bys_a,bzs_a
+real, dimension(3,3), save :: rotpoles, rotpole
+real, dimension(:,:), allocatable, save :: xg4, yg4
+real, dimension(:), allocatable, save :: axs_a, ays_a, azs_a
+real, dimension(:), allocatable, save :: bxs_a, bys_a, bzs_a
 real, dimension(:), allocatable, save :: sigin
-logical iotest,newfile
+logical iotest, newfile
     
 contains
     
@@ -42,45 +42,36 @@ include 'darcdf.h'   ! Netcdf data
 include 'parm.h'     ! Model configuration
 include 'stime.h'    ! File date data
 
-integer, parameter :: nihead=54
-integer, parameter :: nrhead=14
+integer, parameter :: nihead = 54
+integer, parameter :: nrhead = 14
 
 integer, intent(in) :: nested
-integer, intent(out) :: kdate_r,ktime_r
+integer, intent(out) :: kdate_r, ktime_r
 integer, save :: maxarchi
 integer, save :: ncidold = -1
-integer ier,ier2,ilen,itype
-integer idv,mtimer,k,ierx,idvkd,idvkt,idvmt
+integer ier,mtimer,k,ierx,idvkd,idvkt,idvmt
 integer, dimension(nihead) :: nahead
 integer, dimension(ifull), intent(out) :: isflag
 real timer
-real, dimension(nrhead) :: ahead
-real, dimension(14) :: rdum
-!     These are local arrays, not the versions in arrays.h
-!     Use in call to infile, so are dimensioned ifull rather than ifull_g
-real, dimension(ifull), intent(out) :: psl,zss,tss,fracice,snowd,sicedep
-real, dimension(ifull), intent(out) :: ssdnn,snage
+real, dimension(ifull,wlev,4), intent(out) :: mlodwn
 real, dimension(ifull,ms), intent(out) :: wb,wbice,tgg
 real, dimension(ifull,3), intent(out) :: tggsn,smass,ssdn
-real, dimension(:,:), intent(out) :: t,u,v,qg,qfg,qlg,qrg
-real, dimension(ifull,wlev,4), intent(out) :: mlodwn
 real, dimension(ifull,2), intent(out) :: ocndwn
+real, dimension(:,:), intent(out) :: t,u,v,qg,qfg,qlg,qrg
+real, dimension(ifull), intent(out) :: psl,zss,tss,fracice,snowd,sicedep
+real, dimension(ifull), intent(out) :: ssdnn,snage
+real, dimension(nrhead) :: ahead
+real, dimension(14) :: rdum
 logical ltest,tst
 
-#include "log.h"
-
-START_LOG(onthefly)
+call START_LOG(onthefly_begin)
 !--------------------------------------------------------------
 ! pfall indicates all processors have an input file and there
 ! is no need to broadcast metadata (see infile.f90)
 if ( myid==0 .or. pfall ) then
-  if ( myid==0 ) then
-    write(6,*) 'Entering onthefly for nested,ktau = ',nested,ktau
-  end if
+  if ( myid==0 ) write(6,*) 'Entering onthefly for nested,ktau = ',nested,ktau
   if ( ncid/=ncidold ) then
-    if ( myid==0 ) then
-      write(6,*) 'Reading new file metadata'
-    end if
+    if ( myid==0 ) write(6,*) 'Reading new file metadata'
     iarchi=1
     call ccnf_get_attg(ncid,'int_header',nahead)
     call ccnf_get_attg(ncid,'real_header',ahead)
@@ -107,9 +98,7 @@ if ( myid==0 .or. pfall ) then
       write(6,*) "      rlong0x,rlat0x,schmidtx ",rlong0x,rlat0x,schmidtx
     end if
   end if
-  if ( myid==0 ) then
-    write(6,*)'Search for kdate_s,ktime_s >= ',kdate_s,ktime_s
-  end if
+  if ( myid==0 ) write(6,*)'Search for kdate_s,ktime_s >= ',kdate_s,ktime_s
   ltest=.true.
   iarchi=iarchi-1
   call ccnf_inq_varid(ncid,'kdate',idvkd,tst)
@@ -237,7 +226,7 @@ else
                  qrg,tggsn,smass,ssdn,ssdnn,snage,isflag,0,mlodwn,ocndwn)
 end if
 
-END_LOG(onthefly)
+call END_LOG(onthefly_end)
 
 return
 end subroutine onthefly
@@ -1500,7 +1489,7 @@ real, dimension(ik*ik*6), intent(inout) :: s
 real, dimension(ifull), intent(inout) :: sout
 real, dimension(ifull,4) :: wrk
 
- call ccmpi_bcast(s,0,comm_world)
+call ccmpi_bcast(s,0,comm_world)
 
 if ( nord==1 ) then
   do mm=1,m_fly  !  was 4, now may be 1
@@ -1765,7 +1754,7 @@ where ( land_a )
 end where
 if ( all(abs(a_io-value)<1.E-6) ) return
 
-START_LOG(otf_fill)
+call START_LOG(otf_fill_begin)
       
 if ( dk/=olddk ) then
   olddk=dk
@@ -1860,7 +1849,7 @@ do while ( nrem > 0)
   end do
 end do
       
-END_LOG(otf_fill)
+call END_LOG(otf_fill_end)
       
 return
 end subroutine fill_cc
@@ -2038,7 +2027,7 @@ include 'newmpar.h'    ! Grid parameters
 include 'darcdf.h'     ! Netcdf data
       
 integer, intent(in) :: vmode
-integer k,ier
+integer k, ier
 real, dimension(:,:), intent(out) :: varout
 real, dimension(6*ik*ik) :: ucc
 real, dimension(ifull,kk) :: u_k

@@ -31,13 +31,15 @@ c     Hal's ds() renamed dsh()
       real alphac(ifull),conrev(ifull),fluxr(ifull)
      .  ,heatpc(ifull),rhmx(ifull),smin(ifull),sumd(ifull)
      .  ,rnrt(ifull),rnrtc(ifull),sumqs(ifull),sumqt(ifull)
-     .  ,sumss(ifull),factdav(ifull),kbsav_ls(ifull)
+     .  ,sumss(ifull),factdav(ifull)
       real tt(ifull,kl),qq(ifull,kl),qsg(ifull,kl),gam(ifull,kl)
       real ss(ifull,kl),uh(ifull,kl)
       real dsh(ifull,kl)
       real dq(ifull,kl)
       real(kind=8) cam(kl-1,kl)
       real algf(kl),delt(kl),dsk(kl),rhs(kl),sigadd(kl),s(kl)
+      integer iq
+      integer, dimension(ifull) :: kbsav_ls
 !     set convective relaxation time (convtime [was btcnv], usually 1 hour)
 !     data convtime/1./,rhcv/.75/,rhmois/.6/ ! usually 1., .75, .6 now in kuocom
       data epsconv/0./

@@ -138,9 +138,7 @@
       namelist/tin/gauss,heightin,hfact,pmsl,qgin,tbarr,tsea,uin,vin
      &             ,thlapse
 
-#include "log.h"
-
-      START_LOG(indata)
+      call START_LOG(indata_begin)
 
       !--------------------------------------------------------------
       ! SET DEFAULT VALUES
@@ -2123,7 +2121,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
       endif     !  (nstn>0)
 
       
-      END_LOG(indata)
+      call END_LOG(indata_end)
       return
       end
 

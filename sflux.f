@@ -101,8 +101,6 @@ c     cp specific heat at constant pressure joule/kgm/deg
       real, parameter :: d1land=.03
       real, parameter :: fmroot=.57735     ! was .4 till 7 Feb 1996
 
-#include "log.h"
-
 c     stability dependent drag coefficients using Louis (1979,blm) f'
 c     n.b. cduv, cdtq are returned as drag coeffs mult by vmod
 c          (cduv=cduv*vmod; cdtq=cdtq*vmod)
@@ -178,7 +176,7 @@ c     using av_vmod (1. for no time averaging)
       if (ntsur/=7) vmod(:)=vmag(:)      ! gives usual way
 
       !--------------------------------------------------------------
-      START_LOG(sfluxwater)
+      call START_LOG(sfluxwater_begin)
       if (nmlo==0) then                                                 ! sea
        if(ntest==2.and.mydiag)write(6,*) 'before sea loop'              ! sea
 !       from June '03 use basic sea temp from tgg1 (so leads is sensible)      
@@ -584,9 +582,9 @@ c       Surface stresses taux, tauy: diagnostic only - unstag now       ! sice
         write(6,*) "ERROR: this option is for PCOM ocean model"         ! PCOM
         stop                                                            ! PCOM
       end if                                                            ! PCOM
-      END_LOG(sfluxwater)
+      call END_LOG(sfluxwater_end)
       !--------------------------------------------------------------      
-      START_LOG(sfluxland)                                              ! land
+      call START_LOG(sfluxland_begin)                                   ! land
       select case(nsib)                                                 ! land
         case(3,5)                                                       ! land
 !cdir nodep
@@ -851,9 +849,9 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
           write(6,*) "ERROR: Unknown land-use option nsib=",nsib        ! land
           stop                                                          ! land
       end select                                                        ! land
-      END_LOG(sfluxland)                                                ! land
+      call END_LOG(sfluxland_end)                                       ! land
       !----------------------------------------------------------
-      START_LOG(sfluxurban)                                             ! urban
+      call START_LOG(sfluxurban_begin)                                  ! urban
       if (myid==0.and.nmaxpr==1) then                                   ! urban
         write(6,*) "Before urban"                                       ! urban
       end if                                                            ! urban
@@ -911,7 +909,7 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
       if (myid==0.and.nmaxpr==1) then                                   ! urban
         write(6,*) "After urban"                                        ! urban
       end if                                                            ! urban
-      END_LOG(sfluxurban)                                               ! urban
+      call END_LOG(sfluxurban_end)                                      ! urban
 c ----------------------------------------------------------------------
       evap(:)=evap(:)+dt*eg(:)/hl !time integ value in mm (wrong for snow)
 

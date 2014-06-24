@@ -62,9 +62,7 @@
       integer, save :: precon_in = -99999
       logical, dimension(nagg) :: llim
 
-#include "log.h"
-
-      START_LOG(adjust)
+      call START_LOG(adjust_begin)
 
       hdt=dt/2.
       hdtds=hdt/ds
@@ -680,8 +678,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
         dumssav(:,:,2)=qfgsav
         dumssav(:,:,3)=qlgsav
         dumssav(:,:,4)=qrgsav
-        llim(1)=.false.
-        llim(2:4)=.true.
+        llim(1:4)=(/ .false., .true., .true., .true. /)
         call massfix(mfix_qg,4,dums,dumssav,
      &               ps(1:ifull),ps_sav,wts,
      &               llim)
@@ -768,7 +765,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
 
       dtsave = dt
       
-      END_LOG(adjust)
+      call END_LOG(adjust_end)
 
       end subroutine adjust5
 

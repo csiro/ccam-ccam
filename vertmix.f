@@ -453,8 +453,8 @@ c      (i.e. local scheme is applied to momentum for nlocal=0,1)
 
        if((diag.or.ntest>=1).and.mydiag)then
         iq=idjd
-         write(6,*)'k,dt,delsig,sqmxl,dzr ',
-     &            k,dt,delsig,sqmxl(idjd),dzr(idjd)
+         write(6,*)'k,dt,sqmxl,dzr ',
+     &            k,dt,sqmxl(idjd),dzr(idjd)
          write(6,*)'k,t,t+,ps ',k,t(idjd,k),t(idjd,k+1),ps(idjd)
          write(6,*)'k,qg,qg+ ',k,qg(idjd,k),qg(idjd,k+1)
          write(6,*)'k,qs,qs+ ',k,qs(idjd,k),qs(idjd,k+1)

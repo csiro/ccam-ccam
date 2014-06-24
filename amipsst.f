@@ -43,33 +43,33 @@
       idjd_g = id + (jd-1)*il_g
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-        iyr=kdate/10000
-        imo=(kdate-10000*iyr)/100
-        iday=kdate-10000*iyr-100*imo  +mtimer/(60*24)
-        !print *,'at start of amipsst for iyr,imo,iday ',iyr,imo,iday
-        mdays = (/ 31, 31,28,31,30,31,30,31,31,30,31,30,31, 31 /)
-        if (leap>=1) then
-          if (mod(iyr,4)==0) mdays(2)=29
-          if (mod(iyr,100)==0) mdays(2)=28
-          if (mod(iyr,400)==0) mdays(2)=29
-        end if
-        do while (iday>mdays(imo))
-         iday=iday-mdays(imo)
-         imo=imo+1
-         if(imo>12)then
-           imo=1
-           iyr=iyr+1
-         endif
-        enddo
-        if(namip==-1)iyr=0
-
-      if ( myid == 0 ) then 
-        if(ktau==0)then
+      iyr=kdate/10000
+      imo=(kdate-10000*iyr)/100
+      iday=kdate-10000*iyr-100*imo  +mtimer/(60*24)
+      !print *,'at start of amipsst for iyr,imo,iday ',iyr,imo,iday
+      mdays = (/ 31, 31,28,31,30,31,30,31,31,30,31,30,31, 31 /)
+      if (leap>=1) then
+        if (mod(iyr,4)==0) mdays(2)=29
+        if (mod(iyr,100)==0) mdays(2)=28
+        if (mod(iyr,400)==0) mdays(2)=29
+      end if
+      do while (iday>mdays(imo))
+       iday=iday-mdays(imo)
+       imo=imo+1
+       if(imo>12)then
+         imo=1
+         iyr=iyr+1
+       endif
+      enddo
+      if(namip==-1)iyr=0
+      x=(iday-1.)/mdays(imo)  ! simplest at end of day
+        
+      fraciceb=0.        
+      if(ktau==0)then
+        if ( myid == 0 ) then 
           call amiprd(ssta,sstb,sstc,aice,bice,cice,asal,bsal,csal,
      &                namip,iyr,imo,idjd_g)
-        endif     ! (ktau==0)
-      else
-        if (ktau==0) then
+        else
          call ccmpi_distribute(ssta)
          call ccmpi_distribute(sstb)
          call ccmpi_distribute(sstc)
@@ -87,12 +87,10 @@
           bsal=0.
           csal=0.      
          endif
-        endif
-      endif ! myid==0
-      fraciceb=0.
+        endif ! myid==0
+
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!      
 !     Each day interpolate-in-time non-land sst's
-      if (ktau==0) then
          if(namip==-1)then
 c          c1=0.
            allocate(res(ifull))
@@ -105,19 +103,21 @@ c          c1=0.
      &           ( .5*c3+(4.*c3-5.*c2-c4)*x+1.5*(c4+3.*c2-3.*c3)*x*x )
             endif      ! (.not.land(iq))
            enddo
-           print *,'some res values',(res(iq),iq=1,ifull,100)
+           if (myid==0) then
+             write(6,*)'some res values',(res(iq),iq=1,ifull,100)
+           end if
          endif  ! (namip==-1)
       endif     ! (ktau==0)
 
-      if(namip==-1)print *,'later_a ktau,res,tss ',
+      if(namip==-1)write(6,*)'later_a ktau,res,tss ',
      &                             ktau,res(idjd),tss(idjd)
-      x=(iday-1.)/mdays(imo)  ! simplest at end of day
+
       !if(myid==0)print *,'month_imo,iday,x',imo,iday,x
       if(namip==2)then
         if(iday<mdays(imo)/2)then  ! 1st half of month
           rat1=(mdays(imo)-2.*iday)/(mdays(imo)+mdays(imo-1))
           rat2=(2.*iday+mdays(imo-1))/(mdays(imo)+mdays(imo-1))
-          if(mydiag)print *,'rat1,rat2,land: ',
+          if(mydiag)write(6,*)'rat1,rat2,land: ',
      &                       rat1,rat2,land(idjd)
           do iq=1,ifull  
            if(.not.land(iq))then
@@ -422,7 +422,7 @@ c       c1=0.
         ! ASCII
         open(unit=75,file=sstfile,status='old',form='formatted',
      &       iostat=ierr)
-        if (ierr.ne.0) then
+        if (ierr/=0) then
           write(6,*) "ERROR: Cannot read AMIP sstfile ",trim(sstfile)
           call ccmpi_abort(-1)
         end if
@@ -550,6 +550,7 @@ c         extra cice read from Oct 08
           close(76)
         end if ! (iernc==0) ..else..    	    
       endif   ! (namip>=2) 
+      
       if (namip>=5) then
         if (iernc==0) then
           ! NETCDF

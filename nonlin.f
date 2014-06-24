@@ -45,9 +45,7 @@
       real, allocatable, save, dimension(:) :: epstsav
       real, dimension(ifull,kl) :: dumt,dumu,dumv
       
-#include "log.h"
-       
-      START_LOG(nonlin)
+      call START_LOG(nonlin_begin)
 
       if(epsp<-2.)then
         if (.not.allocated(epstsav)) then
@@ -250,7 +248,7 @@
         enddo   ! iq loop
       endif     ! (ntbar==-4)
       
-      ! update hydrostatic phi
+      ! update (linerized) hydrostatic geopotential phi
       phi(:,1)=zs(1:ifull)+bet(1)*t(1:ifull,1) 
       do k=2,kl
        phi(:,k)=phi(:,k-1)+bet(k)*t(1:ifull,k)+betm(k)*t(1:ifull,k-1)
@@ -369,7 +367,7 @@ c       write(6,*) 'termx ',(t(iq,k)+contv*tvv)*dpsldt(iq,k)*roncp/sig(k)
       endif
 #endif
                
-!     calculate augmented geopotential height terms and save in p
+!     calculate (linearized) augmented geopotential height terms and save in p
       do k=1,kl
        p(1:ifull,k)=phi(1:ifull,k)+rdry*tbar2d(1:ifull)*psl(1:ifull)
       enddo      ! k  loop
@@ -515,7 +513,7 @@ c       write(6,*) 'termx ',(t(iq,k)+contv*tvv)*dpsldt(iq,k)*roncp/sig(k)
 
       num=1
 
-      END_LOG(nonlin)
+      call END_LOG(nonlin_end)
 
       return
       end

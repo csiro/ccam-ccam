@@ -10,15 +10,13 @@
       include 'filnames.h' ! list of files, read in once only
       include 'parm.h'
 
-#include "log.h"
-
       integer io_outt
       integer iout,nwrite,nstagin
       character(len=80) :: co2out,radonout,surfout
       character(len=20) :: qgout
       character(len=8) :: rundate
 
-      START_LOG(outfile)
+      call START_LOG(outfile_begin)
       
       io_outt=io_out
       if(iout==19)io_outt=io_rest  !  choice for writing restart file
@@ -126,6 +124,6 @@ c---------------------------------------------------------------------------
          end if ! (iout==19) ..else..
       endif ! (io_outt.eq.1)
 
-      END_LOG(outfile)
+      call END_LOG(outfile_end)
       return
       end

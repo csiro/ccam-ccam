@@ -113,9 +113,7 @@ c     Stuff from cldset
       data first /.true./
 
 
-#include "log.h"
-
-      START_LOG(radmisc)
+      call START_LOG(radmisc_begin)
 
       kcl_top=kl-2
       imax=ixin
@@ -509,8 +507,8 @@ c         write(24,*)coszro2
         end do
       endif
 
-      END_LOG(radmisc)
-      START_LOG(radsw)
+      call END_LOG(radmisc_end)
+      call START_LOG(radsw_begin)
 c     Cloudy sky calculation
       cldoff=.false.
       if(ldr.ne.0)then  !Call LDR cloud scheme
@@ -553,15 +551,15 @@ c       print *,'soutclr ',(soutclr(i),i=1,imax)
 c       print *,'sg ',(sg(i),i=1,imax)
 c       print *,'cuvrf ',(cuvrf(i),i=1,imax)
       endif
-      END_LOG(radsw)      
+      call END_LOG(radsw_end)
 
-      START_LOG(radlw)
+      call START_LOG(radlw_begin)
       call clo89
       if(ndi<0.and.nmaxpr==1)
      &     write(6,*)'before lwr88 ktau,j,myid ',ktau,j,myid
       call lwr88
-      END_LOG(radlw)
-      START_LOG(radmisc)
+      call END_LOG(radlw_end)
+      call START_LOG(radmisc_begin)
 
       do i=1,imax
          rt(i) = ( gxcts(i)+flx1e1(i) ) * h1m3          ! longwave at top
@@ -746,7 +744,7 @@ c       endif
      .          cloudlo(idjd),cloudmi(idjd),cloudhi(idjd),cloudtot(idjd)
       endif
       
-      END_LOG(radmisc)
+      call END_LOG(radmisc_end)
       
       return
       end
@@ -757,7 +755,7 @@ c       endif
       ! Calculate beam fraction
       ! See spitters et al. 1986, agric. for meteorol., 38:217-229
       integer, intent(in) :: mp
-      REAL, INTENT(IN) :: doy	! day of year
+      REAL, INTENT(IN) :: doy ! day of year
       REAL, DIMENSION(mp), INTENT(IN) :: coszen ! cos(zenith angle of sun)
       REAL, DIMENSION(mp), INTENT(IN) :: fsd	! short wave down (positive) w/m^2
       REAL, DIMENSION(mp), intent(out) :: fbeam	! beam fraction (result)
@@ -767,6 +765,7 @@ c       endif
       REAL, DIMENSION(mp) :: tmprat !
       real, parameter :: two_pi = 2. * 3.1415927
       fbeam = 0.0
+      tmpr = 0.847 + coszen * (1.04 * coszen - 1.61)
       tmpk = (1.47 - tmpr) / 1.66
       WHERE (coszen > 1.0e-10 .AND. fsd > 10.0)
        tmprat = fsd / (solcon * (1.0 + 0.033 * 

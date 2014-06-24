@@ -346,7 +346,7 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
       end
       
       ! -------------------------------------------------------------
-      ! Use TAPM approach to screen diagnostics
+      ! Use Dyer-Hicks approach to screen diagnostics
       subroutine scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,zoh,
      &                   zoq,tsu,temp,smixr,qg,umag,ps,land,zmin,sig)
      
@@ -535,10 +535,10 @@ c-------Beljaars and Holtslag (1991) heat function
         integralm10 = neutral10-(pm1-pm10)
       endwhere
 
+      tscrn  = temp-tstar*integralh/vkar
       do iq=1,pfull
         esatb(iq) = establ(tscrn(iq))
       end do
-      tscrn  = temp-tstar*integralh/vkar
       qscrn  = mixr-qstar*integralq/vkar
       qscrn  = max(qscrn,qgmin)
       qsatb  = 0.622*esatb/(ps-esatb)
@@ -581,8 +581,8 @@ c-------Beljaars and Holtslag (1991) heat function
       if ( nmlo/=0 ) then
         iu = 0.
         iv = 0.
-	ou = 0.
-	ov = 0.
+        ou = 0.
+        ov = 0.
         call mloexport(2,ou,1,0)
         call mloexport(3,ov,1,0)
         call mloexpice(iu,9,0)

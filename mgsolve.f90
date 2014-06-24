@@ -25,11 +25,12 @@ public mghelm,mgmlo,mgsor_init,mgzz_init
 
 integer, save :: mg_maxsize,mg_minsize,gmax
 
-integer, parameter :: itr_mg   =20
-integer, parameter :: itr_mgice=20
-integer, parameter :: itrend   =1
+integer, parameter :: itr_mg   =20 ! maximum number of iterations for atmosphere MG solver
+integer, parameter :: itr_mgice=20 ! maximum number of iterations for ocean/ice MG solver
+integer, parameter :: itrbgn   =1  ! number of iterations relaxing the solution after restriction
+integer, parameter :: itrend   =1  ! number of iterations relaxing the solution after interpolation
 
-real, parameter :: dfac=0.25 ! adjustment for grid spacing
+real, parameter :: dfac=0.25       ! adjustment for grid spacing after restriction
 
 logical, save :: sorfirst=.true.
 logical, save :: zzfirst =.true.
@@ -72,9 +73,7 @@ real, dimension(mg_minsize) :: v_o
 real, dimension(2*kl,2) :: smaxmin_g
 real, dimension(kl) :: dsolmax_g,savg,sdif,dsolmax_l
 
-#include "log.h"
- 
-START_LOG(helm)
+call START_LOG(helm_begin)
 
 if (sorfirst.or.zzfirst) then
   write(6,*) "ERROR: mghelm requires mgsor_init and mgzz_init to be called first"
@@ -89,11 +88,11 @@ end if
 ! parameters during the first iteration of the solution.  Effectively the mgsetup
 ! stage also becomes the first iteration of the solution.
 
-START_LOG(mgsetup)
+call START_LOG(mgsetup_begin)
 
 iv(ifull+1:ifull+iextra,:)=0. ! for IBM compiler
 
-! solver assumes boundaries are updated
+! solver assumes boundaries have been updated
 call bounds(iv)
 
 ! determine max/min for convergence calculations
@@ -169,11 +168,22 @@ do g=2,gmax
   end do
   call mgbounds(g,v(:,:,g))
 
+  do i=1,itrbgn-1
+    do iq=1,ng
+      ! post smoothing
+      w(1:kl,iq)=(mg(g)%zze(iq)*v(1:kl,mg(g)%ie(iq),g)+mg(g)%zzw(iq)*v(1:kl,mg(g)%iw(iq),g) &
+                 +mg(g)%zzn(iq)*v(1:kl,mg(g)%in(iq),g)+mg(g)%zzs(iq)*v(1:kl,mg(g)%is(iq),g) &
+                 -rhs(1:kl,iq,g))/(helm(1:kl,iq,g)-mg(g)%zz(iq))
+    end do
+    call mgbounds(g,w(:,:),klim=klim)
+    v(1:kl,1:mg(g)%ifull+mg(g)%iextra,g)=w(1:kl,1:mg(g)%ifull+mg(g)%iextra)
+  end do
+  
   do iq=1,ng
     ! residual
     w(1:kl,iq)=-mg(g)%zze(iq)*v(1:kl,mg(g)%ie(iq),g)-mg(g)%zzw(iq)*v(1:kl,mg(g)%iw(iq),g) &
-               -mg(g)%zzn(iq)*v(1:kl,mg(g)%in(iq),g)-mg(g)%zzs(iq)*v(1:kl,mg(g)%is(iq),g)
-              !+rhs(1:kl,iq,g)+(helm(1:kl,iq,g)-mg(g)%zz(iq))*v(1:kl,iq,g)
+               -mg(g)%zzn(iq)*v(1:kl,mg(g)%in(iq),g)-mg(g)%zzs(iq)*v(1:kl,mg(g)%is(iq),g) &
+               +rhs(1:kl,iq,g)+(helm(1:kl,iq,g)-mg(g)%zz(iq))*v(1:kl,iq,g)
     ! upscale helm weights
     w(kl+1:2*kl,iq)=helm(1:kl,iq,g)
   end do
@@ -361,13 +371,13 @@ do nc=1,maxcolour
   end do
 end do
 
-END_LOG(mgsetup)
+call END_LOG(mgsetup_end)
 
 ! Main loop
 iters=0
 do itr=2,itr_mg
 
-  START_LOG(mgfine)
+  call START_LOG(mgfine_begin)
 
   ! update on model grid using colours
   do nc=1,maxcolour
@@ -404,9 +414,9 @@ do itr=2,itr_mg
   
   end do
   
-  END_LOG(mgfine)
+  call END_LOG(mgfine_end)
   
-  START_LOG(mgup)
+  call START_LOG(mgup_begin)
   
   ! upscale grid
   do g=2,gmax
@@ -421,11 +431,22 @@ do itr=2,itr_mg
     end do
     call mgbounds(g,v(:,:,g),klim=klim)
 
+    do i=1,itrbgn-1
+      do iq=1,ng
+        ! post smoothing
+        w(1:klim,iq)=(mg(g)%zze(iq)*v(1:klim,mg(g)%ie(iq),g)+mg(g)%zzw(iq)*v(1:klim,mg(g)%iw(iq),g) &
+                     +mg(g)%zzn(iq)*v(1:klim,mg(g)%in(iq),g)+mg(g)%zzs(iq)*v(1:klim,mg(g)%is(iq),g) &
+                     -rhs(1:klim,iq,g))/(helm(1:klim,iq,g)-mg(g)%zz(iq))
+      end do
+      call mgbounds(g,w(:,:),klim=klim)
+      v(1:klim,1:mg(g)%ifull+mg(g)%iextra,g)=w(1:klim,1:mg(g)%ifull+mg(g)%iextra)
+    end do
+    
     do iq=1,ng
       ! residual
       w(1:klim,iq)=-mg(g)%zze(iq)*v(1:klim,mg(g)%ie(iq),g)-mg(g)%zzw(iq)*v(1:klim,mg(g)%iw(iq),g) &
-                   -mg(g)%zzn(iq)*v(1:klim,mg(g)%in(iq),g)-mg(g)%zzs(iq)*v(1:klim,mg(g)%is(iq),g)
-                  !+rhs(1:klim,iq,g)+(helm(1:klim,iq,g)-mg(g)%zz(iq))*v(1:klim,iq,g)
+                   -mg(g)%zzn(iq)*v(1:klim,mg(g)%in(iq),g)-mg(g)%zzs(iq)*v(1:klim,mg(g)%is(iq),g) &
+                   +rhs(1:klim,iq,g)+(helm(1:klim,iq,g)-mg(g)%zz(iq))*v(1:klim,iq,g)
     end do
 
     do iq=1,mg(g)%ifull_fine
@@ -440,9 +461,9 @@ do itr=2,itr_mg
 
   end do
   
-  END_LOG(mgup)
+  call END_LOG(mgup_end)
   
-  START_LOG(mgcoarse)
+  call START_LOG(mgcoarse_begin)
 
   ! solve coarse grid
   do g=mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel_local==mg_maxlevel) then ...
@@ -459,9 +480,9 @@ do itr=2,itr_mg
       
   end do
 
-  END_LOG(mgcoarse)
+  call END_LOG(mgcoarse_end)
   
-  START_LOG(mgdown)
+  call START_LOG(mgdown_begin)
 
   ! downscale grid
   do g=gmax,2,-1
@@ -491,6 +512,7 @@ do itr=2,itr_mg
       call mgbounds(g,v(:,:,g),klim=klim)
       w(1:klim,1:mg(g)%ifull+mg(g)%iextra)=v(1:klim,1:mg(g)%ifull+mg(g)%iextra,g)
     end do
+    
     do iq=1,mg(g)%ifull
       ! post smoothing
       v(1:klim,iq,g)=(mg(g)%zze(iq)*w(1:klim,mg(g)%ie(iq))+mg(g)%zzw(iq)*w(1:klim,mg(g)%iw(iq)) &
@@ -514,9 +536,9 @@ do itr=2,itr_mg
     
   end do
   
-  END_LOG(mgdown)
+  call END_LOG(mgdown_end)
   
-  START_LOG(mgfine)
+  call START_LOG(mgfine_begin)
 
   ! multi-grid solver bounds indicies do not match standard iextra indicies, so we need to remap the halo
   if (mg(1)%merge_len>1) then
@@ -599,7 +621,7 @@ do itr=2,itr_mg
     end do
   end do
 
-  END_LOG(mgfine)
+  call END_LOG(mgfine_end)
 
   ! test for convergence
   knew=klim
@@ -627,11 +649,10 @@ if (myid==0) then
     do k=1,kl
       write(6,*) "mg ktau,k,iter ",ktau,k,iters(k),dsolmax_g(k)
     end do
-    !write(6,*) "itc ",itc
   end if
 end if
 
-END_LOG(helm)
+call END_LOG(helm_end)
 
 return
 end subroutine mghelm
@@ -711,7 +732,7 @@ end if
 ! zz*(DIV^2 i0) = rhs - F
 ! zz*(DIV^2 f) = F
 
-START_LOG(mgmlosetup)
+call START_LOG(mgmlosetup_begin)
 
 vduma=0.
 vdumb=0.
@@ -913,19 +934,39 @@ do g=2,gmax
   ! assume zero for first guess of residual (also avoids additional bounds call)
   bu(1:ng)=zz(1:ng,g)+hh(1:ng,g)
   v(1:ng,1,g) = 2.*rhs(1:ng,g)/(bu(1:ng)+sqrt(bu(1:ng)*bu(1:ng)+4.*yyz(1:ng,g)*rhs(1:ng,g)))
-
   v(1:ng,2,g) = rhsice(1:ng,g)/zzzice(1:ng,g)
-    
-  ! residual
   call mgbounds_mlo(g,v(:,:,g))
+    
+  do i=1,itrbgn-1
+    dumc_n(1:ng,:)=v(mg(g)%in,1:2,g)
+    dumc_s(1:ng,:)=v(mg(g)%is,1:2,g)
+    dumc_e(1:ng,:)=v(mg(g)%ie,1:2,g)
+    dumc_w(1:ng,:)=v(mg(g)%iw,1:2,g)
 
+    ! ocean
+    ! post smoothing
+    bu(1:ng)=zz(1:ng,g)+hh(1:ng,g)+yyn(1:ng,g)*dumc_n(1:ng,1)+yys(1:ng,g)*dumc_s(1:ng,1) &
+                                  +yye(1:ng,g)*dumc_e(1:ng,1)+yyw(1:ng,g)*dumc_w(1:ng,1)
+    cu(1:ng)=zzn(1:ng,g)*dumc_n(1:ng,1)+zzs(1:ng,g)*dumc_s(1:ng,1)             &
+            +zze(1:ng,g)*dumc_e(1:ng,1)+zzw(1:ng,g)*dumc_w(1:ng,1)-rhs(1:ng,g)
+    w(1:ng,1) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(bu(1:ng)*bu(1:ng)-4.*yyz(1:ng,g)*cu(1:ng)))
+
+    ! ice
+    w(1:ng,2) = ( -zznice(1:ng,g)*dumc_n(1:ng,2)-zzsice(1:ng,g)*dumc_s(1:ng,2) &
+                  -zzeice(1:ng,g)*dumc_e(1:ng,2)-zzwice(1:ng,g)*dumc_w(1:ng,2) &
+                  +rhsice(1:ng,g) ) / zzzice(1:ng,g)
+
+    call mgbounds_mlo(g,w(:,:))
+    v(1:mg(g)%ifull+mg(g)%iextra,1:2,g)=w(1:mg(g)%ifull+mg(g)%iextra,1:2)
+  end do
+  
+  ! restriction
+  ! (calculate finer grid before mgcollect as the messages sent/recv are shorter)
   dumc_n(1:ng,:)=v(mg(g)%in,:,g)
   dumc_s(1:ng,:)=v(mg(g)%is,:,g)
   dumc_e(1:ng,:)=v(mg(g)%ie,:,g)
   dumc_w(1:ng,:)=v(mg(g)%iw,:,g)
 
-  ! restriction
-  ! (calculate finer grid before mgcollect as the messages sent/recv are shorter)
   ng4=mg(g)%ifull_fine
   ws(1:ng)= zz(1:ng,g)+yyz(1:ng,g)*v(1:ng,1,g)
   zz(1:ng4,g+1)=0.25*dfac*(ws(mg(g)%fine  )+ws(mg(g)%fine_n ) &
@@ -957,8 +998,8 @@ do g=2,gmax
                           
   ! ice
   ws(1:ng)=-(zznice(1:ng,g)*dumc_n(1:ng,2)+zzsice(1:ng,g)*dumc_s(1:ng,2)   &
-            +zzeice(1:ng,g)*dumc_e(1:ng,2)+zzwice(1:ng,g)*dumc_w(1:ng,2))
-           !-zzzice(1:ng,g)*v(1:ng,2,g)+rhsice(1:ng,g)
+            +zzeice(1:ng,g)*dumc_e(1:ng,2)+zzwice(1:ng,g)*dumc_w(1:ng,2))  &
+            -zzzice(1:ng,g)*v(1:ng,2,g)+rhsice(1:ng,g)
   rhsice(1:ng4,g+1)=0.25*(ws(mg(g)%fine  )+ws(mg(g)%fine_n ) &
                          +ws(mg(g)%fine_e)+ws(mg(g)%fine_ne))
 
@@ -1299,12 +1340,12 @@ do i=1,itrend
     
 end do
 
-END_LOG(mgmlosetup)
+call END_LOG(mgmlosetup_end)
 
 ! Main loop
 do itr=2,itr_mgice
 
-  START_LOG(mgmlofine)
+  call START_LOG(mgmlofine_begin)
 
   do nc=1,maxcolour
   
@@ -1416,9 +1457,9 @@ do itr=2,itr_mgice
     
   end do
   
-  END_LOG(mgmlofine)
+  call END_LOG(mgmlofine_end)
 
-  START_LOG(mgmloup)
+  call START_LOG(mgmloup_begin)
 
   ! upscale grid
   do g=2,gmax
@@ -1430,19 +1471,39 @@ do itr=2,itr_mgice
     ! assume zero for first guess of residual (also avoids additional bounds call)
     bu(1:ng)=zz(1:ng,g)+hh(1:ng,g)
     v(1:ng,1,g) = 2.*rhs(1:ng,g)/(bu(1:ng)+sqrt(bu(1:ng)*bu(1:ng)+4.*yyz(1:ng,g)*rhs(1:ng,g)))
-
     v(1:ng,2,g) = rhsice(1:ng,g)/zzzice(1:ng,g)
-    
-    ! residual
     call mgbounds_mlo(g,v(:,:,g))
+    
+    do i=1,itrbgn-1
+      dumc_n(1:ng,:)=v(mg(g)%in,1:2,g)
+      dumc_s(1:ng,:)=v(mg(g)%is,1:2,g)
+      dumc_e(1:ng,:)=v(mg(g)%ie,1:2,g)
+      dumc_w(1:ng,:)=v(mg(g)%iw,1:2,g)
 
+      ! ocean
+      ! post smoothing
+      bu(1:ng)=zz(1:ng,g)+hh(1:ng,g)+yyn(1:ng,g)*dumc_n(1:ng,1)+yys(1:ng,g)*dumc_s(1:ng,1) &
+                                    +yye(1:ng,g)*dumc_e(1:ng,1)+yyw(1:ng,g)*dumc_w(1:ng,1)
+      cu(1:ng)=zzn(1:ng,g)*dumc_n(1:ng,1)+zzs(1:ng,g)*dumc_s(1:ng,1)             &
+              +zze(1:ng,g)*dumc_e(1:ng,1)+zzw(1:ng,g)*dumc_w(1:ng,1)-rhs(1:ng,g)
+      w(1:ng,1) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(bu(1:ng)*bu(1:ng)-4.*yyz(1:ng,g)*cu(1:ng)))
+
+      ! ice
+      w(1:ng,2) = ( -zznice(1:ng,g)*dumc_n(1:ng,2)-zzsice(1:ng,g)*dumc_s(1:ng,2) &
+                    -zzeice(1:ng,g)*dumc_e(1:ng,2)-zzwice(1:ng,g)*dumc_w(1:ng,2) &
+                    +rhsice(1:ng,g) ) / zzzice(1:ng,g)
+
+      call mgbounds_mlo(g,w(:,:))
+      v(1:mg(g)%ifull+mg(g)%iextra,1:2,g)=w(1:mg(g)%ifull+mg(g)%iextra,1:2)
+    end do
+    
+    ! restriction
+    ! (calculate finer grid before mgcollect as the messages sent/recv are shorter)
     dumc_n(1:ng,:)=v(mg(g)%in,:,g)
     dumc_s(1:ng,:)=v(mg(g)%is,:,g)
     dumc_e(1:ng,:)=v(mg(g)%ie,:,g)
     dumc_w(1:ng,:)=v(mg(g)%iw,:,g)
 
-    ! restriction
-    ! (calculate finer grid before mgcollect as the messages sent/recv are shorter)
     ng4=mg(g)%ifull_fine
     ws(1:ng)= zz(1:ng,g)+yyz(1:ng,g)*v(1:ng,1,g)
     zz(1:ng4,g+1)=0.25*dfac*(ws(mg(g)%fine  )+ws(mg(g)%fine_n ) &
@@ -1475,8 +1536,8 @@ do itr=2,itr_mgice
                           
     ! ice
     ws(1:ng)=-(zznice(1:ng,g)*dumc_n(1:ng,2)+zzsice(1:ng,g)*dumc_s(1:ng,2)   &
-              +zzeice(1:ng,g)*dumc_e(1:ng,2)+zzwice(1:ng,g)*dumc_w(1:ng,2))
-             !-zzzice(1:ng,g)*v(1:ng,2,g)+rhsice(1:ng,g)
+              +zzeice(1:ng,g)*dumc_e(1:ng,2)+zzwice(1:ng,g)*dumc_w(1:ng,2))  &
+              -zzzice(1:ng,g)*v(1:ng,2,g)+rhsice(1:ng,g)
     rhsice(1:ng4,g+1)=0.25*(ws(mg(g)%fine  )+ws(mg(g)%fine_n ) &
                            +ws(mg(g)%fine_e)+ws(mg(g)%fine_ne))
 
@@ -1504,9 +1565,9 @@ do itr=2,itr_mgice
 
   end do
 
-  END_LOG(mgmloup)
+  call END_LOG(mgmloup_end)
 
-  START_LOG(mgmlocoarse)
+  call START_LOG(mgmlocoarse_begin)
 
   ! solve coarse grid    
   do g=mg_maxlevel,mg_maxlevel_local ! same as if (mg_maxlevel==mg_maxlevel_local) then ...
@@ -1563,9 +1624,9 @@ do itr=2,itr_mgice
   
   end do
   
-  END_LOG(mgmlocoarse)
+  call END_LOG(mgmlocoarse_end)
   
-  START_LOG(mgmlodown)
+  call START_LOG(mgmlodown_begin)
     
   ! downscale grid
   do g=gmax,2,-1
@@ -1656,9 +1717,9 @@ do itr=2,itr_mgice
 
   end do
 
-  END_LOG(mgmlodown)
+  call END_LOG(mgmlodown_end)
 
-  START_LOG(mgmlofine)
+  call START_LOG(mgmlofine_begin)
 
   if (mg(1)%merge_len>1) then
     call mgbcast_mlo(1,w(:,1:2),dsolmax_g(1:2))
@@ -1780,7 +1841,7 @@ do itr=2,itr_mgice
     
   end do
   
-  END_LOG(mgmlofine)
+  call END_LOG(mgmlofine_end)
  
   ! test for convergence
   !if (dsolmax_g(1)<10.*tol.and.dsolmax_g(2)<10.*itol) then

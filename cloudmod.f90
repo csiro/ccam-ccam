@@ -47,7 +47,7 @@ real, dimension(ifull,kl), intent(inout) :: qc ! condensate = qf + ql
 real, dimension(ifull,kl), intent(in) :: qtot, rho, fice, qs, t
 real, dimension(ifull), intent(in) :: ps
 real, dimension(ifull,kl) :: u00p, erosion_scale
-real, dimension(ifull,kl) :: da, dqs, cfbar
+real, dimension(ifull,kl) :: da, dqs, cfbar, qv
 real, dimension(ifull,kl) :: cf1, cfeq, a_dt, b_dt
 real, dimension(ifull,kl) :: dqsdT, mflx, gamma
 real, dimension(ifull,kl) :: aa, bb, cc, omega
@@ -55,6 +55,7 @@ real, dimension(ifull,kl) :: cmflx, hlrvap
 integer k
 
 stratcloud(1:ifull,:)=max( min( stratcloud(1:ifull,:), 1. ), 0. )
+qv = max( qtot - qc, qgmin )
 
 ! Critical relative humidity (neglected profile option)
 u00p(:,:) = u00crit
@@ -84,21 +85,20 @@ end if
 !                 -------------------------------------------------------
 !                 1 + (stratcloud + 0.5*da)*gamma
 
+! gamma = L/cp*dqsdT
+
 ! Follow GFDL CM3 approach since da=da(dqs), hence need to solve the above
 ! quadratic equation for dqs if da/=0
 
-! MJT notes - if we use tliq, then nettend and omega should also be modified
-! to account for changes in ql and qf
-
-! dqs = (-BB + sqrt( BB*BB - 4*AA*CC ))/(2*AA)
+! dqs*dqs*AA + dqs*BB + CC = 0
 ! AA = 0.25*gamma*(1-cf)^2/(qs-qtot)
 ! BB = -(1+gamma*cf)
 ! CC = ((omega + grav*mflx)/(cp*rho)+netten)*dqsdT*dt
 
 cc = ((omega + grav*cmflx)/(cp*rho)+nettend)*dt*dqsdT
-aa = 0.5*gamma*(1.-stratcloud(1:ifull,:))*(1.-stratcloud(1:ifull,:))/max( qs-qtot, 1.E-20 )
+aa = 0.5*gamma*(1.-stratcloud(1:ifull,:))*(1.-stratcloud(1:ifull,:))/max( qs-qv, 1.E-20 )
 bb = 1.+gamma*stratcloud(1:ifull,:)
-where ( cc<=0. .and. qtot>u00p*qs )
+where ( cc<0. .and. qv>=u00p*qs )
   dqs = 2.*cc/( bb + sqrt( bb*bb - 2.*aa*cc ) ) ! alternative form of quadratic equation
                                                 ! note that aa has been multipled by 2.
 elsewhere
@@ -108,7 +108,7 @@ end where
 
 ! Change in saturated volume fraction
 ! da = - 0.5*(1.-cf)^2*dqs/(qs-qtot)
-where( dqs<=0. .and. qtot>u00p*qs )
+where( dqs<0. .and. qv>=u00p*qs )
   da = -aa*dqs/gamma
 elsewhere
   da = 0.
@@ -118,7 +118,7 @@ end where
 a_dt = da/max( 1.-stratcloud(1:ifull,:), 1.e-20 )
 
 ! Large scale cloud destruction (B)
-b_dt = stratcloud(1:ifull,:)*erosion_scale*dt*max( qs-qtot, 0. )/max( qc, 1.e-8 )
+b_dt = stratcloud(1:ifull,:)*erosion_scale*dt*max( qs-qv, 0. )/max( qc, 1.e-8 )
 
 ! Integrate
 !   dcf/dt = (1-cf)*A - cf*B
