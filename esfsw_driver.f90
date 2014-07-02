@@ -22,17 +22,6 @@
 ! </DESCRIPTION>
 !
 
-!    shared modules:
-
-!use fms_mod,              only:  open_namelist_file, fms_init, &
-!                                 mpp_pe, mpp_root_pe, stdlog, &
-!                                 file_exist, write_version_number, &
-!                                 check_nml_error, error_mesg, &
-!                                 FATAL, NOTE, WARNING, close_file
-!use constants_mod,        only:  PI, GRAV, radcon_mks, o2mixrat, &
-!                                 rhoair, pstd_mks, WTMAIR, &
-!                                 constants_init
-
 !  shared radiation package modules:
 
 use esfsw_parameters_mod, only:  Solar_spect, esfsw_parameters_init, &
@@ -48,12 +37,6 @@ use rad_utilities_mod,    only:  Rad_control, rad_utilities_init, &
                                  Cldrad_control, &
                                  atmos_input_type, surface_type, &
                                  sw_output_type, Sw_control
-!use tracer_manager_mod,   only : get_tracer_index,   &
-!                                 get_number_tracers, &
-!                                 get_tracer_names,   &
-!                                 get_tracer_indices, &
-!                                 NO_TRACER
-!use field_manager_mod,    only : MODEL_ATMOS
 !---------------------------------------------------------------------
 
 implicit none
@@ -71,17 +54,17 @@ private
 character(len=128)  :: version =  '$Id: esfsw_driver.f90,v 13.0 2006/03/28 21:11:44 fms Exp $'
 character(len=128)  :: tagname =  '$Name: latest $'
 
-real, parameter :: PI      = 3.14159265358979323846
-real, parameter :: GRAV   = 9.80
-real, parameter :: RDGAS  = 287.04 
-real, parameter :: KAPPA  = 2./7.  
-real, parameter :: CP_AIR = RDGAS/KAPPA
+real, parameter :: PI               = 3.14159265358979323846
+real, parameter :: GRAV             = 9.80
+real, parameter :: RDGAS            = 287.04 
+real, parameter :: KAPPA            = 2./7.  
+real, parameter :: CP_AIR           = RDGAS/KAPPA
 real, parameter :: SECONDS_PER_DAY  = 8.640000E+04
-real, parameter :: RADCON_MKS  = (GRAV/CP_AIR)*SECONDS_PER_DAY
-real, parameter :: O2MIXRAT    = 2.0953E-01
-real, parameter :: RHOAIR      = 1.292269
-real, parameter :: PSTD_MKS    = 101325.0
-real, parameter :: WTMAIR = 2.896440E+01
+real, parameter :: RADCON_MKS       = (GRAV/CP_AIR)*SECONDS_PER_DAY
+real, parameter :: O2MIXRAT         = 2.0953E-01
+real, parameter :: RHOAIR           = 1.292269
+real, parameter :: PSTD_MKS         = 101325.0
+real, parameter :: WTMAIR           = 2.896440E+01
 
 !---------------------------------------------------------------------
 !-------  interfaces --------
@@ -100,33 +83,25 @@ private     &
 !-------- namelist  ---------
 
  logical, save ::  do_ica_calcs=.false.           ! do independent column
-                                                 ! calculations when sto-
-                                                 ! chastic clouds are
-                                                 ! active ?
-logical, save ::  do_rayleigh_all_bands = .true. ! rayleigh scattering 
-                                                 ! calculated in all sw 
-                                                 ! bands ?
-logical, save ::  do_herzberg = .false.          ! include the herzberg 
-                                                 ! effect on the o2 
-                                                 ! optical depth ?
-logical, save ::  do_quench = .false.            ! include the quenching
-                                                 ! effect of non-LTE 
-                                                 ! processes on the co2 
-                                                 ! optical depth ?
-logical, save ::  do_ch4_sw_effects = .true.     ! the shortwave effects
-                                                 ! of ch4 are included ?
-logical, save ::  do_n2o_sw_effects = .true.     ! the shortwave effects
-                                                 ! of n2o are included ?
+                                                  ! calculations when sto-
+                                                  ! chastic clouds are
+                                                  ! active ?
+logical, save ::  do_rayleigh_all_bands = .true.  ! rayleigh scattering 
+                                                  ! calculated in all sw 
+                                                  ! bands ?
+logical, save ::  do_herzberg = .false.           ! include the herzberg 
+                                                  ! effect on the o2 
+                                                  ! optical depth ?
+logical, save ::  do_quench = .false.             ! include the quenching
+                                                  ! effect of non-LTE 
+                                                  ! processes on the co2 
+                                                  ! optical depth ?
+logical, save ::  do_ch4_sw_effects = .true.      ! the shortwave effects
+                                                  ! of ch4 are included ?
+logical, save ::  do_n2o_sw_effects = .true.      ! the shortwave effects
+                                                  ! of n2o are included ?
 logical, save ::  do_coupled_stratozone = .false. ! include the coupled
                                                   ! stratospheric ozone effects?
-  
-
-!namelist / esfsw_driver_nml /    &
-!                               do_ica_calcs, do_rayleigh_all_bands, &
-!                               do_herzberg, do_quench, &
-!                               do_ch4_sw_effects, do_n2o_sw_effects, &
-!                               do_coupled_stratozone
-
 !---------------------------------------------------------------------
 !------- public data ------
 
@@ -207,16 +182,16 @@ integer, dimension (:), allocatable, save :: nfreqpts
 real,    dimension(:), allocatable, save  :: solflxband
 real,    dimension(:), allocatable, save  :: solflxbandref
 real, dimension(:), allocatable, save     :: wtstr, cosangstr
-real, dimension(4), save                  :: wtstr_4 =      &
-                                       (/0.347854845, 0.652145155,&
+real, dimension(4), parameter             :: wtstr_4 =             &
+                                       (/0.347854845, 0.652145155, &
                                          0.347854845, 0.652145155/)
 
-integer, save :: nbands, tot_wvnums, nfrqpts, nh2obands, nstreams
-logical, save :: nstr4 = .false.
-real, save    :: vis_wvnum = 1.0E+04/0.55
-real, save    :: one_micron_wvnum = 1.0E+04/1.00
-real, save    :: onepsix_micron_wvnum = 1.0E+04/1.61
-integer, save :: onepsix_band_indx
+integer, save   :: nbands, tot_wvnums, nfrqpts, nh2obands, nstreams
+logical, save   :: nstr4 = .false.
+real, parameter :: vis_wvnum = 1.0E+04/0.55
+real, parameter :: one_micron_wvnum = 1.0E+04/1.00
+real, parameter :: onepsix_micron_wvnum = 1.0E+04/1.61
+integer, save   :: onepsix_band_indx
 
 !---------------------------------------------------------------------
 !    variables associated with rayleigh scattering
@@ -270,7 +245,7 @@ integer, parameter :: NSOLWG = 1
 logical, save      :: module_is_initialized = .false.
 integer, save      :: ijk
 logical, save      :: do_esfsw_band_diagnostics = .false.
-integer, save      :: naerosol_optical, naerosoltypes_used
+integer, save      :: naerosoltypes_used
 
 
 !---------------------------------------------------------------------
@@ -326,23 +301,23 @@ subroutine esfsw_driver_init
       real   , dimension(:), allocatable, save  :: solint   
 
       character(len=64)    :: file_name
-      real, dimension(4)   :: ptstr_4 = (/-0.861136312,&
-                                          -0.339981044, &
-                                           0.861136312,  &
-                                           0.339981044 /)
-      real      :: ptstr_1 = 0.2
-      real      :: temprefray  = 288.15
-      real      :: pressrefray = 101325.       ! MKS units
-      real      :: densmolref  = 2.54743E+19
-      real      :: convfac     = 1.0E+18
-      real      :: corrfac, gamma, f1, f2, f3, pinteg, &
-                   twopiesq, densmolrefsqt3, wavelength,  &
-                   freqsq, ristdm1, ri
-      integer   :: iounit, nband, nf, ni, nw, nw1, nw2, nintsolar
-      integer   :: unit, io, ierr
-      integer   :: i
-      integer   :: n
-      real      :: input_flag = 1.0e-99
+      real, dimension(4), parameter :: ptstr_4 = (/-0.861136312,  &
+                                                   -0.339981044,  &
+                                                    0.861136312,  &
+                                                    0.339981044 /)
+      real, parameter :: ptstr_1     = 0.2
+      real, parameter :: temprefray  = 288.15
+      real, parameter :: pressrefray = 101325.       ! MKS units
+      real, parameter :: densmolref  = 2.54743E+19
+      real, parameter :: convfac     = 1.0E+18
+      real            :: corrfac, gamma, f1, f2, f3, pinteg, &
+                         twopiesq, densmolrefsqt3, wavelength,  &
+                         freqsq, ristdm1, ri
+      integer         :: iounit, nband, nf, ni, nw, nw1, nw2, nintsolar
+      integer         :: unit, io, ierr
+      integer         :: i
+      integer         :: n
+      real, parameter :: input_flag = 1.0e-99
 
 !---------------------------------------------------------------------
 !  local variables:
@@ -402,29 +377,8 @@ subroutine esfsw_driver_init
 !    verify that modules used by this module that are not called later
 !    have already been initialized.
 !---------------------------------------------------------------------
-!      call fms_init
-!      call constants_init
       call rad_utilities_init
       call esfsw_parameters_init
-
-!!-----------------------------------------------------------------------
-!!    read namelist.
-!!-----------------------------------------------------------------------
-!       if ( file_exist('input.nml')) then
-!         unit =  open_namelist_file ( )
-!         ierr=1; do while (ierr /= 0)
-!         read  (unit, nml=esfsw_driver_nml, iostat=io, end=10)
-!         ierr = check_nml_error(io,'esfsw_driver_nml')
-!         end do
-!10      call close_file (unit)
-!      endif
- 
-!!---------------------------------------------------------------------
-!!    write version number and namelist to logfile.
-!!---------------------------------------------------------------------
-!       call write_version_number (version, tagname)
-!       if (mpp_pe() == mpp_root_pe() ) &
-!                          write (stdlog(), nml=esfsw_driver_nml)
 
 !---------------------------------------------------------------------
 !    define flag indicating if ICA calculations being done.
@@ -631,10 +585,10 @@ subroutine esfsw_driver_init
                                     84,   89,   95,  101,  107,  115,  123,  133,  142,  154,  167,  181,  197,  217,  238,  263, &
                                    293,  326,  368,  417,  476,  549,  641,  758,  909,  101,  103,  105,  108,  109,  112,  115, &
                                    117,  119,  122,  125,  128,  130,  134,  137,  140,  143,  147,  151,  154,  158,  163,  166, &
-                                   171,  175,  181,  185,  196,  201,  207,  213,  219,  227,  233,  240,  248,  256,  264,  274, &
-                                   282,  292,  303,  313,  325,  337,  349,  363,  377,  392,  408,  425,  444,  462,  483,  505, &
-                                   529,  554,  580,  610,  641,  675,  711,  751,  793,  841,  891,  947, 1008, 1075, 1150, 1231, &
-                                  1323, 1425, 1538, 1667, 1633,14300 /)
+                                   171,  175,  181,  185,  190,  196,  201,  207,  213,  219,  227,  233,  240,  248,  256,  264, &
+                                   274,  282,  292,  303,  313,  325,  337,  349,  363,  377,  392,  408,  425,  444,  462,  483, &
+                                   505,  529,  554,  580,  610,  641,  675,  711,  751,  793,  841,  891,  947, 1008, 1075, 1150, &
+                                  1231, 1323, 1425, 1538, 1667, 1633,14300 /)
          solint(1:nintsolar)=(/ 1.60000E-06, 2.88000E-05, 3.60000E-05, 4.59200E-05, 6.13200E-05, 8.55000E-05, 1.28600E-04, &
                                 2.16000E-04, 2.90580E-04, 3.10184E-04, 3.34152E-04, 3.58722E-04, 3.88050E-04, 4.20000E-04, &
                                 4.57056E-04, 4.96892E-04, 5.45160E-04, 6.00600E-04, 6.53600E-04, 7.25040E-04, 7.98660E-04, &
@@ -2037,9 +1991,6 @@ subroutine esfsw_driver_init
                     0.30495E-05,   0.24522E-05 /)
       else
         write(6,*) "ERROR: input file for desired bands and frqs is not available"
-        !call error_mesg ( 'esfsw_driver_mod', &
-        !  'input file for desired bands and frqs is not available', &
-        !                                                       FATAL)
         stop
       endif
  
@@ -2047,10 +1998,6 @@ subroutine esfsw_driver_init
                                  endwvnbands(Solar_spect%nbands)) then
         write(6,*) "ERROR: inconsistency between highest solar spectrum wavenumber"
         write(6,*) "       in esfsw_parameters_mod and in esfsw_sriver input file"
-        !call error_mesg ( 'esfsw_driver_mod', &
-        ! ' inconsistency between highest solar spectrum wavenumber '//&
-        !  'in esfsw_parameters_mod and in esfsw_sriver input file', &
-        !                                                   FATAL)
         stop
       endif
 
@@ -2092,12 +2039,13 @@ subroutine esfsw_driver_init
 !--------------------------------------------------------------------
 !    define the wavenumber one solar fluxes.                       
 !----------------------------------------------------------------- --
-      do ni = 1,nintsolar
-        if ( ni.eq.1 ) then
-          nw1 = 1
-        else
-          nw1 = nw1 + nwvnsolar(ni-1)
-        end if
+      nw1 = 1
+      nw2 = nw1 + nwvnsolar(1) - 1
+      do nw = nw1,nw2
+        Solar_spect%solarfluxtoa(nw) = solint(1)
+      end do
+      do ni = 2,nintsolar
+        nw1 = nw1 + nwvnsolar(ni-1)
         nw2 = nw1 + nwvnsolar(ni) - 1
         do nw = nw1,nw2
           Solar_spect%solarfluxtoa(nw) = solint(ni)
@@ -2634,8 +2582,7 @@ integer :: nextinct
 !    be sure module has been initialized.
 !---------------------------------------------------------------------
       if (.not. module_is_initialized ) then
-        !call error_mesg ('esfsw_driver_mod',   &
-        !      'module has not been initialized', FATAL )
+        write(6,*) "ERROR: esfsw_driver_mode has not been initialized"
         stop
       endif
 
@@ -2705,11 +2652,6 @@ integer :: nextinct
 !
 !---------------------------------------------------------------------
       naerosoltypes_used = size(Aerosol%aerosol,4)
-!     if (including_aerosols) then                                  
-!       naerosol_optical = size(Aerosol_props%aerextband,2)
-!     else
-!       naerosol_optical = 0
-!     endif
 
 !---------------------------------------------------------------------
 !
@@ -2918,7 +2860,6 @@ integer :: nextinct
           if (.not. do_ica_calcs) then
             cldfrac_band(:,:,:) = Cld_spec%camtsw_band(:,:,:,nband)
           endif
-        endif
  
 !----------------------------------------------------------------------
 !    if stochastic clouds are activated (cloud fields differ with sw
@@ -2927,7 +2868,6 @@ integer :: nextinct
 !    the flag indicating that cloud is present in columns with such
 !    points.
 !----------------------------------------------------------------------
-        if (do_stochastic_clouds) then
           do j = JSRAD,JERAD
             do i = ISRAD,IERAD
               cloud_in_column(i,j) = .false.
@@ -4239,8 +4179,7 @@ subroutine esfsw_driver_end
 !    be sure module has been initialized.
 !---------------------------------------------------------------------
       if (.not. module_is_initialized ) then
-        !call error_mesg ('esfsw_driver_mod',   &
-        !      'module has not been initialized', FATAL )
+        write(6,*) "ERROR: esfsw_driver_mod has not been initialized"
         stop
       endif
 

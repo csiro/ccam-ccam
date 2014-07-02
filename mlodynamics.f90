@@ -4760,10 +4760,10 @@ real, dimension(ifull,2) :: zz,zzn,zzs,zze,zzw,rhs
 real, dimension(ifull) :: yy,yyn,yys,yye,yyw
 real, dimension(ifull) :: hh
 real, dimension(ifull) :: setab
-real, dimension(ifullx) :: au,bu,cu,seta,setac,nip
-real, dimension(ifullx,maxcolour,2) :: zzc,zznc,zzsc,zzec,zzwc,rhsc
-real, dimension(ifullx,maxcolour) :: yyc,yync,yysc,yyec,yywc
-real, dimension(ifullx,maxcolour) :: hhc
+real, dimension(ifullmaxcol) :: au,bu,cu,seta,setac,nip
+real, dimension(ifullmaxcol,maxcolour,2) :: zzc,zznc,zzsc,zzec,zzwc,rhsc
+real, dimension(ifullmaxcol,maxcolour) :: yyc,yync,yysc,yyec,yywc
+real, dimension(ifullmaxcol,maxcolour) :: hhc
 real, dimension(ifull+iextra,2) :: dumc
 real, dimension(2) :: dume,dumf
 
@@ -4815,18 +4815,18 @@ zz(:,2) =(ibu(1:ifull)+ibu(iwu)+ibv(1:ifull)+ibv(isv)-0.5*(idu(1:ifull)-idu(iwu)
 rhs(:,2)=min(niu(1:ifull)/emu(1:ifull)-niu(iwu)/emu(iwu)+niv(1:ifull)/emv(1:ifull)-niv(isv)/emv(isv),0.)
 
 do nx=1,maxcolour
-  zznc(:,nx,:)=zzn(iqx(:,nx),:)
-  zzsc(:,nx,:)=zzs(iqx(:,nx),:)
-  zzec(:,nx,:)=zze(iqx(:,nx),:)
-  zzwc(:,nx,:)=zzw(iqx(:,nx),:)
-  zzc(:,nx,:) = zz(iqx(:,nx),:)
-  yync(:,nx)  =yyn(iqx(:,nx))
-  yysc(:,nx)  =yys(iqx(:,nx))
-  yyec(:,nx)  =yye(iqx(:,nx))
-  yywc(:,nx)  =yyw(iqx(:,nx))
-  yyc(:,nx)   = yy(iqx(:,nx))
-  hhc(:,nx)   = hh(iqx(:,nx))
-  rhsc(:,nx,:)=rhs(iqx(:,nx),:)
+  zznc(1:ifullcol(nx),nx,:)=zzn(iqx(1:ifullcol(nx),nx),:)
+  zzsc(1:ifullcol(nx),nx,:)=zzs(iqx(1:ifullcol(nx),nx),:)
+  zzec(1:ifullcol(nx),nx,:)=zze(iqx(1:ifullcol(nx),nx),:)
+  zzwc(1:ifullcol(nx),nx,:)=zzw(iqx(1:ifullcol(nx),nx),:)
+  zzc(1:ifullcol(nx),nx,:) = zz(iqx(1:ifullcol(nx),nx),:)
+  yync(1:ifullcol(nx),nx)  =yyn(iqx(1:ifullcol(nx),nx))
+  yysc(1:ifullcol(nx),nx)  =yys(iqx(1:ifullcol(nx),nx))
+  yyec(1:ifullcol(nx),nx)  =yye(iqx(1:ifullcol(nx),nx))
+  yywc(1:ifullcol(nx),nx)  =yyw(iqx(1:ifullcol(nx),nx))
+  yyc(1:ifullcol(nx),nx)   = yy(iqx(1:ifullcol(nx),nx))
+  hhc(1:ifullcol(nx),nx)   = hh(iqx(1:ifullcol(nx),nx))
+  rhsc(1:ifullcol(nx),nx,:)=rhs(iqx(1:ifullcol(nx),nx),:)
 end do
 
 do ll=1,llmax
@@ -4837,40 +4837,47 @@ do ll=1,llmax
     ! 5-point version -----------------------------------------------
 
     ! For now, assume Boussinesq fluid and treat density in continuity equation as constant
-    au(:)=yyc(:,nx)
-    bu(:)=zzc(:,nx,1)+hhc(:,nx)+yync(:,nx)*neta(iqn(:,nx))+yysc(:,nx)*neta(iqs(:,nx)) &
-                                           +yyec(:,nx)*neta(iqe(:,nx))+yywc(:,nx)*neta(iqw(:,nx))
-    cu(:)=-rhsc(:,nx,1)+zznc(:,nx,1)*neta(iqn(:,nx))+zzsc(:,nx,1)*neta(iqs(:,nx)) &
-                               +zzec(:,nx,1)*neta(iqe(:,nx))+zzwc(:,nx,1)*neta(iqw(:,nx))
+    au(1:ifullcol(nx))=yyc(1:ifullcol(nx),nx)
+    bu(1:ifullcol(nx))=zzc(1:ifullcol(nx),nx,1)+hhc(1:ifullcol(nx),nx)+yync(1:ifullcol(nx),nx)*neta(iqn(1:ifullcol(nx),nx)) &
+                                                                      +yysc(1:ifullcol(nx),nx)*neta(iqs(1:ifullcol(nx),nx)) &
+                                                                      +yyec(1:ifullcol(nx),nx)*neta(iqe(1:ifullcol(nx),nx)) &
+                                                                      +yywc(1:ifullcol(nx),nx)*neta(iqw(1:ifullcol(nx),nx))
+    cu(1:ifullcol(nx))=-rhsc(1:ifullcol(nx),nx,1)+zznc(1:ifullcol(nx),nx,1)*neta(iqn(1:ifullcol(nx),nx)) &
+                                                 +zzsc(1:ifullcol(nx),nx,1)*neta(iqs(1:ifullcol(nx),nx)) &
+                                                 +zzec(1:ifullcol(nx),nx,1)*neta(iqe(1:ifullcol(nx),nx)) &
+                                                 +zzwc(1:ifullcol(nx),nx,1)*neta(iqw(1:ifullcol(nx),nx))
     
     ! alternative form
-    setac(:)=-neta(iqx(:,nx))-2.*cu(:)/(bu(:)+sqrt(bu(:)*bu(:)-4.*au(:)*cu(:)))
+    setac(1:ifullcol(nx))=-neta(iqx(1:ifullcol(nx),nx))-2.*cu(1:ifullcol(nx))/(bu(1:ifullcol(nx)) &
+           +sqrt(bu(1:ifullcol(nx))*bu(1:ifullcol(nx))-4.*au(1:ifullcol(nx))*cu(1:ifullcol(nx))))
     
     ! The following expression limits the minimum depth
     ! (should not occur for typical eta values)
-    seta(iqx(:,nx))=max(setac(:),-(neta(iqx(:,nx))+dd(iqx(:,nx)))) ! this should become a land point
-    seta(iqx(:,nx))=seta(iqx(:,nx))*ee(iqx(:,nx))
-    neta(iqx(:,nx))=neta(iqx(:,nx))+seta(iqx(:,nx))
+    seta(iqx(1:ifullcol(nx),nx))=max(setac(1:ifullcol(nx)),-(neta(iqx(1:ifullcol(nx),nx))+dd(iqx(1:ifullcol(nx),nx)))) ! this should become a land point
+    seta(iqx(1:ifullcol(nx),nx))=seta(iqx(1:ifullcol(nx),nx))*ee(iqx(1:ifullcol(nx),nx))
+    neta(iqx(1:ifullcol(nx),nx))=neta(iqx(1:ifullcol(nx),nx))+seta(iqx(1:ifullcol(nx),nx))
 
     ! ice
     ! 5-point version -------------------------------------------------
  
-    bu(:)=zzc(:,nx,2)
-    cu(:)=-rhsc(:,nx,2)+zznc(:,nx,2)*ipice(iqn(:,nx))+zzsc(:,nx,2)*ipice(iqs(:,nx)) &
-                       +zzec(:,nx,2)*ipice(iqe(:,nx))+zzwc(:,nx,2)*ipice(iqw(:,nx))
-    nip(:)=0.
-    where (bu(:)/=0.)
-      nip(:)=-cu(:)/bu(:)
+    bu(1:ifullcol(nx))=zzc(1:ifullcol(nx),nx,2)
+    cu(1:ifullcol(nx))=-rhsc(1:ifullcol(nx),nx,2)+zznc(1:ifullcol(nx),nx,2)*ipice(iqn(1:ifullcol(nx),nx)) &
+                                                 +zzsc(1:ifullcol(nx),nx,2)*ipice(iqs(1:ifullcol(nx),nx)) &
+                                                 +zzec(1:ifullcol(nx),nx,2)*ipice(iqe(1:ifullcol(nx),nx)) &
+                                                 +zzwc(1:ifullcol(nx),nx,2)*ipice(iqw(1:ifullcol(nx),nx))
+    nip(1:ifullcol(nx))=0.
+    where (bu(1:ifullcol(nx))/=0.)
+      nip(1:ifullcol(nx))=-cu(1:ifullcol(nx))/bu(1:ifullcol(nx))
     end where
  
     ! cavitating fluid
-    nip(:)=max(min(nip(:),ipmax(iqx(:,nx))),0.)
+    nip(1:ifullcol(nx))=max(min(nip(1:ifullcol(nx)),ipmax(iqx(1:ifullcol(nx),nx))),0.)
 
-    setab(iqx(:,nx))=nip(:)-ipice(iqx(:,nx))
-    ipice(iqx(:,nx))=ipice(iqx(:,nx))+setab(iqx(:,nx))
+    setab(iqx(1:ifullcol(nx),nx))=nip(1:ifullcol(nx))-ipice(iqx(1:ifullcol(nx),nx))
+    ipice(iqx(1:ifullcol(nx),nx))=ipice(iqx(1:ifullcol(nx),nx))+setab(iqx(1:ifullcol(nx),nx))
 
-    dumc(iqx(:,nx),1)=neta(iqx(:,nx))
-    dumc(iqx(:,nx),2)=ipice(iqx(:,nx))
+    dumc(iqx(1:ifullcol(nx),nx),1)=neta(iqx(1:ifullcol(nx),nx))
+    dumc(iqx(1:ifullcol(nx),nx),2)=ipice(iqx(1:ifullcol(nx),nx))
     call bounds_colour(dumc(:,1:2),nx)
     neta(ifull+1:ifull+iextra) =dumc(ifull+1:ifull+iextra,1)
     ipice(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,2)

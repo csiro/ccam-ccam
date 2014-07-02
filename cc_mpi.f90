@@ -189,12 +189,13 @@ module cc_mpi
    type(coloursplit), allocatable, dimension(:), save, private :: rcolsp
    type(coloursplit), allocatable, dimension(:), save, private :: scolsp
    integer, dimension(:,:), allocatable, save, public :: iqx, iqn, iqe, iqw, iqs
-   integer, save, public :: ifullx
+   integer, save, public :: ifullmaxcol
 #ifdef uniform_decomp
    integer, parameter, public :: maxcolour = 3
 #else
    integer, parameter, public :: maxcolour = 2
 #endif
+   integer, public, save, dimension(maxcolour) :: ifullcol
 
    integer, public, save :: maxbuflen
 
@@ -237,7 +238,7 @@ module cc_mpi
    type(mgtype), dimension(:), allocatable, save, public :: mg
    type(mgbndtype), dimension(:,:), allocatable, save, public :: mg_bnds
    integer, save, public :: mg_maxlevel, mg_maxlevel_local
-   integer, save, public :: mg_ifullc
+   integer, save, public :: mg_ifullmaxcol
    integer, dimension(:,:), allocatable, save, public :: col_iq, col_iqn, col_iqe, col_iqs, col_iqw
 
    ! Timer
@@ -346,7 +347,6 @@ contains
       integer(kind=4) asize
       integer(kind=MPI_ADDRESS_KIND) wsize
       integer, dimension(ifull) :: colourmask
-      integer, dimension(3) :: ifullxc
       logical(kind=4) :: ltrue
 
       nreq = 0
@@ -456,28 +456,21 @@ contains
          end do
       end do
       
-      ifullx = count( colourmask == 1 )
-      if ( ifullx /= count( colourmask == 2 ) ) then
-         write(6,*) "ERROR: Unbalanced colours in ccmpi_setup"
-         call MPI_abort(MPI_COMM_WORLD,-1_4,ierr)
-      end if
-      if ( maxcolour == 3 ) then
-         if ( ifullx /= count( colourmask == 3 ) ) then
-            write(6,*) "ERROR: Unbalanced colours in ccmpi_setup"
-            call MPI_abort(MPI_COMM_WORLD,-1_4,ierr)
-         end if
-      end if
-      allocate ( iqx(ifullx,maxcolour) )
-      allocate ( iqn(ifullx,maxcolour), iqe(ifullx,maxcolour) )
-      allocate ( iqw(ifullx,maxcolour), iqs(ifullx,maxcolour) )
-      ifullxc = 0
+      do n = 1,maxcolour
+         ifullcol(n) = count( colourmask == n )
+      end do
+      ifullmaxcol = maxval( ifullcol )
+      allocate ( iqx(ifullmaxcol,maxcolour) )
+      allocate ( iqn(ifullmaxcol,maxcolour), iqe(ifullmaxcol,maxcolour) )
+      allocate ( iqw(ifullmaxcol,maxcolour), iqs(ifullmaxcol,maxcolour) )
+      ifullcol = 0
       do iq = 1,ifull
-         ifullxc(colourmask(iq)) = ifullxc(colourmask(iq)) + 1
-         iqx(ifullxc(colourmask(iq)),colourmask(iq)) = iq
-         iqn(ifullxc(colourmask(iq)),colourmask(iq)) = in(iq)
-         iqe(ifullxc(colourmask(iq)),colourmask(iq)) = ie(iq)
-         iqw(ifullxc(colourmask(iq)),colourmask(iq)) = iw(iq)
-         iqs(ifullxc(colourmask(iq)),colourmask(iq)) = is(iq)
+         ifullcol(colourmask(iq)) = ifullcol(colourmask(iq)) + 1
+         iqx(ifullcol(colourmask(iq)),colourmask(iq)) = iq
+         iqn(ifullcol(colourmask(iq)),colourmask(iq)) = in(iq)
+         iqe(ifullcol(colourmask(iq)),colourmask(iq)) = ie(iq)
+         iqw(ifullcol(colourmask(iq)),colourmask(iq)) = iw(iq)
+         iqs(ifullcol(colourmask(iq)),colourmask(iq)) = is(iq)
       end do
 
       ltrue = .true. 
@@ -7605,7 +7598,7 @@ contains
       integer, parameter, dimension(0:5) :: npans=(/ 104, 0, 100, 2, 102, 4 /)
       integer, dimension(2*(mipan+mjpan+2)*(npanels+1)) :: dum
       integer, dimension(2,0:nproc-1) :: sdum, rdum
-      integer, dimension(3) :: mg_ifullxc
+      integer, dimension(3) :: mg_ifullcol
       integer mioff, mjoff
       integer i, j, n, iq, iqq, iqg, iql, iqb, iqtmp, ii, mfull, mfull_g
       integer iloc, jloc, nloc
@@ -8264,15 +8257,15 @@ contains
             end do
          end do
   
-         mg_ifullc = count( mg_colourmask == 1 )
-         if ( mg_ifullc /= count( mg_colourmask == 2 ) .or. mg_ifullc /= count( mg_colourmask == 3 ) ) then
+         mg_ifullmaxcol = count( mg_colourmask == 1 )
+         if ( mg_ifullmaxcol /= count( mg_colourmask == 2 ) .or. mg_ifullmaxcol /= count( mg_colourmask == 3 ) ) then
            write(6,*) "ERROR: Unbalanced MG colours"
            call MPI_Abort(MPI_COMM_WORLD,-1_4,ierr)
          end if
-         allocate( col_iq(mg_ifullc,3),  col_iqn(mg_ifullc,3), col_iqe(mg_ifullc,3) )
-         allocate( col_iqs(mg_ifullc,3), col_iqw(mg_ifullc,3) )
+         allocate( col_iq(mg_ifullmaxcol,3),  col_iqn(mg_ifullmaxcol,3), col_iqe(mg_ifullmaxcol,3) )
+         allocate( col_iqs(mg_ifullmaxcol,3), col_iqw(mg_ifullmaxcol,3) )
   
-         mg_ifullxc = 0
+         mg_ifullcol = 0
          col_iq = 0
          col_iqn = 0
          col_iqe = 0
@@ -8280,8 +8273,8 @@ contains
          col_iqw = 0
          do iq = 1,mg(g)%ifull
             nc = mg_colourmask(iq)
-            mg_ifullxc(nc) = mg_ifullxc(nc) + 1
-            iqq = mg_ifullxc(nc)
+            mg_ifullcol(nc) = mg_ifullcol(nc) + 1
+            iqq = mg_ifullcol(nc)
             col_iq(iqq,nc) = iq
             col_iqn(iqq,nc) = mg(g)%in(iq)
             col_iqe(iqq,nc) = mg(g)%ie(iq)

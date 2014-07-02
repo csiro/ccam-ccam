@@ -11,6 +11,7 @@ public stratcloud, nettend
 real, dimension(:,:), allocatable, save :: stratcloud  ! prognostic cloud fraction
 real, dimension(:,:), allocatable, save :: nettend     ! change in temperature from radiation and vertical mixing
 real, save :: u00crit = 0.8                            ! critical relative humidity above which clouds can form
+real, save :: u00ramp = 0.01
 
 contains
 
@@ -47,23 +48,23 @@ real, dimension(ifull,kl), intent(inout) :: qc ! condensate = qf + ql
 real, dimension(ifull,kl), intent(in) :: qtot, rho, fice, qs, t
 real, dimension(ifull), intent(in) :: ps
 real, dimension(ifull,kl) :: u00p, erosion_scale
-real, dimension(ifull,kl) :: da, dqs, cfbar, qv
+real, dimension(ifull,kl) :: dqs, cfbar, qv
 real, dimension(ifull,kl) :: cf1, cfeq, a_dt, b_dt
 real, dimension(ifull,kl) :: dqsdT, mflx, gamma
 real, dimension(ifull,kl) :: aa, bb, cc, omega
-real, dimension(ifull,kl) :: cmflx, hlrvap
+real, dimension(ifull,kl) :: cmflx, hlrvap, xf, at
 integer k
 
 stratcloud(1:ifull,:)=max( min( stratcloud(1:ifull,:), 1. ), 0. )
-qv = max( qtot - qc, qgmin )
+qv = qtot-qc
 
 ! Critical relative humidity (neglected profile option)
 u00p(:,:) = u00crit
 
-! background erosion scale
+! background erosion scale in 1/secs
 erosion_scale(:,:) = 1.E-6
 
-! calculaate vertical velocity, dqs/dT and gamma
+! calculate vertical velocity, dqs/dT and gamma
 do k=1,kl
   omega(:,k) = ps(1:ifull)*dpsldt(:,k)
 end do
@@ -73,52 +74,54 @@ gamma = (hlcp+fice*hlfcp)*dqsdT
 if ( ncloud>=4 ) then
   ! convert convective mass flux from half levels to full levels
   do k=1,kl-1
-    cmflx(:,k)=rathb(k)*fluxtot(:,k)+ratha(k)*fluxtot(:,k+1)
+    cmflx(:,k) = rathb(k)*fluxtot(:,k)+ratha(k)*fluxtot(:,k+1)
   end do
-  cmflx(:,kl)=rathb(kl)*fluxtot(:,kl)
+  cmflx(:,kl) = rathb(kl)*fluxtot(:,kl)
 else ! ncloud==3
   ! use convective area fraction in leoncld.f, instead of convective mass flux
-  cmflx=0.
+  cmflx = 0.
 end if
 
-! calculate dqs = (((omega + grav*Mc)/(cp*rho)+nettend)*dqsdT*dt)
+! calculate dqs = ((omega + grav*Mc)/(cp*rho)+nettend)*dqsdT*dt
 !                 -------------------------------------------------------
 !                 1 + (stratcloud + 0.5*da)*gamma
+! MJT notes - GFDL AM adds (stratcloud+0.5*at*da)*gamma term
+
+! Change in saturated volume fraction
+! da = -0.5*(1.-cf)^2*dqs/(qs-qv)
+! MJT notes - Tiedtke 93 does not use 0.5
 
 ! gamma = L/cp*dqsdT
 
-! Follow GFDL CM3 approach since da=da(dqs), hence need to solve the above
+! Follow GFDL AM approach since da=da(dqs), hence need to solve the above
 ! quadratic equation for dqs if da/=0
 
 ! dqs*dqs*AA + dqs*BB + CC = 0
-! AA = 0.25*gamma*(1-cf)^2/(qs-qtot)
+! AA = 0.25*gamma*(1-cf)^2/(qs-qv)
 ! BB = -(1+gamma*cf)
 ! CC = ((omega + grav*mflx)/(cp*rho)+netten)*dqsdT*dt
 
+xf = max(min( (qv/qs - u00p - u00ramp ) / ( 2.*u00ramp ), 1. ), 0. ) ! MJT suggestion
 cc = ((omega + grav*cmflx)/(cp*rho)+nettend)*dt*dqsdT
-aa = 0.5*gamma*(1.-stratcloud(1:ifull,:))*(1.-stratcloud(1:ifull,:))/max( qs-qv, 1.E-20 )
+at = 1.-stratcloud(1:ifull,:)
+aa = 0.5*at/max( qs-qv, 1.e-10 )
 bb = 1.+gamma*stratcloud(1:ifull,:)
-where ( cc<0. .and. qv>=u00p*qs )
-  dqs = 2.*cc/( bb + sqrt( bb*bb - 2.*aa*cc ) ) ! alternative form of quadratic equation
-                                                ! note that aa has been multipled by 2.
+where ( cc<=0. .and. xf>0. )
+  !dqs = ( bb - sqrt( bb*bb - 2.*gamma*xf*at*aa*cc ) ) / ( gamma*xf*at*aa ) ! GFDL style
+  !dqs = min( dqs, cc/(1. + 0.5*bb) )                                       ! GFDL style
+  dqs = 2.*cc/( bb + sqrt( bb*bb - 2.*gamma*xf*at*aa*cc ) ) ! alternative form of quadratic equation
+                                                            ! note that aa and bb have been multipled by 2 and -1, respectively.
+  ! Large scale cloud formation via condensation (A)
+  a_dt = -xf*aa*dqs
 elsewhere
   ! da = 0, so dqs can be solved from a linear equation
   dqs = cc/bb
+  ! Large scale cloud formation via condensation (A)
+  a_dt = 0.
 end where
 
-! Change in saturated volume fraction
-! da = - 0.5*(1.-cf)^2*dqs/(qs-qtot)
-where( dqs<0. .and. qv>=u00p*qs )
-  da = -aa*dqs/gamma
-elsewhere
-  da = 0.
-end where
-
-! Large scale cloud formation (A)
-a_dt = da/max( 1.-stratcloud(1:ifull,:), 1.e-20 )
-
-! Large scale cloud destruction (B)
-b_dt = stratcloud(1:ifull,:)*erosion_scale*dt*max( qs-qv, 0. )/max( qc, 1.e-8 )
+! Large scale cloud destruction via erosion (B)
+b_dt = stratcloud(1:ifull,:)*erosion_scale*dt*max(qs-qv, 0.)/max(qc, 1.e-10)
 
 ! Integrate
 !   dcf/dt = (1-cf)*A - cf*B
@@ -129,10 +132,10 @@ b_dt = stratcloud(1:ifull,:)*erosion_scale*dt*max( qs-qv, 0. )/max( qc, 1.e-8 )
 !   cfbar = cfeq - (cf(t=1) - cf(t=0))/((A+B)*dt)
 ! cfeq is the equilibrum cloud fraction that is approached with
 ! a time scale of 1/(A+B)
-where ( a_dt>1.E-20 .or. b_dt>1.E-20 )
+where ( a_dt>1.e-8 .or. b_dt>1.e-8 )
   cfeq  = a_dt/(a_dt+b_dt)
-  cf1   = min(max( cfeq + (stratcloud(1:ifull,:) - cfeq)*exp(-a_dt-b_dt), 0. ), 1. )
-  cfbar = min(max( cfeq + (stratcloud(1:ifull,:) - cf1 )/(a_dt+b_dt),     0. ), 1. )
+  cf1   = cfeq + (stratcloud(1:ifull,:) - cfeq)*exp(-a_dt-b_dt)
+  cfbar = cfeq + (stratcloud(1:ifull,:) - cf1 )/(a_dt+b_dt)
 elsewhere
   cfeq  = stratcloud(1:ifull,:)
   cf1   = stratcloud(1:ifull,:)
@@ -141,19 +144,22 @@ end where
 
 ! Change in condensate
 ! dqc = -dqs*(stratcloud+0.5*da) = -dqs*cfbar
-qc = qc - cfbar*dqs
-qc = min( max( qc, 0. ), qtot - qgmin )
+! MJT notes - missing erosion term -cfbar*erosion_scale*dt*(qs-qv)
+qc = max(min( qc - max(cfbar,1.e-10)*dqs, qtot-qgmin ), 0. )
 
 ! Change in cloud fraction
-where( qc>0. )
-  stratcloud(1:ifull,:) = max( min( cf1, 1. ), 1.E-8 )
+where ( qc>1.e-10 )
+  stratcloud(1:ifull,:) = max(min( cf1, 1.), 1.e-10 )
 elsewhere
+  ! MJT notes - cloud fraction is maintained (da=0.) while condesate evaporates (dqc<0.) until
+  ! the condesate dissipates
   stratcloud(1:ifull,:) = 0.
+  qc = 0.
 end where
 cloudfrac = stratcloud(1:ifull,:)
 
 ! Reset tendency and mass flux for next time-step
-nettend=0.
+nettend = 0.
 
 return
 end subroutine progcloud

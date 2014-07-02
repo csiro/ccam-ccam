@@ -878,7 +878,8 @@ costmp(ib:ie)=coszro(wmap(ib:ie)-istart+1)
 
 !pond(ib:ie)=max(1.+.008*min(i_tsurf(ib:ie)-273.16,0.),0.)
 pond(ib:ie)=0.
-snow(ib:ie)=min(max(i_dsn(ib:ie)/0.05,0.),1.)
+!snow(ib:ie)=min(max(i_dsn(ib:ie)/0.05,0.),1.)
+snow(ib:ie)=0.
 
 watervis(ib:ie)=.05/(costmp(ib:ie)+0.15)
 waternir(ib:ie)=.05/(costmp(ib:ie)+0.15)
@@ -924,7 +925,8 @@ costmp(ib:ie)=coszro(wmap(ib:ie)-istart+1)
 
 !pond(ib:ie)=max(1.+.008*min(i_tsurf(ib:ie)-273.16,0.),0.)
 pond(ib:ie)=0.
-snow(ib:ie)=min(max(i_dsn(ib:ie)/0.05,0.),1.)
+!snow(ib:ie)=min(max(i_dsn(ib:ie)/0.05,0.),1.)
+snow(ib:ie)=0.
 
 where (costmp(ib:ie)>0.)
   p_watervisdiralb(ib:ie)=0.026/(costmp(ib:ie)**1.7+0.065)+0.15*(costmp(ib:ie)-0.1)* &

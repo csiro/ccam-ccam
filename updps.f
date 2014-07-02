@@ -21,6 +21,8 @@
       integer, save :: num = 0
       integer iq,k,ind,iadj
       real derpsl(ifull),cc(ifull+iextra,kl),dd(ifull+iextra,kl)
+      real tmpcc(ifull,kl),tmpdd(ifull,kl)
+      real tmpu(ifull,kl),tmpv(ifull,kl)
       real d(ifull,kl)   ! NOT shared adjust5 or nonlin
       real e(ifull,kl)
       real sdotin(ifull,kl),pslxin(ifull,kl),omgfin(ifull,kl)
@@ -46,11 +48,14 @@
       endif  ! (mup<=-4)
       
       if(mup>=5)then
-        call staguv(u(1:ifull,:),v(1:ifull,:),
-     &             cc(1:ifull,:),dd(1:ifull,:)) 
+        ! MJT notes - make staguv a module so that assumed shape
+        ! arrays can be used to avoid tmpu, tmpv, tmpcc and tmpdd
+        tmpu=u(1:ifull,:)
+        tmpv=v(1:ifull,:)
+        call staguv(tmpu,tmpv,tmpcc,tmpdd)
         do k=1,kl
-          cc(1:ifull,k)=cc(1:ifull,k)/emu(1:ifull)
-          dd(1:ifull,k)=dd(1:ifull,k)/emv(1:ifull)
+          cc(1:ifull,k)=tmpcc(:,k)/emu(1:ifull)
+          dd(1:ifull,k)=tmpdd(:,k)/emv(1:ifull)
         enddo
         call boundsuv(cc,dd)
         do k=1,kl

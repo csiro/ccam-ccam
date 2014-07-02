@@ -76,7 +76,7 @@ real, parameter :: c_1   = 5.
 real, parameter :: d_1   = 0.35
 
 integer, parameter :: icm1   = 5        ! max iterations for calculating pblh
-real, parameter :: maxdts    = 120.     ! max timestep for split
+real, parameter :: maxdts    = 60.      ! max timestep for split
 real, parameter :: mintke    = 1.E-8    ! min value for tke
 real, parameter :: mineps    = 1.E-10   ! min value for eps
 real, parameter :: minl      = 1.       ! min value for L (constraint on eps)

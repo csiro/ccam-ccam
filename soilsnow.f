@@ -773,7 +773,6 @@ c          enddo
           write (6,"('wb   ',6f8.3)") (wb(idjd,k),k=1,ms)
           write (6,"('wbice',6f8.3)") (wbice(idjd,k),k=1,ms)
           write (6,"('wblf ',6f8.3)") (wblf(idjd,k),k=1,ms)
-          write (6,"('ssatcurr',6f8.3)") ssatcurr
 c	   print *,'pwb_wbh,pwb_min* for ms ',
 c     .             pwb_wbh,hsbh(isoil)*pwb_min(isoil)
 c          print *,'wblfmx,wblfmn,iqmx,iqmn ',wblfmx,wblfmn,iqmx,iqmn

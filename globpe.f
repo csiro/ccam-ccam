@@ -1357,7 +1357,9 @@
         case(23,24)
           call convjlm         ! split convjlm 
         case(46)
-          call conjob          ! split Arakawa-Gordon scheme
+          !call conjob          ! split Arakawa-Gordon scheme
+          write(6,*) "ERROR: conjob no longer supported"
+          call ccmpi_abort(-1)
       end select
       cbas_ave(:)=cbas_ave(:)+condc(:)*(1.1-sig(kbsav(:)))      ! diagnostic
       ctop_ave(:)=ctop_ave(:)+condc(:)*(1.1-sig(abs(ktsav(:)))) ! diagnostic

@@ -1865,11 +1865,13 @@ subroutine idrbtsh2o
 !    the following roberts continuum coefficients are computed using the
 !    program (gasbnd) over the 0-3000 cm-1 range with 10 cm-1 bandwidth.
 !-----------------------------------------------------------------------
+      write(6,*) "idrbtsh2o is disabled"
+      stop
       !inrad = open_namelist_file ('INPUT/id2h2orbts')
-      open(unit=inrad,file='INPUT/id2h2orbts')
-      read (inrad, FMT = '(5e14.6)') (betad(k),k=1,NBLW)
-      !call close_file (inrad)
-      close(inrad)
+      !inrad = 29 ?
+      !open(unit=inrad,file='INPUT/id2h2orbts')
+      !read (inrad, FMT = '(5e14.6)') (betad(k),k=1,NBLW)
+      !close(inrad)
 
 !---------------------------------------------------------------------
  
@@ -1918,18 +1920,20 @@ character(len=*), intent(in)   :: filename
 !    the 0-3000 cm-1 range, with 10 cm-1 bandwidth. other parameter
 !    values used in the program are obtained separately.
 !-----------------------------------------------------------------------
+      write(6,*) "id2h2o is disabled"
+      stop
       !inrad = open_namelist_file (filename)
-      open(unit=inrad,file=filename)
-      read (inrad,9000) (arndm(k),k=1,NBLW)
-      read (inrad,9000) (brndm(k),k=1,NBLW)
-      read (inrad,9000) (dummy(k),k=1,NBLW)
-      read (inrad,9000) (dummy(k),k=1,NBLW)
-      read (inrad,9000) (dummy(k),k=1,NBLW)
-      read (inrad,9000) (dummy(k),k=1,NBLW)
-      read (inrad,9000) (bandlo(k),k=1,NBLW)
-      read (inrad,9000) (bandhi(k),k=1,NBLW)
-      !call close_file (inrad)
-      close(inrad)
+      !inrad = 29 ?
+      !open(unit=inrad,file=filename)
+      !read (inrad,9000) (arndm(k),k=1,NBLW)
+      !read (inrad,9000) (brndm(k),k=1,NBLW)
+      !read (inrad,9000) (dummy(k),k=1,NBLW)
+      !read (inrad,9000) (dummy(k),k=1,NBLW)
+      !read (inrad,9000) (dummy(k),k=1,NBLW)
+      !read (inrad,9000) (dummy(k),k=1,NBLW)
+      !read (inrad,9000) (bandlo(k),k=1,NBLW)
+      !read (inrad,9000) (bandhi(k),k=1,NBLW)
+      !close(inrad)
 
 !--------------------------------------------------------------------
 9000  format(5e14.6)

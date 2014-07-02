@@ -22,11 +22,11 @@
       real, dimension(ifull+iextra,kl), intent(inout) :: s  ! Solution
       real, dimension(ifull,kl), intent(in) :: irhs         ! RHS
       real, dimension(ifull,kl) :: rhs
-      real, dimension(ifullx,kl,maxcolour) :: helmc,rhsc
+      real, dimension(ifullmaxcol,kl,maxcolour) :: helmc,rhsc
       real, dimension(ifull,kl) :: sb, sa, snew
       real, dimension(ifull,kl) :: dsol
-      real, dimension(ifullx,maxcolour) :: zznc,zzec
-      real, dimension(ifullx,maxcolour) :: zzwc,zzsc
+      real, dimension(ifullmaxcol,maxcolour) :: zznc,zzec
+      real, dimension(ifullmaxcol,maxcolour) :: zzwc,zzsc
       real, dimension(kl) ::  dsolmax, dsolmax_g, smax, smax_g
       real, dimension(kl) ::  smin, smin_g, savg
       real, dimension(:), allocatable, save :: accel
@@ -241,13 +241,14 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
       end do
 
       do nx=1,nx_max
-        zznc(:,nx) =zzn(iqx(:,nx))
-        zzwc(:,nx) =zzw(iqx(:,nx))
-        zzec(:,nx) =zze(iqx(:,nx))
-        zzsc(:,nx) =zzs(iqx(:,nx))
+        zznc(1:ifullcol(nx),nx) =zzn(iqx(1:ifullcol(nx),nx))
+        zzwc(1:ifullcol(nx),nx) =zzw(iqx(1:ifullcol(nx),nx))
+        zzec(1:ifullcol(nx),nx) =zze(iqx(1:ifullcol(nx),nx))
+        zzsc(1:ifullcol(nx),nx) =zzs(iqx(1:ifullcol(nx),nx))
         do k=1,kl
-          helmc(:,k,nx)=helm(iqx(:,nx),k)-zz(iqx(:,nx))
-          rhsc(:,k,nx) =rhs(iqx(:,nx),k)
+          helmc(1:ifullcol(nx),k,nx)=helm(iqx(1:ifullcol(nx),nx),k)
+     &                              -zz(iqx(1:ifullcol(nx),nx))
+          rhsc(1:ifullcol(nx),k,nx) =rhs(iqx(1:ifullcol(nx),nx),k)
         end do
       end do
       
@@ -255,15 +256,15 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
       do while ( iter<itmax .and. klim>0)
        do nx=1,nx_max
         do k=1,klim
-          dsol(iqx(:,nx),k)=
-     &       ( zznc(:,nx)*s(iqn(:,nx),k)
-     &       + zzwc(:,nx)*s(iqw(:,nx),k)
-     &       + zzec(:,nx)*s(iqe(:,nx),k)
-     &       + zzsc(:,nx)*s(iqs(:,nx),k)
-     &       -helmc(:,k,nx)*s(iqx(:,nx),k)
-     &       -rhsc(:,k,nx) )/helmc(:,k,nx)
-          s(iqx(:,nx),k) = s(iqx(:,nx),k)
-     &       + accel(k)*dsol(iqx(:,nx),k)
+          dsol(iqx(1:ifullcol(nx),nx),k)=
+     &       ( zznc(1:ifullcol(nx),nx)*s(iqn(1:ifullcol(nx),nx),k)
+     &       + zzwc(1:ifullcol(nx),nx)*s(iqw(1:ifullcol(nx),nx),k)
+     &       + zzec(1:ifullcol(nx),nx)*s(iqe(1:ifullcol(nx),nx),k)
+     &       + zzsc(1:ifullcol(nx),nx)*s(iqs(1:ifullcol(nx),nx),k)
+     &       -helmc(1:ifullcol(nx),k,nx)*s(iqx(1:ifullcol(nx),nx),k)
+     &       -rhsc(1:ifullcol(nx),k,nx) )/helmc(1:ifullcol(nx),k,nx)
+          s(iqx(1:ifullcol(nx),nx),k) = s(iqx(1:ifullcol(nx),nx),k)
+     &       + accel(k)*dsol(iqx(1:ifullcol(nx),nx),k)
         enddo ! k loop
         call bounds_colour(s, nx, klim=klim)
        enddo  ! nx loop  

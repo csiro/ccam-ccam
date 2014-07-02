@@ -32,7 +32,7 @@ LIBS = -L $(NETCDF_ROOT)/lib -lnetcdf -lnetcdff
 
 LDFLAGS = 
 
-OBJS = adjust5.o amipsst.o conjob.o convjlm.o depts.o estab.o gettin.o \
+OBJS = adjust5.o amipsst.o convjlm.o depts.o estab.o gettin.o \
 globpe.o gwdrag.o hordifg.o hs_phys.o iabsdate.o indata.o infile.o ints.o \
 helmsol.o jimcc.o helmsor.o optmx.o mslp.o nestin.o nonlin.o \
 outcdf.o outfile.o pbldif.o radriv90.o retopo.o scrnout.o setxyz.o sflux.o \
@@ -72,31 +72,31 @@ clean:
 .SUFFIXES:.f90 .F90
 
 esfsw_driver.o: esfsw_driver.f90
-	$(FC)  -c -r8 $(FFLAGS) $<
+	$(FC) -c -r8 $(FFLAGS) $<
 esfsw_parameters.o: esfsw_parameters.f90
-	$(FC)  -c -r8 $(FFLAGS) $<
+	$(FC) -c -r8 $(FFLAGS) $<
 gas_tf.o: gas_tf.f90
-	$(FC)  -c -r8 $(FFLAGS) $<
+	$(FC) -c -r8 $(FFLAGS) $<
 longwave_clouds.o: longwave_clouds.f90
-	$(FC)  -c -r8 $(FFLAGS) $<
+	$(FC) -c -r8 $(FFLAGS) $<
 longwave_fluxes.o: longwave_fluxes.f90
-	$(FC)  -c -r8 $(FFLAGS) $<
+	$(FC) -c -r8 $(FFLAGS) $<
 longwave_tables.o: longwave_tables.f90
-	$(FC)  -c -r8 $(FFLAGS) $<
+	$(FC) -c -r8 $(FFLAGS) $<
 longwave_params.o: longwave_params.f90
-	$(FC)  -c -r8 $(FFLAGS) $<
+	$(FC) -c -r8 $(FFLAGS) $<
 lw_gases_stdtf.o: lw_gases_stdtf.f90
-	$(FC)  -c -r8 $(FFLAGS) $<
+	$(FC) -c -r8 $(FFLAGS) $<
 microphys_rad.o: microphys_rad.f90
-	$(FC)  -c -r8 $(FFLAGS) $<
+	$(FC) -c -r8 $(FFLAGS) $<
 optical_path.o: optical_path.f90
-	$(FC)  -c -r8 $(FFLAGS) $<
+	$(FC) -c -r8 $(FFLAGS) $<
 rad_utilities.o: rad_utilities.f90
-	$(FC)  -c -r8 $(FFLAGS) $<
+	$(FC) -c -r8 $(FFLAGS) $<
 sealw99.o: sealw99.f90
-	$(FC)  -c -r8 $(FFLAGS) $<
+	$(FC) -c -r8 $(FFLAGS) $<
 sumdd_m.o: sumdd_m.f90
-	$(FC)  -c -fp-model precise $(FFLAGS) $<
+	$(FC) -c -fp-model precise $(FFLAGS) $<
 stacklimit.o: stacklimit.c
 	cc -c stacklimit.c
 
@@ -139,7 +139,6 @@ cloud2.o : diag_m.o cc_mpi.o radisw_m.o sigs_m.o const_phys.h cparams.h hcon.h k
 cloud.o : extraout_m.o radisw_m.o newmpar.h parm.h rdparm.h
 cloudmod.o : cfrac_m.o estab.o kuocomb_m.o morepbl_m.o sigs_m.o vvel_m.o newmpar.h const_phys.h kuocom.h parm.h
 co2_read.o : cc_mpi.o co2dta_m.o radisw_m.o filnames.h newmpar.h parm.h rdparm.h
-conjob.o : aerosolldr.o arrays_m.o cc_mpi.o epst_m.o estab.o kuocomb_m.o morepbl_m.o nlin_m.o prec_m.o sigs_m.o soil_m.o tkeeps.o tracers_m.o const_phys.h newmpar.h parm.h
 convjlm.o : aerosolldr.o arrays_m.o cc_mpi.o cfrac_m.o diag_m.o estab.o extraout_m.o indices_m.o kuocomb_m.o latlong_m.o liqwpar_m.o map_m.o morepbl_m.o nharrs_m.o nlin_m.o pbl_m.o prec_m.o screen_m.o sigs_m.o soil_m.o soilsnow_m.o tkeeps.o tracers_m.o vvel_m.o work2_m.o const_phys.h kuocom.h newmpar.h parm.h parmdyn.h
 davies.o : arrays_m.o cc_mpi.o dava_m.o davb_m.o sigs_m.o newmpar.h parm.h
 depts.o : bigxy4_m.o cc_mpi.o indices_m.o map_m.o uvbar_m.o vecsuv_m.o work3f_m.o xyzinfo_m.o const_phys.h newmpar.h parm.h parmgeom.h
