@@ -373,7 +373,7 @@ end do
 ! re-pack colour arrays at fine level
 do nc=1,maxcolour
   do k=1,kl
-    rhsc(iqx(1:ifullcol(nc),nc),k,nc)=irhs(iqx(iqx(1:ifullcol(nc),nc),nc),k)
+    rhsc(1:ifullcol(nc),k,nc)=irhs(iqx(1:ifullcol(nc),nc),k)
   end do
 end do
 
