@@ -154,7 +154,8 @@
      &    m_fly,mstn,nqg,nurban,nmr,ktopdav,nud_sst,nud_sss,
      &    mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,
      &    nud_sfh,bpyear,rescrn,helmmeth,nmlo,ol,mxd,mindep,minwater,
-     &    ocnsmag,ocneps,fixsal,fixheight,knh,ccycle,kblock
+     &    ocnsmag,ocneps,fixsal,fixheight,knh,ccycle,kblock,
+     &    nud_aero
       namelist/skyin/mins_rad,ndiur
       namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,
      &    hfile,icefile,mesonest,nmifile,o3file,radfile,restfile,
@@ -497,7 +498,7 @@
         write (6,'(i5,4i7,f10.2)') nrad,ndiur,mins_rad,kountr,iaero,dt
         write(6,*)'Radiation options B:'
         write(6,*)' nmr bpyear'
-        write (6,'(i4,f7.2)') nmr,bpyear
+        write (6,'(i4,f9.2)') nmr,bpyear
         write(6,*)'Cloud options A:'
         write(6,*)'  ldr nclddia nstab_cld nrhcrit sigcll '
         write (6,'(i5,i6,2i9,1x,f8.2)') ldr,nclddia,nstab_cld,nrhcrit,
@@ -762,7 +763,11 @@
       call work3sav_init(ifull,iextra,kl,ilt,jlt,klt,ngasmax) ! must occur after tracers_init
       if (nbd/=0.and.nud_hrs/=0) then
         call dava_init(ifull,iextra,kl)
-        call davb_init(ifull,iextra,kl)
+        if (abs(iaero)>=2.and.nud_aero/=0) then
+          call davb_init(ifull,iextra,kl,naero)
+        else
+          call davb_init(ifull,iextra,kl,0)
+        end if
       end if
       ! Remaining arrays are allocated in indata.f, since their
       ! definition requires additional input data (e.g, land-surface)
@@ -1358,7 +1363,7 @@
           call convjlm         ! split convjlm 
         case(46)
           !call conjob          ! split Arakawa-Gordon scheme
-          write(6,*) "ERROR: conjob no longer supported"
+          write(6,*) "ERROR: Conjob no longer supported"
           call ccmpi_abort(-1)
       end select
       cbas_ave(:)=cbas_ave(:)+condc(:)*(1.1-sig(kbsav(:)))      ! diagnostic
@@ -2233,6 +2238,7 @@
      &     mbd/0/,nbd/0/,nbox/1/,kbotdav/4/,kbotu/0/,           
      &     nud_p/0/,nud_q/0/,nud_t/0/,nud_uv/1/,nud_hrs/24/,nudu_hrs/0/,
      &     ktopdav/-1/,kblock/-1/
+      data nud_aero/0/
       data nud_sst/0/,nud_sss/0/,nud_ouv/0/,nud_sfh/0/
       data mloalpha/10/,kbotmlo/-1/,ktopmlo/1/
       

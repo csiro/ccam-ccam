@@ -50,10 +50,11 @@ c******************************************************************************
 
 c This routine is part of the prognostic cloud water scheme
 
-      use cloudmod
-      use estab, only : esdiffx, qsati
-      use diag_m
       use cc_mpi, only : mydiag
+      use cloudmod
+      use diag_m      
+      use estab, only : esdiffx, qsati
+      use map_m
       use sigs_m
       implicit none
 C Global parameters
@@ -262,6 +263,20 @@ c Note that qcg is the total cloud water (liquid+frozen)
             rcrit(:,k)=max(rcrit_s*(1.-.2*sig(k)),sig(k)**4)
            end where
           enddo
+        elseif(nclddia>7)then  ! e.g. 12    JLM
+          do k=1,nl  ! typically set rcrit_l=.75,  rcrit_s=.85
+           do mg=1,ln2
+            tk=em(mg)*208498./ds
+            fl=(1+nclddia)*tk/(1.+nclddia*tk)
+c          for rcit_l=.75 & nclddia=12 get rcrit=(.797,.9, .9375, .971, .985) for (50,10, 5, 2, 1) km
+            if(land(mg))then
+              rcrit(mg,k)=max(1.-fl*(1.-rcrit_l),sig(k)**3)        
+            else
+              rcrit(mg,k)=max(1.-fl*(1.-rcrit_s),sig(k)**3)         
+            endif
+           enddo
+          enddo
+          if(mydiag)write(6,*)'rcrit',rcrit(idjd,:)
         endif  ! (nclddia<0)  .. else ..
 
 c Calculate cloudy fraction of grid box (cfrac) and gridbox-mean cloud water

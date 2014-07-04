@@ -32,6 +32,7 @@
       ! Called for nbd/=0
       subroutine nestin
       
+      use aerosolldr                   ! LDR prognostic aerosols
       use arrays_m                     ! Atmosphere dyamics prognostic arrays
       use cc_mpi                       ! CC MPI routines
       use davb_m                       ! Far-field nudging (host store)
@@ -65,6 +66,7 @@
       real, dimension(:), allocatable, save :: psla,pslb,tssa,tssb
       real, dimension(:), allocatable, save :: sicedepb,fraciceb
       real, dimension(:,:,:), allocatable, save :: sssa,sssb
+      real, dimension(:,:,:), allocatable, save :: xtghosta,xtghostb
       real, dimension(ifull) :: zsb,duma,timelt
       real, dimension(ifull,wlev,4) :: dumaa
       real, dimension(ifull,ms) :: dumg
@@ -88,8 +90,11 @@
           allocate(ta(ifull,kl),ua(ifull,kl),va(ifull,kl),qa(ifull,kl))
           allocate(tb(ifull,kl),ub(ifull,kl),vb(ifull,kl),qb(ifull,kl))
           allocate(psla(ifull),pslb(ifull),tssa(ifull),tssb(ifull))
-          allocate(sicedepb(ifull),fraciceb(ifull),ocndep(ifull,2))
+          allocate(sicedepb(ifull),fraciceb(ifull))
           allocate(sssa(ifull,wlev,4),sssb(ifull,wlev,4))
+          allocate(ocndep(ifull,2))
+          allocate(xtghosta(ifull,kl,naero))
+          allocate(xtghostb(ifull,kl,naero))
 
           ! Save host atmospheric data
           if ( myid==0 ) write(6,*)
@@ -114,6 +119,11 @@
               call mloexport3d(i-1,sssb(:,:,i),0)
             end do
           end if
+          
+          ! Save host aerosol data
+          if (abs(iaero)>=2.and.nud_aero/=0) then
+            xtghostb(:,:,:)=xtg(1:ifull,:,:)
+          end if
         
           ! record time of saved data
           mtimeb=mtimer
@@ -129,6 +139,9 @@
         va(1:ifull,:)=vb(1:ifull,:)
         if (nmlo/=0) then
           sssa(:,:,:)=sssb(:,:,:)
+        end if
+        if (abs(iaero)>=2.and.nud_aero/=0) then
+          xtghosta(:,:,:)=xtghostb(:,:,:)
         end if
 
         ! Read sea-ice data from host when not using
@@ -168,7 +181,7 @@
           call onthefly(1,kdate_r,ktime_r,
      &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb, 
      &                 dumg,dumg,dumg,duma,dumv,dumv,dumv,dums,dums,
-     &                 dums,duma,duma,dumm,sssb,ocndep)
+     &                 dums,duma,duma,dumm,sssb,ocndep,xtghostb)
         else
           write(6,*) 'ERROR: Nudging requires abs(io_in)=1'
           call ccmpi_abort(-1)
@@ -308,7 +321,11 @@
           end if
         endif ! nmlo==0 ..else..
       endif   ! namip==0
-      
+     
+      if (abs(iaero)>=2.and.nud_aero/=0) then
+        xtgdav(:,:,:)=cona*xtghosta(:,:,:)+conb*xtghostb(:,:,:)
+      end if
+     
       return
       end subroutine nestin
 
@@ -318,6 +335,7 @@
       ! Called for mbd/=0
       subroutine nestinb
 
+      use aerosolldr                   ! LDR prognostic aerosols
       use arrays_m                     ! Atmosphere dyamics prognostic arrays
       use cc_mpi                       ! CC MPI routines
       use diag_m                       ! Diagnostic routines
@@ -347,11 +365,13 @@
       real, dimension(:), allocatable, save :: pslb,tssb,fraciceb
       real, dimension(:), allocatable, save :: sicedepb
       real, dimension(:,:,:), allocatable, save :: sssb
+      real, dimension(:,:,:), allocatable, save :: xtghostb
       real, dimension(ifull) :: zsb,pslc,duma,timelt
       real, dimension(ifull,ms) :: dumg
       real, dimension(ifull,kl) :: dumv
       real, dimension(ifull,kl) :: uc,vc,tc,qc
       real, dimension(ifull,3) :: dums
+      real, dimension(ifull,kl,naero) :: xtgc
  
       ! allocate arrays on first call     
       if (.not.allocated(tb)) then
@@ -359,6 +379,7 @@
         allocate(pslb(ifull),tssb(ifull),fraciceb(ifull))
         allocate(sicedepb(ifull),ocndep(ifull,2))
         allocate(sssb(ifull,wlev,4))
+        allocate(xtghostb(ifull,kl,naero))
         if (nud_uv/=9) then
           call specinit
         end if
@@ -380,7 +401,7 @@
           call onthefly(1,kdate_r,ktime_r,
      &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb, 
      &                 dumg,dumg,dumg,duma,dumv,dumv,dumv,dums,dums,
-     &                 dums,duma,duma,dumm,sssb,ocndep)
+     &                 dums,duma,duma,dumm,sssb,ocndep,xtghostb)
         else
           write(6,*) 'ERROR: Scale-selective filter requires ',
      &               'abs(io_in)=1'
@@ -447,13 +468,15 @@
       if ((mtimer==mtimeb).and.(mod(nint(ktau*dt),60)==0)) then
 
         ! atmospheric nudging if required
-        if (nud_p/=0.or.nud_t/=0.or.nud_uv/=0.or.nud_q/=0) then
+        if (nud_p/=0.or.nud_t/=0.or.nud_uv/=0.or.nud_q/=0.or.
+     &      nud_aero/=0) then
           pslc(:)=pslb(:)-psl(1:ifull)
           uc(:,:)=ub(:,:)-u(1:ifull,:)
           vc(:,:)=vb(:,:)-v(1:ifull,:)
           tc(:,:)=tb(:,:)-t(1:ifull,:)
           qc(:,:)=qb(:,:)-qg(1:ifull,:)
-          call getspecdata(pslc,uc,vc,tc,qc)
+          xtgc(:,:,:)=xtghostb(:,:,:)-xtg(1:ifull,:,:)
+          call getspecdata(pslc,uc,vc,tc,qc,xtgc)
         end if
 
         ! specify sea-ice if not AMIP or Mixed-Layer-Ocean
@@ -530,8 +553,9 @@
       !--------------------------------------------------------------
       ! This subroutine gathers and distributes data for the
       ! scale-selective filter
-      subroutine getspecdata(pslb,ub,vb,tb,qb)
+      subroutine getspecdata(pslb,ub,vb,tb,qb,xtgb)
 
+      use aerosolldr                   ! Aerosol interface
       use arrays_m                     ! Atmosphere dyamics prognostic arrays
       use cc_mpi                       ! CC MPI routines
       use nharrs_m                     ! Non-hydrostatic atmosphere arrays
@@ -553,6 +577,7 @@
       real, dimension(ifull), intent(in) :: pslb
       real, dimension(ifull) :: costh,sinth
       real, dimension(ifull,kl), intent(inout) :: ub,vb,tb,qb
+      real, dimension(ifull,kl,naero), intent(inout) :: xtgb
       real, dimension(ifull) :: dum
       real den,polenx,poleny,polenz,zonx,zony,zonz
       logical lblock
@@ -601,7 +626,8 @@
           end if
           call slowspecmpi(.1*real(mbd)/(pi*schmidt)
      &                  ,pslb,ub(:,kln:klx),vb(:,kln:klx)
-     &                  ,tb(:,kln:klx),qb(:,kln:klx),lblock,klt)
+     &                  ,tb(:,kln:klx),qb(:,kln:klx),xtgb(:,kln:klx,:)
+     &                  ,lblock,klt)
         else
           if (myid==0) then
 #ifdef uniform_decomp
@@ -612,7 +638,8 @@
           end if
           call specfastmpi(.1*real(mbd)/(pi*schmidt)
      &                  ,pslb,ub(:,kln:klx),vb(:,kln:klx)
-     &                  ,tb(:,kln:klx),qb(:,kln:klx),lblock,klt)
+     &                  ,tb(:,kln:klx),qb(:,kln:klx),xtgb(:,kln:klx,:)
+     &                  ,lblock,klt)
         endif  ! (nud_uv==9) .. else ..
         !-----------------------------------------------------------------------
 
@@ -668,6 +695,10 @@
         qgsav(:,kbotdav:ktopdav)=max(qgsav(:,kbotdav:ktopdav)
      &   +qb(:,kbotdav:ktopdav),0.)
       end if
+      if (nud_aero>0) then
+        xtg(1:ifull,kbotdav:ktopdav,:)=xtg(1:ifull,kbotdav:ktopdav,:)
+     &    +xtgb(:,kbotdav:ktopdav,:)
+      end if
 
       return
       end subroutine getspecdata
@@ -675,8 +706,9 @@
       !---------------------------------------------------------------------------------
       ! Slow 2D spectral downscaling - MPI version
       ! This option is an exact treatment of the filter
-      subroutine slowspecmpi(cin,pslb,ub,vb,tb,qb,lblock,klt)
+      subroutine slowspecmpi(cin,pslb,ub,vb,tb,qb,xtgb,lblock,klt)
 
+      use aerosolldr        ! Aerosol interface
       use cc_mpi            ! CC MPI routines
       use vecsuv_m          ! Map to cartesian coordinates
       
@@ -686,11 +718,12 @@
       include 'parm.h'      ! Model configuration
 
       integer, intent(in) :: klt
-      integer i,j,n,iq,iqg,k
+      integer k,n
       real, intent(in) :: cin
       real, dimension(ifull), intent(inout) :: pslb
       real, dimension(ifull,klt), intent(inout) :: ub,vb
       real, dimension(ifull,klt), intent(inout) :: tb,qb
+      real, dimension(ifull,klt,naero), intent(inout) :: xtgb
       real, dimension(ifull,klt) :: wb
       real, dimension(ifull_g,klt) :: tt
       real, dimension(ifull) :: da,db
@@ -708,7 +741,7 @@
         call slowspecmpi_work(cq,tt(:,1),pslb,1)
       end if
       if (nud_uv==3) then
-        call ccmpi_gatherall(ub(:,1:klt),tt(:,1:klt))
+        call ccmpi_gatherall(ub,tt)
         call slowspecmpi_work(cq,tt,ub,klt)
       else if (nud_uv>0) then
         ! vectors are processed as Cartesian coordinates (X,Y,Z),
@@ -720,11 +753,11 @@
           vb(:,k)=ay(1:ifull)*da+by(1:ifull)*db
           wb(:,k)=az(1:ifull)*da+bz(1:ifull)*db
         end do
-        call ccmpi_gatherall(ub(:,1:klt),tt(:,1:klt))
+        call ccmpi_gatherall(ub,tt)
         call slowspecmpi_work(cq,tt,ub,klt)
-        call ccmpi_gatherall(vb(:,1:klt),tt(:,1:klt))
+        call ccmpi_gatherall(vb,tt)
         call slowspecmpi_work(cq,tt,vb,klt)
-        call ccmpi_gatherall(wb(:,1:klt),tt(:,1:klt))
+        call ccmpi_gatherall(wb,tt)
         call slowspecmpi_work(cq,tt,wb,klt)
         ! Convert Cartesian vectors back to Conformal Cubic vectors
         do k=1,klt
@@ -737,13 +770,19 @@
         end do
       end if
       if (nud_t>0) then
-        call ccmpi_gatherall(tb(:,1:klt),tt(:,1:klt))
+        call ccmpi_gatherall(tb,tt)
         call slowspecmpi_work(cq,tt,tb,klt)
       end if
       if (nud_q>0) then
-        call ccmpi_gatherall(qb(:,1:klt),tt(:,1:klt))
+        call ccmpi_gatherall(qb,tt)
         call slowspecmpi_work(cq,tt,qb,klt)
       end if
+      if (nud_aero>0) then
+        do n=1,naero
+          call ccmpi_gatherall(xtg(:,:,n),tt)
+          call slowspecmpi_work(cq,tt,xtgb(:,:,n),klt)
+        end do
+      end if      
 
       return
       end subroutine slowspecmpi
@@ -803,8 +842,9 @@
 
       !---------------------------------------------------------------------------------
       ! Four pass spectral downscaling
-      subroutine specfastmpi(cin,psls,uu,vv,tt,qgg,lblock,klt)
+      subroutine specfastmpi(cin,psls,uu,vv,tt,qgg,xtgg,lblock,klt)
       
+      use aerosolldr         ! Aerosol interface
       use cc_mpi             ! CC MPI routines
       
       implicit none
@@ -817,14 +857,15 @@
       real, dimension(ifull), intent(inout) :: psls
       real, dimension(ifull,klt), intent(inout) :: uu,vv
       real, dimension(ifull,klt), intent(inout) :: tt,qgg
+      real, dimension(ifull,klt,naero), intent(inout) :: xtgg
       logical, intent(in) :: lblock
       
       if (npta==1) then
         ! face version (nproc>=6)
-        call spechost_n(cin,psls,uu,vv,tt,qgg,lblock,klt)
+        call spechost_n(cin,psls,uu,vv,tt,qgg,xtgg,lblock,klt)
       else
         ! normal version
-        call spechost(cin,psls,uu,vv,tt,qgg,lblock,klt)
+        call spechost(cin,psls,uu,vv,tt,qgg,xtgg,lblock,klt)
       end if
 
       return
@@ -835,8 +876,9 @@
       !---------------------------------------------------------------------------------
       ! This is the main routine for the scale-selective filter
       ! (see spechost_n for a reduced memory version)
-      subroutine spechost(cin,pslb,ub,vb,tb,qb,lblock,klt)
+      subroutine spechost(cin,pslb,ub,vb,tb,qb,xtgb,lblock,klt)
 
+      use aerosolldr        ! Aerosol interface
       use cc_mpi            ! CC MPI routines
       use vecsuv_m          ! Map to cartesian coordinates
       
@@ -846,11 +888,12 @@
       include 'parm.h'      ! Model configuration
       
       integer, intent(in) :: klt
-      integer n,k,ppass
+      integer i,k,n,ppass
       real, intent(in) :: cin
       real, dimension(ifull), intent(inout) :: pslb
       real, dimension(ifull,klt), intent(inout) :: ub,vb
       real, dimension(ifull,klt), intent(inout) :: tb,qb
+      real, dimension(ifull,klt,naero), intent(inout) :: xtgb
       real, dimension(ifull,klt) :: wb
       real, dimension(ifull_g,klt) :: tt,qt
       real, dimension(ifull) :: da,db
@@ -948,14 +991,29 @@
           vb(:,k)=db
         end do
       endif
+      if (nud_aero>0) then
+        do i=1,naero
+          call ccmpi_gathermap(xtgb(:,:,i), tt)
+          do ppass=pprocn,pprocx
+            qt(:,:)=tt(:,:)
+            call fastspecmpi_work(cin,qt,klt,ppass)
+            do k=1,klt
+              do n=1,ipan*jpan
+                xtgb(n+ipan*jpan*(ppass-pprocn),k,i)=qt(n,k)
+              end do
+            end do
+          end do
+        end do
+      end if      
 
       return
       end subroutine spechost
       !---------------------------------------------------------------------------------
 
       ! This version is for one panel per processor (reduced memory)
-      subroutine spechost_n(cin,pslb,ub,vb,tb,qb,lblock,klt)
+      subroutine spechost_n(cin,pslb,ub,vb,tb,qb,xtgb,lblock,klt)
 
+      use aerosolldr        ! Aerosol interface
       use cc_mpi            ! CC MPI routines
       use vecsuv_m          ! Map to cartesian coordinates
       
@@ -965,11 +1023,12 @@
       include 'parm.h'      ! Model configuration
       
       integer, intent(in) :: klt
-      integer k
+      integer k,n
       real, intent(in) :: cin
       real, dimension(ifull), intent(inout) :: pslb
       real, dimension(ifull,klt), intent(inout) :: ub,vb
       real, dimension(ifull,klt), intent(inout) :: tb,qb
+      real, dimension(ifull,klt,naero), intent(inout) :: xtgb
       real, dimension(ifull,klt) :: wb
       real, dimension(ifull_g,klt) :: tt
       real, dimension(ifull) :: da,db
@@ -1020,6 +1079,13 @@
         call fastspecmpi_work(cin,tt,klt,pprocn)
         qb(:,1:klt)=tt(1:ifull,1:klt)
       end if
+      if (nud_aero>0) then
+        do n=1,naero
+          call ccmpi_gathermap(xtgb(:,:,n), tt)
+          call fastspecmpi_work(cin,tt,klt,pprocn)
+          xtgb(:,1:klt,n)=tt(1:ifull,1:klt)
+        end do
+      end if      
 
       return
       end subroutine spechost_n

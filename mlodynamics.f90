@@ -4853,7 +4853,7 @@ do ll=1,llmax
     
     ! The following expression limits the minimum depth
     ! (should not occur for typical eta values)
-    seta(iqx(1:ifullcol(nx),nx))=max(setac(1:ifullcol(nx)),-(neta(iqx(1:ifullcol(nx),nx))+dd(iqx(1:ifullcol(nx),nx)))) ! this should become a land point
+    seta(iqx(1:ifullcol(nx),nx))=max(setac(1:ifullcol(nx)),-(neta(iqx(1:ifullcol(nx),nx))+dd(iqx(1:ifullcol(nx),nx))))
     seta(iqx(1:ifullcol(nx),nx))=seta(iqx(1:ifullcol(nx),nx))*ee(iqx(1:ifullcol(nx),nx))
     neta(iqx(1:ifullcol(nx),nx))=neta(iqx(1:ifullcol(nx),nx))+seta(iqx(1:ifullcol(nx),nx))
 

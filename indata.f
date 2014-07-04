@@ -8,6 +8,7 @@
       subroutine indata(hourst,jalbfix,lapsbot,isoth,nsig)
      
       use aerointerface                        ! Aerosol interface
+      use aerosolldr, only : xtg,naero         ! LDR prognostic aerosols
       use arrays_m                             ! Atmosphere dyamics prognostic arrays
       use ateb                                 ! Urban
       use bigxy4_m                             ! Grid interpolation
@@ -85,6 +86,7 @@
       real, dimension(ifull,5) :: duma
       real, dimension(ifull,2) :: ocndwn
       real, dimension(ifull,wlev,4) :: mlodwn
+      real, dimension(ifull,kl,naero) :: xtgdwn
       real, dimension(ifull,kl,7) :: dumb
       real, dimension(:,:), allocatable :: glob2d
       real, dimension(:), allocatable :: davt_g
@@ -635,7 +637,7 @@
         if (abs(io_in)==1) then
           call onthefly(0,kdate,ktime,psl,zss,tss,sicedep,
      &         fracice,t,u,v,qg,tgg,wb,wbice,snowd,qfg,qlg,qrg,
-     &         tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,ocndwn)
+     &         tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,ocndwn,xtgdwn)
         endif   ! (abs(io_in)==1)
         if(mydiag)then
           write(6,*)'ds,zss',ds,zss(idjd)
@@ -1156,15 +1158,15 @@
      &       duma(:,4),duma(:,5),dumb(:,:,1),dumb(:,:,2),dumb(:,:,3),
      &       dumb(:,:,4),tgg,wb,wbice,snowd,dumb(:,:,5),
      &       dumb(:,:,6),dumb(:,:,7),tggsn,smass,ssdn,ssdnn,snage,
-     &       isflag,mlodwn,ocndwn)
-         if(kdate/=kdate_sav.or.ktime/=ktime_sav)then
-          if (myid==0) then
-           write(6,*) 'WARN: Could not locate correct date/time'
-           write(6,*) '      Using infile surface data instead'
-          end if
-          kdate=kdate_sav
-          ktime=ktime_sav
-         endif
+     &       isflag,mlodwn,ocndwn,xtgdwn)
+        if(kdate/=kdate_sav.or.ktime/=ktime_sav)then
+         if (myid==0) then
+          write(6,*) 'WARN: Could not locate correct date/time'
+          write(6,*) '      Using infile surface data instead'
+         end if
+         kdate=kdate_sav
+         ktime=ktime_sav
+        endif
        else
 !       for sequence of runs starting with values saved from last run
         if(ktime==1200)then
@@ -1956,6 +1958,13 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
         deallocate(atebdwn)
       end if
 
+
+      !-----------------------------------------------------------------
+      ! UPDATE AEROSOL DATA (iaero)
+      if ( abs(iaero)>=2 ) then
+        xtg(1:ifull,:,:)=xtgdwn(:,:,:)
+      end if
+      
 
       !--------------------------------------------------------------     
       ! WRITE FORT.22 FILE FOR GRID INFO

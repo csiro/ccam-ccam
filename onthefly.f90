@@ -28,8 +28,9 @@ logical iotest, newfile
 contains
     
 subroutine onthefly(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice,snowd,qfg, &
-                    qlg,qrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,ocndwn)
+                    qlg,qrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,ocndwn,xtgdwn)
 
+use aerosolldr       ! LDR prognostic aerosols
 use cc_mpi           ! CC MPI routines
 use infile           ! Input file routines
 use mlo              ! Ocean physics and prognostic arrays
@@ -54,6 +55,7 @@ integer, dimension(nihead) :: nahead
 integer, dimension(ifull), intent(out) :: isflag
 real timer
 real, dimension(ifull,wlev,4), intent(out) :: mlodwn
+real, dimension(ifull,kl,naero), intent(out) :: xtgdwn
 real, dimension(ifull,ms), intent(out) :: wb,wbice,tgg
 real, dimension(ifull,3), intent(out) :: tggsn,smass,ssdn
 real, dimension(ifull,2), intent(out) :: ocndwn
@@ -219,11 +221,11 @@ end if
       
 if ( myid==0 ) then
   call ontheflyx(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice,snowd,qfg,qlg, &
-                 qrg,tggsn,smass,ssdn,ssdnn,snage,isflag,ik,mlodwn,ocndwn)
+                 qrg,tggsn,smass,ssdn,ssdnn,snage,isflag,ik,mlodwn,ocndwn,xtgdwn)
   write(6,*) "Leaving onthefly"
 else
   call ontheflyx(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice,snowd,qfg,qlg, &
-                 qrg,tggsn,smass,ssdn,ssdnn,snage,isflag,0,mlodwn,ocndwn)
+                 qrg,tggsn,smass,ssdn,ssdnn,snage,isflag,0,mlodwn,ocndwn,xtgdwn)
 end if
 
 call END_LOG(onthefly_end)
@@ -239,9 +241,9 @@ end subroutine onthefly
 ! fields which avoids memory problems when the host grid
 ! size is significantly larger than the regional grid size.
 subroutine ontheflyx(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice,snowd,qfg,qlg,  &
-                     qrg,tggsn,smass,ssdn,ssdnn,snage,isflag,dk,mlodwn,ocndwn)
+                     qrg,tggsn,smass,ssdn,ssdnn,snage,isflag,dk,mlodwn,ocndwn,xtgdwn)
       
-use aerosolldr, only : xtg,ssn,naero           ! LDR aerosol scheme
+use aerosolldr, only : ssn,naero               ! LDR aerosol scheme
 use ateb, only : atebdwn                       ! Urban
 use cable_def_types_mod, only : ncs, ncp       ! CABLE dimensions
 use casadimension, only : mplant,mlitter,msoil ! CASA dimensions
@@ -299,6 +301,7 @@ integer, dimension(1) :: str, cnt
 real(kind=8), dimension(:,:), allocatable, save :: xx4,yy4
 real(kind=8), dimension(dk*dk*6):: z_a,x_a,y_a
 real, dimension(ifull,wlev,4), intent(out) :: mlodwn
+real, dimension(ifull,kl,naero), intent(out) :: xtgdwn
 real, dimension(ifull,ok,2) :: mloin
 real, dimension(ifull,2), intent(out) :: ocndwn
 real, dimension(ifull,ms), intent(out) :: wb,wbice,tgg
@@ -808,6 +811,42 @@ if ( nested==0 .or. ( nested==1 .and. nud_test/=0 ) ) then
 end if
 
 
+!------------------------------------------------------------
+! Aerosol data
+if ( abs(iaero)>=2 .and. ( nested/=1 .or. nud_aero/=0 ) ) then
+  do i=1,naero
+    select case(i)
+      case(1)
+        vname='dms'
+      case(2)
+        vname='so2'
+      case(3)
+        vname='so4'
+      case(4)
+        vname='bco'
+      case(5)
+        vname='bci'
+      case(6)
+        vname='oco'
+      case(7)
+        vname='oci'
+      case(8)
+        vname='dust1'
+      case(9)
+        vname='dust2'
+      case(10)
+        vname='dust3'
+      case(11)
+        vname='dust4'
+      case default
+        write(6,*) "ERROR: Unknown aerosol type ",i
+        call ccmpi_abort(-1)
+    end select
+    call gethist4(vname,xtgdwn(:,:,i),5)
+  end do
+end if
+
+
 !**************************************************************
 ! This is the end of reading the nudging arrays
 !**************************************************************
@@ -1255,30 +1294,8 @@ if ( nested/=1 ) then
   !------------------------------------------------------------
   ! Aerosol data
   if ( abs(iaero)>=2 ) then
-    do i=1,naero+2
+    do i=naero+1,naero+2
       select case(i)
-        case(1)
-          vname='dms'
-        case(2)
-          vname='so2'
-        case(3)
-          vname='so4'
-        case(4)
-          vname='bco'
-        case(5)
-          vname='bci'
-        case(6)
-          vname='oco'
-        case(7)
-          vname='oci'
-        case(8)
-          vname='dust1'
-        case(9)
-          vname='dust2'
-        case(10)
-          vname='dust3'
-        case(11)
-          vname='dust4'
         case(12)
           vname='seasalt1'
         case(13)
@@ -1287,21 +1304,15 @@ if ( nested/=1 ) then
           write(6,*) "ERROR: Unknown aerosol type ",i
           call ccmpi_abort(-1)
       end select
-      if ( i<=naero ) then  
-        call gethist4(vname,xtg(:,:,i),5)
-      else
-        call gethist4(vname,ssn(:,:,i-naero),5)
-      end if
+      call gethist4(vname,ssn(:,:,i-naero),5)
     end do
-    if ( iaero/=0 ) then
-      ! Factor 1.e3 to convert to g/m2, x 3 to get sulfate from sulfur
-      so4t(:)=0.
-      do k=1,kl
-        so4t(:)=so4t(:)+3.e3*xtg(1:ifull,k,3)*(-1.e5*exp(psl(1:ifull))*dsig(k))/grav
-      enddo
-    end if
+    ! Factor 1.e3 to convert to g/m2, x 3 to get sulfate from sulfur
+    so4t(:)=0.
+    do k=1,kl
+      so4t(:)=so4t(:)+3.e3*xtgdwn(:,k,3)*(-1.e5*exp(psl(1:ifull))*dsig(k))/grav
+    enddo
   end if
-
+  
   if ( nested==0 ) then
     ! GEOPOTENTIAL !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! only for restart - no interpolation
