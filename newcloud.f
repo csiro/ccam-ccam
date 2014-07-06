@@ -11,12 +11,6 @@ c      lon - number of points around a latitude circle
 c      ln2 - number of points for NH+SH latitude circles sequentially
 c      nl - number of vertical levels
 c
-c from common/fewflags in FEWFLAGS.f
-c      debug - namelist flag to control single column debugging
-c      lgdebug - latitude index for single column debugging (1 for CCAM)
-c      insdebug - hemisphere index for single column debugging
-c      mgdebug  - index for single column debugging (set to idjd for CCAM)
-c
 c see also include files physparams.h (model physical constants)
 c                        cparams.h    (cloud scheme parameters)
 c
@@ -56,21 +50,23 @@ c This routine is part of the prognostic cloud water scheme
       use estab, only : esdiffx, qsati
       use map_m
       use sigs_m
+
       implicit none
+
 C Global parameters
       include 'newmpar.h'
-      include 'const_phys.h' !Input physical constants
-      include 'cparams.h'    !Input cloud scheme parameters
-      include 'kuocom.h'     !Input cloud scheme parameters rcrit_l & rcrit_s
-      include 'params.h'     !Input model grid dimensions (modified params.h for CCAM)
+      include 'const_phys.h' ! Input physical constants
+      include 'cparams.h'    ! Input cloud scheme parameters
+      include 'kuocom.h'     ! Input cloud scheme parameters rcrit_l & rcrit_s
+      include 'params.h'     ! Input model grid dimensions (modified params.h for CCAM)
       include 'parm.h'
 
 C Argument list
       real tdt,den1
       logical land(ln2)
-      real prf(ln2,nl)
       integer kbase(ln2)
       integer ktop(ln2)
+      real prf(ln2,nl)
       real rhoa(ln2,nl)
       real ttg(ln2,nl)
       real qtg(ln2,nl)
@@ -94,6 +90,7 @@ C Local work arrays and variables
       real cdrop(ln2,nl)
       real rcrit(ln2,nl)
       real qsi(ln2,nl)
+      real qfnew(ln2,nl)
 
       integer k
       integer mg
@@ -116,7 +113,6 @@ C Local work arrays and variables
       real pk
       real qc
       real qfdep
-      real qfnew(ln2,nl)
       real qi0
       real qs
       real rhoic
@@ -124,16 +120,6 @@ C Local work arrays and variables
       real root6i
       real tk
       real qcic,qcrit,qc2,qto,wliq,r3c,r6c,eps,beta6
-      real fi
-
-C Local data, functions etc
-      logical ukconv
-      integer naerosol_i(2)
-      data  ukconv, naerosol_i / .false., 2*0 /
-      logical debug
-      integer lgdebug,insdebug   ! 1,idjd
-      data debug,lgdebug,insdebug /.false.,1,1/
-      save ukconv,naerosol_i,debug,lgdebug,insdebug
 
 C Start code : ----------------------------------------------------------
 
@@ -155,21 +141,15 @@ c First melt cloud ice or freeze cloud water to give correct ice fraction fice.
 c Then calculate the cloud conserved variables qtot and tliq.
 c Note that qcg is the total cloud water (liquid+frozen)
 
-      do k=1,nl
-        do mg=1,ln2
-          if(ttg(mg,k)>=tfrz)then
-            fice(mg,k)=0.
-          elseif(ttg(mg,k)>=tice)then
-            if(qfg(mg,k)>1.0e-12)then
-              fice(mg,k)=min(qfg(mg,k)/(qfg(mg,k)+qlg(mg,k)), 1.)
-            else
-              fice(mg,k)=0.
-            endif
-          else
-            fice(mg,k)=1.
-          endif
-        end do
-      end do
+      where(ttg>=tfrz)
+        fice=0.
+      elsewhere(ttg>=tice.and.qfg(1:ifull,:)>1.e-12)
+        fice=min(qfg(1:ifull,:)/(qfg(1:ifull,:)+qlg(1:ifull,:)),1.)
+      elsewhere(ttg>=tice)
+        fice=0.
+      elsewhere
+        fice=1.
+      end where
       qcg(:,:)=qlg(1:ifull,:)+qfg(1:ifull,:)
       qcold(:,:)=qcg(:,:)
       qfnew=fice(:,:)*qcg(:,:)
@@ -276,7 +256,7 @@ c          for rcit_l=.75 & nclddia=12 get rcrit=(.797,.9, .9375, .971, .985) fo
             endif
            enddo
           enddo
-          if(mydiag)write(6,*)'rcrit',rcrit(idjd,:)
+          !if(mydiag)write(6,*)'rcrit',rcrit(idjd,:)
         endif  ! (nclddia<0)  .. else ..
 
 c Calculate cloudy fraction of grid box (cfrac) and gridbox-mean cloud water
@@ -284,8 +264,7 @@ c using the triangular PDF of Smith (1990)
 
         do k=1,nl
           do mg=1,ln2
-            fi=fice(mg,k)
-            hlrvap=(hl+fi*hlf)/rvap
+            hlrvap=(hl+fice(mg,k)*hlf)/rvap
             qtot(mg,k)=qtg(mg,k)+qcg(mg,k)
             tliq(mg,k)=ttg(mg,k)-hlcp*qcg(mg,k)-hlfcp*qfg(mg,k)
 
@@ -295,12 +274,12 @@ c Calculate qs and gam=(L/cp)*dqsdt,  at temperature tliq
             !deles=esdiff(min(max(-40,(nint(tliq(mg,k)-tfrz))),1)) ! MJT suggestion
             deles=esdiffx(tliq(mg,k))                              ! MJT suggestion
             qsl(mg,k)=qsi(mg,k)+epsil*deles/pk       !qs over liquid
-            qsw(mg,k)=fi*qsi(mg,k)+(1.-fi)*qsl(mg,k) !Weighted qs at temperature Tliq
+            qsw(mg,k)=fice(mg,k)*qsi(mg,k)+(1.-fice(mg,k))*qsl(mg,k) !Weighted qs at temperature Tliq
             qs=qsw(mg,k)
             dqsdt=qs*hlrvap/tliq(mg,k)**2
 c           qvc(mg,k)=qs !Vapour mixing ratio in cloud
 
-            al=1./(1.+(hlcp+fi*hlfcp)*dqsdt)    !Smith's notation
+            al=1./(1.+(hlcp+fice(mg,k)*hlfcp)*dqsdt)    !Smith's notation
             qc=qtot(mg,k)-qs
 
             delq=(1.-rcrit(mg,k))*qs      !UKMO style (equivalent to above)
@@ -386,12 +365,12 @@ c Need to do first-order estimate of qcrit using mean in-cloud qc (qcic)
         do k=1,nl
           do mg=1,ln2
             pk=100.0*prf(mg,k)
-            qsi(mg,k)=qsati(pk,ttg(mg,k))     !Ice value
+            qsi(mg,k)=qsati(pk,ttg(mg,k))      ! Ice value
             deles=esdiffx(ttg(mg,k))
             qsl(mg,k)=qsi(mg,k)+epsil*deles/pk ! Liquid value
           end do
         end do
-        qsw(:,:)=fice*qsi+(1.-fice)*qsl !Weighted qs at temperature Tliq
+        qsw(:,:)=fice*qsi+(1.-fice)*qsl        ! Weighted qs at temperature Tliq
         call progcloud(cfrac,qcg,qtot,prf,rhoa,fice,qsw,ttg)
         
         ! Use 'old' autoconversion with prognostic cloud
@@ -405,19 +384,19 @@ c Introduce a time-decay factor for cirrus (as suggested by results of Khvorosty
 c JAS, 55, 1822-1845, 1998). Their suggested range for the time constant is 0.5 to 2 hours.
 c The grid-box-mean values of qtg and ttg are adjusted later on (below).
 
-      do k=1,nl
-        do mg=1,ln2
-          if(ttg(mg,k)>=Tice)then
-            qfg(mg,k) = fice(mg,k)*qcg(mg,k)
-            qlg(mg,k) = qcg(mg,k) - qfg(mg,k)
-          else                                    ! Cirrus T range
-            decayfac = exp ( (-1./7200.) * tdt )  ! Try 2 hrs
-c           decayfac = 0.                         ! Instant adjustment (old scheme)
-            qfg(mg,k) = qcold(mg,k)*decayfac + qcg(mg,k)*(1.-decayfac)
-            qcg(mg,k) = qfg(mg,k)
-          endif
-        enddo
-      enddo
+      if (ncloud<3) then
+        decayfac = exp ( (-1./7200.) * tdt )       ! Try 2 hrs
+      else
+        decayfac = 0.                              ! Instant adjustment (old scheme)
+      end if
+      where(ttg>=Tice)
+        qfg(1:ifull,:) = fice*qcg
+        qlg(1:ifull,:) = qcg - qfg(1:ifull,:)
+      elsewhere                                    ! Cirrus T range
+        qfg(1:ifull,:) = qcold*decayfac + qcg*(1.-decayfac)
+        qlg(1:ifull,:) = 0.
+        qcg = qfg(1:ifull,:)
+      end where
 
 c Do the vapour deposition calculation in mixed-phase clouds:
 c Calculate deposition on cloud ice, assuming es(T) is the weighted value of the 

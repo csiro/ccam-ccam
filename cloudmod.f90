@@ -47,19 +47,22 @@ real, dimension(ifull,kl), intent(out) :: cloudfrac
 real, dimension(ifull,kl), intent(inout) :: qc ! condensate = qf + ql
 real, dimension(ifull,kl), intent(in) :: qtot, rho, fice, qs, t
 real, dimension(ifull), intent(in) :: ps
-real, dimension(ifull,kl) :: u00p, erosion_scale
+real, dimension(ifull,kl) :: erosion_scale
 real, dimension(ifull,kl) :: dqs, cfbar, qv
 real, dimension(ifull,kl) :: cf1, cfeq, a_dt, b_dt
 real, dimension(ifull,kl) :: dqsdT, mflx, gamma
 real, dimension(ifull,kl) :: aa, bb, cc, omega
 real, dimension(ifull,kl) :: cmflx, hlrvap, xf, at
+real, dimension(kl) :: u00p
 integer k
 
 stratcloud(1:ifull,:)=max( min( stratcloud(1:ifull,:), 1. ), 0. )
 qv = qtot-qc
 
 ! Critical relative humidity (neglected profile option)
-u00p(:,:) = u00crit
+do k=1,kl
+  u00p(k) = max( u00crit, sig(k) )
+end do
 
 ! background erosion scale in 1/secs
 erosion_scale(:,:) = 1.E-6
@@ -101,7 +104,9 @@ end if
 ! BB = -(1+gamma*cf)
 ! CC = ((omega + grav*mflx)/(cp*rho)+netten)*dqsdT*dt
 
-xf = max(min( (qv/qs - u00p - u00ramp ) / ( 2.*u00ramp ), 1. ), 0. ) ! MJT suggestion
+do k=1,kl
+  xf(:,k) = max(min( (qv(:,k)/qs(:,k) - u00p(k) - u00ramp ) / ( 2.*u00ramp ), 1. ), 0. ) ! MJT suggestion
+end do
 cc = ((omega + grav*cmflx)/(cp*rho)+nettend)*dt*dqsdT
 at = 1.-stratcloud(1:ifull,:)
 aa = 0.5*at/max( qs-qv, 1.e-10 )

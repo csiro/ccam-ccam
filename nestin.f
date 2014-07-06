@@ -366,12 +366,10 @@
       real, dimension(:), allocatable, save :: sicedepb
       real, dimension(:,:,:), allocatable, save :: sssb
       real, dimension(:,:,:), allocatable, save :: xtghostb
-      real, dimension(ifull) :: zsb,pslc,duma,timelt
+      real, dimension(ifull) :: zsb,duma,timelt
       real, dimension(ifull,ms) :: dumg
       real, dimension(ifull,kl) :: dumv
-      real, dimension(ifull,kl) :: uc,vc,tc,qc
       real, dimension(ifull,3) :: dums
-      real, dimension(ifull,kl,naero) :: xtgc
  
       ! allocate arrays on first call     
       if (.not.allocated(tb)) then
@@ -470,13 +468,15 @@
         ! atmospheric nudging if required
         if (nud_p/=0.or.nud_t/=0.or.nud_uv/=0.or.nud_q/=0.or.
      &      nud_aero/=0) then
-          pslc(:)=pslb(:)-psl(1:ifull)
-          uc(:,:)=ub(:,:)-u(1:ifull,:)
-          vc(:,:)=vb(:,:)-v(1:ifull,:)
-          tc(:,:)=tb(:,:)-t(1:ifull,:)
-          qc(:,:)=qb(:,:)-qg(1:ifull,:)
-          xtgc(:,:,:)=xtghostb(:,:,:)-xtg(1:ifull,:,:)
-          call getspecdata(pslc,uc,vc,tc,qc,xtgc)
+          pslb(:)=pslb(:)-psl(1:ifull)
+          ub(:,:)=ub(:,:)-u(1:ifull,:)
+          vb(:,:)=vb(:,:)-v(1:ifull,:)
+          tb(:,:)=tb(:,:)-t(1:ifull,:)
+          qb(:,:)=qb(:,:)-qg(1:ifull,:)
+          if (abs(iaero)>=2.and.nud_aero/=0) then
+            xtghostb(:,:,:)=xtghostb(:,:,:)-xtg(1:ifull,:,:)
+          end if
+          call getspecdata(pslb,ub,vb,tb,qb,xtghostb)
         end if
 
         ! specify sea-ice if not AMIP or Mixed-Layer-Ocean
@@ -695,7 +695,7 @@
         qgsav(:,kbotdav:ktopdav)=max(qgsav(:,kbotdav:ktopdav)
      &   +qb(:,kbotdav:ktopdav),0.)
       end if
-      if (nud_aero>0) then
+      if (abs(iaero)>=2.and.nud_aero>0) then
         xtg(1:ifull,kbotdav:ktopdav,:)=xtg(1:ifull,kbotdav:ktopdav,:)
      &    +xtgb(:,kbotdav:ktopdav,:)
       end if
@@ -1083,7 +1083,7 @@
         do n=1,naero
           call ccmpi_gathermap(xtgb(:,:,n), tt)
           call fastspecmpi_work(cin,tt,klt,pprocn)
-          xtgb(:,1:klt,n)=tt(1:ifull,1:klt)
+          xtgb(:,:,n)=tt(1:ifull,:)
         end do
       end if      
 
