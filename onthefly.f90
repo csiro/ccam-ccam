@@ -14,6 +14,11 @@ module onthefly_m
 ! of the input data is sent to all processors and each
 ! processor performs its own interpolation.
 
+implicit none
+    
+private
+public onthefly, retopo
+    
 integer, parameter :: nord = 3        ! 1 for bilinear, 3 for bicubic interpolation
 integer, save :: ik, jk, kk, ok, nsibx
 integer, dimension(:,:), allocatable, save :: nface4
@@ -754,10 +759,11 @@ if ( nested==0 .or. ( nested==1 .and. nud_test/=0 ) ) then
       call doints4(ucc,u_k(:,k))                ! ints4 on source grid
     end do
   end if ! iotest
-  call vertint(u_k ,t, 1,kk,sigin)
+  call vertint(u_k,t,1,kk,sigin)
 else
   t(1:ifull,:)=300.    
 end if ! (nested==0.or.(nested==1.and.(nud_t/=0.or.nud_p/=0)))
+
 ! winds
 ! read for nested=0 or nested=1.and.nud_uv/=0
 if ( nested==0 .or. ( nested==1 .and. nud_uv/=0 ) ) then
@@ -784,6 +790,7 @@ else
   u(1:ifull,:)=0.
   v(1:ifull,:)=0.
 end if ! (nested==0.or.(nested==1.and.nud_uv/=0))
+
 ! mixing ratio
 ! read for nested=0 or nested=1.and.nud_q/=0
 if ( nested==0 .or. ( nested==1 .and. nud_q/=0 ) ) then
@@ -1882,7 +1889,7 @@ include 'parm.h'          ! Model configuration
 
 integer iq
 real siglev
-real, dimension(6*ik*ik) :: pmsl,psl,zs,t
+real, dimension(6*ik*ik) :: pmsl, psl, zs, t
 real c, con, conr
 real, dimension(6*ik*ik) :: dlnps, phi1, tav, tsurf
 
@@ -1912,8 +1919,8 @@ include 'newmpar.h'        ! Grid parameters
 include 'const_phys.h'     ! Physical constants
 include 'parm.h'           ! Model configuration
       
-integer iq,lev
-real, dimension(ifull) :: pmsl,psl,zs,t
+integer iq, lev
+real, dimension(ifull) :: pmsl, psl, zs, t
 real, dimension(ifull) :: dlnps, phi1, tav, tsurf
 
 phi1(:)=t(:)*rdry*(1.-sig(lev))/sig(lev) ! phi of sig(lev) above sfce
@@ -2058,5 +2065,70 @@ call vertint(u_k,varout,vmode,kk,sigin)
       
 return
 end subroutine gethist4   
+
+subroutine retopo(psl,zsold,zs,t,qg)
+!     in Jan 07, renamed recalc of ps from here, to reduce confusion     
+!     this version (Aug 2003) allows -ve zsold (from spectral model),
+!     but assumes new zs is positive for atmospheric purposes
+!     this routine redefines psl, t to compensate for zsold going to zs
+!     (but does not overwrite zs, ps themselves here)
+!     called by indata and nestin for newtop>=1
+!     nowadays just for ps and atmospheric fields Mon  08-23-1999
+use cc_mpi, only : mydiag
+use diag_m
+use sigs_m
+
+implicit none
+
+include 'newmpar.h'
+include 'const_phys.h'
+include 'parm.h'
+
+real, dimension(ifull), intent(inout) :: psl
+real, dimension(ifull), intent(in) :: zsold, zs
+real, dimension(ifull,kl), intent(inout) :: t, qg
+real, dimension(ifull) :: psnew, psold, pslold
+real, dimension(kl) :: told, qgold
+real sig2
+integer iq, k, kkk
+      
+do iq=1,ifull
+  pslold(iq)=psl(iq)
+  psold(iq)=1.e5*exp(psl(iq))
+  psl(iq)=psl(iq)+(zsold(iq)-zs(iq))/(rdry*t(iq,1))
+  psnew(iq)=1.e5*exp(psl(iq))
+end do
+!     now alter temperatures to compensate for new topography
+if(ktau<100.and.mydiag)then
+  write(6,*) 'retopo: zsold,zs,psold,psnew ',zsold(idjd),zs(idjd),psold(idjd),psnew(idjd)
+  write(6,*) 'retopo: old t ',(t(idjd,k),k=1,kl)
+  write(6,*) 'retopo: old qg ',(qg(idjd,k),k=1,kl)
+endif  ! (ktau.lt.100)
+do iq=1,ifull
+  do k=1,kl
+    qgold(k)=qg(iq,k)
+    told(k)=t(iq,k)
+  enddo  ! k loop
+  do k=1,kl-1
+    sig2=sig(k)*psnew(iq)/psold(iq)
+    if(sig2>=sig(1))then
+!     assume 6.5 deg/km, with dsig=.1 corresponding to 1 km
+      t(iq,k)=told(1)+(sig2-sig(1))*6.5/.1  
+    else
+      do kkk=2,kl
+        if(sig2>sig(kkk)) exit
+      end do
+      t(iq,k)=(told(kkk)*(sig(kkk-1)-sig2)+told(kkk-1)*(sig2-sig(kkk)))/(sig(kkk-1)-sig(kkk))
+      qg(iq,k)=(qgold(kkk)*(sig(kkk-1)-sig2)+qgold(kkk-1)*(sig2-sig(kkk)))/(sig(kkk-1)-sig(kkk))
+    endif
+  enddo  ! k loop
+enddo   ! iq loop
+if(ktau<100.and.mydiag)then
+  write(6,*) 'retopo: new t ',(t(idjd,k),k=1,kl)
+  write(6,*) 'retopo: new qg ',(qg(idjd,k),k=1,kl)
+endif  ! (ktau.lt.100)
+
+return
+end subroutine retopo
 
 end module onthefly_m
