@@ -6,10 +6,10 @@
       use diag_m
       use dpsdt_m
       use epst_m
+      use helmsolve
       use indices_m
       use liqwpar_m  ! qfg,qlg
       use map_m
-      use mgsolve
       use morepbl_m  ! condx,eg
       use nharrs_m
       use nlin_m

@@ -4853,7 +4853,7 @@ do ll=1,llmax
     
     ! The following expression limits the minimum depth
     ! (should not occur for typical eta values)
-    seta(iqx(1:ifullcol(nx),nx))=max(setac(1:ifullcol(nx)),-(neta(iqx(1:ifullcol(nx),nx))+dd(iqx(1:ifullcol(nx),nx))))
+    seta(iqx(1:ifullcol(nx),nx))=max(setac(1:ifullcol(nx)),-(neta(iqx(1:ifullcol(nx),nx))+dd(iqx(1:ifullcol(nx),nx)))) 
     seta(iqx(1:ifullcol(nx),nx))=seta(iqx(1:ifullcol(nx),nx))*ee(iqx(1:ifullcol(nx),nx))
     neta(iqx(1:ifullcol(nx),nx))=neta(iqx(1:ifullcol(nx),nx))+seta(iqx(1:ifullcol(nx),nx))
 
@@ -4926,8 +4926,8 @@ subroutine mlomg(tol,itol,neta,sue,svn,suw,svs,pue,pvn,puw,pvs,que,qvn,quw,qvs, 
                   pdiv,pdivb,sdiv,sdivb,odiv,odivb,qdiv,qdivb,xps,                                  &
                   ipice,ibu,ibv,idu,idv,niu,niv,sicedep,ipmax,totits,itc,maxglobseta,maxglobip)
 
+use helmsolve
 use indices_m
-use mgsolve
 use map_m
 
 implicit none
