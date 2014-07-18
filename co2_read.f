@@ -45,7 +45,7 @@ c  was unit 15 for DARLAM, unit 17 for conformal-cubic
         if (myid==0) then
           nlev=0
           read(lu,*,iostat=ierr) nlev
-          if (ierr==0) then ! old format
+          if (nlev>0) then ! old format
             read(lu,*) (sigin(1),i=nlev,1,-1)
             read(lu,*) rrvco2
             rrvch4=0.
@@ -58,9 +58,9 @@ c  was unit 15 for DARLAM, unit 17 for conformal-cubic
             iyr=-9999
             do while (iyr.lt.jyear)
               read(lu,*,iostat=ierr) iyr,rcn(1:35)
-              if (ierr.lt.0) then
+              if (ierr<0) then
                 write(6,*) "ERROR: Cannot find concentration data"
-                stop
+                call ccmpi_abort(-1)
               end if
             end do
             rrvco2=rcn(3)*1.E-6
@@ -107,7 +107,7 @@ c  was unit 15 for DARLAM, unit 17 for conformal-cubic
 c       Check that the number of levels is the same
         if ( nlev.ne.kl ) then
 	    write(6,*) ' ERROR - Number of levels wrong in co2_data file'
-	    stop
+	    call ccmpi_abort(-1)
         end if
 c       Check that the sigma levels are the same
 c       Note that the radiation data has the levels in the reverse order
@@ -117,7 +117,7 @@ c       Note that the radiation data has the levels in the reverse order
 	    if ( abs(sigma(k)-sigin(k)) .gt. sigtol ) then
 	      write(6,*) ' ERROR - sigma level wrong in co2_data file'
 	      write(6,*) k, sigma(k), sigin(k)
-	      stop
+	      call ccmpi_abort(-1)
           end if
         end do
         read(lu,*) rrvco2
