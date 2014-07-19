@@ -42,6 +42,7 @@
      &   ,lrestart
       use nlin_m                              ! Atmosphere non-linear dynamics
       use nsibd_m                             ! Land-surface arrays
+      use outcdf                              ! Output file routines
       use parmhdff_m                          ! Horizontal diffusion parameters
       use pbl_m                               ! Boundary layer arrays
       use permsurf_m, only : permsurf_init    ! Fixed surface arrays
@@ -1363,7 +1364,7 @@
           call convjlm         ! split convjlm 
         case(46)
           !call conjob          ! split Arakawa-Gordon scheme
-          write(6,*) "ERROR: Conjob no longer supported"
+          write(6,*) "ERROR: Conjob no longer supported with nkuo=46"
           call ccmpi_abort(-1)
       end select
       cbas_ave(:)=cbas_ave(:)+condc(:)*(1.1-sig(kbsav(:)))      ! diagnostic
@@ -1954,6 +1955,7 @@
         precc(:)      =0.  ! converted to mm/day in outcdf
         sno(:)        =0.  ! converted to mm/day in outcdf
         runoff(:)     =0.  ! converted to mm/day in outcdf
+        u10mx(:)      =0.
         if (ngas>0) then
           traver=0.
         end if
