@@ -111,9 +111,9 @@ else
     write(6,*)'co2_read sigin=',sigin
     do k=1,kl
       if ( abs(sigma(k)-sigin(k)) > sigtol ) then
-	    write(6,*) ' ERROR - sigma level wrong in co2_data file'
-	    write(6,*) k, sigma(k), sigin(k)
-	    call ccmpi_abort(-1)
+        write(6,*) ' ERROR - sigma level wrong in co2_data file'
+        write(6,*) k, sigma(k), sigin(k)
+        call ccmpi_abort(-1)
       end if
     end do
     read(lu,*) rrvco2
