@@ -435,7 +435,6 @@ include 'parm.h'                                 ! Model configuration
 include 'parmdyn.h'                              ! Dynamics parameters
 include 'parmvert.h'                             ! Vertical advection parameters
 include 'soilv.h'                                ! Soil parameters
-include 'trcom2.h'                               ! Station data
 include 'version.h'                              ! Model version data
 
 integer ixp,iyp,idlev,idnt,idms,idoc

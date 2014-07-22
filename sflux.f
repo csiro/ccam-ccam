@@ -53,7 +53,6 @@
       include 'parmgeom.h'               ! Coordinate data
       include 'parmsurf.h'               ! Surface parameters
       include 'soilv.h'                  ! Soil parameters
-      include 'trcom2.h'                 ! Station data
 
       integer iq,k,it,ip,iqmin1,iqmax1,iqmin2,iqmax2
       integer, intent(in) :: nalpha
@@ -982,7 +981,6 @@ c***  end of surface updating loop
       include 'dates.h'                ! Date data
       include 'parm.h'                 ! Model configuration
       include 'soilv.h'                ! Soil parameters
-      include 'trcom2.h'               ! Station data
 
       integer nbarewet,nsigmf
       common/nsib/nbarewet,nsigmf      ! Land-surface options
