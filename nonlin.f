@@ -162,10 +162,6 @@
           call vadvtvd(t,u,v,nvadh_pass,nits)
       endif  ! (nvad==4.or.nvad==9)
 
-      if(nvad>=7)then
-         call vadv30(t(1:ifull,:),u(1:ifull,:),v(1:ifull,:))  ! for vadvbess
-      endif
-
 #ifdef debug
       if(nvad>0.and.(diag.or.nmaxpr==1).and.mydiag)then
        write(6,*) 'in nonlin after vertical advection'

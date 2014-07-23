@@ -516,9 +516,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
           ! be changed. With assumed shape arguments this wouldn't be necessary
           call vadvtvd(t,u,v,nvadh_pass,nits)
         endif  !  nvad==4 .or. nvad==9
-        if(nvad>=7) call vadv30(t(1:ifull,:),
-     &                            u(1:ifull,:),
-     &                            v(1:ifull,:)) ! for vadvbess
+
 #ifdef debug
         if (( diag.or.nmaxpr==1) .and. mydiag ) then
           write(6,*) 'after vertical advection in adjust5'
