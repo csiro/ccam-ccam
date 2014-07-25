@@ -17,7 +17,7 @@ public ppmaccr, ppfstay, ppqfsed, pprscav
 public opticaldepth
 
 integer, save :: ilon, ilat, ilev
-integer, parameter :: naerofamilies = 4      ! Number of aerosol families
+integer, parameter :: naerofamilies = 4      ! Number of aerosol families for optical depth
 real, dimension(:,:,:), allocatable, save :: oxidantprev
 real, dimension(:,:,:), allocatable, save :: oxidantnow
 real, dimension(:,:,:), allocatable, save :: oxidantnext
@@ -265,7 +265,7 @@ if (myid==0) then
   end if
   call ccnf_get_vara(ncid,varid,spos,npos,dumg)
   call ccmpi_distribute(duma,dumg)
-  call aldrloaderod(1,1,duma)
+  call aldrloaderod(1,duma)
   write(6,*) "Loading emissions for dust (slit)"
   call ccnf_inq_varid(ncid,'siltem',varid,tst)
   if (tst) then
@@ -274,7 +274,7 @@ if (myid==0) then
   end if
   call ccnf_get_vara(ncid,varid,spos,npos,dumg)
   call ccmpi_distribute(duma,dumg)
-  call aldrloaderod(2,1,duma)
+  call aldrloaderod(2,duma)
   write(6,*) "Loading emissions for dust (clay)"
   call ccnf_inq_varid(ncid,'clayem',varid,tst)
   if (tst) then
@@ -283,7 +283,7 @@ if (myid==0) then
   end if
   call ccnf_get_vara(ncid,varid,spos,npos,dumg)
   call ccmpi_distribute(duma,dumg)
-  call aldrloaderod(3,1,duma)
+  call aldrloaderod(3,duma)
   call ccnf_close(ncid)
   deallocate(dumg)
   ! load oxidant fields
@@ -405,7 +405,7 @@ else
   ! load dust fields
   do i=1,3
     call ccmpi_distribute(duma)
-    call aldrloaderod(i,1,duma)
+    call aldrloaderod(i,duma)
   end do
   ! load oxidant fields
   call ccmpi_bcast(idum(1:3),0,comm_world)
@@ -442,7 +442,6 @@ use infile              ! Input file routines
 use kuocomb_m           ! JLM convection
 use latlong_m           ! Lat/lon coordinates
 use liqwpar_m           ! Cloud water mixing ratios
-use map_m               ! Grid map arrays
 use morepbl_m           ! Additional boundary layer diagnostics
 use nharrs_m            ! Non-hydrostatic atmosphere arrays
 use nsibd_m             ! Land-surface arrays
@@ -473,7 +472,7 @@ real, dimension(ifull,kl,naero) :: xtusav
 real, dimension(ifull,kl) :: oxout,zg,clcon,pccw,rhoa
 real, dimension(ifull,kl) :: tnhs,dz,ctmp,tv
 real, dimension(ifull) :: coszro,taudar
-real, dimension(ifull) :: dxy,cldcon,wg
+real, dimension(ifull) :: cldcon,wg
 real, dimension(kl+1) :: sigh
 
 ! timer calculations
@@ -520,7 +519,6 @@ end do
 do k=1,kl
   dz(:,k)=-rdry*dsig(k)*(tv(:,k)+tnhs(:,k))/(grav*sig(k))
 end do
-dxy=ds*ds/(em(1:ifull)*em(1:ifull))                ! grid spacing in m**2
 do k=1,kl
   rhoa(:,k)=ps(1:ifull)*sig(k)/(rdry*t(1:ifull,k)) ! density of air (kg/m**3)
 end do
@@ -581,10 +579,10 @@ wg=min(max(wetfac,0.),1.)
 
 ! update prognostic aerosols
 call aldrcalc(dt,sig,sigh,dsig,zg,dz,cansto,fwet,wg,pblh,ps,   &
-              tss,t,condx,condc,snowd,sgsave,fg,               &
+              tss,t,condc,snowd,sgsave,fg,                     &
               eg,u10,ustar,zo,land,fracice,sigmf,              &
               qg,qlg,qfg,cfrac,clcon,                          &
-              pccw,dxy,rhoa,cdtq,ppfprec,ppfmelt,ppfsnow,      &
+              pccw,rhoa,cdtq,ppfprec,ppfmelt,ppfsnow,          &
               ppfconv,ppfevap,ppfsubl,pplambs,ppmrate,         &
               ppmaccr,ppfstay,ppqfsed,pprscav,zdayfac,xtusav)
 

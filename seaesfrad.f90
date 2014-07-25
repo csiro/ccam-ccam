@@ -86,7 +86,7 @@ integer, intent(in) :: imax
 integer jyear,jmonth,jday,jhour,jmin
 integer k,ksigtop,mins
 integer i,j,iq,istart,iend,kr,nr
-integer swcount,ierr,ktop,kbot
+integer ierr,ktop,kbot
 integer, save :: nlow,nmid
 real, dimension(:), allocatable, save :: sgamp
 real, dimension(:,:), allocatable, save :: rtt
@@ -386,12 +386,12 @@ if ( first ) then
   f1=1.
   f2=1.
   do k=1,kl-1
-    if(abs(sigh(k+1)-siglow)<f1)then
-      f1=abs(sigh(k+1)-siglow)
+    if(abs(sigmh(k+1)-siglow)<f1)then
+      f1=abs(sigmh(k+1)-siglow)
       nlow=k
     endif
-    if(abs(sigh(k+1)-sigmid)<f2)then
-      f2=abs(sigh(k+1)-sigmid)
+    if(abs(sigmh(k+1)-sigmid)<f2)then
+      f2=abs(sigmh(k+1)-sigmid)
       nmid=k
     endif
   enddo
@@ -434,7 +434,6 @@ Rad_gases%rrvf113 = real(rrvf113,8)
 Rad_gases%rrvf22  = real(rrvf22 ,8)
 
 ! main loop ---------------------------------------------------------
-swcount=0
 do j=1,jl,imax/il
   istart=1+(j-1)*il
   iend=istart+imax-1
@@ -591,7 +590,7 @@ do j=1,jl,imax/il
         ! prognostic aerosols
         do k=1,kl
           kr=kl+1-k
-          dprf=ps(istart:iend)*(sigh(k)-sigh(k+1))
+          dprf=-ps(istart:iend)*dsig(k)
           Aerosol%aerosol(:,1,kr,1) =real(xtg(istart:iend,k,3)*dprf/grav,8)  ! so4
           Aerosol%aerosol(:,1,kr,2) =real(xtg(istart:iend,k,4)*dprf/grav,8)  ! bc hydrophobic
           Aerosol%aerosol(:,1,kr,3) =real(xtg(istart:iend,k,5)*dprf/grav,8)  ! bc hydrophilic
@@ -787,7 +786,6 @@ do j=1,jl,imax/il
    
     Astro%cosz(:,1)   =max(real(coszro,8),0._8)
     Astro%fracday(:,1)=real(taudar,8)
-    swcount           =swcount+count(coszro>0.)
 
     call END_LOG(radmisc_end)
 
@@ -984,10 +982,6 @@ do j=1,jl,imax/il
   slwa(istart:iend) = -sgsave(istart:iend)+rgsave(istart:iend)
 
 end do  ! Row loop (j)  j=1,jl,imax/il
-
-if ( odcalc .and. nmaxpr==1 ) then
-  write(6,*) "seaesfrad: swcount,myid ",swcount,myid
-end if
 
 ! Calculate net radiational cooling of atmosphere (K/s)
 t(1:ifull,:)=t(1:ifull,:)-dt*rtt(1:ifull,:)

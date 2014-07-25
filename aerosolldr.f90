@@ -1,23 +1,25 @@
 
 ! This is a prognostic aerosol model for CCAM based on the LDR scheme used in Mk3.6 (Rotstayn and Lohmann 2002)
+    
+! Plan to replace diagnosed sea-salt with prognostic version based on CTM.  Eventually employ GLOMAP for modes.
 
 module aerosolldr
 
 implicit none
 
 private
-public aldrcalc,aldrinit,aldrend,aldrloademiss,aldrloaderod,aldrloadoxidant,cldrop,convscav, &
-       xtg,xtgsav,xtosav,naero,ssn
+public aldrcalc,aldrinit,aldrend,aldrloademiss,aldrloaderod,aldrloadoxidant,cldrop,convscav
+public xtg,xtgsav,xtosav,naero,ssn
 
 integer, save :: ifull,kl
-real, dimension(:,:,:), allocatable, save :: xtg     ! prognostic aerosols (see indexing below)
-real, dimension(:,:,:), allocatable, save :: xtgsav  ! save for mass conservation in semi-Lagrangian models
-real, dimension(:,:,:), allocatable, save :: xtosav  ! aerosol mixing ratio outside convective cloud
-real, dimension(:,:,:), allocatable, save :: ssn     ! diagnostic sea salt
-real, dimension(:,:,:), allocatable, save :: erod    ! sand, clay and silt fraction that can erode
-real, dimension(:,:), allocatable, save :: field     ! non-volcanic emissions
-real, dimension(:,:), allocatable, save :: zoxidant  ! oxidant fields
-real, dimension(:), allocatable, save :: vso2        ! volcanic emissions
+real, dimension(:,:,:), allocatable, save :: xtg       ! prognostic aerosols (see indexing below)
+real, dimension(:,:,:), allocatable, save :: xtgsav    ! save for mass conservation in semi-Lagrangian models
+real, dimension(:,:,:), allocatable, save :: xtosav    ! aerosol mixing ratio outside convective cloud
+real, dimension(:,:,:), allocatable, save :: ssn       ! diagnostic sea salt
+real, dimension(:,:), allocatable, save :: erod        ! sand, clay and silt fraction that can erode
+real, dimension(:,:), allocatable, save :: emissfield  ! non-volcanic emissions
+real, dimension(:,:), allocatable, save :: zoxidant    ! oxidant fields
+real, dimension(:), allocatable, save :: vso2          ! volcanic emissions
 
 ! parameters
 integer, parameter :: nsulf = 3
@@ -30,13 +32,12 @@ integer, parameter :: itracoc=nsulf+3           ! Index for OC    "
 integer, parameter :: itracdu=nsulf+ncarb+1     ! Index for dust  "
 
 ! physical constants
-real, parameter :: grav     = 9.80616        ! Gravitation constant
-real, parameter :: rdry     = 287.04         ! Specific gas const for dry air
-real, parameter :: cp       = 1004.64        ! Heat capacity of air
-real, parameter :: hl       = 2.5104e6       ! Latent heat of vaporisation
-real, parameter :: vkar     = 0.4            ! von Karman constant
-real, parameter :: rhos     = 100.           ! Assumed density of snow in kg/m^3
-real, parameter :: dyn_visc = 1.5E-5
+real, parameter :: grav      = 9.80616        ! Gravitation constant
+real, parameter :: rdry      = 287.04         ! Specific gas const for dry air
+real, parameter :: cp        = 1004.64        ! Heat capacity of air
+real, parameter :: hl        = 2.5104e6       ! Latent heat of vaporisation
+real, parameter :: vkar      = 0.4            ! von Karman constant
+real, parameter :: rhos      = 100.           ! Assumed density of snow in kg/m^3
 
 ! Following array determines for which tracers the XTWETDEP routine is called.
 ! We now set it to .true. for BCO and OCO, since they do experience below-cloud scavenging.
@@ -48,7 +49,6 @@ real, dimension(ndust), parameter :: dustden = (/ 2500., 2650., 2650., 2650. /) 
                                                                                    ! (Clay, small silt, small slit, small silt)
 real, dimension(ndust), parameter :: dustreff = (/ 0.73e-6,1.4e-6,2.4e-6,4.5e-6 /) ! Main effective radius (m)
                                                                                    ! (Clay, small silt, small slit, small silt)
-integer, parameter :: ndsrc = 1     ! No. of dust source types (1 = natural only)
 integer, parameter :: ndcls = 3     ! No. of dust emission classes (sand, silt, clay)
 integer, parameter :: ndsiz = ndust ! No. of dust size bins (note that NDUST may be larger than NDSIZ)
 
@@ -69,16 +69,16 @@ allocate(xtg(ifull+iextra,kl,naero))
 allocate(xtgsav(ifull,kl,naero))
 allocate(xtosav(ifull,kl,naero))
 allocate(vso2(ifull))
-allocate(field(ifull,15))
+allocate(emissfield(ifull,15))
 allocate(ssn(ifull,kl,2))
 allocate(zoxidant(ifull,4*kl))
-allocate(erod(ifull,ndcls,ndsrc))
+allocate(erod(ifull,ndcls))
 
 xtg=0.
 xtgsav=0.
 xtosav=0.
 vso2=0.
-field=0.
+emissfield=0.
 ssn=0.
 zoxidant=0.
 erod=0.
@@ -95,7 +95,7 @@ implicit none
 
 deallocate(xtg,xtgsav,xtosav)
 deallocate(vso2)
-deallocate(field)
+deallocate(emissfield)
 deallocate(ssn)
 deallocate(zoxidant,erod)
 
@@ -113,7 +113,7 @@ integer, intent(in) :: index
 real, dimension(ifull), intent(in) :: aa
 
 if (index<16) then
-  field(:,index)=aa ! Then follow SO2, BC and OC from anthro (a) and biomass-burning (b) levels 1 and 2
+  emissfield(:,index)=aa ! Then follow SO2, BC and OC from anthro (a) and biomass-burning (b) levels 1 and 2
 elseif (index==16) then
   vso2(:)=aa        ! volcanic
 else
@@ -143,15 +143,15 @@ end subroutine aldrloadoxidant
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Load soil data
 
-subroutine aldrloaderod(inda,indb,aa)
+subroutine aldrloaderod(inda,aa)
 
 implicit none
 
-integer, intent(in) :: inda,indb
+integer, intent(in) :: inda
 real, dimension(ifull), intent(in) :: aa
 
 ! EROD is the soil fraction of Sand, Silt and Clay that can erode
-erod(:,inda,indb)=aa
+erod(:,inda)=aa
 
 return
 end subroutine aldrloaderod
@@ -159,8 +159,8 @@ end subroutine aldrloaderod
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Main routine
 
-subroutine aldrcalc(dt,sig,sigh,dsig,zz,dz,mc,fwet,wg,pblh,prf,ts,ttg,rcondx,condc,snowd,sg,fg,eg,v10m,  &
-                    ustar,zo,land,sicef,tsigmf,qvg,qlg,qfg,cfrac,clcon,pccw,dxy,rhoa,vt,ppfprec,ppfmelt, &
+subroutine aldrcalc(dt,sig,sigh,dsig,zz,dz,mc,fwet,wg,pblh,prf,ts,ttg,condc,snowd,sg,fg,eg,v10m,         &
+                    ustar,zo,land,sicef,tsigmf,qvg,qlg,qfg,cfrac,clcon,pccw,rhoa,vt,ppfprec,ppfmelt,     &
                     ppfsnow,ppfconv,ppfevap,ppfsubl,pplambs,ppmrate,ppmaccr,ppfstay,ppqfsed,pprscav,     &
                     zdayfac,xtusav)
 
@@ -177,7 +177,6 @@ real, dimension(ifull), intent(in) :: prf      ! Surface pressure
 real, dimension(ifull), intent(in) :: ts       ! Surface temperture
 real, dimension(ifull), intent(in) :: pblh     ! Boundary layer height
 real, dimension(ifull), intent(in) :: v10m     ! 10m wind speed
-real, dimension(ifull), intent(in) :: rcondx   ! Total rainfall
 real, dimension(ifull), intent(in) :: condc    ! Convective rainfall
 real, dimension(ifull), intent(in) :: snowd    ! Snow depth
 real, dimension(ifull), intent(in) :: sg       ! Downwelling shortwave radiation
@@ -187,7 +186,6 @@ real, dimension(ifull), intent(in) :: ustar    ! Friction velocity
 real, dimension(ifull), intent(in) :: zo       ! Roughness length
 real, dimension(ifull), intent(in) :: sicef    ! Sea-ice fraction
 real, dimension(ifull), intent(in) :: tsigmf   ! Vegetation fraction
-real, dimension(ifull), intent(in) :: dxy      ! area of grid box
 real, dimension(ifull), intent(in) :: vt       ! transfer velocity
 real, dimension(ifull), intent(in) :: zdayfac  ! scale factor for day length
 real, dimension(ifull,kl), intent(in) :: zz    ! Height of vertical level (meters)
@@ -207,8 +205,7 @@ real, dimension(ifull,kl,naero), intent(in) :: xtusav ! aerosol mixing ratio ins
 logical, dimension(ifull), intent(in) :: land  ! land/sea mask (t=land)
 real, dimension(ifull,naero) :: conwd          ! Diagnostic only: Convective wet deposition
 real, dimension(ifull,naero) :: xtem
-real, dimension(ifull,kl,naero) :: xte,xtm1,pxtm1,xtu
-real, dimension(ifull,kl,ndust) :: dumd
+real, dimension(ifull,kl,naero) :: xte,xtu,xtm1
 real, dimension(ifull,kl+1) :: aphp1
 real, dimension(ifull,kl) :: pclcon
 real, dimension(ifull,kl) :: prhop1,ptp1,pfevap,pfsubl,plambs
@@ -222,7 +219,6 @@ real, dimension(ifull) :: veff,vefn,dustdd,duste
 real, dimension(ifull) :: cstrat,qtot
 real, dimension(ifull) :: rrate,Wstar3,Vgust_free,Vgust_deep
 real, dimension(ifull) :: v10n,thetav
-real, dimension(kl) :: isig
 real, parameter :: beta=0.65
 integer nt,k
 
@@ -237,8 +233,7 @@ v10n=ustar*log(10./zo)/vkar ! neutral wind speed
 ! Mesoscale enhancement follows Redelsperger et al. (2000), J. Climate 13, 402-421.
 ! Equation numbers follow Fairall et al. 1996, JGR 101, 3747-3764.
 ! MJT notes - rrate should be replaced with convective rainfall for regional models
-!rrate = 8640.*rcondx/dt
-rrate = 8640.*condc/dt !Rainfall rate in cm/day
+rrate = 8640.*condc/dt   !Rainfall rate in cm/day
 ! Calculate convective scaling velocity (Eq.17) and gustiness velocity (Eq.16)
 thetav = ttg(1:ifull,1)*(1.+0.61*qvg(1:ifull,1))
 Wstar3 = max(0.,(grav*pblh/thetav)*(fg/cp+0.61*ttg(1:ifull,1)*eg/hl)/rhoa(:,1))
@@ -250,78 +245,56 @@ Vgust_deep = (19.8*rrate*rrate/(1.5+rrate+rrate*rrate))**0.4
 ! Calculate effective 10m wind (Eq. 15)
 ! These can plausibly be added in quadrature, or linearly, the latter giving a much larger
 ! effect (Lunt & Valdes, JGR, 2002).
-! Use the linear method for veff (used for dust and sea salt) since the dust flux seems low.
-! Stick for now to the quadrature method for vefn (used for DMS), though it would be better to
-! make these consistent.
-! Go back to quadrature method for veff (dust and sea salt) for T63 (09/06)
-veff = v10m + Vgust_free + Vgust_deep
-vefn = v10n + Vgust_free + Vgust_deep
+!veff = v10m + Vgust_free + Vgust_deep
+!vefn = v10n + Vgust_free + Vgust_deep
+veff = sqrt( v10m*v10m + Vgust_free*Vgust_free ) ! JLM suggestion
+vefn = sqrt( v10n*v10n + Vgust_free*Vgust_free )
 
-! Need to invert vertical levels for ECHAM code... Don't you hate that?
-do k=1,kl+1
-  aphp1(:,kl+2-k)=prf(:)*sigh(k)
-enddo
-do nt=1,naero
-  do k=1,kl
-    xtm1(:,kl+1-k,nt)=xtg(1:ifull,k,nt)
-  end do
-enddo
-do k=1,kl
-  isig(kl+1-k)=sig(k)
-enddo
+
 ! Emission and dry deposition (sulfur cycle and carbonaceous aerosols)
-call xtemiss(dt, xtm1, rhoa(:,1), ts, sicef, vefn, aphp1,                 & !Inputs
-             land, tsigmf, dumsnowd, fwet, mc, wg, isig,                  & !Inputs
+do k=1,kl+1
+  aphp1(:,k)=prf(:)*sigh(k)
+enddo
+call xtemiss(dt, xtg, rhoa(:,1), ts, sicef, vefn, aphp1,                  & !Inputs
+             land, tsigmf, dumsnowd, fwet, mc, wg, sig,                   & !Inputs
              xte, xtem, so2dd, so4dd, so2em, dmsem, so4em, bem, oem, bbem)  !Outputs
-do nt=1,naero
-  do k=1,kl
-    xtg(1:ifull,k,nt)=xtg(1:ifull,k,nt)+xte(:,kl+1-k,nt)*dt
-  end do
-end do
+xtg(1:ifull,:,:)=xtg(1:ifull,:,:)+xte(:,:,:)*dt
 
 ! Emission and dry deposition of dust
-! Calculate the settling of large dust particles
-dustdd(:)=0.
+dustdd=0.
+duste=0.
 do k=1,kl
   aphp1(:,k)=prf(:)*sig(k)*0.01 ! hPa
 end do
-dumd=xtg(1:ifull,:,itracdu:itracdu+ndust-1)
-call dsettling(dt,ttg,dz,aphp1(:,1:kl), & !Inputs
-               dumd,dustdd)               !In and out
+! Calculate the settling of large dust particles
+call dsettling(dt,rhoa,ttg,dz,aphp1(:,1:kl), & !Inputs
+               xtg,dustdd)                     !In and out
 ! Calculate dust emission and turbulent dry deposition at the surface
-duste(:)=0.
-call dustem(dt,rhoa(:,1),wg,Veff,dz(:,1),vt,snowd,dxy,land,  & !Inputs
-            dumd,dustdd,duste)                                 !In and out
-xtg(1:ifull,:,itracdu:itracdu+ndust-1)=dumd
+!call dustem(dt,rhoa(:,1),wg,Veff,dz(:,1),vt,snowd,land,  & !Inputs
+!            xtg,dustdd,duste)                              !In and out
+call dustem(dt,rhoa(:,1),wg,v10m,dz(:,1),vt,snowd,land,  & !Inputs     ! MJT suggestion
+            xtg,dustdd,duste)                              !In and out
 
 ! Decay of hydrophobic black and organic carbon into hydrophilic forms
-do nt=1,naero
-  do k=1,kl
-    xtm1(:,kl+1-k,nt)=xtg(1:ifull,k,nt)
-  end do
-end do
-call xtsink (dt, xtm1, &  !Inputs
-             xte)         !Output
-do nt=1,naero
-  do k=1,kl
-    xtg(1:ifull,k,nt)=xtg(1:ifull,k,nt)+xte(:,kl+1-k,nt)*dt
-  end do
-enddo
+call xtsink (dt, xtg, &  !Inputs
+             xte)        !Output
+xtg(1:ifull,:,:)=xtg(1:ifull,:,:)+xte(:,:,:)*dt
 
 ! Compute diagnostic sea salt aerosol
 call seasalt(land,sicef,zz,pblh,veff)
 
 ! Aerosol chemistry and wet deposition
+! Need to invert vertical levels for ECHAM code... Don't you hate that?
 do nt=1,naero
   do k=1,kl
-    pxtm1(:,kl+1-k,nt)=xtg(1:ifull,k,nt)
+    xtm1(:,kl+1-k,nt)=xtg(1:ifull,k,nt)
     xtu(:,kl+1-k,nt)=xtusav(:,k,nt)
   end do
 end do
 do k=1,kl
-  aphp1(:,kl+1-k)=-prf(:)*dsig(k)                             ! delta pressure
+  aphp1(:,kl+1-k) =-prf(:)*dsig(k)                            ! delta pressure
   prhop1(:,kl+1-k)=rhoa(:,k)                                  ! air density
-  ptp1(:,kl+1-k)=ttg(1:ifull,k)                               ! air temperature
+  ptp1(:,kl+1-k)  =ttg(1:ifull,k)                             ! air temperature
   pclcon(:,kl+1-k)=clcon(:,k)                                 ! convective cloud fraction
   qtot=qlg(1:ifull,k)+qfg(1:ifull,k)                          ! total liquid and ice mixing ratio
   cstrat(:)=max(min(cfrac(:,k)-clcon(:,k),1.),0.)             ! strat cloud fraction (i.e., ccov from leoncld.f)
@@ -331,7 +304,7 @@ do k=1,kl
   pmiwc(:,kl+1-k)=qfg(1:ifull,k)
 end do
 call xtchemie (1, dt,zdayfac,aphp1(:,1:kl), ppmrate, ppfprec,                   & !Inputs
-               pclcover, pmlwc, prhop1, ptp1, sg, pxtm1, ppfevap,               & !Inputs
+               pclcover, pmlwc, prhop1, ptp1, sg, xtm1, ppfevap,                & !Inputs
                ppfsnow,ppfsubl,pcfcover,pmiwc,ppmaccr,ppfmelt,ppfstay,ppqfsed,  & !Inputs
                pplambs,pprscav,pclcon,pccw,ppfconv,xtu,                         & !Input
                conwd,so2wd, so4wd, dustwd,                                      & !In and Out
@@ -428,50 +401,47 @@ SUBROUTINE XTEMISS(ztmst, PXTM1, P1MXTM1, TSM1M, SEAICEM, G3X01, APHP1,         
 !    TURBULENT EXCHANGE IN THE BOUNDARY LAYER IS
 !    DETERMINED BY THE EMISSION AND THE DRY DEPOSITION FLUX.
 !
-!    INTERFACE
-!   ------------
-!    *XTEMISS* IS CALLED FROM *VDIFF*
-!    Called from RADIN in CSIRO GCM, prior to CALL HVERTMX.
-!
 
 implicit none
 
 ! Argument list
-REAL ztmst
-REAL PXTM1(ifull,kl,naero)  !Tracer mixing ratio at t-1 [kg/kg]
-REAL P1MXTM1(ifull)         !Density of air in surface layer
-real TSM1M(ifull)           !Surface temp
-real SEAICEM(ifull)         !Sea-ice fraction
-real G3X01(ifull)           !10m wind (corrected to neutral for Nightingale scheme)
-real APHP1(ifull,KL+1)      !P at half levels at current timestep
-LOGICAL LOLAND(ifull)       !Land flag
-REAL PFOREST(ifull)         !Fractional vegetation cover
-REAL PSNOW(ifull)           !Snow depth [m]
+REAL, intent(in) :: ztmst                           !Timestep [s]
+REAL, dimension(:,:,:), intent(in) :: PXTM1         !Tracer mixing ratio at t-1 [kg/kg]
+REAL, dimension(ifull), intent(in) :: P1MXTM1       !Density of air in surface layer
+real, dimension(ifull), intent(in) :: TSM1M         !Surface temp
+real, dimension(ifull), intent(in) :: SEAICEM       !Sea-ice fraction
+real, dimension(ifull), intent(in) :: G3X01         !10m wind (corrected to neutral for Nightingale scheme)
+real, dimension(ifull,kl+1), intent(in) :: APHP1    !P at half levels at current timestep
+LOGICAL, dimension(ifull), intent(in) :: LOLAND     !Land flag
+REAL, dimension(ifull), intent(in) :: PFOREST       !Fractional vegetation cover
+REAL, dimension(ifull), intent(in) :: PSNOW         !Snow depth [m]
 ! Land-surface details needed to specify dry deposition velocity
-REAL fwet(ifull)            !skin reservoir content of plant [fraction of maximum]
-real WLM1M(ifull)           !skin reservoir content of plant [mm for CSIRO GCM, not m]
-real WSM1M(ifull)           !surface wetness [vol fraction for CSIRO GCM, not m]
-real sig(kl)                !sigma levels
-real XTE(ifull,KL,naero)    !Tracer tendencies (kg/kg/s)
-REAL PXTEMS(ifull,naero)    !Sfc. flux of tracer passed to vertical mixing [kg/m2/s]
+REAL, dimension(ifull), intent(in) :: fwet          !skin reservoir content of plant [fraction of maximum]
+real, dimension(ifull), intent(in) :: WLM1M         !skin reservoir content of plant [mm for CSIRO GCM, not m]
+real, dimension(ifull), intent(in) :: WSM1M         !surface wetness [vol fraction for CSIRO GCM, not m]
+real, dimension(kl), intent(in) :: sig              !sigma levels
+real, dimension(ifull,kl,naero), intent(out) :: XTE !Tracer tendencies (kg/kg/s)
+REAL, dimension(ifull,naero), intent(out) :: PXTEMS !Sfc. flux of tracer passed to vertical mixing [kg/m2/s]
 ! Some diagnostics
-real so2dd(ifull)
-real so4dd(ifull)
-real so2em(ifull)
-real so4em(ifull)
-real dmsem(ifull)
-real oem(ifull)
-real bem(ifull)
-real bbem(ifull)
+real, dimension(ifull), intent(out) :: so2dd
+real, dimension(ifull), intent(out) :: so4dd
+real, dimension(ifull), intent(out) :: so2em
+real, dimension(ifull), intent(out) :: so4em
+real, dimension(ifull), intent(out) :: dmsem
+real, dimension(ifull), intent(out) :: oem
+real, dimension(ifull), intent(out) :: bem
+real, dimension(ifull), intent(out) :: bbem
 
-real zdmscon,zdmsemiss,ZSST,ZZSPEED,VpCO2,VpCO2liss
-real wtliss,ScCO2,ScDMS,zVdms
-integer jl,jk
-integer iso2a1,iso2a2,ibca1,ibca2,ioca1,ioca2
-integer iso2b1,iso2b2,ibcb1,ibcb2,iocb1,iocb2
-integer idmso,idmst,iocna
+real zdmscon,ZSST,ZZSPEED,VpCO2,VpCO2liss
+real wtliss,ScDMS,zVdms
+integer jl,jk,jt
 integer jk2,jk3,jk4,jk5,jk6,jk8,jk9,pos(1)
-integer jt
+
+REAL, dimension(ifull,2) :: ZVDRD
+REAL, dimension(ifull) :: ZMAXVDRY,gdp,zdmsemiss
+real, dimension(ifull) :: zhilbco,zhilbcy,zhiloco,zhilocy
+real zvolcemi1,zvolcemi2,zvolcemi3
+real zvd2ice,zvd4ice,zvd2nof,zvd4nof
 
 !     M WATER EQUIVALENT  CRITICAL SNOW HEIGHT (FROM *SURF*)
 real, parameter :: ZSNCRI=0.025
@@ -480,37 +450,32 @@ real, parameter :: ZVWC2=(0.8E-2 - 0.2E-2)/(1. - 0.9)
 real, parameter :: ZVW02=ZVWC2-0.8E-2
 real, parameter :: ZVWC4=(0.2E-2 - 0.025E-2)/(1. - 0.9)
 real, parameter :: ZVW04=ZVWC4-0.2E-2
-real, parameter :: tmelt = 273.05 ! need to make this consistant with sflux.f and mlo.f90    
+real, parameter :: tmelt = 273.05 ! need to make this consistant with sflux.f and mlo.f90
+real, parameter :: zvolcemi  = 8.             ! ZVOLCEMI  TOTAL EMISSION FROM VOLCANOES IN TG/YR
+real, parameter :: ZVDPHOBIC = 0.025E-2       ! dry deposition
+real, parameter :: ScCO2 = 600.
 
-! Local work arrays and variables
-! Annual-mean fields
-REAL ZVDRD(ifull,2)
-REAL ZMAXVDRY(ifull)
-real gdp,gdp1,zvolcemi,zvolcemi1,zvolcemi2,zvolcemi3,zdp
-real zvdphobic,zvd2ice,zvd4ice,zvd2nof,zvd4nof
-real zhilso2,zhilso4t,zhilbco,zhilbcy,zhiloco,zhilocy
+! Then follow SO2, BC and OC from anthro (a) and biomass-burning (b) levels 1 and 2
+integer, parameter :: iso2a1=1
+integer, parameter :: iso2a2=2
+integer, parameter :: ibca1=3
+integer, parameter :: ibca2=4
+integer, parameter :: ioca1=5
+integer, parameter :: ioca2=6
+integer, parameter :: iso2b1=7
+integer, parameter :: iso2b2=8
+integer, parameter :: ibcb1=9
+integer, parameter :: ibcb2=10
+integer, parameter :: iocb1=11
+integer, parameter :: iocb2=12
+integer, parameter :: idmso=13     ! DMS ocean
+integer, parameter :: idmst=14     ! DMS terr
+integer, parameter :: iocna=15     ! Nat org
 
 ! Start code : ----------------------------------------------------------
 
 pxtems(:,:)=0.
 xte(:,:,:)=0.
-
-! Then follow SO2, BC and OC from anthro (a) and biomass-burning (b) levels 1 and 2
-iso2a1=1
-iso2a2=iso2a1+1
-ibca1=iso2a2+1
-ibca2=ibca1+1
-ioca1=ibca2+1
-ioca2=ioca1+1
-iso2b1=ioca2+1
-iso2b2=iso2b1+1
-ibcb1=iso2b2+1
-ibcb2=ibcb1+1
-iocb1=ibcb2+1
-iocb2=iocb1+1
-idmso=iocb2+1     ! DMS ocean
-idmst=idmso+1     ! DMS terr
-iocna=idmst+1     ! Nat org
 
 ! MJT - define injection levels
 !       to be replaced with plume rise model when possible
@@ -518,8 +483,7 @@ iocna=idmst+1     ! Nat org
 ! make sure sig is inverted with kl as lowest level
 ! scale to CSIRO9 18 levels
 ! jk2 is top of level=1, bottom of level=2
-pos=maxloc(sig,sig<=0.990) ! 100m
-jk2=pos(1)
+jk2=2
 ! jk3 is top of level=2, bottom of level=3
 pos=maxloc(sig,sig<=0.965) ! 300m
 jk3=pos(1)
@@ -548,17 +512,14 @@ jk9=pos(1)
 !   DMS SEAWATER CONC. FROM KETTLE ET AL.
 DO JL=1,ifull
   IF (LOLAND(JL)) THEN
-    zdmscon=0.
-    zdmsemiss=field(jl,idmst) !kg/m2/s
-    jk=kl
-    xte(jl,jk,itracso2-1)=xte(jl,jk,itracso2-1)+zdmsemiss*grav/(aphp1(jl,jk+1)-aphp1(jl,jk))
+    zdmsemiss(jl)=emissfield(jl,idmst) !kg/m2/s
   ELSE
     ! Reduce the effective DMS concentration more strongly at seaice points, since the flux should
     ! probably depend on wave breaking (e.g., Erickson, JGR, 1993; Woolf, Tellus B, 2005),
     ! which will be much reduced over leads.
-    ZDMSCON=FIELD(JL,idmso)*(1.-SEAICEM(JL))**2
-    ZSST=TSM1M(JL)-273.15
-    ZSST=min(ZSST, 45.) !Even Saltzman Sc formula has trouble over 45 deg C
+    ZDMSCON=EMISSFIELD(JL,idmso)*(1.-SEAICEM(JL))**2
+    ZSST=TSM1M(JL)-273.15 ! DegC
+    ZSST=min(ZSST, 45.)   ! Even Saltzman Sc formula has trouble over 45 deg C
     !  G3X01:  10-M WINDS
     ZZSPEED=G3X01(JL)
     ! Nightingale (2000) scheme (J. Biogeochem. Cycles, 14, 373-387)
@@ -568,163 +529,144 @@ DO JL=1,ifull
     ! Phase in Liss & Merlivat from 13 to 18 m/s, since Nightingale is doubtful for high windspeeds,
     ! due to limited data.
     VpCO2liss=5.9*ZZSPEED-49.3        
-    wtliss=dim(min(18.,ZZSPEED),13.)/5.
+    wtliss=dim(min(18.,ZZSPEED),13.)/5. ! dim(x,y) is the difference between x and y if the difference is positive
     VpCO2=wtliss*VpCO2liss+(1.-wtliss)*VpCO2
-    ScCO2=600.
     ScDMS = 2674 - 147.12*ZSST + 3.726*ZSST**2 - 0.038*ZSST**3 !Sc for DMS (Saltzman et al.)
     if(ZZSPEED<3.6)then
       zVdms = VpCO2 * (ScCO2/ScDMS)**(2./3.)
     else
       zVdms = VpCO2 * sqrt(ScCO2/ScDMS)
     endif        
-    ZDMSEMISS=ZDMSCON*ZVDMS*32.064E-11/3600.
+    ZDMSEMISS(jl)=ZDMSCON*ZVDMS*32.064E-11/3600.
     ! NANOMOL/LTR*CM/HOUR --> KG/M**2/SEC
-    ! Apply these terms directly, rather than as a surface flux via hvertmx.
-    jk=kl
-    xte(jl,jk,itracso2-1)=xte(jl,jk,itracso2-1)+zdmsemiss*grav/(aphp1(jl,jk+1)-aphp1(jl,jk))
   ENDIF
-  ! Other biomass emissions of SO2 are done below (with the non-surface S emissions)
-  PXTEMS(JL,ITRACSO2)=(FIELD(JL,iso2a1)+FIELD(JL,iso2b1))*0.97
-  PXTEMS(JL,ITRACSO2+1)=(FIELD(JL,iso2a1)+FIELD(JL,iso2b1))*0.03
-  ! Apply these here as a tendency (XTE), rather than as a surface flux (PXTEMS) via hvertmx.
-  jk=kl
-  gdp1=grav/(aphp1(jl,jk+1)-aphp1(jl,jk))
-  xte(jl,jk,itracso2)=xte(jl,jk,itracso2)+pxtems(jl,itracso2)*gdp1
-  xte(jl,jk,itracso2+1)=xte(jl,jk,itracso2+1)+pxtems(jl,itracso2+1)*gdp1
 end do
+gdp=grav/(aphp1(:,1)-aphp1(:,2))
+xte(:,1,itracso2-1)=xte(:,1,itracso2-1)+zdmsemiss*gdp
+
+! Other biomass emissions of SO2 are done below (with the non-surface S emissions)
+PXTEMS(:,ITRACSO2)  =(EMISSFIELD(:,iso2a1)+EMISSFIELD(:,iso2b1))*0.97
+PXTEMS(:,ITRACSO2+1)=(EMISSFIELD(:,iso2a1)+EMISSFIELD(:,iso2b1))*0.03
+! Apply these here as a tendency (XTE), rather than as a surface flux (PXTEMS) via hvertmx.
+xte(:,1,itracso2)  =xte(:,1,itracso2)  +pxtems(:,itracso2)*gdp
+xte(:,1,itracso2+1)=xte(:,1,itracso2+1)+pxtems(:,itracso2+1)*gdp
 
 !Do carbonaceous aerosols
-do jl=1,ifull
-  ! Inject the low-level fossil-fuel and natural SOA emissions into layer 1
-  ! Assume BC 80% hydrophobic, OC 50%.
-  PXTEMS(JL,ITRACBC)=0.8*FIELD(JL,ibca1)
-  PXTEMS(JL,ITRACBC+1)=0.2*FIELD(JL,ibca1)
-  PXTEMS(JL,ITRACOC)=0.5*(FIELD(JL,ioca1)+FIELD(JL,iocna))
-  PXTEMS(JL,ITRACOC+1)=0.5*(FIELD(JL,ioca1)+FIELD(JL,iocna))
-  ! Apply these here as a tendency (XTE), rather than as a surface flux (PXTEMS) via hvertmx.
-  jk=kl
-  gdp1=grav/(aphp1(jl,jk+1)-aphp1(jl,jk))
-  xte(jl,jk,itracbc)=xte(jl,jk,itracbc)+pxtems(jl,itracbc)*gdp1
-  xte(jl,jk,itracbc+1)=xte(jl,jk,itracbc+1)+pxtems(jl,itracbc+1)*gdp1
-  xte(jl,jk,itracoc)=xte(jl,jk,itracoc)+pxtems(jl,itracoc)*gdp1
-  xte(jl,jk,itracoc+1)=xte(jl,jk,itracoc+1)+pxtems(jl,itracoc+1)*gdp1
-  ! Inject the upper-level fossil-fuel emissions into layer 2
-  ! Assume BC 80% hydrophobic, OC 50%.
-  PXTEMS(JL,ITRACBC)=0.8*FIELD(JL,ibca2)
-  PXTEMS(JL,ITRACBC+1)=0.2*FIELD(JL,ibca2)
-  PXTEMS(JL,ITRACOC)=0.5*FIELD(JL,ioca2)
-  PXTEMS(JL,ITRACOC+1)=0.5*FIELD(JL,ioca2)
-  ! Apply these here as a tendency (XTE), rather than as a surface flux (PXTEMS) via hvertmx.
-  do jk=jk3+1,jk2
-    gdp1=grav/(aphp1(jl,jk+1)-aphp1(jl,jk))/real(jk2-jk3)
-    xte(jl,jk,itracbc)=xte(jl,jk,itracbc)+pxtems(jl,itracbc)*gdp1
-    xte(jl,jk,itracbc+1)=xte(jl,jk,itracbc+1)+pxtems(jl,itracbc+1)*gdp1
-    xte(jl,jk,itracoc)=xte(jl,jk,itracoc)+pxtems(jl,itracoc)*gdp1
-    xte(jl,jk,itracoc+1)=xte(jl,jk,itracoc+1)+pxtems(jl,itracoc+1)*gdp1
-  end do
-  ! Inject the lower-level biomass emissions into layer 2 (NB: Doesn't include biofuel any more)
-  ! Assume BC and OC both 50% hydrophobic.
-  PXTEMS(JL,ITRACBC)=0.5*FIELD(JL,ibcb1)
-  PXTEMS(JL,ITRACBC+1)=0.5*FIELD(JL,ibcb1)
-  PXTEMS(JL,ITRACOC)=0.5*FIELD(JL,iocb1)
-  PXTEMS(JL,ITRACOC+1)=0.5*FIELD(JL,iocb1)
-  ! Apply these here as a tendency (XTE)
-  do jk=jk3+1,jk2
-    gdp1=grav/(aphp1(jl,jk+1)-aphp1(jl,jk))/real(jk2-jk3)
-    xte(jl,jk,itracbc)=xte(jl,jk,itracbc)+pxtems(jl,itracbc)*gdp1
-    xte(jl,jk,itracbc+1)=xte(jl,jk,itracbc+1)+pxtems(jl,itracbc+1)*gdp1
-    xte(jl,jk,itracoc)=xte(jl,jk,itracoc)+pxtems(jl,itracoc)*gdp1
-    xte(jl,jk,itracoc+1)=xte(jl,jk,itracoc+1)+pxtems(jl,itracoc+1)*gdp1
-  end do
-  ! Inject the upper-level biomass emissions into layers 3-5 (30%, 40%, 30%)
-  ! Assume BC and OC both 50% hydrophobic.
-  ! Note that this is effectively hard-coded for 18 levels
-  PXTEMS(JL,ITRACBC)=0.5*FIELD(JL,ibcb2)
-  PXTEMS(JL,ITRACBC+1)=0.5*FIELD(JL,ibcb2)
-  PXTEMS(JL,ITRACOC)=0.5*FIELD(JL,iocb2)
-  PXTEMS(JL,ITRACOC+1)=0.5*FIELD(JL,iocb2)
-  ! Apply these here as a tendency (XTE)
-  do jk=jk4+1,jk3
-    gdp1=grav/(aphp1(jl,jk+1)-aphp1(jl,jk))/real(jk3-jk4)
-    xte(jl,jk,itracbc)=xte(jl,jk,itracbc)+0.3*pxtems(jl,itracbc)*gdp1
-    xte(jl,jk,itracbc+1)=xte(jl,jk,itracbc+1)+0.3*pxtems(jl,itracbc+1)*gdp1
-    xte(jl,jk,itracoc)=xte(jl,jk,itracoc)+0.3*pxtems(jl,itracoc)*gdp1
-    xte(jl,jk,itracoc+1)=xte(jl,jk,itracoc+1)+0.3*pxtems(jl,itracoc+1)*gdp1
-  end do
-  do jk=jk5+1,jk4
-    gdp1=grav/(aphp1(jl,jk+1)-aphp1(jl,jk))/real(jk5-jk4)
-    xte(jl,jk,itracbc)=xte(jl,jk,itracbc)+0.4*pxtems(jl,itracbc)*gdp1
-    xte(jl,jk,itracbc+1)=xte(jl,jk,itracbc+1)+0.4*pxtems(jl,itracbc+1)*gdp1
-    xte(jl,jk,itracoc)=xte(jl,jk,itracoc)+0.4*pxtems(jl,itracoc)*gdp1
-    xte(jl,jk,itracoc+1)=xte(jl,jk,itracoc+1)+0.4*pxtems(jl,itracoc+1)*gdp1
-  end do
-  do jk=jk6+1,jk5
-    gdp1=grav/(aphp1(jl,jk+1)-aphp1(jl,jk))/real(jk6-jk5)
-    xte(jl,jk,itracbc)=xte(jl,jk,itracbc)+0.3*pxtems(jl,itracbc)*gdp1
-    xte(jl,jk,itracbc+1)=xte(jl,jk,itracbc+1)+0.3*pxtems(jl,itracbc+1)*gdp1
-    xte(jl,jk,itracoc)=xte(jl,jk,itracoc)+0.3*pxtems(jl,itracoc)*gdp1
-    xte(jl,jk,itracoc+1)=xte(jl,jk,itracoc+1)+0.3*pxtems(jl,itracoc+1)*gdp1
-  end do
+! Inject the low-level fossil-fuel and natural SOA emissions into layer 1
+! Assume BC 80% hydrophobic, OC 50%.
+PXTEMS(:,ITRACBC)  =0.8*EMISSFIELD(:,ibca1)
+PXTEMS(:,ITRACBC+1)=0.2*EMISSFIELD(:,ibca1)
+PXTEMS(:,ITRACOC)  =0.5*(EMISSFIELD(:,ioca1)+EMISSFIELD(:,iocna))
+PXTEMS(:,ITRACOC+1)=0.5*(EMISSFIELD(:,ioca1)+EMISSFIELD(:,iocna))
+! Apply these here as a tendency (XTE), rather than as a surface flux (PXTEMS) via hvertmx.
+xte(:,1,itracbc)  =xte(:,1,itracbc)  +pxtems(:,itracbc)*gdp
+xte(:,1,itracbc+1)=xte(:,1,itracbc+1)+pxtems(:,itracbc+1)*gdp
+xte(:,1,itracoc)  =xte(:,1,itracoc)  +pxtems(:,itracoc)*gdp
+xte(:,1,itracoc+1)=xte(:,1,itracoc+1)+pxtems(:,itracoc+1)*gdp
+! Inject the upper-level fossil-fuel emissions into layer 2
+! Assume BC 80% hydrophobic, OC 50%.
+PXTEMS(:,ITRACBC)  =0.8*EMISSFIELD(:,ibca2)
+PXTEMS(:,ITRACBC+1)=0.2*EMISSFIELD(:,ibca2)
+PXTEMS(:,ITRACOC)  =0.5*EMISSFIELD(:,ioca2)
+PXTEMS(:,ITRACOC+1)=0.5*EMISSFIELD(:,ioca2)
+! Apply these here as a tendency (XTE), rather than as a surface flux (PXTEMS) via hvertmx.
+do jk=jk2,jk3-1
+  gdp=grav/(aphp1(:,jk)-aphp1(:,jk+1))/real(jk3-jk2)
+  xte(:,jk,itracbc)  =xte(:,jk,itracbc)  +pxtems(:,itracbc)*gdp
+  xte(:,jk,itracbc+1)=xte(:,jk,itracbc+1)+pxtems(:,itracbc+1)*gdp
+  xte(:,jk,itracoc)  =xte(:,jk,itracoc)  +pxtems(:,itracoc)*gdp
+  xte(:,jk,itracoc+1)=xte(:,jk,itracoc+1)+pxtems(:,itracoc+1)*gdp
+end do
+! Inject the lower-level biomass emissions into layer 2 (NB: Doesn't include biofuel any more)
+! Assume BC and OC both 50% hydrophobic.
+PXTEMS(:,ITRACBC)  =0.5*EMISSFIELD(:,ibcb1)
+PXTEMS(:,ITRACBC+1)=0.5*EMISSFIELD(:,ibcb1)
+PXTEMS(:,ITRACOC)  =0.5*EMISSFIELD(:,iocb1)
+PXTEMS(:,ITRACOC+1)=0.5*EMISSFIELD(:,iocb1)
+! Apply these here as a tendency (XTE)
+do jk=jk2,jk3-1
+  gdp=grav/(aphp1(:,jk)-aphp1(:,jk+1))/real(jk3-jk2)
+  xte(:,jk,itracbc)  =xte(:,jk,itracbc)  +pxtems(:,itracbc)*gdp
+  xte(:,jk,itracbc+1)=xte(:,jk,itracbc+1)+pxtems(:,itracbc+1)*gdp
+  xte(:,jk,itracoc)  =xte(:,jk,itracoc)  +pxtems(:,itracoc)*gdp
+  xte(:,jk,itracoc+1)=xte(:,jk,itracoc+1)+pxtems(:,itracoc+1)*gdp
+end do
+! Inject the upper-level biomass emissions into layers 3-5 (30%, 40%, 30%)
+! Assume BC and OC both 50% hydrophobic.
+PXTEMS(:,ITRACBC)  =0.5*EMISSFIELD(:,ibcb2)
+PXTEMS(:,ITRACBC+1)=0.5*EMISSFIELD(:,ibcb2)
+PXTEMS(:,ITRACOC)  =0.5*EMISSFIELD(:,iocb2)
+PXTEMS(:,ITRACOC+1)=0.5*EMISSFIELD(:,iocb2)
+! Apply these here as a tendency (XTE)
+do jk=jk3,jk4-1
+  gdp=grav/(aphp1(:,jk)-aphp1(:,jk+1))/real(jk4-jk3)
+  xte(:,jk,itracbc)  =xte(:,jk,itracbc)  +0.3*pxtems(:,itracbc)*gdp
+  xte(:,jk,itracbc+1)=xte(:,jk,itracbc+1)+0.3*pxtems(:,itracbc+1)*gdp
+  xte(:,jk,itracoc)  =xte(:,jk,itracoc)  +0.3*pxtems(:,itracoc)*gdp
+  xte(:,jk,itracoc+1)=xte(:,jk,itracoc+1)+0.3*pxtems(:,itracoc+1)*gdp
+end do
+do jk=jk4,jk5-1
+  gdp=grav/(aphp1(:,jk)-aphp1(:,jk+1))/real(jk5-jk4)
+  xte(:,jk,itracbc)  =xte(:,jk,itracbc)  +0.4*pxtems(:,itracbc)*gdp
+  xte(:,jk,itracbc+1)=xte(:,jk,itracbc+1)+0.4*pxtems(:,itracbc+1)*gdp
+  xte(:,jk,itracoc)  =xte(:,jk,itracoc)  +0.4*pxtems(:,itracoc)*gdp
+  xte(:,jk,itracoc+1)=xte(:,jk,itracoc+1)+0.4*pxtems(:,itracoc+1)*gdp
+end do
+do jk=jk5,jk6-1
+  gdp=grav/(aphp1(:,jk)-aphp1(:,jk+1))/real(jk6-jk5)
+  xte(:,jk,itracbc)  =xte(:,jk,itracbc)  +0.3*pxtems(:,itracbc)*gdp
+  xte(:,jk,itracbc+1)=xte(:,jk,itracbc+1)+0.3*pxtems(:,itracbc+1)*gdp
+  xte(:,jk,itracoc)  =xte(:,jk,itracoc)  +0.3*pxtems(:,itracoc)*gdp
+  xte(:,jk,itracoc+1)=xte(:,jk,itracoc+1)+0.3*pxtems(:,itracoc+1)*gdp
 end do
 
 !  EMISSION OF ANTHROPOGENIC SO2 IN THE NEXT HIGHER LEVEL PLUS BIOMASS BURNING
-JT=ITRACSO2
-DO JL=1,ifull
-  do jk=jk2+1,jk3
-    gdp1=grav/(aphp1(jl,jk+1)-aphp1(jl,jk))/real(jk2-jk3)
-    XTE(JL,JK,JT)=XTE(JL,JK,JT)+FIELD(JL,iso2a2)*0.97*gdp1     !100% of the "above 100m" SO2 emission
-    XTE(JL,JK,JT+1)=XTE(JL,JK,JT+1)+FIELD(JL,iso2a2)*0.03*gdp1 !100% of the "above 100m" SO4 emission
-  end do
-  do jk=jk4+1,jk3
-    xte(jl,jk,jt)=xte(jl,jk,jt)+0.3*field(jl,iso2b2)*grav/(aphp1(jl,jk+1)-aphp1(jl,jk))/real(jk3-jk4)
-  end do
-  do jk=jk5+1,jk4
-    xte(jl,jk,jt)=xte(jl,jk,jt)+0.4*field(jl,iso2b2)*grav/(aphp1(jl,jk+1)-aphp1(jl,jk))/real(jk4-jk5)
-  end do
-  do jk=jk6+1,jk5
-    xte(jl,jk,jt)=xte(jl,jk,jt)+0.3*field(jl,iso2b2)*grav/(aphp1(jl,jk+1)-aphp1(jl,jk))/real(jk5-jk6)
-  end do
-
-  !    VOLCANIC BACKGROUND EMISSIONS 
-  !
-  !   3 EMISSION LEVELS: 
-  !    1. PRE-INTRA ERUPTION IN LEVEL IVOLC-HEIGHT (=TOP OF VOLCANO)
-  !    2. POST-EXTRA ERUPTION IN LEVEL 15 -16 (CA 550-1736M)
-  !    3. EXPLOSIVE ERUPTION IN LEVEL 10 - 11 (CA 5000-7900M)
-  !
-  !       ZVOLCEMI  TOTAL EMISSION FROM VOLCANOES IN TG/YR
-  ZVOLCEMI=8.
-  ZVOLCEMI1=ZVOLCEMI*0.36
-  ZVOLCEMI2=ZVOLCEMI*0.36
-  ZVOLCEMI3=ZVOLCEMI*0.28
-  !JK=hvolc(jl)
-  jk=kl
-  IF(JK>0) THEN
-    ZDP=Grav/(APHP1(JL,JK+1)-APHP1(JL,JK))
-    XTE(JL,JK,JT)=XTE(JL,JK,JT)+ZVOLCEMI1*vso2(JL)*ZDP
-    do jk=jk4+1,jk3
-      ZDP=Grav/(APHP1(JL,jk+1)-APHP1(JL,jk))/real(jk3-jk4)
-      XTE(JL,jk,JT)=XTE(JL,jk,JT)+0.5*ZVOLCEMI2*vso2(JL)*ZDP
-    end do
-    do jk=jk9+1,jk8
-      ZDP=Grav/(APHP1(JL,jk+1)-APHP1(JL,jk))/real(jk8-jk9)
-      XTE(JL,jk,JT)=XTE(JL,jk,JT)+0.5*ZVOLCEMI3*vso2(JL)*ZDP
-    end do
-  ENDIF
-  !------------------------------------------------------------------
+do jk=jk2,jk3-1
+  gdp=grav/(aphp1(:,jk)-aphp1(:,jk+1))/real(jk3-jk2)
+  XTE(:,JK,ITRACSO2)  =XTE(:,JK,ITRACSO2)  +0.97*EMISSFIELD(:,iso2a2)*gdp !100% of the "above 100m" SO2 emission
+  XTE(:,JK,ITRACSO2+1)=XTE(:,JK,ITRACSO2+1)+0.03*EMISSFIELD(:,iso2a2)*gdp !100% of the "above 100m" SO4 emission
+end do
+do jk=jk3,jk4-1
+  gdp=grav/(aphp1(:,jk)-aphp1(:,jk+1))/real(jk4-jk3)
+  xte(:,jk,ITRACSO2)=xte(:,jk,ITRACSO2)+0.3*emissfield(:,iso2b2)*gdp
+end do
+do jk=jk4,jk5-1
+  gdp=grav/(aphp1(:,jk)-aphp1(:,jk+1))/real(jk5-jk4)
+  xte(:,jk,ITRACSO2)=xte(:,jk,ITRACSO2)+0.4*emissfield(:,iso2b2)*gdp
+end do
+do jk=jk5,jk6-1
+  gdp=grav/(aphp1(:,jk)-aphp1(:,jk+1))/real(jk6-jk5)
+  xte(:,jk,ITRACSO2)=xte(:,jk,ITRACSO2)+0.3*emissfield(:,iso2b2)*gdp
+end do
+  
+!    VOLCANIC BACKGROUND EMISSIONS 
+!
+!   3 EMISSION LEVELS: 
+!    1. PRE-INTRA ERUPTION IN LEVEL IVOLC-HEIGHT (=TOP OF VOLCANO)
+!    2. POST-EXTRA ERUPTION IN LEVEL 15 -16 (CA 550-1736M)
+!    3. EXPLOSIVE ERUPTION IN LEVEL 10 - 11 (CA 5000-7900M)
+ZVOLCEMI1=ZVOLCEMI*0.36
+ZVOLCEMI2=ZVOLCEMI*0.36
+ZVOLCEMI3=ZVOLCEMI*0.28
+gdp=Grav/(APHP1(:,1)-APHP1(:,2))
+XTE(:,1,ITRACSO2)=XTE(:,1,ITRACSO2)+ZVOLCEMI1*vso2*gdp
+do jk=jk3,jk4-1
+  gdp=Grav/(APHP1(:,jk)-APHP1(:,jk+1))/real(jk4-jk3)
+  XTE(:,jk,ITRACSO2)=XTE(:,jk,ITRACSO2)+ZVOLCEMI2*vso2*gdp
+end do
+do jk=jk8,jk9-1
+  gdp=Grav/(APHP1(:,jk)-APHP1(:,jk+1))/real(jk9-jk8)
+  XTE(:,jk,ITRACSO2)=XTE(:,jk,ITRACSO2)+ZVOLCEMI3*vso2*gdp
 end do
   
 !   --------------------------------------------------------------
 !
 !*      2.    DRY DEPOSITION.
 !             --- ----------
-DO JL=1,ifull
-  ZMAXVDRY(JL)=(APHP1(JL,kl+1)-APHP1(JL,kl))/(Grav*P1MXTM1(JL)*ZTMST)
-end do
+ZMAXVDRY(:)=(APHP1(:,1)-APHP1(:,2))/(Grav*P1MXTM1*ZTMST)
 
 !      DRY DEPOSITION OF SO2, SO4
-ZVDPHOBIC=0.025E-2
-DO JL=1,ifull
+do jl=1,ifull
 !     -  SEA -
   IF(.NOT.LOLAND(JL)) THEN
 !         - SEA ICE -
@@ -784,67 +726,53 @@ DO JL=1,ifull
 end do
 
 ! Sulfur emission diagnostic (hard-coded for 3 sulfur variables)
-pxtems(:,:)=0. !Zero this because fluxes are now passed in thru xte(:,:,:)
-
-jt=1
-dmsem(:)=pxtems(:,jt) ! At surface
+dmsem=0. ! At surface
 do jk=1,kl
-  dmsem(:)=dmsem(:)+xte(:,jk,jt)*(aphp1(:,jk+1)-aphp1(:,jk))/grav !Above surface
+  dmsem=dmsem+xte(:,jk,1)*(aphp1(:,jk)-aphp1(:,jk+1))/grav          !Above surface
 enddo
-jt=ITRACSO2 ! MJT suggestion
-so2em(:)=pxtems(:,jt) ! At surface
+so2em=0. ! At surface
 do jk=1,kl
-  so2em(:)=so2em(:)+xte(:,jk,jt)*(aphp1(:,jk+1)-aphp1(:,jk))/grav !Above surface
+  so2em=so2em+xte(:,jk,ITRACSO2)*(aphp1(:,jk)-aphp1(:,jk+1))/grav   !Above surface
 enddo
-jt=ITRACSO2+1 ! MJT suggestion
-so4em(:)=pxtems(:,jt) ! At surface
+so4em=0. ! At surface
 do jk=1,kl
-  so4em(:)=so4em(:)+xte(:,jk,jt)*(aphp1(:,jk+1)-aphp1(:,jk))/grav !Above surface
+  so4em=so4em+xte(:,jk,ITRACSO2+1)*(aphp1(:,jk)-aphp1(:,jk+1))/grav !Above surface
 enddo
 
 ! Assume that BC and OC emissions are passed in through xte()
-bem(:)=0.
-do jt=ITRACBC,ITRACBC+1 ! MJT suggestion
+bem=0.
+do jt=ITRACBC,ITRACBC+1
   do jk=1,kl
-    bem(:)=bem(:)+xte(:,jk,jt)*(aphp1(:,jk+1)-aphp1(:,jk))/grav
+    bem=bem+xte(:,jk,jt)*(aphp1(:,jk)-aphp1(:,jk+1))/grav
   enddo
 enddo
-oem(:)=0.
-do jt=ITRACOC,ITRACOC+1 ! MJT suggestion
+oem=0.
+do jt=ITRACOC,ITRACOC+1
   do jk=1,kl
-    oem(:)=oem(:)+xte(:,jk,jt)*(aphp1(:,jk+1)-aphp1(:,jk))/grav
+    oem=oem+xte(:,jk,jt)*(aphp1(:,jk)-aphp1(:,jk+1))/grav
   enddo
 enddo
 
 ! Total biomass burning primary emissions
-bbem(:) = field(:,ibcb1)+field(:,ibcb2)+1.3*(field(:,iocb1)+field(:,iocb2))
+bbem=emissfield(:,ibcb1)+emissfield(:,ibcb2)+1.3*(emissfield(:,iocb1)+emissfield(:,iocb2))
 
 ! ZVDRD   DRY DEPOSITION VELOCITY IN M/S
 ! ZVDRD(JL,1)  FOR SO2 GAS
 ! ZVDRD(JL,2)  FOR AEROSOLS
-JT=ITRACSO2
-jk=kl
-DO JL=1,ifull
-  gdp=grav/(aphp1(jl,jk+1)-aphp1(jl,jk))
-  zhilso2=p1mxtm1(jl)*pxtm1(jl,kl,itracso2)*zvdrd(JL,1)
-  zhilso4t=p1mxtm1(jl)*pxtm1(jl,kl,itracso2+1)*zvdrd(jl,2)
-  so2dd(jl)=zhilso2
-  so4dd(jl)=zhilso4t
-  xte(jl,jk,jt)=xte(jl,jk,jt)-zhilso2*gdp
-  xte(jl,jk,jt+1)=xte(jl,jk,jt+1)-zhilso4t*gdp
-end do
+gdp=grav/(aphp1(:,1)-aphp1(:,2))
+so2dd=p1mxtm1*pxtm1(1:ifull,1,itracso2)*zvdrd(:,1)
+so4dd=p1mxtm1*pxtm1(1:ifull,1,itracso2+1)*zvdrd(:,2)
+xte(:,1,ITRACSO2)  =xte(:,1,ITRACSO2)  -so2dd*gdp
+xte(:,1,ITRACSO2+1)=xte(:,1,ITRACSO2+1)-so4dd*gdp
 
-do jl=1,ifull
-  gdp=grav/(aphp1(jl,jk+1)-aphp1(jl,jk))
-  ZHILBCO=P1MXTM1(JL)*PXTM1(JL,kl,ITRACBC)*ZVDPHOBIC
-  ZHILBCY=P1MXTM1(JL)*PXTM1(JL,kl,ITRACBC+1)*ZVDRD(JL,2)
-  ZHILOCO=P1MXTM1(JL)*PXTM1(JL,kl,ITRACOC)*ZVDPHOBIC
-  ZHILOCY=P1MXTM1(JL)*PXTM1(JL,kl,ITRACOC+1)*ZVDRD(JL,2)
-  xte(jl,jk,itracbc)=xte(jl,jk,itracbc)-zhilbco*gdp
-  xte(jl,jk,itracbc+1)=xte(jl,jk,itracbc+1)-zhilbcy*gdp
-  xte(jl,jk,itracoc)=xte(jl,jk,itracoc)-zhiloco*gdp
-  xte(jl,jk,itracoc+1)=xte(jl,jk,itracoc+1)-zhilocy*gdp
-enddo
+ZHILBCO=P1MXTM1*PXTM1(1:ifull,1,ITRACBC)*ZVDPHOBIC
+ZHILBCY=P1MXTM1*PXTM1(1:ifull,1,ITRACBC+1)*ZVDRD(:,2)
+ZHILOCO=P1MXTM1*PXTM1(1:ifull,1,ITRACOC)*ZVDPHOBIC
+ZHILOCY=P1MXTM1*PXTM1(1:ifull,1,ITRACOC+1)*ZVDRD(:,2)
+xte(:,1,itracbc)  =xte(:,1,itracbc)  -zhilbco*gdp
+xte(:,1,itracbc+1)=xte(:,1,itracbc+1)-zhilbcy*gdp
+xte(:,1,itracoc)  =xte(:,1,itracoc)  -zhiloco*gdp
+xte(:,1,itracoc+1)=xte(:,1,itracoc+1)-zhilocy*gdp
 
 RETURN
 END subroutine xtemiss
@@ -866,26 +794,21 @@ SUBROUTINE XTSINK (PTMST,PXTM1,PXTE)
 !   THIS ROUTINE COULD ALSO BE USED FOR EMISSION OR SINK
 !   ABOVE THE SURFACE
 !
-!   INTERFACE
-!  -----------
-!   *XTSINK* IS CALLED FROM *PHYSC*
-!
-!   NO EXTERNALS
-!
 
 implicit none
 
 ! Argument list
-REAL PTMST
-REAL PXTM1(ifull,kl,naero)
-REAL PXTE(ifull,kl,naero)
+REAL, intent(in) :: PTMST
+REAL, dimension(:,:,:), intent(in) :: PXTM1
+REAL, dimension(:,:,:), intent(out) :: PXTE
 
 ! Local data, functions etc
-real sxtsink(naero)
+real, dimension(naero) :: sxtsink
 
-real pqtmst,zfac,zdecay,zxtp1,zdxtdt
+real, dimension(ifull) :: zxtp1,zdxtdt
+real pqtmst,zfac,zdecay
 
-integer jt,jk,jl
+integer jt,jk
 
 ! Start code : ----------------------------------------------------------
 
@@ -902,13 +825,11 @@ DO JT=1,naero
   IF (SXTSINK(JT)/=0.) THEN
     ZDECAY=EXP(ZFAC/SXTSINK(JT))
     DO JK=1,kl
-      DO JL=1,ifull
-        ZXTP1=PXTM1(JL,JK,JT)+PXTE(JL,JK,JT)*PTMST
-        ZXTP1=ZXTP1*ZDECAY
-        ZDXTDT=(ZXTP1-PXTM1(JL,JK,JT))*PQTMST-PXTE(JL,JK,JT)
-        PXTE(JL,JK,JT)=PXTE(JL,JK,JT)+ZDXTDT
-        PXTE(JL,JK,JT+1)=PXTE(JL,JK,JT+1)-ZDXTDT 
-      end do
+      ZXTP1=PXTM1(1:ifull,JK,JT)+PXTE(1:ifull,JK,JT)*PTMST
+      ZXTP1=ZXTP1*ZDECAY
+      ZDXTDT=(ZXTP1-PXTM1(1:ifull,JK,JT))*PQTMST-PXTE(1:ifull,JK,JT)
+      PXTE(1:ifull,JK,JT)  =PXTE(1:ifull,JK,JT)  +ZDXTDT
+      PXTE(1:ifull,JK,JT+1)=PXTE(1:ifull,JK,JT+1)-ZDXTDT 
     end do
   ENDIF
 end do
@@ -1812,7 +1733,7 @@ DO JK=KTOP,kl
     do jl=1,ifull
       if(pfsnow(jl,jk)>zmin.and.pclcover(jl,jk)<1.-zmin)then
         plambda=min(plambs(jl,jk),8.e3) !Cut it off at about -30 deg. C
-        zbcscav=zcollefs(ktrac)*plambda*pfsnow(jl,jk)*ptmst/(2*rhos)
+        zbcscav=zcollefs(ktrac)*plambda*pfsnow(jl,jk)*ptmst/(2.*rhos)
         zbcscav=min(1.,zbcscav/(1.+0.5*zbcscav)) !Time-centred
         xbcscav=zbcscav*pxtp10(jl,jk)*zclr0(jl)
         pdep3d(jl,jk)=pdep3d(jl,jk)+xbcscav
@@ -1932,41 +1853,41 @@ END subroutine xtwetdep
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Dust settling
 
-subroutine dsettling(tdt,tmp,delz,prf,tc,dustd)
+subroutine dsettling(tdt,rhoa,tmp,delz,prf,tc,dustd)
 
 implicit none
 
 !     Inputs:
-real tdt              !Leapfrog timestep
-real tmp(:,:)         !temperature
-real delz(ifull,kl)   !Lowest layer thickness (m)
-real prf(ifull,kl)    !Pressure (hPa)
-real dustd(ifull)     !Dry deposition flux out of lowest layer
+real, intent(in) :: tdt                         !timestep (s)
+real, dimension(1:ifull,kl), intent(in) :: rhoa !air density (kg/m3)
+real, dimension(:,:), intent(in) :: tmp         !temperature (K)
+real, dimension(ifull,kl), intent(in) :: delz   !Lowest layer thickness (m)
+real, dimension(ifull,kl), intent(in) :: prf    !Pressure (hPa)
 
 !     In/Out:
-real tc(ifull,kl,ndust) !Dust mixing ratio (kg/kg)
+real, dimension(:,:,:), intent(inout) :: tc     !Dust mixing ratio (kg/kg)
+real, dimension(ifull), intent(inout) :: dustd  !Dry deposition flux out of lowest layer
 
 ! Local work arrays and variables
-integer ndt_settl(ndust)
-real dt_settl(ndust),dtxvsettl(ndust)
-real rhoa(ifull,kl)   !air density (kg/m3)
-real dcol1(ifull), dcol2(ifull)
+integer, dimension(ndust) :: ndt_settl
+real, dimension(ndust) :: dt_settl
+real, dimension(ifull) :: dcol1, dcol2
 
 real dzmin,dtmax,vsettl
-real pres(ifull),c_stokes(ifull),corr(ifull)
-real c_cun(ifull),vd_cor(ifull)
+real, dimension(ifull,kl) :: vd_cor
+real, dimension(ifull) :: pres,c_stokes,corr
+real, dimension(ifull) :: c_cun
 integer n,k,mg,l
+
+real, parameter :: dyn_visc  = 1.5E-5
 
 ! Start code : ----------------------------------------------------------
 
 ! Calculate integrated column dust before settling
-
-rhoa(:,:)=100.*prf(:,:)/(rdry*tmp(1:ifull,:)) !density of air
-
-dcol1(:)=0.
-do n=1,ndust
+dcol1=0.
+do n=itracdu,itracdu+ndust-1
   do k=1,kl
-    dcol1(:) = dcol1(:) + rhoa(:,k) * tc(:,k,n)* delz (:,k)
+    dcol1 = dcol1 + rhoa(:,k) * tc(1:ifull,k,n)* delz (:,k)
   enddo
 enddo
 
@@ -1985,51 +1906,45 @@ do k = 1, NDUST
 ! Determine the maximum time-step satisying the CFL condition:
 ! dt <= (dz)_min / v_settl
   dtmax = dzmin / vsettl
-  ndt_settl(k) = int( TDT /(dtmax+0.001) )+1 ! MJT suggestion
-  dt_settl(k) = tdt / ndt_settl(k)
-        
-  dtxvsettl(k) = dt_settl(k) * vsettl
-
+  ndt_settl(k) = max(1, int( TDT /dtmax ) )
+  dt_settl(k) = tdt / real(ndt_settl(k))
 enddo
 
 ! Solve the bidiagonal matrix (l,l)
 do k = 1, NDUST
   do n = 1, ndt_settl(k)
 
-! Solve at the model top (layer LMX)
-    l=kl
-    pres = prf(:,l)     !Looks like mb is correct units
+! Solve at the model top
 ! Dynamic viscosity
-    C_Stokes = 1.458E-6 * TMP(1:ifull,l)**1.5/(TMP(1:ifull,l)+110.4) 
+    C_Stokes = 1.458E-6 * TMP(1:ifull,kl)**1.5/(TMP(1:ifull,kl)+110.4) 
 ! Cuningham correction
-    Corr=6.6E-8*pres/1013.*TMP(1:ifull,l)/293.15
+    Corr=6.6E-8*prf(:,kl)/1013.*TMP(1:ifull,kl)/293.15
     C_Cun = 1.+ 1.249*corr/dustreff(k)
 ! Settling velocity
-    Vd_cor=2./9.*grav*dustden(k)*dustreff(k)**2/C_Stokes*C_Cun
+    Vd_cor(:,kl)=2./9.*grav*dustden(k)*dustreff(k)**2/C_Stokes*C_Cun
 ! Update mixing ratio
-    TC(:,l,k) = TC(:,l,k) / (1.+ dt_settl(k)*VD_cor/DELZ(:,l))
+    TC(1:ifull,kl,k+itracdu-1) = TC(1:ifull,kl,k+itracdu-1) / (1.+ dt_settl(k)*VD_cor(:,kl)/DELZ(:,kl))
 
 ! Solve each vertical layer successively (layer l)
     do l = kl-1,1,-1
-! Pressure
-      pres = prf(:,l)
 ! Dynamic viscosity
       C_Stokes = 1.458E-6 * TMP(1:ifull,l)**1.5/(TMP(1:ifull,l)+110.4) 
 ! Cuningham correction
-      Corr=6.6E-8*pres/1013.*TMP(1:ifull,l)/293.15
+      Corr=6.6E-8*prf(:,l)/1013.*TMP(1:ifull,l)/293.15
       C_Cun = 1.+ 1.249*corr/dustreff(k)
 ! Settling velocity
-      Vd_cor=2./9.*grav*dustden(k)*dustreff(k)*dustreff(k)/C_Stokes*C_Cun
+      Vd_cor(:,l)=2./9.*grav*dustden(k)*dustreff(k)*dustreff(k)/C_Stokes*C_Cun
 ! Update mixing ratio
-      TC(:,l,k)=1./(1.+ dt_settl(k)*Vd_cor/DELZ(:,l))*(TC(:,l,k) + dt_settl(k)*Vd_cor /DELZ(:,l+1) * TC(:,l+1,k))
+      TC(1:ifull,l,k+itracdu-1)=1./(1.+ dt_settl(k)*Vd_cor(:,l)/DELZ(:,l)) &
+          *(TC(1:ifull,l,k+itracdu-1) + dt_settl(k)*Vd_cor(:,l+1)/DELZ(:,l+1)*TC(1:ifull,l+1,k+itracdu-1))
     enddo
 
   enddo
 enddo
 
 ! Calculate integrated column dust after settling
-dcol2(:)=0.
-do n=1,ndust
+dcol2=0.
+do n=itracdu,itracdu+ndust-1
   do k=1,kl
     dcol2 = dcol2 + rhoa(:,k) * tc(:,k,n)* delz (:,k)
   enddo
@@ -2042,123 +1957,109 @@ return
 end subroutine dsettling
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! dustem
+! Dust emissions
 
-subroutine dustem(tdt,airden,wg,w10m,dz1,vt,snowd,dxy,land,        & !Inputs
-                  xd,dustd,duste)                                    !In and out
+subroutine dustem(tdt,rhoa,wg,w10m,dz1,vt,snowd,land,        & !Inputs
+                  xd,dustd,duste)                                !In and out
 
 implicit none
 
 !     Inputs:
-real tdt              !Leapfrog timestep
-real airden(ifull)    !air density (kg/m3)
-real wg(ifull)        !ground wetness (fraction of field capacity)
-real w10m(ifull)      !10m windspeed (m/s)
-real dz1(ifull)       !Lowest layer thickness (m)
-real vt(ifull)        !Transfer velocity at surface for dry deposition (m/s)
-real snowd(ifull)     !Snow depth (mm equivalent water)
-real dxy(ifull)       ! area of grid box
-logical land(ifull)
+real, intent(in) :: tdt                         !Leapfrog timestep (s)
+real, dimension(ifull), intent(in) :: rhoa      !air density (kg/m3)
+real, dimension(ifull), intent(in) :: wg        !ground wetness (fraction of field capacity)
+real, dimension(ifull), intent(in) :: w10m      !10m windspeed (m/s)
+real, dimension(ifull), intent(in) :: dz1       !Lowest layer thickness (m)
+real, dimension(ifull), intent(in) :: vt        !Transfer velocity at surface for dry deposition (m/s)
+real, dimension(ifull), intent(in) :: snowd     !Snow depth (mm equivalent water)
+logical, dimension(ifull), intent(in) :: land
 
 !     In and out
-real xd(ifull,kl,ndust)!Dust mixing ratio (kg/kg)
-real dustd(ifull)      !Dry deposition flux out of lowest layer (diagnostic; kg/m2/s)
-real duste(ifull)      !Dust emission flux into lowest layer (diagnostic; kg/m2/s)
+real, dimension(:,:,:), intent(inout) :: xd         !Dust mixing ratio (kg/kg)
+real, dimension(ifull), intent(inout) :: dustd      !Dry deposition flux out of lowest layer (diagnostic; kg/m2/s)
+real, dimension(ifull), intent(inout) :: duste      !Dust emission flux into lowest layer (diagnostic; kg/m2/s)
 
 
 ! Local work arrays and variables
-integer ipoint(ndust) !Pointer used for dust classes (sand, silt, clay)
-real frac_s(ndust)
-real den(ndust),diam(ndust)
-real snowa(ifull)     !Estimated snow areal coverage
-real water(ifull)
-real ch_dust
-real u_ts0(ifull)
-real u_ts(ifull)
-real srce(ifull),dsrc(ifull),airmas(ifull),cw(ifull),dxdt(ifull)
-real hsnow(ifull),a(ifull),b(ifull),xold(ifull),xtendd(ifull),veff(ifull)
-
-real g
-integer n,m,k
-
-! Local data, functions etc
-data ipoint/3,2,2,2/ !,3,2,2,2,12*0/ !Pointer to the 3 classes (sand, silt, clay)
-
+integer, dimension(ndust), parameter :: ipoint = (/3,2,2,2/) !Pointer used for dust classes (sand, silt, clay)
 ! This array gives fraction of source in each size bin.
 ! Doesn't quite add to 1, because larger sizes (omitted) account for some too.
 ! All source is in first four bins, even when using eight bins, since next four are hydrophilic.
-data frac_s/0.1,0.25,0.25,0.25/ !,16*0./
+real, dimension(ndust), parameter :: frac_s = (/0.1,0.25,0.25,0.25/)
+real, dimension(ifull) :: snowa     !Estimated snow areal coverage
+real, dimension(ifull) :: u_ts0
+real, dimension(ifull) :: u_ts
+real, dimension(ifull) :: srce,dsrc,airmas,dxdt
+real, dimension(ifull) :: a,b,xold,xtendd,veff
+real, dimension(ifull) :: airden
+
+real g,den,diam
+integer n,m
+
+real, parameter :: Ch_dust = 1.e-9  ! Transfer coeff for type natural source (kg*s2/m5)
 
 ! Start code : ----------------------------------------------------------
-where (land)
-  water=0.       ! fraction of water in each grid box
-elsewhere
-  water=1.
-end where
 
-Ch_dust = 1.e-9  ! Transfer coeff for type natural source (kg*s2/m5)
 g=grav*1.e2
+airden=rhoa*1.e-3
+
+! Convert snow depth to estimated areal coverage (see Zender et al 2003, JGR 108, D14, 4416)
+! Must convert from mm to m, then adjust by rho_l/rho_s=10.
+! 0.05 m is the geometrical snow thickness for 100% areal coverage.
+!hsnow = snowd(:)*0.01 !Geometrical snow thickness in metres
+snowa = min(1., snowd(:)/5.)
 
 do n = 1, ndust
   ! Threshold velocity as a function of the dust density and the diameter
   ! from Bagnold (1941)
-  den(n)=dustden(n)*1.e-3
-  diam(n)=2.*dustreff(n)*1.e2
+  den=dustden(n)*1.e-3
+  diam=2.*dustreff(n)*1.e2
   ! Pointer to the 3 classes considered in the source data files
   m=ipoint(n)
-  do k = 1, NDSRC
-    ! No flux if wet soil 
-
-    ! Following is from Ginoux et al (2004) Env. Modelling & Software.
-    u_ts0=0.13*1.e-2*sqrt(den(n)*g*diam(n)/(airden*1.e-3))*sqrt(1.+0.006/den(n)/g/(diam(n))**2.5)/ &
-            sqrt(1.928*(1331.*(diam(n))**1.56+0.38)**0.092-1.)
-    ! Case of surface dry enough to erode
-    where (wg<0.1) 
-      !Tuning suggested for Asian source by P. Ginoux
-      u_ts=max(0.,u_ts0*(1.2+0.2*alog10(max(1.e-3,wg))))
-    elsewhere
-      ! Case of wet surface, no erosion
-      u_ts=100.
-    end where
+  
+  ! Following is from Ginoux et al (2004) Env. Modelling & Software.
+  u_ts0=0.13*1.e-2*sqrt(den*g*diam/airden)*sqrt(1.+0.006/den/g/diam**2.5)/ &
+          sqrt(1.928*(1331.*diam**1.56+0.38)**0.092-1.)
+!  u_ts0=0.13*sqrt(dustden(n)*grav*2.*dustreff(n)/rhoa)*sqrt(1.+6.E-7/(dustden(n)*grav*(2.*dustreff(n))**2.5))/ &
+!        sqrt(1.7638*(4.6E6*((2.*dustreff(n))**1.56+1.)**0.092-1.))
+  
+  ! Case of surface dry enough to erode
+  where (wg<0.1)
+    !Tuning suggested for Asian source by P. Ginoux
+    u_ts=max(0., u_ts0*(1.2+0.2*alog10(max(1.e-3,wg))))
+  elsewhere
+    ! Case of wet surface, no erosion
+    u_ts=100.
+  end where
     
-    ! Fraction of emerged surfaces (subtract lakes, coastal ocean,...)
-    cw=1.-water(:)
-
-    ! Convert snow depth to estimated areal coverage (see Zender et al 2003, JGR 108, D14, 4416)
-    ! Must convert from mm to m, then adjust by rho_l/rho_s=10.
-    ! 0.05 m is the geometrical snow thickness for 100% areal coverage.
-    hsnow = snowd(:)*0.01 !Geometrical snow thickness in metres
-    snowa = min(1.0, hsnow/0.05)
-
-    !SRCE=frac_s(n)*EROD(i,m,k)*DXY(i) ! (m2)
-    SRCE=frac_s(n)*EROD(:,m,k) ! (fraction) - MJT suggestion
-    DSRC=(1.-snowa)*cw*Ch_dust*SRCE*W10m(:)*W10m(:) * (W10m(:)-u_ts(:)) ! (kg/s/m2)
-    dsrc = max ( 0., dsrc )
+  !SRCE=frac_s(n)*EROD(i,m)*DXY(i) ! (m2)
+  SRCE=frac_s(n)*EROD(:,m) ! (fraction) - MJT suggestion
+  DSRC=(1.-snowa)*Ch_dust*SRCE*W10m*W10m*(W10m-u_ts) ! (kg/s/m2)
+  dsrc=max( 0., dsrc )
 
 ! Calculate dust mixing ratio tendency at first model level.
-    !airmas = dxy(i) * dz1(i) * airden(i) ! kg
-    airmas = dz1(:) * airden(:) ! kg/m2 - MJT suggestion
-    dxdt = DSRC / AIRMAS
-    !duste(i) = duste(i) + dxdt*airden(i)*dz1(i)
-    duste(:) = duste(:) + dsrc ! MJT suggestion
+  !airmas = dxy(i) * dz1(i) * rhoa(i) ! kg
+  airmas = dz1(:) * rhoa(:) ! kg/m2 - MJT suggestion
+  dxdt = DSRC / AIRMAS
+  !duste(i) = duste(i) + dxdt*rhoa(i)*dz1(i)
+  duste(:) = duste(:) + dsrc ! MJT suggestion
 
 ! Calculate turbulent dry deposition at surface
 ! Use the tau-1 value of dust m.r. for now, but may modify this...
 
 ! Use full layer thickness for CSIRO model (should be correct if Vt is relative to mid-layer)
-    veff = Vt(:) * (wg(:)+(1.-wg(:))*exp(-max(0.,w10m(:)-u_ts0(:))))
+  veff = Vt * (wg+(1.-wg)*exp(-max(0.,w10m-u_ts0)))
 
 ! Update mixing ratio
-! Write in form dx/dt = a - bx (a = source term, b = drydep term) and use time-centered scheme
-    a = dxdt
-    b = Veff / dz1(:)
-    xold = xd(:,1,n)
-    xd(:,1,n) = (xold+a*tdt)/(1.+b*tdt) ! MJT suggestion
-    !xd(i,1,n) = (xold*(1.-0.5*b*tdt)+a*tdt)/(1.+0.5*b*tdt)
-    xd(:,1,n) = max (0.,xd(:,1,n))
-    xtendd = (xd(:,1,n)-xold)/tdt - dxdt
-    dustd(:) = dustd(:) - xtendd*airden(:)*dz1(:) !Diagnostic
-  enddo
+! Write in form dx/dt = a - bx (a = source term, b = drydep term)
+  a = dxdt
+  b = Veff / dz1(:)
+  xold = xd(1:ifull,1,n+itracdu-1)
+  xd(1:ifull,1,n+itracdu-1) = (xold*(1.-0.5*b*tdt)+a*tdt)/(1.+0.5*b*tdt)
+  xd(1:ifull,1,n+itracdu-1) = max (0.,xd(1:ifull,1,n+itracdu-1))
+    
+  xtendd = (xd(1:ifull,1,n+itracdu-1)-xold)/tdt - dxdt
+  dustd(:) = dustd(:) - xtendd*airmas(:) !Diagnostic
 enddo
 
 return
