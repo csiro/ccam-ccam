@@ -626,8 +626,8 @@
           end if
           call slowspecmpi(.1*real(mbd)/(pi*schmidt)
      &                  ,pslb,ub(:,kln:klx),vb(:,kln:klx)
-     &                  ,tb(:,kln:klx),qb(:,kln:klx),xtgb(:,kln:klx,:)
-     &                  ,lblock,klt)
+     &                  ,tb(:,kln:klx),qb(:,kln:klx),xtgb
+     &                  ,lblock,klt,kln,klx)
         else
           if (myid==0) then
 #ifdef uniform_decomp
@@ -638,8 +638,8 @@
           end if
           call specfastmpi(.1*real(mbd)/(pi*schmidt)
      &                  ,pslb,ub(:,kln:klx),vb(:,kln:klx)
-     &                  ,tb(:,kln:klx),qb(:,kln:klx),xtgb(:,kln:klx,:)
-     &                  ,lblock,klt)
+     &                  ,tb(:,kln:klx),qb(:,kln:klx),xtgb
+     &                  ,lblock,klt,kln,klx)
         endif  ! (nud_uv==9) .. else ..
         !-----------------------------------------------------------------------
 
@@ -706,7 +706,8 @@
       !---------------------------------------------------------------------------------
       ! Slow 2D spectral downscaling - MPI version
       ! This option is an exact treatment of the filter
-      subroutine slowspecmpi(cin,pslb,ub,vb,tb,qb,xtgb,lblock,klt)
+      subroutine slowspecmpi(cin,pslb,ub,vb,tb,qb,xtgb,lblock,
+     &                       klt,kln,klx)
 
       use aerosolldr        ! Aerosol interface
       use cc_mpi            ! CC MPI routines
@@ -717,13 +718,13 @@
       include 'newmpar.h'   ! Grid parameters
       include 'parm.h'      ! Model configuration
 
-      integer, intent(in) :: klt
+      integer, intent(in) :: klt,kln,klx
       integer k,n
       real, intent(in) :: cin
       real, dimension(ifull), intent(inout) :: pslb
       real, dimension(ifull,klt), intent(inout) :: ub,vb
       real, dimension(ifull,klt), intent(inout) :: tb,qb
-      real, dimension(ifull,klt,naero), intent(inout) :: xtgb
+      real, dimension(ifull,kl,naero), intent(inout) :: xtgb
       real, dimension(ifull,klt) :: wb
       real, dimension(ifull_g,klt) :: tt
       real, dimension(ifull) :: da,db
@@ -779,8 +780,8 @@
       end if
       if (nud_aero>0) then
         do n=1,naero
-          call ccmpi_gatherall(xtg(:,:,n),tt)
-          call slowspecmpi_work(cq,tt,xtgb(:,:,n),klt)
+          call ccmpi_gatherall(xtg(:,kln:klx,n),tt)
+          call slowspecmpi_work(cq,tt,xtgb(:,kln:klx,n),klt)
         end do
       end if      
 
@@ -842,7 +843,8 @@
 
       !---------------------------------------------------------------------------------
       ! Four pass spectral downscaling
-      subroutine specfastmpi(cin,psls,uu,vv,tt,qgg,xtgg,lblock,klt)
+      subroutine specfastmpi(cin,psls,uu,vv,tt,qgg,xtgg,lblock,
+     &                       klt,kln,klx)
       
       use aerosolldr         ! Aerosol interface
       use cc_mpi             ! CC MPI routines
@@ -852,20 +854,22 @@
       include 'newmpar.h'    ! Grid parameters
       include 'parm.h'       ! Model configuration
       
-      integer, intent(in) :: klt
+      integer, intent(in) :: klt,kln,klx
       real, intent(in) :: cin
       real, dimension(ifull), intent(inout) :: psls
       real, dimension(ifull,klt), intent(inout) :: uu,vv
       real, dimension(ifull,klt), intent(inout) :: tt,qgg
-      real, dimension(ifull,klt,naero), intent(inout) :: xtgg
+      real, dimension(ifull,kl,naero), intent(inout) :: xtgg
       logical, intent(in) :: lblock
       
       if (npta==1) then
         ! face version (nproc>=6)
-        call spechost_n(cin,psls,uu,vv,tt,qgg,xtgg,lblock,klt)
+        call spechost_n(cin,psls,uu,vv,tt,qgg,xtgg,lblock,
+     &                  klt,kln,klx)
       else
         ! normal version
-        call spechost(cin,psls,uu,vv,tt,qgg,xtgg,lblock,klt)
+        call spechost(cin,psls,uu,vv,tt,qgg,xtgg,lblock,
+     &                klt,kln,klx)
       end if
 
       return
@@ -876,7 +880,8 @@
       !---------------------------------------------------------------------------------
       ! This is the main routine for the scale-selective filter
       ! (see spechost_n for a reduced memory version)
-      subroutine spechost(cin,pslb,ub,vb,tb,qb,xtgb,lblock,klt)
+      subroutine spechost(cin,pslb,ub,vb,tb,qb,xtgb,lblock,
+     &                    klt,kln,klx)
 
       use aerosolldr        ! Aerosol interface
       use cc_mpi            ! CC MPI routines
@@ -887,13 +892,13 @@
       include 'newmpar.h'   ! Grid parameters
       include 'parm.h'      ! Model configuration
       
-      integer, intent(in) :: klt
+      integer, intent(in) :: klt,kln,klx
       integer i,k,n,ppass
       real, intent(in) :: cin
       real, dimension(ifull), intent(inout) :: pslb
       real, dimension(ifull,klt), intent(inout) :: ub,vb
       real, dimension(ifull,klt), intent(inout) :: tb,qb
-      real, dimension(ifull,klt,naero), intent(inout) :: xtgb
+      real, dimension(ifull,kl,naero), intent(inout) :: xtgb
       real, dimension(ifull,klt) :: wb
       real, dimension(ifull_g,klt) :: tt,qt
       real, dimension(ifull) :: da,db
@@ -993,13 +998,13 @@
       endif
       if (nud_aero>0) then
         do i=1,naero
-          call ccmpi_gathermap(xtgb(:,:,i), tt)
+          call ccmpi_gathermap(xtgb(:,kln:klx,i), tt)
           do ppass=pprocn,pprocx
             qt(:,:)=tt(:,:)
             call fastspecmpi_work(cin,qt,klt,ppass)
             do k=1,klt
               do n=1,ipan*jpan
-                xtgb(n+ipan*jpan*(ppass-pprocn),k,i)=qt(n,k)
+                xtgb(n+ipan*jpan*(ppass-pprocn),k+kln-1,i)=qt(n,k)
               end do
             end do
           end do
@@ -1011,7 +1016,8 @@
       !---------------------------------------------------------------------------------
 
       ! This version is for one panel per processor (reduced memory)
-      subroutine spechost_n(cin,pslb,ub,vb,tb,qb,xtgb,lblock,klt)
+      subroutine spechost_n(cin,pslb,ub,vb,tb,qb,xtgb,lblock,
+     &                      klt,kln,klx)
 
       use aerosolldr        ! Aerosol interface
       use cc_mpi            ! CC MPI routines
@@ -1022,13 +1028,13 @@
       include 'newmpar.h'   ! Grid parameters
       include 'parm.h'      ! Model configuration
       
-      integer, intent(in) :: klt
+      integer, intent(in) :: klt,kln,klx
       integer k,n
       real, intent(in) :: cin
       real, dimension(ifull), intent(inout) :: pslb
       real, dimension(ifull,klt), intent(inout) :: ub,vb
       real, dimension(ifull,klt), intent(inout) :: tb,qb
-      real, dimension(ifull,klt,naero), intent(inout) :: xtgb
+      real, dimension(ifull,kl,naero), intent(inout) :: xtgb
       real, dimension(ifull,klt) :: wb
       real, dimension(ifull_g,klt) :: tt
       real, dimension(ifull) :: da,db
@@ -1081,9 +1087,9 @@
       end if
       if (nud_aero>0) then
         do n=1,naero
-          call ccmpi_gathermap(xtgb(:,:,n), tt)
+          call ccmpi_gathermap(xtgb(:,kln:klx,n), tt)
           call fastspecmpi_work(cin,tt,klt,pprocn)
-          xtgb(:,:,n)=tt(1:ifull,:)
+          xtgb(:,kln:klx,n)=tt(1:ifull,:)
         end do
       end if      
 

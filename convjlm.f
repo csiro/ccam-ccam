@@ -77,7 +77,7 @@ c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
       real, dimension(:,:), allocatable, save :: downex,upin,upin4
       real, dimension(:,:,:), allocatable, save :: detrarr
       integer, dimension(:), allocatable, save :: kb_saved,kt_saved
-      real, dimension(ifull) :: conrev,rho,xtgsto,ttsto,qqsto,qqrain
+      real, dimension(ifull) :: conrev,rho,qqsto,qqdef,dnorm
       real, dimension(ifull) :: alfqarr,alfqarrx,omega,omgtst
       real, dimension(ifull,naero) :: fscav
       logical, dimension(ifull) :: bliqu
@@ -98,7 +98,7 @@ c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
       real entr(ifull),detrfactr(ifull),factr(ifull)
       real fluxqs,fluxt_k(kl)
       real pblx(ifull)
-      real ff(ifull,kl)
+      real ff(ifull,kl),qqsav(ifull,kl)
       integer kpos(1)
       
       if (.not.allocated(upin)) then
@@ -481,6 +481,7 @@ c     convective first, then possibly L/S rainfall
       convpsav(:)=0.
       dels(:,:)=1.e-20
       delq(:,:)=0.
+      qqsav(:,:)=qq(:,:) ! for convective scavenging of aerosols
       if(nuvconv.ne.0)then 
         if(nuvconv<0)nuv=abs(nuvconv)  ! Oct 08 nuv=0 for nuvconv>0
         delu(:,:)=0.
@@ -1358,19 +1359,6 @@ c          detrfactr(iq)=detrfactr(iq)+detrarr(k,kb_sav(iq),kt_sav(iq))   ! just
 
       ! Convective transport of aerosols - MJT
       if (abs(iaero)==2) then
-        ! This is a simple approximation where all rain is attributed to
-        ! kt_save.  However, rain is actually attributed to kt_save (qprec)
-        ! kdown (fldow(iq)*qsk) and kb_sav (-fldow(iq)*qdown(iq)).
-        do iq=1,ifull
-          kt=min(kt_sav(iq),kl-1)
-          ttsto(iq)=tt(iq,kt)
-          qqsto(iq)=qq(iq,kt)
-          rho(iq)=ps(iq)*sig(kt)/(rdry*ttsto(iq))
-          bliqu(iq)=ttsto(iq)>=253.16
-          qqrain(iq)=qqsto(iq)+convpsav(iq)*rnrtcn(iq)
-          xtgsto(iq)=xtg(iq,kt,3)
-        end do
-        call convscav(fscav,qqsto,qqrain,bliqu,ttsto,xtgsto,rho)
         do ntr=1,naero
           s(:,1:kl-2)=xtg(1:ifull,1:kl-2,ntr)
           do iq=1,ifull
@@ -1382,14 +1370,39 @@ c          detrfactr(iq)=detrfactr(iq)+detrarr(k,kb_sav(iq),kt_sav(iq))   ! just
 !            remove aerosol from lower layer
              xtg(iq,kb,ntr)=xtg(iq,kb,ntr)-fluxup/dsk(kb)
 !            put flux of aerosol into upper layer
-             xtg(iq,kt,ntr)=xtg(iq,kt,ntr)+fluxup* 
-     &                       (1.-fscav(iq,ntr))/dsk(kt)
+             xtg(iq,kt,ntr)=xtg(iq,kt,ntr)+fluxup/dsk(kt)
              do k=kb+1,kt
               xtg(iq,k,ntr)=xtg(iq,k,ntr)-s(iq,k)*veldt/dsk(k)
               xtg(iq,k-1,ntr)=xtg(iq,k-1,ntr)+s(iq,k)*veldt/dsk(k-1)
              enddo
            endif
           enddo   ! iq loop
+        end do
+        ! convective scavenging of aerosols
+        ! Note that not all missing qq becomes rain. However, some becomes qlg
+        ! which also needs to be accounted for here.  Hence we simply use the
+        ! change in qq
+        qqdef=0.
+        dnorm=0.
+        do k=1,kl-2
+          where (k>=kb_sav.and.k<=kt_sav)
+            qqdef=qqdef+factr(:)*(qqsav(:,k)-qq(:,k))*dsk(k)
+            dnorm=dnorm+dsk(k)
+          end where
+        end do
+        qqdef=qqdef/max(dnorm,1.E-8) ! averge change in qq
+        do k=1,kl-2
+          rho(:)=ps(:)*sig(k)/(rdry*tt(:,k))
+          bliqu(:)=tt(:,k)>=253.16
+          where (k>=kb_sav.and.k<=kt_sav)
+            qqsto(:)=qqsav(:,k)-qqdef ! apply change in qq uniformly
+          elsewhere
+            qqsto(:)=qqsav(:,k)
+          end where
+          ! convscav expects cloud liquid water before and after precipitation
+          call convscav(fscav,qqsto,qqsav(:,k),bliqu,tt(:,k),
+     &                  xtg(1:ifull,k,3),rho)
+          xtg(1:ifull,k,:)=xtg(1:ifull,k,:)*(1.-fscav(:,:))
         end do
       end if
       

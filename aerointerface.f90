@@ -38,6 +38,7 @@ use aerosolldr          ! LDR prognostic aerosols
 use cc_mpi              ! CC MPI routines
 use infile              ! Input file routines
 use ozoneread           ! Ozone input routines
+use sigs_m              ! Atmosphere sigma levels
       
 implicit none
 
@@ -85,7 +86,7 @@ pprscav=0.
 zdayfac=0.
 opticaldepth=0.
 
-call aldrinit(ifull,iextra,kl)
+call aldrinit(ifull,iextra,kl,sig)
 
 if (myid==0) then
   allocate(dumg(ifull_g))
@@ -470,7 +471,7 @@ integer, parameter :: updateoxidant = 1440 ! update prescribed oxidant fields on
 real dhr,fjd,sfjd,r1,dlt,alp,slag
 real, dimension(ifull,kl,naero) :: xtusav
 real, dimension(ifull,kl) :: oxout,zg,clcon,pccw,rhoa
-real, dimension(ifull,kl) :: tnhs,dz,ctmp,tv
+real, dimension(ifull,kl) :: tnhs,dz,tv
 real, dimension(ifull) :: coszro,taudar
 real, dimension(ifull) :: cldcon,wg
 real, dimension(kl+1) :: sigh
@@ -561,13 +562,6 @@ else
   end do  
 end if
 
-! Convert from aerosol concentration outside convective cloud (used by CCAM)
-! to aerosol concentration inside convective cloud
-ctmp=max(clcon,1.E-8)
-do j=1,naero
-  xtusav(:,:,j)=max(xtg(1:ifull,:,j)-(1.-ctmp)*xtosav(:,:,j),0.)/ctmp
-end do
-
 ! Water converage at surface
 wg=min(max(wetfac,0.),1.)
 
@@ -578,13 +572,14 @@ wg=min(max(wetfac,0.),1.)
 ! better estimate of u10 and pblh.
 
 ! update prognostic aerosols
-call aldrcalc(dt,sig,sigh,dsig,zg,dz,cansto,fwet,wg,pblh,ps,   &
-              tss,t,condc,snowd,sgsave,fg,                     &
-              eg,u10,ustar,zo,land,fracice,sigmf,              &
-              qg,qlg,qfg,cfrac,clcon,                          &
-              pccw,rhoa,cdtq,ppfprec,ppfmelt,ppfsnow,          &
-              ppfconv,ppfevap,ppfsubl,pplambs,ppmrate,         &
-              ppmaccr,ppfstay,ppqfsed,pprscav,zdayfac,xtusav)
+call aldrcalc(dt,sig,sigh,dsig,zg,dz,fwet,wg,pblh,ps,  &
+              tss,t,condc,snowd,sgsave,fg,             &
+              eg,u10,ustar,zo,land,fracice,sigmf,      &
+              qg,qlg,qfg,cfrac,clcon,                  &
+              pccw,rhoa,cdtq,ppfprec,ppfmelt,ppfsnow,  &
+              ppfconv,ppfevap,ppfsubl,pplambs,ppmrate, &
+              ppmaccr,ppfstay,ppqfsed,pprscav,zdayfac, &
+              kbsav)
 
 ! store sulfate for LH+SF radiation scheme.  SEA-ESF radiation scheme imports prognostic aerosols in seaesfrad.f90.
 ! Factor 1.e3 to convert to g/m2, x 3 to get sulfate from sulfur

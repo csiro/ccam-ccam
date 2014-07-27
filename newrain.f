@@ -134,7 +134,6 @@ C Local work arrays and variables
       real crate
       real delt
       real dql
-      real dqlo
       real dqsdt
       real es
       real evap
@@ -285,7 +284,6 @@ c Or, using old autoconv scheme... also used by prognostic cloud scheme
 
               if(qcic<qcrit)then
                 ql=qlg(mg,k)
-                dqlo=0.
               else
                 Crate=Aurate*
      &               rhoa(mg,k)*(rhoa(mg,k)/(cdrop(mg,k)*rhow))**(1./3.)
@@ -346,7 +344,7 @@ c      do nt=1,njumps
           clfra(mg)=1.e-6
           ccra(mg)=0.
           fluxrain(mg)=0.
-          prscav(mg,1)=0.
+          prscav(mg,nl)=0.
           mxclfr(mg)=0. ! max overlap rain fraction
           rdclfr(mg)=0. ! rnd overlap rain fraction
         enddo
@@ -449,8 +447,8 @@ c Frb term now done above.
             fcol=fcol+rdclfr(mg)-fcol*rdclfr(mg)        !rnd overlap
             cdt=delt*Ecol*0.24*(fcol*pow75(Fr)
      &                         +ccra(mg)*pow75(Frc))
-c            prscav(mg,nlp-k)=cdt/Ecol !Inc conv part
-            prscav(mg,nlp-k)=delt*0.24*fcol*pow75(Fr) !Strat only
+c            prscav(mg,k)=cdt/Ecol !Inc conv part
+            prscav(mg,k)=delt*0.24*fcol*pow75(Fr) !Strat only
 
             coll=min(qlg(mg,k),qlg(mg,k)*cdt/(1.+0.5*cdt))
             qcoll(mg,k)=qcoll(mg,k)+coll

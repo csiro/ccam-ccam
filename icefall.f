@@ -297,12 +297,12 @@ c Save sedimentation rate for aerosol scheme
 
       do k=1,nl-1
         do mg=1,ln2
-c         pqfsed(mg,nlp-k)=fout(mg,k)*qfg(mg,k)/tdt
-          pqfsed(mg,nlp-k)=fout(mg,k)
+c         pqfsed(mg,k)=fout(mg,k)*qfg(mg,k)/tdt
+          pqfsed(mg,k)=fout(mg,k)
         enddo
       enddo
       do mg=1,ln2
-        pqfsed(mg,1)=0.
+        pqfsed(mg,nl)=0.
       enddo
 
       ! The following has been modified to track the random overlap rain fraction (rdclfr)
@@ -317,7 +317,7 @@ c Assume no cloud at top level
           fluxice(mg)=0.
           cifra(mg)=0.
           rica(mg)=0.
-          pfstay(mg,1)=0.
+          pfstay(mg,nl)=0.
           mxclfr(mg)=0. ! max overlap rain fraction
           rdclfr(mg)=0. ! rnd overlap rain fraction
         enddo
@@ -377,7 +377,7 @@ c Compute the sublimation of ice falling from level k+1 into level k
 
 c Save this for the wet deposition scheme.
 
-            pfstay(mg,nlp-k)=fluxice(mg)*(1.-fthru(mg,k))/tdt !Flux staying in layer k
+            pfstay(mg,k)=fluxice(mg)*(1.-fthru(mg,k))/tdt !Flux staying in layer k
 
 c Accretion of cloud water by falling ice
 c This calculation uses the incoming fluxice without subtracting sublimation

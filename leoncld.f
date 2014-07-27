@@ -324,10 +324,10 @@ c     Calculate precipitation and related processes
             ppmrate(:,kl+1-k)=0.
             ppmaccr(:,kl+1-k)=0.
           end where
+          ppfstay(:,kl+1-k)=pfstay(:,k)
+          ppqfsed(:,kl+1-k)=pqfsed(:,k)
+          pprscav(:,kl+1-k)=prscav(:,k)
         enddo
-        ppfstay=pfstay
-        ppqfsed=pqfsed
-        pprscav=prscav
       end if
       !--------------------------------------------------------------
 
