@@ -895,11 +895,13 @@ integer k
 cc(:,1)=cci(:,1)/bbi(:,1)
 dd(:,1)=ddi(:,1)/bbi(:,1)
 
-do k=2,klin
+do k=2,klin-1
   n=bbi(:,k)-cc(:,k-1)*aai(:,k)
   cc(:,k)=cci(:,k)/n
   dd(:,k)=(ddi(:,k)-dd(:,k-1)*aai(:,k))/n
 end do
+n=bbi(:,klin)-cc(:,klin-1)*aai(:,klin)
+dd(:,klin)=(ddi(:,klin)-dd(:,klin-1)*aai(:,klin))/n
 outdat(1:ifull,klin)=dd(:,klin)
 do k=klin-1,1,-1
   outdat(1:ifull,k)=dd(:,k)-cc(:,k)*outdat(1:ifull,k+1)

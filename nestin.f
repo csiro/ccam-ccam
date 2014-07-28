@@ -625,8 +625,7 @@
             write(6,*) "Two dimensional spectral filter      ",kb
           end if
           call slowspecmpi(.1*real(mbd)/(pi*schmidt)
-     &                  ,pslb,ub(:,kln:klx),vb(:,kln:klx)
-     &                  ,tb(:,kln:klx),qb(:,kln:klx),xtgb
+     &                  ,pslb,ub,vb,tb,qb,xtgb
      &                  ,lblock,klt,kln,klx)
         else
           if (myid==0) then
@@ -637,8 +636,7 @@
 #endif
           end if
           call specfastmpi(.1*real(mbd)/(pi*schmidt)
-     &                  ,pslb,ub(:,kln:klx),vb(:,kln:klx)
-     &                  ,tb(:,kln:klx),qb(:,kln:klx),xtgb
+     &                  ,pslb,ub,vb,tb,qb,xtgb
      &                  ,lblock,klt,kln,klx)
         endif  ! (nud_uv==9) .. else ..
         !-----------------------------------------------------------------------
@@ -722,10 +720,10 @@
       integer k,n
       real, intent(in) :: cin
       real, dimension(ifull), intent(inout) :: pslb
-      real, dimension(ifull,klt), intent(inout) :: ub,vb
-      real, dimension(ifull,klt), intent(inout) :: tb,qb
+      real, dimension(ifull,kl), intent(inout) :: ub,vb
+      real, dimension(ifull,kl), intent(inout) :: tb,qb
       real, dimension(ifull,kl,naero), intent(inout) :: xtgb
-      real, dimension(ifull,klt) :: wb
+      real, dimension(ifull,kln:klx) :: wb
       real, dimension(ifull_g,klt) :: tt
       real, dimension(ifull) :: da,db
       real, dimension(klt) :: ud,vd,wd
@@ -742,26 +740,26 @@
         call slowspecmpi_work(cq,tt(:,1),pslb,1)
       end if
       if (nud_uv==3) then
-        call ccmpi_gatherall(ub,tt)
-        call slowspecmpi_work(cq,tt,ub,klt)
+        call ccmpi_gatherall(ub(:,kln:klx),tt)
+        call slowspecmpi_work(cq,tt,ub(:,kln:klx),klt)
       else if (nud_uv>0) then
         ! vectors are processed as Cartesian coordinates (X,Y,Z),
         ! avoiding complications along panel boundaries
-        do k=1,klt
+        do k=kln,klx
           da=ub(:,k)
           db=vb(:,k)
           ub(:,k)=ax(1:ifull)*da+bx(1:ifull)*db
           vb(:,k)=ay(1:ifull)*da+by(1:ifull)*db
           wb(:,k)=az(1:ifull)*da+bz(1:ifull)*db
         end do
-        call ccmpi_gatherall(ub,tt)
-        call slowspecmpi_work(cq,tt,ub,klt)
-        call ccmpi_gatherall(vb,tt)
-        call slowspecmpi_work(cq,tt,vb,klt)
-        call ccmpi_gatherall(wb,tt)
-        call slowspecmpi_work(cq,tt,wb,klt)
+        call ccmpi_gatherall(ub(:,kln:klx),tt)
+        call slowspecmpi_work(cq,tt,ub(:,kln:klx),klt)
+        call ccmpi_gatherall(vb(:,kln:klx),tt)
+        call slowspecmpi_work(cq,tt,vb(:,kln:klx),klt)
+        call ccmpi_gatherall(wb(:,kln:klx),tt)
+        call slowspecmpi_work(cq,tt,wb(:,kln:klx),klt)
         ! Convert Cartesian vectors back to Conformal Cubic vectors
-        do k=1,klt
+        do k=kln,klx
           da=ax(1:ifull)*ub(:,k)+ay(1:ifull)*vb(:,k)
      &      +az(1:ifull)*wb(:,k)
           db=bx(1:ifull)*ub(:,k)+by(1:ifull)*vb(:,k)
@@ -771,16 +769,16 @@
         end do
       end if
       if (nud_t>0) then
-        call ccmpi_gatherall(tb,tt)
-        call slowspecmpi_work(cq,tt,tb,klt)
+        call ccmpi_gatherall(tb(:,kln:klx),tt)
+        call slowspecmpi_work(cq,tt,tb(:,kln:klx),klt)
       end if
       if (nud_q>0) then
-        call ccmpi_gatherall(qb,tt)
-        call slowspecmpi_work(cq,tt,qb,klt)
+        call ccmpi_gatherall(qb(:,kln:klx),tt)
+        call slowspecmpi_work(cq,tt,qb(:,kln:klx),klt)
       end if
       if (nud_aero>0) then
         do n=1,naero
-          call ccmpi_gatherall(xtg(:,kln:klx,n),tt)
+          call ccmpi_gatherall(xtgb(:,kln:klx,n),tt)
           call slowspecmpi_work(cq,tt,xtgb(:,kln:klx,n),klt)
         end do
       end if      
@@ -857,8 +855,8 @@
       integer, intent(in) :: klt,kln,klx
       real, intent(in) :: cin
       real, dimension(ifull), intent(inout) :: psls
-      real, dimension(ifull,klt), intent(inout) :: uu,vv
-      real, dimension(ifull,klt), intent(inout) :: tt,qgg
+      real, dimension(ifull,kl), intent(inout) :: uu,vv
+      real, dimension(ifull,kl), intent(inout) :: tt,qgg
       real, dimension(ifull,kl,naero), intent(inout) :: xtgg
       logical, intent(in) :: lblock
       
@@ -896,10 +894,10 @@
       integer i,k,n,ppass
       real, intent(in) :: cin
       real, dimension(ifull), intent(inout) :: pslb
-      real, dimension(ifull,klt), intent(inout) :: ub,vb
-      real, dimension(ifull,klt), intent(inout) :: tb,qb
+      real, dimension(ifull,kl), intent(inout) :: ub,vb
+      real, dimension(ifull,kl), intent(inout) :: tb,qb
       real, dimension(ifull,kl,naero), intent(inout) :: xtgb
-      real, dimension(ifull,klt) :: wb
+      real, dimension(ifull,kln:klx) :: wb
       real, dimension(ifull_g,klt) :: tt,qt
       real, dimension(ifull) :: da,db
       logical, intent(in) :: lblock
@@ -915,79 +913,79 @@
         end do
       end if
       if (nud_t>0) then
-        call ccmpi_gathermap(tb, tt(:,1:klt))
+        call ccmpi_gathermap(tb(:,kln:klx), tt(:,1:klt))
         do ppass=pprocn,pprocx
           qt(:,:)=tt(:,:)
           call fastspecmpi_work(cin,qt,klt,ppass)
           do k=1,klt
             do n=1,ipan*jpan
-              tb(n+ipan*jpan*(ppass-pprocn),k)=qt(n,k)
+              tb(n+ipan*jpan*(ppass-pprocn),k+kln-1)=qt(n,k)
             end do
           end do
         end do
       end if
       if (nud_q>0) then
-        call ccmpi_gathermap(qb, tt(:,1:klt))
+        call ccmpi_gathermap(qb(:,kln:klx), tt(:,1:klt))
         do ppass=pprocn,pprocx
           qt(:,:)=tt(:,:)
           call fastspecmpi_work(cin,qt,klt,ppass)
           do k=1,klt
             do n=1,ipan*jpan
-              qb(n+ipan*jpan*(ppass-pprocn),k)=qt(n,k)
+              qb(n+ipan*jpan*(ppass-pprocn),k+kln-1)=qt(n,k)
             end do
           end do
         end do
       end if
       if (nud_uv==3) then
-        call ccmpi_gathermap(tb, tt(:,1:klt))
+        call ccmpi_gathermap(ub(:,kln:klx), tt(:,1:klt))
         do ppass=pprocn,pprocx
           qt(:,:)=tt(:,:)
           call fastspecmpi_work(cin,qt(:,1),klt,ppass)
           do k=1,klt
             do n=1,ipan*jpan
-              ub(n+ipan*jpan*(ppass-pprocn),k)=qt(n,k)
+              ub(n+ipan*jpan*(ppass-pprocn),k+kln-1)=qt(n,k)
             end do
           end do
         end do
       else if (nud_uv>0) then
-        do k=1,klt
+        do k=kln,klx
           da=ub(:,k)
           db=vb(:,k)
           ub(:,k)=ax(1:ifull)*da+bx(1:ifull)*db
           vb(:,k)=ay(1:ifull)*da+by(1:ifull)*db
           wb(:,k)=az(1:ifull)*da+bz(1:ifull)*db
         end do
-        call ccmpi_gathermap(ub, tt(:,1:klt))
+        call ccmpi_gathermap(ub(:,kln:klx), tt(:,1:klt))
         do ppass=pprocn,pprocx
           qt(:,1:klt)=tt(:,1:klt)
           call fastspecmpi_work(cin,qt(:,1:klt),klt,ppass)
           do k=1,klt
             do n=1,ipan*jpan
-              ub(n+ipan*jpan*(ppass-pprocn),k)=qt(n,k)
+              ub(n+ipan*jpan*(ppass-pprocn),k+kln-1)=qt(n,k)
             end do
           end do
         end do
-        call ccmpi_gathermap(vb, tt(:,1:klt))
+        call ccmpi_gathermap(vb(:,kln:klx), tt(:,1:klt))
         do ppass=pprocn,pprocx
           qt(:,1:klt)=tt(:,1:klt)
           call fastspecmpi_work(cin,qt(:,1:klt),klt,ppass)
           do k=1,klt
             do n=1,ipan*jpan
-              vb(n+ipan*jpan*(ppass-pprocn),k)=qt(n,k)
+              vb(n+ipan*jpan*(ppass-pprocn),k+kln-1)=qt(n,k)
             end do
           end do
         end do
-        call ccmpi_gathermap(wb, tt(:,1:klt))
+        call ccmpi_gathermap(wb(:,kln:klx), tt(:,1:klt))
         do ppass=pprocn,pprocx
           qt(:,1:klt)=tt(:,1:klt)
           call fastspecmpi_work(cin,qt(:,1:klt),klt,ppass)
           do k=1,klt
             do n=1,ipan*jpan
-              wb(n+ipan*jpan*(ppass-pprocn),k)=qt(n,k)
+              wb(n+ipan*jpan*(ppass-pprocn),k+kln-1)=qt(n,k)
             end do
           end do
         end do
-        do k=1,klt
+        do k=kln,klx
           da=ax(1:ifull)*ub(:,k)+ay(1:ifull)*vb(:,k)
      &      +az(1:ifull)*wb(:,k)
           db=bx(1:ifull)*ub(:,k)+by(1:ifull)*vb(:,k)
@@ -1032,10 +1030,10 @@
       integer k,n
       real, intent(in) :: cin
       real, dimension(ifull), intent(inout) :: pslb
-      real, dimension(ifull,klt), intent(inout) :: ub,vb
-      real, dimension(ifull,klt), intent(inout) :: tb,qb
+      real, dimension(ifull,kl), intent(inout) :: ub,vb
+      real, dimension(ifull,kl), intent(inout) :: tb,qb
       real, dimension(ifull,kl,naero), intent(inout) :: xtgb
-      real, dimension(ifull,klt) :: wb
+      real, dimension(ifull,kln:klx) :: wb
       real, dimension(ifull_g,klt) :: tt
       real, dimension(ifull) :: da,db
       logical, intent(in) :: lblock
@@ -1046,27 +1044,27 @@
         pslb(:)=tt(1:ifull,1)
       end if
       if (nud_uv==3) then
-        call ccmpi_gathermap(ub(:,1:klt),tt(:,1:klt))
+        call ccmpi_gathermap(ub(:,kln:klx),tt(:,1:klt))
         call fastspecmpi_work(cin,tt,klt,pprocn)
-        ub(:,:)=tt(1:ifull,:)
+        ub(:,kln:klx)=tt(1:ifull,:)
       else if (nud_uv>0) then
-        do k=1,klt
+        do k=kln,klx
           da=ub(:,k)
           db=vb(:,k)
           ub(:,k)=ax(1:ifull)*da+bx(1:ifull)*db
           vb(:,k)=ay(1:ifull)*da+by(1:ifull)*db
           wb(:,k)=az(1:ifull)*da+bz(1:ifull)*db
         end do
-        call ccmpi_gathermap(ub, tt(:,1:klt))
+        call ccmpi_gathermap(ub(:,kln:klx), tt(:,1:klt))
         call fastspecmpi_work(cin,tt,klt,pprocn)
-        ub(:,:)=tt(1:ifull,1:klt)
-        call ccmpi_gathermap(vb, tt(:,1:klt))
+        ub(:,kln:klx)=tt(1:ifull,1:klt)
+        call ccmpi_gathermap(vb(:,kln:klx), tt(:,1:klt))
         call fastspecmpi_work(cin,tt,klt,pprocn)
-        vb(:,:)=tt(1:ifull,1:klt)
-        call ccmpi_gathermap(wb, tt(:,1:klt))
+        vb(:,kln:klx)=tt(1:ifull,1:klt)
+        call ccmpi_gathermap(wb(:,kln:klx), tt(:,1:klt))
         call fastspecmpi_work(cin,tt,klt,pprocn)
-        wb(:,:)=tt(1:ifull,1:klt)
-        do k=1,klt
+        wb(:,kln:klx)=tt(1:ifull,1:klt)
+        do k=kln,klx
           da=ax(1:ifull)*ub(:,k)+ay(1:ifull)*vb(:,k)
      &      +az(1:ifull)*wb(:,k)
           db=bx(1:ifull)*ub(:,k)+by(1:ifull)*vb(:,k)
@@ -1076,14 +1074,14 @@
         end do
       endif
       if (nud_t>0) then
-        call ccmpi_gathermap(tb, tt(:,1:klt))
+        call ccmpi_gathermap(tb(:,kln:klx), tt(:,1:klt))
         call fastspecmpi_work(cin,tt,klt,pprocn)
-        tb(:,1:klt)=tt(1:ifull,1:klt)
+        tb(:,kln:klx)=tt(1:ifull,1:klt)
       end if
       if (nud_q>0) then
-        call ccmpi_gathermap(qb, tt(:,1:klt))
+        call ccmpi_gathermap(qb(:,kln:klx), tt(:,1:klt))
         call fastspecmpi_work(cin,tt,klt,pprocn)
-        qb(:,1:klt)=tt(1:ifull,1:klt)
+        qb(:,kln:klx)=tt(1:ifull,1:klt)
       end if
       if (nud_aero>0) then
         do n=1,naero

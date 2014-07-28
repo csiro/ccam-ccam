@@ -63,7 +63,7 @@ SUBROUTINE ruff_resist(veg, rough, ssnow, canopy)
       xx,      & ! =C%CCD*LAI; working variable 
       dh,      & ! d/h where d is zero-plane displacement
       hmax       ! maximum height of canopy from
-                                    ! tiles belonging to the same grid
+                 ! tiles belonging to the same grid
    
    CALL point2constants( C ) 
    

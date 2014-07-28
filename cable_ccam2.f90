@@ -527,7 +527,7 @@ do nb=1,maxnb
 end do
 
 where ( land )
-  u10  =vmod                ! MJT suggestion for 10m wind speed
+  u10  =vmod                ! MJT suggestion for 10m wind speed (assumes first model level is at 10 m, which is true for 35+ levels)
   ustar=sqrt(cduv)*vmod
   zoh  =zmin*exp(-sqrt(zo)/zoh)
   zoq  =zoh
@@ -563,7 +563,7 @@ where ( land )
   snowd=0.
   snage=0.
 end where
-where (land.and.tmps>=0.5) ! tmps is average isflag
+where ( land .and. tmps>=0.5 ) ! tmps is average isflag
   isflag=1
 elsewhere
   isflag=0
@@ -571,7 +571,7 @@ endwhere
 do nb=1,maxnb ! update snow (diagnostic only)
   do k=1,3
     ! pack 1-layer into 3-layer
-    where (ssnow%isflag(pind(nb,1):pind(nb,2))<isflag(cmap(pind(nb,1):pind(nb,2))).and.k==1)               
+    where ( ssnow%isflag(pind(nb,1):pind(nb,2))<isflag(cmap(pind(nb,1):pind(nb,2))) .and. k==1 )               
       tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k)                            &
                                        +sv(pind(nb,1):pind(nb,2))*ssnow%tgg(pind(nb,1):pind(nb,2),1) 
       smass(cmap(pind(nb,1):pind(nb,2)),k)=smass(cmap(pind(nb,1):pind(nb,2)),k)                            &
@@ -579,7 +579,7 @@ do nb=1,maxnb ! update snow (diagnostic only)
       ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k)                              &
                                        +sv(pind(nb,1):pind(nb,2))*ssnow%ssdn(pind(nb,1):pind(nb,2),1)
     ! pack 1-layer into 3-layer
-    elsewhere (ssnow%isflag(pind(nb,1):pind(nb,2))<isflag(cmap(pind(nb,1):pind(nb,2))).and.k==2)     
+    elsewhere ( ssnow%isflag(pind(nb,1):pind(nb,2))<isflag(cmap(pind(nb,1):pind(nb,2))) .and. k==2 )     
       tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k)                            &
                                        +sv(pind(nb,1):pind(nb,2))*ssnow%tgg(pind(nb,1):pind(nb,2),1)       
       smass(cmap(pind(nb,1):pind(nb,2)),k)=smass(cmap(pind(nb,1):pind(nb,2)),k)                            &
@@ -588,7 +588,7 @@ do nb=1,maxnb ! update snow (diagnostic only)
       ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k)                              &
                                        +sv(pind(nb,1):pind(nb,2))*ssnow%ssdn(pind(nb,1):pind(nb,2),1) 
     ! pack 1-layer into 3-layer
-    elsewhere (ssnow%isflag(pind(nb,1):pind(nb,2))<isflag(cmap(pind(nb,1):pind(nb,2))).and.k==3)   
+    elsewhere ( ssnow%isflag(pind(nb,1):pind(nb,2))<isflag(cmap(pind(nb,1):pind(nb,2))) .and. k==3 )   
       tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k)                            &
                                        +sv(pind(nb,1):pind(nb,2))*ssnow%tgg(pind(nb,1):pind(nb,2),1)       
       smass(cmap(pind(nb,1):pind(nb,2)),k)=smass(cmap(pind(nb,1):pind(nb,2)),k)                            &
@@ -597,7 +597,7 @@ do nb=1,maxnb ! update snow (diagnostic only)
       ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k)                              &
                                        +sv(pind(nb,1):pind(nb,2))*ssnow%ssdn(pind(nb,1):pind(nb,2),1)
     ! pack 3-layer into 1-layer
-    elsewhere (ssnow%isflag(pind(nb,1):pind(nb,2))>isflag(cmap(pind(nb,1):pind(nb,2))).and.k==1)
+    elsewhere ( ssnow%isflag(pind(nb,1):pind(nb,2))>isflag(cmap(pind(nb,1):pind(nb,2))) .and. k==1 )
       tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k)                            &
                                        +sv(pind(nb,1):pind(nb,2))*273.16                                  
       smass(cmap(pind(nb,1):pind(nb,2)),k)=smass(cmap(pind(nb,1):pind(nb,2)),k)                            &
@@ -605,7 +605,7 @@ do nb=1,maxnb ! update snow (diagnostic only)
       ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k)                              &
                                       +sv(pind(nb,1):pind(nb,2))*ssnow%ssdnn(pind(nb,1):pind(nb,2))        
     ! pack 3-layer into 1-layer
-    elsewhere (ssnow%isflag(pind(nb,1):pind(nb,2))>isflag(cmap(pind(nb,1):pind(nb,2))).and.k>=2)
+    elsewhere ( ssnow%isflag(pind(nb,1):pind(nb,2))>isflag(cmap(pind(nb,1):pind(nb,2))) .and. k>=2 )
       tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k)                            &
                                        +sv(pind(nb,1):pind(nb,2))*273.16                        
       ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k)                              &
@@ -652,14 +652,14 @@ integer ico2,igas
 real, dimension(ifull), intent(out) :: atmco2
 
 ico2=0
-if (tracerco2==1) then
+if ( tracerco2==1 ) then
   do igas=1,ngas
-    if (trim(tractype(igas))=='online'.and.trim(tracname(igas))=='cbmnep') then
+    if ( trim(tractype(igas))=='online' .and. trim(tracname(igas))=='cbmnep' ) then
       ico2=igas
       exit
     end if
   end do
-  if (ico2>0) then
+  if ( ico2>0 ) then
     atmco2 = tr(1:ifull,1,ico2) ! use interactive tracers
   else
     atmco2 = 1.E6*rrvco2        ! from radiative CO2 forcings
@@ -667,8 +667,8 @@ if (tracerco2==1) then
 else
   atmco2 = 1.E6*rrvco2          ! from radiative CO2 forcings
 end if
-if (myid==0.and.ktau==1) then
-  if (ico2==0) then
+if ( myid==0 .and. ktau==1 ) then
+  if ( ico2==0 ) then
     write(6,*) "CABLE using prescribed CO2 from radiative forcings"
   else
     write(6,*) "CABLE using prognostic CO2 from tracer"
@@ -691,7 +691,7 @@ integer nb
 real, dimension(ifull), intent(out) :: trsrc
 real, dimension(ifull) :: fpn,frd,frp,frs
   
-if (nsib/=6.and.nsib/=7) then
+if ( nsib/=6 .and. nsib/=7 ) then
   write(6,*) "ERROR: Attempted to read CABLE emissions with CABLE disabled"
   stop
 end if
@@ -701,7 +701,7 @@ frd=0.
 frp=0.
 frs=0.
 do nb=1,maxnb
-  where (veg%iveg(pind(nb,1):pind(nb,2))==mvegt)
+  where ( veg%iveg(pind(nb,1):pind(nb,2))==mvegt )
     fpn(cmap(pind(nb,1):pind(nb,2)))=fpn(cmap(pind(nb,1):pind(nb,2))) &
                                     +sv(pind(nb,1):pind(nb,2))*canopy%fpn(pind(nb,1):pind(nb,2))
     frd(cmap(pind(nb,1):pind(nb,2)))=frd(cmap(pind(nb,1):pind(nb,2))) &
@@ -713,7 +713,7 @@ do nb=1,maxnb
   end where
 end do
   
-select case(mode)
+select case( mode )
   case(1)
     trsrc=fpn-frd
   case(2)
@@ -746,7 +746,7 @@ real, dimension(ifull), intent(out) :: sigmf
 real x
 common/leap_yr/leap  ! 1 to allow leap years
 
-select case(proglai)
+select case( proglai )
   case(0) ! PWCB interpolated LAI
     imonth = (/ 31,28,31,30,31,30,31,31,30,31,30,31 /)
     if (leap==1) then
@@ -1427,6 +1427,7 @@ if (mp>0) then
   canopy%fes_cor=0.
   canopy%ga=0.
   canopy%dgdtg=0.
+  canopy%us=0.01
   ssnow%wb_lake=0. ! not used when mlo.f90 is active
   ssnow%fland=1.
   ssnow%ifland=soil%isoilm
@@ -1991,6 +1992,7 @@ if (ierr/=0) then
     ssnow%snage=snage(cmap)
     ssnow%rtsoil=50.
     canopy%cansto=0.
+    canopy%us=0.01
     ssnow%pudsto=0.
     ssnow%wetfac=0.
     if (icycle==0) then
@@ -2060,6 +2062,9 @@ else
     write(vname,'("cansto_",I1.1)') n
     call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
     if (pind(n,1)<=mp) canopy%cansto(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
+    write(vname,'("us_",I1.1)') n
+    call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+    if (pind(n,1)<=mp) canopy%us(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))    
     write(vname,'("pudsto_",I1.1)') n
     call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
     if (pind(n,1)<=mp) ssnow%pudsto(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
@@ -2329,6 +2334,9 @@ if (myid==0.or.local) then
     write(lname,'("cansto tile ",I1.1)') n
     write(vname,'("cansto_",I1.1)') n
     call attrib(idnc,idim,3,vname,lname,'none',0.,13.,0,-1)
+    write(lname,'("us tile ",I1.1)') n
+    write(vname,'("us_",I1.1)') n
+    call attrib(idnc,idim,3,vname,lname,'m/s',0.,13.,0,-1)    
     write(lname,'("pudsto tile ",I1.1)') n
     write(vname,'("pudsto_",I1.1)') n
     call attrib(idnc,idim,3,vname,lname,'none',0.,13.,0,-1)
@@ -2507,6 +2515,10 @@ do n=1,5
   if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=canopy%cansto(pind(n,1):pind(n,2))
   write(vname,'("cansto_",I1.1)') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)
+  dat=0.01 ! ustar
+  if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=canopy%us(pind(n,1):pind(n,2))
+  write(vname,'("us_",I1.1)') n
+  call histwrt3(dat,vname,idnc,iarch,local,.true.)  
   dat=0.
   if (pind(n,1)<=mp) dat(cmap(pind(n,1):pind(n,2)))=ssnow%pudsto(pind(n,1):pind(n,2))
   write(vname,'("pudsto_",I1.1)') n

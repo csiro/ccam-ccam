@@ -108,11 +108,8 @@ contains
          ! No rounding problem for practical numbers of points
          ! Convert this to a global index
          !-----------------------------------------------------------
-         ! MJT bug fix
-         !umax(2,k) = maxloc(u(1:ifull,k),dim=1) + myid*ifull
-         !umin(2,k) = minloc(u(1:ifull,k),dim=1) + myid*ifull
-         imax=maxloc(u(1:ifull,k),dim=1)
-         imin=minloc(u(1:ifull,k),dim=1)
+         imax=maxloc(u(1:ifull,k))
+         imin=minloc(u(1:ifull,k))
          umax(2,k)=real(iq2iqg(imax(1)))
          umin(2,k)=real(iq2iqg(imin(1)))         
          !-----------------------------------------------------------  
@@ -122,7 +119,7 @@ contains
       call ccmpi_reduce(umin,gumin,"minloc",0,comm_world)
 
       if ( myid == 0 ) then
-      
+          
          do k=1,kup
             iqg = gumax(2,k)
             ! Convert to global i, j indices
@@ -216,8 +213,6 @@ contains
       umin(1) = minval(u(1:ifull))*fact
       !-----------------------------------------------------------
       ! MJT bug fix
-      !umax(2) = maxloc(u(1:ifull),dim=1) + myid*ifull
-      !umin(2) = minloc(u(1:ifull),dim=1) + myid*ifull
       imax=maxloc(u(1:ifull))
       imin=minloc(u(1:ifull))
       umax(2)=real(iq2iqg(imax(1)))
@@ -251,11 +246,11 @@ contains
       use sumdd_m
       use xyzinfo_m
       include 'newmpar.h'
-      real, dimension(:,: ), intent(in) :: speed
+      real, dimension(:,:), intent(in) :: speed
       real, dimension(:), intent(out) :: spmean_g
       real, intent(out) :: spavge_g
       real, dimension(kl) :: spmean
-      real, dimension(size(speed,1)) :: tmpb
+      real, dimension(ifull) :: tmpb
       complex, dimension(kl) :: tmpc,tmpc_g
       integer k, iq, ierr
       
@@ -265,12 +260,12 @@ contains
          call drpdr_local(tmpb,tmpc(k))
       end do
 #ifdef sumdd
+      tmpc_g=(0.,0.)
       call ccmpi_reduce(tmpc,tmpc_g,"sumdr",0,comm_world)
       spmean_g=real(tmpc_g)
 #else
-      do k=1,kl
-         spmean(k)=real(tmpc(k))
-      end do
+      spmean(1:kl)=real(tmpc(1:kl))
+      spmean_g=0.
       call ccmpi_reduce(spmean,spmean_g,"sum",0,comm_world)
 #endif      
       spavge_g = 0.0

@@ -191,11 +191,11 @@ end subroutine aldrloaderod
 subroutine aldrcalc(dt,sig,sigh,dsig,zz,dz,fwet,wg,pblh,prf,ts,ttg,condc,snowd,sg,fg,eg,v10m,        &
                     ustar,zo,land,sicef,tsigmf,qvg,qlg,qfg,cfrac,clcon,pccw,rhoa,vt,ppfprec,ppfmelt, &
                     ppfsnow,ppfconv,ppfevap,ppfsubl,pplambs,ppmrate,ppmaccr,ppfstay,ppqfsed,pprscav, &
-                    zdayfac,kbsav)
+                    zdayfac,ktsav)
 
 implicit none
 
-integer, dimension(ifull), intent(in) :: kbsav ! Base of convective cloud
+integer, dimension(ifull), intent(in) :: ktsav ! Base of convective cloud
 real, intent(in) :: dt                         ! Time step
 real, dimension(kl), intent(in) :: sig         ! Sigma levels
 real, dimension(kl), intent(in) :: dsig        ! Sigma level width
@@ -336,7 +336,7 @@ do k=1,kl
   pcfcover(:,kl+1-k)=cstrat(:)*qfg(1:ifull,k)/max(qtot,1.E-8) ! Ice-cloud fraction
   pmlwc(:,kl+1-k)=qlg(1:ifull,k)
   pmiwc(:,kl+1-k)=qfg(1:ifull,k)
-  where (k<kbsav)
+  where (k<=ktsav)
     ppfconv(:,kl+1-k)=condc(:)/dt
   elsewhere
     ppfconv(:,kl+1-k)=0.
