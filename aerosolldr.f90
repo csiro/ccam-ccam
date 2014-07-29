@@ -189,13 +189,13 @@ end subroutine aldrloaderod
 ! Main routine
 
 subroutine aldrcalc(dt,sig,sigh,dsig,zz,dz,fwet,wg,pblh,prf,ts,ttg,condc,snowd,sg,fg,eg,v10m,        &
-                    ustar,zo,land,sicef,tsigmf,qvg,qlg,qfg,cfrac,clcon,pccw,rhoa,vt,ppfprec,ppfmelt, &
-                    ppfsnow,ppfconv,ppfevap,ppfsubl,pplambs,ppmrate,ppmaccr,ppfstay,ppqfsed,pprscav, &
-                    zdayfac,ktsav)
+                    ustar,zo,land,sicef,tsigmf,qvg,qlg,qfg,cfrac,clcon,cldcon,pccw,rhoa,vt,ppfprec,  &
+                    ppfmelt,ppfsnow,ppfconv,ppfevap,ppfsubl,pplambs,ppmrate,ppmaccr,ppfstay,ppqfsed, &
+                    pprscav,zdayfac,kbsav)
 
 implicit none
 
-integer, dimension(ifull), intent(in) :: ktsav ! Base of convective cloud
+integer, dimension(ifull), intent(in) :: kbsav ! Bottom of convective cloud
 real, intent(in) :: dt                         ! Time step
 real, dimension(kl), intent(in) :: sig         ! Sigma levels
 real, dimension(kl), intent(in) :: dsig        ! Sigma level width
@@ -225,6 +225,7 @@ real, dimension(:,:), intent(in) :: qlg        ! liquid water mixing ratio
 real, dimension(:,:), intent(in) :: qfg        ! frozen water mixing ratio
 real, dimension(ifull,kl), intent(in) :: cfrac ! cloud fraction
 real, dimension(ifull,kl), intent(in) :: clcon ! convective cloud fraction
+real, dimension(ifull), intent(in) :: cldcon   ! convective rain fraction
 real, dimension(ifull,kl), intent(in) :: pccw
 real, dimension(ifull,kl), intent(in) :: rhoa  ! density of air
 real, dimension(ifull,kl), intent(inout) :: ppfconv                      ! from LDR prog cloud
@@ -242,10 +243,10 @@ real, dimension(ifull,kl) :: prhop1,ptp1,pfevap,pfsubl,plambs
 real, dimension(ifull,kl) :: pclcover,pcfcover,pmlwc,pmiwc
 real, dimension(ifull) :: so2em,so4em,dmsem,bem,oem,bbem
 real, dimension(ifull) :: so2dd,so4dd
-real, dimension(ifull) :: so2wd,so4wd,dustwd
+real, dimension(ifull) :: so2wd,so4wd
 real, dimension(ifull) :: so2oh,so2h2,so2o3,dmsoh,dmsn3
 real, dimension(ifull) :: cgssnowd
-real, dimension(ifull) :: veff,vefn,dustdd,duste
+real, dimension(ifull) :: veff,vefn,dustwd,dustdd,duste
 real, dimension(ifull) :: cstrat,qtot
 real, dimension(ifull) :: rrate,Wstar3,Vgust_free,Vgust_deep
 real, dimension(ifull) :: v10n,thetav
@@ -257,6 +258,8 @@ cgssnowd=1.E-3*snowd
 so2wd=0.
 so4wd=0.
 dustwd=0.
+dustdd=0.
+duste=0.
 
 ! Convert from aerosol concentration outside convective cloud (used by CCAM)
 ! to aerosol concentration inside convective cloud
@@ -268,8 +271,7 @@ end do
 v10n=ustar*log(10./zo)/vkar ! neutral wind speed
 ! Mesoscale enhancement follows Redelsperger et al. (2000), J. Climate 13, 402-421.
 ! Equation numbers follow Fairall et al. 1996, JGR 101, 3747-3764.
-! MJT notes - rrate should be replaced with convective rainfall for regional models
-rrate = 8640.*condc/dt   !Rainfall rate in cm/day
+
 ! Calculate convective scaling velocity (Eq.17) and gustiness velocity (Eq.16)
 thetav = ttg(1:ifull,1)*(1.+0.61*qvg(1:ifull,1))
 Wstar3 = max(0.,(grav*pblh/thetav)*(fg/cp+0.61*ttg(1:ifull,1)*eg/hl)/rhoa(:,1))
@@ -277,6 +279,8 @@ Vgust_free = beta*Wstar3**(1./3.)
 ! Calculate the Redelsperger-based Vgust_deep if deep convection is present.
 ! Note that Redelspreger gives two other parameterizations, based on
 ! the updraft or downdraught mass fluxes respectively.
+
+rrate = 8640.*condc/dt   !Rainfall rate in cm/day
 Vgust_deep = (19.8*rrate*rrate/(1.5+rrate+rrate*rrate))**0.4
 ! Calculate effective 10m wind (Eq. 15)
 ! These can plausibly be added in quadrature, or linearly, the latter giving a much larger
@@ -285,7 +289,6 @@ Vgust_deep = (19.8*rrate*rrate/(1.5+rrate+rrate*rrate))**0.4
 !vefn = v10n + Vgust_free + Vgust_deep
 veff = sqrt( v10m*v10m + Vgust_free*Vgust_free ) ! JLM suggestion
 vefn = sqrt( v10n*v10n + Vgust_free*Vgust_free )
-
 
 ! Emission and dry deposition (sulfur cycle and carbonaceous aerosols)
 do k=1,kl+1
@@ -297,8 +300,6 @@ call xtemiss(dt, xtg, rhoa(:,1), ts, sicef, vefn, aphp1,                  & !Inp
 xtg(1:ifull,:,:)=xtg(1:ifull,:,:)+xte(:,:,:)*dt
 
 ! Emission and dry deposition of dust
-dustdd=0.
-duste=0.
 do k=1,kl
   aphp1(:,k)=prf(:)*sig(k)*0.01 ! hPa
 end do
@@ -306,7 +307,8 @@ end do
 call dsettling(dt,rhoa,ttg,dz,aphp1(:,1:kl), & !Inputs
                xtg,dustdd)                     !In and out
 ! Calculate dust emission and turbulent dry deposition at the surface
-call dustem(dt,rhoa(:,1),wg,Veff,dz(:,1),vt,snowd,land,  & !Inputs
+! MJT notes - replace veff with v10m as used by Ginoux et al 2004
+call dustem(dt,rhoa(:,1),wg,v10m,dz(:,1),vt,snowd,land,  & !Inputs
             xtg,dustdd,duste)                              !In and out
 
 ! Decay of hydrophobic black and organic carbon into hydrophilic forms
@@ -336,7 +338,7 @@ do k=1,kl
   pcfcover(:,kl+1-k)=cstrat(:)*qfg(1:ifull,k)/max(qtot,1.E-8) ! Ice-cloud fraction
   pmlwc(:,kl+1-k)=qlg(1:ifull,k)
   pmiwc(:,kl+1-k)=qfg(1:ifull,k)
-  where (k<=ktsav)
+  where (k<=kbsav)
     ppfconv(:,kl+1-k)=condc(:)/dt
   elsewhere
     ppfconv(:,kl+1-k)=0.
@@ -345,7 +347,7 @@ end do
 call xtchemie (1, dt, zdayfac, aphp1(:,1:kl), ppmrate, ppfprec,                 & !Inputs
                pclcover, pmlwc, prhop1, ptp1, sg, xtm1, ppfevap,                & !Inputs
                ppfsnow,ppfsubl,pcfcover,pmiwc,ppmaccr,ppfmelt,ppfstay,ppqfsed,  & !Inputs
-               pplambs,pprscav,pclcon,pccw,ppfconv,xtu,                         & !Input
+               pplambs,pprscav,pclcon,cldcon,pccw,ppfconv,xtu,                  & !Input
                conwd, so2wd, so4wd, dustwd,                                     & !In and Out
                xte, so2oh, so2h2, so2o3, dmsoh, dmsn3)                            !Output
 do nt=1,naero
@@ -390,7 +392,6 @@ enddo
 !hso41(:) =hso41(:)+1.e9*xtg(:,1,3)*rho1(:) !In ugS/m3
 !
 !! Carbonaceous stuff
-!if(ncarb>0)then
 !  do k=1,nl
 !    ! Factor 1.e9 for carbon fields to convert to ug/m2
 !    hbcb(:)=hbcb(:)+1.e9*(xtg(:,k,itracbc)+xtg(:,k,itracbc+1))*dprf(:,k)/grav
@@ -398,22 +399,19 @@ enddo
 !  enddo
 !  hbc1(:)=hbc1(:)+1.e12*rho1(:)*(xtg(:,1,itracbc)+xtg(:,1,itracbc+1)) !In ngC/m3
 !  hoc1(:)=hoc1(:)+1.e12*rho1(:)*(xtg(:,1,itracoc)+xtg(:,1,itracoc+1)) !In ngC/m3
-!endif
 
 !! Dust diagnostics
-!if(ndust>0)then
 !  do nt=itracdu,itracdu+ndust-1
 !    hdust(:)=hdust(:)+1.e9*rho1(:)*xtg(:,1,nt) !In ug/m3
 !  enddo
 !  hdustd(:)=hdustd(:)+(dustdd(:)+dustwd(:))*3.154e10 !In g/m2/yr
 !  hduste(:)=hduste(:)+duste(:)*3.154e10 !In g/m2/yr
-!  do k=1,nl
+!  do k=1,kl
 !    do nt=itracdu,itracdu+ndust-1  !all dust
 !      ! Factor 1.e6 to convert to mg/m2
-!      hdustb(:)=hdustb(:)+1.e6*xtg(:,k,nt)*dprf(:,k)/grav
+!      hdustb(:)=hdustb(:)+1.e6*xtg(1:ifull,k,nt)*(-prf(:)*dsig(k))/grav
 !    enddo
 !  enddo
-!endif
 
 return
 end subroutine aldrcalc
@@ -867,7 +865,7 @@ END subroutine xtsink
 SUBROUTINE XTCHEMIE(KTOP, PTMST,zdayfac,PDPP1, PMRATEP, PFPREC,                      & !Inputs
                     PCLCOVER, PMLWC, PRHOP1, PTP1, sg, xtm1, pfevap,                 & !Inputs
                     pfsnow,pfsubl,pcfcover,pmiwc,pmaccr,pfmelt,pfstay,pqfsed,plambs, & !Inputs
-                    prscav,pclcon,pccw,pfconv,xtu,                                   & !Inputs
+                    prscav,pclcon,fracc,pccw,pfconv,xtu,                             & !Inputs
                     conwd,so2wd,so4wd,dustwd,                                        & !In and Out
                     xte,so2oh,so2h2,so2o3,dmsoh,dmsn3)                                 !Outputs
 
@@ -895,6 +893,7 @@ SUBROUTINE XTCHEMIE(KTOP, PTMST,zdayfac,PDPP1, PMRATEP, PFPREC,                 
 ! plambs: slope (lambda) for snow crystal size distribution (m**-1)
 ! prscav: fractional rain scavenging rate in time step (needs to be mult. by coll. eff.)
 ! pclcon: convective cloud fraction
+! fracc: Convective rain fraction
 ! pccw: convective cloud water mixing ratio (kg/kg)
 ! pfconv: convective rainfall flux (kg/m2/s)
 ! xtu: tracer mixing ratio in convective updraught (kg/kg)
@@ -958,6 +957,7 @@ real pqfsed(ifull,kl)
 real plambs(ifull,kl)
 real prscav(ifull,kl)
 real pclcon(ifull,kl)
+real fracc(ifull)
 real pccw(ifull,kl)
 real conwd(ifull,naero)
 
@@ -1388,7 +1388,8 @@ DO JT=ITRACSO2,naero
                    PMRATEP, PFPREC, PFEVAP,                    &
                    PCLCOVER, PRHOP1, zsolub, pmlwc,            &
                    pfsnow,pfsubl,pcfcover,pmiwc,pmaccr,pfmelt, &
-                   pfstay,pqfsed,plambs,prscav,pfconv,pclcon,  & !Inputs
+                   pfstay,pqfsed,plambs,prscav,pfconv,pclcon,  & 
+                   fracc,                                      & !Inputs
                    ZXTP10, ZXTP1C,ZDEP3D,conwd,zxtp1con,       & !In and Out
                    zrevap )
 
@@ -1552,7 +1553,7 @@ SUBROUTINE XTWETDEP(KTRAC,                                                      
                     PMRATEP, PFPREC, PFEVAP,                                         &
                     PCLCOVER, PRHOP1, PSOLUB, pmlwc,                                 &
                     pfsnow,pfsubl,pcfcover,pmiwc,pmaccr,pfmelt,pfstay,pqfsed,plambs, &
-                    prscav,pfconv,pclcon,                                            & !Inputs
+                    prscav,pfconv,pclcon,fracc,                                      & !Inputs
                     PXTP10, PXTP1C, PDEP3D, conwd,pxtp1con,                          & !In & Out
                     prevap)                                                            !Outputs
 
@@ -1598,6 +1599,7 @@ real pmlwc(ifull,kl)
 real pfsnow(ifull,kl)
 real pfconv(ifull,kl)
 real pclcon(ifull,kl)
+real fracc(ifull)       !Convective rain fraction (originially set to 0.1)
 real pfsubl(ifull,kl)
 real pcfcover(ifull,kl)
 real pmiwc(ifull,kl)
@@ -1616,70 +1618,31 @@ REAL ZDEPS(ifull),ZDEPR(ifull),    &
      ZMTOF(ifull),   ZFTOM(ifull), &
      ZCLEAR(ifull), ZCLR0(ifull)
 
-integer, parameter :: MAXnaero=29 !Max possible naero handled by filerd
-real zcollefr(maxnaero), zcollefs(maxnaero), Ecols(maxnaero), &
-     Rcoeff(maxnaero), Evfac(maxnaero)
+integer, parameter :: ktop = 2    !Top level for wet deposition (counting from top)
+! Allow in-cloud scavenging in ice clouds for hydrophobic BC and OC, and dust
+! Value of 0.5 is just a guess at present
+real, dimension(naero), parameter :: Ecols = (/ 0.0,0.0,0.0,0.5,0.0,0.5,0.0,0.0,0.0,0.0,0.0/)
+!Below-cloud collection eff. for rain
+real, dimension(naero), parameter :: zcollefr = (/0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.10,0.20,0.50/)
+!Below-cloud collection eff. for snow
+real, dimension(naero), parameter :: zcollefs = (/0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.02,0.04,0.10/)
+!Retention coeff. on riming
+real, dimension(naero), parameter :: Rcoeff = (/1.00,0.62,1.00,0.00,1.00,0.00,1.00,1.00,1.00,1.00,1.00/)
+!Relative reevaporation rate
+real, dimension(naero), parameter :: Evfac = (/0.5,1.0,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5/)
 
-integer kbase(ifull)
+integer, dimension(ifull) :: kbase
 real pqtmst,ziicscav,xdep,zicscav,xicscav,zevap
 real zilcscav,plambda,zbcscav,xbcscav,zstay,xstay
-real xevap,fracc,frc,pcevap
+real xevap,frc,pcevap
 
-integer ktop,jk,jl
+integer jk,jl
 
 real, parameter :: zmin = 1.e-20
 
 ! Start code : ----------------------------------------------------------
 
-!    PHYSICAL CONSTANTS
-
-KTOP=2     !Top level for wet deposition (counting from top)
 PQTMST=1./PTMST
-
-! Default below-cloud collection efficiency applies to smaller aerosols and SO2
-zcollefr(:)=0.05          !Below-cloud collection eff. for rain
-zcollefs(:)=0.01          !Below-cloud collection eff. for snow
-
-! Larger dust classes need larger below-cloud coll. efficiency, but treat the
-! hydrophobic and hydrophilic ones the same.
-
-! Hydrophobic ones...
-zcollefr(itracdu+1) = 0.1
-zcollefr(itracdu+2) = 0.2
-zcollefr(itracdu+3) = 0.5
-zcollefs(itracdu+1) = 0.02
-zcollefs(itracdu+2) = 0.04
-zcollefs(itracdu+3) = 0.1
-
-! Hydrophilic ones...
-!if(ndust>4)then
-!  zcollefr(itracdu+5) = 0.1
-!  zcollefr(itracdu+6) = 0.2
-!  zcollefr(itracdu+7) = 0.5
-!  zcollefs(itracdu+5) = 0.02
-!  zcollefs(itracdu+6) = 0.04
-!  zcollefs(itracdu+7) = 0.1
-!endif
-      
-! Allow in-cloud scavenging in ice clouds for hydrophobic BC and OC, and dust
-! Value of 0.5 is just a guess at present
-
-Ecols(:)=0.              !In-cloud scav. eff. (snow)
-
-Ecols(itracbc)=0.5
-Ecols(itracoc)=0.5
-Ecols(itracdu)   = 0.
-Ecols(itracdu+1) = 0.
-Ecols(itracdu+2) = 0.
-Ecols(itracdu+3) = 0.
-
-Rcoeff(:)=1.             !Retention coeff. on riming
-Rcoeff(itracso2)=0.62    !Smaller value for SO2 (Iribarne et al, 1990)
-Rcoeff(itracbc)=0.       !This is not scavenged by cloud droplets, so set to 0
-Rcoeff(itracoc)=0.       !Ditto
-
-Evfac(:)=0.5             !Relative reevaporation rate < 1 for aerosols
-Evfac(itracso2)=1.       !Relative reevaporation rate = 1 for SO2
 
 zdepr(:)=0.
 zdeps(:)=0.
@@ -1706,7 +1669,6 @@ do JK=KTOP,kl
 ! evaporates or falls into a layer). Include accretion of ql by snow.
   if(Ecols(ktrac)>zmin)then
     do jl=1,ifull
-      ziicscav=0.
       !if(pmiwc(jl,jk)>zmin)then
       if(pmiwc(jl,jk)>1.E-8)then ! MJT suggestion
         ziicscav=Ecols(ktrac)*pqfsed(jl,jk) !qfsed is the fractional sedimentation in dt
@@ -1724,7 +1686,6 @@ do JK=KTOP,kl
 ! This loop does riming (accretion of liquid water by falling snow)
   if(Rcoeff(ktrac)>zmin)then
     do jl=1,ifull
-      zilcscav=0.
       !if(pmlwc(jl,jk)>zmin)then
       if(pmlwc(jl,jk)>1.E-8)then ! MJT suggestion
         zilcscav=Rcoeff(ktrac)*psolub(jl,jk)*(pmaccr(jl,jk)*ptmst/pmlwc(jl,jk))
@@ -1829,9 +1790,8 @@ do jk=ktop,kl
           
 ! Below-cloud scavenging by convective precipitation (assumed to be rain)
     if(pfconv(jl,jk-1)>zmin.and.zclr0(jl)>zmin)then
-      fracc=0.1           !Convective rain fraction
-      Frc=max(0.,pfconv(jl,jk-1)/fracc)
-      zbcscav=zcollefr(ktrac)*fracc*0.24*ptmst*sqrt(Frc*sqrt(Frc))
+      Frc=max(0.,pfconv(jl,jk-1)/fracc(jl))
+      zbcscav=zcollefr(ktrac)*fracc(jl)*0.24*ptmst*sqrt(Frc*sqrt(Frc))
       zbcscav=min(1.,zbcscav/(1.+0.5*zbcscav)) !Time-centred
       xbcscav=zbcscav*pxtp10(jl,jk)*zclr0(jl)
       conwd(jl,ktrac)=conwd(jl,ktrac)+xbcscav*zmtof(jl)
@@ -1982,9 +1942,9 @@ real, dimension(ifull), intent(in) :: snowd     !Snow depth (mm equivalent water
 logical, dimension(ifull), intent(in) :: land
 
 !     In and out
-real, dimension(:,:,:), intent(inout) :: xd         !Dust mixing ratio (kg/kg)
-real, dimension(ifull), intent(inout) :: dustd      !Dry deposition flux out of lowest layer (diagnostic; kg/m2/s)
-real, dimension(ifull), intent(inout) :: duste      !Dust emission flux into lowest layer (diagnostic; kg/m2/s)
+real, dimension(:,:,:), intent(inout) :: xd     !Dust mixing ratio (kg/kg)
+real, dimension(ifull), intent(inout) :: dustd  !Dry deposition flux out of lowest layer (diagnostic; kg/m2/s)
+real, dimension(ifull), intent(inout) :: duste  !Dust emission flux into lowest layer (diagnostic; kg/m2/s)
 
 
 ! Local work arrays and variables
@@ -1999,8 +1959,8 @@ real, dimension(ifull) :: srce,dsrc,airmas
 real, dimension(ifull) :: a,b,xold,xtendd,veff
 real, dimension(ifull) :: airden
 
-real g,den,diam
-integer n,m
+real g,den,diam,ddt
+integer n,m,ii,nstep
 
 real, parameter :: Ch_dust = 1.e-9  ! Transfer coeff for type natural source (kg*s2/m5)
 
@@ -2026,8 +1986,6 @@ do n = 1, ndust
   ! Following is from Ginoux et al (2004) Env. Modelling & Software.
   u_ts0 = 0.13*1.e-2*sqrt(den*g*diam/airden)*sqrt(1.+0.006/den/g/diam**2.5)/ &
           sqrt(1.928*(1331.*diam**1.56+0.38)**0.092-1.)
-!  u_ts0 = 0.13*sqrt(dustden(n)*grav*2.*dustreff(n)/rhoa)*sqrt(1.+6.E-7/(dustden(n)*grav*(2.*dustreff(n))**2.5))/ &
-!        sqrt(1.7638*(4.6E6*((2.*dustreff(n))**1.56+1.)**0.092-1.))
   
   ! Case of surface dry enough to erode
   where ( wg<0.1 )
@@ -2060,8 +2018,13 @@ do n = 1, ndust
 ! Update mixing ratio
 ! Write in form dx/dt = a - bx (a = source term, b = drydep term)
   xold = xd(1:ifull,1,n+itracdu-1)
-  xd(1:ifull,1,n+itracdu-1) = (xold*(1.-0.5*b*tdt)+a*tdt)/(1.+0.5*b*tdt)
-  xd(1:ifull,1,n+itracdu-1) = max( 0., xd(1:ifull,1,n+itracdu-1) )
+  
+  nstep=int(tdt/300.01)+1
+  ddt=tdt/real(nstep)
+  do ii=1,nstep
+    xd(1:ifull,1,n+itracdu-1) = (xd(1:ifull,1,n+itracdu-1)*(1.-0.5*b*ddt)+a*ddt)/(1.+0.5*b*ddt)
+    xd(1:ifull,1,n+itracdu-1) = max( 0., xd(1:ifull,1,n+itracdu-1) )
+  end do
 
   xtendd = (xd(1:ifull,1,n+itracdu-1)-xold)/tdt - a
   dustd = dustd - xtendd*airmas ! Diagnostic
@@ -2264,7 +2227,7 @@ end subroutine cldrop
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Aerosol scavenging fraction for convective clouds
 
-subroutine convscav(fscav,xpkp1,xpold,bwkp1,tt,xs,rho)
+subroutine convscav(fscav,xpkp1,xpold,tt,xs,rho)
 
 implicit none
 
@@ -2275,17 +2238,19 @@ real, dimension(ifull), intent(in) :: tt    ! parcel temperature
 real, dimension(ifull), intent(in) :: xs    ! xtg(:,k,3) = so4
 real, dimension(ifull), intent(in) :: rho   ! air density
 real, dimension(ifull) :: f_so2
-logical, dimension(ifull), intent(in) :: bwkp1 ! condensate in parcel is liquid (true) or ice (false)
+logical, dimension(ifull) :: bwkp1 
 ! In-cloud scavenging efficiency for liquid and frozen convective clouds follows.
 ! Hard-coded for 3 sulfur variables, 4 carbonaceous, 4 mineral dust.
 ! Note that value for SO2 (index 2) is overwritten by Henry coefficient f_so2 below.
 ! These ones are for 3 SULF, 4 CARB and 4 or 8 DUST (and include dummy variables at end)
-real, parameter, dimension(11) :: scav_effl = (/0.0,1.0,0.9,0.0,0.3,0.0,0.3,0.05,0.05,0.05,0.05/) ! liquid
-real, parameter, dimension(11) :: scav_effi = (/0.0,0.0,0.0,.05,0.0,.05,0.0,0.05,0.05,0.05,0.05/) ! ice
-real, dimension(ifull,naero) :: scav_eff
+real, parameter, dimension(naero) :: scav_effl = (/0.0,1.0,0.9,0.0,0.3,0.0,0.3,.05,.05,.05,.05/) ! liquid
+real, parameter, dimension(naero) :: scav_effi = (/0.0,0.0,0.0,.05,0.0,.05,0.0,.05,.05,.05,.05/) ! ice
+real, dimension(ifull) :: scav_eff
 real, dimension(ifull) :: zqtp1,ze2,ze3,zfac,zso4l,zso2l,zqhp
 real, dimension(ifull) :: zza,zzb,zzp,zzq,zzp2,zhp,zqhr,zheneff,p_so2
 integer nt
+
+bwkp1=tt>=253.16 ! condensate in parcel is liquid (true) or ice (false)
 
 ! CALCULATE THE SOLUBILITY OF SO2
 ! TOTAL SULFATE  IS ONLY USED TO CALCULATE THE PH OF CLOUD WATER
@@ -2316,18 +2281,15 @@ end where
 
 do nt=1,naero
   where ( bwkp1 .and. nt==ITRACSO2 )
-    scav_eff(:,nt)=f_so2(:)
+    scav_eff=f_so2(:)
   elsewhere ( bwkp1 )
-    scav_eff(:,nt)=scav_effl(nt)
+    scav_eff=scav_effl(nt)
   elsewhere
-    scav_eff(:,nt)=scav_effi(nt)
+    scav_eff=scav_effi(nt)
   end where
+  ! Wet deposition scavenging fraction
+  fscav(:,nt)=scav_eff*max(xpold(:)-xpkp1(:),0.)/max(xpold(:),1.E-8)
 end do
-
-! Wet deposition scavenging fraction
-do nt=1,naero
-  fscav(:,nt)=scav_eff(:,nt)*max(xpold(:)-xpkp1(:),0.)/max(xpold(:),1.E-8)
-enddo
 
 return
 end subroutine convscav

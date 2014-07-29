@@ -575,11 +575,11 @@ wg=min(max(wetfac,0.),1.)
 call aldrcalc(dt,sig,sigh,dsig,zg,dz,fwet,wg,pblh,ps,  &
               tss,t,condc,snowd,sgsave,fg,             &
               eg,u10,ustar,zo,land,fracice,sigmf,      &
-              qg,qlg,qfg,cfrac,clcon,                  &
+              qg,qlg,qfg,cfrac,clcon,cldcon,           &
               pccw,rhoa,cdtq,ppfprec,ppfmelt,ppfsnow,  &
               ppfconv,ppfevap,ppfsubl,pplambs,ppmrate, &
               ppmaccr,ppfstay,ppqfsed,pprscav,zdayfac, &
-              ktsav)
+              kbsav)
 
 ! store sulfate for LH+SF radiation scheme.  SEA-ESF radiation scheme imports prognostic aerosols in seaesfrad.f90.
 ! Factor 1.e3 to convert to g/m2, x 3 to get sulfate from sulfur

@@ -77,10 +77,9 @@ c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
       real, dimension(:,:), allocatable, save :: downex,upin,upin4
       real, dimension(:,:,:), allocatable, save :: detrarr
       integer, dimension(:), allocatable, save :: kb_saved,kt_saved
-      real, dimension(ifull) :: conrev,rho,qqsto,qqdef,dnorm
+      real, dimension(ifull) :: conrev,rho
       real, dimension(ifull) :: alfqarr,alfqarrx,omega,omgtst
       real, dimension(ifull,naero) :: fscav
-      logical, dimension(ifull) :: bliqu
       real delq(ifull,kl),dels(ifull,kl),delu(ifull,kl)
       real delv(ifull,kl),dqsdt(ifull,kl),es(ifull,kl) 
       real fldow(ifull),fluxq(ifull)
@@ -1382,25 +1381,10 @@ c          detrfactr(iq)=detrfactr(iq)+detrarr(k,kb_sav(iq),kt_sav(iq))   ! just
         ! Note that not all missing qq becomes rain. However, some becomes qlg
         ! which also needs to be accounted for here.  Hence we simply use the
         ! change in qq
-        qqdef=0.
-        dnorm=0.
-        do k=1,kl-2
-          where (k>=kb_sav.and.k<=kt_sav)
-            qqdef=qqdef+factr(:)*(qqsav(:,k)-qq(:,k))*dsk(k)
-            dnorm=dnorm+dsk(k)
-          end where
-        end do
-        qqdef=qqdef/max(dnorm,1.E-8) ! averge change in qq
-        do k=1,kl-2
-          rho(:)=ps(:)*sig(k)/(rdry*tt(:,k))
-          bliqu(:)=tt(:,k)>=253.16
-          where (k>=kb_sav.and.k<=kt_sav)
-            qqsto(:)=qqsav(:,k)-qqdef ! apply change in qq uniformly
-          elsewhere
-            qqsto(:)=qqsav(:,k)
-          end where
+        do k=1,kl
+          rho=ps*sig(k)/(rdry*tt(:,k))
           ! convscav expects cloud liquid water before and after precipitation
-          call convscav(fscav,qqsto,qqsav(:,k),bliqu,tt(:,k),
+          call convscav(fscav,qq(:,k),qqsav(:,k),tt(:,k),
      &                  xtg(1:ifull,k,3),rho)
           xtg(1:ifull,k,:)=xtg(1:ifull,k,:)*(1.-fscav(:,:))
         end do
