@@ -403,7 +403,7 @@ else
     call ccmpi_distribute(duma)
     call aldrloademiss(i,duma)
   end do
-  ! load dust fields
+  ! load dust fields (sand, silt, clay)
   do i=1,3
     call ccmpi_distribute(duma)
     call aldrloaderod(i,duma)
@@ -521,7 +521,7 @@ do k=1,kl
   dz(:,k)=-rdry*dsig(k)*(tv(:,k)+tnhs(:,k))/(grav*sig(k))
 end do
 do k=1,kl
-  rhoa(:,k)=ps(1:ifull)*sig(k)/(rdry*t(1:ifull,k)) ! density of air (kg/m**3)
+  rhoa(:,k)=ps(1:ifull)*sig(k)/(rdry*tv(1:ifull,k)) ! density of air (kg/m**3)
 end do
 
 ! estimate convective cloud fraction from leoncld.f

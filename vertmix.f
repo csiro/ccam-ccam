@@ -85,6 +85,8 @@
         ! representing non-hydrostatic term as a correction to air temperature
         tnhs(:,k)=(phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:,k-1))/bet(k)
       end do
+      tv=t(1:ifull,:)*(1.+0.61*qg(1:ifull,:)-qlg(1:ifull,:)
+     &   -qfg(1:ifull,:))
 
       rong=rdry/grav
       do k=1,kl-1
@@ -114,23 +116,23 @@
       rlogs2=log(sig(2))
       rlogh1=log(sigmh(2))
       rlog12=1./(rlogs1-rlogs2)
-      tmnht(1:ifull,1)=(t(1:ifull,2)*rlogs1-t(1:ifull,1)*rlogs2+
-     &           (t(1:ifull,1)-t(1:ifull,2))*rlogh1)*rlog12
+      tmnht(1:ifull,1)=(tv(1:ifull,2)*rlogs1-t(1:ifull,1)*rlogs2+
+     &           (tv(1:ifull,1)-tv(1:ifull,2))*rlogh1)*rlog12
       dnhsh(:,1)=1.+(tnhs(:,2)*rlogs1-tnhs(:,1)*rlogs2+
      &           (tnhs(:,1)-tnhs(:,2))*rlogh1)*rlog12/tmnht(1:ifull,1)
 !     n.b. an approximate zh (in m) is quite adequate for this routine
-      zh(:,1)=(t(1:ifull,1)+tnhs(:,1))*delh(1)
+      zh(:,1)=(tv(1:ifull,1)+tnhs(:,1))*delh(1)
       do k=2,kl-1
        do iq=1,ifull
-        zh(iq,k)=zh(iq,k-1)+(t(iq,k)+tnhs(iq,k))*delh(k)
+        zh(iq,k)=zh(iq,k-1)+(tv(iq,k)+tnhs(iq,k))*delh(k)
         !tmnht(iq,k) =(t(iq,k)+t(iq,k+1))*.5
-        tmnht(iq,k)=ratha(k)*t(iq,k+1)+rathb(k)*t(iq,k)         ! MJT suggestion
+        tmnht(iq,k)=ratha(k)*tv(iq,k+1)+rathb(k)*tv(iq,k)         ! MJT suggestion
         ! non-hydrostatic temperature correction at half level height
         dnhsh(iq,k)=1.+(ratha(k)*tnhs(iq,k+1)
      &              +rathb(k)*tnhs(iq,k))/tmnht(iq,k)           ! MJT suggestion
        enddo     ! iq loop
       enddo      !  k loop
-      zh(:,kl)=zh(:,kl-1)+(t(1:ifull,kl)+tnhs(:,kl))*delh(kl)   ! MJT suggestion
+      zh(:,kl)=zh(:,kl-1)+(tv(1:ifull,kl)+tnhs(:,kl))*delh(kl)   ! MJT suggestion
       do k=1,kl
         rhs(:,k)=t(1:ifull,k)*sigkap(k)  ! rhs is theta here
       enddo      !  k loop
@@ -805,8 +807,6 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
        ! convection options
        
        ! calculate height on full levels
-       tv=t(1:ifull,:)*(1.+0.61*qg(1:ifull,:)-qlg(1:ifull,:)
-     &   -qfg(1:ifull,:))
        zg(:,1)=bet(1)*tv(:,1)/grav
        do k=2,kl
         zg(:,k)=zg(:,k-1)+(bet(k)*tv(:,k)+betm(k)*tv(:,k-1))/grav
@@ -971,32 +971,32 @@ c      could add extra sfce moisture flux term for crank-nicholson
        if(ldr/=0)then
 c       now do qfg
         rhs=qfg(1:ifull,:)
-        call trim(at,ct,rhs,0)     ! for qfg
+        call trim(at,ct,rhs,0)       ! for qfg
         qfg(1:ifull,:)=rhs
 c       now do qlg
         rhs=qlg(1:ifull,:)
-        call trim(at,ct,rhs,0)     ! for qlg
+        call trim(at,ct,rhs,0)       ! for qlg
         qlg(1:ifull,:)=rhs
         if (ncloud>0) then
 c        now do qrg
          rhs=qrg(1:ifull,:)
-         call trim(at,ct,rhs,0)    ! for qrg
+         call trim(at,ct,rhs,0)      ! for qrg
          qrg(1:ifull,:)=rhs
 c        now do cffall
          rhs=cffall(1:ifull,:)
-         call trim(at,ct,rhs,0)    ! for cffall
+         call trim(at,ct,rhs,0)      ! for cffall
          cffall(1:ifull,:)=min(max(rhs,0.),1.)
          if (ncloud>=3) then
            ! now do cldfrac
            rhs=stratcloud(1:ifull,:)
            call trim(at,ct,rhs,0)    ! for cldfrac
-           stratcloud(1:ifull,:)=min(max(rhs,0.),1.)
+           stratcloud(1:ifull,:)=rhs
            call combinecloudfrac
          else
            ! now do cfrac
            rhs=cfrac(1:ifull,:)
            call trim(at,ct,rhs,0)    ! for cfrac
-           cfrac(1:ifull,:)=min(max(rhs,0.),1.)
+           cfrac(1:ifull,:)=rhs
          end if
         end if
        endif    ! (ldr/=0)

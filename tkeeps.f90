@@ -216,7 +216,8 @@ do k=1,kl
   sigkap(k)=sig(k)**(-rd/cp)
   pres(:,k)=ps(:)*sig(k) ! pressure
   ! density must be updated when dz is updated so that rho*dz is conserved
-  rhoa(:,k)=sigkap(k)*pres(:,k)/(rd*theta(1:ifull,k))
+  thetav(:,k)=theta(1:ifull,k)*(1.+0.61*qvg(1:ifull,k)-qlg(1:ifull,k)-qfg(1:ifull,k))
+  rhoa(:,k)=sigkap(k)*pres(:,k)/(rd*thetav(1:ifull,k))
 
   ! Calculate first approximation to diffusion coeffs
   km(:,k)=cm0*tke(1:ifull,k)*tke(1:ifull,k)/eps(1:ifull,k)

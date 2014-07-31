@@ -77,7 +77,7 @@ c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
       real, dimension(:,:), allocatable, save :: downex,upin,upin4
       real, dimension(:,:,:), allocatable, save :: detrarr
       integer, dimension(:), allocatable, save :: kb_saved,kt_saved
-      real, dimension(ifull) :: conrev,rho
+      real, dimension(ifull) :: conrev,rho,ttsto,qqsto,qqold
       real, dimension(ifull) :: alfqarr,alfqarrx,omega,omgtst
       real, dimension(ifull,naero) :: fscav
       real delq(ifull,kl),dels(ifull,kl),delu(ifull,kl)
@@ -1381,11 +1381,18 @@ c          detrfactr(iq)=detrfactr(iq)+detrarr(k,kb_sav(iq),kt_sav(iq))   ! just
         ! Note that not all missing qq becomes rain. However, some becomes qlg
         ! which also needs to be accounted for here.  Hence we simply use the
         ! change in qq
-        do k=1,kl
-          rho=ps*sig(k)/(rdry*tt(:,k))
-          ! convscav expects cloud liquid water before and after precipitation
-          call convscav(fscav,qq(:,k),qqsav(:,k),tt(:,k),
+        dustwd=0.
+        do k=1,kl-2
+          ttsto=t(1:ifull,k)+factr*(tt(:,k)-t(1:ifull,k))
+          qqsto=qg(1:ifull,k)+factr*(qq(:,k)-qg(1:ifull,k))
+          qqold=qg(1:ifull,k)+factr*(qqsav(:,k)-qg(1:ifull,k))
+          rho=ps*sig(k)/(rdry*ttsto*(1.+0.61*qqsto))
+          call convscav(fscav,qqsto,qqold,ttsto,
      &                  xtg(1:ifull,k,3),rho)
+          do ntr=itracdu,itracdu+ndust-1
+            dustwd=dustwd+fscav(:,ntr)*xtg(1:ifull,k,ntr)*ps*dsk(k)
+     &         /(grav*dt)
+          end do
           xtg(1:ifull,k,:)=xtg(1:ifull,k,:)*(1.-fscav(:,:))
         end do
       end if

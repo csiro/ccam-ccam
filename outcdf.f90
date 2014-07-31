@@ -931,6 +931,12 @@ if(myid==0.or.local)then
       call attrib(idnc,idim,3,'aero_nir',lname,'none',0.,13.,0,itype)
       lname = 'Total column aerosol optical depth LW'
       call attrib(idnc,idim,3,'aero_lw',lname,'none',0.,13.,0,itype)
+      lname = 'Dust emissions'
+      call attrib(idnc,idim,3,'duste',lname,'g/(m2 yr)',0.,260.,0,itype)  
+      lname = 'Dust dry deposition'
+      call attrib(idnc,idim,3,'dustdd',lname,'g/(m2 yr)',0.,260.,0,itype) 
+      lname = 'Dust wet deposition'
+      call attrib(idnc,idim,3,'dustwd',lname,'g/(m2 yr)',0.,260.,0,itype)       
     end if
 
     ! CABLE -----------------------------------------------------
@@ -1665,6 +1671,12 @@ if (nextout>=1.and.abs(iaero)>=2.and.nrad==5) then
   call histwrt3(opticaldepth(:,4,1),'aero_vis',idnc,iarch,local,lwrite)
   call histwrt3(opticaldepth(:,4,2),'aero_nir',idnc,iarch,local,lwrite)
   call histwrt3(opticaldepth(:,4,3),'aero_lw',idnc,iarch,local,lwrite)
+  aa=max(duste*3.154e10,0.) ! g/m2/yr
+  call histwrt3(aa,'duste',idnc,iarch,local,lwrite)
+  aa=max(dustdd*3.154e10,0.) ! g/m2/yr
+  call histwrt3(aa,'dustdd',idnc,iarch,local,lwrite)
+  aa=max(dustwd*3.154e10,0.) ! g/m2/yr
+  call histwrt3(aa,'dustwd',idnc,iarch,local,lwrite)
 end if
 
 ! CABLE -------------------------------------------------------

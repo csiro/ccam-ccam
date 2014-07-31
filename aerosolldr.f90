@@ -10,6 +10,7 @@ implicit none
 private
 public aldrcalc,aldrinit,aldrend,aldrloademiss,aldrloaderod,aldrloadoxidant,cldrop,convscav
 public xtg,xtgsav,xtosav,naero,ssn
+public itracdu,ndust,dustdd,dustwd,duste,Ch_dust
 
 integer, save :: ifull,kl
 integer, save :: jk2,jk3,jk4,jk5,jk6,jk8,jk9
@@ -21,6 +22,9 @@ real, dimension(:,:), allocatable, save :: erod        ! sand, clay and silt fra
 real, dimension(:,:), allocatable, save :: emissfield  ! non-volcanic emissions
 real, dimension(:,:), allocatable, save :: zoxidant    ! oxidant fields
 real, dimension(:), allocatable, save :: vso2          ! volcanic emissions
+real, dimension(:), allocatable, save :: duste         ! Diagnostic - dust emissions
+real, dimension(:), allocatable, save :: dustdd        ! Diagnostic - dust dry deposition
+real, dimension(:), allocatable, save :: dustwd        ! Diagnostic - dust wet deposition
 
 ! parameters
 integer, parameter :: nsulf = 3
@@ -31,6 +35,9 @@ integer, parameter :: itracso2=2                ! Index for SO2 tracer
 integer, parameter :: itracbc=nsulf+1           ! Index for BC    "
 integer, parameter :: itracoc=nsulf+3           ! Index for OC    "
 integer, parameter :: itracdu=nsulf+ncarb+1     ! Index for dust  "
+integer, parameter :: ndcls = 3                 ! No. of dust emission classes (sand, silt, clay)
+
+integer, parameter :: enhanceu10 = 0            ! Modify 10m wind speed (0=none, 1=quadrature, 2=linear)
 
 ! physical constants
 real, parameter :: grav      = 9.80616        ! Gravitation constant
@@ -39,6 +46,7 @@ real, parameter :: cp        = 1004.64        ! Heat capacity of air
 real, parameter :: hl        = 2.5104e6       ! Latent heat of vaporisation
 real, parameter :: vkar      = 0.4            ! von Karman constant
 real, parameter :: rhos      = 100.           ! Assumed density of snow in kg/m^3
+real, save :: Ch_dust        = 1.e-9          ! Transfer coeff for type natural source (kg*s2/m5)
 
 ! Following array determines for which tracers the XTWETDEP routine is called.
 ! We now set it to .true. for BCO and OCO, since they do experience below-cloud scavenging.
@@ -50,8 +58,6 @@ real, dimension(ndust), parameter :: dustden = (/ 2500., 2650., 2650., 2650. /) 
                                                                                    ! (Clay, small silt, small slit, small silt)
 real, dimension(ndust), parameter :: dustreff = (/ 0.73e-6,1.4e-6,2.4e-6,4.5e-6 /) ! Main effective radius (m)
                                                                                    ! (Clay, small silt, small slit, small silt)
-integer, parameter :: ndcls = 3     ! No. of dust emission classes (sand, silt, clay)
-integer, parameter :: ndsiz = ndust ! No. of dust size bins (note that NDUST may be larger than NDSIZ)
 
 contains
 
@@ -76,6 +82,7 @@ allocate(emissfield(ifull,15))
 allocate(ssn(ifull,kl,2))
 allocate(zoxidant(ifull,4*kl))
 allocate(erod(ifull,ndcls))
+allocate(duste(ifull),dustdd(ifull),dustwd(ifull))
 
 xtg=0.
 xtgsav=0.
@@ -85,6 +92,9 @@ emissfield=0.
 ssn=0.
 zoxidant=0.
 erod=0.
+duste=0.
+dustdd=0.
+dustwd=0.
 
 ! MJT - define injection levels
 !       to be replaced with plume rise model when possible
@@ -127,6 +137,7 @@ deallocate(vso2)
 deallocate(emissfield)
 deallocate(ssn)
 deallocate(zoxidant,erod)
+deallocate(duste,dustdd,dustwd)
 
 return
 end subroutine aldrend
@@ -179,7 +190,7 @@ implicit none
 integer, intent(in) :: inda
 real, dimension(ifull), intent(in) :: aa
 
-! EROD is the soil fraction of Sand, Silt and Clay that can erode
+! EROD is the soil fraction of Sand (inda=1), Silt (inda=2) and Clay (inda=3) that can erode
 erod(:,inda)=aa
 
 return
@@ -246,7 +257,7 @@ real, dimension(ifull) :: so2dd,so4dd
 real, dimension(ifull) :: so2wd,so4wd
 real, dimension(ifull) :: so2oh,so2h2,so2o3,dmsoh,dmsn3
 real, dimension(ifull) :: cgssnowd
-real, dimension(ifull) :: veff,vefn,dustwd,dustdd,duste
+real, dimension(ifull) :: veff,vefn
 real, dimension(ifull) :: cstrat,qtot
 real, dimension(ifull) :: rrate,Wstar3,Vgust_free,Vgust_deep
 real, dimension(ifull) :: v10n,thetav
@@ -257,7 +268,7 @@ conwd=0.
 cgssnowd=1.E-3*snowd
 so2wd=0.
 so4wd=0.
-dustwd=0.
+!dustwd=0. ! now zeroed in globpe.f
 dustdd=0.
 duste=0.
 
@@ -279,21 +290,31 @@ Vgust_free = beta*Wstar3**(1./3.)
 ! Calculate the Redelsperger-based Vgust_deep if deep convection is present.
 ! Note that Redelspreger gives two other parameterizations, based on
 ! the updraft or downdraught mass fluxes respectively.
-
 rrate = 8640.*condc/dt   !Rainfall rate in cm/day
 Vgust_deep = (19.8*rrate*rrate/(1.5+rrate+rrate*rrate))**0.4
 ! Calculate effective 10m wind (Eq. 15)
 ! These can plausibly be added in quadrature, or linearly, the latter giving a much larger
 ! effect (Lunt & Valdes, JGR, 2002).
-!veff = v10m + Vgust_free + Vgust_deep
-!vefn = v10n + Vgust_free + Vgust_deep
-veff = sqrt( v10m*v10m + Vgust_free*Vgust_free ) ! JLM suggestion
-vefn = sqrt( v10n*v10n + Vgust_free*Vgust_free )
+select case(enhanceu10)
+  case(0)
+    veff = v10m
+    vefn = v10n
+  case(1)
+    veff = sqrt( v10m*v10m + Vgust_free*Vgust_free ) ! JLM suggestion
+    vefn = sqrt( v10n*v10n + Vgust_free*Vgust_free )
+  case(2)
+    veff = v10m + Vgust_free + Vgust_deep
+    vefn = v10n + Vgust_free + Vgust_deep
+  case DEFAULT
+    write(6,*) "Unknown option for enhanceu10 ",enhanceu10
+    stop
+end select
 
 ! Emission and dry deposition (sulfur cycle and carbonaceous aerosols)
 do k=1,kl+1
   aphp1(:,k)=prf(:)*sigh(k)
 enddo
+! MJT notes - replace vefn with v10n for regional model
 call xtemiss(dt, xtg, rhoa(:,1), ts, sicef, vefn, aphp1,                  & !Inputs
              land, tsigmf, cgssnowd, fwet, wg,                            & !Inputs
              xte, xtem, so2dd, so4dd, so2em, dmsem, so4em, bem, oem, bbem)  !Outputs
@@ -305,11 +326,11 @@ do k=1,kl
 end do
 ! Calculate the settling of large dust particles
 call dsettling(dt,rhoa,ttg,dz,aphp1(:,1:kl), & !Inputs
-               xtg,dustdd)                     !In and out
+               xtg)                            !In and out
 ! Calculate dust emission and turbulent dry deposition at the surface
 ! MJT notes - replace veff with v10m as used by Ginoux et al 2004
-call dustem(dt,rhoa(:,1),wg,v10m,dz(:,1),vt,snowd,land,  & !Inputs
-            xtg,dustdd,duste)                              !In and out
+call dustem(dt,rhoa(:,1),wg,veff,dz(:,1),vt,snowd,land,  & !Inputs
+            xtg)                                           !In and out
 
 ! Decay of hydrophobic black and organic carbon into hydrophilic forms
 call xtsink (dt, xtg, &  !Inputs
@@ -348,7 +369,7 @@ call xtchemie (1, dt, zdayfac, aphp1(:,1:kl), ppmrate, ppfprec,                 
                pclcover, pmlwc, prhop1, ptp1, sg, xtm1, ppfevap,                & !Inputs
                ppfsnow,ppfsubl,pcfcover,pmiwc,ppmaccr,ppfmelt,ppfstay,ppqfsed,  & !Inputs
                pplambs,pprscav,pclcon,cldcon,pccw,ppfconv,xtu,                  & !Input
-               conwd, so2wd, so4wd, dustwd,                                     & !In and Out
+               conwd, so2wd, so4wd,                                             & !In and Out
                xte, so2oh, so2h2, so2o3, dmsoh, dmsn3)                            !Output
 do nt=1,naero
   do k=1,kl
@@ -404,8 +425,8 @@ enddo
 !  do nt=itracdu,itracdu+ndust-1
 !    hdust(:)=hdust(:)+1.e9*rho1(:)*xtg(:,1,nt) !In ug/m3
 !  enddo
-!  hdustd(:)=hdustd(:)+(dustdd(:)+dustwd(:))*3.154e10 !In g/m2/yr
-!  hduste(:)=hduste(:)+duste(:)*3.154e10 !In g/m2/yr
+!hdustd(:)=sum(dustdd(:)+dustwd(:))*3.154e10 !In g/m2/yr
+!hduste(:)=sum(duste(:))*3.154e10            !In g/m2/yr
 !  do k=1,kl
 !    do nt=itracdu,itracdu+ndust-1  !all dust
 !      ! Factor 1.e6 to convert to mg/m2
@@ -866,7 +887,7 @@ SUBROUTINE XTCHEMIE(KTOP, PTMST,zdayfac,PDPP1, PMRATEP, PFPREC,                 
                     PCLCOVER, PMLWC, PRHOP1, PTP1, sg, xtm1, pfevap,                 & !Inputs
                     pfsnow,pfsubl,pcfcover,pmiwc,pmaccr,pfmelt,pfstay,pqfsed,plambs, & !Inputs
                     prscav,pclcon,fracc,pccw,pfconv,xtu,                             & !Inputs
-                    conwd,so2wd,so4wd,dustwd,                                        & !In and Out
+                    conwd,so2wd,so4wd,                                               & !In and Out
                     xte,so2oh,so2h2,so2o3,dmsoh,dmsn3)                                 !Outputs
 
 ! Inputs
@@ -968,7 +989,6 @@ real so4wd(ifull) !Diagnostic output
 real so2oh(ifull) !Diagnostic output
 real so2h2(ifull) !Diagnostic output
 real so2o3(ifull) !Diagnostic output
-real dustwd(ifull)!Diagnostic output
 
 ! Local work arrays and variables
 real so2oh3d(ifull,kl),dmsoh3d(ifull,kl),dmsn33d(ifull,kl)
@@ -1374,9 +1394,9 @@ DO JT=ITRACSO2,naero
         zsolub(:,:)=0.
       elseif(ncarb>0.and.(jt==itracbc+1.or.jt==itracoc+1))then !hydrophilic BC and OC
         zsolub(:,:)=0.6
-      elseif(jt>=itracdu.and.jt<itracdu+ndsiz)then !hydrophobic dust (first 4 dust vars)
+      elseif(jt>=itracdu.and.jt<itracdu+ndust)then !hydrophobic dust (first 4 dust vars)
         zsolub(:,:)=0.
-      elseif(jt>=itracdu+ndsiz)then !hydrophilic dust !hydrophilic dust (last 4 dust vars)
+      elseif(jt>=itracdu+ndust)then !hydrophilic dust !hydrophilic dust (last 4 dust vars)
         zsolub(:,:)=1.
       endif
 
@@ -1417,7 +1437,6 @@ DO JT=ITRACSO2,naero
       enddo
       so4wd(:)=so4wd(:)+stratwd(:)
     elseif(jt>=itracdu.and.jt<itracdu+ndust)then
-      dustwd(:)=0.
       do jk=1,kl
         dustwd(:)=dustwd(:)+zdep3d(:,jk)*pdpp1(:,jk)/(grav*ptmst)
       enddo
@@ -1820,7 +1839,7 @@ END subroutine xtwetdep
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Dust settling
 
-subroutine dsettling(tdt,rhoa,tmp,delz,prf,tc,dustd)
+subroutine dsettling(tdt,rhoa,tmp,delz,prf,tc)
 
 implicit none
 
@@ -1833,7 +1852,6 @@ real, dimension(ifull,kl), intent(in) :: prf    !Pressure (hPa)
 
 !     In/Out:
 real, dimension(:,:,:), intent(inout) :: tc     !Dust mixing ratio (kg/kg)
-real, dimension(ifull), intent(inout) :: dustd  !Dry deposition flux out of lowest layer
 
 ! Local work arrays and variables
 real, dimension(ifull) :: dcol1, dcol2
@@ -1918,7 +1936,7 @@ do n=itracdu,itracdu+ndust-1
 enddo
 
 ! Calculate deposition flux to surface
-dustd = dustd + (dcol1-dcol2)/tdt
+dustdd = dustdd + (dcol1-dcol2)/tdt
 
 return
 end subroutine dsettling
@@ -1927,7 +1945,7 @@ end subroutine dsettling
 ! Dust emissions
 
 subroutine dustem(tdt,rhoa,wg,w10m,dz1,vt,snowd,land,        & !Inputs
-                  xd,dustd,duste)                              !In and out
+                  xd)                                          !In and out
 
 implicit none
 
@@ -1943,9 +1961,6 @@ logical, dimension(ifull), intent(in) :: land
 
 !     In and out
 real, dimension(:,:,:), intent(inout) :: xd     !Dust mixing ratio (kg/kg)
-real, dimension(ifull), intent(inout) :: dustd  !Dry deposition flux out of lowest layer (diagnostic; kg/m2/s)
-real, dimension(ifull), intent(inout) :: duste  !Dust emission flux into lowest layer (diagnostic; kg/m2/s)
-
 
 ! Local work arrays and variables
 integer, dimension(ndust), parameter :: ipoint = (/ 3, 2, 2, 2 /) !Pointer used for dust classes (sand, silt, clay)
@@ -1962,8 +1977,6 @@ real, dimension(ifull) :: airden
 real g,den,diam,ddt
 integer n,m,ii,nstep
 
-real, parameter :: Ch_dust = 1.e-9  ! Transfer coeff for type natural source (kg*s2/m5)
-
 ! Start code : ----------------------------------------------------------
 
 g = grav*1.e2
@@ -1972,8 +1985,8 @@ airden = rhoa*1.e-3
 ! Convert snow depth to estimated areal coverage (see Zender et al 2003, JGR 108, D14, 4416)
 ! Must convert from mm to m, then adjust by rho_l/rho_s=10.
 ! 0.05 m is the geometrical snow thickness for 100% areal coverage.
-!hsnow = snowd(:)*0.01 !Geometrical snow thickness in metres
-snowa = min( 1., snowd(:)/5. )
+!hsnow = snowd*0.01 !Geometrical snow thickness in metres
+snowa = min( 1., snowd/5. )
 
 do n = 1, ndust
   ! Threshold velocity as a function of the dust density and the diameter
@@ -1995,6 +2008,8 @@ do n = 1, ndust
     ! Case of wet surface, no erosion
     u_ts = 100.
   end where
+  
+  ! MJT notes - erod should be zero for ocean points
     
   !srce = frac_s(n)*erod(i,m)*dxy(i) ! (m2)
   srce = frac_s(n)*erod(:,m) ! (fraction) - MJT suggestion
@@ -2027,7 +2042,7 @@ do n = 1, ndust
   end do
 
   xtendd = (xd(1:ifull,1,n+itracdu-1)-xold)/tdt - a
-  dustd = dustd - xtendd*airmas ! Diagnostic
+  dustdd = dustdd - xtendd*airmas ! Diagnostic
 end do
 
 return
@@ -2063,7 +2078,7 @@ end subroutine dustem
 !    vvso2 = xtg(mg,k,itracso2)*29./64. !Vol. mixing ratio of SO2
 !    rk = 0.01 * max (0.1, dim(rhg(mg,k),0.5))
 !    xd = 0.
-!    do nt = itracdu, itracdu+ndsiz-1
+!    do nt = itracdu, itracdu+ndust-1
 !      xd = xd + xtg(mg,k,nt)
 !    enddo
 !    rrate(mg,k) = rk * vvso2 / max (1.e-12, xd)
@@ -2071,12 +2086,12 @@ end subroutine dustem
 !enddo
 !
 !! Reduce hydrophobic dust and increase hydrophilic dust
-!do nt = itracdu, itracdu+ndsiz-1
+!do nt = itracdu, itracdu+ndust-1
 !  do k=1,kl
 !    do mg=1,ifull
 !      dx = min (xtg(mg,k,nt), rrate(mg,k)*tdt*xtg(mg,k,nt))
 !      xtg(mg,k,nt) = xtg(mg,k,nt) - dx
-!      xtg(mg,k,nt+ndsiz) = xtg(mg,k,nt+ndsiz) + dx
+!      xtg(mg,k,nt+ndust) = xtg(mg,k,nt+ndust) + dx
 !    enddo
 !  enddo
 !enddo
@@ -2288,7 +2303,7 @@ do nt=1,naero
     scav_eff=scav_effi(nt)
   end where
   ! Wet deposition scavenging fraction
-  fscav(:,nt)=scav_eff*max(xpold(:)-xpkp1(:),0.)/max(xpold(:),1.E-8)
+  fscav(:,nt)=scav_eff*min(max(xpold-xpkp1,0.)/max(xpold,1.E-8),1.)
 end do
 
 return

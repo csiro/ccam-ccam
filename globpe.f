@@ -11,7 +11,8 @@
 !                      v+ve northwards (on the panel)
 
       use aerointerface                       ! Aerosol interface
-      use aerosolldr, only : xtosav,xtg,naero ! LDR prognostic aerosols
+      use aerosolldr, only : xtosav,xtg       ! LDR prognostic aerosols
+     &    ,naero,dustwd,Ch_dust
       use arrays_m                            ! Atmosphere dyamics prognostic arrays
       use bigxy4_m                            ! Grid interpolation
       use carbpools_m, only : carbpools_init  ! Carbon pools
@@ -156,7 +157,7 @@
      &    mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,
      &    nud_sfh,bpyear,rescrn,helmmeth,nmlo,ol,mxd,mindep,minwater,
      &    ocnsmag,ocneps,fixsal,fixheight,knh,ccycle,kblock,
-     &    nud_aero
+     &    nud_aero,ch_dust
       namelist/skyin/mins_rad,ndiur
       namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,
      &    hfile,icefile,mesonest,nmifile,o3file,radfile,restfile,
@@ -496,10 +497,12 @@
      &                                   rcrit_l,rcrit_s
         write(6,*)'Radiation options A:'
         write(6,*)' nrad  ndiur mins_rad kountr iaero  dt'
-        write (6,'(i5,4i7,f10.2)') nrad,ndiur,mins_rad,kountr,iaero,dt
+        write (6,'(i5,3i7,f10.2)') nrad,ndiur,mins_rad,kountr,dt
         write(6,*)'Radiation options B:'
         write(6,*)' nmr bpyear'
         write (6,'(i4,f9.2)') nmr,bpyear
+        write(6,*)'Aerosol options:'
+        write(6,'(i7,g9.2)') iaero,ch_dust
         write(6,*)'Cloud options A:'
         write(6,*)'  ldr nclddia nstab_cld nrhcrit sigcll '
         write (6,'(i5,i6,2i9,1x,f8.2)') ldr,nclddia,nstab_cld,nrhcrit,
@@ -1355,6 +1358,7 @@
       ! Save aerosol concentrations for outside convective fraction of grid box
       if (abs(iaero)>=2) then
         xtosav(:,:,:)=xtg(1:ifull,:,:) ! Aerosol mixing ratio outside convective cloud
+        dustwd=0.
       end if
       ! Select convection scheme
       select case(nkuo)

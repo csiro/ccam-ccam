@@ -70,6 +70,7 @@ c Local variables
       real qenv(ifullw,kl)    !Vapour mixing ratio outside convective cloud
       real tenv(ifullw,kl)    !Temperature outside convective cloud
       real tnhs(ifullw,kl)    !Non-hydrostatic temperature adjusement
+      real tv(ifullw,kl)
 
 c These outputs are not used in this model at present
       real qevap(ifullw,kl)
@@ -96,7 +97,9 @@ c These outputs are not used in this model at present
       do k=1,kl   
         prf(:,k)=0.01*ps(1:ifull)*sig(k)    !ps is SI units
         dprf(:,k)=-0.01*ps(1:ifull)*dsig(k) !dsig is -ve
-        rhoa(:,k)=100.*prf(:,k)/(rdry*t(1:ifull,k))
+        tv(:,k)=t(1:ifull,k)*(1.+0.61*qg(1:ifull,k)-qlg(1:ifull,k)
+     &        -qfg(1:ifull,k))
+        rhoa(:,k)=100.*prf(:,k)/(rdry*tv(1:ifull,k))
         do iq=1,ifull
           qsg(iq,k)=qsat(100.*prf(iq,k),t(iq,k))
         enddo
@@ -114,9 +117,7 @@ c These outputs are not used in this model at present
 
       kbase(:)=0  ! default
       ktop(:) =0  ! default
-      dz(:,:)=100.*dprf(:,:)/(rhoa(:,:)*grav)
-     &        *(1.+0.61*qg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:)
-     &          +tnhs(1:ifull,:)/t(1:ifull,:))
+      dz(:,:)=100.*dprf/(rhoa*grav)*(tv+tnhs(1:ifull,:))/tv
 c     fluxc(:,:)=rnrt3d(:,:)*1.e-3*dt ! kg/m2 (should be same level as rnrt3d)
       fluxc(:,:)=0. !For now... above line may be wrong
       ccrain(:,:)=0.1  !Assume this for now

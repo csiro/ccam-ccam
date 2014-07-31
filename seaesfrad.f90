@@ -6,16 +6,16 @@
 
 module seaesfrad_m
 
-use rad_utilities_mod, only: atmos_input_type,surface_type,astronomy_type,aerosol_type,           &
-                             aerosol_properties_type,radiative_gases_type,cldrad_properties_type, &
-                             cld_specification_type,lw_output_type,sw_output_type,                &
-                             aerosol_diagnostics_type,time_type,microphysics_type,                &
-                             microrad_properties_type,lw_diagnostics_type,lw_table_type,          &
-                             Sw_control,Lw_control, Rad_control,Cldrad_control,Lw_parameters,     &
-                             thickavg
+use rad_utilities_mod, only : atmos_input_type,surface_type,astronomy_type,aerosol_type,           &
+                              aerosol_properties_type,radiative_gases_type,cldrad_properties_type, &
+                              cld_specification_type,lw_output_type,sw_output_type,                &
+                              aerosol_diagnostics_type,time_type,microphysics_type,                &
+                              microrad_properties_type,lw_diagnostics_type,lw_table_type,          &
+                              Sw_control,Lw_control, Rad_control,Cldrad_control,Lw_parameters,     &
+                              thickavg
 use esfsw_driver_mod, only : swresf,esfsw_driver_init
 use sealw99_mod, only : sealw99,sealw99_init
-use esfsw_parameters_mod, only:  Solar_spect,esfsw_parameters_init
+use esfsw_parameters_mod, only : Solar_spect,esfsw_parameters_init
 
 private
 public seaesfrad
@@ -61,7 +61,7 @@ use extraout_m
 use histave_m, only : alb_ave,fbeam_ave
 use infile
 use latlong_m
-use microphys_rad_mod, only: microphys_sw_driver,microphys_lw_driver,lwemiss_calc,microphys_rad_init
+use microphys_rad_mod, only : microphys_sw_driver,microphys_lw_driver,lwemiss_calc,microphys_rad_init
 use mlo
 use nharrs_m
 use nsibd_m
@@ -180,7 +180,7 @@ if ( first ) then
   Cldrad_control%do_ica_calcs            =.false. ! must change allocations below if true
   Cldrad_control%do_no_clouds            =.false.
   Cldrad_control%do_donner_deep_clouds   =.false.
-  Cldrad_control%do_stochastic_clouds    =.false.  
+  Cldrad_control%do_stochastic_clouds    =.false.
   Sw_control%solar_constant              =csolar
   Sw_control%do_cmip_diagnostics         =do_aerosol_forcing ! Need for aerosol optical depths
   Lw_control%do_lwcldemiss               =.true.
@@ -211,107 +211,107 @@ if ( first ) then
   allocate ( Atmos_input%press(imax, 1, kl+1) )
   allocate ( Atmos_input%phalf(imax, 1, kl+1) )
   allocate ( Atmos_input%temp(imax, 1, kl+1) )
-  allocate ( Atmos_input%rh2o(imax, 1, kl  ) )
-  allocate ( Atmos_input%rel_hum(imax, 1, kl  ) )
-  allocate ( Atmos_input%clouddeltaz(imax, 1,kl  ) )
-  allocate ( Atmos_input%deltaz(imax, 1, kl ) )
+  allocate ( Atmos_input%rh2o(imax, 1, kl) )
+  allocate ( Atmos_input%rel_hum(imax, 1, kl) )
+  allocate ( Atmos_input%clouddeltaz(imax, 1,kl) )
+  allocate ( Atmos_input%deltaz(imax, 1, kl) )
   allocate ( Atmos_input%pflux(imax, 1, kl+1) )
   allocate ( Atmos_input%tflux(imax, 1, kl+1) )
-  allocate ( Atmos_input%psfc(imax, 1 ) )
-  allocate ( Atmos_input%tsfc(imax, 1 ) )
+  allocate ( Atmos_input%psfc(imax, 1) )
+  allocate ( Atmos_input%tsfc(imax, 1) )
   !if (use_co2_tracer_field) then
-  !  allocate ( Atmos_input%tracer_co2(imax, 1, kl ) )
+  !  allocate ( Atmos_input%tracer_co2(imax, 1, kl) )
   !endif
   
-  allocate(Rad_gases%qo3(imax,1,kl))
+  allocate( Rad_gases%qo3(imax, 1, kl) )
 
-  allocate(Cloud_microphysics%size_rain(imax, 1, kl))
-  allocate(Cloud_microphysics%size_drop(imax, 1, kl))
-  allocate(Cloud_microphysics%size_ice(imax, 1, kl))
-  allocate(Cloud_microphysics%size_snow(imax, 1, kl))
-  allocate(Cloud_microphysics%conc_drop(imax, 1, kl))
-  allocate(Cloud_microphysics%conc_ice(imax, 1, kl))
-  allocate(Cloud_microphysics%conc_rain(imax, 1, kl))
-  allocate(Cloud_microphysics%conc_snow(imax, 1, kl))
+  allocate( Cloud_microphysics%size_rain(imax, 1, kl) )
+  allocate( Cloud_microphysics%size_drop(imax, 1, kl) )
+  allocate( Cloud_microphysics%size_ice(imax, 1, kl) )
+  allocate( Cloud_microphysics%size_snow(imax, 1, kl) )
+  allocate( Cloud_microphysics%conc_drop(imax, 1, kl) )
+  allocate( Cloud_microphysics%conc_ice(imax, 1, kl) )
+  allocate( Cloud_microphysics%conc_rain(imax, 1, kl) )
+  allocate( Cloud_microphysics%conc_snow(imax, 1, kl) )
 
-  allocate (Cldrad_props%cldext(imax, 1, kl, Solar_spect%nbands, 1))
-  allocate (Cldrad_props%cldsct(imax, 1, kl, Solar_spect%nbands, 1))
-  allocate (Cldrad_props%cldasymm(imax, 1, kl, Solar_spect%nbands, 1))
-  allocate (Cldrad_props%abscoeff(imax, 1, kl, Cldrad_control%nlwcldb,1))
-  allocate (Cldrad_props%cldemiss(imax, 1, kl, Cldrad_control%nlwcldb,1))
-  allocate (Cldrad_props%emmxolw(imax, 1, kl, Cldrad_control%nlwcldb,1))
-  allocate (Cldrad_props%emrndlw(imax, 1, kl, Cldrad_control%nlwcldb,1))
+  allocate( Cldrad_props%cldext(imax, 1, kl, Solar_spect%nbands, 1) )
+  allocate( Cldrad_props%cldsct(imax, 1, kl, Solar_spect%nbands, 1) )
+  allocate( Cldrad_props%cldasymm(imax, 1, kl, Solar_spect%nbands, 1) )
+  allocate( Cldrad_props%abscoeff(imax, 1, kl, Cldrad_control%nlwcldb,1) )
+  allocate( Cldrad_props%cldemiss(imax, 1, kl, Cldrad_control%nlwcldb,1) )
+  allocate( Cldrad_props%emmxolw(imax, 1, kl, Cldrad_control%nlwcldb,1) )
+  allocate( Cldrad_props%emrndlw(imax, 1, kl, Cldrad_control%nlwcldb,1) )
 
-  allocate (Lscrad_props%cldext(imax, 1, kl, Solar_spect%nbands) )
-  allocate (Lscrad_props%cldsct(imax, 1, kl, Solar_spect%nbands) )
-  allocate (Lscrad_props%cldasymm(imax, 1, kl, Solar_spect%nbands) )
-  allocate (Lscrad_props%abscoeff(imax, 1, kl, Cldrad_control%nlwcldb) )
+  allocate( Lscrad_props%cldext(imax, 1, kl, Solar_spect%nbands) )
+  allocate( Lscrad_props%cldsct(imax, 1, kl, Solar_spect%nbands) )
+  allocate( Lscrad_props%cldasymm(imax, 1, kl, Solar_spect%nbands) )
+  allocate( Lscrad_props%abscoeff(imax, 1, kl, Cldrad_control%nlwcldb) )
 
-  allocate ( Cld_spec%camtsw(imax, 1, kl ) )
-  allocate ( Cld_spec%cmxolw(imax, 1, kl ) )
-  allocate ( Cld_spec%crndlw(imax, 1, kl ) )
+  allocate( Cld_spec%camtsw(imax, 1, kl) )
+  allocate( Cld_spec%cmxolw(imax, 1, kl) )
+  allocate( Cld_spec%crndlw(imax, 1, kl) )
   
-  allocate (Surface%asfc_vis_dir(imax, 1 ) )
-  allocate (Surface%asfc_nir_dir(imax, 1 ) )
-  allocate (Surface%asfc_vis_dif(imax, 1 ) )
-  allocate (Surface%asfc_nir_dif(imax, 1 ) )
+  allocate( Surface%asfc_vis_dir(imax, 1) )
+  allocate( Surface%asfc_nir_dir(imax, 1) )
+  allocate( Surface%asfc_vis_dif(imax, 1) )
+  allocate( Surface%asfc_nir_dif(imax, 1) )
 
-  allocate ( Astro%cosz(imax, 1 ) )
-  allocate ( Astro%fracday(imax, 1 ) )
+  allocate( Astro%cosz(imax, 1) )
+  allocate( Astro%fracday(imax, 1) )
 
-  allocate (Lw_output(1)%heatra(imax,1,kl)  )
-  allocate (Lw_output(1)%flxnet(imax,1,kl+1))
-  allocate (Lw_output(1)%bdy_flx(imax,1,4)  )
+  allocate( Lw_output(1)%heatra(imax, 1, kl) )
+  allocate( Lw_output(1)%flxnet(imax, 1, kl+1) )
+  allocate( Lw_output(1)%bdy_flx(imax, 1, 4) )
   if (do_totcld_forcing) then
-    allocate (Lw_output(1)%heatracf(imax,1,kl)  )
-    allocate (Lw_output(1)%flxnetcf(imax,1,kl+1))
-    allocate (Lw_output(1)%bdy_flx_clr(imax,1,4))
+    allocate ( Lw_output(1)%heatracf(imax, 1, kl) )
+    allocate ( Lw_output(1)%flxnetcf(imax, 1, kl+1) )
+    allocate ( Lw_output(1)%bdy_flx_clr(imax, 1, 4) )
   endif
 
-  allocate (Sw_output(1)%dfsw(imax,1,kl+1))
-  allocate (Sw_output(1)%ufsw(imax,1,kl+1))
-  allocate (Sw_output(1)%dfsw_dir_sfc(imax,1) )
-  allocate (Sw_output(1)%dfsw_dif_sfc(imax,1) )
-  allocate (Sw_output(1)%ufsw_dif_sfc(imax,1) )
-  allocate (Sw_output(1)%fsw(imax,1,kl+1))
-  allocate (Sw_output(1)%hsw(imax,1,kl))
-  allocate (Sw_output(1)%dfsw_vis_sfc(imax,1) )
-  allocate (Sw_output(1)%ufsw_vis_sfc(imax,1) )
-  allocate (Sw_output(1)%dfsw_vis_sfc_dir(imax,1) )
-  allocate (Sw_output(1)%dfsw_vis_sfc_dif(imax,1) )
-  allocate (Sw_output(1)%ufsw_vis_sfc_dif(imax,1) )
-  allocate (Sw_output(1)%bdy_flx(imax,1,4))
+  allocate( Sw_output(1)%dfsw(imax, 1, kl+1) )
+  allocate( Sw_output(1)%ufsw(imax, 1, kl+1) )
+  allocate( Sw_output(1)%dfsw_dir_sfc(imax, 1) )
+  allocate( Sw_output(1)%dfsw_dif_sfc(imax, 1) )
+  allocate( Sw_output(1)%ufsw_dif_sfc(imax, 1) )
+  allocate( Sw_output(1)%fsw(imax, 1, kl+1) )
+  allocate( Sw_output(1)%hsw(imax, 1, kl) )
+  allocate( Sw_output(1)%dfsw_vis_sfc(imax, 1) )
+  allocate( Sw_output(1)%ufsw_vis_sfc(imax, 1) )
+  allocate( Sw_output(1)%dfsw_vis_sfc_dir(imax, 1) )
+  allocate( Sw_output(1)%dfsw_vis_sfc_dif(imax, 1) )
+  allocate( Sw_output(1)%ufsw_vis_sfc_dif(imax, 1) )
+  allocate( Sw_output(1)%bdy_flx(imax, 1, 4) )
   if (do_totcld_forcing) then
-    allocate (Sw_output(1)%dfswcf(imax,1,kl+1))
-    allocate (Sw_output(1)%ufswcf(imax,1,kl+1))
-    allocate (Sw_output(1)%fswcf(imax,1,kl+1))
-    allocate (Sw_output(1)%hswcf(imax,1,kl))
-    allocate (Sw_output(1)%dfsw_dir_sfc_clr(imax,1))
-    allocate (Sw_output(1)%dfsw_dif_sfc_clr(imax,1))
-    allocate (Sw_output(1)%bdy_flx_clr(imax,1,4))
+    allocate( Sw_output(1)%dfswcf(imax, 1, kl+1) )
+    allocate( Sw_output(1)%ufswcf(imax, 1, kl+1) )
+    allocate( Sw_output(1)%fswcf(imax, 1, kl+1) )
+    allocate( Sw_output(1)%hswcf(imax, 1, kl) )
+    allocate( Sw_output(1)%dfsw_dir_sfc_clr(imax, 1) )
+    allocate( Sw_output(1)%dfsw_dif_sfc_clr(imax, 1) )
+    allocate( Sw_output(1)%bdy_flx_clr(imax, 1, 4) )
   endif
 
   if (do_aerosol_forcing) then
-    allocate(Aerosol_props%sulfate_index(0:100))
-    allocate(Aerosol_props%omphilic_index(0:100))
-    allocate(Aerosol_props%bcphilic_index(0:100))
-    allocate(Aerosol_props%seasalt1_index(0:100))
-    allocate(Aerosol_props%seasalt2_index(0:100))
-    allocate(Aerosol_props%seasalt3_index(0:100))
-    allocate(Aerosol_props%seasalt4_index(0:100))
-    allocate(Aerosol_props%seasalt5_index(0:100))
-    allocate(Aerosol_props%optical_index(nfields))
-    allocate(Aerosol%aerosol(imax,1,kl,nfields))
-    allocate(Atmos_input%aerosolrelhum(imax,1,kl))
-    allocate(Aerosol_props%aerextband(Solar_spect%nbands, naermodels))
-    allocate(Aerosol_props%aerssalbband(Solar_spect%nbands, naermodels))
-    allocate(Aerosol_props%aerasymmband(Solar_spect%nbands, naermodels))
-    allocate(Aerosol_props%aerssalbbandlw(N_AEROSOL_BANDS, naermodels))
-    allocate(Aerosol_props%aerextbandlw(N_AEROSOL_BANDS, naermodels))
-    allocate(Aerosol_props%aerssalbbandlw_cn(N_AEROSOL_BANDS, naermodels))
-    allocate(Aerosol_props%aerextbandlw_cn(N_AEROSOL_BANDS, naermodels))
-    allocate(Aerosol_diags%extopdep(imax,1,kl,nfields,5))
-    allocate(Aerosol_diags%absopdep(imax,1,kl,nfields,5))
+    allocate( Aerosol_props%sulfate_index(0:100) )
+    allocate( Aerosol_props%omphilic_index(0:100) )
+    allocate( Aerosol_props%bcphilic_index(0:100) )
+    allocate( Aerosol_props%seasalt1_index(0:100) )
+    allocate( Aerosol_props%seasalt2_index(0:100) )
+    allocate( Aerosol_props%seasalt3_index(0:100) )
+    allocate( Aerosol_props%seasalt4_index(0:100) )
+    allocate( Aerosol_props%seasalt5_index(0:100) )
+    allocate( Aerosol_props%optical_index(nfields) )
+    allocate( Aerosol%aerosol(imax, 1, kl, nfields) )
+    allocate( Atmos_input%aerosolrelhum(imax, 1, kl) )
+    allocate( Aerosol_props%aerextband(Solar_spect%nbands, naermodels) )
+    allocate( Aerosol_props%aerssalbband(Solar_spect%nbands, naermodels) )
+    allocate( Aerosol_props%aerasymmband(Solar_spect%nbands, naermodels) )
+    allocate( Aerosol_props%aerssalbbandlw(N_AEROSOL_BANDS, naermodels) )
+    allocate( Aerosol_props%aerextbandlw(N_AEROSOL_BANDS, naermodels) )
+    allocate( Aerosol_props%aerssalbbandlw_cn(N_AEROSOL_BANDS, naermodels) )
+    allocate( Aerosol_props%aerextbandlw_cn(N_AEROSOL_BANDS, naermodels) )
+    allocate( Aerosol_diags%extopdep(imax, 1, kl, nfields, 5) )
+    allocate( Aerosol_diags%absopdep(imax, 1, kl, nfields, 5) )
 
     Aerosol_props%sulfate_flag=0
     Aerosol_props%omphilic_flag=-1
@@ -463,9 +463,9 @@ do j=1,jl,imax/il
     
     ! Set up ozone for this time and row
     if (amipo3) then
-      call o3set_amip ( rlatt(istart:iend), imax, mins,sigh, ps(istart:iend), duo3n )
+      call o3set_amip( rlatt(istart:iend), imax, mins,sigh, ps(istart:iend), duo3n )
     else
-      call o3set(imax,istart,mins,duo3n,sig,ps(istart:iend))
+      call o3set( imax, istart, mins, duo3n, sig, ps(istart:iend) )
     end if
     Rad_gases%qo3(:,1,:)=max(1.e-10_8,real(duo3n,8))
 
