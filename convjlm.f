@@ -282,6 +282,8 @@
         enddo
       endif
 
+       if(nint(convtime)==-23)convtime=3030.6
+       if(nint(convtime)==-24)convtime=4040.6
         if(convtime>100.)then   ! new general style  May 2014
 !         1836.45 is old 36;  4040.6 is old -24; 2020.001 is old .33
           mcontlnd=.01*convtime         ! in minutes
@@ -1130,8 +1132,6 @@ c***    Also entrain may slow convergence   N.B. qbass only used in next few lin
           endif
          enddo
         enddo  ! k loop
-       if(nint(convtime)==-23)convtime=3030.6
-       if(nint(convtime)==-24)convtime=4040.6
        if(convtime>100.)then  ! land/sea effects
            do iq=1,ifull    
              if(land(iq))then  ! e.g. for 3060.60 
