@@ -328,7 +328,6 @@ end do
 call dsettling(dt,rhoa,ttg,dz,aphp1(:,1:kl), & !Inputs
                xtg)                            !In and out
 ! Calculate dust emission and turbulent dry deposition at the surface
-! MJT notes - replace veff with v10m as used by Ginoux et al 2004
 call dustem(dt,rhoa(:,1),wg,veff,dz(:,1),vt,snowd,land,  & !Inputs
             xtg)                                           !In and out
 
@@ -489,8 +488,8 @@ real, dimension(ifull), intent(out) :: bem
 real, dimension(ifull), intent(out) :: bbem
 
 real zdmscon,ZSST,ZZSPEED,VpCO2,VpCO2liss
-real wtliss,ScDMS,zVdms
-integer jl,jk,jt
+real wtliss,ScDMS,zVdms,ddt
+integer jl,jk,jt,nstep,ii
 
 REAL, dimension(ifull,2) :: ZVDRD
 REAL, dimension(ifull) :: ZMAXVDRY,gdp,zdmsemiss,pxtm1new
@@ -792,30 +791,55 @@ bbem=emissfield(:,ibcb1)+emissfield(:,ibcb2)+1.3*(emissfield(:,iocb1)+emissfield
 gdp=grav/(aphp1(:,1)-aphp1(:,2))
 
 ! MJT suggestion
-pxtm1new=(pxtm1(1:ifull,1,itracso2)*(1.-0.5*ztmst*p1mxtm1*zvdrd(:,1)*gdp)+ztmst*xte(:,1,ITRACSO2))     &
-        /(1.+0.5*ztmst*p1mxtm1*zvdrd(:,1)*gdp)
-so2dd=(pxtm1(1:ifull,1,itracso2)-pxtm1new)/(ztmst*gdp)
-pxtm1new=(pxtm1(1:ifull,1,itracso2+1)*(1.-0.5*ztmst*p1mxtm1*zvdrd(:,2)*gdp)+ztmst*xte(:,1,ITRACSO2+1)) &
-        /(1.+0.5*ztmst*p1mxtm1*zvdrd(:,2)*gdp)
-so4dd=(pxtm1(1:ifull,1,itracso2+1)-pxtm1new)/(ztmst*gdp)
+nstep=int(ztmst/120.01)+1
+ddt=ztmst/real(nstep)
+
+pxtm1new=pxtm1(1:ifull,1,itracso2)
+do ii=1,nstep
+  pxtm1new=(pxtm1new*(1.-0.5*ddt*p1mxtm1*zvdrd(:,1)*gdp)+ddt*xte(:,1,ITRACSO2))        &
+      /(1.+0.5*ddt*p1mxtm1*zvdrd(:,1)*gdp)
+end do
+so2dd=(pxtm1(1:ifull,1,itracso2)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACSO2)/gdp
 xte(:,1,ITRACSO2)  =xte(:,1,ITRACSO2)  -so2dd*gdp
+  
+pxtm1new=pxtm1(1:ifull,1,itracso2+1)
+do ii=1,nstep  
+  pxtm1new=(pxtm1new*(1.-0.5*ddt*p1mxtm1*zvdrd(:,2)*gdp)+ddt*xte(:,1,ITRACSO2+1))      &
+        /(1.+0.5*ddt*p1mxtm1*zvdrd(:,2)*gdp)
+end do
+so4dd=(pxtm1(1:ifull,1,itracso2+1)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACSO2+1)/gdp
 xte(:,1,ITRACSO2+1)=xte(:,1,ITRACSO2+1)-so4dd*gdp
 
-pxtm1new=(pxtm1(1:ifull,1,ITRACBC)*(1.-0.5*ztmst*p1mxtm1*ZVDPHOBIC*gdp)+ztmst*xte(:,1,ITRACBC))        &
-        /(1.+0.5*ztmst*p1mxtm1*ZVDPHOBIC*gdp)
-ZHILBCO=(pxtm1(1:ifull,1,ITRACBC)-pxtm1new)/(ztmst*gdp)
-pxtm1new=(pxtm1(1:ifull,1,ITRACBC+1)*(1.-0.5*ztmst*p1mxtm1*ZVDRD(:,2)*gdp)+ztmst*xte(:,1,ITRACBC+1))   &
-        /(1.+0.5*ztmst*p1mxtm1*ZVDRD(:,2)*gdp)
-ZHILBCY=(pxtm1(1:ifull,1,ITRACBC+1)-pxtm1new)/(ztmst*gdp)
-pxtm1new=(pxtm1(1:ifull,1,ITRACOC)*(1.-0.5*ztmst*p1mxtm1*ZVDPHOBIC*gdp)+ztmst*xte(:,1,ITRACOC))        &
-        /(1.+0.5*ztmst*p1mxtm1*ZVDPHOBIC*gdp)
-ZHILOCO=(pxtm1(1:ifull,1,ITRACOC)-pxtm1new)/(ztmst*gdp)
-pxtm1new=(pxtm1(1:ifull,1,ITRACOC+1)*(1.-0.5*ztmst*p1mxtm1*ZVDRD(:,2)*gdp)+ztmst*xte(:,1,ITRACOC+1))   &
-        /(1.+0.5*ztmst*p1mxtm1*ZVDRD(:,2)*gdp)
-ZHILOCY=(pxtm1(1:ifull,1,ITRACOC+1)-pxtm1new)/(ztmst*gdp)
+pxtm1new=pxtm1(1:ifull,1,ITRACBC)
+do ii=1,nstep  
+  pxtm1new=(pxtm1new*(1.-0.5*ddt*p1mxtm1*ZVDPHOBIC*gdp)+ddt*xte(:,1,ITRACBC))          &
+          /(1.+0.5*ddt*p1mxtm1*ZVDPHOBIC*gdp)
+end do
+ZHILBCO=(pxtm1(1:ifull,1,ITRACBC)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACBC)/gdp
 xte(:,1,itracbc)  =xte(:,1,itracbc)  -zhilbco*gdp
+
+pxtm1new=pxtm1(1:ifull,1,ITRACBC+1)
+do ii=1,nstep
+  pxtm1new=(pxtm1new*(1.-0.5*ddt*p1mxtm1*ZVDRD(:,2)*gdp)+ddt*xte(:,1,ITRACBC+1))       &
+          /(1.+0.5*ddt*p1mxtm1*ZVDRD(:,2)*gdp)
+end do
+ZHILBCY=(pxtm1(1:ifull,1,ITRACBC+1)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACBC+1)/gdp
 xte(:,1,itracbc+1)=xte(:,1,itracbc+1)-zhilbcy*gdp
+
+pxtm1new=pxtm1(1:ifull,1,ITRACOC)
+do ii=1,nstep
+  pxtm1new=(pxtm1new*(1.-0.5*ddt*p1mxtm1*ZVDPHOBIC*gdp)+ddt*xte(:,1,ITRACOC))          &
+          /(1.+0.5*ddt*p1mxtm1*ZVDPHOBIC*gdp)
+end do
+ZHILOCO=(pxtm1(1:ifull,1,ITRACOC)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACOC)/gdp
 xte(:,1,itracoc)  =xte(:,1,itracoc)  -zhiloco*gdp
+
+pxtm1new=pxtm1(1:ifull,1,ITRACOC+1)
+do ii=1,nstep
+  pxtm1new=(pxtm1new*(1.-0.5*ddt*p1mxtm1*ZVDRD(:,2)*gdp)+ddt*xte(:,1,ITRACOC+1))   &
+          /(1.+0.5*ddt*p1mxtm1*ZVDRD(:,2)*gdp)
+end do
+ZHILOCY=(pxtm1(1:ifull,1,ITRACOC+1)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACOC+1)/gdp
 xte(:,1,itracoc+1)=xte(:,1,itracoc+1)-zhilocy*gdp
 
 return
@@ -1890,8 +1914,8 @@ do iq=1,ifull
     vsettl = 2./9. * grav * DUSTDEN(k) * DUSTREFF(k)**2 / (0.5*dyn_visc)
 
     ! Determine the maximum time-step satisying the CFL condition:
-    ! dt <= (dz)_min / v_settl
-    dtmax = dzmin / vsettl
+    ! dt <= (dz)_min / v_settl (use 0.3 as MJT suggestion)
+    dtmax = 0.3 * dzmin / vsettl
     ndt_settl = max(1, int( tdt /dtmax ) )
 
 
@@ -1904,11 +1928,11 @@ do iq=1,ifull
       C_Stokes = 1.458E-6 * TMP(iq,kl)**1.5/(TMP(iq,kl)+110.4) 
       ! Cuningham correction
       Corr = 6.6E-8*prf(iq,kl)/1013.*TMP(iq,kl)/293.15
-      C_Cun = 1.+ 1.249*corr/dustreff(k)
+      C_Cun = 1. + 1.249*corr/dustreff(k)
       ! Settling velocity
       Vd_cor(kl) =2./9.*grav*dustden(k)*dustreff(k)**2/C_Stokes*C_Cun
       ! Update mixing ratio
-      TC(iq,kl,k+itracdu-1) = TC(iq,kl,k+itracdu-1) / (1.+ dt_settl*VD_cor(kl)/DELZ(iq,kl))
+      TC(iq,kl,k+itracdu-1) = TC(iq,kl,k+itracdu-1) / (1. + dt_settl*VD_cor(kl)/DELZ(iq,kl))
 
       ! Solve each vertical layer successively (layer l)
       do l = kl-1,1,-1
@@ -1916,12 +1940,13 @@ do iq=1,ifull
         C_Stokes = 1.458E-6*TMP(iq,l)**1.5/(TMP(iq,l)+110.4) 
         ! Cuningham correction
         Corr = 6.6E-8*prf(iq,l)/1013.*TMP(iq,l)/293.15
-        C_Cun = 1.+ 1.249*corr/dustreff(k)
+        C_Cun = 1. + 1.249*corr/dustreff(k)
         ! Settling velocity
         Vd_cor(l) = 2./9.*grav*dustden(k)*dustreff(k)*dustreff(k)/C_Stokes*C_Cun
         ! Update mixing ratio
-        TC(iq,l,k+itracdu-1) = 1./(1.+ dt_settl*Vd_cor(l)/DELZ(iq,l))                            &
-            *(TC(iq,l,k+itracdu-1) + dt_settl*Vd_cor(l+1)/DELZ(iq,l+1)*TC(iq,l+1,k+itracdu-1))
+        TC(iq,l,k+itracdu-1) = 1./(1. + dt_settl*Vd_cor(l)/DELZ(iq,l))                            &
+            *(TC(iq,l,k+itracdu-1) + dt_settl*Vd_cor(l+1)/DELZ(iq,l+1)*TC(iq,l+1,k+itracdu-1)     &
+             *rhoa(iq,l+1)/rhoa(iq,l))  ! MJT suggestion
       end do
     end do
   end do
@@ -2034,7 +2059,7 @@ do n = 1, ndust
 ! Write in form dx/dt = a - bx (a = source term, b = drydep term)
   xold = xd(1:ifull,1,n+itracdu-1)
   
-  nstep=int(tdt/300.01)+1
+  nstep=int(tdt/120.01)+1
   ddt=tdt/real(nstep)
   do ii=1,nstep
     xd(1:ifull,1,n+itracdu-1) = (xd(1:ifull,1,n+itracdu-1)*(1.-0.5*b*ddt)+a*ddt)/(1.+0.5*b*ddt)
