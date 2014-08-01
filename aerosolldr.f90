@@ -505,10 +505,10 @@ real, parameter :: ZVWC2=(0.8E-2 - 0.2E-2)/(1. - 0.9)
 real, parameter :: ZVW02=ZVWC2-0.8E-2
 real, parameter :: ZVWC4=(0.2E-2 - 0.025E-2)/(1. - 0.9)
 real, parameter :: ZVW04=ZVWC4-0.2E-2
-real, parameter :: tmelt = 273.05 ! need to make this consistant with sflux.f and mlo.f90
+real, parameter :: tmelt = 273.05
 real, parameter :: zvolcemi  = 8.             ! ZVOLCEMI  TOTAL EMISSION FROM VOLCANOES IN TG/YR
 real, parameter :: ZVDPHOBIC = 0.025E-2       ! dry deposition
-real, parameter :: ScCO2 = 600.
+real, parameter :: ScCO2     = 600.
 
 ! Then follow SO2, BC and OC from anthro (a) and biomass-burning (b) levels 1 and 2
 integer, parameter :: iso2a1=1
@@ -783,14 +783,12 @@ do jt=ITRACOC,ITRACOC+1
 enddo
 
 ! Total biomass burning primary emissions
-bbem=emissfield(:,ibcb1)+emissfield(:,ibcb2)+1.3*(emissfield(:,iocb1)+emissfield(:,iocb2))
+bbem=emissfield(:,ibcb1)+emissfield(:,ibcb2)+emissfield(:,iocb1)+emissfield(:,iocb2)
 
 ! ZVDRD   DRY DEPOSITION VELOCITY IN M/S
 ! ZVDRD(JL,1)  FOR SO2 GAS
 ! ZVDRD(JL,2)  FOR AEROSOLS
 gdp=grav/(aphp1(:,1)-aphp1(:,2))
-
-! MJT suggestion
 nstep=int(ztmst/120.01)+1
 ddt=ztmst/real(nstep)
 
@@ -836,7 +834,7 @@ xte(:,1,itracoc)  =xte(:,1,itracoc)  -zhiloco*gdp
 
 pxtm1new=pxtm1(1:ifull,1,ITRACOC+1)
 do ii=1,nstep
-  pxtm1new=(pxtm1new*(1.-0.5*ddt*p1mxtm1*ZVDRD(:,2)*gdp)+ddt*xte(:,1,ITRACOC+1))   &
+  pxtm1new=(pxtm1new*(1.-0.5*ddt*p1mxtm1*ZVDRD(:,2)*gdp)+ddt*xte(:,1,ITRACOC+1))       &
           /(1.+0.5*ddt*p1mxtm1*ZVDRD(:,2)*gdp)
 end do
 ZHILOCY=(pxtm1(1:ifull,1,ITRACOC+1)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACOC+1)/gdp
@@ -883,7 +881,7 @@ pxte(:,:,:)=0. !Very important!
 PQTMST=1./PTMST
 ZFAC=ALOG(0.5)*PTMST
 
-ZDECAY=EXP(ZFAC/172800.) ! 172800s = 2 days
+ZDECAY=EXP(ZFAC/86400.) ! 1 day
 DO JK=1,kl
   ZXTP1=PXTM1(1:ifull,JK,ITRACBC)+PXTE(1:ifull,JK,ITRACBC)*PTMST
   ZXTP1=ZXTP1*ZDECAY
@@ -892,7 +890,7 @@ DO JK=1,kl
   PXTE(1:ifull,JK,ITRACBC+1)=PXTE(1:ifull,JK,ITRACBC+1)-ZDXTDT 
 end do
 
-ZDECAY=EXP(ZFAC/172800.) ! 172800s = 2 days
+ZDECAY=EXP(ZFAC/86400.) ! 1 day
 DO JK=1,kl
   ZXTP1=PXTM1(1:ifull,JK,ITRACOC)+PXTE(1:ifull,JK,ITRACOC)*PTMST
   ZXTP1=ZXTP1*ZDECAY
