@@ -1405,7 +1405,7 @@ DO JT=ITRACSO2,naero
       zxtp1c(:,:)=zso4(:,:)
       zxtp10(:,:)=zso4i(:,:)
       zxtp1con(:,:)=zso4c(:,:)
-      zsolub (:,:)=1.
+      zsolub (:,:)=0.6
 
     else !Carbonaceous aerosol and mineral dust
       zxtp10(:,:)=xto(:,:,jt)
@@ -1415,9 +1415,9 @@ DO JT=ITRACSO2,naero
       if(ncarb>0.and.(jt==itracbc.or.jt==itracoc))then  !hydrophobic BC and OC
         zsolub(:,:)=0.
       elseif(ncarb>0.and.(jt==itracbc+1.or.jt==itracoc+1))then !hydrophilic BC and OC
-        zsolub(:,:)=0.6
+        zsolub(:,:)=0.2
       elseif(jt>=itracdu.and.jt<itracdu+ndust)then !hydrophobic dust (first 4 dust vars)
-        zsolub(:,:)=0.
+        zsolub(:,:)=0.05
       elseif(jt>=itracdu+ndust)then !hydrophilic dust !hydrophilic dust (last 4 dust vars)
         zsolub(:,:)=1.
       endif
@@ -1713,6 +1713,7 @@ do JK=KTOP,kl
       !if(pmiwc(jl,jk)>zmin)then
       if(pmiwc(jl,jk)>1.E-8)then ! MJT suggestion
         ziicscav=Ecols(ktrac)*pqfsed(jl,jk) !qfsed is the fractional sedimentation in dt
+        ziicscav=min(ziicscav,1.)        
         xdep=pxtp10(jl,jk)*ziicscav*pcfcover(jl,jk)
         pdep3d(jl,jk)=pdep3d(jl,jk)+xdep
         pxtp10(jl,jk)=pxtp10(jl,jk)                                 &
@@ -1729,6 +1730,7 @@ do JK=KTOP,kl
       !if(pmlwc(jl,jk)>zmin)then
       if(pmlwc(jl,jk)>1.E-8)then ! MJT suggestion
         zilcscav=Rcoeff(ktrac)*psolub(jl,jk)*(pmaccr(jl,jk)*ptmst/pmlwc(jl,jk))
+        ziicscav=min(ziicscav,1.)        
         xdep=pxtp1c(jl,jk)*zilcscav*pclcover(jl,jk)
         pdep3d(jl,jk)=pdep3d(jl,jk)+xdep
         pxtp1c(jl,jk)=pxtp1c(jl,jk)*(1.-zilcscav)
@@ -1780,6 +1782,7 @@ do JK=KTOP,kl
     !if(pmratep(jl,jk)>zmin) then
     if(pmratep(jl,jk)>zmin.and.pmlwc(jl,jk)>1.E-8) then ! MJT suggestion
       zicscav=psolub(jl,jk)*(pmratep(jl,jk)*ptmst/pmlwc(jl,jk))
+      zicscav=min(zicscav,1.)
       xicscav=pxtp1c(jl,jk)*zicscav*pclcover(jl,jk) !gridbox mean
       pxtp1c(jl,jk)=pxtp1c(jl,jk)*(1.-zicscav)
       pdep3d(jl,jk)=pdep3d(jl,jk)+xicscav
