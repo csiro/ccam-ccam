@@ -1662,15 +1662,15 @@ REAL ZDEPS(ifull),ZDEPR(ifull),    &
 integer, parameter :: ktop = 2    !Top level for wet deposition (counting from top)
 ! Allow in-cloud scavenging in ice clouds for hydrophobic BC and OC, and dust
 ! Value of 0.5 is just a guess at present
-real, dimension(naero), parameter :: Ecols = (/ 0.0,0.0,0.0,0.5,0.0,0.5,0.0,0.0,0.0,0.0,0.0/)
+real, dimension(naero), parameter :: Ecols = (/ 0.00,0.00,0.00,0.05,0.00,0.05,0.00,0.05,0.05,0.05,0.05/)
 !Below-cloud collection eff. for rain
-real, dimension(naero), parameter :: zcollefr = (/0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.10,0.20,0.50/)
+real, dimension(naero), parameter :: zcollefr = (/0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.10,0.20,0.40/)
 !Below-cloud collection eff. for snow
-real, dimension(naero), parameter :: zcollefs = (/0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.02,0.04,0.10/)
+real, dimension(naero), parameter :: zcollefs = (/0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.02,0.04,0.08/)
 !Retention coeff. on riming
 real, dimension(naero), parameter :: Rcoeff = (/1.00,0.62,1.00,0.00,1.00,0.00,1.00,1.00,1.00,1.00,1.00/)
 !Relative reevaporation rate
-real, dimension(naero), parameter :: Evfac = (/0.5,1.0,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5/)
+real, dimension(naero), parameter :: Evfac = (/0.25,1.00,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25/)
 
 integer, dimension(ifull) :: kbase
 real pqtmst,ziicscav,xdep,zicscav,xicscav,zevap
@@ -1713,7 +1713,6 @@ do JK=KTOP,kl
       !if(pmiwc(jl,jk)>zmin)then
       if(pmiwc(jl,jk)>1.E-8)then ! MJT suggestion
         ziicscav=Ecols(ktrac)*pqfsed(jl,jk) !qfsed is the fractional sedimentation in dt
-        ziicscav=min(ziicscav,1.)
         xdep=pxtp10(jl,jk)*ziicscav*pcfcover(jl,jk)
         pdep3d(jl,jk)=pdep3d(jl,jk)+xdep
         pxtp10(jl,jk)=pxtp10(jl,jk)                                 &
@@ -1730,7 +1729,6 @@ do JK=KTOP,kl
       !if(pmlwc(jl,jk)>zmin)then
       if(pmlwc(jl,jk)>1.E-8)then ! MJT suggestion
         zilcscav=Rcoeff(ktrac)*psolub(jl,jk)*(pmaccr(jl,jk)*ptmst/pmlwc(jl,jk))
-        zilcscav=min(zilcscav,1.)
         xdep=pxtp1c(jl,jk)*zilcscav*pclcover(jl,jk)
         pdep3d(jl,jk)=pdep3d(jl,jk)+xdep
         pxtp1c(jl,jk)=pxtp1c(jl,jk)*(1.-zilcscav)
@@ -1759,7 +1757,6 @@ do JK=KTOP,kl
     if (pfsnow(jl,jk)>zmin) then
       zstay=(pfsubl(jl,jk)+pfstay(jl,jk))/pfsnow(jl,jk)
       zstay=min(1., zstay)
-      zstay=min(zstay,1.)
       xstay=zdeps(jl)*zstay*zftom(jl)
       zdeps(jl)=zdeps(jl)*(1.-zstay)
       zdeps(jl)=max(0.,zdeps(jl))
@@ -1783,7 +1780,6 @@ do JK=KTOP,kl
     !if(pmratep(jl,jk)>zmin) then
     if(pmratep(jl,jk)>zmin.and.pmlwc(jl,jk)>1.E-8) then ! MJT suggestion
       zicscav=psolub(jl,jk)*(pmratep(jl,jk)*ptmst/pmlwc(jl,jk))
-      zicscav=min(zicscav,1.)
       xicscav=pxtp1c(jl,jk)*zicscav*pclcover(jl,jk) !gridbox mean
       pxtp1c(jl,jk)=pxtp1c(jl,jk)*(1.-zicscav)
       pdep3d(jl,jk)=pdep3d(jl,jk)+xicscav
@@ -1809,7 +1805,7 @@ do JK=KTOP,kl
   do jl=1,ifull
     if (pfprec(jl,jk)>zmin.and.zclear(jl)>zmin) then
       zevap=pfevap(jl,jk)/pfprec(jl,jk)
-      zevap=min(1., zevap)
+      zevap=max(0.,min(1., zevap))
       if(zevap<1.)zevap=Evfac(ktrac)*zevap
       xevap=zdepr(jl)*zevap*zftom(jl) !xevap is the grid-box-mean m.r. change
       zdepr(jl)=max(0.,zdepr(jl)*(1.-zevap))
