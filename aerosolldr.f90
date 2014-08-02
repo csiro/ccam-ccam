@@ -1033,11 +1033,7 @@ integer ZRDAYL(ifull)
 real, dimension(ifull), intent(in) :: zdayfac
 integer, parameter :: nfastox=0 !1 for "fast" in-cloud oxidation; 0 for "slow"
 real, parameter :: zmin=1.e-20
-real x,pcons2,pdtime,pqtmst
-real zk2i,zk2,zk2f,zk3,zmolgs,zmolgh2o2
-real zmolgair,zmolgw,zhpbase,ze1k,ze1h
-real ze2k,ze2h,ze3k,ze3h,zq298,zrgas
-real zavo,znamair,zlwcmin
+real x,pcons2,pqtmst
 real zlwcl,zlwcv,zhp,zqtp1,zrk,zrke
 real zh_so2,zpfac,zp_so2,zf_so2,zp_h2o2
 real zf_h2o2,zxtp1,ze1,ze2,ze3,zfac1,zrkfac
@@ -1053,6 +1049,36 @@ real zkno2no3,zeqn2o5,ztk3,ztk2,zkn2o5
 real zno3,zxtp1so2
 integer jt,jk,jl,js1,js2,js3,js4,jn,niter
 
+!    REACTION RATE SO2-OH
+real, parameter :: ZK2I=2.0E-12
+real, parameter :: ZK2=4.0E-31
+real, parameter :: ZK2F=0.45
+
+!   REACTION RATE DMS-NO3
+real, parameter :: ZK3=1.9E-13
+
+!   MOLECULAR WEIGHTS IN G
+real, parameter :: ZMOLGS=32.064
+real, parameter :: ZMOLGH2O2=34.01474
+real, parameter :: ZMOLGAIR=28.84
+real, parameter :: ZMOLGW=18.015
+
+real, parameter :: ZHPBASE=2.5E-06
+real, parameter :: ZE1K=1.1E-02
+real, parameter :: ZE1H=2300.
+real, parameter :: ZE2K=1.23
+real, parameter :: ZE2H=3020.
+real, parameter :: ZE3K=1.2E-02
+real, parameter :: ZE3H=2010.
+real, parameter :: ZQ298=1./298.
+real, parameter :: ZRGAS=8.2E-02
+
+real, parameter :: ZAVO=6.022E+23
+real, parameter :: ZNAMAIR=1.E-03*ZAVO/ZMOLGAIR
+
+real, parameter :: ZLWCMIN=1.E-07
+
+
 ! Start code : ----------------------------------------------------------
 dmsoh(:)=0.
 dmsn3(:)=0.
@@ -1064,7 +1090,6 @@ dmsoh3d(:,:)=0.
 dmsn33d(:,:)=0.
 xte(:,:,:)=0.
 pcons2=1./(ptmst*grav)
-pdtime=0.5*ptmst
 where ( sg(:)>0. )
   zrdayl(:)=1
 elsewhere
@@ -1088,33 +1113,6 @@ if(nfastox==0)then
 else 
    NITER=1  !Fast
 endif
-
-!    REACTION RATE SO2-OH
-ZK2I=2.0E-12
-ZK2=4.0E-31
-ZK2F=0.45
-!   REACTION RATE DMS-NO3
-ZK3=1.9E-13
-!   MOLECULAR WEIGHTS IN G
-ZMOLGS=32.064
-ZMOLGH2O2=34.01474
-ZMOLGAIR=28.84
-ZMOLGW=18.015
-
-ZHPBASE=2.5E-06
-ZE1K=1.1E-02
-ZE1H=2300.
-ZE2K=1.23
-ZE2H=3020.
-ZE3K=1.2E-02
-ZE3H=2010.
-ZQ298=1./298.
-ZRGAS=8.2E-02
-
-ZAVO=6.022E+23
-ZNAMAIR=1.E-03*ZAVO/ZMOLGAIR
-
-ZLWCMIN=1.E-07
 
 ! Calculate in-cloud ql
 where (pclcover(:,:)>zmin)
@@ -1412,9 +1410,9 @@ DO JT=ITRACSO2,naero
       zxtp1c(:,:)=xto(:,:,jt)
       zxtp1con(:,:)=xtu(:,:,jt)
         
-      if(ncarb>0.and.(jt==itracbc.or.jt==itracoc))then  !hydrophobic BC and OC
+      if(jt==itracbc.or.jt==itracoc)then  !hydrophobic BC and OC
         zsolub(:,:)=0.
-      elseif(ncarb>0.and.(jt==itracbc+1.or.jt==itracoc+1))then !hydrophilic BC and OC
+      elseif(jt==itracbc+1.or.jt==itracoc+1)then !hydrophilic BC and OC
         zsolub(:,:)=0.2
       elseif(jt>=itracdu.and.jt<itracdu+ndust)then !hydrophobic dust (first 4 dust vars)
         zsolub(:,:)=0.05
@@ -1425,7 +1423,7 @@ DO JT=ITRACSO2,naero
     endif
 
     CALL XTWETDEP( JT,                                         &
-                   PTMST, PCONS2, PDTIME,                      &
+                   PTMST, PCONS2,                              &
                    PDPP1,                                      &
                    PMRATEP, PFPREC, PFEVAP,                    &
                    PCLCOVER, PRHOP1, zsolub, pmlwc,            &
@@ -1589,7 +1587,7 @@ END subroutine xtchemie
 ! xt wetdep
 
 SUBROUTINE XTWETDEP(KTRAC,                                                           &
-                    PTMST, PCONS2, PDTIME,                                           &
+                    PTMST, PCONS2,                                                   &
                     PDPP1,                                                           &
                     PMRATEP, PFPREC, PFEVAP,                                         &
                     PCLCOVER, PRHOP1, PSOLUB, pmlwc,                                 &
@@ -1624,7 +1622,6 @@ implicit none
 INTEGER KTRAC
 REAL PTMST
 REAL PCONS2
-REAL PDTIME
 REAL PXTP10(ifull,kl)   !Tracer m.r. outside liquid-water cloud (clear air/ice cloud)
 REAL PXTP1C(ifull,kl)   !Tracer m.r.  inside liquid-water cloud
 real pxtp1con(ifull,kl) !Tracer m.r.  inside convective cloud

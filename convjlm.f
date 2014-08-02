@@ -659,10 +659,10 @@ c***    Also entrain may slow convergence   N.B. qbass only used in next few lin
       endif    ! (nevapcc.ne.0)
       do k=kuocb+1,kl   ! upwards to find cloud top
          do iq=1,ifull
-!          if((kt_sav(iq)==k-1.or.kt_sav(iq)==k).and.k<ktmax(iq))then ! ktmax allows for itn
-          if((kt_sav(iq)==k-1.or.kt_sav(iq)==k).and.k<ktmax(iq)
-     &    .and.timeconv(iq)>=max(0.,min(sig(kb_sav(iq))
-     &      -sig(k)-.2,.4)*mdelay/.4))then 
+          if((kt_sav(iq)==k-1.or.kt_sav(iq)==k).and.k<ktmax(iq))then ! ktmax allows for itn
+!          if((kt_sav(iq)==k-1.or.kt_sav(iq)==k).and.k<ktmax(iq)
+!     &    .and.timeconv(iq)>=max(0.,min(sig(kb_sav(iq))
+!     &      -sig(k)-.2,.4)*mdelay/.4))then 
             hbase=splume(iq,k-1)+hl*qplume(iq,k-1)
             if(hbase>hs(iq,k))then
              kt_sav(iq)=k
