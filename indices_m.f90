@@ -3,9 +3,8 @@ module indices_m
 implicit none
 
 private
-public iw_g,is_g,ise_g,ie_g,ine_g,in_g,iwn_g,inw_g,isw_g,ies_g,iws_g
-public ien_g,inn_g,iss_g,iww_g,iee_g,iwu_g,isv_g
-public iwu2_g,isv2_g,ieu2_g,inv2_g,iev2_g,inu2_g,ieu_g,inv_g,iwwu2_g,issv2_g,ieeu2_g,innv2_g
+public iw_g,is_g,ise_g,ie_g,in_g,iwn_g,inw_g,isw_g,ies_g,iws_g
+public ine_g,ien_g,inn_g,iss_g,iww_g,iee_g,iwu2_g,isv2_g
 public lwws_g,lwss_g,lees_g,less_g,lwwn_g,lwnn_g,leen_g,lenn_g,lsww_g
 public lssw_g,lsee_g,lsse_g,lnww_g,lnnw_g,lnee_g,lnne_g
 public npann_g,npane_g,npanw_g,npans_g
@@ -14,50 +13,27 @@ public ieu,inv,iwwu,issv,ieeu,innv
 public iev,iwv,inu,isu
 public lwws,lwss,lees,less,lwwn,lwnn,leen,lenn,lsww
 public lssw,lsee,lsse,lnww,lnnw,lnee,lnne
-!public npann,npane,npanw,npans
 public indices_init,indices_end
 
-integer, dimension(:), allocatable, save :: iw_g,is_g,ise_g,ie_g,ine_g,in_g,iwn_g,inw_g,isw_g,ies_g,iws_g
-integer, dimension(:), allocatable, save :: ien_g,inn_g,iss_g,iww_g,iee_g,iwu_g,isv_g
-integer, dimension(:), allocatable, save :: iwu2_g,isv2_g,ieu2_g,inv2_g,iev2_g,inu2_g,ieu_g,inv_g,iwwu2_g,issv2_g,ieeu2_g,innv2_g
-integer, dimension(:), allocatable, save :: lwws_g,lwss_g,lees_g,less_g,lwwn_g,lwnn_g,leen_g,lenn_g,lsww_g
-integer, dimension(:), allocatable, save :: lssw_g,lsee_g,lsse_g,lnww_g,lnnw_g,lnee_g,lnne_g
-integer, dimension(:), allocatable, save :: npann_g,npane_g,npanw_g,npans_g
 integer, dimension(:), allocatable, save :: iw,is,ise,ie,ine,in,iwn,inw,isw,ies,iws,ien,inn,iss,iww,iee,iwu,isv
 integer, dimension(:), allocatable, save :: ieu,inv,iwwu,issv,ieeu,innv
 integer, dimension(:), allocatable, save :: iev,iwv,inu,isu
 integer, dimension(:), allocatable, save :: lwws,lwss,lees,less,lwwn,lwnn,leen,lenn,lsww
 integer, dimension(:), allocatable, save :: lssw,lsee,lsse,lnww,lnnw,lnee,lnne
-!integer, dimension(:), allocatable, save :: npann,npane,npanw,npans
+
+integer, parameter, dimension(0:5) :: npann_g = (/ 1, 103, 3, 105, 5, 101 /)
+integer, parameter, dimension(0:5) :: npans_g = (/ 104, 0, 100, 2, 102, 4 /)
+integer, parameter, dimension(0:5) :: npane_g = (/ 102, 2, 104, 4, 100, 0 /)
+integer, parameter, dimension(0:5) :: npanw_g = (/ 5, 105, 1, 101, 3, 103 /)
 
 contains
 
-subroutine indices_init(ifull_g,ifull,iextra,npanels,npan,myid)
+subroutine indices_init(ifull_g,ifull,iextra,npanels,npan)
 
 implicit none
 
-integer, intent(in) :: ifull_g,ifull,iextra,npanels,npan,myid
+integer, intent(in) :: ifull_g,ifull,iextra,npanels,npan
 
-allocate(iw_g(ifull_g),is_g(ifull_g),ise_g(ifull_g))
-allocate(ie_g(ifull_g),ine_g(ifull_g),in_g(ifull_g),iwn_g(ifull_g))
-allocate(inw_g(ifull_g),isw_g(ifull_g),ies_g(ifull_g),iws_g(ifull_g))
-allocate(ien_g(ifull_g),inn_g(ifull_g),iss_g(ifull_g),iww_g(ifull_g))
-allocate(iee_g(ifull_g))
-allocate(lwws_g(0:npanels),lwss_g(0:npanels))
-allocate(lees_g(0:npanels),less_g(0:npanels),lwwn_g(0:npanels),lwnn_g(0:npanels))
-allocate(leen_g(0:npanels),lenn_g(0:npanels),lsww_g(0:npanels))
-allocate(lssw_g(0:npanels),lsee_g(0:npanels),lsse_g(0:npanels),lnww_g(0:npanels))
-allocate(lnnw_g(0:npanels),lnee_g(0:npanels),lnne_g(0:npanels))
-if (myid==0) then
-  allocate(iwu_g(ifull_g),isv_g(ifull_g),ieu_g(ifull_g),inv_g(ifull_g))
-  allocate(iwu2_g(ifull_g),isv2_g(ifull_g),ieu2_g(ifull_g),inv2_g(ifull_g),iev2_g(ifull_g))
-  allocate(inu2_g(ifull_g),iwwu2_g(ifull_g),issv2_g(ifull_g),ieeu2_g(ifull_g),innv2_g(ifull_g))
-  allocate(npann_g(0:13),npane_g(0:13),npanw_g(0:13),npans_g(0:13))
-  npann_g=(/  1,  2,107,  4,106,  6,  7,109,  9,112, 11, 12,102,101/)
-  npane_g=(/103,  3,  4,105,  5,110,108,  8, 10, 11,100,113, 13,  0/)
-  npanw_g=(/ 13,113,112,  1,  2,  4,104,102,  7,107,  8,  9,109, 12/)
-  npans_g=(/110,  0,  1,100,  3,103,  5,  6,106,  8,105, 10, 11,111/)  
-end if
 allocate(iw(ifull),is(ifull),ise(ifull))
 allocate(ie(ifull),ine(ifull),in(ifull),iwn(ifull))
 allocate(inw(ifull),isw(ifull),ies(ifull),iws(ifull))
@@ -71,7 +47,6 @@ allocate(lees(npan),less(npan),lwwn(npan),lwnn(npan))
 allocate(leen(npan),lenn(npan),lsww(npan))
 allocate(lssw(npan),lsee(npan),lsse(npan),lnww(npan))
 allocate(lnnw(npan),lnee(npan),lnne(npan))
-!allocate(npann(0:13),npane(0:13),npanw(0:13),npans(0:13))
 
 return
 end subroutine indices_init
@@ -80,65 +55,509 @@ subroutine indices_end
 
 implicit none
 
-if (allocated(iw_g)) deallocate(iw_g)
-if (allocated(isw_g)) deallocate(isw_g)
-if (allocated(is_g)) deallocate(is_g)
-if (allocated(ise_g)) deallocate(ise_g)
-if (allocated(ie_g)) deallocate(ie_g)
-if (allocated(ine_g)) deallocate(ine_g)
-if (allocated(in_g)) deallocate(in_g)
-if (allocated(iwn_g)) deallocate(iwn_g)
-if (allocated(inw_g)) deallocate(inw_g)
-if (allocated(isw_g)) deallocate(isw_g)
-if (allocated(ies_g)) deallocate(ies_g)
-if (allocated(iws_g)) deallocate(iws_g)
-if (allocated(ien_g)) deallocate(ien_g)
-if (allocated(inn_g)) deallocate(inn_g)
-if (allocated(iss_g)) deallocate(iss_g)
-if (allocated(iww_g)) deallocate(iww_g)
-if (allocated(iee_g)) deallocate(iee_g)
-if (allocated(iwu_g)) deallocate(iwu_g)
-if (allocated(isv_g)) deallocate(isv_g)
-if (allocated(iwu2_g)) deallocate(iwu2_g)
-if (allocated(isv2_g)) deallocate(isv2_g)
-if (allocated(ieu2_g)) deallocate(ieu2_g)
-if (allocated(inv2_g)) deallocate(inv2_g)
-if (allocated(iev2_g)) deallocate(iev2_g)
-if (allocated(inu2_g)) deallocate(inu2_g)
-if (allocated(ieu_g)) deallocate(ieu_g)
-if (allocated(inv_g)) deallocate(inv_g)
-if (allocated(iwwu2_g)) deallocate(iwwu2_g)
-if (allocated(issv2_g)) deallocate(issv2_g)
-if (allocated(ieeu2_g)) deallocate(ieeu2_g)
-if (allocated(innv2_g)) deallocate(innv2_g)
-if (allocated(lwws_g)) deallocate(lwss_g)
-if (allocated(lwss_g)) deallocate(lwss_g)
-if (allocated(lees_g)) deallocate(lees_g)
-if (allocated(less_g)) deallocate(less_g)
-if (allocated(lwwn_g)) deallocate(lwwn_g)
-if (allocated(lwnn_g)) deallocate(lwnn_g)
-if (allocated(leen_g)) deallocate(leen_g)
-if (allocated(lenn_g)) deallocate(lenn_g)
-if (allocated(lsww_g)) deallocate(lsww_g)
-if (allocated(lssw_g)) deallocate(lssw_g)
-if (allocated(lsee_g)) deallocate(lsee_g)
-if (allocated(lsse_g)) deallocate(lsse_g)
-if (allocated(lnww_g)) deallocate(lnww_g)
-if (allocated(lnnw_g)) deallocate(lnnw_g)
-if (allocated(lnee_g)) deallocate(lnee_g)
-if (allocated(lnne_g)) deallocate(lnne_g)
-if (allocated(npann_g)) deallocate(npann_g)
-if (allocated(npane_g)) deallocate(npane_g)
-if (allocated(npanw_g)) deallocate(npanw_g)
-if (allocated(npans_g)) deallocate(npans_g)
 deallocate(iw,is,ise,ie,ine,in,iwn,inw,isw,ies,iws,ien,inn,iss,iww,iee,iwu,isv)
 deallocate(ieu,inv,iwwu,issv,ieeu,innv)
 deallocate(iev,iwv,inu,isu)
 deallocate(lwws,lwss,lees,less,lwwn,lwnn,leen,lenn,lsww)
 deallocate(lssw,lsee,lsse,lnww,lnnw,lnee,lnne)
-!deallocate(npann,npane,npanw,npans)
 
 return
 end subroutine indices_end
+
+function in_g(iq) result(iqq)
+implicit none
+include 'newmpar.h'
+integer, intent(in) :: iq
+integer iqq
+integer n,i,j
+n=(iq-1)/(il_g*il_g)
+j=(iq-1-n*il_g*il_g)/il_g+1
+i=iq-(j-1)*il_g-n*il_g*il_g
+if (j==il_g) then
+  if (npann_g(n)<100) then
+    iqq=i+npann_g(n)*il_g*il_g
+  else
+    iqq=1+(il_g-i)*il_g+(npann_g(n)-100)*il_g*il_g
+  end if
+else
+  iqq=iq+il_g    
+end if
+end function in_g
+
+function is_g(iq) result(iqq)
+implicit none
+include 'newmpar.h'
+integer, intent(in) :: iq
+integer iqq
+integer n,i,j
+n=(iq-1)/(il_g*il_g)
+j=(iq-1-n*il_g*il_g)/il_g+1
+i=iq-(j-1)*il_g-n*il_g*il_g
+if (j==1) then
+  if (npans_g(n)<100) then
+    iqq=i+(il_g-1)*il_g+npans_g(n)*il_g*il_g
+  else
+    iqq=il_g+(il_g-i)*il_g+(npans_g(n)-100)*il_g*il_g
+  end if
+else
+  iqq=iq-il_g    
+end if
+end function is_g
+
+function ie_g(iq) result(iqq)
+implicit none
+include 'newmpar.h'
+integer, intent(in) :: iq
+integer iqq
+integer n,i,j
+n=(iq-1)/(il_g*il_g)
+j=(iq-1-n*il_g*il_g)/il_g+1
+i=iq-(j-1)*il_g-n*il_g*il_g
+if (i==il_g) then
+  if (npane_g(n)<100) then
+    iqq=1+(j-1)*il_g+npane_g(n)*il_g*il_g
+  else
+    iqq=il_g+1-j+(npane_g(n)-100)*il_g*il_g
+  end if
+else
+  iqq=iq+1
+end if
+end function ie_g
+
+function iw_g(iq) result(iqq)
+implicit none
+include 'newmpar.h'
+integer, intent(in) :: iq
+integer iqq
+integer n,i,j
+n=(iq-1)/(il_g*il_g)
+j=(iq-1-n*il_g*il_g)/il_g+1
+i=iq-(j-1)*il_g-n*il_g*il_g
+if (i==1) then
+  if (npanw_g(n)<100) then
+    iqq=il_g+(j-1)*il_g+npanw_g(n)*il_g*il_g
+  else
+    iqq=il_g+1-j+(il_g-1)*il_g+(npanw_g(n)-100)*il_g*il_g
+  end if
+else
+  iqq=iq-1
+end if
+end function iw_g
+
+function inn_g(iq) result(iqq)
+implicit none
+include 'newmpar.h'
+integer, intent(in) :: iq
+integer iqq
+integer n,i,j
+n=(iq-1)/(il_g*il_g)
+j=(iq-1-n*il_g*il_g)/il_g+1
+i=iq-(j-1)*il_g-n*il_g*il_g
+if (npann_g(n)>=100.and.j==il_g) then
+  iqq=ie_g(in_g(iq))
+else
+  iqq=in_g(in_g(iq))
+end if
+end function inn_g
+
+function iss_g(iq) result(iqq)
+implicit none
+include 'newmpar.h'
+integer, intent(in) :: iq
+integer iqq
+integer n,i,j
+n=(iq-1)/(il_g*il_g)
+j=(iq-1-n*il_g*il_g)/il_g+1
+i=iq-(j-1)*il_g-n*il_g*il_g
+if (npans_g(n)>=100.and.j==1) then
+  iqq=iw_g(is_g(iq))
+else
+  iqq=is_g(is_g(iq))
+end if
+end function iss_g
+
+function iee_g(iq) result(iqq)
+implicit none
+include 'newmpar.h'
+integer, intent(in) :: iq
+integer iqq
+integer n,i,j
+n=(iq-1)/(il_g*il_g)
+j=(iq-1-n*il_g*il_g)/il_g+1
+i=iq-(j-1)*il_g-n*il_g*il_g
+if (npane_g(n)>=100.and.i==il_g) then
+  iqq=in_g(ie_g(iq))
+else
+  iqq=ie_g(ie_g(iq))
+end if
+end function iee_g
+
+function iww_g(iq) result(iqq)
+implicit none
+include 'newmpar.h'
+integer, intent(in) :: iq
+integer iqq
+integer n,i,j
+n=(iq-1)/(il_g*il_g)
+j=(iq-1-n*il_g*il_g)/il_g+1
+i=iq-(j-1)*il_g-n*il_g*il_g
+if (npanw_g(n)>=100.and.i==1) then
+  iqq=is_g(iw_g(iq))
+else
+  iqq=iw_g(iw_g(iq))
+end if
+end function iww_g
+
+function ine_g(iq) result(iqq)
+implicit none
+include 'newmpar.h'
+integer, intent(in) :: iq
+integer iqq
+integer n,i,j
+n=(iq-1)/(il_g*il_g)
+j=(iq-1-n*il_g*il_g)/il_g+1
+i=iq-(j-1)*il_g-n*il_g*il_g
+if (npane_g(n)>=100.and.i==il_g) then
+  iqq=iw_g(ie_g(iq))
+else
+  iqq=in_g(ie_g(iq))
+end if
+end function ine_g
+
+function ise_g(iq) result(iqq)
+implicit none
+include 'newmpar.h'
+integer, intent(in) :: iq
+integer iqq
+integer n,i,j
+n=(iq-1)/(il_g*il_g)
+j=(iq-1-n*il_g*il_g)/il_g+1
+i=iq-(j-1)*il_g-n*il_g*il_g
+if (npane_g(n)>=100.and.i==il_g) then
+  iqq=ie_g(ie_g(iq))
+else
+  iqq=is_g(ie_g(iq))
+end if
+end function ise_g
+
+function ien_g(iq) result(iqq)
+implicit none
+include 'newmpar.h'
+integer, intent(in) :: iq
+integer iqq
+integer n,i,j
+n=(iq-1)/(il_g*il_g)
+j=(iq-1-n*il_g*il_g)/il_g+1
+i=iq-(j-1)*il_g-n*il_g*il_g
+if (npann_g(n)>=100.and.j==il_g) then
+  iqq=is_g(in_g(iq))
+else
+  iqq=ie_g(in_g(iq))
+end if
+end function ien_g
+
+function iwn_g(iq) result(iqq)
+implicit none
+include 'newmpar.h'
+integer, intent(in) :: iq
+integer iqq
+integer n,i,j
+n=(iq-1)/(il_g*il_g)
+j=(iq-1-n*il_g*il_g)/il_g+1
+i=iq-(j-1)*il_g-n*il_g*il_g
+if (npann_g(n)>=100.and.j==il_g) then
+  iqq=in_g(in_g(iq))
+else
+  iqq=iw_g(in_g(iq))
+end if
+end function iwn_g
+
+function inw_g(iq) result(iqq)
+implicit none
+include 'newmpar.h'
+integer, intent(in) :: iq
+integer iqq
+integer n,i,j
+n=(iq-1)/(il_g*il_g)
+j=(iq-1-n*il_g*il_g)/il_g+1
+i=iq-(j-1)*il_g-n*il_g*il_g
+if (npanw_g(n)>=100.and.i==1) then
+  iqq=iw_g(iw_g(iq))
+else
+  iqq=in_g(iw_g(iq))
+end if
+end function inw_g
+
+function isw_g(iq) result(iqq)
+implicit none
+include 'newmpar.h'
+integer, intent(in) :: iq
+integer iqq
+integer n,i,j
+n=(iq-1)/(il_g*il_g)
+j=(iq-1-n*il_g*il_g)/il_g+1
+i=iq-(j-1)*il_g-n*il_g*il_g
+if (npanw_g(n)>=100.and.i==1) then
+  iqq=ie_g(iw_g(iq))
+else
+  iqq=is_g(iw_g(iq))
+end if
+end function isw_g
+
+function ies_g(iq) result(iqq)
+implicit none
+include 'newmpar.h'
+integer, intent(in) :: iq
+integer iqq
+integer n,i,j
+n=(iq-1)/(il_g*il_g)
+j=(iq-1-n*il_g*il_g)/il_g+1
+i=iq-(j-1)*il_g-n*il_g*il_g
+if (npans_g(n)>=100.and.j==1) then
+  iqq=is_g(is_g(iq))
+else
+  iqq=ie_g(is_g(iq))
+end if
+end function ies_g
+
+function iws_g(iq) result(iqq)
+implicit none
+include 'newmpar.h'
+integer, intent(in) :: iq
+integer iqq
+integer n,i,j
+n=(iq-1)/(il_g*il_g)
+j=(iq-1-n*il_g*il_g)/il_g+1
+i=iq-(j-1)*il_g-n*il_g*il_g
+if (npans_g(n)>=100.and.j==1) then
+  iqq=in_g(is_g(iq))
+else
+  iqq=iw_g(is_g(iq))
+end if
+end function iws_g
+
+function iwu2_g(iq) result(iqq)
+implicit none
+include 'newmpar.h'
+integer, intent(in) :: iq
+integer iqq
+integer n,i,j
+n=(iq-1)/(il_g*il_g)
+j=(iq-1-n*il_g*il_g)/il_g+1
+i=iq-(j-1)*il_g-n*il_g*il_g
+if (npanw_g(n)>=100.and.i==1) then
+  iqq=iw_g(iq)+ifull_g
+else
+  iqq=iw_g(iq)
+end if
+end function iwu2_g
+
+function isv2_g(iq) result(iqq)
+implicit none
+include 'newmpar.h'
+integer, intent(in) :: iq
+integer iqq
+integer n,i,j
+n=(iq-1)/(il_g*il_g)
+j=(iq-1-n*il_g*il_g)/il_g+1
+i=iq-(j-1)*il_g-n*il_g*il_g
+if (npans_g(n)>=100.and.j==1) then
+  iqq=is_g(iq)-ifull_g
+else
+  iqq=is_g(iq)
+end if
+end function isv2_g
+
+function leen_g(n) result(iqq)
+implicit none
+include 'newmpar.h'
+integer, intent(in) :: n
+integer iqq
+if (npann_g(n)>=100) then
+  iqq=iss_g(in_g(il_g+(il_g-1)*il_g+n*il_g*il_g))
+else
+  iqq=iee_g(in_g(il_g+(il_g-1)*il_g+n*il_g*il_g))
+end if
+end function leen_g
+
+function lenn_g(n) result(iqq)
+implicit none
+include 'newmpar.h'
+integer, intent(in) :: n
+integer iqq
+if (npann_g(n)>=100) then
+  iqq=ise_g(in_g(il_g+(il_g-1)*il_g+n*il_g*il_g))
+else
+  iqq=ien_g(in_g(il_g+(il_g-1)*il_g+n*il_g*il_g))
+end if
+end function lenn_g
+
+function lwnn_g(n) result(iqq)
+implicit none
+include 'newmpar.h'
+integer, intent(in) :: n
+integer iqq
+if (npann_g(n)>=100) then
+  iqq=ine_g(in_g(1+(il_g-1)*il_g+n*il_g*il_g))
+else
+  iqq=iwn_g(in_g(1+(il_g-1)*il_g+n*il_g*il_g))
+end if
+end function lwnn_g
+
+function lsee_g(n) result(iqq)
+implicit none
+include 'newmpar.h'
+integer, intent(in) :: n
+integer iqq
+if (npane_g(n)>=100) then
+  iqq=iwn_g(ie_g(il_g+n*il_g*il_g))
+else
+  iqq=ise_g(ie_g(il_g+n*il_g*il_g))
+end if
+end function lsee_g
+
+function lnee_g(n) result(iqq)
+implicit none
+include 'newmpar.h'
+integer, intent(in) :: n
+integer iqq
+if (npane_g(n)>=100) then
+  iqq=iwn_g(ie_g(il_g+(il_g-1)*il_g+n*il_g*il_g))
+else
+  iqq=ine_g(ie_g(il_g+(il_g-1)*il_g+n*il_g*il_g))
+end if
+end function lnee_g
+
+function lnne_g(n) result(iqq)
+implicit none
+include 'newmpar.h'
+integer, intent(in) :: n
+integer iqq
+if (npane_g(n)>=100) then
+  iqq=iww_g(ie_g(il_g+(il_g-1)*il_g+n*il_g*il_g))
+else
+  iqq=inn_g(ie_g(il_g+(il_g-1)*il_g+n*il_g*il_g))
+end if
+end function lnne_g
+
+function lsww_g(n) result(iqq)
+implicit none
+include 'newmpar.h'
+integer, intent(in) :: n
+integer iqq
+if (npanw_g(n)>=100) then
+  iqq=ies_g(iw_g(1+n*il_g*il_g))
+else
+  iqq=isw_g(iw_g(1+n*il_g*il_g))
+end if
+end function lsww_g
+
+function lssw_g(n) result(iqq)
+implicit none
+include 'newmpar.h'
+integer, intent(in) :: n
+integer iqq
+if (npanw_g(n)>=100) then
+  iqq=iee_g(iw_g(1+n*il_g*il_g))
+else
+  iqq=iss_g(iw_g(1+n*il_g*il_g))
+end if
+end function lssw_g
+
+function lnww_g(n) result(iqq)
+implicit none
+include 'newmpar.h'
+integer, intent(in) :: n
+integer iqq
+if (npanw_g(n)>=100) then
+  iqq=iws_g(iw_g(1+(il_g-1)*il_g+n*il_g*il_g))
+else
+  iqq=inw_g(iw_g(1+(il_g-1)*il_g+n*il_g*il_g))
+end if
+end function lnww_g
+
+function lwws_g(n) result(iqq)
+implicit none
+include 'newmpar.h'
+integer, intent(in) :: n
+integer iqq
+if (npans_g(n)>=100) then
+  iqq=inn_g(is_g(1+n*il_g*il_g))
+else
+  iqq=iww_g(is_g(1+n*il_g*il_g))
+end if
+end function lwws_g
+
+function lwss_g(n) result(iqq)
+implicit none
+include 'newmpar.h'
+integer, intent(in) :: n
+integer iqq
+if (npans_g(n)>=100) then
+  iqq=inw_g(is_g(1+n*il_g*il_g))
+else
+  iqq=iws_g(is_g(1+n*il_g*il_g))
+end if
+end function lwss_g
+
+function less_g(n) result(iqq)
+implicit none
+include 'newmpar.h'
+integer, intent(in) :: n
+integer iqq
+if (npans_g(n)>=100) then
+  iqq=isw_g(is_g(il_g+n*il_g*il_g))
+else
+  iqq=ies_g(is_g(il_g+n*il_g*il_g))
+end if
+end function less_g
+
+function lwwn_g(n) result(iqq)
+implicit none
+include 'newmpar.h'
+integer, intent(in) :: n
+integer iqq
+if (npann_g(n)>=100) then
+  iqq=inn_g(in_g(1+(il_g-1)*il_g+n*il_g*il_g))
+else
+  iqq=iww_g(in_g(1+(il_g-1)*il_g+n*il_g*il_g))
+end if
+end function lwwn_g
+
+function lsse_g(n) result(iqq)
+implicit none
+include 'newmpar.h'
+integer, intent(in) :: n
+integer iqq
+if (npane_g(n)>=100) then
+  iqq=iee_g(ie_g(il_g+n*il_g*il_g))
+else
+  iqq=iss_g(ie_g(il_g+n*il_g*il_g))
+end if
+end function lsse_g
+
+function lnnw_g(n) result(iqq)
+implicit none
+include 'newmpar.h'
+integer, intent(in) :: n
+integer iqq
+if (npanw_g(n)>=100) then
+  iqq=iww_g(iw_g(1+(il_g-1)*il_g+n*il_g*il_g))
+else
+  iqq=inn_g(iw_g(1+(il_g-1)*il_g+n*il_g*il_g))
+end if
+end function lnnw_g
+
+function lees_g(n) result(iqq)
+implicit none
+include 'newmpar.h'
+integer, intent(in) :: n
+integer iqq
+if (npans_g(n)>=100) then
+  iqq=iss_g(is_g(il_g+n*il_g*il_g))
+else
+  iqq=iee_g(is_g(il_g+n*il_g*il_g))
+end if
+end function lees_g
 
 end module indices_m

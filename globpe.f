@@ -106,7 +106,6 @@
       integer nbarewet,nsigmf
       common/nsib/nbarewet,nsigmf             ! Land-surface options
 
-      integer, dimension(:,:), allocatable, save :: dumd
       integer, dimension(8) :: tvals1, tvals2, nper3hr
       integer ier, igas, ilx, io_nest, iq, irest, isoil
       integer jalbfix, jlx, k, k2, kktau
@@ -445,133 +444,133 @@
         write(6,*)'Dynamics options B:'
         write(6,*)'nritch_t nrot  ntbar  nxmap   epsp    epsu   epsf',
      &            '   restol'
-        write (6,'(i5,3i7,1x,3f8.3,g9.2)')nritch_t,nrot,ntbar,nxmap,
+        write(6,'(i5,3i7,1x,3f8.3,g9.2)')nritch_t,nrot,ntbar,nxmap,
      &                                    epsp,epsu,epsf,restol
         write(6,*)'Dynamics options C:'
         write(6,*)'helmmeth mfix_aero mfix_tr'
-        write (6,'(i8,i10,i8)') helmmeth,mfix_aero,mfix_tr
+        write(6,'(i8,i10,i8)') helmmeth,mfix_aero,mfix_tr
         write(6,*)'Horizontal advection/interpolation options:'
         write(6,*)' ndept  nt_adv mh_bs  mhint '
-        write (6,'(i5,11i7)') ndept,nt_adv,mh_bs,mhint
+        write(6,'(i5,11i7)') ndept,nt_adv,mh_bs,mhint
         write(6,*)'Horizontal wind staggering options:'
         write(6,*)'mstagpt nstag nstagu'
-        write (6,'(i5,11i7)') mstagpt,nstag,nstagu
+        write(6,'(i5,11i7)') mstagpt,nstag,nstagu
         write(6,*)'Vertical advection options:'
         write(6,*)'  nvad  nvadh  '
-        write (6,'(i5,11i7)') nvad,nvadh
+        write(6,'(i5,11i7)') nvad,nvadh
         if(nvad==4.or.nvad==-4)then
           write(6,*)'Vertical advection options for TVD:'
           write(6,*)' nimp   nthub  ntvd   ntvdr'
-          write (6,'(i5,11i7)') nimp,nthub,ntvd,ntvdr
+          write(6,'(i5,11i7)') nimp,nthub,ntvd,ntvdr
         endif
         write(6,*)'Horizontal mixing options:'
         write(6,*)' khdif  khor   nhor   nhorps nhorjlm'
-        write (6,'(i5,11i7)') khdif,khor,nhor,nhorps,nhorjlm
+        write(6,'(i5,11i7)') khdif,khor,nhor,nhorps,nhorjlm
         write(6,*)'Vertical mixing/physics options:'
         write(6,*)' nvmix nlocal nvsplit ncvmix lgwd   ngwd   '
-        write (6,'(i5,6i7)') nvmix,nlocal,nvsplit,ncvmix,lgwd,ngwd
+        write(6,'(i5,6i7)') nvmix,nlocal,nvsplit,ncvmix,lgwd,ngwd
         write(6,*)'Cumulus convection options A:'
         write(6,*)' nkuo  sigcb sig_ct  rhcv  rhmois rhsat',
      &            ' convfact convtime shaltime'
-        write (6,'(i5,6f7.2,9f8.2)')
+        write(6,'(i5,6f7.2,9f8.2)')
      &    nkuo,sigcb,sig_ct,rhcv,rhmois,rhsat,
      &    convfact,convtime,shaltime
         write(6,*)'Cumulus convection options B:'
         write(6,*)' alflnd alfsea fldown iterconv',
      &            ' ncvcloud nevapcc nevapls nuvconv'
-        write (6,'(3f7.2,i6,i10,4i8)') alflnd,alfsea,fldown,iterconv,
+        write(6,'(3f7.2,i6,i10,4i8)') alflnd,alfsea,fldown,iterconv,
      &                              ncvcloud,nevapcc,nevapls,nuvconv
         write(6,*)'Cumulus convection options C:'
         write(6,*)' mbase mdelay methprec nbase detrain',
      &            ' entrain methdetr detrainx dsig2  dsig4'
-        write (6,'(3i6,i9,f8.2,f9.2,i8,4f8.2)') mbase,mdelay,methprec,
+        write(6,'(3i6,i9,f8.2,f9.2,i8,4f8.2)') mbase,mdelay,methprec,
      &              nbase,detrain,entrain,methdetr,detrainx,dsig2,dsig4
         write(6,*)'Shallow convection options:'
         write(6,*)'  ksc  kscsea kscmom sigkscb sigksct ',
      &            'tied_con tied_over tied_rh '
-        write (6,'(i5,2i7,1x,3f8.3,2f10.3)') ksc,kscsea,kscmom,
+        write(6,'(i5,2i7,1x,3f8.3,2f10.3)') ksc,kscsea,kscmom,
      &              sigkscb,sigksct,tied_con,tied_over,tied_rh
         write(6,*)'Other moist physics options:'
         write(6,*)'  acon   bcon   qgmin      rcm    rcrit_l rcrit_s'
-        write (6,'(2f7.2,2e10.2,2f7.2)') acon,bcon,qgmin,rcm,
-     &                                   rcrit_l,rcrit_s
+        write(6,'(2f7.2,2e10.2,2f7.2)') acon,bcon,qgmin,rcm,
+     &                                  rcrit_l,rcrit_s
         write(6,*)'Radiation options A:'
         write(6,*)' nrad  ndiur mins_rad kountr iaero  dt'
-        write (6,'(i5,3i7,f10.2)') nrad,ndiur,mins_rad,kountr,dt
+        write(6,'(i5,3i7,f10.2)') nrad,ndiur,mins_rad,kountr,dt
         write(6,*)'Radiation options B:'
         write(6,*)' nmr bpyear'
-        write (6,'(i4,f9.2)') nmr,bpyear
+        write(6,'(i4,f9.2)') nmr,bpyear
         write(6,*)'Aerosol options:'
         write(6,'(i7,g9.2)') iaero,ch_dust
         write(6,*)'Cloud options A:'
         write(6,*)'  ldr nclddia nstab_cld nrhcrit sigcll '
-        write (6,'(i5,i6,2i9,1x,f8.2)') ldr,nclddia,nstab_cld,nrhcrit,
-     &                                  sigcll
+        write(6,'(i5,i6,2i9,1x,f8.2)') ldr,nclddia,nstab_cld,nrhcrit,
+     &                                 sigcll
         write(6,*)'Cloud options B:'
         write(6,*)'  ncloud '
-        write (6,'(i5)') ncloud
+        write(6,'(i5)') ncloud
         write(6,*)'Soil, canopy and PBL options A:'
         write(6,*)' jalbfix nalpha nbarewet newrough nglacier nrungcm',
      &            ' nsib  nsigmf'
-        write (6,'(i5,9i8)')
+        write(6,'(i5,9i8)')
      &          jalbfix,nalpha,nbarewet,newrough,nglacier,nrungcm,nsib,
      &          nsigmf
         write(6,*)'Soil, canopy and PBL options B:'
         write(6,*)' ntaft ntsea ntsur av_vmod tss_sh vmodmin  zobgin',
      &            ' charnock chn10'
-        write (6,'(i5,2i6,4f8.2,f8.3,f9.5)') ntaft,ntsea,ntsur,
+        write(6,'(i5,2i6,4f8.2,f8.3,f9.5)') ntaft,ntsea,ntsur,
      &            av_vmod,tss_sh,vmodmin,zobgin,charnock,chn10
         write(6,*)'Soil, canopy and PBL options C:'
         write(6,*)' nurban ccycle'
-        write (6,'(2i7)') nurban,ccycle
+        write(6,'(2i7)') nurban,ccycle
         write(6,*)'Ocean/lake options:'
         write(6,*)' nmlo  ol      mxd   mindep minwater  ocnsmag',
      &            '   ocneps fixsal fixheight'
-        write (6,'(i5,i4,5f9.2,2i4)')
+        write(6,'(i5,i4,5f9.2,2i4)')
      &          nmlo,ol,mxd,mindep,minwater,ocnsmag,ocneps,fixsal,
      &          fixheight
         if(mbd/=0.or.nbd/=0)then
           write(6,*)'Nudging options A:'
           write(6,*)' nbd    nud_p  nud_q  nud_t  nud_uv nud_hrs',
      &              ' nudu_hrs kbotdav  kbotu'
-          write (6,'(i5,3i7,7i8)') 
+          write(6,'(i5,3i7,7i8)') 
      &      nbd,nud_p,nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs,kbotdav,kbotu
           write(6,*)'Nudging options B:'
           write(6,*)' mbd    ktopdav kblock'
-          write (6,'(i5,2i8)') 
+          write(6,'(i5,2i8)') 
      &      mbd,ktopdav,kblock
           write(6,*)'Nudging options C:'
           write(6,*)' nud_sst nud_sss nud_ouv nud_sfh ktopmlo',
      &              ' kbotmlo mloalpha'
-          write (6,'(6i8,i9)') 
+          write(6,'(6i8,i9)') 
      &      nud_sst,nud_sss,nud_ouv,nud_sfh,ktopmlo,kbotmlo,mloalpha
         endif
         write(6,*)'Special and test options A:'
         write(6,*)' namip amipo3 newtop nhstest nplens nsemble',
      &            ' nspecial panfg panzo'
-        write (6,'(1i5,L7,4i7,i8,f9.1,f8.4)') namip,amipo3,
+        write(6,'(1i5,L7,4i7,i8,f9.1,f8.4)') namip,amipo3,
      &          newtop,nhstest,nplens,nsemble,nspecial,panfg,panzo
         write(6,*)'Special and test options B:'
         write(6,*)' knh rescrn'
-        write (6,'(i4,i7)') knh,rescrn
+        write(6,'(i4,i7)') knh,rescrn
         write(6,*)'I/O options:'
         write(6,*)' m_fly  io_in io_nest io_out io_rest  nwt',
      &            '  nperavg'
-        write (6,'(i5,4i7,3i8)') 
+        write(6,'(i5,4i7,3i8)') 
      &        m_fly,io_in,io_nest,io_out,io_rest,nwt,nperavg
         if(ntrac/=0)then
           write(6,*)'Trace gas options:'
           write(6,*)' ngas   nllp   ntrac'
-          write (6,'(i5,3i7)') ngas,nllp,ntrac
+          write(6,'(i5,3i7)') ngas,nllp,ntrac
         endif
 
-        write (6, cardin)
+        write(6, cardin)
         if(nllp==0.and.nextout>=4) then
           write(6,*) 'need nllp=3 for nextout>=4'
           call ccmpi_abort(-1)
         end if
-        write (6, skyin)
-        write (6, datafile)
+        write(6, skyin)
+        write(6, datafile)
         write(6, kuonml)
       end if ! myid=0
       if (newtop>2) then
@@ -602,7 +601,7 @@
       ! INITIALISE ifull_g ALLOCATABLE ARRAYS
       call bigxy4_init(iquad)
       call xyzinfo_init(ifull_g,ifull,iextra,myid,mbd)
-      call indices_init(ifull_g,ifull,iextra,npanels,npan,myid)
+      call indices_init(ifull_g,ifull,iextra,npanels,npan)
       call map_init(ifull_g,ifull,iextra,myid,mbd)
       call latlong_init(ifull_g,ifull,iextra,myid)      
       call vecsuv_init(ifull_g,ifull,iextra,myid)
@@ -623,60 +622,6 @@
       ! send ifull_g and iquad*iquad arrays separately to reduce memory
       call ccmpi_bcastr8(xx4,0,comm_world)
       call ccmpi_bcastr8(yy4,0,comm_world)
-      call ccmpi_bcast(iw_g,0,comm_world)
-      call ccmpi_bcast(is_g,0,comm_world)
-      call ccmpi_bcast(ise_g,0,comm_world)
-      call ccmpi_bcast(ie_g,0,comm_world)
-      call ccmpi_bcast(ine_g,0,comm_world)
-      call ccmpi_bcast(in_g,0,comm_world)
-      call ccmpi_bcast(iwn_g,0,comm_world)
-      call ccmpi_bcast(ien_g,0,comm_world)
-      call ccmpi_bcast(inw_g,0,comm_world)
-      call ccmpi_bcast(isw_g,0,comm_world)
-      call ccmpi_bcast(ies_g,0,comm_world)
-      call ccmpi_bcast(iws_g,0,comm_world)
-      call ccmpi_bcast(inn_g,0,comm_world)
-      call ccmpi_bcast(iss_g,0,comm_world)
-      call ccmpi_bcast(iww_g,0,comm_world)
-      call ccmpi_bcast(iee_g,0,comm_world)
-      ! pack smaller arrays to reduce number of broadcasts
-      allocate(dumd(npanels+1,16))
-      if (myid==0) then
-        dumd(:,1)=lwws_g
-        dumd(:,2)=lwss_g
-        dumd(:,3)=lees_g
-        dumd(:,4)=less_g
-        dumd(:,5)=lwwn_g
-        dumd(:,6)=lwnn_g
-        dumd(:,7)=leen_g
-        dumd(:,8)=lenn_g
-        dumd(:,9)=lsww_g
-        dumd(:,10)=lssw_g
-        dumd(:,11)=lsee_g
-        dumd(:,12)=lsse_g
-        dumd(:,13)=lnww_g
-        dumd(:,14)=lnnw_g
-        dumd(:,15)=lnee_g
-        dumd(:,16)=lnne_g
-      end if
-      call ccmpi_bcast(dumd,0,comm_world)
-      lwws_g=dumd(:,1)
-      lwss_g=dumd(:,2)
-      lees_g=dumd(:,3)
-      less_g=dumd(:,4)
-      lwwn_g=dumd(:,5)
-      lwnn_g=dumd(:,6)
-      leen_g=dumd(:,7)
-      lenn_g=dumd(:,8)
-      lsww_g=dumd(:,9)
-      lssw_g=dumd(:,10)
-      lsee_g=dumd(:,11)
-      lsse_g=dumd(:,12)
-      lnww_g=dumd(:,13)
-      lnnw_g=dumd(:,14)
-      lnee_g=dumd(:,15)
-      lnne_g=dumd(:,16)
-      deallocate(dumd)
       ! The following are only needed for the scale-selective filter
       ! (Use sharded memory with MPI-3 for these arrays)
       if (mbd/=0) then
@@ -685,9 +630,7 @@
         call ccmpi_bcastr8(z_g,0,comm_world)
         call ccmpi_bcast(em_g,0,comm_world)
       end if
-      if (myid==0) then
-        write(6,*) "Calling ccmpi_setup"
-      end if
+      if (myid==0) write(6,*) "Calling ccmpi_setup"
       call ccmpi_setup()
 
       
@@ -705,13 +648,6 @@
       else
         call ccmpi_distribute(rlong4_l)
         call ccmpi_distribute(rlat4_l)
-        deallocate(iw_g,is_g,ise_g,ie_g,ine_g,in_g,iwn_g,ien_g)
-        deallocate(inw_g,isw_g,ies_g,iws_g)
-        deallocate(inn_g,iss_g,iww_g,iee_g)
-        deallocate(lwws_g,lwss_g,lees_g,less_g,lwwn_g)
-        deallocate(lwnn_g,leen_g,lenn_g,lsww_g)
-        deallocate(lssw_g,lsee_g,lsse_g,lnww_g,lnnw_g)
-        deallocate(lnee_g,lnne_g)
       end if
 
       

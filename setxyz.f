@@ -50,16 +50,6 @@ c     suffix 6 denotes hex (6)
       real rotpole(3,3)
       real(kind=8) alf,den1,xx,yy,zz,x4_iq_m,y4_iq_m,z4_iq_m
       real(kind=8), parameter :: one = 1._8
-!     dimension npann_g(0:13),npane_g(0:13),npanw_g(0:13),npans_g(0:13)  ! in indices.h
-      integer npan6n(0:5),npan6e(0:5),npan6w(0:5),npan6s(0:5)
-!                  0  1   2   3   4   5   6   7   8   9  10  11  12  13
-!     data npann_g/  1, 2,107,  4,106,  6,  7,109,  9,112, 11, 12,102,101/
-!     data npane_g/103, 3,  4,105,  5,110,108,  8, 10, 11,100,113, 13,  0/
-!     data npanw_g/13,113,112,  1,  2,  4,104,102,  7,107,  8,  9,109, 12/
-!     data npans_g/110, 0,  1,100,  3,103,  5,  6,106,  8,105, 10, 11,111/
-      data npan6n/1,103,3,105,5,101/,npan6e/102,2,104,4,100,0/
-      data npan6w/5,105,1,101,3,103/,npan6s/104,0,100,2,102,4/
-c     character*80 chars
       real dsfact,xin,yin,zin
       real den, dot,eps,dx2,dy2,sumwts,rlat,rlong,ratmin,ratmax,rat
       real rlatdeg,rlondeg
@@ -72,207 +62,9 @@ c     a, b denote unit vectors in the direction of x, y (e & n) respectively
       ikk=abs(ik)
       iquadx=1+ik*((8*npanels)/(npanels+4))
       
-      if(schmidtin<0.)go to 2
-      do iq=1,ifull_g
-       in_g(iq)=iq+ikk
-       is_g(iq)=iq-ikk
-       ie_g(iq)=iq+1
-       iw_g(iq)=iq-1
-      enddo   ! iq loop
-
-      do n=0,npanels
-         npann_g(n)=npan6n(n)
-         npane_g(n)=npan6e(n)
-         npanw_g(n)=npan6w(n)
-         npans_g(n)=npan6s(n)
-      enddo
-
-      do n=0,npanels
-c     print *,'ina ikk/2,n ',in_g(ind(ikk/2,ikk,n)),n
-      if(npann_g(n).lt.100)then
-        do ii=1,ikk
-         in_g(indx(ii,ikk,n,ikk,ikk))=indx(ii,1,npann_g(n),ikk,ikk)
-        enddo    ! ii loop
-      else
-        do ii=1,ikk
-         in_g(indx(ii,ikk,n,ikk,ikk))=
-     &      indx(1,ikk+1-ii,npann_g(n)-100,ikk,ikk)
-        enddo    ! ii loop
-      endif      ! (npann_g(n).lt.100)
-c     print *,'inb ikk/2,n ',in_g(ind(ikk/2,ikk,n)),n
-c     print *,'iea ikk/2,n ',ie_g(ind(ikk,ikk/2,n)),n
-      if(npane_g(n).lt.100)then
-        do ii=1,ikk
-         ie_g(indx(ikk,ii,n,ikk,ikk))=indx(1,ii,npane_g(n),ikk,ikk)
-        enddo    ! ii loop
-      else
-        do ii=1,ikk
-         ie_g(indx(ikk,ii,n,ikk,ikk))=
-     &     indx(ikk+1-ii,1,npane_g(n)-100,ikk,ikk)
-        enddo    ! ii loop
-      endif      ! (npane_g(n).lt.100)
-c     print *,'ieb ikk/2,n ',ie_g(ind(ikk,ikk/2,n)),n
-c     print *,'iwa ikk/2,n ',iw_g(ind(1,ikk/2,n)),n
-      if(npanw_g(n).lt.100)then
-        do ii=1,ikk
-         iw_g(indx(1,ii,n,ikk,ikk))=indx(ikk,ii,npanw_g(n),ikk,ikk)
-        enddo    ! ii loop
-      else
-        do ii=1,ikk
-         iw_g(indx(1,ii,n,ikk,ikk))=
-     &     indx(ikk+1-ii,ikk,npanw_g(n)-100,ikk,ikk)
-        enddo    ! ii loop
-      endif      ! (npanw_g(n).lt.100)
-c     print *,'iwb ikk/2,n ',iw_g(ind(1,ikk/2,n)),n
-c     print *,'isa ikk/2,n ',is_g(ind(ikk/2,1,n)),n
-      if(npans_g(n).lt.100)then
-        do ii=1,ikk
-         is_g(indx(ii,1,n,ikk,ikk))=indx(ii,ikk,npans_g(n),ikk,ikk)
-        enddo    ! ii loop
-      else
-        do ii=1,ikk
-         is_g(indx(ii,1,n,ikk,ikk))=
-     &     indx(ikk,ikk+1-ii,npans_g(n)-100,ikk,ikk)
-        enddo    ! ii loop
-      endif      ! (npans_g(n).lt.100)
-c     print *,'isb ikk/2,n ',is_g(ind(ikk/2,1,n)),n
-      enddo      ! n loop
-
-      do iq=1,ifull_g
-       inn_g(iq)=in_g(in_g(iq))
-       iss_g(iq)=is_g(is_g(iq))
-       iee_g(iq)=ie_g(ie_g(iq))
-       iww_g(iq)=iw_g(iw_g(iq))
-       ine_g(iq)=in_g(ie_g(iq))
-       ise_g(iq)=is_g(ie_g(iq))
-       ien_g(iq)=ie_g(in_g(iq))
-       iwn_g(iq)=iw_g(in_g(iq))
-       iwu_g(iq)=iw_g(iq)
-       isv_g(iq)=is_g(iq)
-       iwu2_g(iq)=iw_g(iq)    ! N.B. use for unstaggered u,v in hordifg
-       isv2_g(iq)=is_g(iq)    ! N.B. use for unstaggered u,v in hordifg
-       ieu2_g(iq)=ie_g(iq)    ! N.B. use for unstaggered u,v in hordifg
-       inv2_g(iq)=in_g(iq)    ! N.B. use for unstaggered u,v in hordifg
-       iwwu2_g(iq)=iww_g(iq)  ! for MPI version of nstag=3   
-       issv2_g(iq)=iss_g(iq)   
-       ieeu2_g(iq)=iee_g(iq)    
-       innv2_g(iq)=inn_g(iq)    
-       ieu_g(iq)=ie_g(iq)     ! N.B. use for staguv3
-       inv_g(iq)=in_g(iq)     ! N.B. use for staguv3
-!      following are extras not needed in model, just here for bdy values
-       inw_g(iq)=in_g(iw_g(iq))
-       isw_g(iq)=is_g(iw_g(iq))
-       ies_g(iq)=ie_g(is_g(iq))
-       iws_g(iq)=iw_g(is_g(iq))
-      enddo    ! iq loop
-
-      do n=0,npanels
-c      following treats unusual panel boundaries
-c      print *,'ina ikk/2,n ',in_g(ind(ikk/2,ikk,n)),n
-       if(npann_g(n).ge.100)then
-        do i=1,ikk
-         iq=indx(i,ikk,n,ikk,ikk)
-         inn_g(iq)=ie_g(in_g(iq))
-         ien_g(iq)=is_g(in_g(iq))
-         iwn_g(iq)=in_g(in_g(iq))
-         inv2_g(iq)=in_g(iq) - ifull_g   ! converts 2D v array into u array
-         inv_g(iq)=in_g(iq) - ijk_g      ! converts 3D v array into u array
-         innv2_g(iq)=inn_g(iq) - ifull_g ! converts 2D v array into u array
-         iq=indx(i,ikk-1,n,ikk,ikk)
-         innv2_g(iq)=inn_g(iq) - ifull_g ! converts 2D v array into u array
-        enddo  ! i loop
-      endif      ! (npann_g(n).ge.100)
-c     print *,'inb ikk/2,n ',in_g(ind(ikk/2,ikk,n)),n
-c     print *,'iea ikk/2,n ',ie_g(ind(ikk,ikk/2,n)),n
-      if(npane_g(n).ge.100)then
-        do j=1,ikk
-         iq=indx(ikk,j,n,ikk,ikk)
-         iee_g(iq)=in_g(ie_g(iq))
-         ine_g(iq)=iw_g(ie_g(iq))
-         ise_g(iq)=ie_g(ie_g(iq))
-         ieu2_g(iq)=ie_g(iq) + ifull_g   ! converts 2D u array into v array
-         ieu_g(iq)=ie_g(iq) + ijk_g      ! converts 3D u array into v array
-         ieeu2_g(iq)=iee_g(iq) + ifull_g ! converts 2D u array into v array
-         iq=indx(ikk-1,j,n,ikk,ikk)
-         ieeu2_g(iq)=iee_g(iq) + ifull_g ! converts 2D u array into v array
-        enddo   ! j loop
-      endif      ! (npane_g(n).ge.100)
-c     print *,'ieb ikk/2,n ',ie_g(ind(ikk,ikk/2,n)),n
-c     print *,'iwa ikk/2,n ',iw_g(ind(1,ikk/2,n)),n
-      if(npanw_g(n).ge.100)then
-        do j=1,ikk
-         iq=indx(1,j,n,ikk,ikk)
-         iww_g(iq)=is_g(iw_g(iq))
-         inw_g(iq)=iw_g(iw_g(iq))
-         isw_g(iq)=ie_g(iw_g(iq))
-         iwu2_g(iq)=iw_g(iq) + ifull_g   ! converts 2D u array into v array
-         iwu_g(iq)=iw_g(iq) + ijk_g      ! converts 3D u array into v array
-         iwwu2_g(iq)=iww_g(iq) + ifull_g ! converts 2D u array into v array
-         iq=indx(2,j,n,ikk,ikk)
-         iwwu2_g(iq)=iww_g(iq) + ifull_g ! converts 2D u array into v array
-        enddo   ! j loop
-      endif      ! (npanw_g(n).ge.100)
-c     print *,'iwb ikk/2,n ',iw_g(ind(1,ikk/2,n)),n
-c     print *,'isa ikk/2,n ',is_g(ind(ikk/2,1,n)),n
-      if(npans_g(n).ge.100)then
-        do i=1,ikk
-         iq=indx(i,1,n,ikk,ikk)
-         iss_g(iq)=iw_g(is_g(iq))
-         ies_g(iq)=is_g(is_g(iq))
-         iws_g(iq)=in_g(is_g(iq))
-         isv2_g(iq)=is_g(iq) - ifull_g   ! converts 2D v array into u array
-         isv_g(iq)=is_g(iq) - ijk_g      ! converts 3D v array into u array
-         issv2_g(iq)=iss_g(iq) - ifull_g ! converts 2D v array into u array
-         iq=indx(i,2,n,ikk,ikk)
-         issv2_g(iq)=iss_g(iq) - ifull_g ! converts 2D v array into u array
-        enddo   ! i loop
-      endif      ! (npans_g(n).ge.100)
-c     print *,'isb ikk/2,n ',is_g(ind(ikk/2,1,n)),n
-      enddo      ! n loop
-
-      do n=0,npanels
-       leen_g(n)=iee_g(in_g( indx(ikk,ikk,n,ikk,ikk) ))
-       lenn_g(n)=ien_g(in_g( indx(ikk,ikk,n,ikk,ikk) ))
-       lwnn_g(n)=iwn_g(in_g( indx( 1,ikk,n,ikk,ikk) ))
-       lsee_g(n)=ise_g(ie_g( indx(ikk, 1,n,ikk,ikk) ))
-       lnee_g(n)=ine_g(ie_g( indx(ikk,ikk,n,ikk,ikk) ))
-       lnne_g(n)=inn_g(ie_g( indx(ikk,ikk,n,ikk,ikk) ))
-       lsww_g(n)=isw_g(iw_g( indx( 1, 1,n,ikk,ikk) ))
-       lssw_g(n)=iss_g(iw_g( indx( 1, 1,n,ikk,ikk) ))
-       lnww_g(n)=inw_g(iw_g( indx( 1,ikk,n,ikk,ikk) ))
-       lwws_g(n)=iww_g(is_g( indx( 1, 1,n,ikk,ikk) ))
-       lwss_g(n)=iws_g(is_g( indx( 1, 1,n,ikk,ikk) ))
-       less_g(n)=ies_g(is_g( indx(ikk, 1,n,ikk,ikk) ))
-       lwwn_g(n)=iww_g(in_g( indx( 1,ikk,n,ikk,ikk) ))
-       lsse_g(n)=iss_g(ie_g( indx(ikk, 1,n,ikk,ikk) ))
-       lnnw_g(n)=inn_g(iw_g( indx( 1,ikk,n,ikk,ikk) ))
-       lees_g(n)=iee_g(is_g( indx(ikk, 1,n,ikk,ikk) ))
-       if(npann_g(n).ge.100)then
-         leen_g(n)=iss_g(in_g( indx(ikk,ikk,n,ikk,ikk) ))
-         lenn_g(n)=ise_g(in_g( indx(ikk,ikk,n,ikk,ikk) ))
-         lwnn_g(n)=ine_g(in_g( indx( 1,ikk,n,ikk,ikk) ))
-         lwwn_g(n)=inn_g(in_g( indx( 1,ikk,n,ikk,ikk) ))
-       endif      ! (npann_g(n).ge.100)
-       if(npane_g(n).ge.100)then
-         lsee_g(n)=ien_g(ie_g( indx(ikk, 1,n,ikk,ikk) ))
-         lnee_g(n)=iwn_g(ie_g( indx(ikk,ikk,n,ikk,ikk) ))
-         lnne_g(n)=iww_g(ie_g( indx(ikk,ikk,n,ikk,ikk) ))
-         lsse_g(n)=iee_g(ie_g( indx(ikk, 1,n,ikk,ikk) ))
-       endif      ! (npane_g(n).ge.100)
-       if(npanw_g(n).ge.100)then
-         lsww_g(n)=ies_g(iw_g( indx( 1, 1,n,ikk,ikk) ))
-         lssw_g(n)=iee_g(iw_g( indx( 1, 1,n,ikk,ikk) ))
-         lnww_g(n)=iws_g(iw_g( indx( 1,ikk,n,ikk,ikk) ))
-         lnnw_g(n)=iww_g(iw_g( indx( 1,ikk,n,ikk,ikk) ))
-       endif      ! (npanw_g(n).ge.100)
-       if(npans_g(n).ge.100)then
-         lwws_g(n)=inn_g(is_g( indx( 1, 1,n,ikk,ikk) ))
-         lwss_g(n)=inw_g(is_g( indx( 1, 1,n,ikk,ikk) ))
-         less_g(n)=isw_g(is_g( indx(ikk, 1,n,ikk,ikk) ))
-         lees_g(n)=iss_g(is_g( indx(ikk, 1,n,ikk,ikk) ))
-       endif      ! (npans_g(n).ge.100)
-      enddo       ! n loop
-
+      ! MJT notes - indices are now defined in indices_m.f90 as
+      ! functions to save memory with global arrays
+      
       if(ndiag.eq.3)then
         do n=0,npanels
          do j=1,ikk
@@ -298,7 +90,7 @@ c     print *,'isb ikk/2,n ',is_g(ind(ikk/2,1,n)),n
 
 !----------------------------------------------------------------------------
 c     calculate grid information using quadruple resolution grid
-2     call jimcc(em4,ax4,ay4,az4,xx4,yy4,ikk,myid)
+      call jimcc(em4,ax4,ay4,az4,xx4,yy4,ikk,myid)
 c     call jimcc(em4,ax4,ay4,az4,myid)
       if(ktau<=1.and.myid==0)then
         print *,'xx4 first & last ',xx4(1,1),xx4(iquadx,iquadx)
@@ -629,13 +421,13 @@ c        make sure they are perpendicular & normalize
            emv_g(iq)=sqrt(dy2)*(1.+dy2/24.) *dsfact
           enddo   ! iq loop
           do iq=1,ifull_g   ! based on inverse values of emu_g & emv_g
-           if (isv2_g(iq).lt.1.and.iwu2_g(iq).gt.ifull_g) then  ! MJT bug fix
+           if (isv2_g(iq)<1.and.iwu2_g(iq)>ifull_g) then        ! MJT bug fix
            em_g(iq)=4./(emv_g(iwu2_g(iq)-ifull_g)+emu_g(iq)+
      .                  emu_g(isv2_g(iq)+ifull_g)+emv_g(iq))    ! MJT bug fix
-           else if (isv2_g(iq).lt.1) then                       ! MJT bug fix
+           else if (isv2_g(iq)<1) then                          ! MJT bug fix
            em_g(iq)=4./(emu_g(iwu2_g(iq))+emu_g(iq)+
      .                  emu_g(isv2_g(iq)+ifull_g)+emv_g(iq))    ! MJT bug fix
-           else if (iwu2_g(iq).gt.ifull_g) then                 ! MJT bug fix
+           else if (iwu2_g(iq)>ifull_g) then                    ! MJT bug fix
            em_g(iq)=4./(emv_g(iwu2_g(iq)-ifull_g)+emu_g(iq)+
      .                  emv_g(isv2_g(iq))+emv_g(iq))            ! MJT bug fix
            else                                                 ! MJT bug fix
