@@ -352,6 +352,7 @@ if ( myid==0 ) write(6,*) "Interpolation iotest,io_in =",iotest,io_in
 
 !--------------------------------------------------------------
 ! Allocate interpolation, vertical level and mask arrays
+! dk is only non-zero on myid==0
 if ( .not.allocated(nface4) ) then
   allocate(nface4(ifull,4),xg4(ifull,4),yg4(ifull,4))
 end if
@@ -379,7 +380,6 @@ if ( newfile .and. .not.iotest ) then
           
   if ( myid==0 ) then
     write(6,*) "Defining input file grid"
-!   N.B. -ve ik in call setxyz preserves TARGET rlat4, rlong4     
 !   following setxyz call is for source data geom    ****   
     do iq=1,ik*ik*6
       axs_a(iq)=iq
@@ -608,8 +608,8 @@ if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
         call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik)
         write(vname,'("voc",I2.2)') k
         call histrd1(iarchi,ier,vname,ik,vcc,6*ik*ik)
-        call fill_cc(ucc,dk,0,land_a)
-        call fill_cc(vcc,dk,0,land_a)
+        call fill_cc(ucc,dk,land_a)
+        call fill_cc(vcc,dk,land_a)
         call interpwind(mloin(:,k,1),mloin(:,k,2),ucc,vcc,dk)
       end do
     end if ! iotest
@@ -669,10 +669,10 @@ else
     ! fill surface temperature and sea-ice
     tss_l_a=abs(tss_a)
     tss_s_a=abs(tss_a)
-    call fill_cc(tss_l_a,ik,0,sea_a)
-    call fill_cc(tss_s_a,ik,0,land_a)
-    call fill_cc(sicedep_a,ik,0,land_a)
-    call fill_cc(fracice_a,ik,0,land_a)
+    call fill_cc(tss_l_a,ik,sea_a)
+    call fill_cc(tss_s_a,ik,land_a)
+    call fill_cc(sicedep_a,ik,land_a)
+    call fill_cc(fracice_a,ik,land_a)
   end if ! myid==0
 
   if ( iotest ) then
@@ -1012,7 +1012,7 @@ if ( nested/=1 ) then
       else
         call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik)
       end if
-      call fill_cc(ucc,dk,0,sea_a)
+      call fill_cc(ucc,dk,sea_a)
       call doints4(ucc,tgg(:,k))
     end if
   end do
@@ -1047,8 +1047,8 @@ if ( nested/=1 ) then
     else
       call histrd1(iarchi,ier,'uic',ik,ucc,6*ik*ik)
       call histrd1(iarchi,ier,'vic',ik,vcc,6*ik*ik)
-      call fill_cc(ucc,dk,0,land_a)
-      call fill_cc(vcc,dk,0,land_a)
+      call fill_cc(ucc,dk,land_a)
+      call fill_cc(vcc,dk,land_a)
       call interpwind(micdwn(:,9),micdwn(:,10),ucc,vcc,dk)
     end if ! iotest
     call filhist1('icesal',dk,micdwn(:,11),land_a)
@@ -1085,7 +1085,7 @@ if ( nested/=1 ) then
       if ( ierc(7+ms+k)==0 ) then
         ucc=ucc+20.
       end if
-      call fill_cc(ucc,dk,0,sea_a)
+      call fill_cc(ucc,dk,sea_a)
       call doints4(ucc,wb(:,k))
     end if ! iotest
   end do
@@ -1234,7 +1234,7 @@ if ( nested/=1 ) then
         where ( ucc>=399. )
           ucc=999.
         end where
-        call fill_cc(ucc,dk,0,sea_a)
+        call fill_cc(ucc,dk,sea_a)
         call doints4(ucc,atebdwn(:,k))
       end if ! iotest
       if ( all(atebdwn(:,k)==0.) ) then
@@ -1501,71 +1501,15 @@ implicit none
 include 'newmpar.h'        ! Grid parameters
 include 'parm.h'           ! Model configuration
       
-integer, parameter :: ntest=0
-integer :: iq, mm
+integer :: iq, mm, n, i, j
+integer :: n_n, n_e, n_w, n_s
 real, dimension(ik*ik*6), intent(inout) :: s
 real, dimension(ifull), intent(inout) :: sout
-real, dimension(ifull,4) :: wrk
+real, dimension(ifull,m_fly) :: wrk
+real, dimension(-1:ik+2,-1:ik+2,0:npanels) :: sx
 
 call ccmpi_bcast(s,0,comm_world)
 
-if ( nord==1 ) then
-  do mm=1,m_fly  !  was 4, now may be 1
-    call ints_blb(s,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
-  enddo
-else
-  do mm=1,m_fly  !  was 4, now may be 1
-    call intsb(s,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
-  enddo
-endif   ! (nord==1)  .. else ..
-
-#ifdef debug
-if(ntest>0.and.mydiag)then
-   write(6,*)'in ints4 for id,jd,nord: ',id,jd,nord
-   write(6,*)'nface4(1-4) ',(nface4(idjd,mm),mm=1,4)
-   write(6,*)'xg4(1-4) ',(xg4(idjd,mm),mm=1,4)
-   write(6,*)'yg4(1-4) ',(yg4(idjd,mm),mm=1,4)
-   write(6,*)'wrk(1-4) ',(wrk(idjd,mm),mm=1,4)
-endif
-#endif
-
-if ( m_fly==1 ) then
-  sout=wrk(:,1)
-else
-! average 4 m values to central value
-  sout(:)=.25*sum(wrk,2)
-endif    ! (m_fly==1)
-
-return
-end subroutine doints4
-
-subroutine intsb(s,sout,nface_l,xg_l,yg_l)   ! N.B. sout here
-      
-!     same as subr ints, but with sout passed back and no B-S      
-!     s is input; sout is output array
-!     later may wish to save idel etc between array calls
-!     this one does linear interp in x on outer y sides
-!     doing x-interpolation before y-interpolation
-!     This is a global routine 
-
-use cc_mpi, only : indx
-
-implicit none
-      
-include 'newmpar.h'  ! Grid parameters
-include 'parm.h'     ! Model configuration
-
-integer, dimension(ifull), intent(in) :: nface_l
-integer :: idel, jdel, nn
-integer :: i, j, n, iq, n_n, n_e, n_w, n_s
-real, dimension(ik*ik*6), intent(in) :: s
-real, dimension(ifull), intent(inout) :: sout
-real aaa, c1, c2, c3, c4, xxg, yyg
-real, intent(in), dimension(ifull) :: xg_l, yg_l
-real, dimension(-1:ik+2,-1:ik+2,0:npanels) :: sx
-real, dimension(4) :: r
-
-!     this is intsb           EW interps done first
 !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
 sx(1:ik,1:ik,0:npanels) = reshape(s(1:ik*ik*6), (/ik,ik,6/))
 do n=0,npanels,2
@@ -1632,6 +1576,48 @@ enddo  ! n loop
 !          (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
 !         (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
 
+if ( nord==1 ) then ! bilinear
+  do mm=1,m_fly     !  was 4, now may be 1
+    call ints_blb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+  enddo
+else                ! bicubic
+  do mm=1,m_fly  !  was 4, now may be 1
+    call intsb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+  enddo
+endif   ! (nord==1)  .. else ..
+
+sout=sum(wrk,2)/real(m_fly)
+
+return
+end subroutine doints4
+
+subroutine intsb(sx,sout,nface_l,xg_l,yg_l)   ! N.B. sout here
+      
+!     same as subr ints, but with sout passed back and no B-S      
+!     s is input; sout is output array
+!     later may wish to save idel etc between array calls
+!     this one does linear interp in x on outer y sides
+!     doing x-interpolation before y-interpolation
+!     This is a global routine 
+
+use cc_mpi, only : indx
+
+implicit none
+      
+include 'newmpar.h'  ! Grid parameters
+include 'parm.h'     ! Model configuration
+
+integer, dimension(ifull), intent(in) :: nface_l
+integer :: idel, jdel, nn
+integer :: n, iq
+real, dimension(ifull), intent(inout) :: sout
+real aaa, c1, c2, c3, c4, xxg, yyg
+real, intent(in), dimension(ifull) :: xg_l, yg_l
+real, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(in) :: sx
+real, dimension(4) :: r
+
+!     this is intsb           EW interps done first
+
 do iq=1,ifull   ! runs through list of target points
   n=nface_l(iq)
   idel=int(xg_l(iq))
@@ -1666,7 +1652,7 @@ enddo    ! iq loop
 return
 end subroutine intsb
 
-subroutine ints_blb(s,sout,nface_l,xg_l,yg_l) 
+subroutine ints_blb(sx,sout,nface_l,xg_l,yg_l) 
       
 !     this one does bi-linear interpolation only
 
@@ -1677,55 +1663,12 @@ implicit none
 include 'newmpar.h'  ! Grid parameters
 include 'parm.h'     ! Model configuration
 
-integer :: i, j, n, iq, idel, jdel
-integer :: n_n, n_e, n_w, n_s
+integer :: n, iq, idel, jdel
 integer, intent(in), dimension(ifull) :: nface_l
-real, dimension(ik*ik*6), intent(inout) :: s
 real, dimension(ifull), intent(inout) :: sout
 real, intent(in), dimension(ifull) :: xg_l, yg_l
-real, dimension(-1:ik+2,-1:ik+2,0:npanels) :: sx
+real, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(in) :: sx
 real :: xxg, yyg
-
-!     first extend s arrays into sx - this one -1:il+2 & -1:il+2
-!                    but for bi-linear only need 0:il+1 &  0:il+1
-sx(1:ik,1:ik,0:npanels) = reshape(s(1:ik*ik*6), (/ik,ik,6/))
-do n=0,npanels,2
-  n_w=mod(n+5,6)
-  n_e=mod(n+2,6)
-  n_n=mod(n+1,6)
-  n_s=mod(n+4,6)
-  do j=1,ik
-    sx(0,j,n)   =s(indx(ik,j,n_w,ik,ik))
-    sx(ik+1,j,n)=s(indx(ik+1-j,1,n_e,ik,ik))
-  enddo
-  do i=1,ik
-    sx(i,ik+1,n)=s(indx(i,1,n+1,ik,ik))
-    sx(i,0,n)   =s(indx(ik,ik+1-i,n_s,ik,ik))
-  enddo
-  sx(0,0,n)      =s(indx(ik,1,n_w,ik,ik))  ! ws
-  sx(ik+1,0,n)   =s(indx(ik,1,n_e,ik,ik))  ! es  
-  sx(0,ik+1,n)   =s(indx(ik,ik,n_w,ik,ik)) ! wn  
-  sx(ik+1,ik+1,n)=s(indx(1,1,n_e,ik,ik))   ! en  
-enddo  ! n loop
-do n=1,npanels,2
-  n_w=mod(n+4,6)
-  n_e=mod(n+1,6)
-  n_n=mod(n+2,6)
-  n_s=mod(n+5,6)
-  do j=1,ik
-    sx(0,j,n)   =s(indx(ik+1-j,ik,n_w,ik,ik))
-    sx(ik+1,j,n)=s(indx(1,j,n_e,ik,ik))
-  enddo
-  do i=1,ik
-    sx(i,ik+1,n)=s(indx(1,ik+1-i,n_n,ik,ik))
-    sx(i,0,n)   =s(indx(i,ik,n-1,ik,ik))
-  enddo
-  sx(0,0,n)      =s(indx(ik,ik,n_w,ik,ik))  ! ws
-  sx(ik+1,0,n)   =s(indx(1,1,n_e,ik,ik))    ! es
-  sx(0,ik+1,n)   =s(indx(1,ik,n_w,ik,ik))   ! wn  
-  sx(ik+1,ik+1,n)=s(indx(1,ik,n_e,ik,ik))   ! en  
-enddo  ! n loop
-      
 
 do iq=1,ifull  ! runs through list of target points
   n=nface_l(iq)
@@ -1739,33 +1682,25 @@ enddo    ! iq loop
 return
 end subroutine ints_blb
 
-subroutine fill_cc(a_io,dk,ndiag,land_a)
+subroutine fill_cc(a_io,dk,land_a)
       
 !     this version holds whole array in memory      
 !     routine fills in interior of an array which has undefined points
 
 use cc_mpi          ! CC MPI routines
-      
-implicit none
-      
-include 'newmpar.h' ! Grid parameters
 
-integer :: nrem, i, ii, dk, iq, j, n, neighb, ndiag
+implicit none
+
+integer :: nrem, i, ii, dk, iq, j, n, neighb
 integer :: iminb, imaxb, jminb, jmaxb
-integer, save :: olddk = 0
-integer, dimension(:,:), allocatable, save :: ic
 integer, dimension(0:5) :: imin,imax,jmin,jmax
-integer, dimension(0:5) :: npann,npane,npanw,npans
 real, parameter :: value=999.       ! missing value flag
 real, dimension(6*dk*dk) :: a_io, a
-real av     
 logical, dimension(6*dk*dk) :: land_a
 logical, dimension(4) :: mask
 
-data npann/1,103,3,105,5,101/,npane/102,2,104,4,100,0/
-data npanw/5,105,1,101,3,103/,npans/104,0,100,2,102,4/
-
-if ( myid/=0 ) return
+! only perform fill on myid==0
+if ( dk==0 ) return
 
 where ( land_a )
   a_io=value
@@ -1773,56 +1708,6 @@ end where
 if ( all(abs(a_io-value)<1.E-6) ) return
 
 call START_LOG(otf_fill_begin)
-      
-if ( dk/=olddk ) then
-  olddk=dk
-  if ( allocated(ic) ) deallocate(ic)
-  allocate(ic(4,dk*dk*6))
-  do iq=1,dk*dk*6
-    ic(1,iq)=iq+dk
-    ic(2,iq)=iq-dk
-    ic(3,iq)=iq+1
-    ic(4,iq)=iq-1
-  enddo   ! iq loop
-  do n=0,npanels
-    if ( npann(n)<100 ) then
-      do ii=1,dk
-        ic(1,indx(ii,dk,n,dk,dk))=indx(ii,1,npann(n),dk,dk)
-      enddo    ! ii loop
-    else
-      do ii=1,dk
-        ic(1,indx(ii,dk,n,dk,dk))=indx(1,dk+1-ii,npann(n)-100,dk,dk)
-      enddo    ! ii loop
-    endif      ! (npann(n)<100)
-    if ( npane(n)<100 ) then
-      do ii=1,dk
-        ic(3,indx(dk,ii,n,dk,dk))=indx(1,ii,npane(n),dk,dk)
-      enddo    ! ii loop
-    else
-      do ii=1,dk
-        ic(3,indx(dk,ii,n,dk,dk))=indx(dk+1-ii,1,npane(n)-100,dk,dk)
-      enddo    ! ii loop
-    endif      ! (npane(n)<100)
-    if ( npanw(n)<100 ) then
-      do ii=1,dk
-        ic(4,indx(1,ii,n,dk,dk))=indx(dk,ii,npanw(n),dk,dk)
-      enddo    ! ii loop
-    else
-      do ii=1,dk
-        ic(4,indx(1,ii,n,dk,dk))=indx(dk+1-ii,dk,npanw(n)-100,dk,dk)
-      enddo    ! ii loop
-    endif      ! (npanw(n)<100)
-    if ( npans(n)<100 ) then
-      do ii=1,dk
-        ic(2,indx(ii,1,n,dk,dk))=indx(ii,dk,npans(n),dk,dk)
-      enddo    ! ii loop
-    else
-      do ii=1,dk
-        ic(2,indx(ii,1,n,dk,dk))=indx(dk,dk+1-ii,npans(n)-100,dk,dk)
-      enddo    ! ii loop
-    endif      ! (npans(n)<100)
-  enddo      ! n loop
-end if ! olddk/=dk
 
 imin=1
 imax=dk
@@ -1845,11 +1730,14 @@ do while ( nrem > 0)
       do i=imin(n),imax(n)
         iq=indx(i,j,n,dk,dk)
         if ( a(iq)==value ) then
-          mask=a(ic(:,iq))/=value
+          ! ic(iq,dk)[1] is in_g for host grid
+          ! ic(iq,dk)[2] is is_g for host grid
+          ! ic(iq,dk)[3] is ie_g for host grid
+          ! ic(iq,dk)[4] is iw_g for host grid
+          mask=a(ic(iq,dk))/=value
           neighb=count(mask)
           if ( neighb>0 ) then
-            av=sum(a(ic(:,iq)),mask)
-            a_io(iq)=av/real(neighb)
+            a_io(iq)=sum(a(ic(iq,dk)),mask)/real(neighb)
           else
             iminb=min(i,iminb)
             imaxb=max(i,imaxb)
@@ -1871,6 +1759,60 @@ call END_LOG(otf_fill_end)
       
 return
 end subroutine fill_cc
+
+function ic(iq,dk) result (iqq)
+implicit none
+integer, intent(in) :: iq, dk
+integer, dimension(4) :: iqq
+integer i, j, n
+integer, parameter, dimension(0:5) :: npann=(/1,103,3,105,5,101/)
+integer, parameter, dimension(0:5) :: npane=(/102,2,104,4,100,0/)
+integer, parameter, dimension(0:5) :: npanw=(/5,105,1,101,3,103/)
+integer, parameter, dimension(0:5) :: npans=(/104,0,100,2,102,4/)
+n=(iq-1)/(dk*dk)
+j=(iq-1-n*dk*dk)/dk+1
+i=iq-(j-1)*dk-n*dk*dk
+! North
+if (j==dk) then
+  if (npann(n)<100) then
+    iqq(1)=i+npann(n)*dk*dk
+  else
+    iqq(1)=1+(dk-i)*dk+(npann(n)-100)*dk*dk
+  end if
+else
+  iqq(1)=iq+dk
+end if
+! South
+if (j==1) then
+  if (npans(n)<100) then
+    iqq(2)=i+(dk-1)*dk+npans(n)*dk*dk
+  else
+    iqq(2)=dk+(dk-i)*dk+(npans(n)-100)*dk*dk
+  end if
+else
+  iqq(2)=iq-dk
+end if
+! East
+if (i==dk) then
+  if (npane(n)<100) then
+    iqq(3)=1+(j-1)*dk+npane(n)*dk*dk
+  else
+    iqq(3)=dk+1-j+(npane(n)-100)*dk*dk
+  end if
+else
+  iqq(3)=iq+1
+end if
+! West
+if (i==1) then
+  if (npanw(n)<100) then
+    iqq(4)=dk+(j-1)*dk+npanw(n)*dk*dk
+  else
+    iqq(4)=dk+1-j+(dk-1)*dk+(npanw(n)-100)*dk*dk
+  end if
+else
+  iqq(4)=iq-1
+end if
+end function ic
 
 subroutine mslpx(pmsl,psl,zs,t,siglev)
       
@@ -1951,11 +1893,14 @@ include 'newmpar.h'  ! Grid parameters
 integer, intent(in) :: dk
 integer iq
 real, dimension(6*dk*dk) :: uc,vc,wc
+! nust allocate these arrays as 6*ik*ik so that the global arrays can
+! be copied to all processors before interpolating to local grid
 real, dimension(6*ik*ik), intent(inout) :: ucc,vcc
 real, dimension(6*ik*ik) :: wcc
 real, dimension(ifull), intent(out) :: uct,vct
 real, dimension(ifull) :: wct
-      
+
+! dk is only non-zero on myid==0
 do iq=1,dk*dk*6
   ! first set up winds in Cartesian "source" coords            
   uc(iq)=axs_a(iq)*ucc(iq) + bxs_a(iq)*vcc(iq)
@@ -2028,7 +1973,7 @@ if ( iotest ) then
   call histrd1(iarchi,ier,vname,ik,varout,ifull)
 else
   call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik)
-  call fill_cc(ucc,dk,0,mask_a)
+  call fill_cc(ucc,dk,mask_a)
   call doints4(ucc,varout)
 end if ! iotest
       

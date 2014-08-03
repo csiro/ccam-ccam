@@ -932,11 +932,11 @@ if(myid==0.or.local)then
       lname = 'Total column aerosol optical depth LW'
       call attrib(idnc,idim,3,'aero_lw',lname,'none',0.,13.,0,itype)
       lname = 'Dust emissions'
-      call attrib(idnc,idim,3,'duste',lname,'g/(m2 yr)',0.,260.,0,itype)  
+      call attrib(idnc,idim,3,'duste',lname,'g/(m2 yr)',0.,390.,0,itype)  
       lname = 'Dust dry deposition'
-      call attrib(idnc,idim,3,'dustdd',lname,'g/(m2 yr)',0.,260.,0,itype) 
+      call attrib(idnc,idim,3,'dustdd',lname,'g/(m2 yr)',0.,390.,0,itype) 
       lname = 'Dust wet deposition'
-      call attrib(idnc,idim,3,'dustwd',lname,'g/(m2 yr)',0.,260.,0,itype)       
+      call attrib(idnc,idim,3,'dustwd',lname,'g/(m2 yr)',0.,390.,0,itype)       
     end if
 
     ! CABLE -----------------------------------------------------

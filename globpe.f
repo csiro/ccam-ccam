@@ -641,9 +641,14 @@
         call ccmpi_distribute(rlong4_l,rlong4)
         call ccmpi_distribute(rlat4_l,rlat4)
         call workglob_end
-        deallocate(emu_g,emv_g)
+        deallocate(wts_g,emu_g,emv_g)
+        deallocate(ax_g,ay_g,az_g)
+        deallocate(bx_g,by_g,bz_g)
         deallocate(f_g,fu_g,fv_g)
         deallocate(dmdx_g,dmdy_g)
+        if (mbd==0) then
+          deallocate(x_g,y_g,z_g,em_g)
+        end if
         deallocate(rlatt_g,rlongg_g)
       else
         call ccmpi_distribute(rlong4_l)
