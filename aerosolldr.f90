@@ -1727,7 +1727,7 @@ do JK=KTOP,kl
       !if(pmlwc(jl,jk)>zmin)then
       if(pmlwc(jl,jk)>1.E-8)then ! MJT suggestion
         zilcscav=Rcoeff(ktrac)*psolub(jl,jk)*(pmaccr(jl,jk)*ptmst/pmlwc(jl,jk))
-        ziicscav=min(ziicscav,1.)        
+        zilcscav=min(zilcscav,1.)        
         xdep=pxtp1c(jl,jk)*zilcscav*pclcover(jl,jk)
         pdep3d(jl,jk)=pdep3d(jl,jk)+xdep
         pxtp1c(jl,jk)=pxtp1c(jl,jk)*(1.-zilcscav)
