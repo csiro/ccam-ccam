@@ -31,10 +31,10 @@ integer, parameter :: nsulf = 3
 integer, parameter :: ncarb = 4
 integer, parameter :: ndust = 4
 integer, parameter :: naero = nsulf+ncarb+ndust ! Tracers: DMS, SO2, SO4, BCO, BCI, OCO, OCI, DUST(4)
-integer, parameter :: itracso2=2                ! Index for SO2 tracer
-integer, parameter :: itracbc=nsulf+1           ! Index for BC    "
-integer, parameter :: itracoc=nsulf+3           ! Index for OC    "
-integer, parameter :: itracdu=nsulf+ncarb+1     ! Index for dust  "
+integer, parameter :: itracso2 = 2              ! Index for SO2 tracer
+integer, parameter :: itracbc = nsulf+1         ! Index for BC    "
+integer, parameter :: itracoc = nsulf+3         ! Index for OC    "
+integer, parameter :: itracdu = nsulf+ncarb+1   ! Index for dust  "
 integer, parameter :: ndcls = 3                 ! No. of dust emission classes (sand, silt, clay)
 
 integer, parameter :: enhanceu10 = 0            ! Modify 10m wind speed (0=none, 1=quadrature, 2=linear)
@@ -499,12 +499,12 @@ real zvolcemi1,zvolcemi2,zvolcemi3
 real zvd2ice,zvd4ice,zvd2nof,zvd4nof
 
 !     M WATER EQUIVALENT  CRITICAL SNOW HEIGHT (FROM *SURF*)
-real, parameter :: ZSNCRI=0.025
+real, parameter :: ZSNCRI = 0.025
 !     COEFFICIENTS FOR ZVDRD = FUNCTION OF SOIL MOISTURE
-real, parameter :: ZVWC2=(0.8E-2 - 0.2E-2)/(1. - 0.9)
-real, parameter :: ZVW02=ZVWC2-0.8E-2
-real, parameter :: ZVWC4=(0.2E-2 - 0.025E-2)/(1. - 0.9)
-real, parameter :: ZVW04=ZVWC4-0.2E-2
+real, parameter :: ZVWC2 = (0.8E-2 - 0.2E-2)/(1. - 0.9)
+real, parameter :: ZVW02 = ZVWC2-0.8E-2
+real, parameter :: ZVWC4 = (0.2E-2 - 0.025E-2)/(1. - 0.9)
+real, parameter :: ZVW04 = ZVWC4-0.2E-2
 real, parameter :: tmelt = 273.05
 real, parameter :: zvolcemi  = 8.             ! ZVOLCEMI  TOTAL EMISSION FROM VOLCANOES IN TG/YR
 real, parameter :: ZVDPHOBIC = 0.025E-2       ! dry deposition
@@ -796,6 +796,7 @@ pxtm1new=pxtm1(1:ifull,1,itracso2)
 do ii=1,nstep
   pxtm1new=(pxtm1new*(1.-0.5*ddt*p1mxtm1*zvdrd(:,1)*gdp)+ddt*xte(:,1,ITRACSO2))        &
       /(1.+0.5*ddt*p1mxtm1*zvdrd(:,1)*gdp)
+  pxtm1new=max(0.,pxtm1new)
 end do
 so2dd=(pxtm1(1:ifull,1,itracso2)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACSO2)/gdp
 xte(:,1,ITRACSO2)  =xte(:,1,ITRACSO2)  -so2dd*gdp
@@ -804,6 +805,7 @@ pxtm1new=pxtm1(1:ifull,1,itracso2+1)
 do ii=1,nstep  
   pxtm1new=(pxtm1new*(1.-0.5*ddt*p1mxtm1*zvdrd(:,2)*gdp)+ddt*xte(:,1,ITRACSO2+1))      &
         /(1.+0.5*ddt*p1mxtm1*zvdrd(:,2)*gdp)
+  pxtm1new=max(0.,pxtm1new)
 end do
 so4dd=(pxtm1(1:ifull,1,itracso2+1)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACSO2+1)/gdp
 xte(:,1,ITRACSO2+1)=xte(:,1,ITRACSO2+1)-so4dd*gdp
@@ -812,6 +814,7 @@ pxtm1new=pxtm1(1:ifull,1,ITRACBC)
 do ii=1,nstep  
   pxtm1new=(pxtm1new*(1.-0.5*ddt*p1mxtm1*ZVDPHOBIC*gdp)+ddt*xte(:,1,ITRACBC))          &
           /(1.+0.5*ddt*p1mxtm1*ZVDPHOBIC*gdp)
+  pxtm1new=max(0.,pxtm1new)
 end do
 ZHILBCO=(pxtm1(1:ifull,1,ITRACBC)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACBC)/gdp
 xte(:,1,itracbc)  =xte(:,1,itracbc)  -zhilbco*gdp
@@ -820,6 +823,7 @@ pxtm1new=pxtm1(1:ifull,1,ITRACBC+1)
 do ii=1,nstep
   pxtm1new=(pxtm1new*(1.-0.5*ddt*p1mxtm1*ZVDRD(:,2)*gdp)+ddt*xte(:,1,ITRACBC+1))       &
           /(1.+0.5*ddt*p1mxtm1*ZVDRD(:,2)*gdp)
+  pxtm1new=max(0.,pxtm1new)
 end do
 ZHILBCY=(pxtm1(1:ifull,1,ITRACBC+1)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACBC+1)/gdp
 xte(:,1,itracbc+1)=xte(:,1,itracbc+1)-zhilbcy*gdp
@@ -828,6 +832,7 @@ pxtm1new=pxtm1(1:ifull,1,ITRACOC)
 do ii=1,nstep
   pxtm1new=(pxtm1new*(1.-0.5*ddt*p1mxtm1*ZVDPHOBIC*gdp)+ddt*xte(:,1,ITRACOC))          &
           /(1.+0.5*ddt*p1mxtm1*ZVDPHOBIC*gdp)
+  pxtm1new=max(0.,pxtm1new)
 end do
 ZHILOCO=(pxtm1(1:ifull,1,ITRACOC)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACOC)/gdp
 xte(:,1,itracoc)  =xte(:,1,itracoc)  -zhiloco*gdp
@@ -836,6 +841,7 @@ pxtm1new=pxtm1(1:ifull,1,ITRACOC+1)
 do ii=1,nstep
   pxtm1new=(pxtm1new*(1.-0.5*ddt*p1mxtm1*ZVDRD(:,2)*gdp)+ddt*xte(:,1,ITRACOC+1))       &
           /(1.+0.5*ddt*p1mxtm1*ZVDRD(:,2)*gdp)
+  pxtm1new=max(0.,pxtm1new)
 end do
 ZHILOCY=(pxtm1(1:ifull,1,ITRACOC+1)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACOC+1)/gdp
 xte(:,1,itracoc+1)=xte(:,1,itracoc+1)-zhilocy*gdp
