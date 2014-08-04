@@ -1353,6 +1353,7 @@ if (nmlo/=0.and.abs(nmlo)<=9) then
   mlodwn(:,:,1:2)=999.
   mlodwn(:,:,3:4)=0.
   micdwn=999.
+  micdwn(:,8)=0.
   micdwn(:,9)=0.
   micdwn(:,10)=0.
   ocndep=0. ! ocean depth
