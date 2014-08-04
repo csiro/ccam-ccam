@@ -3276,13 +3276,13 @@ srcp=sig**(rdry/cp)
 rho=a_ps/(rdry*dtsurf)
 
 p_zoice=0.001
-p_zohice=0.001
-p_zoqice=0.001
 af=vkar**2/(log(a_zmin/p_zoice)*log(a_zmin/p_zoice))
 !factch=1.       ! following CSIRO9
 factch=sqrt(7.4) ! following CCAM sflux
-aft=af/(factch*factch)
-afq=aft
+p_zohice=0.001/(factch*factch)
+p_zoqice=p_zohice
+aft=vkar**2/(log(a_zmin/p_zoice)*log(a_zmin/p_zohice))
+afq=vkar**2/(log(a_zmin/p_zoice)*log(a_zmin/p_zoqice))
 
 
 call getqsat(qsat,dqdt,dtsurf,a_ps)
