@@ -776,7 +776,7 @@
         call ccmpi_gatherall(qb(:,kln:klx),tt)
         call slowspecmpi_work(cq,tt,qb(:,kln:klx),klt)
       end if
-      if (nud_aero>0) then
+      if (abs(iaero)>=2.and.nud_aero>0) then
         do n=1,naero
           call ccmpi_gatherall(xtgb(:,kln:klx,n),tt)
           call slowspecmpi_work(cq,tt,xtgb(:,kln:klx,n),klt)
@@ -994,7 +994,7 @@
           vb(:,k)=db
         end do
       endif
-      if (nud_aero>0) then
+      if (abs(iaero)>=2.and.nud_aero>0) then
         do i=1,naero
           call ccmpi_gathermap(xtgb(:,kln:klx,i), tt)
           do ppass=pprocn,pprocx
@@ -1083,7 +1083,7 @@
         call fastspecmpi_work(cin,tt,klt,pprocn)
         qb(:,kln:klx)=tt(1:ifull,1:klt)
       end if
-      if (nud_aero>0) then
+      if (abs(iaero)>=2.and.nud_aero>0) then
         do n=1,naero
           call ccmpi_gathermap(xtgb(:,kln:klx,n), tt)
           call fastspecmpi_work(cin,tt,klt,pprocn)
