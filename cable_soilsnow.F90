@@ -272,13 +272,11 @@ SUBROUTINE smoisturev (dels,ssnow,soil,veg)
          hydss = soil%hyds
     
          speed_k = hydss * ( wh / soil%ssat )**( soil%i2bp3 - 1 )
-         !speed_k =  0.5 * speed_k / ( 1. - MIN( 0.5, 10. * ssnow%wbice(:,ms) ) )
-         speed_k =  speed_k / ( 1. - MIN( 0.5, 10. * ssnow%wbice(:,ms) ) )
+         speed_k = 0.5 * speed_k / ( 1. - MIN( 0.5, 10. * ssnow%wbice(:,ms) ) )
          fluxlo = wbl_k
          
          ! scale speed to grid lengths per dt & limit speed for stability
-         !speed_k = MIN( 0.5 * speed_k, 0.5 * soil%zse(ms) / dels )
-         speed_k = MIN( speed_k, 0.5 * soil%zse(ms) / dels )
+         speed_k = MIN( 0.5 * speed_k, 0.5 * soil%zse(ms) / dels )
          fluxh(:,ms) = MAX( 0.0, speed_k * fluxlo )
      
       END WHERE
@@ -1825,7 +1823,7 @@ SUBROUTINE soil_snow(dels, soil, ssnow, canopy, met, bal, veg)
    ! MJT bug fix
    !IF( cable_runtime%um) THEN
       canopy%fhs_cor = ssnow%dtmlt(:,1)*ssnow%dfh_dtg
-      canopy%fes_cor = ssnow%dtmlt(:,1)*(ssnow%cls*ssnow%dfe_ddq * ssnow%ddq_dtg)
+      canopy%fes_cor = ssnow%dtmlt(:,1)*(ssnow%dfe_ddq * ssnow%ddq_dtg)
 
       canopy%fhs = canopy%fhs+canopy%fhs_cor
       canopy%fes = canopy%fes+canopy%fes_cor

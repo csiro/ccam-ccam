@@ -155,7 +155,7 @@ SUBROUTINE casa_xnp(xnplimit,xNPuptake,veg,casabiome,casapool,casaflux,casamet)
     totPreqmax = 0.0
     totPreqmin = 0.0
     xPuptake   = 1.0
-    xpCnpp = casaflux%Cnpp
+    xpCnpp = max(0.0_r_2,casaflux%Cnpp)
     call casa_Prequire(xpCnpp,Preqmin,Preqmax,PtransPtoP,veg, &
                        casabiome,casapool,casaflux,casamet)
     DO np=1,mp
@@ -215,6 +215,7 @@ SUBROUTINE casa_allocation(veg,soil,casabiome,casaflux,casamet,phen)
   REAL(r_2), DIMENSION(mp)        :: ctotal
   REAL(r_2), DIMENSION(mp)        :: xLalloc,xwsalloc,xTalloc
   REAL(r_2), DIMENSION(mp)        :: xWorNalloc,xNalloc,xWalloc
+  REAL(r_2), DIMENSION(mp)        :: totfracCalloc
 
   ! initlization
   casaflux%fracCalloc  = 0.0
@@ -300,9 +301,28 @@ SUBROUTINE casa_allocation(veg,soil,casabiome,casaflux,casamet,phen)
                                      +casaflux%fracCalloc(:,wood))
       casaflux%fracCalloc(:,wood)  = 1.0 -casaflux%fracCalloc(:,froot)
     ENDWHERE
-
+    
+    WHERE(casamet%glai(:)<casabiome%glaimin(veg%iveg(:)))
+      casaflux%fracCalloc(:,leaf) = 0.8
+      WHERE(casamet%lnonwood==0)  !woodland or forest
+        casaflux%fracCalloc(:,froot) = 0.5*(1.0-casaflux%fracCalloc(:,leaf))
+        casaflux%fracCalloc(:,wood) = 0.5*(1.0-casaflux%fracCalloc(:,leaf))
+      ELSEWHERE ! grassland
+        casaflux%fracCalloc(:,froot) = 1.0-casaflux%fracCalloc(:,leaf)
+      ENDWHERE
+    ENDWHERE
+    !! added in for negative NPP and one of biomass pool being zero ypw 27/jan/2014
+    WHERE(casaflux%Cnpp<0.0)
+      casaflux%fracCalloc(:,leaf) = casaflux%Crmplant(:,leaf)/sum(casaflux%Crmplant,2)
+      casaflux%fracCalloc(:,wood) = casaflux%Crmplant(:,wood)/sum(casaflux%Crmplant,2)
+      casaflux%fracCalloc(:,froot) = casaflux%Crmplant(:,froot)/sum(casaflux%Crmplant,2)
+    ENDWHERE
   ENDWHERE
-
+  ! normalization the allocation faction to ensure they sum up to 1
+  totfracCalloc(:) = sum(casaflux%fracCalloc(:,:),2)
+  casaflux%fracCalloc(:,leaf) = casaflux%fracCalloc(:,leaf)/totfracCalloc(:)
+  casaflux%fracCalloc(:,wood) = casaflux%fracCalloc(:,wood)/totfracCalloc(:)
+  casaflux%fracCalloc(:,froot) = casaflux%fracCalloc(:,froot)/totfracCalloc(:)
 
 END SUBROUTINE casa_allocation  
 
@@ -337,17 +357,19 @@ SUBROUTINE casa_rplant(veg,casabiome,casapool,casaflux,casamet)
   casaflux%clabloss = 0.0
 
   WHERE(casamet%iveg2/=icewater) 
-    WHERE(casamet%tairk >250.0) 
+    WHERE(casamet%tairk >250.0)
+      WHERE(casapool%cplant(:,wood)>1.0e-6)
       casaflux%crmplant(:,wood)  = casabiome%rmplant(veg%iveg(:),wood) &
                                  * casapool%nplant(:,wood)             &
                                  * exp(308.56*(1.0/56.02-1.0           &
                                  / (casamet%tairk(:)+46.02-tkzeroc)))
+      ENDWHERE
       casaflux%clabloss(:)  =  casabiome%kclabrate(veg%iveg(:)) &
                             * max(0.0_r_2,casapool%Clabile(:))      &
                             * exp(308.56*(1.0/56.02-1.0         &
                             / (casamet%tairk(:)+46.02-tkzeroc)))
     ENDWHERE
-    WHERE(casamet%tsoilavg >250.0) 
+    WHERE(casamet%tsoilavg >250.0.and.casapool%cplant(:,froot)>1.0e-6) 
       casaflux%crmplant(:,froot) = casabiome%rmplant(veg%iveg(:),froot) &
                                  * casapool%nplant(:,froot)             &
                                  * exp(308.56*(1.0/56.02-1.0            &
@@ -1308,7 +1330,7 @@ SUBROUTINE casa_nuptake(veg,xkNlimiting,casabiome,casapool,casaflux,casamet)
 
   casaflux%Nminuptake(:)     = 0.0
   casaflux%fracNalloc(:,:)   = 0.0
-  xnCnpp = casaflux%Cnpp
+  xnCnpp = max(0.0_r_2,casaflux%Cnpp)
   call casa_Nrequire(xnCnpp,Nreqmin,Nreqmax,NtransPtoP,veg, &
                      casabiome,casapool,casaflux,casamet)
   
@@ -1776,9 +1798,17 @@ SUBROUTINE casa_ndummy(casapool)
   IMPLICIT NONE
   TYPE (casa_pool),             INTENT(INOUT) :: casapool
 
-  casapool%Nplant(:,:) = casapool%Cplant(:,:) * casapool%ratioNCplant(:,:)
+  casapool%Nplant(:,:) = casapool%Cplant(:,:) * casapool%ratioPCplant(:,:)
 
 END SUBROUTINE casa_ndummy
+
+SUBROUTINE casa_pdummy(casapool)
+  IMPLICIT NONE
+  TYPE (casa_pool),             INTENT(INOUT) :: casapool
+
+  casapool%Pplant(:,:) = casapool%Cplant(:,:) * casapool%ratioNCplant(:,:)
+
+END SUBROUTINE casa_pdummy
 
 SUBROUTINE phenology(iday,veg,phen)
   IMPLICIT NONE
