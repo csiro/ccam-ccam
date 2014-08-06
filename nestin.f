@@ -5,8 +5,7 @@
       ! the atmosphere and ocean.
       
       ! We support both 1D and 2D versions of the scale-selective filter.  2D is exact, but expensive.
-      ! Current tests suggest the 1D is a good approximation of the 2D filter where the grid stretching
-      ! is not too large.
+      ! Current tests suggest the 1D is a good approximation of the 2D filter.
       
       ! With MPI-3, we can use MPI_Win_Allocate_Shared to use a shared window of memory for all processors
       ! on a node.  This should considerably reduce the memory footprint.
@@ -500,7 +499,7 @@
                 fracice(iq)=0.
               else
                 if(fracice(iq)>0..and.sicedep(iq)==0.)then
-!                 assign to 2. in NH and 1. in SH (according to spo)
+!                 assign to 2m in NH and 1m in SH (according to spo)
 !                 do this in indata, amipdata and nestin because of onthefly
                   if(rlatt(iq)>0.)then
                     sicedep(iq)=2.
@@ -732,7 +731,6 @@
 
       cq=sqrt(4.5)*cin
 
-      
       if (nud_p>0.and.lblock) then
         ! Create global copy of host data on each processor.  This can require a lot of memory
         call ccmpi_gatherall(pslb(:), tt(:,1))
@@ -797,7 +795,7 @@
       include 'newmpar.h'   ! Grid parameters
 
       integer, intent(in) :: klt
-      integer i,j,n,iq,iqg,k
+      integer i, j, n, iq, iqg, k
       real, intent(in) :: cq
       real, dimension(ifull,klt), intent(out) :: tb
       real, dimension(ifull_g,klt), intent(in) :: tt
@@ -1151,11 +1149,10 @@
       real, intent(in) :: cq
       real, dimension(ifull_g,klt), intent(inout) :: qt
       real, dimension(ifull_g) :: qsum
-      real, dimension(4*il_g,xpan,klt) :: at
-      real, dimension(4*il_g,xpan) :: asum
+      real, dimension(4*il_g,klt) :: at
+      real, dimension(4*il_g) :: asum,ra,xa,ya,za
       real, dimension(xpan,xpan,klt) :: pt
       real, dimension(xpan,xpan) :: psum,stsum
-      real, dimension(4*il_g) :: ra,xa,ya,za
       real, dimension(il_g*xpan*klt) :: dd
       real, dimension(xpan*xpan*klt) :: ff
       
@@ -1177,10 +1174,8 @@
         call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
 #ifdef debug        
-        if (myid==0) then
-          write(6,*) "Receive arrays from local host"
-        end if
-#endif
+        if (myid==0) write(6,*) "Start convolution"
+#endif#endif
 
         ! pack data from global arrays
         do j=1,jpan
@@ -1191,29 +1186,14 @@
             b=bstr(sy)
             c=cstr(sy)
             do n=sn,sn+il_g-1
-              asum(n,j)=1./em_g(a*n+b*jj+c)**2
-              at(n,j,1:klt)=qt(a*n+b*jj+c,1:klt)*asum(n,j)
-            end do
-          end do
-        end do
-
-#ifdef debug
-        if (myid==0) write(6,*) "Start convolution"
-#endif
-
-        do j=1,jpan
-          jj=j+ns-1
-          do sn=1,me,il_g
-            sy=(sn-1)/il_g
-            a=astr(sy)
-            b=bstr(sy)
-            c=cstr(sy)
-            do n=sn,sn+il_g-1
+              asum(n)=1./em_g(a*n+b*jj+c)**2
+              at(n,1:klt)=qt(a*n+b*jj+c,1:klt)*asum(n)
               xa(n)=x_g(a*n+b*jj+c)
               ya(n)=y_g(a*n+b*jj+c)
               za(n)=z_g(a*n+b*jj+c)
             end do
           end do
+          ! start convolution
           do n=1,ipan
             nn=n+os-1
             ra(1:me)=xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me)
@@ -1224,9 +1204,9 @@
             !ra(1)=2.*erf(cq*0.5*(ds/rearth)
             !ra(2:me)=erf(cq*(ra(2:me)+0.5*(ds/rearth)))  ! redefine ra(:) as wgt(:)
      &      !        -erf(cq*(ra(2:me)-0.5*(ds/rearth)))  ! (correct units are 1/cq)
-            psum(n,j)=sum(ra(1:me)*asum(1:me,j))
+            psum(n,j)=sum(ra(1:me)*asum(1:me))
             do k=1,klt
-              pt(n,j,k)=sum(ra(1:me)*at(1:me,j,k))
+              pt(n,j,k)=sum(ra(1:me)*at(1:me,k))
             end do
           end do
         end do
@@ -1287,26 +1267,6 @@
       me=maps(ipass)
       call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
-#ifdef debug        
-      if (myid==0) then
-        write(6,*) "Receive arrays from local host"
-      end if
-#endif
-
-      do j=1,ipan
-        jj=j+ns-1
-        do sn=1,me,il_g
-          sy=(sn-1)/il_g
-          a=astr(sy)
-          b=bstr(sy)
-          c=cstr(sy)
-          do n=sn,sn+il_g-1
-            asum(n,j)=qsum(a*n+b*jj+c)
-            at(n,j,1:klt)=qt(a*n+b*jj+c,1:klt)
-          end do
-        end do
-      end do
- 
 #ifdef debug
       if (myid==0) write(6,*) "Start convolution"
 #endif
@@ -1319,11 +1279,14 @@
           b=bstr(sy)
           c=cstr(sy)
           do n=sn,sn+il_g-1
+            asum(n)=qsum(a*n+b*jj+c)
+            at(n,1:klt)=qt(a*n+b*jj+c,1:klt)
             xa(n)=x_g(a*n+b*jj+c)
             ya(n)=y_g(a*n+b*jj+c)
             za(n)=z_g(a*n+b*jj+c)
           end do
         end do
+        ! start convolution
         do n=1,jpan
           nn=n+os-1
           ra(1:me)=xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me)
@@ -1334,9 +1297,9 @@
           !ra(1)=2.*erf(cq*0.5*(ds/rearth)
           !ra(2:me)=erf(cq*(ra(2:me)+0.5*(ds/rearth)))  ! redefine ra(:) as wgt(:)
           !        -erf(cq*(ra(2:me)-0.5*(ds/rearth)))  ! (correct units are 1/cq)
-          psum(n,j)=sum(ra(1:me)*asum(1:me,j))
+          psum(n,j)=sum(ra(1:me)*asum(1:me))
           do k=1,klt
-            pt(n,j,k)=sum(ra(1:me)*at(1:me,j,k))
+            pt(n,j,k)=sum(ra(1:me)*at(1:me,k))
           end do
         end do
       end do
@@ -1381,11 +1344,10 @@
       real, intent(in) :: cq
       real, dimension(ifull_g,klt), intent(inout) :: qt
       real, dimension(ifull_g) :: qsum
-      real, dimension(4*il_g,xpan,klt) :: at
-      real, dimension(4*il_g,xpan) :: asum
+      real, dimension(4*il_g,klt) :: at
+      real, dimension(4*il_g) :: asum,ra,xa,ya,za
       real, dimension(xpan,xpan,klt) :: pt
       real, dimension(xpan,xpan) :: psum
-      real, dimension(4*il_g) :: ra,xa,ya,za
       real, dimension(il_g*xpan*klt) :: dd
       real, dimension(xpan*xpan*klt) :: ff
       
@@ -1406,10 +1368,8 @@
         me=maps(ipass)
         call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
-#ifdef debug        
-        if (myid==0) then
-          write(6,*) "Receive arrays from local host"
-        end if
+#ifdef debug
+        if (myid==0) write(6,*) "Start convolution"
 #endif
 
         ! pack data from global arrays
@@ -1421,29 +1381,14 @@
             b=bstr(sy)
             c=cstr(sy)
             do n=sn,sn+il_g-1
-              asum(n,j)=1./em_g(a*n+b*jj+c)**2
-              at(n,j,1:klt)=qt(a*n+b*jj+c,1:klt)*asum(n,j)
-            end do
-          end do
-        end do
-
-#ifdef debug
-        if (myid==0) write(6,*) "Start convolution"
-#endif
-
-        do j=1,ipan
-          jj=j+ns-1
-          do sn=1,me,il_g
-            sy=(sn-1)/il_g
-            a=astr(sy)
-            b=bstr(sy)
-            c=cstr(sy)
-            do n=sn,sn+il_g-1
+              asum(n)=1./em_g(a*n+b*jj+c)**2
+              at(n,1:klt)=qt(a*n+b*jj+c,1:klt)*asum(n)
               xa(n)=x_g(a*n+b*jj+c)
               ya(n)=y_g(a*n+b*jj+c)
               za(n)=z_g(a*n+b*jj+c)
             end do
           end do
+          ! start convolution
           do n=1,jpan
             nn=n+os-1
             ra(1:me)=xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me)
@@ -1454,9 +1399,9 @@
             !ra(1)=2.*erf(cq*0.5*(ds/rearth)
             !ra(2:me)=erf(cq*(ra(2:me)+0.5*(ds/rearth)))  ! redefine ra(:) as wgt(:)
      &      !        -erf(cq*(ra(2:me)-0.5*(ds/rearth)))  ! (correct units are 1/cq)
-            psum(n,j)=sum(ra(1:me)*asum(1:me,j))
+            psum(n,j)=sum(ra(1:me)*asum(1:me))
             do k=1,klt
-              pt(n,j,k)=sum(ra(1:me)*at(1:me,j,k))
+              pt(n,j,k)=sum(ra(1:me)*at(1:me,k))
             end do
           end do
         end do
@@ -1516,26 +1461,6 @@
       me=maps(ipass)
       call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
-#ifdef debug        
-      if (myid==0) then
-        write(6,*) "Receive arrays from local host"
-      end if
-#endif
-
-      do j=1,jpan
-        jj=j+ns-1
-        do sn=1,me,il_g
-          sy=(sn-1)/il_g
-          a=astr(sy)
-          b=bstr(sy)
-          c=cstr(sy)
-          do n=sn,sn+il_g-1
-            asum(n,j)=qsum(a*n+b*jj+c)
-            at(n,j,1:klt)=qt(a*n+b*jj+c,1:klt)
-          end do
-        end do
-      end do
- 
 #ifdef debug
       if (myid==0) write(6,*) "Start convolution"
 #endif
@@ -1548,11 +1473,14 @@
           b=bstr(sy)
           c=cstr(sy)
           do n=sn,sn+il_g-1
+            asum(n)=qsum(a*n+b*jj+c)
+            at(n,1:klt)=qt(a*n+b*jj+c,1:klt)
             xa(n)=x_g(a*n+b*jj+c)
             ya(n)=y_g(a*n+b*jj+c)
             za(n)=z_g(a*n+b*jj+c)
           end do
         end do
+        ! start convolution
         do n=1,ipan
           nn=n+os-1
           ra(1:me)=xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me)
@@ -1563,9 +1491,9 @@
           !ra(1)=2.*erf(cq*0.5*(ds/rearth)
           !ra(2:me)=erf(cq*(ra(2:me)+0.5*(ds/rearth)))  ! redefine ra(:) as wgt(:)
           !        -erf(cq*(ra(2:me)-0.5*(ds/rearth)))  ! (correct units are 1/cq)
-          psum(n,j)=sum(ra(1:me)*asum(1:me,j))
+          psum(n,j)=sum(ra(1:me)*asum(1:me))
           do k=1,klt
-            pt(n,j,k)=sum(ra(1:me)*at(1:me,j,k))
+            pt(n,j,k)=sum(ra(1:me)*at(1:me,k))
           end do
         end do
       end do
@@ -2435,14 +2363,13 @@
       real, intent(in) :: cq,miss
       real, dimension(ifull_g,kd), intent(inout) :: qp
       real, dimension(ifull_g) :: qsum
-      real, dimension(4*il_g) :: rr,xa,ya,za
-      real, dimension(4*il_g,xpan) :: asum,rsum
-      real, dimension(4*il_g,xpan,kd) :: ap
+      real, dimension(4*il_g,kd) :: ap      
+      real, dimension(4*il_g) :: rr,xa,ya,za,asum
+      real, dimension(xpan,xpan,kd) :: pp      
       real, dimension(xpan,xpan) :: psum
-      real, dimension(xpan,xpan,kd) :: pp
       real, dimension(il_g*xpan*kd) :: zz
       real, dimension(xpan*xpan*kd) :: yy
-      logical, dimension(4*il_g,xpan) :: landl
+      logical landl
       
       maps=(/ il_g, il_g, 4*il_g, 3*il_g /)
       til=il_g*il_g
@@ -2460,40 +2387,6 @@
         call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
 #ifdef debug
-        if (myid==0) then
-          write(6,*) "MLO Recieve arrays from local host"
-        end if
-#endif
-
-        do j=1,jpan
-          jj=j+ns-1
-          do sn=1,me,il_g
-            sy=(sn-1)/il_g
-            a=astr(sy)
-            b=bstr(sy)
-            c=cstr(sy)
-            do n=sn,sn+il_g-1
-              asum(n,j)=1./em_g(a*n+b*jj+c)**2
-              ap(n,j,1:kd)=qp(a*n+b*jj+c,1:kd)
-            end do
-          end do
-        end do
-
-        landl(1:me,1:jpan)=abs(ap(1:me,1:jpan,1)-miss)<0.1
-        where (landl(1:me,1:jpan))
-          rsum(1:me,1:jpan)=0.
-        elsewhere
-          rsum(1:me,1:jpan)=asum(1:me,1:jpan)
-        end where
-        do k=1,kd
-          do j=1,jpan
-            do n=1,me
-              ap(n,j,k)=ap(n,j,k)*rsum(n,j)
-            end do
-          end do
-        end do
- 
-#ifdef debug
         if (myid==0) write(6,*) "MLO start convolution"
 #endif
 
@@ -2505,19 +2398,28 @@
             b=bstr(sy)
             c=cstr(sy)
             do n=sn,sn+il_g-1
+              asum(n)=1./em_g(a*n+b*jj+c)**2
+              ap(n,1:kd)=qp(a*n+b*jj+c,1:kd)
+              landl=abs(ap(n,1)-miss)<0.1
+              if (landl) then
+                ap(n,1:kd)=0.
+              else
+                ap(n,1:kd)=ap(n,1:kd)*asum(n)
+              end if
               xa(n)=x_g(a*n+b*jj+c)
               ya(n)=y_g(a*n+b*jj+c)
               za(n)=z_g(a*n+b*jj+c)
             end do
           end do
+          ! start convolution
           do n=1,ipan
             nn=n+os-1
             rr(1:me)=xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me)
             rr(1:me)=acos(max(min(rr(1:me),1.),-1.))
             rr(1:me)=exp(-(cq*rr(1:me))**2)
-            psum(n,j)=sum(rr(1:me)*asum(1:me,j))
+            psum(n,j)=sum(rr(1:me)*asum(1:me))
             do k=1,kd
-              pp(n,j,k)=sum(rr(1:me)*ap(1:me,j,k))
+              pp(n,j,k)=sum(rr(1:me)*ap(1:me,k))
             end do
           end do
         end do
@@ -2579,26 +2481,6 @@
       call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
 #ifdef debug
-      if (myid==0) then
-        write(6,*) "MLO Recieve arrays from local host"
-      end if
-#endif
-
-      do j=1,ipan
-        jj=j+ns-1
-        do sn=1,me,il_g
-          sy=(sn-1)/il_g
-          a=astr(sy)
-          b=bstr(sy)
-          c=cstr(sy)
-          do n=sn,sn+il_g-1
-            asum(n,j)=qsum(a*n+b*jj+c)
-            ap(n,j,1:kd)=qp(a*n+b*jj+c,1:kd)
-          end do
-        end do
-      end do
-
-#ifdef debug
       if (myid==0) write(6,*) "MLO start convolution"
 #endif
 
@@ -2610,19 +2492,22 @@
           b=bstr(sy)
           c=cstr(sy)
           do n=sn,sn+il_g-1
+            asum(n)=qsum(a*n+b*jj+c)
+            ap(n,1:kd)=qp(a*n+b*jj+c,1:kd)
             xa(n)=x_g(a*n+b*jj+c)
             ya(n)=y_g(a*n+b*jj+c)
             za(n)=z_g(a*n+b*jj+c)
           end do
         end do
+        ! start convolution
         do n=1,jpan
           nn=n+os-1
           rr(1:me)=xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me)
           rr(1:me)=acos(max(min(rr(1:me),1.),-1.))
           rr(1:me)=exp(-(cq*rr(1:me))**2)
-          psum(n,j)=sum(rr(1:me)*asum(1:me,j))
+          psum(n,j)=sum(rr(1:me)*asum(1:me))
           do k=1,kd
-            pp(n,j,k)=sum(rr(1:me)*ap(1:me,j,k))
+            pp(n,j,k)=sum(rr(1:me)*ap(1:me,k))
           end do
         end do
       end do
@@ -2671,14 +2556,13 @@
       real, intent(in) :: cq,miss
       real, dimension(ifull_g,kd), intent(inout) :: qp
       real, dimension(ifull_g) :: qsum
-      real, dimension(4*il_g) :: rr,xa,ya,za
-      real, dimension(4*il_g,xpan) :: asum,rsum
-      real, dimension(4*il_g,xpan,kd) :: ap
+      real, dimension(4*il_g,kd) :: ap      
+      real, dimension(4*il_g) :: rr,xa,ya,za,asum
+      real, dimension(xpan,xpan,kd) :: pp      
       real, dimension(xpan,xpan) :: psum
-      real, dimension(xpan,xpan,kd) :: pp
       real, dimension(il_g*xpan*kd) :: zz
       real, dimension(xpan*xpan*kd) :: yy
-      logical, dimension(4*il_g,xpan) :: landl
+      logical landl
       
       maps=(/ il_g, il_g, 4*il_g, 3*il_g /)
       til=il_g*il_g
@@ -2696,40 +2580,6 @@
         call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
 #ifdef debug
-        if (myid==0) then
-          write(6,*) "MLO Recieve arrays from local host"
-        end if
-#endif
-
-        do j=1,ipan
-          jj=j+ns-1
-          do sn=1,me,il_g
-            sy=(sn-1)/il_g
-            a=astr(sy)
-            b=bstr(sy)
-            c=cstr(sy)
-            do n=sn,sn+il_g-1
-              asum(n,j)=1./em_g(a*n+b*jj+c)**2
-              ap(n,j,1:kd)=qp(a*n+b*jj+c,1:kd)
-            end do
-          end do
-        end do
-
-        landl(1:me,1:ipan)=abs(ap(1:me,1:ipan,1)-miss)<0.1
-        where (landl(1:me,1:ipan))
-          rsum(1:me,1:ipan)=0.
-        elsewhere
-          rsum(1:me,1:ipan)=asum(1:me,1:ipan)
-        end where
-        do k=1,kd
-          do j=1,ipan
-            do n=1,me
-              ap(n,j,k)=ap(n,j,k)*rsum(n,j)
-            end do
-          end do
-        end do
-
-#ifdef debug
         if (myid==0) write(6,*) "MLO start convolution"
 #endif
 
@@ -2741,19 +2591,28 @@
             b=bstr(sy)
             c=cstr(sy)
             do n=sn,sn+il_g-1
+              asum(n)=1./em_g(a*n+b*jj+c)**2
+              ap(n,1:kd)=qp(a*n+b*jj+c,1:kd)
+              landl=abs(ap(n,1)-miss)<0.1
+              if (landl) then
+                ap(n,1:kd)=0.
+              else
+                ap(n,1:kd)=ap(n,1:kd)*asum(n)
+              end if
               xa(n)=x_g(a*n+b*jj+c)
               ya(n)=y_g(a*n+b*jj+c)
               za(n)=z_g(a*n+b*jj+c)
             end do
           end do
+          ! start convolution
           do n=1,jpan
             nn=n+os-1
             rr(1:me)=xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me)
             rr(1:me)=acos(max(min(rr(1:me),1.),-1.))
             rr(1:me)=exp(-(cq*rr(1:me))**2)
-            psum(n,j)=sum(rr(1:me)*asum(1:me,j))
+            psum(n,j)=sum(rr(1:me)*asum(1:me))
             do k=1,kd
-              pp(n,j,k)=sum(rr(1:me)*ap(1:me,j,k))
+              pp(n,j,k)=sum(rr(1:me)*ap(1:me,k))
             end do
           end do
         end do
@@ -2815,26 +2674,6 @@
       call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
 #ifdef debug
-      if (myid==0) then
-        write(6,*) "MLO Recieve arrays from local host"
-      end if
-#endif
-
-      do j=1,jpan
-        jj=j+ns-1
-        do sn=1,me,il_g
-          sy=(sn-1)/il_g
-          a=astr(sy)
-          b=bstr(sy)
-          c=cstr(sy)
-          do n=sn,sn+il_g-1
-            asum(n,j)=qsum(a*n+b*jj+c)
-            ap(n,j,1:kd)=qp(a*n+b*jj+c,1:kd)
-          end do
-        end do
-      end do
-
-#ifdef debug
       if (myid==0) write(6,*) "MLO start convolution"
 #endif
 
@@ -2846,19 +2685,22 @@
           b=bstr(sy)
           c=cstr(sy)
           do n=sn,sn+il_g-1
+            asum(n)=qsum(a*n+b*jj+c)
+            ap(n,1:kd)=qp(a*n+b*jj+c,1:kd)
             xa(n)=x_g(a*n+b*jj+c)
             ya(n)=y_g(a*n+b*jj+c)
             za(n)=z_g(a*n+b*jj+c)
           end do
         end do
+        ! start convolution
         do n=1,ipan
           nn=n+os-1
           rr(1:me)=xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me)
           rr(1:me)=acos(max(min(rr(1:me),1.),-1.))
           rr(1:me)=exp(-(cq*rr(1:me))**2)
-          psum(n,j)=sum(rr(1:me)*asum(1:me,j))
+          psum(n,j)=sum(rr(1:me)*asum(1:me))
           do k=1,kd
-            pp(n,j,k)=sum(rr(1:me)*ap(1:me,j,k))
+            pp(n,j,k)=sum(rr(1:me)*ap(1:me,k))
           end do
         end do
       end do
