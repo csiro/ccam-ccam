@@ -390,10 +390,10 @@ where (land)
   wetfac=0.
   rsmin=0.
   ! screen and 10m diagnostics - rhscrn calculated in sflux.f
-  tscrn=0.
-  uscrn=0.
-  qgscrn=0.
-  u10=0.
+  !tscrn=0.
+  !uscrn=0.
+  !qgscrn=0.
+  !u10=0.
 end where
 tmps=0. ! average isflag
       
@@ -518,26 +518,26 @@ do nb=1,maxnb
   vlai(cmap(pind(nb,1):pind(nb,2)))=vlai(cmap(pind(nb,1):pind(nb,2)))                                      &
                                     +sv(pind(nb,1):pind(nb,2))*veg%vlai(pind(nb,1):pind(nb,2))
 
-  tscrn(cmap(pind(nb,1):pind(nb,2)))=tscrn(cmap(pind(nb,1):pind(nb,2)))                                    &
-                                    +sv(pind(nb,1):pind(nb,2))*canopy%tscrn(pind(nb,1):pind(nb,2))
-  uscrn(cmap(pind(nb,1):pind(nb,2)))=uscrn(cmap(pind(nb,1):pind(nb,2)))                                    &
-                                    +sv(pind(nb,1):pind(nb,2))*canopy%uscrn(pind(nb,1):pind(nb,2))
-  qgscrn(cmap(pind(nb,1):pind(nb,2)))=qgscrn(cmap(pind(nb,1):pind(nb,2)))                                  &
-                                    +sv(pind(nb,1):pind(nb,2))*canopy%qscrn(pind(nb,1):pind(nb,2))
+  !tscrn(cmap(pind(nb,1):pind(nb,2)))=tscrn(cmap(pind(nb,1):pind(nb,2)))                                    &
+  !                                  +sv(pind(nb,1):pind(nb,2))*canopy%tscrn(pind(nb,1):pind(nb,2))
+  !uscrn(cmap(pind(nb,1):pind(nb,2)))=uscrn(cmap(pind(nb,1):pind(nb,2)))                                    &
+  !                                  +sv(pind(nb,1):pind(nb,2))*canopy%uscrn(pind(nb,1):pind(nb,2))
+  !qgscrn(cmap(pind(nb,1):pind(nb,2)))=qgscrn(cmap(pind(nb,1):pind(nb,2)))                                  &
+  !                                  +sv(pind(nb,1):pind(nb,2))*canopy%qscrn(pind(nb,1):pind(nb,2))
 end do
 
 where ( land )
-  u10  =vmod                ! MJT suggestion for 10m wind speed (assumes first model level is at 10 m, which is true for 35+ levels)
   ustar=sqrt(cduv)*vmod
   zoh  =zmin*exp(-sqrt(zo)/zoh)
   zoq  =zoh
   zo   =zmin*exp(-1./sqrt(zo))
   cduv =cduv*vmod           ! cduv is Cd*vmod in CCAM
   cdtq =cdtq*vmod
-  tscrn=tscrn+273.16        ! convert from degC to degK
   tss  =tss**0.25
   rsmin=1./rsmin
   rnet =sgsave-rgsave-stefbo*tss**4
+  !tscrn=tscrn+273.16       ! convert from degC to degK
+  !u10  =vmod                ! MJT suggestion for 10m wind speed (assumes first model level is at 10 m, which is true for 35+ levels)
 end where
 do iq=1,ifull
   if ( land(iq) ) then

@@ -78,7 +78,6 @@
       real, dimension(ifull) :: fgf,rgg,fev,af,dirad,dfgdt,factch
       real, dimension(ifull) :: degdt,cie,aft,fh,ri,gamm,smixr,rho
       real, dimension(ifull) :: dumsg,dumr,dumx,dums,dumw,tv
-      logical, dimension(ifull) :: duml
 
       integer, parameter :: nblend=0  ! 0 for original non-blended, 1 for blended af
       integer, parameter :: ntss_sh=0 ! 0 for original, 3 for **3, 4 for **4
@@ -528,7 +527,7 @@ c       Surface stresses taux, tauy: diagnostic only - unstag now       ! sice
      &               dumr,dumx,dums,uav,vav,t(1:ifull,1),               ! MLO
      &               qg(1:ifull,1),ps,f,swrsave,fbeamvis,fbeamnir,      ! MLO
      &               dumw,0,.true.,oldu=oldu1,oldv=oldv1)               ! MLO
-        call mloscrnout(tscrn,qgscrn,uscrn,u10,0)                       ! MLO
+        !call mloscrnout(tscrn,qgscrn,uscrn,u10,0)                      ! MLO
         call mloextra(0,zoh,azmin,0)                                    ! MLO
         call mloextra(3,zoq,azmin,0)                                    ! MLO
         call mloextra(1,taux,azmin,0)                                   ! MLO
@@ -570,7 +569,7 @@ c       Surface stresses taux, tauy: diagnostic only - unstag now       ! sice
           if (.not.land(iq)) then                                       ! MLO
             esatf = establ(tss(iq))                                     ! MLO
             qsttg(iq)=.622*esatf/(ps(iq)-esatf)                         ! MLO
-            rhscrn(iq)=100.*min(qgscrn(iq)/qsttg(iq),1.)                ! MLO
+            !rhscrn(iq)=100.*min(qgscrn(iq)/qsttg(iq),1.)               ! MLO
           end if                                                        ! MLO
         end do                                                          ! MLO
         if (myid==0.and.nmaxpr==1) then                                 ! MLO
@@ -609,7 +608,7 @@ c          factch is sqrt(zo/zt) for land use in unstable fh            ! land
            endif     ! (snowd(iq)>0.)                                   ! land
            if(nblend==1)then  ! blended zo for momentum                 ! land
 !            note that Dorman & Sellers zo is already an average,       ! land
-!            accounting for sigmf, so may not wish to further blend zo	! land
+!            accounting for sigmf, so may not wish to further blend zo  ! land
              afland=(vkar/((1.-sigmf(iq))*zologbg+sigmf(iq)*zologx))**2 ! land
            else    ! non-blended zo for momentum                        ! land
              afland=(vkar/zologx)**2                                    ! land
@@ -785,26 +784,12 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
      &                 taftfhmin,iqmin1,taftfhmax,iqmax1                ! land
               write(6,*) 'taftfhgmin,taftfhgmax ',                      ! land
      &                 taftfhgmin,iqmin2,taftfhgmax,iqmax2              ! land
-            endif  ! (nproc==1.and.diag)                                ! land
+           endif  ! (nproc==1.and.diag)                                 ! land
                                                                         ! land
-           ! scrnout is the standard CCAM screen level diagnostics.     ! land
-           ! However, it overwrites ocean points when using MLO.        ! land
-           ! Therefore, we use scrnocn which can calculate screen       ! land
-           ! level diagnostics for just ocean or just land points       ! land
-           if (nmlo==0) then                                            ! land
-             smixr=wetfac*qsttg+(1.-wetfac)*min(qsttg,qg(1:ifull,1))    ! land
-             call scrnout(zo,ustar,factch,wetfac,smixr,                 ! land
-     .              qgscrn,tscrn,uscrn,u10,rhscrn,af,aft,ri,vmod,       ! land
-     .              bprm,cms,chs,chnsea,nalpha)                         ! land
-           else                                                         ! land
-             dumx=sqrt(u(1:ifull,1)*u(1:ifull,1)+                       ! land
-     &                       v(1:ifull,1)*v(1:ifull,1))                 ! land
-             duml=.not.land                                             ! land
-             call scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,zoh,   ! land
-     &                  zoq,tss,t(1:ifull,1),qsttg,qg(1:ifull,1),       ! land
-     &                  dumx,ps(1:ifull),duml,azmin,sig(1))             ! land
-           end if                                                       ! land
-        case(6,7)                                                       ! cable
+        case(6)                                                         ! cable
+          write(6,*) "CABLE nsib=6 option is not supported"             ! cable
+          call ccmpi_abort(-1)                                          ! cable
+        case(7)                                                         ! cable
          if (myid==0.and.nmaxpr==1) then                                ! cable
            write(6,*) "Before CABLE"                                    ! cable
          end if                                                         ! cable
@@ -816,31 +801,12 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
            factch(iq)=sqrt(zo(iq)/zoh(iq))                              ! cable
            es = establ(tss(iq))                                         ! cable
            qsttg(iq)= .622*es/(ps(iq)-es)                               ! cable
-           rhscrn(iq)=100.*qgscrn(iq)/qsttg(iq)                         ! cable
-           rhscrn(iq)=min(max(rhscrn(iq),0.),100.)                      ! cable
+           !rhscrn(iq)=100.*qgscrn(iq)/qsttg(iq)                        ! cable
+           !rhscrn(iq)=min(max(rhscrn(iq),0.),100.)                     ! cable
            taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                            ! cable
            tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                            ! cable
            sno(iq)=sno(iq)+conds(iq)                                    ! cable
          enddo   ! ip=1,ipland                                          ! cable
-         if (nmlo==0) then                                              ! cable
-           ! update ocean diagnostics                                   ! cable
-           smixr=wetfac*qsttg+(1.-wetfac)*min(qsttg,qg(1:ifull,1))      ! cable
-           dumx=sqrt(u(1:ifull,1)*u(1:ifull,1)+                         ! cable
-     &                       v(1:ifull,1)*v(1:ifull,1))                 ! cable
-           call scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,zoh,     ! cable
-     &                  zoq,tss,t(1:ifull,1),smixr,qg(1:ifull,1),       ! cable
-     &                  dumx,ps(1:ifull),land,azmin,sig(1))             ! cable
-         end if                                                         ! cable
-         smixr=wetfac*qsttg+(1.-wetfac)*min(qsttg,qg(1:ifull,1))        ! cable
-         ! The following patch overrides CABLE screen level diagnostics ! cable
-         if (nsib==7) then                                              ! cable
-           dumx=sqrt(u(1:ifull,1)*u(1:ifull,1)+                         ! cable
-     &                       v(1:ifull,1)*v(1:ifull,1))                 ! cable
-           duml=.not.land                                               ! cable
-           call scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,zoh,     ! cable
-     &                zoq,tss,t(1:ifull,1),smixr,qg(1:ifull,1),         ! cable
-     &                dumx,ps(1:ifull),duml,azmin,sig(1))               ! cable
-         end if                                                         ! cable
          if (myid==0.and.nmaxpr==1) then                                ! cable
            write(6,*) "After CABLE"                                     ! cable
          end if                                                         ! cable
@@ -891,14 +857,14 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
         cdtq=cdtq*vmag                                                  ! urban
         ustar=sqrt(vmod*cduv)                                           ! urban
         ! calculate screen level diagnostics                            ! urban
-        call atebscrnout(tscrn,qgscrn,uscrn,u10,0)                      ! urban
+        !call atebscrnout(tscrn,qgscrn,uscrn,u10,0)                     ! urban
         do ip=1,ipland ! assumes all urban points are land points       ! urban
           iq=iperm(ip)                                                  ! urban
           if (sigmu(iq)>0.) then                                        ! urban
             es = establ(tss(iq))                                        ! urban
             qsttg(iq)= .622*es/(ps(iq)-es)                              ! urban
-            rhscrn(iq)=100.*qgscrn(iq)/qsttg(iq)                        ! urban
-            rhscrn(iq)=min(max(rhscrn(iq),0.),100.)                     ! urban
+            !rhscrn(iq)=100.*qgscrn(iq)/qsttg(iq)                       ! urban
+            !rhscrn(iq)=min(max(rhscrn(iq),0.),100.)                    ! urban
             rnet(iq)=sgsave(iq)-rgsave(iq)-stefbo*tss(iq)**4            ! urban
             taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                           ! urban
             tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                           ! urban
@@ -909,7 +875,19 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
         write(6,*) "After urban"                                        ! urban
       end if                                                            ! urban
       call END_LOG(sfluxurban_end)                                      ! urban
-c ----------------------------------------------------------------------
+! ----------------------------------------------------------------------
+      ! scrnout is the standard CCAM screen level diagnostics.          ! land
+      ! autoscrn contains the newer diagnostic calculation              ! land
+      if (nmlo==0.and.(nsib==3.or.nsib==5)) then                        ! land
+        smixr=wetfac*qsttg+(1.-wetfac)*min(qsttg,qg(1:ifull,1))         ! land
+        call scrnout(zo,ustar,factch,wetfac,smixr,qgscrn,tscrn,uscrn,   ! land
+     &              u10,rhscrn,af,aft,ri,vmod,bprm,cms,chs,chnsea,      ! land
+     &              nalpha)                                             ! land
+      else                                                              ! land
+        call autoscrn                                                   ! land
+      end if                                                            ! land
+      
+! ----------------------------------------------------------------------
       evap(:)=evap(:)+dt*eg(:)/hl !time integ value in mm (wrong for snow)
 
       ! Update runoff for river routing

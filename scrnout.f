@@ -345,61 +345,6 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
       return
       end
       
-      ! -------------------------------------------------------------
-      ! Use Dyer-Hicks approach to screen diagnostics
-      subroutine scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,zoh,
-     &                   zoq,tsu,temp,smixr,qg,umag,ps,land,zmin,sig)
-     
-      implicit none
-
-      integer, intent(in) :: ifull
-      integer pfull
-      real, dimension(ifull), intent(inout) :: qgscrn,tscrn,uscrn,u10
-      real, dimension(ifull), intent(inout) :: rhscrn
-      real, dimension(ifull), intent(in) :: zo,zoh,zoq,tsu,temp,smixr
-      real, dimension(ifull), intent(in) :: qg,umag,ps,zmin
-      real, intent(in) :: sig
-      real, dimension(ifull) :: qgscrn_pack,tscrn_pack
-      real, dimension(ifull) :: uscrn_pack,u10_pack
-      real, dimension(ifull) :: rhscrn_pack,zo_pack,zoh_pack,zoq_pack
-      real, dimension(ifull) :: stemp_pack,temp_pack
-      real, dimension(ifull) :: smixr_pack,mixr_pack
-      real, dimension(ifull) :: umag_pack,ps_pack,zmin_pack
-      logical, dimension(ifull), intent(in) :: land
-      
-      pfull=count(.not.land)
-
-      if (pfull.eq.0) return
-
-      zo_pack(1:pfull)=pack(zo,.not.land)
-      zoh_pack(1:pfull)=pack(zoh,.not.land)
-      zoq_pack(1:pfull)=pack(zoq,.not.land)
-      stemp_pack(1:pfull)=pack(tsu,.not.land)
-      temp_pack(1:pfull)=pack(temp,.not.land)
-      smixr_pack(1:pfull)=pack(smixr,.not.land)
-      mixr_pack(1:pfull)=pack(qg,.not.land)
-      umag_pack(1:pfull)=pack(umag,.not.land)
-      ps_pack(1:pfull)=pack(ps,.not.land)
-      zmin_pack(1:pfull)=pack(zmin,.not.land)
-
-      call scrncalc(pfull,qgscrn_pack(1:pfull),tscrn_pack(1:pfull),
-     &              uscrn_pack(1:pfull),u10_pack(1:pfull),
-     &              rhscrn_pack(1:pfull),zo_pack(1:pfull),
-     &              zoh_pack(1:pfull),zoh_pack(1:pfull),
-     &              stemp_pack(1:pfull),temp_pack(1:pfull),
-     &              smixr_pack(1:pfull),mixr_pack(1:pfull),
-     &              umag_pack(1:pfull),ps_pack(1:pfull),zmin_pack,
-     &              sig)
-
-      qgscrn=unpack(qgscrn_pack(1:pfull),.not.land,qgscrn)
-      tscrn=unpack(tscrn_pack(1:pfull),.not.land,tscrn)
-      uscrn=unpack(uscrn_pack(1:pfull),.not.land,uscrn)
-      u10=unpack(u10_pack(1:pfull),.not.land,u10)
-      rhscrn=unpack(rhscrn_pack(1:pfull),.not.land,rhscrn)
-
-      return
-      end subroutine scrnocn
-      
       subroutine scrncalc(pfull,qscrn,tscrn,uscrn,u10,rhscrn,zo,zoh,
      &                    zoq,stemp,temp,smixr,mixr,umag,ps,zmin,sig)
  
