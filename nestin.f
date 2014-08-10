@@ -2805,7 +2805,7 @@
       ! Note that convolution directions are ordered to minimise message passing
       do ppass = pprocn,pprocx
         select case(ppass)
-          case(1,2,3)
+          case(1,2,3) ! left
             ns = joff+1
             do ipass = 0,2
               me = maps(ipass)
@@ -2829,7 +2829,7 @@
                 end do
               end do
             end do
-          case(0,4,5)
+          case(0,4,5) ! right
             ns = ioff+1
             do ipass = 0,2
               me = maps(ipass)
@@ -2873,12 +2873,12 @@
       ! Include final filter pass before allocating global sparse arrays
       do ppass = pprocn,pprocx
         select case(ppass)
-          case(1,2,3)
-            ns = joff+1
+          case(1,2,3) ! left
+            ns = ioff+1
             ipass = 3
             me = maps(ipass)
             call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
-            do j = 1,jpan
+            do j = 1,ipan
               jj = j+ns-1
               do sn = 1,me,il_g
                 sy = (sn-1)/il_g
@@ -2896,12 +2896,12 @@
                 end do
               end do
             end do
-          case(0,4,5)
-            ns = ioff+1
+          case(0,4,5) ! right
+            ns = joff+1
             ipass = 3
             me = maps(ipass)
             call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
-            do j = 1,ipan
+            do j = 1,jpan
               jj = j+ns-1
               do sn = 1,me,il_g
                 sy = (sn-1)/il_g
