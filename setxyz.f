@@ -1,6 +1,5 @@
       subroutine setxyz(ik,rlong0,rlat0,schmidtin,            ! input
-     &      x,y,z,wts, ax,ay,az,bx,by,bz,xx4,yy4,myid)        ! output
-c     subroutine setxyz(ik,rlat0,rlong0,schmidt,xx4,yy4,myid)
+     &      x,y,z,wts, ax,ay,az,bx,by,bz,xx4,yy4)             ! output
 !     this routine modified sept '06 to accept smaller il_g via abs(ik)
 !     essentially to temporarily provide xx4, yy4, ax...bz for onthefly  
 !     note that ax6 etc not needed for onthefly     
@@ -24,8 +23,6 @@ c     suffix 6 denotes hex (6)
       include 'newmpar.h'
       include 'const_phys.h'   ! rearth
       include 'parm.h'
-      integer, intent(in) :: myid  ! This is passed as an argument just to control the 
-                                   ! diagnostic prints
       integer, intent(in) :: ik  ! passed as argument. Actual i dimension.
 !                                  if negative, suppress calc of rlat4, rlong4, indices,em_g                             
       integer i,j,n,ikk,idjd_g,iq,ii,i0,j0,n0,in0,jn0,nn0
@@ -90,9 +87,9 @@ c     a, b denote unit vectors in the direction of x, y (e & n) respectively
 
 !----------------------------------------------------------------------------
 c     calculate grid information using quadruple resolution grid
-      call jimcc(em4,ax4,ay4,az4,xx4,yy4,ikk,myid)
+      call jimcc(em4,ax4,ay4,az4,xx4,yy4,ikk)
 c     call jimcc(em4,ax4,ay4,az4,myid)
-      if(ktau<=1.and.myid==0)then
+      if(ktau<=1)then
         print *,'xx4 first & last ',xx4(1,1),xx4(iquadx,iquadx)
         print *,'xx4 (5,5),(7,7),(9,9) ',xx4(5,5),xx4(7,7),xx4(9,9)
         print *,'yy4 first & last ',yy4(1,1),yy4(iquadx,iquadx)
@@ -150,29 +147,29 @@ c         avoids earlier equivalencing of x,x0  etc
           x(indx(i,j,5,ikk,ikk))=xx
 c         if(i.eq.(ikk+1)/2.and.j.eq.(ikk+1)/2)print *,'n,xx,yy: ',n,xx,yy
          enddo  ! i loop
-        enddo   ! j loop
-        do iq=1,6*ik*ik
-         call norm8(x(iq),y(iq),z(iq),den1) ! x, y, z are coords on sphere  -1 to 1
-         x4_iq_m=x(iq)*schmidt*(1.+alf)/(1.+alf*z(iq))
-         y4_iq_m=y(iq)*schmidt*(1.+alf)/(1.+alf*z(iq))
-         z4_iq_m=(alf+z(iq))/(1.+alf*z(iq)) 
-!      here is calculation of rlong4, rlat4
-c      also provide latitudes and longitudes (-pi to pi)
-       if(rlong0.eq.0..and.rlat0.eq.90.)then
-         xx=x4_iq_m
-         yy=y4_iq_m
-         zz=z4_iq_m
-       else
-!        x4(), y4(z), z4() are "local" coords with z4 out of central panel
-!        while xx, yy, zz are "true" Cartesian values
-!        xx is new x after rot by rlong0 then rlat0
-         xx=rotpole(1,1)*x4_iq_m+rotpole(1,2)*y4_iq_m+
-     .      rotpole(1,3)*z4_iq_m
-         yy=rotpole(2,1)*x4_iq_m+rotpole(2,2)*y4_iq_m+
-     .      rotpole(2,3)*z4_iq_m
-         zz=rotpole(3,1)*x4_iq_m+rotpole(3,2)*y4_iq_m+
-     .      rotpole(3,3)*z4_iq_m
-       endif
+       enddo   ! j loop
+       do iq=1,6*ik*ik
+        call norm8(x(iq),y(iq),z(iq),den1) ! x, y, z are coords on sphere  -1 to 1
+        x4_iq_m=x(iq)*schmidt*(1.+alf)/(1.+alf*z(iq))
+        y4_iq_m=y(iq)*schmidt*(1.+alf)/(1.+alf*z(iq))
+        z4_iq_m=(alf+z(iq))/(1.+alf*z(iq)) 
+!       here is calculation of rlong4, rlat4
+c       also provide latitudes and longitudes (-pi to pi)
+        if(rlong0.eq.0..and.rlat0.eq.90.)then
+          xx=x4_iq_m
+          yy=y4_iq_m
+          zz=z4_iq_m
+        else
+!         x4(), y4(z), z4() are "local" coords with z4 out of central panel
+!         while xx, yy, zz are "true" Cartesian values
+!         xx is new x after rot by rlong0 then rlat0
+          xx=rotpole(1,1)*x4_iq_m+rotpole(1,2)*y4_iq_m+
+     .       rotpole(1,3)*z4_iq_m
+          yy=rotpole(2,1)*x4_iq_m+rotpole(2,2)*y4_iq_m+
+     .       rotpole(2,3)*z4_iq_m
+          zz=rotpole(3,1)*x4_iq_m+rotpole(3,2)*y4_iq_m+
+     .       rotpole(3,3)*z4_iq_m
+        endif
         rlat4(iq,m)=asin(zz)
         if(yy.ne.0..or.xx.ne.0.)then
           rlong4(iq,m)=atan2(yy,xx)                       ! N.B. -pi to pi
@@ -186,74 +183,73 @@ c      also provide latitudes and longitudes (-pi to pi)
        enddo   ! iq loop
       enddo    ! m loop
 
-        dsfact=4*ikk/(2.*pi)     ! con-cube
-        ds=rearth/dsfact
-c       extend em4 to uppermost i and j rows
-        do j=1,4*ikk
-         em4(iquadx,j)=em4(1,j)
-        enddo
-        do i=1,4*ikk
-         em4(i,iquadx)=em4(i,1)
-        enddo
-        do j=1,ikk
-         do i=1,ikk
-          do n=0,5
-c          average Purser em is pi/2
-           em_g(indx(i,j,n,ikk,ikk))=pi/(2.*em4(4*i-1,4*j-1))
-           emu_g(indx(i,j,n,ikk,ikk))=pi/(2.*em4(4*i+1,4*j-1))
-           emv_g(indx(i,j,n,ikk,ikk))=pi/(2.*em4(4*i-1,4*j+1))
-          enddo ! n loop
-          ax(indx(i,j,0,ikk,ikk))=ax4(4*i-1,4*j-1)
-          ay(indx(i,j,0,ikk,ikk))=ay4(4*i-1,4*j-1)
-          az(indx(i,j,0,ikk,ikk))=az4(4*i-1,4*j-1)
-         enddo  ! i loop
-        enddo   ! j loop
-        if(ktau<=1.and.myid==0)then
-          print *,'ax6 (1,1,0) & (2,2,0) ',ax(indx(1,1,0,ikk,ikk)),
-     &                                     ax(indx(2,2,0,ikk,ikk))
-          print *,'ay6 (1,1,0) & (2,2,0) ',ay(indx(1,1,0,ikk,ikk)),
-     &                                     ay(indx(2,2,0,ikk,ikk))
-          print *,'az6 (1,1,0) & (2,2,0) ',az(indx(1,1,0,ikk,ikk)),
-     &                                     az(indx(2,2,0,ikk,ikk))
-        endif ! (ktau<=1)
+      dsfact=4*ikk/(2.*pi)     ! con-cube
+      ds=rearth/dsfact
+c     extend em4 to uppermost i and j rows
+      do j=1,4*ikk
+       em4(iquadx,j)=em4(1,j)
+      enddo
+      do i=1,4*ikk
+       em4(i,iquadx)=em4(i,1)
+      enddo
+      do j=1,ikk
+       do i=1,ikk
+        do n=0,5
+c        average Purser em is pi/2
+         em_g(indx(i,j,n,ikk,ikk))=pi/(2.*em4(4*i-1,4*j-1))
+         emu_g(indx(i,j,n,ikk,ikk))=pi/(2.*em4(4*i+1,4*j-1))
+         emv_g(indx(i,j,n,ikk,ikk))=pi/(2.*em4(4*i-1,4*j+1))
+        enddo ! n loop
+        ax(indx(i,j,0,ikk,ikk))=ax4(4*i-1,4*j-1)
+        ay(indx(i,j,0,ikk,ikk))=ay4(4*i-1,4*j-1)
+        az(indx(i,j,0,ikk,ikk))=az4(4*i-1,4*j-1)
+       enddo  ! i loop
+      enddo   ! j loop
+      if(ktau<=1)then
+        print *,'ax6 (1,1,0) & (2,2,0) ',ax(indx(1,1,0,ikk,ikk)),
+     &                                   ax(indx(2,2,0,ikk,ikk))
+        print *,'ay6 (1,1,0) & (2,2,0) ',ay(indx(1,1,0,ikk,ikk)),
+     &                                   ay(indx(2,2,0,ikk,ikk))
+        print *,'az6 (1,1,0) & (2,2,0) ',az(indx(1,1,0,ikk,ikk)),
+     &                                   az(indx(2,2,0,ikk,ikk))
+      endif ! (ktau<=1)
          
-3       do j=1,ikk
-         do i=1,ikk
-          xx=xx4(4*i-1,4*j-1)
-          yy=yy4(4*i-1,4*j-1)
+3     do j=1,ikk
+       do i=1,ikk
+        xx=xx4(4*i-1,4*j-1)
+        yy=yy4(4*i-1,4*j-1)
 
-c         set up x0, y0, z0 coords on cube -1 to 1
-c         avoids earlier equivalencing of x,x0  etc
-          x(indx(i,j,0,ikk,ikk))= 1.
-          y(indx(i,j,0,ikk,ikk))=xx
-          z(indx(i,j,0,ikk,ikk))=yy
-          x(indx(i,j,3,ikk,ikk))=-1.
-          z(indx(i,j,3,ikk,ikk))=-xx
-          y(indx(i,j,3,ikk,ikk))=-yy
-          x(indx(i,j,1,ikk,ikk))=-yy
-          y(indx(i,j,1,ikk,ikk))=xx
-          z(indx(i,j,1,ikk,ikk))= 1.
-          y(indx(i,j,4,ikk,ikk))=-yy
-          x(indx(i,j,4,ikk,ikk))=xx
-          z(indx(i,j,4,ikk,ikk))=-1.
-          x(indx(i,j,2,ikk,ikk))=-yy
-          y(indx(i,j,2,ikk,ikk))= 1.
-          z(indx(i,j,2,ikk,ikk))=-xx
-          z(indx(i,j,5,ikk,ikk))=yy
-          y(indx(i,j,5,ikk,ikk))=-1.
-          x(indx(i,j,5,ikk,ikk))=xx
-c         if(i.eq.(ikk+1)/2.and.j.eq.(ikk+1)/2)print *,'xx,yy: ',xx,yy
-         enddo  ! i loop
-        enddo   ! j loop
-        do iq=1,ik*ik*6
-         call norm8(x(iq),y(iq),z(iq),den1) ! x, y, z are coords on sphere  -1 to 1
-        enddo   ! iq loop
-        if(ktau.eq.0.and.myid==0)print *,'basic grid length ds =',ds
+c       set up x0, y0, z0 coords on cube -1 to 1
+c       avoids earlier equivalencing of x,x0  etc
+        x(indx(i,j,0,ikk,ikk))= 1.
+        y(indx(i,j,0,ikk,ikk))=xx
+        z(indx(i,j,0,ikk,ikk))=yy
+        x(indx(i,j,3,ikk,ikk))=-1.
+        z(indx(i,j,3,ikk,ikk))=-xx
+        y(indx(i,j,3,ikk,ikk))=-yy
+        x(indx(i,j,1,ikk,ikk))=-yy
+        y(indx(i,j,1,ikk,ikk))=xx
+        z(indx(i,j,1,ikk,ikk))= 1.
+        y(indx(i,j,4,ikk,ikk))=-yy
+        x(indx(i,j,4,ikk,ikk))=xx
+        z(indx(i,j,4,ikk,ikk))=-1.
+        x(indx(i,j,2,ikk,ikk))=-yy
+        y(indx(i,j,2,ikk,ikk))= 1.
+        z(indx(i,j,2,ikk,ikk))=-xx
+        z(indx(i,j,5,ikk,ikk))=yy
+        y(indx(i,j,5,ikk,ikk))=-1.
+        x(indx(i,j,5,ikk,ikk))=xx
+c       if(i.eq.(ikk+1)/2.and.j.eq.(ikk+1)/2)print *,'xx,yy: ',xx,yy
+       enddo  ! i loop
+      enddo   ! j loop
+      do iq=1,ik*ik*6
+       call norm8(x(iq),y(iq),z(iq),den1) ! x, y, z are coords on sphere  -1 to 1
+      enddo   ! iq loop
+      if(ktau.eq.0)print *,'basic grid length ds =',ds
 
       if(schmidt.ne.1.)then
         alf=(one-schmidt**2)/(one+schmidt**2)
-        if(myid==0)
-     &       print *,'doing schmidt with schmidt,alf: ',schmidt,alf
+        print *,'doing schmidt with schmidt,alf: ',schmidt,alf
         do iq=1,ik*ik*6
          xin=x(iq)
          yin=y(iq)
@@ -273,11 +269,11 @@ c         if(i.eq.(ikk+1)/2.and.j.eq.(ikk+1)/2)print *,'xx,yy: ',xx,yy
         endif    ! (schmidtin>0.)
       endif      ! (schmidt.ne.1.)
 
-      print *,'ktau,myid,ikk,schmidtin ',ktau,myid,ikk,schmidtin
+      print *,'ktau,ikk,schmidtin ',ktau,ikk,schmidtin
       if(ndiag.eq.2)call printp('x   ', x)
       if(ndiag.eq.2)call printp('y   ', y)
       if(ndiag.eq.2)call printp('z   ', z)
-      if(ktau.eq.0.and.myid==0.and.schmidtin>0.)then
+      if(ktau.eq.0.and.schmidtin>0.)then
         print *,'On each panel (ntang=0)_em_g for ',
      .          '(1,1),(1,2),(1,3),(2,2),(3,2),(ic,ic),(ikk,ikk)'
         do n=0,npanels
@@ -320,7 +316,7 @@ c         if(i.eq.(ikk+1)/2.and.j.eq.(ikk+1)/2)print *,'xx,yy: ',xx,yy
      .                        emv_g(iq22),emv_g(iq32),emv_g(iqcc),
      &                        emv_g(iqnn)
         enddo
-      endif  ! (ktau.eq.0.and.myid==0.and.schmidtin>0.)
+      endif  ! (ktau.eq.0.and.schmidtin>0.)
 
 c     set up vectors in direction of u and v
       if(schmidtin<0.)then
@@ -443,7 +439,7 @@ c    .                  (emv_g(isv2_g(iq))+emv_g(iq)))
            emv_g(iq)=1./emv_g(iq)
           enddo   ! iq loop
       
-      if(ktau.eq.0.and.myid==0)then
+      if(ktau.eq.0)then
         do iq=ikk-2,ikk
          print *,'iq,em_g,emu_g,emv_g',iq,em_g(iq),emu_g(iq),emv_g(iq)
         enddo   ! iq loop
@@ -495,7 +491,7 @@ c     now use 1/(em_g**2) to cope with schmidt, rotated and ocatagon coordinates
 !c     *** only useful as diagnostic for gnew
 !      cosa(iq)=ax(iq)*bx(iq)+ay(iq)*by(iq)+az(iq)*bz(iq)
       enddo   ! iq loop
-      if(ktau.eq.0.and.myid==0)then
+      if(ktau.eq.0)then
         print *,'sumwts/ifull_g ',sumwts/ifull_g  ! ideally equals 4*pi ??
         print *,'in setxyz rlong0,rlat0,schmidt ',rlong0,rlat0,schmidt
       endif  ! (ktau.eq.0)
@@ -554,7 +550,7 @@ c    .  rlongg_g(iq)*180./pi,rlatt_g(iq)*180./pi
         call printp('lat ',rlat)
         call printp('long',rlong)
       endif
-      if(ktau.eq.0.and.myid==0)then
+      if(ktau.eq.0)then
         print *,'At centre of the faces:'
         do n=0,npanels
          iq=indx((ikk+1)/2,(ikk+1)/2,n,ikk,ikk)
@@ -627,65 +623,64 @@ c    .  rlongg_g(iq)*180./pi,rlatt_g(iq)*180./pi
        dmdx_g(iq)=.5*(em_g(ie_g(iq))-em_g(iw_g(iq)))/ds  
        dmdy_g(iq)=.5*(em_g(in_g(iq))-em_g(is_g(iq)))/ds  
       enddo   ! iq loop
-      if(myid==0)then
-        ratmin=100.
-        ratmax=0.
-        do n=0,npanels
-          do i=1,ikk
-           iq=indx(i,ikk/2,n,ikk,ikk)
-           rat=em_g(iq)/em_g(ie_g(iq))
-           if(rat<ratmin)then
-             ratmin=rat
-             imin=i
-           endif
-           if(rat>ratmax)then
-             ratmax=rat
-             imax=i
-           endif
-          enddo
-          if(num==1)then
-            print *,'em_g ratio for j=ikk/2 on npanel ',n
-            write (6,"(12f6.3)")
-     &            (em_g(indx(i,ikk/2,n,ikk,ikk))
-     &            /em_g(ie_g(indx(i,ikk/2,n,ikk,ikk))),
-     &            i=1,ikk)
-          endif
+
+      ratmin=100.
+      ratmax=0.
+      do n=0,npanels
+        do i=1,ikk
+         iq=indx(i,ikk/2,n,ikk,ikk)
+         rat=em_g(iq)/em_g(ie_g(iq))
+         if(rat<ratmin)then
+           ratmin=rat
+           imin=i
+         endif
+         if(rat>ratmax)then
+           ratmax=rat
+           imax=i
+         endif
         enddo
-        print *,'for j=ikk/2 & myid=0, ratmin,ratmax = ',ratmin,ratmax
-        print *,'with imin,imax ',imin,imax
-        ratmin=100.
-        ratmax=0.
-        do n=0,npanels
-         do j=1,ikk
-          do i=1,ikk
-           iq=indx(i,j,n,ikk,ikk)
-           rat=em_g(iq)/em_g(ie_g(iq))
-           if(rat<ratmin)then
-            ratmin=rat
-            imin=i
-            jmin=j
-           endif
-           if(rat>ratmax)then
-            ratmax=rat
-            imax=i
-            jmax=j
-           endif
-          enddo
-         enddo
+        if(num==1)then
+          print *,'em_g ratio for j=ikk/2 on npanel ',n
+          write (6,"(12f6.3)")
+     &          (em_g(indx(i,ikk/2,n,ikk,ikk))
+     &          /em_g(ie_g(indx(i,ikk/2,n,ikk,ikk))),
+     &          i=1,ikk)
+        endif
+      enddo
+      print *,'for j=ikk/2 & myid=0, ratmin,ratmax = ',ratmin,ratmax
+      print *,'with imin,imax ',imin,imax
+      ratmin=100.
+      ratmax=0.
+      do n=0,npanels
+       do j=1,ikk
+        do i=1,ikk
+         iq=indx(i,j,n,ikk,ikk)
+         rat=em_g(iq)/em_g(ie_g(iq))
+         if(rat<ratmin)then
+          ratmin=rat
+          imin=i
+          jmin=j
+         endif
+         if(rat>ratmax)then
+          ratmax=rat
+          imax=i
+          jmax=j
+         endif
         enddo
-        print *,'for all j & myid=0, ratmin,ratmax = ',ratmin,ratmax
-        print *,'with imin,jmin,imax,jmax ',imin,jmin,imax,jmax
-        write (6,"('1st 10 ratios',10f6.3)") (em_g(iq)/em_g(ie_g(iq)),
-     &                                       iq=1,10)
-        numpts=0
-        do iq=1,ifull_g
-         rlatdeg=rlatt_g(iq)*180./pi
-         rlondeg=rlongg_g(iq)*180./pi
-         if(rlatdeg>20..and.rlatdeg<60.
-     &      .and.rlondeg>230..and.rlatdeg<300.)numpts=numpts+1
-        enddo
-        print *,'points in SGMIP region ',numpts
-      endif
+       enddo
+      enddo
+      print *,'for all j & myid=0, ratmin,ratmax = ',ratmin,ratmax
+      print *,'with imin,jmin,imax,jmax ',imin,jmin,imax,jmax
+      write (6,"('1st 10 ratios',10f6.3)") (em_g(iq)/em_g(ie_g(iq)),
+     &                                     iq=1,10)
+      numpts=0
+      do iq=1,ifull_g
+       rlatdeg=rlatt_g(iq)*180./pi
+       rlondeg=rlongg_g(iq)*180./pi
+       if(rlatdeg>20..and.rlatdeg<60.
+     &    .and.rlondeg>230..and.rlatdeg<300.)numpts=numpts+1
+      enddo
+      print *,'points in SGMIP region ',numpts
 
       return
       end
@@ -839,16 +834,4 @@ c     include 'newmpar_gx.h'
       return
       end
 
-!      blockdata setxyz_blockdata
-!      use indices_m
-!      include 'newmpar.h'
-!!     following was set in setxyz
-!      data npann_g/  1, 2,107,  4,106,  6,  7,109,  9,112, 11, 12,102,
-!     &             101/
-!      data npane_g/103, 3,  4,105,  5,110,108,  8, 10, 11,100,113, 13,
-!     &             0/
-!      data npanw_g/13,113,112,  1,  2,  4,104,102,  7,107,  8,  9,109,
-!     &             12/
-!      data npans_g/110, 0,  1,100,  3,103,  5,  6,106,  8,105, 10, 11,
-!     &             111/
-!      end
+

@@ -74,7 +74,7 @@ complex, save :: ci, cip4, cip3oss
 
 contains
 
-subroutine jimcc(em4,ax4,ay4,az4,xx4,yy4,il,myid)
+subroutine jimcc(em4,ax4,ay4,az4,xx4,yy4,il)
 !     like jim6.f but without stretch option
 !     hedra1 data is hardwired
 !     xx-->xx4, yy-->yy4, fm-->em4, dxa-->ax4, dxb-->ay4, dxc-->az4
@@ -82,12 +82,12 @@ implicit none
 integer, parameter :: ipanel = 2
 integer, parameter :: ngrmax = 1
 integer, parameter :: ndiagj = 0
-integer, intent(in) :: myid, il
+integer, intent(in) :: il
 integer, save :: num = 0
 integer np, ngr, i, j
-real, dimension(4*il+1,4*il+1), intent(out) :: em4,ax4,ay4,az4
+real, dimension(4*il+1,4*il+1), intent(out) :: em4, ax4, ay4, az4
 real, dimension(4*il+1,4*il+1) :: xa, xb, xc
-real(kind=8), dimension(4*il+1,4*il+1), intent(out) :: xx4,yy4
+real(kind=8), dimension(4*il+1,4*il+1), intent(out) :: xx4, yy4
 !     real dya(np,np),dyb(np,np),dyc(np,np)
 !     ngr = 1  at unstaggered positions
 !         = 2  at i+.5,j      positions
@@ -101,7 +101,7 @@ do ngr=1,ngrmax
   call rgrid(xa,xb,xc,ax4,ay4,az4,em4,np,ipanel,ngr)
 ! these are values on the sphere
 
-  if(num==0.and.myid==0)then
+  if(num==0)then
    do j=1,np,np-1
     do i=1,np,np-1
      write(6,*)'in jimcc xa,xb,xc: ',i,j,xa(i,j),xb(i,j),xc(i,j)
@@ -137,7 +137,7 @@ do ngr=1,ngrmax
    enddo
   enddo
 
-  if(num==0.and.myid==0)then
+  if(num==0)then
    num=1
    do j=1,np,np-1
     do i=1,np,np-1

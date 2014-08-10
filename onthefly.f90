@@ -21,6 +21,7 @@ public onthefly, retopo
     
 integer, parameter :: nord = 3        ! 1 for bilinear, 3 for bicubic interpolation
 integer, save :: ik, jk, kk, ok, nsibx
+integer dk
 integer, dimension(:,:), allocatable, save :: nface4
 real, save :: rlong0x, rlat0x, schmidtx
 real, dimension(3,3), save :: rotpoles, rotpole
@@ -31,6 +32,9 @@ real, dimension(:), allocatable, save :: sigin
 logical iotest, newfile
     
 contains
+
+! *****************************************************************************
+! Main interface for input data that reads grid metadata
     
 subroutine onthefly(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice,snowd,qfg, &
                     qlg,qrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,ocndwn,xtgdwn)
@@ -55,49 +59,52 @@ integer, intent(in) :: nested
 integer, intent(out) :: kdate_r, ktime_r
 integer, save :: maxarchi
 integer, save :: ncidold = -1
-integer ier,mtimer,k,ierx,idvkd,idvkt,idvmt
+integer ier, mtimer, k, ierx, idvkd, idvkt, idvmt
 integer, dimension(nihead) :: nahead
 integer, dimension(ifull), intent(out) :: isflag
 real timer
 real, dimension(ifull,wlev,4), intent(out) :: mlodwn
 real, dimension(ifull,kl,naero), intent(out) :: xtgdwn
-real, dimension(ifull,ms), intent(out) :: wb,wbice,tgg
-real, dimension(ifull,3), intent(out) :: tggsn,smass,ssdn
+real, dimension(ifull,ms), intent(out) :: wb, wbice, tgg
+real, dimension(ifull,3), intent(out) :: tggsn, smass, ssdn
 real, dimension(ifull,2), intent(out) :: ocndwn
-real, dimension(:,:), intent(out) :: t,u,v,qg,qfg,qlg,qrg
-real, dimension(ifull), intent(out) :: psl,zss,tss,fracice,snowd,sicedep
-real, dimension(ifull), intent(out) :: ssdnn,snage
+real, dimension(:,:), intent(out) :: t, u, v, qg, qfg, qlg, qrg
+real, dimension(ifull), intent(out) :: psl, zss, tss, fracice, snowd
+real, dimension(ifull), intent(out) :: sicedep, ssdnn, snage
 real, dimension(nrhead) :: ahead
 real, dimension(14) :: rdum
-logical ltest,tst
+logical ltest, tst
 
 call START_LOG(onthefly_begin)
-!--------------------------------------------------------------
-! pfall indicates all processors have an input file and there
-! is no need to broadcast metadata (see infile.f90)
+!--------------------------------------------------------------------
+! pfall indicates all processors have a parallel input file and there
+! is no need to broadcast metadata (see infile.f90).  Otherwise read
+! metadata on myid=0 and broadcast that data to all processors.
 if ( myid==0 .or. pfall ) then
   if ( myid==0 ) write(6,*) 'Entering onthefly for nested,ktau = ',nested,ktau
+  
+  ! Locate new file and read grid metadata --------------------------
   if ( ncid/=ncidold ) then
     if ( myid==0 ) write(6,*) 'Reading new file metadata'
-    iarchi=1
+    iarchi=1   ! initial time index for input file
+    maxarchi=0 ! initial number of timesteps in input file
+    ok=0       ! initial number of ocean levels
     call ccnf_get_attg(ncid,'int_header',nahead)
     call ccnf_get_attg(ncid,'real_header',ahead)
-    ik      =nahead(1)
-    jk      =nahead(2)
-    kk      =nahead(3)
-    nsibx   =nahead(44)
-    rlong0x =ahead(5)
-    rlat0x  =ahead(6)
-    schmidtx=ahead(7)
+    ik      =nahead(1)  ! grid size
+    jk      =nahead(2)  ! grid size
+    kk      =nahead(3)  ! vertical levels
+    nsibx   =nahead(44) ! land-surface parameterisation
+    rlong0x =ahead(5)   ! longitude
+    rlat0x  =ahead(6)   ! latitude
+    schmidtx=ahead(7)   ! schmidt factor
     if ( schmidtx<=0. .or. schmidtx>1. ) then
       ! backwards compatibility option
       rlong0x =ahead(6)
       rlat0x  =ahead(7)
       schmidtx=ahead(8)
     endif  ! (schmidtx<=0..or.schmidtx>1.)        
-    maxarchi=0
     call ccnf_inq_dimlen(ncid,'time',maxarchi)
-    ok=0
     call ccnf_inq_dimlen(ncid,'olev',ok,failok=.true.)
     if ( myid==0 ) then
       write(6,*) "Found ik,jk,kk,ok ",ik,jk,kk,ok
@@ -105,18 +112,21 @@ if ( myid==0 .or. pfall ) then
       write(6,*) "      rlong0x,rlat0x,schmidtx ",rlong0x,rlat0x,schmidtx
     end if
   end if
+  
+  ! search for required date ----------------------------------------
   if ( myid==0 ) write(6,*)'Search for kdate_s,ktime_s >= ',kdate_s,ktime_s
-  ltest=.true.
-  iarchi=iarchi-1
+  ltest=.true.     ! flag indicates that the date is not yet found
+  iarchi=iarchi-1  ! move time index back one step to check current position in file
+  ierx=0           ! indicates normal mtimer format or backwards compatibility mode
   call ccnf_inq_varid(ncid,'kdate',idvkd,tst)
   call ccnf_inq_varid(ncid,'ktime',idvkt,tst)
   call ccnf_inq_varid(ncid,'mtimer',idvmt,tst)
   if ( tst ) then
+    ! backwards compatability option
     ierx=1
     call ccnf_inq_varid(ncid,'timer',idvmt,tst)
-  else
-    ierx=0
   end if
+  ! start search for required date/time
   do while( ltest .and. iarchi<maxarchi )
     ! could read this as one array, but we only usually need to advance 1 step
     iarchi=iarchi+1
@@ -131,6 +141,7 @@ if ( myid==0 .or. pfall ) then
       mtimer=nint(timer*60.)
     endif
     if ( mtimer>0 ) then
+      ! calculate date if mtimer>0
       call datefix(kdate_r,ktime_r,mtimer)
     end if
     ! ltest = .false. when correct date is found
@@ -148,7 +159,11 @@ if ( myid==0 .or. pfall ) then
     write(6,*) 'After search ltest,iarchi =',ltest,iarchi
     write(6,*) '             kdate_r,ktime_r =',kdate_r,ktime_r
   end if
-  ! store metadata for possible bcast
+
+endif  ! ( myid==0 .or. pfall )
+
+! if metadata is not read by all processors, then broadcast ---------
+if ( .not.pfall ) then
   rdum(1)=rlong0x
   rdum(2)=rlat0x
   rdum(3)=schmidtx
@@ -169,10 +184,6 @@ if ( myid==0 .or. pfall ) then
   rdum(12)=real(ok)
   rdum(13)=real(iarchi)
   rdum(14)=real(nsibx)
-endif  ! ( myid==0 .or. pfall )
-
-! if metadata is not read by all processors, then broadcast
-if ( .not.pfall ) then
   call ccmpi_bcast(rdum(1:14),0,comm_world)
   rlong0x =rdum(1)
   rlat0x  =rdum(2)
@@ -190,7 +201,7 @@ else
   newfile=(ncid/=ncidold)            
 end if
       
-! close old file if a new file is opened
+! close old file if a new file is opened ----------------------------
 if ( newfile ) then
   if ( ncidold/=-1 ) then
     if ( myid==0 ) then
@@ -201,7 +212,7 @@ if ( newfile ) then
   ncidold=ncid
 end if
 
-! trap error if correct date/time is not located      
+! trap error if correct date/time is not located --------------------
 if ( ktime_r<0 ) then
   if ( nested==2 ) then
     if ( myid==0 ) then
@@ -213,7 +224,7 @@ if ( ktime_r<0 ) then
     call ccmpi_abort(-1)
   end if
 end if
-!--------------------------------------------------------------
+!--------------------------------------------------------------------
       
 ! Here we call ontheflyx with different automatic array
 ! sizes.  This means the arrays are correct for interpolation
@@ -225,19 +236,22 @@ end if
 ! zero in the output array
       
 if ( myid==0 ) then
-  call ontheflyx(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice,snowd,qfg,qlg, &
-                 qrg,tggsn,smass,ssdn,ssdnn,snage,isflag,ik,mlodwn,ocndwn,xtgdwn)
-  write(6,*) "Leaving onthefly"
+  dk=ik
 else
-  call ontheflyx(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice,snowd,qfg,qlg, &
-                 qrg,tggsn,smass,ssdn,ssdnn,snage,isflag,0,mlodwn,ocndwn,xtgdwn)
+  dk=0
 end if
+call onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice, &
+                   snowd,qfg,qlg,qrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,ocndwn,      &
+                   xtgdwn)
+if ( myid==0 ) write(6,*) "Leaving onthefly"
 
 call END_LOG(onthefly_end)
 
 return
 end subroutine onthefly
-      
+
+
+! *****************************************************************************
 ! Read data from netcdf file
       
 ! arrays are typically read as global and then distributed to
@@ -245,8 +259,9 @@ end subroutine onthefly
 ! with diagnosed fields.  Data is usually read in as 2D
 ! fields which avoids memory problems when the host grid
 ! size is significantly larger than the regional grid size.
-subroutine ontheflyx(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice,snowd,qfg,qlg,  &
-                     qrg,tggsn,smass,ssdn,ssdnn,snage,isflag,dk,mlodwn,ocndwn,xtgdwn)
+subroutine onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice, &
+                         snowd,qfg,qlg,qrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,ocndwn,      &
+                         xtgdwn)
       
 use aerosolldr, only : ssn,naero               ! LDR aerosol scheme
 use ateb, only : atebdwn                       ! Urban
@@ -293,42 +308,41 @@ include 'stime.h'                              ! File date data
 
 real, parameter :: iotol=1.E-5      ! tolarance for iotest grid matching
       
-integer, intent(in) :: kdate_r, ktime_r, nested, dk
+integer, intent(in) :: kdate_r, ktime_r, nested
 integer idv, isoil, nud_test
 integer lev, levkk, ier, ierr, igas
 integer nemi, id2, jd2, idjd2
 integer i, j, k, mm, iq, ii, jj, np, numneg
-integer, dimension(:), allocatable, save :: isoilm_a
+integer, dimension(dk*dk*6) :: isoilm_a
 integer, dimension(ifull), intent(out) :: isflag
 integer, dimension(7+3*ms) :: ierc
 integer, dimension(3), save :: iers
 integer, dimension(1) :: str, cnt
-real(kind=8), dimension(:,:), allocatable, save :: xx4,yy4
-real(kind=8), dimension(dk*dk*6):: z_a,x_a,y_a
+real(kind=8), dimension(:,:), allocatable, save :: xx4, yy4 ! large common arrays
+real(kind=8), dimension(dk*dk*6):: z_a, x_a, y_a
 real, dimension(ifull,wlev,4), intent(out) :: mlodwn
 real, dimension(ifull,kl,naero), intent(out) :: xtgdwn
 real, dimension(ifull,ok,2) :: mloin
+real, dimension(ifull,kk) :: u_k, v_k
 real, dimension(ifull,2), intent(out) :: ocndwn
-real, dimension(ifull,ms), intent(out) :: wb,wbice,tgg
-real, dimension(ifull,3), intent(out) :: tggsn,smass,ssdn
-real, dimension(:,:), intent(out) :: t,u,v,qg,qfg,qlg,qrg
-real, dimension(ifull,kk) :: u_k,v_k
-real, dimension(ifull), intent(out) :: psl,zss,tss,fracice
-real, dimension(ifull), intent(out) :: snowd,sicedep,ssdnn,snage
-real, dimension(ifull) :: dum6
-real, dimension(ifull) :: tss_l, tss_s, pmsl
-real, dimension(ik*ik*6) :: ucc,vcc
-real, dimension(ik*ik*6) :: fracice_a,sicedep_a
-real, dimension(ik*ik*6) :: tss_l_a,tss_s_a
-real, dimension(dk*dk*6) :: t_a_lev,psl_a,tss_a
+real, dimension(ifull,ms), intent(out) :: wb, wbice, tgg
+real, dimension(ifull,3), intent(out) :: tggsn, smass, ssdn
+real, dimension(:,:), intent(out) :: t, u, v, qg, qfg, qlg, qrg
+real, dimension(ifull), intent(out) :: psl, zss, tss, fracice
+real, dimension(ifull), intent(out) :: snowd, sicedep, ssdnn, snage
+real, dimension(ifull) :: dum6, tss_l, tss_s, pmsl
+real, dimension(dk*dk*6) :: ucc, vcc
+real, dimension(dk*dk*6) :: fracice_a, sicedep_a
+real, dimension(dk*dk*6) :: tss_l_a, tss_s_a
+real, dimension(dk*dk*6) :: t_a_lev, psl_a, tss_a
 real, dimension(dk*dk*6) :: wts_a  ! not used here or defined in call setxyz
-real, dimension(:), allocatable, save :: zss_a,ocndep_l
+real, dimension(:), allocatable, save :: zss_a, ocndep_l
 real, dimension(kk+3) :: dumr
 real rlongd, rlatd
 character(len=8) vname
 character(len=3) trnum
-logical, dimension(:), allocatable, save :: land_a,sea_a
-logical tsstest,tst
+logical, dimension(:), allocatable, save :: land_a, sea_a
+logical tsstest, tst
 
 ! land-sea mask method (nemi=3 use soilt, nemi=2 use tgg, nemi=1 use zs)
 nemi=3
@@ -350,7 +364,7 @@ else
 end if
 if ( myid==0 ) write(6,*) "Interpolation iotest,io_in =",iotest,io_in
 
-!--------------------------------------------------------------
+!--------------------------------------------------------------------
 ! Allocate interpolation, vertical level and mask arrays
 ! dk is only non-zero on myid==0
 if ( .not.allocated(nface4) ) then
@@ -367,7 +381,7 @@ if ( newfile ) then
   allocate(bxs_a(dk*dk*6),bys_a(dk*dk*6),bzs_a(dk*dk*6))
 end if
       
-!--------------------------------------------------------------
+!--------------------------------------------------------------------
 ! Determine input grid coordinates and interpolation arrays
 if ( newfile .and. .not.iotest ) then
   ! xx4 and yy4 could be replaced with sharded arrays in MPI-3
@@ -376,23 +390,25 @@ if ( newfile .and. .not.iotest ) then
   if ( m_fly==1 ) then
     rlong4_l(:,1)=rlongg(:)*180./pi
     rlat4_l(:,1)=rlatt(:)*180./pi
-  end if    
+  end if
           
   if ( myid==0 ) then
     write(6,*) "Defining input file grid"
 !   following setxyz call is for source data geom    ****   
-    do iq=1,ik*ik*6
+    do iq=1,dk*dk*6
       axs_a(iq)=iq
       ays_a(iq)=iq
       azs_a(iq)=iq
     enddo      
-    call setxyz(ik,rlong0x,rlat0x,-schmidtx,x_a,y_a,z_a,wts_a,axs_a,ays_a,azs_a,bxs_a,bys_a,bzs_a,xx4,yy4,myid)
+    call setxyz(ik,rlong0x,rlat0x,-schmidtx,x_a,y_a,z_a,wts_a,axs_a,ays_a,azs_a,bxs_a,bys_a,bzs_a,xx4,yy4)
   end if ! (myid==0)
 
   call ccmpi_bcastr8(xx4,0,comm_world)
   call ccmpi_bcastr8(yy4,0,comm_world)
-     
+  
+  ! calculate the rotated coords for host and model grid
   rotpoles = calc_rotpole(rlong0x,rlat0x)
+  rotpole = calc_rotpole(rlong0,rlat0)
   if ( ktau<3 .and. myid==0 ) then
     write(6,*)'m_fly,nord ',m_fly,nord
     write(6,*)'kdate_r,ktime_r,ktau,ds',kdate_r,ktime_r,ktau,ds
@@ -401,11 +417,6 @@ if ( newfile .and. .not.iotest ) then
       write(6,'(3x,2i1,5x,2i1,5x,2i1,5x,3f8.4)') (i,j,j=1,3),(rotpoles(i,j),j=1,3)
     enddo
   endif                  ! (ktau<3.and.myid==0)
-
-! rotpole(1,) is x-axis of rotated coords in terms of orig Cartesian
-! rotpole(2,) is y-axis of rotated coords in terms of orig Cartesian
-! rotpole(3,) is z-axis of rotated coords in terms of orig Cartesian
-  rotpole = calc_rotpole(rlong0,rlat0)
   if ( nmaxpr==1 .and. myid==0 ) then
     write(6,*)'in onthefly rotpole:'
     do i=1,3
@@ -416,6 +427,7 @@ if ( newfile .and. .not.iotest ) then
     write(6,*)'rlong0x,rlat0x,schmidtx ',rlong0x,rlat0x,schmidtx
   endif                  ! (nmaxpr==1.and.myid==0)
 
+  ! setup interpolation arrays
   do mm=1,m_fly  !  was 4, now may be set to 1 in namelist
     do iq=1,ifull
       call latltoij(rlong4_l(iq,mm),rlat4_l(iq,mm),       & !input
@@ -428,24 +440,21 @@ if ( newfile .and. .not.iotest ) then
        
 end if ! newfile .and. .not.iotest
       
-       
+! -------------------------------------------------------------------
 ! read time invariant data when file is first opened
 ! need global zss_a for (potentially) landsea mask and psl interpolation
 ! need global isoilm_a for (potentially) landsea mask
 if ( newfile ) then
+
+  ! read vertical levels and missing data checks
   if ( myid==0 .or. pfall ) then
     if ( myid==0 ) write(6,*) "Reading time invariant fields"
     call ccnf_inq_varid(ncid,'lev',idv,tst)
-    if ( tst ) then
-      call ccnf_inq_varid(ncid,'layer',idv,tst)
-    end if
-    if ( tst ) then
-      call ccnf_get_attg(ncid,'sigma',sigin)
-    else
-      str(1)=1
-      cnt(1)=kk
-      call ccnf_get_vara(ncid,idv,str(1:1),cnt(1:1),sigin)
-    end if
+    if ( tst ) call ccnf_inq_varid(ncid,'layer',idv,tst)
+    if ( tst ) call ccnf_inq_varid(ncid,'sigma',idv,tst)
+    str(1)=1
+    cnt(1)=kk
+    call ccnf_get_vara(ncid,idv,str(1:1),cnt(1:1),sigin)
     if ( myid==0 ) write(6,'("sigin=",(9f7.4))') (sigin(k),k=1,kk)
     ! check for missing data
     iers(1:3)=0
@@ -456,6 +465,7 @@ if ( newfile ) then
     call ccnf_inq_varid(ncid,'fracice',idv,tst)
     if ( tst ) iers(3)=-1
   end if
+  
   ! bcast data to all processors unless all processes are reading input files
   if ( .not.pfall ) then
     dumr(1:kk)     =sigin
@@ -464,21 +474,18 @@ if ( newfile ) then
     sigin    =dumr(1:kk)
     iers(1:3)=nint(dumr(kk+1:kk+3))
   end if
+
   ! determine whether surface temperature needs to be interpolated (tsstest=.false.)
   tsstest=(iers(2)==0.and.iers(3)==0.and.iotest)
   if ( myid==0 ) write(6,*) "tsstest,iers ",tsstest,iers(1:3)
   if ( allocated(zss_a) ) deallocate(zss_a)
-  if ( allocated(isoilm_a) ) deallocate(isoilm_a)
   if ( tsstest ) then
     ! load local surface temperature
     allocate(zss_a(ifull))
     call histrd1(iarchi,ier,'zht',ik,zss_a,ifull)
   else
-    ! load global surface temperature   
-    allocate(zss_a(6*ik*ik)) ! allocate for all processors to avoid memory copies
-                             ! can replace with allocate on myid==0 and then copy
-                             ! to ucc for doints4 if memory becomes a problem
-    if ( myid==0 ) allocate(isoilm_a(6*ik*ik))
+    ! load global surface temperature
+    allocate(zss_a(6*dk*dk))
     call histrd1(iarchi,ier,'zht',  ik,zss_a,6*ik*ik)
     call histrd1(iarchi,ier,'soilt',ik,ucc,  6*ik*ik)
     if ( myid==0 ) then
@@ -486,17 +493,22 @@ if ( newfile ) then
       if ( all(isoilm_a==0) ) isoilm_a=-1 ! missing value flag
     end if
   end if
+  
+  ! read host ocean bathymetry data
   if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
     if ( .not.allocated(ocndep_l) ) allocate(ocndep_l(ifull))
     call gethist1('ocndepth',ocndep_l)
   end if
   if ( myid==0 ) write(6,*) "Finished reading fixed fields"
+  
 else
+  ! use saved metadata  
   if ( myid==0 ) write(6,*) "Using saved fixed fields"
   tsstest=(iers(2)==0.and.iers(3)==0.and.iotest)        
 endif ! newfile ..else..
-      
-! detemine the level below sig=0.9 (used to calculate psl)
+
+! -------------------------------------------------------------------
+! detemine the reference level below sig=0.9 (used to calculate psl)
 lev=0
 do while( sig(lev+1)>0.9 ) ! nested grid
   lev=lev+1
@@ -507,8 +519,8 @@ do while( sigin(levkk+1)>0.9 ) ! host grid
 end do      
 if (myid==0) write(6,*) "Ref height lev,levkk =",lev,levkk
 
-!--------------------------------------------------------------
-! Begin reading host data for current time step
+!--------------------------------------------------------------------
+! Read surface pressure
 ! psf read when nested=0 or nested=1.and.nud_p/=0
 psl_a=0.
 psl=0.
@@ -519,7 +531,8 @@ if ( nested==0 .or. ( nested==1 .and. nud_test/=0 ) ) then
     call histrd1(iarchi,ier,'psf',ik,psl_a,6*ik*ik)
   end if
 endif
-      
+
+! -------------------------------------------------------------------
 ! Read surface temperature 
 ! read global tss to diagnose sea-ice or land-sea mask
 if ( tsstest ) then
@@ -537,7 +550,7 @@ else
     end if ! (nemi==3)
     if ( nemi==2 ) then
       numneg=0
-      do iq=1,ik*ik*6
+      do iq=1,dk*dk*6
         if ( tss_a(iq)>0. ) then ! over land
           land_a(iq)=.true.
         else                     ! over sea
@@ -554,7 +567,6 @@ else
     endif ! (nemi==1)
     write(6,*)'Land-sea mask using nemi = ',nemi
     sea_a=.not.land_a
-    deallocate(isoilm_a)
   end if ! (newfile.and.myid==0)
 end if ! (tsstest) ..else..
 
@@ -575,7 +587,7 @@ if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
       else
         write(vname,'("tgg",I2.2)') k
       end if
-      call filhist1(vname,dk,mloin(:,k,1),land_a)
+      call fillhist1(vname,mloin(:,k,1),land_a)
     end do
     call mloregrid(ok,ocndwn(:,1),mloin(:,:,1),mlodwn(:,:,1),0)
     if ( all(mlodwn(:,:,1)==0.) ) mlodwn(:,:,1)=293.
@@ -586,7 +598,7 @@ if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
   if ( ( nested/=1 .or. nud_sss/=0 ) .and. ok>0 ) then
     do k=1,ok
       write(vname,'("sal",I2.2)') k
-      call filhist1(vname,dk,mloin(:,k,1),land_a)
+      call fillhist1(vname,mloin(:,k,1),land_a)
     end do
     call mloregrid(ok,ocndwn(:,1),mloin(:,:,1),mlodwn(:,:,2),1)
     mlodwn(:,:,2)=max(mlodwn(:,:,2),0.)
@@ -608,9 +620,9 @@ if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
         call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik)
         write(vname,'("voc",I2.2)') k
         call histrd1(iarchi,ier,vname,ik,vcc,6*ik*ik)
-        call fill_cc(ucc,dk,land_a)
-        call fill_cc(vcc,dk,land_a)
-        call interpwind(mloin(:,k,1),mloin(:,k,2),ucc,vcc,dk)
+        call fill_cc(ucc,land_a)
+        call fill_cc(vcc,land_a)
+        call interpwind(mloin(:,k,1),mloin(:,k,2),ucc,vcc)
       end do
     end if ! iotest
     call mloregrid(ok,ocndwn(:,1),mloin(:,:,1),mlodwn(:,:,3),2)
@@ -620,7 +632,7 @@ if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
   end if ! (nestesd/=1.or.nud_ouv/=0) ..else..
   ! water surface height
   if ( nested/=1 .or. nud_sfh/=0 ) then
-    call filhist1('ocheight',dk,ocndwn(:,2),land_a)
+    call fillhist1('ocheight',ocndwn(:,2),land_a)
   else
     ocndwn(:,2)=0.
   end if ! (nested/=1.or.nud_sfh/=0) ..else..
@@ -669,10 +681,10 @@ else
     ! fill surface temperature and sea-ice
     tss_l_a=abs(tss_a)
     tss_s_a=abs(tss_a)
-    call fill_cc(tss_l_a,ik,sea_a)
-    call fill_cc(tss_s_a,ik,land_a)
-    call fill_cc(sicedep_a,ik,land_a)
-    call fill_cc(fracice_a,ik,land_a)
+    call fill_cc(tss_l_a,sea_a)
+    call fill_cc(tss_s_a,land_a)
+    call fill_cc(sicedep_a,land_a)
+    call fill_cc(fracice_a,land_a)
   end if ! myid==0
 
   if ( iotest ) then
@@ -700,11 +712,11 @@ else
     end where
   else
 !   The routine doints4 does the gather, calls ints4 and redistributes
-    call doints4(zss_a,    zss)
-    call doints4(tss_l_a,  tss_l)
-    call doints4(tss_s_a,  tss_s)
-    call doints4(fracice_a,fracice)
-    call doints4(sicedep_a,sicedep)
+    call doints4(zss_a,     zss)
+    call doints4(tss_l_a,   tss_l)
+    call doints4(tss_s_a,   tss_s)
+    call doints4(fracice_a, fracice)
+    call doints4(sicedep_a, sicedep)
 !   incorporate other target land mask effects
     where ( land(1:ifull) )
       tss(1:ifull)=tss_l
@@ -719,30 +731,31 @@ else
 end if ! (tsstest) ..else..
 
 ! to be depeciated !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-if (nspecial==44.or.nspecial==46) then
-  do iq=1,ifull
-    rlongd=rlongg(iq)*180./pi
-    rlatd=rlatt(iq)*180./pi
-    if (rlatd>=-43..and.rlatd<=-30.) then
-      if (rlongd>=155..and.rlongd<=170.) then
-        tss(iq)=tss(iq)+1.
-      end if
-    end if
-  end do
-end if
-if (nspecial==45.or.nspecial==46) then
-  do iq=1,ifull
-    rlongd=rlongg(iq)*180./pi
-    rlatd=rlatt(iq)*180./pi
-    if (rlatd>=-15..and.rlatd<=-5.) then
-      if (rlongd>=150..and.rlongd<=170.) then
-        tss(iq)=tss(iq)+1.
-      end if
-    end if
-  end do
-end if
+!if (nspecial==44.or.nspecial==46) then
+!  do iq=1,ifull
+!    rlongd=rlongg(iq)*180./pi
+!    rlatd=rlatt(iq)*180./pi
+!    if (rlatd>=-43..and.rlatd<=-30.) then
+!      if (rlongd>=155..and.rlongd<=170.) then
+!        tss(iq)=tss(iq)+1.
+!      end if
+!    end if
+!  end do
+!end if
+!if (nspecial==45.or.nspecial==46) then
+!  do iq=1,ifull
+!    rlongd=rlongg(iq)*180./pi
+!    rlatd=rlatt(iq)*180./pi
+!    if (rlatd>=-15..and.rlatd<=-5.) then
+!      if (rlongd>=150..and.rlongd<=170.) then
+!        tss(iq)=tss(iq)+1.
+!      end if
+!    end if
+!  end do
+!end if
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+! -------------------------------------------------------------------
 ! read atmospheric fields for nested=0 or nested=1.and.nud/=0
 
 ! air temperature
@@ -779,7 +792,7 @@ if ( nested==0 .or. ( nested==1 .and. nud_uv/=0 ) ) then
     do k=1,kk
       call histrd4s(iarchi,ier,'u',ik,k,ucc,6*ik*ik)              !     u wind component
       call histrd4s(iarchi,ier,'v',ik,k,vcc,6*ik*ik)              !     v wind component
-      call interpwind(u_k(:,k),v_k(:,k),ucc,vcc,dk)
+      call interpwind(u_k(:,k),v_k(:,k),ucc,vcc)
     end do
 !   interpolate all required arrays to new C-C positions
 !   don't need to do map factors and Coriolis on target grid
@@ -795,9 +808,9 @@ end if ! (nested==0.or.(nested==1.and.nud_uv/=0))
 ! read for nested=0 or nested=1.and.nud_q/=0
 if ( nested==0 .or. ( nested==1 .and. nud_q/=0 ) ) then
   if ( iers(1)==0 ) then
-    call gethist4('mixr',qg,2)                                  !     mixing ratio
+    call gethist4('mixr',qg,2)                                   !     mixing ratio
   else
-    call gethist4('q',qg,2)                                     !     mixing ratio
+    call gethist4('q',qg,2)                                      !     mixing ratio
   end if
 else
   qg(1:ifull,:)=qgmin
@@ -863,7 +876,7 @@ end if
 ! The following data is only read for initial conditions
 if ( nested/=1 ) then
 
-  !--------------------------------------------------
+  !------------------------------------------------------------------
   ! check soil variables
   if ( myid==0 .or. pfall ) then
     ierc(7:7+3*ms)=0
@@ -886,6 +899,8 @@ if ( nested/=1 ) then
       if ( tst ) ierc(7+2*ms+k)=-1
     end do
   end if
+  
+  ! -----------------------------------------------------------------
   ! verify if input is a restart file
   if ( nested==0 ) then
     if ( myid==0 .or. pfall ) then
@@ -982,12 +997,9 @@ if ( nested/=1 ) then
     end if            
   end if ! nested==0 ..else..
         
-  !--------------------------------------------------
-
-  ! SNOW !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  call filhist1('snd',dk,snowd,sea_a)
-
-  ! SOIL TEMPERATURE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !------------------------------------------------------------------
+  ! Read snow and soil tempertaure
+  call fillhist1('snd',snowd,sea_a)
   do k=1,ms 
     if ( ierc(7+k)==0 ) then
       write(vname,'("tgg",I1.1)') k
@@ -1012,7 +1024,7 @@ if ( nested/=1 ) then
       else
         call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik)
       end if
-      call fill_cc(ucc,dk,sea_a)
+      call fill_cc(ucc,sea_a)
       call doints4(ucc,tgg(:,k))
     end if
   end do
@@ -1030,7 +1042,7 @@ if ( nested/=1 ) then
       select case(k)
         case(1,2,3,4)
           write(vname,'("tggsn",I1.1)') k
-          call filhist1(vname,dk,micdwn(:,k),land_a)
+          call fillhist1(vname,micdwn(:,k),land_a)
           if ( all(micdwn(:,k)==0.) ) micdwn(:,k)=280.
         case(5)
           micdwn(:,k)=fracice ! read above with nudging arrays
@@ -1040,26 +1052,26 @@ if ( nested/=1 ) then
           micdwn(:,k)=snowd*1.E-3
       end select
     end do
-    call filhist1('sto',dk,micdwn(:,8),land_a)
+    call fillhist1('sto',micdwn(:,8),land_a)
     if ( iotest ) then
       call histrd1(iarchi,ier,'uic',ik,micdwn(:,9),ifull)
       call histrd1(iarchi,ier,'vic',ik,micdwn(:,10),ifull)
     else
       call histrd1(iarchi,ier,'uic',ik,ucc,6*ik*ik)
       call histrd1(iarchi,ier,'vic',ik,vcc,6*ik*ik)
-      call fill_cc(ucc,dk,land_a)
-      call fill_cc(vcc,dk,land_a)
-      call interpwind(micdwn(:,9),micdwn(:,10),ucc,vcc,dk)
+      call fill_cc(ucc,land_a)
+      call fill_cc(vcc,land_a)
+      call interpwind(micdwn(:,9),micdwn(:,10),ucc,vcc)
     end if ! iotest
-    call filhist1('icesal',dk,micdwn(:,11),land_a)
+    call fillhist1('icesal',micdwn(:,11),land_a)
     if ( abs(nmlo)>=2 ) then
       call gethist1('swater',watbdy)
       call gethist1('ssalin',salbdy)
     end if
   end if
-  !--------------------------------------------------
 
-  ! SOIL MOISTURE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !------------------------------------------------------------------
+  ! Read soil moisture
   wb=20.5
   do k=1,ms
     if ( ierc(7+ms+k)==0 ) then
@@ -1085,7 +1097,7 @@ if ( nested/=1 ) then
       if ( ierc(7+ms+k)==0 ) then
         ucc=ucc+20.
       end if
-      call fill_cc(ucc,dk,sea_a)
+      call fill_cc(ucc,sea_a)
       call doints4(ucc,wb(:,k))
     end if ! iotest
   end do
@@ -1099,12 +1111,12 @@ if ( nested/=1 ) then
     end do
     if ( mydiag ) write(6,*) "giving wb",wb(idjd,1)
   end if
-  call filhist1('wetfac',dk,wetfac,sea_a)
+  call fillhist1('wetfac',wetfac,sea_a)
   where ( .not.land )
     wetfac=1.
   end where
 
-  !--------------------------------------------------
+  !------------------------------------------------------------------
   ! Read 10m wind speeds for special sea roughness length calculations
   if ( nested==0 ) then
     if ( ierc(2)==0 ) then
@@ -1114,7 +1126,7 @@ if ( nested/=1 ) then
     end if
   end if
 
-  !--------------------------------------------------
+  !------------------------------------------------------------------
   ! Read boundary layer height for TKE-eps mixing
   call gethist1('pblh',pblh)
   pblh=max(pblh,1.)
@@ -1127,52 +1139,52 @@ if ( nested/=1 ) then
     zidry=max(zidry,1.)
   end if
 
-  !--------------------------------------------------
+  !------------------------------------------------------------------
   ! Read CABLE/CASA aggregate C+N+P pools
   if ( nsib>=6 ) then
     if ( ccycle==0 ) then
       if ( ierc(7)==0 ) then
         do k=1,ncp
           write(vname,'("cplant",I1.1)') k
-          call filhist1(vname,dk,cplant(:,k),sea_a)
+          call fillhist1(vname,cplant(:,k),sea_a)
         end do
         do k=1,ncs
           write(vname,'("csoil",I1.1)') k
-          call filhist1(vname,dk,csoil(:,k),sea_a)
+          call fillhist1(vname,csoil(:,k),sea_a)
         end do
       end if
     else
       if ( ierc(7)==0 ) then
         do k=1,mplant
           write(vname,'("cplant",I1.1)') k
-          call filhist1(vname,dk,cplant(:,k),sea_a)
+          call fillhist1(vname,cplant(:,k),sea_a)
           write(vname,'("nplant",I1.1)') k
-          call filhist1(vname,dk,niplant(:,k),sea_a)
+          call fillhist1(vname,niplant(:,k),sea_a)
           write(vname,'("pplant",I1.1)') k
-          call filhist1(vname,dk,pplant(:,k),sea_a)
+          call fillhist1(vname,pplant(:,k),sea_a)
         end do
         do k=1,mlitter
           write(vname,'("clitter",I1.1)') k
-          call filhist1(vname,dk,clitter(:,k),sea_a)
+          call fillhist1(vname,clitter(:,k),sea_a)
           write(vname,'("nlitter",I1.1)') k
-          call filhist1(vname,dk,nilitter(:,k),sea_a)
+          call fillhist1(vname,nilitter(:,k),sea_a)
           write(vname,'("plitter",I1.1)') k
-          call filhist1(vname,dk,plitter(:,k),sea_a)
+          call fillhist1(vname,plitter(:,k),sea_a)
         end do         
         do k=1,msoil
           write(vname,'("csoil",I1.1)') k
-          call filhist1(vname,dk,csoil(:,k),sea_a)
+          call fillhist1(vname,csoil(:,k),sea_a)
           write(vname,'("nsoil",I1.1)') k
-          call filhist1(vname,dk,nisoil(:,k),sea_a)
+          call fillhist1(vname,nisoil(:,k),sea_a)
           write(vname,'("psoil",I1.1)') k
-          call filhist1(vname,dk,psoil(:,k),sea_a)
+          call fillhist1(vname,psoil(:,k),sea_a)
         end do
-        call filhist1('glai',dk,glai,sea_a)
+        call fillhist1('glai',glai,sea_a)
       end if ! ierc(7)==0
     end if ! ccycle==0 ..else..
   end if ! if nsib==6.or.nsib==7
 
-  !--------------------------------------------------
+  !------------------------------------------------------------------
   ! Read urban data
   if ( nurban/=0 ) then
     if ( .not.allocated(atebdwn) ) allocate(atebdwn(ifull,24))
@@ -1234,7 +1246,7 @@ if ( nested/=1 ) then
         where ( ucc>=399. )
           ucc=999.
         end where
-        call fill_cc(ucc,dk,sea_a)
+        call fill_cc(ucc,sea_a)
         call doints4(ucc,atebdwn(:,k))
       end if ! iotest
       if ( all(atebdwn(:,k)==0.) ) then
@@ -1249,10 +1261,10 @@ if ( nested/=1 ) then
       end if
     end do
   end if
-  !--------------------------------------------------
-        
+
+  ! -----------------------------------------------------------------
+  ! Read omega for restart
   if ( nested==0 ) then
-    ! OMEGA !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! only for restart - no interpolation
     dpsldt=-999.
     if ( lrestart ) then
@@ -1261,26 +1273,23 @@ if ( nested/=1 ) then
        dpsldt(:,k)=dpsldt(:,k)/(1.e5*exp(psl(1:ifull)))
       enddo  ! k loop
     end if
+  end if
 
-    ! CLOUD FROZEN WATER !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    call gethist4('qfg',qfg,5)
-    ! CLOUD LIQUID WATER !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    call gethist4('qlg',qlg,5)
-    ! RAIN !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    call gethist4('qrg',qrg,5)
-    ! CLOUD FRACTION !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    call gethist4('cfrac',cfrac,5)
-    ! RAIN FRACTION !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    call gethist4('cfrain',cffall,5)
+  ! -----------------------------------------------------------------
+  ! Read cloud fields
+  if ( nested==0 ) then
+    call gethist4('qfg',qfg,5)               ! CLOUD FROZEN WATER
+    call gethist4('qlg',qlg,5)               ! CLOUD LIQUID WATER
+    call gethist4('qrg',qrg,5)               ! RAIN
+    call gethist4('cfrac',cfrac,5)           ! CLOUD FRACTION
+    call gethist4('cfrain',cffall,5)         ! RAIN FRACTION
     if ( ncloud>=3 ) then
-      ! STRAT CLOUD FRACTION !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      call gethist4('stratcf',stratcloud,5)
-      ! STRAT NET TENDENCY !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      call gethist4('strat_nt',nettend,5)
+      call gethist4('stratcf',stratcloud,5)  ! STRAT CLOUD FRACTION
+      call gethist4('strat_nt',nettend,5)    ! STRAT NET TENDENCY
     end if ! (ncloud>=3)
   end if   ! (nested==0)
 
-  !--------------------------------------------------
+  !------------------------------------------------------------------
   ! TKE-eps data
   if ( nvmix==6 .and. nested==0 ) then
     call gethist4('tke',tke,5)
@@ -1289,7 +1298,7 @@ if ( nested/=1 ) then
     if  (all(eps(1:ifull,:)==0.) ) eps(1:ifull,:)=1.E-7
   end if
 
-  !------------------------------------------------------------
+  !------------------------------------------------------------------
   ! Tracer data
   if ( ngas>0 ) then              
     do igas=1,ngas              
@@ -1298,8 +1307,8 @@ if ( nested/=1 ) then
     enddo                       
   endif                         
 
-  !------------------------------------------------------------
-  ! Aerosol data
+  !------------------------------------------------------------------
+  ! Aerosol data ( non-nudged or diagnostic )
   if ( abs(iaero)>=2 ) then
     do i=naero+1,naero+2
       select case(i)
@@ -1320,9 +1329,10 @@ if ( nested/=1 ) then
     enddo
   end if
   
+  ! -----------------------------------------------------------------
+  ! Restart fields
   if ( nested==0 ) then
     ! GEOPOTENTIAL !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    ! only for restart - no interpolation
     phi_nh=0.
     if ( lrestart ) then
       do k=1,kk 
@@ -1331,7 +1341,6 @@ if ( nested/=1 ) then
     end if
 
     ! SDOT !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    ! only for restart - no interpolation
     sdot=-999.
     if ( lrestart ) then
       sdot(:,1)=0.
@@ -1341,7 +1350,6 @@ if ( nested/=1 ) then
     end if
 
     ! PSLX !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    ! only for restart - no interpolation
     pslx=-999.
     if ( lrestart ) then
       do k=1,kk 
@@ -1350,7 +1358,6 @@ if ( nested/=1 ) then
     end if
           
     ! SAVU !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    ! only for restart - no interpolation
     savu=-999.
     if ( lrestart ) then
       do k=1,kk 
@@ -1359,7 +1366,6 @@ if ( nested/=1 ) then
     end if
           
     ! SAVV !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    ! only for restart - no interpolation
     savv=-999.
     if ( lrestart ) then
       do k=1,kk 
@@ -1368,7 +1374,6 @@ if ( nested/=1 ) then
     end if
 
     ! SAVU1 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    ! only for restart - no interpolation
     savu1=-999.
     if ( lrestart ) then
       do k=1,kk 
@@ -1377,7 +1382,6 @@ if ( nested/=1 ) then
     end if
           
     ! SAVV1 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    ! only for restart - no interpolation
     savv1=-999.
     if ( lrestart ) then
       do k=1,kk 
@@ -1386,7 +1390,6 @@ if ( nested/=1 ) then
     end if
 
     ! SAVU2 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    ! only for restart - no interpolation
     savu2=-999.
     if ( lrestart ) then
       do k=1,kk 
@@ -1395,14 +1398,14 @@ if ( nested/=1 ) then
     end if
           
     ! SAVV2 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    ! only for restart - no interpolation
     savv2=-999.
     if ( lrestart ) then
       do k=1,kk 
         call histrd4s(iarchi,ier,'savv2',ik,k,savv2(:,k),ifull)
       enddo  ! k loop
     end if
-          
+
+    ! OCEAN DATA !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
       oldu1=0.
       oldu2=0.
@@ -1426,17 +1429,16 @@ if ( nested/=1 ) then
        
   end if ! (nested==0)
 
-  ! SOIL ICE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! -----------------------------------------------------------------
+  ! soil ice and snow data
   do k=1,ms
     write(vname,'("wbice",I1.1)') k
-    call filhist1(vname,dk,wbice(:,k),sea_a)
+    call fillhist1(vname,wbice(:,k),sea_a)    ! SOIL ICE
   end do
-
-  ! SNOW !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   if ( nmlo==0 .or. abs(nmlo)>9 ) then ! otherwise already read above
     do k=1,3
       write(vname,'("tggsn",I1.1)') k
-      call filhist1(vname,dk,tggsn(:,k),sea_a)
+      call fillhist1(vname,tggsn(:,k),sea_a)
       if ( all(tggsn(:,k)==0.) ) tggsn(:,k)=280.
       where( .not.land )
         tggsn(:,k)=280.
@@ -1445,11 +1447,11 @@ if ( nested/=1 ) then
   end if
   do k=1,3
     write(vname,'("smass",I1.1)') k
-    call filhist1(vname,dk,smass(:,k),sea_a)
+    call fillhist1(vname,smass(:,k),sea_a)
   end do
   do k=1,3
     write(vname,'("ssdn",I1.1)') k
-    call filhist1(vname,dk,ssdn(:,k),sea_a)
+    call fillhist1(vname,ssdn(:,k),sea_a)
     if ( all(ssdn(:,k)==0.) ) then
       where ( snowd>100. )
         ssdn(:,k)=240.
@@ -1459,11 +1461,12 @@ if ( nested/=1 ) then
     end if
   end do
   ssdnn=ssdn(:,1)
-  call filhist1('snage',dk,snage,sea_a)
-
-  call filhist1('sflag',dk,dum6,sea_a)
+  call fillhist1('snage',snage,sea_a)
+  call fillhist1('sflag',dum6,sea_a)
   isflag=nint(dum6)
 
+  ! -----------------------------------------------------------------
+  ! Misc fields
   ! sgsave is needed for convection
   call gethist1('sgsave',sgsave)
         
@@ -1472,7 +1475,8 @@ endif    ! (nested/=1)
 !**************************************************************
 ! This is the end of reading the initial arrays
 !**************************************************************         
-          
+
+! -------------------------------------------------------------------
 ! tgg holds file surface temperature when no MLO
 if ( nmlo==0 .or. abs(nmlo)>9 ) then
   where ( .not.land )
@@ -1480,6 +1484,7 @@ if ( nmlo==0 .or. abs(nmlo)>9 ) then
   end where
 end if
 
+! -------------------------------------------------------------------
 ! set-up for next read of file
 iarchi=iarchi+1
 kdate_s=kdate_r
@@ -1490,9 +1495,15 @@ if ( myid==0 .and. nested==0 ) then
 end if
 
 return
-end subroutine ontheflyx
+end subroutine onthefly_work
 
-subroutine doints4(s,sout)  ! does calls to intsb
+
+! *****************************************************************************
+! INTERPOLATION ROUTINES                         
+
+! Main interface
+! Note that sx is a global array for all processors
+subroutine doints4(s,sout)
       
 use cc_mpi                 ! CC MPI routines
       
@@ -1503,79 +1514,81 @@ include 'parm.h'           ! Model configuration
       
 integer :: iq, mm, n, i, j
 integer :: n_n, n_e, n_w, n_s
-real, dimension(ik*ik*6), intent(inout) :: s
+real, dimension(6*dk*dk), intent(in) :: s
 real, dimension(ifull), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
-real, dimension(-1:ik+2,-1:ik+2,0:npanels) :: sx
+real, dimension(-1:ik+2,-1:ik+2,0:npanels) :: sx ! large common array
 
-call ccmpi_bcast(s,0,comm_world)
+if ( dk>0 ) then
+  !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
+  sx(1:ik,1:ik,0:npanels) = reshape(s(1:ik*ik*6), (/ik,ik,6/))
+  do n=0,npanels,2
+    n_w=mod(n+5,6)
+    n_e=mod(n+2,6)
+    n_n=mod(n+1,6)
+    n_s=mod(n+4,6)
+    do j=1,ik
+      sx(0,j,n)   =s(indx(ik,j,n_w,ik,ik))
+      sx(-1,j,n)  =s(indx(ik-1,j,n_w,ik,ik))
+      sx(ik+1,j,n)=s(indx(ik+1-j,1,n_e,ik,ik))
+      sx(ik+2,j,n)=s(indx(ik+1-j,2,n_e,ik,ik))
+    enddo
+    do i=1,ik
+      sx(i,ik+1,n)=s(indx(i,1,n+1,ik,ik))
+      sx(i,ik+2,n)=s(indx(i,2,n+1,ik,ik))
+      sx(i,0,n)   =s(indx(ik,ik+1-i,n_s,ik,ik))
+      sx(i,-1,n)  =s(indx(ik-1,ik+1-i,n_s,ik,ik))
+    enddo
+    sx(-1,0,n)     =s(indx(ik,2,n_w,ik,ik))    ! wws
+    sx(0,-1,n)     =s(indx(ik,ik-1,n_s,ik,ik)) ! wss
+    sx(0,0,n)      =s(indx(ik,1,n_w,ik,ik))    ! ws
+    sx(ik+1,0,n)   =s(indx(ik,1,n_e,ik,ik))    ! es  
+    sx(ik+2,0,n)   =s(indx(ik-1,1,n_e,ik,ik))  ! ees 
+    sx(-1,ik+1,n)  =s(indx(ik,ik-1,n_w,ik,ik)) ! wwn
+    sx(0,ik+2,n)   =s(indx(ik-1,ik,n_w,ik,ik)) ! wnn
+    sx(ik+2,ik+1,n)=s(indx(2,1,n_e,ik,ik))     ! een  
+    sx(ik+1,ik+2,n)=s(indx(1,2,n_e,ik,ik))     ! enn  
+    sx(0,ik+1,n)   =s(indx(ik,ik,n_w,ik,ik))   ! wn  
+    sx(ik+1,ik+1,n)=s(indx(1,1,n_e,ik,ik))     ! en  
+    sx(ik+1,-1,n)  =s(indx(ik,2,n_e,ik,ik))    ! ess  
+  enddo  ! n loop
+  do n=1,npanels,2
+    n_w=mod(n+4,6)
+    n_e=mod(n+1,6)
+    n_n=mod(n+2,6)
+    n_s=mod(n+5,6)
+    do j=1,ik
+      sx(0,j,n)   =s(indx(ik+1-j,ik,n_w,ik,ik))
+      sx(-1,j,n)  =s(indx(ik+1-j,ik-1,n_w,ik,ik))
+      sx(ik+1,j,n)=s(indx(1,j,n_e,ik,ik))
+      sx(ik+2,j,n)=s(indx(2,j,n_e,ik,ik))
+    enddo
+    do i=1,ik
+      sx(i,ik+1,n)=s(indx(1,ik+1-i,n_n,ik,ik))
+      sx(i,ik+2,n)=s(indx(2,ik+1-i,n_n,ik,ik))
+      sx(i,0,n)   =s(indx(i,ik,n-1,ik,ik))
+      sx(i,-1,n)  =s(indx(i,ik-1,n-1,ik,ik))
+    enddo
+    sx(-1,0,n)     =s(indx(ik-1,ik,n_w,ik,ik)) ! wws
+    sx(0,-1,n)     =s(indx(2,ik,n_s,ik,ik))    ! wss
+    sx(0,0,n)      =s(indx(ik,ik,n_w,ik,ik))   ! ws
+    sx(ik+1,0,n)   =s(indx(1,1,n_e,ik,ik))     ! es
+    sx(ik+2,0,n)   =s(indx(1,2,n_e,ik,ik))     ! ees
+    sx(-1,ik+1,n)  =s(indx(2,ik,n_w,ik,ik))    ! wwn   
+    sx(0,ik+2,n)   =s(indx(1,ik-1,n_w,ik,ik))  ! wnn  
+    sx(ik+2,ik+1,n)=s(indx(1,ik-1,n_e,ik,ik))  ! een  
+    sx(ik+1,ik+2,n)=s(indx(2,ik,n_e,ik,ik))    ! enn  
+    sx(0,ik+1,n)   =s(indx(1,ik,n_w,ik,ik))    ! wn  
+    sx(ik+1,ik+1,n)=s(indx(1,ik,n_e,ik,ik))    ! en  
+    sx(ik+1,-1,n)  =s(indx(2,1,n_e,ik,ik))     ! ess  
+  enddo  ! n loop
+  !     for ew interpolation, sometimes need (different from ns):
+  !          (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
+  !         (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
+end if
 
-!     first extend s arrays into sx - this one -1:il+2 & -1:il+2
-sx(1:ik,1:ik,0:npanels) = reshape(s(1:ik*ik*6), (/ik,ik,6/))
-do n=0,npanels,2
-  n_w=mod(n+5,6)
-  n_e=mod(n+2,6)
-  n_n=mod(n+1,6)
-  n_s=mod(n+4,6)
-  do j=1,ik
-    sx(0,j,n)   =s(indx(ik,j,n_w,ik,ik))
-    sx(-1,j,n)  =s(indx(ik-1,j,n_w,ik,ik))
-    sx(ik+1,j,n)=s(indx(ik+1-j,1,n_e,ik,ik))
-    sx(ik+2,j,n)=s(indx(ik+1-j,2,n_e,ik,ik))
-  enddo
-  do i=1,ik
-    sx(i,ik+1,n)=s(indx(i,1,n+1,ik,ik))
-    sx(i,ik+2,n)=s(indx(i,2,n+1,ik,ik))
-    sx(i,0,n)   =s(indx(ik,ik+1-i,n_s,ik,ik))
-    sx(i,-1,n)  =s(indx(ik-1,ik+1-i,n_s,ik,ik))
-  enddo
-  sx(-1,0,n)     =s(indx(ik,2,n_w,ik,ik))    ! wws
-  sx(0,-1,n)     =s(indx(ik,ik-1,n_s,ik,ik)) ! wss
-  sx(0,0,n)      =s(indx(ik,1,n_w,ik,ik))    ! ws
-  sx(ik+1,0,n)   =s(indx(ik,1,n_e,ik,ik))    ! es  
-  sx(ik+2,0,n)   =s(indx(ik-1,1,n_e,ik,ik))  ! ees 
-  sx(-1,ik+1,n)  =s(indx(ik,ik-1,n_w,ik,ik)) ! wwn
-  sx(0,ik+2,n)   =s(indx(ik-1,ik,n_w,ik,ik)) ! wnn
-  sx(ik+2,ik+1,n)=s(indx(2,1,n_e,ik,ik))     ! een  
-  sx(ik+1,ik+2,n)=s(indx(1,2,n_e,ik,ik))     ! enn  
-  sx(0,ik+1,n)   =s(indx(ik,ik,n_w,ik,ik))   ! wn  
-  sx(ik+1,ik+1,n)=s(indx(1,1,n_e,ik,ik))     ! en  
-  sx(ik+1,-1,n)  =s(indx(ik,2,n_e,ik,ik))    ! ess  
-enddo  ! n loop
-do n=1,npanels,2
-  n_w=mod(n+4,6)
-  n_e=mod(n+1,6)
-  n_n=mod(n+2,6)
-  n_s=mod(n+5,6)
-  do j=1,ik
-    sx(0,j,n)   =s(indx(ik+1-j,ik,n_w,ik,ik))
-    sx(-1,j,n)  =s(indx(ik+1-j,ik-1,n_w,ik,ik))
-    sx(ik+1,j,n)=s(indx(1,j,n_e,ik,ik))
-    sx(ik+2,j,n)=s(indx(2,j,n_e,ik,ik))
-  enddo
-  do i=1,ik
-    sx(i,ik+1,n)=s(indx(1,ik+1-i,n_n,ik,ik))
-    sx(i,ik+2,n)=s(indx(2,ik+1-i,n_n,ik,ik))
-    sx(i,0,n)   =s(indx(i,ik,n-1,ik,ik))
-    sx(i,-1,n)  =s(indx(i,ik-1,n-1,ik,ik))
-  enddo
-  sx(-1,0,n)     =s(indx(ik-1,ik,n_w,ik,ik)) ! wws
-  sx(0,-1,n)     =s(indx(2,ik,n_s,ik,ik))    ! wss
-  sx(0,0,n)      =s(indx(ik,ik,n_w,ik,ik))   ! ws
-  sx(ik+1,0,n)   =s(indx(1,1,n_e,ik,ik))     ! es
-  sx(ik+2,0,n)   =s(indx(1,2,n_e,ik,ik))     ! ees
-  sx(-1,ik+1,n)  =s(indx(2,ik,n_w,ik,ik))    ! wwn   
-  sx(0,ik+2,n)   =s(indx(1,ik-1,n_w,ik,ik))  ! wnn  
-  sx(ik+2,ik+1,n)=s(indx(1,ik-1,n_e,ik,ik))  ! een  
-  sx(ik+1,ik+2,n)=s(indx(2,ik,n_e,ik,ik))    ! enn  
-  sx(0,ik+1,n)   =s(indx(1,ik,n_w,ik,ik))    ! wn  
-  sx(ik+1,ik+1,n)=s(indx(1,ik,n_e,ik,ik))    ! en  
-  sx(ik+1,-1,n)  =s(indx(2,1,n_e,ik,ik))     ! ess  
-enddo  ! n loop
-!     for ew interpolation, sometimes need (different from ns):
-!          (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
-!         (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
-
+call ccmpi_bcast(sx,0,comm_world)
+  
 if ( nord==1 ) then ! bilinear
   do mm=1,m_fly     !  was 4, now may be 1
     call ints_blb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
@@ -1682,16 +1695,18 @@ enddo    ! iq loop
 return
 end subroutine ints_blb
 
-subroutine fill_cc(a_io,dk,land_a)
+! *****************************************************************************
+! FILL ROUTINES
+
+subroutine fill_cc(a_io,land_a)
       
-!     this version holds whole array in memory      
-!     routine fills in interior of an array which has undefined points
+! routine fills in interior of an array which has undefined points
 
 use cc_mpi          ! CC MPI routines
 
 implicit none
 
-integer :: nrem, i, ii, dk, iq, j, n, neighb
+integer :: nrem, i, ii, iq, j, n, neighb
 integer :: iminb, imaxb, jminb, jmaxb
 integer, dimension(0:5) :: imin,imax,jmin,jmax
 real, parameter :: value=999.       ! missing value flag
@@ -1730,14 +1745,14 @@ do while ( nrem > 0)
       do i=imin(n),imax(n)
         iq=indx(i,j,n,dk,dk)
         if ( a(iq)==value ) then
-          ! ic(iq,dk)[1] is in_g for host grid
-          ! ic(iq,dk)[2] is is_g for host grid
-          ! ic(iq,dk)[3] is ie_g for host grid
-          ! ic(iq,dk)[4] is iw_g for host grid
-          mask=a(ic(iq,dk))/=value
+          ! ic(iq)[1] is in_g for host grid
+          ! ic(iq)[2] is is_g for host grid
+          ! ic(iq)[3] is ie_g for host grid
+          ! ic(iq)[4] is iw_g for host grid
+          mask=a(ic(iq))/=value
           neighb=count(mask)
           if ( neighb>0 ) then
-            a_io(iq)=sum(a(ic(iq,dk)),mask)/real(neighb)
+            a_io(iq)=sum(a(ic(iq)),mask)/real(neighb)
           else
             iminb=min(i,iminb)
             imaxb=max(i,imaxb)
@@ -1760,15 +1775,18 @@ call END_LOG(otf_fill_end)
 return
 end subroutine fill_cc
 
-function ic(iq,dk) result (iqq)
+function ic(iq) result (iqq)
+
 implicit none
-integer, intent(in) :: iq, dk
+
+integer, intent(in) :: iq
 integer, dimension(4) :: iqq
 integer i, j, n
 integer, parameter, dimension(0:5) :: npann=(/1,103,3,105,5,101/)
 integer, parameter, dimension(0:5) :: npane=(/102,2,104,4,100,0/)
 integer, parameter, dimension(0:5) :: npanw=(/5,105,1,101,3,103/)
 integer, parameter, dimension(0:5) :: npans=(/104,0,100,2,102,4/)
+
 n=(iq-1)/(dk*dk)
 j=(iq-1-n*dk*dk)/dk+1
 i=iq-(j-1)*dk-n*dk*dk
@@ -1812,13 +1830,14 @@ if (i==1) then
 else
   iqq(4)=iq-1
 end if
+
 end function ic
+
+! *****************************************************************************
+! OROGRAPHIC ADJUSTMENT ROUTINES
 
 subroutine mslpx(pmsl,psl,zs,t,siglev)
       
-!     generalized from ifull to allow new onthefly    0808
-!     can replace usual mslp sometime
-
 use cc_mpi, only : mydiag ! CC MPI routines
 use sigs_m                ! Atmosphere sigma levels
       
@@ -1830,10 +1849,9 @@ include 'const_phys.h'    ! Physical constants
 include 'parm.h'          ! Model configuration
 
 integer iq
-real siglev
-real, dimension(6*ik*ik) :: pmsl, psl, zs, t
-real c, con, conr
-real, dimension(6*ik*ik) :: dlnps, phi1, tav, tsurf
+real siglev, c, con, conr
+real, dimension(6*dk*dk) :: pmsl, psl, zs, t
+real, dimension(6*dk*dk) :: dlnps, phi1, tav, tsurf
 
 c=grav/stdlapse
 conr=c/rdry
@@ -1848,13 +1866,10 @@ return
 end subroutine mslpx
       
 subroutine to_pslx(pmsl,psl,zs,t,lev)
-!     generalized from ifull to allow new onthefly    0808
-!     can replace usual mslp sometime
 
 use cc_mpi, only : mydiag  ! CC MPI routines
 use sigs_m                 ! Atmosphere sigma levels
       
-!     this one will ignore negative zs (i.e. over the ocean)
 implicit none
       
 include 'newmpar.h'        ! Grid parameters
@@ -1880,136 +1895,6 @@ endif
 
 return
 end subroutine to_pslx
-      
-subroutine interpwind(uct,vct,ucc,vcc,dk)
-      
-use cc_mpi           ! CC MPI routines
-use vecsuv_m         ! Map to cartesian coordinates
-      
-implicit none
-      
-include 'newmpar.h'  ! Grid parameters
-      
-integer, intent(in) :: dk
-integer iq
-real, dimension(6*dk*dk) :: uc,vc,wc
-! nust allocate these arrays as 6*ik*ik so that the global arrays can
-! be copied to all processors before interpolating to local grid
-real, dimension(6*ik*ik), intent(inout) :: ucc,vcc
-real, dimension(6*ik*ik) :: wcc
-real, dimension(ifull), intent(out) :: uct,vct
-real, dimension(ifull) :: wct
-
-! dk is only non-zero on myid==0
-do iq=1,dk*dk*6
-  ! first set up winds in Cartesian "source" coords            
-  uc(iq)=axs_a(iq)*ucc(iq) + bxs_a(iq)*vcc(iq)
-  vc(iq)=ays_a(iq)*ucc(iq) + bys_a(iq)*vcc(iq)
-  wc(iq)=azs_a(iq)*ucc(iq) + bzs_a(iq)*vcc(iq)
-  ! now convert to winds in "absolute" Cartesian components
-  ucc(iq)=uc(iq)*rotpoles(1,1)+vc(iq)*rotpoles(1,2)+wc(iq)*rotpoles(1,3)
-  vcc(iq)=uc(iq)*rotpoles(2,1)+vc(iq)*rotpoles(2,2)+wc(iq)*rotpoles(2,3)
-  wcc(iq)=uc(iq)*rotpoles(3,1)+vc(iq)*rotpoles(3,2)+wc(iq)*rotpoles(3,3)
-end do
-! interpolate all required arrays to new C-C positions
-! don't need to do map factors and Coriolis on target grid
-call doints4(ucc,  uct)
-call doints4(vcc,  vct)
-call doints4(wcc,  wct)
-do iq=1,ifull
-  ! now convert to "target" Cartesian components (transpose used)
-  ucc(iq)=uct(iq)*rotpole(1,1)+vct(iq)*rotpole(2,1)+wct(iq)*rotpole(3,1)
-  vcc(iq)=uct(iq)*rotpole(1,2)+vct(iq)*rotpole(2,2)+wct(iq)*rotpole(3,2)
-  wcc(iq)=uct(iq)*rotpole(1,3)+vct(iq)*rotpole(2,3)+wct(iq)*rotpole(3,3)
-  ! then finally to "target" local x-y components
-  uct(iq) = ax(iq)*ucc(iq) + ay(iq)*vcc(iq) +  az(iq)*wcc(iq)
-  vct(iq) = bx(iq)*ucc(iq) + by(iq)*vcc(iq) +  bz(iq)*wcc(iq)
-enddo               ! iq loop
-      
-return
-end subroutine interpwind
-
-subroutine gethist1(vname,varout)
-      
-use infile             ! Input file routines
-      
-implicit none
-      
-include 'newmpar.h'    ! Grid parameters
-include 'darcdf.h'     ! Netcdf data
-      
-integer ier
-real, dimension(:), intent(out) :: varout
-real, dimension(6*ik*ik) :: ucc
-character(len=*), intent(in) :: vname
-      
-if ( iotest ) then
-  call histrd1(iarchi,ier,vname,ik,varout,ifull)
-else
-  call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik)
-  call doints4(ucc,varout)
-end if ! iotest
-
-return
-end subroutine gethist1
-     
-subroutine filhist1(vname,dk,varout,mask_a)
-      
-use infile             ! Input file routines
-      
-implicit none
-      
-include 'newmpar.h'    ! Grid parameters
-include 'darcdf.h'     ! Netcdf data
-      
-integer, intent(in) :: dk
-integer ier
-real, dimension(:), intent(out) :: varout
-real, dimension(6*ik*ik) :: ucc
-logical, dimension(6*dk*dk), intent(in) :: mask_a
-character(len=*), intent(in) :: vname
-      
-if ( iotest ) then
-  call histrd1(iarchi,ier,vname,ik,varout,ifull)
-else
-  call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik)
-  call fill_cc(ucc,dk,mask_a)
-  call doints4(ucc,varout)
-end if ! iotest
-      
-return
-end subroutine filhist1
-     
-subroutine gethist4(vname,varout,vmode)
-      
-use infile             ! Input file routines
-      
-implicit none
-      
-include 'newmpar.h'    ! Grid parameters
-include 'darcdf.h'     ! Netcdf data
-      
-integer, intent(in) :: vmode
-integer k, ier
-real, dimension(:,:), intent(out) :: varout
-real, dimension(6*ik*ik) :: ucc
-real, dimension(ifull,kk) :: u_k
-character(len=*), intent(in) :: vname
-      
-if ( iotest ) then
-  do k=1,kk          
-    call histrd4s(iarchi,ier,vname,ik,k,u_k(:,k),ifull)
-  end do
-else
-  do k=1,kk
-    call histrd4s(iarchi,ier,vname,ik,k,ucc,6*ik*ik)
-    call doints4(ucc,u_k(:,k))
-  end do
-end if ! iotest
-call vertint(u_k,varout,vmode,kk,sigin)
-      
-return
-end subroutine gethist4   
 
 subroutine retopo(psl,zsold,zs,t,qg)
 !     in Jan 07, renamed recalc of ps from here, to reduce confusion     
@@ -2075,5 +1960,140 @@ endif  ! (ktau.lt.100)
 
 return
 end subroutine retopo
+
+! *****************************************************************************
+! VECTOR INTERPOLATION ROUTINES
+
+subroutine interpwind(uct,vct,ucc,vcc)
+      
+use cc_mpi           ! CC MPI routines
+use vecsuv_m         ! Map to cartesian coordinates
+      
+implicit none
+      
+include 'newmpar.h'  ! Grid parameters
+      
+integer iq
+real, dimension(6*dk*dk), intent(inout) :: ucc, vcc
+real, dimension(6*dk*dk) :: wcc
+real, dimension(ifull), intent(out) :: uct, vct
+real, dimension(ifull) :: wct
+real uc, vc, wc, newu, newv, neww
+
+! dk is only non-zero on myid==0
+do iq=1,6*dk*dk
+  ! first set up winds in Cartesian "source" coords            
+  uc=axs_a(iq)*ucc(iq) + bxs_a(iq)*vcc(iq)
+  vc=ays_a(iq)*ucc(iq) + bys_a(iq)*vcc(iq)
+  wc=azs_a(iq)*ucc(iq) + bzs_a(iq)*vcc(iq)
+  ! now convert to winds in "absolute" Cartesian components
+  ucc(iq)=uc*rotpoles(1,1)+vc*rotpoles(1,2)+wc*rotpoles(1,3)
+  vcc(iq)=uc*rotpoles(2,1)+vc*rotpoles(2,2)+wc*rotpoles(2,3)
+  wcc(iq)=uc*rotpoles(3,1)+vc*rotpoles(3,2)+wc*rotpoles(3,3)
+end do  ! iq loop
+! interpolate all required arrays to new C-C positions
+! do not need to do map factors and Coriolis on target grid
+call doints4(ucc, uct)
+call doints4(vcc, vct)
+call doints4(wcc, wct)
+do iq=1,ifull
+  ! now convert to "target" Cartesian components (transpose used)
+  newu=uct(iq)*rotpole(1,1)+vct(iq)*rotpole(2,1)+wct(iq)*rotpole(3,1)
+  newv=uct(iq)*rotpole(1,2)+vct(iq)*rotpole(2,2)+wct(iq)*rotpole(3,2)
+  neww=uct(iq)*rotpole(1,3)+vct(iq)*rotpole(2,3)+wct(iq)*rotpole(3,3)
+  ! then finally to "target" local x-y components
+  uct(iq) = ax(iq)*newu + ay(iq)*newv + az(iq)*neww
+  vct(iq) = bx(iq)*newu + by(iq)*newv + bz(iq)*neww
+end do  ! iq loop
+      
+return
+end subroutine interpwind
+
+! *****************************************************************************
+! FILE IO ROUTINES
+
+! This version reads and interpolates a surface field
+subroutine gethist1(vname,varout)
+      
+use infile             ! Input file routines
+      
+implicit none
+      
+include 'newmpar.h'    ! Grid parameters
+include 'darcdf.h'     ! Netcdf data
+
+integer ier
+real, dimension(:), intent(out) :: varout
+real, dimension(6*dk*dk) :: ucc
+character(len=*), intent(in) :: vname
+      
+if ( iotest ) then
+  call histrd1(iarchi,ier,vname,ik,varout,ifull)
+else
+  call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik)
+  call doints4(ucc,varout)
+end if ! iotest
+
+return
+end subroutine gethist1
+
+! This version reads, fills and interpolates a surface field
+subroutine fillhist1(vname,varout,mask_a)
+      
+use infile             ! Input file routines
+      
+implicit none
+      
+include 'newmpar.h'    ! Grid parameters
+include 'darcdf.h'     ! Netcdf data
+      
+integer ier
+real, dimension(:), intent(out) :: varout
+real, dimension(6*dk*dk) :: ucc
+logical, dimension(6*dk*dk), intent(in) :: mask_a
+character(len=*), intent(in) :: vname
+      
+if ( iotest ) then
+  call histrd1(iarchi,ier,vname,ik,varout,ifull)
+else
+  call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik)
+  call fill_cc(ucc,mask_a)
+  call doints4(ucc,varout)
+end if ! iotest
+      
+return
+end subroutine fillhist1
+
+! This version reads and interpolates 3D atmospheric fields
+subroutine gethist4(vname,varout,vmode)
+      
+use infile             ! Input file routines
+      
+implicit none
+      
+include 'newmpar.h'    ! Grid parameters
+include 'darcdf.h'     ! Netcdf data
+      
+integer, intent(in) :: vmode
+integer k, ier
+real, dimension(:,:), intent(out) :: varout
+real, dimension(6*dk*dk) :: ucc
+real, dimension(ifull,kk) :: u_k
+character(len=*), intent(in) :: vname
+      
+if ( iotest ) then
+  do k=1,kk          
+    call histrd4s(iarchi,ier,vname,ik,k,u_k(:,k),ifull)
+  end do
+else
+  do k=1,kk
+    call histrd4s(iarchi,ier,vname,ik,k,ucc,6*ik*ik)
+    call doints4(ucc,u_k(:,k))
+  end do
+end if ! iotest
+call vertint(u_k,varout,vmode,kk,sigin)
+      
+return
+end subroutine gethist4   
 
 end module onthefly_m

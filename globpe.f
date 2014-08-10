@@ -119,10 +119,11 @@
       real, dimension(:), allocatable, save :: spmean, div
       real, dimension(9) :: temparray, gtemparray
       real, dimension(8) :: rdum
-      real clhav, cllav, clmav, cltav, con, div_int, dsx, dtds, es
+      real clhav, cllav, clmav, cltav, div_int, dsx, dtds, es
       real gke, hourst, hrs_dt, evapavge, precavge, preccavge, psavge
       real pslavge, pwater, rel_lat, rel_long, rlwup, spavge, pwatr
       real pwatr_l, qtot, aa, bb, cc, bb_2, cc_2, rat
+      real, parameter :: con = 180./pi
       character(len=60) comm, comment
       character(len=47) header
       character(len=10) timeval
@@ -614,7 +615,7 @@
         write(6,*) "Calling setxyz"
         call workglob_init(ifull_g)
         call setxyz(il_g,rlong0,rlat0,schmidt,x_g,y_g,z_g,wts_g,ax_g,
-     &              ay_g,az_g,bx_g,by_g,bz_g,xx4,yy4,myid)
+     &              ay_g,az_g,bx_g,by_g,bz_g,xx4,yy4)
       end if
       ! Broadcast the following global arrays so that they can be
       ! decomposed into local arrays with ccmpi_setup
@@ -631,7 +632,7 @@
         call ccmpi_bcast(em_g,0,comm_world)
       end if
       if (myid==0) write(6,*) "Calling ccmpi_setup"
-      call ccmpi_setup()
+      call ccmpi_setup
 
       
       !--------------------------------------------------------------
@@ -720,10 +721,9 @@
       
       !--------------------------------------------------------------
       ! DISPLAY DIAGNOSTIC INDEX AND TIMER DATA
-      con=180./pi
       if ( mydiag ) then
-         write(6,"('id,jd,rlongg,rlatt in degrees: ',2i4,2f8.2)")
-     &         id,jd,con*rlongg(idjd),con*rlatt(idjd)
+        write(6,"('id,jd,rlongg,rlatt in degrees: ',2i4,2f8.2)")
+     &             id,jd,con*rlongg(idjd),con*rlatt(idjd)
       end if
 
 
@@ -771,8 +771,8 @@
       pwatr_l=0.   ! in mm
       do k=1,kl
         do iq=1,ifull
-         qtot=qg(iq,k)+qlg(iq,k)+qfg(iq,k)
-         pwatr_l=pwatr_l-dsig(k)*wts(iq)*qtot*ps(iq)
+          qtot=qg(iq,k)+qlg(iq,k)+qfg(iq,k)
+          pwatr_l=pwatr_l-dsig(k)*wts(iq)*qtot*ps(iq)
         enddo
       enddo
       pwatr_l=pwatr_l/grav
@@ -791,14 +791,14 @@
 
       !--------------------------------------------------------------
       ! OPEN MESONEST FILE
-      if(mbd/=0.or.nbd/=0)then
-         io_in=io_nest                    ! Needs to be seen by all processors
-         call histopen(ncid,mesonest,ier) ! open parallel mesonest files
-         call ncmsg("mesonest",ier)       ! report error messages
-         if ( myid == 0 ) then
-           write(6,*)'ncid,mesonest ',ncid,mesonest
-         endif ! myid == 0
-      endif    ! (mbd/=0.or.nbd/=0)
+      if (mbd/=0.or.nbd/=0) then
+        io_in=io_nest                    ! Needs to be seen by all processors
+        call histopen(ncid,mesonest,ier) ! open parallel mesonest files
+        call ncmsg("mesonest",ier)       ! report error messages
+        if ( myid == 0 ) then
+          write(6,*)'ncid,mesonest ',ncid,mesonest
+        end if  ! myid == 0
+      end if    ! (mbd/=0.or.nbd/=0)
 
 
       !--------------------------------------------------------------
@@ -808,30 +808,30 @@
 !     sig(kuocb) occurs for level just BELOW sigcb
       kuocb=1
       do while(sig(kuocb+1)>=sigcb)
-       kuocb=kuocb+1
-      enddo
+        kuocb=kuocb+1
+      end do
       if (myid==0)
      & write(6,*)'convective cumulus scheme: kuocb,sigcb = ',kuocb,sigcb
 
       ! horizontal diffusion 
-      if(khdif==-99)then   ! set default khdif appropriate to resolution
+      if (khdif==-99) then   ! set default khdif appropriate to resolution
         khdif=5
-        if(myid==0)write(6,*)'Model has chosen khdif =',khdif
+        if (myid==0) write(6,*)'Model has chosen khdif =',khdif
       endif
       do k=1,kl
-       hdiff(k)=khdif*.1
-      enddo
+        hdiff(k)=khdif*.1
+      end do
       if(khor>0)then
         do k=kl+1-khor,kl
-         hdiff(k)=2.*hdiff(k-1)
-        enddo
-      elseif(khor<0)then
+          hdiff(k)=2.*hdiff(k-1)
+        end do
+      elseif (khor<0) then
         do k=1,kl                    ! N.B. usually hdiff(k)=khdif*.1 
 !!       increase hdiff between sigma=.15  and sigma=0., 0 to khor
          if(sig(k)<0.15)hdiff(k)=.1*max(1.,(1.-sig(k)/.15)*abs(khor))
         enddo
-        if(myid==0)write(6,*)'khor,hdiff: ',khor,hdiff
-      endif
+        if (myid==0) write(6,*)'khor,hdiff: ',khor,hdiff
+      end if
 
       call printa('zs  ',zs,0,0,ia,ib,ja,jb,0.,.01)
       call printa('tss ',tss,0,0,ia,ib,ja,jb,200.,1.)
@@ -859,68 +859,68 @@
 
       !-------------------------------------------------------------
       ! SETUP DIAGNOSTIC ARRAYS
-      rndmax(:)=0.
-      tmaxscr(:)=0.
-      tminscr(:)=400.
-      rhmaxscr(:)=0.
-      rhminscr(:)=400.
-      u10max(:)=0.
-      v10max(:)=0.
-      u1max(:)=0.
-      v1max(:)=0.
-      u2max(:)=0.
-      v2max(:)=0.
-      capemax(:)=0.
-      u10mx(:)=0.
-      tscr_ave(:)=0.
-      qscrn_ave(:)=0.
-      dew_ave(:)=0.
-      epan_ave(:)=0.
-      epot_ave(:)=0.
-      eg_ave(:)=0.
-      fg_ave(:)=0.
-      rnet_ave(:)=0.
-      sunhours(:)=0.
-      ga_ave(:)=0.
-      riwp_ave(:)=0.
-      rlwp_ave(:)=0.
-      evap(:)=0.
-      precc(:)=0.
-      precip(:)=0.
-      convh_ave(:,:)=0.
-      rnd_3hr(:,8)=0. ! i.e. rnd24(:)=0.
-      cbas_ave(:)=0.
-      ctop_ave(:)=0.
-      sno(:)=0.
-      runoff(:)=0.
-      wb_ave(:,:)=0.
-      tsu_ave(:)=0.
-      alb_ave(:)=0.
-      fbeam_ave(:)=0.
-      psl_ave(:)=0.
-      mixdep_ave(:)=0.
-      koundiag=0
-      sint_ave(:) = 0.  ! solar_in_top
-      sot_ave(:)  = 0.  ! solar_out_top
-      soc_ave(:)  = 0.  ! solar_out_top (clear sky)
-      sgdn_ave(:) = 0.  ! solar_ground (down-welling) +ve down
-      sgn_ave(:)  = 0.  ! solar_ground (net) +ve down
-      rtu_ave(:)  = 0.  ! LW_out_top 
-      rtc_ave(:)  = 0.  ! LW_out_top (clear sky)
-      rgdn_ave(:) = 0.  ! LW_ground (down-welling)  +ve down
-      rgn_ave(:)  = 0.  ! LW_ground (net)  +ve up
-      rgc_ave(:)  = 0.  ! LW_ground (clear sky)
-      sgc_ave(:)  = 0.  ! SW_ground (clear sky)
-      cld_ave(:)  = 0.
-      cll_ave(:)  = 0.
-      clm_ave(:)  = 0.
-      clh_ave(:)  = 0.
+      rndmax(:)      = 0.
+      tmaxscr(:)     = 0.
+      tminscr(:)     = 400.
+      rhmaxscr(:)    = 0.
+      rhminscr(:)    = 400.
+      u10max(:)      = 0.
+      v10max(:)      = 0.
+      u1max(:)       = 0.
+      v1max(:)       = 0.
+      u2max(:)       = 0.
+      v2max(:)       = 0.
+      capemax(:)     = 0.
+      u10mx(:)       = 0.
+      tscr_ave(:)    = 0.
+      qscrn_ave(:)   = 0.
+      dew_ave(:)     = 0.
+      epan_ave(:)    = 0.
+      epot_ave(:)    = 0.
+      eg_ave(:)      = 0.
+      fg_ave(:)      = 0.
+      rnet_ave(:)    = 0.
+      sunhours(:)    = 0.
+      ga_ave(:)      = 0.
+      riwp_ave(:)    = 0.
+      rlwp_ave(:)    = 0.
+      evap(:)        = 0.
+      precc(:)       = 0.
+      precip(:)      = 0.
+      convh_ave(:,:) = 0.
+      rnd_3hr(:,8)   = 0. ! i.e. rnd24(:)=0.
+      cbas_ave(:)    = 0.
+      ctop_ave(:)    = 0.
+      sno(:)         = 0.
+      runoff(:)      = 0.
+      wb_ave(:,:)    = 0.
+      tsu_ave(:)     = 0.
+      alb_ave(:)     = 0.
+      fbeam_ave(:)   = 0.
+      psl_ave(:)     = 0.
+      mixdep_ave(:)  = 0.
+      koundiag       = 0
+      sint_ave(:)    = 0.  ! solar_in_top
+      sot_ave(:)     = 0.  ! solar_out_top
+      soc_ave(:)     = 0.  ! solar_out_top (clear sky)
+      sgdn_ave(:)    = 0.  ! solar_ground (down-welling) +ve down
+      sgn_ave(:)     = 0.  ! solar_ground (net) +ve down
+      rtu_ave(:)     = 0.  ! LW_out_top 
+      rtc_ave(:)     = 0.  ! LW_out_top (clear sky)
+      rgdn_ave(:)    = 0.  ! LW_ground (down-welling)  +ve down
+      rgn_ave(:)     = 0.  ! LW_ground (net)  +ve up
+      rgc_ave(:)     = 0.  ! LW_ground (clear sky)
+      sgc_ave(:)     = 0.  ! SW_ground (clear sky)
+      cld_ave(:)     = 0.
+      cll_ave(:)     = 0.
+      clm_ave(:)     = 0.
+      clh_ave(:)     = 0.
       if (ngas>0) then
-        traver=0.
+        traver       = 0.
       end if
-      fpn_ave=0.
-      frs_ave=0.
-      frp_ave=0.
+      fpn_ave        = 0.
+      frs_ave        = 0.
+      frp_ave        = 0.
 
 
       !--------------------------------------------------------------

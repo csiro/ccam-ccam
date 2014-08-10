@@ -272,12 +272,12 @@ SUBROUTINE smoisturev (dels,ssnow,soil,veg)
          hydss = soil%hyds
     
          speed_k = hydss * ( wh / soil%ssat )**( soil%i2bp3 - 1 )
-         speed_k = 0.5 * speed_k / ( 1. - MIN( 0.5, 10. * ssnow%wbice(:,ms) ) )
+         speed_k = 0.5 * speed_k / ( 1. - MIN( 0.5_r_2, 10. * ssnow%wbice(:,ms) ) )
          fluxlo = wbl_k
          
          ! scale speed to grid lengths per dt & limit speed for stability
-         speed_k = MIN( 0.5 * speed_k, 0.5 * soil%zse(ms) / dels )
-         fluxh(:,ms) = MAX( 0.0, speed_k * fluxlo )
+         speed_k = MIN( 0.5 * speed_k, real( 0.5 * soil%zse(ms) / dels ,r_2) )
+         fluxh(:,ms) = MAX( 0.0_r_2, speed_k * fluxlo )
      
       END WHERE
 
@@ -991,11 +991,11 @@ SUBROUTINE surfbv (dels, met, ssnow, soil, veg, canopy )
       ssnow%sinfil  = MIN( ssnow%rnof2, ssnow%wb_lake ) ! water that can be extracted from the rnof2
       ssnow%rnof2   = MAX( 0.0, ssnow%rnof2 - ssnow%sinfil )
       ssnow%wb_lake = MAX( 0.0, ssnow%wb_lake - ssnow%sinfil)
-      xxx = MAX(0.0, (ssnow%wb(:,ms) - soil%sfc(:))*soil%zse(ms)*1000.0)
+      xxx = MAX(0.0_r_2, (ssnow%wb(:,ms) - soil%sfc(:))*soil%zse(ms)*1000.0)
       ssnow%sinfil  = MIN( xxx, ssnow%wb_lake )
       ssnow%wb(:,ms) = ssnow%wb(:,ms) - ssnow%sinfil / (soil%zse(ms)*1000.0)
       ssnow%wb_lake = MAX( 0.0, ssnow%wb_lake - ssnow%sinfil)
-      xxx = MAX(0.0, (ssnow%wb(:,ms) - .5*(soil%sfc + soil%swilt))*soil%zse(ms)*1000.0)
+      xxx = MAX(0.0_r_2, (ssnow%wb(:,ms) - .5*(soil%sfc + soil%swilt))*soil%zse(ms)*1000.0)
       ssnow%sinfil  = MIN( xxx, ssnow%wb_lake )
       ssnow%wb(:,ms) = ssnow%wb(:,ms) - ssnow%sinfil / (soil%zse(ms)*1000.0)
       ssnow%wb_lake = MAX( 0.0, ssnow%wb_lake - ssnow%sinfil)

@@ -65,18 +65,14 @@
       endif  ! (epsp<-2.)
 
 !     *** following qgsav should be before first vadv call
-      do k=1,kl
-        qgsav(:,k)=qg(1:ifull,k)      ! for qg  conservation in adjust5
-      end do
+      qgsav(:,:)=qg(1:ifull,:)      ! for qg  conservation in adjust5
       if(ldr/=0)then
-        do k=1,kl
-          qfgsav(:,k)=qfg(1:ifull,k)
-          qlgsav(:,k)=qlg(1:ifull,k)
-          qrgsav(:,k)=qrg(1:ifull,k)
-        end do
+        qfgsav(:,:)=qfg(1:ifull,:)
+        qlgsav(:,:)=qlg(1:ifull,:)
+        qrgsav(:,:)=qrg(1:ifull,:)
       endif   ! (ldr.ne.0)
       if (abs(iaero)==2) then
-        xtgsav(:,1:kl,1:naero)=xtg(1:ifull,1:kl,1:naero)
+        xtgsav(:,:,:)=xtg(1:ifull,:,:)
       end if
 
       if(ngas>=1)then
@@ -98,13 +94,7 @@
           enddo    ! iq loop
          enddo     ! k  loop
         endif      ! (mfix_rad>0)
-        do ng=1,ngas   ! re-set trsav prior to vadv, hadv, hordif
-         do k=1,kl               
-          do iq=1,ifull
-           trsav(iq,k,ng)=tr(iq,k,ng) ! for tr conservation in adjust5
-          enddo   ! iq loop
-         enddo    ! k  loop
-        enddo     ! ng loop
+        trsav(:,:,:)=tr(1:ifull,:,:) ! for tr conservation in adjust5
       endif       ! (ngas>=1)
  
 #ifdef debug

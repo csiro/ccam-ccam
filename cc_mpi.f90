@@ -36,28 +36,38 @@ module cc_mpi
    
    integer(kind=4), save, private :: localwin                          ! local window handle for spectral filter
    integer(kind=4), allocatable, dimension(:), save, public :: specmap ! gather map for spectral filter
+   integer, allocatable, dimension(:), save, public :: specmapext      ! gather map for spectral filter (includes filter final
+                                                                       ! pass for sparse arrays)
    real, allocatable, dimension(:,:), save, private :: specstore       ! window for gather map
+   type globalpack_info
+     real, allocatable, dimension(:,:,:) :: localdata
+   end type globalpack_info
+   ! store sparse global arrays for spectral filter
+   type(globalpack_info), allocatable, dimension(:,:,:), save, private :: globalpack                                            
 
    public :: ccmpi_setup, ccmpi_distribute, ccmpi_gather,                   &
              ccmpi_distributer8, ccmpi_gatherall, bounds, boundsuv,         &
-             indp, indg, deptsync, intssync_send, intssync_recv, start_log, &
-             end_log, log_on, log_off, log_setup, phys_loadbal,             &
-             ccglobal_posneg, ccglobal_sum, iq2iqg, indv_mpi, indglobal,    &
-             readglobvar, writeglobvar, face_set, uniform_set, dix_set,     &
-             ccmpi_reduce, ccmpi_allreduce, ccmpi_abort, ccmpi_bcast,       &
-             ccmpi_bcastr8, ccmpi_barrier, ccmpi_gatherx, ccmpi_scatterx,   &
-             ccmpi_allgatherx, ccmpi_gathermap, ccmpi_recv, ccmpi_ssend,    &
-             ccmpi_init, ccmpi_finalize, ccmpi_commsplit, ccmpi_commfree,   &
-             mgbounds, mgcollect, mgcollect_mlo, mgbcast, mgbcastxn,        &
-             mg_index, mgbounds_mlo, mgbcast_mlo, mgbcasta_mlo, ind,        &
-             indx, bounds_colour, boundsuv_allvec, fproc, proc_region,      &
-             proc_region_face, proc_region_dix
-   public :: mgbndtype
-   public :: dpoints_t,dindex_t,sextra_t,bnds
+             deptsync, intssync_send, intssync_recv, start_log, end_log,    &
+             log_on, log_off, log_setup, phys_loadbal, ccglobal_posneg,     &
+             ccglobal_sum, readglobvar, writeglobvar, ccmpi_reduce,         &
+             ccmpi_allreduce, ccmpi_abort, ccmpi_bcast, ccmpi_bcastr8,      &
+             ccmpi_barrier, ccmpi_gatherx, ccmpi_scatterx,                  &
+             ccmpi_allgatherx, ccmpi_recv, ccmpi_ssend, ccmpi_init,         &
+             ccmpi_finalize, ccmpi_commsplit, ccmpi_commfree,               &
+             bounds_colour, boundsuv_allvec
+   public :: mgbounds, mgcollect, mgcollect_mlo, mgbcast, mgbcastxn,        &
+             mg_index, mgbounds_mlo, mgbcast_mlo, mgbcasta_mlo
+   public :: ind, indx, indp, indg, iq2iqg, indv_mpi, indglobal, fproc,     &
+             proc_region, proc_region_face, proc_region_dix, face_set,      &
+             uniform_set, dix_set
+   public :: mgbndtype, dpoints_t, dindex_t, sextra_t, bnds
+   public :: getglobalpack, setglobalpack, allocateglobalpack,              &
+             copyglobalpack, ccmpi_gathermap
    private :: ccmpi_distribute2, ccmpi_distribute2i, ccmpi_distribute2r8,   &
               ccmpi_distribute3, ccmpi_distribute3i, ccmpi_gather2,         &
               ccmpi_gather3, checksize, ccglobal_posneg2, ccglobal_posneg3, &
               ccglobal_posneg4, ccglobal_sum2, ccglobal_sum3
+   
    interface ccmpi_gather
       module procedure ccmpi_gather2, ccmpi_gather3
    end interface
@@ -477,7 +487,6 @@ contains
 #ifdef sumdd
 !     operator MPI_SUMDR is created based on an external function DRPDR.
       call MPI_OP_CREATE (DRPDR,  ltrue, MPI_SUMDR,  ierr)
-      call MPI_OP_CREATE (DRPDRA, ltrue, MPI_SUMDRA, ierr)
 #endif
 
       ! prepare comm groups - used by scale-selective filter
@@ -1163,10 +1172,10 @@ contains
 
    end subroutine ccmpi_gatherall3
 
-   subroutine ccmpi_gathermap2(a,ag)
+   subroutine ccmpi_gathermap2(a,kref)
 
+      integer, intent(in) :: kref
       real, dimension(ifull), intent(in) :: a
-      real, dimension(ifull_g), intent(out) :: ag
       real, dimension(ifull,size(specmap)) :: abuf 
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -1177,9 +1186,14 @@ contains
       integer(kind=MPI_ADDRESS_KIND) :: displ
       integer :: ncount, w, iproc, n, j, iqg, iq
       integer :: ipoff, jpoff, npoff
+      integer :: ipak, jpak
       
       if ( nproc == 1 ) then
-         ag=a
+         do n = 1,npan
+            iq = (n-1)*ipan*jpan
+            globalpack(0,0,n-noff)%localdata(:,:,kref+1) = &
+               reshape( a(iq+1:iq+ipan*jpan), (/ ipan, jpan /) )
+         end do
          return
       end if
    
@@ -1206,24 +1220,24 @@ contains
 #else
          call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
 #endif
+         ipak = ipoff/ipan
+         jpak = jpoff/jpan
          do n = 1,npan
-            do j = 1,jpan
-               ! Global indices are i+ipoff, j+jpoff, n-npoff
-               iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
-               iq = (j-1)*ipan + (n-1)*ipan*jpan
-               ag(iqg+1:iqg+ipan) = abuf(iq+1:iq+ipan,w)
-            end do
+            ! Global indices are i+ipoff, j+jpoff, n-npoff
+            iq = (n-1)*ipan*jpan
+            globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+1) = &
+               reshape( abuf(iq+1:iq+ipan*jpan,w), (/ ipan, jpan /) )
          end do
       end do
-   
+      
       call END_LOG(gather_end)
    
    end subroutine ccmpi_gathermap2
 
-   subroutine ccmpi_gathermap3(a,ag)
+   subroutine ccmpi_gathermap3(a,kref)
 
+      integer, intent(in) :: kref
       real, dimension(:,:), intent(in) :: a
-      real, dimension(:,:), intent(out) :: ag
       real, dimension(ifull,size(a,2),size(specmap)) :: abuf 
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -1234,15 +1248,23 @@ contains
       integer(kind=MPI_ADDRESS_KIND) :: displ
       integer :: ncount, w, iproc, k, n, j, iqg, iq, kx
       integer :: ipoff, jpoff, npoff
+      integer :: ipak, jpak
+      
+      kx = size(a,2)
       
       if ( nproc == 1 ) then
-         ag=a
+         do k = 1,kx
+            do n = 1,npan
+               iq = (n-1)*ipan*jpan
+               globalpack(0,0,n-noff)%localdata(:,:,kref+k) = &
+                  reshape( a(iq+1:iq+ipan*jpan,k), (/ ipan, jpan /) )
+            end do
+         end do
          return
       end if
    
       call START_LOG(gather_begin)
    
-      kx = size(a,2)
       ncount = size(specmap)
       
       if ( kx > size(specstore,2) ) then
@@ -1270,27 +1292,133 @@ contains
 #else
          call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
 #endif
+         ipak = ipoff/ipan
+         jpak = jpoff/jpan
          do k = 1,kx
             do n = 1,npan
-               do j = 1,jpan
-                  ! Global indices are i+ipoff, j+jpoff, n-npoff
-                  iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
-                  iq = (j-1)*ipan + (n-1)*ipan*jpan
-                  ag(iqg+1:iqg+ipan,k) = abuf(iq+1:iq+ipan,k,w)
-               end do
+               ! Global indices are i+ipoff, j+jpoff, n-npoff
+               iq = (n-1)*ipan*jpan
+               globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+k) = &
+                  reshape( abuf(iq+1:iq+ipan*jpan,k,w), (/ ipan, jpan /) )
             end do
          end do
       end do
-   
+      
       call END_LOG(gather_end)
    
    end subroutine ccmpi_gathermap3
+   
+   subroutine setglobalpack(datain,iqg,k)
+   
+      ! This subroutine assigns a value to a gridpoint
+      ! in the global sparse array
+   
+      integer, intent(in) :: iqg, k
+      integer :: i, j, n, iloc, jloc, ipak, jpak
+      real, intent(in) :: datain
       
+      n = (iqg-1)/(il_g*il_g)
+      j = (iqg-1-n*il_g*il_g)/il_g+1
+      i = iqg-(j-1)*il_g-n*il_g*il_g
+      ipak = (i-1)/ipan
+      jpak = (j-1)/jpan
+      iloc = i-ipak*ipan
+      jloc = j-jpak*jpan
+      
+      globalpack(ipak,jpak,n)%localdata(iloc,jloc,k) = datain
+   
+   end subroutine setglobalpack
+   
+   subroutine getglobalpack(dataout,iqg,k)
+   
+      ! This subroutine returns a value from a gridpoint
+      ! in the global sparse array
+
+      integer, intent(in) :: iqg, k
+      integer :: i, j, n, iloc, jloc, ipak, jpak
+      real, intent(out) :: dataout
+
+      n = (iqg-1)/(il_g*il_g)
+      j = (iqg-1-n*il_g*il_g)/il_g+1
+      i = iqg-(j-1)*il_g-n*il_g*il_g
+      ipak = (i-1)/ipan
+      jpak = (j-1)/jpan
+      iloc = i-ipak*ipan
+      jloc = j-jpak*jpan
+      
+      dataout = globalpack(ipak,jpak,n)%localdata(iloc,jloc,k)
+      
+   end subroutine getglobalpack
+   
+   subroutine copyglobalpack(krefin,krefout,kx)
+
+      ! This routine copies one section of the global sparse array
+      ! to another section.  Note that it only copies the memory
+      ! assigned by gathermap.  specmap needs to be replaced with
+      ! spectmapext to copy all parts of the global sparse array.
+   
+      integer, intent(in) :: krefin,krefout,kx
+      integer :: w, n, ncount, iproc, ipak, jpak
+      integer :: ipoff, jpoff, npoff, iq
+   
+      ncount = size(specmap)
+      do w = 1,ncount
+         iproc = specmap(w)
+#ifdef uniform_decomp
+         call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+#else
+         call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+#endif
+         ipak = ipoff/ipan
+         jpak = jpoff/jpan
+         do n = 1,npan
+            ! Global indices are i+ipoff, j+jpoff, n-npoff
+            globalpack(ipak,jpak,n-npoff)%localdata(:,:,krefout+1:krefout+kx) = &
+               globalpack(ipak,jpak,n-npoff)%localdata(:,:,krefin+1:krefin+kx)
+         end do
+      end do
+   
+   end subroutine copyglobalpack
+
+   subroutine allocateglobalpack(kx)
+   
+      ! This allocates global sparse arrays for the digital filter.
+      ! Usually this is 1:kl or 1:ol in size, but for some configurations
+      ! we need to store the original values and hence use 1:2*kl or 1:2*ol.
+      ! Also, the 0 index is to store the sum term for the digital filter.
+   
+      integer, intent(in) :: kx
+      integer :: ncount, w, ipak, jpak, n, iproc
+      integer :: ipoff, jpoff, npoff
+      
+      ! allocate globalpack arrays for 1D scale-selective filter
+      allocate(globalpack(0:nxproc-1,0:nyproc-1,0:5))
+      ncount = size(specmapext)
+      do w = 1,ncount
+         iproc = specmapext(w)
+#ifdef uniform_decomp
+         call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+#else
+         call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+#endif
+         ! Global indices are i+ipoff, j+jpoff, n-npoff
+         ipak = ipoff/ipan
+         jpak = jpoff/jpan
+         do n = 1,npan
+            allocate(globalpack(ipak,jpak,n-npoff)%localdata(ipan,jpan,0:kx))
+            globalpack(ipak,jpak,n-npoff)%localdata = 0.
+         end do
+      end do
+      
+      deallocate(specmapext) ! not needed after allocation of global sparse arrays
+   
+   end subroutine allocateglobalpack
+   
    subroutine bounds_setup
 
       use indices_m
       
-      integer :: n, nr, i, j, iq, iqq, mycol
+      integer :: n, i, j, iq, iqq, mycol
       integer :: iproc, rproc, sproc
       integer(kind=4), dimension(:,:), allocatable :: status
       integer(kind=4) :: ierr, itag=0, ncount
@@ -1304,7 +1432,6 @@ contains
 #else
       integer(kind=4), parameter :: ltype = MPI_INTEGER
 #endif
-      
       logical :: swap
       logical(kind=4), dimension(:,:), allocatable :: dumsl, dumrl
 
@@ -1369,7 +1496,7 @@ contains
                   call indv_mpi(iqq,iloc,jloc,nloc)
                   in(iq) = indp(iloc,jloc,nloc)
                end if
-               iqq = inn_g(iqg)    ! Global neighbour index
+               iqq = inn_g(iqg)   ! Global neighbour index
                rproc = qproc(iqq) ! Processor that has this point
                if ( rproc == myid ) then ! Just copy the value
                   ! Convert global iqq to local value
@@ -1508,8 +1635,6 @@ contains
       edge_s = joff == 0
       edge_n = joff == il_g - jpan
       edge_e = ioff == il_g - ipan
-
-      nr = 1
 
       bnds(:)%len = 0
       bnds(:)%rlenh = 0
@@ -5233,7 +5358,7 @@ contains
    end subroutine simple_timer_finalize
 #endif
 
-    subroutine ccglobal_posneg2 (array, delpos, delneg, comm)
+    subroutine ccglobal_posneg2 (array, delpos, delneg)
        ! Calculate global sums of positive and negative values of array
        ! MJT - modified to restrict calls to comm for ocean processors
        use sumdd_m
@@ -5241,11 +5366,9 @@ contains
 
        real, intent(in), dimension(ifull) :: array
        real, intent(out) :: delpos, delneg
-       real :: delpos_l, delneg_l
        real, dimension(2) :: delarr, delarr_l
-       integer, intent(in), optional :: comm
        integer :: iq
-       integer(kind=4) :: ierr, lcomm
+       integer(kind=4) :: ierr
 #ifdef sumdd
 #ifdef i8r8
        integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
@@ -5261,37 +5384,23 @@ contains
 #endif
        complex, dimension(2) :: local_sum, global_sum
 !      Temporary array for the drpdr_local function
-       real, dimension(ifull) :: tmparr, tmparr2 
+       real, dimension(ifull) :: tmparr 
 
        call START_LOG(posneg_begin)
-       
-       if (present(comm)) then
-          lcomm = comm
-       else
-          lcomm = MPI_COMM_WORLD
-       end if
 
-       local_sum(1) = (0.,0.)
-       local_sum(2) = (0.,0.)
-       do iq = 1,ifull
-          tmparr(iq)  = max(0.,array(iq)*wts(iq))
-          tmparr2(iq) = min(0.,array(iq)*wts(iq))
-       enddo
+       local_sum(1:2) = cmplx(0.,0.)
+       tmparr(1:ifull)  = max(0.,array(1:ifull)*wts(1:ifull))
        call drpdr_local(tmparr, local_sum(1))
-       call drpdr_local(tmparr2, local_sum(2))
+       tmparr(1:ifull)  = min(0.,array(1:ifull)*wts(1:ifull))
+       call drpdr_local(tmparr, local_sum(2))
 #ifdef sumdd
-       global_sum(1) = (0.,0.)
-       global_sum(2) = (0.,0.)
-       call MPI_Allreduce ( local_sum, global_sum, 2_4, ltype,     &
-                            MPI_SUMDR, lcomm, ierr )
+       global_sum(1:2) = cmplx(0.,0.)
+       call MPI_Allreduce ( local_sum, global_sum, 2_4, ltype, MPI_SUMDR, MPI_COMM_WORLD, ierr )
        delpos = real(global_sum(1))
        delneg = real(global_sum(2))
 #else
-       delpos_l = real(local_sum(1))
-       delneg_l = real(local_sum(2))
-       delarr_l(1:2) = (/ delpos_l, delneg_l /)
-       call MPI_Allreduce ( delarr_l, delarr, 2_4, ltype, MPI_SUM,    &
-                            lcomm, ierr )
+       delarr_l(1:2) = real(local_sum(1:2))
+       call MPI_Allreduce ( delarr_l, delarr, 2_4, ltype, MPI_SUM, MPI_COMM_WORLD, ierr )
        delpos = delarr(1)
        delneg = delarr(2)
 #endif
@@ -5300,7 +5409,7 @@ contains
 
     end subroutine ccglobal_posneg2
     
-    subroutine ccglobal_posneg3 (array, delpos, delneg, dsigin, comm)
+    subroutine ccglobal_posneg3 (array, delpos, delneg, dsigin)
        ! Calculate global sums of positive and negative values of array
        ! MJT - modified to restrict calls to comm for ocean processors
        use sigs_m
@@ -5309,12 +5418,10 @@ contains
        real, intent(in), dimension(:,:) :: array
        real, intent(in), dimension(:), optional :: dsigin
        real, intent(out) :: delpos, delneg
-       real :: delpos_l, delneg_l
        real, dimension(size(array,2)) :: dsigx
        real, dimension(2) :: delarr, delarr_l
-       integer, intent(in), optional :: comm
        integer :: k, iq, kx
-       integer(kind=4) ierr, lcomm
+       integer(kind=4) :: ierr
 #ifdef sumdd
 #ifdef i8r8
        integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
@@ -5330,43 +5437,32 @@ contains
 #endif
        complex, dimension(2) :: local_sum, global_sum
 !      Temporary array for the drpdr_local function
-       real, dimension(ifull) :: tmparr, tmparr2 
+       real, dimension(ifull) :: tmparr
 
        call START_LOG(posneg_begin)
 
        kx = size(array,2)
-       if (present(comm)) then
-          lcomm = comm
-       else
-          lcomm = MPI_COMM_WORLD
-       end if
        if (present(dsigin)) then
-         dsigx = -dsigin
+         dsigx(1:kx) = -dsigin(1:kx)
        else
-         dsigx = dsig
+         dsigx(1:kx) = dsig(1:kx)
        end if
        
-       local_sum(1) = (0.,0.)
-       local_sum(2) = (0.,0.)
+       local_sum(1:2) = cmplx(0.,0.)
        do k=1,kx
-          do iq=1,ifull
-             tmparr(iq)  = max(0.,-dsigx(k)*array(iq,k)*wts(iq))
-             tmparr2(iq) = min(0.,-dsigx(k)*array(iq,k)*wts(iq))
-          end do
-          call drpdr_local(tmparr,  local_sum(1))
-          call drpdr_local(tmparr2, local_sum(2))
+          tmparr(1:ifull) = max(0.,-dsigx(k)*array(1:ifull,k)*wts(1:ifull))
+          call drpdr_local(tmparr, local_sum(1))
+          tmparr(1:ifull) = min(0.,-dsigx(k)*array(1:ifull,k)*wts(1:ifull))
+          call drpdr_local(tmparr, local_sum(2))
        end do ! k loop
 #ifdef sumdd
-       global_sum(1) = (0.,0.)
-       global_sum(2) = (0.,0.)  
-       call MPI_Allreduce ( local_sum, global_sum, 2_4, ltype, MPI_SUMDR, lcomm, ierr )
+       global_sum(1:2) = cmplx(0.,0.)
+       call MPI_Allreduce ( local_sum, global_sum, 2_4, ltype, MPI_SUMDR, MPI_COMM_WORLD, ierr )
        delpos = real(global_sum(1))
        delneg = real(global_sum(2))
 #else
-       delpos_l = real(local_sum(1))
-       delneg_l = real(local_sum(2))
-       delarr_l(1:2) = (/ delpos_l, delneg_l /)
-       call MPI_Allreduce ( delarr_l, delarr, 2_4, ltype, MPI_SUM, lcomm, ierr )
+       delarr_l(1:2) = real(local_sum(1:2))
+       call MPI_Allreduce ( delarr_l, delarr, 2_4, ltype, MPI_SUM, MPI_COMM_WORLD, ierr )
        delpos = delarr(1)
        delneg = delarr(2)
 #endif
@@ -5375,21 +5471,19 @@ contains
 
     end subroutine ccglobal_posneg3
 
-    subroutine ccglobal_posneg4 (array, delpos, delneg, dsigin, comm)
+    subroutine ccglobal_posneg4 (array, delpos, delneg, dsigin)
        ! Calculate global sums of positive and negative values of array
        ! MJT - modified to restrict calls to comm for ocean processors
        use sigs_m
        use sumdd_m
        use xyzinfo_m
        real, intent(in), dimension(:,:,:) :: array
-       real, intent(in), dimension(size(array,2)), optional :: dsigin
-       real, intent(out), dimension(size(array,3)) :: delpos, delneg
-       real, dimension(size(array,3)) :: delpos_l, delneg_l
+       real, intent(in), dimension(:), optional :: dsigin
+       real, intent(out), dimension(:) :: delpos, delneg
        real, dimension(size(array,2)) :: dsigx
-       real, dimension(2,size(array,3)) :: delarr, delarr_l
-       integer, intent(in), optional :: comm
+       real, dimension(2*size(array,3)) :: delarr, delarr_l
        integer :: i, k, iq, kx, ntr
-       integer(kind=4) ierr, mnum, lcomm
+       integer(kind=4) :: ierr, mnum
 #ifdef sumdd
 #ifdef i8r8
        integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
@@ -5403,60 +5497,41 @@ contains
        integer(kind=4), parameter :: ltype = MPI_REAL
 #endif   
 #endif
-       complex, dimension(2,size(array,3)) :: local_sum, global_sum
+       complex, dimension(2*size(array,3)) :: local_sum, global_sum
 !      Temporary array for the drpdr_local function
-       real, dimension(ifull) :: tmparr, tmparr2 
+       real, dimension(ifull) :: tmparr
 
        call START_LOG(posneg_begin)
 
        kx  = size(array,2)
        ntr = size(array,3)
-       if (present(comm)) then
-          lcomm = comm
-       else
-          lcomm = MPI_COMM_WORLD
-       end if
        if (present(dsigin)) then
-         dsigx = -dsigin
+         dsigx(1:kx) = -dsigin(1:kx)
        else
-         dsigx = dsig
+         dsigx(1:kx) = dsig(1:kx)
        end if
 
+       local_sum(1:2*ntr) = cmplx(0.,0.)
        do i = 1,ntr
-          local_sum(1,i) = (0.,0.)
-          local_sum(2,i) = (0.,0.)
           do k=1,kx
-             do iq=1,ifull
-                tmparr(iq)  = max(0.,-dsigx(k)*array(iq,k,i)*wts(iq))
-                tmparr2(iq) = min(0.,-dsigx(k)*array(iq,k,i)*wts(iq))
-             end do
-             call drpdr_local(tmparr,  local_sum(1,i))
-             call drpdr_local(tmparr2, local_sum(2,i))
+             tmparr(1:ifull) = max(0.,-dsigx(k)*array(1:ifull,k,i)*wts(1:ifull))
+             call drpdr_local(tmparr, local_sum(i))
+             tmparr(1:ifull) = min(0.,-dsigx(k)*array(1:ifull,k,i)*wts(1:ifull))
+             call drpdr_local(tmparr, local_sum(i+ntr))
           end do ! k loop
-          delpos_l(i) = real(local_sum(1,i))
-          delneg_l(i) = real(local_sum(2,i))
        end do
 #ifdef sumdd
        mnum = 2*ntr
-       do i = 1,ntr 
-          global_sum(1,i) = (0.,0.)
-          global_sum(2,i) = (0.,0.)
-       end do
-       call MPI_Allreduce ( local_sum, global_sum, mnum, ltype, MPI_SUMDRA, lcomm, ierr )
-       do i=1,ntr
-          delpos(i) = real(global_sum(1,i))
-          delneg(i) = real(global_sum(2,i))
-       end do
+       global_sum(1:2*ntr) = cmplx(0.,0.)
+       call MPI_Allreduce ( local_sum, global_sum, mnum, ltype, MPI_SUMDR, MPI_COMM_WORLD, ierr )
+       delpos(1:ntr) = real(global_sum(1:ntr))
+       delneg(1:ntr) = real(global_sum(ntr+1:2*ntr))
 #else
        mnum = 2*ntr
-       do i=1,ntr
-          delarr_l(1:2,i) = (/ delpos_l(i), delneg_l(i) /)
-       end do
-       call MPI_Allreduce ( delarr_l, delarr, mnum, ltype, MPI_SUM, lcomm, ierr )
-       do i=1,ntr
-          delpos(i) = delarr(1,i)
-          delneg(i) = delarr(2,i)
-       end do
+       delarr_l(1:2*ntr) = real(local_sum(1:2*ntr))
+       call MPI_Allreduce ( delarr_l, delarr, mnum, ltype, MPI_SUM, MPI_COMM_WORLD, ierr )
+       delpos(1:ntr) = delarr(1:ntr)
+       delneg(1:ntr) = delarr(ntr+1:2*ntr)
 #endif
 
        call END_LOG(posneg_end)

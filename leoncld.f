@@ -118,13 +118,13 @@ c These outputs are not used in this model at present
       kbase(:)=0  ! default
       ktop(:) =0  ! default
       dz(:,:)=100.*dprf/(rhoa*grav)*(tv+tnhs(1:ifull,:))/tv
-c     fluxc(:,:)=rnrt3d(:,:)*1.e-3*dt ! kg/m2 (should be same level as rnrt3d)
+!     fluxc(:,:)=rnrt3d(:,:)*1.e-3*dt ! kg/m2 (should be same level as rnrt3d)
       fluxc(:,:)=0. !For now... above line may be wrong
       ccrain(:,:)=0.1  !Assume this for now
       precs(:)=0.
       preci(:)=0.
 
-c     Set up convective cloud column
+!     Set up convective cloud column
 !     acon=0.2    !Cloud fraction for non-precipitating convection  kuocom.h
 !     bcon=0.07   !Rate at which conv cloud frac increases with R   kuocom.h
       where ( ktsav<kl-1 )

@@ -74,14 +74,10 @@ real, dimension(klin), intent(in) :: sig
 
 ifull=ifin
 kl=klin
-allocate(xtg(ifull+iextra,kl,naero))
-allocate(xtgsav(ifull,kl,naero))
-allocate(xtosav(ifull,kl,naero))
-allocate(vso2(ifull))
-allocate(emissfield(ifull,15))
-allocate(ssn(ifull,kl,2))
-allocate(zoxidant(ifull,4*kl))
-allocate(erod(ifull,ndcls))
+allocate(xtg(ifull+iextra,kl,naero),xtgsav(ifull,kl,naero))
+allocate(xtosav(ifull,kl,naero),vso2(ifull))
+allocate(emissfield(ifull,15),ssn(ifull,kl,2))
+allocate(zoxidant(ifull,4*kl),erod(ifull,ndcls))
 allocate(duste(ifull),dustdd(ifull),dustwd(ifull))
 
 xtg=0.
@@ -97,9 +93,7 @@ dustdd=0.
 dustwd=0.
 
 ! MJT - define injection levels
-!       to be replaced with plume rise model when possible
 
-! make sure sig is inverted with kl as lowest level
 ! scale to CSIRO9 18 levels
 ! jk2 is top of level=1, bottom of level=2
 jk2=2
@@ -244,7 +238,6 @@ real, dimension(ifull,kl), intent(in) :: ppfprec,ppfmelt,ppfsnow         ! from 
 real, dimension(ifull,kl), intent(in) :: ppfevap,ppfsubl,pplambs,ppmrate ! from LDR prog cloud
 real, dimension(ifull,kl), intent(in) :: ppmaccr,ppfstay,ppqfsed,pprscav ! from LDR prog cloud
 logical, dimension(ifull), intent(in) :: land  ! land/sea mask (t=land)
-real, dimension(ifull,kl,naero) :: xtusav      ! aerosol mixing ratio inside convective cloud
 real, dimension(ifull,naero) :: conwd          ! Diagnostic only: Convective wet deposition
 real, dimension(ifull,naero) :: xtem
 real, dimension(ifull,kl,naero) :: xte,xtu,xtm1
@@ -272,12 +265,6 @@ so4wd=0.
 dustdd=0.
 duste=0.
 
-! Convert from aerosol concentration outside convective cloud (used by CCAM)
-! to aerosol concentration inside convective cloud
-do nt=1,naero
-  xtusav(:,:,nt)=max(xtg(1:ifull,:,nt)-(1.-clcon)*xtosav(:,:,nt),0.)/max(clcon,1.E-8)
-end do
-
 ! Calculate sub-grid Vgust
 v10n=ustar*log(10./zo)/vkar ! neutral wind speed
 ! Mesoscale enhancement follows Redelsperger et al. (2000), J. Climate 13, 402-421.
@@ -300,8 +287,8 @@ select case(enhanceu10)
     veff = v10m
     vefn = v10n
   case(1)
-    veff = sqrt( v10m*v10m + Vgust_free*Vgust_free ) ! JLM suggestion
-    vefn = sqrt( v10n*v10n + Vgust_free*Vgust_free )
+    veff = sqrt( v10m*v10m + Vgust_free*Vgust_free + Vgust_deep )
+    vefn = sqrt( v10n*v10n + Vgust_free*Vgust_free + Vgust_deep )
   case(2)
     veff = v10m + Vgust_free + Vgust_deep
     vefn = v10n + Vgust_free + Vgust_deep
@@ -315,26 +302,23 @@ do k=1,kl+1
   aphp1(:,k)=prf(:)*sigh(k)
 enddo
 ! MJT notes - replace vefn with v10n for regional model
-call xtemiss(dt, xtg, rhoa(:,1), ts, sicef, vefn, aphp1,                  & !Inputs
+call xtemiss(dt, rhoa(:,1), ts, sicef, vefn, aphp1,                       & !Inputs
              land, tsigmf, cgssnowd, fwet, wg,                            & !Inputs
              xte, xtem, so2dd, so4dd, so2em, dmsem, so4em, bem, oem, bbem)  !Outputs
-xtg(1:ifull,:,:)=xtg(1:ifull,:,:)+xte(:,:,:)*dt
+xtg(1:ifull,:,:)=max(xtg(1:ifull,:,:)+xte(:,:,:)*dt,0.)
 
 ! Emission and dry deposition of dust
 do k=1,kl
   aphp1(:,k)=prf(:)*sig(k)*0.01 ! hPa
 end do
 ! Calculate the settling of large dust particles
-call dsettling(dt,rhoa,ttg,dz,aphp1(:,1:kl), & !Inputs
-               xtg)                            !In and out
+call dsettling(dt,rhoa,ttg,dz,aphp1(:,1:kl))
 ! Calculate dust emission and turbulent dry deposition at the surface
-call dustem(dt,rhoa(:,1),wg,veff,dz(:,1),vt,snowd,land,  & !Inputs
-            xtg)                                           !In and out
+call dustem(dt,rhoa(:,1),wg,veff,dz(:,1),vt,snowd,land)
 
 ! Decay of hydrophobic black and organic carbon into hydrophilic forms
-call xtsink (dt, xtg, &  !Inputs
-             xte)        !Output
-xtg(1:ifull,:,:)=xtg(1:ifull,:,:)+xte(:,:,:)*dt
+call xtsink (dt,xte)
+xtg(1:ifull,:,:)=max(xtg(1:ifull,:,:)+xte(:,:,:)*dt,0.)
 
 ! Compute diagnostic sea salt aerosol
 call seasalt(land,sicef,zz,pblh,veff)
@@ -344,7 +328,9 @@ call seasalt(land,sicef,zz,pblh,veff)
 do nt=1,naero
   do k=1,kl
     xtm1(:,kl+1-k,nt)=xtg(1:ifull,k,nt)
-    xtu(:,kl+1-k,nt)=xtusav(:,k,nt)
+    ! Convert from aerosol concentration outside convective cloud (used by CCAM)
+    ! to aerosol concentration inside convective cloud
+    xtu(:,kl+1-k,nt)=max(xtg(1:ifull,k,nt)-(1.-clcon(:,k))*xtosav(:,k,nt),0.)/max(clcon(:,k),1.E-8)
   end do
 end do
 do k=1,kl
@@ -372,7 +358,7 @@ call xtchemie (1, dt, zdayfac, aphp1(:,1:kl), ppmrate, ppfprec,                 
                xte, so2oh, so2h2, so2o3, dmsoh, dmsn3)                            !Output
 do nt=1,naero
   do k=1,kl
-    xtg(1:ifull,k,nt)=xtg(1:ifull,k,nt)+xte(:,kl+1-k,nt)*dt
+    xtg(1:ifull,k,nt)=max(xtg(1:ifull,k,nt)+xte(:,kl+1-k,nt)*dt,0.)
   end do
 enddo
 
@@ -439,7 +425,7 @@ end subroutine aldrcalc
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! xt emiss
 
-SUBROUTINE XTEMISS(ztmst, PXTM1, P1MXTM1, TSM1M, SEAICEM, G3X01, APHP1,          & !Inputs
+SUBROUTINE XTEMISS(ztmst, P1MXTM1, TSM1M, SEAICEM, G3X01, APHP1,                 & !Inputs
                    LOLAND, PFOREST, PSNOW, fwet, WSM1M,                          & !Inputs
                    XTE, PXTEMS, so2dd, so4dd, so2em, dmsem, so4em, bem, oem, bbem) !Outputs
 !
@@ -463,7 +449,6 @@ implicit none
 
 ! Argument list
 REAL, intent(in) :: ztmst                           !Timestep [s]
-REAL, dimension(:,:,:), intent(in) :: PXTM1         !Tracer mixing ratio at t-1 [kg/kg]
 REAL, dimension(ifull), intent(in) :: P1MXTM1       !Density of air in surface layer
 real, dimension(ifull), intent(in) :: TSM1M         !Surface temp
 real, dimension(ifull), intent(in) :: SEAICEM       !Sea-ice fraction
@@ -513,19 +498,19 @@ real, parameter :: ScCO2     = 600.
 ! Then follow SO2, BC and OC from anthro (a) and biomass-burning (b) levels 1 and 2
 integer, parameter :: iso2a1=1
 integer, parameter :: iso2a2=2
-integer, parameter :: ibca1=3
-integer, parameter :: ibca2=4
-integer, parameter :: ioca1=5
-integer, parameter :: ioca2=6
+integer, parameter :: ibca1 =3
+integer, parameter :: ibca2 =4
+integer, parameter :: ioca1 =5
+integer, parameter :: ioca2 =6
 integer, parameter :: iso2b1=7
 integer, parameter :: iso2b2=8
-integer, parameter :: ibcb1=9
-integer, parameter :: ibcb2=10
-integer, parameter :: iocb1=11
-integer, parameter :: iocb2=12
-integer, parameter :: idmso=13     ! DMS ocean
-integer, parameter :: idmst=14     ! DMS terr
-integer, parameter :: iocna=15     ! Nat org
+integer, parameter :: ibcb1 =9
+integer, parameter :: ibcb2 =10
+integer, parameter :: iocb1 =11
+integer, parameter :: iocb2 =12
+integer, parameter :: idmso =13     ! DMS ocean
+integer, parameter :: idmst =14     ! DMS terr
+integer, parameter :: iocna =15     ! Nat org
 
 ! Start code : ----------------------------------------------------------
 
@@ -783,7 +768,7 @@ do jt=ITRACOC,ITRACOC+1
 enddo
 
 ! Total biomass burning primary emissions
-bbem=emissfield(:,ibcb1)+emissfield(:,ibcb2)+emissfield(:,iocb1)+emissfield(:,iocb2)
+bbem=emissfield(:,ibcb1)+emissfield(:,ibcb2)+1.3*(emissfield(:,iocb1)+emissfield(:,iocb2))
 
 ! ZVDRD   DRY DEPOSITION VELOCITY IN M/S
 ! ZVDRD(JL,1)  FOR SO2 GAS
@@ -792,58 +777,58 @@ gdp=grav/(aphp1(:,1)-aphp1(:,2))
 nstep=int(ztmst/120.01)+1
 ddt=ztmst/real(nstep)
 
-pxtm1new=pxtm1(1:ifull,1,itracso2)
+pxtm1new=xtg(1:ifull,1,itracso2)
 do ii=1,nstep
   pxtm1new=(pxtm1new*(1.-0.5*ddt*p1mxtm1*zvdrd(:,1)*gdp)+ddt*xte(:,1,ITRACSO2))        &
       /(1.+0.5*ddt*p1mxtm1*zvdrd(:,1)*gdp)
   pxtm1new=max(0.,pxtm1new)
 end do
-so2dd=(pxtm1(1:ifull,1,itracso2)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACSO2)/gdp
+so2dd=(xtg(1:ifull,1,itracso2)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACSO2)/gdp
 xte(:,1,ITRACSO2)  =xte(:,1,ITRACSO2)  -so2dd*gdp
   
-pxtm1new=pxtm1(1:ifull,1,itracso2+1)
+pxtm1new=xtg(1:ifull,1,itracso2+1)
 do ii=1,nstep  
   pxtm1new=(pxtm1new*(1.-0.5*ddt*p1mxtm1*zvdrd(:,2)*gdp)+ddt*xte(:,1,ITRACSO2+1))      &
         /(1.+0.5*ddt*p1mxtm1*zvdrd(:,2)*gdp)
   pxtm1new=max(0.,pxtm1new)
 end do
-so4dd=(pxtm1(1:ifull,1,itracso2+1)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACSO2+1)/gdp
+so4dd=(xtg(1:ifull,1,itracso2+1)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACSO2+1)/gdp
 xte(:,1,ITRACSO2+1)=xte(:,1,ITRACSO2+1)-so4dd*gdp
 
-pxtm1new=pxtm1(1:ifull,1,ITRACBC)
+pxtm1new=xtg(1:ifull,1,ITRACBC)
 do ii=1,nstep  
   pxtm1new=(pxtm1new*(1.-0.5*ddt*p1mxtm1*ZVDPHOBIC*gdp)+ddt*xte(:,1,ITRACBC))          &
           /(1.+0.5*ddt*p1mxtm1*ZVDPHOBIC*gdp)
   pxtm1new=max(0.,pxtm1new)
 end do
-ZHILBCO=(pxtm1(1:ifull,1,ITRACBC)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACBC)/gdp
+ZHILBCO=(xtg(1:ifull,1,ITRACBC)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACBC)/gdp
 xte(:,1,itracbc)  =xte(:,1,itracbc)  -zhilbco*gdp
 
-pxtm1new=pxtm1(1:ifull,1,ITRACBC+1)
+pxtm1new=xtg(1:ifull,1,ITRACBC+1)
 do ii=1,nstep
   pxtm1new=(pxtm1new*(1.-0.5*ddt*p1mxtm1*ZVDRD(:,2)*gdp)+ddt*xte(:,1,ITRACBC+1))       &
           /(1.+0.5*ddt*p1mxtm1*ZVDRD(:,2)*gdp)
   pxtm1new=max(0.,pxtm1new)
 end do
-ZHILBCY=(pxtm1(1:ifull,1,ITRACBC+1)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACBC+1)/gdp
+ZHILBCY=(xtg(1:ifull,1,ITRACBC+1)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACBC+1)/gdp
 xte(:,1,itracbc+1)=xte(:,1,itracbc+1)-zhilbcy*gdp
 
-pxtm1new=pxtm1(1:ifull,1,ITRACOC)
+pxtm1new=xtg(1:ifull,1,ITRACOC)
 do ii=1,nstep
   pxtm1new=(pxtm1new*(1.-0.5*ddt*p1mxtm1*ZVDPHOBIC*gdp)+ddt*xte(:,1,ITRACOC))          &
           /(1.+0.5*ddt*p1mxtm1*ZVDPHOBIC*gdp)
   pxtm1new=max(0.,pxtm1new)
 end do
-ZHILOCO=(pxtm1(1:ifull,1,ITRACOC)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACOC)/gdp
+ZHILOCO=(xtg(1:ifull,1,ITRACOC)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACOC)/gdp
 xte(:,1,itracoc)  =xte(:,1,itracoc)  -zhiloco*gdp
 
-pxtm1new=pxtm1(1:ifull,1,ITRACOC+1)
+pxtm1new=xtg(1:ifull,1,ITRACOC+1)
 do ii=1,nstep
   pxtm1new=(pxtm1new*(1.-0.5*ddt*p1mxtm1*ZVDRD(:,2)*gdp)+ddt*xte(:,1,ITRACOC+1))       &
           /(1.+0.5*ddt*p1mxtm1*ZVDRD(:,2)*gdp)
   pxtm1new=max(0.,pxtm1new)
 end do
-ZHILOCY=(pxtm1(1:ifull,1,ITRACOC+1)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACOC+1)/gdp
+ZHILOCY=(xtg(1:ifull,1,ITRACOC+1)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACOC+1)/gdp
 xte(:,1,itracoc+1)=xte(:,1,itracoc+1)-zhilocy*gdp
 
 return
@@ -852,7 +837,7 @@ end subroutine xtemiss
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! xt sink
 
-SUBROUTINE XTSINK (PTMST,PXTM1,PXTE)
+SUBROUTINE XTSINK (PTMST,PXTE)
 !
 !   *XTSINK*  CALCULATES THE DECREASE OF TRACER CONCENTRATION
 !             FOR  A GIVEN HALF-LIFE-TIME
@@ -871,8 +856,7 @@ implicit none
 
 ! Argument list
 REAL, intent(in) :: PTMST
-REAL, dimension(:,:,:), intent(in) :: PXTM1
-REAL, dimension(:,:,:), intent(out) :: PXTE
+REAL, dimension(ifull,kl,naero), intent(out) :: PXTE
 
 ! Local data, functions etc
 real, dimension(ifull) :: zxtp1,zdxtdt
@@ -889,18 +873,18 @@ ZFAC=ALOG(0.5)*PTMST
 
 ZDECAY=EXP(ZFAC/86400.) ! 1 day
 DO JK=1,kl
-  ZXTP1=PXTM1(1:ifull,JK,ITRACBC)+PXTE(1:ifull,JK,ITRACBC)*PTMST
+  ZXTP1=xtg(1:ifull,JK,ITRACBC)+PXTE(1:ifull,JK,ITRACBC)*PTMST
   ZXTP1=ZXTP1*ZDECAY
-  ZDXTDT=(ZXTP1-PXTM1(1:ifull,JK,ITRACBC))*PQTMST-PXTE(1:ifull,JK,ITRACBC)
+  ZDXTDT=(ZXTP1-xtg(1:ifull,JK,ITRACBC))*PQTMST-PXTE(1:ifull,JK,ITRACBC)
   PXTE(1:ifull,JK,ITRACBC)  =PXTE(1:ifull,JK,ITRACBC)  +ZDXTDT
   PXTE(1:ifull,JK,ITRACBC+1)=PXTE(1:ifull,JK,ITRACBC+1)-ZDXTDT 
 end do
 
 ZDECAY=EXP(ZFAC/86400.) ! 1 day
 DO JK=1,kl
-  ZXTP1=PXTM1(1:ifull,JK,ITRACOC)+PXTE(1:ifull,JK,ITRACOC)*PTMST
+  ZXTP1=xtg(1:ifull,JK,ITRACOC)+PXTE(1:ifull,JK,ITRACOC)*PTMST
   ZXTP1=ZXTP1*ZDECAY
-  ZDXTDT=(ZXTP1-PXTM1(1:ifull,JK,ITRACOC))*PQTMST-PXTE(1:ifull,JK,ITRACOC)
+  ZDXTDT=(ZXTP1-xtg(1:ifull,JK,ITRACOC))*PQTMST-PXTE(1:ifull,JK,ITRACOC)
   PXTE(1:ifull,JK,ITRACOC)  =PXTE(1:ifull,JK,ITRACOC)  +ZDXTDT
   PXTE(1:ifull,JK,ITRACOC+1)=PXTE(1:ifull,JK,ITRACOC+1)-ZDXTDT 
 end do
@@ -1863,7 +1847,7 @@ END subroutine xtwetdep
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Dust settling
 
-subroutine dsettling(tdt,rhoa,tmp,delz,prf,tc)
+subroutine dsettling(tdt,rhoa,tmp,delz,prf)
 
 implicit none
 
@@ -1873,9 +1857,6 @@ real, dimension(1:ifull,kl), intent(in) :: rhoa !air density (kg/m3)
 real, dimension(:,:), intent(in) :: tmp         !temperature (K)
 real, dimension(ifull,kl), intent(in) :: delz   !Lowest layer thickness (m)
 real, dimension(ifull,kl), intent(in) :: prf    !Pressure (hPa)
-
-!     In/Out:
-real, dimension(:,:,:), intent(inout) :: tc     !Dust mixing ratio (kg/kg)
 
 ! Local work arrays and variables
 real, dimension(ifull) :: dcol1, dcol2
@@ -1893,7 +1874,7 @@ real, parameter :: dyn_visc = 1.5E-5
 dcol1 = 0.
 do n=itracdu,itracdu+ndust-1
   do k=1,kl
-    dcol1 = dcol1 + rhoa(:,k) * tc(1:ifull,k,n)* delz (:,k)
+    dcol1 = dcol1 + rhoa(:,k) * xtg(1:ifull,k,n)* delz (:,k)
   enddo
 enddo
 
@@ -1932,7 +1913,8 @@ do iq=1,ifull
       ! Settling velocity
       Vd_cor(kl) =2./9.*grav*dustden(k)*dustreff(k)**2/C_Stokes*C_Cun
       ! Update mixing ratio
-      TC(iq,kl,k+itracdu-1) = TC(iq,kl,k+itracdu-1) / (1. + dt_settl*VD_cor(kl)/DELZ(iq,kl))
+      xtg(iq,kl,k+itracdu-1) = xtg(iq,kl,k+itracdu-1) / (1. + dt_settl*VD_cor(kl)/DELZ(iq,kl))
+      xtg(iq,kl,k+itracdu-1) = max( xtg(iq,kl,k+itracdu-1), 0. )
 
       ! Solve each vertical layer successively (layer l)
       do l = kl-1,1,-1
@@ -1944,9 +1926,10 @@ do iq=1,ifull
         ! Settling velocity
         Vd_cor(l) = 2./9.*grav*dustden(k)*dustreff(k)*dustreff(k)/C_Stokes*C_Cun
         ! Update mixing ratio
-        TC(iq,l,k+itracdu-1) = 1./(1. + dt_settl*Vd_cor(l)/DELZ(iq,l))                            &
-            *(TC(iq,l,k+itracdu-1) + dt_settl*Vd_cor(l+1)/DELZ(iq,l+1)*TC(iq,l+1,k+itracdu-1)     &
+        xtg(iq,l,k+itracdu-1) = 1./(1. + dt_settl*Vd_cor(l)/DELZ(iq,l))                            &
+            *(xtg(iq,l,k+itracdu-1) + dt_settl*Vd_cor(l+1)/DELZ(iq,l+1)*xtg(iq,l+1,k+itracdu-1)    &
              *rhoa(iq,l+1)/rhoa(iq,l))  ! MJT suggestion
+        xtg(iq,l,k+itracdu-1) = max( xtg(iq,l,k+itracdu-1), 0. )
       end do
     end do
   end do
@@ -1956,7 +1939,7 @@ end do
 dcol2 = 0.
 do n=itracdu,itracdu+ndust-1
   do k=1,kl
-    dcol2 = dcol2 + rhoa(:,k) * tc(:,k,n)* delz (:,k)
+    dcol2 = dcol2 + rhoa(:,k) * xtg(1:ifull,k,n)* delz (:,k)
   enddo
 enddo
 
@@ -1969,8 +1952,7 @@ end subroutine dsettling
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Dust emissions
 
-subroutine dustem(tdt,rhoa,wg,w10m,dz1,vt,snowd,land,        & !Inputs
-                  xd)                                          !In and out
+subroutine dustem(tdt,rhoa,wg,w10m,dz1,vt,snowd,land)
 
 implicit none
 
@@ -1983,9 +1965,6 @@ real, dimension(ifull), intent(in) :: dz1       !Lowest layer thickness (m)
 real, dimension(ifull), intent(in) :: vt        !Transfer velocity at surface for dry deposition (m/s)
 real, dimension(ifull), intent(in) :: snowd     !Snow depth (mm equivalent water)
 logical, dimension(ifull), intent(in) :: land
-
-!     In and out
-real, dimension(:,:,:), intent(inout) :: xd     !Dust mixing ratio (kg/kg)
 
 ! Local work arrays and variables
 integer, dimension(ndust), parameter :: ipoint = (/ 3, 2, 2, 2 /) !Pointer used for dust classes (sand, silt, clay)
@@ -2057,16 +2036,16 @@ do n = 1, ndust
 
 ! Update mixing ratio
 ! Write in form dx/dt = a - bx (a = source term, b = drydep term)
-  xold = xd(1:ifull,1,n+itracdu-1)
+  xold = xtg(1:ifull,1,n+itracdu-1)
   
   nstep=int(tdt/120.01)+1
   ddt=tdt/real(nstep)
   do ii=1,nstep
-    xd(1:ifull,1,n+itracdu-1) = (xd(1:ifull,1,n+itracdu-1)*(1.-0.5*b*ddt)+a*ddt)/(1.+0.5*b*ddt)
-    xd(1:ifull,1,n+itracdu-1) = max( 0., xd(1:ifull,1,n+itracdu-1) )
+    xtg(1:ifull,1,n+itracdu-1) = (xtg(1:ifull,1,n+itracdu-1)*(1.-0.5*b*ddt)+a*ddt)/(1.+0.5*b*ddt)
+    xtg(1:ifull,1,n+itracdu-1) = max( 0., xtg(1:ifull,1,n+itracdu-1) )
   end do
 
-  xtendd = (xd(1:ifull,1,n+itracdu-1)-xold)/tdt - a
+  xtendd = (xtg(1:ifull,1,n+itracdu-1)-xold)/tdt - a
   dustdd = dustdd - xtendd*airmas ! Diagnostic
 end do
 
@@ -2171,8 +2150,8 @@ do mg=1,ifull
         ssn(mg,k,1)=ssn(mg,1,1)
         ssn(mg,k,2)=ssn(mg,1,2)
       else
-        ssn(mg,k,1)=10.e6*exp(-zmid(mg,k)/3000.)
-        ssn(mg,k,2)=1.0e6*exp(-zmid(mg,k)/1500.)
+        ssn(mg,k,1)=1.e7*exp(-zmid(mg,k)/3000.)
+        ssn(mg,k,2)=1.e6*exp(-zmid(mg,k)/1500.)
       end if
     end do
   else
@@ -2214,7 +2193,7 @@ integer, intent(in) :: istart,imax
 integer k,is,ie
 real, dimension(imax,kl), intent(in) :: rhoa
 real, dimension(imax,kl), intent(out) :: cdn
-real, dimension(imax,kl) :: xtgso2,xtgbc,xtgoc
+real, dimension(imax,kl) :: xtgso4,xtgbc,xtgoc
 real, dimension(imax) :: so4_n,cphil_n,Atot
 logical, intent(in) :: convmode
 
@@ -2223,12 +2202,12 @@ ie=istart+imax-1
 
 if (convmode) then
   ! total grid-box
-  xtgso2 = xtg(is:ie,:,itracso2+1)
+  xtgso4 = xtg(is:ie,:,itracso2+1)
   xtgbc  = xtg(is:ie,:,itracbc+1)
   xtgoc  = xtg(is:ie,:,itracoc+1)
 else
   ! outside convective fraction of grid-box
-  xtgso2 = xtosav(is:ie,:,itracso2+1)
+  xtgso4 = xtosav(is:ie,:,itracso2+1)
   xtgbc  = xtosav(is:ie,:,itracbc+1)
   xtgoc  = xtosav(is:ie,:,itracoc+1)
 end if
@@ -2239,7 +2218,7 @@ do k=1,kl
   ! from Penner et al (1998).
   ! 1.69e17 converts from mass (kg/m3) to number concentration (/m3) for dist'n 
   ! from IPCC (2001), Table 5.1, as used by Minghuai Wang for lookup optical properties.
-  so4_n = 1.24e17 * (132.14/32.06) * rhoa(:,k) * xtgso2(:,k)
+  so4_n = 1.24e17 * (132.14/32.06) * rhoa(:,k) * xtgso4(:,k)
 
   ! Factor of 1.3 converts from OC to organic matter (OM) 
   ! 1.25e17 converts from hydrophilic mass (kg/m3) to number concentration (/m3) for
@@ -2328,7 +2307,7 @@ do nt=1,naero
     scav_eff=scav_effi(nt)
   end where
   ! Wet deposition scavenging fraction
-  fscav(:,nt)=scav_eff*min(max(xpold-xpkp1,0.)/max(xpold,1.E-8),1.)
+  fscav(:,nt)=scav_eff*min(max(xpold-xpkp1,0.)/max(xpold,1.E-20),1.)
 end do
 
 return

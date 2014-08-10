@@ -7,8 +7,9 @@
       ! We support both 1D and 2D versions of the scale-selective filter.  2D is exact, but expensive.
       ! Current tests suggest the 1D is a good approximation of the 2D filter.
       
-      ! With MPI-3, we can use MPI_Win_Allocate_Shared to use a shared window of memory for all processors
-      ! on a node.  This should considerably reduce the memory footprint.
+      ! Now use global sparse arrays with 1D filter (see globalpack in cc_mpi.f90).  This considerably
+      ! reduces the memory used by the filter.  Nevertheless, MPI_Win_Allocate_Shared in MPI-3 can
+      ! still be used to make shared copies of some arrays such as x_g, y_g, z_g and em_g.
 
       ! nbd/=0       Far-field or relaxation nudging
       ! mbd/=0       Spectral filter (1D and 2D versions, see nud_uv)
@@ -378,6 +379,7 @@
         allocate(sssb(ifull,wlev,4))
         allocate(xtghostb(ifull,kl,naero))
         if (nud_uv/=9) then
+          ! initialise arrays for 1D filter
           call specinit
         end if
       end if
@@ -896,25 +898,25 @@
       real, dimension(ifull,kl), intent(inout) :: tb,qb
       real, dimension(ifull,kl,naero), intent(inout) :: xtgb
       real, dimension(ifull,kln:klx) :: wb
-      real, dimension(ifull_g,klt) :: tt,qt
+      real, dimension(ipan*jpan,klt) :: qt
       real, dimension(ifull) :: da,db
       logical, intent(in) :: lblock
 
       if (nud_p>0.and.lblock) then
-        call ccmpi_gathermap(pslb, tt(:,1))
+        call ccmpi_gathermap(pslb,1)            ! gather data onto global sparse array (1)
         do ppass=pprocn,pprocx
-          qt(:,1)=tt(:,1)
-          call fastspecmpi_work(cin,qt,1,ppass)
+          call copyglobalpack(1,0,1)            ! copy sparse array data (1) to (0)
+          call fastspecmpi_work(cin,qt,1,ppass) ! filter sparse array (0)
           do n=1,ipan*jpan
             pslb(n+ipan*jpan*(ppass-pprocn))=qt(n,1)
           end do
         end do
       end if
       if (nud_t>0) then
-        call ccmpi_gathermap(tb(:,kln:klx), tt(:,1:klt))
+        call ccmpi_gathermap(tb(:,kln:klx),klt)   ! gather data onto global sparse array (1)
         do ppass=pprocn,pprocx
-          qt(:,:)=tt(:,:)
-          call fastspecmpi_work(cin,qt,klt,ppass)
+          call copyglobalpack(klt,0,klt)          ! copy sparse array data (1) to (0)
+          call fastspecmpi_work(cin,qt,klt,ppass) ! filter sparse array (0)
           do k=1,klt
             do n=1,ipan*jpan
               tb(n+ipan*jpan*(ppass-pprocn),k+kln-1)=qt(n,k)
@@ -923,10 +925,10 @@
         end do
       end if
       if (nud_q>0) then
-        call ccmpi_gathermap(qb(:,kln:klx), tt(:,1:klt))
+        call ccmpi_gathermap(qb(:,kln:klx),klt)   ! gather data onto global sparse array (1)
         do ppass=pprocn,pprocx
-          qt(:,:)=tt(:,:)
-          call fastspecmpi_work(cin,qt,klt,ppass)
+          call copyglobalpack(klt,0,klt)          ! copy sparse array data (1) to (0)
+          call fastspecmpi_work(cin,qt,klt,ppass) ! filter sparse array (0)
           do k=1,klt
             do n=1,ipan*jpan
               qb(n+ipan*jpan*(ppass-pprocn),k+kln-1)=qt(n,k)
@@ -935,10 +937,10 @@
         end do
       end if
       if (nud_uv==3) then
-        call ccmpi_gathermap(ub(:,kln:klx), tt(:,1:klt))
+        call ccmpi_gathermap(ub(:,kln:klx),klt)        ! gather data onto global sparse array (1)
         do ppass=pprocn,pprocx
-          qt(:,:)=tt(:,:)
-          call fastspecmpi_work(cin,qt(:,1),klt,ppass)
+          call copyglobalpack(klt,0,klt)               ! copy sparse array data (1) to (0)
+          call fastspecmpi_work(cin,qt(:,1),klt,ppass) ! filter sparse array (0)
           do k=1,klt
             do n=1,ipan*jpan
               ub(n+ipan*jpan*(ppass-pprocn),k+kln-1)=qt(n,k)
@@ -953,30 +955,30 @@
           vb(:,k)=ay(1:ifull)*da+by(1:ifull)*db
           wb(:,k)=az(1:ifull)*da+bz(1:ifull)*db
         end do
-        call ccmpi_gathermap(ub(:,kln:klx), tt(:,1:klt))
+        call ccmpi_gathermap(ub(:,kln:klx),klt)   ! gather data onto global sparse array (1)
         do ppass=pprocn,pprocx
-          qt(:,1:klt)=tt(:,1:klt)
-          call fastspecmpi_work(cin,qt(:,1:klt),klt,ppass)
+          call copyglobalpack(klt,0,klt)          ! copy sparse array data (1) to (0)
+          call fastspecmpi_work(cin,qt,klt,ppass) ! filter sparse array (0)
           do k=1,klt
             do n=1,ipan*jpan
               ub(n+ipan*jpan*(ppass-pprocn),k+kln-1)=qt(n,k)
             end do
           end do
         end do
-        call ccmpi_gathermap(vb(:,kln:klx), tt(:,1:klt))
+        call ccmpi_gathermap(vb(:,kln:klx),klt)   ! gather data onto global sparse array (1)
         do ppass=pprocn,pprocx
-          qt(:,1:klt)=tt(:,1:klt)
-          call fastspecmpi_work(cin,qt(:,1:klt),klt,ppass)
+          call copyglobalpack(klt,0,klt)          ! copy sparse array data (1) to (0)
+          call fastspecmpi_work(cin,qt,klt,ppass) ! filter sparse array (0)
           do k=1,klt
             do n=1,ipan*jpan
               vb(n+ipan*jpan*(ppass-pprocn),k+kln-1)=qt(n,k)
             end do
           end do
         end do
-        call ccmpi_gathermap(wb(:,kln:klx), tt(:,1:klt))
+        call ccmpi_gathermap(wb(:,kln:klx),klt)   ! gather data onto global sparse array (1)
         do ppass=pprocn,pprocx
-          qt(:,1:klt)=tt(:,1:klt)
-          call fastspecmpi_work(cin,qt(:,1:klt),klt,ppass)
+          call copyglobalpack(klt,0,klt)          ! copy sparse array data (1) to (0)
+          call fastspecmpi_work(cin,qt,klt,ppass) ! filter sparse array (0)
           do k=1,klt
             do n=1,ipan*jpan
               wb(n+ipan*jpan*(ppass-pprocn),k+kln-1)=qt(n,k)
@@ -994,10 +996,10 @@
       endif
       if (abs(iaero)>=2.and.nud_aero>0) then
         do i=1,naero
-          call ccmpi_gathermap(xtgb(:,kln:klx,i), tt)
+          call ccmpi_gathermap(xtgb(:,kln:klx,i),klt) ! gather data onto global sparse array (1)
           do ppass=pprocn,pprocx
-            qt(:,:)=tt(:,:)
-            call fastspecmpi_work(cin,qt,klt,ppass)
+            call copyglobalpack(klt,0,klt)            ! copy sparse array data (1) to (0)
+            call fastspecmpi_work(cin,qt,klt,ppass)   ! filter sparse array (0)
             do k=1,klt
               do n=1,ipan*jpan
                 xtgb(n+ipan*jpan*(ppass-pprocn),k+kln-1,i)=qt(n,k)
@@ -1032,19 +1034,19 @@
       real, dimension(ifull,kl), intent(inout) :: tb,qb
       real, dimension(ifull,kl,naero), intent(inout) :: xtgb
       real, dimension(ifull,kln:klx) :: wb
-      real, dimension(ifull_g,klt) :: tt
+      real, dimension(ifull,klt) :: qt
       real, dimension(ifull) :: da,db
       logical, intent(in) :: lblock
       
       if (nud_p>0.and.lblock) then
-        call ccmpi_gathermap(pslb, tt(:,1))
-        call fastspecmpi_work(cin,tt(:,1),1,pprocn)
-        pslb(:)=tt(1:ifull,1)
+        call ccmpi_gathermap(pslb,0)                ! gather data onto global sparse array (0)
+        call fastspecmpi_work(cin,qt(:,1),1,pprocn) ! filter sparse array (0)
+        pslb=qt(:,1)
       end if
       if (nud_uv==3) then
-        call ccmpi_gathermap(ub(:,kln:klx),tt(:,1:klt))
-        call fastspecmpi_work(cin,tt,klt,pprocn)
-        ub(:,kln:klx)=tt(1:ifull,:)
+        call ccmpi_gathermap(ub(:,kln:klx),0)    ! gather data onto global sparse array (0)
+        call fastspecmpi_work(cin,qt,klt,pprocn) ! filter sparse array (0)
+        ub(:,kln:klx)=qt
       else if (nud_uv>0) then
         do k=kln,klx
           da=ub(:,k)
@@ -1053,15 +1055,15 @@
           vb(:,k)=ay(1:ifull)*da+by(1:ifull)*db
           wb(:,k)=az(1:ifull)*da+bz(1:ifull)*db
         end do
-        call ccmpi_gathermap(ub(:,kln:klx), tt(:,1:klt))
-        call fastspecmpi_work(cin,tt,klt,pprocn)
-        ub(:,kln:klx)=tt(1:ifull,1:klt)
-        call ccmpi_gathermap(vb(:,kln:klx), tt(:,1:klt))
-        call fastspecmpi_work(cin,tt,klt,pprocn)
-        vb(:,kln:klx)=tt(1:ifull,1:klt)
-        call ccmpi_gathermap(wb(:,kln:klx), tt(:,1:klt))
-        call fastspecmpi_work(cin,tt,klt,pprocn)
-        wb(:,kln:klx)=tt(1:ifull,1:klt)
+        call ccmpi_gathermap(ub(:,kln:klx),0)    ! gather data onto global sparse array (0)
+        call fastspecmpi_work(cin,qt,klt,pprocn) ! filter sparse array (0)
+        ub(:,kln:klx)=qt
+        call ccmpi_gathermap(vb(:,kln:klx),0)    ! gather data onto global sparse array (0)
+        call fastspecmpi_work(cin,qt,klt,pprocn) ! filter sparse array (0)
+        vb(:,kln:klx)=qt
+        call ccmpi_gathermap(wb(:,kln:klx),0)    ! gather data onto global sparse array (0)
+        call fastspecmpi_work(cin,qt,klt,pprocn) ! filter sparse array (0)
+        wb(:,kln:klx)=qt
         do k=kln,klx
           da=ax(1:ifull)*ub(:,k)+ay(1:ifull)*vb(:,k)
      &      +az(1:ifull)*wb(:,k)
@@ -1072,20 +1074,20 @@
         end do
       endif
       if (nud_t>0) then
-        call ccmpi_gathermap(tb(:,kln:klx), tt(:,1:klt))
-        call fastspecmpi_work(cin,tt,klt,pprocn)
-        tb(:,kln:klx)=tt(1:ifull,1:klt)
+        call ccmpi_gathermap(tb(:,kln:klx),0)    ! gather data onto global sparse array (0)
+        call fastspecmpi_work(cin,qt,klt,pprocn) ! filter sparse array (0)
+        tb(:,kln:klx)=qt
       end if
       if (nud_q>0) then
-        call ccmpi_gathermap(qb(:,kln:klx), tt(:,1:klt))
-        call fastspecmpi_work(cin,tt,klt,pprocn)
-        qb(:,kln:klx)=tt(1:ifull,1:klt)
+        call ccmpi_gathermap(qb(:,kln:klx),0)    ! gather data onto global sparse array (0)
+        call fastspecmpi_work(cin,qt,klt,pprocn) ! filter sparse array (0)
+        qb(:,kln:klx)=qt
       end if
       if (abs(iaero)>=2.and.nud_aero>0) then
         do n=1,naero
-          call ccmpi_gathermap(xtgb(:,kln:klx,n), tt)
-          call fastspecmpi_work(cin,tt,klt,pprocn)
-          xtgb(:,kln:klx,n)=tt(1:ifull,:)
+          call ccmpi_gathermap(xtgb(:,kln:klx,n),0) ! gather data onto global sparse array (0)
+          call fastspecmpi_work(cin,qt,klt,pprocn)  ! filter sparse array (0)
+          xtgb(:,kln:klx,n)=qt
         end do
       end if      
 
@@ -1108,7 +1110,7 @@
       integer, intent(in) :: klt,ppass
       integer xpan
       real, intent(in) :: cin
-      real, dimension(ifull_g,klt), intent(inout) :: tt
+      real, dimension(ipan*jpan,klt), intent(inout) :: tt
       real cq
 
       cq=sqrt(4.5)*cin ! filter length scale
@@ -1147,14 +1149,13 @@
       integer, dimension(0:3) :: astr,bstr,cstr
       integer, dimension(0:3) :: maps
       real, intent(in) :: cq
-      real, dimension(ifull_g,klt), intent(inout) :: qt
-      real, dimension(ifull_g) :: qsum
+      real, dimension(ipan*jpan,klt), intent(out) :: qt
       real, dimension(4*il_g,klt) :: at
       real, dimension(4*il_g) :: asum,ra,xa,ya,za
       real, dimension(xpan,xpan,klt) :: pt
       real, dimension(xpan,xpan) :: psum,stsum
-      real, dimension(il_g*xpan*klt) :: dd
-      real, dimension(xpan*xpan*klt) :: ff
+      real, dimension(il_g*xpan*(klt+1)) :: dd
+      real, dimension(xpan*xpan*(klt+1)) :: ff
       
       ! matched for panels 1,2 and 3
       
@@ -1187,7 +1188,10 @@
             c=cstr(sy)
             do n=sn,sn+il_g-1
               asum(n)=1./em_g(a*n+b*jj+c)**2
-              at(n,1:klt)=qt(a*n+b*jj+c,1:klt)*asum(n)
+              do k=1,klt
+                call getglobalpack(at(n,k),a*n+b*jj+c,k)
+                at(n,k)=at(n,k)*asum(n)
+              end do
               xa(n)=x_g(a*n+b*jj+c)
               ya(n)=y_g(a*n+b*jj+c)
               za(n)=z_g(a*n+b*jj+c)
@@ -1224,24 +1228,12 @@
         c=cstr(0)
 
         ! gather data for final pass
-        ff(1:ipan*jpan)=reshape( psum(1:ipan,1:jpan),(/ ipan*jpan /))
-        call ccmpi_allgatherx(dd(1:il_g*ipan),ff(1:ipan*jpan),
-     &         comm_cols)
-        do jpoff=0,il_g-1,jpan
-          sy=jpoff/jpan
-          nns=jpoff+1
-          nne=jpoff+jpan
-          do j=nns,nne
-            do n=os,oe
-              qsum(a*n+b*j+c)=dd(n-os+1+ipan*(j-nns)
-     &                          +ipan*jpan*sy)
-            end do
-          end do
-        end do
         ff(1:ipan*jpan*klt)=reshape(pt(1:ipan,1:jpan,1:klt),
      &    (/ ipan*jpan*klt /))
-        call ccmpi_allgatherx(dd(1:il_g*ipan*klt),ff(1:ipan*jpan*klt),
-     &         comm_cols)
+        ff(ipan*jpan*klt+1:ipan*jpan*klt+ipan*jpan)=
+     &    reshape( psum(1:ipan,1:jpan),(/ ipan*jpan /))  
+        call ccmpi_allgatherx(dd(1:il_g*ipan*(klt+1)),
+     &    ff(1:ipan*jpan*(klt+1)),comm_cols)
         do jpoff=0,il_g-1,jpan
           sy=jpoff/jpan
           nns=jpoff+1
@@ -1249,9 +1241,15 @@
           do k=1,klt
             do j=nns,nne
               do n=os,oe
-                qt(a*n+b*j+c,k)=dd(n-os+1+ipan*(j-nns)
-     &            +ipan*jpan*(k-1)+ipan*jpan*klt*sy)
+                call setglobalpack(dd(n-os+1+ipan*(j-nns)
+     &            +ipan*jpan*(k-1)+ipan*jpan*(klt+1)*sy),a*n+b*j+c,k)
               end do
+            end do
+          end do
+          do j=nns,nne
+            do n=os,oe
+              call setglobalpack(dd(n-os+1+ipan*(j-nns)
+     &          +ipan*jpan*klt+ipan*jpan*(klt+1)*sy),a*n+b*j+c,0)
             end do
           end do
         end do
@@ -1279,8 +1277,10 @@
           b=bstr(sy)
           c=cstr(sy)
           do n=sn,sn+il_g-1
-            asum(n)=qsum(a*n+b*jj+c)
-            at(n,1:klt)=qt(a*n+b*jj+c,1:klt)
+            call getglobalpack(asum(n),a*n+b*jj+c,0)
+            do k=1,klt
+              call getglobalpack(at(n,k),a*n+b*jj+c,k)
+            end do
             xa(n)=x_g(a*n+b*jj+c)
             ya(n)=y_g(a*n+b*jj+c)
             za(n)=z_g(a*n+b*jj+c)
@@ -1342,14 +1342,13 @@
       integer, dimension(0:3) :: astr,bstr,cstr
       integer, dimension(0:3) :: maps
       real, intent(in) :: cq
-      real, dimension(ifull_g,klt), intent(inout) :: qt
-      real, dimension(ifull_g) :: qsum
+      real, dimension(ipan*jpan,klt), intent(out) :: qt
       real, dimension(4*il_g,klt) :: at
       real, dimension(4*il_g) :: asum,ra,xa,ya,za
       real, dimension(xpan,xpan,klt) :: pt
       real, dimension(xpan,xpan) :: psum
-      real, dimension(il_g*xpan*klt) :: dd
-      real, dimension(xpan*xpan*klt) :: ff
+      real, dimension(il_g*xpan*(klt+1)) :: dd
+      real, dimension(xpan*xpan*(klt+1)) :: ff
       
       ! matched for panels 0, 4 and 5
       
@@ -1382,7 +1381,10 @@
             c=cstr(sy)
             do n=sn,sn+il_g-1
               asum(n)=1./em_g(a*n+b*jj+c)**2
-              at(n,1:klt)=qt(a*n+b*jj+c,1:klt)*asum(n)
+              do k=1,klt
+                call getglobalpack(at(n,k),a*n+b*jj+c,k)
+                at(n,k)=at(n,k)*asum(n)
+              end do
               xa(n)=x_g(a*n+b*jj+c)
               ya(n)=y_g(a*n+b*jj+c)
               za(n)=z_g(a*n+b*jj+c)
@@ -1418,24 +1420,12 @@
         b=bstr(0)
         c=cstr(0)
 
-        ff(1:ipan*jpan)=reshape( psum(1:jpan,1:ipan),(/ ipan*jpan /))
-        call ccmpi_allgatherx(dd(1:il_g*jpan),ff(1:ipan*jpan),
-     &         comm_rows)
-        do jpoff=0,il_g-1,ipan
-          sy=jpoff/ipan
-          nns=jpoff+1
-          nne=jpoff+ipan
-          do j=nns,nne
-            do n=os,oe
-              qsum(a*n+b*j+c)=dd(n-os+1+jpan*(j-nns)
-     &                          +ipan*jpan*sy)
-            end do
-          end do
-        end do
         ff(1:ipan*jpan*klt)=reshape(pt(1:jpan,1:ipan,1:klt),
      &    (/ ipan*jpan*klt /))
-        call ccmpi_allgatherx(dd(1:il_g*jpan*klt),ff(1:ipan*jpan*klt),
-     &         comm_rows)
+        ff(ipan*jpan*klt+1:ipan*jpan*klt+ipan*jpan)=
+     &    reshape( psum(1:jpan,1:ipan),(/ ipan*jpan /))
+        call ccmpi_allgatherx(dd(1:il_g*jpan*(klt+1)),
+     &     ff(1:ipan*jpan*(klt+1)),comm_rows)
         do jpoff=0,il_g-1,ipan
           sy=jpoff/ipan
           nns=jpoff+1
@@ -1443,9 +1433,15 @@
           do k=1,klt
             do j=nns,nne
               do n=os,oe
-                qt(a*n+b*j+c,k)=dd(n-os+1+jpan*(j-nns)
-     &            +ipan*jpan*(k-1)+ipan*jpan*klt*sy)
+                call setglobalpack(dd(n-os+1+jpan*(j-nns)
+     &            +ipan*jpan*(k-1)+ipan*jpan*(klt+1)*sy),a*n+b*j+c,k)
               end do
+            end do
+          end do
+          do j=nns,nne
+            do n=os,oe
+              call setglobalpack(dd(n-os+1+jpan*(j-nns)
+     &          +ipan*jpan*klt+ipan*jpan*(klt+1)*sy),a*n+b*j+c,0)
             end do
           end do
         end do
@@ -1473,8 +1469,10 @@
           b=bstr(sy)
           c=cstr(sy)
           do n=sn,sn+il_g-1
-            asum(n)=qsum(a*n+b*jj+c)
-            at(n,1:klt)=qt(a*n+b*jj+c,1:klt)
+            call getglobalpack(asum(n),a*n+b*jj+c,0)
+            do k=1,klt
+              call getglobalpack(at(n,k),a*n+b*jj+c,k)
+            end do
             xa(n)=x_g(a*n+b*jj+c)
             ya(n)=y_g(a*n+b*jj+c)
             za(n)=z_g(a*n+b*jj+c)
@@ -2144,15 +2142,15 @@
       real, dimension(ifull,kd), intent(inout) :: diff_l,diffs_l
       real, dimension(ifull,kd), intent(inout) :: diffu_l,diffv_l
       real, dimension(ifull,kd) :: diffw_l
-      real, dimension(ifull_g,kd) :: diff_g,qp
+      real, dimension(ipan*jpan,kd) :: qp
       real, dimension(ifull) :: xa_l,xb_l
       logical, intent(in) :: lblock
 
       if (nud_sst/=0) then
-        call ccmpi_gathermap(diff_l(:,:),diff_g(:,:))
+        call ccmpi_gathermap(diff_l(:,:),kd)         ! gather data onto global sparse array (1)
         do ppass=pprocn,pprocx
-          qp(:,:)=diff_g(:,:)
-          call mlofastspec_work(cq,qp,kd,ppass,miss)
+          call copyglobalpack(kd,0,kd)               ! copy sparse array (1) to (0)
+          call mlofastspec_work(cq,qp,kd,ppass,miss) ! filter sparse array (0)
           do k=1,kd
             do n=1,ipan*jpan
               diff_l(n+ipan*jpan*(ppass-pprocn),k)=qp(n,k)
@@ -2161,10 +2159,10 @@
         end do
       end if
       if (nud_sss/=0) then
-        call ccmpi_gathermap(diffs_l(:,:),diff_g(:,:))
+        call ccmpi_gathermap(diffs_l(:,:),kd)        ! gather data onto global sparse array (1)
         do ppass=pprocn,pprocx
-          qp(:,:)=diff_g(:,:)
-          call mlofastspec_work(cq,qp,kd,ppass,miss)
+          call copyglobalpack(kd,0,kd)               ! copy sparse array (1) to (0)
+          call mlofastspec_work(cq,qp,kd,ppass,miss) ! filter sparse array (0)
           do k=1,kd
             do n=1,ipan*jpan
               diffs_l(n+ipan*jpan*(ppass-pprocn),k)=qp(n,k)
@@ -2185,30 +2183,30 @@
             diffw_l(:,k)=miss
           end where
         end do
-        call ccmpi_gathermap(diffu_l(:,:),diff_g(:,:))
+        call ccmpi_gathermap(diffu_l(:,:),kd)        ! gather data onto global sparse array (1)
         do ppass=pprocn,pprocx
-          qp(:,:)=diff_g(:,:)
-          call mlofastspec_work(cq,qp,kd,ppass,miss)
+          call copyglobalpack(kd,0,kd)               ! copy sparse array (1) to (0)
+          call mlofastspec_work(cq,qp,kd,ppass,miss) ! filter sparse array (0)
           do k=1,kd
             do n=1,ipan*jpan
               diffu_l(n+ipan*jpan*(ppass-pprocn),k)=qp(n,k)
             end do
           end do
         end do
-        call ccmpi_gathermap(diffv_l(:,:),diff_g(:,:))
+        call ccmpi_gathermap(diffv_l(:,:),kd)        ! gather data onto global sparse array (1)
         do ppass=pprocn,pprocx
-          qp(:,:)=diff_g(:,:)
-          call mlofastspec_work(cq,qp,kd,ppass,miss)
+          call copyglobalpack(kd,0,kd)               ! copy sparse array (1) to (0)
+          call mlofastspec_work(cq,qp,kd,ppass,miss) ! filter sparse array (0)
           do k=1,kd
             do n=1,ipan*jpan
               diffv_l(n+ipan*jpan*(ppass-pprocn),k)=qp(n,k)
             end do
           end do
         end do
-        call ccmpi_gathermap(diffw_l(:,:),diff_g(:,:))
+        call ccmpi_gathermap(diffw_l(:,:),kd)        ! gather data onto global sparse array (1)
         do ppass=pprocn,pprocx
-          qp(:,:)=diff_g(:,:)
-          call mlofastspec_work(cq,qp,kd,ppass,miss)
+          call copyglobalpack(kd,0,kd)               ! copy sparse array (1) to (0)
+          call mlofastspec_work(cq,qp,kd,ppass,miss) ! filter sparse array (0)
           do k=1,kd
             do n=1,ipan*jpan
               diffw_l(n+ipan*jpan*(ppass-pprocn),k)=qp(n,k)
@@ -2225,10 +2223,10 @@
         end do
       endif
       if (nud_sfh/=0.and.lblock) then
-        call ccmpi_gathermap(diffh_l(:,1),diff_g(:,1))
+        call ccmpi_gathermap(diffh_l(:,1),1)        ! gather data onto global sparse array (1)
         do ppass=pprocn,pprocx
-          qp(:,1)=diff_g(:,1)
-          call mlofastspec_work(cq,qp,1,ppass,miss)
+          call copyglobalpack(1,0,1)                ! copy sparse array (1) to (0)
+          call mlofastspec_work(cq,qp,1,ppass,miss) ! filter sparse array (0)
           do n=1,ipan*jpan
             diffh_l(n+ipan*jpan*(ppass-pprocn),1)=qp(n,1)
           end do
@@ -2257,19 +2255,16 @@
       real, dimension(ifull,kd), intent(inout) :: diff_l,diffs_l
       real, dimension(ifull,kd), intent(inout) :: diffu_l,diffv_l
       real, dimension(ifull,kd) :: diffw_l
-      real, dimension(ifull_g,kd) :: diff_g
       real, dimension(ifull) :: xa_l,xb_l
       logical, intent(in) :: lblock
 
       if (nud_sst/=0) then
-        call ccmpi_gathermap(diff_l(:,:),diff_g(:,:))
-        call mlofastspec_work(cq,diff_g,kd,pprocn,miss)
-        diff_l(1:ifull,1:kd)=diff_g(1:ifull,1:kd)
+        call ccmpi_gathermap(diff_l(:,:),0)             ! gather data onto global sparse array (0)
+        call mlofastspec_work(cq,diff_l,kd,pprocn,miss) ! filter sparse array (0)
       end if
       if (nud_sss/=0) then
-        call ccmpi_gathermap(diffs_l(:,:),diff_g(:,:))
-        call mlofastspec_work(cq,diff_g,kd,pprocn,miss)
-        diffs_l(1:ifull,1:kd)=diff_g(1:ifull,1:kd)
+        call ccmpi_gathermap(diffs_l(:,:),0)             ! gather data onto global sparse array (0)
+        call mlofastspec_work(cq,diffs_l,kd,pprocn,miss) ! filter sparse array (0)
       end if
       if (nud_ouv/=0) then
         do k=1,kd
@@ -2284,15 +2279,12 @@
             diffw_l(:,k)=miss
           end where
         end do
-        call ccmpi_gathermap(diffu_l(:,:),diff_g(:,:))
-        call mlofastspec_work(cq,diff_g,kd,pprocn,miss)
-        diffu_l(1:ifull,1:kd)=diff_g(1:ifull,1:kd)
-        call ccmpi_gathermap(diffv_l(:,:),diff_g(:,:))
-        call mlofastspec_work(cq,diff_g,kd,pprocn,miss)
-        diffv_l(1:ifull,1:kd)=diff_g(1:ifull,1:kd)
-        call ccmpi_gathermap(diffw_l(:,:),diff_g(:,:))
-        call mlofastspec_work(cq,diff_g,kd,pprocn,miss)
-        diffw_l(1:ifull,1:kd)=diff_g(1:ifull,1:kd)
+        call ccmpi_gathermap(diffu_l(:,:),0)             ! gather data onto global sparse array (0)
+        call mlofastspec_work(cq,diffu_l,kd,pprocn,miss) ! filter sparse array (0)
+        call ccmpi_gathermap(diffv_l(:,:),0)             ! gather data onto global sparse array (0)
+        call mlofastspec_work(cq,diffv_l,kd,pprocn,miss) ! filter sparse array (0)
+        call ccmpi_gathermap(diffw_l(:,:),0)             ! gather data onto global sparse array (0)
+        call mlofastspec_work(cq,diffw_l,kd,pprocn,miss) ! filter sparse array (0)
         do k=1,kd
           xa_l=ax(1:ifull)*diffu_l(:,k)+ay(1:ifull)*diffv_l(:,k)
      &      +az(1:ifull)*diffw_l(:,k)
@@ -2303,9 +2295,8 @@
         end do
       endif
       if (nud_sfh/=0.and.lblock) then
-        call ccmpi_gathermap(diffh_l(:,1),diff_g(:,1))
-        call mlofastspec_work(cq,diff_g,1,pprocn,miss)
-        diffh_l(1:ifull,1)=diff_g(1:ifull,1)
+        call ccmpi_gathermap(diffh_l(:,1),0)           ! gather data onto global sparse array (0)
+        call mlofastspec_work(cq,diffh_l(:,1),1,pprocn,miss) ! filter sparse array (0)
       end if
 
       return
@@ -2322,7 +2313,7 @@
       integer, intent(in) :: kd,ppass
       integer xpan
       real, intent(in) :: cq,miss
-      real, dimension(ifull_g,kd), intent(inout) :: diff_g
+      real, dimension(ipan*jpan,kd), intent(inout) :: diff_g
 
       ! computations for the local processor group
       xpan=max(ipan,jpan)
@@ -2361,14 +2352,13 @@
       integer, dimension(0:3) :: astr,bstr,cstr
       integer, dimension(0:3) :: maps
       real, intent(in) :: cq,miss
-      real, dimension(ifull_g,kd), intent(inout) :: qp
-      real, dimension(ifull_g) :: qsum
+      real, dimension(ipan*jpan,kd), intent(out) :: qp
       real, dimension(4*il_g,kd) :: ap      
       real, dimension(4*il_g) :: rr,xa,ya,za,asum
       real, dimension(xpan,xpan,kd) :: pp      
       real, dimension(xpan,xpan) :: psum
-      real, dimension(il_g*xpan*kd) :: zz
-      real, dimension(xpan*xpan*kd) :: yy
+      real, dimension(il_g*xpan*(kd+1)) :: zz
+      real, dimension(xpan*xpan*(kd+1)) :: yy
       logical landl
       
       maps=(/ il_g, il_g, 4*il_g, 3*il_g /)
@@ -2399,7 +2389,9 @@
             c=cstr(sy)
             do n=sn,sn+il_g-1
               asum(n)=1./em_g(a*n+b*jj+c)**2
-              ap(n,1:kd)=qp(a*n+b*jj+c,1:kd)
+              do k=1,kd
+                call getglobalpack(ap(n,k),a*n+b*jj+c,k)
+              end do
               landl=abs(ap(n,1)-miss)<0.1
               if (landl) then
                 ap(n,1:kd)=0.
@@ -2437,24 +2429,12 @@
         c=cstr(0)
 
         ! gather data on host processors
-        yy(1:ipan*jpan)=reshape(psum(1:ipan,1:jpan),(/ ipan*jpan /))
-        call ccmpi_allgatherx(zz(1:il_g*ipan),yy(1:ipan*jpan),
-     &         comm_cols)
-        do jpoff=0,il_g-1,jpan
-          sy=jpoff/jpan
-          nns=jpoff+1
-          nne=jpoff+jpan
-          do j=nns,nne
-            do n=os,oe
-              qsum(a*n+b*j+c)=zz(n-os+1+ipan*(j-nns)
-     &                          +ipan*jpan*sy)
-            end do
-          end do
-        end do
         yy(1:ipan*jpan*kd)=reshape(pp(1:ipan,1:jpan,1:kd),
      &    (/ ipan*jpan*kd /))
-        call ccmpi_allgatherx(zz(1:il_g*ipan*kd),yy(1:ipan*jpan*kd),
-     &         comm_cols)
+        yy(ipan*jpan*kd+1:ipan*jpan*kd+ipan*jpan)=
+     &    reshape(psum(1:ipan,1:jpan),(/ ipan*jpan /))
+        call ccmpi_allgatherx(zz(1:il_g*ipan*(kd+1)),
+     &    yy(1:ipan*jpan*(kd+1)),comm_cols)
         do jpoff=0,il_g-1,jpan
           sy=jpoff/jpan
           nns=jpoff+1
@@ -2462,9 +2442,15 @@
           do k=1,kd
             do j=nns,nne
               do n=os,oe
-                qp(a*n+b*j+c,k)=zz(n-os+1+ipan*(j-nns)
-     &            +ipan*jpan*(k-1)+ipan*jpan*kd*sy)
+                call setglobalpack(zz(n-os+1+ipan*(j-nns)
+     &            +ipan*jpan*(k-1)+ipan*jpan*(kd+1)*sy),a*n+b*j+c,k)
               end do
+            end do
+          end do
+          do j=nns,nne
+            do n=os,oe
+              call setglobalpack(zz(n-os+1+ipan*(j-nns)
+     &          +ipan*jpan*kd+ipan*jpan*(kd+1)*sy),a*n+b*j+c,0)
             end do
           end do
         end do
@@ -2492,8 +2478,10 @@
           b=bstr(sy)
           c=cstr(sy)
           do n=sn,sn+il_g-1
-            asum(n)=qsum(a*n+b*jj+c)
-            ap(n,1:kd)=qp(a*n+b*jj+c,1:kd)
+            call getglobalpack(asum(n),a*n+b*jj+c,0)
+            do k=1,kd
+              call getglobalpack(ap(n,k),a*n+b*jj+c,k)
+            end do
             xa(n)=x_g(a*n+b*jj+c)
             ya(n)=y_g(a*n+b*jj+c)
             za(n)=z_g(a*n+b*jj+c)
@@ -2554,14 +2542,13 @@
       integer, dimension(0:3) :: astr,bstr,cstr
       integer, dimension(0:3) :: maps
       real, intent(in) :: cq,miss
-      real, dimension(ifull_g,kd), intent(inout) :: qp
-      real, dimension(ifull_g) :: qsum
+      real, dimension(ipan*jpan,kd), intent(out) :: qp
       real, dimension(4*il_g,kd) :: ap      
       real, dimension(4*il_g) :: rr,xa,ya,za,asum
       real, dimension(xpan,xpan,kd) :: pp      
       real, dimension(xpan,xpan) :: psum
-      real, dimension(il_g*xpan*kd) :: zz
-      real, dimension(xpan*xpan*kd) :: yy
+      real, dimension(il_g*xpan*(kd+1)) :: zz
+      real, dimension(xpan*xpan*(kd+1)) :: yy
       logical landl
       
       maps=(/ il_g, il_g, 4*il_g, 3*il_g /)
@@ -2592,7 +2579,9 @@
             c=cstr(sy)
             do n=sn,sn+il_g-1
               asum(n)=1./em_g(a*n+b*jj+c)**2
-              ap(n,1:kd)=qp(a*n+b*jj+c,1:kd)
+              do k=1,kd
+                call getglobalpack(ap(n,k),a*n+b*jj+c,k)
+              end do
               landl=abs(ap(n,1)-miss)<0.1
               if (landl) then
                 ap(n,1:kd)=0.
@@ -2630,24 +2619,12 @@
         c=cstr(0)
 
         ! gather data on host processors
-        yy(1:ipan*jpan)=reshape(psum(1:jpan,1:ipan),(/ ipan*jpan /))
-        call ccmpi_allgatherx(zz(1:il_g*jpan),yy(1:ipan*jpan),
-     &         comm_rows)
-        do jpoff=0,il_g-1,ipan
-          sy=jpoff/ipan
-          nns=jpoff+1
-          nne=jpoff+ipan
-          do j=nns,nne
-            do n=os,oe
-              qsum(a*n+b*j+c)=zz(n-os+1+jpan*(j-nns)
-     &                          +ipan*jpan*sy)
-            end do
-          end do
-        end do
         yy(1:ipan*jpan*kd)=reshape(pp(1:jpan,1:ipan,1:kd),
      &    (/ ipan*jpan*kd /))
-        call ccmpi_allgatherx(zz(1:il_g*jpan*kd),yy(1:ipan*jpan*kd),
-     &         comm_rows)
+        yy(ipan*jpan*kd+1:ipan*jpan*kd+ipan*jpan)=
+     &    reshape(psum(1:jpan,1:ipan),(/ ipan*jpan /))
+        call ccmpi_allgatherx(zz(1:il_g*jpan*(kd+1)),
+     &    yy(1:ipan*jpan*(kd+1)),comm_rows)
         do jpoff=0,il_g-1,ipan
           sy=jpoff/ipan
           nns=jpoff+1
@@ -2655,9 +2632,15 @@
           do k=1,kd
             do j=nns,nne
               do n=os,oe
-                qp(a*n+b*j+c,k)=zz(n-os+1+jpan*(j-nns)
-     &            +ipan*jpan*(k-1)+ipan*jpan*kd*sy)
+                call setglobalpack(zz(n-os+1+jpan*(j-nns)
+     &            +ipan*jpan*(k-1)+ipan*jpan*(kd+1)*sy),a*n+b*j+c,k)
               end do
+            end do
+          end do
+          do j=nns,nne
+            do n=os,oe
+              call setglobalpack(zz(n-os+1+jpan*(j-nns)
+     &          +ipan*jpan*kd+ipan*jpan*(kd+1)*sy),a*n+b*j+c,0)
             end do
           end do
         end do
@@ -2685,8 +2668,10 @@
           b=bstr(sy)
           c=cstr(sy)
           do n=sn,sn+il_g-1
-            asum(n)=qsum(a*n+b*jj+c)
-            ap(n,1:kd)=qp(a*n+b*jj+c,1:kd)
+            call getglobalpack(asum(n),a*n+b*jj+c,0)
+            do k=1,kd
+              call getglobalpack(ap(n,k),a*n+b*jj+c,k)
+            end do
             xa(n)=x_g(a*n+b*jj+c)
             ya(n)=y_g(a*n+b*jj+c)
             za(n)=z_g(a*n+b*jj+c)
@@ -2803,7 +2788,7 @@
       include 'newmpar.h'
       
       integer ncount,ipass,ppass,me
-      integer n,j,jj,sn,sy
+      integer n,j,jj,sn,sy,kx
       integer iqg,ng,jg,ig
       integer a,b,c,ns
       integer iproc,rproc
@@ -2812,58 +2797,58 @@
       logical, dimension(0:nproc-1) :: lproc
       
       ! length of the 1D convolution for each 'pass'
-      maps=(/ il_g, il_g, 4*il_g, 3*il_g /)
+      maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
       ! flag for data required from processor rank
-      lproc=.false.
+      lproc = .false.
       
       ! loop over 1D convolutions and determine rank of the required data
       ! Note that convolution directions are ordered to minimise message passing
-      do ppass=pprocn,pprocx
+      do ppass = pprocn,pprocx
         select case(ppass)
           case(1,2,3)
-            ns=joff+1
-            do ipass=0,2
-              me=maps(ipass)
+            ns = joff+1
+            do ipass = 0,2
+              me = maps(ipass)
               call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
-              do j=1,jpan
-                jj=j+ns-1
-                do sn=1,me,il_g
-                  sy=(sn-1)/il_g
-                  a=astr(sy)
-                  b=bstr(sy)
-                  c=cstr(sy)
-                  do n=sn,sn+il_g-1
+              do j = 1,jpan
+                jj = j+ns-1
+                do sn = 1,me,il_g
+                  sy = (sn-1)/il_g
+                  a = astr(sy)
+                  b = bstr(sy)
+                  c = cstr(sy)
+                  do n = sn,sn+il_g-1
                     iqg = a*n+b*jj+c
                     ! Global ig, jg, ng
                     ng = (iqg - 1)/(il_g*il_g)
                     jg = 1 + (iqg - ng*il_g*il_g - 1)/il_g
                     ig = iqg - (jg - 1)*il_g - ng*il_g*il_g
                     ! fproc converts global indices to processor rank
-                    lproc(fproc(ig,jg,ng))=.true.
+                    lproc(fproc(ig,jg,ng)) = .true.
                   end do
                 end do
               end do
             end do
           case(0,4,5)
-            ns=ioff+1
-            do ipass=0,2
-              me=maps(ipass)
+            ns = ioff+1
+            do ipass = 0,2
+              me = maps(ipass)
               call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
-              do j=1,ipan
-                jj=j+ns-1
-                do sn=1,me,il_g
-                  sy=(sn-1)/il_g
-                  a=astr(sy)
-                  b=bstr(sy)
-                  c=cstr(sy)
-                  do n=sn,sn+il_g-1
+              do j = 1,ipan
+                jj = j+ns-1
+                do sn = 1,me,il_g
+                  sy = (sn-1)/il_g
+                  a = astr(sy)
+                  b = bstr(sy)
+                  c = cstr(sy)
+                  do n = sn,sn+il_g-1
                     iqg = a*n+b*jj+c
                     ! Global ig, jg, ng
                     ng = (iqg - 1)/(il_g*il_g)
                     jg = 1 + (iqg - ng*il_g*il_g - 1)/il_g
                     ig = iqg - (jg - 1)*il_g - ng*il_g*il_g
                     ! fproc converts global indices to processor rank
-                    lproc(fproc(ig,jg,ng))=.true.
+                    lproc(fproc(ig,jg,ng)) = .true.
                   end do
                 end do
               end do
@@ -2873,17 +2858,90 @@
       
       ! specify required RMA windows from the list of processor ranks in specmap
       ! cc_mpi employs specmap when calling gathermap
-      ncount=count(lproc)
+      ncount = count(lproc)
       allocate(specmap(ncount))
-      ncount=0
-      do iproc=0,nproc-1
+      ncount = 0
+      do iproc = 0,nproc-1
         ! stagger reading of windows - does this make any difference with active RMA?
-        rproc=modulo(myid+iproc,nproc)
-        if (lproc(rproc)) then
-          ncount=ncount+1
-          specmap(ncount)=rproc
+        rproc = modulo(myid+iproc,nproc)
+        if ( lproc(rproc) ) then
+          ncount = ncount+1
+          specmap(ncount) = rproc
         end if
       end do
+      
+      ! Include final filter pass before allocating global sparse arrays
+      do ppass = pprocn,pprocx
+        select case(ppass)
+          case(1,2,3)
+            ns = joff+1
+            ipass = 3
+            me = maps(ipass)
+            call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
+            do j = 1,jpan
+              jj = j+ns-1
+              do sn = 1,me,il_g
+                sy = (sn-1)/il_g
+                a = astr(sy)
+                b = bstr(sy)
+                c = cstr(sy)
+                do n = sn,sn+il_g-1
+                  iqg = a*n+b*jj+c
+                  ! Global ig, jg, ng
+                  ng = (iqg - 1)/(il_g*il_g)
+                  jg = 1 + (iqg - ng*il_g*il_g - 1)/il_g
+                  ig = iqg - (jg - 1)*il_g - ng*il_g*il_g
+                  ! fproc converts global indices to processor rank
+                  lproc(fproc(ig,jg,ng)) = .true.
+                end do
+              end do
+            end do
+          case(0,4,5)
+            ns = ioff+1
+            ipass = 3
+            me = maps(ipass)
+            call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
+            do j = 1,ipan
+              jj = j+ns-1
+              do sn = 1,me,il_g
+                sy = (sn-1)/il_g
+                a = astr(sy)
+                b = bstr(sy)
+                c = cstr(sy)
+                do n = sn,sn+il_g-1
+                  iqg = a*n+b*jj+c
+                  ! Global ig, jg, ng
+                  ng = (iqg - 1)/(il_g*il_g)
+                  jg = 1 + (iqg - ng*il_g*il_g - 1)/il_g
+                  ig = iqg - (jg - 1)*il_g - ng*il_g*il_g
+                  ! fproc converts global indices to processor rank
+                  lproc(fproc(ig,jg,ng)) = .true.
+                end do
+              end do
+            end do
+        end select
+      end do
+
+      ncount = count(lproc)
+      allocate(specmapext(ncount))
+      ncount = 0
+      do iproc = 0,nproc-1
+        ! stagger reading of windows - does this make any difference with active RMA?
+        rproc = modulo(myid+iproc,nproc)
+        if ( lproc(rproc) ) then
+          ncount = ncount+1
+          specmapext(ncount) = rproc
+        end if
+      end do
+      
+      if ( npta == 1 ) then
+        ! face version (nproc>=6)
+        kx = max(kl,ol)
+      else
+        ! normal version
+        kx = 2*max(kl,ol) ! extra memory for copy
+      end if
+      call allocateglobalpack(kx)
       
       return
       end subroutine specinit

@@ -43,9 +43,8 @@
       real, dimension(:), allocatable, save :: pfact,alff,alf,alfe
       real, dimension(:), allocatable, save :: alfn,alfu,alfv
       real, dimension(ifull+iextra,kl) :: p,cc,dd,pe
-      real, dimension(ifull,kl) :: omgfnl,wrk1,wrk2,wrk3,d,e
-      real, dimension(ifull,kl) :: helm,rhsl,omgf
-      real, dimension(ifull,kl) :: dumu,dumv,dumc,dumd,dumt
+      real, dimension(ifull,kl) :: omgfnl,wrk1,wrk2,wrk3,wrk4
+      real, dimension(ifull,kl) :: helm,rhsl,omgf,d,e
       real, dimension(ifull+iextra,kl,4) :: dums
       real, dimension(ifull,kl,4) :: dumssav
       real, dimension(ifull) :: ps_sav,pslxint,pslsav
@@ -337,8 +336,9 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
 !     This is necessary because staguv expects arrays dimensioned 
 !     (ifull,kl). 
       if(nstag==0)then
-        call staguv(u(1:ifull,:),v(1:ifull,:),        
-     &              wrk1(1:ifull,:),wrk2(1:ifull,:)) 
+        wrk3=u(1:ifull,:)
+        wrk4=v(1:ifull,:)
+        call staguv(wrk3,wrk4,wrk1,wrk2)
 #ifdef debug
         if(nmaxpr==1.and.nproc==1)then
           its=ifull+iextra
@@ -353,12 +353,11 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
      &               (dd(iq,nlv),iq=idjd-3*its,idjd+3*its,its)       
         endif
 #endif
-        wrk1(1:ifull,:)=cc(1:ifull,:)-wrk1(1:ifull,:) ! staggered increment
-        wrk2(1:ifull,:)=dd(1:ifull,:)-wrk2(1:ifull,:) ! staggered increment
-        call unstaguv(wrk1(1:ifull,:),wrk2(1:ifull,:),        
-     &                wrk1(1:ifull,:),wrk2(1:ifull,:)) 
-        u(1:ifull,:)=u(1:ifull,:)+wrk1(1:ifull,:)
-        v(1:ifull,:)=v(1:ifull,:)+wrk2(1:ifull,:)
+        wrk1=cc(1:ifull,:)-wrk1 ! staggered increment
+        wrk2=dd(1:ifull,:)-wrk2 ! staggered increment
+        call unstaguv(wrk1,wrk2,wrk3,wrk4) 
+        u(1:ifull,:)=u(1:ifull,:)+wrk3
+        v(1:ifull,:)=v(1:ifull,:)+wrk4
 #ifdef debug
         if(nmaxpr==1.and.nproc==1)then
           write (6,"('u_u1 ',10f8.2)") (u(iq,nlv),iq=idjd-3,idjd+3)
@@ -367,11 +366,11 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
         endif
 #endif
       else
-        dumc=cc(1:ifull,:)
-        dumd=dd(1:ifull,:)
-        call unstaguv(dumc,dumd,dumu,dumv) ! usual
-        u(1:ifull,:)=dumu
-        v(1:ifull,:)=dumv
+        wrk1=cc(1:ifull,:)
+        wrk2=dd(1:ifull,:)
+        call unstaguv(wrk1,wrk2,wrk3,wrk4) ! usual
+        u(1:ifull,:)=wrk3
+        v(1:ifull,:)=wrk4
       endif
 
 !     vert. integ. div into e
@@ -387,7 +386,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
         omgf(:,k)=-wrk3(:,k) ! in Eq. 110
       enddo     ! k  loop
       omgf(:,kl)=-wrk3(:,kl)
-      psl(1:ifull)=pslxint(:)-hdt*wrk2(:,1)  *(1.+epst(:))  ! Eq. 116
+      psl(1:ifull)=pslxint(:)-hdt*wrk2(:,1)*(1.+epst(:))  ! Eq. 116
       ps_sav(1:ifull)=ps(1:ifull)  ! saved for gas fixers below, and diags
       if(mfix==-1.or.mfix==3)pslsav(1:ifull)=psl(1:ifull) 
 
@@ -546,8 +545,8 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
            call ccglobal_sum(psl,sumin)
 	 endif  ! (ntest==1)
 #endif
-         alph_p = sqrt( -delneg/max(1.e-20,delpos))
-         alph_pm=1./max(1.e-20,alph_p)
+         alph_p = sqrt( -delneg/max(1.e-30,delpos))
+         alph_pm=1./max(1.e-30,alph_p)
          do iq=1,ifull
             psl(iq) = pslsav(iq) +
      &           alph_p*max(0.,delps(iq)) + alph_pm*min(0.,delps(iq))
@@ -583,8 +582,8 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
          endif  ! (ntest==1)
 #endif
          if(mfix==1)then
-            alph_p = sqrt( -delneg/max(1.e-20,delpos))
-            alph_pm=1./max(1.e-20,alph_p)
+            alph_p = sqrt( -delneg/max(1.e-30,delpos))
+            alph_pm=1./max(1.e-30,alph_p)
          endif                  ! (mfix==1)
          if(mfix==2)then
             if(delpos>-delneg)then
@@ -634,8 +633,8 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
           call ccglobal_sum(ps,sumin)
         endif  ! (ntest==1)
 #endif
-        alph_p = sqrt( -delneg/max(1.e-20,delpos))
-        alph_pm=1./max(1.e-20,alph_p)
+        alph_p = sqrt( -delneg/max(1.e-30,delpos))
+        alph_pm=1./max(1.e-30,alph_p)
         do iq=1,ifull
          delps(iq)=alph_p*max(0.,delps(iq)) + alph_pm*min(0.,delps(iq))
         enddo
@@ -677,10 +676,8 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
         dumssav(:,:,3)=qlgsav
         dumssav(:,:,4)=qrgsav
         llim(1:4)=(/ .false., .true., .true., .true. /)
-        call massfix(mfix_qg,4,dums,dumssav,
-     &               ps(1:ifull),ps_sav,wts,
-     &               llim)
-        qg(1:ifull,:)=dums(1:ifull,:,1)
+        call massfix(mfix_qg,4,dums,dumssav,ps,ps_sav,llim)
+        qg(1:ifull,:) =dums(1:ifull,:,1)
         qfg(1:ifull,:)=dums(1:ifull,:,2)
         qlg(1:ifull,:)=dums(1:ifull,:,3)
         qrg(1:ifull,:)=dums(1:ifull,:,4)
@@ -688,11 +685,9 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
       else if (mfix_qg/=0.and.mspec==1) then
         dums(1:ifull,:,1)=max(qg(1:ifull,:),
      &      qgmin-qfg(1:ifull,:)-qlg(1:ifull,:),0.)
-        dumssav(1:ifull,:,1)=qgsav
+        dumssav(:,:,1)=qgsav
         llim(1)=.false.
-        call massfix(mfix_qg,1,dums,dumssav,
-     &               ps(1:ifull),ps_sav,wts,
-     &               llim)
+        call massfix(mfix_qg,1,dums,dumssav,ps,ps_sav,llim)
         qg(1:ifull,:)=dums(1:ifull,:,1)
       endif      !  (mfix_qg/=0.and.mspec==1.and.ldr/=0) ..else..
 
@@ -704,9 +699,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
           tr(:,:,ng)=max(tr(:,:,ng),tracmin(ng))
           llim(ng)=.true.
         end do
-        call massfix(mfix_tr,ngas,tr,trsav,
-     &               ps(1:ifull),ps_sav,wts,
-     &               llim)
+        call massfix(mfix_tr,ngas,tr,trsav,ps,ps_sav,llim)
       endif       !  (mfix_tr.ne.0.and.mspec==1.and.ngas>0)
 
       !--------------------------------------------------------------
@@ -714,9 +707,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
       if (mfix_aero/=0.and.mspec==1.and.abs(iaero)==2) then
         xtg=max(xtg,0.)
         llim(1:naero)=.true.
-        call massfix(mfix_aero,naero,xtg,
-     &               xtgsav,ps(1:ifull),
-     &               ps_sav,wts,llim)
+        call massfix(mfix_aero,naero,xtg,xtgsav,ps,ps_sav,llim)
       end if
       !--------------------------------------------------------------
 
@@ -846,7 +837,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
         enddo   ! n loop
       end subroutine adjust_init
 
-      subroutine massfix(mfix,ntr,s,ssav,ps,pssav,wts,llim)
+      subroutine massfix(mfix,ntr,s,ssav,ps,pssav,llim)
       
       use cc_mpi
       
@@ -858,28 +849,15 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
       integer k,i
       real, dimension(ifull+iextra,kl,ntr), intent(inout) :: s
       real, dimension(ifull,kl,ntr), intent(inout) :: ssav
-      real, dimension(ifull), intent(in) :: ps,pssav,wts
+      real, dimension(ifull), intent(in) :: ps,pssav
       real, dimension(ifull,kl,ntr) :: wrk1
       real, dimension(ntr) :: delpos,delneg,ratio,alph_g
       logical, dimension(ntr), intent(in) :: llim
 
-      if (mfix>0) then
-        do i=1,ntr
-          do k=1,kl
-            s(1:ifull,k,i)=s(1:ifull,k,i)*ps
-            ssav(:,k,i)=ssav(:,k,i)*pssav
-          enddo    ! k  loop
-        end do
-      else
-        do i=1,ntr
-          do k=1,kl
-            s(1:ifull,k,i)=s(1:ifull,k,i)*ps*wts
-            ssav(:,k,i)=ssav(:,k,i)*pssav*wts
-          enddo    ! k  loop     
-        end do
-      endif ! (mfix>0) .. else ..
       do i=1,ntr
         do k=1,kl
+          s(1:ifull,k,i)=s(1:ifull,k,i)*ps(1:ifull)
+          ssav(:,k,i)=ssav(:,k,i)*pssav(:)
           wrk1(:,k,i)=s(1:ifull,k,i)-ssav(:,k,i) 
         enddo   ! k loop
       end do
@@ -889,39 +867,25 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
       elsewhere
         ratio(:) = -delneg(:)/delpos(:)
       end where
-      if (mfix==1) then
-        alph_g = min(ratio,sqrt(ratio))
-      elseif (mfix==2) then
-        do i=1,ntr
-          if (llim(i)) then
-            alph_g(i) = max(sqrt(ratio(i)),1.e-30)
-          else
-            alph_g(i) = sqrt(ratio(i))
-          end if
-        end do
-      end if ! (mfix==1) .. else ..
+      select case(mfix)
+        case(1)
+          alph_g(:) = min(ratio(:),sqrt(ratio(:)))
+        case(2)
+          where (llim(:))
+            alph_g(:) = max(sqrt(ratio(:)),1.e-30)
+          elsewhere
+            alph_g(:) = sqrt(ratio(:))
+          end where
+      end select
       do i=1,ntr
         do k=1,kl
           s(1:ifull,k,i)=ssav(:,k,i)+
      &      alph_g(i)*max(0.,wrk1(:,k,i))+min(0.,wrk1(:,k,i))
      &      /max(1.,alph_g(i))
+          s(1:ifull,k,i)=s(1:ifull,k,i)/ps(1:ifull)
+          ssav(:,k,i)=ssav(:,k,i)/pssav
         enddo    ! k  loop
       end do
-      if (mfix>0) then
-        do i=1,ntr
-          do k=1,kl
-            s(1:ifull,k,i)=s(1:ifull,k,i)/ps
-            ssav(:,k,i)=ssav(:,k,i)/pssav
-          enddo    ! k  loop
-        end do
-      else
-        do i=1,ntr
-          do k=1,kl
-            s(1:ifull,k,i)=s(1:ifull,k,i)/(ps*wts)
-            ssav(:,k,i)=ssav(:,k,i)/(pssav*wts)
-          enddo   ! k  loop            
-        end do
-      endif ! (mfix>0) .. else ..
 
       return
       end subroutine massfix
