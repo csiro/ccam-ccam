@@ -931,6 +931,24 @@ if(myid==0.or.local)then
       call attrib(idnc,idim,3,'aero_nir',lname,'none',0.,13.,0,itype)
       lname = 'Total column aerosol optical depth LW'
       call attrib(idnc,idim,3,'aero_lw',lname,'none',0.,13.,0,itype)
+      lname = 'Total column BC optical depth VIS'
+      call attrib(idnc,idim,3,'bc_vis',lname,'none',0.,13.,0,itype)
+      lname = 'Total column BC optical depth NIR'
+      call attrib(idnc,idim,3,'bc_nir',lname,'none',0.,13.,0,itype)
+      lname = 'Total column BC optical depth LW'
+      call attrib(idnc,idim,3,'bc_lw',lname,'none',0.,13.,0,itype)
+      lname = 'Total column OC optical depth VIS'
+      call attrib(idnc,idim,3,'oc_vis',lname,'none',0.,13.,0,itype)
+      lname = 'Total column OC optical depth NIR'
+      call attrib(idnc,idim,3,'oc_nir',lname,'none',0.,13.,0,itype)
+      lname = 'Total column OC optical depth LW'
+      call attrib(idnc,idim,3,'oc_lw',lname,'none',0.,13.,0,itype)      
+      lname = 'Total column seasalt optical depth VIS'
+      call attrib(idnc,idim,3,'ssalt_vis',lname,'none',0.,13.,0,itype)
+      lname = 'Total column seasalt optical depth NIR'
+      call attrib(idnc,idim,3,'ssalt_nir',lname,'none',0.,13.,0,itype)
+      lname = 'Total column seasalt optical depth LW'
+      call attrib(idnc,idim,3,'ssalt_lw',lname,'none',0.,13.,0,itype)      
       lname = 'Dust emissions'
       call attrib(idnc,idim,3,'duste',lname,'g/(m2 yr)',0.,390.,0,itype)  
       lname = 'Dust dry deposition'
@@ -1672,6 +1690,15 @@ if (nextout>=1.and.abs(iaero)>=2.and.nrad==5) then
   call histwrt3(opticaldepth(:,4,1),'aero_vis',idnc,iarch,local,lwrite)
   call histwrt3(opticaldepth(:,4,2),'aero_nir',idnc,iarch,local,lwrite)
   call histwrt3(opticaldepth(:,4,3),'aero_lw',idnc,iarch,local,lwrite)
+  call histwrt3(opticaldepth(:,5,1),'bc_vis',idnc,iarch,local,lwrite)
+  call histwrt3(opticaldepth(:,5,2),'bc_nir',idnc,iarch,local,lwrite)
+  call histwrt3(opticaldepth(:,5,3),'bc_lw',idnc,iarch,local,lwrite)
+  call histwrt3(opticaldepth(:,6,1),'oc_vis',idnc,iarch,local,lwrite)
+  call histwrt3(opticaldepth(:,6,2),'oc_nir',idnc,iarch,local,lwrite)
+  call histwrt3(opticaldepth(:,6,3),'oc_lw',idnc,iarch,local,lwrite)
+  call histwrt3(opticaldepth(:,7,1),'ssalt_vis',idnc,iarch,local,lwrite)
+  call histwrt3(opticaldepth(:,7,2),'ssalt_nir',idnc,iarch,local,lwrite)
+  call histwrt3(opticaldepth(:,7,3),'ssalt_lw',idnc,iarch,local,lwrite)
   aa=max(duste*3.154e10,0.) ! g/m2/yr
   call histwrt3(aa,'duste',idnc,iarch,local,lwrite)
   aa=max(dustdd*3.154e10,0.) ! g/m2/yr

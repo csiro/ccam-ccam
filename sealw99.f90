@@ -83,15 +83,16 @@ private
 !---------------------------------------------------------------------
 !----------- version number for this module -------------------
 
-    character(len=128)  :: version =  '$Id: sealw99.f90,v 13.0 2006/03/28 21:13:36 fms Exp $'
-    character(len=128)  :: tagname =  '$Name: latest $'
+    character(len=128)  :: version =  '$Id: sealw99.F90,v 18.0.2.1.2.1.2.1 2010/08/30 20:33:33 wfc Exp $'
+    character(len=128)  :: tagname =  '$Name: testing $'
     logical, save       :: module_is_initialized = .false.
 
 !---------------------------------------------------------------------
 !-------  interfaces --------
 
 public       &
-         sealw99_init,   sealw99,  sealw99_end
+         sealw99_init,  sealw99_time_vary,  sealw99,  &
+         sealw99_endts, sealw99_end
 
 private   &
           check_tf_interval, obtain_gas_tfs, &
@@ -375,11 +376,11 @@ type(lw_table_type), intent(inout) :: Lw_tables
 
        data cld_indx_table_rsb   / 47*1 /
 
-       real, dimension(NBLY_RSB)   :: apcm_n, bpcm_n,     &
-                                       atpcm_n, btpcm_n,   &
-                                       acomb_n, bcomb_n
+       real, dimension(NBLY_RSB)   :: apcm_n, bpcm_n,      &
+                                      atpcm_n, btpcm_n,   &
+                                      acomb_n, bcomb_n
        real, dimension(NBLY_CKD) :: apcm_c, bpcm_c, atpcm_c,  &
-                                       btpcm_c, acomb_c, bcomb_c 
+                                    btpcm_c, acomb_c, bcomb_c 
        real, dimension(size(pref,1) ) :: plm
        real, dimension (NBCO215) :: cent, del
 
@@ -450,8 +451,7 @@ type(lw_table_type), intent(inout) :: Lw_tables
 !    be sure that the radiation time step has been defined before using
 !    it.
 !---------------------------------------------------------------------
-      if (Rad_control%rad_time_step_iz) then
-      else
+      if (.not.Rad_control%rad_time_step_iz) then
         write(6,*) "ERROR: must define rad_time_step before using it"
         stop
       endif
@@ -806,15 +806,10 @@ type(lw_table_type), intent(inout) :: Lw_tables
       if (Lw_control%do_co2_iz) then
         if (do_nlte .and. .not. Lw_control%do_co2) then
          write(6,*) "cannot activate nlte when co2 not active as radiative gas"
-         ! call error_mesg ('sealw99_mod', &
-         !' cannot activate nlte when co2 not active as radiative gas',&
-         !                                                 FATAL)
          stop
         endif 
       else  ! (do_co2_iz)
         write(6,*) "do_co2 not yet defined"
-        !call error_mesg ('sealw99_mod', &
-        !   'do_co2 not yet defined', FATAL)
         stop
       endif ! (do_co2_iz)
 
@@ -966,9 +961,6 @@ type(lw_table_type), intent(inout) :: Lw_tables
       if (NBTRGE == 0 .and. .not. use_bnd1_cldtf_for_h2o_bands) then
         write(6,*) "must use band1 cld tfs for the 1200-1400 cm(-1) bands when"
         write(6,*) "they are included in the 1200-2200 cm(-1) band"
-        !call error_mesg ('sealw99_mod', &
-        !'must use band1 cld tfs for the 1200-1400 cm(-1) bands when &
-        !  & they are included in the 1200-2200 cm(-1) band', FATAL)
         stop
       endif 
 
@@ -981,15 +973,6 @@ type(lw_table_type), intent(inout) :: Lw_tables
 !---------------------------------------------------------------------
       call longwave_fluxes_init
 
-!--------------------------------------------------------------------
-!    define the total number of columns on the processor. set the 
-!    number of columns processed on the current time step to 0.
-!---------------------------------------------------------------------
-      !total_points = (size(latb)-1)*(size(lonb)-1)
-      !co2_pts_processed = 0
-      !ch4_pts_processed = 0
-      !n2o_pts_processed = 0
-
 !---------------------------------------------------------------------
 !
 !---------------------------------------------------------------------
@@ -998,6 +981,242 @@ type(lw_table_type), intent(inout) :: Lw_tables
 
 
 end subroutine sealw99_init
+
+!####################################################################
+
+subroutine sealw99_time_vary (Rad_time, Rad_gases)
+
+type(time_type), intent(in) :: Rad_time
+type(radiative_gases_type),    intent(inout)    ::  Rad_gases   
+
+         logical                    :: calc_co2, calc_n2o, calc_ch4
+
+         character(len=4)           :: gas_name
+      integer                    :: year, month, day, hour, minute, &
+                                    second
+!---------------------------------------------------------------------------
+
+      call get_control_gas_tf (calc_co2, calc_ch4, calc_n2o)
+
+!----------------------------------------------------------------------
+!
+!--------------------------------------------------------------------
+      call lw_gases_stdtf_time_vary
+
+!----------------------------------------------------------------------
+!
+!--------------------------------------------------------------------
+      if (Rad_gases%time_varying_ch4 .or.    &
+          Rad_gases%time_varying_n2o) then
+        if (Rad_gases%time_varying_ch4 .and. .not. calc_ch4) then
+          !call error_mesg ('sealw99_mod', &
+          !' if ch4 amount is to vary in time, ch4 tfs must be '//&
+          !                                'recalculated', FATAL)
+          stop
+        endif
+        if (Rad_gases%time_varying_n2o        .and. .not. calc_n2o) then
+          !call error_mesg ('sealw99_mod', &
+          !' if n2o amount is to vary in time, n2o tfs must be '//&
+          !                                   'recalculated', FATAL)
+          stop
+        endif
+
+      endif
+
+!----------------------------------------------------------------------
+!
+!--------------------------------------------------------------------
+      if (Rad_gases%time_varying_co2) then 
+        if (.not. calc_co2) then
+          !call error_mesg ('sealw99_mod', &
+          !' if co2 amount is to vary in time, co2 tfs must be '//&
+          !                                  'recalculated', FATAL)
+          stop
+        endif
+      endif
+
+!----------------------------------------------------------------------
+!    if ch4 is activated in this job, varying in time, and 
+!    calculation of ch4 tfs are requested, call obtain_gas_tfs to
+!    define the tfs.
+!--------------------------------------------------------------------
+      if (Rad_gases%time_varying_ch4) then
+        if (Lw_control%do_ch4) then
+          if (do_ch4_tf_calc) then
+            gas_name = 'ch4 '
+            call obtain_gas_tfs (gas_name, Rad_time,   &
+                                 Rad_gases%Ch4_time,  &
+                                 ch4_tf_calc_intrvl,&
+                                 Rad_gases%ch4_tf_offset,  &
+                                 calc_ch4_tfs_on_first_step, &
+                                 calc_ch4_tfs_monthly, &
+                                 month_of_ch4_tf_calc, &
+                                 Rad_gases%ch4_for_next_tf_calc,  &
+                                 Rad_gases%ch4_for_last_tf_calc, &
+                                 do_ch4_tf_calc, do_ch4_tf_calc_init)
+          endif  ! (do_ch4_tf_calc)
+
+        endif ! (do_ch4)
+
+!---------------------------------------------------------------------
+!    if ch4 is not time-varying and it is the initial call to sealw99,
+!    call ch4_time_vary to calculate the tfs. set flags to indicate
+!    the calculation has been done.
+!---------------------------------------------------------------------
+      else ! (time_varying_ch4)
+        if (Lw_control%do_ch4 .and. do_ch4_tf_calc ) then
+          call ch4_time_vary (Rad_gases%rrvch4)
+          do_ch4_tf_calc = .false.
+          do_ch4_tf_calc_init = .false.
+        else if (.not. Lw_control%do_ch4) then
+          do_ch4_tf_calc = .false.
+          do_ch4_tf_calc_init = .false.
+        endif
+      endif  ! (time_varying_ch4)
+
+!----------------------------------------------------------------------
+!    if n2o is activated in this job, varying in time, and 
+!    calculation of n2o tfs are requested, call obtain_gas_tfs to
+!    define the tfs.
+!--------------------------------------------------------------------
+      if (Rad_gases%time_varying_n2o) then
+        if (Lw_control%do_n2o) then
+          if (do_n2o_tf_calc) then
+            gas_name = 'n2o '
+            call obtain_gas_tfs (gas_name, Rad_time,   &
+                                 Rad_gases%N2o_time,  &
+                                 n2o_tf_calc_intrvl,&
+                                 Rad_gases%n2o_tf_offset,  &
+                                 calc_n2o_tfs_on_first_step, &
+                                 calc_n2o_tfs_monthly, &
+                                 month_of_n2o_tf_calc, &
+                                 Rad_gases%n2o_for_next_tf_calc,  &
+                                 Rad_gases%n2o_for_last_tf_calc, &
+                                 do_n2o_tf_calc, do_n2o_tf_calc_init)
+          endif  ! (do_n2o_tf_calc)
+        endif ! (do_n2o)
+
+!---------------------------------------------------------------------
+!    if n2o is not time-varying and it is the initial call to sealw99,
+!    call n2o_time_vary to calculate the tfs. set flags to indicate
+!    the calculation has been done.
+!---------------------------------------------------------------------
+      else
+        if (Lw_control%do_n2o .and. do_n2o_tf_calc) then
+          call n2o_time_vary (Rad_gases%rrvn2o)
+          do_n2o_tf_calc = .false.
+          do_n2o_tf_calc_init = .false.
+        else if (.not. Lw_control%do_n2o) then
+          do_n2o_tf_calc = .false.
+          do_n2o_tf_calc_init = .false.
+        endif
+      endif  ! (time_varying_n2o)
+
+
+!----------------------------------------------------------------------
+!    if co2 is activated in this job, varying in time, and 
+!    calculation of co2 tfs are requested, call obtain_gas_tfs to
+!    define the tfs.
+!--------------------------------------------------------------------
+      if (Rad_gases%time_varying_co2) then
+        if (Lw_control%do_co2) then
+          if (do_co2_tf_calc) then
+            gas_name = 'co2 '
+            call obtain_gas_tfs (gas_name, Rad_time,  &
+                                 Rad_gases%Co2_time,  &
+                                 co2_tf_calc_intrvl,&
+                                 Rad_gases%co2_tf_offset,  &
+                                 calc_co2_tfs_on_first_step, &
+                                 calc_co2_tfs_monthly, &
+                                 month_of_co2_tf_calc, &
+                                 Rad_gases%co2_for_next_tf_calc,  &
+                                 Rad_gases%co2_for_last_tf_calc, &
+                                 do_co2_tf_calc, do_co2_tf_calc_init)
+          endif  ! (do_co2_tf_calc)
+        endif ! (do_co2)
+
+!---------------------------------------------------------------------
+!    if co2 is not time-varying and it is the initial call to sealw99,
+!    call co2_time_vary to calculate the tfs. set flags to indicate
+!    the calculation has been done.
+!---------------------------------------------------------------------
+      else
+! interactive co2 mod for radiation calculation
+! here it's hardcoded to recompute co2 TF on the 1st of each month
+         if (Rad_gases%use_model_supplied_co2) then
+            write(6,*) "ERROR: get_date not supported"
+            stop
+            !call get_date (Rad_time, year, month, day, hour, minute,&
+            !     second)
+            !if (day == 1 .and. hour == 0 .and. minute == 0 .and. &
+            !     second == 0) then
+            !   call co2_time_vary (Rad_gases%rrvco2)
+            !   Rad_gases%co2_for_last_tf_calc = Rad_gases%rrvco2
+            !   do_co2_tf_calc_init = .false.
+            !else
+            !   if (do_co2_tf_calc_init) then
+            !      call co2_time_vary (Rad_gases%co2_for_last_tf_calc)
+            !      do_co2_tf_calc_init = .false.
+            !   endif
+            !endif
+         else  !(Rad_gases%use_model_supplied_co2)
+            if (Lw_control%do_co2 .and. do_co2_tf_calc) then
+               call co2_time_vary (Rad_gases%rrvco2)
+               do_co2_tf_calc = .false.
+               do_co2_tf_calc_init = .false.
+            else if (.not. Lw_control%do_co2) then
+               do_co2_tf_calc = .false.
+               do_co2_tf_calc_init = .false.
+            endif
+         endif  !(Rad_gases%use_model_supplied_co2)
+      endif  ! (time_varying_co2)
+
+!----------------------------------------------------------------------
+!
+!--------------------------------------------------------------------
+      if ((Lw_control%do_co2 .and. calc_co2) .or. &
+          (Lw_control%do_ch4 .and. calc_ch4) .or. &
+          (Lw_control%do_n2o .and. calc_n2o)) then
+        call lw_gases_stdtf_dealloc
+      endif
+ 
+!------------------------------------------------------------------------
+
+
+end subroutine sealw99_time_vary
+
+
+!#####################################################################
+ 
+subroutine sealw99_endts (Rad_gases_tv)
+
+type(radiative_gases_type), intent(in) :: Rad_gases_tv
+
+       if (Rad_gases_tv%time_varying_ch4) then
+         if (Lw_control%do_ch4) then
+           if (.not. calc_ch4_tfs_on_first_step) then
+             do_ch4_tf_calc = .true.
+           endif
+          endif
+        endif
+
+       if (Rad_gases_tv%time_varying_n2o) then
+         if (Lw_control%do_n2o) then
+          if (.not. calc_n2o_tfs_on_first_step) then
+            do_n2o_tf_calc = .true.
+         endif
+        endif
+      endif
+
+     if (Rad_gases_tv%time_varying_co2) then
+       if (Lw_control%do_co2) then
+         if (.not. calc_co2_tfs_on_first_step) then
+           do_co2_tf_calc = .true.
+         endif
+       endif
+      endif
+
+end subroutine sealw99_endts
 
 
 !#####################################################################
@@ -1351,248 +1570,8 @@ logical,                        intent(in)    :: including_aerosols
 !    be sure module is initialized.
 !---------------------------------------------------------------------
       if (.not. module_is_initialized ) then
-        !call error_mesg( 'sealw99_mod',  &
-        !     'module has not been initialized', FATAL )
+        write(6,*) "ERROR: sealw99 module has not been initialized"
         stop
-      endif
-
-!----------------------------------------------------------------------
-!
-!--------------------------------------------------------------------
-      call get_control_gas_tf (calc_co2, calc_ch4, calc_n2o)
-
-!----------------------------------------------------------------------
-!
-!--------------------------------------------------------------------
-      call lw_gases_stdtf_time_vary
-
-!----------------------------------------------------------------------
-!
-!--------------------------------------------------------------------
-      if (Rad_gases%time_varying_ch4 .or.    &
-          Rad_gases%time_varying_n2o) then
-        if (Rad_gases%time_varying_ch4 .and. .not. calc_ch4) then
-          !call error_mesg ('sealw99_mod', &
-          !' if ch4 amount is to vary in time, ch4 tfs must be '//&
-          !                                'recalculated', FATAL)
-          stop
-        endif
-        if (Rad_gases%time_varying_n2o        .and. .not. calc_n2o) then
-          !call error_mesg ('sealw99_mod', &
-          !' if n2o amount is to vary in time, n2o tfs must be '//&
-          !                                   'recalculated', FATAL)
-          stop
-        endif
-
-      endif
-
-!----------------------------------------------------------------------
-!
-!--------------------------------------------------------------------
-      if (Rad_gases%time_varying_co2) then 
-        if (.not. calc_co2) then
-          !call error_mesg ('sealw99_mod', &
-          !' if co2 amount is to vary in time, co2 tfs must be '//&
-          !                                  'recalculated', FATAL)
-          stop
-        endif
-      endif
-
-!----------------------------------------------------------------------
-!    if ch4 is activated in this job, varying in time, and 
-!    calculation of ch4 tfs are requested, call obtain_gas_tfs to
-!    define the tfs.
-!--------------------------------------------------------------------
-      if (Rad_gases%time_varying_ch4) then
-        if (Lw_control%do_ch4) then
-          if (do_ch4_tf_calc) then
-            gas_name = 'ch4 '
-            call obtain_gas_tfs (gas_name, Rad_time,   &
-                                 Rad_gases%Ch4_time,  &
-                                 ch4_tf_calc_intrvl,&
-                                 Rad_gases%ch4_tf_offset,  &
-                                 calc_ch4_tfs_on_first_step, &
-                                 calc_ch4_tfs_monthly, &
-                                 month_of_ch4_tf_calc, &
-                                 Rad_gases%ch4_for_next_tf_calc,  &
-                                 Rad_gases%ch4_for_last_tf_calc, &
-                                 do_ch4_tf_calc, do_ch4_tf_calc_init)
-          endif  ! (do_ch4_tf_calc)
-
-!--------------------------------------------------------------------
-!    increment the points processed counter for this time step. check
-!    if all processor points have been processed; if so, set the
-!    calculation flag to .true., and reset the points processed counter
-!    to 0.
-!--------------------------------------------------------------------
-          if (.not. calc_ch4_tfs_on_first_step) then
-            write(6,*) "ERROR: Unsupported option"
-            stop
-!            ch4_pts_processed = ch4_pts_processed +  &
-!                                size(Atmos_input%press,1) * &
-!                                size(Atmos_input%press,2)
-!            if (ch4_pts_processed == total_points) then
-!              do_ch4_tf_calc = .true.
-!              ch4_pts_processed = 0
-!            endif
-          endif  ! (.not. calc_ch4_tfs_on_first_step)
-        endif ! (do_ch4)
-
-!---------------------------------------------------------------------
-!    if ch4 is not time-varying and it is the initial call to sealw99,
-!    call ch4_time_vary to calculate the tfs. set flags to indicate
-!    the calculation has been done.
-!---------------------------------------------------------------------
-      else ! (time_varying_ch4)
-        if (Lw_control%do_ch4 .and. do_ch4_tf_calc ) then
-          call ch4_time_vary (Rad_gases%rrvch4)
-          do_ch4_tf_calc = .false.
-          do_ch4_tf_calc_init = .false.
-        else if (.not. Lw_control%do_ch4) then
-          do_ch4_tf_calc = .false.
-          do_ch4_tf_calc_init = .false.
-        endif
-      endif  ! (time_varying_ch4)
-
-!----------------------------------------------------------------------
-!    if n2o is activated in this job, varying in time, and 
-!    calculation of n2o tfs are requested, call obtain_gas_tfs to
-!    define the tfs.
-!--------------------------------------------------------------------
-      if (Rad_gases%time_varying_n2o) then
-        if (Lw_control%do_n2o) then
-          if (do_n2o_tf_calc) then
-            gas_name = 'n2o '
-            call obtain_gas_tfs (gas_name, Rad_time,   &
-                                 Rad_gases%N2o_time,  &
-                                 n2o_tf_calc_intrvl,&
-                                 Rad_gases%n2o_tf_offset,  &
-                                 calc_n2o_tfs_on_first_step, &
-                                 calc_n2o_tfs_monthly, &
-                                 month_of_n2o_tf_calc, &
-                                 Rad_gases%n2o_for_next_tf_calc,  &
-                                 Rad_gases%n2o_for_last_tf_calc, &
-                                 do_n2o_tf_calc, do_n2o_tf_calc_init)
-          endif  ! (do_n2o_tf_calc)
-
-!--------------------------------------------------------------------
-!    increment the points processed counter for this time step. check
-!    if all processor points have been processed; if so, set the
-!    calculation flag to .true., and reset the points processed counter
-!    to 0.
-!--------------------------------------------------------------------
-          if (.not. calc_n2o_tfs_on_first_step) then
-            write(6,*) "ERROR: Unsupported option"
-            stop
-!            n2o_pts_processed = n2o_pts_processed +  &
-!                                size(Atmos_input%press,1) * &
-!                                size(Atmos_input%press,2)
-!            if (n2o_pts_processed == total_points) then
-!              do_n2o_tf_calc = .true.
-!              n2o_pts_processed = 0
-!            endif
-          endif  ! (.not. calc_n2o_tfs_on_first_step)
-        endif ! (do_n2o)
-
-!---------------------------------------------------------------------
-!    if n2o is not time-varying and it is the initial call to sealw99,
-!    call n2o_time_vary to calculate the tfs. set flags to indicate
-!    the calculation has been done.
-!---------------------------------------------------------------------
-      else
-        if (Lw_control%do_n2o .and. do_n2o_tf_calc) then
-          call n2o_time_vary (Rad_gases%rrvn2o)
-          do_n2o_tf_calc = .false.
-          do_n2o_tf_calc_init = .false.
-        else if (.not. Lw_control%do_n2o) then
-          do_n2o_tf_calc = .false.
-          do_n2o_tf_calc_init = .false.
-        endif
-      endif  ! (time_varying_n2o)
-
-
-!----------------------------------------------------------------------
-!    if co2 is activated in this job, varying in time, and 
-!    calculation of co2 tfs are requested, call obtain_gas_tfs to
-!    define the tfs.
-!--------------------------------------------------------------------
-      if (Rad_gases%time_varying_co2) then
-        if (Lw_control%do_co2) then
-          if (do_co2_tf_calc) then
-            gas_name = 'co2 '
-            call obtain_gas_tfs (gas_name, Rad_time,  &
-                                 Rad_gases%Co2_time,  &
-                                 co2_tf_calc_intrvl,&
-                                 Rad_gases%co2_tf_offset,  &
-                                 calc_co2_tfs_on_first_step, &
-                                 calc_co2_tfs_monthly, &
-                                 month_of_co2_tf_calc, &
-                                 Rad_gases%co2_for_next_tf_calc,  &
-                                 Rad_gases%co2_for_last_tf_calc, &
-                                 do_co2_tf_calc, do_co2_tf_calc_init)
-          endif  ! (do_co2_tf_calc)
-
-!--------------------------------------------------------------------
-!    increment the points processed counter for this time step. check
-!    if all processor points have been processed; if so, set the
-!    calculation flag to .true., and reset the points processed counter
-!    to 0.
-!--------------------------------------------------------------------
-          if (.not. calc_co2_tfs_on_first_step ) then
-            write(6,*) "ERROR: Unsupported option"
-            stop  
-!            co2_pts_processed = co2_pts_processed +  &
-!                                size(Atmos_input%press,1) * &
-!                                size(Atmos_input%press,2)
-!            if (co2_pts_processed == total_points) then
-!              do_co2_tf_calc = .true.
-!              co2_pts_processed = 0
-!            endif
-          endif  ! (.not. calc_co2_tfs_on_first_step)
-        endif ! (do_co2)
-
-!---------------------------------------------------------------------
-!    if co2 is not time-varying and it is the initial call to sealw99,
-!    call co2_time_vary to calculate the tfs. set flags to indicate
-!    the calculation has been done.
-!---------------------------------------------------------------------
-      else
-! interactive co2 mod for radiation calculation
-! here it's hardcoded to recompute co2 TF on the 1st of each month
-         if (Rad_gases%use_model_supplied_co2) then
-            stop
-            !call get_date (Rad_time, year, month, day, hour, minute,&
-            !     second)
-            if (day == 1 .and. hour == 0 .and. minute == 0 .and. &
-                 second == 0) then
-               call co2_time_vary (Rad_gases%rrvco2)
-               Rad_gases%co2_for_last_tf_calc = Rad_gases%rrvco2
-               do_co2_tf_calc_init = .false.
-            else
-               if (do_co2_tf_calc_init) then
-                  call co2_time_vary (Rad_gases%co2_for_last_tf_calc)
-                  do_co2_tf_calc_init = .false.
-               endif
-            endif
-         else  !(Rad_gases%use_model_supplied_co2)
-            if (Lw_control%do_co2 .and. do_co2_tf_calc) then
-               call co2_time_vary (Rad_gases%rrvco2)
-               do_co2_tf_calc = .false.
-               do_co2_tf_calc_init = .false.
-            else if (.not. Lw_control%do_co2) then
-               do_co2_tf_calc = .false.
-               do_co2_tf_calc_init = .false.
-            endif
-         endif  !(Rad_gases%use_model_supplied_co2)
-      endif  ! (time_varying_co2)
-
-!----------------------------------------------------------------------
-!
-!--------------------------------------------------------------------
-      if ((Lw_control%do_co2 .and. calc_co2) .or. &
-          (Lw_control%do_ch4 .and. calc_ch4) .or. &
-          (Lw_control%do_n2o .and. calc_n2o)) then
-        call lw_gases_stdtf_dealloc
       endif
 
 !----------------------------------------------------------------------
@@ -1606,15 +1585,30 @@ logical,                        intent(in)    :: including_aerosols
 !    call sealw99_alloc to allocate component arrays of 
 !    lw_diagnostics_type variables.
 !----------------------------------------------------------------------
-      call sealw99_alloc (ix, jx, kx, Lw_diagnostics)
+      if ( .not. allocated(Lw_diagnostics%flx1e1)) then
+        call sealw99_alloc (ix, jx, kx, Lw_diagnostics)
+      else
+        Lw_diagnostics%flx1e1   = 0.
+        Lw_diagnostics%cts_out    = 0.
+        Lw_diagnostics%cts_outcf = 0.
+        Lw_diagnostics%gxcts    = 0.
+        Lw_diagnostics%excts  = 0.
+        Lw_diagnostics%exctsn   = 0.
+        Lw_diagnostics%fctsg   = 0.
+        Lw_diagnostics%fluxn  = 0.
+        if (Rad_control%do_totcld_forcing) then
+          Lw_diagnostics%fluxncf = 0.
+        endif
+        Lw_diagnostics%flx1e1f  = 0.
+      endif
       
 !----------------------------------------------------------------------
 !
 !--------------------------------------------------------------------
        call optical_path_setup (is, ie, js, je, Atmos_input, Rad_gases, &
                                Aerosol, Aerosol_props, Aerosol_diags, &
-                               Optical, including_aerosols)   
-    
+                               Optical, including_aerosols) 
+        
 !--------------------------------------------------------------------
 !    call co2coef to compute some co2 temperature and pressure   
 !    interpolation quantities and to compute temperature-corrected co2
@@ -1859,6 +1853,7 @@ logical,                        intent(in)    :: including_aerosols
 !     lations for flux levels KE and KE+1 are done separately, as all
 !     calculations are special cases or nearby layers.
 !----------------------------------------------------------------------
+
     do k=KS+1,KE-1
 
 !--------------------------------------------------------------------
@@ -2050,7 +2045,7 @@ logical,                        intent(in)    :: including_aerosols
 !     KE+1
 !----------------------------------------------------------------------
       call cloud (KE, Cldrad_props, Cld_spec, Lw_clouds, cldtf)
-   
+ 
 !-------------------------------------------------------------------- 
 !     compute mean temperature in the "nearby layer" between a flux
 !     level and the first data level below the flux level (tpl1) or the
@@ -2084,8 +2079,6 @@ logical,                        intent(in)    :: including_aerosols
 !----------------------------------------------------------------------
     call trans_sfc    (Gas_tf, Atmos_input, overod, co21c_KEp1, &
                        co21r_KEp1)
-
-
 
      do j = 1,size(trans_b2d1(:,:,:),2)
         do i = 1,size(trans_b2d1(:,:,:),1)
@@ -2271,7 +2264,6 @@ logical,                        intent(in)    :: including_aerosols
     endif
     endif
 
-    
 !-----------------------------------------------------------------------
 !     compute emissivity heating rates.
 !-----------------------------------------------------------------------
@@ -2464,8 +2456,6 @@ logical,                        intent(in)    :: including_aerosols
  
    end do  ! (profiles loop)
  
- 
-
     if (Cldrad_control%do_ica_calcs) then
       Lw_output%heatra = heatra_save / Float(nprofiles)
       Lw_output%flxnet = flxnet_save / Float(nprofiles)
@@ -2517,25 +2507,7 @@ logical,                        intent(in)    :: including_aerosols
       call optical_dealloc (Optical, including_aerosols)      
       
 !--------------------------------------------------------------------
-
-! gol124: deallocation of Lw_diagnostics, moved here from longwave_driver
-! gol124: deallocation commented out, to re-use arrays on the next call
-!--------------------------------------------------------------------
-!    deallocate the components of Lw_diagnostics.
-!--------------------------------------------------------------------
-!      deallocate (Lw_diagnostics%flx1e1)
-!      deallocate (Lw_diagnostics%fluxn )
-!      deallocate (Lw_diagnostics%cts_out)
-!      deallocate (Lw_diagnostics%cts_outcf)
-!      deallocate (Lw_diagnostics%gxcts )
-!      deallocate (Lw_diagnostics%excts )
-!      deallocate (Lw_diagnostics%exctsn)
-!      deallocate (Lw_diagnostics%fctsg )
-!      deallocate (Lw_diagnostics%flx1e1f)
-!      if (Rad_control%do_totcld_forcing) then
-!        deallocate (Lw_diagnostics%fluxncf)
-!      endif        
-
+      
 end subroutine sealw99 
 
 !#####################################################################
@@ -3269,6 +3241,8 @@ type(lw_diagnostics_type), intent(inout) :: Lw_diagnostics
         endif
         Lw_diagnostics%fluxncf = 0.
       endif
+
+      
 
 
 !--------------------------------------------------------------------

@@ -99,7 +99,7 @@ public   aerosol_type
 
 type aerosol_type
      real, dimension(:,:,:,:),        allocatable :: aerosol
-     logical, dimension(:,:),        allocatable :: family_members
+     logical, dimension(:,:),         allocatable :: family_members
      character(len=64), dimension(:), allocatable :: aerosol_names
 end type aerosol_type              
 
@@ -116,13 +116,14 @@ public   aerosol_diagnostics_type
 !    sw_heating_vlcno
  
 type aerosol_diagnostics_type
-     real, dimension(:,:,:),   allocatable  :: sw_heating_vlcno
+     real, dimension(:,:,:,:),   allocatable  :: sw_heating_vlcno
      real, dimension(:,:,:,:,:), allocatable  :: extopdep, &
-                                             absopdep
+                                                 absopdep
+     real, dimension(:,:,:,:,:), allocatable  :: asymdep
      real, dimension(:,:,:,:), allocatable  :: extopdep_vlcno, &
-                                           absopdep_vlcno, &
-                                           lw_extopdep_vlcno, &
-                                           lw_absopdep_vlcno
+                                               absopdep_vlcno, &
+                                               lw_extopdep_vlcno, &
+                                               lw_absopdep_vlcno
  
 end type aerosol_diagnostics_type
  
@@ -139,20 +140,21 @@ public   aerosol_properties_type
 !    optical_index
 
 type aerosol_properties_type
+     integer, dimension(:,:,:), allocatable :: ivol
      real, dimension(:,:), allocatable  :: aerextband,   &
-                                       aerssalbband, &
-                                       aerasymmband, &
-                                       aerextbandlw, &
-                                       aerssalbbandlw, &
-                                       aerextbandlw_cn, &
-                                       aerssalbbandlw_cn
+                                           aerssalbband, &
+                                           aerasymmband, &
+                                           aerextbandlw, &
+                                           aerssalbbandlw, &
+                                           aerextbandlw_cn, &
+                                           aerssalbbandlw_cn
      real, dimension(:,:,:,:), allocatable :: sw_ext, &
-                                          sw_ssa, &
-                                          sw_asy, &
-                                          lw_ext, &
-                                          lw_ssa, &
-                                          lw_asy
-     integer, dimension(:), allocatable :: sulfate_index
+                                              sw_ssa, &
+                                              sw_asy, &
+                                              lw_ext, &
+                                              lw_ssa, &
+                                              lw_asy
+     integer, dimension(:,:), allocatable :: sulfate_index
      integer, dimension(:), allocatable :: optical_index
      integer, dimension(:), allocatable :: omphilic_index
      integer, dimension(:), allocatable :: bcphilic_index
@@ -169,6 +171,7 @@ type aerosol_properties_type
      integer                        :: seasalt3_flag
      integer                        :: seasalt4_flag
      integer                        :: seasalt5_flag
+     integer                        :: bc_flag
 end type aerosol_properties_type
 
 !------------------------------------------------------------------
@@ -182,8 +185,11 @@ public astronomy_type
 
 type astronomy_type
      real, dimension(:,:), allocatable  :: solar,   &
-                                       cosz,  &
-                                       fracday
+                                           cosz,    &
+                                           fracday
+     real, dimension(:,:,:), allocatable  :: solar_p,   &
+                                             cosz_p,    &
+                                             fracday_p
      real    :: rrsun
 end type astronomy_type
 
@@ -229,24 +235,24 @@ public atmos_input_type
 
 type atmos_input_type
      real, dimension(:,:,:), allocatable :: press,   &
-                                        temp, &
-                                        rh2o,  &
-                                        zfull,  &
-                                        pflux, &
-                                        tflux,  &
-                                        deltaz,  &
-                                        phalf,   &
-                                        rel_hum, &
-                                        cloudtemp,   &
-                                        clouddeltaz, &
-                                        cloudvapor, &
-                                        aerosoltemp, &
-                                        aerosolvapor, &
-                                        aerosolpress, &
-                                        aerosolrelhum, &
-                                        tracer_co2
+                                            temp, &
+                                            rh2o,  &
+                                            zfull,  &
+                                            pflux, &
+                                            tflux,  &
+                                            deltaz,  &
+                                            phalf,   &
+                                            rel_hum, &
+                                            cloudtemp,   &
+                                            clouddeltaz, &
+                                            cloudvapor, &
+                                            aerosoltemp, &
+                                            aerosolvapor, &
+                                            aerosolpress, &
+                                            aerosolrelhum, &
+                                            tracer_co2
      real, dimension(:,:),   allocatable :: tsfc,   &
-                                        psfc              
+                                            psfc              
      real                            :: g_rrvco2
 end type atmos_input_type
 
@@ -267,16 +273,16 @@ public cldrad_properties_type
 
 type cldrad_properties_type
      real, dimension(:,:,:,:,:), allocatable :: cldext,   &
-                                          cldasymm, &
-                                          cldsct
+                                                cldasymm, &
+                                               cldsct
      real, dimension(:,:,:,:,:), allocatable ::                   &
                                           emmxolw, &
                                           emrndlw,  &
                                           abscoeff,  &
                                           cldemiss
      real, dimension(:,:,:), allocatable ::   cirabsw, &
-                                          cirrfsw,   &
-                                          cvisrfsw
+                                              cirrfsw,   &
+                                              cvisrfsw
 end type cldrad_properties_type
 
 !------------------------------------------------------------------
@@ -293,10 +299,10 @@ public cld_space_properties_type
 type cld_space_properties_type
      real, dimension(:,:,:),    allocatable :: camtswkc        
      real, dimension(:,:,:),    allocatable :: cirabswkc,  &
-                                           cirrfswkc, &
-                                           cvisrfswkc
+                                               cirrfswkc, &
+                                               cvisrfswkc
      integer, dimension(:,:,:), allocatable :: ktopswkc,   &
-                                           kbtmswkc
+                                               kbtmswkc
 end type cld_space_properties_type
 
 !------------------------------------------------------------------
@@ -343,17 +349,25 @@ type cld_specification_type
                                          iwp,  &
                                          reff_liq,   &
                                          reff_ice, &
+                                         reff_liq_lim, &
+                                         reff_ice_lim, &
                                          liq_frac, &
                                          cloud_water, &
                                          cloud_ice,  &
                                          cloud_area, &
                                          cloud_droplet, &
+                                         cloud_ice_num, &
+                                         rain, &
+                                         snow, &
+                                         rain_size, &
+                                         snow_size, &
                                          reff_liq_micro,   &
                                          reff_ice_micro,&
                                          camtsw,   &
                                          cmxolw,  &
                                          crndlw
    integer, dimension(:,:,:), allocatable :: cld_thickness
+   integer, dimension(:,:,:,:), allocatable :: stoch_cloud_type
    integer, dimension(:,:,:,:), allocatable :: cld_thickness_lw_band
    integer, dimension(:,:,:,:), allocatable :: cld_thickness_sw_band
    integer, dimension(:,:),   allocatable :: ncldsw,   &
@@ -386,12 +400,17 @@ type cloudrad_control_type
     logical :: do_diag_clouds        
     logical :: do_specified_clouds        
     logical :: do_donner_deep_clouds
+    logical :: do_uw_clouds
     logical :: do_zetac_clouds
     logical :: do_random_overlap
     logical :: do_max_random_overlap
     logical :: do_stochastic_clouds
+    logical :: use_temp_for_seed
     logical :: do_specified_strat_clouds
     logical :: do_ica_calcs
+    logical :: do_liq_num
+    logical :: do_ice_num
+    logical :: using_fu2007
     integer :: nlwcldb                   !   number of frequency bands 
                                          !   for which lw cloud emissiv-
                                          !   ities are defined.
@@ -414,12 +433,17 @@ type cloudrad_control_type
     logical :: do_diag_clouds_iz
     logical :: do_specified_clouds_iz
     logical :: do_donner_deep_clouds_iz
+    logical :: do_uw_clouds_iz
     logical :: do_zetac_clouds_iz
     logical :: do_random_overlap_iz
     logical :: do_max_random_overlap_iz
     logical :: do_stochastic_clouds_iz
+    logical :: use_temp_for_seed_iz
     logical :: do_specified_strat_clouds_iz
     logical :: do_ica_calcs_iz
+    logical :: do_liq_num_iz
+    logical :: do_ice_num_iz
+    logical :: using_fu2007_iz
 end type cloudrad_control_type
 
 !------------------------------------------------------------------
@@ -709,12 +733,17 @@ type microphysics_type
                                       conc_snow,     &
                                       size_rain,     &
                                       conc_rain,   &
-                                      cldamt
+                                      cldamt, &
+                                      droplet_number, &
+                                      ice_number
 real, dimension(:,:,:,:), allocatable :: stoch_conc_ice,   &
                                      stoch_conc_drop,  &
                                      stoch_size_ice,   &
                                      stoch_size_drop,  &
-                                     stoch_cldamt 
+                                     stoch_cldamt, &
+                                     stoch_droplet_number, &
+                                     stoch_ice_number
+integer, dimension(:,:,:,:), allocatable :: stoch_cloud_type
 !
 ! In practice, we allocate a single set of columns for the stochastic
 !   clouds, then point to sections of the larger array with the 
@@ -726,11 +755,15 @@ real, dimension(:,:,:,:), allocatable :: lw_stoch_conc_ice,   &
                                      lw_stoch_size_ice,   &
                                      lw_stoch_size_drop,  &
                                      lw_stoch_cldamt,     &
+                                     lw_stoch_droplet_number, &
+                                     lw_stoch_ice_number, &
                                      sw_stoch_conc_ice,   &
                                      sw_stoch_conc_drop,  &
                                      sw_stoch_size_ice,   &
                                      sw_stoch_size_drop,  &
-                                     sw_stoch_cldamt
+                                     sw_stoch_cldamt,     &
+                                     sw_stoch_droplet_number, &
+                                     sw_stoch_ice_number
 end type microphysics_type
 
 !-------------------------------------------------------------------
@@ -836,6 +869,12 @@ type radiation_control_type
     logical  :: do_totcld_forcing
     logical  :: do_aerosol
     integer  :: rad_time_step
+    integer  :: lw_rad_time_step
+    integer  :: sw_rad_time_step
+    logical  :: do_sw_rad
+    logical  :: do_lw_rad
+    logical  :: hires_coszen
+    integer  :: nzens
     real     :: co2_tf_calc_intrvl
     logical  :: use_current_co2_for_tf
     logical  :: calc_co2_tfs_on_first_step
@@ -860,9 +899,16 @@ type radiation_control_type
     logical  :: do_swaerosol_forcing
     integer  :: indx_swaf
     integer  :: indx_lwaf
+    logical  :: using_im_bcsul
     logical  :: do_totcld_forcing_iz
     logical  :: do_aerosol_iz
     logical  :: rad_time_step_iz
+    logical  :: lw_rad_time_step_iz
+    logical  :: sw_rad_time_step_iz
+    logical  :: do_sw_rad_iz
+    logical  :: do_lw_rad_iz
+    logical  :: hires_coszen_iz
+    logical  :: nzens_iz 
     logical  :: co2_tf_calc_intrvl_iz
     logical  :: use_current_co2_for_tf_iz
     logical  :: calc_co2_tfs_on_first_step_iz
@@ -887,6 +933,7 @@ type radiation_control_type
     logical  :: do_swaerosol_forcing_iz
     logical  :: indx_swaf_iz
     logical  :: indx_lwaf_iz
+    logical  :: using_im_bcsul_iz
 end type radiation_control_type
 
 !------------------------------------------------------------------
@@ -953,25 +1000,36 @@ public rad_output_type
 !    coszen_angle
 
 type rad_output_type
-     real, dimension(:,:,:), allocatable :: tdt_rad,  &
-                                        tdt_rad_clr, &
-                                        tdtsw,   &
-                                        tdtsw_clr,  &
-                                        tdtlw
-     real, dimension(:,:),   allocatable :: flux_sw_surf, &
+     real, dimension(:,:,:,:), allocatable :: tdt_rad,  &
+                                        ufsw,   &
+                                        dfwe,  &
+                                        tdtsw
+     real, dimension(:,:,:,:), allocatable :: tdt_rad_clr, &
+                                            ufsw_clr,    &
+                                            dfsw_clr,    &
+                                            tdtsw_clr
+     real, dimension(:,:,:), allocatable :: tdtlw
+     real, dimension(:,:,:), allocatable :: flxnet
+     real, dimension(:,:,:), allocatable :: flxnetcf
+     real, dimension(:,:,:), allocatable :: tdtlw_clr
+     real, dimension(:,:,:), allocatable :: flux_sw_surf, &
+                                        flux_sw_surf_refl_dir, &
                                         flux_sw_surf_dir, &
                                         flux_sw_surf_dif, &
                                         flux_sw_down_vis_dir, &
                                         flux_sw_down_vis_dif, &
                                        flux_sw_down_total_dir, &
                                        flux_sw_down_total_dif, &
-                                  flux_sw_down_total_dir_clr, &
-                                  flux_sw_down_total_dif_clr, &
-                                        flux_sw_vis, &
-                                        flux_sw_vis_dir, &
-                                        flux_sw_vis_dif, &
-                                        flux_lw_surf, &
-                                        coszen_angle
+                                       flux_sw_vis, &
+                                       flux_sw_vis_dir, &
+                                       flux_sw_refl_vis_dir, &
+                                       flux_sw_vis_dif
+     real, dimension(:,:,:), allocatable :: flux_sw_down_vis_clr, &
+                                            flux_sw_down_total_dir_clr, &
+                                            flux_sw_down_total_dif_clr
+     real, dimension(:,:), allocatable :: flux_lw_surf, &
+                                          coszen_angle
+
 end type rad_output_type
 
 !-------------------------------------------------------------------
@@ -1037,7 +1095,13 @@ type solar_spectrum_type
     integer         :: nstreams
     integer         :: nh2obands
     integer         :: visible_band_indx, one_micron_indx
+    integer         :: eight70_band_indx
     logical         :: visible_band_indx_iz, one_micron_indx_iz
+    logical         :: eight70_band_indx_iz
+    integer         :: w340_band_indx, w380_band_indx,  &
+                       w440_band_indx, w670_band_indx
+    logical         :: w340_band_iz, w380_band_iz, &
+                       w440_band_iz, w670_band_iz
 end type solar_spectrum_type
 
 !---------------------------------------------------------------------
@@ -1074,28 +1138,30 @@ public sw_output_type
 !    swup_special_clr
 
 type sw_output_type
-     real, dimension(:,:,:), allocatable :: dfsw,   &
+     real, dimension(:,:,:,:), allocatable :: dfsw,   &
                                         ufsw,  &
                                         fsw,   &
-                                        hsw, &
-                                        dfswcf,   &
+                                        hsw
+     real, dimension(:,:,:,:), allocatable :: dfswcf, &
                                         ufswcf,&
                                         fswcf,  &
                                         hswcf
-      real, dimension(:,:), allocatable :: dfsw_vis_sfc,   &
+      real, dimension(:,:,:), allocatable :: dfsw_vis_sfc,   &
                                        ufsw_vis_sfc
-      real, dimension(:,:), allocatable :: dfsw_dir_sfc
-      real, dimension(:,:), allocatable :: dfsw_dir_sfc_clr
-      real, dimension(:,:), allocatable :: dfsw_dif_sfc,   &
-                                       dfsw_dif_sfc_clr,   &
+      real, dimension(:,:,:), allocatable :: dfsw_dir_sfc
+      real, dimension(:,:,:), allocatable :: ufsw_dir_sfc
+      real, dimension(:,:,:), allocatable :: dfsw_dir_sfc_clr
+      real, dimension(:,:,:), allocatable :: dfsw_dif_sfc,   &
                                        ufsw_dif_sfc
-      real, dimension(:,:), allocatable :: dfsw_vis_sfc_dir
-      real, dimension(:,:), allocatable :: dfsw_vis_sfc_dif,   &
+      real, dimension(:,:,:), allocatable :: dfsw_dif_sfc_clr
+      real, dimension(:,:,:), allocatable :: dfsw_vis_sfc_dir
+      real, dimension(:,:,:), allocatable :: ufsw_vis_sfc_dir
+      real, dimension(:,:,:), allocatable :: dfsw_vis_sfc_clr
+      real, dimension(:,:,:), allocatable :: dfsw_vis_sfc_dif,   &
                                        ufsw_vis_sfc_dif
-      real, dimension(:,:,:), allocatable   ::                       &
-                                        bdy_flx, &
-                                        bdy_flx_clr, &
-                                        swup_special, &
+      real, dimension(:,:,:,:), allocatable   :: bdy_flx
+      real, dimension(:,:,:,:), allocatable   :: bdy_flx_clr
+      real, dimension(:,:,:,:), allocatable   :: swup_special, &
                                         swup_special_clr
      real, dimension(:,:,:), allocatable   :: swdn_special, &
                                           swdn_special_clr
@@ -1152,7 +1218,9 @@ type (shortwave_control_type), public, save   ::  &
                                          .false., .false., .false.)
 
 type (radiation_control_type), public, save   ::  &
-   Rad_control = radiation_control_type( .false., .false., 0,    &
+   Rad_control = radiation_control_type( .false., .false., 0, 0, 0, &
+                                         .false., .false., &
+                                         .false., 1, &
                                          0.0,  .true.,  .false.,&
                                          .false.,  0.0, &
                                          0.0, .true., .false.,  &
@@ -1162,19 +1230,23 @@ type (radiation_control_type), public, save   ::  &
                                          0, .false., .false.,   &
                                          .false., .false.,&
                                          .false., .false.,      &
-                                         0, 0, &
+                                         0, 0, .false., &
 ! _iz variables:
                                          .false., .false., .false., &
+                                         .false., .false., .true., &
+                                         .true.,  &
+                                         .false., .false., &
+                                         .false., .false., &
                                          .false., .false., .false., &
                                          .false., .false., .false., &
-                                         .false., .false., .false., &
-                                         .false., .false., .false., &
+                                         .false., .false., &
                                          .false., .false., &
                                          .false., .false., &
                                          .false.,          &
                                          .false., .false., .false.,  &
                                          .false., .false.,   &
-                                         .false., .false.)
+                                         .false., .false., &
+                                         .false., .false., .false.)
 
 type (cloudrad_control_type), public, save    ::   &
  Cldrad_control = cloudrad_control_type( .false., .false., .false., &
@@ -1183,7 +1255,9 @@ type (cloudrad_control_type), public, save    ::   &
                                          .false., .false., .false., &
                                          .false., .false., .false., &
                                          .false., .false., .false., &
-                                         .false., .false.,          &
+                                         .false., .false., .false., &
+                                         .false., .false., .false., &
+                                         .false.,                   &
                                          0,0,0,0,0,0 , &
                                          .false., .false., .false., &
                                          .false., .false., .false., &
@@ -1191,7 +1265,9 @@ type (cloudrad_control_type), public, save    ::   &
                                          .false., .false., .false., &
                                          .false., .false., .false., &
                                          .false., .false., .false., &
-                                         .false., .false.)
+                                         .false., .false., .false., &
+                                         .false., .false., .false., &
+                                         .false.   )
 
 
 type (longwave_parameter_type), public, save  ::   &
@@ -1376,6 +1452,11 @@ subroutine check_derived_types
           Rad_control%do_swaerosol_forcing_iz .and.  &
           Rad_control%indx_lwaf_iz .and.   &
           Rad_control%indx_swaf_iz .and.   &
+          Rad_control%using_im_bcsul_iz .and. &
+          Rad_control%volcanic_sw_aerosols_iz .and. &
+          Rad_control%volcanic_lw_aerosols_iz .and. &
+          Rad_control%time_varying_solar_constant_iz .and. &
+          Rad_control%using_solar_timeseries_data_iz .and. &
           Rad_control%do_aerosol_iz .and.     &
           Rad_control%mx_spec_levs_iz .and.   &
           Rad_control%use_current_co2_for_tf_iz .and. &
@@ -1393,6 +1474,12 @@ subroutine check_derived_types
           Rad_control%calc_n2o_tfs_on_first_step_iz .and. &
           Rad_control%calc_n2o_tfs_monthly_iz .and. &
           Rad_control%n2o_tf_time_displacement_iz .and. &
+          Rad_control%do_lw_rad_iz .and. &
+          Rad_control%do_sw_rad_iz .and. &
+          Rad_control%nzens_iz .and. &
+          Rad_control%hires_coszen_iz .and. &
+          Rad_control%lw_rad_time_step_iz .and.  &
+          Rad_control%sw_rad_time_step_iz .and.  &
           Rad_control%rad_time_step_iz ) then
       else
         !call error_mesg ('rad_utilities_mod', &
@@ -1419,9 +1506,15 @@ subroutine check_derived_types
           Cldrad_control%do_specified_clouds_iz .and. &
           Cldrad_control%do_specified_strat_clouds_iz .and. &
           Cldrad_control%do_donner_deep_clouds_iz .and. &
+          Cldrad_control%do_uw_clouds_iz .and. &
+          Cldrad_control%do_zetac_clouds_iz .and. &
           Cldrad_control%do_stochastic_clouds_iz .and. &
+          Cldrad_control%use_temp_for_seed_iz .and. &
           Cldrad_control%do_random_overlap_iz .and. &
           Cldrad_control%do_ica_calcs_iz .and. &
+          Cldrad_control%using_fu2007_iz .and.  &
+          Cldrad_control%do_liq_num_iz .and.  &
+          Cldrad_control%do_ice_num_iz .and.  &
           Cldrad_control%do_max_random_overlap_iz ) then     
       else
         !call error_mesg ('rad_utilities_mod', &
@@ -3252,6 +3345,89 @@ subroutine rad_utilities_end
 end subroutine rad_utilities_end
 
 
+subroutine aerosol_props_type_eq(aerosol_props_out,aerosol_props_in)
+
+   type(aerosol_properties_type), intent(inout) :: aerosol_props_out
+   type(aerosol_properties_type), intent(in)    :: aerosol_props_in
+
+!  Need to add error trap to catch unallocated aerosol_props_in
+   if (Allocated(aerosol_props_in%aerextband)) then
+     aerosol_props_out%aerextband    = aerosol_props_in%aerextband
+     aerosol_props_out%aerssalbband    = aerosol_props_in%aerssalbband
+     aerosol_props_out%aerasymmband    = aerosol_props_in%aerasymmband
+   else
+      !call error_mesg ('=', 'extband', FATAL)
+      stop
+   endif
+   if (Allocated(aerosol_props_in%aerextbandlw)) then
+     aerosol_props_out%aerextbandlw    = aerosol_props_in%aerextbandlw
+     aerosol_props_out%aerssalbbandlw  = aerosol_props_in%aerssalbbandlw
+     aerosol_props_out%aerextbandlw_cn =    &
+                                       aerosol_props_in%aerextbandlw_cn
+     aerosol_props_out%aerssalbbandlw_cn  =    &
+                                     aerosol_props_in%aerssalbbandlw_cn
+   else
+      !call error_mesg ('=', 'extbandlw', FATAL)
+       stop
+   endif
+  if (Rad_control%volcanic_sw_aerosols) then
+   if (Allocated(aerosol_props_in%sw_ext)) then
+     aerosol_props_out%sw_ext        = aerosol_props_in%sw_ext     
+     aerosol_props_out%sw_ssa          = aerosol_props_in%sw_ssa       
+     aerosol_props_out%sw_asy          = aerosol_props_in%sw_asy
+   else
+      !call error_mesg ('=', 'sw volc', FATAL)
+      stop
+   endif
+  endif
+  if (Rad_control%volcanic_lw_aerosols) then
+   if (Allocated(aerosol_props_in%lw_ext)) then
+     aerosol_props_out%lw_ext        = aerosol_props_in%lw_ext     
+     aerosol_props_out%lw_ssa          = aerosol_props_in%lw_ssa       
+     aerosol_props_out%lw_asy          = aerosol_props_in%lw_asy
+   else
+      !call error_mesg ('=', 'lw volc', FATAL)
+      stop
+   endif
+  endif
+   if (allocated(aerosol_props_in%sulfate_index)) then
+     aerosol_props_out%sulfate_index = aerosol_props_in%sulfate_index
+     aerosol_props_out%optical_index = aerosol_props_in%optical_index
+     aerosol_props_out%omphilic_index = aerosol_props_in%omphilic_index
+     aerosol_props_out%bcphilic_index = aerosol_props_in%bcphilic_index
+     aerosol_props_out%seasalt1_index = aerosol_props_in%seasalt1_index
+     aerosol_props_out%seasalt2_index = aerosol_props_in%seasalt2_index
+     aerosol_props_out%seasalt3_index = aerosol_props_in%seasalt3_index
+     aerosol_props_out%seasalt4_index = aerosol_props_in%seasalt4_index
+     aerosol_props_out%seasalt5_index = aerosol_props_in%seasalt5_index
+   else
+      !call error_mesg ('=', 'index  ', FATAL)
+       stop
+   endif
+
+   if (Allocated(aerosol_props_in%ivol)) then
+     aerosol_props_out%ivol = aerosol_props_in%ivol
+   else
+      !call error_mesg ('=', 'ivol   ', FATAL)
+      stop
+   endif
+   
+     aerosol_props_out%sulfate_flag = aerosol_props_in%sulfate_flag
+     aerosol_props_out%omphilic_flag = aerosol_props_in%omphilic_flag
+     aerosol_props_out%bcphilic_flag = aerosol_props_in%bcphilic_flag
+     aerosol_props_out%seasalt1_flag = aerosol_props_in%seasalt1_flag
+     aerosol_props_out%seasalt2_flag = aerosol_props_in%seasalt2_flag
+     aerosol_props_out%seasalt3_flag = aerosol_props_in%seasalt3_flag
+     aerosol_props_out%seasalt4_flag = aerosol_props_in%seasalt4_flag
+     aerosol_props_out%seasalt5_flag = aerosol_props_in%seasalt5_flag
+     aerosol_props_out%bc_flag = aerosol_props_in%bc_flag
+
+
+
+end subroutine aerosol_props_type_eq
+
+
+
 subroutine lw_output_type_eq(lw_output_out,lw_output_in)
 
    type(lw_output_type), intent(inout) :: lw_output_out
@@ -3262,7 +3438,7 @@ subroutine lw_output_type_eq(lw_output_out,lw_output_in)
    lw_output_out%flxnet        = lw_output_in%flxnet
    lw_output_out%netlw_special = lw_output_in%netlw_special
    lw_output_out%bdy_flx       = lw_output_in%bdy_flx
-   if (allocated(lw_output_in%heatracf))then
+   if (Allocated(lw_output_in%heatracf))then
        lw_output_out%heatracf          = lw_output_in%heatracf
        lw_output_out%flxnetcf          = lw_output_in%flxnetcf
        lw_output_out%netlw_special_clr = lw_output_in%netlw_special_clr
@@ -3282,17 +3458,20 @@ subroutine sw_output_type_eq(sw_output_out,sw_output_in)
    sw_output_out%ufsw             = sw_output_in%ufsw
    sw_output_out%hsw              = sw_output_in%hsw
    sw_output_out%dfsw_dir_sfc     = sw_output_in%dfsw_dir_sfc
+   sw_output_out%ufsw_dir_sfc     = sw_output_in%ufsw_dir_sfc
    sw_output_out%dfsw_dif_sfc     = sw_output_in%dfsw_dif_sfc
    sw_output_out%ufsw_dif_sfc     = sw_output_in%ufsw_dif_sfc
    sw_output_out%dfsw_vis_sfc     = sw_output_in%dfsw_vis_sfc
    sw_output_out%ufsw_vis_sfc     = sw_output_in%ufsw_vis_sfc
+   sw_output_out%ufsw_vis_sfc_dir = sw_output_in%ufsw_vis_sfc_dir
    sw_output_out%dfsw_vis_sfc_dir = sw_output_in%dfsw_vis_sfc_dir
    sw_output_out%dfsw_vis_sfc_dif = sw_output_in%dfsw_vis_sfc_dif
+   sw_output_out%dfsw_vis_sfc_clr = sw_output_in%dfsw_vis_sfc_clr
    sw_output_out%ufsw_vis_sfc_dif = sw_output_in%ufsw_vis_sfc_dif
    sw_output_out%swdn_special     = sw_output_in%swdn_special
    sw_output_out%swup_special     = sw_output_in%swup_special
    sw_output_out%bdy_flx          = sw_output_in%bdy_flx
-   if (allocated(sw_output_in%fswcf))then
+   if (Allocated(sw_output_in%fswcf))then
        sw_output_out%fswcf            = sw_output_in%fswcf
        sw_output_out%dfswcf           = sw_output_in%dfswcf
        sw_output_out%ufswcf           = sw_output_in%ufswcf

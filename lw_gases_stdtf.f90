@@ -57,8 +57,8 @@ private
 !---------------------------------------------------------------------
 !----------- version number for this module -------------------
 
-character(len=128)  :: version =  '$Id: lw_gases_stdtf.f90,v 13.0 2006/03/28 21:12:20 fms Exp $'
-character(len=128)  :: tagname =  '$Name: latest $'
+character(len=128)  :: version =  '$Id: lw_gases_stdtf.F90,v 17.0.4.1 2010/08/30 20:33:32 wfc Exp $'
+character(len=128)  :: tagname =  '$Name: testing $'
 
 
 !---------------------------------------------------------------------
@@ -85,10 +85,6 @@ private        &
 logical, save    :: do_coeintdiag = .false.
 integer, save    :: NSTDCO2LVLS = 496 ! # of levels at which lbl tfs exist
 
-
-namelist/lw_gases_stdtf_nml/ &
-                                   do_coeintdiag,    &
-                                   NSTDCO2LVLS
 !---------------------------------------------------------------------
 !------- public data ------
 
@@ -176,10 +172,10 @@ data ntbnd_n2o /  3, 3, 3/
 !----------------------------------------------------------------------
 !    co2 data
 !----------------------------------------------------------------------
-integer, parameter                              ::  number_std_co2_vmrs = 10
-real,    dimension(number_std_co2_vmrs), save   ::  co2_std_vmr
+integer, parameter                        ::  number_std_co2_vmrs = 11
+real,    dimension(number_std_co2_vmrs)   ::  co2_std_vmr
 data co2_std_vmr / 0., 165.0, 300.0, 330.0, 348.0, 356.0, 360.0,  &
-                   600.0, 660.0, 1320.0/
+                   600.0, 660.0, 1320.0, 1600.0/
 
 integer, parameter                              ::  nfreq_bands_sea_co2 = 5
 logical, dimension(nfreq_bands_sea_co2), save   ::  do_lyrcalc_co2_nf, &
@@ -380,28 +376,9 @@ real,  dimension(:,:), intent(in) :: pref
 !    verify that modules used by this module that are not called later
 !    have already been initialized.
 !---------------------------------------------------------------------
-!      call fms_init
+
       call rad_utilities_init
       call gas_tf_init (pref)
-
-!!-----------------------------------------------------------------------
-!!    read namelist.
-!!-----------------------------------------------------------------------
-!      if ( file_exist('input.nml')) then
-!        unit =  open_namelist_file ( )
-!        ierr=1; do while (ierr /= 0)
-!        read  (unit, nml=lw_gases_stdtf_nml, iostat=io, end=10)
-!        ierr = check_nml_error(io,'lw_gases_stdtf_nml')
-!        end do
-!10      call close_file (unit)
-!      endif
-
-!!---------------------------------------------------------------------
-!!    write version number and namelist to logfile.
-!!---------------------------------------------------------------------
-!      call write_version_number (version, tagname)
-!      if (mpp_pe() == mpp_root_pe() ) &
-!                        write (stdlog(), nml=lw_gases_stdtf_nml)
 
 !---------------------------------------------------------------------
 !
@@ -636,8 +613,7 @@ real,              intent(in)  :: ch4_vmr
 !    be sure module has been initialized.
 !---------------------------------------------------------------------
       if (.not. module_is_initialized ) then
-        !call error_mesg ('lw_gases_stdtf_mod', &
-        !      'module has not been initialized', FATAL )
+        write(6,*) "lw_gases_stdtf_mod has not been initialized"
         stop
       endif
  
@@ -660,8 +636,6 @@ real,              intent(in)  :: ch4_vmr
         if (ch4_vmr .LT. ch4_std_vmr(1) .OR.               &
             ch4_vmr .GT. ch4_std_vmr(number_std_ch4_vmrs)) then
           write(6,*) "ch4 volume mixing ratio is out of range"
-          !call error_mesg ('lw_gases_stdtf_mod', &
-          !           'ch4 volume mixing ratio is out of range', FATAL)
           stop
         endif
 
@@ -746,13 +720,13 @@ real,              intent(in)  :: ch4_vmr
 !    perform final processing for each frequency band.
 !--------------------------------------------------------------------
           if (ch4_vmr /= 0.0) then
-          call gasins(gas_type, do_lvlcalc_ch4, do_lvlctscalc_ch4,   &
-                      do_lyrcalc_ch4, nf, ntbnd_ch4(nf), ndimkp, ndimk,&
-                      dgasdt10_lvl, dgasdt10_lvlcts, dgasdt10_lyr,   &
-                      gasp10_lvl, gasp10_lvlcts, gasp10_lyr,   &
-                      d2gast10_lvl, d2gast10_lvlcts, d2gast10_lyr,   &
-                      dgasdt8_lvl,  dgasdt8_lvlcts,  dgasdt8_lyr ,   &
-                      gasp8_lvl,  gasp8_lvlcts,  gasp8_lyr ,   &
+          call gasins(gas_type, do_lvlcalc_ch4, do_lvlctscalc_ch4,      &
+                      do_lyrcalc_ch4, nf, ntbnd_ch4(nf), ndimkp, ndimk, &
+                      dgasdt10_lvl, dgasdt10_lvlcts, dgasdt10_lyr,      &
+                      gasp10_lvl, gasp10_lvlcts, gasp10_lyr,            &
+                      d2gast10_lvl, d2gast10_lvlcts, d2gast10_lyr,      &
+                      dgasdt8_lvl,  dgasdt8_lvlcts,  dgasdt8_lyr ,      &
+                      gasp8_lvl,  gasp8_lvlcts,  gasp8_lyr ,            &
                       d2gast8_lvl,  d2gast8_lvlcts,  d2gast8_lyr )
  
          else
@@ -769,7 +743,7 @@ real,              intent(in)  :: ch4_vmr
            d2gast10_lyr = 0.0
            d2gast8_lyr = 0.0
          endif
-          call put_ch4_stdtf_for_gas_tf (gasp10_lyr, gasp8_lyr,    &
+          call put_ch4_stdtf_for_gas_tf (gasp10_lyr, gasp8_lyr,      &
                                          dgasdt10_lyr, dgasdt8_lyr,  &
                                          d2gast10_lyr,  d2gast8_lyr)
         enddo  !  frequency band loop
@@ -5624,7 +5598,7 @@ real,    dimension(:,:,:),  intent(out)  :: trns_std_hi_nf,   &
 !--------------------------------------------------------------------
 !  local variables:
 
-      character(len=24) input_lblco2name(nfreq_bands_sea_co2,10)
+      character(len=24) input_lblco2name(nfreq_bands_sea_co2,11)
       character(len=24) input_lblch4name(nfreq_bands_sea_ch4,8)
       character(len=24) input_lbln2oname(nfreq_bands_sea_n2o,7)
       character(len=24) name_lo
@@ -5667,6 +5641,9 @@ real,    dimension(:,:,:),  intent(out)  :: trns_std_hi_nf,   &
       data (input_lblco2name(n,10),n=1,nfreq_bands_sea_co2)/           &
         'cns_1320_490850  ', 'cns_1320_490630  ', 'cns_1320_630700  ', &
         'cns_1320_700850  ', 'cns_1320_43um    '/
+      data (input_lblco2name(n,11),n=1,nfreq_bands_sea_co2)/           &
+        'cns_1600_490850  ', 'cns_1600_490630  ', 'cns_1600_630700  ', &
+        'cns_1600_700850  ', 'cns_1600_43um    '/
  
       data (input_lblch4name(n,1),n=1,nfreq_bands_sea_ch4)/          &
         'cns_0_12001400'/
@@ -5723,8 +5700,6 @@ real,    dimension(:,:,:),  intent(out)  :: trns_std_hi_nf,   &
         name_hi = input_lbln2oname(nf,nstd_hi)
       endif
 
-      if (nproc>1.and.callrctrns) then
-
 !-------------------------------------------------------------------
 !    read in tfs of higher std gas concentration
 !-------------------------------------------------------------------
@@ -5749,7 +5724,8 @@ real,    dimension(:,:,:),  intent(out)  :: trns_std_hi_nf,   &
         end if
         call ccnf_get_vara(ncid,varid,startpos,npos,trns_std_hi_nf(:,:,1:ntbnd(nf)))
         call ccnf_close(ncid)
-      else if (myid == nproc-1) then
+      end if
+      if ( myid==nproc-1 .and. callrctrns ) then
 !--------------------------------------------------------------------
 !    if necessary, read in tfs of lower standard gas concentration
 !-------------------------------------------------------------------
@@ -5775,66 +5751,8 @@ real,    dimension(:,:,:),  intent(out)  :: trns_std_hi_nf,   &
         call ccnf_close(ncid)
       end if
       call ccmpi_bcastr8(trns_std_hi_nf(:,:,1:ntbnd(nf)),0      ,comm_world)
-      call ccmpi_bcastr8(trns_std_lo_nf(:,:,1:ntbnd(nf)),nproc-1,comm_world)
-      
-      else
-
-!-------------------------------------------------------------------
-!    read in tfs of higher std gas concentration
-!-------------------------------------------------------------------
-      if ( myid == 0 ) then
-        filename = trim(cnsdir) // '/' // trim(name_hi)
-        ncname = trim(filename) // '.nc'
-
-        startpos=1
-        npos(1)=size(trns_std_hi_nf(:,:,1:ntbnd(nf)),1)
-        npos(2)=size(trns_std_hi_nf(:,:,1:ntbnd(nf)),2)
-        npos(3)=ntbnd(nf)
-        call ccnf_open(ncname,ncid,ncstatus)
-        if (ncstatus/=0) then
-          write(6,*) "ERROR: Cannot open ",trim(ncname)
-          call ccmpi_abort(-1)
-        end if
-        write(6,*) "Reading ",trim(ncname)
-        call ccnf_inq_varid(ncid,"trns_std_nf",varid,tst)
-        if (tst) then
-          write(6,*) "trns_std_nf not found"
-          call ccmpi_abort(-1)
-        end if
-        call ccnf_get_vara(ncid,varid,startpos,npos,trns_std_hi_nf(:,:,1:ntbnd(nf)))
-        call ccnf_close(ncid)
-      end if
-      call ccmpi_bcastr8(trns_std_hi_nf(:,:,1:ntbnd(nf)),0,comm_world)
-
-!--------------------------------------------------------------------
-!    if necessary, read in tfs of lower standard gas concentration
-!-------------------------------------------------------------------
-      if (callrctrns) then
-        if (myid==0) then
-          filename = trim(cnsdir) // '/' // trim(name_lo )
-          ncname = trim(filename) // '.nc'
-
-          startpos=1
-          npos(1)=size(trns_std_lo_nf(:,:,1:ntbnd(nf)),1)
-          npos(2)=size(trns_std_lo_nf(:,:,1:ntbnd(nf)),2)
-          npos(3)=ntbnd(nf)
-          call ccnf_open(ncname,ncid,ncstatus)
-          if (ncstatus/=0) then
-            write(6,*) "ERROR: Cannot open ",trim(ncname)
-            call ccmpi_abort(-1)
-          end if
-          write(6,*) "Reading ",trim(ncname)
-          call ccnf_inq_varid(ncid,"trns_std_nf",varid,tst)
-          if (tst) then
-            write(6,*) "trns_std_nf not found"
-            call ccmpi_abort(-1)
-          end if
-          call ccnf_get_vara(ncid,varid,startpos,npos,trns_std_lo_nf(:,:,1:ntbnd(nf)))
-          call ccnf_close(ncid)
-        end if
-        call ccmpi_bcastr8(trns_std_lo_nf(:,:,1:ntbnd(nf)),0,comm_world)
-      endif
-      
+      if ( callrctrns ) then
+        call ccmpi_bcastr8(trns_std_lo_nf(:,:,1:ntbnd(nf)),nproc-1,comm_world)
       end if
  
 !--------------------------------------------------------------------

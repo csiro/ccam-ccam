@@ -64,8 +64,8 @@ private
 !----------- version number for this module -------------------
 
    character(len=128)  :: &
-   version =  '$Id: optical_path.f90,v 13.0 2006/03/28 21:12:51 fms Exp $'
-   character(len=128)  :: tagname =  '$Name: latest $'
+   version =  '$Id: optical_path.F90,v 18.0.2.1 2010/08/30 20:39:46 wfc Exp $'
+   character(len=128)  :: tagname =  '$Name: testing $'
 
 
 !---------------------------------------------------------------------
@@ -90,18 +90,12 @@ private    &
          optical_path_ckd, optical_o3, optical_rbts,   &
          optical_h2o, cfc_optical_depth, optical_depth_aerosol
 
-
 !---------------------------------------------------------------------
 !---- namelist   -----
 
-logical, save :: tmp_dpndnt_h2o_lines = .true.  ! the 1200-1400 cm(-1)
-                                                ! band h2o line intensities
-                                                ! are temperature dependent?
-
-
-
-namelist / optical_path_nml /    &
-                                 tmp_dpndnt_h2o_lines
+logical, parameter :: tmp_dpndnt_h2o_lines = .true.  ! the 1200-1400 cm(-1)
+                                            ! band h2o line intensities
+                                            ! are temperature dependent?
 
 !-------------------------------------------------------------------
 !-----  public data ----
@@ -246,7 +240,7 @@ real, save    :: d622 = RDGAS/RVGAS
 integer, save :: NBTRG, NBTRGE
 !!$integer   :: n
 
-integer, save :: israd, ierad, jsrad, jerad, ks, ke
+integer, save   :: ks, ke
 
 logical, save :: module_is_initialized      = .false. ! module has been
                                                       ! initialized ?
@@ -354,30 +348,9 @@ subroutine optical_path_init(pref)
 !    verify that modules used by this module that are not called later
 !    have already been initialized.
 !---------------------------------------------------------------------
-!      call fms_init
-!      call constants_init
       call rad_utilities_init
       call longwave_params_init
       call lw_gases_stdtf_init(pref)
-
-!!-----------------------------------------------------------------------
-!!    read namelist.
-!!-----------------------------------------------------------------------
-!      if ( file_exist('input.nml')) then
-!        unit =  open_namelist_file ( )
-!        ierr=1; do while (ierr /= 0)
-!        read  (unit, nml=optical_path_nml, iostat=io, end=10)
-!        ierr = check_nml_error(io,'optical_path_nml')
-!        end do
-!10      call close_file (unit)
-!      endif
- 
-!!---------------------------------------------------------------------
-!!    write version number and namelist to logfile.
-!!---------------------------------------------------------------------
-!      call write_version_number (version, tagname)
-!      if (mpp_pe() == mpp_root_pe() ) &
-!                        write (stdlog(), nml=optical_path_nml)
 
 !--------------------------------------------------------------------
 !    verify that Lw_parameters%NBTRG and NBTRGE have been initialized.
@@ -789,6 +762,7 @@ logical,                   intent(in)            :: including_aerosols
       integer      :: n_aerosol_bands
       integer      :: k, i, j, n
       integer      :: ix, jx, kx
+      integer      :: israd, ierad, jsrad, jerad
 
 !--------------------------------------------------------------------
 !  local variables:
@@ -927,7 +901,7 @@ logical,                   intent(in)            :: including_aerosols
         end if
         Optical%totaerooptdep = 0.                              
         Optical%aerooptdep_KE_15 = 0.           
-      !endif ! MJT bug fix
+      endif
 !-------------------------------------------------------------------
 !    for each aerosol frequency band, retrieve aerosol optical proper-
 !    ties for each aerosol category. then call optical_depth_aerosol 
@@ -988,7 +962,6 @@ logical,                   intent(in)            :: including_aerosols
           endif ! (size)
         endif  ! (volcanic_lw_aerosols)
       end do  ! (n_aerosol_bnads)
-      endif ! MJT bug fix
 
 !---------------------------------------------------------------------
        
@@ -11233,6 +11206,7 @@ type(optical_path_type), intent(inout)    :: Optical
 
       real                    ::  t0 = 296.0
       integer                 ::  k, nu
+      integer      :: israd, ierad, jsrad, jerad
 
 !---------------------------------------------------------------------
 !  local variables:
@@ -11247,7 +11221,11 @@ type(optical_path_type), intent(inout)    :: Optical
 !      nu
 !
 !--------------------------------------------------------------------
-
+      israd = 1
+      ierad = size(press,1)
+      jsrad = 1
+      jerad = size(press,2)
+      
 !--------------------------------------------------------------------
 !
 !--------------------------------------------------------------------
@@ -11387,8 +11365,13 @@ type(optical_path_type), intent(inout) ::  Optical
 !  local variables:
 
       integer  ::    k    ! do-loop index
+      integer      :: israd, ierad, jsrad, jerad
 
 !---------------------------------------------------------------------
+      israd = 1
+      ierad = size(qo3,1)
+      jsrad = 1
+      jerad = size(qo3,2)
 
 !--------------------------------------------------------------------
 !
@@ -11484,7 +11467,8 @@ type(optical_path_type), intent(inout) :: Optical
 
       real, dimension(size(temp,1), size(temp,2), &
                                      size(temp,3)) :: texpsl
-      integer     :: k, i
+      integer     :: k
+      integer      :: israd, ierad, jsrad, jerad
 
 !--------------------------------------------------------------------
 !  local variables:
@@ -11493,6 +11477,10 @@ type(optical_path_type), intent(inout) :: Optical
 !      i,k
 !
 !----------------------------------------------------------------------
+      israd = 1
+      ierad = size(temp,1)
+      jsrad = 1
+      jerad = size(temp,2)
 
 !---------------------------------------------------------------------
 !
@@ -11615,6 +11603,7 @@ type(optical_path_type), intent(inout) ::  Optical
                                              tpl1, tpl2, &
                                              qh2o, tdif, tdif2
       integer    ::  m, k
+      integer      :: israd, ierad, jsrad, jerad
 
 !--------------------------------------------------------------------
 !  local variables:
@@ -11629,6 +11618,10 @@ type(optical_path_type), intent(inout) ::  Optical
 !
 !-----------------------------------------------------------------------
 
+      israd = 1
+      ierad = size(pflux,1)
+      jsrad = 1
+      jerad = size(pflux,2)
 !-------------------------------------------------------------------- 
 !    compute mean temperature in the "nearby layer" between a flux
 !    level and the first data level below the flux level (tpl1) or the
@@ -12026,18 +12019,17 @@ type(optical_path_type),       intent(inout) :: Optical
 
       integer, dimension (size(Aerosol%aerosol,1),  &
                           size(Aerosol%aerosol,2),  &
-                          size(Aerosol%aerosol,3))  :: irh, opt_index_v1, &
+                          size(Aerosol%aerosol,3))  :: opt_index_v1, &
                           opt_index_v2, opt_index_v3, opt_index_v4, &
                           opt_index_v5, opt_index_v6, opt_index_v7,opt_index_v8
 
       real, dimension (size(Aerosol%aerosol,3)+1) :: bsum
 
       real      :: asum
-      integer   :: nfields
+      integer   :: nfields, irh
       integer   ::  N_AEROSOL_BANDS 
       integer   :: i,j,k
       integer   :: ix, jx, kx
-      integer   :: na, nw, ni
       integer   :: nsc, opt_index
 
 !--------------------------------------------------------------------
@@ -12075,24 +12067,25 @@ type(optical_path_type),       intent(inout) :: Optical
       do k = 1,kx         
         do j = 1,jx         
           do i = 1,ix           
-            irh(i,j,k) = MIN(100, MAX(0,     &
-                          NINT(100.*Atmos_input%aerosolrelhum(i,j,k))))
+            irh = MIN(100, MAX(0,     &
+                      NINT(100.*Atmos_input%aerosolrelhum(i,j,k))))
             opt_index_v1(i,j,k) =     &
-                               Aerosol_props%sulfate_index( irh(i,j,k) )
+                        Aerosol_props%sulfate_index (irh, &
+                                             Aerosol_props%ivol(i,j,k) )
             opt_index_v2(i,j,k) =     &
-                               Aerosol_props%omphilic_index( irh(i,j,k) )
+                               Aerosol_props%omphilic_index( irh )
             opt_index_v3(i,j,k) =     &
-                               Aerosol_props%bcphilic_index( irh(i,j,k) )
+                               Aerosol_props%bcphilic_index( irh )
             opt_index_v4(i,j,k) =     &
-                               Aerosol_props%seasalt1_index( irh(i,j,k) )
+                               Aerosol_props%seasalt1_index( irh )
             opt_index_v5(i,j,k) =     &
-                               Aerosol_props%seasalt2_index( irh(i,j,k) )
+                               Aerosol_props%seasalt2_index( irh )
             opt_index_v6(i,j,k) =     &
-                               Aerosol_props%seasalt3_index( irh(i,j,k) )
+                               Aerosol_props%seasalt3_index( irh )
             opt_index_v7(i,j,k) =     &
-                               Aerosol_props%seasalt4_index( irh(i,j,k) )
+                               Aerosol_props%seasalt4_index( irh )
             opt_index_v8(i,j,k) =     &
-                               Aerosol_props%seasalt5_index( irh(i,j,k) )
+                               Aerosol_props%seasalt5_index( irh )
           end do
         end do
       end do
@@ -12145,6 +12138,25 @@ type(optical_path_type),       intent(inout) :: Optical
               endif
             end do
           end do
+      end do
+     else if (Aerosol_props%optical_index(nsc) == &   
+                          Aerosol_props%bc_flag  ) then
+      do k = 1,kx         
+        do j = 1,jx         
+          do i = 1,ix           
+            opt_index = opt_index_v1(i,j,k)
+                aerooptdepspec(i,j,k,nsc) =     &
+                   diffac*Aerosol%aerosol(i,j,k,nsc)*&
+                   (1.0 - Aerosol_props%aerssalbbandlw(n,opt_index))* &
+                          Aerosol_props%aerextbandlw(n,opt_index)
+                if (n == 1) then
+                  aerooptdepspec_cn(i,j,k,nsc) =    &
+                     diffac*Aerosol%aerosol(i,j,k,nsc)*   &
+                 (1.0 - Aerosol_props%aerssalbbandlw_cn(n,opt_index))*&
+                        Aerosol_props%aerextbandlw_cn(n,opt_index)
+              endif
+            end do
+          end do
         end do
      else if (Aerosol_props%optical_index(nsc) ==  &
                         Aerosol_props%omphilic_flag ) then
@@ -12167,6 +12179,25 @@ type(optical_path_type),       intent(inout) :: Optical
         end do
      else if (Aerosol_props%optical_index(nsc) ==  &
                         Aerosol_props%bcphilic_flag ) then
+      if (Rad_control%using_im_bcsul) then
+      do k = 1,kx         
+        do j = 1,jx         
+          do i = 1,ix           
+            opt_index = opt_index_v1(i,j,k)
+                aerooptdepspec(i,j,k,nsc) =     &
+                   diffac*Aerosol%aerosol(i,j,k,nsc)*&
+                   (1.0 - Aerosol_props%aerssalbbandlw(n,opt_index))* &
+                          Aerosol_props%aerextbandlw(n,opt_index)
+                if (n == 1) then
+                  aerooptdepspec_cn(i,j,k,nsc) =    &
+                     diffac*Aerosol%aerosol(i,j,k,nsc)*   &
+                 (1.0 - Aerosol_props%aerssalbbandlw_cn(n,opt_index))*&
+                        Aerosol_props%aerextbandlw_cn(n,opt_index)
+              endif
+            end do
+          end do
+        end do
+      else ! (using_im_bcsul)
       do k = 1,kx         
         do j = 1,jx         
           do i = 1,ix           
@@ -12184,6 +12215,7 @@ type(optical_path_type),       intent(inout) :: Optical
             end do
           end do
         end do
+      endif  ! (using_im_bcsul)
      else if (Aerosol_props%optical_index(nsc) ==  &
                         Aerosol_props%seasalt1_flag ) then
       do k = 1,kx         

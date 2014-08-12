@@ -38,8 +38,8 @@ private
 !---------------------------------------------------------------------
 !----------- version number for this module -------------------
 
-character(len=128)  :: version =  '$Id: longwave_params.f90,v 10.0 2003/10/24 22:00:42 fms Exp $'
-character(len=128)  :: tagname =  '$Name: latest $'
+character(len=128)  :: version =  '$Id: longwave_params.F90,v 17.0.4.1 2010/08/30 20:33:32 wfc Exp $'
+character(len=128)  :: tagname =  '$Name: testing $'
 
 
 !--------------------------------------------------------------------
@@ -51,15 +51,6 @@ public     &
 
 !private   &
 
-
-!---------------------------------------------------------------------
-!-------- namelist  ---------
-
-character(len=8)   :: dummy  = '     '
-
-
-namelist /longwave_params_nml/    &
-                               dummy                 
 
 !-------------------------------------------------------------------
 !----- public data --------

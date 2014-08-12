@@ -1,4 +1,4 @@
-! Interface for SEA-ESF radiation scheme (from GFDL AM2.1) with CCAM.
+! Interface for SEA-ESF radiation scheme (from GFDL AM3) with CCAM.
 
 ! Interface developed by Marcus Thatcher and Maciej Golebiewski
 
@@ -14,7 +14,7 @@ use rad_utilities_mod, only : atmos_input_type,surface_type,astronomy_type,aeros
                               Sw_control,Lw_control, Rad_control,Cldrad_control,Lw_parameters,     &
                               thickavg
 use esfsw_driver_mod, only : swresf,esfsw_driver_init
-use sealw99_mod, only : sealw99,sealw99_init
+use sealw99_mod, only : sealw99,sealw99_init, sealw99_time_vary
 use esfsw_parameters_mod, only : Solar_spect,esfsw_parameters_init
 
 private
@@ -33,7 +33,7 @@ real, parameter :: csolar   = 1365        ! Solar constant in W/m^2
 real, parameter :: siglow   = 0.68        ! sigma level for top of low cloud (diagnostic)
 real, parameter :: sigmid   = 0.44        ! sigma level for top of medium cloud (diagnostic)
 real, parameter :: ratco2mw = 1.519449738 ! conversion factor for CO2 diagnostic
-integer, parameter :: naermodels         = 37
+integer, parameter :: naermodels         = 896
 integer, parameter :: N_AEROSOL_BANDS_FR = 8
 integer, parameter :: N_AEROSOL_BANDS_CO = 1
 integer, parameter :: N_AEROSOL_BANDS_CN = 1
@@ -181,6 +181,7 @@ if ( first ) then
   Cldrad_control%do_no_clouds            =.false.
   Cldrad_control%do_donner_deep_clouds   =.false.
   Cldrad_control%do_stochastic_clouds    =.false.
+  Cldrad_control%using_fu2007            =.false.
   Sw_control%solar_constant              =csolar
   Sw_control%do_cmip_diagnostics         =do_aerosol_forcing ! Need for aerosol optical depths
   Lw_control%do_lwcldemiss               =.true.
@@ -201,12 +202,18 @@ if ( first ) then
   Rad_control%do_aerosol                 =do_aerosol_forcing
   Rad_control%do_swaerosol_forcing       =do_aerosol_forcing
   Rad_control%do_lwaerosol_forcing       =do_aerosol_forcing
+  Rad_control%hires_coszen               =.false.
+  Rad_control%hires_coszen_iz            =.true.
+  Rad_control%nzens                      =1
+  Rad_control%nzens_iz                   =.true.
+  Rad_control%using_im_bcsul             =.true.
+  Rad_control%using_im_bcsul_iz          =.true.
   Astro%rrsun                            =1./(r1*r1)
 
   call sealw99_init(pref, Lw_tables)
   call esfsw_parameters_init
   call esfsw_driver_init
-  call microphys_rad_init
+  call microphys_rad_init(8.4_8,33.2_8,18.6_8,130.2_8)
 
   allocate ( Atmos_input%press(imax, 1, kl+1) )
   allocate ( Atmos_input%phalf(imax, 1, kl+1) )
@@ -268,31 +275,38 @@ if ( first ) then
     allocate ( Lw_output(1)%bdy_flx_clr(imax, 1, 4) )
   endif
 
-  allocate( Sw_output(1)%dfsw(imax, 1, kl+1) )
-  allocate( Sw_output(1)%ufsw(imax, 1, kl+1) )
-  allocate( Sw_output(1)%dfsw_dir_sfc(imax, 1) )
-  allocate( Sw_output(1)%dfsw_dif_sfc(imax, 1) )
-  allocate( Sw_output(1)%ufsw_dif_sfc(imax, 1) )
-  allocate( Sw_output(1)%fsw(imax, 1, kl+1) )
-  allocate( Sw_output(1)%hsw(imax, 1, kl) )
-  allocate( Sw_output(1)%dfsw_vis_sfc(imax, 1) )
-  allocate( Sw_output(1)%ufsw_vis_sfc(imax, 1) )
-  allocate( Sw_output(1)%dfsw_vis_sfc_dir(imax, 1) )
-  allocate( Sw_output(1)%dfsw_vis_sfc_dif(imax, 1) )
-  allocate( Sw_output(1)%ufsw_vis_sfc_dif(imax, 1) )
-  allocate( Sw_output(1)%bdy_flx(imax, 1, 4) )
+  allocate( Sw_output(1)%dfsw(imax, 1, kl+1, Rad_control%nzens) )
+  allocate( Sw_output(1)%ufsw(imax, 1, kl+1, Rad_control%nzens) )
+  allocate( Sw_output(1)%dfsw_dir_sfc(imax, 1, Rad_control%nzens) )
+  allocate( Sw_output(1)%dfsw_dif_sfc(imax, 1, Rad_control%nzens) )
+  allocate( Sw_output(1)%ufsw_dir_sfc(imax, 1, Rad_control%nzens) )
+  allocate( Sw_output(1)%ufsw_dif_sfc(imax, 1, Rad_control%nzens) )
+  allocate( Sw_output(1)%fsw(imax, 1, kl+1, Rad_control%nzens) )
+  allocate( Sw_output(1)%hsw(imax, 1, kl, Rad_control%nzens) )
+  allocate( Sw_output(1)%dfsw_vis_sfc(imax, 1, Rad_control%nzens ) )
+  allocate( Sw_output(1)%ufsw_vis_sfc(imax, 1, Rad_control%nzens) )
+  allocate( Sw_output(1)%dfsw_vis_sfc_dir(imax, 1, Rad_control%nzens) )
+  allocate( Sw_output(1)%dfsw_vis_sfc_dif(imax, 1, Rad_control%nzens) )
+  allocate( Sw_output(1)%ufsw_vis_sfc_dir(imax, 1, Rad_control%nzens) )
+  allocate( Sw_output(1)%ufsw_vis_sfc_dif(imax, 1, Rad_control%nzens) )
+  allocate( Sw_output(1)%bdy_flx(imax, 1, 4, Rad_control%nzens) )
   if (do_totcld_forcing) then
-    allocate( Sw_output(1)%dfswcf(imax, 1, kl+1) )
-    allocate( Sw_output(1)%ufswcf(imax, 1, kl+1) )
-    allocate( Sw_output(1)%fswcf(imax, 1, kl+1) )
-    allocate( Sw_output(1)%hswcf(imax, 1, kl) )
-    allocate( Sw_output(1)%dfsw_dir_sfc_clr(imax, 1) )
-    allocate( Sw_output(1)%dfsw_dif_sfc_clr(imax, 1) )
-    allocate( Sw_output(1)%bdy_flx_clr(imax, 1, 4) )
+    allocate( Sw_output(1)%dfswcf(imax, 1, kl+1, Rad_control%nzens) )
+    allocate( Sw_output(1)%ufswcf(imax, 1, kl+1, Rad_control%nzens) )
+    allocate( Sw_output(1)%fswcf(imax, 1, kl+1, Rad_control%nzens) )
+    allocate( Sw_output(1)%hswcf(imax, 1, kl, Rad_control%nzens) )
+    allocate( Sw_output(1)%dfsw_dir_sfc_clr(imax, 1, Rad_control%nzens) )
+    allocate( Sw_output(1)%dfsw_dif_sfc_clr(imax, 1, Rad_control%nzens) )
+    allocate( Sw_output(1)%dfsw_vis_sfc_clr(imax, 1, Rad_control%nzens) )
+    allocate( Sw_output(1)%bdy_flx_clr(imax, 1, 4, Rad_control%nzens) )
   endif
 
   if (do_aerosol_forcing) then
-    allocate( Aerosol_props%sulfate_index(0:100) )
+    if ( Rad_control%using_im_bcsul ) then
+      allocate( Aerosol_props%sulfate_index(0:100, 0:100) )
+    else
+      allocate( Aerosol_props%sulfate_index(0:100, 0:0) )
+    end if
     allocate( Aerosol_props%omphilic_index(0:100) )
     allocate( Aerosol_props%bcphilic_index(0:100) )
     allocate( Aerosol_props%seasalt1_index(0:100) )
@@ -303,6 +317,7 @@ if ( first ) then
     allocate( Aerosol_props%optical_index(nfields) )
     allocate( Aerosol%aerosol(imax, 1, kl, nfields) )
     allocate( Atmos_input%aerosolrelhum(imax, 1, kl) )
+    allocate( Aerosol_props%ivol(imax, 1, kl) )
     allocate( Aerosol_props%aerextband(Solar_spect%nbands, naermodels) )
     allocate( Aerosol_props%aerssalbband(Solar_spect%nbands, naermodels) )
     allocate( Aerosol_props%aerasymmband(Solar_spect%nbands, naermodels) )
@@ -310,9 +325,10 @@ if ( first ) then
     allocate( Aerosol_props%aerextbandlw(N_AEROSOL_BANDS, naermodels) )
     allocate( Aerosol_props%aerssalbbandlw_cn(N_AEROSOL_BANDS, naermodels) )
     allocate( Aerosol_props%aerextbandlw_cn(N_AEROSOL_BANDS, naermodels) )
-    allocate( Aerosol_diags%extopdep(imax, 1, kl, nfields, 5) )
-    allocate( Aerosol_diags%absopdep(imax, 1, kl, nfields, 5) )
-
+    allocate( Aerosol_diags%extopdep(imax, 1, kl, nfields, 10) )
+    allocate( Aerosol_diags%absopdep(imax, 1, kl, nfields, 10) )
+    allocate( Aerosol_diags%asymdep(imax, 1, kl, nfields, 10) )
+    
     Aerosol_props%sulfate_flag=0
     Aerosol_props%omphilic_flag=-1
     Aerosol_props%bcphilic_flag=-2
@@ -321,52 +337,154 @@ if ( first ) then
     Aerosol_props%seasalt3_flag=-5
     Aerosol_props%seasalt4_flag=-6
     Aerosol_props%seasalt5_flag=-7
+    Aerosol_props%bc_flag=-8
     Lw_parameters%n_lwaerosol_bands=N_AEROSOL_BANDS
-    Aerosol_props%optical_index(1)=Aerosol_props%sulfate_flag ! so4
-    Aerosol_props%optical_index(2)=28                         ! black carbon (using soot)
-    Aerosol_props%optical_index(3)=28                         ! black carbon (using soot)
-    Aerosol_props%optical_index(4)=27                         ! organic carbon
-    Aerosol_props%optical_index(5)=27                         ! organic carbon
-    Aerosol_props%optical_index(6)=33                         ! dust 0.1-1 (using 0.8) (same as GFDL dust1)
-    Aerosol_props%optical_index(7)=34                         ! dust 1-2   (using 1)   (same as GFDL dust2)
-    Aerosol_props%optical_index(8)=35                         ! dust 2-3   (using 2)   (same as GFDL dust3)
-    Aerosol_props%optical_index(9)=36                         ! dust 3-6   (using 4)   (same as GFDL dust4)
-                                                              ! missing dust 6-10      (same as GFDL dust5)
-    Aerosol_props%optical_index(10)=29                        ! sea-salt 0.04          (GFDL salt1 0.1-0.5)
-    Aerosol_props%optical_index(11)=29                        ! sea-salt 0.4           (GFDL salt2 0.5-1)
-                                                              ! missing                (GFDL salt3 1-2.5)
-                                                              ! missing                (GFDL salt4 2.5-5)
-                                                              ! missing                (GFDL salt5 5-10)
-    !aerosol_optical_names = "sulfate_30%", "sulfate_35%", "sulfate_40%", "sulfate_45%",
-    !                        "sulfate_50%", "sulfate_55%", "sulfate_60%", "sulfate_65%",
-    !                        "sulfate_70%", "sulfate_75%", "sulfate_80%", "sulfate_82%",
-    !                        "sulfate_84%", "sulfate_86%", "sulfate_88%", "sulfate_90%",
-    !                        "sulfate_91%", "sulfate_92%", "sulfate_93%", "sulfate_94%",
-    !                        "sulfate_95%", "sulfate_96%", "sulfate_97%", "sulfate_98%",
-    !                        "sulfate_99%", "sulfate_100%","organic_carbon","soot",
-    !                        "sea_salt",    "dust_0.1",    "dust_0.2",    "dust_0.4",
-    !                        "dust_0.8",    "dust_1.0",    "dust_2.0",    "dust_4.0",
-    !                        "dust_8.0" /    
-    Aerosol_props%sulfate_index( 0: 13)=(/  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 /)
-    Aerosol_props%sulfate_index(14: 27)=(/  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 /)
-    Aerosol_props%sulfate_index(28: 41)=(/  1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3 /)
-    Aerosol_props%sulfate_index(42: 55)=(/  3, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 6, 6, 6 /)
-    Aerosol_props%sulfate_index(56: 69)=(/  6, 6, 7, 7, 7, 7, 7, 8, 8, 8, 8, 8, 9, 9 /)
-    Aerosol_props%sulfate_index(70: 83)=(/  9, 9, 9,10,10,10,10,10,11,11,11,11,12,12 /)
-    Aerosol_props%sulfate_index(84: 97)=(/ 13,13,14,14,15,15,16,17,18,19,20,21,22,23 /)
-    Aerosol_props%sulfate_index(98:100)=(/ 24,25,26 /)
-    Aerosol_props%omphilic_index=0
-    Aerosol_props%bcphilic_index=0
-    Aerosol_props%seasalt1_index=0
-    Aerosol_props%seasalt2_index=0
-    Aerosol_props%seasalt3_index=0
-    Aerosol_props%seasalt4_index=0
-    Aerosol_props%seasalt5_index=0
-
+    Aerosol_props%optical_index(1)=Aerosol_props%sulfate_flag     ! so4
+    if ( Rad_control%using_im_bcsul ) then
+      Aerosol_props%optical_index(2)=Aerosol_props%bc_flag        ! black carbon (hydrophobic)
+      Aerosol_props%optical_index(3)=Aerosol_props%bc_flag        ! black carbon (hydrophillic)
+    else
+      Aerosol_props%optical_index(2)=719                          ! black carbon (hydrophobic)
+      Aerosol_props%optical_index(3)=Aerosol_props%bcphilic_flag  ! black carbon (hydrophillic)
+    end if
+    Aerosol_props%optical_index(4)=720                            ! organic carbon (hydrophobic)
+    Aerosol_props%optical_index(5)=Aerosol_props%omphilic_flag    ! organic carbon (hydrophillic)
+    Aerosol_props%optical_index(6)=710                            ! dust 1-2  (using 1.4) (same as GFDL dust1)
+    Aerosol_props%optical_index(7)=711                            ! dust 2-3  (using 2.8) (same as GFDL dust2)
+    Aerosol_props%optical_index(8)=712                            ! dust 3-6  (using 4.8) (same as GFDL dust3)
+    Aerosol_props%optical_index(9)=713                            ! dust 6-10 (using 9.0) (same as GFDL dust4)
+    Aerosol_props%optical_index(10)=Aerosol_props%seasalt1_flag   ! seasalt 0.2            (GFDL salt1 0.1-0.5)
+    Aerosol_props%optical_index(11)=Aerosol_props%seasalt2_flag   ! seasalt 1.0            (GFDL salt2 0.5-1)
+                                                                  ! missing                (GFDL salt3 1-2.5)
+                                                                  ! missing                (GFDL salt4 2.5-5)
+                                                                  ! missing                (GFDL salt5 5-10)
+    Aerosol_props%sulfate_index( 0: 13, 0)=(/  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 /)
+    Aerosol_props%sulfate_index(14: 27, 0)=(/  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 /)
+    Aerosol_props%sulfate_index(28: 41, 0)=(/  1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3 /)
+    Aerosol_props%sulfate_index(42: 55, 0)=(/  3, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 6, 6, 6 /)
+    Aerosol_props%sulfate_index(56: 69, 0)=(/  6, 6, 7, 7, 7, 7, 7, 8, 8, 8, 8, 8, 9, 9 /)
+    Aerosol_props%sulfate_index(70: 83, 0)=(/  9, 9, 9,10,10,10,10,10,11,11,11,11,12,12 /)
+    Aerosol_props%sulfate_index(84: 97, 0)=(/ 13,13,14,14,15,15,16,17,18,19,20,21,22,23 /)
+    Aerosol_props%sulfate_index(98:100, 0)=(/ 24,25,26 /)
+    Aerosol_props%sulfate_index(:, 1)=Aerosol_props%sulfate_index(:, 0)      
+    Aerosol_props%sulfate_index(:, 2)=Aerosol_props%sulfate_index(:, 1) + 26 ! 98%
+    Aerosol_props%sulfate_index(:, 3)=Aerosol_props%sulfate_index(:, 2)
+    Aerosol_props%sulfate_index(:, 4)=Aerosol_props%sulfate_index(:, 3) + 26 ! 96%
+    Aerosol_props%sulfate_index(:, 5)=Aerosol_props%sulfate_index(:, 4)
+    Aerosol_props%sulfate_index(:, 6)=Aerosol_props%sulfate_index(:, 5) + 26 ! 94%
+    Aerosol_props%sulfate_index(:, 7)=Aerosol_props%sulfate_index(:, 6)
+    Aerosol_props%sulfate_index(:, 8)=Aerosol_props%sulfate_index(:, 7) + 26 ! 92%
+    Aerosol_props%sulfate_index(:, 9)=Aerosol_props%sulfate_index(:, 8)
+    Aerosol_props%sulfate_index(:,10)=Aerosol_props%sulfate_index(:, 9) + 26 ! 90%
+    Aerosol_props%sulfate_index(:,11)=Aerosol_props%sulfate_index(:,10)
+    Aerosol_props%sulfate_index(:,12)=Aerosol_props%sulfate_index(:,11) + 26 ! 88%
+    Aerosol_props%sulfate_index(:,13)=Aerosol_props%sulfate_index(:,12)
+    Aerosol_props%sulfate_index(:,14)=Aerosol_props%sulfate_index(:,13) + 26 ! 86%
+    Aerosol_props%sulfate_index(:,15)=Aerosol_props%sulfate_index(:,14)
+    Aerosol_props%sulfate_index(:,16)=Aerosol_props%sulfate_index(:,15) + 26 ! 84%
+    Aerosol_props%sulfate_index(:,17)=Aerosol_props%sulfate_index(:,16)
+    Aerosol_props%sulfate_index(:,18)=Aerosol_props%sulfate_index(:,17) + 26 ! 82%
+    Aerosol_props%sulfate_index(:,19)=Aerosol_props%sulfate_index(:,18)
+    Aerosol_props%sulfate_index(:,20)=Aerosol_props%sulfate_index(:,19) + 26 ! 80%
+    Aerosol_props%sulfate_index(:,21)=Aerosol_props%sulfate_index(:,20)
+    Aerosol_props%sulfate_index(:,22)=Aerosol_props%sulfate_index(:,21)
+    Aerosol_props%sulfate_index(:,23)=Aerosol_props%sulfate_index(:,22) + 26
+    Aerosol_props%sulfate_index(:,24)=Aerosol_props%sulfate_index(:,23)
+    Aerosol_props%sulfate_index(:,25)=Aerosol_props%sulfate_index(:,24)      ! 75%
+    Aerosol_props%sulfate_index(:,26)=Aerosol_props%sulfate_index(:,25)
+    Aerosol_props%sulfate_index(:,27)=Aerosol_props%sulfate_index(:,26)
+    Aerosol_props%sulfate_index(:,28)=Aerosol_props%sulfate_index(:,27) + 26
+    Aerosol_props%sulfate_index(:,29)=Aerosol_props%sulfate_index(:,28)
+    Aerosol_props%sulfate_index(:,30)=Aerosol_props%sulfate_index(:,29)      ! 70%
+    Aerosol_props%sulfate_index(:,31)=Aerosol_props%sulfate_index(:,30)
+    Aerosol_props%sulfate_index(:,32)=Aerosol_props%sulfate_index(:,31)
+    Aerosol_props%sulfate_index(:,33)=Aerosol_props%sulfate_index(:,32) + 26
+    Aerosol_props%sulfate_index(:,34)=Aerosol_props%sulfate_index(:,33)
+    Aerosol_props%sulfate_index(:,35)=Aerosol_props%sulfate_index(:,34)      ! 65%
+    Aerosol_props%sulfate_index(:,36)=Aerosol_props%sulfate_index(:,35)
+    Aerosol_props%sulfate_index(:,37)=Aerosol_props%sulfate_index(:,36)
+    Aerosol_props%sulfate_index(:,38)=Aerosol_props%sulfate_index(:,37) + 26
+    Aerosol_props%sulfate_index(:,39)=Aerosol_props%sulfate_index(:,38)
+    Aerosol_props%sulfate_index(:,40)=Aerosol_props%sulfate_index(:,39)      ! 60%
+    Aerosol_props%sulfate_index(:,41)=Aerosol_props%sulfate_index(:,40)
+    Aerosol_props%sulfate_index(:,42)=Aerosol_props%sulfate_index(:,41)
+    Aerosol_props%sulfate_index(:,43)=Aerosol_props%sulfate_index(:,42) + 26
+    Aerosol_props%sulfate_index(:,44)=Aerosol_props%sulfate_index(:,43)
+    Aerosol_props%sulfate_index(:,45)=Aerosol_props%sulfate_index(:,44)      ! 55%
+    Aerosol_props%sulfate_index(:,46)=Aerosol_props%sulfate_index(:,45)
+    Aerosol_props%sulfate_index(:,47)=Aerosol_props%sulfate_index(:,46)
+    Aerosol_props%sulfate_index(:,48)=Aerosol_props%sulfate_index(:,47) + 26
+    Aerosol_props%sulfate_index(:,49)=Aerosol_props%sulfate_index(:,48)
+    Aerosol_props%sulfate_index(:,50)=Aerosol_props%sulfate_index(:,49)      ! 50%
+    Aerosol_props%sulfate_index(:,51)=Aerosol_props%sulfate_index(:,50)
+    Aerosol_props%sulfate_index(:,52)=Aerosol_props%sulfate_index(:,51)
+    Aerosol_props%sulfate_index(:,53)=Aerosol_props%sulfate_index(:,52) + 26
+    Aerosol_props%sulfate_index(:,54)=Aerosol_props%sulfate_index(:,53)
+    Aerosol_props%sulfate_index(:,55)=Aerosol_props%sulfate_index(:,54)      ! 45%
+    Aerosol_props%sulfate_index(:,56)=Aerosol_props%sulfate_index(:,55)
+    Aerosol_props%sulfate_index(:,57)=Aerosol_props%sulfate_index(:,56)
+    Aerosol_props%sulfate_index(:,58)=Aerosol_props%sulfate_index(:,57) + 26
+    Aerosol_props%sulfate_index(:,59)=Aerosol_props%sulfate_index(:,58)
+    Aerosol_props%sulfate_index(:,60)=Aerosol_props%sulfate_index(:,59)      ! 40%
+    Aerosol_props%sulfate_index(:,61)=Aerosol_props%sulfate_index(:,60)
+    Aerosol_props%sulfate_index(:,62)=Aerosol_props%sulfate_index(:,61)
+    Aerosol_props%sulfate_index(:,63)=Aerosol_props%sulfate_index(:,62) + 26
+    Aerosol_props%sulfate_index(:,64)=Aerosol_props%sulfate_index(:,63)
+    Aerosol_props%sulfate_index(:,65)=Aerosol_props%sulfate_index(:,64)      ! 35%
+    Aerosol_props%sulfate_index(:,66)=Aerosol_props%sulfate_index(:,65)
+    Aerosol_props%sulfate_index(:,67)=Aerosol_props%sulfate_index(:,66)
+    Aerosol_props%sulfate_index(:,68)=Aerosol_props%sulfate_index(:,67) + 26
+    Aerosol_props%sulfate_index(:,69)=Aerosol_props%sulfate_index(:,68)
+    Aerosol_props%sulfate_index(:,70)=Aerosol_props%sulfate_index(:,69)      ! 30%
+    Aerosol_props%sulfate_index(:,71)=Aerosol_props%sulfate_index(:,70)
+    Aerosol_props%sulfate_index(:,72)=Aerosol_props%sulfate_index(:,71)
+    Aerosol_props%sulfate_index(:,73)=Aerosol_props%sulfate_index(:,72) + 26
+    Aerosol_props%sulfate_index(:,74)=Aerosol_props%sulfate_index(:,73)
+    Aerosol_props%sulfate_index(:,75)=Aerosol_props%sulfate_index(:,74)      ! 25%
+    Aerosol_props%sulfate_index(:,76)=Aerosol_props%sulfate_index(:,75)
+    Aerosol_props%sulfate_index(:,77)=Aerosol_props%sulfate_index(:,76)
+    Aerosol_props%sulfate_index(:,78)=Aerosol_props%sulfate_index(:,77) + 26
+    Aerosol_props%sulfate_index(:,79)=Aerosol_props%sulfate_index(:,78)
+    Aerosol_props%sulfate_index(:,80)=Aerosol_props%sulfate_index(:,79)      ! 20%
+    Aerosol_props%sulfate_index(:,81)=Aerosol_props%sulfate_index(:,80)
+    Aerosol_props%sulfate_index(:,82)=Aerosol_props%sulfate_index(:,81)
+    Aerosol_props%sulfate_index(:,83)=Aerosol_props%sulfate_index(:,82) + 26
+    Aerosol_props%sulfate_index(:,84)=Aerosol_props%sulfate_index(:,83)
+    Aerosol_props%sulfate_index(:,85)=Aerosol_props%sulfate_index(:,84)      ! 15%
+    Aerosol_props%sulfate_index(:,86)=Aerosol_props%sulfate_index(:,85)
+    Aerosol_props%sulfate_index(:,87)=Aerosol_props%sulfate_index(:,86)
+    Aerosol_props%sulfate_index(:,88)=Aerosol_props%sulfate_index(:,87) + 26
+    Aerosol_props%sulfate_index(:,89)=Aerosol_props%sulfate_index(:,88)
+    Aerosol_props%sulfate_index(:,90)=Aerosol_props%sulfate_index(:,89)      ! 10%
+    Aerosol_props%sulfate_index(:,91)=Aerosol_props%sulfate_index(:,90)
+    Aerosol_props%sulfate_index(:,92)=Aerosol_props%sulfate_index(:,91)
+    Aerosol_props%sulfate_index(:,93)=Aerosol_props%sulfate_index(:,92) + 26
+    Aerosol_props%sulfate_index(:,94)=Aerosol_props%sulfate_index(:,93)
+    Aerosol_props%sulfate_index(:,95)=Aerosol_props%sulfate_index(:,94)      ! 5%
+    Aerosol_props%sulfate_index(:,96)=Aerosol_props%sulfate_index(:,95)
+    Aerosol_props%sulfate_index(:,97)=Aerosol_props%sulfate_index(:,96)
+    Aerosol_props%sulfate_index(:,98)=Aerosol_props%sulfate_index(:,97) + 26
+    Aerosol_props%sulfate_index(:,99)=Aerosol_props%sulfate_index(:,98)
+    Aerosol_props%sulfate_index(:,100)=Aerosol_props%sulfate_index(:,99)    ! 0%
+    Aerosol_props%bcphilic_index( 0: 13)=(/ 722, 722, 722, 722, 722, 722, 722, 722, 722, 722, 722, 722, 722, 722 /)
+    Aerosol_props%bcphilic_index(14: 27)=(/ 722, 722, 722, 722, 722, 722, 722, 722, 722, 722, 722, 722, 722, 722 /)
+    Aerosol_props%bcphilic_index(28: 41)=(/ 722, 722, 722, 722, 722, 723, 723, 723, 723, 723, 724, 724, 724, 724 /)
+    Aerosol_props%bcphilic_index(42: 55)=(/ 724, 725, 725, 725, 725, 725, 726, 726, 726, 726, 726, 727, 727, 727 /)
+    Aerosol_props%bcphilic_index(56: 69)=(/ 727, 727, 728, 728, 728, 728, 728, 729, 729, 729, 729, 729, 730, 730 /)
+    Aerosol_props%bcphilic_index(70: 83)=(/ 730, 730, 730, 731, 731, 731, 731, 731, 732, 732, 732, 732, 733, 733 /)
+    Aerosol_props%bcphilic_index(84: 97)=(/ 734, 734, 735, 735, 736, 736, 737, 738, 739, 740, 741, 742, 743, 744 /)
+    Aerosol_props%bcphilic_index(98:100)=(/ 745, 746, 746 /)
+    Aerosol_props%omphilic_index(:) = Aerosol_props%bcphilic_index(:) + 25
+    Aerosol_props%seasalt1_index(:) = Aerosol_props%omphilic_index(:) + 25
+    Aerosol_props%seasalt2_index(:) = Aerosol_props%seasalt1_index(:) + 25
+    Aerosol_props%seasalt3_index(:) = Aerosol_props%seasalt2_index(:) + 25
+    Aerosol_props%seasalt4_index(:) = Aerosol_props%seasalt3_index(:) + 25
+    Aerosol_props%seasalt5_index(:) = Aerosol_props%seasalt4_index(:) + 25
     call loadaerooptical(Aerosol_props)
     
     Aerosol_diags%extopdep=0.
     Aerosol_diags%absopdep=0.
+    Aerosol_diags%asymdep=0.
 
     if (include_volcanoes) then
       write(6,*) "ERROR: Prescribed aerosol properties for"
@@ -432,6 +550,8 @@ Rad_gases%rrvf11  = real(rrvf11 ,8)
 Rad_gases%rrvf12  = real(rrvf12 ,8)
 Rad_gases%rrvf113 = real(rrvf113,8)
 Rad_gases%rrvf22  = real(rrvf22 ,8)
+
+call sealw99_time_vary(Rad_time,Rad_gases)
 
 ! main loop ---------------------------------------------------------
 do j=1,jl,imax/il
@@ -588,6 +708,7 @@ do j=1,jl,imax/il
         end do ! i=1,imax
       case(2)
         ! prognostic aerosols
+        ! convert to units kg / m^2
         do k=1,kl
           kr=kl+1-k
           dprf=-ps(istart:iend)*dsig(k)
@@ -600,16 +721,25 @@ do j=1,jl,imax/il
           Aerosol%aerosol(:,1,kr,7) =real(xtg(istart:iend,k,9)*dprf/grav,8)  ! dust 1-2
           Aerosol%aerosol(:,1,kr,8) =real(xtg(istart:iend,k,10)*dprf/grav,8) ! dust 2-3
           Aerosol%aerosol(:,1,kr,9) =real(xtg(istart:iend,k,11)*dprf/grav,8) ! dust 3-6
-          Aerosol%aerosol(:,1,kr,10)=real(2.64e-18*ssn(istart:iend,k,1) &
-                                     /rhoa(:,k)*dprf/grav,8)  ! Small sea salt (0.035)
-          Aerosol%aerosol(:,1,kr,11)=real(1.38e-15*ssn(istart:iend,k,2) &
-                                     /rhoa(:,k)*dprf/grav,8)  ! Large sea salt (0.35)
-          !Aerosol%aerosol(:,1,kr,10)=real(5.3e-17*ssn(istart:iend,k,1) &
-          !                           /rhoa(:,k)*dprf/grav,8)  ! Small sea salt (0.1)
-          !Aerosol%aerosol(:,1,kr,11)=real(9.1e-15*ssn(istart:iend,k,2) &
-          !                           /rhoa(:,k)*dprf/grav,8)  ! Large sea salt (0.5)
+          !Aerosol%aerosol(:,1,kr,10)=real(2.64e-18*ssn(istart:iend,k,1) &
+          !                           /rhoa(:,k)*dprf/grav,8)  ! Small sea salt (0.035)
+          !Aerosol%aerosol(:,1,kr,11)=real(1.38e-15*ssn(istart:iend,k,2) &
+          !                           /rhoa(:,k)*dprf/grav,8)  ! Large sea salt (0.35)
+          Aerosol%aerosol(:,1,kr,10)=real(5.3e-17*ssn(istart:iend,k,1) &
+                                     /rhoa(:,k)*dprf/grav,8)  ! Small sea salt (0.1)
+          Aerosol%aerosol(:,1,kr,11)=real(9.1e-15*ssn(istart:iend,k,2) &
+                                     /rhoa(:,k)*dprf/grav,8)  ! Large sea salt (0.5)
         end do
         Aerosol%aerosol=max(Aerosol%aerosol,0._8)
+        
+        if ( Rad_control%using_im_bcsul ) then
+          Aerosol_props%ivol(:,1,:)=100-nint(100.*Aerosol%aerosol(:,1,:,1)/ &
+              (Aerosol%aerosol(:,1,:,1)+Aerosol%aerosol(:,1,:,2)+Aerosol%aerosol(:,1,:,3)))
+          Aerosol_props%ivol(:,1,:)=max(min(Aerosol_props%ivol(:,1,:),100),0)
+        else
+          Aerosol_props%ivol=0 ! no mixing of bc with so4
+        end if
+
       case DEFAULT
         write(6,*) "ERROR: unknown iaero option ",iaero
         call ccmpi_abort(-1)
@@ -763,7 +893,7 @@ do j=1,jl,imax/il
     Cloud_microphysics%conc_rain=0._8
     Cloud_microphysics%size_snow=1.e-20_8
     Cloud_microphysics%conc_snow=0._8
-
+    
     Lscrad_props%cldext   = 0._8
     Lscrad_props%cldsct   = 0._8
     Lscrad_props%cldasymm = 1._8
@@ -774,7 +904,7 @@ do j=1,jl,imax/il
     Cldrad_props%cldext(:,:,:,:,1)  =Lscrad_props%cldext(:,:,:,:)   ! Large scale cloud properties only
     Cldrad_props%cldasymm(:,:,:,:,1)=Lscrad_props%cldasymm(:,:,:,:) ! Large scale cloud properties only
     Cldrad_props%abscoeff(:,:,:,:,1)=Lscrad_props%abscoeff(:,:,:,:) ! Large scale cloud properties only
-
+    
     call lwemiss_calc(Atmos_input%clouddeltaz,Cldrad_props%abscoeff,Cldrad_props%cldemiss)
     Cldrad_props%emmxolw = Cldrad_props%cldemiss
     Cldrad_props%emrndlw = Cldrad_props%cldemiss
@@ -816,21 +946,21 @@ do j=1,jl,imax/il
     end if
 
     ! store shortwave and fbeam data --------------------------------
-    sgdn    = real(Sw_output(1)%dfsw(:,1,kl+1))
-    sgdnvis = real(Sw_output(1)%dfsw_vis_sfc(:,1))
+    sgdn    = real(Sw_output(1)%dfsw(:,1,kl+1,1))
+    sgdnvis = real(Sw_output(1)%dfsw_vis_sfc(:,1,1))
     sgdnnir = sgdn-sgdnvis
-    sg      = sgdn-real(Sw_output(1)%ufsw(:,1,kl+1))
-    sgvis   = sgdnvis-real(Sw_output(1)%ufsw_vis_sfc(:,1))
-    !sgvisdir = Sw_output(1)%dfsw_vis_sfc_dir(:,1)
-    !sgvisdif = Sw_output(1)%dfsw_vis_sfc_dif(:,1)-Sw_output(1)%ufsw_vis_sfc_dif(:,1)
-    !sgnirdir = Sw_output(1)%dfsw_dir_sfc(:,1)-sgvisdir
-    !sgnirdif = Sw_output(1)%dfsw_dif_sfc(:,1)-Sw_output(1)%ufsw_dif_sfc(:,1)-sgvisdif
-    !sgdir    = Sw_output(1)%dfsw_dir_sfc(:,1)
-    !sgdif    = Sw_output(1)%dfsw_dif_sfc(:,1)-Sw_output(1)%ufsw_dif_sfc(:,1)
-    sgdnvisdir = real(Sw_output(1)%dfsw_vis_sfc_dir(:,1))
-    sgdnvisdif = real(Sw_output(1)%dfsw_vis_sfc_dif(:,1))
-    sgdnnirdir = real(Sw_output(1)%dfsw_dir_sfc(:,1))-sgdnvisdir
-    sgdnnirdif = real(Sw_output(1)%dfsw_dif_sfc(:,1))-sgdnvisdif
+    sg      = sgdn-real(Sw_output(1)%ufsw(:,1,kl+1,1))
+    sgvis   = sgdnvis-real(Sw_output(1)%ufsw_vis_sfc(:,1,1))
+    !sgvisdir = Sw_output(1)%dfsw_vis_sfc_dir(:,1,1)
+    !sgvisdif = Sw_output(1)%dfsw_vis_sfc_dif(:,1,1)-Sw_output(1)%ufsw_vis_sfc_dif(:,1,1)
+    !sgnirdir = Sw_output(1)%dfsw_dir_sfc(:,1,1)-sgvisdir
+    !sgnirdif = Sw_output(1)%dfsw_dif_sfc(:,1,1)-Sw_output(1)%ufsw_dif_sfc(:,1,1)-sgvisdif
+    !sgdir    = Sw_output(1)%dfsw_dir_sfc(:,1,1)
+    !sgdif    = Sw_output(1)%dfsw_dif_sfc(:,1,1)-Sw_output(1)%ufsw_dif_sfc(:,1,1)
+    sgdnvisdir = real(Sw_output(1)%dfsw_vis_sfc_dir(:,1,1))
+    sgdnvisdif = real(Sw_output(1)%dfsw_vis_sfc_dif(:,1,1))
+    sgdnnirdir = real(Sw_output(1)%dfsw_dir_sfc(:,1,1))-sgdnvisdir
+    sgdnnirdif = real(Sw_output(1)%dfsw_dif_sfc(:,1,1))-sgdnvisdif
     
     swrsave(istart:iend)=sgdnvis/max(sgdn,0.01)
     fbeamvis(istart:iend)=sgdnvisdir/max(sgdnvis,0.01)
@@ -849,17 +979,17 @@ do j=1,jl,imax/il
     rgdn(1:imax) = stefbo*tss(istart:iend)**4 - rg(1:imax)
 
     ! shortwave output ----------------------------------------------
-    sint(1:imax) = real(Sw_output(1)%dfsw(:,1,1))   ! solar in top
-    sout(1:imax) = real(Sw_output(1)%ufsw(:,1,1))   ! solar out top
+    sint(1:imax) = real(Sw_output(1)%dfsw(:,1,1,1))   ! solar in top
+    sout(1:imax) = real(Sw_output(1)%ufsw(:,1,1,1))   ! solar out top
     !sgdn(1:imax) = sg(1:imax) / ( 1. - swrsave(istart:iend)*albvisnir(istart:iend,1) &
     !              -(1.-swrsave(istart:iend))*albvisnir(istart:iend,2) )
 
     ! Clear sky calculation -----------------------------------------
     if (do_totcld_forcing) then
-      soutclr(1:imax) = real(Sw_output(1)%ufswcf(:,1,1))      ! solar out top
-      sgclr(1:imax)   = -real(Sw_output(1)%fswcf(:,1,kl+1))   ! solar absorbed at the surface
-      rtclr(1:imax)   = real(Lw_output(1)%flxnetcf(:,1,1))    ! clr sky lw at top
-      rgclr(1:imax)   = real(Lw_output(1)%flxnetcf(:,1,kl+1)) ! clear sky longwave at surface
+      soutclr(1:imax) = real(Sw_output(1)%ufswcf(:,1,1,1))      ! solar out top
+      sgclr(1:imax)   = -real(Sw_output(1)%fswcf(:,1,kl+1,1))   ! solar absorbed at the surface
+      rtclr(1:imax)   = real(Lw_output(1)%flxnetcf(:,1,1))      ! clr sky lw at top
+      rgclr(1:imax)   = real(Lw_output(1)%flxnetcf(:,1,kl+1))   ! clear sky longwave at surface
     else
       soutclr(1:imax) = 0.
       sgclr(1:imax)   = 0.
@@ -870,7 +1000,7 @@ do j=1,jl,imax/il
     ! heating rate --------------------------------------------------
     do k=1,kl
       ! total heating rate (convert deg K/day to deg K/sec)
-      rtt(istart:iend,kl+1-k)=-real(Sw_output(1)%hsw(:,1,k)+Lw_output(1)%heatra(:,1,k))/86400.
+      rtt(istart:iend,kl+1-k)=-real(Sw_output(1)%hsw(:,1,k,1)+Lw_output(1)%heatra(:,1,k))/86400.
     end do
     
     ! aerosol optical depths ----------------------------------------
@@ -891,6 +1021,24 @@ do j=1,jl,imax/il
         opticaldepth(istart:iend,3,1)=opticaldepth(istart:iend,3,1)+real(Aerosol_diags%extopdep(1:imax,1,k,1,1)) ! Visible
         opticaldepth(istart:iend,3,2)=opticaldepth(istart:iend,3,2)+real(Aerosol_diags%extopdep(1:imax,1,k,1,2)) ! Near IR
         opticaldepth(istart:iend,3,3)=opticaldepth(istart:iend,3,3)+real(Aerosol_diags%extopdep(1:imax,1,k,1,3)) ! Longwave
+        ! BC
+        do nr=2,3
+          opticaldepth(istart:iend,5,1)=opticaldepth(istart:iend,5,1)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,1)) ! Visible
+          opticaldepth(istart:iend,5,2)=opticaldepth(istart:iend,5,2)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,2)) ! Near IR
+          opticaldepth(istart:iend,5,3)=opticaldepth(istart:iend,5,3)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,3)) ! Longwave
+        end do
+        ! OC
+        do nr=4,5
+          opticaldepth(istart:iend,6,1)=opticaldepth(istart:iend,6,1)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,1)) ! Visible
+          opticaldepth(istart:iend,6,2)=opticaldepth(istart:iend,6,2)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,2)) ! Near IR
+          opticaldepth(istart:iend,6,3)=opticaldepth(istart:iend,6,3)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,3)) ! Longwave
+        end do
+        ! Seasalt
+        do nr=10,11
+          opticaldepth(istart:iend,7,1)=opticaldepth(istart:iend,7,1)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,1)) ! Visible
+          opticaldepth(istart:iend,7,2)=opticaldepth(istart:iend,7,2)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,2)) ! Near IR
+          opticaldepth(istart:iend,7,3)=opticaldepth(istart:iend,7,3)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,3)) ! Longwave
+        end do
         ! Aerosol
         do nr=1,nfields
           opticaldepth(istart:iend,4,1)=opticaldepth(istart:iend,4,1)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,1)) ! Visible
@@ -1156,10 +1304,10 @@ real(kind=8), dimension(:,:,:,:),        intent(inout) :: r
 !    (fsw), upward sw flux (ufsw), downward sw flux(dfsw) at flux 
 !    levels and sw heating in model layers (hsw).
 !--------------------------------------------------------------------
-      Sw_output(1)%fsw   (:,:,:)    = 0.0_8
-      Sw_output(1)%dfsw  (:,:,:)    = 0.0_8
-      Sw_output(1)%ufsw  (:,:,:)    = 0.0_8
-      Sw_output(1)%hsw   (:,:,:)    = 0.0_8
+      Sw_output(1)%fsw   (:,:,:,:)    = 0.0_8
+      Sw_output(1)%dfsw  (:,:,:,:)    = 0.0_8
+      Sw_output(1)%ufsw  (:,:,:,:)    = 0.0_8
+      Sw_output(1)%hsw   (:,:,:,:)    = 0.0_8
       Sw_output(1)%dfsw_dir_sfc     = 0.0_8
       Sw_output(1)%dfsw_dif_sfc     = 0.0_8
       Sw_output(1)%ufsw_dif_sfc     = 0.0_8
@@ -1168,20 +1316,20 @@ real(kind=8), dimension(:,:,:,:),        intent(inout) :: r
       Sw_output(1)%dfsw_vis_sfc_dir = 0._8
       Sw_output(1)%dfsw_vis_sfc_dif = 0._8
       Sw_output(1)%ufsw_vis_sfc_dif = 0._8
-      Sw_output(1)%bdy_flx(:,:,:)   = 0.0_8       
+      Sw_output(1)%bdy_flx(:,:,:,:)   = 0.0_8       
 
 !---------------------------------------------------------------------
 !    if the cloud-free values are desired, allocate and initialize 
 !    arrays for the fluxes and heating rate in the absence of clouds.
 !----------------------------------------------------------------------
       if (Rad_control%do_totcld_forcing) then
-        Sw_output(1)%fswcf (:,:,:) = 0.0_8
-        Sw_output(1)%dfswcf(:,:,:) = 0.0_8
-        Sw_output(1)%ufswcf(:,:,:) = 0.0_8
-        Sw_output(1)%hswcf (:,:,:) = 0.0_8
+        Sw_output(1)%fswcf (:,:,:,:) = 0.0_8
+        Sw_output(1)%dfswcf(:,:,:,:) = 0.0_8
+        Sw_output(1)%ufswcf(:,:,:,:) = 0.0_8
+        Sw_output(1)%hswcf (:,:,:,:) = 0.0_8
         Sw_output(1)%dfsw_dir_sfc_clr = 0.0_8
         Sw_output(1)%dfsw_dif_sfc_clr  = 0.0_8
-        Sw_output(1)%bdy_flx_clr (:,:,:) = 0.0_8
+        Sw_output(1)%bdy_flx_clr (:,:,:,:) = 0.0_8
       endif
 
 !----------------------------------------------------------------------
@@ -1370,24 +1518,285 @@ character(len=64) :: name_in
 character(len=110) :: filename
 type(aerosol_properties_type), intent(inout) :: Aerosol_props
 
-aerosol_optical_names( 1: 4)=(/ "sulfate_30%", "sulfate_35%", "sulfate_40%", "sulfate_45%" /)
-aerosol_optical_names( 5: 8)=(/ "sulfate_50%", "sulfate_55%", "sulfate_60%", "sulfate_65%" /)
-aerosol_optical_names( 9:12)=(/ "sulfate_70%", "sulfate_75%", "sulfate_80%", "sulfate_82%" /)
-aerosol_optical_names(13:16)=(/ "sulfate_84%", "sulfate_86%", "sulfate_88%", "sulfate_90%" /)
-aerosol_optical_names(17:20)=(/ "sulfate_91%", "sulfate_92%", "sulfate_93%", "sulfate_94%" /)
-aerosol_optical_names(21:24)=(/ "sulfate_95%", "sulfate_96%", "sulfate_97%", "sulfate_98%" /)
-aerosol_optical_names(25)="sulfate_99%"
-aerosol_optical_names(26)="sulfate_100%"
-aerosol_optical_names(27)="organic_carbon"
-aerosol_optical_names(28)="soot"
-aerosol_optical_names(29:32)=(/ "sea_salt",    "dust_0.1",    "dust_0.2",    "dust_0.4" /)
-aerosol_optical_names(33:36)=(/ "dust_0.8",    "dust_1.0",    "dust_2.0",    "dust_4.0" /)
-aerosol_optical_names(37)   =   "dust_8.0"
+aerosol_optical_names( 1: 4)=(/ "sulfate_30%_100%", "sulfate_35%_100%", "sulfate_40%_100%", "sulfate_45%_100%" /)
+aerosol_optical_names( 5: 8)=(/ "sulfate_50%_100%", "sulfate_55%_100%", "sulfate_60%_100%", "sulfate_65%_100%" /)
+aerosol_optical_names( 9:12)=(/ "sulfate_70%_100%", "sulfate_75%_100%", "sulfate_80%_100%", "sulfate_82%_100%" /)
+aerosol_optical_names(13:16)=(/ "sulfate_84%_100%", "sulfate_86%_100%", "sulfate_88%_100%", "sulfate_90%_100%" /)
+aerosol_optical_names(17:20)=(/ "sulfate_91%_100%", "sulfate_92%_100%", "sulfate_93%_100%", "sulfate_94%_100%" /)
+aerosol_optical_names(21:24)=(/ "sulfate_95%_100%", "sulfate_96%_100%", "sulfate_97%_100%", "sulfate_98%_100%" /)
+aerosol_optical_names(25)=      "sulfate_99%_100%"
+aerosol_optical_names(26)=      "sulfate_100%_100%"
+aerosol_optical_names(27:30)=(/ "sulfate_30%_98%", "sulfate_35%_98%", "sulfate_40%_98%", "sulfate_45%_98%" /)
+aerosol_optical_names(31:34)=(/ "sulfate_50%_98%", "sulfate_55%_98%", "sulfate_60%_98%", "sulfate_65%_98%" /)
+aerosol_optical_names(35:38)=(/ "sulfate_70%_98%", "sulfate_75%_98%", "sulfate_80%_98%", "sulfate_82%_98%" /)
+aerosol_optical_names(39:42)=(/ "sulfate_84%_98%", "sulfate_86%_98%", "sulfate_88%_98%", "sulfate_90%_98%" /)
+aerosol_optical_names(43:46)=(/ "sulfate_91%_98%", "sulfate_92%_98%", "sulfate_93%_98%", "sulfate_94%_98%" /)
+aerosol_optical_names(47:50)=(/ "sulfate_95%_98%", "sulfate_96%_98%", "sulfate_97%_98%", "sulfate_98%_98%" /)
+aerosol_optical_names(51)=      "sulfate_99%_98%"
+aerosol_optical_names(52)=      "sulfate_100%_98%"
+aerosol_optical_names(53:56)=(/ "sulfate_30%_96%", "sulfate_35%_96%", "sulfate_40%_96%", "sulfate_45%_96%" /)
+aerosol_optical_names(57:60)=(/ "sulfate_50%_96%", "sulfate_55%_96%", "sulfate_60%_96%", "sulfate_65%_96%" /)
+aerosol_optical_names(61:64)=(/ "sulfate_70%_96%", "sulfate_75%_96%", "sulfate_80%_96%", "sulfate_82%_96%" /)
+aerosol_optical_names(65:68)=(/ "sulfate_84%_96%", "sulfate_86%_96%", "sulfate_88%_96%", "sulfate_90%_96%" /)
+aerosol_optical_names(69:72)=(/ "sulfate_91%_96%", "sulfate_92%_96%", "sulfate_93%_96%", "sulfate_94%_96%" /)
+aerosol_optical_names(73:76)=(/ "sulfate_95%_96%", "sulfate_96%_96%", "sulfate_97%_96%", "sulfate_98%_96%" /)
+aerosol_optical_names(77)=      "sulfate_99%_96%"
+aerosol_optical_names(78)=      "sulfate_100%_96%"
+aerosol_optical_names(79: 82)=(/ "sulfate_30%_94%", "sulfate_35%_94%", "sulfate_40%_94%", "sulfate_45%_94%" /)
+aerosol_optical_names(83: 86)=(/ "sulfate_50%_94%", "sulfate_55%_94%", "sulfate_60%_94%", "sulfate_65%_94%" /)
+aerosol_optical_names(87: 90)=(/ "sulfate_70%_94%", "sulfate_75%_94%", "sulfate_80%_94%", "sulfate_82%_94%" /)
+aerosol_optical_names(91: 94)=(/ "sulfate_84%_94%", "sulfate_86%_94%", "sulfate_88%_94%", "sulfate_90%_94%" /)
+aerosol_optical_names(95: 98)=(/ "sulfate_91%_94%", "sulfate_92%_94%", "sulfate_93%_94%", "sulfate_94%_94%" /)
+aerosol_optical_names(99:102)=(/ "sulfate_95%_94%", "sulfate_96%_94%", "sulfate_97%_94%", "sulfate_98%_94%" /)
+aerosol_optical_names(103)=      "sulfate_99%_94%"
+aerosol_optical_names(104)=      "sulfate_100%_94%"
+aerosol_optical_names(105:108)=(/ "sulfate_30%_92%", "sulfate_35%_92%", "sulfate_40%_92%", "sulfate_45%_92%" /)
+aerosol_optical_names(109:112)=(/ "sulfate_50%_92%", "sulfate_55%_92%", "sulfate_60%_92%", "sulfate_65%_92%" /)
+aerosol_optical_names(113:116)=(/ "sulfate_70%_92%", "sulfate_75%_92%", "sulfate_80%_92%", "sulfate_82%_92%" /)
+aerosol_optical_names(117:120)=(/ "sulfate_84%_92%", "sulfate_86%_92%", "sulfate_88%_92%", "sulfate_90%_92%" /)
+aerosol_optical_names(121:124)=(/ "sulfate_91%_92%", "sulfate_92%_92%", "sulfate_93%_92%", "sulfate_94%_92%" /)
+aerosol_optical_names(125:128)=(/ "sulfate_95%_92%", "sulfate_96%_92%", "sulfate_97%_92%", "sulfate_98%_92%" /)
+aerosol_optical_names(129)=       "sulfate_99%_92%"
+aerosol_optical_names(130)=       "sulfate_100%_92%"
+aerosol_optical_names(131:134)=(/ "sulfate_30%_90%", "sulfate_35%_90%", "sulfate_40%_90%", "sulfate_45%_90%" /)
+aerosol_optical_names(135:138)=(/ "sulfate_50%_90%", "sulfate_55%_90%", "sulfate_60%_90%", "sulfate_65%_90%" /)
+aerosol_optical_names(139:142)=(/ "sulfate_70%_90%", "sulfate_75%_90%", "sulfate_80%_90%", "sulfate_82%_90%" /)
+aerosol_optical_names(143:146)=(/ "sulfate_84%_90%", "sulfate_86%_90%", "sulfate_88%_90%", "sulfate_90%_90%" /)
+aerosol_optical_names(147:150)=(/ "sulfate_91%_90%", "sulfate_92%_90%", "sulfate_93%_90%", "sulfate_94%_90%" /)
+aerosol_optical_names(151:154)=(/ "sulfate_95%_90%", "sulfate_96%_90%", "sulfate_97%_90%", "sulfate_98%_90%" /)
+aerosol_optical_names(155)=       "sulfate_99%_90%"
+aerosol_optical_names(156)=       "sulfate_100%_90%"
+aerosol_optical_names(157:160)=(/ "sulfate_30%_88%", "sulfate_35%_88%", "sulfate_40%_88%", "sulfate_45%_88%" /)
+aerosol_optical_names(161:164)=(/ "sulfate_50%_88%", "sulfate_55%_88%", "sulfate_60%_88%", "sulfate_65%_88%" /)
+aerosol_optical_names(165:168)=(/ "sulfate_70%_88%", "sulfate_75%_88%", "sulfate_80%_88%", "sulfate_82%_88%" /)
+aerosol_optical_names(169:172)=(/ "sulfate_84%_88%", "sulfate_86%_88%", "sulfate_88%_88%", "sulfate_90%_88%" /)
+aerosol_optical_names(173:176)=(/ "sulfate_91%_88%", "sulfate_92%_88%", "sulfate_93%_88%", "sulfate_94%_88%" /)
+aerosol_optical_names(177:180)=(/ "sulfate_95%_88%", "sulfate_96%_88%", "sulfate_97%_88%", "sulfate_98%_88%" /)
+aerosol_optical_names(181)=       "sulfate_99%_88%"
+aerosol_optical_names(182)=       "sulfate_100%_88%"
+aerosol_optical_names(183:186)=(/ "sulfate_30%_86%", "sulfate_35%_86%", "sulfate_40%_86%", "sulfate_45%_86%" /)
+aerosol_optical_names(187:190)=(/ "sulfate_50%_86%", "sulfate_55%_86%", "sulfate_60%_86%", "sulfate_65%_86%" /)
+aerosol_optical_names(191:194)=(/ "sulfate_70%_86%", "sulfate_75%_86%", "sulfate_80%_86%", "sulfate_82%_86%" /)
+aerosol_optical_names(195:198)=(/ "sulfate_84%_86%", "sulfate_86%_86%", "sulfate_88%_86%", "sulfate_90%_86%" /)
+aerosol_optical_names(199:202)=(/ "sulfate_91%_86%", "sulfate_92%_86%", "sulfate_93%_86%", "sulfate_94%_86%" /)
+aerosol_optical_names(203:206)=(/ "sulfate_95%_86%", "sulfate_96%_86%", "sulfate_97%_86%", "sulfate_98%_86%" /)
+aerosol_optical_names(207)=       "sulfate_99%_86%"
+aerosol_optical_names(208)=       "sulfate_100%_86%"
+aerosol_optical_names(209:212)=(/ "sulfate_30%_84%", "sulfate_35%_84%", "sulfate_40%_84%", "sulfate_45%_84%" /)
+aerosol_optical_names(213:216)=(/ "sulfate_50%_84%", "sulfate_55%_84%", "sulfate_60%_84%", "sulfate_65%_84%" /)
+aerosol_optical_names(217:220)=(/ "sulfate_70%_84%", "sulfate_75%_84%", "sulfate_80%_84%", "sulfate_82%_84%" /)
+aerosol_optical_names(221:224)=(/ "sulfate_84%_84%", "sulfate_86%_84%", "sulfate_88%_84%", "sulfate_90%_84%" /)
+aerosol_optical_names(225:228)=(/ "sulfate_91%_84%", "sulfate_92%_84%", "sulfate_93%_84%", "sulfate_94%_84%" /)
+aerosol_optical_names(229:232)=(/ "sulfate_95%_84%", "sulfate_96%_84%", "sulfate_97%_84%", "sulfate_98%_84%" /)
+aerosol_optical_names(233)=       "sulfate_99%_84%"
+aerosol_optical_names(234)=       "sulfate_100%_84%"
+aerosol_optical_names(235:238)=(/ "sulfate_30%_82%", "sulfate_35%_82%", "sulfate_40%_82%", "sulfate_45%_82%" /)
+aerosol_optical_names(239:242)=(/ "sulfate_50%_82%", "sulfate_55%_82%", "sulfate_60%_82%", "sulfate_65%_82%" /)
+aerosol_optical_names(243:246)=(/ "sulfate_70%_82%", "sulfate_75%_82%", "sulfate_80%_82%", "sulfate_82%_82%" /)
+aerosol_optical_names(247:250)=(/ "sulfate_84%_82%", "sulfate_86%_82%", "sulfate_88%_82%", "sulfate_90%_82%" /)
+aerosol_optical_names(251:254)=(/ "sulfate_91%_82%", "sulfate_92%_82%", "sulfate_93%_82%", "sulfate_94%_82%" /)
+aerosol_optical_names(255:258)=(/ "sulfate_95%_82%", "sulfate_96%_82%", "sulfate_97%_82%", "sulfate_98%_82%" /)
+aerosol_optical_names(259)=       "sulfate_99%_82%"
+aerosol_optical_names(260)=       "sulfate_100%_82%"
+aerosol_optical_names(261:264)=(/ "sulfate_30%_80%", "sulfate_35%_80%", "sulfate_40%_80%", "sulfate_45%_80%" /)
+aerosol_optical_names(265:268)=(/ "sulfate_50%_80%", "sulfate_55%_80%", "sulfate_60%_80%", "sulfate_65%_80%" /)
+aerosol_optical_names(269:272)=(/ "sulfate_70%_80%", "sulfate_75%_80%", "sulfate_80%_80%", "sulfate_82%_80%" /)
+aerosol_optical_names(273:276)=(/ "sulfate_84%_80%", "sulfate_86%_80%", "sulfate_88%_80%", "sulfate_90%_80%" /)
+aerosol_optical_names(277:280)=(/ "sulfate_91%_80%", "sulfate_92%_80%", "sulfate_93%_80%", "sulfate_94%_80%" /)
+aerosol_optical_names(281:284)=(/ "sulfate_95%_80%", "sulfate_96%_80%", "sulfate_97%_80%", "sulfate_98%_80%" /)
+aerosol_optical_names(285)=       "sulfate_99%_80%"
+aerosol_optical_names(286)=       "sulfate_100%_80%"
+aerosol_optical_names(287:290)=(/ "sulfate_30%_75%", "sulfate_35%_75%", "sulfate_40%_75%", "sulfate_45%_75%" /)
+aerosol_optical_names(291:294)=(/ "sulfate_50%_75%", "sulfate_55%_75%", "sulfate_60%_75%", "sulfate_65%_75%" /)
+aerosol_optical_names(295:298)=(/ "sulfate_70%_75%", "sulfate_75%_75%", "sulfate_80%_75%", "sulfate_82%_75%" /)
+aerosol_optical_names(299:302)=(/ "sulfate_84%_75%", "sulfate_86%_75%", "sulfate_88%_75%", "sulfate_90%_75%" /)
+aerosol_optical_names(303:306)=(/ "sulfate_91%_75%", "sulfate_92%_75%", "sulfate_93%_75%", "sulfate_94%_75%" /)
+aerosol_optical_names(307:310)=(/ "sulfate_95%_75%", "sulfate_96%_75%", "sulfate_97%_75%", "sulfate_98%_75%" /)
+aerosol_optical_names(311)=       "sulfate_99%_75%"
+aerosol_optical_names(312)=       "sulfate_100%_75%"
+aerosol_optical_names(313:316)=(/ "sulfate_30%_70%", "sulfate_35%_70%", "sulfate_40%_70%", "sulfate_45%_70%" /)
+aerosol_optical_names(317:320)=(/ "sulfate_50%_70%", "sulfate_55%_70%", "sulfate_60%_70%", "sulfate_65%_70%" /)
+aerosol_optical_names(321:324)=(/ "sulfate_70%_70%", "sulfate_75%_70%", "sulfate_80%_70%", "sulfate_82%_70%" /)
+aerosol_optical_names(325:328)=(/ "sulfate_84%_70%", "sulfate_86%_70%", "sulfate_88%_70%", "sulfate_90%_70%" /)
+aerosol_optical_names(329:332)=(/ "sulfate_91%_70%", "sulfate_92%_70%", "sulfate_93%_70%", "sulfate_94%_70%" /)
+aerosol_optical_names(333:336)=(/ "sulfate_95%_70%", "sulfate_96%_70%", "sulfate_97%_70%", "sulfate_98%_70%" /)
+aerosol_optical_names(337)=       "sulfate_99%_70%"
+aerosol_optical_names(338)=       "sulfate_100%_70%"
+aerosol_optical_names(339:342)=(/ "sulfate_30%_65%", "sulfate_35%_65%", "sulfate_40%_65%", "sulfate_45%_65%" /)
+aerosol_optical_names(343:346)=(/ "sulfate_50%_65%", "sulfate_55%_65%", "sulfate_60%_65%", "sulfate_65%_65%" /)
+aerosol_optical_names(347:350)=(/ "sulfate_70%_65%", "sulfate_75%_65%", "sulfate_80%_65%", "sulfate_82%_65%" /)
+aerosol_optical_names(351:354)=(/ "sulfate_84%_65%", "sulfate_86%_65%", "sulfate_88%_65%", "sulfate_90%_65%" /)
+aerosol_optical_names(355:358)=(/ "sulfate_91%_65%", "sulfate_92%_65%", "sulfate_93%_65%", "sulfate_94%_65%" /)
+aerosol_optical_names(359:362)=(/ "sulfate_95%_65%", "sulfate_96%_65%", "sulfate_97%_65%", "sulfate_98%_65%" /)
+aerosol_optical_names(363)=       "sulfate_99%_65%"
+aerosol_optical_names(364)=       "sulfate_100%_65%"
+aerosol_optical_names(365:368)=(/ "sulfate_30%_60%", "sulfate_35%_60%", "sulfate_40%_60%", "sulfate_45%_60%" /)
+aerosol_optical_names(369:372)=(/ "sulfate_50%_60%", "sulfate_55%_60%", "sulfate_60%_60%", "sulfate_65%_60%" /)
+aerosol_optical_names(373:376)=(/ "sulfate_70%_60%", "sulfate_75%_60%", "sulfate_80%_60%", "sulfate_82%_60%" /)
+aerosol_optical_names(377:380)=(/ "sulfate_84%_60%", "sulfate_86%_60%", "sulfate_88%_60%", "sulfate_90%_60%" /)
+aerosol_optical_names(381:384)=(/ "sulfate_91%_60%", "sulfate_92%_60%", "sulfate_93%_60%", "sulfate_94%_60%" /)
+aerosol_optical_names(385:388)=(/ "sulfate_95%_60%", "sulfate_96%_60%", "sulfate_97%_60%", "sulfate_98%_60%" /)
+aerosol_optical_names(389)=       "sulfate_99%_60%"
+aerosol_optical_names(390)=       "sulfate_100%_60%"
+aerosol_optical_names(391:394)=(/ "sulfate_30%_55%", "sulfate_35%_55%", "sulfate_40%_55%", "sulfate_45%_55%" /)
+aerosol_optical_names(395:398)=(/ "sulfate_50%_55%", "sulfate_55%_55%", "sulfate_60%_55%", "sulfate_65%_55%" /)
+aerosol_optical_names(399:402)=(/ "sulfate_70%_55%", "sulfate_75%_55%", "sulfate_80%_55%", "sulfate_82%_55%" /)
+aerosol_optical_names(403:406)=(/ "sulfate_84%_55%", "sulfate_86%_55%", "sulfate_88%_55%", "sulfate_90%_55%" /)
+aerosol_optical_names(407:410)=(/ "sulfate_91%_55%", "sulfate_92%_55%", "sulfate_93%_55%", "sulfate_94%_55%" /)
+aerosol_optical_names(411:414)=(/ "sulfate_95%_55%", "sulfate_96%_55%", "sulfate_97%_55%", "sulfate_98%_55%" /)
+aerosol_optical_names(415)=       "sulfate_99%_55%"
+aerosol_optical_names(416)=       "sulfate_100%_55%"
+aerosol_optical_names(417:420)=(/ "sulfate_30%_50%", "sulfate_35%_50%", "sulfate_40%_50%", "sulfate_45%_50%" /)
+aerosol_optical_names(421:424)=(/ "sulfate_50%_50%", "sulfate_55%_50%", "sulfate_60%_50%", "sulfate_65%_50%" /)
+aerosol_optical_names(425:428)=(/ "sulfate_70%_50%", "sulfate_75%_50%", "sulfate_80%_50%", "sulfate_82%_50%" /)
+aerosol_optical_names(429:432)=(/ "sulfate_84%_50%", "sulfate_86%_50%", "sulfate_88%_50%", "sulfate_90%_50%" /)
+aerosol_optical_names(433:436)=(/ "sulfate_91%_50%", "sulfate_92%_50%", "sulfate_93%_50%", "sulfate_94%_50%" /)
+aerosol_optical_names(437:440)=(/ "sulfate_95%_50%", "sulfate_96%_50%", "sulfate_97%_50%", "sulfate_98%_50%" /)
+aerosol_optical_names(441)=       "sulfate_99%_50%"
+aerosol_optical_names(442)=       "sulfate_100%_50%"
+aerosol_optical_names(443:446)=(/ "sulfate_30%_45%", "sulfate_35%_45%", "sulfate_40%_45%", "sulfate_45%_45%" /)
+aerosol_optical_names(447:450)=(/ "sulfate_50%_45%", "sulfate_55%_45%", "sulfate_60%_45%", "sulfate_65%_45%" /)
+aerosol_optical_names(451:454)=(/ "sulfate_70%_45%", "sulfate_75%_45%", "sulfate_80%_45%", "sulfate_82%_45%" /)
+aerosol_optical_names(455:458)=(/ "sulfate_84%_45%", "sulfate_86%_45%", "sulfate_88%_45%", "sulfate_90%_45%" /)
+aerosol_optical_names(459:462)=(/ "sulfate_91%_45%", "sulfate_92%_45%", "sulfate_93%_45%", "sulfate_94%_45%" /)
+aerosol_optical_names(463:466)=(/ "sulfate_95%_45%", "sulfate_96%_45%", "sulfate_97%_45%", "sulfate_98%_45%" /)
+aerosol_optical_names(467)=       "sulfate_99%_45%"
+aerosol_optical_names(468)=       "sulfate_100%_45%"
+aerosol_optical_names(469:472)=(/ "sulfate_30%_40%", "sulfate_35%_40%", "sulfate_40%_40%", "sulfate_45%_40%" /)
+aerosol_optical_names(473:476)=(/ "sulfate_50%_40%", "sulfate_55%_40%", "sulfate_60%_40%", "sulfate_65%_40%" /)
+aerosol_optical_names(477:480)=(/ "sulfate_70%_40%", "sulfate_75%_40%", "sulfate_80%_40%", "sulfate_82%_40%" /)
+aerosol_optical_names(481:484)=(/ "sulfate_84%_40%", "sulfate_86%_40%", "sulfate_88%_40%", "sulfate_90%_40%" /)
+aerosol_optical_names(485:488)=(/ "sulfate_91%_40%", "sulfate_92%_40%", "sulfate_93%_40%", "sulfate_94%_40%" /)
+aerosol_optical_names(489:492)=(/ "sulfate_95%_40%", "sulfate_96%_40%", "sulfate_97%_40%", "sulfate_98%_40%" /)
+aerosol_optical_names(493)=       "sulfate_99%_40%"
+aerosol_optical_names(494)=       "sulfate_100%_40%"
+aerosol_optical_names(495:498)=(/ "sulfate_30%_35%", "sulfate_35%_35%", "sulfate_40%_35%", "sulfate_45%_35%" /)
+aerosol_optical_names(499:502)=(/ "sulfate_50%_35%", "sulfate_55%_35%", "sulfate_60%_35%", "sulfate_65%_35%" /)
+aerosol_optical_names(503:506)=(/ "sulfate_70%_35%", "sulfate_75%_35%", "sulfate_80%_35%", "sulfate_82%_35%" /)
+aerosol_optical_names(507:510)=(/ "sulfate_84%_35%", "sulfate_86%_35%", "sulfate_88%_35%", "sulfate_90%_35%" /)
+aerosol_optical_names(511:514)=(/ "sulfate_91%_35%", "sulfate_92%_35%", "sulfate_93%_35%", "sulfate_94%_35%" /)
+aerosol_optical_names(515:518)=(/ "sulfate_95%_35%", "sulfate_96%_35%", "sulfate_97%_35%", "sulfate_98%_35%" /)
+aerosol_optical_names(519)=       "sulfate_99%_35%"
+aerosol_optical_names(520)=       "sulfate_100%_35%"
+aerosol_optical_names(521:524)=(/ "sulfate_30%_30%", "sulfate_35%_30%", "sulfate_40%_30%", "sulfate_45%_30%" /)
+aerosol_optical_names(525:528)=(/ "sulfate_50%_30%", "sulfate_55%_30%", "sulfate_60%_30%", "sulfate_65%_30%" /)
+aerosol_optical_names(529:532)=(/ "sulfate_70%_30%", "sulfate_75%_30%", "sulfate_80%_30%", "sulfate_82%_30%" /)
+aerosol_optical_names(533:536)=(/ "sulfate_84%_30%", "sulfate_86%_30%", "sulfate_88%_30%", "sulfate_90%_30%" /)
+aerosol_optical_names(537:540)=(/ "sulfate_91%_30%", "sulfate_92%_30%", "sulfate_93%_30%", "sulfate_94%_30%" /)
+aerosol_optical_names(541:544)=(/ "sulfate_95%_30%", "sulfate_96%_30%", "sulfate_97%_30%", "sulfate_98%_30%" /)
+aerosol_optical_names(545)=       "sulfate_99%_30%"
+aerosol_optical_names(546)=       "sulfate_100%_30%"
+aerosol_optical_names(547:550)=(/ "sulfate_30%_25%", "sulfate_35%_25%", "sulfate_40%_25%", "sulfate_45%_25%" /)
+aerosol_optical_names(551:554)=(/ "sulfate_50%_25%", "sulfate_55%_25%", "sulfate_60%_25%", "sulfate_65%_25%" /)
+aerosol_optical_names(555:558)=(/ "sulfate_70%_25%", "sulfate_75%_25%", "sulfate_80%_25%", "sulfate_82%_25%" /)
+aerosol_optical_names(559:562)=(/ "sulfate_84%_25%", "sulfate_86%_25%", "sulfate_88%_25%", "sulfate_90%_25%" /)
+aerosol_optical_names(563:566)=(/ "sulfate_91%_25%", "sulfate_92%_25%", "sulfate_93%_25%", "sulfate_94%_25%" /)
+aerosol_optical_names(567:570)=(/ "sulfate_95%_25%", "sulfate_96%_25%", "sulfate_97%_25%", "sulfate_98%_25%" /)
+aerosol_optical_names(571)=       "sulfate_99%_25%"
+aerosol_optical_names(572)=       "sulfate_100%_25%"
+aerosol_optical_names(573:576)=(/ "sulfate_30%_20%", "sulfate_35%_20%", "sulfate_40%_20%", "sulfate_45%_20%" /)
+aerosol_optical_names(577:580)=(/ "sulfate_50%_20%", "sulfate_55%_20%", "sulfate_60%_20%", "sulfate_65%_20%" /)
+aerosol_optical_names(581:584)=(/ "sulfate_70%_20%", "sulfate_75%_20%", "sulfate_80%_20%", "sulfate_82%_20%" /)
+aerosol_optical_names(585:588)=(/ "sulfate_84%_20%", "sulfate_86%_20%", "sulfate_88%_20%", "sulfate_90%_20%" /)
+aerosol_optical_names(589:592)=(/ "sulfate_91%_20%", "sulfate_92%_20%", "sulfate_93%_20%", "sulfate_94%_20%" /)
+aerosol_optical_names(593:596)=(/ "sulfate_95%_20%", "sulfate_96%_20%", "sulfate_97%_20%", "sulfate_98%_20%" /)
+aerosol_optical_names(597)=       "sulfate_99%_20%"
+aerosol_optical_names(598)=       "sulfate_100%_20%"
+aerosol_optical_names(599:602)=(/ "sulfate_30%_15%", "sulfate_35%_15%", "sulfate_40%_15%", "sulfate_45%_15%" /)
+aerosol_optical_names(603:606)=(/ "sulfate_50%_15%", "sulfate_55%_15%", "sulfate_60%_15%", "sulfate_65%_15%" /)
+aerosol_optical_names(607:610)=(/ "sulfate_70%_15%", "sulfate_75%_15%", "sulfate_80%_15%", "sulfate_82%_15%" /)
+aerosol_optical_names(611:614)=(/ "sulfate_84%_15%", "sulfate_86%_15%", "sulfate_88%_15%", "sulfate_90%_15%" /)
+aerosol_optical_names(615:618)=(/ "sulfate_91%_15%", "sulfate_92%_15%", "sulfate_93%_15%", "sulfate_94%_15%" /)
+aerosol_optical_names(619:622)=(/ "sulfate_95%_15%", "sulfate_96%_15%", "sulfate_97%_15%", "sulfate_98%_15%" /)
+aerosol_optical_names(623)=       "sulfate_99%_15%"
+aerosol_optical_names(624)=       "sulfate_100%_15%"
+aerosol_optical_names(625:628)=(/ "sulfate_30%_10%", "sulfate_35%_10%", "sulfate_40%_10%", "sulfate_45%_10%" /)
+aerosol_optical_names(629:632)=(/ "sulfate_50%_10%", "sulfate_55%_10%", "sulfate_60%_10%", "sulfate_65%_10%" /)
+aerosol_optical_names(633:636)=(/ "sulfate_70%_10%", "sulfate_75%_10%", "sulfate_80%_10%", "sulfate_82%_10%" /)
+aerosol_optical_names(637:640)=(/ "sulfate_84%_10%", "sulfate_86%_10%", "sulfate_88%_10%", "sulfate_90%_10%" /)
+aerosol_optical_names(641:644)=(/ "sulfate_91%_10%", "sulfate_92%_10%", "sulfate_93%_10%", "sulfate_94%_10%" /)
+aerosol_optical_names(645:648)=(/ "sulfate_95%_10%", "sulfate_96%_10%", "sulfate_97%_10%", "sulfate_98%_10%" /)
+aerosol_optical_names(649)=       "sulfate_99%_10%"
+aerosol_optical_names(650)=       "sulfate_100%_10%"
+aerosol_optical_names(651:654)=(/ "sulfate_30%_5%", "sulfate_35%_5%", "sulfate_40%_5%", "sulfate_45%_5%" /)
+aerosol_optical_names(655:658)=(/ "sulfate_50%_5%", "sulfate_55%_5%", "sulfate_60%_5%", "sulfate_65%_5%" /)
+aerosol_optical_names(659:662)=(/ "sulfate_70%_5%", "sulfate_75%_5%", "sulfate_80%_5%", "sulfate_82%_5%" /)
+aerosol_optical_names(663:666)=(/ "sulfate_84%_5%", "sulfate_86%_5%", "sulfate_88%_5%", "sulfate_90%_5%" /)
+aerosol_optical_names(667:670)=(/ "sulfate_91%_5%", "sulfate_92%_5%", "sulfate_93%_5%", "sulfate_94%_5%" /)
+aerosol_optical_names(671:674)=(/ "sulfate_95%_5%", "sulfate_96%_5%", "sulfate_97%_5%", "sulfate_98%_5%" /)
+aerosol_optical_names(675)=       "sulfate_99%_5%"
+aerosol_optical_names(676)=       "sulfate_100%_5%"
+aerosol_optical_names(677:680)=(/ "sulfate_30%_0%", "sulfate_35%_0%", "sulfate_40%_0%", "sulfate_45%_0%" /)
+aerosol_optical_names(681:684)=(/ "sulfate_50%_0%", "sulfate_55%_0%", "sulfate_60%_0%", "sulfate_65%_0%" /)
+aerosol_optical_names(685:688)=(/ "sulfate_70%_0%", "sulfate_75%_0%", "sulfate_80%_0%", "sulfate_82%_0%" /)
+aerosol_optical_names(689:692)=(/ "sulfate_84%_0%", "sulfate_86%_0%", "sulfate_88%_0%", "sulfate_90%_0%" /)
+aerosol_optical_names(693:696)=(/ "sulfate_91%_0%", "sulfate_92%_0%", "sulfate_93%_0%", "sulfate_94%_0%" /)
+aerosol_optical_names(697:700)=(/ "sulfate_95%_0%", "sulfate_96%_0%", "sulfate_97%_0%", "sulfate_98%_0%" /)
+aerosol_optical_names(701)=       "sulfate_99%_0%"
+aerosol_optical_names(702)=       "sulfate_100%_0%"
+aerosol_optical_names(703)=       "organic_carbon"
+aerosol_optical_names(704)=       "soot"
+aerosol_optical_names(705:708)=(/ "sea_salt",    "dust_0.1",    "dust_0.2",    "dust_0.4" /)
+aerosol_optical_names(709:712)=(/ "dust_0.8",    "dust_1.0",    "dust_2.0",    "dust_4.0" /)
+aerosol_optical_names(713)   =    "dust_8.0"
+aerosol_optical_names(714:717)=(/ "dust1",       "dust2",       "dust3",       "dust4"    /)
+aerosol_optical_names(718)=       "dust5"
+aerosol_optical_names(719:720)=(/ "bcphobic",    "omphobic" /)
+aerosol_optical_names(721)=       "bcdry"
+aerosol_optical_names(722:725)=(/ "bcphilic_30%", "bcphilic_35%", "bcphilic_40%", "bcphilic_45%" /)
+aerosol_optical_names(726:729)=(/ "bcphilic_50%", "bcphilic_55%", "bcphilic_60%", "bcphilic_65%" /)
+aerosol_optical_names(730:733)=(/ "bcphilic_70%", "bcphilic_75%", "bcphilic_80%", "bcphilic_82%" /)
+aerosol_optical_names(734:737)=(/ "bcphilic_84%", "bcphilic_86%", "bcphilic_88%", "bcphilic_90%" /)
+aerosol_optical_names(738:741)=(/ "bcphilic_91%", "bcphilic_92%", "bcphilic_93%", "bcphilic_94%" /)
+aerosol_optical_names(742:745)=(/ "bcphilic_95%", "bcphilic_96%", "bcphilic_97%", "bcphilic_98%" /)
+aerosol_optical_names(746)=       "bcphilic_99%"
+aerosol_optical_names(747:750)=(/ "omphilic_30%", "omphilic_35%", "omphilic_40%", "omphilic_45%" /)
+aerosol_optical_names(751:754)=(/ "omphilic_50%", "omphilic_55%", "omphilic_60%", "omphilic_65%" /)
+aerosol_optical_names(755:758)=(/ "omphilic_70%", "omphilic_75%", "omphilic_80%", "omphilic_82%" /)
+aerosol_optical_names(759:762)=(/ "omphilic_84%", "omphilic_86%", "omphilic_88%", "omphilic_90%" /)
+aerosol_optical_names(763:766)=(/ "omphilic_91%", "omphilic_92%", "omphilic_93%", "omphilic_94%" /)
+aerosol_optical_names(767:770)=(/ "omphilic_95%", "omphilic_96%", "omphilic_97%", "omphilic_98%" /)
+aerosol_optical_names(771)=       "omphilic_99%"
+aerosol_optical_names(772:775)=(/ "seasalt1_30%", "seasalt1_35%", "seasalt1_40%", "seasalt1_45%" /)
+aerosol_optical_names(776:779)=(/ "seasalt1_50%", "seasalt1_55%", "seasalt1_60%", "seasalt1_65%" /)
+aerosol_optical_names(780:783)=(/ "seasalt1_70%", "seasalt1_75%", "seasalt1_80%", "seasalt1_82%" /)
+aerosol_optical_names(784:787)=(/ "seasalt1_84%", "seasalt1_86%", "seasalt1_88%", "seasalt1_90%" /)
+aerosol_optical_names(788:791)=(/ "seasalt1_91%", "seasalt1_92%", "seasalt1_93%", "seasalt1_94%" /)
+aerosol_optical_names(792:795)=(/ "seasalt1_95%", "seasalt1_96%", "seasalt1_97%", "seasalt1_98%" /)
+aerosol_optical_names(796)=       "seasalt1_99%"
+aerosol_optical_names(797:800)=(/ "seasalt2_30%", "seasalt2_35%", "seasalt2_40%", "seasalt2_45%" /)
+aerosol_optical_names(801:804)=(/ "seasalt2_50%", "seasalt2_55%", "seasalt2_60%", "seasalt2_65%" /)
+aerosol_optical_names(805:808)=(/ "seasalt2_70%", "seasalt2_75%", "seasalt2_80%", "seasalt2_82%" /)
+aerosol_optical_names(809:812)=(/ "seasalt2_84%", "seasalt2_86%", "seasalt2_88%", "seasalt2_90%" /)
+aerosol_optical_names(813:816)=(/ "seasalt2_91%", "seasalt2_92%", "seasalt2_93%", "seasalt2_94%" /)
+aerosol_optical_names(817:820)=(/ "seasalt2_95%", "seasalt2_96%", "seasalt2_97%", "seasalt2_98%" /)
+aerosol_optical_names(821)=       "seasalt2_99%"
+aerosol_optical_names(822:825)=(/ "seasalt3_30%", "seasalt3_35%", "seasalt3_40%", "seasalt3_45%" /)
+aerosol_optical_names(826:829)=(/ "seasalt3_50%", "seasalt3_55%", "seasalt3_60%", "seasalt3_65%" /)
+aerosol_optical_names(830:833)=(/ "seasalt3_70%", "seasalt3_75%", "seasalt3_80%", "seasalt3_82%" /)
+aerosol_optical_names(834:837)=(/ "seasalt3_84%", "seasalt3_86%", "seasalt3_88%", "seasalt3_90%" /)
+aerosol_optical_names(838:841)=(/ "seasalt3_91%", "seasalt3_92%", "seasalt3_93%", "seasalt3_94%" /)
+aerosol_optical_names(842:845)=(/ "seasalt3_95%", "seasalt3_96%", "seasalt3_97%", "seasalt3_98%" /)
+aerosol_optical_names(846)=       "seasalt3_99%"
+aerosol_optical_names(847:850)=(/ "seasalt4_30%", "seasalt4_35%", "seasalt4_40%", "seasalt4_45%" /)
+aerosol_optical_names(851:854)=(/ "seasalt4_50%", "seasalt4_55%", "seasalt4_60%", "seasalt4_65%" /)
+aerosol_optical_names(855:858)=(/ "seasalt4_70%", "seasalt4_75%", "seasalt4_80%", "seasalt4_82%" /)
+aerosol_optical_names(859:862)=(/ "seasalt4_84%", "seasalt4_86%", "seasalt4_88%", "seasalt4_90%" /)
+aerosol_optical_names(863:866)=(/ "seasalt4_91%", "seasalt4_92%", "seasalt4_93%", "seasalt4_94%" /)
+aerosol_optical_names(867:870)=(/ "seasalt4_95%", "seasalt4_96%", "seasalt4_97%", "seasalt4_98%" /)
+aerosol_optical_names(871)=       "seasalt4_99%"
+aerosol_optical_names(872:875)=(/ "seasalt5_30%", "seasalt5_35%", "seasalt5_40%", "seasalt5_45%" /)
+aerosol_optical_names(876:879)=(/ "seasalt5_50%", "seasalt5_55%", "seasalt5_60%", "seasalt5_65%" /)
+aerosol_optical_names(880:883)=(/ "seasalt5_70%", "seasalt5_75%", "seasalt5_80%", "seasalt5_82%" /)
+aerosol_optical_names(884:887)=(/ "seasalt5_84%", "seasalt5_86%", "seasalt5_88%", "seasalt5_90%" /)
+aerosol_optical_names(888:891)=(/ "seasalt5_91%", "seasalt5_92%", "seasalt5_93%", "seasalt5_94%" /)
+aerosol_optical_names(892:895)=(/ "seasalt5_95%", "seasalt5_96%", "seasalt5_97%", "seasalt5_98%" /)
+aerosol_optical_names(896)=       "seasalt5_99%"
 
 ! shortwave optical models
 
 if (myid==0) then
-  filename=trim(cnsdir) // '/aerosol.optical.dat'
+  filename=trim(cnsdir) // '/Ginoux_Reddy_2005'
   unit=16
   open(unit,file=filename,iostat=ierr,status='old')
   if (ierr/=0) then
@@ -1407,18 +1816,18 @@ if (myid==0) then
   !    the input file.
   !----------------------------------------------------------------------
   call ccmpi_bcast(num_wavenumbers,0,comm_world)
-  allocate (endaerwvnsf(num_wavenumbers) )
-  allocate (aeroextivl   (num_wavenumbers, naermodels), &
-           aerossalbivl (num_wavenumbers, naermodels), &
-           aeroasymmivl (num_wavenumbers, naermodels) )
-  allocate (aeroext_in   (num_wavenumbers ),           &
-          aerossalb_in (num_wavenumbers ),           &
-          aeroasymm_in (num_wavenumbers ) )
-  allocate ( nivl1aero  (Solar_spect%nbands) )
-  allocate ( nivl2aero  (Solar_spect%nbands) )
-  allocate ( solivlaero (Solar_spect%nbands, num_wavenumbers))
-  allocate (sflwwts (N_AEROSOL_BANDS, num_wavenumbers))
-  allocate (sflwwts_cn (N_AEROSOL_BANDS_CN, num_wavenumbers))           
+  allocate ( endaerwvnsf(num_wavenumbers) )
+  allocate ( aeroextivl  (num_wavenumbers, naermodels) )
+  allocate ( aerossalbivl(num_wavenumbers, naermodels) )
+  allocate ( aeroasymmivl (num_wavenumbers, naermodels) )
+  allocate ( aeroext_in  (num_wavenumbers ) )
+  allocate ( aerossalb_in(num_wavenumbers ) )
+  allocate ( aeroasymm_in(num_wavenumbers ) )
+  allocate ( nivl1aero (Solar_spect%nbands) )
+  allocate ( nivl2aero (Solar_spect%nbands) )
+  allocate ( solivlaero(Solar_spect%nbands, num_wavenumbers))
+  allocate (sflwwts(N_AEROSOL_BANDS, num_wavenumbers))
+  allocate (sflwwts_cn(N_AEROSOL_BANDS_CN, num_wavenumbers))           
   
   read (unit,* )
   read (unit,* ) endaerwvnsf
@@ -1452,15 +1861,15 @@ if (myid==0) then
 
 else
   call ccmpi_bcast(num_wavenumbers,0,comm_world)
-  allocate (endaerwvnsf(num_wavenumbers) )
-  allocate (aeroextivl   (num_wavenumbers, naermodels), &
-           aerossalbivl (num_wavenumbers, naermodels), &
-           aeroasymmivl (num_wavenumbers, naermodels) )
-  allocate ( nivl1aero  (Solar_spect%nbands) )
-  allocate ( nivl2aero  (Solar_spect%nbands) )
-  allocate ( solivlaero (Solar_spect%nbands, num_wavenumbers))
-  allocate (sflwwts (N_AEROSOL_BANDS, num_wavenumbers))
-  allocate (sflwwts_cn (N_AEROSOL_BANDS_CN, num_wavenumbers))  
+  allocate ( endaerwvnsf(num_wavenumbers) )
+  allocate ( aeroextivl  (num_wavenumbers, naermodels) )
+  allocate ( aerossalbivl(num_wavenumbers, naermodels) )
+  allocate ( aeroasymmivl(num_wavenumbers, naermodels) )
+  allocate ( nivl1aero (Solar_spect%nbands) )
+  allocate ( nivl2aero (Solar_spect%nbands) )
+  allocate ( solivlaero(Solar_spect%nbands, num_wavenumbers) )
+  allocate (sflwwts(N_AEROSOL_BANDS, num_wavenumbers) )
+  allocate (sflwwts_cn(N_AEROSOL_BANDS_CN, num_wavenumbers) )  
 end if
 
 call ccmpi_bcast(endaerwvnsf,0,comm_world)

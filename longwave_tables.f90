@@ -49,8 +49,8 @@ private
 !---------------------------------------------------------------------
 !----------- version number for this module -------------------
 
-character(len=128)  :: version =  '$Id: longwave_tables.f90,v 13.0 2006/03/28 21:12:16 fms Exp $'
-character(len=128)  :: tagname =  '$Name: latest $'
+character(len=128)  :: version =  '$Id: longwave_tables.F90,v 17.0.4.1 2010/08/30 20:33:32 wfc Exp $'
+character(len=128)  :: tagname =  '$Name: testing $'
 
 
 !---------------------------------------------------------------------
@@ -65,14 +65,6 @@ private      &
 !  called from longwave_tables_init:
           idrbtsh2o, id2h2o, table
 
-
-!---------------------------------------------------------------------
-!------  namelist  -----
-
-real       :: dummy = 1.0
-
-namelist / longwave_tables_nml /  &
-                                   dummy
 
 !---------------------------------------------------------------------
 !---- public data -------
@@ -271,28 +263,8 @@ type (longwave_tables2_type), intent(inout) :: tab1a, tab2a, tab3a
 !    verify that modules used by this module that are not called later
 !    have already been initialized.
 !---------------------------------------------------------------------
-!      call fms_init
       call rad_utilities_init
       call longwave_params_init
-
-!!-----------------------------------------------------------------------
-!!    read namelist.
-!!-----------------------------------------------------------------------
-!      if ( file_exist('input.nml')) then
-!        unit =  open_namelist_file ( )
-!        ierr=1; do while (ierr /= 0)
-!        read  (unit, nml=longwave_tables_nml, iostat=io, end=10)
-!        ierr = check_nml_error(io,'longwave_tables_nml')
-!        end do
-!10      call close_file (unit)
-!      endif
- 
-!---------------------------------------------------------------------
-!    write version number and namelist to logfile.
-!---------------------------------------------------------------------
-!      call write_version_number (version, tagname)
-!      if (mpp_pe() == mpp_root_pe() ) &
-!                          write (stdlog(), nml=longwave_tables_nml)
 
 !---------------------------------------------------------------------
 !

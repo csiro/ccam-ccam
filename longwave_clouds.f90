@@ -48,8 +48,8 @@ private
 !---------------------------------------------------------------------
 !----------- version number for this module -------------------
 
-character(len=128)  :: version =  '$Id: longwave_clouds.f90,v 11.0 2004/09/28 19:21:58 fms Exp $'
-character(len=128)  :: tagname =  '$Name: latest $'
+character(len=128)  :: version =  '$Id: longwave_clouds.F90,v 17.0.4.1 2010/08/30 20:33:31 wfc Exp $'
+character(len=128)  :: tagname =  '$Name: testing $'
 
 
 !---------------------------------------------------------------------
@@ -61,15 +61,6 @@ public       &
             lw_clouds_dealloc,  &
             longwave_clouds_end
 
-
-!---------------------------------------------------------------------
-!---- namelist   -----
-
-logical    :: dummy         = .false.
-
-
-namelist / longwave_clouds_nml /   &
-                                     dummy
 
 !----------------------------------------------------------------------
 !--- public data ---------

@@ -12,16 +12,6 @@
 ! <DESCRIPTION>
 ! </DESCRIPTION>
 
-!  shared modules:
-
-!use fms_mod,               only: open_namelist_file, fms_init, &
-!                                  mpp_pe, mpp_root_pe, stdlog, &
-!                                  file_exist, write_version_number, &
-!                                  check_nml_error, error_mesg, &
-!                                  FATAL, NOTE, WARNING, close_file, &
-!                                  open_restart_file
-!use constants_mod,         only : constants_init, RDGAS, GRAV, pstd
-
 !   shared radiation package modules:
 
 use rad_utilities_mod,     only : rad_utilities_init,  &
@@ -42,8 +32,8 @@ private
 !---------------------------------------------------------------------
 !----------- version number for this module -------------------
 
-character(len=128)  :: version =  '$Id: gas_tf.f90,v 13.0 2006/03/28 21:11:52 fms Exp $'
-character(len=128)  :: tagname =  '$Name: latest $'
+character(len=128)  :: version =  '$Id: gas_tf.F90,v 18.0.2.1 2010/08/30 20:39:46 wfc Exp $'
+character(len=128)  :: tagname =  '$Name: testing $'
 
 
 !---------------------------------------------------------------------
@@ -93,18 +83,6 @@ logical, save           :: do_calcstdn2otfs = .true.,   &
                            do_readstdn2otfs = .false.
 
 
-namelist / gas_tf_nml /  &
-                            interp_form, &
-                            do_calcstdch4tfs,  &
-                            do_writestdch4tfs, &
-                            do_readstdch4tfs, &
-                            do_calcstdn2otfs,  &
-                            do_writestdn2otfs,  &
-                            do_readstdn2otfs, &
-                            do_calcstdco2tfs,  &
-                            do_writestdco2tfs,  &
-                            do_readstdco2tfs
-
 !---------------------------------------------------------------------
 !---- public data -------
 
@@ -153,11 +131,11 @@ real, parameter :: PSTD   = 1.013250E+06
 !--------------------------------------------------------------------- 
 
 real, allocatable, save, dimension (:,:)       ::  co251, co258,     &    
-                                             cdt51, cdt58,     &    
-                                             c2d51, c2d58
+                                                   cdt51, cdt58,     &    
+                                                   c2d51, c2d58
 real, allocatable, save, dimension (:)         ::  co2m51, co2m58,   &    
-                                             cdtm51, cdtm58,   &    
-                                             c2dm51, c2dm58
+                                                   cdtm51, cdtm58,   &    
+                                                   c2dm51, c2dm58
 
 !--------------------------------------------------------------------- 
 !    the following arrays are co2 transmission functions for the 2270- 
@@ -192,11 +170,11 @@ real, allocatable, save, dimension (:)         ::  co211, co218
 !--------------------------------------------------------------------- 
 
 real, allocatable, save,  dimension (:,:)       ::  co215nbps1,       &    
-                                             co215nbps8,       &    
-                                             co2dt15nbps1,     &    
-                                             co2dt15nbps8,     &    
-                                             co2d2t15nbps1,    &    
-                                             co2d2t15nbps8
+                                                    co215nbps8,       &    
+                                                    co2dt15nbps1,     &    
+                                                    co2dt15nbps8,     &    
+                                                    co2d2t15nbps1,    &    
+                                                    co2d2t15nbps8
 
 !--------------------------------------------------------------------- 
 !    the following arrays are ch4 and n2o transmission functions for
@@ -240,11 +218,11 @@ real, allocatable, save,  dimension (:,:)       ::  co215nbps1,       &
 !--------------------------------------------------------------------- 
   
 real, allocatable, save, dimension (:,:)       ::  ch451, ch458,     &    
-                                             ch4dt51, ch4dt58, &    
-                                             ch4d2t51, ch4d2t58
+                                                   ch4dt51, ch4dt58, &    
+                                                   ch4d2t51, ch4d2t58
 real, allocatable, save, dimension (:,:)       ::  n2o51, n2o58,     &    
-                                             n2odt51, n2odt58, &    
-                                             n2od2t51, n2od2t58
+                                                   n2odt51, n2odt58, &    
+                                                   n2od2t51, n2od2t58
 
 !--------------------------------------------------------------------- 
 !    the following arrays are n2o transmission functions for
@@ -271,8 +249,8 @@ real, allocatable, save, dimension (:,:)       ::  n2o51, n2o58,     &
 !
   
 real, allocatable, save, dimension (:,:)       ::  n2o71, n2o78,     &    
-                                             n2odt71, n2odt78, &    
-                                             n2od2t71, n2od2t78
+                                                   n2odt71, n2odt78, &    
+                                                   n2od2t71, n2od2t78
 
 !--------------------------------------------------------------------- 
 !    the following arrays are n2o transmission functions for
@@ -298,8 +276,8 @@ real, allocatable, save, dimension (:,:)       ::  n2o71, n2o78,     &
 !--------------------------------------------------------------------- 
   
 real, allocatable, save, dimension (:,:)       ::  n2o91, n2o98,     &    
-                                             n2odt91, n2odt98, &    
-                                             n2od2t91, n2od2t98
+                                                   n2odt91, n2odt98, &    
+                                                   n2od2t91, n2od2t98
 
 !----------------------------------------------------------------------
 !    stemp   =  standard temperatures for model pressure level
@@ -421,28 +399,8 @@ real, dimension(:,:), intent(in) :: pref
  !    verify that modules used by this module that are not called later
  !    have already been initialized.
  !---------------------------------------------------------------------
-!       call fms_init
        call rad_utilities_init
        call longwave_params_init
-
-!!-----------------------------------------------------------------------
-!!    read namelist.
-!!-----------------------------------------------------------------------
-!      if ( file_exist('input.nml')) then
-!        unit =  open_namelist_file ( )
-!        ierr=1; do while (ierr /= 0)
-!        read  (unit, nml=gas_tf_nml, iostat=io, end=10)
-!        ierr = check_nml_error(io,'gas_tf_nml')
-!        end do
-!10      call close_file (unit)
-!      endif
-
-!!---------------------------------------------------------------------
-!!    write version number and namelist to logfile.
-!!---------------------------------------------------------------------
-!      call write_version_number (version, tagname)
-!      if (mpp_pe() == mpp_root_pe() ) &
-!                       write (stdlog(), nml=gas_tf_nml)
 
 !---------------------------------------------------------------------
 !
@@ -474,17 +432,13 @@ real, dimension(:,:), intent(in) :: pref
 !--------------------------------------------------------------------
       if ( (Lw_control%do_ch4lbltmpint) .and.    &
            (.not.(Lw_control%do_ch4)) ) then
-       ! call error_mesg ( 'gas_tf_mod', &
-       !'cannot have do_ch4lbltmpint active when do_ch4 is off',& 
-       !                                                          FATAL)
-       stop
+        write(6,*) "cannot have do_ch4lbltmpint active when do_ch4 is off"
+        stop
       endif
       if ( (Lw_control%do_n2olbltmpint) .and.    &
            (.not.(Lw_control%do_n2o)) ) then
-       ! call error_mesg ( 'gas_tf_mod', &
-       !'cannot have do_n2olbltmpint active when do_n2o is off',& 
-       !                                                          FATAL)
-       stop
+        write(6,*) "cannot have do_n2olbltmpint active when do_n2o is off"
+        stop
       endif
 
 !---------------------------------------------------------------------
@@ -497,9 +451,8 @@ real, dimension(:,:), intent(in) :: pref
         do_loglblint    = .false.
         do_linearlblint = .true.
       else
-       ! call error_mesg ( 'gas_tf_mod', &
-       !'improper specification for gas lbl interpolation scheme', FATAL)
-       stop
+        write(6,*) "improper specification for gas lbl interpolation scheme"
+        stop
       endif
 
 !---------------------------------------------------------------------
@@ -521,8 +474,6 @@ real, dimension(:,:), intent(in) :: pref
         endif
       else
         write(6,*) "ERROR: do_co2 has not yet been defined"
-        !call error_mesg ('gas_tf_mod', &
-        !      'do_co2 has not yet been defined', FATAL)
         stop
       endif
 
@@ -544,8 +495,6 @@ real, dimension(:,:), intent(in) :: pref
         endif
       else
         write(6,*) "ERROR: do_ch4 has not yet been defined"
-        !call error_mesg ('gas_tf_mod', &
-        !         'do_ch4 has not yet been defined', FATAL)
         stop
       endif
 
@@ -567,8 +516,6 @@ real, dimension(:,:), intent(in) :: pref
         endif
       else
         write(6,*) "ERROR: do_n2o has not yet been defined"
-        !call error_mesg ('gas_tf_mod', &
-        !      'do_n2o has not yet been defined', FATAL)
         stop
       endif
 
@@ -3138,7 +3085,6 @@ type(gas_tf_type), intent(inout) :: Gas_tf
                                        Gas_tf%tlsqu(:,:,KSRAD:KERAD) 
 
 !--------------------------------------------------------------------
-
 
 end subroutine transfn
 

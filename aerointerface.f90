@@ -17,7 +17,7 @@ public ppmaccr, ppfstay, ppqfsed, pprscav
 public opticaldepth
 
 integer, save :: ilon, ilat, ilev
-integer, parameter :: naerofamilies = 4      ! Number of aerosol families for optical depth
+integer, parameter :: naerofamilies = 7      ! Number of aerosol families for optical depth
 real, dimension(:,:,:), allocatable, save :: oxidantprev
 real, dimension(:,:,:), allocatable, save :: oxidantnow
 real, dimension(:,:,:), allocatable, save :: oxidantnext

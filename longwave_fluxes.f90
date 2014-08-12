@@ -42,8 +42,8 @@ private
 !---------------------------------------------------------------------
 !----------- version number for this module -------------------
 
-character(len=128)  :: version =  '$Id: longwave_fluxes.f90,v 13.0 2006/03/28 21:12:10 fms Exp $'
-character(len=128)  :: tagname =  '$Name: latest $'
+character(len=128)  :: version =  '$Id: longwave_fluxes.F90,v 17.0.6.2 2010/09/07 16:17:19 wfc Exp $'
+character(len=128)  :: tagname =  '$Name: testing $'
 
 
 !---------------------------------------------------------------------
@@ -56,14 +56,6 @@ public    &
        longwave_fluxes_sum, longwave_fluxes_end
 
 
-
-!---------------------------------------------------------------------
-!-------- namelist  ---------
-
-real      ::  dummy = 1.0                    
-
-namelist / longwave_fluxes_nml /        &
-                                    dummy
 
 !---------------------------------------------------------------------
 !------- public data ------

@@ -49,8 +49,8 @@ private
 !---------------------------------------------------------------------
 !----------- version number for this module -------------------
 
-character(len=128)  :: version =  '$Id: esfsw_parameters.f90,v 11.0 2004/09/28 19:21:37 fms Exp $'
-character(len=128)  :: tagname =  '$Name: latest $'
+character(len=128)  :: version =  '$Id: esfsw_parameters.F90,v 18.0.2.1 2010/08/30 20:33:32 wfc Exp $'
+character(len=128)  :: tagname =  '$Name: testing $'
 
 !--------------------------------------------------------------------
 !----- interfaces ------
@@ -66,11 +66,6 @@ character(len=16), save :: sw_resolution = 'low' ! either 'high' or 'low'
 integer, save           :: sw_diff_streams = 1   ! number of streams of
                                                  ! diffuse radiation that
                                                  ! are considered (1 or 4)
-
-
-namelist /esfsw_parameters_nml/    &
-                                 sw_resolution,   &
-                                 sw_diff_streams
 
 !-------------------------------------------------------------------
 !----- public data --------
@@ -149,24 +144,6 @@ subroutine esfsw_parameters_init
 !---------------------------------------------------------------------
       if (module_is_initialized) return
  
-!!---------------------------------------------------------------------
-!!    verify that modules used by this module that are not called later
-!!    have already been initialized.
-!!---------------------------------------------------------------------
-!      call fms_init
-!
-!!-----------------------------------------------------------------------
-!!    read namelist.
-!!-----------------------------------------------------------------------
-!      if ( file_exist('input.nml')) then
-!        unit =  open_namelist_file ( )
-!        ierr=1; do while (ierr /= 0)
-!        read  (unit, nml=esfsw_parameters_nml, iostat=io, end=10)
-!        ierr = check_nml_error(io,'esfsw_parameters_nml')
-!        end do
-!10      call close_file (unit)
-!      endif
-!
 !--------------------------------------------------------------------
 !    process the namelist entries to obtain the parameters specifying
 !    the solar spectral parameterization.
@@ -200,18 +177,6 @@ subroutine esfsw_parameters_init
 !---------------------------------------------------------------------
       Solar_spect%tot_wvnums = TOT_WVNUMS
 
-!!---------------------------------------------------------------------
-!!    write version number and namelist to logfile also write out
-!!    some key parameters obtained from an input data file.
-!!---------------------------------------------------------------------
-!      call write_version_number (version, tagname)
-!      if (mpp_pe() == mpp_root_pe() ) &
-!                        write (stdlog(),9000)     &
-!                            Solar_spect%NBANDS, Solar_spect%NFRQPTS,  &
-!                            Solar_spect%NSTREAMS, Solar_spect%NH2OBANDS 
-!      if (mpp_pe() == mpp_root_pe() ) &
-!                        write (stdlog(), nml=esfsw_parameters_nml)
-!
 !-------------------------------------------------------------------
 !    indicate that visible_band_indx has not yet been defined.
 !-------------------------------------------------------------------
