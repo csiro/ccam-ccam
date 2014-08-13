@@ -32,8 +32,8 @@ integer, parameter :: ncarb = 4
 integer, parameter :: ndust = 4
 integer, parameter :: naero = nsulf+ncarb+ndust ! Tracers: DMS, SO2, SO4, BCO, BCI, OCO, OCI, DUST(4)
 integer, parameter :: itracso2 = 2              ! Index for SO2 tracer
-integer, parameter :: itracbc = nsulf+1         ! Index for BC    "
-integer, parameter :: itracoc = nsulf+3         ! Index for OC    "
+integer, parameter :: itracbc = nsulf+1         ! Index for BC    "    (hydrophobicm, hydrophillic)
+integer, parameter :: itracoc = nsulf+3         ! Index for OC    "    (hydrophobicm, hydrophillic)
 integer, parameter :: itracdu = nsulf+ncarb+1   ! Index for dust  "
 integer, parameter :: ndcls = 3                 ! No. of dust emission classes (sand, silt, clay)
 
@@ -287,8 +287,8 @@ select case(enhanceu10)
     veff = v10m
     vefn = v10n
   case(1)
-    veff = sqrt( v10m*v10m + Vgust_free*Vgust_free + Vgust_deep )
-    vefn = sqrt( v10n*v10n + Vgust_free*Vgust_free + Vgust_deep )
+    veff = sqrt( v10m*v10m + Vgust_free*Vgust_free + Vgust_deep*Vgust_deep )
+    vefn = sqrt( v10n*v10n + Vgust_free*Vgust_free + Vgust_deep*Vgust_deep )
   case(2)
     veff = v10m + Vgust_free + Vgust_deep
     vefn = v10n + Vgust_free + Vgust_deep
@@ -317,7 +317,7 @@ call dsettling(dt,rhoa,ttg,dz,aphp1(:,1:kl))
 call dustem(dt,rhoa(:,1),wg,veff,dz(:,1),vt,snowd,land)
 
 ! Decay of hydrophobic black and organic carbon into hydrophilic forms
-call xtsink (dt,xte)
+call xtsink(dt,xte)
 xtg(1:ifull,:,:)=max(xtg(1:ifull,:,:)+xte(:,:,:)*dt,0.)
 
 ! Compute diagnostic sea salt aerosol

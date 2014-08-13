@@ -247,11 +247,10 @@ data co2_quenchfac_height /67304.,68310.,69303.,70288.,71267.,72245.,&
 !    miscellaneous variables
 !---------------------------------------------------------------------
 integer, parameter :: NSOLWG = 1
-real, dimension(NSOLWG) :: gausswt
+real, dimension(NSOLWG), save :: gausswt
 logical, save      :: module_is_initialized = .false.
 logical, save      :: do_esfsw_band_diagnostics = .false.
 integer, save      :: naerosol_optical, naerosoltypes_used
-integer, save      :: ijk
 
 !---------------------------------------------------------------------
 !---------------------------------------------------------------------
@@ -2295,6 +2294,8 @@ subroutine esfsw_driver_init
                                  wavelength ** 4 ) * pinteg * convfac
       end do
  
+      gausswt(1) = 1.0
+      
 !---------------------------------------------------------------------
 !    define the gaussian angles for evaluation of the diffuse beam.  
 !--------------------------------------------------------------------

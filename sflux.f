@@ -876,17 +876,17 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
       end if                                                            ! urban
       call END_LOG(sfluxurban_end)                                      ! urban
 ! ----------------------------------------------------------------------
-      ! scrnout is the standard CCAM screen level diagnostics.          ! land
-      ! autoscrn contains the newer diagnostic calculation              ! land
-      if (nmlo==0.and.(nsib==3.or.nsib==5)) then                        ! land
-        smixr=wetfac*qsttg+(1.-wetfac)*min(qsttg,qg(1:ifull,1))         ! land
-        call scrnout(zo,ustar,factch,wetfac,smixr,qgscrn,tscrn,uscrn,   ! land
-     &              u10,rhscrn,af,aft,ri,vmod,bprm,cms,chs,chnsea,      ! land
-     &              nalpha)                                             ! land
-      else                                                              ! land
-        call autoscrn                                                   ! land
-      end if                                                            ! land
-      
+      ! scrnout is the standard CCAM screen level diagnostics.
+      ! autoscrn contains the newer diagnostic calculation
+      if (nmlo==0.and.(nsib==3.or.nsib==5).and.rescrn==0) then
+        smixr=wetfac*qsttg+(1.-wetfac)*min(qsttg,qg(1:ifull,1))
+        call scrnout(zo,ustar,factch,wetfac,smixr,qgscrn,tscrn,uscrn,
+     &              u10,rhscrn,af,aft,ri,vmod,bprm,cms,chs,chnsea,
+     &              nalpha)
+      else
+        call autoscrn
+      end if
+
 ! ----------------------------------------------------------------------
       evap(:)=evap(:)+dt*eg(:)/hl !time integ value in mm (wrong for snow)
 
