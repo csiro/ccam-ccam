@@ -11,13 +11,14 @@ private
 public aldrcalc,aldrinit,aldrend,aldrloademiss,aldrloaderod,aldrloadoxidant,cldrop,convscav
 public xtg,xtgsav,xtosav,naero,ssn
 public itracdu,ndust,dustdd,dustwd,duste,Ch_dust
+public itracso2,dmse,dmsso2o,so2e,so2so4o,so2dd,so2wd,so4e,so4dd,so4wd
 
 integer, save :: ifull,kl
-integer, save :: jk2,jk3,jk4,jk5,jk6,jk8,jk9
+integer, save :: jk2,jk3,jk4,jk5,jk6,jk8,jk9           ! levels for injection
 real, dimension(:,:,:), allocatable, save :: xtg       ! prognostic aerosols (see indexing below)
 real, dimension(:,:,:), allocatable, save :: xtgsav    ! save for mass conservation in semi-Lagrangian models
 real, dimension(:,:,:), allocatable, save :: xtosav    ! aerosol mixing ratio outside convective cloud
-real, dimension(:,:,:), allocatable, save :: ssn       ! diagnostic sea salt
+real, dimension(:,:,:), allocatable, save :: ssn       ! diagnostic sea salt concentration
 real, dimension(:,:), allocatable, save :: erod        ! sand, clay and silt fraction that can erode
 real, dimension(:,:), allocatable, save :: emissfield  ! non-volcanic emissions
 real, dimension(:,:), allocatable, save :: zoxidant    ! oxidant fields
@@ -25,6 +26,15 @@ real, dimension(:), allocatable, save :: vso2          ! volcanic emissions
 real, dimension(:), allocatable, save :: duste         ! Diagnostic - dust emissions
 real, dimension(:), allocatable, save :: dustdd        ! Diagnostic - dust dry deposition
 real, dimension(:), allocatable, save :: dustwd        ! Diagnostic - dust wet deposition
+real, dimension(:), allocatable, save :: dmse          ! Diagnostic - DMS emissions
+real, dimension(:), allocatable, save :: dmsso2o       ! Diagnostic - DMS->so2 oxidation
+real, dimension(:), allocatable, save :: so2e          ! Diagnostic - so2 emissions
+real, dimension(:), allocatable, save :: so2so4o       ! Diagnostic - so2->so4 oxidation
+real, dimension(:), allocatable, save :: so2dd         ! Diagnostic - so2 dry deposition
+real, dimension(:), allocatable, save :: so2wd         ! Diagnostic - so2 wet deposition
+real, dimension(:), allocatable, save :: so4e          ! Diagnostic - so4 emissions
+real, dimension(:), allocatable, save :: so4dd         ! Diagnostic - so4 dry deposition
+real, dimension(:), allocatable, save :: so4wd         ! Diagnostic - so4 wet deposition
 
 ! parameters
 integer, parameter :: nsulf = 3
@@ -40,13 +50,15 @@ integer, parameter :: ndcls = 3                 ! No. of dust emission classes (
 integer, parameter :: enhanceu10 = 0            ! Modify 10m wind speed (0=none, 1=quadrature, 2=linear)
 
 ! physical constants
-real, parameter :: grav      = 9.80616        ! Gravitation constant
-real, parameter :: rdry      = 287.04         ! Specific gas const for dry air
-real, parameter :: cp        = 1004.64        ! Heat capacity of air
-real, parameter :: hl        = 2.5104e6       ! Latent heat of vaporisation
-real, parameter :: vkar      = 0.4            ! von Karman constant
-real, parameter :: rhos      = 100.           ! Assumed density of snow in kg/m^3
-real, save :: Ch_dust        = 1.e-9          ! Transfer coeff for type natural source (kg*s2/m5)
+real, parameter :: grav      = 9.80616          ! Gravitation constant
+real, parameter :: rdry      = 287.04           ! Specific gas const for dry air
+real, parameter :: cp        = 1004.64          ! Heat capacity of air
+real, parameter :: hl        = 2.5104e6         ! Latent heat of vaporisation
+real, parameter :: vkar      = 0.4              ! von Karman constant
+real, parameter :: rhos      = 100.             ! Assumed density of snow in kg/m^3
+
+! emission constants
+real, save :: Ch_dust        = 1.e-9            ! Transfer coeff for type natural source (kg*s2/m5)
 
 ! Following array determines for which tracers the XTWETDEP routine is called.
 ! We now set it to .true. for BCO and OCO, since they do experience below-cloud scavenging.
@@ -79,6 +91,9 @@ allocate(xtosav(ifull,kl,naero),vso2(ifull))
 allocate(emissfield(ifull,15),ssn(ifull,kl,2))
 allocate(zoxidant(ifull,4*kl),erod(ifull,ndcls))
 allocate(duste(ifull),dustdd(ifull),dustwd(ifull))
+allocate(dmse(ifull),dmsso2o(ifull))
+allocate(so2e(ifull),so2so4o(ifull),so2dd(ifull),so2wd(ifull))
+allocate(so4e(ifull),so4dd(ifull),so4wd(ifull))
 
 xtg=0.
 xtgsav=0.
@@ -91,6 +106,15 @@ erod=0.
 duste=0.
 dustdd=0.
 dustwd=0.
+dmse=0.
+dmsso2o=0.
+so2e=0.
+so2so4o=0.
+so2dd=0.
+so2wd=0.
+so4e=0.
+so4dd=0.
+so4wd=0.
 
 ! MJT - define injection levels
 
@@ -132,6 +156,9 @@ deallocate(emissfield)
 deallocate(ssn)
 deallocate(zoxidant,erod)
 deallocate(duste,dustdd,dustwd)
+deallocate(dmse,dmsso2o)
+deallocate(so2e,so2so4o,so2dd,so2wd)
+deallocate(so4e,so4dd,so4wd)
 
 return
 end subroutine aldrend
@@ -245,9 +272,7 @@ real, dimension(ifull,kl+1) :: aphp1
 real, dimension(ifull,kl) :: pclcon
 real, dimension(ifull,kl) :: prhop1,ptp1,pfevap,pfsubl,plambs
 real, dimension(ifull,kl) :: pclcover,pcfcover,pmlwc,pmiwc
-real, dimension(ifull) :: so2em,so4em,dmsem,bem,oem,bbem
-real, dimension(ifull) :: so2dd,so4dd
-real, dimension(ifull) :: so2wd,so4wd
+real, dimension(ifull) :: bem,oem,bbem
 real, dimension(ifull) :: so2oh,so2h2,so2o3,dmsoh,dmsn3
 real, dimension(ifull) :: cgssnowd
 real, dimension(ifull) :: veff,vefn
@@ -259,11 +284,19 @@ integer nt,k
 
 conwd=0.
 cgssnowd=1.E-3*snowd
-so2wd=0.
 so4wd=0.
-!dustwd=0. ! now zeroed in globpe.f
-dustdd=0.
 duste=0.
+dustdd=0.
+!dustwd=0. ! now zeroed in globpe.f
+dmse=0.
+dmsso2o=0.
+so2e=0.
+so2so4o=0.
+so2dd=0.
+!so2wd=0.
+so4e=0.
+so4dd=0.
+!so4wd=0.
 
 ! Calculate sub-grid Vgust
 v10n=ustar*log(10./zo)/vkar ! neutral wind speed
@@ -304,7 +337,7 @@ enddo
 ! MJT notes - replace vefn with v10n for regional model
 call xtemiss(dt, rhoa(:,1), ts, sicef, vefn, aphp1,                       & !Inputs
              land, tsigmf, cgssnowd, fwet, wg,                            & !Inputs
-             xte, xtem, so2dd, so4dd, so2em, dmsem, so4em, bem, oem, bbem)  !Outputs
+             xte, xtem, bem, oem, bbem)                                     !Outputs
 xtg(1:ifull,:,:)=max(xtg(1:ifull,:,:)+xte(:,:,:)*dt,0.)
 
 ! Emission and dry deposition of dust
@@ -354,13 +387,15 @@ call xtchemie (1, dt, zdayfac, aphp1(:,1:kl), ppmrate, ppfprec,                 
                pclcover, pmlwc, prhop1, ptp1, sg, xtm1, ppfevap,                & !Inputs
                ppfsnow,ppfsubl,pcfcover,pmiwc,ppmaccr,ppfmelt,ppfstay,ppqfsed,  & !Inputs
                pplambs,pprscav,pclcon,cldcon,pccw,ppfconv,xtu,                  & !Input
-               conwd, so2wd, so4wd,                                             & !In and Out
+               conwd,                                                           & !In and Out
                xte, so2oh, so2h2, so2o3, dmsoh, dmsn3)                            !Output
 do nt=1,naero
   do k=1,kl
     xtg(1:ifull,k,nt)=max(xtg(1:ifull,k,nt)+xte(:,kl+1-k,nt)*dt,0.)
   end do
 enddo
+dmsso2o=dmsoh+dmsn3
+so2so4o=so2oh+so2h2+so2o3
 
 !! diagnostics?
 
@@ -427,7 +462,7 @@ end subroutine aldrcalc
 
 SUBROUTINE XTEMISS(ztmst, P1MXTM1, TSM1M, SEAICEM, G3X01, APHP1,                 & !Inputs
                    LOLAND, PFOREST, PSNOW, fwet, WSM1M,                          & !Inputs
-                   XTE, PXTEMS, so2dd, so4dd, so2em, dmsem, so4em, bem, oem, bbem) !Outputs
+                   XTE, PXTEMS, bem, oem, bbem)                                    !Outputs
 !
 !    THIS ROUTINE CALCULATES THE LOWER BOUNDARY CONDITIONS
 !    FOR VDIFF DEPENDING ON THE SURFACE EMISSION AND THE
@@ -463,11 +498,6 @@ real, dimension(ifull), intent(in) :: WSM1M         !surface wetness [vol fracti
 real, dimension(ifull,kl,naero), intent(out) :: XTE !Tracer tendencies (kg/kg/s)
 REAL, dimension(ifull,naero), intent(out) :: PXTEMS !Sfc. flux of tracer passed to vertical mixing [kg/m2/s]
 ! Some diagnostics
-real, dimension(ifull), intent(out) :: so2dd
-real, dimension(ifull), intent(out) :: so4dd
-real, dimension(ifull), intent(out) :: so2em
-real, dimension(ifull), intent(out) :: so4em
-real, dimension(ifull), intent(out) :: dmsem
 real, dimension(ifull), intent(out) :: oem
 real, dimension(ifull), intent(out) :: bem
 real, dimension(ifull), intent(out) :: bbem
@@ -708,27 +738,22 @@ do jl=1,ifull
         ZVD4NOF=0.025E-2
       ENDIF
     ELSE
-!           -  FROZEN/NOT FROZEN SOIL -
       IF(TSM1M(JL)<=TMELT) THEN
+!           -  FROZEN SOIL -
+        ZVD2NOF=0.2E-2
+        ZVD4NOF=0.025E-2
+      ELSE IF(fwet(JL)>=0.01.OR.WSM1M(JL)==1.) THEN
+!               - COMPLETELY WET -
+        ZVD2NOF=0.8E-2
+        ZVD4NOF=0.2E-2
+      ELSE IF(WSM1M(JL)<0.9) THEN
+!                  - DRY -          
         ZVD2NOF=0.2E-2
         ZVD4NOF=0.025E-2
       ELSE
-!            - WET/DRY -
-!               - COMPLETELY WET -
-        IF(fwet(JL)>=0.01.OR.WSM1M(JL)==1.) THEN
-          ZVD2NOF=0.8E-2
-          ZVD4NOF=0.2E-2
-        ELSE
-!                  - DRY -
-          IF(WSM1M(JL)<0.9) THEN
-            ZVD2NOF=0.2E-2
-            ZVD4NOF=0.025E-2
-          ELSE
 !                  - PARTLY WET -
-            ZVD2NOF=ZVWC2*WSM1M(JL)-ZVW02
-            ZVD4NOF=ZVWC4*WSM1M(JL)-ZVW04
-          ENDIF
-        ENDIF
+        ZVD2NOF=ZVWC2*WSM1M(JL)-ZVW02
+        ZVD4NOF=ZVWC4*WSM1M(JL)-ZVW04
       ENDIF
     ENDIF
     ZVDRD(JL,1)=PFOREST(JL)*0.8E-2+(1.-PFOREST(JL))*ZVD2NOF
@@ -740,17 +765,14 @@ do jl=1,ifull
 end do
 
 ! Sulfur emission diagnostic (hard-coded for 3 sulfur variables)
-dmsem=0. ! At surface
 do jk=1,kl
-  dmsem=dmsem+xte(:,jk,1)*(aphp1(:,jk)-aphp1(:,jk+1))/grav          !Above surface
+  dmse=dmse+xte(:,jk,1)*(aphp1(:,jk)-aphp1(:,jk+1))/grav            !Above surface
 enddo
-so2em=0. ! At surface
 do jk=1,kl
-  so2em=so2em+xte(:,jk,ITRACSO2)*(aphp1(:,jk)-aphp1(:,jk+1))/grav   !Above surface
+  so2e=so2e+xte(:,jk,ITRACSO2)*(aphp1(:,jk)-aphp1(:,jk+1))/grav     !Above surface
 enddo
-so4em=0. ! At surface
 do jk=1,kl
-  so4em=so4em+xte(:,jk,ITRACSO2+1)*(aphp1(:,jk)-aphp1(:,jk+1))/grav !Above surface
+  so4e=so4e+xte(:,jk,ITRACSO2+1)*(aphp1(:,jk)-aphp1(:,jk+1))/grav   !Above surface
 enddo
 
 ! Assume that BC and OC emissions are passed in through xte()
@@ -899,7 +921,7 @@ SUBROUTINE XTCHEMIE(KTOP, PTMST,zdayfac,PDPP1, PMRATEP, PFPREC,                 
                     PCLCOVER, PMLWC, PRHOP1, PTP1, sg, xtm1, pfevap,                 & !Inputs
                     pfsnow,pfsubl,pcfcover,pmiwc,pmaccr,pfmelt,pfstay,pqfsed,plambs, & !Inputs
                     prscav,pclcon,fracc,pccw,pfconv,xtu,                             & !Inputs
-                    conwd,so2wd,so4wd,                                               & !In and Out
+                    conwd,                                                           & !In and Out
                     xte,so2oh,so2h2,so2o3,dmsoh,dmsn3)                                 !Outputs
 
 ! Inputs
@@ -933,8 +955,6 @@ SUBROUTINE XTCHEMIE(KTOP, PTMST,zdayfac,PDPP1, PMRATEP, PFPREC,                 
 
 ! In & Out
 ! conwd: convective wet scavenging (diagnostic: kg/m2/s)
-! so2wd: SO2 wet scavenging (diagnostic: kgS/m2/s)
-! so4wd: SO4 wet scavenging (diagnostic: kgS/m2/s)
 
 ! Outputs
 ! xte: tracer tendency (kg/kg/s)
@@ -996,8 +1016,6 @@ real conwd(ifull,naero)
 
 real dmsoh(ifull) !Diagnostic output
 real dmsn3(ifull) !Diagnostic output
-real so2wd(ifull) !Diagnostic output
-real so4wd(ifull) !Diagnostic output
 real so2oh(ifull) !Diagnostic output
 real so2h2(ifull) !Diagnostic output
 real so2o3(ifull) !Diagnostic output
@@ -1406,8 +1424,8 @@ DO JT=ITRACSO2,naero
         zsolub(:,:)=0.2
       elseif(jt>=itracdu.and.jt<itracdu+ndust)then !hydrophobic dust (first 4 dust vars)
         zsolub(:,:)=0.05
-      elseif(jt>=itracdu+ndust)then !hydrophilic dust !hydrophilic dust (last 4 dust vars)
-        zsolub(:,:)=1.
+!      elseif(jt>=itracdu+ndust)then !hydrophilic dust !hydrophilic dust (last 4 dust vars)
+!        zsolub(:,:)=1.
       endif
 
     endif

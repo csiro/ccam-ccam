@@ -954,7 +954,25 @@ if(myid==0.or.local)then
       lname = 'Dust dry deposition'
       call attrib(idnc,idim,3,'dustdd',lname,'g/(m2 yr)',0.,390.,0,itype) 
       lname = 'Dust wet deposition'
-      call attrib(idnc,idim,3,'dustwd',lname,'g/(m2 yr)',0.,390.,0,itype)       
+      call attrib(idnc,idim,3,'dustwd',lname,'g/(m2 yr)',0.,390.,0,itype)
+      lname = 'DMS emissions'
+      call attrib(idnc,idim,3,'dmse',lname,'g/(m2 yr)',0.,390.,0,itype) 
+      lname = 'DMS to SO2 oxidation'
+      call attrib(idnc,idim,3,'dmsso2o',lname,'g/(m2 yr)',0.,390.,0,itype)
+      lname = 'SO2 emissions'
+      call attrib(idnc,idim,3,'so2e',lname,'g/(m2 yr)',0.,390.,0,itype) 
+      lname = 'SO2 to SO4 oxidation'
+      call attrib(idnc,idim,3,'so2so4o',lname,'g/(m2 yr)',0.,390.,0,itype)
+      lname = 'SO2 dry deposition'
+      call attrib(idnc,idim,3,'so2dd',lname,'g/(m2 yr)',0.,390.,0,itype)
+      lname = 'SO2 wet deposition'
+      call attrib(idnc,idim,3,'so2wd',lname,'g/(m2 yr)',0.,390.,0,itype)
+      lname = 'SO4 emissions'
+      call attrib(idnc,idim,3,'so4e',lname,'g/(m2 yr)',0.,390.,0,itype)
+      lname = 'SO4 dry deposition'
+      call attrib(idnc,idim,3,'so4dd',lname,'g/(m2 yr)',0.,390.,0,itype) 
+      lname = 'SO4 wet deposition'
+      call attrib(idnc,idim,3,'so4wd',lname,'g/(m2 yr)',0.,390.,0,itype) 
     end if
 
     ! CABLE -----------------------------------------------------
@@ -1705,6 +1723,24 @@ if (nextout>=1.and.abs(iaero)>=2.and.nrad==5) then
   call histwrt3(aa,'dustdd',idnc,iarch,local,lwrite)
   aa=max(dustwd*3.154e10,0.) ! g/m2/yr
   call histwrt3(aa,'dustwd',idnc,iarch,local,lwrite)
+  aa=max(dmse*3.154e10,0.) ! g/m2/yr
+  call histwrt3(aa,'dmse',idnc,iarch,local,lwrite)
+  aa=max(dmsso2o*3.154e10,0.) ! g/m2/yr
+  call histwrt3(aa,'dmsso2o',idnc,iarch,local,lwrite)
+  aa=max(so2e*3.154e10,0.) ! g/m2/yr
+  call histwrt3(aa,'so2e',idnc,iarch,local,lwrite)
+  aa=max(so2so4o*3.154e10,0.) ! g/m2/yr
+  call histwrt3(aa,'so2so4o',idnc,iarch,local,lwrite)
+  aa=max(so2dd*3.154e10,0.) ! g/m2/yr
+  call histwrt3(aa,'so2dd',idnc,iarch,local,lwrite)
+  aa=max(so2wd*3.154e10,0.) ! g/m2/yr
+  call histwrt3(aa,'so2wd',idnc,iarch,local,lwrite)
+  aa=max(so4e*3.154e10,0.) ! g/m2/yr
+  call histwrt3(aa,'so4e',idnc,iarch,local,lwrite)
+  aa=max(so4dd*3.154e10,0.) ! g/m2/yr
+  call histwrt3(aa,'so4dd',idnc,iarch,local,lwrite)
+  aa=max(so4wd*3.154e10,0.) ! g/m2/yr
+  call histwrt3(aa,'so4wd',idnc,iarch,local,lwrite)
 end if
 
 ! CABLE -------------------------------------------------------

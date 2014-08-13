@@ -1442,6 +1442,12 @@ c***    Also entrain may slow convergence   N.B. qbass only used in next few lin
             dustwd=dustwd+fscav(:,ntr)*xtg(1:ifull,k,ntr)*ps*dsk(k)
      &         /(grav*dt)
           end do
+          ntr=itracso2
+          so2wd=so2wd+fscav(:,ntr)*xtg(1:ifull,k,ntr)*ps*dsk(k)
+     &         /(grav*dt)
+          ntr=itracso2+1
+          so4wd=so4wd+fscav(:,ntr)*xtg(1:ifull,k,ntr)*ps*dsk(k)
+     &         /(grav*dt)
           xtg(1:ifull,k,:)=xtg(1:ifull,k,:)*(1.-fscav(:,:))
         end do
       end if   ! (abs(iaero)==2) 
