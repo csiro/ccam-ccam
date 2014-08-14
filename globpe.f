@@ -11,8 +11,11 @@
 !                      v+ve northwards (on the panel)
 
       use aerointerface                       ! Aerosol interface
-      use aerosolldr, only : xtosav,xtg       ! LDR prognostic aerosols
-     &    ,naero,dustwd,Ch_dust
+      use aerosolldr, only : xtosav,xtg,naero ! LDR prognostic aerosols
+     &    ,Ch_dust,duste,dustwd,dustdd,bce
+     &    ,bcwd,bcdd,oce,ocwd,ocdd,dmse
+     &    ,dmsso2o,so2e,so2so4o,so2wd,so2dd
+     &    ,so4e,so4wd,so4dd
       use arrays_m                            ! Atmosphere dyamics prognostic arrays
       use bigxy4_m                            ! Grid interpolation
       use carbpools_m, only : carbpools_init  ! Carbon pools
@@ -624,7 +627,6 @@
       call ccmpi_bcastr8(xx4,0,comm_world)
       call ccmpi_bcastr8(yy4,0,comm_world)
       ! The following are only needed for the scale-selective filter
-      ! (Use sharded memory with MPI-3 for these arrays)
       if (mbd/=0) then
         call ccmpi_bcastr8(x_g,0,comm_world)
         call ccmpi_bcastr8(y_g,0,comm_world)
@@ -915,12 +917,32 @@
       cll_ave(:)     = 0.
       clm_ave(:)     = 0.
       clh_ave(:)     = 0.
-      if (ngas>0) then
+      if ( ngas>0 ) then
         traver       = 0.
       end if
       fpn_ave        = 0.
       frs_ave        = 0.
       frp_ave        = 0.
+      if ( abs(iaero)==2 ) then
+        duste        = 0.  ! Dust emissions
+        dustdd       = 0.  ! Dust dry deposition
+        dustwd       = 0.  ! Dust wet deposition
+        bce          = 0.  ! Black carbon emissions
+        bcdd         = 0.  ! Black carbon dry deposition
+        bcwd         = 0.  ! Black carbon wet deposition
+        oce          = 0.  ! Organic carbon emissions
+        ocdd         = 0.  ! Organic carbon dry deposition
+        ocwd         = 0.  ! Organic carbon wet deposition
+        dmse         = 0.  ! DMS emissions
+        dmsso2o      = 0.  ! DMS -> SO2 oxidation
+        so2e         = 0.  ! SO2 emissions
+        so2so4o      = 0.  ! SO2 -> SO4 oxidation
+        so2dd        = 0.  ! SO2 dry deposition
+        so2wd        = 0.  ! SO2 wet deposiion
+        so4e         = 0.  ! SO4 emissions
+        so4dd        = 0.  ! SO4 dry deposition
+        so4wd        = 0.  ! SO4 wet deposition
+      end if
 
 
       !--------------------------------------------------------------
@@ -1299,7 +1321,6 @@
       ! Save aerosol concentrations for outside convective fraction of grid box
       if (abs(iaero)>=2) then
         xtosav(:,:,:)=xtg(1:ifull,:,:) ! Aerosol mixing ratio outside convective cloud
-        dustwd=0.
       end if
       ! Select convection scheme
       select case(nkuo)
@@ -1803,6 +1824,26 @@
         fpn_ave(1:ifull)    = fpn_ave(1:ifull)/min(ntau,nperavg)
         frs_ave(1:ifull)    = frs_ave(1:ifull)/min(ntau,nperavg)
         frp_ave(1:ifull)    = frp_ave(1:ifull)/min(ntau,nperavg)
+        if ( abs(iaero)==2 ) then
+          duste        = duste/min(ntau,nperavg)   ! Dust emissions
+          dustdd       = dustdd/min(ntau,nperavg)  ! Dust dry deposition
+          dustwd       = dustwd/min(ntau,nperavg)  ! Dust wet deposition
+          bce          = bce/min(ntau,nperavg)     ! Black carbon emissions
+          bcdd         = bcdd/min(ntau,nperavg)    ! Black carbon dry deposition
+          bcwd         = bcwd/min(ntau,nperavg)    ! Black carbon wet deposition
+          oce          = oce/min(ntau,nperavg)     ! Organic carbon emissions
+          ocdd         = ocdd/min(ntau,nperavg)    ! Organic carbon dry deposition
+          ocwd         = ocwd/min(ntau,nperavg)    ! Organic carbon wet deposition
+          dmse         = dmse/min(ntau,nperavg)    ! DMS emissions
+          dmsso2o      = dmsso2o/min(ntau,nperavg) ! DMS -> SO2 oxidation
+          so2e         = so2e/min(ntau,nperavg)    ! SO2 emissions
+          so2so4o      = so2so4o/min(ntau,nperavg) ! SO2 -> SO4 oxidation
+          so2dd        = so2dd/min(ntau,nperavg)   ! SO2 dry deposition
+          so2wd        = so2wd/min(ntau,nperavg)   ! SO2 wet deposiion
+          so4e         = so4e/min(ntau,nperavg)    ! SO4 emissions
+          so4dd        = so4dd/min(ntau,nperavg)   ! SO4 dry deposition
+          so4wd        = so4wd/min(ntau,nperavg)   ! SO4 wet deposition
+        end if
       end if    ! (ktau==ntau.or.mod(ktau,nperavg)==0)
 
       call log_off()
@@ -1907,6 +1948,26 @@
         fpn_ave=0.
         frs_ave=0.
         frp_ave=0.
+        if ( abs(iaero)==2 ) then
+          duste        = 0.  ! Dust emissions
+          dustdd       = 0.  ! Dust dry deposition
+          dustwd       = 0.  ! Dust wet deposition
+          bce          = 0.  ! Black carbon emissions
+          bcdd         = 0.  ! Black carbon dry deposition
+          bcwd         = 0.  ! Black carbon wet deposition
+          oce          = 0.  ! Organic carbon emissions
+          ocdd         = 0.  ! Organic carbon dry deposition
+          ocwd         = 0.  ! Organic carbon wet deposition
+          dmse         = 0.  ! DMS emissions
+          dmsso2o      = 0.  ! DMS -> SO2 oxidation
+          so2e         = 0.  ! SO2 emissions
+          so2so4o      = 0.  ! SO2 -> SO4 oxidation
+          so2dd        = 0.  ! SO2 dry deposition
+          so2wd        = 0.  ! SO2 wet deposiion
+          so4e         = 0.  ! SO4 emissions
+          so4dd        = 0.  ! SO4 dry deposition
+          so4wd        = 0.  ! SO4 wet deposition
+        end if
       endif  ! (mod(ktau,nperavg)==0)
 
       if(mod(ktau,nperday)==0)then   ! re-set at the end of each 24 hours

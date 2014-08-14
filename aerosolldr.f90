@@ -9,8 +9,10 @@ implicit none
 
 private
 public aldrcalc,aldrinit,aldrend,aldrloademiss,aldrloaderod,aldrloadoxidant,cldrop,convscav
-public xtg,xtgsav,xtosav,naero,ssn
+public xtg,xtgsav,xtosav,naero,ssn,ticeu
 public itracdu,ndust,dustdd,dustwd,duste,Ch_dust
+public itracbc,bce,bcdd,bcwd
+public itracoc,oce,ocdd,ocwd
 public itracso2,dmse,dmsso2o,so2e,so2so4o,so2dd,so2wd,so4e,so4dd,so4wd
 
 integer, save :: ifull,kl
@@ -26,6 +28,12 @@ real, dimension(:), allocatable, save :: vso2          ! volcanic emissions
 real, dimension(:), allocatable, save :: duste         ! Diagnostic - dust emissions
 real, dimension(:), allocatable, save :: dustdd        ! Diagnostic - dust dry deposition
 real, dimension(:), allocatable, save :: dustwd        ! Diagnostic - dust wet deposition
+real, dimension(:), allocatable, save :: bce           ! Diagnostic - black carbon emissions
+real, dimension(:), allocatable, save :: bcdd          ! Diagnostic - black carbon dry deposition
+real, dimension(:), allocatable, save :: bcwd          ! Diagnostic - black carbon wet deposition
+real, dimension(:), allocatable, save :: oce           ! Diagnostic - organic carbon emissions
+real, dimension(:), allocatable, save :: ocdd          ! Diagnostic - organic carbon dry deposition
+real, dimension(:), allocatable, save :: ocwd          ! Diagnostic - organic carbon wet deposition
 real, dimension(:), allocatable, save :: dmse          ! Diagnostic - DMS emissions
 real, dimension(:), allocatable, save :: dmsso2o       ! Diagnostic - DMS->so2 oxidation
 real, dimension(:), allocatable, save :: so2e          ! Diagnostic - so2 emissions
@@ -60,6 +68,9 @@ real, parameter :: rhos      = 100.             ! Assumed density of snow in kg/
 ! emission constants
 real, save :: Ch_dust        = 1.e-9            ! Transfer coeff for type natural source (kg*s2/m5)
 
+! scavenging constants
+real, parameter :: ticeu     = 263.16           ! Temperature for freezing in convective updraft
+
 ! Following array determines for which tracers the XTWETDEP routine is called.
 ! We now set it to .true. for BCO and OCO, since they do experience below-cloud scavenging.
 ! The efficiency for in-cloud scavenging is still set to zero for these.
@@ -91,6 +102,8 @@ allocate(xtosav(ifull,kl,naero),vso2(ifull))
 allocate(emissfield(ifull,15),ssn(ifull,kl,2))
 allocate(zoxidant(ifull,4*kl),erod(ifull,ndcls))
 allocate(duste(ifull),dustdd(ifull),dustwd(ifull))
+allocate(bce(ifull),bcdd(ifull),bcwd(ifull))
+allocate(oce(ifull),ocdd(ifull),ocwd(ifull))
 allocate(dmse(ifull),dmsso2o(ifull))
 allocate(so2e(ifull),so2so4o(ifull),so2dd(ifull),so2wd(ifull))
 allocate(so4e(ifull),so4dd(ifull),so4wd(ifull))
@@ -106,6 +119,12 @@ erod=0.
 duste=0.
 dustdd=0.
 dustwd=0.
+bce=0.
+bcdd=0.
+bcwd=0.
+oce=0.
+ocdd=0.
+ocwd=0.
 dmse=0.
 dmsso2o=0.
 so2e=0.
@@ -156,6 +175,8 @@ deallocate(emissfield)
 deallocate(ssn)
 deallocate(zoxidant,erod)
 deallocate(duste,dustdd,dustwd)
+deallocate(bce,bcdd,bcwd)
+deallocate(oce,ocdd,ocwd)
 deallocate(dmse,dmsso2o)
 deallocate(so2e,so2so4o,so2dd,so2wd)
 deallocate(so4e,so4dd,so4wd)
@@ -272,7 +293,7 @@ real, dimension(ifull,kl+1) :: aphp1
 real, dimension(ifull,kl) :: pclcon
 real, dimension(ifull,kl) :: prhop1,ptp1,pfevap,pfsubl,plambs
 real, dimension(ifull,kl) :: pclcover,pcfcover,pmlwc,pmiwc
-real, dimension(ifull) :: bem,oem,bbem
+real, dimension(ifull) :: bbem
 real, dimension(ifull) :: so2oh,so2h2,so2o3,dmsoh,dmsn3
 real, dimension(ifull) :: cgssnowd
 real, dimension(ifull) :: veff,vefn
@@ -284,19 +305,6 @@ integer nt,k
 
 conwd=0.
 cgssnowd=1.E-3*snowd
-so4wd=0.
-duste=0.
-dustdd=0.
-!dustwd=0. ! now zeroed in globpe.f
-dmse=0.
-dmsso2o=0.
-so2e=0.
-so2so4o=0.
-so2dd=0.
-!so2wd=0.
-so4e=0.
-so4dd=0.
-!so4wd=0.
 
 ! Calculate sub-grid Vgust
 v10n=ustar*log(10./zo)/vkar ! neutral wind speed
@@ -337,7 +345,7 @@ enddo
 ! MJT notes - replace vefn with v10n for regional model
 call xtemiss(dt, rhoa(:,1), ts, sicef, vefn, aphp1,                       & !Inputs
              land, tsigmf, cgssnowd, fwet, wg,                            & !Inputs
-             xte, xtem, bem, oem, bbem)                                     !Outputs
+             xte, xtem, bbem)                                               !Outputs
 xtg(1:ifull,:,:)=max(xtg(1:ifull,:,:)+xte(:,:,:)*dt,0.)
 
 ! Emission and dry deposition of dust
@@ -394,8 +402,8 @@ do nt=1,naero
     xtg(1:ifull,k,nt)=max(xtg(1:ifull,k,nt)+xte(:,kl+1-k,nt)*dt,0.)
   end do
 enddo
-dmsso2o=dmsoh+dmsn3
-so2so4o=so2oh+so2h2+so2o3
+dmsso2o=dmsoh+dmsn3        ! oxidation of DMS to SO2
+so2so4o=so2oh+so2h2+so2o3  ! oxidation of SO2 to SO4
 
 !! diagnostics?
 
@@ -462,7 +470,7 @@ end subroutine aldrcalc
 
 SUBROUTINE XTEMISS(ztmst, P1MXTM1, TSM1M, SEAICEM, G3X01, APHP1,                 & !Inputs
                    LOLAND, PFOREST, PSNOW, fwet, WSM1M,                          & !Inputs
-                   XTE, PXTEMS, bem, oem, bbem)                                    !Outputs
+                   XTE, PXTEMS, bbem)                                              !Outputs
 !
 !    THIS ROUTINE CALCULATES THE LOWER BOUNDARY CONDITIONS
 !    FOR VDIFF DEPENDING ON THE SURFACE EMISSION AND THE
@@ -498,8 +506,6 @@ real, dimension(ifull), intent(in) :: WSM1M         !surface wetness [vol fracti
 real, dimension(ifull,kl,naero), intent(out) :: XTE !Tracer tendencies (kg/kg/s)
 REAL, dimension(ifull,naero), intent(out) :: PXTEMS !Sfc. flux of tracer passed to vertical mixing [kg/m2/s]
 ! Some diagnostics
-real, dimension(ifull), intent(out) :: oem
-real, dimension(ifull), intent(out) :: bem
 real, dimension(ifull), intent(out) :: bbem
 
 real zdmscon,ZSST,ZZSPEED,VpCO2,VpCO2liss
@@ -776,16 +782,14 @@ do jk=1,kl
 enddo
 
 ! Assume that BC and OC emissions are passed in through xte()
-bem=0.
 do jt=ITRACBC,ITRACBC+1
   do jk=1,kl
-    bem=bem+xte(:,jk,jt)*(aphp1(:,jk)-aphp1(:,jk+1))/grav
+    bce=bce+xte(:,jk,jt)*(aphp1(:,jk)-aphp1(:,jk+1))/grav
   enddo
 enddo
-oem=0.
 do jt=ITRACOC,ITRACOC+1
   do jk=1,kl
-    oem=oem+xte(:,jk,jt)*(aphp1(:,jk)-aphp1(:,jk+1))/grav
+    oce=oce+xte(:,jk,jt)*(aphp1(:,jk)-aphp1(:,jk+1))/grav
   enddo
 enddo
 
@@ -852,6 +856,9 @@ do ii=1,nstep
 end do
 ZHILOCY=(xtg(1:ifull,1,ITRACOC+1)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACOC+1)/gdp
 xte(:,1,itracoc+1)=xte(:,1,itracoc+1)-zhilocy*gdp
+
+bcdd=bcdd+zhilbco+zhilbcy
+ocdd=ocdd+zhiloco+zhilocy
 
 return
 end subroutine xtemiss
@@ -1022,7 +1029,6 @@ real so2o3(ifull) !Diagnostic output
 
 ! Local work arrays and variables
 real so2oh3d(ifull,kl),dmsoh3d(ifull,kl),dmsn33d(ifull,kl)
-real stratwd(ifull) !Diagnostic output
 !
 REAL ZXTP10(ifull,kl),          ZXTP1C(ifull,kl),   &
      ZHENRY(ifull,kl),          ZKII(ifull,kl),     &
@@ -1434,7 +1440,7 @@ DO JT=ITRACSO2,naero
                    PTMST, PCONS2,                              &
                    PDPP1,                                      &
                    PMRATEP, PFPREC, PFEVAP,                    &
-                   PCLCOVER, PRHOP1, zsolub, pmlwc,            &
+                   PCLCOVER, PRHOP1, zsolub, pmlwc, ptp1,      &
                    pfsnow,pfsubl,pcfcover,pmiwc,pmaccr,pfmelt, &
                    pfstay,pqfsed,plambs,prscav,pfconv,pclcon,  & 
                    fracc,                                      & !Inputs
@@ -1451,19 +1457,23 @@ DO JT=ITRACSO2,naero
       end do
     end do
 
-! Note that stratwd as coded here includes the below-cloud convective scavenging/evaporation
+! Note that wd as coded here includes the below-cloud convective scavenging/evaporation
     if(jt==itracso2)then
-      stratwd(:)=0.
       do jk=1,kl
-        stratwd(:)=stratwd(:)+zdep3d(:,jk)*pdpp1(:,jk)/(grav*ptmst)
+        so2wd(:)=so2wd(:)+zdep3d(:,jk)*pdpp1(:,jk)/(grav*ptmst)
       enddo
-      so2wd(:)=so2wd(:)+stratwd(:)
     elseif(jt==itracso2+1)then
-      stratwd(:)=0.
       do jk=1,kl
-        stratwd(:)=stratwd(:)+zdep3d(:,jk)*pdpp1(:,jk)/(grav*ptmst)
+        so4wd(:)=so4wd(:)+zdep3d(:,jk)*pdpp1(:,jk)/(grav*ptmst)
       enddo
-      so4wd(:)=so4wd(:)+stratwd(:)
+    elseif(jt==itracbc.or.jt==itracbc+1) then
+      do jk=1,kl
+        bcwd(:)=bcwd(:)+zdep3d(:,jk)*pdpp1(:,jk)/(grav*ptmst)
+      end do
+    elseif(jt==itracoc.or.jt==itracoc+1) then
+      do jk=1,kl
+        ocwd(:)=ocwd(:)+zdep3d(:,jk)*pdpp1(:,jk)/(grav*ptmst)
+      end do
     elseif(jt>=itracdu.and.jt<itracdu+ndust)then
       do jk=1,kl
         dustwd(:)=dustwd(:)+zdep3d(:,jk)*pdpp1(:,jk)/(grav*ptmst)
@@ -1598,7 +1608,7 @@ SUBROUTINE XTWETDEP(KTRAC,                                                      
                     PTMST, PCONS2,                                                   &
                     PDPP1,                                                           &
                     PMRATEP, PFPREC, PFEVAP,                                         &
-                    PCLCOVER, PRHOP1, PSOLUB, pmlwc,                                 &
+                    PCLCOVER, PRHOP1, PSOLUB, pmlwc, ptp1,                           &
                     pfsnow,pfsubl,pcfcover,pmiwc,pmaccr,pfmelt,pfstay,pqfsed,plambs, &
                     prscav,pfconv,pclcon,fracc,                                      & !Inputs
                     PXTP10, PXTP1C, PDEP3D, conwd,pxtp1con,                          & !In & Out
@@ -1642,6 +1652,7 @@ REAL PCLCOVER(ifull,kl)
 REAL PRHOP1(ifull,kl)
 REAL PSOLUB(ifull,kl)
 real pmlwc(ifull,kl)
+real ptp1(ifull,kl)  !temperature
 real pfsnow(ifull,kl)
 real pfconv(ifull,kl)
 real pclcon(ifull,kl)
@@ -1666,7 +1677,6 @@ REAL ZDEPS(ifull),ZDEPR(ifull),    &
 
 integer, parameter :: ktop = 2    !Top level for wet deposition (counting from top)
 ! Allow in-cloud scavenging in ice clouds for hydrophobic BC and OC, and dust
-! Value of 0.5 is just a guess at present
 real, dimension(naero), parameter :: Ecols = (/ 0.00,0.00,0.00,0.05,0.00,0.05,0.00,0.05,0.05,0.05,0.05/)
 !Below-cloud collection eff. for rain
 real, dimension(naero), parameter :: zcollefr = (/0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.10,0.20,0.40/)
@@ -1676,6 +1686,8 @@ real, dimension(naero), parameter :: zcollefs = (/0.01,0.01,0.01,0.01,0.01,0.01,
 real, dimension(naero), parameter :: Rcoeff = (/1.00,0.62,1.00,0.00,1.00,0.00,1.00,1.00,1.00,1.00,1.00/)
 !Relative reevaporation rate
 real, dimension(naero), parameter :: Evfac = (/0.25,1.00,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25/)
+
+real, dimension(ifull,kl) :: zcollefc  !Collection efficiency for convection
 
 integer, dimension(ifull) :: kbase
 real pqtmst,ziicscav,xdep,zicscav,xicscav,zevap
@@ -1825,6 +1837,14 @@ do JK=KTOP,kl
 
 end do !   END OF VERTICAL LOOP
 
+! Use collection efficiencies for rain below melting level, snow above
+
+where (ptp1(1:ifull,ktop:kl)>273.15)
+  zcollefc(1:ifull,ktop:kl) = zcollefr(ktrac)
+elsewhere
+  zcollefc(1:ifull,ktop:kl) = zcollefs(ktrac)  
+end where
+
 ! Now do the convective below-cloud bit...
 ! In-cloud convective bit was done in convjlm.
 do jk=ktop,kl
@@ -1836,7 +1856,7 @@ do jk=ktop,kl
 ! Below-cloud scavenging by convective precipitation (assumed to be rain)
     if(pfconv(jl,jk-1)>zmin.and.zclr0(jl)>zmin)then
       Frc=max(0.,pfconv(jl,jk-1)/fracc(jl))
-      zbcscav=zcollefr(ktrac)*fracc(jl)*0.24*ptmst*sqrt(Frc*sqrt(Frc))
+      zbcscav=zcollefc(jl,jk)*fracc(jl)*0.24*ptmst*sqrt(Frc*sqrt(Frc))
       zbcscav=min(1.,zbcscav/(1.+0.5*zbcscav)) !Time-centred
       xbcscav=zbcscav*pxtp10(jl,jk)*zclr0(jl)
       conwd(jl,ktrac)=conwd(jl,ktrac)+xbcscav*zmtof(jl)
@@ -2280,14 +2300,14 @@ logical, dimension(ifull) :: bwkp1
 ! Hard-coded for 3 sulfur variables, 4 carbonaceous, 4 mineral dust.
 ! Note that value for SO2 (index 2) is overwritten by Henry coefficient f_so2 below.
 ! These ones are for 3 SULF, 4 CARB and 4 or 8 DUST (and include dummy variables at end)
-real, parameter, dimension(naero) :: scav_effl = (/0.0,1.0,0.9,0.0,0.3,0.0,0.3,.05,.05,.05,.05/) ! liquid
-real, parameter, dimension(naero) :: scav_effi = (/0.0,0.0,0.0,.05,0.0,.05,0.0,.05,.05,.05,.05/) ! ice
+real, parameter, dimension(naero) :: scav_effl = (/0.00,1.00,0.90,0.00,0.30,0.00,0.30,0.05,0.05,0.05,0.05/) ! liquid
+real, parameter, dimension(naero) :: scav_effi = (/0.00,0.00,0.00,0.05,0.00,0.05,0.00,0.05,0.05,0.05,0.05/) ! ice
 real, dimension(ifull) :: scav_eff
 real, dimension(ifull) :: zqtp1,ze2,ze3,zfac,zso4l,zso2l,zqhp
 real, dimension(ifull) :: zza,zzb,zzp,zzq,zzp2,zhp,zqhr,zheneff,p_so2
 integer nt
 
-bwkp1=tt>=253.16 ! condensate in parcel is liquid (true) or ice (false)
+bwkp1=tt>=ticeu ! condensate in parcel is liquid (true) or ice (false)
 
 ! CALCULATE THE SOLUBILITY OF SO2
 ! TOTAL SULFATE  IS ONLY USED TO CALCULATE THE PH OF CLOUD WATER

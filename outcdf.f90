@@ -950,29 +950,41 @@ if(myid==0.or.local)then
       lname = 'Total column seasalt optical depth LW'
       call attrib(idnc,idim,3,'ssalt_lw',lname,'none',0.,13.,0,itype)      
       lname = 'Dust emissions'
-      call attrib(idnc,idim,3,'duste',lname,'g/(m2 yr)',0.,390.,0,itype)  
+      call attrib(idnc,idim,3,'duste_ave',lname,'g/(m2 yr)',0.,390.,0,itype)  
       lname = 'Dust dry deposition'
-      call attrib(idnc,idim,3,'dustdd',lname,'g/(m2 yr)',0.,390.,0,itype) 
+      call attrib(idnc,idim,3,'dustdd_ave',lname,'g/(m2 yr)',0.,390.,0,itype) 
       lname = 'Dust wet deposition'
-      call attrib(idnc,idim,3,'dustwd',lname,'g/(m2 yr)',0.,390.,0,itype)
+      call attrib(idnc,idim,3,'dustwd_ave',lname,'g/(m2 yr)',0.,390.,0,itype)
+      lname = 'Black carbone emissions'
+      call attrib(idnc,idim,3,'bce_ave',lname,'g/(m2 yr)',0.,390.,0,itype)  
+      lname = 'Black carbon dry deposition'
+      call attrib(idnc,idim,3,'bcdd_ave',lname,'g/(m2 yr)',0.,390.,0,itype) 
+      lname = 'Black carbon wet deposition'
+      call attrib(idnc,idim,3,'bcwd_ave',lname,'g/(m2 yr)',0.,390.,0,itype)
+      lname = 'Organic carbone emissions'
+      call attrib(idnc,idim,3,'oce_ave',lname,'g/(m2 yr)',0.,390.,0,itype)  
+      lname = 'Organic carbon dry deposition'
+      call attrib(idnc,idim,3,'ocdd_ave',lname,'g/(m2 yr)',0.,390.,0,itype) 
+      lname = 'Organic carbon wet deposition'
+      call attrib(idnc,idim,3,'ocwd_ave',lname,'g/(m2 yr)',0.,390.,0,itype)
       lname = 'DMS emissions'
-      call attrib(idnc,idim,3,'dmse',lname,'g/(m2 yr)',0.,390.,0,itype) 
+      call attrib(idnc,idim,3,'dmse_ave',lname,'g/(m2 yr)',0.,390.,0,itype) 
       lname = 'DMS to SO2 oxidation'
-      call attrib(idnc,idim,3,'dmsso2o',lname,'g/(m2 yr)',0.,390.,0,itype)
+      call attrib(idnc,idim,3,'dmsso2o_ave',lname,'g/(m2 yr)',0.,390.,0,itype)
       lname = 'SO2 emissions'
-      call attrib(idnc,idim,3,'so2e',lname,'g/(m2 yr)',0.,390.,0,itype) 
+      call attrib(idnc,idim,3,'so2e_ave',lname,'g/(m2 yr)',0.,390.,0,itype) 
       lname = 'SO2 to SO4 oxidation'
-      call attrib(idnc,idim,3,'so2so4o',lname,'g/(m2 yr)',0.,390.,0,itype)
+      call attrib(idnc,idim,3,'so2so4o_ave',lname,'g/(m2 yr)',0.,390.,0,itype)
       lname = 'SO2 dry deposition'
-      call attrib(idnc,idim,3,'so2dd',lname,'g/(m2 yr)',0.,390.,0,itype)
+      call attrib(idnc,idim,3,'so2dd_ave',lname,'g/(m2 yr)',0.,390.,0,itype)
       lname = 'SO2 wet deposition'
-      call attrib(idnc,idim,3,'so2wd',lname,'g/(m2 yr)',0.,390.,0,itype)
+      call attrib(idnc,idim,3,'so2wd_ave',lname,'g/(m2 yr)',0.,390.,0,itype)
       lname = 'SO4 emissions'
-      call attrib(idnc,idim,3,'so4e',lname,'g/(m2 yr)',0.,390.,0,itype)
+      call attrib(idnc,idim,3,'so4e_ave',lname,'g/(m2 yr)',0.,390.,0,itype)
       lname = 'SO4 dry deposition'
-      call attrib(idnc,idim,3,'so4dd',lname,'g/(m2 yr)',0.,390.,0,itype) 
+      call attrib(idnc,idim,3,'so4dd_ave',lname,'g/(m2 yr)',0.,390.,0,itype) 
       lname = 'SO4 wet deposition'
-      call attrib(idnc,idim,3,'so4wd',lname,'g/(m2 yr)',0.,390.,0,itype) 
+      call attrib(idnc,idim,3,'so4wd_ave',lname,'g/(m2 yr)',0.,390.,0,itype) 
     end if
 
     ! CABLE -----------------------------------------------------
@@ -1718,29 +1730,41 @@ if (nextout>=1.and.abs(iaero)>=2.and.nrad==5) then
   call histwrt3(opticaldepth(:,7,2),'ssalt_nir',idnc,iarch,local,lwrite)
   call histwrt3(opticaldepth(:,7,3),'ssalt_lw',idnc,iarch,local,lwrite)
   aa=max(duste*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'duste',idnc,iarch,local,lwrite)
+  call histwrt3(aa,'duste_ave',idnc,iarch,local,lwrite)
   aa=max(dustdd*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'dustdd',idnc,iarch,local,lwrite)
+  call histwrt3(aa,'dustdd_ave',idnc,iarch,local,lwrite)
   aa=max(dustwd*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'dustwd',idnc,iarch,local,lwrite)
+  call histwrt3(aa,'dustwd_ave',idnc,iarch,local,lwrite)
+  aa=max(bce*3.154e10,0.) ! g/m2/yr
+  call histwrt3(aa,'bce_ave',idnc,iarch,local,lwrite)
+  aa=max(bcdd*3.154e10,0.) ! g/m2/yr
+  call histwrt3(aa,'bcdd_ave',idnc,iarch,local,lwrite)
+  aa=max(bcwd*3.154e10,0.) ! g/m2/yr
+  call histwrt3(aa,'bcwd_ave',idnc,iarch,local,lwrite)
+  aa=max(oce*3.154e10,0.) ! g/m2/yr
+  call histwrt3(aa,'oce_ave',idnc,iarch,local,lwrite)
+  aa=max(ocdd*3.154e10,0.) ! g/m2/yr
+  call histwrt3(aa,'ocdd_ave',idnc,iarch,local,lwrite)
+  aa=max(ocwd*3.154e10,0.) ! g/m2/yr
+  call histwrt3(aa,'ocwd_ave',idnc,iarch,local,lwrite)
   aa=max(dmse*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'dmse',idnc,iarch,local,lwrite)
+  call histwrt3(aa,'dmse_ave',idnc,iarch,local,lwrite)
   aa=max(dmsso2o*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'dmsso2o',idnc,iarch,local,lwrite)
+  call histwrt3(aa,'dmsso2o_ave',idnc,iarch,local,lwrite)
   aa=max(so2e*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'so2e',idnc,iarch,local,lwrite)
+  call histwrt3(aa,'so2e_ave',idnc,iarch,local,lwrite)
   aa=max(so2so4o*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'so2so4o',idnc,iarch,local,lwrite)
+  call histwrt3(aa,'so2so4o_ave',idnc,iarch,local,lwrite)
   aa=max(so2dd*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'so2dd',idnc,iarch,local,lwrite)
+  call histwrt3(aa,'so2dd_ave',idnc,iarch,local,lwrite)
   aa=max(so2wd*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'so2wd',idnc,iarch,local,lwrite)
+  call histwrt3(aa,'so2wd_ave',idnc,iarch,local,lwrite)
   aa=max(so4e*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'so4e',idnc,iarch,local,lwrite)
+  call histwrt3(aa,'so4e_ave',idnc,iarch,local,lwrite)
   aa=max(so4dd*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'so4dd',idnc,iarch,local,lwrite)
+  call histwrt3(aa,'so4dd_ave',idnc,iarch,local,lwrite)
   aa=max(so4wd*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'so4wd',idnc,iarch,local,lwrite)
+  call histwrt3(aa,'so4wd_ave',idnc,iarch,local,lwrite)
 end if
 
 ! CABLE -------------------------------------------------------

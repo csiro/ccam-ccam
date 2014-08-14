@@ -538,7 +538,11 @@ if (nmr>=1) then
     end do
     do k=kbsav(iq)+1,ktsav(iq)
       clcon(iq,k)=cldcon(iq) ! maximum overlap
-      pccw(iq,kl+1-k)=wlc/rhoa(iq,k)
+      if (t(iq,k)>ticeu) then
+        pccw(iq,kl+1-k)=wlc/rhoa(iq,k)
+      else
+        pccw(iq,kl+1-k)=0.
+      end if
     end do
     do k=ktsav(iq)+1,kl
       clcon(iq,k)=0.
@@ -553,7 +557,11 @@ else
     end do
     do k=kbsav(iq)+1,ktsav(iq)
       clcon(iq,k)=1.-(1.-cldcon(iq))**(1./real(ktsav(iq)-kbsav(iq)+2)) !Random overlap
-      pccw(iq,kl+1-k)=wlc/rhoa(iq,k)
+      if (t(iq,k)>ticeu) then
+        pccw(iq,kl+1-k)=wlc/rhoa(iq,k)
+      else
+        pccw(iq,kl+1-k)=0.
+      end if
     end do
     do k=ktsav(iq)+1,kl
       clcon(iq,k)=0.

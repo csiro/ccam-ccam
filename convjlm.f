@@ -1438,16 +1438,24 @@ c***    Also entrain may slow convergence   N.B. qbass only used in next few lin
           rho=ps*sig(k)/(rdry*ttsto*(1.+0.61*qqsto))
           call convscav(fscav,qqsto,qqold,ttsto,
      &                  xtg(1:ifull,k,3),rho)
-          do ntr=itracdu,itracdu+ndust-1
-            dustwd=dustwd+fscav(:,ntr)*xtg(1:ifull,k,ntr)*ps*dsk(k)
-     &         /(grav*dt)
-          end do
           ntr=itracso2
           so2wd=so2wd+fscav(:,ntr)*xtg(1:ifull,k,ntr)*ps*dsk(k)
      &         /(grav*dt)
           ntr=itracso2+1
           so4wd=so4wd+fscav(:,ntr)*xtg(1:ifull,k,ntr)*ps*dsk(k)
      &         /(grav*dt)
+          do ntr=itracdu,itracdu+ndust-1
+            dustwd=dustwd+fscav(:,ntr)*xtg(1:ifull,k,ntr)*ps*dsk(k)
+     &         /(grav*dt)
+          end do
+          do ntr=itracbc,itracbc+1
+            bcwd=bcwd+fscav(:,ntr)*xtg(1:ifull,k,ntr)*ps*dsk(k)
+     &         /(grav*dt) 
+          end do
+          do ntr=itracoc,itracoc+1
+            ocwd=ocwd+fscav(:,ntr)*xtg(1:ifull,k,ntr)*ps*dsk(k)
+     &         /(grav*dt) 
+          end do
           xtg(1:ifull,k,:)=xtg(1:ifull,k,:)*(1.-fscav(:,:))
         end do
       end if   ! (abs(iaero)==2) 
