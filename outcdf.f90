@@ -970,11 +970,11 @@ if(myid==0.or.local)then
       lname = 'DMS emissions'
       call attrib(idnc,idim,3,'dmse_ave',lname,'g/(m2 yr)',0.,390.,0,itype) 
       lname = 'DMS to SO2 oxidation'
-      call attrib(idnc,idim,3,'dmsso2o_ave',lname,'g/(m2 yr)',0.,390.,0,itype)
+      call attrib(idnc,idim,3,'dmsso2_ave',lname,'g/(m2 yr)',0.,390.,0,itype)
       lname = 'SO2 emissions'
       call attrib(idnc,idim,3,'so2e_ave',lname,'g/(m2 yr)',0.,390.,0,itype) 
       lname = 'SO2 to SO4 oxidation'
-      call attrib(idnc,idim,3,'so2so4o_ave',lname,'g/(m2 yr)',0.,390.,0,itype)
+      call attrib(idnc,idim,3,'so2so4_ave',lname,'g/(m2 yr)',0.,390.,0,itype)
       lname = 'SO2 dry deposition'
       call attrib(idnc,idim,3,'so2dd_ave',lname,'g/(m2 yr)',0.,390.,0,itype)
       lname = 'SO2 wet deposition'
@@ -1750,11 +1750,11 @@ if (nextout>=1.and.abs(iaero)>=2.and.nrad==5) then
   aa=max(dmse*3.154e10,0.) ! g/m2/yr
   call histwrt3(aa,'dmse_ave',idnc,iarch,local,lwrite)
   aa=max(dmsso2o*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'dmsso2o_ave',idnc,iarch,local,lwrite)
+  call histwrt3(aa,'dmsso2_ave',idnc,iarch,local,lwrite)
   aa=max(so2e*3.154e10,0.) ! g/m2/yr
   call histwrt3(aa,'so2e_ave',idnc,iarch,local,lwrite)
   aa=max(so2so4o*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'so2so4o_ave',idnc,iarch,local,lwrite)
+  call histwrt3(aa,'so2so4_ave',idnc,iarch,local,lwrite)
   aa=max(so2dd*3.154e10,0.) ! g/m2/yr
   call histwrt3(aa,'so2dd_ave',idnc,iarch,local,lwrite)
   aa=max(so2wd*3.154e10,0.) ! g/m2/yr
