@@ -575,7 +575,7 @@
       include 'parmgeom.h'             ! Coordinate data
 
       integer iq,k,ierr,kb,kln,klx,klt,klc
-      real, dimension(ifull), intent(in) :: pslb
+      real, dimension(ifull), intent(inout) :: pslb
       real, dimension(ifull) :: costh,sinth
       real, dimension(ifull,kl), intent(inout) :: ub,vb,tb,qb
       real, dimension(ifull,kl,naero), intent(inout) :: xtgb
@@ -1176,7 +1176,7 @@
 
 #ifdef debug        
         if (myid==0) write(6,*) "Start convolution"
-#endif#endif
+#endif
 
         ! pack data from global arrays
         do j=1,jpan

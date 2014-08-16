@@ -270,9 +270,11 @@ c       if(i.eq.(ikk+1)/2.and.j.eq.(ikk+1)/2)print *,'xx,yy: ',xx,yy
       endif      ! (schmidt.ne.1.)
 
       print *,'ktau,ikk,schmidtin ',ktau,ikk,schmidtin
+#ifdef debug
       if(ndiag.eq.2)call printp('x   ', x)
       if(ndiag.eq.2)call printp('y   ', y)
       if(ndiag.eq.2)call printp('z   ', z)
+#endif
       if(ktau.eq.0.and.schmidtin>0.)then
         print *,'On each panel (ntang=0)_em_g for ',
      .          '(1,1),(1,2),(1,3),(2,2),(3,2),(ic,ic),(ikk,ikk)'
@@ -542,6 +544,7 @@ c      if(iq.eq.idjd)print *,'iq,x,y,z,xx,yy,zz,long,lat ',
 c    .  iq,x(iq),y(iq),z(iq),xx,yy,zz,
 c    .  rlongg_g(iq)*180./pi,rlatt_g(iq)*180./pi
       enddo   ! iq loop
+#ifdef debug
       if(ndiag.eq.2)then
 !       do iq=1,ifull_g
 !        cosa(iq)=100.*wts(iq)
@@ -550,6 +553,7 @@ c    .  rlongg_g(iq)*180./pi,rlatt_g(iq)*180./pi
         call printp('lat ',rlat)
         call printp('long',rlong)
       endif
+#endif
       if(ktau.eq.0)then
         print *,'At centre of the faces:'
         do n=0,npanels

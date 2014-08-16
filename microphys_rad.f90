@@ -334,9 +334,6 @@ real, dimension(:,:), allocatable, save  :: solivlicecld,    &
                                             solivlraincld,  &
                                             solivlsnowcld
 
-real, save                         :: min_cld_drop_rad, max_cld_drop_rad
-real, save                         :: min_cld_ice_size, max_cld_ice_size
-
 !----------------------------------------------------------------------
 !   variables needed for random number seed:
 !----------------------------------------------------------------------
@@ -394,22 +391,13 @@ logical, save :: module_is_initialized = .false. ! module is initialized ?
 !  </IN>
 ! </SUBROUTINE>
 !
-subroutine microphys_rad_init (min_cld_drop_rad_in, max_cld_drop_rad_in, &
-                               min_cld_ice_size_in, max_cld_ice_size_in)
-                              !axes, Time, lonb, latb) 
+subroutine microphys_rad_init
 
 !------------------------------------------------------------------
 !    subroutine microphys_rad_init is the constructor for 
 !    microphys_rad_mod.
 !--------------------------------------------------------------------
 
-real,                    intent(in)    :: min_cld_drop_rad_in, &
-                                          max_cld_drop_rad_in, &
-                                          min_cld_ice_size_in, &
-                                          max_cld_ice_size_in 
-!integer, dimension(4),   intent(in)    ::  axes
-!type(time_type),         intent(in)    ::  Time
-!real, dimension(:),      intent(in)    ::  lonb, latb
 
 !---------------------------------------------------------------------
 !   intent(in) variables:
@@ -496,11 +484,6 @@ real,                    intent(in)    :: min_cld_drop_rad_in, &
       call rad_utilities_init
       call longwave_params_init
 
-      min_cld_drop_rad = min_cld_drop_rad_in
-      max_cld_drop_rad = max_cld_drop_rad_in
-      min_cld_ice_size = min_cld_ice_size_in
-      max_cld_ice_size = max_cld_ice_size_in
-      
 !--------------------------------------------------------------------
 !    verify that Lw_control%do_lwcldemiss has been initialized.
 !--------------------------------------------------------------------
@@ -972,19 +955,9 @@ end subroutine microphys_rad_init
 !                            %cldasymm parameterization band values of 
 !                                      the asymmetry factor 
 !                                      [ dimensionless ]
-!  </INOUT>
-!  <IN NAME="donner_flag" TYPE="logical">
-!   OPTIONAL: logical flag which if present indicates
-!                           that clouds from donner_deep_mod are being
-!                           processed, and that an ice parameterization
-!                           associated with that scheme (which differs
-!                           from that used by strat_cloud_mod) is to
-!                           be used.
-!  </IN>
 ! </SUBROUTINE>
 subroutine microphys_sw_driver (is, ie, js, je, Cloud_microphysics,  &
-                                Cloud_rad_props, Micro_rad_props, &
-                                donner_flag )
+                                Cloud_rad_props, Micro_rad_props)
 
 !---------------------------------------------------------------------
 !    microphys_sw_driver obtains microphysically-based cloud shortwave
@@ -996,8 +969,6 @@ integer,                        intent(in)      :: is, ie, js, je
 type(microphysics_type),        intent(in)      :: Cloud_microphysics
 type(microrad_properties_type), intent(inout), optional   :: Micro_rad_props
 type(cldrad_properties_type), intent(inout), optional   :: Cloud_rad_props
-logical,                        intent(in),                         &
-                                       optional :: donner_flag 
 
 !--------------------------------------------------------------------
 !   intent(in) variables:
@@ -1024,15 +995,6 @@ logical,                        intent(in),                         &
 !                                      the asymmetry factor 
 !                                      [ dimensionless ]
 !
-!    intent(in), optional variable:
-!
-!      donner_flag          logical flag which if present indicates
-!                           that clouds from donner_deep_mod are being
-!                           processed, and that an ice parameterization
-!                           associated with that scheme (which differs
-!                           from that used by strat_cloud_mod) is to
-!                           be used. 
-!
 !---------------------------------------------------------------------
 
 !----------------------------------------------------------------------
@@ -1044,25 +1006,11 @@ logical,                        intent(in),                         &
                     size(Cloud_microphysics%size_drop,3), &
                                       Solar_spect%nbands) :: &
                        size_drop, size_ice, conc_drop, conc_ice
-      logical, dimension &
-                   (size(Cloud_microphysics%size_drop,1), &
-                    size(Cloud_microphysics%size_drop,2), &
-                    size(Cloud_microphysics%size_drop,3), &
-                                      Solar_spect%nbands) :: &
-                                                        dge_column
 
-      logical       :: do_dge_sw, isccp_call
+      logical       :: isccp_call
       integer       :: nbmax
       integer       :: n
       integer       :: nnn, nbprofiles, nonly
-
-!----------------------------------------------------------------------
-!  local variables:                                                  
-!
-!      do_dge_sw     logical flag; when .true., indicates that 
-!                    donner_deep_mod clouds are being processed
-!
-!----------------------------------------------------------------------
 
 !-------------------------------------------------------------------
 !    be sure module has been initialized.
@@ -1075,24 +1023,6 @@ logical,                        intent(in),                         &
         stop
       endif
 
-!---------------------------------------------------------------------
-!    define variable indicating whether doner_deep_mods clouds or 
-!    large-scale clouds are currently being processed.
-!---------------------------------------------------------------------
-      if (present (donner_flag )) then
-        if (donner_flag) then
-          do_dge_sw = .true.
-        else
-          do_dge_sw = .false.
-        endif
-      else
-        do_dge_sw = .false.
-     endif
-     if (Cldrad_control%using_fu2007) then
-       do_dge_sw = .true.
-     endif
-
-     dge_column = do_dge_sw
      isccp_call = .false.
      
 !---------------------------------------------------------------------
@@ -1100,7 +1030,6 @@ logical,                        intent(in),                         &
 !    clouds has been activated, define the microphysical inputs
 !    for each sw parameterization band and the number of such fields.
 !---------------------------------------------------------------------
-      if (.not. present (donner_flag)) then
         if (Cldrad_control%do_stochastic_clouds) then
           size_drop = Cloud_microphysics%sw_stoch_size_drop
           size_ice  = Cloud_microphysics%sw_stoch_size_ice
@@ -1138,8 +1067,8 @@ logical,                        intent(in),                         &
                       Cloud_microphysics%size_rain,              &
                       conc_drop, conc_ice, &
                       Cloud_microphysics%conc_rain, &
-                      Cloud_microphysics%conc_snow, do_dge_sw,   &
-                      dge_column, isccp_call, &
+                      Cloud_microphysics%conc_snow,   &
+                      isccp_call, &
                       Cloud_rad_props%cldext(:,:,:,:,nnn),   &
                       Cloud_rad_props%cldsct(:,:,:,:,nnn), &
                       Cloud_rad_props%cldasymm(:,:,:,:,nnn))
@@ -1152,41 +1081,11 @@ logical,                        intent(in),                         &
                       Cloud_microphysics%size_rain,              &
                       conc_drop, conc_ice, &
                       Cloud_microphysics%conc_rain, &
-                      Cloud_microphysics%conc_snow, do_dge_sw,   &
-                      dge_column, isccp_call, &
+                      Cloud_microphysics%conc_snow,   &
+                      isccp_call, &
                       Micro_rad_props%cldext, Micro_rad_props%cldsct, &
                       Micro_rad_props%cldasymm)
        endif
-
-!-------------------------------------------------------------------
-!    if donner cloud fields are being processed, there is currently
-!    no stochastic component. use the same properties for each sw
-!    parameterization band.
-!-------------------------------------------------------------------
-      else  ! (donner_flag)
-        nnn = 1
-        nbprofiles = 1
-        nbmax = Solar_spect%nbands
-        nonly = 0
-        do n=1, Solar_spect%nbands
-        size_drop(:,:,:,n) = Cloud_microphysics%size_drop
-        size_ice(:,:,:,n)  = Cloud_microphysics%size_ice
-        conc_drop(:,:,:,n) = Cloud_microphysics%conc_drop
-        conc_ice(:,:,:,n)  = Cloud_microphysics%conc_ice
-        end do
-
-        call cloudpar                                 &
-                     (nonly, nbmax, nnn, size_drop, size_ice,   &
-                      Cloud_microphysics%size_rain,              &
-                      conc_drop, conc_ice, &
-                      Cloud_microphysics%conc_rain, &
-                      Cloud_microphysics%conc_snow, do_dge_sw,   &
-                      dge_column, isccp_call, &
-                      Micro_rad_props%cldext, Micro_rad_props%cldsct, &
-                      Micro_rad_props%cldasymm)
-      endif ! (present(donner_flag))
- 
-!--------------------------------------------------------------------
 
 
 end subroutine microphys_sw_driver
@@ -1240,19 +1139,9 @@ end subroutine microphys_sw_driver
 !                            %cldasymm parameterization band values of 
 !                                      the asymmetry factor 
 !                                      [ dimensionless ]
-!  </INOUT>
-!  <IN NAME="donner_flag" TYPE="logical">
-!   OPTIONAL: logical flag which if present indicates
-!                           that clouds from donner_deep_mod are being
-!                           processed, and that an ice parameterization
-!                           associated with that scheme (which differs
-!                           from that used by strat_cloud_mod) is to
-!                           be used.
-!  </IN>
 ! </SUBROUTINE>
 subroutine microphys_lw_driver (is, ie, js, je, Cloud_microphysics,  &
-                                Cloud_rad_props, Micro_rad_props, &
-                                donner_flag )
+                                Cloud_rad_props, Micro_rad_props)
 
 !---------------------------------------------------------------------
 !    microphys_lw_driver obtains microphysically-based cloud longwave
@@ -1264,8 +1153,6 @@ integer,                        intent(in)      :: is, ie, js, je
 type(microphysics_type),        intent(in)      :: Cloud_microphysics
 type(cldrad_properties_type), intent(inout),optional   :: Cloud_rad_props
 type(microrad_properties_type), intent(inout),optional   :: Micro_rad_props
-logical,                        intent(in),                         &
-                                       optional :: donner_flag 
 
 !--------------------------------------------------------------------
 !   intent(in) variables:
@@ -1286,15 +1173,6 @@ logical,                        intent(in),                         &
 !                                       clouds in each of the longwave 
 !                                       frequency bands [ km**(-1) ]
 !
-!    intent(in), optional variable:
-!
-!      donner_flag          logical flag which if present indicates
-!                           that clouds from donner_deep_mod are being
-!                           processed, and that an ice parameterization
-!                           associated with that scheme (which differs
-!                           from that used by strat_cloud_mod) is to
-!                           be used. 
-!
 !---------------------------------------------------------------------
 
 !----------------------------------------------------------------------
@@ -1306,21 +1184,8 @@ logical,                        intent(in),                         &
                    size(Cloud_microphysics%size_drop,3), &
                    Cldrad_control%nlwcldb) :: &
                         size_drop, size_ice, conc_drop, conc_ice
-      logical       :: do_dge_lw, isccp_call
+      logical       :: isccp_call
       integer :: nbmax, nbprofiles, nnn, nonly
-      logical, dimension   &
-                  (size(Cloud_microphysics%size_drop,1), &
-                   size(Cloud_microphysics%size_drop,2), &
-                   size(Cloud_microphysics%size_drop,3), &
-                   Cldrad_control%nlwcldb) ::   dge_column
-
-!----------------------------------------------------------------------
-!  local variables:                                                  
-!
-!      do_dge_lw     logical flag; when .true., indicates that 
-!                    donner_deep_mod clouds are being processed
-!
-!----------------------------------------------------------------------
 
 !-------------------------------------------------------------------
 !    be sure module has been initialized.
@@ -1333,25 +1198,6 @@ logical,                        intent(in),                         &
         stop
       endif
 
-!---------------------------------------------------------------------
-!    define variable indicating whether doner_deep_mods clouds or 
-!    large-scale clouds are currently being processed.
-!---------------------------------------------------------------------
-      if (present (donner_flag )) then
-        if (donner_flag) then
-          do_dge_lw = .true.
-        else
-          do_dge_lw = .false.
-        endif
-      else
-        do_dge_lw = .false.
-      endif
-      
-      if (Cldrad_control%using_fu2007) then
-        do_dge_lw = .true.
-      endif
-
-       dge_column = do_dge_lw
        isccp_call = .false.
        
 !---------------------------------------------------------------------
@@ -1359,7 +1205,6 @@ logical,                        intent(in),                         &
 !    clouds has been activated, define the microphysical inputs
 !    for each lw parameterization band and the number of such fields.
 !---------------------------------------------------------------------
-      if ( .not. present (donner_flag )) then
         if (Cldrad_control%do_stochastic_clouds) then
           size_drop = Cloud_microphysics%lw_stoch_size_drop
           size_ice  = Cloud_microphysics%lw_stoch_size_ice
@@ -1400,19 +1245,19 @@ logical,                        intent(in),                         &
                           Cloud_microphysics%size_rain,              &
                           conc_drop, conc_ice, &
                           Cloud_microphysics%conc_rain, &
-                          Cloud_microphysics%conc_snow, do_dge_lw,   &
-                          dge_column, isccp_call, &
+                          Cloud_microphysics%conc_snow,  &
+                          isccp_call, &
                           Cloud_rad_props%abscoeff(:,:,:,:,nnn))
      end do
     else  ! ((present(Cloud_rad_props))
         nnn = 1
         nonly = 0
-        call cloud_lwpar (nonly, nbmax, nnn, size_drop, size_ice,   &
+        call cloud_lwpar (nonly, nbmax, nnn, size_drop, size_ice,    &
                           Cloud_microphysics%size_rain,              &
-                          conc_drop, conc_ice, &
-                          Cloud_microphysics%conc_rain, &
-                          Cloud_microphysics%conc_snow, do_dge_lw,   &
-                          dge_column, isccp_call, &
+                          conc_drop, conc_ice,                       &
+                          Cloud_microphysics%conc_rain,              &
+                          Cloud_microphysics%conc_snow,              &
+                          isccp_call,                                &
                           Micro_rad_props%abscoeff)
     endif   ! ((present(Cloud_rad_props))
 
@@ -1436,48 +1281,6 @@ logical,                        intent(in),                         &
                                  Micro_rad_props%abscoeff(:,:,:,1))
        endif
       endif
-
-!-------------------------------------------------------------------
-!    if donner cloud fields are being processed, there is currently
-!    no stochastic component. use the same properties for each lw
-!    parameterization band.
-!-------------------------------------------------------------------
-    else ! (donner_flag)
-      nbmax = 1
-      size_drop(:,:,:,1) = Cloud_microphysics%size_drop
-      size_ice(:,:,:,1)  = Cloud_microphysics%size_ice
-      conc_drop(:,:,:,1) = Cloud_microphysics%conc_drop
-      conc_ice(:,:,:,1)  = Cloud_microphysics%conc_ice
- 
-!---------------------------------------------------------------------
-!    if the fuliou lw emissivity was selected, call cloud_lwpar to
-!    compute multi-band emissivities based on fu parameterizations for
-!    cloud drop, cloud ice, snow and rain.
-!---------------------------------------------------------------------
-     if (trim(lwem_form) == 'fuliou') then
-       nnn = 1
-       nonly = 0
-       call cloud_lwpar (nonly, nbmax, nnn,  size_drop, size_ice,   &
-                         Cloud_microphysics%size_rain,              &
-                         conc_drop, conc_ice, &
-                         Cloud_microphysics%conc_rain, &
-                         Cloud_microphysics%conc_snow, do_dge_lw,   &
-                          dge_column, isccp_call, &
-                         Micro_rad_props%abscoeff)
-
-!---------------------------------------------------------------------
-!    if the ebert-curry emissivity was selected, call cloud_lwem_oneband
-!    to compute a single value for the lw emissivity (including effects
-!    of drops and ice) based on the ebert and curry parameterization.
-!---------------------------------------------------------------------
-     else if (trim(lwem_form) == 'ebertcurry') then
-       call cloud_lwem_oneband (Cloud_microphysics%conc_drop,   &
-                                Cloud_microphysics%conc_ice,    &
-                                Cloud_microphysics%size_drop,    &
-                                Cloud_microphysics%size_ice,      &
-                                Cloud_rad_props%abscoeff(:,:,:,1,1))
-     endif
-   endif
 
 !--------------------------------------------------------------------
 
@@ -1569,26 +1372,12 @@ real, intent(out), dimension(:,:,:,:)           :: cldext
                                       Solar_spect%nbands) :: &
                        size_drop, size_ice, conc_drop, conc_ice, &
                        tmpcldext,tmpcldsct,tmpcldasymm
-      logical, dimension &
-                   (size(Cloud_microphysics%size_drop,1), &
-                    size(Cloud_microphysics%size_drop,2), &
-                    size(Cloud_microphysics%size_drop,3), &
-                                      Solar_spect%nbands) :: dge_column
-
       
-      logical       :: do_dge_sw, isccp_call
+      logical       :: isccp_call
       integer       :: nbmax
       integer       :: i,j,k
       integer       :: nnn, nbprofiles, nonly
 
-!----------------------------------------------------------------------
-!  local variables:                                                  
-!
-!      do_dge_sw     logical flag; when .true., indicates that 
-!                    donner_deep_mod clouds are being processed
-!
-!----------------------------------------------------------------------
-        
 !-------------------------------------------------------------------
 !    be sure module has been initialized.
 !--------------------------------------------------------------------
@@ -1598,18 +1387,6 @@ real, intent(out), dimension(:,:,:,:)           :: cldext
         ! 'initialization routine of this module was never called', &
         !                                                         FATAL)
         stop
-      endif
-
-!---------------------------------------------------------------------
-!    define variable indicating whether doner_deep_mods clouds or 
-!    large-scale clouds are currently being processed.
-!   
-!    donner clouds will not be accessed here
-!---------------------------------------------------------------------
-      if (Cldrad_control%using_fu2007) then
-        do_dge_sw = .true.
-      else
-        do_dge_sw = .false.
       endif
 
       isccp_call = .true.
@@ -1643,8 +1420,8 @@ real, intent(out), dimension(:,:,:,:)           :: cldext
                       Cloud_microphysics%size_rain,              &
                       conc_drop, conc_ice, &
                       Cloud_microphysics%conc_rain, &
-                      Cloud_microphysics%conc_snow, do_dge_sw,   &
-                      dge_column, isccp_call, &
+                      Cloud_microphysics%conc_snow,   &
+                      isccp_call, &
                       tmpcldext, tmpcldsct,tmpcldasymm)
        
 !---------------------------------------------------------------------
@@ -1740,22 +1517,9 @@ real, intent(out), dimension(:,:,:,:)           :: abscoeff
                    Cldrad_control%nlwcldb) :: &
                         size_drop, size_ice, conc_drop, conc_ice, &
                         tmpabscoeff
-      logical, dimension &
-                  (size(Cloud_microphysics%size_drop,1), &
-                   size(Cloud_microphysics%size_drop,2), &
-                   size(Cloud_microphysics%size_drop,3), &
-                   Cldrad_control%nlwcldb) :: dge_column
-      logical       :: do_dge_lw, isccp_call
+      logical       :: isccp_call
       integer :: nbmax, nbprofiles, nnn, nonly
       integer   :: i, j, k
-
-!----------------------------------------------------------------------
-!  local variables:                                                  
-!
-!      do_dge_lw     logical flag; when .true., indicates that 
-!                    donner_deep_mod clouds are being processed
-!
-!----------------------------------------------------------------------
 
 !-------------------------------------------------------------------
 !    be sure module has been initialized.
@@ -1768,17 +1532,6 @@ real, intent(out), dimension(:,:,:,:)           :: abscoeff
         stop
       endif
 
-!---------------------------------------------------------------------
-!    define variable indicating whether doner_deep_mods clouds or 
-!    large-scale clouds are currently being processed.
-!
-!     Donner is never on for this loop
-!---------------------------------------------------------------------
-      if (Cldrad_control%using_fu2007) then
-        do_dge_lw = .true.
-      else
-        do_dge_lw = .false.
-      endif
       isccp_call = .true.
       
 
@@ -1814,8 +1567,8 @@ real, intent(out), dimension(:,:,:,:)           :: abscoeff
                           Cloud_microphysics%size_rain,              &
                           conc_drop, conc_ice, &
                           Cloud_microphysics%conc_rain, &
-                          Cloud_microphysics%conc_snow, do_dge_lw,   &
-                           dge_column, isccp_call, &
+                          Cloud_microphysics%conc_snow,    &
+                          isccp_call, &
                           tmpabscoeff)
         abscoeff(:,:,:,nnn)=tmpabscoeff(:,:,:,ilwband)                  
 !---------------------------------------------------------------------
@@ -3296,8 +3049,8 @@ end subroutine microphys_rad_end
 !  </OUT>
 ! </SUBROUTINE>
 subroutine cloudpar (nonly, nbmax, nnn, size_drop, size_ice, size_rain, & 
-                     conc_drop, conc_ice, conc_rain, conc_snow, do_dge_sw, &
-                     dge_column, isccp_call, cldext, cldsct, cldasymm)
+                     conc_drop, conc_ice, conc_rain, conc_snow,         &
+                     isccp_call, cldext, cldsct, cldasymm)
  
 !----------------------------------------------------------------------
 !    subroutine cloudpar determines the parameterization band values of
@@ -3312,8 +3065,6 @@ real, dimension (:,:,:),   intent(in)     ::  size_rain, conc_rain,   &
                                               conc_snow
 real, dimension (:,:,:,:), intent(in)     ::  size_drop, size_ice,    &
                                               conc_drop, conc_ice
-logical, dimension (:,:,:,:), intent(in)     ::  dge_column
-logical,                   intent(in)     ::  do_dge_sw
 logical,                   intent(in)     ::  isccp_call
 real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
  
@@ -3569,7 +3320,6 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
 !    the single scattering parameters.
 !----------------------------------------------------------------------
             call fu (conc_ice(:,:,:,nnn), size_ice(:,:,:,nnn),   &
-                     dge_column(:,:,:,nnn), &
                      cldextivlice, cldssalbivlice,  &
                      cldasymmivlice, maski)
  
@@ -3598,7 +3348,6 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
 !    the single scattering parameters.
 !----------------------------------------------------------------------
             call icesolar (conc_ice(:,:,:,nnn), size_ice(:,:,:,nnn), &
-                           dge_column(:,:,:,nnn), &
                            cldextivlice2, cldssalbivlice2,   &
                            cldasymmivlice2, maski)
 
@@ -3620,37 +3369,6 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
 !    grid columns will use the same parameterization.
 !--------------------------------------------------------------------
          else  !(isccp_call)
-           if (do_dge_sw) then
-
-!----------------------------------------------------------------------
-!    if the ice crystal parameterization scheme of fu et al(1998) using
-!    generalized effective size is to be used, call subroutine fu 
-!    to calculate the single scattering parameters.
-!----------------------------------------------------------------------
-            call fu (conc_ice(:,:,:,nnn), size_ice(:,:,:,nnn),   &
-                     dge_column(:,:,:,nnn), &
-                     cldextivlice, cldssalbivlice,  &
-                     cldasymmivlice, maski)
- 
-!----------------------------------------------------------------------
-!    call thickavg to map the single-scattering properties for ice
-!    crystals that were calculated for each ice crystal spectral
-!    interval to the sw parameterization band spectral intervals.
-!----------------------------------------------------------------------
-            call thickavg (nivl1icecld, nivl2icecld, NICECLDIVLS,   &
-                           Solar_spect%nbands, cldextivlice,     &
-                           cldssalbivlice, cldasymmivlice,     &
-                           solivlicecld, Solar_spect%solflxbandref,   &
-                           maski, &
-                           cldextbandice, cldssalbbandice,   &
-                           cldasymmbandice)
-
-!----------------------------------------------------------------------
-!    if the ice crystal parameterization scheme of fu et al(1993) using
-!    effective size is to be used, call subroutine icesolar to calculate
-!    the single scattering parameters.
-!----------------------------------------------------------------------
-          else
 
 !----------------------------------------------------------------------
 !    if the ice crystal parameterization scheme of fu et al(1993) using
@@ -3658,7 +3376,6 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
 !    the single scattering parameters.
 !----------------------------------------------------------------------
             call icesolar (conc_ice(:,:,:,nnn), size_ice(:,:,:,nnn), &
-                           dge_column(:,:,:,nnn), &
                            cldextivlice2, cldssalbivlice2,   &
                            cldasymmivlice2, maski)
 
@@ -3674,7 +3391,6 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
                            Solar_spect%solflxbandref, maski,  &
                            cldextbandice,  cldssalbbandice,  &
                            cldasymmbandice)
-          endif
         endif !(isccp_call)
 
 !----------------------------------------------------------------------
@@ -3732,7 +3448,6 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
 !    to calculate the single scattering parameters.
 !----------------------------------------------------------------------
               call fu (conc_ice(:,:,:,nb), size_ice(:,:,:,nb),   &
-                        dge_column(:,:,:,nb), &
                        cldextivlice, cldssalbivlice,  &
                      cldasymmivlice,   maskif, &
                      starting_band = nivl1icecld(nb), &
@@ -3744,48 +3459,12 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
 !    calculate the single scattering parameters.
 !----------------------------------------------------------------------
               call icesolar (conc_ice(:,:,:,nb), size_ice(:,:,:,nb), &
-                           dge_column(:,:,:,nb), &
                            cldextivlice2,     &
                            cldssalbivlice2, cldasymmivlice2, &
                            maskis, &
                            starting_band = nivl1icesolcld(nb), &
                            ending_band = nivl2icesolcld(nb))
 
-!--------------------------------------------------------------------
-!    if this is not an isccp call with activated stochastic clouds, all
-!    grid columns will use the same parameterization.
-!--------------------------------------------------------------------
-        else   ! (isccp_call)
-            if (do_dge_sw) then
-
-!----------------------------------------------------------------------
-!    if the ice crystal parameterization scheme of fu et al(1998) using
-!    generalized effective size is to be used, call subroutine fu 
-!    to calculate the single scattering parameters.
-!----------------------------------------------------------------------
-              maskis = .false.
-              call fu (conc_ice(:,:,:,nb), size_ice(:,:,:,nb),   &
-                        dge_column(:,:,:,nb), &
-                       cldextivlice, cldssalbivlice,  &
-                     cldasymmivlice,   maskif, &
-                     starting_band = nivl1icecld(nb), &
-                     ending_band = nivl2icecld(nb))
-            else
-
-!----------------------------------------------------------------------
-!    if the ice crystal parameterization scheme of fu et al(1993) using
-!    effective size is to be used, call subroutine icesolar to calculate
-!    the single scattering parameters.
-!----------------------------------------------------------------------
-              maskif = .false.
-              call icesolar (conc_ice(:,:,:,nb), size_ice(:,:,:,nb), &
-                           dge_column(:,:,:,nb), &
-                           cldextivlice2,     &
-                           cldssalbivlice2, cldasymmivlice2, &
-                           maskis, &
-                           starting_band = nivl1icesolcld(nb), &
-                           ending_band = nivl2icesolcld(nb))
-            endif
          endif  ! (isccp_call)
 
 !----------------------------------------------------------------------
@@ -3884,19 +3563,6 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
 !    crystals that were calculated for each ice crystal spectral
 !    interval to the sw parameterization band spectral intervals.
 !----------------------------------------------------------------------
-              if (do_dge_sw) then
-                maskis = .false.
-                call thickavg (nb, nivl1icecld(nb), nivl2icecld(nb), &
-                               NICECLDIVLS, &
-                           Solar_spect%nbands, cldextivlice,     &
-                           cldssalbivlice, cldasymmivlice,     &
-                           solivlicecld,   &
-                           Solar_spect%solflxbandref(nb),  &
-                           maskif, &
-                           cldextbandice(:,:,:,nb),   &
-                            cldssalbbandice(:,:,:,nb),   &
-                           cldasymmbandice(:,:,:,nb))
-              else
                 maskif = .false.
                 call thickavg (nb, nivl1icesolcld(nb),  &
                               nivl2icesolcld(nb),    &
@@ -3909,7 +3575,6 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
                            cldextbandice(:,:,:,nb),  &
                            cldssalbbandice(:,:,:,nb),  &
                            cldasymmbandice(:,:,:,nb))
-              endif
 
   endif ! (isccp_call)
 
@@ -4061,14 +3726,6 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
 !    flakes that were calculated for the desired ice crystal spectral 
 !    interval to the sw parameterization band spectral intervals.
 !----------------------------------------------------------------------
-              if (do_dge_sw) then
-                maskis = .false.
-                call thickavg (nb, nivl1icecld(nb), nivl2icecld(nb),  &
-                                               cldextivlice,     &
-                          solivlicecld,   &
-                          Solar_spect%solflxbandref(nb),    &
-                           maskif, cldextbandice(:,:,:,nb))
-              else
                 maskif = .false.
                 call thickavg (nb, nivl1icesolcld(nb),  &
                                nivl2icesolcld(nb),    &
@@ -4076,7 +3733,6 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
                        solivlicesolcld,  &
                             Solar_spect%solflxbandref(nb),    &
                            maskis, cldextbandice(:,:,:,nb))
-              endif
   endif ! (isccp_call)
 
 !----------------------------------------------------------------------
@@ -4256,9 +3912,6 @@ integer, intent(in), optional             ::   starting_band,  &
 !---------------------------------------------------------------------
 ! local variables:                                                   
 
-      real, dimension (size(conc_drop,1), size(conc_drop,2),  &
-                       size(conc_drop,3))   ::  size_d
-
       real, dimension (NLIQCLDIVLS)         ::  a, b, c, d, e, f
  
       data a /-1.023E+00, 1.950E+00, 1.579E+00, 1.850E+00, 1.970E+00, &
@@ -4329,7 +3982,7 @@ integer, intent(in), optional             ::   starting_band,  &
       else
         niend = NLIQCLDIVLS
       endif
- 
+      
 !---------------------------------------------------------------------
       do k=1,size(conc_drop,3)
         do j=1,size(conc_drop,2)
@@ -4348,17 +4001,6 @@ integer, intent(in), optional             ::   starting_band,  &
 !--------------------------------------------------------------------
             else
               mask(i,j,k) = .true.
-              size_d(i,j,k) = 0.5*size_drop(i,j,k)
-
-!----------------------------------------------------------------------
-!    the cloud drop effective radius must be between 4.2 and 16.6 
-!    microns.                               
-!----------------------------------------------------------------------
-              if (size_d(i,j,k) <  min_cld_drop_rad) then   
-                size_d(i,j,k) =  min_cld_drop_rad
-              else if (size_d(i,j,k) > max_cld_drop_rad) then 
-                size_d(i,j,k) = max_cld_drop_rad             
-              endif                 
 
 !---------------------------------------------------------------------
 !    define values of extinction coefficient, single-scattering albedo
@@ -4370,11 +4012,11 @@ integer, intent(in), optional             ::   starting_band,  &
                 do ni=nistart, niend
                   cldextivlliq(i,j,k,ni) = 1.0E+03*conc_drop(i,j,k)* &
                                            (1.0E-02*a(ni) + (b(ni)/  &
-                                           size_d(i,j,k)            ) )
+                                           (0.5*size_drop(i,j,k))   ) )
                   cldssalbivlliq(i,j,k,ni) = 1.0 - ( c(ni) + d(ni)* &
-                                             size_d(i,j,k) )
+                                             0.5*size_drop(i,j,k) )
                   cldasymmivlliq(i,j,k,ni) = e(ni) + 1.0E-03*f(ni)*  &
-                                             size_d(i,j,k)
+                                             0.5*size_drop(i,j,k)
                 end do
             endif     
           end do
@@ -4471,7 +4113,7 @@ integer, intent(in), optional             ::   starting_band,  &
  
       real, dimension (size(conc_rain,1), size(conc_rain,2),       &
                        size(conc_rain,3) )       ::                &
-                                                      rcap, size_d
+                                                      rcap
  
       real, dimension (NRAINCLDIVLS)          ::  a, b, asymm
 
@@ -4530,35 +4172,25 @@ integer, intent(in), optional             ::   starting_band,  &
 !----------------------------------------------------------------------
             else
               mask(i,j,k) = .true.
-              size_d(i,j,k) = 0.5*size_rain(i,j,k) 
 
 !---------------------------------------------------------------------
 !    the rain drop effective radius must be between 16.6 and 5000    
 !    microns. compute the rcap function, used in the savijarvi formula.
 !---------------------------------------------------------------------
-              if (size_d(i,j,k) > 16.6 .and.              &
-                  size_d(i,j,k) <= 5000. ) then                       
-                rcap(i,j,k) = (size_d(i,j,k)/500.) ** 4.348E+00
+                rcap(i,j,k) = (0.5*size_rain(i,j,k)/500.) ** 4.348E+00
 
 !--------------------------------------------------------------------
 !    compute values for each of the savijarvi rain drop spectral
 !    intervals. the extinction coefficient is converted to km**(-1).    
 !--------------------------------------------------------------------
-!               do ni = 1,NRAINCLDIVLS
                 do ni = nistart, niend 
                   cldextivlrain(i,j,k,ni) = 1.00E+03*1.505E+00*     &
                                             conc_rain(i,j,k)/     &
-                                            size_d(i,j,k)  
+                                            (0.5*size_rain(i,j,k))  
                   cldssalbivlrain(i,j,k,ni) = 1.0E+00 - (a(ni)*    &
                                               (rcap(i,j,k)**b(ni)))
                   cldasymmivlrain(i,j,k,ni) = asymm(ni)
                 end do
-              else
-                write(6,*) "ERROR: rain drop size out of range"
-                !call error_mesg ('microphys_rad_mod', &
-                !          'rain drop size out of range', FATAL)
-                stop
-              endif
             endif
           end do
         end do
@@ -4625,7 +4257,7 @@ end subroutine savijarvi
 !  </OUT>
 ! </SUBROUTINE>
 !
-subroutine fu (conc_ice, size_ice, dge_column, cldextivlice,  &
+subroutine fu (conc_ice, size_ice, cldextivlice,  &
                cldssalbivlice, cldasymmivlice, mask, starting_band, &
                ending_band)
  
@@ -4639,7 +4271,6 @@ subroutine fu (conc_ice, size_ice, dge_column, cldextivlice,  &
 !---------------------------------------------------------------------- 
                                                                         
 real, dimension (:,:,:),   intent(in)    ::   conc_ice, size_ice
-logical, dimension (:,:,:),   intent(in)    ::   dge_column          
 real, dimension (:,:,:,:), intent(inout)   ::  cldextivlice,      &
                                                cldssalbivlice,    &
                                                cldasymmivlice
@@ -4681,9 +4312,6 @@ integer,     intent(in), optional          ::  starting_band, &
  
 !----------------------------------------------------------------------c
 ! local variables:                                                     c
-
-      real, dimension (size(conc_ice,1), size(conc_ice,2),  &
-                       size(conc_ice,3))   ::  size_i
 
       real, dimension (NICECLDIVLS) ::  a0fu, a1fu,             &
                                         b0fu, b1fu, b2fu, b3fu,       &
@@ -4820,7 +4448,6 @@ integer,     intent(in), optional          ::  starting_band, &
         do j=1,size(conc_ice,2)
           do i=1,size(conc_ice,1)
 
-            if (dge_column(i,j,k)) then
 !----------------------------------------------------------------------
 !    if no ice crystals are present in a grid box, set the scattering
 !    parameters to zero.
@@ -4834,16 +4461,6 @@ integer,     intent(in), optional          ::  starting_band, &
               else !(conc_ice > 0)
                 mask(i,j,k) = .true.
 
-!--------------------------------------------------------------------
-!    the ice crystal effective size (D^sub^ge in fu's paper) is limited.
-!--------------------------------------------------------------------
-                if (size_ice(i,j,k) <= min_cld_ice_size) then
-                  size_i(i,j,k) = min_cld_ice_size      
-                else if (size_ice(i,j,k) > max_cld_ice_size ) then    
-                  size_i(i,j,k) = max_cld_ice_size         
-                else
-                  size_i(i,j,k) = size_ice(i,j,k)          
-                endif
 
 !---------------------------------------------------------------------
 !     compute the scattering parameters for each of the fu spectral 
@@ -4852,17 +4469,17 @@ integer,     intent(in), optional          ::  starting_band, &
                 do ni = nistart, niend
                   cldextivlice(i,j,k,ni) = 1.0E+03*conc_ice(i,j,k)*  &
                                            (a0fu(ni) + (a1fu(ni)/    &
-                                            size_i(i,j,k)     ))
+                                            size_ice(i,j,k)     ))
                   cldssalbivlice(i,j,k,ni) =  1.0 -                &
                                      ( b0fu(ni)                    +   &
-                                       b1fu(ni)*size_i(i,j,k)    +   &
-                                       b2fu(ni)*size_i(i,j,k)**2 +   &
-                                       b3fu(ni)*size_i(i,j,k)**3 )
+                                       b1fu(ni)*size_ice(i,j,k)    +   &
+                                       b2fu(ni)*size_ice(i,j,k)**2 +   &
+                                       b3fu(ni)*size_ice(i,j,k)**3 )
                   cldasymmivlice(i,j,k,ni) =                        &
                           c0fu(ni) +                                   &
-                          c1fu(ni)*size_i(i,j,k) +                   &
-                          c2fu(ni)*size_i(i,j,k)**2 +                &
-                          c3fu(ni)*size_i(i,j,k)**3
+                          c1fu(ni)*size_ice(i,j,k) +                   &
+                          c2fu(ni)*size_ice(i,j,k)**2 +                &
+                          c3fu(ni)*size_ice(i,j,k)**3
 
                   if (do_delta_adj .and. (.not. do_const_asy)) then
                     fd =                                           &
@@ -4908,9 +4525,6 @@ integer,     intent(in), optional          ::  starting_band, &
                   endif
                 end do
               endif ! (conc_ice > 0)
-            else ! (dge_column)
-              mask(i,j,k) = .false.
-            endif ! (dge_column)
           end do
         end do
       end do
@@ -4976,7 +4590,7 @@ end subroutine fu
 !  </OUT>
 ! </SUBROUTINE>
 !
-subroutine icesolar (conc_ice, size_ice, dge_column, cldextivlice,    &
+subroutine icesolar (conc_ice, size_ice, cldextivlice,    &
                      cldssalbivlice, cldasymmivlice, &
                      mask, &
                      starting_band, ending_band)
@@ -4989,7 +4603,6 @@ subroutine icesolar (conc_ice, size_ice, dge_column, cldextivlice,    &
 !----------------------------------------------------------------------
                                                                    
 real, dimension (:,:,:),   intent(in)   ::   conc_ice, size_ice
-logical, dimension (:,:,:),   intent(in)   ::   dge_column        
 real, dimension (:,:,:,:), intent(inout)  ::   cldextivlice,           &
                                                cldssalbivlice,         &
                                                cldasymmivlice
@@ -5034,8 +4647,6 @@ integer,  intent(in), optional            ::   starting_band, &
 !---------------------------------------------------------------------- 
 ! local variables:                                                      
 
-      real, dimension (size(conc_ice,1), size(conc_ice,2),  &
-                       size(conc_ice,3))   ::  size_i
       real, dimension (1:NICESOLARCLDIVLS, 0:NBB) :: b
       real, dimension (1:NICESOLARCLDIVLS, 0:NBC) :: c
       real, dimension (1:NICESOLARCLDIVLS, 0:NBD) :: d
@@ -5121,7 +4732,6 @@ integer,  intent(in), optional            ::   starting_band, &
         do j=1,size(conc_ice,2)
           do i=1,size(conc_ice,1)
 
-            if (.not. dge_column(i,j,k)) then
 !---------------------------------------------------------------------
 !    bypass calculations if no crystals are present. set scattering
 !    parameters to values comatible with the absence of cloud.
@@ -5136,43 +4746,32 @@ integer,  intent(in), optional            ::   starting_band, &
             else
               mask(i,j,k) = .true.
 
-              if (size_ice(i,j,k) < min_cld_ice_size) then           
-                size_i(i,j,k) = min_cld_ice_size             
-              else if(size_ice(i,j,k) > max_cld_ice_size ) then  
-                size_i(i,j,k) = max_cld_ice_size       
-              else
-                size_i(i,j,k) = size_ice(i,j,k)
-              endif
-
 !---------------------------------------------------------------------
 !     compute the scattering parameters for each of the fu spectral 
 !     intervals. the extinction coefficient is converted to km**(-1).  
 !---------------------------------------------------------------------
                 do ni = nistart,niend
                   cldextivlice(i,j,k,ni) = 1.0E+03*       &
-                         conc_ice(i,j,k)*(a0 + (a1/size_i(i,j,k))) 
+                         conc_ice(i,j,k)*(a0 + (a1/size_ice(i,j,k))) 
                   cldssalbivlice(i,j,k,ni) = 1.0 -           &
                              (b(7-ni,0) +                    &
-                              b(7-ni,1)*size_i(i,j,k) +    &
-                              b(7-ni,2)*size_i(i,j,k)**2 + &
-                              b(7-ni,3)*size_i(i,j,k)**3 )
+                              b(7-ni,1)*size_ice(i,j,k) +    &
+                              b(7-ni,2)*size_ice(i,j,k)**2 + &
+                              b(7-ni,3)*size_ice(i,j,k)**3 )
                   fgam2  =                                   &
                               c(7-ni,0) +                    &
-                              c(7-ni,1)*size_i(i,j,k) +    &
-                              c(7-ni,2)*size_i(i,j,k)**2 + &
-                              c(7-ni,3)*size_i(i,j,k)**3
+                              c(7-ni,1)*size_ice(i,j,k) +    &
+                              c(7-ni,2)*size_ice(i,j,k)**2 + &
+                              c(7-ni,3)*size_ice(i,j,k)**3
                   fdel2  =                                   &
                               d(7-ni,0) +                    &
-                              d(7-ni,1)*size_i(i,j,k) +    &
-                              d(7-ni,2)*size_i(i,j,k)**2 + &
-                              d(7-ni,3)*size_i(i,j,k)**3
+                              d(7-ni,1)*size_ice(i,j,k) +    &
+                              d(7-ni,2)*size_ice(i,j,k)**2 + &
+                              d(7-ni,3)*size_ice(i,j,k)**3
                   cldasymmivlice(i,j,k,ni) =                 &
                               ((1. - fdel2)*fgam2 + 3.*fdel2)/3.
                 end do
             endif
-           else
-             mask(i,j,k) = .false.
-           endif
           end do
         end do
       end do
@@ -5417,7 +5016,7 @@ end subroutine snowsw
 ! </SUBROUTINE>
 subroutine cloud_lwpar (nonly, nbmax, nnn, size_drop, size_ice,  &
                         size_rain, conc_drop, conc_ice, conc_rain,  &
-                        conc_snow, do_dge_lw, dge_column, isccp_call, &
+                        conc_snow, isccp_call, &
                         abscoeff)
  
 !----------------------------------------------------------------------
@@ -5432,10 +5031,8 @@ subroutine cloud_lwpar (nonly, nbmax, nnn, size_drop, size_ice,  &
 integer,                   intent(in)   ::   nonly, nbmax, nnn
 real, dimension (:,:,:,:), intent(in)   ::   size_drop, size_ice,    &
                                              conc_drop, conc_ice
-logical, dimension (:,:,:,:), intent(in)   :: dge_column
 real, dimension (:,:,:),   intent(in)   ::   size_rain, conc_rain,   &
                                              conc_snow
-logical,                   intent(in)   ::   do_dge_lw
 logical,                   intent(in)   ::   isccp_call
 real, dimension (:,:,:,:), intent(out)  ::   abscoeff
  
@@ -5451,10 +5048,6 @@ real, dimension (:,:,:,:), intent(out)  ::   abscoeff
 !       conc_ice     ice water concentation [ grams / meter**3 ] 
 !       conc_rain    rain drop water concentration [ grams / meter**3 ] 
 !       conc_snow    snow concentration [ grams / meter**3 ]  
-!       do_dge_lw    if true, use parameterization using generalized 
-!                    effective size developed by Fu et al (1998); other-
-!                    wise use parameterization by Fu et al using 
-!                    effective size.
 !                                    
 ! intent(out) variable:                                             
 !                                                                   
@@ -5469,11 +5062,10 @@ real, dimension (:,:,:,:), intent(out)  ::   abscoeff
                        size(conc_drop,3), N_EMISS_BDS)  ::    &
              cldextbndrainlw, cldssalbbndrainlw, cldasymmbndrainlw, &
              cldextbndsnowlw, cldssalbbndsnowlw, cldasymmbndsnowlw, &
-             cldextbndicelw,  cldssalbbndicelw,  cldasymmbndicelw,    &
-             cldextbnddroplw
+             cldextbndicelw,  cldssalbbndicelw,  cldextbnddroplw
       real, dimension (size(conc_drop,1), size(conc_drop,2), &
                        size(conc_drop,3)             )  ::    &
-             cldext, cldssa, cldasy, cldext2, cldssa2, cldasy2
+             cldext, cldssa, cldext2, cldssa2
       logical, dimension (size(conc_drop,1), size(conc_drop,2), &
                        size(conc_drop,3)             )  ::    &
                  maskf, maski
@@ -5595,20 +5187,20 @@ real, dimension (:,:,:,:), intent(out)  ::   abscoeff
           if (nbmax == 1) then
             call el_dge (n, conc_ice(:,:,:,nnn), size_ice(:,:,:,nnn),  &
                           
-                  dge_column(:,:,:,nnn), maskf, cldext, cldssa, cldasy)
+                  maskf, cldext, cldssa)
            else
              if (nonly.eq.0   .or. nonly.eq.n ) then            
              call el_dge (n, conc_ice(:,:,:,n), size_ice(:,:,:,n),  &
-                   dge_column(:,:,:,n), maskf, cldext, cldssa, cldasy)
+                   maskf, cldext, cldssa)
              end if ! for nonly
            endif ! for nbmax == 1
           if (nbmax == 1) then
             call el (n, conc_ice(:,:,:,nnn), size_ice(:,:,:,nnn),  &
-               dge_column(:,:,:,nnn), maski, cldext2, cldssa2, cldasy2)
+               maski, cldext2, cldssa2)
           else
             if (nonly.eq.0   .or. nonly.eq.n ) then            
             call el (n, conc_ice(:,:,:,n), size_ice(:,:,:,n),  &
-                 dge_column(:,:,:,n), maski, cldext2, cldssa2, cldasy2)
+                 maski, cldext2, cldssa2)
             endif ! for nonly 
           endif ! for nbmax == 1
  
@@ -5634,47 +5226,22 @@ real, dimension (:,:,:,:), intent(out)  ::   abscoeff
         end do
 
    else    ! (isccp_call)
-      if (do_dge_lw) then
-          maski = .false.
-        do n=1,Cldrad_control%nlwcldb
-          maski = .false.
-          if (nbmax == 1) then
-            call el_dge (n, conc_ice(:,:,:,nnn), size_ice(:,:,:,nnn),  &
-                          
-                         dge_column(:,:,:,nnn), maskf, &
-                         cldextbndicelw(:,:,:,n),     &
-                         cldssalbbndicelw(:,:,:,n),   &
-                         cldasymmbndicelw(:,:,:,n))
-           else
-             if (nonly.eq.0   .or. nonly.eq.n ) then            
-             call el_dge (n, conc_ice(:,:,:,n), size_ice(:,:,:,n),  &
-                         dge_column(:,:,:,n), maskf, &
-                          cldextbndicelw(:,:,:,n),     &
-                          cldssalbbndicelw(:,:,:,n),    &
-                          cldasymmbndicelw(:,:,:,n))
-             end if ! for nonly
-           endif ! for nbmax == 1
-         end do
-      else
           maskf = .false.
         do n=1,Cldrad_control%nlwcldb
           if (nbmax == 1) then
             call el (n, conc_ice(:,:,:,nnn), size_ice(:,:,:,nnn),  &
-                         dge_column(:,:,:,nnn), maski,  &
+                     maski,  &
                      cldextbndicelw(:,:,:,n),     &
-                     cldssalbbndicelw(:,:,:,n),    &
-                     cldasymmbndicelw(:,:,:,n))
+                     cldssalbbndicelw(:,:,:,n))
           else
             if (nonly.eq.0   .or. nonly.eq.n ) then            
             call el (n, conc_ice(:,:,:,n), size_ice(:,:,:,n),  &
-                         dge_column(:,:,:,n), maski,  &
+                     maski,  &
                      cldextbndicelw(:,:,:,n),     &
-                     cldssalbbndicelw(:,:,:,n),  &
-                     cldasymmbndicelw(:,:,:,n))
+                     cldssalbbndicelw(:,:,:,n))
             endif ! for nonly 
           endif ! for nbmax == 1
         end do
-      endif
  
     endif   ! (isccp_call)
 
@@ -5787,7 +5354,7 @@ real, dimension (:,:,:), intent(out)    ::   abscoeff
 
       real, dimension (size(conc_drop,1), size(conc_drop,2), &
                        size(conc_drop,3))                    ::   &
-                                     reff_ice, k_liq, k_ice, size_i
+                                     reff_ice, k_liq, k_ice
       integer  :: i, j, k
  
 !---------------------------------------------------------------------
@@ -5807,21 +5374,8 @@ real, dimension (:,:,:), intent(out)    ::   abscoeff
 !    reff_ice is the effective diameter obtained using an expression 
 !    provided by S. Klein. 
 !---------------------------------------------------------------------
-      do k=1,size(conc_ice,3)
-        do j=1,size(conc_ice,2)
-          do i=1,size(conc_ice,1)
-            if (size_ice(i,j,k) < min_cld_ice_size) then         
-              size_i(i,j,k) = min_cld_ice_size             
-            else if(size_ice(i,j,k) > max_cld_ice_size) then    
-              size_i(i,j,k) = max_cld_ice_size       
-            else
-              size_i(i,j,k) = size_ice(i,j,k)
-            endif
-          end do
-         end do
-      end do
-      reff_ice = ((0.1033741*size_i*size_i +      &
-                   0.2115169*(size_i**2.272))**0.5)
+      reff_ice = ((0.1033741*size_ice*size_ice +      &
+                   0.2115169*(size_ice**2.272))**0.5)
   
 !---------------------------------------------------------------------
 !    define the mass absorption coefficients for liquid and ice
@@ -5897,8 +5451,8 @@ end subroutine cloud_lwem_oneband
 !  </OUT>
 ! </SUBROUTINE>
 !
-subroutine el  (nb, conc_ice, size_ice, dge_column, mask,  &
-                cldextbndicelw, cldssalbbndicelw, cldasymmbndicelw)
+subroutine el  (nb, conc_ice, size_ice, mask,  &
+                cldextbndicelw, cldssalbbndicelw)
  
 !-----------------------------------------------------------------------
 !    subroutine el calculates total optical depth and scattering optical
@@ -5910,11 +5464,9 @@ subroutine el  (nb, conc_ice, size_ice, dge_column, mask,  &
 
 integer,                 intent(in)    ::  nb
 real, dimension (:,:,:),   intent(in)    ::  conc_ice, size_ice
-logical, dimension (:,:,:),   intent(in )    ::  dge_column        
 logical, dimension (:,:,:),   intent(out)    ::  mask              
 real, dimension (:,:,:  ), intent(out)   ::  cldextbndicelw,   &
-                                             cldssalbbndicelw,    &
-                                             cldasymmbndicelw
+                                             cldssalbbndicelw
 
 !----------------------------------------------------------------------
 !  intent(in) variables:                                            
@@ -5939,9 +5491,6 @@ real, dimension (:,:,:  ), intent(out)   ::  cldextbndicelw,   &
                                                                    
 !---------------------------------------------------------------------
 ! local variables:
-      real, dimension (size(conc_ice,1), size(conc_ice,2), &
-                       size(conc_ice,3))                    ::   &
-                                                    size_i
       integer     :: n
       integer     :: i, j,k
       real  ::          cldextivlice, cldssalbivlice
@@ -6034,24 +5583,9 @@ real, dimension (:,:,:  ), intent(out)   ::  cldextbndicelw,   &
 !
 !---------------------------------------------------------------------
 
-      do k=1,size(conc_ice,3)
-        do j=1,size(conc_ice,2)
-          do i=1,size(conc_ice,1)
-            if (size_ice(i,j,k) < min_cld_ice_size) then        
-              size_i(i,j,k) = min_cld_ice_size             
-            else if(size_ice(i,j,k) > max_cld_ice_size) then    
-              size_i(i,j,k) = max_cld_ice_size       
-            else
-              size_i(i,j,k) = size_ice(i,j,k)
-            endif
-          end do
-         end do
-      end do
-
       do k=1, size(conc_ice,3)
         do j=1, size(conc_ice,2)
           do i=1, size(conc_ice,1)
-            if ( .not. dge_column(i,j,k)) then
             sumext = 0.
             sumssalb = 0.
             if (conc_ice(i,j,k) /= 0.0) then
@@ -6073,6 +5607,7 @@ real, dimension (:,:,:  ), intent(out)   ::  cldextbndicelw,   &
 !    the asymmetry parameter is not currently used in the infrared 
 !    code. therefore its calculation is commented out.
 !-----------------------------------------------------------------------
+                ! MJT bug fix
                 cldssalbivlice  = 1.0E+00 -                           &
                                   (b(n,0) +                           &
                                    b(n,1)*size_ice(i,j,k) +           &
@@ -6101,12 +5636,6 @@ real, dimension (:,:,:  ), intent(out)   ::  cldextbndicelw,   &
             cldextbndicelw(i,j,k)   = sumext       
             cldssalbbndicelw(i,j,k) = sumssalb       
 !           cldasymmbndicelw(i,j,k,n) = sumasymm        
-             else
-                mask(i,j,k) = .false.
-            cldextbndicelw(i,j,k)   = 0.0          
-            cldssalbbndicelw(i,j,k) = 0.0            
-!           cldasymmbndicelw(i,j,k,n) = sumasymm        
-             endif
           end do
         end do
       end do
@@ -6159,8 +5688,8 @@ end subroutine el
 ! </SUBROUTINE>
 !  
  
-subroutine el_dge (nb, conc_ice, size_ice, dge_column, mask, &
-                   cldextbndicelw, cldssalbbndicelw, cldasymmbndicelw)
+subroutine el_dge (nb, conc_ice, size_ice, mask, &
+                   cldextbndicelw, cldssalbbndicelw)
  
 !-----------------------------------------------------------------------
 !    subroutine el_dge calculates the total optical depth and scattering
@@ -6174,11 +5703,9 @@ subroutine el_dge (nb, conc_ice, size_ice, dge_column, mask, &
 
 integer,                   intent(in)    ::  nb
 real, dimension (:,:,:),   intent(in)    ::  conc_ice, size_ice
-logical, dimension (:,:,:),   intent(in)    ::  dge_column
 logical, dimension (:,:,:),   intent(out)    ::  mask       
 real, dimension (:,:,:  ), intent(out)   ::  cldextbndicelw,   &
-                                             cldssalbbndicelw,    &
-                                             cldasymmbndicelw
+                                             cldssalbbndicelw
 
 !----------------------------------------------------------------------
 !   intent(in) variables:                                            
@@ -6202,9 +5729,6 @@ real, dimension (:,:,:  ), intent(out)   ::  cldextbndicelw,   &
  
 !---------------------------------------------------------------------
 !  local variables:                                                   
-      real, dimension (size(conc_ice,1), size(conc_ice,2), &
-                       size(conc_ice,3))                    ::   &
-                                                    size_i
       integer     :: n, m
       integer     :: i,j,k
  
@@ -6385,31 +5909,16 @@ real, dimension (:,:,:  ), intent(out)   ::  cldextbndicelw,   &
 ! 
 !----------------------------------------------------------------------
 
-      do k=1,size(conc_ice,3)
-        do j=1,size(conc_ice,2)
-          do i=1,size(conc_ice,1)
-            if (size_ice(i,j,k) < min_cld_ice_size) then       
-              size_i(i,j,k) = min_cld_ice_size             
-            else if(size_ice(i,j,k) > max_cld_ice_size ) then  
-              size_i(i,j,k) = max_cld_ice_size       
-            else
-              size_i(i,j,k) = size_ice(i,j,k)
-            endif
-          end do
-         end do
-      end do
-
       do k=1, size(conc_ice,3)
         do j=1, size(conc_ice,2)
           do i=1, size(conc_ice,1)
-            if (dge_column(i,j,k)) then
               sumext = 0.
               sumssalb = 0.
               if (conc_ice(i,j,k) /= 0.0) then
                 mask (i,j,k)= .true.
 
                 if ((Cldrad_control%using_fu2007 .and.    &
-                    size_i(i,j,k) > 15.0) .or. &
+                    size_ice(i,j,k) > 15.0) .or. &
                     .not. Cldrad_control%using_fu2007) then
 
 !-----------------------------------------------------------------------
@@ -6417,8 +5926,8 @@ real, dimension (:,:,:  ), intent(out)   ::  cldextbndicelw,   &
 !    band of the Fu-Liou parameterization (not the radiation
 !    code wavenumber bands).
 !-----------------------------------------------------------------------
-      do n=1,NBFL                                                      
-          cldextivlice          = 1.0E+03*conc_ice(i,j,k)*           &
+                  do n=1,NBFL                                   
+                    cldextivlice          = 1.0E+03*conc_ice(i,j,k)*  &
                                   (a0(n) +                           &
                                    a1(n)*(1.0/size_ice(i,j,k)) +     &
                                    a2(n)*(1.0/size_ice(i,j,k)**2))
@@ -6427,7 +5936,8 @@ real, dimension (:,:,:  ), intent(out)   ::  cldextbndicelw,   &
 !    calculate the absorption coefficient. convert to units of 
 !    [ km**(-1) ].
 !-----------------------------------------------------------------------
-          cldabsivlice          = 1.0E+03*conc_ice(i,j,k)*      &
+!-----------------------------------------------------------------------
+                    cldabsivlice          = 1.0E+03*conc_ice(i,j,k)*   &
                                   (1.0/size_ice(i,j,k))*        &       
                                    (b(n,0) +                    &
                                     b(n,1)*size_ice(i,j,k) +    &
@@ -6439,18 +5949,19 @@ real, dimension (:,:,:  ), intent(out)   ::  cldextbndicelw,   &
 !    not currently used in the infrared code, so its calculation is
 !    commented out.
 !-----------------------------------------------------------------------
-      if    (cldextivlice /= 0.0) then
-        cldssalbivlice = 1.0E+00 - cldabsivlice/cldextivlice
-      else
-        cldssalbivlice = 0.0
-      endif 
+                    if (cldextivlice /= 0.0) then
+                      cldssalbivlice = 1.0E+00 -    &
+                                             cldabsivlice/cldextivlice
+                    else
+                      cldssalbivlice = 0.0
+                    endif 
  
-!     do n=1,NBFL                                                      
-!       cldasymmivlice(:,:,:,n) = cpr(n,0) +                        &
+!                   do n=1,NBFL                                        
+!                     cldasymmivlice(:,:,:,n) = cpr(n,0) +        &
 !                                 cpr(n,1)*size_ice(:,:,:) +        &
 !                                 cpr(n,2)*size_ice(:,:,:)**2 +     &
 !                                 cpr(n,3)*size_ice(:,:,:)**3
-!     end do
+!                   end do
  
 !-----------------------------------------------------------------------
 !    use the band weighting factors computed in microphys_rad_init
@@ -6476,10 +5987,10 @@ real, dimension (:,:,:  ), intent(out)   ::  cldextbndicelw,   &
 !-----------------------------------------------------------------------
                   do n=1,NBFL                          
                     m = NBFL - n + 1
-                    fw1 = size_i(i,j,k)
-                    fw2 = fw1*size_i(i,j,k)
-                    fw3 = fw2*size_i(i,j,k)
-                    fw4 = fw3*size_i(i,j,k)
+                    fw1 = size_ice(i,j,k)
+                    fw2 = fw1*size_ice(i,j,k)
+                    fw3 = fw2*size_ice(i,j,k)
+                    fw4 = fw3*size_ice(i,j,k)
        
                     cldextivlice   = 1.0E+03*conc_ice(i,j,k)/fw1*  &
                                  (aa(1,m) +       &
@@ -6545,12 +6056,6 @@ real, dimension (:,:,:  ), intent(out)   ::  cldextbndicelw,   &
               cldextbndicelw(i,j,k) = sumext
               cldssalbbndicelw(i,j,k) = sumssalb
 !             cldasymmbndicelw(:,:,:,n) = sumasymm(:,:,:)
-            else  ! (dge_column)
-              mask(i,j,k) = .false.
-              cldextbndicelw(i,j,k) = 0.0        
-              cldssalbbndicelw(i,j,k) = 0.0          
-!             cldasymmbndicelw(:,:,:,n) = sumasymm(:,:,:)
-            endif !(dge_column)
           end do
         end do
       end do

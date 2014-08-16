@@ -93,11 +93,11 @@
       real, dimension(3*kl+1) :: dumc
       real, dimension(2) :: dumd
       real rlonx,rlatx,alf
-      real aamax, aamax_g, c, cent, 
+      real c, cent, 
      &     coslat, coslong, costh, den, diffb, diffg, dist,
      &     epsmax, fracs, fracwet, ftsoil, gwdfac, hefact,
-     &     helim, hemax, hemax_g, polenx, poleny, polenz, pslavge,
-     &     rad, radu, radv, ri, rj, rlat_d, rlon_d, ! MJT cable - delete rlai
+     &     helim, polenx, poleny, polenz, pslavge,
+     &     rad, radu, radv, ri, rj, rlat_d, rlon_d,
      &     rmax, rmin, rmax_g, rmin_g, rlatd, rlongd, 
      &     sinlat, sinlong, sinth, snalb,sumdsig, thet, timegb, tsoil, 
      &     uzon, vmer, wet3, zonx, zony, zonz, zsdiff, zsmin, tstom, 
@@ -1800,28 +1800,29 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
       if(myid==0)write(6,*)'hefact,helim,gwdfac: ',hefact,helim,gwdfac
       helo(:)=0.
       if(lgwd>0)then
-        aamax=0.
+!        aamax=0.
         do iq=1,ifull
-         aa(iq)=0.  ! for sea
          if(land(iq))then
            if(he(iq)==0.)write(6,*)'zero he over land for iq = ',iq
            aa(iq)=min(gwdfac*max(he(iq),.01),.8*zmin)   ! already in meters
-           aamax=max(aamax,aa(iq))
+!           aamax=max(aamax,aa(iq))
 !          replace he by square of corresponding af value
            helo(iq)=( .4/log(zmin/aa(iq)) )**2
+         else
+           aa(iq)=0.  ! for sea
          endif
         enddo   ! iq loop
         if(mydiag)write(6,*)'for lgwd>0, typical zo#: ', diagvals(aa)
 !     & 	 ((aa(ii+(jj-1)*il),ii=id-1,id+1),jj=jd+1,jd-1,-1)
-        dumd(1)=aamax
-        call ccmpi_reduce(dumd(1:1),dumd(2:2),"max",0,comm_world)
-        aamax_g=dumd(2)
-        if(myid==0)write(6,*)'for lgwd>0, aamax: ',aamax_g
+!        dumd(1)=aamax
+!        call ccmpi_reduce(dumd(1:1),dumd(2:2),"max",0,comm_world)
+!        aamax_g=dumd(2)
+!        if(myid==0)write(6,*)'for lgwd>0, aamax: ',aamax_g
       end if ! lgwd>0
       if (ngwd/=0) then
-        hemax=0.
+!        hemax=0.
         do iq=1,ifull
-         hemax=max(he(iq),hemax)
+!         hemax=max(he(iq),hemax)
 !****    limit launching height : Palmer et al use limit on variance of
 !****    (400 m)**2. we use launching height = std dev. we limit
 !****    launching height to  2*400=800 m. this may be a bit severe.
@@ -1829,25 +1830,24 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
 !****    himalayas etc.
          he(iq)=min(hefact*he(iq),helim)
         enddo
-        dumd(1)=hemax
-        call ccmpi_allreduce(dumd(1:1),dumd(2:2),"max",comm_world)
-        hemax_g=dumd(2)
-        hemax = hemax_g
-        if(hemax==0.)then
-!         use he of 30% of orography, i.e. zs*.3/grav
-          do iq=1,ifull
-           he(iq)=min(hefact*zs(iq)*.3/grav , helim)
-           hemax=max(he(iq),hemax)
-          enddo ! iq loop
-        endif   ! (hemax==0.)
-        if (nmaxpr==1) then
-          dumd(1)=hemax
-          call ccmpi_reduce(dumd(1:1),dumd(2:2),"max",0,comm_world)
-          if (myid==0) then
-            hemax_g=dumd(2)
-            write(6,*)'final hemax = ',hemax_g
-          end if
-        end if
+!        dumd(1) = hemax
+!        call ccmpi_allreduce(dumd(1:1),dumd(2:2),"max",comm_world)
+!        hemax = dumd(2)
+!        if(hemax==0.)then
+!!         use he of 30% of orography, i.e. zs*.3/grav
+!          do iq=1,ifull
+!           he(iq)=min(hefact*zs(iq)*.3/grav , helim)
+!           hemax=max(he(iq),hemax)
+!          enddo ! iq loop
+!        endif   ! (hemax==0.)
+!        if (nmaxpr==1) then
+!          dumd(1)=hemax
+!          call ccmpi_reduce(dumd(1:1),dumd(2:2),"max",0,comm_world)
+!          if (myid==0) then
+!            hemax_g=dumd(2)
+!            write(6,*)'final hemax = ',hemax_g
+!          end if
+!        end if
       endif     ! (ngwd.ne.0)
 
 

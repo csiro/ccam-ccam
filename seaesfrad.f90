@@ -213,7 +213,7 @@ if ( first ) then
   call sealw99_init(pref, Lw_tables)
   call esfsw_parameters_init
   call esfsw_driver_init
-  call microphys_rad_init(8.4_8,33.2_8,18.6_8,130.2_8)
+  call microphys_rad_init
 
   allocate ( Atmos_input%press(imax, 1, kl+1) )
   allocate ( Atmos_input%phalf(imax, 1, kl+1) )
@@ -349,12 +349,14 @@ if ( first ) then
     end if
     Aerosol_props%optical_index(4)=720                            ! organic carbon (hydrophobic)
     Aerosol_props%optical_index(5)=Aerosol_props%omphilic_flag    ! organic carbon (hydrophillic)
-    Aerosol_props%optical_index(6)=710                            ! dust 1-2  (using 1.4)
-    Aerosol_props%optical_index(7)=711                            ! dust 2-3  (using 2.8)
-    Aerosol_props%optical_index(8)=712                            ! dust 3-6  (using 4.8)
-    Aerosol_props%optical_index(9)=713                            ! dust 6-10 (using 9.0)
+    Aerosol_props%optical_index(6)=710                            ! dust_1.0  (using 1.4)
+    Aerosol_props%optical_index(7)=711                            ! dust_2.0  (using 2.8)
+    Aerosol_props%optical_index(8)=712                            ! dust_4.0  (using 4.8)
+    Aerosol_props%optical_index(9)=713                            ! dust_8.0  (using 9.0)
     Aerosol_props%optical_index(10)=705                           ! sea_salt (film drop 1-2.5)
     Aerosol_props%optical_index(11)=705                           ! sea_salt (jet drop 10)
+    ! GFDL bins dust1=0.1-0.5, dust2=0.5-1, dust3=1-2.5, dust4=2.5-5, dust5=5-10
+    ! GFDL bins salt1=0.1-0.5, salt2=0.5-1, salt3=1-2.5, salt4=2.5-5, dust5=5-10
 
     Aerosol_props%sulfate_index( 0: 13, 0)=(/  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 /)
     Aerosol_props%sulfate_index(14: 27, 0)=(/  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 /)
@@ -464,7 +466,7 @@ if ( first ) then
       Aerosol_props%sulfate_index(:,97)=Aerosol_props%sulfate_index(:,96)
       Aerosol_props%sulfate_index(:,98)=Aerosol_props%sulfate_index(:,97) + 26
       Aerosol_props%sulfate_index(:,99)=Aerosol_props%sulfate_index(:,98)
-      Aerosol_props%sulfate_index(:,100)=Aerosol_props%sulfate_index(:,99)    ! 0%
+      Aerosol_props%sulfate_index(:,100)=Aerosol_props%sulfate_index(:,99)     ! 0%
     end if
     Aerosol_props%bcphilic_index( 0: 13)=(/ 722, 722, 722, 722, 722, 722, 722, 722, 722, 722, 722, 722, 722, 722 /)
     Aerosol_props%bcphilic_index(14: 27)=(/ 722, 722, 722, 722, 722, 722, 722, 722, 722, 722, 722, 722, 722, 722 /)
@@ -717,18 +719,18 @@ do j=1,jl,imax/il
           Aerosol%aerosol(:,1,kr,3) =real(xtg(istart:iend,k,5)*dprf/grav,8)  ! bc hydrophilic
           Aerosol%aerosol(:,1,kr,4) =real(xtg(istart:iend,k,6)*dprf/grav,8)  ! oc hydrophobic
           Aerosol%aerosol(:,1,kr,5) =real(xtg(istart:iend,k,7)*dprf/grav,8)  ! oc hydrophilic
-          Aerosol%aerosol(:,1,kr,6) =real(xtg(istart:iend,k,8)*dprf/grav,8)  ! dust 0.1-1
-          Aerosol%aerosol(:,1,kr,7) =real(xtg(istart:iend,k,9)*dprf/grav,8)  ! dust 1-2
-          Aerosol%aerosol(:,1,kr,8) =real(xtg(istart:iend,k,10)*dprf/grav,8) ! dust 2-3
-          Aerosol%aerosol(:,1,kr,9) =real(xtg(istart:iend,k,11)*dprf/grav,8) ! dust 3-6
-          Aerosol%aerosol(:,1,kr,10)=real(2.64e-18*ssn(istart:iend,k,1) &
-                                     /rhoa(:,k)*dprf/grav,8)  ! Small sea salt (0.035)
-          Aerosol%aerosol(:,1,kr,11)=real(1.38e-15*ssn(istart:iend,k,2) &
-                                     /rhoa(:,k)*dprf/grav,8)  ! Large sea salt (0.35)
-          !Aerosol%aerosol(:,1,kr,10)=real(5.3e-17*ssn(istart:iend,k,1) &
-          !                           /rhoa(:,k)*dprf/grav,8)  ! Small sea salt (0.1)
-          !Aerosol%aerosol(:,1,kr,11)=real(9.1e-15*ssn(istart:iend,k,2) &
-          !                           /rhoa(:,k)*dprf/grav,8)  ! Large sea salt (0.5)
+          Aerosol%aerosol(:,1,kr,6) =real(xtg(istart:iend,k,8)*dprf/grav,8)  ! dust 1-2
+          Aerosol%aerosol(:,1,kr,7) =real(xtg(istart:iend,k,9)*dprf/grav,8)  ! dust 2-3
+          Aerosol%aerosol(:,1,kr,8) =real(xtg(istart:iend,k,10)*dprf/grav,8) ! dust 3-6
+          Aerosol%aerosol(:,1,kr,9) =real(xtg(istart:iend,k,11)*dprf/grav,8) ! dust 6-10
+          !Aerosol%aerosol(:,1,kr,10)=real(2.64e-18*ssn(istart:iend,k,1) &
+          !                           /rhoa(:,k)*dprf/grav,8)  ! Small film sea salt (0.035)
+          !Aerosol%aerosol(:,1,kr,11)=real(1.38e-15*ssn(istart:iend,k,2) &
+          !                           /rhoa(:,k)*dprf/grav,8)  ! Large jet sea salt (0.35)
+          Aerosol%aerosol(:,1,kr,10)=real(5.3e-17*ssn(istart:iend,k,1) &
+                                     /rhoa(:,k)*dprf/grav,8)  ! Small film sea salt (0.1)
+          Aerosol%aerosol(:,1,kr,11)=real(9.1e-15*ssn(istart:iend,k,2) &
+                                     /rhoa(:,k)*dprf/grav,8)  ! Large jet sea salt (0.5)
         end do
         Aerosol%aerosol=max(Aerosol%aerosol,0._8)
         

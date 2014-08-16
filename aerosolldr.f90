@@ -405,63 +405,6 @@ enddo
 dmsso2o=dmsoh+dmsn3        ! oxidation of DMS to SO2
 so2so4o=so2oh+so2h2+so2o3  ! oxidation of SO2 to SO4
 
-!! diagnostics?
-
-!! Seasalt diagnostics
-!! Compute sea salt burden
-!do nt = 1,3
-!  do k=1,nl
-!    hssb(:)=hssb(:)+xss(:,k,nt)*dprf(:,k)/grav
-!  enddo
-!enddo
-!do mg=1,ln2
-!  hssn(mg)=hssn(mg)+1.e-6*(ssn(mg,1,1)+ssn(mg,1,2)) ! Number conc. in /cm3
-!  hssm(mg)=hssm(mg)+ssn(mg,1,3) ! ssn(:,:,3) holds total mass conc. in kg/m3
-!enddo
-
-!do k=1,kl
-!  ! Factor 1.e6 for sulfur fields to convert to mg/m2
-!  hdms(:)=hdms(:)+1.e6*xtg(:,k,1)*dprf(:,k)/grav
-!  hso2(:)=hso2(:)+1.e6*xtg(:,k,2)*dprf(:,k)/grav
-!  hso4(:)=hso4(:)+1.e6*xtg(:,k,3)*dprf(:,k)/grav
-!enddo
-!hso2dd(:)=hso2dd(:)+so2dd(:)*1.e12  !In 10^-12 kg/m2/s
-!hso4dd(:)=hso4dd(:)+so4dd(:)*1.e12  ! ditto
-!hso2wd(:)=hso2wd(:)+so2wd(:)*1.e12  !In 10^-12 kg/m2/s
-!hso4wd(:)=hso4wd(:)+so4wd(:)*1.e12  ! ditto
-!hscwd(:) =hscwd(:)+(conwd(:,2)+conwd(:,3))*1.e12  ! ditto
-!hsem(:)  =hsem(:)  +sem(:)  *1.e12  ! ditto
-!hso2oh(:)=hso2oh(:)+so2oh(:)*1.e12  !In 10^-12 kg/m2/s
-!hso2h2(:)=hso2h2(:)+so2h2(:)*1.e12  !In 10^-12 kg/m2/s
-!hso2o3(:)=hso2o3(:)+so2o3(:)*1.e12  !In 10^-12 kg/m2/s
-!hdmsoh(:)=hdmsoh(:)+dmsoh(:)*1.e12  !In 10^-12 kg/m2/s
-!hdmsn3(:)=hdmsn3(:)+dmsn3(:)*1.e12  !In 10^-12 kg/m2/s
-!hdms1(:) =hdms1(:)+1.e9*xtg(:,1,1)*rho1(:) !In ugS/m3
-!hso21(:) =hso21(:)+1.e9*xtg(:,1,2)*rho1(:) !In ugS/m3
-!hso41(:) =hso41(:)+1.e9*xtg(:,1,3)*rho1(:) !In ugS/m3
-!
-!! Carbonaceous stuff
-!  do k=1,nl
-!    ! Factor 1.e9 for carbon fields to convert to ug/m2
-!    hbcb(:)=hbcb(:)+1.e9*(xtg(:,k,itracbc)+xtg(:,k,itracbc+1))*dprf(:,k)/grav
-!    hocb(:)=hocb(:)+1.e9*(xtg(:,k,itracoc)+xtg(:,k,itracoc+1))*dprf(:,k)/grav
-!  enddo
-!  hbc1(:)=hbc1(:)+1.e12*rho1(:)*(xtg(:,1,itracbc)+xtg(:,1,itracbc+1)) !In ngC/m3
-!  hoc1(:)=hoc1(:)+1.e12*rho1(:)*(xtg(:,1,itracoc)+xtg(:,1,itracoc+1)) !In ngC/m3
-
-!! Dust diagnostics
-!  do nt=itracdu,itracdu+ndust-1
-!    hdust(:)=hdust(:)+1.e9*rho1(:)*xtg(:,1,nt) !In ug/m3
-!  enddo
-!hdustd(:)=sum(dustdd(:)+dustwd(:))*3.154e10 !In g/m2/yr
-!hduste(:)=sum(duste(:))*3.154e10            !In g/m2/yr
-!  do k=1,kl
-!    do nt=itracdu,itracdu+ndust-1  !all dust
-!      ! Factor 1.e6 to convert to mg/m2
-!      hdustb(:)=hdustb(:)+1.e6*xtg(1:ifull,k,nt)*(-prf(:)*dsig(k))/grav
-!    enddo
-!  enddo
-
 return
 end subroutine aldrcalc
 
@@ -1451,8 +1394,9 @@ DO JT=ITRACSO2,naero
     DO JK=KTOP,kl
       DO JL=1,ifull
         ZXTP1=(1.-pclcover(jl,jk)-pclcon(jl,jk))*ZXTP10(JL,JK)+ &
-               PCLCOVER(JL,JK)*ZXTP1C(JL,JK)                    &
-               + pclcon(jl,jk)*zxtp1con(jl,jk)
+               PCLCOVER(JL,JK)*ZXTP1C(JL,JK)+                   &
+               pclcon(jl,jk)*zxtp1con(jl,jk)
+        zxtp1=max(zxtp1,0.)
         ZDXTE(JL,JK,JT)=(ZXTP1-XTM1(JL,JK,JT))*PQTMST  !Total tendency (Dep + chem)
       end do
     end do
@@ -1725,29 +1669,26 @@ do JK=KTOP,kl
 
 ! In-cloud ice scavenging (including vertical redistribution when snow
 ! evaporates or falls into a layer). Include accretion of ql by snow.
-  if(Ecols(ktrac)>zmin)then
+  if ( Ecols(ktrac)>zmin ) then
     do jl=1,ifull
-      !if(pmiwc(jl,jk)>zmin)then
-      if(pmiwc(jl,jk)>1.E-8)then ! MJT suggestion
+      if ( pmiwc(jl,jk)>zmin ) then
         ziicscav=Ecols(ktrac)*pqfsed(jl,jk) !qfsed is the fractional sedimentation in dt
-        ziicscav=min(ziicscav,1.)        
+        ziicscav=min(ziicscav, 1.)        
         xdep=pxtp10(jl,jk)*ziicscav*pcfcover(jl,jk)
         pdep3d(jl,jk)=pdep3d(jl,jk)+xdep
-        pxtp10(jl,jk)=pxtp10(jl,jk)                                 &
-              *(zclear(jl)/(1.-pclcover(jl,jk))                     &
-              +(1.-ziicscav)*pcfcover(jl,jk)/(1.-pclcover(jl,jk)))
+        !pxtp10(jl,jk)=pxtp10(jl,jk)*(zclear(jl)+(1.-ziicscav)*pcfcover(jl,jk))/(1.-pclcover(jl,jk))
+        pxtp10(jl,jk)=pxtp10(jl,jk)-xdep/zclr0(jl) ! MJT suggestion
         zdeps(jl)=zdeps(jl)+xdep*zmtof(jl)
       endif
     enddo
   endif
 
 ! This loop does riming (accretion of liquid water by falling snow)
-  if(Rcoeff(ktrac)>zmin)then
+  if ( Rcoeff(ktrac)>zmin ) then
     do jl=1,ifull
-      !if(pmlwc(jl,jk)>zmin)then
-      if(pmlwc(jl,jk)>1.E-8)then ! MJT suggestion
+      if ( pmlwc(jl,jk)>zmin ) then
         zilcscav=Rcoeff(ktrac)*psolub(jl,jk)*(pmaccr(jl,jk)*ptmst/pmlwc(jl,jk))
-        zilcscav=min(zilcscav,1.)        
+        zilcscav=min(zilcscav, 1.)        
         xdep=pxtp1c(jl,jk)*zilcscav*pclcover(jl,jk)
         pdep3d(jl,jk)=pdep3d(jl,jk)+xdep
         pxtp1c(jl,jk)=pxtp1c(jl,jk)*(1.-zilcscav)
@@ -1797,7 +1738,7 @@ do JK=KTOP,kl
   !  In-cloud scavenging by warm-rain processes (autoconversion and collection)
   do jl=1,ifull
     !if(pmratep(jl,jk)>zmin) then
-    if(pmratep(jl,jk)>zmin.and.pmlwc(jl,jk)>1.E-8) then ! MJT suggestion
+    if(pmratep(jl,jk)>zmin.and.pmlwc(jl,jk)>zmin) then ! MJT suggestion
       zicscav=psolub(jl,jk)*(pmratep(jl,jk)*ptmst/pmlwc(jl,jk))
       zicscav=min(zicscav,1.)
       xicscav=pxtp1c(jl,jk)*zicscav*pclcover(jl,jk) !gridbox mean
@@ -1952,7 +1893,6 @@ do iq=1,ifull
       Vd_cor(kl) =2./9.*grav*dustden(k)*dustreff(k)**2/C_Stokes*C_Cun
       ! Update mixing ratio
       xtg(iq,kl,k+itracdu-1) = xtg(iq,kl,k+itracdu-1) / (1. + dt_settl*VD_cor(kl)/DELZ(iq,kl))
-      xtg(iq,kl,k+itracdu-1) = max( xtg(iq,kl,k+itracdu-1), 0. )
 
       ! Solve each vertical layer successively (layer l)
       do l = kl-1,1,-1
@@ -1964,10 +1904,9 @@ do iq=1,ifull
         ! Settling velocity
         Vd_cor(l) = 2./9.*grav*dustden(k)*dustreff(k)*dustreff(k)/C_Stokes*C_Cun
         ! Update mixing ratio
-        xtg(iq,l,k+itracdu-1) = 1./(1. + dt_settl*Vd_cor(l)/DELZ(iq,l))                            &
-            *(xtg(iq,l,k+itracdu-1) + dt_settl*Vd_cor(l+1)/DELZ(iq,l+1)*xtg(iq,l+1,k+itracdu-1)    &
+        xtg(iq,l,k+itracdu-1) = 1./(1. + dt_settl*Vd_cor(l)/DELZ(iq,l))                          &
+            *(xtg(iq,l,k+itracdu-1) + dt_settl*Vd_cor(l+1)/DELZ(iq,l)*xtg(iq,l+1,k+itracdu-1)    &
              *rhoa(iq,l+1)/rhoa(iq,l))  ! MJT suggestion
-        xtg(iq,l,k+itracdu-1) = max( xtg(iq,l,k+itracdu-1), 0. )
       end do
     end do
   end do
@@ -1977,7 +1916,7 @@ end do
 dcol2 = 0.
 do n=itracdu,itracdu+ndust-1
   do k=1,kl
-    dcol2 = dcol2 + rhoa(:,k) * xtg(1:ifull,k,n)* delz (:,k)
+    dcol2 = dcol2 + rhoa(:,k) * xtg(1:ifull,k,n) * delz (:,k)
   enddo
 enddo
 
@@ -2059,10 +1998,8 @@ do n = 1, ndust
   dsrc = max( 0., dsrc )
 
 ! Calculate dust mixing ratio tendency at first model level.
-  !airmas = dxy * dz1 * rhoa ! kg
   airmas = dz1 * rhoa ! kg/m2 - MJT suggestion
   a = dsrc / airmas
-  !duste = duste + a*rhoa*dz1
   duste = duste + dsrc ! MJT suggestion
 
 ! Calculate turbulent dry deposition at surface
