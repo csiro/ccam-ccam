@@ -5170,7 +5170,7 @@ real, dimension (:,:,:,:), intent(out)  ::   abscoeff
         if (nbmax == 1) then
           call cliqlw (conc_drop(:,:,:,nnn), cldextbnddroplw(:,:,:,n))
         else
-          if (nonly.eq.0   .or. nonly.eq.n ) then            
+          if (nonly==0   .or. nonly==n ) then            
             call cliqlw (conc_drop(:,:,:,n), cldextbnddroplw(:,:,:,n))
           endif 
         endif 
@@ -5226,21 +5226,19 @@ real, dimension (:,:,:,:), intent(out)  ::   abscoeff
         end do
 
    else    ! (isccp_call)
-          maskf = .false.
+        maskf = .false.
         do n=1,Cldrad_control%nlwcldb
           if (nbmax == 1) then
             call el (n, conc_ice(:,:,:,nnn), size_ice(:,:,:,nnn),  &
                      maski,  &
                      cldextbndicelw(:,:,:,n),     &
                      cldssalbbndicelw(:,:,:,n))
-          else
-            if (nonly.eq.0   .or. nonly.eq.n ) then            
+          else if (nonly==0   .or. nonly==n ) then            
             call el (n, conc_ice(:,:,:,n), size_ice(:,:,:,n),  &
                      maski,  &
                      cldextbndicelw(:,:,:,n),     &
                      cldssalbbndicelw(:,:,:,n))
-            endif ! for nonly 
-          endif ! for nbmax == 1
+          endif ! for nonly  ! for nbmax == 1
         end do
  
     endif   ! (isccp_call)
@@ -5607,7 +5605,6 @@ real, dimension (:,:,:  ), intent(out)   ::  cldextbndicelw,   &
 !    the asymmetry parameter is not currently used in the infrared 
 !    code. therefore its calculation is commented out.
 !-----------------------------------------------------------------------
-                ! MJT bug fix
                 cldssalbivlice  = 1.0E+00 -                           &
                                   (b(n,0) +                           &
                                    b(n,1)*size_ice(i,j,k) +           &
@@ -5629,9 +5626,9 @@ real, dimension (:,:,:  ), intent(out)   ::  cldextbndicelw,   &
               end do
             else 
               mask(i,j,k) = .false.
-        cldextbndicelw(i,j,k) = 0.0        
-        cldssalbbndicelw(i,j,k) = 0.0          
-!       cldasymmbndicelw(:,:,:,n) = sumasymm(:,:,:)
+              cldextbndicelw(i,j,k) = 0.0        
+              cldssalbbndicelw(i,j,k) = 0.0          
+!             cldasymmbndicelw(:,:,:,n) = sumasymm(:,:,:)
             endif
             cldextbndicelw(i,j,k)   = sumext       
             cldssalbbndicelw(i,j,k) = sumssalb       
@@ -6306,7 +6303,7 @@ real, dimension (:,:,:  ), intent(out)   ::   cldextbndrainlw,    &
             endif
             cldextbndrainlw  (i,j,k  ) = sumext
             cldssalbbndrainlw(i,j,k  ) = sumssalb
-            cldasymmbndrainlw(:,:,:  ) = sumasymm
+            cldasymmbndrainlw(i,j,k  ) = sumasymm
           end do
         end do
       end do
