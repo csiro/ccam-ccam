@@ -2800,7 +2800,7 @@ elsewhere
   con=2.*condsnw/max(it_dsn,icemin)
 end where
 tnew=it_tsurf+con*(it_tn0-it_tsurf)/(gamms/dt+con)
-fs=con*(it_tn0-tnew)
+fs=con*(it_tn0-0.5*(tnew+it_tsurf))
 it_tsurf=it_tsurf+dt*(dt_ftop+fs)/gamms
 
 ! fluxes between snow and ice layers
@@ -2968,7 +2968,7 @@ real, dimension(nc), intent(in) :: pt_egice
 rhin=real(dt_nk)/it_dic
 con=2.*condice*rhin
 tnew=it_tsurf+con*(it_tn1-it_tsurf)/(gammi/dt+con)
-ftopadj=con*(it_tn1-tnew)
+ftopadj=con*(it_tn1-0.5*(tnew+it_tsurf))
 it_tsurf=it_tsurf+dt*(dt_ftop+ftopadj)/gammi
 
 ! Surface evap/sublimation (can be >0 or <0)
@@ -3108,7 +3108,7 @@ real, dimension(nc), intent(in) :: pt_egice
 con=1./(it_dsn/condsnw+max(it_dic,icemin)/condice)
 gamm=(gammi*max(it_dic,icemin)+gamms*it_dsn)/(max(it_dic,icemin)+it_dsn) ! for energy conservation
 tnew=it_tsurf+con*(dt_tb-it_tsurf)/(gamm/dt+con)
-f0=con*(dt_tb-tnew) ! flux from below
+f0=con*(dt_tb-0.5*(tnew+it_tsurf)) ! flux from below
 f0=min(max(f0,-1000.),1000.)
 dhb=dt*(f0-dt_fb)/qice
 dhb=max(dhb,-it_dic)
@@ -3194,7 +3194,7 @@ real, dimension(nc), intent(in) :: pt_egice
 ! Update tsurf and ti based on fluxes from above and below
 con=condice/max(it_dic,icemin)
 tnew=it_tsurf+con*(dt_tb-it_tsurf)/(gammi/dt+con)
-f0=con*(dt_tb-tnew) ! flux from below
+f0=con*(dt_tb-0.5*(tnew+it_tsurf)) ! flux from below
 f0a=min(max(f0,-1000.),1000.)
 dhb=dt*(f0a-dt_fb)/qice
 dhb=max(dhb,-it_dic)
