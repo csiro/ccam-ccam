@@ -58,23 +58,23 @@ real, dimension(:), allocatable, save :: p_zoice,p_zohice,p_zoqice,p_cdice,p_cds
 real, dimension(:), allocatable, save :: p_tscrn,p_uscrn,p_qgscrn,p_u10,p_taux,p_tauy,p_tauxica,p_tauyica
   
 ! mode
-integer, parameter :: incradbf  = 1 ! include shortwave in buoyancy forcing
-integer, parameter :: incradgam = 1 ! include shortwave in non-local term
-integer, parameter :: zomode    = 2 ! roughness calculation (0=Charnock (CSIRO9), 1=Charnock (zot=zom), 2=Beljaars)
-integer, parameter :: mixmeth   = 1 ! Refine mixed layer depth calculation (0=None, 1=Iterative)
-integer, parameter :: deprelax  = 0 ! surface height (0=vary, 1=relax, 2=set to zero)
-integer, save      :: onedice   = 1 ! use 1D ice model (0=Off, 1=On)
+integer, parameter :: incradbf  = 1       ! include shortwave in buoyancy forcing
+integer, parameter :: incradgam = 1       ! include shortwave in non-local term
+integer, parameter :: zomode    = 2       ! roughness calculation (0=Charnock (CSIRO9), 1=Charnock (zot=zom), 2=Beljaars)
+integer, parameter :: mixmeth   = 1       ! Refine mixed layer depth calculation (0=None, 1=Iterative)
+integer, parameter :: deprelax  = 0       ! surface height (0=vary, 1=relax, 2=set to zero)
+integer, save      :: onedice   = 1       ! use 1D ice model (0=Off, 1=On)
 ! model parameters
-real, save :: mxd      = 5002.18 ! Max depth (m)
-real, save :: mindep   = 1.      ! Thickness of first layer (m)
-real, save :: minwater = 5.      ! Minimum water depth (m)
-real, parameter :: ric     = 0.3    ! Critical Ri for diagnosing mixed layer depth
-real, parameter :: epsilon = 0.1    ! Ratio of surface layer and mixed layer thickness
-real, parameter :: minsfc  = 0.5    ! Minimum thickness to average surface layer properties (m)
-real, parameter :: maxsal  = 50.    ! Maximum salinity used in density and melting point calculations (PSU)
-real, parameter :: mu_1    = 23.    ! VIS depth (m) - Type I
-real, parameter :: mu_2    = 0.35   ! NIR depth (m) - Type I
-real, parameter :: fluxwgt = 0.7    ! Time filter for flux calculations
+real, save :: mxd      = 5002.18          ! Max depth (m)
+real, save :: mindep   = 1.               ! Thickness of first layer (m)
+real, save :: minwater = 5.               ! Minimum water depth (m)
+real, parameter :: ric     = 0.3          ! Critical Ri for diagnosing mixed layer depth
+real, parameter :: epsilon = 0.1          ! Ratio of surface layer and mixed layer thickness
+real, parameter :: minsfc  = 0.5          ! Minimum thickness to average surface layer properties (m)
+real, parameter :: maxsal  = 50.          ! Maximum salinity used in density and melting point calculations (PSU)
+real, parameter :: mu_1    = 23.          ! VIS depth (m) - Type I
+real, parameter :: mu_2    = 0.35         ! NIR depth (m) - Type I
+real, parameter :: fluxwgt = 0.7          ! Time filter for flux calculations
 ! physical parameters
 real, parameter :: vkar=0.4               ! von Karman constant
 real, parameter :: lv=2.501e6             ! Latent heat of vaporisation (J kg^-1)
@@ -3303,7 +3303,7 @@ elsewhere        ! ri is -ve
   fq=1.-2.*bprm*ri/den
 end where
 
-! egice is for evaporating (lv).  Melting is included above with lf.
+! egice is for evaporating (lv).  Melting is included with lf.
 
 p_wetfacice=max(1.+.008*min(dtsurf-273.16,0.),0.)
 p_cdice=af*fm
@@ -3400,13 +3400,13 @@ ustar=max(ustar,5.E-4)
 d_fb=cp0*d_rho(:,1)*0.006*ustar*(d_tb-d_timelt)
 d_fb=min(max(d_fb,-1000.),1000.)  
 
-! Estimate fluxes to prevent overshoot
+! Estimate fluxes to prevent overshoot (predictor-corrector)
 tnew=min(i_tsurf+d_ftop/(gamm/dt+bot),273.16)
 call getqsat(qsatnew,dqdt,tnew,a_ps)
-p_fgice=rho*p_cdsice*cp*vmag*(tnew-a_temp/srcp)
-p_egice=p_wetfacice*rho*p_cdqice*lv*vmag*(qsatnew-a_qg)
+p_fgice=rho*p_cdsice*cp*vmag*(0.5*(tnew+dtsurf)-a_temp/srcp)
+p_egice=p_wetfacice*rho*p_cdqice*lv*vmag*(0.5*(qsatnew+qsat)-a_qg)
 p_egice=min(p_egice,d_ndic*qice*lv/(lf*dt))
-d_ftop=-p_fgice-p_egice*ls/lv+a_rg-emisice*sbconst*tnew**4+a_sg*(1.-alb)*(1.-eye)
+d_ftop=-p_fgice-p_egice*ls/lv+a_rg-0.5*emisice*sbconst*(tnew**4+dtsurf**4)+a_sg*(1.-alb)*(1.-eye)
 
 ! Add flux of heat due to converting any rain to snowfall over ice
 d_ftop=d_ftop+lf*a_rnd ! rain (mm/sec) to W/m**2
