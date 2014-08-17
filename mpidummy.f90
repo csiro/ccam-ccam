@@ -175,8 +175,9 @@ subroutine MPI_TYPE_SIZE(a,b,c)
 end subroutine MPI_TYPE_SIZE
 
 subroutine MPI_WIN_CREATE(a,b,c,d,e,f,g)
+   include 'mpif.h'
    integer :: c,d,e,f,g
-   integer(kind=INT_PTR_KIND()) :: b
+   integer(kind=MPI_ADDRESS_KIND) :: b
    real, dimension(*) :: a
 end subroutine MPI_WIN_CREATE
 
