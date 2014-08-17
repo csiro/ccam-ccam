@@ -3329,7 +3329,7 @@ d_nsto=d_nsto+dt*a_sg*(1.-alb)*eye
 
 ! Explicit estimate of fluxes
 d_ftop=-p_fgice-p_egice*ls/lv+a_rg-emisice*sbconst*dtsurf**4+a_sg*(1.-alb)*(1.-eye) ! first guess
-bot=4.*emisice*sbconst*dtsurf**3+rho*vmag*(p_cdsice*cp+p_cdqice*p_wetfacice*lv*dqdt)
+bot=4.*emisice*sbconst*dtsurf**3+rho*vmag*(p_cdsice*cp+p_cdqice*p_wetfacice*dqdt*ls/lv)
 where (d_ndsn<=icemin)
   gamm=gammi
 elsewhere (d_nk>0)
@@ -3409,7 +3409,7 @@ p_egice=min(p_egice,d_ndic*qice*lv/(lf*dt))
 d_ftop=-p_fgice-p_egice*ls/lv+a_rg-emisice*sbconst*tnew**4+a_sg*(1.-alb)*(1.-eye)
 
 ! Add flux of heat due to converting any rain to snowfall over ice
-d_ftop=d_ftop+lf*a_rnd ! rain (mm) to W/m**2
+d_ftop=d_ftop+lf*a_rnd ! rain (mm/sec) to W/m**2
 
 return
 end subroutine iceflux
