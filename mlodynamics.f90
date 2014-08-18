@@ -40,7 +40,7 @@ real, parameter :: grav       = 9.80616   ! gravitational constant (m s^-2)
 real, parameter :: delphi     = 150.      ! horizontal diffusion reduction factor gradient
 real, save      :: ocnsmag    = 1.        ! horizontal diffusion (2. in Griffies (2000), 1.-1.4 in POM (Mellor 2004))
 real, save      :: ocneps     = 0.1       ! semi-implicit off-centring term
-real, parameter :: maxicefrac = 0.99      ! Maximum ice fraction
+real, parameter :: maxicefrac = 0.999     ! Maximum ice fraction
 
 contains
 

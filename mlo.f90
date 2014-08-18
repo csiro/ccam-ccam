@@ -2808,7 +2808,9 @@ where (it_dsn<0.05)
   fl(:,0)=fs
 elsewhere
   fl(:,0)=conb*(it_tn1-it_tn0)
-  it_tn0=it_tn0+dt*(fl(:,0)-fs)/(it_dsn*cps)
+  tnew=it_tn0+dt*(fl(:,0)-fs)/(it_dsn*cps)   ! predictor
+  fl(:,0)=conb*(it_tn1-0.5*(it_tn0+tnew))
+  it_tn0=it_tn0+dt*(fl(:,0)-fs)/(it_dsn*cps) ! corrector
 end where
 
 ! Surface evap/sublimation (can be >0 or <0)
@@ -2847,19 +2849,25 @@ where (it_dsn<icemin)
 end where
 
 ! fluxes between ice layers
-where (dt_nk>=2)
-  fl(:,1)=condice*(it_tn2-it_tn1)*rhin     ! Between ice layers 2 and 1
-  fl(:,2)=condice*(dt_tb-it_tn2)*2.*rhin   ! Between water and ice layer 2
+where (dt_nk==2)
+  fl(:,1)=condice*(it_tn2-it_tn1)*rhin      ! Between ice layers 2 and 1
+  tnew=it_tn1+dt*(fl(:,1)-fl(:,0))*rhin/cpi ! predictor
+  fl(:,1)=condice*(it_tn2-0.5*(it_tn1+tnew))*rhin
+  fl(:,2)=condice*(dt_tb-it_tn2)*2.*rhin    ! Between water and ice layer 2
+  tnew=it_tn2+dt*(fl(:,2)-fl(:,1))*rhin/cpi ! predictor
+  fl(:,2)=condice*(dt_tb-0.5*(it_tn2+tnew))*2.*rhin
   fl(:,2)=max(min(fl(:,2),1000.),-1000.)
-  dhb=dt*(fl(:,2)-dt_fb)/qice              ! Excess flux between water and ice layer 2
+  dhb=dt*(fl(:,2)-dt_fb)/qice               ! Excess flux between water and ice layer 2
   dhb=max(dhb,-it_dic)
   dhb=min(dhb,dt_wavail*rhowt/rhoic)
   fl(:,2)=dhb*qice/dt+dt_fb
 elsewhere
-  fl(:,1)=condice*(dt_tb-it_tn1)*2.*rhin   ! Between water and ice layer 1
+  fl(:,1)=condice*(dt_tb-it_tn1)*2.*rhin    ! Between water and ice layer 1
+  tnew=it_tn1+dt*(fl(:,1)-fl(:,0))*rhin/cpi ! predictor
+  fl(:,1)=condice*(dt_tb-0.5*(it_tn1+tnew))*2.*rhin
   fl(:,1)=max(min(fl(:,1),1000.),-1000.)
   fl(:,2)=0.
-  dhb=dt*(fl(:,1)-dt_fb)/qice              ! Excess flux between water and ice layer 1
+  dhb=dt*(fl(:,1)-dt_fb)/qice               ! Excess flux between water and ice layer 1
   dhb=max(dhb,-it_dic)
   dhb=min(dhb,dt_wavail*rhowt/rhoic)
   fl(:,1)=dhb*qice/dt+dt_fb
@@ -2872,7 +2880,7 @@ do iqi=1,nc
   if (dt_nk(iqi)==2) then
     ! update temperature in top layer of ice
     it_tn1(iqi)=it_tn1(iqi)+dt*(fl(iqi,1)-fl(iqi,0))*rhin(iqi)/cpi
-    it_tn2(iqi)=it_tn2(iqi)+dt/cpi*(fl(iqi,2)-fl(iqi,1))*rhin(iqi)
+    it_tn2(iqi)=it_tn2(iqi)+dt*(fl(iqi,2)-fl(iqi,1))*rhin(iqi)/cpi
     ! use stored heat in brine pockets to keep temperature at -0.1 until heat is used up
     if (it_sto(iqi)>0..and.it_tn1(iqi)<dt_timelt(iqi)) then
       qneed=(dt_timelt(iqi)-it_tn1(iqi))*cpi/rhin(iqi) ! J/m**2
@@ -2892,7 +2900,7 @@ do iqi=1,nc
     it_sto=max(it_sto-sbrine*qice,0.)
     dt_salflxs=dt_salflxs-sbrine*rhoic/dt
     it_dic=max(it_dic-sbrine,0.)
-    it_tn1(iqi)=it_tn1(iqi)+dt/cpi*(fl(iqi,1)-fl(iqi,0))*rhin(iqi)
+    it_tn1(iqi)=it_tn1(iqi)+dt*(fl(iqi,1)-fl(iqi,0))*rhin(iqi)/cpi
   end if
 
   ! test whether to change number of layers
@@ -2993,20 +3001,26 @@ dt_salflxs=dt_salflxs-simelt*rhoic/dt
 it_dic=max(it_dic-simelt,0.)
 
 ! Upward fluxes between various levels below surface
-fl(:,0)=ftopadj                            ! Middle of first ice layer to thin surface layer
+fl(:,0)=ftopadj                             ! Middle of first ice layer to thin surface layer
 where (dt_nk>=2)
-  fl(:,1)=condice*(it_tn2-it_tn1)*rhin     ! Between ice layers 2 and 1
-  fl(:,2)=condice*(dt_tb-it_tn2)*2.*rhin   ! Between water and ice layer 2
+  fl(:,1)=condice*(it_tn2-it_tn1)*rhin      ! Between ice layers 2 and 1
+  tnew=it_tn1+dt*(fl(:,1)-fl(:,0))*rhin/cpi ! predictor
+  fl(:,1)=condice*(it_tn2-0.5*(it_tn1+tnew))*rhin
+  fl(:,2)=condice*(dt_tb-it_tn2)*2.*rhin    ! Between water and ice layer 2
+  tnew=it_tn2+dt*(fl(:,2)-fl(:,1))*rhin/cpi ! predictor
+  fl(:,2)=condice*(dt_tb-0.5*(it_tn2+tnew))*2.*rhin
   fl(:,2)=max(min(fl(:,2),1000.),-1000.)
-  dhb=dt*(fl(:,2)-dt_fb)/qice              ! Excess flux between water and ice layer 2
+  dhb=dt*(fl(:,2)-dt_fb)/qice               ! Excess flux between water and ice layer 2
   dhb=max(dhb,-it_dic)
   dhb=min(dhb,dt_wavail*rhowt/rhoic)
   fl(:,2)=dhb*qice/dt+dt_fb
 elsewhere
-  fl(:,1)=condice*(dt_tb-it_tn1)*2.*rhin   ! Between water and ice layer 1
+  fl(:,1)=condice*(dt_tb-it_tn1)*2.*rhin    ! Between water and ice layer 1
+  tnew=it_tn1+dt*(fl(:,1)-fl(:,0))*rhin/cpi ! predictor
+  fl(:,1)=condice*(dt_tb-0.5*(it_tn1+tnew))*2.*rhin
   fl(:,1)=max(min(fl(:,1),1000.),-1000.)
   fl(:,2)=0.
-  dhb=dt*(fl(:,1)-dt_fb)/qice              ! Excess flux between water and ice layer 1
+  dhb=dt*(fl(:,1)-dt_fb)/qice               ! Excess flux between water and ice layer 1
   dhb=max(dhb,-it_dic)
   dhb=min(dhb,dt_wavail*rhowt/rhoic)
   fl(:,1)=dhb*qice/dt+dt_fb
@@ -3018,8 +3032,8 @@ do iqi=1,nc
 
   if (dt_nk(iqi)==2) then
     ! update temperature and brine store for middle layer
-    it_tn1(iqi)=it_tn1(iqi)+dt/cpi*(fl(iqi,1)-fl(iqi,0))*rhin(iqi)
-    it_tn2(iqi)=it_tn2(iqi)+dt/cpi*(fl(iqi,2)-fl(iqi,1))*rhin(iqi)
+    it_tn1(iqi)=it_tn1(iqi)+dt*(fl(iqi,1)-fl(iqi,0))*rhin(iqi)/cpi
+    it_tn2(iqi)=it_tn2(iqi)+dt*(fl(iqi,2)-fl(iqi,1))*rhin(iqi)/cpi
     if (it_sto(iqi)>0..and.it_tn1(iqi)<dt_timelt(iqi)) then
       qneed=(dt_timelt(iqi)-it_tn1(iqi))*cpi/rhin(iqi) ! J/m**2
       if (it_sto(iqi)<qneed) then
@@ -3038,7 +3052,7 @@ do iqi=1,nc
     it_sto=max(it_sto-sbrine*qice,0.)
     dt_salflxs=dt_salflxs-sbrine*rhoic/dt
     it_dic=max(it_dic-sbrine,0.)
-    it_tn1(iqi)=it_tn1(iqi)+dt/cpi*(fl(iqi,1)-fl(iqi,0))*rhin(iqi)
+    it_tn1(iqi)=it_tn1(iqi)+dt*(fl(iqi,1)-fl(iqi,0))*rhin(iqi)/cpi
   end if
 
   ! test whether to change number of layers
@@ -3184,7 +3198,7 @@ implicit none
 integer, intent(in) :: nc,diag
 real, intent(in) :: dt
 real, dimension(nc) :: con,subl,simelt,smax,tnew
-real, dimension(nc) :: dhb,f0,f0a
+real, dimension(nc) :: dhb,f0
 real, dimension(nc), intent(inout) :: it_tn0,it_tn1,it_tn2
 real, dimension(nc), intent(inout) :: it_dic,it_dsn,it_fracice,it_tsurf,it_sto
 real, dimension(nc), intent(inout) :: dt_ftop,dt_tb,dt_fb,dt_timelt,dt_salflxf,dt_salflxs,dt_wavail
@@ -3195,8 +3209,8 @@ real, dimension(nc), intent(in) :: pt_egice
 con=condice/max(it_dic,icemin)
 tnew=it_tsurf+con*(dt_tb-it_tsurf)/(gammi/dt+con)
 f0=con*(dt_tb-0.5*(tnew+it_tsurf)) ! flux from below
-f0a=min(max(f0,-1000.),1000.)
-dhb=dt*(f0a-dt_fb)/qice
+f0=min(max(f0,-1000.),1000.)
+dhb=dt*(f0-dt_fb)/qice
 dhb=max(dhb,-it_dic)
 dhb=min(dhb,dt_wavail*rhowt/rhoic)
 f0=dhb*qice/dt+dt_fb
