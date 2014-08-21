@@ -1283,7 +1283,8 @@ dumc(1:ifull,4)=i_sto*fracice/(em(1:ifull)*em(1:ifull))
 ! Horizontal advection for ice salinity
 dumc(1:ifull,5)=i_sal*fracice*sicedep/(em(1:ifull)*em(1:ifull))
 ! Horizontal advection for surface temperature
-call mloexpscalar(0,gamm,0)
+dumd(1:ifull,1)=snowd*0.001
+call mloexpscalar(0,gamm,sicedep,dumd(:,1),0)
 dumc(1:ifull,6)=i_it(1:ifull,1)*fracice*gamm/(em(1:ifull)*em(1:ifull))
 ! Horizontal advection of snow temperature
 dumc(1:ifull,7)=i_it(1:ifull,2)*fracice*snowd*0.001/(em(1:ifull)*em(1:ifull))
@@ -1304,6 +1305,7 @@ ndic(1:ifull)=dumc(1:ifull,2)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-
 ndsn(1:ifull)=dumc(1:ifull,3)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-10)
 nsto(1:ifull)=dumc(1:ifull,4)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-10)
 nis(1:ifull)=dumc(1:ifull,5)*em(1:ifull)*em(1:ifull)/max(ndic(1:ifull)*nfracice(1:ifull),1.E-10)
+call mloexpscalar(0,gamm,ndic,ndsn,0)
 nit(1:ifull,1)=dumc(1:ifull,6)*em(1:ifull)*em(1:ifull)/max(gamm*nfracice(1:ifull),1.E-10)
 nit(1:ifull,2)=dumc(1:ifull,7)*em(1:ifull)*em(1:ifull)/max(ndsn(1:ifull)*nfracice(1:ifull),1.E-10)
 do ii=3,4

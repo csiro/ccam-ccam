@@ -96,7 +96,7 @@
       integer kdown(ifull)
       real entr(ifull),detrfactr(ifull),factr(ifull)
       real fluxqs,fluxt_k(kl)
-      real cfraclim(ifull),convtim(ifull),pblx(ifull)
+      real convtim(ifull),pblx(ifull)
       real ff(ifull,kl),qqsav(ifull,kl)
       integer kpos(1)
       
@@ -518,7 +518,7 @@ c***    Also entrain may slow convergence   N.B. qbass only used in next few lin
      .           ntest,methdetr,methprec,detrain
       write(6,*) 'fldown,ncubase ',fldown,ncubase
       write(6,*) 'alflnd,alfsea ',alflnd,alfsea
-      write(6,*) 'cfraclim,convtim',cfraclim(idjd),convtim(idjd)
+      write(6,*) 'convtim',convtim(idjd)
       endif
       if((ntest>0.or.nmaxpr==1).and.mydiag) then
         iq=idjd

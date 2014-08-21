@@ -2248,7 +2248,7 @@ bwkp1=tt>=ticeu ! condensate in parcel is liquid (true) or ice (false)
 
 ! CALCULATE THE SOLUBILITY OF SO2
 ! TOTAL SULFATE  IS ONLY USED TO CALCULATE THE PH OF CLOUD WATER
-where ( xpold>0 .and. bwkp1 )
+where ( xpold>1.e-20 .and. bwkp1 )
   ZQTP1=1./tt-1./298.
   ZE2=1.23*EXP(3020.*ZQTP1)
   ZE3=1.2E-02*EXP(2010.*ZQTP1)
@@ -2263,7 +2263,7 @@ where ( xpold>0 .and. bwkp1 )
   ZZQ=-ZZA*ZE3*(ZZB+ZSO2L)/(1.+ZZA)
   ZZP=0.5*ZZP
   ZZP2=ZZP*ZZP
-  ZHP=-ZZP+SQRT(ZZP2-ZZQ)
+  ZHP=-ZZP+SQRT(max(ZZP2-ZZQ,0.))
   ZQHP=1./ZHP
   ZHENEFF=1.+ZE3*ZQHP
   P_SO2=ZZA*ZHENEFF
