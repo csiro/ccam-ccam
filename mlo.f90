@@ -2226,19 +2226,19 @@ if (nice>0) then
                   dp_wavail(1:nice),diag)
   ! unpack ice data
   do ii=0,2
-    ice%temp(:,ii)=unpack(ip_tn(1:nice,ii),wpack,ice%temp(:,ii))
+    ice%temp(:,ii)=unpack(ip_tn(1:nice,ii),cpack,ice%temp(:,ii))
   end do
   ice%thick=0.  
-  ice%thick=unpack(ip_dic(1:nice),wpack,ice%thick)
+  ice%thick=unpack(ip_dic(1:nice),cpack,ice%thick)
   ice%snowd=0.
-  ice%snowd=unpack(ip_dsn(1:nice),wpack,ice%snowd)
+  ice%snowd=unpack(ip_dsn(1:nice),cpack,ice%snowd)
   ice%fracice=0.
-  ice%fracice=unpack(ip_fracice(1:nice),wpack,ice%fracice)
-  ice%tsurf=unpack(ip_tsurf(1:nice),wpack,ice%tsurf)
-  ice%store=unpack(ip_sto(1:nice),wpack,ice%store)
-  d_salflxf=unpack(dp_salflxf(1:nice),wpack,d_salflxf)
-  d_salflxs=unpack(dp_salflxs(1:nice),wpack,d_salflxs)
-  d_nk=unpack(dp_nk(1:nice),wpack,d_nk)
+  ice%fracice=unpack(ip_fracice(1:nice),cpack,ice%fracice)
+  ice%tsurf=unpack(ip_tsurf(1:nice),cpack,ice%tsurf)
+  ice%store=unpack(ip_sto(1:nice),cpack,ice%store)
+  d_salflxf=unpack(dp_salflxf(1:nice),cpack,d_salflxf)
+  d_salflxs=unpack(dp_salflxs(1:nice),cpack,d_salflxs)
+  d_nk=unpack(dp_nk(1:nice),cpack,d_nk)
 end if
 
 ! update ice velocities due to stress terms
@@ -2501,17 +2501,17 @@ do pc=1,5
                  it_tsurf,it_sto,dt_ftop,dt_tb,dt_fb,dt_timelt,dt_salflxf,         &
                  dt_salflxs,dt_nk,dt_wavail,pt_egice,diag)
     end select
-    ip_tn0    =unpack(it_tn0(1:nc(pc)),wpack,ip_tn0)
-    ip_tn1    =unpack(it_tn1(1:nc(pc)),wpack,ip_tn1)
-    ip_tn2    =unpack(it_tn2(1:nc(pc)),wpack,ip_tn2)
-    ip_dic    =unpack(it_dic(1:nc(pc)),wpack,ip_dic)
-    ip_dsn    =unpack(it_dsn(1:nc(pc)),wpack,ip_dsn)
-    ip_fracice=unpack(it_fracice(1:nc(pc)),wpack,ip_fracice)
-    ip_tsurf  =unpack(it_tsurf(1:nc(pc)),wpack,ip_tsurf)
-    ip_sto    =unpack(it_sto(1:nc(pc)),wpack,ip_sto)
-    dp_salflxf=unpack(dt_salflxf(1:nc(pc)),wpack,dp_salflxf)
-    dp_salflxs=unpack(dt_salflxs(1:nc(pc)),wpack,dp_salflxs)
-    dp_nk     =unpack(dt_nk(1:nc(pc)),wpack,dp_nk)
+    ip_tn0    =unpack(it_tn0(1:nc(pc)),pqpack(:,pc),ip_tn0)
+    ip_tn1    =unpack(it_tn1(1:nc(pc)),pqpack(:,pc),ip_tn1)
+    ip_tn2    =unpack(it_tn2(1:nc(pc)),pqpack(:,pc),ip_tn2)
+    ip_dic    =unpack(it_dic(1:nc(pc)),pqpack(:,pc),ip_dic)
+    ip_dsn    =unpack(it_dsn(1:nc(pc)),pqpack(:,pc),ip_dsn)
+    ip_fracice=unpack(it_fracice(1:nc(pc)),pqpack(:,pc),ip_fracice)
+    ip_tsurf  =unpack(it_tsurf(1:nc(pc)),pqpack(:,pc),ip_tsurf)
+    ip_sto    =unpack(it_sto(1:nc(pc)),pqpack(:,pc),ip_sto)
+    dp_salflxf=unpack(dt_salflxf(1:nc(pc)),pqpack(:,pc),dp_salflxf)
+    dp_salflxs=unpack(dt_salflxs(1:nc(pc)),pqpack(:,pc),dp_salflxs)
+    dp_nk     =unpack(dt_nk(1:nc(pc)),pqpack(:,pc),dp_nk)
   end if
 end do
 
@@ -2715,6 +2715,7 @@ conb=2./(1./(condsnw*rhsn)+1./(condice*rhin))
 !it_tsurf=it_tsurf
 !it_tn0=it_tn0
 it_tn1=0.5*(it_tn1+it_tn2)
+it_tn2=it_tn1
 
 ! Solve implicit ice temperature matrix
 bb(:,1)=1.+dt*con/gammi
@@ -2731,7 +2732,6 @@ call thomas(ans,aa,bb,cc,dd,nc,3)
 it_tsurf(:)=ans(:,1)
 it_tn0(:)  =ans(:,2)
 it_tn1(:)  =ans(:,3)
-it_tn2(:)  =ans(:,3)
 fl=condice*(dt_tb-it_tn1)*2.*rhin
 dhb=dt*(fl-dt_fb)/qice              ! Excess flux between water and ice layer
 dhb=max(dhb,-it_dic)
@@ -2787,8 +2787,9 @@ elsewhere (it_dic<htdown)
   dt_nk=0
   it_tsurf=(it_tsurf*gammi+it_tn0*cps*it_dsn+it_tn1*(cpi*it_dic-gammi))/(cps*it_dsn+gammi)
   it_tn1=it_tsurf
-  it_tn2=it_tsurf
 end where
+
+it_tn2=it_tn1
 
 return
 end subroutine icetemps1s1i
@@ -2854,7 +2855,6 @@ bb(:,3)=1.+dt*condice*rhin*rhin/cpi+dt*condice*2.*rhin*rhin/cpi
 dd(:,3)=it_tn2+dt*condice*dt_tb*2.*rhin*rhin/cpi
 call thomas(ans,aa,bb,cc,dd,nc,3)
 it_tsurf(:)=ans(:,1)
-it_tn0(:)  =ans(:,1)
 it_tn1(:)  =ans(:,2)
 it_tn2(:)  =ans(:,3)
 fl=condice*(dt_tb-it_tn2)*2.*rhin
@@ -2886,7 +2886,7 @@ dt_salflxs=dt_salflxs-smax*rhoic/dt
 it_dic=max(it_dic-smax,0.)
 
 ! Snow melt
-snmelt=max(0.,it_tsurf-273.16)*cps*it_dsn/qsnow
+snmelt=max(it_tsurf-273.16,0.)*cps*it_dsn/qsnow
 snmelt=min(snmelt,it_dsn)
 where (it_dsn>1.E-10)
   it_tsurf=it_tsurf-snmelt*qsnow/(cps*it_dsn)
@@ -2918,6 +2918,8 @@ where (it_dic<htdown)
   it_tn1=0.5*(it_tn1+it_tn2)
   it_tn2=it_tn1
 end where
+
+it_tn0=it_tsurf
 
 return
 end subroutine icetempi2i
@@ -2978,7 +2980,6 @@ bb(:,2)=1.+dt*2.*con*rhin/gamm+dt*condice*2.*rhin*rhin/cpi
 dd(:,2)=it_tn1+dt*condice*dt_tb*2.*rhin*rhin/cpi
 call thomas(ans,aa,bb,cc,dd,nc,2)
 it_tsurf(:)=ans(:,1)
-it_tn0(:)  =ans(:,1)
 it_tn1(:)  =ans(:,2)
 fl=condice*(dt_tb-it_tn1)*2.*rhin
 dhb=dt*(fl-dt_fb)/qice               ! first guess of excess flux between water and ice layer
@@ -2986,7 +2987,6 @@ dhb=max(dhb,-it_dic)
 dhb=min(dhb,dt_wavail*rhowt/rhoic)
 fl=dt_fb+dhb*qice/dt                 ! final excess flux from below
 it_tn1=dt_tb-fl/(condice*2.*rhin)    ! does nothing unless a limit is reached
-it_tn2=it_tn1
 
 ! Bottom ablation or accretion
 dt_salflxs=dt_salflxs+dhb*rhoic/dt
@@ -3046,8 +3046,10 @@ elsewhere (it_dic<htdown)
   dt_nk=0
   it_tsurf=(it_tsurf*(cps*it_dsn+gammi)+it_tn1*(cpi*it_dic-gammi))/(cps*it_dsn+gammi)
   it_tn1=it_tsurf
-  it_tn2=it_tsurf
 end where
+
+it_tn0=it_tsurf
+it_tn2=it_tn1
 
 return
 end subroutine icetempi1i
