@@ -161,7 +161,7 @@ real, parameter :: cpi=1.8837e6           ! specific heat ice  (J/m**3/K)
 real, parameter :: cps=6.9069e5           ! specific heat snow (J/m**3/K)
 real, parameter :: condice=2.03439        ! conductivity ice
 real, parameter :: condsnw=0.30976        ! conductivity snow
-real, parameter :: gammi=0.5*0.05*cps     ! specific heat*depth (for ice/snow) (J m^-2 K^-1)
+real, parameter :: gammi=0.5*cpi*himin    ! specific heat*depth (for ice/snow) (J m^-2 K^-1)
 !real, parameter :: emisice=0.95
 real, parameter :: emisice=1.             ! emissivity of ice
 real, parameter :: icesal=10.             ! Maximum salinity for sea-ice (PSU)
@@ -2608,6 +2608,7 @@ it_tn0(:)  =ans(:,2)
 it_tn1(:)  =ans(:,3)
 it_tn2(:)  =ans(:,4)
 fl=condice*(dt_tb-it_tn2)*2.*rhin
+fl=max(-1000.,min(fl,1000.))
 dhb=dt*(fl-dt_fb)/qice                    ! Excess flux between water and ice layer
 dhb=max(dhb,-it_dic)
 dhb=min(dhb,dt_wavail*rhowt/rhoic)
@@ -2732,6 +2733,7 @@ it_tsurf(:)=ans(:,1)
 it_tn0(:)  =ans(:,2)
 it_tn1(:)  =ans(:,3)
 fl=condice*(dt_tb-it_tn1)*2.*rhin
+fl=max(-1000.,min(fl,1000.))
 dhb=dt*(fl-dt_fb)/qice              ! Excess flux between water and ice layer
 dhb=max(dhb,-it_dic)
 dhb=min(dhb,dt_wavail*rhowt/rhoic)
@@ -2784,7 +2786,7 @@ where (it_dic>htup)
 elsewhere (it_dic<htdown)
   ! code to decrease number of layers
   dt_nk=0
-  it_tsurf=(it_tsurf*gammi+it_tn0*cps*it_dsn+it_tn1*(cpi*it_dic-gammi))/(cps*it_dsn+gammi)
+  it_tsurf=(it_tsurf*gammi+it_tn0*cps*it_dsn+it_tn1*(cpi*it_dic-gammi))/(cps*it_dsn+cpi*it_dic)
   it_tn1=it_tsurf
 end where
 
@@ -2857,6 +2859,7 @@ it_tsurf(:)=ans(:,1)
 it_tn1(:)  =ans(:,2)
 it_tn2(:)  =ans(:,3)
 fl=condice*(dt_tb-it_tn2)*2.*rhin
+fl=max(-1000.,min(fl,1000.))
 dhb=dt*(fl-dt_fb)/qice                    ! first guess of excess flux between water and ice layer
 dhb=max(dhb,-it_dic)
 dhb=min(dhb,dt_wavail*rhowt/rhoic)
@@ -2885,15 +2888,11 @@ dt_salflxs=dt_salflxs-smax*rhoic/dt
 it_dic=max(it_dic-smax,0.)
 
 ! Snow melt
-snmelt=max(it_tsurf-273.16,0.)*cps*it_dsn/qsnow
-snmelt=min(snmelt,it_dsn)
-where (it_dsn>1.E-10)
-  it_tsurf=it_tsurf-snmelt*qsnow/(cps*it_dsn)
-elsewhere
-  snmelt=0.
-end where
-dt_salflxf=dt_salflxf-snmelt*rhosn/dt        ! melt fresh water snow (no salt when melting snow)
-it_dsn=max(it_dsn-snmelt,0.)
+snmelt=max(0.,it_tsurf-273.16)*cps/qsnow !*it_dsn
+snmelt=min(snmelt,1.)                    !*it_dsn
+it_tsurf=it_tsurf-snmelt*qsnow/cps       !*it_dsn/it_dsn
+dt_salflxf=dt_salflxf-snmelt*it_dsn*rhosn/dt ! melt fresh water snow (no salt when melting snow)
+it_dsn=max(it_dsn-snmelt*it_dsn,0.)
 
 ! Ice melt
 simelt=max(0.,it_tsurf-dt_timelt)*gammi/qice
@@ -2981,6 +2980,7 @@ call thomas(ans,aa,bb,cc,dd,nc,2)
 it_tsurf(:)=ans(:,1)
 it_tn1(:)  =ans(:,2)
 fl=condice*(dt_tb-it_tn1)*2.*rhin
+fl=max(-1000.,min(fl,1000.))
 dhb=dt*(fl-dt_fb)/qice               ! first guess of excess flux between water and ice layer
 dhb=max(dhb,-it_dic)
 dhb=min(dhb,dt_wavail*rhowt/rhoic)
@@ -3009,15 +3009,11 @@ dt_salflxs=dt_salflxs-smax*rhoic/dt
 it_dic=max(it_dic-smax,0.)
 
 ! Snow melt
-snmelt=max(0.,it_tsurf-273.16)*cps*it_dsn/qsnow
-snmelt=min(snmelt,it_dsn)
-where (it_dsn>1.E-10)
-  it_tsurf=it_tsurf-snmelt*qsnow/(cps*it_dsn)
-elsewhere
-  snmelt=0.
-end where
-dt_salflxf=dt_salflxf-snmelt*rhosn/dt        ! melt fresh water snow (no salt when melting snow)
-it_dsn=max(it_dsn-snmelt,0.)
+snmelt=max(0.,it_tsurf-273.16)*cps/qsnow !*it_dsn
+snmelt=min(snmelt,1.)                    !*it_dsn
+it_tsurf=it_tsurf-snmelt*qsnow/cps       !*it_dsn/it_dsn
+dt_salflxf=dt_salflxf-snmelt*it_dsn*rhosn/dt ! melt fresh water snow (no salt when melting snow)
+it_dsn=max(it_dsn-snmelt*it_dsn,0.)
 
 ! Ice melt
 simelt=max(0.,it_tsurf-dt_timelt)*gammi/qice
@@ -3043,7 +3039,7 @@ where (it_dic>htup)
 elsewhere (it_dic<htdown)
   ! code to decrease number of layers
   dt_nk=0
-  it_tsurf=(it_tsurf*(cps*it_dsn+gammi)+it_tn1*(cpi*it_dic-gammi))/(cps*it_dsn+gammi)
+  it_tsurf=(it_tsurf*(cps*it_dsn+gammi)+it_tn1*(cpi*it_dic-gammi))/(cps*it_dsn+cpi*it_dic)
   it_tn1=it_tsurf
 end where
 
@@ -3093,6 +3089,7 @@ it_tsurf=(gammi*it_tsurf+cps*it_dsn*it_tn0+0.5*max(cpi*it_dic-gammi,0.)*(it_tn1+
 ! Update tsurf based on fluxes from above and below
 tnew=it_tsurf+(dt_ftop+con*(dt_tb-it_tsurf))/(gamm/dt+con) ! predictor for flux calculation
 f0=con*(dt_tb-0.5*(tnew+it_tsurf))                         ! first guess of flux from below
+f0=max(-1000.,min(f0,1000.))
 dhb=dt*(f0-dt_fb)/qice                                     ! excess flux converted to change in ice thickness
 dhb=max(dhb,-it_dic)
 dhb=min(dhb,dt_wavail*rhowt/rhoic)
@@ -3208,7 +3205,7 @@ real, dimension(wfull) :: newiu,newiv,imass,dtsurf
 real factch
 
 ! Prevent unrealistic fluxes due to poor input surface temperature
-dtsurf=min(ice%tsurf,273.16)
+dtsurf=min(ice%tsurf,273.2)
 uu=atm_u-ice%u
 vv=atm_v-ice%v
 vmag=sqrt(uu*uu+vv*vv)
@@ -3337,7 +3334,7 @@ d_fb=cp0*d_rho(:,1)*0.006*ustar*(d_tb-d_timelt)
 d_fb=min(max(d_fb,-1000.),1000.)  
 
 ! Estimate fluxes to prevent overshoot (predictor-corrector)
-tnew=min(dtsurf+d_ftop/(gamm/dt+bot),273.16)
+tnew=min(dtsurf+d_ftop/(gamm/dt+bot),273.2)
 call getqsat(qsatnew,dqdt,tnew,atm_ps)
 dgice%fg=rho*dgice%cdh*cp*vmag*(0.5*(tnew+dtsurf)-atm_temp/srcp)
 dgice%eg=dgice%wetfrac*rho*dgice%cdq*lv*vmag*(0.5*(qsatnew+qsat)-atm_qg)
