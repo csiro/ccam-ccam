@@ -445,6 +445,7 @@ real, dimension(ifull+iextra) :: nfracice,ndic,ndsn,nsto,niu,niv,nis
 real, dimension(ifull+iextra) :: snu,sou,spu,squ,ssu,snv,sov,spv,sqv,ssv
 real, dimension(ifull+iextra) :: ibu,ibv,icu,icv,idu,idv,spnet,oeu,oev,tide
 real, dimension(ifull+iextra) :: ipmax
+real, dimension(ifull,3) :: gamm
 real, dimension(ifull) :: i_u,i_v,i_sto,i_sal,rhobaru,rhobarv,ndum
 real, dimension(ifull) :: pdiv,qdiv,sdiv,odiv,w_e
 real, dimension(ifull) :: pdivb,qdivb,sdivb,odivb,xps
@@ -458,7 +459,7 @@ real, dimension(ifull) :: imu,imv
 real, dimension(ifull) :: sue,suw,svn,svs,snuw,snvs
 real, dimension(ifull) :: pue,puw,pvn,pvs
 real, dimension(ifull) :: que,quw,qvn,qvs
-real, dimension(ifull) :: gamm,piceu,picev,tideu,tidev,ipiceu,ipicev
+real, dimension(ifull) :: piceu,picev,tideu,tidev,ipiceu,ipicev
 real, dimension(ifull) :: dumf,dumg
 real, dimension(ifull+iextra,wlev,3) :: cou
 real, dimension(ifull+iextra,wlev+1) :: eou,eov
@@ -1284,13 +1285,13 @@ dumc(1:ifull,4)=i_sto*fracice/(em(1:ifull)*em(1:ifull))
 dumc(1:ifull,5)=i_sal*fracice*sicedep/(em(1:ifull)*em(1:ifull))
 ! Horizontal advection for surface temperature
 dumd(1:ifull,1)=snowd*0.001
-call mloexpscalar(0,gamm,sicedep,dumd(:,1),0)
-dumc(1:ifull,6)=i_it(1:ifull,1)*fracice*gamm/(em(1:ifull)*em(1:ifull))
+call mloexpgamm(gamm,sicedep,dumd(:,1),0)
+dumc(1:ifull,6)=i_it(1:ifull,1)*fracice*gamm(:,1)/(em(1:ifull)*em(1:ifull))
 ! Horizontal advection of snow temperature
-dumc(1:ifull,7)=i_it(1:ifull,2)*fracice*snowd*0.001/(em(1:ifull)*em(1:ifull))
+dumc(1:ifull,7)=i_it(1:ifull,2)*fracice*gamm(:,2)/(em(1:ifull)*em(1:ifull))
 ! Horizontal advection of ice temperature
 do ii=3,4
-  dumc(1:ifull,5+ii)=i_it(1:ifull,ii)*fracice*sicedep/(em(1:ifull)*em(1:ifull))
+  dumc(1:ifull,5+ii)=i_it(1:ifull,ii)*fracice*gamm(:,3)/(em(1:ifull)*em(1:ifull))
 end do
 ! Conservation
 dumc(1:ifull,10)=spnet(1:ifull)
@@ -1305,25 +1306,25 @@ ndic(1:ifull)=dumc(1:ifull,2)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-
 ndsn(1:ifull)=dumc(1:ifull,3)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-10)
 nsto(1:ifull)=dumc(1:ifull,4)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-10)
 nis(1:ifull)=dumc(1:ifull,5)*em(1:ifull)*em(1:ifull)/max(ndic(1:ifull)*nfracice(1:ifull),1.E-10)
-call mloexpscalar(0,gamm,ndic,ndsn,0)
-nit(1:ifull,1)=dumc(1:ifull,6)*em(1:ifull)*em(1:ifull)/max(gamm*nfracice(1:ifull),1.E-10)
-nit(1:ifull,2)=dumc(1:ifull,7)*em(1:ifull)*em(1:ifull)/max(ndsn(1:ifull)*nfracice(1:ifull),1.E-10)
+call mloexpgamm(gamm,ndic,ndsn,0)
+nit(1:ifull,1)=dumc(1:ifull,6)*em(1:ifull)*em(1:ifull)/max(gamm(:,1)*nfracice(1:ifull),1.E-10)
+nit(1:ifull,2)=dumc(1:ifull,7)*em(1:ifull)*em(1:ifull)/max(gamm(:,2)*nfracice(1:ifull),1.E-10)
 do ii=3,4
-  nit(1:ifull,ii)=dumc(1:ifull,5+ii)*em(1:ifull)*em(1:ifull)/max(ndic(1:ifull)*nfracice(1:ifull),1.E-10)
+  nit(1:ifull,ii)=dumc(1:ifull,5+ii)*em(1:ifull)*em(1:ifull)/max(gamm(:,3)*nfracice(1:ifull),1.E-10)
 end do
 
 ! populate grid points that have no sea ice
 where (nfracice(1:ifull)<1.E-4)
-  ndic(1:ifull)=sicedep
-  ndsn(1:ifull)=snowd*0.001
-  nsto(1:ifull)=i_sto
-  nis(1:ifull)=i_sal
-  nit(1:ifull,1)=i_it(:,1)
-  nit(1:ifull,2)=i_it(:,2)
-  nit(1:ifull,3)=i_it(:,3)
-  nit(1:ifull,4)=i_it(:,4)
+  ndic(1:ifull)=0.
+  ndsn(1:ifull)=0.
+  nsto(1:ifull)=0.
+  nis(1:ifull)=0.
+  nit(1:ifull,1)=271.2
+  nit(1:ifull,2)=271.2
+  nit(1:ifull,3)=271.2
+  nit(1:ifull,4)=271.2
 elsewhere (ndsn(1:ifull)<1.E-4)
-  nit(1:ifull,2)=i_it(:,2)
+  nit(1:ifull,2)=271.2
 end where
 
 ! ocean
