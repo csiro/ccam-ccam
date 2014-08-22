@@ -2715,7 +2715,6 @@ conb=2./(1./(condsnw*rhsn)+1./(condice*rhin))
 !it_tsurf=it_tsurf
 !it_tn0=it_tn0
 it_tn1=0.5*(it_tn1+it_tn2)
-it_tn2=it_tn1
 
 ! Solve implicit ice temperature matrix
 bb(:,1)=1.+dt*con/gammi
@@ -2835,7 +2834,7 @@ con=1./(it_dsn/condsnw+max(it_dic,icemin)/condice)
 gamm=cps*it_dsn+gammi  ! for energy conservation
 
 ! map from generic ice pack to 2 layer
-it_tsurf=(gammi*it_tsurf+cps*it_dsn*it_tn0)/gamm
+it_tsurf=(gammi*it_tsurf+cps*it_dsn*it_tn0)/(gammi+cps*it_dsn)
 !it_tn1=it_tn1
 !it_tn2=it_tn2
 
@@ -2965,7 +2964,7 @@ con=1./(it_dsn/condsnw+max(it_dic,icemin)/condice)
 gamm=cps*it_dsn+gammi                                      ! for energy conservation
 
 ! map from generic ice pack to 1 layer
-it_tsurf=(gammi*it_tsurf+cps*it_dsn*it_tn0)/gamm
+it_tsurf=(gammi*it_tsurf+cps*it_dsn*it_tn0)/(gammi+cps*it_dsn)
 it_tn1=0.5*(it_tn1+it_tn2)
 
 ! Thickness of each layer
@@ -3088,7 +3087,8 @@ con=1./(it_dsn/condsnw+max(it_dic,icemin)/condice)
 gamm=cps*it_dsn+gammi                                      ! for energy conservation
 
 ! map from generic ice pack to thin ice
-it_tsurf=(gammi*it_tsurf+cps*it_dsn*it_tn0+0.5*max(cpi*it_dic-gammi,0.)*(it_tn1+it_tn2))/gamm
+it_tsurf=(gammi*it_tsurf+cps*it_dsn*it_tn0+0.5*max(cpi*it_dic-gammi,0.)*(it_tn1+it_tn2)) &
+    /(gammi+cps*it_dsn+max(cpi*it_dic-gammi,0.))
 
 ! Update tsurf based on fluxes from above and below
 tnew=it_tsurf+(dt_ftop+con*(dt_tb-it_tsurf))/(gamm/dt+con) ! predictor for flux calculation
