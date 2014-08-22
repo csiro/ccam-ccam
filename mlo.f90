@@ -2432,7 +2432,7 @@ integer, intent(in) :: nice,diag
 integer iqi,ii,pc
 integer, dimension(5) :: nc
 real, intent(in) :: dt
-real, dimension(nice) :: xxx,excess
+real, dimension(nice) :: xxx
 real, dimension(nice), intent(inout) :: ip_tn0,ip_tn1,ip_tn2
 real, dimension(nice), intent(inout) :: ip_dic,ip_dsn,ip_fracice,ip_tsurf,ip_sto
 real, dimension(nice) :: it_tn0,it_tn1,it_tn2
@@ -2515,19 +2515,6 @@ do pc=1,5
   end if
 end do
 
-! the following are snow to ice processes
-where (ip_dic>icemin)
-  xxx=ip_dic+ip_dsn-(rhosn*ip_dsn+rhoic*ip_dic)/rhowt ! white ice formation
-  excess=max(ip_dsn-xxx,0.)*rhosn/rhowt               ! white ice formation
-elsewhere
-  excess=0.
-end where
-excess=excess+max(ip_dsn-excess*rhowt/rhosn-0.2,0.)*rhosn/rhowt  ! Snow depth limitation and conversion to ice
-ip_dsn=ip_dsn-excess*rhowt/rhosn
-ip_dic=ip_dic+excess*rhowt/rhoic
-dp_salflxf=dp_salflxf-excess*rhowt/dt
-dp_salflxs=dp_salflxs+excess*rhowt/dt
-
 ! Ice depth limitation for poor initial conditions
 xxx=max(ip_dic-icemax,0.)
 ip_dic=min(icemax,ip_dic)
@@ -2567,7 +2554,7 @@ implicit none
 integer, intent(in) :: nc,diag
 real, intent(in) :: dt
 real htdown
-real, dimension(nc) :: con,rhin,rhsn,conb,qmax,fl,qneed
+real, dimension(nc) :: con,rhin,rhsn,conb,qmax,fl,qneed,xxx,excess
 real, dimension(nc) :: subl,snmelt,dhb,isubl,ssubl,smax
 real, dimension(nc), intent(inout) :: it_tn0,it_tn1,it_tn2
 real, dimension(nc), intent(inout) :: it_dic,it_dsn,it_fracice,it_tsurf,it_sto
@@ -2650,6 +2637,17 @@ qneed=max(min(qneed,it_sto),0.)
 it_tn1=it_tn1+qneed*rhin/cpi
 it_sto=it_sto-qneed
 
+! the following are snow to ice processes
+xxx=it_dic+it_dsn-(rhosn*it_dsn+rhoic*it_dic)/rhowt ! white ice formation
+excess=max(it_dsn-xxx,0.)*rhosn/rhowt               ! white ice formation
+excess=excess+max(it_dsn-excess*rhowt/rhosn-0.2,0.)*rhosn/rhowt  ! Snow depth limitation and conversion to ice
+it_tn1=(it_tn1*(cpi*it_dic-gammi)-it_tn2*cpi*excess*rhowt/rhoic+it_tn0*2.*cps*excess*rhowt/rhosn) &
+    /(cpi*it_dic-gammi+cpi*excess*rhowt/rhoic)
+it_dsn=it_dsn-excess*rhowt/rhosn
+it_dic=it_dic+excess*rhowt/rhoic
+dt_salflxf=dt_salflxf-excess*rhowt/dt
+dt_salflxs=dt_salflxs+excess*rhowt/dt
+
 ! test whether to change number of layers
 htdown=2.*himin
 where (it_dic<=htdown)
@@ -2694,7 +2692,7 @@ implicit none
 integer, intent(in) :: nc,diag
 real, intent(in) :: dt
 real htup,htdown
-real, dimension(nc) :: con,rhin,rhsn,conb,qmax,sbrine,fl
+real, dimension(nc) :: con,rhin,rhsn,conb,qmax,sbrine,fl,xxx,excess
 real, dimension(nc) :: subl,snmelt,dhb,isubl,ssubl,smax
 real, dimension(nc), intent(inout) :: it_tn0,it_tn1,it_tn2
 real, dimension(nc), intent(inout) :: it_dic,it_dsn,it_fracice,it_tsurf,it_sto
@@ -2775,6 +2773,16 @@ it_sto=max(it_sto-sbrine*qice,0.)
 dt_salflxs=dt_salflxs-sbrine*rhoic/dt
 it_dic=max(it_dic-sbrine,0.)
 
+! the following are snow to ice processes
+xxx=it_dic+it_dsn-(rhosn*it_dsn+rhoic*it_dic)/rhowt ! white ice formation
+excess=max(it_dsn-xxx,0.)*rhosn/rhowt               ! white ice formation
+excess=excess+max(it_dsn-excess*rhowt/rhosn-0.2,0.)*rhosn/rhowt  ! Snow depth limitation and conversion to ice
+it_tn1=(it_tn1*(cpi*it_dic-gammi)+it_tn0*cps*excess*rhowt/rhosn)/(cpi*it_dic-gammi+cpi*excess*rhowt/rhoic)
+it_dsn=it_dsn-excess*rhowt/rhosn
+it_dic=it_dic+excess*rhowt/rhoic
+dt_salflxf=dt_salflxf-excess*rhowt/dt
+dt_salflxs=dt_salflxs+excess*rhowt/dt
+
 ! test whether to change number of layers
 htup=2.*himin
 htdown=himin
@@ -2821,7 +2829,7 @@ integer, intent(in) :: nc,diag
 integer, dimension(nc), intent(inout) :: dt_nk
 real, intent(in) :: dt
 real htdown
-real, dimension(nc) :: rhin,qmax,qneed,fl,con,gamm,ssubl,isubl
+real, dimension(nc) :: rhin,qmax,qneed,fl,con,gamm,ssubl,isubl,excess
 real, dimension(nc) :: subl,simelt,smax,dhb,snmelt
 real, dimension(nc), intent(inout) :: it_tn0,it_tn1,it_tn2
 real, dimension(nc), intent(inout) :: it_dic,it_dsn,it_fracice,it_tsurf,it_sto
@@ -2907,6 +2915,15 @@ qneed=max(min(qneed,it_sto),0.)
 it_tn1=it_tn1+qneed*rhin/cpi
 it_sto=it_sto-qneed
 
+! the following are snow to ice processes
+excess=max(it_dsn-0.2,0.)*rhosn/rhowt  ! Snow depth limitation and conversion to ice
+it_tn1=(it_tn1*(cpi*it_dic-gammi)-it_tn2*cpi*excess*rhowt/rhoic+it_tsurf*2.*cps*excess*rhowt/rhosn) &
+    /(cpi*it_dic-gammi+cpi*excess*rhowt/rhoic)
+it_dsn=it_dsn-excess*rhowt/rhosn
+it_dic=it_dic+excess*rhowt/rhoic
+dt_salflxf=dt_salflxf-excess*rhowt/dt
+dt_salflxs=dt_salflxs+excess*rhowt/dt
+
 ! test whether to change number of layers
 htdown=2.*himin
 where (it_dic<htdown)
@@ -2948,7 +2965,7 @@ integer, intent(in) :: nc,diag
 integer, dimension(nc), intent(inout) :: dt_nk
 real, intent(in) :: dt
 real htup,htdown
-real, dimension(nc) :: rhin,qmax,sbrine,fl,con,gamm,ssubl,isubl
+real, dimension(nc) :: rhin,qmax,sbrine,fl,con,gamm,ssubl,isubl,excess
 real, dimension(nc) :: subl,simelt,smax,dhb,snmelt
 real, dimension(nc), intent(inout) :: it_tn0,it_tn1,it_tn2
 real, dimension(nc), intent(inout) :: it_dic,it_dsn,it_fracice,it_tsurf,it_sto
@@ -3028,6 +3045,15 @@ it_sto=max(it_sto-sbrine*qice,0.)
 dt_salflxs=dt_salflxs-sbrine*rhoic/dt
 it_dic=max(it_dic-sbrine,0.)
 
+! the following are snow to ice processes
+excess=max(it_dsn-0.2,0.)*rhosn/rhowt  ! Snow depth limitation and conversion to ice
+it_tn1=(it_tn1*(cpi*it_dic-gammi)+it_tsurf*cps*excess*rhowt/rhosn) &
+    /(cpi*it_dic-gammi+cpi*excess*rhowt/rhoic)
+it_dsn=it_dsn-excess*rhowt/rhosn
+it_dic=it_dic+excess*rhowt/rhoic
+dt_salflxf=dt_salflxf-excess*rhowt/dt
+dt_salflxs=dt_salflxs+excess*rhowt/dt
+
 ! test whether to change number of layers
 htup=2.*himin
 htdown=himin
@@ -3071,7 +3097,7 @@ implicit none
 
 integer, intent(in) :: nc,diag
 real, intent(in) :: dt
-real, dimension(nc) :: con,f0,tnew
+real, dimension(nc) :: con,f0,tnew,excess
 real, dimension(nc) :: subl,snmelt,smax,dhb,isubl,ssubl,ssnmelt,gamm,simelt
 real, dimension(nc), intent(inout) :: it_tn0,it_tn1,it_tn2
 real, dimension(nc), intent(inout) :: it_dic,it_dsn,it_fracice,it_tsurf,it_sto
@@ -3129,6 +3155,13 @@ simelt=min(simelt,it_dic)
 it_tsurf=it_tsurf-simelt*qice/gammi
 dt_salflxs=dt_salflxs-simelt*rhoic/dt
 it_dic=max(it_dic-simelt,0.)
+
+! the following are snow to ice processes
+excess=max(it_dsn-0.2,0.)*rhosn/rhowt  ! Snow depth limitation and conversion to ice
+it_dsn=it_dsn-excess*rhowt/rhosn
+it_dic=it_dic+excess*rhowt/rhoic
+dt_salflxf=dt_salflxf-excess*rhowt/dt
+dt_salflxs=dt_salflxs+excess*rhowt/dt
 
 ! Recalculate thickness index
 where (it_dic>=himin)
