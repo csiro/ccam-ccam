@@ -51,29 +51,30 @@ contains
 
 subroutine seaesfrad(imax,odcalc)
 
-use aerointerface
-use aerosolldr
-use arrays_m
-use ateb
-use cc_mpi
-use cfrac_m
-use extraout_m
-use histave_m, only : alb_ave,fbeam_ave
-use infile
-use latlong_m
-use microphys_rad_mod, only : microphys_sw_driver,microphys_lw_driver,lwemiss_calc,microphys_rad_init
-use mlo
-use nharrs_m
-use nsibd_m
-use ozoneread
-use pbl_m
-use raddiag_m
-use radisw_m, only : rrco2,rrvco2,rrvch4,rrvn2o,rrvf11,rrvf12,rrvf113,rrvf22
-use sigs_m
-use soil_m
-use soilsnow_m
-use work3f_m
-use zenith_m
+use aerointerface                                   ! Aerosol interface
+use aerosolldr                                      ! LDR prognostic aerosols
+use arrays_m                                        ! Atmosphere dyamics prognostic arrays
+use ateb                                            ! Urban
+use cc_mpi                                          ! CC MPI routines
+use cfrac_m                                         ! Cloud fraction
+use extraout_m                                      ! Additional diagnostics
+use histave_m, only : alb_ave,fbeam_ave             ! Time average arrays
+use infile                                          ! Input file routines
+use latlong_m                                       ! Lat/lon coordinates
+use microphys_rad_mod                               ! SEA/ESF microphysics
+use mlo                                             ! Ocean physics and prognostic arrays
+use nharrs_m                                        ! Non-hydrostatic atmosphere arrays
+use nsibd_m                                         ! Land-surface arrays
+use ozoneread                                       ! Ozone input routines
+use pbl_m                                           ! Boundary layer arrays
+use raddiag_m                                       ! Radiation diagnostic
+use radisw_m, only : rrco2,rrvco2,rrvch4,rrvn2o, &  ! GHG data
+    rrvf11,rrvf12,rrvf113,rrvf22
+use sigs_m                                          ! Atmosphere sigma levels
+use soil_m                                          ! Soil and surface data
+use soilsnow_m                                      ! Soil, snow and surface data
+use work3f_m                                        ! Grid work arrays
+use zenith_m                                        ! Astronomy routines
 
 implicit none
 
@@ -99,7 +100,7 @@ real, dimension(imax) :: sgvis,sgdnvisdir,sgdnvisdif,sgdnnirdir,sgdnnirdif
 real, dimension(imax) :: dprf,dumfbeam,tv
 real, dimension(imax) :: cuvrf_dir,cirrf_dir,cuvrf_dif,cirrf_dif
 real, dimension(kl+1) :: sigh
-real(kind=8), dimension(kl+1,2) :: pref
+real(kind=8), dimension(:,:), allocatable, save :: pref
 real r1,dlt,alp,slag,dhr,fjd
 real ttbg,ar1,exp_ar1,ar2,exp_ar2,ar3,snr
 real dnsnow,snrat,dtau,alvo,aliro,fage,cczen,fzen,fzenm
@@ -137,14 +138,6 @@ do_aerosol_forcing = abs(iaero)>=2
 sigh(1:kl) = sigmh(1:kl)
 sigh(kl+1) = 0.
 
-! set-up standard pressure levels -----------------------------------
-pref(kl+1,1)=101325.
-pref(kl+1,2)=81060. !=0.8*pref(kl+1,1)
-do k=1,kl
-  kr=kl+1-k
-  pref(kr,:)=sig(k)*pref(kl+1,:)
-end do
-
 ! astronomy ---------------------------------------------------------
 ! Set up number of minutes from beginning of year
 call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
@@ -152,6 +145,11 @@ fjd = float(mod(mins,525600))/1440. ! restrict to 365 day calendar
 
 ! Calculate sun position
 call solargh(fjd,bpyear,r1,dlt,alp,slag)
+
+! Prepare SEA-ESF arrays --------------------------------------------
+Rad_time%days   =int(fjd)
+Rad_time%seconds=mod(mins,1440)
+Rad_time%ticks  =0
 
 ! Initialisation ----------------------------------------------------
 if ( first ) then
@@ -171,6 +169,15 @@ if ( first ) then
   else
     call o3_read(sig,jyear,jmonth)
   end if
+
+  ! set-up standard pressure levels
+  allocate(pref(kl+1,2))
+  pref(kl+1,1)=101325.
+  pref(kl+1,2)=81060. !=0.8*pref(kl+1,1)
+  do k=1,kl
+    kr=kl+1-k
+    pref(kr,:)=sig(k)*pref(kl+1,:)
+  end do  
   
   Cldrad_control%do_strat_clouds_iz      =.true.
   Cldrad_control%do_sw_micro_iz          =.true.
@@ -215,6 +222,8 @@ if ( first ) then
   call esfsw_driver_init
   call microphys_rad_init
 
+  deallocate(pref)
+  
   allocate ( Atmos_input%press(imax, 1, kl+1) )
   allocate ( Atmos_input%phalf(imax, 1, kl+1) )
   allocate ( Atmos_input%temp(imax, 1, kl+1) )
@@ -329,7 +338,7 @@ if ( first ) then
     allocate( Aerosol_diags%absopdep(imax, 1, kl, nfields, 10) )
     allocate( Aerosol_diags%asymdep(imax, 1, kl, nfields, 10) )
     
-    Aerosol_props%sulfate_flag=0
+    Aerosol_props%sulfate_flag =0
     Aerosol_props%omphilic_flag=-1
     Aerosol_props%bcphilic_flag=-2
     Aerosol_props%seasalt1_flag=-3
@@ -337,7 +346,7 @@ if ( first ) then
     Aerosol_props%seasalt3_flag=-5
     Aerosol_props%seasalt4_flag=-6
     Aerosol_props%seasalt5_flag=-7
-    Aerosol_props%bc_flag=-8
+    Aerosol_props%bc_flag      =-8
     Lw_parameters%n_lwaerosol_bands=N_AEROSOL_BANDS
     Aerosol_props%optical_index(1)=Aerosol_props%sulfate_flag     ! so4
     if ( Rad_control%using_im_bcsul ) then
@@ -502,6 +511,16 @@ if ( first ) then
 
   end if
 
+  ! assign GHG concentrations
+  Rad_gases%rrvco2  = real(rrvco2 ,8)
+  Rad_gases%rrvch4  = real(rrvch4 ,8)
+  Rad_gases%rrvn2o  = real(rrvn2o ,8)
+  Rad_gases%rrvf11  = real(rrvf11 ,8)
+  Rad_gases%rrvf12  = real(rrvf12 ,8)
+  Rad_gases%rrvf113 = real(rrvf113,8)
+  Rad_gases%rrvf22  = real(rrvf22 ,8)
+  call sealw99_time_vary(Rad_time,Rad_gases)
+  
   ! define diagnostic cloud levels
   f1=1.
   f2=1.
@@ -525,12 +544,6 @@ if (nmaxpr==1.and.myid==0) then
   write(6,*) "seaesfrad: Prepare SEA-ESF arrays"
 end if
 
-
-! Prepare SEA-ESF arrays --------------------------------------------
-Rad_time%days   =int(fjd)
-Rad_time%seconds=mod(mins,1440)
-Rad_time%ticks  =0
-
 ! error checking
 if (ldr==0) then
   write(6,*) "ERROR: SEA-ESF radiation requires ldr/=0"
@@ -544,16 +557,6 @@ if(mod(ifull,imax)/=0)then
   write(6,*) 'illegal setting of imax in rdparm'
   call ccmpi_abort(-1)
 endif
-
-Rad_gases%rrvco2  = real(rrvco2 ,8)
-Rad_gases%rrvch4  = real(rrvch4 ,8)
-Rad_gases%rrvn2o  = real(rrvn2o ,8)
-Rad_gases%rrvf11  = real(rrvf11 ,8)
-Rad_gases%rrvf12  = real(rrvf12 ,8)
-Rad_gases%rrvf113 = real(rrvf113,8)
-Rad_gases%rrvf22  = real(rrvf22 ,8)
-
-call sealw99_time_vary(Rad_time,Rad_gases)
 
 ! main loop ---------------------------------------------------------
 do j=1,jl,imax/il
@@ -836,11 +839,11 @@ do j=1,jl,imax/il
       Atmos_input%phalf(:,1,kr) = real(rathb(k)*p2(:,k)+ratha(k)*p2(:,k+1),8)
     end do
     Atmos_input%phalf(:,1,kl+1) = real(ps(istart:iend),8)
-
     if (do_aerosol_forcing) then
       Atmos_input%aerosolrelhum = Atmos_input%rel_hum
     end if
     
+    ! cloud overlap
     if (nmr>0) then
       do i=1,imax ! maximum-random overlap
         iq=i+istart-1
@@ -882,6 +885,7 @@ do j=1,jl,imax/il
       write(6,*) "seaesfrad: Calculate microphysics properties"
     end if
 
+    ! cloud microphysics for radiation
     ! cfrac, qlrad and qfrad also include convective cloud as well as qfg and qlg
     dumcf=cfrac(istart:iend,:)
     dumql=qlrad(istart:iend,:)
@@ -1067,7 +1071,7 @@ do j=1,jl,imax/il
     sgsave(istart:iend)   = sg(1:imax)   ! repeated after solarfit
     sgamp(istart:iend)    = sga(1:imax)
     ! Save the value excluding Ts^4 part.  This is allowed to change.
-    rgsave(istart:iend)   = rg(1:imax)-stefbo*tss(istart:iend)**4  ! opposite sign to prev. darlam scam
+    rgsave(istart:iend)   = rg(1:imax)-stefbo*tss(istart:iend)**4
     sintsave(istart:iend) = sint(1:imax) 
     rtsave(istart:iend)   = rt(1:imax) 
     rtclsave(istart:iend) = rtclr(1:imax)  
