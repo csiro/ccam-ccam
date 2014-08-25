@@ -15,7 +15,7 @@
      &    ,Ch_dust,duste,dustwd,dustdd,bce
      &    ,bcwd,bcdd,oce,ocwd,ocdd,dmse
      &    ,dmsso2o,so2e,so2so4o,so2wd,so2dd
-     &    ,so4e,so4wd,so4dd
+     &    ,so4e,so4wd,so4dd,zvolcemi
       use arrays_m                            ! Atmosphere dyamics prognostic arrays
       use bigxy4_m                            ! Grid interpolation
       use carbpools_m, only : carbpools_init  ! Carbon pools
@@ -160,7 +160,7 @@
      &    mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,
      &    nud_sfh,bpyear,rescrn,helmmeth,nmlo,ol,mxd,mindep,minwater,
      &    ocnsmag,ocneps,fixsal,fixheight,knh,ccycle,kblock,
-     &    nud_aero,ch_dust
+     &    nud_aero,ch_dust,zvolcemi
       namelist/skyin/mins_rad,ndiur
       namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,
      &    hfile,icefile,mesonest,nmifile,o3file,radfile,restfile,
@@ -505,7 +505,8 @@
         write(6,*)' nmr bpyear'
         write(6,'(i4,f9.2)') nmr,bpyear
         write(6,*)'Aerosol options:'
-        write(6,'(i7,g9.2)') iaero,ch_dust
+        write(6,*)'  iaero ch_dust zvolcemi'
+        write(6,'(i7,g9.2,f7.2)') iaero,ch_dust,zvolcemi
         write(6,*)'Cloud options A:'
         write(6,*)'  ldr nclddia nstab_cld nrhcrit sigcll '
         write(6,'(i5,i6,2i9,1x,f8.2)') ldr,nclddia,nstab_cld,nrhcrit,

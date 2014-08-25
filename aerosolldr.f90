@@ -9,11 +9,12 @@ implicit none
 
 private
 public aldrcalc,aldrinit,aldrend,aldrloademiss,aldrloaderod,aldrloadoxidant,cldrop,convscav
-public xtg,xtgsav,xtosav,naero,ssn,ticeu
-public itracdu,ndust,dustdd,dustwd,duste,Ch_dust
+public xtg,xtgsav,xtosav,naero,ssn
+public itracdu,ndust,dustdd,dustwd,duste
 public itracbc,bce,bcdd,bcwd
 public itracoc,oce,ocdd,ocwd
 public itracso2,dmse,dmsso2o,so2e,so2so4o,so2dd,so2wd,so4e,so4dd,so4wd
+public Ch_dust,zvolcemi,ticeu
 
 integer, save :: ifull,kl
 integer, save :: jk2,jk3,jk4,jk5,jk6,jk8,jk9           ! levels for injection
@@ -67,6 +68,7 @@ real, parameter :: rhos      = 100.             ! Assumed density of snow in kg/
 
 ! emission constants
 real, save :: Ch_dust        = 1.e-9            ! Transfer coeff for type natural source (kg*s2/m5)
+real, save :: zvolcemi       = 8.               ! Total emission from volcanoes (Tg/yr)
 
 ! scavenging constants
 real, parameter :: ticeu     = 263.16           ! Temperature for freezing in convective updraft
@@ -470,7 +472,6 @@ real, parameter :: ZVW02 = ZVWC2-0.8E-2
 real, parameter :: ZVWC4 = (0.2E-2 - 0.025E-2)/(1. - 0.9)
 real, parameter :: ZVW04 = ZVWC4-0.2E-2
 real, parameter :: tmelt = 273.05
-real, parameter :: zvolcemi  = 8.             ! ZVOLCEMI  TOTAL EMISSION FROM VOLCANOES IN TG/YR
 real, parameter :: ZVDPHOBIC = 0.025E-2       ! dry deposition
 real, parameter :: ScCO2     = 600.
 
@@ -2150,7 +2151,6 @@ enddo
 !ssm(:,:,1)=2.64e-18*ssn(:,:,1) !number mode radius = 0.035 um, sd=1.92, rho=2.165 g/cm3
 !ssm(:,:,2)=1.38e-15*ssn(:,:,2) !number mode radius = 0.35 um, sd=1.7, rho=2.165
 
-! Using the size distributions as assumed by Herzog in the radiation scheme (dry sea salt)
 ! Use ssn(3) to hold diagnostic of mass conc. for now in kg/m3
 !ssn(:,:,3)=2.64e-18*ssn(:,:,1)+1.38e-15*ssn(:,:,2)
       
@@ -2200,12 +2200,14 @@ do k=1,kl
   ! Hardiman lognormal distribution for carbonaceous aerosols (Penner et al, 1998).
   ! 1.21e17 converts from hydrophilic mass (kg/m3) to number concentration (/m3) for
   ! biomass regional haze distribution from IPCC (2001), Table 5.1. Using rho_a=1250 kg/m3.
-
+  !cphil_n = 1.25e17 * rhoa(:,k) * (xtgbc(:,k)+1.3*xtgoc(:,k))
+  
   ! Following line counts Aitken mode as well as accumulation mode carb aerosols
   cphil_n = 2.30e17 * rhoa(:,k) * (xtgbc(:,k)+1.3*xtgoc(:,k))
 
   ! The dust particles are the accumulation mode only (80.2% of the hydrophilic 
   ! "small dust" particles)
+  !dust_n(:) = 3.73e17 * rhoa(:,k) * xtg(1:ifull,k,itracdu+ndsiz)  
   !dust_n(:) = 0.
   !aero_n(:) = max (10.e6, so4_n(:) + cphil_n(:) + ssn(is:ie,k,1) + ssn(is:ie,k,2) + dust_n(:))
 

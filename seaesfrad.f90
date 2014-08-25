@@ -362,8 +362,8 @@ if ( first ) then
     Aerosol_props%optical_index(7)=711                            ! dust_2.0  (using 2.8)
     Aerosol_props%optical_index(8)=712                            ! dust_4.0  (using 4.8)
     Aerosol_props%optical_index(9)=713                            ! dust_8.0  (using 9.0)
-    Aerosol_props%optical_index(10)=705                           ! sea_salt (film drop 1-2.5)
-    Aerosol_props%optical_index(11)=705                           ! sea_salt (jet drop 10)
+    Aerosol_props%optical_index(10)=705                           ! sea_salt (film drop 0.2)
+    Aerosol_props%optical_index(11)=705                           ! sea_salt (jet drop 1.0)
     ! GFDL bins dust1=0.1-0.5, dust2=0.5-1, dust3=1-2.5, dust4=2.5-5, dust5=5-10
     ! GFDL bins salt1=0.1-0.5, salt2=0.5-1, salt3=1-2.5, salt4=2.5-5, dust5=5-10
 
@@ -1387,7 +1387,7 @@ integer iq,k,kr
 real, dimension(imax,kl), intent(in) :: cfrac,qlg,qfg,prf,ttg
 real, dimension(imax,kl), intent(in) :: cdrop
 real(kind=8), dimension(imax,kl), intent(out) :: Rdrop,Rice,conl,coni
-real, dimension(imax,kl) :: reffl,reffi,Wliq,rhoa
+real, dimension(imax,kl) :: reffl,reffi,Wliq,rhoa,cfl,cfi
 real, dimension(imax,kl) :: eps,rk,Wice
 real, parameter :: scale_factor = 1. ! account for the plane-parallel homo-
                                      ! genous cloud bias  (e.g. Cahalan effect)
@@ -1395,11 +1395,13 @@ logical, parameter :: do_brenguier = .false. ! Adjust effective radius for verti
                                              ! stratified cloud
 
 rhoa=prf/(rdry*ttg)
+cfl=cfrac*qlg/max(qlg+qfg,1.E-10)
+cfi=cfrac-cfl
 
 ! Reffl is the effective radius calculated following
 ! Martin etal 1994, JAS 51, 1823-1842
 where (qlg>1.E-10.and.cfrac>0.)
-  Wliq=rhoa*qlg/cfrac !kg/m^3
+  Wliq=rhoa*qlg/cfl !kg/m^3
   ! This is the Liu and Daum scheme for relative dispersion (Nature, 419, 580-581 and pers. comm.)
   !eps = 1.-0.7*exp(-0.008e-6*cdrop) !upper bound
   eps = 1.-0.7*exp(-0.003e-6*cdrop) !mid range
@@ -1454,7 +1456,7 @@ end if
 
 
 where (qfg>1.E-10.and.cfrac>0.)
-  Wice=rhoa*qfg/cfrac !kg/m**3
+  Wice=rhoa*qfg/cfi !kg/m**3
 !Lohmann et al.(1999)
 !  reffi=min(150.e-6,3.73e-4*Wice**0.216) 
 elsewhere
