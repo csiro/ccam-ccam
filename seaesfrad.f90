@@ -1396,15 +1396,15 @@ logical, parameter :: do_brenguier = .false. ! Adjust effective radius for verti
 
 rhoa=prf/(rdry*ttg)
 cfl=cfrac*qlg/max(qlg+qfg,1.E-10)
-cfi=cfrac-cfl
+cfi=max(cfrac-cfl,0.)
 
 ! Reffl is the effective radius calculated following
 ! Martin etal 1994, JAS 51, 1823-1842
-where (qlg>1.E-10.and.cfrac>0.)
+where (qlg>1.E-10.and.cfl>0.)
   Wliq=rhoa*qlg/cfl !kg/m^3
   ! This is the Liu and Daum scheme for relative dispersion (Nature, 419, 580-581 and pers. comm.)
-  !eps = 1.-0.7*exp(-0.008e-6*cdrop) !upper bound
-  eps = 1.-0.7*exp(-0.003e-6*cdrop) !mid range
+  !eps = 1.-0.7*exp(-0.008e-6*cdrop)  !upper bound
+  eps = 1.-0.7*exp(-0.003e-6*cdrop)   !mid range
   !eps = 1.-0.7*exp(-0.001e-6*cdrop)  !lower bound
   rk  = (1.+eps**2)/(1.+2.*eps**2)**2
   
@@ -1455,7 +1455,7 @@ if (do_brenguier) then
 end if
 
 
-where (qfg>1.E-10.and.cfrac>0.)
+where (qfg>1.E-10.and.cfi>0.)
   Wice=rhoa*qfg/cfi !kg/m**3
 !Lohmann et al.(1999)
 !  reffi=min(150.e-6,3.73e-4*Wice**0.216) 
@@ -1466,7 +1466,7 @@ end where
 !Donner et al (1997)
 do k=1,kl
   do iq=1,imax
-    if (qfg(iq,k)>1.E-10.and.cfrac(iq,k)>0.) then
+    if (qfg(iq,k)>1.E-10.and.cfi(iq,k)>0.) then
       if (ttg(iq,k)>248.16) then
         reffi(iq,k)=5.E-7*100.6
       elseif (ttg(iq,k)>243.16) then
