@@ -760,7 +760,7 @@ do ii=1,nstep
   pxtm1new=max(0.,pxtm1new)
 end do
 zhilso4=(xtg(1:ifull,1,itracso2+1)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACSO2+1)/gdp
-xte(:,1,ITRACSO2+1)=xte(:,1,ITRACSO2+1)-zhilso4gdp
+xte(:,1,ITRACSO2+1)=xte(:,1,ITRACSO2+1)-zhilso4*gdp
 
 pxtm1new=xtg(1:ifull,1,ITRACBC)
 do ii=1,nstep  
