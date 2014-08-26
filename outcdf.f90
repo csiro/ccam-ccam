@@ -968,23 +968,23 @@ if(myid==0.or.local)then
       lname = 'Organic carbon wet deposition'
       call attrib(idnc,idim,3,'ocwd_ave',lname,'g/(m2 yr)',0.,390.,0,itype)
       lname = 'DMS emissions'
-      call attrib(idnc,idim,3,'dmse_ave',lname,'g/(m2 yr)',0.,390.,0,itype) 
+      call attrib(idnc,idim,3,'dmse_ave',lname,'gS/(m2 yr)',0.,390.,0,itype) 
       lname = 'DMS to SO2 oxidation'
-      call attrib(idnc,idim,3,'dmsso2_ave',lname,'g/(m2 yr)',0.,390.,0,itype)
+      call attrib(idnc,idim,3,'dmsso2_ave',lname,'gS/(m2 yr)',0.,390.,0,itype)
       lname = 'SO2 emissions'
-      call attrib(idnc,idim,3,'so2e_ave',lname,'g/(m2 yr)',0.,390.,0,itype) 
+      call attrib(idnc,idim,3,'so2e_ave',lname,'gS/(m2 yr)',0.,390.,0,itype) 
       lname = 'SO2 to SO4 oxidation'
-      call attrib(idnc,idim,3,'so2so4_ave',lname,'g/(m2 yr)',0.,390.,0,itype)
+      call attrib(idnc,idim,3,'so2so4_ave',lname,'gS/(m2 yr)',0.,390.,0,itype)
       lname = 'SO2 dry deposition'
-      call attrib(idnc,idim,3,'so2dd_ave',lname,'g/(m2 yr)',0.,390.,0,itype)
+      call attrib(idnc,idim,3,'so2dd_ave',lname,'gS/(m2 yr)',0.,390.,0,itype)
       lname = 'SO2 wet deposition'
-      call attrib(idnc,idim,3,'so2wd_ave',lname,'g/(m2 yr)',0.,390.,0,itype)
+      call attrib(idnc,idim,3,'so2wd_ave',lname,'gS/(m2 yr)',0.,390.,0,itype)
       lname = 'SO4 emissions'
-      call attrib(idnc,idim,3,'so4e_ave',lname,'g/(m2 yr)',0.,390.,0,itype)
+      call attrib(idnc,idim,3,'so4e_ave',lname,'gS/(m2 yr)',0.,390.,0,itype)
       lname = 'SO4 dry deposition'
-      call attrib(idnc,idim,3,'so4dd_ave',lname,'g/(m2 yr)',0.,390.,0,itype) 
+      call attrib(idnc,idim,3,'so4dd_ave',lname,'gS/(m2 yr)',0.,390.,0,itype) 
       lname = 'SO4 wet deposition'
-      call attrib(idnc,idim,3,'so4wd_ave',lname,'g/(m2 yr)',0.,390.,0,itype) 
+      call attrib(idnc,idim,3,'so4wd_ave',lname,'gS/(m2 yr)',0.,390.,0,itype) 
     end if
 
     ! CABLE -----------------------------------------------------

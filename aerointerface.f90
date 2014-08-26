@@ -593,10 +593,10 @@ call aldrcalc(dt,sig,sigh,dsig,zg,dz,fwet,wg,pblh,ps,  &
               kbsav)
 
 ! store sulfate for LH+SF radiation scheme.  SEA-ESF radiation scheme imports prognostic aerosols in seaesfrad.f90.
-! Factor 1.e3 to convert to g/m2, x 3 to get sulfate from sulfur
+! Factor 1.e3 to convert to gS/m2, x 3 to get sulfate from sulfur
 so4t(:)=0.
 do k=1,kl
-  so4t(:)=so4t(:)+1.e3*xtg(1:ifull,k,3)*(-ps(1:ifull)*dsig(k))/grav
+  so4t(:)=so4t(:)+3.e3*xtg(1:ifull,k,3)*(-ps(1:ifull)*dsig(k))/grav
 enddo
 
 return

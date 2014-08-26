@@ -45,7 +45,7 @@ real, dimension(:), allocatable, save :: so4e          ! Diagnostic - so4 emissi
 real, dimension(:), allocatable, save :: so4dd         ! Diagnostic - so4 dry deposition
 real, dimension(:), allocatable, save :: so4wd         ! Diagnostic - so4 wet deposition
 
-! parameters
+! tracers
 integer, parameter :: nsulf = 3
 integer, parameter :: ncarb = 4
 integer, parameter :: ndust = 4
@@ -56,6 +56,24 @@ integer, parameter :: itracoc = nsulf+3         ! Index for OC    "    (hydropho
 integer, parameter :: itracdu = nsulf+ncarb+1   ! Index for dust  "
 integer, parameter :: ndcls = 3                 ! No. of dust emission classes (sand, silt, clay)
 
+! emissions
+integer, parameter :: iso2a1=1
+integer, parameter :: iso2a2=2
+integer, parameter :: ibca1 =3
+integer, parameter :: ibca2 =4
+integer, parameter :: ioca1 =5
+integer, parameter :: ioca2 =6
+integer, parameter :: iso2b1=7
+integer, parameter :: iso2b2=8
+integer, parameter :: ibcb1 =9
+integer, parameter :: ibcb2 =10
+integer, parameter :: iocb1 =11
+integer, parameter :: iocb2 =12
+integer, parameter :: idmso =13     ! DMS ocean
+integer, parameter :: idmst =14     ! DMS terr
+integer, parameter :: iocna =15     ! Nat org
+
+! options
 integer, parameter :: enhanceu10 = 0            ! Modify 10m wind speed (0=none, 1=quadrature, 2=linear)
 
 ! physical constants
@@ -205,6 +223,18 @@ else
   stop
 end if
 
+if (index==iso2b1.or.index==iso2b2.or.index==iso2a1.or.index==iso2a2) then
+  ! convert SO2 emissions to kgS/m2/s
+  emissfield(:,index)=0.5*emissfield(:,index)
+end if
+
+!if (index==iocna) then
+! Default yield for natural organics is about 13%, or 16.4 TgC p.a., which may be
+! a gross underestimate e.g., Tsigaridis & Kanakidou, Atmos. Chem. Phys. (2003) and
+! Kanakidou et al., Atmos. Chem. Phys. (2005). Try 35 TgC for now.
+!  emissfield(:,index)=(35./16.4)*emissfield(:,index)
+!end if
+
 return
 end subroutine aldrloademiss
 
@@ -344,7 +374,6 @@ end select
 do k=1,kl+1
   aphp1(:,k)=prf(:)*sigh(k)
 enddo
-! MJT notes - replace vefn with v10n for regional model
 call xtemiss(dt, rhoa(:,1), ts, sicef, vefn, aphp1,                       & !Inputs
              land, tsigmf, cgssnowd, fwet, wg,                            & !Inputs
              xte, xtem, bbem)                                               !Outputs
@@ -475,23 +504,6 @@ real, parameter :: tmelt = 273.05
 real, parameter :: ZVDPHOBIC = 0.025E-2       ! dry deposition
 real, parameter :: ScCO2     = 600.
 
-! Then follow SO2, BC and OC from anthro (a) and biomass-burning (b) levels 1 and 2
-integer, parameter :: iso2a1=1
-integer, parameter :: iso2a2=2
-integer, parameter :: ibca1 =3
-integer, parameter :: ibca2 =4
-integer, parameter :: ioca1 =5
-integer, parameter :: ioca2 =6
-integer, parameter :: iso2b1=7
-integer, parameter :: iso2b2=8
-integer, parameter :: ibcb1 =9
-integer, parameter :: ibcb2 =10
-integer, parameter :: iocb1 =11
-integer, parameter :: iocb2 =12
-integer, parameter :: idmso =13     ! DMS ocean
-integer, parameter :: idmst =14     ! DMS terr
-integer, parameter :: iocna =15     ! Nat org
-
 ! Start code : ----------------------------------------------------------
 
 pxtems(:,:)=0.
@@ -537,7 +549,9 @@ DO JL=1,ifull
   END IF
 end do
 gdp(:)=grav/(aphp1(:,1)-aphp1(:,2))
-xte(:,1,itracso2-1)=xte(:,1,itracso2-1)+zdmsemiss(:)*gdp(:)
+!xte(:,1,itracso2-1)=xte(:,1,itracso2-1)+zdmsemiss(:)*gdp(:)
+! MJT suggestion - convert to kgS/m2/s
+xte(:,1,itracso2-1)=xte(:,1,itracso2-1)+(1./1.938)*zdmsemiss(:)*gdp(:) 
 
 ! Other biomass emissions of SO2 are done below (with the non-surface S emissions)
 PXTEMS(:,ITRACSO2)  =(EMISSFIELD(:,iso2a1)+EMISSFIELD(:,iso2b1))*0.97
