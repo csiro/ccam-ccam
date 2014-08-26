@@ -492,13 +492,16 @@ if (sday<=mins-updateoxidant) then
   dhr=dt/3600.
   ttx=nint(86400./dt)
   zdayfac(:)=0.
-  do tt=1,ttx ! we seem to get a different answer if dhr=24. and ttx=1.
+  do tt=ttx,1,-1 ! we seem to get a different answer if dhr=24. and ttx=1.
     smins=int(real(tt-1)*dt/60.)+mins
     sfjd=float(mod(smins,525600))/1440.  ! 525600 = 1440*365
     call solargh(sfjd,bpyear,r1,dlt,alp,slag)
     call zenith(sfjd,r1,dlt,slag,rlatt,rlongg,dhr,ifull,coszro,taudar)
-    zdayfac(:)=zdayfac(:)+taudar
+    where (taudar>0.)
+      zdayfac(:)=zdayfac(:)+1.
+    end where
   end do
+  ! final taudar is for current timestep - used to indicate sunlit
   where (zdayfac>0.)
     zdayfac(:)=real(ttx)/zdayfac(:)
   end where
@@ -581,7 +584,7 @@ wg=min(max(wetfac,0.),1.)
 
 ! update prognostic aerosols
 call aldrcalc(dt,sig,sigh,dsig,zg,dz,fwet,wg,pblh,ps,  &
-              tss,t,condc,snowd,sgsave,fg,             &
+              tss,t,condc,snowd,taudar,fg,             &
               eg,u10,ustar,zo,land,fracice,sigmf,      &
               qg,qlg,qfg,cfrac,clcon,cldcon,           &
               pccw,rhoa,cdtq,ppfprec,ppfmelt,ppfsnow,  &

@@ -450,7 +450,7 @@ real, dimension(il_g) :: xpnt
 real, dimension(jl_g) :: ypnt
 real, dimension(ifull) :: aa,bb,cc
 real, dimension(ifull) :: ocndep,ocnheight
-real, dimension(ifull,kl) :: tmpry
+real, dimension(ifull,kl) :: tmpry,rhoa
 real, dimension(ifull,wlev,4) :: mlodwn
 real, dimension(ifull,11) :: micdwn
 real, dimension(ifull,24) :: atebdwn
@@ -1200,6 +1200,7 @@ if(myid==0.or.local)then
       call attrib(idnc,dim,4,'dust4','Dust 3-6 micrometers','kg/kg',0.,6.5E-6,0,itype)
       call attrib(idnc,dim,4,'seasalt1','Sea salt small','1/m3',0.,6.5E9,0,itype)
       call attrib(idnc,dim,4,'seasalt2','Sea salt large','1/m3',0.,6.5E7,0,itype)
+      call attrib(idnc,dim,4,'cdn','Cloud droplet concentration','1/m3',1.E7,6.6E8,0,itype)
     end if
 
     ! RESTART ---------------------------------------------------
@@ -1730,41 +1731,41 @@ if (nextout>=1.and.abs(iaero)>=2.and.nrad==5) then
   call histwrt3(opticaldepth(:,7,2),'ssalt_nir',idnc,iarch,local,lwrite)
   call histwrt3(opticaldepth(:,7,3),'ssalt_lw',idnc,iarch,local,lwrite)
   aa=max(duste*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'duste_ave',idnc,iarch,local,lwrite)
+  call histwrt3(aa,'duste_ave',idnc,iarch,local,lave)
   aa=max(dustdd*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'dustdd_ave',idnc,iarch,local,lwrite)
+  call histwrt3(aa,'dustdd_ave',idnc,iarch,local,lave)
   aa=max(dustwd*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'dustwd_ave',idnc,iarch,local,lwrite)
+  call histwrt3(aa,'dustwd_ave',idnc,iarch,local,lave)
   aa=max(bce*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'bce_ave',idnc,iarch,local,lwrite)
+  call histwrt3(aa,'bce_ave',idnc,iarch,local,lave)
   aa=max(bcdd*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'bcdd_ave',idnc,iarch,local,lwrite)
+  call histwrt3(aa,'bcdd_ave',idnc,iarch,local,lave)
   aa=max(bcwd*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'bcwd_ave',idnc,iarch,local,lwrite)
+  call histwrt3(aa,'bcwd_ave',idnc,iarch,local,lave)
   aa=max(oce*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'oce_ave',idnc,iarch,local,lwrite)
+  call histwrt3(aa,'oce_ave',idnc,iarch,local,lave)
   aa=max(ocdd*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'ocdd_ave',idnc,iarch,local,lwrite)
+  call histwrt3(aa,'ocdd_ave',idnc,iarch,local,lave)
   aa=max(ocwd*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'ocwd_ave',idnc,iarch,local,lwrite)
+  call histwrt3(aa,'ocwd_ave',idnc,iarch,local,lave)
   aa=max(dmse*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'dmse_ave',idnc,iarch,local,lwrite)
+  call histwrt3(aa,'dmse_ave',idnc,iarch,local,lave)
   aa=max(dmsso2o*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'dmsso2_ave',idnc,iarch,local,lwrite)
+  call histwrt3(aa,'dmsso2_ave',idnc,iarch,local,lave)
   aa=max(so2e*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'so2e_ave',idnc,iarch,local,lwrite)
+  call histwrt3(aa,'so2e_ave',idnc,iarch,local,lave)
   aa=max(so2so4o*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'so2so4_ave',idnc,iarch,local,lwrite)
+  call histwrt3(aa,'so2so4_ave',idnc,iarch,local,lave)
   aa=max(so2dd*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'so2dd_ave',idnc,iarch,local,lwrite)
+  call histwrt3(aa,'so2dd_ave',idnc,iarch,local,lave)
   aa=max(so2wd*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'so2wd_ave',idnc,iarch,local,lwrite)
+  call histwrt3(aa,'so2wd_ave',idnc,iarch,local,lave)
   aa=max(so4e*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'so4e_ave',idnc,iarch,local,lwrite)
+  call histwrt3(aa,'so4e_ave',idnc,iarch,local,lave)
   aa=max(so4dd*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'so4dd_ave',idnc,iarch,local,lwrite)
+  call histwrt3(aa,'so4dd_ave',idnc,iarch,local,lave)
   aa=max(so4wd*3.154e10,0.) ! g/m2/yr
-  call histwrt3(aa,'so4wd_ave',idnc,iarch,local,lwrite)
+  call histwrt3(aa,'so4wd_ave',idnc,iarch,local,lave)
 end if
 
 ! CABLE -------------------------------------------------------
@@ -1926,6 +1927,11 @@ if (iaero<=-2.or.(iaero>=2.and.itype==-1)) then
   call histwrt4(xtg(:,:,11),'dust4',idnc,iarch,local,.true.)
   call histwrt4(ssn(:,:,1),'seasalt1',idnc,iarch,local,.true.)
   call histwrt4(ssn(:,:,2),'seasalt2',idnc,iarch,local,.true.)
+  do k=1,kl
+    rhoa(:,k)=ps(1:ifull)*sig(k)/(rdry*t(1:ifull,k)) !density of air
+  end do
+  call aerodrop(1,ifull,kl,tmpry,rhoa,land,rlatt)
+  call histwrt4(tmpry,'cdn',idnc,iarch,local,.true.)
 end if
 
 !**************************************************************

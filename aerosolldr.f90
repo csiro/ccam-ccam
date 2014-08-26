@@ -243,7 +243,7 @@ end subroutine aldrloaderod
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Main routine
 
-subroutine aldrcalc(dt,sig,sigh,dsig,zz,dz,fwet,wg,pblh,prf,ts,ttg,condc,snowd,sg,fg,eg,v10m,        &
+subroutine aldrcalc(dt,sig,sigh,dsig,zz,dz,fwet,wg,pblh,prf,ts,ttg,condc,snowd,taudar,fg,eg,v10m,    &
                     ustar,zo,land,sicef,tsigmf,qvg,qlg,qfg,cfrac,clcon,cldcon,pccw,rhoa,vt,ppfprec,  &
                     ppfmelt,ppfsnow,ppfconv,ppfevap,ppfsubl,pplambs,ppmrate,ppmaccr,ppfstay,ppqfsed, &
                     pprscav,zdayfac,kbsav)
@@ -263,7 +263,7 @@ real, dimension(ifull), intent(in) :: pblh     ! Boundary layer height
 real, dimension(ifull), intent(in) :: v10m     ! 10m wind speed
 real, dimension(ifull), intent(in) :: condc    ! Convective rainfall
 real, dimension(ifull), intent(in) :: snowd    ! Snow depth
-real, dimension(ifull), intent(in) :: sg       ! Downwelling shortwave radiation
+real, dimension(ifull), intent(in) :: taudar   ! Fraction of time sunlit
 real, dimension(ifull), intent(in) :: fg       ! Sensible heat flux
 real, dimension(ifull), intent(in) :: eg       ! Latent heat flux
 real, dimension(ifull), intent(in) :: ustar    ! Friction velocity
@@ -377,7 +377,7 @@ do nt=1,naero
   end do
 end do
 do k=1,kl
-  aphp1(:,kl+1-k) =-prf(:)*dsig(k)                            ! delta pressure
+  aphp1(:,kl+1-k) =prf(:)*(sigh(k)-sigh(k+1))                 ! delta pressure
   prhop1(:,kl+1-k)=rhoa(:,k)                                  ! air density
   ptp1(:,kl+1-k)  =ttg(1:ifull,k)                             ! air temperature
   pclcon(:,kl+1-k)=clcon(:,k)                                 ! convective cloud fraction
@@ -394,7 +394,7 @@ do k=1,kl
   end where
 end do
 call xtchemie (1, dt, zdayfac, aphp1(:,1:kl), ppmrate, ppfprec,                 & !Inputs
-               pclcover, pmlwc, prhop1, ptp1, sg, xtm1, ppfevap,                & !Inputs
+               pclcover, pmlwc, prhop1, ptp1, taudar, xtm1, ppfevap,            & !Inputs
                ppfsnow,ppfsubl,pcfcover,pmiwc,ppmaccr,ppfmelt,ppfstay,ppqfsed,  & !Inputs
                pplambs,pprscav,pclcon,cldcon,pccw,ppfconv,xtu,                  & !Input
                conwd,                                                           & !In and Out
@@ -404,8 +404,8 @@ do nt=1,naero
     xtg(1:ifull,k,nt)=max(xtg(1:ifull,k,nt)+xte(:,kl+1-k,nt)*dt,0.)
   end do
 enddo
-dmsso2o=dmsoh+dmsn3        ! oxidation of DMS to SO2
-so2so4o=so2oh+so2h2+so2o3  ! oxidation of SO2 to SO4
+dmsso2o=dmsso2o+dmsoh+dmsn3        ! oxidation of DMS to SO2
+so2so4o=so2so4o+so2oh+so2h2+so2o3  ! oxidation of SO2 to SO4
 
 return
 end subroutine aldrcalc
@@ -460,7 +460,7 @@ integer jl,jk,jt,nstep,ii
 REAL, dimension(ifull,2) :: ZVDRD
 REAL, dimension(ifull) :: ZMAXVDRY,gdp,zdmsemiss,pxtm1new
 real, dimension(ifull) :: zhilbco,zhilbcy,zhiloco,zhilocy
-real, dimension(ifull) :: dmsdd
+real, dimension(ifull) :: zhilso2,zhilso4
 real zvolcemi1,zvolcemi2,zvolcemi3
 real zvd2ice,zvd4ice,zvd2nof,zvd4nof
 
@@ -514,29 +514,30 @@ DO JL=1,ifull
     ZDMSCON=EMISSFIELD(JL,idmso)*(1.-SEAICEM(JL))**2
     ZSST=TSM1M(JL)-273.15 ! DegC
     ZSST=min(ZSST, 45.)   ! Even Saltzman Sc formula has trouble over 45 deg C
+    ! The formula for ScDMS from Saltzman et al (1993) is given by Kettle & Andreae (ref below)
+    ScDMS = 2674. - 147.12*ZSST + 3.726*ZSST**2 - 0.038*ZSST**3 !Sc for DMS (Saltzman et al.)
+    !ScDMS=3652.047271-246.99*ZSST+8.536397*ZSST**2-0.124397*ZSST**3  !Andreae's formula
     !  G3X01:  10-M WINDS
     ZZSPEED=G3X01(JL)
     ! Nightingale (2000) scheme (J. Biogeochem. Cycles, 14, 373-387)
     ! For this scheme, zzspeed is the 10m wind adjusted to neutral stability.
-    ! The formula for ScDMS from Saltzman et al (1993) is given by Kettle & Andreae (ref below)
     VpCO2 = 0.222*ZZSPEED**2 + 0.333*ZZSPEED !Nightingale et al
-    ! Phase in Liss & Merlivat from 13 to 18 m/s, since Nightingale is doubtful for high windspeeds,
-    ! due to limited data.
-    VpCO2liss=5.9*ZZSPEED-49.3
-    wtliss=dim(min(18.,ZZSPEED),13.)/5. ! dim(x,y) is the difference between x and y if the difference is positive
-    VpCO2=wtliss*VpCO2liss+(1.-wtliss)*VpCO2
-    ScDMS = 2674. - 147.12*ZSST + 3.726*ZSST**2 - 0.038*ZSST**3 !Sc for DMS (Saltzman et al.)
     if ( ZZSPEED<3.6 ) then
       zVdms = VpCO2 * (ScCO2/ScDMS)**(2./3.)
     else
+      ! Phase in Liss & Merlivat from 13 to 18 m/s, since Nightingale is doubtful for high windspeeds,
+      ! due to limited data.
+      VpCO2liss=5.9*ZZSPEED-49.3
+      wtliss=min(max((zzspeed-13.)/5.,0.),1.)
+      VpCO2=wtliss*VpCO2liss+(1.-wtliss)*VpCO2        
       zVdms = VpCO2 * sqrt(ScCO2/ScDMS)
     end if
     ZDMSEMISS(jl)=ZDMSCON*ZVDMS*32.064E-11/3600.
     ! NANOMOL/LTR*CM/HOUR --> KG/M**2/SEC
   END IF
 end do
-gdp=grav/(aphp1(:,1)-aphp1(:,2))
-xte(:,1,itracso2-1)=xte(:,1,itracso2-1)+zdmsemiss*gdp
+gdp(:)=grav/(aphp1(:,1)-aphp1(:,2))
+xte(:,1,itracso2-1)=zdmsemiss(:)*gdp(:)
 
 ! Other biomass emissions of SO2 are done below (with the non-surface S emissions)
 PXTEMS(:,ITRACSO2)  =(EMISSFIELD(:,iso2a1)+EMISSFIELD(:,iso2b1))*0.97
@@ -716,12 +717,8 @@ end do
 
 ! Sulfur emission diagnostic (hard-coded for 3 sulfur variables)
 do jk=1,kl
-  dmse=dmse+xte(:,jk,1)*(aphp1(:,jk)-aphp1(:,jk+1))/grav            !Above surface
-enddo
-do jk=1,kl
-  so2e=so2e+xte(:,jk,ITRACSO2)*(aphp1(:,jk)-aphp1(:,jk+1))/grav     !Above surface
-enddo
-do jk=1,kl
+  dmse=dmse+xte(:,jk,ITRACSO2-1)*(aphp1(:,jk)-aphp1(:,jk+1))/grav   !Above surface
+  so2e=so2e+xte(:,jk,ITRACSO2  )*(aphp1(:,jk)-aphp1(:,jk+1))/grav   !Above surface
   so4e=so4e+xte(:,jk,ITRACSO2+1)*(aphp1(:,jk)-aphp1(:,jk+1))/grav   !Above surface
 enddo
 
@@ -753,8 +750,8 @@ do ii=1,nstep
       /(1.+0.5*ddt*p1mxtm1*zvdrd(:,1)*gdp)
   pxtm1new=max(0.,pxtm1new)
 end do
-so2dd=(xtg(1:ifull,1,itracso2)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACSO2)/gdp
-xte(:,1,ITRACSO2)  =xte(:,1,ITRACSO2)  -so2dd*gdp
+zhilso2=(xtg(1:ifull,1,itracso2)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACSO2)/gdp
+xte(:,1,ITRACSO2)  =xte(:,1,ITRACSO2)  -zhilso2*gdp
   
 pxtm1new=xtg(1:ifull,1,itracso2+1)
 do ii=1,nstep  
@@ -762,8 +759,8 @@ do ii=1,nstep
         /(1.+0.5*ddt*p1mxtm1*zvdrd(:,2)*gdp)
   pxtm1new=max(0.,pxtm1new)
 end do
-so4dd=(xtg(1:ifull,1,itracso2+1)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACSO2+1)/gdp
-xte(:,1,ITRACSO2+1)=xte(:,1,ITRACSO2+1)-so4dd*gdp
+zhilso4=(xtg(1:ifull,1,itracso2+1)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACSO2+1)/gdp
+xte(:,1,ITRACSO2+1)=xte(:,1,ITRACSO2+1)-zhilso4gdp
 
 pxtm1new=xtg(1:ifull,1,ITRACBC)
 do ii=1,nstep  
@@ -801,6 +798,8 @@ end do
 ZHILOCY=(xtg(1:ifull,1,ITRACOC+1)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACOC+1)/gdp
 xte(:,1,itracoc+1)=xte(:,1,itracoc+1)-zhilocy*gdp
 
+so2dd=so2dd+zhilso2
+so4dd=so4dd+zhilso4
 bcdd=bcdd+zhilbco+zhilbcy
 ocdd=ocdd+zhiloco+zhilocy
 
@@ -869,7 +868,7 @@ END subroutine xtsink
 ! xt chemie
 
 SUBROUTINE XTCHEMIE(KTOP, PTMST,zdayfac,PDPP1, PMRATEP, PFPREC,                      & !Inputs
-                    PCLCOVER, PMLWC, PRHOP1, PTP1, sg, xtm1, pfevap,                 & !Inputs
+                    PCLCOVER, PMLWC, PRHOP1, PTP1, taudar, xtm1, pfevap,             & !Inputs
                     pfsnow,pfsubl,pcfcover,pmiwc,pmaccr,pfmelt,pfstay,pqfsed,plambs, & !Inputs
                     prscav,pclcon,fracc,pccw,pfconv,xtu,                             & !Inputs
                     conwd,                                                           & !In and Out
@@ -885,7 +884,7 @@ SUBROUTINE XTCHEMIE(KTOP, PTMST,zdayfac,PDPP1, PMRATEP, PFPREC,                 
 ! pmlwc: liquid-water mixing ratio (kg/kg)
 ! prhop1: density of air (kg/m3)
 ! ptp1: temperature (k)
-! sg: net solar radiation at ground (W/m2; used to determine if daytime)
+! taudar: fraction of time sunlit (used to determine if daytime)
 ! xtm1: tracer mixing ratio (kg/kg)
 ! pfevap: rainfall flux evaporating in layer k (kg/m2/s)
 ! pfsnow: snowfall flux (entering from above) (kg/m2/s)
@@ -945,7 +944,7 @@ REAL PCLCOVER(ifull,kl)
 REAL PMLWC(ifull,kl)
 REAL PRHOP1(ifull,kl)
 REAL PTP1(ifull,kl)
-real sg(ifull)
+real taudar(ifull)
 REAL XTM1(ifull,kl,naero)
 real xtu(ifull,kl,naero)
 REAL XTE(ifull,kl,naero)
@@ -1048,7 +1047,7 @@ dmsoh3d(:,:)=0.
 dmsn33d(:,:)=0.
 xte(:,:,:)=0.
 pcons2=1./(ptmst*grav)
-where ( sg(:)>0. )
+where ( taudar(:)>0. )
   zrdayl(:)=1
 elsewhere
   zrdayl(:)=0  
@@ -1537,7 +1536,7 @@ DO JK=1,kl
 end do
 
 ! Calculate tendency of SO2 due to oxidation by OH (diagnostic) and ox. tendencies of DMS
-do jk=1,kl
+do jk=kl,1,-1
   so2oh(:)=so2oh(:)+so2oh3d(:,jk)*pdpp1(:,jk)/grav
   dmsoh(:)=dmsoh(:)+dmsoh3d(:,jk)*pdpp1(:,jk)/grav
   dmsn3(:)=dmsn3(:)+dmsn33d(:,jk)*pdpp1(:,jk)/grav
@@ -2208,12 +2207,11 @@ do k=1,kl
   ! The dust particles are the accumulation mode only (80.2% of the hydrophilic 
   ! "small dust" particles)
   !dust_n(:) = 3.73e17 * rhoa(:,k) * xtg(1:ifull,k,itracdu+ndsiz)  
-  !dust_n(:) = 0.
   !aero_n(:) = max (10.e6, so4_n(:) + cphil_n(:) + ssn(is:ie,k,1) + ssn(is:ie,k,2) + dust_n(:))
 
   ! Jones et al., modified to account for hydrophilic carb aerosols as well
   Atot = so4_n + cphil_n + ssn(is:ie,k,1) + ssn(is:ie,k,2)
-  cdn(:,k)=max(10.e6, 375.e6*(1.-exp(-2.5e-9*Atot)))
+  cdn(:,k)=max(1.e7, 3.75e8*(1.-exp(-2.5e-9*Atot)))
 
 enddo
 

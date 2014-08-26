@@ -1400,8 +1400,8 @@ cfi=max(cfrac-cfl,0.)
 
 ! Reffl is the effective radius calculated following
 ! Martin etal 1994, JAS 51, 1823-1842
-where (qlg>1.E-10.and.cfl>0.)
-  Wliq=rhoa*qlg/cfl !kg/m^3
+where ( qlg>1.E-10 .and. cfl>0. .and. cfrac>0. )
+  Wliq=rhoa*qlg/cfrac !kg/m^3
   ! This is the Liu and Daum scheme for relative dispersion (Nature, 419, 580-581 and pers. comm.)
   !eps = 1.-0.7*exp(-0.008e-6*cdrop)  !upper bound
   eps = 1.-0.7*exp(-0.003e-6*cdrop)   !mid range
@@ -1414,7 +1414,7 @@ where (qlg>1.E-10.and.cfl>0.)
   ! lower bound k_ratio (land) 1.203 (water) 1.050
 
   ! Martin et al 1994
-  reffl=(3.*Wliq/(4.*pi*rhow*rk*cdrop))**(1./3.)
+  reffl=(3.*(rhoa*qlg/cfl)/(4.*pi*rhow*rk*cdrop))**(1./3.)
 elsewhere
   reffl=0.
   Wliq=0.
@@ -1455,10 +1455,10 @@ if (do_brenguier) then
 end if
 
 
-where (qfg>1.E-10.and.cfi>0.)
-  Wice=rhoa*qfg/cfi !kg/m**3
+where ( qfg>1.E-10 .and. cfi>0. .and. cfrac>0. )
+  Wice=rhoa*qfg/cfrac !kg/m**3
 !Lohmann et al.(1999)
-!  reffi=min(150.e-6,3.73e-4*Wice**0.216) 
+!  reffi=min(150.e-6,3.73e-4*(rhoa*qfg/cfi)**0.216) 
 elsewhere
   Wice=0.
 end where
