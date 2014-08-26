@@ -550,9 +550,7 @@ DO JL=1,ifull
   END IF
 end do
 gdp(:)=grav/(aphp1(:,1)-aphp1(:,2))
-!xte(:,1,itracso2-1)=xte(:,1,itracso2-1)+zdmsemiss(:)*gdp(:)
-! MJT suggestion - convert to kgS/m2/s
-xte(:,1,itracso2-1)=xte(:,1,itracso2-1)+(1./1.938)*zdmsemiss(:)*gdp(:) 
+xte(:,1,itracso2-1)=xte(:,1,itracso2-1)+zdmsemiss(:)*gdp(:)
 
 ! Other biomass emissions of SO2 are done below (with the non-surface S emissions)
 PXTEMS(:,ITRACSO2)  =(EMISSFIELD(:,iso2a1)+EMISSFIELD(:,iso2b1))*0.97

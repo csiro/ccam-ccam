@@ -479,6 +479,7 @@ real, dimension(kl+1) :: sigh
 ! timer calculations
 call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
 ! update prescribed oxidant fields
+dhr=dt/3600.
 if (sday<=mins-updateoxidant) then
   sday=mins
   do j=1,4      
@@ -489,7 +490,6 @@ if (sday<=mins-updateoxidant) then
     end do
   end do
   ! estimate day length (presumably to preturb day-time OH levels)
-  dhr=dt/3600.
   ttx=nint(86400./dt)
   zdayfac(:)=0.
   do tt=ttx,1,-1 ! we seem to get a different answer if dhr=24. and ttx=1.
@@ -505,6 +505,11 @@ if (sday<=mins-updateoxidant) then
   where (zdayfac>1.e-20)
     zdayfac(:)=real(ttx)/zdayfac(:)
   end where
+else
+  sfjd=float(mod(mins,525600))/1440.  ! 525600 = 1440*365
+  call solargh(sfjd,bpyear,r1,dlt,alp,slag)
+  call zenith(sfjd,r1,dlt,slag,rlatt,rlongg,dhr,ifull,coszro,taudar)
+  ! taudar is for current timestep - used to indicate sunlit
 end if
 
 ! set-up input data fields ------------------------------------------------
