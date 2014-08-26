@@ -497,7 +497,7 @@ if (sday<=mins-updateoxidant) then
     sfjd=float(mod(smins,525600))/1440.  ! 525600 = 1440*365
     call solargh(sfjd,bpyear,r1,dlt,alp,slag)
     call zenith(sfjd,r1,dlt,slag,rlatt,rlongg,dhr,ifull,coszro,taudar)
-    where (taudar>1.e-20)
+    where (taudar>0.5)
       zdayfac(:)=zdayfac(:)+1.
     end where
   end do

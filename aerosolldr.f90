@@ -1061,7 +1061,7 @@ dmsoh3d(:,:)=0.
 dmsn33d(:,:)=0.
 xte(:,:,:)=0.
 pcons2=1./(ptmst*grav)
-where ( taudar(:)>1.e-20 )
+where ( taudar(:)>0.5 )
   zrdayl(:)=1
 elsewhere
   zrdayl(:)=0  
