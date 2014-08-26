@@ -358,10 +358,10 @@ if ( first ) then
     end if
     Aerosol_props%optical_index(4)=720                            ! organic carbon (hydrophobic)
     Aerosol_props%optical_index(5)=Aerosol_props%omphilic_flag    ! organic carbon (hydrophillic)
-    Aerosol_props%optical_index(6)=710                            ! dust_1.0  (using 1.4)
-    Aerosol_props%optical_index(7)=711                            ! dust_2.0  (using 2.8)
-    Aerosol_props%optical_index(8)=712                            ! dust_4.0  (using 4.8)
-    Aerosol_props%optical_index(9)=713                            ! dust_8.0  (using 9.0)
+    Aerosol_props%optical_index(6)=709                            ! dust_0.8  (using 0.73)
+    Aerosol_props%optical_index(7)=710                            ! dust_1.0  (using 1.4)
+    Aerosol_props%optical_index(8)=711                            ! dust_2.0  (using 2.4)
+    Aerosol_props%optical_index(9)=712                            ! dust_4.0  (using 4.5)
     Aerosol_props%optical_index(10)=705                           ! sea_salt (film drop 0.2)
     Aerosol_props%optical_index(11)=705                           ! sea_salt (jet drop 1.0)
     ! GFDL bins dust1=0.1-0.5, dust2=0.5-1, dust3=1-2.5, dust4=2.5-5, dust5=5-10
@@ -717,15 +717,15 @@ do j=1,jl,imax/il
         do k=1,kl
           kr=kl+1-k
           dprf=-ps(istart:iend)*dsig(k)
-          Aerosol%aerosol(:,1,kr,1) =real(3.*xtg(istart:iend,k,3)*dprf/grav,8)  ! so4 (3 converts from gS to g)
-          Aerosol%aerosol(:,1,kr,2) =real(xtg(istart:iend,k,4)*dprf/grav,8)     ! bc hydrophobic
-          Aerosol%aerosol(:,1,kr,3) =real(xtg(istart:iend,k,5)*dprf/grav,8)     ! bc hydrophilic
-          Aerosol%aerosol(:,1,kr,4) =real(xtg(istart:iend,k,6)*dprf/grav,8)     ! oc hydrophobic
-          Aerosol%aerosol(:,1,kr,5) =real(xtg(istart:iend,k,7)*dprf/grav,8)     ! oc hydrophilic
-          Aerosol%aerosol(:,1,kr,6) =real(xtg(istart:iend,k,8)*dprf/grav,8)     ! dust 1-2
-          Aerosol%aerosol(:,1,kr,7) =real(xtg(istart:iend,k,9)*dprf/grav,8)     ! dust 2-3
-          Aerosol%aerosol(:,1,kr,8) =real(xtg(istart:iend,k,10)*dprf/grav,8)    ! dust 3-6
-          Aerosol%aerosol(:,1,kr,9) =real(xtg(istart:iend,k,11)*dprf/grav,8)    ! dust 6-10
+          Aerosol%aerosol(:,1,kr,1) =real(3.*xtg(istart:iend,k,3)*dprf/grav,8) ! so4 (3 converts from gS to g)
+          Aerosol%aerosol(:,1,kr,2) =real(xtg(istart:iend,k,4)*dprf/grav,8)    ! bc hydrophobic
+          Aerosol%aerosol(:,1,kr,3) =real(xtg(istart:iend,k,5)*dprf/grav,8)    ! bc hydrophilic
+          Aerosol%aerosol(:,1,kr,4) =real(xtg(istart:iend,k,6)*dprf/grav,8)    ! oc hydrophobic
+          Aerosol%aerosol(:,1,kr,5) =real(xtg(istart:iend,k,7)*dprf/grav,8)    ! oc hydrophilic
+          Aerosol%aerosol(:,1,kr,6) =real(xtg(istart:iend,k,8)*dprf/grav,8)    ! dust 0.8
+          Aerosol%aerosol(:,1,kr,7) =real(xtg(istart:iend,k,9)*dprf/grav,8)    ! dust 1.0
+          Aerosol%aerosol(:,1,kr,8) =real(xtg(istart:iend,k,10)*dprf/grav,8)   ! dust 2.0
+          Aerosol%aerosol(:,1,kr,9) =real(xtg(istart:iend,k,11)*dprf/grav,8)   ! dust 4.0
           !Aerosol%aerosol(:,1,kr,10)=real(2.64e-18*ssn(istart:iend,k,1) &
           !                           /rhoa(:,k)*dprf/grav,8)  ! Small film sea salt (0.035)
           !Aerosol%aerosol(:,1,kr,11)=real(1.38e-15*ssn(istart:iend,k,2) &
