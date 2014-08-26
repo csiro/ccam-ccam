@@ -86,7 +86,7 @@ real, parameter :: rhos      = 100.             ! Assumed density of snow in kg/
 
 ! emission constants
 real, save :: Ch_dust        = 1.e-9            ! Transfer coeff for type natural source (kg*s2/m5)
-real, save :: zvolcemi       = 8.               ! Total emission from volcanoes (Tg/yr)
+real, save :: zvolcemi       = 8.               ! Total emission from volcanoes (TgS/yr)
 
 ! scavenging constants
 real, parameter :: ticeu     = 263.16           ! Temperature for freezing in convective updraft
@@ -223,10 +223,11 @@ else
   stop
 end if
 
-if (index==iso2b1.or.index==iso2b2.or.index==iso2a1.or.index==iso2a2) then
-  ! convert SO2 emissions to kgS/m2/s
-  emissfield(:,index)=0.5*emissfield(:,index)
-end if
+! already rescaled in aeroemiss
+!if (index==iso2b1.or.index==iso2b2.or.index==iso2a1.or.index==iso2a2) then
+!  ! convert SO2 emissions to kgS/m2/s
+!  emissfield(:,index)=0.5*emissfield(:,index)
+!end if
 
 !if (index==iocna) then
 ! Default yield for natural organics is about 13%, or 16.4 TgC p.a., which may be
@@ -1470,10 +1471,11 @@ enddo
 !      IF(ZDAYL/=0.) ZDAYFAC(1)=ZNLON/ZDAYL !NH
 !      IF(ZDAYL/=znlon) ZDAYFAC(2)=ZNLON/(znlon-ZDAYL) !SH
 
-!   DAY-TIME CHEMISTRY
 DO JK=1,kl
   DO JL=1,ifull
     IF(ZRDAYL(JL)==1) THEN
+
+!   DAY-TIME CHEMISTRY        
       !ins=(jl-1)/lon + 1 !hemisphere index
       X=PRHOP1(JL,JK)
       ZXTP1SO2=XTM1(JL,JK,ITRACSO2)+XTE(JL,JK,ITRACSO2)*PTMST
@@ -1506,14 +1508,9 @@ DO JK=1,kl
         XTE(JL,JK,ITRACSO2)=XTE(JL,JK,ITRACSO2)+ZDMS
         dmsoh3d(jl,jk)=zdms
       ENDIF
-    ENDIF
-  end do
-end do
+    ELSE
 
 !   NIGHT-TIME CHEMISTRY
-DO JK=1,kl
-  DO JL=1,ifull
-    IF(ZRDAYL(JL)/=1) THEN
       X=PRHOP1(JL,JK)
       ZXTP1DMS=XTM1(JL,JK,ITRACSO2-1)+XTE(JL,JK,ITRACSO2-1)*PTMST
       IF(ZXTP1DMS<=ZMIN) THEN
