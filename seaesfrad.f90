@@ -1454,19 +1454,20 @@ if (do_brenguier) then
   end if
 end if
 
-
-where ( qfg>1.E-10 .and. cfi>0. .and. cfrac>0. )
-  Wice=rhoa*qfg/cfrac !kg/m**3
 !Lohmann et al.(1999)
+!where ( qfg>1.E-10 .and. cfi>0. .and. cfrac>0. )
+!  Wice=rhoa*qfg/cfrac !kg/m**3
 !  reffi=min(150.e-6,3.73e-4*(rhoa*qfg/cfi)**0.216) 
-elsewhere
-  Wice=0.
-end where
+!elsewhere
+!  Wice=0.
+!  reffi=0.
+!end where
 
 !Donner et al (1997)
 do k=1,kl
   do iq=1,imax
-    if (qfg(iq,k)>1.E-10.and.cfi(iq,k)>0.) then
+    if (qfg(iq,k)>1.E-10.and.cfi(iq,k)>0..and.cfrac(iq,k)>0.) then
+      Wice(iq,k)=rhoa(iq,k)*qfg(iq,k)/cfrac(iq,k) ! kg/m**3
       if (ttg(iq,k)>248.16) then
         reffi(iq,k)=5.E-7*100.6
       elseif (ttg(iq,k)>243.16) then
@@ -1486,6 +1487,7 @@ do k=1,kl
       end if
     else
       reffi(iq,k)=0.
+      Wice(iq,k)=0.
     end if
   end do
 end do

@@ -516,7 +516,7 @@ DO JL=1,ifull
     ZSST=min(ZSST, 45.)   ! Even Saltzman Sc formula has trouble over 45 deg C
     ! The formula for ScDMS from Saltzman et al (1993) is given by Kettle & Andreae (ref below)
     ScDMS = 2674. - 147.12*ZSST + 3.726*ZSST**2 - 0.038*ZSST**3 !Sc for DMS (Saltzman et al.)
-    !ScDMS=3652.047271-246.99*ZSST+8.536397*ZSST**2-0.124397*ZSST**3  !Andreae's formula
+    !ScDMS = 3652.047271-246.99*ZSST+8.536397*ZSST**2-0.124397*ZSST**3  !Andreae's formula
     !  G3X01:  10-M WINDS
     ZZSPEED=G3X01(JL)
     ! Nightingale (2000) scheme (J. Biogeochem. Cycles, 14, 373-387)
@@ -537,7 +537,7 @@ DO JL=1,ifull
   END IF
 end do
 gdp(:)=grav/(aphp1(:,1)-aphp1(:,2))
-xte(:,1,itracso2-1)=zdmsemiss(:)*gdp(:)
+xte(:,1,itracso2-1)=xte(:,1,itracso2-1)+zdmsemiss(:)*gdp(:)
 
 ! Other biomass emissions of SO2 are done below (with the non-surface S emissions)
 PXTEMS(:,ITRACSO2)  =(EMISSFIELD(:,iso2a1)+EMISSFIELD(:,iso2b1))*0.97
@@ -1047,7 +1047,7 @@ dmsoh3d(:,:)=0.
 dmsn33d(:,:)=0.
 xte(:,:,:)=0.
 pcons2=1./(ptmst*grav)
-where ( taudar(:)>0. )
+where ( taudar(:)>1.e-20 )
   zrdayl(:)=1
 elsewhere
   zrdayl(:)=0  
