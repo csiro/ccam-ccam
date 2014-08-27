@@ -274,9 +274,9 @@ end subroutine aldrloaderod
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Main routine
 
-subroutine aldrcalc(dt,sig,sigh,dsig,zz,dz,fwet,wg,pblh,prf,ts,ttg,condc,snowd,taudar,fg,eg,v10m,    &
-                    ustar,zo,land,sicef,tsigmf,qvg,qlg,qfg,cfrac,clcon,cldcon,pccw,rhoa,vt,ppfprec,  &
-                    ppfmelt,ppfsnow,ppfconv,ppfevap,ppfsubl,pplambs,ppmrate,ppmaccr,ppfstay,ppqfsed, &
+subroutine aldrcalc(dt,sig,sigh,dsig,zz,dz,fwet,wg,pblh,prf,ts,ttg,condc,snowd,taudar,fg,eg,v10m,     &
+                    ustar,zo,land,fracice,tsigmf,qvg,qlg,qfg,cfrac,clcon,cldcon,pccw,rhoa,vt,ppfprec, &
+                    ppfmelt,ppfsnow,ppfconv,ppfevap,ppfsubl,pplambs,ppmrate,ppmaccr,ppfstay,ppqfsed,  &
                     pprscav,zdayfac,kbsav)
 
 implicit none
@@ -299,7 +299,7 @@ real, dimension(ifull), intent(in) :: fg       ! Sensible heat flux
 real, dimension(ifull), intent(in) :: eg       ! Latent heat flux
 real, dimension(ifull), intent(in) :: ustar    ! Friction velocity
 real, dimension(ifull), intent(in) :: zo       ! Roughness length
-real, dimension(ifull), intent(in) :: sicef    ! Sea-ice fraction
+real, dimension(ifull), intent(in) :: fracice  ! Sea-ice fraction
 real, dimension(ifull), intent(in) :: tsigmf   ! Vegetation fraction
 real, dimension(ifull), intent(in) :: vt       ! transfer velocity
 real, dimension(ifull), intent(in) :: zdayfac  ! scale factor for day length
@@ -375,7 +375,7 @@ end select
 do k=1,kl+1
   aphp1(:,k)=prf(:)*sigh(k)
 enddo
-call xtemiss(dt, rhoa(:,1), ts, sicef, vefn, aphp1,                       & !Inputs
+call xtemiss(dt, rhoa(:,1), ts, fracice, vefn, aphp1,                     & !Inputs
              land, tsigmf, cgssnowd, fwet, wg,                            & !Inputs
              xte, xtem, bbem)                                               !Outputs
 xtg(1:ifull,:,:)=max(xtg(1:ifull,:,:)+xte(:,:,:)*dt,0.)
@@ -394,7 +394,7 @@ call xtsink(dt,xte)
 xtg(1:ifull,:,:)=max(xtg(1:ifull,:,:)+xte(:,:,:)*dt,0.)
 
 ! Compute diagnostic sea salt aerosol
-call seasalt(land,sicef,zz,pblh,veff)
+call seasalt(land,fracice,zz,pblh,veff)
 
 ! Aerosol chemistry and wet deposition
 ! Need to invert vertical levels for ECHAM code... Don't you hate that?
@@ -502,8 +502,10 @@ real, parameter :: ZVW02 = ZVWC2-0.8E-2
 real, parameter :: ZVWC4 = (0.2E-2 - 0.025E-2)/(1. - 0.9)
 real, parameter :: ZVW04 = ZVWC4-0.2E-2
 real, parameter :: tmelt = 273.05
-real, parameter :: ZVDPHOBIC = 0.025E-2       ! dry deposition
-real, parameter :: ScCO2     = 600.
+!     Dry deposition
+real, parameter :: ZVDPHOBIC = 0.025E-2
+!     DMS emissions
+real, parameter :: ScCO2     = 660.
 
 ! Start code : ----------------------------------------------------------
 
@@ -550,7 +552,9 @@ DO JL=1,ifull
   END IF
 end do
 gdp(:)=grav/(aphp1(:,1)-aphp1(:,2))
-xte(:,1,itracso2-1)=xte(:,1,itracso2-1)+zdmsemiss(:)*gdp(:)
+!xte(:,1,itracso2-1)=xte(:,1,itracso2-1)+zdmsemiss(:)*gdp
+! MJT suggestion for converting kg to kgS
+xte(:,1,itracso2-1)=xte(:,1,itracso2-1)+(1./1.938)*zdmsemiss(:)*gdp
 
 ! Other biomass emissions of SO2 are done below (with the non-surface S emissions)
 PXTEMS(:,ITRACSO2)  =(EMISSFIELD(:,iso2a1)+EMISSFIELD(:,iso2b1))*0.97
@@ -2090,13 +2094,13 @@ end subroutine dustem
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! A simple diagnostic treatment of seasalt aerosol (LDR 3/02)
 
-subroutine seasalt(land,sicef,zmid,pblh,v10m) !Inputs
+subroutine seasalt(land,fracice,zmid,pblh,v10m) !Inputs
 
 implicit none
 
 ! Argument list
 logical, dimension(ifull), intent(in) :: land  !True for land points
-real, dimension(ifull), intent(in) :: sicef    !Sea-ice fraction
+real, dimension(ifull), intent(in) :: fracice  !Sea-ice fraction
 real, dimension(ifull,kl), intent(in) :: zmid  !Height of full level (m)
 real, dimension(ifull), intent(in) :: pblh     !PBL height (m)
 real, dimension(ifull), intent(in) :: v10m     !10m windpseed, including effect of sub-grid gustiness (m/s)
@@ -2146,8 +2150,8 @@ end do
 
 ! Reduce over sea ice...
 do k=1,kl
-  ssn(:,k,1)=(1.-sicef(:))*ssn(:,k,1)
-  ssn(:,k,2)=(1.-sicef(:))*ssn(:,k,2)
+  ssn(:,k,1)=(1.-fracice(:))*ssn(:,k,1)
+  ssn(:,k,2)=(1.-fracice(:))*ssn(:,k,2)
 enddo
 
 ! These relations give ssm in kg/m3 based on ssn in m^{-3}...

@@ -695,7 +695,8 @@ do j=1,jl,imax/il
 
     ! Aerosols -------------------------------------------------------
     do k=1,kl
-      rhoa(:,k)=ps(istart:iend)*sig(k)/(rdry*t(istart:iend,k)) !density of air
+      tv=t(istart:iend,k)*(1.+0.61*qg(istart:iend,k)-qlrad(istart:iend,k)-qfrad(istart:iend,k))
+      rhoa(:,k)=ps(istart:iend)*sig(k)/(rdry*tv) !density of air
     end do
     select case (abs(iaero))
       case(0)
@@ -717,15 +718,16 @@ do j=1,jl,imax/il
         do k=1,kl
           kr=kl+1-k
           dprf=-ps(istart:iend)*dsig(k)
-          Aerosol%aerosol(:,1,kr,1) =real(3.*xtg(istart:iend,k,3)*dprf/grav,8) ! so4 (3 converts from gS to g)
-          Aerosol%aerosol(:,1,kr,2) =real(xtg(istart:iend,k,4)*dprf/grav,8)    ! bc hydrophobic
-          Aerosol%aerosol(:,1,kr,3) =real(xtg(istart:iend,k,5)*dprf/grav,8)    ! bc hydrophilic
-          Aerosol%aerosol(:,1,kr,4) =real(xtg(istart:iend,k,6)*dprf/grav,8)    ! oc hydrophobic
-          Aerosol%aerosol(:,1,kr,5) =real(xtg(istart:iend,k,7)*dprf/grav,8)    ! oc hydrophilic
-          Aerosol%aerosol(:,1,kr,6) =real(xtg(istart:iend,k,8)*dprf/grav,8)    ! dust 0.8
-          Aerosol%aerosol(:,1,kr,7) =real(xtg(istart:iend,k,9)*dprf/grav,8)    ! dust 1.0
-          Aerosol%aerosol(:,1,kr,8) =real(xtg(istart:iend,k,10)*dprf/grav,8)   ! dust 2.0
-          Aerosol%aerosol(:,1,kr,9) =real(xtg(istart:iend,k,11)*dprf/grav,8)   ! dust 4.0
+          ! Factor of 132.14/32.06 converts from sulfur to ammmonium sulfate
+          Aerosol%aerosol(:,1,kr,1) =real((132.14/32.06)*xtg(istart:iend,k,3)*dprf/grav,8) ! so4
+          Aerosol%aerosol(:,1,kr,2) =real(xtg(istart:iend,k,4)*dprf/grav,8)                ! bc hydrophobic
+          Aerosol%aerosol(:,1,kr,3) =real(xtg(istart:iend,k,5)*dprf/grav,8)                ! bc hydrophilic
+          Aerosol%aerosol(:,1,kr,4) =real(xtg(istart:iend,k,6)*dprf/grav,8)                ! oc hydrophobic
+          Aerosol%aerosol(:,1,kr,5) =real(xtg(istart:iend,k,7)*dprf/grav,8)                ! oc hydrophilic
+          Aerosol%aerosol(:,1,kr,6) =real(xtg(istart:iend,k,8)*dprf/grav,8)                ! dust 0.8
+          Aerosol%aerosol(:,1,kr,7) =real(xtg(istart:iend,k,9)*dprf/grav,8)                ! dust 1.0
+          Aerosol%aerosol(:,1,kr,8) =real(xtg(istart:iend,k,10)*dprf/grav,8)               ! dust 2.0
+          Aerosol%aerosol(:,1,kr,9) =real(xtg(istart:iend,k,11)*dprf/grav,8)               ! dust 4.0
           !Aerosol%aerosol(:,1,kr,10)=real(2.64e-18*ssn(istart:iend,k,1) &
           !                           /rhoa(:,k)*dprf/grav,8)  ! Small film sea salt (0.035)
           !Aerosol%aerosol(:,1,kr,11)=real(1.38e-15*ssn(istart:iend,k,2) &
