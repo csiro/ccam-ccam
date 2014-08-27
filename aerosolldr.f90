@@ -521,7 +521,8 @@ xte(:,:,:)=0.
 !   DMS SEAWATER CONC. FROM KETTLE ET AL.
 DO JL=1,ifull
   IF (LOLAND(JL)) THEN
-    zdmsemiss(jl)=emissfield(jl,idmst) !kg/m2/s
+    !zdmsemiss(jl)=emissfield(jl,idmst) !kg/m2/s
+    zdmsemiss(jl)=(1./1.938)*emissfield(jl,idmst) !kgS/m2/s
   ELSE
     ! Reduce the effective DMS concentration more strongly at seaice points, since the flux should
     ! probably depend on wave breaking (e.g., Erickson, JGR, 1993; Woolf, Tellus B, 2005),
@@ -552,9 +553,7 @@ DO JL=1,ifull
   END IF
 end do
 gdp(:)=grav/(aphp1(:,1)-aphp1(:,2))
-!xte(:,1,itracso2-1)=xte(:,1,itracso2-1)+zdmsemiss(:)*gdp
-! MJT suggestion for converting kg to kgS
-xte(:,1,itracso2-1)=xte(:,1,itracso2-1)+(1./1.938)*zdmsemiss(:)*gdp
+xte(:,1,itracso2-1)=xte(:,1,itracso2-1)+zdmsemiss(:)*gdp
 
 ! Other biomass emissions of SO2 are done below (with the non-surface S emissions)
 PXTEMS(:,ITRACSO2)  =(EMISSFIELD(:,iso2a1)+EMISSFIELD(:,iso2b1))*0.97
