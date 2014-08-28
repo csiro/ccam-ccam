@@ -14,6 +14,7 @@ public itracdu,ndust,dustdd,dustwd,duste
 public itracbc,bce,bcdd,bcwd
 public itracoc,oce,ocdd,ocwd
 public itracso2,dmse,dmsso2o,so2e,so2so4o,so2dd,so2wd,so4e,so4dd,so4wd
+public dms_burden,so2_burden,so4_burden
 public Ch_dust,zvolcemi,ticeu
 
 integer, save :: ifull,kl
@@ -44,6 +45,9 @@ real, dimension(:), allocatable, save :: so2wd         ! Diagnostic - so2 wet de
 real, dimension(:), allocatable, save :: so4e          ! Diagnostic - so4 emissions
 real, dimension(:), allocatable, save :: so4dd         ! Diagnostic - so4 dry deposition
 real, dimension(:), allocatable, save :: so4wd         ! Diagnostic - so4 wet deposition
+real, dimension(:), allocatable, save :: dms_burden    ! Diagnostic - DMS burden
+real, dimension(:), allocatable, save :: so2_burden    ! Diagnostic - so2 burden
+real, dimension(:), allocatable, save :: so4_burden    ! Diagnostic - so4 burden
 
 ! tracers
 integer, parameter :: nsulf = 3
@@ -127,6 +131,7 @@ allocate(oce(ifull),ocdd(ifull),ocwd(ifull))
 allocate(dmse(ifull),dmsso2o(ifull))
 allocate(so2e(ifull),so2so4o(ifull),so2dd(ifull),so2wd(ifull))
 allocate(so4e(ifull),so4dd(ifull),so4wd(ifull))
+allocate(dms_burden(ifull),so2_burden(ifull),so4_burden(ifull))
 
 xtg=0.
 xtgsav=0.
@@ -154,6 +159,9 @@ so2wd=0.
 so4e=0.
 so4dd=0.
 so4wd=0.
+dms_burden=0.
+so2_burden=0.
+so4_burden=0.
 
 ! MJT - define injection levels
 
@@ -200,6 +208,7 @@ deallocate(oce,ocdd,ocwd)
 deallocate(dmse,dmsso2o)
 deallocate(so2e,so2so4o,so2dd,so2wd)
 deallocate(so4e,so4dd,so4wd)
+deallocate(dms_burden,so2_burden,so4_burden)
 
 return
 end subroutine aldrend
@@ -322,7 +331,7 @@ logical, dimension(ifull), intent(in) :: land  ! land/sea mask (t=land)
 real, dimension(ifull,naero) :: conwd          ! Diagnostic only: Convective wet deposition
 real, dimension(ifull,naero) :: xtem
 real, dimension(ifull,kl,naero) :: xte,xtu,xtm1
-real, dimension(ifull,kl+1) :: aphp1
+real, dimension(ifull,kl) :: aphp1
 real, dimension(ifull,kl) :: pclcon
 real, dimension(ifull,kl) :: prhop1,ptp1,pfevap,pfsubl,plambs
 real, dimension(ifull,kl) :: pclcover,pcfcover,pmlwc,pmiwc
@@ -332,7 +341,7 @@ real, dimension(ifull) :: cgssnowd
 real, dimension(ifull) :: veff,vefn
 real, dimension(ifull) :: cstrat,qtot
 real, dimension(ifull) :: rrate,Wstar3,Vgust_free,Vgust_deep
-real, dimension(ifull) :: v10n,thetav
+real, dimension(ifull) :: v10n,thetav,burden
 real, parameter :: beta = 0.65
 integer nt,k
 
@@ -372,11 +381,8 @@ select case(enhanceu10)
 end select
 
 ! Emission and dry deposition (sulfur cycle and carbonaceous aerosols)
-do k=1,kl+1
-  aphp1(:,k)=prf(:)*sigh(k)
-enddo
-call xtemiss(dt, rhoa(:,1), ts, fracice, vefn, aphp1,                     & !Inputs
-             land, tsigmf, cgssnowd, fwet, wg,                            & !Inputs
+call xtemiss(dt, rhoa, ts, fracice, vefn,                                 & !Inputs
+             land, tsigmf, cgssnowd, fwet, wg, dz,                        & !Inputs
              xte, xtem, bbem)                                               !Outputs
 xtg(1:ifull,:,:)=max(xtg(1:ifull,:,:)+xte(:,:,:)*dt,0.)
 
@@ -407,7 +413,7 @@ do nt=1,naero
   end do
 end do
 do k=1,kl
-  aphp1(:,kl+1-k) =prf(:)*(sigh(k)-sigh(k+1))                 ! delta pressure
+  aphp1(:,kl+1-k) =rhoa(:,k)*dz(:,k)                          ! density * thickness
   prhop1(:,kl+1-k)=rhoa(:,k)                                  ! air density
   ptp1(:,kl+1-k)  =ttg(1:ifull,k)                             ! air temperature
   pclcon(:,kl+1-k)=clcon(:,k)                                 ! convective cloud fraction
@@ -437,14 +443,32 @@ enddo
 dmsso2o=dmsso2o+dmsoh+dmsn3        ! oxidation of DMS to SO2
 so2so4o=so2so4o+so2oh+so2h2+so2o3  ! oxidation of SO2 to SO4
 
+burden=0.
+do k=1,kl
+  burden=burden+xtg(1:ifull,k,itracso2-1)*prf(:)*(sigh(k)-sigh(k+1))/grav
+end do
+dms_burden=dms_burden+burden
+
+burden=0.
+do k=1,kl
+  burden=burden+xtg(1:ifull,k,itracso2)*prf(:)*(sigh(k)-sigh(k+1))/grav
+end do
+so2_burden=so2_burden+burden
+
+burden=0.
+do k=1,kl
+  burden=burden+xtg(1:ifull,k,itracso2+1)*prf(:)*(sigh(k)-sigh(k+1))/grav
+end do
+so4_burden=so4_burden+burden
+
 return
 end subroutine aldrcalc
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! xt emiss
 
-SUBROUTINE XTEMISS(ztmst, P1MXTM1, TSM1M, SEAICEM, G3X01, APHP1,                 & !Inputs
-                   LOLAND, PFOREST, PSNOW, fwet, WSM1M,                          & !Inputs
+SUBROUTINE XTEMISS(ztmst, rhoa, TSM1M, SEAICEM, G3X01,                           & !Inputs
+                   LOLAND, PFOREST, PSNOW, fwet, WSM1M, dz,                      & !Inputs
                    XTE, PXTEMS, bbem)                                              !Outputs
 !
 !    THIS ROUTINE CALCULATES THE LOWER BOUNDARY CONDITIONS
@@ -467,11 +491,11 @@ implicit none
 
 ! Argument list
 REAL, intent(in) :: ztmst                           !Timestep [s]
-REAL, dimension(ifull), intent(in) :: P1MXTM1       !Density of air in surface layer
+REAL, dimension(ifull,kl), intent(in) :: rhoa       !Density of air
 real, dimension(ifull), intent(in) :: TSM1M         !Surface temp
 real, dimension(ifull), intent(in) :: SEAICEM       !Sea-ice fraction
 real, dimension(ifull), intent(in) :: G3X01         !10m wind (corrected to neutral for Nightingale scheme)
-real, dimension(ifull,kl+1), intent(in) :: APHP1    !P at half levels at current timestep
+real, dimension(ifull,kl), intent(in) :: dz         ! layer thickness [m]
 LOGICAL, dimension(ifull), intent(in) :: LOLAND     !Land flag
 REAL, dimension(ifull), intent(in) :: PFOREST       !Fractional vegetation cover
 REAL, dimension(ifull), intent(in) :: PSNOW         !Snow depth [m]
@@ -505,7 +529,11 @@ real, parameter :: tmelt = 273.05
 !     Dry deposition
 real, parameter :: ZVDPHOBIC = 0.025E-2
 !     DMS emissions
-real, parameter :: ScCO2     = 660.
+real, parameter :: ScCO2     = 600.
+real, parameter :: a_vpco2   = 0.222 ! nightingale (2000)
+real, parameter :: b_vpco2   = 0.333 ! nightingale (2000)
+!real, parameter :: a_vpco2  = 0.166 ! approx Liss and Merlivat (see nightingale 2000)
+!real, parameter :: b_vpco2  = 0.133 ! approx Liss and Merlivat (see nightingale 2000)
 
 ! Start code : ----------------------------------------------------------
 
@@ -528,8 +556,7 @@ DO JL=1,ifull
     ! probably depend on wave breaking (e.g., Erickson, JGR, 1993; Woolf, Tellus B, 2005),
     ! which will be much reduced over leads.
     ZDMSCON=EMISSFIELD(JL,idmso)*(1.-SEAICEM(JL))**2
-    ZSST=TSM1M(JL)-273.15 ! DegC
-    ZSST=min(ZSST, 45.)   ! Even Saltzman Sc formula has trouble over 45 deg C
+    ZSST=min(TSM1M(JL)-273.15, 45.)   ! Even Saltzman Sc formula has trouble over 45 deg C
     ! The formula for ScDMS from Saltzman et al (1993) is given by Kettle & Andreae (ref below)
     ScDMS = 2674. - 147.12*ZSST + 3.726*ZSST**2 - 0.038*ZSST**3 !Sc for DMS (Saltzman et al.)
     !ScDMS = 3652.047271-246.99*ZSST+8.536397*ZSST**2-0.124397*ZSST**3  !Andreae's formula
@@ -537,7 +564,7 @@ DO JL=1,ifull
     ZZSPEED=G3X01(JL)
     ! Nightingale (2000) scheme (J. Biogeochem. Cycles, 14, 373-387)
     ! For this scheme, zzspeed is the 10m wind adjusted to neutral stability.
-    VpCO2 = 0.222*ZZSPEED**2 + 0.333*ZZSPEED !Nightingale et al
+    VpCO2 = a_vpco2*ZZSPEED**2 + b_vpco2*ZZSPEED !Nightingale et al
     if ( ZZSPEED<3.6 ) then
       zVdms = VpCO2 * (ScCO2/ScDMS)**(2./3.)
     else
@@ -548,11 +575,11 @@ DO JL=1,ifull
       VpCO2=wtliss*VpCO2liss+(1.-wtliss)*VpCO2        
       zVdms = VpCO2 * sqrt(ScCO2/ScDMS)
     end if
-    ZDMSEMISS(jl)=ZDMSCON*ZVDMS*32.064E-11/3600.
+    ZDMSEMISS(jl)=ZDMSCON*ZVDMS*32.06e-11/3600.
     ! NANOMOL/LTR*CM/HOUR --> KG/M**2/SEC
   END IF
 end do
-gdp(:)=grav/(aphp1(:,1)-aphp1(:,2))
+gdp(:)=1./(rhoa(:,1)*dz(:,1))
 xte(:,1,itracso2-1)=xte(:,1,itracso2-1)+zdmsemiss(:)*gdp
 
 ! Other biomass emissions of SO2 are done below (with the non-surface S emissions)
@@ -582,7 +609,7 @@ PXTEMS(:,ITRACOC)  =0.5*EMISSFIELD(:,ioca2)
 PXTEMS(:,ITRACOC+1)=0.5*EMISSFIELD(:,ioca2)
 ! Apply these here as a tendency (XTE), rather than as a surface flux (PXTEMS) via vertmix.
 do jk=jk2,jk3-1
-  gdp=grav/(aphp1(:,jk)-aphp1(:,jk+1))/real(jk3-jk2)
+  gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk3-jk2)
   xte(:,jk,itracbc)  =xte(:,jk,itracbc)  +pxtems(:,itracbc)*gdp
   xte(:,jk,itracbc+1)=xte(:,jk,itracbc+1)+pxtems(:,itracbc+1)*gdp
   xte(:,jk,itracoc)  =xte(:,jk,itracoc)  +pxtems(:,itracoc)*gdp
@@ -596,7 +623,7 @@ PXTEMS(:,ITRACOC)  =0.5*EMISSFIELD(:,iocb1)
 PXTEMS(:,ITRACOC+1)=0.5*EMISSFIELD(:,iocb1)
 ! Apply these here as a tendency (XTE)
 do jk=jk2,jk3-1
-  gdp=grav/(aphp1(:,jk)-aphp1(:,jk+1))/real(jk3-jk2)
+  gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk3-jk2)
   xte(:,jk,itracbc)  =xte(:,jk,itracbc)  +pxtems(:,itracbc)*gdp
   xte(:,jk,itracbc+1)=xte(:,jk,itracbc+1)+pxtems(:,itracbc+1)*gdp
   xte(:,jk,itracoc)  =xte(:,jk,itracoc)  +pxtems(:,itracoc)*gdp
@@ -610,21 +637,21 @@ PXTEMS(:,ITRACOC)  =0.5*EMISSFIELD(:,iocb2)
 PXTEMS(:,ITRACOC+1)=0.5*EMISSFIELD(:,iocb2)
 ! Apply these here as a tendency (XTE)
 do jk=jk3,jk4-1
-  gdp=grav/(aphp1(:,jk)-aphp1(:,jk+1))/real(jk4-jk3)
+  gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk4-jk3)
   xte(:,jk,itracbc)  =xte(:,jk,itracbc)  +0.3*pxtems(:,itracbc)*gdp
   xte(:,jk,itracbc+1)=xte(:,jk,itracbc+1)+0.3*pxtems(:,itracbc+1)*gdp
   xte(:,jk,itracoc)  =xte(:,jk,itracoc)  +0.3*pxtems(:,itracoc)*gdp
   xte(:,jk,itracoc+1)=xte(:,jk,itracoc+1)+0.3*pxtems(:,itracoc+1)*gdp
 end do
 do jk=jk4,jk5-1
-  gdp=grav/(aphp1(:,jk)-aphp1(:,jk+1))/real(jk5-jk4)
+  gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk5-jk4)
   xte(:,jk,itracbc)  =xte(:,jk,itracbc)  +0.4*pxtems(:,itracbc)*gdp
   xte(:,jk,itracbc+1)=xte(:,jk,itracbc+1)+0.4*pxtems(:,itracbc+1)*gdp
   xte(:,jk,itracoc)  =xte(:,jk,itracoc)  +0.4*pxtems(:,itracoc)*gdp
   xte(:,jk,itracoc+1)=xte(:,jk,itracoc+1)+0.4*pxtems(:,itracoc+1)*gdp
 end do
 do jk=jk5,jk6-1
-  gdp=grav/(aphp1(:,jk)-aphp1(:,jk+1))/real(jk6-jk5)
+  gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk6-jk5)
   xte(:,jk,itracbc)  =xte(:,jk,itracbc)  +0.3*pxtems(:,itracbc)*gdp
   xte(:,jk,itracbc+1)=xte(:,jk,itracbc+1)+0.3*pxtems(:,itracbc+1)*gdp
   xte(:,jk,itracoc)  =xte(:,jk,itracoc)  +0.3*pxtems(:,itracoc)*gdp
@@ -633,20 +660,20 @@ end do
 
 !  EMISSION OF ANTHROPOGENIC SO2 IN THE NEXT HIGHER LEVEL PLUS BIOMASS BURNING
 do jk=jk2,jk3-1
-  gdp=grav/(aphp1(:,jk)-aphp1(:,jk+1))/real(jk3-jk2)
+  gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk3-jk2)
   XTE(:,JK,ITRACSO2)  =XTE(:,JK,ITRACSO2)  +0.97*EMISSFIELD(:,iso2a2)*gdp !100% of the "above 100m" SO2 emission
   XTE(:,JK,ITRACSO2+1)=XTE(:,JK,ITRACSO2+1)+0.03*EMISSFIELD(:,iso2a2)*gdp !100% of the "above 100m" SO4 emission
 end do
 do jk=jk3,jk4-1
-  gdp=grav/(aphp1(:,jk)-aphp1(:,jk+1))/real(jk4-jk3)
+  gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk4-jk3)
   xte(:,jk,ITRACSO2)=xte(:,jk,ITRACSO2)+0.3*emissfield(:,iso2b2)*gdp
 end do
 do jk=jk4,jk5-1
-  gdp=grav/(aphp1(:,jk)-aphp1(:,jk+1))/real(jk5-jk4)
+  gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk5-jk4)
   xte(:,jk,ITRACSO2)=xte(:,jk,ITRACSO2)+0.4*emissfield(:,iso2b2)*gdp
 end do
 do jk=jk5,jk6-1
-  gdp=grav/(aphp1(:,jk)-aphp1(:,jk+1))/real(jk6-jk5)
+  gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk6-jk5)
   xte(:,jk,ITRACSO2)=xte(:,jk,ITRACSO2)+0.3*emissfield(:,iso2b2)*gdp
 end do
   
@@ -659,14 +686,14 @@ end do
 ZVOLCEMI1=ZVOLCEMI*0.36
 ZVOLCEMI2=ZVOLCEMI*0.36
 ZVOLCEMI3=ZVOLCEMI*0.28
-gdp=Grav/(APHP1(:,1)-APHP1(:,2))
+gdp=1./(rhoa(:,1)*dz(:,1))
 XTE(:,1,ITRACSO2)=XTE(:,1,ITRACSO2)+ZVOLCEMI1*vso2*gdp
 do jk=jk3,jk4-1
-  gdp=Grav/(APHP1(:,jk)-APHP1(:,jk+1))/real(jk4-jk3)
+  gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk4-jk3)
   XTE(:,jk,ITRACSO2)=XTE(:,jk,ITRACSO2)+ZVOLCEMI2*vso2*gdp
 end do
 do jk=jk8,jk9-1
-  gdp=Grav/(APHP1(:,jk)-APHP1(:,jk+1))/real(jk9-jk8)
+  gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk9-jk8)
   XTE(:,jk,ITRACSO2)=XTE(:,jk,ITRACSO2)+ZVOLCEMI3*vso2*gdp
 end do
   
@@ -674,7 +701,7 @@ end do
 !
 !*      2.    DRY DEPOSITION.
 !             --- ----------
-ZMAXVDRY(:)=(APHP1(:,1)-APHP1(:,2))/(Grav*P1MXTM1*ZTMST)
+ZMAXVDRY(:)=dz(:,1)/ZTMST
 
 !      DRY DEPOSITION OF SO2, SO4
 do jl=1,ifull
@@ -733,20 +760,20 @@ end do
 
 ! Sulfur emission diagnostic (hard-coded for 3 sulfur variables)
 do jk=1,kl
-  dmse=dmse+xte(:,jk,ITRACSO2-1)*(aphp1(:,jk)-aphp1(:,jk+1))/grav   !Above surface
-  so2e=so2e+xte(:,jk,ITRACSO2  )*(aphp1(:,jk)-aphp1(:,jk+1))/grav   !Above surface
-  so4e=so4e+xte(:,jk,ITRACSO2+1)*(aphp1(:,jk)-aphp1(:,jk+1))/grav   !Above surface
+  dmse=dmse+xte(:,jk,ITRACSO2-1)*rhoa(:,jk)*dz(:,jk) !Above surface
+  so2e=so2e+xte(:,jk,ITRACSO2  )*rhoa(:,jk)*dz(:,jk)   !Above surface
+  so4e=so4e+xte(:,jk,ITRACSO2+1)*rhoa(:,jk)*dz(:,jk)   !Above surface
 enddo
 
 ! Assume that BC and OC emissions are passed in through xte()
 do jt=ITRACBC,ITRACBC+1
   do jk=1,kl
-    bce=bce+xte(:,jk,jt)*(aphp1(:,jk)-aphp1(:,jk+1))/grav
+    bce=bce+xte(:,jk,jt)*rhoa(:,jk)*dz(:,jk)
   enddo
 enddo
 do jt=ITRACOC,ITRACOC+1
   do jk=1,kl
-    oce=oce+xte(:,jk,jt)*(aphp1(:,jk)-aphp1(:,jk+1))/grav
+    oce=oce+xte(:,jk,jt)*rhoa(:,jk)*dz(:,jk)
   enddo
 enddo
 
@@ -756,14 +783,14 @@ bbem=emissfield(:,ibcb1)+emissfield(:,ibcb2)+1.3*(emissfield(:,iocb1)+emissfield
 ! ZVDRD   DRY DEPOSITION VELOCITY IN M/S
 ! ZVDRD(JL,1)  FOR SO2 GAS
 ! ZVDRD(JL,2)  FOR AEROSOLS
-gdp=grav/(aphp1(:,1)-aphp1(:,2))
+gdp=1./(rhoa(:,1)*dz(:,1))
 nstep=int(ztmst/120.01)+1
 ddt=ztmst/real(nstep)
 
 pxtm1new=xtg(1:ifull,1,itracso2)
 do ii=1,nstep
-  pxtm1new=(pxtm1new*(1.-0.5*ddt*p1mxtm1*zvdrd(:,1)*gdp)+ddt*xte(:,1,ITRACSO2))        &
-      /(1.+0.5*ddt*p1mxtm1*zvdrd(:,1)*gdp)
+  pxtm1new=(pxtm1new*(1.-0.5*ddt*zvdrd(:,1)/dz(:,1))+ddt*xte(:,1,ITRACSO2))        &
+      /(1.+0.5*ddt*zvdrd(:,1)/dz(:,1))
   pxtm1new=max(0.,pxtm1new)
 end do
 zhilso2=(xtg(1:ifull,1,itracso2)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACSO2)/gdp
@@ -771,8 +798,8 @@ xte(:,1,ITRACSO2)  =xte(:,1,ITRACSO2)  -zhilso2*gdp
   
 pxtm1new=xtg(1:ifull,1,itracso2+1)
 do ii=1,nstep  
-  pxtm1new=(pxtm1new*(1.-0.5*ddt*p1mxtm1*zvdrd(:,2)*gdp)+ddt*xte(:,1,ITRACSO2+1))      &
-        /(1.+0.5*ddt*p1mxtm1*zvdrd(:,2)*gdp)
+  pxtm1new=(pxtm1new*(1.-0.5*ddt*zvdrd(:,2)/dz(:,1))+ddt*xte(:,1,ITRACSO2+1))      &
+        /(1.+0.5*ddt*zvdrd(:,2)/dz(:,1))
   pxtm1new=max(0.,pxtm1new)
 end do
 zhilso4=(xtg(1:ifull,1,itracso2+1)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACSO2+1)/gdp
@@ -780,8 +807,8 @@ xte(:,1,ITRACSO2+1)=xte(:,1,ITRACSO2+1)-zhilso4*gdp
 
 pxtm1new=xtg(1:ifull,1,ITRACBC)
 do ii=1,nstep  
-  pxtm1new=(pxtm1new*(1.-0.5*ddt*p1mxtm1*ZVDPHOBIC*gdp)+ddt*xte(:,1,ITRACBC))          &
-          /(1.+0.5*ddt*p1mxtm1*ZVDPHOBIC*gdp)
+  pxtm1new=(pxtm1new*(1.-0.5*ddt*ZVDPHOBIC/dz(:,1))+ddt*xte(:,1,ITRACBC))          &
+          /(1.+0.5*ddt*ZVDPHOBIC/dz(:,1))
   pxtm1new=max(0.,pxtm1new)
 end do
 ZHILBCO=(xtg(1:ifull,1,ITRACBC)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACBC)/gdp
@@ -789,8 +816,8 @@ xte(:,1,itracbc)  =xte(:,1,itracbc)  -zhilbco*gdp
 
 pxtm1new=xtg(1:ifull,1,ITRACBC+1)
 do ii=1,nstep
-  pxtm1new=(pxtm1new*(1.-0.5*ddt*p1mxtm1*ZVDRD(:,2)*gdp)+ddt*xte(:,1,ITRACBC+1))       &
-          /(1.+0.5*ddt*p1mxtm1*ZVDRD(:,2)*gdp)
+  pxtm1new=(pxtm1new*(1.-0.5*ddt*ZVDRD(:,2)/dz(:,1))+ddt*xte(:,1,ITRACBC+1))       &
+          /(1.+0.5*ddt*ZVDRD(:,2)/dz(:,1))
   pxtm1new=max(0.,pxtm1new)
 end do
 ZHILBCY=(xtg(1:ifull,1,ITRACBC+1)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACBC+1)/gdp
@@ -798,8 +825,8 @@ xte(:,1,itracbc+1)=xte(:,1,itracbc+1)-zhilbcy*gdp
 
 pxtm1new=xtg(1:ifull,1,ITRACOC)
 do ii=1,nstep
-  pxtm1new=(pxtm1new*(1.-0.5*ddt*p1mxtm1*ZVDPHOBIC*gdp)+ddt*xte(:,1,ITRACOC))          &
-          /(1.+0.5*ddt*p1mxtm1*ZVDPHOBIC*gdp)
+  pxtm1new=(pxtm1new*(1.-0.5*ddt*ZVDPHOBIC/dz(:,1))+ddt*xte(:,1,ITRACOC))          &
+          /(1.+0.5*ddt*ZVDPHOBIC/dz(:,1))
   pxtm1new=max(0.,pxtm1new)
 end do
 ZHILOCO=(xtg(1:ifull,1,ITRACOC)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACOC)/gdp
@@ -807,8 +834,8 @@ xte(:,1,itracoc)  =xte(:,1,itracoc)  -zhiloco*gdp
 
 pxtm1new=xtg(1:ifull,1,ITRACOC+1)
 do ii=1,nstep
-  pxtm1new=(pxtm1new*(1.-0.5*ddt*p1mxtm1*ZVDRD(:,2)*gdp)+ddt*xte(:,1,ITRACOC+1))       &
-          /(1.+0.5*ddt*p1mxtm1*ZVDRD(:,2)*gdp)
+  pxtm1new=(pxtm1new*(1.-0.5*ddt*ZVDRD(:,2)/dz(:,1))+ddt*xte(:,1,ITRACOC+1))       &
+          /(1.+0.5*ddt*ZVDRD(:,2)/dz(:,1))
   pxtm1new=max(0.,pxtm1new)
 end do
 ZHILOCY=(xtg(1:ifull,1,ITRACOC+1)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACOC+1)/gdp
@@ -883,7 +910,7 @@ END subroutine xtsink
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! xt chemie
 
-SUBROUTINE XTCHEMIE(KTOP, PTMST,zdayfac,PDPP1, PMRATEP, PFPREC,                      & !Inputs
+SUBROUTINE XTCHEMIE(KTOP, PTMST,zdayfac,rhodz, PMRATEP, PFPREC,                      & !Inputs
                     PCLCOVER, PMLWC, PRHOP1, PTP1, taudar, xtm1, pfevap,             & !Inputs
                     pfsnow,pfsubl,pcfcover,pmiwc,pmaccr,pfmelt,pfstay,pqfsed,plambs, & !Inputs
                     prscav,pclcon,fracc,pccw,pfconv,xtu,                             & !Inputs
@@ -893,7 +920,7 @@ SUBROUTINE XTCHEMIE(KTOP, PTMST,zdayfac,PDPP1, PMRATEP, PFPREC,                 
 ! Inputs
 ! ktop: top level for aerosol processes (set to 1, counting downwards from top)
 ! ptmst: timestep (seconds; tdt in main program)
-! pdpp1: delta p (si units)
+! rhodz: density * thickness (si units)
 ! pmratep: precip formation rate (kg/kg/s)
 ! pfprec: rainfall flux (entering from above) (kg/m2/s)
 ! pclcover: liquid-water cloud fraction (input; don't pass in cfrac though)
@@ -952,7 +979,7 @@ implicit none
 ! Argument list
 INTEGER KTOP
 REAL PTMST
-REAL PDPP1(ifull,kl)
+REAL rhodz(ifull,kl)
 REAL PMRATEP(ifull,kl)
 REAL PFPREC(ifull,kl)
 REAL PFEVAP(ifull,kl)
@@ -1006,7 +1033,7 @@ integer ZRDAYL(ifull)
 real, dimension(ifull), intent(in) :: zdayfac
 integer, parameter :: nfastox=0 !1 for "fast" in-cloud oxidation; 0 for "slow"
 real, parameter :: zmin=1.e-20
-real x,pcons2,pqtmst
+real x,pqtmst
 real zlwcl,zlwcv,zhp,zqtp1,zrk,zrke
 real zh_so2,zpfac,zp_so2,zf_so2,zp_h2o2
 real zf_h2o2,zxtp1,ze1,ze2,ze3,zfac1,zrkfac
@@ -1062,7 +1089,6 @@ so2oh3d(:,:)=0.
 dmsoh3d(:,:)=0.
 dmsn33d(:,:)=0.
 xte(:,:,:)=0.
-pcons2=1./(ptmst*grav)
 where ( taudar(:)>0.5 )
   zrdayl(:)=1
 elsewhere
@@ -1100,11 +1126,12 @@ elsewhere
 end where
 
 !  OXIDANT CONCENTRATIONS IN MOLECULE/CM**3
+! -- reverse levels --
 DO JK=1,kl
-  JS1=JK
-  JS2=kl+JK
-  JS3=2*kl+JK
-  JS4=3*kl+JK
+  JS1=kl+1-JK
+  JS2=2*kl+1-JK
+  JS3=3*kl+1-JK
+  JS4=4*kl+1-JK
 
   ZX(:)=PRHOP1(:,JK)*1.E-03
   ZZOH(:,JK)=ZOXIDANT(:,JS1)
@@ -1229,7 +1256,7 @@ DO JK=KTOP,kl
       ZHENRY(JL,JK)=ZF_SO2
 ! Diagnostic only...
       ZFAC=PQTMST*CTOX(X,ZMOLGS)*PCLCOVER(JL,JK)
-      ZFAC1=ZFAC*PDPP1(JL,JK)/grav
+      ZFAC1=ZFAC*rhodz(JL,JK)
       ZFAC2=ZFAC*PRHOP1(JL,JK)
       so2h2(JL)=so2h2(JL)+ZSUMH2O2*ZFAC1
       so2o3(JL)=so2o3(JL)+ZSUMO3*ZFAC1
@@ -1352,7 +1379,7 @@ DO JK=KTOP,kl
       ZHENRYC(JL,JK)=ZF_SO2
       ! Diagnostic only...
       ZFAC=PQTMST*CTOX(X,ZMOLGS)*pclcon(jl,jk)
-      ZFAC1=ZFAC*PDPP1(JL,JK)/grav
+      ZFAC1=ZFAC*rhodz(JL,JK)
       ZFAC2=ZFAC*PRHOP1(JL,JK)
       so2h2(JL)=so2h2(JL)+ZSUMH2O2*ZFAC1
       so2o3(JL)=so2o3(JL)+ZSUMO3*ZFAC1
@@ -1396,8 +1423,8 @@ DO JT=ITRACSO2,naero
     endif
 
     CALL XTWETDEP( JT,                                         &
-                   PTMST, PCONS2,                              &
-                   PDPP1,                                      &
+                   PTMST,                                      &
+                   rhodz,                                      &
                    PMRATEP, PFPREC, PFEVAP,                    &
                    PCLCOVER, PRHOP1, zsolub, pmlwc, ptp1,      &
                    pfsnow,pfsubl,pcfcover,pmiwc,pmaccr,pfmelt, &
@@ -1420,23 +1447,23 @@ DO JT=ITRACSO2,naero
 ! Note that wd as coded here includes the below-cloud convective scavenging/evaporation
     if(jt==itracso2)then
       do jk=1,kl
-        so2wd(:)=so2wd(:)+zdep3d(:,jk)*pdpp1(:,jk)/(grav*ptmst)
+        so2wd(:)=so2wd(:)+zdep3d(:,jk)*rhodz(:,jk)/ptmst
       enddo
     elseif(jt==itracso2+1)then
       do jk=1,kl
-        so4wd(:)=so4wd(:)+zdep3d(:,jk)*pdpp1(:,jk)/(grav*ptmst)
+        so4wd(:)=so4wd(:)+zdep3d(:,jk)*rhodz(:,jk)/ptmst
       enddo
     elseif(jt==itracbc.or.jt==itracbc+1) then
       do jk=1,kl
-        bcwd(:)=bcwd(:)+zdep3d(:,jk)*pdpp1(:,jk)/(grav*ptmst)
+        bcwd(:)=bcwd(:)+zdep3d(:,jk)*rhodz(:,jk)/grav
       end do
     elseif(jt==itracoc.or.jt==itracoc+1) then
       do jk=1,kl
-        ocwd(:)=ocwd(:)+zdep3d(:,jk)*pdpp1(:,jk)/(grav*ptmst)
+        ocwd(:)=ocwd(:)+zdep3d(:,jk)*rhodz(:,jk)/grav
       end do
     elseif(jt>=itracdu.and.jt<itracdu+ndust)then
       do jk=1,kl
-        dustwd(:)=dustwd(:)+zdep3d(:,jk)*pdpp1(:,jk)/(grav*ptmst)
+        dustwd(:)=dustwd(:)+zdep3d(:,jk)*rhodz(:,jk)/grav
       enddo
     endif
 
@@ -1549,9 +1576,9 @@ end do
 
 ! Calculate tendency of SO2 due to oxidation by OH (diagnostic) and ox. tendencies of DMS
 do jk=kl,1,-1
-  so2oh(:)=so2oh(:)+so2oh3d(:,jk)*pdpp1(:,jk)/grav
-  dmsoh(:)=dmsoh(:)+dmsoh3d(:,jk)*pdpp1(:,jk)/grav
-  dmsn3(:)=dmsn3(:)+dmsn33d(:,jk)*pdpp1(:,jk)/grav
+  so2oh(:)=so2oh(:)+so2oh3d(:,jk)*rhodz(:,jk)
+  dmsoh(:)=dmsoh(:)+dmsoh3d(:,jk)*rhodz(:,jk)
+  dmsn3(:)=dmsn3(:)+dmsn33d(:,jk)*rhodz(:,jk)
 enddo
 
 RETURN
@@ -1561,8 +1588,8 @@ END subroutine xtchemie
 ! xt wetdep
 
 SUBROUTINE XTWETDEP(KTRAC,                                                           &
-                    PTMST, PCONS2,                                                   &
-                    PDPP1,                                                           &
+                    PTMST,                                                           &
+                    rhodz,                                                           &
                     PMRATEP, PFPREC, PFEVAP,                                         &
                     PCLCOVER, PRHOP1, PSOLUB, pmlwc, ptp1,                           &
                     pfsnow,pfsubl,pcfcover,pmiwc,pmaccr,pfmelt,pfstay,pqfsed,plambs, &
@@ -1595,11 +1622,10 @@ implicit none
 ! Argument list
 INTEGER KTRAC
 REAL PTMST
-REAL PCONS2
 REAL PXTP10(ifull,kl)   !Tracer m.r. outside liquid-water cloud (clear air/ice cloud)
 REAL PXTP1C(ifull,kl)   !Tracer m.r.  inside liquid-water cloud
 real pxtp1con(ifull,kl) !Tracer m.r.  inside convective cloud
-REAL PDPP1(ifull,kl)
+REAL rhodz(ifull,kl)
 REAL PMRATEP(ifull,kl)
 REAL PFPREC(ifull,kl)
 REAL PFEVAP(ifull,kl)
@@ -1674,7 +1700,7 @@ enddo
 do JK=KTOP,kl
   ZCLEAR(:)=1.-PCLCOVER(:,JK)-pcfcover(:,jk)-pclcon(:,jk)
   ZCLR0(:)=1.-PCLCOVER(:,JK)-pclcon(:,jk) !Clear air or ice cloud (applies to pxtp10)
-  ZMTOF(:)=PDPP1(:,JK)*PCONS2
+  ZMTOF(:)=rhodz(:,jk)*pqtmst
   ZFTOM(:)=1./ZMTOF(:)
   PXTP1C(:,JK)=AMAX1(0.,PXTP1C(:,JK))
   PXTP10(:,JK)=AMAX1(0.,PXTP10(:,JK))
@@ -1802,7 +1828,7 @@ end where
 ! In-cloud convective bit was done in convjlm.
 do jk=ktop,kl
   do jl=1,ifull
-    zmtof(jl)=pdpp1(jl,jk)*pcons2
+    zmtof(jl)=rhodz(jl,jk)*pqtmst
     zftom(jl)=1./zmtof(jl)
     zclr0(jl)=1.-pclcover(jl,jk)-pclcon(jl,jk)
           

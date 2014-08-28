@@ -70,7 +70,7 @@
       real, dimension(ifull,kl) :: cu,thee,qs,uav,vav,au,ct,gt,at
       real, dimension(ifull,kl) :: guv,ri,rkm,rkh,rk_shal,zg
       real, dimension(ifull,kl) :: tnhs,zh,cldtmp,tv
-      real, dimension(ifull,kl-1) :: dnhsh,tmnht
+      real, dimension(ifull,kl-1) :: cnhs,tmnht
       real, dimension(ifull) :: dqtot,csq,dvmod,dz,dzr,fm,fh,sqmxl
       real, dimension(ifull) :: x,zhv,theeb,sigsp,rhos
       real, dimension(ifull) :: ou,ov,iu,iv
@@ -118,7 +118,7 @@
       rlog12=1./(rlogs1-rlogs2)
       tmnht(1:ifull,1)=(tv(1:ifull,2)*rlogs1-t(1:ifull,1)*rlogs2+
      &           (tv(1:ifull,1)-tv(1:ifull,2))*rlogh1)*rlog12
-      dnhsh(:,1)=1.+(tnhs(:,2)*rlogs1-tnhs(:,1)*rlogs2+
+      cnhs(:,1)=1.+(tnhs(:,2)*rlogs1-tnhs(:,1)*rlogs2+
      &           (tnhs(:,1)-tnhs(:,2))*rlogh1)*rlog12/tmnht(1:ifull,1)
 !     n.b. an approximate zh (in m) is quite adequate for this routine
       zh(:,1)=(tv(1:ifull,1)+tnhs(:,1))*delh(1)
@@ -128,7 +128,7 @@
         !tmnht(iq,k) =(t(iq,k)+t(iq,k+1))*.5
         tmnht(iq,k)=ratha(k)*tv(iq,k+1)+rathb(k)*tv(iq,k)         ! MJT suggestion
         ! non-hydrostatic temperature correction at half level height
-        dnhsh(iq,k)=1.+(ratha(k)*tnhs(iq,k+1)
+        cnhs(iq,k)=1.+(ratha(k)*tnhs(iq,k+1)
      &              +rathb(k)*tnhs(iq,k))/tmnht(iq,k)           ! MJT suggestion
        enddo     ! iq loop
       enddo      !  k loop
@@ -338,7 +338,7 @@ c     ********* end of Geleyn shallow convection section ****************
       vav(1:ifull,:)=av_vmod*v(1:ifull,:)+(1.-av_vmod)*savv(1:ifull,:) 
       do k=1,kl-1
        do iq=1,ifull
-        dz(iq) =-tmnht(iq,k)*delons(k)*dnhsh(iq,k)  ! this is z(k+1)-z(k)
+        dz(iq) =-tmnht(iq,k)*delons(k)*cnhs(iq,k)  ! this is z(k+1)-z(k)
         dzr(iq)=1./dz(iq)
         zhv(iq)=1./zh(iq,k)
         if(ndvmod==0)then
@@ -869,7 +869,7 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
       do k=1,kl-1
         delsig=(sig(k+1)-sig(k))
         do iq=1,ifull
-          dz(iq) =-tmnht(iq,k)*delons(k)*dnhsh(iq,k)  ! this is z(k+1)-z(k)
+          dz(iq) =-tmnht(iq,k)*delons(k)*cnhs(iq,k)  ! this is z(k+1)-z(k)
           dzr(iq)=1./dz(iq)
           guv(iq,k)= rkm(iq,k)*dt *delsig *dzr(iq)**2
           gt(iq,k)=  rkh(iq,k)*dt *delsig *dzr(iq)**2

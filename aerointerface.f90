@@ -527,8 +527,6 @@ do k=2,kl
 end do
 do k=1,kl
   dz(:,k)=-rdry*dsig(k)*(tv(:,k)+tnhs(:,k))/(grav*sig(k))
-end do
-do k=1,kl
   rhoa(:,k)=ps(1:ifull)*sig(k)/(rdry*tv(1:ifull,k)) ! density of air (kg/m**3)
 end do
 
@@ -601,7 +599,7 @@ call aldrcalc(dt,sig,sigh,dsig,zg,dz,fwet,wg,pblh,ps,  &
 ! Factor 1.e3 to convert to gS/m2, x 3 to get sulfate from sulfur
 so4t(:)=0.
 do k=1,kl
-  so4t(:)=so4t(:)+3.e3*xtg(1:ifull,k,3)*(-ps(1:ifull)*dsig(k))/grav
+  so4t(:)=so4t(:)+3.e3*xtg(1:ifull,k,3)*rhoa(:,k)*dz(:,k)
 enddo
 
 return

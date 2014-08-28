@@ -985,6 +985,12 @@ if(myid==0.or.local)then
       call attrib(idnc,idim,3,'so4dd_ave',lname,'gS/(m2 yr)',0.,390.,0,itype) 
       lname = 'SO4 wet deposition'
       call attrib(idnc,idim,3,'so4wd_ave',lname,'gS/(m2 yr)',0.,390.,0,itype) 
+      lname = 'DMS burden'
+      call attrib(idnc,idim,3,'dmsb_ave',lname,'mgS/m2',0.,130.,0,itype) 
+      lname = 'SO2 burden'
+      call attrib(idnc,idim,3,'so2b_ave',lname,'mgS/m2',0.,130.,0,itype) 
+      lname = 'SO4 burden'
+      call attrib(idnc,idim,3,'so4b_ave',lname,'mgS/m2',0.,130.,0,itype) 
     end if
 
     ! CABLE -----------------------------------------------------
@@ -1748,24 +1754,30 @@ if (nextout>=1.and.abs(iaero)>=2.and.nrad==5) then
   call histwrt3(aa,'ocdd_ave',idnc,iarch,local,lave)
   aa=max(ocwd*3.154e10,0.) ! g/m2/yr
   call histwrt3(aa,'ocwd_ave',idnc,iarch,local,lave)
-  aa=max(dmse*3.154e10,0.) ! g/m2/yr
+  aa=max(dmse*3.154e10,0.) ! gS/m2/yr (*1.938 for g/m2/yr)
   call histwrt3(aa,'dmse_ave',idnc,iarch,local,lave)
-  aa=max(dmsso2o*3.154e10,0.) ! g/m2/yr
+  aa=max(dmsso2o*3.154e10,0.) ! gS/m2/yr
   call histwrt3(aa,'dmsso2_ave',idnc,iarch,local,lave)
-  aa=max(so2e*3.154e10,0.) ! g/m2/yr
+  aa=max(so2e*3.154e10,0.) ! gS/m2/yr (*2. for g/m2/yr)
   call histwrt3(aa,'so2e_ave',idnc,iarch,local,lave)
-  aa=max(so2so4o*3.154e10,0.) ! g/m2/yr
+  aa=max(so2so4o*3.154e10,0.) ! gS/m2/yr
   call histwrt3(aa,'so2so4_ave',idnc,iarch,local,lave)
-  aa=max(so2dd*3.154e10,0.) ! g/m2/yr
+  aa=max(so2dd*3.154e10,0.) ! gS/m2/yr (*2. for g/m2/yr)
   call histwrt3(aa,'so2dd_ave',idnc,iarch,local,lave)
-  aa=max(so2wd*3.154e10,0.) ! g/m2/yr
+  aa=max(so2wd*3.154e10,0.) ! gS/m2/yr (*2. for g/m2/yr)
   call histwrt3(aa,'so2wd_ave',idnc,iarch,local,lave)
-  aa=max(so4e*3.154e10,0.) ! g/m2/yr
+  aa=max(so4e*3.154e10,0.) ! gS/m2/yr (*3. for g/m2/yr)
   call histwrt3(aa,'so4e_ave',idnc,iarch,local,lave)
-  aa=max(so4dd*3.154e10,0.) ! g/m2/yr
+  aa=max(so4dd*3.154e10,0.) ! gS/m2/yr (*3. for g/m2/yr)
   call histwrt3(aa,'so4dd_ave',idnc,iarch,local,lave)
-  aa=max(so4wd*3.154e10,0.) ! g/m2/yr
+  aa=max(so4wd*3.154e10,0.) ! gS/m2/yr (*3. for g/m2/yr)
   call histwrt3(aa,'so4wd_ave',idnc,iarch,local,lave)
+  aa=max(dms_burden*1.e6,0.) ! mgS/m2
+  call histwrt3(aa,'dmsb_ave',idnc,iarch,local,lave)
+  aa=max(so2_burden*1.e6,0.) ! mgS/m2
+  call histwrt3(aa,'so2b_ave',idnc,iarch,local,lave)
+  aa=max(so4_burden*1.e6,0.) ! mgS/m2
+  call histwrt3(aa,'so4b_ave',idnc,iarch,local,lave)
 end if
 
 ! CABLE -------------------------------------------------------

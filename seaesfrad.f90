@@ -92,12 +92,12 @@ integer, save :: nlow,nmid
 real, dimension(:), allocatable, save :: sgamp
 real, dimension(:,:), allocatable, save :: rtt
 real, dimension(imax,kl) :: duo3n,rhoa
-real, dimension(imax,kl) :: p2,cd2,dumcf,dumql,dumqf,dumt,tnhs
+real, dimension(imax,kl) :: p2,cd2,dumcf,dumql,dumqf,dumt,dz
 real, dimension(imax) :: qsat,coszro2,taudar2,coszro,taudar,mx
 real, dimension(imax) :: sg,sint,sout,sgdn,rg,rt,rgdn,sgdnvis,sgdnnir
 real, dimension(imax) :: soutclr,sgclr,rtclr,rgclr,sga
 real, dimension(imax) :: sgvis,sgdnvisdir,sgdnvisdif,sgdnnirdir,sgdnnirdif
-real, dimension(imax) :: dprf,dumfbeam,tv
+real, dimension(imax) :: dprf,dumfbeam,tv,tnhs
 real, dimension(imax) :: cuvrf_dir,cirrf_dir,cuvrf_dif,cirrf_dif
 real, dimension(kl+1) :: sigh
 real(kind=8), dimension(:,:), allocatable, save :: pref
@@ -694,9 +694,16 @@ do j=1,jl,imax/il
     call atebalb1(istart,imax,cirrf_dif(1:imax),0,split=2)
 
     ! Aerosols -------------------------------------------------------
-    do k=1,kl
+    tnhs=phi_nh(istart:iend,1)/bet(1)
+    tv=t(istart:iend,1)*(1.+0.61*qg(istart:iend,1)-qlrad(istart:iend,1)-qfrad(istart:iend,1))
+    rhoa(:,1)=ps(istart:iend)*sig(1)/(rdry*tv) !density of air
+    dz(:,1)=-rdry*dsig(1)*(tv+tnhs)/(grav*sig(1))
+    do k=2,kl
+      ! representing non-hydrostatic term as a correction to air temperature
+      tnhs=(phi_nh(istart:iend,k)-phi_nh(istart:iend,k-1)-betm(k)*tnhs)/bet(k)
       tv=t(istart:iend,k)*(1.+0.61*qg(istart:iend,k)-qlrad(istart:iend,k)-qfrad(istart:iend,k))
       rhoa(:,k)=ps(istart:iend)*sig(k)/(rdry*tv) !density of air
+      dz(:,k)=-rdry*dsig(k)*(tv+tnhs)/(grav*sig(k))
     end do
     select case (abs(iaero))
       case(0)
@@ -717,7 +724,7 @@ do j=1,jl,imax/il
         ! convert to units kg / m^2
         do k=1,kl
           kr=kl+1-k
-          dprf=-ps(istart:iend)*dsig(k)
+          dprf=grav*rhoa(:,k)*dz(:,k)
           ! Factor of 132.14/32.06 converts from sulfur to ammmonium sulfate
           Aerosol%aerosol(:,1,kr,1) =real((132.14/32.06)*xtg(istart:iend,k,3)*dprf/grav,8) ! so4
           Aerosol%aerosol(:,1,kr,2) =real(xtg(istart:iend,k,4)*dprf/grav,8)                ! bc hydrophobic
@@ -803,18 +810,13 @@ do j=1,jl,imax/il
     end if
 
     ! Prepare SEA-ESF arrays ----------------------------------------
-    tnhs(:,1)=phi_nh(istart:iend,1)/bet(1)
-    do k=2,kl
-      ! representing non-hydrostatic term as a correction to air temperature
-      tnhs(:,k)=(phi_nh(istart:iend,k)-phi_nh(istart:iend,k-1)-betm(k)*tnhs(:,k-1))/bet(k)
-    end do
     do k=1,kl
       kr=kl+1-k
       dumt(:,k)=t(istart:iend,k)
       tv=dumt(:,k)*(1.+0.61*qg(istart:iend,k)-qlrad(istart:iend,k)-qfrad(istart:iend,k))
       p2(:,k)=ps(istart:iend)*sig(k)
       call getqsat(imax,qsat,dumt(:,k),p2(:,k))
-      Atmos_input%deltaz(:,1,kr)  = real((-dsig(k)/sig(k))*rdry*(tv+tnhs(:,k))/grav,8)
+      Atmos_input%deltaz(:,1,kr)  = real(dz(:,k),8)
       Atmos_input%rh2o(:,1,kr)    = max(real(qg(istart:iend,k),8),2.E-7_8)
       Atmos_input%temp(:,1,kr)    = min(max(real(dumt(:,k),8),100._8),370._8)    
       Atmos_input%press(:,1,kr)   = real(p2(:,k),8)
@@ -1012,43 +1014,55 @@ do j=1,jl,imax/il
     end do
     
     ! aerosol optical depths ----------------------------------------
-    if (do_aerosol_forcing) then
+    if ( do_aerosol_forcing ) then
       opticaldepth(istart:iend,:,:)=0.
+      ! Sulfate
       do k=1,kl
-        ! Small dust
-        opticaldepth(istart:iend,1,1)=opticaldepth(istart:iend,1,1)+real(Aerosol_diags%extopdep(1:imax,1,k,6,1)) ! Visible
-        opticaldepth(istart:iend,1,2)=opticaldepth(istart:iend,1,2)+real(Aerosol_diags%extopdep(1:imax,1,k,6,2)) ! Near IR
-        opticaldepth(istart:iend,1,3)=opticaldepth(istart:iend,1,3)+real(Aerosol_diags%extopdep(1:imax,1,k,6,3)) ! Longwave
-        ! Large dust
-        do nr=7,9
-          opticaldepth(istart:iend,2,1)=opticaldepth(istart:iend,2,1)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,1)) ! Visible
-          opticaldepth(istart:iend,2,2)=opticaldepth(istart:iend,2,2)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,2)) ! Near IR
-          opticaldepth(istart:iend,2,3)=opticaldepth(istart:iend,2,3)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,3)) ! Longwave
-        end do
-        ! Sulfate
         opticaldepth(istart:iend,3,1)=opticaldepth(istart:iend,3,1)+real(Aerosol_diags%extopdep(1:imax,1,k,1,1)) ! Visible
         opticaldepth(istart:iend,3,2)=opticaldepth(istart:iend,3,2)+real(Aerosol_diags%extopdep(1:imax,1,k,1,2)) ! Near IR
         opticaldepth(istart:iend,3,3)=opticaldepth(istart:iend,3,3)+real(Aerosol_diags%extopdep(1:imax,1,k,1,3)) ! Longwave
-        ! BC
-        do nr=2,3
+      end do
+      ! BC
+      do nr=2,3
+        do k=1,kl          
           opticaldepth(istart:iend,5,1)=opticaldepth(istart:iend,5,1)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,1)) ! Visible
           opticaldepth(istart:iend,5,2)=opticaldepth(istart:iend,5,2)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,2)) ! Near IR
           opticaldepth(istart:iend,5,3)=opticaldepth(istart:iend,5,3)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,3)) ! Longwave
         end do
-        ! OC
-        do nr=4,5
+      end do
+      ! OC
+      do nr=4,5
+        do k=1,kl    
           opticaldepth(istart:iend,6,1)=opticaldepth(istart:iend,6,1)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,1)) ! Visible
           opticaldepth(istart:iend,6,2)=opticaldepth(istart:iend,6,2)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,2)) ! Near IR
           opticaldepth(istart:iend,6,3)=opticaldepth(istart:iend,6,3)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,3)) ! Longwave
         end do
-        ! Seasalt
-        do nr=10,11
+      end do
+      ! Small dust
+      do k=1,kl
+        opticaldepth(istart:iend,1,1)=opticaldepth(istart:iend,1,1)+real(Aerosol_diags%extopdep(1:imax,1,k,6,1)) ! Visible
+        opticaldepth(istart:iend,1,2)=opticaldepth(istart:iend,1,2)+real(Aerosol_diags%extopdep(1:imax,1,k,6,2)) ! Near IR
+        opticaldepth(istart:iend,1,3)=opticaldepth(istart:iend,1,3)+real(Aerosol_diags%extopdep(1:imax,1,k,6,3)) ! Longwave
+      end do
+      ! Large dust
+      do nr=7,9
+        do k=1,kl
+          opticaldepth(istart:iend,2,1)=opticaldepth(istart:iend,2,1)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,1)) ! Visible
+          opticaldepth(istart:iend,2,2)=opticaldepth(istart:iend,2,2)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,2)) ! Near IR
+          opticaldepth(istart:iend,2,3)=opticaldepth(istart:iend,2,3)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,3)) ! Longwave
+        end do
+      end do
+      ! Seasalt
+      do nr=10,11
+        do k=1,kl
           opticaldepth(istart:iend,7,1)=opticaldepth(istart:iend,7,1)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,1)) ! Visible
           opticaldepth(istart:iend,7,2)=opticaldepth(istart:iend,7,2)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,2)) ! Near IR
           opticaldepth(istart:iend,7,3)=opticaldepth(istart:iend,7,3)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,3)) ! Longwave
         end do
-        ! Aerosol
-        do nr=1,nfields
+      end do
+      ! Aerosol
+      do nr=1,nfields
+        do k=1,kl
           opticaldepth(istart:iend,4,1)=opticaldepth(istart:iend,4,1)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,1)) ! Visible
           opticaldepth(istart:iend,4,2)=opticaldepth(istart:iend,4,2)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,2)) ! Near IR
           opticaldepth(istart:iend,4,3)=opticaldepth(istart:iend,4,3)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,3)) ! Longwave
@@ -1929,13 +1943,13 @@ Aerosol_props%aerssalbband=0._8
 Aerosol_props%aerasymmband=0._8
 
 do nmodel=1,naermodels
-  call thickavg (nivl1aero, nivl2aero, num_wavenumbers,   &
+  call thickavg (nivl1aero, nivl2aero, num_wavenumbers,    &
                  Solar_spect%nbands, aeroextivl(:,nmodel), &
-                 aerossalbivl(:,nmodel),    &
-                 aeroasymmivl(:,nmodel), solivlaero,   &
-                 Solar_spect%solflxbandref,       & 
-                 Aerosol_props%aerextband(:,nmodel),    &
-                 Aerosol_props%aerssalbband(:,nmodel),   &
+                 aerossalbivl(:,nmodel),                   &
+                 aeroasymmivl(:,nmodel), solivlaero,       &
+                 Solar_spect%solflxbandref,                & 
+                 Aerosol_props%aerextband(:,nmodel),       &
+                 Aerosol_props%aerssalbband(:,nmodel),     &
                  Aerosol_props%aerasymmband(:,nmodel))
 end do
 

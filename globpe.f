@@ -16,6 +16,7 @@
      &    ,bcwd,bcdd,oce,ocwd,ocdd,dmse
      &    ,dmsso2o,so2e,so2so4o,so2wd,so2dd
      &    ,so4e,so4wd,so4dd,zvolcemi
+     &    ,dms_burden,so2_burden,so4_burden
       use arrays_m                            ! Atmosphere dyamics prognostic arrays
       use bigxy4_m                            ! Grid interpolation
       use carbpools_m, only : carbpools_init  ! Carbon pools
@@ -943,6 +944,9 @@
         so4e         = 0.  ! SO4 emissions
         so4dd        = 0.  ! SO4 dry deposition
         so4wd        = 0.  ! SO4 wet deposition
+        dms_burden   = 0.  ! DMS burden
+        so2_burden   = 0.  ! SO2 burden
+        so4_burden   = 0.  ! SO4 burden
       end if
 
 
@@ -1826,24 +1830,27 @@
         frs_ave(1:ifull)    = frs_ave(1:ifull)/min(ntau,nperavg)
         frp_ave(1:ifull)    = frp_ave(1:ifull)/min(ntau,nperavg)
         if ( abs(iaero)==2 ) then
-          duste        = duste/min(ntau,nperavg)   ! Dust emissions
-          dustdd       = dustdd/min(ntau,nperavg)  ! Dust dry deposition
-          dustwd       = dustwd/min(ntau,nperavg)  ! Dust wet deposition
-          bce          = bce/min(ntau,nperavg)     ! Black carbon emissions
-          bcdd         = bcdd/min(ntau,nperavg)    ! Black carbon dry deposition
-          bcwd         = bcwd/min(ntau,nperavg)    ! Black carbon wet deposition
-          oce          = oce/min(ntau,nperavg)     ! Organic carbon emissions
-          ocdd         = ocdd/min(ntau,nperavg)    ! Organic carbon dry deposition
-          ocwd         = ocwd/min(ntau,nperavg)    ! Organic carbon wet deposition
-          dmse         = dmse/min(ntau,nperavg)    ! DMS emissions
-          dmsso2o      = dmsso2o/min(ntau,nperavg) ! DMS -> SO2 oxidation
-          so2e         = so2e/min(ntau,nperavg)    ! SO2 emissions
-          so2so4o      = so2so4o/min(ntau,nperavg) ! SO2 -> SO4 oxidation
-          so2dd        = so2dd/min(ntau,nperavg)   ! SO2 dry deposition
-          so2wd        = so2wd/min(ntau,nperavg)   ! SO2 wet deposiion
-          so4e         = so4e/min(ntau,nperavg)    ! SO4 emissions
-          so4dd        = so4dd/min(ntau,nperavg)   ! SO4 dry deposition
-          so4wd        = so4wd/min(ntau,nperavg)   ! SO4 wet deposition
+          duste        = duste/min(ntau,nperavg)      ! Dust emissions
+          dustdd       = dustdd/min(ntau,nperavg)     ! Dust dry deposition
+          dustwd       = dustwd/min(ntau,nperavg)     ! Dust wet deposition
+          bce          = bce/min(ntau,nperavg)        ! Black carbon emissions
+          bcdd         = bcdd/min(ntau,nperavg)       ! Black carbon dry deposition
+          bcwd         = bcwd/min(ntau,nperavg)       ! Black carbon wet deposition
+          oce          = oce/min(ntau,nperavg)        ! Organic carbon emissions
+          ocdd         = ocdd/min(ntau,nperavg)       ! Organic carbon dry deposition
+          ocwd         = ocwd/min(ntau,nperavg)       ! Organic carbon wet deposition
+          dmse         = dmse/min(ntau,nperavg)       ! DMS emissions
+          dmsso2o      = dmsso2o/min(ntau,nperavg)    ! DMS -> SO2 oxidation
+          so2e         = so2e/min(ntau,nperavg)       ! SO2 emissions
+          so2so4o      = so2so4o/min(ntau,nperavg)    ! SO2 -> SO4 oxidation
+          so2dd        = so2dd/min(ntau,nperavg)      ! SO2 dry deposition
+          so2wd        = so2wd/min(ntau,nperavg)      ! SO2 wet deposiion
+          so4e         = so4e/min(ntau,nperavg)       ! SO4 emissions
+          so4dd        = so4dd/min(ntau,nperavg)      ! SO4 dry deposition
+          so4wd        = so4wd/min(ntau,nperavg)      ! SO4 wet deposition
+          dms_burden   = dms_burden/min(ntau,nperavg) ! DMS burden
+          so2_burden   = so2_burden/min(ntau,nperavg) ! SO2 burden
+          so4_burden   = so4_burden/min(ntau,nperavg) ! SO4 burden
         end if
       end if    ! (ktau==ntau.or.mod(ktau,nperavg)==0)
 
@@ -1968,6 +1975,9 @@
           so4e         = 0.  ! SO4 emissions
           so4dd        = 0.  ! SO4 dry deposition
           so4wd        = 0.  ! SO4 wet deposition
+          dms_burden   = 0.  ! DMS burden
+          so2_burden   = 0.  ! SO2 burden
+          so4_burden   = 0.  ! SO4 burden
         end if
       endif  ! (mod(ktau,nperavg)==0)
 
