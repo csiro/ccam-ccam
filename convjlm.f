@@ -44,7 +44,7 @@
      .    ,frac,fraca,fracb,gam,hbas,hbase,heatlev
      .    ,pwater,pwater0,qavg,qentrr,qprec,qsk,rkmid
      .    ,savg,savgb,sentrr,summ,totprec,veldt
-     .    ,rKa,Dva,cfls,cflscon,qpf,pk,Apr,Bpr,Fr,rhoa,dz,Vr
+     .    ,rKa,Dva,cfls,cflscon,rhodz,qpf,pk,Apr,Bpr,Fr,rhoa,dz,Vr
      .    ,dtev,qr,qgdiff,Cev2,qr2,Cevx,alphal,blx,evapls,revq
      .    ,deluu,delvv,pb,sumb
       real delthet,tmnht1,delons,rino,dtsol,detrainn
@@ -79,9 +79,7 @@
       integer, dimension(:), allocatable, save :: kb_saved,kt_saved
       real, dimension(ifull) :: conrev,rho,ttsto,qqsto,qqold
       real, dimension(ifull) :: alfqarr,omega,omgtst,convtim_deep
-      real, dimension(ifull) :: tv,tnhs
       real, dimension(ifull,naero) :: fscav
-      real, dimension(ifull,kl) :: rhodz
       real delq(ifull,kl),dels(ifull,kl),delu(ifull,kl)
       real delv(ifull,kl),dqsdt(ifull,kl),es(ifull,kl) 
       real fldow(ifull),fluxq(ifull)
@@ -129,19 +127,6 @@
       do k=1,kl
        dsk(k)=-dsig(k)    !   dsk = delta sigma (positive)
       enddo     ! k loop
-      
-      ! non-hydrostatic correction for convective scavenging of aerosols
-      tnhs=phi_nh(:,1)/bet(1)
-      tv=t(1:ifull,1)*(1.+0.61*qg(1:ifull,1)-qlg(1:ifull,1)
-     &   -qfg(1:ifull,1))
-      rhodz(:,1)=-ps(1:ifull)*dsig(1)*(1.+tnhs/tv)/grav
-      do k=2,kl
-        ! representing non-hydrostatic term as a correction to air temperature
-        tnhs=(phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs)/bet(k)
-        tv=t(1:ifull,k)*(1.+0.61*qg(1:ifull,k)-qlg(1:ifull,k)
-     &   -qfg(1:ifull,k))
-        rhodz(:,k)=-ps(1:ifull)*dsig(k)*(1.+tnhs/tv)/grav
-      end do
       
       if(ktau==1)then   !----------------------------------------------------------------
         entrainn(:)=entrain  ! N.B. for nevapcc.ne.0, entrain handles type of scheme
@@ -1454,18 +1439,22 @@ c***    Also entrain may slow convergence   N.B. qbass only used in next few lin
           call convscav(fscav,qqsto,qqold,ttsto,
      &                  xtg(1:ifull,k,3),rho)
           ntr=itracso2
-          so2wd=so2wd+fscav(:,ntr)*xtg(1:ifull,k,ntr)*rhodz(:,k)/dt
+          so2wd=so2wd+fscav(:,ntr)*xtg(1:ifull,k,ntr)*ps*dsk(k)
+     &         /(grav*dt)
           ntr=itracso2+1
-          so4wd=so4wd+fscav(:,ntr)*xtg(1:ifull,k,ntr)*rhodz(:,k)/dt
+          so4wd=so4wd+fscav(:,ntr)*xtg(1:ifull,k,ntr)*ps*dsk(k)
+     &         /(grav*dt)
           do ntr=itracbc,itracbc+1
-            bcwd=bcwd+fscav(:,ntr)*xtg(1:ifull,k,ntr)*rhodz(:,k)/dt
+            bcwd=bcwd+fscav(:,ntr)*xtg(1:ifull,k,ntr)*ps*dsk(k)
+     &         /(grav*dt) 
           end do
           do ntr=itracoc,itracoc+1
-            ocwd=ocwd+fscav(:,ntr)*xtg(1:ifull,k,ntr)*rhodz(:,k)/dt
+            ocwd=ocwd+fscav(:,ntr)*xtg(1:ifull,k,ntr)*ps*dsk(k)
+     &         /(grav*dt) 
           end do
           do ntr=itracdu,itracdu+ndust-1
-            dustwd=dustwd+fscav(:,ntr)*xtg(1:ifull,k,ntr)*rhodz(:,k)
-     &         /dt
+            dustwd=dustwd+fscav(:,ntr)*xtg(1:ifull,k,ntr)*ps*dsk(k)
+     &         /(grav*dt)
           end do
           xtg(1:ifull,k,:)=xtg(1:ifull,k,:)*(1.-fscav(:,:))
         end do
@@ -1652,7 +1641,8 @@ c***    Also entrain may slow convergence   N.B. qbass only used in next few lin
         do k=klon23,1,-1  ! JLM
          do iq=1,ifull
           if(k<kbsav_ls(iq))then
-            qpf=fluxr(iq)/rhodz(iq,k)     ! Mix ratio of rain which falls into layer
+            rhodz=ps(iq)*dsk(k)/grav
+            qpf=fluxr(iq)/rhodz     ! Mix ratio of rain which falls into layer
             pk=ps(iq)*sig(k)
 !           es(iq,k)=qs(iq,k)*pk/.622
             Apr=hl*hl/(rKa*tt(iq,k)*(rvap*tt(iq,k))-1.)
@@ -1676,7 +1666,7 @@ c***    Also entrain may slow convergence   N.B. qbass only used in next few lin
             evapls=max(0. , min(evapls,qpf))
             qpf=qpf-evapls
 !           if(evapls>0.)write(6,*) 'iq,k,evapls ',iq,k,evapls
-            fluxr(iq)=fluxr(iq)+rhodz(iq,k)*qpf
+            fluxr(iq)=fluxr(iq)+rhodz*qpf
             revq=evapls
             revq=min(revq , rnrt(iq)/(conrev(iq)*dsk(k)))
 !           max needed for roundoff
