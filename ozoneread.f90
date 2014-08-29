@@ -248,7 +248,8 @@ if (allocated(o3mth)) then ! CMIP5 ozone
   duma=o3pre(istart:iend,:)
   dumb=o3mth(istart:iend,:)
   dumc=o3nxt(istart:iend,:)
-  call fieldinterpolate(duo3n,duma,dumb,dumc,o3pres,npts,kl,ii,jj,kk,mins,sig,ps)
+  ! note this inverts levels
+  call fieldinterpolate(duo3n,duma,dumb,dumc,o3pres,npts,kl,kk,mins,sig,ps,interpmeth=1)
 
   ! convert units from mol/mol to g/g
   where (duo3n<1.)
@@ -273,6 +274,7 @@ else ! CMIP3 ozone
     angle = real(ilat)
     than = (t5 - angle)
     ilatp = min(ilat + 1,37)
+    ! levels are already in reverse order
     do m = 1,kl
       do3  = dduo3n(ilat,m) + rsin1*ddo3n2(ilat,m) + rcos1*ddo3n3(ilat,m) + rcos2*ddo3n4(ilat,m)
       do3p = dduo3n(ilatp,m) + rsin1*ddo3n2(ilatp,m) + rcos1*ddo3n3(ilatp,m) + rcos2*ddo3n4(ilatp,m)
@@ -291,7 +293,7 @@ end subroutine o3set
 ! This subroutine interoplates monthly intput fields to the current
 ! time step.  It also interpolates from pressure levels to CCAM
 ! vertical levels
-subroutine fieldinterpolate(out,fpre,fmth,fnxt,fpres,ipts,ilev,nlon,nlat,nlev,mins,sig,ps)
+subroutine fieldinterpolate(out,fpre,fmth,fnxt,fpres,ipts,ilev,nlev,mins,sig,ps,interpmeth)
       
 implicit none
 
@@ -300,7 +302,9 @@ include 'dates.h'
 integer leap
 common/leap_yr/leap  ! 1 to allow leap years
       
-integer, intent(in) :: ipts,ilev,nlon,nlat,nlev,mins
+integer, intent(in) :: ipts,ilev,nlev,mins
+integer, intent(in), optional :: interpmeth
+integer ozoneintp ! ozone interpolation (0=simple, 1=integrate column)
 integer date,iq,ip,m,k1,jyear,jmonth
 real, dimension(ipts,ilev), intent(out) :: out
 real, dimension(ipts,nlev), intent(in) :: fpre,fmth,fnxt
@@ -314,7 +318,11 @@ real, dimension(12) :: monlen
 real, dimension(12), parameter :: oldlen= (/ 0.,31.,59.,90.,120.,151.,181.,212.,243.,273.,304.,334. /)
 real rang,fp,fjd,mino3
 
-integer, parameter :: ozoneintp=1 ! ozone interpolation (0=simple, 1=integrate column)
+if (present(interpmeth)) then
+  ozoneintp=interpmeth
+else
+  ozoneintp=1
+end if
 
 monlen=oldlen
 jyear =kdate/10000

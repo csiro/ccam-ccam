@@ -590,6 +590,7 @@ do j=1,jl,imax/il
     if (amipo3) then
       call o3set_amip( rlatt(istart:iend), imax, mins,sigh, ps(istart:iend), duo3n )
     else
+      ! note levels are inverted
       call o3set( imax, istart, mins, duo3n, sig, ps(istart:iend) )
     end if
     Rad_gases%qo3(:,1,:)=max(1.e-10_8,real(duo3n,8))

@@ -534,6 +534,7 @@ real, parameter :: a_vpco2   = 0.222 ! nightingale (2000)
 real, parameter :: b_vpco2   = 0.333 ! nightingale (2000)
 !real, parameter :: a_vpco2  = 0.166 ! approx Liss and Merlivat (see nightingale 2000)
 !real, parameter :: b_vpco2  = 0.133 ! approx Liss and Merlivat (see nightingale 2000)
+real, parameter :: dmsadj=0.4 ! Fudge factor for DMS emissions.  Should equal 1.
 
 ! Start code : ----------------------------------------------------------
 
@@ -555,7 +556,7 @@ DO JL=1,ifull
     ! Reduce the effective DMS concentration more strongly at seaice points, since the flux should
     ! probably depend on wave breaking (e.g., Erickson, JGR, 1993; Woolf, Tellus B, 2005),
     ! which will be much reduced over leads.
-    ZDMSCON=EMISSFIELD(JL,idmso)*(1.-SEAICEM(JL))**2
+    ZDMSCON=dmsadj*EMISSFIELD(JL,idmso)*(1.-SEAICEM(JL))**2
     ZSST=min(TSM1M(JL)-273.15, 45.)   ! Even Saltzman Sc formula has trouble over 45 deg C
     ! The formula for ScDMS from Saltzman et al (1993) is given by Kettle & Andreae (ref below)
     ScDMS = 2674. - 147.12*ZSST + 3.726*ZSST**2 - 0.038*ZSST**3 !Sc for DMS (Saltzman et al.)
@@ -1126,12 +1127,12 @@ elsewhere
 end where
 
 !  OXIDANT CONCENTRATIONS IN MOLECULE/CM**3
-! -- reverse levels --
+! -- levels are already inverted --
 DO JK=1,kl
-  JS1=kl+1-JK
-  JS2=2*kl+1-JK
-  JS3=3*kl+1-JK
-  JS4=4*kl+1-JK
+  JS1=jk
+  JS2=kl+jk
+  JS3=2*kl+jk
+  JS4=3*kl+jk
 
   ZX(:)=PRHOP1(:,JK)*1.E-03
   ZZOH(:,JK)=ZOXIDANT(:,JS1)

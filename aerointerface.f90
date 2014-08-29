@@ -482,9 +482,10 @@ call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
 dhr=dt/3600.
 if (sday<=mins-updateoxidant) then
   sday=mins
-  do j=1,4      
+  do j=1,4 
+    ! note levels are inverted
     call fieldinterpolate(oxout,oxidantprev(:,:,j),oxidantnow(:,:,j),oxidantnext(:,:,j), &
-                          rlev,ifull,kl,ilon,ilat,ilev,mins,sig,ps)
+                          rlev,ifull,kl,ilev,mins,sig,ps,interpmeth=0)
     do k=1,kl
       call aldrloadoxidant(k+(j-1)*kl,oxout(:,k))
     end do
