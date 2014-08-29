@@ -530,11 +530,10 @@ real, parameter :: tmelt = 273.05
 real, parameter :: ZVDPHOBIC = 0.025E-2
 !     DMS emissions
 real, parameter :: ScCO2     = 600.
-real, parameter :: a_vpco2   = 0.222 ! nightingale (2000)
-real, parameter :: b_vpco2   = 0.333 ! nightingale (2000)
-!real, parameter :: a_vpco2  = 0.166 ! approx Liss and Merlivat (see nightingale 2000)
-!real, parameter :: b_vpco2  = 0.133 ! approx Liss and Merlivat (see nightingale 2000)
-real, parameter :: dmsadj=0.4 ! Fudge factor for DMS emissions.  Should equal 1.
+!real, parameter :: a_vpco2   = 0.222 ! nightingale (2000)
+!real, parameter :: b_vpco2   = 0.333 ! nightingale (2000)
+real, parameter :: a_vpco2  = 0.166 ! approx Liss and Merlivat (see nightingale 2000)
+real, parameter :: b_vpco2  = 0.133 ! approx Liss and Merlivat (see nightingale 2000)
 
 ! Start code : ----------------------------------------------------------
 
@@ -556,7 +555,7 @@ DO JL=1,ifull
     ! Reduce the effective DMS concentration more strongly at seaice points, since the flux should
     ! probably depend on wave breaking (e.g., Erickson, JGR, 1993; Woolf, Tellus B, 2005),
     ! which will be much reduced over leads.
-    ZDMSCON=dmsadj*EMISSFIELD(JL,idmso)*(1.-SEAICEM(JL))**2
+    ZDMSCON=EMISSFIELD(JL,idmso)*(1.-SEAICEM(JL))**2
     ZSST=min(TSM1M(JL)-273.15, 45.)   ! Even Saltzman Sc formula has trouble over 45 deg C
     ! The formula for ScDMS from Saltzman et al (1993) is given by Kettle & Andreae (ref below)
     ScDMS = 2674. - 147.12*ZSST + 3.726*ZSST**2 - 0.038*ZSST**3 !Sc for DMS (Saltzman et al.)
@@ -1530,7 +1529,6 @@ DO JK=1,kl
         ztk1=1.646e-10-1.850e-12*t+8.151e-15*t**2-1.253e-17*t**3 !Cubic fit good enough
         ztk1=max(ztk1,5.e-12) !Because cubic falls away for T > 300 K
         ztk1=1.5*ztk1         !This is the fudge factor to account for other oxidants
-        !ZDMS=ZXTP1DMS*ZZOH(JL,JK)*ZTK1*ZDAYFAC(ins)
         ZDMS=ZXTP1DMS*ZZOH(JL,JK)*ZTK1*ZDAYFAC(jl)
         ZDMS=AMIN1(ZDMS,ZXTP1DMS*PQTMST)
         XTE(JL,JK,ITRACSO2-1)=XTE(JL,JK,ITRACSO2-1)-ZDMS
