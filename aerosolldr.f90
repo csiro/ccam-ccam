@@ -1631,7 +1631,7 @@ real, dimension(ifull) :: ZMTOF, ZFTOM
 real, dimension(ifull) :: ZCLEAR, ZCLR0
 real, dimension(ifull) :: frc, zbcscav, xbcscav, xdep
 real, dimension(ifull) :: zicscav, plambda, zilcscav, ziicscav, xicscav
-real, dimension(ifull,kl) :: zcollefc  !Collection efficiency for convection
+real, dimension(ifull) :: zcollefc  !Collection efficiency for convection
 
 integer jk,jl
 real pqtmst,zevap
@@ -1772,24 +1772,25 @@ end do !   END OF VERTICAL LOOP
 ! Now do the convective below-cloud bit...
 ! In-cloud convective bit was done in convjlm.
 
-! Use collection efficiencies for rain below melting level, snow above
-
-! MJT notes - Assume rain for JLM convection
-!where (ptp1(1:ifull,ktop:kl)>273.15)
-  zcollefc(1:ifull,ktop:kl) = zcollefr(ktrac)
-!elsewhere
-!  zcollefc(1:ifull,ktop:kl) = zcollefs(ktrac)  
-!end where
-
 do jk=ktop,kl
   zmtof(:)=rhodz(:,jk)*pqtmst
   zftom(:)=1./zmtof(:)
   zclr0(:)=1.-pclcover(:,jk)-pclcon(:,jk)
-          
+
+  ! Use collection efficiencies for rain below melting level, snow above
+
+  ! MJT notes - Assume rain for JLM convection
+  !where (ptp1(1:ifull,jk)>273.15)
+    zcollefc = zcollefr(ktrac)
+  !elsewhere
+  !  zcollefc = zcollefs(ktrac)  
+  !end where
+
+  
 ! Below-cloud scavenging by convective precipitation
   where (pfconv(:,jk-1)>zmin.and.zclr0(:)>zmin)
     Frc=max(0.,pfconv(:,jk-1)/fracc(:))
-    zbcscav=zcollefc(:,jk)*fracc(:)*0.24*ptmst*sqrt(Frc*sqrt(Frc))
+    zbcscav=zcollefc*fracc(:)*0.24*ptmst*sqrt(Frc*sqrt(Frc))
     zbcscav=min(1.,zbcscav/(1.+0.5*zbcscav)) !Time-centred
     xbcscav=zbcscav*pxtp10(:,jk)*zclr0(:)
     conwd(:,ktrac)=conwd(:,ktrac)+xbcscav*zmtof
@@ -2216,69 +2217,69 @@ end subroutine cldrop
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Aerosol scavenging fraction for convective clouds
 
-subroutine convscav(fscav,xpkp1,xpold,tt,xs,rho)
+subroutine convscav(fscav,xpkp1,xpold,tt,xs,rho,ntr)
 
 implicit none
 
-real, dimension(ifull,naero), intent(out) :: fscav ! scavenging fraction
-real, dimension(ifull), intent(in) :: xpkp1 ! cloud liquid water after precipitation
-real, dimension(ifull), intent(in) :: xpold ! cloud liquid water before precipitation
-real, dimension(ifull), intent(in) :: tt    ! parcel temperature
-real, dimension(ifull), intent(in) :: xs    ! xtg(:,k,3) = so4
-real, dimension(ifull), intent(in) :: rho   ! air density
-real, dimension(ifull) :: f_so2
-logical, dimension(ifull) :: bwkp1 
+integer, intent(in) :: ntr
+real, intent(out) :: fscav ! scavenging fraction
+real, intent(in) :: xpkp1 ! cloud liquid water after precipitation
+real, intent(in) :: xpold ! cloud liquid water before precipitation
+real, intent(in) :: tt    ! parcel temperature
+real, intent(in) :: xs    ! xtg(:,k,3) = so4
+real, intent(in) :: rho   ! air density
+real f_so2
+logical bwkp1 
 ! In-cloud scavenging efficiency for liquid and frozen convective clouds follows.
 ! Hard-coded for 3 sulfur variables, 4 carbonaceous, 4 mineral dust.
 ! Note that value for SO2 (index 2) is overwritten by Henry coefficient f_so2 below.
 ! These ones are for 3 SULF, 4 CARB and 4 or 8 DUST (and include dummy variables at end)
 real, parameter, dimension(naero) :: scav_effl = (/0.00,1.00,0.90,0.00,0.30,0.00,0.30,0.05,0.05,0.05,0.05/) ! liquid
 real, parameter, dimension(naero) :: scav_effi = (/0.00,0.00,0.00,0.05,0.00,0.05,0.00,0.05,0.05,0.05,0.05/) ! ice
-real, dimension(ifull) :: scav_eff
-real, dimension(ifull) :: zqtp1,ze2,ze3,zfac,zso4l,zso2l,zqhp
-real, dimension(ifull) :: zza,zzb,zzp,zzq,zzp2,zhp,zqhr,zheneff,p_so2
-integer nt
+real scav_eff
+real zqtp1,ze2,ze3,zfac,zso4l,zso2l,zqhp
+real zza,zzb,zzp,zzq,zzp2,zhp,zqhr,zheneff,p_so2
 
 bwkp1=tt>=ticeu ! condensate in parcel is liquid (true) or ice (false)
 
-! CALCULATE THE SOLUBILITY OF SO2
-! TOTAL SULFATE  IS ONLY USED TO CALCULATE THE PH OF CLOUD WATER
-where ( xpold>1.e-20 .and. bwkp1 )
-  ZQTP1=1./tt-1./298.
-  ZE2=1.23*EXP(3020.*ZQTP1)
-  ZE3=1.2E-02*EXP(2010.*ZQTP1)
-  ZFAC=1000./(xpold*32.064)
-  ZSO4L=xs*ZFAC
-  ZSO4L=AMAX1(ZSO4L,0.)
-  ZSO2L=xs*ZFAC
-  ZSO2L=AMAX1(ZSO2L,0.)
-  ZZA=ZE2*8.2E-02*tt*xpold*rho*1.E-03
-  ZZB=2.5E-06+ZSO4L
-  ZZP=(ZZA*ZE3-ZZB-ZZA*ZZB)/(1.+ZZA)
-  ZZQ=-ZZA*ZE3*(ZZB+ZSO2L)/(1.+ZZA)
-  ZZP=0.5*ZZP
-  ZZP2=ZZP*ZZP
-  ZHP=-ZZP+SQRT(max(ZZP2-ZZQ,0.))
-  ZQHP=1./ZHP
-  ZHENEFF=1.+ZE3*ZQHP
-  P_SO2=ZZA*ZHENEFF
-  F_SO2=P_SO2/(1.+P_SO2)
-  F_SO2=min(max(0.,F_SO2),1.)
-elsewhere
-  f_so2=0.
-end where
+if ( bwkp1 .and. ntr==itracso2 ) then
 
-do nt=1,naero
-  where ( bwkp1 .and. nt==ITRACSO2 )
-    scav_eff=f_so2(:)
-  elsewhere ( bwkp1 )
-    scav_eff=scav_effl(nt)
-  elsewhere
-    scav_eff=scav_effi(nt)
-  end where
-  ! Wet deposition scavenging fraction
-  fscav(:,nt)=scav_eff*min(max(xpold-xpkp1,0.)/max(xpold,1.E-20),1.)
-end do
+  ! CALCULATE THE SOLUBILITY OF SO2
+  ! TOTAL SULFATE  IS ONLY USED TO CALCULATE THE PH OF CLOUD WATER
+  if ( xpold>1.e-20 ) then
+    ZQTP1=1./tt-1./298.
+    ZE2=1.23*EXP(3020.*ZQTP1)
+    ZE3=1.2E-02*EXP(2010.*ZQTP1)
+    ZFAC=1000./(xpold*32.064)
+    ZSO4L=xs*ZFAC
+    ZSO4L=AMAX1(ZSO4L,0.)
+    ZSO2L=xs*ZFAC
+    ZSO2L=AMAX1(ZSO2L,0.)
+    ZZA=ZE2*8.2E-02*tt*xpold*rho*1.E-03
+    ZZB=2.5E-06+ZSO4L
+    ZZP=(ZZA*ZE3-ZZB-ZZA*ZZB)/(1.+ZZA)
+    ZZQ=-ZZA*ZE3*(ZZB+ZSO2L)/(1.+ZZA)
+    ZZP=0.5*ZZP
+    ZZP2=ZZP*ZZP
+    ZHP=-ZZP+SQRT(max(ZZP2-ZZQ,0.))
+    ZQHP=1./ZHP
+    ZHENEFF=1.+ZE3*ZQHP
+    P_SO2=ZZA*ZHENEFF
+    F_SO2=P_SO2/(1.+P_SO2)
+    F_SO2=min(max(0.,F_SO2),1.)
+  else
+    f_so2=0.
+  end if
+  scav_eff=f_so2
+  
+elseif ( bwkp1 ) then
+  scav_eff=scav_effl(ntr)
+else
+  scav_eff=scav_effi(ntr)
+end if
+
+! Wet deposition scavenging fraction
+fscav=scav_eff*min(max(xpold-xpkp1,0.)/max(xpold,1.E-20),1.)
 
 return
 end subroutine convscav

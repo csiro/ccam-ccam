@@ -77,10 +77,10 @@
       real, dimension(:,:), allocatable, save :: downex,upin,upin4
       real, dimension(:,:,:), allocatable, save :: detrarr
       integer, dimension(:), allocatable, save :: kb_saved,kt_saved
-      real, dimension(ifull,kl) :: qqsav,qliqwsav
-      real, dimension(ifull,naero) :: fscav
-      real, dimension(ifull) :: conrev,rho,ttsto,qqsto,qqold
-      real, dimension(ifull) :: qlsto,qlold
+      real, dimension(ifull,kl) :: qqsav,qliqwsav,xtgscav
+      real, dimension(kl) :: fscav
+      real rho,ttsto,qqsto,qqold,qlsto,qlold
+      real, dimension(ifull) :: conrev
       real, dimension(ifull) :: alfqarr,omega,omgtst,convtim_deep
       real delq(ifull,kl),dels(ifull,kl),delu(ifull,kl)
       real delv(ifull,kl),dqsdt(ifull,kl),es(ifull,kl) 
@@ -1417,6 +1417,26 @@ c***    Also entrain may slow convergence   N.B. qbass only used in next few lin
            if(kt_sav(iq)<kl-1)then
              kb=kb_sav(iq)
              kt=kt_sav(iq)
+
+             ! convective scavenging of aerosols
+             ! Note that not all missing qq becomes rain. However, some becomes qlg
+             ! which also needs to be accounted for here.  Hence we simply use the
+             ! change in qq
+             do k=kb,kt
+               ttsto=t(iq,k)+factr(iq)*(tt(iq,k)-t(iq,k))
+               qqsto=qg(iq,k)+factr(iq)*(qq(iq,k)-qg(iq,k))
+               qqold=qg(iq,k)+factr(iq)*(qqsav(iq,k)-qg(iq,k))
+               qlsto=qlg(iq,k)+factr(iq)*qliqw(iq,k)
+               qlold=qlg(iq,k)+factr(iq)*qliqwsav(iq,k)
+               rho=ps(iq)*sig(k)/(rdry*ttsto*(1.+0.61*qqsto-qlsto))
+               ! convscav expects change in liquid cloud water, so we
+               ! assume change in qg is added to qlg before precipating out
+               qqold=qlg(iq,k)+qqold-qqsto
+               qqsto=qlg(iq,k)+qlsto-qlold
+               call convscav(fscav(k),qqsto,qqold,ttsto,
+     &                  xtg(iq,k,3),rho,ntr)
+             end do
+               
              veldt=factr(iq)*convpsav(iq)*(1.-fldow(iq)) ! simple treatment
              fluxup=veldt*s(iq,kb)
 !            remove aerosol from lower layer
@@ -1425,49 +1445,39 @@ c***    Also entrain may slow convergence   N.B. qbass only used in next few lin
              xtg(iq,kt,ntr)=xtg(iq,kt,ntr)+fluxup/dsk(kt)
              do k=kb+1,kt
               xtg(iq,k,ntr)=xtg(iq,k,ntr)-s(iq,k)*veldt/dsk(k)
-              xtg(iq,k-1,ntr)=xtg(iq,k-1,ntr)+s(iq,k)*veldt/dsk(k-1)
-             enddo
+              xtg(iq,k-1,ntr)=xtg(iq,k-1,ntr)+s(iq,k)*(1.-fscav(k))
+     &           *veldt/dsk(k-1)
+              xtgscav(iq,k)=s(iq,k)*fscav(k)*veldt/dsk(k-1)
+             enddo ! k loop
            endif
-          enddo   ! iq loop
-        end do
-        ! convective scavenging of aerosols
-        ! Note that not all missing qq becomes rain. However, some becomes qlg
-        ! which also needs to be accounted for here.  Hence we simply use the
-        ! change in qq
-        do k=1,kl-2
-          ttsto=t(1:ifull,k)+factr*(tt(:,k)-t(1:ifull,k))
-          qqsto=qg(1:ifull,k)+factr*(qq(:,k)-qg(1:ifull,k))
-          qqold=qg(1:ifull,k)+factr*(qqsav(:,k)-qg(1:ifull,k))
-          qlsto=qlg(1:ifull,k)+factr*qliqw(:,k)
-          qlold=qlg(1:ifull,k)+factr*qliqwsav(:,k)
-          rho=ps*sig(k)/(rdry*ttsto*(1.+0.61*qqsto-qlsto
-     &          -qfg(1:ifull,k)))
-          ! convscav expects change in liquid cloud water, so we
-          ! assume change in qg is added to qlg before precipating out
-          qqold=qlg(1:ifull,k)+qqold-qqsto
-          qqsto=qlg(1:ifull,k)+qlsto-qlold
-          call convscav(fscav,qqsto,qqold,ttsto,
-     &                  xtg(1:ifull,k,3),rho)
-          ntr=itracso2
-          so2wd=so2wd+fscav(:,ntr)*xtg(1:ifull,k,ntr)*ps*dsk(k)
-     &         /(grav*dt)
-          ntr=itracso2+1
-          so4wd=so4wd+fscav(:,ntr)*xtg(1:ifull,k,ntr)*ps*dsk(k)
-     &         /(grav*dt)
-          do ntr=itracbc,itracbc+1
-            bcwd=bcwd+fscav(:,ntr)*xtg(1:ifull,k,ntr)*ps*dsk(k)
-     &         /(grav*dt) 
-          end do
-          do ntr=itracoc,itracoc+1
-            ocwd=ocwd+fscav(:,ntr)*xtg(1:ifull,k,ntr)*ps*dsk(k)
-     &         /(grav*dt) 
-          end do
-          do ntr=itracdu,itracdu+ndust-1
-            dustwd=dustwd+fscav(:,ntr)*xtg(1:ifull,k,ntr)*ps*dsk(k)
-     &         /(grav*dt)
-          end do
-          xtg(1:ifull,k,:)=xtg(1:ifull,k,:)*(1.-fscav(:,:))
-        end do
+          enddo    ! iq loop
+          if (ntr==itracso2) then
+            do k=1,kl
+              so2wd=so2wd+xtgscav(:,k)*ps(1:ifull)*dsk(k)
+     &          /(grav*dt)
+            end do
+          elseif (ntr==itracso2+1) then
+            do k=1,kl
+              so4wd=so4wd+xtgscav(:,k)*ps(1:ifull)*dsk(k)
+     &          /(grav*dt)
+            end do
+          elseif (ntr==itracbc.or.ntr==itracbc+1) then
+            do k=1,kl
+              bcwd=bcwd+xtgscav(:,k)*ps(1:ifull)*dsk(k)
+     &          /(grav*dt)
+            end do
+          elseif (ntr==itracoc.or.ntr==itracoc+1) then
+            do k=1,kl
+              ocwd=ocwd+xtgscav(:,k)*ps(1:ifull)*dsk(k)
+     &          /(grav*dt)
+            end do
+          elseif (ntr>=itracdu.and.ntr<itracdu+ndust) then
+            do k=1,kl
+              dustwd=dustwd+xtgscav(:,k)*ps(1:ifull)*dsk(k)
+     &          /(grav*dt)
+            end do
+          end if
+        end do     ! nt loop
       end if   ! (abs(iaero)==2) 
       
       if(ntest>0.and.mydiag)then
