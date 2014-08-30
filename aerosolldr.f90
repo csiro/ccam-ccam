@@ -429,7 +429,7 @@ do k=1,kl
     ppfconv(:,kl+1-k)=0.
   end where
 end do
-call xtchemie (1, dt, zdayfac, aphp1(:,1:kl), ppmrate, ppfprec,                 & !Inputs
+call xtchemie (1, dt, zdayfac, aphp1, ppmrate, ppfprec,                         & !Inputs
                pclcover, pmlwc, prhop1, ptp1, taudar, xtm1, ppfevap,            & !Inputs
                ppfsnow,ppfsubl,pcfcover,pmiwc,ppmaccr,ppfmelt,ppfstay,ppqfsed,  & !Inputs
                pplambs,pprscav,pclcon,cldcon,pccw,ppfconv,xtu,                  & !Input
@@ -445,19 +445,19 @@ so2so4o=so2so4o+so2oh+so2h2+so2o3  ! oxidation of SO2 to SO4
 
 burden=0.
 do k=1,kl
-  burden=burden+xtg(1:ifull,k,itracso2-1)*prf(:)*(sigh(k)-sigh(k+1))/grav
+  burden=burden+xtg(1:ifull,k,itracso2-1)*rhoa(:,k)*dz(:,k)
 end do
 dms_burden=dms_burden+burden
 
 burden=0.
 do k=1,kl
-  burden=burden+xtg(1:ifull,k,itracso2)*prf(:)*(sigh(k)-sigh(k+1))/grav
+  burden=burden+xtg(1:ifull,k,itracso2)*rhoa(:,k)*dz(:,k)
 end do
 so2_burden=so2_burden+burden
 
 burden=0.
 do k=1,kl
-  burden=burden+xtg(1:ifull,k,itracso2+1)*prf(:)*(sigh(k)-sigh(k+1))/grav
+  burden=burden+xtg(1:ifull,k,itracso2+1)*rhoa(:,k)*dz(:,k)
 end do
 so4_burden=so4_burden+burden
 
@@ -559,7 +559,6 @@ DO JL=1,ifull
     ZSST=min(TSM1M(JL)-273.15, 45.)   ! Even Saltzman Sc formula has trouble over 45 deg C
     ! The formula for ScDMS from Saltzman et al (1993) is given by Kettle & Andreae (ref below)
     ScDMS = 2674. - 147.12*ZSST + 3.726*ZSST**2 - 0.038*ZSST**3 !Sc for DMS (Saltzman et al.)
-    !ScDMS = 3652.047271-246.99*ZSST+8.536397*ZSST**2-0.124397*ZSST**3  !Andreae's formula
     !  G3X01:  10-M WINDS
     ZZSPEED=G3X01(JL)
     ! Nightingale (2000) scheme (J. Biogeochem. Cycles, 14, 373-387)
@@ -760,7 +759,7 @@ end do
 
 ! Sulfur emission diagnostic (hard-coded for 3 sulfur variables)
 do jk=1,kl
-  dmse=dmse+xte(:,jk,ITRACSO2-1)*rhoa(:,jk)*dz(:,jk) !Above surface
+  dmse=dmse+xte(:,jk,ITRACSO2-1)*rhoa(:,jk)*dz(:,jk)   !Above surface
   so2e=so2e+xte(:,jk,ITRACSO2  )*rhoa(:,jk)*dz(:,jk)   !Above surface
   so4e=so4e+xte(:,jk,ITRACSO2+1)*rhoa(:,jk)*dz(:,jk)   !Above surface
 enddo
@@ -1501,11 +1500,10 @@ enddo
 
 DO JK=1,kl
   DO JL=1,ifull
+    X=PRHOP1(JL,JK)      
     IF(ZRDAYL(JL)==1) THEN
 
 !   DAY-TIME CHEMISTRY        
-      !ins=(jl-1)/lon + 1 !hemisphere index
-      X=PRHOP1(JL,JK)
       ZXTP1SO2=XTM1(JL,JK,ITRACSO2)+XTE(JL,JK,ITRACSO2)*PTMST
       ZTK2=ZK2*(PTP1(JL,JK)/300.)**(-3.3)
       ZM=X*ZNAMAIR
@@ -1513,7 +1511,6 @@ DO JK=1,kl
       ZEXP=ALOG10(ZHIL)
       ZEXP=1./(1.+ZEXP*ZEXP)
       ZTK23B=ZTK2*ZM/(1.+ZHIL)*ZK2F**ZEXP
-      !ZSO2=ZXTP1SO2*ZZOH(JL,JK)*ZTK23B*ZDAYFAC(ins)
       ZSO2=ZXTP1SO2*ZZOH(JL,JK)*ZTK23B*ZDAYFAC(jl)
       ZSO2=AMIN1(ZSO2,ZXTP1SO2*PQTMST)
       ZSO2=AMAX1(ZSO2,0.)
@@ -1522,53 +1519,49 @@ DO JK=1,kl
       so2oh3d(jl,jk)=zso2
 
       ZXTP1DMS=XTM1(JL,JK,ITRACSO2-1)+XTE(JL,JK,ITRACSO2-1)*PTMST
-      IF(ZXTP1DMS<=ZMIN) THEN
-        ZDMS=0.
-      ELSE
-        T=PTP1(JL,JK)
-        ztk1=1.646e-10-1.850e-12*t+8.151e-15*t**2-1.253e-17*t**3 !Cubic fit good enough
-        ztk1=max(ztk1,5.e-12) !Because cubic falls away for T > 300 K
-        ztk1=1.5*ztk1         !This is the fudge factor to account for other oxidants
-        ZDMS=ZXTP1DMS*ZZOH(JL,JK)*ZTK1*ZDAYFAC(jl)
-        ZDMS=AMIN1(ZDMS,ZXTP1DMS*PQTMST)
-        XTE(JL,JK,ITRACSO2-1)=XTE(JL,JK,ITRACSO2-1)-ZDMS
-        XTE(JL,JK,ITRACSO2)=XTE(JL,JK,ITRACSO2)+ZDMS
-        dmsoh3d(jl,jk)=zdms
-      ENDIF
+      T=PTP1(JL,JK)
+!     ZTK1=(T*EXP(-234./T)+8.46E-10*EXP(7230./T)+ &
+!          2.68E-10*EXP(7810./T))/(1.04E+11*T+88.1*EXP(7460./T)) !Original
+      ztk1=1.646e-10-1.850e-12*t+8.151e-15*t**2-1.253e-17*t**3 !Cubic fit good enough
+      ztk1=max(ztk1,5.e-12) !Because cubic falls away for T > 300 K
+      ! MJT notes - LDR employs 1.5 here, but CCAM's DMS burden is too high
+      ! so we revert to the original factor of 2 used for rotstayn and lohmann 2002
+      ztk1=2.*ztk1          !This is the fudge factor to account for other oxidants
+      !ztk1=1.5*ztk1        !This is the fudge factor to account for other oxidants
+      ZDMS=ZXTP1DMS*ZZOH(JL,JK)*ZTK1*ZDAYFAC(jl)
+      ZDMS=AMIN1(ZDMS,ZXTP1DMS*PQTMST)
+      XTE(JL,JK,ITRACSO2-1)=XTE(JL,JK,ITRACSO2-1)-ZDMS
+      XTE(JL,JK,ITRACSO2)=XTE(JL,JK,ITRACSO2)+ZDMS
+      dmsoh3d(jl,jk)=zdms
     ELSE
 
 !   NIGHT-TIME CHEMISTRY
-      X=PRHOP1(JL,JK)
       ZXTP1DMS=XTM1(JL,JK,ITRACSO2-1)+XTE(JL,JK,ITRACSO2-1)*PTMST
-      IF(ZXTP1DMS<=ZMIN) THEN
-        ZDMS=0.
-      ELSE
-        ZTK3=ZK3*EXP(520./PTP1(JL,JK))
+      ZTK3=ZK3*EXP(520./PTP1(JL,JK))
 !    CALCULATE THE STEADY STATE CONCENTRATION OF NO3
-        ZQT=1./PTP1(JL,JK)
-        ZQT3=300.*ZQT
-        ZRHOAIR=PRHOP1(JL,JK)*ZNAMAIR
-        ZKNO2O3=1.2E-13*EXP(-2450.*ZQT)
-        ZKN2O5AQ=0.1E-04
-        ZRX1=2.2E-30*ZQT3**3.9*ZRHOAIR
-        ZRX2=1.5E-12*ZQT3**0.7
-        ZKNO2NO3=ZRX1/(1.+ZRX1/ZRX2)*0.6**(1./(1.+(ALOG10(ZRX1/ZRX2))**2))
-        ZEQN2O5=4.E-27*EXP(10930.*ZQT)
-        ZKN2O5=ZKNO2NO3/ZEQN2O5
+      ZQT=1./PTP1(JL,JK)
+      ZQT3=300.*ZQT
+      ZRHOAIR=PRHOP1(JL,JK)*ZNAMAIR
+      ZKNO2O3=1.2E-13*EXP(-2450.*ZQT)
+      ZKN2O5AQ=0.1E-04
+      ZRX1=2.2E-30*ZQT3**3.9*ZRHOAIR
+      ZRX2=1.5E-12*ZQT3**0.7
+      ZKNO2NO3=ZRX1/(1.+ZRX1/ZRX2)*0.6**(1./(1.+(ALOG10(ZRX1/ZRX2))**2))
+      ZEQN2O5=4.E-27*EXP(10930.*ZQT)
+      ZKN2O5=ZKNO2NO3/ZEQN2O5
 
-        ZNO3=ZKNO2O3*(ZKN2O5+ZKN2O5AQ)*ZZNO2(JL,JK)*ZZO3(JL,JK)
-        ZZQ=ZKNO2NO3*ZKN2O5AQ*ZZNO2(JL,JK)+(ZKN2O5+ZKN2O5AQ)*ZTK3*ZXTP1DMS*XTOC(X,ZMOLGS)
-        IF(ZZQ>0.) THEN
-          ZNO3=ZNO3/ZZQ
-        ELSE
-          ZNO3=0.
-        ENDIF
-        ZDMS=ZXTP1DMS*ZNO3*ZTK3
-        ZDMS=AMIN1(ZDMS,ZXTP1DMS*PQTMST)
-        XTE(JL,JK,ITRACSO2-1)=XTE(JL,JK,ITRACSO2-1)-ZDMS
-        XTE(JL,JK,ITRACSO2)=XTE(JL,JK,ITRACSO2)+ZDMS
-        dmsn33d(jl,jk)=zdms
+      ZNO3=ZKNO2O3*(ZKN2O5+ZKN2O5AQ)*ZZNO2(JL,JK)*ZZO3(JL,JK)
+      ZZQ=ZKNO2NO3*ZKN2O5AQ*ZZNO2(JL,JK)+(ZKN2O5+ZKN2O5AQ)*ZTK3*ZXTP1DMS*XTOC(X,ZMOLGS)
+      IF(ZZQ>0.) THEN
+        ZNO3=ZNO3/ZZQ
+      ELSE
+        ZNO3=0.
       ENDIF
+      ZDMS=ZXTP1DMS*ZNO3*ZTK3
+      ZDMS=AMIN1(ZDMS,ZXTP1DMS*PQTMST)
+      XTE(JL,JK,ITRACSO2-1)=XTE(JL,JK,ITRACSO2-1)-ZDMS
+      XTE(JL,JK,ITRACSO2)=XTE(JL,JK,ITRACSO2)+ZDMS
+      dmsn33d(jl,jk)=zdms
     ENDIF
   end do
 end do
