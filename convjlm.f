@@ -1419,9 +1419,6 @@ c***    Also entrain may slow convergence   N.B. qbass only used in next few lin
              kt=kt_sav(iq)
 
              ! convective scavenging of aerosols
-             ! Note that not all missing qq becomes rain. However, some becomes qlg
-             ! which also needs to be accounted for here.  Hence we simply use the
-             ! change in qq
              do k=kb,kt
                ttsto=t(iq,k)+factr(iq)*(tt(iq,k)-t(iq,k))
                qqsto=qg(iq,k)+factr(iq)*(qq(iq,k)-qg(iq,k))
@@ -1429,8 +1426,8 @@ c***    Also entrain may slow convergence   N.B. qbass only used in next few lin
                qlsto=qlg(iq,k)+factr(iq)*qliqw(iq,k)
                qlold=qlg(iq,k)+factr(iq)*qliqwsav(iq,k)
                rho=ps(iq)*sig(k)/(rdry*ttsto*(1.+0.61*qqsto-qlsto))
-               ! convscav expects change in liquid cloud water, so we
-               ! assume change in qg is added to qlg before precipating out
+               ! convscav expects change in liquid cloud water, so we assume
+               ! change in qg is added to qlg before precipating out
                qqold=qlg(iq,k)+qqold-qqsto
                qqsto=qlg(iq,k)+qlsto-qlold
                call convscav(fscav(k),qqsto,qqold,ttsto,
@@ -1447,7 +1444,7 @@ c***    Also entrain may slow convergence   N.B. qbass only used in next few lin
               xtg(iq,k,ntr)=xtg(iq,k,ntr)-s(iq,k)*veldt/dsk(k)
               xtg(iq,k-1,ntr)=xtg(iq,k-1,ntr)+s(iq,k)*(1.-fscav(k))
      &           *veldt/dsk(k-1)
-              xtgscav(iq,k)=s(iq,k)*fscav(k)*veldt/dsk(k-1)
+              xtgscav(iq,k-1)=s(iq,k)*fscav(k)*veldt/dsk(k-1)
              enddo ! k loop
            endif
           enddo    ! iq loop
