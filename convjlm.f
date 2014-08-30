@@ -77,9 +77,11 @@
       real, dimension(:,:), allocatable, save :: downex,upin,upin4
       real, dimension(:,:,:), allocatable, save :: detrarr
       integer, dimension(:), allocatable, save :: kb_saved,kt_saved
-      real, dimension(ifull) :: conrev,rho,ttsto,qqsto,qqold
-      real, dimension(ifull) :: alfqarr,omega,omgtst,convtim_deep
+      real, dimension(ifull,kl) :: qqsav,qliqwsav
       real, dimension(ifull,naero) :: fscav
+      real, dimension(ifull) :: conrev,rho,ttsto,qqsto,qqold
+      real, dimension(ifull) :: qlsto,qlold
+      real, dimension(ifull) :: alfqarr,omega,omgtst,convtim_deep
       real delq(ifull,kl),dels(ifull,kl),delu(ifull,kl)
       real delv(ifull,kl),dqsdt(ifull,kl),es(ifull,kl) 
       real fldow(ifull),fluxq(ifull)
@@ -97,7 +99,7 @@
       real entr(ifull),detrfactr(ifull),factr(ifull)
       real fluxqs,fluxt_k(kl)
       real convtim(ifull),pblx(ifull)
-      real ff(ifull,kl),qqsav(ifull,kl)
+      real ff(ifull,kl)
       integer kpos(1)
       
       if (.not.allocated(upin)) then
@@ -472,7 +474,8 @@
       convpsav(:)=0.
       dels(:,:)=1.e-20
       delq(:,:)=0.
-      qqsav(:,:)=qq(:,:) ! for convective scavenging of aerosols  MJT
+      qqsav(:,:)=qq(:,:)       ! for convective scavenging of aerosols  MJT
+      qliqwsav(:,:)=qliqw(:,:) ! for convective scavenging of aerosols  MJT
       if(nuvconv.ne.0)then 
         if(nuvconv<0)nuv=abs(nuvconv)  ! Oct 08 nuv=0 for nuvconv>0
         delu(:,:)=0.
@@ -1435,12 +1438,14 @@ c***    Also entrain may slow convergence   N.B. qbass only used in next few lin
           ttsto=t(1:ifull,k)+factr*(tt(:,k)-t(1:ifull,k))
           qqsto=qg(1:ifull,k)+factr*(qq(:,k)-qg(1:ifull,k))
           qqold=qg(1:ifull,k)+factr*(qqsav(:,k)-qg(1:ifull,k))
-          rho=ps*sig(k)/(rdry*ttsto*(1.+0.61*qqsto-qlg(1:ifull,k)
+          qlsto=qlg(1:ifull,k)+factr*qliqw(:,k)
+          qlold=qlg(1:ifull,k)+factr*qliqwsav(:,k)
+          rho=ps*sig(k)/(rdry*ttsto*(1.+0.61*qqsto-qlsto
      &          -qfg(1:ifull,k)))
           ! convscav expects change in liquid cloud water, so we
           ! assume change in qg is added to qlg before precipating out
           qqold=qlg(1:ifull,k)+qqold-qqsto
-          qqsto=qlg(1:ifull,k)
+          qqsto=qlg(1:ifull,k)+qlsto-qlold
           call convscav(fscav,qqsto,qqold,ttsto,
      &                  xtg(1:ifull,k,3),rho)
           ntr=itracso2
