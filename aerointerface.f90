@@ -590,7 +590,7 @@ wg=min(max(wetfac,0.),1.)
 call aldrcalc(dt,sig,sigh,dsig,zg,dz,fwet,wg,pblh,ps,  &
               tss,t,condc,snowd,taudar,fg,             &
               eg,u10,ustar,zo,land,fracice,sigmf,      &
-              qg,qlg,qfg,cfrac,clcon,cldcon,           &
+              qg,qlg,qfg,cfrac,clcon,                  &
               pccw,rhoa,cdtq,ppfprec,ppfmelt,ppfsnow,  &
               ppfconv,ppfevap,ppfsubl,pplambs,ppmrate, &
               ppmaccr,ppfstay,ppqfsed,pprscav,zdayfac, &
