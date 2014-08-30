@@ -1808,23 +1808,25 @@ do JK=KTOP,kl
 
 end do !   END OF VERTICAL LOOP
 
-! Use collection efficiencies for rain below melting level, snow above
-
-where (ptp1(1:ifull,ktop:kl)>273.15)
-  zcollefc(1:ifull,ktop:kl) = zcollefr(ktrac)
-elsewhere
-  zcollefc(1:ifull,ktop:kl) = zcollefs(ktrac)  
-end where
-
 ! Now do the convective below-cloud bit...
 ! In-cloud convective bit was done in convjlm.
+
+! Use collection efficiencies for rain below melting level, snow above
+
+! MJT notes - Assume rain for JLM convection
+!where (ptp1(1:ifull,ktop:kl)>273.15)
+  zcollefc(1:ifull,ktop:kl) = zcollefr(ktrac)
+!elsewhere
+!  zcollefc(1:ifull,ktop:kl) = zcollefs(ktrac)  
+!end where
+
 do jk=ktop,kl
   do jl=1,ifull
     zmtof(jl)=rhodz(jl,jk)*pqtmst
     zftom(jl)=1./zmtof(jl)
     zclr0(jl)=1.-pclcover(jl,jk)-pclcon(jl,jk)
           
-! Below-cloud scavenging by convective precipitation (assumed to be rain)
+! Below-cloud scavenging by convective precipitation
     if(pfconv(jl,jk-1)>zmin.and.zclr0(jl)>zmin)then
       Frc=max(0.,pfconv(jl,jk-1)/fracc(jl))
       zbcscav=zcollefc(jl,jk)*fracc(jl)*0.24*ptmst*sqrt(Frc*sqrt(Frc))
