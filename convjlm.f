@@ -1412,6 +1412,7 @@ c***    Also entrain may slow convergence   N.B. qbass only used in next few lin
       ! Convective transport of aerosols - MJT
       if (abs(iaero)==2) then
         do ntr=1,naero
+          xtgscav(:,:)=0.
           s(:,1:kl-2)=xtg(1:ifull,1:kl-2,ntr)
           do iq=1,ifull
            if(kt_sav(iq)<kl-1)then
