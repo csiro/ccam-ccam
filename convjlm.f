@@ -1424,13 +1424,13 @@ c***    Also entrain may slow convergence   N.B. qbass only used in next few lin
                ttsto=t(iq,k)+factr(iq)*(tt(iq,k)-t(iq,k))
                qqsto=qg(iq,k)+factr(iq)*(qq(iq,k)-qg(iq,k))
                qqold=qg(iq,k)+factr(iq)*(qqsav(iq,k)-qg(iq,k))
-               qlsto=qlg(iq,k)+factr(iq)*qliqw(iq,k)
-               qlold=qlg(iq,k)+factr(iq)*qliqwsav(iq,k)
+               qlsto=factr(iq)*qliqw(iq,k)
+               qlold=factr(iq)*qliqwsav(iq,k)
                rho=ps(iq)*sig(k)/(rdry*ttsto*(1.+0.61*qqsto-qlsto))
                ! convscav expects change in liquid cloud water, so we assume
                ! change in qg is added to qlg before precipating out
-               qqold=qlg(iq,k)+qqold-qqsto
-               qqsto=qlg(iq,k)+qlsto-qlold
+               qqold=qqold-qqsto
+               qqsto=qlsto-qlold
                call convscav(fscav(k),qqsto,qqold,ttsto,
      &                  xtg(iq,k,3),rho,ntr)
              end do

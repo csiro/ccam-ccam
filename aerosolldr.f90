@@ -277,10 +277,10 @@ end subroutine aldrloaderod
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Main routine
 
-subroutine aldrcalc(dt,sig,sigh,dsig,zz,dz,fwet,wg,pblh,prf,ts,ttg,condc,snowd,taudar,fg,eg,v10m,     &
-                    ustar,zo,land,fracice,tsigmf,qvg,qlg,qfg,cfrac,clcon,pccw,rhoa,vt,ppfprec,        &
-                    ppfmelt,ppfsnow,ppfconv,ppfevap,ppfsubl,pplambs,ppmrate,ppmaccr,ppfstay,ppqfsed,  &
-                    pprscav,zdayfac,kbsav)
+subroutine aldrcalc(dt,sig,sigh,dsig,zz,dz,fwet,wg,pblh,prf,ts,ttg,condc,snowd,taudar,fg,eg,v10m, &
+                    ustar,zo,land,fracice,tsigmf,qvg,qlg,qfg,cfrac,clcon,pccw,rhoa,vt,ppfprec,    &
+                    ppfmelt,ppfsnow,ppfevap,ppfsubl,pplambs,ppmrate,ppmaccr,ppfstayice,           &
+                    ppfstayliq,ppqfsed,pprscav,zdayfac,kbsav)
 
 implicit none
 
@@ -316,10 +316,10 @@ real, dimension(ifull,kl), intent(in) :: cfrac ! cloud fraction
 real, dimension(ifull,kl), intent(in) :: clcon ! convective cloud fraction
 real, dimension(ifull,kl), intent(in) :: pccw
 real, dimension(ifull,kl), intent(in) :: rhoa  ! density of air
-real, dimension(ifull,kl), intent(inout) :: ppfconv                      ! from LDR prog cloud
 real, dimension(ifull,kl), intent(in) :: ppfprec,ppfmelt,ppfsnow         ! from LDR prog cloud
 real, dimension(ifull,kl), intent(in) :: ppfevap,ppfsubl,pplambs,ppmrate ! from LDR prog cloud
-real, dimension(ifull,kl), intent(in) :: ppmaccr,ppfstay,ppqfsed,pprscav ! from LDR prog cloud
+real, dimension(ifull,kl), intent(in) :: ppmaccr,ppqfsed,pprscav         ! from LDR prog cloud
+real, dimension(ifull,kl), intent(in) :: ppfstayice, ppfstayliq          ! from LDR prog cloud
 logical, dimension(ifull), intent(in) :: land  ! land/sea mask (t=land)
 real, dimension(ifull,naero) :: conwd          ! Diagnostic only: Convective wet deposition
 real, dimension(ifull,naero) :: xtem
@@ -327,7 +327,7 @@ real, dimension(ifull,kl,naero) :: xte,xtu,xtm1
 real, dimension(ifull,kl) :: aphp1
 real, dimension(ifull,kl) :: pclcon
 real, dimension(ifull,kl) :: prhop1,ptp1,pfevap,pfsubl,plambs
-real, dimension(ifull,kl) :: pclcover,pcfcover,pmlwc,pmiwc
+real, dimension(ifull,kl) :: pclcover,pcfcover,pmlwc,pmiwc,ppfconv
 real, dimension(ifull) :: bbem,fracc
 real, dimension(ifull) :: so2oh,so2h2,so2o3,dmsoh,dmsn3
 real, dimension(ifull) :: cgssnowd
@@ -425,8 +425,9 @@ end do
 fracc=0.1 ! LDR suggestion
 call xtchemie (1, dt, zdayfac, aphp1, ppmrate, ppfprec,                         & !Inputs
                pclcover, pmlwc, prhop1, ptp1, taudar, xtm1, ppfevap,            & !Inputs
-               ppfsnow,ppfsubl,pcfcover,pmiwc,ppmaccr,ppfmelt,ppfstay,ppqfsed,  & !Inputs
-               pplambs,pprscav,pclcon,fracc,pccw,ppfconv,xtu,                   & !Input
+               ppfsnow,ppfsubl,pcfcover,pmiwc,ppmaccr,ppfmelt,ppfstayice,       & !Inputs
+               ppfstayliq,ppqfsed,pplambs,pprscav,pclcon,fracc,pccw,ppfconv,    & !Inputs
+               xtu,                                                             & !Inputs
                conwd,                                                           & !In and Out
                xte, so2oh, so2h2, so2o3, dmsoh, dmsn3)                            !Output
 do nt=1,naero
@@ -905,8 +906,8 @@ END subroutine xtsink
 
 SUBROUTINE XTCHEMIE(KTOP, PTMST,zdayfac,rhodz, PMRATEP, PFPREC,                      & !Inputs
                     PCLCOVER, PMLWC, PRHOP1, PTP1, taudar, xtm1, pfevap,             & !Inputs
-                    pfsnow,pfsubl,pcfcover,pmiwc,pmaccr,pfmelt,pfstay,pqfsed,plambs, & !Inputs
-                    prscav,pclcon,fracc,pccw,pfconv,xtu,                             & !Inputs
+                    pfsnow,pfsubl,pcfcover,pmiwc,pmaccr,pfmelt,pfstayice,pfstayliq,  & !Inputs
+                    pqfsed,plambs, prscav,pclcon,fracc,pccw,pfconv,xtu,              & !Inputs
                     conwd,                                                           & !In and Out
                     xte,so2oh,so2h2,so2o3,dmsoh,dmsn3)                                 !Outputs
 
@@ -929,7 +930,8 @@ SUBROUTINE XTCHEMIE(KTOP, PTMST,zdayfac,rhodz, PMRATEP, PFPREC,                 
 ! pmiwc: ice mixing ratio (kg/kg)
 ! pmaccr: accretion rate (kg/kg/s)
 ! pfmelt: snowfall flux melting in layer k (kg/m2/s)
-! pfstay: snowfall flux staying in layer k (kg/m2/s)
+! pfstayice: snowfall flux staying in layer k (kg/m2/s)
+! pfstayliq: rainfall flux staying in layer k (kg/m2/s)
 ! pqfsed: fractional ice sedimentation in timestep
 ! plambs: slope (lambda) for snow crystal size distribution (m**-1)
 ! prscav: fractional rain scavenging rate in time step (needs to be mult. by coll. eff.)
@@ -991,7 +993,8 @@ real pcfcover(ifull,kl)
 real pmiwc(ifull,kl)
 real pmaccr(ifull,kl)
 real pfmelt(ifull,kl)
-real pfstay(ifull,kl)
+real pfstayice(ifull,kl)
+real pfstayliq(ifull,kl)
 real pqfsed(ifull,kl)
 real plambs(ifull,kl)
 real prscav(ifull,kl)
@@ -1020,7 +1023,7 @@ REAL ZZOH(ifull,kl),            ZZH2O2(ifull,kl),   &
      ZZNO2(ifull,kl),           ZDXTE(ifull,kl,naero)
 REAL ZDEP3D(ifull,kl),                              &
      ZAMU0(ifull),zlwcic(ifull,kl),ziwcic(ifull,kl)
-real zrevap(ifull,kl),zso2ev(ifull,kl)
+real zso2ev(ifull,kl)
 real xto(ifull,kl,naero),zx(ifull)
 integer ZRDAYL(ifull)
 real, dimension(ifull), intent(in) :: zdayfac
@@ -1423,10 +1426,10 @@ DO JT=ITRACSO2,naero
                  PMRATEP, PFPREC, PFEVAP,                    &
                  PCLCOVER, PRHOP1, zsolub, pmlwc, ptp1,      &
                  pfsnow,pfsubl,pcfcover,pmiwc,pmaccr,pfmelt, &
-                 pfstay,pqfsed,plambs,prscav,pfconv,pclcon,  & 
+                 pfstayice,pfstayice,pqfsed,plambs,prscav,   &
+                 pfconv,pclcon,                              & 
                  fracc,                                      & !Inputs
-                 ZXTP10, ZXTP1C,ZDEP3D,conwd,zxtp1con,       & !In and Out
-                 zrevap )
+                 ZXTP10, ZXTP1C,ZDEP3D,conwd,zxtp1con)
 
 !   CALCULATE NEW CHEMISTRY AND SCAVENGING TENDENCIES
   DO JK=KTOP,kl
@@ -1565,10 +1568,10 @@ SUBROUTINE XTWETDEP(KTRAC,                                                      
                     rhodz,                                                           &
                     PMRATEP, PFPREC, PFEVAP,                                         &
                     PCLCOVER, PRHOP1, PSOLUB, pmlwc, ptp1,                           &
-                    pfsnow,pfsubl,pcfcover,pmiwc,pmaccr,pfmelt,pfstay,pqfsed,plambs, &
+                    pfsnow,pfsubl,pcfcover,pmiwc,pmaccr,pfmelt,pfstayice,pfstayliq,  &
+                    pqfsed,plambs,                                                   &
                     prscav,pfconv,pclcon,fracc,                                      & !Inputs
-                    PXTP10, PXTP1C, PDEP3D, conwd,pxtp1con,                          & !In & Out
-                    prevap)                                                            !Outputs
+                    PXTP10, PXTP1C, PDEP3D, conwd,pxtp1con)                            !In & Out
 
 !
 !   *XTWETDEP* CALCULATES THE WET DEPOSITION OF TRACE GASES OR AEROSOLS
@@ -1617,11 +1620,11 @@ real, dimension(ifull,kl), intent(in) :: pcfcover
 real, dimension(ifull,kl), intent(in) :: pmiwc
 real, dimension(ifull,kl), intent(in) :: pmaccr
 real, dimension(ifull,kl), intent(in) :: pfmelt
-real, dimension(ifull,kl), intent(in) :: pfstay
+real, dimension(ifull,kl), intent(in) :: pfstayice
+real, dimension(ifull,kl), intent(in) :: pfstayliq
 real, dimension(ifull,kl), intent(in) :: pqfsed
 real, dimension(ifull,kl), intent(in) :: plambs
 real, dimension(ifull,kl), intent(in) :: prscav
-real, dimension(ifull,kl), intent(out) :: prevap
 real, dimension(ifull,naero), intent(inout) :: conwd
 
 ! Local work arrays and variables
@@ -1658,7 +1661,6 @@ PQTMST=1./PTMST
 
 zdepr(:)=0.
 zdeps(:)=0.
-prevap(:,:)=0.
 
 ! Search for convective cloud base
 kbase(:)=kl+1
@@ -1713,19 +1715,19 @@ do JK=KTOP,kl
 ! Redistribution by snow that evaporates or stays in layer
   do jl=1,ifull
     if (pfsnow(jl,jk)>zmin) then
-      zstay=(pfsubl(jl,jk)+pfstay(jl,jk))/pfsnow(jl,jk)
+      zstay=(pfsubl(jl,jk)+pfstayice(jl,jk))/pfsnow(jl,jk)
       zstay=min(1., zstay)
       xstay=zdeps(jl)*zstay*zftom(jl)
       zdeps(jl)=zdeps(jl)*(1.-zstay)
       zdeps(jl)=max(0.,zdeps(jl))
       pdep3d(jl,jk)=pdep3d(jl,jk)-xstay
-      if(zclr0(jl)>zmin)then
+      if (zclr0(jl)>zmin) then
         pxtp10(jl,jk)=pxtp10(jl,jk)+xstay/zclr0(jl)
       else
         pxtp1c(jl,jk)=pxtp1c(jl,jk)+xstay/pclcover(jl,jk)
-      endif
+      end if
     end if
-  enddo
+  end do
 
   ! Melting of snow... 
   where (pfmelt(:,jk)>zmin)
@@ -1752,21 +1754,31 @@ do JK=KTOP,kl
     pxtp10(:,jk)=pxtp10(:,jk)*(1.-zbcscav)
     zdepr(:)=zdepr(:)+xbcscav*zmtof(:)
   end where
-
-  ! Reevaporation of rain
+  
+! Redistribution by rain that evaporates or stays in layer
   do jl=1,ifull
-    if (pfprec(jl,jk)>zmin.and.zclear(jl)>zmin) then
+    if (pfprec(jl,jk)>zmin) then
       zevap=pfevap(jl,jk)/pfprec(jl,jk)
-      zevap=max(0.,min(1., zevap))
-      if(zevap<1.)zevap=Evfac(ktrac)*zevap
-      xevap=zdepr(jl)*zevap*zftom(jl) !xevap is the grid-box-mean m.r. change
-      zdepr(jl)=max(0.,zdepr(jl)*(1.-zevap))
-      pdep3d(jl,jk)=pdep3d(jl,jk)-xevap
-      prevap(jl,jk)=xevap
-      pxtp10(jl,jk)=pxtp10(jl,jk)+xevap/zclr0(jl)
+      zstay=zevap+pfstayliq(jl,jk)/pfprec(jl,jk)
+      zstay=min(1., zstay)
+      if (zstay<1.) then
+        zevap=Evfac(ktrac)*zevap
+        zstay=zevap+pfstayliq(jl,jk)/pfprec(jl,jk)
+        zstay=min(1., zstay)        
+      end if
+      xstay=zdepr(jl)*zstay*zftom(jl)
+      zdepr(jl)=zdepr(jl)*(1.-zstay)
+      zdepr(jl)=max(0.,zdepr(jl))
+      pdep3d(jl,jk)=pdep3d(jl,jk)-xstay
+      if (zclr0(jl)>zmin) then
+        pxtp10(jl,jk)=pxtp10(jl,jk)+xstay/zclr0(jl)
+      else
+        pxtp1c(jl,jk)=pxtp1c(jl,jk)+xstay/pclcover(jl,jk)
+      end if
     end if
-  enddo
-
+  end do
+  
+  
 end do !   END OF VERTICAL LOOP
 
 ! Now do the convective below-cloud bit...
@@ -1801,23 +1813,22 @@ do jk=ktop,kl
   do jl=1,ifull
 ! Below-cloud reevaporation of convective rain
 ! This never triggers for JLM convection because pcevap=0.
-    if(jk>kbase(jl).and.pfconv(jl,jk-1)>zmin.and.zclr0(jl)>zmin)then
+    if (jk>kbase(jl).and.pfconv(jl,jk-1)>zmin.and.zclr0(jl)>zmin) then
       pcevap=pfconv(jl,jk-1)-pfconv(jl,jk)
       zevap=pcevap/pfconv(jl,jk-1)
       zevap=max(0.,min(1.,zevap))
-      if(zevap<1.)zevap=Evfac(ktrac)*zevap
+      if (zevap<1.) zevap=Evfac(ktrac)*zevap
       xevap=conwd(jl,ktrac)*zevap*zftom(jl) !xevap is the grid-box-mean m.r. change
       conwd(jl,ktrac)=max(0.,conwd(jl,ktrac)*(1.-zevap))
       pdep3d(jl,jk)=pdep3d(jl,jk)-xevap
-      prevap(jl,jk)=prevap(jl,jk)+xevap
       pxtp10(jl,jk)=pxtp10(jl,jk)+xevap/zclr0(jl)
     end if
-  enddo
+  end do
   
-enddo
+end do
 
-RETURN
-END subroutine xtwetdep
+return
+end subroutine xtwetdep
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Dust settling
@@ -2240,7 +2251,8 @@ real scav_eff
 real zqtp1,ze2,ze3,zfac,zso4l,zso2l,zqhp
 real zza,zzb,zzp,zzq,zzp2,zhp,zqhr,zheneff,p_so2
 
-bwkp1=tt>=ticeu ! condensate in parcel is liquid (true) or ice (false)
+!bwkp1=tt>=ticeu ! condensate in parcel is liquid (true) or ice (false)
+bwkp1=.true.     ! assume liquid for JLM convection
 
 if ( bwkp1 .and. ntr==itracso2 ) then
 

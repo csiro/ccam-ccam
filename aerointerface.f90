@@ -12,8 +12,8 @@ implicit none
 
 private
 public load_aerosolldr, aerocalc, aerodrop
-public ppfprec, ppfmelt, ppfsnow, ppfconv, ppfevap, ppfsubl, pplambs, ppmrate
-public ppmaccr, ppfstay, ppqfsed, pprscav
+public ppfprec, ppfmelt, ppfsnow, ppfevap, ppfsubl, pplambs, ppmrate
+public ppmaccr, ppfstayice, ppfstayliq, ppqfsed, pprscav
 public opticaldepth
 
 integer, save :: ilon, ilat, ilev
@@ -22,9 +22,10 @@ real, dimension(:,:,:), allocatable, save :: oxidantprev
 real, dimension(:,:,:), allocatable, save :: oxidantnow
 real, dimension(:,:,:), allocatable, save :: oxidantnext
 real, dimension(:,:,:), allocatable, save :: opticaldepth
-real, dimension(:,:), allocatable, save :: ppfprec, ppfmelt, ppfsnow, ppfconv  ! data saved from LDR cloud scheme
+real, dimension(:,:), allocatable, save :: ppfprec, ppfmelt, ppfsnow           ! data saved from LDR cloud scheme
 real, dimension(:,:), allocatable, save :: ppfevap, ppfsubl, pplambs, ppmrate  ! data saved from LDR cloud scheme
-real, dimension(:,:), allocatable, save :: ppmaccr, ppfstay, ppqfsed, pprscav  ! data saved from LDR cloud scheme
+real, dimension(:,:), allocatable, save :: ppmaccr, ppqfsed, pprscav           ! data saved from LDR cloud scheme
+real, dimension(:,:), allocatable, save :: ppfstayice, ppfstayliq              ! data saved from LDR cloud scheme
 real, dimension(:), allocatable, save :: rlev, zdayfac
 real, parameter :: wlc = 0.2e-3         ! LWC of deep conv cloud (kg/m**3)
 
@@ -64,23 +65,24 @@ logical tst
 if (myid==0) write(6,*) "Initialising prognostic aerosols"
 
 allocate(ppfprec(ifull,kl),ppfmelt(ifull,kl))
-allocate(ppfsnow(ifull,kl),ppfconv(ifull,kl))
+allocate(ppfsnow(ifull,kl))
 allocate(ppfevap(ifull,kl),ppfsubl(ifull,kl))
 allocate(pplambs(ifull,kl),ppmrate(ifull,kl))
-allocate(ppmaccr(ifull,kl),ppfstay(ifull,kl))
+allocate(ppmaccr(ifull,kl))
 allocate(ppqfsed(ifull,kl),pprscav(ifull,kl))
+allocate(ppfstayice(ifull,kl),ppfstayliq(ifull,kl))
 allocate(zdayfac(ifull))
 allocate(opticaldepth(ifull,naerofamilies,3))
 ppfprec=0.
 ppfmelt=0.
 ppfsnow=0.
-ppfconv=0.
 ppfevap=0.
 ppfsubl=0.
 pplambs=0.
 ppmrate=0.
 ppmaccr=0.
-ppfstay=0.
+ppfstayice=0.
+ppfstayliq=0.
 ppqfsed=0.
 pprscav=0.
 zdayfac=0.
@@ -592,9 +594,9 @@ call aldrcalc(dt,sig,sigh,dsig,zg,dz,fwet,wg,pblh,ps,  &
               eg,u10,ustar,zo,land,fracice,sigmf,      &
               qg,qlg,qfg,cfrac,clcon,                  &
               pccw,rhoa,cdtq,ppfprec,ppfmelt,ppfsnow,  &
-              ppfconv,ppfevap,ppfsubl,pplambs,ppmrate, &
-              ppmaccr,ppfstay,ppqfsed,pprscav,zdayfac, &
-              kbsav)
+              ppfevap,ppfsubl,pplambs,ppmrate,ppmaccr, &
+              ppfstayice,ppfstayliq,ppqfsed,pprscav,   &
+              zdayfac,kbsav)
 
 ! store sulfate for LH+SF radiation scheme.  SEA-ESF radiation scheme imports prognostic aerosols in seaesfrad.f90.
 ! Factor 1.e3 to convert to gS/m2, x 3 to get sulfate from sulfur

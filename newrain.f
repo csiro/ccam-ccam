@@ -49,11 +49,11 @@ c      qaccr - accretion by snow of cloud liquid water (kg/kg)
 c
 ***************************************************************************
 
-      subroutine newrain(land,tdt,fluxc,rhoa,dz,ccrain,prf,cdrop,!Inputs
-     &                  cfa,qca,
-     &                  ttg,qlg,qfg,qrg,precs,qtg,cfrac,cffall,ccov,   !In and Out
-     &                  preci,qevap,qsubl,qauto,qcoll,qaccr,fluxr,fluxi,
-     &                  fluxm,pfstay,pqfsed,slopes,prscav)     !Outputs
+      subroutine newrain(land,tdt,fluxc,rhoa,dz,ccrain,prf,cdrop,     !Inputs
+     &                cfa,qca,
+     &                ttg,qlg,qfg,qrg,precs,qtg,cfrac,cffall,ccov,    !In and Out
+     &                preci,qevap,qsubl,qauto,qcoll,qaccr,fluxr,fluxi,
+     &                fluxm,pfstayice,pfstayliq,pqfsed,slopes,prscav) !Outputs
 
       use cc_mpi, only : mydiag
       use estab, only : esdiffx, qsati, pow75
@@ -95,7 +95,8 @@ C Argument list
       real cfa(ln2,nl)
       real qca(ln2,nl)
       real pqfsed(ln2,nl)
-      real pfstay(ln2,nl)
+      real pfstayice(ln2,nl)
+      real pfstayliq(ln2,nl)
       real slopes(ln2,nl)
       real prscav(ln2,nl)
       real fluxr(ln2,nl)
@@ -311,7 +312,7 @@ c Call frozen precipitation routine
 
       call icefall(tdt,rhoa,dz,prf,                                 !Inputs
      &             ttg,qsg,qlg,qfg,qtg,cfrac,cfmelt,                !In and Out
-     &             fluxi,fluxm,clfr,cifr,qsubl,qaccr,pfstay,pqfsed,
+     &             fluxi,fluxm,clfr,cifr,qsubl,qaccr,pfstayice,pqfsed,
      &             slopes)                                          !Outputs
 
       ! Set up prognostic rain - MJT
@@ -321,9 +322,9 @@ c Call frozen precipitation routine
 
       do k=nl-1,1,-1
         do mg=1,ln2
+          ! combine autoconversion and prognostic rain
           rhodz=rhoa(mg,k)*dz(mg,k)
-          ! Add flux of rain due to autoconversion to qrg
-          qrg(mg,k)=qrg(mg,k)+fluxa(mg,k)/rhodz
+          qauto(mg,k)=qauto(mg,k)+qrg(mg,k)
           rhor(mg,k)=qrg(mg,k)*rhoa(mg,k)
           cfrain(mg,k)=max(cfrain(mg,k),cffall(mg,k)) ! max overlap autoconversion and rain from previous time step
         end do
@@ -345,13 +346,10 @@ c      do nt=1,njumps
           ccra(mg)=0.
           fluxrain(mg)=0.
           prscav(mg,nl)=0.
+          pfstayliq(mg,1)=0.
           mxclfr(mg)=0. ! max overlap rain fraction
           rdclfr(mg)=0. ! rnd overlap rain fraction
         enddo
-        
-        if (ncloud>0) then
-          vr(:,nl)=0.1
-        end if
         
 c Now work down through the levels...
         
@@ -372,7 +370,7 @@ c Now work down through the levels...
 c Add flux of melted snow to fluxrain
 
             !fluxrain(mg)=fluxrain(mg)+fluxm(mg,k)/real(njumps)
-            fluxrain(mg)=fluxrain(mg)+fluxm(mg,k)
+            fluxrain(mg)=fluxrain(mg)+fluxm(mg,k)+fluxa(mg,k)
             
 c Evaporation of rain
 
@@ -484,6 +482,8 @@ c and convective (ccra).
               fout(mg,k)=1.-exp(-alph)       !analytical
               fthru(mg,k)=1.-fout(mg,k)/alph !analytical
             end if
+            
+            pfstayliq(mg,nlp-k)=fluxrain(mg)*(1.-fthru(mg,k))/tdt
 
 c Compute fluxes into the box
             cffluxin=clfra(mg)-cfrain(mg,k)

@@ -82,7 +82,8 @@ c These outputs are not used in this model at present
       real fluxi(ifullw,kl)
       real fluxm(ifullw,kl)
       real pqfsed(ifullw,kl)
-      real pfstay(ifullw,kl)
+      real pfstayice(ifullw,kl)
+      real pfstayliq(ifullw,kl)
       real slopes(ifullw,kl)
       real prscav(ifullw,kl)
 
@@ -117,7 +118,7 @@ c These outputs are not used in this model at present
 
       kbase(:)=0  ! default
       ktop(:) =0  ! default
-      dz(:,:)=100.*dprf/(rhoa*grav)*(tv+tnhs(1:ifull,:))/tv
+      dz(:,:)=100.*dprf/(rhoa*grav)*(1.+tnhs(1:ifull,:)/tv)
 !     fluxc(:,:)=rnrt3d(:,:)*1.e-3*dt ! kg/m2 (should be same level as rnrt3d)
       fluxc(:,:)=0. !For now... above line may be wrong
       ccrain(:,:)=0.1  !Assume this for now
@@ -286,7 +287,7 @@ c     Calculate precipitation and related processes
      &    t,qlg,qfg,qrg,
      &    precs,qg,cfrac,cffall,ccov,                       !In and Out
      &    preci,qevap,qsubl,qauto,qcoll,qaccr,fluxr,fluxi,  !Outputs
-     &    fluxm,pfstay,pqfsed,slopes,prscav)                !Outputs
+     &    fluxm,pfstayice,pfstayliq,pqfsed,slopes,prscav)   !Outputs
       if(nmaxpr==1.and.mydiag)then
         write(6,*) 'after newrain',ktau
         write (6,"('t   ',9f8.2/4x,9f8.2)") t(idjd,:)
@@ -307,25 +308,19 @@ c     Calculate precipitation and related processes
         ppfprec(:,1)=0. !At TOA
         ppfmelt(:,1)=0. !At TOA
         ppfsnow(:,1)=0. !At TOA
-        ppfconv(:,1)=0. !At TOA
         do k=1,kl-1
           ppfprec(:,kl+1-k)=(fluxr(:,k+1)+fluxm(:,k))/dt !flux *entering* layer k
           ppfmelt(:,kl+1-k)=fluxm(:,k)/dt                !flux melting in layer k
           ppfsnow(:,kl+1-k)=(fluxi(:,k+1)-fluxm(:,k))/dt !flux *entering* layer k
-          ppfconv(:,kl+1-k)=fluxc(:,k)/dt                !flux *leaving* layer k
         enddo
         do k=1,kl
           ppfevap(:,kl+1-k)=qevap(:,k)*rhoa(:,k)*dz(:,k)/dt
           ppfsubl(:,kl+1-k)=qsubl(:,k)*rhoa(:,k)*dz(:,k)/dt !flux sublimating or staying in k
           pplambs(:,kl+1-k)=slopes(:,k)
-          where (qlg(:,k)+qfg(:,k)>1.e-8)
-            ppmrate(:,kl+1-k)=(qauto(:,k)+qcoll(:,k))/dt
-            ppmaccr(:,kl+1-k)=qaccr(:,k)/dt
-          elsewhere
-            ppmrate(:,kl+1-k)=0.
-            ppmaccr(:,kl+1-k)=0.
-          end where
-          ppfstay(:,kl+1-k)=pfstay(:,k)
+          ppmrate(:,kl+1-k)=(qauto(:,k)+qcoll(:,k))/dt
+          ppmaccr(:,kl+1-k)=qaccr(:,k)/dt
+          ppfstayice(:,kl+1-k)=pfstayice(:,k)
+          ppfstayliq(:,kl+1-k)=pfstayliq(:,k)
           ppqfsed(:,kl+1-k)=pqfsed(:,k)
           pprscav(:,kl+1-k)=prscav(:,k)
         enddo
