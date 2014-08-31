@@ -1440,12 +1440,14 @@ c***    Also entrain may slow convergence   N.B. qbass only used in next few lin
 !            remove aerosol from lower layer
              xtg(iq,kb,ntr)=xtg(iq,kb,ntr)-fluxup/dsk(kb)
 !            put flux of aerosol into upper layer
-             xtg(iq,kt,ntr)=xtg(iq,kt,ntr)+fluxup/dsk(kt)
+             xtg(iq,kt,ntr)=xtg(iq,kt,ntr)+fluxup*(1.-fscav(kt))
+     &          /dsk(kt)
+             xtgscav(iq,kt)=fluxup*fscav(kt)/dsk(kt)
              do k=kb+1,kt
               xtg(iq,k,ntr)=xtg(iq,k,ntr)-s(iq,k)*veldt/dsk(k)
-              xtg(iq,k-1,ntr)=xtg(iq,k-1,ntr)+s(iq,k)*(1.-fscav(k))
+              xtg(iq,k-1,ntr)=xtg(iq,k-1,ntr)+s(iq,k)*(1.-fscav(k-1))
      &           *veldt/dsk(k-1)
-              xtgscav(iq,k-1)=s(iq,k)*fscav(k)*veldt/dsk(k-1)
+              xtgscav(iq,k-1)=s(iq,k)*fscav(k-1)*veldt/dsk(k-1)
              enddo ! k loop
            endif
           enddo    ! iq loop

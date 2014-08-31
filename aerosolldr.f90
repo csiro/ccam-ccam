@@ -278,8 +278,8 @@ end subroutine aldrloaderod
 ! Main routine
 
 subroutine aldrcalc(dt,sig,sigh,dsig,zz,dz,fwet,wg,pblh,prf,ts,ttg,condc,snowd,taudar,fg,eg,v10m, &
-                    ustar,zo,land,fracice,tsigmf,qvg,qlg,qfg,cfrac,clcon,pccw,rhoa,vt,ppfprec,    &
-                    ppfmelt,ppfsnow,ppfevap,ppfsubl,pplambs,ppmrate,ppmaccr,ppfstayice,           &
+                    ustar,zo,land,fracice,tsigmf,qvg,qlg,qfg,cfrac,clcon,cldcon,pccw,rhoa,vt,     &
+                    ppfprec,ppfmelt,ppfsnow,ppfevap,ppfsubl,pplambs,ppmrate,ppmaccr,ppfstayice,   &
                     ppfstayliq,ppqfsed,pprscav,zdayfac,kbsav)
 
 implicit none
@@ -314,6 +314,7 @@ real, dimension(:,:), intent(in) :: qlg        ! liquid water mixing ratio
 real, dimension(:,:), intent(in) :: qfg        ! frozen water mixing ratio
 real, dimension(ifull,kl), intent(in) :: cfrac ! cloud fraction
 real, dimension(ifull,kl), intent(in) :: clcon ! convective cloud fraction
+real, dimension(ifull), intent(in) :: cldcon   ! Convective rainfall area fraction
 real, dimension(ifull,kl), intent(in) :: pccw
 real, dimension(ifull,kl), intent(in) :: rhoa  ! density of air
 real, dimension(ifull,kl), intent(in) :: ppfprec,ppfmelt,ppfsnow         ! from LDR prog cloud
@@ -422,7 +423,8 @@ do k=1,kl
     ppfconv(:,kl+1-k)=0.
   end where
 end do
-fracc=0.1 ! LDR suggestion
+!fracc=0.1 ! LDR suggestion
+fracc=cldcon
 call xtchemie (1, dt, zdayfac, aphp1, ppmrate, ppfprec,                         & !Inputs
                pclcover, pmlwc, prhop1, ptp1, taudar, xtm1, ppfevap,            & !Inputs
                ppfsnow,ppfsubl,pcfcover,pmiwc,ppmaccr,ppfmelt,ppfstayice,       & !Inputs
@@ -1705,7 +1707,8 @@ do JK=KTOP,kl
   where (pfsnow(:,jk)>zmin.and.pclcover(:,jk)<1.-zmin)
     plambda=min(plambs(:,jk),8.e3) !Cut it off at about -30 deg. C
     zbcscav=zcollefs(ktrac)*plambda*pfsnow(:,jk)*ptmst/(2.*rhos)
-    zbcscav=min(1.,zbcscav/(1.+0.5*zbcscav)) !Time-centred
+    !zbcscav=min(1.,zbcscav/(1.+0.5*zbcscav)) !Time-centred
+    zbcscav=min(1.,zbcscav) ! MJT suggestion
     xbcscav=zbcscav*pxtp10(:,jk)*zclr0(:)
     pdep3d(:,jk)=pdep3d(:,jk)+xbcscav
     pxtp10(:,jk)=pxtp10(:,jk)*(1.-zbcscav)
@@ -1748,7 +1751,8 @@ do JK=KTOP,kl
   ! Below-cloud scavenging by stratiform rain (conv done below)
   where (pfprec(:,jk)>zmin.and.zclr0(:)>zmin)
     zbcscav=zcollefr(ktrac)*prscav(:,jk)
-    zbcscav=min(1.,zbcscav/(1.+0.5*zbcscav)) !Time-centred
+    !zbcscav=min(1.,zbcscav/(1.+0.5*zbcscav)) !Time-centred
+    zbcscav=min(1.,zbcscav) ! MJT suggestion
     xbcscav=zbcscav*pxtp10(:,jk)*zclr0(:)
     pdep3d(:,jk)=pdep3d(:,jk)+xbcscav
     pxtp10(:,jk)=pxtp10(:,jk)*(1.-zbcscav)
@@ -1756,6 +1760,7 @@ do JK=KTOP,kl
   end where
   
 ! Redistribution by rain that evaporates or stays in layer
+! Modified by MJT for prognostic rain
   do jl=1,ifull
     if (pfprec(jl,jk)>zmin) then
       zevap=pfevap(jl,jk)/pfprec(jl,jk)
@@ -1803,7 +1808,8 @@ do jk=ktop,kl
   where (pfconv(:,jk-1)>zmin.and.zclr0(:)>zmin)
     Frc=max(0.,pfconv(:,jk-1)/fracc(:))
     zbcscav=zcollefc*fracc(:)*0.24*ptmst*sqrt(Frc*sqrt(Frc))
-    zbcscav=min(1.,zbcscav/(1.+0.5*zbcscav)) !Time-centred
+    !zbcscav=min(1.,zbcscav/(1.+0.5*zbcscav)) !Time-centred
+    zbcscav=min(1.,zbcscav) ! MJT suggestion
     xbcscav=zbcscav*pxtp10(:,jk)*zclr0(:)
     conwd(:,ktrac)=conwd(:,ktrac)+xbcscav*zmtof
     pdep3d(:,jk)=pdep3d(:,jk)+xbcscav
