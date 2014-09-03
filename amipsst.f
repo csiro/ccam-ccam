@@ -252,7 +252,7 @@ c       c1=0.
           write(6,*) "       namip.ne.0"
           call ccmpi_abort(-1)
         end if
-        !call mloexpmelt(timelt)
+        timelt=273.16
         call mloexport(0,timelt,1,0)
         dumb(:,1)=tgg(:,1)
         where(fraciceb>0.)

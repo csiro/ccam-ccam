@@ -222,7 +222,7 @@ c     using av_vmod (1. for no time averaging)
         endif  ! (.not.land(iq))                                        ! sea
        enddo   ! iq loop                                                ! sea
                                                                         ! sea
-!      here calculate fluxes for sea point, and nominal pan points	    ! sea
+!      here calculate fluxes for sea point, and nominal pan points      ! sea
        afrootpan=vkar/log(zmin/panzo)                                   ! sea
        do iq=1,ifull                                                    ! sea
 c       drag coefficients  for momentum           cduv                  ! sea
@@ -445,7 +445,7 @@ c       no snow on the ice assumed for now                              ! sice
         gamm(iq) = 3.471e+05                                            ! sice
         cie(iq) = 2.04/sicedep(iq)                                      ! sice
         rgg(iq)=5.67e-8*tggsn(iq,1)**4                                  ! sice
-!       gflux here is	flux from ice to water, +ve downwards           ! sice
+!       gflux here is	flux from ice to water, +ve downwards             ! sice
         gflux(iq)=cie(iq)*(tggsn(iq,1)-271.2)                           ! sice
         ga(iq)=-slwa(iq)-rgg(iq)-fev(iq)-fgf(iq)-gflux(iq)              ! sice
         dirad(iq)=4.*5.67e-8*tggsn(iq,1)**3                             ! sice
@@ -522,11 +522,19 @@ c       Surface stresses taux, tauy: diagnostic only - unstag now       ! sice
         dumx=condx/dt                                                   ! MLO
         dums=conds/dt                                                   ! MLO
         dumw=watbdy(1:ifull)/dt                                         ! MLO
-        call mloeval(tss,zo,cduv,cdtq,fg,eg,wetfac,epot,epan,           ! MLO
-     &               fracice,sicedep,snowd,dt,azmin,azmin,dumsg,        ! MLO
-     &               dumr,dumx,dums,uav,vav,t(1:ifull,1),               ! MLO
-     &               qg(1:ifull,1),ps,f,swrsave,fbeamvis,fbeamnir,      ! MLO
-     &               dumw,0,.true.,oldu=oldu1,oldv=oldv1)               ! MLO
+        if (abs(nmlo)>=3) then                                          ! MLO
+          call mloeval(tss,zo,cduv,cdtq,fg,eg,wetfac,epot,epan,         ! MLO
+     &                 fracice,sicedep,snowd,dt,azmin,azmin,dumsg,      ! MLO
+     &                 dumr,dumx,dums,uav,vav,t(1:ifull,1),             ! MLO
+     &                 qg(1:ifull,1),ps,f,swrsave,fbeamvis,fbeamnir,    ! MLO
+     &                 dumw,0,.true.,oldu=oldu1,oldv=oldv1)             ! MLO
+        else                                                            ! MLO
+          call mloeval(tss,zo,cduv,cdtq,fg,eg,wetfac,epot,epan,         ! MLO
+     &                 fracice,sicedep,snowd,dt,azmin,azmin,dumsg,      ! MLO
+     &                 dumr,dumx,dums,uav,vav,t(1:ifull,1),             ! MLO
+     &                 qg(1:ifull,1),ps,f,swrsave,fbeamvis,fbeamnir,    ! MLO
+     &                 dumw,0,.true.)                                   ! MLO
+        end if                                                          ! MLO
         !call mloscrnout(tscrn,qgscrn,uscrn,u10,0)                      ! MLO
         call mloextra(0,zoh,azmin,0)                                    ! MLO
         call mloextra(3,zoq,azmin,0)                                    ! MLO
@@ -876,6 +884,7 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
       end if                                                            ! urban
       call END_LOG(sfluxurban_end)                                      ! urban
 ! ----------------------------------------------------------------------
+      
       ! scrnout is the standard CCAM screen level diagnostics.
       ! autoscrn contains the newer diagnostic calculation
       if (nmlo==0.and.(nsib==3.or.nsib==5).and.rescrn==0) then

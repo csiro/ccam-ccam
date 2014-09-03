@@ -1040,14 +1040,12 @@ subroutine mloexpgamm(gamm,ip_dic,ip_dsn,diag)
 implicit none
 
 integer, intent(in) :: diag
-integer, dimension(ifull) :: nk
 real, dimension(ifull), intent(in) :: ip_dic, ip_dsn
 real, dimension(ifull,3), intent(out) :: gamm
 
-nk=min(int(ip_dic/himin),2)
-gamm(:,1)=gammi
-gamm(:,2)=max(cps*ip_dsn,0.)
-gamm(:,3)=0.5*max(cpi*ip_dic-gammi,0.)
+gamm(:,1)=1. !gammi
+gamm(:,2)=max(ip_dsn,0.) !*cps
+gamm(:,3)=max(ip_dic-gammi/cpi,0.) ! *0.5*cpi
 
 return
 end subroutine mloexpgamm
@@ -1099,8 +1097,8 @@ if (present(oldu).and.present(oldv)) then
   atm_oldu=pack(oldu,wpack)
   atm_oldv=pack(oldv,wpack)
 else
-  atm_oldu=pack(water%u(:,1),wpack)
-  atm_oldv=pack(water%v(:,1),wpack)
+  atm_oldu=water%u(:,1)
+  atm_oldv=water%v(:,1)
 end if
 
 ! adjust levels for free surface
@@ -1126,12 +1124,11 @@ call fluxcalc(dt,atm_u,atm_v,atm_temp,atm_qg,atm_ps,atm_zmin,atm_zmins,d_rho,d_z
 call getwflux(atm_sg,atm_rg,atm_rnd,atm_snd,atm_vnratio,atm_fbvis,atm_fbnir,atm_inflow,d_rho,d_rs,  &
               d_nsq,d_rad,d_alpha,d_beta,d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_zcr)                   ! boundary conditions
 call iceflux(dt,atm_sg,atm_rg,atm_rnd,atm_snd,atm_vnratio,atm_fbvis,atm_fbnir,atm_u,atm_v,atm_temp, &
-             atm_qg,atm_ps,atm_zmin,atm_zmins,d_rho,d_ftop,d_tb,d_fb,d_timelt,d_nk,                 &
-             d_zcr,d_ndsn,d_ndic,d_nsto,atm_oldu,atm_oldv,diag)                                        ! ice fluxes
+             atm_qg,atm_ps,atm_zmin,atm_zmins,d_rho,d_ftop,d_tb,d_fb,d_timelt,d_nk,d_zcr,d_ndsn,    &
+             d_ndic,d_nsto,atm_oldu,atm_oldv,diag)                                                     ! ice fluxes
 if (calcprog) then
-  call mloice(dt,atm_ps,d_alpha,d_beta,d_b0,d_wu0,d_wv0,d_wt0,d_ws0,d_ftop,d_tb,                    &
-              d_fb,d_timelt,d_ustar,d_rho,d_rs,d_nk,d_neta,d_ndsn,d_ndic,                           &
-              d_nsto,d_zcr,diag)                                                                       ! update ice
+  call mloice(dt,atm_ps,d_alpha,d_beta,d_b0,d_wu0,d_wv0,d_wt0,d_ws0,d_ftop,d_tb,d_fb,d_timelt,      &
+              d_ustar,d_rho,d_rs,d_nk,d_neta,d_ndsn,d_ndic,d_nsto,d_zcr,diag)                          ! update ice
   call mlocalc(dt,atm_f,d_rho,d_nsq,d_rad,d_alpha,d_beta,d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,      &
                d_zcr,d_neta,diag)                                                                      ! update water
 end if 
@@ -1388,6 +1385,8 @@ a3s=1.-2.*g1s+dg1sds
 
 !--------------------------------------------------------------------
 ! calculate diffusion terms
+km(:,1)=0.
+ks(:,1)=0.
 do ii=2,wlev
   where (ii<=mixind_hl)
     sigma=depth_hl(:,ii)*d_zcr/dgwater%mixdepth
@@ -1404,6 +1403,7 @@ end do
 ! gammas is the same for temp and sal when double-diffusion is not employed
 cg=10.*vkar*(98.96*vkar*epsilon)**(1./3.) ! Large (1994)
 !cg=5.*vkar*(98.96*vkar*epsilon)**(1./3.) ! Bernie (2004)
+gammas(:,1)=0.
 do ii=2,wlev
   where (dgwater%bf<0..and.ii<=mixind_hl) ! unstable
     gammas(:,ii)=cg/max(ws(:,ii)*dgwater%mixdepth,1.E-20)
@@ -2032,7 +2032,7 @@ select case(zomode)
       daf=2.*af*afroot/(vkar*dgwater%zo)
       where (ri>=0.) ! stable water points
         fm=1./(1.+bprm*ri)**2
-        consea=zcom1*vmag*vmag*fm*af/grav+zcom2*gnu/max(vmag*sqrt(fm*af),gnu)
+        consea=zcom1*vmag*vmag*af*fm/grav+zcom2*gnu/max(vmag*sqrt(fm*af),gnu)
         dcs=(zcom1*vmag*vmag/grav-0.5*zcom2*gnu/(max(vmag*sqrt(fm*af),gnu)*fm*af))*(fm*daf)
       elsewhere     ! unstable water points
         con=cms*2.*bprm*sqrt(-ri*atm_zmin/dgwater%zo)
@@ -2061,7 +2061,7 @@ select case(zomode)
   case(1) ! Charnock zot=zom
     dgwater%zoh=dgwater%zo
     dgwater%zoq=dgwater%zo
-    aft=vkar**2/(log(atm_zmins/dgwater%zo)*log(atm_zmins/dgwater%zo))
+    aft=vkar*vkar/(log(atm_zmins/dgwater%zo)*log(atm_zmins/dgwater%zo))
     afq=aft
     factch=1.
     facqch=1.
@@ -2097,7 +2097,7 @@ dgwater%cdq=afq*fq
 ! turn off lake evaporation when minimum depth is reached
 ! fg should be replaced with bare ground value
 d_wavail=max(depth_hl(:,wlev+1)+d_neta-minwater,0.)
-egmax=1000.*lv*d_wavail/(dt*max(1.-ice%fracice,0.001))
+egmax=1000.*lv*d_wavail/(dt*max(1.-ice%fracice,0.01))
 
 ! explicit estimate of fluxes
 ! (replace with implicit scheme if water becomes too shallow)

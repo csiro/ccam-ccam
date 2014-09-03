@@ -1314,17 +1314,17 @@ do ii=3,4
 end do
 
 ! populate grid points that have no sea ice
-where (nfracice(1:ifull)<1.E-4)
-  ndic(1:ifull)=sicedep
-  ndsn(1:ifull)=snowd*0.001
-  nsto(1:ifull)=i_sto
-  nis(1:ifull)=i_sal
-  nit(1:ifull,1)=i_it(:,1)
-  nit(1:ifull,2)=i_it(:,2)
-  nit(1:ifull,3)=i_it(:,3)
-  nit(1:ifull,4)=i_it(:,4)
+where (nfracice(1:ifull)<1.E-4.or.ndic(1:ifull)<1.E-4)
+  ndic(1:ifull)=0.
+  ndsn(1:ifull)=0.
+  nsto(1:ifull)=0.
+  nis(1:ifull)=0.
+  nit(1:ifull,1)=273.16
+  nit(1:ifull,2)=273.16
+  nit(1:ifull,3)=273.16
+  nit(1:ifull,4)=273.16
 elsewhere (ndsn(1:ifull)<1.E-4)
-  nit(1:ifull,2)=i_it(:,2)
+  nit(1:ifull,2)=273.16
 end where
 
 ! ocean

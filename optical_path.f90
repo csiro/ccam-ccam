@@ -901,6 +901,8 @@ logical,                   intent(in)            :: including_aerosols
         end if
         Optical%totaerooptdep = 0.                              
         Optical%aerooptdep_KE_15 = 0.           
+      else
+        n_aerosol_bands = 0 ! MJT bug fix
       endif
 !-------------------------------------------------------------------
 !    for each aerosol frequency band, retrieve aerosol optical proper-

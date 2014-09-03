@@ -176,7 +176,7 @@
      &  ((einv(k,l),k=1,kl),l=1,kl),(qvec(k),k=1,kl),
      &  ((tmat(k,l),k=1,kl),l=1,kl)
        write(6,*) 'kl,lapsbot,sig from eigenv file: ',
-     &             kl,lapsbot,sig
+     &             kl,lapsbot,dumc(1:kl)
        ! File has an sigmh(kl+1) which isn't required. Causes bounds violation
        ! to read this.
        read(28,*)(dumc(kl+k),k=1,kl)

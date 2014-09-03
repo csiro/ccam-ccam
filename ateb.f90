@@ -1386,6 +1386,9 @@ select case(resmeth)
     acond_rdsn =cu
     acond_vegc =cu
   case(1,3) ! Harman et al (2004)
+    we=0. ! for cray compiler
+    ww=0. ! for cray compiler
+    wr=0. ! for cray compiler        
     if (resmeth==1) then
       call getincanwind(we,ww,wr,a_udir,zonet)
     else

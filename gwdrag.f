@@ -19,7 +19,7 @@
      .            ,thf(ifull,kl)
       real tnhs(ifull,kl),tv(ifull,kl)
       real dthdz(ifull,kl)
-      real bvng(ifull),temp(ifull),fnii(ifull),unst(ifull)
+      real bvng(ifull),temp(ifull),fnii(ifull)
      . ,apuw(ifull),apvw(ifull),alam(ifull),wmag(ifull),frsav(ifull)
       real delt(kl),dsk(kl),sigk(kl)
 c     real fr2vsav(ifull,kl),uusav(ifull,kl)   ! jlm diag

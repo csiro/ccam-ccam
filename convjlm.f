@@ -98,7 +98,7 @@
       integer kdown(ifull)
       real entr(ifull),detrfactr(ifull),factr(ifull)
       real fluxqs,fluxt_k(kl)
-      real convtim(ifull),pblx(ifull)
+      real pblx(ifull)
       real ff(ifull,kl)
       integer kpos(1)
       
@@ -311,7 +311,7 @@
            write(6,*) 'unsupported convtime value'
            call ccmpi_abort(-1)
         endif  ! (convtime >100) .. else ..
-        if(mydiag)write(6,*) ,'convtime,mcontlnd,mcontsea,convt_frac',
+        if(mydiag)write(6,*) 'convtime,mcontlnd,mcontsea,convt_frac',
      &           convtime,mcontlnd,mcontsea,convt_frac
       endif    ! (ktau==1)   !----------------------------------------------------------------
 
@@ -521,7 +521,6 @@ c***    Also entrain may slow convergence   N.B. qbass only used in next few lin
      .           ntest,methdetr,methprec,detrain
       write(6,*) 'fldown,ncubase ',fldown,ncubase
       write(6,*) 'alflnd,alfsea ',alflnd,alfsea
-      write(6,*) 'convtim',convtim(idjd)
       endif
       if((ntest>0.or.nmaxpr==1).and.mydiag) then
         iq=idjd
