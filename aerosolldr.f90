@@ -410,11 +410,11 @@ do k=1,kl
   aphp1(:,kl+1-k) =rhoa(:,k)*dz(:,k)                          ! density * thickness
   prhop1(:,kl+1-k)=rhoa(:,k)                                  ! air density
   ptp1(:,kl+1-k)  =ttg(1:ifull,k)                             ! air temperature
-  pclcon(:,kl+1-k)=clcon(:,k)                                 ! convective cloud fraction
+  pclcon(:,kl+1-k)=min(max(clcon(:,k),0.),1.)                 ! convective cloud fraction
   qtot=qlg(1:ifull,k)+qfg(1:ifull,k)                          ! total liquid and ice mixing ratio
-  cstrat(:)=max(min(cfrac(:,k)-clcon(:,k),1.),0.)             ! strat cloud fraction (i.e., ccov from leoncld.f)
-  pclcover(:,kl+1-k)=cstrat(:)*qlg(1:ifull,k)/max(qtot,1.E-8) ! Liquid-cloud fraction
-  pcfcover(:,kl+1-k)=cstrat(:)*qfg(1:ifull,k)/max(qtot,1.E-8) ! Ice-cloud fraction
+  cstrat=max(min(cfrac(:,k)-clcon(:,k),1.),0.)                ! strat cloud fraction (i.e., ccov from leoncld.f)
+  pclcover(:,kl+1-k)=cstrat*qlg(1:ifull,k)/max(qtot,1.E-8)    ! Liquid-cloud fraction
+  pcfcover(:,kl+1-k)=cstrat*qfg(1:ifull,k)/max(qtot,1.E-8)    ! Ice-cloud fraction
   pmlwc(:,kl+1-k)=qlg(1:ifull,k)
   pmiwc(:,kl+1-k)=qfg(1:ifull,k)
   where (k<=kbsav)
@@ -425,7 +425,7 @@ do k=1,kl
 end do
 !fracc=0.1 ! LDR suggestion
 fracc=cldcon
-call xtchemie (1, dt, zdayfac, aphp1, ppmrate, ppfprec,                         & !Inputs
+call xtchemie (2, dt, zdayfac, aphp1, ppmrate, ppfprec,                         & !Inputs
                pclcover, pmlwc, prhop1, ptp1, taudar, xtm1, ppfevap,            & !Inputs
                ppfsnow,ppfsubl,pcfcover,pmiwc,ppmaccr,ppfmelt,ppfstayice,       & !Inputs
                ppfstayliq,ppqfsed,pplambs,pprscav,pclcon,fracc,pccw,ppfconv,    & !Inputs
@@ -1013,7 +1013,6 @@ real so2o3(ifull) !Diagnostic output
 
 ! Local work arrays and variables
 real so2oh3d(ifull,kl),dmsoh3d(ifull,kl),dmsn33d(ifull,kl)
-!
 REAL ZXTP10(ifull,kl),          ZXTP1C(ifull,kl),   &
      ZHENRY(ifull,kl),          ZKII(ifull,kl),     &
      ZSO4(ifull,kl),            ZRKH2O2(ifull,kl),  &
@@ -1029,8 +1028,6 @@ real zso2ev(ifull,kl)
 real xto(ifull,kl,naero),zx(ifull)
 integer ZRDAYL(ifull)
 real, dimension(ifull), intent(in) :: zdayfac
-integer, parameter :: nfastox=0 !1 for "fast" in-cloud oxidation; 0 for "slow"
-real, parameter :: zmin=1.e-20
 real x,pqtmst
 real zlwcl,zlwcv,zhp,zqtp1,zrk,zrke
 real zh_so2,zpfac,zp_so2,zf_so2,zp_h2o2
@@ -1040,12 +1037,15 @@ real zh2o2m,zso2m,zso4m,zsumh2o2,zsumo3
 real zh_h2o2,zq,zso2mh,zdso2h,zso2l,zso4l
 real zzb,zzp,zzq,zzp2,zqhp,za2,zheneff
 real zrko3,zso2mo,zdso2o,zdso2tot,zfac
-real zfac2,zxtp1dms,zso2,ztk23b
+real zxtp1dms,zso2,ztk23b
 real zhil,zexp,zm,zdms,t,ztk1,tk3,zqt,zqt3
 real zrhoair,zkno2o3,zkn2o5aq,zrx1,zrx2
 real zkno2no3,zeqn2o5,ztk3,ztk2,zkn2o5
 real zno3,zxtp1so2
 integer jt,jk,jl,js1,js2,js3,js4,jn,niter
+
+integer, parameter :: nfastox=0 !1 for "fast" in-cloud oxidation; 0 for "slow"
+real, parameter :: zmin=1.e-20
 
 !    REACTION RATE SO2-OH
 real, parameter :: ZK2I=2.0E-12
@@ -1112,12 +1112,12 @@ else
 endif
 
 ! Calculate in-cloud ql
-where (pclcover(:,:)>zmin)
+where ( pclcover(:,:)>1.e-8 )
   zlwcic(:,:)=pmlwc(:,:)/pclcover(:,:)
 elsewhere
   zlwcic(:,:)=0.
 end where
-where (pcfcover(:,:)>zmin)
+where ( pcfcover(:,:)>1.e-8 )
   ziwcic(:,:)=pmiwc(:,:)/pcfcover(:,:)
 elsewhere
   ziwcic(:,:)=0.
@@ -1143,8 +1143,7 @@ zhenryc=0.
 zdxte=0.
 
 !   PROCESSES WHICH ARE DIFERENT INSIDE AND OUTSIDE OF CLOUDS
-ZSO4(:,ktop:kl)=XTO(:,ktop:kl,ITRACSO2+1)
-ZSO4(:,ktop:kl)=AMAX1(0.,ZSO4(:,ktop:kl))
+ZSO4=amax1(XTO(:,:,ITRACSO2+1),0.)
 !
 !   CALCULATE THE REACTION-RATES FOR SO2-H2O2
 DO JK=KTOP,kl
@@ -1255,7 +1254,6 @@ DO JK=KTOP,kl
 ! Diagnostic only...
       ZFAC=PQTMST*CTOX(X,ZMOLGS)*PCLCOVER(JL,JK)
       ZFAC1=ZFAC*rhodz(JL,JK)
-      ZFAC2=ZFAC*PRHOP1(JL,JK)
       so2h2(JL)=so2h2(JL)+ZSUMH2O2*ZFAC1
       so2o3(JL)=so2o3(JL)+ZSUMO3*ZFAC1
     ENDIF
@@ -1263,13 +1261,135 @@ DO JK=KTOP,kl
 end do
 
 ! Repeat the aqueous oxidation calculation for ice clouds.
-ZSO4i(:,ktop:kl)=XTO(:,ktop:kl,ITRACSO2+1)
-ZSO4i(:,ktop:kl)=AMAX1(0.,ZSO4i(:,ktop:kl))
+ZSO4i=amax1(XTO(:,:,ITRACSO2+1),0.)
+
+!******************************************************************************
+!***c Comment out from here when not using oxidation in ice clouds...
+!***C
+!***C
+!***C   CALCULATE THE REACTION-RATES FOR SO2-H2O2
+!***      DO JK=KTOP,KLEV
+!***       DO JL=1,KLON
+!***        IF(ziwcic(JL,JK).GT.ZMIN) THEN
+!***         ZLWCL=ziwcic(JL,JK)*PRHOP1(JL,JK)*1.E-06
+!***         ZLWCV=ziwcic(JL,JK)*PRHOP1(JL,JK)*1.E-03
+!***         ZHP=ZHPBASE+ZSO4i(JL,JK)*1000./(ziwcic(JL,JK)*ZMOLGS)
+!***         ZQTP1=1./PTP1(JL,JK)-ZQ298
+!***         ZRK=ZFARR(8.E+04,-3650.,ZQTP1)/(0.1+ZHP)
+!***         ZRKE=ZRK/(ZLWCL*ZAVO)
+!***C
+!***         ZH_SO2=ZFARR(ZE2K,ZE2H,ZQTP1)
+!***         ZPFAC=ZRGAS*ZLWCV*PTP1(JL,JK)
+!***         ZP_SO2=ZH_SO2*ZPFAC
+!***         ZF_SO2=ZP_SO2/(1.+ZP_SO2)
+!***C
+!***         ZH_H2O2=ZFARR(9.7E+04,6600.,ZQTP1)
+!***         ZP_H2O2=ZH_H2O2*ZPFAC
+!***         ZF_H2O2=ZP_H2O2/(1.+ZP_H2O2)
+!***C
+!***         ZRKH2O2(JL,JK)=ZRKE*ZF_SO2*ZF_H2O2
+!***        ELSE
+!***         ZRKH2O2(JL,JK)=0.
+!***        ENDIF
+!***       ENDDO
+!***      ENDDO
+!***C
+!***C
+!***C   HETEROGENEOUS CHEMISTRY
+!***      JT=ITRACSO2
+!***      DO JK=KTOP,KLEV
+!***       DO JL=1,KLON
+!***        ZXTP1=XTO(JL,JK,JT)
+!***        IF(ZXTP1.GT.ZMIN.AND.ziwcic(JL,JK).GT.ZMIN) THEN
+!***          X=PRHOP1(JL,JK)
+!***C
+!***            ZQTP1=1./PTP1(JL,JK)-ZQ298
+!***            ZE1=ZFARR(ZE1K,ZE1H,ZQTP1)
+!***            ZE2=ZFARR(ZE2K,ZE2H,ZQTP1)
+!***            ZE3=ZFARR(ZE3K,ZE3H,ZQTP1)
+!***C
+!***            ZLWCL=ziwcic(JL,JK)*PRHOP1(JL,JK)*1.E-06
+!***C    ZLWCL = LWC IN L/CM**3
+!***            ZLWCV=ziwcic(JL,JK)*PRHOP1(JL,JK)*1.E-03
+!***C   ZLWCV = LWC IN VOL/VOL
+!***            ZFAC1=1./(ZLWCL*ZAVO)
+!***C   ZFAC1 CALCULATES MOLECULES PER CM**3 TO MOLE PER LTR H2O
+!***            ZRKFAC=ZRGAS*PTP1(JL,JK)*ZLWCV
+!***C   ZRKFAC CALCULATES DIMENSIONLESS HENRY-COEFF.
+!***            ZZA=ZE2*ZRKFAC
+!***            ZA21=4.39E+11*EXP(-4131./PTP1(JL,JK))
+!***            ZA22=2.56E+03*EXP(-966./PTP1(JL,JK)) !926 corrected to 966 here
+!***            ZPH_O3=ZE1*ZRKFAC
+!***            ZF_O3=ZPH_O3/(1.+ZPH_O3)
+!***            ZDT=PTMST/FLOAT(NITER)
+!***C
+!***            ZH2O2M=ZZH2O2(JL,JK)
+!***            ZSO2M=ZXTP1*XTOC(X,ZMOLGS)
+!***            ZSO4M=ZSO4i(JL,JK)*XTOC(X,ZMOLGS)
+!***C
+!***            ZSUMH2O2=0.
+!***            ZSUMO3=0.
+!***C
+!***             DO JN=1,NITER
+!***              ZQ=ZRKH2O2(JL,JK)*ZH2O2M
+!***              ZSO2MH=(1-nfastox)*ZSO2M*EXP(-ZQ*ZDT) ! = zero if nfastox.eq.1
+!***     &                +nfastox * max (0., zso2m - zh2o2m )
+!***C
+!***              ZDSO2H=ZSO2M-ZSO2MH
+!***              ZH2O2M=ZH2O2M-ZDSO2H
+!***              ZH2O2M=AMAX1(0.,ZH2O2M)
+!***              ZSUMH2O2=ZSUMH2O2+ZDSO2H
+!***C
+!***              ZSO4M=ZSO4M+ZDSO2H
+!***C   CALCULATE THE PH VALUE
+!***              ZSO2L=ZSO2MH*ZFAC1
+!***              ZSO4L=ZSO4M*ZFAC1
+!***              ZZB=ZHPBASE+ZSO4L
+!***              ZZP=(ZZA*ZE3-ZZB-ZZA*ZZB)/(1.+ZZA)
+!***              ZZQ=-ZZA*ZE3*(ZZB+ZSO2L)/(1.+ZZA)
+!***              ZZP=0.5*ZZP
+!***              ZZP2=ZZP*ZZP
+!***              ZHP=-ZZP+SQRT(ZZP2-ZZQ)
+!***              ZQHP=1./ZHP
+!***C
+!***C   CALCULATE THE REACTION RATE FOR SO2-O3
+!***C
+!***              ZA2=(ZA21+ZA22*ZQHP)*ZFAC1
+!***              ZHENEFF=1.+ZE3*ZQHP
+!***              ZP_SO2=ZZA*ZHENEFF
+!***              ZF_SO2=ZP_SO2/(1.+ZP_SO2)
+!***              ZRKO3=ZA2*ZF_O3*ZF_SO2
+!***C
+!***              ZQ=ZZO3(JL,JK)*ZRKO3
+!***              ZSO2MO=ZSO2MH*EXP(-ZQ*ZDT)
+!***              ZDSO2O=ZSO2MH-ZSO2MO
+!***              ZSO4M=ZSO4M+ZDSO2O
+!***              ZSO2M=ZSO2MO
+!***              ZSUMO3=ZSUMO3+ZDSO2O
+!***            ENDDO  !End of iteration loop
+!***C
+!***            ZDSO2TOT=ZXTP1-ZSO2M*CTOX(X,ZMOLGS)
+!***            ZDSO2TOT=AMIN1(ZDSO2TOT,ZXTP1)
+!***
+!***            ZXTP10(JL,JK)=ZXTP1-ZDSO2TOT
+!***     &                   *pcfcover(jl,jk)/(1.-pclcover(jl,jk))
+!***            ZSO4i(JL,JK)=ZSO4i(JL,JK)+ZDSO2TOT
+!***     &                   *pcfcover(jl,jk)/(1.-pclcover(jl,jk))
+!***c            ZHENRY(JL,JK)=ZF_SO2
+!***c Diagnostic only...
+!***            ZFAC=PQTMST*CTOX(X,ZMOLGS)*pcfcover(jl,jk)
+!***            ZFAC1=ZFAC*PDPP1(JL,JK)/PG
+!***            so2h2(JL)=so2h2(JL)+ZSUMH2O2*ZFAC1
+!***            so2o3(JL)=so2o3(JL)+ZSUMO3*ZFAC1
+!***         ENDIF
+!***       ENDDO
+!***      ENDDO
+!******************************************************************************
+
 
 ! Repeat the aqueous oxidation calculation for convective clouds.
-ZXTP1CON(:,ktop:kl)=XTU(:,ktop:kl,ITRACSO2)
-ZSO4C(:,ktop:kl)=XTU(:,ktop:kl,ITRACSO2+1)
-ZSO4C(:,ktop:kl)=AMAX1(0.,ZSO4C(:,ktop:kl))
+ZXTP1CON=amax1(XTU(:,:,ITRACSO2),0.)
+ZSO4C   =amax1(XTU(:,:,ITRACSO2+1),0.)
 
 ! Comment from here when not using convective oxidation...
 
@@ -1336,7 +1456,7 @@ DO JK=KTOP,kl
 
       DO JN=1,NITER
         ZQ=ZRKH2O2(JL,JK)*ZH2O2M
-        ZSO2MH=(1-nfastox)*ZSO2M*EXP(-ZQ*ZDT)+nfastox*max(0.,zso2m-zh2o2m) ! = zero if nfastox==1
+        ZSO2MH=(1.-nfastox)*ZSO2M*EXP(-ZQ*ZDT)+nfastox*max(0.,zso2m-zh2o2m) ! = zero if nfastox==1
 
         ZDSO2H=ZSO2M-ZSO2MH
         ZH2O2M=ZH2O2M-ZDSO2H
@@ -1378,7 +1498,6 @@ DO JK=KTOP,kl
       ! Diagnostic only...
       ZFAC=PQTMST*CTOX(X,ZMOLGS)*pclcon(jl,jk)
       ZFAC1=ZFAC*rhodz(JL,JK)
-      ZFAC2=ZFAC*PRHOP1(JL,JK)
       so2h2(JL)=so2h2(JL)+ZSUMH2O2*ZFAC1
       so2o3(JL)=so2o3(JL)+ZSUMO3*ZFAC1
     ENDIF
@@ -1396,8 +1515,8 @@ DO JT=ITRACSO2,naero
   if(jt==itracso2) then        !SO2
     zsolub(:,:)=zhenry(:,:)
   elseif(jt==itracso2+1) then  !sulfate
-    zxtp1c(:,:)=zso4(:,:)
     zxtp10(:,:)=zso4i(:,:)
+    zxtp1c(:,:)=zso4(:,:)    
     zxtp1con(:,:)=zso4c(:,:)
     zsolub (:,:)=0.6
   elseif(jt==itracbc.or.jt==itracoc)then  !hydrophobic BC and OC
@@ -1667,7 +1786,7 @@ zdeps(:)=0.
 ! Search for convective cloud base
 kbase(:)=kl+1
 do jk=ktop,kl
-  where (pclcon(:,jk)>zmin)
+  where ( pclcon(:,jk)>zmin )
     kbase(:)=jk
   end where
 enddo
@@ -1681,9 +1800,9 @@ do JK=KTOP,kl
   PXTP1C(:,JK)=AMAX1(0.,PXTP1C(:,JK))
   PXTP10(:,JK)=AMAX1(0.,PXTP10(:,JK))
 
-! In-cloud ice scavenging (including vertical redistribution when snow
-! evaporates or falls into a layer). Include accretion of ql by snow.
-  where ( pmiwc(:,jk)>zmin )
+  ! In-cloud ice scavenging (including vertical redistribution when snow
+  ! evaporates or falls into a layer). Include accretion of ql by snow.
+  where ( pmiwc(:,jk)>zmin .and. zclr0>zmin )
     ziicscav=Ecols(ktrac)*pqfsed(:,jk) !qfsed is the fractional sedimentation in dt
     ziicscav=min(ziicscav, 1.)        
     xdep=pxtp10(:,jk)*ziicscav*pcfcover(:,jk)
@@ -1693,7 +1812,7 @@ do JK=KTOP,kl
     zdeps(:)=zdeps(:)+xdep*zmtof(:)
   end where
 
-! This loop does riming (accretion of liquid water by falling snow)
+  ! This loop does riming (accretion of liquid water by falling snow)
   where ( pmlwc(:,jk)>zmin )
     zilcscav=Rcoeff(ktrac)*psolub(:,jk)*(pmaccr(:,jk)*ptmst/pmlwc(:,jk))
     zilcscav=min(zilcscav, 1.)        
@@ -1703,8 +1822,8 @@ do JK=KTOP,kl
     zdeps(:)=zdeps(:)+xdep*zmtof(:)
   end where
 
-! Below-cloud scavenging by snow
-  where (pfsnow(:,jk)>zmin.and.pclcover(:,jk)<1.-zmin)
+  ! Below-cloud scavenging by snow
+  where ( pfsnow(:,jk)>zmin )
     plambda=min(plambs(:,jk),8.e3) !Cut it off at about -30 deg. C
     zbcscav=zcollefs(ktrac)*plambda*pfsnow(:,jk)*ptmst/(2.*rhos)
     !zbcscav=min(1.,zbcscav/(1.+0.5*zbcscav)) !Time-centred
@@ -1717,14 +1836,14 @@ do JK=KTOP,kl
 
 ! Redistribution by snow that evaporates or stays in layer
   do jl=1,ifull
-    if (pfsnow(jl,jk)>zmin) then
+    if ( pfsnow(jl,jk)>zmin ) then
       zstay=(pfsubl(jl,jk)+pfstayice(jl,jk))/pfsnow(jl,jk)
       zstay=min(1., zstay)
       xstay=zdeps(jl)*zstay*zftom(jl)
       zdeps(jl)=zdeps(jl)*(1.-zstay)
       zdeps(jl)=max(0.,zdeps(jl))
       pdep3d(jl,jk)=pdep3d(jl,jk)-xstay
-      if (zclr0(jl)>zmin) then
+      if ( zclr0(jl)>zmin ) then
         pxtp10(jl,jk)=pxtp10(jl,jk)+xstay/zclr0(jl)
       else
         pxtp1c(jl,jk)=pxtp1c(jl,jk)+xstay/pclcover(jl,jk)
@@ -1733,13 +1852,13 @@ do JK=KTOP,kl
   end do
 
   ! Melting of snow... 
-  where (pfmelt(:,jk)>zmin)
+  where ( pfmelt(:,jk)>zmin )
     zdepr(:)=zdepr(:)+zdeps(:)
     zdeps(:)=0.
   end where
 
   !  In-cloud scavenging by warm-rain processes (autoconversion and collection)
-  where (pmratep(:,jk)>zmin.and.pmlwc(:,jk)>zmin) ! MJT suggestion
+  where ( pmratep(:,jk)>zmin .and. pmlwc(:,jk)>zmin ) ! MJT suggestion
     zicscav=psolub(:,jk)*(pmratep(:,jk)*ptmst/pmlwc(:,jk))
     zicscav=min(zicscav,1.)
     xicscav=pxtp1c(:,jk)*zicscav*pclcover(:,jk) !gridbox mean
@@ -1749,7 +1868,7 @@ do JK=KTOP,kl
   end where
 
   ! Below-cloud scavenging by stratiform rain (conv done below)
-  where (pfprec(:,jk)>zmin.and.zclr0(:)>zmin)
+  where ( prscav(:,jk)>zmin )
     zbcscav=zcollefr(ktrac)*prscav(:,jk)
     !zbcscav=min(1.,zbcscav/(1.+0.5*zbcscav)) !Time-centred
     zbcscav=min(1.,zbcscav) ! MJT suggestion
@@ -1759,14 +1878,14 @@ do JK=KTOP,kl
     zdepr(:)=zdepr(:)+xbcscav*zmtof(:)
   end where
   
-! Redistribution by rain that evaporates or stays in layer
-! Modified by MJT for prognostic rain
+  ! Redistribution by rain that evaporates or stays in layer
+  ! Modified by MJT for prognostic rain
   do jl=1,ifull
-    if (pfprec(jl,jk)>zmin) then
+    if ( pfprec(jl,jk)>zmin ) then
       zevap=pfevap(jl,jk)/pfprec(jl,jk)
       zstay=zevap+pfstayliq(jl,jk)/pfprec(jl,jk)
       zstay=min(1., zstay)
-      if (zstay<1.) then
+      if ( zstay<1. ) then
         zevap=Evfac(ktrac)*zevap
         zstay=zevap+pfstayliq(jl,jk)/pfprec(jl,jk)
         zstay=min(1., zstay)        
@@ -1775,7 +1894,7 @@ do JK=KTOP,kl
       zdepr(jl)=zdepr(jl)*(1.-zstay)
       zdepr(jl)=max(0.,zdepr(jl))
       pdep3d(jl,jk)=pdep3d(jl,jk)-xstay
-      if (zclr0(jl)>zmin) then
+      if ( zclr0(jl)>zmin ) then
         pxtp10(jl,jk)=pxtp10(jl,jk)+xstay/zclr0(jl)
       else
         pxtp1c(jl,jk)=pxtp1c(jl,jk)+xstay/pclcover(jl,jk)
@@ -1805,11 +1924,11 @@ do jk=ktop,kl
 
   
 ! Below-cloud scavenging by convective precipitation
-  where (pfconv(:,jk-1)>zmin.and.zclr0(:)>zmin)
+  where ( pfconv(:,jk-1)>zmin .and. fracc>zmin )
     Frc=max(0.,pfconv(:,jk-1)/fracc(:))
     zbcscav=zcollefc*fracc(:)*0.24*ptmst*sqrt(Frc*sqrt(Frc))
     !zbcscav=min(1.,zbcscav/(1.+0.5*zbcscav)) !Time-centred
-    zbcscav=min(1.,zbcscav) ! MJT suggestion
+    zbcscav=min(1., zbcscav) ! MJT suggestion
     xbcscav=zbcscav*pxtp10(:,jk)*zclr0(:)
     conwd(:,ktrac)=conwd(:,ktrac)+xbcscav*zmtof
     pdep3d(:,jk)=pdep3d(:,jk)+xbcscav
@@ -1817,13 +1936,13 @@ do jk=ktop,kl
   end where
 
   do jl=1,ifull
-! Below-cloud reevaporation of convective rain
-! This never triggers for JLM convection because pcevap=0.
-    if (jk>kbase(jl).and.pfconv(jl,jk-1)>zmin.and.zclr0(jl)>zmin) then
+    ! Below-cloud reevaporation of convective rain
+    ! This never triggers for JLM convection because pcevap=0.
+    if ( jk>kbase(jl) .and. pfconv(jl,jk-1)>zmin .and. zclr0(jl)>zmin ) then
       pcevap=pfconv(jl,jk-1)-pfconv(jl,jk)
       zevap=pcevap/pfconv(jl,jk-1)
       zevap=max(0.,min(1.,zevap))
-      if (zevap<1.) zevap=Evfac(ktrac)*zevap
+      if ( zevap<1. ) zevap=Evfac(ktrac)*zevap
       xevap=conwd(jl,ktrac)*zevap*zftom(jl) !xevap is the grid-box-mean m.r. change
       conwd(jl,ktrac)=max(0.,conwd(jl,ktrac)*(1.-zevap))
       pdep3d(jl,jk)=pdep3d(jl,jk)-xevap
@@ -1887,8 +2006,8 @@ do iq=1,ifull
     vsettl = 2./9. * grav * DUSTDEN(k) * DUSTREFF(k)**2 / (0.5*dyn_visc)
 
     ! Determine the maximum time-step satisying the CFL condition:
-    ! dt <= (dz)_min / v_settl (use 0.3 as MJT suggestion)
-    dtmax = 0.3 * dzmin / vsettl
+    ! dt <= (dz)_min / v_settl
+    dtmax = dzmin / vsettl
     ndt_settl = max(1, int( tdt /dtmax ) )
 
 
@@ -2223,7 +2342,7 @@ do k=1,kl
   !aero_n(:) = max (10.e6, so4_n(:) + cphil_n(:) + ssn(is:ie,k,1) + ssn(is:ie,k,2) + dust_n(:))
 
   ! Jones et al., modified to account for hydrophilic carb aerosols as well
-  Atot = so4_n + cphil_n + ssn(is:ie,k,1) + ssn(is:ie,k,2)
+  Atot = max(so4_n + cphil_n + ssn(is:ie,k,1) + ssn(is:ie,k,2),0.)
   cdn(:,k)=max(1.e7, 3.75e8*(1.-exp(-2.5e-9*Atot)))
 
 enddo
