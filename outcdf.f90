@@ -89,23 +89,23 @@ if(nrungcm==-2.or.nrungcm==-3.or.nrungcm==-5)then
 endif    ! (nrungcm.eq.-2.or.nrungcm.eq.-3.or.nrungcm.eq.-5)
 
 !---------------------------------------------------------------------------
-if(iout==19)then
-  if(io_rest==1)then  ! for netcdf          
-    if ( myid==0 ) write(6,*) 'restart write of data to cdf'
-    call cdfout(rundate,-1,nstagin)
-  elseif(io_rest==3)then
-    write(6,*) 'Error, binary output not supported'
-    stop
-  end if
-else
-  if(io_out==1)then
+select case(io_out)
+  case(1)
     if ( myid==0 ) write(6,*) 'calling outcdf from outfile'
     call cdfout(rundate,1,nstagin)
-  elseif(io_out==3)then
-    write(6,*) 'Error, binary output not supported'
-    stop
-  end if
-end if ! (iout==19) ..else..
+  case(3)
+    write(6,*) 'Error, history binary output not supported'
+    call ccmpi_abort(-1)
+  case(19)
+    select case(io_rest)  
+      case(1)  ! for netcdf          
+        if ( myid==0 ) write(6,*) 'restart write of data to netcdf'
+        call cdfout(rundate,-1,nstagin)
+      case(3)
+        write(6,*) 'Error, restart binary output not supported'
+        call ccmpi_abort(-1)
+    end select
+end select
 
 call END_LOG(outfile_end)
       
@@ -155,12 +155,12 @@ character(len=20) timorg
 character(len=8) rundate
 
 ! Determine file names depending on output
-if(myid==0 .or. localhist)then
+if ( myid==0 .or. localhist ) then
   ! File setup follows
-  if(itype==1)then
+  if ( itype==1 ) then
     ! itype=1 outfile
     iarch=iarch+1
-    if(localhist)then
+    if ( localhist ) then
       write(cdffile,"(a,'.',i6.6)") trim(ofile), myid
     else
       cdffile=ofile
@@ -168,7 +168,7 @@ if(myid==0 .or. localhist)then
   else
     ! itype=-1 restfile
     iarch=1
-    if(localhist)then
+    if ( localhist ) then
       write(cdffile,"(a,'.',i6.6)") trim(restfile), myid
     else
       cdffile=restfile
@@ -176,20 +176,14 @@ if(myid==0 .or. localhist)then
     idnc=0
   endif ! ( itype==1)then
 
-  if (myid==0.and.iarch>1) then
-    write(6,'("outcdf itype,idnc,iarch,cdffile=",i5,i8,i5," ",a80)') itype,idnc,iarch,cdffile
-  end if
-
   ! Open new file
-  if(iarch==1)then
-    if (myid==0) then
-      write(6,'("nccre of itype,cdffile=",i5," ",a80)') itype,cdffile
-    end if
+  if( iarch==1 )then
+    if ( myid==0 ) write(6,'("nccre of itype,cdffile=",i5," ",a80)') itype,cdffile
     call ccnf_create(cdffile,idnc)
     ! Turn off the data filling
     call ccnf_nofill(idnc)
     ! Create dimensions, lon, runtopo.shlat
-    if(localhist)then
+    if( localhist ) then
       call ccnf_def_dim(idnc,'longitude',il,xdim)
       call ccnf_def_dim(idnc,'latitude',jl,ydim)
     else
@@ -198,13 +192,13 @@ if(myid==0 .or. localhist)then
     endif
     call ccnf_def_dim(idnc,'lev',kl,zdim)
     call ccnf_def_dim(idnc,'zsoil',ms,msdim)
-    if (abs(nmlo)>0..and.abs(nmlo)<=9) then
+    if ( abs(nmlo)>0. .and. abs(nmlo)<=9 ) then
       call ccnf_def_dim(idnc,'olev',ol,ocdim)
     else
       ocdim=0
     end if
     call ccnf_def_dimu(idnc,'time',tdim)
-    if (myid==0) then
+    if ( myid==0 ) then
       write(6,*) "xdim,ydim,zdim,tdim"
       write(6,*)  xdim,ydim,zdim,tdim
     end if
@@ -225,33 +219,25 @@ if(myid==0 .or. localhist)then
     call ccnf_def_var(idnc,'latitude','float',1,dim(2:2),iyp)
     call ccnf_put_att(idnc,iyp,'point_spacing',4,'even')
     call ccnf_put_att(idnc,iyp,'units',13,'degrees_north')
-    if (myid==0) then
-      write(6,*) 'ixp,iyp=',ixp,iyp
-    end if
+    if ( myid==0 ) write(6,*) 'ixp,iyp=',ixp,iyp
 
     call ccnf_def_var(idnc,'lev','float',1,dim(3:3),idlev)
     call ccnf_put_att(idnc,idlev,'positive',4,'down')
     call ccnf_put_att(idnc,idlev,'point_spacing',6,'uneven')
     call ccnf_put_att(idnc,idlev,'units',11,'sigma_level')
     call ccnf_put_att(idnc,idlev,'long_name',11,'sigma_level')
-    if (myid==0) then
-      write(6,*) 'idlev=',idlev
-    end if
+    if (myid==0) write(6,*) 'idlev=',idlev
 
     call ccnf_def_var(idnc,'zsoil','float',1,dims(3:3),idms)
     call ccnf_put_att(idnc,idms,'point_spacing',6,'uneven')
     call ccnf_put_att(idnc,idms,'units',1,'m')
-    if (myid==0) then
-      write(6,*) 'idms=',idms
-    end if
+    if (myid==0) write(6,*) 'idms=',idms
         
     if (abs(nmlo)>0.and.abs(nmlo)<=9) then
       call ccnf_def_var(idnc,'olev','float',1,dimo(3:3),idoc)
       call ccnf_put_att(idnc,idoc,'point_spacing',6,'uneven')
       call ccnf_put_att(idnc,idoc,'units',11,'sigma_level')
-      if (myid==0) then
-        write(6,*) 'idoc=',idoc
-      end if
+      if (myid==0) write(6,*) 'idoc=',idoc
     end if
 
     call ccnf_def_var(idnc,'time','float',1,dim(4:4),idnt)
@@ -359,18 +345,18 @@ if(myid==0 .or. localhist)then
     call ccnf_put_attg(idnc,'date_header',rundate)
     call ccnf_def_var0(idnc,'ds','float',idv)
     call ccnf_def_var0(idnc,'dt','float',idv)
-  endif ! ( iarch=1)then
+  else
+    if ( myid==0 ) write(6,'("outcdf itype,idnc,iarch,cdffile=",i5,i8,i5," ",a80)') itype,idnc,iarch,cdffile
+  endif ! ( iarch=1 ) ..else..
 endif ! (myid==0.or.localhist)
       
 ! openhist writes some fields so needs to be called by all processes
 call openhist(iarch,itype,dim,localhist,idnc,nstagin,ixp,iyp,idlev,idnt,idms,idoc)
 
-if(myid==0.or.localhist)then
-  if(ktau==ntau)then
+if ( myid==0 .or. localhist ) then
+  if ( ktau==ntau ) then
+    if ( myid==0 ) write(6,*) "closing netcdf file idnc=",idnc      
     call ccnf_close(idnc)
-    if (myid==0) then
-      write(6,*) "calling ncclos(idnc) ",idnc
-    end if
   endif
 endif    ! (myid==0.or.local)
 
@@ -474,17 +460,15 @@ idim(1)=dim(1)
 idim(2)=dim(2)
 idim(3)=dim(4)
 
-if(myid==0.or.local)then
-  if (myid==0) then
-    write(6,*) 'openhist itype,iarch,idnc=',itype,iarch,idnc
-  end if
+if( myid==0 .or. local ) then
+  if (myid==0) write(6,*) 'openhist itype,iarch,idnc=',itype,iarch,idnc
 
 ! if this is the first archive, set up some global attributes
-  if(iarch==1) then
+  if ( iarch==1 ) then
 
 !   Create global attributes
 !   Model run number
-    if (myid==0) then
+    if ( myid==0 ) then
       write(6,*) 'dim=',dim
       write(6,*) 'idim=',idim
       write(6,*) 'nrun=',nrun
@@ -498,7 +482,7 @@ if(myid==0.or.local)then
 !   Model version
     call ccnf_put_attg(idnc,'version',version)
 
-    if(local)then
+    if ( local ) then
       call ccnf_put_attg(idnc,'processor_num',myid)
       call ccnf_put_attg(idnc,'nproc',nproc)
 #ifdef uniform_decomp
@@ -509,9 +493,7 @@ if(myid==0.or.local)then
     endif           
 
 !       Sigma levels
-    if (myid==0) then
-      write(6,*) 'sig=',sig
-    end if
+    if (myid==0) write(6,*) 'sig=',sig
     call ccnf_put_attg(idnc,'sigma',kl,sig)
 
     lname = 'year-month-day at start of run'
@@ -553,15 +535,13 @@ if(myid==0.or.local)then
     call ccnf_def_var(idnc,'nstagoff','int',1,dim(4:4),idv)
     call ccnf_put_att(idnc,idv,'long_name',len_trim(lname),lname)
 
-    if ((nmlo<0.and.nmlo>=-9).or.(nmlo>0.and.nmlo<=9.and.itype==-1)) then
+    if ( (nmlo<0.and.nmlo>=-9) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
       lname = 'ocn stag offset'
       call ccnf_def_var(idnc,'nstagoffmlo','int',1,dim(4:4),idv)
       call ccnf_put_att(idnc,idv,'long_name',len_trim(lname),lname)     
     end if
 
-    if (myid==0) then
-      write(6,*) 'define attributes of variables'
-    end if
+    if (myid==0) write(6,*) 'define attributes of variables'
 
 !   For time invariant surface fields
     lname = 'Surface geopotential'
@@ -579,13 +559,13 @@ if(myid==0.or.local)then
     lname = 'Vegetation type'
     call attrib(idnc,idim(1:2),2,'vegt',lname,'none',0.,65.,0,itype)
 
-    if ((nmlo<0.and.nmlo>=-9).or.(nmlo>0.and.nmlo<=9.and.itype==-1)) then
+    if ( (nmlo<0.and.nmlo>=-9) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
       lname = 'water depth'
       call attrib(idnc,idim(1:2),2,'ocndepth',lname,'m',0.,32500.,0,itype)
     end if
 
 !   For time varying surface fields
-    if (nsib==6.or.nsib==7) then
+    if ( nsib==6 .or. nsib==7 ) then
       lname = 'Stomatal resistance'
       call attrib(idnc,idim,3,'rs',lname,'none',0.,1000.,0,itype)
     else
@@ -632,7 +612,7 @@ if(myid==0.or.local)then
     lname = 'Soil temperature lev 6'
     call attrib(idnc,idim,3,'tgg6',lname,'K',100.,425.,0,itype)
  
-    if ((nmlo<0.and.nmlo>=-9).or.(nmlo>0.and.nmlo<=9.and.itype==-1)) then
+    if ( (nmlo<0.and.nmlo>=-9) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
       do k=ms+1,wlev
         write(lname,'("soil/ocean temperature lev ",I2)') k
         write(vname,'("tgg",I2.2)') k
@@ -743,7 +723,7 @@ if(myid==0.or.local)then
     call attrib(idnc,idim,3,'rnd21',lname,'mm',0.,1300.,1,itype)
     lname = '24hr precipitation'
     call attrib(idnc,idim,3,'rnd24',lname,'mm',0.,1300.,1,itype)
-    if(nextout>=2) then  ! 6-hourly u10, v10, tscr, rh1
+    if ( nextout>=2 ) then  ! 6-hourly u10, v10, tscr, rh1
       mnam ='x-component 10m wind '
       nnam ='y-component 10m wind '
       call attrib(idnc,idim,3,'u10_06',mnam//'6hr','m/s',-99.,99.,1,itype)
@@ -896,17 +876,17 @@ if(myid==0.or.local)then
       lname = 'friction velocity'
       call attrib(idnc,idim,3,'ustar',lname,'m/s',0.,10.,0,itype)
     endif     ! (nextout>=1)
-    if (nextout>=1.or.(nvmix==6.and.itype==-1)) then
+    if ( nextout>=1 .or. (nvmix==6.and.itype==-1) ) then
       lname = 'PBL depth'
       call attrib(idnc,idim,3,'pblh',lname,'m',0.,13000.,0,itype)
-      if (nvmix==6) then
+      if ( nvmix==6 ) then
         lname = 'Dry PBL depth'
         call attrib(idnc,idim,3,'dpblh',lname,'m',0.,13000.,0,itype)
       end if
     end if
         
     ! AEROSOL OPTICAL DEPTHS ------------------------------------
-    if (nextout>=1.and.abs(iaero)>=2.and.nrad==5) then
+    if ( nextout>=1 .and. abs(iaero)>=2 .and. nrad==5 ) then
       lname = 'Total column small dust optical depth VIS'
       call attrib(idnc,idim,3,'sdust_vis',lname,'none',0.,13.,0,itype)
       lname = 'Total column small dust optical depth NIR'
@@ -994,9 +974,9 @@ if(myid==0.or.local)then
     end if
 
     ! CABLE -----------------------------------------------------
-    if (nsib==6.or.nsib==7) then
-      if (nextout>=1.or.itype==-1) then
-        if (ccycle==0) then
+    if ( nsib==6 .or. nsib==7 ) then
+      if ( nextout>=1 .or. itype==-1 ) then
+        if ( ccycle==0 ) then
           lname = 'Carbon leaf pool'
           call attrib(idnc,idim,3,'cplant1',lname,'gC/m2',0.,6500.,0,itype)
           lname = 'Carbon wood pool'
@@ -1066,7 +1046,7 @@ if(myid==0.or.local)then
           call attrib(idnc,idim,3,'glai',lname,'none',0.,13.,0,itype)
         end if
       end if
-      if (nextout>=1.and.itype/=-1) then
+      if ( nextout>=1 .and. itype/=-1 ) then
         lname = 'Avg Net CO2 flux'
         call attrib(idnc,idim,3,'fnee_ave',lname,'gC/m2/s',-3.25E-3,3.25E-3,0,itype)
         lname = 'Avg Photosynthesis CO2 flux'
@@ -1079,7 +1059,7 @@ if(myid==0.or.local)then
     end if
 
     ! URBAN -----------------------------------------------------
-    if (nurban<=-1.or.(nurban>=1.and.itype==-1)) then
+    if ( nurban<=-1 .or. (nurban>=1.and.itype==-1) ) then
       lname = 'roof temperature lev 1'
       call attrib(idnc,idim,3,'rooftgg1',lname,'K',100.,425.,0,itype)
       lname = 'roof temperature lev 2'
@@ -1132,7 +1112,7 @@ if(myid==0.or.local)then
         
     ! STANDARD 3D VARIABLES -------------------------------------
     if (myid==0) write(6,*) '3d variables'
-    if(nextout>=4.and.nllp==3)then   ! N.B. use nscrn=1 for hourly output
+    if( nextout>=4 .and. nllp==3 ) then   ! N.B. use nscrn=1 for hourly output
       lname = 'Delta latitude'
       call attrib(idnc,dim,4,'del_lat',lname,'deg',-60.,60.,1,itype)
       lname = 'Delta longitude'
@@ -1153,32 +1133,31 @@ if(myid==0.or.local)then
     call attrib(idnc,dim,4,'convh_ave',lname,'K/day',-10.,20.,0,itype)
         
     ! MICROPHYSICS ----------------------------------------------
-    if(ldr/=0)then
+    if( ldr/=0 ) then
       call attrib(idnc,dim,4,'qfg','Frozen water','kg/kg',0.,.065,0,itype)
       call attrib(idnc,dim,4,'qlg','Liquid water','kg/kg',0.,.065,0,itype)
       call attrib(idnc,dim,4,'qrg','Rain','kg/kg',0.,.065,0,itype)
       call attrib(idnc,dim,4,'cfrac','Cloud fraction','none',0.,1.,0,itype)
       call attrib(idnc,dim,4,'cfrain','Rain fraction','none',0.,1.,0,itype)
-      if (ncloud>=3) then
+      if ( ncloud>=3 ) then
         call attrib(idnc,dim,4,'stratcf','Strat cloud fraction','none',0.,1.,0,itype)
-        if (itype==-1) then
+        if ( itype==-1 ) then
           call attrib(idnc,dim,4,'strat_nt','Strat net temp tendency','K/s',0.,1.,0,itype)
         end if
       end if
     endif
         
     ! TURBULENT MIXING ------------------------------------------
-    if (nvmix==6.and.(nextout>=1.or.itype==-1))then
+    if ( nvmix==6 .and. (nextout>=1.or.itype==-1) )then
       call attrib(idnc,dim,4,'tke','Turbulent Kinetic Energy','m2/s2',0.,65.,0,itype)
       call attrib(idnc,dim,4,'eps','Eddy dissipation rate','m2/s3',0.,6.5,0,itype)
     end if
 
     ! TRACER ----------------------------------------------------
-    if (ngas>0) then 
+    if ( ngas>0 ) then 
       do igas=1,ngas
         write(trnum,'(i3.3)') igas
-!       rml 18/09/07 use tracmax from tracer.dat as previous formula
-!                    wasn't always reliable
+!       rml 18/09/07 use tracmax from tracer.dat as previous formula wasn't always reliable
         trmax = tracmax(igas)
         trmin = tracmin(igas)
 !       rml 19/09/07 use tracname as part of tracer long name
@@ -1189,10 +1168,10 @@ if(myid==0.or.local)then
 !       rml 14/5/10 option to write out local time afternoon averages
         if (writetrpm) call attrib(idnc,dim,4,'trpm'//trnum,lname,'ppm',trmin,trmax,0,-1) ! -1 = long
       enddo ! igas loop
-    endif  ! (ntrac.gt.0)
+    endif   ! (ngas>0)
 
     ! AEROSOL ---------------------------------------------------
-    if (iaero<=-2.or.(iaero>=2.and.itype==-1)) then  
+    if ( iaero<=-2 .or. (iaero>=2.and.itype==-1) ) then  
       call attrib(idnc,dim,4,'dms','Dimethyl sulfide','kg/kg',0.,6.5E-7,0,itype)
       call attrib(idnc,dim,4,'so2','Sulfur dioxide','kg/kg',0.,6.5E-7,0,itype)
       call attrib(idnc,dim,4,'so4','Sulfate','kg/kg',0.,6.5E-7,0,itype)
@@ -1210,7 +1189,7 @@ if(myid==0.or.local)then
     end if
 
     ! RESTART ---------------------------------------------------
-    if(itype==-1)then   ! extra stuff just written for restart file
+    if ( itype==-1 ) then   ! extra stuff just written for restart file
       lname= 'NHS adjustment to geopotential height'
       call attrib(idnc,dim,4,'zgnhs',lname,'m2/s2',-6.E5,6.E5,0,itype)
       lname= 'sdot: change in grid spacing per time step +.5'
@@ -1229,7 +1208,7 @@ if(myid==0.or.local)then
       call attrib(idnc,dim,4,'savu2',lname,'m/s',-1.E2,1.E2,0,itype)
       lname= 'savv2'
       call attrib(idnc,dim,4,'savv2',lname,'m/s',-1.E2,1.E2,0,itype)
-      if (abs(nmlo)>=3.and.abs(nmlo)<=9) then
+      if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
         do k=1,wlev
           write(lname,'("oldu1 ",I2)') k
           write(vname,'("oldu1",I2.2)') k
@@ -1259,7 +1238,7 @@ if(myid==0.or.local)then
       call attrib(idnc,idim,3,'wbice5',lname,'m3/m3',0.,1.,0,itype)
       lname = 'Soil ice lev 6'
       call attrib(idnc,idim,3,'wbice6',lname,'m3/m3',0.,1.,0,itype)
-      if (nmlo==0) then ! otherwise already defined above
+      if ( nmlo==0 ) then ! otherwise already defined above
         lname = 'Snow temperature lev 1'
         call attrib(idnc,idim,3,'tggsn1',lname,'K',100.,425.,0,itype)
         lname = 'Snow temperature lev 2'
@@ -1285,17 +1264,17 @@ if(myid==0.or.local)then
       call attrib(idnc,idim,3,'sflag',lname,'none',0.,4.,0,itype)
       lname = 'Solar net at ground (+ve down)'
       call attrib(idnc,idim,3,'sgsave',lname,'W/m2',-500.,2000.,0,itype)
-      if (nsib==6.or.nsib==7) then
+      if ( nsib==6 .or. nsib==7 ) then
         call savetiledef(idnc,local,idim)
       end if
     endif  ! (itype==-1)
         
-    if (myid==0) write(6,*) 'finished defining attributes'
+    if ( myid==0 ) write(6,*) 'finished defining attributes'
 !   Leave define mode
     call ccnf_enddef(idnc)
-    if (myid==0) write(6,*) 'leave define mode'
+    if ( myid==0 ) write(6,*) 'leave define mode'
 
-    if(local)then
+    if ( local ) then
       ! Set these to global indices (relative to panel 0 in uniform decomp)
       do i=1,ipan
         xpnt(i) = float(i) + ioff
@@ -1352,7 +1331,7 @@ if(myid==0.or.local)then
     iduma(2)=ms
     call ccnf_put_vara(idnc,idms,iduma(1:1),iduma(2:2),zsoil)
         
-    if (abs(nmlo)>0.and.abs(nmlo)<=9) then
+    if ( abs(nmlo)>0 .and. abs(nmlo)<=9 ) then
       iduma(1)=1
       iduma(2)=wlev
       call ccnf_put_vara(idnc,idoc,iduma(1:1),iduma(2:2),gosig)
@@ -1364,7 +1343,7 @@ if(myid==0.or.local)then
     call ccnf_put_var1(idnc,idv,1,dt)
   endif ! iarch==1
 ! -----------------------------------------------------------      
-  if (myid==0) write(6,*) 'outcdf processing kdate,ktime,ktau,mtimer: ',kdate,ktime,ktau,mtimer
+  if ( myid==0 ) write(6,*) 'outcdf processing kdate,ktime,ktau,mtimer: ',kdate,ktime,ktau,mtimer
   call ccnf_sync(idnc)
 ! set time to number of minutes since start 
   call ccnf_inq_varid(idnc,'time',idv,tst)
@@ -1389,13 +1368,13 @@ if(myid==0.or.local)then
   idum=idum-max(abs(nstagin),1) ! should be -ve
   call ccnf_inq_varid(idnc,'nstagoff',idv,tst)
   call ccnf_put_var1(idnc,idv,iarch,idum)
-  if ((nmlo<0.and.nmlo>=-9).or.(nmlo>0.and.nmlo<=9.and.itype==-1)) then
+  if ( (nmlo<0.and.nmlo>=-9) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
     idum=mod(ktau-nstagoffmlo,max(2*mstagf,1))
     idum=idum-max(2*mstagf,1) ! should be -ve
     call ccnf_inq_varid(idnc,'nstagoffmlo',idv,tst)
     call ccnf_put_var1(idnc,idv,iarch,idum)
   end if
-  if (myid==0) then
+  if ( myid==0 ) then
     write(6,*) 'kdate,ktime,ktau=',kdate,ktime,ktau
     write(6,*) 'timer,timeg=',timer,timeg
     write(6,*) 'now write out variables'
@@ -1404,7 +1383,7 @@ if(myid==0.or.local)then
 endif ! myid == 0 .or. local
 
 ! Export ocean data
-if (nmlo/=0.and.abs(nmlo)<=9) then
+if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
   mlodwn(:,:,1:2)=999.
   mlodwn(:,:,3:4)=0.
   micdwn=999.
@@ -1420,7 +1399,7 @@ end if
 ! WRITE TIME-INVARIANT VARIABLES
 !**************************************************************
 
-if(ktau==0.or.itype==-1)then  ! also for restart file
+if ( ktau==0 .or. itype==-1 ) then  ! also for restart file
   call histwrt3(zs,'zht',idnc,iarch,local,.true.)
   call histwrt3(he,'he',idnc,iarch,local,.true.)
   call histwrt3(em,'map',idnc,iarch,local,.true.)
@@ -1430,7 +1409,7 @@ if(ktau==0.or.itype==-1)then  ! also for restart file
   call histwrt3(aa,'soilt',idnc,iarch,local,.true.)
   aa(:)=real(ivegt(:))
   call histwrt3(aa,'vegt',idnc,iarch,local,.true.)
-  if ((nmlo<0.and.nmlo>=-9).or.(nmlo>0.and.nmlo<=9.and.itype==-1)) then
+  if ( (nmlo<0.and.nmlo>=-9) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
     call histwrt3(ocndep,'ocndepth',idnc,iarch,local,.true.)
   end if
 endif ! (ktau==0.or.itype==-1) 
@@ -1441,7 +1420,7 @@ endif ! (ktau==0.or.itype==-1)
 
 ! BASIC -------------------------------------------------------
 lwrite=ktau>0
-if (nsib==6.or.nsib==7) then
+if ( nsib==6 .or. nsib==7 ) then
   call histwrt3(rsmin,'rs',idnc,iarch,local,lwrite)
 else if (ktau==0.or.itype==-1) then
   call histwrt3(rsmin,'rsmin',idnc,iarch,local,.true.)
@@ -1452,7 +1431,7 @@ tmpry=t(1:ifull,:)
 call mslp(aa,psl,zs,tmpry)
 aa=aa/100.
 call histwrt3(aa,'pmsl',idnc,iarch,local,.true.)
-if (nsib==6.or.nsib==7) then      
+if ( nsib==6 .or. nsib==7 ) then      
   call histwrt3(zo,'zolnd',idnc,iarch,local,lwrite)
 else
   call histwrt3(zo,'zolnd',idnc,iarch,local,.true.)
@@ -1475,7 +1454,7 @@ call histwrt3(aa,'alb',idnc,iarch,local,.true.)
 call histwrt3(fwet,'fwet',idnc,iarch,local,lwrite)
 
 ! MLO ---------------------------------------------------------      
-if (nmlo/=0) then
+if ( nmlo/=0 ) then
   ocnheight=min(max(ocnheight,-130.),130.)
   do k=1,ms
     where (.not.land)
@@ -1502,8 +1481,8 @@ call histwrt3(tgg(1,4),'tgg4',idnc,iarch,local,.true.)
 call histwrt3(tgg(1,5),'tgg5',idnc,iarch,local,.true.)
 call histwrt3(tgg(1,6),'tgg6',idnc,iarch,local,.true.)
       
-if (abs(nmlo)<=9) then
-  if (nmlo<0.or.(nmlo>0.and.itype==-1)) then
+if ( abs(nmlo)<=9 ) then
+  if ( nmlo<0 .or. (nmlo>0.and.itype==-1) ) then
     do k=ms+1,wlev
       write(vname,'("tgg",I2.2)') k
       call histwrt3(mlodwn(:,k,1),vname,idnc,iarch,local,.true.)
@@ -1527,7 +1506,7 @@ if (abs(nmlo)<=9) then
     call histwrt3(micdwn(:,9),'uic',idnc,iarch,local,.true.)
     call histwrt3(micdwn(:,10),'vic',idnc,iarch,local,.true.)
     call histwrt3(micdwn(:,11),'icesal',idnc,iarch,local,.true.)
-    if (abs(nmlo)>=2) then
+    if ( abs(nmlo)>=2 ) then
       call histwrt3(watbdy(1:ifull),'swater',idnc,iarch,local,.true.)
       call histwrt3(salbdy(1:ifull),'ssalin',idnc,iarch,local,.true.)
     end if
@@ -1559,7 +1538,7 @@ call histwrt3(fracice,'fracice',idnc,iarch,local,.true.)
 lwrite=ktau>0
 call histwrt3(u10,'u10',idnc,iarch,local,.true.)
       
-if(itype/=-1)then  ! these not written to restart file
+if ( itype/=-1 ) then  ! these not written to restart file
   aa=rndmax(:)*86400./dt ! scale up to mm/day
   call histwrt3(aa,'maxrnd',idnc,iarch,local,lday)
   call histwrt3(tmaxscr,'tmaxscr',idnc,iarch,local,lday)
@@ -1574,10 +1553,10 @@ if(itype/=-1)then  ! these not written to restart file
   call histwrt3(v1max,'v1max',idnc,iarch,local,lday)
   call histwrt3(u2max,'u2max',idnc,iarch,local,lday)
   call histwrt3(v2max,'v2max',idnc,iarch,local,lday)
-! if writes done more than once per day, 
-! needed to augment accumulated 3-hourly rainfall in rnd06 to rnd21 
-! to allow for intermediate zeroing of precip()
-! but not needed from 17/9/03 with introduction of rnd24
+  ! if writes done more than once per day, 
+  ! needed to augment accumulated 3-hourly rainfall in rnd06 to rnd21 
+  ! to allow for intermediate zeroing of precip()
+  ! but not needed from 17/9/03 with introduction of rnd24
   call histwrt3(rnd_3hr(1,1),'rnd03',idnc,iarch,local,lday)
   call histwrt3(rnd_3hr(1,2),'rnd06',idnc,iarch,local,lday)
   call histwrt3(rnd_3hr(1,3),'rnd09',idnc,iarch,local,lday)
@@ -1586,7 +1565,7 @@ if(itype/=-1)then  ! these not written to restart file
   call histwrt3(rnd_3hr(1,6),'rnd18',idnc,iarch,local,lday)
   call histwrt3(rnd_3hr(1,7),'rnd21',idnc,iarch,local,lday)
   call histwrt3(rnd_3hr(1,8),'rnd24',idnc,iarch,local,lday)
-  if(nextout>=2) then ! 6-hourly u10 & v10
+  if ( nextout>=2 ) then ! 6-hourly u10 & v10
     call histwrt3( u10_3hr(1,2), 'u10_06',idnc,iarch,local,lday)
     call histwrt3( v10_3hr(1,2), 'v10_06',idnc,iarch,local,lday)
     call histwrt3( u10_3hr(1,4), 'u10_12',idnc,iarch,local,lday)
@@ -1604,7 +1583,7 @@ if(itype/=-1)then  ! these not written to restart file
     call histwrt3( rh1_3hr(1,6), 'rh1_18',idnc,iarch,local,lday)
     call histwrt3( rh1_3hr(1,8), 'rh1_24',idnc,iarch,local,lday)
   endif  ! (nextout>=2)
-  if(nextout>=3) then  ! also 3-hourly u10 & v10
+  if ( nextout>=3 ) then  ! also 3-hourly u10 & v10
     call histwrt3(tscr_3hr(1,1),'tscr_03',idnc,iarch,local,lday)
     call histwrt3(tscr_3hr(1,3),'tscr_09',idnc,iarch,local,lday)
     call histwrt3(tscr_3hr(1,5),'tscr_15',idnc,iarch,local,lday)
@@ -1622,7 +1601,7 @@ if(itype/=-1)then  ! these not written to restart file
     call histwrt3( u10_3hr(1,7), 'u10_21',idnc,iarch,local,lday)
     call histwrt3( v10_3hr(1,7), 'v10_21',idnc,iarch,local,lday)
   endif  ! nextout>=3
-  if(nextout>=4.and.nllp==3) then  
+  if ( nextout>=4 .and. nllp==3 ) then  
     do k=1,klt
       do iq=1,ilt*jlt        
         tr(iq,k,ngas+1)=tr(iq,k,ngas+1)-rlatt(iq)*180./pi
@@ -1667,7 +1646,7 @@ if(itype/=-1)then  ! these not written to restart file
   call histwrt3(tsu_ave,'tsu_ave',idnc,iarch,local,lave)
   call histwrt3(alb_ave,'alb_ave',idnc,iarch,local,lrad)
   call histwrt3(psl_ave,'pmsl_ave',idnc,iarch,local,lave)
-  if (nmlo/=0) then
+  if ( nmlo/=0 ) then
     call histwrt3(mixdep_ave,'mixd_ave',idnc,iarch,local,lave)
   end if
   lwrite=ktau>0
@@ -1681,9 +1660,9 @@ if(itype/=-1)then  ! these not written to restart file
   call histwrt3(fg,'fg',idnc,iarch,local,lwrite)
   call histwrt3(taux,'taux',idnc,iarch,local,lwrite)
   call histwrt3(tauy,'tauy',idnc,iarch,local,lwrite)
-! "extra" outputs
-  if(nextout>=1) then
-    if(myid == 0 ) write(6,*) 'nextout, idnc: ',nextout,idnc
+  ! "extra" outputs
+  if ( nextout>=1 ) then
+    if( myid==0 ) write(6,*) 'nextout, idnc: ',nextout,idnc
     call histwrt3(rtu_ave,'rtu_ave',idnc,iarch,local,lrad)
     call histwrt3(rtc_ave,'rtc_ave',idnc,iarch,local,lrad)
     call histwrt3(rgdn_ave,'rgdn_ave',idnc,iarch,local,lrad)
@@ -1705,15 +1684,15 @@ if(itype/=-1)then  ! these not written to restart file
 endif    ! (ktau>0.and.itype/=-1)
       
 ! TURBULENT MIXING --------------------------------------------
-if (nextout>=1.or.(nvmix==6.and.itype==-1)) then
+if ( nextout>=1 .or. (nvmix==6.and.itype==-1) ) then
   call histwrt3(pblh,'pblh',idnc,iarch,local,.true.)
-  if (nvmix==6) then
+  if ( nvmix==6 ) then
     call histwrt3(zidry,'dpblh',idnc,iarch,local,.true.)
   end if
 end if
 
 ! AEROSOL OPTICAL DEPTH ---------------------------------------
-if (nextout>=1.and.abs(iaero)>=2.and.nrad==5) then
+if ( nextout>=1 .and. abs(iaero)>=2 .and. nrad==5 ) then
   lwrite=ktau>0
   call histwrt3(opticaldepth(:,1,1),'sdust_vis',idnc,iarch,local,lwrite)
   call histwrt3(opticaldepth(:,1,2),'sdust_nir',idnc,iarch,local,lwrite)
@@ -1781,9 +1760,9 @@ if (nextout>=1.and.abs(iaero)>=2.and.nrad==5) then
 end if
 
 ! CABLE -------------------------------------------------------
-if (nsib==6.or.nsib==7) then
-  if (nextout>=1.or.itype==-1) then
-    if (ccycle==0) then
+if ( nsib==6 .or. nsib==7 ) then
+  if ( nextout>=1 .or. itype==-1 ) then
+    if ( ccycle==0 ) then
       call histwrt3(cplant(:,1),'cplant1',idnc,iarch,local,.true.)
       call histwrt3(cplant(:,2),'cplant2',idnc,iarch,local,.true.)
       call histwrt3(cplant(:,3),'cplant3',idnc,iarch,local,.true.)
@@ -1818,7 +1797,7 @@ if (nsib==6.or.nsib==7) then
       call histwrt3(glai,'glai',idnc,iarch,local,lwrite)
     end if
   end if
-  if (nextout>=1.and.itype/=-1) then
+  if ( nextout>=1 .and. itype/=-1 ) then
     aa=fpn_ave+frp_ave+frs_ave
     call histwrt3(aa,'fnee_ave',idnc,iarch,local,lave)
     call histwrt3(fpn_ave,'fpn_ave',idnc,iarch,local,lave)
@@ -1828,7 +1807,7 @@ if (nsib==6.or.nsib==7) then
 endif   
 
 ! URBAN -------------------------------------------------------
-if (nurban<=-1.or.(nurban>=1.and.itype==-1)) then
+if ( nurban<=-1 .or. (nurban>=1.and.itype==-1) ) then
   atebdwn(:,:)=999. ! must be the same as spval in onthefly.f
   call atebsave(atebdwn,0)
   call histwrt3(atebdwn(:,1),'rooftgg1',idnc,iarch,local,.true.)
@@ -1862,7 +1841,7 @@ end if
 ! **************************************************************
 
 ! ATMOSPHERE DYNAMICS ------------------------------------------
-if(myid == 0 ) write(6,*) 'netcdf save of 3d variables'
+if( myid==0 ) write(6,*) 'netcdf save of 3d variables'
 lwrite=ktau>0
 call histwrt4(t,'temp',idnc,iarch,local,.true.)
 call histwrt4(u,'u',idnc,iarch,local,.true.)
@@ -1879,28 +1858,28 @@ lwrite=(mod(ktau,nperavg)==0.or.ktau==ntau).and.ktau>0
 call histwrt4(convh_ave,'convh_ave',idnc,iarch,local,lwrite)
       
 ! MICROPHYSICS ------------------------------------------------
-if(ldr/=0)then
+if ( ldr/=0 ) then
   call histwrt4(qfg,'qfg',idnc,iarch,local,.true.)
   call histwrt4(qlg,'qlg',idnc,iarch,local,.true.)
   call histwrt4(qrg,'qrg',idnc,iarch,local,.true.)
   call histwrt4(cfrac,'cfrac',idnc,iarch,local,.true.)
   call histwrt4(cffall,'cfrain',idnc,iarch,local,.true.)
-  if (ncloud>=3) then
+  if ( ncloud>=3 ) then
     call histwrt4(stratcloud,'stratcf',idnc,iarch,local,.true.)  
-    if (itype==-1) then
+    if ( itype==-1 ) then
       call histwrt4(nettend,'strat_nt',idnc,iarch,local,.true.)
     end if
   end if
 endif
       
 ! TURBULENT MIXING --------------------------------------------
-if (nvmix==6.and.(nextout>=1.or.itype==-1))then
+if ( nvmix==6 .and. (nextout>=1.or.itype==-1) ) then
   call histwrt4(tke,'tke',idnc,iarch,local,.true.)
   call histwrt4(eps,'eps',idnc,iarch,local,.true.)
 end if
 
 ! TRACERS -----------------------------------------------------
-if(ngas>0)then 
+if ( ngas>0 ) then 
   do igas=1,ngas
     write(trnum,'(i3.3)') igas
     tmpry=tr(1:ilt*jlt,:,igas)+trback_g(igas)
@@ -1908,7 +1887,7 @@ if(ngas>0)then
     tmpry=traver(:,:,igas)+trback_g(igas)
     call histwrt4(tmpry,'trav'//trnum,idnc,iarch,local,lave)
     ! rml 14/5/10 option to write out local time afternoon average
-    if (writetrpm) then
+    if ( writetrpm ) then
       ! first divide by number of contributions to average
       do k=1,klt
         trpm(1:ifull,k,igas) = trpm(1:ifull,k,igas)/float(npm)
@@ -1918,14 +1897,14 @@ if(ngas>0)then
     endif
   enddo ! igas loop
   ! reset arrays
-  if (writetrpm) then
+  if ( writetrpm ) then
     trpm = 0.
     npm = 0.
   endif
 endif  ! (ngasc>0)
 
 ! AEROSOLS ----------------------------------------------------
-if (iaero<=-2.or.(iaero>=2.and.itype==-1)) then
+if ( iaero<=-2 .or. (iaero>=2.and.itype==-1) ) then
   call histwrt4(xtg(:,:,1),'dms',idnc,iarch,local,.true.)
   call histwrt4(xtg(:,:,2),'so2',idnc,iarch,local,.true.)
   call histwrt4(xtg(:,:,3),'so4',idnc,iarch,local,.true.)
@@ -1950,7 +1929,7 @@ end if
 ! RESTART ONLY DATA
 !**************************************************************
 
-if(itype==-1)then
+if ( itype==-1 ) then
   call histwrt4(phi_nh,'zgnhs',idnc,iarch,local,.true.)
   call histwrt4(sdot(:,2:),'sdot',idnc,iarch,local,.true.)
   call histwrt4(pslx,'pslx',idnc,iarch,local,.true.)
@@ -1979,7 +1958,7 @@ if(itype==-1)then
   call histwrt3(wbice(1,4),'wbice4',idnc,iarch,local,.true.)
   call histwrt3(wbice(1,5),'wbice5',idnc,iarch,local,.true.)
   call histwrt3(wbice(1,6),'wbice6',idnc,iarch,local,.true.)
-  if (nmlo==0) then ! otherwise already written above
+  if ( nmlo==0 ) then ! otherwise already written above
     call histwrt3(tggsn(1,1),'tggsn1',idnc,iarch,local,.true.)
     call histwrt3(tggsn(1,2),'tggsn2',idnc,iarch,local,.true.)
     call histwrt3(tggsn(1,3),'tggsn3',idnc,iarch,local,.true.)
@@ -1994,7 +1973,7 @@ if(itype==-1)then
   aa(:)=isflag(:)
   call histwrt3(aa,'sflag',idnc,iarch,local,.true.)
   call histwrt3(sgsave,'sgsave',idnc,iarch,local,.true.)       
-  if (nsib==6.or.nsib==7) then
+  if ( nsib==6 .or. nsib==7 ) then
     call savetile(idnc,local,iarch)
   end if
 endif  ! (itype==-1)
@@ -2037,26 +2016,26 @@ integer, parameter :: freqvars = 5  ! number of variables to write
 integer, parameter :: nihead   = 54
 integer, parameter :: nrhead   = 14
 integer, dimension(nihead) :: nahead
-integer, dimension(nwt) :: datedat
+integer, dimension(1) :: datedat
 integer, dimension(4) :: adim
 integer, dimension(3) :: sdim
 integer, dimension(1) :: start,ncount
 integer, dimension(2) :: iduma
 integer ierr,ixp,iyp,izp,old_mode
-integer icy,icm,icd,ich,icmi,ics,ti
+integer icy,icm,icd,ich,icmi,ics
 integer i,j,n,fiarch
 integer, save :: fncid = -1
 integer, save :: idnt = 0
 integer, save :: idkdate = 0
 integer, save :: idktime = 0
 integer, save :: idmtimer = 0
-real, dimension(:,:,:), allocatable, save :: freqstore
-real, dimension(ifull) :: uas,vas,umag
+real, dimension(ifull) :: freqstore
+real, dimension(ifull) :: umag
 real, dimension(il_g) :: xpnt
 real, dimension(jl_g) :: ypnt
 real, dimension(1) :: zpnt
 real, dimension(nrhead) :: ahead
-real(kind=8), dimension(nwt) :: tpnt
+real(kind=8), dimension(1) :: tpnt
 logical, save :: first = .true.
 character(len=180) :: ffile
 character(len=40) :: lname
@@ -2066,22 +2045,20 @@ character(len=20) :: timorg
 call START_LOG(outfile_begin)
 
 ! allocate arrays and open new file
-if (first) then
-  if (myid==0) then
-    write(6,*) "Initialise high frequency output"
-  end if
+if ( first ) then
+  if ( myid==0 ) write(6,*) "Initialise high frequency output"
   allocate(freqstore(ifull,nwt,freqvars))
-  if (localhist) then
+  if ( localhist ) then
     write(ffile,"(a,'.',i6.6)") trim(surfile), myid
   else
     ffile=surfile
   end if
-  if (myid==0.or.localhist) then
+  if ( myid==0 .or. localhist ) then
     call ccnf_create(ffile,fncid)
     ! Turn off the data filling
     call ccnf_nofill(fncid)
     ! Create dimensions
-    if (localhist) then
+    if ( localhist ) then
       call ccnf_def_dim(fncid,'longitude',il,adim(1))
       call ccnf_def_dim(fncid,'latitude',jl,adim(2))
     else
@@ -2114,7 +2091,7 @@ if (first) then
     call ccnf_put_att(fncid,idnt,'time_origin',20,timorg)
     write(grdtim,'("seconds since ",i4.4,"-",i2.2,"-",i2.2," ",2(i2.2,":"),i2.2)') icy,icm,icd,ich,icmi,ics
     call ccnf_put_att(fncid,idnt,'units',33,grdtim)
-    if (leap==0) then
+    if ( leap==0 ) then
       call ccnf_put_att(fncid,idnt,'calendar',6,'noleap')
     end if
     call ccnf_def_var(fncid,'kdate','int',1,adim(4:4),idkdate)
@@ -2191,7 +2168,7 @@ if (first) then
     nahead(54)=nt_adv
     call ccnf_put_attg(fncid,'real_header',nrhead,ahead)
     call ccnf_put_attg(fncid,'int_header',nihead,nahead)
-    if(localhist)then
+    if ( localhist ) then
       call ccnf_put_attg(fncid,'processor_num',myid)
       call ccnf_put_attg(fncid,'nproc',nproc)
 #ifdef uniform_decomp
@@ -2216,7 +2193,7 @@ if (first) then
 
     ! end definition mode
     call ccnf_enddef(fncid)
-    if (localhist) then
+    if ( localhist ) then
       ! Set these to global indices (relative to panel 0 in uniform decomp)
       do i=1,ipan
         xpnt(i) = float(i) + ioff
@@ -2254,61 +2231,44 @@ if (first) then
     call ccnf_put_vara(fncid,izp,iduma(1:1),iduma(2:2),zpnt)
   end if
   first=.false.
-  if (myid==0) then
-    write(6,*) "Finished initialising high frequency output"
-  end if
+  if ( myid==0 ) write(6,*) "Finished initialising high frequency output"
 end if
-      
-! store output
-ti=mod(ktau,nwt)
-if (ti==0) ti=nwt
-umag=sqrt(u(1:ifull,1)*u(1:ifull,1)+v(1:ifull,1)*v(1:ifull,1))
-uas=u10*u(1:ifull,1)/max(umag,1.E-6)
-vas=u10*v(1:ifull,1)/max(umag,1.E-6)
-freqstore(:,ti,1)=uas
-freqstore(:,ti,2)=vas
-freqstore(:,ti,3)=tscrn
-freqstore(:,ti,4)=condx*86400./dt
-freqstore(:,ti,5)=conds*86400./dt
 
-! wtite data to file
-if (mod(ktau,nwt)==0) then
-  if (myid==0.or.localhist) then
-    if (myid==0) then
-      write(6,*) "Write high frequency output"
-    end if
+! write data to file
+
+if ( myid==0 .or. localhist ) then
+  if ( mod(ktau,nwt)==0 ) then
+    if ( myid==0 ) write(6,*) "Write high frequency output"
     call ccnf_sync(fncid)
-    fiarch=ktau-nwt+1
-    start(1)=fiarch
-    ncount(1)=nwt
-    do i=1,nwt
-      tpnt(i)=real(ktau-nwt+i,8)*real(dt,8)
-    end do
-    call ccnf_put_vara(fncid,idnt,start,ncount,tpnt)
-    do i=1,nwt
-      datedat(i)=kdate
-    end do
-    call ccnf_put_vara(fncid,idkdate,start,ncount,datedat)
-    do i=1,nwt
-      datedat(i)=ktime
-    end do
-    call ccnf_put_vara(fncid,idktime,start,ncount,datedat)
-    do i=1,nwt
-      datedat(i)=mtimer+nint(real(i-nwt)*dt/60.)
-    end do
-    call ccnf_put_vara(fncid,idmtimer,start,ncount,datedat)
   end if
-      
-  call freqwrite(fncid,'uas',fiarch,nwt,localhist,freqstore(:,:,1))
-  call freqwrite(fncid,'vas',fiarch,nwt,localhist,freqstore(:,:,2))
-  call freqwrite(fncid,'tscrn',fiarch,nwt,localhist,freqstore(:,:,3))
-  call freqwrite(fncid,'rnd',fiarch,nwt,localhist,freqstore(:,:,4))
-  call freqwrite(fncid,'sno',fiarch,nwt,localhist,freqstore(:,:,5))
+  fiarch=ktau
+  start(1)=fiarch
+  ncount(1)=1
+  tpnt(1)=real(ktau,8)*real(dt,8)
+  call ccnf_put_vara(fncid,idnt,start,ncount,tpnt)
+  datedat(1)=kdate
+  call ccnf_put_vara(fncid,idkdate,start,ncount,datedat)
+  datedat(1)=ktime
+  call ccnf_put_vara(fncid,idktime,start,ncount,datedat)
+  datedat(1)=mtimer
+  call ccnf_put_vara(fncid,idmtimer,start,ncount,datedat)
+
+  ! store output
+  umag=sqrt(u(1:ifull,1)*u(1:ifull,1)+v(1:ifull,1)*v(1:ifull,1))
+  freqstore=u10*u(1:ifull,1)/max(umag,1.E-6)
+  call freqwrite(fncid,'uas',  fiarch,localhist,freqstore)
+  freqstore=u10*v(1:ifull,1)/max(umag,1.E-6)
+  call freqwrite(fncid,'vas',  fiarch,localhist,freqstore)
+  call freqwrite(fncid,'tscrn',fiarch,localhist,tscrn)
+  freqstore=condx*86400./dt
+  call freqwrite(fncid,'rnd',  fiarch,localhist,freqstore)
+  freqstore=conds*86400./dt
+  call freqwrite(fncid,'sno',  fiarch,localhist,freqstore)
 end if
      
 ! close file at end of run
-if (myid==0.or.localhist) then
-  if (ktau==ntau) then
+if ( myid==0 .or. localhist ) then
+  if ( ktau==ntau ) then
     call ccnf_close(fncid)
   end if
 end if

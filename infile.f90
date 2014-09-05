@@ -104,19 +104,20 @@ character(len=*) name
 real, dimension(:), intent(inout) :: var ! may be dummy argument from myid/=0
 
 if ( ifull/=6*ik*ik .and. ptest ) then
-  ! read local arrays without gather and distribute
+  ! read local arrays without gather and distribute (e.g., restart file)
   call hr1p(iarchi,ier,name,.true.,var)
   if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then
     write(6,'("done histrd1 ",a8,i4,i3)') name,ier,iarchi
   end if
 
 else if ( myid==0 ) then
+  ! read global arrays for myid==0 (possibly distribute or possibly keep on myid==0)
   ! split up processors to save memory.  No need to allocate global
   ! arrays on myid/=0.
   call hr1a(iarchi,ier,name,ik,var,ifull)
 
 else if ( ifull/=6*ik*ik ) then
-  ! read local arrays with gather and distribute
+  ! read local arrays with gather and distribute (i.e., change in number of processors)
   call hr1p(iarchi,ier,name,.false.)
   call ccmpi_distribute(var)
 
@@ -835,13 +836,13 @@ real, dimension(:), allocatable, save :: wta, wtb
       
 if ( kk==kl ) then
   if ( all(abs(sig-sigin)<0.0001) ) then
-     t(1:ifull,1:kl)=told(:,:)
-     return
-   end if
+    t(1:ifull,1:kl)=told(:,:)
+    return
+  end if
 end if
 
 if ( kk_save/=kk ) then
-  if (allocated(sigin_save)) then
+  if ( allocated(sigin_save) ) then
     deallocate(sigin_save)
   end if
   allocate(sigin_save(kk))
@@ -1214,24 +1215,24 @@ include 'newmpar.h'     ! Grid parameters
 
 integer, intent(in) :: idnc, iarch
 real, dimension(ifull), intent(in) :: var
-real, dimension(ifull,1) :: wvar
+real, dimension(ifull) :: wvar
 character(len=*), intent(in) :: sname
 logical, intent(in) :: local, lwrite
 
 if (.not.lwrite) then
 #ifdef usenc3
-  wvar(:,1)=real(nf_fill_float)
+  wvar(:)=real(nf_fill_float)
 #else
-  wvar(:,1)=real(nf90_fill_float)
+  wvar(:)=real(nf90_fill_float)
 #endif
 else
-  wvar(:,1)=var(:)
+  wvar(:)=var(:)
 end if
 
 if ( local ) then
-  call fw3l(wvar,sname,idnc,iarch,1)
+  call fw3l(wvar,sname,idnc,iarch)
 else if ( myid==0 ) then
-  call fw3a(wvar,sname,idnc,iarch,1)
+  call fw3a(wvar,sname,idnc,iarch)
 else
   call ccmpi_gather(wvar)
 end if
@@ -1239,7 +1240,7 @@ end if
 return
 end subroutine histwrt3
 
-subroutine freqwrite(fncid,cname,fiarch,istep,local,datain)
+subroutine freqwrite(fncid,cname,fiarch,local,datain)
 
 use cc_mpi               ! CC MPI routines
       
@@ -1247,15 +1248,15 @@ implicit none
       
 include 'newmpar.h'      ! Grid parameters
       
-integer, intent(in) :: fncid, fiarch, istep
-real, dimension(ifull,istep), intent(in) :: datain
+integer, intent(in) :: fncid, fiarch
+real, dimension(ifull), intent(in) :: datain
 logical, intent(in) :: local
 character(len=*), intent(in) :: cname
       
 if ( local ) then
-  call fw3l(datain,cname,fncid,fiarch,istep)
+  call fw3l(datain,cname,fncid,fiarch)
 elseif ( myid==0 ) then
-  call fw3a(datain,cname,fncid,fiarch,istep)
+  call fw3a(datain,cname,fncid,fiarch)
 else
   call ccmpi_gather(datain)
 endif
@@ -1263,7 +1264,7 @@ endif
 return
 end subroutine freqwrite
 
-subroutine fw3l(var,sname,idnc,iarch,istep)
+subroutine fw3l(var,sname,idnc,iarch)
 
 use cc_mpi               ! CC MPI routines
       
@@ -1272,17 +1273,17 @@ implicit none
 include 'newmpar.h'      ! Grid parameters
 include 'parm.h'         ! Model configuration
       
-integer, intent(in) :: idnc, iarch, istep
+integer, intent(in) :: idnc, iarch
 integer ier, iq, i
 integer(kind=4) :: lidnc, mid, vtype
 integer(kind=4), dimension(3) :: start, ncount
-integer(kind=2), dimension(ifull,istep) :: ipack
-real, dimension(ifull,istep), intent(in) :: var
+integer(kind=2), dimension(ifull) :: ipack
+real, dimension(ifull), intent(in) :: var
 real(kind=4) laddoff, lscale_f
 character(len=*), intent(in) :: sname
 
 start = (/ 1, 1, iarch /)
-ncount = (/ il, jl, istep /)
+ncount = (/ il, jl, 1 /)
 
 lidnc=idnc
 #ifdef usenc3
@@ -1295,11 +1296,7 @@ if( vtype==nf_short )then
   else
     ier=nf_get_att_real(lidnc,mid,'add_offset',laddoff)
     ier=nf_get_att_real(lidnc,mid,'scale_factor',lscale_f)
-    do i=1,istep
-      do iq=1,ifull
-        ipack(iq,i)=nint(max(min((var(iq,i)-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
-      end do
-    end do
+    ipack=nint(max(min((var-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
   end if
   ier=nf_put_vara_int2(lidnc,mid,start,ncount,ipack)
 else
@@ -1327,11 +1324,7 @@ if( vtype==nf90_short )then
   else
     ier=nf90_get_att(lidnc,mid,'add_offset',laddoff)
     ier=nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
-    do i=1,istep
-      do iq=1,ifull
-        ipack(iq,i)=nint(max(min((var(iq,i)-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
-      end do
-    end do
+    ipack=nint(max(min((var-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
   end if
   ier=nf90_put_var(lidnc,mid,ipack,start=start,count=ncount)
 else
@@ -1350,7 +1343,7 @@ end if
 return
 end subroutine fw3l
       
-subroutine fw3a(var,sname,idnc,iarch,istep)
+subroutine fw3a(var,sname,idnc,iarch)
 
 use cc_mpi               ! CC MPI routines
 
@@ -1359,13 +1352,13 @@ implicit none
 include 'newmpar.h'      ! Grid parameters
 include 'parm.h'         ! Model configuration
 
-integer, intent(in) :: idnc, iarch, istep
+integer, intent(in) :: idnc, iarch
 integer ier, imn, imx, jmn, jmx, iq, i
 integer(kind=4) lidnc, mid, vtype
 integer(kind=4), dimension(3) :: start, ncount
-integer(kind=2), dimension(ifull_g,istep) :: ipack
-real, dimension(ifull,istep), intent(in) :: var
-real, dimension(ifull_g,istep) :: globvar
+integer(kind=2), dimension(ifull_g) :: ipack
+real, dimension(ifull), intent(in) :: var
+real, dimension(ifull_g) :: globvar
 real varn, varx
 real(kind=4) laddoff, lscale_f
 character(len=*), intent(in) :: sname
@@ -1373,7 +1366,7 @@ character(len=*), intent(in) :: sname
 call ccmpi_gather(var, globvar)
 
 start = (/ 1, 1, iarch /)
-ncount = (/ il_g, jl_g, istep /)
+ncount = (/ il_g, jl_g, 1 /)
 
 !     find variable index
 lidnc=idnc
@@ -1387,11 +1380,7 @@ if ( vtype==nf_short ) then
   else
     ier=nf_get_att_real(lidnc,mid,'add_offset',laddoff)
     ier=nf_get_att_real(lidnc,mid,'scale_factor',lscale_f)
-    do i=1,istep
-      do iq=1,ifull_g
-        ipack(iq,i)=nint(max(min((globvar(iq,i)-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
-      end do
-    end do
+    ipack=nint(max(min((globvar-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
   endif
   ier=nf_put_vara_int2(lidnc,mid,start,ncount,ipack)
 else
@@ -1412,11 +1401,7 @@ if ( vtype==nf90_short ) then
   else
     ier=nf90_get_att(lidnc,mid,'add_offset',laddoff)
     ier=nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
-    do i=1,istep
-      do iq=1,ifull_g
-        ipack(iq,i)=nint(max(min((globvar(iq,i)-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
-      end do
-    end do
+    ipack=nint(max(min((globvar-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
   endif
   ier=nf90_put_var(lidnc,mid,ipack,start=start,count=ncount)
 else
@@ -1433,21 +1418,21 @@ if ( mod(ktau,nmaxpr)==0 ) then
 #endif
     write(6,'("histwrt3 ",a7,i4,a7)') sname,iarch,"missing"
   else
-    varn = minval(globvar(:,1))
-    varx = maxval(globvar(:,1))
+    varn = minval(globvar(:))
+    varx = maxval(globvar(:))
     ! This should work ???? but sum trick is more portable???
     ! iq = minloc(globvar,dim=1)
-    iq = sum(minloc(globvar(:,1)))
+    iq = sum(minloc(globvar(:)))
     ! Convert this 1D index to 2D
     imn = 1 + modulo(iq-1,il_g)
     jmn = 1 + (iq-1)/il_g
-    iq = sum(maxloc(globvar(:,1)))
+    iq = sum(maxloc(globvar(:)))
     ! Convert this 1D index to 2D
     imx = 1 + modulo(iq-1,il_g)
     jmx = 1 + (iq-1)/il_g
     write(6,'("histwrt3 ",a7,i4,f12.4,2i4,f12.4,2i4,f12.4)') &
                    sname,iarch,varn,imn,jmn,varx,imx,jmx,    &
-                   globvar(id+(jd-1)*il_g,1)
+                   globvar(id+(jd-1)*il_g)
   end if
 endif
 
