@@ -1,6 +1,6 @@
 module outcdf
     
-! CCAM netcdf output routines
+! CCAM netCDF output routines
 
 ! itype=1     write outfile history file (compressed)
 ! itype=-1    write restart file (uncompressed)
@@ -89,29 +89,31 @@ if(nrungcm==-2.or.nrungcm==-3.or.nrungcm==-5)then
 endif    ! (nrungcm.eq.-2.or.nrungcm.eq.-3.or.nrungcm.eq.-5)
 
 !---------------------------------------------------------------------------
-select case(io_out)
-  case(1)
-    if ( myid==0 ) write(6,*) 'calling outcdf from outfile'
-    call cdfout(rundate,1,nstagin)
-  case(3)
-    write(6,*) 'Error, history binary output not supported'
-    call ccmpi_abort(-1)
-  case(19)
-    select case(io_rest)  
-      case(1)  ! for netcdf          
-        if ( myid==0 ) write(6,*) 'restart write of data to netcdf'
-        call cdfout(rundate,-1,nstagin)
-      case(3)
-        write(6,*) 'Error, restart binary output not supported'
-        call ccmpi_abort(-1)
-    end select
-end select
+if ( iout==19 ) then
+  select case(io_rest)  
+    case(1)  ! for netCDF 
+      if ( myid==0 ) write(6,*) 'restart write of data to netCDF'
+      call cdfout(rundate,-1,nstagin)
+    case(3)
+      write(6,*) 'Error, restart binary output not supported'
+      call ccmpi_abort(-1)
+  end select
+else
+  select case(io_out)
+    case(1)
+      if ( myid==0 ) write(6,*) 'calling outcdf from outfile'
+      call cdfout(rundate,1,nstagin)
+    case(3)
+      write(6,*) 'Error, history binary output not supported'
+      call ccmpi_abort(-1)
+  end select
+end if
 
 call END_LOG(outfile_end)
       
 return
 end subroutine outfile
-    
+
     
 !--------------------------------------------------------------
 ! CONFIGURE DIMENSIONS FOR OUTPUT NETCDF FILES
@@ -251,7 +253,7 @@ if ( myid==0 .or. localhist ) then
     icy=kdate/10000
     icm=max(1,min(12,(kdate-icy*10000)/100))
     icd=max(1,min(31,(kdate-icy*10000-icm*100)))
-    if(icy<100)icy=icy+1900
+    if ( icy<100 ) icy=icy+1900
     ich=ktime/100
     icmi=(ktime-ich*100)
     ics=0
@@ -259,10 +261,10 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_att(idnc,idnt,'time_origin',20,timorg)
     write(grdtim,'("minutes since ",i4.4,"-",i2.2,"-",i2.2," ",2(i2.2,":"),i2.2)') icy,icm,icd,ich,icmi,ics
     call ccnf_put_att(idnc,idnt,'units',33,grdtim)
-    if (leap==0) then
+    if ( leap==0 ) then
       call ccnf_put_att(idnc,idnt,'calendar',6,'noleap')
     end if
-    if (myid==0) then
+    if ( myid==0 ) then
       write(6,*) 'timorg=',timorg
       write(6,*) 'grdtim=',grdtim
     end if
@@ -336,7 +338,7 @@ if ( myid==0 .or. localhist ) then
     ahead(12)=vmodmin
     ahead(13)=av_vmod
     ahead(14)=epsp
-    if (myid==0) then
+    if ( myid==0 ) then
       write(6,'("nahead=",(20i4))') nahead
       write(6,*) "ahead=",ahead
     end if
@@ -355,7 +357,7 @@ call openhist(iarch,itype,dim,localhist,idnc,nstagin,ixp,iyp,idlev,idnt,idms,ido
 
 if ( myid==0 .or. localhist ) then
   if ( ktau==ntau ) then
-    if ( myid==0 ) write(6,*) "closing netcdf file idnc=",idnc      
+    if ( myid==0 ) write(6,*) "closing netCDF file idnc=",idnc      
     call ccnf_close(idnc)
   endif
 endif    ! (myid==0.or.local)
@@ -1345,7 +1347,7 @@ if( myid==0 .or. local ) then
 ! -----------------------------------------------------------      
   if ( myid==0 ) write(6,*) 'outcdf processing kdate,ktime,ktau,mtimer: ',kdate,ktime,ktau,mtimer
   call ccnf_sync(idnc)
-! set time to number of minutes since start 
+  ! set time to number of minutes since start 
   call ccnf_inq_varid(idnc,'time',idv,tst)
   call ccnf_put_var1(idnc,idv,iarch,real(mtimer))
   call ccnf_inq_varid(idnc,'timer',idv,tst)
@@ -1841,7 +1843,7 @@ end if
 ! **************************************************************
 
 ! ATMOSPHERE DYNAMICS ------------------------------------------
-if( myid==0 ) write(6,*) 'netcdf save of 3d variables'
+if( myid==0 ) write(6,*) 'netCDF save of 3d variables'
 lwrite=ktau>0
 call histwrt4(t,'temp',idnc,iarch,local,.true.)
 call histwrt4(u,'u',idnc,iarch,local,.true.)
@@ -1984,8 +1986,6 @@ end subroutine openhist
 !--------------------------------------------------------------
 ! HIGH FREQUENCY OUTPUT FILES
       
-! Here we buffer high frequency output.  However, it may be
-! unnecessary if the netcdf library also buffers the output
 subroutine freqfile
 
 use arrays_m                          ! Atmosphere dyamics prognostic arrays
@@ -2023,7 +2023,7 @@ integer, dimension(1) :: start,ncount
 integer, dimension(2) :: iduma
 integer ierr,ixp,iyp,izp,old_mode
 integer icy,icm,icd,ich,icmi,ics
-integer i,j,n,fiarch
+integer i,j,n
 integer, save :: fncid = -1
 integer, save :: idnt = 0
 integer, save :: idkdate = 0
@@ -2240,8 +2240,7 @@ if ( myid==0 .or. localhist ) then
     if ( myid==0 ) write(6,*) "Write high frequency output"
     call ccnf_sync(fncid)
   end if
-  fiarch=ktau
-  start(1)=fiarch
+  start(1)=ktau
   ncount(1)=1
   tpnt(1)=real(ktau,8)*real(dt,8)
   call ccnf_put_vara(fncid,idnt,start,ncount,tpnt)
@@ -2255,14 +2254,14 @@ if ( myid==0 .or. localhist ) then
   ! store output
   umag=sqrt(u(1:ifull,1)*u(1:ifull,1)+v(1:ifull,1)*v(1:ifull,1))
   freqstore=u10*u(1:ifull,1)/max(umag,1.E-6)
-  call freqwrite(fncid,'uas',  fiarch,localhist,freqstore)
+  call freqwrite(fncid,'uas',  ktau,localhist,freqstore)
   freqstore=u10*v(1:ifull,1)/max(umag,1.E-6)
-  call freqwrite(fncid,'vas',  fiarch,localhist,freqstore)
-  call freqwrite(fncid,'tscrn',fiarch,localhist,tscrn)
+  call freqwrite(fncid,'vas',  ktau,localhist,freqstore)
+  call freqwrite(fncid,'tscrn',ktau,localhist,tscrn)
   freqstore=condx*86400./dt
-  call freqwrite(fncid,'rnd',  fiarch,localhist,freqstore)
+  call freqwrite(fncid,'rnd',  ktau,localhist,freqstore)
   freqstore=conds*86400./dt
-  call freqwrite(fncid,'sno',  fiarch,localhist,freqstore)
+  call freqwrite(fncid,'sno',  ktau,localhist,freqstore)
 end if
      
 ! close file at end of run
