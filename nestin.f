@@ -371,19 +371,6 @@
       real, dimension(ifull,kl) :: dumv
       real, dimension(ifull,3) :: dums
  
-      ! allocate arrays on first call     
-      if (.not.allocated(tb)) then
-        allocate(tb(ifull,kl),ub(ifull,kl),vb(ifull,kl),qb(ifull,kl))
-        allocate(pslb(ifull),tssb(ifull),fraciceb(ifull))
-        allocate(sicedepb(ifull),ocndep(ifull,2))
-        allocate(sssb(ifull,wlev,4))
-        allocate(xtghostb(ifull,kl,naero))
-        if (nud_uv/=9) then
-          ! initialise arrays for 1D filter
-          call specinit
-        end if
-      end if
-
 !     mtimer, mtimeb are in minutes
       if(ktau<100.and.myid==0)then
         write(6,*) 'in nestinb ktau,mtimer,mtimeb,io_in ',
@@ -394,6 +381,19 @@
       ! Load new host data to be ready for next call to filter
       if (mtimer>mtimeb) then
 
+        ! allocate arrays on first call     
+        if (.not.allocated(tb)) then
+          allocate(tb(ifull,kl),ub(ifull,kl),vb(ifull,kl),qb(ifull,kl))
+          allocate(pslb(ifull),tssb(ifull),fraciceb(ifull))
+          allocate(sicedepb(ifull),ocndep(ifull,2))
+          allocate(sssb(ifull,wlev,4))
+          allocate(xtghostb(ifull,kl,naero))
+          if (nud_uv/=9) then
+            ! initialise arrays for 1D filter
+            call specinit
+          end if
+        end if
+          
 !       following (till end of subr) reads in next bunch of data in readiness
 !       read tb etc  - for globpea, straight into tb etc
         if (abs(io_in)==1) then
@@ -481,7 +481,7 @@
         end if
 
         ! specify sea-ice if not AMIP or Mixed-Layer-Ocean
-        if(namip==0) then  ! namip SSTs/sea-ice take precedence
+        if (namip==0) then  ! namip SSTs/sea-ice take precedence
           if (nmlo==0) then
 !           following sice updating code copied from nestin June '08      
 !           check whether present ice points should change to/from sice points

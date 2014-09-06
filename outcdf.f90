@@ -2047,7 +2047,6 @@ call START_LOG(outfile_begin)
 ! allocate arrays and open new file
 if ( first ) then
   if ( myid==0 ) write(6,*) "Initialise high frequency output"
-  allocate(freqstore(ifull,nwt,freqvars))
   if ( localhist ) then
     write(ffile,"(a,'.',i6.6)") trim(surfile), myid
   else
