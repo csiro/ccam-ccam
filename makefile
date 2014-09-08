@@ -99,6 +99,10 @@ sumdd_m.o: sumdd_m.f90
 	$(FC) -c -fp-model precise $(FFLAGS) $<
 stacklimit.o: stacklimit.c
 	cc -c stacklimit.c
+version.h: FORCE
+	echo "      character(len=*), parameter :: version ='CCAM r`svnversion .`'" > tmpver
+	grep exported tmpver || cmp tmpver version.h || mv tmpver version.h
+FORCE:
 
 
 .f90.o:
