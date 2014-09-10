@@ -15,7 +15,7 @@ public itracbc,bce,bcdd,bcwd
 public itracoc,oce,ocdd,ocwd
 public itracso2,dmse,dmsso2o,so2e,so2so4o,so2dd,so2wd,so4e,so4dd,so4wd
 public dms_burden,so2_burden,so4_burden
-public Ch_dust,zvolcemi,ticeu
+public Ch_dust,zvolcemi,ticeu,dzmin_gbl
 
 integer, save :: ifull,kl
 integer, save :: jk2,jk3,jk4,jk5,jk6,jk8,jk9           ! levels for injection
@@ -91,6 +91,7 @@ real, parameter :: rhos      = 100.             ! Assumed density of snow in kg/
 ! emission constants
 real, save :: Ch_dust        = 1.e-9            ! Transfer coeff for type natural source (kg*s2/m5)
 real, save :: zvolcemi       = 8.               ! Total emission from volcanoes (TgS/yr)
+real, save :: dzmin_gbl      = 5.               ! nominal minimum dz for settling (m)
 
 ! scavenging constants
 real, parameter :: ticeu     = 263.16           ! Temperature for freezing in convective updraft
@@ -464,7 +465,7 @@ end subroutine aldrcalc
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! xt emiss
 
-SUBROUTINE XTEMISS(ztmst, rhoa, TSM1M, SEAICEM, G3X01,                           & !Inputs
+SUBROUTINE XTEMISS(ztmst, rhoa, TSM1M, SEAICEM, ZZSPEED,                         & !Inputs
                    LOLAND, PFOREST, PSNOW, fwet, WSM1M, dz,                      & !Inputs
                    XTE, PXTEMS, bbem)                                              !Outputs
 !
@@ -491,7 +492,7 @@ REAL, intent(in) :: ztmst                           !Timestep [s]
 REAL, dimension(ifull,kl), intent(in) :: rhoa       !Density of air
 real, dimension(ifull), intent(in) :: TSM1M         !Surface temp
 real, dimension(ifull), intent(in) :: SEAICEM       !Sea-ice fraction
-real, dimension(ifull), intent(in) :: G3X01         !10m wind (corrected to neutral for Nightingale scheme)
+real, dimension(ifull), intent(in) :: ZZSPEED       !10m wind (corrected to neutral for Nightingale scheme)
 real, dimension(ifull,kl), intent(in) :: dz         ! layer thickness [m]
 LOGICAL, dimension(ifull), intent(in) :: LOLAND     !Land flag
 REAL, dimension(ifull), intent(in) :: PFOREST       !Fractional vegetation cover
@@ -504,16 +505,18 @@ REAL, dimension(ifull,naero), intent(out) :: PXTEMS !Sfc. flux of tracer passed 
 ! Some diagnostics
 real, dimension(ifull), intent(out) :: bbem
 
-real zdmscon,ZSST,ZZSPEED,VpCO2,VpCO2liss
-real wtliss,ScDMS,zVdms,ddt
+real ddt
 integer jl,jk,jt,nstep,ii
 
 REAL, dimension(ifull,2) :: ZVDRD
-REAL, dimension(ifull) :: ZMAXVDRY,gdp,zdmsemiss,pxtm1new
+REAL, dimension(ifull) :: gdp,zdmsemiss,pxtm1new
 real, dimension(ifull) :: zhilbco,zhilbcy,zhiloco,zhilocy
 real, dimension(ifull) :: zhilso2,zhilso4
+!real, dimension(ifull) :: ZMAXVDRY
+real, dimension(ifull) :: zdmscon, ZSST, ScDMS, zVdms, wtliss
+real, dimension(ifull) :: VpCO2, VpCO2liss
+real, dimension(ifull) :: zvd2ice,zvd4ice,zvd2nof,zvd4nof
 real zvolcemi1,zvolcemi2,zvolcemi3
-real zvd2ice,zvd4ice,zvd2nof,zvd4nof
 
 !     M WATER EQUIVALENT  CRITICAL SNOW HEIGHT (FROM *SURF*)
 real, parameter :: ZSNCRI = 0.025
@@ -544,37 +547,31 @@ xte(:,:,:)=0.
 !
 !   CALCULATE DMS EMISSIONS FOLLOWING LISS+MERLIVAT
 !   DMS SEAWATER CONC. FROM KETTLE ET AL.
-DO JL=1,ifull
-  IF (LOLAND(JL)) THEN
-    !zdmsemiss(jl)=emissfield(jl,idmst) !kg/m2/s
-    zdmsemiss(jl)=(1./1.938)*emissfield(jl,idmst) !kgS/m2/s
-  ELSE
-    ! Reduce the effective DMS concentration more strongly at seaice points, since the flux should
-    ! probably depend on wave breaking (e.g., Erickson, JGR, 1993; Woolf, Tellus B, 2005),
-    ! which will be much reduced over leads.
-    ZDMSCON=EMISSFIELD(JL,idmso)*(1.-SEAICEM(JL))**2
-    ZSST=min(TSM1M(JL)-273.15, 45.)   ! Even Saltzman Sc formula has trouble over 45 deg C
-    ! The formula for ScDMS from Saltzman et al (1993) is given by Kettle & Andreae (ref below)
-    ScDMS = 2674. - 147.12*ZSST + 3.726*ZSST**2 - 0.038*ZSST**3 !Sc for DMS (Saltzman et al.)
-    !  G3X01:  10-M WINDS
-    ZZSPEED=G3X01(JL)
-    ! Nightingale (2000) scheme (J. Biogeochem. Cycles, 14, 373-387)
-    ! For this scheme, zzspeed is the 10m wind adjusted to neutral stability.
-    VpCO2 = a_vpco2*ZZSPEED**2 + b_vpco2*ZZSPEED !Nightingale et al
-    if ( ZZSPEED<3.6 ) then
-      zVdms = VpCO2 * (ScCO2/ScDMS)**(2./3.)
-    else
-      ! Phase in Liss & Merlivat from 13 to 18 m/s, since Nightingale is doubtful for high windspeeds,
-      ! due to limited data.
-      VpCO2liss=5.9*ZZSPEED-49.3
-      wtliss=min(max((zzspeed-13.)/5.,0.),1.)
-      VpCO2=wtliss*VpCO2liss+(1.-wtliss)*VpCO2        
-      zVdms = VpCO2 * sqrt(ScCO2/ScDMS)
-    end if
-    ZDMSEMISS(jl)=ZDMSCON*ZVDMS*32.06e-11/3600.
-    ! NANOMOL/LTR*CM/HOUR --> KG/M**2/SEC
-  END IF
-end do
+ZDMSCON=EMISSFIELD(:,idmso)*(1.-SEAICEM(:))**2
+ZSST=min(TSM1M(:)-273.15, 45.)   ! Even Saltzman Sc formula has trouble over 45 deg C
+! The formula for ScDMS from Saltzman et al (1993) is given by Kettle & Andreae (ref below)
+ScDMS = 2674. - 147.12*ZSST + 3.726*ZSST**2 - 0.038*ZSST**3 !Sc for DMS (Saltzman et al.)
+! Nightingale (2000) scheme (J. Biogeochem. Cycles, 14, 373-387)
+! For this scheme, zzspeed is the 10m wind adjusted to neutral stability.
+VpCO2 = a_vpco2*zzspeed*zzspeed + b_vpco2*zzspeed !Nightingale et al
+!  ZZSPEED:  10-M WINDS
+where ( ZZSPEED<3.6 )
+  zVdms = VpCO2 * (ScCO2/ScDMS)**(2./3.)
+elsewhere
+  ! Phase in Liss & Merlivat from 13 to 18 m/s, since Nightingale is doubtful for high windspeeds,
+  ! due to limited data.
+  VpCO2liss=5.9*ZZSPEED-49.3
+  wtliss=min(max((zzspeed-13.)/5.,0.),1.)
+  VpCO2=wtliss*VpCO2liss+(1.-wtliss)*VpCO2        
+  zVdms = VpCO2 * sqrt(ScCO2/ScDMS)
+end where
+where (loland)
+  !zdmsemiss(:)=emissfield(:,idmst) !kg/m2/s
+  zdmsemiss(:)=(1./1.938)*emissfield(:,idmst) !kgS/m2/s
+elsewhere
+  ZDMSEMISS(:)=ZDMSCON*ZVDMS*32.06e-11/3600.
+  ! NANOMOL/LTR*CM/HOUR --> KG/M**2/SEC
+end where
 gdp(:)=1./(rhoa(:,1)*dz(:,1))
 xte(:,1,itracso2-1)=xte(:,1,itracso2-1)+zdmsemiss(:)*gdp
 
@@ -697,62 +694,50 @@ end do
 !
 !*      2.    DRY DEPOSITION.
 !             --- ----------
-ZMAXVDRY(:)=dz(:,1)/ZTMST
 
 !      DRY DEPOSITION OF SO2, SO4
-do jl=1,ifull
-!     -  SEA -
-  IF(.NOT.LOLAND(JL)) THEN
-!         - SEA ICE -
+
 !           - MELTING/NOT MELTING SEAICE-
-    IF(TSM1M(JL)>=(TMELT-0.1)) THEN
-      ZVD2ICE=0.8E-2
-      ZVD4ICE=0.2E-2
-    ELSE
-      ZVD2ICE=0.1E-2
-      ZVD4ICE=0.025E-2
-    ENDIF
-    ZVDRD(JL,1)=(1.-SEAICEM(JL))*0.8E-2+SEAICEM(JL)*ZVD2ICE !So leads agree with ocean
-    ZVDRD(JL,2)=(1.-SEAICEM(JL))*0.2E-2+SEAICEM(JL)*ZVD4ICE
-  ELSE
-!      - LAND -
-!        - NON-FOREST AREAS -
+where ( tsm1m>=(tmelt-0.1) )
+  zvd2ice = 0.8E-2
+  zvd4ice = 0.2E-2
+elsewhere
+  zvd2ice = 0.1E-2
+  zvd4ice = 0.025E-2
+end where
+
 !         -  SNOW/NO SNOW -
-    IF(PSNOW(JL)>ZSNCRI) THEN
+where ( PSNOW>ZSNCRI .and. tsm1m>=tmelt )
 !            - MELTING/NOT MELTING SNOW -
-      if(tsm1m(jl)>=tmelt) then !This is a simplification of above line
-        ZVD2NOF=0.8E-2
-        ZVD4NOF=0.2E-2
-      ELSE
-        ZVD2NOF=0.1E-2
-        ZVD4NOF=0.025E-2
-      ENDIF
-    ELSE
-      IF(TSM1M(JL)<=TMELT) THEN
+  ZVD2NOF=0.8E-2
+  ZVD4NOF=0.2E-2
+elsewhere ( PSNOW>ZSNCRI )
+  ZVD2NOF=0.1E-2
+  ZVD4NOF=0.025E-2
+elsewhere ( tsm1m<=tmelt )
 !           -  FROZEN SOIL -
-        ZVD2NOF=0.2E-2
-        ZVD4NOF=0.025E-2
-      ELSE IF(fwet(JL)>=0.01.OR.WSM1M(JL)==1.) THEN
-!               - COMPLETELY WET -
-        ZVD2NOF=0.8E-2
-        ZVD4NOF=0.2E-2
-      ELSE IF(WSM1M(JL)<0.9) THEN
-!                  - DRY -          
-        ZVD2NOF=0.2E-2
-        ZVD4NOF=0.025E-2
-      ELSE
-!                  - PARTLY WET -
-        ZVD2NOF=ZVWC2*WSM1M(JL)-ZVW02
-        ZVD4NOF=ZVWC4*WSM1M(JL)-ZVW04
-      ENDIF
-    ENDIF
-    ZVDRD(JL,1)=PFOREST(JL)*0.8E-2+(1.-PFOREST(JL))*ZVD2NOF
-    ZVDRD(JL,2)=PFOREST(JL)*0.2E-2+(1.-PFOREST(JL))*ZVD4NOF
-  ENDIF
-  ! Apply lower and upper bounds.
-  ZVDRD(JL,1)=AMIN1(ZVDRD(JL,1),ZMAXVDRY(JL)) !SO2
-  ZVDRD(JL,2)=AMIN1(ZVDRD(JL,2),ZMAXVDRY(JL)) !aerosols
-end do
+  ZVD2NOF=0.2E-2
+  ZVD4NOF=0.025E-2
+elsewhere
+!           - PARTLY WET -
+  ZVD2NOF=max(min(ZVWC2*WSM1M-ZVW02,0.8E-2),0.2E-2)
+  ZVD4NOF=max(min(ZVWC4*WSM1M-ZVW04,0.2E-2),0.025E-2)
+end where
+    
+!     -  SEA -
+where (.NOT.LOLAND)
+!         - SEA ICE -
+  ZVDRD(:,1)=(1.-SEAICEM(:))*0.8E-2+SEAICEM(:)*ZVD2ICE(:) !So leads agree with ocean
+  ZVDRD(:,2)=(1.-SEAICEM(:))*0.2E-2+SEAICEM(:)*ZVD4ICE(:)
+elsewhere
+!      - LAND -
+  ZVDRD(:,1)=PFOREST(:)*0.8E-2+(1.-PFOREST(:))*ZVD2NOF(:)
+  ZVDRD(:,2)=PFOREST(:)*0.2E-2+(1.-PFOREST(:))*ZVD4NOF(:)
+end where
+! Apply lower and upper bounds.
+!ZMAXVDRY(:)=dz(:,1)/ZTMST
+!ZVDRD(:,1)=AMIN1(ZVDRD(:,1),ZMAXVDRY(:)) !SO2
+!ZVDRD(:,2)=AMIN1(ZVDRD(:,2),ZMAXVDRY(:)) !aerosols
 
 ! Sulfur emission diagnostic (hard-coded for 3 sulfur variables)
 do jk=1,kl
@@ -1028,10 +1013,11 @@ real zso2ev(ifull,kl)
 real xto(ifull,kl,naero),zx(ifull)
 integer ZRDAYL(ifull)
 real, dimension(ifull), intent(in) :: zdayfac
+real, dimension(ifull) :: zxtp1
 real x,pqtmst
 real zlwcl,zlwcv,zhp,zqtp1,zrk,zrke
 real zh_so2,zpfac,zp_so2,zf_so2,zp_h2o2
-real zf_h2o2,zxtp1,ze1,ze2,ze3,zfac1,zrkfac
+real zf_h2o2,ze1,ze2,ze3,zfac1,zrkfac
 real zza,za21,za22,zph_o3,zf_o3,zdt
 real zh2o2m,zso2m,zso4m,zsumh2o2,zsumo3
 real zh_h2o2,zq,zso2mh,zdso2h,zso2l,zso4l
@@ -1042,9 +1028,8 @@ real zhil,zexp,zm,zdms,t,ztk1,tk3,zqt,zqt3
 real zrhoair,zkno2o3,zkn2o5aq,zrx1,zrx2
 real zkno2no3,zeqn2o5,ztk3,ztk2,zkn2o5
 real zno3,zxtp1so2
-integer jt,jk,jl,js1,js2,js3,js4,jn,niter
+integer jt,jk,jl,js1,js2,js3,js4,jn
 
-integer, parameter :: nfastox=0 !1 for "fast" in-cloud oxidation; 0 for "slow"
 real, parameter :: zmin=1.e-20
 
 !    REACTION RATE SO2-OH
@@ -1105,11 +1090,6 @@ xto=max(0.,xto)
 
 !    CONSTANTS
 PQTMST=1./PTMST
-if(nfastox==0)then
-   NITER=5  !Slow in-cloud oxidation
-else 
-   NITER=1  !Fast
-endif
 
 ! Calculate in-cloud ql
 where ( pclcover(:,:)>1.e-8 )
@@ -1175,10 +1155,10 @@ end do
 !   HETEROGENEOUS CHEMISTRY
 DO JK=KTOP,kl
   DO JL=1,ifull
-    ZXTP1=XTO(JL,JK,ITRACSO2)
+    ZXTP1(jl)=XTO(JL,JK,ITRACSO2)
     ZXTP10(JL,JK)=XTO(JL,JK,ITRACSO2)
     ZXTP1C(JL,JK)=XTO(JL,JK,ITRACSO2)
-    IF(ZXTP1>ZMIN.AND.ZLWCIC(JL,JK)>ZMIN) THEN
+    IF(ZXTP1(jl)>ZMIN.AND.ZLWCIC(JL,JK)>ZMIN) THEN
       X=PRHOP1(JL,JK)
 
       ZQTP1=1./PTP1(JL,JK)-ZQ298
@@ -1199,19 +1179,18 @@ DO JK=KTOP,kl
       ZA22=2.56E+03*EXP(-966./PTP1(JL,JK)) !926 corrected to 966 here
       ZPH_O3=ZE1*ZRKFAC
       ZF_O3=ZPH_O3/(1.+ZPH_O3)
-      ZDT=PTMST/FLOAT(NITER)
+      ZDT=PTMST/5.
 
       ZH2O2M=ZZH2O2(JL,JK)
-      ZSO2M=ZXTP1*XTOC(X,ZMOLGS)
+      ZSO2M=ZXTP1(jl)*XTOC(X,ZMOLGS)
       ZSO4M=ZSO4(JL,JK)*XTOC(X,ZMOLGS)
 
       ZSUMH2O2=0.
       ZSUMO3=0.
 
-      DO JN=1,NITER
+      DO JN=1,5
         ZQ=ZRKH2O2(JL,JK)*ZH2O2M
-        ZSO2MH=(1-nfastox)*ZSO2M*EXP(-ZQ*ZDT) & ! = zero if nfastox==1
-               +nfastox * max (0., zso2m - zh2o2m )
+        ZSO2MH=ZSO2M*EXP(-ZQ*ZDT)
 
         ZDSO2H=ZSO2M-ZSO2MH
         ZH2O2M=ZH2O2M-ZDSO2H
@@ -1245,9 +1224,9 @@ DO JK=KTOP,kl
         ZSUMO3=ZSUMO3+ZDSO2O
       end do  !End of iteration loop
 
-      ZDSO2TOT=ZXTP1-ZSO2M*CTOX(X,ZMOLGS)
-      ZDSO2TOT=AMIN1(ZDSO2TOT,ZXTP1)
-      ZXTP1C(JL,JK)=ZXTP1-ZDSO2TOT
+      ZDSO2TOT=ZXTP1(jl)-ZSO2M*CTOX(X,ZMOLGS)
+      ZDSO2TOT=AMIN1(ZDSO2TOT,ZXTP1(jl))
+      ZXTP1C(JL,JK)=ZXTP1(jl)-ZDSO2TOT
       ZSO4(JL,JK)=ZSO4(JL,JK)+ZDSO2TOT
 
       ZHENRY(JL,JK)=ZF_SO2
@@ -1299,8 +1278,8 @@ ZSO4i=amax1(XTO(:,:,ITRACSO2+1),0.)
 !***      JT=ITRACSO2
 !***      DO JK=KTOP,KLEV
 !***       DO JL=1,KLON
-!***        ZXTP1=XTO(JL,JK,JT)
-!***        IF(ZXTP1.GT.ZMIN.AND.ziwcic(JL,JK).GT.ZMIN) THEN
+!***        ZXTP1(jl)=XTO(JL,JK,JT)
+!***        IF(ZXTP1(jl)>ZMIN.AND.ziwcic(JL,JK)>ZMIN) THEN
 !***          X=PRHOP1(JL,JK)
 !***C
 !***            ZQTP1=1./PTP1(JL,JK)-ZQ298
@@ -1321,19 +1300,18 @@ ZSO4i=amax1(XTO(:,:,ITRACSO2+1),0.)
 !***            ZA22=2.56E+03*EXP(-966./PTP1(JL,JK)) !926 corrected to 966 here
 !***            ZPH_O3=ZE1*ZRKFAC
 !***            ZF_O3=ZPH_O3/(1.+ZPH_O3)
-!***            ZDT=PTMST/FLOAT(NITER)
+!***            ZDT=PTMST/5.
 !***C
 !***            ZH2O2M=ZZH2O2(JL,JK)
-!***            ZSO2M=ZXTP1*XTOC(X,ZMOLGS)
+!***            ZSO2M=ZXTP1(jl)*XTOC(X,ZMOLGS)
 !***            ZSO4M=ZSO4i(JL,JK)*XTOC(X,ZMOLGS)
 !***C
 !***            ZSUMH2O2=0.
 !***            ZSUMO3=0.
 !***C
-!***             DO JN=1,NITER
+!***             DO JN=1,5
 !***              ZQ=ZRKH2O2(JL,JK)*ZH2O2M
-!***              ZSO2MH=(1-nfastox)*ZSO2M*EXP(-ZQ*ZDT) ! = zero if nfastox.eq.1
-!***     &                +nfastox * max (0., zso2m - zh2o2m )
+!***              ZSO2MH=ZSO2M*EXP(-ZQ*ZDT)
 !***C
 !***              ZDSO2H=ZSO2M-ZSO2MH
 !***              ZH2O2M=ZH2O2M-ZDSO2H
@@ -1368,10 +1346,10 @@ ZSO4i=amax1(XTO(:,:,ITRACSO2+1),0.)
 !***              ZSUMO3=ZSUMO3+ZDSO2O
 !***            ENDDO  !End of iteration loop
 !***C
-!***            ZDSO2TOT=ZXTP1-ZSO2M*CTOX(X,ZMOLGS)
-!***            ZDSO2TOT=AMIN1(ZDSO2TOT,ZXTP1)
+!***            ZDSO2TOT=ZXTP1(jl)-ZSO2M*CTOX(X,ZMOLGS)
+!***            ZDSO2TOT=AMIN1(ZDSO2TOT,ZXTP1(jl))
 !***
-!***            ZXTP10(JL,JK)=ZXTP1-ZDSO2TOT
+!***            ZXTP10(JL,JK)=ZXTP1(jl)-ZDSO2TOT
 !***     &                   *pcfcover(jl,jk)/(1.-pclcover(jl,jk))
 !***            ZSO4i(JL,JK)=ZSO4i(JL,JK)+ZDSO2TOT
 !***     &                   *pcfcover(jl,jk)/(1.-pclcover(jl,jk))
@@ -1423,8 +1401,8 @@ ENDDO
 !   HETEROGENEOUS CHEMISTRY
 DO JK=KTOP,kl
   DO JL=1,ifull
-    ZXTP1=XTU(JL,JK,ITRACSO2)
-    IF(ZXTP1>ZMIN.AND.PCCW(JL,JK)>ZMIN) THEN
+    ZXTP1(jl)=XTU(JL,JK,ITRACSO2)
+    IF(ZXTP1(jl)>ZMIN.AND.PCCW(JL,JK)>ZMIN) THEN
       X=PRHOP1(JL,JK)
 
       ZQTP1=1./PTP1(JL,JK)-ZQ298
@@ -1445,18 +1423,18 @@ DO JK=KTOP,kl
       ZA22=2.56E+03*EXP(-966./PTP1(JL,JK)) !926 corrected to 966 here
       ZPH_O3=ZE1*ZRKFAC
       ZF_O3=ZPH_O3/(1.+ZPH_O3)
-      ZDT=PTMST/FLOAT(NITER)
+      ZDT=PTMST/5.
 
       ZH2O2M=ZZH2O2(JL,JK)
-      ZSO2M=ZXTP1*XTOC(X,ZMOLGS)
+      ZSO2M=ZXTP1(jl)*XTOC(X,ZMOLGS)
       ZSO4M=ZSO4C(JL,JK)*XTOC(X,ZMOLGS)
 
       ZSUMH2O2=0.
       ZSUMO3=0.
 
-      DO JN=1,NITER
+      DO JN=1,5
         ZQ=ZRKH2O2(JL,JK)*ZH2O2M
-        ZSO2MH=(1.-nfastox)*ZSO2M*EXP(-ZQ*ZDT)+nfastox*max(0.,zso2m-zh2o2m) ! = zero if nfastox==1
+        ZSO2MH=ZSO2M*EXP(-ZQ*ZDT)
 
         ZDSO2H=ZSO2M-ZSO2MH
         ZH2O2M=ZH2O2M-ZDSO2H
@@ -1490,8 +1468,8 @@ DO JK=KTOP,kl
         ZSUMO3=ZSUMO3+ZDSO2O
       ENDDO  !End of iteration loop
 
-      ZDSO2TOT=ZXTP1-ZSO2M*CTOX(X,ZMOLGS)
-      ZDSO2TOT=AMIN1(ZDSO2TOT,ZXTP1)
+      ZDSO2TOT=ZXTP1(jl)-ZSO2M*CTOX(X,ZMOLGS)
+      ZDSO2TOT=AMIN1(ZDSO2TOT,ZXTP1(jl))
       ZXTP1CON(JL,JK)=ZXTP1CON(JL,JK)-ZDSO2TOT
       ZSO4C(JL,JK)=ZSO4C(JL,JK)+ZDSO2TOT
       ZHENRYC(JL,JK)=ZF_SO2
@@ -1553,14 +1531,12 @@ DO JT=ITRACSO2,naero
                  ZXTP10, ZXTP1C,ZDEP3D,conwd,zxtp1con)
 
 !   CALCULATE NEW CHEMISTRY AND SCAVENGING TENDENCIES
-  DO JK=KTOP,kl
-    DO JL=1,ifull
-      ZXTP1=(1.-pclcover(jl,jk)-pclcon(jl,jk))*ZXTP10(JL,JK)+ &
-             PCLCOVER(JL,JK)*ZXTP1C(JL,JK)+                   &
-             pclcon(jl,jk)*zxtp1con(jl,jk)
-      zxtp1=max(zxtp1,0.)
-      ZDXTE(JL,JK,JT)=(ZXTP1-XTM1(JL,JK,JT))*PQTMST  !Total tendency (Dep + chem)
-    end do
+  do JK=KTOP,kl
+    ZXTP1=(1.-pclcover(:,jk)-pclcon(:,jk))*ZXTP10(:,JK)+ &
+             PCLCOVER(:,JK)*ZXTP1C(:,JK)+                &
+             pclcon(:,jk)*zxtp1con(:,jk)
+    zxtp1=max(zxtp1,0.)
+    ZDXTE(:,JK,JT)=(ZXTP1-XTM1(:,JK,JT))*PQTMST  !Total tendency (Dep + chem)
   end do
 
 ! Note that wd as coded here includes the below-cloud convective scavenging/evaporation
@@ -1971,11 +1947,10 @@ real, dimension(ifull,kl), intent(in) :: prf    !Pressure (hPa)
 
 ! Local work arrays and variables
 real, dimension(ifull) :: dcol1, dcol2
-real, dimension(kl) :: vd_cor
-real dzmin,dtmax,vsettl,dt_settl
-real pres,c_stokes,corr
-real c_cun
-integer n,k,l,iq,ndt_settl
+real, dimension(ifull) :: c_stokes, corr, c_cun
+real, dimension(ifull,kl) :: vd_cor
+real dtmax,vsettl,dt_settl
+integer n,k,l,ndt_settl
 
 real, parameter :: dyn_visc = 1.5E-5
 
@@ -1989,61 +1964,53 @@ do n=itracdu,itracdu+ndust-1
   enddo
 enddo
 
-! MJT notes - need to calculate dzmin for each iq gridpoint as
-! otherwise the answer changes with different numbers of processors
+do k = 1, NDUST
+  ! Settling velocity (m/s) for each soil classes (Stokes Law)
+  ! DUSTDEN     soil class density             (kg/m3)
+  ! DUSTREFF    effective radius of soil class (m)
+  ! dyn_visc    dynamic viscosity              (kg/m2/s)
+  ! grav        gravity                        (m/s2)
+  ! 0.5         upper limit with temp correction (already incorporated with dzmin_gbl - MJT)
+  !vsettl = 2./9. * grav * DUSTDEN(k) * DUSTREFF(k)**2 / (0.5*dyn_visc)
+  vsettl = 2./9. * grav * DUSTDEN(k) * DUSTREFF(k)**2 / dyn_visc
 
-do iq=1,ifull
+  ! Determine the maximum time-step satisying the CFL condition:
+  ! dt <= (dz)_min / v_settl
+  dtmax = dzmin_gbl / vsettl
+  ndt_settl = max(1, int( tdt/dtmax ) )
+  dt_settl = tdt/real(ndt_settl)
 
-  dzmin = delz(iq,1) ! MJT suggestion, as delz(:,1) < delz(:,2:kl)    
+  ! Solve the bidiagonal matrix (l,l)
+  do n = 1, ndt_settl
 
-  do k = 1, NDUST
-    ! Settling velocity (m/s) for each soil classes (Stokes Law)
-    ! DUSTDEN     soil class density             (kg/m3)
-    ! DUSTREFF    effective radius of soil class (m)
-    ! dyn_visc    dynamic viscosity              (kg/m2/s)
-    ! grav        gravity                        (m/s2)
-    ! 0.5         upper limit with temp correction
-    vsettl = 2./9. * grav * DUSTDEN(k) * DUSTREFF(k)**2 / (0.5*dyn_visc)
+    ! Solve at the model top
+    ! Dynamic viscosity
+    C_Stokes = 1.458E-6 * TMP(1:ifull,kl)**1.5/(TMP(1:ifull,kl)+110.4) 
+    ! Cuningham correction
+    Corr = 6.6E-8*prf(:,kl)/1013.*TMP(1:ifull,kl)/293.15
+    C_Cun = 1. + 1.249*corr/dustreff(k)
+    ! Settling velocity
+    Vd_cor(:,kl) =2./9.*grav*dustden(k)*dustreff(k)**2/C_Stokes*C_Cun
+    ! Update mixing ratio
+    xtg(1:ifull,kl,k+itracdu-1) = xtg(1:ifull,kl,k+itracdu-1) / (1. + dt_settl*VD_cor(:,kl)/DELZ(:,kl))
 
-    ! Determine the maximum time-step satisying the CFL condition:
-    ! dt <= (dz)_min / v_settl
-    dtmax = dzmin / vsettl
-    ndt_settl = max(1, int( tdt /dtmax ) )
-
-
-    ! Solve the bidiagonal matrix (l,l)
-    dt_settl = tdt / real(ndt_settl)
-    do n = 1, ndt_settl
-
-      ! Solve at the model top
+    ! Solve each vertical layer successively (layer l)
+    do l = kl-1,1,-1
       ! Dynamic viscosity
-      C_Stokes = 1.458E-6 * TMP(iq,kl)**1.5/(TMP(iq,kl)+110.4) 
+      C_Stokes = 1.458E-6*TMP(1:ifull,l)**1.5/(TMP(1:ifull,l)+110.4) 
       ! Cuningham correction
-      Corr = 6.6E-8*prf(iq,kl)/1013.*TMP(iq,kl)/293.15
+      Corr = 6.6E-8*prf(:,l)/1013.*TMP(1:ifull,l)/293.15
       C_Cun = 1. + 1.249*corr/dustreff(k)
       ! Settling velocity
-      Vd_cor(kl) =2./9.*grav*dustden(k)*dustreff(k)**2/C_Stokes*C_Cun
+      Vd_cor(:,l) = 2./9.*grav*dustden(k)*dustreff(k)*dustreff(k)/C_Stokes*C_Cun
       ! Update mixing ratio
-      xtg(iq,kl,k+itracdu-1) = xtg(iq,kl,k+itracdu-1) / (1. + dt_settl*VD_cor(kl)/DELZ(iq,kl))
-
-      ! Solve each vertical layer successively (layer l)
-      do l = kl-1,1,-1
-        ! Dynamic viscosity
-        C_Stokes = 1.458E-6*TMP(iq,l)**1.5/(TMP(iq,l)+110.4) 
-        ! Cuningham correction
-        Corr = 6.6E-8*prf(iq,l)/1013.*TMP(iq,l)/293.15
-        C_Cun = 1. + 1.249*corr/dustreff(k)
-        ! Settling velocity
-        Vd_cor(l) = 2./9.*grav*dustden(k)*dustreff(k)*dustreff(k)/C_Stokes*C_Cun
-        ! Update mixing ratio
-        xtg(iq,l,k+itracdu-1) = 1./(1. + dt_settl*Vd_cor(l)/DELZ(iq,l))                          &
-            *(xtg(iq,l,k+itracdu-1) + dt_settl*Vd_cor(l+1)/DELZ(iq,l)*xtg(iq,l+1,k+itracdu-1)    &
-             *rhoa(iq,l+1)/rhoa(iq,l))  ! MJT suggestion
-      end do
+      xtg(1:ifull,l,k+itracdu-1) = 1./(1. + dt_settl*Vd_cor(:,l)/DELZ(:,l))                               &
+          *(xtg(1:ifull,l,k+itracdu-1) + dt_settl*Vd_cor(:,l+1)/DELZ(:,l)*xtg(1:ifull,l+1,k+itracdu-1)    &
+          *rhoa(:,l+1)/rhoa(:,l))  ! MJT suggestion
     end do
   end do
 end do
-  
+
 ! Calculate integrated column dust after settling
 dcol2 = 0.
 do n=itracdu,itracdu+ndust-1
@@ -2101,6 +2068,9 @@ airden = rhoa*1.e-3
 !hsnow = snowd*0.01 !Geometrical snow thickness in metres
 snowa = min( 1., snowd/5. )
 
+nstep=int(tdt/120.01)+1
+ddt=tdt/real(nstep)
+
 do n = 1, ndust
   ! Threshold velocity as a function of the dust density and the diameter
   ! from Bagnold (1941)
@@ -2145,8 +2115,6 @@ do n = 1, ndust
 ! Write in form dx/dt = a - bx (a = source term, b = drydep term)
   xold = xtg(1:ifull,1,n+itracdu-1)
   
-  nstep=int(tdt/120.01)+1
-  ddt=tdt/real(nstep)
   do ii=1,nstep
     xtg(1:ifull,1,n+itracdu-1) = (xtg(1:ifull,1,n+itracdu-1)*(1.-0.5*b*ddt)+a*ddt)/(1.+0.5*b*ddt)
     xtg(1:ifull,1,n+itracdu-1) = max( 0., xtg(1:ifull,1,n+itracdu-1) )
@@ -2223,10 +2191,9 @@ real, dimension(ifull), intent(in) :: fracice  !Sea-ice fraction
 real, dimension(ifull,kl), intent(in) :: zmid  !Height of full level (m)
 real, dimension(ifull), intent(in) :: pblh     !PBL height (m)
 real, dimension(ifull), intent(in) :: v10m     !10m windpseed, including effect of sub-grid gustiness (m/s)
-
-real Veff
-
-integer k,mg
+real, dimension(ifull) :: Veff
+real, dimension(ifull,2) :: ssn_base
+integer k
 
 ! Calculate number and mass concentration of seasalt within the marine BL.
 ! Set seasalt conc. to zero elsewhere.
@@ -2239,39 +2206,30 @@ integer k,mg
 !             Jones et al. (2001) JGR 106, 20293-20310.
 !             Nilsson et al. (2001) JGR 106, 32139-32154.
 
-
+! Jones et al. give different windspeed relations for v10m < 2, 2 <= v10m <= 17.5,
+! and v10m > 17.5, but let's apply the middle one everywhere, since a min. windspeed 
+! of 2 m/s seems reasonable, and the model gives few points with v10m > 17.5.
+Veff=max(2.,v10m)
+ssn_base(:,1)=10.**(0.0950*Veff+6.2830) 
+ssn_base(:,2)=10.**(0.0422*Veff+5.7122) 
 
 ! Number-to-mass conversion factors are derived from the parameters of the two
 ! lognormal modes given by Nilsson, together with rhosalt=2.0e3 kg/m3.
-do mg=1,ifull
-  if (.not.land(mg)) then
-    ! Jones et al. give different windspeed relations for v10m < 2, 2 <= v10m <= 17.5,
-    ! and v10m > 17.5, but let's apply the middle one everywhere, since a min. windspeed 
-    ! of 2 m/s seems reasonable, and the model gives few points with v10m > 17.5.
-    Veff=max(2.,v10m(mg))
-
-    ssn(mg,1,1)=10.**(0.0950*Veff+6.2830) 
-    ssn(mg,1,2)=10.**(0.0422*Veff+5.7122)  
-    do k=2,kl
-      if (zmid(mg,k)<pblh(mg)) then
-        ssn(mg,k,1)=ssn(mg,1,1)
-        ssn(mg,k,2)=ssn(mg,1,2)
-      else
-        ssn(mg,k,1)=1.e7*exp(-zmid(mg,k)/3000.)
-        ssn(mg,k,2)=1.e6*exp(-zmid(mg,k)/1500.)
-      end if
-    end do
-  else
-    ssn(mg,:,1)=0.
-    ssn(mg,:,2)=0.
-  end if
-end do
-
-! Reduce over sea ice...
 do k=1,kl
+  where ( .not.land .and. zmid(:,k)<pblh )
+    ssn(:,k,1) = ssn_base(:,1)
+    ssn(:,k,2) = ssn_base(:,2)
+  elsewhere ( .not.land )
+    ssn(:,k,1) = 1.e7*exp(-zmid(:,k)/3000.)
+    ssn(:,k,2) = 1.e6*exp(-zmid(:,k)/1500.)
+  elsewhere
+    ssn(:,k,1) = 0.
+    ssn(:,k,2) = 0.
+  end where
+  ! Reduce over sea ice...
   ssn(:,k,1)=(1.-fracice(:))*ssn(:,k,1)
   ssn(:,k,2)=(1.-fracice(:))*ssn(:,k,2)
-enddo
+end do
 
 ! These relations give ssm in kg/m3 based on ssn in m^{-3}...
 ! Using the size distributions from Nillson et al.
@@ -2358,41 +2316,39 @@ subroutine convscav(fscav,xpkp1,xpold,tt,xs,rho,ntr)
 implicit none
 
 integer, intent(in) :: ntr
-real, intent(out) :: fscav ! scavenging fraction
-real, intent(in) :: xpkp1 ! cloud liquid water after precipitation
-real, intent(in) :: xpold ! cloud liquid water before precipitation
-real, intent(in) :: tt    ! parcel temperature
-real, intent(in) :: xs    ! xtg(:,k,3) = so4
-real, intent(in) :: rho   ! air density
-real f_so2
-logical bwkp1 
+real, dimension(:), intent(out) :: fscav ! scavenging fraction
+real, dimension(size(fscav)), intent(in) :: xpkp1 ! cloud liquid water after precipitation
+real, dimension(size(fscav)), intent(in) :: xpold ! cloud liquid water before precipitation
+real, dimension(size(fscav)), intent(in) :: tt    ! parcel temperature
+real, dimension(size(fscav)), intent(in) :: xs    ! xtg(:,k,3) = so4
+real, dimension(size(fscav)), intent(in) :: rho   ! air density
+real, dimension(size(fscav)) :: f_so2,scav_eff
+real, dimension(size(fscav)) :: zqtp1,ze2,ze3,zfac,zso4l,zso2l,zqhp
+real, dimension(size(fscav)) :: zza,zzb,zzp,zzq,zzp2,zhp,zqhr,zheneff,p_so2
+logical, dimension(size(fscav)) :: bwkp1 
 ! In-cloud scavenging efficiency for liquid and frozen convective clouds follows.
 ! Hard-coded for 3 sulfur variables, 4 carbonaceous, 4 mineral dust.
 ! Note that value for SO2 (index 2) is overwritten by Henry coefficient f_so2 below.
 ! These ones are for 3 SULF, 4 CARB and 4 or 8 DUST (and include dummy variables at end)
 real, parameter, dimension(naero) :: scav_effl = (/0.00,1.00,0.90,0.00,0.30,0.00,0.30,0.05,0.05,0.05,0.05/) ! liquid
 real, parameter, dimension(naero) :: scav_effi = (/0.00,0.00,0.00,0.05,0.00,0.05,0.00,0.05,0.05,0.05,0.05/) ! ice
-real scav_eff
-real zqtp1,ze2,ze3,zfac,zso4l,zso2l,zqhp
-real zza,zzb,zzp,zzq,zzp2,zhp,zqhr,zheneff,p_so2
 
-!bwkp1=tt>=ticeu ! condensate in parcel is liquid (true) or ice (false)
-bwkp1=.true.     ! assume liquid for JLM convection
+!bwkp1(:)=tt(:)>=ticeu ! condensate in parcel is liquid (true) or ice (false)
+bwkp1(:)=.true.        ! assume liquid for JLM convection
 
-if ( bwkp1 .and. ntr==itracso2 ) then
-
-  ! CALCULATE THE SOLUBILITY OF SO2
-  ! TOTAL SULFATE  IS ONLY USED TO CALCULATE THE PH OF CLOUD WATER
-  if ( xpold>1.e-20 ) then
+if ( ntr==itracso2 ) then
+  where ( bwkp1 )
+    ! CALCULATE THE SOLUBILITY OF SO2
+    ! TOTAL SULFATE  IS ONLY USED TO CALCULATE THE PH OF CLOUD WATER
     ZQTP1=1./tt-1./298.
     ZE2=1.23*EXP(3020.*ZQTP1)
     ZE3=1.2E-02*EXP(2010.*ZQTP1)
-    ZFAC=1000./(xpold*32.064)
+    ZFAC=1000./(max(xpold,1.E-20)*32.064)
     ZSO4L=xs*ZFAC
     ZSO4L=AMAX1(ZSO4L,0.)
     ZSO2L=xs*ZFAC
     ZSO2L=AMAX1(ZSO2L,0.)
-    ZZA=ZE2*8.2E-02*tt*xpold*rho*1.E-03
+    ZZA=ZE2*8.2E-02*tt*max(xpold,1.E-20)*rho*1.E-03
     ZZB=2.5E-06+ZSO4L
     ZZP=(ZZA*ZE3-ZZB-ZZA*ZZB)/(1.+ZZA)
     ZZQ=-ZZA*ZE3*(ZZB+ZSO2L)/(1.+ZZA)
@@ -2404,19 +2360,20 @@ if ( bwkp1 .and. ntr==itracso2 ) then
     P_SO2=ZZA*ZHENEFF
     F_SO2=P_SO2/(1.+P_SO2)
     F_SO2=min(max(0.,F_SO2),1.)
-  else
-    f_so2=0.
-  end if
-  scav_eff=f_so2
-  
-elseif ( bwkp1 ) then
-  scav_eff=scav_effl(ntr)
+    scav_eff=f_so2
+  elsewhere
+    scav_eff=scav_effi(ntr)
+  end where
 else
-  scav_eff=scav_effi(ntr)
+  where ( bwkp1 )
+    scav_eff=scav_effl(ntr)
+  elsewhere
+    scav_eff=scav_effi(ntr)
+  end where
 end if
 
 ! Wet deposition scavenging fraction
-fscav=scav_eff*min(max(xpold-xpkp1,0.)/max(xpold,1.E-20),1.)
+fscav(:)=scav_eff(:)*min(max(xpold(:)-xpkp1(:),0.)/max(xpold(:),1.E-20),1.)
 
 return
 end subroutine convscav

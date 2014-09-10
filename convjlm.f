@@ -78,8 +78,8 @@
       real, dimension(:,:,:), allocatable, save :: detrarr
       integer, dimension(:), allocatable, save :: kb_saved,kt_saved
       real, dimension(ifull,kl) :: qqsav,qliqwsav,xtgscav
-      real, dimension(kl) :: fscav
-      real rho,ttsto,qqsto,qqold,qlsto,qlold
+      real, dimension(kl) :: fscav,xtgtmp
+      real, dimension(kl) :: rho,ttsto,qqsto,qqold,qlsto,qlold
       real, dimension(ifull) :: conrev
       real, dimension(ifull) :: alfqarr,omega,omgtst,convtim_deep
       real delq(ifull,kl),dels(ifull,kl),delu(ifull,kl)
@@ -339,19 +339,19 @@
         kkbb(:)=1
         s(1:ifull,1)=cp*tt(1:ifull,1)+phi(1:ifull,1)  ! dry static energy
         if(nbase>0)then
-         do k=2,k500   
+         do k=2,k500
           do iq=1,ifull
            if(cp*tt(iq,k)+phi(iq,k)<s(iq,1)+.1*cp*nbase)kkbb(iq)=k  ! simple +.1*n deg s check for within PBL  
           enddo    ! iq loop
          enddo     ! k loop	 	  
         elseif(nbase==-11)then
-         do k=2,k500   	
+         do k=2,k500
           do iq=1,ifull
            if(cp*tt(iq,k)+phi(iq,k)<s(iq,1)+cp)kkbb(iq)=k  ! simple +1deg s check for within PBL  
           enddo    ! iq loop
          enddo     ! k loop	 
         elseif(nbase==-12)then
-         do k=2,k500   	
+         do k=2,k500
           do iq=1,ifull
 !          find tentative cloud base ! 
 !             (middle of k-1 level, uppermost level below pblh)
@@ -359,7 +359,7 @@
           enddo    ! iq loop
          enddo     ! k loop	 
         else  ! e.g. nbase=-13
-         do k=2,k500          
+         do k=2,k500
           do iq=1,ifull
 !          find tentative cloud base ! 
 !             (uppermost layer, with approx. bottom of layer below pblh)
@@ -385,7 +385,7 @@
              alfqarr(iq)=fracice(iq)*alflnd+(1.-fracice(iq))*alfqarr(iq)
            endif   ! (.not.land(iq))
           enddo
-         else	
+         else
           do iq=1,ifull
            if(.not.land(iq))then
               dtsol=.01*sgsave(iq)/(1.+.25*(u(iq,1)**2+v(iq,1)**2))   ! solar heating   ! sea
@@ -948,7 +948,7 @@ c***    Also entrain may slow convergence   N.B. qbass only used in next few lin
            idjd=iq
            convmax=convpsav(iq)
          endif
-        enddo	
+        enddo
       endif   !  (ntest==2)
       
       if(ntest>0.and.mydiag)then
@@ -1420,19 +1420,21 @@ c***    Also entrain may slow convergence   N.B. qbass only used in next few lin
 
              ! convective scavenging of aerosols
              do k=kb,kt
-               ttsto=t(iq,k)+factr(iq)*(tt(iq,k)-t(iq,k))
-               qqsto=qg(iq,k)+factr(iq)*(qq(iq,k)-qg(iq,k))
-               qqold=qg(iq,k)+factr(iq)*(qqsav(iq,k)-qg(iq,k))
-               qlsto=factr(iq)*qliqw(iq,k)
-               qlold=factr(iq)*qliqwsav(iq,k)
-               rho=ps(iq)*sig(k)/(rdry*ttsto*(1.+0.61*qqsto-qlsto))
+               ttsto(k)=t(iq,k)+factr(iq)*(tt(iq,k)-t(iq,k))
+               qqsto(k)=qg(iq,k)+factr(iq)*(qq(iq,k)-qg(iq,k))
+               qqold(k)=qg(iq,k)+factr(iq)*(qqsav(iq,k)-qg(iq,k))
+               qlsto(k)=factr(iq)*qliqw(iq,k)
+               qlold(k)=factr(iq)*qliqwsav(iq,k)
+               rho(k)=ps(iq)*sig(k)/(rdry*ttsto(k)*
+     &           (1.+0.61*qqsto(k)-qlsto(k)))
                ! convscav expects change in liquid cloud water, so we assume
                ! change in qg is added to qlg before precipating out
-               qqold=qqold-qqsto
-               qqsto=qlsto-qlold
-               call convscav(fscav(k),qqsto,qqold,ttsto,
-     &                  xtg(iq,k,3),rho,ntr)
+               qqold(k)=qqold(k)-qqsto(k)
+               qqsto(k)=qlsto(k)-qlold(k)
+               xtgtmp(k)=xtg(iq,k,3)
              end do
+             call convscav(fscav(kb:kt),qqsto(kb:kt),qqold(kb:kt),
+     &                  ttsto(kb:kt),xtgtmp(kb:kt),rho(kb:kt),ntr)
                
              veldt=factr(iq)*convpsav(iq)*(1.-fldow(iq)) ! simple treatment
              fluxup=veldt*s(iq,kb)

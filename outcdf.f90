@@ -2250,19 +2250,19 @@ if ( myid==0 .or. localhist ) then
   call ccnf_put_vara(fncid,idktime,start,ncount,datedat)
   datedat(1)=mtimer
   call ccnf_put_vara(fncid,idmtimer,start,ncount,datedat)
-
-  ! store output
-  umag=sqrt(u(1:ifull,1)*u(1:ifull,1)+v(1:ifull,1)*v(1:ifull,1))
-  freqstore=u10*u(1:ifull,1)/max(umag,1.E-6)
-  call freqwrite(fncid,'uas',  ktau,localhist,freqstore)
-  freqstore=u10*v(1:ifull,1)/max(umag,1.E-6)
-  call freqwrite(fncid,'vas',  ktau,localhist,freqstore)
-  call freqwrite(fncid,'tscrn',ktau,localhist,tscrn)
-  freqstore=condx*86400./dt
-  call freqwrite(fncid,'rnd',  ktau,localhist,freqstore)
-  freqstore=conds*86400./dt
-  call freqwrite(fncid,'sno',  ktau,localhist,freqstore)
 end if
+
+! store output
+umag=sqrt(u(1:ifull,1)*u(1:ifull,1)+v(1:ifull,1)*v(1:ifull,1))
+freqstore=u10*u(1:ifull,1)/max(umag,1.E-6)
+call freqwrite(fncid,'uas',  ktau,localhist,freqstore)
+freqstore=u10*v(1:ifull,1)/max(umag,1.E-6)
+call freqwrite(fncid,'vas',  ktau,localhist,freqstore)
+call freqwrite(fncid,'tscrn',ktau,localhist,tscrn)
+freqstore=condx*86400./dt
+call freqwrite(fncid,'rnd',  ktau,localhist,freqstore)
+freqstore=conds*86400./dt
+call freqwrite(fncid,'sno',  ktau,localhist,freqstore)
      
 ! close file at end of run
 if ( myid==0 .or. localhist ) then

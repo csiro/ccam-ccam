@@ -439,6 +439,7 @@ subroutine aerocalc
 
 use aerosolldr          ! LDR prognostic aerosols
 use arrays_m            ! Atmosphere dyamics prognostic arrays
+use cc_mpi              ! CC MPI routines
 use cfrac_m             ! Cloud fraction
 use extraout_m          ! Additional diagnostics
 use infile              ! Input file routines
@@ -532,6 +533,12 @@ do k=1,kl
   dz(:,k)=-rdry*dsig(k)*(tv(:,k)+tnhs(:,k))/(grav*sig(k))
   rhoa(:,k)=ps(1:ifull)*sig(k)/(rdry*tv(1:ifull,k)) ! density of air (kg/m**3)
 end do
+
+! MJT notes - we should calculate dzmin_gbl in indata.f if this becomes a problem
+if (any(dz(:,1)<dzmin_gbl)) then
+  write(6,*) "ERROR: dzmin_gbl in aerosol dsettling is invalid.  Must be less than ",minval(dz(:,1))
+  call ccmpi_abort(-1)
+end if
 
 ! estimate convective cloud fraction from leoncld.f
 where (ktsav<kl-1)

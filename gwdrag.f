@@ -48,22 +48,34 @@ c       put theta in thf()
       enddo    ! k loop
 
 c     calc d(theta)/dz  at half-levels , using 1/dz at level k-.5
-      if(ndzx.eq.0)dzx=-grav*sig(1)/(dsig(1)*rdry)                ! Hal's
-      if(ndzx.eq.1)dzx=.5*grav*(1.+sig(1))/((1.-sig(1))*rdry)     ! fixup by jlm
+      if(ndzx==0) then
+        dzx=-grav*sig(1)/(dsig(1)*rdry)                ! Hal's
+      elseif(ndzx==1) then
+        dzx=.5*grav*(1.+sig(1))/((1.-sig(1))*rdry)     ! fixup by jlm
+      end if
       do iq=1,ifull
        dzi=dzx/(tv(iq,1)+tnhs(iq,1))
        dthdz(iq,1)=max(thf(iq,1)-tss(iq),0.)*dzi  ! was wrong dzi - jlm
 c      form new wmag at surface
        wmag(iq)=max(sqrt(u(iq,1)**2+v(iq,1)**2),1.)
       enddo    ! iq loop
-      do k=2,kl
-       if(ndzx.eq.0)dzx=-2.*grav*sig(k)/(dsig(k)*rdry)                  ! Hal's
-       if(ndzx.eq.1)dzx=grav*(sig(k-1)+sig(k))/((sig(k-1)-sig(k))*rdry) ! fixup by jlm
-       do iq=1,ifull
-        dzi=dzx/(tv(iq,k-1)+tv(iq,k)+tnhs(iq,k-1)+tnhs(iq,k))  ! gwdrag
-        dthdz(iq,k)=(thf(iq,k)-thf(iq,k-1))*dzi
-       enddo   ! iq loop
-      enddo    ! k loop
+      if (ndzx==0) then
+       do k=2,kl
+        dzx=-2.*grav*sig(k)/(dsig(k)*rdry)                      ! Hal's
+        do iq=1,ifull
+         dzi=dzx/(tv(iq,k-1)+tv(iq,k)+tnhs(iq,k-1)+tnhs(iq,k))  ! gwdrag
+         dthdz(iq,k)=(thf(iq,k)-thf(iq,k-1))*dzi
+        enddo   ! iq loop
+       enddo    ! k loop          
+      else if (ndzx==1) then
+       do k=2,kl
+        dzx=grav*(sig(k-1)+sig(k))/((sig(k-1)-sig(k))*rdry)     ! fixup by jlm
+        do iq=1,ifull
+         dzi=dzx/(tv(iq,k-1)+tv(iq,k)+tnhs(iq,k-1)+tnhs(iq,k))  ! gwdrag
+         dthdz(iq,k)=(thf(iq,k)-thf(iq,k-1))*dzi
+        enddo   ! iq loop
+       enddo    ! k loop          
+      end if
 
 c**** calculate Brunt-Vaisala frequency
 c**** surface bvng() and full levels bvnf(,)

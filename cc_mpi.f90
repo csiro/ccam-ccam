@@ -6888,50 +6888,13 @@ contains
          kx = size(vdat,1)      
       end if
 
-      if (mg(g)%ifull == mg(g)%merge_len ) then
-         call mgcollectreduce_sing( g, vdat, dsolmax, kx, mg(g)%nmax )
-      else
-         msg_len = mg(g)%ifull/(mg(g)%merge_len*mg(g)%npanx) ! message unit size
-         call mgcollectreduce_work( g, vdat, dsolmax, kx, mg(g)%nmax, msg_len, mg(g)%npanx )
-      end if
+      msg_len = mg(g)%ifull/(mg(g)%merge_len*mg(g)%npanx) ! message unit size
+      call mgcollectreduce_work( g, vdat, dsolmax, kx, mg(g)%nmax, msg_len, mg(g)%npanx )
 
       call END_LOG(mgcollect_end)
   
    return
    end subroutine mgcollectreduce
-
-   subroutine mgcollectreduce_sing(g,vdat,dsolmax,kx,nmax)
-
-      integer, intent(in) :: g, kx, nmax
-      integer(kind=4) :: ierr, ilen, lcomm
-#ifdef i8r8
-      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4), parameter :: ltype = MPI_REAL
-#endif
-      real, dimension(:,:), intent(inout) :: vdat
-      real, dimension(:), intent(inout) :: dsolmax
-      real, dimension(kx,2) :: tdat
-      real, dimension(kx,2,nmax) :: tdat_g
-
-      ! prep data for sending around the merge
-      tdat(:,1) = vdat(1:kx,1)
-      tdat(:,2) = dsolmax(1:kx)
-
-      ilen = 2*kx
-      lcomm = mg(g)%comm_merge
-#ifdef idleproc
-      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0_4, lcomm, ierr )      
-#else
-      call MPI_AllGather( tdat, ilen, ltype, tdat_g, ilen, ltype, lcomm, ierr )      
-#endif
-
-      ! unpack buffers (nmax is zero unless this is the host processor)
-      vdat(1:kx,1:nmax) = tdat_g(:,1,:)
-      dsolmax(1:kx) = maxval( tdat_g(:,2,:), dim=2 )
-  
-   return
-   end subroutine mgcollectreduce_sing
 
    subroutine mgcollectreduce_work(g,vdat,dsolmax,kx,nmax,msg_len,npanx)
 
@@ -6990,6 +6953,7 @@ contains
    return
    end subroutine mgcollectreduce_work
 
+   ! Same as mgcollectreduce but with mlo reversed indexing
    subroutine mgcollectreduce_mlo(g,vdat,dsolmax)
 
       integer, intent(in) :: g
@@ -7003,51 +6967,13 @@ contains
       call START_LOG(mgcollect_begin)
 
       kx = size(vdat,2)
-      
-      if ( mg(g)%ifull == mg(g)%merge_len ) then
-         call mgcollectreduce_mlo_sing( g, vdat, dsolmax, kx, mg(g)%nmax )
-      else
-         msg_len = mg(g)%ifull/(mg(g)%merge_len*mg(g)%npanx) ! message unit size
-         call mgcollectreduce_mlo_work( g, vdat, dsolmax, kx, mg(g)%nmax, msg_len, mg(g)%npanx )
-      end if
+      msg_len = mg(g)%ifull/(mg(g)%merge_len*mg(g)%npanx) ! message unit size
+      call mgcollectreduce_mlo_work( g, vdat, dsolmax, kx, mg(g)%nmax, msg_len, mg(g)%npanx )
 
       call END_LOG(mgcollect_end)
   
    return
    end subroutine mgcollectreduce_mlo
-
-   subroutine mgcollectreduce_mlo_sing(g,vdat,dsolmax,kx,nmax)
-
-      integer, intent(in) :: g, kx, nmax
-      integer(kind=4) :: ierr, ilen, lcomm
-#ifdef i8r8
-      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4), parameter :: ltype = MPI_REAL
-#endif
-      real, dimension(:,:), intent(inout) :: vdat
-      real, dimension(:), intent(inout) :: dsolmax
-      real, dimension(kx+2) :: tdat
-      real, dimension(kx+2,nmax) :: tdat_g
-
-      ! prep data for sending around the merge
-      tdat(1:kx) = vdat(1,1:kx)
-      tdat(kx+1:kx+2) = dsolmax(1:2)
-
-      ilen = kx+2
-      lcomm = mg(g)%comm_merge
-#ifdef idleproc
-      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0_4, lcomm, ierr )      
-#else
-      call MPI_AllGather( tdat, ilen, ltype, tdat_g, ilen, ltype, lcomm, ierr )      
-#endif
-
-      ! unpack buffers (nmax is zero unless this is the host processor)
-      vdat(1:nmax,1:kx) = transpose( tdat_g(1:kx,:) )
-      dsolmax(1:2) = maxval( tdat_g(kx+1:kx+2,:), dim=2 )
-  
-   return
-   end subroutine mgcollectreduce_mlo_sing
 
    subroutine mgcollectreduce_mlo_work(g,vdat,dsolmax,kx,nmax,msg_len,npanx)
 
@@ -7106,6 +7032,7 @@ contains
    return
    end subroutine mgcollectreduce_mlo_work
 
+   ! This routing collects data from other processors without a reduction (max or min) array
    subroutine mgcollect1(g,vdat,klim)
 
       integer, intent(in) :: g
@@ -7124,43 +7051,13 @@ contains
          kx = size(vdat,1)
       end if
 
-      if ( mg(g)%ifull == mg(g)%merge_len ) then
-         call mgcollect_sing( g, vdat, kx, mg(g)%nmax  )
-      else
-         msg_len = mg(g)%ifull/(mg(g)%merge_len*mg(g)%npanx) ! message unit size
-         call mgcollect_work( g, vdat, kx, mg(g)%nmax, msg_len, mg(g)%npanx )
-      end if
+      msg_len = mg(g)%ifull/(mg(g)%merge_len*mg(g)%npanx) ! message unit size
+      call mgcollect_work( g, vdat, kx, mg(g)%nmax, msg_len, mg(g)%npanx )
 
       call END_LOG(mgcollect_end)
   
    return
    end subroutine mgcollect1
-
-   subroutine mgcollect_sing(g,vdat,kx,nmax)
-
-      integer, intent(in) :: g, kx, nmax
-      integer(kind=4) :: ierr, ilen, lcomm
-#ifdef i8r8
-      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4), parameter :: ltype = MPI_REAL
-#endif
-      real, dimension(:,:), intent(inout) :: vdat
-      real, dimension(kx,nmax) :: tdat_g
-
-      ilen = kx
-      lcomm = mg(g)%comm_merge
-#ifdef idleproc
-      call MPI_Gather( vdat(1:kx,1), ilen, ltype, tdat_g, ilen, ltype, 0_4, lcomm, ierr )
-#else
-      call MPI_AllGather( vdat(1:kx,1), ilen, ltype, tdat_g, ilen, ltype, lcomm, ierr )
-#endif
-
-      ! unpack buffers (nmax is zero unless this is the host processor)
-      vdat(1:kx,1:nmax) = tdat_g(:,:)
-  
-   return
-   end subroutine mgcollect_sing
 
    subroutine mgcollect_work(g,vdat,kx,nmax,msg_len,npanx)
 
@@ -7181,7 +7078,7 @@ contains
 
       ! prep data for sending around the merge
       nrow  = mg(g)%ipan/mg(g)%merge_row       ! number of points along a row per processor
-      ncol  = msg_len/nrow                ! number of points along a col per processor
+      ncol  = msg_len/nrow                     ! number of points along a col per processor
       nrm1  = nrow - 1
 
       tdat(:,1:msg_len*npanx) = vdat(1:kx,1:msg_len*npanx)
@@ -7216,6 +7113,7 @@ contains
    return
    end subroutine mgcollect_work
 
+   ! Same as mgcollect, but with out mlo reversed indexing
    subroutine mgcollect_mlo1(g,vdat)
 
       integer, intent(in) :: g
@@ -7228,48 +7126,13 @@ contains
       call START_LOG(mgcollect_begin)
 
       kx = size(vdat,2)
-      
-      if ( mg(g)%ifull == mg(g)%merge_len ) then
-         call mgcollect_mlo_sing( g, vdat, kx, mg(g)%nmax )
-      else
-         msg_len = mg(g)%ifull/(mg(g)%merge_len*mg(g)%npanx) ! message unit size
-         call mgcollect_mlo_work( g, vdat, kx, mg(g)%nmax, msg_len, mg(g)%npanx )
-      end if
+      msg_len = mg(g)%ifull/(mg(g)%merge_len*mg(g)%npanx) ! message unit size
+      call mgcollect_mlo_work( g, vdat, kx, mg(g)%nmax, msg_len, mg(g)%npanx )
 
       call END_LOG(mgcollect_end)
   
    return
    end subroutine mgcollect_mlo1
-
-   subroutine mgcollect_mlo_sing(g,vdat,kx,nmax)
-
-      integer, intent(in) :: g, kx, nmax
-      integer(kind=4) :: ierr, ilen, lcomm
-#ifdef i8r8
-      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4), parameter :: ltype = MPI_REAL
-#endif
-      real, dimension(:,:), intent(inout) :: vdat
-      real, dimension(kx) :: tdat
-      real, dimension(kx,nmax) :: tdat_g
-
-      ! prep data for sending around the merge
-      tdat(1:kx) = vdat(1,1:kx)
-
-      ilen = kx
-      lcomm = mg(g)%comm_merge
-#ifdef idleproc
-      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0_4, lcomm, ierr )      
-#else
-      call MPI_AllGather( tdat, ilen, ltype, tdat_g, ilen, ltype, lcomm, ierr )      
-#endif
-
-      ! unpack buffers (nmax is zero unless this is the host processor)
-      vdat(1:nmax,1:kx) = transpose( tdat_g(1:kx,:) )
-  
-   return
-   end subroutine mgcollect_mlo_sing
 
    subroutine mgcollect_mlo_work(g,vdat,kx,nmax,msg_len,npanx)
 
@@ -7298,7 +7161,7 @@ contains
       ilen = msg_len*npanx*kx
       lcomm = mg(g)%comm_merge
 #ifdef idleproc
-      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0_4, lcomm, ierr )      
+      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0_4, lcomm, ierr )
 #else
       call MPI_AllGather( tdat, ilen, ltype, tdat_g, ilen, ltype, lcomm, ierr )      
 #endif
@@ -7325,6 +7188,7 @@ contains
    return
    end subroutine mgcollect_mlo_work
 
+   ! This version of mgcollect also performs a max and min reduction
    subroutine mgcollectxn(g,vdat,smaxmin,klim)
 
       integer, intent(in) :: g
@@ -7344,53 +7208,13 @@ contains
          kx = size(vdat,1)
       end if
 
-      if ( mg(g)%ifull == mg(g)%merge_len ) then
-         call mgcollectxn_sing( g, vdat, smaxmin, kx, mg(g)%nmax )
-      else
-         msg_len = mg(g)%ifull/(mg(g)%merge_len*mg(g)%npanx) ! message unit size
-         call mgcollectxn_work( g, vdat, smaxmin, kx, mg(g)%nmax, msg_len, mg(g)%npanx )
-      end if
+      msg_len = mg(g)%ifull/(mg(g)%merge_len*mg(g)%npanx) ! message unit size
+      call mgcollectxn_work( g, vdat, smaxmin, kx, mg(g)%nmax, msg_len, mg(g)%npanx )
 
       call END_LOG(mgcollect_end)
   
    return
    end subroutine mgcollectxn
-
-   subroutine mgcollectxn_sing(g,vdat,smaxmin,kx,nmax)
-
-      integer, intent(in) :: g, kx, nmax
-      integer(kind=4) :: ierr, ilen, lcomm
-#ifdef i8r8
-      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4), parameter :: ltype = MPI_REAL
-#endif
-      real, dimension(:,:), intent(inout) :: vdat
-      real, dimension(:,:), intent(inout) :: smaxmin
-      real, dimension(kx,3) :: tdat
-      real, dimension(kx,3,nmax) :: tdat_g
-
-      ! prep data for sending around the merge
-
-      tdat(:,1) = vdat(1:kx,1)
-      tdat(:,2) = smaxmin(1:kx,1)
-      tdat(:,3) = smaxmin(1:kx,2)
-      
-      ilen = 3*kx
-      lcomm = mg(g)%comm_merge
-#ifdef idleproc
-      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0_4, lcomm, ierr )
-#else
-      call MPI_AllGather( tdat, ilen, ltype, tdat_g, ilen, ltype, lcomm, ierr )
-#endif
-
-      ! unpack buffers (nmax is zero unless this is the host processor)
-      vdat(1:kx,1:nmax) = tdat_g(:,1,:)
-      smaxmin(1:kx,1) = maxval( tdat_g(:,2,:), dim=2 )
-      smaxmin(1:kx,2) = minval( tdat_g(:,3,:), dim=2 )
-      
-   return
-   end subroutine mgcollectxn_sing
 
    subroutine mgcollectxn_work(g,vdat,smaxmin,kx,nmax,msg_len,npanx)
 
