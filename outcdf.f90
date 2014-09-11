@@ -2029,6 +2029,7 @@ integer, save :: idnt = 0
 integer, save :: idkdate = 0
 integer, save :: idktime = 0
 integer, save :: idmtimer = 0
+real, dimension(ifull,kl) :: tmpry
 real, dimension(ifull) :: freqstore
 real, dimension(ifull) :: umag
 real, dimension(il_g) :: xpnt
@@ -2189,6 +2190,8 @@ if ( first ) then
     call attrib(fncid,sdim,3,'rnd',lname,'mm/day',0.,1300.,0,1)
     lname='Snowfall'
     call attrib(fncid,sdim,3,'sno',lname,'mm/day',0.,1300.,0,1)
+    lname ='Mean sea level pressure'
+    call attrib(fncid,sdim,3,'pmsl',lname,'hPa',800.,1200.,0,1)    
 
     ! end definition mode
     call ccnf_enddef(fncid)
@@ -2263,7 +2266,12 @@ freqstore=condx*86400./dt
 call freqwrite(fncid,'rnd',  ktau,localhist,freqstore)
 freqstore=conds*86400./dt
 call freqwrite(fncid,'sno',  ktau,localhist,freqstore)
-     
+tmpry=t(1:ifull,:)
+call mslp(freqstore,psl,zs,tmpry)
+freqstore=freqstore/100.
+call freqwrite(fncid,'pmsl', ktau,localhist,freqstore)
+
+
 ! close file at end of run
 if ( myid==0 .or. localhist ) then
   if ( ktau==ntau ) then
