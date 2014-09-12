@@ -86,7 +86,7 @@ real, dimension(ifull+iextra) :: newwat
 real, dimension(ifull+iextra,2) :: dum
 real, dimension(ifull) :: newsal,cover,vel
 real, dimension(ifull) :: deta,sal,salin,depdum
-real, dimension(ifull) :: tmpry,yy,ll
+real, dimension(ifull) :: tmpry,ll
 real, dimension(ifull,4) :: idp,slope,flow
 real, dimension(ifull,4) :: fta,ftb,ftx,fty
 real rate
@@ -264,9 +264,9 @@ select case(basinmd)
         where (land(1:ifull))
           ll(:)=max(sfc(isoilm(:))-wb(:,k),0.)*1000.*zse(k)
           ll(:)=ll(:)*rate*cover(:)
-          yy(:)=min(tmpry(:),ll(:))
-          wb(:,k)=wb(:,k)+yy(:)/(1000.*zse(k))
-          tmpry(:)=tmpry(:)-yy(:)
+          ll(:)=min(tmpry(:),ll(:))
+          wb(:,k)=wb(:,k)+ll(:)/(1000.*zse(k))
+          tmpry(:)=tmpry(:)-ll(:)
         end where
       end do
       newwat(:)=newwat(:)+(tmpry-watbdy(1:ifull))*(1.-sigmu(:))
@@ -275,6 +275,9 @@ select case(basinmd)
     ! pile-up water
   case(3)
     ! leak
+    where (.not.land(1:ifull))
+      cover=0.
+    end where
     if (nsib==6.or.nsib==7) then
       ! CABLE
       tmpry=watbdy(1:ifull)
@@ -287,9 +290,9 @@ select case(basinmd)
         where (land(1:ifull))
           ll(:)=max(sfc(isoilm(:))-wb(:,k),0.)*1000.*zse(k)
           ll(:)=ll(:)*rate*cover(:)
-          yy(:)=min(tmpry(:),ll(:))
-          wb(:,k)=wb(:,k)+yy(:)/(1000.*zse(k))
-          tmpry(:)=tmpry(:)-yy(:)
+          ll(:)=min(tmpry(:),ll(:))
+          wb(:,k)=wb(:,k)+ll(:)/(1000.*zse(k))
+          tmpry(:)=tmpry(:)-ll(:)
         end where
       end do
       newwat(:)=newwat(:)+(tmpry-watbdy(1:ifull))*(1.-sigmu(:))

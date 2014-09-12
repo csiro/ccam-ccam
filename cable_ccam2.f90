@@ -2640,7 +2640,9 @@ end subroutine savetile
 ! *************************************************************************************
 ! Water inflow from river routing
 subroutine cableinflow(inflow,lmax,rate)
-  
+
+use soil_m
+
 implicit none
 
 include 'newmpar.h'
@@ -2649,20 +2651,22 @@ integer nb, k
 real, intent(in) :: rate
 real, dimension(ifull), intent(in) :: lmax
 real, dimension(ifull), intent(inout) :: inflow
-real, dimension(mp) :: xx, yy, ll, mm
+real, dimension(mp) :: xx, ll, mm
 
 if ( mp<=0 ) return
 
 xx(:)=inflow(cmap)
-mm(:)=lmax(cmap)
+mm(:)=lmax(cmap)*rate
 do k=1,cbm_ms
   ll(:)=max(soil%sfc(:)-real(ssnow%wb(:,k)),0.)*1000.*soil%zse(k)
-  ll(:)=ll(:)*rate*mm(:)
-  yy(:)=min(xx(:),ll(:))
-  ssnow%wb(:,k)=ssnow%wb(:,k)+yy(:)/(1000.*soil%zse(k))
-  xx(:)=xx(:)-yy(:)
+  ll(:)=ll(:)*mm(:)
+  ll(:)=min(xx(:),ll(:))
+  ssnow%wb(:,k)=ssnow%wb(:,k)+ll(:)/(1000.*soil%zse(k))
+  xx(:)=xx(:)-ll(:)
 end do
-inflow=0.
+where (land(1:ifull))
+  inflow=0.
+end where
 do nb=1,maxnb
   inflow(cmap(pind(nb,1):pind(nb,2)))=inflow(cmap(pind(nb,1):pind(nb,2))) &
                                      +sv(pind(nb,1):pind(nb,2))*xx(pind(nb,1):pind(nb,2))
