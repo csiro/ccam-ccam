@@ -929,16 +929,14 @@ integer, intent(inout) :: kdate_r,ktime_r,mtimer_r
 integer, dimension(12) :: mdays
 integer iyr,imo,iday,ihr,imins
 integer mtimerh,mtimerm,mtimer
-integer minsday,minsyr,mdays_save
+integer mdays_save
+integer, parameter :: minsday = 1440
 
 data mdays/31,28,31,30,31,30,31,31,30,31,30,31/
-data minsday/1440/,minsyr/525600/
 
 if ( kdate_r>=00600000 .and. kdate_r<=00991231 ) then   ! old 1960-1999
   kdate_r=kdate_r+19000000
-  if ( myid==0 ) then
-    write(6,*) 'For Y2K kdate_r altered to: ',kdate_r
-  end if
+  if ( myid==0 ) write(6,*) 'For Y2K kdate_r altered to: ',kdate_r
 endif
 
 iyr=kdate_r/10000
@@ -946,10 +944,8 @@ imo=(kdate_r-10000*iyr)/100
 iday=kdate_r-10000*iyr-100*imo
 ihr=ktime_r/100
 imins=ktime_r-100*ihr
-if ( myid==0 ) then
-  write(6,*) 'entering datefix iyr,imo,iday,ihr,imins,mtimer_r: ', &
-                               iyr,imo,iday,ihr,imins,mtimer_r
-end if
+if ( myid==0 ) write(6,*) 'entering datefix iyr,imo,iday,ihr,imins,mtimer_r: ', &
+                                            iyr,imo,iday,ihr,imins,mtimer_r
 
 mdays(2)=28
 if ( leap==1 ) then
@@ -974,10 +970,8 @@ enddo
 if(diag)write(6,*)'b datefix iyr,imo,iday,ihr,imins,mtimer_r: ', &
                              iyr,imo,iday,ihr,imins,mtimer_r
 
-do while ( mtimer_r>minsday )
-  mtimer_r=mtimer_r-minsday
-  iday=iday+1
-enddo
+iday=iday+mtimer_r/minsday
+mtimer_r=mod(mtimer_r,minsday)
 if(diag)write(6,*)'c datefix iyr,imo,iday,ihr,imins,mtimer_r: ', &
                             iyr,imo,iday,ihr,imins,mtimer_r
 
@@ -989,9 +983,7 @@ imins=imins+mtimerm
 
 if ( imins==58 .or. imins==59 ) then
   ! allow for roundoff for real timer from old runs
-  if ( myid==0 ) then
-    write(6,*)'*** imins increased to 60 from imins = ',imins
-  end if
+  if ( myid==0 ) write(6,*)'*** imins increased to 60 from imins = ',imins
   imins=60
 endif
 
@@ -1018,9 +1010,7 @@ mtimer=0
 if(diag)write(6,*)'end datefix iyr,imo,iday,ihr,imins,mtimer_r: ', &
                                iyr,imo,iday,ihr,imins,mtimer_r
 
-if ( myid==0 ) then
-  write(6,*)'leaving datefix kdate_r,ktime_r: ',kdate_r,ktime_r
-end if
+if ( myid==0 ) write(6,*)'leaving datefix kdate_r,ktime_r: ',kdate_r,ktime_r
 
 return
 end subroutine datefix
