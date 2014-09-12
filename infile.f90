@@ -926,13 +926,11 @@ integer leap
 common/leap_yr/leap  ! 1 to allow leap years
 
 integer, intent(inout) :: kdate_r,ktime_r,mtimer_r
-integer, dimension(12) :: mdays
+integer, dimension(12) :: mdays = (/31,28,31,30,31,30,31,31,30,31,30,31/)
 integer iyr,imo,iday,ihr,imins
 integer mtimerh,mtimerm,mtimer
 integer mdays_save
 integer, parameter :: minsday = 1440
-
-data mdays/31,28,31,30,31,30,31,31,30,31,30,31/
 
 if ( kdate_r>=00600000 .and. kdate_r<=00991231 ) then   ! old 1960-1999
   kdate_r=kdate_r+19000000
@@ -965,15 +963,15 @@ do while ( mtimer_r>minsday*mdays(imo) )
       if ( mod(iyr,100)==0 ) mdays(2)=28
       if ( mod(iyr,400)==0 ) mdays(2)=29
     end if
-  endif
-enddo
+  end if
+end do
 if(diag)write(6,*)'b datefix iyr,imo,iday,ihr,imins,mtimer_r: ', &
                              iyr,imo,iday,ihr,imins,mtimer_r
 
 iday=iday+mtimer_r/minsday
 mtimer_r=mod(mtimer_r,minsday)
 if(diag)write(6,*)'c datefix iyr,imo,iday,ihr,imins,mtimer_r: ', &
-                            iyr,imo,iday,ihr,imins,mtimer_r
+                             iyr,imo,iday,ihr,imins,mtimer_r
 
 ! at this point mtimer_r has been reduced to fraction of a day
 mtimerh=mtimer_r/60

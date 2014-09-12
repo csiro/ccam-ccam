@@ -20,7 +20,7 @@ public rvrinit,rvrrouter,watbdy,salbdy
 
 real, dimension(:), allocatable, save :: watbdy,salbdy,ee
 real, parameter :: inflowbias = 10.       ! Bias height for inflow into ocean.  Levels above this will flow back onto land.
-integer, parameter :: basinmd  =3    ! basin mode (0=soil, 1=redistribute, 2=pile-up, 3=leak)
+integer, parameter :: basinmd = 3         ! basin mode (0=soil, 1=redistribute, 2=pile-up, 3=leak)
 
 contains
 
@@ -86,10 +86,10 @@ real, dimension(ifull+iextra) :: newwat
 real, dimension(ifull+iextra,2) :: dum
 real, dimension(ifull) :: newsal,cover,vel
 real, dimension(ifull) :: deta,sal,salin,depdum
+real, dimension(ifull) :: tmpry,yy,ll
 real, dimension(ifull,4) :: idp,slope,flow
 real, dimension(ifull,4) :: fta,ftb,ftx,fty
-real, dimension(2) :: dumb,gdumb
-real xx,yy,ll,lssum,gssum,lwsum,gwsum,netf,netg,rate
+real rate
 
 ! To speed up the code, we use a (semi-)implicit solution rather than an iterative approach
 ! This avoids additional MPI calls.
@@ -111,7 +111,8 @@ idp(:,2)=emu(1:ifull)/ds
 idp(:,3)=emv(isv)/ds
 idp(:,4)=emu(iwu)/ds
 
-! update bounds and initial conditions
+!--------------------------------------------------------------------
+! extract data from ocean model if required
 if (abs(nmlo)<=9) then
   neta=0.
   salin=0.
@@ -140,7 +141,8 @@ if (abs(nmlo)<=9) then
   salbdy(1:ifull)=salbdy(1:ifull)*watbdy(1:ifull) ! rescale salinity to PSU*mm for advection
 end if
 
-! update boundaries
+!--------------------------------------------------------------------
+! update processor boundaries
 dum(1:ifull,1)=watbdy(1:ifull)
 dum(1:ifull,2)=salbdy(1:ifull)
 call bounds(dum(:,1:2))
@@ -150,14 +152,15 @@ salbdy(ifull+1:ifull+iextra)=dum(ifull+1:ifull+iextra,2)
 newwat(1:ifull+iextra)=watbdy(1:ifull+iextra)
 newsal=salbdy(1:ifull)
 
-! predictor-corrector
+!--------------------------------------------------------------------
+! predictor-corrector for water level and salinity
 do nit=1,2
   
   if (nit==2) call bounds(newwat)
 
   ! calculate slopes
   do i=1,4
-    where ((ee(1:ifull)*ee(xp(:,i)))>0.5)
+    where ( (ee(1:ifull)*ee(xp(:,i)))>0.5 )
       slope(:,i)=0. ! no orographic slope within ocean bounds
     elsewhere
       !slope(:,i)=(zs(1:ifull)-zs(xp(:,i)))/(grav*dp(:,i))         ! basic
@@ -234,97 +237,66 @@ newsal=newsal+sum(flow,2)
 watbdy(1:ifull)=max(newwat,0.)
 salbdy(1:ifull)=max(newsal,0.)
 
+!--------------------------------------------------------------------
+! Water losses over land basins
+
 ! estimate grid box area covered by water
 cover=min(0.001*watbdy(1:ifull)/minwater,1.)
-rate=min(dt/(8.*3600.),1.) ! MJT suggestion
+! estimate rate that water leaves river into soil
+rate=dt/(8.*3600.) ! MJT suggestion
   
-! basin
+! Method for land basins
 select case(basinmd)
   case(0)
     ! add water to soil moisture 
+    where (any(slope>=-1.E-10,2).or..not.land(1:ifull))
+      cover=0.
+    end where
     if (nsib==6.or.nsib==7) then
       ! CABLE
-      do iq=1,ifull
-        if (all(slope(iq,:)<-1.E-10).and.land(iq)) then
-          ! runoff is inserted into soil moisture since CCAM has discrete land and sea points
-          xx=watbdy(iq)
-          ll=cover(iq)
-          call cableinflow(iq,xx,ll,rate)
-          newwat(iq)=newwat(iq)+(xx-watbdy(iq))*(1.-sigmu(iq))
-        end if
-      end do
+      tmpry=watbdy(1:ifull)
+      call cableinflow(tmpry,cover,rate)
+      newwat(:)=newwat(:)+(tmpry-watbdy(1:ifull))*(1.-sigmu(:))
     else
       ! Standard land surface model
-      do iq=1,ifull
-        if (all(slope(iq,:)<-1.E-10).and.land(iq)) then
-          ! runoff is inserted into soil moisture since CCAM has discrete land and sea points
-          xx=watbdy(iq)
-          do k=1,ms
-            ll=max(sfc(isoilm(iq))-wb(iq,k),0.)*1000.*zse(k)
-            ll=ll*rate*cover(iq)
-            yy=min(xx,ll)
-            wb(iq,k)=wb(iq,k)+yy/(1000.*zse(k))
-            xx=max(xx-yy,0.)
-          end do
-          newwat(iq)=newwat(iq)+(xx-watbdy(iq))*(1.-sigmu(iq))
-        end if
+      tmpry=watbdy(1:ifull)
+      do k=1,ms
+        where (land(1:ifull))
+          ll(:)=max(sfc(isoilm(:))-wb(:,k),0.)*1000.*zse(k)
+          ll(:)=ll(:)*rate*cover(:)
+          yy(:)=min(tmpry(:),ll(:))
+          wb(:,k)=wb(:,k)+yy(:)/(1000.*zse(k))
+          tmpry(:)=tmpry(:)-yy(:)
+        end where
       end do
+      newwat(:)=newwat(:)+(tmpry-watbdy(1:ifull))*(1.-sigmu(:))
     end if
-  case(1)
-    ! distribute water over ocean (used when soil column is too shallow)
-    lssum=0.
-    lwsum=0.
-    do iq=1,ifull
-      if (all(slope(iq,:)<-1.E-10).and.land(iq)) then
-        lssum=lssum+newwat(iq)/(em(iq)*em(iq)) ! kg of water / (ds*ds)
-        newwat(iq)=0.
-      elseif (.not.land(iq)) then
-        lwsum=lwsum+1./(em(iq)*em(iq))   
-      end if
-    end do
-    dumb(1)=lssum
-    dumb(2)=lwsum
-    call ccmpi_allreduce(dumb(1:2),gdumb(1:2),"sum",comm_world)
-    gssum=gdumb(1)
-    gwsum=gdumb(2)
-    xx=gssum/max(gwsum,0.1)
-    where (.not.land)
-      neta(1:ifull)=neta(1:ifull)+xx*0.001
-    end where
-    call mloimport(4,neta(1:ifull),0,0)
   case(2)
     ! pile-up water
   case(3)
     ! leak
     if (nsib==6.or.nsib==7) then
       ! CABLE
-      do iq=1,ifull
-        if (land(iq).and.watbdy(iq)>0.) then
-          xx=watbdy(iq)
-          ll=cover(iq)
-          call cableinflow(iq,xx,ll,rate)
-          newwat(iq)=newwat(iq)+(xx-watbdy(iq))*(1.-sigmu(iq))
-        end if
-      end do
+      tmpry=watbdy(1:ifull)
+      call cableinflow(tmpry,cover,rate)
+      newwat(:)=newwat(:)+(tmpry-watbdy(1:ifull))*(1.-sigmu(:))
     else
       ! Standard land surface model
-      do iq=1,ifull
-        if (land(iq).and.watbdy(iq)>0.) then
-          xx=watbdy(iq)
-          do k=1,ms
-            ll=max(sfc(isoilm(iq))-wb(iq,k),0.)*1000.*zse(k)
-            ll=ll*rate*cover(iq)
-            yy=min(xx,ll)
-            wb(iq,k)=wb(iq,k)+yy/(1000.*zse(k))
-            xx=max(xx-yy,0.)
-          end do
-          newwat(iq)=newwat(iq)+(xx-watbdy(iq))*(1.-sigmu(iq))
-        end if
+      tmpry=watbdy(1:ifull)
+      do k=1,ms
+        where (land(1:ifull))
+          ll(:)=max(sfc(isoilm(:))-wb(:,k),0.)*1000.*zse(k)
+          ll(:)=ll(:)*rate*cover(:)
+          yy(:)=min(tmpry(:),ll(:))
+          wb(:,k)=wb(:,k)+yy(:)/(1000.*zse(k))
+          tmpry(:)=tmpry(:)-yy(:)
+        end where
       end do
+      newwat(:)=newwat(:)+(tmpry-watbdy(1:ifull))*(1.-sigmu(:))
     end if
   case default
     write(6,*) "ERROR: Unsupported basinmd ",basinmd
-    stop
+    call ccmpi_abort(-1)
 end select
 
 watbdy(1:ifull)=max(newwat,0.)
@@ -336,8 +308,9 @@ if (any(salbdy(1:ifull)>0..and.watbdy(1:ifull)==0.)) then
   write(6,*) "WARN: Patch river salinity"
 end if
 
+!--------------------------------------------------------------------
+! update ocean
 if (abs(nmlo)<=9) then
-  ! update ocean
   where (ee(1:ifull)>0.5)
     depdum=max(dd(1:ifull)+neta(1:ifull),minwater)
     ! salbdy is already multiplied by watbdy

@@ -282,7 +282,7 @@ select case (icycle)
     casamet%tsoil = casamet%tsoil + ssnow%tgg
     casamet%moist = casamet%moist + ssnow%wb
     casaflux%cgpp = casaflux%cgpp + (-canopy%fpn+canopy%frday)*dt
-    casaflux%crmplant(:,leaf) =casaflux%crmplant(:,leaf) + canopy%frday*dt
+    casaflux%crmplant(:,leaf) = casaflux%crmplant(:,leaf) + canopy%frday*dt
     ! run CASA CNP once per day
     if (mod(ktau,nperday)==0) then
       casamet%tairk=casamet%tairk/real(nperday)
@@ -2639,35 +2639,35 @@ end subroutine savetile
 
 ! *************************************************************************************
 ! Water inflow from river routing
-subroutine cableinflow(iqin,inflow,lmax,rate)
+subroutine cableinflow(inflow,lmax,rate)
   
 implicit none
-  
-integer, intent(in) :: iqin
-integer n,iq,k
-real, intent(in) :: lmax,rate
-real, intent(inout) :: inflow
-real, dimension(5) :: xx
-real yy,ll
-  
-xx(:)=inflow
-inflow=0.
-do n=1,maxnb
-  do iq=pind(n,1),pind(n,2)
-    if (cmap(iq)==iqin) then
-      do k=1,cbm_ms
-        ll=max(soil%sfc(iq)-real(ssnow%wb(iq,k)),0.)*1000.*soil%zse(k)
-        ll=ll*rate*lmax
-        yy=min(xx(n),ll)
-        ssnow%wb(iq,k)=ssnow%wb(iq,k)+yy/(1000.*soil%zse(k))
-        xx(n)=xx(n)-yy
-      end do
-      inflow=inflow+sv(iq)*xx(n)
-      exit
-    end if
-  end do
+
+include 'newmpar.h'
+
+integer nb, k
+real, intent(in) :: rate
+real, dimension(ifull), intent(in) :: lmax
+real, dimension(ifull), intent(inout) :: inflow
+real, dimension(mp) :: xx, yy, ll, mm
+
+if ( mp<=0 ) return
+
+xx(:)=inflow(cmap)
+mm(:)=lmax(cmap)
+do k=1,cbm_ms
+  ll(:)=max(soil%sfc(:)-real(ssnow%wb(:,k)),0.)*1000.*soil%zse(k)
+  ll(:)=ll(:)*rate*mm(:)
+  yy(:)=min(xx(:),ll(:))
+  ssnow%wb(:,k)=ssnow%wb(:,k)+yy(:)/(1000.*soil%zse(k))
+  xx(:)=xx(:)-yy(:)
 end do
-  
+inflow=0.
+do nb=1,maxnb
+  inflow(cmap(pind(nb,1):pind(nb,2)))=inflow(cmap(pind(nb,1):pind(nb,2))) &
+                                     +sv(pind(nb,1):pind(nb,2))*xx(pind(nb,1):pind(nb,2))
+end do
+
 return
 end subroutine cableinflow
 
