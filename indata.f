@@ -980,7 +980,8 @@
       endif
 
       ! aquaplanet (APE) test
-      if(nhstest<0)then   
+      if(nhstest<0)then
+        fracice(:)=0.
         sicedep(:)=0.
         snowd(:)=0.
         tss(:)=273.16
