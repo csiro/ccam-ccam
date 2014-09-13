@@ -4910,7 +4910,7 @@ logical, dimension(:,:,:), intent(in), optional    :: cloud
 !    this calculation is done only for ng=1.                 
 !----------------------------------------------------------------------c
             if (present (tlayerdif) .and. present(rlayerdif)) then
-              if ( ng.eq.1 ) then   
+              if ( ng == 1 ) then   
                 rsum = 0.0
                 tsum = 0.0
                 do ns = 1,NSTREAMS
