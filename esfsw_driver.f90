@@ -2615,16 +2615,8 @@ integer,                       intent(in)    :: naerosol_optical
 !    this radiation time step. define a flag indicating points with both
 !    sunlight and cloud.      
 !----------------------------------------------------------------------c
-      do j = JSRAD,JERAD
-        do i = ISRAD,IERAD
-          if ( Astro%fracday(i,j) /= 0.0) then
-            daylight(i,j) = .true.                 
-          else
-            daylight(i,j) = .false.                
-          endif     
-          cloud_in_column(i,j) = .false.
-        end do
-      end do
+      daylight = ( Astro%fracday /= 0.0 )
+      cloud_in_column = .false.
 
       call compute_aerosol_optical_props     &
                 (Atmos_input, Aerosol, Aerosol_props, &
@@ -2643,27 +2635,15 @@ integer,                       intent(in)    :: naerosol_optical
 !    points.
 !----------------------------------------------------------------------
       if (.not. Cldrad_control%do_stochastic_clouds) then
-        do j = JSRAD,JERAD
-          do i = ISRAD,IERAD
-            if (daylight(i,j)) then
-              do k=KSRAD,KERAD
-                if (cldfrac(i,j,k) > 0.0)  then
-                  cloud_in_column(i,j) = .true.
-                  cloud(i,j,k) = .true.
-                  cloudfrac(i,j,k) = cldfrac(i,j,k)
-                else
-                  cloud(i,j,k) = .false.
-                  cloudfrac(i,j,k) = 0.0
-                endif
-              end do
-            else
-              do k=KSRAD,KERAD
-                cloud(i,j,k) = .false.
-                cloudfrac(i,j,k) = 0.0
-              end do
-            endif
-          end do
+        do k = KSRAD,KERAD
+          cloud(:,:,k) = daylight.and.(cldfrac(:,:,k) > 0.0)
         end do
+        cloud_in_column = any(cloud,3)
+        where (cloud)
+          cloudfrac = cldfrac
+        elsewhere
+          cloudfrac = 0.
+        end where
       endif
 
 
@@ -2751,7 +2731,6 @@ integer,                       intent(in)    :: naerosol_optical
             if (.not. do_ica_calcs) then
               cldfrac_band(:,:,:) = Cld_spec%camtsw_band(:,:,:,nband)
             endif
-          endif
  
 !----------------------------------------------------------------------
 !    if stochastic clouds are activated (cloud fields differ with sw
@@ -2760,7 +2739,6 @@ integer,                       intent(in)    :: naerosol_optical
 !    the flag indicating that cloud is present in columns with such
 !    points.
 !----------------------------------------------------------------------
-          if (Cldrad_control%do_stochastic_clouds) then
             do j = JSRAD,JERAD
               do i = ISRAD,IERAD
                 cloud_in_column(i,j) = .false.
@@ -2792,68 +2770,46 @@ integer,                       intent(in)    :: naerosol_optical
           cldsct(:,:,:) = Cldrad_props%cldsct(:,:,:,nband,nprofile)
           cldasymm(:,:,:) = Cldrad_props%cldasymm(:,:,:,nband,nprofile)
 
-          do k = KSRAD,KERAD
-            do j=JSRAD,JERAD
-              do i=ISRAD, IERAD
-                if (cloud(i,j,k) ) then
-                  cloudextopdep(i,j,k) = 1.0E-03*cldext(i,j,k) *    &
-                                         cloud_deltaz(i,j,k)
-                  cloudsctopdep(i,j,k) = 1.0E-03*cldsct(i,j,k) *    &
-                                         cloud_deltaz(i,j,k)
-                  cloudasymfac(i,j,k) = cldasymm(i,j,k)
-                endif
-              end do
-            end do
-          end do
+          where ( cloud )
+            cloudextopdep(:,:,:) = 1.0E-03*cldext(:,:,:) * cloud_deltaz(:,:,:)
+            cloudsctopdep(:,:,:) = 1.0E-03*cldsct(:,:,:) * cloud_deltaz(:,:,:)
+            cloudasymfac(:,:,:) = cldasymm(:,:,:)
+          end where
 
 !-----------------------------------------------------------------
 !    define clear sky arrays
 !-----------------------------------------------------------------
           if (nband >= firstrayband ) then
             do k=ksrad,kerad
-              do j=jsrad,jerad
-                do i=israd,ierad
-                  if (daylight(i,j) ) then
-                    sctopdepclr(i,j,k) = rayopdep(i,j,k,nband) +   &
-                                            aerosctopdep(i,j,k,nband)
-                    gclr(i,j,k) = aeroasymfac(i,j,k,nband)*  &
-                                  aerosctopdep(i,j,k,nband)/&
-                                                     sctopdepclr(i,j,k)
-                    fclr(i,j,k) = aeroasymfac(i,j,k,nband)*gclr(i,j,k)
-                    gstrclr(i,j,k) = ( gclr(i,j,k)  - fclr(i,j,k) )/  &
-                                     ( 1.0 - fclr(i,j,k) )
-                  endif
-                end do
-              end do
+              where ( daylight )
+                sctopdepclr(:,:,k) = rayopdep(:,:,k,nband) + aerosctopdep(:,:,k,nband)
+                gclr(:,:,k) = aeroasymfac(:,:,k,nband)*aerosctopdep(:,:,k,nband)/sctopdepclr(:,:,k)
+                fclr(:,:,k) = aeroasymfac(:,:,k,nband)*gclr(:,:,k)
+                gstrclr(:,:,k) = ( gclr(:,:,k)  - fclr(:,:,k) )/( 1.0 - fclr(:,:,k) )
+              end where
             end do
           endif
 
 !-----------------------------------------------------------------
 !    define cloudy sky arrays
 !-----------------------------------------------------------------
-          do k=KSRAD,KERAD
-            do j=JSRAD,JERAD
-              do i=ISRAD,IERAD
-                if (cloud(i,j,k)) then
-                  sctopdepovc(i,j,k) = rayopdep(i,j,k,nband) +    &
-                                       aerosctopdep(i,j,k,nband) + &
-                                       cloudsctopdep(i,j,k) 
-                  govc(i,j,k) = ( ( cloudasymfac(i,j,k) *   &
-                                    cloudsctopdep(i,j,k) ) +  &
-                                  ( aeroasymfac(i,j,k,nband) *   &
-                                    aerosctopdep(i,j,k,nband)))/   &
-                                    sctopdepovc(i,j,k)
-                  fovc(i,j,k) = ( ( cloudasymfac(i,j,k) ** 2 *  &
-                                    cloudsctopdep(i,j,k) ) + &
-                                  ( aeroasymfac(i,j,k,nband) ** 2 *  &
-                                    aerosctopdep(i,j,k,nband) ))/  &
-                                    sctopdepovc(i,j,k)
-                  gstrovc(i,j,k) = ( govc(i,j,k)  - fovc(i,j,k))/  &
-                                   ( 1.0 - fovc(i,j,k) )
-                endif
-              end do
-            end do
-          end do
+          where (cloud)
+            sctopdepovc(:,:,:) = rayopdep(:,:,:,nband) +     &
+                             aerosctopdep(:,:,:,nband) +     &
+                                  cloudsctopdep(:,:,:) 
+            govc(:,:,:) = ( ( cloudasymfac(:,:,:) *          &
+                               cloudsctopdep(:,:,:) ) +      &
+                          ( aeroasymfac(:,:,:,nband) *       &
+                          aerosctopdep(:,:,:,nband)))/       &
+                                    sctopdepovc(:,:,:)
+            fovc(:,:,:) = ( ( cloudasymfac(:,:,:) ** 2 *     &
+                                 cloudsctopdep(:,:,:) ) +    &
+                       ( aeroasymfac(:,:,:,nband) ** 2 *     &
+                           aerosctopdep(:,:,:,nband) ))/     &
+                                    sctopdepovc(:,:,:)
+            gstrovc(:,:,:) = ( govc(:,:,:)  - fovc(:,:,:))/  &
+                                   ( 1.0 - fovc(:,:,:) )
+          end where
           
 !---------------------------------------------------------------------
 !    begin frequency points in the band loop.                          
@@ -2873,22 +2829,18 @@ integer,                       intent(in)    :: naerosol_optical
 !--------------------------------------------------------------------
               if (nband >= firstrayband )  then
                 do k=ksrad,kerad
-                  do j=jsrad,jerad
-                    do i=israd,ierad
-                      if (daylight(i,j) ) then
-                        extopdepclr(i,j,k) = gasopdep(i,j,k,np,ng) +  &
-                                             rayopdep(i,j,k,nband) +   &
-                                             aeroextopdep(i,j,k,nband)
-                        ssalbclr(i,j,k) = sctopdepclr(i,j,k)/    &
-                                          extopdepclr(i,j,k)
-                        taustrclr(i,j,k) = extopdepclr(i,j,k)*( 1.0 -  &
-                                           ssalbclr(i,j,k)*fclr(i,j,k) )
-                        omegastrclr(i,j,k) =      &
-                               ssalbclr(i,j,k)*((1.0 - fclr(i,j,k))/  &
-                               (1.0 -  ssalbclr(i,j,k)*fclr(i,j,k)))
-                      endif
-                    end do
-                  end do
+                  where ( daylight )
+                    extopdepclr(:,:,k) = gasopdep(:,:,k,np,ng) +   &
+                                        rayopdep(:,:,k,nband) +    &
+                                       aeroextopdep(:,:,k,nband)
+                    ssalbclr(:,:,k) = sctopdepclr(:,:,k)/          &
+                                       extopdepclr(:,:,k)
+                    taustrclr(:,:,k) = extopdepclr(:,:,k)*( 1.0 -  &
+                                    ssalbclr(:,:,k)*fclr(:,:,k) )
+                    omegastrclr(:,:,k) =                           &
+                           ssalbclr(:,:,k)*((1.0 - fclr(:,:,k))/   &
+                           (1.0 -  ssalbclr(:,:,k)*fclr(:,:,k)))
+                  end where
                 end do
               endif
 
@@ -2896,26 +2848,20 @@ integer,                       intent(in)    :: naerosol_optical
 !    calculate the scaled single-scattering quantities for use in the   
 !    delta-eddington routine.                                         
 !--------------------------------------------------------------------
-              do k=KSRAD,KERAD
-                do j=JSRAD,JERAD
-                  do i=ISRAD,IERAD
-                    if (cloud(i,j,k) ) then
-                      extopdepovc(i,j,k) = gasopdep(i,j,k,np,ng) +    &
-                                           rayopdep(i,j,k,nband) +  &
-                                           aeroextopdep(i,j,k,nband) + &
-                                           cloudextopdep(i,j,k)
-                      ssalbovc(i,j,k) = sctopdepovc(i,j,k) /    &
-                                        extopdepovc(i,j,k)
-                      taustrovc(i,j,k) = extopdepovc(i,j,k)*( 1.0 - &
-                                         ssalbovc(i,j,k)*fovc(i,j,k) )
-                      omegastrovc(i,j,k) = ssalbovc(i,j,k)*( ( 1.0 - &
-                                           fovc(i,j,k) )/( 1.0 -   &
-                                           ssalbovc(i,j,k) *   &
-                                           fovc(i,j,k) ) )
-                    endif
-                  end do
-                end do
-              end do
+              where ( cloud )
+                extopdepovc(:,:,:) = gasopdep(:,:,:,np,ng) +    &
+                                       rayopdep(:,:,:,nband) +  &
+                                    aeroextopdep(:,:,:,nband) + &
+                                           cloudextopdep(:,:,:)
+                ssalbovc(:,:,:) = sctopdepovc(:,:,:) /    &
+                                   extopdepovc(:,:,:)
+                taustrovc(:,:,:) = extopdepovc(:,:,:)*( 1.0 - &
+                                ssalbovc(:,:,:)*fovc(:,:,:) )
+                omegastrovc(:,:,:) = ssalbovc(:,:,:)*( ( 1.0 - &
+                                       fovc(:,:,:) )/( 1.0 -   &
+                                           ssalbovc(:,:,:) *   &
+                                           fovc(:,:,:) ) )
+              end where
 
 !---------------------------------------------------------------------
 !    do calculations for all desired zenith angles.
@@ -3048,38 +2994,34 @@ integer,                       intent(in)    :: naerosol_optical
 !    resultant values.                                                  
 !---------------------------------------------------------------------- 
                 do k=KSRAD,KERAD
-                  do j=JSRAD,JERAD
-                    do i=ISRAD,IERAD
-                      if ( cloud(i,j,k) ) then
-                        rlayerdir(i,j,k) = cloudfrac(i,j,k)*   &
-                                           rlayerdirovc(i,j,k) +  &
-                                           (1.0 - cloudfrac(i,j,k) )*  &
-                                           rlayerdirclr(i,j,k)
-                        rlayerdif(i,j,k) = cloudfrac(i,j,k) *  &
-                                           rlayerdifovc(i,j,k) +  &
-                                           ( 1.0 - cloudfrac(i,j,k) )* &
-                                           rlayerdifclr(i,j,k)
-                        tlayerdir(i,j,k) = cloudfrac(i,j,k) *   &
-                                           tlayerdirovc(i,j,k) +  &
-                                           ( 1.0 - cloudfrac(i,j,k) )* &
-                                           tlayerdirclr(i,j,k)
-                        tlayerdif(i,j,k) = cloudfrac(i,j,k) *   &
-                                           tlayerdifovc(i,j,k) +  &
-                                           ( 1.0 - cloudfrac(i,j,k) )* &
-                                           tlayerdifclr(i,j,k)
-                        tlayerde(i,j,k) =  cloudfrac(i,j,k) *   &
-                                           tlayerdeovc(i,j,k) +  &
-                                           (1.0 - cloudfrac(i,j,k) )* &
-                                           tlayerdeclr(i,j,k)
-                      else if (daylight(i,j)) then
-                        rlayerdir(i,j,k) = rlayerdirclr(i,j,k)
-                        tlayerdir(i,j,k) = tlayerdirclr(i,j,k)
-                        rlayerdif(i,j,k) = rlayerdifclr(i,j,k)
-                        tlayerdif(i,j,k) = tlayerdifclr(i,j,k)
-                        tlayerde (i,j,k) = tlayerdeclr (i,j,k)
-                      endif
-                    end do
-                  end do
+                  where ( cloud(:,:,k) )
+                    rlayerdir(:,:,k) = cloudfrac(:,:,k)*   &
+                                       rlayerdirovc(:,:,k) +  &
+                                       (1.0 - cloudfrac(:,:,k) )*  &
+                                       rlayerdirclr(:,:,k)
+                    rlayerdif(:,:,k) = cloudfrac(:,:,k) *  &
+                                       rlayerdifovc(:,:,k) +  &
+                                       ( 1.0 - cloudfrac(:,:,k) )* &
+                                       rlayerdifclr(:,:,k)
+                    tlayerdir(:,:,k) = cloudfrac(:,:,k) *   &
+                                       tlayerdirovc(:,:,k) +  &
+                                       ( 1.0 - cloudfrac(:,:,k) )* &
+                                       tlayerdirclr(:,:,k)
+                    tlayerdif(:,:,k) = cloudfrac(:,:,k) *   &
+                                      tlayerdifovc(:,:,k) +  &
+                                       ( 1.0 - cloudfrac(:,:,k) )* &
+                                       tlayerdifclr(:,:,k)
+                    tlayerde(:,:,k) =  cloudfrac(:,:,k) *   &
+                                       tlayerdeovc(:,:,k) +  &
+                                       (1.0 - cloudfrac(:,:,k) )* &
+                                       tlayerdeclr(:,:,k)
+                  else where (daylight)
+                    rlayerdir(:,:,k) = rlayerdirclr(:,:,k)
+                    tlayerdir(:,:,k) = tlayerdirclr(:,:,k)
+                    rlayerdif(:,:,k) = rlayerdifclr(:,:,k)
+                    tlayerdif(:,:,k) = tlayerdifclr(:,:,k)
+                    tlayerde (:,:,k) = tlayerdeclr (:,:,k)
+                  end where
                 end do
  
 !---------------------------------------------------------------------
@@ -3119,71 +3061,54 @@ integer,                       intent(in)    :: naerosol_optical
 !    weight and sum the reflectance and transmittance to calculate the 
 !    band values.                                                     
 !-------------------------------------------------------------------
-                do j=JSRAD,JERAD
-                  do i=ISRAD,IERAD
-                    wtfac_p(i,j) = wtfreq(np)*gausswt(ng)*   &
-                                                  cosangsolar_p(i,j,ng)
-                  end do
-                end do
+                wtfac_p(:,:) = wtfreq(np)*gausswt(ng)*cosangsolar_p(:,:,ng)
 
 !---------------------------------------------------------------------
 !
 !---------------------------------------------------------------------
                 do k = KSRAD,KERAD+1
-                  do j=JSRAD,JERAD
-                    do i=ISRAD,IERAD
-                      if (daylight(i,j) ) then
-                        sumtr(i,j,k,nz) = sumtr(i,j,k,nz) +    &
-                                      transmittance(i,j,k)*wtfac_p(i,j)
-                        sumtr_dir(i,j,k,nz) = sumtr_dir(i,j,k,nz) +  &
-                                        tr_dir(i,j,k)*wtfac_p(i,j)
-                        sumre(i,j,k,nz) = sumre(i,j,k,nz) +     &
-                                       reflectance(i,j,k)*wtfac_p(i,j)
-                      endif
-                    end do
-                  end do
+                  where ( daylight )
+                    sumtr(:,:,k,nz) = sumtr(:,:,k,nz) +    &
+                                  transmittance(:,:,k)*wtfac_p(:,:)
+                    sumtr_dir(:,:,k,nz) = sumtr_dir(:,:,k,nz) +  &
+                                    tr_dir(:,:,k)*wtfac_p(:,:)
+                    sumre(:,:,k,nz) = sumre(:,:,k,nz) +     &
+                                   reflectance(:,:,k)*wtfac_p(:,:)
+                  end where
                 end do
-                  do j=JSRAD,JERAD
-                    do i=ISRAD,IERAD
-                      if (daylight(i,j) ) then
-                        sumtr_dir_up(i,j,nz) = sumtr_dir_up(i,j,nz) + &
-                          tr_dir(i,j,KERAD+1)*sfcalb_dir(i,j)*wtfac_p(i,j)
-                      endif
-                    end do
-                  end do
+                where ( daylight )
+                  sumtr_dir_up(:,:,nz) = sumtr_dir_up(:,:,nz) + &
+                    tr_dir(:,:,KERAD+1)*sfcalb_dir(:,:)*wtfac_p(:,:)
+                end where
 
 !---------------------------------------------------------------------
 !
 !---------------------------------------------------------------------
                 if (Rad_control%do_totcld_forcing) then
                   do k = KSRAD,KERAD+1
-                    do j=JSRAD,JERAD
-                      do i=ISRAD,IERAD
-                        if (cloud_in_column(i,j)) then
-                          sumtrclr(i,j,k,nz) =    &
-                                sumtrclr(i,j,k,nz) +   &
-                                transmittanceclr(i,j,k)* wtfac_p(i,j) 
-                          sumtr_dir_clr(i,j,k,nz) = &
-                                sumtr_dir_clr(i,j,k,nz) +  &
-                                tr_dirclr(i,j,k)*wtfac_p(i,j)
-                          sumreclr(i,j,k,nz) = sumreclr(i,j,k,nz) +   &
-                                reflectanceclr(i,j,k)*wtfac_p(i,j)
-                        else if (daylight(i,j) ) then
-                          sumtrclr(i,j,k,nz) = sumtrclr(i,j,k,nz) +   &
-                                transmittance(i,j,k)*wtfac_p(i,j)
-                          sumtr_dir_clr(i,j,k,nz) =    &
-                             sumtr_dir_clr(i,j,k,nz) + tr_dir(i,j,k)*&
-                                                            wtfac_p(i,j)
-                          sumreclr(i,j,k,nz) = sumreclr(i,j,k,nz) +   &
-                                        reflectance(i,j,k)*wtfac_p(i,j)
-                        endif
-                      end do
-                    end do
+                    where (cloud_in_column)
+                      sumtrclr(:,:,k,nz) =    &
+                            sumtrclr(:,:,k,nz) +   &
+                            transmittanceclr(:,:,k)* wtfac_p(:,:) 
+                      sumtr_dir_clr(:,:,k,nz) = &
+                            sumtr_dir_clr(:,:,k,nz) +  &
+                            tr_dirclr(:,:,k)*wtfac_p(:,:)
+                      sumreclr(:,:,k,nz) = sumreclr(:,:,k,nz) +   &
+                            reflectanceclr(:,:,k)*wtfac_p(:,:)
+                    else where ( daylight )
+                      sumtrclr(:,:,k,nz) = sumtrclr(:,:,k,nz) +   &
+                            transmittance(:,:,k)*wtfac_p(:,:)
+                      sumtr_dir_clr(:,:,k,nz) =    &
+                         sumtr_dir_clr(:,:,k,nz) + tr_dir(:,:,k)*&
+                                                        wtfac_p(:,:)
+                      sumreclr(:,:,k,nz) = sumreclr(:,:,k,nz) +   &
+                                    reflectance(:,:,k)*wtfac_p(:,:)
+                    end where
                   end do
                 endif
-              end do ! end of nz loop
+              end do  ! end of nz loop
             end do    ! end of gaussian loop
-          end do  ! end of frequency points in the band loop
+          end do      ! end of frequency points in the band loop
  
 !----------------------------------------------------------------------
 !    normalize the solar flux in the band to the appropriate value for  
@@ -3225,14 +3150,8 @@ integer,                       intent(in)    :: naerosol_optical
 !--------------------------------------------------------------------
             if (do_esfsw_band_diagnostics) then
               do k = KSRAD,KERAD+1
-                do j=JSRAD,JERAD
-                  do i=ISRAD,IERAD
-                    dfswband(i,j,k,nz) = sumtr(i,j,k,nz)*   &
-                                                       solarflux_p(i,j) 
-                    ufswband(i,j,k,nz) = sumre(i,j,k,nz)*      &
-                                                       solarflux_p(i,j)
-                  end do
-                end do
+                dfswband(:,:,k,nz) = sumtr(:,:,k,nz)*solarflux_p(:,:) 
+                ufswband(:,:,k,nz) = sumre(:,:,k,nz)*solarflux_p(:,:)
               end do
             endif
  
@@ -3241,80 +3160,64 @@ integer,                       intent(in)    :: naerosol_optical
 !    spectral values.                                                  
 !------------------------------------------------------------------
             do k = KSRAD,KERAD+1
-              do j=JSRAD,JERAD
-                do i=ISRAD,IERAD
-                  if (daylight(i,j) ) then
-                    Sw_output%dfsw (i,j,k,nz) =   &
-                       Sw_output%dfsw(i,j,k,nz) + sumtr(i,j,k,nz)*&
-                                                       solarflux_p(i,j)
-                    Sw_output%ufsw (i,j,k,nz) =   &
-                       Sw_output%ufsw(i,j,k,nz) + sumre(i,j,k,nz)*  &
-                                                       solarflux_p(i,j)
-                    fswband(i,j,k,nz) = ((sumre(i,j,k,nz)*  &
-                                          solarflux_p(i,j)) - &
-                                         (sumtr(i,j,k,nz)*    &
-                                                      solarflux_p(i,j)))
-                    Sw_output%fsw(i,j,k,nz) = Sw_output%fsw(i,j,k,nz) +&
-                                                      fswband(i,j,k,nz)
-                  endif
-                end do
-              end do
+              where ( daylight )
+                Sw_output%dfsw (:,:,k,nz) =   &
+                   Sw_output%dfsw(:,:,k,nz) + sumtr(:,:,k,nz)*&
+                                                  solarflux_p(:,:)
+                Sw_output%ufsw (:,:,k,nz) =   &
+                   Sw_output%ufsw(:,:,k,nz) + sumre(:,:,k,nz)*  &
+                                                   solarflux_p(:,:)
+                fswband(:,:,k,nz) = ((sumre(:,:,k,nz)*  &
+                                      solarflux_p(:,:)) - &
+                                     (sumtr(:,:,k,nz)*    &
+                                                  solarflux_p(:,:)))
+                Sw_output%fsw(:,:,k,nz) = Sw_output%fsw(:,:,k,nz) +&
+                                                  fswband(:,:,k,nz)
+              end where
             end do
  
-            do j=JSRAD,JERAD
-              do i=ISRAD,IERAD
-                if (daylight(i,j) ) then
-                  Sw_output%dfsw_dir_sfc(i,j,nz) =   &
-                            Sw_output%dfsw_dir_sfc(i,j,nz) +   &
-                              sumtr_dir(i,j,KERAD+1,nz)*solarflux_p(i,j)
-                  Sw_output%ufsw_dir_sfc(i,j,nz) =   &
-                            Sw_output%ufsw_dir_sfc(i,j,nz) +   &
-                              sumtr_dir_up(i,j,nz)*solarflux_p(i,j)
-                  Sw_output%ufsw_dif_sfc(i,j,nz) =   &
-                             Sw_output%ufsw_dif_sfc(i,j,nz) +   &
-                                 sumre(i,j,KERAD+1,nz)*solarflux_p(i,j)
-                endif
-              end do
-            end do
+            where ( daylight )
+              Sw_output%dfsw_dir_sfc(:,:,nz) =   &
+                        Sw_output%dfsw_dir_sfc(:,:,nz) +   &
+                          sumtr_dir(:,:,KERAD+1,nz)*solarflux_p(:,:)
+              Sw_output%ufsw_dir_sfc(:,:,nz) =   &
+                        Sw_output%ufsw_dir_sfc(:,:,nz) +   &
+                          sumtr_dir_up(:,:,nz)*solarflux_p(:,:)
+              Sw_output%ufsw_dif_sfc(:,:,nz) =   &
+                         Sw_output%ufsw_dif_sfc(:,:,nz) +   &
+                             sumre(:,:,KERAD+1,nz)*solarflux_p(:,:)
+            end where
 
             if (nband > NIRBANDS) then
-              do j=JSRAD,JERAD
-                do i=ISRAD,IERAD
-                  if (daylight(i,j) ) then
-                    Sw_output%dfsw_vis_sfc(i,j,nz) =   &
-                          Sw_output%dfsw_vis_sfc(i,j,nz) +   &
-                                sumtr(i,j,KERAD+1,nz)*solarflux_p(i,j)
-                    Sw_output%ufsw_vis_sfc(i,j,nz) =   &
-                           Sw_output%ufsw_vis_sfc(i,j,nz) +   &
-                                 sumre(i,j,KERAD+1,nz)*solarflux_p(i,j)
-                    Sw_output%dfsw_vis_sfc_dir(i,j,nz) =   &
-                            Sw_output%dfsw_vis_sfc_dir(i,j,nz) +   &
-                              sumtr_dir(i,j,KERAD+1,nz)*solarflux_p(i,j)
-                    Sw_output%ufsw_vis_sfc_dir(i,j,nz) =   &
-                            Sw_output%ufsw_vis_sfc_dir(i,j,nz) +   &
-                              sumtr_dir_up(i,j,nz)*solarflux_p(i,j)
-                    Sw_output%ufsw_vis_sfc_dif(i,j,nz) =   &
-                             Sw_output%ufsw_vis_sfc_dif(i,j,nz) +   &
-                                 sumre(i,j,KERAD+1,nz)*solarflux_p(i,j)
-                  endif
-                end do
-              end do
+              where ( daylight )
+                Sw_output%dfsw_vis_sfc(:,:,nz) =   &
+                      Sw_output%dfsw_vis_sfc(:,:,nz) +   &
+                            sumtr(:,:,KERAD+1,nz)*solarflux_p(:,:)
+                Sw_output%ufsw_vis_sfc(:,:,nz) =   &
+                       Sw_output%ufsw_vis_sfc(:,:,nz) +   &
+                             sumre(:,:,KERAD+1,nz)*solarflux_p(:,:)
+                Sw_output%dfsw_vis_sfc_dir(:,:,nz) =   &
+                        Sw_output%dfsw_vis_sfc_dir(:,:,nz) +   &
+                          sumtr_dir(:,:,KERAD+1,nz)*solarflux_p(:,:)
+                Sw_output%ufsw_vis_sfc_dir(:,:,nz) =   &
+                        Sw_output%ufsw_vis_sfc_dir(:,:,nz) +   &
+                          sumtr_dir_up(:,:,nz)*solarflux_p(:,:)
+                Sw_output%ufsw_vis_sfc_dif(:,:,nz) =   &
+                         Sw_output%ufsw_vis_sfc_dif(:,:,nz) +   &
+                             sumre(:,:,KERAD+1,nz)*solarflux_p(:,:)
+              end where
             endif
 
 !---------------------------------------------------------------------
 !
 !---------------------------------------------------------------------
             do k = KSRAD,KERAD
-              do j=JSRAD,JERAD
-                do i=ISRAD,IERAD
-                  if (daylight(i,j) ) then
-                    hswband(i,j,k,nz) = (fswband(i,j,k+1,nz) -    &
-                                      fswband(i,j,k,nz) )*gocpdp(i,j,k)
-                    Sw_output%hsw(i,j,k,nz) =    &
-                          Sw_output%hsw(i,j,k,nz) + hswband(i,j,k,nz)
-                  endif
-                end do
-              end do
+              where ( daylight )
+                hswband(:,:,k,nz) = (fswband(:,:,k+1,nz) -    &
+                                  fswband(:,:,k,nz) )*gocpdp(:,:,k)
+                Sw_output%hsw(:,:,k,nz) =    &
+                      Sw_output%hsw(:,:,k,nz) + hswband(:,:,k,nz)
+              end where
             end do
 
 !----------------------------------------------------------------------
@@ -3323,25 +3226,17 @@ integer,                       intent(in)    :: naerosol_optical
             if (nprofile == 1) then  ! clr sky need be done only for 
                                      ! first cloud profile
               if (Rad_control%do_totcld_forcing) then
-                do j=JSRAD,JERAD
-                  do i=ISRAD,IERAD
-                    if (daylight(i,j) ) then
-                      Sw_output%dfsw_dir_sfc_clr(i,j,nz) =   &
-                         Sw_output%dfsw_dir_sfc_clr(i,j,nz) +   &
-                          sumtr_dir_clr(i,j,KERAD+1,nz)*solarflux_p(i,j)
-                    endif
-                  end do
-                end do
+                where ( daylight )
+                  Sw_output%dfsw_dir_sfc_clr(:,:,nz) =   &
+                     Sw_output%dfsw_dir_sfc_clr(:,:,nz) +   &
+                      sumtr_dir_clr(:,:,KERAD+1,nz)*solarflux_p(:,:)
+                end where
                 if (nband > NIRBANDS) then
-                  do j=JSRAD,JERAD
-                    do i=ISRAD,IERAD
-                      if (daylight(i,j) ) then
-                        Sw_output%dfsw_vis_sfc_clr(i,j,nz) =   &
-                           Sw_output%dfsw_vis_sfc_clr(i,j,nz) +   &
-                              sumtrclr(i,j,KERAD+1,nz)*solarflux_p(i,j)
-                      endif
-                    end do
-                  end do
+                  where ( daylight )
+                    Sw_output%dfsw_vis_sfc_clr(:,:,nz) =   &
+                       Sw_output%dfsw_vis_sfc_clr(:,:,nz) +   &
+                          sumtrclr(:,:,KERAD+1,nz)*solarflux_p(:,:)
+                  end where
                 endif
                 if (nband == Solar_spect%visible_band_indx) then
                   Sw_output%bdy_flx_clr(:,:,1,nz) =      &
@@ -3360,14 +3255,10 @@ integer,                       intent(in)    :: naerosol_optical
           
                 if (do_esfsw_band_diagnostics) then
                   do k = KSRAD,KERAD+1
-                    do j=JSRAD,JERAD
-                      do i=ISRAD,IERAD
-                        dfswbandclr(i,j,k,nz) =     &
-                                   sumtrclr(i,j,k,nz)*solarflux_p(i,j)
-                        ufswbandclr(i,j,k,nz) =    &
-                                   sumreclr(i,j,k,nz)*solarflux_p(i,j)
-                      end do
-                    end do
+                    dfswbandclr(:,:,k,nz) =     &
+                               sumtrclr(:,:,k,nz)*solarflux_p(:,:)
+                    ufswbandclr(:,:,k,nz) =    &
+                               sumreclr(:,:,k,nz)*solarflux_p(:,:)
                   end do
                 endif
 
@@ -3376,22 +3267,18 @@ integer,                       intent(in)    :: naerosol_optical
 !    spectral values.                                                 
 !----------------------------------------------------------------------c
                 do k = KSRAD,KERAD+1
-                  do j=JSRAD,JERAD
-                    do i=ISRAD,IERAD
-                      Sw_output%dfswcf(i,j,k,nz) =    &
-                              Sw_output%dfswcf(i,j,k,nz) +  &
-                                    sumtrclr(i,j,k,nz)*solarflux_p(i,j)
-                      Sw_output%ufswcf(i,j,k,nz) =      &
-                              Sw_output%ufswcf(i,j,k,nz) +  &
-                                    sumreclr(i,j,k,nz)*solarflux_p(i,j)
-                      fswbandclr(i,j,k,nz) =    &
-                            (sumreclr(i,j,k,nz)*solarflux_p(i,j)) - &
-                            (sumtrclr(i,j,k,nz)*solarflux_p(i,j))
-                      Sw_output%fswcf(i,j,k,nz) =    &
-                                    Sw_output%fswcf(i,j,k,nz) +    &
-                                                  fswbandclr(i,j,k,nz)
-                    end do
-                  end do
+                  Sw_output%dfswcf(:,:,k,nz) =    &
+                          Sw_output%dfswcf(:,:,k,nz) +  &
+                                sumtrclr(:,:,k,nz)*solarflux_p(:,:)
+                  Sw_output%ufswcf(:,:,k,nz) =      &
+                          Sw_output%ufswcf(:,:,k,nz) +  &
+                                sumreclr(:,:,k,nz)*solarflux_p(:,:)
+                  fswbandclr(:,:,k,nz) =    &
+                        (sumreclr(:,:,k,nz)*solarflux_p(:,:)) - &
+                        (sumtrclr(:,:,k,nz)*solarflux_p(:,:))
+                  Sw_output%fswcf(:,:,k,nz) =    &
+                                Sw_output%fswcf(:,:,k,nz) +    &
+                                              fswbandclr(:,:,k,nz)
                 end do
 
 !----------------------------------------------------------------------c
@@ -3399,22 +3286,18 @@ integer,                       intent(in)    :: naerosol_optical
 !    spectral values.                                               
 !----------------------------------------------------------------------c
                 do k = KSRAD,KERAD
-                  do j=JSRAD,JERAD
-                    do i=ISRAD,IERAD
-                      hswbandclr(i,j,k,nz) =    &
-                                (fswbandclr(i,j,k+1,nz) -      &
-                                    fswbandclr(i,j,k,nz))*gocpdp(i,j,k)
-                      Sw_output%hswcf(i,j,k,nz) =   &
-                                   Sw_output%hswcf(i,j,k,nz) +    &
-                                                   hswbandclr(i,j,k,nz)
-                    end do
-                  end do
+                  hswbandclr(:,:,k,nz) =    &
+                            (fswbandclr(:,:,k+1,nz) -      &
+                                fswbandclr(:,:,k,nz))*gocpdp(:,:,k)
+                  Sw_output%hswcf(:,:,k,nz) =   &
+                               Sw_output%hswcf(:,:,k,nz) +    &
+                                               hswbandclr(:,:,k,nz)
                 end do
               endif
             endif ! (nprofile == 1)
-          end do ! (nz loop)
-        end do   ! (end of band loop)
-      end do   ! (end of nprofile loop)
+          end do  ! (nz loop)
+        end do    ! (end of band loop)
+      end do      ! (end of nprofile loop)
 
 !----------------------------------------------------------------------
 !    if the ica calculation was being done, the fluxes and heating rates
@@ -3422,76 +3305,43 @@ integer,                       intent(in)    :: naerosol_optical
 !    averaged.
 !------------------------------------------------------------------
       if (do_ica_calcs) then
-        do j=JSRAD,JERAD
-          do i=ISRAD,IERAD
-            Sw_output%dfsw_dir_sfc (i,j,:) =   &
-                      Sw_output%dfsw_dir_sfc(i,j,:)*profiles_inverse
-            Sw_output%ufsw_dif_sfc (i,j,:) =   &
-                      Sw_output%ufsw_dif_sfc(i,j,:)*profiles_inverse
-            Sw_output%dfsw_vis_sfc (i,j,:) =   &
-                      Sw_output%dfsw_vis_sfc(i,j,:)*profiles_inverse
-            Sw_output%ufsw_vis_sfc (i,j,:) =   &
-                      Sw_output%ufsw_vis_sfc(i,j,:)*profiles_inverse
-            Sw_output%dfsw_vis_sfc_dir (i,j,:) =   &
-                      Sw_output%dfsw_vis_sfc_dir(i,j,:)*profiles_inverse
-            Sw_output%ufsw_vis_sfc_dif (i,j,:) =   &
-                      Sw_output%ufsw_vis_sfc_dif(i,j,:)*profiles_inverse
-            Sw_output%bdy_flx(i,j,:,:) =  &
-                      Sw_output%bdy_flx(i,j,:,:)*profiles_inverse
-          end do
-        end do
-        do k = KSRAD,KERAD+1
-          do j=JSRAD,JERAD
-            do i=ISRAD,IERAD
-              Sw_output%dfsw (i,j,k,:) = Sw_output%dfsw(i,j,k,:)*  &
-                                       profiles_inverse
-              Sw_output%ufsw (i,j,k,:) = Sw_output%ufsw(i,j,k,:)*  &
-                                       profiles_inverse
-              Sw_output%fsw(i,j,k,:) = Sw_output%fsw(i,j,k,:)*  &
-                                     profiles_inverse
-            end do
-          end do
-        end do
-        do k = KSRAD,KERAD
-          do j=JSRAD,JERAD
-            do i=ISRAD,IERAD
-              Sw_output%hsw(i,j,k,:) = Sw_output%hsw(i,j,k,:)*  &
-                                       profiles_inverse
-            end do
-          end do
-        end do
+        Sw_output%dfsw_dir_sfc (:,:,:) = Sw_output%dfsw_dir_sfc(:,:,:)*profiles_inverse
+        Sw_output%ufsw_dif_sfc (:,:,:) = Sw_output%ufsw_dif_sfc(:,:,:)*profiles_inverse
+        Sw_output%dfsw_vis_sfc (:,:,:) = Sw_output%dfsw_vis_sfc(:,:,:)*profiles_inverse
+        Sw_output%ufsw_vis_sfc (:,:,:) = Sw_output%ufsw_vis_sfc(:,:,:)*profiles_inverse
+        Sw_output%dfsw_vis_sfc_dir (:,:,:) = Sw_output%dfsw_vis_sfc_dir(:,:,:)*profiles_inverse
+        Sw_output%ufsw_vis_sfc_dif (:,:,:) = Sw_output%ufsw_vis_sfc_dif(:,:,:)*profiles_inverse
+        Sw_output%bdy_flx(:,:,:,:) = Sw_output%bdy_flx(:,:,:,:)*profiles_inverse
+        Sw_output%dfsw (:,:,:,:) = Sw_output%dfsw(:,:,:,:)*profiles_inverse
+        Sw_output%ufsw (:,:,:,:) = Sw_output%ufsw(:,:,:,:)*profiles_inverse
+        Sw_output%fsw(:,:,:,:) = Sw_output%fsw(:,:,:,:)*profiles_inverse
+        Sw_output%hsw(:,:,:,:) = Sw_output%hsw(:,:,:,:)*profiles_inverse
       endif
 
-      do j=JSRAD,JERAD
-        do i=ISRAD,IERAD
-          if (daylight(i,j) ) then
-            Sw_output%dfsw_dif_sfc(i,j,: ) =   &
-                              Sw_output%dfsw(i,j,KERAD+1,: ) -   &
-                                      Sw_output%dfsw_dir_sfc(i,j,: )
-          endif
-        end do
+      do nz=1,nzens
+        where ( daylight )
+          Sw_output%dfsw_dif_sfc(:,:,nz ) =   &
+                          Sw_output%dfsw(:,:,KERAD+1,nz ) -   &
+                                  Sw_output%dfsw_dir_sfc(:,:,nz )
+        end where
       end do
 
       if (Rad_control%do_totcld_forcing) then
-        do j=JSRAD,JERAD
-          do i=ISRAD,IERAD
-            if (daylight(i,j) ) then
-              Sw_output%dfsw_dif_sfc_clr(i,j,: ) =   &
-                                Sw_output%dfswcf(i,j,KERAD+1,:) -   &
-                                Sw_output%dfsw_dir_sfc_clr(i,j,:)
-            endif
-          end do
+        do nz=1,nzens
+          where ( daylight )
+            Sw_output%dfsw_dif_sfc_clr(:,:,nz ) =   &
+                              Sw_output%dfswcf(:,:,KERAD+1,nz) -   &
+                              Sw_output%dfsw_dir_sfc_clr(:,:,nz)
+          end where
         end do
       endif
 
-      do j=JSRAD,JERAD
-        do i=ISRAD,IERAD
-          if (daylight(i,j) ) then
-            Sw_output%dfsw_vis_sfc_dif(i,j,:) =   &
-                                Sw_output%dfsw_vis_sfc(i,j,:) -   &
-                                Sw_output%dfsw_vis_sfc_dir(i,j,:) 
-          endif
-        end do
+      do nz=1,nzens
+        where ( daylight )
+          Sw_output%dfsw_vis_sfc_dif(:,:,nz) =   &
+                            Sw_output%dfsw_vis_sfc(:,:,nz) -   &
+                            Sw_output%dfsw_vis_sfc_dir(:,:,nz) 
+        end where
       end do
 
 !--------------------------------------------------------------------
@@ -5106,7 +4956,7 @@ logical, dimension(:,:,:), intent(in), optional    :: cloud
                 tlayerdir(i,j,k) = tlayerdir2(cld_index(i,j,k))
                 tlayerde(i,j,k) = tlayerde2(cld_index(i,j,k))
                 if (present(tlayerdif)) then
-                  if (ng .eq. 1) then
+                  if (ng == 1) then
                     rlayerdif(i,j,k) = sumr(cld_index(i,j,k))
                     tlayerdif(i,j,k) = sumt(cld_index(i,j,k))
                   endif
@@ -5124,7 +4974,7 @@ logical, dimension(:,:,:), intent(in), optional    :: cloud
                 tlayerdir(i,j,k) = tlayerdir2(cld_index(i,j,k))
                 tlayerde(i,j,k) = tlayerde2(cld_index(i,j,k))
                 if (present(tlayerdif)) then
-                  if (ng .eq. 1) then
+                  if (ng == 1) then
                     rlayerdif(i,j,k) = sumr(cld_index(i,j,k))
                     tlayerdif(i,j,k) = sumt(cld_index(i,j,k))
                   endif
