@@ -4296,11 +4296,10 @@ include 'newmpar.h'
 include 'parm.h'
 
 integer iqq,ii,j
-integer sdi,sde,sdw,sdn,sds,sden,sdse,sdne,sdwn
-real ddux,ddvy
+real, dimension(wlev) :: ddux,ddvy
 real mxi,mxe,mxw,mxn,mxs,mxen,mxse,mxne,mxwn
-real, dimension(2) :: ri,re,rw,rn,rs,ren,rse,rne,rwn
 real, dimension(wlev) :: ddi,dde,ddw,ddn,dds,dden,ddse,ddne,ddwn
+real, dimension(wlev,2) :: ri,re,rw,rn,rs,ren,rse,rne,rwn
 real, dimension(wlev,2) :: ssi,sse,ssw,ssn,sss,ssen,ssse,ssne,sswn
 real, dimension(wlev,2) :: y2i,y2e,y2w,y2n,y2s,y2en,y2se,y2ne,y2wn
 real, dimension(ifull+iextra,wlev,2), intent (in) :: rhobar
@@ -4314,7 +4313,7 @@ real, dimension(ifull,wlev,2), intent(out) :: drhobardxu,drhobardyu,drhobardxv,d
 
 ! rhobar = int_0^(z+neta) rho dz / (z+neta)
 
-! MJT suggests neglecting neta from drhobar/dx in the slow mode (i.e., neta << D)
+! MJT suggests neglecting neta from drhobar/dx in the slow mode
 
 do iqq=1,ifull
   !netau=0.5*(neta(iqq)+neta(ie(iqq)))
@@ -4333,12 +4332,6 @@ do iqq=1,ifull
   !call mlospline(dde,sse,y2e)
   !call mlospline(ddn,ssn,y2n)
 
-  sdi=2
-  sde=2
-  sdn=2
-  sds=2  
-  sdne=2
-  sdse=2
   mxs =dd(is(iqq))    !+neta(is(iqq))
   mxne=dd(ine(iqq))   !+neta(ine(iqq))
   mxse=dd(ise(iqq))   !+neta(ise(iqq))
@@ -4352,28 +4345,20 @@ do iqq=1,ifull
   !call mlospline(ddne,ssne,y2ne)
   !call mlospline(ddse,ssse,y2se)
   
-  do ii=1,wlev
-    ! process staggered u locations
-    ddux=gosig(ii)*ddu(iqq)   !+gosig(ii)*netau-netau ! seek depth
-    call seekval(ri(:),ssi(:,:),ddi(:),ddux,sdi) !,y2i)
-    call seekval(re(:),sse(:,:),dde(:),ddux,sde) !,y2e)
-    drhobardxu(iqq,ii,:)=eeu(iqq)*(re-ri)*emu(iqq)/ds
-    call seekval(rn(:), ssn(:,:), ddn(:), ddux,sdn)  !, y2n)
-    call seekval(rne(:),ssne(:,:),ddne(:),ddux,sdne) !,y2ne)
-    call seekval(rs(:), sss(:,:), dds(:), ddux,sds)  !, y2s)
-    call seekval(rse(:),ssse(:,:),ddse(:),ddux,sdse) !,y2se)
-    drhobardyu(iqq,ii,:)=0.25*stwgt(iqq,1)*(rn*f(in(iqq))+rne*f(ine(iqq))-ri*f(iqq)-re*f(ie(iqq)))*emu(iqq)/ds &
-                        -0.125*stwgt(iqq,1)*(ri+re)*(f(in(iqq))+f(ine(iqq))-f(iqq)-f(ie(iqq)))*emu(iqq)/ds     &
-                        +0.25*stwgt(iqq,2)*(ri*f(iqq)+re*f(ie(iqq))-rs*f(is(iqq))-rse*f(ise(iqq)))*emu(iqq)/ds &
-                        -0.125*stwgt(iqq,2)*(ri+re)*(f(iqq)+f(ie(iqq))-f(is(iqq))-f(ise(iqq)))*emu(iqq)/ds
-  end do
+  ! process staggered u locations
+  ddux(:)=gosig(:)*ddu(iqq)   !+gosig(:)*netau-netau ! seek depth
+  call seekval(ri(:,:),ssi(:,:),ddi(:),ddux(:)) !,y2i)
+  call seekval(re(:,:),sse(:,:),dde(:),ddux(:)) !,y2e)
+  drhobardxu(iqq,:,:)=eeu(iqq)*(re(:,:)-ri(:,:))*emu(iqq)/ds
+  call seekval(rn(:,:), ssn(:,:), ddn(:), ddux(:))  !, y2n)
+  call seekval(rne(:,:),ssne(:,:),ddne(:),ddux(:)) !,y2ne)
+  call seekval(rs(:,:), sss(:,:), dds(:), ddux(:))  !, y2s)
+  call seekval(rse(:,:),ssse(:,:),ddse(:),ddux(:)) !,y2se)
+  drhobardyu(iqq,:,:)=0.25*stwgt(iqq,1)*(rn*f(in(iqq))+rne*f(ine(iqq))-ri*f(iqq)-re*f(ie(iqq)))*emu(iqq)/ds &
+                     -0.125*stwgt(iqq,1)*(ri+re)*(f(in(iqq))+f(ine(iqq))-f(iqq)-f(ie(iqq)))*emu(iqq)/ds     &
+                     +0.25*stwgt(iqq,2)*(ri*f(iqq)+re*f(ie(iqq))-rs*f(is(iqq))-rse*f(ise(iqq)))*emu(iqq)/ds &
+                     -0.125*stwgt(iqq,2)*(ri+re)*(f(iqq)+f(ie(iqq))-f(is(iqq))-f(ise(iqq)))*emu(iqq)/ds
 
-  sdi=2
-  sdn=2
-  sde=2
-  sdw=2
-  sden=2
-  sdwn=2
   mxw =dd(iw(iqq))   !+neta(iw(iqq))
   mxen=dd(ien(iqq))  !+neta(ien(iqq))
   mxwn=dd(iwn(iqq))  !+neta(iwn(iqq))
@@ -4387,52 +4372,53 @@ do iqq=1,ifull
   !call mlospline(dden,ssen,y2en)
   !call mlospline(ddwn,sswn,y2wn)
 
-  do ii=1,wlev
-    ! now process staggered v locations
-    ddvy=gosig(ii)*ddv(iqq)  !+gosig(ii)*netav-netav ! seek depth
-    call seekval(ri(:),ssi(:,:),ddi(:),ddvy,sdi) !,y2i)
-    call seekval(rn(:),ssn(:,:),ddn(:),ddvy,sdn) !,y2n)
-    drhobardyv(iqq,ii,:)=eev(iqq)*(rn-ri)*emv(iqq)/ds
-    call seekval(re(:), sse(:,:), dde(:), ddvy,sde)  !, y2e)
-    call seekval(ren(:),ssen(:,:),dden(:),ddvy,sden) !,y2en)
-    call seekval(rw(:), ssw(:,:), ddw(:), ddvy,sdw)  !, y2w)
-    call seekval(rwn(:),sswn(:,:),ddwn(:),ddvy,sdwn) !,y2wn)
-    drhobardxv(iqq,ii,:)=0.25*stwgt(iqq,3)*(re*f(ie(iqq))+ren*f(ien(iqq))-ri*f(iqq)-rn*f(in(iqq)))*emv(iqq)/ds &
-                        -0.125*stwgt(iqq,3)*(ri+rn)*(f(ie(iqq))+f(ien(iqq))-f(iqq)-f(in(iqq)))*emv(iqq)/ds     &
-                        +0.25*stwgt(iqq,4)*(ri*f(iqq)+rn*f(in(iqq))-rw*f(iw(iqq))-rwn*f(iwn(iqq)))*emv(iqq)/ds &
-                        -0.125*stwgt(iqq,4)*(ri+rn)*(f(iqq)+f(in(iqq))-f(iw(iqq))-f(iwn(iqq)))*emv(iqq)/ds
-  end do
+  ! now process staggered v locations
+  ddvy(:)=gosig(:)*ddv(iqq)  !+gosig(:)*netav-netav ! seek depth
+  call seekval(ri(:,:),ssi(:,:),ddi(:),ddvy(:)) !,y2i)
+  call seekval(rn(:,:),ssn(:,:),ddn(:),ddvy(:)) !,y2n)
+  drhobardyv(iqq,:,:)=eev(iqq)*(rn-ri)*emv(iqq)/ds
+  call seekval(re(:,:), sse(:,:), dde(:), ddvy(:)) !, y2e)
+  call seekval(ren(:,:),ssen(:,:),dden(:),ddvy(:)) !,y2en)
+  call seekval(rw(:,:), ssw(:,:), ddw(:), ddvy(:)) !, y2w)
+  call seekval(rwn(:,:),sswn(:,:),ddwn(:),ddvy(:)) !,y2wn)
+  drhobardxv(iqq,:,:)=0.25*stwgt(iqq,3)*(re*f(ie(iqq))+ren*f(ien(iqq))-ri*f(iqq)-rn*f(in(iqq)))*emv(iqq)/ds &
+                     -0.125*stwgt(iqq,3)*(ri+rn)*(f(ie(iqq))+f(ien(iqq))-f(iqq)-f(in(iqq)))*emv(iqq)/ds     &
+                     +0.25*stwgt(iqq,4)*(ri*f(iqq)+rn*f(in(iqq))-rw*f(iw(iqq))-rwn*f(iwn(iqq)))*emv(iqq)/ds &
+                      -0.125*stwgt(iqq,4)*(ri+rn)*(f(iqq)+f(in(iqq))-f(iw(iqq))-f(iwn(iqq)))*emv(iqq)/ds
 
 end do
 
 return
 end subroutine seekdelta
 
-subroutine seekval(rout,ssin,ddin,ddseek,sindx) !,y2)
+subroutine seekval(rout,ssin,ddin,ddseek)
 
 use mlo, only : wlev
 
 implicit none
 
-integer, intent(inout) :: sindx
-integer nindx
-real, intent(in) :: ddseek
-real, dimension(2), intent(out) :: rout
-real, dimension(wlev,2), intent(in) :: ssin !,y2
+integer ii
+integer, dimension(wlev) :: sindx
+real, dimension(wlev), intent(in) :: ddseek
 real, dimension(wlev), intent(in) :: ddin
-real h,a,b
+real, dimension(wlev,2), intent(in) :: ssin
+real, dimension(wlev,2), intent(out) :: rout
+real, dimension(wlev) :: h,a
 
-do nindx=sindx,wlev-1
-  if (ddin(nindx)>=ddseek) exit
+sindx=2
+do ii=2,wlev-1
+  where (ddseek>ddin(ii))
+    sindx=ii+1
+  end where
 end do
-sindx=nindx
 
 h=ddin(sindx)-ddin(sindx-1)
 a=max(min((ddin(sindx)-ddseek)/h  ,1.),0.)
-b=max(min((ddseek-ddin(sindx-1))/h,1.),0.)
+!b=max(min((ddseek-ddin(sindx-1))/h,1.),0.)
 
-! linear interpolation
-rout(:)=a*ssin(sindx-1,:)+b*ssin(sindx,:) !+((a*a*a-a)*y2(sindx-1,:)+(b*b*b-b)*y2(sindx,:))*h*h/6.
+! linear interpolation                           ! cubic spline terms
+rout(:,1)=a*ssin(sindx-1,1)+(1.-a)*ssin(sindx,1) !+((a*a*a-a)*y2(sindx-1,1)+(b*b*b-b)*y2(sindx,1))*h*h/6.
+rout(:,2)=a*ssin(sindx-1,2)+(1.-a)*ssin(sindx,2) !+((a*a*a-a)*y2(sindx-1,2)+(b*b*b-b)*y2(sindx,2))*h*h/6.
 
 return
 end subroutine seekval
