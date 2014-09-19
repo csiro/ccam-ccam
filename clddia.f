@@ -1,7 +1,6 @@
       subroutine clddia(rhum,sigf,cf,ktd,kbd,icld,i,j) ! jlm
       use arrays_m  ! for t
       use cc_mpi, only : myid
-      use davb_m    ! for qgg
       use map_m
       use morepbl_m ! for condc
       use pbl_m     ! for tss
@@ -67,7 +66,7 @@ c     ---------------------------------------------------------------------*
       if(start)then
         cldlev(2,3)=sigcll
          if (myid==0) then
-	 write (6,"('cldlev:',6f8.3)") cldlev
+         write (6,"('cldlev:',6f8.3)") cldlev
 c       ---------------------------------------------------------------------*
 c       on first calculation calculate the high, middle and low              *
 c       cloud level limits                                                   *
@@ -154,7 +153,7 @@ c      calculate critical relative humidity                           *
 !       for grid resolution varying between 5 km and 100 km
         dx=.001*ds/em(iq)   ! in km
         factmap=max( 0. , min( (dx-5.)/(100.-5.) , 1. ) )
-	 fact95=(1.-factmap)*95.
+        fact95=(1.-factmap)*95.
         if(land(iq))then    ! over land
           do k=icld(1,1),icld(2,1) ! high clds; k here goes from top dn
            rhcrit(k)=fact95+factmap*cldh_lnd
@@ -259,8 +258,6 @@ c     ---------------------------------------------------------------------*
         print 91,(rhum(k),k=kl,1,-1)
         print *,'qg for i= ',i,' j= ',j,' ktau= ',ktau
         print 91,(1000.*qg(iq,k),k=1,kl)
-        print *,'qgg for i= ',i,' j= ',j,' ktau= ',ktau
-        print 91,(1000.*qgg(iq,k),k=1,kl)
         print *,'T celsius for i= ',i,' j= ',j,' ktau= ',ktau
         print 91,(t(iq,k)-273.16,k=1,kl)
 c       print *,'rtt cooling rate (deg/day) from prev call radrive '

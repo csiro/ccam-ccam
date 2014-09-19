@@ -24,8 +24,7 @@
 /cloudmod.f90 -text
 /co2_read.f90 -text
 /co2dta_m.f90 -text
-/dava_m.f90 -text
-/davb_m.f90 -text
+/davies_m.f90 -text
 /dpsdt_m.f90 -text
 /eig.f90 -text
 /epst_m.f90 -text
@@ -89,6 +88,7 @@
 /soilsnow_m.f90 -text
 /srccom_m.f90 -text
 /stacklimit.c -text
+/staguv.f90 -text
 /swocom_m.f90 -text
 /tabcom_m.f90 -text
 /tbar2d_m.f90 -text

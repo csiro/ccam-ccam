@@ -15,7 +15,7 @@
       use cable_ccam, only : loadcbmparm,      ! CABLE interface
      &  loadtile
       use cc_mpi                               ! CC MPI routines
-      use dava_m                               ! Far-field nudging (weights)
+      use daviesnudge                          ! Far-field nudging
       use diag_m                               ! Diagnostic routines
       use epst_m                               ! Off-centre terms
       use extraout_m                           ! Additional diagnostics
@@ -177,7 +177,7 @@
      &  ((tmat(k,l),k=1,kl),l=1,kl)
        write(6,*) 'kl,lapsbot,sig from eigenv file: ',
      &             kl,lapsbot,dumc(1:kl)
-       ! File has an sigmh(kl+1) which isn't required. Causes bounds violation
+       ! File has an sigmh(kl+1) which is not required. Causes bounds violation
        ! to read this.
        read(28,*)(dumc(kl+k),k=1,kl)
        close(28) 
@@ -980,7 +980,7 @@
       endif
 
       ! aquaplanet (APE) test
-      if(nhstest<0)then
+      if(nhstest<0)then  
         fracice(:)=0.
         sicedep(:)=0.
         snowd(:)=0.

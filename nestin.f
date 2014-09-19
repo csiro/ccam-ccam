@@ -35,7 +35,7 @@
       use aerosolldr                   ! LDR prognostic aerosols
       use arrays_m                     ! Atmosphere dyamics prognostic arrays
       use cc_mpi                       ! CC MPI routines
-      use davb_m                       ! Far-field nudging (host store)
+      use davies_m                     ! Far-field nudging
       use diag_m                       ! Diagnostic routines
       use indices_m                    ! Grid index arrays
       use latlong_m                    ! Lat/lon coordinates
@@ -407,58 +407,12 @@
           call ccmpi_abort(-1)
         endif   ! (abs(io_in)==1)
         tssb(:) = abs(tssb(:))  ! moved here Mar '03
-#ifdef debug
-        if (mydiag) then
-          write (6,"('zsb# nestinb  ',9f7.1)") diagvals(zsb)
-          write (6,"('tssb# nestinb ',9f7.1)") diagvals(tssb) 
-        end if
-#endif
 
         ! calculate time for next filter call   
         kdhour=ktime_r/100-ktime/100   ! integer hour diff from Oct '05
         kdmin=(ktime_r-100*(ktime_r/100))-(ktime-100*(ktime/100))
         mtimeb=60*24*(iabsdate(kdate_r,kdate)-iabsdate(kdate,kdate))
      &                +60*kdhour+kdmin
-#ifdef debug
-        if ( myid == 0 ) then
-          write(6,*) 'nestinb file has: kdate_r,ktime_r,kdhour,kdmin ',
-     &                                  kdate_r,ktime_r,kdhour,kdmin
-          write(6,*) 'kdate_r,iabsdate ',kdate_r,iabsdate(kdate_r,kdate)
-          write(6,*) 'giving mtimeb = ',mtimeb
-!         print additional information
-          write(6,*) ' kdate ',kdate,' ktime ',ktime
-          write(6,*) 'timeg,mtimer,mtimeb: ',
-     &                timeg,mtimer,mtimeb
-          write(6,*) 'ds ',ds
-        end if
-
-        if(mod(ktau,nmaxpr)==0.or.ktau==2.or.diag)then
-!         following is useful if troublesome data is read in
-          if ( myid == 0 ) then
-            write(6,*) 'following max/min values printed from nestinb'
-          end if
-          call maxmin(ub,'ub',ktau,1.,kl)
-          call maxmin(vb,'vb',ktau,1.,kl)
-          call maxmin(tb,'tb',ktau,1.,kl)
-          call maxmin(qb,'qb',ktau,1.e3,kl)
-          if ( myid == 0 ) then
-            write(6,*) 
-     &      'following in nestinb after read pslb are psl not ps'
-          end if
-          call maxmin(pslb,'pB',ktau,100.,1)
-        endif
-
-!       in these cases redefine pslb, tb and (effectively) zsb using zs
-!       this keeps fine-mesh land mask & zs
-!       presently simplest to do whole pslb, tb (& qb) arrays
-        if(nmaxpr==1.and.mydiag)then
-          write(6,*) 'zs (idjd) :',zs(idjd)
-          write(6,*) 'zsb (idjd) :',zsb(idjd)
-          write(6,*) 'pslb in(idjd) :',pslb(idjd)
-          write(6,*) 
-     &     'call retopo from nestin; psl# prints refer to pslb'
-        endif
-#endif
         call retopo(pslb,zsb,zs(1:ifull),tb,qb)
 
       end if ! ((mtimer>mtimeb).or.firstcall)
@@ -2945,3 +2899,54 @@
       
       return
       end subroutine specinit
+
+      integer function iabsdate(kdate_r,kdate)
+      
+      implicit none
+      
+      integer leap
+      common/leap_yr/leap
+      
+!     Y2K version
+!     if before 1960, suppress leap years (GCM-nested runs) (jlm 31/5/95)
+!     N.B. All GCM dates to have year denoted by <1960      (15/12/98)
+!     Little function to convert kdate_r in form YYYYMMDD to no. of   !  Y2K
+!     days since start of year of kdate. (LDR 3/1992, jlm 15/12/98,15/12/00)
+!     Accounts for leap years. N.B. no exception in year 2000
+
+!     N.B. this latest version is designed for nested runs running 1 month
+!     at a time, so iyear0=iyear except for the case 
+!     when kdate is Dec. and kdate_r is the following Jan.
+
+      integer, intent(in) :: kdate_r, kdate
+      integer iyear,iyear0,month,iday
+      integer months,mon,mnth,nl
+      integer, dimension(12) :: mdays
+      data mdays/31,28,31,30,31,30,31,31,30,31,30,31/
+
+      iabsdate=0
+      iyear=kdate_r/10000
+      iyear0=kdate/10000                ! year of kdate
+      month=(kdate_r-10000*iyear)/100
+      iday=(kdate_r-10000*iyear)-100*month
+
+!     calculate number of months since start of kdate year
+      months=(iyear-iyear0)*12+month-1  
+
+!     Accumulate days month by month, up to last completed month
+      do mon=1,months
+        mnth=mod(mon-1,12)+1
+        iabsdate=iabsdate+mdays(mnth)
+        if (leap==1.and.mnth==2) then      ! MJT bug fix
+          nl=0                             ! MJT bug fix        
+          if (mod(iyear0,4  )==0) nl=1     ! MJT bug fix
+          if (mod(iyear0,100)==0) nl=0     ! MJT bug fix
+          if (mod(iyear0,400)==0) nl=1     ! MJT bug fix
+          iabsdate=iabsdate+nl             ! MJT bug fix
+        end if
+      enddo
+
+!     Add days from this current month
+      iabsdate=iabsdate+iday
+
+      end function iabsdate

@@ -24,8 +24,7 @@
       use cc_mpi                              ! CC MPI routines
       use cfrac_m                             ! Cloud fraction
       use cloudmod                            ! Prognostic strat cloud
-      use dava_m                              ! Far-field nudging (weights)
-      use davb_m                              ! Far-field nudging (host store)
+      use daviesnudge                         ! Far-field nudging
       use diag_m                              ! Diagnostic routines
       use dpsdt_m                             ! Vertical velocity
       use epst_m                              ! Off-centre terms
@@ -43,6 +42,7 @@
      &   ,minwater
       use mlodynamics                         ! Ocean dynamics
       use morepbl_m                           ! Additional boundary layer diagnostics
+      use nesting                             ! Nesting and assimilation
       use nharrs_m, only : nharrs_init        ! Non-hydrostatic atmosphere arrays
      &   ,lrestart
       use nlin_m                              ! Atmosphere non-linear dynamics
@@ -712,11 +712,10 @@
       end if
       call work3sav_init(ifull,iextra,kl,ilt,jlt,klt,ngasmax) ! must occur after tracers_init
       if (nbd/=0.and.nud_hrs/=0) then
-        call dava_init(ifull,iextra,kl)
         if (abs(iaero)>=2.and.nud_aero/=0) then
-          call davb_init(ifull,iextra,kl,naero)
+          call dav_init(ifull,iextra,kl,naero)
         else
-          call davb_init(ifull,iextra,kl,0)
+          call dav_init(ifull,iextra,kl,0)
         end if
       end if
       ! Remaining arrays are allocated in indata.f, since their

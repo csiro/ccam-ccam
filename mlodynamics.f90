@@ -484,7 +484,7 @@ logical, dimension(ifull+iextra) :: wtr
 logical lleap
 
 integer, parameter :: nxtrrho    = 1   ! Estimate rho at t+1 (0=off, 1=on)
-real, parameter :: tol    = 5.E-5      ! Tolerance for SOR solver (water)
+real, parameter :: tol    = 5.E-4      ! Tolerance for SOR solver (water)
 real, parameter :: itol   = 2.E1       ! Tolerance for SOR solver (ice)
 logical, dimension(6), parameter :: bsmask = (/ .false., .false., .false., .false., .true., .true. /) ! mask for Berm-Stan option
 
@@ -790,11 +790,7 @@ end if
 ! positive nw is moving downwards to the ocean bottom
 ! For now, assume Boussinesq fluid and treat density in continuity equation as constant
 ! true vertical velocity = nw-u*((1-sig)*deta/dx-sig*d(dd)/dx)-v*((1-sig)*deta/dy-sig*d(dd)/dy)-(1-sig)*deta/dt
-dumt=nu(1:ifull,:)
-dums=nv(1:ifull,:)
-call mlostaguv(dumt,dums,duma,dumb)
-eou(1:ifull,1:wlev)=duma
-eov(1:ifull,1:wlev)=dumb
+call mlostaguv(nu,nv,eou,eov)
 ! surface height at staggered coordinate
 oeu(1:ifull)=0.5*(neta(1:ifull)+neta(ie))*eeu(1:ifull) ! height at staggered coordinate
 oev(1:ifull)=0.5*(neta(1:ifull)+neta(in))*eev(1:ifull) ! height at staggered coordinate
@@ -2664,9 +2660,8 @@ include 'newmpar.h'
 include 'parm.h'
 
 integer k,itn,kx
-real, dimension(:,:), intent(in) :: u
-real, dimension(ifull,size(u,2)), intent(in) :: v
-real, dimension(ifull,size(u,2)), intent(out) :: uout,vout
+real, dimension(:,:), intent(in) :: u, v
+real, dimension(:,:), intent(out) :: uout,vout
 real, dimension(ifull+iextra,size(u,2)) :: uin,vin
 real, dimension(ifull+iextra,size(u,2)) :: ua,va
 real, dimension(ifull+iextra,size(u,2)) :: ud,vd
@@ -3035,8 +3030,8 @@ end if
 kx=size(u,2)
 
 do k=1,kx
-  uin(1:ifull,k)=u(:,k)*ee(1:ifull)
-  vin(1:ifull,k)=v(:,k)*ee(1:ifull)
+  uin(1:ifull,k)=u(1:ifull,k)*ee(1:ifull)
+  vin(1:ifull,k)=v(1:ifull,k)*ee(1:ifull)
 end do
 
 if (mstagf==0) then
@@ -3128,8 +3123,8 @@ else
 
 end if
 
-uout=ua(1:ifull,:)
-vout=va(1:ifull,:)
+uout(1:ifull,1:kx)=ua(1:ifull,1:kx)
+vout(1:ifull,1:kx)=va(1:ifull,1:kx)
 
 call END_LOG(ocnstag_end)
 
@@ -3152,9 +3147,8 @@ include 'parm.h'
 
 integer, intent(in), optional :: toff
 integer k,itn,kx,zoff
-real, dimension(:,:), intent(in) :: u
-real, dimension(ifull,size(u,2)), intent(in) :: v
-real, dimension(ifull,size(u,2)), intent(out) :: uout,vout
+real, dimension(:,:), intent(in) :: u,v
+real, dimension(:,:), intent(out) :: uout,vout
 real, dimension(ifull+iextra,size(u,2)) :: uin,vin
 real, dimension(ifull+iextra,size(u,2)) :: ua,va
 real, dimension(ifull+iextra,size(u,2)) :: ud,vd
@@ -3629,8 +3623,8 @@ if (present(toff)) then
 end if
 
 do k=1,kx
-  uin(1:ifull,k)=u(:,k)*eeu(1:ifull)
-  vin(1:ifull,k)=v(:,k)*eev(1:ifull)
+  uin(1:ifull,k)=u(1:ifull,k)*eeu(1:ifull)
+  vin(1:ifull,k)=v(1:ifull,k)*eev(1:ifull)
 end do
 
 if (mstagf==0) then
@@ -3716,8 +3710,8 @@ else
 
 end if
 
-uout=ua(1:ifull,:)
-vout=va(1:ifull,:)
+uout(1:ifull,1:kx)=ua(1:ifull,1:kx)
+vout(1:ifull,1:kx)=va(1:ifull,1:kx)
 
 call END_LOG(ocnstag_end)
 
