@@ -24,7 +24,7 @@
 /cloudmod.f90 -text
 /co2_read.f90 -text
 /co2dta_m.f90 -text
-/davies_m.f90 -text
+/daviesnudge.f90 -text
 /dpsdt_m.f90 -text
 /eig.f90 -text
 /epst_m.f90 -text
@@ -58,6 +58,7 @@
 /mlodynamics.f90 -text
 /morepbl_m.f90 -text
 /mpif_m.f90 -text
+/nesting.f90 -text
 /netcdf_m.f90 -text
 /nharrs_m.f90 -text
 /nlin_m.f90 -text

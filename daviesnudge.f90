@@ -1,4 +1,4 @@
-module davies_m
+module daviesnudge
 
 private
 public davies,davset
@@ -160,4 +160,4 @@ end if
 return
 end subroutine dav_end
 
-end module davies_m
+end module daviesnudge
