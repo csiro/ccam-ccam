@@ -35,6 +35,7 @@
 /gas_tf.f90 -text
 /gdrag_m.f90 -text
 /gettin.f90 -text
+/gwdrag.f90 -text
 /helmsolve.f90 -text
 /histave_m.f90 -text
 /indices_m.f90 -text

@@ -549,7 +549,7 @@ if( myid==0 .or. local ) then
     lname = 'Surface geopotential'
     call attrib(idnc,idim(1:2),2,'zht',lname,'m2/s2',-1000.,90.e3,0,-1)
     lname = 'Std Dev of surface height'
-    call attrib(idnc,idim(1:2),2,'he',lname,'m',-1000.,90.e3,0,-1)
+    call attrib(idnc,idim(1:2),2,'he',lname,'m',0.,90.e3,0,-1)
     lname = 'Map factor'
     call attrib(idnc,idim(1:2),2,'map',lname,'none',.001,1500.,0,itype)
     lname = 'Coriolis factor'

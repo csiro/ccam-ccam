@@ -1796,7 +1796,6 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
       !--------------------------------------------------------------
       ! UPDATE GRAVITY WAVE DRAG DATA (lgwd)
       gwdfac=.01*lgwd   ! most runs used .02 up to fri  10-10-1997
-      helim=800.        ! hal used 800.
       hefact=.1*abs(ngwd)   ! hal used hefact=1. (equiv to ngwd=10)
       if(myid==0)write(6,*)'hefact,helim,gwdfac: ',hefact,helim,gwdfac
       helo(:)=0.

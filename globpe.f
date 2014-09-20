@@ -161,7 +161,7 @@
      &    mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,
      &    nud_sfh,bpyear,rescrn,helmmeth,nmlo,ol,mxd,mindep,minwater,
      &    ocnsmag,ocneps,fixsal,fixheight,knh,ccycle,kblock,
-     &    nud_aero,ch_dust,zvolcemi
+     &    nud_aero,ch_dust,zvolcemi,helim,fc2
       namelist/skyin/mins_rad,ndiur
       namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,
      &    hfile,icefile,mesonest,nmifile,o3file,radfile,restfile,
@@ -2277,6 +2277,7 @@ c     data nstag/99/,nstagu/99/
       !data khdif/2/,khor/-8/,nhor/-157/,nhorps/-1/,nhorjlm/1/
 !     Vertical mixing options
       data nvmix/3/,nlocal/6/,nvsplit/2/,ncvmix/0/,lgwd/0/,ngwd/-5/
+      data helim/800./,fc2/1./
 !     Cumulus convection options
       data nkuo/23/,sigcb/1./,sig_ct/1./,rhcv/0./,rhmois/.1/,rhsat/1./,
      &     convfact/1.02/,convtime/.33/,shaltime/0./,      
