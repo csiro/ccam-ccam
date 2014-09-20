@@ -96,7 +96,7 @@
       real c, cent, 
      &     coslat, coslong, costh, den, diffb, diffg, dist,
      &     epsmax, fracs, fracwet, ftsoil, gwdfac, hefact,
-     &     helim, polenx, poleny, polenz, pslavge,
+     &     polenx, poleny, polenz, pslavge,
      &     rad, radu, radv, ri, rj, rlat_d, rlon_d,
      &     rmax, rmin, rmax_g, rmin_g, rlatd, rlongd, 
      &     sinlat, sinlong, sinth, snalb,sumdsig, thet, timegb, tsoil, 

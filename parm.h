@@ -13,10 +13,10 @@
       real qgmin,                                                        &
      &     aleadfr,av_vmod,vmodmin,snmin,tss_sh,charnock,chn10,zobgin,   &
      &     rlongdn,rlongdx,rlatdn,rlatdx,ds,dt,dtin,timea,panfg,panzo,   &
-     &     bpyear,helim,fc2
+     &     bpyear,helim,fc2,alphaj
       logical diag, localhist,amipo3
       common/parm1/meso,nem,ngwd,nrungcm,newtop,bpyear,iaero,helim,fc2,  &
-     &  ,qgmin     ! min value, esp. for stratosphere           [1.e-6]
+     &  alphaj,qgmin     ! min value, esp. for stratosphere      [1.e-6]
 
       common/parmradn/kountr,ndiur,nrad,amipo3   
 

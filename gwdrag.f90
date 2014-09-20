@@ -17,7 +17,7 @@ include 'newmpar.h'
 include 'const_phys.h'
 include 'parm.h'
 integer iq,i,j,k
-real dzx, alphaj
+real dzx
 real uu(ifull,kl),fni(ifull,kl),bvnf(ifull,kl)
 real, dimension(ifull,kl) :: thf
 real, dimension(ifull) :: dzi, xxx
@@ -49,26 +49,27 @@ enddo    ! k loop
 !     calc d(theta)/dz  at half-levels , using 1/dz at level k-.5
 if(ndzx==0) then
   dzx=-grav*sig(1)/(dsig(1)*rdry)                ! Hal's
+  dzi(:)=dzx/(tv(:,1)+tnhs(:,1))
+  dthdz(:,1)=max(thf(:,1)-tss(:),0.)*dzi(:)      ! was wrong dzi - jlm
+  do k=2,kl
+    dzx=-2.*grav*sig(k)/(dsig(k)*rdry)                      ! Hal's
+    dzi(:)=dzx/(tv(:,k-1)+tv(:,k)+tnhs(:,k-1)+tnhs(:,k))    ! gwdrag
+    dthdz(:,k)=(thf(:,k)-thf(:,k-1))*dzi(:)
+  enddo    ! k loop          
 elseif(ndzx==1) then
   dzx=.5*grav*(1.+sig(1))/((1.-sig(1))*rdry)     ! fixup by jlm
+  dzi(:)=dzx/(tv(:,1)+tnhs(:,1))
+  dthdz(:,1)=max(thf(:,1)-tss(:),0.)*dzi(:)      ! was wrong dzi - jlm
+  do k=2,kl
+    dzx=grav*(sig(k-1)+sig(k))/((sig(k-1)-sig(k))*rdry)   ! fixup by jlm
+    dzi(:)=dzx/(tv(:,k-1)+tv(:,k)+tnhs(:,k-1)+tnhs(:,k))  ! gwdrag
+    dthdz(:,k)=(thf(:,k)-thf(:,k-1))*dzi(:)
+  enddo    ! k loop          
 end if
-dzi(:)=dzx/(tv(:,1)+tnhs(:,1))
-dthdz(:,1)=max(thf(:,1)-tss(:),0.)*dzi(:)  ! was wrong dzi - jlm
+
 !     form new wmag at surface
-wmag(:)=max(sqrt(u(:,1)**2+v(:,1)**2),1.)
-if (ndzx==0) then
- do k=2,kl
-  dzx=-2.*grav*sig(k)/(dsig(k)*rdry)                      ! Hal's
-  dzi(:)=dzx/(tv(:,k-1)+tv(:,k)+tnhs(:,k-1)+tnhs(:,k))  ! gwdrag
-  dthdz(:,k)=(thf(:,k)-thf(:,k-1))*dzi(:)
- enddo    ! k loop          
-else if (ndzx==1) then
- do k=2,kl
-  dzx=grav*(sig(k-1)+sig(k))/((sig(k-1)-sig(k))*rdry)     ! fixup by jlm
-  dzi(:)=dzx/(tv(:,k-1)+tv(:,k)+tnhs(:,k-1)+tnhs(:,k))  ! gwdrag
-  dthdz(:,k)=(thf(:,k)-thf(:,k-1))*dzi(:)
- enddo    ! k loop          
-end if
+wmag(:)=max(sqrt(u(:,1)**2+v(:,1)**2),vmodmin) ! MJT suggestion
+
 
 !**** calculate Brunt-Vaisala frequency
 !**** surface bvng() and full levels bvnf(,)
@@ -85,7 +86,8 @@ temp(:)=fc2*tss(:)/max( bvng(:)*wmag(:)*he(:)**2,1.e-10)  !jlm
 
 !     calculate bvnf at other levels,  (Brunt-Vaisala-N-full)
 do k=1,kl-1
-  bvnf(:,k)=sqrt( max(1.e-20,grav*(dthdz(:,k)+dthdz(:,k+1))/(thf(:,k)+thf(:,k+1))) ) ! jlm fixup
+  !bvnf(:,k)=sqrt( max(1.e-20,grav*(dthdz(:,k)+dthdz(:,k+1))/(thf(:,k)+thf(:,k+1))) ) ! jlm fixup
+  bvnf(:,k)=sqrt( max(1.e-20,grav*0.5*(dthdz(:,k)+dthdz(:,k+1))/thf(:,k)) ) ! MJT suggestion
 enddo    ! k loop
 bvnf(:,kl)=sqrt(max(1.e-20,grav*dthdz(:,kl)/thf(:,kl)))    ! jlm fixup
 
@@ -109,13 +111,13 @@ do k=1,kl
 enddo    ! k loop
 
 !     form integral of above*uu**2 from sig=1 to sig=0
-fnii(:)=-fni(:,1)*dsig(1)*uu(:,1)**2
+fnii(:)=-fni(:,1)*dsig(1)*uu(:,1)*uu(:,1)
 do k=2,kl
-  fnii(:)=fnii(:)-fni(:,k)*dsig(k)*uu(:,k)**2
+  fnii(:)=fnii(:)-fni(:,k)*dsig(k)*uu(:,k)*uu(:,k)
 enddo    ! k loop
 
 !     Chouinard et al. use alpha=.01
-alphaj=0.01*1.e-4  ! jlm   .01 *rhos*g/ps
+!alphaj=0.01*1.e-4  ! jlm   .01 *rhos*g/ps
 !hal  alphah=0.0075*g/r  ! actually alpha*(g/ps)*rhos  *tss  ! Ch et al
 !      if integral=0., reset to some +ve value
 !      form alam=(g/p*).alpha.rhos.he.N*.wmag/integral(above)
