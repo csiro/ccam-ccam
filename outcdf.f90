@@ -441,7 +441,7 @@ real, dimension(ifull) :: ocndep,ocnheight
 real, dimension(ifull,kl) :: tmpry,rhoa
 real, dimension(ifull,wlev,4) :: mlodwn
 real, dimension(ifull,11) :: micdwn
-real, dimension(ifull,24) :: atebdwn
+real, dimension(ifull,28) :: atebdwn
 character(len=50) expdesc
 character(len=40) lname
 character(len=21) mnam,nnam
@@ -1068,24 +1068,32 @@ if( myid==0 .or. local ) then
       call attrib(idnc,idim,3,'rooftgg2',lname,'K',100.,425.,0,itype)
       lname = 'roof temperature lev 3'
       call attrib(idnc,idim,3,'rooftgg3',lname,'K',100.,425.,0,itype)
+      lname = 'roof temperature lev 4'
+      call attrib(idnc,idim,3,'rooftgg4',lname,'K',100.,425.,0,itype)
       lname = 'east wall temperature lev 1'
       call attrib(idnc,idim,3,'waletgg1',lname,'K',100.,425.,0,itype)
       lname = 'east wall temperature lev 2'
       call attrib(idnc,idim,3,'waletgg2',lname,'K',100.,425.,0,itype)
       lname = 'east wall temperature lev 3'
       call attrib(idnc,idim,3,'waletgg3',lname,'K',100.,425.,0,itype)
+      lname = 'east wall temperature lev 4'
+      call attrib(idnc,idim,3,'waletgg4',lname,'K',100.,425.,0,itype)
       lname = 'west wall temperature lev 1'
       call attrib(idnc,idim,3,'walwtgg1',lname,'K',100.,425.,0,itype)
       lname = 'west wall temperature lev 2'
       call attrib(idnc,idim,3,'walwtgg2',lname,'K',100.,425.,0,itype)
       lname = 'west wall temperature lev 3'
       call attrib(idnc,idim,3,'walwtgg3',lname,'K',100.,425.,0,itype)
+      lname = 'west wall temperature lev 4'
+      call attrib(idnc,idim,3,'walwtgg4',lname,'K',100.,425.,0,itype)
       lname = 'road temperature lev 1'
       call attrib(idnc,idim,3,'roadtgg1',lname,'K',100.,425.,0,itype)
       lname = 'road temperature lev 2'
       call attrib(idnc,idim,3,'roadtgg2',lname,'K',100.,425.,0,itype)
       lname = 'road temperature lev 3'
       call attrib(idnc,idim,3,'roadtgg3',lname,'K',100.,425.,0,itype)
+      lname = 'road temperature lev 4'
+      call attrib(idnc,idim,3,'roadtgg4',lname,'K',100.,425.,0,itype)
       lname = 'urban canyon soil moisture'
       call attrib(idnc,idim,3,'urbnsmc',lname,'m3/m3',0.,1.3,0,itype)
       lname = 'urban roof soil moisture'
@@ -1815,27 +1823,31 @@ if ( nurban<=-1 .or. (nurban>=1.and.itype==-1) ) then
   call histwrt3(atebdwn(:,1),'rooftgg1',idnc,iarch,local,.true.)
   call histwrt3(atebdwn(:,2),'rooftgg2',idnc,iarch,local,.true.)
   call histwrt3(atebdwn(:,3),'rooftgg3',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,4),'waletgg1',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,5),'waletgg2',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,6),'waletgg3',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,7),'walwtgg1',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,8),'walwtgg2',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,9),'walwtgg3',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,10),'roadtgg1',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,11),'roadtgg2',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,12),'roadtgg3',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,13),'urbnsmc',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,14),'urbnsmr',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,15),'roofwtr',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,16),'roadwtr',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,17),'urbwtrc',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,18),'urbwtrr',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,19),'roofsnd',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,20),'roadsnd',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,21),'roofden',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,22),'roadden',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,23),'roofsna',idnc,iarch,local,.true.)
-  call histwrt3(atebdwn(:,24),'roadsna',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,4),'rooftgg4',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,5),'waletgg1',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,6),'waletgg2',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,7),'waletgg3',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,8),'waletgg4',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,9),'walwtgg1',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,10),'walwtgg2',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,11),'walwtgg3',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,12),'walwtgg4',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,13),'roadtgg1',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,14),'roadtgg2',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,15),'roadtgg3',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,16),'roadtgg4',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,17),'urbnsmc',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,18),'urbnsmr',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,19),'roofwtr',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,20),'roadwtr',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,21),'urbwtrc',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,22),'urbwtrr',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,23),'roofsnd',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,24),'roadsnd',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,25),'roofden',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,26),'roadden',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,27),'roofsna',idnc,iarch,local,.true.)
+  call histwrt3(atebdwn(:,28),'roadsna',idnc,iarch,local,.true.)
 end if
 
 ! **************************************************************

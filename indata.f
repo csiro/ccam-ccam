@@ -1795,59 +1795,28 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
 
       !--------------------------------------------------------------
       ! UPDATE GRAVITY WAVE DRAG DATA (lgwd)
-      gwdfac=.01*lgwd   ! most runs used .02 up to fri  10-10-1997
+      gwdfac=.01*lgwd       ! most runs used .02 up to fri  10-10-1997
       hefact=.1*abs(ngwd)   ! hal used hefact=1. (equiv to ngwd=10)
       if(myid==0)write(6,*)'hefact,helim,gwdfac: ',hefact,helim,gwdfac
       helo(:)=0.
       if(lgwd>0)then
-!        aamax=0.
         do iq=1,ifull
          if(land(iq))then
            if(he(iq)==0.)write(6,*)'zero he over land for iq = ',iq
            aa(iq)=min(gwdfac*max(he(iq),.01),.8*zmin)   ! already in meters
-!           aamax=max(aamax,aa(iq))
 !          replace he by square of corresponding af value
            helo(iq)=( .4/log(zmin/aa(iq)) )**2
-         else
-           aa(iq)=0.  ! for sea
          endif
         enddo   ! iq loop
         if(mydiag)write(6,*)'for lgwd>0, typical zo#: ', diagvals(aa)
-!     & 	 ((aa(ii+(jj-1)*il),ii=id-1,id+1),jj=jd+1,jd-1,-1)
-!        dumd(1)=aamax
-!        call ccmpi_reduce(dumd(1:1),dumd(2:2),"max",0,comm_world)
-!        aamax_g=dumd(2)
-!        if(myid==0)write(6,*)'for lgwd>0, aamax: ',aamax_g
       end if ! lgwd>0
       if (ngwd/=0) then
-!        hemax=0.
-        do iq=1,ifull
-!         hemax=max(he(iq),hemax)
 !****    limit launching height : Palmer et al use limit on variance of
 !****    (400 m)**2. we use launching height = std dev. we limit
 !****    launching height to  2*400=800 m. this may be a bit severe.
 !****    according to Palmer this prevents 2-grid noise at steep edge of
 !****    himalayas etc.
-         he(iq)=min(hefact*he(iq),helim)
-        enddo
-!        dumd(1) = hemax
-!        call ccmpi_allreduce(dumd(1:1),dumd(2:2),"max",comm_world)
-!        hemax = dumd(2)
-!        if(hemax==0.)then
-!!         use he of 30% of orography, i.e. zs*.3/grav
-!          do iq=1,ifull
-!           he(iq)=min(hefact*zs(iq)*.3/grav , helim)
-!           hemax=max(he(iq),hemax)
-!          enddo ! iq loop
-!        endif   ! (hemax==0.)
-!        if (nmaxpr==1) then
-!          dumd(1)=hemax
-!          call ccmpi_reduce(dumd(1:1),dumd(2:2),"max",0,comm_world)
-!          if (myid==0) then
-!            hemax_g=dumd(2)
-!            write(6,*)'final hemax = ',hemax_g
-!          end if
-!        end if
+         he(1:ifull)=min(hefact*he(1:ifull),helim)
       endif     ! (ngwd.ne.0)
 
 
@@ -1929,30 +1898,34 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
       if (nurban/=0) then
         if (myid==0) write(6,*) 'Importing ateb urban data'
         where(atebdwn(:,1)>=399.) ! must be the same as spval in onthefly.f
-          atebdwn(:,1)=tss
-          atebdwn(:,2)=0.5*(tss+291.16)
-          atebdwn(:,3)=291.16
-          atebdwn(:,4)=tss
-          atebdwn(:,5)=0.5*(tss+291.16)
-          atebdwn(:,6)=291.16
-          atebdwn(:,7)=tss
-          atebdwn(:,8)=0.5*(tss+291.16)
-          atebdwn(:,9)=291.16
-          atebdwn(:,10)=tss
-          atebdwn(:,11)=tss
-          atebdwn(:,12)=tss
-          atebdwn(:,13)=0.5*0.26+0.5*0.18
-          atebdwn(:,14)=0.18
-          atebdwn(:,15)=0.   ! roof water
-          atebdwn(:,16)=0.   ! road water
-          atebdwn(:,17)=0.   ! canyon leaf water
-          atebdwn(:,18)=0.   ! roof leaf water
-          atebdwn(:,19)=0.   ! roof snow
-          atebdwn(:,20)=0.   ! road snow
-          atebdwn(:,21)=100. ! roof snow density
-          atebdwn(:,22)=100. ! road snow density
-          atebdwn(:,23)=0.85 ! roof snow albedo
-          atebdwn(:,24)=0.85 ! road snow albedo
+          atebdwn(:,1)=tss                ! roof temp 1
+          atebdwn(:,2)=0.5*(tss+291.16)   ! roof temp 2
+          atebdwn(:,3)=0.5*(tss+291.16)   ! roof temp 3
+          atebdwn(:,4)=291.16             ! roof temp 4
+          atebdwn(:,5)=tss                ! walleast temp 1
+          atebdwn(:,6)=0.5*(tss+291.16)   ! walleast temp 2
+          atebdwn(:,7)=0.5*(tss+291.16)   ! walleast temp 3
+          atebdwn(:,8)=291.16             ! walleast temp 4
+          atebdwn(:,9)=tss                ! wallwest temp 1
+          atebdwn(:,10)=0.5*(tss+291.16)  ! wallwest temp 2
+          atebdwn(:,11)=0.5*(tss+291.16)  ! wallwest temp 3
+          atebdwn(:,12)=291.16            ! wallwest temp 4
+          atebdwn(:,13)=tss               ! road temp 1
+          atebdwn(:,14)=tss               ! road temp 2
+          atebdwn(:,15)=tss               ! road temp 3
+          atebdwn(:,16)=tss               ! road temp 4
+          atebdwn(:,17)=0.5*0.26+0.5*0.18 ! Soil water road
+          atebdwn(:,18)=0.18              ! Green roof water
+          atebdwn(:,19)=0.   ! roof water
+          atebdwn(:,20)=0.   ! road water
+          atebdwn(:,21)=0.   ! canyon leaf water
+          atebdwn(:,22)=0.   ! roof leaf water
+          atebdwn(:,23)=0.   ! roof snow
+          atebdwn(:,24)=0.   ! road snow
+          atebdwn(:,25)=100. ! roof snow density
+          atebdwn(:,26)=100. ! road snow density
+          atebdwn(:,27)=0.85 ! roof snow albedo
+          atebdwn(:,28)=0.85 ! road snow albedo
         end where
         call atebload(atebdwn,0)
         deallocate(atebdwn)

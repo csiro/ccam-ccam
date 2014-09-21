@@ -1127,7 +1127,7 @@ if ( nested/=1 ) then
   end if
 
   !------------------------------------------------------------------
-  ! Read boundary layer height for TKE-eps mixing
+  ! Read boundary layer height for TKE-eps mixing and aerosols
   call gethist1('pblh',pblh)
   pblh=max(pblh,1.)
   if ( nvmix==6 .and. nested==0 ) then
@@ -1187,8 +1187,8 @@ if ( nested/=1 ) then
   !------------------------------------------------------------------
   ! Read urban data
   if ( nurban/=0 ) then
-    if ( .not.allocated(atebdwn) ) allocate(atebdwn(ifull,24))
-    do k=1,24
+    if ( .not.allocated(atebdwn) ) allocate(atebdwn(ifull,28))
+    do k=1,28
       select case(k)
         case(1)
           vname='rooftgg1'
@@ -1197,46 +1197,54 @@ if ( nested/=1 ) then
         case(3)
           vname='rooftgg3'
         case(4)
-          vname='waletgg1'
+          vname='rooftgg4'
         case(5)
-          vname='waletgg2'
+          vname='waletgg1'
         case(6)
-          vname='waletgg3'
+          vname='waletgg2'
         case(7)
-          vname='walwtgg1'
+          vname='waletgg3'
         case(8)
-          vname='walwtgg2'
+          vname='waletgg4'
         case(9)
-          vname='walwtgg3'
+          vname='walwtgg1'
         case(10)
-          vname='roadtgg1'
+          vname='walwtgg2'
         case(11)
-          vname='roadtgg2'
+          vname='walwtgg3'
         case(12)
-          vname='roadtgg3'
+          vname='walwtgg4'
         case(13)
-          vname='urbnsmc'
+          vname='roadtgg1'
         case(14)
-          vname='urbnsmr'
+          vname='roadtgg2'
         case(15)
-          vname='roofwtr'
+          vname='roadtgg3'
         case(16)
-          vname='roadwtr'
+          vname='roadtgg4'
         case(17)
-          vname='urbwtrc'
+          vname='urbnsmc'
         case(18)
-          vname='urbwtrr'
+          vname='urbnsmr'
         case(19)
-          vname='roofsnd'
+          vname='roofwtr'
         case(20)
-          vname='roadsnd'
+          vname='roadwtr'
         case(21)
-          vname='roofden'
+          vname='urbwtrc'
         case(22)
-          vname='roadden'
+          vname='urbwtrr'
         case(23)
-          vname='roofsna'
+          vname='roofsnd'
         case(24)
+          vname='roadsnd'
+        case(25)
+          vname='roofden'
+        case(26)
+          vname='roadden'
+        case(27)
+          vname='roofsna'
+        case(28)
           vname='roadsna'
       end select
       if ( iotest ) then
@@ -1251,11 +1259,11 @@ if ( nested/=1 ) then
       end if ! iotest
       if ( all(atebdwn(:,k)==0.) ) then
         select case(k)
-          case(1:12)
+          case(1:16)
             atebdwn(:,k)=300.
-          case(21:22)
+          case(25:26)
             atebdwn(:,k)=100.
-          case(23:24)
+          case(27:28)
             atebdwn(:,k)=0.85
         end select
       end if
@@ -1495,7 +1503,7 @@ if ( myid==0 .and. nested==0 ) then
 end if
 
 return
-end subroutine onthefly_work
+                         end subroutine onthefly_work
 
 
 ! *****************************************************************************
@@ -1503,6 +1511,11 @@ end subroutine onthefly_work
 
 ! Main interface
 ! Note that sx is a global array for all processors
+
+! MJT notes - We only need to send sx data for panels contained in
+! nface.  Hence we could use RMA to only send the faces that are
+! needed for the interpolation.
+                         
 subroutine doints4(s,sout)
       
 use cc_mpi                 ! CC MPI routines
