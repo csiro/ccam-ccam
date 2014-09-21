@@ -1253,7 +1253,7 @@ subroutine atebeval(u_fg,u_eg,u_ts,u_wf,u_rn,ddt,a_sg,a_rg,a_rho,a_temp,a_mixr,a
 implicit none
 
 integer, intent(in) :: diag
-integer k,ii,iq
+integer k,iq
 real, intent(in) :: ddt
 real evctx,evct,oldval,newval
 real, dimension(ufull,2:4) :: ggaroof,ggawall,ggaroad
@@ -1664,10 +1664,10 @@ ggdwallw(:,1)=sg_wallw+rg_wallw-fg_wallw+wallw%temp(:,1)*f_wallcp(:,1)*f_walldep
 ggdroad(:,1) =(1.-d_rdsndelta)*(sg_road+rg_road-fg_road-eg_road)                            &
              +d_rdsndelta*gardsn+road%temp(:,1)*f_roadcp(:,1)*f_roaddepth(:,1)/ddt
 do k=2,3
-  ggdroof(:,2) =roof%temp(:,k)*f_roofcp(:,k)*f_roofdepth(:,k)/ddt
-  ggdwalle(:,2)=walle%temp(:,k)*f_wallcp(:,k)*f_walldepth(:,k)/ddt
-  ggdwallw(:,2)=wallw%temp(:,k)*f_wallcp(:,k)*f_walldepth(:,k)/ddt
-  ggdroad(:,2) =road%temp(:,k)*f_roadcp(:,k)*f_roaddepth(:,k)/ddt
+  ggdroof(:,k) =roof%temp(:,k)*f_roofcp(:,k)*f_roofdepth(:,k)/ddt
+  ggdwalle(:,k)=walle%temp(:,k)*f_wallcp(:,k)*f_walldepth(:,k)/ddt
+  ggdwallw(:,k)=wallw%temp(:,k)*f_wallcp(:,k)*f_walldepth(:,k)/ddt
+  ggdroad(:,k) =road%temp(:,k)*f_roadcp(:,k)*f_roaddepth(:,k)/ddt
 end do
 ggdroof(:,4) =roof%temp(:,4)*f_roofcp(:,4)*f_roofdepth(:,4)/ddt-gflxroof   ! gflxroof is AC flux
 ggdwalle(:,4)=walle%temp(:,4)*f_wallcp(:,4)*f_walldepth(:,4)/ddt-gflxwalle ! gflxwalle is AC flux
@@ -1675,27 +1675,27 @@ ggdwallw(:,4)=wallw%temp(:,4)*f_wallcp(:,4)*f_walldepth(:,4)/ddt-gflxwallw ! gfl
 ggdroad(:,4) =road%temp(:,4)*f_roadcp(:,4)*f_roaddepth(:,4)/ddt
     
 ! tridiagonal solver (Thomas algorithm) to solve for roof, road and wall temperatures
-do ii=2,4
-  n=ggaroof(:,ii)/ggbroof(:,ii-1)
-  ggbroof(:,ii)=ggbroof(:,ii)-n*ggcroof(:,ii-1)
-  ggdroof(:,ii)=ggdroof(:,ii)-n*ggdroof(:,ii-1)
-  n=ggawall(:,ii)/ggbwall(:,ii-1)
-  ggbwall(:,ii) =ggbwall(:,ii) -n*ggcwall(:,ii-1)
-  ggdwalle(:,ii)=ggdwalle(:,ii)-n*ggdwalle(:,ii-1)
-  ggdwallw(:,ii)=ggdwallw(:,ii)-n*ggdwallw(:,ii-1)
-  n=ggaroad(:,ii)/ggbroad(:,ii-1)
-  ggbroad(:,ii)=ggbroad(:,ii)-n*ggcroad(:,ii-1)
-  ggdroad(:,ii)=ggdroad(:,ii)-n*ggdroad(:,ii-1)
+do k=2,4
+  n=ggaroof(:,k)/ggbroof(:,k-1)
+  ggbroof(:,k)=ggbroof(:,k)-n*ggcroof(:,k-1)
+  ggdroof(:,k)=ggdroof(:,k)-n*ggdroof(:,k-1)
+  n=ggawall(:,k)/ggbwall(:,k-1)
+  ggbwall(:,k) =ggbwall(:,k) -n*ggcwall(:,k-1)
+  ggdwalle(:,k)=ggdwalle(:,k)-n*ggdwalle(:,k-1)
+  ggdwallw(:,k)=ggdwallw(:,k)-n*ggdwallw(:,k-1)
+  n=ggaroad(:,k)/ggbroad(:,k-1)
+  ggbroad(:,k)=ggbroad(:,k)-n*ggcroad(:,k-1)
+  ggdroad(:,k)=ggdroad(:,k)-n*ggdroad(:,k-1)
 end do
 roof%temp(:,4)=ggdroof(:,4)/ggbroof(:,4)
 walle%temp(:,4)=ggdwalle(:,4)/ggbwall(:,4)
 wallw%temp(:,4)=ggdwallw(:,4)/ggbwall(:,4)
 road%temp(:,4)=ggdroad(:,4)/ggbroad(:,4)
-do ii=3,1,-1
-  roof%temp(:,ii)=(ggdroof(:,ii) -ggcroof(:,ii)*roof%temp(:,ii+1))/ggbroof(:,ii)
-  walle%temp(:,ii)=(ggdwalle(:,ii)-ggcwall(:,ii)*walle%temp(:,ii+1))/ggbwall(:,ii)
-  wallw%temp(:,ii)=(ggdwallw(:,ii)-ggcwall(:,ii)*wallw%temp(:,ii+1))/ggbwall(:,ii)
-  road%temp(:,ii)=(ggdroad(:,ii) -ggcroad(:,ii)*road%temp(:,ii+1))/ggbroad(:,ii)
+do k=3,1,-1
+  roof%temp(:,k)=(ggdroof(:,k) -ggcroof(:,k)*roof%temp(:,k+1))/ggbroof(:,k)
+  walle%temp(:,k)=(ggdwalle(:,k)-ggcwall(:,k)*walle%temp(:,k+1))/ggbwall(:,k)
+  wallw%temp(:,k)=(ggdwallw(:,k)-ggcwall(:,k)*wallw%temp(:,k+1))/ggbwall(:,k)
+  road%temp(:,k)=(ggdroad(:,k) -ggcroad(:,k)*road%temp(:,k+1))/ggbroad(:,k)
 end do
 
 ! calculate water for canyon surfaces
