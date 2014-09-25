@@ -15,7 +15,7 @@ public itracbc,bce,bcdd,bcwd
 public itracoc,oce,ocdd,ocwd
 public itracso2,dmse,dmsso2o,so2e,so2so4o,so2dd,so2wd,so4e,so4dd,so4wd
 public dms_burden,so2_burden,so4_burden
-public Ch_dust,zvolcemi,ticeu,dzmin_gbl
+public Ch_dust,zvolcemi,ticeu,dzmin_gbl,aeroindir
 
 integer, save :: ifull,kl
 integer, save :: jk2,jk3,jk4,jk5,jk6,jk8,jk9           ! levels for injection
@@ -78,7 +78,8 @@ integer, parameter :: idmst =14     ! DMS terr
 integer, parameter :: iocna =15     ! Nat org
 
 ! options
-integer, parameter :: enhanceu10 = 0            ! Modify 10m wind speed (0=none, 1=quadrature, 2=linear)
+integer, save :: enhanceu10 = 0                 ! Modify 10m wind speed (0=none, 1=quadrature, 2=linear)
+integer, save :: aeroindir  = 0                 ! Indirect effect (0=SO4+Carbon+salt, 1=SO4, 2=None)
 
 ! physical constants
 real, parameter :: grav      = 9.80616          ! Gravitation constant
@@ -219,9 +220,9 @@ integer, intent(in) :: index
 real, dimension(ifull), intent(in) :: aa
 
 if (index<16) then
-  emissfield(:,index)=aa ! Then follow SO2, BC and OC from anthro (a) and biomass-burning (b) levels 1 and 2
+  emissfield(1:ifull,index)=aa(1:ifull) ! Then follow SO2, BC and OC from anthro (a) and biomass-burning (b) levels 1 and 2
 elseif (index==16) then
-  vso2(:)=aa        ! volcanic
+  vso2(1:ifull)=aa(1:ifull)        ! volcanic
 else
   write(6,*) "ERROR: index out-of-range for aldrloademiss"
   stop
@@ -254,7 +255,7 @@ integer, intent(in) :: index
 real, dimension(ifull), intent(in) :: aa
 
 ! First four are 3d oxidant fields (oh, h2o2, o3, no2)
-zoxidant(:,index)=aa
+zoxidant(1:ifull,index)=aa(1:ifull)
 
 return
 end subroutine aldrloadoxidant
@@ -270,7 +271,7 @@ integer, intent(in) :: inda
 real, dimension(ifull), intent(in) :: aa
 
 ! EROD is the soil fraction of Sand (inda=1), Silt (inda=2) and Clay (inda=3) that can erode
-erod(:,inda)=aa
+erod(1:ifull,inda)=aa(1:ifull)
 
 return
 end subroutine aldrloaderod
@@ -2258,7 +2259,8 @@ integer k,is,ie
 real, dimension(imax,kl), intent(in) :: rhoa
 real, dimension(imax,kl), intent(out) :: cdn
 real, dimension(imax,kl) :: xtgso4,xtgbc,xtgoc
-real, dimension(imax) :: so4_n,cphil_n,Atot
+real, dimension(imax) :: so4_n,cphil_n,salt_n,Atot
+real, dimension(imax) :: so4mk
 logical, intent(in) :: convmode
 
 is=istart
@@ -2276,34 +2278,40 @@ else
   xtgoc  = xtosav(is:ie,:,itracoc+1)
 end if
 
-do k=1,kl
-  ! Factor of 132.14/32.06 converts from sulfur to ammmonium sulfate
-  ! 1.24e17 converts from mass (kg/m3) to number concentration (/m3) for dist'n 
-  ! from Penner et al (1998).
-  ! 1.69e17 converts from mass (kg/m3) to number concentration (/m3) for dist'n 
-  ! from IPCC (2001), Table 5.1, as used by Minghuai Wang for lookup optical properties.
-  so4_n = 1.24e17 * (132.14/32.06) * rhoa(:,k) * xtgso4(:,k)
+select case(aeroindir)
+  case(0)
+    do k=1,kl
+      ! Factor of 132.14/32.06 converts from sulfur to ammmonium sulfate
+      ! 1.24e17 converts from mass (kg/m3) to number concentration (/m3) for dist'n 
+      ! from Penner et al (1998).
+      ! 1.69e17 converts from mass (kg/m3) to number concentration (/m3) for dist'n 
+      ! from IPCC (2001), Table 5.1, as used by Minghuai Wang for lookup optical properties.
+      so4_n = 1.24e17 * (132.14/32.06) * rhoa(:,k) * xtgso4(:,k)
+      ! Factor of 1.3 converts from OC to organic matter (OM) 
+      ! 1.25e17 converts from hydrophilic mass (kg/m3) to number concentration (/m3) for
+      ! Hardiman lognormal distribution for carbonaceous aerosols (Penner et al, 1998).
+      ! 1.21e17 converts from hydrophilic mass (kg/m3) to number concentration (/m3) for
+      ! biomass regional haze distribution from IPCC (2001), Table 5.1. Using rho_a=1250 kg/m3.
+      !cphil_n = 1.25e17 * rhoa(:,k) * (xtgbc(:,k)+1.3*xtgoc(:,k))
+      ! Following line counts Aitken mode as well as accumulation mode carb aerosols
+      cphil_n = 2.30e17 * rhoa(:,k) * (xtgbc(:,k)+1.3*xtgoc(:,k))
+      salt_n = ssn(is:ie,k,1) + ssn(is:ie,k,2)
+      ! Jones et al., modified to account for hydrophilic carb aerosols as well
+      Atot = max(so4_n + cphil_n + salt_n,0.)
+      cdn(:,k)=max(1.e7, 3.75e8*(1.-exp(-2.5e-9*Atot)))
+    end do
 
-  ! Factor of 1.3 converts from OC to organic matter (OM) 
-  ! 1.25e17 converts from hydrophilic mass (kg/m3) to number concentration (/m3) for
-  ! Hardiman lognormal distribution for carbonaceous aerosols (Penner et al, 1998).
-  ! 1.21e17 converts from hydrophilic mass (kg/m3) to number concentration (/m3) for
-  ! biomass regional haze distribution from IPCC (2001), Table 5.1. Using rho_a=1250 kg/m3.
-  !cphil_n = 1.25e17 * rhoa(:,k) * (xtgbc(:,k)+1.3*xtgoc(:,k))
-  
-  ! Following line counts Aitken mode as well as accumulation mode carb aerosols
-  cphil_n = 2.30e17 * rhoa(:,k) * (xtgbc(:,k)+1.3*xtgoc(:,k))
-
-  ! The dust particles are the accumulation mode only (80.2% of the hydrophilic 
-  ! "small dust" particles)
-  !dust_n(:) = 3.73e17 * rhoa(:,k) * xtg(1:ifull,k,itracdu+ndsiz)  
-  !aero_n(:) = max (10.e6, so4_n(:) + cphil_n(:) + ssn(is:ie,k,1) + ssn(is:ie,k,2) + dust_n(:))
-
-  ! Jones et al., modified to account for hydrophilic carb aerosols as well
-  Atot = max(so4_n + cphil_n + ssn(is:ie,k,1) + ssn(is:ie,k,2),0.)
-  cdn(:,k)=max(1.e7, 3.75e8*(1.-exp(-2.5e-9*Atot)))
-
-enddo
+  case(1)
+    do k=1,kl
+      so4mk=max(1.e-5,3.e9*rhoa(:,k)*xtgso4(:,k)) ! x 3 to convert to ug/m3 SO4
+      cdn(:,k)=max(20.e6, 162.e6*so4mk**0.41)     !Combined land/ocean.
+    end do
+    
+  case default
+    write(6,*) "ERROR: Invaild aeroindir option ",aeroindir
+    stop
+    
+end select
 
 return
 end subroutine cldrop

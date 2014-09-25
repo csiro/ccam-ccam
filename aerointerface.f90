@@ -628,7 +628,7 @@ include 'cparams.h'     ! Input cloud scheme parameters
 include 'parm.h'        ! Model configuration
 
 integer, intent(in) :: istart,imax,kl
-integer k
+integer k,indirmode
 real, dimension(imax,kl), intent(out) :: cdn
 real, dimension(imax,kl), intent(in) :: rhoa
 real, dimension(imax), intent(in) :: rlatt
@@ -641,7 +641,10 @@ if (present(outconv)) then
   convmode=.not.outconv
 end if
 
-select case(abs(iaero))
+indirmode=abs(iaero)
+if (aeroindir==2) indirmode=0 ! option for no indirect effects
+
+select case(indirmode)
   case(2)
     call cldrop(istart,imax,cdn,rhoa,convmode)
   case default
