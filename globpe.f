@@ -12,12 +12,12 @@
 
       use aerointerface                       ! Aerosol interface
       use aerosolldr, only : xtosav,xtg,naero ! LDR prognostic aerosols
-     &    ,Ch_dust,duste,dustwd,dustdd,bce
+     &    ,duste,dustwd,dustdd,bce,dust_burden
      &    ,bcwd,bcdd,oce,ocwd,ocdd,dmse
      &    ,dmsso2o,so2e,so2so4o,so2wd,so2dd
-     &    ,so4e,so4wd,so4dd,zvolcemi
+     &    ,so4e,so4wd,so4dd,
      &    ,dms_burden,so2_burden,so4_burden
-     &    ,aeroindir
+     &    ,Ch_dust,zvolcemi,aeroindir
       use arrays_m                            ! Atmosphere dyamics prognostic arrays
       use bigxy4_m                            ! Grid interpolation
       use carbpools_m, only : carbpools_init  ! Carbon pools
@@ -931,6 +931,7 @@
         duste        = 0.  ! Dust emissions
         dustdd       = 0.  ! Dust dry deposition
         dustwd       = 0.  ! Dust wet deposition
+        dust_burden  = 0.  ! Dust burden
         bce          = 0.  ! Black carbon emissions
         bcdd         = 0.  ! Black carbon dry deposition
         bcwd         = 0.  ! Black carbon wet deposition
@@ -1832,27 +1833,28 @@
         frs_ave(1:ifull)    = frs_ave(1:ifull)/min(ntau,nperavg)
         frp_ave(1:ifull)    = frp_ave(1:ifull)/min(ntau,nperavg)
         if ( abs(iaero)==2 ) then
-          duste        = duste/min(ntau,nperavg)      ! Dust emissions
-          dustdd       = dustdd/min(ntau,nperavg)     ! Dust dry deposition
-          dustwd       = dustwd/min(ntau,nperavg)     ! Dust wet deposition
-          bce          = bce/min(ntau,nperavg)        ! Black carbon emissions
-          bcdd         = bcdd/min(ntau,nperavg)       ! Black carbon dry deposition
-          bcwd         = bcwd/min(ntau,nperavg)       ! Black carbon wet deposition
-          oce          = oce/min(ntau,nperavg)        ! Organic carbon emissions
-          ocdd         = ocdd/min(ntau,nperavg)       ! Organic carbon dry deposition
-          ocwd         = ocwd/min(ntau,nperavg)       ! Organic carbon wet deposition
-          dmse         = dmse/min(ntau,nperavg)       ! DMS emissions
-          dmsso2o      = dmsso2o/min(ntau,nperavg)    ! DMS -> SO2 oxidation
-          so2e         = so2e/min(ntau,nperavg)       ! SO2 emissions
-          so2so4o      = so2so4o/min(ntau,nperavg)    ! SO2 -> SO4 oxidation
-          so2dd        = so2dd/min(ntau,nperavg)      ! SO2 dry deposition
-          so2wd        = so2wd/min(ntau,nperavg)      ! SO2 wet deposiion
-          so4e         = so4e/min(ntau,nperavg)       ! SO4 emissions
-          so4dd        = so4dd/min(ntau,nperavg)      ! SO4 dry deposition
-          so4wd        = so4wd/min(ntau,nperavg)      ! SO4 wet deposition
-          dms_burden   = dms_burden/min(ntau,nperavg) ! DMS burden
-          so2_burden   = so2_burden/min(ntau,nperavg) ! SO2 burden
-          so4_burden   = so4_burden/min(ntau,nperavg) ! SO4 burden
+          duste        = duste/min(ntau,nperavg)       ! Dust emissions
+          dustdd       = dustdd/min(ntau,nperavg)      ! Dust dry deposition
+          dustwd       = dustwd/min(ntau,nperavg)      ! Dust wet deposition
+          dust_burden  = dust_burden/min(ntau,nperavg) ! Dust burden
+          bce          = bce/min(ntau,nperavg)         ! Black carbon emissions
+          bcdd         = bcdd/min(ntau,nperavg)        ! Black carbon dry deposition
+          bcwd         = bcwd/min(ntau,nperavg)        ! Black carbon wet deposition
+          oce          = oce/min(ntau,nperavg)         ! Organic carbon emissions
+          ocdd         = ocdd/min(ntau,nperavg)        ! Organic carbon dry deposition
+          ocwd         = ocwd/min(ntau,nperavg)        ! Organic carbon wet deposition
+          dmse         = dmse/min(ntau,nperavg)        ! DMS emissions
+          dmsso2o      = dmsso2o/min(ntau,nperavg)     ! DMS -> SO2 oxidation
+          so2e         = so2e/min(ntau,nperavg)        ! SO2 emissions
+          so2so4o      = so2so4o/min(ntau,nperavg)     ! SO2 -> SO4 oxidation
+          so2dd        = so2dd/min(ntau,nperavg)       ! SO2 dry deposition
+          so2wd        = so2wd/min(ntau,nperavg)       ! SO2 wet deposiion
+          so4e         = so4e/min(ntau,nperavg)        ! SO4 emissions
+          so4dd        = so4dd/min(ntau,nperavg)       ! SO4 dry deposition
+          so4wd        = so4wd/min(ntau,nperavg)       ! SO4 wet deposition
+          dms_burden   = dms_burden/min(ntau,nperavg)  ! DMS burden
+          so2_burden   = so2_burden/min(ntau,nperavg)  ! SO2 burden
+          so4_burden   = so4_burden/min(ntau,nperavg)  ! SO4 burden
         end if
       end if    ! (ktau==ntau.or.mod(ktau,nperavg)==0)
 
@@ -1962,6 +1964,7 @@
           duste        = 0.  ! Dust emissions
           dustdd       = 0.  ! Dust dry deposition
           dustwd       = 0.  ! Dust wet deposition
+          dust_burden  = 0.  ! Dust burden
           bce          = 0.  ! Black carbon emissions
           bcdd         = 0.  ! Black carbon dry deposition
           bcwd         = 0.  ! Black carbon wet deposition

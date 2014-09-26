@@ -11,6 +11,7 @@ private
 public aldrcalc,aldrinit,aldrend,aldrloademiss,aldrloaderod,aldrloadoxidant,cldrop,convscav
 public xtg,xtgsav,xtosav,naero,ssn
 public itracdu,ndust,dustdd,dustwd,duste
+public dust_burden
 public itracbc,bce,bcdd,bcwd
 public itracoc,oce,ocdd,ocwd
 public itracso2,dmse,dmsso2o,so2e,so2so4o,so2dd,so2wd,so4e,so4dd,so4wd
@@ -30,6 +31,7 @@ real, dimension(:), allocatable, save :: vso2          ! volcanic emissions
 real, dimension(:), allocatable, save :: duste         ! Diagnostic - dust emissions
 real, dimension(:), allocatable, save :: dustdd        ! Diagnostic - dust dry deposition
 real, dimension(:), allocatable, save :: dustwd        ! Diagnostic - dust wet deposition
+real, dimension(:), allocatable, save :: dust_burden   ! Diagnostic - dust burden
 real, dimension(:), allocatable, save :: bce           ! Diagnostic - black carbon emissions
 real, dimension(:), allocatable, save :: bcdd          ! Diagnostic - black carbon dry deposition
 real, dimension(:), allocatable, save :: bcwd          ! Diagnostic - black carbon wet deposition
@@ -122,6 +124,7 @@ allocate(xtosav(ifull,kl,naero),vso2(ifull))
 allocate(emissfield(ifull,15),ssn(ifull,kl,2))
 allocate(zoxidant(ifull,4*kl),erod(ifull,ndcls))
 allocate(duste(ifull),dustdd(ifull),dustwd(ifull))
+allocate(dust_burden(ifull))
 allocate(bce(ifull),bcdd(ifull),bcwd(ifull))
 allocate(oce(ifull),ocdd(ifull),ocwd(ifull))
 allocate(dmse(ifull),dmsso2o(ifull))
@@ -140,6 +143,7 @@ erod=0.
 duste=0.
 dustdd=0.
 dustwd=0.
+dust_burden=0.
 bce=0.
 bcdd=0.
 bcwd=0.
@@ -199,6 +203,7 @@ deallocate(emissfield)
 deallocate(ssn)
 deallocate(zoxidant,erod)
 deallocate(duste,dustdd,dustwd)
+deallocate(dust_burden)
 deallocate(bce,bcdd,bcwd)
 deallocate(oce,ocdd,ocwd)
 deallocate(dmse,dmsso2o)
@@ -443,6 +448,14 @@ dmsso2o=dmsso2o+dmsoh+dmsn3        ! oxidation of DMS to SO2
 so2so4o=so2so4o+so2oh+so2h2+so2o3  ! oxidation of SO2 to SO4
 
 burden=0.
+do nt=1,ndust
+  do k=1,kl
+    burden=burden+xtg(1:ifull,k,itracdu+nt-1)*rhoa(:,k)*dz(:,k)
+  end do
+end do
+dust_burden=dust_burden+burden
+
+burden=0.
 do k=1,kl
   burden=burden+xtg(1:ifull,k,itracso2-1)*rhoa(:,k)*dz(:,k)
 end do
@@ -583,6 +596,46 @@ PXTEMS(:,ITRACSO2+1)=(EMISSFIELD(:,iso2a1)+EMISSFIELD(:,iso2b1))*0.03
 xte(:,1,itracso2)  =xte(:,1,itracso2)  +pxtems(:,itracso2)*gdp
 xte(:,1,itracso2+1)=xte(:,1,itracso2+1)+pxtems(:,itracso2+1)*gdp
 
+!  EMISSION OF ANTHROPOGENIC SO2 IN THE NEXT HIGHER LEVEL PLUS BIOMASS BURNING
+do jk=jk2,jk3-1
+  gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk3-jk2)
+  XTE(:,JK,ITRACSO2)  =XTE(:,JK,ITRACSO2)  +0.97*EMISSFIELD(:,iso2a2)*gdp !100% of the "above 100m" SO2 emission
+  XTE(:,JK,ITRACSO2+1)=XTE(:,JK,ITRACSO2+1)+0.03*EMISSFIELD(:,iso2a2)*gdp !100% of the "above 100m" SO4 emission
+end do
+do jk=jk3,jk4-1
+  gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk4-jk3)
+  xte(:,jk,ITRACSO2)=xte(:,jk,ITRACSO2)+0.3*emissfield(:,iso2b2)*gdp
+end do
+do jk=jk4,jk5-1
+  gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk5-jk4)
+  xte(:,jk,ITRACSO2)=xte(:,jk,ITRACSO2)+0.4*emissfield(:,iso2b2)*gdp
+end do
+do jk=jk5,jk6-1
+  gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk6-jk5)
+  xte(:,jk,ITRACSO2)=xte(:,jk,ITRACSO2)+0.3*emissfield(:,iso2b2)*gdp
+end do
+  
+!    VOLCANIC BACKGROUND EMISSIONS 
+!
+!   3 EMISSION LEVELS: 
+!    1. PRE-INTRA ERUPTION IN LEVEL IVOLC-HEIGHT (=TOP OF VOLCANO)
+!    2. POST-EXTRA ERUPTION IN LEVEL 15 -16 (CA 550-1736M)
+!    3. EXPLOSIVE ERUPTION IN LEVEL 10 - 11 (CA 5000-7900M)
+ZVOLCEMI1=ZVOLCEMI*0.36
+ZVOLCEMI2=ZVOLCEMI*0.36
+ZVOLCEMI3=ZVOLCEMI*0.28
+gdp=1./(rhoa(:,1)*dz(:,1))
+XTE(:,1,ITRACSO2)=XTE(:,1,ITRACSO2)+ZVOLCEMI1*vso2*gdp
+do jk=jk3,jk4-1
+  gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk4-jk3)
+  XTE(:,jk,ITRACSO2)=XTE(:,jk,ITRACSO2)+ZVOLCEMI2*vso2*gdp
+end do
+do jk=jk8,jk9-1
+  gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk9-jk8)
+  XTE(:,jk,ITRACSO2)=XTE(:,jk,ITRACSO2)+ZVOLCEMI3*vso2*gdp
+end do
+
+
 !Do carbonaceous aerosols
 ! Inject the low-level fossil-fuel and natural SOA emissions into layer 1
 ! Assume BC 80% hydrophobic, OC 50%.
@@ -652,45 +705,6 @@ do jk=jk5,jk6-1
   xte(:,jk,itracoc+1)=xte(:,jk,itracoc+1)+0.3*pxtems(:,itracoc+1)*gdp
 end do
 
-!  EMISSION OF ANTHROPOGENIC SO2 IN THE NEXT HIGHER LEVEL PLUS BIOMASS BURNING
-do jk=jk2,jk3-1
-  gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk3-jk2)
-  XTE(:,JK,ITRACSO2)  =XTE(:,JK,ITRACSO2)  +0.97*EMISSFIELD(:,iso2a2)*gdp !100% of the "above 100m" SO2 emission
-  XTE(:,JK,ITRACSO2+1)=XTE(:,JK,ITRACSO2+1)+0.03*EMISSFIELD(:,iso2a2)*gdp !100% of the "above 100m" SO4 emission
-end do
-do jk=jk3,jk4-1
-  gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk4-jk3)
-  xte(:,jk,ITRACSO2)=xte(:,jk,ITRACSO2)+0.3*emissfield(:,iso2b2)*gdp
-end do
-do jk=jk4,jk5-1
-  gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk5-jk4)
-  xte(:,jk,ITRACSO2)=xte(:,jk,ITRACSO2)+0.4*emissfield(:,iso2b2)*gdp
-end do
-do jk=jk5,jk6-1
-  gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk6-jk5)
-  xte(:,jk,ITRACSO2)=xte(:,jk,ITRACSO2)+0.3*emissfield(:,iso2b2)*gdp
-end do
-  
-!    VOLCANIC BACKGROUND EMISSIONS 
-!
-!   3 EMISSION LEVELS: 
-!    1. PRE-INTRA ERUPTION IN LEVEL IVOLC-HEIGHT (=TOP OF VOLCANO)
-!    2. POST-EXTRA ERUPTION IN LEVEL 15 -16 (CA 550-1736M)
-!    3. EXPLOSIVE ERUPTION IN LEVEL 10 - 11 (CA 5000-7900M)
-ZVOLCEMI1=ZVOLCEMI*0.36
-ZVOLCEMI2=ZVOLCEMI*0.36
-ZVOLCEMI3=ZVOLCEMI*0.28
-gdp=1./(rhoa(:,1)*dz(:,1))
-XTE(:,1,ITRACSO2)=XTE(:,1,ITRACSO2)+ZVOLCEMI1*vso2*gdp
-do jk=jk3,jk4-1
-  gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk4-jk3)
-  XTE(:,jk,ITRACSO2)=XTE(:,jk,ITRACSO2)+ZVOLCEMI2*vso2*gdp
-end do
-do jk=jk8,jk9-1
-  gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk9-jk8)
-  XTE(:,jk,ITRACSO2)=XTE(:,jk,ITRACSO2)+ZVOLCEMI3*vso2*gdp
-end do
-  
 !   --------------------------------------------------------------
 !
 !*      2.    DRY DEPOSITION.
@@ -735,10 +749,7 @@ elsewhere
   ZVDRD(:,1)=PFOREST(:)*0.8E-2+(1.-PFOREST(:))*ZVD2NOF(:)
   ZVDRD(:,2)=PFOREST(:)*0.2E-2+(1.-PFOREST(:))*ZVD4NOF(:)
 end where
-! Apply lower and upper bounds.
-!ZMAXVDRY(:)=dz(:,1)/ZTMST
-!ZVDRD(:,1)=AMIN1(ZVDRD(:,1),ZMAXVDRY(:)) !SO2
-!ZVDRD(:,2)=AMIN1(ZVDRD(:,2),ZMAXVDRY(:)) !aerosols
+
 
 ! Sulfur emission diagnostic (hard-coded for 3 sulfur variables)
 do jk=1,kl
@@ -1240,137 +1251,128 @@ DO JK=KTOP,kl
   end do
 end do
 
+
 ! Repeat the aqueous oxidation calculation for ice clouds.
 ZSO4i=amax1(XTO(:,:,ITRACSO2+1),0.)
 
 !******************************************************************************
-!***c Comment out from here when not using oxidation in ice clouds...
-!***C
-!***C
-!***C   CALCULATE THE REACTION-RATES FOR SO2-H2O2
-!***      DO JK=KTOP,KLEV
-!***       DO JL=1,KLON
-!***        IF(ziwcic(JL,JK).GT.ZMIN) THEN
-!***         ZLWCL=ziwcic(JL,JK)*PRHOP1(JL,JK)*1.E-06
-!***         ZLWCV=ziwcic(JL,JK)*PRHOP1(JL,JK)*1.E-03
-!***         ZHP=ZHPBASE+ZSO4i(JL,JK)*1000./(ziwcic(JL,JK)*ZMOLGS)
-!***         ZQTP1=1./PTP1(JL,JK)-ZQ298
-!***         ZRK=8.E+04*EXP(-3650.*ZQTP1)/(0.1+ZHP)
-!***         ZRKE=ZRK/(ZLWCL*ZAVO)
-!***C
-!***         ZH_SO2=ZE2*EXP(ZE2H*ZQTP1)
-!***         ZPFAC=ZRGAS*ZLWCV*PTP1(JL,JK)
-!***         ZP_SO2=ZH_SO2*ZPFAC
-!***         ZF_SO2=ZP_SO2/(1.+ZP_SO2)
-!***C
-!***         ZH_H2O2=9.7E+04*EXP(6600.*ZQTP1)
-!***         ZP_H2O2=ZH_H2O2*ZPFAC
-!***         ZF_H2O2=ZP_H2O2/(1.+ZP_H2O2)
-!***C
-!***         ZRKH2O2(JL,JK)=ZRKE*ZF_SO2*ZF_H2O2
-!***        ELSE
-!***         ZRKH2O2(JL,JK)=0.
-!***        ENDIF
-!***       ENDDO
-!***      ENDDO
-!***C
-!***C
-!***C   HETEROGENEOUS CHEMISTRY
-!***      JT=ITRACSO2
-!***      DO JK=KTOP,KLEV
-!***       DO JL=1,KLON
-!***        ZXTP1(jl)=XTO(JL,JK,JT)
-!***        IF(ZXTP1(jl)>ZMIN.AND.ziwcic(JL,JK)>ZMIN) THEN
-!***          X=PRHOP1(JL,JK)
-!***C
-!***            ZQTP1=1./PTP1(JL,JK)-ZQ298
-!***            ZE1=ZE1K*EXP(ZE1H*ZQTP1)
-!***            ZE2=ZE2K*EXP(ZE2H*ZQTP1)
-!***            ZE3=ZE3K*EXP(ZE3H*ZQTP1)
-!***C
-!***            ZLWCL=ziwcic(JL,JK)*PRHOP1(JL,JK)*1.E-06
-!***C    ZLWCL = LWC IN L/CM**3
-!***            ZLWCV=ziwcic(JL,JK)*PRHOP1(JL,JK)*1.E-03
-!***C   ZLWCV = LWC IN VOL/VOL
-!***            ZFAC1=1./(ZLWCL*ZAVO)
-!***C   ZFAC1 CALCULATES MOLECULES PER CM**3 TO MOLE PER LTR H2O
-!***            ZRKFAC=ZRGAS*PTP1(JL,JK)*ZLWCV
-!***C   ZRKFAC CALCULATES DIMENSIONLESS HENRY-COEFF.
-!***            ZZA=ZE2*ZRKFAC
-!***            ZA21=4.39E+11*EXP(-4131./PTP1(JL,JK))
-!***            ZA22=2.56E+03*EXP(-966./PTP1(JL,JK)) !926 corrected to 966 here
-!***            ZPH_O3=ZE1*ZRKFAC
-!***            ZF_O3=ZPH_O3/(1.+ZPH_O3)
-!***            ZDT=PTMST/5.
-!***C
-!***            ZH2O2M=ZZH2O2(JL,JK)
-!***            ZSO2M=ZXTP1(jl)*X*6.022E+20/ZMOLGS
-!***            ZSO4M=ZSO4i(JL,JK)*X*6.022E+20/ZMOLGS
-!***C
-!***            ZSUMH2O2=0.
-!***            ZSUMO3=0.
-!***C
-!***             DO JN=1,5
-!***              ZQ=ZRKH2O2(JL,JK)*ZH2O2M
-!***              ZSO2MH=ZSO2M*EXP(-ZQ*ZDT)
-!***C
-!***              ZDSO2H=ZSO2M-ZSO2MH
-!***              ZH2O2M=ZH2O2M-ZDSO2H
-!***              ZH2O2M=AMAX1(0.,ZH2O2M)
-!***              ZSUMH2O2=ZSUMH2O2+ZDSO2H
-!***C
-!***              ZSO4M=ZSO4M+ZDSO2H
-!***C   CALCULATE THE PH VALUE
-!***              ZSO2L=ZSO2MH*ZFAC1
-!***              ZSO4L=ZSO4M*ZFAC1
-!***              ZZB=ZHPBASE+ZSO4L
-!***              ZZP=(ZZA*ZE3-ZZB-ZZA*ZZB)/(1.+ZZA)
-!***              ZZQ=-ZZA*ZE3*(ZZB+ZSO2L)/(1.+ZZA)
-!***              ZZP=0.5*ZZP
-!***              ZZP2=ZZP*ZZP
-!***              ZHP=-ZZP+SQRT(ZZP2-ZZQ)
-!***              ZQHP=1./ZHP
-!***C
-!***C   CALCULATE THE REACTION RATE FOR SO2-O3
-!***C
-!***              ZA2=(ZA21+ZA22*ZQHP)*ZFAC1
-!***              ZHENEFF=1.+ZE3*ZQHP
-!***              ZP_SO2=ZZA*ZHENEFF
-!***              ZF_SO2=ZP_SO2/(1.+ZP_SO2)
-!***              ZRKO3=ZA2*ZF_O3*ZF_SO2
-!***C
-!***              ZQ=ZZO3(JL,JK)*ZRKO3
-!***              ZSO2MO=ZSO2MH*EXP(-ZQ*ZDT)
-!***              ZDSO2O=ZSO2MH-ZSO2MO
-!***              ZSO4M=ZSO4M+ZDSO2O
-!***              ZSO2M=ZSO2MO
-!***              ZSUMO3=ZSUMO3+ZDSO2O
-!***            ENDDO  !End of iteration loop
-!***C
-!***            ZDSO2TOT=ZXTP1(jl)-ZSO2M*ZMOLGS/(6.022E+20*X)
-!***            ZDSO2TOT=AMIN1(ZDSO2TOT,ZXTP1(jl))
-!***
-!***            ZXTP10(JL,JK)=ZXTP1(jl)-ZDSO2TOT
-!***     &                   *pcfcover(jl,jk)/(1.-pclcover(jl,jk))
-!***            ZSO4i(JL,JK)=ZSO4i(JL,JK)+ZDSO2TOT
-!***     &                   *pcfcover(jl,jk)/(1.-pclcover(jl,jk))
-!***c            ZHENRY(JL,JK)=ZF_SO2
-!***c Diagnostic only...
-!***            ZFAC=PQTMST*pcfcover(jl,jk)*ZMOLGS/(6.022E+20*X)
-!***            ZFAC1=ZFAC*PDPP1(JL,JK)/PG
-!***            so2h2(JL)=so2h2(JL)+ZSUMH2O2*ZFAC1
-!***            so2o3(JL)=so2o3(JL)+ZSUMO3*ZFAC1
-!***         ENDIF
-!***       ENDDO
-!***      ENDDO
+!   CALCULATE THE REACTION-RATES FOR SO2-H2O2
+DO JK=KTOP,KL
+  DO JL=1,ifull
+    IF(ziwcic(JL,JK).GT.ZMIN) THEN
+      ZLWCL=ziwcic(JL,JK)*PRHOP1(JL,JK)*1.E-06
+      ZLWCV=ziwcic(JL,JK)*PRHOP1(JL,JK)*1.E-03
+      ZHP=ZHPBASE+ZSO4i(JL,JK)*1000./(ziwcic(JL,JK)*ZMOLGS)
+      ZQTP1=1./PTP1(JL,JK)-ZQ298
+      ZRK=8.E+04*EXP(-3650.*ZQTP1)/(0.1+ZHP)
+      ZRKE=ZRK/(ZLWCL*ZAVO)
+
+      ZH_SO2=ZE2*EXP(ZE2H*ZQTP1)
+      ZPFAC=ZRGAS*ZLWCV*PTP1(JL,JK)
+      ZP_SO2=ZH_SO2*ZPFAC
+      ZF_SO2=ZP_SO2/(1.+ZP_SO2)
+
+      ZH_H2O2=9.7E+04*EXP(6600.*ZQTP1)
+      ZP_H2O2=ZH_H2O2*ZPFAC
+      ZF_H2O2=ZP_H2O2/(1.+ZP_H2O2)
+
+      ZRKH2O2(JL,JK)=ZRKE*ZF_SO2*ZF_H2O2
+    ELSE
+      ZRKH2O2(JL,JK)=0.
+    ENDIF
+  ENDDO
+ENDDO
+
+!   HETEROGENEOUS CHEMISTRY
+DO JK=KTOP,kl
+  DO JL=1,ifull
+    ZXTP1(jl)=XTO(JL,JK,ITRACSO2)
+    IF(ZXTP1(jl)>ZMIN.AND.ziwcic(JL,JK)>ZMIN) THEN
+      X=PRHOP1(JL,JK)
+
+      ZQTP1=1./PTP1(JL,JK)-ZQ298
+      ZE1=ZE1K*EXP(ZE1H*ZQTP1)
+      ZE2=ZE2K*EXP(ZE2H*ZQTP1)
+      ZE3=ZE3K*EXP(ZE3H*ZQTP1)
+
+      ZLWCL=ziwcic(JL,JK)*PRHOP1(JL,JK)*1.E-06
+!    ZLWCL = LWC IN L/CM**3
+      ZLWCV=ziwcic(JL,JK)*PRHOP1(JL,JK)*1.E-03
+!   ZLWCV = LWC IN VOL/VOL
+      ZFAC1=1./(ZLWCL*ZAVO)
+!   ZFAC1 CALCULATES MOLECULES PER CM**3 TO MOLE PER LTR H2O
+      ZRKFAC=ZRGAS*PTP1(JL,JK)*ZLWCV
+!   ZRKFAC CALCULATES DIMENSIONLESS HENRY-COEFF.
+      ZZA=ZE2*ZRKFAC
+      ZA21=4.39E+11*EXP(-4131./PTP1(JL,JK))
+      ZA22=2.56E+03*EXP(-966./PTP1(JL,JK)) !926 corrected to 966 here
+      ZPH_O3=ZE1*ZRKFAC
+      ZF_O3=ZPH_O3/(1.+ZPH_O3)
+      ZDT=PTMST/5.
+
+      ZH2O2M=ZZH2O2(JL,JK)
+      ZSO2M=ZXTP1(jl)*X*6.022E+20/ZMOLGS
+      ZSO4M=ZSO4i(JL,JK)*X*6.022E+20/ZMOLGS
+
+      ZSUMH2O2=0.
+      ZSUMO3=0.
+
+      DO JN=1,5
+        ZQ=ZRKH2O2(JL,JK)*ZH2O2M
+        ZSO2MH=ZSO2M*EXP(-ZQ*ZDT)
+
+        ZDSO2H=ZSO2M-ZSO2MH
+        ZH2O2M=ZH2O2M-ZDSO2H
+        ZH2O2M=AMAX1(0.,ZH2O2M)
+        ZSUMH2O2=ZSUMH2O2+ZDSO2H
+
+        ZSO4M=ZSO4M+ZDSO2H
+!   CALCULATE THE PH VALUE
+        ZSO2L=ZSO2MH*ZFAC1
+        ZSO4L=ZSO4M*ZFAC1
+        ZZB=ZHPBASE+ZSO4L
+        ZZP=(ZZA*ZE3-ZZB-ZZA*ZZB)/(1.+ZZA)
+        ZZQ=-ZZA*ZE3*(ZZB+ZSO2L)/(1.+ZZA)
+        ZZP=0.5*ZZP
+        ZZP2=ZZP*ZZP
+        ZHP=-ZZP+SQRT(ZZP2-ZZQ)
+        ZQHP=1./ZHP
+
+!   CALCULATE THE REACTION RATE FOR SO2-O3
+        ZA2=(ZA21+ZA22*ZQHP)*ZFAC1
+        ZHENEFF=1.+ZE3*ZQHP
+        ZP_SO2=ZZA*ZHENEFF
+        ZF_SO2=ZP_SO2/(1.+ZP_SO2)
+        ZRKO3=ZA2*ZF_O3*ZF_SO2
+
+        ZQ=ZZO3(JL,JK)*ZRKO3
+        ZSO2MO=ZSO2MH*EXP(-ZQ*ZDT)
+        ZDSO2O=ZSO2MH-ZSO2MO
+        ZSO4M=ZSO4M+ZDSO2O
+        ZSO2M=ZSO2MO
+        ZSUMO3=ZSUMO3+ZDSO2O
+      ENDDO  !End of iteration loop
+
+      ZDSO2TOT=ZXTP1(jl)-ZSO2M*ZMOLGS/(6.022E+20*X)
+      ZDSO2TOT=AMIN1(ZDSO2TOT,ZXTP1(jl))
+
+      ZXTP10(JL,JK)=ZXTP1(jl)-ZDSO2TOT*pcfcover(jl,jk)/(1.-pclcover(jl,jk))
+      ZSO4i(JL,JK)=ZSO4i(JL,JK)+ZDSO2TOT*pcfcover(jl,jk)/(1.-pclcover(jl,jk))
+      ZHENRY(JL,JK)=ZF_SO2
+! Diagnostic only...
+      ZFAC=PQTMST*pcfcover(jl,jk)*ZMOLGS/(6.022E+20*X)
+      ZFAC1=ZFAC*rhodz(JL,JK)
+      so2h2(JL)=so2h2(JL)+ZSUMH2O2*ZFAC1
+      so2o3(JL)=so2o3(JL)+ZSUMO3*ZFAC1
+    ENDIF
+  ENDDO
+ENDDO
 !******************************************************************************
 
 
 ! Repeat the aqueous oxidation calculation for convective clouds.
 ZXTP1CON=amax1(XTU(:,:,ITRACSO2),0.)
 ZSO4C   =amax1(XTU(:,:,ITRACSO2+1),0.)
-
-! Comment from here when not using convective oxidation...
 
 !   CALCULATE THE REACTION-RATES FOR SO2-H2O2
 DO JK=KTOP,kl
@@ -1732,7 +1734,7 @@ real, dimension(ifull) :: ZMTOF, ZFTOM
 real, dimension(ifull) :: ZCLEAR, ZCLR0
 real, dimension(ifull) :: frc, zbcscav, xbcscav, xdep
 real, dimension(ifull) :: zicscav, plambda, zilcscav, ziicscav, xicscav
-real, dimension(ifull) :: zcollefc  !Collection efficiency for convection
+real, dimension(ifull) :: zcollefc
 
 integer jk,jl
 real pqtmst,zevap
@@ -1741,11 +1743,13 @@ real xevap,pcevap
 
 integer, parameter :: ktop = 2    !Top level for wet deposition (counting from top)
 ! Allow in-cloud scavenging in ice clouds for hydrophobic BC and OC, and dust
-real, dimension(naero), parameter :: Ecols = (/ 0.00,0.00,0.00,0.05,0.00,0.05,0.00,0.05,0.05,0.05,0.05/)
+real, dimension(naero), parameter :: Ecols = (/0.00,0.00,0.00,0.05,0.00,0.05,0.00,0.05,0.05,0.05,0.05/)
 !Below-cloud collection eff. for rain
-real, dimension(naero), parameter :: zcollefr = (/0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.10,0.20,0.40/)
+!real, dimension(naero), parameter :: zcollefr = (/0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.10,0.20,0.40/)
+real, dimension(naero), parameter :: zcollefr = (/0.10,0.10,0.10,0.10,0.10,0.10,0.10,0.10,0.20,0.40,0.80/)
 !Below-cloud collection eff. for snow
-real, dimension(naero), parameter :: zcollefs = (/0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.02,0.04,0.08/)
+!real, dimension(naero), parameter :: zcollefs = (/0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.02,0.04,0.08/)
+real, dimension(naero), parameter :: zcollefs = (/0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.04,0.08,0.16/)
 !Retention coeff. on riming
 real, dimension(naero), parameter :: Rcoeff = (/1.00,0.62,1.00,0.00,1.00,0.00,1.00,1.00,1.00,1.00,1.00/)
 !Relative reevaporation rate
@@ -2302,9 +2306,10 @@ select case(aeroindir)
     end do
 
   case(1)
+    ! Use ECHAM SO4 to get cdn_strat.
     do k=1,kl
       so4mk=max(1.e-5,3.e9*rhoa(:,k)*xtgso4(:,k)) ! x 3 to convert to ug/m3 SO4
-      cdn(:,k)=max(20.e6, 162.e6*so4mk**0.41)     !Combined land/ocean.
+      cdn(:,k)=max(2.e7, 1.62e8*so4mk**0.41)      !Combined land/ocean.
     end do
     
   case default

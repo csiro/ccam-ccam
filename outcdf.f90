@@ -937,6 +937,8 @@ if( myid==0 .or. local ) then
       call attrib(idnc,idim,3,'dustdd_ave',lname,'g/(m2 yr)',0.,390.,0,itype) 
       lname = 'Dust wet deposition'
       call attrib(idnc,idim,3,'dustwd_ave',lname,'g/(m2 yr)',0.,390.,0,itype)
+      lname = 'Dust burden'
+      call attrib(idnc,idim,3,'dustb_ave',lname,'mg/m2',0.,13000.,0,itype)
       lname = 'Black carbone emissions'
       call attrib(idnc,idim,3,'bce_ave',lname,'g/(m2 yr)',0.,390.,0,itype)  
       lname = 'Black carbon dry deposition'
@@ -1731,6 +1733,8 @@ if ( nextout>=1 .and. abs(iaero)>=2 .and. nrad==5 ) then
   call histwrt3(aa,'dustdd_ave',idnc,iarch,local,lave)
   aa=max(dustwd*3.154e10,0.) ! g/m2/yr
   call histwrt3(aa,'dustwd_ave',idnc,iarch,local,lave)
+  aa=max(dust_burden*1.e6,0.) ! mg/m2
+  call histwrt3(aa,'dustb_ave',idnc,iarch,local,lave)
   aa=max(bce*3.154e10,0.) ! g/m2/yr
   call histwrt3(aa,'bce_ave',idnc,iarch,local,lave)
   aa=max(bcdd*3.154e10,0.) ! g/m2/yr
