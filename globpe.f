@@ -15,7 +15,7 @@
      &    ,duste,dustwd,dustdd,bce,dust_burden
      &    ,bcwd,bcdd,oce,ocwd,ocdd,dmse
      &    ,dmsso2o,so2e,so2so4o,so2wd,so2dd
-     &    ,so4e,so4wd,so4dd,
+     &    ,so4e,so4wd,so4dd
      &    ,dms_burden,so2_burden,so4_burden
      &    ,Ch_dust,zvolcemi,aeroindir
       use arrays_m                            ! Atmosphere dyamics prognostic arrays
