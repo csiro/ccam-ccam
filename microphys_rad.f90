@@ -58,9 +58,7 @@ private         &
 !    called from microphys_lw_driver:
            cloud_lwpar, cloud_lwem_oneband,    &
 !    caled from cloud_lwpar:
-           el, el_dge, cliqlw, furainlw, fusnowlw, &
-!    currently not used:
-           snowlw
+           el, el_dge, cliqlw, furainlw, fusnowlw
 
 
 !---------------------------------------------------------------------
@@ -1417,11 +1415,11 @@ real, intent(out), dimension(:,:,:,:)           :: cldext
 !---------------------------------------------------------------------
          call cloudpar                                        &
                      (nonly, nbmax, 1, size_drop, size_ice,   &
-                      Cloud_microphysics%size_rain,              &
-                      conc_drop, conc_ice, &
-                      Cloud_microphysics%conc_rain, &
-                      Cloud_microphysics%conc_snow,   &
-                      isccp_call, &
+                      Cloud_microphysics%size_rain,           &
+                      conc_drop, conc_ice,                    &
+                      Cloud_microphysics%conc_rain,           &
+                      Cloud_microphysics%conc_snow,           &
+                      isccp_call,                             &
                       tmpcldext, tmpcldsct,tmpcldasymm)
        
 !---------------------------------------------------------------------
@@ -1510,11 +1508,11 @@ real, intent(out), dimension(:,:,:,:)           :: abscoeff
 !----------------------------------------------------------------------
 !  local variables:                                                  
 
-      real, dimension   &
-                  (size(Cloud_microphysics%size_drop,1), &
-                   size(Cloud_microphysics%size_drop,2), &
-                   size(Cloud_microphysics%size_drop,3), &
-                   Cldrad_control%nlwcldb) :: &
+      real, dimension                                             &
+                  (size(Cloud_microphysics%size_drop,1),          &
+                   size(Cloud_microphysics%size_drop,2),          &
+                   size(Cloud_microphysics%size_drop,3),          &
+                   Cldrad_control%nlwcldb) ::                     &
                         size_drop, size_ice, conc_drop, conc_ice, &
                         tmpabscoeff
       logical       :: isccp_call
@@ -1564,11 +1562,11 @@ real, intent(out), dimension(:,:,:,:)           :: abscoeff
          
         
         call cloud_lwpar (nonly, nbmax, 1, size_drop, size_ice,   &
-                          Cloud_microphysics%size_rain,              &
-                          conc_drop, conc_ice, &
-                          Cloud_microphysics%conc_rain, &
-                          Cloud_microphysics%conc_snow,    &
-                          isccp_call, &
+                          Cloud_microphysics%size_rain,           &
+                          conc_drop, conc_ice,                    &
+                          Cloud_microphysics%conc_rain,           &
+                          Cloud_microphysics%conc_snow,           &
+                          isccp_call,                             &
                           tmpabscoeff)
         abscoeff(:,:,:,nnn)=tmpabscoeff(:,:,:,ilwband)                  
 !---------------------------------------------------------------------
@@ -1579,8 +1577,8 @@ real, intent(out), dimension(:,:,:,:)           :: abscoeff
       else if (trim(lwem_form) == 'ebertcurry') then
         call cloud_lwem_oneband (Cloud_microphysics%conc_drop,   &
                                  Cloud_microphysics%conc_ice,    &
-                                 Cloud_microphysics%size_drop,    &
-                                 Cloud_microphysics%size_ice,      &
+                                 Cloud_microphysics%size_drop,   &
+                                 Cloud_microphysics%size_ice,    &
                                  tmpabscoeff(:,:,:,1))
                                  
         abscoeff(:,:,:,nnn)=tmpabscoeff(:,:,:,1)                         
@@ -1837,7 +1835,10 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
  
       real, dimension (size(cldext,1), size(cldext,2),              &
                                     size(cldext,3))    :: cldsum
-      real :: cltau,cldextdu
+      real, dimension (size(cldext,1), size(cldext,2),              &
+                                    size(cldext,3))    :: cldextdu
+      real, dimension (size(cldext,1), size(cldext,2),              &
+                                    size(cldext,3))    :: cltau
       integer :: i, j, k, n
      
       integer :: nn
@@ -1905,7 +1906,7 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
 !---------------------------------------------------------------------
 !    define total cloud fraction.
 !---------------------------------------------------------------------
-        if (.not. Cldrad_control%do_stochastic_clouds) then
+
           cldsum = Lsc_microphys%cldamt + Cell_microphys%cldamt +   &
                      Meso_microphys%cldamt + Shallow_microphys%cldamt
 
@@ -1915,90 +1916,69 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
 !     values remain at the non-cloudy initialized values.
 !---------------------------------------------------------------------
         do n=1,Solar_spect%nbands
-          do k=1,size(cldext,3)
-            do j=1,size(cldext,2)
-              do i=1,size(cldext,1)
-                if (cldsum(i,j,k) > 0.0) then
-                  cldextdu        = (Lsc_microphys%cldamt(i,j,k)*  &
-                                     Lscrad_props%cldext(i,j,k,n) + &
-                                     Cell_microphys%cldamt(i,j,k)*   &
-                                     Cellrad_props%cldext(i,j,k,n) +  &
-                                     Meso_microphys%cldamt(i,j,k)*   &
-                                     Mesorad_props%cldext(i,j,k,n) + &
-                                   Shallow_microphys%cldamt(i,j,k)* &
-                                   Shallowrad_props%cldext(i,j,k,n)) / &
-                                     cldsum(i,j,k)
-                   cltau=(Cell_microphys%cldamt(i,j,k)/cldsum(i,j,k))* &
-                               exp(-Cellrad_props%cldext(i,j,k,n)*     &
-                          deltaz(i,j,k)/1000.)
-                   cltau=cltau+(Meso_microphys%cldamt(i,j,k)/  &
-                         cldsum(i,j,k))* &
-                   exp(-Mesorad_props%cldext(i,j,k,n)*deltaz(i,j,k)/  &
-                              1000.)
-                   cltau=cltau+(Lsc_microphys%cldamt(i,j,k)/  &
-                           cldsum(i,j,k))* &
-                    exp(-Lscrad_props%cldext(i,j,k,n)*deltaz(i,j,k)/  &
-                           1000.)
-                   cltau=cltau+(Shallow_microphys%cldamt(i,j,k)/  &
-                           cldsum(i,j,k))* &
-                exp(-Shallowrad_props%cldext(i,j,k,n)*deltaz(i,j,k)/  &
-                           1000.)
-                 cldext(i,j,k,n,1)=-1000.*alog(cltau)/deltaz(i,j,k)
-                  if (cldext(i,j,k,n,1) .gt. cldextdu)   &
-                               cldext(i,j,k,n,1)=cldextdu
+          where ( cldsum > 0.0 )
+            cldextdu       = (Lsc_microphys%cldamt*                   &
+                                    Lscrad_props%cldext(:,:,:,n) +    &
+                                    Cell_microphys%cldamt*            &
+                                    Cellrad_props%cldext(:,:,:,n) +   &
+                                    Meso_microphys%cldamt*            &
+                                    Mesorad_props%cldext(:,:,:,n) +   &
+                                  Shallow_microphys%cldamt*           &
+                                  Shallowrad_props%cldext(:,:,:,n)) / &
+                                    cldsum
+             cltau=(Cell_microphys%cldamt/cldsum)*                    &
+                   exp(-Cellrad_props%cldext(:,:,:,n)*deltaz/1000.)
+             cltau=cltau+(Meso_microphys%cldamt/cldsum)*              &
+                   exp(-Mesorad_props%cldext(:,:,:,n)*deltaz/1000.)
+             cltau=cltau+(Lsc_microphys%cldamt/cldsum)*               &
+                    exp(-Lscrad_props%cldext(:,:,:,n)*deltaz/1000.)
+             cltau=cltau+(Shallow_microphys%cldamt/cldsum)*           &
+                exp(-Shallowrad_props%cldext(:,:,:,n)*deltaz/1000.)
+             cldext(:,:,:,n,1)=-1000.*alog(cltau)/deltaz
+             cldext(:,:,:,n,1)=min(cldextdu,cldext(:,:,:,n,1))
 
-                  cldextdu        = (Lsc_microphys%cldamt(i,j,k)*   &
-                                     Lscrad_props%cldsct(i,j,k,n) +   &
-                                     Cell_microphys%cldamt(i,j,k)*  &
-                                     Cellrad_props%cldsct(i,j,k,n) +  &
-                                     Meso_microphys%cldamt(i,j,k)*  &
-                                     Mesorad_props%cldsct(i,j,k,n) + &
-                                   Shallow_microphys%cldamt(i,j,k)*  &
-                              Shallowrad_props%cldsct(i,j,k,n)) / &
-                                     cldsum(i,j,k)
-                   cltau=(Cell_microphys%cldamt(i,j,k)/cldsum(i,j,k))* &
-                               exp(-Cellrad_props%cldsct(i,j,k,n)*     &
-                          deltaz(i,j,k)/1000.)
-                   cltau=cltau+(Meso_microphys%cldamt(i,j,k)/  &
-                         cldsum(i,j,k))* &
-                   exp(-Mesorad_props%cldsct(i,j,k,n)*deltaz(i,j,k)/  &
-                              1000.)
-                   cltau=cltau+(Lsc_microphys%cldamt(i,j,k)/  &
-                           cldsum(i,j,k))* &
-                    exp(-Lscrad_props%cldsct(i,j,k,n)*deltaz(i,j,k)/  &
-                           1000.)
-                   cltau=cltau+(Shallow_microphys%cldamt(i,j,k)/  &
-                         cldsum(i,j,k))* &
-                exp(-Shallowrad_props%cldsct(i,j,k,n)*deltaz(i,j,k)/  &
-                              1000.)
-                 cldsct(i,j,k,n,1)=-1000.*alog(cltau)/deltaz(i,j,k)
-        if (cldsct(i,j,k,n,1) .gt. cldextdu) cldsct(i,j,k,n,1)=cldextdu
+             cldextdu       = (Lsc_microphys%cldamt*                  &
+                                    Lscrad_props%cldsct(:,:,:,n) +    &
+                                    Cell_microphys%cldamt*            &
+                                    Cellrad_props%cldsct(:,:,:,n) +   &
+                                    Meso_microphys%cldamt*            &
+                                    Mesorad_props%cldsct(:,:,:,n) +   &
+                                  Shallow_microphys%cldamt*           &
+                             Shallowrad_props%cldsct(:,:,:,n)) /      &
+                                    cldsum
+             cltau=(Cell_microphys%cldamt/cldsum)*                    &
+                   exp(-Cellrad_props%cldsct(:,:,:,n)*deltaz/1000.)
+             cltau=cltau+(Meso_microphys%cldamt/cldsum)*              &
+                   exp(-Mesorad_props%cldsct(:,:,:,n)*deltaz/1000.)
+             cltau=cltau+(Lsc_microphys%cldamt/cldsum)*               &
+                    exp(-Lscrad_props%cldsct(:,:,:,n)*deltaz/1000.)
+             cltau=cltau+(Shallow_microphys%cldamt/cldsum)*           &
+                exp(-Shallowrad_props%cldsct(:,:,:,n)*deltaz/1000.)
+             cldsct(:,:,:,n,1)=-1000.*alog(cltau)/deltaz
+             cldsct(:,:,:,n,1)=min(cldextdu,cldsct(:,:,:,n,1))
 
-                  cldasymm(i,j,k,n,1) =        &
-                          (Lsc_microphys%cldamt(i,j,k)*  &
-                           Lscrad_props%cldsct(i,j,k,n)* &
-                           Lscrad_props%cldasymm(i,j,k,n) +&
-                           Cell_microphys%cldamt(i,j,k)*  &
-                           Cellrad_props%cldsct(i,j,k,n)* &
-                           Cellrad_props%cldasymm(i,j,k,n) + &
-                           Meso_microphys%cldamt(i,j,k)*   &
-                           Mesorad_props%cldsct(i,j,k,n)*  &
-                           Mesorad_props%cldasymm(i,j,k,n) + &
-                        Shallow_microphys%cldamt(i,j,k)*   &
-                        Shallowrad_props%cldsct(i,j,k,n)*  &
-                       Shallowrad_props%cldasymm(i,j,k,n) ) /&
-                          (Lsc_microphys%cldamt(i,j,k)*  &
-                           Lscrad_props%cldsct(i,j,k,n) +        &
-                           Cell_microphys%cldamt(i,j,k)*    &
-                           Cellrad_props%cldsct(i,j,k,n) +          &
-                           Meso_microphys%cldamt(i,j,k)*    &
-                           Mesorad_props%cldsct(i,j,k,n) + &
-                        Shallow_microphys%cldamt(i,j,k)*    &
-                        Shallowrad_props%cldsct(i,j,k,n) )
-                endif
-              end do
-            end do
-          end do
+             cldasymm(:,:,:,n,1) =                                    &
+                          (Lsc_microphys%cldamt*                      &
+                           Lscrad_props%cldsct(:,:,:,n)*              &
+                           Lscrad_props%cldasymm(:,:,:,n) +           &
+                           Cell_microphys%cldamt*                     &
+                           Cellrad_props%cldsct(:,:,:,n)*             &
+                           Cellrad_props%cldasymm(:,:,:,n) +          &
+                           Meso_microphys%cldamt*                     &
+                           Mesorad_props%cldsct(:,:,:,n)*             &
+                           Mesorad_props%cldasymm(:,:,:,n) +          &
+                        Shallow_microphys%cldamt*                     &
+                        Shallowrad_props%cldsct(:,:,:,n)*             &
+                       Shallowrad_props%cldasymm(:,:,:,n) ) /         &
+                          (Lsc_microphys%cldamt*                      &
+                           Lscrad_props%cldsct(:,:,:,n) +             &
+                           Cell_microphys%cldamt*                     &
+                           Cellrad_props%cldsct(:,:,:,n) +            &
+                           Meso_microphys%cldamt*                     &
+                           Mesorad_props%cldsct(:,:,:,n) +            &
+                        Shallow_microphys%cldamt*                     &
+                        Shallowrad_props%cldsct(:,:,:,n) )
+          end where
         end do
 
 !------------------------------------------------------------
@@ -2006,151 +1986,29 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
 !    and cell-scale clouds may be present.
 !---------------------------------------------------------------------
         do n=1,Cldrad_control%nlwcldb
-          do k=1,size(cldext,3)
-            do j=1,size(cldext,2)
-              do i=1,size(cldext,1)
-                if (cldsum(i,j,k) > 0.0) then
-                  cldextdu          =                            &
-                             (Lsc_microphys%cldamt(i,j,k)*  &
-                              Lscrad_props%abscoeff(i,j,k,n) +&
-                              Cell_microphys%cldamt(i,j,k)* &
-                              Cellrad_props%abscoeff(i,j,k,n) +    &
-                              Meso_microphys%cldamt(i,j,k)*   &
-                              Mesorad_props%abscoeff(i,j,k,n) +  &
-                              Shallow_microphys%cldamt(i,j,k)*   &
-                              Shallowrad_props%abscoeff(i,j,k,n)) /   &
-                              cldsum(i,j,k)
-                   cltau=(Cell_microphys%cldamt(i,j,k)/cldsum(i,j,k))* &
-                               exp(-Cellrad_props%abscoeff(i,j,k,n)*     &
-                          deltaz(i,j,k)/1000.)
-                   cltau=cltau+(Meso_microphys%cldamt(i,j,k)/  &
-                         cldsum(i,j,k))* &
-                   exp(-Mesorad_props%abscoeff(i,j,k,n)*deltaz(i,j,k)/  &
-                              1000.)
-                   cltau=cltau+(Lsc_microphys%cldamt(i,j,k)/  &
-                           cldsum(i,j,k))* &
-                    exp(-Lscrad_props%abscoeff(i,j,k,n)*deltaz(i,j,k)/  &
-                           1000.)
-                   cltau=cltau+(Shallow_microphys%cldamt(i,j,k)/  &
-                           cldsum(i,j,k))* &
-                    exp(-Shallowrad_props%abscoeff(i,j,k,n)*deltaz(i,j,k)/  &
-                           1000.)
-                 abscoeff(i,j,k,n,1)=-1000.*alog(cltau)/deltaz(i,j,k)
-        if (abscoeff(i,j,k,n,1) .gt. cldextdu) abscoeff(i,j,k,n,1)=cldextdu
-                endif
-              end do
-            end do
-          end do
+          where (cldsum > 0.0)
+            cldextdu          =                                        &
+                       (Lsc_microphys%cldamt*                          &
+                        Lscrad_props%abscoeff(:,:,:,n) +               &
+                        Cell_microphys%cldamt*                         &
+                        Cellrad_props%abscoeff(:,:,:,n) +              &
+                        Meso_microphys%cldamt*                         &
+                        Mesorad_props%abscoeff(:,:,:,n) +              &
+                        Shallow_microphys%cldamt*                      &
+                        Shallowrad_props%abscoeff(:,:,:,n)) /          &
+                        cldsum
+             cltau=(Cell_microphys%cldamt/cldsum)*                     &
+                   exp(-Cellrad_props%abscoeff(:,:,:,n)*deltaz/1000.)
+             cltau=cltau+(Meso_microphys%cldamt/cldsum)*               &
+                   exp(-Mesorad_props%abscoeff(:,:,:,n)*deltaz/1000.)
+             cltau=cltau+(Lsc_microphys%cldamt/cldsum)*                &
+                   exp(-Lscrad_props%abscoeff(:,:,:,n)*deltaz/1000.)
+             cltau=cltau+(Shallow_microphys%cldamt/cldsum)*            &
+                   exp(-Shallowrad_props%abscoeff(:,:,:,n)*deltaz/1000.)
+             abscoeff(:,:,:,n,1)=-1000.*alog(cltau)/deltaz
+             abscoeff(:,:,:,n,1)=min(cldextdu,abscoeff(:,:,:,n,1))
+          end where
         end do
-      else
-
-!------------------------------------------------------------------------
-!    stochastic clouds are being used. we compare the cell and meso-scale
-!    cloud amounts to a random number, and replace the large-scale clouds
-!    and clear sky in each subcolum with the properties of the cell or 
-!    meso-scale clouds when the number is less than the cloud fraction. 
-!    we use the maximum overlap assumption. we treat the random number 
-!    as the location with the PDF of total water. cells are at the top 
-!    of the PDF; then meso-scale anvils, then large-scale clouds and 
-!    clear sky. 
-!------------------------------------------------------------
-      
-!----------------------------------------------------------------------
-!    get the random numbers to do both sw and lw at oncer.
-!----------------------------------------------------------------------
-!       nSubCols = size(Lsc_microphys%stoch_cldamt, 4)
-      
-!----------------------------------------------------------------------
-!    shortwave cloud properties, band by band
-!----------------------------------------------------------------------
-        do n=1,Solar_spect%nbands
-          do k=1,size(cldext,3) ! Levels
-            do j=1,size(cldext,2) ! Lons
-              do i=1,size(cldext,1) ! Lats
-                if (stoch_cloud_type(i,j,k,n) == 3) then
-!----------------------------------------------------------------------
-!    it's a cell.
-!----------------------------------------------------------------------
-                  cldext(i,j,k,n,1) = Cellrad_props%cldext(i,j,k,n)
-                  cldsct(i,j,k,n,1) = Cellrad_props%cldsct(i,j,k,n)
-                  cldasymm(i,j,k,n, 1) = Cellrad_props%cldasymm(i,j,k,n)
-                else if (stoch_cloud_type(i,j,k,n) == 2) then
-                 
-!----------------------------------------------------------------------
-!    it's a meso-scale.
-!----------------------------------------------------------------------
-                  cldext(i,j,k,n,1) = Mesorad_props%cldext(i,j,k,n)
-                  cldsct(i,j,k,n,1) = Mesorad_props%cldsct(i,j,k,n)
-                  cldasymm(i,j,k,n,1) = Mesorad_props%cldasymm(i,j,k,n)
-                else if (stoch_cloud_type(i,j,k,n) == 4) then
-                 
-!----------------------------------------------------------------------
-!    it's a uw shallow cloud.
-!----------------------------------------------------------------------
-                  cldext(i,j,k,n,1) = Shallowrad_props%cldext(i,j,k,n)
-                  cldsct(i,j,k,n,1) = Shallowrad_props%cldsct(i,j,k,n)
-                  cldasymm(i,j,k,n,1) = Shallowrad_props%cldasymm(i,j,k,n)
-                else if (stoch_cloud_type(i,j,k,n) == 1) then
-                 
-!----------------------------------------------------------------------
-!    fill it in with the large-scale cloud values.
-!----------------------------------------------------------------------
-                  cldext(i,j,k,n,1) = Lscrad_props%cldext(i,j,k,n)
-                  cldsct(i,j,k,n,1) = Lscrad_props%cldsct(i,j,k,n)
-                  cldasymm(i,j,k,n,1) = Lscrad_props%cldasymm(i,j,k,n)
-                else
-                  cldext(i,j,k,n,1) = 0. 
-                  cldsct(i,j,k,n,1) = 0. 
-                  cldasymm(i,j,k,n,1) = 1. 
-                endif
-              end do 
-            end do 
-          end do 
-        end do 
-
-!----------------------------------------------------------------------
-!    longwave cloud properties, band by band
-!----------------------------------------------------------------------
-      do n=1,Cldrad_control%nlwcldb
-        nn = Solar_spect%nbands + n
-        do k=1,size(cldext,3) ! Levels
-          do j=1,size(cldext,2) ! Lons
-            do i=1,size(cldext,1) ! Lats
-              if (stoch_cloud_type(i,j,k,nn) == 3) then
-                 
-!----------------------------------------------------------------------
-!    it's a cell.
-!----------------------------------------------------------------------
-                abscoeff(i,j,k,n,1) = Cellrad_props%abscoeff(i,j,k,n)
-              else if (stoch_cloud_type(i,j,k,nn) == 2) then
-                 
-!----------------------------------------------------------------------
-!    it's a meso-scale.
-!----------------------------------------------------------------------
-                abscoeff(i,j,k,n,1) = Mesorad_props%abscoeff(i,j,k,n)
-              else if (stoch_cloud_type(i,j,k,nn) == 4) then
-                 
-!----------------------------------------------------------------------
-!    it's a uw shallow.
-!----------------------------------------------------------------------
-                abscoeff(i,j,k,n,1) = Shallowrad_props%abscoeff(i,j,k,n)
-              else if (stoch_cloud_type(i,j,k,nn) == 1) then
-                 
-!----------------------------------------------------------------------
-!    fill it in with the large-scale cloud values.
-!----------------------------------------------------------------------
-                abscoeff(i,j,k,n,1) = Lscrad_props%abscoeff(i,j,k,n)
-              else
-                abscoeff(i,j,k,n,1) = 0. 
-              endif
-            end do 
-          end do 
-        end do 
-      end do 
-      
-      
-
-     endif  ! (do_stochastic)
 
 !---------------------------------------------------------------------
 !    define appropriately-weighted total-cloud radiative properties
@@ -2161,7 +2019,6 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
 !---------------------------------------------------------------------
 !    define total cloud fraction.
 !---------------------------------------------------------------------
-        if (.not. Cldrad_control%do_stochastic_clouds) then
           cldsum = Lsc_microphys%cldamt + Cell_microphys%cldamt +   &
                      Meso_microphys%cldamt
 
@@ -2171,73 +2028,56 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
 !     values remain at the non-cloudy initialized values.
 !---------------------------------------------------------------------
         do n=1,Solar_spect%nbands
-          do k=1,size(cldext,3)
-            do j=1,size(cldext,2)
-              do i=1,size(cldext,1)
-                if (cldsum(i,j,k) > 0.0) then
-                  cldextdu        = (Lsc_microphys%cldamt(i,j,k)*  &
-                                     Lscrad_props%cldext(i,j,k,n) + &
-                                     Cell_microphys%cldamt(i,j,k)*   &
-                                     Cellrad_props%cldext(i,j,k,n) +  &
-                                     Meso_microphys%cldamt(i,j,k)*   &
-                                     Mesorad_props%cldext(i,j,k,n)) / &
-                                     cldsum(i,j,k)
-                   cltau=(Cell_microphys%cldamt(i,j,k)/cldsum(i,j,k))* &
-                               exp(-Cellrad_props%cldext(i,j,k,n)*     &
-                          deltaz(i,j,k)/1000.)
-                   cltau=cltau+(Meso_microphys%cldamt(i,j,k)/  &
-                         cldsum(i,j,k))* &
-                   exp(-Mesorad_props%cldext(i,j,k,n)*deltaz(i,j,k)/  &
-                              1000.)
-                   cltau=cltau+(Lsc_microphys%cldamt(i,j,k)/  &
-                           cldsum(i,j,k))* &
-                    exp(-Lscrad_props%cldext(i,j,k,n)*deltaz(i,j,k)/  &
-                           1000.)
-                 cldext(i,j,k,n,1)=-1000.*alog(cltau)/deltaz(i,j,k)
-                  if (cldext(i,j,k,n,1) .gt. cldextdu)   &
-                               cldext(i,j,k,n,1)=cldextdu
+          where (cldsum > 0.0)
+            cldextdu        = (Lsc_microphys%cldamt*               &
+                               Lscrad_props%cldext(:,:,:,n) +      &
+                               Cell_microphys%cldamt*              &
+                               Cellrad_props%cldext(:,:,:,n) +     &
+                               Meso_microphys%cldamt*              &
+                               Mesorad_props%cldext(:,:,:,n)) /    &
+                               cldsum
+            cltau=(Cell_microphys%cldamt/cldsum)*                  &
+                  exp(-Cellrad_props%cldext(:,:,:,n)*deltaz/1000.)
+            cltau=cltau+(Meso_microphys%cldamt/cldsum)*            &
+                  exp(-Mesorad_props%cldext(:,:,:,n)*deltaz/1000.)
+            cltau=cltau+(Lsc_microphys%cldamt/cldsum)*             &
+                  exp(-Lscrad_props%cldext(:,:,:,n)*deltaz/1000.)
+            cldext(:,:,:,n,1)=-1000.*alog(cltau)/deltaz
+            cldext(:,:,:,n,1)=min(cldextdu,cldext(:,:,:,n,1))
 
-                  cldextdu        = (Lsc_microphys%cldamt(i,j,k)*   &
-                                     Lscrad_props%cldsct(i,j,k,n) +   &
-                                     Cell_microphys%cldamt(i,j,k)*  &
-                                     Cellrad_props%cldsct(i,j,k,n) +  &
-                                     Meso_microphys%cldamt(i,j,k)*  &
-                                     Mesorad_props%cldsct(i,j,k,n)) / &
-                                     cldsum(i,j,k)
-                   cltau=(Cell_microphys%cldamt(i,j,k)/cldsum(i,j,k))* &
-                               exp(-Cellrad_props%cldsct(i,j,k,n)*     &
-                          deltaz(i,j,k)/1000.)
-                   cltau=cltau+(Meso_microphys%cldamt(i,j,k)/  &
-                         cldsum(i,j,k))* &
-                   exp(-Mesorad_props%cldsct(i,j,k,n)*deltaz(i,j,k)/  &
-                              1000.)
-                   cltau=cltau+(Lsc_microphys%cldamt(i,j,k)/  &
-                           cldsum(i,j,k))* &
-                    exp(-Lscrad_props%cldsct(i,j,k,n)*deltaz(i,j,k)/  &
-                           1000.)
-                 cldsct(i,j,k,n,1)=-1000.*alog(cltau)/deltaz(i,j,k)
-        if (cldsct(i,j,k,n,1) .gt. cldextdu) cldsct(i,j,k,n,1)=cldextdu
+            cldextdu        = (Lsc_microphys%cldamt*               &
+                               Lscrad_props%cldsct(:,:,:,n) +      &
+                               Cell_microphys%cldamt*              &
+                               Cellrad_props%cldsct(:,:,:,n) +     &
+                               Meso_microphys%cldamt*              &
+                               Mesorad_props%cldsct(:,:,:,n)) /    &
+                               cldsum
+            cltau=(Cell_microphys%cldamt/cldsum)*                  &
+                  exp(-Cellrad_props%cldsct(:,:,:,n)*deltaz/1000.)
+            cltau=cltau+(Meso_microphys%cldamt/cldsum)*            &
+                  exp(-Mesorad_props%cldsct(:,:,:,n)*deltaz/1000.)
+            cltau=cltau+(Lsc_microphys%cldamt/cldsum)*             &
+                  exp(-Lscrad_props%cldsct(:,:,:,n)*deltaz/1000.)
+            cldsct(:,:,:,n,1)=-1000.*alog(cltau)/deltaz
+            cldsct(:,:,:,n,1)=min(cldextdu,cldsct(:,:,:,n,1))
 
-                  cldasymm(i,j,k,n,1) =        &
-                          (Lsc_microphys%cldamt(i,j,k)*  &
-                           Lscrad_props%cldsct(i,j,k,n)* &
-                           Lscrad_props%cldasymm(i,j,k,n) +&
-                           Cell_microphys%cldamt(i,j,k)*  &
-                           Cellrad_props%cldsct(i,j,k,n)* &
-                           Cellrad_props%cldasymm(i,j,k,n) + &
-                           Meso_microphys%cldamt(i,j,k)*   &
-                           Mesorad_props%cldsct(i,j,k,n)*  &
-                           Mesorad_props%cldasymm(i,j,k,n)) /&
-                          (Lsc_microphys%cldamt(i,j,k)*  &
-                           Lscrad_props%cldsct(i,j,k,n) +        &
-                           Cell_microphys%cldamt(i,j,k)*    &
-                           Cellrad_props%cldsct(i,j,k,n) +          &
-                           Meso_microphys%cldamt(i,j,k)*    &
-                           Mesorad_props%cldsct(i,j,k,n) )
-                endif
-              end do
-            end do
-          end do
+            cldasymm(:,:,:,n,1) =                                  &
+                          (Lsc_microphys%cldamt*                   &
+                           Lscrad_props%cldsct(:,:,:,n)*           &
+                           Lscrad_props%cldasymm(:,:,:,n) +        &
+                           Cell_microphys%cldamt*                  &
+                           Cellrad_props%cldsct(:,:,:,n)*          &
+                           Cellrad_props%cldasymm(:,:,:,n) +       &
+                           Meso_microphys%cldamt*                  &
+                           Mesorad_props%cldsct(:,:,:,n)*          &
+                           Mesorad_props%cldasymm(:,:,:,n)) /      &
+                          (Lsc_microphys%cldamt*                   &
+                           Lscrad_props%cldsct(:,:,:,n) +          &
+                           Cell_microphys%cldamt*                  &
+                           Cellrad_props%cldsct(:,:,:,n) +         &
+                           Meso_microphys%cldamt*                  &
+                           Mesorad_props%cldsct(:,:,:,n) )
+          end where
         end do
 
 !------------------------------------------------------------
@@ -2245,250 +2085,25 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
 !    and cell-scale clouds may be present.
 !---------------------------------------------------------------------
         do n=1,Cldrad_control%nlwcldb
-          do k=1,size(cldext,3)
-            do j=1,size(cldext,2)
-              do i=1,size(cldext,1)
-                if (cldsum(i,j,k) > 0.0) then
-                  cldextdu          =                            &
-                             (Lsc_microphys%cldamt(i,j,k)*  &
-                              Lscrad_props%abscoeff(i,j,k,n) +&
-                              Cell_microphys%cldamt(i,j,k)* &
-                              Cellrad_props%abscoeff(i,j,k,n) +    &
-                              Meso_microphys%cldamt(i,j,k)*   &
-                              Mesorad_props%abscoeff(i,j,k,n)) /   &
-                              cldsum(i,j,k)
-                   cltau=(Cell_microphys%cldamt(i,j,k)/cldsum(i,j,k))* &
-                               exp(-Cellrad_props%abscoeff(i,j,k,n)*     &
-                          deltaz(i,j,k)/1000.)
-                   cltau=cltau+(Meso_microphys%cldamt(i,j,k)/  &
-                         cldsum(i,j,k))* &
-                   exp(-Mesorad_props%abscoeff(i,j,k,n)*deltaz(i,j,k)/  &
-                              1000.)
-                   cltau=cltau+(Lsc_microphys%cldamt(i,j,k)/  &
-                           cldsum(i,j,k))* &
-                    exp(-Lscrad_props%abscoeff(i,j,k,n)*deltaz(i,j,k)/  &
-                           1000.)
-                 abscoeff(i,j,k,n,1)=-1000.*alog(cltau)/deltaz(i,j,k)
-        if (abscoeff(i,j,k,n,1) .gt. cldextdu) abscoeff(i,j,k,n,1)=cldextdu
-                endif
-              end do
-            end do
-          end do
+          where (cldsum > 0.0)
+            cldextdu          =                                       &
+                        (Lsc_microphys%cldamt*                        &
+                         Lscrad_props%abscoeff(:,:,:,n) +             &
+                         Cell_microphys%cldamt*                       &
+                         Cellrad_props%abscoeff(:,:,:,n) +            &
+                         Meso_microphys%cldamt*                       &
+                         Mesorad_props%abscoeff(:,:,:,n)) /           &
+                         cldsum
+            cltau=(Cell_microphys%cldamt/cldsum)*                     &
+                  exp(-Cellrad_props%abscoeff(:,:,:,n)*deltaz/1000.)
+            cltau=cltau+(Meso_microphys%cldamt/cldsum)*               &
+                  exp(-Mesorad_props%abscoeff(:,:,:,n)*deltaz/1000.)
+            cltau=cltau+(Lsc_microphys%cldamt/cldsum)*                &
+                  exp(-Lscrad_props%abscoeff(:,:,:,n)*deltaz/1000.)
+            abscoeff(:,:,:,n,1)=-1000.*alog(cltau)/deltaz
+            abscoeff(:,:,:,n,1)=min(cldextdu,abscoeff(:,:,:,n,1))
+          end where
         end do
-      else
-
-        if (do_orig_donner_stoch) then
-
-!---------------------------------------------------------------------
-!     define the cloud scattering, cloud extinction and cloud asymmetry
-!     factor in each of the spectral bands. if cloud is not present,
-!     values remain at the non-cloudy initialized values.
-!---------------------------------------------------------------------
-       do n=1,Solar_spect%nbands
-         cldsum = Lsc_microphys%sw_stoch_cldamt(:,:,:,n) +   &
-                  Cell_microphys%cldamt + Meso_microphys%cldamt
-         do k=1,size(cldext,3)
-           do j=1,size(cldext,2)
-             do i=1,size(cldext,1)
-               if (cldsum(i,j,k) > 0.0) then
-                 cldextdu        = (  &
-                              Lsc_microphys%sw_stoch_cldamt(i,j,k,n)*  &
-                                  Lscrad_props%cldext(i,j,k,n) +   &
-                                     Cell_microphys%cldamt(i,j,k)*   &
-                                      Cellrad_props%cldext(i,j,k,n) +  &
-                                      Meso_microphys%cldamt(i,j,k)*   &
-                                      Mesorad_props%cldext(i,j,k,n)) / &
-                                     cldsum(i,j,k)
-                   cltau=(Cell_microphys%cldamt(i,j,k)/cldsum(i,j,k))* &
-                            exp(-Cellrad_props%cldext(i,j,k,n)*     &
-                           deltaz(i,j,k)/1000.)
-                   cltau=cltau+(Meso_microphys%cldamt(i,j,k)/  &
-                          cldsum(i,j,k))* &
-                    exp(-Mesorad_props%cldext(i,j,k,n)*deltaz(i,j,k)/  &
-                               1000.)
-                 cltau=cltau+(Lsc_microphys%sw_stoch_cldamt(i,j,k,n)/  &
-                            cldsum(i,j,k))* &
-                     exp(-Lscrad_props%cldext(i,j,k,n)*deltaz(i,j,k)/  &
-                           1000.)
-                 cldext(i,j,k,n,1)=-1000.*alog(cltau)/deltaz(i,j,k)
-                 if (cldext(i,j,k,n,1) .gt. cldextdu)   &
-                               cldext(i,j,k,n,1)=cldextdu
-
-          cldextdu        = (Lsc_microphys%sw_stoch_cldamt(i,j,k,n)*   &
-                                    Lscrad_props%cldsct(i,j,k,n) +   &
-                                     Cell_microphys%cldamt(i,j,k)*  &
-                                      Cellrad_props%cldsct(i,j,k,n) +  &
-                                      Meso_microphys%cldamt(i,j,k)*  &
-                                    Mesorad_props%cldsct(i,j,k,n)) / &
-                                     cldsum(i,j,k)
-                   cltau=(Cell_microphys%cldamt(i,j,k)/cldsum(i,j,k))* &
-                        exp(-Cellrad_props%cldsct(i,j,k,n)*     &
-                           deltaz(i,j,k)/1000.)
-                   cltau=cltau+(Meso_microphys%cldamt(i,j,k)/  &
-                        cldsum(i,j,k))* &
-                  exp(-Mesorad_props%cldsct(i,j,k,n)*deltaz(i,j,k)/  &
-                             1000.)
-               cltau=cltau+(Lsc_microphys%sw_stoch_cldamt(i,j,k,n)/  &
-                          cldsum(i,j,k))* &
-                   exp(-Lscrad_props%cldsct(i,j,k,n)*deltaz(i,j,k)/  &
-                          1000.)
-                cldsct(i,j,k,n,1)=-1000.*alog(cltau)/deltaz(i,j,k)
-        if (cldsct(i,j,k,n,1) .gt. cldextdu) cldsct(i,j,k,n,1)=cldextdu
-
-                 cldasymm(i,j,k,n,1) =        &
-                          (Lsc_microphys%sw_stoch_cldamt(i,j,k,n)*  &
-                           Lscrad_props%cldsct(i,j,k,n)* &
-                          Lscrad_props%cldasymm(i,j,k,n) +&
-                           Cell_microphys%cldamt(i,j,k)*  &
-                          Cellrad_props%cldsct(i,j,k,n)* &
-                        Cellrad_props%cldasymm(i,j,k,n) + &
-                           Meso_microphys%cldamt(i,j,k)*   &
-                          Mesorad_props%cldsct(i,j,k,n)*  &
-                                Mesorad_props%cldasymm(i,j,k,n)) /&
-                       (Lsc_microphys%sw_stoch_cldamt(i,j,k,n)*  &
-                            Lscrad_props%cldsct(i,j,k,n) +        &
-                           Cell_microphys%cldamt(i,j,k)*    &
-                           Cellrad_props%cldsct(i,j,k,n) +          &
-                           Meso_microphys%cldamt(i,j,k)*    &
-                            Mesorad_props%cldsct(i,j,k,n) )
-                endif
-             end do
-            end do
-          end do
-        end do
-
-!---------------------------------------------------------------------
-!    define the total-cloud lw emissivity when large-scale, meso-scale
-!    and cell-scale clouds may be present.
-!---------------------------------------------------------------------
-       do n=1,Cldrad_control%nlwcldb
-         cldsum = Lsc_microphys%lw_stoch_cldamt(:,:,:,n) +   &
-                  Cell_microphys%cldamt + Meso_microphys%cldamt
-         do k=1,size(cldext,3)
-           do j=1,size(cldext,2)
-             do i=1,size(cldext,1)
-               if (cldsum(i,j,k) > 0.0) then
-                 cldextdu          =                            &
-                      (Lsc_microphys%lw_stoch_cldamt(i,j,k,n)*  &
-                               Lscrad_props%abscoeff(i,j,k,n) +&
-                               Cell_microphys%cldamt(i,j,k)* &
-                              Cellrad_props%abscoeff(i,j,k,n) +    &
-                              Meso_microphys%cldamt(i,j,k)*   &
-                             Mesorad_props%abscoeff(i,j,k,n)) /   &
-                               cldsum(i,j,k)
-                 cltau=(Cell_microphys%cldamt(i,j,k)/cldsum(i,j,k))* &
-                   exp(-Cellrad_props%abscoeff(i,j,k,n)*             &
-                       deltaz(i,j,k)/1000.)
-                cltau=cltau+(Meso_microphys%cldamt(i,j,k)/  &
-                          cldsum(i,j,k))* &
-         exp(-Mesorad_props%abscoeff(i,j,k,n)*deltaz(i,j,k)/          &
-                           1000.)
-      cltau=cltau+(Lsc_microphys%lw_stoch_cldamt(i,j,k,n)/  &
-                           cldsum(i,j,k))* &
-           exp(-Lscrad_props%abscoeff(i,j,k,n)*deltaz(i,j,k)/          &
-                          1000.)
-              abscoeff(i,j,k,n,1)=-1000.*alog(cltau)/deltaz(i,j,k)
-       if (abscoeff(i,j,k,n,1) .gt. cldextdu) abscoeff(i,j,k,n,1)=cldextdu
-               endif
-          end do
-           end do
-         end do
-       end do 
-       
-        else  ! (using new donner-stochastic connection)
-!------------------------------------------------------------------------
-!    stochastic clouds are being used. we compare the cell and meso-scale
-!    cloud amounts to a random number, and replace the large-scale clouds
-!    and clear sky in each subcolum with the properties of the cell or 
-!    meso-scale clouds when the number is less than the cloud fraction. 
-!    we use the maximum overlap assumption. we treat the random number 
-!    as the location with the PDF of total water. cells are at the top 
-!    of the PDF; then meso-scale anvils, then large-scale clouds and 
-!    clear sky. 
-!------------------------------------------------------------
-      
-!----------------------------------------------------------------------
-!    get the random numbers to do both sw and lw at oncer.
-!----------------------------------------------------------------------
-!       nSubCols = size(Lsc_microphys%stoch_cldamt, 4)
-
-!----------------------------------------------------------------------
-!    shortwave cloud properties, band by band
-!----------------------------------------------------------------------
-        do n=1,Solar_spect%nbands
-          do k=1,size(cldext,3) ! Levels
-            do j=1,size(cldext,2) ! Lons
-              do i=1,size(cldext,1) ! Lats
-                if ( stoch_cloud_type(i,j,k,n) == 3) then 
-!----------------------------------------------------------------------
-!    it's a cell.
-!----------------------------------------------------------------------
-                  cldext(i,j,k,n,1) = Cellrad_props%cldext(i,j,k,n)
-                  cldsct(i,j,k,n,1) = Cellrad_props%cldsct(i,j,k,n)
-                  cldasymm(i,j,k,n, 1) = Cellrad_props%cldasymm(i,j,k,n)
-                else if ( stoch_cloud_type(i,j,k,n) == 2) then 
-                 
-!----------------------------------------------------------------------
-!    it's a meso-scale.
-!----------------------------------------------------------------------
-                  cldext(i,j,k,n,1) = Mesorad_props%cldext(i,j,k,n)
-                  cldsct(i,j,k,n,1) = Mesorad_props%cldsct(i,j,k,n)
-                  cldasymm(i,j,k,n,1) = Mesorad_props%cldasymm(i,j,k,n)
-                else if ( stoch_cloud_type(i,j,k,n) == 1) then 
-                 
-!----------------------------------------------------------------------
-!    fill it in with the large-scale cloud values.
-!----------------------------------------------------------------------
-                  cldext(i,j,k,n,1) = Lscrad_props%cldext(i,j,k,n)
-                  cldsct(i,j,k,n,1) = Lscrad_props%cldsct(i,j,k,n)
-                  cldasymm(i,j,k,n,1) = Lscrad_props%cldasymm(i,j,k,n)
-                else
-                  cldext(i,j,k,n,1) = 0. 
-                  cldsct(i,j,k,n,1) = 0. 
-                  cldasymm(i,j,k,n,1) = 1. 
-                endif
-              end do 
-            end do 
-          end do 
-        end do 
-
-!----------------------------------------------------------------------
-!    longwave cloud properties, band by band
-!----------------------------------------------------------------------
-      do n=1,Cldrad_control%nlwcldb
-        nn = Solar_spect%nbands + n
-        do k=1,size(cldext,3) ! Levels
-          do j=1,size(cldext,2) ! Lons
-            do i=1,size(cldext,1) ! Lats
-                if ( stoch_cloud_type(i,j,k,nn) == 3) then 
-                 
-!----------------------------------------------------------------------
-!    it's a cell.
-!----------------------------------------------------------------------
-                abscoeff(i,j,k,n,1) = Cellrad_props%abscoeff(i,j,k,n)
-                else if ( stoch_cloud_type(i,j,k,nn) == 2) then 
-                 
-!----------------------------------------------------------------------
-!    it's a meso-scale.
-!----------------------------------------------------------------------
-                abscoeff(i,j,k,n,1) = Mesorad_props%abscoeff(i,j,k,n)
-                else if ( stoch_cloud_type(i,j,k,nn) == 1) then 
-                 
-!----------------------------------------------------------------------
-!    fill it in with the large-scale cloud values.
-!----------------------------------------------------------------------
-                abscoeff(i,j,k,n,1) = Lscrad_props%abscoeff(i,j,k,n)
-              else
-                abscoeff(i,j,k,n,1) = 0. 
-              endif
-            end do 
-          end do 
-        end do 
-      end do 
-      
-
-      endif ! (do_orig_donner_stoch)
-     endif  ! (do_stochastic)
 
 !---------------------------------------------------------------------
 !    define appropriately-weighted total-cloud radiative properties
@@ -2499,7 +2114,6 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
 !---------------------------------------------------------------------
 !    define total cloud fraction.
 !---------------------------------------------------------------------
-        if (.not. Cldrad_control%do_stochastic_clouds) then
           cldsum = Lsc_microphys%cldamt + Shallow_microphys%cldamt 
 
 !---------------------------------------------------------------------
@@ -2508,56 +2122,43 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
 !     values remain at the non-cloudy initialized values.
 !---------------------------------------------------------------------
         do n=1,Solar_spect%nbands
-          do k=1,size(cldext,3)
-            do j=1,size(cldext,2)
-              do i=1,size(cldext,1)
-                if (cldsum(i,j,k) > 0.0) then
-                  cldextdu        = (Lsc_microphys%cldamt(i,j,k)*  &
-                                     Lscrad_props%cldext(i,j,k,n) + &
-                                   Shallow_microphys%cldamt(i,j,k)*   &
-                                   Shallowrad_props%cldext(i,j,k,n) )/ &
-                                     cldsum(i,j,k)
-                cltau=(Shallow_microphys%cldamt(i,j,k)/cldsum(i,j,k))* &
-                           exp(-Shallowrad_props%cldext(i,j,k,n)*     &
-                          deltaz(i,j,k)/1000.)
-                   cltau=cltau+(Lsc_microphys%cldamt(i,j,k)/  &
-                           cldsum(i,j,k))* &
-                    exp(-Lscrad_props%cldext(i,j,k,n)*deltaz(i,j,k)/  &
-                           1000.)
-                 cldext(i,j,k,n,1)=-1000.*alog(cltau)/deltaz(i,j,k)
-                  if (cldext(i,j,k,n,1) .gt. cldextdu)   &
-                               cldext(i,j,k,n,1)=cldextdu
+          where (cldsum > 0.0)
+            cldextdu        = (Lsc_microphys%cldamt*                  &
+                               Lscrad_props%cldext(:,:,:,n) +         &
+                               Shallow_microphys%cldamt*              &
+                               Shallowrad_props%cldext(:,:,:,n) )/    &
+                               cldsum
+            cltau=(Shallow_microphys%cldamt/cldsum)*                  &
+                  exp(-Shallowrad_props%cldext(:,:,:,n)*deltaz/1000.)
+            cltau=cltau+(Lsc_microphys%cldamt/cldsum)*                &
+                  exp(-Lscrad_props%cldext(:,:,:,n)*deltaz/1000.)
+            cldext(:,:,:,n,1)=-1000.*alog(cltau)/deltaz
+            cldext(:,:,:,n,1)=min(cldextdu,cldext(:,:,:,n,1))
 
-                  cldextdu        = (Lsc_microphys%cldamt(i,j,k)*   &
-                                     Lscrad_props%cldsct(i,j,k,n) +   &
-                                  Shallow_microphys%cldamt(i,j,k)*  &
-                                  Shallowrad_props%cldsct(i,j,k,n)) / &
-                                     cldsum(i,j,k)
-                cltau=(Shallow_microphys%cldamt(i,j,k)/cldsum(i,j,k))* &
-                            exp(-Shallowrad_props%cldsct(i,j,k,n)*     &
-                          deltaz(i,j,k)/1000.)
-                   cltau=cltau+(Lsc_microphys%cldamt(i,j,k)/  &
-                           cldsum(i,j,k))* &
-                    exp(-Lscrad_props%cldsct(i,j,k,n)*deltaz(i,j,k)/  &
-                           1000.)
-                 cldsct(i,j,k,n,1)=-1000.*alog(cltau)/deltaz(i,j,k)
-        if (cldsct(i,j,k,n,1) .gt. cldextdu) cldsct(i,j,k,n,1)=cldextdu
+            cldextdu        = (Lsc_microphys%cldamt*                  &
+                               Lscrad_props%cldsct(:,:,:,n) +         &
+                               Shallow_microphys%cldamt*              &
+                               Shallowrad_props%cldsct(:,:,:,n)) /    &
+                               cldsum
+            cltau=(Shallow_microphys%cldamt/cldsum)*                  &
+                  exp(-Shallowrad_props%cldsct(:,:,:,n)*deltaz/1000.)
+            cltau=cltau+(Lsc_microphys%cldamt/cldsum)*                &
+                  exp(-Lscrad_props%cldsct(:,:,:,n)*deltaz/1000.)
+            cldsct(:,:,:,n,1)=-1000.*alog(cltau)/deltaz
+            cldsct(:,:,:,n,1)=min(cldextdu,cldsct(:,:,:,n,1))
 
-                  cldasymm(i,j,k,n,1) =        &
-                          (Lsc_microphys%cldamt(i,j,k)*  &
-                           Lscrad_props%cldsct(i,j,k,n)* &
-                           Lscrad_props%cldasymm(i,j,k,n) +&
-                        Shallow_microphys%cldamt(i,j,k)*   &
-                        Shallowrad_props%cldsct(i,j,k,n)*  &
-                        Shallowrad_props%cldasymm(i,j,k,n)) /&
-                          (Lsc_microphys%cldamt(i,j,k)*  &
-                           Lscrad_props%cldsct(i,j,k,n) +        &
-                        Shallow_microphys%cldamt(i,j,k)*    &
-                        Shallowrad_props%cldsct(i,j,k,n) )
-                endif
-              end do
-            end do
-          end do
+            cldasymm(:,:,:,n,1) =                                     &
+                       (Lsc_microphys%cldamt*                         &
+                        Lscrad_props%cldsct(:,:,:,n)*                 &
+                        Lscrad_props%cldasymm(:,:,:,n) +              &
+                        Shallow_microphys%cldamt*                     &
+                        Shallowrad_props%cldsct(:,:,:,n)*             &
+                        Shallowrad_props%cldasymm(:,:,:,n)) /         &
+                       (Lsc_microphys%cldamt*                         &
+                        Lscrad_props%cldsct(:,:,:,n) +                &
+                        Shallow_microphys%cldamt*                     &
+                        Shallowrad_props%cldsct(:,:,:,n) )
+          end where
         end do
 
 !------------------------------------------------------------
@@ -2565,110 +2166,21 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
 !    and cell-scale clouds may be present.
 !---------------------------------------------------------------------
         do n=1,Cldrad_control%nlwcldb
-          do k=1,size(cldext,3)
-            do j=1,size(cldext,2)
-              do i=1,size(cldext,1)
-                if (cldsum(i,j,k) > 0.0) then
-                  cldextdu          =                            &
-                             (Lsc_microphys%cldamt(i,j,k)*  &
-                              Lscrad_props%abscoeff(i,j,k,n) +&
-                        Shallow_microphys%cldamt(i,j,k)*   &
-                           Shallowrad_props%abscoeff(i,j,k,n)) /   &
-                              cldsum(i,j,k)
-                cltau=(Shallow_microphys%cldamt(i,j,k)/cldsum(i,j,k))* &
-                         exp(-Shallowrad_props%abscoeff(i,j,k,n)*     &
-                          deltaz(i,j,k)/1000.)
-                   cltau=cltau+(Lsc_microphys%cldamt(i,j,k)/  &
-                           cldsum(i,j,k))* &
-                    exp(-Lscrad_props%abscoeff(i,j,k,n)*deltaz(i,j,k)/  &
-                           1000.)
-                 abscoeff(i,j,k,n,1)=-1000.*alog(cltau)/deltaz(i,j,k)
-        if (abscoeff(i,j,k,n,1) .gt. cldextdu) abscoeff(i,j,k,n,1)=cldextdu
-                endif
-              end do
-            end do
-          end do
+          where (cldsum > 0.0)
+            cldextdu          =                                         &
+                             (Lsc_microphys%cldamt*                     &
+                              Lscrad_props%abscoeff(:,:,:,n) +          &
+                              Shallow_microphys%cldamt *                &
+                              Shallowrad_props%abscoeff(:,:,:,n)) /     &
+                              cldsum
+            cltau=(Shallow_microphys%cldamt/cldsum)*                    &
+                  exp(-Shallowrad_props%abscoeff(:,:,:,n)*deltaz/1000.)
+            cltau=cltau+(Lsc_microphys%cldamt/cldsum)*                  &
+                  exp(-Lscrad_props%abscoeff(:,:,:,n)*deltaz/1000.)
+            abscoeff(:,:,:,n,1)=-1000.*alog(cltau)/deltaz
+            abscoeff(:,:,:,n,1)=min(cldextdu,abscoeff(:,:,:,n,1))
+          end where
         end do
-      else
-
-!------------------------------------------------------------------------
-!    stochastic clouds are being used. we compare the cell and meso-scale
-!    cloud amounts to a random number, and replace the large-scale clouds
-!    and clear sky in each subcolum with the properties of the cell or 
-!    meso-scale clouds when the number is less than the cloud fraction. 
-!    we use the maximum overlap assumption. we treat the random number 
-!    as the location with the PDF of total water. cells are at the top 
-!    of the PDF; then meso-scale anvils, then large-scale clouds and 
-!    clear sky. 
-!------------------------------------------------------------
-      
-!----------------------------------------------------------------------
-!    get the random numbers to do both sw and lw at oncer.
-!----------------------------------------------------------------------
-!       nSubCols = size(Lsc_microphys%stoch_cldamt, 4)
-
-!----------------------------------------------------------------------
-!    shortwave cloud properties, band by band
-!----------------------------------------------------------------------
-        do n=1,Solar_spect%nbands
-          do k=1,size(cldext,3) ! Levels
-            do j=1,size(cldext,2) ! Lons
-              do i=1,size(cldext,1) ! Lats
-                if ( stoch_cloud_type(i,j,k,n) == 4) then 
-!----------------------------------------------------------------------
-!    it's a uw shallow
-!----------------------------------------------------------------------
-                  cldext(i,j,k,n,1) = Shallowrad_props%cldext(i,j,k,n)
-                  cldsct(i,j,k,n,1) = Shallowrad_props%cldsct(i,j,k,n)
-              cldasymm(i,j,k,n, 1) = Shallowrad_props%cldasymm(i,j,k,n)
-                else if ( stoch_cloud_type(i,j,k,n) == 1) then 
-                 
-!----------------------------------------------------------------------
-!    fill it in with the large-scale cloud values.
-!----------------------------------------------------------------------
-                  cldext(i,j,k,n,1) = Lscrad_props%cldext(i,j,k,n)
-                  cldsct(i,j,k,n,1) = Lscrad_props%cldsct(i,j,k,n)
-                  cldasymm(i,j,k,n,1) = Lscrad_props%cldasymm(i,j,k,n)
-                else
-                  cldext(i,j,k,n,1) = 0. 
-                  cldsct(i,j,k,n,1) = 0. 
-                  cldasymm(i,j,k,n,1) = 1. 
-                endif
-              end do 
-            end do 
-          end do 
-        end do 
-
-!----------------------------------------------------------------------
-!    longwave cloud properties, band by band
-!----------------------------------------------------------------------
-      do n=1,Cldrad_control%nlwcldb
-        nn = Solar_spect%nbands + n
-        do k=1,size(cldext,3) ! Levels
-          do j=1,size(cldext,2) ! Lons
-            do i=1,size(cldext,1) ! Lats
-                if ( stoch_cloud_type(i,j,k,nn) == 4) then 
-                 
-!----------------------------------------------------------------------
-!    it's a uw shallow.
-!----------------------------------------------------------------------
-                abscoeff(i,j,k,n,1) = Shallowrad_props%abscoeff(i,j,k,n)
-                else if ( stoch_cloud_type(i,j,k,nn) == 1) then 
-                 
-!----------------------------------------------------------------------
-!    fill it in with the large-scale cloud values.
-!----------------------------------------------------------------------
-                abscoeff(i,j,k,n,1) = Lscrad_props%abscoeff(i,j,k,n)
-              else
-                abscoeff(i,j,k,n,1) = 0. 
-              endif
-            end do 
-          end do 
-        end do 
-      end do 
-      
-
-     endif  ! (do_stochastic)
 
 !---------------------------------------------------------------------
 !    define appropriately-weighted total-cloud radiative properties
@@ -2693,17 +2205,17 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
             do j=1,size(cldext,2)
               do i=1,size(cldext,1)
                 if (cldsum(i,j,k) > 0.0) then
-                  cldextdu        = (Shallow_microphys%cldamt(i,j,k)*  &
+                  cldextdu(i,j,k)        = (Shallow_microphys%cldamt(i,j,k)*  &
                                    Shallowrad_props%cldext(i,j,k,n) + &
                                      Cell_microphys%cldamt(i,j,k)*   &
                                      Cellrad_props%cldext(i,j,k,n) +  &
                                      Meso_microphys%cldamt(i,j,k)*   &
                                      Mesorad_props%cldext(i,j,k,n)) / &
                                      cldsum(i,j,k)
-                   cltau=(Cell_microphys%cldamt(i,j,k)/cldsum(i,j,k))* &
+                   cltau(i,j,k)=(Cell_microphys%cldamt(i,j,k)/cldsum(i,j,k))* &
                                exp(-Cellrad_props%cldext(i,j,k,n)*     &
                           deltaz(i,j,k)/1000.)
-                   cltau=cltau+(Meso_microphys%cldamt(i,j,k)/  &
+                   cltau(i,j,k)=cltau(i,j,k)+(Meso_microphys%cldamt(i,j,k)/  &
                          cldsum(i,j,k))* &
                    exp(-Mesorad_props%cldext(i,j,k,n)*deltaz(i,j,k)/  &
                               1000.)
@@ -2711,30 +2223,29 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
                            cldsum(i,j,k))* &
                  exp(-Shallowrad_props%cldext(i,j,k,n)*deltaz(i,j,k)/  &
                            1000.)
-                 cldext(i,j,k,n,1)=-1000.*alog(cltau)/deltaz(i,j,k)
-                  if (cldext(i,j,k,n,1) .gt. cldextdu)   &
-                               cldext(i,j,k,n,1)=cldextdu
+                 cldext(i,j,k,n,1)=-1000.*alog(cltau(i,j,k))/deltaz(i,j,k)
+                 cldext(i,j,k,n,1)=min(cldextdu(i,j,k),cldext(i,j,k,n,1))
 
-               cldextdu        = (Shallow_microphys%cldamt(i,j,k)*   &
+               cldextdu(i,j,k)        = (Shallow_microphys%cldamt(i,j,k)*   &
                                   Shallowrad_props%cldsct(i,j,k,n) +   &
                                      Cell_microphys%cldamt(i,j,k)*  &
                                      Cellrad_props%cldsct(i,j,k,n) +  &
                                      Meso_microphys%cldamt(i,j,k)*  &
                                      Mesorad_props%cldsct(i,j,k,n)) / &
                                      cldsum(i,j,k)
-                   cltau=(Cell_microphys%cldamt(i,j,k)/cldsum(i,j,k))* &
+                   cltau(i,j,k)=(Cell_microphys%cldamt(i,j,k)/cldsum(i,j,k))* &
                                exp(-Cellrad_props%cldsct(i,j,k,n)*     &
                           deltaz(i,j,k)/1000.)
-                   cltau=cltau+(Meso_microphys%cldamt(i,j,k)/  &
+                   cltau(i,j,k)=cltau(i,j,k)+(Meso_microphys%cldamt(i,j,k)/  &
                          cldsum(i,j,k))* &
                    exp(-Mesorad_props%cldsct(i,j,k,n)*deltaz(i,j,k)/  &
                               1000.)
-                   cltau=cltau+(Shallow_microphys%cldamt(i,j,k)/  &
+                   cltau(i,j,k)=cltau(i,j,k)+(Shallow_microphys%cldamt(i,j,k)/  &
                            cldsum(i,j,k))* &
                     exp(-Shallowrad_props%cldsct(i,j,k,n)*deltaz(i,j,k)/  &
                            1000.)
-                 cldsct(i,j,k,n,1)=-1000.*alog(cltau)/deltaz(i,j,k)
-        if (cldsct(i,j,k,n,1) .gt. cldextdu) cldsct(i,j,k,n,1)=cldextdu
+                 cldsct(i,j,k,n,1)=-1000.*alog(cltau(i,j,k))/deltaz(i,j,k)
+        cldsct(i,j,k,n,1)=min(cldextdu(i,j,k),cldsct(i,j,k,n,1))
 
                   cldasymm(i,j,k,n,1) =        &
                           (Shallow_microphys%cldamt(i,j,k)*  &
@@ -2763,35 +2274,24 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
 !    and cell-scale clouds may be present.
 !---------------------------------------------------------------------
         do n=1,Cldrad_control%nlwcldb
-          do k=1,size(cldext,3)
-            do j=1,size(cldext,2)
-              do i=1,size(cldext,1)
-                if (cldsum(i,j,k) > 0.0) then
-                  cldextdu          =                            &
-                             (Shallow_microphys%cldamt(i,j,k)*  &
-                              Shallowrad_props%abscoeff(i,j,k,n) +&
-                              Cell_microphys%cldamt(i,j,k)* &
-                              Cellrad_props%abscoeff(i,j,k,n) +    &
-                              Meso_microphys%cldamt(i,j,k)*   &
-                              Mesorad_props%abscoeff(i,j,k,n)) /   &
-                              cldsum(i,j,k)
-                   cltau=(Cell_microphys%cldamt(i,j,k)/cldsum(i,j,k))* &
-                               exp(-Cellrad_props%abscoeff(i,j,k,n)*     &
-                          deltaz(i,j,k)/1000.)
-                   cltau=cltau+(Meso_microphys%cldamt(i,j,k)/  &
-                         cldsum(i,j,k))* &
-                   exp(-Mesorad_props%abscoeff(i,j,k,n)*deltaz(i,j,k)/  &
-                              1000.)
-                   cltau=cltau+(Shallow_microphys%cldamt(i,j,k)/  &
-                           cldsum(i,j,k))* &
-                    exp(-Shallowrad_props%abscoeff(i,j,k,n)*deltaz(i,j,k)/  &
-                           1000.)
-                 abscoeff(i,j,k,n,1)=-1000.*alog(cltau)/deltaz(i,j,k)
-        if (abscoeff(i,j,k,n,1) .gt. cldextdu) abscoeff(i,j,k,n,1)=cldextdu
-                endif
-              end do
-            end do
-          end do
+          where (cldsum > 0.0)
+            cldextdu          =                                              &
+                             (Shallow_microphys%cldamt*                      &
+                              Shallowrad_props%abscoeff(:,:,:,n) +           &
+                              Cell_microphys%cldamt*                         &
+                              Cellrad_props%abscoeff(:,:,:,n) +              &
+                              Meso_microphys%cldamt*                         &
+                              Mesorad_props%abscoeff(:,:,:,n)) /             &
+                              cldsum
+            cltau=(Cell_microphys%cldamt/cldsum)*                            &
+                  exp(-Cellrad_props%abscoeff(:,:,:,n)*deltaz/1000.)
+            cltau=cltau+(Meso_microphys%cldamt/cldsum)*                      &
+                  exp(-Mesorad_props%abscoeff(:,:,:,n)*deltaz/1000.)
+            cltau=cltau+(Shallow_microphys%cldamt/cldsum)*                   &
+                  exp(-Shallowrad_props%abscoeff(:,:,:,n)*deltaz/1000.)
+            abscoeff(:,:,:,n,1)=-1000.*alog(cltau)/deltaz
+            abscoeff(:,:,:,n,1)=min(cldextdu,abscoeff(:,:,:,n,1))
+          end where
         end do
 !--------------------------------------------------------------------
 !    define the total-cloud radiative properties when only meso-scale 
@@ -2810,55 +2310,43 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
 !     values remain at the non-cloudy initialized values.
 !---------------------------------------------------------------------
         do n=1,Solar_spect%nbands
-          do k=1,size(cldext,3)
-            do j=1,size(cldext,2)
-              do i=1,size(cldext,1)
-                if (cldsum(i,j,k) > 0.0) then
-                  cldextdu        = (Cell_microphys%cldamt(i,j,k)* &
-                                     Cellrad_props%cldext(i,j,k,n) +   &
-                                     Meso_microphys%cldamt(i,j,k)*  &
-                                     Mesorad_props%cldext(i,j,k,n)) / &
-                                     cldsum(i,j,k)
-                   cltau=(Cell_microphys%cldamt(i,j,k)/cldsum(i,j,k))* &
-                               exp(-Cellrad_props%cldext(i,j,k,n)*     &
-                          deltaz(i,j,k)/1000.)
-                   cltau=cltau+(Meso_microphys%cldamt(i,j,k)/  &
-                         cldsum(i,j,k))* &
-                   exp(-Mesorad_props%cldext(i,j,k,n)*deltaz(i,j,k)/  &
-                              1000.)
-                 cldext(i,j,k,n,1)=-1000.*alog(cltau)/deltaz(i,j,k)
-        if (cldext(i,j,k,n,1) .gt. cldextdu) cldext(i,j,k,n,1)=cldextdu
+          where (cldsum > 0.0)
+            cldextdu        = (Cell_microphys%cldamt*                  &
+                               Cellrad_props%cldext(:,:,:,n) +         &
+                               Meso_microphys%cldamt*                  &
+                               Mesorad_props%cldext(:,:,:,n)) /        &
+                               cldsum
+            cltau=(Cell_microphys%cldamt/cldsum)*                      &
+                  exp(-Cellrad_props%cldext(:,:,:,n)*deltaz/1000.)
+            cltau=cltau+(Meso_microphys%cldamt/cldsum)*                &
+                  exp(-Mesorad_props%cldext(:,:,:,n)*deltaz/1000.)
+            cldext(:,:,:,n,1)=-1000.*alog(cltau)/deltaz
+            cldext(:,:,:,n,1)=min(cldextdu,cldext(:,:,:,n,1))
 
-                  cldextdu        = (Cell_microphys%cldamt(i,j,k)*  &
-                                     Cellrad_props%cldsct(i,j,k,n) +   &
-                                     Meso_microphys%cldamt(i,j,k)*   &
-                                     Mesorad_props%cldsct(i,j,k,n)) / &
-                                     cldsum(i,j,k)
-                   cltau=(Cell_microphys%cldamt(i,j,k)/cldsum(i,j,k))* &
-                               exp(-Cellrad_props%cldsct(i,j,k,n)*     &
-                          deltaz(i,j,k)/1000.)
-                   cltau=cltau+(Meso_microphys%cldamt(i,j,k)/  &
-                         cldsum(i,j,k))* &
-                   exp(-Mesorad_props%cldsct(i,j,k,n)*deltaz(i,j,k)/  &
-                              1000.)
-                 cldsct(i,j,k,n,1)=-1000.*alog(cltau)/deltaz(i,j,k)
-        if (cldsct(i,j,k,n,1) .gt. cldextdu) cldsct(i,j,k,n,1)=cldextdu
+            cldextdu        = (Cell_microphys%cldamt*                  &
+                               Cellrad_props%cldsct(:,:,:,n) +         &
+                               Meso_microphys%cldamt*                  &
+                               Mesorad_props%cldsct(:,:,:,n)) /        &
+                               cldsum
+            cltau=(Cell_microphys%cldamt/cldsum)*                      &
+                  exp(-Cellrad_props%cldsct(:,:,:,n)*deltaz/1000.)
+            cltau=cltau+(Meso_microphys%cldamt/cldsum)*                &
+                  exp(-Mesorad_props%cldsct(:,:,:,n)*deltaz/1000.)
+            cldsct(:,:,:,n,1)=-1000.*alog(cltau)/deltaz
+            cldsct(:,:,:,n,1)=min(cldextdu,cldsct(:,:,:,n,1))
 
-                  cldasymm(i,j,k,n,1) =                           &
-                          (Cell_microphys%cldamt(i,j,k)* &
-                           Cellrad_props%cldsct(i,j,k,n)* &
-                           Cellrad_props%cldasymm(i,j,k,n) + &
-                           Meso_microphys%cldamt(i,j,k)*   &
-                           Mesorad_props%cldsct(i,j,k,n)*  &
-                           Mesorad_props%cldasymm(i,j,k,n)) /&
-                          (Cell_microphys%cldamt(i,j,k)*  &
-                           Cellrad_props%cldsct(i,j,k,n) +     &
-                           Meso_microphys%cldamt(i,j,k)*   &
-                           Mesorad_props%cldsct(i,j,k,n) )
-                endif     
-              end do
-            end do
-          end do
+            cldasymm(:,:,:,n,1) =                                      &
+                          (Cell_microphys%cldamt*                      &
+                           Cellrad_props%cldsct(:,:,:,n)*              &
+                           Cellrad_props%cldasymm(:,:,:,n) +           &
+                           Meso_microphys%cldamt*                      &
+                           Mesorad_props%cldsct(:,:,:,n)*              &
+                           Mesorad_props%cldasymm(:,:,:,n)) /          &
+                          (Cell_microphys%cldamt*                      &
+                           Cellrad_props%cldsct(:,:,:,n) +             &
+                           Meso_microphys%cldamt*                      &
+                           Mesorad_props%cldsct(:,:,:,n) )
+          end where
         end do
 
 !---------------------------------------------------------------------
@@ -2866,29 +2354,20 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
 !    cell-scale clouds may be present.
 !---------------------------------------------------------------------
         do n=1,Cldrad_control%nlwcldb
-          do k=1,size(cldext,3)
-            do j=1,size(cldext,2)
-              do i=1,size(cldext,1)
-                if (cldsum(i,j,k) > 0.0) then
-                  cldextdu          =                           &
-                       (Cell_microphys%cldamt(i,j,k)*  &
-                        Cellrad_props%abscoeff(i,j,k,n) +   &
-                        Meso_microphys%cldamt(i,j,k)*   &
-                        Mesorad_props%abscoeff(i,j,k,n)) /   &
-                        cldsum(i,j,k)
-                   cltau=(Cell_microphys%cldamt(i,j,k)/cldsum(i,j,k))* &
-                               exp(-Cellrad_props%abscoeff(i,j,k,n)*     &
-                          deltaz(i,j,k)/1000.)
-                   cltau=cltau+(Meso_microphys%cldamt(i,j,k)/  &
-                         cldsum(i,j,k))* &
-                   exp(-Mesorad_props%abscoeff(i,j,k,n)*deltaz(i,j,k)/  &
-                              1000.)
-                 abscoeff(i,j,k,n,1)=-1000.*alog(cltau)/deltaz(i,j,k)
-        if (abscoeff(i,j,k,n,1) .gt. cldextdu) abscoeff(i,j,k,n,1)=cldextdu
-                endif
-              end do
-            end do
-          end do
+          where (cldsum > 0.0)
+            cldextdu          =                                       &
+                       (Cell_microphys%cldamt*                        &
+                        Cellrad_props%abscoeff(:,:,:,n) +             &
+                        Meso_microphys%cldamt*                        &
+                        Mesorad_props%abscoeff(:,:,:,n)) /            &
+                        cldsum
+            cltau=(Cell_microphys%cldamt/cldsum)*                     &
+                  exp(-Cellrad_props%abscoeff(:,:,:,n)*deltaz/1000.)
+            cltau=cltau+(Meso_microphys%cldamt/cldsum)*               &
+                  exp(-Mesorad_props%abscoeff(:,:,:,n)*deltaz/1000.)
+            abscoeff(:,:,:,n,1)=-1000.*alog(cltau)/deltaz
+            abscoeff(:,:,:,n,1)=min(cldextdu,abscoeff(:,:,:,n,1))
+          end where
         end do
       endif
 
@@ -3537,21 +3016,15 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
                            maskis, &
                            tempext2, tempssa2, tempasy2)   
 
-              do k=1, size(cldextbandliq,3)
-                do j=1, size(cldextbandliq,2)
-                  do i=1, size(cldextbandliq,1)
-                    if (maskif(i,j,k)) then
-                      cldextbandice(i,j,k,nb) = tempext(i,j,k)
-                       cldssalbbandice(i,j,k,nb) = tempssa(i,j,k)
-                       cldasymmbandice(i,j,k,nb) = tempasy(i,j,k)
-                    else if (maskis(i,j,k)) then
-                      cldextbandice(i,j,k,nb) = tempext2(i,j,k)
-                       cldssalbbandice(i,j,k,nb) = tempssa2(i,j,k)
-                       cldasymmbandice(i,j,k,nb) = tempasy2(i,j,k)
-                    endif
-                  end do
-                  end do
-                  end do
+              where (maskif)
+                cldextbandice(:,:,:,nb)   = tempext
+                cldssalbbandice(:,:,:,nb) = tempssa
+                cldasymmbandice(:,:,:,nb) = tempasy
+              else where (maskis)
+                cldextbandice(:,:,:,nb)   = tempext2
+                cldssalbbandice(:,:,:,nb) = tempssa2
+                cldasymmbandice(:,:,:,nb) = tempasy2
+              end where
 !--------------------------------------------------------------------
 !    if this is not an isccp call with activated stochastic clouds, all
 !    grid columns will use the same parameterization.
@@ -3593,15 +3066,7 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
                      cldssalbbandsnow(:,:,:,nb),  &
                      cldasymmbandsnow(:,:,:,nb))
 
-              do k=1, size(cldextbandliq,3)
-                do j=1, size(cldextbandliq,2)
-                  do i=1, size(cldextbandliq,1)
-                    anymask(i,j,k) = maskl(i,j,k) .or. maskr(i,j,k)  &
-                                    .or. maskif(i,j,k) .or.  &
-                                        maskis(i,j,k) .or. masks(i,j,k)
-                  end do
-                end do
-              end do
+              anymask = maskl .or. maskr .or. maskif .or. maskis .or. masks
 
               do k=1, size(cldextbandliq,3)
                 do j=1, size(cldextbandliq,2)
@@ -3703,17 +3168,11 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
                        solivlicesolcld,  &
                             Solar_spect%solflxbandref(nb),    &
                            maskis, tempext2               )
-              do k=1, size(cldextbandliq,3)
-                do j=1, size(cldextbandliq,2)
-                  do i=1, size(cldextbandliq,1)
-                    if (maskif(i,j,k)) then
-                      cldextbandice(i,j,k,nb) = tempext(i,j,k)
-                    else if (maskis(i,j,k)) then
-                      cldextbandice(i,j,k,nb) = tempext2(i,j,k)
-                    endif
-                  end do
-                  end do
-                  end do
+              where (maskif)
+                cldextbandice(:,:,:,nb) = tempext
+              else where (maskis)
+                cldextbandice(:,:,:,nb) = tempext2
+              end where
                     
 !--------------------------------------------------------------------
 !    if this is not an isccp call with activated stochastic clouds, all
@@ -3727,12 +3186,12 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
 !    interval to the sw parameterization band spectral intervals.
 !----------------------------------------------------------------------
                 maskif = .false.
-                call thickavg (nb, nivl1icesolcld(nb),  &
-                               nivl2icesolcld(nb),    &
-                           cldextivlice2,   &
-                       solivlicesolcld,  &
-                            Solar_spect%solflxbandref(nb),    &
-                           maskis, cldextbandice(:,:,:,nb))
+                call thickavg (nb, nivl1icesolcld(nb),           &
+                               nivl2icesolcld(nb),               &
+                               cldextivlice2,                    &
+                               solivlicesolcld,                  &
+                               Solar_spect%solflxbandref(nb),    &
+                               maskis, cldextbandice(:,:,:,nb))
   endif ! (isccp_call)
 
 !----------------------------------------------------------------------
@@ -3740,22 +3199,13 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
 !    flakes that were calculated for the desired snow flake spectral 
 !    interval to the sw parameterization band spectral intervals.
 !----------------------------------------------------------------------
-              call thickavg (nonly, nivl1snowcld(nonly),   &
-                             nivl2snowcld(nonly), &
-                                         cldextivlsnow,     &
+              call thickavg (nonly, nivl1snowcld(nonly),             &
+                             nivl2snowcld(nonly),                    &
+                             cldextivlsnow,                          &
                   solivlsnowcld, Solar_spect%solflxbandref(nonly),   &
                      masks, cldextbandsnow(:,:,:,nonly))
 
-              do k=1, size(cldextbandliq,3)
-                do j=1, size(cldextbandliq,2)
-                  do i=1, size(cldextbandliq,1)
-                    anymask(i,j,k) = maskl(i,j,k) .or.  &
-                                     maskr(i,j,k) .or.  &
-                                      maskif(i,j,k) .or. &
-                                      maskis(i,j,k) .or. masks(i,j,k)
-                  end do
-                end do
-              end do
+              anymask = maskl .or. maskr .or. maskif .or. maskis .or. masks
 
               do k=1, size(cldextbandliq,3)
                 do j=1, size(cldextbandliq,2)
@@ -5204,25 +4654,19 @@ real, dimension (:,:,:,:), intent(out)  ::   abscoeff
             endif ! for nonly 
           endif ! for nbmax == 1
  
-              do k=1, size(conc_drop,3)
-                do j=1, size(conc_drop    ,2)
-                  do i=1, size(conc_drop,1)
-                    if (maskf(i,j,k)) then
-                     cldextbndicelw(i,j,k,n) = cldext(i,j,k)
-                     cldssalbbndicelw(i,j,k,n) = cldssa(i,j,k)
-!                    cldasymmbndicelw(i,j,k,n) = cldasy(i,j,k)
-                    else if (maski(i,j,k)) then
-                     cldextbndicelw(i,j,k,n) = cldext2(i,j,k)
-                     cldssalbbndicelw(i,j,k,n) = cldssa2(i,j,k)
-!                    cldasymmbndicelw(i,j,k,n) = cldasy2(i,j,k)
-                    else
-                     cldextbndicelw(i,j,k,n) = 0.0             
-                     cldssalbbndicelw(i,j,k,n) = 0.0              
-!                    cldasymmbndicelw(i,j,k,n) = cldasy2(i,j,k)
-                    endif
-                  end do
-                  end do
-                  end do
+          where (maskf)
+            cldextbndicelw(:,:,:,n) = cldext
+            cldssalbbndicelw(:,:,:,n) = cldssa
+!           cldasymmbndicelw(:,:,:,n) = cldasy
+          else where (maski)
+            cldextbndicelw(:,:,:,n) = cldext2
+            cldssalbbndicelw(:,:,:,n) = cldssa2
+!           cldasymmbndicelw(:,:,:,n) = cldasy2
+          elsewhere
+            cldextbndicelw(:,:,:,n) = 0.0             
+            cldssalbbndicelw(:,:,:,n) = 0.0              
+!           cldasymmbndicelw(:,:,:,n) = cldasy2
+          end where
         end do
 
    else    ! (isccp_call)
@@ -6492,65 +5936,5 @@ real, dimension (:,:,:  ), intent(out)    ::   cldextbndsnowlw,    &
  
 end subroutine fusnowlw
 
-
-
-!####################################################################
-
-!!! THIS SUBOUTINE IS CURRENTLY NOT USED.
-subroutine snowlw
-!subroutine snowlw(riwp, tau)
-!
-!-----------------------------------------------------------------------
-!
-!     Calculates emissivity
-!     for longwave radiation using Fu et al. (1995,
-!     JAS). (See notes from Kuo-Nan Liou, 1 Sept 98).
-!
-!-----------------------------------------------------------------------
-!
-!     On Input:
-!
-!        riwp   snow path  (g/(m**2))
-!
-!     On Output:
-!
-!        tau   absorption optical depth
-!
-!        Leo Donner, GFDL, 11 Sept 98
-!
-!-----------------------------------------------------------------------
-!
-!
-!-----------------------------------------------------------------------
-!
-!     Calculate extinction coefficient (m**(-1)) and optical depth
-!     for absorption. Extinction coefficient is taken as product of
-!     total extinction coefficient (.84 km**(-1)) and single-scattering
-!     albedo. See Kuo-Nan Liou notes 
-!     (1 Sept 98).
-!
-!-----------------------------------------------------------------------
-!
-!     riwc0=0.5
-!     ext=.4
-!     if (riwp .eq. 0.) then
-!       tau=0.
-!     else
-!       tau=ext*.001*riwp/riwc0
-!     end if
-!     emis=1.-exp(-tau)
-
-!-----------------------------------------------------------------------
-
-
-end subroutine snowlw
-
-
-
-!#################################################################
-
-
-
-
-                   end module microphys_rad_mod
+end module microphys_rad_mod
 
