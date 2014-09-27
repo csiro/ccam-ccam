@@ -1743,13 +1743,14 @@ real xevap,pcevap
 
 integer, parameter :: ktop = 2    !Top level for wet deposition (counting from top)
 ! Allow in-cloud scavenging in ice clouds for hydrophobic BC and OC, and dust
-real, dimension(naero), parameter :: Ecols = (/0.00,0.00,0.00,0.05,0.00,0.05,0.00,0.05,0.05,0.05,0.05/)
+!real, dimension(naero), parameter :: Ecols = (/0.00,0.00,0.00,0.05,0.00,0.05,0.00,0.05,0.05,0.05,0.05/)
+real, dimension(naero), parameter :: Ecols = (/0.00,0.00,0.00,0.10,0.00,0.10,0.00,0.10,0.10,0.10,0.10/)
 !Below-cloud collection eff. for rain
 !real, dimension(naero), parameter :: zcollefr = (/0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.10,0.20,0.40/)
-real, dimension(naero), parameter :: zcollefr = (/0.10,0.10,0.10,0.10,0.10,0.10,0.10,0.05,0.10,0.20,0.40/)
+real, dimension(naero), parameter :: zcollefr = (/0.10,0.10,0.10,0.10,0.10,0.10,0.10,0.10,0.20,0.40,0.80/)
 !Below-cloud collection eff. for snow
 !real, dimension(naero), parameter :: zcollefs = (/0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.02,0.04,0.08/)
-real, dimension(naero), parameter :: zcollefs = (/0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.01,0.02,0.04,0.08/)
+real, dimension(naero), parameter :: zcollefs = (/0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.04,0.08,0.16/)
 !Retention coeff. on riming
 real, dimension(naero), parameter :: Rcoeff = (/1.00,0.62,1.00,0.00,1.00,0.00,1.00,1.00,1.00,1.00,1.00/)
 !Relative reevaporation rate
@@ -1992,7 +1993,7 @@ do k = 1, NDUST
     ! Dynamic viscosity
     C_Stokes = 1.458E-6 * TMP(1:ifull,kl)**1.5/(TMP(1:ifull,kl)+110.4) 
     ! Cuningham correction
-    Corr = 6.6E-8*prf(:,kl)/1013.*TMP(1:ifull,kl)/293.15
+    Corr = 6.6E-8*prf(1:ifull,kl)/1013.*TMP(1:ifull,kl)/293.15
     C_Cun = 1. + 1.249*corr/dustreff(k)
     ! Settling velocity
     Vd_cor(:,kl) =2./9.*grav*dustden(k)*dustreff(k)**2/C_Stokes*C_Cun
@@ -2004,7 +2005,7 @@ do k = 1, NDUST
       ! Dynamic viscosity
       C_Stokes = 1.458E-6*TMP(1:ifull,l)**1.5/(TMP(1:ifull,l)+110.4) 
       ! Cuningham correction
-      Corr = 6.6E-8*prf(:,l)/1013.*TMP(1:ifull,l)/293.15
+      Corr = 6.6E-8*prf(1:ifull,l)/1013.*TMP(1:ifull,l)/293.15
       C_Cun = 1. + 1.249*corr/dustreff(k)
       ! Settling velocity
       Vd_cor(:,l) = 2./9.*grav*dustden(k)*dustreff(k)*dustreff(k)/C_Stokes*C_Cun
@@ -2343,7 +2344,8 @@ logical, dimension(size(fscav)) :: bwkp1
 ! Hard-coded for 3 sulfur variables, 4 carbonaceous, 4 mineral dust.
 ! Note that value for SO2 (index 2) is overwritten by Henry coefficient f_so2 below.
 ! These ones are for 3 SULF, 4 CARB and 4 or 8 DUST (and include dummy variables at end)
-real, parameter, dimension(naero) :: scav_effl = (/0.00,1.00,0.90,0.00,0.30,0.00,0.30,0.05,0.05,0.05,0.05/) ! liquid
+!real, parameter, dimension(naero) :: scav_effl = (/0.00,1.00,0.90,0.00,0.30,0.00,0.30,0.05,0.05,0.05,0.05/) ! liquid
+real, parameter, dimension(naero) :: scav_effl = (/0.00,1.00,0.90,0.00,0.30,0.00,0.30,0.10,0.10,0.10,0.10/) ! liquid
 real, parameter, dimension(naero) :: scav_effi = (/0.00,0.00,0.00,0.05,0.00,0.05,0.00,0.05,0.05,0.05,0.05/) ! ice
 
 !bwkp1(:)=tt(:)>=ticeu ! condensate in parcel is liquid (true) or ice (false)
