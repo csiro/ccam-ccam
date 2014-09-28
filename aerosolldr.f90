@@ -1948,6 +1948,7 @@ real, dimension(ifull,kl), intent(in) :: prf    !Pressure (hPa)
 ! Local work arrays and variables
 real, dimension(ifull) :: dcol1, dcol2
 real, dimension(ifull) :: c_stokes, corr, c_cun
+real, dimension(ifull) :: newxtg, b, dfall
 real, dimension(ifull,kl) :: vd_cor
 real dtmax,vsettl,dt_settl
 integer n,k,l,ndt_settl
@@ -1980,7 +1981,6 @@ do k = 1, NDUST
   ndt_settl = max(1, int( tdt/dtmax ) )
   dt_settl = tdt/real(ndt_settl)
 
-  ! Solve the bidiagonal matrix (l,l)
   do n = 1, ndt_settl
 
     ! Solve at the model top
@@ -1992,7 +1992,10 @@ do k = 1, NDUST
     ! Settling velocity
     Vd_cor(:,kl) =2./9.*grav*dustden(k)*dustreff(k)**2/C_Stokes*C_Cun
     ! Update mixing ratio
-    xtg(1:ifull,kl,k+itracdu-1) = xtg(1:ifull,kl,k+itracdu-1) / (1. + dt_settl*VD_cor(:,kl)/DELZ(:,kl))
+    b = dt_settl*VD_cor(:,kl)/DELZ(:,kl)
+    newxtg = xtg(1:ifull,kl,k+itracdu-1) * (1. - 0.5 * b) / (1. + 0.5 * b)
+    dfall = xtg(1:ifull,kl,k+itracdu-1) - newxtg
+    xtg(1:ifull,kl,k+itracdu-1) = newxtg
 
     ! Solve each vertical layer successively (layer l)
     do l = kl-1,1,-1
@@ -2004,9 +2007,11 @@ do k = 1, NDUST
       ! Settling velocity
       Vd_cor(:,l) = 2./9.*grav*dustden(k)*dustreff(k)*dustreff(k)/C_Stokes*C_Cun
       ! Update mixing ratio
-      xtg(1:ifull,l,k+itracdu-1) = 1./(1. + dt_settl*Vd_cor(:,l)/DELZ(:,l))                               &
-          *(xtg(1:ifull,l,k+itracdu-1) + dt_settl*Vd_cor(:,l+1)/DELZ(:,l)*xtg(1:ifull,l+1,k+itracdu-1)    &
-          *rhoa(:,l+1)/rhoa(:,l))  ! MJT suggestion
+      b = dt_settl*Vd_cor(:,l)/DELZ(:,l)
+      xtg(1:ifull,l,k+itracdu-1) = xtg(1:ifull,l,k+itracdu-1) + dfall*delz(:,l+1)*rhoa(:,l+1)/(delz(:,l)*rhoa(:,l))
+      newxtg = xtg(1:ifull,l,k+itracdu-1) * (1. - 0.5 * b) / (1. + 0.5 * b)
+      dfall = xtg(1:ifull,l,k+itracdu-1) - newxtg
+      xtg(1:ifull,l,k+itracdu-1) = newxtg
     end do
   end do
 end do
@@ -2015,7 +2020,7 @@ end do
 dcol2 = 0.
 do n=itracdu,itracdu+ndust-1
   do k=1,kl
-    dcol2 = dcol2 + rhoa(:,k) * xtg(1:ifull,k,n) * delz (:,k)
+    dcol2 = dcol2 + rhoa(:,k) * xtg(1:ifull,k,n) * delz(:,k)
   enddo
 enddo
 
@@ -2051,7 +2056,7 @@ real, dimension(ndust), parameter :: frac_s = (/ 0.1, 0.25, 0.25, 0.25 /)
 real, dimension(ifull) :: snowa     !Estimated snow areal coverage
 real, dimension(ifull) :: u_ts0,u_ts
 real, dimension(ifull) :: srce,dsrc,airmas
-real, dimension(ifull) :: a,b,xold,xtendd,veff
+real, dimension(ifull) :: a,b,xold,xtendd
 real, dimension(ifull) :: airden
 
 real g,den,diam,ddt
@@ -2108,8 +2113,9 @@ do n = 1, ndust
 ! Use the tau-1 value of dust m.r. for now, but may modify this...
 
 ! Use full layer thickness for CSIRO model (should be correct if Vt is relative to mid-layer)
-  veff = Vt*(wg+(1.-wg)*exp(-max( 0., w10m-u_ts0 )))
-  b = Veff / dz1
+  !veff = Vt*(wg+(1.-wg)*exp(-max( 0., w10m-u_ts0 )))
+  !b = Veff / dz1
+  b = Vt / dz1 ! MJT suggestion
 
 ! Update mixing ratio
 ! Write in form dx/dt = a - bx (a = source term, b = drydep term)

@@ -1060,27 +1060,25 @@ type(cldrad_properties_type), intent(inout), optional   :: Cloud_rad_props
       if (present(Cloud_rad_props)) then
       do nnn=1,nbprofiles ! loop over profiles
       nonly = 0
-      call cloudpar                                                 &
-                     (nonly, nbmax, nnn, size_drop, size_ice,   &
+      call cloudpar  (nonly, nbmax, nnn, size_drop, size_ice,    &
                       Cloud_microphysics%size_rain,              &
-                      conc_drop, conc_ice, &
-                      Cloud_microphysics%conc_rain, &
-                      Cloud_microphysics%conc_snow,   &
-                      isccp_call, &
-                      Cloud_rad_props%cldext(:,:,:,:,nnn),   &
-                      Cloud_rad_props%cldsct(:,:,:,:,nnn), &
+                      conc_drop, conc_ice,                       &
+                      Cloud_microphysics%conc_rain,              &
+                      Cloud_microphysics%conc_snow,              &
+                      isccp_call,                                &
+                      Cloud_rad_props%cldext(:,:,:,:,nnn),       &
+                      Cloud_rad_props%cldsct(:,:,:,:,nnn),       &
                       Cloud_rad_props%cldasymm(:,:,:,:,nnn))
        end do
       else
       nnn = 1
       nonly = 0
-      call cloudpar                                                 &
-                     (nonly, nbmax, nnn, size_drop, size_ice,   &
-                      Cloud_microphysics%size_rain,              &
-                      conc_drop, conc_ice, &
-                      Cloud_microphysics%conc_rain, &
-                      Cloud_microphysics%conc_snow,   &
-                      isccp_call, &
+      call cloudpar  (nonly, nbmax, nnn, size_drop, size_ice,         &
+                      Cloud_microphysics%size_rain,                   &
+                      conc_drop, conc_ice,                            &
+                      Cloud_microphysics%conc_rain,                   &
+                      Cloud_microphysics%conc_snow,                   &
+                      isccp_call,                                     &
                       Micro_rad_props%cldext, Micro_rad_props%cldsct, &
                       Micro_rad_props%cldasymm)
        endif
@@ -1558,9 +1556,6 @@ real, intent(out), dimension(:,:,:,:)           :: abscoeff
 !    cloud drop, cloud ice, snow and rain. 
 !---------------------------------------------------------------------
       if (trim(lwem_form) == 'fuliou') then
-      
-         
-        
         call cloud_lwpar (nonly, nbmax, 1, size_drop, size_ice,   &
                           Cloud_microphysics%size_rain,           &
                           conc_drop, conc_ice,                    &
@@ -1918,14 +1913,14 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
         do n=1,Solar_spect%nbands
           where ( cldsum > 0.0 )
             cldextdu       = (Lsc_microphys%cldamt*                   &
-                                    Lscrad_props%cldext(:,:,:,n) +    &
-                                    Cell_microphys%cldamt*            &
-                                    Cellrad_props%cldext(:,:,:,n) +   &
-                                    Meso_microphys%cldamt*            &
-                                    Mesorad_props%cldext(:,:,:,n) +   &
-                                  Shallow_microphys%cldamt*           &
-                                  Shallowrad_props%cldext(:,:,:,n)) / &
-                                    cldsum
+                              Lscrad_props%cldext(:,:,:,n) +          &
+                              Cell_microphys%cldamt*                  &
+                              Cellrad_props%cldext(:,:,:,n) +         &
+                              Meso_microphys%cldamt*                  &
+                              Mesorad_props%cldext(:,:,:,n) +         &
+                              Shallow_microphys%cldamt*               &
+                              Shallowrad_props%cldext(:,:,:,n)) /     &
+                              cldsum
              cltau=(Cell_microphys%cldamt/cldsum)*                    &
                    exp(-Cellrad_props%cldext(:,:,:,n)*deltaz/1000.)
              cltau=cltau+(Meso_microphys%cldamt/cldsum)*              &
@@ -1938,14 +1933,14 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
              cldext(:,:,:,n,1)=min(cldextdu,cldext(:,:,:,n,1))
 
              cldextdu       = (Lsc_microphys%cldamt*                  &
-                                    Lscrad_props%cldsct(:,:,:,n) +    &
-                                    Cell_microphys%cldamt*            &
-                                    Cellrad_props%cldsct(:,:,:,n) +   &
-                                    Meso_microphys%cldamt*            &
-                                    Mesorad_props%cldsct(:,:,:,n) +   &
-                                  Shallow_microphys%cldamt*           &
-                             Shallowrad_props%cldsct(:,:,:,n)) /      &
-                                    cldsum
+                               Lscrad_props%cldsct(:,:,:,n) +         &
+                               Cell_microphys%cldamt*                 &
+                               Cellrad_props%cldsct(:,:,:,n) +        &
+                               Meso_microphys%cldamt*                 &
+                               Mesorad_props%cldsct(:,:,:,n) +        &
+                               Shallow_microphys%cldamt*              &
+                               Shallowrad_props%cldsct(:,:,:,n)) /    &
+                               cldsum
              cltau=(Cell_microphys%cldamt/cldsum)*                    &
                    exp(-Cellrad_props%cldsct(:,:,:,n)*deltaz/1000.)
              cltau=cltau+(Meso_microphys%cldamt/cldsum)*              &
@@ -1987,8 +1982,7 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
 !---------------------------------------------------------------------
         do n=1,Cldrad_control%nlwcldb
           where (cldsum > 0.0)
-            cldextdu          =                                        &
-                       (Lsc_microphys%cldamt*                          &
+            cldextdu = (Lsc_microphys%cldamt*                          &
                         Lscrad_props%abscoeff(:,:,:,n) +               &
                         Cell_microphys%cldamt*                         &
                         Cellrad_props%abscoeff(:,:,:,n) +              &
@@ -2086,8 +2080,7 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
 !---------------------------------------------------------------------
         do n=1,Cldrad_control%nlwcldb
           where (cldsum > 0.0)
-            cldextdu          =                                       &
-                        (Lsc_microphys%cldamt*                        &
+            cldextdu =  (Lsc_microphys%cldamt*                        &
                          Lscrad_props%abscoeff(:,:,:,n) +             &
                          Cell_microphys%cldamt*                       &
                          Cellrad_props%abscoeff(:,:,:,n) +            &
@@ -2167,8 +2160,7 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
 !---------------------------------------------------------------------
         do n=1,Cldrad_control%nlwcldb
           where (cldsum > 0.0)
-            cldextdu          =                                         &
-                             (Lsc_microphys%cldamt*                     &
+            cldextdu =       (Lsc_microphys%cldamt*                     &
                               Lscrad_props%abscoeff(:,:,:,n) +          &
                               Shallow_microphys%cldamt *                &
                               Shallowrad_props%abscoeff(:,:,:,n)) /     &
@@ -2259,8 +2251,7 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
 !---------------------------------------------------------------------
         do n=1,Cldrad_control%nlwcldb
           where (cldsum > 0.0)
-            cldextdu          =                                              &
-                             (Shallow_microphys%cldamt*                      &
+            cldextdu  =      (Shallow_microphys%cldamt*                      &
                               Shallowrad_props%abscoeff(:,:,:,n) +           &
                               Cell_microphys%cldamt*                         &
                               Cellrad_props%abscoeff(:,:,:,n) +              &
@@ -2339,8 +2330,7 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
 !---------------------------------------------------------------------
         do n=1,Cldrad_control%nlwcldb
           where (cldsum > 0.0)
-            cldextdu          =                                       &
-                       (Cell_microphys%cldamt*                        &
+            cldextdu = (Cell_microphys%cldamt*                        &
                         Cellrad_props%abscoeff(:,:,:,n) +             &
                         Meso_microphys%cldamt*                        &
                         Mesorad_props%abscoeff(:,:,:,n)) /            &
@@ -5699,14 +5689,10 @@ real, dimension (:,:,:  ), intent(out)   ::   cldextbndrainlw,    &
 !        n, ni            do-loop indices         
 !
 !---------------------------------------------------------------------
-      do k=1, size(conc_rain,3)
-        do j=1, size(conc_rain,2)
-          do i=1, size(conc_rain,1)
-            sumext = 0.
-            sumssalb = 0.
-            sumasymm = 0.
-            if (conc_rain(i,j,k) /= 0.0) then
- 
+
+     sumext = 0.
+     sumssalb = 0.
+     sumasymm = 0.
 !-----------------------------------------------------------------------
 !    calculate extinction coefficient (km**(-1)) over the wavenumber
 !    bands of the Fu-Liou parameterization (not the radiation code
@@ -5714,30 +5700,30 @@ real, dimension (:,:,:  ), intent(out)   ::   cldextbndrainlw,    &
 !    band. the asymmetry factor is not currently used, so the code
 !    defining it is commented out.
 !-----------------------------------------------------------------------
-              do n=1,NBFL
-                cldextivlrain   = brn(n)*conc_rain(i,j,k)/rwc0
-                cldssalbivlrain = wrnf(n)
-                cldasymmivlrain = grn(n)
+     do n=1,NBFL
+       cldextivlrain   = brn(n)/rwc0 ! *conc_rain(i,j,k)
+       cldssalbivlrain = wrnf(n)
+       cldasymmivlrain = grn(n)
  
 !-----------------------------------------------------------------------
 !    use the band weighting factors computed in microphys_rad_init
 !    to define the values of these parameters for each lw radiation
 !    band.
 !-----------------------------------------------------------------------
-                sumext   = sumext + cldextivlrain*fulwwts(nb,n )
-                sumssalb = sumssalb + cldssalbivlrain*fulwwts(nb,n )
-                sumasymm = sumasymm + cldasymmivlrain*fulwwts(nb,n)
-              end do
-            endif
-            cldextbndrainlw  (i,j,k  ) = sumext
-            cldssalbbndrainlw(i,j,k  ) = sumssalb
-            cldasymmbndrainlw(i,j,k  ) = sumasymm
-          end do
-        end do
-      end do
-
-!---------------------------------------------------------------------
- 
+       sumext   = sumext + cldextivlrain*fulwwts(nb,n )
+       sumssalb = sumssalb + cldssalbivlrain*fulwwts(nb,n )
+       sumasymm = sumasymm + cldasymmivlrain*fulwwts(nb,n)
+     end do
+      
+     where (conc_rain > 0.)
+       cldextbndrainlw   = sumext*conc_rain
+       cldssalbbndrainlw = sumssalb
+       cldasymmbndrainlw = sumasymm
+     else where
+       cldextbndrainlw   = 0.
+       cldssalbbndrainlw = 0.
+       cldasymmbndrainlw = 0.
+     end where
  
 end subroutine furainlw
 
@@ -5878,14 +5864,9 @@ real, dimension (:,:,:  ), intent(out)    ::   cldextbndsnowlw,    &
 !
 !---------------------------------------------------------------------
 
-      do k=1, size(conc_snow,3)
-        do j=1, size(conc_snow,2)
-          do i=1, size(conc_snow,1)
-            sumext = 0.
-            sumssalb = 0.
-            sumasymm = 0.
-            if (conc_snow(i,j,k) >= 1.e-5) then
-
+      sumext = 0.
+      sumssalb = 0.
+      sumasymm = 0.      
 !-----------------------------------------------------------------------
 !    calculate the extinction coefficient over the wavenumber bands of 
 !    the Fu-Liou parameterization (not the radiation code wavenumber 
@@ -5893,29 +5874,29 @@ real, dimension (:,:,:  ), intent(out)    ::   cldextbndsnowlw,    &
 !    asymmetry factor is not currently used, so the code defining it
 !    is commented out.
 !-----------------------------------------------------------------------
-              do n=1,NBFL
-                cldextivlsnow   = brn(n)*conc_snow(i,j,k)/swc0
-                cldssalbivlsnow = wrnf(n)
-!               cldasymmivlsnow = grn(n)
- 
+      do n=1,NBFL
+        cldextivlsnow   = brn(n)/swc0    ! *conc_snow(i,j,k)
+        cldssalbivlsnow = wrnf(n)
+!       cldasymmivlsnow = grn(n)        
 !-----------------------------------------------------------------------
 !    use the band weighting factors computed in microphys_rad_init     
 !    to define the appropriate values for the scattering parameters for
 !    each lw radiation band.
 !-----------------------------------------------------------------------
-                sumext     = sumext + cldextivlsnow*fulwwts(nb,n )
-                sumssalb   = sumssalb + cldssalbivlsnow*fulwwts(nb,n )
-!               sumasymm   = sumasymm + cldasymmivlsnow*fulwwts(nb,n)
-              end do
-            endif
-            cldextbndsnowlw(i,j,k)   = sumext
-            cldssalbbndsnowlw(i,j,k) = sumssalb         
-            cldasymmbndsnowlw(i,j,k) = sumasymm
-          end do
-        end do
+        sumext     = sumext + cldextivlsnow*fulwwts(nb,n )
+        sumssalb   = sumssalb + cldssalbivlsnow*fulwwts(nb,n )
+!       sumasymm   = sumasymm + cldasymmivlsnow*fulwwts(nb,n)
       end do
-
-!----------------------------------------------------------------------
+        
+      where (conc_snow >= 1.e-5)
+        cldextbndsnowlw   = sumext*conc_snow
+        cldssalbbndsnowlw = sumssalb         
+        cldasymmbndsnowlw = sumasymm
+      elsewhere
+        cldextbndsnowlw   = 0.
+        cldssalbbndsnowlw = 0.
+        cldasymmbndsnowlw = 0.
+      end where
  
  
 end subroutine fusnowlw
