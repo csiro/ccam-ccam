@@ -998,10 +998,10 @@ type(cldrad_properties_type), intent(inout), optional   :: Cloud_rad_props
 !----------------------------------------------------------------------
 !  local variables:                                                  
 
-      real, dimension   &
-                   (size(Cloud_microphysics%size_drop,1), &
-                    size(Cloud_microphysics%size_drop,2), &
-                    size(Cloud_microphysics%size_drop,3), &
+      real, dimension                                        &
+                   (size(Cloud_microphysics%size_drop,1),    &
+                    size(Cloud_microphysics%size_drop,2),    &
+                    size(Cloud_microphysics%size_drop,3),    &
                                       Solar_spect%nbands) :: &
                        size_drop, size_ice, conc_drop, conc_ice
 
@@ -1060,27 +1060,25 @@ type(cldrad_properties_type), intent(inout), optional   :: Cloud_rad_props
       if (present(Cloud_rad_props)) then
       do nnn=1,nbprofiles ! loop over profiles
       nonly = 0
-      call cloudpar                                                 &
-                     (nonly, nbmax, nnn, size_drop, size_ice,   &
+      call cloudpar  (nonly, nbmax, nnn, size_drop, size_ice,    &
                       Cloud_microphysics%size_rain,              &
-                      conc_drop, conc_ice, &
-                      Cloud_microphysics%conc_rain, &
-                      Cloud_microphysics%conc_snow,   &
-                      isccp_call, &
-                      Cloud_rad_props%cldext(:,:,:,:,nnn),   &
-                      Cloud_rad_props%cldsct(:,:,:,:,nnn), &
+                      conc_drop, conc_ice,                       &
+                      Cloud_microphysics%conc_rain,              &
+                      Cloud_microphysics%conc_snow,              &
+                      isccp_call,                                &
+                      Cloud_rad_props%cldext(:,:,:,:,nnn),       &
+                      Cloud_rad_props%cldsct(:,:,:,:,nnn),       &
                       Cloud_rad_props%cldasymm(:,:,:,:,nnn))
        end do
       else
       nnn = 1
       nonly = 0
-      call cloudpar                                                 &
-                     (nonly, nbmax, nnn, size_drop, size_ice,   &
-                      Cloud_microphysics%size_rain,              &
-                      conc_drop, conc_ice, &
-                      Cloud_microphysics%conc_rain, &
-                      Cloud_microphysics%conc_snow,   &
-                      isccp_call, &
+      call cloudpar  (nonly, nbmax, nnn, size_drop, size_ice,         &
+                      Cloud_microphysics%size_rain,                   &
+                      conc_drop, conc_ice,                            &
+                      Cloud_microphysics%conc_rain,                   &
+                      Cloud_microphysics%conc_snow,                   &
+                      isccp_call,                                     &
                       Micro_rad_props%cldext, Micro_rad_props%cldsct, &
                       Micro_rad_props%cldasymm)
        endif
@@ -1239,12 +1237,12 @@ type(microrad_properties_type), intent(inout),optional   :: Micro_rad_props
     if (present(Cloud_rad_props)) then
      do nnn=1,nbprofiles ! loop over profiles
         nonly = 0
-        call cloud_lwpar (nonly, nbmax, nnn, size_drop, size_ice,   &
+        call cloud_lwpar (nonly, nbmax, nnn, size_drop, size_ice,    &
                           Cloud_microphysics%size_rain,              &
-                          conc_drop, conc_ice, &
-                          Cloud_microphysics%conc_rain, &
-                          Cloud_microphysics%conc_snow,  &
-                          isccp_call, &
+                          conc_drop, conc_ice,                       &
+                          Cloud_microphysics%conc_rain,              &
+                          Cloud_microphysics%conc_snow,              &
+                          isccp_call,                                &
                           Cloud_rad_props%abscoeff(:,:,:,:,nnn))
      end do
     else  ! ((present(Cloud_rad_props))
@@ -1266,15 +1264,15 @@ type(microrad_properties_type), intent(inout),optional   :: Micro_rad_props
 !---------------------------------------------------------------------
       else if (trim(lwem_form) == 'ebertcurry') then
        if (present(Cloud_rad_props)) then
-        call cloud_lwem_oneband (Cloud_microphysics%conc_drop,   &
-                                 Cloud_microphysics%conc_ice,    &
-                                 Cloud_microphysics%size_drop,    &
+        call cloud_lwem_oneband (Cloud_microphysics%conc_drop,     &
+                                 Cloud_microphysics%conc_ice,      &
+                                 Cloud_microphysics%size_drop,     &
                                  Cloud_microphysics%size_ice,      &
                                  Cloud_rad_props%abscoeff(:,:,:,1,1))
        else
-        call cloud_lwem_oneband (Cloud_microphysics%conc_drop,   &
-                                 Cloud_microphysics%conc_ice,    &
-                                 Cloud_microphysics%size_drop,    &
+        call cloud_lwem_oneband (Cloud_microphysics%conc_drop,     &
+                                 Cloud_microphysics%conc_ice,      &
+                                 Cloud_microphysics%size_drop,     &
                                  Cloud_microphysics%size_ice,      &
                                  Micro_rad_props%abscoeff(:,:,:,1))
        endif
@@ -1756,12 +1754,12 @@ end subroutine lwemiss_calc
 ! </SUBROUTINE>
 ! 
 subroutine comb_cldprops_calc ( is, js, Rad_time, Time_next, deltaz,  &
-                               stoch_cloud_type, &
-                               cldext, cldsct, cldasymm, abscoeff, &
-                               Lsc_microphys, Cell_microphys,    &
-                               Meso_microphys, &
-                               Shallow_microphys, &
-                               Lscrad_props, Cellrad_props,  &
+                               stoch_cloud_type,                      &
+                               cldext, cldsct, cldasymm, abscoeff,    &
+                               Lsc_microphys, Cell_microphys,         &
+                               Meso_microphys,                        &
+                               Shallow_microphys,                     &
+                               Lscrad_props, Cellrad_props,           &
                                Mesorad_props, Shallowrad_props)
 
 !---------------------------------------------------------------------
@@ -1776,14 +1774,14 @@ type(time_type),        intent(in)  :: Rad_time, Time_next
 real, dimension(:,:,:), intent(in)  :: deltaz
 integer, dimension(:,:,:,:), intent(in)  :: stoch_cloud_type
 real, dimension(:,:,:,:,:),       intent(inout)       ::  cldext,     &
-                                                        cldsct, &
+                                                        cldsct,       &
                                                         cldasymm
 real, dimension(:,:,:,:,:),       intent(inout)       ::  abscoeff
 type(microphysics_type),        intent(in), optional :: Lsc_microphys, &
                                                         Cell_microphys,&
                                                         Meso_microphys,&
                                                     Shallow_microphys
-type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
+type(microrad_properties_type), intent(in), optional :: Lscrad_props,  &
                                                         Cellrad_props, &
                                                         Mesorad_props, &
                                                     Shallowrad_props
@@ -1872,10 +1870,8 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
 !    make sure that appropriate combinations of optional arguments are
 !    present.
 !---------------------------------------------------------------------
-      if (present(Lscrad_props) .or.   &
-          present(Lsc_microphys))  then     
-        if (.not. present(Lscrad_props) .or.   &
-            .not. present(Lsc_microphys))  then     
+      if (present(Lscrad_props) .or. present(Lsc_microphys))  then     
+        if (.not. present(Lscrad_props) .or. .not. present(Lsc_microphys))  then
           !call error_mesg ('microphys_rad_mod', &
           !    ' both Lscrad_props and Lsc_microphys must be present '//&
           !     'when one is', FATAL)
@@ -1885,8 +1881,8 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
       if (present (Cellrad_props) .or. present (Cell_microphys) .or. &
           present (Mesorad_props) .or. present (Meso_microphys)) then
         if ( .not. present (Cellrad_props) .or.     &
-             .not. present (Cell_microphys) .or. &
-             .not. present (Mesorad_props) .or.   &
+             .not. present (Cell_microphys) .or.    &
+             .not. present (Mesorad_props) .or.     &
              .not. present (Meso_microphys)) then
           !call error_mesg ('microphys_rad_mod', &
           !  ' either all or none of the cell-scale and meso-scale '//&
@@ -1917,15 +1913,15 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
 !---------------------------------------------------------------------
         do n=1,Solar_spect%nbands
           where ( cldsum > 0.0 )
-            cldextdu       = (Lsc_microphys%cldamt*                   &
-                                    Lscrad_props%cldext(:,:,:,n) +    &
-                                    Cell_microphys%cldamt*            &
-                                    Cellrad_props%cldext(:,:,:,n) +   &
-                                    Meso_microphys%cldamt*            &
-                                    Mesorad_props%cldext(:,:,:,n) +   &
-                                  Shallow_microphys%cldamt*           &
-                                  Shallowrad_props%cldext(:,:,:,n)) / &
-                                    cldsum
+            cldextdu       = (Lsc_microphys%cldamt*               &
+                              Lscrad_props%cldext(:,:,:,n) +      &
+                              Cell_microphys%cldamt*              &
+                              Cellrad_props%cldext(:,:,:,n) +     &
+                              Meso_microphys%cldamt*              &
+                              Mesorad_props%cldext(:,:,:,n) +     &
+                              Shallow_microphys%cldamt*           &
+                              Shallowrad_props%cldext(:,:,:,n)) / &
+                              cldsum
              cltau=(Cell_microphys%cldamt/cldsum)*                    &
                    exp(-Cellrad_props%cldext(:,:,:,n)*deltaz/1000.)
              cltau=cltau+(Meso_microphys%cldamt/cldsum)*              &
@@ -1938,14 +1934,14 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
              cldext(:,:,:,n,1)=min(cldextdu,cldext(:,:,:,n,1))
 
              cldextdu       = (Lsc_microphys%cldamt*                  &
-                                    Lscrad_props%cldsct(:,:,:,n) +    &
-                                    Cell_microphys%cldamt*            &
-                                    Cellrad_props%cldsct(:,:,:,n) +   &
-                                    Meso_microphys%cldamt*            &
-                                    Mesorad_props%cldsct(:,:,:,n) +   &
-                                  Shallow_microphys%cldamt*           &
-                             Shallowrad_props%cldsct(:,:,:,n)) /      &
-                                    cldsum
+                               Lscrad_props%cldsct(:,:,:,n) +         &
+                               Cell_microphys%cldamt*                 &
+                               Cellrad_props%cldsct(:,:,:,n) +        &
+                               Meso_microphys%cldamt*                 &
+                               Mesorad_props%cldsct(:,:,:,n) +        &
+                               Shallow_microphys%cldamt*              &
+                               Shallowrad_props%cldsct(:,:,:,n)) /    &
+                               cldsum
              cltau=(Cell_microphys%cldamt/cldsum)*                    &
                    exp(-Cellrad_props%cldsct(:,:,:,n)*deltaz/1000.)
              cltau=cltau+(Meso_microphys%cldamt/cldsum)*              &
@@ -1987,8 +1983,7 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
 !---------------------------------------------------------------------
         do n=1,Cldrad_control%nlwcldb
           where (cldsum > 0.0)
-            cldextdu          =                                        &
-                       (Lsc_microphys%cldamt*                          &
+            cldextdu = (Lsc_microphys%cldamt*                          &
                         Lscrad_props%abscoeff(:,:,:,n) +               &
                         Cell_microphys%cldamt*                         &
                         Cellrad_props%abscoeff(:,:,:,n) +              &
@@ -2086,8 +2081,7 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
 !---------------------------------------------------------------------
         do n=1,Cldrad_control%nlwcldb
           where (cldsum > 0.0)
-            cldextdu          =                                       &
-                        (Lsc_microphys%cldamt*                        &
+            cldextdu =  (Lsc_microphys%cldamt*                        &
                          Lscrad_props%abscoeff(:,:,:,n) +             &
                          Cell_microphys%cldamt*                       &
                          Cellrad_props%abscoeff(:,:,:,n) +            &
@@ -2167,8 +2161,7 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
 !---------------------------------------------------------------------
         do n=1,Cldrad_control%nlwcldb
           where (cldsum > 0.0)
-            cldextdu          =                                         &
-                             (Lsc_microphys%cldamt*                     &
+            cldextdu   =     (Lsc_microphys%cldamt*                     &
                               Lscrad_props%abscoeff(:,:,:,n) +          &
                               Shallow_microphys%cldamt *                &
                               Shallowrad_props%abscoeff(:,:,:,n)) /     &
@@ -2201,72 +2194,56 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
 !     values remain at the non-cloudy initialized values.
 !---------------------------------------------------------------------
         do n=1,Solar_spect%nbands
-          do k=1,size(cldext,3)
-            do j=1,size(cldext,2)
-              do i=1,size(cldext,1)
-                if (cldsum(i,j,k) > 0.0) then
-                  cldextdu(i,j,k)        = (Shallow_microphys%cldamt(i,j,k)*  &
-                                   Shallowrad_props%cldext(i,j,k,n) + &
-                                     Cell_microphys%cldamt(i,j,k)*   &
-                                     Cellrad_props%cldext(i,j,k,n) +  &
-                                     Meso_microphys%cldamt(i,j,k)*   &
-                                     Mesorad_props%cldext(i,j,k,n)) / &
-                                     cldsum(i,j,k)
-                   cltau(i,j,k)=(Cell_microphys%cldamt(i,j,k)/cldsum(i,j,k))* &
-                               exp(-Cellrad_props%cldext(i,j,k,n)*     &
-                          deltaz(i,j,k)/1000.)
-                   cltau(i,j,k)=cltau(i,j,k)+(Meso_microphys%cldamt(i,j,k)/  &
-                         cldsum(i,j,k))* &
-                   exp(-Mesorad_props%cldext(i,j,k,n)*deltaz(i,j,k)/  &
-                              1000.)
-                   cltau=cltau+(Shallow_microphys%cldamt(i,j,k)/  &
-                           cldsum(i,j,k))* &
-                 exp(-Shallowrad_props%cldext(i,j,k,n)*deltaz(i,j,k)/  &
-                           1000.)
-                 cldext(i,j,k,n,1)=-1000.*alog(cltau(i,j,k))/deltaz(i,j,k)
-                 cldext(i,j,k,n,1)=min(cldextdu(i,j,k),cldext(i,j,k,n,1))
+          where (cldsum > 0.0)
+            cldextdu        = (Shallow_microphys%cldamt*          &
+                               Shallowrad_props%cldext(:,:,:,n) + &
+                               Cell_microphys%cldamt*             &
+                               Cellrad_props%cldext(:,:,:,n) +    &
+                               Meso_microphys%cldamt*             &
+                               Mesorad_props%cldext(:,:,:,n)) /   &
+                               cldsum
+            cltau=(Cell_microphys%cldamt/cldsum)*                 &
+                  exp(-Cellrad_props%cldext(:,:,:,n)*deltaz/1000.)
+            cltau=cltau+(Meso_microphys%cldamt/cldsum)*           &
+                  exp(-Mesorad_props%cldext(:,:,:,n)*deltaz/1000.)
+            cltau=cltau+(Shallow_microphys%cldamt/cldsum)*        &
+                  exp(-Shallowrad_props%cldext(:,:,:,n)*deltaz/1000.)
+            cldext(:,:,:,n,1)=-1000.*alog(cltau)/deltaz
+            cldext(:,:,:,n,1)=min(cldextdu,cldext(:,:,:,n,1))
 
-               cldextdu(i,j,k)        = (Shallow_microphys%cldamt(i,j,k)*   &
-                                  Shallowrad_props%cldsct(i,j,k,n) +   &
-                                     Cell_microphys%cldamt(i,j,k)*  &
-                                     Cellrad_props%cldsct(i,j,k,n) +  &
-                                     Meso_microphys%cldamt(i,j,k)*  &
-                                     Mesorad_props%cldsct(i,j,k,n)) / &
-                                     cldsum(i,j,k)
-                   cltau(i,j,k)=(Cell_microphys%cldamt(i,j,k)/cldsum(i,j,k))* &
-                               exp(-Cellrad_props%cldsct(i,j,k,n)*     &
-                          deltaz(i,j,k)/1000.)
-                   cltau(i,j,k)=cltau(i,j,k)+(Meso_microphys%cldamt(i,j,k)/  &
-                         cldsum(i,j,k))* &
-                   exp(-Mesorad_props%cldsct(i,j,k,n)*deltaz(i,j,k)/  &
-                              1000.)
-                   cltau(i,j,k)=cltau(i,j,k)+(Shallow_microphys%cldamt(i,j,k)/  &
-                           cldsum(i,j,k))* &
-                    exp(-Shallowrad_props%cldsct(i,j,k,n)*deltaz(i,j,k)/  &
-                           1000.)
-                 cldsct(i,j,k,n,1)=-1000.*alog(cltau(i,j,k))/deltaz(i,j,k)
-        cldsct(i,j,k,n,1)=min(cldextdu(i,j,k),cldsct(i,j,k,n,1))
+            cldextdu        = (Shallow_microphys%cldamt*          &
+                               Shallowrad_props%cldsct(:,:,:,n) + &
+                               Cell_microphys%cldamt*             &
+                               Cellrad_props%cldsct(:,:,:,n) +    &
+                               Meso_microphys%cldamt*             &
+                               Mesorad_props%cldsct(:,:,:,n)) /   &
+                               cldsum
+            cltau=(Cell_microphys%cldamt/cldsum)*                 &
+                  exp(-Cellrad_props%cldsct(:,:,:,n)*deltaz/1000.)
+            cltau=cltau+(Meso_microphys%cldamt/cldsum)*           &
+                  exp(-Mesorad_props%cldsct(:,:,:,n)*deltaz/1000.)
+            cltau=cltau+(Shallow_microphys%cldamt/cldsum)*        &
+                  exp(-Shallowrad_props%cldsct(:,:,:,n)*deltaz/1000.)
+            cldsct(:,:,:,n,1)=-1000.*alog(cltau)/deltaz
+            cldsct(:,:,:,n,1)=min(cldextdu,cldsct(:,:,:,n,1))
 
-                  cldasymm(i,j,k,n,1) =        &
-                          (Shallow_microphys%cldamt(i,j,k)*  &
-                           Shallowrad_props%cldsct(i,j,k,n)* &
-                           Shallowrad_props%cldasymm(i,j,k,n) +&
-                           Cell_microphys%cldamt(i,j,k)*  &
-                           Cellrad_props%cldsct(i,j,k,n)* &
-                           Cellrad_props%cldasymm(i,j,k,n) + &
-                           Meso_microphys%cldamt(i,j,k)*   &
-                           Mesorad_props%cldsct(i,j,k,n)*  &
-                           Mesorad_props%cldasymm(i,j,k,n)) /&
-                          (Shallow_microphys%cldamt(i,j,k)*  &
-                           Shallowrad_props%cldsct(i,j,k,n) +        &
-                           Cell_microphys%cldamt(i,j,k)*    &
-                           Cellrad_props%cldsct(i,j,k,n) +          &
-                           Meso_microphys%cldamt(i,j,k)*    &
-                           Mesorad_props%cldsct(i,j,k,n) )
-                endif
-              end do
-            end do
-          end do
+            cldasymm(:,:,:,n,1) =                                 &
+                          (Shallow_microphys%cldamt*              &
+                           Shallowrad_props%cldsct(:,:,:,n)*      &
+                           Shallowrad_props%cldasymm(:,:,:,n) +   &
+                           Cell_microphys%cldamt*                 &
+                           Cellrad_props%cldsct(:,:,:,n)*         &
+                           Cellrad_props%cldasymm(:,:,:,n) +      &
+                           Meso_microphys%cldamt*                 &
+                           Mesorad_props%cldsct(:,:,:,n)*         &
+                           Mesorad_props%cldasymm(:,:,:,n)) /     &
+                          (Shallow_microphys%cldamt*              &
+                           Shallowrad_props%cldsct(:,:,:,n) +     &
+                           Cell_microphys%cldamt*                 &
+                           Cellrad_props%cldsct(:,:,:,n) +        &
+                           Meso_microphys%cldamt*                 &
+                           Mesorad_props%cldsct(:,:,:,n) )
+          end where
         end do
 
 !------------------------------------------------------------
@@ -2355,8 +2332,7 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
 !---------------------------------------------------------------------
         do n=1,Cldrad_control%nlwcldb
           where (cldsum > 0.0)
-            cldextdu          =                                       &
-                       (Cell_microphys%cldamt*                        &
+            cldextdu = (Cell_microphys%cldamt*                        &
                         Cellrad_props%abscoeff(:,:,:,n) +             &
                         Meso_microphys%cldamt*                        &
                         Mesorad_props%abscoeff(:,:,:,n)) /            &
@@ -2372,8 +2348,6 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
       endif
 
 !---------------------------------------------------------------------
-
-
 
 end subroutine comb_cldprops_calc
 
@@ -2436,8 +2410,6 @@ subroutine microphys_rad_end
       module_is_initialized = .false.
 
 !--------------------------------------------------------------------
-
-
 
 end subroutine microphys_rad_end
 
@@ -2583,11 +2555,11 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
                        size(conc_drop,3), NLIQCLDIVLS)  ::   &
                     cldextivlliq, cldssalbivlliq, cldasymmivlliq
 
-      real, dimension (size(conc_drop,1), size(conc_drop,2), &
+      real, dimension (size(conc_drop,1), size(conc_drop,2),  &
                        size(conc_drop,3), NRAINCLDIVLS)  ::   &
                     cldextivlrain, cldssalbivlrain, cldasymmivlrain
 
-      real, dimension (size(conc_drop,1), size(conc_drop,2), &
+      real, dimension (size(conc_drop,1), size(conc_drop,2),  &
                        size(conc_drop,3), NSNOWCLDIVLS)  ::   &
                     cldextivlsnow, cldssalbivlsnow, cldasymmivlsnow
 
@@ -2595,29 +2567,30 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
                        size(conc_drop,3), NICECLDIVLS)  ::   &
                     cldextivlice, cldssalbivlice, cldasymmivlice
 
-      real, dimension (size(conc_drop,1), size(conc_drop,2), &
+      real, dimension (size(conc_drop,1), size(conc_drop,2),      &
                        size(conc_drop,3), NICESOLARCLDIVLS)  ::   &
                     cldextivlice2, cldssalbivlice2, cldasymmivlice2
 
-      real, dimension (size(conc_drop,1), size(conc_drop,2), &
-                       size(conc_drop,3), Solar_spect%nbands)  ::    &
-                    cldextbandliq, cldssalbbandliq, cldasymmbandliq,&
-                    cldextbandice, cldssalbbandice, cldasymmbandice,&
+      real, dimension (size(conc_drop,1), size(conc_drop,2),           &
+                       size(conc_drop,3), Solar_spect%nbands)  ::      &
+                    cldextbandliq, cldssalbbandliq, cldasymmbandliq,   &
+                    cldextbandice, cldssalbbandice, cldasymmbandice,   &
                     cldextbandrain, cldssalbbandrain, cldasymmbandrain,&
                     cldextbandsnow, cldssalbbandsnow, cldasymmbandsnow
 
-      logical, dimension (size(conc_drop,1), size(conc_drop,2), &
-                          size(conc_drop,3))  ::   maskl, anymask, &
-                                                   maskr, maski, masks,&
+      logical, dimension (size(conc_drop,1), size(conc_drop,2),         &
+                          size(conc_drop,3))  ::   maskl,               &
+                                                   maskr, maski, masks, &
                                                    maskif, maskis
       real, dimension (size(conc_drop,1), size(conc_drop,2), &
-                          size(conc_drop,3))  ::   tempext, tempext2, &
-                                     tempssa, tempssa2, &
+                          size(conc_drop,3))  ::   tempext, tempext2,   &
+                                     tempssa, tempssa2,                 &
                                              tempasy, tempasy2
 
       integer  :: nb
       integer  :: i,j,k
-      real :: sum, sum2, sum3
+      real, dimension(size(conc_drop,1),size(conc_drop,2),size(conc_drop,3)) :: &
+          sum, sum2, sum3
 
 !----------------------------------------------------------------------
 !   local variables:
@@ -2746,7 +2719,7 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
 !----------------------------------------------------------------------
       do nb=1,nbmax
         if (nbmax == 1) then
-          call slingo (conc_drop(:,:,:,nnn), size_drop(:,:,:,nnn),  &
+          call slingo (conc_drop(:,:,:,nnn), size_drop(:,:,:,nnn),   &
                        cldextivlliq, cldssalbivlliq, cldasymmivlliq, &
                        maskl)
 
@@ -2755,11 +2728,11 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
 !    droplets that were calculated for each cloud droplet spectral
 !    interval to the sw parameterization band spectral intervals.
 !----------------------------------------------------------------------
-          call thickavg (nivl1liqcld, nivl2liqcld, NLIQCLDIVLS,     &
-                         Solar_spect%nbands, cldextivlliq,   &
+          call thickavg (nivl1liqcld, nivl2liqcld, NLIQCLDIVLS,        &
+                         Solar_spect%nbands, cldextivlliq,             &
                          cldssalbivlliq, cldasymmivlliq, solivlliqcld, &
-                         Solar_spect%solflxbandref, maskl, &
-                         cldextbandliq, &
+                         Solar_spect%solflxbandref, maskl,             &
+                         cldextbandliq,                                &
                          cldssalbbandliq, cldasymmbandliq)
 
 !----------------------------------------------------------------------
@@ -2774,11 +2747,11 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
 !    drops that were calculated for each rain drop spectral interval 
 !    to the sw parameterization band spectral intervals.
 !----------------------------------------------------------------------
-          call thickavg (nivl1raincld, nivl2raincld, NRAINCLDIVLS,  &
-                     Solar_spect%nbands, cldextivlrain,    &
-                     cldssalbivlrain , cldasymmivlrain,  &
+          call thickavg (nivl1raincld, nivl2raincld, NRAINCLDIVLS,      &
+                     Solar_spect%nbands, cldextivlrain,                 &
+                     cldssalbivlrain , cldasymmivlrain,                 &
                      solivlraincld, Solar_spect%solflxbandref, maskr,   &
-                     cldextbandrain, cldssalbbandrain,  &
+                     cldextbandrain, cldssalbbandrain,                  &
                      cldasymmbandrain)
  
 !---------------------------------------------------------------------
@@ -2799,7 +2772,7 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
 !    the single scattering parameters.
 !----------------------------------------------------------------------
             call fu (conc_ice(:,:,:,nnn), size_ice(:,:,:,nnn),   &
-                     cldextivlice, cldssalbivlice,  &
+                     cldextivlice, cldssalbivlice,               &
                      cldasymmivlice, maski)
  
 !----------------------------------------------------------------------
@@ -2807,12 +2780,12 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
 !    crystals that were calculated for each ice crystal spectral
 !    interval to the sw parameterization band spectral intervals.
 !----------------------------------------------------------------------
-            call thickavg (nivl1icecld, nivl2icecld, NICECLDIVLS,   &
-                           Solar_spect%nbands, cldextivlice,     &
-                           cldssalbivlice, cldasymmivlice,     &
+            call thickavg (nivl1icecld, nivl2icecld, NICECLDIVLS,     &
+                           Solar_spect%nbands, cldextivlice,          &
+                           cldssalbivlice, cldasymmivlice,            &
                            solivlicecld, Solar_spect%solflxbandref,   &
-                           maski, &
-                           cldextbandice, cldssalbbandice,   &
+                           maski,                                     &
+                           cldextbandice, cldssalbbandice,            &
                            cldasymmbandice)
 
 !----------------------------------------------------------------------
@@ -2827,7 +2800,7 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
 !    the single scattering parameters.
 !----------------------------------------------------------------------
             call icesolar (conc_ice(:,:,:,nnn), size_ice(:,:,:,nnn), &
-                           cldextivlice2, cldssalbivlice2,   &
+                           cldextivlice2, cldssalbivlice2,           &
                            cldasymmivlice2, maski)
 
 !----------------------------------------------------------------------
@@ -2835,12 +2808,12 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
 !    crystals that were calculated for each ice crystal spectral
 !    interval to the sw parameterization band spectral intervals.
 !----------------------------------------------------------------------
-            call thickavg (nivl1icesolcld, nivl2icesolcld,    &
+            call thickavg (nivl1icesolcld, nivl2icesolcld,       &
                            NICESOLARCLDIVLS, Solar_spect%nbands, &
-                           cldextivlice2, cldssalbivlice2,  &
-                           cldasymmivlice2, solivlicesolcld,  &
-                           Solar_spect%solflxbandref, maski,  &
-                           cldextbandice,  cldssalbbandice,  &
+                           cldextivlice2, cldssalbivlice2,       &
+                           cldasymmivlice2, solivlicesolcld,     &
+                           Solar_spect%solflxbandref, maski,     &
+                           cldextbandice,  cldssalbbandice,      &
                            cldasymmbandice)
 
 !--------------------------------------------------------------------
@@ -2855,7 +2828,7 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
 !    the single scattering parameters.
 !----------------------------------------------------------------------
             call icesolar (conc_ice(:,:,:,nnn), size_ice(:,:,:,nnn), &
-                           cldextivlice2, cldssalbivlice2,   &
+                           cldextivlice2, cldssalbivlice2,           &
                            cldasymmivlice2, maski)
 
 !----------------------------------------------------------------------
@@ -2863,12 +2836,12 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
 !    crystals that were calculated for each ice crystal spectral
 !    interval to the sw parameterization band spectral intervals.
 !----------------------------------------------------------------------
-            call thickavg (nivl1icesolcld, nivl2icesolcld,    &
+            call thickavg (nivl1icesolcld, nivl2icesolcld,       &
                            NICESOLARCLDIVLS, Solar_spect%nbands, &
-                           cldextivlice2, cldssalbivlice2,  &
-                           cldasymmivlice2, solivlicesolcld,  &
-                           Solar_spect%solflxbandref, maski,  &
-                           cldextbandice,  cldssalbbandice,  &
+                           cldextivlice2, cldssalbivlice2,       &
+                           cldasymmivlice2, solivlicesolcld,     &
+                           Solar_spect%solflxbandref, maski,     &
+                           cldextbandice,  cldssalbbandice,      &
                            cldasymmbandice)
         endif !(isccp_call)
 
@@ -2884,19 +2857,19 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
 !    to the sw parameterization band spectral intervals.
 !----------------------------------------------------------------------
           call thickavg (nivl1snowcld, nivl2snowcld, NSNOWCLDIVLS,  &
-                         Solar_spect%nbands, cldextivlsnow,     &
-                         cldssalbivlsnow , cldasymmivlsnow,  &
+                         Solar_spect%nbands, cldextivlsnow,         &
+                         cldssalbivlsnow , cldasymmivlsnow,         &
                          solivlsnowcld, Solar_spect%solflxbandref,  &
-                         masks, &
-                         cldextbandsnow, cldssalbbandsnow,  &
+                         masks,                                     &
+                         cldextbandsnow, cldssalbbandsnow,          &
                          cldasymmbandsnow)
  
         else
           if (nonly.eq.0   .or. nonly.eq.nb ) then
-            call slingo (conc_drop(:,:,:,nb), size_drop(:,:,:,nb),  &
+            call slingo (conc_drop(:,:,:,nb), size_drop(:,:,:,nb),    &
                        cldextivlliq, cldssalbivlliq, cldasymmivlliq,  &
-                       maskl,  &
-                       starting_band = nivl1liqcld(nb), &
+                       maskl,                                         &
+                       starting_band = nivl1liqcld(nb),               &
                        ending_band = nivl2liqcld(nb))
 
 !----------------------------------------------------------------------
@@ -2904,9 +2877,9 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
 !    rain drops for each of the savijarvi rain drop spectral intervals. 
 !----------------------------------------------------------------------
             call savijarvi (conc_rain, size_rain, cldextivlrain,   &
-                            cldssalbivlrain, cldasymmivlrain, &
-                            maskr,  &
-                            starting_band = nivl1raincld(nb), &
+                            cldssalbivlrain, cldasymmivlrain,      &
+                            maskr,                                 &
+                            starting_band = nivl1raincld(nb),      &
                             ending_band = nivl2raincld(nb)) 
 
 !---------------------------------------------------------------------
@@ -2927,9 +2900,9 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
 !    to calculate the single scattering parameters.
 !----------------------------------------------------------------------
               call fu (conc_ice(:,:,:,nb), size_ice(:,:,:,nb),   &
-                       cldextivlice, cldssalbivlice,  &
-                     cldasymmivlice,   maskif, &
-                     starting_band = nivl1icecld(nb), &
+                       cldextivlice, cldssalbivlice,             &
+                     cldasymmivlice,   maskif,                   &
+                     starting_band = nivl1icecld(nb),            &
                      ending_band = nivl2icecld(nb))
 
 !----------------------------------------------------------------------
@@ -2938,10 +2911,10 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
 !    calculate the single scattering parameters.
 !----------------------------------------------------------------------
               call icesolar (conc_ice(:,:,:,nb), size_ice(:,:,:,nb), &
-                           cldextivlice2,     &
-                           cldssalbivlice2, cldasymmivlice2, &
-                           maskis, &
-                           starting_band = nivl1icesolcld(nb), &
+                           cldextivlice2,                            &
+                           cldssalbivlice2, cldasymmivlice2,         &
+                           maskis,                                   &
+                           starting_band = nivl1icesolcld(nb),       &
                            ending_band = nivl2icesolcld(nb))
 
          endif  ! (isccp_call)
@@ -2950,9 +2923,9 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
 !    define the single scattering parameters for snow.                
 !----------------------------------------------------------------------
             call snowsw (conc_snow, cldextivlsnow, cldssalbivlsnow,    &
-                         cldasymmivlsnow, &
-                           masks, &
-                         starting_band = nivl1snowcld(nb), &
+                         cldasymmivlsnow,                              &
+                           masks,                                      &
+                         starting_band = nivl1snowcld(nb),             &
                          ending_band = nivl2snowcld(nb)) 
           
 !----------------------------------------------------------------------
@@ -2961,13 +2934,13 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
 !    interval to the sw parameterization band spectral intervals.
 !----------------------------------------------------------------------
             if (nonly == 0 ) then
-              call thickavg (nb, nivl1liqcld(nb), nivl2liqcld(nb),  &
-                            NLIQCLDIVLS,   &
-                        Solar_spect%nbands, cldextivlliq,    &
+              call thickavg (nb, nivl1liqcld(nb), nivl2liqcld(nb),    &
+                            NLIQCLDIVLS,                              &
+                        Solar_spect%nbands, cldextivlliq,             &
                         cldssalbivlliq, cldasymmivlliq, solivlliqcld, &
-                        Solar_spect%solflxbandref(nb),  maskl, &
-                        cldextbandliq(:,:,:,nb),   &
-                        cldssalbbandliq(:,:,:,nb),  &
+                        Solar_spect%solflxbandref(nb),  maskl,        &
+                        cldextbandliq(:,:,:,nb),                      &
+                        cldssalbbandliq(:,:,:,nb),                    &
                         cldasymmbandliq(:,:,:,nb))
 
 !----------------------------------------------------------------------
@@ -2976,13 +2949,13 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
 !    to the sw parameterization band spectral intervals.
 !----------------------------------------------------------------------
               call thickavg ( nb, nivl1raincld(nb), nivl2raincld(nb), &
-                              NRAINCLDIVLS,  &
-                     Solar_spect%nbands, cldextivlrain,    &
-                     cldssalbivlrain , cldasymmivlrain,  &
-                     solivlraincld, Solar_spect%solflxbandref(nb),  &
-                     maskr,&
-                     cldextbandrain(:,:,:,nb),   &
-                     cldssalbbandrain(:,:,:,nb), &
+                              NRAINCLDIVLS,                           &
+                     Solar_spect%nbands, cldextivlrain,               &
+                     cldssalbivlrain , cldasymmivlrain,               &
+                     solivlraincld, Solar_spect%solflxbandref(nb),    &
+                     maskr,                                           &
+                     cldextbandrain(:,:,:,nb),                        &
+                     cldssalbbandrain(:,:,:,nb),                      &
                      cldasymmbandrain(:,:,:,nb))
 
 !---------------------------------------------------------------------
@@ -2999,21 +2972,21 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
 !    interval to the sw parameterization band spectral intervals.
 !----------------------------------------------------------------------
                 call thickavg (nb, nivl1icecld(nb), nivl2icecld(nb), &
-                               NICECLDIVLS, &
-                           Solar_spect%nbands, cldextivlice,     &
-                           cldssalbivlice, cldasymmivlice,     &
-                           solivlicecld,   &
-                           Solar_spect%solflxbandref(nb),  &
-                           maskif, &
+                               NICECLDIVLS,                          &
+                           Solar_spect%nbands, cldextivlice,         &
+                           cldssalbivlice, cldasymmivlice,           &
+                           solivlicecld,                             &
+                           Solar_spect%solflxbandref(nb),            &
+                           maskif,                                   &
                            tempext, tempssa, tempasy)   
-                call thickavg (nb, nivl1icesolcld(nb),  &
-                              nivl2icesolcld(nb),    &
-                           NICESOLARCLDIVLS, Solar_spect%nbands, &
-                           cldextivlice2, cldssalbivlice2,  &
-                           cldasymmivlice2,&
-                           solivlicesolcld,  &
-                           Solar_spect%solflxbandref(nb),&
-                           maskis, &
+                call thickavg (nb, nivl1icesolcld(nb),               &
+                              nivl2icesolcld(nb),                    &
+                           NICESOLARCLDIVLS, Solar_spect%nbands,     &
+                           cldextivlice2, cldssalbivlice2,           &
+                           cldasymmivlice2,                          &
+                           solivlicesolcld,                          &
+                           Solar_spect%solflxbandref(nb),            &
+                           maskis,                                   &
                            tempext2, tempssa2, tempasy2)   
 
               where (maskif)
@@ -3037,16 +3010,16 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
 !    interval to the sw parameterization band spectral intervals.
 !----------------------------------------------------------------------
                 maskif = .false.
-                call thickavg (nb, nivl1icesolcld(nb),  &
-                              nivl2icesolcld(nb),    &
+                call thickavg (nb, nivl1icesolcld(nb),           &
+                              nivl2icesolcld(nb),                &
                            NICESOLARCLDIVLS, Solar_spect%nbands, &
-                           cldextivlice2, cldssalbivlice2,  &
-                           cldasymmivlice2,&
-                           solivlicesolcld,  &
-                           Solar_spect%solflxbandref(nb),&
-                           maskis, &
-                           cldextbandice(:,:,:,nb),  &
-                           cldssalbbandice(:,:,:,nb),  &
+                           cldextivlice2, cldssalbivlice2,       &
+                           cldasymmivlice2,                      &
+                           solivlicesolcld,                      &
+                           Solar_spect%solflxbandref(nb),        &
+                           maskis,                               &
+                           cldextbandice(:,:,:,nb),              &
+                           cldssalbbandice(:,:,:,nb),            &
                            cldasymmbandice(:,:,:,nb))
 
   endif ! (isccp_call)
@@ -3057,68 +3030,53 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
 !    to the sw parameterization band spectral intervals.
 !----------------------------------------------------------------------
               call thickavg (nb, nivl1snowcld(nb), nivl2snowcld(nb), &
-                            NSNOWCLDIVLS,  &
-                     Solar_spect%nbands, cldextivlsnow,     &
-                     cldssalbivlsnow , cldasymmivlsnow,  &
-                     solivlsnowcld,  &
-                     Solar_spect%solflxbandref(nb), masks, &
-                     cldextbandsnow(:,:,:,nb),  &
-                     cldssalbbandsnow(:,:,:,nb),  &
+                            NSNOWCLDIVLS,                            &
+                     Solar_spect%nbands, cldextivlsnow,              &
+                     cldssalbivlsnow , cldasymmivlsnow,              &
+                     solivlsnowcld,                                  &
+                     Solar_spect%solflxbandref(nb), masks,           &
+                     cldextbandsnow(:,:,:,nb),                       &
+                     cldssalbbandsnow(:,:,:,nb),                     &
                      cldasymmbandsnow(:,:,:,nb))
 
-              anymask = maskl .or. maskr .or. maskif .or. maskis .or. masks
-
-              do k=1, size(cldextbandliq,3)
-                do j=1, size(cldextbandliq,2)
-                  do i=1, size(cldextbandliq,1)
-                    if (anymask(i,j,k)) then
-                      sum =0.
-                      sum2 =0.
-                      sum3 =0.
-                      if (maskl(i,j,k)) then
-                        sum = sum + cldextbandliq(i,j,k,nb)
-                        sum2 = sum2 + cldextbandliq(i,j,k,nb)* &
-                                      cldssalbbandliq(i,j,k,nb)
-                        sum3 = sum3 + (cldextbandliq(i,j,k,nb)* &
-                                       cldssalbbandliq(i,j,k,nb))* &
-                                       cldasymmbandliq(i,j,k,nb)
-                      endif
-                      if (maskr(i,j,k)) then
-                        sum = sum + cldextbandrain(i,j,k,nb)
-                        sum2 = sum2 + cldextbandrain(i,j,k,nb)* &
-                                      cldssalbbandrain(i,j,k,nb)
-                        sum3 = sum3 + (cldextbandrain(i,j,k,nb)*&
-                                       cldssalbbandrain(i,j,k,nb))* &
-                                       cldasymmbandrain(i,j,k,nb)
-                      endif
-                      if (maskis(i,j,k) .or. maskif(i,j,k)) then
-                        sum = sum + cldextbandice(i,j,k,nb)
-                        sum2 = sum2 + cldextbandice(i,j,k,nb)* &
-                                      cldssalbbandice(i,j,k,nb)
-                        sum3 = sum3 + (cldextbandice(i,j,k,nb)*&
-                                       cldssalbbandice(i,j,k,nb))*&
-                                       cldasymmbandice(i,j,k,nb)
-                      endif
-                      if (masks(i,j,k)) then
-                        sum = sum +  cldextbandsnow(i,j,k,nb)
-                        sum2 = sum2 + cldextbandsnow(i,j,k,nb)* &
-                                      cldssalbbandsnow(i,j,k,nb)
-                        sum3 = sum3 + (cldextbandsnow(i,j,k,nb)*&
-                                       cldssalbbandsnow(i,j,k,nb))* &
-                                       cldasymmbandsnow(i,j,k,nb)
-                      endif
-                      cldext(i,j,k,nb) = sum
-                      cldsct(i,j,k,nb) = sum2
-                      cldasymm(i,j,k,nb) = sum3/ (cldsct(i,j,k,nb) +  &
-                                                  1.0e-100)
-                    else
-                      cldext(i,j,k,nb) = 0.0
-                      cldsct(i,j,k,nb) = 0.0
-                      cldasymm(i,j,k,nb) = 0.0
-                    endif
-                  end do
-                end do
-              end do
+              sum = 0.
+              sum2 = 0.
+              sum3 = 0.
+              where (maskl)
+                sum = sum + cldextbandliq(:,:,:,nb)
+                sum2 = sum2 + cldextbandliq(:,:,:,nb)*      &
+                              cldssalbbandliq(:,:,:,nb)
+                sum3 = sum3 + (cldextbandliq(:,:,:,nb)*     &
+                               cldssalbbandliq(:,:,:,nb))*  &
+                               cldasymmbandliq(:,:,:,nb)
+              end where
+              where (maskr)
+                sum = sum + cldextbandrain(:,:,:,nb)
+                sum2 = sum2 + cldextbandrain(:,:,:,nb)*     &
+                              cldssalbbandrain(:,:,:,nb)
+                sum3 = sum3 + (cldextbandrain(:,:,:,nb)*    &
+                               cldssalbbandrain(:,:,:,nb))* &
+                               cldasymmbandrain(:,:,:,nb)
+              end where
+              where (maskis .or. maskif)
+                sum = sum + cldextbandice(:,:,:,nb)
+                sum2 = sum2 + cldextbandice(:,:,:,nb)*      &
+                              cldssalbbandice(:,:,:,nb)
+                sum3 = sum3 + (cldextbandice(:,:,:,nb)*     &
+                               cldssalbbandice(:,:,:,nb))*  &
+                               cldasymmbandice(:,:,:,nb)
+              end where
+              where (masks)
+                sum = sum +  cldextbandsnow(:,:,:,nb)
+                sum2 = sum2 + cldextbandsnow(:,:,:,nb)*     &
+                              cldssalbbandsnow(:,:,:,nb)
+                sum3 = sum3 + (cldextbandsnow(:,:,:,nb)*    &
+                               cldssalbbandsnow(:,:,:,nb))* &
+                               cldasymmbandsnow(:,:,:,nb)
+              end where
+              cldext(:,:,:,nb) = sum
+              cldsct(:,:,:,nb) = sum2
+              cldasymm(:,:,:,nb) = sum3/ (cldsct(:,:,:,nb) + 1.0e-100)
 
             else
 
@@ -3127,10 +3085,10 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
 !    flakes that were calculated for the desired cloud drop spectral 
 !    interval to the sw parameterization band spectral intervals.
 !----------------------------------------------------------------------
-              call thickavg (nb, nivl1liqcld(nb), nivl2liqcld(nb),&
-                            cldextivlliq,    &
-                            solivlliqcld, &
-                           Solar_spect%solflxbandref(nb), maskl,  &
+              call thickavg (nb, nivl1liqcld(nb), nivl2liqcld(nb), &
+                            cldextivlliq,                          &
+                            solivlliqcld,                          &
+                           Solar_spect%solflxbandref(nb), maskl,   &
                                cldextbandliq(:,:,:,nb))
 
 !----------------------------------------------------------------------
@@ -3138,9 +3096,9 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
 !    flakes that were calculated for the desired rain drop spectral 
 !    interval to the sw parameterization band spectral intervals.
 !----------------------------------------------------------------------
-              call thickavg (nonly, nivl1raincld(nonly),  &
-                             nivl2raincld(nonly),  &
-                                         cldextivlrain,    &
+              call thickavg (nonly, nivl1raincld(nonly),              &
+                             nivl2raincld(nonly),                     &
+                                         cldextivlrain,               &
                      solivlraincld, Solar_spect%solflxbandref(nonly), &
                      maskr, cldextbandrain(:,:,:,nonly))
 
@@ -3158,14 +3116,14 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
 !    interval to the sw parameterization band spectral intervals.
 !----------------------------------------------------------------------
                 call thickavg (nb, nivl1icecld(nb), nivl2icecld(nb),  &
-                                               cldextivlice,     &
-                          solivlicecld,   &
-                          Solar_spect%solflxbandref(nb),    &
+                                               cldextivlice,          &
+                          solivlicecld,                               &
+                          Solar_spect%solflxbandref(nb),              &
                            maskif, tempext                )
-                call thickavg (nb, nivl1icesolcld(nb),  &
-                               nivl2icesolcld(nb),    &
-                           cldextivlice2,   &
-                       solivlicesolcld,  &
+                call thickavg (nb, nivl1icesolcld(nb),        &
+                               nivl2icesolcld(nb),            &
+                           cldextivlice2,                     &
+                       solivlicesolcld,                       &
                             Solar_spect%solflxbandref(nb),    &
                            maskis, tempext2               )
               where (maskif)
@@ -3205,32 +3163,21 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
                   solivlsnowcld, Solar_spect%solflxbandref(nonly),   &
                      masks, cldextbandsnow(:,:,:,nonly))
 
-              anymask = maskl .or. maskr .or. maskif .or. maskis .or. masks
-
-              do k=1, size(cldextbandliq,3)
-                do j=1, size(cldextbandliq,2)
-                  do i=1, size(cldextbandliq,1)
-                    if (anymask(i,j,k)) then
-                      sum =0.
-                      if (maskl(i,j,k)) then
-                        sum = sum + cldextbandliq(i,j,k,nonly)
-                      endif
-                      if (maskr(i,j,k)) then
-                        sum = sum + cldextbandrain(i,j,k,nonly)
-                      endif
-                      if (maskif(i,j,k) .or. maskis(i,j,k)) then
-                        sum = sum + cldextbandice(i,j,k,nonly)
-                      endif
-                      if (masks(i,j,k)) then
-                        sum = sum +  cldextbandsnow(i,j,k,nonly)
-                      endif
-                      cldext(i,j,k,nonly) = sum
-                    else
-                      cldext(i,j,k,nonly) = 0.0
-                    endif
-                  end do
-                end do
-              end do
+              sum = 0.
+              where (maskl)
+                sum = sum + cldextbandliq(:,:,:,nonly)
+              end where
+              where (maskr)
+                sum = sum + cldextbandrain(:,:,:,nonly)
+              end where
+              where (maskif .or. maskis)
+                sum = sum + cldextbandice(:,:,:,nonly)
+              end where
+              where (masks)
+                sum = sum + cldextbandsnow(:,:,:,nonly)
+              end where
+              cldext(:,:,:,nonly) = sum
+              
             endif
           endif !for nonly              
         endif !for (nbmax == 1)
@@ -3242,11 +3189,11 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
 !    values in each sw parameterization band.                
 !----------------------------------------------------------------------
       if (nbmax == 1) then
-        cldext   =  cldextbandliq + cldextbandrain +  &
+        cldext   =  cldextbandliq + cldextbandrain +   &
                     cldextbandice + cldextbandsnow
-        cldsct   =  cldssalbbandliq*cldextbandliq  + &
+        cldsct   =  cldssalbbandliq*cldextbandliq  +   &
                     cldssalbbandrain*cldextbandrain  + &
-                    cldssalbbandice*cldextbandice +  &
+                    cldssalbbandice*cldextbandice +    &
                     cldssalbbandsnow*cldextbandsnow
         cldasymm = (cldasymmbandliq*(cldssalbbandliq*cldextbandliq) + &
                     cldasymmbandrain*                                 &
@@ -3319,7 +3266,7 @@ subroutine slingo (conc_drop, size_drop, cldextivlliq, cldssalbivlliq, &
 !----------------------------------------------------------------------
 
 real, dimension (:,:,:),   intent(in)     ::   conc_drop, size_drop
-real, dimension (:,:,:,:), intent(inout)  ::   cldextivlliq,  &
+real, dimension (:,:,:,:), intent(inout)  ::   cldextivlliq,     &
                                                cldssalbivlliq,   &
                                                cldasymmivlliq
 logical, dimension(:,:,:), intent(out)    ::   mask
@@ -3433,48 +3380,23 @@ integer, intent(in), optional             ::   starting_band,  &
         niend = NLIQCLDIVLS
       endif
       
-!---------------------------------------------------------------------
-      do k=1,size(conc_drop,3)
-        do j=1,size(conc_drop,2)
-          do i=1,size(conc_drop,1)
-
-!------------------------------------------------------------------
-!    bypass calculations if no drops are present. values are set to
-!    zero in all spectral bands.
-!-----------------------------------------------------------------
-            if (conc_drop(i,j,k) == 0.0) then
-              mask(i,j,k) = .false.
+      mask = conc_drop > 0.
 
 !--------------------------------------------------------------------
 !    convert input variable size from diameter to radius for use in the
 !    slingo formulae.
 !--------------------------------------------------------------------
-            else
-              mask(i,j,k) = .true.
-
-!---------------------------------------------------------------------
-!    define values of extinction coefficient, single-scattering albedo
-!    and asymmetry factor for each of the slingo parameterization 
-!    spectral bands. these values are a function of droplet concen-
-!    tration and droplet effective radius. the extinction coefficient 
-!    is converted to kilometer**(-1).     
-!---------------------------------------------------------------------
-                do ni=nistart, niend
-                  cldextivlliq(i,j,k,ni) = 1.0E+03*conc_drop(i,j,k)* &
-                                           (1.0E-02*a(ni) + (b(ni)/  &
-                                           (0.5*size_drop(i,j,k))   ) )
-                  cldssalbivlliq(i,j,k,ni) = 1.0 - ( c(ni) + d(ni)* &
-                                             0.5*size_drop(i,j,k) )
-                  cldasymmivlliq(i,j,k,ni) = e(ni) + 1.0E-03*f(ni)*  &
-                                             0.5*size_drop(i,j,k)
-                end do
-            endif     
-          end do
-        end do
+      do ni=nistart, niend
+        where (mask)
+          cldextivlliq(:,:,:,ni) = 1.0E+03*conc_drop*        &
+                                   (1.0E-02*a(ni) + (b(ni)/  &
+                                   (0.5*size_drop)   ) )
+          cldssalbivlliq(:,:,:,ni) = 1.0 - ( c(ni) + d(ni)*  &
+                                     0.5*size_drop )
+          cldasymmivlliq(:,:,:,ni) = e(ni) + 1.0E-03*f(ni)*  &
+                                     0.5*size_drop
+        end where
       end do
-
-!-------------------------------------------------------------------
-
 
 end subroutine slingo
 
@@ -3529,7 +3451,7 @@ subroutine savijarvi (conc_rain, size_rain, cldextivlrain,    &
 
 real, dimension (:,:,:),   intent(in)   ::  conc_rain, size_rain
 real, dimension (:,:,:,:), intent(out)  ::  cldextivlrain,            &
-                                            cldssalbivlrain,   &
+                                            cldssalbivlrain,          &
                                             cldasymmivlrain
 logical, dimension(:,:,:), intent(out)    ::   mask
 integer, intent(in), optional             ::   starting_band,  &
@@ -3571,7 +3493,7 @@ integer, intent(in), optional             ::   starting_band,  &
       data b     / 1.00E-03, 9.00E-02, 2.20E-01, 2.30E-01 /
       data asymm / 9.70E-01, 9.40E-01, 8.90E-01, 8.80E-01 /
 
-      integer   ::  i, j, k, ni
+      integer   ::  ni
       integer   ::  nistart, niend
 
 !---------------------------------------------------------------------
@@ -3605,50 +3527,27 @@ integer, intent(in), optional             ::   starting_band,  &
         niend = NRAINCLDIVLS
       endif
 
-!--------------------------------------------------------------------
-      do k=1,size(conc_rain,3)
-        do j=1,size(conc_rain,2)
-          do i=1,size(conc_rain,1)
- 
-!-----------------------------------------------------------------
-!    if no rain is present in a grid box, set the scattering parameters
-!    to so indicate.
-!-----------------------------------------------------------------
-            if (conc_rain(i,j,k) == 0.0) then
-              mask(i,j,k) = .false.
-
-!----------------------------------------------------------------------
-!    convert input size from drop diameter to drop radius. 
-!----------------------------------------------------------------------
-            else
-              mask(i,j,k) = .true.
+      mask = conc_rain > 0.
 
 !---------------------------------------------------------------------
 !    the rain drop effective radius must be between 16.6 and 5000    
 !    microns. compute the rcap function, used in the savijarvi formula.
 !---------------------------------------------------------------------
-                rcap(i,j,k) = (0.5*size_rain(i,j,k)/500.) ** 4.348E+00
+      rcap = (0.5*size_rain/500.) ** 4.348E+00
 
 !--------------------------------------------------------------------
 !    compute values for each of the savijarvi rain drop spectral
 !    intervals. the extinction coefficient is converted to km**(-1).    
 !--------------------------------------------------------------------
-                do ni = nistart, niend 
-                  cldextivlrain(i,j,k,ni) = 1.00E+03*1.505E+00*     &
-                                            conc_rain(i,j,k)/     &
-                                            (0.5*size_rain(i,j,k))  
-                  cldssalbivlrain(i,j,k,ni) = 1.0E+00 - (a(ni)*    &
-                                              (rcap(i,j,k)**b(ni)))
-                  cldasymmivlrain(i,j,k,ni) = asymm(ni)
-                end do
-            endif
-          end do
-        end do
-      end do
-
-!---------------------------------------------------------------------
- 
-
+      do ni = nistart, niend 
+        where (mask)  
+          cldextivlrain(:,:,:,ni) = 1.00E+03*1.505E+00*     &
+                                    conc_rain/(0.5*size_rain)  
+          cldssalbivlrain(:,:,:,ni) = 1.0E+00 - (a(ni)*     &
+                                      (rcap**b(ni)))
+          cldasymmivlrain(:,:,:,ni) = asymm(ni)
+        end where
+      end do      
 
 end subroutine savijarvi
 
@@ -3840,8 +3739,11 @@ integer,     intent(in), optional          ::  starting_band, &
  
       integer     :: nistart, niend
       integer     :: i, j, k, ni
-      real        :: fd, f, fw
-
+      real, dimension(size(conc_ice,1),size(conc_ice,2),size(conc_ice,3)) :: &
+          fd, f, fw
+      real, dimension(size(conc_ice,1),size(conc_ice,2),size(conc_ice,3)) :: &
+          size_ice2, size_ice3
+      
 !---------------------------------------------------------------------
 !   local variables:
 !
@@ -3893,98 +3795,82 @@ integer,     intent(in), optional          ::  starting_band, &
         niend = NICECLDIVLS
       endif
 
-!----------------------------------------------------------------------
-      do k=1,size(conc_ice,3)
-        do j=1,size(conc_ice,2)
-          do i=1,size(conc_ice,1)
-
-!----------------------------------------------------------------------
-!    if no ice crystals are present in a grid box, set the scattering
-!    parameters to zero.
-!----------------------------------------------------------------------
-              if (conc_ice (i,j,k) == 0.0) then
-                mask(i,j,k) = .false.
-
-!----------------------------------------------------------------------
-!    compute the ice crystal scattering parameters.
-!----------------------------------------------------------------------
-              else !(conc_ice > 0)
-                mask(i,j,k) = .true.
-
-
+      mask = conc_ice > 0.
+      
+      size_ice2 = size_ice**2
+      size_ice3 = size_ice**3
+      
 !---------------------------------------------------------------------
 !     compute the scattering parameters for each of the fu spectral 
 !     intervals. the extinction coefficient is converted to km**(-1).  
 !---------------------------------------------------------------------
-                do ni = nistart, niend
-                  cldextivlice(i,j,k,ni) = 1.0E+03*conc_ice(i,j,k)*  &
-                                           (a0fu(ni) + (a1fu(ni)/    &
-                                            size_ice(i,j,k)     ))
-                  cldssalbivlice(i,j,k,ni) =  1.0 -                &
-                                     ( b0fu(ni)                    +   &
-                                       b1fu(ni)*size_ice(i,j,k)    +   &
-                                       b2fu(ni)*size_ice(i,j,k)**2 +   &
-                                       b3fu(ni)*size_ice(i,j,k)**3 )
-                  cldasymmivlice(i,j,k,ni) =                        &
-                          c0fu(ni) +                                   &
-                          c1fu(ni)*size_ice(i,j,k) +                   &
-                          c2fu(ni)*size_ice(i,j,k)**2 +                &
-                          c3fu(ni)*size_ice(i,j,k)**3
-
-                  if (do_delta_adj .and. (.not. do_const_asy)) then
-                    fd =                                           &
-                          1.1572963e-1 +                       &
-                          2.5648064e-4*size_ice(i,j,k) +     &
-                          1.9131293e-6*size_ice(i,j,k)**2    &
-                         -1.2460341e-8*size_ice(i,j,k)**3
-                    f = 0.5/cldssalbivlice(i,j,k,ni) + fd
-                    fw = f * cldssalbivlice(i,j,k,ni)
-                    cldextivlice(i,j,k,ni) =   &
-                            cldextivlice(i,j,k,ni) * (1. - fw)
-                    cldssalbivlice(i,j,k,ni) =   &
-                          cldssalbivlice(i,j,k,ni) * (1. - f)/(1. - fw)
-                    cldasymmivlice(i,j,k,ni) =  &
-                          (cldasymmivlice(i,j,k,ni) - f)/(1. - f)
-                  endif
-  
-                  if (do_const_asy .and. (.not. do_delta_adj)) then
-                    f = 0.5/cldssalbivlice(i,j,k,ni)
-                    fw = f * cldssalbivlice(i,j,k,ni)
-                    cldextivlice(i,j,k,ni) = cldextivlice(i,j,k,ni) &
-                                                        * (1. - fw)
-                    cldssalbivlice(i,j,k,ni) =  &
-                           cldssalbivlice(i,j,k,ni) * (1. - f)/(1. - fw)
-                    cldasymmivlice(i,j,k,ni) = (val_const_asy - f)/ &
-                                                            (1. - f)
-                  endif
-
-                  if (do_delta_adj .and. do_const_asy) then
-                    fd =                                           &
-                        1.1572963e-1 +                         &
-                        2.5648064e-4*size_ice(i,j,k) +              &
-                        1.9131293e-6*size_ice(i,j,k)**2       &
-                       -1.2460341e-8*size_ice(i,j,k)**3
-                    f = 0.5/cldssalbivlice(i,j,k,ni) + fd
-                    fw = f * cldssalbivlice(i,j,k,ni)
-                    cldextivlice(i,j,k,ni) = cldextivlice(i,j,k,ni) &
-                                                         * (1. - fw)
-                    cldssalbivlice(i,j,k,ni) =  &
-                          cldssalbivlice(i,j,k,ni) * (1. - f)/(1. - fw)
-                    cldasymmivlice(i,j,k,ni) =  &
-                                         (val_const_asy - f)/(1. - f)
-                  endif
-                end do
-              endif ! (conc_ice > 0)
-          end do
-        end do
+      do ni = nistart, niend
+        where (mask)
+          cldextivlice(:,:,:,ni) = 1.0E+03*conc_ice*                 &
+                                         (a0fu(ni) + (a1fu(ni)/      &
+                                          size_ice     ))
+          cldssalbivlice(:,:,:,ni) =  1.0 -                          &
+                                   ( b0fu(ni)                    +   &
+                                     b1fu(ni)*size_ice    +          &
+                                     b2fu(ni)*size_ice2 +            &
+                                     b3fu(ni)*size_ice3 )
+          cldasymmivlice(:,:,:,ni) =                                 &
+                        c0fu(ni) +                                   &
+                        c1fu(ni)*size_ice +                          &
+                        c2fu(ni)*size_ice2 +                         &
+                        c3fu(ni)*size_ice3
+        end where
       end do
-
-!---------------------------------------------------------------------
- 
-
+      if (do_delta_adj .and. (.not. do_const_asy)) then
+        fd =  1.1572963e-1 +                       &
+              2.5648064e-4*size_ice +              &
+              1.9131293e-6*size_ice2               &
+             -1.2460341e-8*size_ice3
+        do ni = nistart, niend
+          where (mask)
+            f = 0.5/cldssalbivlice(:,:,:,ni) + fd
+            fw = f * cldssalbivlice(:,:,:,ni)
+            cldextivlice(:,:,:,ni) =                   &
+                  cldextivlice(:,:,:,ni) * (1. - fw)
+            cldssalbivlice(:,:,:,ni) =                 &
+                  cldssalbivlice(:,:,:,ni) * (1. - f)/(1. - fw)
+            cldasymmivlice(:,:,:,ni) =                 &
+                  (cldasymmivlice(:,:,:,ni) - f)/(1. - f)
+          end where
+        end do
+      else if ((.not. do_delta_adj) .and. do_const_asy) then
+        do ni = nistart, niend
+          where (mask)
+            f = 0.5/cldssalbivlice(:,:,:,ni)
+            fw = f * cldssalbivlice(:,:,:,ni)
+            cldextivlice(:,:,:,ni) = cldextivlice(:,:,:,ni) &
+                                                * (1. - fw)
+            cldssalbivlice(:,:,:,ni) =                      &
+                   cldssalbivlice(:,:,:,ni) * (1. - f)/(1. - fw)
+            cldasymmivlice(:,:,:,ni) = (val_const_asy - f)/ &
+                                                    (1. - f)
+          end where
+        end do
+      else if (do_delta_adj .and. do_const_asy) then
+        fd =  1.1572963e-1 +                       &
+              2.5648064e-4*size_ice +              &
+              1.9131293e-6*size_ice2               &
+             -1.2460341e-8*size_ice3
+        do ni = nistart, niend
+          where (mask)
+            f = 0.5/cldssalbivlice(:,:,:,ni) + fd
+            fw = f * cldssalbivlice(:,:,:,ni)
+            cldextivlice(:,:,:,ni) = cldextivlice(:,:,:,ni)  &
+                                                 * (1. - fw)
+            cldssalbivlice(:,:,:,ni) =                       &
+                  cldssalbivlice(:,:,:,ni) * (1. - f)/(1. - fw)
+            cldasymmivlice(:,:,:,ni) =                       &
+                                 (val_const_asy - f)/(1. - f)
+          end where
+        end do
+      end if
 
 end subroutine fu
-
 
 
 !#####################################################################
@@ -4041,8 +3927,8 @@ end subroutine fu
 ! </SUBROUTINE>
 !
 subroutine icesolar (conc_ice, size_ice, cldextivlice,    &
-                     cldssalbivlice, cldasymmivlice, &
-                     mask, &
+                     cldssalbivlice, cldasymmivlice,      &
+                     mask,                                &
                      starting_band, ending_band)
  
 !---------------------------------------------------------------------- 
@@ -4121,10 +4007,13 @@ integer,  intent(in), optional            ::   starting_band, &
 
       real    :: a0 = -6.656e-03
       real    :: a1 =  3.686
-      real    :: fgam2, fdel2
+      real, dimension(size(conc_ice,1),size(conc_ice,2),size(conc_ice,3)) :: &
+          fgam2, fdel2
+      real, dimension(size(conc_ice,1),size(conc_ice,2),size(conc_ice,3)) :: &
+          size_ice2, size_ice3
 
       integer :: nistart, niend
-      integer :: i, j, k, ni
+      integer :: ni
 
 !----------------------------------------------------------------------
 !   local variables:
@@ -4175,59 +4064,35 @@ integer,  intent(in), optional            ::   starting_band, &
         niend = NICESOLARCLDIVLS
       endif
 
-!-----------------------------------------------------------------
-!    compute scattering parameters for ice crystals. 
-!-----------------------------------------------------------------
-      do k=1,size(conc_ice,3)
-        do j=1,size(conc_ice,2)
-          do i=1,size(conc_ice,1)
-
-!---------------------------------------------------------------------
-!    bypass calculations if no crystals are present. set scattering
-!    parameters to values comatible with the absence of cloud.
-!-----------------------------------------------------------------
-            if (conc_ice (i,j,k) == 0.0) then
-              mask(i,j,k) = .false.
-
-!--------------------------------------------------------------------
-!    the ice crystal effective size (D^sub^ge in fu's paper) is limited
-!    to the range of 18.6 to 130.2 microns.                     
-!--------------------------------------------------------------------
-            else
-              mask(i,j,k) = .true.
-
+      mask = conc_ice > 0.
+      
+      size_ice2 = size_ice**2
+      size_ice3 = size_ice**3
 !---------------------------------------------------------------------
 !     compute the scattering parameters for each of the fu spectral 
 !     intervals. the extinction coefficient is converted to km**(-1).  
 !---------------------------------------------------------------------
-                do ni = nistart,niend
-                  cldextivlice(i,j,k,ni) = 1.0E+03*       &
-                         conc_ice(i,j,k)*(a0 + (a1/size_ice(i,j,k))) 
-                  cldssalbivlice(i,j,k,ni) = 1.0 -           &
-                             (b(7-ni,0) +                    &
-                              b(7-ni,1)*size_ice(i,j,k) +    &
-                              b(7-ni,2)*size_ice(i,j,k)**2 + &
-                              b(7-ni,3)*size_ice(i,j,k)**3 )
-                  fgam2  =                                   &
-                              c(7-ni,0) +                    &
-                              c(7-ni,1)*size_ice(i,j,k) +    &
-                              c(7-ni,2)*size_ice(i,j,k)**2 + &
-                              c(7-ni,3)*size_ice(i,j,k)**3
-                  fdel2  =                                   &
-                              d(7-ni,0) +                    &
-                              d(7-ni,1)*size_ice(i,j,k) +    &
-                              d(7-ni,2)*size_ice(i,j,k)**2 + &
-                              d(7-ni,3)*size_ice(i,j,k)**3
-                  cldasymmivlice(i,j,k,ni) =                 &
-                              ((1. - fdel2)*fgam2 + 3.*fdel2)/3.
-                end do
-            endif
-          end do
-        end do
+      do ni = nistart,niend
+        where (mask)
+          cldextivlice(:,:,:,ni) = 1.0E+03*          &
+                 conc_ice*(a0 + (a1/size_ice)) 
+          cldssalbivlice(:,:,:,ni) = 1.0 -           &
+                     (b(7-ni,0) +                    &
+                      b(7-ni,1)*size_ice +           &
+                      b(7-ni,2)*size_ice2 +          &
+                      b(7-ni,3)*size_ice3 )
+          fgam2  =    c(7-ni,0) +                    &
+                      c(7-ni,1)*size_ice +           &
+                      c(7-ni,2)*size_ice +           &        
+                      c(7-ni,3)*size_ice
+          fdel2  =    d(7-ni,0) +                    &
+                      d(7-ni,1)*size_ice +           &
+                      d(7-ni,2)*size_ice2 +          &
+                      d(7-ni,3)*size_ice3
+          cldasymmivlice(:,:,:,ni) =                 &
+                      ((1. - fdel2)*fgam2 + 3.*fdel2)/3.
+        end where
       end do
-      
-!------------------------------------------------------------------
-
 
 end subroutine icesolar
 
@@ -4361,35 +4226,15 @@ integer,  intent(in), optional            ::   starting_band, &
       else
         niend = NSNOWCLDIVLS
       endif
-
-!----------------------------------------------------------------------
-      do k=1,size(conc_snow,3)
-        do j=1,size(conc_snow,2)
-          do i=1,size(conc_snow,1)
-
-!-----------------------------------------------------------------
-!    if no snow is present in the box, set the scattering parameters
-!    to so indicate.
-!-----------------------------------------------------------------
-            if (conc_snow(i,j,k) .le. 1.e-5) then
-              mask(i,j,k) = .false.
-
-!---------------------------------------------------------------------
-!    if snow is present, calculate the scattering parameters over each
-!    of the snow spectral intervals. the extinction coefficient is 
-!    in units of km**(-1).
-!---------------------------------------------------------------------
-            else
-              mask(i,j,k) = .true.
-              do ni = nistart, niend
-                cldextivlsnow(i,j,k,ni) = ext(ni)*conc_snow(i,j,k)/   &
-                                          conc_ref
-                cldssalbivlsnow(i,j,k,ni) = ssalb(ni)
-                cldasymmivlsnow(i,j,k,ni) = asymm(ni)
-              end do
-            endif
-          end do
-        end do
+      
+      mask = conc_snow > 1.e-5
+      
+      do ni = nistart, niend
+        where (mask)
+          cldextivlsnow(:,:,:,ni) = ext(ni)*conc_snow/conc_ref
+          cldssalbivlsnow(:,:,:,ni) = ssalb(ni)
+          cldasymmivlsnow(:,:,:,ni) = asymm(ni)
+        end where
       end do
 
 !--------------------------------------------------------------------
@@ -4567,7 +4412,7 @@ real, dimension (:,:,:,:), intent(out)  ::   abscoeff
       do n=1,Cldrad_control%nlwcldb
         if (nonly == 0 .or. n == nonly) then
           call furainlw (n, conc_rain, cldextbndrainlw(:,:,:,n),   &
-                         cldssalbbndrainlw(:,:,:,n), &
+                         cldssalbbndrainlw(:,:,:,n),               &
                          cldasymmbndrainlw(:,:,:,n))
         endif
       end do
@@ -4579,7 +4424,7 @@ real, dimension (:,:,:,:), intent(out)  ::   abscoeff
       do n=1,Cldrad_control%nlwcldb
         if (nonly == 0 .or. n == nonly) then
           call fusnowlw (n, conc_snow, cldextbndsnowlw(:,:,:,n),   &
-                         cldssalbbndsnowlw(:,:,:,n), &
+                         cldssalbbndsnowlw(:,:,:,n),               &
                          cldasymmbndsnowlw(:,:,:,n))
         endif
       end do
@@ -4634,31 +4479,34 @@ real, dimension (:,:,:,:), intent(out)  ::   abscoeff
 !----------------------------------------------------------------------
       if (isccp_call) then
         do n=1,Cldrad_control%nlwcldb
-          if (nbmax == 1) then
-            call el_dge (n, conc_ice(:,:,:,nnn), size_ice(:,:,:,nnn),  &
-                          
-                  maskf, cldext, cldssa)
-           else
-             if (nonly.eq.0   .or. nonly.eq.n ) then            
-             call el_dge (n, conc_ice(:,:,:,n), size_ice(:,:,:,n),  &
-                   maskf, cldext, cldssa)
-             end if ! for nonly
-           endif ! for nbmax == 1
+! MJT suggestion - I think el_dge should only be called for Donner option
+!          if (nbmax == 1) then
+!            call el_dge (n, conc_ice(:,:,:,nnn), size_ice(:,:,:,nnn),  &
+!                          
+!                  maskf, cldext, cldssa)
+!          else
+!             if (nonly==0   .or. nonly==n ) then            
+!             call el_dge (n, conc_ice(:,:,:,n), size_ice(:,:,:,n),  &
+!                   maskf, cldext, cldssa)
+!             end if ! for nonly
+!          endif ! for nbmax == 1
           if (nbmax == 1) then
             call el (n, conc_ice(:,:,:,nnn), size_ice(:,:,:,nnn),  &
                maski, cldext2, cldssa2)
           else
-            if (nonly.eq.0   .or. nonly.eq.n ) then            
+            if (nonly==0   .or. nonly==n ) then            
             call el (n, conc_ice(:,:,:,n), size_ice(:,:,:,n),  &
                  maski, cldext2, cldssa2)
             endif ! for nonly 
           endif ! for nbmax == 1
  
-          where (maskf)
-            cldextbndicelw(:,:,:,n) = cldext
-            cldssalbbndicelw(:,:,:,n) = cldssa
-!           cldasymmbndicelw(:,:,:,n) = cldasy
-          else where (maski)
+! MJT suggestion - I think el_dge should only be called for Donner option          
+!          where (maskf)
+!            cldextbndicelw(:,:,:,n) = cldext
+!            cldssalbbndicelw(:,:,:,n) = cldssa
+!!           cldasymmbndicelw(:,:,:,n) = cldasy
+!          else where (maski)
+          where (maski)          
             cldextbndicelw(:,:,:,n) = cldext2
             cldssalbbndicelw(:,:,:,n) = cldssa2
 !           cldasymmbndicelw(:,:,:,n) = cldasy2
@@ -4674,13 +4522,13 @@ real, dimension (:,:,:,:), intent(out)  ::   abscoeff
         do n=1,Cldrad_control%nlwcldb
           if (nbmax == 1) then
             call el (n, conc_ice(:,:,:,nnn), size_ice(:,:,:,nnn),  &
-                     maski,  &
-                     cldextbndicelw(:,:,:,n),     &
+                     maski,                                        &
+                     cldextbndicelw(:,:,:,n),                      &
                      cldssalbbndicelw(:,:,:,n))
           else if (nonly==0   .or. nonly==n ) then            
             call el (n, conc_ice(:,:,:,n), size_ice(:,:,:,n),  &
-                     maski,  &
-                     cldextbndicelw(:,:,:,n),     &
+                     maski,                                    &
+                     cldextbndicelw(:,:,:,n),                  &
                      cldssalbbndicelw(:,:,:,n))
           endif ! for nonly  ! for nbmax == 1
         end do
@@ -4695,21 +4543,21 @@ real, dimension (:,:,:,:), intent(out)  ::   abscoeff
 !----------------------------------------------------------------------
       if (nonly == 0) then
         do n=1,Cldrad_control%nlwcldb
-          abscoeff(:,:,:,n) = cldextbndicelw(:,:,:,n)*       &
+          abscoeff(:,:,:,n) = cldextbndicelw(:,:,:,n)*                 &
                               (1.0E+00 - cldssalbbndicelw(:,:,:,n)) +  &
                               cldextbnddroplw(:,:,:,n)              +  &
-                              cldextbndsnowlw(:,:,:,n)*               &
+                              cldextbndsnowlw(:,:,:,n)*                &
                               (1.0E+00 - cldssalbbndsnowlw(:,:,:,n)) + &
                               cldextbndrainlw(:,:,:,n)*                &
                               (1.0E+00 - cldssalbbndrainlw(:,:,:,n))
         end do
       else 
-        abscoeff(:,:,:,nonly) = cldextbndicelw(:,:,:,nonly)*       &
-                           (1.0E+00 - cldssalbbndicelw(:,:,:,nonly)) + &
-                           cldextbnddroplw(:,:,:,nonly)          +    &
-                           cldextbndsnowlw(:,:,:,nonly)*           &
-                           (1.0E+00 - cldssalbbndsnowlw(:,:,:,nonly)) +&
-                           cldextbndrainlw(:,:,:,nonly)*           &
+        abscoeff(:,:,:,nonly) = cldextbndicelw(:,:,:,nonly)*            &
+                           (1.0E+00 - cldssalbbndicelw(:,:,:,nonly)) +  &
+                           cldextbnddroplw(:,:,:,nonly)          +      &
+                           cldextbndsnowlw(:,:,:,nonly)*                &
+                           (1.0E+00 - cldssalbbndsnowlw(:,:,:,nonly)) + &
+                           cldextbndrainlw(:,:,:,nonly)*                &
                            (1.0E+00 - cldssalbbndrainlw(:,:,:,nonly))
       endif
   
@@ -4824,7 +4672,7 @@ real, dimension (:,:,:), intent(out)    ::   abscoeff
 !    clouds for the longwave spectrum.
 !---------------------------------------------------------------------
       k_liq(:,:,:) = 140.
-      where (size_ice(:,:,:) /= 0.0) 
+      where (size_ice(:,:,:) > 0.0) 
         k_ice(:,:,:) = 4.83591 + 1758.511/reff_ice(:,:,:)
       elsewhere
         k_ice(:,:,:) = 0.0                                  
@@ -4934,13 +4782,19 @@ real, dimension (:,:,:  ), intent(out)   ::  cldextbndicelw,   &
 !---------------------------------------------------------------------
 ! local variables:
       integer     :: n
-      integer     :: i, j,k
-      real  ::          cldextivlice, cldssalbivlice
-!     real  ::          cldasymmivlice
+      real, dimension(size(conc_ice,1),size(conc_ice,2),size(conc_ice,3))  :: &
+           cldextivlice, cldssalbivlice
+!     real, dimension(size(conc_ice,1),size(conc_ice,2),size(conc_ice,3))  :: &
+!          cldasymmivlice
 
-      real     ::               sumext, sumssalb
-!     real     ::               sumasymm
+      real, dimension(size(conc_ice,1),size(conc_ice,2),size(conc_ice,3))  :: &
+           sumext, sumssalb
+!     real, dimension(size(conc_ice,1),size(conc_ice,2),size(conc_ice,3))  :: &
+!          sumasymm
 
+      real, dimension(size(conc_ice,1),size(conc_ice,2),size(conc_ice,3))  :: &
+          size_ice2, size_ice3
+      
       real, dimension (NBFL)  ::   a0, a1, a2
  
       data a0 /                                                      &
@@ -5025,65 +4879,56 @@ real, dimension (:,:,:  ), intent(out)   ::  cldextbndicelw,   &
 !
 !---------------------------------------------------------------------
 
-      do k=1, size(conc_ice,3)
-        do j=1, size(conc_ice,2)
-          do i=1, size(conc_ice,1)
-            sumext = 0.
-            sumssalb = 0.
-            if (conc_ice(i,j,k) /= 0.0) then
+     mask = conc_ice > 0.
 
-              mask(i,j,k) = .true.
+     size_ice2 = size_ice**2
+     size_ice3 = size_ice**3
+     
+     sumext = 0.
+     sumssalb = 0.
+     do n=1,NBFL
+       where (mask)
 !-----------------------------------------------------------------------
 !    calculate extinction coefficient [ km**(-1) ] over the wavenumber
 !    bands of the Fu-Liou parameterization (not the radiation code
 !    wavenumber bands).
 !-----------------------------------------------------------------------
-              do n=1,NBFL                                               
-                cldextivlice  = 1.0E+03*conc_ice(i,j,k)*        &
-                                (a0(n) +                              &
-                                 a1(n)/size_ice(i,j,k) +              &
-                                 a2(n)/size_ice(i,j,k)**2)
+         cldextivlice  = 1.0E+03*conc_ice*                     &
+                         (a0(n) +                              &
+                          a1(n)/size_ice +                     &
+                          a2(n)/size_ice2)
 
 !-----------------------------------------------------------------------
 !    calculate single-scattering albedo and asymmetry parameter.
 !    the asymmetry parameter is not currently used in the infrared 
 !    code. therefore its calculation is commented out.
 !-----------------------------------------------------------------------
-                cldssalbivlice  = 1.0E+00 -                           &
-                                  (b(n,0) +                           &
-                                   b(n,1)*size_ice(i,j,k) +           &
-                                   b(n,2)*size_ice(i,j,k)**2 +        &
-                                   b(n,3)*size_ice(i,j,k)**3)
-!               cldasymmivlice  =                            &
-!                                  cpr(n,0) +                         &
-!                                  cpr(n,1)*size_ice(:,:,:) +         &
-!                                  cpr(n,2)*size_ice(:,:,:)**2 +      &
-!                                  cpr(n,3)*size_ice(:,:,:)**3
+         cldssalbivlice  = 1.0E+00 -                           &
+                           (b(n,0) +                           &
+                            b(n,1)*size_ice +                  &
+                            b(n,2)*size_ice2 +                 &
+                            b(n,3)*size_ice3)
+!        cldasymmivlice  =                                    &
+!                          cpr(n,0) +                         &
+!                          cpr(n,1)*size_ice +                &
+!                          cpr(n,2)*size_ice2 +               &
+!                          cpr(n,3)*size_ice3
  
 !-----------------------------------------------------------------------
 !    use the band weighting factors computed in microphys_rad_init
 !    to define the radiation band values for the scattering parameters.
 !-----------------------------------------------------------------------
-                sumext    = sumext + cldextivlice*fulwwts(nb,n )
-                sumssalb  = sumssalb + cldssalbivlice*fulwwts(nb,n )
-!               sumasymm  = sumasymm + cldasymmivlice*fulwwts(nb,n )
-              end do
-            else 
-              mask(i,j,k) = .false.
-              cldextbndicelw(i,j,k) = 0.0        
-              cldssalbbndicelw(i,j,k) = 0.0          
-!             cldasymmbndicelw(:,:,:,n) = sumasymm(:,:,:)
-            endif
-            cldextbndicelw(i,j,k)   = sumext       
-            cldssalbbndicelw(i,j,k) = sumssalb       
-!           cldasymmbndicelw(i,j,k,n) = sumasymm        
-          end do
-        end do
-      end do
+         sumext    = sumext + cldextivlice*fulwwts(nb,n )
+         sumssalb  = sumssalb + cldssalbivlice*fulwwts(nb,n )
+!        sumasymm  = sumasymm + cldasymmivlice*fulwwts(nb,n )
+       end where
+!      cldasymmbndicelw(:,:,:,n) = sumasymm               
+     end do
+     cldextbndicelw   = sumext       
+     cldssalbbndicelw = sumssalb       
+
 !--------------------------------------------------------------------
  
-
-
 end subroutine el
 
 
@@ -5679,7 +5524,6 @@ real, dimension (:,:,:  ), intent(out)   ::   cldextbndrainlw,    &
 
       real      :: rwc0 = 0.5
       integer   :: n, ni
-      integer   :: i,j,k
 
 !----------------------------------------------------------------------
 !  local variables:                                                  
@@ -5715,14 +5559,11 @@ real, dimension (:,:,:  ), intent(out)   ::   cldextbndrainlw,    &
 !        n, ni            do-loop indices         
 !
 !---------------------------------------------------------------------
-      do k=1, size(conc_rain,3)
-        do j=1, size(conc_rain,2)
-          do i=1, size(conc_rain,1)
-            sumext = 0.
-            sumssalb = 0.
-            sumasymm = 0.
-            if (conc_rain(i,j,k) /= 0.0) then
- 
+
+      ! MJT suggestion - precalculate integrated terms
+      sumext = 0.
+      sumssalb = 0.
+      sumasymm = 0.
 !-----------------------------------------------------------------------
 !    calculate extinction coefficient (km**(-1)) over the wavenumber
 !    bands of the Fu-Liou parameterization (not the radiation code
@@ -5730,27 +5571,30 @@ real, dimension (:,:,:  ), intent(out)   ::   cldextbndrainlw,    &
 !    band. the asymmetry factor is not currently used, so the code
 !    defining it is commented out.
 !-----------------------------------------------------------------------
-              do n=1,NBFL
-                cldextivlrain   = brn(n)*conc_rain(i,j,k)/rwc0
-                cldssalbivlrain = wrnf(n)
-                cldasymmivlrain = grn(n)
+      do n=1,NBFL
+        cldextivlrain   = brn(n)/rwc0
+        cldssalbivlrain = wrnf(n)
+        cldasymmivlrain = grn(n)
  
 !-----------------------------------------------------------------------
 !    use the band weighting factors computed in microphys_rad_init
 !    to define the values of these parameters for each lw radiation
 !    band.
 !-----------------------------------------------------------------------
-                sumext   = sumext + cldextivlrain*fulwwts(nb,n )
-                sumssalb = sumssalb + cldssalbivlrain*fulwwts(nb,n )
-                sumasymm = sumasymm + cldasymmivlrain*fulwwts(nb,n)
-              end do
-            endif
-            cldextbndrainlw  (i,j,k  ) = sumext
-            cldssalbbndrainlw(i,j,k  ) = sumssalb
-            cldasymmbndrainlw(i,j,k  ) = sumasymm
-          end do
-        end do
+        sumext   = sumext + cldextivlrain*fulwwts(nb,n )
+        sumssalb = sumssalb + cldssalbivlrain*fulwwts(nb,n )
+        sumasymm = sumasymm + cldasymmivlrain*fulwwts(nb,n)
       end do
+      
+      where (conc_rain > 0.0)
+        cldextbndrainlw   = sumext*conc_rain
+        cldssalbbndrainlw = sumssalb
+        cldasymmbndrainlw = sumasymm
+      elsewhere
+        cldextbndrainlw   = 0.
+        cldssalbbndrainlw = 0.
+        cldasymmbndrainlw = 0.
+      end where
 
 !---------------------------------------------------------------------
  
@@ -5859,7 +5703,6 @@ real, dimension (:,:,:  ), intent(out)    ::   cldextbndsnowlw,    &
                                                                     
       real      :: swc0 = 0.5
       integer   :: n, ni
-      integer   :: i,j,k
  
 !---------------------------------------------------------------------
 !   local variables:
@@ -5894,14 +5737,10 @@ real, dimension (:,:,:  ), intent(out)    ::   cldextbndsnowlw,    &
 !
 !---------------------------------------------------------------------
 
-      do k=1, size(conc_snow,3)
-        do j=1, size(conc_snow,2)
-          do i=1, size(conc_snow,1)
-            sumext = 0.
-            sumssalb = 0.
-            sumasymm = 0.
-            if (conc_snow(i,j,k) >= 1.e-5) then
-
+      ! MJT suggestion - precalculate integrated terms
+      sumext = 0.
+      sumssalb = 0.
+      sumasymm = 0.
 !-----------------------------------------------------------------------
 !    calculate the extinction coefficient over the wavenumber bands of 
 !    the Fu-Liou parameterization (not the radiation code wavenumber 
@@ -5909,27 +5748,30 @@ real, dimension (:,:,:  ), intent(out)    ::   cldextbndsnowlw,    &
 !    asymmetry factor is not currently used, so the code defining it
 !    is commented out.
 !-----------------------------------------------------------------------
-              do n=1,NBFL
-                cldextivlsnow   = brn(n)*conc_snow(i,j,k)/swc0
-                cldssalbivlsnow = wrnf(n)
-!               cldasymmivlsnow = grn(n)
+      do n=1,NBFL
+        cldextivlsnow   = brn(n)/swc0
+        cldssalbivlsnow = wrnf(n)
+!       cldasymmivlsnow = grn(n)
  
 !-----------------------------------------------------------------------
 !    use the band weighting factors computed in microphys_rad_init     
 !    to define the appropriate values for the scattering parameters for
 !    each lw radiation band.
 !-----------------------------------------------------------------------
-                sumext     = sumext + cldextivlsnow*fulwwts(nb,n )
-                sumssalb   = sumssalb + cldssalbivlsnow*fulwwts(nb,n )
-!               sumasymm   = sumasymm + cldasymmivlsnow*fulwwts(nb,n)
-              end do
-            endif
-            cldextbndsnowlw(i,j,k)   = sumext
-            cldssalbbndsnowlw(i,j,k) = sumssalb         
-            cldasymmbndsnowlw(i,j,k) = sumasymm
-          end do
-        end do
+        sumext     = sumext + cldextivlsnow*fulwwts(nb,n )
+        sumssalb   = sumssalb + cldssalbivlsnow*fulwwts(nb,n )
+!       sumasymm   = sumasymm + cldasymmivlsnow*fulwwts(nb,n)
       end do
+      
+      where (conc_snow >= 1.e-5)
+        cldextbndsnowlw   = sumext*conc_snow
+        cldssalbbndsnowlw = sumssalb         
+        cldasymmbndsnowlw = sumasymm
+      elsewhere
+        cldextbndsnowlw   = 0.
+        cldssalbbndsnowlw = 0.
+        cldasymmbndsnowlw = 0.
+      end where
 
 !----------------------------------------------------------------------
  

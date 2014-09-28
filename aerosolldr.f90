@@ -1257,116 +1257,116 @@ ZSO4i=amax1(XTO(:,:,ITRACSO2+1),0.)
 
 !******************************************************************************
 !   CALCULATE THE REACTION-RATES FOR SO2-H2O2
-DO JK=KTOP,KL
-  DO JL=1,ifull
-    IF(ziwcic(JL,JK).GT.ZMIN) THEN
-      ZLWCL=ziwcic(JL,JK)*PRHOP1(JL,JK)*1.E-06
-      ZLWCV=ziwcic(JL,JK)*PRHOP1(JL,JK)*1.E-03
-      ZHP=ZHPBASE+ZSO4i(JL,JK)*1000./(ziwcic(JL,JK)*ZMOLGS)
-      ZQTP1=1./PTP1(JL,JK)-ZQ298
-      ZRK=8.E+04*EXP(-3650.*ZQTP1)/(0.1+ZHP)
-      ZRKE=ZRK/(ZLWCL*ZAVO)
+!DO JK=KTOP,KL
+!  DO JL=1,ifull
+!    IF(ziwcic(JL,JK).GT.ZMIN) THEN
+!      ZLWCL=ziwcic(JL,JK)*PRHOP1(JL,JK)*1.E-06
+!      ZLWCV=ziwcic(JL,JK)*PRHOP1(JL,JK)*1.E-03
+!      ZHP=ZHPBASE+ZSO4i(JL,JK)*1000./(ziwcic(JL,JK)*ZMOLGS)
+!      ZQTP1=1./PTP1(JL,JK)-ZQ298
+!      ZRK=8.E+04*EXP(-3650.*ZQTP1)/(0.1+ZHP)
+!      ZRKE=ZRK/(ZLWCL*ZAVO)
+!
+!      ZH_SO2=ZE2*EXP(ZE2H*ZQTP1)
+!      ZPFAC=ZRGAS*ZLWCV*PTP1(JL,JK)
+!      ZP_SO2=ZH_SO2*ZPFAC
+!      ZF_SO2=ZP_SO2/(1.+ZP_SO2)
+!
+!      ZH_H2O2=9.7E+04*EXP(6600.*ZQTP1)
+!      ZP_H2O2=ZH_H2O2*ZPFAC
+!      ZF_H2O2=ZP_H2O2/(1.+ZP_H2O2)
+!
+!      ZRKH2O2(JL,JK)=ZRKE*ZF_SO2*ZF_H2O2
+!    ELSE
+!      ZRKH2O2(JL,JK)=0.
+!    ENDIF
+!  ENDDO
+!ENDDO
+!
+!!   HETEROGENEOUS CHEMISTRY
+!DO JK=KTOP,kl
+!  DO JL=1,ifull
+!    ZXTP1(jl)=XTO(JL,JK,ITRACSO2)
+!    IF(ZXTP1(jl)>ZMIN.AND.ziwcic(JL,JK)>ZMIN) THEN
+!      X=PRHOP1(JL,JK)
+!
+!      ZQTP1=1./PTP1(JL,JK)-ZQ298
+!      ZE1=ZE1K*EXP(ZE1H*ZQTP1)
+!      ZE2=ZE2K*EXP(ZE2H*ZQTP1)
+!      ZE3=ZE3K*EXP(ZE3H*ZQTP1)
 
-      ZH_SO2=ZE2*EXP(ZE2H*ZQTP1)
-      ZPFAC=ZRGAS*ZLWCV*PTP1(JL,JK)
-      ZP_SO2=ZH_SO2*ZPFAC
-      ZF_SO2=ZP_SO2/(1.+ZP_SO2)
-
-      ZH_H2O2=9.7E+04*EXP(6600.*ZQTP1)
-      ZP_H2O2=ZH_H2O2*ZPFAC
-      ZF_H2O2=ZP_H2O2/(1.+ZP_H2O2)
-
-      ZRKH2O2(JL,JK)=ZRKE*ZF_SO2*ZF_H2O2
-    ELSE
-      ZRKH2O2(JL,JK)=0.
-    ENDIF
-  ENDDO
-ENDDO
-
-!   HETEROGENEOUS CHEMISTRY
-DO JK=KTOP,kl
-  DO JL=1,ifull
-    ZXTP1(jl)=XTO(JL,JK,ITRACSO2)
-    IF(ZXTP1(jl)>ZMIN.AND.ziwcic(JL,JK)>ZMIN) THEN
-      X=PRHOP1(JL,JK)
-
-      ZQTP1=1./PTP1(JL,JK)-ZQ298
-      ZE1=ZE1K*EXP(ZE1H*ZQTP1)
-      ZE2=ZE2K*EXP(ZE2H*ZQTP1)
-      ZE3=ZE3K*EXP(ZE3H*ZQTP1)
-
-      ZLWCL=ziwcic(JL,JK)*PRHOP1(JL,JK)*1.E-06
-!    ZLWCL = LWC IN L/CM**3
-      ZLWCV=ziwcic(JL,JK)*PRHOP1(JL,JK)*1.E-03
-!   ZLWCV = LWC IN VOL/VOL
-      ZFAC1=1./(ZLWCL*ZAVO)
-!   ZFAC1 CALCULATES MOLECULES PER CM**3 TO MOLE PER LTR H2O
-      ZRKFAC=ZRGAS*PTP1(JL,JK)*ZLWCV
-!   ZRKFAC CALCULATES DIMENSIONLESS HENRY-COEFF.
-      ZZA=ZE2*ZRKFAC
-      ZA21=4.39E+11*EXP(-4131./PTP1(JL,JK))
-      ZA22=2.56E+03*EXP(-966./PTP1(JL,JK)) !926 corrected to 966 here
-      ZPH_O3=ZE1*ZRKFAC
-      ZF_O3=ZPH_O3/(1.+ZPH_O3)
-      ZDT=PTMST/5.
-
-      ZH2O2M=ZZH2O2(JL,JK)
-      ZSO2M=ZXTP1(jl)*X*6.022E+20/ZMOLGS
-      ZSO4M=ZSO4i(JL,JK)*X*6.022E+20/ZMOLGS
-
-      ZSUMH2O2=0.
-      ZSUMO3=0.
-
-      DO JN=1,5
-        ZQ=ZRKH2O2(JL,JK)*ZH2O2M
-        ZSO2MH=ZSO2M*EXP(-ZQ*ZDT)
-
-        ZDSO2H=ZSO2M-ZSO2MH
-        ZH2O2M=ZH2O2M-ZDSO2H
-        ZH2O2M=AMAX1(0.,ZH2O2M)
-        ZSUMH2O2=ZSUMH2O2+ZDSO2H
-
-        ZSO4M=ZSO4M+ZDSO2H
-!   CALCULATE THE PH VALUE
-        ZSO2L=ZSO2MH*ZFAC1
-        ZSO4L=ZSO4M*ZFAC1
-        ZZB=ZHPBASE+ZSO4L
-        ZZP=(ZZA*ZE3-ZZB-ZZA*ZZB)/(1.+ZZA)
-        ZZQ=-ZZA*ZE3*(ZZB+ZSO2L)/(1.+ZZA)
-        ZZP=0.5*ZZP
-        ZZP2=ZZP*ZZP
-        ZHP=-ZZP+SQRT(ZZP2-ZZQ)
-        ZQHP=1./ZHP
-
-!   CALCULATE THE REACTION RATE FOR SO2-O3
-        ZA2=(ZA21+ZA22*ZQHP)*ZFAC1
-        ZHENEFF=1.+ZE3*ZQHP
-        ZP_SO2=ZZA*ZHENEFF
-        ZF_SO2=ZP_SO2/(1.+ZP_SO2)
-        ZRKO3=ZA2*ZF_O3*ZF_SO2
-
-        ZQ=ZZO3(JL,JK)*ZRKO3
-        ZSO2MO=ZSO2MH*EXP(-ZQ*ZDT)
-        ZDSO2O=ZSO2MH-ZSO2MO
-        ZSO4M=ZSO4M+ZDSO2O
-        ZSO2M=ZSO2MO
-        ZSUMO3=ZSUMO3+ZDSO2O
-      ENDDO  !End of iteration loop
-
-      ZDSO2TOT=ZXTP1(jl)-ZSO2M*ZMOLGS/(6.022E+20*X)
-      ZDSO2TOT=AMIN1(ZDSO2TOT,ZXTP1(jl))
-
-      ZXTP10(JL,JK)=ZXTP1(jl)-ZDSO2TOT*pcfcover(jl,jk)/(1.-pclcover(jl,jk))
-      ZSO4i(JL,JK)=ZSO4i(JL,JK)+ZDSO2TOT*pcfcover(jl,jk)/(1.-pclcover(jl,jk))
-      ZHENRY(JL,JK)=ZF_SO2
-! Diagnostic only...
-      ZFAC=PQTMST*pcfcover(jl,jk)*ZMOLGS/(6.022E+20*X)
-      ZFAC1=ZFAC*rhodz(JL,JK)
-      so2h2(JL)=so2h2(JL)+ZSUMH2O2*ZFAC1
-      so2o3(JL)=so2o3(JL)+ZSUMO3*ZFAC1
-    ENDIF
-  ENDDO
-ENDDO
+!      ZLWCL=ziwcic(JL,JK)*PRHOP1(JL,JK)*1.E-06
+!!    ZLWCL = LWC IN L/CM**3
+!      ZLWCV=ziwcic(JL,JK)*PRHOP1(JL,JK)*1.E-03
+!!   ZLWCV = LWC IN VOL/VOL
+!      ZFAC1=1./(ZLWCL*ZAVO)
+!!   ZFAC1 CALCULATES MOLECULES PER CM**3 TO MOLE PER LTR H2O
+!      ZRKFAC=ZRGAS*PTP1(JL,JK)*ZLWCV
+!!   ZRKFAC CALCULATES DIMENSIONLESS HENRY-COEFF.
+!      ZZA=ZE2*ZRKFAC
+!      ZA21=4.39E+11*EXP(-4131./PTP1(JL,JK))
+!      ZA22=2.56E+03*EXP(-966./PTP1(JL,JK)) !926 corrected to 966 here
+!      ZPH_O3=ZE1*ZRKFAC
+!      ZF_O3=ZPH_O3/(1.+ZPH_O3)
+!      ZDT=PTMST/5.
+!
+!      ZH2O2M=ZZH2O2(JL,JK)
+!      ZSO2M=ZXTP1(jl)*X*6.022E+20/ZMOLGS
+!      ZSO4M=ZSO4i(JL,JK)*X*6.022E+20/ZMOLGS
+!
+!      ZSUMH2O2=0.
+!      ZSUMO3=0.
+!
+!      DO JN=1,5
+!        ZQ=ZRKH2O2(JL,JK)*ZH2O2M
+!        ZSO2MH=ZSO2M*EXP(-ZQ*ZDT)
+!
+!        ZDSO2H=ZSO2M-ZSO2MH
+!        ZH2O2M=ZH2O2M-ZDSO2H
+!        ZH2O2M=AMAX1(0.,ZH2O2M)
+!        ZSUMH2O2=ZSUMH2O2+ZDSO2H
+!
+!        ZSO4M=ZSO4M+ZDSO2H
+!!   CALCULATE THE PH VALUE
+!        ZSO2L=ZSO2MH*ZFAC1
+!        ZSO4L=ZSO4M*ZFAC1
+!        ZZB=ZHPBASE+ZSO4L
+!        ZZP=(ZZA*ZE3-ZZB-ZZA*ZZB)/(1.+ZZA)
+!        ZZQ=-ZZA*ZE3*(ZZB+ZSO2L)/(1.+ZZA)
+!       ZZP=0.5*ZZP
+!        ZZP2=ZZP*ZZP
+!        ZHP=-ZZP+SQRT(ZZP2-ZZQ)
+!        ZQHP=1./ZHP
+!
+!!   CALCULATE THE REACTION RATE FOR SO2-O3
+!        ZA2=(ZA21+ZA22*ZQHP)*ZFAC1
+!        ZHENEFF=1.+ZE3*ZQHP
+!        ZP_SO2=ZZA*ZHENEFF
+!        ZF_SO2=ZP_SO2/(1.+ZP_SO2)
+!        ZRKO3=ZA2*ZF_O3*ZF_SO2
+!
+!        ZQ=ZZO3(JL,JK)*ZRKO3
+!        ZSO2MO=ZSO2MH*EXP(-ZQ*ZDT)
+!        ZDSO2O=ZSO2MH-ZSO2MO
+!        ZSO4M=ZSO4M+ZDSO2O
+!        ZSO2M=ZSO2MO
+!        ZSUMO3=ZSUMO3+ZDSO2O
+!      ENDDO  !End of iteration loop
+!
+!      ZDSO2TOT=ZXTP1(jl)-ZSO2M*ZMOLGS/(6.022E+20*X)
+!      ZDSO2TOT=AMIN1(ZDSO2TOT,ZXTP1(jl))
+!
+!      ZXTP10(JL,JK)=ZXTP1(jl)-ZDSO2TOT*pcfcover(jl,jk)/(1.-pclcover(jl,jk))
+!      ZSO4i(JL,JK)=ZSO4i(JL,JK)+ZDSO2TOT*pcfcover(jl,jk)/(1.-pclcover(jl,jk))
+!      ZHENRY(JL,JK)=ZF_SO2
+!! Diagnostic only...
+!      ZFAC=PQTMST*pcfcover(jl,jk)*ZMOLGS/(6.022E+20*X)
+!      ZFAC1=ZFAC*rhodz(JL,JK)
+!      so2h2(JL)=so2h2(JL)+ZSUMH2O2*ZFAC1
+!      so2o3(JL)=so2o3(JL)+ZSUMO3*ZFAC1
+!    ENDIF
+!  ENDDO
+!ENDDO
 !******************************************************************************
 
 
@@ -1729,12 +1729,9 @@ real, dimension(ifull,naero), intent(inout) :: conwd
 
 ! Local work arrays and variables
 integer, dimension(ifull) :: kbase
-real, dimension(ifull) :: ZDEPS, ZDEPR
-real, dimension(ifull) :: ZMTOF, ZFTOM
-real, dimension(ifull) :: ZCLEAR, ZCLR0
-real, dimension(ifull) :: frc, zbcscav, xbcscav, xdep
+real, dimension(ifull) :: ZDEPS, ZDEPR, ZMTOF, ZFTOM, ZCLEAR, ZCLR0
+real, dimension(ifull) :: frc, zbcscav, xbcscav, xdep, zcollefc
 real, dimension(ifull) :: zicscav, plambda, zilcscav, ziicscav, xicscav
-real, dimension(ifull) :: zcollefc
 
 integer jk,jl
 real pqtmst,zevap
@@ -1743,14 +1740,11 @@ real xevap,pcevap
 
 integer, parameter :: ktop = 2    !Top level for wet deposition (counting from top)
 ! Allow in-cloud scavenging in ice clouds for hydrophobic BC and OC, and dust
-!real, dimension(naero), parameter :: Ecols = (/0.00,0.00,0.00,0.05,0.00,0.05,0.00,0.05,0.05,0.05,0.05/)
-real, dimension(naero), parameter :: Ecols = (/0.00,0.00,0.00,0.10,0.00,0.10,0.00,0.10,0.10,0.10,0.10/)
+real, dimension(naero), parameter :: Ecols = (/0.00,0.00,0.00,0.05,0.00,0.05,0.00,0.05,0.05,0.05,0.05/)
 !Below-cloud collection eff. for rain
-!real, dimension(naero), parameter :: zcollefr = (/0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.10,0.20,0.40/)
-real, dimension(naero), parameter :: zcollefr = (/0.10,0.10,0.10,0.10,0.10,0.10,0.10,0.10,0.20,0.40,0.80/)
+real, dimension(naero), parameter :: zcollefr = (/0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.10,0.20,0.40/)
 !Below-cloud collection eff. for snow
-!real, dimension(naero), parameter :: zcollefs = (/0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.02,0.04,0.08/)
-real, dimension(naero), parameter :: zcollefs = (/0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.04,0.08,0.16/)
+real, dimension(naero), parameter :: zcollefs = (/0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.02,0.04,0.08/)
 !Retention coeff. on riming
 real, dimension(naero), parameter :: Rcoeff = (/1.00,0.62,1.00,0.00,1.00,0.00,1.00,1.00,1.00,1.00,1.00/)
 !Relative reevaporation rate
@@ -1954,6 +1948,7 @@ real, dimension(ifull,kl), intent(in) :: prf    !Pressure (hPa)
 ! Local work arrays and variables
 real, dimension(ifull) :: dcol1, dcol2
 real, dimension(ifull) :: c_stokes, corr, c_cun
+real, dimension(ifull) :: newxtg, b, dfall
 real, dimension(ifull,kl) :: vd_cor
 real dtmax,vsettl,dt_settl
 integer n,k,l,ndt_settl
@@ -1998,7 +1993,10 @@ do k = 1, NDUST
     ! Settling velocity
     Vd_cor(:,kl) =2./9.*grav*dustden(k)*dustreff(k)**2/C_Stokes*C_Cun
     ! Update mixing ratio
-    xtg(1:ifull,kl,k+itracdu-1) = xtg(1:ifull,kl,k+itracdu-1) / (1. + dt_settl*VD_cor(:,kl)/DELZ(:,kl))
+    b = dt_settl*VD_cor(:,kl)/DELZ(:,kl)
+    newxtg = xtg(1:ifull,kl,k+itracdu-1) * (1. - 0.5 * b) / (1. + 0.5 * b)
+    dfall = xtg(1:ifull,kl,k+itracdu-1) - newxtg
+    xtg(1:ifull,kl,k+itracdu-1) = newxtg
 
     ! Solve each vertical layer successively (layer l)
     do l = kl-1,1,-1
@@ -2010,9 +2008,12 @@ do k = 1, NDUST
       ! Settling velocity
       Vd_cor(:,l) = 2./9.*grav*dustden(k)*dustreff(k)*dustreff(k)/C_Stokes*C_Cun
       ! Update mixing ratio
-      xtg(1:ifull,l,k+itracdu-1) = 1./(1. + dt_settl*Vd_cor(:,l)/DELZ(:,l))                               &
-          *(xtg(1:ifull,l,k+itracdu-1) + dt_settl*Vd_cor(:,l+1)/DELZ(:,l)*xtg(1:ifull,l+1,k+itracdu-1)    &
-          *rhoa(:,l+1)/rhoa(:,l))  ! MJT suggestion
+      b = dt_settl*Vd_cor(:,l)/DELZ(:,l)
+      xtg(1:ifull,l,k+itracdu-1) = xtg(1:ifull,l,k+itracdu-1) + &
+           dfall * delz(:,l+1)*rhoa(:,l+1)/(delz(:,l)*rhoa(:,l))
+      newxtg = xtg(1:ifull,l,k+itracdu-1) * (1. - 0.5 * b) / (1. + 0.5 * b)
+      dfall = xtg(1:ifull,kl,k+itracdu-1) - newxtg
+      xtg(1:ifull,l,k+itracdu-1) = newxtg
     end do
   end do
 end do
@@ -2021,7 +2022,7 @@ end do
 dcol2 = 0.
 do n=itracdu,itracdu+ndust-1
   do k=1,kl
-    dcol2 = dcol2 + rhoa(:,k) * xtg(1:ifull,k,n) * delz (:,k)
+    dcol2 = dcol2 + rhoa(:,k) * xtg(1:ifull,k,n) * delz(:,k)
   enddo
 enddo
 
@@ -2114,8 +2115,10 @@ do n = 1, ndust
 ! Use the tau-1 value of dust m.r. for now, but may modify this...
 
 ! Use full layer thickness for CSIRO model (should be correct if Vt is relative to mid-layer)
-  veff = Vt*(wg+(1.-wg)*exp(-max( 0., w10m-u_ts0 )))
-  b = Veff / dz1
+!  veff = Vt*(wg+(1.-wg)*exp(-max( 0., w10m-u_ts0 )))
+!  b = Veff / dz1
+!  MJT suggestion
+   b = Vt / dz1
 
 ! Update mixing ratio
 ! Write in form dx/dt = a - bx (a = source term, b = drydep term)
@@ -2344,8 +2347,7 @@ logical, dimension(size(fscav)) :: bwkp1
 ! Hard-coded for 3 sulfur variables, 4 carbonaceous, 4 mineral dust.
 ! Note that value for SO2 (index 2) is overwritten by Henry coefficient f_so2 below.
 ! These ones are for 3 SULF, 4 CARB and 4 or 8 DUST (and include dummy variables at end)
-!real, parameter, dimension(naero) :: scav_effl = (/0.00,1.00,0.90,0.00,0.30,0.00,0.30,0.05,0.05,0.05,0.05/) ! liquid
-real, parameter, dimension(naero) :: scav_effl = (/0.00,1.00,0.90,0.00,0.30,0.00,0.30,0.10,0.10,0.10,0.10/) ! liquid
+real, parameter, dimension(naero) :: scav_effl = (/0.00,1.00,0.90,0.00,0.30,0.00,0.30,0.05,0.05,0.05,0.05/) ! liquid
 real, parameter, dimension(naero) :: scav_effi = (/0.00,0.00,0.00,0.05,0.00,0.05,0.00,0.05,0.05,0.05,0.05/) ! ice
 
 !bwkp1(:)=tt(:)>=ticeu ! condensate in parcel is liquid (true) or ice (false)
