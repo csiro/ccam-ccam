@@ -1764,15 +1764,6 @@ integer,                     intent(in)  :: k_min, k_max
 !
 !--------------------------------------------------------------------
 
-!---------------------------------------------------------------------
-!    be sure module has been initialized.
-!---------------------------------------------------------------------
-      if (.not. module_is_initialized ) then
-!        call error_mesg ('rad_utilities_mod',   &
-!               'module has not been initialized', FATAL )
-        stop
-      endif
-
       i_min = lbound(ix,1)
       i_max = ubound(ix,1)
       j_min = lbound(ix,2)
@@ -1896,15 +1887,6 @@ integer,                     intent(in)   :: k_min, k_max
 !
 !-------------------------------------------------------------------
 
-!---------------------------------------------------------------------
-!    be sure module has been initialized.
-!---------------------------------------------------------------------
-      if (.not. module_is_initialized ) then
-        !call error_mesg ('rad_utilities_mod',   &
-        !       'module has not been initialized', FATAL )
-        stop
-      endif
-
       i_min = lbound(ix,1)
       i_max = ubound(ix,1)
       j_min = lbound(ix,2)
@@ -2019,17 +2001,6 @@ integer,                     intent(in)  :: k_min, k_max
 !    i,j,k
 !
 !-------------------------------------------------------------------
-
-!---------------------------------------------------------------------
-!    be sure module has been initialized.
-!---------------------------------------------------------------------
-      if (.not. module_is_initialized ) then
-        !call error_mesg ('rad_utilities_mod',   &
-        !       'module has not been initialized', FATAL )
-        stop
-      endif
-
-!-----------------------------------------------------------------
       i_min = lbound(ix,1)
       i_max = ubound(ix,1)
       j_min = lbound(ix,2)
@@ -2407,17 +2378,6 @@ logical, dimension(:,:,:), intent(in)      :: mask
 !
 !--------------------------------------------------------------------
 
-!-------------------------------------------------------------------
-!    be sure module has been initialized.
-!--------------------------------------------------------------------
-      if (.not. module_is_initialized) then
-        !call error_mesg ('rad_utilities_mod',  &
-        ! 'initialization routine of this module was never called', &
-        !                                                         FATAL)
-        stop
-      endif
-
-!------------------------------------------------------ --------------
 !--------------------------------------------------------------------
       do nband = 1,nbands
         sumk(:,:,:) = 0.0
@@ -2426,55 +2386,38 @@ logical, dimension(:,:,:), intent(in)      :: mask
         sumrefthick(:,:,:) = 0.0
         do ni = nivl1(nband),nivl2(nband)
 !
-          do k=1, size(ssalbivl,3)
-            do j=1,size(ssalbivl,2)
-              do i=1,size(ssalbivl,1)
-                if (mask(i,j,k)) then
-                  ssalbivl(i,j,k,ni) = MIN(ssalbivl(i,j,k,ni), 1.0)
-                  sp(i,j,k) = sqrt( ( 1.0 - ssalbivl(i,j,k,ni) ) /    &
-                                    ( 1.0 - ssalbivl(i,j,k,ni) *      &
-                                      asymmivl(i,j,k,ni) ) )
-                  refthick(i,j,k) = (1.0 - sp(i,j,k))/(1.0 + sp(i,j,k))
-                  sumrefthick(i,j,k) = sumrefthick(i,j,k) +    &
-                                       refthick(i,j,k)*  &
-                                       solflxivl(nband,ni)
-                  sumk(i,j,k) = sumk(i,j,k) + extivl(i,j,k,ni) *   &
-                                solflxivl(nband,ni)
-                  sumomegak(i,j,k) = sumomegak(i,j,k) +     &
-                                     ssalbivl(i,j,k,ni)*   &
-                                     extivl(i,j,k,ni) *   &
-                                     solflxivl(nband,ni)
-                  sumomegakg(i,j,k) = sumomegakg(i,j,k) +    &
-                                      ssalbivl(i,j,k,ni)*&
-                                      extivl(i,j,k,ni)*  &
-                                      asymmivl(i,j,k,ni) * &
-                                      solflxivl(nband,ni)
-                endif
-              end do
-            end do
-          end do
+          where (mask)
+            ssalbivl(:,:,:,ni) = MIN(ssalbivl(:,:,:,ni), 1.0)
+            sp = sqrt( ( 1.0 - ssalbivl(:,:,:,ni) ) /           &
+                              ( 1.0 - ssalbivl(:,:,:,ni) *      &
+                                asymmivl(:,:,:,ni) ) )
+            refthick = (1.0 - sp)/(1.0 + sp)
+            sumrefthick = sumrefthick + refthick*solflxivl(nband,ni)
+            sumk = sumk + extivl(:,:,:,ni) * solflxivl(nband,ni)
+            sumomegak = sumomegak +           &
+                        ssalbivl(:,:,:,ni)*   &
+                        extivl(:,:,:,ni) *    &
+                        solflxivl(nband,ni)
+            sumomegakg = sumomegakg +         &
+                         ssalbivl(:,:,:,ni)*  &
+                         extivl(:,:,:,ni)*    &
+                         asymmivl(:,:,:,ni) * &
+                         solflxivl(nband,ni)
+          end where
         end do
 
 !---------------------------------------------------------------------
 !    the 1.0E-100 factor to calculate asymmband is to prevent        
 !    division by zero.                                             
 !---------------------------------------------------------------------
-        do k=1, size(ssalbivl,3)
-          do j=1,size(ssalbivl,2)
-            do i=1,size(ssalbivl,1)
-              extband(i,j,k,nband) = sumk(i,j,k) / solflxband(nband)
-              asymmband(i,j,k,nband) = sumomegakg(i,j,k) /         &
-                                       ( sumomegak(i,j,k) + 1.0E-100)
-              refband(i,j,k,nband) = sumrefthick(i,j,k)/  &
-                                     solflxband(nband)
-              ssalbband(i,j,k,nband) = 4.0 * refband(i,j,k,nband) / &
-                                       ((1.0 +    &
-                                       refband(i,j,k,nband)) ** 2 -&
-                                       asymmband(i,j,k,nband) *     &
-                                       (1.0 - refband(i,j,k,nband))**2 )
-            end do
-          end do
-        end do
+        extband(:,:,:,nband) = sumk / solflxband(nband)
+        asymmband(:,:,:,nband) = sumomegakg / ( sumomegak + 1.0E-100)
+        refband(:,:,:,nband) = sumrefthick/ solflxband(nband)
+        ssalbband(:,:,:,nband) = 4.0 * refband(:,:,:,nband) /      &
+                                ((1.0 +                            &
+                                 refband(:,:,:,nband)) ** 2 -      &
+                                 asymmband(:,:,:,nband) *          &
+                                 (1.0 - refband(:,:,:,nband))**2 )
       end do
 
 !---------------------------------------------------------------------
@@ -2799,8 +2742,8 @@ real, dimension(:,:,:),   intent(out)      :: extband
 !--------------------------------------------------------------------
 !  local variables:
  
-      real     ::  sumk
-      integer  ::  i, j, k, ni
+      real, dimension(size(extivl,1),size(extivl,2),size(extivl,3)) ::  sumk
+      integer  ::  ni
  
 !--------------------------------------------------------------------
 !  local variables:
@@ -2809,35 +2752,15 @@ real, dimension(:,:,:),   intent(out)      :: extband
 !     i,j,k,ni
 !
 !--------------------------------------------------------------------
-
-!-------------------------------------------------------------------
-!    be sure module has been initialized.
-!--------------------------------------------------------------------
-      if (.not. module_is_initialized) then
-        !call error_mesg ('rad_utilities_mod',  &
-        ! 'initialization routine of this module was never called', &
-        !                                                         FATAL)
-        stop
-      endif
-
-!--------------------------------------------------------------------
-!
-      do k=1, size(extivl,3)
-        do j=1,size(extivl,2)
-          do i=1,size(extivl,1)
-            if (mask(i,j,k)) then
-              sumk = 0.0
-              do ni = nivl1,nivl2
-                sumk = sumk + extivl(i,j,k,ni)*solflxivl(nband,ni)
-              end do
-              extband(i,j,k) = sumk/solflxband
-            endif
-          end do
-        end do
+      sumk = 0.0
+      do ni = nivl1,nivl2
+        where (mask)
+          sumk = sumk + extivl(:,:,:,ni)*solflxivl(nband,ni)
+        end where
       end do
-
-!---------------------------------------------------------------------
-
+      where (mask)
+        extband = sumk/solflxband
+      end where
   
 end subroutine thickavg_isccp
 
@@ -2989,10 +2912,12 @@ logical, dimension(:,:,:), intent(in)      :: mask
 !--------------------------------------------------------------------
 !  local variables:
  
-      real :: refband, sp, refthick
-      real :: sumk, sumomegak, sumomegakg,  sumrefthick
+      real, dimension(size(ssalbivl,1),size(ssalbivl,2),size(ssalbivl,3)) :: &
+          refband, sp, refthick
+      real, dimension(size(ssalbivl,1),size(ssalbivl,2),size(ssalbivl,3)) :: &
+          sumk, sumomegak, sumomegakg,  sumrefthick
 
-      integer  :: i, j, k, ni
+      integer  :: ni
  
 !--------------------------------------------------------------------
 !  local variables:
@@ -3009,59 +2934,39 @@ logical, dimension(:,:,:), intent(in)      :: mask
 !
 !--------------------------------------------------------------------
 
-!-------------------------------------------------------------------
-!    be sure module has been initialized.
-!--------------------------------------------------------------------
-      if (.not. module_is_initialized) then
-        !call error_mesg ('rad_utilities_mod',  &
-        ! 'initialization routine of this module was never called', &
-        !                                                         FATAL)
-        stop
-      endif
-
-!--------------------------------------------------------------------
-!
-!--------------------------------------------------------------------
-      do k=1, size(ssalbivl,3)
-        do j=1,size(ssalbivl,2)
-          do i=1,size(ssalbivl,1)
-            if (mask(i,j,k)) then
-              sumk        = 0.0
-              sumomegak        = 0.0
-              sumomegakg        = 0.0
-              sumrefthick        = 0.0
-              do ni = nivl1,nivl2
-                ssalbivl(i,j,k,ni) = MIN(ssalbivl(i,j,k,ni), 1.0)
-                sp = sqrt((1.0 - ssalbivl(i,j,k,ni) ) /    &
-                          (1.0 - ssalbivl(i,j,k,ni)*asymmivl(i,j,k,ni)))
-                refthick = (1.0 - sp)/(1.0 + sp)
-                sumrefthick = sumrefthick + refthick*solflxivl(nband,ni)
-                sumk = sumk + extivl(i,j,k,ni)*solflxivl(nband,ni)
-                sumomegak = sumomegak + ssalbivl(i,j,k,ni)*   &
-                                        extivl(i,j,k,ni)*   &
-                                        solflxivl(nband,ni)
-                sumomegakg = sumomegakg + ssalbivl(i,j,k,ni)*&
-                                          extivl(i,j,k,ni)*  &
-                                          asymmivl(i,j,k,ni)* &
-                                          solflxivl(nband,ni)
-              end do
+      sumk        = 0.0
+      sumomegak        = 0.0
+      sumomegakg        = 0.0
+      sumrefthick        = 0.0
+      do ni = nivl1,nivl2
+        where (mask)
+          ssalbivl(:,:,:,ni) = MIN(ssalbivl(:,:,:,ni), 1.0)
+          sp = sqrt((1.0 - ssalbivl(:,:,:,ni) ) /    &
+                    (1.0 - ssalbivl(:,:,:,ni)*asymmivl(:,:,:,ni)))
+          refthick = (1.0 - sp)/(1.0 + sp)
+          sumrefthick = sumrefthick + refthick*solflxivl(nband,ni)
+          sumk = sumk + extivl(:,:,:,ni)*solflxivl(nband,ni)
+          sumomegak = sumomegak + ssalbivl(:,:,:,ni)*   &
+                                  extivl(:,:,:,ni)*   &
+                                  solflxivl(nband,ni)
+          sumomegakg = sumomegakg + ssalbivl(:,:,:,ni)*&
+                                    extivl(:,:,:,ni)*  &
+                                    asymmivl(:,:,:,ni)* &
+                                    solflxivl(nband,ni)
+        end where
+      end do
 
 !---------------------------------------------------------------------
 !    the 1.0E-100 factor to calculate asymmband is to prevent        
 !    division by zero.                                             
 !---------------------------------------------------------------------
-              extband(i,j,k) = sumk/solflxband
-              asymmband(i,j,k) = sumomegakg/(sumomegak + 1.0E-100)
-              refband  = sumrefthick/solflxband        
-              ssalbband(i,j,k) = 4.0*refband/((1.0 + refband) ** 2 - &
-                                 asymmband(i,j,k)*(1.0 - refband)**2 )
-            endif
-          end do
-        end do
-      end do
-
-!---------------------------------------------------------------------
-
+      where (mask)
+        extband = sumk/solflxband
+        asymmband = sumomegakg/(sumomegak + 1.0E-100)
+        refband  = sumrefthick/solflxband        
+        ssalbband = 4.0*refband/((1.0 + refband) ** 2 - &
+                           asymmband*(1.0 - refband)**2 )
+      end where
   
 end subroutine thickavg_1band
 
@@ -3217,66 +3122,36 @@ real, dimension(:,:,:,:), intent(out)      :: extband, ssalbband,   &
 !    i,j,k,ni
 !
 !--------------------------------------------------------------------
-
-!-------------------------------------------------------------------
-!    be sure module has been initialized.
-!--------------------------------------------------------------------
-      if (.not. module_is_initialized) then
-        !call error_mesg ('rad_utilities_mod',  &
-        ! 'initialization routine of this module was never called', &
-        !                                                         FATAL)
-        stop
-      endif
-
-!---------------------------------------------------------------------
-!
-!---------------------------------------------------------------------
       do nband = 1,nbands
         sumk(:,:,:) = 0.0
         sumomegak(:,:,:) = 0.0
         sumomegakg(:,:,:) = 0.0
         do ni = nivl1(nband),nivl2(nband)
-          do k=1, size(ssalbivl,3)
-            do j=1,size(ssalbivl,2)
-              do i=1,size(ssalbivl,1)
-                if ((ssalbivl(i,j,k,ni) +    &
-                     asymmivl(i,j,k,ni)) /= 0.0) then
-                  ssalbivl(i,j,k,ni) = MIN(ssalbivl(i,j,k,ni), 1.0)
-                  sumk(i,j,k) = sumk(i,j,k) + extivl(i,j,k,ni) *   &
+          where ((ssalbivl(:,:,:,ni) + asymmivl(:,:,:,ni)) /= 0.0)
+            ssalbivl(:,:,:,ni) = MIN(ssalbivl(:,:,:,ni), 1.0)
+            sumk = sumk + extivl(:,:,:,ni) *          &
+                          solflxivl(nband,ni)
+            sumomegak = sumomegak +                   &
+                               ssalbivl(:,:,:,ni) *   &
+                               extivl(:,:,:,ni) *     &
+                               solflxivl(nband,ni)
+            sumomegakg = sumomegakg +                 &
+                                ssalbivl(:,:,:,ni) *  & 
+                                extivl(:,:,:,ni) *    &
+                                asymmivl(:,:,:,ni) *  &
                                 solflxivl(nband,ni)
-                  sumomegak(i,j,k) = sumomegak(i,j,k) +    &
-                                     ssalbivl(i,j,k,ni) *  &
-                                     extivl(i,j,k,ni) *   &
-                                     solflxivl(nband,ni)
-                  sumomegakg(i,j,k) = sumomegakg(i,j,k) +    &
-                                      ssalbivl(i,j,k,ni) * & 
-                                      extivl(i,j,k,ni) *   &
-                                      asymmivl(i,j,k,ni) *  &
-                                      solflxivl(nband,ni)
-                endif
-              end do
-            end do
-          end do
+          end where
         end do
 
 !----------------------------------------------------------------------
 !
 !---------------------------------------------------------------------
-        do k=1, size(ssalbivl,3)
-          do j=1,size(ssalbivl,2)
-            do i=1,size(ssalbivl,1)
-              extband(i,j,k,nband) = sumk(i,j,k) / solflxband(nband)
-              asymmband(i,j,k,nband) = sumomegakg(i,j,k) /    &
-                                       ( sumomegak(i,j,k) + 1.0E-100 )
-              ssalbband(i,j,k,nband) = sumomegak(i,j,k) /   &
-                                       ( sumk(i,j,k) + 1.0E-100 )
-            end do
-          end do
-        end do
+        extband(:,:,:,nband) = sumk / solflxband(nband)
+        asymmband(:,:,:,nband) = sumomegakg /    &
+                                 ( sumomegak + 1.0E-100 )
+        ssalbband(:,:,:,nband) = sumomegak /   &
+                                 ( sumk + 1.0E-100 )
       end do
-
-!-------------------------------------------------------------------
-  
 
 end subroutine thinavg 
 

@@ -2054,7 +2054,7 @@ integer, dimension(ndust), parameter :: ipoint = (/ 3, 2, 2, 2 /) !Pointer used 
 ! All source is in first four bins, even when using eight bins, since next four are hydrophilic.
 real, dimension(ndust), parameter :: frac_s = (/ 0.1, 0.25, 0.25, 0.25 /)
 real, dimension(ifull) :: snowa     !Estimated snow areal coverage
-real, dimension(ifull) :: u_ts0,u_ts
+real, dimension(ifull) :: u_ts0,u_ts,veff
 real, dimension(ifull) :: srce,dsrc,airmas
 real, dimension(ifull) :: a,b,xold,xtendd
 real, dimension(ifull) :: airden
@@ -2113,9 +2113,8 @@ do n = 1, ndust
 ! Use the tau-1 value of dust m.r. for now, but may modify this...
 
 ! Use full layer thickness for CSIRO model (should be correct if Vt is relative to mid-layer)
-  !veff = Vt*(wg+(1.-wg)*exp(-max( 0., w10m-u_ts0 )))
-  !b = Veff / dz1
-  b = Vt / dz1 ! MJT suggestion
+  veff = Vt*(wg+(1.-wg)*exp(-max( 0., w10m-u_ts0 )))
+  b = Veff / dz1
 
 ! Update mixing ratio
 ! Write in form dx/dt = a - bx (a = source term, b = drydep term)
