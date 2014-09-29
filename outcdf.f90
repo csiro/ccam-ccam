@@ -938,19 +938,23 @@ if( myid==0 .or. local ) then
       lname = 'Dust wet deposition'
       call attrib(idnc,idim,3,'dustwd_ave',lname,'g/(m2 yr)',0.,390.,0,itype)
       lname = 'Dust burden'
-      call attrib(idnc,idim,3,'dustb_ave',lname,'mg/m2',0.,13000.,0,itype)
+      call attrib(idnc,idim,3,'dustb_ave',lname,'mg/m2',0.,1300.,0,itype)
       lname = 'Black carbone emissions'
       call attrib(idnc,idim,3,'bce_ave',lname,'g/(m2 yr)',0.,390.,0,itype)  
       lname = 'Black carbon dry deposition'
       call attrib(idnc,idim,3,'bcdd_ave',lname,'g/(m2 yr)',0.,390.,0,itype) 
       lname = 'Black carbon wet deposition'
       call attrib(idnc,idim,3,'bcwd_ave',lname,'g/(m2 yr)',0.,390.,0,itype)
-      lname = 'Organic carbone emissions'
+      lname = 'Black carbon burden'
+      call attrib(idnc,idim,3,'bcb_ave',lname,'mg/m2',0.,130.,0,itype)
+      lname = 'Organic carbon emissions'
       call attrib(idnc,idim,3,'oce_ave',lname,'g/(m2 yr)',0.,390.,0,itype)  
       lname = 'Organic carbon dry deposition'
       call attrib(idnc,idim,3,'ocdd_ave',lname,'g/(m2 yr)',0.,390.,0,itype) 
       lname = 'Organic carbon wet deposition'
       call attrib(idnc,idim,3,'ocwd_ave',lname,'g/(m2 yr)',0.,390.,0,itype)
+      lname = 'Organic carbon burden'
+      call attrib(idnc,idim,3,'ocb_ave',lname,'mg/m2',0.,130.,0,itype)
       lname = 'DMS emissions'
       call attrib(idnc,idim,3,'dmse_ave',lname,'gS/(m2 yr)',0.,390.,0,itype) 
       lname = 'DMS to SO2 oxidation'
@@ -970,11 +974,11 @@ if( myid==0 .or. local ) then
       lname = 'SO4 wet deposition'
       call attrib(idnc,idim,3,'so4wd_ave',lname,'gS/(m2 yr)',0.,390.,0,itype) 
       lname = 'DMS burden'
-      call attrib(idnc,idim,3,'dmsb_ave',lname,'mgS/m2',0.,130.,0,itype) 
+      call attrib(idnc,idim,3,'dmsb_ave',lname,'mgS/m2',0.,13.,0,itype) 
       lname = 'SO2 burden'
-      call attrib(idnc,idim,3,'so2b_ave',lname,'mgS/m2',0.,130.,0,itype) 
+      call attrib(idnc,idim,3,'so2b_ave',lname,'mgS/m2',0.,13.,0,itype) 
       lname = 'SO4 burden'
-      call attrib(idnc,idim,3,'so4b_ave',lname,'mgS/m2',0.,130.,0,itype) 
+      call attrib(idnc,idim,3,'so4b_ave',lname,'mgS/m2',0.,13.,0,itype) 
     end if
 
     ! CABLE -----------------------------------------------------
@@ -1741,12 +1745,16 @@ if ( nextout>=1 .and. abs(iaero)>=2 .and. nrad==5 ) then
   call histwrt3(aa,'bcdd_ave',idnc,iarch,local,lave)
   aa=max(bcwd*3.154e10,0.) ! g/m2/yr
   call histwrt3(aa,'bcwd_ave',idnc,iarch,local,lave)
+  aa=max(bc_burden*1.e6,0.) ! mg/m2
+  call histwrt3(aa,'bcb_ave',idnc,iarch,local,lave)
   aa=max(oce*3.154e10,0.) ! g/m2/yr
   call histwrt3(aa,'oce_ave',idnc,iarch,local,lave)
   aa=max(ocdd*3.154e10,0.) ! g/m2/yr
   call histwrt3(aa,'ocdd_ave',idnc,iarch,local,lave)
   aa=max(ocwd*3.154e10,0.) ! g/m2/yr
   call histwrt3(aa,'ocwd_ave',idnc,iarch,local,lave)
+  aa=max(oc_burden*1.e6,0.) ! mg/m2
+  call histwrt3(aa,'ocb_ave',idnc,iarch,local,lave)
   aa=max(dmse*3.154e10,0.) ! gS/m2/yr (*1.938 for g/m2/yr)
   call histwrt3(aa,'dmse_ave',idnc,iarch,local,lave)
   aa=max(dmsso2o*3.154e10,0.) ! gS/m2/yr

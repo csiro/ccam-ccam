@@ -10,10 +10,9 @@ implicit none
 private
 public aldrcalc,aldrinit,aldrend,aldrloademiss,aldrloaderod,aldrloadoxidant,cldrop,convscav
 public xtg,xtgsav,xtosav,naero,ssn
-public itracdu,ndust,dustdd,dustwd,duste
-public dust_burden
-public itracbc,bce,bcdd,bcwd
-public itracoc,oce,ocdd,ocwd
+public itracdu,ndust,dustdd,dustwd,duste,dust_burden
+public itracbc,bce,bcdd,bcwd,bc_burden
+public itracoc,oce,ocdd,ocwd,oc_burden
 public itracso2,dmse,dmsso2o,so2e,so2so4o,so2dd,so2wd,so4e,so4dd,so4wd
 public dms_burden,so2_burden,so4_burden
 public Ch_dust,zvolcemi,ticeu,dzmin_gbl,aeroindir
@@ -35,9 +34,11 @@ real, dimension(:), allocatable, save :: dust_burden   ! Diagnostic - dust burde
 real, dimension(:), allocatable, save :: bce           ! Diagnostic - black carbon emissions
 real, dimension(:), allocatable, save :: bcdd          ! Diagnostic - black carbon dry deposition
 real, dimension(:), allocatable, save :: bcwd          ! Diagnostic - black carbon wet deposition
+real, dimension(:), allocatable, save :: bc_burden     ! Diagnostic - black carbon burden
 real, dimension(:), allocatable, save :: oce           ! Diagnostic - organic carbon emissions
 real, dimension(:), allocatable, save :: ocdd          ! Diagnostic - organic carbon dry deposition
 real, dimension(:), allocatable, save :: ocwd          ! Diagnostic - organic carbon wet deposition
+real, dimension(:), allocatable, save :: oc_burden     ! Diagnostic - organic carbon burden
 real, dimension(:), allocatable, save :: dmse          ! Diagnostic - DMS emissions
 real, dimension(:), allocatable, save :: dmsso2o       ! Diagnostic - DMS->so2 oxidation
 real, dimension(:), allocatable, save :: so2e          ! Diagnostic - so2 emissions
@@ -126,7 +127,9 @@ allocate(zoxidant(ifull,4*kl),erod(ifull,ndcls))
 allocate(duste(ifull),dustdd(ifull),dustwd(ifull))
 allocate(dust_burden(ifull))
 allocate(bce(ifull),bcdd(ifull),bcwd(ifull))
+allocate(bc_burden(ifull))
 allocate(oce(ifull),ocdd(ifull),ocwd(ifull))
+allocate(oc_burden(ifull))
 allocate(dmse(ifull),dmsso2o(ifull))
 allocate(so2e(ifull),so2so4o(ifull),so2dd(ifull),so2wd(ifull))
 allocate(so4e(ifull),so4dd(ifull),so4wd(ifull))
@@ -147,9 +150,11 @@ dust_burden=0.
 bce=0.
 bcdd=0.
 bcwd=0.
+bc_burden=0.
 oce=0.
 ocdd=0.
 ocwd=0.
+oc_burden=0.
 dmse=0.
 dmsso2o=0.
 so2e=0.
@@ -205,7 +210,9 @@ deallocate(zoxidant,erod)
 deallocate(duste,dustdd,dustwd)
 deallocate(dust_burden)
 deallocate(bce,bcdd,bcwd)
+deallocate(bc_burden)
 deallocate(oce,ocdd,ocwd)
+deallocate(oc_burden)
 deallocate(dmse,dmsso2o)
 deallocate(so2e,so2so4o,so2dd,so2wd)
 deallocate(so4e,so4dd,so4wd)
@@ -454,6 +461,22 @@ do nt=1,ndust
   end do
 end do
 dust_burden=dust_burden+burden
+
+burden=0.
+do nt=itracbc,itracbc+1
+  do k=1,kl
+    burden=burden+xtg(1:ifull,k,nt)*rhoa(:,k)*dz(:,k)
+  end do
+end do
+bc_burden=bc_burden+burden
+
+burden=0.
+do nt=itracoc,itracoc+1
+  do k=1,kl
+    burden=burden+xtg(1:ifull,k,nt)*rhoa(:,k)*dz(:,k)
+  end do
+end do
+oc_burden=oc_burden+burden
 
 burden=0.
 do k=1,kl

@@ -38,7 +38,7 @@ integer, parameter :: N_AEROSOL_BANDS_FR = 8
 integer, parameter :: N_AEROSOL_BANDS_CO = 1
 integer, parameter :: N_AEROSOL_BANDS_CN = 1
 integer, parameter :: N_AEROSOL_BANDS    = N_AEROSOL_BANDS_FR+N_AEROSOL_BANDS_CO
-integer, parameter :: nfields            = 11
+integer, parameter :: nfields            = 10
 logical, parameter :: do_totcld_forcing  = .true.
 logical, parameter :: include_volcanoes  = .false.
 logical, save :: do_aerosol_forcing
@@ -97,7 +97,7 @@ real, dimension(imax) :: qsat,coszro2,taudar2,coszro,taudar,mx
 real, dimension(imax) :: sg,sint,sout,sgdn,rg,rt,rgdn,sgdnvis,sgdnnir
 real, dimension(imax) :: soutclr,sgclr,rtclr,rgclr,sga
 real, dimension(imax) :: sgvis,sgdnvisdir,sgdnvisdif,sgdnnirdir,sgdnnirdif
-real, dimension(imax) :: dprf,dumfbeam,tv,tnhs
+real, dimension(imax) :: dzrho,dumfbeam,tv,tnhs
 real, dimension(imax) :: cuvrf_dir,cirrf_dir,cuvrf_dif,cirrf_dif
 real, dimension(kl+1) :: sigh
 real(kind=8), dimension(:,:), allocatable, save :: pref
@@ -362,8 +362,7 @@ if ( first ) then
     Aerosol_props%optical_index(7)=710                            ! dust_1.0  (using 1.4)
     Aerosol_props%optical_index(8)=711                            ! dust_2.0  (using 2.4)
     Aerosol_props%optical_index(9)=712                            ! dust_4.0  (using 4.5)
-    Aerosol_props%optical_index(10)=705                           ! sea_salt (film drop 0.2)
-    Aerosol_props%optical_index(11)=705                           ! sea_salt (jet drop 1.0)
+    Aerosol_props%optical_index(10)=705                           ! sea_salt (film drop + jet drop)
     ! GFDL bins dust1=0.1-0.5, dust2=0.5-1, dust3=1-2.5, dust4=2.5-5, dust5=5-10
     ! GFDL bins salt1=0.1-0.5, salt2=0.5-1, salt3=1-2.5, salt4=2.5-5, dust5=5-10
 
@@ -519,38 +518,38 @@ if ( first ) then
   Rad_gases%rrvf12  = real(rrvf12 ,8)
   Rad_gases%rrvf113 = real(rrvf113,8)
   Rad_gases%rrvf22  = real(rrvf22 ,8)
-  call sealw99_time_vary(Rad_time,Rad_gases)
+  call sealw99_time_vary(Rad_time, Rad_gases)
   
   ! define diagnostic cloud levels
-  f1=1.
-  f2=1.
-  do k=1,kl-1
-    if(abs(sigmh(k+1)-siglow)<f1)then
-      f1=abs(sigmh(k+1)-siglow)
-      nlow=k
-    endif
-    if(abs(sigmh(k+1)-sigmid)<f2)then
-      f2=abs(sigmh(k+1)-sigmid)
-      nmid=k
-    endif
-  enddo
+  f1 = 1.
+  f2 = 1.
+  do k = 1,kl-1
+    if ( abs(sigmh(k+1)-siglow)<f1 ) then
+      f1   = abs(sigmh(k+1)-siglow)
+      nlow = k
+    end if
+    if ( abs(sigmh(k+1)-sigmid)<f2 ) then
+      f2   = abs(sigmh(k+1)-sigmid)
+      nmid = k
+    end if
+  end do
 
   ! initialise VIS fraction of SW radiation
-  swrsave=0.5
+  swrsave = 0.5
   
 end if  ! (first)
 
-if (nmaxpr==1.and.myid==0) then
+if ( nmaxpr==1 .and. myid==0 ) then
   write(6,*) "seaesfrad: Prepare SEA-ESF arrays"
 end if
 
 ! error checking
-if (ldr==0) then
+if ( ldr==0 ) then
   write(6,*) "ERROR: SEA-ESF radiation requires ldr/=0"
   call ccmpi_abort(-1)
 end if
 
-if(mod(ifull,imax)/=0)then
+if ( mod(ifull,imax)/=0 ) then
   ! imax should be automatically set-up in globpe.f
   ! so an error here should indicate a bug in globpe.f
   write(6,*) 'nproc,il,jl,ifull,imax ',nproc,il,jl,ifull,imax
@@ -559,11 +558,11 @@ if(mod(ifull,imax)/=0)then
 endif
 
 ! main loop ---------------------------------------------------------
-do j=1,jl,imax/il
-  istart=1+(j-1)*il
-  iend=istart+imax-1
+do j = 1,jl,imax/il
+  istart = 1+(j-1)*il
+  iend   = istart+imax-1
   
-  if (nmaxpr==1.and.myid==0) then
+  if ( nmaxpr==1 .and. myid==0 ) then
     write(6,*) "seaesfrad: Main SEA-ESF loop for istart,iend ",istart,iend
   end if
 
@@ -725,25 +724,23 @@ do j=1,jl,imax/il
         ! convert to units kg / m^2
         do k=1,kl
           kr=kl+1-k
-          dprf=grav*rhoa(:,k)*dz(:,k)
+          dzrho=rhoa(:,k)*dz(:,k)
           ! Factor of 132.14/32.06 converts from sulfur to ammmonium sulfate
-          Aerosol%aerosol(:,1,kr,1) =real((132.14/32.06)*xtg(istart:iend,k,3)*dprf/grav,8) ! so4
-          Aerosol%aerosol(:,1,kr,2) =real(xtg(istart:iend,k,4)*dprf/grav,8)                ! bc hydrophobic
-          Aerosol%aerosol(:,1,kr,3) =real(xtg(istart:iend,k,5)*dprf/grav,8)                ! bc hydrophilic
-          Aerosol%aerosol(:,1,kr,4) =real(xtg(istart:iend,k,6)*dprf/grav,8)                ! oc hydrophobic
-          Aerosol%aerosol(:,1,kr,5) =real(xtg(istart:iend,k,7)*dprf/grav,8)                ! oc hydrophilic
-          Aerosol%aerosol(:,1,kr,6) =real(xtg(istart:iend,k,8)*dprf/grav,8)                ! dust 0.8
-          Aerosol%aerosol(:,1,kr,7) =real(xtg(istart:iend,k,9)*dprf/grav,8)                ! dust 1.0
-          Aerosol%aerosol(:,1,kr,8) =real(xtg(istart:iend,k,10)*dprf/grav,8)               ! dust 2.0
-          Aerosol%aerosol(:,1,kr,9) =real(xtg(istart:iend,k,11)*dprf/grav,8)               ! dust 4.0
-          !Aerosol%aerosol(:,1,kr,10)=real(2.64e-18*ssn(istart:iend,k,1) &
-          !                           /rhoa(:,k)*dprf/grav,8)  ! Small film sea salt (0.035)
-          !Aerosol%aerosol(:,1,kr,11)=real(1.38e-15*ssn(istart:iend,k,2) &
-          !                           /rhoa(:,k)*dprf/grav,8)  ! Large jet sea salt (0.35)
-          Aerosol%aerosol(:,1,kr,10)=real(5.3e-17*ssn(istart:iend,k,1) &
-                                     /rhoa(:,k)*dprf/grav,8)  ! Small film sea salt (0.1)
-          Aerosol%aerosol(:,1,kr,11)=real(9.1e-15*ssn(istart:iend,k,2) &
-                                     /rhoa(:,k)*dprf/grav,8)  ! Large jet sea salt (0.5)
+          Aerosol%aerosol(:,1,kr,1) =real((132.14/32.06)*xtg(istart:iend,k,3)*dzrho,8) ! so4
+          Aerosol%aerosol(:,1,kr,2) =real(xtg(istart:iend,k,4)*dzrho,8)                ! bc hydrophobic
+          Aerosol%aerosol(:,1,kr,3) =real(xtg(istart:iend,k,5)*dzrho,8)                ! bc hydrophilic
+          Aerosol%aerosol(:,1,kr,4) =real(xtg(istart:iend,k,6)*dzrho,8)                ! oc hydrophobic
+          Aerosol%aerosol(:,1,kr,5) =real(xtg(istart:iend,k,7)*dzrho,8)                ! oc hydrophilic
+          Aerosol%aerosol(:,1,kr,6) =real(xtg(istart:iend,k,8)*dzrho,8)                ! dust 0.8
+          Aerosol%aerosol(:,1,kr,7) =real(xtg(istart:iend,k,9)*dzrho,8)                ! dust 1.0
+          Aerosol%aerosol(:,1,kr,8) =real(xtg(istart:iend,k,10)*dzrho,8)               ! dust 2.0
+          Aerosol%aerosol(:,1,kr,9) =real(xtg(istart:iend,k,11)*dzrho,8)               ! dust 4.0
+          !Aerosol%aerosol(:,1,kr,10)=real((2.64e-18*ssn(istart:iend,k,1)  & ! Small film sea salt (0.035)
+          !                                +1.38e-15*ssn(istart:iend,k,2)) & ! Large jet sea salt (0.35)
+          !                           /rhoa(:,k)*dzrho,8)   
+          Aerosol%aerosol(:,1,kr,10)=real((5.3e-17*ssn(istart:iend,k,1)  & ! Small film sea salt (0.1)
+                                          +9.1e-15*ssn(istart:iend,k,2)) & ! Large jet sea salt (0.5)
+                                     /rhoa(:,k)*dzrho,8)                
         end do
         Aerosol%aerosol=max(Aerosol%aerosol,0._8)
         
@@ -1054,12 +1051,10 @@ do j=1,jl,imax/il
         end do
       end do
       ! Seasalt
-      do nr=10,11
-        do k=1,kl
-          opticaldepth(istart:iend,7,1)=opticaldepth(istart:iend,7,1)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,1)) ! Visible
-          opticaldepth(istart:iend,7,2)=opticaldepth(istart:iend,7,2)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,2)) ! Near IR
-          opticaldepth(istart:iend,7,3)=opticaldepth(istart:iend,7,3)+real(Aerosol_diags%extopdep(1:imax,1,k,nr,3)) ! Longwave
-        end do
+      do k=1,kl
+        opticaldepth(istart:iend,7,1)=opticaldepth(istart:iend,7,1)+real(Aerosol_diags%extopdep(1:imax,1,k,10,1)) ! Visible
+        opticaldepth(istart:iend,7,2)=opticaldepth(istart:iend,7,2)+real(Aerosol_diags%extopdep(1:imax,1,k,10,2)) ! Near IR
+        opticaldepth(istart:iend,7,3)=opticaldepth(istart:iend,7,3)+real(Aerosol_diags%extopdep(1:imax,1,k,10,3)) ! Longwave
       end do
       ! Aerosol
       do nr=1,nfields

@@ -1828,12 +1828,9 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
 !---------------------------------------------------------------------
 !  local variables:
  
-      real, dimension (size(cldext,1), size(cldext,2),              &
-                                    size(cldext,3))    :: cldsum
-      real, dimension (size(cldext,1), size(cldext,2),              &
-                                    size(cldext,3))    :: cldextdu
-      real, dimension (size(cldext,1), size(cldext,2),              &
-                                    size(cldext,3))    :: cltau
+      real, dimension (size(cldext,1), size(cldext,2))    :: cldsum
+      real, dimension (size(cldext,1), size(cldext,2))    :: cldextdu
+      real, dimension (size(cldext,1), size(cldext,2))    :: cltau
       integer :: i, j, k, n
      
       integer :: nn
@@ -1902,107 +1899,110 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
 !    define total cloud fraction.
 !---------------------------------------------------------------------
 
-          cldsum = Lsc_microphys%cldamt + Cell_microphys%cldamt +   &
-                     Meso_microphys%cldamt + Shallow_microphys%cldamt
+        do k = 1,size(cldext,3)  
+          
+          cldsum = Lsc_microphys%cldamt(:,:,k) + Cell_microphys%cldamt(:,:,k) +   &
+                     Meso_microphys%cldamt(:,:,k) + Shallow_microphys%cldamt(:,:,k)
 
 !---------------------------------------------------------------------
 !     define the cloud scattering, cloud extinction and cloud asymmetry
 !     factor in each of the spectral bands. if cloud is not present, 
 !     values remain at the non-cloudy initialized values.
 !---------------------------------------------------------------------
-        do n=1,Solar_spect%nbands
-          where ( cldsum > 0.0 )
-            cldextdu       = (Lsc_microphys%cldamt*                   &
-                              Lscrad_props%cldext(:,:,:,n) +          &
-                              Cell_microphys%cldamt*                  &
-                              Cellrad_props%cldext(:,:,:,n) +         &
-                              Meso_microphys%cldamt*                  &
-                              Mesorad_props%cldext(:,:,:,n) +         &
-                              Shallow_microphys%cldamt*               &
-                              Shallowrad_props%cldext(:,:,:,n)) /     &
-                              cldsum
-             cltau=(Cell_microphys%cldamt/cldsum)*                    &
-                   exp(-Cellrad_props%cldext(:,:,:,n)*deltaz/1000.)
-             cltau=cltau+(Meso_microphys%cldamt/cldsum)*              &
-                   exp(-Mesorad_props%cldext(:,:,:,n)*deltaz/1000.)
-             cltau=cltau+(Lsc_microphys%cldamt/cldsum)*               &
-                    exp(-Lscrad_props%cldext(:,:,:,n)*deltaz/1000.)
-             cltau=cltau+(Shallow_microphys%cldamt/cldsum)*           &
-                exp(-Shallowrad_props%cldext(:,:,:,n)*deltaz/1000.)
-             cldext(:,:,:,n,1)=-1000.*alog(cltau)/deltaz
-             cldext(:,:,:,n,1)=min(cldextdu,cldext(:,:,:,n,1))
+          do n=1,Solar_spect%nbands
+            where ( cldsum > 0.0 )
+              cldextdu       = (Lsc_microphys%cldamt(:,:,k)*            &
+                                Lscrad_props%cldext(:,:,k,n) +          &
+                                Cell_microphys%cldamt(:,:,k)*           &
+                                Cellrad_props%cldext(:,:,k,n) +         &
+                                Meso_microphys%cldamt(:,:,k)*           &
+                                Mesorad_props%cldext(:,:,k,n) +         &
+                                Shallow_microphys%cldamt(:,:,k)*        &
+                                Shallowrad_props%cldext(:,:,k,n)) /     &
+                                cldsum
+               cltau=(Cell_microphys%cldamt(:,:,k)/cldsum)*             &
+                     exp(-Cellrad_props%cldext(:,:,k,n)*deltaz(:,:,k)/1000.)
+               cltau=cltau+(Meso_microphys%cldamt(:,:,k)/cldsum)*       &
+                     exp(-Mesorad_props%cldext(:,:,k,n)*deltaz(:,:,k)/1000.)
+               cltau=cltau+(Lsc_microphys%cldamt(:,:,k)/cldsum)*        &
+                      exp(-Lscrad_props%cldext(:,:,k,n)*deltaz(:,:,k)/1000.)
+               cltau=cltau+(Shallow_microphys%cldamt(:,:,k)/cldsum)*    &
+                  exp(-Shallowrad_props%cldext(:,:,k,n)*deltaz(:,:,k)/1000.)
+               cldext(:,:,k,n,1)=-1000.*alog(cltau)/deltaz(:,:,k)
+               cldext(:,:,k,n,1)=min(cldextdu,cldext(:,:,k,n,1))
 
-             cldextdu       = (Lsc_microphys%cldamt*                  &
-                               Lscrad_props%cldsct(:,:,:,n) +         &
-                               Cell_microphys%cldamt*                 &
-                               Cellrad_props%cldsct(:,:,:,n) +        &
-                               Meso_microphys%cldamt*                 &
-                               Mesorad_props%cldsct(:,:,:,n) +        &
-                               Shallow_microphys%cldamt*              &
-                               Shallowrad_props%cldsct(:,:,:,n)) /    &
-                               cldsum
-             cltau=(Cell_microphys%cldamt/cldsum)*                    &
-                   exp(-Cellrad_props%cldsct(:,:,:,n)*deltaz/1000.)
-             cltau=cltau+(Meso_microphys%cldamt/cldsum)*              &
-                   exp(-Mesorad_props%cldsct(:,:,:,n)*deltaz/1000.)
-             cltau=cltau+(Lsc_microphys%cldamt/cldsum)*               &
-                    exp(-Lscrad_props%cldsct(:,:,:,n)*deltaz/1000.)
-             cltau=cltau+(Shallow_microphys%cldamt/cldsum)*           &
-                exp(-Shallowrad_props%cldsct(:,:,:,n)*deltaz/1000.)
-             cldsct(:,:,:,n,1)=-1000.*alog(cltau)/deltaz
-             cldsct(:,:,:,n,1)=min(cldextdu,cldsct(:,:,:,n,1))
+               cldextdu       = (Lsc_microphys%cldamt(:,:,k)*           &
+                                 Lscrad_props%cldsct(:,:,k,n) +         &
+                                 Cell_microphys%cldamt(:,:,k)*          &
+                                 Cellrad_props%cldsct(:,:,k,n) +        &
+                                 Meso_microphys%cldamt(:,:,k)*          &
+                                 Mesorad_props%cldsct(:,:,k,n) +        &
+                                 Shallow_microphys%cldamt(:,:,k)*       &
+                                 Shallowrad_props%cldsct(:,:,k,n)) /    &
+                                 cldsum
+               cltau=(Cell_microphys%cldamt(:,:,k)/cldsum)*             &
+                     exp(-Cellrad_props%cldsct(:,:,k,n)*deltaz(:,:,k)/1000.)
+               cltau=cltau+(Meso_microphys%cldamt(:,:,k)/cldsum)*       &
+                     exp(-Mesorad_props%cldsct(:,:,k,n)*deltaz(:,:,k)/1000.)
+               cltau=cltau+(Lsc_microphys%cldamt(:,:,k)/cldsum)*        &
+                      exp(-Lscrad_props%cldsct(:,:,k,n)*deltaz(:,:,k)/1000.)
+               cltau=cltau+(Shallow_microphys%cldamt(:,:,k)/cldsum)*    &
+                  exp(-Shallowrad_props%cldsct(:,:,k,n)*deltaz(:,:,k)/1000.)
+               cldsct(:,:,k,n,1)=-1000.*alog(cltau)/deltaz(:,:,k)
+               cldsct(:,:,k,n,1)=min(cldextdu,cldsct(:,:,k,n,1))
 
-             cldasymm(:,:,:,n,1) =                                    &
-                          (Lsc_microphys%cldamt*                      &
-                           Lscrad_props%cldsct(:,:,:,n)*              &
-                           Lscrad_props%cldasymm(:,:,:,n) +           &
-                           Cell_microphys%cldamt*                     &
-                           Cellrad_props%cldsct(:,:,:,n)*             &
-                           Cellrad_props%cldasymm(:,:,:,n) +          &
-                           Meso_microphys%cldamt*                     &
-                           Mesorad_props%cldsct(:,:,:,n)*             &
-                           Mesorad_props%cldasymm(:,:,:,n) +          &
-                        Shallow_microphys%cldamt*                     &
-                        Shallowrad_props%cldsct(:,:,:,n)*             &
-                       Shallowrad_props%cldasymm(:,:,:,n) ) /         &
-                          (Lsc_microphys%cldamt*                      &
-                           Lscrad_props%cldsct(:,:,:,n) +             &
-                           Cell_microphys%cldamt*                     &
-                           Cellrad_props%cldsct(:,:,:,n) +            &
-                           Meso_microphys%cldamt*                     &
-                           Mesorad_props%cldsct(:,:,:,n) +            &
-                        Shallow_microphys%cldamt*                     &
-                        Shallowrad_props%cldsct(:,:,:,n) )
-          end where
-        end do
+               cldasymm(:,:,k,n,1) =                                    &
+                            (Lsc_microphys%cldamt(:,:,k)*               &
+                             Lscrad_props%cldsct(:,:,k,n)*              &
+                             Lscrad_props%cldasymm(:,:,k,n) +           &
+                             Cell_microphys%cldamt(:,:,k)*              &
+                             Cellrad_props%cldsct(:,:,k,n)*             &
+                             Cellrad_props%cldasymm(:,:,k,n) +          &
+                             Meso_microphys%cldamt(:,:,k)*              &
+                             Mesorad_props%cldsct(:,:,k,n)*             &
+                             Mesorad_props%cldasymm(:,:,k,n) +          &
+                          Shallow_microphys%cldamt(:,:,k)*              &
+                          Shallowrad_props%cldsct(:,:,k,n)*             &
+                         Shallowrad_props%cldasymm(:,:,k,n) ) /         &
+                            (Lsc_microphys%cldamt(:,:,k)*               &
+                             Lscrad_props%cldsct(:,:,k,n) +             &
+                             Cell_microphys%cldamt(:,:,k)*              &
+                             Cellrad_props%cldsct(:,:,k,n) +            &
+                             Meso_microphys%cldamt(:,:,k)*              &
+                             Mesorad_props%cldsct(:,:,k,n) +            &
+                          Shallow_microphys%cldamt(:,:,k)*              &
+                          Shallowrad_props%cldsct(:,:,k,n) )
+            end where
+          end do
 
 !------------------------------------------------------------
 !    define the total-cloud lw emissivity when large-scale, meso-scale
 !    and cell-scale clouds may be present.
 !---------------------------------------------------------------------
-        do n=1,Cldrad_control%nlwcldb
-          where (cldsum > 0.0)
-            cldextdu = (Lsc_microphys%cldamt*                          &
-                        Lscrad_props%abscoeff(:,:,:,n) +               &
-                        Cell_microphys%cldamt*                         &
-                        Cellrad_props%abscoeff(:,:,:,n) +              &
-                        Meso_microphys%cldamt*                         &
-                        Mesorad_props%abscoeff(:,:,:,n) +              &
-                        Shallow_microphys%cldamt*                      &
-                        Shallowrad_props%abscoeff(:,:,:,n)) /          &
-                        cldsum
-             cltau=(Cell_microphys%cldamt/cldsum)*                     &
-                   exp(-Cellrad_props%abscoeff(:,:,:,n)*deltaz/1000.)
-             cltau=cltau+(Meso_microphys%cldamt/cldsum)*               &
-                   exp(-Mesorad_props%abscoeff(:,:,:,n)*deltaz/1000.)
-             cltau=cltau+(Lsc_microphys%cldamt/cldsum)*                &
-                   exp(-Lscrad_props%abscoeff(:,:,:,n)*deltaz/1000.)
-             cltau=cltau+(Shallow_microphys%cldamt/cldsum)*            &
-                   exp(-Shallowrad_props%abscoeff(:,:,:,n)*deltaz/1000.)
-             abscoeff(:,:,:,n,1)=-1000.*alog(cltau)/deltaz
-             abscoeff(:,:,:,n,1)=min(cldextdu,abscoeff(:,:,:,n,1))
-          end where
-        end do
+          do n=1,Cldrad_control%nlwcldb
+            where (cldsum > 0.0)
+              cldextdu = (Lsc_microphys%cldamt(:,:,k)*                          &
+                           Lscrad_props%abscoeff(:,:,k,n) +                     &
+                         Cell_microphys%cldamt(:,:,k)*                          &
+                          Cellrad_props%abscoeff(:,:,k,n) +                     &
+                          Meso_microphys%cldamt(:,:,k)*                         &
+                          Mesorad_props%abscoeff(:,:,k,n) +                     &
+                          Shallow_microphys%cldamt(:,:,k)*                      &
+                          Shallowrad_props%abscoeff(:,:,k,n)) /                 &
+                          cldsum
+               cltau=(Cell_microphys%cldamt(:,:,k)/cldsum)*                     &
+                     exp(-Cellrad_props%abscoeff(:,:,k,n)*deltaz(:,:,k)/1000.)
+               cltau=cltau+(Meso_microphys%cldamt(:,:,k)/cldsum)*               &
+                     exp(-Mesorad_props%abscoeff(:,:,k,n)*deltaz(:,:,k)/1000.)
+               cltau=cltau+(Lsc_microphys%cldamt(:,:,k)/cldsum)*                &
+                     exp(-Lscrad_props%abscoeff(:,:,k,n)*deltaz(:,:,k)/1000.)
+               cltau=cltau+(Shallow_microphys%cldamt(:,:,k)/cldsum)*            &
+                     exp(-Shallowrad_props%abscoeff(:,:,k,n)*deltaz(:,:,k)/1000.)
+               abscoeff(:,:,k,n,1)=-1000.*alog(cltau)/deltaz(:,:,k)
+               abscoeff(:,:,k,n,1)=min(cldextdu,abscoeff(:,:,k,n,1))
+            end where
+          end do
+        end do ! k
 
 !---------------------------------------------------------------------
 !    define appropriately-weighted total-cloud radiative properties
@@ -2013,91 +2013,93 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
 !---------------------------------------------------------------------
 !    define total cloud fraction.
 !---------------------------------------------------------------------
-          cldsum = Lsc_microphys%cldamt + Cell_microphys%cldamt +   &
-                     Meso_microphys%cldamt
+        do k = 1,size(cldext,3)  
+          cldsum = Lsc_microphys%cldamt(:,:,k) + Cell_microphys%cldamt(:,:,k) +   &
+                     Meso_microphys%cldamt(:,:,k)
 
 !---------------------------------------------------------------------
 !     define the cloud scattering, cloud extinction and cloud asymmetry
 !     factor in each of the spectral bands. if cloud is not present, 
 !     values remain at the non-cloudy initialized values.
 !---------------------------------------------------------------------
-        do n=1,Solar_spect%nbands
-          where (cldsum > 0.0)
-            cldextdu        = (Lsc_microphys%cldamt*               &
-                               Lscrad_props%cldext(:,:,:,n) +      &
-                               Cell_microphys%cldamt*              &
-                               Cellrad_props%cldext(:,:,:,n) +     &
-                               Meso_microphys%cldamt*              &
-                               Mesorad_props%cldext(:,:,:,n)) /    &
-                               cldsum
-            cltau=(Cell_microphys%cldamt/cldsum)*                  &
-                  exp(-Cellrad_props%cldext(:,:,:,n)*deltaz/1000.)
-            cltau=cltau+(Meso_microphys%cldamt/cldsum)*            &
-                  exp(-Mesorad_props%cldext(:,:,:,n)*deltaz/1000.)
-            cltau=cltau+(Lsc_microphys%cldamt/cldsum)*             &
-                  exp(-Lscrad_props%cldext(:,:,:,n)*deltaz/1000.)
-            cldext(:,:,:,n,1)=-1000.*alog(cltau)/deltaz
-            cldext(:,:,:,n,1)=min(cldextdu,cldext(:,:,:,n,1))
+          do n=1,Solar_spect%nbands
+            where (cldsum > 0.0)
+              cldextdu        = (Lsc_microphys%cldamt(:,:,k)*        &
+                                 Lscrad_props%cldext(:,:,k,n) +      &
+                                 Cell_microphys%cldamt(:,:,k)*       &
+                                 Cellrad_props%cldext(:,:,k,n) +     &
+                                 Meso_microphys%cldamt(:,:,k)*       &
+                                 Mesorad_props%cldext(:,:,k,n)) /    &
+                                 cldsum
+              cltau=(Cell_microphys%cldamt(:,:,k)/cldsum)*                  &
+                    exp(-Cellrad_props%cldext(:,:,k,n)*deltaz(:,:,k)/1000.)
+              cltau=cltau+(Meso_microphys%cldamt(:,:,k)/cldsum)*            &
+                    exp(-Mesorad_props%cldext(:,:,k,n)*deltaz(:,:,k)/1000.)
+              cltau=cltau+(Lsc_microphys%cldamt(:,:,k)/cldsum)*             &
+                    exp(-Lscrad_props%cldext(:,:,k,n)*deltaz(:,:,k)/1000.)
+              cldext(:,:,k,n,1)=-1000.*alog(cltau)/deltaz(:,:,k)
+              cldext(:,:,k,n,1)=min(cldextdu,cldext(:,:,k,n,1))
 
-            cldextdu        = (Lsc_microphys%cldamt*               &
-                               Lscrad_props%cldsct(:,:,:,n) +      &
-                               Cell_microphys%cldamt*              &
-                               Cellrad_props%cldsct(:,:,:,n) +     &
-                               Meso_microphys%cldamt*              &
-                               Mesorad_props%cldsct(:,:,:,n)) /    &
-                               cldsum
-            cltau=(Cell_microphys%cldamt/cldsum)*                  &
-                  exp(-Cellrad_props%cldsct(:,:,:,n)*deltaz/1000.)
-            cltau=cltau+(Meso_microphys%cldamt/cldsum)*            &
-                  exp(-Mesorad_props%cldsct(:,:,:,n)*deltaz/1000.)
-            cltau=cltau+(Lsc_microphys%cldamt/cldsum)*             &
-                  exp(-Lscrad_props%cldsct(:,:,:,n)*deltaz/1000.)
-            cldsct(:,:,:,n,1)=-1000.*alog(cltau)/deltaz
-            cldsct(:,:,:,n,1)=min(cldextdu,cldsct(:,:,:,n,1))
+              cldextdu        = (Lsc_microphys%cldamt(:,:,k)*               &
+                                 Lscrad_props%cldsct(:,:,k,n) +      &
+                                 Cell_microphys%cldamt(:,:,k)*              &
+                                 Cellrad_props%cldsct(:,:,k,n) +     &
+                                 Meso_microphys%cldamt(:,:,k)*              &
+                                 Mesorad_props%cldsct(:,:,k,n)) /    &
+                                 cldsum
+              cltau=(Cell_microphys%cldamt(:,:,k)/cldsum)*                  &
+                    exp(-Cellrad_props%cldsct(:,:,k,n)*deltaz(:,:,k)/1000.)
+              cltau=cltau+(Meso_microphys%cldamt(:,:,k)/cldsum)*            &
+                    exp(-Mesorad_props%cldsct(:,:,k,n)*deltaz(:,:,k)/1000.)
+              cltau=cltau+(Lsc_microphys%cldamt(:,:,k)/cldsum)*             &
+                    exp(-Lscrad_props%cldsct(:,:,k,n)*deltaz(:,:,k)/1000.)
+              cldsct(:,:,k,n,1)=-1000.*alog(cltau)/deltaz(:,:,k)
+              cldsct(:,:,k,n,1)=min(cldextdu,cldsct(:,:,k,n,1))
 
-            cldasymm(:,:,:,n,1) =                                  &
-                          (Lsc_microphys%cldamt*                   &
-                           Lscrad_props%cldsct(:,:,:,n)*           &
-                           Lscrad_props%cldasymm(:,:,:,n) +        &
-                           Cell_microphys%cldamt*                  &
-                           Cellrad_props%cldsct(:,:,:,n)*          &
-                           Cellrad_props%cldasymm(:,:,:,n) +       &
-                           Meso_microphys%cldamt*                  &
-                           Mesorad_props%cldsct(:,:,:,n)*          &
-                           Mesorad_props%cldasymm(:,:,:,n)) /      &
-                          (Lsc_microphys%cldamt*                   &
-                           Lscrad_props%cldsct(:,:,:,n) +          &
-                           Cell_microphys%cldamt*                  &
-                           Cellrad_props%cldsct(:,:,:,n) +         &
-                           Meso_microphys%cldamt*                  &
-                           Mesorad_props%cldsct(:,:,:,n) )
-          end where
-        end do
+              cldasymm(:,:,k,n,1) =                                  &
+                            (Lsc_microphys%cldamt(:,:,k)*            &
+                             Lscrad_props%cldsct(:,:,k,n)*           &
+                             Lscrad_props%cldasymm(:,:,k,n) +        &
+                             Cell_microphys%cldamt(:,:,k)*           &
+                             Cellrad_props%cldsct(:,:,k,n)*          &
+                             Cellrad_props%cldasymm(:,:,k,n) +       &
+                             Meso_microphys%cldamt(:,:,k)*           &
+                             Mesorad_props%cldsct(:,:,k,n)*          &
+                             Mesorad_props%cldasymm(:,:,k,n)) /      &
+                            (Lsc_microphys%cldamt(:,:,k)*            &
+                             Lscrad_props%cldsct(:,:,k,n) +          &
+                             Cell_microphys%cldamt(:,:,k)*           &
+                             Cellrad_props%cldsct(:,:,k,n) +         &
+                             Meso_microphys%cldamt(:,:,k)*           &
+                             Mesorad_props%cldsct(:,:,k,n) )
+            end where
+          end do
 
 !------------------------------------------------------------
 !    define the total-cloud lw emissivity when large-scale, meso-scale
 !    and cell-scale clouds may be present.
 !---------------------------------------------------------------------
-        do n=1,Cldrad_control%nlwcldb
-          where (cldsum > 0.0)
-            cldextdu =  (Lsc_microphys%cldamt*                        &
-                         Lscrad_props%abscoeff(:,:,:,n) +             &
-                         Cell_microphys%cldamt*                       &
-                         Cellrad_props%abscoeff(:,:,:,n) +            &
-                         Meso_microphys%cldamt*                       &
-                         Mesorad_props%abscoeff(:,:,:,n)) /           &
-                         cldsum
-            cltau=(Cell_microphys%cldamt/cldsum)*                     &
-                  exp(-Cellrad_props%abscoeff(:,:,:,n)*deltaz/1000.)
-            cltau=cltau+(Meso_microphys%cldamt/cldsum)*               &
-                  exp(-Mesorad_props%abscoeff(:,:,:,n)*deltaz/1000.)
-            cltau=cltau+(Lsc_microphys%cldamt/cldsum)*                &
-                  exp(-Lscrad_props%abscoeff(:,:,:,n)*deltaz/1000.)
-            abscoeff(:,:,:,n,1)=-1000.*alog(cltau)/deltaz
-            abscoeff(:,:,:,n,1)=min(cldextdu,abscoeff(:,:,:,n,1))
-          end where
-        end do
-
+          do n=1,Cldrad_control%nlwcldb
+            where (cldsum > 0.0)
+              cldextdu =  (Lsc_microphys%cldamt(:,:,k)*                 &
+                           Lscrad_props%abscoeff(:,:,k,n) +             &
+                           Cell_microphys%cldamt(:,:,k)*                &
+                           Cellrad_props%abscoeff(:,:,k,n) +            &
+                           Meso_microphys%cldamt(:,:,k)*                &
+                           Mesorad_props%abscoeff(:,:,k,n)) /           &
+                           cldsum
+              cltau=(Cell_microphys%cldamt(:,:,k)/cldsum)*                     &
+                    exp(-Cellrad_props%abscoeff(:,:,k,n)*deltaz(:,:,k)/1000.)
+              cltau=cltau+(Meso_microphys%cldamt(:,:,k)/cldsum)*               &
+                    exp(-Mesorad_props%abscoeff(:,:,k,n)*deltaz(:,:,k)/1000.)
+              cltau=cltau+(Lsc_microphys%cldamt(:,:,k)/cldsum)*                &
+                    exp(-Lscrad_props%abscoeff(:,:,k,n)*deltaz(:,:,k)/1000.)
+              abscoeff(:,:,k,n,1)=-1000.*alog(cltau)/deltaz(:,:,k)
+              abscoeff(:,:,k,n,1)=min(cldextdu,abscoeff(:,:,k,n,1))
+            end where
+          end do
+        end do ! k
+        
 !---------------------------------------------------------------------
 !    define appropriately-weighted total-cloud radiative properties
 !    when large-scale, and uw shallow clouds may be present.
@@ -2107,72 +2109,74 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
 !---------------------------------------------------------------------
 !    define total cloud fraction.
 !---------------------------------------------------------------------
-          cldsum = Lsc_microphys%cldamt + Shallow_microphys%cldamt 
+        do k = 1,size(cldext,3)  
+          cldsum = Lsc_microphys%cldamt(:,:,k) + Shallow_microphys%cldamt(:,:,k) 
 
 !---------------------------------------------------------------------
 !     define the cloud scattering, cloud extinction and cloud asymmetry
 !     factor in each of the spectral bands. if cloud is not present, 
 !     values remain at the non-cloudy initialized values.
 !---------------------------------------------------------------------
-        do n=1,Solar_spect%nbands
-          where (cldsum > 0.0)
-            cldextdu        = (Lsc_microphys%cldamt*                  &
-                               Lscrad_props%cldext(:,:,:,n) +         &
-                               Shallow_microphys%cldamt*              &
-                               Shallowrad_props%cldext(:,:,:,n) )/    &
-                               cldsum
-            cltau=(Shallow_microphys%cldamt/cldsum)*                  &
-                  exp(-Shallowrad_props%cldext(:,:,:,n)*deltaz/1000.)
-            cltau=cltau+(Lsc_microphys%cldamt/cldsum)*                &
-                  exp(-Lscrad_props%cldext(:,:,:,n)*deltaz/1000.)
-            cldext(:,:,:,n,1)=-1000.*alog(cltau)/deltaz
-            cldext(:,:,:,n,1)=min(cldextdu,cldext(:,:,:,n,1))
+          do n=1,Solar_spect%nbands
+            where (cldsum > 0.0)
+              cldextdu        = (Lsc_microphys%cldamt(:,:,k)*           &
+                                 Lscrad_props%cldext(:,:,k,n) +         &
+                                 Shallow_microphys%cldamt(:,:,k)*       &
+                                 Shallowrad_props%cldext(:,:,k,n) )/    &
+                                 cldsum
+              cltau=(Shallow_microphys%cldamt(:,:,k)/cldsum)*                  &
+                    exp(-Shallowrad_props%cldext(:,:,k,n)*deltaz(:,:,k)/1000.)
+              cltau=cltau+(Lsc_microphys%cldamt(:,:,k)/cldsum)*                &
+                    exp(-Lscrad_props%cldext(:,:,k,n)*deltaz(:,:,k)/1000.)
+              cldext(:,:,k,n,1)=-1000.*alog(cltau)/deltaz(:,:,k)
+              cldext(:,:,k,n,1)=min(cldextdu,cldext(:,:,k,n,1))
 
-            cldextdu        = (Lsc_microphys%cldamt*                  &
-                               Lscrad_props%cldsct(:,:,:,n) +         &
-                               Shallow_microphys%cldamt*              &
-                               Shallowrad_props%cldsct(:,:,:,n)) /    &
-                               cldsum
-            cltau=(Shallow_microphys%cldamt/cldsum)*                  &
-                  exp(-Shallowrad_props%cldsct(:,:,:,n)*deltaz/1000.)
-            cltau=cltau+(Lsc_microphys%cldamt/cldsum)*                &
-                  exp(-Lscrad_props%cldsct(:,:,:,n)*deltaz/1000.)
-            cldsct(:,:,:,n,1)=-1000.*alog(cltau)/deltaz
-            cldsct(:,:,:,n,1)=min(cldextdu,cldsct(:,:,:,n,1))
+              cldextdu        = (Lsc_microphys%cldamt(:,:,k)*           &
+                                 Lscrad_props%cldsct(:,:,k,n) +         &
+                                 Shallow_microphys%cldamt(:,:,k)*       &
+                                 Shallowrad_props%cldsct(:,:,k,n)) /    &
+                                 cldsum
+              cltau=(Shallow_microphys%cldamt(:,:,k)/cldsum)*                  &
+                    exp(-Shallowrad_props%cldsct(:,:,k,n)*deltaz(:,:,k)/1000.)
+              cltau=cltau+(Lsc_microphys%cldamt(:,:,k)/cldsum)*                &
+                    exp(-Lscrad_props%cldsct(:,:,k,n)*deltaz(:,:,k)/1000.)
+              cldsct(:,:,k,n,1)=-1000.*alog(cltau)/deltaz(:,:,k)
+              cldsct(:,:,k,n,1)=min(cldextdu,cldsct(:,:,k,n,1))
 
-            cldasymm(:,:,:,n,1) =                                     &
-                       (Lsc_microphys%cldamt*                         &
-                        Lscrad_props%cldsct(:,:,:,n)*                 &
-                        Lscrad_props%cldasymm(:,:,:,n) +              &
-                        Shallow_microphys%cldamt*                     &
-                        Shallowrad_props%cldsct(:,:,:,n)*             &
-                        Shallowrad_props%cldasymm(:,:,:,n)) /         &
-                       (Lsc_microphys%cldamt*                         &
-                        Lscrad_props%cldsct(:,:,:,n) +                &
-                        Shallow_microphys%cldamt*                     &
-                        Shallowrad_props%cldsct(:,:,:,n) )
-          end where
-        end do
+              cldasymm(:,:,k,n,1) =                                     &
+                         (Lsc_microphys%cldamt(:,:,k)*                  &
+                          Lscrad_props%cldsct(:,:,k,n)*                 &
+                          Lscrad_props%cldasymm(:,:,k,n) +              &
+                          Shallow_microphys%cldamt(:,:,k)*              &
+                          Shallowrad_props%cldsct(:,:,k,n)*             &
+                          Shallowrad_props%cldasymm(:,:,k,n)) /         &
+                         (Lsc_microphys%cldamt(:,:,k)*                  &
+                          Lscrad_props%cldsct(:,:,k,n) +                &
+                          Shallow_microphys%cldamt(:,:,k)*              &
+                          Shallowrad_props%cldsct(:,:,k,n) )
+            end where
+          end do
 
 !------------------------------------------------------------
 !    define the total-cloud lw emissivity when large-scale, meso-scale
 !    and cell-scale clouds may be present.
 !---------------------------------------------------------------------
-        do n=1,Cldrad_control%nlwcldb
-          where (cldsum > 0.0)
-            cldextdu =       (Lsc_microphys%cldamt*                     &
-                              Lscrad_props%abscoeff(:,:,:,n) +          &
-                              Shallow_microphys%cldamt *                &
-                              Shallowrad_props%abscoeff(:,:,:,n)) /     &
-                              cldsum
-            cltau=(Shallow_microphys%cldamt/cldsum)*                    &
-                  exp(-Shallowrad_props%abscoeff(:,:,:,n)*deltaz/1000.)
-            cltau=cltau+(Lsc_microphys%cldamt/cldsum)*                  &
-                  exp(-Lscrad_props%abscoeff(:,:,:,n)*deltaz/1000.)
-            abscoeff(:,:,:,n,1)=-1000.*alog(cltau)/deltaz
-            abscoeff(:,:,:,n,1)=min(cldextdu,abscoeff(:,:,:,n,1))
-          end where
-        end do
+          do n=1,Cldrad_control%nlwcldb
+            where (cldsum > 0.0)
+              cldextdu =       (Lsc_microphys%cldamt(:,:,k)*              &
+                                Lscrad_props%abscoeff(:,:,k,n) +          &
+                                Shallow_microphys%cldamt(:,:,k)*          &
+                                Shallowrad_props%abscoeff(:,:,k,n)) /     &
+                                cldsum
+              cltau=(Shallow_microphys%cldamt(:,:,k)/cldsum)*                    &
+                    exp(-Shallowrad_props%abscoeff(:,:,k,n)*deltaz(:,:,k)/1000.)
+              cltau=cltau+(Lsc_microphys%cldamt(:,:,k)/cldsum)*                  &
+                    exp(-Lscrad_props%abscoeff(:,:,k,n)*deltaz(:,:,k)/1000.)
+              abscoeff(:,:,k,n,1)=-1000.*alog(cltau)/deltaz(:,:,k)
+              abscoeff(:,:,k,n,1)=min(cldextdu,abscoeff(:,:,k,n,1))
+            end where
+          end do
+        end do ! k
 
 !---------------------------------------------------------------------
 !    define appropriately-weighted total-cloud radiative properties
@@ -2184,90 +2188,92 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
 !---------------------------------------------------------------------
 !    define total cloud fraction.
 !---------------------------------------------------------------------
-        cldsum = Shallow_microphys%cldamt + Cell_microphys%cldamt +   &
-                     Meso_microphys%cldamt
+        do k = 1,size(cldext,3)           
+          cldsum = Shallow_microphys%cldamt(:,:,k) + Cell_microphys%cldamt(:,:,k) +   &
+                       Meso_microphys%cldamt(:,:,k)
 
 !---------------------------------------------------------------------
 !     define the cloud scattering, cloud extinction and cloud asymmetry
 !     factor in each of the spectral bands. if cloud is not present, 
 !     values remain at the non-cloudy initialized values.
 !---------------------------------------------------------------------
-        do n=1,Solar_spect%nbands
-          where (cldsum > 0.0)
-            cldextdu        = (Shallow_microphys%cldamt*          &
-                               Shallowrad_props%cldext(:,:,:,n) + &
-                               Cell_microphys%cldamt*             &
-                               Cellrad_props%cldext(:,:,:,n) +    &
-                               Meso_microphys%cldamt*             &
-                               Mesorad_props%cldext(:,:,:,n)) /   &
-                               cldsum
-            cltau=(Cell_microphys%cldamt/cldsum)*                 &
-                  exp(-Cellrad_props%cldext(:,:,:,n)*deltaz/1000.)
-            cltau=cltau+(Meso_microphys%cldamt/cldsum)*           &
-                  exp(-Mesorad_props%cldext(:,:,:,n)*deltaz/1000.)
-            cltau=cltau+(Shallow_microphys%cldamt/cldsum)*        &
-                  exp(-Shallowrad_props%cldext(:,:,:,n)*deltaz/1000.)
-            cldext(:,:,:,n,1)=-1000.*alog(cltau)/deltaz
-            cldext(:,:,:,n,1)=min(cldextdu,cldext(:,:,:,n,1))
+          do n=1,Solar_spect%nbands
+            where (cldsum > 0.0)
+              cldextdu        = (Shallow_microphys%cldamt(:,:,k)*   &
+                                 Shallowrad_props%cldext(:,:,k,n) + &
+                                 Cell_microphys%cldamt(:,:,k)*      &
+                                 Cellrad_props%cldext(:,:,k,n) +    &
+                                 Meso_microphys%cldamt(:,:,k)*      &
+                                 Mesorad_props%cldext(:,:,k,n)) /   &
+                                 cldsum
+              cltau=(Cell_microphys%cldamt(:,:,k)/cldsum)*                 &
+                    exp(-Cellrad_props%cldext(:,:,k,n)*deltaz(:,:,k)/1000.)
+              cltau=cltau+(Meso_microphys%cldamt(:,:,k)/cldsum)*           &
+                    exp(-Mesorad_props%cldext(:,:,k,n)*deltaz(:,:,k)/1000.)
+              cltau=cltau+(Shallow_microphys%cldamt(:,:,k)/cldsum)*        &
+                    exp(-Shallowrad_props%cldext(:,:,k,n)*deltaz(:,:,k)/1000.)
+              cldext(:,:,k,n,1)=-1000.*alog(cltau)/deltaz(:,:,k)
+              cldext(:,:,k,n,1)=min(cldextdu,cldext(:,:,k,n,1))
 
-            cldextdu        = (Shallow_microphys%cldamt*          &
-                               Shallowrad_props%cldsct(:,:,:,n) + &
-                               Cell_microphys%cldamt*             &
-                               Cellrad_props%cldsct(:,:,:,n) +    &
-                               Meso_microphys%cldamt*             &
-                               Mesorad_props%cldsct(:,:,:,n)) /   &
-                               cldsum
-            cltau=(Cell_microphys%cldamt/cldsum)*                 &
-                  exp(-Cellrad_props%cldsct(:,:,:,n)*deltaz/1000.)
-            cltau=cltau+(Meso_microphys%cldamt/cldsum)*           &
-                  exp(-Mesorad_props%cldsct(:,:,:,n)*deltaz/1000.)
-            cltau=cltau+(Shallow_microphys%cldamt/cldsum)*        &
-                  exp(-Shallowrad_props%cldsct(:,:,:,n)*deltaz/1000.)
-            cldsct(:,:,:,n,1)=-1000.*alog(cltau)/deltaz
-            cldsct(:,:,:,n,1)=min(cldextdu,cldsct(:,:,:,n,1))
+              cldextdu        = (Shallow_microphys%cldamt(:,:,k)*   &
+                                 Shallowrad_props%cldsct(:,:,k,n) + &
+                                 Cell_microphys%cldamt(:,:,k)*      &
+                                 Cellrad_props%cldsct(:,:,k,n) +    &
+                                 Meso_microphys%cldamt(:,:,k)*      &
+                                 Mesorad_props%cldsct(:,:,k,n)) /   &
+                                 cldsum
+              cltau=(Cell_microphys%cldamt(:,:,k)/cldsum)*                 &
+                    exp(-Cellrad_props%cldsct(:,:,k,n)*deltaz(:,:,k)/1000.)
+              cltau=cltau+(Meso_microphys%cldamt(:,:,k)/cldsum)*           &
+                    exp(-Mesorad_props%cldsct(:,:,k,n)*deltaz(:,:,k)/1000.)
+              cltau=cltau+(Shallow_microphys%cldamt(:,:,k)/cldsum)*        &
+                    exp(-Shallowrad_props%cldsct(:,:,k,n)*deltaz(:,:,k)/1000.)
+              cldsct(:,:,k,n,1)=-1000.*alog(cltau)/deltaz(:,:,k)
+              cldsct(:,:,k,n,1)=min(cldextdu,cldsct(:,:,k,n,1))
 
-            cldasymm(:,:,:,n,1) =                                 &
-                          (Shallow_microphys%cldamt*              &
-                           Shallowrad_props%cldsct(:,:,:,n)*      &
-                           Shallowrad_props%cldasymm(:,:,:,n) +   &
-                           Cell_microphys%cldamt*                 &
-                           Cellrad_props%cldsct(:,:,:,n)*         &
-                           Cellrad_props%cldasymm(:,:,:,n) +      &
-                           Meso_microphys%cldamt*                 &
-                           Mesorad_props%cldsct(:,:,:,n)*         &
-                           Mesorad_props%cldasymm(:,:,:,n)) /     &
-                          (Shallow_microphys%cldamt*              &
-                           Shallowrad_props%cldsct(:,:,:,n) +     &
-                           Cell_microphys%cldamt*                 &
-                           Cellrad_props%cldsct(:,:,:,n) +        &
-                           Meso_microphys%cldamt*                 &
-                           Mesorad_props%cldsct(:,:,:,n) )
-          end where
-        end do
+              cldasymm(:,:,k,n,1) =                                 &
+                            (Shallow_microphys%cldamt(:,:,k)*       &
+                             Shallowrad_props%cldsct(:,:,k,n)*      &
+                             Shallowrad_props%cldasymm(:,:,k,n) +   &
+                             Cell_microphys%cldamt(:,:,k)*          &
+                             Cellrad_props%cldsct(:,:,k,n)*         &
+                             Cellrad_props%cldasymm(:,:,k,n) +      &
+                             Meso_microphys%cldamt(:,:,k)*          &
+                             Mesorad_props%cldsct(:,:,k,n)*         &
+                             Mesorad_props%cldasymm(:,:,k,n)) /     &
+                            (Shallow_microphys%cldamt(:,:,k)*       &
+                             Shallowrad_props%cldsct(:,:,k,n) +     &
+                             Cell_microphys%cldamt(:,:,k)*          &
+                             Cellrad_props%cldsct(:,:,k,n) +        &
+                             Meso_microphys%cldamt(:,:,k)*          &
+                             Mesorad_props%cldsct(:,:,k,n) )
+            end where
+          end do
 
 !------------------------------------------------------------
 !    define the total-cloud lw emissivity when large-scale, meso-scale
 !    and cell-scale clouds may be present.
 !---------------------------------------------------------------------
-        do n=1,Cldrad_control%nlwcldb
-          where (cldsum > 0.0)
-            cldextdu  =      (Shallow_microphys%cldamt*                      &
-                              Shallowrad_props%abscoeff(:,:,:,n) +           &
-                              Cell_microphys%cldamt*                         &
-                              Cellrad_props%abscoeff(:,:,:,n) +              &
-                              Meso_microphys%cldamt*                         &
-                              Mesorad_props%abscoeff(:,:,:,n)) /             &
-                              cldsum
-            cltau=(Cell_microphys%cldamt/cldsum)*                            &
-                  exp(-Cellrad_props%abscoeff(:,:,:,n)*deltaz/1000.)
-            cltau=cltau+(Meso_microphys%cldamt/cldsum)*                      &
-                  exp(-Mesorad_props%abscoeff(:,:,:,n)*deltaz/1000.)
-            cltau=cltau+(Shallow_microphys%cldamt/cldsum)*                   &
-                  exp(-Shallowrad_props%abscoeff(:,:,:,n)*deltaz/1000.)
-            abscoeff(:,:,:,n,1)=-1000.*alog(cltau)/deltaz
-            abscoeff(:,:,:,n,1)=min(cldextdu,abscoeff(:,:,:,n,1))
-          end where
-        end do
+          do n=1,Cldrad_control%nlwcldb
+            where (cldsum > 0.0)
+              cldextdu  =      (Shallow_microphys%cldamt(:,:,k)*               &
+                                Shallowrad_props%abscoeff(:,:,k,n) +           &
+                                Cell_microphys%cldamt(:,:,k)*                  &
+                                Cellrad_props%abscoeff(:,:,k,n) +              &
+                                Meso_microphys%cldamt(:,:,k)*                  &
+                                Mesorad_props%abscoeff(:,:,k,n)) /             &
+                                cldsum
+              cltau=(Cell_microphys%cldamt(:,:,k)/cldsum)*                            &
+                    exp(-Cellrad_props%abscoeff(:,:,k,n)*deltaz(:,:,k)/1000.)
+              cltau=cltau+(Meso_microphys%cldamt(:,:,k)/cldsum)*                      &
+                    exp(-Mesorad_props%abscoeff(:,:,k,n)*deltaz(:,:,k)/1000.)
+              cltau=cltau+(Shallow_microphys%cldamt(:,:,k)/cldsum)*                   &
+                    exp(-Shallowrad_props%abscoeff(:,:,k,n)*deltaz(:,:,k)/1000.)
+              abscoeff(:,:,k,n,1)=-1000.*alog(cltau)/deltaz(:,:,k)
+              abscoeff(:,:,k,n,1)=min(cldextdu,abscoeff(:,:,k,n,1))
+            end where
+          end do
+        end do ! k
 !--------------------------------------------------------------------
 !    define the total-cloud radiative properties when only meso-scale 
 !    and cell-scale clouds may be present.
@@ -2277,72 +2283,74 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
 !---------------------------------------------------------------------
 !    define total cloud fraction.
 !---------------------------------------------------------------------
-        cldsum = Cell_microphys%cldamt + Meso_microphys%cldamt
+        do k = 1,size(cldext,3)  
+          cldsum = Cell_microphys%cldamt(:,:,k) + Meso_microphys%cldamt(:,:,k)
 
 !---------------------------------------------------------------------
 !     define the cloud scattering, cloud extinction and cloud asymmetry
 !     factor in each of the spectral bands. if cloud is not present, 
 !     values remain at the non-cloudy initialized values.
 !---------------------------------------------------------------------
-        do n=1,Solar_spect%nbands
-          where (cldsum > 0.0)
-            cldextdu        = (Cell_microphys%cldamt*                  &
-                               Cellrad_props%cldext(:,:,:,n) +         &
-                               Meso_microphys%cldamt*                  &
-                               Mesorad_props%cldext(:,:,:,n)) /        &
-                               cldsum
-            cltau=(Cell_microphys%cldamt/cldsum)*                      &
-                  exp(-Cellrad_props%cldext(:,:,:,n)*deltaz/1000.)
-            cltau=cltau+(Meso_microphys%cldamt/cldsum)*                &
-                  exp(-Mesorad_props%cldext(:,:,:,n)*deltaz/1000.)
-            cldext(:,:,:,n,1)=-1000.*alog(cltau)/deltaz
-            cldext(:,:,:,n,1)=min(cldextdu,cldext(:,:,:,n,1))
+          do n=1,Solar_spect%nbands
+            where (cldsum > 0.0)
+              cldextdu        = (Cell_microphys%cldamt(:,:,k)*           &
+                                 Cellrad_props%cldext(:,:,k,n) +         &
+                                 Meso_microphys%cldamt(:,:,k)*           &
+                                 Mesorad_props%cldext(:,:,k,n)) /        &
+                                 cldsum
+              cltau=(Cell_microphys%cldamt(:,:,k)/cldsum)*                      &
+                    exp(-Cellrad_props%cldext(:,:,k,n)*deltaz(:,:,k)/1000.)
+              cltau=cltau+(Meso_microphys%cldamt(:,:,k)/cldsum)*                &
+                    exp(-Mesorad_props%cldext(:,:,k,n)*deltaz(:,:,k)/1000.)
+              cldext(:,:,k,n,1)=-1000.*alog(cltau)/deltaz(:,:,k)
+              cldext(:,:,k,n,1)=min(cldextdu,cldext(:,:,k,n,1))
 
-            cldextdu        = (Cell_microphys%cldamt*                  &
-                               Cellrad_props%cldsct(:,:,:,n) +         &
-                               Meso_microphys%cldamt*                  &
-                               Mesorad_props%cldsct(:,:,:,n)) /        &
-                               cldsum
-            cltau=(Cell_microphys%cldamt/cldsum)*                      &
-                  exp(-Cellrad_props%cldsct(:,:,:,n)*deltaz/1000.)
-            cltau=cltau+(Meso_microphys%cldamt/cldsum)*                &
-                  exp(-Mesorad_props%cldsct(:,:,:,n)*deltaz/1000.)
-            cldsct(:,:,:,n,1)=-1000.*alog(cltau)/deltaz
-            cldsct(:,:,:,n,1)=min(cldextdu,cldsct(:,:,:,n,1))
+              cldextdu        = (Cell_microphys%cldamt(:,:,k)*           &
+                                 Cellrad_props%cldsct(:,:,k,n) +         &
+                                 Meso_microphys%cldamt(:,:,k)*           &
+                                 Mesorad_props%cldsct(:,:,k,n)) /        &
+                                 cldsum
+              cltau=(Cell_microphys%cldamt(:,:,k)/cldsum)*                      &
+                    exp(-Cellrad_props%cldsct(:,:,k,n)*deltaz(:,:,k)/1000.)
+              cltau=cltau+(Meso_microphys%cldamt(:,:,k)/cldsum)*                &
+                    exp(-Mesorad_props%cldsct(:,:,k,n)*deltaz(:,:,k)/1000.)
+              cldsct(:,:,k,n,1)=-1000.*alog(cltau)/deltaz(:,:,k)
+              cldsct(:,:,k,n,1)=min(cldextdu,cldsct(:,:,k,n,1))
 
-            cldasymm(:,:,:,n,1) =                                      &
-                          (Cell_microphys%cldamt*                      &
-                           Cellrad_props%cldsct(:,:,:,n)*              &
-                           Cellrad_props%cldasymm(:,:,:,n) +           &
-                           Meso_microphys%cldamt*                      &
-                           Mesorad_props%cldsct(:,:,:,n)*              &
-                           Mesorad_props%cldasymm(:,:,:,n)) /          &
-                          (Cell_microphys%cldamt*                      &
-                           Cellrad_props%cldsct(:,:,:,n) +             &
-                           Meso_microphys%cldamt*                      &
-                           Mesorad_props%cldsct(:,:,:,n) )
-          end where
-        end do
+              cldasymm(:,:,k,n,1) =                                      &
+                            (Cell_microphys%cldamt(:,:,k)*               &
+                             Cellrad_props%cldsct(:,:,k,n)*              &
+                             Cellrad_props%cldasymm(:,:,k,n) +           &
+                             Meso_microphys%cldamt(:,:,k)*               &
+                             Mesorad_props%cldsct(:,:,k,n)*              &
+                             Mesorad_props%cldasymm(:,:,k,n)) /          &
+                            (Cell_microphys%cldamt(:,:,k)*               &
+                             Cellrad_props%cldsct(:,:,k,n) +             &
+                             Meso_microphys%cldamt(:,:,k)*               &
+                             Mesorad_props%cldsct(:,:,k,n) )
+            end where
+          end do
 
 !---------------------------------------------------------------------
 !    define the total-cloud lw emissivity when only meso-scale and
 !    cell-scale clouds may be present.
 !---------------------------------------------------------------------
-        do n=1,Cldrad_control%nlwcldb
-          where (cldsum > 0.0)
-            cldextdu = (Cell_microphys%cldamt*                        &
-                        Cellrad_props%abscoeff(:,:,:,n) +             &
-                        Meso_microphys%cldamt*                        &
-                        Mesorad_props%abscoeff(:,:,:,n)) /            &
-                        cldsum
-            cltau=(Cell_microphys%cldamt/cldsum)*                     &
-                  exp(-Cellrad_props%abscoeff(:,:,:,n)*deltaz/1000.)
-            cltau=cltau+(Meso_microphys%cldamt/cldsum)*               &
-                  exp(-Mesorad_props%abscoeff(:,:,:,n)*deltaz/1000.)
-            abscoeff(:,:,:,n,1)=-1000.*alog(cltau)/deltaz
-            abscoeff(:,:,:,n,1)=min(cldextdu,abscoeff(:,:,:,n,1))
-          end where
-        end do
+          do n=1,Cldrad_control%nlwcldb
+            where (cldsum > 0.0)
+              cldextdu = (Cell_microphys%cldamt(:,:,k)*                 &
+                          Cellrad_props%abscoeff(:,:,k,n) +             &
+                          Meso_microphys%cldamt(:,:,k)*                 &
+                          Mesorad_props%abscoeff(:,:,k,n)) /            &
+                          cldsum
+              cltau=(Cell_microphys%cldamt(:,:,k)/cldsum)*                     &
+                    exp(-Cellrad_props%abscoeff(:,:,k,n)*deltaz(:,:,k)/1000.)
+              cltau=cltau+(Meso_microphys%cldamt(:,:,k)/cldsum)*               &
+                    exp(-Mesorad_props%abscoeff(:,:,k,n)*deltaz(:,:,k)/1000.)
+              abscoeff(:,:,k,n,1)=-1000.*alog(cltau)/deltaz(:,:,k)
+              abscoeff(:,:,k,n,1)=min(cldextdu,abscoeff(:,:,k,n,1))
+            end where
+          end do
+        end do ! k
       endif
 
 !---------------------------------------------------------------------
@@ -2591,8 +2599,7 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
 
       integer  :: nb
       integer  :: i,j,k
-      real, dimension (size(conc_drop,1), size(conc_drop,2),         &
-                          size(conc_drop,3))  :: sum, sum2, sum3
+      real, dimension (size(conc_drop,1), size(conc_drop,2))  :: sum, sum2, sum3
 
 !----------------------------------------------------------------------
 !   local variables:
@@ -2925,9 +2932,9 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
 !    define the single scattering parameters for snow.                
 !----------------------------------------------------------------------
             call snowsw (conc_snow, cldextivlsnow, cldssalbivlsnow,    &
-                         cldasymmivlsnow, &
-                           masks, &
-                         starting_band = nivl1snowcld(nb), &
+                         cldasymmivlsnow,                              &
+                           masks,                                      &
+                         starting_band = nivl1snowcld(nb),             &
                          ending_band = nivl2snowcld(nb)) 
           
 !----------------------------------------------------------------------
@@ -2936,13 +2943,13 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
 !    interval to the sw parameterization band spectral intervals.
 !----------------------------------------------------------------------
             if (nonly == 0 ) then
-              call thickavg (nb, nivl1liqcld(nb), nivl2liqcld(nb),  &
-                            NLIQCLDIVLS,   &
-                        Solar_spect%nbands, cldextivlliq,    &
+              call thickavg (nb, nivl1liqcld(nb), nivl2liqcld(nb),    &
+                            NLIQCLDIVLS,                              &
+                        Solar_spect%nbands, cldextivlliq,             &
                         cldssalbivlliq, cldasymmivlliq, solivlliqcld, &
-                        Solar_spect%solflxbandref(nb),  maskl, &
-                        cldextbandliq(:,:,:,nb),   &
-                        cldssalbbandliq(:,:,:,nb),  &
+                        Solar_spect%solflxbandref(nb),  maskl,        &
+                        cldextbandliq(:,:,:,nb),                      &
+                        cldssalbbandliq(:,:,:,nb),                    &
                         cldasymmbandliq(:,:,:,nb))
 
 !----------------------------------------------------------------------
@@ -2951,13 +2958,13 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
 !    to the sw parameterization band spectral intervals.
 !----------------------------------------------------------------------
               call thickavg ( nb, nivl1raincld(nb), nivl2raincld(nb), &
-                              NRAINCLDIVLS,  &
-                     Solar_spect%nbands, cldextivlrain,    &
-                     cldssalbivlrain , cldasymmivlrain,  &
-                     solivlraincld, Solar_spect%solflxbandref(nb),  &
-                     maskr,&
-                     cldextbandrain(:,:,:,nb),   &
-                     cldssalbbandrain(:,:,:,nb), &
+                              NRAINCLDIVLS,                           &
+                     Solar_spect%nbands, cldextivlrain,               &
+                     cldssalbivlrain , cldasymmivlrain,               &
+                     solivlraincld, Solar_spect%solflxbandref(nb),    &
+                     maskr,                                           &
+                     cldextbandrain(:,:,:,nb),                        &
+                     cldssalbbandrain(:,:,:,nb),                      &
                      cldasymmbandrain(:,:,:,nb))
 
 !---------------------------------------------------------------------
@@ -2974,21 +2981,21 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
 !    interval to the sw parameterization band spectral intervals.
 !----------------------------------------------------------------------
                 call thickavg (nb, nivl1icecld(nb), nivl2icecld(nb), &
-                               NICECLDIVLS, &
-                           Solar_spect%nbands, cldextivlice,     &
-                           cldssalbivlice, cldasymmivlice,     &
-                           solivlicecld,   &
-                           Solar_spect%solflxbandref(nb),  &
-                           maskif, &
+                               NICECLDIVLS,                          &
+                           Solar_spect%nbands, cldextivlice,         &
+                           cldssalbivlice, cldasymmivlice,           &
+                           solivlicecld,                             &
+                           Solar_spect%solflxbandref(nb),            &
+                           maskif,                                   &
                            tempext, tempssa, tempasy)   
-                call thickavg (nb, nivl1icesolcld(nb),  &
-                              nivl2icesolcld(nb),    &
+                call thickavg (nb, nivl1icesolcld(nb),           &
+                              nivl2icesolcld(nb),                &
                            NICESOLARCLDIVLS, Solar_spect%nbands, &
-                           cldextivlice2, cldssalbivlice2,  &
-                           cldasymmivlice2,&
-                           solivlicesolcld,  &
-                           Solar_spect%solflxbandref(nb),&
-                           maskis, &
+                           cldextivlice2, cldssalbivlice2,       &
+                           cldasymmivlice2,                      &
+                           solivlicesolcld,                      &
+                           Solar_spect%solflxbandref(nb),        &
+                           maskis,                               &
                            tempext2, tempssa2, tempasy2)   
 
               where (maskif)
@@ -3012,16 +3019,16 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
 !    interval to the sw parameterization band spectral intervals.
 !----------------------------------------------------------------------
                 maskif = .false.
-                call thickavg (nb, nivl1icesolcld(nb),  &
-                              nivl2icesolcld(nb),    &
+                call thickavg (nb, nivl1icesolcld(nb),           &
+                              nivl2icesolcld(nb),                &
                            NICESOLARCLDIVLS, Solar_spect%nbands, &
-                           cldextivlice2, cldssalbivlice2,  &
-                           cldasymmivlice2,&
-                           solivlicesolcld,  &
-                           Solar_spect%solflxbandref(nb),&
-                           maskis, &
-                           cldextbandice(:,:,:,nb),  &
-                           cldssalbbandice(:,:,:,nb),  &
+                           cldextivlice2, cldssalbivlice2,       &
+                           cldasymmivlice2,                      &
+                           solivlicesolcld,                      &
+                           Solar_spect%solflxbandref(nb),        &
+                           maskis,                               &
+                           cldextbandice(:,:,:,nb),              &
+                           cldssalbbandice(:,:,:,nb),            &
                            cldasymmbandice(:,:,:,nb))
 
   endif ! (isccp_call)
@@ -3041,44 +3048,46 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
                      cldssalbbandsnow(:,:,:,nb),                     &
                      cldasymmbandsnow(:,:,:,nb))
 
-              sum = 0.
-              sum2 = 0.
-              sum3 = 0.
-              where (maskl)
-                sum = sum + cldextbandliq(:,:,:,nb)
-                sum2 = sum2 + cldextbandliq(:,:,:,nb)* &
-                              cldssalbbandliq(:,:,:,nb)
-                sum3 = sum3 + (cldextbandliq(:,:,:,nb)* &
-                               cldssalbbandliq(:,:,:,nb))* &
-                               cldasymmbandliq(:,:,:,nb)
-              end where
-              where  (maskr)
-                sum = sum + cldextbandrain(:,:,:,nb)
-                sum2 = sum2 + cldextbandrain(:,:,:,nb)* &
-                              cldssalbbandrain(:,:,:,nb)
-                sum3 = sum3 + (cldextbandrain(:,:,:,nb)*&
-                               cldssalbbandrain(:,:,:,nb))* &
-                               cldasymmbandrain(:,:,:,nb)
-              end where
-              where (maskis .or. maskif)
-                sum = sum + cldextbandice(:,:,:,nb)
-                sum2 = sum2 + cldextbandice(:,:,:,nb)* &
-                              cldssalbbandice(:,:,:,nb)
-                sum3 = sum3 + (cldextbandice(:,:,:,nb)*&
-                               cldssalbbandice(:,:,:,nb))*&
-                               cldasymmbandice(:,:,:,nb)
-              end where
-              where (masks)
-                sum = sum +  cldextbandsnow(:,:,:,nb)
-                sum2 = sum2 + cldextbandsnow(:,:,:,nb)* &
-                              cldssalbbandsnow(:,:,:,nb)
-                sum3 = sum3 + (cldextbandsnow(:,:,:,nb)*&
-                               cldssalbbandsnow(:,:,:,nb))* &
-                               cldasymmbandsnow(:,:,:,nb)
-              end where
-              cldext(:,:,:,nb) = sum
-              cldsct(:,:,:,nb) = sum2
-              cldasymm(:,:,:,nb) = sum3/ (cldsct(:,:,:,nb) + 1.0e-100)
+              do k = 1,size(conc_drop,3)
+                sum = 0.
+                sum2 = 0.
+                sum3 = 0.
+                where (maskl(:,:,k))
+                  sum = sum + cldextbandliq(:,:,k,nb)
+                  sum2 = sum2 + cldextbandliq(:,:,k,nb)*     &
+                                cldssalbbandliq(:,:,k,nb)
+                  sum3 = sum3 + (cldextbandliq(:,:,k,nb)*    &
+                                 cldssalbbandliq(:,:,k,nb))* &
+                                 cldasymmbandliq(:,:,k,nb)
+                end where
+                where  (maskr(:,:,k))
+                  sum = sum + cldextbandrain(:,:,k,nb)
+                  sum2 = sum2 + cldextbandrain(:,:,k,nb)*     &
+                                cldssalbbandrain(:,:,k,nb)
+                  sum3 = sum3 + (cldextbandrain(:,:,k,nb)*    &
+                                 cldssalbbandrain(:,:,k,nb))* &
+                                 cldasymmbandrain(:,:,k,nb)
+                end where
+                where (maskis(:,:,k) .or. maskif(:,:,k))
+                  sum = sum + cldextbandice(:,:,k,nb)
+                  sum2 = sum2 + cldextbandice(:,:,k,nb)*     &
+                                cldssalbbandice(:,:,k,nb)
+                  sum3 = sum3 + (cldextbandice(:,:,k,nb)*    &
+                                 cldssalbbandice(:,:,k,nb))* &
+                                 cldasymmbandice(:,:,k,nb)
+                end where
+                where (masks(:,:,k))
+                  sum = sum +  cldextbandsnow(:,:,k,nb)
+                  sum2 = sum2 + cldextbandsnow(:,:,k,nb)*     &
+                                cldssalbbandsnow(:,:,k,nb)
+                  sum3 = sum3 + (cldextbandsnow(:,:,k,nb)*    &
+                                 cldssalbbandsnow(:,:,k,nb))* &
+                                 cldasymmbandsnow(:,:,k,nb)
+                end where
+                cldext(:,:,k,nb) = sum
+                cldsct(:,:,k,nb) = sum2
+                cldasymm(:,:,k,nb) = sum3/ (cldsct(:,:,k,nb) + 1.0e-100)
+              end do
 
             else
 
@@ -3165,20 +3174,22 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
                   solivlsnowcld, Solar_spect%solflxbandref(nonly),   &
                      masks, cldextbandsnow(:,:,:,nonly))
 
-              sum = 0.
-              where (maskl)
-                sum = sum + cldextbandliq(:,:,:,nonly)
-              end where
-              where (maskr)
-                sum = sum + cldextbandrain(:,:,:,nonly)
-              end where
-              where (maskif .or. maskis)
-                sum = sum + cldextbandice(:,:,:,nonly)
-              end where
-              where (masks)
-                sum = sum +  cldextbandsnow(:,:,:,nonly)
-              end where
-              cldext(:,:,:,nonly) = sum
+              do k = 1,size(conc_drop,3)
+                sum = 0.
+                where (maskl(:,:,k))
+                  sum = sum + cldextbandliq(:,:,k,nonly)
+                end where
+                where (maskr(:,:,k))
+                  sum = sum + cldextbandrain(:,:,k,nonly)
+                end where
+                where (maskif(:,:,k) .or. maskis(:,:,k))
+                  sum = sum + cldextbandice(:,:,k,nonly)
+                end where
+                where (masks(:,:,k))
+                  sum = sum +  cldextbandsnow(:,:,k,nonly)
+                end where
+                cldext(:,:,k,nonly) = sum
+              end do
             
             endif
           endif !for nonly              
@@ -3191,11 +3202,11 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
 !    values in each sw parameterization band.                
 !----------------------------------------------------------------------
       if (nbmax == 1) then
-        cldext   =  cldextbandliq + cldextbandrain +  &
+        cldext   =  cldextbandliq + cldextbandrain +   &
                     cldextbandice + cldextbandsnow
-        cldsct   =  cldssalbbandliq*cldextbandliq  + &
+        cldsct   =  cldssalbbandliq*cldextbandliq  +   &
                     cldssalbbandrain*cldextbandrain  + &
-                    cldssalbbandice*cldextbandice +  &
+                    cldssalbbandice*cldextbandice +    &
                     cldssalbbandsnow*cldextbandsnow
         cldasymm = (cldasymmbandliq*(cldssalbbandliq*cldextbandliq) + &
                     cldasymmbandrain*                                 &
@@ -3490,9 +3501,7 @@ integer, intent(in), optional             ::   starting_band,  &
 !---------------------------------------------------------------------- 
 ! local variables:                                                      
  
-      real, dimension (size(conc_rain,1), size(conc_rain,2),       &
-                       size(conc_rain,3) )       ::                &
-                                                      rcap
+      real, dimension (size(conc_rain,1), size(conc_rain,2)) :: rcap
  
       real, dimension (NRAINCLDIVLS)          ::  a, b, asymm
 
@@ -3500,7 +3509,7 @@ integer, intent(in), optional             ::   starting_band,  &
       data b     / 1.00E-03, 9.00E-02, 2.20E-01, 2.30E-01 /
       data asymm / 9.70E-01, 9.40E-01, 8.90E-01, 8.80E-01 /
 
-      integer   ::  ni
+      integer   ::  k, ni
       integer   ::  nistart, niend
 
 !---------------------------------------------------------------------
@@ -3536,24 +3545,28 @@ integer, intent(in), optional             ::   starting_band,  &
 
       mask = conc_rain > 0.
       
+      do k = 1,size(conc_rain,3)
+      
 !---------------------------------------------------------------------
 !    the rain drop effective radius must be between 16.6 and 5000    
 !    microns. compute the rcap function, used in the savijarvi formula.
 !---------------------------------------------------------------------
-      rcap = (0.5*size_rain/500.) ** 4.348E+00
+        rcap = (0.5*size_rain(:,:,k)/500.) ** 4.348E+00
 
 !--------------------------------------------------------------------
 !    compute values for each of the savijarvi rain drop spectral
 !    intervals. the extinction coefficient is converted to km**(-1).    
 !--------------------------------------------------------------------
-      do ni = nistart, niend
-        where (mask)
-          cldextivlrain(:,:,:,ni) = 1.00E+03*1.505E+00*     &
-                                    conc_rain/(0.5*size_rain)  
-          cldssalbivlrain(:,:,:,ni) = 1.0E+00 - (a(ni)*     &
-                                      (rcap**b(ni)))
-          cldasymmivlrain(:,:,:,ni) = asymm(ni)
-        end where
+        do ni = nistart, niend
+          where (mask(:,:,k))
+            cldextivlrain(:,:,k,ni) = 1.00E+03*1.505E+00*     &
+                                      conc_rain(:,:,k)/       &
+                                     (0.5*size_rain(:,:,k))  
+            cldssalbivlrain(:,:,k,ni) = 1.0E+00 - (a(ni)*     &
+                                        (rcap**b(ni)))
+            cldasymmivlrain(:,:,k,ni) = asymm(ni)
+          end where
+        end do
       end do
 
 end subroutine savijarvi
@@ -3745,10 +3758,10 @@ integer,     intent(in), optional          ::  starting_band, &
                   -1.07976E-08 /
  
       integer     :: nistart, niend
-      integer     :: ni
-      real, dimension(size(conc_ice,1),size(conc_ice,2),size(conc_ice,3)) :: &
+      integer     :: k, ni
+      real, dimension(size(conc_ice,1),size(conc_ice,2)) :: &
          fd, f, fw
-      real, dimension(size(conc_ice,1),size(conc_ice,2),size(conc_ice,3)) :: &
+      real, dimension(size(conc_ice,1),size(conc_ice,2)) :: &
          size_ice2, size_ice3
       
 !---------------------------------------------------------------------
@@ -3804,82 +3817,92 @@ integer,     intent(in), optional          ::  starting_band, &
       
       mask = conc_ice > 0.
 
-      size_ice2 = size_ice**2
-      size_ice3 = size_ice**3
+      do k = 1,size(conc_ice,3)
+      
+        size_ice2 = size_ice(:,:,k)**2
+        size_ice3 = size_ice(:,:,k)**3
       
 !---------------------------------------------------------------------
 !     compute the scattering parameters for each of the fu spectral 
 !     intervals. the extinction coefficient is converted to km**(-1).  
 !---------------------------------------------------------------------
-      do ni = nistart, niend
-        where (mask)
-          cldextivlice(:,:,:,ni) = 1.0E+03*conc_ice*         &
-                                   (a0fu(ni) + (a1fu(ni)/    &
-                                    size_ice     ))
-          cldssalbivlice(:,:,:,ni) =  1.0 -                  &
-                             ( b0fu(ni)                  +   &
-                               b1fu(ni)*size_ice    +        &
-                               b2fu(ni)*size_ice2 +          &
-                               b3fu(ni)*size_ice3 )
-          cldasymmivlice(:,:,:,ni) =                         &
-                  c0fu(ni) +                                 &
-                  c1fu(ni)*size_ice +                        &
-                  c2fu(ni)*size_ice2 +                       &
-                  c3fu(ni)*size_ice3
-        end where
-      end do
-      if (do_delta_adj .and. (.not. do_const_asy)) then
-        fd =  1.1572963e-1 +                       &
-              2.5648064e-4*size_ice +              &
-              1.9131293e-6*size_ice2               &
-             -1.2460341e-8*size_ice3
         do ni = nistart, niend
-          where (mask)
-            f = 0.5/cldssalbivlice(:,:,:,ni) + fd
-            fw = f * cldssalbivlice(:,:,:,ni)
-            cldextivlice(:,:,:,ni) =                   &
-                  cldextivlice(:,:,:,ni) * (1. - fw)
-            cldssalbivlice(:,:,:,ni) =   &
-                  cldssalbivlice(:,:,:,ni) * (1. - f)/(1. - fw)
-            cldasymmivlice(:,:,:,ni) =  &
-                  (cldasymmivlice(:,:,:,ni) - f)/(1. - f)
+          where (mask(:,:,k))
+            cldextivlice(:,:,k,ni) = 1.0E+03*conc_ice(:,:,k)*  &
+                                     (a0fu(ni) + (a1fu(ni)/    &
+                                      size_ice(:,:,k)     ))
+            cldssalbivlice(:,:,k,ni) =  1.0 -                  &
+                               ( b0fu(ni)                  +   &
+                                 b1fu(ni)*size_ice(:,:,k)  +   &
+                                 b2fu(ni)*size_ice2 +          &
+                                 b3fu(ni)*size_ice3 )
+            cldasymmivlice(:,:,k,ni) =                         &
+                    c0fu(ni) +                                 &
+                    c1fu(ni)*size_ice(:,:,k) +                 &
+                    c2fu(ni)*size_ice2 +                       &
+                    c3fu(ni)*size_ice3
           end where
         end do
-      endif
+      end do
+      
+      if (do_delta_adj .and. (.not. do_const_asy)) then
+        do k = 1,size(conc_ice,3)
+          fd =  1.1572963e-1 +                       &
+                2.5648064e-4*size_ice(:,:,k) +       &
+                1.9131293e-6*size_ice2               &
+               -1.2460341e-8*size_ice3
+          do ni = nistart, niend
+            where (mask(:,:,k))
+              f = 0.5/cldssalbivlice(:,:,k,ni) + fd
+              fw = f * cldssalbivlice(:,:,k,ni)
+              cldextivlice(:,:,k,ni) =                   &
+                    cldextivlice(:,:,k,ni) * (1. - fw)
+              cldssalbivlice(:,:,k,ni) =   &
+                    cldssalbivlice(:,:,k,ni) * (1. - f)/(1. - fw)
+              cldasymmivlice(:,:,k,ni) =  &
+                    (cldasymmivlice(:,:,k,ni) - f)/(1. - f)
+            end where
+          end do
+        end do
+      end if
   
       if (do_const_asy .and. (.not. do_delta_adj)) then
-        do ni = nistart, niend
-          where (mask)
-            f = 0.5/cldssalbivlice(:,:,:,ni)
-            fw = f * cldssalbivlice(:,:,:,ni)
-            cldextivlice(:,:,:,ni) = cldextivlice(:,:,:,ni) &
+        do k = 1,size(conc_ice,3)
+          do ni = nistart, niend
+            where (mask(:,:,k))
+              f = 0.5/cldssalbivlice(:,:,k,ni)
+              fw = f * cldssalbivlice(:,:,k,ni)
+              cldextivlice(:,:,k,ni) = cldextivlice(:,:,k,ni) &
                                                 * (1. - fw)
-            cldssalbivlice(:,:,:,ni) =  &
-                   cldssalbivlice(:,:,:,ni) * (1. - f)/(1. - fw)
-            cldasymmivlice(:,:,:,ni) = (val_const_asy - f)/ &
+              cldssalbivlice(:,:,k,ni) =  &
+                   cldssalbivlice(:,:,k,ni) * (1. - f)/(1. - fw)
+              cldasymmivlice(:,:,k,ni) = (val_const_asy - f)/ &
                                                     (1. - f)
-          end where
+            end where
+          end do
         end do
-      endif
+      end if
 
       if (do_delta_adj .and. do_const_asy) then
-        fd = 1.1572963e-1 +               &
-             2.5648064e-4*size_ice +      &
-             1.9131293e-6*size_ice2       &
-            -1.2460341e-8*size_ice3
-        do ni = nistart, niend
-          where (mask)
-            f = 0.5/cldssalbivlice(:,:,:,ni) + fd
-            fw = f * cldssalbivlice(:,:,:,ni)
-            cldextivlice(:,:,:,ni) = cldextivlice(:,:,:,ni) &
-                                                 * (1. - fw)
-            cldssalbivlice(:,:,:,ni) =  &
-                  cldssalbivlice(:,:,:,ni) * (1. - f)/(1. - fw)
-            cldasymmivlice(:,:,:,ni) =  &
-                                 (val_const_asy - f)/(1. - f)
-          end where
+        do k = 1,size(conc_ice,3)
+          fd = 1.1572963e-1 +                  &
+               2.5648064e-4*size_ice(:,:,k) +  &
+               1.9131293e-6*size_ice2          &
+              -1.2460341e-8*size_ice3
+          do ni = nistart, niend
+            where (mask(:,:,k))
+              f = 0.5/cldssalbivlice(:,:,k,ni) + fd
+              fw = f * cldssalbivlice(:,:,k,ni)
+              cldextivlice(:,:,k,ni) = cldextivlice(:,:,k,ni) &
+                                                   * (1. - fw)
+              cldssalbivlice(:,:,k,ni) =  &
+                    cldssalbivlice(:,:,k,ni) * (1. - f)/(1. - fw)
+              cldasymmivlice(:,:,k,ni) =  &
+                                   (val_const_asy - f)/(1. - f)
+            end where
+          end do
         end do
-      endif
+      end if
 !---------------------------------------------------------------------
  
 
@@ -4022,13 +4045,13 @@ integer,  intent(in), optional            ::   starting_band, &
 
       real, parameter :: a0 = -6.656e-03
       real, parameter :: a1 =  3.686
-      real, dimension(size(conc_ice,1),size(conc_ice,2),size(conc_ice,3)) :: &
+      real, dimension(size(conc_ice,1),size(conc_ice,2)) :: &
           fgam2, fdel2
-      real, dimension(size(conc_ice,1),size(conc_ice,2),size(conc_ice,3)) :: &
+      real, dimension(size(conc_ice,1),size(conc_ice,2)) :: &
           size_ice2, size_ice3
       
       integer :: nistart, niend
-      integer :: ni
+      integer :: k, ni
 
 !----------------------------------------------------------------------
 !   local variables:
@@ -4081,29 +4104,32 @@ integer,  intent(in), optional            ::   starting_band, &
 
       mask = conc_ice > 0.
       
-      size_ice2 = size_ice**2
-      size_ice3 = size_ice**3
+      do k = 1,size(conc_ice,3)
       
-      do ni = nistart,niend
-        where (mask)
-          cldextivlice(:,:,:,ni) = 1.0E+03*          &
-                 conc_ice*(a0 + (a1/size_ice)) 
-          cldssalbivlice(:,:,:,ni) = 1.0 -           &
-                     (b(7-ni,0) +                    &
-                      b(7-ni,1)*size_ice +           &
-                      b(7-ni,2)*size_ice2 +          &
-                      b(7-ni,3)*size_ice3 )
-          fgam2  =    c(7-ni,0) +                    &
-                      c(7-ni,1)*size_ice +           &
-                      c(7-ni,2)*size_ice2 +          &
-                      c(7-ni,3)*size_ice3
-          fdel2  =    d(7-ni,0) +                    &
-                      d(7-ni,1)*size_ice +           &
-                      d(7-ni,2)*size_ice2 +          &
-                      d(7-ni,3)*size_ice3
-          cldasymmivlice(:,:,:,ni) =                 &
-                      ((1. - fdel2)*fgam2 + 3.*fdel2)/3.
-        end where
+        size_ice2 = size_ice(:,:,k)**2
+        size_ice3 = size_ice(:,:,k)**3
+      
+        do ni = nistart,niend
+          where (mask(:,:,k))
+            cldextivlice(:,:,k,ni) = 1.0E+03*conc_ice(:,:,k)          &
+                                    *(a0 + (a1/size_ice(:,:,k))) 
+            cldssalbivlice(:,:,k,ni) = 1.0 -           &
+                       (b(7-ni,0) +                    &
+                        b(7-ni,1)*size_ice(:,:,k) +    &
+                        b(7-ni,2)*size_ice2 +          &
+                        b(7-ni,3)*size_ice3 )
+            fgam2  =    c(7-ni,0) +                    &
+                        c(7-ni,1)*size_ice(:,:,k) +    &
+                        c(7-ni,2)*size_ice2 +          &
+                        c(7-ni,3)*size_ice3
+            fdel2  =    d(7-ni,0) +                    &
+                        d(7-ni,1)*size_ice(:,:,k) +    &
+                        d(7-ni,2)*size_ice2 +          &
+                        d(7-ni,3)*size_ice3
+            cldasymmivlice(:,:,k,ni) =                 &
+                        ((1. - fdel2)*fgam2 + 3.*fdel2)/3.
+          end where
+        end do
       end do
 
 end subroutine icesolar
@@ -4323,9 +4349,9 @@ end subroutine snowsw
 !   flag for using dge longwave parameterization
 !  </IN>
 ! </SUBROUTINE>
-subroutine cloud_lwpar (nonly, nbmax, nnn, size_drop, size_ice,  &
+subroutine cloud_lwpar (nonly, nbmax, nnn, size_drop, size_ice,     &
                         size_rain, conc_drop, conc_ice, conc_rain,  &
-                        conc_snow, isccp_call, &
+                        conc_snow, isccp_call,                      &
                         abscoeff)
  
 !----------------------------------------------------------------------
@@ -4794,18 +4820,18 @@ real, dimension (:,:,:  ), intent(out)   ::  cldextbndicelw,   &
                                                                    
 !---------------------------------------------------------------------
 ! local variables:
-      integer     :: n
-      real, dimension(size(conc_ice,1),size(conc_ice,2),size(conc_ice,3))  :: &
+      integer     :: k, n
+      real, dimension(size(conc_ice,1),size(conc_ice,2))  :: &
           cldextivlice, cldssalbivlice
-!     real, dimension(size(conc_ice,1),size(conc_ice,2),size(conc_ice,3))  :: &
+!     real, dimension(size(conc_ice,1),size(conc_ice,2))  :: &
 !         cldasymmivlice
 
-      real, dimension(size(conc_ice,1),size(conc_ice,2),size(conc_ice,3))  :: &
+      real, dimension(size(conc_ice,1),size(conc_ice,2))  :: &
            sumext, sumssalb
-!     real, dimension(size(conc_ice,1),size(conc_ice,2),size(conc_ice,3))  :: &
+!     real, dimension(size(conc_ice,1),size(conc_ice,2))  :: &
 !          sumasymm
 
-      real, dimension(size(conc_ice,1),size(conc_ice,2),size(conc_ice,3))  :: &
+      real, dimension(size(conc_ice,1),size(conc_ice,2))  :: &
           size_ice2, size_ice3
       
       real, dimension (NBFL)  ::   a0, a1, a2
@@ -4894,50 +4920,52 @@ real, dimension (:,:,:  ), intent(out)   ::  cldextbndicelw,   &
 
       mask = conc_ice > 0.
 
-      sumext = 0.
-      sumssalb = 0.
-      size_ice2 = size_ice**2
-      size_ice3 = size_ice**3
+      do k = 1,size(conc_ice,3)
+        sumext = 0.
+        sumssalb = 0.
+        size_ice2 = size_ice(:,:,k)**2
+        size_ice3 = size_ice(:,:,k)**3
       
 !-----------------------------------------------------------------------
 !    calculate extinction coefficient [ km**(-1) ] over the wavenumber
 !    bands of the Fu-Liou parameterization (not the radiation code
 !    wavenumber bands).
 !-----------------------------------------------------------------------
-      do n=1,NBFL                                               
-        where (mask)
-          cldextivlice  = 1.0E+03*conc_ice*              &
-                          (a0(n) +                       &
-                           a1(n)/size_ice +              &
-                           a2(n)/size_ice2)
+        do n=1,NBFL                                               
+          where (mask(:,:,k))
+            cldextivlice  = 1.0E+03*conc_ice(:,:,k)*              &
+                            (a0(n) +                              &
+                             a1(n)/size_ice(:,:,k) +              &
+                             a2(n)/size_ice2)
 
 !-----------------------------------------------------------------------
 !    calculate single-scattering albedo and asymmetry parameter.
 !    the asymmetry parameter is not currently used in the infrared 
 !    code. therefore its calculation is commented out.
 !-----------------------------------------------------------------------
-          cldssalbivlice  = 1.0E+00 -                    &
-                            (b(n,0) +                    &
-                             b(n,1)*size_ice +           &
-                             b(n,2)*size_ice2 +          &
-                             b(n,3)*size_ice3)
-!         cldasymmivlice  = cpr(n,0) +                   &
-!                           cpr(n,1)*size_ice +          &
-!                           cpr(n,2)*size_ice2 +         &
-!                           cpr(n,3)*size_ice3
+            cldssalbivlice  = 1.0E+00 -                           &
+                              (b(n,0) +                           &
+                               b(n,1)*size_ice(:,:,k) +           &
+                               b(n,2)*size_ice2 +                 &
+                               b(n,3)*size_ice3)
+!           cldasymmivlice  = cpr(n,0) +                          &
+!                             cpr(n,1)*size_ice(:,:,k) +          &
+!                             cpr(n,2)*size_ice2 +                &
+!                             cpr(n,3)*size_ice3
  
 !-----------------------------------------------------------------------
 !    use the band weighting factors computed in microphys_rad_init
 !    to define the radiation band values for the scattering parameters.
 !-----------------------------------------------------------------------
-          sumext    = sumext + cldextivlice*fulwwts(nb,n )
-          sumssalb  = sumssalb + cldssalbivlice*fulwwts(nb,n )
-!         sumasymm  = sumasymm + cldasymmivlice*fulwwts(nb,n )
-        end where
+            sumext    = sumext + cldextivlice*fulwwts(nb,n )
+            sumssalb  = sumssalb + cldssalbivlice*fulwwts(nb,n )
+!           sumasymm  = sumasymm + cldasymmivlice*fulwwts(nb,n )
+          end where
+        end do
+        cldextbndicelw(:,:,k)   = sumext       
+        cldssalbbndicelw(:,:,k) = sumssalb       
+!       cldasymmbndicelw(:,:,k,n) = sumasymm
       end do
-      cldextbndicelw   = sumext       
-      cldssalbbndicelw = sumssalb       
-!     cldasymmbndicelw(:,:,:,n) = sumasymm        
 
 end subroutine el
 

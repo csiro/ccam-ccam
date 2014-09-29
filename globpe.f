@@ -12,11 +12,12 @@
 
       use aerointerface                       ! Aerosol interface
       use aerosolldr, only : xtosav,xtg,naero ! LDR prognostic aerosols
-     &    ,duste,dustwd,dustdd,bce,dust_burden
-     &    ,bcwd,bcdd,oce,ocwd,ocdd,dmse
-     &    ,dmsso2o,so2e,so2so4o,so2wd,so2dd
-     &    ,so4e,so4wd,so4dd
-     &    ,dms_burden,so2_burden,so4_burden
+     &    ,duste,dustwd,dustdd,dust_burden
+     &    ,bce,bcwd,bcdd,bc_burden
+     &    ,oce,ocwd,ocdd,oc_burden
+     &    ,dmse,dmsso2o,dms_burden
+     &    ,so2e,so2so4o,so2wd,so2dd,so2_burden
+     &    ,so4e,so4wd,so4dd,so4_burden
      &    ,Ch_dust,zvolcemi,aeroindir
       use arrays_m                            ! Atmosphere dyamics prognostic arrays
       use bigxy4_m                            ! Grid interpolation
@@ -222,53 +223,52 @@
 
       !--------------------------------------------------------------
       ! READ NAMELISTS AND SET PARAMETER DEFAULTS
-      ia=-1   ! diagnostic index
-      ib=-1   ! diagnostic index
-      ntbar=-1
-      rel_lat=0.
-      rel_long=0.
-      ktau=0
-      ol=20   ! default ocean levels
+      ia       = -1   ! diagnostic index
+      ib       = -1   ! diagnostic index
+      ntbar    = -1
+      rel_la t = 0.
+      rel_long = 0.
+      ktau     = 0
+      ol       = 20   ! default ocean levels
       call initialparm
 
       ! All processors read the namelist, so no MPI comms are needed
       open(99,file="input",form="formatted",status="old")
-      read (99, defaults)
+      read(99, defaults)
       if (myid==0) then
-        write(6,'(a10," running for nproc =",i7)')
-     &                      version,nproc 
+        write(6,'(a20," running for nproc =",i7)') version,nproc
         write(6,*) 'Using defaults for nversion = ',nversion
       end if
-      if(nversion/=0) then
+      if (nversion/=0) then
         call change_defaults(nversion)
       end if
-      read (99, cardin)
-      nperday =nint(24.*3600./dt)
-      nperhr  =nint(3600./dt)
-      do n3hr=1,8
-       nper3hr(n3hr)=nint(n3hr*3*3600/dt)
+      read(99, cardin)
+      nperday = nint(24.*3600./dt)
+      nperhr  = nint(3600./dt)
+      do n3hr = 1,8
+        nper3hr(n3hr) = nint(n3hr*3*3600/dt)
       enddo
-      if (nwt==-99)     nwt=nperday      ! set default nwt to 24 hours
-      if (nperavg==-99) nperavg=nwt      ! set default nperavg to nwt
-      if (nwrite==0)    nwrite=nperday   ! only used for outfile IEEE
-      if (nmlo/=0.and.abs(nmlo)<=9) then
-        ol=max(ol,1)
+      if (nwt==-99)     nwt = nperday      ! set default nwt to 24 hours
+      if (nperavg==-99) nperavg = nwt      ! set default nperavg to nwt
+      if (nwrite==0)    nwrite = nperday   ! only used for outfile IEEE
+      if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
+        ol = max(ol,1)
       else
-        ol=0
+        ol = 0
       end if
-      wlev=ol
-      mindep=max(0.,mindep)
-      minwater=max(0.,minwater)
-      read (99, skyin)
-      kountr=nint(mins_rad*60./dt)  ! set default radiation to ~mins_rad m
-      mins_rad=nint(kountr*dt/60.)  ! redefine to actual value
-      read (99, datafile)
-      read (99, kuonml)
-      ngas=0
-      read (99, trfiles, iostat=ierr)       ! try reading tracer namelist.  If no
+      wlev = ol
+      mindep = max(0.,mindep)
+      minwater = max(0.,minwater)
+      read(99, skyin)
+      kountr = nint(mins_rad*60./dt)  ! set default radiation to ~mins_rad m
+      mins_rad = nint(kountr*dt/60.)  ! redefine to actual value
+      read(99, datafile)
+      read(99, kuonml)
+      ngas = 0
+      read(99, trfiles, iostat=ierr)       ! try reading tracer namelist.  If no
       if (ierr/=0) rewind(99)               ! namelist is found, then disable
       if (tracerlist/=' ') call init_tracer ! tracers and rewind namelist.
-      nagg=max(5,naero,ngas)                ! maximum size of aggregation
+      nagg = max(5,naero,ngas)              ! maximum size of aggregation
 
 
       !--------------------------------------------------------------
@@ -935,9 +935,11 @@
         bce          = 0.  ! Black carbon emissions
         bcdd         = 0.  ! Black carbon dry deposition
         bcwd         = 0.  ! Black carbon wet deposition
+        bc_burden    = 0.  ! Black carbon burden
         oce          = 0.  ! Organic carbon emissions
         ocdd         = 0.  ! Organic carbon dry deposition
         ocwd         = 0.  ! Organic carbon wet deposition
+        oc_burden    = 0.  ! Organic carbon burden
         dmse         = 0.  ! DMS emissions
         dmsso2o      = 0.  ! DMS -> SO2 oxidation
         so2e         = 0.  ! SO2 emissions
@@ -1840,9 +1842,11 @@
           bce          = bce/min(ntau,nperavg)         ! Black carbon emissions
           bcdd         = bcdd/min(ntau,nperavg)        ! Black carbon dry deposition
           bcwd         = bcwd/min(ntau,nperavg)        ! Black carbon wet deposition
+          bc_burden    = bc_burden/min(ntau,nperavg)   ! Black carbon burden
           oce          = oce/min(ntau,nperavg)         ! Organic carbon emissions
           ocdd         = ocdd/min(ntau,nperavg)        ! Organic carbon dry deposition
           ocwd         = ocwd/min(ntau,nperavg)        ! Organic carbon wet deposition
+          oc_burden    = oc_burden/min(ntau,nperavg)   ! Organic carbon burden
           dmse         = dmse/min(ntau,nperavg)        ! DMS emissions
           dmsso2o      = dmsso2o/min(ntau,nperavg)     ! DMS -> SO2 oxidation
           so2e         = so2e/min(ntau,nperavg)        ! SO2 emissions
@@ -1968,9 +1972,11 @@
           bce          = 0.  ! Black carbon emissions
           bcdd         = 0.  ! Black carbon dry deposition
           bcwd         = 0.  ! Black carbon wet deposition
+          bc_burden    = 0.  ! Black carbon burden
           oce          = 0.  ! Organic carbon emissions
           ocdd         = 0.  ! Organic carbon dry deposition
           ocwd         = 0.  ! Organic carbon wet deposition
+          oc_burden    = 0.  ! Organic carbon burden
           dmse         = 0.  ! DMS emissions
           dmsso2o      = 0.  ! DMS -> SO2 oxidation
           so2e         = 0.  ! SO2 emissions
