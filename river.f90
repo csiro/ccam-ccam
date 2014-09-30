@@ -256,7 +256,7 @@ select case(basinmd)
       ! CABLE
       tmpry=watbdy(1:ifull)
       call cableinflow(tmpry,cover,rate)
-      newwat(:)=newwat(:)+(tmpry-watbdy(1:ifull))*(1.-sigmu(:))
+      newwat(1:ifull)=newwat(1:ifull)+(tmpry-watbdy(1:ifull))*(1.-sigmu(:))
     else
       ! Standard land surface model
       tmpry=watbdy(1:ifull)
@@ -269,7 +269,7 @@ select case(basinmd)
           tmpry(:)=tmpry(:)-ll(:)
         end where
       end do
-      newwat(:)=newwat(:)+(tmpry-watbdy(1:ifull))*(1.-sigmu(:))
+      newwat(1:ifull)=newwat(1:ifull)+(tmpry-watbdy(1:ifull))*(1.-sigmu(:))
     end if
   case(2)
     ! pile-up water
@@ -282,7 +282,7 @@ select case(basinmd)
       ! CABLE
       tmpry=watbdy(1:ifull)
       call cableinflow(tmpry,cover,rate)
-      newwat(:)=newwat(:)+(tmpry-watbdy(1:ifull))*(1.-sigmu(:))
+      newwat(1:ifull)=newwat(1:ifull)+(tmpry-watbdy(1:ifull))*(1.-sigmu(:))
     else
       ! Standard land surface model
       tmpry=watbdy(1:ifull)
@@ -295,7 +295,7 @@ select case(basinmd)
           tmpry(:)=tmpry(:)-ll(:)
         end where
       end do
-      newwat(:)=newwat(:)+(tmpry-watbdy(1:ifull))*(1.-sigmu(:))
+      newwat(1:ifull)=newwat(1:ifull)+(tmpry-watbdy(1:ifull))*(1.-sigmu(:))
     end if
   case default
     write(6,*) "ERROR: Unsupported basinmd ",basinmd
