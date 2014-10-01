@@ -15,7 +15,7 @@ public itracbc,bce,bcdd,bcwd,bc_burden
 public itracoc,oce,ocdd,ocwd,oc_burden
 public itracso2,dmse,dmsso2o,so2e,so2so4o,so2dd,so2wd,so4e,so4dd,so4wd
 public dms_burden,so2_burden,so4_burden
-public Ch_dust,zvolcemi,ticeu,dzmin_gbl,aeroindir
+public Ch_dust,dustalpha,zvolcemi,ticeu,dzmin_gbl,aeroindir
 
 integer, save :: ifull,kl
 integer, save :: jk2,jk3,jk4,jk5,jk6,jk8,jk9           ! levels for injection
@@ -92,10 +92,12 @@ real, parameter :: hl        = 2.5104e6         ! Latent heat of vaporisation
 real, parameter :: vkar      = 0.4              ! von Karman constant
 real, parameter :: rhos      = 100.             ! Assumed density of snow in kg/m^3
 
-! emission constants
-real, save :: Ch_dust        = 1.e-9            ! Transfer coeff for type natural source (kg*s2/m5)
+! emission and deposition constants
 real, save :: zvolcemi       = 8.               ! Total emission from volcanoes (TgS/yr)
-real, save :: dzmin_gbl      = 5.               ! nominal minimum dz for settling (m)
+real, save :: dzmin_gbl      = 5.               ! nominal minimum dz for dust settling (m)
+real, save :: Ch_dust        = 1.e-9            ! Transfer coeff for type natural source (kg*s2/m5)
+real, save :: dustalpha      = 1.               ! Scale factor for dry deposition (0. = deposition velocity, 1. = reduced for
+                                                ! strong winds)
 
 ! scavenging constants
 real, parameter :: ticeu     = 263.16           ! Temperature for freezing in convective updraft
@@ -437,8 +439,8 @@ do k=1,kl
     ppfconv(:,kl+1-k)=0.
   end where
 end do
-!fracc=0.1 ! LDR suggestion
-fracc=cldcon
+!fracc=0.1   ! LDR suggestion (0.1 to 0.3)
+fracc=cldcon ! MJT suggestion (use NCAR scheme)
 call xtchemie (2, dt, zdayfac, aphp1, ppmrate, ppfprec,                         & !Inputs
                pclcover, pmlwc, prhop1, ptp1, taudar, xtm1, ppfevap,            & !Inputs
                ppfsnow,ppfsubl,pcfcover,pmiwc,ppmaccr,ppfmelt,ppfstayice,       & !Inputs
@@ -1983,10 +1985,10 @@ real, parameter :: dyn_visc = 1.5E-5
 ! Calculate integrated column dust before settling
 dcol1 = 0.
 do n=itracdu,itracdu+ndust-1
-  do k=1,kl
-    dcol1 = dcol1 + rhoa(:,k) * xtg(1:ifull,k,n)* delz (:,k)
-  enddo
-enddo
+  do l=1,kl
+    dcol1 = dcol1 + rhoa(:,l) * xtg(1:ifull,l,n) * delz(:,l)
+  end do
+end do
 
 do k = 1, NDUST
   ! Settling velocity (m/s) for each soil classes (Stokes Law)
@@ -2042,10 +2044,10 @@ end do
 ! Calculate integrated column dust after settling
 dcol2 = 0.
 do n=itracdu,itracdu+ndust-1
-  do k=1,kl
-    dcol2 = dcol2 + rhoa(:,k) * xtg(1:ifull,k,n) * delz(:,k)
-  enddo
-enddo
+  do l=1,kl
+    dcol2 = dcol2 + rhoa(:,l) * xtg(1:ifull,l,n) * delz(:,l)
+  end do
+end do
 
 ! Calculate deposition flux to surface
 dustdd = dustdd + (dcol1-dcol2)/tdt
@@ -2128,7 +2130,7 @@ do n = 1, ndust
   dsrc = max( 0., dsrc )
 
 ! Calculate dust mixing ratio tendency at first model level.
-  airmas = dz1 * rhoa ! kg/m2 - MJT suggestion
+  airmas = dz1 * rhoa  ! kg/m2 - MJT suggestion
   a = dsrc / airmas
   duste = duste + dsrc ! MJT suggestion
 
@@ -2136,7 +2138,7 @@ do n = 1, ndust
 ! Use the tau-1 value of dust m.r. for now, but may modify this...
 
 ! Use full layer thickness for CSIRO model (should be correct if Vt is relative to mid-layer)
-  veff = Vt*(wg+(1.-wg)*exp(-max( 0., w10m-u_ts0 )))
+  veff = Vt*(wg+(1.-wg)*exp(-dustalpha*max( 0., w10m-u_ts0 )))
   b = Veff / dz1
 
 ! Update mixing ratio

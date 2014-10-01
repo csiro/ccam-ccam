@@ -302,8 +302,8 @@ select case(basinmd)
     call ccmpi_abort(-1)
 end select
 
-watbdy(1:ifull)=max(newwat,0.)
-salbdy(1:ifull)=max(newsal,0.)
+watbdy(1:ifull)=max(newwat(1:ifull),0.)
+salbdy(1:ifull)=max(newsal(1:ifull),0.)
 
 ! case when water is absorbed by land-surface, but there is
 ! non-zero salinity left behind.
