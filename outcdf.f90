@@ -932,11 +932,11 @@ if( myid==0 .or. local ) then
       lname = 'Total column seasalt optical depth LW'
       call attrib(idnc,idim,3,'ssalt_lw',lname,'none',0.,13.,0,itype)      
       lname = 'Dust emissions'
-      call attrib(idnc,idim,3,'duste_ave',lname,'g/(m2 yr)',0.,390.,0,itype)  
+      call attrib(idnc,idim,3,'duste_ave',lname,'g/(m2 yr)',0.,13000.,0,itype)  
       lname = 'Dust dry deposition'
-      call attrib(idnc,idim,3,'dustdd_ave',lname,'g/(m2 yr)',0.,390.,0,itype) 
+      call attrib(idnc,idim,3,'dustdd_ave',lname,'g/(m2 yr)',0.,13000.,0,itype) 
       lname = 'Dust wet deposition'
-      call attrib(idnc,idim,3,'dustwd_ave',lname,'g/(m2 yr)',0.,390.,0,itype)
+      call attrib(idnc,idim,3,'dustwd_ave',lname,'g/(m2 yr)',0.,13000.,0,itype)
       lname = 'Dust burden'
       call attrib(idnc,idim,3,'dustb_ave',lname,'mg/m2',0.,1300.,0,itype)
       lname = 'Black carbone emissions'

@@ -1767,7 +1767,7 @@ integer, parameter :: ktop = 2    !Top level for wet deposition (counting from t
 ! Allow in-cloud scavenging in ice clouds for hydrophobic BC and OC, and dust
 real, dimension(naero), parameter :: Ecols = (/0.00,0.00,0.00,0.05,0.00,0.05,0.00,0.05,0.05,0.05,0.05/)
 !Below-cloud collection eff. for rain
-real, dimension(naero), parameter :: zcollefr = (/0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.10,0.20,0.40/)
+real, dimension(naero), parameter :: zcollefr = (/0.10,0.10,0.10,0.05,0.05,0.05,0.05,0.05,0.10,0.20,0.40/)
 !Below-cloud collection eff. for snow
 real, dimension(naero), parameter :: zcollefs = (/0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.02,0.04,0.08/)
 !Retention coeff. on riming
@@ -2103,7 +2103,6 @@ ddt=tdt/real(nstep)
 
 do n = 1, ndust
   ! Threshold velocity as a function of the dust density and the diameter
-  ! from Bagnold (1941)
   den = dustden(n)*1.e-3
   diam = 2.*dustreff(n)*1.e2
   ! Pointer to the 3 classes considered in the source data files
@@ -2135,8 +2134,6 @@ do n = 1, ndust
   duste = duste + dsrc ! MJT suggestion
 
 ! Calculate turbulent dry deposition at surface
-! Use the tau-1 value of dust m.r. for now, but may modify this...
-
 ! Use full layer thickness for CSIRO model (should be correct if Vt is relative to mid-layer)
   veff = Vt*(wg+(1.-wg)*exp(-dustalpha*max( 0., w10m-u_ts0 )))
   b = Veff / dz1
