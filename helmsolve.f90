@@ -4074,8 +4074,10 @@ do g=2,mg_maxlevel
 
   call mg_index(g,mil_g,mipan,mjpan)
 
+  gmax=min(mg_maxlevel-1,mg_maxlevel_local)
+  
   ! ifine is the index of the SW point on the next finer grid.
-  if (g<mg_maxlevel) then
+  if (g<=gmax) then
     np=mg(g)%ifull_fine
     allocate(mg(g)%fine(np),mg(g)%fine_n(np))
     allocate(mg(g)%fine_e(np),mg(g)%fine_ne(np))
@@ -4104,175 +4106,182 @@ do g=2,mg_maxlevel
   ! requires an even number of points to ensure the coarser grid
   ! always sits inside the fine grid.
 
-  mg(g)%ifull_coarse=mg(g-1)%ifull+mg(g-1)%ixlen
-  np=mg(g)%ifull_coarse
-  allocate(mg(g)%coarse_a(np),mg(g)%coarse_b(np),mg(g)%coarse_c(np),mg(g)%coarse_d(np))
-  allocate(mg(g)%wgt_a(np),mg(g)%wgt_bc(np),mg(g)%wgt_d(np))
-  mg(g)%coarse_a=0 ! unassigned
-  ! default weights
-  mg(g)%wgt_a=0.5625
-  mg(g)%wgt_bc=0.1875
-  mg(g)%wgt_d=0.0625
+  if (g<=gmax+1) then
+    mg(g)%ifull_coarse=mg(g-1)%ifull+mg(g-1)%ixlen
+    np=mg(g)%ifull_coarse
+    allocate(mg(g)%coarse_a(np),mg(g)%coarse_b(np),mg(g)%coarse_c(np),mg(g)%coarse_d(np))
+    allocate(mg(g)%wgt_a(np),mg(g)%wgt_bc(np),mg(g)%wgt_d(np))
+    mg(g)%coarse_a=0 ! unassigned
+    ! default weights
+    mg(g)%wgt_a=0.5625
+    mg(g)%wgt_bc=0.1875
+    mg(g)%wgt_d=0.0625
  
-  do n=1,npanx
+    do n=1,npanx
   
-    na=mg(g)%merge_pos
-    nx=mod(na-1,nrow)+1
-    ny=(na-1)/nrow+1
-    sii=(nx-1)*drow+1
-    eii=nx*drow
-    sjj=(ny-1)*dcol+1
-    ejj=ny*dcol
+      na=mg(g)%merge_pos
+      nx=mod(na-1,nrow)+1
+      ny=(na-1)/nrow+1
+      sii=(nx-1)*drow+1
+      eii=nx*drow
+      sjj=(ny-1)*dcol+1
+      ejj=ny*dcol
     
-    do jj=sjj,ejj
-      jja=2*(jj-sjj)+1
-      do ii=sii,eii
-        iia=2*(ii-sii)+1
-       
-        iqq=indx(ii,jj,n-1,mipan,mjpan)   ! coarse grid
-        
-        ! odd, odd          
-        iq =indx(iia,jja,n-1,2*drow,2*dcol)     ! fine grid
-        mg(g)%coarse_a(iq)=          iqq
-        mg(g)%coarse_b(iq)= mg(g)%is(iqq)
-        mg(g)%coarse_c(iq)= mg(g)%iw(iqq)
-        mg(g)%coarse_d(iq)=mg(g)%isw(iqq)
-        
-        ! odd, even
-        iq =indx(iia,jja+1,n-1,2*drow,2*dcol)   ! fine grid
-        mg(g)%coarse_a(iq)=          iqq
-        mg(g)%coarse_b(iq)= mg(g)%in(iqq)
-        mg(g)%coarse_c(iq)= mg(g)%iw(iqq)
-        mg(g)%coarse_d(iq)=mg(g)%inw(iqq)
-          
-        ! even, odd
-        iq =indx(iia+1,jja,n-1,2*drow,2*dcol)   ! fine grid 
-        mg(g)%coarse_a(iq)=          iqq
-        mg(g)%coarse_b(iq)= mg(g)%is(iqq)
-        mg(g)%coarse_c(iq)= mg(g)%ie(iqq)
-        mg(g)%coarse_d(iq)=mg(g)%ise(iqq)
-
-        ! even, even
-        iq =indx(iia+1,jja+1,n-1,2*drow,2*dcol) ! fine grid
-        mg(g)%coarse_a(iq)=          iqq
-        mg(g)%coarse_b(iq)= mg(g)%in(iqq)
-        mg(g)%coarse_c(iq)= mg(g)%ie(iqq)
-        mg(g)%coarse_d(iq)=mg(g)%ine(iqq)
-      
-      end do
-    end do
-
-    ! boundaries
-    ! Here we update the boundaries using the coarse
-    ! array which avoids an extra call to mgbounds
-    if (mg(g-1)%ixlen>0) then 
-    
-      ! need to check every point as the current
-      ! grid may be the result of a global gather
       do jj=sjj,ejj
         jja=2*(jj-sjj)+1
         do ii=sii,eii
           iia=2*(ii-sii)+1
-        
+       
           iqq=indx(ii,jj,n-1,mipan,mjpan)   ! coarse grid
         
           ! odd, odd          
           iq =indx(iia,jja,n-1,2*drow,2*dcol)     ! fine grid
-          iql=mg(g-1)%is(iq)
-          if (mg(g)%coarse_a(iql)==0) then
-            mg(g)%coarse_a(iql)= mg(g)%is(iqq)
-            mg(g)%coarse_b(iql)=          iqq
-            mg(g)%coarse_c(iql)=mg(g)%isw(iqq)
-            mg(g)%coarse_d(iql)= mg(g)%iw(iqq)
-          end if
-          iql=mg(g-1)%iw(iq)
-          if (mg(g)%coarse_a(iql)==0) then
-            mg(g)%coarse_a(iql)= mg(g)%iw(iqq)
-            mg(g)%coarse_b(iql)=          iqq
-            mg(g)%coarse_c(iql)=mg(g)%isw(iqq)
-            mg(g)%coarse_d(iql)= mg(g)%is(iqq)
-          end if
-          
+          mg(g)%coarse_a(iq)=          iqq
+          mg(g)%coarse_b(iq)= mg(g)%is(iqq)
+          mg(g)%coarse_c(iq)= mg(g)%iw(iqq)
+          mg(g)%coarse_d(iq)=mg(g)%isw(iqq)
+        
           ! odd, even
           iq =indx(iia,jja+1,n-1,2*drow,2*dcol)   ! fine grid
-          iql=mg(g-1)%in(iq)
-          if (mg(g)%coarse_a(iql)==0) then
-            mg(g)%coarse_a(iql)= mg(g)%in(iqq)
-            mg(g)%coarse_b(iql)=          iqq
-            mg(g)%coarse_c(iql)=mg(g)%inw(iqq)
-            mg(g)%coarse_d(iql)= mg(g)%iw(iqq)
-          end if
-          iql=mg(g-1)%iw(iq)
-          if (mg(g)%coarse_a(iql)==0) then
-            mg(g)%coarse_a(iql)= mg(g)%iw(iqq)
-            mg(g)%coarse_b(iql)=          iqq
-            mg(g)%coarse_c(iql)=mg(g)%inw(iqq)
-            mg(g)%coarse_d(iql)= mg(g)%in(iqq)
-          end if
+          mg(g)%coarse_a(iq)=          iqq
+          mg(g)%coarse_b(iq)= mg(g)%in(iqq)
+          mg(g)%coarse_c(iq)= mg(g)%iw(iqq)
+          mg(g)%coarse_d(iq)=mg(g)%inw(iqq)
           
           ! even, odd
           iq =indx(iia+1,jja,n-1,2*drow,2*dcol)   ! fine grid 
-          iql=mg(g-1)%is(iq)
-          if (mg(g)%coarse_a(iql)==0) then
-            mg(g)%coarse_a(iql)= mg(g)%is(iqq)
-            mg(g)%coarse_b(iql)=          iqq
-            mg(g)%coarse_c(iql)=mg(g)%ise(iqq)
-            mg(g)%coarse_d(iql)= mg(g)%ie(iqq)
-          end if
-          iql=mg(g-1)%ie(iq)
-          if (mg(g)%coarse_a(iql)==0) then
-            mg(g)%coarse_a(iql)= mg(g)%ie(iqq)
-            mg(g)%coarse_b(iql)=          iqq
-            mg(g)%coarse_c(iql)=mg(g)%ise(iqq)
-            mg(g)%coarse_d(iql)= mg(g)%is(iqq)
-          end if
-          
+          mg(g)%coarse_a(iq)=          iqq
+          mg(g)%coarse_b(iq)= mg(g)%is(iqq)
+          mg(g)%coarse_c(iq)= mg(g)%ie(iqq)
+          mg(g)%coarse_d(iq)=mg(g)%ise(iqq)
+
           ! even, even
           iq =indx(iia+1,jja+1,n-1,2*drow,2*dcol) ! fine grid
-          iql=mg(g-1)%in(iq)
-          if (mg(g)%coarse_a(iql)==0) then
-            mg(g)%coarse_a(iql)= mg(g)%in(iqq)
-            mg(g)%coarse_b(iql)=          iqq
-            mg(g)%coarse_c(iql)=mg(g)%ine(iqq)
-            mg(g)%coarse_d(iql)= mg(g)%ie(iqq)
-          end if
-          iql=mg(g-1)%ie(iq)
-          if (mg(g)%coarse_a(iql)==0) then
-            mg(g)%coarse_a(iql)= mg(g)%ie(iqq)
-            mg(g)%coarse_b(iql)=          iqq
-            mg(g)%coarse_c(iql)=mg(g)%ine(iqq)
-            mg(g)%coarse_d(iql)= mg(g)%in(iqq)
-          end if
+          mg(g)%coarse_a(iq)=          iqq
+          mg(g)%coarse_b(iq)= mg(g)%in(iqq)
+          mg(g)%coarse_c(iq)= mg(g)%ie(iqq)
+          mg(g)%coarse_d(iq)=mg(g)%ine(iqq)
       
         end do
       end do
-    end if
-    
-  end do
-  
-  ! adjust weights for panel corners
-  do iq=1,np
-    if (mg(g)%coarse_d(iq)==mg(g)%coarse_b(iq).or.mg(g)%coarse_d(iq)==mg(g)%coarse_c(iq)) then
-      mg(g)%wgt_a(iq)=0.5
-      mg(g)%wgt_bc(iq)=0.25
-      mg(g)%wgt_d(iq)=0.
-    else if (mg(g)%coarse_c(iq)==mg(g)%coarse_a(iq)) then
-      iqq=mg(g)%coarse_d(iq)
-      mg(g)%coarse_c(iq)=mg(g)%coarse_d(iq)
-      mg(g)%coarse_d(iq)=iqq
-      mg(g)%wgt_a(iq)=0.5
-      mg(g)%wgt_bc(iq)=0.25
-      mg(g)%wgt_d(iq)=0.
-    else if (mg(g)%coarse_c(iq)==mg(g)%coarse_d(iq)) then
-      mg(g)%wgt_a(iq)=0.5
-      mg(g)%wgt_bc(iq)=0.25
-      mg(g)%wgt_d(iq)=0.
-    end if
-  end do
 
+      ! boundaries
+      ! Here we update the boundaries using the coarse
+      ! array which avoids an extra call to mgbounds
+      if (mg(g-1)%ixlen>0) then 
+    
+        ! need to check every point as the current
+        ! grid may be the result of a global gather
+        do jj=sjj,ejj
+          jja=2*(jj-sjj)+1
+          do ii=sii,eii
+            iia=2*(ii-sii)+1
+        
+            iqq=indx(ii,jj,n-1,mipan,mjpan)   ! coarse grid
+        
+            ! odd, odd          
+            iq =indx(iia,jja,n-1,2*drow,2*dcol)     ! fine grid
+            iql=mg(g-1)%is(iq)
+            if (mg(g)%coarse_a(iql)==0) then
+              mg(g)%coarse_a(iql)= mg(g)%is(iqq)
+              mg(g)%coarse_b(iql)=          iqq
+              mg(g)%coarse_c(iql)=mg(g)%isw(iqq)
+              mg(g)%coarse_d(iql)= mg(g)%iw(iqq)
+            end if
+            iql=mg(g-1)%iw(iq)
+            if (mg(g)%coarse_a(iql)==0) then
+              mg(g)%coarse_a(iql)= mg(g)%iw(iqq)
+              mg(g)%coarse_b(iql)=          iqq
+              mg(g)%coarse_c(iql)=mg(g)%isw(iqq)
+              mg(g)%coarse_d(iql)= mg(g)%is(iqq)
+            end if
+          
+            ! odd, even
+            iq =indx(iia,jja+1,n-1,2*drow,2*dcol)   ! fine grid
+            iql=mg(g-1)%in(iq)
+            if (mg(g)%coarse_a(iql)==0) then
+              mg(g)%coarse_a(iql)= mg(g)%in(iqq)
+              mg(g)%coarse_b(iql)=          iqq
+              mg(g)%coarse_c(iql)=mg(g)%inw(iqq)
+              mg(g)%coarse_d(iql)= mg(g)%iw(iqq)
+            end if
+            iql=mg(g-1)%iw(iq)
+            if (mg(g)%coarse_a(iql)==0) then
+              mg(g)%coarse_a(iql)= mg(g)%iw(iqq)
+              mg(g)%coarse_b(iql)=          iqq
+              mg(g)%coarse_c(iql)=mg(g)%inw(iqq)
+              mg(g)%coarse_d(iql)= mg(g)%in(iqq)
+            end if
+          
+            ! even, odd
+            iq =indx(iia+1,jja,n-1,2*drow,2*dcol)   ! fine grid 
+            iql=mg(g-1)%is(iq)
+            if (mg(g)%coarse_a(iql)==0) then
+              mg(g)%coarse_a(iql)= mg(g)%is(iqq)
+              mg(g)%coarse_b(iql)=          iqq
+              mg(g)%coarse_c(iql)=mg(g)%ise(iqq)
+              mg(g)%coarse_d(iql)= mg(g)%ie(iqq)
+            end if
+            iql=mg(g-1)%ie(iq)
+            if (mg(g)%coarse_a(iql)==0) then
+              mg(g)%coarse_a(iql)= mg(g)%ie(iqq)
+              mg(g)%coarse_b(iql)=          iqq
+              mg(g)%coarse_c(iql)=mg(g)%ise(iqq)
+              mg(g)%coarse_d(iql)= mg(g)%is(iqq)
+            end if
+          
+            ! even, even
+            iq =indx(iia+1,jja+1,n-1,2*drow,2*dcol) ! fine grid
+            iql=mg(g-1)%in(iq)
+            if (mg(g)%coarse_a(iql)==0) then
+              mg(g)%coarse_a(iql)= mg(g)%in(iqq)
+              mg(g)%coarse_b(iql)=          iqq
+              mg(g)%coarse_c(iql)=mg(g)%ine(iqq)
+              mg(g)%coarse_d(iql)= mg(g)%ie(iqq)
+            end if
+            iql=mg(g-1)%ie(iq)
+            if (mg(g)%coarse_a(iql)==0) then
+              mg(g)%coarse_a(iql)= mg(g)%ie(iqq)
+              mg(g)%coarse_b(iql)=          iqq
+              mg(g)%coarse_c(iql)=mg(g)%ine(iqq)
+              mg(g)%coarse_d(iql)= mg(g)%in(iqq)
+            end if
+      
+          end do
+        end do
+      end if
+    
+    end do
+  
+    ! adjust weights for panel corners
+    do iq=1,np
+      if (mg(g)%coarse_d(iq)==mg(g)%coarse_b(iq).or.mg(g)%coarse_d(iq)==mg(g)%coarse_c(iq)) then
+        mg(g)%wgt_a(iq)=0.5
+        mg(g)%wgt_bc(iq)=0.25
+        mg(g)%wgt_d(iq)=0.
+      else if (mg(g)%coarse_c(iq)==mg(g)%coarse_a(iq)) then
+        iqq=mg(g)%coarse_d(iq)
+        mg(g)%coarse_c(iq)=mg(g)%coarse_d(iq)
+        mg(g)%coarse_d(iq)=iqq
+        mg(g)%wgt_a(iq)=0.5
+        mg(g)%wgt_bc(iq)=0.25
+        mg(g)%wgt_d(iq)=0.
+      else if (mg(g)%coarse_c(iq)==mg(g)%coarse_d(iq)) then
+        mg(g)%wgt_a(iq)=0.5
+        mg(g)%wgt_bc(iq)=0.25
+        mg(g)%wgt_d(iq)=0.
+      end if
+    end do
+  end if
+
+  ! free some memory
+  if (g>=gmax+2) then
+    deallocate(mg(g)%in,mg(g)%ie,mg(g)%is,mg(g)%iw)
+    deallocate(mg(g)%ine,mg(g)%inw,mg(g)%ise,mg(g)%isw)
+  end if
+  
 end do
 
-gmax=min(mg_maxlevel-1,mg_maxlevel_local)
 mg_minsize=0
 if (mg_maxlevel_local==mg_maxlevel) then
   mg_minsize=6*mil_g*mil_g
@@ -4280,18 +4289,6 @@ end if
 
 ! free some memory
 deallocate(mg(mg_maxlevel)%fproc)
-
-do g=gmax+2,mg_maxlevel
-  deallocate(mg(g)%in,mg(g)%ie,mg(g)%is,mg(g)%iw)
-  deallocate(mg(g)%ine,mg(g)%inw,mg(g)%ise,mg(g)%isw)
-  deallocate(mg(g)%coarse_a,mg(g)%coarse_b,mg(g)%coarse_c,mg(g)%coarse_d)
-  deallocate(mg(g)%wgt_a,mg(g)%wgt_bc,mg(g)%wgt_d)
-end do
-
-do g=gmax+1,mg_maxlevel-1
-  deallocate(mg(g)%fine,mg(g)%fine_n)
-  deallocate(mg(g)%fine_e,mg(g)%fine_ne)
-end do
 
 sorfirst=.false.
 if (myid==0) then
