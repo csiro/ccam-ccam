@@ -485,7 +485,7 @@ logical lleap
 
 integer, parameter :: nxtrrho    = 1   ! Estimate rho at t+1 (0=off, 1=on)
 real, parameter :: tol    = 5.E-4      ! Tolerance for SOR solver (water)
-real, parameter :: itol   = 2.E1       ! Tolerance for SOR solver (ice)
+real, parameter :: itol   = 2.E0       ! Tolerance for SOR solver (ice)
 logical, dimension(6), parameter :: bsmask = (/ .false., .false., .false., .false., .true., .true. /) ! mask for Berm-Stan option
 
 ! new z levels for including free surface eta (effectively sigma-depth levels)

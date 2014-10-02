@@ -153,7 +153,7 @@ real, parameter :: himin=0.1              ! minimum ice thickness for multiple l
 real, parameter :: icebreak=0.05          ! minimum ice thickness before breakup (1D model)
 real, parameter :: fracbreak=0.05         ! minimum ice fraction (1D model)
 real, parameter :: icemin=0.01            ! minimum ice thickness (m)
-real, parameter :: icemax=10.             ! maximum ice thickness (m)
+real, parameter :: icemax=6.              ! maximum ice thickness (m)
 real, parameter :: rhoic=900.             ! density ice
 real, parameter :: rhosn=330.             ! density snow
 real, parameter :: rhowt=1025.            ! density water (replace with d_rho ?)
@@ -1043,7 +1043,7 @@ integer, intent(in) :: diag
 real, dimension(ifull), intent(in) :: ip_dic, ip_dsn
 real, dimension(ifull,3), intent(out) :: gamm
 
-gamm(:,1)=1. !gammi
+gamm(:,1)=1. !*gammi
 gamm(:,2)=max(ip_dsn,0.) !*cps
 gamm(:,3)=max(ip_dic-gammi/cpi,0.) ! *0.5*cpi
 
@@ -1753,7 +1753,7 @@ subroutine calcdensity(d_rho,d_alpha,d_beta,rs,rho0,tt,ss,ddz,pxtr)
 
 implicit none
 
-integer full,wlx,i,ii
+integer wlx,ii
 !integer, parameter :: nits=1 ! iterate for density (nits=1 recommended)
 real, dimension(:,:), intent(in) :: tt
 real, dimension(size(tt,1),size(tt,2)), intent(in) :: ss,ddz
@@ -1765,8 +1765,7 @@ real, dimension(size(tt,1)) :: drho0dt,drho0ds,dskdt,dskds,sk,sks
 real, dimension(size(tt,1)) :: drhodt,drhods,rs0
 real, parameter :: density = 1035.
 
-full=size(tt,1)
-wlx=size(tt,2)
+wlx =size(tt,2)
 d_rho=density
 
 t = min(max(tt(:,1)-273.16,-2.2),100.)
