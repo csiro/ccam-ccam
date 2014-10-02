@@ -1478,6 +1478,7 @@ call solvecanyon(sg_road,rg_road,fg_road,eg_road,acond_road,                    
                  d_cwr,d_totdepth,d_c1c,ddt)
 
 ! calculate roof fluxes
+eg_roof = 0 ! For cray compiler
 call solveroof(sg_rfsn,rg_rfsn,fg_rfsn,eg_rfsn,garfsn,rfsnmelt,rfsntemp,acond_rfsn,d_rfsndelta, &
                sg_vegr,rg_vegr,fg_vegr,eg_vegr,acond_vegr,d_vegdeltar,                          &
                sg_roof,rg_roof,fg_roof,eg_roof,acond_roof,d_roofdelta,                          &
@@ -1660,15 +1661,15 @@ do k=2,4
   ggbroad(:,k)=ggbroad(:,k)-n*ggcroad(:,k-1)
   ggdroad(:,k)=ggdroad(:,k)-n*ggdroad(:,k-1)
 end do
-roof%temp(:,4)=ggdroof(:,4)/ggbroof(:,4)
+roof%temp(:,4) =ggdroof(:,4)/ggbroof(:,4)
 walle%temp(:,4)=ggdwalle(:,4)/ggbwall(:,4)
 wallw%temp(:,4)=ggdwallw(:,4)/ggbwall(:,4)
-road%temp(:,4)=ggdroad(:,4)/ggbroad(:,4)
+road%temp(:,4) =ggdroad(:,4)/ggbroad(:,4)
 do k=3,1,-1
-  roof%temp(:,k)=(ggdroof(:,k) -ggcroof(:,k)*roof%temp(:,k+1))/ggbroof(:,k)
+  roof%temp(:,k) =(ggdroof(:,k) -ggcroof(:,k)*roof%temp(:,k+1) )/ggbroof(:,k)
   walle%temp(:,k)=(ggdwalle(:,k)-ggcwall(:,k)*walle%temp(:,k+1))/ggbwall(:,k)
   wallw%temp(:,k)=(ggdwallw(:,k)-ggcwall(:,k)*wallw%temp(:,k+1))/ggbwall(:,k)
-  road%temp(:,k)=(ggdroad(:,k) -ggcroad(:,k)*road%temp(:,k+1))/ggbroad(:,k)
+  road%temp(:,k) =(ggdroad(:,k) -ggcroad(:,k)*road%temp(:,k+1) )/ggbroad(:,k)
 end do
 
 return

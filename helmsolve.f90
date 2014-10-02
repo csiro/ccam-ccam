@@ -2127,8 +2127,6 @@ do itr=2,itr_mg
       w(1:klim,iq)=v(1:klim,iq,g)+w(1:klim,iq)
     end do
 
-    ! MJT notes - The first correction is usually sufficient to produce a good approximation
-    ! to the converged solution, thereby avoiding additional calls to mgbounds
     do i=1,itrend-1
       do iq=1,mg(g)%ifull
         ! post smoothing
@@ -3646,12 +3644,12 @@ if (mod(mipan,2)/=0.or.mod(mjpan,2)/=0.or.g==mg_maxlevel) then
 
   if (mod(mxpr,2)==0.and.mod(mypr,2)==0.and.g<mg_maxlevel) then
    
-   ! This case occurs when there are multiple processors on a panel.
-   ! Consequently, npan should be 1 or 6.
-   if (npan>1.and.npan<6) then
-     write(6,*) "ERROR: Invalid gather4"
-     call ccmpi_abort(-1)
-   end if
+    ! This case occurs when there are multiple processors on a panel.
+    ! Consequently, npan should be 1 or 6.
+    if (npan>1.and.npan<6) then
+      write(6,*) "ERROR: Invalid gather4"
+      call ccmpi_abort(-1)
+    end if
     
     mg(1)%merge_len=4
     mg(1)%merge_row=2
@@ -3684,7 +3682,7 @@ if (mod(mipan,2)/=0.or.mod(mjpan,2)/=0.or.g==mg_maxlevel) then
     end do
     if (ix<1) then
       write(6,*) "ERROR: Cannot locate processor in gather4"
-      stop
+      call ccmpi_abort(-1)
     end if
     ii=ix
     jj=jx
@@ -3756,7 +3754,9 @@ if (mod(mipan,2)/=0.or.mod(mjpan,2)/=0.or.g==mg_maxlevel) then
       mg(1)%nmax=0
     end if
 #endif
-  
+
+    deallocate(mg(1)%merge_list)
+
   else
     write(6,*) "ERROR: Grid g=1 requires gatherall for multi-grid solver"
     call ccmpi_abort(-1)
@@ -3821,6 +3821,8 @@ do g=2,mg_maxlevel
       end do
     end do
   end do
+  
+  deallocate(mg(g-1)%fproc)
 
   ! default if no gather for upscaled grid
   mg(g)%npanx=npan
@@ -3969,7 +3971,7 @@ do g=2,mg_maxlevel
       end do
       if (iqq/=mg(g)%merge_len) then
         write(6,*) "ERROR: merge_len mismatch ",iqq,mg(g)%merge_len,g
-        stop
+        call ccmpi_abort(-1)
       end if
       mg(g)%merge_pos=-1
       do i=1,mg(g)%merge_len
@@ -4013,7 +4015,7 @@ do g=2,mg_maxlevel
 
       ! modify fproc for remaining processor
       mg(g)%fproc(:,:,:)=myid
-
+      
     else ! all data is already on one processor
       if (g/=mg_maxlevel) then
         write(6,*) "ERROR: g/=mg_maxlevel ",g,mg_maxlevel
@@ -4036,6 +4038,7 @@ do g=2,mg_maxlevel
         mg(g)%nmax=0
       end if
 #endif
+      deallocate(mg(g)%merge_list)
     end if
   
   else
@@ -4276,12 +4279,7 @@ if (mg_maxlevel_local==mg_maxlevel) then
 end if
 
 ! free some memory
-do g=1,mg_maxlevel
-  deallocate(mg(g)%fproc)
-  if (mg(g)%merge_len>1) then
-    deallocate(mg(g)%merge_list)
-  end if
-end do
+deallocate(mg(mg_maxlevel)%fproc)
 
 do g=gmax+2,mg_maxlevel
   deallocate(mg(g)%in,mg(g)%ie,mg(g)%is,mg(g)%iw)
