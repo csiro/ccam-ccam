@@ -15,7 +15,7 @@ public itracbc,bce,bcdd,bcwd,bc_burden
 public itracoc,oce,ocdd,ocwd,oc_burden
 public itracso2,dmse,dmsso2o,so2e,so2so4o,so2dd,so2wd,so4e,so4dd,so4wd
 public dms_burden,so2_burden,so4_burden
-public Ch_dust,dustalpha,zvolcemi,ticeu,dzmin_gbl,aeroindir
+public Ch_dust,zvolcemi,ticeu,dzmin_gbl,aeroindir
 
 integer, save :: ifull,kl
 integer, save :: jk2,jk3,jk4,jk5,jk6,jk8,jk9           ! levels for injection
@@ -96,8 +96,6 @@ real, parameter :: rhos      = 100.             ! Assumed density of snow in kg/
 real, save :: zvolcemi       = 8.               ! Total emission from volcanoes (TgS/yr)
 real, save :: dzmin_gbl      = 5.               ! nominal minimum dz for dust settling (m)
 real, save :: Ch_dust        = 1.e-9            ! Transfer coeff for type natural source (kg*s2/m5)
-real, save :: dustalpha      = 1.               ! Scale factor for dry deposition (0. = deposition velocity, 1. = reduced for
-                                                ! strong winds)
 
 ! scavenging constants
 real, parameter :: ticeu     = 263.16           ! Temperature for freezing in convective updraft
@@ -353,7 +351,8 @@ real, dimension(ifull) :: cstrat,qtot
 real, dimension(ifull) :: rrate,Wstar3,Vgust_free,Vgust_deep
 real, dimension(ifull) :: v10n,thetav,burden
 real, parameter :: beta = 0.65
-integer nt,k
+real ddt
+integer nt,k,nstep,i
 
 conwd=0.
 cgssnowd=1.E-3*snowd
@@ -400,10 +399,14 @@ xtg(1:ifull,:,:)=max(xtg(1:ifull,:,:)+xte(:,:,:)*dt,0.)
 do k=1,kl
   aphp1(:,k)=prf(:)*sig(k)*0.01 ! hPa
 end do
-! Calculate the settling of large dust particles
-call dsettling(dt,rhoa,ttg,dz,aphp1(:,1:kl))
-! Calculate dust emission and turbulent dry deposition at the surface
-call dustem(dt,rhoa(:,1),wg,veff,dz(:,1),vt,snowd,land)
+nstep=int(dt/120.01)+1
+ddt=dt/real(nstep)
+do i=1,nstep
+  ! Calculate the settling of large dust particles
+  call dsettling(ddt,rhoa,ttg,dz,aphp1(:,1:kl))
+  ! Calculate dust emission and turbulent dry deposition at the surface
+  call dustem(ddt,rhoa(:,1),wg,veff,dz(:,1),vt,snowd,land)
+end do
 
 ! Decay of hydrophobic black and organic carbon into hydrophilic forms
 call xtsink(dt,xte)
@@ -2084,8 +2087,8 @@ real, dimension(ifull) :: srce,dsrc,airmas
 real, dimension(ifull) :: a,b,xold,xtendd
 real, dimension(ifull) :: airden
 
-real g,den,diam,ddt
-integer n,m,ii,nstep
+real g,den,diam
+integer n,m
 
 ! Start code : ----------------------------------------------------------
 
@@ -2097,9 +2100,6 @@ airden = rhoa*1.e-3
 ! 0.05 m is the geometrical snow thickness for 100% areal coverage.
 !hsnow = snowd*0.01 !Geometrical snow thickness in metres
 snowa = min( 1., snowd/5. )
-
-nstep=int(tdt/120.01)+1
-ddt=tdt/real(nstep)
 
 do n = 1, ndust
   ! Threshold velocity as a function of the dust density and the diameter
@@ -2135,17 +2135,15 @@ do n = 1, ndust
 
 ! Calculate turbulent dry deposition at surface
 ! Use full layer thickness for CSIRO model (should be correct if Vt is relative to mid-layer)
-  veff = Vt*(wg+(1.-wg)*exp(-dustalpha*max( 0., w10m-u_ts0 )))
+  veff = Vt*(wg+(1.-wg)*exp(-max( 0., w10m-u_ts0 )))
   b = Veff / dz1
 
 ! Update mixing ratio
 ! Write in form dx/dt = a - bx (a = source term, b = drydep term)
   xold = xtg(1:ifull,1,n+itracdu-1)
   
-  do ii=1,nstep
-    xtg(1:ifull,1,n+itracdu-1) = (xtg(1:ifull,1,n+itracdu-1)*(1.-0.5*b*ddt)+a*ddt)/(1.+0.5*b*ddt)
-    xtg(1:ifull,1,n+itracdu-1) = max( 0., xtg(1:ifull,1,n+itracdu-1) )
-  end do
+  xtg(1:ifull,1,n+itracdu-1) = (xtg(1:ifull,1,n+itracdu-1)*(1.-0.5*b*tdt)+a*tdt)/(1.+0.5*b*tdt)
+  xtg(1:ifull,1,n+itracdu-1) = max( 0., xtg(1:ifull,1,n+itracdu-1) )
 
   xtendd = (xtg(1:ifull,1,n+itracdu-1)-xold)/tdt - a
   dustdd = dustdd - xtendd*airmas ! Diagnostic

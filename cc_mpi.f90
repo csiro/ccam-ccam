@@ -325,10 +325,16 @@ module cc_mpi
    integer, public, save :: mgmloup_begin, mgmloup_end
    integer, public, save :: mgmlocoarse_begin, mgmlocoarse_end
    integer, public, save :: mgmlodown_begin, mgmlodown_end
+   integer, public, save :: cabpack_begin, cabpack_end
+   integer, public, save :: cabmisc_begin, cabmisc_end
+   integer, public, save :: cabcanopy_begin, cabcanopy_end
+   integer, public, save :: cabsoil_begin, cabsoil_end
+   integer, public, save :: cabcasa_begin, cabcasa_end
+   integer, public, save :: cabunpack_begin, cabunpack_end
 #ifdef simple_timer
    public :: simple_timer_finalize
 #endif
-   integer, parameter :: nevents = 73
+   integer, parameter :: nevents = 79
    real(kind=8), dimension(nevents), save :: tot_time = 0., start_time
    character(len=15), dimension(nevents), save :: event_name
 
@@ -4285,8 +4291,7 @@ contains
             nf = gf + noff ! Make this a local index
             idel = int(xf) - ioff
             jdel = int(yf) - joff
-            if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. jdel > jpan &
-                 .or. nf < 1 .or. nf > npan ) then
+            if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. jdel > jpan .or. nf < 1 .or. nf > npan ) then
                ! If point is on a different processor, add to a list 
                ip = min(il_g,max(1,nint(xf)))
                jp = min(il_g,max(1,nint(yf)))
@@ -4294,27 +4299,17 @@ contains
                dproc = neighmap(iproc) ! returns 0 if not in neighlist
                ! Add this point to the list of requests I need to send to iproc
                dslen(dproc) = dslen(dproc) + 1
+               ! Limit request index to valid range to avoid seg fault
+               xn = min( dslen(dproc), bnds(iproc)%len/nagg )
                ! Since nface is a small integer it can be exactly represented by a
                ! real. It's simpler to send like this than use a proper structure.
-               xn = max( min( dslen(dproc), bnds(iproc)%len/nagg ), 1 )
                dbuf(dproc)%a(:,xn) = (/ real(gf), xf, yf, real(k) /)
                dindex(dproc)%a(:,xn) = (/ iq, k /)
             end if
          end do
       end do
  
-      ! Send request list
-      rreq = nreq
-      do iproc = neighnum,1,-1
-         lproc = neighlist(iproc)  ! Send to
-         ! Send, even if length is zero
-         nreq = nreq + 1
-         llen = 4*min(dslen(iproc),bnds(lproc)%len/nagg)
-         call MPI_ISend( dbuf(iproc)%a, llen, ltype, lproc, &
-                 itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-      end do
-      
-      ! Error check
+      ! Check for errors
       if ( dslen(0) > 0 ) then
          write(6,*) "myid,dslen(0) ",myid,dslen(0)
          gf = nint(dbuf(dproc)%a(1,1))
@@ -4337,6 +4332,17 @@ contains
          end if
       end do
 
+      ! Send request list
+      rreq = nreq
+      do iproc = neighnum,1,-1
+         lproc = neighlist(iproc)  ! Send to
+         ! Send, even if length is zero
+         nreq = nreq + 1
+         llen = 4*dslen(iproc)
+         call MPI_ISend( dbuf(iproc)%a, llen, ltype, lproc, &
+                 itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+      end do
+      
       ! Unpack incomming messages
       rcount = rreq
       do while ( rcount > 0 )
@@ -4351,7 +4357,7 @@ contains
          end do
       end do
 
-      ! Clear any remaining messages
+      ! Clear any remaining message requests
       sreq = nreq - rreq
       call START_LOG(mpiwaitdep_begin)
       call MPI_Waitall(sreq,ireq(rreq+1:nreq),status,ierr)
@@ -5017,8 +5023,6 @@ contains
    end subroutine log_on
 
    subroutine log_setup()
-      integer :: ierr
-      integer :: classhandle
 #ifdef vampir
 #ifdef simple_timer
       write(6,*) "ERROR: vampir and simple_timer should not be compiled together"
@@ -5295,29 +5299,54 @@ contains
       event_name(mgcoarse_begin) = "MG_Coarse"
 
       mgdown_begin = 68
-      mgdown_end =  mgdown_begin
+      mgdown_end = mgdown_begin
       event_name(mgdown_begin) = "MG_Down"
 
       mgmlosetup_begin = 69
-      mgmlosetup_end =  mgmlosetup_begin
+      mgmlosetup_end = mgmlosetup_begin
       event_name(mgmlosetup_begin) = "MGMLO_Setup"
 
       mgmlofine_begin = 70
-      mgmlofine_end =  mgmlofine_begin
+      mgmlofine_end = mgmlofine_begin
       event_name(mgmlofine_begin) = "MGMLO_Fine"
 
       mgmloup_begin = 71
-      mgmloup_end =  mgmloup_begin
+      mgmloup_end = mgmloup_begin
       event_name(mgmloup_begin) = "MGMLO_Up"
 
       mgmlocoarse_begin = 72
-      mgmlocoarse_end =  mgmlocoarse_begin
+      mgmlocoarse_end = mgmlocoarse_begin
       event_name(mgmlocoarse_begin) = "MGMLO_Coarse"
 
       mgmlodown_begin = 73
-      mgmlodown_end =  mgmlodown_begin
+      mgmlodown_end = mgmlodown_begin
       event_name(mgmlodown_begin) = "MGMLO_Down"
 
+      cabpack_begin = 74
+      cabpack_end = cabpack_begin
+      event_name(cabpack_begin) = "CABLE_Pack"
+
+      cabmisc_begin = 75
+      cabmisc_end = cabmisc_begin
+      event_name(cabmisc_begin) = "CABLE_Misc"
+
+      cabcanopy_begin = 76
+      cabcanopy_end = cabcanopy_begin
+      event_name(cabcanopy_begin) = "CABLE_Canopy"
+
+      cabsoil_begin = 77
+      cabsoil_end = cabsoil_begin
+      event_name(cabsoil_begin) = "CABLE_Soil"
+
+      cabcasa_begin = 78
+      cabcasa_end = cabcasa_begin
+      event_name(cabcasa_begin) = "CABLE_CASA"
+
+      cabunpack_begin = 79
+      cabunpack_end = cabunpack_begin
+      event_name(cabunpack_begin) = "CABLE_Unpack"
+
+      
    end subroutine log_setup
    
    subroutine phys_loadbal()
@@ -6934,7 +6963,6 @@ contains
       do yproc = 1,nmax
          ir = mod(yproc-1,mg(g)%merge_row)+1   ! index for proc row
          ic = (yproc-1)/mg(g)%merge_row+1      ! index for proc col
-
          is = (ir-1)*nrow+1
          js = (ic-1)*ncol+1
          je = ic*ncol

@@ -32,15 +32,16 @@ integer, parameter :: mstagf   =10   ! alternating staggering (0=off left, -1=of
 integer, parameter :: koff     =1    ! time split stagger relative to A-grid (koff=0) or C-grid (koff=1)
 integer, parameter :: nf       =2    ! power for horizontal diffusion reduction factor
 integer, parameter :: itnmax   =6    ! number of interations for staggering
-integer, save      :: fixsal   =1    ! Conserve salinity (0=Usual, 1=Fixed average salinity at 34.72)
-integer, save      :: fixheight=1    ! Conserve free surface height (0=Usual, 1=Fixed average Height at 0)
+integer, save      :: fixsal   =1    ! conserve salinity (0=Usual, 1=Fixed average salinity at 34.72)
+integer, save      :: fixheight=1    ! conserve free surface height (0=Usual, 1=Fixed average Height at 0)
+integer, save      :: mlodiff  =1    ! diffusion (0=all, 1=scalars only)
 real, parameter :: rhosn      = 330.      ! density snow (kg m^-3)
 real, parameter :: rhoic      = 900.      ! density ice  (kg m^-3)
 real, parameter :: grav       = 9.80616   ! gravitational constant (m s^-2)
 real, parameter :: delphi     = 150.      ! horizontal diffusion reduction factor gradient
 real, save      :: ocnsmag    = 1.        ! horizontal diffusion (2. in Griffies (2000), 1.-1.4 in POM (Mellor 2004))
 real, save      :: ocneps     = 0.1       ! semi-implicit off-centring term
-real, parameter :: maxicefrac = 0.999     ! Maximum ice fraction
+real, parameter :: maxicefrac = 0.999     ! maximum ice fraction
 
 contains
 
@@ -317,62 +318,67 @@ do k=1,wlev
 end do
 call boundsuv(xfact,yfact,stag=-9)
 
-! Laplacian diffusion terms (closure #1)
 do k=1,wlev
-  duma(1:ifull,k,1)=ax(1:ifull)*u(1:ifull,k)+bx(1:ifull)*v(1:ifull,k)
-  duma(1:ifull,k,2)=ay(1:ifull)*u(1:ifull,k)+by(1:ifull)*v(1:ifull,k)
-  duma(1:ifull,k,3)=az(1:ifull)*u(1:ifull,k)+bz(1:ifull)*v(1:ifull,k)
-end do
-call bounds(duma(:,:,1:3))
-
-! no slip boundary condition for coastlines
-do k=1,wlev
-
   base(:,k)=emi+xfact(1:ifull,k)+xfact(iwu,k)+yfact(1:ifull,k)+yfact(isv,k)
-  
-  nu = ( duma(1:ifull,k,1)*emi +                      &
-           xfact(1:ifull,k)*duma(ie,k,1) +            &
-           xfact(iwu,k)*duma(iw,k,1) +                &
-           yfact(1:ifull,k)*duma(in,k,1) +            &
-           yfact(isv,k)*duma(is,k,1) ) / base(:,k)
-
-  nv = ( duma(1:ifull,k,2)*emi +                      &
-         xfact(1:ifull,k)*duma(ie,k,2) +              &
-         xfact(iwu,k)*duma(iw,k,2) +                  &
-         yfact(1:ifull,k)*duma(in,k,2) +              &
-         yfact(isv,k)*duma(is,k,2) ) / base(:,k)
-
-  nw = ( duma(1:ifull,k,3)*emi +                      &
-         xfact(1:ifull,k)*duma(ie,k,3) +              &
-         xfact(iwu,k)*duma(iw,k,3) +                  &
-         yfact(1:ifull,k)*duma(in,k,3) +              &
-         yfact(isv,k)*duma(is,k,3) ) / base(:,k)
-
-  outu(1:ifull,k)=ax(1:ifull)*nu+ay(1:ifull)*nv+az(1:ifull)*nw
-  outv(1:ifull,k)=bx(1:ifull)*nu+by(1:ifull)*nv+bz(1:ifull)*nw
-
 end do
 
-! Laplacian diffusion and viscosity terms (closure #2)
-! call boundsuv(u,v,allvec=.true.)
-!do k=1,wlev
-!
-!  base(:,k)=emi+xfact(1:ifull,k)+xfact(iwu,k)+yfact(1:ifull,k)+yfact(isv,k)
-!
-!  outu(:,k)=(u(1:ifull,k)*emi+2.*xfact(1:ifull,k)*u(ieu,k)+2.*xfact(iwu,k)*u(iwu,k) &
-!    +yfact(1:ifull,k)*u(inu,k)+yfact(isv,k)*u(isu,k)                         &
-!    +(yfact(1:ifull,k)-yfact(isv,k))*0.5*(v(iev,k)-v(iwv,k))                 &
-!    +t_kh(1:ifull,k)*0.5*(v(inv,k)+v(iev,k)-v(isv,k)-v(iwv,k)))              &
-!    /(emi+2.*xfact(1:ifull,k)+2.*xfact(iwu,k)+yfact(1:ifull,k)+yfact(isv,k))
-!  outv(:,k)=(v(1:ifull,k)*emi+2.*yfact(1:ifull,k)*v(inv,k)+2.*yfact(isv,k)*v(isv,k) &
-!    +xfact(1:ifull,k)*v(iev,k)+xfact(iwu,k)*v(iwv,k)                         &
-!    +(xfact(1:ifull,k)-xfact(iwu,k))*0.5*(u(inu,k)-u(isu,k))                 &
-!    +t_kh(1:ifull,k)*0.5*(u(inu,k)+u(ieu,k)-u(isu,k)-u(iwu,k)))              &
-!    /(emi+2.*yfact(1:ifull,k)+2.*yfact(isv,k)+xfact(1:ifull,k)+xfact(iwu,k))
-!
-!end do
+if (mlodiff==0) then
+  ! Laplacian diffusion terms (closure #1)
+  do k=1,wlev
+    duma(1:ifull,k,1)=ax(1:ifull)*u(1:ifull,k)+bx(1:ifull)*v(1:ifull,k)
+    duma(1:ifull,k,2)=ay(1:ifull)*u(1:ifull,k)+by(1:ifull)*v(1:ifull,k)
+    duma(1:ifull,k,3)=az(1:ifull)*u(1:ifull,k)+bz(1:ifull)*v(1:ifull,k)
+  end do
+  call bounds(duma(:,:,1:3))
 
-! Potential temperature
+  ! no slip boundary condition for coastlines
+  do k=1,wlev
+  
+    nu = ( duma(1:ifull,k,1)*emi +                      &
+             xfact(1:ifull,k)*duma(ie,k,1) +            &
+             xfact(iwu,k)*duma(iw,k,1) +                &
+             yfact(1:ifull,k)*duma(in,k,1) +            &
+             yfact(isv,k)*duma(is,k,1) ) / base(:,k)
+
+    nv = ( duma(1:ifull,k,2)*emi +                      &
+           xfact(1:ifull,k)*duma(ie,k,2) +              &
+           xfact(iwu,k)*duma(iw,k,2) +                  &
+           yfact(1:ifull,k)*duma(in,k,2) +              &
+           yfact(isv,k)*duma(is,k,2) ) / base(:,k)
+
+    nw = ( duma(1:ifull,k,3)*emi +                      &
+           xfact(1:ifull,k)*duma(ie,k,3) +              &
+           xfact(iwu,k)*duma(iw,k,3) +                  &
+           yfact(1:ifull,k)*duma(in,k,3) +              &
+           yfact(isv,k)*duma(is,k,3) ) / base(:,k)
+
+    outu(1:ifull,k)=ax(1:ifull)*nu+ay(1:ifull)*nv+az(1:ifull)*nw
+    outv(1:ifull,k)=bx(1:ifull)*nu+by(1:ifull)*nv+bz(1:ifull)*nw
+
+  end do
+
+!   Laplacian diffusion and viscosity terms (closure #2)
+!   call boundsuv(u,v,allvec=.true.)
+!  do k=1,wlev
+!
+!    outu(:,k)=(u(1:ifull,k)*emi+2.*xfact(1:ifull,k)*u(ieu,k)+2.*xfact(iwu,k)*u(iwu,k) &
+!      +yfact(1:ifull,k)*u(inu,k)+yfact(isv,k)*u(isu,k)                         &
+!      +(yfact(1:ifull,k)-yfact(isv,k))*0.5*(v(iev,k)-v(iwv,k))                 &
+!      +t_kh(1:ifull,k)*0.5*(v(inv,k)+v(iev,k)-v(isv,k)-v(iwv,k)))              &
+!      /(emi+2.*xfact(1:ifull,k)+2.*xfact(iwu,k)+yfact(1:ifull,k)+yfact(isv,k))
+!    outv(:,k)=(v(1:ifull,k)*emi+2.*yfact(1:ifull,k)*v(inv,k)+2.*yfact(isv,k)*v(isv,k) &
+!      +xfact(1:ifull,k)*v(iev,k)+xfact(iwu,k)*v(iwv,k)                         &
+!      +(xfact(1:ifull,k)-xfact(iwu,k))*0.5*(u(inu,k)-u(isu,k))                 &
+!      +t_kh(1:ifull,k)*0.5*(u(inu,k)+u(ieu,k)-u(isu,k)-u(iwu,k)))              &
+!      /(emi+2.*yfact(1:ifull,k)+2.*yfact(isv,k)+xfact(1:ifull,k)+xfact(iwu,k))
+!
+!  end do
+
+  call mloimport3d(2,outu,0)
+  call mloimport3d(3,outv,0)
+end if
+  
+! Potential temperature and salinity
 duma(1:ifull,:,1)=tt-290.
 duma(1:ifull,:,2)=ss-34.72
 call bounds(duma(:,:,1:2))
@@ -393,8 +399,6 @@ fs=max(fs+34.72,0.)
 
 call mloimport3d(0,ft,0)
 call mloimport3d(1,fs,0)
-call mloimport3d(2,outu,0)
-call mloimport3d(3,outv,0)
 
 call END_LOG(waterdiff_end)
 
@@ -484,7 +488,7 @@ logical, dimension(ifull+iextra) :: wtr
 logical lleap
 
 integer, parameter :: nxtrrho    = 1   ! Estimate rho at t+1 (0=off, 1=on)
-real, parameter :: tol    = 5.E-4      ! Tolerance for SOR solver (water)
+real, parameter :: tol    = 5.E-5      ! Tolerance for SOR solver (water)
 real, parameter :: itol   = 2.E0       ! Tolerance for SOR solver (ice)
 logical, dimension(6), parameter :: bsmask = (/ .false., .false., .false., .false., .true., .true. /) ! mask for Berm-Stan option
 

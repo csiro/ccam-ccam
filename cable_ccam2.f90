@@ -111,24 +111,24 @@ integer, dimension(5,2), save :: pind
 integer, save :: maxnb
 real, dimension(:), allocatable, save :: sv,vl1,vl2,vl3
 logical, dimension(:,:), allocatable, save :: tmap
-type (air_type), save :: air
-type (bgc_pool_type), save :: bgc
-type (met_type), save :: met
-type (balances_type), save :: bal
-type (radiation_type), save :: rad
-type (roughness_type), save :: rough
+type (air_type), save            :: air
+type (bgc_pool_type), save       :: bgc
+type (met_type), save            :: met
+type (balances_type), save       :: bal
+type (radiation_type), save      :: rad
+type (roughness_type), save      :: rough
 type (soil_parameter_type), save :: soil
-type (soil_snow_type), save :: ssnow
-type (sum_flux_type), save :: sum_flux
-type (veg_parameter_type), save :: veg
-type (canopy_type), save :: canopy
-type (casa_balance), save :: casabal
-type (casa_biome), save :: casabiome
-type (casa_flux), save :: casaflux
-type (casa_met), save :: casamet
-type (casa_pool), save :: casapool
-type (phen_variable), save :: phen
-type (physical_constants), save :: c
+type (soil_snow_type), save      :: ssnow
+type (sum_flux_type), save       :: sum_flux
+type (veg_parameter_type), save  :: veg
+type (canopy_type), save         :: canopy
+type (casa_balance), save        :: casabal
+type (casa_biome), save          :: casabiome
+type (casa_flux), save           :: casaflux
+type (casa_met), save            :: casamet
+type (casa_pool), save           :: casapool
+type (phen_variable), save       :: phen
+type (physical_constants), save  :: c
 
 contains
 ! ****************************************************************************
@@ -138,6 +138,7 @@ subroutine sib4
 
 use arrays_m
 use carbpools_m
+use cc_mpi
 use estab
 use extraout_m
 use infile
@@ -167,14 +168,14 @@ include 'parm.h'
 
 real fjd,r1,dlt,slag,dhr,alp,x,esatf
 real, dimension(ifull) :: coszro2,taudar2,tmps,hruff_grmx,atmco2
-real, dimension(ifull) :: tv,zero
+real, dimension(ifull) :: tv
 real, dimension(ifull) :: swdwn
 real(r_2), dimension(mp) :: xKNlimiting,xkleafcold,xkleafdry
 real(r_2), dimension(mp) :: xkleaf,xnplimit,xNPuptake,xklitter
 real(r_2), dimension(mp) :: xksoil
 integer jyear,jmonth,jday,jhour,jmin
 integer k,mins,nb,iq,j
-integer idoy
+integer idoy,is,ie
 
 cansto=0.
 fwet=0.
@@ -186,10 +187,11 @@ frpw=0.
 frpr=0.
 frs=0.
 vlai=0.
-zero=0.
 
 ! abort calculation if no land points on this processor  
 if (mp<=0) return
+
+call START_LOG(cabpack_begin)
 
 ! calculate zenith angle
 dhr = dt/3600.
@@ -206,24 +208,26 @@ tv    = t(1:ifull,1)*(1.+0.61*qg(1:ifull,1)-qlg(1:ifull,1)-qfg(1:ifull,1))
 ! swdwn is downwelling shortwave (positive) W/m^2
 swdwn = sgsave/(1.-swrsave*albvisnir(:,1)-(1.-swrsave)*albvisnir(:,2))
 do nb=1,maxnb
-  met%tk(pind(nb,1):pind(nb,2))          =pack(theta,       tmap(:,nb))
-  met%ua(pind(nb,1):pind(nb,2))          =pack(vmod,        tmap(:,nb))
-  met%ca(pind(nb,1):pind(nb,2))          =pack(1.e-6*atmco2,tmap(:,nb))
-  met%coszen(pind(nb,1):pind(nb,2))      =pack(coszro2,     tmap(:,nb)) ! use instantaneous value
-  met%qv(pind(nb,1):pind(nb,2))          =pack(qg(:,1),     tmap(:,nb)) ! specific humidity in kg/kg
-  met%pmb(pind(nb,1):pind(nb,2))         =pack(0.01*ps,     tmap(:,nb)) ! pressure in mb at ref height
-  met%precip(pind(nb,1):pind(nb,2))      =pack(condx,       tmap(:,nb)) ! in mm not mm/sec
-  met%precip_sn(pind(nb,1):pind(nb,2))   =pack(conds,       tmap(:,nb)) ! in mm not mm/sec
-  met%hod(pind(nb,1):pind(nb,2))         =pack(real(mtimer+jhour*60+jmin)/60.+rlongg*12./pi,tmap(:,nb))
+  is = pind(nb,1)
+  ie = pind(nb,2)
+  met%tk(is:ie)          =pack(theta,  tmap(:,nb))
+  met%ua(is:ie)          =pack(vmod,   tmap(:,nb))
+  met%ca(is:ie)          =pack(atmco2, tmap(:,nb))*1.e-6
+  met%coszen(is:ie)      =pack(coszro2,tmap(:,nb))      ! use instantaneous value
+  met%qv(is:ie)          =pack(qg(:,1),tmap(:,nb))      ! specific humidity in kg/kg
+  met%pmb(is:ie)         =pack(ps,     tmap(:,nb))*0.01 ! pressure in mb at ref height
+  met%precip(is:ie)      =pack(condx,  tmap(:,nb))      ! in mm not mm/sec
+  met%precip_sn(is:ie)   =pack(conds,  tmap(:,nb))      ! in mm not mm/sec
+  met%hod(is:ie)         =pack(rlongg, tmap(:,nb))*12./pi+real(mtimer+jhour*60+jmin)/60.
   ! swrsave indicates the fraction of net VIS radiation (compared to NIR)
   ! fbeamvis indicates the beam fraction of downwelling direct radiation (compared to diffuse) for VIS
   ! fbeamnir indicates the beam fraction of downwelling direct radiation (compared to diffuse) for NIR
-  met%fsd(pind(nb,1):pind(nb,2),1)       =pack(swrsave*swdwn,               tmap(:,nb))
-  met%fsd(pind(nb,1):pind(nb,2),2)       =pack((1.-swrsave)*swdwn,          tmap(:,nb))
-  rad%fbeam(pind(nb,1):pind(nb,2),1)     =pack(fbeamvis,                    tmap(:,nb))
-  rad%fbeam(pind(nb,1):pind(nb,2),2)     =pack(fbeamnir,                    tmap(:,nb))
-  met%fld(pind(nb,1):pind(nb,2))         =pack(-rgsave,                     tmap(:,nb)) ! long wave down (positive) W/m^2
-  rough%za_tq(pind(nb,1):pind(nb,2))     =pack((bet(1)*tv+phi_nh(:,1))/grav,tmap(:,nb)) ! reference height
+  met%fsd(is:ie,1)       =pack(swrsave*swdwn,        tmap(:,nb))
+  met%fsd(is:ie,2)       =pack((1.-swrsave)*swdwn,   tmap(:,nb))
+  rad%fbeam(is:ie,1)     =pack(fbeamvis,             tmap(:,nb))
+  rad%fbeam(is:ie,2)     =pack(fbeamnir,             tmap(:,nb))
+  met%fld(is:ie)         =pack(-rgsave,              tmap(:,nb))      ! long wave down (positive) W/m^2
+  rough%za_tq(is:ie)     =pack(bet(1)*tv+phi_nh(:,1),tmap(:,nb))/grav ! reference height
 end do
 met%doy         =fjd
 met%tvair       =met%tk
@@ -234,13 +238,15 @@ met%hod         =mod(met%hod,24.)
 rough%za_uv     =rough%za_tq
 rad%fbeam(:,3)  =0.            ! dummy for now
 rough%hruff     =max(0.01,veg%hc-1.2*ssnow%snowd/max(ssnow%ssdnn,100.))
-rough%hruff_grmx=rough%hruff ! Does nothing in CABLE v2.0
 
 ! Interpolate LAI.  Also need sigmf for LDR prognostic aerosols.
 call setlai(sigmf,jyear,jmonth,jday,jhour,jmin)
 
+call END_LOG(cabpack_end)
+
 !--------------------------------------------------------------
 ! CABLE
+call START_LOG(cabmisc_begin)
 ktau_gl          = 900
 kend_gl          = 999
 ssnow%owetfac    = ssnow%wetfac
@@ -249,12 +255,18 @@ call ruff_resist(veg,rough,ssnow,canopy)
 call define_air(met,air)
 call init_radiation(met,rad,veg,canopy)
 call surface_albedo(ssnow,veg,met,rad,soil,canopy)
+call END_LOG(cabmisc_end)
+call START_LOG(cabcanopy_begin)
 call define_canopy(bal,rad,rough,air,met,dt,ssnow,soil,veg,canopy)
+call END_LOG(cabcanopy_end)
+call START_LOG(cabsoil_begin)
 ssnow%otss_0     = ssnow%otss
 ssnow%otss       = ssnow%tss
 ssnow%owetfac    = ssnow%wetfac
 call soil_snow(dt,soil,ssnow,canopy,met,bal,veg)
+call END_LOG(cabsoil_end)
 ! adjust for new soil temperature
+call START_LOG(cabmisc_begin)
 ssnow%deltss     = ssnow%tss - ssnow%otss
 canopy%fhs       = canopy%fhs + ssnow%deltss*ssnow%dfh_dtg
 canopy%fes       = canopy%fes + ssnow%deltss*ssnow%cls*ssnow%dfe_ddq*ssnow%ddq_dtg
@@ -270,9 +282,11 @@ rad%trad         = ( (1.-rad%transd)*canopy%tv**4 + rad%transd*ssnow%tss**4 )**0
 !canopy%cdtq =  max( 0.1*canopy%cduv, canopy%cdtq )
 ! MJT suggestion
 canopy%cdtq =  max( 0., canopy%cdtq )
+call END_LOG(cabmisc_end)
 
 !--------------------------------------------------------------
 ! CASA CNP
+call START_LOG(cabcasa_begin)
 select case (icycle)
   case(0) ! off
     call plantcarb(veg,bgc,met,canopy)
@@ -360,6 +374,7 @@ sum_flux%sumrpr = sum_flux%sumrpr + canopy%frpr*dt
 sum_flux%sumrp  = sum_flux%sumrp  + canopy%frp*dt
 sum_flux%dsumrp = sum_flux%dsumrp + canopy%frp*dt
 sum_flux%sumrs  = sum_flux%sumrs  + canopy%frs*dt
+call END_LOG(cabcasa_end)
 !--------------------------------------------------------------
       
 ! Unpack tiles into grid point averages.
@@ -367,15 +382,23 @@ sum_flux%sumrs  = sum_flux%sumrs  + canopy%frs*dt
 ! be used by the radiadiation scheme at the next time step.  albvisnir(:,1) and
 ! albvisnir(:,2) are the VIS and NIR albedo used by the radiation scheme for the
 ! current time step.
+call START_LOG(cabunpack_begin)
 do k=1,ms
-  where (land)
+  where ( land )
     tgg(:,k)=0.
     wb(:,k)=0.
     wbice(:,k)=0.
   end where
 end do
-where (land)
-  albsav=0.
+do k=1,3
+  where ( land )
+    tggsn(:,k)=0.
+    smass(:,k)=0.
+    ssdn(:,k)=0.
+  end where
+end do
+where ( land )
+  albvissav=0.
   albnirsav=0.
   albvisdir=0.
   albvisdif=0.
@@ -393,6 +416,9 @@ where (land)
   ustar=0.
   wetfac=0.
   rsmin=0.
+  ssdnn=0.
+  snowd=0.
+  snage=0.
   ! screen and 10m diagnostics - rhscrn calculated in sflux.f
   !tscrn=0.
   !uscrn=0.
@@ -400,11 +426,77 @@ where (land)
   !u10=0.
 end where
 tmps=0. ! average isflag
-      
-! carbon pools
+
+do nb=1,maxnb
+  is = pind(nb,1)
+  ie = pind(nb,2)
+  ! radiation
+  albvissav=albvissav+unpack(sv(is:ie)*rad%albedo(is:ie,1),tmap(:,nb),0.)
+  albnirsav=albnirsav+unpack(sv(is:ie)*rad%albedo(is:ie,2),tmap(:,nb),0.)
+  albvisdir=albvisdir+unpack(sv(is:ie)*rad%reffbm(is:ie,1),tmap(:,nb),0.)
+  albnirdir=albnirdir+unpack(sv(is:ie)*rad%reffbm(is:ie,2),tmap(:,nb),0.)
+  albvisdif=albvisdif+unpack(sv(is:ie)*rad%reffdf(is:ie,1),tmap(:,nb),0.)
+  albnirdif=albnirdif+unpack(sv(is:ie)*rad%reffdf(is:ie,2),tmap(:,nb),0.)
+  ! fluxes
+  fg=fg+unpack(sv(is:ie)*canopy%fh(is:ie),tmap(:,nb),0.)
+  eg=eg+unpack(sv(is:ie)*canopy%fe(is:ie),tmap(:,nb),0.)
+  ga=ga+unpack(sv(is:ie)*canopy%ga(is:ie),tmap(:,nb),0.)
+  tss=tss+unpack(sv(is:ie)*rad%trad(is:ie)**4,tmap(:,nb),0.) ! ave longwave radiation
+  ! soil
+  do k=1,ms
+    tgg(:,k)  =tgg(:,k)  +unpack(sv(is:ie)*ssnow%tgg(is:ie,k),        tmap(:,nb),0.)
+    wb(:,k)   =wb(:,k)   +unpack(sv(is:ie)*real(ssnow%wb(is:ie,k)),   tmap(:,nb),0.)
+    wbice(:,k)=wbice(:,k)+unpack(sv(is:ie)*real(ssnow%wbice(is:ie,k)),tmap(:,nb),0.)
+  end do
+  ! hydrology
+  runoff=runoff+unpack(sv(is:ie)*ssnow%runoff(is:ie)*dt,tmap(:,nb),0.) ! convert mm/s to mm
+  cansto=cansto+unpack(sv(is:ie)*canopy%cansto(is:ie),tmap(:,nb),0.)
+  fwet=fwet+unpack(sv(is:ie)*canopy%fwet(is:ie),tmap(:,nb),0.) ! used for aerosols
+  wetfac=wetfac+unpack(sv(is:ie)*ssnow%wetfac(is:ie),tmap(:,nb),0.)
+  ! diagnostic
+  epot=epot+unpack(sv(is:ie)*ssnow%potev(is:ie),tmap(:,nb),0.)
+  zo =zo +unpack(sv(is:ie)/log(zmin/rough%z0m(is:ie))**2,tmap(:,nb),0.)
+  zoh=zoh+unpack(sv(is:ie)/(log(zmin/rough%z0m(is:ie))*log(10.*zmin/rough%z0m(is:ie))),tmap(:,nb),0.)
+  cduv=cduv+unpack(sv(is:ie)*canopy%cduv(is:ie),tmap(:,nb),0.)
+  cdtq=cdtq+unpack(sv(is:ie)*canopy%cdtq(is:ie),tmap(:,nb),0.)
+  vlai=vlai+unpack(sv(is:ie)*veg%vlai(is:ie),tmap(:,nb),0.)
+  rsmin=rsmin+unpack(sv(is:ie)*canopy%gswx_T(is:ie),tmap(:,nb),0.)  
+  ! carbon cycle
+  fnee=fnee+unpack(sv(is:ie)*canopy%fnee(is:ie), tmap(:,nb),0.)
+  fpn =fpn +unpack(sv(is:ie)*canopy%fpn(is:ie),  tmap(:,nb),0.)
+  frd =frd +unpack(sv(is:ie)*canopy%frday(is:ie),tmap(:,nb),0.)
+  frp =frp +unpack(sv(is:ie)*canopy%frp(is:ie),  tmap(:,nb),0.)
+  frpw=frpw+unpack(sv(is:ie)*canopy%frpw(is:ie), tmap(:,nb),0.)
+  frs =frs +unpack(sv(is:ie)*canopy%frs(is:ie),  tmap(:,nb),0.)
+  ! snow
+  tmps=tmps+unpack(sv(is:ie)*real(ssnow%isflag(is:ie)),tmap(:,nb),0.)
+  do k=1,3
+    tggsn(:,k)=tggsn(:,k)+unpack(sv(is:ie)*ssnow%tgg(is:ie,k),tmap(:,nb),0.) 
+    smass(:,k)=smass(:,k)+unpack(sv(is:ie)*ssnow%smass(is:ie,k),tmap(:,nb),0.)
+    ssdn(:,k)=ssdn(:,k)+unpack(sv(is:ie)*ssnow%ssdn(is:ie,k),tmap(:,nb),0.)
+  end do
+  ssdnn=ssdnn+unpack(sv(is:ie)*ssnow%ssdnn(is:ie),tmap(:,nb),0.)
+  snage=snage+unpack(sv(is:ie)*ssnow%snage(is:ie),tmap(:,nb),0.)
+  snowd=snowd+unpack(sv(is:ie)*ssnow%snowd(is:ie),tmap(:,nb),0.)
+  
+  !tscrn=tscrn+unpack(sv(pind(nb,1):pind(nb,2))*canopy%tscrn(pind(nb,1):pind(nb,2)),tmap(:,nb),0.)
+  !uscrn=uscrn+unpack(sv(pind(nb,1):pind(nb,2))*canopy%uscrn(pind(nb,1):pind(nb,2)),tmap(:,nb),0.)
+  !qgscrn=qgscrn+unpack(sv(pind(nb,1):pind(nb,2))*canopy%qscrn(pind(nb,1):pind(nb,2)),tmap(:,nb),0.)
+end do
+
 if (icycle==0) then
   cplant=0.
   csoil=0.
+  do nb=1,maxnb
+    is = pind(nb,1)
+    ie = pind(nb,2)
+    do k=1,ncp
+      cplant(:,k)=cplant(:,k)+unpack(sv(is:ie)*bgc%cplant(is:ie,k),tmap(:,nb),0.)
+    end do
+    do k=1,ncs
+      csoil(:,k)=csoil(:,k)+unpack(sv(is:ie)*bgc%csoil(is:ie,k),   tmap(:,nb),0.)
+    end do
+  end do
 else
   cplant=0.
   niplant=0.
@@ -416,73 +508,31 @@ else
   nisoil=0.
   psoil=0.
   glai=0.
-end if
- 
-do nb=1,maxnb
-  do k=1,ms
-    tgg(:,k)  =tgg(:,k)  +unpack(sv(pind(nb,1):pind(nb,2))*ssnow%tgg(pind(nb,1):pind(nb,2),k),        tmap(:,nb),zero)
-    wb(:,k)   =wb(:,k)   +unpack(sv(pind(nb,1):pind(nb,2))*real(ssnow%wb(pind(nb,1):pind(nb,2),k)),   tmap(:,nb),zero)
-    wbice(:,k)=wbice(:,k)+unpack(sv(pind(nb,1):pind(nb,2))*real(ssnow%wbice(pind(nb,1):pind(nb,2),k)),tmap(:,nb),zero)
-  end do
-  if (icycle==0) then
-    do k=1,ncp
-      cplant(:,k)=cplant(:,k)+unpack(sv(pind(nb,1):pind(nb,2))*bgc%cplant(pind(nb,1):pind(nb,2),k),tmap(:,nb),zero)
-    enddo
-    do k=1,ncs
-      csoil(:,k)=csoil(:,k)+unpack(sv(pind(nb,1):pind(nb,2))*bgc%csoil(pind(nb,1):pind(nb,2),k),tmap(:,nb),zero)
-    enddo
-  else
+  do nb=1,maxnb
+    is = pind(nb,1)
+    ie = pind(nb,2)
     do k=1,mplant
-      cplant(:,k) =cplant(:,k) +unpack(sv(pind(nb,1):pind(nb,2))*real(casapool%cplant(pind(nb,1):pind(nb,2),k)),tmap(:,nb),zero)
-      niplant(:,k)=niplant(:,k)+unpack(sv(pind(nb,1):pind(nb,2))*real(casapool%nplant(pind(nb,1):pind(nb,2),k)),tmap(:,nb),zero)
-      pplant(:,k) =pplant(:,k) +unpack(sv(pind(nb,1):pind(nb,2))*real(casapool%pplant(pind(nb,1):pind(nb,2),k)),tmap(:,nb),zero)
+      cplant(:,k) =cplant(:,k) +unpack(sv(is:ie)*real(casapool%cplant(is:ie,k)),tmap(:,nb),0.)
+      niplant(:,k)=niplant(:,k)+unpack(sv(is:ie)*real(casapool%nplant(is:ie,k)),tmap(:,nb),0.)
+      pplant(:,k) =pplant(:,k) +unpack(sv(is:ie)*real(casapool%pplant(is:ie,k)),tmap(:,nb),0.)
     end do
     do k=1,mlitter
-      clitter(:,k) =clitter(:,k) +unpack(sv(pind(nb,1):pind(nb,2))*real(casapool%clitter(pind(nb,1):pind(nb,2),k)),tmap(:,nb),zero)
-      nilitter(:,k)=nilitter(:,k)+unpack(sv(pind(nb,1):pind(nb,2))*real(casapool%nlitter(pind(nb,1):pind(nb,2),k)),tmap(:,nb),zero)
-      plitter(:,k) =plitter(:,k) +unpack(sv(pind(nb,1):pind(nb,2))*real(casapool%plitter(pind(nb,1):pind(nb,2),k)),tmap(:,nb),zero)
+      clitter(:,k) =clitter(:,k) +unpack(sv(is:ie)*real(casapool%clitter(is:ie,k)),tmap(:,nb),0.)
+      nilitter(:,k)=nilitter(:,k)+unpack(sv(is:ie)*real(casapool%nlitter(is:ie,k)),tmap(:,nb),0.)
+      plitter(:,k) =plitter(:,k) +unpack(sv(is:ie)*real(casapool%plitter(is:ie,k)),tmap(:,nb),0.)
     end do
     do k=1,msoil
-      csoil(:,k) =csoil(:,k) +unpack(sv(pind(nb,1):pind(nb,2))*real(casapool%csoil(pind(nb,1):pind(nb,2),k)),tmap(:,nb),zero)
-      nisoil(:,k)=nisoil(:,k)+unpack(sv(pind(nb,1):pind(nb,2))*real(casapool%nsoil(pind(nb,1):pind(nb,2),k)),tmap(:,nb),zero)
-      psoil(:,k) =psoil(:,k) +unpack(sv(pind(nb,1):pind(nb,2))*real(casapool%psoil(pind(nb,1):pind(nb,2),k)),tmap(:,nb),zero)
+      csoil(:,k) =csoil(:,k) +unpack(sv(is:ie)*real(casapool%csoil(is:ie,k)),tmap(:,nb),0.)
+      nisoil(:,k)=nisoil(:,k)+unpack(sv(is:ie)*real(casapool%nsoil(is:ie,k)),tmap(:,nb),0.)
+      psoil(:,k) =psoil(:,k) +unpack(sv(is:ie)*real(casapool%psoil(is:ie,k)),tmap(:,nb),0.)
     end do
-    glai=glai+unpack(sv(pind(nb,1):pind(nb,2))*real(casamet%glai(pind(nb,1):pind(nb,2))),tmap(:,nb),zero)
-  end if
-  albsav=albsav+unpack(sv(pind(nb,1):pind(nb,2))*rad%albedo(pind(nb,1):pind(nb,2),1),tmap(:,nb),zero)
-  albnirsav=albnirsav+unpack(sv(pind(nb,1):pind(nb,2))*rad%albedo(pind(nb,1):pind(nb,2),2),tmap(:,nb),zero)
-  albvisdir=albvisdir+unpack(sv(pind(nb,1):pind(nb,2))*rad%reffbm(pind(nb,1):pind(nb,2),1),tmap(:,nb),zero)
-  albnirdir=albnirdir+unpack(sv(pind(nb,1):pind(nb,2))*rad%reffbm(pind(nb,1):pind(nb,2),2),tmap(:,nb),zero)
-  albvisdif=albvisdif+unpack(sv(pind(nb,1):pind(nb,2))*rad%reffdf(pind(nb,1):pind(nb,2),1),tmap(:,nb),zero)
-  albnirdif=albnirdif+unpack(sv(pind(nb,1):pind(nb,2))*rad%reffdf(pind(nb,1):pind(nb,2),2),tmap(:,nb),zero)
-  runoff=runoff+unpack(sv(pind(nb,1):pind(nb,2))*ssnow%runoff(pind(nb,1):pind(nb,2))*dt,tmap(:,nb),zero) ! convert mm/s to mm
-  fg=fg+unpack(sv(pind(nb,1):pind(nb,2))*canopy%fh(pind(nb,1):pind(nb,2)),tmap(:,nb),zero)
-  eg=eg+unpack(sv(pind(nb,1):pind(nb,2))*canopy%fe(pind(nb,1):pind(nb,2)),tmap(:,nb),zero)
-  ga=ga+unpack(sv(pind(nb,1):pind(nb,2))*canopy%ga(pind(nb,1):pind(nb,2)),tmap(:,nb),zero)
-  epot=epot+unpack(sv(pind(nb,1):pind(nb,2))*ssnow%potev(pind(nb,1):pind(nb,2)),tmap(:,nb),zero)
-  tss=tss+unpack(sv(pind(nb,1):pind(nb,2))*rad%trad(pind(nb,1):pind(nb,2))**4,tmap(:,nb),zero) ! ave longwave radiation
-  cansto=cansto+unpack(sv(pind(nb,1):pind(nb,2))*canopy%cansto(pind(nb,1):pind(nb,2)),tmap(:,nb),zero)
-  fwet=fwet+unpack(sv(pind(nb,1):pind(nb,2))*canopy%fwet(pind(nb,1):pind(nb,2)),tmap(:,nb),zero)
-  fnee=fnee+unpack(sv(pind(nb,1):pind(nb,2))*canopy%fnee(pind(nb,1):pind(nb,2)),tmap(:,nb),zero)
-  fpn=fpn+unpack(sv(pind(nb,1):pind(nb,2))*canopy%fpn(pind(nb,1):pind(nb,2)),tmap(:,nb),zero)
-  frd=frd+unpack(sv(pind(nb,1):pind(nb,2))*canopy%frday(pind(nb,1):pind(nb,2)),tmap(:,nb),zero)
-  frp=frp+unpack(sv(pind(nb,1):pind(nb,2))*canopy%frp(pind(nb,1):pind(nb,2)),tmap(:,nb),zero)
-  frpw=frpw+unpack(sv(pind(nb,1):pind(nb,2))*canopy%frpw(pind(nb,1):pind(nb,2)),tmap(:,nb),zero)
-  frs=frs+unpack(sv(pind(nb,1):pind(nb,2))*canopy%frs(pind(nb,1):pind(nb,2)),tmap(:,nb),zero)
-  zo=zo+unpack(sv(pind(nb,1):pind(nb,2))/log(zmin/rough%z0m(pind(nb,1):pind(nb,2)))**2,tmap(:,nb),zero)
-  zoh=zoh+unpack(sv(pind(nb,1):pind(nb,2))/(log(zmin/rough%z0m(pind(nb,1):pind(nb,2))) &
-                 *log(10.*zmin/rough%z0m(pind(nb,1):pind(nb,2)))),tmap(:,nb),zero)
-  cduv=cduv+unpack(sv(pind(nb,1):pind(nb,2))*canopy%cduv(pind(nb,1):pind(nb,2)),tmap(:,nb),zero)
-  cdtq=cdtq+unpack(sv(pind(nb,1):pind(nb,2))*canopy%cdtq(pind(nb,1):pind(nb,2)),tmap(:,nb),zero)
-  wetfac=wetfac+unpack(sv(pind(nb,1):pind(nb,2))*ssnow%wetfac(pind(nb,1):pind(nb,2)),tmap(:,nb),zero)
-  rsmin=rsmin+unpack(sv(pind(nb,1):pind(nb,2))*canopy%gswx_T(pind(nb,1):pind(nb,2)),tmap(:,nb),zero)
-  tmps=tmps+unpack(sv(pind(nb,1):pind(nb,2))*real(ssnow%isflag(pind(nb,1):pind(nb,2))),tmap(:,nb),zero)
-  vlai=vlai+unpack(sv(pind(nb,1):pind(nb,2))*veg%vlai(pind(nb,1):pind(nb,2)),tmap(:,nb),zero)
+    glai=glai+unpack(sv(is:ie)*real(casamet%glai(is:ie)),tmap(:,nb),0.)
+  end do
+end if
 
-  !tscrn=tscrn+unpack(sv(pind(nb,1):pind(nb,2))*canopy%tscrn(pind(nb,1):pind(nb,2)),tmap(:,nb),zero)
-  !uscrn=uscrn+unpack(sv(pind(nb,1):pind(nb,2))*canopy%uscrn(pind(nb,1):pind(nb,2)),tmap(:,nb),zero)
-  !qgscrn=qgscrn+unpack(sv(pind(nb,1):pind(nb,2))*canopy%qscrn(pind(nb,1):pind(nb,2)),tmap(:,nb),zero)
-end do
+! MJT notes - ustar, cduv, fg and eg are passed to the boundary layer turbulence scheme
+! zoh, zoq and zo are passed to the scrnout diagnostics routines
+! rsmin is typically used by CTM
 
 where ( land )
   ustar=sqrt(cduv)*vmod
@@ -495,47 +545,20 @@ where ( land )
   rsmin=1./rsmin
   rnet =sgsave-rgsave-stefbo*tss**4
   !tscrn=tscrn+273.16       ! convert from degC to degK
-  !u10  =vmod                ! MJT suggestion for 10m wind speed (assumes first model level is at 10 m, which is true for 35+ levels)
-end where
-do iq=1,ifull
-  if ( land(iq) ) then
-    esatf=establ(tss(iq))
-    qsttg(iq)=.622*esatf/(ps(iq)-esatf)
-  end if
-end do
-      
-! The following lines unpack snow.  This is more complicated as we need to decide
-! how to unpack tiles with 1 layer or 3 layers of snow in the same grid point.
-! Here we estimate whether the majority of snow points is 1 layer or 3 layers and then
-! convert each snow tile to that number of layers.  Note these calculations are purely
-! diagnoistic.  They are not fed back into the CCAM simulation.
-do k=1,3
-  where ( land )
-    tggsn(:,k)=0.
-    smass(:,k)=0.
-    ssdn(:,k)=0.
-  end where
-end do
-where ( land )
-  ssdnn=0.
-  snowd=0.
-  snage=0.
 end where
 where ( land .and. tmps>=0.5 ) ! tmps is average isflag
   isflag=1
 elsewhere
   isflag=0
 endwhere
-do nb=1,maxnb ! update snow (diagnostic only)
-  do k=1,3
-    tggsn(:,k)=tggsn(:,k)+unpack(sv(pind(nb,1):pind(nb,2))*ssnow%tgg(pind(nb,1):pind(nb,2),k),tmap(:,nb),zero) 
-    smass(:,k)=smass(:,k)+unpack(sv(pind(nb,1):pind(nb,2))*ssnow%smass(pind(nb,1):pind(nb,2),k),tmap(:,nb),zero)
-    ssdn(:,k)=ssdn(:,k)+unpack(sv(pind(nb,1):pind(nb,2))*ssnow%ssdn(pind(nb,1):pind(nb,2),k),tmap(:,nb),zero)
-  end do
-  ssdnn=ssdnn+unpack(sv(pind(nb,1):pind(nb,2))*ssnow%ssdnn(pind(nb,1):pind(nb,2)),tmap(:,nb),zero)
-  snage=snage+unpack(sv(pind(nb,1):pind(nb,2))*ssnow%snage(pind(nb,1):pind(nb,2)),tmap(:,nb),zero)
-  snowd=snowd+unpack(sv(pind(nb,1):pind(nb,2))*ssnow%snowd(pind(nb,1):pind(nb,2)),tmap(:,nb),zero)
+do iq=1,ifull
+  if ( land(iq) ) then
+    esatf=establ(tss(iq))
+    qsttg(iq)=.622*esatf/(ps(iq)-esatf)
+  end if
 end do
+
+call END_LOG(cabunpack_end)
 
 return
 end subroutine sib4
@@ -599,24 +622,22 @@ integer, intent(in) :: mvegt,mode
 integer nb
 real, dimension(ifull), intent(out) :: trsrc
 real, dimension(ifull) :: fpn,frd,frp,frs
-real, dimension(ifull) :: zero
   
 if ( nsib/=6 .and. nsib/=7 ) then
   write(6,*) "ERROR: Attempted to read CABLE emissions with CABLE disabled"
   stop
 end if
 
-zero=0.
 fpn=0.
 frd=0.
 frp=0.
 frs=0.
 do nb=1,maxnb
   where ( veg%iveg(pind(nb,1):pind(nb,2))==mvegt )
-    fpn=fpn+unpack(sv(pind(nb,1):pind(nb,2))*canopy%fpn(pind(nb,1):pind(nb,2)),  tmap(:,nb),zero)
-    frd=frd+unpack(sv(pind(nb,1):pind(nb,2))*canopy%frday(pind(nb,1):pind(nb,2)),tmap(:,nb),zero)
-    frp=frp+unpack(sv(pind(nb,1):pind(nb,2))*canopy%frp(pind(nb,1):pind(nb,2)),  tmap(:,nb),zero)
-    frs=frs+unpack(sv(pind(nb,1):pind(nb,2))*canopy%frs(pind(nb,1):pind(nb,2)),  tmap(:,nb),zero)
+    fpn=fpn+unpack(sv(pind(nb,1):pind(nb,2))*canopy%fpn(pind(nb,1):pind(nb,2)),  tmap(:,nb),0.)
+    frd=frd+unpack(sv(pind(nb,1):pind(nb,2))*canopy%frday(pind(nb,1):pind(nb,2)),tmap(:,nb),0.)
+    frp=frp+unpack(sv(pind(nb,1):pind(nb,2))*canopy%frp(pind(nb,1):pind(nb,2)),  tmap(:,nb),0.)
+    frs=frs+unpack(sv(pind(nb,1):pind(nb,2))*canopy%frs(pind(nb,1):pind(nb,2)),  tmap(:,nb),0.)
   end where
 end do
   
@@ -650,7 +671,6 @@ integer monthstart,nb,leap
 integer, dimension(12) :: imonth
 real, parameter :: vextkn = 0.4
 real, dimension(ifull), intent(out) :: sigmf
-real, dimension(ifull) :: zero
 real x
 common/leap_yr/leap  ! 1 to allow leap years
 
@@ -678,10 +698,9 @@ select case( proglai )
     call ccmpi_abort(-1)
 end select
 
-zero=0.
 sigmf(:)=0.
 do nb=1,maxnb
-  sigmf=sigmf+unpack(sv(pind(nb,1):pind(nb,2))*(1.-exp(-vextkn*veg%vlai(pind(nb,1):pind(nb,2)))),tmap(:,nb),zero)
+  sigmf=sigmf+unpack(sv(pind(nb,1):pind(nb,2))*(1.-exp(-vextkn*veg%vlai(pind(nb,1):pind(nb,2)))),tmap(:,nb),0.)
 end do
   
 return
@@ -744,7 +763,6 @@ real, dimension(mxvt) :: cleaf,cwood,cfroot,cmet,cstr,ccwd,cmic,cslow,cpass,nlea
 real, dimension(mxvt) :: nwood,nfroot,nmet,nstr,ncwd,nmic,nslow,npass,xpleaf,xpwood
 real, dimension(mxvt) :: xpfroot,xpmet,xpstr,xpcwd,xpmic,xpslow,xppass,clabileage
 real, dimension(ifull) :: albsoil
-real, dimension(ifull) :: zero
 real, dimension(12) :: xkmlabp,xpsorbmax,xfPleach
 character(len=*), intent(in) :: fveg,fvegprev,fvegnext,fphen,casafile
 
@@ -1078,14 +1096,14 @@ do iq=1,ifull
       newgrid(iq,:)=newgrid(iq,:)/nsum
     end do
     ipos=count(newgrid(iq,:)>0.)
-    if (ipos>5) then
-      write(6,*) "ERROR: Too many CABLE tiles"
-      call ccmpi_abort(-1)
-    end if
-    if (ipos<1) then
-      write(6,*) "ERROR: Missing CABLE tiles"
-      call ccmpi_abort(-1)
-    end if    
+    !if (ipos>5) then
+    !  write(6,*) "ERROR: Too many CABLE tiles"
+    !  call ccmpi_abort(-1)
+    !end if
+    !if (ipos<1) then
+    !  write(6,*) "ERROR: Missing CABLE tiles"
+    !  call ccmpi_abort(-1)
+    !end if    
     mp=mp+ipos
   end if
 end do
@@ -1162,7 +1180,6 @@ if (mp>0) then
   vl2=0.
   vl3=0.
   tmap=.false.
-  zero=0.
 
   ! pack biome data into CABLE vector
   ! prepare LAI arrays for temporal interpolation (PWCB)  
@@ -1261,7 +1278,7 @@ if (mp>0) then
   call setlai(sigmf,jyear,jmonth,jday,jhour,jmin)
   vlai=0.
   do n=1,maxnb
-    vlai=vlai+unpack(sv(pind(n,1):pind(n,2))*veg%vlai(pind(n,1):pind(n,2)),tmap(:,n),zero)
+    vlai=vlai+unpack(sv(pind(n,1):pind(n,2))*veg%vlai(pind(n,1):pind(n,2)),tmap(:,n),0.)
   end do
 
   ! Load CABLE soil data
@@ -1325,8 +1342,8 @@ if (mp>0) then
     ssnow%albsoilsn(pind(n,1):pind(n,2),2)=pack(albsoilsn(:,2),tmap(:,n)) ! overwritten by CABLE
     rad%albedo_T(pind(n,1):pind(n,2))     =pack(albsoil,       tmap(:,n))
     rad%trad(pind(n,1):pind(n,2))         =pack(tss,           tmap(:,n))
-    rad%latitude(pind(n,1):pind(n,2))     =pack(rlatt*180./pi, tmap(:,n))
-    rad%longitude(pind(n,1):pind(n,2))    =pack(rlongg*180./pi,tmap(:,n))
+    rad%latitude(pind(n,1):pind(n,2))     =pack(rlatt,         tmap(:,n))*180./pi
+    rad%longitude(pind(n,1):pind(n,2))    =pack(rlongg,        tmap(:,n))*180./pi
   end do
     
   ssnow%albsoilsn(:,3)=0.05    
@@ -1371,10 +1388,10 @@ if (mp>0) then
     csoil=0.
     do n=1,maxnb
       do k=1,ncp
-        cplant(:,k)=cplant(:,k)+unpack(sv(pind(n,1):pind(n,2))*tcplant(veg%iveg(pind(n,1):pind(n,2)),k),tmap(:,n),zero)
+        cplant(:,k)=cplant(:,k)+unpack(sv(pind(n,1):pind(n,2))*tcplant(veg%iveg(pind(n,1):pind(n,2)),k),tmap(:,n),0.)
       end do
       do k=1,ncs
-        csoil(:,k) =csoil(:,k) +unpack(sv(pind(n,1):pind(n,2))*tcsoil(veg%iveg(pind(n,1):pind(n,2)),k), tmap(:,n),zero)
+        csoil(:,k) =csoil(:,k) +unpack(sv(pind(n,1):pind(n,2))*tcsoil(veg%iveg(pind(n,1):pind(n,2)),k), tmap(:,n),0.)
       end do
     end do
   else
@@ -1650,21 +1667,21 @@ if (mp>0) then
     glai=0.
     do n=1,maxnb
       do k=1,mplant
-        cplant(:,k) =cplant(:,k) +unpack(sv(pind(n,1):pind(n,2))*real(casapool%cplant(pind(n,1):pind(n,2),k)),tmap(:,n),zero)
-        niplant(:,k)=niplant(:,k)+unpack(sv(pind(n,1):pind(n,2))*real(casapool%nplant(pind(n,1):pind(n,2),k)),tmap(:,n),zero)
-        pplant(:,k) =pplant(:,k) +unpack(sv(pind(n,1):pind(n,2))*real(casapool%pplant(pind(n,1):pind(n,2),k)),tmap(:,n),zero)
+        cplant(:,k) =cplant(:,k) +unpack(sv(pind(n,1):pind(n,2))*real(casapool%cplant(pind(n,1):pind(n,2),k)),tmap(:,n),0.)
+        niplant(:,k)=niplant(:,k)+unpack(sv(pind(n,1):pind(n,2))*real(casapool%nplant(pind(n,1):pind(n,2),k)),tmap(:,n),0.)
+        pplant(:,k) =pplant(:,k) +unpack(sv(pind(n,1):pind(n,2))*real(casapool%pplant(pind(n,1):pind(n,2),k)),tmap(:,n),0.)
       end do
       do k=1,mlitter
-        clitter(:,k) =clitter(:,k) +unpack(sv(pind(n,1):pind(n,2))*real(casapool%clitter(pind(n,1):pind(n,2),k)),tmap(:,n),zero)
-        nilitter(:,k)=nilitter(:,k)+unpack(sv(pind(n,1):pind(n,2))*real(casapool%nlitter(pind(n,1):pind(n,2),k)),tmap(:,n),zero)
-        plitter(:,k) =plitter(:,k) +unpack(sv(pind(n,1):pind(n,2))*real(casapool%plitter(pind(n,1):pind(n,2),k)),tmap(:,n),zero)
+        clitter(:,k) =clitter(:,k) +unpack(sv(pind(n,1):pind(n,2))*real(casapool%clitter(pind(n,1):pind(n,2),k)),tmap(:,n),0.)
+        nilitter(:,k)=nilitter(:,k)+unpack(sv(pind(n,1):pind(n,2))*real(casapool%nlitter(pind(n,1):pind(n,2),k)),tmap(:,n),0.)
+        plitter(:,k) =plitter(:,k) +unpack(sv(pind(n,1):pind(n,2))*real(casapool%plitter(pind(n,1):pind(n,2),k)),tmap(:,n),0.)
       end do
       do k=1,msoil
-        csoil(:,k) =csoil(:,k) +unpack(sv(pind(n,1):pind(n,2))*real(casapool%csoil(pind(n,1):pind(n,2),k)),tmap(:,n),zero)
-        nisoil(:,k)=nisoil(:,k)+unpack(sv(pind(n,1):pind(n,2))*real(casapool%nsoil(pind(n,1):pind(n,2),k)),tmap(:,n),zero)
-        psoil(:,k) =psoil(:,k) +unpack(sv(pind(n,1):pind(n,2))*real(casapool%psoil(pind(n,1):pind(n,2),k)),tmap(:,n),zero)
+        csoil(:,k) =csoil(:,k) +unpack(sv(pind(n,1):pind(n,2))*real(casapool%csoil(pind(n,1):pind(n,2),k)),tmap(:,n),0.)
+        nisoil(:,k)=nisoil(:,k)+unpack(sv(pind(n,1):pind(n,2))*real(casapool%nsoil(pind(n,1):pind(n,2),k)),tmap(:,n),0.)
+        psoil(:,k) =psoil(:,k) +unpack(sv(pind(n,1):pind(n,2))*real(casapool%psoil(pind(n,1):pind(n,2),k)),tmap(:,n),0.)
       end do
-      glai(:)=glai(:)+unpack(sv(pind(n,1):pind(n,2))*real(casamet%glai(pind(n,1):pind(n,2))),tmap(:,n),zero)
+      glai(:)=glai(:)+unpack(sv(pind(n,1):pind(n,2))*real(casamet%glai(pind(n,1):pind(n,2))),tmap(:,n),0.)
     end do
 
   end if ! icycle>0
@@ -1775,7 +1792,10 @@ if (lncveg==1) then
 else
   open(87,file=fveg,status='old')
   read(87,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
-  if(ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) stop 'wrong data file supplied'
+  if(ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) then
+    write(6,*) 'wrong data file supplied ',trim(fveg)
+    call ccmpi_abort(-1)
+  end if
   do iq=1,ifull_g
     read(87,*) iad,ra,rb,ivsg(iq,1),svsg(iq,1),vling(iq,1),ivsg(iq,2),svsg(iq,2),vling(iq,2),ivsg(iq,3),svsg(iq,3),vling(iq,3), &
                ivsg(iq,4),svsg(iq,4),vling(iq,4),ivsg(iq,5),svsg(iq,5),vling(iq,5)
@@ -1787,7 +1807,10 @@ else
   if (fvegprev/=' '.and.fvegnext/=' ') then
     open(87,file=fvegprev,status='old')
     read(87,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
-    if(ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) stop 'wrong data file supplied'
+    if(ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) then
+      write(6,*) 'wrong data file supplied ',trim(fvegprev)
+      call ccmpi_abort(-1)
+    end if
     do iq=1,ifull_g
       read(87,*) iad,ra,rb,ivsg(iq,1),svsg(iq,1),vling(iq,1),ivsg(iq,2),svsg(iq,2),vling(iq,2),ivsg(iq,3),svsg(iq,3),vling(iq,3), &
                  ivsg(iq,4),svsg(iq,4),vling(iq,4),ivsg(iq,5),svsg(iq,5),vling(iq,5)
@@ -1796,7 +1819,10 @@ else
     call ccmpi_distribute(vlinprev,vling)
     open(87,file=fvegnext,status='old')
     read(87,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
-    if(ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) stop 'wrong data file supplied'
+    if(ilx/=il_g.or.jlx/=jl_g.or.rlong0x/=rlong0.or.rlat0x/=rlat0.or.schmidtx/=schmidt) then
+      write(6,*) 'wrong data file supplied ',trim(fvegnext)
+      call ccmpi_abort(-1)
+    end if
     do iq=1,ifull_g
       read(87,*) iad,ra,rb,ivsg(iq,1),svsg(iq,1),vling(iq,1),ivsg(iq,2),svsg(iq,2),vling(iq,2),ivsg(iq,3),svsg(iq,3),vling(iq,3), &
                  ivsg(iq,4),svsg(iq,4),vling(iq,4),ivsg(iq,5),svsg(iq,5),vling(iq,5)
@@ -1823,7 +1849,7 @@ include 'newmpar.h'
 character(len=*), intent(in) :: fveg,fvegprev,fvegnext
 integer, dimension(ifull,5), intent(out) :: ivs
 integer n,iq
-real, dimension(ifull,5), intent(out) :: svs,vlinprev,vlin,vlinnext
+real, dimension(ifull,5), intent(out) :: svs, vlinprev, vlin, vlinnext
 
 call ccmpi_distribute(ivs)
 call ccmpi_distribute(svs)
@@ -1893,9 +1919,9 @@ if (ierr/=0) then
         ssnow%smass(pind(n,1):pind(n,2),k) = pack(smass(:,k),tmap(:,n))
         ssnow%ssdn(pind(n,1):pind(n,2),k)  = pack(ssdn(:,k), tmap(:,n))
       end do      
-      ssnow%isflag(pind(n,1):pind(n,2))=pack(isflag,tmap(:,n))
-      ssnow%snowd(pind(n,1):pind(n,2)) =pack(snowd, tmap(:,n))
-      ssnow%snage(pind(n,1):pind(n,2)) =pack(snage, tmap(:,n))
+      ssnow%isflag(pind(n,1):pind(n,2)) = pack(isflag,tmap(:,n))
+      ssnow%snowd(pind(n,1):pind(n,2))  = pack(snowd, tmap(:,n))
+      ssnow%snage(pind(n,1):pind(n,2))  = pack(snage, tmap(:,n))
     end do
     ssnow%rtsoil=50.
     canopy%cansto=0.
@@ -1914,21 +1940,21 @@ if (ierr/=0) then
     else
       do n=1,maxnb
         do k=1,mplant
-          casapool%cplant(pind(n,1):pind(n,2),k)=pack(cplant(:,k), tmap(:,n))
-          casapool%nplant(pind(n,1):pind(n,2),k)=pack(niplant(:,k),tmap(:,n))
-          casapool%pplant(pind(n,1):pind(n,2),k)=pack(pplant(:,k), tmap(:,n))
+          casapool%cplant(pind(n,1):pind(n,2),k) = pack(cplant(:,k), tmap(:,n))
+          casapool%nplant(pind(n,1):pind(n,2),k) = pack(niplant(:,k),tmap(:,n))
+          casapool%pplant(pind(n,1):pind(n,2),k) = pack(pplant(:,k), tmap(:,n))
         end do
         do k=1,mlitter
-          casapool%clitter(pind(n,1):pind(n,2),k)=pack(clitter(:,k), tmap(:,n))
-          casapool%nlitter(pind(n,1):pind(n,2),k)=pack(nilitter(:,k),tmap(:,n))
-          casapool%plitter(pind(n,1):pind(n,2),k)=pack(plitter(:,k), tmap(:,n))
+          casapool%clitter(pind(n,1):pind(n,2),k) = pack(clitter(:,k), tmap(:,n))
+          casapool%nlitter(pind(n,1):pind(n,2),k) = pack(nilitter(:,k),tmap(:,n))
+          casapool%plitter(pind(n,1):pind(n,2),k) = pack(plitter(:,k), tmap(:,n))
         end do
         do k=1,msoil
-          casapool%csoil(pind(n,1):pind(n,2),k)=pack(csoil(:,k), tmap(:,n))
-          casapool%nsoil(pind(n,1):pind(n,2),k)=pack(nisoil(:,k),tmap(:,n))
-          casapool%psoil(pind(n,1):pind(n,2),k)=pack(psoil(:,k), tmap(:,n))
+          casapool%csoil(pind(n,1):pind(n,2),k) = pack(csoil(:,k), tmap(:,n))
+          casapool%nsoil(pind(n,1):pind(n,2),k) = pack(nisoil(:,k),tmap(:,n))
+          casapool%psoil(pind(n,1):pind(n,2),k) = pack(psoil(:,k), tmap(:,n))
         end do
-        casamet%glai(pind(n,1):pind(n,2))=pack(glai,tmap(:,n))
+        casamet%glai(pind(n,1):pind(n,2)) = pack(glai,tmap(:,n))
       end do
     end if
   end if
@@ -1939,24 +1965,24 @@ else
     do k=1,ms
       write(vname,'("tgg",I1.1,"_",I1.1)') k,n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if (n<=maxnb) ssnow%tgg(pind(n,1):pind(n,2),k)=pack(dat,tmap(:,n))
+      if (n<=maxnb) ssnow%tgg(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
       write(vname,'("wb",I1.1,"_",I1.1)') k,n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if (n<=maxnb) ssnow%wb(pind(n,1):pind(n,2),k)=pack(dat,tmap(:,n))
+      if (n<=maxnb) ssnow%wb(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
       write(vname,'("wbice",I1.1,"_",I1.1)') k,n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if (n<=maxnb) ssnow%wbice(pind(n,1):pind(n,2),k)=pack(dat,tmap(:,n))
+      if (n<=maxnb) ssnow%wbice(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
     end do
     do k=1,3
       write(vname,'("tggsn",I1.1,"_",I1.1)') k,n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if (n<=maxnb) ssnow%tggsn(pind(n,1):pind(n,2),k)=pack(dat,tmap(:,n))
+      if (n<=maxnb) ssnow%tggsn(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
       write(vname,'("smass",I1.1,"_",I1.1)') k,n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if (n<=maxnb) ssnow%smass(pind(n,1):pind(n,2),k)=pack(dat,tmap(:,n))
+      if (n<=maxnb) ssnow%smass(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
       write(vname,'("ssdn",I1.1,"_",I1.1)') k,n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if (n<=maxnb) ssnow%ssdn(pind(n,1):pind(n,2),k)=pack(dat,tmap(:,n))
+      if (n<=maxnb) ssnow%ssdn(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
     end do
     write(vname,'("sflag_",I1.1)') n
     call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
@@ -2422,7 +2448,7 @@ do n=1,5
   if (n<=maxnb) dat=unpack(ssnow%rtsoil(pind(n,1):pind(n,2)),tmap(:,n),dat)
   write(vname,'("rtsoil_",I1.1)') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)   
-  dat=cansto
+  dat=0.
   if (n<=maxnb) dat=unpack(canopy%cansto(pind(n,1):pind(n,2)),tmap(:,n),dat)
   write(vname,'("cansto_",I1.1)') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)
@@ -2562,12 +2588,10 @@ integer nb, k
 real, intent(in) :: rate
 real, dimension(ifull), intent(in) :: lmax
 real, dimension(ifull), intent(inout) :: inflow
-real, dimension(ifull) :: zero
 real, dimension(mp) :: xx, ll, mm
 
 if ( mp<=0 ) return
 
-zero=0.
 do nb=1,maxnb
   xx(pind(nb,1):pind(nb,2))=pack(inflow,   tmap(:,nb))
   mm(pind(nb,1):pind(nb,2))=pack(lmax*rate,tmap(:,nb))
@@ -2583,7 +2607,7 @@ where (land(1:ifull))
   inflow=0.
 end where
 do nb=1,maxnb
-  inflow=inflow+unpack(sv(pind(nb,1):pind(nb,2))*xx(pind(nb,1):pind(nb,2)),tmap(:,nb),zero)
+  inflow=inflow+unpack(sv(pind(nb,1):pind(nb,2))*xx(pind(nb,1):pind(nb,2)),tmap(:,nb),0.)
 end do
 
 return
@@ -2608,11 +2632,9 @@ integer, dimension(2) :: spos,npos
 real tlat,tlon,tschmidt
 real, dimension(:,:), allocatable :: dumg
 real, dimension(ifull,5) :: duma
-real, dimension(ifull) :: zero
 character(len=*), intent(in) :: casafile
 logical tst
 
-zero=0.
 if (myid==0) then
   allocate(dumg(ifull_g,5))
   write(6,*) "Reading ",trim(casafile)
@@ -2660,11 +2682,11 @@ else
   call ccmpi_distribute(duma)
 end if
 do n=1,maxnb
-  casamet%isorder(pind(n,1):pind(n,2)) =nint(pack(duma(:,1),      tmap(:,n)))
-  casaflux%Nmindep(pind(n,1):pind(n,2))=pack(duma(:,2)/365.*1.E-3,tmap(:,n))
-  casaflux%Nminfix(pind(n,1):pind(n,2))=pack(duma(:,3)/365.,      tmap(:,n))
-  casaflux%Pdep(pind(n,1):pind(n,2))   =pack(duma(:,4)/365.,      tmap(:,n))
-  casaflux%Pwea(pind(n,1):pind(n,2))   =pack(duma(:,5)/365.,      tmap(:,n))
+  casamet%isorder(pind(n,1):pind(n,2)) =nint(pack(duma(:,1),tmap(:,n)))
+  casaflux%Nmindep(pind(n,1):pind(n,2))=pack(duma(:,2),tmap(:,n))/365.*1.E-3
+  casaflux%Nminfix(pind(n,1):pind(n,2))=pack(duma(:,3),tmap(:,n))/365.
+  casaflux%Pdep(pind(n,1):pind(n,2))   =pack(duma(:,4),tmap(:,n))/365.
+  casaflux%Pwea(pind(n,1):pind(n,2))   =pack(duma(:,5),tmap(:,n))/365.
 end do
 
 where (veg%iveg==9.or.veg%iveg==10) ! crops

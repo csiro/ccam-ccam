@@ -105,7 +105,7 @@ c     convert to grid point numbering
           end do                ! k loop
         end do                  ! nn loop
 
-        if(mhint==2)then ! Bessel interp\
+        if(mhint==2)then ! Bessel interp
 ! Loop over points that need to be calculated for other processes
           do ii=neighnum,1,-1
             do iq=1,drlen(ii)
@@ -149,9 +149,9 @@ c     convert to grid point numbering
               a4 = r(:,4)-r(:,1)+3.*(r(:,2)-r(:,3))
               a3 = r(:,1)-2.*r(:,2)+r(:,3)-a4
               do nn=1,3
-                  sextra(ii)%a(nn+(iq-1)*3) = r(nn,2) +
-     &                    0.5*yyg*(r(nn,3)-r(nn,1)
-     &                    +yyg*(a3(nn)+yyg*a4(nn)))
+                sextra(ii)%a(nn+(iq-1)*3) = r(nn,2) +
+     &                  0.5*yyg*(r(nn,3)-r(nn,1)
+     &                  +yyg*(a3(nn)+yyg*a4(nn)))
               end do
             enddo           ! iq loop
           end do            ! ii loop
@@ -1176,24 +1176,24 @@ c     modify toij5 for Cray
      .     xgz/0., 0.,-1.,-1., 0., 0./, ygz/1., 0., 0., 0., 0., 1./
 
       call START_LOG(toij_begin)
-      
-      if(num==0)then
-        if(mydiag)print *,'checking for ncray = ',ncray
-        If(ncray==0)then  ! check if divide by itself is working
+
+      If (ncray==0) then  ! check if divide by itself is working
+        if(num==0)then
+          if (myid==0) write(6,*)'checking for ncray = ',ncray
           call checkdiv(xstr,ystr,zstr)
-        endif
+        end if
         num=1
-      endif
+      end if
 
 !     if necessary, transform (x3d, y3d, z3d) to equivalent
 !     coordinates (xstr, ystr, zstr) on regular gnomonic panels
-      if(schmidt.eq.1.)then
-        do iq=1,ifull
-         xstr(iq)=x3d(iq)
-         ystr(iq)=y3d(iq)
-         zstr(iq)=z3d(iq)
-        enddo   ! iq loop
-      else      ! (schmidt.ne.1.)
+!      if(schmidt.eq.1.)then
+!        do iq=1,ifull
+!         xstr(iq)=x3d(iq)
+!         ystr(iq)=y3d(iq)
+!         zstr(iq)=z3d(iq)
+!        enddo   ! iq loop
+!      else      ! (schmidt.ne.1.)
         alf=(1._8-schmidt*schmidt)/(1._8+schmidt*schmidt)
 !       alfonsch=(1.-alf)/schmidt
         alfonsch=2._8*schmidt/(1._8+schmidt*schmidt)  ! same but bit more accurate
@@ -1203,20 +1203,20 @@ c     modify toij5 for Cray
          ystr(iq)=y3d(iq)*(alfonsch/den)
          zstr(iq)=   (z3d(iq)-alf)/den
         enddo   ! iq loop
-      endif     ! (schmidt.ne.1.)
+!      endif     ! (schmidt.ne.1.)
 
 c      first deduce departure faces
 c      instead calculate cubic coordinates
 c      The faces are:
 c      0: X=1   1: Z=1   2: Y=1   3: X=-1   4: Z=-1   5: Y=-1
 
-       do iq=1,ifull
-        denxyz=max( abs(xstr(iq)),abs(ystr(iq)),abs(zstr(iq)) )
-        xd=xstr(iq)/denxyz
-        yd=ystr(iq)/denxyz
-        zd=zstr(iq)/denxyz
+       if(ncray==1)then
+        do iq=1,ifull
+          denxyz=max( abs(xstr(iq)),abs(ystr(iq)),abs(zstr(iq)) )
+          xd=xstr(iq)/denxyz
+          yd=ystr(iq)/denxyz
+          zd=zstr(iq)/denxyz
 
-        if(ncray.eq.1)then
 c         all these if statements are replaced by the subsequent cunning code
           if(abs(xstr(iq)).eq.denxyz)then       ! Cray
              if(xstr(iq).eq.denxyz)then         ! Cray
@@ -1249,7 +1249,14 @@ c         all these if statements are replaced by the subsequent cunning code
               yg(iq,k) =      zd                ! Cray
             endif                               ! Cray
           endif                                 ! Cray
-        else  ! e.g. ncray=0
+        enddo   ! iq loop   
+       else  ! e.g. ncray=0
+        do iq=1,ifull
+          denxyz=max( abs(xstr(iq)),abs(ystr(iq)),abs(zstr(iq)) )
+          xd=xstr(iq)/denxyz
+          yd=ystr(iq)/denxyz
+          zd=zstr(iq)/denxyz
+
 c         N.B. the Cray copes poorly with the following (sometimes .ne.1),
 c              with e.g. division of  .978 by itself giving  .99999.....53453
 c         max() allows for 2 of x,y,z being 1.  This is the cunning code:
@@ -1259,8 +1266,10 @@ c         max() allows for 2 of x,y,z being 1.  This is the cunning code:
           nface(iq,k)=nf
           xg(iq,k)=xgx(nf)*xd+xgy(nf)*yd+xgz(nf)*zd  ! -1 to 1
           yg(iq,k)=ygx(nf)*xd+ygy(nf)*yd+ygz(nf)*zd
-        endif    ! (ncray.eq.1)
-       enddo   ! iq loop   
+        enddo   ! iq loop   
+       endif    ! (ncray.eq.1)
+
+#ifdef debug
        if(ntest==1.and.k==nlv)then
          iq=idjd
          print *,'x3d,y3d,z3d ',x3d(iq),y3d(iq),z3d(iq)
@@ -1286,6 +1295,7 @@ c       call printn('nfac',nface)
          call printp('xg  ',xg)
          call printp('yg  ',yg)
        endif
+#endif
 
 c     use 4* resolution grid il --> 4*il
       do iq=1,ifull
@@ -1295,9 +1305,11 @@ c      if(iq<10.and.k==nlv)print *,'iq,xg,yg ',iq,xg(iq,k),yg(iq,k)
 c      first guess for ri, rj and nearest i,j
        ri=1.+(1.+xg(iq,k))*real(2*il_g)
        rj=1.+(1.+yg(iq,k))*real(2*il_g)
+#ifdef debug
        if(ntest==1.and.iq==idjd.and.k==nlv)then
          print *,'A: xg,yg,ri,rj ',xg(iq,k),yg(iq,k),ri,rj
        endif
+#endif
        do loop=1,nmaploop
         i=nint(ri)
         j=nint(rj)
@@ -1323,11 +1335,13 @@ c       endif
         ri = max(ri,1.0+0.00001*real(2*il_g))
         rj = min(rj,1.0+1.99999*real(2*il_g))
         rj = max(rj,1.0+0.00001*real(2*il_g))
-        
+
+#ifdef debug
         if(ntest==1.and.iq==idjd.and.k==nlv)then
           print *,'B: xg,yg,ri,rj ',xg(iq,k),yg(iq,k),ri,rj
           print *,'i,j,xx4,yy4 ',i,j,xx4(i,j),yy4(i,j)
         endif
+#endif
        enddo  ! loop loop
 c      expect xg, yg to range between .5 and il+.5
        xg(iq,k)=.25*(ri+3.) -.5  ! -.5 for stag; back to normal ri, rj defn
@@ -1335,7 +1349,8 @@ c      expect xg, yg to range between .5 and il+.5
       enddo   ! iq loop
       call END_LOG(toij_end)
       return
-      end
+      end subroutine toij5
+
       subroutine checkdiv(xstr,ystr,zstr)
 !     Check whether optimisation uses multiplication by reciprocal so
 !     that x/x /= 1.
@@ -1358,7 +1373,7 @@ c      expect xg, yg to range between .5 and il+.5
         zstr(iq) = zstr(iq)/denxyz
       end do
       if ( any(xstr(1:n)/=1.0) ) then
-         print*, "Error, must use ncray=1 on this machine"
+         write(6,*) "Error, must use ncray=1 on this machine"
          stop
       end if
       end subroutine checkdiv

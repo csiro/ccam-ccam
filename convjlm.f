@@ -333,7 +333,7 @@
      &                      +betm(k)*tt(iq,k-1)
        enddo     ! iq loop
       enddo      ! k  loop
-      if(nh.ne.0)phi(:,:)=phi(:,:)+phi_nh(:,:)  ! add non-hydrostatic component - MJT
+      if(nh/=0)phi(:,:)=phi(:,:)+phi_nh(:,:)  ! add non-hydrostatic component - MJT
 
 !      following defines kb_sav (as kkbb) for use by nbase
         kkbb(:)=1
@@ -369,13 +369,11 @@
         endif
 
 
-        do iq=1,ifull
-          if(land(iq))then
-            alfqarr(iq)=alflnd
-          else
-            alfqarr(iq)=alfsea
-          endif   ! (land(iq)) .. else ..
-        enddo
+        where (land(1:ifull))
+          alfqarr(1:ifull)=alflnd
+        elsewhere
+          alfqarr(1:ifull)=alfsea
+        end where
 
         if(mbase==-23)then
          if (nmlo/=0.and.abs(nmlo)<=9) then
@@ -446,7 +444,7 @@
        enddo 
       endif  ! mbase=-19   
 
-        if(ktau==1.and.mydiag)write(6,"('alfqarr',2f7.3)") alfqarr(idjd)
+      if(ktau==1.and.mydiag)write(6,"('alfqarr',2f7.3)") alfqarr(idjd)
 
 !     convective first, then possibly L/S rainfall
       qliqw(:,:)=0.  
@@ -633,7 +631,7 @@ c***    Also entrain may slow convergence   N.B. qbass only used in next few lin
       enddo
 !     set up entrainn() which may vary vertically and with time (for non-zero nevapcc)
       if(itn==1.and.nevapcc.ne.0)then ! removed -ve mdelay option 20/2/14
-          entr(:)=sig(kb_saved(:)) -sig(kt_saved(:))
+         entr(:)=sig(kb_saved(:)) -sig(kt_saved(:))
          if(entrain<1.1)then  ! handles older -ve nevapcc too
            do iq=1,ifull
              entrainn(iq)=.1*real(abs(nevapcc))*  .1/max(.1,entr(iq))  
@@ -1429,8 +1427,8 @@ c***    Also entrain may slow convergence   N.B. qbass only used in next few lin
      &           (1.+0.61*qqsto(k)-qlsto(k)))
                ! convscav expects change in liquid cloud water, so we assume
                ! change in qg is added to qlg before precipating out
-               qqold(k)=qqold(k)-qqsto(k)
-               qqsto(k)=qlsto(k)-qlold(k)
+               qqold(k)=qqold(k)-qqsto(k) ! created liquid water
+               qqsto(k)=qlsto(k)-qlold(k) ! remaining liquid water
                xtgtmp(k)=xtg(iq,k,3)
              end do
              call convscav(fscav(kb:kt),qqsto(kb:kt),qqold(kb:kt),
@@ -1568,11 +1566,13 @@ c***    Also entrain may slow convergence   N.B. qbass only used in next few lin
 !     update qq, tt for evap of qliqw (qliqw arose from moistening)
       if(ldr.ne.0)then
 !       Leon's stuff here, e.g.
-        do k=1,kl
-          if(rhmois==0.)then  ! Nov 2012
+        if(rhmois==0.)then  ! Nov 2012
+          do k=1,kl            
 !           this is older simpler option, allowing ldr scheme to assign qfg without time complications          
             qlg(1:ifull,k)=qlg(1:ifull,k)+qliqw(1:ifull,k)
-          else
+          end do
+        else
+          do k=1,kl              
            do iq=1,ifullw
             if(tt(iq,k)<253.16)then   ! i.e. -20C
               qfg(iq,k)=qfg(iq,k)+qliqw(iq,k)
@@ -1581,8 +1581,8 @@ c***    Also entrain may slow convergence   N.B. qbass only used in next few lin
               qlg(iq,k)=qlg(iq,k)+qliqw(iq,k)
             endif
            enddo
-          endif !  (rhmois==0.)
-         enddo  ! k loop
+          enddo  ! k loop           
+         endif !  (rhmois==0.)
       else      ! for ldr=0
         qq(1:ifull,:)=qq(1:ifull,:)+qliqw(1:ifull,:)         
         tt(1:ifull,:)=tt(1:ifull,:)-hl*qliqw(1:ifull,:)/cp   ! evaporate it

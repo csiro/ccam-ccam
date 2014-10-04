@@ -607,7 +607,7 @@ do j = 1,jl,imax/il
     else
       ! nsib=3 version (calculate snow)
       where (land(istart:iend))
-        cuvrf_dir(1:imax) = albsav(istart:iend)    ! from albfile (indata.f)
+        cuvrf_dir(1:imax) = albvissav(istart:iend) ! from albfile (indata.f)
         cirrf_dir(1:imax) = albnirsav(istart:iend) ! from albnirfile (indata.f)
         cuvrf_dif(1:imax) = cuvrf_dir(1:imax)      ! assume DIR and DIF are the same
         cirrf_dif(1:imax) = cirrf_dir(1:imax)      ! assume DIR and DIF are the same
@@ -740,7 +740,7 @@ do j = 1,jl,imax/il
           !                           /rhoa(:,k)*dzrho,8)   
           Aerosol%aerosol(:,1,kr,10)=real((5.3e-17*ssn(istart:iend,k,1)  & ! Small film sea salt (0.1)
                                           +9.1e-15*ssn(istart:iend,k,2)) & ! Large jet sea salt (0.5)
-                                     /rhoa(:,k)*dzrho,8)                
+                                     *dzrho/rhoa(:,k),8)                
         end do
         Aerosol%aerosol=max(Aerosol%aerosol,0._8)
         

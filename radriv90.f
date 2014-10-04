@@ -278,18 +278,18 @@ c     Set up ozone for this time and row
 !     Set up surface albedo. The input value is > 1 over ocean points where
 !     the zenith angle dependent formula should be used.
       ! LAND --------------------------------------------------------
-      if (nsib.eq.6.or.nsib.eq.7) then ! cable
+      if (nsib==6.or.nsib==7) then ! cable
         where(land(istart:iend))                        ! cable
-          cuvrf(1:imax,1)=albsav(istart:iend)           ! cable
+          cuvrf(1:imax,1)=albvissav(istart:iend)        ! cable
           cirrf(1:imax,1)=albnirsav(istart:iend)        ! cable
         end where                                       ! cable
       else                                              ! cable
         do i=1,imax
           iq=i+(j-1)*il
           if( land(iq) )then
-           cuvrf(i,1) = albsav(iq)    ! use surface albedo from indata
+           cuvrf(i,1) = albvissav(iq)    ! use surface albedo from indata
            cirrf(i,1) = albnirsav(iq)
-           if(snowd(iq).gt.0.)then
+           if(snowd(iq)>0.)then
 c            new snow albedo (needs osnowd from the previous dt)
              dnsnow=min(1.,.1*max(0.,snowd(iq)-osnowd(iq)))  ! new snow (cm H2O)
 c	     Snow age depends on snow crystal growth, freezing of melt water,
@@ -350,7 +350,7 @@ c                   where cs = 0.2, cn = 0.5, b = 2.0
 c	     cc=min(1.,snr/max(snr+2.*z0m(iq),0.02))
              cc=min(1.,snr/max(snr+zolnd(iq),0.02))
 
-            !alss = (1.-snrat)*albsav(iq) + snrat*talb ! canopy free surface albedo
+            !alss = (1.-snrat)*albvissav(iq) + snrat*talb ! canopy free surface albedo
             if (nsib==3) then
               cuvrf(i,1)=(1.-snrat)*cuvrf(i,1) + snrat*talb
               cirrf(i,1)=(1.-snrat)*cirrf(i,1) + snrat*talb
@@ -362,7 +362,7 @@ c	     cc=min(1.,snr/max(snr+2.*z0m(iq),0.02))
               write(6,*)'i,j,land,sicedep,snowd,snrat ',
      .                 i,j,land(iq),sicedep(iq),snowd(iq),snrat
               write(6,*)'albsav,dnsnow,talb,cuvrf1 ',
-     .                 albsav(iq),dnsnow,talb,cuvrf(i,1)
+     .                 albvissav(iq),dnsnow,talb,cuvrf(i,1)
             endif
            endif          !  snowd(iq).gt.0.
           endif       ! if( land(iq)) .. else..

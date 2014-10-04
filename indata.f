@@ -156,7 +156,7 @@
       cdtq(:)=0.
       swrsave(:)=0.5
       hourst=0.
-      albsav(:)=-1.
+      albvissav(:)=-1.
       albvisnir(:,:)=0.3
       vlai(:)=0.
       ivegt(:)=1
@@ -560,7 +560,7 @@
           call surfread(sigmu,'urban',filename=urbanfile)
           sigmu=sigmu*0.01
         end if
-        where (.not.land(:).or.sigmu<0.01)
+        where (.not.land(1:ifull).or.sigmu<0.01)
           sigmu(:)=0.
         end where
         call atebinit(ifull,sigmu(:),0)
@@ -1625,7 +1625,7 @@ c     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
       !write (6,"('epst0#  ',9f8.2)") diagvals(epst) 
 
       ! saved albedo
-      albsav(:)=albvisnir(:,1)    ! VIS
+      albvissav(:)=albvisnir(:,1) ! VIS
       albnirsav(:)=albvisnir(:,2) ! NIR
       
       ! surface pressure
