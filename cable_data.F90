@@ -105,7 +105,8 @@ module cable_data_module
    end type other_constants
 
    type photosynthetic_constants
-      integer:: maxiter=20 ! max # interations for leaf temperature
+      !integer:: maxiter=20 ! max # interations for leaf temperature
+      integer:: maxiter=10 ! max # interations for leaf temperature
       real :: a1c3 = 9.0
       real :: a1c4 = 4.0
       real :: alpha3 = 0.200

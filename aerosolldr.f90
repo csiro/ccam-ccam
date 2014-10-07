@@ -349,7 +349,7 @@ real, dimension(ifull) :: cgssnowd
 real, dimension(ifull) :: veff,vefn
 real, dimension(ifull) :: cstrat,qtot
 real, dimension(ifull) :: rrate,Wstar3,Vgust_free,Vgust_deep
-real, dimension(ifull) :: v10n,thetav,burden
+real, dimension(ifull) :: v10n,thetav,burden,dcol1,dcol2,oldduste
 real, parameter :: beta = 0.65
 real ddt
 integer nt,k,nstep,i
@@ -399,14 +399,31 @@ xtg(1:ifull,:,:)=max(xtg(1:ifull,:,:)+xte(:,:,:)*dt,0.)
 do k=1,kl
   aphp1(:,k)=prf(:)*sig(k)*0.01 ! hPa
 end do
+! Calculate integrated column dust before settling and deposition
+oldduste = duste
+dcol1 = 0.
+do nt=itracdu,itracdu+ndust-1
+  do k=1,kl
+    dcol1 = dcol1 + rhoa(:,k) * xtg(1:ifull,k,nt) * dz(:,k)
+  end do
+end do
 nstep=int(dt/120.01)+1
 ddt=dt/real(nstep)
 do i=1,nstep
   ! Calculate the settling of large dust particles
   call dsettling(ddt,rhoa,ttg,dz,aphp1(:,1:kl))
   ! Calculate dust emission and turbulent dry deposition at the surface
-  call dustem(ddt,rhoa(:,1),wg,veff,dz(:,1),vt,snowd,land)
+  call dustem(ddt,dt,rhoa(:,1),wg,veff,dz(:,1),vt,snowd,land)
 end do
+! Calculate integrated column dust after settling
+dcol2 = 0.
+do nt=itracdu,itracdu+ndust-1
+  do k=1,kl
+    dcol2 = dcol2 + rhoa(:,k) * xtg(1:ifull,k,nt) * dz(:,k)
+  end do
+end do
+! Calculate deposition flux to surface
+dustdd = dustdd + (dcol1-dcol2)/dt + duste - oldduste
 
 ! Decay of hydrophobic black and organic carbon into hydrophilic forms
 call xtsink(dt,xte)
@@ -1770,9 +1787,9 @@ integer, parameter :: ktop = 2    !Top level for wet deposition (counting from t
 ! Allow in-cloud scavenging in ice clouds for hydrophobic BC and OC, and dust
 real, dimension(naero), parameter :: Ecols = (/0.00,0.00,0.00,0.05,0.00,0.05,0.00,0.05,0.05,0.05,0.05/)
 !Below-cloud collection eff. for rain
-real, dimension(naero), parameter :: zcollefr = (/0.10,0.10,0.10,0.05,0.05,0.05,0.05,0.05,0.10,0.20,0.40/)
+real, dimension(naero), parameter :: zcollefr = (/0.10,0.10,0.10,0.10,0.10,0.10,0.10,0.05,0.10,0.20,0.40/)
 !Below-cloud collection eff. for snow
-real, dimension(naero), parameter :: zcollefs = (/0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.02,0.04,0.08/)
+real, dimension(naero), parameter :: zcollefs = (/0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.01,0.02,0.04,0.08/)
 !Retention coeff. on riming
 real, dimension(naero), parameter :: Rcoeff = (/1.00,0.62,1.00,0.00,1.00,0.00,1.00,1.00,1.00,1.00,1.00/)
 !Relative reevaporation rate
@@ -1974,34 +1991,25 @@ real, dimension(ifull,kl), intent(in) :: delz   !Lowest layer thickness (m)
 real, dimension(ifull,kl), intent(in) :: prf    !Pressure (hPa)
 
 ! Local work arrays and variables
-real, dimension(ifull) :: dcol1, dcol2
 real, dimension(ifull) :: c_stokes, corr, c_cun
 real, dimension(ifull) :: newxtg, b, dfall
 real, dimension(ifull,kl) :: vd_cor
 real dtmax,vsettl,dt_settl
-integer n,k,l,ndt_settl
+integer i,nt,l,ndt_settl
 
 real, parameter :: dyn_visc = 1.5E-5
 
 ! Start code : ----------------------------------------------------------
 
-! Calculate integrated column dust before settling
-dcol1 = 0.
-do n=itracdu,itracdu+ndust-1
-  do l=1,kl
-    dcol1 = dcol1 + rhoa(:,l) * xtg(1:ifull,l,n) * delz(:,l)
-  end do
-end do
-
-do k = 1, NDUST
+do nt = 1, NDUST
   ! Settling velocity (m/s) for each soil classes (Stokes Law)
   ! DUSTDEN     soil class density             (kg/m3)
   ! DUSTREFF    effective radius of soil class (m)
   ! dyn_visc    dynamic viscosity              (kg/m2/s)
   ! grav        gravity                        (m/s2)
   ! 0.5         upper limit with temp correction (already incorporated with dzmin_gbl - MJT)
-  !vsettl = 2./9. * grav * DUSTDEN(k) * DUSTREFF(k)**2 / (0.5*dyn_visc)
-  vsettl = 2./9. * grav * DUSTDEN(k) * DUSTREFF(k)**2 / dyn_visc
+  !vsettl = 2./9. * grav * DUSTDEN(nt) * DUSTREFF(nt)**2 / (0.5*dyn_visc)
+  vsettl = 2./9. * grav * DUSTDEN(nt) * DUSTREFF(nt)**2 / dyn_visc
 
   ! Determine the maximum time-step satisying the CFL condition:
   ! dt <= (dz)_min / v_settl
@@ -2009,51 +2017,44 @@ do k = 1, NDUST
   ndt_settl = max(1, int( tdt/dtmax ) )
   dt_settl = tdt/real(ndt_settl)
 
-  do n = 1, ndt_settl
-
-    ! Solve at the model top
+  ! Solve at the model top
+  ! Dynamic viscosity
+  C_Stokes = 1.458E-6 * TMP(1:ifull,kl)**1.5/(TMP(1:ifull,kl)+110.4) 
+  ! Cuningham correction
+  Corr = 6.6E-8*prf(:,kl)/1013.*TMP(1:ifull,kl)/293.15
+  C_Cun = 1. + 1.249*corr/dustreff(nt)
+  ! Settling velocity
+  Vd_cor(:,kl) =2./9.*grav*dustden(nt)*dustreff(nt)**2/C_Stokes*C_Cun
+  ! Solve each vertical layer successively (layer l)
+  do l = kl-1,1,-1
     ! Dynamic viscosity
-    C_Stokes = 1.458E-6 * TMP(1:ifull,kl)**1.5/(TMP(1:ifull,kl)+110.4) 
+    C_Stokes = 1.458E-6*TMP(1:ifull,l)**1.5/(TMP(1:ifull,l)+110.4) 
     ! Cuningham correction
-    Corr = 6.6E-8*prf(:,kl)/1013.*TMP(1:ifull,kl)/293.15
-    C_Cun = 1. + 1.249*corr/dustreff(k)
+    Corr = 6.6E-8*prf(:,l)/1013.*TMP(1:ifull,l)/293.15
+    C_Cun = 1. + 1.249*corr/dustreff(nt)
     ! Settling velocity
-    Vd_cor(:,kl) =2./9.*grav*dustden(k)*dustreff(k)**2/C_Stokes*C_Cun
+    Vd_cor(:,l) = 2./9.*grav*dustden(nt)*dustreff(nt)**2/C_Stokes*C_Cun
+  end do
+  
+  do i = 1, ndt_settl
     ! Update mixing ratio
     b = dt_settl*VD_cor(:,kl)/DELZ(:,kl)
-    newxtg = xtg(1:ifull,kl,k+itracdu-1) * (1. - 0.5 * b) / (1. + 0.5 * b)
-    dfall = xtg(1:ifull,kl,k+itracdu-1) - newxtg
-    xtg(1:ifull,kl,k+itracdu-1) = newxtg
-
+    newxtg = xtg(1:ifull,kl,nt+itracdu-1) * (1. - 0.5*b) / (1. + 0.5*b)
+    newxtg = max( newxtg, 0. )
+    dfall = max( xtg(1:ifull,kl,nt+itracdu-1) - newxtg, 0. )
+    xtg(1:ifull,kl,nt+itracdu-1) = newxtg
     ! Solve each vertical layer successively (layer l)
     do l = kl-1,1,-1
-      ! Dynamic viscosity
-      C_Stokes = 1.458E-6*TMP(1:ifull,l)**1.5/(TMP(1:ifull,l)+110.4) 
-      ! Cuningham correction
-      Corr = 6.6E-8*prf(:,l)/1013.*TMP(1:ifull,l)/293.15
-      C_Cun = 1. + 1.249*corr/dustreff(k)
-      ! Settling velocity
-      Vd_cor(:,l) = 2./9.*grav*dustden(k)*dustreff(k)*dustreff(k)/C_Stokes*C_Cun
       ! Update mixing ratio
       b = dt_settl*Vd_cor(:,l)/DELZ(:,l)
-      xtg(1:ifull,l,k+itracdu-1) = xtg(1:ifull,l,k+itracdu-1) + dfall*delz(:,l+1)*rhoa(:,l+1)/(delz(:,l)*rhoa(:,l))
-      newxtg = xtg(1:ifull,l,k+itracdu-1) * (1. - 0.5 * b) / (1. + 0.5 * b)
-      dfall = xtg(1:ifull,l,k+itracdu-1) - newxtg
-      xtg(1:ifull,l,k+itracdu-1) = newxtg
+      dfall = dfall * delz(:,l+1)*rhoa(:,l+1)/(delz(:,l)*rhoa(:,l))
+      newxtg = ( xtg(1:ifull,l,nt+itracdu-1)*(1. - 0.5*b) + dfall ) / (1. + 0.5*b)
+      newxtg = max( newxtg, 0. )
+      dfall = max( xtg(1:ifull,l,nt+itracdu-1) + dfall - newxtg, 0. )
+      xtg(1:ifull,l,nt+itracdu-1) = newxtg
     end do
   end do
 end do
-
-! Calculate integrated column dust after settling
-dcol2 = 0.
-do n=itracdu,itracdu+ndust-1
-  do l=1,kl
-    dcol2 = dcol2 + rhoa(:,l) * xtg(1:ifull,l,n) * delz(:,l)
-  end do
-end do
-
-! Calculate deposition flux to surface
-dustdd = dustdd + (dcol1-dcol2)/tdt
 
 return
 end subroutine dsettling
@@ -2061,12 +2062,12 @@ end subroutine dsettling
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Dust emissions
 
-subroutine dustem(tdt,rhoa,wg,w10m,dz1,vt,snowd,land)
+subroutine dustem(tdt,dt,rhoa,wg,w10m,dz1,vt,snowd,land)
 
 implicit none
 
 !     Inputs:
-real, intent(in) :: tdt                         !Leapfrog timestep (s)
+real, intent(in) :: tdt,dt                      !Leapfrog timestep (s) (substep and long step)
 real, dimension(ifull), intent(in) :: rhoa      !air density (kg/m3)
 real, dimension(ifull), intent(in) :: wg        !ground wetness (fraction of field capacity)
 real, dimension(ifull), intent(in) :: w10m      !10m windspeed (m/s)
@@ -2084,7 +2085,7 @@ real, dimension(ndust), parameter :: frac_s = (/ 0.1, 0.25, 0.25, 0.25 /)
 real, dimension(ifull) :: snowa     !Estimated snow areal coverage
 real, dimension(ifull) :: u_ts0,u_ts,veff
 real, dimension(ifull) :: srce,dsrc,airmas
-real, dimension(ifull) :: a,b,xold,xtendd
+real, dimension(ifull) :: a,b
 real, dimension(ifull) :: airden
 
 real g,den,diam
@@ -2100,6 +2101,7 @@ airden = rhoa*1.e-3
 ! 0.05 m is the geometrical snow thickness for 100% areal coverage.
 !hsnow = snowd*0.01 !Geometrical snow thickness in metres
 snowa = min( 1., snowd/5. )
+airmas = dz1 * rhoa  ! kg/m2
 
 do n = 1, ndust
   ! Threshold velocity as a function of the dust density and the diameter
@@ -2129,9 +2131,8 @@ do n = 1, ndust
   dsrc = max( 0., dsrc )
 
 ! Calculate dust mixing ratio tendency at first model level.
-  airmas = dz1 * rhoa  ! kg/m2 - MJT suggestion
   a = dsrc / airmas
-  duste = duste + dsrc ! MJT suggestion
+  duste = duste + dsrc*tdt/dt ! Diagnostic
 
 ! Calculate turbulent dry deposition at surface
 ! Use full layer thickness for CSIRO model (should be correct if Vt is relative to mid-layer)
@@ -2140,13 +2141,9 @@ do n = 1, ndust
 
 ! Update mixing ratio
 ! Write in form dx/dt = a - bx (a = source term, b = drydep term)
-  xold = xtg(1:ifull,1,n+itracdu-1)
-  
   xtg(1:ifull,1,n+itracdu-1) = (xtg(1:ifull,1,n+itracdu-1)*(1.-0.5*b*tdt)+a*tdt)/(1.+0.5*b*tdt)
   xtg(1:ifull,1,n+itracdu-1) = max( 0., xtg(1:ifull,1,n+itracdu-1) )
 
-  xtendd = (xtg(1:ifull,1,n+itracdu-1)-xold)/tdt - a
-  dustdd = dustdd - xtendd*airmas ! Diagnostic
 end do
 
 return
@@ -2363,7 +2360,7 @@ logical, dimension(size(fscav)) :: bwkp1
 ! Hard-coded for 3 sulfur variables, 4 carbonaceous, 4 mineral dust.
 ! Note that value for SO2 (index 2) is overwritten by Henry coefficient f_so2 below.
 ! These ones are for 3 SULF, 4 CARB and 4 or 8 DUST (and include dummy variables at end)
-real, parameter, dimension(naero) :: scav_effl = (/0.00,1.00,0.90,0.00,0.30,0.00,0.30,0.05,0.05,0.05,0.05/) ! liquid
+real, parameter, dimension(naero) :: scav_effl = (/0.00,1.00,0.90,0.00,0.30,0.00,0.30,0.30,0.30,0.30,0.30/) ! liquid
 real, parameter, dimension(naero) :: scav_effi = (/0.00,0.00,0.00,0.05,0.00,0.05,0.00,0.05,0.05,0.05,0.05/) ! ice
 
 !bwkp1(:)=tt(:)>=ticeu ! condensate in parcel is liquid (true) or ice (false)

@@ -1731,16 +1731,13 @@ SUBROUTINE photosynthesis( csxz, cx1z, cx2z, gswminz,                          &
                                        ! Bonan,LSM version 1.0, p106)
 
    INTEGER :: i,j   
-  
-   
-   DO i=1,mp
-      
-      IF (sum(vlaiz(i,:)) .GT. C%LAI_THRESH) THEN
-      
-         DO j=1,mf
-            
-            IF( vlaiz(i,j) .GT. C%LAI_THRESH .AND. deltlfz(i,j) .GT. 0.1) THEN
 
+   DO j=1,mf
+         
+      DO i=1,mp
+             
+         IF( vlaiz(i,j) .GT. C%LAI_THRESH .AND. deltlfz(i,j) .GT. 0.1) THEN
+          
                ! Rubisco limited:
                coef2z(i,j) = gswminz(i,j)*fwsoilz(i) / C%RGSWC + xleuningz(i,j) *       &
                              ( vcmxt3z(i,j) - ( rdxz(i,j)-vcmxt4z(i,j) ) )
@@ -1901,12 +1898,10 @@ SUBROUTINE photosynthesis( csxz, cx1z, cx2z, gswminz,                          &
                ! minimal of three limited rates
                anxz(i,j) = MIN(anrubiscoz(i,j),anrubpz(i,j),ansinkz(i,j))
         
-            ENDIF
+         ENDIF
       
-         ENDDO
+      ENDDO
     
-      ENDIF
-
    ENDDO
      
 END SUBROUTINE photosynthesis
