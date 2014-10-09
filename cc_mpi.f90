@@ -4300,7 +4300,7 @@ contains
                ! Add this point to the list of requests I need to send to iproc
                dslen(dproc) = dslen(dproc) + 1
                ! Limit request index to valid range to avoid seg fault
-               xn = min( dslen(dproc), bnds(iproc)%len/nagg )
+               xn = max( min( dslen(dproc), bnds(iproc)%len/nagg ), 1 )
                ! Since nface is a small integer it can be exactly represented by a
                ! real. It's simpler to send like this than use a proper structure.
                dbuf(dproc)%a(:,xn) = (/ real(gf), xf, yf, real(k) /)
