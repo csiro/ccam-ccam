@@ -1879,22 +1879,22 @@ if (myid==0) then
     end do
   end do
   ! Dust_0.73
-  frac = (real(dustreff(1),8) - 0.4E-6)/0.4E-6
+  frac = (real(dustreff(1),8) - 0.4E-6_8)/0.4E-6_8
   aeroextivl(:,897)   = (1.-frac)*aeroextivl(:,708)  +frac*aeroextivl(:,709)
   aerossalbivl(:,897) = (1.-frac)*aerossalbivl(:,708)+frac*aerossalbivl(:,709)
   aeroasymmivl(:,897) = (1.-frac)*aeroasymmivl(:,708)+frac*aeroasymmivl(:,709)
   ! Dust 1.4
-  frac = (real(dustreff(2),8) - 1.E-6)/1.E-6
+  frac = (real(dustreff(2),8) - 1.E-6_8)/1.E-6_8
   aeroextivl(:,898)   = (1.-frac)*aeroextivl(:,710)  +frac*aeroextivl(:,711)
   aerossalbivl(:,898) = (1.-frac)*aerossalbivl(:,710)+frac*aerossalbivl(:,711)
   aeroasymmivl(:,898) = (1.-frac)*aeroasymmivl(:,710)+frac*aeroasymmivl(:,711)
   ! Dust 2.4
-  frac = (real(dustreff(3),8) - 2.E-6)/2.E-6
+  frac = (real(dustreff(3),8) - 2.E-6_8)/2.E-6_8
   aeroextivl(:,899)   = (1.-frac)*aeroextivl(:,711)  +frac*aeroextivl(:,712)
   aerossalbivl(:,899) = (1.-frac)*aerossalbivl(:,711)+frac*aerossalbivl(:,712)
   aeroasymmivl(:,899) = (1.-frac)*aeroasymmivl(:,711)+frac*aeroasymmivl(:,712)
   ! Dust 4.5
-  frac = (real(dustreff(4),8) - 4.E-6)/4.E-6
+  frac = (real(dustreff(4),8) - 4.E-6_8)/4.E-6_8
   aeroextivl(:,900)   = (1.-frac)*aeroextivl(:,712)  +frac*aeroextivl(:,713)
   aerossalbivl(:,900) = (1.-frac)*aerossalbivl(:,712)+frac*aerossalbivl(:,713)
   aeroasymmivl(:,900) = (1.-frac)*aeroasymmivl(:,712)+frac*aeroasymmivl(:,713)  
