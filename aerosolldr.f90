@@ -15,7 +15,7 @@ public itracbc,bce,bcdd,bcwd,bc_burden
 public itracoc,oce,ocdd,ocwd,oc_burden
 public itracso2,dmse,dmsso2o,so2e,so2so4o,so2dd,so2wd,so4e,so4dd,so4wd
 public dms_burden,so2_burden,so4_burden
-public Ch_dust,zvolcemi,ticeu,dzmin_gbl,aeroindir
+public Ch_dust,zvolcemi,ticeu,dzmin_gbl,aeroindir,dustreff
 
 integer, save :: ifull,kl
 integer, save :: jk2,jk3,jk4,jk5,jk6,jk8,jk9           ! levels for injection

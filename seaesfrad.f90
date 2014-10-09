@@ -1520,6 +1520,7 @@ end subroutine cloud3
 
 subroutine loadaerooptical(Aerosol_props)
 
+use aerosolldr
 use cc_mpi
 
 implicit none
@@ -1530,7 +1531,7 @@ integer :: n, nmodel, unit, num_wavenumbers, num_input_categories
 integer :: noptical, nivl3, nband, nw, ierr, na, ni
 integer, dimension(:), allocatable, save :: endaerwvnsf
 integer, dimension(:), allocatable, save :: nivl1aero,nivl2aero
-real(kind=8) :: sumsol3
+real(kind=8) :: sumsol3, frac
 real(kind=8), dimension(:,:), allocatable, save :: aeroextivl, aerossalbivl, aeroasymmivl
 real(kind=8), dimension(:,:), allocatable, save :: sflwwts, sflwwts_cn
 real(kind=8), dimension(:,:), allocatable, save :: solivlaero
@@ -1878,21 +1879,25 @@ if (myid==0) then
     end do
   end do
   ! Dust_0.73
-  aeroextivl(:,897)   = 0.175*aeroextivl(:,708)  +0.825*aeroextivl(:,709)
-  aerossalbivl(:,897) = 0.175*aerossalbivl(:,708)+0.825*aerossalbivl(:,709)
-  aeroasymmivl(:,897) = 0.175*aeroasymmivl(:,708)+0.825*aeroasymmivl(:,709)
+  frac = (real(dustreff(1),8) - 0.4E-6)/0.4E-6
+  aeroextivl(:,897)   = (1.-frac)*aeroextivl(:,708)  +frac*aeroextivl(:,709)
+  aerossalbivl(:,897) = (1.-frac)*aerossalbivl(:,708)+frac*aerossalbivl(:,709)
+  aeroasymmivl(:,897) = (1.-frac)*aeroasymmivl(:,708)+frac*aeroasymmivl(:,709)
   ! Dust 1.4
-  aeroextivl(:,898)   = 0.6*aeroextivl(:,710)  +0.4*aeroextivl(:,711)
-  aerossalbivl(:,898) = 0.6*aerossalbivl(:,710)+0.4*aerossalbivl(:,711)
-  aeroasymmivl(:,898) = 0.6*aeroasymmivl(:,710)+0.4*aeroasymmivl(:,711)
+  frac = (real(dustreff(2),8) - 1.E-6)/1.E-6
+  aeroextivl(:,898)   = (1.-frac)*aeroextivl(:,710)  +frac*aeroextivl(:,711)
+  aerossalbivl(:,898) = (1.-frac)*aerossalbivl(:,710)+frac*aerossalbivl(:,711)
+  aeroasymmivl(:,898) = (1.-frac)*aeroasymmivl(:,710)+frac*aeroasymmivl(:,711)
   ! Dust 2.4
-  aeroextivl(:,899)   = 0.8*aeroextivl(:,711)  +0.2*aeroextivl(:,712)
-  aerossalbivl(:,899) = 0.8*aerossalbivl(:,711)+0.2*aerossalbivl(:,712)
-  aeroasymmivl(:,899) = 0.8*aeroasymmivl(:,711)+0.2*aeroasymmivl(:,712)
+  frac = (real(dustreff(3),8) - 2.E-6)/2.E-6
+  aeroextivl(:,899)   = (1.-frac)*aeroextivl(:,711)  +frac*aeroextivl(:,712)
+  aerossalbivl(:,899) = (1.-frac)*aerossalbivl(:,711)+frac*aerossalbivl(:,712)
+  aeroasymmivl(:,899) = (1.-frac)*aeroasymmivl(:,711)+frac*aeroasymmivl(:,712)
   ! Dust 4.5
-  aeroextivl(:,900)   = 0.875*aeroextivl(:,712)  +0.125*aeroextivl(:,713)
-  aerossalbivl(:,900) = 0.875*aerossalbivl(:,712)+0.125*aerossalbivl(:,713)
-  aeroasymmivl(:,900) = 0.875*aeroasymmivl(:,712)+0.125*aeroasymmivl(:,713)  
+  frac = (real(dustreff(4),8) - 4.E-6)/4.E-6
+  aeroextivl(:,900)   = (1.-frac)*aeroextivl(:,712)  +frac*aeroextivl(:,713)
+  aerossalbivl(:,900) = (1.-frac)*aerossalbivl(:,712)+frac*aerossalbivl(:,713)
+  aeroasymmivl(:,900) = (1.-frac)*aeroasymmivl(:,712)+frac*aeroasymmivl(:,713)  
 
   close(unit)
   deallocate (aeroasymm_in,aerossalb_in,aeroext_in)

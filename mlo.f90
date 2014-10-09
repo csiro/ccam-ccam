@@ -3250,8 +3250,8 @@ dgice%wetfrac=max(1.+.008*min(dtsurf-273.16,0.),0.)
 dgice%cd=af*fm
 dgice%cdh=aft*fh
 dgice%cdq=afq*fq
-dgice%fg=rho*dgice%cdh*cp*vmag*(dtsurf-atm_temp/srcp)
-dgice%eg=dgice%wetfrac*rho*dgice%cdq*lv*vmag*(qsat-atm_qg)
+dgice%fg=rho*dgice%cdh*cp*vmagn*(dtsurf-atm_temp/srcp)
+dgice%eg=dgice%wetfrac*rho*dgice%cdq*lv*vmagn*(qsat-atm_qg)
 dgice%eg=min(dgice%eg,d_ndic*qice*lv/(lf*dt))
 
 ! number of (thick) ice layers
@@ -3260,13 +3260,13 @@ d_nk=min(int(d_ndic/himin),2)
 ! radiation
 alb=     atm_vnratio*(dgice%visdiralb*atm_fbvis+dgice%visdifalb*(1.-atm_fbvis))+ &
     (1.-atm_vnratio)*(dgice%visdifalb*atm_fbvis+dgice%visdifalb*(1.-atm_fbvis))
-qmax=qice*0.5*max(d_ndic-himin,0.)
+qmax=max(qice*0.5*max(d_ndic-himin,0.),1.E-20)
 eye=0.35*max(1.-d_ndsn/icemin,0.)*max(1.-d_nsto/qmax,0.)*max(min(d_ndic/himin-1.,1.),0.)
 d_nsto=d_nsto+dt*atm_sg*(1.-alb)*eye
 
 ! Explicit estimate of fluxes
 d_ftop=-dgice%fg-dgice%eg*ls/lv+atm_rg-emisice*sbconst*dtsurf**4+atm_sg*(1.-alb)*(1.-eye) ! first guess
-bot=4.*emisice*sbconst*dtsurf**3+rho*vmag*(dgice%cdh*cp+dgice%cdq*dgice%wetfrac*dqdt*ls/lv)
+bot=4.*emisice*sbconst*dtsurf**3+rho*vmagn*(dgice%cdh*cp+dgice%cdq*dgice%wetfrac*dqdt*ls/lv)
 where ( d_nk>0 .and. d_ndsn>0.05 )
   gamm=gammi
 elsewhere
@@ -3280,41 +3280,30 @@ d_tb=water%temp(:,1)
 imass=max(rhoic*ice%thick+rhosn*ice%snowd,10.) ! ice mass per unit area
 newiu=ice%u
 newiv=ice%v
-do iqw=1,wfull
-  do ll=1,20 ! max iterations
-    uu(iqw)=atm_u(iqw)-newiu(iqw)
-    vv(iqw)=atm_v(iqw)-newiv(iqw)
-    du(iqw)=fluxwgt*water%u(iqw,1)+(1.-fluxwgt)*atm_oldu(iqw)-newiu(iqw)
-    dv(iqw)=fluxwgt*water%v(iqw,1)+(1.-fluxwgt)*atm_oldv(iqw)-newiv(iqw)
+do ll=1,10 ! max iterations
+  uu=atm_u-newiu
+  vv=atm_v-newiv
+  du=fluxwgt*water%u(:,1)+(1.-fluxwgt)*atm_oldu-newiu
+  dv=fluxwgt*water%v(:,1)+(1.-fluxwgt)*atm_oldv-newiv
   
-    vmagn(iqw)=max(sqrt(uu(iqw)*uu(iqw)+vv(iqw)*vv(iqw)),0.01)
-    icemagn(iqw)=max(sqrt(du(iqw)*du(iqw)+dv(iqw)*dv(iqw)),0.0001)
+  vmagn=sqrt(max(uu*uu+vv*vv,1.E-4))
+  icemagn=sqrt(max(du*du+dv*dv,1.E-8))
 
-    g(iqw)=ice%u(iqw)-newiu(iqw)+dt*(rho(iqw)*dgice%cd(iqw)*vmagn(iqw)*uu(iqw)               &
-                                +d_rho(iqw,1)*0.00536*icemagn(iqw)*du(iqw))/imass(iqw)
-    h(iqw)=ice%v(iqw)-newiv(iqw)+dt*(rho(iqw)*dgice%cd(iqw)*vmagn(iqw)*vv(iqw)               &
-                                +d_rho(iqw,1)*0.00536*icemagn(iqw)*dv(iqw))/imass(iqw)
+  g=ice%u-newiu+dt*(rho*dgice%cd*vmagn*uu+d_rho(:,1)*0.00536*icemagn*du)/imass
+  h=ice%v-newiv+dt*(rho*dgice%cd*vmagn*vv+d_rho(:,1)*0.00536*icemagn*dv)/imass
   
-    dgu(iqw)=-1.-dt*(rho(iqw)*dgice%cd(iqw)*vmagn(iqw)*(1.+(uu(iqw)/vmagn(iqw))**2)          &
-               +d_rho(iqw,1)*0.00536*icemagn(iqw)*(1.+(du(iqw)/icemagn(iqw))**2))/imass(iqw)
-    dhu(iqw)=-dt*(rho(iqw)*dgice%cd(iqw)*uu(iqw)*vv(iqw)/vmagn(iqw)                          &
-               +d_rho(iqw,1)*0.00536*du(iqw)*dv(iqw)/icemagn(iqw))/imass(iqw)
-    dgv(iqw)=dhu(iqw)
-    dhv(iqw)=-1.-dt*(rho(iqw)*dgice%cd(iqw)*vmagn(iqw)*(1.+(vv(iqw)/vmagn(iqw))**2)          &
-               +d_rho(iqw,1)*0.00536*icemagn(iqw)*(1.+(dv(iqw)/icemagn(iqw))**2))/imass(iqw)
+  dgu=-1.-dt*(rho*dgice%cd*vmagn*(1.+(uu/vmagn)**2)+d_rho(:,1)*0.00536*icemagn*(1.+(du/icemagn)**2))/imass
+  dhu=-dt*(rho*dgice%cd*uu*vv/vmagn+d_rho(:,1)*0.00536*du*dv/icemagn)/imass
+  dgv=dhu
+  dhv=-1.-dt*(rho*dgice%cd*vmagn*(1.+(vv/vmagn)**2)+d_rho(:,1)*0.00536*icemagn*(1.+(dv/icemagn)**2))/imass
 
-    det(iqw)=dgu(iqw)*dhv(iqw)-dgv(iqw)*dhu(iqw)
+  det=dgu*dhv-dgv*dhu
 
-    newiu(iqw)=newiu(iqw)-0.9*( g(iqw)*dhv(iqw)-h(iqw)*dgv(iqw))/det(iqw)
-    newiv(iqw)=newiv(iqw)-0.9*(-g(iqw)*dhu(iqw)+h(iqw)*dgu(iqw))/det(iqw)
+  where ( abs(det)>1.E-20 )
+    newiu=newiu-0.9*( g*dhv-h*dgv)/det
+    newiv=newiv-0.9*(-g*dhu+h*dgu)/det
+  end where
 
-    !newiu(iqw)=max(newiu(iqw),min(atm_u(iqw),water%u(iqw,1),ice%u(iqw)))
-    !newiu(iqw)=min(newiu(iqw),max(atm_u(iqw),water%u(iqw,1),ice%u(iqw)))
-    !newiv(iqw)=max(newiv(iqw),min(atm_v(iqw),water%v(iqw,1),ice%v(iqw)))
-    !newiv(iqw)=min(newiv(iqw),max(atm_v(iqw),water%v(iqw,1),ice%v(iqw)))
-  
-    if (abs(g(iqw))<1.E-3.and.abs(h(iqw))<1.E-3) exit
-  end do
 end do
 
 ! momentum transfer
@@ -3322,15 +3311,15 @@ uu=atm_u-newiu
 vv=atm_v-newiv
 du=fluxwgt*water%u(:,1)+(1.-fluxwgt)*atm_oldu-newiu
 dv=fluxwgt*water%v(:,1)+(1.-fluxwgt)*atm_oldv-newiv
-vmagn=max(sqrt(uu*uu+vv*vv),0.01)
-icemagn=max(sqrt(du*du+dv*dv),0.0001)
+vmagn=sqrt(max(uu*uu+vv*vv,1.E-4))
+icemagn=sqrt(max(du*du+dv*dv,1.E-8))
 dgice%tauxica=rho*dgice%cd*vmagn*uu
 dgice%tauyica=rho*dgice%cd*vmagn*vv
 dgice%tauxicw=-d_rho(:,1)*0.00536*icemagn*du
 dgice%tauyicw=-d_rho(:,1)*0.00536*icemagn*dv
 !dgice%tauxicw=(ice%u-newiu)*imass/dt+dgice%tauxica
 !dgice%tauyicw=(ice%v-newiv)*imass/dt+dgice%tauyica
-ustar=sqrt(sqrt(dgice%tauxicw*dgice%tauxicw+dgice%tauyicw*dgice%tauyicw)/d_rho(:,1))
+ustar=sqrt(sqrt(max(dgice%tauxicw*dgice%tauxicw+dgice%tauyicw*dgice%tauyicw,0.))/d_rho(:,1))
 ustar=max(ustar,5.E-4)
 d_fb=cp0*d_rho(:,1)*0.006*ustar*(d_tb-d_timelt)
 d_fb=min(max(d_fb,-1000.),1000.)  
@@ -3338,8 +3327,8 @@ d_fb=min(max(d_fb,-1000.),1000.)
 ! Estimate fluxes to prevent overshoot (predictor-corrector)
 tnew=min(dtsurf+d_ftop/(gamm/dt+bot),273.2)
 call getqsat(qsatnew,dqdt,tnew,atm_ps)
-dgice%fg=rho*dgice%cdh*cp*vmag*(0.5*(tnew+dtsurf)-atm_temp/srcp)
-dgice%eg=dgice%wetfrac*rho*dgice%cdq*lv*vmag*(0.5*(qsatnew+qsat)-atm_qg)
+dgice%fg=rho*dgice%cdh*cp*vmagn*(0.5*(tnew+dtsurf)-atm_temp/srcp)
+dgice%eg=dgice%wetfrac*rho*dgice%cdq*lv*vmagn*(0.5*(qsatnew+qsat)-atm_qg)
 dgice%eg=min(dgice%eg,d_ndic*qice*lv/(lf*dt))
 d_ftop=-dgice%fg-dgice%eg*ls/lv+atm_rg-0.5*emisice*sbconst*(tnew**4+dtsurf**4)+atm_sg*(1.-alb)*(1.-eye)
 
