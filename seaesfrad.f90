@@ -33,7 +33,7 @@ real, parameter :: csolar   = 1365        ! Solar constant in W/m^2
 real, parameter :: siglow   = 0.68        ! sigma level for top of low cloud (diagnostic)
 real, parameter :: sigmid   = 0.44        ! sigma level for top of medium cloud (diagnostic)
 real, parameter :: ratco2mw = 1.519449738 ! conversion factor for CO2 diagnostic
-integer, parameter :: naermodels         = 896
+integer, parameter :: naermodels         = 900
 integer, parameter :: N_AEROSOL_BANDS_FR = 8
 integer, parameter :: N_AEROSOL_BANDS_CO = 1
 integer, parameter :: N_AEROSOL_BANDS_CN = 1
@@ -358,10 +358,10 @@ if ( first ) then
     end if
     Aerosol_props%optical_index(4)=720                            ! organic carbon (hydrophobic)
     Aerosol_props%optical_index(5)=Aerosol_props%omphilic_flag    ! organic carbon (hydrophillic)
-    Aerosol_props%optical_index(6)=709                            ! dust_0.8  (using 0.73)
-    Aerosol_props%optical_index(7)=710                            ! dust_1.0  (using 1.4)
-    Aerosol_props%optical_index(8)=711                            ! dust_2.0  (using 2.4)
-    Aerosol_props%optical_index(9)=712                            ! dust_4.0  (using 4.5)
+    Aerosol_props%optical_index(6)=897                            ! dust_0.7  (using 0.73)
+    Aerosol_props%optical_index(7)=898                            ! dust_1.4  (using 1.4)
+    Aerosol_props%optical_index(8)=899                            ! dust_2.4  (using 2.4)
+    Aerosol_props%optical_index(9)=900                            ! dust_4.5  (using 4.5)
     Aerosol_props%optical_index(10)=705                           ! sea_salt (film drop + jet drop)
     ! GFDL bins dust1=0.1-0.5, dust2=0.5-1, dust3=1-2.5, dust4=2.5-5, dust5=5-10
     ! GFDL bins salt1=0.1-0.5, salt2=0.5-1, salt3=1-2.5, salt4=2.5-5, dust5=5-10
@@ -740,7 +740,7 @@ do j = 1,jl,imax/il
           !                           /rhoa(:,k)*dzrho,8)   
           Aerosol%aerosol(:,1,kr,10)=real((5.3e-17*ssn(istart:iend,k,1)  & ! Small film sea salt (0.1)
                                           +9.1e-15*ssn(istart:iend,k,2)) & ! Large jet sea salt (0.5)
-                                     *dzrho/rhoa(:,k),8)                
+                                         *dzrho/rhoa(:,k),8)                
         end do
         Aerosol%aerosol=max(Aerosol%aerosol,0._8)
         
@@ -1867,7 +1867,7 @@ if (myid==0) then
     read( unit,* ) aerossalb_in
     read( unit,* )
     read( unit,* ) aeroasymm_in
-    do noptical=1,naermodels
+    do noptical=1,naermodels-4
       if (aerosol_optical_names(noptical) == name_in) then
         write(6,*) "Loading optical model for ",trim(name_in)
         aeroextivl(:,noptical)   = aeroext_in
@@ -1877,6 +1877,22 @@ if (myid==0) then
       endif
     end do
   end do
+  ! Dust_0.73
+  aeroextivl(:,897)   = 0.175*aeroextivl(:,708)  +0.825*aeroextivl(:,709)
+  aerossalbivl(:,897) = 0.175*aerossalbivl(:,708)+0.825*aerossalbivl(:,709)
+  aeroasymmivl(:,897) = 0.175*aeroasymmivl(:,708)+0.825*aeroasymmivl(:,709)
+  ! Dust 1.4
+  aeroextivl(:,898)   = 0.6*aeroextivl(:,710)  +0.4*aeroextivl(:,711)
+  aerossalbivl(:,898) = 0.6*aerossalbivl(:,710)+0.4*aerossalbivl(:,711)
+  aeroasymmivl(:,898) = 0.6*aeroasymmivl(:,710)+0.4*aeroasymmivl(:,711)
+  ! Dust 2.4
+  aeroextivl(:,899)   = 0.8*aeroextivl(:,711)  +0.2*aeroextivl(:,712)
+  aerossalbivl(:,899) = 0.8*aerossalbivl(:,711)+0.2*aerossalbivl(:,712)
+  aeroasymmivl(:,899) = 0.8*aeroasymmivl(:,711)+0.2*aeroasymmivl(:,712)
+  ! Dust 4.5
+  aeroextivl(:,900)   = 0.875*aeroextivl(:,712)  +0.125*aeroextivl(:,713)
+  aerossalbivl(:,900) = 0.875*aerossalbivl(:,712)+0.125*aerossalbivl(:,713)
+  aeroasymmivl(:,900) = 0.875*aeroasymmivl(:,712)+0.125*aeroasymmivl(:,713)  
 
   close(unit)
   deallocate (aeroasymm_in,aerossalb_in,aeroext_in)

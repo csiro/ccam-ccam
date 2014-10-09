@@ -104,6 +104,12 @@ real, dimension(ndust), parameter :: dustden = (/ 2500., 2650., 2650., 2650. /) 
                                                                                    ! (Clay, small silt, small slit, small silt)
 real, dimension(ndust), parameter :: dustreff = (/ 0.73e-6,1.4e-6,2.4e-6,4.5e-6 /) ! Main effective radius (m)
                                                                                    ! (Clay, small silt, small slit, small silt)
+! This frac_s array gives fraction of source in each size bin.
+! Doesn't quite add to 1, because larger sizes (omitted) account for some too.
+! All source is in first four bins, even when using eight bins, since next four are hydrophilic.
+real, dimension(ndust), parameter :: frac_s = (/ 0.1, 0.25, 0.25, 0.25 /)
+integer, dimension(ndust), parameter :: ipoint = (/ 3, 2, 2, 2 /)                  ! Pointer used for dust classes
+                                                                                   ! (sand, silt, clay)
 
 contains
 
@@ -2075,13 +2081,6 @@ real, dimension(ifull), intent(in) :: dz1       !Lowest layer thickness (m)
 real, dimension(ifull), intent(in) :: vt        !Transfer velocity at surface for dry deposition (m/s)
 real, dimension(ifull), intent(in) :: snowd     !Snow depth (mm equivalent water)
 logical, dimension(ifull), intent(in) :: land
-
-! Local work arrays and variables
-integer, dimension(ndust), parameter :: ipoint = (/ 3, 2, 2, 2 /) !Pointer used for dust classes (sand, silt, clay)
-! This array gives fraction of source in each size bin.
-! Doesn't quite add to 1, because larger sizes (omitted) account for some too.
-! All source is in first four bins, even when using eight bins, since next four are hydrophilic.
-real, dimension(ndust), parameter :: frac_s = (/ 0.1, 0.25, 0.25, 0.25 /)
 real, dimension(ifull) :: snowa     !Estimated snow areal coverage
 real, dimension(ifull) :: u_ts0,u_ts,veff
 real, dimension(ifull) :: srce,dsrc,airmas
