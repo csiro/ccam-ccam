@@ -178,25 +178,26 @@ so4_burden=0.
 
 ! scale to CSIRO9 18 levels
 ! jk2 is top of level=1, bottom of level=2
-jk2=2
+pos=maxloc(sig,sig<=0.993) ! 65m
+jk2=max(pos(1),2)
 ! jk3 is top of level=2, bottom of level=3
-pos=maxloc(sig,sig<=0.965) ! 300m
-jk3=pos(1)
+pos=maxloc(sig,sig<=0.967) ! 300m
+jk3=max(pos(1),jk2+1)
 ! jk4 is top of level=3, bottom of level=4
-pos=maxloc(sig,sig<=0.925) ! 600m
-jk4=pos(1)
+pos=maxloc(sig,sig<=0.930) ! 600m
+jk4=max(pos(1),jk3+1)
 ! jk5 is top of level=4, bottom of level=5
-pos=maxloc(sig,sig<=0.870) ! 1,150m
-jk5=pos(1)
+pos=maxloc(sig,sig<=0.882) ! 1,000m
+jk5=max(pos(1),jk4+1)
 ! jk6 is top of level=5, bottom of level=6
 pos=maxloc(sig,sig<=0.800) ! 1,800m
-jk6=pos(1)
+jk6=max(pos(1),jk5+1)
 ! jk8 is top of level=7, bottom of level=8
-pos=maxloc(sig,sig<=0.650) ! 3,500m
-jk8=pos(1)
+pos=maxloc(sig,sig<=0.530) ! 5,000m
+jk8=max(pos(1),jk6+1)
 ! jk9 is top of level=8, bottom of level=9
-pos=maxloc(sig,sig<=0.500) ! 5,500m
-jk9=pos(1)
+pos=maxloc(sig,sig<=0.350) ! 8,000m
+jk9=max(pos(1),jk8+1)
 
 return
 end subroutine aldrinit
@@ -637,15 +638,20 @@ elsewhere
   ZDMSEMISS(:)=ZDMSCON*ZVDMS*32.06e-11/3600.
   ! NANOMOL/LTR*CM/HOUR --> KG/M**2/SEC
 end where
-gdp(:)=1./(rhoa(:,1)*dz(:,1))
-xte(:,1,itracso2-1)=xte(:,1,itracso2-1)+zdmsemiss(:)*gdp
+do jk=1,jk2-1
+  gdp(:)=1./(rhoa(:,jk)*dz(:,jk))/real(jk2-1)
+  xte(:,jk,itracso2-1)=xte(:,jk,itracso2-1)+zdmsemiss(:)*gdp
+end do
 
 ! Other biomass emissions of SO2 are done below (with the non-surface S emissions)
 PXTEMS(:,ITRACSO2)  =(EMISSFIELD(:,iso2a1)+EMISSFIELD(:,iso2b1))*0.97
 PXTEMS(:,ITRACSO2+1)=(EMISSFIELD(:,iso2a1)+EMISSFIELD(:,iso2b1))*0.03
 ! Apply these here as a tendency (XTE), rather than as a surface flux (PXTEMS) via vertmix.
-xte(:,1,itracso2)  =xte(:,1,itracso2)  +pxtems(:,itracso2)*gdp
-xte(:,1,itracso2+1)=xte(:,1,itracso2+1)+pxtems(:,itracso2+1)*gdp
+do jk=1,jk2-1
+  gdp(:)=1./(rhoa(:,jk)*dz(:,jk))/real(jk2-1)    
+  xte(:,jk,itracso2)  =xte(:,jk,itracso2)  +pxtems(:,itracso2)*gdp
+  xte(:,jk,itracso2+1)=xte(:,jk,itracso2+1)+pxtems(:,itracso2+1)*gdp
+end do
 
 !  EMISSION OF ANTHROPOGENIC SO2 IN THE NEXT HIGHER LEVEL PLUS BIOMASS BURNING
 do jk=jk2,jk3-1
@@ -675,10 +681,12 @@ end do
 ZVOLCEMI1=ZVOLCEMI*0.36
 ZVOLCEMI2=ZVOLCEMI*0.36
 ZVOLCEMI3=ZVOLCEMI*0.28
-gdp=1./(rhoa(:,1)*dz(:,1))
-XTE(:,1,ITRACSO2)=XTE(:,1,ITRACSO2)+ZVOLCEMI1*vso2*gdp
-do jk=jk3,jk4-1
-  gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk4-jk3)
+do jk=1,jk2-1
+  gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk2-1)
+  XTE(:,jk,ITRACSO2)=XTE(:,jk,ITRACSO2)+ZVOLCEMI1*vso2*gdp
+end do
+do jk=jk4,jk6-1
+  gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk6-jk4)
   XTE(:,jk,ITRACSO2)=XTE(:,jk,ITRACSO2)+ZVOLCEMI2*vso2*gdp
 end do
 do jk=jk8,jk9-1
@@ -695,10 +703,13 @@ PXTEMS(:,ITRACBC+1)=0.2*EMISSFIELD(:,ibca1)
 PXTEMS(:,ITRACOC)  =0.5*(EMISSFIELD(:,ioca1)+EMISSFIELD(:,iocna))
 PXTEMS(:,ITRACOC+1)=0.5*(EMISSFIELD(:,ioca1)+EMISSFIELD(:,iocna))
 ! Apply these here as a tendency (XTE), rather than as a surface flux (PXTEMS) via vertmix.
-xte(:,1,itracbc)  =xte(:,1,itracbc)  +pxtems(:,itracbc)*gdp
-xte(:,1,itracbc+1)=xte(:,1,itracbc+1)+pxtems(:,itracbc+1)*gdp
-xte(:,1,itracoc)  =xte(:,1,itracoc)  +pxtems(:,itracoc)*gdp
-xte(:,1,itracoc+1)=xte(:,1,itracoc+1)+pxtems(:,itracoc+1)*gdp
+do jk=1,jk2-1
+  gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk2-1)    
+  xte(:,jk,itracbc)  =xte(:,jk,itracbc)  +pxtems(:,itracbc)*gdp
+  xte(:,jk,itracbc+1)=xte(:,jk,itracbc+1)+pxtems(:,itracbc+1)*gdp
+  xte(:,jk,itracoc)  =xte(:,jk,itracoc)  +pxtems(:,itracoc)*gdp
+  xte(:,jk,itracoc+1)=xte(:,jk,itracoc+1)+pxtems(:,itracoc+1)*gdp
+end do
 ! Inject the upper-level fossil-fuel emissions into layer 2
 ! Assume BC 80% hydrophobic, OC 50%.
 PXTEMS(:,ITRACBC)  =0.8*EMISSFIELD(:,ibca2)
@@ -2312,13 +2323,13 @@ select case(aeroindir)
       ! Hardiman lognormal distribution for carbonaceous aerosols (Penner et al, 1998).
       ! 1.21e17 converts from hydrophilic mass (kg/m3) to number concentration (/m3) for
       ! biomass regional haze distribution from IPCC (2001), Table 5.1. Using rho_a=1250 kg/m3.
-      !cphil_n = 1.25e17 * rhoa(:,k) * (xtgbc(:,k)+1.3*xtgoc(:,k))
+      cphil_n = 1.25e17 * rhoa(:,k) * (xtgbc(:,k)+1.3*xtgoc(:,k))
       ! Following line counts Aitken mode as well as accumulation mode carb aerosols
-      cphil_n = 2.30e17 * rhoa(:,k) * (xtgbc(:,k)+1.3*xtgoc(:,k))
+      !cphil_n = 2.30e17 * rhoa(:,k) * (xtgbc(:,k)+1.3*xtgoc(:,k))
       salt_n = ssn(is:ie,k,1) + ssn(is:ie,k,2)
       ! Jones et al., modified to account for hydrophilic carb aerosols as well
-      Atot = max(so4_n + cphil_n + salt_n,0.)
-      cdn(:,k)=max(1.e7, 3.75e8*(1.-exp(-2.5e-9*Atot)))
+      Atot = max( so4_n + cphil_n + salt_n, 0. )
+      cdn(:,k)=max( 1.e7, 3.75e8*(1.-exp(-2.5e-9*Atot)) )
     end do
 
   case(1)

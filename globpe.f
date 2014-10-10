@@ -1069,8 +1069,11 @@
       endif
 
 !     set up tau +.5 velocities in ubar, vbar
-      if(ktau<10.and.myid==0.and.nmaxpr==1)then
-        write(6,*) 'ktau,mex,mspec,mspeca:',ktau,mex,mspec,mspeca
+      if(ktau<10.and.nmaxpr==1)then
+        if (myid==0) then
+          write(6,*) 'ktau,mex,mspec,mspeca:',ktau,mex,mspec,mspeca
+        end if
+        call ccmpi_barrier(comm_world)
       endif
       sbar(:,2:kl)=sdot(:,2:kl)
       if(ktau==1.and..not.lrestart)then
@@ -1129,9 +1132,12 @@
      &      savv2(idjd,nlv),savv1(idjd,nlv),savv(idjd,nlv),
      &      v(idjd,nlv),vbar(idjd,nlv)
       endif
-      if(ktau>2.and.epsp>1..and.epsp<2.)then ! 
-        if (myid==0.and.ktau==3.and.nmaxpr==1) then
-          write(6,*)'using epsp= ',epsp
+      if(ktau>2.and.epsp>1..and.epsp<2.) then
+        if (ktau==3.and.nmaxpr==1) then
+          if (myid==0) then
+            write(6,*)'using epsp= ',epsp
+          end if
+          call ccmpi_barrier(comm_world)
         end if
         do iq=1,ifull
          if((sign(1.,dpsdt(iq))/=sign(1.,dpsdtb(iq))).and.
@@ -1273,12 +1279,18 @@
         ! RIVER ROUTING ------------------------------------------------------
         ! This option can also be used with PCOM
         call START_LOG(river_begin)
-        if (myid==0.and.nmaxpr==1) then
-          write(6,*) "Before river"
+        if (nmaxpr==1) then
+          if (myid==0) then
+            write(6,*) "Before river"
+          end if
+          call ccmpi_barrier(comm_world)
         end if
         call rvrrouter
-        if (myid==0.and.nmaxpr==1) then
-          write(6,*) "After river"
+        if (nmaxpr==1) then
+          if (myid==0) then
+            write(6,*) "After river"
+          end if
+          call ccmpi_barrier(comm_world)
         end if
         call END_LOG(river_end)
       end if
@@ -1286,21 +1298,33 @@
       call START_LOG(waterdynamics_begin)
       if (abs(nmlo)>=3.and.abs(nmlo)<=9) then
         ! DYNAMICS & DIFFUSION ------------------------------------------------
-        if (myid==0.and.nmaxpr==1) then
-          write(6,*) "Before MLO dynamics"
+        if (nmaxpr==1) then
+          if (myid==0) then
+            write(6,*) "Before MLO dynamics"
+          end if
+          call ccmpi_barrier(comm_world)
         end if
         call mlohadv
-        if (myid==0.and.nmaxpr==1) then
-          write(6,*) "After MLO dynamics"
+        if (nmaxpr==1) then
+          if (myid==0) then
+            write(6,*) "After MLO dynamics"
+          end if
+          call ccmpi_barrier(comm_world)
         end if
       else if (abs(nmlo)>=2.and.abs(nmlo)<=9) then
         ! DIFFUSION ONLY ------------------------------------------------------
-        if (myid==0.and.nmaxpr==1) then
-          write(6,*) "Before MLO diffusion"
+        if (nmaxpr==1) then
+          if (myid==0) then
+            write(6,*) "Before MLO diffusion"
+          end if
+          call ccmpi_barrier(comm_world)          
         end if
         call mlodiffusion
-        if (myid==0.and.nmaxpr==1) then
-          write(6,*) "After MLO diffusion"
+        if (nmaxpr==1) then
+          if (myid==0) then
+            write(6,*) "After MLO diffusion"
+          end if
+          call ccmpi_barrier(comm_world)          
         end if
       end if
       call END_LOG(waterdynamics_end)
@@ -1313,19 +1337,28 @@
       
       ! GWDRAG ----------------------------------------------------------------
       call START_LOG(gwdrag_begin)
-      if (myid==0.and.nmaxpr==1) then
-        write(6,*) "Before gwdrag"
+      if (nmaxpr==1) then
+        if (myid==0) then
+          write(6,*) "Before gwdrag"
+        end if
+        call ccmpi_barrier(comm_world)
       end if
       if (ngwd<0) call gwdrag  ! <0 for split - only one now allowed
-      if (myid==0.and.nmaxpr==1) then
-        write(6,*) "After gwdrag"
+      if (nmaxpr==1) then
+        if (myid==0) then
+          write(6,*) "After gwdrag"
+        end if
+        call ccmpi_barrier(comm_world)
       end if
       call END_LOG(gwdrag_end)
       
       ! CONVECTION ------------------------------------------------------------
       call START_LOG(convection_begin)
-      if (myid==0.and.nmaxpr==1) then
-        write(6,*) "Before convection"
+      if (nmaxpr==1) then
+        if (myid==0) then
+          write(6,*) "Before convection"
+        end if
+        call ccmpi_barrier(comm_world)
       end if
       convh_ave=convh_ave-t(1:ifull,:)*real(nperday)/real(nperavg)
       condc=0.
@@ -1348,15 +1381,21 @@
       end select
       cbas_ave(:)=cbas_ave(:)+condc(:)*(1.1-sig(kbsav(:)))      ! diagnostic
       ctop_ave(:)=ctop_ave(:)+condc(:)*(1.1-sig(abs(ktsav(:)))) ! diagnostic
-      if (myid==0.and.nmaxpr==1) then
-        write(6,*) "After convection"
+      if (nmaxpr==1) then
+        if (myid==0) then
+          write(6,*) "After convection"
+        end if
+        call ccmpi_barrier(comm_world)
       end if
       call END_LOG(convection_end)
       
       ! CLOUD MICROPHYSICS ----------------------------------------------------
       call START_LOG(cloud_begin)
-      if (myid==0.and.nmaxpr==1) then
-        write(6,*) "Before cloud microphysics"
+      if (nmaxpr==1) then
+        if (myid==0) then
+          write(6,*) "Before cloud microphysics"
+        end if
+        call ccmpi_barrier(comm_world)
       end if
       if (ldr/=0) then
         ! LDR microphysics scheme
@@ -1377,8 +1416,11 @@
         write (6,"('qf   ',3p9f8.3/5x,9f8.3)") qfg(idjd,:)
       endif
 #endif
-      if (myid==0.and.nmaxpr==1) then
-        write(6,*) "After cloud microphysics"
+      if (nmaxpr==1) then
+        if (myid==0) then
+          write(6,*) "After cloud microphysics"
+        end if
+        call ccmpi_barrier(comm_world)
       end if
       call END_LOG(cloud_end)
 
@@ -1388,8 +1430,11 @@
       ! nrad=5 SEA-ESF radiation
 
       call START_LOG(radnet_begin)
-      if (myid==0.and.nmaxpr==1) then
-        write(6,*) "Before radiation"
+      if (nmaxpr==1) then
+        if (myid==0) then
+          write(6,*) "Before radiation"
+        end if
+        call ccmpi_barrier(comm_world)
       end if
       if (ncloud>=3) then
         nettend=nettend+t(1:ifull,:)
@@ -1417,8 +1462,11 @@
       if (nmaxpr==1) then
         call maxmin(slwa,'sl',ktau,.1,1)
       end if
-      if (myid==0.and.nmaxpr==1) then
-        write(6,*) "After radiation"
+      if (nmaxpr==1) then
+        if (myid==0) then
+          write(6,*) "After radiation"
+        end if
+        call ccmpi_barrier(comm_world)
       end if
       call END_LOG(radnet_end)
 
@@ -1444,15 +1492,21 @@
        ! SURFACE FLUXES ---------------------------------------------
        ! (Includes ocean dynamics and mixing, as well as ice dynamics and thermodynamics)
        call START_LOG(sfluxnet_begin)
-       if (myid==0.and.nmaxpr==1) then
-        write(6,*) "Before surface fluxes"
+       if (nmaxpr==1) then
+         if (myid==0) then
+           write(6,*) "Before surface fluxes"
+         end if
+         call ccmpi_barrier(comm_world)
        end if
        call sflux(nalpha)
        epan_ave(1:ifull)=epan_ave(1:ifull)+epan  ! 2D 
        epot_ave(1:ifull)=epot_ave(1:ifull)+epot  ! 2D 
        ga_ave(1:ifull)=ga_ave(1:ifull)+ga        ! 2D 
-       if (myid==0.and.nmaxpr==1) then
-        write(6,*) "After surface fluxes"
+       if (nmaxpr==1) then
+         if (myid==0) then
+           write(6,*) "After surface fluxes"
+         end if
+         call ccmpi_barrier(comm_world)
        end if
        call END_LOG(sfluxnet_end)
        
@@ -1545,19 +1599,28 @@
       ! and strat cloud can be separated consistently with cloud microphysics
       if (abs(iaero)>=2) then
         call START_LOG(aerosol_begin)
-        if (myid==0.and.nmaxpr==1) then
-         write(6,*) "Before aerosols"
+        if (nmaxpr==1) then
+          if (myid==0) then
+            write(6,*) "Before aerosols"
+          end if
+          call ccmpi_barrier(comm_world)
         end if
         call aerocalc
-        if (myid==0.and.nmaxpr==1) then
-         write(6,*) "After aerosols"
+        if (nmaxpr==1) then
+          if (myid==0) then
+            write(6,*) "After aerosols"
+          end if
+          call ccmpi_barrier(comm_world)
         end if
         call END_LOG(aerosol_end)
       end if
       
       ! VERTICAL MIXING ------------------------------------------------------
-      if (myid==0.and.nmaxpr==1) then
-       write(6,*) "Before PBL mixing"
+      if (nmaxpr==1) then
+        if (myid==0) then
+          write(6,*) "Before PBL mixing"
+        end if
+        call ccmpi_barrier(comm_world)
       end if
       if (ntsur>=1) then ! calls vertmix but not sflux for ntsur=1
         call START_LOG(vertmix_begin)
@@ -1571,8 +1634,11 @@
       if (ncloud>=3) then
         nettend=(nettend-t(1:ifull,:))/dt
       end if
-      if (myid==0.and.nmaxpr==1) then
-       write(6,*) "After PBL mixing"
+      if (nmaxpr==1) then
+        if (myid==0) then
+          write(6,*) "After PBL mixing"
+        end if
+        call ccmpi_barrier(comm_world)
       end if
       
       ! Update diagnostics for consistancy in history file
@@ -1874,8 +1940,9 @@
           call END_LOG(maincalc_end)
 !         write restart file
           call outfile(19,rundate,nwrite,nstagin)
-          if(myid==0)
-     &      write(6,*)'finished writing restart file in outfile'
+          if(myid==0) then
+            write(6,*)'finished writing restart file in outfile'
+          end if
           call START_LOG(maincalc_begin)
         endif  ! (ktau==ntau.and.irest==1)
       endif    ! (ktau==ntau.or.mod(ktau,nwt)==0)
@@ -1917,7 +1984,9 @@
          end if
         end if
 !       also zero most averaged fields every nperavg
-        if (myid==0) write(6,*) 'resetting tscr_ave for ktau = ',ktau
+        if (myid==0) then
+          write(6,*) 'resetting tscr_ave for ktau = ',ktau
+        end if
         convh_ave(:,:)=0.
         cbas_ave(:)   =0.
         ctop_ave(:)   =0.
@@ -2027,10 +2096,11 @@
           call setllp ! from Nov 11, reset once per day
         end if
         if(namip/=0)then ! not for last day, as day 1 of next month
-          if (myid==0)
-     &     write(6,*)
+          if (myid==0) then
+          write(6,*)
      &    'amipsst called at end of day for ktau,mtimer,namip ',
      &                                      ktau,mtimer,namip
+          end if
           call amipsst
         endif ! (namip>0)
       elseif (namip/=0.and.nmlo/=0) then
