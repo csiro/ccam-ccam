@@ -178,8 +178,9 @@ so4_burden=0.
 
 ! scale to CSIRO9 18 levels
 ! jk2 is top of level=1, bottom of level=2
-pos=maxloc(sig,sig<=0.993) ! 65m
-jk2=max(pos(1),2)
+!pos=maxloc(sig,sig<=0.993) ! 65m
+!jk2=max(pos(1),2)
+jk2=2
 ! jk3 is top of level=2, bottom of level=3
 pos=maxloc(sig,sig<=0.967) ! 300m
 jk3=max(pos(1),jk2+1)
@@ -578,11 +579,9 @@ REAL, dimension(ifull,2) :: ZVDRD
 REAL, dimension(ifull) :: gdp,zdmsemiss,pxtm1new
 real, dimension(ifull) :: zhilbco,zhilbcy,zhiloco,zhilocy
 real, dimension(ifull) :: zhilso2,zhilso4
-!real, dimension(ifull) :: ZMAXVDRY
 real, dimension(ifull) :: zdmscon, ZSST, ScDMS, zVdms, wtliss
 real, dimension(ifull) :: VpCO2, VpCO2liss
 real, dimension(ifull) :: zvd2ice,zvd4ice,zvd2nof,zvd4nof
-real zvolcemi1,zvolcemi2,zvolcemi3
 
 !     M WATER EQUIVALENT  CRITICAL SNOW HEIGHT (FROM *SURF*)
 real, parameter :: ZSNCRI = 0.025
@@ -638,20 +637,18 @@ elsewhere
   ZDMSEMISS(:)=ZDMSCON*ZVDMS*32.06e-11/3600.
   ! NANOMOL/LTR*CM/HOUR --> KG/M**2/SEC
 end where
-do jk=1,jk2-1
-  gdp(:)=1./(rhoa(:,jk)*dz(:,jk))/real(jk2-1)
-  xte(:,jk,itracso2-1)=xte(:,jk,itracso2-1)+zdmsemiss(:)*gdp
-end do
+jk=1
+gdp(:)=1./(rhoa(:,jk)*dz(:,jk))
+xte(:,jk,itracso2-1)=xte(:,jk,itracso2-1)+zdmsemiss(:)*gdp
 
 ! Other biomass emissions of SO2 are done below (with the non-surface S emissions)
 PXTEMS(:,ITRACSO2)  =(EMISSFIELD(:,iso2a1)+EMISSFIELD(:,iso2b1))*0.97
 PXTEMS(:,ITRACSO2+1)=(EMISSFIELD(:,iso2a1)+EMISSFIELD(:,iso2b1))*0.03
 ! Apply these here as a tendency (XTE), rather than as a surface flux (PXTEMS) via vertmix.
-do jk=1,jk2-1
-  gdp(:)=1./(rhoa(:,jk)*dz(:,jk))/real(jk2-1)    
-  xte(:,jk,itracso2)  =xte(:,jk,itracso2)  +pxtems(:,itracso2)*gdp
-  xte(:,jk,itracso2+1)=xte(:,jk,itracso2+1)+pxtems(:,itracso2+1)*gdp
-end do
+jk=1
+gdp(:)=1./(rhoa(:,jk)*dz(:,jk))
+xte(:,jk,itracso2)  =xte(:,jk,itracso2)  +pxtems(:,itracso2)*gdp
+xte(:,jk,itracso2+1)=xte(:,jk,itracso2+1)+pxtems(:,itracso2+1)*gdp
 
 !  EMISSION OF ANTHROPOGENIC SO2 IN THE NEXT HIGHER LEVEL PLUS BIOMASS BURNING
 do jk=jk2,jk3-1
@@ -678,20 +675,16 @@ end do
 !    1. PRE-INTRA ERUPTION IN LEVEL IVOLC-HEIGHT (=TOP OF VOLCANO)
 !    2. POST-EXTRA ERUPTION IN LEVEL 15 -16 (CA 550-1736M)
 !    3. EXPLOSIVE ERUPTION IN LEVEL 10 - 11 (CA 5000-7900M)
-ZVOLCEMI1=ZVOLCEMI*0.36
-ZVOLCEMI2=ZVOLCEMI*0.36
-ZVOLCEMI3=ZVOLCEMI*0.28
-do jk=1,jk2-1
-  gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk2-1)
-  XTE(:,jk,ITRACSO2)=XTE(:,jk,ITRACSO2)+ZVOLCEMI1*vso2*gdp
-end do
+jk=1
+gdp=1./(rhoa(:,jk)*dz(:,jk))
+XTE(:,jk,ITRACSO2)=XTE(:,jk,ITRACSO2)+ZVOLCEMI*0.36*vso2*gdp
 do jk=jk4,jk6-1
   gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk6-jk4)
-  XTE(:,jk,ITRACSO2)=XTE(:,jk,ITRACSO2)+ZVOLCEMI2*vso2*gdp
+  XTE(:,jk,ITRACSO2)=XTE(:,jk,ITRACSO2)+ZVOLCEMI*0.36*vso2*gdp
 end do
 do jk=jk8,jk9-1
   gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk9-jk8)
-  XTE(:,jk,ITRACSO2)=XTE(:,jk,ITRACSO2)+ZVOLCEMI3*vso2*gdp
+  XTE(:,jk,ITRACSO2)=XTE(:,jk,ITRACSO2)+ZVOLCEMI*0.28*vso2*gdp
 end do
 
 
@@ -703,13 +696,12 @@ PXTEMS(:,ITRACBC+1)=0.2*EMISSFIELD(:,ibca1)
 PXTEMS(:,ITRACOC)  =0.5*(EMISSFIELD(:,ioca1)+EMISSFIELD(:,iocna))
 PXTEMS(:,ITRACOC+1)=0.5*(EMISSFIELD(:,ioca1)+EMISSFIELD(:,iocna))
 ! Apply these here as a tendency (XTE), rather than as a surface flux (PXTEMS) via vertmix.
-do jk=1,jk2-1
-  gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk2-1)    
-  xte(:,jk,itracbc)  =xte(:,jk,itracbc)  +pxtems(:,itracbc)*gdp
-  xte(:,jk,itracbc+1)=xte(:,jk,itracbc+1)+pxtems(:,itracbc+1)*gdp
-  xte(:,jk,itracoc)  =xte(:,jk,itracoc)  +pxtems(:,itracoc)*gdp
-  xte(:,jk,itracoc+1)=xte(:,jk,itracoc+1)+pxtems(:,itracoc+1)*gdp
-end do
+jk=1
+gdp=1./(rhoa(:,jk)*dz(:,jk))
+xte(:,jk,itracbc)  =xte(:,jk,itracbc)  +pxtems(:,itracbc)*gdp
+xte(:,jk,itracbc+1)=xte(:,jk,itracbc+1)+pxtems(:,itracbc+1)*gdp
+xte(:,jk,itracoc)  =xte(:,jk,itracoc)  +pxtems(:,itracoc)*gdp
+xte(:,jk,itracoc+1)=xte(:,jk,itracoc+1)+pxtems(:,itracoc+1)*gdp
 ! Inject the upper-level fossil-fuel emissions into layer 2
 ! Assume BC 80% hydrophobic, OC 50%.
 PXTEMS(:,ITRACBC)  =0.8*EMISSFIELD(:,ibca2)
