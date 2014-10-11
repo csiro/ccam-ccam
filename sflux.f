@@ -793,21 +793,23 @@ c            Surface stresses taux, tauy: diagnostic only               ! land
          if ((nmlo==0.or.abs(nmlo)>9).and.ntsur/=5) then                ! cable
            ! clobber diagnostic ocean/ice points when not using MLO     ! cable
            do iq=1,ifull                                                ! cable
-            afroot=vkar/log(zmin/zo(iq))                                ! cable
-            af(iq)=afroot**2+helo(iq)                                   ! cable
-            xx=grav*zmin*(1.-tss(iq)*srcp/t(iq,1))                      ! cable
-            ri(iq)=min(xx/vmag(iq)**2 , ri_max)                         ! cable
-            if(ri(iq)>0.)then                                           ! cable
-              fm=vmod(iq)/(1.+bprm*ri(iq))**2                           ! cable
-            else                                                        ! cable
-              root=sqrt(-ri(iq)*zmin/zo(iq))                            ! cable
-              denma=1.+cms*2.*bprm*af(iq)*root                          ! cable
-              fm=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/denma                ! cable
-            endif                                                       ! cable
-            cduv(iq) =af(iq)*fm                                         ! cable
-            ustar(iq) = sqrt(vmod(iq)*cduv(iq))                         ! cable
-            taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                           ! cable
-            tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                           ! cable
+             if (.not.land(iq)) then                                    ! cable
+               afroot=vkar/log(zmin/zo(iq))                             ! cable
+               af(iq)=afroot**2+helo(iq)                                ! cable
+               xx=grav*zmin*(1.-tss(iq)*srcp/t(iq,1))                   ! cable
+               ri(iq)=min(xx/vmag(iq)**2 , ri_max)                      ! cable
+               if(ri(iq)>0.)then                                        ! cable
+                 fm=vmod(iq)/(1.+bprm*ri(iq))**2                        ! cable
+               else                                                     ! cable
+                 root=sqrt(-ri(iq)*zmin/zo(iq))                         ! cable
+                 denma=1.+cms*2.*bprm*af(iq)*root                       ! cable
+                 fm=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/denma             ! cable
+               endif                                                    ! cable
+               cduv(iq) =af(iq)*fm                                      ! cable
+               ustar(iq) = sqrt(vmod(iq)*cduv(iq))                      ! cable
+               taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                        ! cable
+               tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                        ! cable
+             end if                                                     ! cable
            enddo                                                        ! cable
          end if                                                         ! cable
          if (myid==0.and.nmaxpr==1) then                                ! cable
