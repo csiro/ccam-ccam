@@ -1,6 +1,6 @@
       ! This subroutine is the interface for the LDR cloud microphysics
       
-      subroutine leoncld(cfrac,cffall)
+      subroutine leoncld(cfrac,rfrac)
       
       use aerointerface
       use arrays_m
@@ -54,7 +54,7 @@ c Local variables
       real dz(ifullw,kl)      !Layer thickness (m)
       real cdso4(ifullw,kl)   !Cloud droplet conc (#/m3)
       real cfrac(ifullw,kl)   !Cloud fraction (passed back to globpe)
-      real cffall(ifullw+iextra,kl)  !Rain fraction (passed back to globpe)
+      real rfrac(ifullw+iextra,kl)  !Rain fraction (passed back to globpe)
       real ccov(ifullw,kl)    !Cloud cover (may differ from cloud frac if vertically subgrid)
       real cfa(ifullw,kl)     !Cloud fraction in which autoconv occurs (option in newrain.f)
       real qca(ifullw,kl)     !Cloud water mixing ratio in cfa(:,:)    (  "    "     "     )
@@ -285,7 +285,7 @@ c     Calculate precipitation and related processes
       call newrain(land,dt,fluxc,rhoa,dz,ccrain,prf,cdso4,    !Inputs
      &    cfa,qca,                                            !Inputs
      &    t,qlg,qfg,qrg,
-     &    precs,qg,cfrac,cffall,ccov,                       !In and Out
+     &    precs,qg,cfrac,rfrac,ccov,                        !In and Out
      &    preci,qevap,qsubl,qauto,qcoll,qaccr,fluxr,fluxi,  !Outputs
      &    fluxm,pfstayice,pfstayliq,pqfsed,slopes,prscav)   !Outputs
       if(nmaxpr==1.and.mydiag)then

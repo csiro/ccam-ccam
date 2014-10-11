@@ -830,12 +830,12 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
        
        select case(nlocal)
         case(0) ! no counter gradient
-         call tkemix(rkm,rhs,qg,qlg,qfg,qrg,cldtmp,cffall,pblh,fg,eg,
+         call tkemix(rkm,rhs,qg,qlg,qfg,qrg,cldtmp,rfrac,pblh,fg,eg,
      &             ps(1:ifull),ustar,zg,zh,sig,rhos,dt,qgmin,1,0,
      &             tnaero,xtg)
          rkh=rkm
         case(1,2,3,4,5,6) ! KCN counter gradient method
-         call tkemix(rkm,rhs,qg,qlg,qfg,qrg,cldtmp,cffall,pblh,fg,eg,
+         call tkemix(rkm,rhs,qg,qlg,qfg,qrg,cldtmp,rfrac,pblh,fg,eg,
      &             ps(1:ifull),ustar,zg,zh,sig,rhos,dt,qgmin,1,0,
      &             tnaero,xtg)
          rkh=rkm
@@ -845,7 +845,7 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
      &                 +(1.-av_vmod)*savv(1:ifull,:)
          call pbldif(rhs,rkh,rkm,uav,vav)
         case(7) ! mass-flux counter gradient
-         call tkemix(rkm,rhs,qg,qlg,qfg,qrg,cldtmp,cffall,pblh,fg,eg,
+         call tkemix(rkm,rhs,qg,qlg,qfg,qrg,cldtmp,rfrac,pblh,fg,eg,
      &             ps(1:ifull),ustar,zg,zh,sig,rhos,dt,qgmin,0,0,
      &             tnaero,xtg)
          rkh=rkm
@@ -982,10 +982,10 @@ c        now do qrg
          rhs=qrg(1:ifull,:)
          call trim(at,ct,rhs,0)      ! for qrg
          qrg(1:ifull,:)=rhs
-c        now do cffall
-         rhs=cffall(1:ifull,:)
-         call trim(at,ct,rhs,0)      ! for cffall
-         cffall(1:ifull,:)=min(max(rhs,0.),1.)
+c        now do rfrac
+         rhs=rfrac(1:ifull,:)
+         call trim(at,ct,rhs,0)      ! for rfrac
+         rfrac(1:ifull,:)=min(max(rhs,0.),1.)
          if (ncloud>=3) then
            ! now do cldfrac
            rhs=stratcloud(1:ifull,:)

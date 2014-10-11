@@ -1290,7 +1290,7 @@ if ( nested/=1 ) then
     call gethist4('qlg',qlg,5)               ! CLOUD LIQUID WATER
     call gethist4('qrg',qrg,5)               ! RAIN
     call gethist4('cfrac',cfrac,5)           ! CLOUD FRACTION
-    call gethist4('cfrain',cffall,5)         ! RAIN FRACTION
+    call gethist4('rfrac',rfrac,5)           ! RAIN FRACTION
     if ( ncloud>=3 ) then
       call gethist4('stratcf',stratcloud,5)  ! STRAT CLOUD FRACTION
       call gethist4('strat_nt',nettend,5)    ! STRAT NET TENDENCY

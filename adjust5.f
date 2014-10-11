@@ -664,7 +664,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
       ! Cloud water conservation
       if(mfix_qg/=0.and.mspec==1.and.ldr/=0)then
         cfrac=min(max(cfrac,0.),1.)
-        cffall=min(max(cffall,0.),1.)
+        rfrac=min(max(rfrac,0.),1.)
         
         dums(1:ifull,:,1)=max(qg(1:ifull,:),
      &      qgmin-qfg(1:ifull,:)-qlg(1:ifull,:),0.)
@@ -700,15 +700,15 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
           llim(ng)=.true.
         end do
         call massfix(mfix_tr,ngas,tr,trsav,ps,ps_sav,llim)
-      endif       !  (mfix_tr.ne.0.and.mspec==1.and.ngas>0)
+      endif       !  (mfix_tr/=0.and.mspec==1.and.ngas>0)
 
       !--------------------------------------------------------------
       ! Aerosol conservation
       if (mfix_aero/=0.and.mspec==1.and.abs(iaero)==2) then
-        xtg=max(xtg,0.)
+        xtg(1:ifull,:,:)=max(xtg(1:ifull,:,:),0.)
         llim(1:naero)=.true.
         call massfix(mfix_aero,naero,xtg,xtgsav,ps,ps_sav,llim)
-      end if
+      end if ! (mfix_aero/=0.and.mspec==1.and.abs(iaero)==2)
       !--------------------------------------------------------------
 
 #ifdef debug

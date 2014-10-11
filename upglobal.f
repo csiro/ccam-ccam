@@ -224,9 +224,9 @@
       endif
 #endif
 
-      if(mup/=0)then
+      if ( mup/=0 ) then
         call ints_bl(dd,intsch,nface,xg,yg)  ! advection on all levels
-        if (nh/=0) then
+        if ( nh/=0 ) then
           duma(1:ifull,:,1)=pslx(1:ifull,:)
           duma(1:ifull,:,2)=h_nh(1:ifull,:)
           call ints(2,duma,intsch,nface,xg,yg,1)
@@ -411,7 +411,7 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
              duma(1:ifull,:,2)=qlg(1:ifull,:)
              duma(1:ifull,:,3)=qfg(1:ifull,:)
              duma(1:ifull,:,4)=qrg(1:ifull,:)
-             duma(1:ifull,:,5)=cffall(1:ifull,:)
+             duma(1:ifull,:,5)=rfrac(1:ifull,:)
              if (ncloud>=3) then
                duma(1:ifull,:,6)=stratcloud(1:ifull,:)
                call ints(6,duma,intsch,nface,xg,yg,4)
@@ -423,7 +423,7 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
              qlg(1:ifull,:)   =duma(1:ifull,:,2)
              qfg(1:ifull,:)   =duma(1:ifull,:,3)
              qrg(1:ifull,:)   =duma(1:ifull,:,4)
-             cffall(1:ifull,:)=min(max(duma(1:ifull,:,5),0.),1.)
+             rfrac(1:ifull,:)=min(max(duma(1:ifull,:,5),0.),1.)
           else
              call ints(1,qg,intsch,nface,xg,yg,3)
           endif                 ! ldr.ne.0

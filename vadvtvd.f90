@@ -72,7 +72,7 @@ do k=1,kl-1
 end do
 
 !     t
-call vadvsub(tarr,tfact,nits,kp,kx)
+call vadv_work(tarr,tfact,nits,kp,kx)
 if( (diag.or.nmaxpr==1) .and. mydiag )then
 !       These diagnostics don't work with single input/output argument
   write (6,"('tout',9f8.2/4x,9f8.2)") (tarr(idjd,k),k=1,kl)
@@ -80,14 +80,14 @@ if( (diag.or.nmaxpr==1) .and. mydiag )then
 endif
 
 !     u
-call vadvsub(uarr,tfact,nits,kp,kx)
+call vadv_work(uarr,tfact,nits,kp,kx)
 if( diag .and. mydiag )then
   write (6,"('uout',9f8.2/4x,9f8.2)") (uarr(idjd,k),k=1,kl)
   write (6,"('u#  ',9f8.2)") diagvals(uarr(:,nlv)) 
 endif
 
 !     v
-call vadvsub(varr,tfact,nits,kp,kx)
+call vadv_work(varr,tfact,nits,kp,kx)
 if( diag .and. mydiag )then
   write (6,"('vout',9f8.2/4x,9f8.2)") (varr(idjd,k),k=1,kl)
   write (6,"('v#  ',9f8.2)") diagvals(varr(:,nlv)) 
@@ -95,30 +95,30 @@ endif
 
 !     h_nh
 if(nh/=0.and.npslx==1.and.nvad<=-4)then
-  call vadvsub(h_nh,tfact,nits,kp,kx)
+  call vadv_work(h_nh,tfact,nits,kp,kx)
 endif
 
 !     pslx
 if(npslx==1.and.nvad<=-4)then  ! handles -9 too
-  call vadvsub(pslx,tfact,nits,kp,kx)
+  call vadv_work(pslx,tfact,nits,kp,kx)
 endif
 
 if(mspec==1.and.abs(nvad)/=9)then   ! advect qg and gases after preliminary step
 
 !      qg
- call vadvsub(qg,tfact,nits,kp,kx)
+ call vadv_work(qg,tfact,nits,kp,kx)
  if( diag .and. mydiag )then
   write (6,"('qout',9f8.2/4x,9f8.2)") (1000.*qg(idjd,k),k=1,kl)
   write (6,"('qg# ',3p9f8.2)") diagvals(qg(:,nlv)) 
  endif
 
  if(ldr/=0)then
-  call vadvsub(qlg,tfact,nits,kp,kx)
-  call vadvsub(qfg,tfact,nits,kp,kx)
-  call vadvsub(qrg,tfact,nits,kp,kx)
-  call vadvsub(cffall,tfact,nits,kp,kx)
+  call vadv_work(qlg,tfact,nits,kp,kx)
+  call vadv_work(qfg,tfact,nits,kp,kx)
+  call vadv_work(qrg,tfact,nits,kp,kx)
+  call vadv_work(rfrac,tfact,nits,kp,kx)
   if (ncloud>=3) then
-    call vadvsub(stratcloud,tfact,nits,kp,kx)
+    call vadv_work(stratcloud,tfact,nits,kp,kx)
   end if
   if( diag .and. mydiag )then
    write (6,"('lout',9f8.2/4x,9f8.2)") (1000.*qlg(idjd,k),k=1,kl)
@@ -130,18 +130,18 @@ if(mspec==1.and.abs(nvad)/=9)then   ! advect qg and gases after preliminary step
 
  if(ngas>0.or.nextout>=4)then
   do ntr=1,ntrac
-   call vadvsub(tr(:,:,ntr),tfact,nits,kp,kx)
+   call vadv_work(tr(:,:,ntr),tfact,nits,kp,kx)
   enddo      ! ntr loop
  endif      ! (nextout>=4)
 
  if(nvmix==6)then
-  call vadvsub(eps,tfact,nits,kp,kx)
-  call vadvsub(tke,tfact,nits,kp,kx)
+  call vadv_work(eps,tfact,nits,kp,kx)
+  call vadv_work(tke,tfact,nits,kp,kx)
  endif      ! if(nvmix.eq.6)
 
  if (abs(iaero)==2) then
   do ntr=1,naero
-   call vadvsub(xtg(:,:,ntr),tfact,nits,kp,kx)
+   call vadv_work(xtg(:,:,ntr),tfact,nits,kp,kx)
   end do
  end if
 
@@ -153,7 +153,7 @@ return
 end subroutine vadvtvd
       
 ! Subroutine to perform generic TVD advection
-subroutine vadvsub(tarr,tfact,nits,kp,kx)
+subroutine vadv_work(tarr,tfact,nits,kp,kx)
       
 use sigs_m
 use vvel_m
@@ -282,6 +282,6 @@ if(ntvdr==2)then  ! different top & bottom
 endif      ! (ntvdr==2)
       
 return
-end subroutine vadvsub
+end subroutine vadv_work
       
 end module vadv

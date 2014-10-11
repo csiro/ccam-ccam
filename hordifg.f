@@ -458,7 +458,7 @@ c       do t diffusion based on potential temperature ff
           ff(1:ifull,:,1)=qlg(1:ifull,:)
           ff(1:ifull,:,2)=qfg(1:ifull,:)
           ff(1:ifull,:,3)=qrg(1:ifull,:)
-          ff(1:ifull,:,4)=cffall(1:ifull,:)
+          ff(1:ifull,:,4)=rfrac(1:ifull,:)
           if (ncloud>=3) then
             ff(1:ifull,:,5)=stratcloud(1:ifull,:)
             call bounds(ff(:,:,1:5))
@@ -485,7 +485,7 @@ c       do t diffusion based on potential temperature ff
      &        yfact(iq,k)*ff(in(iq),k,3) +
      &        yfact(isv(iq),k)*ff(is(iq),k,3) ) /
      &        base(iq,k)
-            cffall(iq,k) = ( ff(iq,k,4)*emi(iq) +
+            rfrac(iq,k) = ( ff(iq,k,4)*emi(iq) +
      &        xfact(iq,k)*ff(ie(iq),k,4) +
      &        xfact(iwu(iq),k)*ff(iw(iq),k,4) +
      &        yfact(iq,k)*ff(in(iq),k,4) +

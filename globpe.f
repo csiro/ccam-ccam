@@ -1399,7 +1399,7 @@
       end if
       if (ldr/=0) then
         ! LDR microphysics scheme
-        call leoncld(cfrac,cffall)
+        call leoncld(cfrac,rfrac)
       end if
       do k=1,kl
        riwp_ave(1:ifull)=riwp_ave(1:ifull)
