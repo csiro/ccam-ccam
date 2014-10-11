@@ -34,7 +34,7 @@ integer, parameter :: nf       =2    ! power for horizontal diffusion reduction 
 integer, parameter :: itnmax   =6    ! number of interations for staggering
 integer, save      :: fixsal   =1    ! conserve salinity (0=Usual, 1=Fixed average salinity at 34.72)
 integer, save      :: fixheight=1    ! conserve free surface height (0=Usual, 1=Fixed average Height at 0)
-integer, save      :: mlodiff  =0    ! diffusion (0=all, 1=scalars only)
+integer, save      :: mlodiff  =1    ! diffusion (0=all, 1=scalars only)
 real, parameter :: rhosn      = 330.      ! density snow (kg m^-3)
 real, parameter :: rhoic      = 900.      ! density ice  (kg m^-3)
 real, parameter :: grav       = 9.80616   ! gravitational constant (m s^-2)
@@ -374,8 +374,9 @@ if (mlodiff==0) then
 !
 !  end do
 
-  call mloimport3d(2,outu,0)
-  call mloimport3d(3,outv,0)
+else
+  outu(1:ifull,:)=u(1:ifull,:)
+  outv(1:ifull,:)=v(1:ifull,:)
 end if
   
 ! Potential temperature and salinity
@@ -399,6 +400,8 @@ fs=max(fs+34.72,0.)
 
 call mloimport3d(0,ft,0)
 call mloimport3d(1,fs,0)
+call mloimport3d(2,outu,0)
+call mloimport3d(3,outv,0)
 
 call END_LOG(waterdiff_end)
 

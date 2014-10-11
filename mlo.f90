@@ -3260,7 +3260,7 @@ d_nk=min(int(d_ndic/himin),2)
 ! radiation
 alb=     atm_vnratio*(dgice%visdiralb*atm_fbvis+dgice%visdifalb*(1.-atm_fbvis))+ &
     (1.-atm_vnratio)*(dgice%visdifalb*atm_fbvis+dgice%visdifalb*(1.-atm_fbvis))
-qmax=max(qice*0.5*max(d_ndic-himin,0.),1.E-20)
+qmax=max(qice*0.5*(d_ndic-himin),1.E-10)
 eye=0.35*max(1.-d_ndsn/icemin,0.)*max(1.-d_nsto/qmax,0.)*max(min(d_ndic/himin-1.,1.),0.)
 d_nsto=d_nsto+dt*atm_sg*(1.-alb)*eye
 
@@ -3299,10 +3299,8 @@ do ll=1,10 ! max iterations
 
   det=dgu*dhv-dgv*dhu
 
-  where ( abs(det)>1.E-20 )
-    newiu=newiu-0.9*( g*dhv-h*dgv)/det
-    newiv=newiv-0.9*(-g*dhu+h*dgu)/det
-  end where
+  newiu=newiu-0.9*( g*dhv-h*dgv)/det
+  newiv=newiv-0.9*(-g*dhu+h*dgu)/det
 
 end do
 

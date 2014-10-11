@@ -76,7 +76,7 @@
       real uav(ifull),vav(ifull)
       real, dimension(ifull) :: neta,oldrunoff,newrunoff,rid,fhd
       real, dimension(ifull) :: fgf,rgg,fev,af,dirad,dfgdt,factch
-      real, dimension(ifull) :: degdt,cie,aft,fh,ri,gamm,smixr,rho
+      real, dimension(ifull) :: degdt,cie,aft,fh,ri,gamm,rho
       real, dimension(ifull) :: dumsg,dumr,dumx,dums,dumw,tv
 
       integer, parameter :: nblend=0  ! 0 for original non-blended, 1 for blended af
@@ -478,7 +478,7 @@ c       N.B. potential evaporation is now eg+eg2                        ! sice
 c       Surface stresses taux, tauy: diagnostic only - unstag now       ! sice
         taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                               ! sice
         tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                               ! sice
-       endif  ! (sicedep(iq)>0.)                                        ! sice
+        endif  ! (sicedep(iq)>0.)                                       ! sice
        enddo       ! iq loop                                            ! sice
        where (.not.land)                                                ! sice
          snowd=0.                                                       ! sice
@@ -593,7 +593,6 @@ c       Surface stresses taux, tauy: diagnostic only - unstag now       ! sice
       call START_LOG(sfluxland_begin)                                   ! land
       select case(nsib)                                                 ! land
         case(3,5)                                                       ! land
-!cdir nodep
           do ip=1,ipland  ! all land points in this shared loop         ! land
 c          fh itself was only used outside this loop in sib0 (jlm)      ! land
            iq=iperm(ip)                                                 ! land
@@ -742,8 +741,11 @@ c                Now heat ; allow for smaller zo via aft and factch     ! land
             if (mydiag) write(6,*) 'before call scrnout'                ! land
             call maxmin(t,' t',ktau,1.,kl)                              ! land
           endif                                                         ! land
+          ! MJT notes - This clobbers the af, ri, cduv, ustar, taux and ! land
+          ! tauy from the sice calculation above.                       ! land
           if(ntsur/=5)then    ! ntsur=6 is default from Mar '05         ! land
-c           preferred option to recalc cduv, ustar (gives better uscrn, u10)
+            ! preferred option to recalc cduv, ustar (gives better      ! land
+            ! uscrn, u10)                                               ! land
             do iq=1,ifull                                               ! land
              afroot=vkar/log(zmin/zo(iq))! land formula is bit different above
              af(iq)=afroot**2+helo(iq)                                  ! land
@@ -755,48 +757,21 @@ c           preferred option to recalc cduv, ustar (gives better uscrn, u10)
                root=sqrt(-ri(iq)*zmin/zo(iq))                           ! land
                denma=1.+cms*2.*bprm*af(iq)*root                         ! land
                fm=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/denma   ! Fm * vmod ! land
-c              n.b. fm denotes ustar**2/(vmod(iq)*af)                   ! land                  
+c              n.b. fm denotes ustar**2/(vmod(iq)*af)                   ! land
              endif                                                      ! land
-c            cduv is now drag coeff *vmod                               ! land      
+c            cduv is now drag coeff *vmod                               ! land
              cduv(iq) =af(iq)*fm                       ! Cd * vmod      ! land
              ustar(iq) = sqrt(vmod(iq)*cduv(iq))                        ! land
-c            Surface stresses taux, tauy: diagnostic only - unstaggered now   
+c            Surface stresses taux, tauy: diagnostic only               ! land   
              taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                          ! land
              tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                          ! land
             enddo                                                       ! land
-           endif  ! (ntsur==6)                                          ! land
-           if(nproc==1.and.diag)then                                    ! land
-              taftfhmin=1.e20                                           ! land
-              taftfhmax=-100.                                           ! land
-              taftfhgmin=1.e20                                          ! land
-              taftfhgmax=-100.                                          ! land
-              do iq=1,ifull                                             ! land
-               if(taftfh(iq)<taftfhmin)then                             ! land
-                 taftfhmin=taftfh(iq)           ! ~.0012                ! land
-                 iqmin1=iq                                              ! land
-               endif                                                    ! land
-               if(taftfh(iq)>taftfhmax)then                             ! land
-                 taftfhmax=taftfh(iq)           ! ~.13                  ! land
-                 iqmax1=iq                                              ! land
-               endif                                                    ! land
-               if(taftfhg(iq)<taftfhgmin)then                           ! land
-                 taftfhgmin=taftfhg(iq)         ! ~.0006                ! land
-                 iqmin2=iq                                              ! land
-               endif                                                    ! land
-               if(taftfhg(iq)>taftfhgmax)then                           ! land
-                 taftfhgmax=taftfhg(iq)         ! ~.004                 ! land
-                 iqmax2=iq                                              ! land
-               endif                                                    ! land
-              enddo                                                     ! land
-              write(6,*) 'taftfhmin,taftfhmax ',                        ! land
-     &                 taftfhmin,iqmin1,taftfhmax,iqmax1                ! land
-              write(6,*) 'taftfhgmin,taftfhgmax ',                      ! land
-     &                 taftfhgmin,iqmin2,taftfhgmax,iqmax2              ! land
-           endif  ! (nproc==1.and.diag)                                 ! land
+          endif  ! (ntsur==6)                                           ! land
                                                                         ! land
         case(6)                                                         ! cable
           write(6,*) "CABLE nsib=6 option is not supported"             ! cable
           call ccmpi_abort(-1)                                          ! cable
+                                                                        ! cable
         case(7)                                                         ! cable
          if (myid==0.and.nmaxpr==1) then                                ! cable
            write(6,*) "Before CABLE"                                    ! cable
@@ -815,12 +790,34 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
            tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                            ! cable
            sno(iq)=sno(iq)+conds(iq)                                    ! cable
          enddo   ! ip=1,ipland                                          ! cable
+         if ((nmlo==0.or.abs(nmlo)>9).and.ntsur/=5) then                ! cable
+           ! clobber diagnostic ocean/ice points when not using MLO     ! cable
+           do iq=1,ifull                                                ! cable
+            afroot=vkar/log(zmin/zo(iq))                                ! cable
+            af(iq)=afroot**2+helo(iq)                                   ! cable
+            xx=grav*zmin*(1.-tss(iq)*srcp/t(iq,1))                      ! cable
+            ri(iq)=min(xx/vmag(iq)**2 , ri_max)                         ! cable
+            if(ri(iq)>0.)then                                           ! cable
+              fm=vmod(iq)/(1.+bprm*ri(iq))**2                           ! cable
+            else                                                        ! cable
+              root=sqrt(-ri(iq)*zmin/zo(iq))                            ! cable
+              denma=1.+cms*2.*bprm*af(iq)*root                          ! cable
+              fm=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/denma                ! cable
+            endif                                                       ! cable
+            cduv(iq) =af(iq)*fm                                         ! cable
+            ustar(iq) = sqrt(vmod(iq)*cduv(iq))                         ! cable
+            taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                           ! cable
+            tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                           ! cable
+           enddo                                                        ! cable
+         end if                                                         ! cable
          if (myid==0.and.nmaxpr==1) then                                ! cable
            write(6,*) "After CABLE"                                     ! cable
          end if                                                         ! cable
+                                                                        ! cable
         case DEFAULT                                                    ! land
           write(6,*) "ERROR: Unknown land-use option nsib=",nsib        ! land
           stop                                                          ! land
+                                                                        ! land
       end select                                                        ! land
       call END_LOG(sfluxland_end)                                       ! land
       !----------------------------------------------------------
@@ -888,8 +885,7 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
       ! scrnout is the standard CCAM screen level diagnostics.
       ! autoscrn contains the newer diagnostic calculation
       if (nmlo==0.and.(nsib==3.or.nsib==5).and.rescrn==0) then
-        smixr=wetfac*qsttg+(1.-wetfac)*min(qsttg,qg(1:ifull,1))
-        call scrnout(zo,ustar,factch,wetfac,smixr,qgscrn,tscrn,uscrn,
+        call scrnout(zo,ustar,factch,wetfac,qsttg,qgscrn,tscrn,uscrn,
      &              u10,rhscrn,af,aft,ri,vmod,bprm,cms,chs,chnsea,
      &              nalpha)
       else
