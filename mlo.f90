@@ -3218,8 +3218,8 @@ rho=atm_ps/(rdry*dtsurf)
 
 dgice%zo=0.001
 af=vkar**2/(log(atm_zmin/dgice%zo)*log(atm_zmin/dgice%zo))
-factch=1.         ! following CSIRO9
-!factch=sqrt(7.4) ! following CCAM sflux
+!factch=1.       ! following CSIRO9
+factch=sqrt(7.4) ! following CCAM sflux
 dgice%zoh=dgice%zo/(factch*factch)
 dgice%zoq=dgice%zoh
 aft=vkar**2/(log(atm_zmin/dgice%zo)*log(atm_zmin/dgice%zoh))
