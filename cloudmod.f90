@@ -7,6 +7,7 @@ implicit none
 private
 public progcloud, cloudmod_init, combinecloudfrac, u00crit
 public stratcloud, nettend
+public convectivecloudfrac
 
 real, dimension(:,:), allocatable, save :: stratcloud  ! prognostic cloud fraction
 real, dimension(:,:), allocatable, save :: nettend     ! change in temperature from radiation and vertical mixing
@@ -21,10 +22,10 @@ implicit none
 
 integer, intent(in) :: ifull, iextra, kl, ncloud
 
-if (ncloud>=3) then
+if ( ncloud>=3 ) then
   allocate(stratcloud(ifull+iextra,kl),nettend(ifull,kl))
-  stratcloud=0.
-  nettend=0.
+  stratcloud = 0.
+  nettend = 0.
 end if
 
 return
@@ -56,12 +57,13 @@ real, dimension(ifull,kl) :: cmflx, hlrvap, xf, at
 real, dimension(kl) :: u00p
 integer k
 
-stratcloud(1:ifull,:)=max( min( stratcloud(1:ifull,:), 1. ), 0. )
+stratcloud(1:ifull,:) = max( min( stratcloud(1:ifull,:), 1. ), 0. )
 qv = qtot-qc
 
 ! Critical relative humidity (neglected profile option)
 do k=1,kl
-  u00p(k) = max( u00crit, sig(k) )
+  !u00p(k) = max( u00crit, sig(k) )
+  u00p(k) = u00crit
 end do
 
 ! background erosion scale in 1/secs
@@ -109,13 +111,13 @@ do k=1,kl
 end do
 cc = ((omega + grav*cmflx)/(cp*rho)+nettend)*dt*dqsdT
 at = 1.-stratcloud(1:ifull,:)
-aa = 0.5*at/max( qs-qv, 1.e-10 )
+aa = 0.5*at*at/max( qs-qv, 1.e-20 )
 bb = 1.+gamma*stratcloud(1:ifull,:)
 where ( cc<=0. .and. xf>0. )
-  !dqs = ( bb - sqrt( bb*bb - 2.*gamma*xf*at*aa*cc ) ) / ( gamma*xf*at*aa ) ! GFDL style
-  !dqs = min( dqs, cc/(1. + 0.5*bb) )                                       ! GFDL style
-  dqs = 2.*cc/( bb + sqrt( bb*bb - 2.*gamma*xf*at*aa*cc ) ) ! alternative form of quadratic equation
-                                                            ! note that aa and bb have been multipled by 2 and -1, respectively.
+  !dqs = ( bb - sqrt( bb*bb - 2.*gamma*xf*aa*cc ) ) / ( gamma*xf*aa ) ! GFDL style
+  !dqs = min( dqs, cc/(1. + 0.5*bb) )                                 ! GFDL style
+  dqs = 2.*cc/( bb + sqrt( bb*bb - 2.*gamma*xf*aa*cc ) ) ! alternative form of quadratic equation
+                                                         ! note that aa and bb have been multipled by 2 and -1, respectively.
   ! Large scale cloud formation via condensation (A)
   a_dt = -xf*aa*dqs
 elsewhere
@@ -126,7 +128,7 @@ elsewhere
 end where
 
 ! Large scale cloud destruction via erosion (B)
-b_dt = stratcloud(1:ifull,:)*erosion_scale*dt*max(qs-qv, 0.)/max(qc, 1.e-10)
+b_dt = stratcloud(1:ifull,:)*erosion_scale*dt*max(qs-qv, 1.e-20)/max(qc, 1.e-20)
 
 ! Integrate
 !   dcf/dt = (1-cf)*A - cf*B
@@ -137,7 +139,7 @@ b_dt = stratcloud(1:ifull,:)*erosion_scale*dt*max(qs-qv, 0.)/max(qc, 1.e-10)
 !   cfbar = cfeq - (cf(t=1) - cf(t=0))/((A+B)*dt)
 ! cfeq is the equilibrum cloud fraction that is approached with
 ! a time scale of 1/(A+B)
-where ( a_dt>1.e-8 .or. b_dt>1.e-8 )
+where ( a_dt>1.e-20 .or. b_dt>1.e-20 )
   cfeq  = a_dt/(a_dt+b_dt)
   cf1   = cfeq + (stratcloud(1:ifull,:) - cfeq)*exp(-a_dt-b_dt)
   cfbar = cfeq + (stratcloud(1:ifull,:) - cf1 )/(a_dt+b_dt)
@@ -150,11 +152,11 @@ end where
 ! Change in condensate
 ! dqc = -dqs*(stratcloud+0.5*da) = -dqs*cfbar
 ! MJT notes - missing erosion term -cfbar*erosion_scale*dt*(qs-qv)
-qc = max(min( qc - max(cfbar,1.e-10)*dqs, qtot-qgmin ), 0. )
+qc = max(min( qc - max(cfbar,1.e-20)*dqs, qtot-qgmin ), 0. )
 
 ! Change in cloud fraction
-where ( qc>1.e-10 )
-  stratcloud(1:ifull,:) = max(min( cf1, 1.), 1.e-10 )
+where ( qc>1.e-20 )
+  stratcloud(1:ifull,:) = max(min( cf1, 1.), 1.e-20 )
 elsewhere
   ! MJT notes - cloud fraction is maintained (da=0.) while condesate evaporates (dqc<0.) until
   ! the condesate dissipates
@@ -184,58 +186,71 @@ include 'newmpar.h'  ! Grid parameters
 include 'kuocom.h'   ! Convection parameters
 include 'parm.h'     ! Model configuration
 
-integer k
-real, dimension(ifull) :: cldcon
 real, dimension(ifull,kl) :: clcon
-real, dimension(ifull) :: n, crand
 
 if ( ncloud>=4 ) then
-
-  cfrac(:,:)=stratcloud(1:ifull,:)
-  
+  cfrac(:,:) = stratcloud(1:ifull,:)
 else
-
   ! estimate convective cloud fraction from leoncld.f
-
-  ! MJT notes - This is an old parameterisation from NCAR.  acon and
-  ! bcon represent shallow and deep convection, respectively.  It can
-  ! be argued that acon should be zero in CCAM to avoid discontinuous
-  ! evolution of the model.  Furthermore, a much better fit can be
-  ! obtained from the mass flux, rather than rainfall.  It also
-  ! should be noted that acon and bcon are likely to depend on the
-  ! spatial resolution.
-  where ( ktsav<kl-1 )
-    cldcon=min(acon+bcon*log(1.+condc*86400./dt),0.8) !NCAR
-  elsewhere
-    cldcon=0.
-  end where
-
-  ! Impose cloud overlap assumption
-  if ( nmr>=1 ) then
-    do k=1,kl
-      where( k<kbsav(:) .or. k>ktsav(:) )
-        clcon(:,k)=0.
-      elsewhere
-        clcon(:,k)=cldcon ! maximum overlap
-      end where
-    end do
-  else
-    n=1./real(ktsav-kbsav+1)
-    crand=1.-(1.-cldcon)**n
-    do k=1,kl
-      where( k<kbsav .or. k>ktsav )
-        clcon(:,k)=0.
-      elsewhere
-        clcon(:,k)=crand  ! random overlap
-      end where
-    end do
-  end if
-
-  cfrac(:,:)=stratcloud(1:ifull,:)*(1.-clcon(:,:))+clcon(:,:)
-  
+  call convectivecloudfrac(clcon)
+  cfrac(:,:) = stratcloud(1:ifull,:)*(1.-clcon(:,:))+clcon(:,:)
 end if
 
 return
 end subroutine combinecloudfrac
+
+subroutine convectivecloudfrac(clcon)
+
+use kuocomb_m        ! JLM convection
+use morepbl_m        ! Additional boundary layer diagnostics
+
+implicit none
+
+include 'newmpar.h'  ! Grid parameters
+include 'kuocom.h'   ! Convection parameters
+include 'parm.h'     ! Model configuration
+
+integer k
+real, dimension(ifull) :: cldcon
+real, dimension(ifull,kl), intent(out) :: clcon
+real, dimension(ifull) :: n, crand
+
+! MJT notes - This is an old parameterisation from NCAR.  acon and
+! bcon represent shallow and deep convection, respectively.  It can
+! be argued that acon should be zero in CCAM to avoid discontinuous
+! evolution of the model.  Furthermore, a much better fit can be
+! obtained from the mass flux, rather than rainfall.  It also
+! should be noted that acon and bcon are likely to depend on the
+! spatial resolution.
+
+where ( ktsav<kl-1 )
+  cldcon = min(acon+bcon*log(1.+condc*86400./dt),0.8) !NCAR
+elsewhere
+  cldcon = 0.
+end where
+
+! Impose cloud overlap assumption
+if ( nmr>=1 ) then
+  do k=1,kl
+    where( k<kbsav(:) .or. k>ktsav(:) )
+      clcon(:,k) = 0.
+    elsewhere
+      clcon(:,k) = cldcon ! maximum overlap
+    end where
+  end do
+else
+  n = 1./real(ktsav-kbsav+1)
+  crand = 1.-(1.-cldcon)**n
+  do k=1,kl
+    where( k<kbsav .or. k>ktsav )
+      clcon(:,k) = 0.
+    elsewhere
+      clcon(:,k) = crand  ! random overlap
+    end where
+  end do
+end if
+
+return
+end subroutine convectivecloudfrac
 
 end module cloudmod

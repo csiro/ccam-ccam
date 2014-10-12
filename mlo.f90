@@ -3218,8 +3218,8 @@ rho=atm_ps/(rdry*dtsurf)
 
 dgice%zo=0.001
 af=vkar**2/(log(atm_zmin/dgice%zo)*log(atm_zmin/dgice%zo))
-!factch=1.       ! following CSIRO9
-factch=sqrt(7.4) ! following CCAM sflux
+factch=1.         ! following CSIRO9
+!factch=sqrt(7.4) ! following CCAM sflux
 dgice%zoh=dgice%zo/(factch*factch)
 dgice%zoq=dgice%zoh
 aft=vkar**2/(log(atm_zmin/dgice%zo)*log(atm_zmin/dgice%zoh))
@@ -3297,6 +3297,7 @@ do ll=1,10 ! max iterations
   dgv=dhu
   dhv=-1.-dt*(rho*dgice%cd*vmagn*(1.+(vv/vmagn)**2)+d_rho(:,1)*0.00536*icemagn*(1.+(dv/icemagn)**2))/imass
 
+  ! Min det is around 1.
   det=dgu*dhv-dgv*dhu
 
   newiu=newiu-0.9*( g*dhv-h*dgv)/det
