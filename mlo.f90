@@ -3197,7 +3197,7 @@ real, dimension(wfull), intent(inout) :: d_ftop,d_tb,d_fb,d_timelt,d_zcr,d_ndsn,
 real, dimension(wfull), intent(inout) :: d_nsto,atm_oldu,atm_oldv
 integer, dimension(wfull), intent(inout) :: d_nk
 real, intent(in) :: dt
-real, dimension(wfull) :: qsat,dqdt,ri,vmag,rho,srcp,tnew,qsatnew,gamm,bot
+real, dimension(wfull) :: qsat,dqdt,ri,rho,srcp,tnew,qsatnew,gamm,bot
 real, dimension(wfull) :: fm,fh,fq,af,aft,afq
 real, dimension(wfull) :: den,sig,root
 real, dimension(wfull) :: alb,qmax,eye
@@ -3210,50 +3210,20 @@ real factch
 dtsurf=min(ice%tsurf,273.2)
 uu=atm_u-ice%u
 vv=atm_v-ice%v
-vmag=sqrt(uu*uu+vv*vv)
-vmagn=max(vmag,0.01)
+vmagn=sqrt(max(uu*uu+vv*vv,1.E-4))
 sig=exp(-grav*atm_zmins/(rdry*atm_temp))
 srcp=sig**(rdry/cp)
 rho=atm_ps/(rdry*dtsurf)
 
-dgice%zo=0.0005 ! Mk3.5 (0.01m), CICE (0.0005m)
-af=vkar**2/(log(atm_zmin/dgice%zo)*log(atm_zmin/dgice%zo))
+dgice%zo=0.0005 ! Mk3.6 (0.01m), CICE (0.0005m)
+af=vkar*vkar/(log(atm_zmin/dgice%zo)*log(atm_zmin/dgice%zo))
 !factch=sqrt(z0m/z0t)
 factch=1.         ! following CSIRO9, CICE
 !factch=sqrt(7.4) ! following CCAM sflux
 dgice%zoh=dgice%zo/(factch*factch)
 dgice%zoq=dgice%zoh
-aft=vkar**2/(log(atm_zmin/dgice%zo)*log(atm_zmin/dgice%zoh))
-afq=vkar**2/(log(atm_zmin/dgice%zo)*log(atm_zmin/dgice%zoq))
-
-
-call getqsat(qsat,dqdt,dtsurf,atm_ps)
-ri=min(grav*(atm_zmin**2/atm_zmins)*(1.-dtsurf*srcp/atm_temp)/vmagn**2,rimax)
-
-where (ri>=0.)
-  fm=1./(1.+bprm*ri)**2  ! no zo contrib for stable
-  fh=fm
-  fq=fh
-elsewhere        ! ri is -ve
-  root=sqrt(-ri*atm_zmin/dgice%zo)
-  den=1.+cms*2.*bprm*af*root
-  fm=1.-2.*bprm*ri/den
-  root=sqrt(-ri*atm_zmins/dgice%zo)
-  den=1.+chs*2.*bprm*factch*aft*root
-  fh=1.-2.*bprm*ri/den
-  den=1.+chs*2.*bprm*factch*afq*root
-  fq=1.-2.*bprm*ri/den
-end where
-
-! egice is for evaporating (lv).  Melting is included with lf.
-
-dgice%wetfrac=max(1.+.008*min(dtsurf-273.16,0.),0.)
-dgice%cd=af*fm
-dgice%cdh=aft*fh
-dgice%cdq=afq*fq
-dgice%fg=rho*dgice%cdh*cp*vmagn*(dtsurf-atm_temp/srcp)
-dgice%eg=dgice%wetfrac*rho*dgice%cdq*lv*vmagn*(qsat-atm_qg)
-dgice%eg=min(dgice%eg,d_ndic*qice*lv/(lf*dt))
+aft=vkar*vkar/(log(atm_zmin/dgice%zo)*log(atm_zmin/dgice%zoh))
+afq=vkar*vkar/(log(atm_zmin/dgice%zo)*log(atm_zmin/dgice%zoq))
 
 ! number of (thick) ice layers
 d_nk=min(int(d_ndic/himin),2)
@@ -3265,9 +3235,6 @@ qmax=max(qice*0.5*(d_ndic-himin),1.E-10)
 eye=0.35*max(1.-d_ndsn/icemin,0.)*max(1.-d_nsto/qmax,0.)*max(min(d_ndic/himin-1.,1.),0.)
 d_nsto=d_nsto+dt*atm_sg*(1.-alb)*eye
 
-! Explicit estimate of fluxes
-d_ftop=-dgice%fg-dgice%eg*ls/lv+atm_rg-emisice*sbconst*dtsurf**4+atm_sg*(1.-alb)*(1.-eye) ! first guess
-bot=4.*emisice*sbconst*dtsurf**3+rho*vmagn*(dgice%cdh*cp+dgice%cdq*dgice%wetfrac*dqdt*ls/lv)
 where ( d_nk>0 .and. d_ndsn>0.05 )
   gamm=gammi
 elsewhere
@@ -3276,6 +3243,36 @@ end where
 
 ! water temperature at bottom of ice
 d_tb=water%temp(:,1)
+
+! Explicit estimate of fluxes
+call getqsat(qsat,dqdt,dtsurf,atm_ps)
+ri=min(grav*(atm_zmin**2/atm_zmins)*(1.-dtsurf*srcp/atm_temp)/vmagn**2,rimax)
+where (ri>=0.)
+  fm=1./(1.+bprm*ri)**2  ! no zo contrib for stable
+  fh=fm
+  fq=fh
+elsewhere        ! ri is -ve
+  root=sqrt(-ri*atm_zmin/dgice%zo)
+  den=1.+cms*2.*bprm*af*root
+  fm=1.-2.*bprm*ri/den
+  root=sqrt(-ri*atm_zmins/dgice%zo)
+  den=1.+chs*2.*bprm*aft*factch*root
+  fh=1.-2.*bprm*ri/den
+  den=1.+chs*2.*bprm*afq*factch*root
+  fq=1.-2.*bprm*ri/den
+end where
+! egice is for evaporating (lv).  Melting is included with lf.
+dgice%wetfrac=max(1.+.008*min(dtsurf-273.16,0.),0.)
+dgice%cd =af*fm
+dgice%cdh=aft*fh
+dgice%cdq=afq*fq
+dgice%fg=rho*dgice%cdh*cp*vmagn*(dtsurf-atm_temp/srcp)
+dgice%eg=dgice%wetfrac*rho*dgice%cdq*lv*vmagn*(qsat-atm_qg)
+dgice%eg=min(dgice%eg,d_ndic*qice*lv/(lf*dt))
+
+d_ftop=-dgice%fg-dgice%eg*ls/lv+atm_rg-emisice*sbconst*dtsurf**4+atm_sg*(1.-alb)*(1.-eye) ! first guess
+d_ftop=d_ftop+lf*atm_rnd ! converting any rain to snowfall over ice
+bot=4.*emisice*sbconst*dtsurf**3+rho*vmagn*(dgice%cdh*cp+dgice%cdq*dgice%wetfrac*dqdt*ls/lv)
 
 ! iterative method to estimate ice velocity after stress from wind and currents are applied
 imass=max(rhoic*ice%thick+rhosn*ice%snowd,10.) ! ice mass per unit area
@@ -3286,24 +3283,18 @@ do ll=1,10 ! max iterations
   vv=atm_v-newiv
   du=fluxwgt*water%u(:,1)+(1.-fluxwgt)*atm_oldu-newiu
   dv=fluxwgt*water%v(:,1)+(1.-fluxwgt)*atm_oldv-newiv
-  
   vmagn=sqrt(max(uu*uu+vv*vv,1.E-4))
   icemagn=sqrt(max(du*du+dv*dv,1.E-8))
-
   g=ice%u-newiu+dt*(rho*dgice%cd*vmagn*uu+d_rho(:,1)*0.00536*icemagn*du)/imass
   h=ice%v-newiv+dt*(rho*dgice%cd*vmagn*vv+d_rho(:,1)*0.00536*icemagn*dv)/imass
-  
   dgu=-1.-dt*(rho*dgice%cd*vmagn*(1.+(uu/vmagn)**2)+d_rho(:,1)*0.00536*icemagn*(1.+(du/icemagn)**2))/imass
   dhu=-dt*(rho*dgice%cd*uu*vv/vmagn+d_rho(:,1)*0.00536*du*dv/icemagn)/imass
   dgv=dhu
   dhv=-1.-dt*(rho*dgice%cd*vmagn*(1.+(vv/vmagn)**2)+d_rho(:,1)*0.00536*icemagn*(1.+(dv/icemagn)**2))/imass
-
   ! Min det is around 1.
   det=dgu*dhv-dgv*dhu
-
   newiu=newiu-0.9*( g*dhv-h*dgv)/det
   newiv=newiv-0.9*(-g*dhu+h*dgu)/det
-
 end do
 
 ! momentum transfer
@@ -3324,14 +3315,15 @@ ustar=max(ustar,5.E-4)
 d_fb=cp0*d_rho(:,1)*0.006*ustar*(d_tb-d_timelt)
 d_fb=min(max(d_fb,-1000.),1000.)  
 
-! Estimate fluxes to prevent overshoot (predictor-corrector)
+! Re-calculate fluxes to prevent overshoot (predictor-corrector)
 tnew=min(dtsurf+d_ftop/(gamm/dt+bot),273.2)
+tnew=0.5*(tnew+dtsurf)
 call getqsat(qsatnew,dqdt,tnew,atm_ps)
-dgice%fg=rho*dgice%cdh*cp*vmagn*(0.5*(tnew+dtsurf)-atm_temp/srcp)
-dgice%eg=dgice%wetfrac*rho*dgice%cdq*lv*vmagn*(0.5*(qsatnew+qsat)-atm_qg)
+dgice%wetfrac=max(1.+.008*min(tnew-273.16,0.),0.)
+dgice%fg=rho*dgice%cdh*cp*vmagn*(tnew-atm_temp/srcp)
+dgice%eg=dgice%wetfrac*rho*dgice%cdq*lv*vmagn*(qsatnew-atm_qg)
 dgice%eg=min(dgice%eg,d_ndic*qice*lv/(lf*dt))
-d_ftop=-dgice%fg-dgice%eg*ls/lv+atm_rg-0.5*emisice*sbconst*(tnew**4+dtsurf**4)+atm_sg*(1.-alb)*(1.-eye)
-
+d_ftop=-dgice%fg-dgice%eg*ls/lv+atm_rg-emisice*sbconst*tnew**4+atm_sg*(1.-alb)*(1.-eye)
 ! Add flux of heat due to converting any rain to snowfall over ice
 d_ftop=d_ftop+lf*atm_rnd ! rain (mm/sec) to W/m**2
 
