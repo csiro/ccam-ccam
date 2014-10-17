@@ -232,17 +232,17 @@ end where
 ! Impose cloud overlap assumption
 if ( nmr>=1 ) then
   do k=1,kl
-    where( k<kbsav(:) .or. k>ktsav(:) )
+    where( k<kbsav+1 .or. k>ktsav )
       clcon(:,k) = 0.
     elsewhere
       clcon(:,k) = cldcon ! maximum overlap
     end where
   end do
 else
-  n = 1./real(ktsav-kbsav+1)
+  n = 1./real(ktsav-kbsav)
   crand = 1.-(1.-cldcon)**n
   do k=1,kl
-    where( k<kbsav .or. k>ktsav )
+    where( k<kbsav+1 .or. k>ktsav )
       clcon(:,k) = 0.
     elsewhere
       clcon(:,k) = crand  ! random overlap

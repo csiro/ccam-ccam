@@ -3216,7 +3216,7 @@ sig=exp(-grav*atm_zmins/(rdry*atm_temp))
 srcp=sig**(rdry/cp)
 rho=atm_ps/(rdry*dtsurf)
 
-dgice%zo=0.001
+dgice%zo=0.01
 af=vkar**2/(log(atm_zmin/dgice%zo)*log(atm_zmin/dgice%zo))
 !factch=1.       ! following CSIRO9
 factch=sqrt(7.4) ! following CCAM sflux

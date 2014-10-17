@@ -5,6 +5,7 @@
       use aerointerface
       use arrays_m
       use cc_mpi, only : mydiag, myid
+      use cloudmod
       use diag_m
       use estab
       use kuocomb_m
@@ -45,7 +46,6 @@ c for cfrp
 c Local variables
       integer iq,k,ncl
       real ccw !Stuff for convective cloud fraction
-      real rainx(ifullw)
       real fl(ifullw)
 
       real prf(ifullw,kl)     !Pressure on full levels (hPa)
@@ -62,7 +62,6 @@ c Local variables
       real ccrain(ifullw,kl)  !Convective raining cloud cover
       real precs(ifullw)      !Amount of stratiform precipitation in timestep (mm)
       real preci(ifullw)      !Amount of stratiform snowfall in timestep (mm)
-      real cldcon(ifullw)     !Convective cloud fraction in column
       real wcon(ifullw)       !Convective cloud water content (in-cloud, prescribed)
       real clcon(ifullw,kl)   !Convective cloud fraction in layer 
       real qsg(ifullw,kl)     !Saturation mixing ratio
@@ -126,16 +125,12 @@ c These outputs are not used in this model at present
       preci(:)=0.
 
 !     Set up convective cloud column
-!     acon=0.2    !Cloud fraction for non-precipitating convection  kuocom.h
-!     bcon=0.07   !Rate at which conv cloud frac increases with R   kuocom.h
+      call convectivecloudfrac(clcon)
       where ( ktsav<kl-1 )
         ktop   = ktsav
         kbase  = kbsav+1
-        rainx  = condc*86400./dt ! mm/day
-        cldcon = min(acon+bcon*log(1.+rainx),0.8) ! NCAR
         wcon   = wlc
       elsewhere
-        cldcon = 0.
         wcon   = 0.
       end where
 
@@ -155,8 +150,7 @@ c     before calling newcloud
       if ( ncloud<=3 ) then
         if ( nmr>0 ) then ! Max/Rnd cloud overlap
           do k=1,kl
-            where ( k<=ktop .and. k>=kbase .and. cldcon>0. )
-              clcon(:,k) = cldcon(:) ! maximum overlap
+            where ( clcon(:,k)>0. )
               !ccw=wcon(:)/rhoa(:,k)  !In-cloud l.w. mixing ratio
               qccon(:,k) = clcon(:,k)*wcon(:)/rhoa(:,k)
               qcl(:,k)   = max(qsg(:,k),qg(1:ifull,k))  ! jlm
@@ -178,9 +172,7 @@ c     before calling newcloud
         else ! usual random cloud overlap
           do k=1,kl
             do iq=1,ifull
-              if(k<=ktop(iq).and.k>=kbase(iq).and.cldcon(iq)>0.)then
-                ncl=ktop(iq)-kbase(iq)+1
-                clcon(iq,k)=1.0-(1.0-cldcon(iq))**(1.0/ncl) !Random overlap
+              if(clcon(iq,k)>0.)then
                 ccw=wcon(iq)/rhoa(iq,k)  !In-cloud l.w. mixing ratio
 !!27/4/04       qccon(iq,k)=clcon(iq,k)*ccw*0.25 ! 0.25 reduces updraft value to cloud value
                 qccon(iq,k)=clcon(iq,k)*ccw
@@ -223,8 +215,7 @@ c     before calling newcloud
         write (6,"('qsg ',3p9f8.3/4x,9f8.3)") qsg(idjd,:)
         write (6,"('qcl ',3p9f8.3/4x,9f8.3)") qcl(idjd,:)
         write (6,"('clc ',9f8.3/4x,9f8.3)") clcon(idjd,:)
-        write(6,*) 'cldcon,kbase,ktop ',cldcon(idjd),kbase(idjd),
-     &    ktop(idjd)
+        write(6,*) 'kbase,ktop ',kbase(idjd),ktop(idjd)
       endif
 
 c     Calculate cloud fraction and cloud water mixing ratios

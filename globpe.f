@@ -1437,7 +1437,7 @@
         call ccmpi_barrier(comm_world)
       end if
       if (ncloud>=3) then
-        nettend=nettend+t(1:ifull,:)
+        nettend=nettend+t(1:ifull,:)/dt
       end if
       odcalc=mod(ktau,kountr)==0.or.ktau==1 ! ktau-1 better
       if (nhstest<0) then ! aquaplanet test -1 to -8  
@@ -1632,7 +1632,7 @@
         call END_LOG(vertmix_end)
       endif  ! (ntsur>=1)
       if (ncloud>=3) then
-        nettend=(nettend-t(1:ifull,:))/dt
+        nettend=nettend-t(1:ifull,:)/dt
       end if
       if (nmaxpr==1) then
         if (myid==0) then
