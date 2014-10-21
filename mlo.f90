@@ -3353,7 +3353,7 @@ atu=atm_u-water%u(:,1)
 atv=atm_v-water%v(:,1)
 call scrntile(dgscrn%temp,dgscrn%qg,uscrn,u10,dgwater%zo,dgwater%zoh,dgwater%zoq,water%temp(:,1), &
     smixr,atu,atv,atm_temp,atm_qg,atm_zmin,atm_zmins,diag)
-dmag=max(sqrt(atu*atu+atv*atv),0.01)
+dmag=sqrt(max(atu*atu+atv*atv,1.E-4))
 atu=(atm_u-water%u(:,1))*uscrn/dmag+water%u(:,1)
 atv=(atm_v-water%v(:,1))*uscrn/dmag+water%v(:,1)
 dgscrn%u2=sqrt(atu*atu+atv*atv)
@@ -3370,7 +3370,7 @@ call scrntile(tscrn,qgscrn,uscrn,u10,dgice%zo,dgice%zoh,dgice%zoq,ice%tsurf, &
     smixr,atu,atv,atm_temp,atm_qg,atm_zmin,atm_zmins,diag)
 dgscrn%temp=(1.-ice%fracice)*dgscrn%temp+ice%fracice*tscrn
 dgscrn%qg=(1.-ice%fracice)*dgscrn%qg+ice%fracice*qgscrn
-dmag=max(sqrt(atu*atu+atv*atv),0.01)
+dmag=sqrt(max(atu*atu+atv*atv,1.E-4))
 atu=(atm_u-ice%u)*uscrn/dmag+ice%u
 atv=(atm_v-ice%v)*uscrn/dmag+ice%v
 dgscrn%u2=(1.-ice%fracice)*dgscrn%u2+ice%fracice*sqrt(atu*atu+atv*atv)

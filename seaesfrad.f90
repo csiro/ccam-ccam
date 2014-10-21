@@ -613,48 +613,46 @@ do j = 1,jl,imax/il
         cirrf_dif(1:imax) = cirrf_dir(1:imax)      ! assume DIR and DIF are the same
       end where
       ! The following snow calculation should be done by sib3 (sflux.f)
+      alvo = 0.95         !alb. for vis. on a new snow
+      aliro = 0.65        !alb. for near-infr. on a new snow      
       do i=1,imax
         iq=i+(j-1)*il
-        if (land(iq)) then
-          if (snowd(iq)>0.) then
-            dnsnow=min(1.,.1*max(0.,snowd(iq)-osnowd(iq)))
-            ttbg=real(isflag(iq))*tggsn(iq,1) + real(1-isflag(iq))*tgg(iq,1)
-            ttbg=min(ttbg,273.1)
-            ar1 = 5000.*( 1./273.1 - 1./ttbg) ! crystal growth  (-ve)
-            exp_ar1=exp(ar1)                  ! e.g. exp(0 to -4)
-            ar2 = 10.*ar1                     ! freezing of melt water
-            exp_ar2=exp(ar2)                  ! e.g. exp(0 to -40)
-            snr=snowd(iq)/max(ssdnn(iq),100.)
-            if(isoilm(iq)==9)then   ! fixes for Arctic & Antarctic
-              ar3=.001
-              dnsnow=max(dnsnow,.0015)
-              snrat=min(1.,snr/(snr+.001))
-            else
-              ar3=.3               ! accumulation of dirt
-              snrat=min(1.,snr/(snr+.02))
-            endif
-            dtau=1.e-6*(exp_ar1+exp_ar2+ar3)*dt  ! <~.1 in a day
-            if(snowd(iq)<= 1.)then
-              snage(iq)=0.
-            else
-              snage(iq)=max(0.,(snage(iq) + dtau)*(1.-dnsnow))
-            endif
-            alvo = 0.95         !alb. for vis. on a new snow
-            aliro = 0.65        !alb. for near-infr. on a new snow
-            fage = 1.-1./(1.+snage(iq))  !age factor
-            cczen=max(.17365, coszro(i))
-            fzen=( 1.+1./2.)/(1.+2.*2.*cczen) -1./2.
-            if( cczen > 0.5 ) fzen = 0.
-            fzenm = max ( fzen, 0. )
-            alvd = alvo * (1.0-0.2*fage)
-            alv = .4 * fzenm * (1.-alvd) + alvd
-            alird = aliro*(1.-.5*fage)
-            alir = .4 * fzenm * (1.0-alird) + alird
-            cuvrf_dir(i)=(1.-snrat)*cuvrf_dir(i) + snrat*alv
-            cirrf_dir(i)=(1.-snrat)*cirrf_dir(i) + snrat*alir
-            cuvrf_dif(i)=cuvrf_dir(i) ! assume DIR and DIF are the same
-            cirrf_dif(i)=cirrf_dir(i) ! assume DIR and DIF are the same
-          end if
+        if (land(iq).and.snowd(iq)>0.) then
+          dnsnow=min(1.,.1*max(0.,snowd(iq)-osnowd(iq)))
+          ttbg=real(isflag(iq))*tggsn(iq,1) + real(1-isflag(iq))*tgg(iq,1)
+          ttbg=min(ttbg,273.1)
+          ar1 = 5000.*( 1./273.1 - 1./ttbg) ! crystal growth  (-ve)
+          exp_ar1=exp(ar1)                  ! e.g. exp(0 to -4)
+          ar2 = 10.*ar1                     ! freezing of melt water
+          exp_ar2=exp(ar2)                  ! e.g. exp(0 to -40)
+          snr=snowd(iq)/max(ssdnn(iq),100.)
+          if(isoilm(iq)==9)then   ! fixes for Arctic & Antarctic
+            ar3=.001
+            dnsnow=max(dnsnow,.0015)
+            snrat=min(1.,snr/(snr+.001))
+          else
+            ar3=.3               ! accumulation of dirt
+            snrat=min(1.,snr/(snr+.02))
+          endif
+          dtau=1.e-6*(exp_ar1+exp_ar2+ar3)*dt  ! <~.1 in a day
+          if(snowd(iq)<= 1.)then
+            snage(iq)=0.
+          else
+            snage(iq)=max(0.,(snage(iq) + dtau)*(1.-dnsnow))
+          endif
+          fage = 1.-1./(1.+snage(iq))  !age factor
+          cczen=max(.17365, coszro(i))
+          fzen=( 1.+1./2.)/(1.+2.*2.*cczen) -1./2.
+          if( cczen > 0.5 ) fzen = 0.
+          fzenm = max ( fzen, 0. )
+          alvd = alvo * (1.0-0.2*fage)
+          alv = .4 * fzenm * (1.-alvd) + alvd
+          alird = aliro*(1.-.5*fage)
+          alir = .4 * fzenm * (1.0-alird) + alird
+          cuvrf_dir(i)=(1.-snrat)*cuvrf_dir(i) + snrat*alv
+          cirrf_dir(i)=(1.-snrat)*cirrf_dir(i) + snrat*alir
+          cuvrf_dif(i)=cuvrf_dir(i) ! assume DIR and DIF are the same
+          cirrf_dif(i)=cirrf_dir(i) ! assume DIR and DIF are the same
         end if
       end do
     end if
@@ -855,7 +853,7 @@ do j = 1,jl,imax/il
           ktop=k
           if (cfrac(iq,k)>0.) then
             kbot=k ! found bottom of cloud
-            do while (ktop<kl.and.cfrac(iq,ktop+1)>0.)
+            do while (ktop<kl.and.cfrac(iq,min(ktop+1,kl))>0.)
               ktop=ktop+1 ! search for top of cloud
             end do
             if (ktop>kbot) then ! if multi-layer cloud, calculate common max overlap fraction
@@ -1815,6 +1813,10 @@ aerosol_optical_names(884:887)=(/ "seasalt5_84%", "seasalt5_86%", "seasalt5_88%"
 aerosol_optical_names(888:891)=(/ "seasalt5_91%", "seasalt5_92%", "seasalt5_93%", "seasalt5_94%" /)
 aerosol_optical_names(892:895)=(/ "seasalt5_95%", "seasalt5_96%", "seasalt5_97%", "seasalt5_98%" /)
 aerosol_optical_names(896)=       "seasalt5_99%"
+aerosol_optical_names(897)=       "dust_0.73"
+aerosol_optical_names(898)=       "dust_1.4"
+aerosol_optical_names(899)=       "dust_2.4"
+aerosol_optical_names(900)=       "dust_4.5"
 
 ! shortwave optical models
 

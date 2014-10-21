@@ -133,11 +133,15 @@ c     degdt is degdt (was ceva in surfupa/b)
       z1onzt=300.*rdry*(1.-sig(1))*ztv/grav
       chnsea=(vkar/log(z1onzt))**2   ! should give .00085 for csiro9
       oldrunoff(:)=runoff(:)
-      zo=999.        ! dummy values
-      factch=999.    ! dummy values
-      taux=0.        ! dummy values
-      tauy=0.        ! dummy values
-      gamm=3.471e+05 ! dummy values
+      zo=999.        ! dummy value
+      factch=999.    ! dummy value
+      taux=0.        ! dummy value
+      tauy=0.        ! dummy value
+      gamm=3.471e+05 ! dummy value
+      root=0.        ! dummy value
+      denha=0.       ! dummy value
+      denma=0.       ! dummy value
+      fm=0.          ! dummy value
 
       if (diag.or.ntest==1) then
         if (mydiag) then
@@ -371,8 +375,8 @@ c      section to update pan temperatures                               ! sea
        endif                                                            ! sea
        zminlog=log(zmin)                                                ! sea
 
-       fgf=0.
-       fev=0.
+       fgf=0.                                                           ! sice
+       fev=0.                                                           ! sice
        do iq=1,ifull                                                    ! sice
         if(sicedep(iq)>0.)then                                          ! sice
 !       non-leads for sea ice points                                    ! sice
@@ -388,8 +392,9 @@ c      section to update pan temperatures                               ! sea
         zoice=.001                                                      ! sice
         zologice=zminlog-log(zoice)   !   i.e. log(zmin/zo(iq))         ! sice
         af(iq)=(vkar/zologice)**2                                       ! sice
+        ! MJT notes - following line does not agree with factchice      ! sice
         aft(iq)=vkar**2/(zologice*zologice )                            ! sice
-        wetfac(iq)=1+.008*(tggsn(iq,1)-273.16) ! 008*tggsn(iq,1)-1.18528! sice
+        wetfac(iq)=1+.008*(tggsn(iq,1)-273.16)                          ! sice
                                                                         ! sice
 c       now do fh and fm calcs for sice                                 ! sice
         if(ri_ice>0.)then                                               ! sice
@@ -588,7 +593,7 @@ c       Surface stresses taux, tauy: diagnostic only - unstag now       ! sice
         write(6,*) "ERROR: this option is for PCOM ocean model"         ! PCOM
         stop                                                            ! PCOM
       end if                                                            ! PCOM
-      call END_LOG(sfluxwater_end)
+      call END_LOG(sfluxwater_end)                                      ! PCOM
       !--------------------------------------------------------------      
       call START_LOG(sfluxland_begin)                                   ! land
       select case(nsib)                                                 ! land
@@ -883,7 +888,8 @@ c            Surface stresses taux, tauy: diagnostic only               ! land
         watbdy(1:ifull)=watbdy(1:ifull)+newrunoff ! runoff in mm
       end if
 
-c***  end of surface updating loop
+!***  end of surface updating loop
+! ----------------------------------------------------------------------
 
       if(diag.or.ntest==1)then
          if ( mydiag ) then

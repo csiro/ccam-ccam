@@ -237,7 +237,7 @@ met%coszen      =max(1.e-8,met%coszen)
 met%hod         =mod(met%hod,24.)
 rough%za_uv     =rough%za_tq
 rad%fbeam(:,3)  =0.            ! dummy for now
-rough%hruff     =max(0.01,veg%hc-1.2*ssnow%snowd/max(ssnow%ssdnn,100.))
+!rough%hruff     =max(1.e-6,veg%hc-1.2*ssnow%snowd/max(ssnow%ssdnn,100.))
 
 ! Interpolate LAI.  Also need sigmf for LDR prognostic aerosols.
 call setlai(sigmf,jyear,jmonth,jday,jhour,jmin)
@@ -442,6 +442,11 @@ do nb=1,maxnb
   eg=eg+unpack(sv(is:ie)*canopy%fe(is:ie),tmap(:,nb),0.)
   ga=ga+unpack(sv(is:ie)*canopy%ga(is:ie),tmap(:,nb),0.)
   tss=tss+unpack(sv(is:ie)*rad%trad(is:ie)**4,tmap(:,nb),0.) ! ave longwave radiation
+  ! drag and mixing
+  zo =zo +unpack(sv(is:ie)/log(zmin/rough%z0m(is:ie))**2,tmap(:,nb),0.)
+  zoh=zoh+unpack(sv(is:ie)/(log(zmin/rough%z0m(is:ie))*log(10.*zmin/rough%z0m(is:ie))),tmap(:,nb),0.)
+  cduv=cduv+unpack(sv(is:ie)*canopy%cduv(is:ie),tmap(:,nb),0.)
+  cdtq=cdtq+unpack(sv(is:ie)*canopy%cdtq(is:ie),tmap(:,nb),0.)
   ! soil
   do k=1,ms
     tgg(:,k)  =tgg(:,k)  +unpack(sv(is:ie)*ssnow%tgg(is:ie,k),        tmap(:,nb),0.)
@@ -450,17 +455,13 @@ do nb=1,maxnb
   end do
   ! hydrology
   runoff=runoff+unpack(sv(is:ie)*ssnow%runoff(is:ie)*dt,tmap(:,nb),0.) ! convert mm/s to mm
-  cansto=cansto+unpack(sv(is:ie)*canopy%cansto(is:ie),tmap(:,nb),0.)
-  fwet=fwet+unpack(sv(is:ie)*canopy%fwet(is:ie),tmap(:,nb),0.) ! used for aerosols
-  wetfac=wetfac+unpack(sv(is:ie)*ssnow%wetfac(is:ie),tmap(:,nb),0.)
+  fwet=fwet+unpack(sv(is:ie)*canopy%fwet(is:ie),tmap(:,nb),0.)         ! used for aerosols
+  wetfac=wetfac+unpack(sv(is:ie)*ssnow%wetfac(is:ie),tmap(:,nb),0.)    ! used for aerosols
+  cansto=cansto+unpack(sv(is:ie)*canopy%cansto(is:ie),tmap(:,nb),0.)   ! not used
   ! diagnostic
-  epot=epot+unpack(sv(is:ie)*ssnow%potev(is:ie),tmap(:,nb),0.)
-  zo =zo +unpack(sv(is:ie)/log(zmin/rough%z0m(is:ie))**2,tmap(:,nb),0.)
-  zoh=zoh+unpack(sv(is:ie)/(log(zmin/rough%z0m(is:ie))*log(10.*zmin/rough%z0m(is:ie))),tmap(:,nb),0.)
-  cduv=cduv+unpack(sv(is:ie)*canopy%cduv(is:ie),tmap(:,nb),0.)
-  cdtq=cdtq+unpack(sv(is:ie)*canopy%cdtq(is:ie),tmap(:,nb),0.)
+  epot=epot+unpack(sv(is:ie)*ssnow%potev(is:ie),tmap(:,nb),0.)         ! diagnostic in history file
   vlai=vlai+unpack(sv(is:ie)*veg%vlai(is:ie),tmap(:,nb),0.)
-  rsmin=rsmin+unpack(sv(is:ie)*canopy%gswx_T(is:ie),tmap(:,nb),0.)  
+  rsmin=rsmin+unpack(sv(is:ie)*canopy%gswx_T(is:ie),tmap(:,nb),0.)     ! diagnostic in history file
   ! carbon cycle
   fnee=fnee+unpack(sv(is:ie)*canopy%fnee(is:ie), tmap(:,nb),0.)
   fpn =fpn +unpack(sv(is:ie)*canopy%fpn(is:ie),  tmap(:,nb),0.)
@@ -469,14 +470,14 @@ do nb=1,maxnb
   frpw=frpw+unpack(sv(is:ie)*canopy%frpw(is:ie), tmap(:,nb),0.)
   frs =frs +unpack(sv(is:ie)*canopy%frs(is:ie),  tmap(:,nb),0.)
   ! snow
-  tmps=tmps+unpack(sv(is:ie)*real(ssnow%isflag(is:ie)),tmap(:,nb),0.)
+  tmps=tmps+unpack(sv(is:ie)*real(ssnow%isflag(is:ie)),tmap(:,nb),0.)  ! used in radiation (for nsib==3)
   do k=1,3
-    tggsn(:,k)=tggsn(:,k)+unpack(sv(is:ie)*ssnow%tgg(is:ie,k),tmap(:,nb),0.) 
-    smass(:,k)=smass(:,k)+unpack(sv(is:ie)*ssnow%smass(is:ie,k),tmap(:,nb),0.)
-    ssdn(:,k)=ssdn(:,k)+unpack(sv(is:ie)*ssnow%ssdn(is:ie,k),tmap(:,nb),0.)
+    tggsn(:,k)=tggsn(:,k)+unpack(sv(is:ie)*ssnow%tgg(is:ie,k),tmap(:,nb),0.)   ! for restart file
+    smass(:,k)=smass(:,k)+unpack(sv(is:ie)*ssnow%smass(is:ie,k),tmap(:,nb),0.) ! for restart file
+    ssdn(:,k) =ssdn(:,k) +unpack(sv(is:ie)*ssnow%ssdn(is:ie,k),tmap(:,nb),0.)  ! for restart file
   end do
-  ssdnn=ssdnn+unpack(sv(is:ie)*ssnow%ssdnn(is:ie),tmap(:,nb),0.)
-  snage=snage+unpack(sv(is:ie)*ssnow%snage(is:ie),tmap(:,nb),0.)
+  ssdnn=ssdnn+unpack(sv(is:ie)*ssnow%ssdnn(is:ie),tmap(:,nb),0.)      ! used in radiation (for nsib==3)
+  snage=snage+unpack(sv(is:ie)*ssnow%snage(is:ie),tmap(:,nb),0.)      ! used in radiation (for nsib==3)
   snowd=snowd+unpack(sv(is:ie)*ssnow%snowd(is:ie),tmap(:,nb),0.)
   
   !tscrn=tscrn+unpack(sv(pind(nb,1):pind(nb,2))*canopy%tscrn(pind(nb,1):pind(nb,2)),tmap(:,nb),0.)
@@ -1149,6 +1150,12 @@ if (mp>0) then
 
   ! Cable configuration
   cable_user%ssnow_POTEV = ""
+  knode_gl = myid
+  kwidth_gl = nint(dt) ! MJT notes - what happens when the timestep is less than a second?
+  if (kwidth_gl == 0) then
+    write(6,*) "ERROR: Timestep too small for CABLE"
+    call ccmpi_abort(-1)
+  end if
   
   ! soil parameters
   soil%zse        = zse ! soil layer thickness
@@ -1363,7 +1370,8 @@ if (mp>0) then
   ssnow%wb_lake=0. ! not used when mlo.f90 is active
   ssnow%fland=1.
   ssnow%ifland=soil%isoilm
-  
+  ssnow%osnowd=0.
+    
   ! Initialise sum flux variables
   sum_flux%sumpn=0.
   sum_flux%sumrp=0.
@@ -1915,10 +1923,12 @@ if (ierr/=0) then
         ssnow%wbice(pind(n,1):pind(n,2),k) = pack(wbice(:,k),tmap(:,n))
       end do
       do k = 1,3
-        ssnow%tggsn(pind(n,1):pind(n,2),k) = pack(tggsn(:,k),tmap(:,n))
-        ssnow%smass(pind(n,1):pind(n,2),k) = pack(smass(:,k),tmap(:,n))
-        ssnow%ssdn(pind(n,1):pind(n,2),k)  = pack(ssdn(:,k), tmap(:,n))
+        ssnow%tggsn(pind(n,1):pind(n,2),k)  = pack(tggsn(:,k),tmap(:,n))
+        ssnow%smass(pind(n,1):pind(n,2),k)  = pack(smass(:,k),tmap(:,n))
+        ssnow%ssdn(pind(n,1):pind(n,2),k)   = pack(ssdn(:,k), tmap(:,n))
+        ssnow%sdepth(pind(n,1):pind(n,2),k) = pack(snowd/3.,  tmap(:,n))
       end do      
+      ssnow%ssdnn(pind(n,1):pind(n,2))  = pack(ssdnn, tmap(:,n))
       ssnow%isflag(pind(n,1):pind(n,2)) = pack(isflag,tmap(:,n))
       ssnow%snowd(pind(n,1):pind(n,2))  = pack(snowd, tmap(:,n))
       ssnow%snage(pind(n,1):pind(n,2))  = pack(snage, tmap(:,n))
@@ -1928,6 +1938,7 @@ if (ierr/=0) then
     canopy%us=0.01
     ssnow%pudsto=0.
     ssnow%wetfac=0.
+    ssnow%osnowd=0.
     if (icycle==0) then
       do n=1,maxnb
         do k=1,ncp
@@ -1983,13 +1994,22 @@ else
       write(vname,'("ssdn",I1.1,"_",I1.1)') k,n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
       if (n<=maxnb) ssnow%ssdn(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
+      write(vname,'("sdepth",I1.1,"_",I1.1)') k,n
+      call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+      if (n<=maxnb) ssnow%sdepth(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
     end do
+    write(vname,'("ssdnn_",I1.1)') n
+    call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+    if (n<=maxnb) ssnow%ssdnn(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
     write(vname,'("sflag_",I1.1)') n
     call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
     if (n<=maxnb) ssnow%isflag(pind(n,1):pind(n,2))=nint(pack(dat,tmap(:,n)))
     write(vname,'("snd_",I1.1)') n
     call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
     if (n<=maxnb) ssnow%snowd(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
+    write(vname,'("osnd_",I1.1)') n
+    call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+    if (n<=maxnb) ssnow%osnowd(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
     write(vname,'("snage_",I1.1)') n
     call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
     if (n<=maxnb) ssnow%snage(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
@@ -2112,34 +2132,10 @@ if (mp>0) then
   ssnow%smass=max(ssnow%smass,0.)
   ssnow%rtsoil=max(ssnow%rtsoil,0.)
   ssnow%snowd=max(ssnow%snowd,0.)
+  ssnow%osnowd=max(ssnow%osnowd,0.)
   ssnow%wetfac=min(max(ssnow%wetfac,0.),1.)
   canopy%cansto=max(canopy%cansto,0.)
 
-  ! overwritten by CABLE
-  do k=1,3
-    where (ssnow%smass(:,k)<=0.)
-      ssnow%isflag=0
-    end where
-  end do
-  ssnow%osnowd=ssnow%snowd                                ! overwritten by CABLE
-  bal%osnowd0=ssnow%snowd                                 ! overwritten by CABLE
-  where (ssnow%isflag>0)
-    ssnow%sdepth(:,1)=ssnow%smass(:,1)/ssnow%ssdn(:,1)    ! overwritten by CABLE
-    ssnow%ssdnn=(ssnow%ssdn(:,1)*ssnow%smass(:,1)+ssnow%ssdn(:,2) &
-         & *ssnow%smass(:,2)+ssnow%ssdn(:,3)*ssnow%smass(:,3))    &
-         & /ssnow%snowd
-  elsewhere
-    ssnow%sdepth(:,1)=ssnow%snowd/ssnow%ssdn(:,1)         ! overwritten by CABLE
-    ssnow%ssdnn=max(120.,ssnow%ssdn(:,1))                 ! overwritten by CABLE
-  end where
-  do k=2,3
-    where (ssnow%isflag>0)
-      ssnow%sdepth(:,k)=ssnow%smass(:,k)/ssnow%ssdn(:,k)  ! overwritten by CABLE
-    elsewhere
-      ssnow%sdepth(:,k)=ssnow%sconds(:,1)                 ! overwritten by CABLE
-    end where
-  end do  
-  ssnow%owetfac=ssnow%wetfac
   ssnow%wbtot=0.
   ssnow%wbtot1=0.
   ssnow%wbtot2=0.
@@ -2147,11 +2143,12 @@ if (mp>0) then
   do k = 1,ms
     ssnow%wbtot=ssnow%wbtot+ssnow%wb(:,k)*1000.0*soil%zse(k)
     ssnow%tggav=ssnow%tggav+soil%zse(k)*ssnow%tgg(:,k)/(totdepth/100.)
-    ssnow%gammzz(:,k)=max((1.-soil%ssat)*soil%css* soil%rhosoil &
-       & +real(ssnow%wb(:,k)-ssnow%wbice(:,k))*4.218e3* 1000.       &
-       & +real(ssnow%wbice(:,k))*2.100e3*1000.*0.9,soil%css*soil%rhosoil)*soil%zse(k)
   end do
-  bal%wbtot0=ssnow%wbtot
+  ! MJT notes - what about gammzz(:,2:3) ?
+  ssnow%gammzz(:,1)=max((1.-soil%ssat)*soil%css* soil%rhosoil                       &
+       +real(ssnow%wb(:,1)-ssnow%wbice(:,1))*4.218e3* 1000.                         &
+       +real(ssnow%wbice(:,1))*2.100e3*1000.*0.9,soil%css*soil%rhosoil)*soil%zse(1) &
+       +(1.-ssnow%isflag)*2090.0*ssnow%snowd
 
   if (icycle==0) then
     bgc%cplant=max(bgc%cplant,0.)
@@ -2255,12 +2252,21 @@ if (myid==0.or.local) then
       write(lname,'("Snow density lev ",I1.1," tile ",I1.1)') k,n
       write(vname,'("ssdn",I1.1,"_",I1.1)') k,n 
       call attrib(idnc,idim,3,vname,lname,'kg/m3',0.,650.,0,-1)
+      write(lname,'("Snow depth ",I1.1," tile ",I1.1)') k,n
+      write(vname,'("sdepth",I1.1,"_",I1.1)') k,n 
+      call attrib(idnc,idim,3,vname,lname,'mm',0.,6500.,0,-1)
     end do
+    write(lname,'("Snow ssdnn tile ",I1.1)') n
+    write(vname,'("ssdnn_",I1.1)') n
+    call attrib(idnc,idim,3,vname,lname,'kg/m3',0.,650.,0,-1)
     write(lname,'("Snow flag tile ",I1.1)') n
     write(vname,'("sflag_",I1.1)') n
     call attrib(idnc,idim,3,vname,lname,'mm',0.,6.5,0,-1)
     write(lname,'("Snow depth tile ",I1.1)') n
     write(vname,'("snd_",I1.1)') n
+    call attrib(idnc,idim,3,vname,lname,'mm',0.,6500.,0,-1)  ! -1=long
+    write(lname,'("Old snow depth tile ",I1.1)') n
+    write(vname,'("osnd_",I1.1)') n
     call attrib(idnc,idim,3,vname,lname,'mm',0.,6500.,0,-1)  ! -1=long
     write(lname,'("Snow age tile ",I1.1)') n
     write(vname,'("snage_",I1.1)') n
@@ -2431,7 +2437,15 @@ do n=1,5
     if (n<=maxnb) dat=unpack(ssnow%ssdn(pind(n,1):pind(n,2),k),tmap(:,n),dat)
     write(vname,'("ssdn",I1.1,"_",I1.1)') k,n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
+    dat=snowd/3.
+    if (n<=maxnb) dat=unpack(ssnow%sdepth(pind(n,1):pind(n,2),k),tmap(:,n),dat)
+    write(vname,'("sdepth",I1.1,"_",I1.1)') k,n
+    call histwrt3(dat,vname,idnc,iarch,local,.true.)
   end do
+  dat=ssdnn
+  if (n<=maxnb) dat=unpack(ssnow%ssdnn(pind(n,1):pind(n,2)),tmap(:,n),dat)
+  write(vname,'("ssdnn_",I1.1)') n
+  call histwrt3(dat,vname,idnc,iarch,local,.true.)
   dat=real(isflag)
   if (n<=maxnb) dat=unpack(real(ssnow%isflag(pind(n,1):pind(n,2))),tmap(:,n),dat)
   write(vname,'("sflag_",I1.1)') n
@@ -2439,6 +2453,10 @@ do n=1,5
   dat=snowd
   if (n<=maxnb) dat=unpack(ssnow%snowd(pind(n,1):pind(n,2)),tmap(:,n),dat)
   write(vname,'("snd_",I1.1)') n
+  call histwrt3(dat,vname,idnc,iarch,local,.true.)
+  dat=snowd
+  if (n<=maxnb) dat=unpack(ssnow%osnowd(pind(n,1):pind(n,2)),tmap(:,n),dat)
+  write(vname,'("osnd_",I1.1)') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)
   dat=snage
   if (n<=maxnb) dat=unpack(ssnow%snage(pind(n,1):pind(n,2)),tmap(:,n),dat)
