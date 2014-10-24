@@ -230,8 +230,8 @@ SUBROUTINE surface_albedosn(ssnow, veg, met, soil)
          ! accumulation of dirt
          ar3 = .1
          ! snow covered fraction of the grid
-         !snrat = min (1., snr / (snr + .1) )
-         snrat = min (1., snr / (snr + .01) )    
+         !snrat = min (1., snr / (snr + .1) )    
+         snrat = min (1., snr / (snr + .01) ) 
       
       END WHERE
 

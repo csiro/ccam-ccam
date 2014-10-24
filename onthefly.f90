@@ -881,8 +881,9 @@ if ( nested/=1 ) then
   if ( myid==0 .or. pfall ) then
     ierc(7:7+3*ms)=0
     if ( ccycle==0 ) then
-      call ccnf_inq_varid(ncid,'cplant1',idv,tst)
-      if ( tst ) ierc(7)=-1
+      !call ccnf_inq_varid(ncid,'cplant1',idv,tst)
+      !if ( tst ) ierc(7)=-1
+      ierc(7)=-1
     else
       call ccnf_inq_varid(ncid,'glai',idv,tst)
       if ( tst ) ierc(7)=-1
@@ -1127,6 +1128,10 @@ if ( nested/=1 ) then
   end if
 
   !------------------------------------------------------------------
+  ! Read sensible heat flux for convection
+  call gethist1('fg',fg)
+  
+  !------------------------------------------------------------------
   ! Read boundary layer height for TKE-eps mixing and aerosols
   call gethist1('pblh',pblh)
   pblh=max(pblh,1.)
@@ -1143,16 +1148,16 @@ if ( nested/=1 ) then
   ! Read CABLE/CASA aggregate C+N+P pools
   if ( nsib>=6 ) then
     if ( ccycle==0 ) then
-      if ( ierc(7)==0 ) then
-        do k=1,ncp
-          write(vname,'("cplant",I1.1)') k
-          call fillhist1(vname,cplant(:,k),sea_a)
-        end do
-        do k=1,ncs
-          write(vname,'("csoil",I1.1)') k
-          call fillhist1(vname,csoil(:,k),sea_a)
-        end do
-      end if
+      !if ( ierc(7)==0 ) then
+      !  do k=1,ncp
+      !    write(vname,'("cplant",I1.1)') k
+      !    call fillhist1(vname,cplant(:,k),sea_a)
+      !  end do
+      !  do k=1,ncs
+      !    write(vname,'("csoil",I1.1)') k
+      !    call fillhist1(vname,csoil(:,k),sea_a)
+      !  end do
+      !end if
     else
       if ( ierc(7)==0 ) then
         do k=1,mplant
@@ -1503,7 +1508,7 @@ if ( myid==0 .and. nested==0 ) then
 end if
 
 return
-                         end subroutine onthefly_work
+end subroutine onthefly_work
 
 
 ! *****************************************************************************

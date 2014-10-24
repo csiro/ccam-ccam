@@ -70,7 +70,8 @@
 !     nevapls:  turn off/on ls evap - through parm.h; 0 off, 5 newer UK
       integer ktmax(ifull),kbsav_ls(ifull),kb_sav(ifull),kt_sav(ifull)
       integer kkbb(ifull),kmin(ifull)
-      integer, save :: k500,k600,k900,klon2,klon23,k935,k972
+      integer, save :: k500,k600,k900,klon2,klon23
+      integer, save :: k980 ! MJT suggestion
       integer, save :: mcontlnd,mcontsea           
       real,save :: convt_frac
       real, dimension(:), allocatable, save ::  timeconv,entrainn
@@ -109,6 +110,11 @@
         enddo
         kpos=minloc(abs(sig-.6)) ! finds k value closest to sig=.6
         k600=kpos(1)
+        k980=1                    ! MJT suggestion
+        do while(sig(k980)>=0.98) ! MJT suggestion
+          k980=k980+1             ! MJT suggestion
+        enddo                     ! MJT suggestion
+        k980=max(k980,2)          ! MJT suggestion
         k500=1
         do while(sig(k500)>=0.6)
           k500=k500+1
@@ -146,11 +152,9 @@
         do k=1,kl
          if(sig(k)>.25)klon23=k  ! JLM
          if(sig(k)> .5)klon2=k
-         if(sig(k)> .935)k935=k
-         if(sig(k)> .972)k972=k   ! 2 for L18, 4 for L27
         enddo
-        if(myid==0)write(6,*) 'klon23,klon2,k500,k935,k972',
-     &                     klon23,klon2,k500,k935,k972
+        if(myid==0)write(6,*) 'klon23,klon2,k500,k980',
+     &                     klon23,klon2,k500,k980
 !      precalculate detrainment arrays for various methprec
 !      methprec gives the vertical distribution of the detrainment
 !      methdetr gives the fraction of precip detrained (going into qxcess)
@@ -407,10 +411,10 @@
          do iq=1,ifull
           es(iq,1)=establ(tt(iq,1))
           pk=ps(iq)*sig(1)
-          qs(iq,1)=.622*es(iq,1)/max(pk-es(iq,1),1.)  
+          qs(iq,1)=.622*es(iq,1)/max(pk-es(iq,1),0.1) ! MJT suggestion  
           k=kkbb(iq)
           if(fg(iq)>mbase)alfqarr(iq)=alfqarr(iq)*         !  mbase>=0;  N.B. qs check done later with qbass
-     &               max(wetfac(iq)*qs(iq,1),qg(iq,2),qg(iq,k))/qg(iq,k)
+     &      max(wetfac(iq)*qs(iq,1),qg(iq,k980),qg(iq,k))/qg(iq,k) ! MJT suggestion
          enddo 
         endif  ! (mbase>=0)
 

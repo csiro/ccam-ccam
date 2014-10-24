@@ -2143,12 +2143,11 @@ if (mp>0) then
   do k = 1,ms
     ssnow%wbtot=ssnow%wbtot+ssnow%wb(:,k)*1000.0*soil%zse(k)
     ssnow%tggav=ssnow%tggav+soil%zse(k)*ssnow%tgg(:,k)/(totdepth/100.)
-  end do
-  ! MJT notes - what about gammzz(:,2:3) ?
-  ssnow%gammzz(:,1)=max((1.-soil%ssat)*soil%css* soil%rhosoil                       &
-       +real(ssnow%wb(:,1)-ssnow%wbice(:,1))*4.218e3* 1000.                         &
-       +real(ssnow%wbice(:,1))*2.100e3*1000.*0.9,soil%css*soil%rhosoil)*soil%zse(1) &
+    ssnow%gammzz(:,k)=max((1.-soil%ssat)*soil%css* soil%rhosoil                     &
+       +real(ssnow%wb(:,k)-ssnow%wbice(:,k))*4.218e3* 1000.                         &
+       +real(ssnow%wbice(:,k))*2.100e3*1000.*0.9,soil%css*soil%rhosoil)*soil%zse(k) &
        +(1.-ssnow%isflag)*2090.0*ssnow%snowd
+  end do
 
   if (icycle==0) then
     bgc%cplant=max(bgc%cplant,0.)
