@@ -678,14 +678,19 @@ common/leap_yr/leap  ! 1 to allow leap years
 select case( proglai )
   case(0) ! PWCB interpolated LAI
     imonth = (/ 31,28,31,30,31,30,31,31,30,31,30,31 /)
-    if (leap==1) then
-      if (mod(jyear,4)  ==0) imonth(2)=29
-      if (mod(jyear,100)==0) imonth(2)=28
-      if (mod(jyear,400)==0) imonth(2)=29
+    if ( leap==1 ) then
+      if ( mod(jyear,4)  ==0 ) imonth(2)=29
+      if ( mod(jyear,100)==0 ) imonth(2)=28
+      if ( mod(jyear,400)==0 ) imonth(2)=29
     end if
-    monthstart=1440*(jday-1) + 60*jhour + jmin ! mins from start month
-    x=min(max(real(mtimer+monthstart)/real(1440*imonth(jmonth)),0.),1.)
-    veg%vlai(:)=vl1(:)+vl2(:)*x+vl3(:)*x*x     ! LAI as a function of time
+    monthstart = 1440*(jday-1) + 60*jhour + jmin ! mins from start month
+    x = min(max(real(mtimer+monthstart)/real(1440*imonth(jmonth)),0.),1.)
+    veg%vlai = vl1+vl2*x+vl3*x*x     ! LAI as a function of time
+    where ( veg%iveg<14 )
+      veg%vlai = max( veg%vlai, 0.011 )
+    elsewhere
+      veg%vlai = 0.001
+    end where
 
   case(1) ! prognostic LAI
     if (icycle==0) then
@@ -1927,6 +1932,7 @@ if (ierr/=0) then
         ssnow%smass(pind(n,1):pind(n,2),k)  = pack(smass(:,k),tmap(:,n))
         ssnow%ssdn(pind(n,1):pind(n,2),k)   = pack(ssdn(:,k), tmap(:,n))
         ssnow%sdepth(pind(n,1):pind(n,2),k) = pack(snowd/3.,  tmap(:,n))
+        ssnow%sconds(pind(n,1):pind(n,2),k) = 0.2
       end do      
       ssnow%ssdnn(pind(n,1):pind(n,2))  = pack(ssdnn, tmap(:,n))
       ssnow%isflag(pind(n,1):pind(n,2)) = pack(isflag,tmap(:,n))
@@ -1997,6 +2003,9 @@ else
       write(vname,'("sdepth",I1.1,"_",I1.1)') k,n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
       if (n<=maxnb) ssnow%sdepth(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
+      write(vname,'("sconds",I1.1,"_",I1.1)') k,n
+      call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
+      if (n<=maxnb) ssnow%sconds(pind(n,1):pind(n,2),k) = pack(dat,tmap(:,n))
     end do
     write(vname,'("ssdnn_",I1.1)') n
     call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
@@ -2254,6 +2263,9 @@ if (myid==0.or.local) then
       write(lname,'("Snow depth ",I1.1," tile ",I1.1)') k,n
       write(vname,'("sdepth",I1.1,"_",I1.1)') k,n 
       call attrib(idnc,idim,3,vname,lname,'mm',0.,6500.,0,-1)
+      write(lname,'("Snow sconds ",I1.1," tile ",I1.1)') k,n
+      write(vname,'("sconds",I1.1,"_",I1.1)') k,n 
+      call attrib(idnc,idim,3,vname,lname,'none',0.,6.5,0,-1)
     end do
     write(lname,'("Snow ssdnn tile ",I1.1)') n
     write(vname,'("ssdnn_",I1.1)') n
@@ -2439,6 +2451,10 @@ do n=1,5
     dat=snowd/3.
     if (n<=maxnb) dat=unpack(ssnow%sdepth(pind(n,1):pind(n,2),k),tmap(:,n),dat)
     write(vname,'("sdepth",I1.1,"_",I1.1)') k,n
+    call histwrt3(dat,vname,idnc,iarch,local,.true.)
+    dat=0.2
+    if (n<=maxnb) dat=unpack(ssnow%sconds(pind(n,1):pind(n,2),k),tmap(:,n),dat)
+    write(vname,'("sconds",I1.1,"_",I1.1)') k,n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
   end do
   dat=ssdnn
