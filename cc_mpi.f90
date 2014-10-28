@@ -107,7 +107,7 @@ module cc_mpi
    end interface ccmpi_allreduce
    interface ccmpi_bcast
       module procedure ccmpi_bcast1i, ccmpi_bcast2i, ccmpi_bcast3i, ccmpi_bcast1r, ccmpi_bcast2r, &
-                       ccmpi_bcast3r, ccmpi_bcast4r, ccmpi_bcast5r, ccmpi_bcast2s
+                       ccmpi_bcast3r, ccmpi_bcast4r, ccmpi_bcast5r, ccmpi_bcast1s
    end interface ccmpi_bcast
    interface ccmpi_bcastr8
       module procedure ccmpi_bcast2r8, ccmpi_bcast3r8, ccmpi_bcast4r8
@@ -6430,23 +6430,37 @@ contains
    
    end subroutine ccmpi_bcast5r
 
-   subroutine ccmpi_bcast2s(ldat,host,comm)
+   subroutine ccmpi_bcast1s(ldat,host,comm)
    
       integer, intent(in) :: host, comm
       integer(kind=4) :: lcomm, lhost, lerr, lsize
-      integer(kind=4), parameter :: ltype = MPI_CHARACTER
-      character(len=*), dimension(:), intent(inout) :: ldat
+      character(len=*), intent(inout) :: ldat
+      integer, parameter :: maxdummysize = 256
+      integer i
+      integer(kind=1), dimension(maxdummysize) :: dummy
 
+      ! MJT notes - Windows MPI_CHARACTER seems broken
+      
       call START_LOG(bcast_begin)
 
       lhost = host
       lcomm = comm
-      lsize = size(ldat)*len(ldat(1))
-      call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,lerr)
+      lsize = len(ldat)
+      if ( lsize>maxdummysize ) then
+        write(6,*) "ERROR: Dummy array too small in ccmpi_bcast1s"
+        call mpi_abort(MPI_COMM_WORLD,-1_4,lerr)
+      end if
+      do i=1,lsize
+        dummy(i)=iachar(ldat(i:i))
+      end do
+      call MPI_Bcast(dummy,lsize,MPI_BYTE,lhost,lcomm,lerr)
+      do i=1,lsize
+        ldat(i:i)=achar(dummy(i))
+      end do
    
       call END_LOG(bcast_end)
    
-   end subroutine ccmpi_bcast2s
+   end subroutine ccmpi_bcast1s
    
    subroutine ccmpi_bcast2r8(ldat,host,comm)
    

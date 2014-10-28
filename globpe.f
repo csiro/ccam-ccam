@@ -68,7 +68,7 @@
       use timeseries, only : write_ts         ! Tracer time series
       use tkeeps, only : tkeinit              ! TKE-EPS boundary layer
       use tracermodule, only : init_tracer    ! Tracer routines
-     &   ,trfiles,tracer_mass,unit_trout
+     &   ,trfiles,tracer_mass
      &   ,interp_tracerflux,tracerlist
       use tracers_m                           ! Tracer data
       use unn_m                               ! Saved dynamic arrays
@@ -1442,27 +1442,24 @@
       odcalc=mod(ktau,kountr)==0.or.ktau==1 ! ktau-1 better
       if (nhstest<0) then ! aquaplanet test -1 to -8  
        mtimer_sav=mtimer
-       mtimer=mins_gmt     ! so radn scheme repeatedly works thru same day
+       mtimer=mins_gmt    ! so radn scheme repeatedly works thru same day
       end if    ! (nhstest<0)
       select case(nrad)
        case(4)
-!       Fels-Schwarzkopf radiation
+        ! Fels-Schwarzkopf radiation
         call radrive(il*nrows_rad,odcalc)
        case(5)
         ! GFDL SEA-EFS radiation
         call seaesfrad(il*nrows_rad,odcalc)
        case DEFAULT
-!       use preset slwa array (use +ve nrad)
+        ! use preset slwa array (use +ve nrad)
         slwa(:)=-10*nrad  
-!       N.B. no rtt array for this nrad option
       end select
       if (nhstest<0) then ! aquaplanet test -1 to -8  
         mtimer=mtimer_sav
       end if    ! (nhstest<0)
       if (nmaxpr==1) then
         call maxmin(slwa,'sl',ktau,.1,1)
-      end if
-      if (nmaxpr==1) then
         if (myid==0) then
           write(6,*) "After radiation"
         end if
@@ -1632,7 +1629,7 @@
         call END_LOG(vertmix_end)
       endif  ! (ntsur>=1)
       if (ncloud>=3) then
-        nettend=nettend-t(1:ifull,:)/dt
+        nettend=(nettend-t(1:ifull,:)/dt)
       end if
       if (nmaxpr==1) then
         if (myid==0) then
@@ -1662,13 +1659,6 @@
       if(ngas>0) then
         call tracer_mass(ktau,ntau) !also updates average tracer array
         call write_ts(ktau,ntau,dt)
-!     rml 23/4/10 if final timestep write accumulated loss to tracer.stdout file
-        if (ktau==ntau) then
-          if (myid == 0) then
-            write(unit_trout,*) 'Methane loss accumulated over month'
-            write(unit_trout,*) ktau,acloss_g(:)
-          endif
-        endif
       endif
 
       ! ***********************************************************************
@@ -2433,23 +2423,23 @@ c     stuff from insoil  for soilv.h
      &          1.69, 1.9, 1.37, 1.5, 1.21, 1.58, 1.41, 2.3, 1.2, 1.71,  ! 11-20
      &          1.21, 2.3, 2.3, 1.2, 1.2, 1.87, 1., 3., .01, .01, 1.2,   ! 21-31
      &          6., 5.5, 5., 4.5, 5., 4., 3., 3.5, 1., 4., .5, 4., 0./   ! 32-44
-      data rlais44/1., 1., 1., 1., 1., 1., 1., 1., 1., 1.,              ! 1-10
-     &           1., 1., 1., 1., 1., 1., 1., 1., 1., 1.,                ! 11-20
-     &           1., 1., 1., 1., .6, .6, .5, 1., 0., 0., 1.,            ! 21-31
-     &           2., 2., 2., 2., 2., 1.5, 1.5, 1.5, 1., .5, .5, .5, 0./ ! 32-44
+      data rlais44/1., 1., 1., 1., 1., 1., 1., 1., 1., 1.,               ! 1-10
+     &           1., 1., 1., 1., 1., 1., 1., 1., 1., 1.,                 ! 11-20
+     &           1., 1., 1., 1., .6, .6, .5, 1., 0., 0., 1.,             ! 21-31
+     &           2., 2., 2., 2., 2., 1.5, 1.5, 1.5, 1., .5, .5, .5, 0./  ! 32-44
       data rsunc44/
      &      370., 330., 260., 200., 150., 130., 200., 150., 110., 160.,  ! 1-10
      &      100., 120.,  90.,  90.,  80.,  90.,  90., 150.,  80., 100.,  ! 11-20
      &       80.,  80.,  80.,  60.,  60., 120.,  80., 180., 2*995., 80., ! 21-31
      &      350., 4*300., 3*230., 150., 230., 995., 150., 9900./         ! 32-44
-      data scveg44/0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,              ! 1-10
-     &             0., 0., 0., 0., 0., .1, .1, .1, .1, .1,              ! 11-20
-     &             .1, .2, .4, .2, .1, .1, .1, 0., 0., 0., 0.,          ! 21-31
-     &         .05, 0., 0., 0., 0., .05, .05, .05, .1, 0., 0., .4, 0./  ! 32-44
-      data slveg44/0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,           ! 1-10
-     &             0., 0., 0., 0., 0., .1, .1, .1, .1, .1,           ! 11-20
-     &             .1, .2, .4, .2, .1, .1, .1, 0., 0., 0., 0.,       ! 21-31
-     &     1., 5.5, 3., 1., 3., 3., 3.5, 3., .5, 3.5, .1, 3.5, 0./   ! 32-44
+      data scveg44/0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,               ! 1-10
+     &             0., 0., 0., 0., 0., .1, .1, .1, .1, .1,               ! 11-20
+     &             .1, .2, .4, .2, .1, .1, .1, 0., 0., 0., 0.,           ! 21-31
+     &         .05, 0., 0., 0., 0., .05, .05, .05, .1, 0., 0., .4, 0./   ! 32-44
+      data slveg44/0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,               ! 1-10
+     &             0., 0., 0., 0., 0., .1, .1, .1, .1, .1,               ! 11-20
+     &             .1, .2, .4, .2, .1, .1, .1, 0., 0., 0., 0.,           ! 21-31
+     &     1., 5.5, 3., 1., 3., 3., 3.5, 3., .5, 3.5, .1, 3.5, 0./       ! 32-44
       data froot/.05, .10, .35, .40, .10/       ! 10/02/99 veg. root distr.
 
       data silt/.08, .33, .17, .2, .06, .25, .15, .70, .33

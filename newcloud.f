@@ -135,8 +135,6 @@ C Start code : ----------------------------------------------------------
           write(6,*) 'qfg ',(qfg(idjd,k),k=1,nl)
       endif
 
-c Define cdrop  - passed through as cdso4, defined in leoncld.f
-
 c First melt cloud ice or freeze cloud water to give correct ice fraction fice.
 c Then calculate the cloud conserved variables qtot and tliq.
 c Note that qcg is the total cloud water (liquid+frozen)
@@ -187,7 +185,7 @@ c Note that qcg is the total cloud water (liquid+frozen)
             rcrit(:,k)=max( rcrit_s, (1.-4.*(1.-sig(k))**2) )
            end where
           enddo
-         elseif(nclddia==1)then
+        elseif(nclddia==1)then
           do k=1,nl
            where(land(1:ifull))
             rcrit(:,k)=max( rcrit_l, sig(k)**3 )
@@ -203,7 +201,7 @@ c Note that qcg is the total cloud water (liquid+frozen)
             rcrit(:,k)=rcrit_s
            end where
           enddo
-         elseif(nclddia==3)then
+        elseif(nclddia==3)then
           do k=1,nl
            where(land(1:ifull))
             rcrit(:,k)=max( rcrit_l, sig(k)**2 )          ! .75 for R21 Mk2
@@ -227,7 +225,7 @@ c Note that qcg is the total cloud water (liquid+frozen)
             rcrit(:,k)=max( rcrit_s, min(.99,sig(k)) )    ! .85 for same as T63
            end where
           enddo
-         elseif(nclddia==6)then
+        elseif(nclddia==6)then
           do k=1,nl
            where(land(1:ifull))
             rcrit(:,k)=max(rcrit_l*(1.-.15*sig(k)),sig(k)**4)
@@ -235,7 +233,7 @@ c Note that qcg is the total cloud water (liquid+frozen)
             rcrit(:,k)=max(rcrit_s*(1.-.15*sig(k)),sig(k)**4)
            end where
           enddo
-         elseif(nclddia==7)then
+        elseif(nclddia==7)then
           do k=1,nl
            where(land(1:ifull))
             rcrit(:,k)=max(rcrit_l*(1.-.2*sig(k)),sig(k)**4)
@@ -384,18 +382,15 @@ c Introduce a time-decay factor for cirrus (as suggested by results of Khvorosty
 c JAS, 55, 1822-1845, 1998). Their suggested range for the time constant is 0.5 to 2 hours.
 c The grid-box-mean values of qtg and ttg are adjusted later on (below).
 
-      if (ncloud<3) then
-        decayfac = exp ( (-1./7200.) * tdt )       ! Try 2 hrs
-      else
-        decayfac = 0.                              ! Instant adjustment (old scheme)
-      end if
+      decayfac = exp ( -tdt/7200. )              ! Try 2 hrs
+      !decayfac = 0.                             ! Instant adjustment (old scheme)
       where(ttg>=Tice)
         qfg(1:ifull,:) = fice*qcg
         qlg(1:ifull,:) = qcg - qfg(1:ifull,:)
       elsewhere                                    ! Cirrus T range
         qfg(1:ifull,:) = qcold*decayfac + qcg*(1.-decayfac)
         qlg(1:ifull,:) = 0.
-        qcg = qfg(1:ifull,:)
+        qcg(1:ifull,:) = qfg(1:ifull,:)
       end where
 
 c Do the vapour deposition calculation in mixed-phase clouds:
@@ -423,7 +418,7 @@ c Next 2 lines are for assumption of fully mixed ql and qf (also a line further 
 
               qi0=max(qi0, qfg(mg,k)/cfrac(mg,k)) !Assume all qf and ql are mixed
               fd=1.   !Fraction of cloud in which deposition occurs
-c              fd=fl   !Or, use option of adjacent ql,qf
+c             fd=fl   !Or, use option of adjacent ql,qf
 
               alf=1./3.
               rhoic=700.

@@ -58,30 +58,30 @@ integer, parameter :: ncarb = 4
 integer, parameter :: ndust = 4
 integer, parameter :: naero = nsulf+ncarb+ndust ! Tracers: DMS, SO2, SO4, BCO, BCI, OCO, OCI, DUST(4)
 integer, parameter :: itracso2 = 2              ! Index for SO2 tracer
-integer, parameter :: itracbc = nsulf+1         ! Index for BC    "    (hydrophobicm, hydrophillic)
-integer, parameter :: itracoc = nsulf+3         ! Index for OC    "    (hydrophobicm, hydrophillic)
-integer, parameter :: itracdu = nsulf+ncarb+1   ! Index for dust  "
-integer, parameter :: ndcls = 3                 ! No. of dust emission classes (sand, silt, clay)
+integer, parameter :: itracbc = nsulf+1         ! Index for BC tracer (hydrophobic, hydrophillic)
+integer, parameter :: itracoc = nsulf+3         ! Index for OC tracer (hydrophobic, hydrophillic)
+integer, parameter :: itracdu = nsulf+ncarb+1   ! Index for dust tracer
+integer, parameter :: ndcls = 3                 ! Number of dust emission classes (sand, silt, clay)
 
-! emissions
-integer, parameter :: iso2a1=1
-integer, parameter :: iso2a2=2
-integer, parameter :: ibca1 =3
-integer, parameter :: ibca2 =4
-integer, parameter :: ioca1 =5
-integer, parameter :: ioca2 =6
-integer, parameter :: iso2b1=7
-integer, parameter :: iso2b2=8
-integer, parameter :: ibcb1 =9
-integer, parameter :: ibcb2 =10
-integer, parameter :: iocb1 =11
-integer, parameter :: iocb2 =12
-integer, parameter :: idmso =13     ! DMS ocean
-integer, parameter :: idmst =14     ! DMS terr
-integer, parameter :: iocna =15     ! Nat org
+! emission indices
+integer, parameter :: iso2a1 = 1      ! SO2/SO4 Anthropogenic surface
+integer, parameter :: iso2a2 = 2      ! SO2/SO4 Anthropogenic upper level
+integer, parameter :: ibca1  = 3      ! BC Anthropogenic surface
+integer, parameter :: ibca2  = 4      ! BC Anthropogenic upper level
+integer, parameter :: ioca1  = 5      ! OC Anthropogenic surface
+integer, parameter :: ioca2  = 6      ! OC Anthropogenic upper level
+integer, parameter :: iso2b1 = 7      ! SO2/SO4 BiomassBurning surface
+integer, parameter :: iso2b2 = 8      ! SO2/SO4 BiomassBurning upper level
+integer, parameter :: ibcb1  = 9      ! BC BiomassBurning surface
+integer, parameter :: ibcb2  = 10     ! BC BiomassBurning upper level
+integer, parameter :: iocb1  = 11     ! OC BiomassBurning surface
+integer, parameter :: iocb2  = 12     ! OC BiomassBurning upper level
+integer, parameter :: idmso  = 13     ! DMS ocean
+integer, parameter :: idmst  = 14     ! DMS land
+integer, parameter :: iocna  = 15     ! Natural organic
 
 ! options
-integer, save :: enhanceu10 = 0                 ! Modify 10m wind speed (0=none, 1=quadrature, 2=linear)
+integer, save :: enhanceu10 = 0                 ! Modify 10m wind speed for emissions (0=none, 1=quadrature, 2=linear)
 integer, save :: aeroindir  = 0                 ! Indirect effect (0=SO4+Carbon+salt, 1=SO4, 2=None)
 
 ! physical constants
@@ -97,9 +97,15 @@ real, save :: zvolcemi       = 8.               ! Total emission from volcanoes 
 real, save :: dzmin_gbl      = 5.               ! nominal minimum dz for dust settling (m)
 real, save :: Ch_dust        = 1.e-9            ! Transfer coeff for type natural source (kg*s2/m5)
 
-! scavenging constants
-real, parameter :: ticeu     = 263.16           ! Temperature for freezing in convective updraft
+! Indirect effect coefficients
+! converts from mass (kg/m3) to number concentration (/m3) for dist'n
+real, parameter :: so4mtn = 1.24e17             ! Penner et al (1998)
+!real, parameter :: so4mtn = 1.69e17            ! IPCC (2001) Table 5.1
+real, parameter :: carbmtn = 1.25e17            ! Penner et al (1998)
+!real, parameter :: carbmtn = 1.21e17           ! IPCC (2001) Table 5.1
+!real, parameter :: carbmtn = 2.30e17           ! counts Aitken mode as well as accumulation mode carb aerosols
 
+! Dust coefficients
 real, dimension(ndust), parameter :: dustden = (/ 2500., 2650., 2650., 2650. /)    ! Density of dust (kg/m3)
                                                                                    ! (Clay, small silt, small slit, small silt)
 real, dimension(ndust), parameter :: dustreff = (/ 0.73e-6,1.4e-6,2.4e-6,4.5e-6 /) ! Main effective radius (m)
@@ -110,6 +116,30 @@ real, dimension(ndust), parameter :: dustreff = (/ 0.73e-6,1.4e-6,2.4e-6,4.5e-6 
 real, dimension(ndust), parameter :: frac_s = (/ 0.1, 0.25, 0.25, 0.25 /)
 integer, dimension(ndust), parameter :: ipoint = (/ 3, 2, 2, 2 /)                  ! Pointer used for dust classes
                                                                                    ! (sand, silt, clay)
+
+! wet deposition coefficients
+! Allow in-cloud scavenging in ice clouds for hydrophobic BC and OC, and dust
+real, dimension(naero), parameter :: Ecols = (/0.00,0.00,0.00,0.05,0.00,0.05,0.00,0.05,0.05,0.05,0.05/)
+!Below-cloud collection eff. for rain
+!real, dimension(naero), parameter :: zcollefr = (/0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.10,0.20,0.40/)
+real, dimension(naero), parameter :: zcollefr = (/0.10,0.10,0.10,0.10,0.10,0.10,0.10,0.05,0.10,0.20,0.40/)
+!Below-cloud collection eff. for snow
+!real, dimension(naero), parameter :: zcollefs = (/0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.02,0.04,0.08/)
+real, dimension(naero), parameter :: zcollefs = (/0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.01,0.02,0.04,0.08/)
+!Retention coeff. on riming
+real, dimension(naero), parameter :: Rcoeff = (/1.00,0.62,1.00,0.00,1.00,0.00,1.00,1.00,1.00,1.00,1.00/)
+!Relative reevaporation rate
+real, dimension(naero), parameter :: Evfac = (/0.25,1.00,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25/)
+
+! convective scavenging coefficients
+real, parameter :: ticeu     = 263.16           ! Temperature for freezing in convective updraft
+! In-cloud scavenging efficiency for liquid and frozen convective clouds follows.
+! Hard-coded for 3 sulfur variables, 4 carbonaceous, 4 mineral dust.
+! Note that value for SO2 (index 2) is overwritten by Henry coefficient f_so2 below.
+! These ones are for 3 SULF, 4 CARB and 4 or 8 DUST (and include dummy variables at end)
+!real, parameter, dimension(naero) :: scav_effl = (/0.00,1.00,0.90,0.00,0.30,0.00,0.30,0.05,0.05,0.05,0.05/) ! liquid
+real, parameter, dimension(naero) :: scav_effl = (/0.00,1.00,0.90,0.00,0.30,0.00,0.30,0.30,0.30,0.30,0.30/) ! liquid
+real, parameter, dimension(naero) :: scav_effi = (/0.00,0.00,0.00,0.05,0.00,0.05,0.00,0.05,0.05,0.05,0.05/) ! ice
 
 contains
 
@@ -1793,17 +1823,6 @@ real zstay,xstay
 real xevap,pcevap
 
 integer, parameter :: ktop = 2    !Top level for wet deposition (counting from top)
-! Allow in-cloud scavenging in ice clouds for hydrophobic BC and OC, and dust
-real, dimension(naero), parameter :: Ecols = (/0.00,0.00,0.00,0.05,0.00,0.05,0.00,0.05,0.05,0.05,0.05/)
-!Below-cloud collection eff. for rain
-real, dimension(naero), parameter :: zcollefr = (/0.10,0.10,0.10,0.10,0.10,0.10,0.10,0.05,0.10,0.20,0.40/)
-!Below-cloud collection eff. for snow
-real, dimension(naero), parameter :: zcollefs = (/0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.01,0.02,0.04,0.08/)
-!Retention coeff. on riming
-real, dimension(naero), parameter :: Rcoeff = (/1.00,0.62,1.00,0.00,1.00,0.00,1.00,1.00,1.00,1.00,1.00/)
-!Relative reevaporation rate
-real, dimension(naero), parameter :: Evfac = (/0.25,1.00,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25/)
-
 real, parameter :: zmin = 1.e-20
 
 ! Start code : ----------------------------------------------------------
@@ -2305,19 +2324,9 @@ select case(aeroindir)
   case(0)
     do k=1,kl
       ! Factor of 132.14/32.06 converts from sulfur to ammmonium sulfate
-      ! 1.24e17 converts from mass (kg/m3) to number concentration (/m3) for dist'n 
-      ! from Penner et al (1998).
-      ! 1.69e17 converts from mass (kg/m3) to number concentration (/m3) for dist'n 
-      ! from IPCC (2001), Table 5.1, as used by Minghuai Wang for lookup optical properties.
-      so4_n = 1.24e17 * (132.14/32.06) * rhoa(:,k) * xtgso4(:,k)
+      so4_n = so4mtn * (132.14/32.06) * rhoa(:,k) * xtgso4(:,k)
       ! Factor of 1.3 converts from OC to organic matter (OM) 
-      ! 1.25e17 converts from hydrophilic mass (kg/m3) to number concentration (/m3) for
-      ! Hardiman lognormal distribution for carbonaceous aerosols (Penner et al, 1998).
-      ! 1.21e17 converts from hydrophilic mass (kg/m3) to number concentration (/m3) for
-      ! biomass regional haze distribution from IPCC (2001), Table 5.1. Using rho_a=1250 kg/m3.
-      cphil_n = 1.25e17 * rhoa(:,k) * (xtgbc(:,k)+1.3*xtgoc(:,k))
-      ! Following line counts Aitken mode as well as accumulation mode carb aerosols
-      !cphil_n = 2.30e17 * rhoa(:,k) * (xtgbc(:,k)+1.3*xtgoc(:,k))
+      cphil_n = carbmtn * rhoa(:,k) * (xtgbc(:,k)+1.3*xtgoc(:,k))
       salt_n = ssn(is:ie,k,1) + ssn(is:ie,k,2)
       ! Jones et al., modified to account for hydrophilic carb aerosols as well
       Atot = max( so4_n + cphil_n + salt_n, 0. )
@@ -2358,12 +2367,6 @@ real, dimension(size(fscav)) :: f_so2,scav_eff
 real, dimension(size(fscav)) :: zqtp1,ze2,ze3,zfac,zso4l,zso2l,zqhp
 real, dimension(size(fscav)) :: zza,zzb,zzp,zzq,zzp2,zhp,zqhr,zheneff,p_so2
 logical, dimension(size(fscav)) :: bwkp1 
-! In-cloud scavenging efficiency for liquid and frozen convective clouds follows.
-! Hard-coded for 3 sulfur variables, 4 carbonaceous, 4 mineral dust.
-! Note that value for SO2 (index 2) is overwritten by Henry coefficient f_so2 below.
-! These ones are for 3 SULF, 4 CARB and 4 or 8 DUST (and include dummy variables at end)
-real, parameter, dimension(naero) :: scav_effl = (/0.00,1.00,0.90,0.00,0.30,0.00,0.30,0.30,0.30,0.30,0.30/) ! liquid
-real, parameter, dimension(naero) :: scav_effi = (/0.00,0.00,0.00,0.05,0.00,0.05,0.00,0.05,0.05,0.05,0.05/) ! ice
 
 !bwkp1(:)=tt(:)>=ticeu ! condensate in parcel is liquid (true) or ice (false)
 bwkp1(:)=.true.        ! assume liquid for JLM convection

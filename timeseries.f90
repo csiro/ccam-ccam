@@ -327,7 +327,7 @@ use prec_m      ! precip
 use sigs_m      ! sigma levels for pressure
 use soil_m      ! albedo
 use soilsnow_m  ! soil temp (tgg)
-use tracermodule, only : co2em,unit_trout
+use tracermodule, only : co2em
 use tracers_m   ! ntrac and tr array
 use vegpar_m    ! rlai
 use vvel_m      ! vertical velocity
@@ -393,7 +393,6 @@ if (mod(ktau,ntsfreq).eq.0) then
       enddo
     case default
       write(6,*) varname3(m),' not found'
-      write(unit_trout,*) varname3(m),' not found'
       call ccmpi_abort(-1)
     end select
     allocate(vts(ngrdpts))
@@ -449,7 +448,6 @@ if (mod(ktau,ntsfreq).eq.0) then
       surfflux=.true.
    case default
       write(6,*) trim(varname2(m)),' not found'
-      write(unit_trout,*) trim(varname2(m)),' not found'
       call ccmpi_abort(-1)
    end select
           

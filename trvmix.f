@@ -150,7 +150,7 @@ c *****************************************************************
       use arrays_m        ! ps
       use cc_mpi
       use sigs_m          ! disg,bet,betm
-      use tracermodule, only : oh,strloss,unit_trout,mcfdep,jmcf
+      use tracermodule, only : oh,strloss,mcfdep,jmcf
       use tracers_m       ! tr
       use xyzinfo_m       ! wts
       implicit none
@@ -203,7 +203,6 @@ c
           totloss(1) = -1.*totloss(1)*4*pi*eradsq*fCH4_MolM/
      &                 (grav*fAIR_MolM*1.e18)
           write(6,*) 'Total loss',ktau,totloss(1)
-          write(unit_trout,*) 'Total loss',ktau,totloss(1)
 !         accumulate loss over month
           acloss_g(igas) = acloss_g(igas) + totloss(1)
         endif
@@ -304,4 +303,4 @@ c     do back substitution to give answer now
       return
       end subroutine
 c ********************************************************************
-      end module
+      end module trvmix

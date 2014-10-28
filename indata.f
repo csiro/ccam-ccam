@@ -38,8 +38,7 @@
       use soil_m                               ! Soil and surface data
       use soilsnow_m                           ! Soil, snow and surface data
       use timeseries, only : init_ts           ! Tracer time series
-      use tracermodule, only : tracini,        ! Tracer routines
-     &  readtracerflux,tracvalin,unit_trout    
+      use tracermodule, only : readtracerflux  ! Tracer routines
       use tracers_m                            ! Tracer data
       use vecs_m                               ! Eigenvectors for atmosphere dynamics
       use vecsuv_m                             ! Map to cartesian coordinates
@@ -597,7 +596,6 @@
       if (ngas>0) then
         if(myid==0)write(6,*)'Initialising tracers'
 !       tracer initialisation (if start of run)
-        if (tracvalin/=-999) call tracini
         call init_ts(ngas,dt)
         call readtracerflux(kdate)
       endif

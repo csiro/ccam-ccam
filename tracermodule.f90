@@ -4,10 +4,10 @@ implicit none
       
 private
 public tractype,tracname,sitefile,shipfile
-public co2em,unit_trout,init_tracer,trfiles
+public co2em,init_tracer,trfiles
 public tracer_mass,interp_tracerflux,tracerlist
-public trout,tracvalin,writetrpm,tracmin,tracmax
-public tracini,readtracerflux,tracunit,tracdaytime
+public writetrpm,tracmin,tracmax
+public readtracerflux,tracunit,tracdaytime
 public oh,strloss,mcfdep,jmcf
       
 real, dimension(:,:,:), save, allocatable :: co2emhr,co2em123
@@ -25,7 +25,6 @@ real, dimension(:), save, allocatable :: tracmin,tracmax
 integer, dimension(:), save, allocatable :: tracinterp,igashr
 real, dimension(:,:), save, allocatable :: tracdaytime
 integer, save :: numtracer, nhr
-integer, save :: unit_trout=131
      
 ! rml 16/02/10 additions for Transcom methane
 real, dimension(:,:,:), save, allocatable :: oh123,strloss123
@@ -39,11 +38,9 @@ logical methane,mcf
 character(len=80), save :: tracerlist=' '
 character(len=80), save :: sitefile=' '
 character(len=80), save :: shipfile=' '
-character(len=80), save :: trout='tracer.stdout'
-real,save :: tracvalin=-999  !default to initialise from restart
 logical, save :: writetrpm=.false.
 
-namelist/trfiles/tracerlist,sitefile,shipfile,trout,tracvalin,writetrpm
+namelist/trfiles/tracerlist,sitefile,shipfile,writetrpm
 
 
 contains
@@ -58,13 +55,6 @@ integer nt
 character(len=80) :: header
 character(len=80) :: tempname  ! Temp file name
 
-! Unfortuately, this only works for myid==0 now, as it killed the
-! windows version of CCAM (multiple processor writes are not allowed)
-! Error messages from other processors have been moved to the standard
-! CCAM log output
-if ( myid == 0 ) then
- open(unit=unit_trout,file=trout,form='formatted',status='replace')
-end if
 !     first read in a list of tracers, then determine what emission data is required
 !     Each processor read this, perhaps not necessary?
 
@@ -112,7 +102,6 @@ do nt=1,numtracer
   end select
    if ( myid == 0 ) then
     write(6,999) 'Tracer ',nt,tracname(nt),tractype(nt),tracfile(nt),tracinterp(nt)
-    write(unit_trout,999) 'Tracer ',nt,tracname(nt),tractype(nt),tracfile(nt),tracinterp(nt)
   end if
  999    format(a7,i5,1x,a13,a13,a50,i3)
 ! rml 16/2/10 addition for TC methane
@@ -147,37 +136,6 @@ return
 end subroutine init_tracer
 
 ! ***********************************************************************
-subroutine tracini
-!     initial value now read from tracerlist 
-use infile
-use tracers_m
-implicit none
-integer i
-real in(ilt*jlt,klt)
-
-do i=1,ngas
-! rml 15/11/06 facility to introduce new tracers to simulation
-! i.e. some read from restart, others initialised here
-  if (tracival(i).ne.-999) then
-! rml 16/2/10 addition for TC methane to get 3d initial condition
-      if (tracname(i)(1:7)=='methane') then
-!             read  initial condition
-        call ccnf_read('ch4in_cc48.nc','ch4in',in)
-        tr(1:ilt*jlt,1:klt,i)=in
-      elseif (tracname(i)(1:3)=='mcf') then
-!             read  mcf initial condition
-        call ccnf_read('cmcfin_cc48.nc','mcfin',in)
-        tr(1:ilt*jlt,1:klt,i)=in
-      else
-        tr(:,:,i)=tracival(i)
-      endif
-  endif
-enddo
-
-return
-end subroutine tracini
-
-! ***********************************************************************
 subroutine tr_back
 !     remove a background value for tracer fields for more accurate transport
 use cc_mpi
@@ -191,7 +149,6 @@ real, dimension(2) :: dum
 
 if ( myid == 0 ) then
   write(6,*) 'Background tracer concentration removed:'
-  write(unit_trout,*) 'Background tracer concentration removed:'
 end if
 
 do i=1,ngas
@@ -208,7 +165,6 @@ do i=1,ngas
 !
   if ( myid == 0 ) then
     write(6,*) 'Tracer ',i,' : ',trback_g(i)
-    write(unit_trout,*) 'Tracer ',i,' : ',trback_g(i)
   end if
 
 enddo
@@ -284,7 +240,6 @@ if (mcf) then
  endif
  if (myid==0) then
    write(6,*) 'Read input fluxes/rates etc OK'
-   write(unit_trout,*) 'Read input fluxes/rates etc OK'
  end if
 
  return
@@ -317,16 +272,9 @@ integer, dimension(3) :: start,ncount
 real fluxin_g(ifull_g,nflux)
 logical gridpts,tst
 
-!  rml 30/04/10 special case for MCF deposition rates
-if (igas==ngas+1) then
-  fluxtype='monrep'
-  fluxname='flux'
-  filename = '/short/r39/TCinput/MCF_loss_CCAM48.nc'
-else
-  fluxtype=tractype(igas)
-  fluxname=tracname(igas)
-  filename=tracfile(igas)
-endif
+fluxtype=tractype(igas)
+fluxname=tracname(igas)
+filename=tracfile(igas)
 
 if (trim(fluxtype)=='pulseoff'.or.trim(fluxtype)=='daypulseoff') then
 !       no surface fluxes to read
@@ -337,11 +285,11 @@ end if
 
 if ( myid == 0 ) then ! Read on this processor and then distribute
   write(6,*)'reading ',trim(fluxname), ' with type ',trim(fluxtype),' for ',iyr,imon,' from ',filename
-  write(unit_trout,*)'reading ',trim(fluxname), ' with type ',trim(fluxtype),' for ',iyr,imon,' from ',filename
   call ccnf_open(filename,ncidfl,ierr)
   call ncmsg("readrco2",ierr)
   ! check for 1D or 2D formatted input
   call ccnf_inq_dimid(ncidfl,'gridpts',gridid,gridpts)
+  gridpts=.not.gridpts
   call ccnf_inq_dimlen(ncidfl,'time',ntime)
   allocate(fluxyr(ntime),fluxmon(ntime))
   call ccnf_get_var(ncidfl,'year',fluxyr)
@@ -355,8 +303,11 @@ if ( myid == 0 ) then ! Read on this processor and then distribute
   call ccnf_inq_varid(ncidfl,fluxname,fluxid,tst)
   if (tst) then
     call ccnf_inq_varid(ncidfl,'flux',fluxid,tst)
-    if (tst) stop 'flux variable not found'
   endif
+  if (tst) then
+    write(6,*) 'ERROR: flux variable not found'
+    call ccmpi_abort(-1)
+  end if  
 !       rml 25/08/04 read flux units attribute
   call ccnf_get_att(ncidfl,fluxid,'units',fluxunit)
 ! rml 08/11/04 added radon units
@@ -366,8 +317,6 @@ if ( myid == 0 ) then ! Read on this processor and then distribute
     if (fluxunit(1:7)/='gC/m2/s'.and.fluxunit(1:7)/='Bq/m2/s'.and.fluxunit(1:8)/='mol/m2/s') then
       write(6,*) 'Units for ',trim(fluxname),' are ',trim(fluxunit)
       write(6,*) 'Code not set up for units other than gC/m2/s or mol/m2/s or Bq/m2/s'
-      write(unit_trout,*) 'Units for ',trim(fluxname),' are ',trim(fluxunit)
-      write(unit_trout,*) 'Code not set up for units other than gC/m2/s or mol/m2/s or Bq/m2/s'
       write(6,*) 'fix flux units'
       call ccmpi_abort(-1)
     endif
@@ -424,13 +373,10 @@ if ( myid == 0 ) then ! Read on this processor and then distribute
     endif
 !
     if (ncur==0) then
-      write(6,*) 'current year/month not in flux file'
+      write(6,*) 'ERROR: current year/month not in flux file'
       call ccmpi_abort(-1)
     end if
-    if ( myid == 0 ) then
-     write(6,*)'reading ',ncur,fluxyr(ncur),fluxmon(ncur)
-     write(unit_trout,*)'reading ',ncur,fluxyr(ncur),fluxmon(ncur)
-    end if
+    write(6,*)'reading ',ncur,fluxyr(ncur),fluxmon(ncur)
 !    
     fluxin_g=0.
     if (gridpts) then
@@ -542,9 +488,9 @@ end if !myid == 0
 call ccmpi_bcast(co2time(1:nflux),0,comm_world)
 !     Also need to share tracunit, tractype, and tracname. MPI_character. Total length
 !     of the array
-call ccmpi_bcast(tracunit,0,comm_world)
-call ccmpi_bcast(tractype,0,comm_world)
-call ccmpi_bcast(tracname,0,comm_world)
+call ccmpi_bcast(tracunit(igas),0,comm_world)
+call ccmpi_bcast(tractype(igas),0,comm_world)
+call ccmpi_bcast(tracname(igas),0,comm_world)
       
 if (trim(fluxtype)=='daypulseon') then
 
@@ -568,6 +514,7 @@ if (trim(fluxtype)=='daypulseon') then
   endif
 endif
 
+return
 end subroutine readrco2
 
 ! *************************************************************************
@@ -592,7 +539,6 @@ logical gridpts,tst
 
 if ( myid == 0 ) then ! Read on this processor and then distribute
   write(6,*)'reading for ',imon,' from ',ohfile
-  write(unit_trout,*)'reading for ',imon,' from ',ohfile
   call ccnf_open(ohfile,ncidfl,ierr)
   call ncmsg("readoh",ierr)
   ! check for 1D or 2D formatted input
@@ -625,7 +571,6 @@ if ( myid == 0 ) then ! Read on this processor and then distribute
 
     if ( myid == 0 ) then
      write(6,*)'reading ',ncur,ohmon(ncur)
-     write(unit_trout,*)'reading ',ncur,ohmon(ncur)
     end if
     if (ncur==0) then
       write(6,*) 'current month not in flux file'
@@ -736,13 +681,10 @@ do igas=1,numtracer
        if ( myid==0 ) then
          write(6,*) 'igas: ',igas,'igashr: ',igh
          write(6,*) 'hrmodel: ',hrmodel
-         write(unit_trout,*) 'igas: ',igas,'igashr: ',igh
-         write(unit_trout,*) 'hrmodel: ',hrmodel
        end if
        do while (.not.found)
          if ( myid==0 ) then
            write(6,*) nghr(igh),co2hr(nghr(igh),igh),co2hr(nghr(igh)+1,igh)
-           write(unit_trout,*) nghr(igh),co2hr(nghr(igh),igh),co2hr(nghr(igh)+1,igh)
          end if
          if ((hrmodel.gt.co2hr(nghr(igh),igh)).and.(hrmodel.le.co2hr(nghr(igh)+1,igh))) then
            found = .true.
@@ -832,15 +774,6 @@ trmass = real(global_sum)
 call ccmpi_allreduce(trmass_l(1:ngas),trmass(1:ngas),"sum",comm_world)
 #endif
 
-!     scaling assumes CO2 with output in GtC?
-if ( myid == 0 ) then
-   if (ngas>11) then
-      write(unit_trout,*) 'Trmass: ',ktau,-1*trmass(1:6)*4.*3.14159*(rearth**2)*fC_MolM/(grav*1e18*fAIR_MolM)
-   else
-      write(unit_trout,*) 'Trmass (Tg CH4): ',ktau,-1*trmass(1:6)*4.*pi*eradsq*fCH4_MolM/(grav*1.e18*fAIR_MolM)
-   endif
-end if
-
 !     rml 14/5/10 code to create daily averages of afternoon concentrations
 if (writetrpm) then
   do iq=1,ilt*jlt
@@ -880,5 +813,35 @@ enddo
 
 
 end subroutine tracer_mass
+
+!subroutine tracini
+!!     initial value now read from tracerlist 
+!use infile
+!use tracers_m
+!implicit none
+!integer i
+!real in(ilt*jlt,klt)
+!
+!do i=1,ngas
+!! rml 15/11/06 facility to introduce new tracers to simulation
+!! i.e. some read from restart, others initialised here
+!  if (tracival(i).ne.-999) then
+!! rml 16/2/10 addition for TC methane to get 3d initial condition
+!      if (tracname(i)(1:7)=='methane') then
+!!             read  initial condition
+!        call ccnf_read('ch4in_cc48.nc','ch4in',in)
+!        tr(1:ilt*jlt,1:klt,i)=in
+!      elseif (tracname(i)(1:3)=='mcf') then
+!!             read  mcf initial condition
+!        call ccnf_read('cmcfin_cc48.nc','mcfin',in)
+!        tr(1:ilt*jlt,1:klt,i)=in
+!      else
+!        tr(:,:,i)=tracival(i)
+!      endif
+!  endif
+!enddo
+!
+!return
+!end subroutine tracini
 
 end module tracermodule
