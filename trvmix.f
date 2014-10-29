@@ -64,7 +64,7 @@ c rml 08/11/04 add decay flag
         call gasvmix(updtr(:,:,igas), gasfact, igas, decay,trsrc,
      &               methloss,mcfloss)
       enddo
-      call trimt(ngas,at,ct,updtr,0)
+      call trimt(ngas,at,ct,updtr)
       tr(1:ilt*jlt,:,1:ngasmax)=updtr(1:ilt*jlt,:,1:ngasmax)
       return
       end subroutine
@@ -82,7 +82,7 @@ c     this routine put the correct tracer surface flux into trsrc
       include 'dates.h'  ! timeg
 !     tml 17/09/07 online tracers by veg type
 c     can these common blocks be 'lost' with rewrite of cbm/soilsnow?
-      integer igas
+      integer igas, ierr
       real trsrc(ifull,kl)
 !     rml 17/09/07 online tracers by veg type
       integer nchar, mveg
@@ -106,7 +106,12 @@ c     initialise (to allow for ocean gridpoints for cbm fluxes)
           end select
         else
           nchar = len_trim(tracname(igas))
-          read(tracname(igas)(nchar-1:nchar),'(i2)',err=101) mveg
+          read(tracname(igas)(nchar-1:nchar),'(i2)',err=ierr) mveg
+          if (ierr/=0) then
+            write(6,*) 'unknown online tracer name or veg type number'
+            write(6,*) trim(tracname(igas)),ierr
+            stop
+          end if
 c         write(131,*) 'tracer test: ',mveg
           if (mveg.lt.1.or.mveg.gt.maxval(ivegt)) stop 
      &      'tracer selection: veg type out of range'
@@ -140,7 +145,6 @@ c       emissions from file
       endif
 
       return
- 101  stop 'unknown online tracer name or veg type number error'
       end subroutine
 c *****************************************************************
       subroutine gasvmix(temptr,fluxfact,igas,decay,trsrc,methloss,
@@ -170,10 +174,6 @@ c rml 08/11/04 decay flag to all decay for radon
       real, dimension(1) :: totloss_l,totloss
       parameter(koh=2.45e-12,kohmcf=1.64e-12)
       integer ierr,k,iq
-
-! rml 30/4/10 Since decay, loss and deposition need total tracer field
-!  add trback in at start of this subroutine and remove again at end
-      tr(1:ilt*jlt,:,igas) = tr(1:ilt*jlt,:,igas)
 
 c rml 08/11/04 decay rate for radon (using units of source, Bq/m2/s, to
 c indicate that radon and need decay
@@ -232,27 +232,21 @@ c
       temptr(:,2:kl) = tr(1:ilt*jlt,2:kl,igas)*drate 
      &                 - loss(:,2:kl)
 
-!     remove trback from tr and temptr
-      tr(1:ilt*jlt,:,igas) = tr(1:ilt*jlt,:,igas)
-      temptr(1:ilt*jlt,:) = temptr(1:ilt*jlt,:)
- 
-
-
       return
       end subroutine
 c *********************************************************************
-      subroutine trimt(ngas,a,c,rhs,it)
+      subroutine trimt(ngas,a,c,rhs)
 c     This is a copy of trim.f but trying to do all tracers at once.  
 c     u initially now contains rhs; leaves with answer u (jlm)
 c     n.b. we now always assume b = 1-a-c
       implicit none
       include 'newmpar.h'
 !     N.B.  e, g, temp are just work arrays (not passed through at all)     
-      integer it,iq,k,ngas
+      integer iq,k,ngas,nt
       real e(ifull,kl),g(ifull,kl,ngas)
       real temp(ifull,kl)
       real a(ifull,kl),c(ifull,kl),rhs(ifull,kl,ngas)
-      real b
+      real b(ifull)
 
 
 c     this routine solves the system
@@ -263,43 +257,33 @@ c       and   a(k)*u(k-1)+b(k)*u(k)=rhs(k)          for k=kl
 c     the Thomas algorithm is used
 c     save - only needed if common/work removed
 
-      if(it.eq.0)then
-        do iq=1,ifull
-         b=1.-a(iq,1)-c(iq,1)
-c        print *,'iq,a,b,c ',iq,a(iq,1),b,c(iq,1)
-         e(iq,1)=c(iq,1)/b
-        enddo
-        do k=2,kl-1
-         do iq=1,ifull
-          b=1.-a(iq,k)-c(iq,k)
-          temp(iq,k)= 1./(b-a(iq,k)*e(iq,k-1))
-          e(iq,k)=c(iq,k)*temp(iq,k)
-         enddo
-        enddo
-      endif
+      b(:)=1.-a(:,1)-c(:,1)
+      e(:,1)=c(:,1)/b(:)
+      do k=2,kl-1
+        b(:)=1.-a(:,k)-c(:,k)
+        temp(:,k)= 1./(b(:)-a(:,k)*e(:,k-1))
+        e(:,k)=c(:,k)*temp(:,k)
+      enddo
 
 c     use precomputed values of e array when available
-      do iq=1,ifull
-       b=1.-a(iq,1)-c(iq,1)
-       g(iq,1,:)=rhs(iq,1,:)/b
-      enddo
-      do k=2,kl-1
-       do iq=1,ifull
-        g(iq,k,:)=(rhs(iq,k,:)-a(iq,k)*g(iq,k-1,:))*temp(iq,k)
-       enddo
-      enddo
+      b(:)=1.-a(:,1)-c(:,1)
+      do nt=1,ngas
+        g(:,1,nt)=rhs(:,1,nt)/b(:)
+        do k=2,kl-1
+          g(:,k,nt)=(rhs(:,k,nt)-a(:,k)*g(:,k-1,nt))*temp(:,k)
+        end do
+      end do
 
 c     do back substitution to give answer now
-      do iq=1,ifull
-       b=1.-a(iq,kl)-c(iq,kl)
-       rhs(iq,kl,:)=(rhs(iq,kl,:)-a(iq,kl)*g(iq,kl-1,:))/
-     .            (b-a(iq,kl)*e(iq,kl-1))
-      enddo
-      do k=kl-1,1,-1
-       do iq=1,ifull
-        rhs(iq,k,:)=g(iq,k,:)-e(iq,k)*rhs(iq,k+1,:)
-       enddo
-      enddo
+      b(:)=1.-a(:,kl)-c(:,kl)
+      do nt=1,ngas
+        rhs(:,kl,nt)=(rhs(:,kl,nt)-a(:,kl)*g(:,kl-1,nt))/
+     &            (b(:)-a(:,kl)*e(:,kl-1))
+        do k=kl-1,1,-1
+          rhs(:,k,nt)=g(:,k,nt)-e(:,k)*rhs(:,k+1,nt)
+        end do
+      end do
+      
       return
       end subroutine
 c ********************************************************************

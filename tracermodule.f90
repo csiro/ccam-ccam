@@ -695,7 +695,7 @@ implicit none
 include 'newmpar.h'
 include 'const_phys.h' ! rearth,fc_molm,fair_molm
 include 'dates.h'    !timeg
-integer iq
+integer iq,ktau,ntau
 real ltime
 
 !     rml 14/5/10 code to create daily averages of afternoon concentrations
