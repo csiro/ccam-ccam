@@ -106,7 +106,7 @@ c     initialise (to allow for ocean gridpoints for cbm fluxes)
           end select
         else
           nchar = len_trim(tracname(igas))
-          read(tracname(igas)(nchar-1:nchar),'(i2)',err=ierr) mveg
+          read(tracname(igas)(nchar-1:nchar),'(i2)',iostat=ierr) mveg
           if (ierr/=0) then
             write(6,*) 'unknown online tracer name or veg type number'
             write(6,*) trim(tracname(igas)),ierr
