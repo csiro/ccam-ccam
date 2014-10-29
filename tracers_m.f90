@@ -5,7 +5,7 @@ implicit none
 private
 public ngas,ntrac,ntracmax,nllp
 public ilt,jlt,klt,ngasmax
-public tr,traver,trback_g,acloss_g !,gasmin
+public tr,traver,acloss_g !,gasmin
 public trpm,npm
 public tracers_init,tracers_end
 
@@ -20,7 +20,7 @@ integer, save :: jlt=1
 integer, save :: klt=1
 real, dimension(:,:,:), allocatable, save :: tr,traver
 real, dimension(:,:,:), allocatable, save :: trpm
-real, dimension(:), allocatable, save :: trback_g,acloss_g !,gasmin
+real, dimension(:), allocatable, save :: acloss_g
 integer, dimension(:), allocatable, save :: npm
 
 contains
@@ -46,11 +46,6 @@ jlt=jl
 klt=kl
 
 allocate(tr(ilt*jlt+iextra,klt,ntracmax),traver(ilt*jlt,klt,ntrac))
-allocate(trback_g(ntrac))
-!allocate(gasmin(ngasmax))
-
-trback_g=0.
-!gasmin=-1000.
 
 return
 end subroutine tracers_init
@@ -60,8 +55,6 @@ subroutine tracers_end
 implicit none
 
 deallocate(tr,traver)
-deallocate(trback_g)
-!deallocate(gasmin)
 
 return
 end subroutine tracers_end

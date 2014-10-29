@@ -6,42 +6,36 @@ private
 public tractype,tracname,sitefile,shipfile
 public co2em,init_tracer,trfiles
 public tracer_mass,interp_tracerflux,tracerlist
-public writetrpm,tracmin,tracmax
+public writetrpm
 public readtracerflux,tracunit,tracdaytime
 public oh,strloss,mcfdep,jmcf
-      
-real, dimension(:,:,:), save, allocatable :: co2emhr,co2em123
-real, dimension(:,:), save, allocatable :: co2hr,co2em
-integer, dimension(:), save, allocatable :: nghr
+
+integer, dimension(:), save, allocatable :: tracinterp
+integer, dimension(:), save, allocatable :: nghr, igashr
+integer, save :: numtracer, nhr
+real, dimension(:,:,:), save, allocatable :: co2emhr, co2em123
+real, dimension(:,:), save, allocatable :: co2hr, co2em
+real, dimension(:,:), save, allocatable :: tracdaytime
+real, dimension(:), save, allocatable :: tracival
 character(len=13), dimension(:), save, allocatable :: tracname
 character(len=13), dimension(:), save, allocatable :: tractype
 character(len=13), dimension(:), save, allocatable :: tracunit
 character(len=50), dimension(:), save, allocatable :: tracfile
-real, dimension(:), save, allocatable :: tracival,trmass
-!     rml 18/09/07 added tracmin, tracmax (tracmin to replace gasmin in
-!     tracers.h, used in adjust5.f and outcdf.f, tracmax to be used
-!     in outcdf.f (current setting of trmax unreliable)
-real, dimension(:), save, allocatable :: tracmin,tracmax
-integer, dimension(:), save, allocatable :: tracinterp,igashr
-real, dimension(:,:), save, allocatable :: tracdaytime
-integer, save :: numtracer, nhr
-     
-! rml 16/02/10 additions for Transcom methane
-real, dimension(:,:,:), save, allocatable :: oh123,strloss123
-real, dimension(:,:), save, allocatable :: oh,strloss
-! rml 30/04/10 additions for Transcom MCF
-real, dimension(:,:,:), save, allocatable :: jmcf123
-real, dimension(:,:), save, allocatable :: mcfdep123,jmcf
-real, dimension(:), save, allocatable :: mcfdep
-logical methane,mcf
-
 character(len=80), save :: tracerlist=' '
 character(len=80), save :: sitefile=' '
 character(len=80), save :: shipfile=' '
 logical, save :: writetrpm=.false.
+     
+! rml 16/02/10 additions for Transcom methane
+real, dimension(:,:,:), save, allocatable :: oh123, strloss123
+real, dimension(:,:), save, allocatable :: oh, strloss
+! rml 30/04/10 additions for Transcom MCF
+real, dimension(:,:,:), save, allocatable :: jmcf123
+real, dimension(:,:), save, allocatable :: mcfdep123, jmcf
+real, dimension(:), save, allocatable :: mcfdep
+logical methane, mcf
 
 namelist/trfiles/tracerlist,sitefile,shipfile,writetrpm
-
 
 contains
 
@@ -52,8 +46,8 @@ use tracers_m
 implicit none
 include 'newmpar.h'
 integer nt
+real tracmin,tracmax
 character(len=80) :: header
-character(len=80) :: tempname  ! Temp file name
 
 !     first read in a list of tracers, then determine what emission data is required
 !     Each processor read this, perhaps not necessary?
@@ -75,14 +69,11 @@ ngas=numtracer
 allocate(tracname(numtracer),tractype(numtracer))
 allocate(tracinterp(numtracer),tracunit(numtracer))
 allocate(tracfile(numtracer),igashr(numtracer))
-allocate(tracival(numtracer),trmass(numtracer))
-!     rml 18/09/07 added tracmin, tracmax
-allocate(tracmin(numtracer),tracmax(numtracer))
+allocate(tracival(numtracer))
 allocate(tracdaytime(numtracer,2))
 nhr = 0
 do nt=1,numtracer
-!       rml 18/09/07 added tracmin,tracmax
-  read(130,*) tracname(nt),tracival(nt),tracmin(nt),tracmax(nt),tractype(nt),tracfile(nt)
+  read(130,*) tracname(nt),tracival(nt),tracmin,tracmax,tractype(nt),tracfile(nt)
   select case(tractype(nt))
    case ('monrep','month')
     tracinterp(nt)=1
@@ -101,14 +92,14 @@ do nt=1,numtracer
     tracinterp(nt)=0
   end select
    if ( myid == 0 ) then
-    write(6,999) 'Tracer ',nt,tracname(nt),tractype(nt),tracfile(nt),tracinterp(nt)
+    write(6,'(a7,i5,1x,a13,a13,a50,i3)') 'Tracer ',nt,tracname(nt),tractype(nt),tracfile(nt),tracinterp(nt)
   end if
- 999    format(a7,i5,1x,a13,a13,a50,i3)
 ! rml 16/2/10 addition for TC methane
   if (tracname(nt)(1:7)=='methane') methane = .true.
   if (tracname(nt)(1:3)=='mcf') mcf = .true.
 !
 enddo
+
 if (nhr>0) then
   allocate(nghr(nhr))
 else
@@ -119,10 +110,6 @@ if (methane) then
 !       initialise accumulated loss (for methane cases)
   acloss_g = 0.
 end if
-
-!     MJT - averages are managed in globpe.f
-!     initialise array for monthly average tracer
-!      traver = 0.
 !     if writing afternoon averages, initialise here
 if (writetrpm) then
   allocate(trpm(ilt*jlt,klt,ntrac),npm(ilt*jlt))
@@ -134,43 +121,6 @@ close(130)
 
 return
 end subroutine init_tracer
-
-! ***********************************************************************
-subroutine tr_back
-!     remove a background value for tracer fields for more accurate transport
-use cc_mpi
-use tracers_m
-implicit none
-include 'newmpar.h'
-integer i,ierr
-real trmin,trmin_g
-real, dimension(2) :: dum
-      
-
-if ( myid == 0 ) then
-  write(6,*) 'Background tracer concentration removed:'
-end if
-
-do i=1,ngas
-!       use minimum concentration from level in middle of atmosphere as background
-  trmin=minval(tr(1:ilt*jlt,klt/2,i))
-!       trmax=maxval(tr(1:ilt*jlt,klt/2,i))
-
-  dum(1)=trmin
-  call ccmpi_allreduce(dum(1:1),dum(2:2),"min",comm_world)
-  trmin_g=dum(2)
-      
-  trback_g(i) = trmin_g
-  tr(:,:,i) = tr(:,:,i) - trback_g(i)
-!
-  if ( myid == 0 ) then
-    write(6,*) 'Tracer ',i,' : ',trback_g(i)
-  end if
-
-enddo
-
-return
-end subroutine tr_back
 
 ! *********************************************************************
 subroutine readtracerflux(kdate)
@@ -486,8 +436,7 @@ end if !myid == 0
 
 !     Simple broadcast for co2 time
 call ccmpi_bcast(co2time(1:nflux),0,comm_world)
-!     Also need to share tracunit, tractype, and tracname. MPI_character. Total length
-!     of the array
+!     Also need to share tracunit, tractype, and tracname.
 call ccmpi_bcast(tracunit(igas),0,comm_world)
 call ccmpi_bcast(tractype(igas),0,comm_world)
 call ccmpi_bcast(tracname(igas),0,comm_world)
@@ -654,7 +603,8 @@ do igas=1,numtracer
   select case(tracinterp(igas))
 
    ! constant
-   case(0) ; co2em(:,igas)=co2em123(:,2,igas)
+   case(0)
+     co2em(:,igas)=co2em123(:,2,igas)
 
    ! monthly linear interpolation
    case(1)
@@ -745,34 +695,8 @@ implicit none
 include 'newmpar.h'
 include 'const_phys.h' ! rearth,fc_molm,fair_molm
 include 'dates.h'    !timeg
-integer it,iq,k,ktau,ntau,igas,ierr
-
+integer iq
 real ltime
-real trmin,trmax
-real, dimension(ngas) :: trmass_l
-real checkwts,checkwts_g,checkdsig,checkdsig_g
-complex :: local_sum(ngas), global_sum(ngas)
-!     Temporary array for the drpdr_local function
-real, dimension(ifull) :: tmparr
-
-trmass_l = 0.
-local_sum = (0.,0.)
-do it=1,ngas
-   do k=1,kl
-      do iq=1,ifull
-         tmparr(iq)  = (trback_g(it)+tr(iq,k,it))*dsig(k)*ps(iq)*wts(iq)
-      end do
-   end do
-   call drpdr_local(tmparr, local_sum(it))
-   trmass_l(it)=real(local_sum(it))
-end do ! it
-
-#ifdef sumdd
-call ccmpi_allreduce(local_sum(1:ngas),global_sum(1:ngas),"sumdr",comm_world)
-trmass = real(global_sum)
-#else
-call ccmpi_allreduce(trmass_l(1:ngas),trmass(1:ngas),"sum",comm_world)
-#endif
 
 !     rml 14/5/10 code to create daily averages of afternoon concentrations
 if (writetrpm) then
@@ -785,32 +709,6 @@ if (writetrpm) then
     endif
   enddo
 endif
-
-!     also update tracer average array here
-do igas=1,ngas
-
-  ! Moved to globpe.f by MJT
-  !traver(:,:,igas)=traver(:,:,igas)+tr(1:ilt*jlt,1:klt,igas)
-
-!       rml 18/09/07 check that tr and traver stay within defined range
-!       stop job if they don't
-!  rml 22/2/10 only check traver at end of month
-!       separate checks on each processor
-  trmin = minval(tr(1:ilt*jlt,1:klt,igas))+trback_g(igas)
-  trmax = maxval(tr(1:ilt*jlt,1:klt,igas))+trback_g(igas)
-  if (trmin.lt.tracmin(igas)) then
-    write(6,*) 'WARNING: below minimum, tracer ',igas,' processor ',myid,tracmin(igas),trmin,minloc(tr(1:ilt*jlt,1:klt,igas))
-    write(6,*) 'Error: tracer out of range.  See tracer.stdout'
-    call ccmpi_abort(-1)
-  endif
-  if (trmax.gt.tracmax(igas)) then
-    write(6,*) 'WARNING: above maximum, tracer ',igas,' processor ',myid,tracmax(igas),trmax,maxloc(tr(1:ilt*jlt,1:klt,igas))
-    write(6,*) 'Error: tracer out of range.  See tracer.stdout'
-    call ccmpi_abort(-1)
-  endif
-
-enddo
-
 
 end subroutine tracer_mass
 

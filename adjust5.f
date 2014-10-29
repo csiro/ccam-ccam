@@ -17,7 +17,6 @@
       use sigs_m
       use tbar2d_m
 !     rml 19/09/07 replace gasmin from tracers.h with tracmin from tracermodule
-      use tracermodule, only: tracmin
       use tracers_m
       use vadv
       use vecsuv_m
@@ -57,7 +56,7 @@
       real delpos_l, delneg_l, const_nh
       real, save :: dtsave = 0.
       integer, dimension(ifull) :: nits, nvadh_pass
-      integer its, k, l, iq, ng, ierr
+      integer its, k, l, iq, ierr
       integer, save :: precon_in = -99999
       logical, dimension(nagg) :: llim
 
@@ -694,11 +693,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
       !------------------------------------------------------------------------
       ! Tracer conservation
       if(mfix_tr/=0.and.mspec==1.and.ngas>0)then
-        do ng=1,ngas
-!         rml 19/09/07 replace gasmin with tracmin
-          tr(:,:,ng)=max(tr(:,:,ng),tracmin(ng))
-          llim(ng)=.true.
-        end do
+        llim(1:ngas)=.true.
         call massfix(mfix_tr,ngas,tr,trsav,ps,ps_sav,llim)
       endif       !  (mfix_tr/=0.and.mspec==1.and.ngas>0)
 

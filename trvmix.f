@@ -14,7 +14,7 @@ c     this routine does the vertical mixing of tracers
       implicit none
       include 'newmpar.h'
       include 'const_phys.h'      ! grav,fair_molm,fc_molm
-      include 'parm.h'          ! dt
+      include 'parm.h'            ! dt
       real trsrc(ifull,kl)
       real updtr(ilt*jlt,klt,ngasmax),at(ifull,kl),ct(ifull,kl)
       real trfact,molfact,radfact,co2fact,gasfact
@@ -173,7 +173,7 @@ c rml 08/11/04 decay flag to all decay for radon
 
 ! rml 30/4/10 Since decay, loss and deposition need total tracer field
 !  add trback in at start of this subroutine and remove again at end
-      tr(1:ilt*jlt,:,igas) = tr(1:ilt*jlt,:,igas)+trback_g(igas)
+      tr(1:ilt*jlt,:,igas) = tr(1:ilt*jlt,:,igas)
 
 c rml 08/11/04 decay rate for radon (using units of source, Bq/m2/s, to
 c indicate that radon and need decay
@@ -233,8 +233,8 @@ c
      &                 - loss(:,2:kl)
 
 !     remove trback from tr and temptr
-      tr(1:ilt*jlt,:,igas) = tr(1:ilt*jlt,:,igas)-trback_g(igas)
-      temptr(1:ilt*jlt,:) = temptr(1:ilt*jlt,:)-trback_g(igas)
+      tr(1:ilt*jlt,:,igas) = tr(1:ilt*jlt,:,igas)
+      temptr(1:ilt*jlt,:) = temptr(1:ilt*jlt,:)
  
 
 

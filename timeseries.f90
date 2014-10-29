@@ -355,7 +355,7 @@ if (mod(ktau,ntsfreq).eq.0) then
   do n=1,ngrdpts
     iq = listijk(n,1) + (listijk(n,2)-1)*il
 ! rml 23/2/10 add in background that removed at start of run
-    cts(n,:)=trback_g(:)+tr(iq,listijk(n,3),:)
+    cts(n,:)=tr(iq,listijk(n,3),:)
   enddo
   start(1)=1; start(2)=1; start(3)=indextime
   ncount(1)=ngrdpts; ncount(2)=ntrac; ncount(3)=1

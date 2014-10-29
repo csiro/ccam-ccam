@@ -404,8 +404,7 @@ use sigs_m                                       ! Atmosphere sigma levels
 use soil_m                                       ! Soil and surface data
 use soilsnow_m                                   ! Soil, snow and surface data
 use tkeeps, only : tke,eps,zidry                 ! TKE-EPS boundary layer
-use tracermodule, only : tracmax,tracmin,      & ! Tracer routines
-                         tracname,writetrpm
+use tracermodule, only : tracname,writetrpm      ! Tracer routines
 use tracers_m                                    ! Tracer data
 use vegpar_m                                     ! Vegetation arrays
 use vvel_m                                       ! Additional vertical velocity
@@ -432,7 +431,6 @@ integer iarch, itype, nstagin, idum
 integer, dimension(4), intent(in) :: dim
 integer, dimension(3) :: idim
 integer, dimension(2) :: iduma
-real trmax, trmin
 real, dimension(ms) :: zsoil
 real, dimension(il_g) :: xpnt
 real, dimension(jl_g) :: ypnt
@@ -1160,6 +1158,8 @@ if( myid==0 .or. local ) then
       call attrib(idnc,dim,4,'qfg','Frozen water','kg/kg',0.,.065,0,itype)
       call attrib(idnc,dim,4,'qlg','Liquid water','kg/kg',0.,.065,0,itype)
       call attrib(idnc,dim,4,'qrg','Rain','kg/kg',0.,.065,0,itype)
+      !call attrib(idnc,dim,4,'qsg','Snow','kg/kg',0.,.065,0,itype)
+      !call attrib(idnc,dim,4,'qgrg','Grauple','kg/kg',0.,.065,0,itype)
       call attrib(idnc,dim,4,'cfrac','Cloud fraction','none',0.,1.,0,itype)
       call attrib(idnc,dim,4,'rfrac','Rain fraction','none',0.,1.,0,itype)
       if ( ncloud>=3 ) then
@@ -1180,21 +1180,18 @@ if( myid==0 .or. local ) then
     if ( ngas>0 ) then 
       do igas=1,ngas
         write(trnum,'(i3.3)') igas
-!       rml 18/09/07 use tracmax from tracer.dat as previous formula wasn't always reliable
-        trmax = tracmax(igas)
-        trmin = tracmin(igas)
 !       rml 19/09/07 use tracname as part of tracer long name
         lname = 'Tracer (inst.) '//trim(tracname(igas))
-        call attrib(idnc,dim,4,'tr'//trnum,lname,'ppm',trmin,trmax,0,-1) ! -1 = long
+        call attrib(idnc,dim,4,'tr'//trnum,lname,'ppm',0.,6.5E6,0,-1) ! -1 = long
         lname = 'Tracer (average) '//trim(tracname(igas))
-        call attrib(idnc,dim,4,'trav'//trnum,lname,'ppm',trmin,trmax,0,-1) ! -1 = long
+        call attrib(idnc,dim,4,'trav'//trnum,lname,'ppm',0.,6.5E6,0,-1) ! -1 = long
 !       rml 14/5/10 option to write out local time afternoon averages
-        if (writetrpm) call attrib(idnc,dim,4,'trpm'//trnum,lname,'ppm',trmin,trmax,0,-1) ! -1 = long
+        if (writetrpm) call attrib(idnc,dim,4,'trpm'//trnum,lname,'ppm',0.,6.5E6,0,-1) ! -1 = long
       enddo ! igas loop
     endif   ! (ngas>0)
 
     ! AEROSOL ---------------------------------------------------
-    if ( iaero<=-2 .or. (iaero>=2.and.itype==-1) ) then  
+    if ( abs(iaero)>=2 ) then  
       call attrib(idnc,dim,4,'dms','Dimethyl sulfide','kg/kg',0.,6.5E-7,0,itype)
       call attrib(idnc,dim,4,'so2','Sulfur dioxide','kg/kg',0.,6.5E-7,0,itype)
       call attrib(idnc,dim,4,'so4','Sulfate','kg/kg',0.,6.5E-7,0,itype)
@@ -1208,7 +1205,9 @@ if( myid==0 .or. local ) then
       call attrib(idnc,dim,4,'dust4','Dust 3-6 micrometers','kg/kg',0.,6.5E-6,0,itype)
       call attrib(idnc,dim,4,'seasalt1','Sea salt small','1/m3',0.,6.5E9,0,itype)
       call attrib(idnc,dim,4,'seasalt2','Sea salt large','1/m3',0.,6.5E7,0,itype)
-      call attrib(idnc,dim,4,'cdn','Cloud droplet concentration','1/m3',1.E7,6.6E8,0,itype)
+      if ( iaero<=-2 .or. (iaero>=2.and.itype==-1) ) then 
+        call attrib(idnc,dim,4,'cdn','Cloud droplet concentration','1/m3',1.E7,6.6E8,0,itype)
+      end if
     end if
 
     ! RESTART ---------------------------------------------------
@@ -1897,6 +1896,8 @@ if ( ldr/=0 ) then
   call histwrt4(qfg,'qfg',idnc,iarch,local,.true.)
   call histwrt4(qlg,'qlg',idnc,iarch,local,.true.)
   call histwrt4(qrg,'qrg',idnc,iarch,local,.true.)
+  !call histwrt4(qsg,'qsg',idnc,iarch,local,.true.)
+  !call histwrt4(qgrg,'qgrg',idnc,iarch,local,.true.)
   call histwrt4(cfrac,'cfrac',idnc,iarch,local,.true.)
   call histwrt4(rfrac,'rfrac',idnc,iarch,local,.true.)
   if ( ncloud>=3 ) then
@@ -1917,9 +1918,9 @@ end if
 if ( ngas>0 ) then 
   do igas=1,ngas
     write(trnum,'(i3.3)') igas
-    tmpry=tr(1:ilt*jlt,:,igas)+trback_g(igas)
+    tmpry=tr(1:ilt*jlt,:,igas)
     call histwrt4(tmpry,'tr'//trnum,idnc,iarch,local,.true.)
-    tmpry=traver(:,:,igas)+trback_g(igas)
+    tmpry=traver(:,:,igas)
     call histwrt4(tmpry,'trav'//trnum,idnc,iarch,local,lave)
     ! rml 14/5/10 option to write out local time afternoon average
     if ( writetrpm ) then
@@ -1927,7 +1928,7 @@ if ( ngas>0 ) then
       do k=1,klt
         trpm(1:ifull,k,igas) = trpm(1:ifull,k,igas)/float(npm)
       enddo
-      tmpry=trpm(:,:,igas)+trback_g(igas)
+      tmpry=trpm(:,:,igas)
       call histwrt4(tmpry,'trpm'//trnum,idnc,iarch,local,.true.)
     endif
   enddo ! igas loop
@@ -1939,7 +1940,7 @@ if ( ngas>0 ) then
 endif  ! (ngasc>0)
 
 ! AEROSOLS ----------------------------------------------------
-if ( iaero<=-2 .or. (iaero>=2.and.itype==-1) ) then
+if ( abs(iaero)>=2 ) then
   call histwrt4(xtg(:,:,1),'dms',idnc,iarch,local,.true.)
   call histwrt4(xtg(:,:,2),'so2',idnc,iarch,local,.true.)
   call histwrt4(xtg(:,:,3),'so4',idnc,iarch,local,.true.)
@@ -1953,11 +1954,13 @@ if ( iaero<=-2 .or. (iaero>=2.and.itype==-1) ) then
   call histwrt4(xtg(:,:,11),'dust4',idnc,iarch,local,.true.)
   call histwrt4(ssn(:,:,1),'seasalt1',idnc,iarch,local,.true.)
   call histwrt4(ssn(:,:,2),'seasalt2',idnc,iarch,local,.true.)
-  do k=1,kl
-    rhoa(:,k)=ps(1:ifull)*sig(k)/(rdry*t(1:ifull,k)) !density of air
-  end do
-  call aerodrop(1,ifull,kl,tmpry,rhoa,land,rlatt)
-  call histwrt4(tmpry,'cdn',idnc,iarch,local,.true.)
+  if ( iaero<=-2 .or. (iaero>=2.and.itype==-1) ) then
+    do k=1,kl
+      rhoa(:,k)=ps(1:ifull)*sig(k)/(rdry*t(1:ifull,k)) !density of air
+    end do
+    call aerodrop(1,ifull,kl,tmpry,rhoa,land,rlatt)
+    call histwrt4(tmpry,'cdn',idnc,iarch,local,.true.)
+  end if
 end if
 
 !**************************************************************
