@@ -1729,13 +1729,13 @@ integer, dimension(ifull,5), intent(out) :: ivs
 integer, dimension(ifull_g,5) :: ivsg  
 integer, dimension(3) :: spos,npos
 integer n,iq,ilx,jlx,iad 
-integer ncidx,iernc,varid,cablever
+integer ncidx,iernc,varid
 real, dimension(ifull,5), intent(out) :: svs,vlinprev,vlin,vlinnext
 real, dimension(ifull_g,5) :: svsg,vling
-real rlong0x,rlat0x,schmidtx,dsx,ra,rb
+real rlong0x,rlat0x,schmidtx,dsx,ra,rb,cablever
 character(len=47) header  
 character(len=6) vname
-integer, parameter :: cableversion = 223 ! version id for input data
+real, parameter :: cableversion = 223. ! version id for input data
 
 write(6,*) "Reading land-use parameters for CABLE"
 if (lncveg==1) then
