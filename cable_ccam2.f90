@@ -780,7 +780,7 @@ if ( cbm_ms/=ms ) then
 end if
 
 ! redefine rhos
-rhos=(/ 1600., 1595., 1381., 1373., 1476., 1521., 1373., 1537., 1455., 2600., 2600., 2600., 2600. /)
+rhos=(/ 1600., 1600., 1381., 1373., 1476., 1521., 1373., 1537.,  910., 2600., 2600., 2600., 2600. /)
 
 ! biophysical parameter tables
 hc    =(/   17.,  35.,  15.5,  20.,   0.6, 0.567, 0.567, 0.567, 0.55, 0.55, 0.567,  0.2, 6.017,  0.2,  0.2,  0.2,  0.2 /)
@@ -790,10 +790,14 @@ leaf_l=(/ 0.055, 0.10, 0.040, 0.15, 0.100,  0.30,  0.30,  0.30, 0.30, 0.30,  0.3
 canst1=0.1
 shelrb=2.
 extkn=0.001 ! new definition for nitrogen (since CABLE v1.9b)
-refl(:,1)=(/ 0.043,0.053,0.050,0.064,0.120,0.099,0.080,0.058,0.080,0.050,0.060,0.031,0.051,0.175,0.079,0.079,0.159 /)
-refl(:,2)=(/ 0.211,0.245,0.242,0.266,0.480,0.423,0.320,0.171,0.320,0.200,0.191,0.105,0.172,0.336,0.153,0.153,0.305 /)
-taul(:,1)=(/ 0.035,0.035,0.040,0.035,0.060,0.063,0.080,0.040,0.080,0.050,0.041,0.013,0.033,0.029,0.013,0.013,0.026 /)
-taul(:,2)=(/ 0.120,0.250,0.120,0.250,0.192,0.200,0.165,0.124,0.165,0.125,0.081,0.110,0.181,0.126,0.063,0.063,0.063 /)
+!refl(:,1)=(/ 0.043,0.053,0.050,0.064,0.120,0.099,0.080,0.058,0.080,0.050,0.060,0.031,0.051,0.175,0.079,0.079,0.159 /)
+!refl(:,2)=(/ 0.211,0.245,0.242,0.266,0.480,0.423,0.320,0.171,0.320,0.200,0.191,0.105,0.172,0.336,0.153,0.153,0.305 /)
+!taul(:,1)=(/ 0.035,0.035,0.040,0.035,0.060,0.063,0.080,0.040,0.080,0.050,0.041,0.013,0.033,0.029,0.013,0.013,0.026 /)
+!taul(:,2)=(/ 0.120,0.250,0.120,0.250,0.192,0.200,0.165,0.124,0.165,0.125,0.081,0.110,0.181,0.126,0.063,0.063,0.063 /)
+refl(:,1)=(/ 0.062,0.076,0.056,0.092,0.100,0.110,0.100,0.117,0.100,0.090,0.108,0.055,0.091,0.238,0.143,0.143,0.159 /)
+refl(:,2)=(/ 0.302,0.350,0.275,0.380,0.400,0.470,0.400,0.343,0.400,0.360,0.343,0.190,0.310,0.457,0.275,0.275,0.305 /)
+taul(:,1)=(/ 0.050,0.050,0.045,0.050,0.050,0.070,0.100,0.080,0.100,0.090,0.075,0.023,0.059,0.039,0.023,0.023,0.026 /)
+taul(:,2)=(/ 0.100,0.250,0.144,0.250,0.240,0.250,0.150,0.124,0.150,0.225,0.146,0.198,0.163,0.189,0.113,0.113,0.113 /)
 vegcf    =(/    9.,  14.,   9.,   8.,   5.,   7.,   7.,   5.,   7.,   1.,   7.,   1.,   1.,   1.,   1.,   1.,   1. /)
 vcmax=(/ 40.E-6,55.E-6,40.E-6,60.E-6,40.E-6,60.E-6,10.E-6,40.E-6,80.E-6,80.E-6,60.E-6,17.E-6,1.E-6,17.E-6,17.E-6,17.E-6,17.E-6 /)
 ejmax=2.*vcmax
@@ -1256,7 +1260,7 @@ if (mp>0) then
   veg%shelrb    = shelrb(veg%iveg)
   veg%vcmax     = vcmax(veg%iveg)
   veg%xfang     = xfang(veg%iveg)
-  veg%dleaf     = sqrt(leaf_w(veg%iveg)*leaf_l(veg%iveg))
+  veg%dleaf     = sqrt(max(leaf_w(veg%iveg)*leaf_l(veg%iveg),1.e-20))
   veg%xalbnir   = 1. ! not used
   veg%taul(:,1) = taul(veg%iveg,1)
   veg%taul(:,2) = taul(veg%iveg,2)  
@@ -1725,12 +1729,13 @@ integer, dimension(ifull,5), intent(out) :: ivs
 integer, dimension(ifull_g,5) :: ivsg  
 integer, dimension(3) :: spos,npos
 integer n,iq,ilx,jlx,iad 
-integer ncidx,iernc,varid 
+integer ncidx,iernc,varid,cablever
 real, dimension(ifull,5), intent(out) :: svs,vlinprev,vlin,vlinnext
 real, dimension(ifull_g,5) :: svsg,vling
 real rlong0x,rlat0x,schmidtx,dsx,ra,rb
 character(len=47) header  
 character(len=6) vname
+integer, parameter :: cableversion = 223 ! version id for input data
 
 write(6,*) "Reading land-use parameters for CABLE"
 if (lncveg==1) then
@@ -1739,6 +1744,13 @@ if (lncveg==1) then
   npos(1)=il_g
   npos(2)=6*il_g
   npos(3)=1
+  call ccnf_get_attg(ncidveg,'cableversion',cablever)
+  if (cablever /= cableversion) then
+    write(6,*) "Wrong version of CABLE data"
+    write(6,*) "Expecting ",cableversion
+    write(6,*) "Found     ",cablever
+    call ccmpi_abort(-1)
+  end if
   do n=1,5
     write(vname,"(A,I1.1)") "lai",n
     call ccnf_inq_varid(ncidveg,vname,varid)

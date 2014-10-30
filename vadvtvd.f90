@@ -76,7 +76,7 @@ call vadv_work(tarr,tfact,nits,kp,kx)
 if( (diag.or.nmaxpr==1) .and. mydiag )then
 !       These diagnostics don't work with single input/output argument
   write (6,"('tout',9f8.2/4x,9f8.2)") (tarr(idjd,k),k=1,kl)
-  write (6,"('t#  ',9f8.2)") diagvals(tarr(1:ifull,nlv)) 
+  write (6,"('t#  ',9f8.2)") diagvals(tarr(:,nlv)) 
 endif
 
 !     u

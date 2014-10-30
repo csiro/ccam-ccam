@@ -17,7 +17,9 @@
       integer, parameter :: MPI_COMPLEX   = 1275070494
       integer, parameter :: MPI_COMPLEX8  = 1275070504
       integer, parameter :: MPI_COMPLEX16 = 1275072554
-      integer, parameter :: MPI_DOUBLE_COMPLEX=z'4c001022'
+      integer, parameter :: MPI_DOUBLE_COMPLEX = z'4c001022'
+      integer, parameter :: MPI_PACKED    = z'4c00010f'
+      integer, parameter :: MPI_BYTE      = z'4c00010d'
 !
 !     Collective operations
 !

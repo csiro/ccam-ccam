@@ -1185,7 +1185,19 @@
       endif      ! (ngas>=1)
 
       ! update non-linear dynamic terms
+      if (nmaxpr==1) then
+        if (myid==0) then
+          write(6,*) "Before nonlin"
+        end if
+        call ccmpi_barrier(comm_world)
+      end if
       call nonlin
+      if (nmaxpr==1) then
+        if (myid==0) then
+          write(6,*) "After nonlin"
+        end if
+        call ccmpi_barrier(comm_world)
+      end if
       if (diag)then
          if (mydiag) write(6,*) 'before hadv'
          call printa('tx  ',tx,ktau,nlv,ia,ib,ja,jb,0.,1.)
@@ -1202,7 +1214,19 @@
       endif
 
 !     evaluate horizontal advection for combined quantities
+      if (nmaxpr==1) then
+        if (myid==0) then
+          write(6,*) "Before upglobal"
+        end if
+        call ccmpi_barrier(comm_world)
+      end if
       call upglobal
+      if (nmaxpr==1) then
+        if (myid==0) then
+          write(6,*) "After upglobal"
+        end if
+        call ccmpi_barrier(comm_world)
+      end if
       if (diag)then
         if (mydiag) then
           write(6,*) 'after hadv'
@@ -1222,17 +1246,41 @@
           nstagu=nstag
         end if
       end if
+      if (nmaxpr==1) then
+        if (myid==0) then
+          write(6,*) "Before adjust5"
+        end if
+        call ccmpi_barrier(comm_world)
+      end if
       call adjust5
+      if (nmaxpr==1) then
+        if (myid==0) then
+          write(6,*) "After adjust5"
+        end if
+        call ccmpi_barrier(comm_world)
+      end if
       
       ! NESTING ---------------------------------------------------------------
       ! nesting now after mass fixers
       call START_LOG(nestin_begin)
+      if (nmaxpr==1) then
+        if (myid==0) then
+          write(6,*) "Before nesting"
+        end if
+        call ccmpi_barrier(comm_world)
+      end if
       if (mspec==1) then
         if (mbd/=0) then
           call nestinb
         else if (nbd/=0) then
           call davies
         end if
+      end if
+      if (nmaxpr==1) then
+        if (myid==0) then
+          write(6,*) "After nesting"
+        end if
+        call ccmpi_barrier(comm_world)
       end if
       call END_LOG(nestin_end)
 
@@ -1259,10 +1307,22 @@
 
       ! DIFFUSION -------------------------------------------------------------
       call START_LOG(hordifg_begin)
+      if (nmaxpr==1) then
+        if (myid==0) then
+          write(6,*) "Before atm horizontal diffusion"
+        end if
+        call ccmpi_barrier(comm_world)
+      end if
       if (nhor<0) then
         call hordifgt  ! now not tendencies
       end if
       if (diag.and.mydiag) write(6,*) 'after hordifgt t ',t(idjd,:)
+      if (nmaxpr==1) then
+        if (myid==0) then
+          write(6,*) "After atm horizontal diffusion"
+        end if
+        call ccmpi_barrier(comm_world)
+      end if
       call END_LOG(hordifg_end)
 
       ! ***********************************************************************
@@ -2446,7 +2506,7 @@ c     stuff from insoil  for soilv.h
      &          , .2, .33, .33, .17/                        ! with mxst=13
       data clay/.09, .3, .67, .2, .42, .48, .27, .17, .30
      &          , .2, .3, .3, .67/                          ! with mxst=13
-      data sand/.83, .37, .17, .6, .52, .27, .58, .13, .37
+      data sand/.83, .37, .16, .6, .52, .27, .58, .13, .37
      &          , .6, .37, .37, .17/                        ! with mxst=13
       data swilt/0., .072, .216, .286, .135, .219, .283, .175, .395  !eak
      &             , .216, .1142, .1547, .2864, .2498/
