@@ -1000,7 +1000,10 @@ if ( nested/=1 ) then
         
   !------------------------------------------------------------------
   ! Read snow and soil tempertaure
-  call fillhist1('snd',snowd,sea_a)
+  call gethist1('snd',snowd)
+  where ( sea_a .and. (sicedep==0. .or. nmlo==0) )
+    snowd=0.
+  end where
   do k=1,ms 
     if ( ierc(7+k)==0 ) then
       write(vname,'("tgg",I1.1)') k

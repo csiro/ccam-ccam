@@ -1205,7 +1205,7 @@ if( myid==0 .or. local ) then
       call attrib(idnc,dim,4,'dust4','Dust 3-6 micrometers','kg/kg',0.,6.5E-6,0,itype)
       call attrib(idnc,dim,4,'seasalt1','Sea salt small','1/m3',0.,6.5E9,0,itype)
       call attrib(idnc,dim,4,'seasalt2','Sea salt large','1/m3',0.,6.5E7,0,itype)
-      if ( iaero<=-2 .or. (iaero>=2.and.itype==-1) ) then 
+      if ( iaero<=-2 ) then 
         call attrib(idnc,dim,4,'cdn','Cloud droplet concentration','1/m3',1.E7,6.6E8,0,itype)
       end if
     end if
@@ -1954,7 +1954,7 @@ if ( abs(iaero)>=2 ) then
   call histwrt4(xtg(:,:,11),'dust4',idnc,iarch,local,.true.)
   call histwrt4(ssn(:,:,1),'seasalt1',idnc,iarch,local,.true.)
   call histwrt4(ssn(:,:,2),'seasalt2',idnc,iarch,local,.true.)
-  if ( iaero<=-2 .or. (iaero>=2.and.itype==-1) ) then
+  if ( iaero<=-2 ) then
     do k=1,kl
       rhoa(:,k)=ps(1:ifull)*sig(k)/(rdry*t(1:ifull,k)) !density of air
     end do
