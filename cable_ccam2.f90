@@ -1379,7 +1379,6 @@ if (mp>0) then
   ssnow%wb_lake=0. ! not used when mlo.f90 is active
   ssnow%fland=1.
   ssnow%ifland=soil%isoilm
-  ssnow%osnowd=0.
     
   ! Initialise sum flux variables
   sum_flux%sumpn=0.
@@ -1956,7 +1955,7 @@ if (ierr/=0) then
     canopy%us=0.01
     ssnow%pudsto=0.
     ssnow%wetfac=0.
-    ssnow%osnowd=0.
+    ssnow%osnowd=ssnow%snowd
     if (icycle==0) then
       do n=1,maxnb
         do k=1,ncp

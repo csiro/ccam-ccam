@@ -1001,7 +1001,7 @@ if ( nested/=1 ) then
   !------------------------------------------------------------------
   ! Read snow and soil tempertaure
   call gethist1('snd',snowd)
-  where ( sea_a .and. (sicedep==0. .or. nmlo==0) )
+  where ( .not.land(1:ifull) .and. (sicedep==0. .or. nmlo==0) )
     snowd=0.
   end where
   do k=1,ms 
