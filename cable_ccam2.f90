@@ -686,11 +686,7 @@ select case( proglai )
     monthstart = 1440*(jday-1) + 60*jhour + jmin ! mins from start month
     x = min(max(real(mtimer+monthstart)/real(1440*imonth(jmonth)),0.),1.)
     veg%vlai = vl1+vl2*x+vl3*x*x     ! LAI as a function of time
-    where ( veg%iveg<14 )
-      veg%vlai = max( veg%vlai, 0.011 )
-    elsewhere
-      veg%vlai = 0.001
-    end where
+    veg%vlai = max( veg%vlai, 0.001 )
 
   case(1) ! prognostic LAI
     if (icycle==0) then
