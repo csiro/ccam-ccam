@@ -1226,7 +1226,7 @@ if (mp>0) then
           sv(ipos)=newgrid(iq,iv)
           veg%iveg(ipos)=iv
           soil%isoilm(ipos)=isoilm(iq)
-          newlai(iq,iv,:)=max(newlai(iq,iv,:),0.1)
+          newlai(iq,iv,:)=max(newlai(iq,iv,:),0.001)
           if (fvegprev/=' '.and.fvegnext/=' ') then
             newlai(iq,iv,1)=newlai(iq,iv,1)+newlai(iq,iv,0)
             newlai(iq,iv,2)=newlai(iq,iv,2)+newlai(iq,iv,1)
