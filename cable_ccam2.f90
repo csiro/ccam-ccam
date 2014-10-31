@@ -824,6 +824,18 @@ do n=1,5
   svs(:,n)=svs(:,n)/sum(svs,2)
 end do
 
+! MJT suggestion - turn off canopy when LAI is at minimum value
+where (vlinprev<0.1001)
+  vlinprev=0.001
+end where
+where (vlin<0.1001)
+  vlin=0.001
+end where
+where (vlinnext<0.1001)
+  vlinnext=0.001
+end where
+
+
 icycle=ccycle
 cable_user%fwsoil_switch="standard"
 
