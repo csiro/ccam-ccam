@@ -1033,7 +1033,7 @@ if ( nested/=1 ) then
     end if
   end do
   if ( .not.iotest ) then
-    where ( snowd>0. )
+    where ( snowd>0. .and. land(1:ifull) )
       tgg(:,1)=min(tgg(:,1),270.1)
     endwhere
   end if
