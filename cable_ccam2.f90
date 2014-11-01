@@ -686,7 +686,11 @@ select case( proglai )
     monthstart = 1440*(jday-1) + 60*jhour + jmin ! mins from start month
     x = min(max(real(mtimer+monthstart)/real(1440*imonth(jmonth)),0.),1.)
     veg%vlai = vl1+vl2*x+vl3*x*x     ! LAI as a function of time
-    veg%vlai = max( veg%vlai, 0.001 )
+    where ( veg%iveg<14 )
+      veg%vlai = max( veg%vlai, 0.1 )
+    elsewhere
+      veg%vlai = 0.001
+    end where
 
   case(1) ! prognostic LAI
     if (icycle==0) then
@@ -823,18 +827,6 @@ end if
 do n=1,5
   svs(:,n)=svs(:,n)/sum(svs,2)
 end do
-
-! MJT suggestion - turn off canopy when LAI is at minimum value
-where (vlinprev<0.1001)
-  vlinprev=0.001
-end where
-where (vlin<0.1001)
-  vlin=0.001
-end where
-where (vlinnext<0.1001)
-  vlinnext=0.001
-end where
-
 
 icycle=ccycle
 cable_user%fwsoil_switch="standard"
@@ -1226,7 +1218,7 @@ if (mp>0) then
           sv(ipos)=newgrid(iq,iv)
           veg%iveg(ipos)=iv
           soil%isoilm(ipos)=isoilm(iq)
-          newlai(iq,iv,:)=max(newlai(iq,iv,:),0.001)
+          newlai(iq,iv,:)=max(newlai(iq,iv,:),0.1)
           if (fvegprev/=' '.and.fvegnext/=' ') then
             newlai(iq,iv,1)=newlai(iq,iv,1)+newlai(iq,iv,0)
             newlai(iq,iv,2)=newlai(iq,iv,2)+newlai(iq,iv,1)
