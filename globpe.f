@@ -21,6 +21,7 @@
      &    ,Ch_dust,zvolcemi,aeroindir
       use arrays_m                            ! Atmosphere dyamics prognostic arrays
       use bigxy4_m                            ! Grid interpolation
+      use cable_ccam, only : proglai          ! CABLE
       use carbpools_m, only : carbpools_init  ! Carbon pools
      &    ,fpn,frs,frp
       use cc_mpi                              ! CC MPI routines
@@ -164,7 +165,7 @@
      &    nud_sfh,bpyear,rescrn,helmmeth,nmlo,ol,mxd,mindep,minwater,
      &    ocnsmag,ocneps,fixsal,fixheight,knh,ccycle,kblock,
      &    nud_aero,ch_dust,zvolcemi,aeroindir,helim,fc2,
-     &    alphaj
+     &    alphaj,proglai
       namelist/skyin/mins_rad,ndiur
       namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,
      &    hfile,icefile,mesonest,nmifile,o3file,radfile,restfile,

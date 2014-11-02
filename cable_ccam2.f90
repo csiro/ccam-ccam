@@ -20,8 +20,8 @@ module cable_ccam
 ! 2       Evergreen Broadleaf Forest            1.  Evergreen Broadleaf
 ! 3       Deciduous Needleaf Forest             1.  Deciduous Needleaf
 ! 4       Deciduous Broadleaf Forest            1.  Deciduous Broadleaf
-! 5       Mixed Forest                          1.  Broadlead Deciduous                              when lat<-25 or lat>25
-!                                               0.5 Evergreen Needleaf      0.5 Broadlead Deciduous  when -25<lat<25
+! 5       Mixed Forest                          1.  Broadlead Deciduous                              when -25<lat<25
+!                                               0.5 Evergreen Needleaf      0.5 Broadlead Deciduous  when lat<-25 or lat>25
 ! 6       Closed Shrublands                     0.8 Shrub                   0.2 (Grass)
 ! 7       Open Shrublands                       0.2 Shrub                   0.8 (Grass)
 ! 8       Woody Savannas                        0.6 (Grass)                 0.4 Evergreen Needleleaf when lat<-40 or lat>40
@@ -101,9 +101,10 @@ implicit none
 
 private
 public sib4,loadcbmparm,loadtile,savetiledef,savetile,cableinflow,cbmemiss
+public proglai
 
 ! The following options will eventually be moved to the globpe.f namelist
-integer, parameter :: proglai        = 0 ! 0 prescribed LAI, 1 prognostic LAI
+integer, save :: proglai             = 0 ! 0 prescribed LAI, 1 prognostic LAI
 integer, parameter :: tracerco2      = 0 ! 0 use radiation CO2, 1 use tracer CO2 
 real, parameter :: minfrac = 0.01        ! minimum non-zero tile fraction (improves load balancing)
 
@@ -913,21 +914,6 @@ do iq=1,ifull
           newlai(iq,ivs(iq,n),2)=newlai(iq,ivs(iq,n),2)+svs(iq,n)*vlinnext(iq,n)
         case (5)
           if (abs(clat)>25.5) then
-            newgrid(iq,4)=newgrid(iq,4)+svs(iq,n)
-            newlai(iq,4,0)=newlai(iq,4,0)+svs(iq,n)*vlinprev(iq,n)
-            newlai(iq,4,1)=newlai(iq,4,1)+svs(iq,n)*vlin(iq,n)
-            newlai(iq,4,2)=newlai(iq,4,2)+svs(iq,n)*vlinnext(iq,n)
-          else if (abs(clat)>24.5) then
-            xp=abs(clat)-24.5
-            newgrid(iq,1)=newgrid(iq,1)+svs(iq,n)*0.5*(1.-xp)
-            newlai(iq,1,0)=newlai(iq,1,0)+svs(iq,n)*0.5*vlinprev(iq,n)*(1.-xp)
-            newlai(iq,1,1)=newlai(iq,1,1)+svs(iq,n)*0.5*vlin(iq,n)*(1.-xp)
-            newlai(iq,1,2)=newlai(iq,1,2)+svs(iq,n)*0.5*vlinnext(iq,n)*(1.-xp)
-            newgrid(iq,4)=newgrid(iq,4)+svs(iq,n)*0.5*(1.+xp)
-            newlai(iq,4,0)=newlai(iq,4,0)+svs(iq,n)*vlinprev(iq,n)*0.5*(1.+xp)
-            newlai(iq,4,1)=newlai(iq,4,1)+svs(iq,n)*vlin(iq,n)*0.5*(1.+xp)
-            newlai(iq,4,2)=newlai(iq,4,2)+svs(iq,n)*vlinnext(iq,n)*0.5*(1.+xp)
-          else
             newgrid(iq,1)=newgrid(iq,1)+svs(iq,n)*0.5
             newlai(iq,1,0)=newlai(iq,1,0)+svs(iq,n)*0.5*vlinprev(iq,n)
             newlai(iq,1,1)=newlai(iq,1,1)+svs(iq,n)*0.5*vlin(iq,n)
@@ -936,6 +922,21 @@ do iq=1,ifull
             newlai(iq,4,0)=newlai(iq,4,0)+svs(iq,n)*0.5*vlinprev(iq,n)
             newlai(iq,4,1)=newlai(iq,4,1)+svs(iq,n)*0.5*vlin(iq,n)
             newlai(iq,4,2)=newlai(iq,4,2)+svs(iq,n)*0.5*vlinnext(iq,n)
+          else if (abs(clat)>24.5) then
+            xp=abs(clat)-24.5
+            newgrid(iq,1)=newgrid(iq,1)+svs(iq,n)*0.5*xp
+            newlai(iq,1,0)=newlai(iq,1,0)+svs(iq,n)*0.5*vlinprev(iq,n)*xp
+            newlai(iq,1,1)=newlai(iq,1,1)+svs(iq,n)*0.5*vlin(iq,n)*xp
+            newlai(iq,1,2)=newlai(iq,1,2)+svs(iq,n)*0.5*vlinnext(iq,n)*xp
+            newgrid(iq,4)=newgrid(iq,4)+svs(iq,n)*(1.-0.5*xp)
+            newlai(iq,4,0)=newlai(iq,4,0)+svs(iq,n)*vlinprev(iq,n)*(1.-0.5*xp)
+            newlai(iq,4,1)=newlai(iq,4,1)+svs(iq,n)*vlin(iq,n)*(1.-0.5*xp)
+            newlai(iq,4,2)=newlai(iq,4,2)+svs(iq,n)*vlinnext(iq,n)*(1.-0.5*xp)
+          else
+            newgrid(iq,4)=newgrid(iq,4)+svs(iq,n)
+            newlai(iq,4,0)=newlai(iq,4,0)+svs(iq,n)*vlinprev(iq,n)
+            newlai(iq,4,1)=newlai(iq,4,1)+svs(iq,n)*vlin(iq,n)
+            newlai(iq,4,2)=newlai(iq,4,2)+svs(iq,n)*vlinnext(iq,n)
           end if
         case (6)
           newgrid(iq,5)=newgrid(iq,5)+svs(iq,n)*0.8
