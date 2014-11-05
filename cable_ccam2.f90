@@ -688,9 +688,9 @@ select case( proglai )
     x = min(max(real(mtimer+monthstart)/real(1440*imonth(jmonth)),0.),1.)
     veg%vlai = vl1+vl2*x+vl3*x*x     ! LAI as a function of time
     where ( veg%iveg<14 )
-      veg%vlai = max( veg%vlai, 0.1 )
+      veg%vlai = max( veg%vlai, 0.01 )
     elsewhere
-      veg%vlai = 0.001
+      veg%vlai = 1.E-8
     end where
 
   case(1) ! prognostic LAI
@@ -1219,7 +1219,7 @@ if (mp>0) then
           sv(ipos)=newgrid(iq,iv)
           veg%iveg(ipos)=iv
           soil%isoilm(ipos)=isoilm(iq)
-          newlai(iq,iv,:)=max(newlai(iq,iv,:),0.1)
+          newlai(iq,iv,:)=max(newlai(iq,iv,:),0.01)
           if (fvegprev/=' '.and.fvegnext/=' ') then
             newlai(iq,iv,1)=newlai(iq,iv,1)+newlai(iq,iv,0)
             newlai(iq,iv,2)=newlai(iq,iv,2)+newlai(iq,iv,1)
@@ -1232,7 +1232,7 @@ if (mp>0) then
             vl3(ipos)=0.
           end if
           if (veg%iveg(ipos)>=14.and.veg%iveg(ipos)<=17) then
-            vl1(ipos)=0.001
+            vl1(ipos)=1.E-8
             vl2(ipos)=0.
             vl3(ipos)=0.
           end if
