@@ -1395,6 +1395,8 @@
       ! START PHYSICS 
       ! ***********************************************************************
       call START_LOG(phys_begin)
+
+      print *,"1uv ",myid,sum(u(1:ifull,:)),sum(v(1:ifull,:))
       
       ! GWDRAG ----------------------------------------------------------------
       call START_LOG(gwdrag_begin)
@@ -1412,6 +1414,8 @@
         call ccmpi_barrier(comm_world)
       end if
       call END_LOG(gwdrag_end)
+
+      print *,"2uv ",myid,sum(u(1:ifull,:)),sum(v(1:ifull,:))
       
       ! CONVECTION ------------------------------------------------------------
       call START_LOG(convection_begin)
@@ -1449,6 +1453,8 @@
         call ccmpi_barrier(comm_world)
       end if
       call END_LOG(convection_end)
+
+      print *,"3uv ",myid,sum(u(1:ifull,:)),sum(v(1:ifull,:))
       
       ! CLOUD MICROPHYSICS ----------------------------------------------------
       call START_LOG(cloud_begin)
@@ -1484,6 +1490,8 @@
         call ccmpi_barrier(comm_world)
       end if
       call END_LOG(cloud_end)
+
+      print *,"4uv ",myid,sum(u(1:ifull,:)),sum(v(1:ifull,:))
 
       ! RADIATION -------------------------------------------------------------
       
@@ -1527,6 +1535,8 @@
         call ccmpi_barrier(comm_world)
       end if
       call END_LOG(radnet_end)
+
+      print *,"5uv ",myid,sum(u(1:ifull,:)),sum(v(1:ifull,:))
 
 
       ! HELD & SUAREZ ---------------------------------------------------------
@@ -1672,6 +1682,8 @@
         end if
         call END_LOG(aerosol_end)
       end if
+
+      print *,"6uv ",myid,sum(u(1:ifull,:)),sum(v(1:ifull,:))
       
       ! VERTICAL MIXING ------------------------------------------------------
       if (nmaxpr==1) then
@@ -1698,11 +1710,15 @@
         end if
         call ccmpi_barrier(comm_world)
       end if
+
+      print *,"7uv ",myid,sum(u(1:ifull,:)),sum(v(1:ifull,:))
       
       ! Update diagnostics for consistancy in history file
       if (rescrn>0) then
         call autoscrn
       end if
+
+     
 
       ! PHYSICS LOAD BALANCING ------------------------------------------------
 !     This is the end of the physics. The next routine makes the load imbalance

@@ -230,8 +230,7 @@ SUBROUTINE surface_albedosn(ssnow, veg, met, soil)
          ! accumulation of dirt
          ar3 = .1
          ! snow covered fraction of the grid
-         !snrat = min (1., snr / (snr + .1) )    
-         snrat = min (1., snr / (snr + .01) ) 
+         snrat = min (1., snr / (snr + .1) )    
       
       END WHERE
 
@@ -277,8 +276,7 @@ SUBROUTINE surface_albedosn(ssnow, veg, met, soil)
          ! permanent ice: hard-wired number to be removed
          snrat = 1.
       ELSEWHERE
-         !snrat = MIN (1., snr / (snr + .1) )
-         snrat = MIN (1., snr / (snr + .01) )
+         snrat = MIN (1., snr / (snr + .1) )
       END WHERE
       
       fage = 1. - 1. / (1. + ssnow%snage ) !age factor
