@@ -445,7 +445,6 @@ do nb=1,maxnb
   tss=tss+unpack(sv(is:ie)*rad%trad(is:ie)**4,tmap(:,nb),0.) ! ave longwave radiation
   ! drag and mixing
   zo =zo +unpack(sv(is:ie)/log(zmin/rough%z0m(is:ie))**2,tmap(:,nb),0.)
-  zoh=zoh+unpack(sv(is:ie)/(log(zmin/rough%z0m(is:ie))*log(10.*zmin/rough%z0m(is:ie))),tmap(:,nb),0.)
   cduv=cduv+unpack(sv(is:ie)*canopy%cduv(is:ie),tmap(:,nb),0.)
   cdtq=cdtq+unpack(sv(is:ie)*canopy%cdtq(is:ie),tmap(:,nb),0.)
   ! soil
@@ -537,15 +536,16 @@ end if
 ! rsmin is typically used by CTM
 
 where ( land )
-  ustar=sqrt(cduv)*vmod
-  zoh  =zmin*exp(-sqrt(zo)/zoh)
-  zoq  =zoh
-  zo   =zmin*exp(-1./sqrt(zo))
-  cduv =cduv*vmod           ! cduv is Cd*vmod in CCAM
-  cdtq =cdtq*vmod
-  tss  =tss**0.25
-  rsmin=1./rsmin
-  rnet =sgsave-rgsave-stefbo*tss**4
+  zo    =zmin*exp(-1./sqrt(zo))
+  zo    =max( zo, zobgin )   ! fix for diagnostic
+  zoh   =zo/7.4
+  zoq   =zoh
+  ustar =sqrt(cduv)*vmod  
+  cduv  =cduv*vmod           ! cduv is Cd*vmod in CCAM
+  cdtq  =cdtq*vmod
+  tss   =tss**0.25
+  rsmin =1./rsmin
+  rnet  =sgsave-rgsave-stefbo*tss**4
   !tscrn=tscrn+273.16       ! convert from degC to degK
 end where
 where ( land .and. tmps>=0.5 ) ! tmps is average isflag
