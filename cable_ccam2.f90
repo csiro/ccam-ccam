@@ -234,7 +234,7 @@ met%doy         =fjd
 met%tvair       =met%tk
 met%tvrad       =met%tk
 met%ua          =max(met%ua,c%umin)
-met%coszen      =max(1.e-8,met%coszen) 
+met%coszen      =max(met%coszen,1.e-8) 
 met%hod         =mod(met%hod,24.)
 rough%za_uv     =rough%za_tq
 rad%fbeam(:,3)  =0.            ! dummy for now
@@ -252,7 +252,9 @@ ktau_gl          = 900
 kend_gl          = 999
 ssnow%owetfac    = ssnow%wetfac
 canopy%oldcansto = canopy%cansto
+!call point2constants(C)
 call ruff_resist(veg,rough,ssnow,canopy)
+!met%tk=met%tk+C%grav/C%capp*(rough%zref_tq + 0.9*rough%z0m)
 call define_air(met,air)
 call init_radiation(met,rad,veg,canopy)
 call surface_albedo(ssnow,veg,met,rad,soil,canopy)
@@ -266,13 +268,13 @@ ssnow%otss       = ssnow%tss
 ssnow%owetfac    = ssnow%wetfac
 call soil_snow(dt,soil,ssnow,canopy,met,bal,veg)
 call END_LOG(cabsoil_end)
-! adjust for new soil temperature
 call START_LOG(cabmisc_begin)
+! adjust for new soil temperature
 ssnow%deltss     = ssnow%tss - ssnow%otss
 canopy%fhs       = canopy%fhs + ssnow%deltss*ssnow%dfh_dtg
 canopy%fes       = canopy%fes + ssnow%deltss*ssnow%cls*ssnow%dfe_ddq*ssnow%ddq_dtg
-canopy%fhs_cor   = canopy%fhs_cor + ssnow%deltss*ssnow%dfh_dtg
-canopy%fes_cor   = canopy%fes_cor + ssnow%deltss*ssnow%cls*ssnow%dfe_ddq*ssnow%ddq_dtg
+!canopy%fhs_cor   = canopy%fhs_cor + ssnow%deltss*ssnow%dfh_dtg
+!canopy%fes_cor   = canopy%fes_cor + ssnow%deltss*ssnow%cls*ssnow%dfe_ddq*ssnow%ddq_dtg
 canopy%fh        = canopy%fhv + canopy%fhs
 canopy%fev       = canopy%fevc + canopy%fevw
 canopy%fe        = canopy%fev + canopy%fes
@@ -444,7 +446,7 @@ do nb=1,maxnb
   ga=ga+unpack(sv(is:ie)*canopy%ga(is:ie),tmap(:,nb),0.)
   tss=tss+unpack(sv(is:ie)*rad%trad(is:ie)**4,tmap(:,nb),0.) ! ave longwave radiation
   ! drag and mixing
-  zo =zo +unpack(sv(is:ie)/log(zmin/max(rough%z0m(is:ie),zobgin))**2,tmap(:,nb),0.)
+  zo  =zo  +unpack(sv(is:ie)/log(zmin/rough%z0m(is:ie))**2,tmap(:,nb),0.)
   cduv=cduv+unpack(sv(is:ie)*canopy%cduv(is:ie),tmap(:,nb),0.)
   cdtq=cdtq+unpack(sv(is:ie)*canopy%cdtq(is:ie),tmap(:,nb),0.)
   ! soil
@@ -1374,7 +1376,6 @@ if (mp>0) then
   canopy%fhs_cor=0.
   canopy%fes_cor=0.
   canopy%ga=0.
-  canopy%dgdtg=0.
   canopy%us=0.01
   ssnow%wb_lake=0. ! not used when mlo.f90 is active
   ssnow%fland=1.
