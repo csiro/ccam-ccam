@@ -444,7 +444,7 @@ do nb=1,maxnb
   ga=ga+unpack(sv(is:ie)*canopy%ga(is:ie),tmap(:,nb),0.)
   tss=tss+unpack(sv(is:ie)*rad%trad(is:ie)**4,tmap(:,nb),0.) ! ave longwave radiation
   ! drag and mixing
-  zo =zo +unpack(sv(is:ie)/log(zmin/rough%z0m(is:ie))**2,tmap(:,nb),0.)
+  zo =zo +unpack(sv(is:ie)/log(zmin/max(rough%z0m(is:ie),zobgin))**2,tmap(:,nb),0.)
   cduv=cduv+unpack(sv(is:ie)*canopy%cduv(is:ie),tmap(:,nb),0.)
   cdtq=cdtq+unpack(sv(is:ie)*canopy%cdtq(is:ie),tmap(:,nb),0.)
   ! soil
@@ -537,7 +537,6 @@ end if
 
 where ( land )
   zo    =zmin*exp(-1./sqrt(zo))
-  zo    =max( zo, zobgin )   ! fix for diagnostic
   zoh   =zo/7.4
   zoq   =zoh
   ustar =sqrt(cduv)*vmod  
