@@ -94,7 +94,7 @@ real, parameter :: rhos      = 100.             ! Assumed density of snow in kg/
 
 ! emission and deposition constants
 real, save :: zvolcemi       = 8.               ! Total emission from volcanoes (TgS/yr)
-real, save :: dzmin_gbl      = 2.               ! nominal minimum dz for dust settling (m)
+real, save :: dzmin_gbl      = 5.               ! nominal minimum dz for dust settling (m)
 real, save :: Ch_dust        = 1.e-9            ! Transfer coeff for type natural source (kg*s2/m5)
 
 ! Indirect effect coefficients

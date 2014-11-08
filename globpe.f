@@ -842,6 +842,17 @@
         enddo
         if (myid==0) write(6,*)'khor,hdiff: ',khor,hdiff
       end if
+      if (nud_p==0.and.mfix==0) then
+        write(6,*) "ERROR: Both nud_p=0 and mfix=0"
+        write(6,*) "Model will not conserve mass"
+        call ccmpi_abort(-1)
+      end if
+      if (nud_q==0.and.mfix_qg==0) then
+        write(6,*) "ERROR: Both nud_q=0 and mfix_qg=0"
+        write(6,*) "Model will not conserve moisture"
+        call ccmpi_abort(-1)
+      end if
+      
 
       call printa('zs  ',zs,0,0,ia,ib,ja,jb,0.,.01)
       call printa('tss ',tss,0,0,ia,ib,ja,jb,200.,1.)
@@ -1395,7 +1406,7 @@
       ! START PHYSICS 
       ! ***********************************************************************
       call START_LOG(phys_begin)
-
+      
       ! GWDRAG ----------------------------------------------------------------
       call START_LOG(gwdrag_begin)
       if (nmaxpr==1) then
@@ -1412,7 +1423,7 @@
         call ccmpi_barrier(comm_world)
       end if
       call END_LOG(gwdrag_end)
-
+      
       ! CONVECTION ------------------------------------------------------------
       call START_LOG(convection_begin)
       if (nmaxpr==1) then
@@ -1449,7 +1460,7 @@
         call ccmpi_barrier(comm_world)
       end if
       call END_LOG(convection_end)
-
+      
       ! CLOUD MICROPHYSICS ----------------------------------------------------
       call START_LOG(cloud_begin)
       if (nmaxpr==1) then
@@ -1527,6 +1538,7 @@
         call ccmpi_barrier(comm_world)
       end if
       call END_LOG(radnet_end)
+
 
       ! HELD & SUAREZ ---------------------------------------------------------
       if (ntsur<=1.or.nhstest==2) then ! Held & Suarez or no surf fluxes
@@ -1671,7 +1683,7 @@
         end if
         call END_LOG(aerosol_end)
       end if
-
+      
       ! VERTICAL MIXING ------------------------------------------------------
       if (nmaxpr==1) then
         if (myid==0) then
@@ -1697,13 +1709,11 @@
         end if
         call ccmpi_barrier(comm_world)
       end if
-
+      
       ! Update diagnostics for consistancy in history file
       if (rescrn>0) then
         call autoscrn
       end if
-
-     
 
       ! PHYSICS LOAD BALANCING ------------------------------------------------
 !     This is the end of the physics. The next routine makes the load imbalance

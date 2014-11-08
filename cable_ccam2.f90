@@ -267,12 +267,11 @@ ssnow%otss_0     = ssnow%otss
 ssnow%otss       = ssnow%tss
 ssnow%owetfac    = ssnow%wetfac
 call soil_snow(dt,soil,ssnow,canopy,met,bal,veg)
-call END_LOG(cabsoil_end)
-call START_LOG(cabmisc_begin)
 ! adjust for new soil temperature
 ssnow%deltss     = ssnow%tss - ssnow%otss
-!canopy%fhs       = canopy%fhs + ssnow%deltss*ssnow%dfh_dtg
-!canopy%fes       = canopy%fes + ssnow%deltss*ssnow%cls*ssnow%dfe_ddq*ssnow%ddq_dtg
+call END_LOG(cabsoil_end)
+call START_LOG(cabmisc_begin)
+canopy%fhs       = canopy%fhs + ssnow%deltss*ssnow%dfh_dtg
 !canopy%fhs_cor   = canopy%fhs_cor + ssnow%deltss*ssnow%dfh_dtg
 !canopy%fes_cor   = canopy%fes_cor + ssnow%deltss*ssnow%cls*ssnow%dfe_ddq*ssnow%ddq_dtg
 canopy%fh        = canopy%fhv + canopy%fhs
