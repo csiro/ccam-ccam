@@ -1026,6 +1026,8 @@
       ! START ATMOSPHERE DYNAMICS
       ! ***********************************************************************
 
+      print *,"q1 ",myid,sum(qg(1:ifull,:))
+
       ! NESTING ---------------------------------------------------------------
       if (nbd/=0) then
         call START_LOG(nestin_begin)
@@ -1272,6 +1274,8 @@
         call ccmpi_barrier(comm_world)
       end if
       
+      print *,"q2 ",myid,sum(qg(1:ifull,:))
+      
       ! NESTING ---------------------------------------------------------------
       ! nesting now after mass fixers
       call START_LOG(nestin_begin)
@@ -1296,6 +1300,8 @@
       end if
       call END_LOG(nestin_end)
 
+      print *,"q3 ",myid,sum(qg(1:ifull,:))
+
       ! DYNAMICS --------------------------------------------------------------
       if(mspec==2)then     ! for very first step restore mass & T fields
         call gettin(1)
@@ -1316,6 +1322,8 @@
         ux(1:ifull,:)=u(1:ifull,:)   
         vx(1:ifull,:)=v(1:ifull,:)   
       endif
+      
+      print *,"q4 ",myid,sum(qg(1:ifull,:))
 
       ! DIFFUSION -------------------------------------------------------------
       call START_LOG(hordifg_begin)
@@ -1336,6 +1344,8 @@
         call ccmpi_barrier(comm_world)
       end if
       call END_LOG(hordifg_end)
+
+      print *,"q5 ",myid,sum(qg(1:ifull,:))
 
       ! ***********************************************************************
       ! START OCEAN DYNAMICS
@@ -1406,6 +1416,8 @@
       ! START PHYSICS 
       ! ***********************************************************************
       call START_LOG(phys_begin)
+
+      print *,"q10 ",myid,sum(qg(1:ifull,:))
       
       ! GWDRAG ----------------------------------------------------------------
       call START_LOG(gwdrag_begin)
@@ -1423,6 +1435,8 @@
         call ccmpi_barrier(comm_world)
       end if
       call END_LOG(gwdrag_end)
+      
+      print *,"q11 ",myid,sum(qg(1:ifull,:))
       
       ! CONVECTION ------------------------------------------------------------
       call START_LOG(convection_begin)
@@ -1461,6 +1475,8 @@
       end if
       call END_LOG(convection_end)
       
+      print *,"q12 ",myid,sum(qg(1:ifull,:))
+      
       ! CLOUD MICROPHYSICS ----------------------------------------------------
       call START_LOG(cloud_begin)
       if (nmaxpr==1) then
@@ -1495,6 +1511,8 @@
         call ccmpi_barrier(comm_world)
       end if
       call END_LOG(cloud_end)
+
+      print *,"q13 ",myid,sum(qg(1:ifull,:))
 
       ! RADIATION -------------------------------------------------------------
       
@@ -1709,6 +1727,8 @@
         end if
         call ccmpi_barrier(comm_world)
       end if
+      
+      print *,"q14 ",myid,sum(qg(1:ifull,:))
       
       ! Update diagnostics for consistancy in history file
       if (rescrn>0) then

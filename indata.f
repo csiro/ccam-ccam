@@ -2165,10 +2165,10 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
           call ccmpi_distribute(idumb(:,1:2))
           call ccmpi_distribute(dumb(:,1:3))
         end if
-        albvisnir(:,1)=dumb(:,1)
+        albvisnir(:,1)=0.01*dumb(:,1)
         albvisnir(:,2)=albvisnir(:,1)
         rsmin=dumb(:,2)
-        zolnd=dumb(:,3)
+        zolnd=0.01*dumb(:,3)
         ivegt=idumb(:,1)
         isoilm=idumb(:,2)
       else if (nsib==5) then
@@ -2184,10 +2184,10 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
         else
           call ccmpi_distribute(dumb(:,1:5))
         end if
-        albvisnir(:,1)=dumb(:,1)
-        albvisnir(:,2)=dumb(:,2)
+        albvisnir(:,1)=0.01*dumb(:,1)
+        albvisnir(:,2)=0.01*dumb(:,2)
         rsmin=dumb(:,3)
-        zolnd=dumb(:,4)
+        zolnd=0.01*dumb(:,4)
         vlai=0.01*dumb(:,5)
         ivegt=1 ! updated later
         call readint(soilfile,isoilm,ifull)
@@ -2205,6 +2205,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
             call surfread(duma(:,3),'soilt', filename=soilfile)
             call surfread(duma(:,1),'albvis',filename=albfile)
             call surfread(duma(:,2),'albnir',filename=albnirfile)
+	    duma(:,1:2)=0.01*duma(:,1:2)
           end if
           call ccmpi_distribute(dumb(:,1:3),duma(:,1:3))
           deallocate(duma)
@@ -2261,8 +2262,6 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
         end if
       endif
  
-      albvisnir(:,:)=.01*albvisnir(:,:)
-      zolnd(:)=.01*zolnd(:)
       zolnd(:)=max(zolnd(:) , zobgin)
 
       return
