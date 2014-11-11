@@ -15,7 +15,7 @@ public itracbc,bce,bcdd,bcwd,bc_burden
 public itracoc,oce,ocdd,ocwd,oc_burden
 public itracso2,dmse,dmsso2o,so2e,so2so4o,so2dd,so2wd,so4e,so4dd,so4wd
 public dms_burden,so2_burden,so4_burden
-public Ch_dust,zvolcemi,ticeu,dzmin_gbl,aeroindir,dustreff
+public Ch_dust,zvolcemi,ticeu,aeroindir,dustreff
 
 integer, save :: ifull,kl
 integer, save :: jk2,jk3,jk4,jk5,jk6,jk8,jk9           ! levels for injection
@@ -94,7 +94,6 @@ real, parameter :: rhos      = 100.             ! Assumed density of snow in kg/
 
 ! emission and deposition constants
 real, save :: zvolcemi       = 8.               ! Total emission from volcanoes (TgS/yr)
-real, save :: dzmin_gbl      = 5.               ! nominal minimum dz for dust settling (m)
 real, save :: Ch_dust        = 1.e-9            ! Transfer coeff for type natural source (kg*s2/m5)
 
 ! Indirect effect coefficients
@@ -389,8 +388,7 @@ real, dimension(ifull) :: cstrat,qtot
 real, dimension(ifull) :: rrate,Wstar3,Vgust_free,Vgust_deep
 real, dimension(ifull) :: v10n,thetav,burden,dcol1,dcol2,oldduste
 real, parameter :: beta = 0.65
-real ddt
-integer nt,k,nstep,i
+integer nt,k
 
 conwd=0.
 cgssnowd=1.E-3*snowd
@@ -442,22 +440,18 @@ oldduste = duste
 dcol1 = 0.
 do nt=itracdu,itracdu+ndust-1
   do k=1,kl
-    dcol1 = dcol1 + rhoa(:,k) * xtg(1:ifull,k,nt) * dz(:,k)
+    dcol1 = dcol1 + rhoa(:,k)*xtg(1:ifull,k,nt)*dz(:,k)
   end do
 end do
-nstep=int(dt/120.01)+1
-ddt=dt/real(nstep)
-do i=1,nstep
-  ! Calculate the settling of large dust particles
-  call dsettling(ddt,rhoa,ttg,dz,aphp1(:,1:kl))
-  ! Calculate dust emission and turbulent dry deposition at the surface
-  call dustem(ddt,dt,rhoa(:,1),wg,veff,dz(:,1),vt,snowd,land)
-end do
+! Calculate the settling of large dust particles
+call dsettling(dt,rhoa,ttg,dz,aphp1(:,1:kl))
+! Calculate dust emission and turbulent dry deposition at the surface
+call dustem(dt,rhoa(:,1),wg,veff,dz(:,1),vt,snowd,land)
 ! Calculate integrated column dust after settling
 dcol2 = 0.
 do nt=itracdu,itracdu+ndust-1
   do k=1,kl
-    dcol2 = dcol2 + rhoa(:,k) * xtg(1:ifull,k,nt) * dz(:,k)
+    dcol2 = dcol2 + rhoa(:,k)*xtg(1:ifull,k,nt)*dz(:,k)
   end do
 end do
 ! Calculate deposition flux to surface
@@ -602,11 +596,10 @@ REAL, dimension(ifull,naero), intent(out) :: PXTEMS !Sfc. flux of tracer passed 
 ! Some diagnostics
 real, dimension(ifull), intent(out) :: bbem
 
-real ddt
-integer jl,jk,jt,nstep,ii
+integer jl,jk,jt
 
 REAL, dimension(ifull,2) :: ZVDRD
-REAL, dimension(ifull) :: gdp,zdmsemiss,pxtm1new
+REAL, dimension(ifull) :: gdp,zdmsemiss
 real, dimension(ifull) :: zhilbco,zhilbcy,zhiloco,zhilocy
 real, dimension(ifull) :: zhilso2,zhilso4
 real, dimension(ifull) :: zdmscon, ZSST, ScDMS, zVdms, wtliss
@@ -861,62 +854,24 @@ bbem=emissfield(:,ibcb1)+emissfield(:,ibcb2)+1.3*(emissfield(:,iocb1)+emissfield
 ! ZVDRD(JL,1)  FOR SO2 GAS
 ! ZVDRD(JL,2)  FOR AEROSOLS
 gdp=1./(rhoa(:,1)*dz(:,1))
-nstep=int(ztmst/120.01)+1
-ddt=ztmst/real(nstep)
 
-pxtm1new=xtg(1:ifull,1,itracso2)
-do ii=1,nstep
-  pxtm1new=(pxtm1new*(1.-0.5*ddt*zvdrd(:,1)/dz(:,1))+ddt*xte(:,1,ITRACSO2))        &
-      /(1.+0.5*ddt*zvdrd(:,1)/dz(:,1))
-  pxtm1new=max(0.,pxtm1new)
-end do
-zhilso2=(xtg(1:ifull,1,itracso2)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACSO2)/gdp
+zhilso2=xtg(1:ifull,1,itracso2)*(1.-exp(-ztmst*zvdrd(:,1)/dz(:,1)))/(ztmst*gdp)
 xte(:,1,ITRACSO2)  =xte(:,1,ITRACSO2)  -zhilso2*gdp
   
-pxtm1new=xtg(1:ifull,1,itracso2+1)
-do ii=1,nstep  
-  pxtm1new=(pxtm1new*(1.-0.5*ddt*zvdrd(:,2)/dz(:,1))+ddt*xte(:,1,ITRACSO2+1))      &
-        /(1.+0.5*ddt*zvdrd(:,2)/dz(:,1))
-  pxtm1new=max(0.,pxtm1new)
-end do
-zhilso4=(xtg(1:ifull,1,itracso2+1)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACSO2+1)/gdp
+zhilso4=xtg(1:ifull,1,itracso2+1)*(1.-exp(-ztmst*zvdrd(:,2)/dz(:,1)))/(ztmst*gdp)
 xte(:,1,ITRACSO2+1)=xte(:,1,ITRACSO2+1)-zhilso4*gdp
 
-pxtm1new=xtg(1:ifull,1,ITRACBC)
-do ii=1,nstep  
-  pxtm1new=(pxtm1new*(1.-0.5*ddt*ZVDPHOBIC/dz(:,1))+ddt*xte(:,1,ITRACBC))          &
-          /(1.+0.5*ddt*ZVDPHOBIC/dz(:,1))
-  pxtm1new=max(0.,pxtm1new)
-end do
-ZHILBCO=(xtg(1:ifull,1,ITRACBC)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACBC)/gdp
-xte(:,1,itracbc)  =xte(:,1,itracbc)  -zhilbco*gdp
+ZHILBCO=xtg(1:ifull,1,ITRACBC)*(1.-exp(-ztmst*ZVDPHOBIC/dz(:,1)))/(ztmst*gdp)
+xte(:,1,itracbc)  =xte(:,1,itracbc)    -zhilbco*gdp
 
-pxtm1new=xtg(1:ifull,1,ITRACBC+1)
-do ii=1,nstep
-  pxtm1new=(pxtm1new*(1.-0.5*ddt*ZVDRD(:,2)/dz(:,1))+ddt*xte(:,1,ITRACBC+1))       &
-          /(1.+0.5*ddt*ZVDRD(:,2)/dz(:,1))
-  pxtm1new=max(0.,pxtm1new)
-end do
-ZHILBCY=(xtg(1:ifull,1,ITRACBC+1)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACBC+1)/gdp
-xte(:,1,itracbc+1)=xte(:,1,itracbc+1)-zhilbcy*gdp
+ZHILBCY=xtg(1:ifull,1,ITRACBC+1)*(1.-exp(-ztmst*ZVDRD(:,2)/dz(:,1)))/(ztmst*gdp)
+xte(:,1,itracbc+1)=xte(:,1,itracbc+1)  -zhilbcy*gdp
 
-pxtm1new=xtg(1:ifull,1,ITRACOC)
-do ii=1,nstep
-  pxtm1new=(pxtm1new*(1.-0.5*ddt*ZVDPHOBIC/dz(:,1))+ddt*xte(:,1,ITRACOC))          &
-          /(1.+0.5*ddt*ZVDPHOBIC/dz(:,1))
-  pxtm1new=max(0.,pxtm1new)
-end do
-ZHILOCO=(xtg(1:ifull,1,ITRACOC)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACOC)/gdp
-xte(:,1,itracoc)  =xte(:,1,itracoc)  -zhiloco*gdp
+ZHILOCO=xtg(1:ifull,1,ITRACOC)*(1.-exp(-ztmst*ZVDPHOBIC/dz(:,1)))/(ztmst*gdp)
+xte(:,1,itracoc)  =xte(:,1,itracoc)    -zhiloco*gdp
 
-pxtm1new=xtg(1:ifull,1,ITRACOC+1)
-do ii=1,nstep
-  pxtm1new=(pxtm1new*(1.-0.5*ddt*ZVDRD(:,2)/dz(:,1))+ddt*xte(:,1,ITRACOC+1))       &
-          /(1.+0.5*ddt*ZVDRD(:,2)/dz(:,1))
-  pxtm1new=max(0.,pxtm1new)
-end do
-ZHILOCY=(xtg(1:ifull,1,ITRACOC+1)-pxtm1new)/(ztmst*gdp)+xte(:,1,ITRACOC+1)/gdp
-xte(:,1,itracoc+1)=xte(:,1,itracoc+1)-zhilocy*gdp
+ZHILOCY=xtg(1:ifull,1,ITRACOC+1)*(1.-exp(-ztmst*ZVDRD(:,2)/dz(:,1)))/(ztmst*gdp)
+xte(:,1,itracoc+1)=xte(:,1,itracoc+1)  -zhilocy*gdp
 
 so2dd=so2dd+zhilso2
 so4dd=so4dd+zhilso4
@@ -2015,17 +1970,14 @@ implicit none
 real, intent(in) :: tdt                         !timestep (s)
 real, dimension(1:ifull,kl), intent(in) :: rhoa !air density (kg/m3)
 real, dimension(:,:), intent(in) :: tmp         !temperature (K)
-real, dimension(ifull,kl), intent(in) :: delz   !Lowest layer thickness (m)
+real, dimension(ifull,kl), intent(in) :: delz   !Layer thickness (m)
 real, dimension(ifull,kl), intent(in) :: prf    !Pressure (hPa)
 
 ! Local work arrays and variables
 real, dimension(ifull) :: c_stokes, corr, c_cun
 real, dimension(ifull) :: newxtg, b, dfall
 real, dimension(ifull,kl) :: vd_cor
-real dtmax,vsettl,dt_settl
-integer i,nt,l,ndt_settl
-
-real, parameter :: dyn_visc = 1.5E-5
+integer nt,l
 
 ! Start code : ----------------------------------------------------------
 
@@ -2033,17 +1985,8 @@ do nt = 1, NDUST
   ! Settling velocity (m/s) for each soil classes (Stokes Law)
   ! DUSTDEN     soil class density             (kg/m3)
   ! DUSTREFF    effective radius of soil class (m)
-  ! dyn_visc    dynamic viscosity              (kg/m2/s)
   ! grav        gravity                        (m/s2)
   ! 0.5         upper limit with temp correction (already incorporated with dzmin_gbl - MJT)
-  !vsettl = 2./9. * grav * DUSTDEN(nt) * DUSTREFF(nt)**2 / (0.5*dyn_visc)
-  vsettl = 2./9. * grav * DUSTDEN(nt) * DUSTREFF(nt)**2 / dyn_visc
-
-  ! Determine the maximum time-step satisying the CFL condition:
-  ! dt <= (dz)_min / v_settl
-  dtmax = dzmin_gbl / vsettl
-  ndt_settl = max(1, int( tdt/dtmax ) )
-  dt_settl = tdt/real(ndt_settl)
 
   ! Solve at the model top
   ! Dynamic viscosity
@@ -2064,23 +2007,23 @@ do nt = 1, NDUST
     Vd_cor(:,l) = 2./9.*grav*dustden(nt)*dustreff(nt)**2/C_Stokes*C_Cun
   end do
   
-  do i = 1, ndt_settl
+  ! Update mixing ratio
+  b = tdt*VD_cor(:,kl)/DELZ(:,kl)
+  newxtg = xtg(1:ifull,kl,nt+itracdu-1)*exp(-b)
+  newxtg = max( newxtg, 0. )
+  dfall = max( xtg(1:ifull,kl,nt+itracdu-1) - newxtg, 0. )
+  xtg(1:ifull,kl,nt+itracdu-1) = newxtg
+  ! Solve each vertical layer successively (layer l)
+  do l = kl-1,1,-1
     ! Update mixing ratio
-    b = dt_settl*VD_cor(:,kl)/DELZ(:,kl)
-    newxtg = xtg(1:ifull,kl,nt+itracdu-1) * (1. - 0.5*b) / (1. + 0.5*b)
+    b = tdt*Vd_cor(:,l)/DELZ(:,l)
+    dfall = dfall * delz(:,l+1)*rhoa(:,l+1)/(delz(:,l)*rhoa(:,l))
+    ! Fout = 1.-exp(-b)
+    ! Fthru = 1.-Fout/b
+    newxtg = xtg(1:ifull,l,nt+itracdu-1)*exp(-b) + dfall*(1.-exp(-b))/b
     newxtg = max( newxtg, 0. )
-    dfall = max( xtg(1:ifull,kl,nt+itracdu-1) - newxtg, 0. )
-    xtg(1:ifull,kl,nt+itracdu-1) = newxtg
-    ! Solve each vertical layer successively (layer l)
-    do l = kl-1,1,-1
-      ! Update mixing ratio
-      b = dt_settl*Vd_cor(:,l)/DELZ(:,l)
-      dfall = dfall * delz(:,l+1)*rhoa(:,l+1)/(delz(:,l)*rhoa(:,l))
-      newxtg = ( xtg(1:ifull,l,nt+itracdu-1)*(1. - 0.5*b) + dfall ) / (1. + 0.5*b)
-      newxtg = max( newxtg, 0. )
-      dfall = max( xtg(1:ifull,l,nt+itracdu-1) + dfall - newxtg, 0. )
-      xtg(1:ifull,l,nt+itracdu-1) = newxtg
-    end do
+    dfall = max( xtg(1:ifull,l,nt+itracdu-1) + dfall - newxtg, 0. )
+    xtg(1:ifull,l,nt+itracdu-1) = newxtg
   end do
 end do
 
@@ -2090,12 +2033,12 @@ end subroutine dsettling
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Dust emissions
 
-subroutine dustem(tdt,dt,rhoa,wg,w10m,dz1,vt,snowd,land)
+subroutine dustem(tdt,rhoa,wg,w10m,dz1,vt,snowd,land)
 
 implicit none
 
 !     Inputs:
-real, intent(in) :: tdt,dt                      !Leapfrog timestep (s) (substep and long step)
+real, intent(in) :: tdt                         !Leapfrog timestep (s) (substep and long step)
 real, dimension(ifull), intent(in) :: rhoa      !air density (kg/m3)
 real, dimension(ifull), intent(in) :: wg        !ground wetness (fraction of field capacity)
 real, dimension(ifull), intent(in) :: w10m      !10m windspeed (m/s)
@@ -2153,7 +2096,7 @@ do n = 1, ndust
 
 ! Calculate dust mixing ratio tendency at first model level.
   a = dsrc / airmas
-  duste = duste + dsrc*tdt/dt ! Diagnostic
+  duste = duste + dsrc ! Diagnostic
 
 ! Calculate turbulent dry deposition at surface
 ! Use full layer thickness for CSIRO model (should be correct if Vt is relative to mid-layer)
@@ -2162,7 +2105,7 @@ do n = 1, ndust
 
 ! Update mixing ratio
 ! Write in form dx/dt = a - bx (a = source term, b = drydep term)
-  xtg(1:ifull,1,n+itracdu-1) = (xtg(1:ifull,1,n+itracdu-1)*(1.-0.5*b*tdt)+a*tdt)/(1.+0.5*b*tdt)
+  xtg(1:ifull,1,n+itracdu-1) = xtg(1:ifull,1,n+itracdu-1)*exp(-b)+a*tdt
   xtg(1:ifull,1,n+itracdu-1) = max( 0., xtg(1:ifull,1,n+itracdu-1) )
 
 end do

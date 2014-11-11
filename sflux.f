@@ -55,6 +55,7 @@
       include 'soilv.h'                  ! Soil parameters
 
       integer iq,k,it,ip,iqmin1,iqmax1,iqmin2,iqmax2
+      integer pos(1)
       integer, intent(in) :: nalpha
       real ri_max,zologbgin,ztv,z1onzt,chnsea
       real srcp,dtsoil,afrootpan,es,constz,drst
@@ -167,6 +168,12 @@ c     using av_vmod (1. for no time averaging)
       tv=t(1:ifull,1)*(1.+0.61*qg(1:ifull,1)-qlg(1:ifull,1)
      &   -qfg(1:ifull,1))
       azmin=(bet(1)*tv+phi_nh(:,1))/grav
+      if (minval(azmin)<5.) then
+        pos=minloc(azmin)
+        write(6,*) "WARN: myid,iq,azmin ",myid,pos(1),azmin(pos(1))
+	write(6,*) "      bet*tv,phi_nh ",bet(1)*tv(pos(1)),
+     &    phi_nh(pos(1),1)
+      end if
       srcp =sig(1)**(rdry/cp)
       ga(:)=0.              !  for ocean points in ga_ave diagnostic
       theta(:)=t(1:ifull,1)/srcp

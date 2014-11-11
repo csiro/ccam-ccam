@@ -9,6 +9,7 @@ public tracer_mass,interp_tracerflux,tracerlist
 public writetrpm
 public readtracerflux,tracunit,tracdaytime
 public oh,strloss,mcfdep,jmcf
+public trden, trreff, trdep
 
 integer, dimension(:), save, allocatable :: tracinterp
 integer, dimension(:), save, allocatable :: nghr, igashr
@@ -17,6 +18,7 @@ real, dimension(:,:,:), save, allocatable :: co2emhr, co2em123
 real, dimension(:,:), save, allocatable :: co2hr, co2em
 real, dimension(:,:), save, allocatable :: tracdaytime
 real, dimension(:), save, allocatable :: tracival
+real, dimension(:), save, allocatable :: trden, trreff, trdep
 character(len=13), dimension(:), save, allocatable :: tracname
 character(len=13), dimension(:), save, allocatable :: tractype
 character(len=13), dimension(:), save, allocatable :: tracunit
@@ -71,9 +73,10 @@ allocate(tracinterp(numtracer),tracunit(numtracer))
 allocate(tracfile(numtracer),igashr(numtracer))
 allocate(tracival(numtracer))
 allocate(tracdaytime(numtracer,2))
+allocate(trden(numtracer),trreff(numtracer),trdep(numtracer))
 nhr = 0
 do nt=1,numtracer
-  read(130,*) tracname(nt),tracival(nt),tracmin,tracmax,tractype(nt),tracfile(nt)
+  read(130,*) tracname(nt),tracival(nt),tracmin,tracmax,tractype(nt),tracfile(nt),trden(nt),trreff(nt),trdep(nt)
   select case(tractype(nt))
    case ('monrep','month')
     tracinterp(nt)=1
@@ -436,10 +439,8 @@ end if !myid == 0
 
 !     Simple broadcast for co2 time
 call ccmpi_bcast(co2time(1:nflux),0,comm_world)
-!     Also need to share tracunit, tractype, and tracname.
+!     Also need to share tracunit, if changed by input file.
 call ccmpi_bcast(tracunit(igas),0,comm_world)
-call ccmpi_bcast(tractype(igas),0,comm_world)
-call ccmpi_bcast(tracname(igas),0,comm_world)
       
 if (trim(fluxtype)=='daypulseon') then
 

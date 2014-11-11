@@ -441,6 +441,7 @@ use aerosolldr          ! LDR prognostic aerosols
 use arrays_m            ! Atmosphere dyamics prognostic arrays
 use cc_mpi              ! CC MPI routines
 use cfrac_m             ! Cloud fraction
+use cloudmod            ! Prognostic strat cloud
 use extraout_m          ! Additional diagnostics
 use infile              ! Input file routines
 use kuocomb_m           ! JLM convection
@@ -534,26 +535,15 @@ do k=1,kl
   rhoa(:,k)=ps(1:ifull)*sig(k)/(rdry*tv(1:ifull,k)) ! density of air (kg/m**3)
 end do
 
-! MJT notes - we should calculate dzmin_gbl in indata.f if this becomes a problem
-if (any(dz(:,1)<dzmin_gbl)) then
-  write(6,*) "ERROR: dzmin_gbl in aerosol dsettling is invalid.  Must be less than ",minval(dz(:,1))
-  call ccmpi_abort(-1)
-end if
-
 ! estimate convective cloud fraction from leoncld.f
-where (ktsav<kl-1)
-  cldcon=min(acon+bcon*log(1.+condc*86400./dt),0.8) !NCAR
-elsewhere
-  cldcon=0.
-end where
+call convectivecloudfrac(clcon)
 if (nmr>=1) then
   do iq=1,ifull
     do k=1,kbsav(iq)
-      clcon(iq,k)=0.
       pccw(iq,kl+1-k)=0.
     end do
     do k=kbsav(iq)+1,ktsav(iq)
-      clcon(iq,k)=cldcon(iq) ! maximum overlap
+      ! maximum overlap
       if (t(iq,k)>ticeu) then
         pccw(iq,kl+1-k)=wlc/rhoa(iq,k)
       else
@@ -561,18 +551,16 @@ if (nmr>=1) then
       end if
     end do
     do k=ktsav(iq)+1,kl
-      clcon(iq,k)=0.
       pccw(iq,kl+1-k)=0.
     end do
   end do  
 else
   do iq=1,ifull
     do k=1,kbsav(iq)
-      clcon(iq,k)=0.
       pccw(iq,kl+1-k)=0.
     end do
     do k=kbsav(iq)+1,ktsav(iq)
-      clcon(iq,k)=1.-(1.-cldcon(iq))**(1./real(ktsav(iq)-kbsav(iq)+2)) !Random overlap
+      ! random overlap
       if (t(iq,k)>ticeu) then
         pccw(iq,kl+1-k)=wlc/rhoa(iq,k)
       else
@@ -580,7 +568,6 @@ else
       end if
     end do
     do k=ktsav(iq)+1,kl
-      clcon(iq,k)=0.
       pccw(iq,kl+1-k)=0.
     end do
   end do  
