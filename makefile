@@ -36,7 +36,7 @@ OBJS = adjust5.o amipsst.o convjlm.o depts.o estab.o gettin.o \
 globpe.o gwdrag.o hordifg.o hs_phys.o indata.o infile.o ints.o \
 helmsolve.o jimcc.o mslp.o nesting.o nonlin.o \
 outcdf.o pbldif.o radriv90.o scrnout.o setxyz.o sflux.o \
-soilsnow.o staguv.o trim.o upglobal.o eig.o updps.o vadvtvd.o \
+soilsnow.o staguv.o upglobal.o eig.o updps.o vadvtvd.o \
 vertmix.o icefall.o leoncld.o newcloud.o newrain.o cloudmod.o latltoij.o \
 cldblk.o clddia.o clo89.o cloud.o cloud2.o co2_read.o e1e288.o \
 e3v88.o fst88.o hconst.o lwr88.o ozoneread.o spa88.o \
@@ -199,7 +199,6 @@ swr99.o : hcon.h newmpar.h rdparm.h
 table.o : radisw_m.o tabcom_m.o hcon.h newmpar.h rdparm.h rnddta.h
 timeseries.o : arrays_m.o cable_define_types.o carbpools_m.o cc_mpi.o infile.o extraout_m.o morepbl_m.o nharrs_m.o pbl_m.o prec_m.o sigs_m.o soil_m.o soilsnow_m.o tracermodule.o tracers_m.o vecsuv_m.o vegpar_m.o vvel_m.o xyzinfo_m.o const_phys.h dates.h newmpar.h parmgeom.h
 tracermodule.o : arrays_m.o cc_mpi.o infile.o latlong_m.o sigs_m.o sumdd_m.o tracers_m.o xyzinfo_m.o const_phys.h dates.h newmpar.h parm.h
-trim.o : newmpar.h 
 trvmix.o : arrays_m.o cc_mpi.o cable_ccam2.o cable_define_types.o carbpools_m.o cc_mpi.o diag_m.o nsibd_m.o pbl_m.o sigs_m.o tracermodule.o tracers_m.o xyzinfo_m.o const_phys.h dates.h newmpar.h parm.h
 updps.o : arrays_m.o cc_mpi.o diag_m.o indices_m.o map_m.o nlin_m.o savuvt_m.o savuv1_m.o sigs_m.o vecsuv_m.o vvel_m.o xarrs_m.o xyzinfo_m.o const_phys.h newmpar.h parm.h parmdyn.h parmhor.h
 upglobal.o : aerosolldr.o arrays_m.o cc_mpi.o cfrac_m.o cloudmod.o diag_m.o epst_m.o indices_m.o liqwpar_m.o map_m.o nharrs_m.o nlin_m.o sbar_m.o sigs_m.o tkeeps.o tracers_m.o unn_m.o vadvtvd.o vecsuv_m.o vvel_m.o work3f_m.o xarrs_m.o xyzinfo_m.o const_phys.h kuocom.h newmpar.h parm.h parmdyn.h parmhor.h parmvert.h

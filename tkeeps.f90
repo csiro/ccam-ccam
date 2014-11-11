@@ -29,7 +29,7 @@ public mintke,mineps,cm0,cq,minl,maxl
 #ifdef offline
 public wth,wqv,wql,wqf
 public mf,w_up,th_up,qv_up,ql_up,qf_up,cf_up
-public u,v,ustar,ents,dtrs
+public ents,dtrs
 #endif
 
 integer, save :: ifull,iextra,kl
@@ -40,7 +40,6 @@ real, dimension(:), allocatable, save :: zidry
 real, dimension(:,:), allocatable, save :: wth,wqv,wql,wqf
 real, dimension(:,:), allocatable, save :: mf,w_up,th_up,qv_up,ql_up,qf_up,cf_up
 real, dimension(:,:), allocatable, save :: u,v,ents,dtrs
-real, dimension(:), allocatable, save :: ustar
 #endif
 
 ! model constants
@@ -113,7 +112,6 @@ zidry=0.
 allocate(wth(ifull,kl),wqv(ifull,kl),wql(ifull,kl),wqf(ifull,kl))
 allocate(mf(ifull,kl),w_up(ifull,kl),th_up(ifull,kl),qv_up(ifull,kl))
 allocate(ql_up(ifull,kl),qf_up(ifull,kl),cf_up(ifull,kl))
-allocate(u(ifull,kl),v(ifull,kl),ustar(ifull))
 allocate(ents(ifull,kl),dtrs(ifull,kl))
 wth=0.
 wqv=0.
@@ -126,9 +124,6 @@ qv_up=0.
 ql_up=0.
 qf_up=0.
 cf_up=0.
-u=0.
-v=0.
-ustar=0.
 ents=0.
 dtrs=0.
 #endif
@@ -142,7 +137,7 @@ end subroutine tkeinit
 ! mode=0 mass flux with moist convection
 ! mode=1 no mass flux
 
-subroutine tkemix(kmo,theta,qvg,qlg,qfg,qrg,cfrac,cfrain,zi,fg,eg,ps,ustar, &
+subroutine tkemix(kmo,theta,qvg,qlg,qfg,qrg,cfrac,cfrain,uo,vo,zi,fg,eg,ps,ustar, &
                   zz,zzh,sig,rhos,dt,qgmin,mode,diag,naero,aero)
 
 implicit none
@@ -153,7 +148,7 @@ integer kcount,mcount,icount
 real, intent(in) :: dt,qgmin
 real, dimension(:,:,:), intent(inout) :: aero
 real, dimension(:,:), intent(inout) :: theta,cfrac,cfrain
-real, dimension(:,:), intent(inout) :: qvg,qlg,qfg,qrg
+real, dimension(:,:), intent(inout) :: qvg,qlg,qfg,qrg,uo,vo
 real, dimension(ifull,kl), intent(out) :: kmo
 real, dimension(ifull,kl), intent(in) :: zz,zzh
 real, dimension(ifull), intent(inout) :: zi
@@ -179,9 +174,7 @@ real, dimension(ifull,naero) :: arup
 real, dimension(ifull) :: wt0,wq0
 real, dimension(ifull) :: wstar,z_on_l,phim,wtv0,dum
 real, dimension(ifull) :: tff,tbb,tcc,tgg,tqq,qgnc
-#ifdef offline
 real, dimension(ifull) :: umag
-#endif
 real, dimension(kl) :: sigkap
 real, dimension(kl) :: w2up,nn,dqdash
 real, dimension(kl) :: qtup,qupsat,ttup,tvup,tlup
@@ -859,18 +852,16 @@ do kcount=1,mcount
     call thomas(aero(:,:,j),aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
   end do
 
-#ifdef offline
-    aa(:,2:kl)  =qq(:,2:kl)
-    cc(:,1:kl-1)=rr(:,1:kl-1)
-    umag=max(sqrt(u(:,1)*u(:,1)+v(:,1)*v(:,1)),0.01)
-    bb(:,1)=1.-cc(:,1)+ddts*rhos*ustar**2/(umag*rhoa(:,1)*dz_fl(:,1))
-    bb(:,2:kl-1)=1.-aa(:,2:kl-1)-cc(:,2:kl-1)
-    bb(:,kl)=1.-aa(:,kl)
-    dd(:,1:kl)=u(:,1:kl)
-    call thomas(u,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
-    dd(:,1:kl)=v(:,1:kl)
-    call thomas(v,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
-#endif
+  aa(:,2:kl)  =qq(:,2:kl)
+  cc(:,1:kl-1)=rr(:,1:kl-1)
+  umag=max(sqrt(uo(1:ifull,1)*uo(1:ifull,1)+vo(1:ifull,1)*vo(1:ifull,1)),0.01)
+  bb(:,1)=1.-cc(:,1)+ddts*rhos*ustar*ustar/(umag*rhoa(:,1)*dz_fl(:,1))
+  bb(:,2:kl-1)=1.-aa(:,2:kl-1)-cc(:,2:kl-1)
+  bb(:,kl)=1.-aa(:,kl)
+  dd(:,1:kl)=uo(1:ifull,1:kl)
+  call thomas(uo,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
+  dd(:,1:kl)=vo(1:ifull,1:kl)
+  call thomas(vo,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
 
 end do
 

@@ -138,6 +138,20 @@
       enddo      !  k loop
       if(nmaxpr==1.and.mydiag)
      &  write (6,"('thet_in',9f8.3/7x,9f8.3)") rhs(idjd,:)
+
+      ! Adjustment for moving ocean surface
+      ou=0.
+      ov=0.
+      if (nmlo/=0) then
+        iu=0.
+        iv=0.
+        call mloexport(2,ou,1,0)
+        call mloexport(3,ov,1,0)
+        call mloexpice(iu, 9,0)
+        call mloexpice(iv,10,0)
+        ou=(1.-fracice)*ou+fracice*iu
+        ov=(1.-fracice)*ov+fracice*iv
+      end if
       
       if (nvmix/=6) then
 
@@ -753,17 +767,17 @@ c         thebas(iq,k)=t(iq,k)+hlcp*qbas  + hght
       endif     ! (ksc==97)
 c     *********** end of Tiedtke_jlm shallow convection 97 *************
 
-c     add in effects of shallow convection
-      do k=1,kl-1  
-       rkh(:,k)=rkh(:,k)+rk_shal(:,k)
-      enddo   !  k loop
-      if(kscmom==1)then
+c      add in effects of shallow convection
+       do k=1,kl-1  
+        rkh(:,k)=rkh(:,k)+rk_shal(:,k)
+       enddo   !  k loop
+       if(kscmom==1)then
         do k=1,kl-1  
          rkm(:,k)=rkm(:,k)+rk_shal(:,k)
         enddo   !  k loop
-      endif     ! (kscmom==1)
+       endif     ! (kscmom==1)
       
-      if(ksc/=0.and.(ntest/=0.or.diag).and.nproc==1.)then
+       if(ksc/=0.and.(ntest/=0.or.diag).and.nproc==1.)then
         do iq=1,ifull
          if(rk_shal(iq,1)>rk_shal(iq,2))then
            write(6,*) 'iq,rk_shal1,rk_shal2',iq,rk_shal(iq,1),
@@ -795,78 +809,9 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
         write (6,"('thee',9f7.2/(4x,9f7.2))") 
      &             (thee(idjd,k),k=1,kl)
         endif ! mydiag
-      endif
-      
-      else
-      
-       !-------------------------------------------------------------
-       ! k-e closure scheme
-      
-       ! note ksc/=0 options are clobbered when nvmix=6
-       ! However, nvmix=6 with nlocal=7 supports its own shallow
-       ! convection options
-       
-       ! calculate height on full levels
-       zg(:,1)=bet(1)*tv(:,1)/grav
-       do k=2,kl
-        zg(:,k)=zg(:,k-1)+(bet(k)*tv(:,k)+betm(k)*tv(:,k-1))/grav
-       end do ! k  loop
-       zg=zg+phi_nh/grav ! add non-hydrostatic component
-       
-       ! near surface air density (see sflux.f and cable_ccam2.f90)
-       rhos=sig(1)*ps(1:ifull)/(rdry*t(1:ifull,1))
-       
-       if (abs(iaero)==2) then ! Use counter gradient for aerosol tracers
-         tnaero=naero
-       else
-         tnaero=0
-       end if
-       
-       if (ncloud>=3) then
-         cldtmp=stratcloud(1:ifull,:)
-       else
-         cldtmp=cfrac
-       end if
-       
-       select case(nlocal)
-        case(0) ! no counter gradient
-         call tkemix(rkm,rhs,qg,qlg,qfg,qrg,cldtmp,rfrac,pblh,fg,eg,
-     &             ps(1:ifull),ustar,zg,zh,sig,rhos,dt,qgmin,1,0,
-     &             tnaero,xtg)
-         rkh=rkm
-        case(1,2,3,4,5,6) ! KCN counter gradient method
-         call tkemix(rkm,rhs,qg,qlg,qfg,qrg,cldtmp,rfrac,pblh,fg,eg,
-     &             ps(1:ifull),ustar,zg,zh,sig,rhos,dt,qgmin,1,0,
-     &             tnaero,xtg)
-         rkh=rkm
-         uav(1:ifull,:)=av_vmod*u(1:ifull,:)
-     &                 +(1.-av_vmod)*savu(1:ifull,:)
-         vav(1:ifull,:)=av_vmod*v(1:ifull,:)
-     &                 +(1.-av_vmod)*savv(1:ifull,:)
-         call pbldif(rhs,rkh,rkm,uav,vav)
-        case(7) ! mass-flux counter gradient
-         call tkemix(rkm,rhs,qg,qlg,qfg,qrg,cldtmp,rfrac,pblh,fg,eg,
-     &             ps(1:ifull),ustar,zg,zh,sig,rhos,dt,qgmin,0,0,
-     &             tnaero,xtg)
-         rkh=rkm
-        case DEFAULT
-          write(6,*) "ERROR: Unknown nlocal option for nvmix=6"
-          stop
-        end select
-        
-        if (ncloud>=3) then
-          stratcloud(1:ifull,:)=cldtmp
-          call combinecloudfrac
-        else
-          cfrac=cldtmp
-        endif
-         
-      end if ! nvmix/=6
+       endif
 
-      !--------------------------------------------------------------
-      ! Perform mixing on prognstic arrays
-
-      do k=1,kl-1
+       do k=1,kl-1
         delsig=(sig(k+1)-sig(k))
         do iq=1,ifull
           dz(iq) =-tmnht(iq,k)*delons(k)*cnhs(iq,k)  ! this is z(k+1)-z(k)
@@ -874,11 +819,11 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
           guv(iq,k)= rkm(iq,k)*dt *delsig *dzr(iq)**2
           gt(iq,k)=  rkh(iq,k)*dt *delsig *dzr(iq)**2
          enddo   ! iq loop
-      enddo      ! k loop
-      guv(:,kl)=0.
-      gt(:,kl)=0.
+       enddo      ! k loop
+       guv(:,kl)=0.
+       gt(:,kl)=0.
 
-      if(diag)then
+       if(diag)then
         call maxmin(rkh,'rk',ktau,.01,kl-1)
         if ( mydiag ) then
            write(6,*)'vertmix guv ',(guv(idjd,k),k=1,kl)
@@ -889,9 +834,9 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
         call printa('eg  ',eg,ktau,nlv,ia,ib,ja,jb,0.,1.)
         call printa('fg  ',fg,ktau,nlv,ia,ib,ja,jb,0.,1.)
         call printa('thet',rhs,ktau,nlv,ia,ib,ja,jb,200.,1.)
-      endif
+       endif
 
-      if(ncvmix>0)then  ! cumulus mixing of momentum - jlm version
+       if(ncvmix>0)then  ! cumulus mixing of momentum - jlm version
         do k=kuocb+1-ncvmix,kcl_top-1
          do iq=1,ifull
 !          for no-conv-points, doing k=1-ncvmix,1 with convpsav=0.
@@ -900,40 +845,39 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
      &                      .and.k<ktsav(iq))
      &       guv(iq,k)=guv(iq,k)-convpsav(iq)*.5      ! with factor of .5
           enddo  ! iq loop
-        enddo    ! k loop
-        if(diag.and.mydiag)then
-          write(6,*)'vertmix after conv; kb,kt,convp'
-     &     ,kbsav(idjd),ktsav(idjd),convpsav(idjd)
-          write(6,*)'new guv',(guv(idjd,k),k=1,kl)
-        endif
-      endif      !   (ncvmix>0)
+         enddo    ! k loop
+         if(diag.and.mydiag)then
+           write(6,*)'vertmix after conv; kb,kt,convp'
+     &      ,kbsav(idjd),ktsav(idjd),convpsav(idjd)
+           write(6,*)'new guv',(guv(idjd,k),k=1,kl)
+         endif
+       endif      !   (ncvmix>0)
 
-      conflux=grav*dt/dsig(1)
-      condrag=grav*dt/(dsig(1)*rdry)
-c     first do theta (then convert back to t)
-      at(:,1)=0.
-      ct(:,kl)=0.
+       conflux=grav*dt/dsig(1)
+       condrag=grav*dt/(dsig(1)*rdry)
+c      first do theta (then convert back to t)
+       at(:,1)=0.
+       ct(:,kl)=0.
 
-      do k=2,kl
-       do iq=1,ifull
-        at(iq,k) =-gt(iq,k-1)/dsig(k)
+       do k=2,kl
+        do iq=1,ifull
+         at(iq,k) =-gt(iq,k-1)/dsig(k)
+        end do
        end do
-      end do
-      do k=1,kl-1
-       do iq=1,ifull
-        ct(iq,k) =-gt(iq,k)/dsig(k)
-       enddo   ! iq loop
-      enddo    !  k loop
-      if((diag.or.ntest==2).and.mydiag)then
+       do k=1,kl-1
+        do iq=1,ifull
+         ct(iq,k) =-gt(iq,k)/dsig(k)
+        enddo   ! iq loop
+       enddo    !  k loop
+       if((diag.or.ntest==2).and.mydiag)then
         write(6,*)'ktau,fg,tss,ps ',ktau,fg(idjd),tss(idjd),ps(idjd)
         write(6,*)'at ',(at(idjd,k),k=1,kl)
         write(6,*)'ct ',(ct(idjd,k),k=1,kl)
         write(6,*)'rhs ',(rhs(idjd,k),k=1,kl)
-      endif      ! (ntest==2)
+       endif      ! (ntest==2)
 
       !--------------------------------------------------------------
       ! Temperature
-      if (nvmix/=6) then
        if(nmaxpr==1.and.mydiag)
      &   write (6,"('thet_inx',9f8.3/8x,9f8.3)") rhs(idjd,:)
        rhs(:,1)=rhs(:,1)-(conflux/cp)*fg/ps(1:ifull)
@@ -1010,20 +954,164 @@ c        now do rfrac
           xtg(1:ifull,:,l)=rhs
         end do
        end if ! (abs(iaero)==2)
+
+      !--------------------------------------------------------------
+      ! Momentum terms
+       au(:,1)=cduv(:)*condrag/tss(:)
+       cu(:,kl)=0.
+       do k=2,kl
+        do iq=1,ifull
+         au(iq,k) =-guv(iq,k-1)/dsig(k)
+        enddo   ! iq loop
+       enddo    !  k loop
+       do k=1,kl-1
+        do iq=1,ifull
+         cu(iq,k) =-guv(iq,k)/dsig(k)
+        enddo   ! iq loop
+       enddo    !  k loop
+       if((diag.or.ntest==2).and.mydiag)then
+         write(6,*)'au ',(au(idjd,k),k=1,kl)
+         write(6,*)'cu ',(cu(idjd,k),k=1,kl)
+       endif      ! (ntest==2)
+
+
+!      first do u
+       do k=1,kl
+         rhs(:,k)=u(1:ifull,k)-ou
+       end do
+       call trim(au,cu,rhs,0)
+       do k=1,kl
+         u(1:ifull,k)=rhs(:,k)+ou
+       end do
+       if(diag.and.mydiag)then
+         write(6,*)'vertmix au ',(au(idjd,k),k=1,kl)
+       endif
+
+!     now do v; with properly unstaggered au,cu
+       do k=1,kl
+         rhs(:,k)=v(1:ifull,k)-ov
+       end do
+       call trim(au,cu,rhs,0)    ! note now that au, cu unstaggered globpea
+       do k=1,kl
+         v(1:ifull,k)=rhs(:,k)+ov
+       end do
+
+       if((diag.or.ntest>=1).and.mydiag)then
+         write(6,*)'after trim in vertmix '
+         write (6,"('thet',9f7.2/(8x,9f7.2))") 
+     &               (sigkap(k)*t(idjd,k),k=1,kl) 
+         write (6,"('t   ',9f7.2/(8x,9f7.2))") (t(idjd,k),k=1,kl) 
+         write (6,"('u   ',9f7.2/(8x,9f7.2))") (u(idjd,k),k=1,kl) 
+         write (6,"('v   ',9f7.2/(8x,9f7.2))") (v(idjd,k),k=1,kl) 
+         write(6,*)'cduv,cduv+1,cduvj+1,tss ',
+     &            cduv(idjd),cduv(idjd+1),cduv(idjd+il),tss(idjd)
+         write (6,"('au ',9f7.3/(8x,9f7.3))") (au(idjd,k),k=1,kl) 
+         write (6,"('cu ',9f7.3/(8x,9f7.3))") (cu(idjd,k),k=1,kl) 
+       endif
+       if(nmaxpr==1.and.mydiag)then
+         write (6,"('qg_vm ',9f7.3/(6x,9f7.3))") 
+     &              (1000.*qg(idjd,k),k=1,kl)
+       endif
+
       
       else
-       ! k-e closure
-
-       ! convert from theta to temp
-       do k=1,kl
-         t(1:ifull,k)=rhs(1:ifull,k)/sigkap(k)
-       enddo    !  k loop
-
-       ! increase mixing to replace counter gradient term      
-       if (nlocal>0) then
-        at=cq*at
-        ct=cq*ct
+      
+       !-------------------------------------------------------------
+       ! k-e closure scheme
+      
+       ! note ksc/=0 options are clobbered when nvmix=6
+       ! However, nvmix=6 with nlocal=7 supports its own shallow
+       ! convection options
+       
+       ! calculate height on full levels
+       zg(:,1)=bet(1)*tv(:,1)/grav
+       do k=2,kl
+        zg(:,k)=zg(:,k-1)+(bet(k)*tv(:,k)+betm(k)*tv(:,k-1))/grav
+       end do ! k  loop
+       zg=zg+phi_nh/grav ! add non-hydrostatic component
+       
+       ! near surface air density (see sflux.f and cable_ccam2.f90)
+       rhos=sig(1)*ps(1:ifull)/(rdry*t(1:ifull,1))
+       
+       if (abs(iaero)==2) then ! Use counter gradient for aerosol tracers
+         tnaero=naero
+       else
+         tnaero=0
        end if
+       
+       if (ncloud>=3) then
+         cldtmp=stratcloud(1:ifull,:)
+       else
+         cldtmp=cfrac
+       end if
+       
+       do k=1,kl
+         u(1:ifull,k)=u(1:ifull,k)-ou
+         v(1:ifull,k)=v(1:ifull,k)-ov
+       end do
+       
+       select case(nlocal)
+        case(0) ! no counter gradient
+         call tkemix(rkm,rhs,qg,qlg,qfg,qrg,cldtmp,rfrac,u,v,pblh,fg,
+     &             eg,ps,ustar,zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg)
+         rkh=rkm
+        case(1,2,3,4,5,6) ! KCN counter gradient method
+         call tkemix(rkm,rhs,qg,qlg,qfg,qrg,cldtmp,rfrac,u,v,pblh,fg,
+     &             eg,ps,ustar,zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg)
+         rkh=rkm
+         do k=1,kl
+           uav(1:ifull,k)=av_vmod*(u(1:ifull,k)+ou)
+     &                   +(1.-av_vmod)*savu(1:ifull,k)
+           vav(1:ifull,k)=av_vmod*(v(1:ifull,k)+ov)
+     &                   +(1.-av_vmod)*savv(1:ifull,k)
+         end do
+         call pbldif(rhs,rkh,rkm,uav,vav)
+        case(7) ! mass-flux counter gradient
+         call tkemix(rkm,rhs,qg,qlg,qfg,qrg,cldtmp,rfrac,u,v,pblh,fg,
+     &             eg,ps,ustar,zg,zh,sig,rhos,dt,qgmin,0,0,tnaero,xtg)
+         rkh=rkm
+        case DEFAULT
+          write(6,*) "ERROR: Unknown nlocal option for nvmix=6"
+          stop
+        end select
+        
+        if (ncloud>=3) then
+          stratcloud(1:ifull,:)=cldtmp
+          call combinecloudfrac
+        else
+          cfrac=cldtmp
+        endif
+        
+        do k=1,kl
+          u(1:ifull,k)=u(1:ifull,k)+ou
+          v(1:ifull,k)=v(1:ifull,k)+ov
+          ! convert from theta to temp
+          t(1:ifull,k)=rhs(1:ifull,k)/sigkap(k)
+        enddo    !  k loop
+
+        ! prep scalar mixing (e.g., tracers)
+        do k=1,kl-1
+          delsig=sig(k+1)-sig(k)
+          dz(1:ifull)  =-tmnht(1:ifull,k)*delons(k)*cnhs(1:ifull,k)  ! this is z(k+1)-z(k)
+          dzr(1:ifull) =1./dz(1:ifull)
+          gt(1:ifull,k)=rkh(1:ifull,k)*dt*delsig*dzr(1:ifull)**2
+        end do      ! k loop
+        gt(:,kl)=0.
+
+        at(:,1)=0.
+        ct(:,kl)=0.
+        do k=2,kl
+          at(1:ifull,k) =-gt(1:ifull,k-1)/dsig(k)
+        end do
+        do k=1,kl-1
+          ct(1:ifull,k) =-gt(1:ifull,k)/dsig(k)
+        end do
+     
+        ! increase mixing to replace counter gradient term      
+        if (nlocal>0) then
+          at=cq*at
+          ct=cq*ct
+        end if
        
       end if ! nvmix/=6 ..else..
 
@@ -1032,77 +1120,62 @@ c        now do rfrac
       if (ngas>0) then
         call tracervmix(at,ct)
       end if ! (ngas>0)
-
-      !--------------------------------------------------------------
-      ! Momentum terms
-      au(:,1)=cduv(:)*condrag/tss(:)
-      cu(:,kl)=0.
-      do k=2,kl
-       do iq=1,ifull
-        au(iq,k) =-guv(iq,k-1)/dsig(k)
-       enddo   ! iq loop
-      enddo    !  k loop
-      do k=1,kl-1
-       do iq=1,ifull
-        cu(iq,k) =-guv(iq,k)/dsig(k)
-       enddo   ! iq loop
-      enddo    !  k loop
-      if((diag.or.ntest==2).and.mydiag)then
-        write(6,*)'au ',(au(idjd,k),k=1,kl)
-        write(6,*)'cu ',(cu(idjd,k),k=1,kl)
-      endif      ! (ntest==2)
-
-      ! Adjustment for moving ocean surface
-      ou=0.
-      ov=0.
-      if (nmlo/=0) then
-        iu=0.
-        iv=0.
-        call mloexport(2,ou,1,0)
-        call mloexport(3,ov,1,0)
-        call mloexpice(iu, 9,0)
-        call mloexpice(iv,10,0)
-        ou=(1.-fracice)*ou+fracice*iu
-        ov=(1.-fracice)*ov+fracice*iv
-      end if
-
-c     first do u
-      do k=1,kl
-        rhs(:,k)=u(1:ifull,k)-ou
-      end do
-      call trim(au,cu,rhs,0)
-      do k=1,kl
-        u(1:ifull,k)=rhs(:,k)+ou
-      end do
-      if(diag.and.mydiag)then
-        write(6,*)'vertmix au ',(au(idjd,k),k=1,kl)
-      endif
-
-c     now do v; with properly unstaggered au,cu
-      do k=1,kl
-        rhs(:,k)=v(1:ifull,k)-ov
-      end do
-      call trim(au,cu,rhs,0)    ! note now that au, cu unstaggered globpea
-      do k=1,kl
-        v(1:ifull,k)=rhs(:,k)+ov
-      end do
-
-      if((diag.or.ntest>=1).and.mydiag)then
-        write(6,*)'after trim in vertmix '
-        write (6,"('thet',9f7.2/(8x,9f7.2))") 
-     &              (sigkap(k)*t(idjd,k),k=1,kl) 
-        write (6,"('t   ',9f7.2/(8x,9f7.2))") (t(idjd,k),k=1,kl) 
-        write (6,"('u   ',9f7.2/(8x,9f7.2))") (u(idjd,k),k=1,kl) 
-        write (6,"('v   ',9f7.2/(8x,9f7.2))") (v(idjd,k),k=1,kl) 
-        write(6,*)'cduv,cduv+1,cduvj+1,tss ',
-     &           cduv(idjd),cduv(idjd+1),cduv(idjd+il),tss(idjd)
-        write (6,"('au ',9f7.3/(8x,9f7.3))") (au(idjd,k),k=1,kl) 
-        write (6,"('cu ',9f7.3/(8x,9f7.3))") (cu(idjd,k),k=1,kl) 
-      endif
-      if(nmaxpr==1.and.mydiag)then
-        write (6,"('qg_vm ',9f7.3/(6x,9f7.3))") 
-     &             (1000.*qg(idjd,k),k=1,kl)
-      endif
       
       return
-      end
+      end subroutine vertmix
+
+      subroutine trim(a,c,rhs,it)
+c     u initially now contains rhs; leaves with answer u (jlm)
+c     n.b. we now always assume b = 1-a-c
+      include 'newmpar.h'
+!     N.B.  e, g, temp are just work arrays (not passed through at all)     
+      real a(ifull,kl),c(ifull,kl),rhs(ifull,kl)
+      real e(ifull,kl),g(ifull,kl),temp(ifull,kl)
+
+c     this routine solves the system
+c       a(k)*u(k-1)+b(k)*u(k)+c(k)*u(k+1)=rhs(k)    for k=2,kl-1
+c       with  b(k)*u(k)+c(k)*u(k+1)=rhs(k)          for k=1
+c       and   a(k)*u(k-1)+b(k)*u(k)=rhs(k)          for k=kl
+
+c     the Thomas algorithm is used
+c     save - only needed if common/work removed
+
+      if(it.eq.0)then
+        do iq=1,ifull
+         b=1.-a(iq,1)-c(iq,1)
+c        print *,'iq,a,b,c ',iq,a(iq,1),b,c(iq,1)
+         e(iq,1)=c(iq,1)/b
+        enddo
+        do k=2,kl-1
+         do iq=1,ifull
+          b=1.-a(iq,k)-c(iq,k)
+          temp(iq,k)= 1./(b-a(iq,k)*e(iq,k-1))
+          e(iq,k)=c(iq,k)*temp(iq,k)
+         enddo
+        enddo
+      endif
+
+c     use precomputed values of e array when available
+      do iq=1,ifull
+       b=1.-a(iq,1)-c(iq,1)
+       g(iq,1)=rhs(iq,1)/b
+      enddo
+      do k=2,kl-1
+       do iq=1,ifull
+        g(iq,k)=(rhs(iq,k)-a(iq,k)*g(iq,k-1))*temp(iq,k)
+       enddo
+      enddo
+
+c     do back substitution to give answer now
+      do iq=1,ifull
+       b=1.-a(iq,kl)-c(iq,kl)
+       rhs(iq,kl)=(rhs(iq,kl)-a(iq,kl)*g(iq,kl-1))/
+     .            (b-a(iq,kl)*e(iq,kl-1))
+      enddo
+      do k=kl-1,1,-1
+       do iq=1,ifull
+        rhs(iq,k)=g(iq,k)-e(iq,k)*rhs(iq,k+1)
+       enddo
+      enddo
+      return
+      end subroutine trim
