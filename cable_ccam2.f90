@@ -1092,9 +1092,9 @@ do iq=1,ifull
           call ccmpi_abort(-1)
       end select
     end do
-    where (newgrid(:,2)>0.)
-      savannafrac=savannafrac/newgrid(:,2)
-    end where
+    if (newgrid(iq,2)>0.) then
+      savannafrac(iq)=savannafrac(iq)/newgrid(iq,2)
+    end if
     where (newgrid(iq,:)>0.)
       newlai(iq,:,0)=newlai(iq,:,0)/newgrid(iq,:)
       newlai(iq,:,1)=newlai(iq,:,1)/newgrid(iq,:)
