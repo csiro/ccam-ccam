@@ -37,7 +37,7 @@ real, dimension(:,:), allocatable, save :: shear
 real, dimension(:,:), allocatable, save :: tke,eps
 real, dimension(:), allocatable, save :: zidry
 #ifdef offline
-real, dimension(:,:), allocatable, save :: wth,wqv,wql,wqf
+real, dimension(:,:), allocatable, save :: wthl,wqv,wql,wqf
 real, dimension(:,:), allocatable, save :: mf,w_up,tl_up,qv_up,ql_up,qf_up,cf_up
 real, dimension(:,:), allocatable, save :: u,v,ents,dtrs
 #endif
@@ -170,7 +170,7 @@ real, dimension(ifull,kl)   :: dz_fl   ! dz_fl(k)=0.5*(zz(k+1)-zz(k-1))
 real, dimension(ifull,kl-1) :: dz_hl   ! dz_hl(k)=zz(k+1)-zz(k)
 real, dimension(ifull,kl-1) :: fzzh
 real, dimension(ifull,naero) :: arup
-real, dimension(ifull) :: wt0,wq0,wtv0,wtl0
+real, dimension(ifull) :: wt0,wq0,wtv0
 real, dimension(ifull) :: wstar,z_on_l,phim
 real, dimension(ifull) :: tff,tbb,tcc,tgg,tqq,qgnc,dum
 real, dimension(ifull) :: umag
@@ -259,7 +259,6 @@ do kcount=1,mcount
   end do
   thetav=theta(1:ifull,:)*(1.+0.61*qvg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:)-qrg(1:ifull,:))
   wtv0  =wt0+theta(1:ifull,1)*0.61*wq0 ! thetav flux
-  wtl0  =wt0-wq0*lv/cp                 ! thetal flux
 
   ! Calculate non-local mass-flux terms for theta_l and qtot
   ! Plume rise equations currently assume that the air density
@@ -315,8 +314,8 @@ do kcount=1,mcount
           ! first level -----------------
           ! initial thermodynamic state
           ! split qtot into components (conservation of thetal and qtot is maintained)
-          tlup(1)=thetal(i,1)+be*wtl0(i)/sqrt(tke(i,1))   ! Hurley 2007
-          qvup(1)=qvg(i,1)   +be*wq0(i)/sqrt(tke(i,1))    ! Hurley 2007
+          tlup(1)=thetal(i,1)+be*wt0(i)/sqrt(tke(i,1))   ! Hurley 2007
+          qvup(1)=qvg(i,1)   +be*wq0(i)/sqrt(tke(i,1))   ! Hurley 2007
           qlup(1)=qlg(i,1)
           qfup(1)=qfg(i,1)
           qrup(1)=qrg(i,1)
@@ -731,7 +730,7 @@ do kcount=1,mcount
   bb(:,2:kl-1)=1.-qq(:,2:kl-1)-rr(:,2:kl-1)
   aa(:,kl)    =qq(:,kl)
   bb(:,kl)    =1.-qq(:,kl)
-  dd(:,1)     =thetal(1:ifull,1)-ddts*gamhl(:,1)*idzp(:,1)+ddts*rhos*wtl0/(rhoa(:,1)*dz_fl(:,1))
+  dd(:,1)     =thetal(1:ifull,1)-ddts*gamhl(:,1)*idzp(:,1)+ddts*rhos*wt0/(rhoa(:,1)*dz_fl(:,1))
   dd(:,2:kl-1)=thetal(1:ifull,2:kl-1)+ddts*(gamhl(:,1:kl-2)*idzm(:,2:kl-1)-gamhl(:,2:kl-1)*idzp(:,2:kl-1))
   dd(:,kl)    =thetal(1:ifull,kl)+ddts*gamhl(:,kl-1)*idzm(:,kl)
   call thomas(thetal,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)

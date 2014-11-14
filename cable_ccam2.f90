@@ -974,7 +974,6 @@ do iq=1,ifull
           newlai(iq,8,1)=newlai(iq,8,1)+svs(iq,n)*0.8*ftu*vlin(iq,n)
           newlai(iq,8,2)=newlai(iq,8,2)+svs(iq,n)*0.8*ftu*vlinnext(iq,n)
         case (8)
-          savannafrac(iq)=savannafrac(iq)+svs(iq,n)
           if (abs(clat)>40.5) then
             newgrid(iq,1)=newgrid(iq,1)+svs(iq,n)*0.4
             newlai(iq,1,0)=newlai(iq,1,0)+svs(iq,n)*0.4*vlinprev(iq,n)
@@ -985,12 +984,14 @@ do iq=1,ifull
             newgrid(iq,1)=newgrid(iq,1)+svs(iq,n)*0.4*xp
             newlai(iq,1,0)=newlai(iq,1,0)+svs(iq,n)*vlinprev(iq,n)*0.4*xp
             newlai(iq,1,1)=newlai(iq,1,1)+svs(iq,n)*vlin(iq,n)*0.4*xp
-            newlai(iq,1,2)=newlai(iq,1,2)+svs(iq,n)*vlinnext(iq,n)*0.4*xp         
+            newlai(iq,1,2)=newlai(iq,1,2)+svs(iq,n)*vlinnext(iq,n)*0.4*xp   
+            savannafrac(iq)=savannafrac(iq)+svs(iq,n)*0.4*(1.-xp)
             newgrid(iq,2)=newgrid(iq,2)+svs(iq,n)*0.4*(1.-xp)
             newlai(iq,2,0)=newlai(iq,2,0)+svs(iq,n)*vlinprev(iq,n)*0.4*(1.-xp)
             newlai(iq,2,1)=newlai(iq,2,1)+svs(iq,n)*vlin(iq,n)*0.4*(1.-xp)
             newlai(iq,2,2)=newlai(iq,2,2)+svs(iq,n)*vlinnext(iq,n)*0.4*(1.-xp)
           else
+            savannafrac(iq)=savannafrac(iq)+svs(iq,n)*0.4
             newgrid(iq,2)=newgrid(iq,2)+svs(iq,n)*0.4
             newlai(iq,2,0)=newlai(iq,2,0)+svs(iq,n)*0.4*vlinprev(iq,n)
             newlai(iq,2,1)=newlai(iq,2,1)+svs(iq,n)*0.4*vlin(iq,n)
@@ -1009,7 +1010,6 @@ do iq=1,ifull
           newlai(iq,8,1)=newlai(iq,8,1)+svs(iq,n)*0.6*ftu*vlin(iq,n)
           newlai(iq,8,2)=newlai(iq,8,2)+svs(iq,n)*0.6*ftu*vlinnext(iq,n)
         case (9)
-          savannafrac(iq)=savannafrac(iq)+svs(iq,n)
           if (abs(clat)>40.5) then
             newgrid(iq,1)=newgrid(iq,1)+svs(iq,n)*0.1
             newlai(iq,1,0)=newlai(iq,1,0)+svs(iq,n)*0.1*vlinprev(iq,n)
@@ -1021,11 +1021,13 @@ do iq=1,ifull
             newlai(iq,1,0)=newlai(iq,1,0)+svs(iq,n)*vlinprev(iq,n)*0.1*xp
             newlai(iq,1,1)=newlai(iq,1,1)+svs(iq,n)*vlin(iq,n)*0.1*xp
             newlai(iq,1,2)=newlai(iq,1,2)+svs(iq,n)*vlinnext(iq,n)*0.1*xp
+            savannafrac(iq)=savannafrac(iq)+svs(iq,n)*0.1*(1.-xp)
             newgrid(iq,2)=newgrid(iq,2)+svs(iq,n)*0.1*(1.-xp)
             newlai(iq,2,0)=newlai(iq,2,0)+svs(iq,n)*vlinprev(iq,n)*0.1*(1.-xp)
             newlai(iq,2,1)=newlai(iq,2,1)+svs(iq,n)*vlin(iq,n)*0.1*(1.-xp)
             newlai(iq,2,2)=newlai(iq,2,2)+svs(iq,n)*vlinnext(iq,n)*0.1*(1.-xp)
           else
+            savannafrac(iq)=savannafrac(iq)+svs(iq,n)*0.1
             newgrid(iq,2)=newgrid(iq,2)+svs(iq,n)*0.1
             newlai(iq,2,0)=newlai(iq,2,0)+svs(iq,n)*0.1*vlinprev(iq,n)
             newlai(iq,2,1)=newlai(iq,2,1)+svs(iq,n)*0.1*vlin(iq,n)
@@ -1090,6 +1092,9 @@ do iq=1,ifull
           call ccmpi_abort(-1)
       end select
     end do
+    where (newgrid(:,2)>0.)
+      savannafrac=savannafrac/newgrid(:,2)
+    end where
     where (newgrid(iq,:)>0.)
       newlai(iq,:,0)=newlai(iq,:,0)/newgrid(iq,:)
       newlai(iq,:,1)=newlai(iq,:,1)/newgrid(iq,:)
@@ -1274,7 +1279,6 @@ if (mp>0) then
   veg%rs20      = rs20(veg%iveg)
   veg%vegcf     = vegcf(veg%iveg)
   veg%frac4     = c4frac(veg%iveg)
-  !veg%wai      = wai(veg%iveg)
   do k=1,ms
     veg%froot(:,k)=froot2(veg%iveg,k)
   end do
@@ -1286,7 +1290,7 @@ if (mp>0) then
     end if
   end do
 
-    ! MJT special case for (woody) savannas
+  ! MJT special case for (woody) savannas
   do n=1,maxnb
     where (veg%iveg(pind(n,1):pind(n,2))==2)
       veg%hc(pind(n,1):pind(n,2))=veg%hc(pind(n,1):pind(n,2))+pack((17.-hc(2))*savannafrac,tmap(:,n))
