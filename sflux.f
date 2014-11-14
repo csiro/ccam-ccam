@@ -168,13 +168,6 @@ c     using av_vmod (1. for no time averaging)
       tv=t(1:ifull,1)*(1.+0.61*qg(1:ifull,1)-qlg(1:ifull,1)
      &   -qfg(1:ifull,1))
       azmin=(bet(1)*tv+phi_nh(:,1))/grav
-      if (minval(azmin)<5.) then
-        pos=minloc(azmin)
-        write(6,*) "WARN: myid,iq,azmin ",myid,pos(1),azmin(pos(1))
-	write(6,*) "      bet*tv,phi_nh ",bet(1)*tv(pos(1)),
-     &    phi_nh(pos(1),1)
-        write(6,*) "      tv,t ",tv(pos(1)),t(pos(1),1)
-      end if
       srcp =sig(1)**(rdry/cp)
       ga(:)=0.              !  for ocean points in ga_ave diagnostic
       theta(:)=t(1:ifull,1)/srcp

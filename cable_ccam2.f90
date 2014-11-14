@@ -18,10 +18,10 @@ module cable_ccam
 ! ivegt   IGBP type                             CSIRO PFT
 ! 1       Evergreen Needleleaf Forest           1.  Evergreen Needleleaf
 ! 2       Evergreen Broadleaf Forest            1.  Evergreen Broadleaf
-! 3       Deciduous Needleaf Forest             1.  Deciduous Needleaf
+! 3       Deciduous Needleaf Forest             1.  Deciduous Needleleaf
 ! 4       Deciduous Broadleaf Forest            1.  Deciduous Broadleaf
-! 5       Mixed Forest                          1.  Broadlead Deciduous                              when -25<lat<25
-!                                               0.5 Evergreen Needleaf      0.5 Broadlead Deciduous  when lat<-25 or lat>25
+! 5       Mixed Forest                          1.  Deciduous Broadlead                              when -25<lat<25
+!                                               0.5 Evergreen Needleleaf    0.5 Deciduous Broadlead  when lat<-25 or lat>25
 ! 6       Closed Shrublands                     0.8 Shrub                   0.2 (Grass)
 ! 7       Open Shrublands                       0.2 Shrub                   0.8 (Grass)
 ! 8       Woody Savannas                        0.6 (Grass)                 0.4 Evergreen Needleleaf when lat<-40 or lat>40
@@ -267,10 +267,10 @@ ssnow%otss_0     = ssnow%otss
 ssnow%otss       = ssnow%tss
 ssnow%owetfac    = ssnow%wetfac
 call soil_snow(dt,soil,ssnow,canopy,met,bal,veg)
-! adjust for new soil temperature
-ssnow%deltss     = ssnow%tss - ssnow%otss
 call END_LOG(cabsoil_end)
 call START_LOG(cabmisc_begin)
+! adjust for new soil temperature
+ssnow%deltss     = ssnow%tss - ssnow%otss
 canopy%fhs       = canopy%fhs + ssnow%deltss*ssnow%dfh_dtg
 !canopy%fhs_cor   = canopy%fhs_cor + ssnow%deltss*ssnow%dfh_dtg
 !canopy%fes_cor   = canopy%fes_cor + ssnow%deltss*ssnow%cls*ssnow%dfe_ddq*ssnow%ddq_dtg
@@ -769,7 +769,7 @@ real, dimension(mxvt) :: xnsoilmin,xplab,xpsorb,xpocc
 real, dimension(mxvt) :: cleaf,cwood,cfroot,cmet,cstr,ccwd,cmic,cslow,cpass,nleaf
 real, dimension(mxvt) :: nwood,nfroot,nmet,nstr,ncwd,nmic,nslow,npass,xpleaf,xpwood
 real, dimension(mxvt) :: xpfroot,xpmet,xpstr,xpcwd,xpmic,xpslow,xppass,clabileage
-real, dimension(ifull) :: albsoil
+real, dimension(ifull) :: albsoil, savannafrac
 real, dimension(12) :: xkmlabp,xpsorbmax,xfPleach
 character(len=*), intent(in) :: fveg,fvegprev,fvegnext,fphen,casafile
 
@@ -853,6 +853,7 @@ if ( myid==0 ) write(6,*) "Mapping IGBP classes to CSIRO PFTs"
 mp=0
 newgrid=0.
 newlai=0.
+savannafrac=0.
 do iq=1,ifull
   if ( land(iq) ) then
     clat=rlatt(iq)*180./pi
@@ -973,6 +974,7 @@ do iq=1,ifull
           newlai(iq,8,1)=newlai(iq,8,1)+svs(iq,n)*0.8*ftu*vlin(iq,n)
           newlai(iq,8,2)=newlai(iq,8,2)+svs(iq,n)*0.8*ftu*vlinnext(iq,n)
         case (8)
+          savannafrac(iq)=savannafrac(iq)+svs(iq,n)
           if (abs(clat)>40.5) then
             newgrid(iq,1)=newgrid(iq,1)+svs(iq,n)*0.4
             newlai(iq,1,0)=newlai(iq,1,0)+svs(iq,n)*0.4*vlinprev(iq,n)
@@ -1007,6 +1009,7 @@ do iq=1,ifull
           newlai(iq,8,1)=newlai(iq,8,1)+svs(iq,n)*0.6*ftu*vlin(iq,n)
           newlai(iq,8,2)=newlai(iq,8,2)+svs(iq,n)*0.6*ftu*vlinnext(iq,n)
         case (9)
+          savannafrac(iq)=savannafrac(iq)+svs(iq,n)
           if (abs(clat)>40.5) then
             newgrid(iq,1)=newgrid(iq,1)+svs(iq,n)*0.1
             newlai(iq,1,0)=newlai(iq,1,0)+svs(iq,n)*0.1*vlinprev(iq,n)
@@ -1283,10 +1286,10 @@ if (mp>0) then
     end if
   end do
 
-    ! MJT special case for woody savannas
+    ! MJT special case for (woody) savannas
   do n=1,maxnb
-    where (veg%iveg(pind(n,1):pind(n,2))==2.and.pack(ivegt,tmap(:,n))==8)
-      veg%hc(pind(n,1):pind(n,2))=17.
+    where (veg%iveg(pind(n,1):pind(n,2))==2)
+      veg%hc(pind(n,1):pind(n,2))=veg%hc(pind(n,1):pind(n,2))+pack((17.-hc(2))*savannafrac,tmap(:,n))
     end where
   end do
   

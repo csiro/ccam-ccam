@@ -1423,7 +1423,7 @@
         call ccmpi_barrier(comm_world)
       end if
       call END_LOG(gwdrag_end)
-      
+
       ! CONVECTION ------------------------------------------------------------
       call START_LOG(convection_begin)
       if (nmaxpr==1) then
@@ -1460,7 +1460,7 @@
         call ccmpi_barrier(comm_world)
       end if
       call END_LOG(convection_end)
-      
+
       ! CLOUD MICROPHYSICS ----------------------------------------------------
       call START_LOG(cloud_begin)
       if (nmaxpr==1) then
@@ -1539,7 +1539,6 @@
       end if
       call END_LOG(radnet_end)
 
-
       ! HELD & SUAREZ ---------------------------------------------------------
       if (ntsur<=1.or.nhstest==2) then ! Held & Suarez or no surf fluxes
        eg(:)=0.
@@ -1578,7 +1577,7 @@
          call ccmpi_barrier(comm_world)
        end if
        call END_LOG(sfluxnet_end)
-       
+
        ! STATION OUTPUT ---------------------------------------------
        if (nstn>0.and.nrotstn(1)==0) call stationa ! write every time step
        
@@ -1709,7 +1708,7 @@
         end if
         call ccmpi_barrier(comm_world)
       end if
-      
+
       ! Update diagnostics for consistancy in history file
       if (rescrn>0) then
         call autoscrn
@@ -1771,19 +1770,19 @@
            write(6,'("qgmean ",9f8.5)') spmean
            write(6,'("qgavge ",f8.5)') spavge
         end if
-        if(ngas>0)then
-          k2=min(2,klt)
-          do ng=1,ngas
-           write (text,'("g",i1)')ng
-           call maxmin(tr(:,:,ng),text,ktau,1.,kl)
-          enddo
-          call average(tr(:,:,1),spmean,spavge)
-          write(6,'("g1mean ",9f8.3)') spmean
-          write(6,'("g1avge ",f8.3)') spavge
-          call average(tr(:,:,k2),spmean,spavge)
-          write(6,'("g2mean ",9f8.3)') spmean
-          write(6,'("g2avge ",f8.3)') spavge
-        endif   ! (ngas>0)
+        !if(ngas>0)then
+        !  k2=min(2,klt)
+        !  do ng=1,ngas
+        !   write (text,'("g",i1)')ng
+        !   call maxmin(tr(:,:,ng),text,ktau,1.,kl)
+        !  enddo
+        !  call average(tr(:,:,1),spmean,spavge)
+        !  write(6,'("g1mean ",9f8.3)') spmean
+        !  write(6,'("g1avge ",f8.3)') spavge
+        !  call average(tr(:,:,k2),spmean,spavge)
+        !  write(6,'("g2mean ",9f8.3)') spmean
+        !  write(6,'("g2avge ",f8.3)') spavge
+        !endif   ! (ngas>0)
         call maxmin(wb,'wb',ktau,1.,ms)
         call maxmin(tggsn,'tggsn',ktau,1.,3)
         call maxmin(tgg,'tg',ktau,1.,ms)
