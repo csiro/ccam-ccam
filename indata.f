@@ -2000,30 +2000,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
 
       !--------------------------------------------------------------
       ! INITIALISE STATION OUTPUT (nstn)
-      if(nstn>0.and.nrotstn(1)>0)then
-        write(6,*)'stationb setup of mystn'
-        do nn=1,nstn
-           ! These are global indices
-           ig=istn(nn)
-           jg=jstn(nn)
-           nface=(jg-1)/il_g
-!          Note that the second argument to fproc is the j index on the
-!          face, not the global j index,   
-           mystn(nn) = fproc(ig,jg - nface*il_g,nface) == myid
-           if ( mystn(nn) ) then
-            iqg = ig + (jg-1)*il_g
-          ! Local indices on this processor
-            call indv_mpi(iqg,ii,jj,n)
-            iq = ii + (jj-1)*ipan + (n-1)*ipan*jpan
-            istn(nn)=ii
-            jstn(nn)=jj+(n-1)*jpan
-            write(6,*)'nn,ig,jg,nface,ii,jj,jstn,n,land,sicedep,mystn ',
-     &                 nn,ig,jg,nface,ii,jj,jstn(nn),n,land(iq),
-     &                 sicedep(iq),mystn(nn)
-            endif
-         enddo
-      endif
-      if(nstn>0.and.nrotstn(1)==0)then
+      if(nstn>0)then
         if (myid==0) then
          write(6,*) 'land stations'
          write(*,"(a)")
@@ -2166,7 +2143,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
           call ccmpi_distribute(dumb(:,1:3))
         end if
         albvisnir(:,1)=0.01*dumb(:,1)
-        albvisnir(:,2)=albvisnir(:,1)
+        albvisnir(:,2)=0.01*dumb(:,1) ! note VIS alb = NIR alb
         rsmin=dumb(:,2)
         zolnd=0.01*dumb(:,3)
         ivegt=idumb(:,1)
@@ -2205,7 +2182,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
             call surfread(duma(:,3),'soilt', filename=soilfile)
             call surfread(duma(:,1),'albvis',filename=albfile)
             call surfread(duma(:,2),'albnir',filename=albnirfile)
-	    duma(:,1:2)=0.01*duma(:,1:2)
+            duma(:,1:2)=0.01*duma(:,1:2)
           end if
           call ccmpi_distribute(dumb(:,1:3),duma(:,1:3))
           deallocate(duma)
@@ -2430,6 +2407,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
       include 'newmpar.h'     ! Grid parameters
       include 'soilv.h'       ! Soil parameters
       
+      ! The following common block is for soilsnow.f
       real zshh,ww
       common/soilzs/zshh(ms+1),ww(ms)
 
