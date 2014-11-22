@@ -20,11 +20,11 @@ real, dimension(:), allocatable, save :: glai
 
 contains
 
-subroutine carbpools_init(ifull,iextra,kl,nsib,icycle)
+subroutine carbpools_init(ifull,iextra,kl,nsib,ccycle)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl,nsib,icycle
+integer, intent(in) :: ifull,iextra,kl,nsib,ccycle
 
 allocate(fnee(ifull),fpn(ifull),frd(ifull),frp(ifull))
 allocate(frpw(ifull),frpr(ifull),frs(ifull))
@@ -36,7 +36,7 @@ frpw=0.
 frpr=0.
 frs=0.
 if (nsib==4.or.nsib>=6) then
-  if (icycle.eq.0) then
+  if (ccycle==0) then
     allocate(cplant(ifull,ncp),csoil(ifull,ncs))
     cplant=0.
     csoil=0.

@@ -1297,14 +1297,6 @@ if (mp>0) then
     end where
   end do
   
-  ! Calculate LAI and veg fraction diagnostics
-  call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
-  call setlai(sigmf,jyear,jmonth,jday,jhour,jmin)
-  vlai=0.
-  do n=1,maxnb
-    vlai=vlai+unpack(sv(pind(n,1):pind(n,2))*veg%vlai(pind(n,1):pind(n,2)),tmap(:,n),0.)
-  end do
-
   ! Load CABLE soil data
   soil%bch     = bch(soil%isoilm)
   soil%css     = css(soil%isoilm)
@@ -1709,6 +1701,14 @@ if (mp>0) then
 
   end if ! icycle>0
 
+  ! Calculate LAI and veg fraction diagnostics
+  call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
+  call setlai(sigmf,jyear,jmonth,jday,jhour,jmin)
+  vlai=0.
+  do n=1,maxnb
+    vlai=vlai+unpack(sv(pind(n,1):pind(n,2))*veg%vlai(pind(n,1):pind(n,2)),tmap(:,n),0.)
+  end do
+  
 end if
   
 if (myid==0) write(6,*) "Finished defining CABLE and CASA CNP arrays"
