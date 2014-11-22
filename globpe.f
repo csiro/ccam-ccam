@@ -123,10 +123,10 @@
       integer ierr2, kmax, isoth, nsig, lapsbot
       real, dimension(:,:), allocatable, save :: dums
       real, dimension(:), allocatable, save :: spare1, spare2
-      real, dimension(:), allocatable, save :: spmean, div
+      real, dimension(:), allocatable, save :: spmean
       real, dimension(9) :: temparray, gtemparray
       real, dimension(8) :: rdum
-      real clhav, cllav, clmav, cltav, div_int, dsx, dtds, es
+      real clhav, cllav, clmav, cltav, dsx, dtds, es
       real gke, hourst, hrs_dt, evapavge, precavge, preccavge, psavge
       real pslavge, pwater, rel_lat, rel_long, rlwup, spavge, pwatr
       real pwatr_l, qtot, aa, bb, cc, bb_2, cc_2, rat
@@ -267,7 +267,7 @@
       read(99, datafile)
       read(99, kuonml)
       ngas = 0
-      read(99, trfiles, iostat=ierr)       ! try reading tracer namelist.  If no
+      read(99, trfiles, iostat=ierr)        ! try reading tracer namelist.  If no
       if (ierr/=0) rewind(99)               ! namelist is found, then disable
       if (tracerlist/=' ') call init_tracer ! tracers and rewind namelist.
       nagg = max(5,naero,ngas)              ! maximum size of aggregation
@@ -672,7 +672,7 @@
       ! INITIALISE LOCAL ARRAYS
       allocate(spare1(ifull),spare2(ifull))
       allocate(dums(ifull,kl))
-      allocate(spmean(kl),div(kl))
+      allocate(spmean(kl))
       call arrays_init(ifull,iextra,kl)
       call carbpools_init(ifull,iextra,kl,nsib,ccycle)
       call cfrac_init(ifull,iextra,kl)
@@ -1316,7 +1316,7 @@
         ux(1:ifull,:)=u(1:ifull,:)   
         vx(1:ifull,:)=v(1:ifull,:)   
       endif
-      
+
       ! DIFFUSION -------------------------------------------------------------
       call START_LOG(hordifg_begin)
       if (nmaxpr==1) then
@@ -1406,7 +1406,7 @@
       ! START PHYSICS 
       ! ***********************************************************************
       call START_LOG(phys_begin)
-
+      
       ! GWDRAG ----------------------------------------------------------------
       call START_LOG(gwdrag_begin)
       if (nmaxpr==1) then
@@ -1423,7 +1423,7 @@
         call ccmpi_barrier(comm_world)
       end if
       call END_LOG(gwdrag_end)
-
+      
       ! CONVECTION ------------------------------------------------------------
       call START_LOG(convection_begin)
       if (nmaxpr==1) then
@@ -1460,7 +1460,7 @@
         call ccmpi_barrier(comm_world)
       end if
       call END_LOG(convection_end)
-
+      
       ! CLOUD MICROPHYSICS ----------------------------------------------------
       call START_LOG(cloud_begin)
       if (nmaxpr==1) then
@@ -1539,6 +1539,7 @@
       end if
       call END_LOG(radnet_end)
 
+
       ! HELD & SUAREZ ---------------------------------------------------------
       if (ntsur<=1.or.nhstest==2) then ! Held & Suarez or no surf fluxes
        eg(:)=0.
@@ -1577,7 +1578,7 @@
          call ccmpi_barrier(comm_world)
        end if
        call END_LOG(sfluxnet_end)
-
+       
        ! STATION OUTPUT ---------------------------------------------
        if (nstn>0.and.nrotstn(1)==0) call stationa ! write every time step
        
@@ -1601,18 +1602,18 @@
          write (6,"('wbice(1-6) ',9f8.3)") (wbice(idjd,k),k=1,6)
          write (6,"('smass(1-3) ',9f8.2)") (smass(idjd,k),k=1,3) ! as mm of water
          write (6,"('ssdn(1-3)  ',9f8.2)") (ssdn(idjd,k),k=1,3)
-         pwater=0.   ! in mm
          iq=idjd
-         div_int=0.
+         pwater=0.   ! in mm
+         !div_int=0.
          do k=1,kl
-          qtot=qg(iq,k)+qlg(iq,k)+qfg(iq,k)
+           qtot=qg(iq,k)+qlg(iq,k)+qfg(iq,k)
            pwater=pwater-dsig(k)*qtot*ps(idjd)/grav
-           div(k)=(u(ieu(iq),k)/emu(ieu(iq))
-     &            -u(iwu(iq),k)/emu(iwu(iq))  
-     &            +v(inv(iq),k)/emv(inv(iq))
-     &            -v(isv(iq),k)/emv(isv(iq))) 
-     &             *em(iq)**2/(2.*ds)  *1.e6
-           div_int=div_int-div(k)*dsig(k)
+         !  div(k)=(u(ieu(iq),k)/emu(ieu(iq))
+     &   !         -u(iwu(iq),k)/emu(iwu(iq))  
+     &   !         +v(inv(iq),k)/emv(inv(iq))
+     &   !         -v(isv(iq),k)/emv(isv(iq))) 
+     &   !          *em(iq)**2/(2.*ds)  *1.e6
+         !  div_int=div_int-div(k)*dsig(k)
          enddo
          write (6,"('pwater,condc,condx,rndmax,rmc',9f8.3)")
      &      pwater,condc(idjd),condx(idjd),rndmax(idjd),cansto(idjd)
@@ -1624,8 +1625,10 @@
      &      tpan(idjd)
          write (6,"('u10,ustar,pblh',9f8.2)")
      &      u10(idjd),ustar(idjd),pblh(idjd)
-         write (6,"('div_int,ps,qgscrn',5f8.2,f8.3)")
-     &      div_int,.01*ps(idjd),1000.*qgscrn(idjd)
+!         write (6,"('div_int,ps,qgscrn',5f8.2,f8.3)")
+!     &      div_int,.01*ps(idjd),1000.*qgscrn(idjd)
+         write (6,"('ps,qgscrn',5f8.2,f8.3)")
+     &      .01*ps(idjd),1000.*qgscrn(idjd)
          write (6,"('dew_,eg_,epot,epan,eg,fg,ga',9f8.2)") 
      &      dew_ave(idjd),eg_ave(idjd),epot(idjd),epan(idjd),eg(idjd),
      &      fg(idjd),ga(idjd)
@@ -1653,7 +1656,7 @@
      &              max(ps(idjd)*sig(k)-es,1.)/(.622*es) ! max as for convjlm
          enddo
          write (6,"('rh  ',9f8.3/4x,9f8.3)") spmean(:)
-         write (6,"('div ',9f8.3/4x,9f8.3)") div(:)
+         !write (6,"('div ',9f8.3/4x,9f8.3)") div(:)
          write (6,"('omgf ',9f8.3/5x,9f8.3)")   ! in Pa/s
      &             ps(idjd)*dpsldt(idjd,:)
          write (6,"('sdot ',9f8.3/5x,9f8.3)") sdot(idjd,1:kl)
@@ -1708,7 +1711,7 @@
         end if
         call ccmpi_barrier(comm_world)
       end if
-
+      
       ! Update diagnostics for consistancy in history file
       if (rescrn>0) then
         call autoscrn
@@ -1937,8 +1940,6 @@
         psl_ave(1:ifull)    = psl_ave(1:ifull)/min(ntau,nperavg)
         mixdep_ave(1:ifull) = mixdep_ave(1:ifull)/min(ntau,nperavg)
         sgn_ave(1:ifull)    = sgn_ave(1:ifull)/min(ntau,nperavg)  ! Dec07 because of solar fit
-        if(myid==0)
-     &    write(6,*) 'ktau,koundiag,nperavg =',ktau,koundiag,nperavg
         sint_ave(1:ifull)   = sint_ave(1:ifull)/max(koundiag,1)
         sot_ave(1:ifull)    = sot_ave(1:ifull)/max(koundiag,1)
         soc_ave(1:ifull)    = soc_ave(1:ifull)/max(koundiag,1)
@@ -2045,9 +2046,6 @@
          end if
         end if
 !       also zero most averaged fields every nperavg
-        if (myid==0) then
-          write(6,*) 'resetting tscr_ave for ktau = ',ktau
-        end if
         convh_ave(:,:)=0.
         cbas_ave(:)   =0.
         ctop_ave(:)   =0.
@@ -2720,8 +2718,8 @@ c     stuff from insoil  for soilv.h
       real press(kl),pres(4)
       data pres/850.,700.,500.,250./
       real coslong, sinlong, coslat, sinlat, polenx, poleny, polenz,
-     &     zonx, zony, zonz, den, 
-     &     qtot,div,div_inte,div_intq,fa,fb
+     &     zonx, zony, zonz, den, div,
+     &     qtot,div_inte,div_intq,fa,fb
       integer ix(15),jx(15)
       data ix/-1,0,1,1,1,0,-1,-1, -1,0,1,1,1,0,-1/  ! clockwise from NW
       data jx/1,1,1,0,-1,-1,-1,0, 1,1,1,0,-1,-1,-1/ ! clockwise from NW
