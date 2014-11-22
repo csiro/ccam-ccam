@@ -106,6 +106,7 @@
 /vecs_m.f90 -text
 /vecsuv_m.f90 -text
 /vegpar_m.f90 -text
+/vertmix.f90 -text
 /vvel_m.f90 -text
 /work2_m.f90 -text
 /work3_m.f90 -text

@@ -101,7 +101,6 @@ if ( iout==19 ) then
 else
   select case(io_out)
     case(1)
-      if ( myid==0 ) write(6,*) 'calling outcdf from outfile'
       call cdfout(rundate,1,nstagin)
     case(3)
       write(6,*) 'Error, history binary output not supported'
@@ -463,7 +462,6 @@ idim(2)=dim(2)
 idim(3)=dim(4)
 
 if( myid==0 .or. local ) then
-  if (myid==0) write(6,*) 'openhist itype,iarch,idnc=',itype,iarch,idnc
 
 ! if this is the first archive, set up some global attributes
   if ( iarch==1 ) then
@@ -1365,7 +1363,6 @@ if( myid==0 .or. local ) then
     call ccnf_put_var1(idnc,idv,1,dt)
   endif ! iarch==1
 ! -----------------------------------------------------------      
-  if ( myid==0 ) write(6,*) 'outcdf processing kdate,ktime,ktau,mtimer: ',kdate,ktime,ktau,mtimer
   call ccnf_sync(idnc)
   ! set time to number of minutes since start 
   call ccnf_inq_varid(idnc,'time',idv,tst)
@@ -1399,7 +1396,6 @@ if( myid==0 .or. local ) then
   if ( myid==0 ) then
     write(6,*) 'kdate,ktime,ktau=',kdate,ktime,ktau
     write(6,*) 'timer,timeg=',timer,timeg
-    write(6,*) 'now write out variables'
   end if
        
 endif ! myid == 0 .or. local
@@ -1686,7 +1682,6 @@ if ( itype/=-1 ) then  ! these not written to restart file
   call histwrt3(tauy,'tauy',idnc,iarch,local,lwrite)
   ! "extra" outputs
   if ( nextout>=1 ) then
-    if( myid==0 ) write(6,*) 'nextout, idnc: ',nextout,idnc
     call histwrt3(rtu_ave,'rtu_ave',idnc,iarch,local,lrad)
     call histwrt3(rtc_ave,'rtc_ave',idnc,iarch,local,lrad)
     call histwrt3(rgdn_ave,'rgdn_ave',idnc,iarch,local,lrad)
@@ -1875,7 +1870,6 @@ end if
 ! **************************************************************
 
 ! ATMOSPHERE DYNAMICS ------------------------------------------
-if( myid==0 ) write(6,*) 'netCDF save of 3d variables'
 lwrite=ktau>0
 call histwrt4(t,'temp',idnc,iarch,local,.true.)
 call histwrt4(u,'u',idnc,iarch,local,.true.)

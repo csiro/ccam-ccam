@@ -243,7 +243,7 @@ salbdy(1:ifull)=max(newsal,0.)
 ! estimate grid box area covered by water
 cover=min(0.001*watbdy(1:ifull)/minwater,1.)
 ! estimate rate that water leaves river into soil
-rate=dt/(8.*3600.) ! MJT suggestion
+rate=dt/(8.*24.*3600.) ! MJT suggestion
   
 ! Method for land basins
 select case(basinmd)

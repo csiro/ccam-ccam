@@ -1477,11 +1477,11 @@ call solvecanyon(sg_road,rg_road,fg_road,eg_road,acond_road,                    
                  d_canyonrgout,d_tranc,d_evapc,d_cwa,d_cra,d_cwe,d_cww,d_crw,d_crr,   &
                  d_cwr,d_totdepth,d_c1c,ddt)
 
-! calculate roof fluxes
+! calculate roof fluxes (fg_roof updated in solvetridiag)
 eg_roof = 0 ! For cray compiler
 call solveroof(sg_rfsn,rg_rfsn,fg_rfsn,eg_rfsn,garfsn,rfsnmelt,rfsntemp,acond_rfsn,d_rfsndelta, &
                sg_vegr,rg_vegr,fg_vegr,eg_vegr,acond_vegr,d_vegdeltar,                          &
-               sg_roof,rg_roof,fg_roof,eg_roof,acond_roof,d_roofdelta,                          &
+               sg_roof,rg_roof,eg_roof,acond_roof,d_roofdelta,                                  &
                a_rg,a_umag,a_rho,a_rnd,a_snd,d_tempr,d_mixrr,d_rfdzmin,d_tranr,d_evapr,d_c1r,   &
                d_sigr,ddt)
 
@@ -1490,7 +1490,8 @@ call solvetridiag(sg_roof,rg_roof,fg_roof,eg_roof,garfsn,gflxroof,  &
                   sg_walle,rg_walle,fg_walle,gflxwalle,             &
                   sg_wallw,rg_wallw,fg_wallw,gflxwallw,             &
                   sg_road,rg_road,fg_road,eg_road,gardsn,           &
-                  d_rfsndelta,d_rdsndelta,ddt)
+                  d_rfsndelta,d_rdsndelta,d_tempr,a_rho,acond_roof, &
+                  ddt)
 
 ! calculate water/snow budgets for road surface
 call updatewater(ddt,road%surfwater,road%soilwater,road%leafwater,road%snow,road%den,road%alpha, &
@@ -1581,7 +1582,8 @@ subroutine solvetridiag(sg_roof,rg_roof,fg_roof,eg_roof,garfsn,gflxroof,  &
                         sg_walle,rg_walle,fg_walle,gflxwalle,             &
                         sg_wallw,rg_wallw,fg_wallw,gflxwallw,             &
                         sg_road,rg_road,fg_road,eg_road,gardsn,           &
-                        d_rfsndelta,d_rdsndelta,ddt)
+                        d_rfsndelta,d_rdsndelta,d_tempr,a_rho,acond_roof, &
+                        ddt)
 
 implicit none
 
@@ -1591,11 +1593,14 @@ real, dimension(ufull,2:4) :: ggaroof,ggawall,ggaroad
 real, dimension(ufull,1:4) :: ggbroof,ggbwall,ggbroad
 real, dimension(ufull,1:3) :: ggcroof,ggcwall,ggcroad
 real, dimension(ufull,4) :: ggdroof,ggdwalle,ggdwallw,ggdroad
-real, dimension(ufull), intent(in) :: sg_roof,rg_roof,fg_roof,eg_roof,garfsn,gflxroof
+real, dimension(ufull), intent(out) :: fg_roof
+real, dimension(ufull), intent(in) :: sg_roof,rg_roof,eg_roof,garfsn,gflxroof
 real, dimension(ufull), intent(in) :: sg_walle,rg_walle,fg_walle,gflxwalle
 real, dimension(ufull), intent(in) :: sg_wallw,rg_wallw,fg_wallw,gflxwallw
 real, dimension(ufull), intent(in) :: sg_road,rg_road,fg_road,eg_road,gardsn
-real, dimension(ufull), intent(in) :: d_rfsndelta,d_rdsndelta
+real, dimension(ufull), intent(in) :: d_rfsndelta,d_rdsndelta,d_tempr
+real, dimension(ufull), intent(in) :: a_rho
+real, dimension(ufull), intent(in) :: acond_roof
 real, dimension(ufull) :: n
 
 ! Conduction terms
@@ -1604,7 +1609,8 @@ do k=2,4
   ggawall(:,k)=-2./(f_walldepth(:,k-1)/f_walllambda(:,k-1)+f_walldepth(:,k)/f_walllambda(:,k))
   ggaroad(:,k)=-2./(f_roaddepth(:,k-1)/f_roadlambda(:,k-1)+f_roaddepth(:,k)/f_roadlambda(:,k))
 end do
-ggbroof(:,1)=2./(f_roofdepth(:,1)/f_rooflambda(:,1)+f_roofdepth(:,2)/f_rooflambda(:,2))+f_roofcp(:,1)*f_roofdepth(:,1)/ddt
+ggbroof(:,1)=2./(f_roofdepth(:,1)/f_rooflambda(:,1)+f_roofdepth(:,2)/f_rooflambda(:,2))+f_roofcp(:,1)*f_roofdepth(:,1)/ddt &
+             +(1.-d_rfsndelta)*aircp*a_rho*acond_roof
 ggbwall(:,1)=2./(f_walldepth(:,1)/f_walllambda(:,1)+f_walldepth(:,2)/f_walllambda(:,2))+f_wallcp(:,1)*f_walldepth(:,1)/ddt
 ggbroad(:,1)=2./(f_roaddepth(:,1)/f_roadlambda(:,1)+f_roaddepth(:,2)/f_roadlambda(:,2))+f_roadcp(:,1)*f_roaddepth(:,1)/ddt
 do k=2,3
@@ -1631,7 +1637,7 @@ do k=1,3
 end do
 
 ! surface energy budget, AC and previous temperatures
-ggdroof(:,1) =(1.-d_rfsndelta)*(sg_roof+rg_roof-fg_roof-eg_roof)                            &
+ggdroof(:,1) =(1.-d_rfsndelta)*(sg_roof+rg_roof-eg_roof+aircp*a_rho*d_tempr*acond_roof)     &
              +d_rfsndelta*garfsn+roof%temp(:,1)*f_roofcp(:,1)*f_roofdepth(:,1)/ddt
 ggdwalle(:,1)=sg_walle+rg_walle-fg_walle+walle%temp(:,1)*f_wallcp(:,1)*f_walldepth(:,1)/ddt
 ggdwallw(:,1)=sg_wallw+rg_wallw-fg_wallw+wallw%temp(:,1)*f_wallcp(:,1)*f_walldepth(:,1)/ddt
@@ -1671,6 +1677,9 @@ do k=3,1,-1
   wallw%temp(:,k)=(ggdwallw(:,k)-ggcwall(:,k)*wallw%temp(:,k+1))/ggbwall(:,k)
   road%temp(:,k) =(ggdroad(:,k) -ggcroad(:,k)*road%temp(:,k+1) )/ggbroad(:,k)
 end do
+
+! implicit update for fg_roof to improve stability for thin roof layers
+fg_roof=aircp*a_rho*(roof%temp(:,1)-d_tempr)*acond_roof
 
 return
 end subroutine solvetridiag
@@ -2338,7 +2347,7 @@ end subroutine canyonflux
 
 subroutine solveroof(sg_rfsn,rg_rfsn,fg_rfsn,eg_rfsn,garfsn,rfsnmelt,rfsntemp,acond_rfsn,d_rfsndelta, &
                      sg_vegr,rg_vegr,fg_vegr,eg_vegr,acond_vegr,d_vegdeltar,                          &
-                     sg_roof,rg_roof,fg_roof,eg_roof,acond_roof,d_roofdelta,                          &
+                     sg_roof,rg_roof,eg_roof,acond_roof,d_roofdelta,                                  &
                      a_rg,a_umag,a_rho,a_rnd,a_snd,d_tempr,d_mixrr,d_rfdzmin,d_tranr,d_evapr,d_c1r,   &
                      d_sigr,ddt)
 
@@ -2348,7 +2357,7 @@ integer k
 real, intent(in) :: ddt
 real, dimension(ufull), intent(inout) :: rg_rfsn,fg_rfsn,eg_rfsn,garfsn,rfsnmelt,rfsntemp,acond_rfsn
 real, dimension(ufull), intent(inout) :: rg_vegr,fg_vegr,eg_vegr,acond_vegr
-real, dimension(ufull), intent(inout) :: rg_roof,fg_roof,eg_roof,acond_roof
+real, dimension(ufull), intent(inout) :: rg_roof,eg_roof,acond_roof
 real, dimension(ufull), intent(in) :: sg_rfsn,sg_vegr,sg_roof
 real, dimension(ufull), intent(in) :: a_rg,a_umag,a_rho,a_rnd,a_snd
 real, dimension(ufull), intent(inout) :: d_tempr,d_mixrr,d_rfdzmin,d_tranr,d_evapr,d_c1r,d_sigr
@@ -2398,7 +2407,8 @@ dtt=d_tempr*(1.+0.61*d_mixrr)
 ! Assume zot=0.1*zom (i.e., Kanda et al 2007, small experiment)
 call getinvres(acond_roof,cdroof,z_on_l,lzohroof,lzomroof,d_rfdzmin,dts,dtt,a_umag,1)
 ! acond_roof is multiplied by a_umag
-fg_roof=aircp*a_rho*(roof%temp(:,1)-d_tempr)*acond_roof
+! fg_roof now updated in solvetridiag
+! fg_roof=aircp*a_rho*(roof%temp(:,1)-d_tempr)*acond_roof
 where (qsatr<d_mixrr)
   ! dew
   eg_roof=lv*a_rho*(qsatr-d_mixrr)*acond_roof

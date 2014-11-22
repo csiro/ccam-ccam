@@ -55,7 +55,6 @@
       include 'soilv.h'                  ! Soil parameters
 
       integer iq,k,it,ip,iqmin1,iqmax1,iqmin2,iqmax2
-      integer pos(1)
       integer, intent(in) :: nalpha
       real ri_max,zologbgin,ztv,z1onzt,chnsea
       real srcp,dtsoil,afrootpan,es,constz,drst
@@ -111,11 +110,6 @@ c     fg is sensible heat flux (was h0)
 c     eg is latent heat flux (was wv)
 c     dfgdt is dfgdt (was csen in surfupa/b)
 c     degdt is degdt (was ceva in surfupa/b)
-
-      if (ktau==1.and.nmaxpr==1) then
-        write(6,*) "myid,land,sea ",myid,count(land),
-     &    ifull-count(land)
-      end if
 
       if (.not.allocated(plens).and.nmlo==0) then
         allocate(plens(ifull))
@@ -719,7 +713,7 @@ c          Surface stresses taux, tauy: diagnostic only - unstaggered now
              endif                                                      ! land
             enddo                                                       ! land
           elseif(ntaft==3)then                                          ! land
-!           do vegetation calulation for taftfh	                      ! land
+!           do vegetation calulation for taftfh                         ! land
             do iq=1,ifull                                               ! land
              if(land(iq))then                                           ! land
                xx=grav*zmin*(1.-tgf(iq)*srcp/t(iq,1)) ! actually otgf   ! land
@@ -742,7 +736,9 @@ c                Now heat ; allow for smaller zo via aft and factch     ! land
             write(6,*) 'av_vmod,u,savu,v,savv',                         ! land
      &          av_vmod,u(idjd,1),savu(idjd,1),v(idjd,1),savv(idjd,1)   ! land
           endif                                                         ! land
+                                                                        ! land
           call sib3(nalpha,taftfh,taftfhg,aft,rho) ! for nsib=3, 5      ! land
+                                                                        ! land
           if(diag.or.ntest>0)then                                       ! land
             if (mydiag) write(6,*) 'before call scrnout'                ! land
             call maxmin(t,' t',ktau,1.,kl)                              ! land
@@ -1611,10 +1607,9 @@ c     .              sign(min(abs(delta_tx(iq)),8.),delta_tx(iq))
        endif
       endif
 !-------------------------------------
-c     write(6,*) 'before soilsnow'
+
       call soilsnowv
-c     write(6,*) 'after soilsnow'
-!cdir nodep
+
       do ip=1,ipland  ! all land points in this nsib=3 loop
        iq=iperm(ip)
        if(isflag(iq)==0) then

@@ -331,8 +331,8 @@ real, dimension(:), intent(inout) :: var ! may be dummy argument from myid/=0
 if ( ifull/=6*ik*ik .and. ptest ) then
   ! read local arrays without gather and distribute
   call hr4p(iarchi,ier,name,kk,.true.,var)
-  if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then
-    write(6,'("done histrd4 ",a8,i3,i4,i3)') name,kk,ier,iarchi
+  if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 .and. kk==1 ) then
+    write(6,'("done histrd4 ",a8,i4,i3)') name,ier,iarchi
   endif
 
 else if ( myid==0 ) then  

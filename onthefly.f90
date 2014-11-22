@@ -503,7 +503,6 @@ if ( newfile ) then
   
 else
   ! use saved metadata  
-  if ( myid==0 ) write(6,*) "Using saved fixed fields"
   tsstest=(iers(2)==0.and.iers(3)==0.and.iotest)        
 endif ! newfile ..else..
 
@@ -517,7 +516,6 @@ levkk=0
 do while( sigin(levkk+1)>0.9 ) ! host grid
   levkk=levkk+1
 end do      
-if (myid==0) write(6,*) "Ref height lev,levkk =",lev,levkk
 
 !--------------------------------------------------------------------
 ! Read surface pressure
@@ -1034,7 +1032,7 @@ if ( nested/=1 ) then
   end do
   if ( .not.iotest ) then
     where ( snowd>0. .and. land(1:ifull) )
-      tgg(:,1)=min(tgg(:,1),270.1)
+      tgg(:,1)=min( tgg(:,1), 270.1 )
     endwhere
   end if
 

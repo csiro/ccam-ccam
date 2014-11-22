@@ -402,8 +402,8 @@
         if(mbase==-10)then ! fg; qg1   
          do iq=1,ifull
           k=kkbb(iq)
-           if(fg(iq)>0.)alfqarr(iq)=alfqarr(iq)*       !  mbase=-10; N.B. qs check done later with qbass
-     &               max(qg(iq,1),qg(iq,2),qg(iq,k))/qg(iq,k)
+           if(fg(iq)>0.)alfqarr(iq)=alfqarr(iq)*                 !  mbase=-10; N.B. qs check done later with qbass
+     &               max(qg(iq,1),qg(iq,k980),qg(iq,k))/qg(iq,k) ! MJT suggestion
          enddo 
         endif  ! (mbase-=-10)
           
@@ -413,7 +413,7 @@
           pk=ps(iq)*sig(1)
           qs(iq,1)=.622*es(iq,1)/max(pk-es(iq,1),0.1) ! MJT suggestion  
           k=kkbb(iq)
-          if(fg(iq)>mbase)alfqarr(iq)=alfqarr(iq)*         !  mbase>=0;  N.B. qs check done later with qbass
+          if(fg(iq)>mbase)alfqarr(iq)=alfqarr(iq)*                 !  mbase>=0;  N.B. qs check done later with qbass
      &      max(wetfac(iq)*qs(iq,1),qg(iq,k980),qg(iq,k))/qg(iq,k) ! MJT suggestion
          enddo 
         endif  ! (mbase>=0)
@@ -424,8 +424,9 @@
             summ=ds/(em(iq)*208498.)
             alfqarr(iq)=1.+(alfqarr(iq)-1.) *
      &      (1.+tied_over)*summ/(1.+tied_over*summ)
-!           tied_over=26 gives factor [1, .964, .900, .794, .529] for ds = [200, 100, 50, 25, 8} km     
-!           tied_over=10 gives factor [1, .917, .786, .611, .306] for ds = [200, 100, 50, 25, 8} km     
+!           tied_over=60  gives factor [.999, .983, .951, .893, .709, .371] for ds = [200, 100, 50, 25, 8, 2] km
+!           tied_over=26  gives factor [.998, .961, .895, .786, .519, .207] for ds = [200, 100, 50, 25, 8, 2] km     
+!           tied_over=10  gives factor [.996, .910, .776, .599, .305, .096] for ds = [200, 100, 50, 25, 8, 2] km     
           enddo
         endif
         if(nproc==1)write(6,*) 'max_alfqarr:',maxval(alfqarr)
@@ -442,7 +443,7 @@
          es(iq,1)=establ(tt(iq,1))
          pk=ps(iq)*sig(1)
          qs(iq,1)=.622*es(iq,1)/max(pk-es(iq,1),1.)  
-          alfqarr(iq)=alfqarr(iq)*                 !  mbase=-19; N.B. qs check done later with qbass
+          alfqarr(iq)=alfqarr(iq)*                                        ! mbase=-19; N.B. qs check done later with qbass
      &               max(wetfac(iq)*qs(iq,1),qg(iq,2),qg(iq,k))/qg(iq,k)  ! mbase=-19
         endif
        enddo 
