@@ -15,6 +15,7 @@
       use nlin_m
       use pbl_m
       use sigs_m
+      use staguvmod
       use tbar2d_m
 !     rml 19/09/07 replace gasmin from tracers.h with tracmin from tracermodule
       use tracers_m
@@ -335,9 +336,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
 !     This is necessary because staguv expects arrays dimensioned 
 !     (ifull,kl). 
       if(nstag==0)then
-        wrk3=u(1:ifull,:)
-        wrk4=v(1:ifull,:)
-        call staguv(wrk3,wrk4,wrk1,wrk2)
+        call staguv(u,v,wrk1,wrk2)
 #ifdef debug
         if(nmaxpr==1.and.nproc==1)then
           its=ifull+iextra
@@ -365,11 +364,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
         endif
 #endif
       else
-        wrk1=cc(1:ifull,:)
-        wrk2=dd(1:ifull,:)
-        call unstaguv(wrk1,wrk2,wrk3,wrk4) ! usual
-        u(1:ifull,:)=wrk3
-        v(1:ifull,:)=wrk4
+        call unstaguv(cc,dd,u,v) ! usual
       endif
 
 !     vert. integ. div into e

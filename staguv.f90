@@ -1,15 +1,25 @@
+module staguvmod
+
+private
+public staguv, unstaguv
+
+integer, parameter :: itnmax=3
+
+contains
+
+    
 subroutine staguv(u,v,uout,vout)
 
-!     stripped down version just with nstag=nstagu=3, mstagpt=-3      
-!     also now includes nstag=nstagu=4 & 5
-!     staguv    may be called from adjust5, upglobal
-!     unstaguv  may be called from adjust5,  nonlin
-!     nstag now in parm.h  ! for nstag=3-5 staguv: jlm reversible 
-!                          ! -ve switches every abs(nstag) time steps
-!     nstagu now in parm.h ! same but for unstaguv
-!     N.B. staguv & unstaguv previously required 2D arrays as input
-!     - no longer, as transferred here to uin and vin
-!     unstaggered u & v as input; staggered as output
+! stripped down version just with nstag=nstagu=3, mstagpt=-3      
+! also now includes nstag=nstagu=4 & 5
+! staguv    may be called from adjust5, upglobal
+! unstaguv  may be called from adjust5,  nonlin
+! nstag now in parm.h  ! for nstag=3-5 staguv: jlm reversible 
+!                      ! -ve switches every abs(nstag) time steps
+! nstagu now in parm.h ! same but for unstaguv
+! N.B. staguv & unstaguv previously required 2D arrays as input
+! - no longer, as transferred here to uin and vin
+! unstaggered u & v as input; staggered as output
 
 use cc_mpi
 use indices_m
@@ -22,12 +32,11 @@ include 'newmpar.h'
 include 'parm.h'
 include 'parmdyn.h'
 
-real, dimension(ifull,kl), intent(in)  :: u, v
-real, dimension(ifull,kl), intent(out) :: uout, vout
+real, dimension(:,:), intent(in)  :: u, v
+real, dimension(:,:), intent(out) :: uout, vout
 real, dimension(ifull+iextra,kl) :: ua, va, ud, vd, uin, vin
 real, dimension(ifull,kl) :: ug, vg
 integer, parameter :: ntest=0    ! usually 0, 1 for test prints
-integer, parameter :: itnmax=3
 integer :: iq, itn, k, i, j
 
 call START_LOG(stag_begin)
@@ -46,8 +55,6 @@ if (abs(nstag)<3) then
   call boundsuv(uin,vin,stag=2)
   uout(1:ifull,1:kl)=(9.*(uin(ieu,1:kl)+uin(1:ifull,1:kl))-uin(iwu,1:kl)-uin(ieeu,1:kl))/16.
   vout(1:ifull,1:kl)=(9.*(vin(inv,1:kl)+vin(1:ifull,1:kl))-vin(isv,1:kl)-vin(innv,1:kl))/16.
-! uout(1:ifull,1:kl)=.5*(uin(ieu,1:kl)+uin(1:ifull,1:kl))
-! vout(1:ifull,1:kl)=.5*(vin(inv,1:kl)+vin(1:ifull,1:kl))
   return
 endif  ! (nstag==0)
 
@@ -152,11 +159,10 @@ include 'newmpar.h'
 include 'parm.h'
 include 'parmdyn.h'
 
-real, dimension(ifull,kl), intent(in)  :: u, v
-real, dimension(ifull,kl), intent(out) :: uout, vout
+real, dimension(:,:), intent(in)  :: u, v
+real, dimension(:,:), intent(out) :: uout, vout
 real, dimension(ifull+iextra,kl) :: ua, va, ud, vd, uin, vin
 real, dimension(ifull,kl) :: ug, vg
-integer, parameter :: itnmax=3
 integer :: iq, itn, k
 
 call START_LOG(stag_begin)
@@ -237,3 +243,5 @@ call END_LOG(stag_end)
 
 return
 end subroutine unstaguv
+
+end module staguvmod

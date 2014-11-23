@@ -13,6 +13,7 @@
       use nlin_m
       use sbar_m
       use sigs_m
+      use staguvmod
       use tkeeps, only : tke,eps
       use tracers_m
       use unn_m
@@ -427,23 +428,19 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
           else
              call ints(1,qg,intsch,nface,xg,yg,3)
           endif                 ! ldr.ne.0
-          if(ngas>0.or.nextout>=4)then
 #ifdef debug
+          if(ngas>0.or.nextout>=4)then
 	     if(nmaxpr==1.and.mydiag)then
               write (6,"('xg#',9f8.2)") diagvals(xg(:,nlv))
               write (6,"('yg#',9f8.2)") diagvals(yg(:,nlv))
               write (6,"('nface#',9i8)") diagvals(nface(:,nlv))
-!     &           ((nface(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=-1,1)
               write (6,"('xlat#',9f8.2)") diagvals(tr(:,nlv,ngas+1))
-!     &           ((tr(ii+jj*il,nlv,ngas+1),ii=idjd-1,idjd+1),jj=-1,1)
               write (6,"('xlon#',9f8.2)") diagvals(tr(:,nlv,ngas+2))
-!     &           ((tr(ii+jj*il,nlv,ngas+2),ii=idjd-1,idjd+1),jj=-1,1)
               write (6,"('xpre#',9f8.2)") diagvals(tr(:,nlv,ngas+3))
-!     &           ((tr(ii+jj*il,nlv,ngas+3),ii=idjd-1,idjd+1),jj=-1,1)
 	     endif
 #endif
-           if ( ntrac > 0 ) then
-            call ints(ntrac,tr,intsch,nface,xg,yg,5)
+           if ( ngas>0 ) then
+            call ints(ngas,tr,intsch,nface,xg,yg,5)
            end if
 #ifdef debug
 	     if(nmaxpr==1.and.mydiag)then
@@ -451,8 +448,8 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
               write (6,"('ylon#',9f8.2)") diagvals(tr(:,nlv,ngas+2))
               write (6,"('ypre#',9f8.2)") diagvals(tr(:,nlv,ngas+3))
 	     endif
-#endif
           endif  ! (ngas>0.or.nextout>=4)
+#endif
           if(nvmix==6)then
              duma(1:ifull,:,1)=tke(1:ifull,:)
              duma(1:ifull,:,2)=eps(1:ifull,:)

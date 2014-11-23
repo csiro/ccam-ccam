@@ -13,6 +13,7 @@
       use nlin_m
       use savuvt_m
       use sigs_m
+      use staguvmod
       use tbar2d_m
       use tracers_m
       use unn_m
@@ -76,24 +77,24 @@
       end if
 
       if(ngas>=1)then
-        if(mfix_rad>0.and.mspec==1)then ! make gases 2 to ng add up to g1
-         do k=1,kl              ! here it is just from effects of physics
-          do iq=1,ifull
-          sumdiffb=0.
-           do ng=2,ngas        
-            sumdiffb=sumdiffb+tr(iq,k,ng)
-            delpos=delpos+max( 1.e-20,tr(iq,k,ng)-trsav(iq,k,ng))
-            delneg=delneg+min(-1.e-20,tr(iq,k,ng)-trsav(iq,k,ng))
-           enddo   ! ng loop
-           ratio=(tr(iq,k,1)-sumdiffb)/(delpos-delneg)
-           do ng=2,ngas        
-            tr(iq,k,ng)=max(0.,trsav(iq,k,ng)
-     &         +(1.+ratio)*max(0.,tr(iq,k,ng)-trsav(iq,k,ng))
-     &         +(1.-ratio)*min(0.,tr(iq,k,ng)-trsav(iq,k,ng)) )
-           enddo   ! ng loop
-          enddo    ! iq loop
-         enddo     ! k  loop
-        endif      ! (mfix_rad>0)
+!        if(mfix_rad>0.and.mspec==1)then ! make gases 2 to ng add up to g1
+!         do k=1,kl              ! here it is just from effects of physics
+!          do iq=1,ifull
+!          sumdiffb=0.
+!           do ng=2,ngas        
+!            sumdiffb=sumdiffb+tr(iq,k,ng)
+!            delpos=delpos+max( 1.e-20,tr(iq,k,ng)-trsav(iq,k,ng))
+!            delneg=delneg+min(-1.e-20,tr(iq,k,ng)-trsav(iq,k,ng))
+!           enddo   ! ng loop
+!           ratio=(tr(iq,k,1)-sumdiffb)/(delpos-delneg)
+!           do ng=2,ngas        
+!            tr(iq,k,ng)=max(0.,trsav(iq,k,ng)
+!     &         +(1.+ratio)*max(0.,tr(iq,k,ng)-trsav(iq,k,ng))
+!     &         +(1.-ratio)*min(0.,tr(iq,k,ng)-trsav(iq,k,ng)) )
+!           enddo   ! ng loop
+!          enddo    ! iq loop
+!         enddo     ! k  loop
+!        endif      ! (mfix_rad>0.and.mspec==1)
         trsav(:,:,:)=tr(1:ifull,:,:) ! for tr conservation in adjust5
       endif       ! (ngas>=1)
  
