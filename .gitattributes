@@ -59,6 +59,7 @@
 /mlodynamics.f90 -text
 /morepbl_m.f90 -text
 /mpif_m.f90 -text
+/mslp.f90 -text
 /nesting.f90 -text
 /netcdf_m.f90 -text
 /nharrs_m.f90 -text
@@ -83,6 +84,7 @@
 /savuvt_m.f90 -text
 /sbar_m.f90 -text
 /screen_m.f90 -text
+/scrnout.f90 -text
 /seaesfrad.f90 -text
 /sealw99.f90 -text
 /sigs_m.f90 -text

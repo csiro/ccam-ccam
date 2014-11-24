@@ -1445,8 +1445,7 @@ else if (ktau==0.or.itype==-1) then
 end if
 call histwrt3(sigmf,'sigmf',idnc,iarch,local,.true.)
 call histwrt3(psl,'psf',idnc,iarch,local,.true.)
-tmpry=t(1:ifull,:)
-call mslp(aa,psl,zs,tmpry)
+call mslp(aa,psl,zs,t)
 aa=aa/100.
 call histwrt3(aa,'pmsl',idnc,iarch,local,.true.)
 if ( nsib==6 .or. nsib==7 ) then      
@@ -2296,8 +2295,7 @@ freqstore=condx*86400./dt
 call freqwrite(fncid,'rnd',  ktau,localhist,freqstore)
 freqstore=conds*86400./dt
 call freqwrite(fncid,'sno',  ktau,localhist,freqstore)
-tmpry=t(1:ifull,:)
-call mslp(freqstore,psl,zs,tmpry)
+call mslp(freqstore,psl,zs,t)
 freqstore=freqstore/100.
 call freqwrite(fncid,'pmsl', ktau,localhist,freqstore)
 
