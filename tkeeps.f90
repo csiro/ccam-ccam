@@ -43,19 +43,19 @@ real, dimension(:,:), allocatable, save :: u,v,ents,dtrs
 #endif
 
 ! model constants
-real, parameter :: b1      = 2.     ! Soares et al (2004) 1., Siebesma et al (2003) 2.
-real, parameter :: b2      = 1./3.  ! Soares et al (2004) 2., Siebesma et al (2003) 1./3.
 real, parameter :: be      = 0.1    ! Hurley (2007) 1., Soares et al (2004) 0.3
-real, parameter :: cm0     = 0.09   ! Hurley (2007) 0.09, Duynkerke 1988 0.03
-real, parameter :: ce0     = 0.69   ! Hurley (2007) 0.69, Duynkerke 1988 0.42
+real, parameter :: cm0     = 0.09   ! Hurley (2007) 0.09, Duynkerke 1988 0.03, Duynkerke 1987 0.09
+real, parameter :: ce0     = 0.69   ! Hurley (2007) 0.69, Duynkerke 1988 0.42, Duynkerke 1987 0.77
 real, parameter :: ce1     = 1.46
 real, parameter :: ce2     = 1.83
-real, parameter :: ce3     = 0.45   ! Hurley (2007) 0.45, Dynkerke et al 1987 0.35
+real, parameter :: ce3     = 0.45   ! Hurley (2007) 0.45, Duynkerke 1987 0.35
 real, parameter :: cq      = 2.5    ! Adjustment to ED in absence of MF
 real, parameter :: ent0    = 0.25   ! Entrainment constant (Controls height of boundary layer)
 real, parameter :: dtrn0   = 0.4    ! Unsaturated detrainment constant
 real, parameter :: dtrc0   = 0.9    ! Saturated detrainment constant
 real, parameter :: m0      = 0.06   ! Mass flux amplitude constant
+real, parameter :: b1      = 2.     ! Soares et al (2004) 1., Siebesma et al (2003) 2.
+real, parameter :: b2      = 1./3.  ! Soares et al (2004) 2., Siebesma et al (2003) 1./3.
 
 ! physical constants
 real, parameter :: grav  = 9.80616    ! (m s^-2)
@@ -76,10 +76,10 @@ real, parameter :: d_1   = 0.35
 
 integer, parameter :: icm1   = 5        ! max iterations for calculating pblh
 real, parameter :: maxdts    = 120.     ! max timestep for split
-real, parameter :: mintke    = 1.E-8    ! min value for tke
-real, parameter :: mineps    = 1.E-10   ! min value for eps
-real, parameter :: minl      = 1.       ! min value for L (constraint on eps)
-real, parameter :: maxl      = 1000.    ! max value for L (constraint on eps)
+real, parameter :: mintke    = 1.E-8    ! min value for tke (1.5e-4 in TAPM)
+real, parameter :: mineps    = 1.E-10   ! min value for eps (1.0e-6 in TAPM)
+real, parameter :: minl      = 1.       ! min value for L   (5. in TAPM)
+real, parameter :: maxl      = 1000.    ! max value for L   (500. in TAPM)
 
 contains
 
@@ -529,8 +529,8 @@ do kcount=1,mcount
         ent =entfn(zz(i,1),zi(i),   zz(i,1))
         dtrn=dtrfn(zz(i,1),zidry(i),zz(i,1),dtrn0)
         dtrc=dtrfn(zz(i,1),zi(i),   zz(i,1),dtrn0)
-        dtrc=dtrfn(zz(i,1),zi(i),   zz(i,1),dtrc0)
         dtrx=(1.-xp)*dtrn+xp*dtrc
+        dtrc=dtrfn(zz(i,1),zi(i),   zz(i,1),dtrc0)
         dtr =(1.-cfup(1))*dtrx+cfup(1)*dtrc
         ents(i,1)=ent
         dtrs(i,1)=dtr
@@ -613,7 +613,7 @@ do kcount=1,mcount
 
   ! calculate tke and eps at 1st level
   z_on_l=-vkar*zz(:,1)*grav*wtv0/(thetav(:,1)*max(ustar*ustar*ustar,1.E-20))
-  z_on_l=min(z_on_l,10.)
+  z_on_l=min(z_on_l,10.) ! See fig 10 in Beljarrs and Holtslag (1991)
   where (z_on_l<0.)
     phim=(1.-16.*z_on_l)**(-0.25)
   elsewhere
