@@ -2225,20 +2225,11 @@ do l = 1,ncyits
 end do
 
 ! solve for canyon sensible heat flux
-! (predictor - explicit)
 fg_walle = aircp*a_rho*(walle%temp(:,1)-d_canyontemp)*acond_walle*d_topu*effbldheight ! canyon vegetation blocks turblent flux
 fg_wallw = aircp*a_rho*(wallw%temp(:,1)-d_canyontemp)*acond_wallw*d_topu*effbldheight ! canyon vegetation blocks turblent flux
 fg_road  = aircp*a_rho*(road%temp(:,1)-d_canyontemp)*acond_road*d_topu
-! (corrector)  0.5 factor arises from replacing newtemp with newtemp = 0.5*(newtemp+oldtemp)
-newtemp  = walle%temp(:,1)-0.5*fg_walle/(1./ddt+aircp*a_rho*acond_walle*d_topu*effbldheight)/(f_wallcp(:,1)*f_walldepth(:,1))
-fg_walle = aircp*a_rho*(newtemp-d_canyontemp)*acond_walle*d_topu*effbldheight ! canyon vegetation blocks turblent flux
-newtemp  = wallw%temp(:,1)-0.5*fg_wallw/(1./ddt+aircp*a_rho*acond_wallw*d_topu*effbldheight)/(f_wallcp(:,1)*f_walldepth(:,1))
-fg_wallw = aircp*a_rho*(newtemp-d_canyontemp)*acond_wallw*d_topu*effbldheight ! canyon vegetation blocks turblent flux
-newtemp  = road%temp(:,1)-0.5*fg_road/(1./ddt+aircp*a_rho*acond_road*d_topu)/(f_roadcp(:,1)*f_roaddepth(:,1))
-fg_road  = aircp*a_rho*(newtemp-d_canyontemp)*acond_road*d_topu
-! veg and snow (implicit)
-fg_vegc = sg_vegc+rg_vegc-eg_vegc
-fg_rdsn = sg_rdsn+rg_rdsn-eg_rdsn*ls/lv-gardsn
+fg_vegc  = sg_vegc+rg_vegc-eg_vegc
+fg_rdsn  = sg_rdsn+rg_rdsn-eg_rdsn*ls/lv-gardsn
 
 ! calculate longwave radiation
 effwalle=f_wallemiss*(a_rg*d_cwa+sbconst*walle%temp(:,1)**4*(f_wallemiss*d_cwe-1.)                   & 
