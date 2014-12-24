@@ -555,7 +555,7 @@ if( myid==0 .or. local ) then
     lname = 'Urban fraction'
     call attrib(idnc,idim(1:2),2,'sigmu',lname,'none',0.,3.25,0,itype)
     lname = 'Soil type'
-    call attrib(idnc,idim(1:2),2,'soilt',lname,'none',0.,65.,0,itype)
+    call attrib(idnc,idim(1:2),2,'soilt',lname,'none',-65.,65.,0,itype)
     lname = 'Vegetation type'
     call attrib(idnc,idim(1:2),2,'vegt',lname,'none',0.,65.,0,itype)
 
@@ -1423,7 +1423,7 @@ if ( ktau==0 .or. itype==-1 ) then  ! also for restart file
   call histwrt3(em,'map',idnc,iarch,local,.true.)
   call histwrt3(f,'cor',idnc,iarch,local,.true.)
   call histwrt3(sigmu,'sigmu',idnc,iarch,local,.true.)
-  aa(:)=real(isoilm(:))
+  aa(:)=real(isoilm_in(:)) ! use the raw soil data here
   call histwrt3(aa,'soilt',idnc,iarch,local,.true.)
   aa(:)=real(ivegt(:))
   call histwrt3(aa,'vegt',idnc,iarch,local,.true.)

@@ -29,15 +29,15 @@ integer igas, k
 real, dimension(ifull,kl,ngas) :: updtr
 real, intent(in), dimension(ifull,kl) :: at, ct
 real, dimension(ifull,kl) :: prf, dz, rhoa, tnhs, tv
-real, dimension(ifull) :: trsrc
-real trfact, molfact, radfact, co2fact, gasfact
+real, dimension(ifull,kl) :: trsrc
+real molfact, radfact, co2fact, gasfact
 logical decay, methloss, mcfloss
 
 ! Setup
-trfact = grav * dt / dsig(1)
-molfact = 1000.*trfact*fair_molm          ! factor for units in mol/m2/s
-co2fact = 1000.*trfact*fair_molm/fc_molm
-radfact = trfact*1.293                    ! test factor for radon units in Bq/m2/s, conc in Bq/m3
+!trfact = grav * dt / dsig(1)
+molfact = 1000.*fair_molm          ! factor for units in mol/m2/s
+co2fact = 1000.*fair_molm/fc_molm
+radfact = 1.293                    ! test factor for radon units in Bq/m2/s, conc in Bq/m3
 
 tv=t(1:ifull,:)*(1.+0.61*qg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:))
 tnhs(:,1)=phi_nh(:,1)/bet(1)
@@ -103,15 +103,15 @@ use cable_ccam, only : cbmemiss
 use carbpools_m 
 use cable_def_types_mod, only : ncs, ncp 
 use nsibd_m
-use tracermodule, only :co2em,tractype,tracname,tracdaytime
+use tracermodule, only :co2em,tractype,tracname,tracdaytime,traclevel
 
 implicit none
 
 include 'newmpar.h'
 include 'dates.h' 
 
-integer igas, ierr
-real, dimension(ifull), intent(out) :: trsrc
+integer igas, ierr, k
+real, dimension(ifull,kl), intent(out) :: trsrc
 integer nchar, mveg
 
 !     initialise (to allow for ocean gridpoints for cbm fluxes)      
@@ -123,10 +123,10 @@ select case(trim(tractype(igas)))
   case('online')
     if (trim(tracname(igas)(1:3)).eq.'cbm') then
       select case (trim(tracname(igas)))
-        case('cbmnep'); trsrc = fnee
-        case('cbmpn');  trsrc = fpn
-        case('cbmrp');  trsrc = frp
-        case('cbmrs');  trsrc = frs
+        case('cbmnep'); trsrc(:,1) = fnee
+        case('cbmpn');  trsrc(:,1) = fpn
+        case('cbmrp');  trsrc(:,1) = frp
+        case('cbmrs');  trsrc(:,1) = frs
         case default;   stop 'unknown online tracer name'
       end select
     else
@@ -139,9 +139,9 @@ select case(trim(tractype(igas)))
       end if
       if (mveg<1.or.mveg>maxval(ivegt)) stop 'tracer selection: veg type out of range'
       select case (tracname(igas)(1:nchar-2))
-        case('gpp');    call cbmemiss(trsrc,mveg,1)
-        case('plresp'); call cbmemiss(trsrc,mveg,2)
-        case('slresp'); call cbmemiss(trsrc,mveg,3)
+        case('gpp');    call cbmemiss(trsrc(:,1),mveg,1)
+        case('plresp'); call cbmemiss(trsrc(:,1),mveg,2)
+        case('slresp'); call cbmemiss(trsrc(:,1),mveg,3)
         case default;   stop 'unknown online tracer name'
       end select
     endif
@@ -149,16 +149,18 @@ select case(trim(tractype(igas)))
   case ('daypulseon')
     ! only add flux during day time
     if (tracdaytime(igas,1)<tracdaytime(igas,2) .and. tracdaytime(igas,1)<=timeg .and. tracdaytime(igas,2)>=timeg) then
-      trsrc = co2em(:,igas)
+      trsrc(:,1) = co2em(:,igas)
     elseif (tracdaytime(igas,1)>tracdaytime(igas,2) .and. (tracdaytime(igas,1)<=timeg .or. tracdaytime(igas,2)>=timeg)) then
-      trsrc = co2em(:,igas)
+      trsrc(:,1) = co2em(:,igas)
     else
-      trsrc = 0.
+      trsrc(:,1) = 0.
     endif
     
   case default
-    ! emissions from file
-    trsrc = co2em(:,igas)
+    ! emissions from file over levels
+    do k=1,traclevel(igas)
+      trsrc(:,k) = co2em(:,igas)/real(traclevel(igas))
+    end do
     
 end select
 
@@ -185,7 +187,8 @@ integer, intent(in) :: igas
 integer ierr, k, iq
 real, dimension(ifull,kl), intent(out) :: temptr
 real, dimension(ifull,kl) :: loss
-real, dimension(ifull), intent(in) :: trsrc, vt, dz1
+real, dimension(ifull,kl), intent(in) :: trsrc
+real, dimension(ifull), intent(in) :: vt, dz1
 real, dimension(ifull) :: dep
 real, intent(in) :: fluxfact
 real drate
@@ -236,8 +239,10 @@ else
 endif
 
 ! implicit version due to potentially high transfer velocity relative to dz1
-temptr(:,1)    = tr(1:ifull,1,igas)*drate*dep - fluxfact*trsrc/ps(1:ifull) - loss(:,1)
-temptr(:,2:kl) = tr(1:ifull,2:kl,igas)*drate - loss(:,2:kl)
+temptr(:,1)   = tr(1:ifull,1,igas)*drate*dep - fluxfact*grav*dt*trsrc(:,1)/(dsig(1)*ps(1:ifull)) - loss(:,1)
+do k=2,kl
+  temptr(:,k) = tr(1:ifull,k,igas)*drate - fluxfact*grav*dt*trsrc(:,k)/(dsig(k)*ps(1:ifull)) - loss(:,k)
+end do
 
 return
 end subroutine gasvmix

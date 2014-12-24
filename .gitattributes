@@ -1,6 +1,7 @@
 * text=auto !eol
 /aerointerface.f90 -text
 /aerosolldr.f90 -text
+/amipsst.f90 -text
 /arrays_m.f90 -text
 /ateb.f90 -text
 /betts1_m.f90 -text
@@ -86,6 +87,7 @@
 /scrnout.f90 -text
 /seaesfrad.f90 -text
 /sealw99.f90 -text
+/setxyz.f90 -text
 /sigs_m.f90 -text
 /soil_m.f90 -text
 /soilsnow_m.f90 -text

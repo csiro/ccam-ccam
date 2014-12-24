@@ -192,6 +192,7 @@ if ( ncloud>=4 ) then
   cfrac(:,:) = stratcloud(1:ifull,:)
 else
   ! estimate convective cloud fraction from leoncld.f
+  clcon=0. ! cray compiler bug
   call convectivecloudfrac(clcon)
   cfrac(:,:) = stratcloud(1:ifull,:)*(1.-clcon(:,:))+clcon(:,:)
 end if

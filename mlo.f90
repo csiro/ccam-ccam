@@ -241,23 +241,23 @@ do iq=1,ifull
   end if
 end do
 
-water%temp=288.             ! K
-water%sal=35.               ! PSU
-water%u=0.                  ! m/s
-water%v=0.                  ! m/s
-water%eta=0.                ! m
+water%temp=288.           ! K
+water%sal=35.             ! PSU
+water%u=0.                ! m/s
+water%v=0.                ! m/s
+water%eta=0.              ! m
 
-ice%thick=0.                ! m
-ice%snowd=0.                ! m
+ice%thick=0.              ! m
+ice%snowd=0.              ! m
 ice%fracice=0.            ! %
 ice%tsurf=271.2           ! K
-ice%temp=271.2              ! K
+ice%temp=271.2            ! K
 ice%store=0.
 ice%u=0.                  ! m/s
 ice%v=0.                  ! m/s
 ice%sal=0.                ! PSU
 
-dgwater%mixdepth=-1. ! m
+dgwater%mixdepth=-1.      ! m
 dgwater%bf=0.
 dgwater%visdiralb=0.06
 dgwater%visdifalb=0.06
@@ -1135,21 +1135,21 @@ end if
 call scrncalc(atm_u,atm_v,atm_temp,atm_qg,atm_ps,atm_zmin,atm_zmins,diag)                              ! screen diagnostics
 
 workb=emisice**0.25*ice%tsurf
-sst    =unpack((1.-ice%fracice)*water%temp(:,1)+ice%fracice*workb,wpack,sst)
+sst    =unpack((1.-ice%fracice)*water%temp(:,1)+ice%fracice*workb,             wpack,sst)
 workc=(1.-ice%fracice)/log(atm_zmin/dgwater%zo)**2+ice%fracice/log(atm_zmin/dgice%zo)**2
-zo     =unpack(atm_zmin*exp(-1./sqrt(workc)),wpack,zo)
-cd     =unpack((1.-ice%fracice)*dgwater%cd +ice%fracice*dgice%cd,wpack,cd)
-cds    =unpack((1.-ice%fracice)*dgwater%cdh+ice%fracice*dgice%cdh,wpack,cds)
-fg     =unpack((1.-ice%fracice)*dgwater%fg +ice%fracice*dgice%fg,wpack,fg)
-eg     =unpack((1.-ice%fracice)*dgwater%eg +ice%fracice*dgice%eg,wpack,eg)
-wetfac =unpack((1.-ice%fracice)            +ice%fracice*dgice%wetfrac,wpack,wetfac)
-epan   =unpack(dgwater%eg,wpack,epan)
+zo     =unpack(atm_zmin*exp(-1./sqrt(workc)),                                  wpack,zo)
+cd     =unpack((1.-ice%fracice)*dgwater%cd +ice%fracice*dgice%cd,              wpack,cd)
+cds    =unpack((1.-ice%fracice)*dgwater%cdh+ice%fracice*dgice%cdh,             wpack,cds)
+fg     =unpack((1.-ice%fracice)*dgwater%fg +ice%fracice*dgice%fg,              wpack,fg)
+eg     =unpack((1.-ice%fracice)*dgwater%eg +ice%fracice*dgice%eg,              wpack,eg)
+wetfac =unpack((1.-ice%fracice)            +ice%fracice*dgice%wetfrac,         wpack,wetfac)
+epan   =unpack(dgwater%eg,                                                     wpack,epan)
 epot   =unpack((1.-ice%fracice)*dgwater%eg +ice%fracice*dgice%eg/dgice%wetfrac,wpack,epot)
 fracice=0.
-fracice=unpack(ice%fracice,wpack,fracice)
+fracice=unpack(ice%fracice,                                                    wpack,fracice)
 siced=0.
-siced  =unpack(ice%thick,wpack,siced)
-snowd  =unpack(ice%snowd,wpack,snowd)
+siced  =unpack(ice%thick,                                                      wpack,siced)
+snowd  =unpack(ice%snowd,                                                      wpack,snowd)
 
 return
 end subroutine mloeval
@@ -1875,7 +1875,7 @@ return
 end subroutine calcdensity
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Estimate melting point
+! Estimate melting/freezing point
 subroutine calcmelt(d_timelt,d_zcr)
 
 implicit none
@@ -1887,6 +1887,7 @@ real, dimension(wfull) :: ssf
 real dsf,aa,bb,deldz
 logical lflag
 
+! Integrate over minsfc to estimate near surface salinity
 ssf=0.
 do iqw=1,wfull
   dsf=0.
@@ -1990,7 +1991,7 @@ srcp=sig**(rdry/cp)
 atu=atm_u-fluxwgt*water%u(:,1)-(1.-fluxwgt)*atm_oldu
 atv=atm_v-fluxwgt*water%v(:,1)-(1.-fluxwgt)*atm_oldv
 vmag=sqrt(max(atu*atu+atv*atv,0.))
-vmagn=max(vmag,0.01)
+vmagn=max(vmag,1.e-2)
 rho=atm_ps/(rdry*water%temp(:,1))
 ri=min(grav*(atm_zmin*atm_zmin/atm_zmins)*(1.-water%temp(:,1)*srcp/atm_temp)/vmagn**2,rimax)
 
@@ -2237,7 +2238,7 @@ d_wu0=d_wu0-ofracice*dgice%tauxicw/d_rho(:,1)
 d_wv0=d_wv0-ofracice*dgice%tauyicw/d_rho(:,1)
 d_wt0=d_wt0+ofracice*d_fb/(d_rho(:,1)*cp0)
 d_ws0=d_ws0-ofracice*(d_salflxf*water%sal(:,1)/d_rs(:,1)+d_salflxs*(water%sal(:,1)-ice%sal)/d_ri(:,1))
-d_ustar=max(sqrt(sqrt(d_wu0*d_wu0+d_wv0*d_wv0)),1.E-6)
+d_ustar=sqrt(sqrt(max(d_wu0*d_wu0+d_wv0*d_wv0,1.E-24)))
 d_b0=-grav*(d_alpha(:,1)*d_wt0-d_beta(:,1)*d_ws0) ! -ve sign is to account for sign of wt0 and ws0
 
 ! update free surface height with water flux from ice

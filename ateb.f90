@@ -2099,6 +2099,7 @@ real, dimension(ufull), intent(inout) :: d_totdepth,d_c1c
 real, dimension(ufull) :: newval,effbldheight,effhwratio,sndepth,snlambda,ldratio,roadqsat,vegqsat,rdsnqsat
 real, dimension(ufull) :: cu,topinvres,dts,dtt,cduv,z_on_l,dumroaddelta,dumvegdelta,res
 real, dimension(ufull) :: effwalle,effwallw,effroad,effrdsn,effvegc
+real, dimension(ufull) :: aa,bb,cc,dd,ee,ff,newtemp_we,newtemp_ww,newtemp_rd
 real, dimension(ufull,2) :: evct,evctx,oldval
 
 ! modify canyon geometry for vegetation shadow
@@ -2119,6 +2120,7 @@ d_canyontemp = d_tempc
 d_canyonmix  = d_mixrc
 p_vegtempc   = d_tempc
 rdsntemp     = road%temp(:,1)
+dumvegdelta  = 0. ! cray compiler bug
 
 ! Solve for canyon air temperature and water vapor mixing ratio
 do l = 1,ncyits
@@ -2170,7 +2172,7 @@ do l = 1,ncyits
   oldval(:,1) = p_vegtempc
   oldval(:,2) = rdsntemp
   p_vegtempc = p_vegtempc - 0.5
-  rdsntemp = rdsntemp - 0.5
+  rdsntemp   = rdsntemp - 0.5
   do k = 1,nfgits ! sectant
     evctx = evct
     call canyonflux(evct,sg_vegc,rg_vegc,fg_vegc,eg_vegc,acond_vegc,vegqsat,res,dumvegdelta,      &
@@ -2201,57 +2203,62 @@ do l = 1,ncyits
   end where
   
   ! balance canyon latent heat budget
-  d_canyonmix=(d_rdsndelta*rdsnqsat*acond_rdsn*d_topu                                                      &
-         +(1.-d_rdsndelta)*((1.-f_sigmavegc)*dumroaddelta*roadqsat*acond_road*d_topu                       &
-         +f_sigmavegc*vegqsat*(dumvegdelta*acond_vegc*d_topu                                               &
-         +(1.-dumvegdelta)/(1./max(acond_vegc*d_topu,1.e-10)+res)))+d_mixrc*topinvres)/                    &
-         (d_rdsndelta*acond_rdsn*d_topu+(1.-d_rdsndelta)*((1.-f_sigmavegc)*dumroaddelta*acond_road*d_topu  &
-         +f_sigmavegc*(dumvegdelta*acond_vegc*d_topu                                                       &
-         +(1.-dumvegdelta)/(1./max(acond_vegc*d_topu,1.e-10)+res)))+topinvres)
+  aa=d_rdsndelta*acond_rdsn*d_topu
+  bb=(1.-d_rdsndelta)*(1.-f_sigmavegc)*dumroaddelta*acond_road*d_topu
+  cc=(1.-d_rdsndelta)*f_sigmavegc*(dumvegdelta*acond_vegc*d_topu+(1.-dumvegdelta)/(1./max(acond_vegc*d_topu,1.e-10)+res))
+  dd=topinvres
+  d_canyonmix=(aa*rdsnqsat+bb*roadqsat+cc*vegqsat+dd*d_mixrc)/(aa+bb+cc+dd)
 
   ! update heat pumped into canyon with COP
   d_accool=d_acout*(1.+max(d_canyontemp-f_bldtemp,0.)/f_bldtemp)
   !d_accool=d_acout ! test energy conservation
 
   ! balance sensible heat flux
-  d_canyontemp=(aircp*a_rho*d_tempc*topinvres+d_rdsndelta*aircp*a_rho*rdsntemp*acond_rdsn*d_topu  &
-               +(1.-d_rdsndelta)*((1.-f_sigmavegc)*aircp*a_rho*road%temp(:,1)*acond_road*d_topu   &
-                                 +f_sigmavegc*aircp*a_rho*p_vegtempc*acond_vegc*d_topu)           &
-               +effhwratio*(aircp*a_rho*walle%temp(:,1)*acond_walle*d_topu                        & 
-                           +aircp*a_rho*wallw%temp(:,1)*acond_wallw*d_topu)+d_traf+d_accool)      &
-              /(aircp*a_rho*topinvres+d_rdsndelta*aircp*a_rho*acond_rdsn*d_topu                   &
-               +(1.-d_rdsndelta)*((1.-f_sigmavegc)*aircp*a_rho*acond_road*d_topu                  &
-                                 +f_sigmavegc*aircp*a_rho*acond_vegc*d_topu)                      &
-               +effhwratio*(aircp*a_rho*acond_walle*d_topu                                        &
-                           +aircp*a_rho*acond_wallw*d_topu))
+  aa=aircp*a_rho*topinvres
+  bb=d_rdsndelta*aircp*a_rho*acond_rdsn*d_topu
+  cc=(1.-d_rdsndelta)*(1.-f_sigmavegc)*aircp*a_rho*acond_road*d_topu
+  dd=(1.-d_rdsndelta)*f_sigmavegc*aircp*a_rho*acond_vegc*d_topu
+  ee=effhwratio*aircp*a_rho*acond_walle*d_topu
+  ff=effhwratio*aircp*a_rho*acond_wallw*d_topu
+  d_canyontemp=(aa*d_tempc+bb*rdsntemp+cc*road%temp(:,1)+dd*p_vegtempc+ee*walle%temp(:,1)+ff*wallw%temp(:,1)+d_traf+d_accool) &
+              /(aa+bb+cc+dd+ee+ff)
 end do
 
 ! solve for canyon sensible heat flux
+! (predictor - explicit)
 fg_walle=aircp*a_rho*(walle%temp(:,1)-d_canyontemp)*acond_walle*d_topu*effbldheight ! canyon vegetation blocks turblent flux
 fg_wallw=aircp*a_rho*(wallw%temp(:,1)-d_canyontemp)*acond_wallw*d_topu*effbldheight ! canyon vegetation blocks turblent flux
-fg_road=aircp*a_rho*(road%temp(:,1)-d_canyontemp)*acond_road*d_topu
-fg_vegc=sg_vegc+rg_vegc-eg_vegc
-fg_rdsn=sg_rdsn+rg_rdsn-eg_rdsn*ls/lv-gardsn
+fg_road =aircp*a_rho*(road%temp(:,1)-d_canyontemp)*acond_road*d_topu
+! (corrector)  0.5 factor arises from replacing newtemp with newtemp = 0.5*(newtemp+oldtemp)
+newtemp_we=walle%temp(:,1)-0.5*fg_walle/(1./ddt+aircp*a_rho*acond_walle*d_topu*effbldheight)
+newtemp_ww=wallw%temp(:,1)-0.5*fg_wallw/(1./ddt+aircp*a_rho*acond_wallw*d_topu*effbldheight)
+newtemp_rd=road%temp(:,1)-0.5*fg_road/(1./ddt+aircp*a_rho*acond_road*d_topu)
+fg_walle=aircp*a_rho*(newtemp_we-d_canyontemp)*acond_walle*d_topu*effbldheight ! canyon vegetation blocks turblent flux
+fg_wallw=aircp*a_rho*(newtemp_ww-d_canyontemp)*acond_wallw*d_topu*effbldheight ! canyon vegetation blocks turblent flux
+fg_road =aircp*a_rho*(newtemp_rd-d_canyontemp)*acond_road*d_topu
+! veg and snow (implicit)
+fg_vegc =sg_vegc+rg_vegc-eg_vegc
+fg_rdsn =sg_rdsn+rg_rdsn-eg_rdsn*ls/lv-gardsn
 
 ! calculate longwave radiation
 effwalle=f_wallemiss*(a_rg*d_cwa+sbconst*walle%temp(:,1)**4*(f_wallemiss*d_cwe-1.)                   & 
                   +sbconst*wallw%temp(:,1)**4*f_wallemiss*d_cww+sbconst*d_netrad*d_cwr)
-rg_walle=effwalle*effbldheight+sbconst*(d_netrad-f_wallemiss*walle%temp(:,1)**4)*(1.-effbldheight)
+rg_walle=effwalle*effbldheight
 effwallw=f_wallemiss*(a_rg*d_cwa+sbconst*wallw%temp(:,1)**4*(f_wallemiss*d_cwe-1.)                   &
                   +sbconst*walle%temp(:,1)**4*f_wallemiss*d_cww+sbconst*d_netrad*d_cwr)
-rg_wallw=effwallw*effbldheight+sbconst*(d_netrad-f_wallemiss*wallw%temp(:,1)**4)*(1.-effbldheight)
+rg_wallw=effwallw*effbldheight
 effroad=f_roademiss*(a_rg*d_cra+sbconst*(d_netrad*d_crr-road%temp(:,1)**4)                           &
                   +sbconst*f_wallemiss*(walle%temp(:,1)**4+wallw%temp(:,1)**4)*d_crw)
-rg_road=effroad+sbconst*(f_wallemiss*(walle%temp(:,1)**4+wallw%temp(:,1)**4)                         &
-                  -2.*f_roademiss*road%temp(:,1)**4)*f_hwratio*(1.-effbldheight)
+rg_road=effroad
 
 ! outgoing longwave radiation
+! note that eff terms are used for outgoing longwave radiation, whereas rg terms are used for heat conduction
 d_canyonrgout=a_rg-d_rdsndelta*effrdsn-(1.-d_rdsndelta)*((1.-f_sigmavegc)*effroad+f_sigmavegc*effvegc) &
                   -effhwratio*(effwalle+effwallw)
 
 ! calculate canyon road latent heat flux
-eg_road=lv*min(a_rho*dumroaddelta*(roadqsat-d_canyonmix)*acond_road*d_topu,      &
-               road%surfwater/ddt+a_rnd+(1.-f_sigmavegc)*rdsnmelt)
+aa=lv*road%surfwater/ddt+a_rnd+rdsnmelt
+eg_road=min(lv*a_rho*dumroaddelta*(roadqsat-d_canyonmix)*acond_road*d_topu,aa)
 
 return
 end subroutine solvecanyon
@@ -2311,12 +2318,10 @@ fg_rdsn=aircp*a_rho*(rdsntemp-d_canyontemp)*acond_rdsn*d_topu
 ! calculate longwave radiation for vegetation and snow
 effvegc=f_vegemissc*(a_rg*d_cra+sbconst*(d_netrad*d_crr-p_vegtempc**4)                                      &
                   +sbconst*f_wallemiss*(walle%temp(:,1)**4+wallw%temp(:,1)**4)*d_crw)
-rg_vegc=effvegc+sbconst*(f_wallemiss*(walle%temp(:,1)**4+wallw%temp(:,1)**4)                                &
-                  -2.*f_vegemissc*p_vegtempc**4)*f_hwratio*(1.-effbldheight)
+rg_vegc=effvegc
 effrdsn=snowemiss*(a_rg*d_cra+sbconst*(-rdsntemp**4+d_netrad*d_crr)                                         &
                   +sbconst*f_wallemiss*(walle%temp(:,1)**4+wallw%temp(:,1)**4)*d_crw)
-rg_rdsn=effrdsn+sbconst*(f_wallemiss*(wallw%temp(:,1)**4+wallw%temp(:,1)**4)                                &
-                  -2.*snowemiss*rdsntemp**4)*f_hwratio*(1.-effbldheight)
+rg_rdsn=effrdsn
 
 ! estimate snow melt
 rdsnmelt=d_rdsndelta*max(0.,rdsntemp-273.16)/(icecp*road%den*lf*ddt)
@@ -2363,6 +2368,7 @@ real, dimension(ufull), intent(in) :: a_rg,a_umag,a_rho,a_rnd,a_snd
 real, dimension(ufull), intent(inout) :: d_tempr,d_mixrr,d_rfdzmin,d_tranr,d_evapr,d_c1r,d_sigr
 real, dimension(ufull), intent(inout) :: d_rfsndelta,d_vegdeltar,d_roofdelta
 real, dimension(ufull) :: lzomroof,lzohroof,qsatr,dts,dtt,cdroof,z_on_l,newval
+real, dimension(ufull) :: aa
 real, dimension(ufull,2) :: oldval,evctx,evctveg
 
 ! update green roof and snow temperature
@@ -2414,7 +2420,8 @@ where (qsatr<d_mixrr)
   eg_roof=lv*a_rho*(qsatr-d_mixrr)*acond_roof
 elsewhere
   ! evaporation
-  eg_roof=lv*min(a_rho*d_roofdelta*(qsatr-d_mixrr)*acond_roof,roof%surfwater/ddt+a_rnd+rfsnmelt)
+  aa=lv*roof%surfwater/ddt+a_rnd+rfsnmelt
+  eg_roof=min(lv*a_rho*d_roofdelta*(qsatr-d_mixrr)*acond_roof,aa)
 end where
 
 return

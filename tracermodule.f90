@@ -9,11 +9,12 @@ public tracer_mass,interp_tracerflux,tracerlist
 public writetrpm
 public readtracerflux,tracunit,tracdaytime
 public oh,strloss,mcfdep,jmcf
-public trden, trreff, trdep
+public trden, trreff, trdep, traclevel
 
 integer, dimension(:), save, allocatable :: tracinterp
 integer, dimension(:), save, allocatable :: nghr, igashr
 integer, save :: numtracer, nhr
+integer, dimension(:), save, allocatable :: traclevel
 real, dimension(:,:,:), save, allocatable :: co2emhr, co2em123
 real, dimension(:,:), save, allocatable :: co2hr, co2em
 real, dimension(:,:), save, allocatable :: tracdaytime
@@ -74,9 +75,10 @@ allocate(tracfile(numtracer),igashr(numtracer))
 allocate(tracival(numtracer))
 allocate(tracdaytime(numtracer,2))
 allocate(trden(numtracer),trreff(numtracer),trdep(numtracer))
+allocate(traclevel(numtracer))
 nhr = 0
 do nt=1,numtracer
-  read(130,*) tracname(nt),tracival(nt),tracmin,tracmax,tractype(nt),tracfile(nt),trden(nt),trreff(nt),trdep(nt)
+  read(130,*) tracname(nt),tracival(nt),tracmin,tracmax,tractype(nt),tracfile(nt),trden(nt),trreff(nt),trdep(nt),traclevel(nt)
   select case(tractype(nt))
    case ('monrep','month')
     tracinterp(nt)=1

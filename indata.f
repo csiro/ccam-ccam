@@ -2192,7 +2192,11 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
         ! communicate netcdf status to all processors
         albvisnir(:,1)=dumb(:,1)
         albvisnir(:,2)=dumb(:,2)
-        isoilm=nint(dumb(:,3))
+        ! isoilm_in holds the raw soil data.  isoilm is the data used
+        ! by CCAM after the in-land water bodies (-1) and ocean (0)
+        ! have been combined as water (0)
+        isoilm_in=nint(dumb(:,3))
+        isoilm=max(isoilm_in,0)
         zolnd=zobgin ! updated in cable_ccam2.f90
         ivegt=1      ! updated in cable_ccam2.f90
       end if
