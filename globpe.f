@@ -26,7 +26,7 @@
      &    ,fpn,frs,frp
       use cc_mpi                              ! CC MPI routines
       use cfrac_m                             ! Cloud fraction
-      use cloudmod                            ! Prognostic strat cloud
+      use cloudmod                            ! Prognostic cloud fraction
       use daviesnudge                         ! Far-field nudging
       use diag_m                              ! Diagnostic routines
       use dpsdt_m                             ! Vertical velocity
@@ -39,6 +39,7 @@
       use infile                              ! Input file routines
       use kuocomb_m                           ! JLM convection
       use latlong_m                           ! Lat/lon coordinates
+      use leoncld_mod                         ! Prognostic cloud condensate
       use liqwpar_m                           ! Cloud water mixing ratios
       use map_m                               ! Grid map arrays
       use mlo, only : mlodiag,wlev,mxd,mindep ! Ocean physics and prognostic arrays
