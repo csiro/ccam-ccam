@@ -4508,10 +4508,7 @@ real, dimension(:,:,:),   intent(out)  :: reflectance, transmittance, &
                             raddupdif2, raddupdir2,  tlevel2
 
       real, dimension (lbound(rlayerdir,3):ubound(rlayerdir,3)  ) ::  &
-                                      radddowndif2,  tadddowndir2, &
-                                      tlayerdif2, tlayerdir2, &
-                                      rlayerdif2, rlayerdir2, &
-                                      tlayerde2
+                                      radddowndif2,  tadddowndir2
 
       real :: dm1tl2, dm2tl2, rdm2tl2, dm32, dm3r2, dm3r1p2, alpp2, &
               raddupdif2p, raddupdir2p, tlevel2p, radddowndifm, &
@@ -4526,11 +4523,6 @@ real, dimension(:,:,:),   intent(out)  :: reflectance, transmittance, &
 !      tlevel2
 !      radddowndif2
 !      tadddowndir2
-!      tlayerdif2
-!      tlayerdir2
-!      rlayerdif2
-!      rlayerdir2
-!      tlayerde2
 !      dm1tl2
 !      dm2tl2
 !      rdm2tl2
@@ -5000,20 +4992,20 @@ logical, dimension(:,:,:), intent(in), optional    :: cloud
 !     return results in proper locations in (i,j,k) arrays
 !---------------------------------------------------------------------
           if ( present(cloud) ) then
-            rlayerdir(1:ix,j,k) = unpack( rlayerdir2(1:nn), cloud(1:ix,j,k), rlayerdir(1:ix,j,k) )
-            tlayerdir(1:ix,j,k) = unpack( tlayerdir2(1:nn), cloud(1:ix,j,k), tlayerdir(1:ix,j,k) )
-            tlayerde(1:ix,j,k) = unpack( tlayerde2(1:nn), cloud(1:ix,j,k), tlayerde(1:ix,j,k) )
+            rlayerdir(1:ix,j,k) = unpack( rlayerdir2(1:ntot), cloud(1:ix,j,k), rlayerdir(1:ix,j,k) )
+            tlayerdir(1:ix,j,k) = unpack( tlayerdir2(1:ntot), cloud(1:ix,j,k), tlayerdir(1:ix,j,k) )
+            tlayerde(1:ix,j,k) = unpack( tlayerde2(1:ntot), cloud(1:ix,j,k), tlayerde(1:ix,j,k) )
             if ( present(tlayerdif) .and. ng==1 ) then
-              rlayerdif(1:ix,j,k) = unpack( sumr(1:nn), cloud(1:ix,j,k), rlayerdif(1:ix,j,k) )
-              tlayerdif(1:ix,j,k) = unpack( sumt(1:nn), cloud(1:ix,j,k), tlayerdif(1:ix,j,k) )
+              rlayerdif(1:ix,j,k) = unpack( sumr(1:ntot), cloud(1:ix,j,k), rlayerdif(1:ix,j,k) )
+              tlayerdif(1:ix,j,k) = unpack( sumt(1:ntot), cloud(1:ix,j,k), tlayerdif(1:ix,j,k) )
             end if
           else
-            rlayerdir(1:ix,j,k) = unpack( rlayerdir2(1:nn), daylight(1:ix,j), rlayerdir(1:ix,j,k) )
-            tlayerdir(1:ix,j,k) = unpack( tlayerdir2(1:nn), daylight(1:ix,j), tlayerdir(1:ix,j,k) )
-            tlayerde(1:ix,j,k) = unpack( tlayerde2(1:nn), daylight(1:ix,j), tlayerde(1:ix,j,k) )
+            rlayerdir(1:ix,j,k) = unpack( rlayerdir2(1:ntot), daylight(1:ix,j), rlayerdir(1:ix,j,k) )
+            tlayerdir(1:ix,j,k) = unpack( tlayerdir2(1:ntot), daylight(1:ix,j), tlayerdir(1:ix,j,k) )
+            tlayerde(1:ix,j,k) = unpack( tlayerde2(1:ntot), daylight(1:ix,j), tlayerde(1:ix,j,k) )
             if ( present(tlayerdif) .and. ng==1 ) then
-              rlayerdif(1:ix,j,k) = unpack( sumr(1:nn), daylight(1:ix,j), rlayerdif(1:ix,j,k) )
-              tlayerdif(1:ix,j,k) = unpack( sumt(1:nn), daylight(1:ix,j), tlayerdif(1:ix,j,k) )
+              rlayerdif(1:ix,j,k) = unpack( sumr(1:ntot), daylight(1:ix,j), rlayerdif(1:ix,j,k) )
+              tlayerdif(1:ix,j,k) = unpack( sumt(1:ntot), daylight(1:ix,j), tlayerdif(1:ix,j,k) )
             end if
           end if
 
