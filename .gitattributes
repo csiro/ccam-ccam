@@ -89,6 +89,7 @@
 /seaesfrad.f90 -text
 /sealw99.f90 -text
 /setxyz.f90 -text
+/sflux.f90 -text
 /sigs_m.f90 -text
 /soil_m.f90 -text
 /soilsnow_m.f90 -text
