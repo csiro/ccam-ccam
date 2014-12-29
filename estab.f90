@@ -11,6 +11,28 @@ public esdiffx,pow75
 real, dimension(:), allocatable, save :: table, tablei
 real, dimension(:), allocatable, save :: esdiff
 
+interface qsat
+  module procedure qsat_s, qsat_v
+end interface qsat
+interface qsati
+  module procedure qsati_s, qsati_v
+end interface qsati
+interface establ
+  module procedure establ_s, establ_v
+end interface establ
+interface estabi
+  module procedure estabi_s, estabi_v
+end interface estabi
+interface tdiff
+  module procedure tdiff_s, tdiff_v
+end interface tdiff
+interface tdiffx
+  module procedure tdiffx_s, tdiffx_v
+end interface tdiffx
+interface esdiffx
+  module procedure esdiffx_s, esdiffx_v
+end interface esdiffx
+
 contains
 
 subroutine estab_init
@@ -97,32 +119,57 @@ esdiff(-40:2)=(/ 6.22, 6.76, 7.32, 7.92, 8.56, 9.23, 9.94,10.68,11.46,12.27,  &
 return
 end subroutine estab_init
 
-function tdiff(t_) result(ans)
+function tdiff_s(t_) result(ans)
 implicit none
 real, intent(in) :: t_
 real ans
 ! TDIFF is difference between T and 123.16, subject to 0 <= TDIFF <= 220
 ans=min(max( t_-123.16, 0.), 219.)
-end function tdiff
+end function tdiff_s
 
-function tdiffx(tx_) result(ans)
+function tdiff_v(t_) result(ans)
+implicit none
+real, dimension(:), intent(in) :: t_
+real, dimension(size(t_)) :: ans
+! TDIFF is difference between T and 123.16, subject to 0 <= TDIFF <= 220
+ans=min(max( t_-123.16, 0.), 219.)
+end function tdiff_v
+
+function tdiffx_s(tx_) result(ans)
 implicit none
 include 'const_phys.h'
 real, intent(in) :: tx_
 real ans
 ans=min(max( tx_-tfrz, -40.), 1.)
-end function tdiffx
+end function tdiffx_s
 
-function establ(t_) result(ans)
+function tdiffx_v(tx_) result(ans)
+implicit none
+include 'const_phys.h'
+real, dimension(:), intent(in) :: tx_
+real, dimension(size(tx_)) :: ans
+ans=min(max( tx_-tfrz, -40.), 1.)
+end function tdiffx_v
+
+function establ_s(t_) result(ans)
 implicit none
 real, intent(in) :: t_
 real ans      
 ! Arithmetic statement functions to replace call to establ.
 ! T is temp in Kelvin, which should lie between 123.16 and 343.16;
 ans = (1.-(tdiff(t_)-aint(tdiff(t_))))*table(int(tdiff(t_)))+ (tdiff(t_)-aint(tdiff(t_)))*table(int(tdiff(t_))+1)
-end function establ
+end function establ_s
 
-function qsat(pp_,t_) result(ans)
+function establ_v(t_) result(ans)
+implicit none
+real, dimension(:), intent(in) :: t_
+real, dimension(size(t_)) :: ans      
+! Arithmetic statement functions to replace call to establ.
+! T is temp in Kelvin, which should lie between 123.16 and 343.16;
+ans = (1.-(tdiff(t_)-aint(tdiff(t_))))*table(int(tdiff(t_)))+ (tdiff(t_)-aint(tdiff(t_)))*table(int(tdiff(t_))+1)
+end function establ_v
+
+function qsat_s(pp_,t_) result(ans)
 implicit none
 include 'const_phys.h'
 real, intent(in) :: pp_, t_
@@ -130,16 +177,33 @@ real ans
 ans = epsil*establ(t_)/max(pp_-establ(t_),.1) !jlm strato
 ! ans = epsil*establ(t_)/(pp_-establ(t_)) !Usual formula
 ! ans = epsil*establ(t_)/pp_ !Consistent with V4-5 to V4-7
-end function qsat
+end function qsat_s
 
-function estabi(t_) result(ans)
+function qsat_v(pp_,t_) result(ans)
+implicit none
+include 'const_phys.h'
+real, dimension(:), intent(in) :: pp_, t_
+real, dimension(size(pp_)) :: ans      
+ans = epsil*establ(t_)/max(pp_-establ(t_),.1) !jlm strato
+! ans = epsil*establ(t_)/(pp_-establ(t_)) !Usual formula
+! ans = epsil*establ(t_)/pp_ !Consistent with V4-5 to V4-7
+end function qsat_v
+
+function estabi_s(t_) result(ans)
 implicit none
 real, intent(in) :: t_
 real ans      
 ans = (1.-(tdiff(t_)-aint(tdiff(t_))))*tablei(int(tdiff(t_)))+ (tdiff(t_)-aint(tdiff(t_)))*tablei(int(tdiff(t_))+1)
-end function estabi
+end function estabi_s
 
-function qsati(pp_,t_) result(ans)
+function estabi_v(t_) result(ans)
+implicit none
+real, dimension(:), intent(in) :: t_
+real, dimension(size(t_)) :: ans      
+ans = (1.-(tdiff(t_)-aint(tdiff(t_))))*tablei(int(tdiff(t_)))+ (tdiff(t_)-aint(tdiff(t_)))*tablei(int(tdiff(t_))+1)
+end function estabi_v
+
+function qsati_s(pp_,t_) result(ans)
 implicit none
 include 'const_phys.h'
 real, intent(in) :: pp_, t_
@@ -147,14 +211,31 @@ real ans
 ans = epsil*estabi(t_)/max(pp_-estabi(t_),.1) !jlm strato
 ! ans = epsil*estabi(t_)/(pp_-estabi(t_)) !Usual formula
 ! ans = epsil*estabi(t_)/pp_ !Consistent with V4-5 to V4-7
-end function qsati
+end function qsati_s
 
-function esdiffx(tx_) result(ans)
+function qsati_v(pp_,t_) result(ans)
+implicit none
+include 'const_phys.h'
+real, dimension(:), intent(in) :: pp_, t_
+real, dimension(size(pp_)) :: ans      
+ans = epsil*estabi(t_)/max(pp_-estabi(t_),.1) !jlm strato
+! ans = epsil*estabi(t_)/(pp_-estabi(t_)) !Usual formula
+! ans = epsil*estabi(t_)/pp_ !Consistent with V4-5 to V4-7
+end function qsati_v
+
+function esdiffx_s(tx_) result(ans)
 implicit none
 real, intent(in) :: tx_
 real ans      
 ans = (1.-(tdiffx(tx_)-aint(tdiffx(tx_))))*esdiff(int(tdiffx(tx_)))+(tdiffx(tx_)-aint(tdiffx(tx_)))*esdiff(int(tdiffx(tx_))+1)
-end function esdiffx
+end function esdiffx_s
+
+function esdiffx_v(tx_) result(ans)
+implicit none
+real, dimension(:), intent(in) :: tx_
+real, dimension(size(tx_)) :: ans      
+ans = (1.-(tdiffx(tx_)-aint(tdiffx(tx_))))*esdiff(int(tdiffx(tx_)))+(tdiffx(tx_)-aint(tdiffx(tx_)))*esdiff(int(tdiffx(tx_))+1)
+end function esdiffx_v
 
 function pow75(x) result(ans)
 implicit none

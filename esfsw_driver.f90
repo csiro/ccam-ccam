@@ -1,5 +1,5 @@
 
-                     module esfsw_driver_mod
+module esfsw_driver_mod
 !
 ! <CONTACT EMAIL="Fei.Liu@noaa.gov">
 !  fil
@@ -7,8 +7,6 @@
 ! <REVIEWER EMAIL="Stuart.Freidenreich@noaa.gov">
 !  smf
 ! </REVIEWER>
-!
-! <HISTORY SRC="http://www.gfdl.noaa.gov/fms-cgi-bin/cvsweb.cgi/FMS/"/>
 !
 ! <OVERVIEW>
 !  Code that initializes and calculates shortwave radiative quantities
@@ -74,7 +72,6 @@ public    &
          esfsw_driver_end
 
 private     &
-
 !   called from swresf:
          adding, deledd
 
@@ -82,7 +79,7 @@ private     &
 !---------------------------------------------------------------------
 !-------- namelist  ---------
 
- logical, save ::  do_ica_calcs=.false.           ! do independent column
+ logical, save ::  do_ica_calcs = .false.         ! do independent column
                                                   ! calculations when sto-
                                                   ! chastic clouds are
                                                   ! active ?
@@ -2308,13 +2305,13 @@ subroutine esfsw_driver_init
 !--------------------------------------------------------------------
       module_is_initialized = .true.
 !--------------------------------------------------------------------
- 101  format( 12f10.4 )
- 102  format( 32i4 )
- 103  format( 20i6 )
- 104  format( 12f10.2 )
- 105  format( 1p,16e8.1 )
- 106  format( 1p,3e16.6,l16 )
- 107  format( i5,1p,e14.5 )
+! 101  format( 12f10.4 )
+! 102  format( 32i4 )
+! 103  format( 20i6 )
+! 104  format( 12f10.2 )
+! 105  format( 1p,16e8.1 )
+! 106  format( 1p,3e16.6,l16 )
+! 107  format( i5,1p,e14.5 )
  
 !---------------------------------------------------------------------
 
@@ -2699,15 +2696,15 @@ integer,                       intent(in)    :: naerosol_optical
 !    number.
 !----------------------------------------------------------------------c
         np = 0
- 
-        do nz=1,nzens
-          if (Rad_control%do_totcld_forcing) then
+
+        if (Rad_control%do_totcld_forcing) then 
+          do nz=1,nzens
             dfswbandclr(:,:,:,nz) = 0.0
             fswbandclr(:,:,:,nz) = 0.0
             hswbandclr(:,:,:,nz) = 0.0
             ufswbandclr(:,:,:,nz) = 0.0
-          endif
-        end do
+          end do
+        endif
         reflectanceclr = 0.0
         transmittanceclr = 0.0
  
@@ -2721,12 +2718,14 @@ integer,                       intent(in)    :: naerosol_optical
             sumtr_dir(:,:,:,nz) = 0.0
             sumtr_dir_up(:,:,nz) = 0.0
             sumre(:,:,:,nz) = 0.0
-            if (Rad_control%do_totcld_forcing) then
+          end do
+          if (Rad_control%do_totcld_forcing) then
+            do nz=1,nzens
               sumtrclr(:,:,:,nz) = 0.0
               sumreclr(:,:,:,nz) = 0.0
               sumtr_dir_clr(:,:,:,nz) = 0.0
-            endif
-          end do
+            end do
+          endif
           if (Cldrad_control%do_stochastic_clouds) then
             if (.not. do_ica_calcs) then
               cldfrac_band(:,:,:) = Cld_spec%camtsw_band(:,:,:,nband)
@@ -3552,6 +3551,10 @@ real, dimension(:,:,:,:),      intent(out)   :: aeroextopdep, &
 !
 !--------------------------------------------------------------------
 
+      if (including_volcanoes) then
+        write(6,*) "ERROR: including_volcanoes is not supported"
+        stop
+      end if
 
 !--------------------------------------------------------------------
 !    define limits and dimensions 
@@ -3565,13 +3568,14 @@ real, dimension(:,:,:,:),      intent(out)   :: aeroextopdep, &
 
       naerosoltypes_used = size(Aerosol%aerosol,4)
 
-      do j = JSRAD,JERAD
-        do i = ISRAD,IERAD
-          if (daylight(i,j) .or. Sw_control%do_cmip_diagnostics) then
-            deltaz(:) = Atmos_input%deltaz(i,j,:)
+      if (including_aerosols) then
+      
+        do j = JSRAD,JERAD
+          do i = ISRAD,IERAD
+            if (daylight(i,j) .or. Sw_control%do_cmip_diagnostics) then
+              deltaz(:) = Atmos_input%deltaz(i,j,:)
 
-            do nband = 1,Solar_spect%nbands
-              if (including_aerosols) then                           
+              do nband = 1,Solar_spect%nbands
                 aerext(:) = Aerosol_props%aerextband(nband,:)
                 aerssalb(:) = Aerosol_props%aerssalbband(nband,:)
                 aerasymm(:) = Aerosol_props%aerasymmband(nband,:)
@@ -3824,52 +3828,52 @@ real, dimension(:,:,:,:),      intent(out)   :: aeroextopdep, &
 !    include generation of diagnostics in the visible (0.55 micron) and
 !    nir band (1.0 micron).
 !----------------------------------------------------------------------
-                if (including_volcanoes) then
-                  do k = KSRAD,KERAD
-                    sum_ext(k) = sum_ext(k) +    &
-                                 Aerosol_props%sw_ext(i,j,k,nband)*  &
-                                 deltaz(k)
-                    sum_sct(k) = sum_sct(k) +    &
-                                 Aerosol_props%sw_ssa(i,j,k,nband)*  &
-                                 Aerosol_props%sw_ext(i,j,k,nband)*  &
-                                 deltaz(k)
-                    sum_g_omega_tau(k) =   &
-                                 sum_g_omega_tau(k) +&
-                                 Aerosol_props%sw_asy(i,j,k,nband)* &
-                                 Aerosol_props%sw_ssa(i,j,k,nband)*  &
-                                 Aerosol_props%sw_ext(i,j,k,nband)*  &
-                                 deltaz(k)
-                    if (Sw_control%do_cmip_diagnostics) then
-                      if (nband == Solar_spect%visible_band_indx) then
-                           Aerosol_diags%extopdep_vlcno(i,j,k,1) =   &
-                                 Aerosol_props%sw_ext(i,j,k,nband)*  &
-                                 deltaz(k)
-                           Aerosol_diags%absopdep_vlcno(i,j,k,1) =   &
-                            (1.0 - Aerosol_props%sw_ssa(i,j,k,nband))*&
-                                Aerosol_props%sw_ext(i,j,k,nband)*  &
-                                deltaz(k)
-                      endif
-                      if (nband == Solar_spect%eight70_band_indx) then
-                           Aerosol_diags%extopdep_vlcno(i,j,k,3) =   &
-                                 Aerosol_props%sw_ext(i,j,k,nband)*  &
-                                 deltaz(k)
-                           Aerosol_diags%absopdep_vlcno(i,j,k,3) =   &
-                            (1.0 - Aerosol_props%sw_ssa(i,j,k,nband))*&
-                                Aerosol_props%sw_ext(i,j,k,nband)*  &
-                                deltaz(k)
-                      endif
-                      if (nband == Solar_spect%one_micron_indx) then
-                           Aerosol_diags%extopdep_vlcno(i,j,k,2) =   &
-                                 Aerosol_props%sw_ext(i,j,k,nband)*  &
-                                 deltaz(k)
-                           Aerosol_diags%absopdep_vlcno(i,j,k,2) =   &
-                            (1.0 - Aerosol_props%sw_ssa(i,j,k,nband))*&
-                                Aerosol_props%sw_ext(i,j,k,nband)*  &
-                                deltaz(k)
-                      endif
-                    endif
-                  end do
-                endif   ! (including_volcanoes)
+!                if (including_volcanoes) then
+!                  do k = KSRAD,KERAD
+!                    sum_ext(k) = sum_ext(k) +    &
+!                                 Aerosol_props%sw_ext(i,j,k,nband)*  &
+!                                 deltaz(k)
+!                    sum_sct(k) = sum_sct(k) +    &
+!                                 Aerosol_props%sw_ssa(i,j,k,nband)*  &
+!                                 Aerosol_props%sw_ext(i,j,k,nband)*  &
+!                                 deltaz(k)
+!                    sum_g_omega_tau(k) =   &
+!                                 sum_g_omega_tau(k) +&
+!                                 Aerosol_props%sw_asy(i,j,k,nband)* &
+!                                 Aerosol_props%sw_ssa(i,j,k,nband)*  &
+!                                 Aerosol_props%sw_ext(i,j,k,nband)*  &
+!                                 deltaz(k)
+!                    if (Sw_control%do_cmip_diagnostics) then
+!                      if (nband == Solar_spect%visible_band_indx) then
+!                           Aerosol_diags%extopdep_vlcno(i,j,k,1) =   &
+!                                 Aerosol_props%sw_ext(i,j,k,nband)*  &
+!                                 deltaz(k)
+!                           Aerosol_diags%absopdep_vlcno(i,j,k,1) =   &
+!                            (1.0 - Aerosol_props%sw_ssa(i,j,k,nband))*&
+!                                Aerosol_props%sw_ext(i,j,k,nband)*  &
+!                                deltaz(k)
+!                      endif
+!                      if (nband == Solar_spect%eight70_band_indx) then
+!                           Aerosol_diags%extopdep_vlcno(i,j,k,3) =   &
+!                                 Aerosol_props%sw_ext(i,j,k,nband)*  &
+!                                 deltaz(k)
+!                           Aerosol_diags%absopdep_vlcno(i,j,k,3) =   &
+!                            (1.0 - Aerosol_props%sw_ssa(i,j,k,nband))*&
+!                                Aerosol_props%sw_ext(i,j,k,nband)*  &
+!                                deltaz(k)
+!                      endif
+!                      if (nband == Solar_spect%one_micron_indx) then
+!                           Aerosol_diags%extopdep_vlcno(i,j,k,2) =   &
+!                                 Aerosol_props%sw_ext(i,j,k,nband)*  &
+!                                 deltaz(k)
+!                           Aerosol_diags%absopdep_vlcno(i,j,k,2) =   &
+!                            (1.0 - Aerosol_props%sw_ssa(i,j,k,nband))*&
+!                                Aerosol_props%sw_ext(i,j,k,nband)*  &
+!                                deltaz(k)
+!                      endif
+!                    endif
+!                  end do
+!                endif   ! (including_volcanoes)
 !
 !----------------------------------------------------------------------
                 do k = KSRAD,KERAD
@@ -3878,29 +3882,45 @@ real, dimension(:,:,:,:),      intent(out)   :: aeroextopdep, &
                   aeroasymfac(i,j,k,nband) = sum_g_omega_tau(k) / &
                                                 (sum_sct(k) + 1.0e-30 )
                 end do
-              else  ! (if not including_aerosols)
+              end do ! (nband)
+
+            endif  ! (daylight or cmip_diagnostics)
+              
+            !if (including_volcanoes) then
+            !  if (do_coupled_stratozone ) then
+            !    nextinct = get_tracer_index(MODEL_ATMOS,'Extinction')
+            !    if (nextinct  /= NO_TRACER) &
+            !          r(i,j,:,nextinct) = Aerosol_props%sw_ext(i,j,:,4)
+            !  endif  
+            !endif  
+              
+          end do ! (i loop)
+        end do   ! (j loop)
+          
+      else  ! (if not including_aerosols)
+        do j = JSRAD,JERAD
+          do i = ISRAD,IERAD
+            if (daylight(i,j) .or. Sw_control%do_cmip_diagnostics) then
+              do nband = 1,Solar_spect%nbands                
                 do k = KSRAD,KERAD
                   aeroextopdep(i,j,k,nband) = 0.0                    
                   aerosctopdep(i,j,k,nband) = 0.0                  
                   aeroasymfac(i,j,k,nband) = 0.0                 
                 end do
-              endif ! (including_aerosols)
-            end do ! (nband)
-          endif  ! (daylight or cmip_diagnostics)
+              end do ! (nband)
+            endif  ! (daylight or cmip_diagnostics)              
+            !if (including_volcanoes) then
+            !  if (do_coupled_stratozone ) then
+            !    nextinct = get_tracer_index(MODEL_ATMOS,'Extinction')
+            !    if (nextinct  /= NO_TRACER) &
+            !          r(i,j,:,nextinct) = Aerosol_props%sw_ext(i,j,:,4)
+            !  endif  
+            !endif  
+          end do ! (i loop)
+        end do   ! (j loop)
 
-          if (including_volcanoes) then
-            write(6,*) "ERROR: including_volcanoes is not supported"
-            stop
-          !  if (do_coupled_stratozone ) then
-          !    nextinct = get_tracer_index(MODEL_ATMOS,'Extinction')
-          !    if (nextinct  /= NO_TRACER) &
-          !          r(i,j,:,nextinct) = Aerosol_props%sw_ext(i,j,:,4)
-          !  endif  
-          endif  
-
-        end do ! (i loop)
-      end do   ! (j loop)
-
+      endif ! (including_aerosols)
+    
 !---------------------------------------------------------------------
 !
 
@@ -4768,8 +4788,6 @@ logical, dimension(:,:,:), intent(in), optional    :: cloud
       real        :: twodi3 = 2.0/3.0             
       integer     :: k, i, ns, j, nn, ntot
 
-      integer, dimension(ix, jx, kx) :: cld_index
-
       real,    dimension(ix)                  ::   &
                                           gstr2, taustr2, omegastr2, &
                                            cosangzk2, rlayerdir2,    &
@@ -4808,50 +4826,37 @@ logical, dimension(:,:,:), intent(in), optional    :: cloud
 !    overcast sky mode. note: in this mode, the delta-eddington method
 !    is performed only for spatial points containing a cloud.   
 !-------------------------------------------------------------------
-          nn = 0
           if (present(cloud)) then
-            do i=1,ix          
-              if (cloud(i,j,k) ) then
-                nn = nn + 1
-                cld_index(i,j,k) = nn
-                gstr2(nn) = gstr(i,j,k)
-                taustr2(nn) = taustr(i,j,k)
-                omegastr2(nn) = omegastr(i,j,k)
-                cosangzk2(nn) = cosang(i,j)
-
+            nn = count(cloud(1:ix,j,k))
+            gstr2(1:nn) = pack( gstr(1:ix,j,k), cloud(1:ix,j,k) )
+            taustr2(1:nn) = pack( taustr(1:ix,j,k), cloud(1:ix,j,k) )
+            omegastr2(1:nn) = pack( omegastr(1:ix,j,k), cloud(1:ix,j,k) )
+            cosangzk2(1:nn) = pack( cosang(1:ix,j), cloud(1:ix,j,k) )
 !----------------------------------------------------------------------
 !    note: the following are done to avoid the conservative scattering 
 !    case, and to eliminate floating point errors in the exponential 
 !    calculations, respectively.                      
 !----------------------------------------------------------------------c
-                if (omegastr2(nn) >= 1.0) omegastr2(nn) = 9.9999999E-01
-                if (taustr2(nn) >= 1.0E+02) taustr2(nn) = 1.0E+02
-              endif
-            end do
+            omegastr2(1:nn) = min( omegastr2(1:nn), 9.9999999E-01 )
+            taustr2(1:nn) = min( taustr2(1:nn), 1.0E+02 )
 
 !----------------------------------------------------------------------c
 !    clear sky mode. note: in this mode, the delta-eddington method is 
 !    performed for all spatial points.                 
 !----------------------------------------------------------------------c
           else
-            do i=1,ix         
-              if (daylight(i,j) ) then
-                nn = nn + 1
-                cld_index(i,j,k) = nn
-                gstr2(nn) = gstr(i,j,k)
-                taustr2(nn) = taustr(i,j,k)
-                omegastr2(nn) = omegastr(i,j,k)
-                cosangzk2(nn) = cosang(i,j   )
-
+            nn = count(daylight(1:ix,j))
+            gstr2(1:nn) = pack( gstr(1:ix,j,k), daylight(1:ix,j) )
+            taustr2(1:nn) = pack( taustr(1:ix,j,k), daylight(1:ix,j) )
+            omegastr2(1:nn) = pack( omegastr(1:ix,j,k), daylight(1:ix,j) )
+            cosangzk2(1:nn) = pack( cosang(1:ix,j), daylight(1:ix,j) )            
 !----------------------------------------------------------------------c
 !    note: the following are done to avoid the conservative scattering  
 !    case, and to eliminate floating point errors in the exponential 
 !    calculations, respectively.                    
 !----------------------------------------------------------------------c
-                if (omegastr2(nn) >= 1.0) omegastr2(nn) = 9.9999999E-01
-                if (taustr2(nn) >= 1.0E+02) taustr2(nn) = 1.0E+02
-              endif
-            end do
+            omegastr2(1:nn) = min( omegastr2(1:nn), 9.9999999E-01 )
+            taustr2(1:nn) = min( taustr2(1:nn), 1.0E+02 )
           endif
 
 !----------------------------------------------------------------------
@@ -4862,126 +4867,156 @@ logical, dimension(:,:,:), intent(in), optional    :: cloud
 !----------------------------------------------------------------------
 !
 !----------------------------------------------------------------------
-          do nn=1,ntot      
+          if (present (tlayerdif) .and. present(rlayerdif) .and. ng==1 ) then
+
+            do nn=1,ntot      
 
 !----------------------------------------------------------------------c
 !    direct quantities                                            
 !----------------------------------------------------------------------c
-            ww(1) = omegastr2(nn)
-            ww(2) = gstr2(nn)
-            ww(3) = taustr2(nn)
-            ww(4) = cosangzk2(nn)
+              ww(1) = omegastr2(nn)
+              ww(2) = gstr2(nn)
+              ww(3) = taustr2(nn)
+              ww(4) = cosangzk2(nn)
 
-            qq(1)     = 3.0 * ( 1.0 - ww(1) )
-            qq(2)         = 1.0 - ww(1) * ww(2)
-            qq(3)     = qq(1)/qq(2)
-            qq(4) = sqrt( qq(1) * qq(2) )
-            qq(5) = sqrt (qq(3))
-            qq(6) = 1.0 + twodi3 * qq(5)         
-            qq(7) = 1.0 - twodi3 * qq(5)       
+              qq(1)     = 3.0 * ( 1.0 - ww(1) )
+              qq(2)         = 1.0 - ww(1) * ww(2)
+              qq(3)     = qq(1)/qq(2)
+              qq(4) = sqrt( qq(1) * qq(2) )
+              qq(5) = sqrt (qq(3))
+              qq(6) = 1.0 + twodi3 * qq(5)         
+              qq(7) = 1.0 - twodi3 * qq(5)       
 
-            rr(1) = 1./qq(6)
-            rr(2) = qq(7)*rr(1)
-            rr(3) = exp( -ww(3)          * qq(4) )
-            rr(4) = 1.0/rr(3)
-            rr(5) = 1.0/(qq(6) * rr(4) - qq(7) * rr(3) * rr(2) )
+              rr(1) = 1./qq(6)
+              rr(2) = qq(7)*rr(1)
+              rr(3) = exp( -ww(3)          * qq(4) )
+              rr(4) = 1.0/rr(3)
+              rr(5) = 1.0/(qq(6) * rr(4) - qq(7) * rr(3) * rr(2) )
 
-            ss(1) = 0.75 * ww(1)/(1.0 - (qq(4)*ww(4)      ) ** 2 )
-            ss(2) = ss(1)*ww(4)*( 1.0 + ww(2)*qq(1)*onedi3)
-            ss(3) = ss(1)*(1.0 + ww(2)*qq(1)*ww(4)** 2 )
-            ss(4) = ss(2) - twodi3*ss(3)     
-            ss(5) = ss(2) + twodi3 * ss(3)     
-            ss(6) = exp( -ww(3)          / ww(4) )
-            ss(7) = (ss(4)*ss(6) - ss(5)*rr(3)*rr(2))*rr(5)
-            ss(8) = (ss(5) - qq(7)*ss(7))*rr(1)
+              ss(1) = 0.75 * ww(1)/(1.0 - (qq(4)*ww(4)      ) ** 2 )
+              ss(2) = ss(1)*ww(4)*( 1.0 + ww(2)*qq(1)*onedi3)
+              ss(3) = ss(1)*(1.0 + ww(2)*qq(1)*ww(4)** 2 )
+              ss(4) = ss(2) - twodi3*ss(3)     
+              ss(5) = ss(2) + twodi3 * ss(3)     
+              ss(6) = exp( -ww(3)          / ww(4) )
+              ss(7) = (ss(4)*ss(6) - ss(5)*rr(3)*rr(2))*rr(5)
+              ss(8) = (ss(5) - qq(7)*ss(7))*rr(1)
 
 !----------------------------------------------------------------------
 !
 !----------------------------------------------------------------------
-            rlayerdir2(nn) = qq(7) * ss(8) + qq(6)*ss(7) - ss(4)
-            tlayerdir2(nn) = ((rr(3) * qq(6) * ss(8) + &
-                               qq(7) * rr(4) * ss(7) -  &
-                               ss(5) * ss(6) ) + ss(6) )
-            tlayerde2(nn) = ss(6)
+              rlayerdir2(nn) = qq(7) * ss(8) + qq(6)*ss(7) - ss(4)
+              tlayerdir2(nn) = ((rr(3) * qq(6) * ss(8) + &
+                                 qq(7) * rr(4) * ss(7) -  &
+                                 ss(5) * ss(6) ) + ss(6) )
+              tlayerde2(nn) = ss(6)
 
 !----------------------------------------------------------------------c
 !    diffuse quantities                                       
 !    notes: the number of streams for the diffuse beam is fixed at 4.   
 !    this calculation is done only for ng=1.                 
 !----------------------------------------------------------------------c
-            if (present (tlayerdif) .and. present(rlayerdif)) then
-              if ( ng == 1 ) then   
-                rsum = 0.0
-                tsum = 0.0
-                do ns = 1,NSTREAMS
-                  tt(1) = 0.75 * ww(1)            / ( 1.0 - ( qq(4) * &
-                          cosangstr(ns) ) ** 2 )
-                  tt(2) = tt(1) * cosangstr(ns) * ( 1.0 +  &
-                          ww(2)        * qq(1) * onedi3 )
-                  tt(3) = tt(1) * ( 1.0 + ww(2)        * qq(1)*&
-                          cosangstr(ns) ** 2 )
-                  tt(4) = tt(2) - twodi3 * tt(3)
-                  tt(5) = tt(2) + twodi3 * tt(3)
-                  tt(6) = exp( -ww(3)          / cosangstr(ns) )
-                  tt(7) = ( tt(4) * tt(6) - tt(5) *  &
-                          rr(3) * rr(2)   ) * rr(5)
-                  tt(8) = ( tt(5) - qq(7) * tt(7) )*rr(1)
-                  if (nstr4) then
-                    rsum = rsum + (qq(7)*tt(8) + qq(6)*tt(7) - tt(4))* &
-                           wtstr(ns)*cosangstr(ns)
-                    tsum = tsum + ((rr(3)*qq(6)*tt(8) +   &
-                                    qq(7)*rr(4)*tt(7) -   &
-                                    tt(5)*tt(6)) + tt(6))*  &
-                                    wtstr(ns)*cosangstr(ns)
-                  else 
-                    rsum = rsum + (qq(7)*tt(8) + qq(6)*tt(7) - tt(4))
-                    tsum = tsum + ( (rr(3)*qq(6)*tt(8) +    &
-                                     qq(7)*rr(4)*tt(7) -   &
-                                     tt(5)*tt(6)) + tt(6))
-                  endif
-                end do
-                sumr(nn) = rsum
-                sumt(nn) = tsum
-              endif  !  ng == 1
-            endif ! (present (tlayerdiff))
-          end do  ! ntot loop
-
-!---------------------------------------------------------------------
-!     return results in proper locations in (i,j,k) arrays
-!---------------------------------------------------------------------
-          if (present(cloud)) then
-            do i=1,ix           
-              if (cloud(i,j,k) ) then
-                rlayerdir(i,j,k) = rlayerdir2(cld_index(i,j,k))
-                tlayerdir(i,j,k) = tlayerdir2(cld_index(i,j,k))
-                tlayerde(i,j,k) = tlayerde2(cld_index(i,j,k))
-                if (present(tlayerdif)) then
-                  if (ng == 1) then
-                    rlayerdif(i,j,k) = sumr(cld_index(i,j,k))
-                    tlayerdif(i,j,k) = sumt(cld_index(i,j,k))
-                  endif
+              rsum = 0.0
+              tsum = 0.0
+              do ns = 1,NSTREAMS
+                tt(1) = 0.75 * ww(1)            / ( 1.0 - ( qq(4) * &
+                        cosangstr(ns) ) ** 2 )
+                tt(2) = tt(1) * cosangstr(ns) * ( 1.0 +  &
+                        ww(2)        * qq(1) * onedi3 )
+                tt(3) = tt(1) * ( 1.0 + ww(2)        * qq(1)*&
+                        cosangstr(ns) ** 2 )
+                tt(4) = tt(2) - twodi3 * tt(3)
+                tt(5) = tt(2) + twodi3 * tt(3)
+                tt(6) = exp( -ww(3)          / cosangstr(ns) )
+                tt(7) = ( tt(4) * tt(6) - tt(5) *  &
+                        rr(3) * rr(2)   ) * rr(5)
+                tt(8) = ( tt(5) - qq(7) * tt(7) )*rr(1)
+                if (nstr4) then
+                  rsum = rsum + (qq(7)*tt(8) + qq(6)*tt(7) - tt(4))* &
+                         wtstr(ns)*cosangstr(ns)
+                  tsum = tsum + ((rr(3)*qq(6)*tt(8) +   &
+                                  qq(7)*rr(4)*tt(7) -   &
+                                  tt(5)*tt(6)) + tt(6))*  &
+                                  wtstr(ns)*cosangstr(ns)
+                else 
+                  rsum = rsum + (qq(7)*tt(8) + qq(6)*tt(7) - tt(4))
+                  tsum = tsum + ( (rr(3)*qq(6)*tt(8) +    &
+                                   qq(7)*rr(4)*tt(7) -   &
+                                   tt(5)*tt(6)) + tt(6))
                 endif
-              endif
-            end do
+              end do
+              sumr(nn) = rsum
+              sumt(nn) = tsum
+            end do  ! ntot loop
+              
+          else
+              
+            do nn=1,ntot      
+
+!----------------------------------------------------------------------c
+!    direct quantities                                            
+!----------------------------------------------------------------------c
+              ww(1) = omegastr2(nn)
+              ww(2) = gstr2(nn)
+              ww(3) = taustr2(nn)
+              ww(4) = cosangzk2(nn)
+
+              qq(1)     = 3.0 * ( 1.0 - ww(1) )
+              qq(2)         = 1.0 - ww(1) * ww(2)
+              qq(3)     = qq(1)/qq(2)
+              qq(4) = sqrt( qq(1) * qq(2) )
+              qq(5) = sqrt (qq(3))
+              qq(6) = 1.0 + twodi3 * qq(5)         
+              qq(7) = 1.0 - twodi3 * qq(5)       
+
+              rr(1) = 1./qq(6)
+              rr(2) = qq(7)*rr(1)
+              rr(3) = exp( -ww(3)          * qq(4) )
+              rr(4) = 1.0/rr(3)
+              rr(5) = 1.0/(qq(6) * rr(4) - qq(7) * rr(3) * rr(2) )
+
+              ss(1) = 0.75 * ww(1)/(1.0 - (qq(4)*ww(4)      ) ** 2 )
+              ss(2) = ss(1)*ww(4)*( 1.0 + ww(2)*qq(1)*onedi3)
+              ss(3) = ss(1)*(1.0 + ww(2)*qq(1)*ww(4)** 2 )
+              ss(4) = ss(2) - twodi3*ss(3)     
+              ss(5) = ss(2) + twodi3 * ss(3)     
+              ss(6) = exp( -ww(3)          / ww(4) )
+              ss(7) = (ss(4)*ss(6) - ss(5)*rr(3)*rr(2))*rr(5)
+              ss(8) = (ss(5) - qq(7)*ss(7))*rr(1)
 
 !----------------------------------------------------------------------
 !
 !----------------------------------------------------------------------
+              rlayerdir2(nn) = qq(7) * ss(8) + qq(6)*ss(7) - ss(4)
+              tlayerdir2(nn) = ((rr(3) * qq(6) * ss(8) + &
+                                 qq(7) * rr(4) * ss(7) -  &
+                                 ss(5) * ss(6) ) + ss(6) )
+              tlayerde2(nn) = ss(6)
+
+            end do  ! ntot loop
+
+          end if ! present(tlayerdiff)..
+!---------------------------------------------------------------------
+!     return results in proper locations in (i,j,k) arrays
+!---------------------------------------------------------------------
+          if ( present(cloud) ) then
+            rlayerdir(1:ix,j,k) = unpack( rlayerdir2(1:nn), cloud(1:ix,j,k), rlayerdir(1:ix,j,k) )
+            tlayerdir(1:ix,j,k) = unpack( tlayerdir2(1:nn), cloud(1:ix,j,k), tlayerdir(1:ix,j,k) )
+            tlayerde(1:ix,j,k) = unpack( tlayerde2(1:nn), cloud(1:ix,j,k), tlayerde(1:ix,j,k) )
+            if ( present(tlayerdif) .and. ng==1 ) then
+              rlayerdif(1:ix,j,k) = unpack( sumr(1:nn), cloud(1:ix,j,k), rlayerdif(1:ix,j,k) )
+              tlayerdif(1:ix,j,k) = unpack( sumt(1:nn), cloud(1:ix,j,k), tlayerdif(1:ix,j,k) )
+            end if
           else
-            do i=1,ix            
-              if (daylight(i,j) ) then
-                rlayerdir(i,j,k) = rlayerdir2(cld_index(i,j,k))
-                tlayerdir(i,j,k) = tlayerdir2(cld_index(i,j,k))
-                tlayerde(i,j,k) = tlayerde2(cld_index(i,j,k))
-                if (present(tlayerdif)) then
-                  if (ng == 1) then
-                    rlayerdif(i,j,k) = sumr(cld_index(i,j,k))
-                    tlayerdif(i,j,k) = sumt(cld_index(i,j,k))
-                  endif
-                endif
-              endif
-            end do
-          endif
+            rlayerdir(1:ix,j,k) = unpack( rlayerdir2(1:nn), daylight(1:ix,j), rlayerdir(1:ix,j,k) )
+            tlayerdir(1:ix,j,k) = unpack( tlayerdir2(1:nn), daylight(1:ix,j), tlayerdir(1:ix,j,k) )
+            tlayerde(1:ix,j,k) = unpack( tlayerde2(1:nn), daylight(1:ix,j), tlayerde(1:ix,j,k) )
+            if ( present(tlayerdif) .and. ng==1 ) then
+              rlayerdif(1:ix,j,k) = unpack( sumr(1:nn), daylight(1:ix,j), rlayerdif(1:ix,j,k) )
+              tlayerdif(1:ix,j,k) = unpack( sumt(1:nn), daylight(1:ix,j), tlayerdif(1:ix,j,k) )
+            end if
+          end if
+
         end do
       end do
 
