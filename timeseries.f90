@@ -85,7 +85,7 @@ integer gridorderid, surforderid
 integer, allocatable, save, dimension(:,:) :: templist
 integer, allocatable, save, dimension(:) :: gridorder, surforder
 integer i,i1,k,ntop
-character(len=20) outfile
+character(len=80) outfile
 character(len=8) chtemp
 character(len=80) head
 integer :: ig, jg, tmpval ! Better name for this
@@ -487,7 +487,7 @@ implicit none
 integer nptsdim,dateid,timeid,ntrac,i,i2,ierr
 integer dtlsdim,nvaldim,outshipid(3),dims(2),tracdim
 real dt
-character(len=15) outfile2
+character(len=80) outfile2
 character(len=8) chtemp
 include 'newmpar.h'
 include 'dates.h'

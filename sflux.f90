@@ -475,8 +475,11 @@ if (nmlo==0) then                                                               
 
 elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                                                      ! MLO
                                                                                                  ! MLO
-  if (myid==0.and.nmaxpr==1) then                                                                ! MLO
-    write(6,*) "Before MLO mixing"                                                               ! MLO
+  if (nmaxpr==1) then                                                                            ! MLO
+    if (myid==0) then                                                                            ! MLO
+      write(6,*) "Before MLO mixing"                                                             ! MLO
+    end if                                                                                       ! MLO
+    call ccmpi_barrier(comm_world)                                                               ! MLO
   end if                                                                                         ! MLO
   if (abs(nmlo)==1) then                                                                         ! MLO
     ! Single column                                                                              ! MLO
@@ -543,8 +546,11 @@ elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                                     
       !rhscrn(iq)=100.*min(qgscrn(iq)/qsttg(iq),1.)                                              ! MLO
     end if                                                                                       ! MLO
   end do                                                                                         ! MLO
-  if (myid==0.and.nmaxpr==1) then                                                                ! MLO
-    write(6,*) "After MLO mixing"                                                                ! MLO
+  if (nmaxpr==1) then                                                                            ! MLO
+    if (myid==0) then                                                                            ! MLO
+      write(6,*) "After MLO mixing"                                                              ! MLO
+    end if                                                                                       ! MLO
+    call ccmpi_barrier(comm_world)                                                               ! MLO
   end if                                                                                         ! MLO
                                                                                                  ! MLO
 else                                                                                             ! PCOM
@@ -727,8 +733,11 @@ select case(nsib)                                                               
     call ccmpi_abort(-1)                                                                         ! cable
                                                                                                  ! cable
   case(7)                                                                                        ! cable
-    if (myid==0.and.nmaxpr==1) then                                                              ! cable
-      write(6,*) "Before CABLE"                                                                  ! cable
+    if (nmaxpr==1) then                                                                          ! cable
+      if (myid==0) then                                                                          ! cable
+        write(6,*) "Before CABLE"                                                                ! cable
+      end if                                                                                     ! cable
+      call ccmpi_barrier(comm_world)                                                             ! cable
     end if                                                                                       ! cable
     ! call cable                                                                                 ! cable
     call sib4                                                                                    ! cable
@@ -742,8 +751,11 @@ select case(nsib)                                                               
       tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                                                          ! cable
       sno(iq)=sno(iq)+conds(iq)                                                                  ! cable
     enddo   ! ip=1,ipland                                                                        ! cable
-    if (myid==0.and.nmaxpr==1) then                                                              ! cable
-      write(6,*) "After CABLE"                                                                   ! cable
+    if (nmaxpr==1) then                                                                          ! cable
+      if (myid==0) then                                                                          ! cable
+        write(6,*) "After CABLE"                                                                 ! cable
+      end if                                                                                     ! cable
+      call ccmpi_barrier(comm_world)                                                             ! cable
     end if                                                                                       ! cable
                                                                                                  ! cable
   case DEFAULT                                                                                   ! land
@@ -754,8 +766,11 @@ end select                                                                      
 call END_LOG(sfluxland_end)                                                                      ! land
 !----------------------------------------------------------
 call START_LOG(sfluxurban_begin)                                                                 ! urban
-if (myid==0.and.nmaxpr==1) then                                                                  ! urban
-  write(6,*) "Before urban"                                                                      ! urban
+if (nmaxpr==1) then                                                                              ! urban
+  if (myid==0) then                                                                              ! urban
+    write(6,*) "Before urban"                                                                    ! urban
+  end if                                                                                         ! urban
+  call ccmpi_barrier(comm_world)                                                                 ! urban
 end if                                                                                           ! urban
 if (nurban/=0) then                                                                              ! urban
   ! calculate zonal and meridonal winds                                                          ! urban
@@ -804,8 +819,11 @@ if (nurban/=0) then                                                             
     end if                                                                                       ! urban
   end do                                                                                         ! urban
 end if                                                                                           ! urban
-if (myid==0.and.nmaxpr==1) then                                                                  ! urban
-  write(6,*) "After urban"                                                                       ! urban
+if (nmaxpr==1) then                                                                              ! urban
+  if (myid==0) then                                                                              ! urban
+    write(6,*) "After urban"                                                                     ! urban
+  end if                                                                                         ! urban
+  call ccmpi_barrier(comm_world)                                                                 ! urban
 end if                                                                                           ! urban
 call END_LOG(sfluxurban_end)                                                                     ! urban
 ! ----------------------------------------------------------------------
