@@ -235,7 +235,7 @@ elseif (trdep(igas)>0.) then
   dep  = exp(-vt*dt/dz1)
 else
   loss = 0.
-  dep  = 0.
+  dep  = 1.
 endif
 
 ! implicit version due to potentially high transfer velocity relative to dz1
