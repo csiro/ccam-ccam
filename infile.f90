@@ -2435,13 +2435,14 @@ end if
 return
 end subroutine ccnf_get_att_real
 
-subroutine ccnf_get_att_realg1r(ncid,aname,vdat)
+subroutine ccnf_get_att_realg1r(ncid,aname,vdat,ierr)
 
 use cc_mpi
 
 implicit none
 
 integer, intent(in) :: ncid
+integer, intent(out), optional :: ierr
 integer ncstatus
 integer(kind=4) lncid
 character(len=*), intent(in) :: aname
@@ -2457,7 +2458,11 @@ ncstatus = nf_get_att_real(lncid,nf_global,aname,vdat)
 #else
 ncstatus = nf90_get_att(lncid,nf90_global,aname,vdat)
 #endif
-call ncmsg("get_attg",ncstatus)
+if (present(ierr)) then
+  ierr=ncstatus
+else
+  call ncmsg("get_attg",ncstatus)
+end if
 
 return
 end subroutine ccnf_get_att_realg1r

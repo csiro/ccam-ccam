@@ -234,8 +234,7 @@ end do
 dz_fl(:,1)   =zzh(:,1)
 dz_fl(:,2:kl)=zzh(:,2:kl)-zzh(:,1:kl-1)
 
-! Calculate shear term on full levels (see hordifg.f for calculation of horizontal shear)
-pps(:,2:kl-1)=km(:,2:kl-1)*shear(:,2:kl-1)
+! set top BC for TKE-eps source term
 pps(:,kl)=0.
 ppb(:,kl)=0.
 ppt(:,kl)=0.
@@ -251,6 +250,9 @@ mcount=int(dt/(maxdts+0.01))+1
 ddts  =dt/real(mcount)
 do kcount=1,mcount
 
+  ! Calculate shear term on full levels (see hordifg.f for calculation of horizontal shear)
+  pps(:,2:kl-1)=km(:,2:kl-1)*shear(:,2:kl-1)
+    
   ! Set-up thermodynamic variables temp, theta_v and surface fluxes
   do k=1,kl
     temp(:,k)=theta(1:ifull,k)/sigkap(k)
@@ -667,8 +669,8 @@ do kcount=1,mcount
 
   do k=2,kl-1
     ! Calculate buoyancy term
+    ! saturated from Durran and Klemp JAS 1982 (see also WRF)
     tqq=(1.+lv*qsatc(:,k)/(rd*tempc(:,k)))/(1.+lv*lv*qsatc(:,k)/(cp*rv*tempc(:,k)*tempc(:,k)))
-    ! saturated conditions from Durran and Klemp JAS 1982 (see also WRF)
     tbb=-grav*km(:,k)*(tqq*((thetahl(:,k)-thetahl(:,k-1))/thetac(:,k)                              &
            +lv*(qshl(:,k)-qshl(:,k-1))/(cp*tempc(:,k)))-qshl(:,k)-qlhl(:,k)-qfhl(:,k)              &
            +qshl(:,k-1)+qlhl(:,k-1)+qfhl(:,k-1))/dz_fl(:,k)
@@ -680,10 +682,10 @@ do kcount=1,mcount
     ppb(:,k)=(1.-cfrac(1:ifull,k))*tcc+cfrac(1:ifull,k)*tbb ! cloud fraction weighted (e.g., Smith 1990)
 
     ! Calculate transport source term on full levels
-    ppt(:,k)=   kmo(:,k)*idzp(:,k)*(tke(:,k+1)-tke(:,k))/dz_hl(:,k)                                &
-               -kmo(:,k-1)*idzm(:,k)*(tke(:,k)-tke(:,k-1))/dz_hl(:,k-1)
+    ppt(:,k)= kmo(:,k)*idzp(:,k)*(tke(:,k+1)-tke(:,k))/dz_hl(:,k)                                  &
+             -kmo(:,k-1)*idzm(:,k)*(tke(:,k)-tke(:,k-1))/dz_hl(:,k-1)
   end do
-
+  
   qq(:,2:kl-1)=-ddts*idzm(:,2:kl-1)/dz_hl(:,1:kl-2)
   rr(:,2:kl-1)=-ddts*idzp(:,2:kl-1)/dz_hl(:,2:kl-1)
   

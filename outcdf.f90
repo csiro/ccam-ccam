@@ -455,7 +455,7 @@ lrad=mod(ktau,kountr)==0.or.ktau==ntau
 lrad=lrad.and.ktau>0
 lday=mod(ktau,nperday)==0.or.ktau==ntau
 lday=lday.and.ktau>0
-l3hr=(real(nwt)*dt>21600.)
+l3hr=(real(nwt)*dt>10800.)
 
 idim(1)=dim(1)
 idim(2)=dim(2)
@@ -587,13 +587,13 @@ if( myid==0 .or. local ) then
     lname = 'Pan temperature'
     call attrib(idnc,idim,3,'tpan',lname,'K',100.,425.,0,itype)
     lname = 'Precipitation'
-    call attrib(idnc,idim,3,'rnd',lname,'mm/day',0.,1300.,0,itype)
+    call attrib(idnc,idim,3,'rnd',lname,'mm/day',0.,1300.,0,-1) ! -1=long
     lname = 'Convective precipitation'
-    call attrib(idnc,idim,3,'rnc',lname,'mm/day',0.,1300.,0,itype)
+    call attrib(idnc,idim,3,'rnc',lname,'mm/day',0.,1300.,0,-1) ! -1=long
     lname = 'Snowfall'
-    call attrib(idnc,idim,3,'sno',lname,'mm/day',0.,1300.,0,itype)
+    call attrib(idnc,idim,3,'sno',lname,'mm/day',0.,1300.,0,-1) ! -1=long
     lname = 'Runoff'
-    call attrib(idnc,idim,3,'runoff',lname,'mm/day',0.,1300.,0,itype)
+    call attrib(idnc,idim,3,'runoff',lname,'mm/day',0.,1300.,0,-1) ! -1=long
     lname = 'Surface albedo'
     call attrib(idnc,idim,3,'alb',lname,'none',0.,1.,0,itype)
     lname = 'Fraction of canopy that is wet'
@@ -684,7 +684,7 @@ if( myid==0 .or. local ) then
     call attrib(idnc,idim,3,'u10',lname,'m/s',0.,130.,0,itype)
 
     lname = 'Maximum precip rate in a timestep'
-    call attrib(idnc,idim,3,'maxrnd',lname,'mm/day',0.,2600.,1,itype)
+    call attrib(idnc,idim,3,'maxrnd',lname,'mm/day',0.,2600.,1,-1) ! -1=long
     lname = 'Maximum screen temperature'
     call attrib(idnc,idim,3,'tmaxscr',lname,'K',100.,425.,1,itype)
     lname = 'Minimum screen temperature'
@@ -2216,9 +2216,9 @@ if ( first ) then
     lname='Screen temperature'     
     call attrib(fncid,sdim,3,'tscrn',lname,'K',100.,425.,0,1)
     lname='Precipitation'
-    call attrib(fncid,sdim,3,'rnd',lname,'mm/day',0.,1300.,0,1)
+    call attrib(fncid,sdim,3,'rnd',lname,'mm/day',0.,1300.,0,-1) ! -1=long
     lname='Snowfall'
-    call attrib(fncid,sdim,3,'sno',lname,'mm/day',0.,1300.,0,1)
+    call attrib(fncid,sdim,3,'sno',lname,'mm/day',0.,1300.,0,-1) ! -1=long
     lname ='Mean sea level pressure'
     call attrib(fncid,sdim,3,'pmsl',lname,'hPa',800.,1200.,0,1)    
 

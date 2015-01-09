@@ -1744,13 +1744,18 @@ character(len=6) vname
 real, parameter :: cableversion = 223. ! version id for input data
 
 write(6,*) "Reading land-use parameters for CABLE"
-if (lncveg==1) then
+if (lncveg == 1) then
   ! assume this file grid has been tested when opened
   spos(1:3)=1
   npos(1)=il_g
   npos(2)=6*il_g
   npos(3)=1
-  call ccnf_get_attg(ncidveg,'cableversion',cablever)
+  call ccnf_get_attg(ncidveg,'cableversion',cablever,ierr=iernc)
+  if (iernc /= 0) then
+    write(6,*) "Missing version of CABLE data"
+    write(6,*) "Regenerate land-use data with up-to-date version of igbpveg"
+    call ccmpi_abort(-1)
+  end if
   if (cablever /= cableversion) then
     write(6,*) "Wrong version of CABLE data"
     write(6,*) "Expecting ",cableversion
