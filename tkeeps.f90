@@ -138,7 +138,7 @@ end subroutine tkeinit
 ! mode=1 no mass flux
 
 subroutine tkemix(kmo,theta,qvg,qlg,qfg,qrg,cfrac,cfrain,uo,vo,zi,fg,eg,ps,ustar, &
-                  zz,zzh,sig,rhos,dt,qgmin,mode,diag,naero,aero)
+                  cduv,zz,zzh,sig,rhos,dt,qgmin,mode,diag,naero,aero)
 
 implicit none
 
@@ -152,7 +152,7 @@ real, dimension(:,:), intent(inout) :: qvg,qlg,qfg,qrg
 real, dimension(ifull,kl), intent(out) :: kmo
 real, dimension(ifull,kl), intent(in) :: zz,zzh
 real, dimension(ifull), intent(inout) :: zi
-real, dimension(ifull), intent(in) :: fg,eg,ps,ustar,rhos
+real, dimension(ifull), intent(in) :: fg,eg,ps,ustar,cduv,rhos
 real, dimension(kl), intent(in) :: sig
 real, dimension(ifull,kl,naero) :: gamar
 real, dimension(ifull,kl) :: km,thetav,thetal,temp,qsat
@@ -173,7 +173,6 @@ real, dimension(ifull,naero) :: arup
 real, dimension(ifull) :: wt0,wq0,wtv0
 real, dimension(ifull) :: wstar,z_on_l,phim
 real, dimension(ifull) :: tff,tbb,tcc,tgg,tqq,qgnc,dum
-real, dimension(ifull) :: umag
 real, dimension(kl) :: sigkap
 real, dimension(kl) :: w2up,nn,dqdash
 real, dimension(kl) :: qtup,qupsat,ttup,tvup,tlup,thup
@@ -234,7 +233,7 @@ end do
 dz_fl(:,1)   =zzh(:,1)
 dz_fl(:,2:kl)=zzh(:,2:kl)-zzh(:,1:kl-1)
 
-! set top BC for TKE-eps source term
+! set top BC for TKE-eps source terms
 pps(:,kl)=0.
 ppb(:,kl)=0.
 ppt(:,kl)=0.
@@ -250,9 +249,6 @@ mcount=int(dt/(maxdts+0.01))+1
 ddts  =dt/real(mcount)
 do kcount=1,mcount
 
-  ! Calculate shear term on full levels (see hordifg.f for calculation of horizontal shear)
-  pps(:,2:kl-1)=km(:,2:kl-1)*shear(:,2:kl-1)
-    
   ! Set-up thermodynamic variables temp, theta_v and surface fluxes
   do k=1,kl
     temp(:,k)=theta(1:ifull,k)/sigkap(k)
@@ -684,6 +680,9 @@ do kcount=1,mcount
     ! Calculate transport source term on full levels
     ppt(:,k)= kmo(:,k)*idzp(:,k)*(tke(:,k+1)-tke(:,k))/dz_hl(:,k)                                  &
              -kmo(:,k-1)*idzm(:,k)*(tke(:,k)-tke(:,k-1))/dz_hl(:,k-1)
+    
+    ! Calculate shear term on full levels (see hordifg.f for calculation of horizontal shear)
+    pps(:,k)=km(:,k)*shear(:,k)
   end do
   
   qq(:,2:kl-1)=-ddts*idzm(:,2:kl-1)/dz_hl(:,1:kl-2)
@@ -820,10 +819,10 @@ do kcount=1,mcount
     call thomas(aero(:,:,j),aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
   end do
 
+  ! Winds
   aa(:,2:kl)  =qq(:,2:kl)
   cc(:,1:kl-1)=rr(:,1:kl-1)
-  umag=sqrt(max(uo(1:ifull,1)*uo(1:ifull,1)+vo(1:ifull,1)*vo(1:ifull,1),1.E-4))
-  bb(:,1)=1.-cc(:,1)+ddts*rhos*ustar*ustar/(umag*rhoa(:,1)*dz_fl(:,1))
+  bb(:,1)=1.-cc(:,1)+ddts*rhos*cduv/(rhoa(:,1)*dz_fl(:,1)) ! cduv = cd*vmod
   bb(:,2:kl-1)=1.-aa(:,2:kl-1)-cc(:,2:kl-1)
   bb(:,kl)=1.-aa(:,kl)
   dd(:,1:kl)=uo(1:ifull,1:kl)
