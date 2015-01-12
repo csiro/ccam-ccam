@@ -365,10 +365,10 @@ else
   ! Evaluate EDMF scheme
   select case(nlocal)
     case(0) ! no counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,qrg,cldtmp,rfrac,u,v,pblh,fg,eg,ps,ustar,cduv,zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg)
+      call tkemix(rkm,rhs,qg,qlg,qfg,qrg,cldtmp,rfrac,u,v,pblh,fg,eg,ps,ustar,zo,zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg)
       rkh=rkm
     case(1,2,3,4,5,6) ! KCN counter gradient method
-      call tkemix(rkm,rhs,qg,qlg,qfg,qrg,cldtmp,rfrac,u,v,pblh,fg,eg,ps,ustar,cduv,zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg)
+      call tkemix(rkm,rhs,qg,qlg,qfg,qrg,cldtmp,rfrac,u,v,pblh,fg,eg,ps,ustar,zo,zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg)
       rkh=rkm
       do k=1,kl
         uav(1:ifull,k)=av_vmod*u(1:ifull,k)+(1.-av_vmod)*(savu(1:ifull,k)-ou)

@@ -138,7 +138,7 @@ end subroutine tkeinit
 ! mode=1 no mass flux
 
 subroutine tkemix(kmo,theta,qvg,qlg,qfg,qrg,cfrac,cfrain,uo,vo,zi,fg,eg,ps,ustar, &
-                  cduv,zz,zzh,sig,rhos,dt,qgmin,mode,diag,naero,aero)
+                  zom,zz,zzh,sig,rhos,dt,qgmin,mode,diag,naero,aero)
 
 implicit none
 
@@ -152,7 +152,7 @@ real, dimension(:,:), intent(inout) :: qvg,qlg,qfg,qrg
 real, dimension(ifull,kl), intent(out) :: kmo
 real, dimension(ifull,kl), intent(in) :: zz,zzh
 real, dimension(ifull), intent(inout) :: zi
-real, dimension(ifull), intent(in) :: fg,eg,ps,ustar,cduv,rhos
+real, dimension(ifull), intent(in) :: fg,eg,ps,ustar,zom,rhos
 real, dimension(kl), intent(in) :: sig
 real, dimension(ifull,kl,naero) :: gamar
 real, dimension(ifull,kl) :: km,thetav,thetal,temp,qsat
@@ -173,6 +173,7 @@ real, dimension(ifull,naero) :: arup
 real, dimension(ifull) :: wt0,wq0,wtv0
 real, dimension(ifull) :: wstar,z_on_l,phim
 real, dimension(ifull) :: tff,tbb,tcc,tgg,tqq,qgnc,dum
+real, dimension(ifull) :: cdrag,umag
 real, dimension(kl) :: sigkap
 real, dimension(kl) :: w2up,nn,dqdash
 real, dimension(kl) :: qtup,qupsat,ttup,tvup,tlup,thup
@@ -220,6 +221,12 @@ end do
 ! Calculate surface fluxes
 wt0=fg/(rhos*cp)  ! theta flux
 wq0=eg/(rhos*lv)  ! qtot flux (=qv flux)
+!umag=sqrt(max(uo(1:ifull,1)*uo(1:ifull,1)+vo(1:ifull,1)*vo(1:ifull,1),1.e-4))
+!cduv=ustar*ustar/umag
+!taux=rhos*cduv*uo(1:ifull,1)
+!tauy=rhos*cduv*vo(1:ifull,1)
+!wu0=cduv*uo(1:ifull,1) !=taux/rhos
+!wv0=cduv*vo(1:ifull,1) !=tauy/rhos
 
 do k=1,kl-1
   ! Fraction for interpolation
@@ -610,7 +617,7 @@ do kcount=1,mcount
   end if
 
   ! calculate tke and eps at 1st level
-  z_on_l=-vkar*zz(:,1)*grav*wtv0/(thetav(:,1)*max(ustar*ustar*ustar,1.E-20))
+  z_on_l=-vkar*zz(:,1)*grav*wtv0/(thetav(:,1)*max(ustar*ustar*ustar,1.E-10))
   z_on_l=min(z_on_l,10.) ! See fig 10 in Beljarrs and Holtslag (1991)
   where (z_on_l<0.)
     phim=(1.-16.*z_on_l)**(-0.25)
@@ -820,9 +827,11 @@ do kcount=1,mcount
   end do
 
   ! Winds
+  umag=sqrt(max(uo(1:ifull,1)*uo(1:ifull,1)+vo(1:ifull,1)*vo(1:ifull,1),1.e-4))
+  call dyerhicks(cdrag,ustar,wtv0,zom,umag,thetav(:,1),zz(:,1))
   aa(:,2:kl)  =qq(:,2:kl)
   cc(:,1:kl-1)=rr(:,1:kl-1)
-  bb(:,1)=1.-cc(:,1)+ddts*rhos*cduv/(rhoa(:,1)*dz_fl(:,1)) ! cduv = cd*vmod
+  bb(:,1)=1.-cc(:,1)+ddts*rhos*cdrag*umag/(rhoa(:,1)*dz_fl(:,1)) 
   bb(:,2:kl-1)=1.-aa(:,2:kl-1)-cc(:,2:kl-1)
   bb(:,kl)=1.-aa(:,kl)
   dd(:,1:kl)=uo(1:ifull,1:kl)
@@ -994,5 +1003,44 @@ dtrfn=rat/max(zi-zht,10.)+ent0/max(zi-zht,100.)
 
 return
 end function dtrfn
+
+subroutine dyerhicks(cd,ustarin,wtv0,zom,umag,thetav,zmin)
+
+implicit none
+
+integer ic
+integer, parameter :: icmax = 10
+real, dimension(ifull), intent(in) :: ustarin,umag,thetav,zom,wtv0,zmin
+real, dimension(ifull), intent(out) :: cd
+real, dimension(ifull) :: ustar,thetavstar,ilzom
+real, dimension(ifull) :: z_on_l,z0_on_l
+real, dimension(ifull) :: pm0,pm1,integralm
+
+ilzom      = log(zmin/zom)
+ustar      = ustarin                     ! first guess
+
+do ic = 1,icmax
+  thetavstar = -wtv0/ustar
+  z_on_l   = vkar*zmin*grav*thetavstar/(thetav*ustar*ustar)
+  z_on_l   = min(z_on_l,10.)
+  z0_on_l  = z_on_l*exp(-ilzom)
+  where ( z_on_l<0. )
+    pm0     = (1.-16.*z0_on_l)**(-0.25)
+    pm1     = (1.-16.*z_on_l )**(-0.25)
+    integralm = ilzom-2.*log((1.+1./pm1)/(1.+1./pm0))-log((1.+1./pm1**2)/(1.+1./pm0**2)) &
+               +2.*(atan(1./pm1)-atan(1./pm0))
+  elsewhere
+    !--------------Beljaars and Holtslag (1991) momentum & heat            
+    pm0 = -(a_1*z0_on_l+b_1*(z0_on_l-(c_1/d_1))*exp(-d_1*z0_on_l)+b_1*c_1/d_1)
+    pm1 = -(a_1*z_on_l +b_1*(z_on_l -(c_1/d_1))*exp(-d_1*z_on_l )+b_1*c_1/d_1)
+    integralm = ilzom-(pm1-pm0)    
+  end where
+  ustar = max(vkar*umag/integralm,1.e-3)
+end do
+
+cd = ustar*ustar/(umag*umag)
+
+return
+end subroutine dyerhicks
 
 end module tkeeps
