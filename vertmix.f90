@@ -38,6 +38,7 @@ use soilsnow_m, only : fracice      ! Soil, snow and surface data
 use tkeeps                          ! TKE-EPS boundary layer
 use tracers_m, only : ngas          ! Tracer data
 use trvmix, only : tracervmix       ! Tracer mixing routines
+use work2_m                         ! Diagnostic arrays
       
 implicit none
       
