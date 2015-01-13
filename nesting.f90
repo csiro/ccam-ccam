@@ -502,10 +502,12 @@ subroutine getspecdata(pslb,ub,vb,tb,qb,xtgb)
 use aerosolldr                   ! Aerosol interface
 use arrays_m                     ! Atmosphere dyamics prognostic arrays
 use cc_mpi                       ! CC MPI routines
+use liqwpar_m                    ! Cloud water mixing ratios
 use nharrs_m                     ! Non-hydrostatic atmosphere arrays
 use savuvt_m                     ! Saved dynamic arrays
 use savuv1_m                     ! Saved dynamic arrays
 use sigs_m                       ! Atmosphere sigma levels
+use tracers_m, only : ngas,tr    ! Tracer data
 use vecsuv_m                     ! Map to cartesian coordinates
 use work3sav_m                   ! Water and tracer saved arrays
 use xyzinfo_m, only : x,y,z,wts  ! Grid coordinate arrays
@@ -514,15 +516,17 @@ implicit none
 
 include 'newmpar.h'              ! Grid parameters
 include 'const_phys.h'           ! Physical constants
+include 'kuocom.h'               ! Convection parameters
 include 'parm.h'                 ! Model configuration
+include 'parmdyn.h'              ! Dynamics parameters
 include 'parmgeom.h'             ! Coordinate data
 
-integer iq,k,ierr,kb,kln,klx,klt,klc
+integer iq,k,ierr,kb,kln,klx,klt,klc,ntr
 real, dimension(ifull), intent(inout) :: pslb
 real, dimension(ifull) :: costh,sinth
 real, dimension(ifull,kl), intent(inout) :: ub,vb,tb,qb
 real, dimension(ifull,kl,naero), intent(inout) :: xtgb
-real, dimension(ifull) :: dum
+real, dimension(ifull) :: dum,psold,psratio
 real den,polenx,poleny,polenz,zonx,zony,zonz
 logical lblock
 
@@ -589,7 +593,9 @@ end do
       
 if (nud_p>0) then
   psl(1:ifull)=psl(1:ifull)+pslb(:)
+  psold=ps(1:ifull)
   ps(1:ifull)=1.e5*exp(psl(1:ifull))
+  psratio=psold/ps(1:ifull)
 end if
 if (nud_uv/=0) then
   if (nud_uv==3) then
@@ -618,10 +624,33 @@ if (nud_t>0) then
 end if
 if (nud_q>0) then
   qg(1:ifull,kbotdav:ktopdav)=max(qg(1:ifull,kbotdav:ktopdav)+qb(:,kbotdav:ktopdav),0.)
-  qgsav(:,kbotdav:ktopdav)=max(qgsav(:,kbotdav:ktopdav)+qb(:,kbotdav:ktopdav),0.)
+else if (nud_p>0.and.mfix_qg/=0) then
+  do k=1,kl
+    qg(1:ifull,k)=qg(1:ifull,k)*psratio
+  end do
+end if
+if (ldr/=0.and.nud_p>0.and.mfix_qg/=0) then
+  do k=1,kl
+    qlg(1:ifull,k)=qlg(1:ifull,k)*psratio
+    qfg(1:ifull,k)=qfg(1:ifull,k)*psratio
+    qrg(1:ifull,k)=qrg(1:ifull,k)*psratio
+  end do
 end if
 if (abs(iaero)>=2.and.nud_aero>0) then
   xtg(1:ifull,kbotdav:ktopdav,:)=xtg(1:ifull,kbotdav:ktopdav,:)+xtgb(:,kbotdav:ktopdav,:)
+else if (abs(iaero)>=2.and.nud_p>0.and.mfix_aero/=0) then
+  do ntr=1,naero
+    do k=1,kl
+      xtg(1:ifull,k,ntr)=xtg(1:ifull,k,ntr)*psratio
+    end do
+  end do
+end if
+if (ngas>0.and.nud_p>0.and.mfix_tr/=0) then
+  do ntr=1,ngas
+    do k=1,kl
+      tr(1:ifull,k,ntr)=tr(1:ifull,k,ntr)*psratio
+    end do
+  end do
 end if
 
 return
