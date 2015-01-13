@@ -109,7 +109,7 @@ if(mspec==1.and.abs(nvad)/=9)then   ! advect qg and gases after preliminary step
  call vadv_work(qg,tfact,nits,kp,kx)
  if( diag .and. mydiag )then
   write (6,"('qout',9f8.2/4x,9f8.2)") (1000.*qg(idjd,k),k=1,kl)
-  write (6,"('qg# ',3p9f8.2)") diagvals(qg(:,nlv)) 
+  write (6,"('qg# ',9f8.2)") diagvals(qg(:,nlv)) 
  endif
 
  if(ldr/=0)then
@@ -122,9 +122,9 @@ if(mspec==1.and.abs(nvad)/=9)then   ! advect qg and gases after preliminary step
   end if
   if( diag .and. mydiag )then
    write (6,"('lout',9f8.2/4x,9f8.2)") (1000.*qlg(idjd,k),k=1,kl)
-   write (6,"('qlg#',3p9f8.2)") diagvals(qlg(:,nlv)) 
+   write (6,"('qlg#',9f8.2)") diagvals(qlg(:,nlv)) 
    write (6,"('fout',9f8.2/4x,9f8.2)") (1000.*qfg(idjd,k),k=1,kl)
-   write (6,"('qfg#',3p9f8.2)") diagvals(qfg(:,nlv)) 
+   write (6,"('qfg#',9f8.2)") diagvals(qfg(:,nlv)) 
   endif
  endif      ! if(ldr.ne.0)
 
