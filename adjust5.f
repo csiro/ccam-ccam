@@ -688,7 +688,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
       !------------------------------------------------------------------------
       ! Tracer conservation
       if(mfix_tr/=0.and.mspec==1.and.ngas>0)then
-        llim(1:ngas)=.false.
+        llim(1:ngas)=.true.
         call massfix(mfix_tr,ngas,tr,trsav,ps,ps_sav,llim)
       endif       !  (mfix_tr/=0.and.mspec==1.and.ngas>0)
 
