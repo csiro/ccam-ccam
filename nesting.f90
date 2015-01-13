@@ -624,12 +624,12 @@ if (nud_t>0) then
 end if
 if (nud_q>0) then
   qg(1:ifull,kbotdav:ktopdav)=max(qg(1:ifull,kbotdav:ktopdav)+qb(:,kbotdav:ktopdav),0.)
-else if (nud_p>0.and.mfix_qg/=0) then
+else if (nud_p>0.and.mfix_qg/=0.and.mfix/=0) then
   do k=1,kl
     qg(1:ifull,k)=qg(1:ifull,k)*psratio
   end do
 end if
-if (ldr/=0.and.nud_p>0.and.mfix_qg/=0) then
+if (ldr/=0.and.nud_p>0.and.mfix_qg/=0.and.mfix/=0) then
   do k=1,kl
     qlg(1:ifull,k)=qlg(1:ifull,k)*psratio
     qfg(1:ifull,k)=qfg(1:ifull,k)*psratio
@@ -638,14 +638,14 @@ if (ldr/=0.and.nud_p>0.and.mfix_qg/=0) then
 end if
 if (abs(iaero)>=2.and.nud_aero>0) then
   xtg(1:ifull,kbotdav:ktopdav,:)=xtg(1:ifull,kbotdav:ktopdav,:)+xtgb(:,kbotdav:ktopdav,:)
-else if (abs(iaero)>=2.and.nud_p>0.and.mfix_aero/=0) then
+else if (abs(iaero)>=2.and.nud_p>0.and.mfix_aero/=0.and.mfix/=0) then
   do ntr=1,naero
     do k=1,kl
       xtg(1:ifull,k,ntr)=xtg(1:ifull,k,ntr)*psratio
     end do
   end do
 end if
-if (ngas>0.and.nud_p>0.and.mfix_tr/=0) then
+if (ngas>0.and.nud_p>0.and.mfix_tr/=0.and.mfix/=0) then
   do ntr=1,ngas
     do k=1,kl
       tr(1:ifull,k,ntr)=tr(1:ifull,k,ntr)*psratio
