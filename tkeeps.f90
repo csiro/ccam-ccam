@@ -234,6 +234,9 @@ end do
 dz_fl(:,1)   =zzh(:,1)
 dz_fl(:,2:kl)=zzh(:,2:kl)-zzh(:,1:kl-1)
 
+! Calculate shear term on full levels (see hordifg.f for calculation of horizontal shear)
+pps(:,2:kl-1)=km(:,2:kl-1)*shear(:,2:kl-1)
+
 ! set top BC for TKE-eps source terms
 pps(:,kl)=0.
 ppb(:,kl)=0.
@@ -250,7 +253,7 @@ mcount=int(dt/(maxdts+0.01))+1
 ddts  =dt/real(mcount)
 do kcount=1,mcount
 
-  ! momentum flux
+  ! Update momentum flux
   umag=sqrt(max(uo(1:ifull,1)*uo(1:ifull,1)+vo(1:ifull,1)*vo(1:ifull,1),1.e-4))
   call dyerhicks(cdrag,wtv0,zom,umag,thetav(:,1),zz(:,1))
   ustar=sqrt(cdrag)*umag
@@ -686,9 +689,6 @@ do kcount=1,mcount
     ! Calculate transport source term on full levels
     ppt(:,k)= kmo(:,k)*idzp(:,k)*(tke(:,k+1)-tke(:,k))/dz_hl(:,k)                                  &
              -kmo(:,k-1)*idzm(:,k)*(tke(:,k)-tke(:,k-1))/dz_hl(:,k-1)
-    
-    ! Calculate shear term on full levels (see hordifg.f for calculation of horizontal shear)
-    pps(:,k)=km(:,k)*shear(:,k)
   end do
   
   qq(:,2:kl-1)=-ddts*idzm(:,2:kl-1)/dz_hl(:,1:kl-2)
