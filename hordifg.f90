@@ -15,7 +15,6 @@ use tkeeps, only : tke,eps,shear,mintke,mineps,cm0,minl,maxl
 use vecsuv_m
 use vvel_m
 implicit none
-!      integer, parameter :: nhorjlm=1 ! 1 for jlm 3D deformation rather than Smagorinsky
 !     called from globpe (now not tendencies),
 !     called for -ve nhor
 !     for +ve nhor see hordifg 
@@ -26,7 +25,6 @@ implicit none
 !        nhorps=-3 does only qg     horiz diff.
 !     and u,v have same options as T (e.g.nhor=-157)
 !     this one has got map factors
-!     N.B. no trace_gases yet
 !     has jlm nhorx option as last digit of nhor, e.g. -157
 include 'newmpar.h'
 include 'const_phys.h'
@@ -48,8 +46,9 @@ real, dimension(ifull,2) :: zgh
 real, dimension(ifull) :: ptemp, tx_fact, ty_fact
 real, dimension(ifull) :: sx_fact, sy_fact
 real, dimension(ifull) :: r1, r2, cc
-real delphi, hdif, ucc, vcc, wcc
-integer iq, k, nhora, nhorx, ntr
+real, dimension(ifull) :: ucc, vcc, wcc
+real delphi, hdif
+integer k, nhora, nhorx, ntr
 integer, save :: kmax=-1
 integer, parameter :: nf=2
 
@@ -91,7 +90,7 @@ endif
 do k=1,kl
   ! note the following line is the same on all levels
   ! but helps with the matrix multiplication below
-  emi(1:ifull,k)=1./(em(1:ifull)*em(1:ifull))
+  emi(1:ifull,k)=ps(1:ifull)/em(1:ifull)
 end do
 ptemp(1:ifull)=ps(1:ifull)**.286
 tx_fact(1:ifull)=1./(1.+(abs(zs(ie)-zs(1:ifull))/delphi)**nf)
@@ -219,7 +218,7 @@ select case(nhorjlm)
            (vc(ie,k)-vc(iw,k))**2 + (vc(in,k)-vc(is,k))**2 + &
            (wc(ie,k)-wc(iw,k))**2 + (wc(in,k)-wc(is,k))**2
       ! N.B. using double grid length
-      t_kh(1:ifull,k)= .5*sqrt(cc)*hdif/em(1:ifull) ! this one without em in D terms
+      t_kh(1:ifull,k)= .5*sqrt(cc)*hdif*ps(1:ifull) ! this one without em in D terms
     enddo
     call bounds(t_kh,nehalf=.true.)
     do k=1,kl
@@ -238,7 +237,7 @@ select case(nhorjlm)
            .01*(dpsldt(in,k)*ps(in)-dpsldt(is,k)*ps(is))**2 
       ! approx 1 Pa/s = .1 m/s     
       ! N.B. using double grid length
-      t_kh(1:ifull,k)= .5*sqrt(cc)*hdif/em(1:ifull) ! this one without em in D terms
+      t_kh(1:ifull,k)= .5*sqrt(cc)*hdif*ps(1:ifull) ! this one without em in D terms
     enddo
     call bounds(t_kh,nehalf=.true.)
     do k=1,kl
@@ -324,28 +323,26 @@ base(:,:)=emi(:,:)+xfact(1:ifull,:)+xfact_iwu(:,:)+yfact(1:ifull,:)+yfact_isv(:,
 
 if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3 don't diffuse u,v
   do k=1,kl
-    do iq=1,ifull
-      ucc = ( uc(iq,k)*emi(iq,k) +              &
-              xfact(iq,k)*uc(ie(iq),k) +        &
-              xfact_iwu(iq,k)*uc(iw(iq),k) +    &
-              yfact(iq,k)*uc(in(iq),k) +        &
-              yfact_isv(iq,k)*uc(is(iq),k) ) /  &
-            base(iq,k)
-      vcc = ( vc(iq,k)*emi(iq,k) +              &
-              xfact(iq,k)*vc(ie(iq),k) +        &
-              xfact_iwu(iq,k)*vc(iw(iq),k) +    &
-              yfact(iq,k)*vc(in(iq),k) +        &
-              yfact_isv(iq,k)*vc(is(iq),k) ) /  &
-            base(iq,k)
-      wcc = ( wc(iq,k)*emi(iq,k) +              &
-              xfact(iq,k)*wc(ie(iq),k) +        &
-              xfact_iwu(iq,k)*wc(iw(iq),k) +    &
-              yfact(iq,k)*wc(in(iq),k) +        &
-              yfact_isv(iq,k)*wc(is(iq),k) ) /  &
-            base(iq,k)
-      u(iq,k) = ax(iq)*ucc + ay(iq)*vcc + az(iq)*wcc
-      v(iq,k) = bx(iq)*ucc + by(iq)*vcc + bz(iq)*wcc
-    enddo   !  iq loop
+    ucc = ( uc(1:ifull,k)*emi(1:ifull,k) +     &
+            xfact(1:ifull,k)*uc(ie,k) +        &
+            xfact_iwu(1:ifull,k)*uc(iw,k) +    &
+            yfact(1:ifull,k)*uc(in,k) +        &
+            yfact_isv(1:ifull,k)*uc(is,k) ) /  &
+          base(1:ifull,k)
+    vcc = ( vc(1:ifull,k)*emi(1:ifull,k) +     &
+            xfact(1:ifull,k)*vc(ie,k) +        &
+            xfact_iwu(1:ifull,k)*vc(iw,k) +    &
+            yfact(1:ifull,k)*vc(in,k) +        &
+            yfact_isv(1:ifull,k)*vc(is,k) ) /  &
+          base(1:ifull,k)
+    wcc = ( wc(1:ifull,k)*emi(1:ifull,k) +     &
+            xfact(1:ifull,k)*wc(ie,k) +        &
+            xfact_iwu(1:ifull,k)*wc(iw,k) +    &
+            yfact(1:ifull,k)*wc(in,k) +        &
+            yfact_isv(1:ifull,k)*wc(is,k) ) /  &
+          base(1:ifull,k)
+    u(1:ifull,k) = ax(1:ifull)*ucc + ay(1:ifull)*vcc + az(1:ifull)*wcc
+    v(1:ifull,k) = bx(1:ifull)*ucc + by(1:ifull)*vcc + bz(1:ifull)*wcc
   end do
 endif   ! nhorps.ge.0
 
@@ -393,8 +390,8 @@ if ( nhorps/=-2 ) then   ! for nhorps=-2 don't diffuse T, qg
                    yfact(1:ifull,:)*ff(in,:,1) +        &
                    yfact_isv(1:ifull,:)*ff(is,:,1) ) /  &
                  base(1:ifull,:)
-  endif                 ! (nhorps.ne.-3)
-endif                    ! (nhorps/=-2)
+  endif  ! (nhorps/=-3) ..else..
+endif    ! (nhorps/=-2)
 
 return
 end
