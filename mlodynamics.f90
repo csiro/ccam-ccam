@@ -287,7 +287,7 @@ call START_LOG(waterdiff_begin)
 
 ! Define diffusion scale and grid spacing
 hdif=dt*(ocnsmag/pi)**2
-emi=1./(em(1:ifull)*em(1:ifull))
+emi=1./em(1:ifull)
 
 ! extract data from MLO
 do k=1,wlev
@@ -3240,7 +3240,7 @@ if (.not.allocated(wtul)) then
     dtul(:,3)=1.
 
 ! ##   ##  #   *   |   E    #     unstaggered
-! ##   ##  #       *       #     staggered
+! ##   ##  #       *        #     staggered
   elsewhere (eetest)
     wtul(1:ifull,0)=1.
     wtul(1:ifull,1)=0.
