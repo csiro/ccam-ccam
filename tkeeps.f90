@@ -1029,7 +1029,7 @@ do ic = 1,icmax
   ustar = vkar*max(umag,1.e-2)/integralm
 end do
 
-cd = sqrt(vkar/integralm)
+cd = (vkar/integralm)**2
 
 return
 end subroutine dyerhicks
