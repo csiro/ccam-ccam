@@ -209,7 +209,7 @@ do k=1,kl
   pres(:,k)=ps(:)*sig(k) ! pressure
   ! Density must be updated when dz is updated so that rho*dz is conserved
   thetav(:,k)=theta(1:ifull,k)*(1.+0.61*qvg(1:ifull,k)-qlg(1:ifull,k)-qfg(1:ifull,k))
-  rhoa(:,k)=sigkap(k)*pres(:,k)/(rd*thetav(1:ifull,k))
+  rhoa(:,k)=sigkap(k)*pres(:,k)/(rd*thetav(:,k))
 
   ! Transform to thetal as it is the conserved variable
   thetal(:,k)=theta(1:ifull,k)-sigkap(k)*(lv*(qlg(1:ifull,k)+qrg(1:ifull,k))+ls*qfg(1:ifull,k))/cp
@@ -254,6 +254,7 @@ ddts  =dt/real(mcount)
 do kcount=1,mcount
 
   ! Update momentum flux
+  wtv0  =wt0+theta(1:ifull,1)*0.61*wq0 ! thetav flux
   umag=sqrt(max(uo(1:ifull,1)*uo(1:ifull,1)+vo(1:ifull,1)*vo(1:ifull,1),1.e-4))
   call dyerhicks(cdrag,wtv0,zom,umag,thetav(:,1),zz(:,1))
   ustar=sqrt(cdrag)*umag
@@ -265,7 +266,6 @@ do kcount=1,mcount
     call getqsat(qsat(:,k),temp(:,k),pres(:,k))
   end do
   thetav=theta(1:ifull,:)*(1.+0.61*qvg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:)-qrg(1:ifull,:))
-  wtv0  =wt0+theta(1:ifull,1)*0.61*wq0 ! thetav flux
 
   ! Calculate non-local mass-flux terms for theta_l and qtot
   ! Plume rise equations currently assume that the air density
@@ -296,11 +296,11 @@ do kcount=1,mcount
   dtrs=0.
 #endif
 
-  ! Note that wstar is actually based on zidry, not zi
-  wstar=(grav*zidry*max(wtv0,0.)/thetav(:,1))**(1./3.)
-  
   if (mode/=1) then ! mass flux
- 
+
+    ! Note that wstar is actually based on zidry, not zi
+    wstar=(grav*zidry*max(wtv0,0.)/thetav(:,1))**(1./3.)
+  
     do i=1,ifull
       if (wtv0(i)>0.) then ! unstable
         do icount=1,icm1
@@ -615,7 +615,9 @@ do kcount=1,mcount
     end do
   
   else
-    zidry=zi     
+    zidry=zi   
+    ! Note that wstar is actually based on zidry, not zi
+    wstar=(grav*zidry*max(wtv0,0.)/thetav(:,1))**(1./3.)   
   end if
 
   ! calculate tke and eps at 1st level
@@ -687,8 +689,8 @@ do kcount=1,mcount
     ppb(:,k)=(1.-cfrac(1:ifull,k))*tcc+cfrac(1:ifull,k)*tbb ! cloud fraction weighted (e.g., Smith 1990)
 
     ! Calculate transport source term on full levels
-    ppt(:,k)= kmo(:,k)*idzp(:,k)*(tke(:,k+1)-tke(:,k))/dz_hl(:,k)                                  &
-             -kmo(:,k-1)*idzm(:,k)*(tke(:,k)-tke(:,k-1))/dz_hl(:,k-1)
+    ppt(:,k)= kmo(:,k)*idzp(:,k)*(tke(1:ifull,k+1)-tke(1:ifull,k))/dz_hl(:,k)                                  &
+             -kmo(:,k-1)*idzm(:,k)*(tke(1:ifull,k)-tke(1:ifull,k-1))/dz_hl(:,k-1)
   end do
   
   qq(:,2:kl-1)=-ddts*idzm(:,2:kl-1)/dz_hl(:,1:kl-2)
@@ -703,7 +705,7 @@ do kcount=1,mcount
               *ce1*(pps(:,2:kl-1)+max(ppb(:,2:kl-1),0.)+max(ppt(:,2:kl-1),0.))
   dd(:,2)     =dd(:,2)   -aa(:,2)*eps(1:ifull,1)
   dd(:,kl-1)  =dd(:,kl-1)-cc(:,kl-1)*mineps
-  call thomas(epsnew(:,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1),kl-2)
+  call thomas(epsnew(:,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1))
 
   ! TKE vertical mixing
   aa(:,2:kl-1)=kmo(:,1:kl-2)*qq(:,2:kl-1)
@@ -712,7 +714,7 @@ do kcount=1,mcount
   dd(:,2:kl-1)=tke(1:ifull,2:kl-1)+ddts*(pps(:,2:kl-1)+ppb(:,2:kl-1)-epsnew(:,2:kl-1))
   dd(:,2)     =dd(:,2)   -aa(:,2)*tke(1:ifull,1)
   dd(:,kl-1)  =dd(:,kl-1)-cc(:,kl-1)*mintke
-  call thomas(tkenew(:,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1),kl-2)
+  call thomas(tkenew(:,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1))
 
   do k=2,kl-1
     tke(1:ifull,k)=max(tkenew(:,k),mintke)
@@ -740,7 +742,7 @@ do kcount=1,mcount
   dd(:,1)     =thetal(1:ifull,1)-ddts*gamhl(:,1)*idzp(:,1)+ddts*rhos*wt0/(rhoa(:,1)*dz_fl(:,1))
   dd(:,2:kl-1)=thetal(1:ifull,2:kl-1)+ddts*(gamhl(:,1:kl-2)*idzm(:,2:kl-1)-gamhl(:,2:kl-1)*idzp(:,2:kl-1))
   dd(:,kl)    =thetal(1:ifull,kl)+ddts*gamhl(:,kl-1)*idzm(:,kl)
-  call thomas(thetal,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
+  call thomas(thetal,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
 #ifdef offline
   wthl(:,1:kl-1)=-kmo(:,1:kl-1)*(thetal(1:ifull,2:kl)-thetal(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)+gamhl(:,1:kl-1)
 #endif
@@ -749,16 +751,16 @@ do kcount=1,mcount
   dd(:,1)     =qvg(1:ifull,1)-ddts*gamhl(:,1)*idzp(:,1)+ddts*rhos*wq0/(rhoa(:,1)*dz_fl(:,1))
   dd(:,2:kl-1)=qvg(1:ifull,2:kl-1)+ddts*(gamhl(:,1:kl-2)*idzm(:,2:kl-1)-gamhl(:,2:kl-1)*idzp(:,2:kl-1))
   dd(:,kl)    =qvg(1:ifull,kl)+ddts*gamhl(:,kl-1)*idzm(:,kl)
-  call thomas(qvg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
+  call thomas(qvg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
 #ifdef offline
-  wqv(:,1:kl-1)=-kmo(:,1:kl-1)*(qvg(1:ifull,2:kl)-qvg(:,1:kl-1))/dz_hl(:,1:kl-1)+gamhl(:,1:kl-1)
+  wqv(:,1:kl-1)=-kmo(:,1:kl-1)*(qvg(1:ifull,2:kl)-qvg(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)+gamhl(:,1:kl-1)
 #endif
 
   call updatekmo(gamhl,gamql,fzzh)
   dd(:,1)     =qlg(1:ifull,1)-ddts*gamhl(:,1)*idzp(:,1)
   dd(:,2:kl-1)=qlg(1:ifull,2:kl-1)+ddts*(gamhl(:,1:kl-2)*idzm(:,2:kl-1)-gamhl(:,2:kl-1)*idzp(:,2:kl-1))
   dd(:,kl)    =qlg(1:ifull,kl)+ddts*gamhl(:,kl-1)*idzm(:,kl)
-  call thomas(qlg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
+  call thomas(qlg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
 #ifdef offline
   wql(:,1:kl-1)=-kmo(:,1:kl-1)*(qlg(1:ifull,2:kl)-qlg(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)+gamhl(:,1:kl-1)
 #endif
@@ -767,7 +769,7 @@ do kcount=1,mcount
   dd(:,1)     =qfg(1:ifull,1)-ddts*gamhl(:,1)*idzp(:,1)
   dd(:,2:kl-1)=qfg(1:ifull,2:kl-1)+ddts*(gamhl(:,1:kl-2)*idzm(:,2:kl-1)-gamhl(:,2:kl-1)*idzp(:,2:kl-1))
   dd(:,kl)    =qfg(1:ifull,kl)+ddts*gamhl(:,kl-1)*idzm(:,kl)
-  call thomas(qfg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
+  call thomas(qfg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
 #ifdef offline
   wqf(:,1:kl-1)=-kmo(:,1:kl-1)*(qfg(1:ifull,2:kl)-qfg(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)+gamhl(:,1:kl-1)
 #endif
@@ -776,7 +778,7 @@ do kcount=1,mcount
   dd(:,1)     =qrg(1:ifull,1)-ddts*gamhl(:,1)*idzp(:,1)
   dd(:,2:kl-1)=qrg(1:ifull,2:kl-1)+ddts*(gamhl(:,1:kl-2)*idzm(:,2:kl-1)-gamhl(:,2:kl-1)*idzp(:,2:kl-1))
   dd(:,kl)    =qrg(1:ifull,kl)+ddts*gamhl(:,kl-1)*idzm(:,kl)
-  call thomas(qrg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
+  call thomas(qrg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
   
   ! account for phase transitions
   do k=1,kl
@@ -800,7 +802,7 @@ do kcount=1,mcount
   dd(:,1)     =cfrac(1:ifull,1)-ddts*gamhl(:,1)*idzp(:,1)
   dd(:,2:kl-1)=cfrac(1:ifull,2:kl-1)+ddts*(gamhl(:,1:kl-2)*idzm(:,2:kl-1)-gamhl(:,2:kl-1)*idzp(:,2:kl-1))
   dd(:,kl)    =cfrac(1:ifull,kl)+ddts*gamhl(:,kl-1)*idzm(:,kl)
-  call thomas(cfrac,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
+  call thomas(cfrac,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
   cfrac(1:ifull,:)=min(max(cfrac(1:ifull,:),0.),1.)
   where (qlg(1:ifull,:)+qfg(1:ifull,:)>1.E-12)
     cfrac(1:ifull,:)=max(cfrac(1:ifull,:),1.E-8)
@@ -810,7 +812,7 @@ do kcount=1,mcount
   dd(:,1)     =cfrain(1:ifull,1)-ddts*gamhl(:,1)*idzp(:,1)
   dd(:,2:kl-1)=cfrain(1:ifull,2:kl-1)+ddts*(gamhl(:,1:kl-2)*idzm(:,2:kl-1)-gamhl(:,2:kl-1)*idzp(:,2:kl-1))
   dd(:,kl)    =cfrain(1:ifull,kl)+ddts*gamhl(:,kl-1)*idzm(:,kl)
-  call thomas(cfrain,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
+  call thomas(cfrain,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
   cfrain(1:ifull,:)=min(max(cfrain(1:ifull,:),0.),1.)
   where (qrg(1:ifull,:)>1.E-12)
     cfrain(1:ifull,:)=max(cfrain(1:ifull,:),1.E-8)
@@ -822,7 +824,7 @@ do kcount=1,mcount
     dd(:,1)     =aero(1:ifull,1,j)-ddts*gamhl(:,1)*idzp(:,1)
     dd(:,2:kl-1)=aero(1:ifull,2:kl-1,j)+ddts*(gamhl(:,1:kl-2)*idzm(:,2:kl-1)-gamhl(:,2:kl-1)*idzp(:,2:kl-1))
     dd(:,kl)    =aero(1:ifull,kl,j)+ddts*gamhl(:,kl-1)*idzm(:,kl)
-    call thomas(aero(:,:,j),aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
+    call thomas(aero(:,:,j),aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
   end do
 
   ! Winds
@@ -832,9 +834,9 @@ do kcount=1,mcount
   bb(:,2:kl-1)=1.-aa(:,2:kl-1)-cc(:,2:kl-1)
   bb(:,kl)=1.-aa(:,kl)
   dd(:,1:kl)=uo(1:ifull,1:kl)
-  call thomas(uo,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
+  call thomas(uo,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
   dd(:,1:kl)=vo(1:ifull,1:kl)
-  call thomas(vo,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),kl)
+  call thomas(vo,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
 
 end do
 
@@ -844,32 +846,32 @@ end subroutine tkemix
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Tri-diagonal solver (array version)
 
-subroutine thomas(outdat,aai,bbi,cci,ddi,klin)
+subroutine thomas(outdat,aai,bbi,cci,ddi)
 
 implicit none
 
-integer, intent(in) :: klin
-real, dimension(ifull,2:klin), intent(in) :: aai
-real, dimension(ifull,1:klin), intent(in) :: bbi,ddi
-real, dimension(ifull,1:klin-1), intent(in) :: cci
+real, dimension(:,2:), intent(in) :: aai
+real, dimension(:,:), intent(in) :: bbi,ddi
+real, dimension(:,:), intent(in) :: cci
 real, dimension(:,:), intent(out) :: outdat
-real, dimension(ifull,1:klin) :: cc,dd
+real, dimension(ifull,size(outdat,2)) :: cc,dd
 real, dimension(ifull) :: n
-integer k
+integer k,klin
 
-cc(:,1)=cci(:,1)/bbi(:,1)
-dd(:,1)=ddi(:,1)/bbi(:,1)
+klin=size(outdat,2)
+cc(1:ifull,1)=cci(1:ifull,1)/bbi(1:ifull,1)
+dd(1:ifull,1)=ddi(1:ifull,1)/bbi(1:ifull,1)
 
 do k=2,klin-1
-  n=bbi(:,k)-cc(:,k-1)*aai(:,k)
-  cc(:,k)=cci(:,k)/n
-  dd(:,k)=(ddi(:,k)-dd(:,k-1)*aai(:,k))/n
+  n(1:ifull)=bbi(1:ifull,k)-cc(1:ifull,k-1)*aai(1:ifull,k)
+  cc(1:ifull,k)=cci(1:ifull,k)/n(1:ifull)
+  dd(1:ifull,k)=(ddi(1:ifull,k)-dd(1:ifull,k-1)*aai(1:ifull,k))/n(1:ifull)
 end do
-n=bbi(:,klin)-cc(:,klin-1)*aai(:,klin)
-dd(:,klin)=(ddi(:,klin)-dd(:,klin-1)*aai(:,klin))/n
-outdat(1:ifull,klin)=dd(:,klin)
+n(1:ifull)=bbi(1:ifull,klin)-cc(1:ifull,klin-1)*aai(1:ifull,klin)
+dd(1:ifull,klin)=(ddi(1:ifull,klin)-dd(1:ifull,klin-1)*aai(1:ifull,klin))/n(1:ifull)
+outdat(1:ifull,klin)=dd(1:ifull,klin)
 do k=klin-1,1,-1
-  outdat(1:ifull,k)=dd(:,k)-cc(:,k)*outdat(1:ifull,k+1)
+  outdat(1:ifull,k)=dd(1:ifull,k)-cc(1:ifull,k)*outdat(1:ifull,k+1)
 end do
 
 return
@@ -954,21 +956,7 @@ return
 end subroutine updatekmo
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! End TKE-eps
-
-subroutine tkeend(diag)
-
-implicit none
-
-integer, intent(in) :: diag
-
-if (diag>0) write(6,*) "Terminate TKE-eps scheme"
-
-deallocate(tke,eps)
-deallocate(shear)
-
-return
-end subroutine tkeend
+! Calculate lateral entrainment
 
 real function entfn(zht,zi,zmin)
 
@@ -984,6 +972,9 @@ entfn=ent0*(1./max(zht,1.)+1./max(zi-zht,100.))
 
 return
 end function entfn
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Calculate lateral detrainment
 
 real function dtrfn(zht,zi,zmin,rat)
 
@@ -1001,6 +992,9 @@ dtrfn=rat/max(zi-zht,10.)+ent0/max(zi-zht,100.)
 return
 end function dtrfn
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Calculate drag coeff
+
 subroutine dyerhicks(cd,wtv0,zom,umag,thetav,zmin)
 
 implicit none
@@ -1014,13 +1008,13 @@ real, dimension(ifull) :: z_on_l,z0_on_l
 real, dimension(ifull) :: pm0,pm1,integralm
 
 ilzom      = log(zmin/zom)
-ustar      = max(vkar*umag/ilzom,1.e-3) ! first guess
+ustar      = vkar*max(umag,1.e-2)/ilzom ! first guess
 
 do ic = 1,icmax
   thetavstar = -wtv0/ustar
   z_on_l   = vkar*zmin*grav*thetavstar/(thetav*ustar*ustar)
   z_on_l   = min(z_on_l,10.)
-  z0_on_l  = z_on_l*exp(-ilzom)
+  z0_on_l  = z_on_l*zom/zmin
   where ( z_on_l<0. )
     pm0     = (1.-16.*z0_on_l)**(-0.25)
     pm1     = (1.-16.*z_on_l )**(-0.25)
@@ -1030,14 +1024,32 @@ do ic = 1,icmax
     !--------------Beljaars and Holtslag (1991) momentum & heat            
     pm0 = -(a_1*z0_on_l+b_1*(z0_on_l-(c_1/d_1))*exp(-d_1*z0_on_l)+b_1*c_1/d_1)
     pm1 = -(a_1*z_on_l +b_1*(z_on_l -(c_1/d_1))*exp(-d_1*z_on_l )+b_1*c_1/d_1)
-    integralm = ilzom-(pm1-pm0)    
+    integralm = ilzom-(pm1-pm0)
   end where
-  ustar = max(vkar*umag/integralm,1.e-3)
+  ustar = vkar*max(umag,1.e-2)/integralm
 end do
 
-cd = ustar*ustar/(umag*umag)
+cd = sqrt(vkar/integralm)
 
 return
 end subroutine dyerhicks
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! End TKE-eps
+
+subroutine tkeend(diag)
+
+implicit none
+
+integer, intent(in) :: diag
+
+if (diag>0) write(6,*) "Terminate TKE-eps scheme"
+
+deallocate(tke,eps)
+deallocate(shear,zidry)
+
+return
+end subroutine tkeend
+
 end module tkeeps
+

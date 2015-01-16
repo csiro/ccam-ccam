@@ -353,7 +353,7 @@ else
   if ( ncloud>=3 ) then
     cldtmp=stratcloud(1:ifull,:)
   else
-    cldtmp=cfrac
+    cldtmp=cfrac(1:ifull,:)
   end if
        
   ! transform to ocean reference frame and temp to theta
@@ -389,7 +389,7 @@ else
     stratcloud(1:ifull,:)=cldtmp
     call combinecloudfrac
   else
-    cfrac=cldtmp
+    cfrac(1:ifull,:)=cldtmp
   endif
   
   ! transform winds back to Earth reference frame and theta to temp
