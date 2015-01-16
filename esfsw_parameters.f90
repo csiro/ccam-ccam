@@ -57,7 +57,9 @@ character(len=128)  :: tagname =  '$Name: testing $'
 
 public       &
          esfsw_parameters_init, &
-         esfsw_parameters_end
+         esfsw_parameters_end,  &
+         sw_resolution,         &
+         sw_diff_streams
 
 !---------------------------------------------------------------------
 !-------- namelist  ---------
@@ -159,6 +161,7 @@ subroutine esfsw_parameters_init
       else
        ! call error_mesg ( 'esfsw_parameters_mod',   &
        !' sw_resolution must be specified as "high" or "low".', FATAL)
+       write(6,*) "sw_resolution must be specified as high or low."
        stop
       endif
       if (sw_diff_streams == 4) then
@@ -168,6 +171,7 @@ subroutine esfsw_parameters_init
       else
         !call error_mesg ( 'esfsw_parameters_mod',   &
         !  ' sw_diff_streams must be specified as either 1 or 4.', FATAL)
+        write(6,*) "sw_diff_streams must be specified as either 1 or 4."
         stop
       endif
 

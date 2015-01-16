@@ -537,6 +537,19 @@ subroutine esfsw_driver_init
         !c2n2ostr(1:NH2OBANDS)=(/ /)
         !c3n2o(1:NH2OBANDS)=(/ /)
         !c3n2ostr(1:NH2OBANDS)=(/ /)
+        ! MJT fix
+        c1ch4(1:NH2OBANDS)=1.e-99
+        c1ch4str(1:NH2OBANDS)=1.e-99
+        c2ch4(1:NH2OBANDS)=1.e-99
+        c2ch4str(1:NH2OBANDS)=1.e-99
+        c3ch4(1:NH2OBANDS)=1.e-99
+        c3ch4str(1:NH2OBANDS)=1.e-99
+        c1n2o(1:NH2OBANDS)=1.e-99
+        c1n2ostr(1:NH2OBANDS)=1.e-99
+        c2n2o(1:NH2OBANDS)=1.e-99
+        c2n2ostr(1:NH2OBANDS)=1.e-99
+        c3n2o(1:NH2OBANDS)=1.e-99
+        c3n2ostr(1:NH2OBANDS)=1.e-99
         wtfreq(1:nfrqpts)=(/ 9.312504E-02, 1.626168E-01, 1.433068E-01, 3.071999E-01, 2.737514E-01, 2.000000E-02, 1.000000E+00, &
                              7.874545E-02, 2.476534E-01, 3.794250E-01, 2.755277E-01, 1.864845E-02, 1.921193E-01, 2.751345E-01, &
                              2.480785E-01, 2.262776E-01, 1.839013E-02, 4.000000E-02, 1.000000E+00, 3.837498E-02, 8.791451E-02, &

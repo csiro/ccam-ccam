@@ -15,10 +15,10 @@ use rad_utilities_mod, only : atmos_input_type,surface_type,astronomy_type,aeros
                               thickavg
 use esfsw_driver_mod, only : swresf,esfsw_driver_init
 use sealw99_mod, only : sealw99,sealw99_init, sealw99_time_vary
-use esfsw_parameters_mod, only : Solar_spect,esfsw_parameters_init
+use esfsw_parameters_mod, only : Solar_spect,esfsw_parameters_init,sw_resolution,sw_diff_streams
 
 private
-public seaesfrad
+public seaesfrad,sw_resolution,sw_diff_streams
 
 real, parameter :: cp       = 1004.64     ! Specific heat of dry air at const P
 real, parameter :: grav     = 9.80616     ! Acceleration due to gravity

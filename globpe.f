@@ -167,7 +167,7 @@
      &    ocnsmag,ocneps,fixsal,fixheight,knh,ccycle,kblock,
      &    nud_aero,ch_dust,zvolcemi,aeroindir,helim,fc2,
      &    alphaj,proglai
-      namelist/skyin/mins_rad,ndiur
+      namelist/skyin/mins_rad,ndiur,sw_resolution,sw_diff_streams
       namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,
      &    hfile,icefile,mesonest,nmifile,o3file,radfile,restfile,
      &    rsmfile,scamfile,scrnfile,snowfile,so4tfile,soilfile,sstfile,
@@ -509,8 +509,9 @@
         write(6,*)' nrad  ndiur mins_rad kountr iaero  dt'
         write(6,'(i5,3i7,f10.2)') nrad,ndiur,mins_rad,kountr,dt
         write(6,*)'Radiation options B:'
-        write(6,*)' nmr bpyear'
-        write(6,'(i4,f9.2)') nmr,bpyear
+        write(6,*)' nmr bpyear sw_diff_streams sw_resolution'
+        write(6,'(i4,f9.2,i4,a5)') nmr,bpyear,sw_diff_streams,
+     &                             sw_resolution
         write(6,*)'Aerosol options:'
         write(6,*)'  iaero ch_dust'
         write(6,'(i7,g9.2,f7.2)') iaero,ch_dust
