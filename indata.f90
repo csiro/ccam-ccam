@@ -2135,23 +2135,6 @@ rdatacheck=xrdatacheck(mask,fld,lbl,idfix,0.,val)
 return
 end function rdatacheck
 
-logical function sdatacheck( mask,fld,lbl,idfix,val )
-
-implicit  none
-      
-include 'newmpar.h'      ! Grid parameters
-      
-integer, intent(in) :: idfix
-real, intent(in) :: val
-real, dimension(ifull), intent(inout) :: fld
-logical, dimension(ifull), intent(in) :: mask
-character(len=*), intent(in) :: lbl
-
-sdatacheck=xrdatacheck(mask,fld,lbl,idfix,val,0.)
-      
-return
-end function sdatacheck
-      
 logical function xrdatacheck(mask,fld,lbl,idfix,to,from)
       
 use cc_mpi, only : myid ! CC MPI routines
@@ -2207,22 +2190,6 @@ idatacheck=xidatacheck(mask,ifld,lbl,idfix,0,ival)
 return
 end function idatacheck
 
-logical function jdatacheck( mask,ifld,lbl,idfix,ival )
-
-implicit  none
-      
-include 'newmpar.h'      ! Grid parameters
-     
-integer, intent(in) :: idfix,ival
-integer, dimension(ifull), intent(inout) :: ifld
-logical, dimension(ifull), intent(in) :: mask
-character(len=*), intent(in) :: lbl
-
-jdatacheck=xidatacheck(mask,ifld,lbl,idfix,ival,0)
-      
-return
-end function jdatacheck
-      
 logical function xidatacheck(mask,ifld,lbl,idfix,ifrom,ito)
 
 use cc_mpi, only : myid ! CC MPI routines
