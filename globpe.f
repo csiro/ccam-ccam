@@ -35,6 +35,7 @@
       use extraout_m                          ! Additional diagnostics
       use gdrag_m, only : gdrag_init          ! Gravity wave drag
       use histave_m                           ! Time average arrays
+      use indata                              ! Data initialisation
       use indices_m                           ! Grid index arrays
       use infile                              ! Input file routines
       use kuocomb_m                           ! JLM convection
@@ -756,7 +757,7 @@
         write(6,*)'ncid,ifile ',ncid,ifile
         write(6,*)'calling indata; will read from file ',ifile
       end if
-      call indata(hourst,jalbfix,lapsbot,isoth,nsig)
+      call indataf(hourst,jalbfix,lapsbot,isoth,nsig)
       ! onthefly.f will close ncid
 
       if (ntbar<0) then
