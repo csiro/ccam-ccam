@@ -40,6 +40,7 @@
 /helmsolve.f90 -text
 /histave_m.f90 -text
 /hordifg.f90 -text
+/indata.f90 -text
 /indices_m.f90 -text
 /infile.f90 -text
 /jimcc.f90 -text
