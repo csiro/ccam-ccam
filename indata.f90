@@ -200,6 +200,13 @@ if (myid==0) then
     else
       dumc(3*kl+1)=0.  
     end if
+  else if (nsib==5) then
+    call ccnf_open(vegfile,ncidveg,ierr)
+    if (ierr==0) then
+      dumc(3*kl+1)=1.
+    else
+      dumc(3*kl+1)=0.  
+    end if
   else
     dumc(3*kl+1)=0.
   end if
@@ -1996,11 +2003,17 @@ integer, dimension(2) :: dumc
 integer, dimension(3) :: spos,npos
 real falbdflt,frsdflt,fzodflt
 real, dimension(:,:), allocatable :: duma
-real, dimension(ifull,5) :: dumb
+real, dimension(ifull,7) :: dumb
 parameter( ivegdflt=0,  isoildflt=0  )
 parameter( falbdflt=0., frsdflt=990. )
 parameter( fzodflt=1. )
 logical mismatch
+
+! isoilm_in holds the raw soil data.  isoilm is the data used
+! by CCAM after the in-land water bodies (-1) and ocean (0)
+! have been combined as water (0).  In the future, -1 will be
+! used to better initialise lakes and salt emissions for
+! aerosols
 
 !------------------------------------------------------------------------
 ! READ BIOSPHERE FILES
@@ -2014,8 +2027,8 @@ if (nsib<=3) then
     call readreal(zofile,duma(:,3),ifull_g)
     call readint(vegfile,iduma(:,1),ifull_g)
     call readint(soilfile,iduma(:,2),ifull_g)
-    call ccmpi_distribute(idumb(:,1:2),iduma)
-    call ccmpi_distribute(dumb(:,1:3),duma)
+    call ccmpi_distribute(idumb(:,1:2),iduma(:,1:2))
+    call ccmpi_distribute(dumb(:,1:3),duma(:,1:3))
     deallocate(iduma,duma)
   else
     call ccmpi_distribute(idumb(:,1:2))
@@ -2027,26 +2040,46 @@ if (nsib<=3) then
   zolnd=0.01*dumb(:,3)
   ivegt=idumb(:,1)
   isoilm=idumb(:,2)
+  isoilm_in=isoilm
 else if (nsib==5) then
   if (myid==0) then
-    allocate(duma(ifull_g,5))
-    call readreal(albfile,duma(:,1),ifull_g)
-    call readreal(albnirfile,duma(:,2),ifull_g)
-    call readreal(rsmfile,duma(:,3),ifull_g)
-    call readreal(zofile,duma(:,4),ifull_g)
-    call readreal(laifile,duma(:,5),ifull_g)
-    call ccmpi_distribute(dumb(:,1:5),duma)
+    allocate(duma(ifull_g,7))
+    if (lncveg==1) then
+      call surfread(duma(:,1),'albvis',  netcdfid=ncidveg)
+      call surfread(duma(:,2),'albnir',  netcdfid=ncidveg)
+      call surfread(duma(:,3),'rsmin',   netcdfid=ncidveg)
+      call surfread(duma(:,4),'rough',   netcdfid=ncidveg)
+      call surfread(duma(:,5),'lai',     netcdfid=ncidveg)
+      call surfread(duma(:,6),'soil',    netcdfid=ncidveg)      
+      call surfread(duma(:,7),'landtype',netcdfid=ncidveg)      
+    else
+      write(6,*) "Cannot open vegfile as a netcdf file ",vegfile
+      write(6,*) "Assuming ASCII file format"
+      call surfread(duma(:,1),'albvis',filename=albfile)
+      call surfread(duma(:,2),'albnir',filename=albnirfile)
+      call surfread(duma(:,3),'rsmin', filename=rsmfile)
+      call surfread(duma(:,4),'rough', filename=zofile)
+      call surfread(duma(:,5),'lai',   filename=laifile)
+      call surfread(duma(:,6),'soilt', filename=soilfile)
+      duma(:,7)=1. ! vegt
+      duma(:,1)=0.01*duma(:,1)
+      duma(:,2)=0.01*duma(:,2)
+      duma(:,4)=0.01*duma(:,4)
+      duma(:,5)=0.01*duma(:,5)
+    end if
+    call ccmpi_distribute(dumb(:,1:7),duma(:,1:7))
     deallocate(duma)
   else
-    call ccmpi_distribute(dumb(:,1:5))
+    call ccmpi_distribute(dumb(:,1:7))
   end if
-  albvisnir(:,1)=0.01*dumb(:,1)
-  albvisnir(:,2)=0.01*dumb(:,2)
+  albvisnir(:,1)=dumb(:,1)
+  albvisnir(:,2)=dumb(:,2)
   rsmin=dumb(:,3)
-  zolnd=0.01*dumb(:,4)
-  vlai=0.01*dumb(:,5)
-  ivegt=1 ! updated later
-  call readint(soilfile,isoilm,ifull)
+  zolnd=dumb(:,4)
+  vlai=dumb(:,5)
+  ivegt=nint(dumb(:,7))
+  isoilm_in=nint(dumb(:,6))
+  isoilm=max(isoilm_in,0)
 else if (nsib>=6) then
   if (myid==0) then
     allocate(duma(ifull_g,3))
@@ -2070,11 +2103,6 @@ else if (nsib>=6) then
   ! communicate netcdf status to all processors
   albvisnir(:,1)=dumb(:,1)
   albvisnir(:,2)=dumb(:,2)
-  ! isoilm_in holds the raw soil data.  isoilm is the data used
-  ! by CCAM after the in-land water bodies (-1) and ocean (0)
-  ! have been combined as water (0).  In the future, -1 will be
-  ! used to better initialise lakes and salt emissions for
-  ! aerosols
   isoilm_in=nint(dumb(:,3))
   isoilm=max(isoilm_in,0)
   zolnd=zobgin ! updated in cable_ccam2.f90

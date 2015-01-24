@@ -1050,7 +1050,7 @@ jhour =ktime/100
 jmin  =ktime-jhour*100
       
 if ( jmonth<1 .or. jmonth>12 ) then
-  write(6,*) "ERROR: Invalid month ",jmonth
+  write(6,*) "ERROR: Invalid month ",jmonth," for kdate ",kdate
   call ccmpi_abort(-1)
 end if 
 
