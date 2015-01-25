@@ -917,7 +917,7 @@ real prz,dirad1,dqg,devf,residp,sstgf,ewwwa,delta_t0
 real delta_t,deltat,es,tsoil
 real, dimension(ifull), intent(in) :: taftfh,taftfhg,rho
 real, dimension(ifull), intent(inout) :: aft
-real, dimension(ifull) :: airr,cc,condxg,delta_tx,evapfb1,evapfb2,evapfb3,evapfb4
+real, dimension(ifull) :: airr,cc,ccs,condxg,condsg,delta_tx,evapfb1,evapfb2,evapfb3,evapfb4
 real, dimension(ifull) :: evapfb5,evapfb1a,evapfb2a,evapfb3a,evapfb4a,evapfb5a,otgf,rmcmax
 real, dimension(ifull) :: tgfnew,evapfb,dqsttg,tstom,cls,omc
 real, dimension(ifull) :: ftsoil,rlai,srlai,res,tsigmf,fgf,egg
@@ -1227,6 +1227,7 @@ do ip=1,ipland  ! all land points in this nsib=3 loop
   f4=max(1.-.0016*(tstom(iq)-t(iq,1))**2 , .05) ! zero for delta_t=25
   airr(iq) = 1./taftfh(iq)
   cc(iq) =min(condx(iq) , 4./(1440. *60./dt))  ! jlm speedup for 4 mm/day
+  ccs(iq)=min(conds(iq) , 4./(1440. *60./dt))
   ! depth of the reservoir of water on the canopy
   rmcmax(iq) = max(0.5,srlai(iq)) * .1
   omc(iq) = cansto(iq)  ! value from previous timestep as starting guess
@@ -1267,7 +1268,8 @@ do icount=1,itnmeth     ! jlm new iteration
 
     ! precipitation reaching the ground under the canopy
     ! water interception by the canopy
-    condxg(iq)=max(condx(iq)-cc(iq)+max(0.,cansto(iq)-rmcmax(iq)),0.) ! keep 
+    condxg(iq)=max(condx(iq)-cc(iq) +max(0.,cansto(iq)-rmcmax(iq)),0.) ! keep
+    condsg(iq)=max(conds(iq)-ccs(iq)+max(0.,cansto(iq)-rmcmax(iq)),0.)
     cansto(iq) = min( max(0.,cansto(iq)), rmcmax(iq))
     beta =      cansto(iq)/rmcmax(iq)
     Etr=rho(iq)*max(0.,qsatgf-qg(iq,1))/(airr(iq) +res(iq))  ! jlm
@@ -1327,6 +1329,7 @@ do ip=1,ipland  ! all land points in this nsib=3 loop
   if(cansto(iq)<1.e-10)cansto(iq)=0.  ! to avoid underflow 24/1/06
   if(tsigmf(iq) <= .0101) then
     condxpr(iq)=condx(iq)
+    condspr(iq)=conds(iq)
     evapfb(iq) = 0.
     evapxf(iq) = egg(iq)
     fgf(iq)  = fgg(iq)
@@ -1340,6 +1343,7 @@ do ip=1,ipland  ! all land points in this nsib=3 loop
     wb(iq,4)=wb(iq,4)-evapfb4(iq)/(zse(4)*1000.)
     wb(iq,5)=wb(iq,5)-evapfb5(iq)/(zse(5)*1000.)
     condxpr(iq)=(1.-tsigmf(iq))*condx(iq)+tsigmf(iq)*condxg(iq)
+    condspr(iq)=(1.-tsigmf(iq))*conds(iq)+tsigmf(iq)*condsg(iq)
     if(ntest==1.and.abs(residf(iq))>10.) then
       write(6,*) 'iq,otgf(iq),tgf,delta_tx,residf ',iq,otgf(iq),tgf(iq),delta_tx(iq),residf(iq)
     end if

@@ -3,11 +3,11 @@ module work3_m
 implicit none
 
 private
-public ga,condxpr,fes
+public ga,condxpr,condspr,fes
 public fwtop
 public work3_init,work3_end
 
-real, dimension(:), allocatable, save :: ga,condxpr,fes
+real, dimension(:), allocatable, save :: ga,condxpr,condspr,fes
 real, dimension(:), allocatable, save :: fwtop
 
 contains
@@ -19,8 +19,8 @@ implicit none
 integer, intent(in) :: ifull,iextra,kl,nsib
 
 allocate(ga(ifull))
-if (nsib.eq.3.or.nsib.eq.5) then
-  allocate(condxpr(ifull),fes(ifull))
+if (nsib==3.or.nsib==5) then
+  allocate(condxpr(ifull),condspr(ifull),fes(ifull))
   allocate(fwtop(ifull))
 end if
 
@@ -33,7 +33,7 @@ implicit none
 
 deallocate(ga)
 if (allocated(condxpr)) then
-  deallocate(condxpr,fes)
+  deallocate(condxpr,condspr,fes)
   deallocate(fwtop)
 end if
 

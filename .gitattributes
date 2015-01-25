@@ -95,6 +95,7 @@
 /sflux.f90 -text
 /sigs_m.f90 -text
 /soil_m.f90 -text
+/soilsnow.f90 -text
 /soilsnow_m.f90 -text
 /srccom_m.f90 -text
 /stacklimit.c -text
