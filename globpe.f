@@ -188,7 +188,7 @@
      &    nuvconv,rhcv,rhmois,rhsat,
      &    sigcb,sigcll,sig_ct,sigkscb,sigksct,
      &    tied_con,tied_over,tied_rh,comm,
-     &    acon,bcon,rcm,rcrit_l,rcrit_s,ncloud
+     &    acon,bcon,rcm,rcrit_l,rcrit_s,ncloud,u00crit
 
       data nversion/0/
       data comment/' '/,comm/' '/,irest/1/,jalbfix/1/,nalpha/1/
