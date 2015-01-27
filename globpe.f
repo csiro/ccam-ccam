@@ -132,6 +132,7 @@
       real gke, hourst, hrs_dt, evapavge, precavge, preccavge, psavge
       real pslavge, pwater, rel_lat, rel_long, rlwup, spavge, pwatr
       real pwatr_l, qtot, aa, bb, cc, bb_2, cc_2, rat
+      real targetlev
       real, parameter :: con = 180./pi
       character(len=60) comm, comment
       character(len=47) header
@@ -411,23 +412,8 @@
       ! some default values for unspecified parameters
       if (ia<0) ia=il/2
       if (ib<0) ib=ia+3
-      if (ktopdav<0) ktopdav=kl
-      if (kbotmlo<0) kbotmlo=ol
-      if (kbotmlo>ol.and.nmlo/=0) then
-        write(6,*) "ERROR: Invalid kbotmlo"
-        write(6,*) "kbotdav,ktopdav ",kbotmlo,ktopmlo
-        call ccmpi_abort(-1)
-      end if
-      if (kblock<0)  kblock=max(min(ktopdav-kbotdav+1,kl),
-     &                          min(kbotmlo-ktopmlo+1,ol))
-      if (kbotdav<1.or.ktopdav>kl.or.kbotdav>ktopdav) then
-        write(6,*) "ERROR: Invalid kbotdav and ktopdav"
-        write(6,*) "kbotdav,ktopdav ",kbotdav,ktopdav
-        call ccmpi_abort(-1)
-      end if
       if (ldr==0) mbase=0
       dsig4=max(dsig2+.01,dsig4)
-      if(kbotu==0) kbotu=kbotdav
       if(mbd/=0.and.nbd/=0)then
         write(6,*) 'setting nbd=0 because mbd/=0'
         nbd=0
@@ -760,6 +746,59 @@
       call indataf(hourst,jalbfix,lapsbot,isoth,nsig)
       ! onthefly.f will close ncid
 
+      
+      if (kbotdav<0) then
+        targetlev=real(-kbotdav)/1000.
+        do k=1,kl
+          if (sig(k)<=targetlev) then
+            kbotdav=k
+            if (myid==0) then
+              write(6,*) "kbotdav adjusted to ",kbotdav,"for sig ",
+     &                    sig(kbotdav)
+            end if
+            exit
+          end if
+        end do
+        if (kbotdav<0) then
+          write(6,*) "ERROR: Cannot locate nudging level"
+          write(6,*) "for kbotdav ",kbotdav
+          call ccmpi_abort(-1)
+        end if
+      end if
+      if (ktopdav==0) then
+        ktopdav=kl
+      else if (ktopdav<0) then
+        targetlev=real(-ktopdav)/1000.
+        do k=kl,1,-1
+          if (sig(k)>=targetlev) then
+            ktopdav=k
+            if (myid==0) then
+              write(6,*) "ktopdav adjusted to ",ktopdav,"for sig ",
+     &                    sig(ktopdav)
+            end if
+            exit
+          end if
+        end do
+        if (ktopdav<0) then
+          write(6,*) "ERROR: Cannot locate nudging level"
+          write(6,*) "for ktopdav ",ktopdav
+          call ccmpi_abort(-1)
+        end if
+      end if
+      if (kbotmlo<0) kbotmlo=ol
+      if (kbotmlo>ol.and.nmlo/=0) then
+        write(6,*) "ERROR: Invalid kbotmlo"
+        write(6,*) "kbotmlo,ktopmlo ",kbotmlo,ktopmlo
+        call ccmpi_abort(-1)
+      end if
+      if (kblock<0)  kblock=max(min(ktopdav-kbotdav+1,kl),
+     &                          min(kbotmlo-ktopmlo+1,ol))
+      if (kbotdav<1.or.ktopdav>kl.or.kbotdav>ktopdav) then
+        write(6,*) "ERROR: Invalid kbotdav and ktopdav"
+        write(6,*) "kbotdav,ktopdav ",kbotdav,ktopdav
+        call ccmpi_abort(-1)
+      end if
+      if(kbotu==0) kbotu=kbotdav
       if (ntbar<0) then
         ntbar=1
         do while(sig(ntbar)>0.8.and.ntbar<kl)
@@ -2400,7 +2439,7 @@
      &     kdate_s/-1/,ktime_s/-1/,leap/0/,
      &     mbd/0/,nbd/0/,nbox/1/,kbotdav/4/,kbotu/0/,           
      &     nud_p/0/,nud_q/0/,nud_t/0/,nud_uv/1/,nud_hrs/24/,nudu_hrs/0/,
-     &     ktopdav/-1/,kblock/-1/
+     &     ktopdav/0/,kblock/-1/
       data nud_aero/0/
       data nud_sst/0/,nud_sss/0/,nud_ouv/0/,nud_sfh/0/
       data mloalpha/10/,kbotmlo/-1/,ktopmlo/1/
