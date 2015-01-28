@@ -1994,7 +1994,7 @@ include 'parm.h'             ! Model configuration
 include 'soilv.h'            ! Soil parameters
       
 integer ivegdflt,isoildflt
-integer iq,ierr
+integer iq,ierr,iernc
 integer ivegmin, ivegmax, ivegmin_g, ivegmax_g
 integer :: idatafix=0
 integer, dimension(:,:), allocatable :: iduma
@@ -2002,8 +2002,10 @@ integer, dimension(ifull,2) :: idumb
 integer, dimension(2) :: dumc
 integer, dimension(3) :: spos,npos
 real falbdflt,frsdflt,fzodflt
+real sibvegver
 real, dimension(:,:), allocatable :: duma
 real, dimension(ifull,7) :: dumb
+real, parameter :: sibvegversion = 2015. ! version id for input data
 parameter( ivegdflt=0,  isoildflt=0  )
 parameter( falbdflt=0., frsdflt=990. )
 parameter( fzodflt=1. )
@@ -2045,6 +2047,19 @@ else if (nsib==5) then
   if (myid==0) then
     allocate(duma(ifull_g,7))
     if (lncveg==1) then
+      call ccnf_get_attg(ncidveg,'sibvegversion',sibvegver,ierr=iernc)
+      if (iernc /= 0) then
+        write(6,*) "Missing version of nsib=5 land-use data"
+        write(6,*) "Regenerate land-use data with up-to-date version of sibveg"
+        write(6,*) "or choose different land-surface option with nsib"
+        call ccmpi_abort(-1)
+      end if
+      if (sibvegver /= sibvegversion) then
+        write(6,*) "Wrong version of nsib=5 land-use data"
+        write(6,*) "Expecting ",sibvegversion
+        write(6,*) "Found     ",sibvegver
+        call ccmpi_abort(-1)
+      end if
       call surfread(duma(:,1),'albvis',  netcdfid=ncidveg)
       call surfread(duma(:,2),'albnir',  netcdfid=ncidveg)
       call surfread(duma(:,3),'rsmin',   netcdfid=ncidveg)
@@ -2121,6 +2136,7 @@ ivegmin=minval(ivegt,land(1:ifull))
 ivegmax=maxval(ivegt,land(1:ifull))
 if(ivegmin<1.or.ivegmax>44)then
   write(6,*) 'stopping in indata, as ivegt out of range'
+  write(6,*) 'ivegmin,ivegmax ',ivegmin,ivegmax
   call ccmpi_abort(-1)
 endif
 if( datacheck(land,isoilm,'isoilm',idatafix,isoildflt)) mismatch = .true.
