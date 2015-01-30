@@ -2336,7 +2336,7 @@ c=grav/stdlapse
 conr=c/rdry
 if (lev<0) then
   lev=1
-  do while (sig(lev+1)<=0.9)
+  do while (sig(lev+1)<=0.99)
     lev=lev+1
   end do
 end if

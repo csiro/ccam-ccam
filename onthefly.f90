@@ -507,13 +507,13 @@ else
 endif ! newfile ..else..
 
 ! -------------------------------------------------------------------
-! detemine the reference level below sig=0.9 (used to calculate psl)
+! detemine the reference level below sig=0.99 (used to calculate psl)
 lev=0
-do while( sig(lev+1)>0.9 ) ! nested grid
+do while( sig(lev+1)>0.99 ) ! nested grid
   lev=lev+1
 end do
 levkk=0
-do while( sigin(levkk+1)>0.9 ) ! host grid
+do while( sigin(levkk+1)>0.99 ) ! host grid
   levkk=levkk+1
 end do      
 
