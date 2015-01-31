@@ -144,15 +144,15 @@
       namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,
      &    ia,ib,ja,jb,id,jd,iaero,khdif,khor,
      &    nhorjlm,mex,mbd,nbd,ndi,ndi2,nem,nhor,nlv,
-     &    nmaxpr,nonl,nrot,nrad,ntaft,ntsea,
-     &    ntsur,nvmix,nxmap,
+     &    nmaxpr,nrad,ntaft,ntsea,
+     &    ntsur,nvmix,
      &    restol,precon,kdate_s,ktime_s,leap,newtop,mup,
      &    lgwd,ngwd,rhsat,
      &    nextout,hdifmax,jalbfix,nalpha,
      &    nstag,nstagu,ntbar,nwrite,
      &    irest,nrun,nstn,rel_lat,rel_long,nrungcm,nsib,
      &    istn,jstn,iunp,slat,slon,zstn,name_stn,
-     &    mh_bs,ndept,nritch_t,nt_adv,
+     &    mh_bs,nritch_t,nt_adv,
      &    mfix,mfix_qg,namip,amipo3,nh,nhstest,nsemble,
      &    nspecial,panfg,panzo,nplens,rlatdn,rlatdx,rlongdn,rlongdx,
      &    newrough,newsoilm,nglacier,newztsea,
@@ -160,7 +160,7 @@
      &    av_vmod,charnock,chn10,snmin,tss_sh,vmodmin,zobgin,
      &    rlong0,rlat0,schmidt,
      &    kbotdav,kbotu,nbox,nud_p,nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs,
-     &    nlocal,nvsplit,nbarewet,nsigmf,qgmin,
+     &    nlocal,nbarewet,nsigmf,qgmin,
      &    io_clim ,io_in,io_nest,io_out,io_rest,io_spec,localhist,
      &    m_fly,mstn,nqg,nurban,nmr,ktopdav,nud_sst,nud_sss,
      &    mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,
@@ -433,28 +433,28 @@
       ! DISPLAY NAMELIST
       if ( myid == 0 ) then   
         write(6,*)'Dynamics options A:'
-        write(6,*)'   mex   mfix  mfix_qg   mup    nh    nonl   precon' 
-        write(6,'(i4,8i7)')mex,mfix,mfix_qg,mup,nh,nonl,precon
+        write(6,*)'   mex   mfix  mfix_qg   mup    nh    precon' 
+        write(6,'(i4,2i7)')mex,mfix,mfix_qg,mup,nh,precon
         write(6,*)'Dynamics options B:'
-        write(6,*)'nritch_t nrot  ntbar  nxmap   epsp    epsu   epsf',
+        write(6,*)'nritch_t ntbar  epsp    epsu   epsf',
      &            '   restol'
-        write(6,'(i5,3i7,1x,3f8.3,g9.2)')nritch_t,nrot,ntbar,nxmap,
+        write(6,'(i5,i7,1x,3f8.3,g9.2)')nritch_t,ntbar,
      &                                    epsp,epsu,epsf,restol
         write(6,*)'Dynamics options C:'
         write(6,*)'helmmeth mfix_aero mfix_tr'
         write(6,'(i8,i10,i8)') helmmeth,mfix_aero,mfix_tr
         write(6,*)'Horizontal advection/interpolation options:'
-        write(6,*)' ndept  nt_adv mh_bs  mhint '
-        write(6,'(i5,11i7)') ndept,nt_adv,mh_bs,mhint
+        write(6,*)' nt_adv mh_bs'
+        write(6,'(i5,i7)') nt_adv,mh_bs
         write(6,*)'Horizontal wind staggering options:'
-        write(6,*)'mstagpt nstag nstagu'
-        write(6,'(i5,11i7)') mstagpt,nstag,nstagu
+        write(6,*)'nstag nstagu'
+        write(6,'(2i7)') nstag,nstagu
         write(6,*)'Horizontal mixing options:'
         write(6,*)' khdif  khor   nhor   nhorps nhorjlm'
         write(6,'(i5,11i7)') khdif,khor,nhor,nhorps,nhorjlm
         write(6,*)'Vertical mixing/physics options:'
-        write(6,*)' nvmix nlocal nvsplit ncvmix lgwd   ngwd   '
-        write(6,'(i5,6i7)') nvmix,nlocal,nvsplit,ncvmix,lgwd,ngwd
+        write(6,*)' nvmix nlocal ncvmix lgwd   ngwd   '
+        write(6,'(i5,6i7)') nvmix,nlocal,ncvmix,lgwd,ngwd
         write(6,*)' helim fc2    alphaj'
         write(6,'(2f9.2,g9.2)') helim,fc2,alphaj
         write(6,*)'Cumulus convection options A:'
@@ -1081,29 +1081,9 @@
 
       do mspec=mspeca,1,-1    ! start of introductory time loop
       dtds=dt/ds
-      if(nvsplit<3.or.ktau==1)then
-        un(1:ifull,:)=0. 
-        vn(1:ifull,:)=0.
-        tn(1:ifull,:)=0.
-      elseif(nvsplit==3)then
-        tn(1:ifull,:)=(t(1:ifull,:)-tx(1:ifull,:))/dt  ! tend. from phys. at end of previous step
-        unn(1:ifull,:)=(u(1:ifull,:)-ux(1:ifull,:))/dt ! used in nonlin,upglobal
-        vnn(1:ifull,:)=(v(1:ifull,:)-vx(1:ifull,:))/dt ! used in nonlin,upglobal
-        t(1:ifull,:)=tx(1:ifull,:)   
-        u(1:ifull,:)=ux(1:ifull,:)   
-        v(1:ifull,:)=vx(1:ifull,:)   
-      elseif(nvsplit==4)then
-        unn(1:ifull,:)=(u(1:ifull,:)-ux(1:ifull,:))/dt ! used in nonlin,upglobal
-        vnn(1:ifull,:)=(v(1:ifull,:)-vx(1:ifull,:))/dt ! used in nonlin,upglobal
-        u(1:ifull,:)=ux(1:ifull,:)   
-        v(1:ifull,:)=vx(1:ifull,:)   
-        tn(1:ifull,:)=0.
-      elseif(nvsplit==5)then
-        tn(1:ifull,:)=(t(1:ifull,:)-tx(1:ifull,:))/dt ! t tend. from phys.
-        t(1:ifull,:)=tx(1:ifull,:)   
-        un(1:ifull,:)=0. 
-        vn(1:ifull,:)=0.
-      endif   ! (nvsplit<3.or.ktau==1) .. elseif ..
+      un(1:ifull,:)=0. 
+      vn(1:ifull,:)=0.
+      tn(1:ifull,:)=0.
 
       if(mup/=1.or.(ktau==1.and.mspec==mspeca.and..not.lrestart))
      &    then
@@ -1280,10 +1260,6 @@
         if (mydiag)write(6,'(i2," qgh ",18f7.4)')ktau,1000.*qg(idjd,:)
       end if
 
-      if(nonl<0)then
-        savt(1:ifull,:)=t(1:ifull,:)  ! can be used in nonlin during next step
-      end if
-
       if(nstaguin<0.and.ktau>=1)then  ! swapping here (lower down) for nstaguin<0
         if(nstagin<0.and.mod(ktau-nstagoff,abs(nstagin))==0)then
           nstag=7-nstag  ! swap between 3 & 4
@@ -1342,12 +1318,6 @@
       dt=dtin
       end do ! ****** end of introductory time loop
       mspeca=1
-
-      if(nvsplit>=3)then
-        tx(1:ifull,:)=t(1:ifull,:)   ! saved for beginning of next step
-        ux(1:ifull,:)=u(1:ifull,:)   
-        vx(1:ifull,:)=v(1:ifull,:)   
-      endif
 
       ! DIFFUSION -------------------------------------------------------------
       call START_LOG(hordifg_begin)
@@ -2434,20 +2404,20 @@
       data mloalpha/10/,kbotmlo/-1/,ktopmlo/1/
       
 !     Dynamics options A & B      
-      data mex/30/,mfix/3/,mfix_qg/1/,mup/1/,nh/0/,nonl/0/
-      data nritch_t/300/,nrot/1/,nxmap/0/,
+      data mex/30/,mfix/3/,mfix_qg/1/,mup/1/,nh/0/
+      data nritch_t/300/,
      &     epsp/-15./,epsu/0./,epsf/0./,precon/-2900/,restol/4.e-7/
-      data schmidt/1./,rlong0/0./,rlat0/90./,nrun/0/,nrunx/0/
+      data schmidt/1./,rlong0/0./,rlat0/90./,nrun/0/
       data helmmeth/0/,mfix_tr/0/,mfix_aero/0/
 !     Horiz advection options
-      data ndept/1/,nt_adv/7/,mh_bs/4/
+      data nt_adv/7/,mh_bs/4/
 !     Horiz wind staggering options
 c     data nstag/99/,nstagu/99/
       data nstag/-10/,nstagu/-1/,nstagoff/0/
 !     Horizontal mixing options (now in initialparm)
       !data khdif/2/,khor/-8/,nhor/-157/,nhorps/-1/,nhorjlm/1/
 !     Vertical mixing options
-      data nvmix/3/,nlocal/6/,nvsplit/2/,ncvmix/0/,lgwd/0/,ngwd/-5/
+      data nvmix/3/,nlocal/6/,ncvmix/0/,lgwd/0/,ngwd/-5/
       data helim/800./,fc2/1./,alphaj/1.e-6/
 !     Cumulus convection options
       data nkuo/23/,sigcb/1./,sig_ct/1./,rhcv/0./,rhmois/.1/,rhsat/1./,
@@ -2807,7 +2777,6 @@ c     stuff from insoil  for soilv.h
       endif
       if(nversion<511)then
         nstag=3        ! new is -10
-        nvsplit=3      ! new is 2
 !       mins_rad=120   ! new is 72   not in common block, so can't assign here
         detrain=.1     ! new is .3
         mbase=1        ! new is 10
@@ -2825,7 +2794,6 @@ c     stuff from insoil  for soilv.h
         nhorps=1       ! new is -1
         nlocal=5       ! new is 6
         ntsur=7        ! new is 6
-        nxmap=1        ! new is 0
 !       jalbfix=0      ! new is 1  not in common block, so can't assign here
         tss_sh=0.      ! new is 1.
         zobgin=.05     ! new is .02
@@ -2844,16 +2812,11 @@ c     stuff from insoil  for soilv.h
       endif
       if(nversion<508)then
         mh_bs=1        ! new is 3
-!       mhint=2        ! new is 0   can only be re-set in parameter statement
         nvmix=4        ! new is 3
         entrain=.3     ! new is 0.
       endif
-       if(nversion<507)then
-        nxmap=0        ! new is 1
-      endif
        if(nversion<506)then
         mh_bs=4        ! new is 1
-!       mhint=0        ! new is 2   can only be re-set in parameter statement
       endif
       if(nversion<503)then
         ntsur=5        ! new is 6
@@ -2863,7 +2826,6 @@ c     stuff from insoil  for soilv.h
         nstagu=-3      ! new is 3
         nhor=155       ! new is 0
         nlocal=1       ! new is 5
-        nvsplit=2      ! new is 3
         ngwd=0         ! new is -5
         nevapls=5      ! new is -4
         nuvconv=0      ! new is 5

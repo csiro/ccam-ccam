@@ -105,207 +105,107 @@ c     convert to grid point numbering
           end do                ! k loop
         end do                  ! nn loop
 
-        if(mhint==2)then ! Bessel interp
 ! Loop over points that need to be calculated for other processes
-          do ii=neighnum,1,-1
-            do iq=1,drlen(ii)
-              !  Convert face index from 0:npanels to array indices
-              ip = min(il_g,max(1,nint(dpoints(ii)%a(2,iq))))
-              jp = min(il_g,max(1,nint(dpoints(ii)%a(3,iq))))
-              n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
-              !  Need global face index in fproc call
-              idel = int(dpoints(ii)%a(2,iq))
-              xxg = dpoints(ii)%a(2,iq) - idel
-              jdel = int(dpoints(ii)%a(3,iq))
-              yyg = dpoints(ii)%a(3,iq) - jdel
-              k = nint(dpoints(ii)%a(4,iq))
-              idel = idel - ioff
-              jdel = jdel - joff
+        do ii=neighnum,1,-1
+          do iq=1,drlen(ii)
+            !  Convert face index from 0:npanels to array indices
+            ip = min(il_g,max(1,nint(dpoints(ii)%a(2,iq))))
+            jp = min(il_g,max(1,nint(dpoints(ii)%a(3,iq))))
+            n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
+            !  Need global face index in fproc call
+            idel = int(dpoints(ii)%a(2,iq))
+            xxg = dpoints(ii)%a(2,iq) - idel
+            jdel = int(dpoints(ii)%a(3,iq))
+            yyg = dpoints(ii)%a(3,iq) - jdel
+            k = nint(dpoints(ii)%a(4,iq))
+            idel = idel - ioff
+            jdel = jdel - joff
               
-              c1 = sx(:,idel-1,jdel,n,k) ! manually unrolled loop
-              c2 = sx(:,idel  ,jdel,n,k)
-              c3 = sx(:,idel+1,jdel,n,k)
-              c4 = sx(:,idel+2,jdel,n,k)
-              
-              a4 = c4-c1+3.*(c2-c3)
-              a3 = c1-2.*c2+c3-a4
-              r(:,2) = c2+.5*xxg*(c3-c1 +xxg*(a3+xxg*a4))
-
-              c1 = sx(:,idel-1,jdel+1,n,k)
-              c2 = sx(:,idel  ,jdel+1,n,k)
-              c3 = sx(:,idel+1,jdel+1,n,k)
-              c4 = sx(:,idel+2,jdel+1,n,k)
-
-              a4 = c4-c1+3.*(c2-c3)
-              a3 = c1-2.*c2+c3-a4
-              r(:,3) = c2+.5*xxg*(c3-c1 +xxg*(a3+xxg*a4))
-
-              do nn=1,4,3   ! N.B.
-                c2 = sx(:,idel  ,jdel+nn-2,n,k)
-                c3 = sx(:,idel+1,jdel+nn-2,n,k)
-                r(:,nn) = (1.-xxg)*c2 +xxg*c3
-              enddo         ! nn loop
-
-              a4 = r(:,4)-r(:,1)+3.*(r(:,2)-r(:,3))
-              a3 = r(:,1)-2.*r(:,2)+r(:,3)-a4
-              do nn=1,3
-                sextra(ii)%a(nn+(iq-1)*3) = r(nn,2) +
-     &                  0.5*yyg*(r(nn,3)-r(nn,1)
-     &                  +yyg*(a3(nn)+yyg*a4(nn)))
-              end do
-            enddo           ! iq loop
-          end do            ! ii loop
-        else
-! Loop over points that need to be calculated for other processes
-          do ii=neighnum,1,-1
-            do iq=1,drlen(ii)
-              !  Convert face index from 0:npanels to array indices
-              ip = min(il_g,max(1,nint(dpoints(ii)%a(2,iq))))
-              jp = min(il_g,max(1,nint(dpoints(ii)%a(3,iq))))
-              n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
-              !  Need global face index in fproc call
-              idel = int(dpoints(ii)%a(2,iq))
-              xxg = dpoints(ii)%a(2,iq) - idel
-              jdel = int(dpoints(ii)%a(3,iq))
-              yyg = dpoints(ii)%a(3,iq) - jdel
-              k = nint(dpoints(ii)%a(4,iq))
-              idel = idel - ioff
-              jdel = jdel - joff
-              
-              c1 = sx(:,idel-1,jdel,n,k) ! manually unrolled loop
-              c2 = sx(:,idel  ,jdel,n,k)
-              c3 = sx(:,idel+1,jdel,n,k)
-              c4 = sx(:,idel+2,jdel,n,k)                  
+            c1 = sx(:,idel-1,jdel,n,k) ! manually unrolled loop
+            c2 = sx(:,idel  ,jdel,n,k)
+            c3 = sx(:,idel+1,jdel,n,k)
+            c4 = sx(:,idel+2,jdel,n,k)                  
                   
-              r(:,2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2
-     &                  -xxg*c1/3.)
-     &                  -xxg*(1.+xxg)*c4/3.)
-     &                  +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
+            r(:,2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2
+     &                -xxg*c1/3.)
+     &                -xxg*(1.+xxg)*c4/3.)
+     &                +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
               
-              c1 = sx(:,idel-1,jdel+1,n,k)
-              c2 = sx(:,idel  ,jdel+1,n,k)
-              c3 = sx(:,idel+1,jdel+1,n,k)
-              c4 = sx(:,idel+2,jdel+1,n,k)
+            c1 = sx(:,idel-1,jdel+1,n,k)
+            c2 = sx(:,idel  ,jdel+1,n,k)
+            c3 = sx(:,idel+1,jdel+1,n,k)
+            c4 = sx(:,idel+2,jdel+1,n,k)
 
-              r(:,3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2
-     &                  -xxg*c1/3.)
-     &                  -xxg*(1.+xxg)*c4/3.)
-     &                  +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
+            r(:,3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2
+     &                -xxg*c1/3.)
+     &                -xxg*(1.+xxg)*c4/3.)
+     &                +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
 
-              do nn=1,4,3   ! N.B.
-                c2 = sx(:,idel  ,jdel+nn-2,n,k)
-                c3 = sx(:,idel+1,jdel+nn-2,n,k)
-                r(:,nn) = (1.-xxg)*c2 +xxg*c3
-              enddo         ! nn loop
+            do nn=1,4,3   ! N.B.
+              c2 = sx(:,idel  ,jdel+nn-2,n,k)
+              c3 = sx(:,idel+1,jdel+nn-2,n,k)
+              r(:,nn) = (1.-xxg)*c2 +xxg*c3
+            enddo         ! nn loop
 
-              do nn=1,3
-                sextra(ii)%a(nn+(iq-1)*3) =
-     &                  ((1.-yyg)*((2.-yyg)*
-     &                  ((1.+yyg)*r(nn,2)-yyg*r(nn,1)/3.)
-     &                  -yyg*(1.+yyg)*r(nn,4)/3.)
-     &                  +yyg*(1.+yyg)*(2.-yyg)*r(nn,3))/2.
-              end do
-            enddo           ! iq loop
-          end do            ! ii loop
-        endif               !  (mhint==2)
+            do nn=1,3
+              sextra(ii)%a(nn+(iq-1)*3) =
+     &                ((1.-yyg)*((2.-yyg)*
+     &                ((1.+yyg)*r(nn,2)-yyg*r(nn,1)/3.)
+     &                -yyg*(1.+yyg)*r(nn,4)/3.)
+     &                +yyg*(1.+yyg)*(2.-yyg)*r(nn,3))/2.
+            end do
+          enddo           ! iq loop
+        end do            ! ii loop
 
         call intssync_send(3)
 
-        if(mhint==2)then ! Bessel interp
-          do k=1,kl
-            do iq=1,ifull    ! non Berm-Stan option
-!             Convert face index from 0:npanels to array indices
-              idel=int(xg(iq,k))
-              xxg=xg(iq,k)-idel
-              jdel=int(yg(iq,k))
-              yyg=yg(iq,k)-jdel
-              ! Now make them proper indices in this processor's region
-              idel = idel - ioff
-              jdel = jdel - joff
-              n = nface(iq,k) + noff ! Make this a local index
-              if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or.
-     &             jdel > jpan .or. n < 1 .or. n > npan ) then
-                 cycle      ! Will be calculated on another processor
-              end if
-              c1 = sx(:,idel-1,jdel,n,k) ! manually unrolled loop
-              c2 = sx(:,idel  ,jdel,n,k)
-              c3 = sx(:,idel+1,jdel,n,k)
-              c4 = sx(:,idel+2,jdel,n,k)
+        do k=1,kl
+          do iq=1,ifull    ! non Berm-Stan option
+!           Convert face index from 0:npanels to array indices
+            idel=int(xg(iq,k))
+            xxg=xg(iq,k)-idel
+            jdel=int(yg(iq,k))
+            yyg=yg(iq,k)-jdel
+            ! Now make them proper indices in this processor's region
+            idel = idel - ioff
+            jdel = jdel - joff
+            n = nface(iq,k) + noff ! Make this a local index
+            if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or.
+     &           jdel > jpan .or. n < 1 .or. n > npan ) then
+               cycle      ! Will be calculated on another processor
+            end if
+            c1 = sx(:,idel-1,jdel,n,k) ! manually unrolled loop
+            c2 = sx(:,idel  ,jdel,n,k)
+            c3 = sx(:,idel+1,jdel,n,k)
+            c4 = sx(:,idel+2,jdel,n,k)
 
-              a4 = c4-c1+3.*(c2-c3)
-              a3 = c1-2.*c2+c3-a4
-              r(:,2) = c2+.5*xxg*(c3-c1 +xxg*(a3+xxg*a4))
+            r(:,2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2
+     &                -xxg*c1/3.)
+     &                -xxg*(1.+xxg)*c4/3.)
+     &                +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
 
-              c1 = sx(:,idel-1,jdel+1,n,k)
-              c2 = sx(:,idel  ,jdel+1,n,k)
-              c3 = sx(:,idel+1,jdel+1,n,k)
-              c4 = sx(:,idel+2,jdel+1,n,k)
-              
-              a4 = c4-c1+3.*(c2-c3)
-              a3 = c1-2.*c2+c3-a4
-              r(:,3) = c2+.5*xxg*(c3-c1 +xxg*(a3+xxg*a4))
+            c1 = sx(:,idel-1,jdel+1,n,k)
+            c2 = sx(:,idel  ,jdel+1,n,k)
+            c3 = sx(:,idel+1,jdel+1,n,k)
+            c4 = sx(:,idel+2,jdel+1,n,k)
 
-              do nn=1,4,3   ! N.B.
-                c2 = sx(:,idel  ,jdel+nn-2,n,k)
-                c3 = sx(:,idel+1,jdel+nn-2,n,k)
-                r(:,nn) = (1.-xxg)*c2 +xxg*c3
-              enddo         ! nn loop
+            r(:,3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2
+     &                -xxg*c1/3.)
+     &                -xxg*(1.+xxg)*c4/3.)
+     &                +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
 
-              a4 = r(:,4)-r(:,1)+3.*(r(:,2)-r(:,3))
-              a3 = r(:,1)-2.*r(:,2)+r(:,3)-a4
-              s(iq,k,:) = r(:,2)+.5*yyg*(r(:,3)-r(:,1)
-     &                   +yyg*(a3+yyg*a4))
-            enddo     ! iq loop
-          enddo       ! k loop
-        else
-          do k=1,kl
-            do iq=1,ifull    ! non Berm-Stan option
-!             Convert face index from 0:npanels to array indices
-              idel=int(xg(iq,k))
-              xxg=xg(iq,k)-idel
-              jdel=int(yg(iq,k))
-              yyg=yg(iq,k)-jdel
-              ! Now make them proper indices in this processor's region
-              idel = idel - ioff
-              jdel = jdel - joff
-              n = nface(iq,k) + noff ! Make this a local index
-              if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or.
-     &             jdel > jpan .or. n < 1 .or. n > npan ) then
-                 cycle      ! Will be calculated on another processor
-              end if
-              c1 = sx(:,idel-1,jdel,n,k) ! manually unrolled loop
-              c2 = sx(:,idel  ,jdel,n,k)
-              c3 = sx(:,idel+1,jdel,n,k)
-              c4 = sx(:,idel+2,jdel,n,k)
-
-              r(:,2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2
-     &                  -xxg*c1/3.)
-     &                  -xxg*(1.+xxg)*c4/3.)
-     &                  +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
-
-              c1 = sx(:,idel-1,jdel+1,n,k)
-              c2 = sx(:,idel  ,jdel+1,n,k)
-              c3 = sx(:,idel+1,jdel+1,n,k)
-              c4 = sx(:,idel+2,jdel+1,n,k)
-
-              r(:,3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2
-     &                  -xxg*c1/3.)
-     &                  -xxg*(1.+xxg)*c4/3.)
-     &                  +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
-
-              do nn=1,4,3   ! N.B.
-                c2 = sx(:,idel  ,jdel+nn-2,n,k)
-                c3 = sx(:,idel+1,jdel+nn-2,n,k)
-                r(:,nn) = (1.-xxg)*c2 +xxg*c3
-              enddo         ! nn loop
+            do nn=1,4,3   ! N.B.
+              c2 = sx(:,idel  ,jdel+nn-2,n,k)
+              c3 = sx(:,idel+1,jdel+nn-2,n,k)
+              r(:,nn) = (1.-xxg)*c2 +xxg*c3
+            enddo         ! nn loop
             
-              s(iq,k,:) = ((1.-yyg)*((2.-yyg)*
-     &                  ((1.+yyg)*r(:,2)-yyg*r(:,1)/3.)
-     &                  -yyg*(1.+yyg)*r(:,4)/3.)
-     &                  +yyg*(1.+yyg)*(2.-yyg)*r(:,3))/2.
-            enddo     ! iq loop
-          enddo       ! k loop
-        endif         !  (mhint==2)
+            s(iq,k,:) = ((1.-yyg)*((2.-yyg)*
+     &                ((1.+yyg)*r(:,2)-yyg*r(:,1)/3.)
+     &                -yyg*(1.+yyg)*r(:,4)/3.)
+     &                +yyg*(1.+yyg)*(2.-yyg)*r(:,3))/2.
+          enddo     ! iq loop
+        enddo       ! k loop
             
 !========================   end of intsch=1 section ====================
         else     ! if(intsch==1)then
@@ -352,203 +252,105 @@ c     convert to grid point numbering
         end do                  ! nn loop
 
 !       For other processes
-        if(mhint==2)then ! Bessel interp
-          do ii=neighnum,1,-1
-            do iq=1,drlen(ii)
-              !  Convert face index from 0:npanels to array indices
-              ip = min(il_g,max(1,nint(dpoints(ii)%a(2,iq))))
-              jp = min(il_g,max(1,nint(dpoints(ii)%a(3,iq))))
-              n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
-              !  Need global face index in fproc call
-              idel = int(dpoints(ii)%a(2,iq))
-              xxg = dpoints(ii)%a(2,iq) - idel
-              jdel = int(dpoints(ii)%a(3,iq))
-              yyg = dpoints(ii)%a(3,iq) - jdel
-              k = nint(dpoints(ii)%a(4,iq))
-              idel = idel - ioff
-              jdel = jdel - joff
-              c1 = sx(:,idel,jdel-1,n,k) ! manually unrolled loop
-              c2 = sx(:,idel,jdel  ,n,k)
-              c3 = sx(:,idel,jdel+1,n,k)
-              c4 = sx(:,idel,jdel+2,n,k)
-
-              a4 = c4-c1+3.*(c2-c3)
-              a3 = c1-2.*c2+c3-a4
-              r(:,2) = c2+.5*yyg*(c3-c1 +yyg*(a3+yyg*a4))
-
-              c1 = sx(:,idel+1,jdel-1,n,k)
-              c2 = sx(:,idel+1,jdel  ,n,k)
-              c3 = sx(:,idel+1,jdel+1,n,k)
-              c4 = sx(:,idel+1,jdel+2,n,k)
+        do ii=neighnum,1,-1
+          do iq=1,drlen(ii)
+            !  Convert face index from 0:npanels to array indices
+            ip = min(il_g,max(1,nint(dpoints(ii)%a(2,iq))))
+            jp = min(il_g,max(1,nint(dpoints(ii)%a(3,iq))))
+            n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
+            !  Need global face index in fproc call
+            idel = int(dpoints(ii)%a(2,iq))
+            xxg = dpoints(ii)%a(2,iq) - idel
+            jdel = int(dpoints(ii)%a(3,iq))
+            yyg = dpoints(ii)%a(3,iq) - jdel
+            k = nint(dpoints(ii)%a(4,iq))
+            idel = idel - ioff
+            jdel = jdel - joff
+            c1 = sx(:,idel,jdel-1,n,k) ! manually unrolled loop
+            c2 = sx(:,idel,jdel  ,n,k)
+            c3 = sx(:,idel,jdel+1,n,k)
+            c4 = sx(:,idel,jdel+2,n,k)
               
-              a4 = c4-c1+3.*(c2-c3)
-              a3 = c1-2.*c2+c3-a4
-              r(:,3) = c2+.5*yyg*(c3-c1 +yyg*(a3+yyg*a4))
+            r(:,2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2
+     &                -yyg*c1/3.)
+     &                -yyg*(1.+yyg)*c4/3.)
+     &                +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
 
-              do nn=1,4,3   ! N.B.
-                c2 = sx(:,idel+nn-2,jdel  ,n,k)
-                c3 = sx(:,idel+nn-2,jdel+1,n,k)
-                r(:,nn) = (1.-yyg)*c2 +yyg*c3
-              enddo         ! nn loop
-
-              a4 = r(:,4)-r(:,1)+3.*(r(:,2)-r(:,3))
-              a3 = r(:,1)-2.*r(:,2)+r(:,3)-a4
-              do nn=1,3
-                sextra(ii)%a(nn+(iq-1)*3) = r(nn,2)+
-     &                 0.5*xxg*(r(nn,3)-r(nn,1) +xxg*(a3(nn)
-     &                 +xxg*a4(nn)))
-              end do
-            enddo            ! iq loop
-          end do             ! ii
-        else
-          do ii=neighnum,1,-1
-            do iq=1,drlen(ii)
-              !  Convert face index from 0:npanels to array indices
-              ip = min(il_g,max(1,nint(dpoints(ii)%a(2,iq))))
-              jp = min(il_g,max(1,nint(dpoints(ii)%a(3,iq))))
-              n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
-              !  Need global face index in fproc call
-              idel = int(dpoints(ii)%a(2,iq))
-              xxg = dpoints(ii)%a(2,iq) - idel
-              jdel = int(dpoints(ii)%a(3,iq))
-              yyg = dpoints(ii)%a(3,iq) - jdel
-              k = nint(dpoints(ii)%a(4,iq))
-              idel = idel - ioff
-              jdel = jdel - joff
-              c1 = sx(:,idel,jdel-1,n,k) ! manually unrolled loop
-              c2 = sx(:,idel,jdel  ,n,k)
-              c3 = sx(:,idel,jdel+1,n,k)
-              c4 = sx(:,idel,jdel+2,n,k)
+            c1 = sx(:,idel+1,jdel-1,n,k)
+            c2 = sx(:,idel+1,jdel  ,n,k)
+            c3 = sx(:,idel+1,jdel+1,n,k)
+            c4 = sx(:,idel+1,jdel+2,n,k)
               
-              r(:,2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2
-     &                  -yyg*c1/3.)
-     &                  -yyg*(1.+yyg)*c4/3.)
-     &                  +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
+            r(:,3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2
+     &                -yyg*c1/3.)
+     &                -yyg*(1.+yyg)*c4/3.)
+     &                +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
 
-              c1 = sx(:,idel+1,jdel-1,n,k)
-              c2 = sx(:,idel+1,jdel  ,n,k)
-              c3 = sx(:,idel+1,jdel+1,n,k)
-              c4 = sx(:,idel+1,jdel+2,n,k)
-              
-              r(:,3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2
-     &                  -yyg*c1/3.)
-     &                  -yyg*(1.+yyg)*c4/3.)
-     &                  +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
+            do nn=1,4,3   ! N.B.
+              c2 = sx(:,idel+nn-2,jdel  ,n,k)
+              c3 = sx(:,idel+nn-2,jdel+1,n,k)
+              r(:,nn) = (1.-yyg)*c2 +yyg*c3
+            enddo         ! nn loop
 
-              do nn=1,4,3   ! N.B.
-                c2 = sx(:,idel+nn-2,jdel  ,n,k)
-                c3 = sx(:,idel+nn-2,jdel+1,n,k)
-                r(:,nn) = (1.-yyg)*c2 +yyg*c3
-              enddo         ! nn loop
-
-              do nn=1,3
-                sextra(ii)%a(nn+(iq-1)*3) =
-     &                 ((1.-xxg)*((2.-xxg)*
-     &                 ((1.+xxg)*r(nn,2)-xxg*r(nn,1)/3.)
-     &                 -xxg*(1.+xxg)*r(nn,4)/3.)
-     &                 +xxg*(1.+xxg)*(2.-xxg)*r(nn,3))/2.
-              end do
-            enddo            ! iq loop
-          end do             ! ii
-        endif         !  (mhint==2)
+            do nn=1,3
+              sextra(ii)%a(nn+(iq-1)*3) =
+     &               ((1.-xxg)*((2.-xxg)*
+     &               ((1.+xxg)*r(nn,2)-xxg*r(nn,1)/3.)
+     &               -xxg*(1.+xxg)*r(nn,4)/3.)
+     &               +xxg*(1.+xxg)*(2.-xxg)*r(nn,3))/2.
+            end do
+          enddo            ! iq loop
+        end do             ! ii
 
         call intssync_send(3)
 
-        if(mhint==2)then ! Bessel interp
-          do k=1,kl
-            do iq=1,ifull    ! non Berm-Stan option
-!             Convert face index from 0:npanels to array indices
-              idel=int(xg(iq,k))
-              xxg=xg(iq,k)-idel
-              jdel=int(yg(iq,k))
-              yyg=yg(iq,k)-jdel
-              ! Now make them proper indices in this processor's region
-              idel = idel - ioff
-              jdel = jdel - joff
-              n = nface(iq,k) + noff ! Make this a local index
-              if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or.
-     &             jdel > jpan .or. n < 1 .or. n > npan ) then
-                 cycle      ! Will be calculated on another processor
-              end if
-              c1 = sx(:,idel,jdel-1,n,k) ! manually unrolled loop
-              c2 = sx(:,idel,jdel  ,n,k)
-              c3 = sx(:,idel,jdel+1,n,k)
-              c4 = sx(:,idel,jdel+2,n,k)
-            
-              a4 = c4-c1+3.*(c2-c3)
-              a3 = c1-2.*c2+c3-a4
-              r(:,2) = c2+.5*yyg*(c3-c1 +yyg*(a3+yyg*a4))
+        do k=1,kl
+          do iq=1,ifull    ! non Berm-Stan option
+!           Convert face index from 0:npanels to array indices
+            idel=int(xg(iq,k))
+            xxg=xg(iq,k)-idel
+            jdel=int(yg(iq,k))
+            yyg=yg(iq,k)-jdel
+            ! Now make them proper indices in this processor's region
+            idel = idel - ioff
+            jdel = jdel - joff
+            n = nface(iq,k) + noff ! Make this a local index
+            if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or.
+     &           jdel > jpan .or. n < 1 .or. n > npan ) then
+               cycle      ! Will be calculated on another processor
+            end if
+            c1 = sx(:,idel,jdel-1,n,k) ! manually unrolled loop
+            c2 = sx(:,idel,jdel  ,n,k)
+            c3 = sx(:,idel,jdel+1,n,k)
+            c4 = sx(:,idel,jdel+2,n,k)
 
-              c1 = sx(:,idel+1,jdel-1,n,k)
-              c2 = sx(:,idel+1,jdel  ,n,k)
-              c3 = sx(:,idel+1,jdel+1,n,k)
-              c4 = sx(:,idel+1,jdel+2,n,k)
+            r(:,2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2
+     &                -yyg*c1/3.)
+     &                -yyg*(1.+yyg)*c4/3.)
+     &                +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
 
-              a4 = c4-c1+3.*(c2-c3)
-              a3 = c1-2.*c2+c3-a4
-              r(:,3) = c2+.5*yyg*(c3-c1 +yyg*(a3+yyg*a4))
+            c1 = sx(:,idel+1,jdel-1,n,k)
+            c2 = sx(:,idel+1,jdel  ,n,k)
+            c3 = sx(:,idel+1,jdel+1,n,k)
+            c4 = sx(:,idel+1,jdel+2,n,k)
 
-              do nn=1,4,3   ! N.B.
-                c2 = sx(:,idel+nn-2,jdel  ,n,k)
-                c3 = sx(:,idel+nn-2,jdel+1,n,k)
-                r(:,nn) = (1.-yyg)*c2 +yyg*c3
-              enddo         ! nn loop
+            r(:,3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2
+     &                -yyg*c1/3.)
+     &                -yyg*(1.+yyg)*c4/3.)
+     &                +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
 
-              a4 = r(:,4)-r(:,1)+3.*(r(:,2)-r(:,3))
-              a3 = r(:,1)-2.*r(:,2)+r(:,3)-a4
-              s(iq,k,:) = r(:,2)+.5*xxg*(r(:,3)-r(:,1)
-     &                 +xxg*(a3+xxg*a4))
-            enddo            ! iq loop
-          enddo              ! k loop
-        else
-          do k=1,kl
-            do iq=1,ifull    ! non Berm-Stan option
-!             Convert face index from 0:npanels to array indices
-              idel=int(xg(iq,k))
-              xxg=xg(iq,k)-idel
-              jdel=int(yg(iq,k))
-              yyg=yg(iq,k)-jdel
-              ! Now make them proper indices in this processor's region
-              idel = idel - ioff
-              jdel = jdel - joff
-              n = nface(iq,k) + noff ! Make this a local index
-              if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or.
-     &             jdel > jpan .or. n < 1 .or. n > npan ) then
-                 cycle      ! Will be calculated on another processor
-              end if
-              c1 = sx(:,idel,jdel-1,n,k) ! manually unrolled loop
-              c2 = sx(:,idel,jdel  ,n,k)
-              c3 = sx(:,idel,jdel+1,n,k)
-              c4 = sx(:,idel,jdel+2,n,k)
-
-              r(:,2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2
-     &                  -yyg*c1/3.)
-     &                  -yyg*(1.+yyg)*c4/3.)
-     &                  +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
-
-              c1 = sx(:,idel+1,jdel-1,n,k)
-              c2 = sx(:,idel+1,jdel  ,n,k)
-              c3 = sx(:,idel+1,jdel+1,n,k)
-              c4 = sx(:,idel+1,jdel+2,n,k)
-
-              r(:,3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2
-     &                  -yyg*c1/3.)
-     &                  -yyg*(1.+yyg)*c4/3.)
-     &                  +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
-
-              do nn=1,4,3   ! N.B.
-                c2 = sx(:,idel+nn-2,jdel  ,n,k)
-                c3 = sx(:,idel+nn-2,jdel+1,n,k)
-                r(:,nn) = (1.-yyg)*c2 +yyg*c3
-              enddo         ! nn loop
+            do nn=1,4,3   ! N.B.
+              c2 = sx(:,idel+nn-2,jdel  ,n,k)
+              c3 = sx(:,idel+nn-2,jdel+1,n,k)
+              r(:,nn) = (1.-yyg)*c2 +yyg*c3
+            enddo         ! nn loop
               
-              s(iq,k,:) = ((1.-xxg)*((2.-xxg)*
-     &                 ((1.+xxg)*r(:,2)-xxg*r(:,1)/3.)
-     &                 -xxg*(1.+xxg)*r(:,4)/3.)
-     &                 +xxg*(1.+xxg)*(2.-xxg)*r(:,3))/2.
-            enddo            ! iq loop
-          enddo              ! k loop
-        endif         !  (mhint==2)
+            s(iq,k,:) = ((1.-xxg)*((2.-xxg)*
+     &               ((1.+xxg)*r(:,2)-xxg*r(:,1)/3.)
+     &               -xxg*(1.+xxg)*r(:,4)/3.)
+     &               +xxg*(1.+xxg)*(2.-xxg)*r(:,3))/2.
+          enddo            ! iq loop
+        enddo              ! k loop
 
       endif                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
@@ -578,57 +380,6 @@ c     convert to grid point numbering
 !======================== start of intsch=1 section ====================
       if(intsch==1)then
 
-        if(mhint==2)then ! Bessel interp\
-! Loop over points that need to be calculated for other processes
-          do ii=neighnum,1,-1
-            do iq=1,drlen(ii)
-              !  Convert face index from 0:npanels to array indices
-              ip = min(il_g,max(1,nint(dpoints(ii)%a(2,iq))))
-              jp = min(il_g,max(1,nint(dpoints(ii)%a(3,iq))))
-              n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
-              !  Need global face index in fproc call
-              idel = int(dpoints(ii)%a(2,iq))
-              xxg = dpoints(ii)%a(2,iq) - idel
-              jdel = int(dpoints(ii)%a(3,iq))
-              yyg = dpoints(ii)%a(3,iq) - jdel
-              k = nint(dpoints(ii)%a(4,iq))
-              idel = idel - ioff
-              jdel = jdel - joff
-              
-              c1 = sx(:,idel-1,jdel,n,k) ! manually unrolled loop
-              c2 = sx(:,idel  ,jdel,n,k)
-              c3 = sx(:,idel+1,jdel,n,k)
-              c4 = sx(:,idel+2,jdel,n,k)
-              
-              a4 = c4-c1+3.*(c2-c3)
-              a3 = c1-2.*c2+c3-a4
-              r(:,2) = c2+.5*xxg*(c3-c1 +xxg*(a3+xxg*a4))
-
-              c1 = sx(:,idel-1,jdel+1,n,k)
-              c2 = sx(:,idel  ,jdel+1,n,k)
-              c3 = sx(:,idel+1,jdel+1,n,k)
-              c4 = sx(:,idel+2,jdel+1,n,k)
-
-              a4 = c4-c1+3.*(c2-c3)
-              a3 = c1-2.*c2+c3-a4
-              r(:,3) = c2+.5*xxg*(c3-c1 +xxg*(a3+xxg*a4))
-
-              do nn=1,4,3   ! N.B.
-                c2 = sx(:,idel  ,jdel+nn-2,n,k)
-                c3 = sx(:,idel+1,jdel+nn-2,n,k)
-                r(:,nn) = (1.-xxg)*c2 +xxg*c3
-              enddo         ! nn loop
-
-              a4 = r(:,4)-r(:,1)+3.*(r(:,2)-r(:,3))
-              a3 = r(:,1)-2.*r(:,2)+r(:,3)-a4
-              do nn=1,3
-                  sextra(ii)%a(nn+(iq-1)*3) = r(nn,2) +
-     &                    0.5*yyg*(r(nn,3)-r(nn,1)
-     &                    +yyg*(a3(nn)+yyg*a4(nn)))
-              end do
-            enddo           ! iq loop
-          end do            ! ii loop
-        else
 ! Loop over points that need to be calculated for other processes
           do ii=neighnum,1,-1
             do iq=1,drlen(ii)
@@ -680,57 +431,9 @@ c     convert to grid point numbering
               end do
             enddo           ! iq loop
           end do            ! ii loop
-        endif               !  (mhint==2)
 
         call intssync_send(3)
 
-        if(mhint==2)then ! Bessel interp
-          do k=1,kl
-            do iq=1,ifull    ! non Berm-Stan option
-!             Convert face index from 0:npanels to array indices
-              idel=int(xg(iq,k))
-              xxg=xg(iq,k)-idel
-              jdel=int(yg(iq,k))
-              yyg=yg(iq,k)-jdel
-              ! Now make them proper indices in this processor's region
-              idel = idel - ioff
-              jdel = jdel - joff
-              n = nface(iq,k) + noff ! Make this a local index
-              if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or.
-     &             jdel > jpan .or. n < 1 .or. n > npan ) then
-                 cycle      ! Will be calculated on another processor
-              end if
-              c1 = sx(:,idel-1,jdel,n,k) ! manually unrolled loop
-              c2 = sx(:,idel  ,jdel,n,k)
-              c3 = sx(:,idel+1,jdel,n,k)
-              c4 = sx(:,idel+2,jdel,n,k)
-
-              a4 = c4-c1+3.*(c2-c3)
-              a3 = c1-2.*c2+c3-a4
-              r(:,2) = c2+.5*xxg*(c3-c1 +xxg*(a3+xxg*a4))
-
-              c1 = sx(:,idel-1,jdel+1,n,k)
-              c2 = sx(:,idel  ,jdel+1,n,k)
-              c3 = sx(:,idel+1,jdel+1,n,k)
-              c4 = sx(:,idel+2,jdel+1,n,k)
-              
-              a4 = c4-c1+3.*(c2-c3)
-              a3 = c1-2.*c2+c3-a4
-              r(:,3) = c2+.5*xxg*(c3-c1 +xxg*(a3+xxg*a4))
-
-              do nn=1,4,3   ! N.B.
-                c2 = sx(:,idel  ,jdel+nn-2,n,k)
-                c3 = sx(:,idel+1,jdel+nn-2,n,k)
-                r(:,nn) = (1.-xxg)*c2 +xxg*c3
-              enddo         ! nn loop
-
-              a4 = r(:,4)-r(:,1)+3.*(r(:,2)-r(:,3))
-              a3 = r(:,1)-2.*r(:,2)+r(:,3)-a4
-              s(iq,k,:) = r(:,2)+.5*yyg*(r(:,3)-r(:,1)
-     &                   +yyg*(a3+yyg*a4))
-            enddo     ! iq loop
-          enddo       ! k loop
-        else
           do k=1,kl
             do iq=1,ifull    ! non Berm-Stan option
 !             Convert face index from 0:npanels to array indices
@@ -778,62 +481,12 @@ c     convert to grid point numbering
      &                  +yyg*(1.+yyg)*(2.-yyg)*r(:,3))/2.
             enddo     ! iq loop
           enddo       ! k loop
-        endif         !  (mhint==2)
             
 !========================   end of intsch=1 section ====================
         else     ! if(intsch==1)then
 !======================== start of intsch=2 section ====================
 
 !       For other processes
-        if(mhint==2)then ! Bessel interp
-          do ii=neighnum,1,-1
-            do iq=1,drlen(ii)
-              !  Convert face index from 0:npanels to array indices
-              ip = min(il_g,max(1,nint(dpoints(ii)%a(2,iq))))
-              jp = min(il_g,max(1,nint(dpoints(ii)%a(3,iq))))
-              n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
-              !  Need global face index in fproc call
-              idel = int(dpoints(ii)%a(2,iq))
-              xxg = dpoints(ii)%a(2,iq) - idel
-              jdel = int(dpoints(ii)%a(3,iq))
-              yyg = dpoints(ii)%a(3,iq) - jdel
-              k = nint(dpoints(ii)%a(4,iq))
-              idel = idel - ioff
-              jdel = jdel - joff
-              c1 = sx(:,idel,jdel-1,n,k) ! manually unrolled loop
-              c2 = sx(:,idel,jdel  ,n,k)
-              c3 = sx(:,idel,jdel+1,n,k)
-              c4 = sx(:,idel,jdel+2,n,k)
-
-              a4 = c4-c1+3.*(c2-c3)
-              a3 = c1-2.*c2+c3-a4
-              r(:,2) = c2+.5*yyg*(c3-c1 +yyg*(a3+yyg*a4))
-
-              c1 = sx(:,idel+1,jdel-1,n,k)
-              c2 = sx(:,idel+1,jdel  ,n,k)
-              c3 = sx(:,idel+1,jdel+1,n,k)
-              c4 = sx(:,idel+1,jdel+2,n,k)
-              
-              a4 = c4-c1+3.*(c2-c3)
-              a3 = c1-2.*c2+c3-a4
-              r(:,3) = c2+.5*yyg*(c3-c1 +yyg*(a3+yyg*a4))
-
-              do nn=1,4,3   ! N.B.
-                c2 = sx(:,idel+nn-2,jdel  ,n,k)
-                c3 = sx(:,idel+nn-2,jdel+1,n,k)
-                r(:,nn) = (1.-yyg)*c2 +yyg*c3
-              enddo         ! nn loop
-
-              a4 = r(:,4)-r(:,1)+3.*(r(:,2)-r(:,3))
-              a3 = r(:,1)-2.*r(:,2)+r(:,3)-a4
-              do nn=1,3
-                sextra(ii)%a(nn+(iq-1)*3) = r(nn,2)+
-     &                 0.5*xxg*(r(nn,3)-r(nn,1) +xxg*(a3(nn)
-     &                 +xxg*a4(nn)))
-              end do
-            enddo            ! iq loop
-          end do             ! ii
-        else
           do ii=neighnum,1,-1
             do iq=1,drlen(ii)
               !  Convert face index from 0:npanels to array indices
@@ -883,57 +536,8 @@ c     convert to grid point numbering
               end do
             enddo            ! iq loop
           end do             ! ii
-        endif         !  (mhint==2)
 
         call intssync_send(3)
-
-        if(mhint==2)then ! Bessel interp
-          do k=1,kl
-            do iq=1,ifull    ! non Berm-Stan option
-!             Convert face index from 0:npanels to array indices
-              idel=int(xg(iq,k))
-              xxg=xg(iq,k)-idel
-              jdel=int(yg(iq,k))
-              yyg=yg(iq,k)-jdel
-              ! Now make them proper indices in this processor's region
-              idel = idel - ioff
-              jdel = jdel - joff
-              n = nface(iq,k) + noff ! Make this a local index
-              if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or.
-     &             jdel > jpan .or. n < 1 .or. n > npan ) then
-                 cycle      ! Will be calculated on another processor
-              end if
-              c1 = sx(:,idel,jdel-1,n,k) ! manually unrolled loop
-              c2 = sx(:,idel,jdel  ,n,k)
-              c3 = sx(:,idel,jdel+1,n,k)
-              c4 = sx(:,idel,jdel+2,n,k)
-            
-              a4 = c4-c1+3.*(c2-c3)
-              a3 = c1-2.*c2+c3-a4
-              r(:,2) = c2+.5*yyg*(c3-c1 +yyg*(a3+yyg*a4))
-
-              c1 = sx(:,idel+1,jdel-1,n,k)
-              c2 = sx(:,idel+1,jdel  ,n,k)
-              c3 = sx(:,idel+1,jdel+1,n,k)
-              c4 = sx(:,idel+1,jdel+2,n,k)
-
-              a4 = c4-c1+3.*(c2-c3)
-              a3 = c1-2.*c2+c3-a4
-              r(:,3) = c2+.5*yyg*(c3-c1 +yyg*(a3+yyg*a4))
-
-              do nn=1,4,3   ! N.B.
-                c2 = sx(:,idel+nn-2,jdel  ,n,k)
-                c3 = sx(:,idel+nn-2,jdel+1,n,k)
-                r(:,nn) = (1.-yyg)*c2 +yyg*c3
-              enddo         ! nn loop
-
-              a4 = r(:,4)-r(:,1)+3.*(r(:,2)-r(:,3))
-              a3 = r(:,1)-2.*r(:,2)+r(:,3)-a4
-              s(iq,k,:) = r(:,2)+.5*xxg*(r(:,3)-r(:,1)
-     &                 +xxg*(a3+xxg*a4))
-            enddo            ! iq loop
-          enddo              ! k loop
-        else
           do k=1,kl
             do iq=1,ifull    ! non Berm-Stan option
 !             Convert face index from 0:npanels to array indices
@@ -981,7 +585,6 @@ c     convert to grid point numbering
      &                 +xxg*(1.+xxg)*(2.-xxg)*r(:,3))/2.
             enddo            ! iq loop
           enddo              ! k loop
-        endif         !  (mhint==2)
 
       endif                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
@@ -1012,142 +615,8 @@ c     convert to grid point numbering
       call END_LOG(depts_end)
       
       return
-      end
+      end subroutine depts1
 
-      subroutine depts(x3d,y3d,z3d)   ! input ubar,vbar are unstaggered vels for level k
-!     3D version
-c     modify toij5 for Cray
-      use cc_mpi
-      use indices_m
-      use map_m
-      use uvbar_m
-      use vecsuv_m
-      use work3f_m
-      use xyzinfo_m
-      implicit none
-      integer, parameter :: ntest=0
-      include 'newmpar.h'
-      include 'const_phys.h'   ! rearth
-      include 'parm.h'
-      ! Is there an appropriate work common for this?
-      real, dimension(ifull,kl) :: gx, gy, gz
-      real, dimension(ifull+iextra,kl) :: derx, dery, derz
-      real(kind=8) x3d(ifull,kl),y3d(ifull,kl),z3d(ifull,kl)
-      integer, parameter :: nit=3, ndiag=0
-      integer :: iq, itn, k
-      real :: uc, vc, wc
-
-      call START_LOG(depts_begin)
-      
-      if(ntest.eq.1.and.mydiag)then
-         print *,'entering depts'
-         print *,'ubar,vbar ',ubar(idjd,nlv),vbar(idjd,nlv)
-      endif
-      do k=1,kl
-         do iq=1,ifull
-!           departure point x, y, z is called x3d, y3d, z3d
-!           first find corresponding cartesian vels
-            uc = ax(iq)*ubar(iq,k) + bx(iq)*vbar(iq,k)
-            vc = ay(iq)*ubar(iq,k) + by(iq)*vbar(iq,k)
-            wc = az(iq)*ubar(iq,k) + bz(iq)*vbar(iq,k)
-!           for gnomic can do first term analytically!
-            derx(iq,k) = -uc*dt/rearth ! because working on unit sphere
-            dery(iq,k) = -vc*dt/rearth
-            derz(iq,k) = -wc*dt/rearth
-            x3d(iq,k) = x(iq)+derx(iq,k)
-            y3d(iq,k) = y(iq)+dery(iq,k)
-            z3d(iq,k) = z(iq)+derz(iq,k)
-!           for other terms want vels in units of double grid-points/timestep
-            ubar(iq,k) = ubar(iq,k)*dt *.5*em(iq)/ds
-            vbar(iq,k) = vbar(iq,k)*dt *.5*em(iq)/ds
-         enddo ! iq loop
-      end do
-      if(ntest.eq.1)then
-         print *,'itn,x3d,y3d,z3d,u,v: ',1,x3d(idjd,nlv),y3d(idjd,nlv),
-     &        z3d(idjd,nlv),ubar(idjd,nlv),vbar(idjd,nlv)
-         print *,'x,ax,bx,derx: ',x(idjd),ax(idjd),bx(idjd),
-     &        derx(idjd,nlv)
-      endif
-!       Need a version that works on 3D arrays
-!       if(ndiag.eq.2)then
-!         call printp('derx',derx)
-!         call printp('dery',dery)
-!         call printp('derz',derz)
-!         call printp('x3d ',x3d)
-!         call printp('y3d ',y3d)
-!         call printp('z3d ',z3d)
-!       endif
-
-      do itn=2,nit
-         call bounds(derx)
-         call bounds(dery)
-         call bounds(derz)
-         do k=1,kl
-*cdir nodep
-            do iq=1,ifull
-               gx(iq,k) = -(ubar(iq,k)*(derx(ie(iq),k)-derx(iw(iq),k))
-     &               + vbar(iq,k)*(derx(in(iq),k)-derx(is(iq),k)) )/itn
-               gy(iq,k) = -(ubar(iq,k)*(dery(ie(iq),k)-dery(iw(iq),k))
-     &               + vbar(iq,k)*(dery(in(iq),k)-dery(is(iq),k)) )/itn
-               gz(iq,k) = -(ubar(iq,k)*(derz(ie(iq),k)-derz(iw(iq),k))
-     &               + vbar(iq,k)*(derz(in(iq),k)-derz(is(iq),k)) )/itn
-            enddo               ! iq loop
-         end do
-
-c        if(diag)print *,'depts itn,nit,dt: ',itn,nit,dt
-
-         do k=1,kl
-            do iq=1,ifull
-               derx(iq,k) = gx(iq,k)
-               dery(iq,k) = gy(iq,k)
-               derz(iq,k) = gz(iq,k)
-               x3d(iq,k) = x3d(iq,k)+derx(iq,k)
-               y3d(iq,k) = y3d(iq,k)+dery(iq,k)
-               z3d(iq,k) = z3d(iq,k)+derz(iq,k)
-            enddo               ! iq loop
-         end do
-
-c        if(diag)print *,'itn,x3d,y3d,z3d,u,v: ',itn,x3d(idjd),y3d(idjd)
-c    .                    ,z3d(idjd),ubar(idjd,1),vbar(idjd,1)
-!         if(ndiag.eq.2)then
-!c          call printp('gx   ',gx)
-!c          call printp('gy   ',gy)
-!c          call printp('gz   ',gz)
-!           call printp('derx',derx)
-!           call printp('dery',dery)
-!           call printp('derz',derz)
-!           call printp('x3d ',x3d)
-!           call printp('y3d ',y3d)
-!           call printp('z3d ',z3d)
-!         endif
-      enddo                     ! itn=2,nit
-
-c     convert to grid point numbering
-      do k=1,kl
-         if(npanels.eq.5) call toij5 (k,x3d(1,k),y3d(1,k),z3d(1,k)) ! maybe remove k dependency
-!         Not implemented in the MPI version.
-!         if(npanels.eq.13)call toij13(k,x3d(1,k),y3d(1,k),z3d(1,k)) ! maybe remove k dependency
-      end do
-
-      if(ntest.eq.1.and.mydiag)then
-        print *,'at end of depts for k = ',k
-        print *,'x3d,y3d,z3d ',x3d(idjd,nlv),y3d(idjd,nlv),z3d(idjd,nlv)
-        print *,'xg,yg,nface ',xg(idjd,nlv),yg(idjd,nlv),nface(idjd,nlv)
-      endif
-!     printp not implemented in MPI version.
-!      if(ndiag.eq.2)then
-!        print *,'after toij5/toij13'
-!        call printp('xg  ',xg)
-!        call printp('yg  ',yg)
-!      endif
-
-!     Share off processor departure points.
-      call deptsync(nface,xg,yg)
-
-      call END_LOG(depts_end)
-      
-      return
-      end
 
       subroutine toij5(k,x3d,y3d,z3d)
       use bigxy4_m ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)

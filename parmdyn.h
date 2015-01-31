@@ -9,14 +9,14 @@
 !                               2 more-cunning in adjust5
 
       integer         mex,mfix,mfix_qg,mspec,mup,mfix_tr
-      integer         nh,nonl,nritch_t,nrot,mfix_aero
-      integer         nstag,nstagu,ntbar,nvsplit,nxmap,precon,helmmeth
+      integer         nh,nritch_t,mfix_aero
+      integer         nstag,nstagu,ntbar,precon,helmmeth
       integer         nstagoff
       real            epsp,epsu,epsf,restol
       
       common/paramdyn/mex,mfix,mfix_qg,mspec,mup,                        &
-     &                nh,nonl,nritch_t,nrot,                             &
-     &                nstag,nstagu,nstagoff,ntbar,nvsplit,nxmap,precon,  &
+     &                nh,nritch_t,                                       &
+     &                nstag,nstagu,nstagoff,ntbar,precon,                &
      &                helmmeth,epsp,epsu,epsf,restol,mfix_tr,mfix_aero
 
 !            (ntbar=0)           ! 0 for standard

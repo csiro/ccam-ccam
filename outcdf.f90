@@ -293,7 +293,7 @@ if ( myid==0 .or. localhist ) then
     nahead(23)=0       ! not needed now      
     nahead(24)=0  !lbd
     nahead(25)=nrun
-    nahead(26)=nrunx
+    nahead(26)=0
     nahead(27)=khor
     nahead(28)=ksc
     nahead(29)=kountr
@@ -2163,7 +2163,7 @@ if ( first ) then
     nahead(23)=0       ! not needed now      
     nahead(24)=0  !lbd
     nahead(25)=nrun
-    nahead(26)=nrunx
+    nahead(26)=0
     nahead(27)=khor
     nahead(28)=ksc
     nahead(29)=kountr
