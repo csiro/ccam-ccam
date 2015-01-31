@@ -30,7 +30,6 @@ include 'newmpar.h'
 include 'kuocom.h'     ! also with kbsav,ktsav
 include 'parm.h'
 include 'parmdyn.h'
-include 'parmvert.h' ! nthub,nimp,ntvd
 real, dimension(:,:), intent(inout) :: tarr,uarr,varr
 real, dimension(ifull,kl) :: dum
 real, dimension(ifull) :: tfact
@@ -40,15 +39,6 @@ integer, dimension(ifull) :: nvadh_pass, nits
 integer, dimension(ifull,kl-1) :: kp,kx
 integer, save :: num = 0
 parameter (npslx=1)  ! 0 off, 1 on for nvad=-4
-!     parameter (nimp=1)  !  0 for original explicit non-flux TVD term
-!                            1 for implicit non-flux TVD term
-!     parameter (nthub=1) !  1 original
-!                            2 higher-order is Lax-Wendroff
-!                            0 (not available now) was equivalent to original
-!     parameter (ntvd=2)  !  1 van Leer phitvd flux-limiter (original)
-!                            2 MC phitvd flux-limiter
-!                            3 superbee flux-limiter
-!                            0 (not available now) was equivalent to van Leer
 
 call START_LOG(vadv_begin)
 
@@ -56,13 +46,9 @@ tfact=1./real(nvadh_pass)
 
 if(num==0)then
   num=1
-  if(ntvdr==0)then  ! to produce old nvad=4 interps for fluxhi
-   ratha(:)=.5
-   rathb(:)=.5
-  endif
   if(mydiag)then
-    write(6,*) 'In vadvtvd nvad,nvadh_pass,npslx,ntvdr ',nvad,nvadh_pass(idjd),npslx,ntvdr
-    write(6,*) 'nimp,nthub,ntvd,tfact ',nimp,nthub,ntvd,tfact(idjd)
+    write(6,*) 'In vadvtvd nvadh_pass,npslx ',nvadh_pass(idjd),npslx
+    write(6,*) 'tfact ',tfact(idjd)
   endif
 endif
 
@@ -94,16 +80,16 @@ if( diag .and. mydiag )then
 endif
 
 !     h_nh
-if(nh/=0.and.npslx==1.and.nvad<=-4)then
+if(nh/=0.and.npslx==1)then
   call vadv_work(h_nh,tfact,nits,kp,kx)
 endif
 
 !     pslx
-if(npslx==1.and.nvad<=-4)then  ! handles -9 too
+if(npslx==1)then  ! handles -9 too
   call vadv_work(pslx,tfact,nits,kp,kx)
 endif
 
-if(mspec==1.and.abs(nvad)/=9)then   ! advect qg and gases after preliminary step
+if(mspec==1)then   ! advect qg and gases after preliminary step
 
 !      qg
  call vadv_work(qg,tfact,nits,kp,kx)
@@ -128,12 +114,6 @@ if(mspec==1.and.abs(nvad)/=9)then   ! advect qg and gases after preliminary step
   endif
  endif      ! if(ldr.ne.0)
 
- if(ngas>0.or.nextout>=4)then
-  do ntr=1,ntrac
-   call vadv_work(tr(:,:,ntr),tfact,nits,kp,kx)
-  enddo      ! ntr loop
- endif      ! (nextout>=4)
-
  if(nvmix==6)then
   call vadv_work(eps,tfact,nits,kp,kx)
   call vadv_work(tke,tfact,nits,kp,kx)
@@ -145,7 +125,13 @@ if(mspec==1.and.abs(nvad)/=9)then   ! advect qg and gases after preliminary step
   end do
  end if
 
-endif       ! if(mspec==1.and.abs(nvad).ne.9)
+ if(ngas>0.or.nextout>=4)then
+  do ntr=1,ntrac
+   call vadv_work(tr(:,:,ntr),tfact,nits,kp,kx)
+  enddo      ! ntr loop
+ endif      ! (nextout>=4)
+ 
+endif       ! if(mspec==1)
 
 call END_LOG(vadv_end)
  
@@ -179,10 +165,6 @@ real, dimension(ifull,kl) :: xin
 fluxh(:,0)=0.
 fluxh(:,kl)=0.
       
-if(ntvdr==2) then
-  xin=tarr(1:ifull,:)
-end if
-
 delt(:,kl)=0.     ! for T,u,v
 delt(:,1:kl-1)=tarr(1:ifull,2:kl)-tarr(1:ifull,1:kl-1)
 delt(:,0)=min(delt(:,1),tarr(1:ifull,1))       ! for non-negative tt
@@ -192,25 +174,12 @@ do k=1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
  end do
 end do
 
-select case(ntvd)
-  case(1)
-    phitvd=(rat+abs(rat))/(1.+abs(rat))        ! 0 for -ve rat
-  case(2)
-    phitvd=max(0.,min(2.*rat,.5+.5*rat,2.))    ! 0 for -ve rat
-  case(3)
-    phitvd=max(0.,min(1.,2.*rat),min(2.,rat))  ! 0 for -ve rat
-end select
+phitvd=max(0.,min(2.*rat,.5+.5*rat,2.))    ! 0 for -ve rat
 
-select case(nthub)
-  case(1)
-    do k=1,kl-1
-      fluxhi(:,k)=rathb(k)*tarr(1:ifull,k)+ratha(k)*tarr(1:ifull,k+1)
-    end do
-  case(2) ! higher order scheme
-    do k=1,kl-1
-      fluxhi(:,k)=rathb(k)*tarr(1:ifull,k)+ratha(k)*tarr(1:ifull,k+1)-.5*delt(:,k)*tfact(:)*sdot(:,k+1)
-    end do
-end select
+! higher order scheme
+do k=1,kl-1
+  fluxhi(:,k)=rathb(k)*tarr(1:ifull,k)+ratha(k)*tarr(1:ifull,k+1)-.5*delt(:,k)*tfact(:)*sdot(:,k+1)
+end do
 
 do k=1,kl-1
   do iq=1,ifull
@@ -219,17 +188,9 @@ do k=1,kl-1
  fluxh(:,k)=sdot(:,k+1)*(fluxlo(:,k)+phitvd(:,k)*(fluxhi(:,k)-fluxlo(:,k)))
 enddo     ! k loop
 
-if(nimp==1)then
-  do k=1,kl
-    hdsdot=.5*tfact(:)*(sdot(:,k+1)-sdot(:,k))
-    tarr(1:ifull,k)=(tarr(1:ifull,k)+tfact(:)*(fluxh(:,k-1)-fluxh(:,k))+hdsdot*tarr(1:ifull,k) )/(1.-hdsdot)
-  end do
-else
-  do k=1,kl
-    tarr(1:ifull,k)=tarr(1:ifull,k)+tfact(:)*(fluxh(:,k-1)-fluxh(:,k)+tarr(1:ifull,k)*(sdot(:,k+1)-sdot(:,k)))
-  enddo      ! k loop
-endif   ! (nimp==1)
-
+do k=1,kl
+  tarr(1:ifull,k)=tarr(1:ifull,k)+tfact(:)*(fluxh(:,k-1)-fluxh(:,k)+tarr(1:ifull,k)*(sdot(:,k+1)-sdot(:,k)))
+enddo      ! k loop
 
 ! Subsequent substeps if needed.  This is fairly rare so we perform this calculation on
 ! a point-by-point basis - MJT
@@ -243,44 +204,17 @@ do iq=1,ifull
     do k=1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
       rat(iq,k)=delt(iq,k-kp(iq,k))/(delt(iq,k)+sign(1.e-20,delt(iq,k)))
     end do
-    select case(ntvd)
-      case(1)
-        phitvd(iq,:)=(rat(iq,:)+abs(rat(iq,:)))/(1.+abs(rat(iq,:)))           ! 0 for -ve rat
-      case(2)
-        phitvd(iq,:)=max(0.,min(2.*rat(iq,:),.5+.5*rat(iq,:),2.))             ! 0 for -ve rat
-      case(3)
-        phitvd(iq,:)=max(0.,min(1.,2.*rat(iq,:)),min(2.,rat(iq,:)))           ! 0 for -ve rat
-    end select
-    select case(nthub)
-      case(1)
-        fluxhi(iq,1:kl-1)=rathb(1:kl-1)*tarr(iq,1:kl-1)+ratha(1:kl-1)*tarr(iq,2:kl)
-      case(2) ! higher order scheme
-        fluxhi(iq,1:kl-1)=rathb(1:kl-1)*tarr(iq,1:kl-1)+ratha(1:kl-1)*tarr(iq,2:kl)-.5*delt(iq,1:kl-1)*tfact(iq)*sdot(iq,2:kl)
-    end select
+    phitvd(iq,:)=max(0.,min(2.*rat(iq,:),.5+.5*rat(iq,:),2.))             ! 0 for -ve rat
+    ! higher order scheme
+    fluxhi(iq,1:kl-1)=rathb(1:kl-1)*tarr(iq,1:kl-1)+ratha(1:kl-1)*tarr(iq,2:kl)-.5*delt(iq,1:kl-1)*tfact(iq)*sdot(iq,2:kl)
     do k=1,kl-1
       fluxlo(iq,k)=tarr(iq,kx(iq,k))
     end do
     fluxh(iq,1:kl-1)=sdot(iq,2:kl)*(fluxlo(iq,1:kl-1)+phitvd(iq,1:kl-1)*(fluxhi(iq,1:kl-1)-fluxlo(iq,1:kl-1)))
-    if(nimp==1)then
-      do k=1,kl
-        hdsdot(iq)=.5*tfact(iq)*(sdot(iq,k+1)-sdot(iq,k))
-        tarr(iq,k)=(tarr(iq,k)+tfact(iq)*(fluxh(iq,k-1)-fluxh(iq,k))+hdsdot(iq)*tarr(iq,k) )/(1.-hdsdot(iq))
-      end do
-    else
-      tarr(iq,1:kl)=tarr(iq,1:kl)+tfact(iq)*(fluxh(iq,0:kl-1)-fluxh(iq,1:kl)+tarr(iq,1:kl)*(sdot(iq,2:kl+1)-sdot(iq,1:kl)))
-    endif   ! (nimp==1)
+    tarr(iq,1:kl)=tarr(iq,1:kl)+tfact(iq)*(fluxh(iq,0:kl-1)-fluxh(iq,1:kl)+tarr(iq,1:kl)*(sdot(iq,2:kl+1)-sdot(iq,1:kl)))
   end do ! i
 end do ! iq
 
-if(ntvdr==2)then  ! different top & bottom
-  where (sdot(:,2)>0.)
-   tarr(1:ifull,1)=xin(:,1)
-  end where
-  where (sdot(:,kl)<0.)
-   tarr(1:ifull,kl)=xin(:,kl)
-  end where
-endif      ! (ntvdr==2)
-      
 return
 end subroutine vadv_work
       

@@ -272,7 +272,7 @@ if ( myid==0 .or. localhist ) then
     nahead(1)=il_g       ! needed by cc2hist
     nahead(2)=jl_g       ! needed by cc2hist
     nahead(3)=kl         ! needed by cc2hist
-    nahead(4)=m
+    nahead(4)=5
     nahead(5)=0          ! nsd not used now
     nahead(6)=io_in
     nahead(7)=nbd
@@ -290,7 +290,7 @@ if ( myid==0 .or. localhist ) then
     nahead(19)=kl        ! needed by cc2hist (was kwt)
     nahead(20)=0  !iaa
     nahead(21)=0  !jaa
-    nahead(22)=nvad
+    nahead(22)=-4
     nahead(23)=0       ! not needed now      
     nahead(24)=0  !lbd
     nahead(25)=nrun
@@ -493,7 +493,7 @@ if( myid==0 .or. local ) then
     endif           
 
 !       Sigma levels
-    if (myid==0) write(6,*) 'sig=',sig
+    if ( myid==0 ) write(6,*) 'sig=',sig
     call ccnf_put_attg(idnc,'sigma',kl,sig)
 
     lname = 'year-month-day at start of run'
@@ -541,7 +541,7 @@ if( myid==0 .or. local ) then
       call ccnf_put_att(idnc,idv,'long_name',len_trim(lname),lname)     
     end if
 
-    if (myid==0) write(6,*) 'define attributes of variables'
+    if ( myid==0 ) write(6,*) 'define attributes of variables'
 
 !   For time invariant surface fields
     lname = 'Surface geopotential'
@@ -822,7 +822,7 @@ if( myid==0 .or. local ) then
     call attrib(idnc,idim,3,'alb_ave',lname,'none',0.,1.,0,itype)
     lname = 'Avg mean sea level pressure'
     call attrib(idnc,idim,3,'pmsl_ave',lname,'hPa',800.,1200.,0,itype)
-    if (abs(nmlo)>0.and.abs(nmlo)<=9) then
+    if ( abs(nmlo)>0.and.abs(nmlo)<=9 ) then
       lname = 'Avg mixed layer depth'
       call attrib(idnc,idim,3,'mixd_ave',lname,'m',0.,1300.,0,itype)
     end if
@@ -847,8 +847,8 @@ if( myid==0 .or. local ) then
     call attrib(idnc,idim,3,'taux',lname,'N/m2',-50.,50.,0,itype)
     lname = 'y-component wind stress'
     call attrib(idnc,idim,3,'tauy',lname,'N/m2',-50.,50.,0,itype)
-    if(nextout>=1) then
-      if (myid==0) write(6,*) 'nextout=',nextout
+    if ( nextout>=1 ) then
+      if ( myid==0 ) write(6,*) 'nextout=',nextout
       lname = 'LW at TOA'
       call attrib(idnc,idim,3,'rtu_ave',lname,'W/m2',0.,800.,0,itype)
       lname = 'Clear sky LW at TOA'
@@ -1129,7 +1129,7 @@ if( myid==0 .or. local ) then
     end if
         
     ! STANDARD 3D VARIABLES -------------------------------------
-    if (myid==0) write(6,*) '3d variables'
+    if ( myid==0 ) write(6,*) '3d variables'
     if ( nextout>=4 .and. nllp==3 ) then   ! N.B. use nscrn=1 for hourly output
       lname = 'Delta latitude'
       call attrib(idnc,dim,4,'del_lat',lname,'deg',-60.,60.,1,itype)
@@ -1402,14 +1402,14 @@ endif ! myid == 0 .or. local
 
 ! Export ocean data
 if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
-  mlodwn(:,:,1:2)=999.
-  mlodwn(:,:,3:4)=0.
-  micdwn=999.
-  micdwn(:,8)=0.
-  micdwn(:,9)=0.
-  micdwn(:,10)=0.
-  ocndep=0. ! ocean depth
-  ocnheight=0. ! free surface height
+  mlodwn(:,:,1:2) = 999.
+  mlodwn(:,:,3:4) = 0.
+  micdwn = 999.
+  micdwn(:,8) = 0.
+  micdwn(:,9) = 0.
+  micdwn(:,10) = 0.
+  ocndep = 0. ! ocean depth
+  ocnheight = 0. ! free surface height
   call mlosave(mlodwn,ocndep,ocnheight,micdwn,0)
 end if        
 
@@ -1423,9 +1423,9 @@ if ( ktau==0 .or. itype==-1 ) then  ! also for restart file
   call histwrt3(em,'map',idnc,iarch,local,.true.)
   call histwrt3(f,'cor',idnc,iarch,local,.true.)
   call histwrt3(sigmu,'sigmu',idnc,iarch,local,.true.)
-  aa(:)=real(isoilm_in(:)) ! use the raw soil data here
+  aa(:) = real(isoilm_in(:)) ! use the raw soil data here
   call histwrt3(aa,'soilt',idnc,iarch,local,.true.)
-  aa(:)=real(ivegt(:))
+  aa(:) = real(ivegt(:))
   call histwrt3(aa,'vegt',idnc,iarch,local,.true.)
   if ( (nmlo<0.and.nmlo>=-9) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
     call histwrt3(ocndep,'ocndepth',idnc,iarch,local,.true.)
@@ -1437,7 +1437,7 @@ endif ! (ktau==0.or.itype==-1)
 !**************************************************************
 
 ! BASIC -------------------------------------------------------
-lwrite=ktau>0
+lwrite=(ktau>0)
 if ( nsib==6 .or. nsib==7 ) then
   call histwrt3(rsmin,'rs',idnc,iarch,local,lwrite)
 else if (ktau==0.or.itype==-1) then
@@ -1446,7 +1446,7 @@ end if
 call histwrt3(sigmf,'sigmf',idnc,iarch,local,.true.)
 call histwrt3(psl,'psf',idnc,iarch,local,.true.)
 call mslp(aa,psl,zs,t)
-aa=aa/100.
+aa(:) = aa(:)/100.
 call histwrt3(aa,'pmsl',idnc,iarch,local,.true.)
 if ( nsib==6 .or. nsib==7 ) then      
   call histwrt3(zo,'zolnd',idnc,iarch,local,lwrite)
@@ -1458,39 +1458,39 @@ call histwrt3(tss,'tsu',idnc,iarch,local,.true.)
 call histwrt3(tpan,'tpan',idnc,iarch,local,.true.)
 ! scale up precip,precc,sno,runoff to mm/day (soon reset to 0 in globpe)
 ! ktau in next line in case ntau (& thus ktau) < nwt 
-aa(:)=precip(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1))) 
+aa(:) = precip(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1))) 
 call histwrt3(aa,'rnd',idnc,iarch,local,lwrite)
-aa(:)=precc(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))
+aa(:) = precc(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))
 call histwrt3(aa,'rnc',idnc,iarch,local,lwrite)
-aa(:)=sno(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))
+aa(:) = sno(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))
 call histwrt3(aa,'sno',idnc,iarch,local,lwrite)
-aa(:)=runoff(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))
+aa(:) = runoff(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))
 call histwrt3(aa,'runoff',idnc,iarch,local,lwrite)
-aa(:)=swrsave*albvisnir(:,1)+(1.-swrsave)*albvisnir(:,2)
+aa(:) = swrsave*albvisnir(:,1)+(1.-swrsave)*albvisnir(:,2)
 call histwrt3(aa,'alb',idnc,iarch,local,.true.)
 call histwrt3(fwet,'fwet',idnc,iarch,local,lwrite)
 
 ! MLO ---------------------------------------------------------      
 if ( nmlo/=0 ) then
-  ocnheight=min(max(ocnheight,-130.),130.)
+  ocnheight = min(max(ocnheight,-130.),130.)
   do k=1,ms
     where (.not.land)
-      tgg(:,k)=mlodwn(:,k,1)
+      tgg(:,k) = mlodwn(:,k,1)
     end where
   end do
   do k=1,3
     where (.not.land)
-      tggsn(:,k)=micdwn(:,k)
+      tggsn(:,k) = micdwn(:,k)
     end where
   end do
   where (.not.land)
-    fracice=micdwn(:,5)
-    sicedep=micdwn(:,6)
-    snowd=micdwn(:,7)*1000.
+    fracice = micdwn(:,5)
+    sicedep = micdwn(:,6)
+    snowd   = micdwn(:,7)*1000.
   end where
 end if
 
-call histwrt3(snowd,'snd',idnc,iarch,local,.true.)  ! long write
+call histwrt3(snowd,   'snd', idnc,iarch,local,.true.)  ! long write
 call histwrt3(tgg(1,1),'tgg1',idnc,iarch,local,.true.)
 call histwrt3(tgg(1,2),'tgg2',idnc,iarch,local,.true.)
 call histwrt3(tgg(1,3),'tgg3',idnc,iarch,local,.true.)
@@ -1552,7 +1552,7 @@ call histwrt3(sicedep,'siced',idnc,iarch,local,.true.)
 call histwrt3(fracice,'fracice',idnc,iarch,local,.true.)
      
 ! DIAGNOSTICS -------------------------------------------------
-lwrite=ktau>0
+lwrite=(ktau>0)
 call histwrt3(u10,'u10',idnc,iarch,local,.true.)
       
 if ( itype/=-1 ) then  ! these not written to restart file
@@ -1668,7 +1668,7 @@ if ( itype/=-1 ) then  ! these not written to restart file
   if ( nmlo/=0 ) then
     call histwrt3(mixdep_ave,'mixd_ave',idnc,iarch,local,lave)
   end if
-  lwrite=ktau>0
+  lwrite=(ktau>0)
   call histwrt3(tscrn,'tscrn',idnc,iarch,local,lwrite)
   call histwrt3(qgscrn,'qgscrn',idnc,iarch,local,lwrite)
   call histwrt3(rhscrn,'rhscrn',idnc,iarch,local,lwrite)
@@ -1695,7 +1695,7 @@ if ( itype/=-1 ) then  ! these not written to restart file
     aa=sunhours/3600.
     call histwrt3(aa,'sunhours',idnc,iarch,local,lave)
     call histwrt3(fbeam_ave,'fbeam_ave',idnc,iarch,local,lrad)
-    lwrite=ktau>0
+    lwrite=(ktau>0)
     call histwrt3(dpsdt,'dpsdt',idnc,iarch,local,lwrite)
     call histwrt3(ustar,'ustar',idnc,iarch,local,lwrite)
   endif   ! nextout>=1
@@ -1711,7 +1711,7 @@ end if
 
 ! AEROSOL OPTICAL DEPTH ---------------------------------------
 if ( nextout>=1 .and. abs(iaero)>=2 .and. nrad==5 ) then
-  lwrite=ktau>0
+  lwrite=(ktau>0)
   call histwrt3(opticaldepth(:,1,1),'sdust_vis',idnc,iarch,local,lwrite)
   !call histwrt3(opticaldepth(:,1,2),'sdust_nir',idnc,iarch,local,lwrite)
   !call histwrt3(opticaldepth(:,1,3),'sdust_lw',idnc,iarch,local,lwrite)
@@ -1869,19 +1869,17 @@ end if
 ! **************************************************************
 
 ! ATMOSPHERE DYNAMICS ------------------------------------------
-lwrite=ktau>0
+lwrite=(ktau>0)
 call histwrt4(t,'temp',idnc,iarch,local,.true.)
 call histwrt4(u,'u',idnc,iarch,local,.true.)
 call histwrt4(v,'v',idnc,iarch,local,.true.)
 do k=1,kl
-  do iq=1,ifull
-    tmpry(iq,k)=ps(iq)*dpsldt(iq,k)
-  enddo
+  tmpry(1:ifull,k)=ps(1:ifull)*dpsldt(1:ifull,k)
 enddo
 call histwrt4(tmpry,'omega',idnc,iarch,local,lwrite)
 call histwrt4(qg,'mixr',idnc,iarch,local,.true.)
       
-lwrite=(mod(ktau,nperavg)==0.or.ktau==ntau).and.ktau>0
+lwrite=(mod(ktau,nperavg)==0.or.ktau==ntau).and.(ktau>0)
 call histwrt4(convh_ave,'convh_ave',idnc,iarch,local,lwrite)
       
 ! MICROPHYSICS ------------------------------------------------
@@ -2112,7 +2110,9 @@ if ( first ) then
     icy=kdate/10000
     icm=max(1,min(12,(kdate-icy*10000)/100))
     icd=max(1,min(31,(kdate-icy*10000-icm*100)))
-    if(icy<100)icy=icy+1900
+    if ( icy<100 ) then
+      icy=icy+1900
+    end if
     ich=ktime/100
     icmi=(ktime-ich*100)
     ics=0
@@ -2144,7 +2144,7 @@ if ( first ) then
     nahead(1)=il_g       ! needed by cc2hist
     nahead(2)=jl_g       ! needed by cc2hist
     nahead(3)=1          ! needed by cc2hist (turns off 3D fields)
-    nahead(4)=m
+    nahead(4)=5
     nahead(5)=0          ! nsd not used now
     nahead(6)=io_in
     nahead(7)=nbd
@@ -2162,7 +2162,7 @@ if ( first ) then
     nahead(19)=kl        ! needed by cc2hist (was kwt)
     nahead(20)=0  !iaa
     nahead(21)=0  !jaa
-    nahead(22)=nvad
+    nahead(22)=-4
     nahead(23)=0       ! not needed now      
     nahead(24)=0  !lbd
     nahead(25)=nrun
@@ -2334,7 +2334,7 @@ real, dimension(:,:), intent(in) :: t
       
 c=grav/stdlapse
 conr=c/rdry
-if (lev<0) then
+if ( lev<0 ) then
   lev=1
   do while (sig(lev+1)<=0.99)
     lev=lev+1
@@ -2342,18 +2342,18 @@ if (lev<0) then
 end if
 con=sig(lev)**(rdry/c)/c
       
-if(meth==1)then
+if ( meth==1 ) then
   phi1(:)=t(1:ifull,lev)*rdry*(1.-sig(lev))/sig(lev) ! phi of sig(lev) above sfce
   tsurf(:)=t(1:ifull,lev)+phi1(:)*stdlapse/grav
   tav(:)=tsurf(:)+zs(1:ifull)*.5*stdlapse/grav
   dlnps(:)=zs(1:ifull)/(rdry*tav(:))
   pmsl(:)=1.e5*exp(psl(:)+dlnps(:))
-endif  ! (meth==1)
+end if  ! (meth==1)
       
-if(nmaxpr==1.and.mydiag)then
+if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'meth,lev,sig(lev) ',meth,lev,sig(lev)
   write(6,*) 'zs,t_lev,psl,pmsl ',zs(idjd),t(idjd,lev),psl(idjd),pmsl(idjd)
-endif
+end if
       
 return
 end subroutine mslp

@@ -101,7 +101,6 @@
       include 'parmgeom.h'                    ! Coordinate data
       include 'parmhor.h'                     ! Horizontal advection parameters
       include 'parmsurf.h'                    ! Surface parameters
-      include 'parmvert.h'                    ! Vertical advection parameters
       include 'soilv.h'                       ! Soil parameters
       include 'stime.h'                       ! File date data
       include 'trcom2.h'                      ! Station data
@@ -144,9 +143,9 @@
       namelist/defaults/nversion
       namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,
      &    ia,ib,ja,jb,id,jd,iaero,khdif,khor,
-     &    nhorjlm,m,mex,mbd,nbd,ndi,ndi2,nem,nhor,nlv,
+     &    nhorjlm,mex,mbd,nbd,ndi,ndi2,nem,nhor,nlv,
      &    nmaxpr,nonl,nrot,nrad,ntaft,ntsea,
-     &    ntsur,ntvdr,nvad,nvadh,nvmix,nxmap,
+     &    ntsur,nvmix,nxmap,
      &    restol,precon,kdate_s,ktime_s,leap,newtop,mup,
      &    lgwd,ngwd,rhsat,
      &    nextout,hdifmax,jalbfix,nalpha,
@@ -154,7 +153,7 @@
      &    irest,nrun,nstn,rel_lat,rel_long,nrungcm,nsib,
      &    istn,jstn,iunp,slat,slon,zstn,name_stn,
      &    mh_bs,ndept,nritch_t,nt_adv,
-     &    mfix,mfix_qg,namip,amipo3,nh,npex,nhstest,nsemble,
+     &    mfix,mfix_qg,namip,amipo3,nh,nhstest,nsemble,
      &    nspecial,panfg,panzo,nplens,rlatdn,rlatdx,rlongdn,rlongdx,
      &    newrough,newsoilm,nglacier,newztsea,
      &    epsp,epsu,epsf,
@@ -434,9 +433,8 @@
       ! DISPLAY NAMELIST
       if ( myid == 0 ) then   
         write(6,*)'Dynamics options A:'
-        write(6,*)'   m    mex   mfix  mfix_qg   mup    nh    nonl',    
-     &            '   npex  precon' 
-        write(6,'(i5,9i7)')m,mex,mfix,mfix_qg,mup,nh,nonl,npex,precon
+        write(6,*)'   mex   mfix  mfix_qg   mup    nh    nonl   precon' 
+        write(6,'(i4,8i7)')mex,mfix,mfix_qg,mup,nh,nonl,precon
         write(6,*)'Dynamics options B:'
         write(6,*)'nritch_t nrot  ntbar  nxmap   epsp    epsu   epsf',
      &            '   restol'
@@ -451,14 +449,6 @@
         write(6,*)'Horizontal wind staggering options:'
         write(6,*)'mstagpt nstag nstagu'
         write(6,'(i5,11i7)') mstagpt,nstag,nstagu
-        write(6,*)'Vertical advection options:'
-        write(6,*)'  nvad  nvadh  '
-        write(6,'(i5,11i7)') nvad,nvadh
-        if(nvad==4.or.nvad==-4)then
-          write(6,*)'Vertical advection options for TVD:'
-          write(6,*)' nimp   nthub  ntvd   ntvdr'
-          write(6,'(i5,11i7)') nimp,nthub,ntvd,ntvdr
-        endif
         write(6,*)'Horizontal mixing options:'
         write(6,*)' khdif  khor   nhor   nhorps nhorjlm'
         write(6,'(i5,11i7)') khdif,khor,nhor,nhorps,nhorjlm
@@ -579,8 +569,8 @@
         write(6,*) 'newtop>2 no longer allowed'
         call ccmpi_abort(-1)
       end if
-      if (mfix_qg>0.and.(nkuo==4.or.nvad==44)) then
-        write(6,*) 'nkuo=4,nvad=44: mfix_qg>0 not allowed'
+      if (mfix_qg>0.and.nkuo==4) then
+        write(6,*) 'nkuo=4: mfix_qg>0 not allowed'
         call ccmpi_abort(-1)
       end if
       if (mfix>3) then
@@ -791,8 +781,8 @@
         write(6,*) "kbotmlo,ktopmlo ",kbotmlo,ktopmlo
         call ccmpi_abort(-1)
       end if
-      if (kblock<0)  kblock=max(min(ktopdav-kbotdav+1,kl),
-     &                          min(kbotmlo-ktopmlo+1,ol))
+      if (kblock<0) kblock=max(min(ktopdav-kbotdav+1,kl),
+     &                         min(kbotmlo-ktopmlo+1,ol))
       if (kbotdav<1.or.ktopdav>kl.or.kbotdav>ktopdav) then
         write(6,*) "ERROR: Invalid kbotdav and ktopdav"
         write(6,*) "kbotdav,ktopdav ",kbotdav,ktopdav
@@ -2423,7 +2413,6 @@
       include 'parmgeom.h'         ! Coordinate data
       include 'parmhor.h'          ! Horizontal advection parameters
       include 'parmsurf.h'         ! Surface parameters
-      include 'parmvert.h'         ! Vertical advection parameters
       include 'soilv.h'            ! Soil parameters
       include 'stime.h'            ! File date data
       include 'trcom2.h'           ! Station data
@@ -2445,7 +2434,7 @@
       data mloalpha/10/,kbotmlo/-1/,ktopmlo/1/
       
 !     Dynamics options A & B      
-      data m/5/,mex/30/,mfix/3/,mfix_qg/1/,mup/1/,nh/0/,nonl/0/,npex/0/
+      data mex/30/,mfix/3/,mfix_qg/1/,mup/1/,nh/0/,nonl/0/
       data nritch_t/300/,nrot/1/,nxmap/0/,
      &     epsp/-15./,epsu/0./,epsf/0./,precon/-2900/,restol/4.e-7/
       data schmidt/1./,rlong0/0./,rlat0/90./,nrun/0/,nrunx/0/
@@ -2455,8 +2444,6 @@
 !     Horiz wind staggering options
 c     data nstag/99/,nstagu/99/
       data nstag/-10/,nstagu/-1/,nstagoff/0/
-!     Vertical advection options
-      data nvad/-4/,nvadh/2/,ntvdr/1/
 !     Horizontal mixing options (now in initialparm)
       !data khdif/2/,khor/-8/,nhor/-157/,nhorps/-1/,nhorjlm/1/
 !     Vertical mixing options
@@ -2725,7 +2712,6 @@ c     stuff from insoil  for soilv.h
       include 'parmdyn.h'         ! Dynamics parmaters
       include 'parmhor.h'         ! Horizontal advection parameters
       include 'parmsurf.h'        ! Surface parameters
-      include 'parmvert.h'        ! Vertical advection parameters
 
       integer nbarewet,nsigmf
       common/nsib/nbarewet,nsigmf ! Land-surface options
@@ -2785,9 +2771,7 @@ c     stuff from insoil  for soilv.h
         detrain=.3     ! new is .15
       endif
       if(nversion<704)then
-        m=6            ! new is 5
         mex=4          ! new is 30.
-        npex=1         ! new is 0
         ntsur=2        ! new is 6
       endif
       if(nversion<703)then
@@ -2796,14 +2780,10 @@ c     stuff from insoil  for soilv.h
         vmodmin=2.     ! new is .2
         nbase=1        ! new is -2
       endif
-      if(nversion<702)then
-        npex=3         ! new is 1
-      endif
       if(nversion<701)then
         nbase=0        ! new is 1  new variable
       endif
       if(nversion<608)then
-        npex=1         ! new is 3 
         epsp=-20.      ! new is -15.
       endif
       if(nversion<606)then
@@ -2812,7 +2792,6 @@ c     stuff from insoil  for soilv.h
         nstag=-10      ! new is 5
         nstagu=3       ! new is 5
         ntsur=6        ! new is 7
-        nvad=4         ! new is -4
         mbase=10       ! new is 2000
       endif
       if(nversion<604)then
@@ -2882,7 +2861,6 @@ c     stuff from insoil  for soilv.h
       if(nversion<411)then
         nstag=-3       ! new is 3
         nstagu=-3      ! new is 3
-        nvadh=1        ! new is 2
         nhor=155       ! new is 0
         nlocal=1       ! new is 5
         nvsplit=2      ! new is 3

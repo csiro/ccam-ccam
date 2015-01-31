@@ -1,4 +1,5 @@
 * text=auto !eol
+/adjust5.f90 -text
 /aerointerface.f90 -text
 /aerosolldr.f90 -text
 /amipsst.f90 -text
@@ -44,6 +45,7 @@
 /indata.f90 -text
 /indices_m.f90 -text
 /infile.f90 -text
+/ints.f90 -text
 /jimcc.f90 -text
 /kdacom_m.f90 -text
 /kuocomb_m.f90 -text
@@ -68,6 +70,7 @@
 /netcdf_m.f90 -text
 /nharrs_m.f90 -text
 /nlin_m.f90 -text
+/nonlin.f90 -text
 /nsibd_m.f90 -text
 /onthefly.f90 -text
 /optical_path.f90 -text
@@ -111,6 +114,7 @@
 /trvmix.f90 -text
 /unn_m.f90 -text
 /updps.f90 -text
+/upglobal.f90 -text
 /uvbar_m.f90 -text
 /vadvtvd.f90 -text
 /vecs_m.f90 -text

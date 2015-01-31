@@ -8,14 +8,14 @@
 !                               1 cunning in adjust5
 !                               2 more-cunning in adjust5
 
-      integer         m,mex,mfix,mfix_qg,mspec,mup,mfix_tr
-      integer         nh,nonl,npex,nritch_t,nrot,mfix_aero
+      integer         mex,mfix,mfix_qg,mspec,mup,mfix_tr
+      integer         nh,nonl,nritch_t,nrot,mfix_aero
       integer         nstag,nstagu,ntbar,nvsplit,nxmap,precon,helmmeth
       integer         nstagoff
       real            epsp,epsu,epsf,restol
       
-      common/paramdyn/m,mex,mfix,mfix_qg,mspec,mup,                      &
-     &                nh,nonl,npex,nritch_t,nrot,                        &
+      common/paramdyn/mex,mfix,mfix_qg,mspec,mup,                        &
+     &                nh,nonl,nritch_t,nrot,                             &
      &                nstag,nstagu,nstagoff,ntbar,nvsplit,nxmap,precon,  &
      &                helmmeth,epsp,epsu,epsf,restol,mfix_tr,mfix_aero
 
