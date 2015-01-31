@@ -32,7 +32,6 @@ include 'const_phys.h' ! r,g,cp,cpv,roncp
 include 'kuocom.h'   ! ldr
 include 'parm.h'
 include 'parmdyn.h'  
-include 'parmvert.h'
 
 integer, parameter :: ntest=0
 integer iq, k, ng, ii, jj

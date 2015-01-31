@@ -135,7 +135,6 @@ include 'parm.h'                      ! Model configuration
 include 'parmdyn.h'                   ! Dynamics parameters
 include 'parmgeom.h'                  ! Coordinate data
 include 'parmhor.h'                   ! Horizontal advection parameters
-include 'parmvert.h'                  ! Vertical advection parameters
 
 integer ixp,iyp,idlev,idnt,idms,idoc
 integer leap
@@ -419,7 +418,6 @@ include 'filnames.h'                             ! Filenames
 include 'kuocom.h'                               ! Convection parameters
 include 'parm.h'                                 ! Model configuration
 include 'parmdyn.h'                              ! Dynamics parameters
-include 'parmvert.h'                             ! Vertical advection parameters
 include 'soilv.h'                                ! Soil parameters
 include 'version.h'                              ! Model version data
 
@@ -2034,7 +2032,6 @@ include 'parm.h'                      ! Model configuration
 include 'parmdyn.h'                   ! Dynamics parameters
 include 'parmgeom.h'                  ! Coordinate data
 include 'parmhor.h'                   ! Horizontal advection parameters
-include 'parmvert.h'                  ! Vertical advection parameters
 
 integer leap
 common/leap_yr/leap                   ! Leap year (1 to allow leap years)

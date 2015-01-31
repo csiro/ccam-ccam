@@ -33,7 +33,6 @@ include 'kuocom.h'   ! ldr
 include 'parm.h'
 include 'parmdyn.h'  
 include 'parmhor.h'  ! mhint, m_bs, nt_adv
-include 'parmvert.h'  
 
 integer, parameter :: ntest=0       ! ~8+ for diagnostic stability tests
 integer ii,intsch, iq, jj,k, kk, ntr, ierr

@@ -33,12 +33,10 @@ include 'parmdyn.h'
 real, dimension(:,:), intent(inout) :: tarr,uarr,varr
 real, dimension(ifull,kl) :: dum
 real, dimension(ifull) :: tfact
-integer npslx
 integer ntr,k
 integer, dimension(ifull) :: nvadh_pass, nits
 integer, dimension(ifull,kl-1) :: kp,kx
 integer, save :: num = 0
-parameter (npslx=1)  ! 0 off, 1 on for nvad=-4
 
 call START_LOG(vadv_begin)
 
@@ -47,7 +45,7 @@ tfact=1./real(nvadh_pass)
 if(num==0)then
   num=1
   if(mydiag)then
-    write(6,*) 'In vadvtvd nvadh_pass,npslx ',nvadh_pass(idjd),npslx
+    write(6,*) 'In vadvtvd nvadh_pass ',nvadh_pass(idjd)
     write(6,*) 'tfact ',tfact(idjd)
   endif
 endif
@@ -80,14 +78,12 @@ if( diag .and. mydiag )then
 endif
 
 !     h_nh
-if(nh/=0.and.npslx==1)then
+if(nh/=0)then
   call vadv_work(h_nh,tfact,nits,kp,kx)
 endif
 
 !     pslx
-if(npslx==1)then  ! handles -9 too
-  call vadv_work(pslx,tfact,nits,kp,kx)
-endif
+call vadv_work(pslx,tfact,nits,kp,kx)
 
 if(mspec==1)then   ! advect qg and gases after preliminary step
 
@@ -147,7 +143,6 @@ use vvel_m
 implicit none
       
 include 'newmpar.h'
-include 'parmvert.h'
       
 integer, dimension(ifull), intent(in) :: nits
 integer, dimension(ifull,kl-1), intent(in) :: kp,kx

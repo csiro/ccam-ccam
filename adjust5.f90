@@ -34,7 +34,6 @@ include 'const_phys.h'
 include 'kuocom.h'
 include 'parm.h'     ! qgmin
 include 'parmdyn.h'  
-include 'parmvert.h'  
 
 integer, parameter :: ntest=0
 
