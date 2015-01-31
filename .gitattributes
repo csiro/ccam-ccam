@@ -27,6 +27,7 @@
 /co2_read.f90 -text
 /co2dta_m.f90 -text
 /daviesnudge.f90 -text
+/depts.f90 -text
 /dpsdt_m.f90 -text
 /eig.f90 -text
 /epst_m.f90 -text
