@@ -761,10 +761,7 @@ call maxmin(tggsn,'tS',ktau,1.,3)
 call maxmin(tgg,'tgg',ktau,1.,ms)
 pwatr_l=0.   ! in mm
 do k=1,kl
-  do iq=1,ifull
-    qtot=qg(iq,k)+qlg(iq,k)+qfg(iq,k)
-    pwatr_l=pwatr_l-dsig(k)*wts(iq)*qtot*ps(iq)
-  enddo
+  pwatr_l=pwatr_l-sum(dsig(k)*wts(1:ifull)*(qg(1:ifull,k)+qlg(1:ifull,k)+qfg(1:ifull,k))*ps(1:ifull))
 enddo
 pwatr_l=pwatr_l/grav
 rdum(1)=pwatr_l
@@ -1104,13 +1101,11 @@ do kktau=1,ntau   ! ****** start of main time loop
         end if
         call ccmpi_barrier(comm_world)
       end if
-      do iq=1,ifull
-        if((sign(1.,dpsdt(iq))/=sign(1.,dpsdtb(iq))).and.(sign(1.,dpsdtbb(iq))/=sign(1.,dpsdtb(iq))))then
-          epst(iq)=epsp-1.
-        else
-          epst(iq)=0.
-        endif
-      enddo
+      where ((sign(1.,dpsdt(1:ifull))/=sign(1.,dpsdtb(1:ifull))).and.(sign(1.,dpsdtbb(1:ifull))/=sign(1.,dpsdtb(1:ifull))))
+        epst(1:ifull)=epsp-1.
+      elsewhere
+        epst(1:ifull)=0.
+      end where
     endif ! (ktau>2.and.epsp>1..and.epsp<2.)
 
     if (ktau<10.and.mydiag)then
@@ -1134,18 +1129,6 @@ do kktau=1,ntau   ! ****** start of main time loop
     if(ndi<0)then
       if(ktau==(ktau/ndi)*ndi)diag=.true.
     endif
-
-    ! save tracer arrays
-    if(ngas>=1)then ! re-set trsav prior to vadv, hadv, hordif
-      ! N.B. nllp arrays are after gas arrays
-      do igas=1,ngas
-        do k=1,klt
-          do iq=1,ilt*jlt 
-            trsav(iq,k,igas)=tr(iq,k,igas) ! 4D for tr conservation in adjust5
-          enddo
-        enddo
-      enddo
-    endif      ! (ngas>=1)
 
     ! update non-linear dynamic terms
     if (nmaxpr==1) then
@@ -1542,7 +1525,7 @@ do kktau=1,ntau   ! ****** start of main time loop
       pwater=0.   ! in mm
       do k=1,kl
         qtot=qg(iq,k)+qlg(iq,k)+qfg(iq,k)
-        pwater=pwater-dsig(k)*qtot*ps(idjd)/grav
+        pwater=pwater-dsig(k)*qtot*ps(iq)/grav
       enddo
       write (6,"('pwater,condc,condx,rndmax,rmc',9f8.3)") pwater,condc(idjd),condx(idjd),rndmax(idjd),cansto(idjd)
       write (6,"('wetfac,sno,evap,precc,precip',6f8.2)") wetfac(idjd),sno(idjd),evap(idjd),precc(idjd),precip(idjd)
@@ -1558,9 +1541,9 @@ do kktau=1,ntau   ! ****** start of main time loop
       write (6,"('t   ',9f8.3/4x,9f8.3)") t(idjd,:)
       write (6,"('u   ',9f8.3/4x,9f8.3)") u(idjd,:)
       write (6,"('v   ',9f8.3/4x,9f8.3)") v(idjd,:)
-      write (6,"('qg  ',3p9f8.3/4x,9f8.3)") qg(idjd,:)
-      write (6,"('qf  ',3p9f8.3/4x,9f8.3)") qfg(idjd,:)
-      write (6,"('ql  ',3p9f8.3/4x,9f8.3)") qlg(idjd,:)
+      write (6,"('qg  ',9f8.3/4x,9f8.3)") qg(idjd,:)
+      write (6,"('qf  ',9f8.3/4x,9f8.3)") qfg(idjd,:)
+      write (6,"('ql  ',9f8.3/4x,9f8.3)") qlg(idjd,:)
       write (6,"('cfrac',9f8.3/5x,9f8.3)") cfrac(idjd,:)
       do k=1,kl
         es=establ(t(idjd,k))
@@ -1690,33 +1673,19 @@ do kktau=1,ntau   ! ****** start of main time loop
     call maxmin(sno,'sn',ktau,1.,1)        ! as mm during timestep
     call maxmin(rhscrn,'rh',ktau,1.,1)
     call maxmin(ps,'ps',ktau,.01,1)
-    psavge=0.
-    pslavge=0.
-    preccavge=0.
-    precavge=0.
-    do iq=1,ifull
-      psavge=psavge+ps(iq)*wts(iq)
-      pslavge=pslavge+psl(iq)*wts(iq)
-      preccavge=preccavge+precc(iq)*wts(iq)
-      precavge=precavge+precip(iq)*wts(iq)
-    enddo
+    psavge   =sum(ps(1:ifull)*wts(1:ifull))
+    pslavge  =sum(psl(1:ifull)*wts(1:ifull))
+    preccavge=sum(precc(1:ifull)*wts(1:ifull))
+    precavge =sum(precip(1:ifull)*wts(1:ifull))
     ! KE calculation, not taking into account pressure weighting
     gke = 0.
     do k=1,kl
-      do iq=1,ifull
-        gke = gke - 0.5 * wts(iq) * dsig(k) * ( u(iq,k)**2 + v(iq,k)**2 )
-      end do
+      gke = gke - sum( 0.5 * wts(1:ifull) * dsig(k) * ( u(1:ifull,k)**2 + v(1:ifull,k)**2 ) )
     end do
-    cllav=0.
-    clmav=0.
-    clhav=0.
-    cltav=0.
-    do iq=1,ifull
-      cllav=cllav+wts(iq)*cloudlo(iq)
-      clmav=clmav+wts(iq)*cloudmi(iq)
-      clhav=clhav+wts(iq)*cloudhi(iq)
-      cltav=cltav+wts(iq)*cloudtot(iq)   
-    end do
+    cllav=sum(wts(1:ifull)*cloudlo(1:ifull))
+    clmav=sum(wts(1:ifull)*cloudmi(1:ifull))
+    clhav=sum(wts(1:ifull)*cloudhi(1:ifull))
+    cltav=sum(wts(1:ifull)*cloudtot(1:ifull))
 
     ! All this combined into a single reduction
     temparray = (/ psavge, pslavge, preccavge, precavge, gke, cllav, clmav,clhav, cltav /)
@@ -1729,7 +1698,7 @@ do kktau=1,ntau   ! ****** start of main time loop
     end if
     if (mydiag) then
       write(6,98) ktau,diagvals(ps)
-98    format(i7,' ps diag:',-2p9f7.1)
+98    format(i7,' ps diag:',9f7.1)
       if(t(idjd,kl)>258.)then
         write(6,*) 't(idjd,kl) > 258. for idjd = ',idjd
         write(6,91) ktau,(t(idjd,k),k=kl-8,kl)
@@ -1904,18 +1873,11 @@ do kktau=1,ntau   ! ****** start of main time loop
   if(mod(ktau,nperavg)==0)then   
     ! produce some diags & reset most averages once every nperavg
     if (nmaxpr==1) then
-      precavge=0.
-      evapavge=0.
-      do iq=1,ifull
-        precavge=precavge+precip(iq)*wts(iq)
-        evapavge=evapavge+evap(iq)*wts(iq)   ! in mm/day
-      enddo
+      precavge=sum(precip(1:ifull)*wts(1:ifull))
+      evapavge=sum(evap(1:ifull)*wts(1:ifull))   ! in mm/day
       pwatr=0.   ! in mm
       do k=1,kl
-        do iq=1,ifull
-          qtot=qg(iq,k)+qlg(iq,k)+qfg(iq,k)
-          pwatr=pwatr-dsig(k)*wts(iq)*qtot*ps(iq)/grav
-        enddo
+        pwatr=pwatr-sum(dsig(k)*wts(1:ifull)*(qg(1:ifull,k)+qlg(1:ifull,k)+qfg(1:ifull,k))*ps(1:ifull))/grav
       enddo
       temparray(1:3) = (/ precavge, evapavge, pwatr /)
       call ccmpi_reduce(temparray,gtemparray,"max",0,comm_world)
@@ -2206,33 +2168,26 @@ implicit none
 include 'newmpar.h'    ! Grid parameters
 include 'const_phys.h' ! Physical constants
       
-integer iq,k,n
+integer k
       
 if (nllp<3) then
   write(6,*) "ERROR: Incorrect setting of nllp",nllp
   stop
 end if
       
-n=ilt*jlt
 do k=1,klt
-  do iq=1,n       
-    tr(iq,k,ngas+1)=rlatt(iq)*180./pi
-    tr(iq,k,ngas+2)=rlongg(iq)*180./pi
-    tr(iq,k,ngas+3)=.01*ps(iq)*sig(k)  ! in HPa
-  enddo
+  tr(1:ifull,k,ngas+1)=rlatt(1:ifull)*180./pi
+  tr(1:ifull,k,ngas+2)=rlongg(1:ifull)*180./pi
+  tr(1:ifull,k,ngas+3)=.01*ps(1:ifull)*sig(k)  ! in HPa
 enddo
 if(nllp>=4)then   ! theta
   do k=1,klt
-    do iq=1,n  
-      tr(iq,k,ngas+4)=t(iq,k)*(1.e-5*ps(iq)*sig(k))**(-rdry/cp)
-    enddo
+    tr(1:ifull,k,ngas+4)=t(1:ifull,k)*(1.e-5*ps(1:ifull)*sig(k))**(-rdry/cp)
   enddo
 endif   ! (nllp>=4)
 if(nllp>=5)then   ! mixing_ratio (g/kg)
   do k=1,klt
-    do iq=1,n       
-      tr(iq,k,ngas+5)=1000.*qg(iq,k)
-    enddo
+    tr(1:ifull,k,ngas+5)=1000.*qg(1:ifull,k)
   enddo
 endif   ! (nllp>=5)
       
@@ -2435,7 +2390,7 @@ common/leap_yr/leap    ! Leap year (1 to allow leap years)
 integer i,j,iq,iqt,isoil,k2,nn
 real coslong, sinlong, coslat, sinlat, polenx, poleny, polenz
 real zonx, zony, zonz, den, costh, sinth, uzon, vmer, rh1, rh2
-real es,wbav, rh_s
+real es, wbav, rh_s
 
 coslong=cos(rlong0*pi/180.)   ! done here, where work2 has arrays
 sinlong=sin(rlong0*pi/180.)
