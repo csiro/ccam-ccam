@@ -26,16 +26,16 @@ real, dimension(:), allocatable, save :: gosig,gosigh,godsig
 real, dimension(:,:), allocatable, save :: oldu1,oldu2,oldv1,oldv2
 real, dimension(:,:), allocatable, save :: stwgt
 integer, save :: nstagoffmlo
-integer, parameter :: usetide  =1    ! tidal forcing (0=off, 1=on)
-integer, parameter :: icemode  =2    ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
-integer, parameter :: mstagf   =30   ! alternating staggering (0=off left, -1=off right, >0 alternating)
-integer, parameter :: koff     =1    ! time split stagger relative to A-grid (koff=0) or C-grid (koff=1)
-integer, parameter :: nf       =2    ! power for horizontal diffusion reduction factor
-integer, parameter :: itnmax   =6    ! number of interations for staggering
-integer, parameter :: nxtrrho  =1    ! Estimate rho at t+1 (0=off, 1=on)
-integer, save      :: fixsal   =1    ! conserve salinity (0=Usual, 1=Fixed average salinity at 34.72)
-integer, save      :: fixheight=1    ! conserve free surface height (0=Usual, 1=Fixed average Height at 0)
-integer, save      :: mlodiff  =0    ! diffusion (0=all, 1=scalars only)
+integer, parameter :: usetide   = 1    ! tidal forcing (0=off, 1=on)
+integer, parameter :: icemode   = 2    ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
+integer, parameter :: mstagf    = 30   ! alternating staggering (0=off left, -1=off right, >0 alternating)
+integer, parameter :: koff      = 1    ! time split stagger relative to A-grid (koff=0) or C-grid (koff=1)
+integer, parameter :: nf        = 2    ! power for horizontal diffusion reduction factor
+integer, parameter :: itnmax    = 6    ! number of interations for staggering
+integer, parameter :: nxtrrho   = 1    ! Estimate rho at t+1 (0=off, 1=on)
+integer, save      :: fixsal    = 1    ! conserve salinity (0=Usual, 1=Fixed average salinity at 34.72)
+integer, save      :: fixheight = 1    ! conserve free surface height (0=Usual, 1=Fixed average Height at 0)
+integer, save      :: mlodiff   = 0    ! diffusion (0=all, 1=scalars only)
 real, parameter :: rhosn      = 330.      ! density snow (kg m^-3)
 real, parameter :: rhoic      = 900.      ! density ice  (kg m^-3)
 real, parameter :: grav       = 9.80616   ! gravitational constant (m s^-2)
@@ -2324,14 +2324,14 @@ if(intsch==1)then
       if (ncount>=12) then
         ! bi-cubic interpolation
         r(:,1) = (1.-xxg)*sc(:,0,-1)+xxg*sc(:,1,-1)
-        r(:,2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(:,0,0)-xxg*sc(:,-1,0)/3.) &
-             -xxg*(1.+xxg)*sc(:,2,0)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(:,1,0))/2.
-        r(:,3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(:,0,1)-xxg*sc(:,-1,1)/3.) &
-             -xxg*(1.+xxg)*sc(:,2,1)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(:,1,1))/2.
+        r(:,2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(:,0,0)-xxg*sc(:,-1,0)/3.)     &
+                -xxg*(1.+xxg)*sc(:,2,0)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(:,1,0))/2.
+        r(:,3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(:,0,1)-xxg*sc(:,-1,1)/3.)     &
+                -xxg*(1.+xxg)*sc(:,2,1)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(:,1,1))/2.
         r(:,4) = (1.-xxg)*sc(:,0,2) +xxg*sc(:,1,2)
 
-        sans(:) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*r(:,2)-yyg*r(:,1)/3.)       &
-             -yyg*(1.+yyg)*r(:,4)/3.)+yyg*(1.+yyg)*(2.-yyg)*r(:,3))/2.
+        sans(:) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*r(:,2)-yyg*r(:,1)/3.)           &
+                 -yyg*(1.+yyg)*r(:,4)/3.)+yyg*(1.+yyg)*(2.-yyg)*r(:,3))/2.
       else
         ! bi-linear interpolation
         call lfill(sc,cxx)
@@ -3914,6 +3914,7 @@ real, dimension(wlev) :: ddi,dde,ddw,ddn,dds,dden,ddse,ddne,ddwn
 real, dimension(wlev) :: ramp_a,ramp_b,ramp_c,ramp_d,ramp_e,ramp_f
 real, dimension(wlev,2) :: ri,re,rw,rn,rs,ren,rse,rne,rwn
 real, dimension(wlev,2) :: ssi,sse,ssw,ssn,sss,ssen,ssse,ssne,sswn
+real, dimension(wlev,2) :: y2i,y2e,y2w,y2n,y2s,y2en,y2se,y2ne,y2wn
 real, dimension(ifull+iextra,wlev,2), intent (in) :: rhobar
 real, dimension(ifull,wlev,2), intent(out) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
 
@@ -3941,9 +3942,9 @@ do iqq=1,ifull
   ddi=gosig(:)*dd(iqq)
   dde=gosig(:)*dd(ie(iqq))
   ddn=gosig(:)*dd(in(iqq))
-  !call mlospline(ddi,ssi,y2i) ! cubic spline
-  !call mlospline(dde,sse,y2e)
-  !call mlospline(ddn,ssn,y2n)
+  call mlospline(ddi,ssi,y2i) ! cubic spline
+  call mlospline(dde,sse,y2e)
+  call mlospline(ddn,ssn,y2n)
 
   sss=rhobar(is(iqq),:,:)
   ssne=rhobar(ine(iqq),:,:)
@@ -3951,22 +3952,22 @@ do iqq=1,ifull
   dds =gosig(:)*dd(is(iqq))
   ddne=gosig(:)*dd(ine(iqq))
   ddse=gosig(:)*dd(ise(iqq))
-  !call mlospline(dds,sss,y2s) ! cubic spline
-  !call mlospline(ddne,ssne,y2ne)
-  !call mlospline(ddse,ssse,y2se)
+  call mlospline(dds,sss,y2s) ! cubic spline
+  call mlospline(ddne,ssne,y2ne)
+  call mlospline(ddse,ssse,y2se)
   
   ! process staggered u locations
   ddux(:)=gosig(:)*ddu(iqq)
-  call seekval(ri(:,:),ssi(:,:),ddi(:),ddux(:),ramp_a(:))
-  call seekval(re(:,:),sse(:,:),dde(:),ddux(:),ramp_b(:))
+  call seekval(ri(:,:),ssi(:,:),ddi(:),ddux(:),y2i(:,:),ramp_a(:))
+  call seekval(re(:,:),sse(:,:),dde(:),ddux(:),y2e(:,:),ramp_b(:))
   ramp_a=ramp_a*ramp_b
   do jj=1,2
     drhobardxu(iqq,:,jj)=ramp_a*eeu(iqq)*(re(:,jj)-ri(:,jj))*emu(iqq)/ds
   end do
-  call seekval(rn(:,:), ssn(:,:), ddn(:), ddux(:),ramp_c(:))
-  call seekval(rne(:,:),ssne(:,:),ddne(:),ddux(:),ramp_d(:))
-  call seekval(rs(:,:), sss(:,:), dds(:), ddux(:),ramp_e(:))
-  call seekval(rse(:,:),ssse(:,:),ddse(:),ddux(:),ramp_f(:))
+  call seekval(rn(:,:), ssn(:,:), ddn(:), ddux(:),y2n(:,:), ramp_c(:))
+  call seekval(rne(:,:),ssne(:,:),ddne(:),ddux(:),y2ne(:,:),ramp_d(:))
+  call seekval(rs(:,:), sss(:,:), dds(:), ddux(:),y2s(:,:), ramp_e(:))
+  call seekval(rse(:,:),ssse(:,:),ddse(:),ddux(:),y2se(:,:),ramp_f(:))
   ramp_c=ramp_c*ramp_d
   ramp_e=ramp_e*ramp_f
   do jj=1,2
@@ -3984,22 +3985,22 @@ do iqq=1,ifull
   ddw =gosig(:)*dd(iw(iqq))
   dden=gosig(:)*dd(ien(iqq))
   ddwn=gosig(:)*dd(iwn(iqq))
-  !call mlospline(ddw,ssw,y2w) ! cubic spline
-  !call mlospline(dden,ssen,y2en)
-  !call mlospline(ddwn,sswn,y2wn)
+  call mlospline(ddw,ssw,y2w) ! cubic spline
+  call mlospline(dden,ssen,y2en)
+  call mlospline(ddwn,sswn,y2wn)
 
   ! now process staggered v locations
   ddvy(:)=gosig(:)*ddv(iqq)
-  call seekval(ri(:,:),ssi(:,:),ddi(:),ddvy(:),ramp_a(:))
-  call seekval(rn(:,:),ssn(:,:),ddn(:),ddvy(:),ramp_b(:))
+  call seekval(ri(:,:),ssi(:,:),ddi(:),ddvy(:),y2i(:,:),ramp_a(:))
+  call seekval(rn(:,:),ssn(:,:),ddn(:),ddvy(:),y2n(:,:),ramp_b(:))
   ramp_a=ramp_a*ramp_b
   do jj=1,2
     drhobardyv(iqq,:,jj)=ramp_a*eev(iqq)*(rn(:,jj)-ri(:,jj))*emv(iqq)/ds
   end do
-  call seekval(re(:,:), sse(:,:), dde(:), ddvy(:),ramp_c(:))
-  call seekval(ren(:,:),ssen(:,:),dden(:),ddvy(:),ramp_d(:))
-  call seekval(rw(:,:), ssw(:,:), ddw(:), ddvy(:),ramp_e(:))
-  call seekval(rwn(:,:),sswn(:,:),ddwn(:),ddvy(:),ramp_f(:))
+  call seekval(re(:,:), sse(:,:), dde(:), ddvy(:),y2e(:,:), ramp_c(:))
+  call seekval(ren(:,:),ssen(:,:),dden(:),ddvy(:),y2en(:,:),ramp_d(:))
+  call seekval(rw(:,:), ssw(:,:), ddw(:), ddvy(:),y2W(:,:), ramp_e(:))
+  call seekval(rwn(:,:),sswn(:,:),ddwn(:),ddvy(:),y2wn(:,:),ramp_f(:))
   ramp_c=ramp_c*ramp_d
   ramp_e=ramp_e*ramp_f
   do jj=1,2
@@ -4016,7 +4017,7 @@ end do
 return
 end subroutine seekdelta
 
-subroutine seekval(rout,ssin,ddin,ddseek,ramp)
+subroutine seekval(rout,ssin,ddin,ddseek,y2,ramp)
 
 use mlo, only : wlev
 
@@ -4027,9 +4028,9 @@ integer, dimension(wlev) :: sindx
 real, dimension(wlev), intent(in) :: ddseek
 real, dimension(wlev), intent(in) :: ddin
 real, dimension(wlev), intent(out) :: ramp
-real, dimension(wlev,2), intent(in) :: ssin
+real, dimension(wlev,2), intent(in) :: ssin, y2
 real, dimension(wlev,2), intent(out) :: rout
-real, dimension(wlev) :: h, a
+real, dimension(wlev) :: h, a, b
 real, parameter :: dzramp = 0.1 ! extrapolation limit
 
 sindx = 2
@@ -4041,11 +4042,11 @@ end do
 
 h = ddin(sindx)-ddin(sindx-1)
 a = (ddin(sindx)-ddseek)/h
-!b = (ddseek-ddin(sindx-1))/h
+b = (ddseek-ddin(sindx-1))/h
 
 ! linear interpolation                             ! cubic spline terms
-rout(:,1) = a*ssin(sindx-1,1)+(1.-a)*ssin(sindx,1) !+((a*a*a-a)*y2(sindx-1,1)+(b*b*b-b)*y2(sindx,1))*h*h/6.
-rout(:,2) = a*ssin(sindx-1,2)+(1.-a)*ssin(sindx,2) !+((a*a*a-a)*y2(sindx-1,2)+(b*b*b-b)*y2(sindx,2))*h*h/6.
+rout(:,1) = a*ssin(sindx-1,1)+(1.-a)*ssin(sindx,1)+((a*a*a-a)*y2(sindx-1,1)+(b*b*b-b)*y2(sindx,1))*h*h/6.
+rout(:,2) = a*ssin(sindx-1,2)+(1.-a)*ssin(sindx,2)+((a*a*a-a)*y2(sindx-1,2)+(b*b*b-b)*y2(sindx,2))*h*h/6.
 
 ! fade out extrapolation
 ramp = min(max((a+dzramp)/dzramp,0.),1.)*min(max((1.-a+dzramp)/dzramp,0.),1.)
@@ -4053,36 +4054,36 @@ ramp = min(max((a+dzramp)/dzramp,0.),1.)*min(max((1.-a+dzramp)/dzramp,0.),1.)
 return
 end subroutine seekval
 
-!subroutine mlospline(x,y,y2)
-!
-!use mlo, only : wlev
-!
-!implicit none
-!
-!integer ii
-!real, dimension(wlev), intent(in) :: x
-!real, dimension(wlev,2), intent(in) :: y
-!real, dimension(wlev,2), intent(out) :: y2
-!real, dimension(wlev,2) :: u
-!real, dimension(2) :: p
-!real sig
-!
-!y2(1,:)=0.
-!u(1,:)=0.
-!do ii=2,wlev-1
-!  sig=(x(ii)-x(ii-1))/(x(ii+1)-x(ii-1))
-!  p=sig*y2(ii-1,:)+2.
-!  y2(ii,:)=(sig-1.)/p
-!  u(ii,:)=(6.*((y(ii+1,:)-y(ii,:))/(x(ii+1)-x(ii))-(y(ii,:)-y(ii-1,:)) &
-!          /(x(ii)-x(ii-1)))/(x(ii+1)-x(ii-1))-sig*u(ii-1,:))/p
-!end do
-!y2(wlev,:)=0.
-!do ii=wlev-1,1,-1
-!  y2(ii,:)=y2(ii,:)*y2(ii+1,:)+u(ii,:)
-!end do
-!
-!return
-!end subroutine mlospline
+subroutine mlospline(x,y,y2)
+
+use mlo, only : wlev
+
+implicit none
+
+integer ii
+real, dimension(wlev), intent(in) :: x
+real, dimension(wlev,2), intent(in) :: y
+real, dimension(wlev,2), intent(out) :: y2
+real, dimension(wlev,2) :: u
+real, dimension(2) :: p
+real sig
+
+y2(1,:)=0.
+u(1,:)=0.
+do ii=2,wlev-1
+  sig=(x(ii)-x(ii-1))/(x(ii+1)-x(ii-1))
+  p=sig*y2(ii-1,:)+2.
+  y2(ii,:)=(sig-1.)/p
+  u(ii,:)=(6.*((y(ii+1,:)-y(ii,:))/(x(ii+1)-x(ii))-(y(ii,:)-y(ii-1,:)) &
+          /(x(ii)-x(ii-1)))/(x(ii+1)-x(ii-1))-sig*u(ii-1,:))/p
+end do
+y2(wlev,:)=0.
+do ii=wlev-1,1,-1
+  y2(ii,:)=y2(ii,:)*y2(ii+1,:)+u(ii,:)
+end do
+
+return
+end subroutine mlospline
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate tidal potential
