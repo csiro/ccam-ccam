@@ -637,7 +637,7 @@ alfv(1:ifull)=1./(1.+(hdt*(1.+epsf)*fv(1:ifull))**2) ! i.e. alf/(1+epsu)
 call bounds(alf)
 call bounds(alff,corner=.true.)
 pfact(1:ifull)=4.*( ds/(dt*em(1:ifull)) )**2    
-alfe(1:ifull)=alf(ie)-alf(1:ifull)+.25*(alff(in)+alff(in)-alff(ise)-alff(is)) ! alf3 Eq. 141 times ds
+alfe(1:ifull)=alf(ie)-alf(1:ifull)+.25*(alff(ine)+alff(in)-alff(ise)-alff(is)) ! alf3 Eq. 141 times ds
 alfn(1:ifull)=alf(in)-alf(1:ifull)-.25*(alff(ien)+alff(ie)-alff(iwn)-alff(iw)) ! alf4 Eq. 142 times ds
 call boundsuv(alfe,alfn)
 
