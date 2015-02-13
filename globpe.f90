@@ -105,6 +105,7 @@ include 'soilv.h'                          ! Soil parameters
 include 'stime.h'                          ! File date data
 include 'trcom2.h'                         ! Station data
 include 'version.h'                        ! Model version data
+
 #ifdef vampir
 #include 'vt_user.inc'
 #endif
@@ -126,7 +127,6 @@ real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: spare1, spare2
 real, dimension(:), allocatable, save :: spmean
 real, dimension(9) :: temparray, gtemparray
-real, dimension(8) :: rdum
 real clhav, cllav, clmav, cltav, dsx, dtds, es
 real gke, hourst, hrs_dt, evapavge, precavge, preccavge, psavge
 real pslavge, pwater, rel_lat, rel_long, rlwup, spavge, pwatr
@@ -263,7 +263,7 @@ ngas = 0
 read(99, trfiles, iostat=ierr)        ! try reading tracer namelist.  If no
 if (ierr/=0) rewind(99)               ! namelist is found, then disable
 if (tracerlist/=' ') call init_tracer ! tracers and rewind namelist.
-nagg = max(5,naero,ngas)              ! maximum size of aggregation
+nagg = max(5,naero)                   ! maximum size of aggregation
 
 
 !--------------------------------------------------------------
@@ -296,10 +296,10 @@ if (myid==0.and.io_in<=4) then
   write(6,*) 'ilx,jlx,rlong0,rlat0,schmidt ',ilx,jlx,rlong0,rlat0,schmidt
 end if      ! (myid==0.and.io_in<=4)
 ! store grid dimensions for broadcast below
-rdum(1)=rlong0
-rdum(2)=rlat0
-rdum(3)=schmidt
-rdum(4)=real(il_g)
+temparray(1)=rlong0
+temparray(2)=rlat0
+temparray(3)=schmidt
+temparray(4)=real(il_g)
 
 
 !--------------------------------------------------------------
@@ -310,24 +310,24 @@ if (myid==0) then
   read(28,*)kmax,lapsbot,isoth,nsig
   kl=kmax
   write(6,*)'kl,ol,lapsbot,isoth,nsig: ',kl,ol,lapsbot,isoth,nsig
-  rdum(5)=real(kl)
-  rdum(6)=real(lapsbot)
-  rdum(7)=real(isoth)
-  rdum(8)=real(nsig)
+  temparray(5)=real(kl)
+  temparray(6)=real(lapsbot)
+  temparray(7)=real(isoth)
+  temparray(8)=real(nsig)
 end if
       
 ! Broadcast grid to all processors
 ! (Since integers are small, then they can be exactly
 !  represented as reals)
-call ccmpi_bcast(rdum(1:8),0,comm_world)
-rlong0 =rdum(1)
-rlat0  =rdum(2)
-schmidt=rdum(3)
-il_g   =nint(rdum(4))
-kl     =nint(rdum(5))
-lapsbot=nint(rdum(6))
-isoth  =nint(rdum(7))
-nsig   =nint(rdum(8))
+call ccmpi_bcast(temparray(1:8),0,comm_world)
+rlong0 =temparray(1)
+rlat0  =temparray(2)
+schmidt=temparray(3)
+il_g   =nint(temparray(4))
+kl     =nint(temparray(5))
+lapsbot=nint(temparray(6))
+isoth  =nint(temparray(7))
+nsig   =nint(temparray(8))
 
       
 !--------------------------------------------------------------
@@ -682,8 +682,8 @@ ncid=-1                       ! initialise nc handle with no files open
 call histopen(ncid,ifile,ier) ! open parallel initial condition files
 call ncmsg("ifile",ier)       ! report error messages
 if (myid==0) then
-  write(6,*)'ncid,ifile ',ncid,ifile
-  write(6,*)'calling indata; will read from file ',ifile
+  write(6,*) 'ncid,ifile ',ncid,ifile
+  write(6,*) 'calling indata; will read from file ',ifile
 end if
 call indataf(hourst,jalbfix,lapsbot,isoth,nsig)
 ! onthefly.f will close ncid
@@ -764,9 +764,9 @@ do k=1,kl
   pwatr_l=pwatr_l-sum(dsig(k)*wts(1:ifull)*(qg(1:ifull,k)+qlg(1:ifull,k)+qfg(1:ifull,k))*ps(1:ifull))
 enddo
 pwatr_l=pwatr_l/grav
-rdum(1)=pwatr_l
-call ccmpi_reduce( rdum(1:1), rdum(2:2), "sum", 0, comm_world )
-pwatr=rdum(2)
+temparray(1)=pwatr_l
+call ccmpi_reduce( temparray(1:1), gtemparray(1:1), "sum", 0, comm_world )
+pwatr=gtemparray(1)
 if (myid==0) write (6,"('pwatr0 ',12f7.3)") pwatr
 if (ntrac>0) then
   do ng=1,ntrac
@@ -1108,13 +1108,13 @@ do kktau=1,ntau   ! ****** start of main time loop
       end where
     endif ! (ktau>2.and.epsp>1..and.epsp<2.)
 
-    if (ktau<10.and.mydiag)then
+    if (ktau<10.and.mydiag) then
       write(6,*)'savu,u,ubar ',ktau,savu(idjd,1),u(idjd,1),ubar(idjd,1)
-    endif
-    if(ktau==1.and..not.lrestart.and.mspec==1.and.mex/=1)then
+    end if
+    if (ktau==1.and..not.lrestart.and.mspec==1.and.mex/=1) then
       u(1:ifull,:)=savu(1:ifull,:)  ! reset u,v to original values
       v(1:ifull,:)=savv(1:ifull,:)
-    endif
+    end if
     savu2(1:ifull,:)=savu1(1:ifull,:)  
     savv2(1:ifull,:)=savv1(1:ifull,:)
     savs1(1:ifull,:)=savs(1:ifull,:)  
@@ -1883,7 +1883,7 @@ do kktau=1,ntau   ! ****** start of main time loop
       call ccmpi_reduce(temparray,gtemparray,"max",0,comm_world)
       if ( myid == 0 ) then
         precavge = gtemparray(1)
-        evapavge  = gtemparray(2)
+        evapavge = gtemparray(2)
         pwatr    = gtemparray(3)
         write(6,985) pwatr,precavge,evapavge ! MJT bug fix
 985     format(' average pwatr,precc,prec,evap: ',4f7.3)

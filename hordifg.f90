@@ -32,7 +32,7 @@ include 'kuocom.h'
 include 'parm.h'
 include 'parmdyn.h'
 
-real, dimension(ifull+iextra,kl,nagg) :: ff
+real, dimension(ifull+iextra,kl,3) :: ff
 real, dimension(ifull+iextra,kl) :: uc, vc, wc
 real, dimension(ifull+iextra,kl) :: ww, uav, vav
 real, dimension(ifull+iextra,kl) :: xfact, yfact, t_kh

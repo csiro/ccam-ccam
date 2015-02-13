@@ -36,7 +36,7 @@ include 'parmhor.h'  ! mhint, m_bs, nt_adv
 
 integer, parameter :: ntest=0       ! ~8+ for diagnostic stability tests
 integer ii,intsch, iq, jj,k, kk, ntr, ierr
-integer l, idjdd
+integer l, idjdd, nstart, nend, ntot
 integer, save :: num_hight = 0, numunstab = 0
 integer, dimension(ifull) :: nits, nvadh_pass
 real, save, allocatable, dimension(:,:):: tnsav,unsav,vnsav ! for npex=-1
@@ -356,7 +356,11 @@ if(mspec==1.and.mup/=0)then   ! advect qg after preliminary step
     endif
 #endif
     if ( ngas>0 ) then
-      call ints(ngas,tr,intsch,nface,xg,yg,5)
+      do nstart = 1, ngas, nagg
+        nend = min(nstart+nagg-1,ngas)
+        ntot = nend - nstart + 1
+        call ints(ntot,tr(:,:,nstart:nend),intsch,nface,xg,yg,5)
+      end do
     end if
 #ifdef debug
     if(nmaxpr==1.and.mydiag)then
