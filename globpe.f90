@@ -262,7 +262,7 @@ read(99, kuonml)
 ngas = 0
 read(99, trfiles, iostat=ierr)        ! try reading tracer namelist.  If no
 if (ierr/=0) rewind(99)               ! namelist is found, then disable
-if (tracerlist/=' ') call init_tracer ! tracers and rewind namelist.
+                                      ! tracers and rewind namelist.
 nagg = max(5,naero)                   ! maximum size of aggregation
 
 
@@ -645,6 +645,9 @@ call work3f_init(ifull,iextra,kl)
 call xarrs_init(ifull,iextra,kl)
 if (nvmix==6) then
   call tkeinit(ifull,iextra,kl,0)
+end if
+if (tracerlist/=' ') then
+  call init_tracer
 end if
 if (ngas>0) then
   call tracers_init(il,jl,kl,iextra)
