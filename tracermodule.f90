@@ -78,6 +78,7 @@ allocate(trden(numtracer),trreff(numtracer),trdep(numtracer))
 allocate(traclevel(numtracer))
 nhr = 0
 do nt=1,numtracer
+  !           name         inital value                 Emiss type   Emiss file   Density   Radius     Dry Dep?  Emiss levels
   read(130,*) tracname(nt),tracival(nt),tracmin,tracmax,tractype(nt),tracfile(nt),trden(nt),trreff(nt),trdep(nt),traclevel(nt)
   select case(tractype(nt))
    case ('monrep','month')
@@ -110,6 +111,10 @@ if (nhr>0) then
 else
   deallocate(igashr)
 end if
+
+! MJT - moved here to define ntrac, ilt, jlt and klt
+call tracers_init(il,jl,kl,iextra)
+
 if (methane) then
   allocate(acloss_g(ntrac))
 !       initialise accumulated loss (for methane cases)
@@ -131,21 +136,35 @@ end subroutine init_tracer
 subroutine readtracerflux(kdate)
 !     needs to happen further down the code than reading the tracer
 !     list file
+
 use cc_mpi, only : myid
 use tracers_m
+
 implicit none
+
 include 'newmpar.h'
 include 'parm.h'
-real ajunk(3)
+
 integer nt,jyear,jmonth,kdate
-character filename*50,varname*13
+real, dimension(3) :: ajunk
+character(len=50) :: filename
+character(len=13) :: varname
 
 jyear=kdate/10000
 jmonth=(kdate-jyear*10000)/100
 
 do nt=1,numtracer
   select case(tracinterp(nt))
-    case (0:1)
+    case (0)
+!           constant data
+      if (.not.allocated(co2em123)) then
+        allocate(co2em123(ilt*jlt,2:2,numtracer))
+      end if
+      if (.not.allocated(co2em)) then
+        allocate(co2em(ilt*jlt,numtracer))
+      end if
+      call readrco2(nt,jyear,jmonth,1,co2em123(:,2:2,nt),ajunk)
+    case (1)
 !           monthly data
       if (.not.allocated(co2em123)) then
         allocate(co2em123(ilt*jlt,3,numtracer))
@@ -209,32 +228,34 @@ if (mcf) then
  implicit none
  include 'newmpar.h' !il,jl,kl
  include 'parm.h' !nperday
- character(len=50) filename
-!     rml 25/08/04 added fluxunit variable
- character(len=13) fluxtype,fluxname,fluxunit
- integer nflux,iyr,imon,igas,ntime,lc,regnum,kount
- integer nprev,nnext,ncur,n1,n2,ntot,n,timx,gridid,ierr
- real timeinc
+
 !     nflux =3 for month interp case - last month, this month, next month
 !     nflux=31*24+2 for daily, hourly, 3 hourly case
-real fluxin(il*jl,nflux),co2time(nflux),hr
-real, dimension(2) :: dum
-integer ncidfl,fluxid
-integer nregion,dayid
-integer, dimension(:), allocatable :: fluxyr,fluxmon
-real, dimension(:), allocatable :: fluxhr
-integer, dimension(3) :: start,ncount
-real fluxin_g(ifull_g,nflux)
+ 
+ integer ncidfl,fluxid
+ integer nregion,dayid
+ integer nflux,iyr,imon,igas,ntime,lc,regnum,kount
+ integer nprev,nnext,ncur,n1,n2,ntot,n,timx,gridid,ierr
+ integer, dimension(3) :: start,ncount
+ integer, dimension(:), allocatable :: fluxyr,fluxmon
+ real timeinc, hr
+ real, dimension(il*jl,nflux) :: fluxin
+ real, dimension(ifull_g,nflux) :: fluxin_g
+ real, dimension(nflux) :: co2time(nflux)
+ real, dimension(2) :: dum
+ real, dimension(:), allocatable :: fluxhr
+ character(len=50) filename
+ character(len=13) fluxtype,fluxname,fluxunit
 logical gridpts,tst
 
 fluxtype=tractype(igas)
 fluxname=tracname(igas)
 filename=tracfile(igas)
 
-if (trim(fluxtype)=='pulseoff'.or.trim(fluxtype)=='daypulseoff') then
+if ( trim(fluxtype)=='pulseoff' .or. trim(fluxtype)=='daypulseoff' ) then
 !       no surface fluxes to read
   fluxin = 0.
-  tracunit(igas)=' '
+  tracunit(igas)=' '    
   return
 end if
 
@@ -249,11 +270,13 @@ if ( myid == 0 ) then ! Read on this processor and then distribute
   allocate(fluxyr(ntime),fluxmon(ntime))
   call ccnf_get_var(ncidfl,'year',fluxyr)
   call ccnf_get_var(ncidfl,'month',fluxmon)
+  
 !       read hours variable for daily, hourly, 3 hourly data
   if (nflux==(31*24+2)) then
     allocate(fluxhr(ntime))
     call ccnf_get_var(ncidfl,'hour',fluxhr)
   endif
+
 !       check fluxname first otherwise default to 'flux'
   call ccnf_inq_varid(ncidfl,fluxname,fluxid,tst)
   if (tst) then
@@ -267,35 +290,55 @@ if ( myid == 0 ) then ! Read on this processor and then distribute
   call ccnf_get_att(ncidfl,fluxid,'units',fluxunit)
 ! rml 08/11/04 added radon units
 ! rml 30/4/10 exclude mcf deposition case
-  if (igas<=ngas) then
+  if ( igas<=ngas ) then
     tracunit(igas)=fluxunit
-    if (fluxunit(1:7)/='gC/m2/s'.and.fluxunit(1:7)/='Bq/m2/s'.and.fluxunit(1:8)/='mol/m2/s') then
+    if ( fluxunit(1:7)/='gC/m2/s' .and. fluxunit(1:7)/='Bq/m2/s' .and. fluxunit(1:8)/='mol/m2/s' ) then
       write(6,*) 'Units for ',trim(fluxname),' are ',trim(fluxunit)
       write(6,*) 'Code not set up for units other than gC/m2/s or mol/m2/s or Bq/m2/s'
       write(6,*) 'fix flux units'
       call ccmpi_abort(-1)
     endif
   endif
-  if (trim(fluxtype)=='daypulseon') then
+
+  if ( trim(fluxtype)=='daypulseon' ) then
 !         need to read sunset/sunrise times
     call ccnf_inq_dimlen(ncidfl,'nregion',nregion)
     call ccnf_inq_varid(ncidfl,'daylight',dayid,tst)
   endif
 !
 !       find required records
-  if (nflux==3) then
-!         monthly/annual cases
+  if ( nflux==1 ) then
+!         constant case !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    nprev=0
+    nnext=0
+    ncur=1
+!           check ntime
+    if (ntime/=1) then
+      write(6,*) 'flux file wrong ntime'
+      call ccmpi_abort(-1)
+    end if
+    write(6,*)'reading ',ncur,fluxyr(ncur),fluxmon(ncur)
+
+    fluxin_g=0.
+    if (gridpts) then
+      start(1)=1
+      ncount(1)=ifull_g; ncount(2)=1
+      timx=2
+    else
+      start(1:2)=1
+      ncount(1)=il_g; ncount(2)=jl_g; ncount(3)=1
+      timx=3
+    end if
+!         read current month/year
+    start(timx)=ncur
+    call ccnf_get_vara(ncidfl,fluxid,start,ncount,fluxin_g(:,2))
+    
+  else if ( nflux==3 ) then
+!         monthly/annual cases !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     nprev=0
     nnext=0
     ncur=0
-    if (trim(fluxtype)=='constant'.or.trim(fluxtype)=='pulseon'.or.trim(fluxtype)=='daypulseon') then
-!           check ntime
-      if (ntime/=1) then
-        write(6,*) 'flux file wrong ntime'
-        call ccmpi_abort(-1)
-      end if
-      ncur = 1
-    elseif (trim(fluxtype)=='annual') then
+    if (trim(fluxtype)=='annual') then
       do n=1,ntime
         if (fluxyr(n)==iyr) ncur=n
       enddo
@@ -357,7 +400,7 @@ if ( myid == 0 ) then ! Read on this processor and then distribute
       call ccnf_get_vara(ncidfl,fluxid,start,ncount,fluxin_g(:,3))
     endif
   else
-!         daily, hourly, 3 hourly case
+!         daily, hourly, 3 hourly case !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !         find first time in month
 !         rml 06/01/06 extend case to cope with annually repeating or
 !         real year fluxes
@@ -579,16 +622,20 @@ subroutine interp_tracerflux(kdate,hrs_dt)
 !     co2em123(:,1,:) contains prev month, co2em123(:,2,:) current month/year 
 !     co2em123(:,3,:) next month
 use cc_mpi, only : myid, ccmpi_abort
+
 implicit none
+
 include 'newmpar.h' !kl needed for parm.h
 include 'parm.h' !ktau,nperday
-integer mdays(0:13)
-integer iyr,month,m1,m2,igas,igh,kdate
+
 integer leap
-real a1,a2,a3,ratlm,ratlm2,hrmodel,hrs_dt
-real c2(ifull),c3(ifull),c4(ifull)
-logical found
 common/leap_yr/leap  ! 1 to allow leap years
+
+integer, dimension(0:13) :: mdays
+integer iyr,month,m1,m2,igas,igh,kdate
+real a1,a2,a3,ratlm,ratlm2,hrmodel,hrs_dt
+real, dimension(ifull) :: c2,c3,c4
+logical found
    
 !     this could go in the case section but then we'd do it for
 !     every monthly tracer.  This way we do it once but may not

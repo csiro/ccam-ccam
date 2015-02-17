@@ -26,7 +26,7 @@ include 'const_phys.h'
 include 'parm.h'
 
 integer igas, k
-real, dimension(ifull,kl,ngas) :: updtr
+real, dimension(ifull,kl) :: updtr
 real, intent(in), dimension(ifull,kl) :: at, ct
 real, dimension(ifull,kl) :: prf, dz, rhoa, tnhs, tv
 real, dimension(ifull,kl) :: trsrc
@@ -85,12 +85,12 @@ do igas=1,ngas
   mcfloss  = tracname(igas)(1:3)=='mcf'      ! check for mcf tracers to set flag to do loss
 
   ! deposition and decay terms
-  call gasvmix(updtr(:,:,igas),gasfact,igas,decay,trsrc,methloss,mcfloss,cdtq,dz(:,1))
+  call gasvmix(updtr,gasfact,igas,decay,trsrc,methloss,mcfloss,cdtq,dz(:,1))
+  
+  call trimt(at,ct,updtr)
+  tr(1:ifull,:,igas) = updtr  
   
 end do
-
-call trimt(ngas,at,ct,updtr)
-tr(1:ifull,:,:) = updtr
 
 return
 end subroutine tracervmix
@@ -252,17 +252,16 @@ end subroutine gasvmix
 !     u initially now contains rhs; leaves with answer u (jlm)
 !     n.b. we now always assume b = 1-a-c
 
-subroutine trimt(ngas,a,c,rhs)
+subroutine trimt(a,c,rhs)
 
 implicit none
 
 include 'newmpar.h'
 !     N.B.  e, g, temp are just work arrays (not passed through at all)     
 
-integer, intent(in) :: ngas
-integer k, nt
-real, dimension(ifull,kl,ngas), intent(inout) :: rhs
-real, dimension(ifull,kl,ngas) :: g
+integer k
+real, dimension(ifull,kl), intent(inout) :: rhs
+real, dimension(ifull,kl) :: g
 real, dimension(ifull,kl), intent(in) :: a, c
 real, dimension(ifull,kl) :: e, temp
 real, dimension(ifull) :: b
@@ -285,20 +284,16 @@ enddo
 
 !     use precomputed values of e array when available
 b(:)=1.-a(:,1)-c(:,1)
-do nt=1,ngas
-  g(:,1,nt)=rhs(:,1,nt)/b(:)
-  do k=2,kl-1
-    g(:,k,nt)=(rhs(:,k,nt)-a(:,k)*g(:,k-1,nt))*temp(:,k)
-  end do
+g(:,1)=rhs(:,1)/b(:)
+do k=2,kl-1
+  g(:,k)=(rhs(:,k)-a(:,k)*g(:,k-1))*temp(:,k)
 end do
 
 !     do back substitution to give answer now
 b(:)=1.-a(:,kl)-c(:,kl)
-do nt=1,ngas
-  rhs(:,kl,nt)=(rhs(:,kl,nt)-a(:,kl)*g(:,kl-1,nt))/(b(:)-a(:,kl)*e(:,kl-1))
-  do k=kl-1,1,-1
-    rhs(:,k,nt)=g(:,k,nt)-e(:,k)*rhs(:,k+1,nt)
-  end do
+rhs(:,kl)=(rhs(:,kl)-a(:,kl)*g(:,kl-1))/(b(:)-a(:,kl)*e(:,kl-1))
+do k=kl-1,1,-1
+  rhs(:,k)=g(:,k)-e(:,k)*rhs(:,k+1)
 end do
       
 return

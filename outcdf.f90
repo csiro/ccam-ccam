@@ -1907,18 +1907,15 @@ end if
 if ( ngas>0 ) then 
   do igas=1,ngas
     write(trnum,'(i3.3)') igas
-    tmpry=tr(1:ilt*jlt,:,igas)
-    call histwrt4(tmpry,'tr'//trnum,idnc,iarch,local,.true.)
-    tmpry=traver(:,:,igas)
-    call histwrt4(tmpry,'trav'//trnum,idnc,iarch,local,lave)
+    call histwrt4(tr(:,:,igas),'tr'//trnum,idnc,iarch,local,.true.)
+    call histwrt4(traver(:,:,igas),'trav'//trnum,idnc,iarch,local,lave)
     ! rml 14/5/10 option to write out local time afternoon average
     if ( writetrpm ) then
       ! first divide by number of contributions to average
       do k=1,klt
         trpm(1:ifull,k,igas) = trpm(1:ifull,k,igas)/float(npm)
       enddo
-      tmpry=trpm(:,:,igas)
-      call histwrt4(tmpry,'trpm'//trnum,idnc,iarch,local,.true.)
+      call histwrt4(trpm(:,:,igas),'trpm'//trnum,idnc,iarch,local,.true.)
     endif
   enddo ! igas loop
   ! reset arrays
@@ -2053,7 +2050,6 @@ integer, save :: idnt = 0
 integer, save :: idkdate = 0
 integer, save :: idktime = 0
 integer, save :: idmtimer = 0
-real, dimension(ifull,kl) :: tmpry
 real, dimension(ifull) :: freqstore
 real, dimension(ifull) :: umag
 real, dimension(il_g) :: xpnt

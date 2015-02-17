@@ -504,11 +504,6 @@ if ( myid == 0 ) then
   write(6,*)'I/O options:'
   write(6,*)' m_fly  io_in io_nest io_out io_rest  nwt  nperavg'
   write(6,'(i5,4i7,3i8)') m_fly,io_in,io_nest,io_out,io_rest,nwt,nperavg
-  if(ntrac/=0)then
-    write(6,*)'Trace gas options:'
-    write(6,*)' ngas   nllp   ntrac'
-    write(6,'(i5,3i7)') ngas,nllp,ntrac
-  endif
 
   write(6, cardin)
   if(nllp==0.and.nextout>=4) then
@@ -646,11 +641,11 @@ call xarrs_init(ifull,iextra,kl)
 if (nvmix==6) then
   call tkeinit(ifull,iextra,kl,0)
 end if
-if (tracerlist/=' ') then
-  call init_tracer
-end if
+if (tracerlist/=' ') call init_tracer
 if (ngas>0) then
-  call tracers_init(il,jl,kl,iextra)
+  write(6,*)'Trace gas options:'
+  write(6,*)' ngas   nllp   ntrac'
+  write(6,'(i5,3i7)') ngas,nllp,ntrac
 end if
 call work3sav_init(ifull,iextra,kl,ilt,jlt,klt,ngasmax) ! must occur after tracers_init
 if (nbd/=0.and.nud_hrs/=0) then
