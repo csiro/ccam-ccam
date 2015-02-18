@@ -44,7 +44,6 @@ real, dimension(ifull+iextra,kl,6) :: duma
 real, dimension(ifull+iextra,kl) :: uc, vc, wc, dd
 real, dimension(ifull+iextra) :: aa
 real, dimension(ifull,kl) :: theta
-real, dimension(ifull,kl) :: dumt,dumu,dumv
 real, dimension(ifull) :: sdmx, tempry
 real, dimension(ifull) :: denb, vecdot, vdot1, vdot2
 real, dimension(ifull) :: vec1x, vec1y, vec1z

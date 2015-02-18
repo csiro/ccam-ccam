@@ -1877,7 +1877,7 @@ conr=c/rdry
 con=siglev**(rdry/c)/c
 phi1(:)=t(:)*rdry*(1.-siglev)/siglev ! phi of sig(lev) above sfce
 tsurf(:)=t(:)+phi1(:)*stdlapse/grav
-tav(:)=tsurf(:)-max(0.,zs(:))*.5*stdlapse/grav
+tav(:)=tsurf(:)+max(0.,zs(:))*.5*stdlapse/grav
 dlnps(:)=max(0.,zs(:))/(rdry*tav(:))
 pmsl(:)=1.e5*exp(psl(:)+dlnps(:))
 
@@ -1901,7 +1901,7 @@ real, dimension(ifull) :: dlnps, phi1, tav, tsurf
 
 phi1(:)=t(:)*rdry*(1.-sig(lev))/sig(lev) ! phi of sig(lev) above sfce
 tsurf(:)=t(:)+phi1(:)*stdlapse/grav
-tav(:)=tsurf(:)-max(0.,zs(:))*.5*stdlapse/grav
+tav(:)=tsurf(:)+max(0.,zs(:))*.5*stdlapse/grav
 dlnps(:)=max(0.,zs(:))/(rdry*tav(:))
 psl(:)=log(1.e-5*pmsl(:)) -dlnps(:)
 

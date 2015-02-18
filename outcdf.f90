@@ -2338,7 +2338,7 @@ con=sig(lev)**(rdry/c)/c
 if ( meth==1 ) then
   phi1(:)=t(1:ifull,lev)*rdry*(1.-sig(lev))/sig(lev) ! phi of sig(lev) above sfce
   tsurf(:)=t(1:ifull,lev)+phi1(:)*stdlapse/grav
-  tav(:)=tsurf(:)-zs(1:ifull)*.5*stdlapse/grav
+  tav(:)=tsurf(:)+zs(1:ifull)*.5*stdlapse/grav
   dlnps(:)=zs(1:ifull)/(rdry*tav(:))
   pmsl(:)=1.e5*exp(psl(:)+dlnps(:))
 end if  ! (meth==1)
