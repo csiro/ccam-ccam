@@ -642,11 +642,6 @@ if (nvmix==6) then
   call tkeinit(ifull,iextra,kl,0)
 end if
 if (tracerlist/=' ') call init_tracer
-if (ngas>0) then
-  write(6,*)'Trace gas options:'
-  write(6,*)' ngas   nllp   ntrac'
-  write(6,'(i5,3i7)') ngas,nllp,ntrac
-end if
 call work3sav_init(ifull,iextra,kl,ilt,jlt,klt,ngasmax) ! must occur after tracers_init
 if (nbd/=0.and.nud_hrs/=0) then
   if (abs(iaero)>=2.and.nud_aero/=0) then

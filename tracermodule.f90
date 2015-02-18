@@ -163,7 +163,7 @@ do nt=1,numtracer
       if (.not.allocated(co2em)) then
         allocate(co2em(ilt*jlt,numtracer))
       end if
-      call readrco2(nt,jyear,jmonth,1,co2em123(:,2:2,nt),ajunk)
+      call readrco2(nt,jyear,jmonth,1,co2em123(:,2:2,nt),ajunk(2:2))
     case (1)
 !           monthly data
       if (.not.allocated(co2em123)) then
@@ -239,9 +239,9 @@ if (mcf) then
  integer, dimension(3) :: start,ncount
  integer, dimension(:), allocatable :: fluxyr,fluxmon
  real timeinc, hr
- real, dimension(il*jl,nflux) :: fluxin
+ real, dimension(ifull,nflux) :: fluxin
  real, dimension(ifull_g,nflux) :: fluxin_g
- real, dimension(nflux) :: co2time(nflux)
+ real, dimension(nflux) :: co2time
  real, dimension(2) :: dum
  real, dimension(:), allocatable :: fluxhr
  character(len=50) filename
@@ -320,6 +320,7 @@ if ( myid == 0 ) then ! Read on this processor and then distribute
     write(6,*)'reading ',ncur,fluxyr(ncur),fluxmon(ncur)
 
     fluxin_g=0.
+    co2time=0.
     if (gridpts) then
       start(1)=1
       ncount(1)=ifull_g; ncount(2)=1
@@ -331,7 +332,7 @@ if ( myid == 0 ) then ! Read on this processor and then distribute
     end if
 !         read current month/year
     start(timx)=ncur
-    call ccnf_get_vara(ncidfl,fluxid,start,ncount,fluxin_g(:,2))
+    call ccnf_get_vara(ncidfl,fluxid,start,ncount,fluxin_g(:,1))
     
   else if ( nflux==3 ) then
 !         monthly/annual cases !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -377,6 +378,7 @@ if ( myid == 0 ) then ! Read on this processor and then distribute
     write(6,*)'reading ',ncur,fluxyr(ncur),fluxmon(ncur)
 !    
     fluxin_g=0.
+    co2time=0.
     if (gridpts) then
       start(1)=1
       ncount(1)=ifull_g; ncount(2)=1
@@ -457,6 +459,7 @@ if ( myid == 0 ) then ! Read on this processor and then distribute
     timeinc = fluxhr(n1+1)-fluxhr(n1)
     co2time(1)=co2time(2)-timeinc
     co2time(ntot+2)=co2time(ntot+1)+timeinc
+    deallocate(fluxhr)
   endif
 !
   if (trim(fluxtype)=='daypulseon') then
