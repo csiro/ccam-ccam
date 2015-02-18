@@ -507,13 +507,13 @@ else
 endif ! newfile ..else..
 
 ! -------------------------------------------------------------------
-! detemine the reference level below sig=0.99 (used to calculate psl)
+! detemine the reference level below sig=0.9 (used to calculate psl)
 lev=0
-do while( sig(lev+1)>0.99 ) ! nested grid
+do while( sig(lev+1)>0.9 ) ! nested grid
   lev=lev+1
 end do
 levkk=0
-do while( sigin(levkk+1)>0.99 ) ! host grid
+do while( sigin(levkk+1)>0.9 ) ! host grid
   levkk=levkk+1
 end do      
 
@@ -1877,7 +1877,7 @@ conr=c/rdry
 con=siglev**(rdry/c)/c
 phi1(:)=t(:)*rdry*(1.-siglev)/siglev ! phi of sig(lev) above sfce
 tsurf(:)=t(:)+phi1(:)*stdlapse/grav
-tav(:)=tsurf(:)+max(0.,zs(:))*.5*stdlapse/grav
+tav(:)=tsurf(:)-max(0.,zs(:))*.5*stdlapse/grav
 dlnps(:)=max(0.,zs(:))/(rdry*tav(:))
 pmsl(:)=1.e5*exp(psl(:)+dlnps(:))
 
@@ -1901,7 +1901,7 @@ real, dimension(ifull) :: dlnps, phi1, tav, tsurf
 
 phi1(:)=t(:)*rdry*(1.-sig(lev))/sig(lev) ! phi of sig(lev) above sfce
 tsurf(:)=t(:)+phi1(:)*stdlapse/grav
-tav(:)=tsurf(:)+max(0.,zs(:))*.5*stdlapse/grav
+tav(:)=tsurf(:)-max(0.,zs(:))*.5*stdlapse/grav
 dlnps(:)=max(0.,zs(:))/(rdry*tav(:))
 psl(:)=log(1.e-5*pmsl(:)) -dlnps(:)
 
