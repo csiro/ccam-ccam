@@ -541,7 +541,7 @@ endif
 !--------------------------------------------------------------
 ! INITIALISE ifull_g ALLOCATABLE ARRAYS
 call bigxy4_init(iquad)
-call xyzinfo_init(ifull_g,ifull,iextra,myid,mbd)
+call xyzinfo_init(ifull_g,ifull,iextra,myid,mbd,nud_uv)
 call indices_init(ifull_g,ifull,iextra,npanels,npan)
 call map_init(ifull_g,ifull,iextra,myid,mbd)
 call latlong_init(ifull_g,ifull,iextra,myid)      
@@ -564,9 +564,11 @@ call ccmpi_bcastr8(xx4,0,comm_world)
 call ccmpi_bcastr8(yy4,0,comm_world)
 ! The following are only needed for the scale-selective filter
 if (mbd/=0) then
-  call ccmpi_bcastr8(x_g,0,comm_world)
-  call ccmpi_bcastr8(y_g,0,comm_world)
-  call ccmpi_bcastr8(z_g,0,comm_world)
+  if (nud_uv==9) then
+    call ccmpi_bcastr8(x_g,0,comm_world)
+    call ccmpi_bcastr8(y_g,0,comm_world)
+    call ccmpi_bcastr8(z_g,0,comm_world)
+  end if
   call ccmpi_bcast(em_g,0,comm_world)
 end if
 if (myid==0) write(6,*) "Calling ccmpi_setup"
@@ -587,6 +589,8 @@ if (myid==0) then
   deallocate(dmdx_g,dmdy_g)
   if (mbd==0) then
     deallocate(x_g,y_g,z_g,em_g)
+  else if (nud_uv/=9) then
+    deallocate(x_g,y_g,z_g)
   end if
   deallocate(rlatt_g,rlongg_g)
 else
@@ -638,13 +642,13 @@ call work2_init(ifull,iextra,kl,nsib)
 call work3_init(ifull,iextra,kl,nsib)
 call work3f_init(ifull,iextra,kl)
 call xarrs_init(ifull,iextra,kl)
-if (nvmix==6) then
+if ( nvmix==6 ) then
   call tkeinit(ifull,iextra,kl,0)
 end if
-if (tracerlist/=' ') call init_tracer
+if ( tracerlist/=' ' ) call init_tracer
 call work3sav_init(ifull,iextra,kl,ilt,jlt,klt,ngasmax) ! must occur after tracers_init
-if (nbd/=0.and.nud_hrs/=0) then
-  if (abs(iaero)>=2.and.nud_aero/=0) then
+if ( nbd/=0 .and. nud_hrs/=0 ) then
+  if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
     call dav_init(ifull,iextra,kl,naero)
   else
     call dav_init(ifull,iextra,kl,0)
@@ -663,7 +667,7 @@ end if
 
 call date_and_time(rundate)
 call date_and_time(time=timeval)
-if (myid == 0) then
+if ( myid == 0 ) then
   write(6,*)'RUNDATE IS ',rundate
   write(6,*)'Starting time ',timeval
 end if

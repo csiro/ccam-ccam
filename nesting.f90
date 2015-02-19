@@ -328,7 +328,7 @@ end subroutine nestin
 
 !--------------------------------------------------------------
 ! SCALE SELECTIVE FILTER ASSIMILATION
-      ! Called for mbd/=0
+! Called for mbd/=0
 subroutine nestinb
 
 use aerosolldr                   ! LDR prognostic aerosols
@@ -429,14 +429,14 @@ if ((mtimer==mtimeb).and.(mod(nint(ktau*dt),60)==0)) then
   ! specify sea-ice if not AMIP or Mixed-Layer-Ocean
   if (namip==0) then  ! namip SSTs/sea-ice take precedence
     if (nmlo==0) then
-!     following sice updating code copied from nestin June '08      
-!     check whether present ice points should change to/from sice points
+      ! following sice updating code copied from nestin June '08      
+      ! check whether present ice points should change to/from sice points
       sicedep(:)=sicedepb(:)  ! from Jan 06
       fracice(:)=fraciceb(:)
-!     because of new zs etc, ensure that sice is only over sea
+      ! because of new zs etc, ensure that sice is only over sea
       do iq=1,ifull
         if(fraciceb(iq)>0.)then
-!         N.B. if already a sice point, keep present tice (in tggsn)
+          ! N.B. if already a sice point, keep present tice (in tggsn)
           if(fracice(iq)==0.)then
             tggsn(iq,1)=min(271.2,tssb(iq),tb(iq,1)+.04*6.5) ! for 40 m lev1
           endif  ! (fracice(iq)==0.)
@@ -447,8 +447,8 @@ if ((mtimer==mtimeb).and.(mod(nint(ktau*dt),60)==0)) then
           fracice(iq)=0.
         else
           if(fracice(iq)>0..and.sicedep(iq)==0.)then
-!           assign to 2m in NH and 1m in SH (according to spo)
-!           do this in indata, amipdata and nestin because of onthefly
+            ! assign to 2m in NH and 1m in SH (according to spo)
+            ! do this in indata, amipdata and nestin because of onthefly
             if(rlatt(iq)>0.)then
               sicedep(iq)=2.
             else
@@ -460,7 +460,7 @@ if ((mtimer==mtimeb).and.(mod(nint(ktau*dt),60)==0)) then
         endif    ! (land(iq))
       enddo     ! iq loop
 
-!     update tss 
+      ! update tss 
       where (.not.land)
         tss=tssb
         tgg(:,1)=tss
@@ -488,8 +488,8 @@ if ((mtimer==mtimeb).and.(mod(nint(ktau*dt),60)==0)) then
         call mlofilterhub(sssb(:,:,1),sssb(:,:,2), sssb(:,:,3:4),ocndep(:,2),wl)
       end if
     end if ! (nmlo==0)
-  end if ! (namip==0)
-end if ! (mod(nint(ktau*dt),60)==0)
+  end if   ! (namip==0)
+end if     ! (mod(nint(ktau*dt),60)==0)
 
 return
 end subroutine nestinb
@@ -1098,6 +1098,7 @@ real, dimension(xpan,xpan,klt) :: pt
 real, dimension(xpan,xpan) :: psum,stsum
 real, dimension(il_g*xpan*(klt+1)) :: dd
 real, dimension(xpan*xpan*(klt+1)) :: ff
+real(kind=8), dimension(3) :: ans
       
 ! matched for panels 1,2 and 3
       
@@ -1134,9 +1135,10 @@ do ipass=0,2
           call getglobalpack(at(n,k),a*n+b*jj+c,k)
           at(n,k)=at(n,k)*asum(n)
         end do
-        xa(n)=x_g(a*n+b*jj+c)
-        ya(n)=y_g(a*n+b*jj+c)
-        za(n)=z_g(a*n+b*jj+c)
+        ans(:)=xyz_g(a*n+b*jj+c)
+        xa(n)=ans(1)
+        ya(n)=ans(2)
+        za(n)=ans(3)
       end do
     end do
     ! start convolution
@@ -1218,9 +1220,10 @@ do j=1,ipan
       do k=1,klt
         call getglobalpack(at(n,k),a*n+b*jj+c,k)
       end do
-      xa(n)=x_g(a*n+b*jj+c)
-      ya(n)=y_g(a*n+b*jj+c)
-      za(n)=z_g(a*n+b*jj+c)
+      ans(:)=xyz_g(a*n+b*jj+c)
+      xa(n)=ans(1)
+      ya(n)=ans(2)
+      za(n)=ans(3)
     end do
   end do
   ! start convolution
@@ -1286,6 +1289,7 @@ real, dimension(xpan,xpan,klt) :: pt
 real, dimension(xpan,xpan) :: psum
 real, dimension(il_g*xpan*(klt+1)) :: dd
 real, dimension(xpan*xpan*(klt+1)) :: ff
+real(kind=8), dimension(3) :: ans
       
 ! matched for panels 0, 4 and 5
       
@@ -1322,9 +1326,10 @@ do ipass=0,2
           call getglobalpack(at(n,k),a*n+b*jj+c,k)
           at(n,k)=at(n,k)*asum(n)
         end do
-        xa(n)=x_g(a*n+b*jj+c)
-        ya(n)=y_g(a*n+b*jj+c)
-        za(n)=z_g(a*n+b*jj+c)
+        ans(:)=xyz_g(a*n+b*jj+c)
+        xa(n)=ans(1)
+        ya(n)=ans(2)
+        za(n)=ans(3)
       end do
     end do
     ! start convolution
@@ -1405,9 +1410,10 @@ do j=1,jpan
       do k=1,klt
         call getglobalpack(at(n,k),a*n+b*jj+c,k)
       end do
-      xa(n)=x_g(a*n+b*jj+c)
-      ya(n)=y_g(a*n+b*jj+c)
-      za(n)=z_g(a*n+b*jj+c)
+      ans(:)=xyz_g(a*n+b*jj+c)
+      xa(n)=ans(1)
+      ya(n)=ans(2)
+      za(n)=ans(3)
     end do
   end do
   ! start convolution
@@ -1645,12 +1651,12 @@ use mlo, only : mloimport,mloexport,mloexpdep,wlev  ! Ocean physics and prognost
 use mlodynamics                                     ! Ocean dynamics routines
 use soil_m                                          ! Soil and surface data
 use vecsuv_m                                        ! Map to cartesian coordinates
-      
+
 implicit none
 
 include 'newmpar.h'                                 ! Grid parameters      
 include 'parm.h'                                    ! Model configuration
-      
+
 integer, intent(in) :: wl
 integer k,ka,kb,kc,ke,kln,klx,klt,kbb
 real, dimension(ifull), intent(in) :: sfh
@@ -2271,6 +2277,7 @@ real, dimension(xpan,xpan,kd) :: pp
 real, dimension(xpan,xpan) :: psum
 real, dimension(il_g*xpan*(kd+1)) :: zz
 real, dimension(xpan*xpan*(kd+1)) :: yy
+real(kind=8), dimension(3) :: ans
 logical landl
       
 maps=(/ il_g, il_g, 4*il_g, 3*il_g /)
@@ -2310,23 +2317,24 @@ do ipass=0,2
         else
           ap(n,1:kd)=ap(n,1:kd)*asum(n)
         end if
-        xa(n)=x_g(a*n+b*jj+c)
-         ya(n)=y_g(a*n+b*jj+c)
-         za(n)=z_g(a*n+b*jj+c)
-       end do
-     end do
-     ! start convolution
-     do n=1,ipan
-       nn=n+os-1
-       rr(1:me)=xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me)
-       rr(1:me)=acos(max(min(rr(1:me),1.),-1.))
-       rr(1:me)=exp(-(cq*rr(1:me))**2)
-       psum(n,j)=sum(rr(1:me)*asum(1:me))
-       do k=1,kd
-         pp(n,j,k)=sum(rr(1:me)*ap(1:me,k))
-       end do
-     end do
-   end do
+        ans(:)=xyz_g(a*n+b*jj+c)
+        xa(n)=ans(1)
+        ya(n)=ans(2)
+        za(n)=ans(3)
+      end do
+    end do
+    ! start convolution
+    do n=1,ipan
+      nn=n+os-1
+      rr(1:me)=xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me)
+      rr(1:me)=acos(max(min(rr(1:me),1.),-1.))
+      rr(1:me)=exp(-(cq*rr(1:me))**2)
+      psum(n,j)=sum(rr(1:me)*asum(1:me))
+      do k=1,kd
+        pp(n,j,k)=sum(rr(1:me)*ap(1:me,k))
+      end do
+    end do
+  end do
 
 #ifdef debug
   if (myid==0) then
@@ -2389,9 +2397,10 @@ do j=1,ipan
       do k=1,kd
         call getglobalpack(ap(n,k),a*n+b*jj+c,k)
       end do
-      xa(n)=x_g(a*n+b*jj+c)
-      ya(n)=y_g(a*n+b*jj+c)
-      za(n)=z_g(a*n+b*jj+c)
+      ans(:)=xyz_g(a*n+b*jj+c)
+      xa(n)=ans(1)
+      ya(n)=ans(2)
+      za(n)=ans(3)
     end do
   end do
   ! start convolution
@@ -2455,6 +2464,7 @@ real, dimension(xpan,xpan,kd) :: pp
 real, dimension(xpan,xpan) :: psum
 real, dimension(il_g*xpan*(kd+1)) :: zz
 real, dimension(xpan*xpan*(kd+1)) :: yy
+real(kind=8), dimension(3) :: ans
 logical landl
       
 maps=(/ il_g, il_g, 4*il_g, 3*il_g /)
@@ -2494,9 +2504,10 @@ do ipass=0,2
         else
           ap(n,1:kd)=ap(n,1:kd)*asum(n)
         end if
-        xa(n)=x_g(a*n+b*jj+c)
-        ya(n)=y_g(a*n+b*jj+c)
-        za(n)=z_g(a*n+b*jj+c)
+        ans(:)=xyz_g(a*n+b*jj+c)
+        xa(n)=ans(1)
+        ya(n)=ans(2)
+        za(n)=ans(3)
       end do
     end do
     ! start convolution
@@ -2573,9 +2584,10 @@ do j=1,jpan
       do k=1,kd
         call getglobalpack(ap(n,k),a*n+b*jj+c,k)
       end do
-      xa(n)=x_g(a*n+b*jj+c)
-      ya(n)=y_g(a*n+b*jj+c)
-      za(n)=z_g(a*n+b*jj+c)
+      ans(:)=xyz_g(a*n+b*jj+c)
+      xa(n)=ans(1)
+      ya(n)=ans(2)
+      za(n)=ans(3)
     end do
   end do
   ! start convolution

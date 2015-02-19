@@ -18,8 +18,7 @@ integer, dimension(:), save, allocatable :: traclevel
 real, dimension(:,:,:), save, allocatable :: co2emhr, co2em123
 real, dimension(:,:), save, allocatable :: co2hr, co2em
 real, dimension(:,:), save, allocatable :: tracdaytime
-real, dimension(:), save, allocatable :: tracival
-real, dimension(:), save, allocatable :: trden, trreff, trdep
+real, dimension(:), save, allocatable :: tracival, trden, trreff, trdep
 character(len=13), dimension(:), save, allocatable :: tracname
 character(len=13), dimension(:), save, allocatable :: tractype
 character(len=13), dimension(:), save, allocatable :: tracunit
@@ -51,13 +50,15 @@ include 'newmpar.h'
 integer nt
 real tracmin,tracmax
 character(len=80) :: header
+logical dpoflag
 
 !     first read in a list of tracers, then determine what emission data is required
 !     Each processor read this, perhaps not necessary?
 
 !     rml 16/2/10 addition for Transcom methane
 methane = .false.
-mcf = .false.
+mcf     = .false.
+dpoflag = .false.
 
 open(unit=130,file=tracerlist,form='formatted')
 read(130,*) header
@@ -73,7 +74,6 @@ allocate(tracname(numtracer),tractype(numtracer))
 allocate(tracinterp(numtracer),tracunit(numtracer))
 allocate(tracfile(numtracer),igashr(numtracer))
 allocate(tracival(numtracer))
-allocate(tracdaytime(numtracer,2))
 allocate(trden(numtracer),trreff(numtracer),trdep(numtracer))
 allocate(traclevel(numtracer))
 nhr = 0
@@ -94,6 +94,9 @@ do nt=1,numtracer
     tracinterp(nt)=3
    case ('mon1st')
     tracinterp(nt)=4
+   case ('daypulseon')
+    tracinterp(nt)=0
+    dpoflag=.true.
    case default
     tracinterp(nt)=0
   end select
@@ -103,13 +106,17 @@ do nt=1,numtracer
 ! rml 16/2/10 addition for TC methane
   if (tracname(nt)(1:7)=='methane') methane = .true.
   if (tracname(nt)(1:3)=='mcf') mcf = .true.
-!
+
 enddo
 
 if (nhr>0) then
   allocate(nghr(nhr))
 else
   deallocate(igashr)
+end if
+
+if (dpoflag) then
+  allocate(tracdaytime(numtracer,2))    
 end if
 
 ! MJT - moved here to define ntrac, ilt, jlt and klt
@@ -309,29 +316,23 @@ if ( myid == 0 ) then ! Read on this processor and then distribute
 !       find required records
   if ( nflux==1 ) then
 !         constant case !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    nprev=0
-    nnext=0
-    ncur=1
 !           check ntime
     if (ntime/=1) then
       write(6,*) 'flux file wrong ntime'
       call ccmpi_abort(-1)
     end if
-    write(6,*)'reading ',ncur,fluxyr(ncur),fluxmon(ncur)
+    write(6,*)'reading ',1,fluxyr(1),fluxmon(1)
 
     fluxin_g=0.
     co2time=0.
     if (gridpts) then
-      start(1)=1
-      ncount(1)=ifull_g; ncount(2)=1
-      timx=2
-    else
       start(1:2)=1
+      ncount(1)=ifull_g; ncount(2)=1
+    else
+      start(1:3)=1
       ncount(1)=il_g; ncount(2)=jl_g; ncount(3)=1
-      timx=3
     end if
 !         read current month/year
-    start(timx)=ncur
     call ccnf_get_vara(ncidfl,fluxid,start,ncount,fluxin_g(:,1))
     
   else if ( nflux==3 ) then
@@ -755,8 +756,8 @@ real ltime
 if (writetrpm) then
   do iq=1,ilt*jlt
     ltime = timeg + rlongg(iq)*12./pi
-    if (ltime.gt.24) ltime = ltime - 24.
-    if (ltime.ge.12.and.ltime.le.15) then
+    if (ltime>24) ltime = ltime - 24.
+    if (ltime>=12.and.ltime<=15) then
       trpm(iq,1:klt,:) = trpm(iq,1:klt,:) + tr(iq,1:klt,:)
       npm(iq) = npm(iq) + 1
     endif
