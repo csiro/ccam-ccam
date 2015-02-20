@@ -70,7 +70,7 @@
       integer, save :: k500,k600,k700,k900,klon2
       integer, save :: k980 ! MJT suggestion
       integer, save :: mcontlnd,mcontsea           
-      real,save :: convt_frac
+      real,save :: convt_frac,tied_a,tied_b
       real, dimension(:), allocatable, save ::  timeconv,entrainn,alfin
       real, dimension(:,:), allocatable, save :: downex,upin,upin4
       real, dimension(:,:,:), allocatable, save :: detrarr
@@ -325,16 +325,25 @@
         elsewhere
           alfin(:)=alfsea
         end where
-        if(tied_over>1.)then  ! e.g. 20 or 26  (N.B. recently use tied_over -ve)
+        if(tied_over>0.)then   ! e.g. 2626.   b then a.  2600 to get old -26
+          tied_b=int(tied_over/100.)
+          tied_a=tied_over-100.*tied_b
+        else
+          tied_b=abs(tied_over)
+          tied_a=0.
+        endif
+        write(6,*),'tied_over,tied_a,tied_b',tied_over,tied_a,tied_b
+       if(tied_a>1.)then  ! e.g. 20 or 26  
 !         alfin may be reduced over land and sea for finer resolution than 200 km grid            
           do iq=1,ifull
             summ=ds/(em(iq)*208498.)
             alfin(iq)=1.+(alfin(iq)-1.) *
-     &      (1.+tied_over)*summ/(1.+tied_over*summ)
+     &      (1.+tied_a)*summ/(1.+tied_a*summ)
+            if(iq<200)print *,'iq,alfin',iq,alfin(iq)
 !           tied_over=26 gives factor [1, .964, .900, .794, .529] for ds = [200, 100, 50, 25, 8} km     
 !           tied_over=10 gives factor [1, .917, .786, .611, .306] for ds = [200, 100, 50, 25, 8} km     
           enddo
-        endif      
+        endif  ! (tied_a>1.)
       endif    ! (ktau==1)   !----------------------------------------------------------------
       
       alfqarr(:)=alfin(:)
@@ -1275,14 +1284,14 @@ c           print *,'has tied_con=0'
 !     &    1.e8*dpsldt(iq,k900),factr(iq),kb_sav(iq),kt_sav(iq)
          enddo
 
-        if(tied_over<0)then ! typical value is -26, used directly with factr
-!         tied_over=-26 gives factr [1, .964, .900, .794,.5.216] for ds = [200, 100, 50, 25,8,2} km     
-!         tied_over=-10 gives factr [1, .917, .786, .611,.3,.100] for ds = [200, 100, 50, 25,8,2} km     
+        if(tied_b>1.)then ! typical value is 26, used directly with factr
+!         tied_b=26 gives factr [1, .964, .900, .794,.5.216] for ds = [200, 100, 50, 25,8,2} km     
+!         tied_b=10 gives factr [1, .917, .786, .611,.3,.100] for ds = [200, 100, 50, 25,8,2} km     
           do iq=1,ifull
             summ=ds/(em(iq)*208498.)
-            factr(iq)=factr(iq)*(1.-tied_over)*summ/(1.-tied_over*summ)
+            factr(iq)=factr(iq)*(1.+tied_b)*summ/(1.+tied_b*summ)
           enddo
-        endif  ! (tied_over<0)
+       endif  ! (tied_b>1.)
       endif    ! (itn==1)     ! ************************************************
 
       if(nmaxpr==1.and.nevapcc.ne.0.and.mydiag)then
