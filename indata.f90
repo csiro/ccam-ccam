@@ -586,6 +586,19 @@ select case(abs(iaero))
     call load_aerosolldr(so4tfile,oxidantfile,kdate)
 end select
 
+  
+!--------------------------------------------------------------
+! INITIALISE TRACERS (ngas)
+if ( myid==0 ) then
+  write(6,*)'nllp,ngas,ntrac,ilt,jlt,klt ',nllp,ngas,ntrac,ilt,jlt,klt
+end if
+if ( ngas>0 ) then
+  if ( myid==0 ) write(6,*)'Initialising tracers'
+  ! tracer initialisation (if start of run)
+  call init_ts(ngas,dt)
+  call readtracerflux(kdate)
+endif   
+  
 
 !--------------------------------------------------------------
 ! DEFINE FIXED SURFACE ARRAYS
@@ -1975,19 +1988,7 @@ if ( mbd/=0 .or. nbd/=0 ) then
     write(6,*)'ncid,mesonest ',ncid,mesonest
   end if
 end if    ! (mbd/=0.or.nbd/=0)       
-
-    
-!--------------------------------------------------------------
-! INITIALISE TRACERS (ngas)
-if ( myid==0 ) then
-  write(6,*)'nllp,ngas,ntrac,ilt,jlt,klt ',nllp,ngas,ntrac,ilt,jlt,klt
-end if
-if ( ngas>0 ) then
-  if ( myid==0 ) write(6,*)'Initialising tracers'
-  ! tracer initialisation (if start of run)
-  call init_ts(ngas,dt)
-  call readtracerflux(kdate)
-endif    
+  
 
 call END_LOG(indata_end)
 return
