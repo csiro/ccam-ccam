@@ -32,6 +32,7 @@
 !     Communicator
 !
       integer, parameter :: MPI_COMM_WORLD  = 91
+      integer, parameter :: MPI_UNDEFINED   = -32766
       
       integer, parameter :: MPI_STATUS_SIZE = 6
       integer, parameter :: MPI_ADDRESS_KIND = INT_PTR_KIND()

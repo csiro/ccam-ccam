@@ -675,15 +675,7 @@ end if
 
 !--------------------------------------------------------------
 ! READ INITIAL CONDITIONS
-ncid=-1                       ! initialise nc handle with no files open
-call histopen(ncid,ifile,ier) ! open parallel initial condition files
-call ncmsg("ifile",ier)       ! report error messages
-if (myid==0) then
-  write(6,*) 'ncid,ifile ',ncid,ifile
-  write(6,*) 'calling indata; will read from file ',ifile
-end if
-call indataf(hourst,jalbfix,lapsbot,isoth,nsig)
-! onthefly.f will close ncid
+call indataf(hourst,jalbfix,lapsbot,isoth,nsig,io_nest)
 
       
 if (kbotdav<0) then
@@ -772,21 +764,6 @@ if (ntrac>0) then
   end do
 end if   ! (ntrac>0)
 #endif
-
-
-!--------------------------------------------------------------
-! OPEN MESONEST FILE
-if (mbd/=0.or.nbd/=0) then
-  if ( myid == 0 ) then
-    write(6,*) "Opening mesonest file"
-  end if
-  io_in=io_nest                    ! Needs to be seen by all processors
-  call histopen(ncid,mesonest,ier) ! open parallel mesonest files
-  call ncmsg("mesonest",ier)       ! report error messages
-  if ( myid == 0 ) then
-    write(6,*)'ncid,mesonest ',ncid,mesonest
-  end if  ! myid == 0
-end if    ! (mbd/=0.or.nbd/=0)
 
 
 !--------------------------------------------------------------

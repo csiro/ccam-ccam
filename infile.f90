@@ -774,20 +774,14 @@ if ( myid == 0 ) then
 end if
 
 ! define comm group to read the residual files
-if (resid<=1) then
-  ! none or a single residual file - comms not needed
-  comm_ip = comm_null
+if (myid<resid) then
+  ltst=0
+  myrank=myid
 else
-  ! multiple residual input files
-  if (myid<resid) then
-    ltst=0
-    myrank=myid
-  else
-    ltst=-1 ! undefined
-    myrank=myid-resid
-  end if
-  call ccmpi_commsplit(comm_ip,comm_world,ltst,myrank)
+  ltst=-1 ! undefined
+  myrank=myid-resid
 end if
+call ccmpi_commsplit(comm_ip,comm_world,ltst,myrank)
 
 pfall=(fnproc>=nproc) ! are all processes associated with a file?
 if (mynproc>0) then

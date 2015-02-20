@@ -23,8 +23,6 @@ module cc_mpi
    integer, save, public :: nxproc, nyproc                             ! number of processors in the x and y directions
    integer, save, public :: nagg                                       ! maximum number of levels to aggregate for message passing
 
-   integer, save, public :: comm_null                                  ! null comm group
-   
    integer, save, public :: comm_proc, comm_rows, comm_cols            ! comm groups for scale-selective filter
    integer, save, public :: hproc, mproc, npta, pprocn, pprocx         ! decomposition parameters for scale-selective filter
 
@@ -512,10 +510,7 @@ contains
       hproc = pprocn*mproc/npta           ! host processor for panel
 #endif
 
-      ! null comm group
-      comm_null = MPI_COMM_NULL
-
-      ! comm between work groups with captain hproc
+     ! comm between work groups with captain hproc
       colour = hproc
       rank = myid-hproc
       call MPI_Comm_Split(MPI_COMM_WORLD,colour,rank,lcommout,ierr)
@@ -6537,14 +6532,10 @@ contains
       real, dimension(:), intent(out) :: gdat
       real, dimension(:), intent(in) :: ldat
 
+      lcomm = comm
+      lhost = host
       lsize = size(ldat)
-      if ( comm==comm_null ) then
-         gdat(1:lsize) = ldat(1:lsize)
-      else
-         lcomm = comm
-         lhost = host
-         call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
-      end if
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
    
    end subroutine ccmpi_gatherx2r
    
@@ -6690,10 +6681,8 @@ contains
       integer, intent(in) :: comm
       integer(kind=4) :: lcomm, lerr
       
-      if ( comm/=comm_null ) then
-        lcomm = comm
-        call MPI_Comm_Free(lcomm,lerr)
-      end if
+      lcomm = comm
+      call MPI_Comm_Free(lcomm,lerr)
    
    end subroutine ccmpi_commfree
 

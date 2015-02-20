@@ -16,7 +16,7 @@ end interface datacheck
 
 contains
     
-subroutine indataf(hourst,jalbfix,lapsbot,isoth,nsig)
+subroutine indataf(hourst,jalbfix,lapsbot,isoth,nsig,io_nest)
      
 use aerointerface                                ! Aerosol interface
 use aerosolldr, only : xtg,naero                 ! LDR prognostic aerosols
@@ -80,6 +80,7 @@ real, parameter :: deltheta = 10. ! vertical variation
 real, parameter :: rkappa = 2./7.
 
 integer, intent(in) :: jalbfix
+integer, intent(inout) :: io_nest
 integer, dimension(3) :: spos,npos
 integer i1, ii, imo, indexi, indexl, indexs, ip, iq, isoil, isoth
 integer iveg, iyr, j1, jj, k, kdate_sav, ktime_sav, l
@@ -587,20 +588,6 @@ end select
 
 
 !--------------------------------------------------------------
-! INITIALISE TRACERS (ngas)
-!     rml 16/02/06 initialise tr, timeseries output and read tracer fluxes
-if (myid==0) then
-  write(6,*)'nllp,ngas,ntrac,ilt,jlt,klt ',nllp,ngas,ntrac,ilt,jlt,klt
-end if
-if (ngas>0) then
-  if(myid==0)write(6,*)'Initialising tracers'
-  ! tracer initialisation (if start of run)
-  call init_ts(ngas,dt)
-  call readtracerflux(kdate)
-endif
-
-
-!--------------------------------------------------------------
 ! DEFINE FIXED SURFACE ARRAYS
 ! Note that now only land and water points are allowed, as
 ! sea-ice can change during the run
@@ -626,8 +613,17 @@ if (mydiag) write(6,*)'ipland,ipsea: ',ipland,ipsea
 
 !-----------------------------------------------------------------
 ! READ INITIAL CONDITIONS FROM IFILE (io_in)
-if(io_in<4)then
-  if (myid==0) write(6,*) 'Read initial conditions from ifile'
+ncid=-1                       ! initialise nc handle with no files open
+if ( io_in<4 ) then
+  if ( myid==0 ) then
+    write(6,*) 'Read initial conditions from ifile'
+  end if
+  call histopen(ncid,ifile,ier) ! open parallel initial condition files (onthefly will close ncid)
+  call ncmsg("ifile",ier)       ! report error messages
+  if (myid==0) then
+    write(6,*) 'ncid,ifile ',ncid,ifile
+    write(6,*) 'calling indata; will read from file ',ifile
+  end if
   kdate_sav=kdate_s
   ktime_sav=ktime_s
   zss=zs(1:ifull)
@@ -1107,14 +1103,14 @@ if((nrungcm.le.-1.and.nrungcm.ge.-2).or.nrungcm==-6.or.nrungcm>5)then
 endif       !  ((nrungcm==-1.or.nrungcm==-2.or.nrungcm==-5)
 
 ! Soil recycling input
-if(nrungcm<=-3.and.nrungcm>=-5)then
+if( nrungcm<=-3 .and. nrungcm>=-5 ) then
   call histopen(ncid,surf_00,ier)
-  if (ier==0) then
+  if ( ier==0 ) then
     ! NETCDF file format
     ! clobber ifile surface data with surfin surface data
-    kdate_s=kdate_sav
-    ktime_s=ktime_sav
-    if (myid==0) then
+    kdate_s = kdate_sav
+    ktime_s = ktime_sav
+    if ( myid==0 ) then
       write(6,*) 'Replacing surface data with input from ',trim(surf_00)
     end if
     call onthefly(2,kdate,ktime,duma(:,1),duma(:,2),duma(:,3),              &
@@ -1122,13 +1118,13 @@ if(nrungcm<=-3.and.nrungcm>=-5)then
                   dumb(:,:,4),tgg,wb,wbice,snowd,dumb(:,:,5),               &
                   dumb(:,:,6),dumb(:,:,7),tggsn,smass,ssdn,ssdnn,snage,     &
                   isflag,mlodwn,ocndwn,xtgdwn)
-    if(kdate/=kdate_sav.or.ktime/=ktime_sav)then
-      if (myid==0) then
+    if ( kdate/=kdate_sav .or. ktime/=ktime_sav ) then
+      if ( myid==0 ) then
         write(6,*) 'WARN: Could not locate correct date/time'
         write(6,*) '      Using infile surface data instead'
       end if
-      kdate=kdate_sav
-      ktime=ktime_sav
+      kdate = kdate_sav
+      ktime = ktime_sav
     endif
   else
     ! ASCII file format
@@ -1157,9 +1153,9 @@ if(nrungcm<=-3.and.nrungcm>=-5)then
     call readglobvar(87, aa, fmt="*")    ! only use land values of tss
     call readglobvar(87, snowd, fmt="*")
     if ( myid == 0 ) close(87)
-    do iq=1,ifull
-      if(land(iq))tss(iq)=aa(iq)
-    enddo  ! iq loop
+    where (land(1:ifull))
+      tss(1:ifull)=aa(1:ifull)
+    end where
   end if  ! ier==0
 endif    !  (nrungcm<=-3.and.nrungcm>=-5)
 
@@ -1304,10 +1300,10 @@ if(nspecial==34)then      ! test for Andy Pitman & Faye
   tgg(1:ifull,6)=tgg(1:ifull,6)+.1
 endif
 ! for CAI experiment
-if (nspecial.eq.42) then
+if (nspecial==42) then
   call caispecial
 endif 
-if (nspecial.eq.43) then
+if (nspecial==43) then
   call caispecial
   do iq=1,ifull
     rlongd=rlongg(iq)*180./pi
@@ -1326,10 +1322,12 @@ end if
 
 !--------------------------------------------------------------
 ! SET-UP AMIP SSTs (namip)
-if(namip.ne.0)then
-  if(myid==0)write(6,*) 'calling amipsst at beginning of run'
+if ( namip/=0 ) then
+  if ( myid==0 ) then
+    write(6,*) 'calling amipsst at beginning of run'
+  end if
   call amipsst
-endif   ! namip.ne.0
+endif   ! namip/=0
 
 
 !--------------------------------------------------------------
@@ -1963,7 +1961,34 @@ if(nstn>0)then
   enddo  ! nn=1,nstn
 endif     !  (nstn>0)
 
-      
+    
+!--------------------------------------------------------------
+! OPEN MESONEST FILE
+if ( mbd/=0 .or. nbd/=0 ) then
+  if ( myid == 0 ) then
+    write(6,*) "Opening mesonest file"
+  end if
+  io_in = io_nest                  ! Needs to be seen by all processors
+  call histopen(ncid,mesonest,ier) ! open parallel mesonest files
+  call ncmsg("mesonest",ier)       ! report error messages
+  if ( myid == 0 ) then
+    write(6,*)'ncid,mesonest ',ncid,mesonest
+  end if
+end if    ! (mbd/=0.or.nbd/=0)       
+
+    
+!--------------------------------------------------------------
+! INITIALISE TRACERS (ngas)
+if ( myid==0 ) then
+  write(6,*)'nllp,ngas,ntrac,ilt,jlt,klt ',nllp,ngas,ntrac,ilt,jlt,klt
+end if
+if ( ngas>0 ) then
+  if ( myid==0 ) write(6,*)'Initialising tracers'
+  ! tracer initialisation (if start of run)
+  call init_ts(ngas,dt)
+  call readtracerflux(kdate)
+endif    
+
 call END_LOG(indata_end)
 return
 end subroutine indataf
