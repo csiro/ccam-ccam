@@ -20,12 +20,14 @@ use netcdf
 implicit none
             
 private
-public vertint,datefix,getzinp,ncmsg
-public histopen,histclose,histrd1,histrd4s,pfall
-public attrib,histwrt3,histwrt4,freqwrite,surfread
-public ccnf_open,ccnf_create,ccnf_close,ccnf_sync,ccnf_enddef,ccnf_redef,ccnf_nofill,ccnf_inq_varid
-public ccnf_inq_dimid,ccnf_inq_dimlen,ccnf_def_dim,ccnf_def_dimu,ccnf_def_var,ccnf_def_var0
-public ccnf_get_var,ccnf_get_vara,ccnf_get_var1,ccnf_get_att,ccnf_get_attg,ccnf_read,ccnf_put_var
+public vertint, datefix, getzinp, ncmsg
+public histopen, histclose, histrd1, histrd4s, pfall
+public attrib, histwrt3, histwrt4, freqwrite, surfread
+public ccnf_open, ccnf_create, ccnf_close, ccnf_sync, ccnf_enddef
+public ccnf_redef, ccnf_nofill, ccnf_inq_varid, ccnf_inq_dimid
+public ccnf_inq_dimlen, ccnf_def_dim, ccnf_def_dimu, ccnf_def_var
+public ccnf_def_var0, ccnf_get_var, ccnf_get_vara, ccnf_get_var1
+public ccnf_get_att, ccnf_get_attg, ccnf_read, ccnf_put_var
 public ccnf_put_var1,ccnf_put_vara,ccnf_put_att,ccnf_put_attg
 
 interface ccnf_get_att
@@ -77,10 +79,9 @@ end interface ccnf_put_var1
 integer, dimension(:), allocatable, save :: pnoff
 integer, dimension(:,:), allocatable, save :: pioff,pjoff
 integer(kind=4), dimension(:), allocatable, save :: pncid
-integer(kind=4), dimension(:), allocatable, save :: pncidold
 integer, save :: mynproc,fnproc
 integer, save :: pil_g,pjl_g,pil,pjl,pnpan
-integer, save :: comm_ip,comm_ipold
+integer, save :: comm_ip
 logical, save :: ptest,pfall
 
 integer(kind=2), parameter :: minv = -32500
@@ -531,7 +532,7 @@ implicit none
       
 include 'newmpar.h'
       
-integer, parameter :: nihead   = 54
+integer, parameter :: nihead = 54
       
 integer, dimension(nihead) :: ahead
 integer, dimension(0:5) :: duma, dumb
@@ -570,10 +571,10 @@ if (myid==0) then
     ier=nf_open(pfile,nf_nowrite,lncid)
     ncid=lncid
     if (ier/=nf_noerr) then
-      write(6,*) "WARN: Cannot open ",pfile
-      write(6,*) "WARN: Cannot open ",ifile
+      write(6,*) "WARN: Cannot open ",trim(pfile)
+      write(6,*) "WARN: Cannot open ",trim(ifile)
     else  
-      write(6,*) "Found parallel input file ",ifile
+      write(6,*) "Found parallel input file ",trim(ifile)
       fdecomp=''
       der=nf_get_att_int(lncid,nf_global,"nproc",lidum)
       fnproc=lidum
@@ -586,10 +587,10 @@ if (myid==0) then
     ier=nf90_open(pfile,nf90_nowrite,lncid)
     ncid=lncid
     if (ier/=nf90_noerr) then
-      write(6,*) "WARN: Cannot open ",pfile
-      write(6,*) "WARN: Cannot open ",ifile
+      write(6,*) "WARN: Cannot open ",trim(pfile)
+      write(6,*) "WARN: Cannot open ",trim(ifile)
     else  
-      write(6,*) "Found parallel input file ",ifile
+      write(6,*) "Found parallel input file ",trim(ifile)
       fdecomp=''
       der=nf90_get_att(lncid,nf90_global,"nproc",lidum)
       fnproc=lidum
@@ -621,7 +622,7 @@ if (myid==0) then
       write(6,*) "ERROR: Incorrect base filename"
       call ccmpi_abort(-1)
     end if
-    write(6,*) "Found single input file ",ifile
+    write(6,*) "Found single input file ",trim(ifile)
   end if
 
 #ifdef usenc3
@@ -778,7 +779,7 @@ if (myid<resid) then
   ltst=0
   myrank=myid
 else
-  ltst=-1 ! undefined
+  ltst=1
   myrank=myid-resid
 end if
 call ccmpi_commsplit(comm_ip,comm_world,ltst,myrank)
@@ -805,11 +806,13 @@ use cc_mpi
 implicit none
 
 integer ipf, ipin, plen
+integer, save :: comm_ipold
 integer(kind=4) ierr
-      
-if (allocated(pncidold)) then
+integer(kind=4), dimension(:), allocatable, save :: pncidold
+
+if ( allocated(pncidold) ) then
   plen=size(pncidold)
-  do ipf=0,plen-1
+  do ipf = 0,plen-1
 #ifdef usenc3
     ierr=nf_close(pncidold(ipf))
 #else
@@ -820,7 +823,7 @@ if (allocated(pncidold)) then
   deallocate(pncidold)
 end if
       
-if (allocated(pncid)) then
+if ( allocated(pncid) ) then
   plen=size(pncid)
   allocate(pncidold(0:plen-1))
   pncidold=pncid

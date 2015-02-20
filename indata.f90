@@ -626,7 +626,7 @@ if (mydiag) write(6,*)'ipland,ipsea: ',ipland,ipsea
 
 !-----------------------------------------------------------------
 ! READ INITIAL CONDITIONS FROM IFILE (io_in)
-ncid=-1                       ! initialise nc handle with no files open
+ncid=-1  ! initialise nc handle with no files open
 if ( io_in<4 ) then
   if ( myid==0 ) then
     write(6,*) 'Read initial conditions from ifile'
@@ -634,8 +634,7 @@ if ( io_in<4 ) then
   call histopen(ncid,ifile,ier) ! open parallel initial condition files (onthefly will close ncid)
   call ncmsg("ifile",ier)       ! report error messages
   if (myid==0) then
-    write(6,*) 'ncid,ifile ',ncid,ifile
-    write(6,*) 'calling indata; will read from file ',ifile
+    write(6,*) 'ncid,ifile ',ncid,trim(ifile)
   end if
   kdate_sav=kdate_s
   ktime_sav=ktime_s
@@ -664,7 +663,9 @@ if ( io_in<4 ) then
     ! reduce sea tss to mslp      e.g. for qcca in ncep gcm
     do iq=1,ifull
       if(tss(iq)<0.)then
-        if(abs(zss(iq))>1000.)write(6,*)'zss,tss_sea in, out',iq,zss(iq),tss(iq),tss(iq)-zss(iq)*stdlapse/grav
+        if (abs(zss(iq))>1000.) then
+          write(6,*)'zss,tss_sea in, out',iq,zss(iq),tss(iq),tss(iq)-zss(iq)*stdlapse/grav
+        end if
         tss(iq)=tss(iq)-zss(iq)*stdlapse/grav
       endif
     enddo
@@ -682,16 +683,13 @@ if ( io_in<4 ) then
   if ( mydiag ) then
     write(6,*)'newtop, zsold, zs,tss_in,land ',newtop,zss(idjd),zs(idjd),tss(idjd),land(idjd)
   end if
-  if(newtop>=1.and..not.lrestart)then    
-    if(nproc==1)then
-      pslavge=0.
-      do iq=1,ifull
-        pslavge=pslavge+psl(iq)*wts(iq)
-      enddo
+  if (newtop>=1.and..not.lrestart) then    
+    if (nproc==1) then
+      pslavge=sum(psl(1:ifull)*wts(1:ifull))
       write (6,"('initial pslavge ',f10.6)") pslavge
     endif 
     do iq=1,ifull
-      if(land(iq))then
+      if (land(iq)) then
         tss(iq)=tss(iq)+(zss(iq)-zs(iq))*stdlapse/grav
         do k=1,ms
           tgg(iq,k)=tgg(iq,k)+(zss(iq)-zs(iq))*stdlapse/grav
@@ -706,19 +704,12 @@ if ( io_in<4 ) then
       write(6,"('100*psl#  in',9f8.2)") 100.*diagvals(psl)
       write(6,*)'now call retopo from indata'
     end if ! ( mydiag )
-    dumb(:,:,1)=t(1:ifull,:)
-    dumb(:,:,2)=qg(1:ifull,:)
-    call retopo(psl(1:ifull),zss,zs(1:ifull),dumb(:,:,1),dumb(:,:,2))
-    t(1:ifull,:)=dumb(:,:,1)
-    qg(1:ifull,:)=dumb(:,:,2)
+    call retopo(psl,zss,zs,t,qg)
     if(nmaxpr==1.and.mydiag)then
       write(6,"('100*psl# out',9f8.2)") 100.*diagvals(psl)
     endif
-    if(nproc==1)then
-      pslavge=0.
-      do iq=1,ifull
-        pslavge=pslavge+psl(iq)*wts(iq)
-      enddo
+    if (nproc==1) then
+      pslavge=sum(psl(1:ifull)*wts(1:ifull))
       write (6,"('after retopo pslavge ',f10.6)") pslavge
     endif 
   endif   ! (newtop>=1.and..not.lrestart)
@@ -1985,10 +1976,10 @@ if ( mbd/=0 .or. nbd/=0 ) then
   call histopen(ncid,mesonest,ier) ! open parallel mesonest files
   call ncmsg("mesonest",ier)       ! report error messages
   if ( myid == 0 ) then
-    write(6,*)'ncid,mesonest ',ncid,mesonest
+    write(6,*) "ncid,mesonest ",ncid,trim(mesonest)
   end if
 end if    ! (mbd/=0.or.nbd/=0)       
-  
+
 
 call END_LOG(indata_end)
 return

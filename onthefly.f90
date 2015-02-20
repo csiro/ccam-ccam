@@ -1935,18 +1935,17 @@ include 'parm.h'
 
 real, dimension(ifull), intent(inout) :: psl
 real, dimension(ifull), intent(in) :: zsold, zs
-real, dimension(ifull,kl), intent(inout) :: t, qg
+real, dimension(:,:), intent(inout) :: t, qg
 real, dimension(ifull) :: psnew, psold, pslold
 real, dimension(kl) :: told, qgold
 real sig2
 integer iq, k, kkk
-      
-do iq=1,ifull
-  pslold(iq)=psl(iq)
-  psold(iq)=1.e5*exp(psl(iq))
-  psl(iq)=psl(iq)+(zsold(iq)-zs(iq))/(rdry*t(iq,1))
-  psnew(iq)=1.e5*exp(psl(iq))
-end do
+
+pslold(1:ifull)=psl(1:ifull)
+psold(1:ifull)=1.e5*exp(psl(1:ifull))
+psl(1:ifull)=psl(1:ifull)+(zsold(1:ifull)-zs(1:ifull))/(rdry*t(1:ifull,1))
+psnew(1:ifull)=1.e5*exp(psl(1:ifull))
+
 !     now alter temperatures to compensate for new topography
 if(ktau<100.and.mydiag)then
   write(6,*) 'retopo: zsold,zs,psold,psnew ',zsold(idjd),zs(idjd),psold(idjd),psnew(idjd)

@@ -675,6 +675,9 @@ end if
 
 !--------------------------------------------------------------
 ! READ INITIAL CONDITIONS
+if ( myid == 0 ) then
+  write(6,*) "Calling indata"
+end if
 call indataf(hourst,jalbfix,lapsbot,isoth,nsig,io_nest)
 
       
@@ -926,11 +929,11 @@ end if
 
 !--------------------------------------------------------------
 ! OPEN OUTPUT FILES AND SAVE INITAL CONDITIONS
-if(nwt>0)then
+if (nwt>0) then
   ! write out the first ofile data set
   if (myid==0) write(6,*)'calling outfile'
   call outfile(20,rundate,nwrite,nstagin)  ! which calls outcdf
-  if(newtop<0) then
+  if (newtop<0) then
     if (myid==0) write(6,*) 'newtop<0 requires a stop here'
     ! just for outcdf to plot zs  & write fort.22
     call ccmpi_abort(-1)
