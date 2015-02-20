@@ -23,6 +23,8 @@ module cc_mpi
    integer, save, public :: nxproc, nyproc                             ! number of processors in the x and y directions
    integer, save, public :: nagg                                       ! maximum number of levels to aggregate for message passing
 
+   integer, save, public :: comm_null                                  ! null comm group
+   
    integer, save, public :: comm_proc, comm_rows, comm_cols            ! comm groups for scale-selective filter
    integer, save, public :: hproc, mproc, npta, pprocn, pprocx         ! decomposition parameters for scale-selective filter
 
@@ -510,7 +512,10 @@ contains
       hproc = pprocn*mproc/npta           ! host processor for panel
 #endif
 
-     ! comm between work groups with captain hproc
+      ! null comm group
+      comm_null = MPI_COMM_NULL
+
+      ! comm between work groups with captain hproc
       colour = hproc
       rank = myid-hproc
       call MPI_Comm_Split(MPI_COMM_WORLD,colour,rank,lcommout,ierr)
@@ -1793,9 +1798,6 @@ contains
          ! NE, EN
          iq = indp(ipan,jpan,n)
          iqg = indg(ipan,jpan,n)
-!        This might matter for leen etc but not here
-!         if ( edge_e .and. edge_n ) then
-!            ! This is a real vertex
          iqq = ine_g(iqg)
          ! Which processor has this point
          rproc = qproc(iqq)
@@ -1826,6 +1828,7 @@ contains
             end if
          end if
 
+         ! SE, ES
          iq = indp(ipan,1,n)
          iqg = indg(ipan,1,n)
          iqq = ise_g(iqg)
@@ -1858,6 +1861,7 @@ contains
             end if
          end if
 
+         ! WN, NW
          iq = indp(1,jpan,n)
          iqg = indg(1,jpan,n)
          iqq = iwn_g(iqg)
@@ -1890,6 +1894,7 @@ contains
             end if
          end if
 
+         ! SW, WS
          iq = indp(1,1,n)
          iqg = indg(1,1,n)
          iqq = isw_g(iqg)
@@ -2120,11 +2125,11 @@ contains
                iq = indp(i,j,n)   ! Local
                ! Except at corners, ien = ine etc.
                if ( i > 1 ) then
-                 inw(iq) = in(iw(iq))
-                 isw(iq) = is(iw(iq))
+                  inw(iq) = in(iw(iq))
+                  isw(iq) = is(iw(iq))
                else
-                 if ( j < jpan ) inw(iq) = iw(in(iq))
-                 if ( j > 1 )    isw(iq) = iw(is(iq))
+                  if ( j < jpan ) inw(iq) = iw(in(iq))
+                  if ( j > 1 )    isw(iq) = iw(is(iq))
                end if
                if ( i < ipan ) then
                   ! ie will be defined
@@ -2136,11 +2141,11 @@ contains
                   if ( j < jpan ) ine(iq) = ie(in(iq))
                end if
                if ( j > 1 ) then
-                 ies(iq) = ie(is(iq))
-                 iws(iq) = iw(is(iq))
+                  ies(iq) = ie(is(iq))
+                  iws(iq) = iw(is(iq))
                else
-                 if ( i < ipan ) ies(iq)=is(ie(iq))
-                 if ( i > 1 )    iws(iq)=is(iw(iq))
+                  if ( i < ipan ) ies(iq)=is(ie(iq))
+                  if ( i > 1 )    iws(iq)=is(iw(iq))
                end if
                if ( j < jpan ) then
                   ien(iq) = ie(in(iq))
@@ -4123,7 +4128,6 @@ contains
       do iproc = neighnum,1,-1
          sproc = neighlist(iproc)  ! Send to
          ! Build up list of points
-!cdir nodep
          do iq = ssplit(sproc)%isvbg,ssplit(sproc)%ieufn
             ! send_list_uv(iq) is point index.
             ! Use abs because sign is used as u/v flag
@@ -4136,7 +4140,6 @@ contains
             end if
          end do
          iqq = ssplit(sproc)%ieufn-ssplit(sproc)%isvbg+1
-!cdir nodep
          do iq = ssplit(sproc)%isubg,ssplit(sproc)%ievfn
             ! send_list_uv(iq) is point index.
             ! Use abs because sign is used as u/v flag
@@ -4160,13 +4163,11 @@ contains
 
       ! Finally see if there are any points on my own processor that need
       ! to be fixed up. This will only be in the case when nproc < npanels.
-!cdir nodep
       do iq = 1,myrlen
          ! request_list is same as send_list in this case
          iq_b = 1+(iq-1)*kx
          iq_e = iq*kx
-         if ( (bnds(myid)%request_list_uv(iq) > 0) .neqv. &
-                  bnds(myid)%uv_swap(iq) ) then  ! haven't copied to send_swap yet
+         if ( (bnds(myid)%request_list_uv(iq) > 0) .neqv. bnds(myid)%uv_swap(iq) ) then  ! haven't copied to send_swap yet
             tmp(iq_b:iq_e) = u(abs(bnds(myid)%request_list_uv(iq)),1:kx)
          else
             tmp(iq_b:iq_e) = v(abs(bnds(myid)%request_list_uv(iq)),1:kx)
@@ -4196,7 +4197,6 @@ contains
             mproc = donelist(jproc)
             iproc = rlist(mproc)  ! Recv from
             rproc = neighlist(iproc)
-!cdir nodep
             do iq = rsplit(rproc)%isvbg,rsplit(rproc)%ieufn
                ! unpack_list(iq) is index into extended region
                iqz = iq-rsplit(rproc)%isvbg+1
@@ -4208,7 +4208,6 @@ contains
                end if
             end do
             iqq = rsplit(rproc)%ieufn-rsplit(rproc)%isvbg+1
-!cdir nodep
             do iq = rsplit(rproc)%isubg,rsplit(rproc)%ievfn
                ! unpack_list(iq) is index into extended region
                iqz = iqq+iq-rsplit(rproc)%isubg+1
@@ -6538,10 +6537,14 @@ contains
       real, dimension(:), intent(out) :: gdat
       real, dimension(:), intent(in) :: ldat
 
-      lcomm = comm
-      lhost = host
       lsize = size(ldat)
-      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+      if ( comm==comm_null ) then
+         gdat(1:lsize) = ldat(1:lsize)
+      else
+         lcomm = comm
+         lhost = host
+         call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+      end if
    
    end subroutine ccmpi_gatherx2r
    
@@ -6671,8 +6674,12 @@ contains
       integer(kind=4) :: lcomm, lcommout, lerr, lrank, lcolour
    
       lcomm = comm
-      lcolour = colour
       lrank = rank
+      if ( colour>=0 ) then
+        lcolour = colour
+      else
+        lcolour = MPI_UNDEFINED
+      end if
       call MPI_Comm_Split(lcomm,lcolour,lrank,lcommout,lerr)
       commout = lcommout
    
@@ -6683,8 +6690,10 @@ contains
       integer, intent(in) :: comm
       integer(kind=4) :: lcomm, lerr
       
-      lcomm = comm
-      call MPI_Comm_Free(lcomm,lerr)
+      if ( comm/=comm_null ) then
+        lcomm = comm
+        call MPI_Comm_Free(lcomm,lerr)
+      end if
    
    end subroutine ccmpi_commfree
 

@@ -539,7 +539,7 @@ integer, dimension(6) :: idum
 integer, intent(out) :: ncid, ier
 integer resid, is, ipf, dmode
 integer ipin, nxpr, nypr
-integer ltst, der
+integer ltst, der, myrank
 integer(kind=4), dimension(nihead) :: lahead
 integer(kind=4) lncid, lidum
 character(len=*), intent(in) :: ifile
@@ -707,7 +707,9 @@ if (myid==0) then
   else
     idum(5)=0      
   end if
-  idum(6)=ier  
+  idum(6)=ier
+  
+  write(6,*) "Broadcasting file metadata"
 end if
 
 ! Broadcast file metadata
@@ -725,25 +727,32 @@ if (ier/=nf_noerr) return
 if (ier/=nf90_noerr) return
 #endif
 
+if ( myid == 0 ) then
+  write(6,*) "Opening data files"
+end if
+
 ! calculate number of files to be read on this processor
-mynproc=fnproc/nproc
-resid=mod(fnproc,nproc)
+resid=mod(fnproc,nproc)            ! residual files to be read by selected processors
+mynproc=fnproc/nproc               ! calculate the number of files to be read
 if (myid<resid) mynproc=mynproc+1
 
+! allocate array of file handles.  Unallocated implies no files to be read on this processor
 if (allocated(pncid)) then
   deallocate(pncid)
 end if
 if (mynproc>0) then
   allocate(pncid(0:mynproc-1))
 end if
-      
+
+! Rank 0 can start with the second file, because the first file has already been opened
 if (myid==0) then 
   is=1
   pncid(0)=ncid
 else
   is=0
 end if
-      
+
+! loop through files to be opened by this processor
 do ipf=is,mynproc-1
   ipin=ipf*nproc+myid
   write(pfile,"(a,'.',i6.6)") trim(ifile), ipin
@@ -759,16 +768,35 @@ do ipf=is,mynproc-1
   end if
 end do
 
-if (myid<resid) then
-  ltst=1
-else
-  ltst=0
+if ( myid == 0 ) then
+  write(6,*) "Splitting comms for distributing file data"
+  write(6,*) "resid ",resid
 end if
-call ccmpi_commsplit(comm_ip,comm_world,ltst,myid)
 
-pfall=(fnproc>=nproc)
+! define comm group to read the residual files
+if (resid<=1) then
+  ! none or a single residual file - comms not needed
+  comm_ip = comm_null
+else
+  ! multiple residual input files
+  if (myid<resid) then
+    ltst=0
+    myrank=myid
+  else
+    ltst=-1 ! undefined
+    myrank=myid-resid
+  end if
+  call ccmpi_commsplit(comm_ip,comm_world,ltst,myrank)
+end if
+
+pfall=(fnproc>=nproc) ! are all processes associated with a file?
 if (mynproc>0) then
-  ncid=pncid(0)
+  ncid=pncid(0)       ! set ncid to the first file handle as the ccam code
+                      ! assumes changes in ncid reflect a new file
+end if
+
+if ( myid == 0 ) then
+  write(6,*) "Ready to read data from input file"
 end if
 
 return

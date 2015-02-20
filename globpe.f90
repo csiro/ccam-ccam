@@ -777,6 +777,9 @@ end if   ! (ntrac>0)
 !--------------------------------------------------------------
 ! OPEN MESONEST FILE
 if (mbd/=0.or.nbd/=0) then
+  if ( myid == 0 ) then
+    write(6,*) "Opening mesonest file"
+  end if
   io_in=io_nest                    ! Needs to be seen by all processors
   call histopen(ncid,mesonest,ier) ! open parallel mesonest files
   call ncmsg("mesonest",ier)       ! report error messages
