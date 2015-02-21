@@ -779,7 +779,7 @@ if ( myid<resid ) then
   ltst   = 0
   myrank = myid
 else
-  ltst   = 1
+  ltst   = -1 ! undefined
   myrank = myid-resid
 end if
 call ccmpi_commsplit(comm_ip,comm_world,ltst,myrank)

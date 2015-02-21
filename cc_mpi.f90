@@ -6682,7 +6682,9 @@ contains
       integer(kind=4) :: lcomm, lerr
       
       lcomm = comm
-      call MPI_Comm_Free(lcomm,lerr)
+      if ( lcomm /= MPI_COMM_NULL ) then
+        call MPI_Comm_Free(lcomm,lerr)
+      end if
    
    end subroutine ccmpi_commfree
 
