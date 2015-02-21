@@ -2006,13 +2006,15 @@ if (myid==0) then
   write(6,*) "Model time in main loop",aa
 end if
 call END_LOG(model_end)
-#ifdef simple_timer
-call simple_timer_finalize
-#endif
 
 if ( mbd/=0 .or. nbd/=0 ) then
   call histclose
 end if
+
+#ifdef simple_timer
+call simple_timer_finalize
+#endif
+
 call ccmpi_finalize
 
 end
