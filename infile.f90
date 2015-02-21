@@ -815,18 +815,18 @@ if ( myid==0 ) then
 end if
 
 if ( allocated(pncid) ) then
-  plen=size(pncid)
+  plen = size(pncid)
   do ipf = 0,plen-1
 #ifdef usenc3
-    ierr=nf_close(pncid(ipf))
+    ierr = nf_close(pncid(ipf))
 #else
-    ierr=nf90_close(pncid(ipf))
+    ierr = nf90_close(pncid(ipf))
 #endif
   end do
   deallocate(pncid)
 end if
 call ccmpi_commfree(comm_ip)
-ncidold=-1
+ncidold = -1
 
 return
 end subroutine histclose

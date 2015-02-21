@@ -29,7 +29,7 @@ real, dimension(:,:), allocatable, save :: xg4, yg4
 real, dimension(:), allocatable, save :: axs_a, ays_a, azs_a
 real, dimension(:), allocatable, save :: bxs_a, bys_a, bzs_a
 real, dimension(:), allocatable, save :: sigin
-logical iotest
+logical iotest, newfile
     
 contains
 
@@ -72,7 +72,7 @@ real, dimension(ifull), intent(out) :: psl, zss, tss, fracice, snowd
 real, dimension(ifull), intent(out) :: sicedep, ssdnn, snage
 real, dimension(nrhead) :: ahead
 real, dimension(14) :: rdum
-logical ltest, tst, newfile
+logical ltest, tst
 
 call START_LOG(onthefly_begin)
 !--------------------------------------------------------------------
@@ -197,7 +197,7 @@ if ( .not.pfall ) then
   iarchi  =nint(rdum(13))
   nsibx   =nint(rdum(14))
 else
-  newfile=(ncid/=ncidold)            
+  newfile =(ncid/=ncidold)
 end if
 
 if ( newfile ) ncidold = ncid
@@ -232,7 +232,7 @@ else
 end if
 call onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice, &
                    snowd,qfg,qlg,qrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,ocndwn,      &
-                   xtgdwn,newfile)
+                   xtgdwn)
 if ( myid==0 ) write(6,*) "Leaving onthefly"
 
 call END_LOG(onthefly_end)
@@ -251,7 +251,7 @@ end subroutine onthefly
 ! size is significantly larger than the regional grid size.
 subroutine onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice, &
                          snowd,qfg,qlg,qrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,ocndwn,      &
-                         xtgdwn,newfile)
+                         xtgdwn)
       
 use aerosolldr, only : ssn,naero               ! LDR aerosol scheme
 use ateb, only : atebdwn                       ! Urban
@@ -332,7 +332,6 @@ real rlongd, rlatd
 character(len=8) vname
 character(len=3) trnum
 logical tsstest, tst
-logical, intent(in) :: newfile
 logical, dimension(:), allocatable, save :: land_a, sea_a
 
 ! land-sea mask method (nemi=3 use soilt, nemi=2 use tgg, nemi=1 use zs)

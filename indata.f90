@@ -2289,6 +2289,125 @@ xidatacheck = err
 return
 end function xidatacheck
 
+    
+!--------------------------------------------------------------
+! READ INTEGER TEXT FILES
+subroutine readint(filename,itss,ifully)
+      
+use cc_mpi            ! CC MPI routines
+ 
+implicit none
+      
+include 'newmpar.h'   ! Grid parameters
+include 'parm.h'      ! Model configuration
+include 'parmgeom.h'  ! Coordinate data
+            
+integer ifully,ilx,jlx,ierr
+integer, dimension(ifully) :: itss
+integer, dimension(ifull_g) :: glob2d
+real rlong0x,rlat0x,schmidtx,dsx
+character(len=*) filename
+character(len=47) header
+
+if ( myid == 0 ) then
+  write(6,*) 'reading data via readint from ',filename
+  open(87,file=filename,status='old')
+  read(87,*,iostat=ierr) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
+  if ( ierr == 0 ) then
+    write(6,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
+    if(ilx/=il_g.or.jlx/=jl_g.or.abs(rlong0x-rlong0)>1.e-6.or.abs(rlat0x-rlat0)>1.E-6.or.abs(schmidtx-schmidt)>1.E-6) then
+      write(6,*) 'wrong data file supplied'
+      call ccmpi_abort(-1)
+    end if
+    read(87,*) glob2d
+    close(87)
+  else if ( ierr < 0 ) then ! Error, so really unformatted file
+    close(87)
+    write(6,*) 'now doing unformatted read'
+    open(87,file=filename,status='old',form='unformatted')
+    read(87) glob2d
+    close(87)
+  else ! ierr > 0
+    write(6,*) 'End of file occurred in readint'
+    call ccmpi_abort(-1)
+  end if
+  if (ifully==ifull) then
+    call ccmpi_distribute(itss, glob2d)
+  else if (ifully==ifull_g) then
+    itss=glob2d
+  else
+    write(6,*) "ERROR: Invalid ifully for readint"
+    call ccmpi_abort(-1)
+  end if
+  write(6,*) trim(header), glob2d(id+(jd-1)*il_g)
+else
+  if (ifully==ifull) then
+    call ccmpi_distribute(itss)
+  end if
+end if
+return
+end subroutine readint
+
+    
+!--------------------------------------------------------------
+! READ REAL TEXT FILES
+subroutine readreal(filename,tss,ifully)
+ 
+use cc_mpi            ! CC MPI routines
+ 
+implicit none
+      
+include 'newmpar.h'   ! Grid parameters
+include 'parm.h'      ! Model configuration
+include 'parmgeom.h'  ! Coordinate data
+
+integer ierr
+integer ilx,jlx,ifully
+real, dimension(ifully) :: tss
+real, dimension(ifull_g) :: glob2d
+real rlong0x,rlat0x,schmidtx,dsx
+character(len=*) filename
+character(len=47) header
+
+if ( myid == 0 ) then
+  write(6,*) 'reading data via readreal from ',trim(filename)
+  open(87,file=filename,status='old')
+  read(87,*,iostat=ierr) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
+  if ( ierr == 0 ) then
+    write(6,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
+    if(ilx/=il_g.or.jlx/=jl_g.or.abs(rlong0x-rlong0)>1.e-6.or.abs(rlat0x-rlat0)>1.E-6.or.abs(schmidtx-schmidt)>1.E-6) then
+      write(6,*) 'wrong data file supplied'
+      call ccmpi_abort(-1)
+    end if
+    read(87,*) glob2d
+    close(87)
+  else if ( ierr < 0 ) then ! Error, so really unformatted file
+    close(87)
+    write(6,*) 'now doing unformatted read'
+    open(87,file=filename,status='old',form='unformatted')
+    read(87) glob2d
+    close(87)
+  else
+    write(6,*) "error in readreal",trim(filename),ierr
+    call ccmpi_abort(-1)
+  end if
+  if (ifully==ifull) then
+    call ccmpi_distribute(tss, glob2d)
+  else if (ifully==ifull_g) then
+    tss=glob2d
+  else
+    write(6,*) "ERROR: Invalid ifully for readreal"
+    call ccmpi_abort(-1)
+  end if
+  write(6,*) trim(header), glob2d(id+(jd-1)*il_g)
+else
+  if (ifully==ifull) then
+    call ccmpi_distribute(tss)
+  end if
+end if
+return
+end subroutine readreal
+
 
 !--------------------------------------------------------------
 ! INITALISE SOIL PARAMETERS

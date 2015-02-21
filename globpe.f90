@@ -1995,146 +1995,34 @@ do kktau=1,ntau   ! ****** start of main time loop
 end do                  ! *** end of main time loop
 call END_LOG(maincalc_end)
 call log_off()
-if (myid==0) then
+
+! Report timings of run
+if ( myid==0 ) then
   call date_and_time(time=timeval,values=tvals2)
   write(6,*) "End of time loop ", timeval
-  write(6,*)'normal termination of run'
+  write(6,*) "normal termination of run"
   call date_and_time(time=timeval)
   write(6,*) "End time ", timeval
-  aa=3600*(tvals2(5)-tvals1(5)) + 60*(tvals2(6)-tvals1(6)) + (tvals2(7)-tvals1(7)) + 0.001 * (tvals2(8)-tvals1(8))
-  if (aa<=0.) aa=aa+86400.
+  aa = 3600.*(tvals2(5)-tvals1(5)) + 60.*(tvals2(6)-tvals1(6)) + (tvals2(7)-tvals1(7)) + 0.001 * (tvals2(8)-tvals1(8))
+  if ( aa<=0. ) aa=aa+86400.
   write(6,*) "Model time in main loop",aa
 end if
 call END_LOG(model_end)
 
+! close mesonest files
 if ( mbd/=0 .or. nbd/=0 ) then
   call histclose
 end if
 
 #ifdef simple_timer
+! report subroutine timings
 call simple_timer_finalize
 #endif
 
+! finalize MPI comms
 call ccmpi_finalize
 
 end
-
-!--------------------------------------------------------------
-! READ INTEGER TEXT FILES
-subroutine readint(filename,itss,ifully)
-      
-use cc_mpi            ! CC MPI routines
- 
-implicit none
-      
-include 'newmpar.h'   ! Grid parameters
-include 'parm.h'      ! Model configuration
-include 'parmgeom.h'  ! Coordinate data
-            
-integer ifully,ilx,jlx,ierr
-integer, dimension(ifully) :: itss
-integer, dimension(ifull_g) :: glob2d
-real rlong0x,rlat0x,schmidtx,dsx
-character(len=*) filename
-character(len=47) header
-
-if ( myid == 0 ) then
-  write(6,*) 'reading data via readint from ',filename
-  open(87,file=filename,status='old')
-  read(87,*,iostat=ierr) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
-  if ( ierr == 0 ) then
-    write(6,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
-    if(ilx/=il_g.or.jlx/=jl_g.or.abs(rlong0x-rlong0)>1.e-6.or.abs(rlat0x-rlat0)>1.E-6.or.abs(schmidtx-schmidt)>1.E-6) then
-      write(6,*) 'wrong data file supplied'
-      call ccmpi_abort(-1)
-    end if
-    read(87,*) glob2d
-    close(87)
-  else if ( ierr < 0 ) then ! Error, so really unformatted file
-    close(87)
-    write(6,*) 'now doing unformatted read'
-    open(87,file=filename,status='old',form='unformatted')
-    read(87) glob2d
-    close(87)
-  else ! ierr > 0
-    write(6,*) 'End of file occurred in readint'
-    call ccmpi_abort(-1)
-  end if
-  if (ifully==ifull) then
-    call ccmpi_distribute(itss, glob2d)
-  else if (ifully==ifull_g) then
-    itss=glob2d
-  else
-    write(6,*) "ERROR: Invalid ifully for readint"
-    call ccmpi_abort(-1)
-  end if
-  write(6,*) trim(header), glob2d(id+(jd-1)*il_g)
-else
-  if (ifully==ifull) then
-    call ccmpi_distribute(itss)
-  end if
-end if
-return
-end subroutine readint
-
-!--------------------------------------------------------------
-! READ REAL TEXT FILES
-subroutine readreal(filename,tss,ifully)
- 
-use cc_mpi            ! CC MPI routines
- 
-implicit none
-      
-include 'newmpar.h'   ! Grid parameters
-include 'parm.h'      ! Model configuration
-include 'parmgeom.h'  ! Coordinate data
-
-integer ierr
-integer ilx,jlx,ifully
-real, dimension(ifully) :: tss
-real, dimension(ifull_g) :: glob2d
-real rlong0x,rlat0x,schmidtx,dsx
-character(len=*) filename
-character(len=47) header
-
-if ( myid == 0 ) then
-  write(6,*) 'reading data via readreal from ',trim(filename)
-  open(87,file=filename,status='old')
-  read(87,*,iostat=ierr) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
-  if ( ierr == 0 ) then
-    write(6,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
-    if(ilx/=il_g.or.jlx/=jl_g.or.abs(rlong0x-rlong0)>1.e-6.or.abs(rlat0x-rlat0)>1.E-6.or.abs(schmidtx-schmidt)>1.E-6) then
-      write(6,*) 'wrong data file supplied'
-      call ccmpi_abort(-1)
-    end if
-    read(87,*) glob2d
-    close(87)
-  else if ( ierr < 0 ) then ! Error, so really unformatted file
-    close(87)
-    write(6,*) 'now doing unformatted read'
-    open(87,file=filename,status='old',form='unformatted')
-    read(87) glob2d
-    close(87)
-  else
-    write(6,*) "error in readreal",trim(filename),ierr
-    call ccmpi_abort(-1)
-  end if
-  if (ifully==ifull) then
-    call ccmpi_distribute(tss, glob2d)
-  else if (ifully==ifull_g) then
-    tss=glob2d
-  else
-    write(6,*) "ERROR: Invalid ifully for readreal"
-    call ccmpi_abort(-1)
-  end if
-  write(6,*) trim(header), glob2d(id+(jd-1)*il_g)
-else
-  if (ifully==ifull) then
-    call ccmpi_distribute(tss)
-  end if
-end if
-return
-end subroutine readreal
 
 
 !--------------------------------------------------------------
