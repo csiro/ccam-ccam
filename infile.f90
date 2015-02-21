@@ -739,7 +739,8 @@ if (myid<resid) mynproc=mynproc+1
 
 ! allocate array of file handles.  Unallocated implies no files to be read on this processor
 if (allocated(pncid)) then
-  deallocate(pncid)
+  write(6,*) "ERROR: Cannot open new parallel output until old file is closed"
+  call ccmpi_abort(-1)
 end if
 if (mynproc>0) then
   allocate(pncid(0:mynproc-1))
@@ -770,24 +771,24 @@ do ipf=is,mynproc-1
 end do
 
 if ( myid == 0 ) then
-  write(6,*) "Splitting comms for distributing file data"
-  write(6,*) "resid ",resid
+  write(6,*) "Splitting comms for distributing file data with resid ",resid
 end if
 
 ! define comm group to read the residual files
-if (myid<resid) then
-  ltst=0
-  myrank=myid
+if ( myid<resid ) then
+  ltst   = 0
+  myrank = myid
 else
-  ltst=1
-  myrank=myid-resid
+  ltst   = 1
+  myrank = myid-resid
 end if
 call ccmpi_commsplit(comm_ip,comm_world,ltst,myrank)
 
 pfall=(fnproc>=nproc) ! are all processes associated with a file?
-if (mynproc>0) then
-  ncid=pncid(0)       ! set ncid to the first file handle as the ccam code
+if ( mynproc>0 ) then
+  ncid=pncid(0)       ! set ncid to the first file handle as onthefly
                       ! assumes changes in ncid reflect a new file
+                      ! and hence updates the metadata
 end if
 
 if ( myid == 0 ) then
@@ -806,29 +807,24 @@ use cc_mpi
 implicit none
 
 integer ipf, ipin, plen
-integer, save :: comm_ipold
 integer(kind=4) ierr
-integer(kind=4), dimension(:), allocatable, save :: pncidold
 
-if ( allocated(pncidold) ) then
-  plen=size(pncidold)
-  do ipf = 0,plen-1
-#ifdef usenc3
-    ierr=nf_close(pncidold(ipf))
-#else
-    ierr=nf90_close(pncidold(ipf))
-#endif
-  end do
-  call ccmpi_commfree(comm_ipold)
-  deallocate(pncidold)
+if ( myid==0 ) then
+  write(6,*) 'Closing input file'
 end if
-      
+
 if ( allocated(pncid) ) then
   plen=size(pncid)
-  allocate(pncidold(0:plen-1))
-  pncidold=pncid
-  comm_ipold=comm_ip
+  do ipf = 0,plen-1
+#ifdef usenc3
+    ierr=nf_close(pncid(ipf))
+#else
+    ierr=nf90_close(pncid(ipf))
+#endif
+  end do
+  deallocate(pncid)
 end if
+call ccmpi_commfree(comm_ip)
 
 return
 end subroutine histclose

@@ -644,6 +644,7 @@ if ( io_in<4 ) then
                   qg,tgg,wb,wbice,snowd,qfg,qlg,qrg,tggsn,smass,   &
                   ssdn,ssdnn,snage,isflag,mlodwn,ocndwn,xtgdwn)
   endif   ! (abs(io_in)==1)
+  call histclose
   if(mydiag)then
     write(6,*)'ds,zss',ds,zss(idjd)
     write(6,*)'kdate_sav,ktime_sav ',kdate_sav,ktime_sav
@@ -1122,6 +1123,7 @@ if( nrungcm<=-3 .and. nrungcm>=-5 ) then
                   dumb(:,:,4),tgg,wb,wbice,snowd,dumb(:,:,5),               &
                   dumb(:,:,6),dumb(:,:,7),tggsn,smass,ssdn,ssdnn,snage,     &
                   isflag,mlodwn,ocndwn,xtgdwn)
+    call histclose
     if ( kdate/=kdate_sav .or. ktime/=ktime_sav ) then
       if ( myid==0 ) then
         write(6,*) 'WARN: Could not locate correct date/time'

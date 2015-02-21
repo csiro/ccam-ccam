@@ -2010,6 +2010,9 @@ call END_LOG(model_end)
 call simple_timer_finalize
 #endif
 
+if ( mbd/=0 .or. nbd/=0 ) then
+  call histclose
+end if
 call ccmpi_finalize
 
 end

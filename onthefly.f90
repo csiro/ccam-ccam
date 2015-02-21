@@ -29,7 +29,7 @@ real, dimension(:,:), allocatable, save :: xg4, yg4
 real, dimension(:), allocatable, save :: axs_a, ays_a, azs_a
 real, dimension(:), allocatable, save :: bxs_a, bys_a, bzs_a
 real, dimension(:), allocatable, save :: sigin
-logical iotest, newfile
+logical iotest
     
 contains
 
@@ -73,7 +73,7 @@ real, dimension(ifull), intent(out) :: psl, zss, tss, fracice, snowd
 real, dimension(ifull), intent(out) :: sicedep, ssdnn, snage
 real, dimension(nrhead) :: ahead
 real, dimension(14) :: rdum
-logical ltest, tst
+logical ltest, tst, newfile
 
 call START_LOG(onthefly_begin)
 !--------------------------------------------------------------------
@@ -201,17 +201,6 @@ else
   newfile=(ncid/=ncidold)            
 end if
       
-! close old file if a new file is opened ----------------------------
-if ( newfile ) then
-  if ( ncidold/=-1 ) then
-    if ( myid==0 ) then
-      write(6,*) 'Closing old input file'
-    end if
-    call histclose
-  end if
-  ncidold=ncid
-end if
-
 ! trap error if correct date/time is not located --------------------
 if ( ktime_r<0 ) then
   if ( nested==2 ) then
@@ -242,7 +231,7 @@ else
 end if
 call onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice, &
                    snowd,qfg,qlg,qrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,ocndwn,      &
-                   xtgdwn)
+                   xtgdwn,newfile)
 if ( myid==0 ) write(6,*) "Leaving onthefly"
 
 call END_LOG(onthefly_end)
@@ -261,7 +250,7 @@ end subroutine onthefly
 ! size is significantly larger than the regional grid size.
 subroutine onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice, &
                          snowd,qfg,qlg,qrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,ocndwn,      &
-                         xtgdwn)
+                         xtgdwn,newfile)
       
 use aerosolldr, only : ssn,naero               ! LDR aerosol scheme
 use ateb, only : atebdwn                       ! Urban
@@ -341,8 +330,9 @@ real, dimension(kk+3) :: dumr
 real rlongd, rlatd
 character(len=8) vname
 character(len=3) trnum
-logical, dimension(:), allocatable, save :: land_a, sea_a
 logical tsstest, tst
+logical, intent(in) :: newfile
+logical, dimension(:), allocatable, save :: land_a, sea_a
 
 ! land-sea mask method (nemi=3 use soilt, nemi=2 use tgg, nemi=1 use zs)
 nemi=3
