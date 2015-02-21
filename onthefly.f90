@@ -58,7 +58,6 @@ integer, parameter :: nrhead = 14
 integer, intent(in) :: nested
 integer, intent(out) :: kdate_r, ktime_r
 integer, save :: maxarchi
-integer, save :: ncidold = -1
 integer ier, mtimer, k, ierx, idvkd, idvkt, idvmt
 integer, dimension(nihead) :: nahead
 integer, dimension(ifull), intent(out) :: isflag
@@ -200,9 +199,9 @@ if ( .not.pfall ) then
 else
   newfile=(ncid/=ncidold)            
 end if
- 
+
 if ( newfile ) ncidold = ncid
-     
+
 ! trap error if correct date/time is not located --------------------
 if ( ktime_r<0 ) then
   if ( nested==2 ) then

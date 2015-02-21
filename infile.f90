@@ -21,7 +21,7 @@ implicit none
             
 private
 public vertint, datefix, getzinp, ncmsg
-public histopen, histclose, histrd1, histrd4s, pfall
+public histopen, histclose, histrd1, histrd4s, pfall, ncidold
 public attrib, histwrt3, histwrt4, freqwrite, surfread
 public ccnf_open, ccnf_create, ccnf_close, ccnf_sync, ccnf_enddef
 public ccnf_redef, ccnf_nofill, ccnf_inq_varid, ccnf_inq_dimid
@@ -79,6 +79,7 @@ end interface ccnf_put_var1
 integer, dimension(:), allocatable, save :: pnoff
 integer, dimension(:,:), allocatable, save :: pioff,pjoff
 integer(kind=4), dimension(:), allocatable, save :: pncid
+integer, save :: ncidold = -1
 integer, save :: mynproc,fnproc
 integer, save :: pil_g,pjl_g,pil,pjl,pnpan
 integer, save :: comm_ip
@@ -825,6 +826,7 @@ if ( allocated(pncid) ) then
   deallocate(pncid)
 end if
 call ccmpi_commfree(comm_ip)
+ncidold=-1
 
 return
 end subroutine histclose
