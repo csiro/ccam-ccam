@@ -1177,8 +1177,8 @@ if( myid==0 .or. local ) then
       do igas=1,ngas
         write(trnum,'(i3.3)') igas
 !       rml 19/09/07 use tracname as part of tracer long name
-        lname = 'Tracer (inst.) '//trim(tracname(igas))
-        call attrib(idnc,dim,4,'tr'//trnum,lname,'ppm',0.,6.5E6,0,-1) ! -1 = long
+        !lname = 'Tracer (inst.) '//trim(tracname(igas))
+        !call attrib(idnc,dim,4,'tr'//trnum,lname,'ppm',0.,6.5E6,0,-1) ! -1 = long
         lname = 'Tracer (average) '//trim(tracname(igas))
         call attrib(idnc,dim,4,'trav'//trnum,lname,'ppm',0.,6.5E6,0,-1) ! -1 = long
 !       rml 14/5/10 option to write out local time afternoon averages
@@ -1907,7 +1907,7 @@ end if
 if ( ngas>0 ) then 
   do igas=1,ngas
     write(trnum,'(i3.3)') igas
-    call histwrt4(tr(:,:,igas),'tr'//trnum,idnc,iarch,local,.true.)
+    !call histwrt4(tr(:,:,igas),'tr'//trnum,idnc,iarch,local,.true.)
     call histwrt4(traver(:,:,igas),'trav'//trnum,idnc,iarch,local,lave)
     ! rml 14/5/10 option to write out local time afternoon average
     if ( writetrpm ) then
@@ -2001,6 +2001,10 @@ if ( itype==-1 ) then
     call savetile(idnc,local,iarch)
   end if
 endif  ! (itype==-1)
+
+if ( myid==0 ) then
+  write(6,*) "finished writing to ofile"
+end if
 
 return
 end subroutine openhist
