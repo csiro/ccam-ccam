@@ -144,10 +144,9 @@
         entrainn(:)=entrain  ! N.B. for nevapcc.ne.0, entrain handles type of scheme
      
         if (alflnd<0.or.alfsea<0.or.
-     &  (mbase<0.and.mbase.ne.-10.and.mbase.ne.-19.and.mbase.ne.-23))
-     &  then
+     &  (mbase<0.and.mbase.ne.-10).or.mbase>4)  then
           write(6,*) "ERROR: negative alflnd and alfsea or"
-          write(6,*) "unsupported mbase or nbase convjlm"
+          write(6,*) "unsupported mbase convjlm"
           call ccmpi_abort(-1)
         endif
         kb_saved(:)=kl-1
