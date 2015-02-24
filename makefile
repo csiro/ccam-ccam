@@ -138,7 +138,7 @@ casa_variable.o : cable_define_types.o
 cc_mpi.o : arrays_m.o indices_m.o latlong_m.o map_m.o sigs_m.o sumdd_m.o vecsuv_m.o xyzinfo_m.o newmpar.h parm.h 
 clddia.o : arrays_m.o cc_mpi.o map_m.o morepbl_m.o pbl_m.o sigs_m.o soil_m.o vvel_m.o const_phys.h kuocom.h newmpar.h parm.h
 clo89.o : cldcom_m.o radisw_m.o rdparm.h newmpar.h parm.h 
-cloud2.o : diag_m.o cc_mpi.o radisw_m.o sigs_m.o const_phys.h cparams.h hcon.h kuocom.h newmpar.h parm.h params.h rdparm.h
+cloud2.o : diag_m.o cc_mpi.o radisw_m.o sigs_m.o const_phys.h cparams.h hcon.h kuocom.h newmpar.h parm.h rdparm.h
 cloud.o : extraout_m.o radisw_m.o newmpar.h parm.h rdparm.h
 cloudmod.o : cfrac_m.o estab.o kuocomb_m.o morepbl_m.o sigs_m.o vvel_m.o newmpar.h const_phys.h kuocom.h parm.h
 co2_read.o : cc_mpi.o co2dta_m.o radisw_m.o filnames.h newmpar.h parm.h rdparm.h

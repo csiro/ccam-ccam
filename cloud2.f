@@ -51,7 +51,6 @@ C Global parameters
       include 'const_phys.h' !Input physical constants
       include 'cparams.h'    !Input cloud scheme parameters
       include 'kuocom.h'     ! ldr
-      include 'params.h'     !Input model grid dimensions (modified params.h for CCAM)
       include 'parm.h'       !for printing diags
       include 'rdparm.h'     !Input radiation scheme parameters
       include 'hcon.h'       !Input radiation physical constants
@@ -65,7 +64,7 @@ C Argument list
       real cfrac(imax,l)
       real qccon(imax,l)
       logical land(imax)
-      real sigh(nl+1)
+      real sigh(kl+1)
       real prf(imax,l)
       real dprf(imax,l)
       real cosz(imax)
@@ -95,7 +94,7 @@ C Local work arrays and variables
       real Emi(imax,l), Abi(imax,l), Rei1(imax,l), Rei2(imax,l) !Ice clouds
       real qlptot(imax),taultot(imax)
       real fice(imax,l),tau_sfac(imax,l)
-      real rk(imax,nl),cdrop(imax,nl)
+      real rk(imax,kl),cdrop(imax,kl)
 
       integer k
       integer mg
@@ -132,7 +131,7 @@ c       sigmid=.4
         sigmid=.44
         f1=1.
         f2=1.
-        do k=1,nl-1
+        do k=1,kl-1
          if(abs(sigh(k+1)-siglow)<f1)then
            f1=abs(sigh(k+1)-siglow)
            nlow=k
@@ -228,7 +227,7 @@ c Diagnose low, middle and high clouds; nlow,nmid are set up in initax.f
             end where
           end do
           mx=0.
-          do k=nmid+1,nl-1
+          do k=nmid+1,kl-1
             mx=max(mx,cfrac(:,k))
             where (cfrac(:,k)==0.)
               clh=clh+mx*(1.-clh)
@@ -256,7 +255,7 @@ c        endif  ! (nclddia<0)
         do k=nlow+1,nmid
             clm(:)=clm(:)+cfrac(:,k)-clm(:)*cfrac(:,k)
         enddo
-        do k=nmid+1,nl-1
+        do k=nmid+1,kl-1
             clh(:)=clh(:)+cfrac(:,k)-clh(:)*cfrac(:,k)
         enddo
         
@@ -266,7 +265,7 @@ c Set up rk and cdrop (now as cdso4 from radriv90.f)
 
 c This is the Liu and Daum scheme for relative dispersion (Nature, 419, 580-581 and pers. comm.)
 
-        do k=1,nl-1
+        do k=1,kl-1
           do mg=1,imax
 c            eps = 1. - 0.7 * exp(-0.008e-6*cdrop(mg,k)) !Upper bound
 c            eps = 1. - 0.7 * exp(-0.001e-6*cdrop(mg,k)) !Lower bound
@@ -283,7 +282,7 @@ C***            write(27,'(2f12.3)')1.e-6*cdrop(mg,k),beta
           enddo
         enddo
 
-c        do k=1,nl
+c        do k=1,kl
 c         do mg=1,imax
 c          if(land(mg))then 
 c            rk(mg,k)=0.67 ! land
@@ -300,7 +299,7 @@ c        enddo
         ! Here we determine the top and bottom of the cloud using the largest overlap
         ! Cloud fraction is the largest cloud fraction
         ! Bulk cloud properties are calculated from average Reff and LWP.
-        if (nmr.eq.1) then
+        if (nmr==1) then
 
         taul=0.
         taui=0.
@@ -314,13 +313,13 @@ c        enddo
 c Locate clouds
           do mg=1,imax
             k=1
-            do while (k.le.nl-1)
-              if (cfrac(mg,k).gt.0.) then
+            do while (k.le.kl-1)
+              if (cfrac(mg,k)>0.) then
 
                 ! find cloud levels from k to kk
                 ! break large changes in cloud properties into seperate clouds
                 kk=k
-                do while (cfrac(mg,kk+1).gt.0..and.kk.lt.nl-1)
+                do while (cfrac(mg,kk+1)>0..and.kk<kl-1)
                   kk=kk+1
                 end do
                 ! find maximum cloud fraction level
@@ -332,7 +331,7 @@ c Locate clouds
                 kb=k
                 do kp=k+1,km
                   ctemp=max(0.,cfrac(mg,kp)-cfrac(mg,kp-1))
-                  if (ctemp.gt.csum) then
+                  if (ctemp>csum) then
                     csum=ctemp
                     kb=kp
                   end if
@@ -343,7 +342,7 @@ c Locate clouds
                 kt=kk
                 do kp=kk-1,km,-1
                   ctemp=max(0.,cfrac(mg,kp)-cfrac(mg,kp+1))
-                  if (ctemp.gt.csum) then
+                  if (ctemp>csum) then
                     csum=ctemp
                     kt=kp
                   end if
@@ -354,10 +353,10 @@ c Locate clouds
                 nc=nclds(mg)+1
                 camt(mg,nc)=cfrac(mg,km) ! max cloud fraction
                 tau_sfac(mg,nc)=1.
-                kbtm(mg,nc)=nlp-kb
-                kbtmsw(mg,nc)=nlp-kb+1
-                ktop(mg,nc)=nlp-kt
-                ktopsw(mg,nc)=nlp-kt
+                kbtm(mg,nc)=kl+1-kb
+                kbtmsw(mg,nc)=kl+1-kb+1
+                ktop(mg,nc)=kl+1-kt
+                ktopsw(mg,nc)=kl+1-kt
                 cldtop(mg,nc)=kk
                 cldbtm(mg,nc)=k
                 
@@ -522,7 +521,7 @@ c Ice-cloud emissivity following the Sunshine scheme
      &              / (0.630689d-01+0.265874*tciwc))
 c-- Limit ice cloud emissivities
 c             trani=min(0.70,trani)
-              kk=(2*nlp-kbtm(mg,nc)-ktop(mg,nc))/2
+              kk=(2*(kl+1)-kbtm(mg,nc)-ktop(mg,nc))/2
               if(kk.gt.nlow) trani=min(0.70,trani)
               Emi(mg,nc) = 1.0 - trani    ! em is (1 - transmittance)
             end if
@@ -585,7 +584,7 @@ c Mk3 with direct aerosol effect :
 c Define the emissivity (Em), and the SW properties (Re, Ab) for liquid (w)
 c and ice (i) clouds respectively.
         
-        do k=1,nl-1
+        do k=1,kl-1
           do mg=1,imax
             taul(mg,k)=0.
             taui(mg,k)=0.
@@ -601,7 +600,7 @@ c and ice (i) clouds respectively.
         enddo
 
 c Liquid water clouds
-        do k=1,nl-1
+        do k=1,kl-1
           do mg=1,imax
             if((cfrac(mg,k).gt.0).and.(qlg(mg,k).gt.1.0e-8))then
               rhoa=100*prf(mg,k)/(rdry*ttg(mg,k))
@@ -650,7 +649,7 @@ c Ice clouds : Choose scheme according to resolution
         
 	 refac1=0.85
         refac2=0.95
-        do k=1,nl-1
+        do k=1,kl-1
           do mg=1,imax
             if((cfrac(mg,k).gt.0).and.(qfg(mg,k).gt.1.0e-8))then
               rhoa=100*prf(mg,k)/(rdry*ttg(mg,k))
@@ -678,7 +677,7 @@ c Ice-cloud emissivity following Platt
 
         refac1=0.90
         refac2=1.00
-        do k=1,nl-1
+        do k=1,kl-1
           do mg=1,imax
             if((cfrac(mg,k).gt.0).and.(qfg(mg,k).gt.1.0e-8))then
               rhoa=100*prf(mg,k)/(rdry*ttg(mg,k))
@@ -724,7 +723,7 @@ C***        enddo
 c Calculate the SW cloud radiative properties for liquid water and ice clouds
 c respectively, following Tony Slingo's (1989) Delta-Eddington scheme.
 
-!       do k=1,nl
+!       do k=1,kl
 !         do mg=1,imax
 !           if(cfrac(mg,k).gt.0.)then
 C***              write(26,'(5f12.4)')cfrac(mg,k),taul(mg,k),taui(mg,k),
@@ -742,7 +741,7 @@ C***     &             cfrac(mg,k),1.e6*reffl(mg,k),1.e6*reffi(mg,k)
      &       Rei1, Rei2, Abi )  !outputs
 
         onem=1.-1.e-6   ! to avoid possible later 0/0
-        do k=1,nl-1
+        do k=1,kl-1
           do mg=1,imax
             if(cfrac(mg,k).gt.0.)then
               fcon=min(1.,qccon(mg,k)/(qlg(mg,k)+qfg(mg,k)))
@@ -763,7 +762,7 @@ c Mk3 with direct aerosol effect :
 
 c Weight cloud properties by liquid/ice fraction
         
-        do k=1,nl-1
+        do k=1,kl-1
           do mg=1,imax
             if(cfrac(mg,k).gt.0.)then
 
@@ -780,11 +779,11 @@ c             if(prf(mg,k).gt.800.) Em = 1.
               nclds(mg)=nclds(mg)+1
               nc=nclds(mg)+1
               camt(mg,nc)=cfrac(mg,k)
-              ktop(mg,nc)=nlp-k
-              kbtm(mg,nc)=nlp-k
+              ktop(mg,nc)=kl+1-k
+              kbtm(mg,nc)=kl+1-k
               emcld(mg,nc)=Em
-              ktopsw(mg,nc)=nlp-k
-              kbtmsw(mg,nc)=nlp-k+1
+              ktopsw(mg,nc)=kl+1-k
+              kbtmsw(mg,nc)=kl+1-k+1
               cuvrf(mg,nc)=Re1
               cirrf(mg,nc)=Re2
               cirab(mg,nc)=2*Ab
