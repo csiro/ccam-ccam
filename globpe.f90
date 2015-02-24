@@ -116,7 +116,7 @@ integer nbarewet,nsigmf
 common/nsib/nbarewet,nsigmf                ! Land-surface options
 
 integer, dimension(8) :: tvals1, tvals2, nper3hr
-integer ier, igas, ilx, io_nest, iq, irest, isoil
+integer ier, ilx, io_nest, iq, irest, isoil
 integer jalbfix, jlx, k, k2, kktau
 integer mins_dt, mins_gmt, mspeca, mtimer_in, nalpha
 integer ng, nlx, nmaxprsav, npa, npb, n3hr
@@ -179,7 +179,7 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         &
 data nversion/0/
 data comment/' '/,comm/' '/,irest/1/,jalbfix/1/,nalpha/1/
 data mins_rad/60/,nwrite/0/
-data lapsbot/0/,io_nest/1/                                 ! depreciated
+data lapsbot/0/,io_nest/1/
       
 #ifndef stacklimit
 ! For linux only - removes stacklimit on all processors
@@ -259,28 +259,30 @@ kountr = nint(mins_rad*60./dt)  ! set default radiation to ~mins_rad m
 mins_rad = nint(kountr*dt/60.)  ! redefine to actual value
 read(99, datafile)
 read(99, kuonml)
+! try reading tracer namelist.  If no namelist is found, then disable
+! tracers and rewind namelist.
 ngas = 0
-read(99, trfiles, iostat=ierr)        ! try reading tracer namelist.  If no
-if (ierr/=0) rewind(99)               ! namelist is found, then disable
-                                      ! tracers and rewind namelist.
-nagg = max(5,naero)                   ! maximum size of aggregation
+read(99, trfiles, iostat=ierr)        
+if (ierr/=0) rewind(99)
+nagg = max(5,naero)             ! maximum size of aggregation
 
 
 !--------------------------------------------------------------
 ! READ TOPOGRAPHY FILE TO DEFINE CONFORMAL CUBIC GRID
-il_g=48
-rlong0=0.
-rlat0=0.
-schmidt=1.
-if (myid==0.and.io_in<=4) then
-  ! open new topo file and check its dimensions
+il_g    = 48 ! default global grid size
+rlong0  = 0. ! default longitude
+rlat0   = 0. ! default latitude
+schmidt = 1. ! default schmidt factor for grid stretching
+kl      = 18 ! default number of vertical levels
+if ( myid==0 .and. io_in<=4 ) then
+  ! open topo file and check its dimensions
   ! here used to supply rlong0,rlat0,schmidt
-  ! Remander of file is read in indata.f
+  ! Remander of topo file is read in indata.f90
   write(6,*) 'reading topofile header'
   call ccnf_open(topofile,ncidtopo,ierr)
-  if (ierr==0) then
+  if ( ierr==0 ) then
     ! Netcdf format
-    lnctopo=1
+    lnctopo = 1 ! flag indicating netcdf file
     call ccnf_inq_dimlen(ncidtopo,'longitude',ilx)
     call ccnf_inq_dimlen(ncidtopo,'latitude',jlx)
     call ccnf_get_attg(ncidtopo,'lon0',rlong0)
@@ -288,124 +290,127 @@ if (myid==0.and.io_in<=4) then
     call ccnf_get_attg(ncidtopo,'schmidt',schmidt) 
   else
     ! ASCII format      
-    lnctopo=0
+    lnctopo = 0 ! flag indicating ASCII file
     open(66,file=topofile,recl=2000,status='old')
     read(66,*) ilx,jlx,rlong0,rlat0,schmidt,dsx,header
   end if ! (ierr==0) ..else..
-  il_g=ilx        
+  il_g = ilx        
   write(6,*) 'ilx,jlx,rlong0,rlat0,schmidt ',ilx,jlx,rlong0,rlat0,schmidt
 end if      ! (myid==0.and.io_in<=4)
 ! store grid dimensions for broadcast below
-temparray(1)=rlong0
-temparray(2)=rlat0
-temparray(3)=schmidt
-temparray(4)=real(il_g)
+temparray(1) = rlong0
+temparray(2) = rlat0
+temparray(3) = schmidt
+temparray(4) = real(il_g)
 
 
 !--------------------------------------------------------------
 ! READ EIGENV FILE TO DEFINE VERTICAL LEVELS
-if (myid==0) then
+if ( myid==0 ) then
   ! Remanded of file is read in indata.f
   open(28,file=eigenv,status='old',form='formatted')
   read(28,*)kmax,lapsbot,isoth,nsig
   kl=kmax
   write(6,*)'kl,ol,lapsbot,isoth,nsig: ',kl,ol,lapsbot,isoth,nsig
-  temparray(5)=real(kl)
-  temparray(6)=real(lapsbot)
-  temparray(7)=real(isoth)
-  temparray(8)=real(nsig)
+  temparray(5) = real(kl)
+  temparray(6) = real(lapsbot)
+  temparray(7) = real(isoth)
+  temparray(8) = real(nsig)
 end if
       
-! Broadcast grid to all processors
-! (Since integers are small, then they can be exactly
-!  represented as reals)
+! Broadcast grid data to all processors
+! (Since integers are smaller than 1e7, then they can be exactly
+!  represented using real*4)
 call ccmpi_bcast(temparray(1:8),0,comm_world)
-rlong0 =temparray(1)
-rlat0  =temparray(2)
-schmidt=temparray(3)
-il_g   =nint(temparray(4))
-kl     =nint(temparray(5))
-lapsbot=nint(temparray(6))
-isoth  =nint(temparray(7))
-nsig   =nint(temparray(8))
+rlong0  = temparray(1)
+rlat0   = temparray(2)
+schmidt = temparray(3)
+il_g    = nint(temparray(4))
+kl      = nint(temparray(5))
+lapsbot = nint(temparray(6))
+isoth   = nint(temparray(7))
+nsig    = nint(temparray(8))
 
       
 !--------------------------------------------------------------
 ! DEFINE newmpar VARIABLES AND DEFAULTS
-jl_g=il_g+npanels*il_g      
+! CCAM supports face and uniform grid decomposition over processes using preprocessor directives
+! Face decomposition reduces MPI message passing, but only works for factors or multiples of six
+! processes.  Uniform decomposition is less restrictive on the number of processes, but requires
+! more MPI message passing.
+jl_g = il_g+npanels*il_g ! size of grid along all panels (usually 6*il_g)     
 #ifdef uniform_decomp
-if (myid==0) then
+if ( myid==0 ) then
   write(6,*) "Using uniform grid decomposition"
 end if
-nxp=nint(sqrt(real(nproc)))
-nyp=nproc/nxp
-do while((mod(il_g,max(nxp,1))/=0.or.mod(nproc,max(nxp,1))/=0.or.mod(il_g,nyp)/=0).and.nxp>0)
-  nxp=nxp-1
-  nyp=nproc/max(nxp,1)
+nxp = nint(sqrt(real(nproc)))  ! number of processes in X direction
+nyp = nproc/nxp                ! number of processes in Y direction
+! search for vaild process decomposition.  CCAM enforces the same grid size on each process
+do while( (mod(il_g,max(nxp,1))/=0.or.mod(nproc,max(nxp,1))/=0.or.mod(il_g,nyp)/=0) .and. nxp>0 )
+  nxp = nxp-1
+  nyp = nproc/max(nxp,1)
 end do
 #else
-if (myid==0) then
+if ( myid==0 ) then
   write(6,*) "Using face grid decomposition"
 end if
-if (mod(nproc,6)/=0.and.mod(6,nproc)/=0) then
+if ( mod(nproc,6)/=0 .and. mod(6,nproc)/=0 ) then
   write(6,*) "ERROR: nproc must be a multiple of 6 or"
   write(6,*) "a factor of 6"
   call ccmpi_abort(-1)
 end if
-nxp=max(1,nint(sqrt(real(nproc)/6.)))
-nyp=nproc/nxp
-do while((mod(il_g,max(nxp,1))/=0.or.mod(nproc/6,max(nxp,1))/=0.or.mod(jl_g,nyp)/=0).and.nxp>0)
-  nxp=nxp-1
-  nyp=nproc/max(nxp,1)
+nxp = max(1,nint(sqrt(real(nproc)/6.))) ! number of processes in X direction
+nyp = nproc/nxp                         ! number of processes in Y direction
+! search for valid process decomposition.  CCAM enforces the same grid size on each process
+do while( (mod(il_g,max(nxp,1))/=0.or.mod(nproc/6,max(nxp,1))/=0.or.mod(jl_g,nyp)/=0) .and. nxp>0 )
+  nxp = nxp-1
+  nyp = nproc/max(nxp,1)
 end do
 #endif
-if (nxp==0) then
+if ( nxp==0 ) then
   write(6,*) "ERROR: Invalid number of processors for this grid"
   write(6,*) "Try increasing or decreasing nproc"
   call ccmpi_abort(-1)
 end if
-ifull_g=il_g*jl_g
-ijk_g=il_g*jl_g*kl
-iquad=1+il_g*((8*npanels)/(npanels+4))
-il=il_g/nxp
-jl=jl_g/nyp
-ifull=il*jl
-ijk=il*jl*kl
+ifull_g = il_g*jl_g                         ! total number of global horizontal grid points
+iquad   = 1+il_g*((8*npanels)/(npanels+4))  ! grid size for interpolation calculations
+il      = il_g/nxp                          ! local grid size on process in X direction
+jl      = jl_g/nyp                          ! local grid size on process in Y direction
+ifull   = il*jl                             ! total number of local horizontal grid points
 ! The perimeter of the processor region has length 2*(il+jl).
 ! The first row has 8 possible corner points per panel and the 
 ! second has 16. In practice these are not all distinct so there could
 ! be some optimisation.
 #ifdef uniform_decomp
-npan=npanels+1
-iextra=(4*(il+jl)+24)*npan
+npan   = npanels+1                ! number of panels on this process
+iextra = (4*(il+jl)+24)*npan      ! size of halo for MPI message passing
 #else      
-npan=max(1,(npanels+1)/nproc)
-iextra=4*(il+jl)+24*npan
+npan   = max(1,(npanels+1)/nproc) ! number of panels on this process
+iextra = 4*(il+jl)+24*npan        ! size of halo for MPI message passing
 #endif
 ! nrows_rad is a subgrid step for radiation routines
-nrows_rad=jl/6
-do while(mod(jl,nrows_rad)/=0)
-  nrows_rad=nrows_rad-1
+nrows_rad = jl/6
+do while( mod(jl,nrows_rad)/=0 )
+  nrows_rad = nrows_rad-1
 end do
-if (myid==0) then
-  write(6,*) "il_g,jl_g,il,jl ",il_g,jl_g,il,jl
-  write(6,*) "nxp,nyp         ",nxp,nyp
-  write(6,*) "nrows_rad     = ",nrows_rad
+if ( myid==0 ) then
+  write(6,*) "il_g,jl_g,il,jl   ",il_g,jl_g,il,jl
+  write(6,*) "nxp,nyp,nrows_rad ",nxp,nyp,nrows_rad
 end if
 
 ! some default values for unspecified parameters
-if (ia<0) ia=il/2
-if (ib<0) ib=ia+3
-if (ldr==0) mbase=0
-dsig4=max(dsig2+.01,dsig4)
-if(mbd/=0.and.nbd/=0)then
+if ( ia<0 ) ia = il/2
+if ( ib<0 ) ib = ia+3
+if ( ldr==0 ) mbase = 0
+dsig4 = max(dsig2+.01,dsig4)
+if( mbd/=0 .and. nbd/=0 ) then
   write(6,*) 'setting nbd=0 because mbd/=0'
-  nbd=0
+  nbd = 0
 endif
-nud_hrs=abs(nud_hrs)  ! just for people with old -ves in namelist
-if (nudu_hrs==0) nudu_hrs=nud_hrs
+nud_hrs = abs(nud_hrs)  ! just for people with old -ves in namelist
+if ( nudu_hrs==0 ) nudu_hrs=nud_hrs
 ! for 6-hourly output of sint_ave etc, want 6*60 = N*mins_rad      
-if ((nrad==4.or.nrad==5).and.mod(6*60,mins_rad)/=0) then
+if ( (nrad==4.or.nrad==5) .and. mod(6*60,mins_rad)/=0 ) then
   write(6,*) 'prefer 6*60 = N*mins_rad '
   call ccmpi_abort(-1)
 end if
@@ -416,7 +421,7 @@ end if
 
 !--------------------------------------------------------------
 ! DISPLAY NAMELIST
-if ( myid == 0 ) then   
+if ( myid==0 ) then   
   write(6,*)'Dynamics options A:'
   write(6,*)'   mex   mfix  mfix_qg   mup    nh    precon' 
   write(6,'(i4,2i7)')mex,mfix,mfix_qg,mup,nh,precon
@@ -484,7 +489,7 @@ if ( myid == 0 ) then
   write(6,*)'Ocean/lake options:'
   write(6,*)' nmlo  ol      mxd   mindep minwater  ocnsmag   ocneps fixsal fixheight'
   write(6,'(i5,i4,5f9.2,2i4)') nmlo,ol,mxd,mindep,minwater,ocnsmag,ocneps,fixsal,fixheight
-  if(mbd/=0.or.nbd/=0)then
+  if ( mbd/=0 .or. nbd/=0 ) then
     write(6,*)'Nudging options A:'
     write(6,*)' nbd    nud_p  nud_q  nud_t  nud_uv nud_hrs nudu_hrs kbotdav  kbotu'
     write(6,'(i5,3i7,7i8)') nbd,nud_p,nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs,kbotdav,kbotu
@@ -494,7 +499,7 @@ if ( myid == 0 ) then
     write(6,*)'Nudging options C:'
     write(6,*)' nud_sst nud_sss nud_ouv nud_sfh ktopmlo kbotmlo mloalpha'
     write(6,'(6i8,i9)') nud_sst,nud_sss,nud_ouv,nud_sfh,ktopmlo,kbotmlo,mloalpha
-  endif
+  end if
   write(6,*)'Special and test options A:'
   write(6,*)' namip amipo3 newtop nhstest nplens nsemble nspecial panfg panzo'
   write(6,'(1i5,L7,4i7,i8,f9.1,f8.4)') namip,amipo3,newtop,nhstest,nplens,nsemble,nspecial,panfg,panzo
@@ -506,7 +511,7 @@ if ( myid == 0 ) then
   write(6,'(i5,4i7,3i8)') m_fly,io_in,io_nest,io_out,io_rest,nwt,nperavg
 
   write(6, cardin)
-  if(nllp==0.and.nextout>=4) then
+  if ( nllp==0 .and. nextout>=4 ) then
     write(6,*) 'need nllp=3 for nextout>=4'
     call ccmpi_abort(-1)
   end if
@@ -514,26 +519,26 @@ if ( myid == 0 ) then
   write(6, datafile)
   write(6, kuonml)
 end if ! myid=0
-if (newtop>2) then
+if ( newtop>2 ) then
   write(6,*) 'newtop>2 no longer allowed'
   call ccmpi_abort(-1)
 end if
-if (mfix_qg>0.and.nkuo==4) then
+if ( mfix_qg>0 .and. nkuo==4 ) then
   write(6,*) 'nkuo=4: mfix_qg>0 not allowed'
   call ccmpi_abort(-1)
 end if
-if (mfix>3) then
+if ( mfix>3 ) then
   write(6,*) 'mfix >3 not allowed now'
   call ccmpi_abort(-1)
 end if
-nstagin=nstag    ! -ve nstagin gives swapping & its frequency
-nstaguin=nstagu  ! only the sign of nstaguin matters (chooses scheme)
-if(nstagin==5.or.nstagin<0)then
-  nstag=4
-  nstagu=4
-  if(nstagin==5)then  ! for backward compatability
-    nstagin=-1 
-    nstaguin=5  
+nstagin  = nstag    ! -ve nstagin gives swapping & its frequency
+nstaguin = nstagu   ! only the sign of nstaguin matters (chooses scheme)
+if ( nstagin==5 .or. nstagin<0 ) then
+  nstag  = 4
+  nstagu = 4
+  if ( nstagin==5 ) then  ! for backward compatability
+    nstagin  = -1 
+    nstaguin = 5  
   endif
 endif
 
@@ -550,8 +555,8 @@ call vecsuv_init(ifull_g,ifull,iextra,myid)
 
 !--------------------------------------------------------------
 ! SET UP CC GEOMETRY
-! Only one processor calls setxyz to save memory with large grids
-if (myid==0) then
+! Only one process calls setxyz to save memory with large grids
+if ( myid==0 ) then
   write(6,*) "Calling setxyz"
   call workglob_init(ifull_g)
   call setxyz(il_g,rlong0,rlat0,schmidt,x_g,y_g,z_g,wts_g,ax_g,ay_g,az_g,bx_g,by_g,bz_g,xx4,yy4)
@@ -563,22 +568,28 @@ call ccmpi_bcast(ds,0,comm_world)
 call ccmpi_bcastr8(xx4,0,comm_world)
 call ccmpi_bcastr8(yy4,0,comm_world)
 ! The following are only needed for the scale-selective filter
-if (mbd/=0) then
-  if (nud_uv==9) then
+if ( mbd/=0 ) then
+  ! only need x_g, y_g and z_g for 2D filter.  1D filter recalculates
+  ! these arrays from xx4 and yy4
+  if ( nud_uv==9 ) then
     call ccmpi_bcastr8(x_g,0,comm_world)
     call ccmpi_bcastr8(y_g,0,comm_world)
     call ccmpi_bcastr8(z_g,0,comm_world)
   end if
+  ! both 1D and 2D filter need em_g
   call ccmpi_bcast(em_g,0,comm_world)
 end if
-if (myid==0) write(6,*) "Calling ccmpi_setup"
+
+if ( myid==0 ) then
+  write(6,*) "Calling ccmpi_setup"
+end if
 call ccmpi_setup
 
       
 !--------------------------------------------------------------
 ! DEALLOCATE ifull_g ARRAYS WHERE POSSIBLE
 call worklocl_init(ifull)      
-if (myid==0) then
+if ( myid==0 ) then
   call ccmpi_distribute(rlong4_l,rlong4)
   call ccmpi_distribute(rlat4_l,rlat4)
   call workglob_end
@@ -587,9 +598,9 @@ if (myid==0) then
   deallocate(bx_g,by_g,bz_g)
   deallocate(f_g,fu_g,fv_g)
   deallocate(dmdx_g,dmdy_g)
-  if (mbd==0) then
+  if ( mbd==0 ) then
     deallocate(x_g,y_g,z_g,em_g)
-  else if (nud_uv/=9) then
+  else if ( nud_uv/=9 ) then
     deallocate(x_g,y_g,z_g)
   end if
   deallocate(rlatt_g,rlongg_g)
@@ -598,12 +609,11 @@ else
   call ccmpi_distribute(rlat4_l)
 end if
 
-      
+
 !--------------------------------------------------------------
 ! INITIALISE LOCAL ARRAYS
 allocate(spare1(ifull),spare2(ifull))
-allocate(dums(ifull,kl))
-allocate(spmean(kl))
+allocate(dums(ifull,kl),spmean(kl))
 call arrays_init(ifull,iextra,kl)
 call carbpools_init(ifull,iextra,kl,nsib,ccycle)
 call cfrac_init(ifull,iextra,kl)
@@ -663,8 +673,6 @@ end if
 if ( mydiag ) then
   write(6,"('id,jd,rlongg,rlatt in degrees: ',2i4,2f8.2)") id,jd,con*rlongg(idjd),con*rlatt(idjd)
 end if
-
-
 call date_and_time(rundate)
 call date_and_time(time=timeval)
 if ( myid == 0 ) then
@@ -680,65 +688,66 @@ if ( myid == 0 ) then
 end if
 call indataf(hourst,jalbfix,lapsbot,isoth,nsig,io_nest)
 
-      
-if (kbotdav<0) then
-  targetlev=real(-kbotdav)/1000.
-  do k=1,kl
-    if (sig(k)<=targetlev) then
-      kbotdav=k
-      if (myid==0) then
+! fix nudging levels from pressure to level index
+! this is done after indata has loaded sig
+if ( kbotdav<0 ) then
+  targetlev = real(-kbotdav)/1000.
+  do k = 1,kl
+    if ( sig(k)<=targetlev ) then
+      kbotdav = k
+      if ( myid==0 ) then
         write(6,*) "kbotdav adjusted to ",kbotdav,"for sig ",sig(kbotdav)
       end if
       exit
     end if
   end do
-  if (kbotdav<0) then
-    write(6,*) "ERROR: Cannot locate nudging level"
-    write(6,*) "for kbotdav ",kbotdav
+  if ( kbotdav<0 ) then
+    write(6,*) "ERROR: Cannot locate nudging level for kbotdav ",kbotdav
     call ccmpi_abort(-1)
   end if
 end if
-if (ktopdav==0) then
-  ktopdav=kl
-else if (ktopdav<0) then
-  targetlev=real(-ktopdav)/1000.
-  do k=kl,1,-1
-    if (sig(k)>=targetlev) then
-      ktopdav=k
-      if (myid==0) then
+if ( ktopdav==0 ) then
+  ktopdav = kl
+else if ( ktopdav<0 ) then
+  targetlev = real(-ktopdav)/1000.
+  do k = kl,1,-1
+    if ( sig(k)>=targetlev ) then
+      ktopdav = k
+      if ( myid==0 ) then
         write(6,*) "ktopdav adjusted to ",ktopdav,"for sig ",sig(ktopdav)
       end if
       exit
     end if
   end do
-  if (ktopdav<0) then
-    write(6,*) "ERROR: Cannot locate nudging level"
-    write(6,*) "for ktopdav ",ktopdav
+  if ( ktopdav<0 ) then
+    write(6,*) "ERROR: Cannot locate nudging level for ktopdav ",ktopdav
     call ccmpi_abort(-1)
   end if
 end if
-if (kbotmlo<0) kbotmlo=ol
-if (kbotmlo>ol.and.nmlo/=0) then
+! fix ocean nuding levels
+if ( kbotmlo<0 ) kbotmlo=ol
+if ( kbotmlo>ol .and. nmlo/=0 ) then
   write(6,*) "ERROR: Invalid kbotmlo"
   write(6,*) "kbotmlo,ktopmlo ",kbotmlo,ktopmlo
   call ccmpi_abort(-1)
 end if
-if (kblock<0) kblock=max(min(ktopdav-kbotdav+1,kl),min(kbotmlo-ktopmlo+1,ol))
-if (kbotdav<1.or.ktopdav>kl.or.kbotdav>ktopdav) then
+if ( kblock<0 ) kblock=max(min(ktopdav-kbotdav+1,kl),min(kbotmlo-ktopmlo+1,ol))
+if ( kbotdav<1 .or. ktopdav>kl .or. kbotdav>ktopdav ) then
   write(6,*) "ERROR: Invalid kbotdav and ktopdav"
   write(6,*) "kbotdav,ktopdav ",kbotdav,ktopdav
   call ccmpi_abort(-1)
 end if
-if(kbotu==0) kbotu=kbotdav
-if (ntbar<0) then
-  ntbar=1
-  do while(sig(ntbar)>0.8.and.ntbar<kl)
-    ntbar=ntbar+1
+if ( kbotu==0 ) kbotu = kbotdav
+! identify reference level ntbar for temperature
+if ( ntbar<0 ) then
+  ntbar = 1
+  do while( sig(ntbar)>0.8 .and. ntbar<kl )
+    ntbar = ntbar+1
   end do
 end if
 
 ! max/min diagnostics      
-if (nextout>=4) call setllp
+if ( nextout>=4 ) call setllp
 #ifdef debug
 call maxmin(u,' u',ktau,1.,kl)
 call maxmin(v,' v',ktau,1.,kl)
@@ -751,16 +760,16 @@ call maxmin(qlg,'ql',ktau,1.e3,kl)
 call maxmin(wb,'wb',ktau,1.,ms)
 call maxmin(tggsn,'tS',ktau,1.,3)
 call maxmin(tgg,'tgg',ktau,1.,ms)
-pwatr_l=0.   ! in mm
+pwatr_l = 0.   ! in mm
 do k=1,kl
-  pwatr_l=pwatr_l-sum(dsig(k)*wts(1:ifull)*(qg(1:ifull,k)+qlg(1:ifull,k)+qfg(1:ifull,k))*ps(1:ifull))
+  pwatr_l = pwatr_l-sum(dsig(k)*wts(1:ifull)*(qg(1:ifull,k)+qlg(1:ifull,k)+qfg(1:ifull,k))*ps(1:ifull))
 enddo
-pwatr_l=pwatr_l/grav
-temparray(1)=pwatr_l
+pwatr_l = pwatr_l/grav
+temparray(1) = pwatr_l
 call ccmpi_reduce( temparray(1:1), gtemparray(1:1), "sum", 0, comm_world )
-pwatr=gtemparray(1)
-if (myid==0) write (6,"('pwatr0 ',12f7.3)") pwatr
-if (ntrac>0) then
+pwatr = gtemparray(1)
+if ( myid==0 ) write (6,"('pwatr0 ',12f7.3)") pwatr
+if ( ntrac>0 ) then
   do ng=1,ntrac
     write (text,'("g",i1)')ng
     call maxmin(tr(:,:,ng),text,ktau,1.,kl)
@@ -774,55 +783,67 @@ end if   ! (ntrac>0)
 
 ! convection
 ! sig(kuocb) occurs for level just BELOW sigcb
-kuocb=1
-do while(sig(kuocb+1)>=sigcb)
-  kuocb=kuocb+1
+kuocb = 1
+do while( sig(kuocb+1)>=sigcb )
+  kuocb = kuocb+1
 end do
-if (myid==0) write(6,*)'convective cumulus scheme: kuocb,sigcb = ',kuocb,sigcb
+if ( myid==0 ) write(6,*)'convective cumulus scheme: kuocb,sigcb = ',kuocb,sigcb
 
 ! horizontal diffusion 
-if (khdif==-99) then   ! set default khdif appropriate to resolution
-  khdif=5
-  if (myid==0) write(6,*)'Model has chosen khdif =',khdif
+if ( khdif==-99 ) then   ! set default khdif appropriate to resolution
+  khdif = 5
+  if ( myid==0 ) write(6,*)'Model has chosen khdif =',khdif
 endif
-do k=1,kl
-  hdiff(k)=khdif*.1
+do k = 1,kl
+  hdiff(k) = khdif*.1
 end do
-if(khor>0)then
-  do k=kl+1-khor,kl
-    hdiff(k)=2.*hdiff(k-1)
+if ( khor>0 ) then
+  do k = kl+1-khor,kl
+    hdiff(k) = 2.*hdiff(k-1)
   end do
-elseif (khor<0) then
-  do k=1,kl                    ! N.B. usually hdiff(k)=khdif*.1 
+elseif ( khor<0 ) then
+  do k = 1,kl                    ! N.B. usually hdiff(k)=khdif*.1 
     ! increase hdiff between sigma=.15  and sigma=0., 0 to khor
-    if(sig(k)<0.15)hdiff(k)=.1*max(1.,(1.-sig(k)/.15)*abs(khor))
+    if ( sig(k)<0.15 ) then
+      hdiff(k) = .1*max(1.,(1.-sig(k)/.15)*abs(khor))
+    end if
   enddo
-  if (myid==0) write(6,*)'khor,hdiff: ',khor,hdiff
+  if ( myid==0 ) write(6,*)'khor,hdiff: ',khor,hdiff
 end if
-if (nud_p==0.and.mfix==0) then
+if ( nud_p==0 .and. mfix==0 ) then
   write(6,*) "ERROR: Both nud_p=0 and mfix=0"
   write(6,*) "Model will not conserve mass"
   call ccmpi_abort(-1)
 end if
-if (nud_q==0.and.mfix_qg==0) then
+if ( nud_q==0 .and. mfix_qg==0 ) then
   write(6,*) "ERROR: Both nud_q=0 and mfix_qg=0"
   write(6,*) "Model will not conserve moisture"
+  call ccmpi_abort(-1)
+end if
+if ( nud_aero==0 .and. mfix_aero==0 .and. iaero/=0 ) then
+  write(6,*) "ERROR: Both nud_aero=0 and mfix_aero=0"
+  write(6,*) "Model will not conserve aerosols"
+  call ccmpi_abort(-1)
+end if
+if ( mfix_tr==0 .and. ngas>0 ) then
+  write(6,*) "ERROR: mfix_tr=0 and ngas>0"
+  write(6,*) "Model will not conserve tracers"
   call ccmpi_abort(-1)
 end if
       
 
 call printa('zs  ',zs,0,0,ia,ib,ja,jb,0.,.01)
 call printa('tss ',tss,0,0,ia,ib,ja,jb,200.,1.)
-if(mydiag)write(6,*)'wb(idjd) ',(wb(idjd,k),k=1,6)
+if ( mydiag ) write(6,*)'wb(idjd) ',(wb(idjd,k),k=1,6)
 call printa('wb1   ',wb ,0,1,ia,ib,ja,jb,0.,100.)
 call printa('wb6  ',wb,0,ms,ia,ib,ja,jb,0.,100.)
 
       
 !--------------------------------------------------------------
 ! NRUN COUNTER
-if (myid==0) then
+if ( myid==0 ) then
   open(11, file='nrun.dat',status='unknown')
-  if(nrun==0)then
+  if ( nrun==0 ) then
     read(11,*,iostat=ierr2) nrun
     nrun=nrun+1
   endif                  ! nrun==0
@@ -929,12 +950,12 @@ end if
 
 !--------------------------------------------------------------
 ! OPEN OUTPUT FILES AND SAVE INITAL CONDITIONS
-if (nwt>0) then
+if ( nwt>0 ) then
   ! write out the first ofile data set
-  if (myid==0) write(6,*)'calling outfile'
+  if ( myid==0 ) write(6,*)'calling outfile'
   call outfile(20,rundate,nwrite,nstagin)  ! which calls outcdf
-  if (newtop<0) then
-    if (myid==0) write(6,*) 'newtop<0 requires a stop here'
+  if ( newtop<0 ) then
+    if ( myid==0 ) write(6,*) "newtop<0 requires a stop here"
     ! just for outcdf to plot zs  & write fort.22
     call ccmpi_abort(-1)
   end if
@@ -943,24 +964,24 @@ endif    ! (nwt>0)
 
 !--------------------------------------------------------------
 ! INITIALISE DYNAMICS
-dtin=dt
-n3hr=1   ! initial value at start of run
-if (myid==0) then
-  write(6,*)'number of time steps per day = ',nperday
-  write(6,*)'nper3hr,nper6hr .. ',nper3hr(:)
+dtin = dt
+n3hr = 1   ! initial value at start of run
+if ( myid==0 ) then
+  write(6,*) "number of time steps per day = ",nperday
+  write(6,*) "nper3hr,nper6hr .. ",nper3hr(:)
 end if
-mspeca=1
-if(mex/=1.and..not.lrestart)then
-  mspeca=2
-  dt=dtin*.5
+mspeca = 1
+if ( mex/=1 .and. .not.lrestart ) then
+  mspeca = 2
+  dt     = dtin*.5
 endif
-call gettin(0)            ! preserve initial mass & T fields
+call gettin(0)              ! preserve initial mass & T fields
 
-nmaxprsav=nmaxpr
-nwtsav=nwt
-hrs_dt = dtin/3600.       ! time step in hours
-mins_dt = nint(dtin/60.)  ! time step in minutes
-mtimer_in=mtimer
+nmaxprsav = nmaxpr
+nwtsav    = nwt
+hrs_dt    = dtin/3600.      ! time step in hours
+mins_dt   = nint(dtin/60.)  ! time step in minutes
+mtimer_in = mtimer
  
  
 !--------------------------------------------------------------
@@ -972,76 +993,78 @@ end if
 call log_on()
 call START_LOG(maincalc_begin)
 
-do kktau=1,ntau   ! ****** start of main time loop
-  ktau=kktau
-  timer = timer + hrs_dt      ! timer now only used to give timeg
-  timeg=mod(timer+hourst,24.)
-  mtimer=mtimer_in+nint(ktau*dtin/60.)     ! 15/6/01 to allow dt < 1 minute
-  mins_gmt=mod(mtimer+60*ktime/100,24*60)
+do kktau = 1,ntau   ! ****** start of main time loop
+
+  ktau     = kktau
+  timer    = timer + hrs_dt      ! timer now only used to give timeg
+  timeg    = mod(timer+hourst,24.)
+  mtimer   = mtimer_in+nint(ktau*dtin/60.)     ! 15/6/01 to allow dt < 1 minute
+  mins_gmt = mod(mtimer+60*ktime/100,24*60)
 
   ! ***********************************************************************
   ! START ATMOSPHERE DYNAMICS
   ! ***********************************************************************
 
   ! NESTING ---------------------------------------------------------------
-  if (nbd/=0) then
+  if ( nbd/=0 ) then
+    ! Newtonian relaxiation
     call START_LOG(nestin_begin)
     call nestin
     call END_LOG(nestin_end)
   end if
       
   ! TRACERS ---------------------------------------------------------------
-  ! rml 17/02/06 interpolate tracer fluxes to current timestep
-  if (ngas>0) then
+  ! interpolate tracer fluxes to current timestep
+  if ( ngas>0 ) then
     call interp_tracerflux(kdate,hrs_dt)
   end if
 
   ! DYNAMICS --------------------------------------------------------------
-  if(nstaguin>0.and.ktau>=1)then   ! swapping here for nstaguin>0
-    if(nstagin<0.and.mod(ktau-nstagoff,abs(nstagin))==0)then
-      nstag=7-nstag  ! swap between 3 & 4
-      nstagu=nstag
+  if ( nstaguin>0.and.ktau>=1 ) then   ! swapping here for nstaguin>0
+    if ( nstagin<0 .and. mod(ktau-nstagoff,abs(nstagin))==0 ) then
+      nstag  = 7-nstag  ! swap between 3 & 4
+      nstagu = nstag
     endif
   endif
 
-  do mspec=mspeca,1,-1    ! start of introductory time loop
-    dtds=dt/ds
-    un(1:ifull,:)=0. 
-    vn(1:ifull,:)=0.
-    tn(1:ifull,:)=0.
+  do mspec = mspeca,1,-1    ! start of introductory time loop
+    dtds = dt/ds
+    un(1:ifull,:) = 0. 
+    vn(1:ifull,:) = 0.
+    tn(1:ifull,:) = 0.
 
-    if(mup/=1.or.(ktau==1.and.mspec==mspeca.and..not.lrestart)) then
+    if ( mup/=1 .or. (ktau==1.and.mspec==mspeca.and..not.lrestart) ) then
       call bounds(psl)
       ! updps called first step or to permit clean restart option      
       call updps(0) 
     endif
 
     ! set up tau +.5 velocities in ubar, vbar
-    if(ktau<10.and.nmaxpr==1)then
-      if (myid==0) then
+    if ( ktau<10 .and. nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) 'ktau,mex,mspec,mspeca:',ktau,mex,mspec,mspeca
       end if
       call ccmpi_barrier(comm_world)
     endif
-    sbar(:,2:kl)=sdot(:,2:kl)
-    if(ktau==1.and..not.lrestart)then
+    sbar(:,2:kl) = sdot(:,2:kl)
+    if ( ktau==1 .and. .not.lrestart ) then
       ! this sets (ubar,vbar) to ktau=1.5 values on 2nd time through
-      ubar(:,:)=u(1:ifull,:)
-      vbar(:,:)=v(1:ifull,:)
-    elseif(mex==1)then
-      ubar(:,:)=u(1:ifull,:)
-      vbar(:,:)=v(1:ifull,:)
-    elseif((ktau==2.and..not.lrestart).or.mex==2)then        
+      ubar(:,:) = u(1:ifull,:)
+      vbar(:,:) = v(1:ifull,:)
+    elseif ( mex==1) then
+      ubar(:,:) = u(1:ifull,:)
+      vbar(:,:) = v(1:ifull,:)
+    elseif ( (ktau==2.and..not.lrestart) .or. mex==2 ) then        
       ! (tau+.5) from tau, tau-1
-      ubar(:,:)=u(1:ifull,:)*1.5-savu(:,:)*.5
-      vbar(:,:)=v(1:ifull,:)*1.5-savv(:,:)*.5
-    elseif(mex==3)then
+      ubar(:,:) = u(1:ifull,:)*1.5-savu(:,:)*.5
+      vbar(:,:) = v(1:ifull,:)*1.5-savv(:,:)*.5
+    elseif ( mex==3 )then
       ! (tau+.5) from tau, tau-1, tau-2   ! ubar is savu1 here
-      ubar(:,:)=u(1:ifull,:)+.5*(savu(:,:)-savu1(:,:))
-      vbar(:,:)=v(1:ifull,:)+.5*(savv(:,:)-savv1(:,:))
-    elseif(mex==30.and.(ktau>3.or.lrestart))then  ! using tau, tau-1, tau-2, tau-3
-      do k=1,kl
-        do iq=1,ifull
+      ubar(:,:) = u(1:ifull,:)+.5*(savu(:,:)-savu1(:,:))
+      vbar(:,:) = v(1:ifull,:)+.5*(savv(:,:)-savv1(:,:))
+    elseif ( mex==30 .and. (ktau>3.or.lrestart) ) then  ! using tau, tau-1, tau-2, tau-3
+      do k = 1,kl
+        do iq = 1,ifull
           bb=1.5*u(iq,k)-2.*savu(iq,k)+.5*savu1(iq,k)                           ! simple b
           bb_2=(40.*u(iq,k)-35.*savu(iq,k)-16.*savu1(iq,k)+11.*savu2(iq,k))/34. ! cwqls b
           cc=.5*u(iq,k)-savu(iq,k)+.5*savu1(iq,k)                               ! simple c
@@ -1064,71 +1087,73 @@ do kktau=1,ntau   ! ****** start of main time loop
       enddo   ! k loop 
     else      ! i.e. mex >=4 and ktau>=3
       ! (tau+.5) from tau, tau-1, tau-2   ! ubar is savu1 here
-      ubar(:,:)=(u(1:ifull,:)*15.-savu(:,:)*10.+savu1(:,:)*3.)/8.
-      vbar(:,:)=(v(1:ifull,:)*15.-savv(:,:)*10.+savv1(:,:)*3.)/8.
+      ubar(:,:) = (u(1:ifull,:)*15.-savu(:,:)*10.+savu1(:,:)*3.)/8.
+      vbar(:,:) = (v(1:ifull,:)*15.-savv(:,:)*10.+savv1(:,:)*3.)/8.
     endif    ! (ktau==1) .. else ..
-    if (mod(ktau,nmaxpr)==0.and.mydiag)then
-      nlx=max(2,nlv)  ! as savs not defined for k=1
+    if ( mod(ktau,nmaxpr)==0 .and. mydiag ) then
+      nlx = max(2,nlv)  ! as savs not defined for k=1
       write (6,"(i4,' savu2,savu1,savu,u,ubar',5f8.2)") ktau,savu2(idjd,nlv),savu1(idjd,nlv),savu(idjd,nlv), &
                                                         u(idjd,nlv),ubar(idjd,nlv)
       write (6,"(i4,' savv2,savv1,savv,v,vbar',5f8.2)") ktau,savv2(idjd,nlv),savv1(idjd,nlv),savv(idjd,nlv), &
                                                         v(idjd,nlv),vbar(idjd,nlv)
     endif
-    if(ktau>2.and.epsp>1..and.epsp<2.) then
-      if (ktau==3.and.nmaxpr==1) then
-        if (myid==0) then
+    if ( ktau>2 .and. epsp>1. .and. epsp<2. ) then
+      if ( ktau==3 .and. nmaxpr==1 ) then
+        if ( myid==0 ) then
           write(6,*)'using epsp= ',epsp
         end if
         call ccmpi_barrier(comm_world)
       end if
-      where ((sign(1.,dpsdt(1:ifull))/=sign(1.,dpsdtb(1:ifull))).and.(sign(1.,dpsdtbb(1:ifull))/=sign(1.,dpsdtb(1:ifull))))
-        epst(1:ifull)=epsp-1.
+      where ( (sign(1.,dpsdt(1:ifull))/=sign(1.,dpsdtb(1:ifull))) .and. (sign(1.,dpsdtbb(1:ifull))/=sign(1.,dpsdtb(1:ifull))) )
+        epst(1:ifull) = epsp-1.
       elsewhere
-        epst(1:ifull)=0.
+        epst(1:ifull) = 0.
       end where
     endif ! (ktau>2.and.epsp>1..and.epsp<2.)
 
-    if (ktau<10.and.mydiag) then
+    if ( ktau<10 .and. mydiag ) then
       write(6,*)'savu,u,ubar ',ktau,savu(idjd,1),u(idjd,1),ubar(idjd,1)
     end if
-    if (ktau==1.and..not.lrestart.and.mspec==1.and.mex/=1) then
-      u(1:ifull,:)=savu(1:ifull,:)  ! reset u,v to original values
-      v(1:ifull,:)=savv(1:ifull,:)
+    if ( ktau==1 .and. .not.lrestart .and. mspec==1 .and. mex/=1 ) then
+      u(1:ifull,:) = savu(1:ifull,:)  ! reset u,v to original values
+      v(1:ifull,:) = savv(1:ifull,:)
     end if
-    savu2(1:ifull,:)=savu1(1:ifull,:)  
-    savv2(1:ifull,:)=savv1(1:ifull,:)
-    savs1(1:ifull,:)=savs(1:ifull,:)  
-    savu1(1:ifull,:)=savu(1:ifull,:)  
-    savv1(1:ifull,:)=savv(1:ifull,:)
-    savs(1:ifull,:) =sdot(1:ifull,2:kl)  
-    savu(1:ifull,:) =u(1:ifull,:)  ! before any time-splitting occurs
-    savv(1:ifull,:) =v(1:ifull,:)
+    savu2(1:ifull,:) = savu1(1:ifull,:)  
+    savv2(1:ifull,:) = savv1(1:ifull,:)
+    savs1(1:ifull,:) = savs(1:ifull,:)  
+    savu1(1:ifull,:) = savu(1:ifull,:)  
+    savv1(1:ifull,:) = savv(1:ifull,:)
+    savs(1:ifull,:)  = sdot(1:ifull,2:kl)  
+    savu(1:ifull,:)  = u(1:ifull,:)  ! before any time-splitting occurs
+    savv(1:ifull,:)  = v(1:ifull,:)
 
     ! set diagnostic printout flag
-    diag=(ktau>=abs(ndi).and.ktau<=ndi2)
-    if(ndi<0)then
-      if(ktau==(ktau/ndi)*ndi)diag=.true.
+    diag = ( ktau>=abs(ndi) .and. ktau<=ndi2 )
+    if ( ndi<0 ) then
+      if ( ktau == (ktau/ndi)*ndi ) then
+        diag=.true.
+      end if
     endif
 
     ! update non-linear dynamic terms
-    if (nmaxpr==1) then
-      if (myid==0) then
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "Before nonlin"
       end if
       call ccmpi_barrier(comm_world)
     end if
     call nonlin
-    if (nmaxpr==1) then
-      if (myid==0) then
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "After nonlin"
       end if
       call ccmpi_barrier(comm_world)
     end if
-    if (diag)then
-      if (mydiag) write(6,*) 'before hadv'
+    if ( diag ) then
+      if ( mydiag ) write(6,*) 'before hadv'
       call printa('tx  ',tx,ktau,nlv,ia,ib,ja,jb,0.,1.)
-      if (mydiag) then
-        nlx=min(nlv,kl-8)
+      if ( mydiag ) then
+        nlx = min(nlv,kl-8)
         write(6,"('tx  ',9f8.2)") (tx(idjd,k),k=nlx,nlx+8)
         write(6,"('txe ',9f8.2)") (tx(ie(idjd),k),k=nlx,nlx+8)
         write(6,"('txw ',9f8.2)") (tx(iw(idjd),k),k=nlx,nlx+8)
@@ -1140,43 +1165,43 @@ do kktau=1,ntau   ! ****** start of main time loop
     endif
 
     ! evaluate horizontal advection for combined quantities
-    if (nmaxpr==1) then
-      if (myid==0) then
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "Before upglobal"
       end if
       call ccmpi_barrier(comm_world)
     end if
     call upglobal
-    if (nmaxpr==1) then
-      if (myid==0) then
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "After upglobal"
       end if
       call ccmpi_barrier(comm_world)
     end if
-    if (diag)then
-      if (mydiag) then
+    if ( diag ) then
+      if ( mydiag ) then
         write(6,*) 'after hadv'
         write (6,"('tx  ',9f8.2)") (tx(idjd,k),k=nlx,nlx+8)
       end if
       call printa('tx  ',tx,ktau,nlv,ia,ib,ja,jb,200.,1.)
-      if (mydiag)write(6,'(i2," qgh ",18f7.4)')ktau,1000.*qg(idjd,:)
+      if ( mydiag ) write(6,'(i2," qgh ",18f7.4)')ktau,1000.*qg(idjd,:)
     end if
 
-    if(nstaguin<0.and.ktau>=1)then  ! swapping here (lower down) for nstaguin<0
-      if(nstagin<0.and.mod(ktau-nstagoff,abs(nstagin))==0)then
-        nstag=7-nstag  ! swap between 3 & 4
-        nstagu=nstag
+    if ( nstaguin<0 .and. ktau>=1 ) then  ! swapping here (lower down) for nstaguin<0
+      if ( nstagin<0 .and. mod(ktau-nstagoff,abs(nstagin))==0 ) then
+        nstag  = 7-nstag  ! swap between 3 & 4
+        nstagu = nstag
       end if
     end if
-    if (nmaxpr==1) then
-      if (myid==0) then
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "Before adjust5"
       end if
       call ccmpi_barrier(comm_world)
     end if
     call adjust5
-    if (nmaxpr==1) then
-      if (myid==0) then
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "After adjust5"
       end if
       call ccmpi_barrier(comm_world)
@@ -1185,21 +1210,23 @@ do kktau=1,ntau   ! ****** start of main time loop
     ! NESTING ---------------------------------------------------------------
     ! nesting now after mass fixers
     call START_LOG(nestin_begin)
-    if (nmaxpr==1) then
-      if (myid==0) then
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "Before nesting"
       end if
       call ccmpi_barrier(comm_world)
     end if
-    if (mspec==1) then
-      if (mbd/=0) then
+    if ( mspec==1 ) then
+      if ( mbd/=0 ) then
+        ! scale-selective filter
         call nestinb
-      else if (nbd/=0) then
+      else if ( nbd/=0 ) then
+        ! Newtonian relaxiation
         call davies
       end if
     end if
-    if (nmaxpr==1) then
-      if (myid==0) then
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "After nesting"
       end if
       call ccmpi_barrier(comm_world)
@@ -1207,33 +1234,35 @@ do kktau=1,ntau   ! ****** start of main time loop
     call END_LOG(nestin_end)
 
     ! DYNAMICS --------------------------------------------------------------
-    if(mspec==2)then     ! for very first step restore mass & T fields
+    if ( mspec==2 ) then     ! for very first step restore mass & T fields
       call gettin(1)
     endif    !  (mspec==2) 
-    if(mfix_qg==0.or.mspec==2)then
-      qfg(1:ifull,:)=max(qfg(1:ifull,:),0.) 
-      qlg(1:ifull,:)=max(qlg(1:ifull,:),0.)
-      qg(1:ifull,:)=max(qg(1:ifull,:),qgmin-qlg(1:ifull,:)-qfg(1:ifull,:),0.) 
+    if ( mfix_qg==0 .or. mspec==2 ) then
+      qfg(1:ifull,:) = max(qfg(1:ifull,:),0.) 
+      qlg(1:ifull,:) = max(qlg(1:ifull,:),0.)
+      qg(1:ifull,:)  = max(qg(1:ifull,:),qgmin-qlg(1:ifull,:)-qfg(1:ifull,:),0.) 
     endif  ! (mfix_qg==0.or.mspec==2)
 
-    dt=dtin
+    dt = dtin
   end do ! ****** end of introductory time loop
-  mspeca=1
+  mspeca = 1
 
-  ! DIFFUSION -------------------------------------------------------------
+  ! HORIZONTAL DIFFUSION ----------------------------------------------------
   call START_LOG(hordifg_begin)
-  if (nmaxpr==1) then
-    if (myid==0) then
+  if ( nmaxpr==1 ) then
+    if ( myid==0 ) then
       write(6,*) "Before atm horizontal diffusion"
     end if
     call ccmpi_barrier(comm_world)
   end if
-  if (nhor<0) then
+  if ( nhor<0 ) then
     call hordifgt  ! now not tendencies
   end if
-  if (diag.and.mydiag) write(6,*) 'after hordifgt t ',t(idjd,:)
-  if (nmaxpr==1) then
-    if (myid==0) then
+  if ( diag .and. mydiag ) then
+    write(6,*) 'after hordifgt t ',t(idjd,:)
+  end if
+  if ( nmaxpr==1 ) then
+    if ( myid==0 ) then
       write(6,*) "After atm horizontal diffusion"
     end if
     call ccmpi_barrier(comm_world)
@@ -1250,19 +1279,19 @@ do kktau=1,ntau   ! ****** start of main time loop
   ! nmlo=3   nmlo=2 plus 3D dynamics
   ! nmlo>9   Use external PCOM ocean model
 
-  if (abs(nmlo)>=2) then
+  if ( abs(nmlo)>=2 ) then
     ! RIVER ROUTING ------------------------------------------------------
     ! This option can also be used with PCOM
     call START_LOG(river_begin)
-    if (nmaxpr==1) then
-      if (myid==0) then
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "Before river"
       end if
       call ccmpi_barrier(comm_world)
     end if
     call rvrrouter
-    if (nmaxpr==1) then
-      if (myid==0) then
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "After river"
       end if
       call ccmpi_barrier(comm_world)
@@ -1271,32 +1300,32 @@ do kktau=1,ntau   ! ****** start of main time loop
   end if
 
   call START_LOG(waterdynamics_begin)
-  if (abs(nmlo)>=3.and.abs(nmlo)<=9) then
+  if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
     ! DYNAMICS & DIFFUSION ------------------------------------------------
-    if (nmaxpr==1) then
-      if (myid==0) then
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "Before MLO dynamics"
       end if
       call ccmpi_barrier(comm_world)
     end if
     call mlohadv
-    if (nmaxpr==1) then
-      if (myid==0) then
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "After MLO dynamics"
       end if
       call ccmpi_barrier(comm_world)
     end if
-  else if (abs(nmlo)>=2.and.abs(nmlo)<=9) then
+  else if ( abs(nmlo)>=2 .and. abs(nmlo)<=9 ) then
     ! DIFFUSION ONLY ------------------------------------------------------
-    if (nmaxpr==1) then
-      if (myid==0) then
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "Before MLO diffusion"
       end if
       call ccmpi_barrier(comm_world)          
     end if
     call mlodiffusion
-    if (nmaxpr==1) then
-      if (myid==0) then
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "After MLO diffusion"
       end if
       call ccmpi_barrier(comm_world)          
@@ -1312,15 +1341,15 @@ do kktau=1,ntau   ! ****** start of main time loop
       
   ! GWDRAG ----------------------------------------------------------------
   call START_LOG(gwdrag_begin)
-  if (nmaxpr==1) then
-    if (myid==0) then
+  if ( nmaxpr==1 ) then
+    if ( myid==0 ) then
       write(6,*) "Before gwdrag"
     end if
     call ccmpi_barrier(comm_world)
   end if
-  if (ngwd<0) call gwdrag  ! <0 for split - only one now allowed
-  if (nmaxpr==1) then
-    if (myid==0) then
+  if ( ngwd<0 ) call gwdrag  ! <0 for split - only one now allowed
+  if ( nmaxpr==1 ) then
+    if ( myid==0 ) then
       write(6,*) "After gwdrag"
     end if
     call ccmpi_barrier(comm_world)
@@ -1329,19 +1358,19 @@ do kktau=1,ntau   ! ****** start of main time loop
       
   ! CONVECTION ------------------------------------------------------------
   call START_LOG(convection_begin)
-  if (nmaxpr==1) then
-    if (myid==0) then
+  if ( nmaxpr==1 ) then
+    if ( myid==0 ) then
       write(6,*) "Before convection"
     end if
     call ccmpi_barrier(comm_world)
   end if
-  convh_ave=convh_ave-t(1:ifull,:)*real(nperday)/real(nperavg)
-  condc=0.
-  condx=0.
-  conds=0.
+  convh_ave = convh_ave-t(1:ifull,:)*real(nperday)/real(nperavg)
+  condc     = 0. ! default convective rainfall (assumed to be rain)
+  condx     = 0. ! default total precip = rain + snow (convection and large scale)
+  conds     = 0. ! default total snow  (convection and large scale)
   ! Save aerosol concentrations for outside convective fraction of grid box
-  if (abs(iaero)>=2) then
-    xtosav(:,:,:)=xtg(1:ifull,:,:) ! Aerosol mixing ratio outside convective cloud
+  if ( abs(iaero)>=2 ) then
+    xtosav(:,:,:) = xtg(1:ifull,:,:) ! Aerosol mixing ratio outside convective cloud
   end if
   ! Select convection scheme
   select case(nkuo)
@@ -1354,10 +1383,10 @@ do kktau=1,ntau   ! ****** start of main time loop
       write(6,*) "ERROR: Conjob no longer supported with nkuo=46"
       call ccmpi_abort(-1)
   end select
-  cbas_ave(:)=cbas_ave(:)+condc(:)*(1.1-sig(kbsav(:)))      ! diagnostic
-  ctop_ave(:)=ctop_ave(:)+condc(:)*(1.1-sig(abs(ktsav(:)))) ! diagnostic
-  if (nmaxpr==1) then
-    if (myid==0) then
+  cbas_ave(:) = cbas_ave(:)+condc(:)*(1.1-sig(kbsav(:)))      ! diagnostic
+  ctop_ave(:) = ctop_ave(:)+condc(:)*(1.1-sig(abs(ktsav(:)))) ! diagnostic
+  if ( nmaxpr==1 ) then
+    if ( myid==0 ) then
       write(6,*) "After convection"
     end if
     call ccmpi_barrier(comm_world)
@@ -1366,22 +1395,22 @@ do kktau=1,ntau   ! ****** start of main time loop
       
   ! CLOUD MICROPHYSICS ----------------------------------------------------
   call START_LOG(cloud_begin)
-  if (nmaxpr==1) then
-    if (myid==0) then
+  if ( nmaxpr==1 ) then
+    if ( myid==0 ) then
       write(6,*) "Before cloud microphysics"
     end if
     call ccmpi_barrier(comm_world)
   end if
-  if (ldr/=0) then
+  if ( ldr/=0 ) then
     ! LDR microphysics scheme
     call leoncld(cfrac,rfrac)
   end if
-  do k=1,kl
-    riwp_ave(1:ifull)=riwp_ave(1:ifull)-qfrad(:,k)*dsig(k)*ps(1:ifull)/grav ! ice water path
-    rlwp_ave(1:ifull)=rlwp_ave(1:ifull)-qlrad(:,k)*dsig(k)*ps(1:ifull)/grav ! liq water path
+  do k = 1,kl
+    riwp_ave(1:ifull) = riwp_ave(1:ifull)-qfrad(:,k)*dsig(k)*ps(1:ifull)/grav ! ice water path
+    rlwp_ave(1:ifull) = rlwp_ave(1:ifull)-qlrad(:,k)*dsig(k)*ps(1:ifull)/grav ! liq water path
   enddo
-  convh_ave=convh_ave+t(1:ifull,:)*real(nperday)/real(nperavg)
-  rnd_3hr(1:ifull,8)=rnd_3hr(1:ifull,8)+condx(:)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
+  convh_ave = convh_ave+t(1:ifull,:)*real(nperday)/real(nperavg)
+  rnd_3hr(1:ifull,8) = rnd_3hr(1:ifull,8)+condx(:)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
 #ifdef debug
   if(nmaxpr==1.and.mydiag)then
     write (6,"('qfrad',3p9f8.3/5x,9f8.3)") qfrad(idjd,:)
@@ -1389,8 +1418,8 @@ do kktau=1,ntau   ! ****** start of main time loop
     write (6,"('qf   ',3p9f8.3/5x,9f8.3)") qfg(idjd,:)
   endif
 #endif
-  if (nmaxpr==1) then
-    if (myid==0) then
+  if ( nmaxpr==1 ) then
+    if ( myid==0 ) then
       write(6,*) "After cloud microphysics"
     end if
     call ccmpi_barrier(comm_world)
@@ -1403,19 +1432,19 @@ do kktau=1,ntau   ! ****** start of main time loop
   ! nrad=5 SEA-ESF radiation
 
   call START_LOG(radnet_begin)
-  if (nmaxpr==1) then
-    if (myid==0) then
+  if ( nmaxpr==1 ) then
+    if ( myid==0 ) then
       write(6,*) "Before radiation"
     end if
     call ccmpi_barrier(comm_world)
   end if
-  if (ncloud>=3) then
+  if ( ncloud>=3 ) then
     nettend=nettend+t(1:ifull,:)/dt
   end if
-  odcalc=mod(ktau,kountr)==0.or.ktau==1 ! ktau-1 better
-  if (nhstest<0) then ! aquaplanet test -1 to -8  
-    mtimer_sav=mtimer
-    mtimer=mins_gmt    ! so radn scheme repeatedly works thru same day
+  odcalc = mod(ktau,kountr)==0.or.ktau==1 ! ktau-1 better
+  if ( nhstest<0 ) then ! aquaplanet test -1 to -8  
+    mtimer_sav = mtimer
+    mtimer     = mins_gmt    ! so radn scheme repeatedly works thru same day
   end if    ! (nhstest<0)
   select case(nrad)
     case(4)
@@ -1426,14 +1455,14 @@ do kktau=1,ntau   ! ****** start of main time loop
       call seaesfrad(il*nrows_rad,odcalc)
     case DEFAULT
       ! use preset slwa array (use +ve nrad)
-      slwa(:)=-10*nrad  
+      slwa(:) = -10*nrad  
   end select
-  if (nhstest<0) then ! aquaplanet test -1 to -8  
-    mtimer=mtimer_sav
+  if ( nhstest<0 ) then ! aquaplanet test -1 to -8  
+    mtimer = mtimer_sav
   end if    ! (nhstest<0)
-  if (nmaxpr==1) then
+  if ( nmaxpr==1 ) then
     call maxmin(slwa,'sl',ktau,.1,1)
-    if (myid==0) then
+    if ( myid==0 ) then
       write(6,*) "After radiation"
     end if
     call ccmpi_barrier(comm_world)
@@ -1442,17 +1471,17 @@ do kktau=1,ntau   ! ****** start of main time loop
 
 
   ! HELD & SUAREZ ---------------------------------------------------------
-  if (ntsur<=1.or.nhstest==2) then ! Held & Suarez or no surf fluxes
-    eg(:)=0.
-    fg(:)=0.
-    cdtq(:)=0.
-    cduv(:)=0.
+  if ( ntsur<=1 .or. nhstest==2 ) then ! Held & Suarez or no surf fluxes
+    eg(:)   = 0.
+    fg(:)   = 0.
+    cdtq(:) = 0.
+    cduv(:) = 0.
   end if     ! (ntsur<=1.or.nhstest==2) 
-  if(nhstest==2) then
+  if ( nhstest==2 ) then
     call hs_phys
   end if
-  if (ntsur>1) then  ! should be better after convjlm
-    if (diag) then
+  if ( ntsur>1 ) then  ! should be better after convjlm
+    if ( diag ) then
       call maxmin(u,'#u',ktau,1.,kl)
       call maxmin(v,'#v',ktau,1.,kl)
       call maxmin(t,'#t',ktau,1.,kl)
@@ -1463,18 +1492,18 @@ do kktau=1,ntau   ! ****** start of main time loop
     ! SURFACE FLUXES ---------------------------------------------
     ! (Includes ocean dynamics and mixing, as well as ice dynamics and thermodynamics)
     call START_LOG(sfluxnet_begin)
-    if (nmaxpr==1) then
-      if (myid==0) then
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "Before surface fluxes"
       end if
       call ccmpi_barrier(comm_world)
     end if
     call sflux(nalpha)
-    epan_ave(1:ifull)=epan_ave(1:ifull)+epan  ! 2D 
-    epot_ave(1:ifull)=epot_ave(1:ifull)+epot  ! 2D 
-    ga_ave(1:ifull)=ga_ave(1:ifull)+ga        ! 2D 
-    if (nmaxpr==1) then
-      if (myid==0) then
+    epan_ave(1:ifull) = epan_ave(1:ifull)+epan  ! 2D 
+    epot_ave(1:ifull) = epot_ave(1:ifull)+epot  ! 2D 
+    ga_ave(1:ifull)   = ga_ave(1:ifull)+ga      ! 2D 
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "After surface fluxes"
       end if
       call ccmpi_barrier(comm_world)
@@ -1482,12 +1511,12 @@ do kktau=1,ntau   ! ****** start of main time loop
     call END_LOG(sfluxnet_end)
        
     ! STATION OUTPUT ---------------------------------------------
-    if (nstn>0) then
+    if ( nstn>0 ) then
       call stationa ! write every time step
     end if
        
     ! DIAGNOSTICS ------------------------------------------------
-    if (mod(ktau,nmaxpr)==0.and.mydiag) then
+    if ( mod(ktau,nmaxpr)==0 .and. mydiag ) then
       write(6,*)
       write (6,"('ktau =',i5,' gmt(h,m):',f6.2,i5,' runtime(h,m):',f7.2,i6)") ktau,timeg,mins_gmt,timer,mtimer
       ! some surface (or point) diagnostics
@@ -1501,11 +1530,11 @@ do kktau=1,ntau   ! ****** start of main time loop
       write (6,"('wbice(1-6) ',9f8.3)") (wbice(idjd,k),k=1,6)
       write (6,"('smass(1-3) ',9f8.2)") (smass(idjd,k),k=1,3) ! as mm of water
       write (6,"('ssdn(1-3)  ',9f8.2)") (ssdn(idjd,k),k=1,3)
-      iq=idjd
-      pwater=0.   ! in mm
-      do k=1,kl
-        qtot=qg(iq,k)+qlg(iq,k)+qfg(iq,k)
-        pwater=pwater-dsig(k)*qtot*ps(iq)/grav
+      iq = idjd
+      pwater = 0.   ! in mm
+      do k = 1,kl
+        qtot   = qg(iq,k)+qlg(iq,k)+qfg(iq,k)
+        pwater = pwater-dsig(k)*qtot*ps(iq)/grav
       enddo
       write (6,"('pwater,condc,condx,rndmax,rmc',9f8.3)") pwater,condc(idjd),condx(idjd),rndmax(idjd),cansto(idjd)
       write (6,"('wetfac,sno,evap,precc,precip',6f8.2)") wetfac(idjd),sno(idjd),evap(idjd),precc(idjd),precip(idjd)
@@ -1525,31 +1554,33 @@ do kktau=1,ntau   ! ****** start of main time loop
       write (6,"('qf  ',9f8.3/4x,9f8.3)") qfg(idjd,:)
       write (6,"('ql  ',9f8.3/4x,9f8.3)") qlg(idjd,:)
       write (6,"('cfrac',9f8.3/5x,9f8.3)") cfrac(idjd,:)
-      do k=1,kl
-        es=establ(t(idjd,k))
-        spmean(k)=100.*qg(idjd,k)*max(ps(idjd)*sig(k)-es,1.)/(.622*es) ! max as for convjlm
+      do k = 1,kl
+        es        = establ(t(idjd,k))
+        spmean(k) = 100.*qg(idjd,k)*max(ps(idjd)*sig(k)-es,1.)/(.622*es) ! max as for convjlm
       enddo
       write (6,"('rh  ',9f8.3/4x,9f8.3)") spmean(:)
       write (6,"('omgf ',9f8.3/5x,9f8.3)") ps(idjd)*dpsldt(idjd,:) ! in Pa/s
       write (6,"('sdot ',9f8.3/5x,9f8.3)") sdot(idjd,1:kl)
-      if(nextout>=4)write (6,"('xlat,long,pres ',3f8.2)") tr(idjd,nlv,ngas+1),tr(idjd,nlv,ngas+2),tr(idjd,nlv,ngas+3)
+      if ( nextout>=4 ) then
+        write (6,"('xlat,long,pres ',3f8.2)") tr(idjd,nlv,ngas+1),tr(idjd,nlv,ngas+2),tr(idjd,nlv,ngas+3)
+      end if
     endif  ! (mod(ktau,nmaxpr)==0.and.mydiag)
   endif   ! (ntsur>1)
 
   ! AEROSOLS --------------------------------------------------------------
   ! MJT notes - aerosols called before vertical mixing so that convective
   ! and strat cloud can be separated consistently with cloud microphysics
-  if (abs(iaero)>=2) then
+  if ( abs(iaero)>=2 ) then
     call START_LOG(aerosol_begin)
-    if (nmaxpr==1) then
-      if (myid==0) then
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "Before aerosols"
       end if
       call ccmpi_barrier(comm_world)
     end if
     call aerocalc
-    if (nmaxpr==1) then
-      if (myid==0) then
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
         write(6,*) "After aerosols"
       end if
       call ccmpi_barrier(comm_world)
@@ -1558,31 +1589,35 @@ do kktau=1,ntau   ! ****** start of main time loop
   end if
       
   ! VERTICAL MIXING ------------------------------------------------------
-  if (nmaxpr==1) then
-    if (myid==0) then
+  if ( nmaxpr==1 ) then
+    if ( myid==0 ) then
       write(6,*) "Before PBL mixing"
     end if
     call ccmpi_barrier(comm_world)
   end if
-  if (ntsur>=1) then ! calls vertmix but not sflux for ntsur=1
+  if ( ntsur>=1 ) then ! calls vertmix but not sflux for ntsur=1
     call START_LOG(vertmix_begin)
-    if(nmaxpr==1.and.mydiag) write (6,"('pre-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
+    if ( nmaxpr==1 .and. mydiag ) then
+      write (6,"('pre-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
+    end if
     call vertmix
-    if(nmaxpr==1.and.mydiag) write (6,"('aft-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
+    if ( nmaxpr==1 .and. mydiag ) then
+      write (6,"('aft-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
+    end if
     call END_LOG(vertmix_end)
   endif  ! (ntsur>=1)
-  if (ncloud>=3) then
-    nettend=(nettend-t(1:ifull,:)/dt)
+  if ( ncloud>=3 ) then
+    nettend = (nettend-t(1:ifull,:)/dt)
   end if
-  if (nmaxpr==1) then
-    if (myid==0) then
+  if ( nmaxpr==1 ) then
+    if ( myid==0 ) then
       write(6,*) "After PBL mixing"
     end if
     call ccmpi_barrier(comm_world)
   end if
       
   ! Update diagnostics for consistancy in history file
-  if (rescrn>0) then
+  if ( rescrn>0 ) then
     call autoscrn
   end if
 
@@ -1599,7 +1634,7 @@ do kktau=1,ntau   ! ****** start of main time loop
   ! TRACER OUTPUT
   ! ***********************************************************************
   ! rml 16/02/06 call tracer_mass, write_ts
-  if(ngas>0) then
+  if ( ngas>0 ) then
     call tracer_mass(ktau,ntau) !also updates average tracer array
     call write_ts(ktau,ntau,dt)
   endif
@@ -1608,24 +1643,24 @@ do kktau=1,ntau   ! ****** start of main time loop
   ! DIAGNOSTICS AND OUTPUT
   ! ***********************************************************************
 
-  if(ndi==-ktau)then
-    nmaxpr=1         ! diagnostic prints; reset 6 lines on
-    if(ndi2==0)ndi2=ktau+40
+  if ( ndi==-ktau ) then
+    nmaxpr = 1         ! diagnostic prints; reset 6 lines on
+    if ( ndi2==0 ) ndi2 = ktau+40
   endif
-  if(ktau==ndi2)then
-    if(myid==0)write(6,*)'reset nmaxpr'
-    nmaxpr=nmaxprsav
+  if ( ktau==ndi2 ) then
+    if ( myid==0 ) write(6,*)'reset nmaxpr'
+    nmaxpr = nmaxprsav
   endif
-  if (mod(ktau,nmaxpr)==0.or.ktau==ntau)then
+  if ( mod(ktau,nmaxpr)==0 .or. ktau==ntau ) then
     call maxmin(u,' u',ktau,1.,kl)
     call maxmin(v,' v',ktau,1.,kl)
-    dums(:,:)=u(1:ifull,:)**2+v(1:ifull,:)**2 ! 3D
+    dums(:,:) = u(1:ifull,:)**2+v(1:ifull,:)**2 ! 3D
     call average(dums,spmean,spavge)
-    do k=1,kl
-      spmean(k)=sqrt(spmean(k))
+    do k = 1,kl
+      spmean(k) = sqrt(spmean(k))
     enddo
-    dums(1:ifull,1:kl)=sqrt(dums(1:ifull,1:kl)) ! 3D
-    spavge=sqrt(spavge)
+    dums(1:ifull,1:kl) = sqrt(dums(1:ifull,1:kl)) ! 3D
+    spavge = sqrt(spavge)
     call maxmin(dums,'sp',ktau,1.,kl)
     call maxmin(t,' t',ktau,1.,kl)
     call maxmin(qg,'qg',ktau,1.e3,kl)
@@ -1636,7 +1671,7 @@ do kktau=1,ntau   ! ****** start of main time loop
       write(6,'("spmean ",9f8.3)') spmean
       write(6,'("spavge ",f8.3)') spavge
     end if
-    dums=qg(1:ifull,:)
+    dums = qg(1:ifull,:)
     call average(dums,spmean,spavge)
     if ( myid==0 ) then
       write(6,'("qgmean ",9f8.5)') spmean
@@ -1653,33 +1688,33 @@ do kktau=1,ntau   ! ****** start of main time loop
     call maxmin(sno,'sn',ktau,1.,1)        ! as mm during timestep
     call maxmin(rhscrn,'rh',ktau,1.,1)
     call maxmin(ps,'ps',ktau,.01,1)
-    psavge   =sum(ps(1:ifull)*wts(1:ifull))
-    pslavge  =sum(psl(1:ifull)*wts(1:ifull))
-    preccavge=sum(precc(1:ifull)*wts(1:ifull))
-    precavge =sum(precip(1:ifull)*wts(1:ifull))
+    psavge    = sum(ps(1:ifull)*wts(1:ifull))
+    pslavge   = sum(psl(1:ifull)*wts(1:ifull))
+    preccavge = sum(precc(1:ifull)*wts(1:ifull))
+    precavge  = sum(precip(1:ifull)*wts(1:ifull))
     ! KE calculation, not taking into account pressure weighting
     gke = 0.
-    do k=1,kl
+    do k = 1,kl
       gke = gke - sum( 0.5 * wts(1:ifull) * dsig(k) * ( u(1:ifull,k)**2 + v(1:ifull,k)**2 ) )
     end do
-    cllav=sum(wts(1:ifull)*cloudlo(1:ifull))
-    clmav=sum(wts(1:ifull)*cloudmi(1:ifull))
-    clhav=sum(wts(1:ifull)*cloudhi(1:ifull))
-    cltav=sum(wts(1:ifull)*cloudtot(1:ifull))
+    cllav = sum(wts(1:ifull)*cloudlo(1:ifull))
+    clmav = sum(wts(1:ifull)*cloudmi(1:ifull))
+    clhav = sum(wts(1:ifull)*cloudhi(1:ifull))
+    cltav = sum(wts(1:ifull)*cloudtot(1:ifull))
 
     ! All this combined into a single reduction
     temparray = (/ psavge, pslavge, preccavge, precavge, gke, cllav, clmav,clhav, cltav /)
     call ccmpi_reduce(temparray,gtemparray,"sum",0,comm_world)
-    if (myid==0) then
+    if ( myid==0 ) then
       write(6,97) gtemparray(1:5) ! psavge,pslavge,preccavge,precavge,gke
 97    format(' average ps, psl, precc, prec, gke: ',f10.2,f10.6,2f6.2,f7.2)
       write(6,971) gtemparray(6:9) ! cllav,clmav,clhav,cltav
 971   format(' global_average cll, clm, clh, clt: ',4f6.2)
     end if
-    if (mydiag) then
+    if ( mydiag ) then
       write(6,98) ktau,diagvals(ps)
 98    format(i7,' ps diag:',9f7.1)
-      if(t(idjd,kl)>258.)then
+      if ( t(idjd,kl)>258. ) then
         write(6,*) 't(idjd,kl) > 258. for idjd = ',idjd
         write(6,91) ktau,(t(idjd,k),k=kl-8,kl)
 91      format(i7,'    t',9f7.2)
@@ -1706,57 +1741,53 @@ do kktau=1,ntau   ! ****** start of main time loop
   qscrn_ave(1:ifull)   = qscrn_ave(1:ifull)+qgscrn 
   wb_ave(1:ifull,1:ms) = wb_ave(1:ifull,1:ms)+wb
   tsu_ave(1:ifull)     = tsu_ave(1:ifull)+tss
-  call mslp(spare2,psl,zs,t)
-  spare2=spare2/100.      
+  call mslp(spare2,psl,zs,t) ! calculate MSLP from psl
+  spare2=spare2/100.         ! convert MSLP to hPa
   psl_ave(1:ifull)     = psl_ave(1:ifull)+spare2
-  call mlodiag(spare1,0)
+  call mlodiag(spare1,0)     ! obtain ocean mixed level depth
   mixdep_ave(1:ifull)  = mixdep_ave(1:ifull)+spare1
   spare1(:)=u(1:ifull,1)**2+v(1:ifull,1)**2
   spare2(:)=u(1:ifull,2)**2+v(1:ifull,2)**2
-  do iq=1,ifull
-    if (u10(iq)**2>u10max(iq)**2+v10max(iq)**2) then
-      u10max(iq)=u10(iq)*u(iq,1)/max(.001,sqrt(spare1(iq)))
-      v10max(iq)=u10(iq)*v(iq,1)/max(.001,sqrt(spare1(iq)))
+  do iq = 1,ifull
+    if ( u10(iq)**2>u10max(iq)**2+v10max(iq)**2 ) then
+      u10max(iq) = u10(iq)*u(iq,1)/max(.001,sqrt(spare1(iq)))
+      v10max(iq) = u10(iq)*v(iq,1)/max(.001,sqrt(spare1(iq)))
     end if
-    if (spare1(iq)>u1max(iq)**2+v1max(iq)**2) then
-      u1max(iq)=u(iq,1)
-      v1max(iq)=v(iq,1)
+    if ( spare1(iq)>u1max(iq)**2+v1max(iq)**2 ) then
+      u1max(iq) = u(iq,1)
+      v1max(iq) = v(iq,1)
     end if
-    if (spare2(iq)>u2max(iq)**2+v2max(iq)**2) then
-      u2max(iq)=u(iq,2)
-      v2max(iq)=v(iq,2)
+    if ( spare2(iq)>u2max(iq)**2+v2max(iq)**2 ) then
+      u2max(iq) = u(iq,2)
+      v2max(iq) = v(iq,2)
     end if
   end do
-  if (ngas>0) then
-    do igas=1,ngas
-      traver(:,:,igas)=traver(:,:,igas)+tr(1:ilt*jlt,:,igas)
-    end do
+  if ( ngas>0 ) then
+    traver(:,:,1:ngas) = traver(:,:,1:ngas)+tr(1:ilt*jlt,:,1:ngas)
   end if
-  fpn_ave(1:ifull)=fpn_ave(1:ifull)+fpn
-  frs_ave(1:ifull)=frs_ave(1:ifull)+frs
-  frp_ave(1:ifull)=frp_ave(1:ifull)+frp
+  fpn_ave(1:ifull) = fpn_ave(1:ifull)+fpn
+  frs_ave(1:ifull) = frs_ave(1:ifull)+frs
+  frp_ave(1:ifull) = frp_ave(1:ifull)+frp
 
   ! rnd03 to rnd21 are accumulated in mm     
-  if (myid==0) then
+  if ( myid==0 ) then
     write(6,*) 'ktau,mod,nper3hr ',ktau,mod(ktau-1,nperday)+1,nper3hr(n3hr)
   end if
-  if(mod(ktau-1,nperday)+1==nper3hr(n3hr))then
-    rnd_3hr(1:ifull,n3hr)=rnd_3hr(1:ifull,8)
-    if(nextout>=2)then
-      spare1(:)=max(.001,sqrt(u(1:ifull,1)**2+v(1:ifull,1)**2))
-      u10_3hr(:,n3hr)=u10(:)*u(1:ifull,1)/spare1(:)
-      v10_3hr(:,n3hr)=u10(:)*v(1:ifull,1)/spare1(:)
-      tscr_3hr(:,n3hr)=tscrn(:)
-      do iq=1,ifull
-        es=establ(t(iq,1))
-        rh1_3hr(iq,n3hr)=100.*qg(iq,1)*(ps(iq)*sig(1)-es)/(.622*es)
-      enddo
+  if ( mod(ktau-1,nperday)+1==nper3hr(n3hr) ) then
+    rnd_3hr(1:ifull,n3hr) = rnd_3hr(1:ifull,8)
+    if ( nextout>=2 ) then
+      spare1(:) = max(.001,sqrt(u(1:ifull,1)**2+v(1:ifull,1)**2))
+      u10_3hr(:,n3hr) = u10(:)*u(1:ifull,1)/spare1(:)
+      v10_3hr(:,n3hr) = u10(:)*v(1:ifull,1)/spare1(:)
+      tscr_3hr(:,n3hr) = tscrn(:)
+      spare1(:) = establ(t(1:ifull,1)) ! spare1 = es
+      rh1_3hr(1:ifull,n3hr) = 100.*qg(1:ifull,1)*(ps(1:ifull)*sig(1)-spare1(:))/(.622*spare1(:))
     endif    ! (nextout==2)
-    n3hr=n3hr+1
-    if(n3hr>8)n3hr=1
+    n3hr = n3hr+1
+    if (n3hr>8) n3hr = 1
   endif    ! (mod(ktau,nperday)==nper3hr(n3hr))
 
-  if(ktau==ntau.or.mod(ktau,nperavg)==0)then
+  if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
     dew_ave(1:ifull)    = dew_ave(1:ifull)/min(ntau,nperavg)
     epan_ave(1:ifull)   = epan_ave(1:ifull)/min(ntau,nperavg)
     epot_ave(1:ifull)   = epot_ave(1:ifull)/min(ntau,nperavg)
@@ -1829,35 +1860,35 @@ do kktau=1,ntau   ! ****** start of main time loop
   end if    ! (ktau==ntau.or.mod(ktau,nperavg)==0)
 
   call log_off()
-  if(ktau==ntau.or.mod(ktau,nwt)==0)then
+  if ( ktau==ntau .or. mod(ktau,nwt)==0 ) then
     call outfile(20,rundate,nwrite,nstagin)  ! which calls outcdf
 
-    if(ktau==ntau.and.irest==1) then
+    if ( ktau==ntau .and. irest==1 ) then
       ! Don't include the time for writing the restart file
       call END_LOG(maincalc_end)
       ! write restart file
       call outfile(19,rundate,nwrite,nstagin)
-      if(myid==0) then
+      if ( myid==0 ) then
         write(6,*)'finished writing restart file in outfile'
       end if
       call START_LOG(maincalc_begin)
     endif  ! (ktau==ntau.and.irest==1)
   endif    ! (ktau==ntau.or.mod(ktau,nwt)==0)
       
-  ! buffer and write high frequency fields
+  ! write high temporal frequency fields
   if (surfile/=' ') then
     call freqfile
   end if
   call log_on()
  
-  if(mod(ktau,nperavg)==0)then   
+  if ( mod(ktau,nperavg)==0 ) then   
     ! produce some diags & reset most averages once every nperavg
-    if (nmaxpr==1) then
-      precavge=sum(precip(1:ifull)*wts(1:ifull))
-      evapavge=sum(evap(1:ifull)*wts(1:ifull))   ! in mm/day
-      pwatr=0.   ! in mm
-      do k=1,kl
-        pwatr=pwatr-sum(dsig(k)*wts(1:ifull)*(qg(1:ifull,k)+qlg(1:ifull,k)+qfg(1:ifull,k))*ps(1:ifull))/grav
+    if ( nmaxpr==1 ) then
+      precavge = sum(precip(1:ifull)*wts(1:ifull))
+      evapavge = sum(evap(1:ifull)*wts(1:ifull))   ! in mm/day
+      pwatr    = 0.   ! in mm
+      do k = 1,kl
+        pwatr = pwatr-sum(dsig(k)*wts(1:ifull)*(qg(1:ifull,k)+qlg(1:ifull,k)+qfg(1:ifull,k))*ps(1:ifull))/grav
       enddo
       temparray(1:3) = (/ precavge, evapavge, pwatr /)
       call ccmpi_reduce(temparray,gtemparray,"max",0,comm_world)
@@ -1870,55 +1901,55 @@ do kktau=1,ntau   ! ****** start of main time loop
       end if
     end if
     ! also zero most averaged fields every nperavg
-    convh_ave(:,:)=0.
-    cbas_ave(:)   =0.
-    ctop_ave(:)   =0.
-    dew_ave(:)    =0.
-    epan_ave(:)   =0.
-    epot_ave(:)   =0.
-    eg_ave(:)     =0.
-    fg_ave(:)     =0.
-    rnet_ave(:)   =0.
-    sunhours(:)   =0.
-    riwp_ave(:)   =0.
-    rlwp_ave(:)   =0.
-    qscrn_ave(:)  =0.
-    tscr_ave(:)   =0.
-    wb_ave(:,:)   =0.
-    tsu_ave(:)    =0.
-    alb_ave(:)    =0.
-    fbeam_ave(:)  =0.
-    psl_ave(:)    =0.
-    mixdep_ave(:) =0.
-    koundiag      =0
-    sint_ave(:)   =0.
-    sot_ave(:)    =0.
-    soc_ave(:)    =0.
-    sgdn_ave(:)   =0.
-    sgn_ave(:)    =0.
-    rtu_ave(:)    =0.
-    rtc_ave(:)    =0.
-    rgdn_ave(:)   =0.
-    rgn_ave(:)    =0.
-    rgc_ave(:)    =0.
-    sgc_ave(:)    =0.
-    cld_ave(:)    =0.
-    cll_ave(:)    =0.
-    clm_ave(:)    =0.
-    clh_ave(:)    =0.
+    convh_ave(:,:) = 0.
+    cbas_ave(:)    = 0.
+    ctop_ave(:)    = 0.
+    dew_ave(:)     = 0.
+    epan_ave(:)    = 0.
+    epot_ave(:)    = 0.
+    eg_ave(:)      = 0.
+    fg_ave(:)      = 0.
+    rnet_ave(:)    = 0.
+    sunhours(:)    = 0.
+    riwp_ave(:)    = 0.
+    rlwp_ave(:)    = 0.
+    qscrn_ave(:)   = 0.
+    tscr_ave(:)    = 0.
+    wb_ave(:,:)    = 0.
+    tsu_ave(:)     = 0.
+    alb_ave(:)     = 0.
+    fbeam_ave(:)   = 0.
+    psl_ave(:)     = 0.
+    mixdep_ave(:)  = 0.
+    koundiag       = 0
+    sint_ave(:)    = 0.
+    sot_ave(:)     = 0.
+    soc_ave(:)     = 0.
+    sgdn_ave(:)    = 0.
+    sgn_ave(:)     = 0.
+    rtu_ave(:)     = 0.
+    rtc_ave(:)     = 0.
+    rgdn_ave(:)    = 0.
+    rgn_ave(:)     = 0.
+    rgc_ave(:)     = 0.
+    sgc_ave(:)     = 0.
+    cld_ave(:)     = 0.
+    cll_ave(:)     = 0.
+    clm_ave(:)     = 0.
+    clh_ave(:)     = 0.
     ! zero evap, precip, precc, sno, runoff fields each nperavg (3/12/04) 
-    evap(:)       =0.  
-    precip(:)     =0.  ! converted to mm/day in outcdf
-    precc(:)      =0.  ! converted to mm/day in outcdf
-    sno(:)        =0.  ! converted to mm/day in outcdf
-    runoff(:)     =0.  ! converted to mm/day in outcdf
-    u10mx(:)      =0.
-    if (ngas>0) then
-      traver=0.
+    evap(:)        = 0.  
+    precip(:)      = 0.  ! converted to mm/day in outcdf
+    precc(:)       = 0.  ! converted to mm/day in outcdf
+    sno(:)         = 0.  ! converted to mm/day in outcdf
+    runoff(:)      = 0.  ! converted to mm/day in outcdf
+    u10mx(:)       = 0.
+    if ( ngas>0 ) then
+      traver = 0.
     end if
-    fpn_ave=0.
-    frs_ave=0.
-    frp_ave=0.
+    fpn_ave = 0.
+    frs_ave = 0.
+    frp_ave = 0.
     if ( abs(iaero)==2 ) then
       duste        = 0.  ! Dust emissions
       dustdd       = 0.  ! Dust dry deposition
@@ -1947,13 +1978,13 @@ do kktau=1,ntau   ! ****** start of main time loop
     end if
   endif  ! (mod(ktau,nperavg)==0)
 
-  if(mod(ktau,nperday)==0)then   ! re-set at the end of each 24 hours
-    if(ntau<10*nperday.and.nstn>0)then     ! print stn info
-      do nn=1,nstn
+  if ( mod(ktau,nperday)==0 ) then   ! re-set at the end of each 24 hours
+    if ( ntau<10*nperday .and. nstn>0 ) then     ! print stn info
+      do nn = 1,nstn
         if ( .not. mystn(nn) ) cycle
-        i=istn(nn)
-        j=jstn(nn)
-        iq=i+(j-1)*il
+        i = istn(nn)
+        j = jstn(nn)
+        iq = i+(j-1)*il
         write(6,956) ktau,iunp(nn),name_stn(nn),rnd_3hr(iq,4),rnd_3hr(iq,8), &
                      tmaxscr(iq)-273.16+(zs(iq)/grav-zstn(nn))*stdlapse,     &
                      tminscr(iq)-273.16+(zs(iq)/grav-zstn(nn))*stdlapse,     &
@@ -1974,16 +2005,16 @@ do kktau=1,ntau   ! ****** start of main time loop
     v2max(:)    = 0.
     capemax(:)  = 0.
     rnd_3hr(:,8)= 0.       ! i.e. rnd24(:)=0.
-    if(nextout>=4) then
+    if ( nextout>=4 ) then
       call setllp ! from Nov 11, reset once per day
     end if
-    if(namip/=0)then ! not for last day, as day 1 of next month
-      if (myid==0) then
+    if ( namip/=0 ) then ! not for last day, as day 1 of next month
+      if ( myid==0 ) then
         write(6,*) 'amipsst called at end of day for ktau,mtimer,namip ',ktau,mtimer,namip
       end if
       call amipsst
     endif ! (namip>0)
-  elseif (namip/=0.and.nmlo/=0) then
+  elseif ( namip/=0 .and. nmlo/=0 ) then
     call amipsst
   endif   ! (mod(ktau,nperday)==0)
 
@@ -2043,22 +2074,22 @@ include 'const_phys.h' ! Physical constants
       
 integer k
       
-if (nllp<3) then
+if ( nllp<3 ) then
   write(6,*) "ERROR: Incorrect setting of nllp",nllp
-  stop
+  call ccmpi_abort(-1)
 end if
       
 do k=1,klt
-  tr(1:ifull,k,ngas+1)=rlatt(1:ifull)*180./pi
-  tr(1:ifull,k,ngas+2)=rlongg(1:ifull)*180./pi
-  tr(1:ifull,k,ngas+3)=.01*ps(1:ifull)*sig(k)  ! in HPa
+  tr(1:ifull,k,ngas+1) = rlatt(1:ifull)*180./pi
+  tr(1:ifull,k,ngas+2) = rlongg(1:ifull)*180./pi
+  tr(1:ifull,k,ngas+3) = .01*ps(1:ifull)*sig(k)  ! in HPa
 enddo
-if(nllp>=4)then   ! theta
-  do k=1,klt
-    tr(1:ifull,k,ngas+4)=t(1:ifull,k)*(1.e-5*ps(1:ifull)*sig(k))**(-rdry/cp)
+if ( nllp>=4 ) then   ! theta
+  do k = 1,klt
+    tr(1:ifull,k,ngas+4) = t(1:ifull,k)*(1.e-5*ps(1:ifull)*sig(k))**(-rdry/cp)
   enddo
 endif   ! (nllp>=4)
-if(nllp>=5)then   ! mixing_ratio (g/kg)
+if ( nllp>=5 ) then   ! mixing_ratio (g/kg)
   do k=1,klt
     tr(1:ifull,k,ngas+5)=1000.*qg(1:ifull,k)
   enddo
@@ -2260,43 +2291,45 @@ include 'trcom2.h'     ! Station data
 integer leap
 common/leap_yr/leap    ! Leap year (1 to allow leap years)
 
-integer i,j,iq,iqt,isoil,k2,nn
+integer i, j, iq, iqt, isoil, k2, nn
 real coslong, sinlong, coslat, sinlat, polenx, poleny, polenz
 real zonx, zony, zonz, den, costh, sinth, uzon, vmer, rh1, rh2
 real es, wbav, rh_s
 
-coslong=cos(rlong0*pi/180.)   ! done here, where work2 has arrays
-sinlong=sin(rlong0*pi/180.)
-coslat=cos(rlat0*pi/180.)
-sinlat=sin(rlat0*pi/180.)
-polenx=-coslat
-poleny=0.
-polenz=sinlat
-do nn=1,nstn
+coslong = cos(rlong0*pi/180.)   ! done here, where work2 has arrays
+sinlong = sin(rlong0*pi/180.)
+coslat  = cos(rlat0*pi/180.)
+sinlat  = sin(rlat0*pi/180.)
+polenx  = -coslat
+poleny  = 0.
+polenz  = sinlat
+do nn = 1,nstn
   ! Check if this station is in this processors region
   if ( .not. mystn(nn) ) cycle 
-  if(ktau==1)write (iunp(nn),950) kdate,ktime,leap
+  if ( ktau==1 ) then
+    write (iunp(nn),950) kdate,ktime,leap
+  end if
 950 format("#",i9,2i5)
-  i=istn(nn)
-  j=jstn(nn)
-  iq=i+(j-1)*il
-  zonx=            -polenz*y(iq)
-  zony=polenz*x(iq)-polenx*z(iq)
-  zonz=polenx*y(iq)
-  den=sqrt( max(zonx**2+zony**2+zonz**2,1.e-7) ) 
-  costh= (zonx*ax(iq)+zony*ay(iq)+zonz*az(iq))/den
-  sinth=-(zonx*bx(iq)+zony*by(iq)+zonz*bz(iq))/den
-  uzon= costh*u(iq,1)-sinth*v(iq,1)
-  vmer= sinth*u(iq,1)+costh*v(iq,1)
-  es=establ(t(iq,1))
-  rh1=100.*qg(iq,1)*(ps(iq)*sig(1)-es)/(.622*es)
-  es=establ(t(iq,2))
-  rh2=100.*qg(iq,2)*(ps(iq)*sig(2)-es)/(.622*es)
-  es=establ(tscrn(iq))
-  rh_s=100.*qgscrn(iq)*(ps(iq)-es)/(.622*es)
-  wbav=(zse(1)*wb(iq,1)+zse(2)*wb(iq,2)+zse(3)*wb(iq,3)+zse(4)*wb(iq,4))/(zse(1)+zse(2)+zse(3)+zse(4))
+  i = istn(nn)
+  j = jstn(nn)
+  iq = i+(j-1)*il
+  zonx  =             -polenz*y(iq)
+  zony  = polenz*x(iq)-polenx*z(iq)
+  zonz  = polenx*y(iq)
+  den   = sqrt( max(zonx**2+zony**2+zonz**2,1.e-7) ) 
+  costh =  (zonx*ax(iq)+zony*ay(iq)+zonz*az(iq))/den
+  sinth = -(zonx*bx(iq)+zony*by(iq)+zonz*bz(iq))/den
+  uzon  = costh*u(iq,1)-sinth*v(iq,1)
+  vmer  = sinth*u(iq,1)+costh*v(iq,1)
+  es   = establ(t(iq,1))
+  rh1  = 100.*qg(iq,1)*(ps(iq)*sig(1)-es)/(.622*es)
+  es   = establ(t(iq,2))
+  rh2  = 100.*qg(iq,2)*(ps(iq)*sig(2)-es)/(.622*es)
+  es   = establ(tscrn(iq))
+  rh_s = 100.*qgscrn(iq)*(ps(iq)-es)/(.622*es)
+  wbav = (zse(1)*wb(iq,1)+zse(2)*wb(iq,2)+zse(3)*wb(iq,3)+zse(4)*wb(iq,4))/(zse(1)+zse(2)+zse(3)+zse(4))
   iqt = min(iq,ilt*jlt) ! Avoid bounds problems if there are no tracers
-  k2=min(2,klt)
+  k2  = min(2,klt)
   write (iunp(nn),951) ktau,tscrn(iq)-273.16,rnd_3hr(iq,8),      &
         tss(iq)-273.16,tgg(iq,1)-273.16,tgg(iq,2)-273.16,        &
         tgg(iq,3)-273.16,t(iq,1)-273.16,0.,wb(iq,1),wb(iq,2),    &
@@ -2312,7 +2345,7 @@ do nn=1,nstn
            2f6.1,f7.2, f5.1,2f6.1, 2(1x,f5.1),                   & ! uu ... co2_2
            2(1x,f5.1) ,f7.1,f6.3,f7.1,5f6.1,                     & ! rad_1 ... rh_s
            f7.2)                                                   ! condx
-  if(ktau==ntau)then
+  if ( ktau==ntau ) then
     write (iunp(nn),952)
 952 format("#   2tscrn 3precip 4tss  5tgg1  6tgg2  7tgg3",               &
            "   8t1    9tgf  10wb1 11wb2 cldl cldm cldh  cld",            &
@@ -2322,7 +2355,7 @@ do nn=1,nstn
            " 40condx")
     write (iunp(nn),953) land(iq),isoilm(iq),ivegt(iq),zo(iq),zs(iq)/grav
 953 format("# land,isoilm,ivegt,zo,zs/g: ",l2,2i3,2f9.3)
-    isoil=max(1,isoilm(iq))
+    isoil = max(1,isoilm(iq))
     write (iunp(nn),954) sigmf(iq),swilt(isoil),sfc(isoil),ssat(isoil),0.5*sum(albvisnir(iq,:))
 954 format("#sigmf,swilt,sfc,ssat,alb: ",5f7.3)
   endif

@@ -598,11 +598,15 @@ if (ncloud<3) then
       end where
     enddo
   elseif(nclddia>7)then  ! e.g. 12    JLM
+    ! MJT notes - Lopez (2002) Q J R Met Soc "Implementation and validation of a new pronostic large-scale cloud
+    ! and precipitation scheme for climate and data-assimilation purposes" 128, 229-257, has a useful discussion
+    ! of the dependence of RHcrit on grid spacing
     do k=1,kl  ! typically set rcrit_l=.75,  rcrit_s=.85
       do mg=1,ifull
-        tk=em(mg)*208498./ds
-        fl=(1+nclddia)*tk/(1.+nclddia*tk)
-!         for rcit_l=.75 & nclddia=12 get rcrit=(.797,.9, .9375, .971, .985) for (50,10, 5, 2, 1) km
+        !tk=em(mg)*208498./ds
+        tk=ds/(em(mg)*208498.) ! MJT suggestion
+        fl=(1.+real(nclddia))*tk/(1.+real(nclddia)*tk)
+!         for rcit_l=.75 & nclddia=12 get rcrit=(0.751, 0.769, .799, .901, .940, .972, .985) for (200, 100, 50, 10, 5, 2, 1) km
         if(land(mg))then
           rcrit(mg,k)=max(1.-fl*(1.-rcrit_l),sig(k)**3)        
         else
