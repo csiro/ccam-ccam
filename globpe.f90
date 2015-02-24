@@ -2053,7 +2053,7 @@ if ( myid==0 ) then
   write(6,*) "normal termination of run"
   call date_and_time(time=timeval)
   write(6,*) "End time ", timeval
-  aa = 3600.*(tvals2(5)-tvals1(5)) + 60.*(tvals2(6)-tvals1(6)) + (tvals2(7)-tvals1(7)) + 0.001 * (tvals2(8)-tvals1(8))
+  aa = 3600.*(tvals2(5)-tvals1(5)) + 60.*(tvals2(6)-tvals1(6)) + (tvals2(7)-tvals1(7)) + 0.001*(tvals2(8)-tvals1(8))
   if ( aa<=0. ) aa=aa+86400.
   write(6,*) "Model time in main loop",aa
 end if

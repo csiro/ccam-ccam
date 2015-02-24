@@ -34,7 +34,6 @@ include 'const_phys.h' !Input physical constants
 include 'cparams.h'    !Input cloud scheme parameters
 include 'kuocom.h'     ! acon,bcon,Rcm
 include 'parm.h'
-include 'params.h'
       
 ! Local variables
 integer iq,k,ncl
@@ -82,13 +81,7 @@ real prf_temp(ifull)
 
 integer kbase(ifull),ktop(ifull) !Bottom and top of convective cloud 
 
-! set-up params.h
-ln2=ifull
-nl=kl
-nlp=kl+1
-nlm=kl-1
-
-do k=1,kl   
+do k = 1,kl   
   prf(:,k)=0.01*ps(1:ifull)*sig(k)    !ps is SI units
   dprf(:,k)=-0.01*ps(1:ifull)*dsig(k) !dsig is -ve
   tv(:,k)=t(1:ifull,k)*(1.+0.61*qg(1:ifull,k)-qlg(1:ifull,k)-qfg(1:ifull,k))
@@ -417,7 +410,6 @@ include 'newmpar.h'
 include 'const_phys.h' ! Input physical constants
 include 'cparams.h'    ! Input cloud scheme parameters
 include 'kuocom.h'     ! Input cloud scheme parameters rcrit_l & rcrit_s
-include 'params.h'     ! Input model grid dimensions (modified params.h for CCAM)
 include 'parm.h'
 
 ! Argument list
@@ -884,7 +876,6 @@ include 'newmpar.h'
 include 'const_phys.h' !Input physical constants
 include 'cparams.h'    !Input cloud scheme parameters
 include 'kuocom.h'     !acon,bcon,Rcm,ktsav,nevapls
-include 'params.h'     !Input model grid dimensions (modified PARAMS.f for CCAM)
 include 'parm.h'
 
 ! Argument list
@@ -1356,7 +1347,6 @@ include 'const_phys.h' !Input physical constants
 include 'cparams.h'    !Input cloud scheme parameters
 include 'kuocom.h'     !ktsav,ldr,nevapls
 include 'parm.h'       !just for nmaxpr
-include 'params.h'     !Input model grid dimensions (modified PARAMS.f for CCAM)
 
 ! Argument list
 real tdt
