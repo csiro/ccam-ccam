@@ -1005,6 +1005,7 @@ do kktau = 1,ntau   ! ****** start of main time loop
   ! START ATMOSPHERE DYNAMICS
   ! ***********************************************************************
 
+  
   ! NESTING ---------------------------------------------------------------
   if ( nbd/=0 ) then
     ! Newtonian relaxiation
@@ -1013,12 +1014,14 @@ do kktau = 1,ntau   ! ****** start of main time loop
     call END_LOG(nestin_end)
   end if
       
+  
   ! TRACERS ---------------------------------------------------------------
   ! interpolate tracer fluxes to current timestep
   if ( ngas>0 ) then
     call interp_tracerflux(kdate,hrs_dt)
   end if
 
+  
   ! DYNAMICS --------------------------------------------------------------
   if ( nstaguin>0.and.ktau>=1 ) then   ! swapping here for nstaguin>0
     if ( nstagin<0 .and. mod(ktau-nstagoff,abs(nstagin))==0 ) then
@@ -1206,7 +1209,8 @@ do kktau = 1,ntau   ! ****** start of main time loop
       end if
       call ccmpi_barrier(comm_world)
     end if
-      
+ 
+    
     ! NESTING ---------------------------------------------------------------
     ! nesting now after mass fixers
     call START_LOG(nestin_begin)
@@ -1233,6 +1237,7 @@ do kktau = 1,ntau   ! ****** start of main time loop
     end if
     call END_LOG(nestin_end)
 
+    
     ! DYNAMICS --------------------------------------------------------------
     if ( mspec==2 ) then     ! for very first step restore mass & T fields
       call gettin(1)
@@ -1247,6 +1252,7 @@ do kktau = 1,ntau   ! ****** start of main time loop
   end do ! ****** end of introductory time loop
   mspeca = 1
 
+  
   ! HORIZONTAL DIFFUSION ----------------------------------------------------
   call START_LOG(hordifg_begin)
   if ( nmaxpr==1 ) then
@@ -1269,6 +1275,7 @@ do kktau = 1,ntau   ! ****** start of main time loop
   end if
   call END_LOG(hordifg_end)
 
+  
   ! ***********************************************************************
   ! START OCEAN DYNAMICS
   ! ***********************************************************************
@@ -1299,6 +1306,7 @@ do kktau = 1,ntau   ! ****** start of main time loop
     call END_LOG(river_end)
   end if
 
+  
   call START_LOG(waterdynamics_begin)
   if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
     ! DYNAMICS & DIFFUSION ------------------------------------------------
@@ -1339,6 +1347,7 @@ do kktau = 1,ntau   ! ****** start of main time loop
   ! ***********************************************************************
   call START_LOG(phys_begin)
       
+  
   ! GWDRAG ----------------------------------------------------------------
   call START_LOG(gwdrag_begin)
   if ( nmaxpr==1 ) then
@@ -1356,6 +1365,7 @@ do kktau = 1,ntau   ! ****** start of main time loop
   end if
   call END_LOG(gwdrag_end)
       
+  
   ! CONVECTION ------------------------------------------------------------
   call START_LOG(convection_begin)
   if ( nmaxpr==1 ) then
@@ -1392,7 +1402,8 @@ do kktau = 1,ntau   ! ****** start of main time loop
     call ccmpi_barrier(comm_world)
   end if
   call END_LOG(convection_end)
-      
+     
+  
   ! CLOUD MICROPHYSICS ----------------------------------------------------
   call START_LOG(cloud_begin)
   if ( nmaxpr==1 ) then
@@ -1426,6 +1437,7 @@ do kktau = 1,ntau   ! ****** start of main time loop
   end if
   call END_LOG(cloud_end)
 
+  
   ! RADIATION -------------------------------------------------------------
       
   ! nrad=4 Fels-Schwarzkopf radiation
@@ -1480,92 +1492,38 @@ do kktau = 1,ntau   ! ****** start of main time loop
   if ( nhstest==2 ) then
     call hs_phys
   end if
+
+  
+  ! SURFACE FLUXES ---------------------------------------------
+  ! (Includes ocean dynamics and mixing, as well as ice dynamics and thermodynamics)
+  call START_LOG(sfluxnet_begin)
+  if ( nmaxpr==1 ) then
+    if ( myid==0 ) then
+      write(6,*) "Before surface fluxes"
+    end if
+    call ccmpi_barrier(comm_world)
+  end if
+  if ( diag ) then
+    call maxmin(u,'#u',ktau,1.,kl)
+    call maxmin(v,'#v',ktau,1.,kl)
+    call maxmin(t,'#t',ktau,1.,kl)
+    call maxmin(qg,'qg',ktau,1.e3,kl)     
+    call ccmpi_barrier(comm_world) ! stop others going past
+  end if
   if ( ntsur>1 ) then  ! should be better after convjlm
-    if ( diag ) then
-      call maxmin(u,'#u',ktau,1.,kl)
-      call maxmin(v,'#v',ktau,1.,kl)
-      call maxmin(t,'#t',ktau,1.,kl)
-      call maxmin(qg,'qg',ktau,1.e3,kl)     
-      call ccmpi_barrier(comm_world) ! stop others going past
-    end if
-         
-    ! SURFACE FLUXES ---------------------------------------------
-    ! (Includes ocean dynamics and mixing, as well as ice dynamics and thermodynamics)
-    call START_LOG(sfluxnet_begin)
-    if ( nmaxpr==1 ) then
-      if ( myid==0 ) then
-        write(6,*) "Before surface fluxes"
-      end if
-      call ccmpi_barrier(comm_world)
-    end if
     call sflux(nalpha)
     epan_ave(1:ifull) = epan_ave(1:ifull)+epan  ! 2D 
     epot_ave(1:ifull) = epot_ave(1:ifull)+epot  ! 2D 
     ga_ave(1:ifull)   = ga_ave(1:ifull)+ga      ! 2D 
-    if ( nmaxpr==1 ) then
-      if ( myid==0 ) then
-        write(6,*) "After surface fluxes"
-      end if
-      call ccmpi_barrier(comm_world)
+  endif   ! (ntsur>1)    
+  if ( nmaxpr==1 ) then
+    if ( myid==0 ) then
+      write(6,*) "After surface fluxes"
     end if
-    call END_LOG(sfluxnet_end)
-       
-    ! STATION OUTPUT ---------------------------------------------
-    if ( nstn>0 ) then
-      call stationa ! write every time step
-    end if
-       
-    ! DIAGNOSTICS ------------------------------------------------
-    if ( mod(ktau,nmaxpr)==0 .and. mydiag ) then
-      write(6,*)
-      write (6,"('ktau =',i5,' gmt(h,m):',f6.2,i5,' runtime(h,m):',f7.2,i6)") ktau,timeg,mins_gmt,timer,mtimer
-      ! some surface (or point) diagnostics
-      isoil = isoilm(idjd)
-      write(6,*) 'land,isoil,ivegt,isflag ',land(idjd),isoil,ivegt(idjd),isflag(idjd)
-      write (6,"('snage,snowd,alb   ',f8.4,2f8.2)") snage(idjd),snowd(idjd),albvisnir(idjd,1)
-      write (6,"('sicedep,fracice,runoff ',3f8.2)") sicedep(idjd),fracice(idjd),runoff(idjd)
-      write (6,"('tgg(1-6)   ',9f8.2)") (tgg(idjd,k),k=1,6)
-      write (6,"('tggsn(1-3) ',9f8.2)") (tggsn(idjd,k),k=1,3)
-      write (6,"('wb(1-6)    ',9f8.3)") (wb(idjd,k),k=1,6)
-      write (6,"('wbice(1-6) ',9f8.3)") (wbice(idjd,k),k=1,6)
-      write (6,"('smass(1-3) ',9f8.2)") (smass(idjd,k),k=1,3) ! as mm of water
-      write (6,"('ssdn(1-3)  ',9f8.2)") (ssdn(idjd,k),k=1,3)
-      iq = idjd
-      pwater = 0.   ! in mm
-      do k = 1,kl
-        qtot   = qg(iq,k)+qlg(iq,k)+qfg(iq,k)
-        pwater = pwater-dsig(k)*qtot*ps(iq)/grav
-      enddo
-      write (6,"('pwater,condc,condx,rndmax,rmc',9f8.3)") pwater,condc(idjd),condx(idjd),rndmax(idjd),cansto(idjd)
-      write (6,"('wetfac,sno,evap,precc,precip',6f8.2)") wetfac(idjd),sno(idjd),evap(idjd),precc(idjd),precip(idjd)
-      write (6,"('tmin,tmax,tscr,tss,tpan',9f8.2)") tminscr(idjd),tmaxscr(idjd),tscrn(idjd),tss(idjd),tpan(idjd)
-      write (6,"('u10,ustar,pblh',9f8.2)") u10(idjd),ustar(idjd),pblh(idjd)
-      write (6,"('ps,qgscrn',5f8.2,f8.3)") .01*ps(idjd),1000.*qgscrn(idjd)
-      write (6,"('dew_,eg_,epot,epan,eg,fg,ga',9f8.2)") dew_ave(idjd),eg_ave(idjd),epot(idjd),epan(idjd),eg(idjd),fg(idjd),ga(idjd)
-      write (6,"('zo,cduv',2f8.5)") zo(idjd),cduv(idjd)/vmod(idjd)
-      write (6,"('slwa,sint,sg,rt,rg    ',9f8.2)") slwa(idjd),sintsave(idjd),sgsave(idjd),rtsave(idjd),rgsave(idjd)
-      write (6,"('cll,clm,clh,clt ',9f8.2)") cloudlo(idjd),cloudmi(idjd),cloudhi(idjd),cloudtot(idjd)
-      write (6,"('u10max,v10max,rhmin,rhmax   ',9f8.2)") u10max(iq),v10max(iq),rhminscr(iq),rhmaxscr(iq)
-      write (6,"('kbsav,ktsav,convpsav ',2i3,f8.4,9f8.2)") kbsav(idjd),ktsav(idjd),convpsav(idjd)
-      write (6,"('t   ',9f8.3/4x,9f8.3)") t(idjd,:)
-      write (6,"('u   ',9f8.3/4x,9f8.3)") u(idjd,:)
-      write (6,"('v   ',9f8.3/4x,9f8.3)") v(idjd,:)
-      write (6,"('qg  ',9f8.3/4x,9f8.3)") qg(idjd,:)
-      write (6,"('qf  ',9f8.3/4x,9f8.3)") qfg(idjd,:)
-      write (6,"('ql  ',9f8.3/4x,9f8.3)") qlg(idjd,:)
-      write (6,"('cfrac',9f8.3/5x,9f8.3)") cfrac(idjd,:)
-      do k = 1,kl
-        es        = establ(t(idjd,k))
-        spmean(k) = 100.*qg(idjd,k)*max(ps(idjd)*sig(k)-es,1.)/(.622*es) ! max as for convjlm
-      enddo
-      write (6,"('rh  ',9f8.3/4x,9f8.3)") spmean(:)
-      write (6,"('omgf ',9f8.3/5x,9f8.3)") ps(idjd)*dpsldt(idjd,:) ! in Pa/s
-      write (6,"('sdot ',9f8.3/5x,9f8.3)") sdot(idjd,1:kl)
-      if ( nextout>=4 ) then
-        write (6,"('xlat,long,pres ',3f8.2)") tr(idjd,nlv,ngas+1),tr(idjd,nlv,ngas+2),tr(idjd,nlv,ngas+3)
-      end if
-    endif  ! (mod(ktau,nmaxpr)==0.and.mydiag)
-  endif   ! (ntsur>1)
+    call ccmpi_barrier(comm_world)
+  end if
+  call END_LOG(sfluxnet_end)
+  
 
   ! AEROSOLS --------------------------------------------------------------
   ! MJT notes - aerosols called before vertical mixing so that convective
@@ -1587,7 +1545,8 @@ do kktau = 1,ntau   ! ****** start of main time loop
     end if
     call END_LOG(aerosol_end)
   end if
-      
+
+  
   ! VERTICAL MIXING ------------------------------------------------------
   if ( nmaxpr==1 ) then
     if ( myid==0 ) then
@@ -1616,11 +1575,13 @@ do kktau = 1,ntau   ! ****** start of main time loop
     call ccmpi_barrier(comm_world)
   end if
       
+  
   ! Update diagnostics for consistancy in history file
   if ( rescrn>0 ) then
     call autoscrn
   end if
 
+  
   ! PHYSICS LOAD BALANCING ------------------------------------------------
   ! This is the end of the physics. The next routine makes the load imbalance
   ! overhead explicit rather than having it hidden in one of the diagnostic
@@ -1630,6 +1591,7 @@ do kktau = 1,ntau   ! ****** start of main time loop
 #endif
   call END_LOG(phys_end)
 
+  
   ! ***********************************************************************
   ! TRACER OUTPUT
   ! ***********************************************************************
@@ -1639,10 +1601,67 @@ do kktau = 1,ntau   ! ****** start of main time loop
     call write_ts(ktau,ntau,dt)
   endif
 
+  
   ! ***********************************************************************
   ! DIAGNOSTICS AND OUTPUT
   ! ***********************************************************************
 
+  ! STATION OUTPUT ---------------------------------------------
+  if ( nstn>0 ) then
+    call stationa ! write every time step
+  end if
+       
+  ! DIAGNOSTICS ------------------------------------------------
+  if ( mod(ktau,nmaxpr)==0 .and. mydiag ) then
+    write(6,*)
+    write (6,"('ktau =',i5,' gmt(h,m):',f6.2,i5,' runtime(h,m):',f7.2,i6)") ktau,timeg,mins_gmt,timer,mtimer
+    ! some surface (or point) diagnostics
+    isoil = isoilm(idjd)
+    write(6,*) 'land,isoil,ivegt,isflag ',land(idjd),isoil,ivegt(idjd),isflag(idjd)
+    write (6,"('snage,snowd,alb   ',f8.4,2f8.2)") snage(idjd),snowd(idjd),albvisnir(idjd,1)
+    write (6,"('sicedep,fracice,runoff ',3f8.2)") sicedep(idjd),fracice(idjd),runoff(idjd)
+    write (6,"('tgg(1-6)   ',9f8.2)") (tgg(idjd,k),k=1,6)
+    write (6,"('tggsn(1-3) ',9f8.2)") (tggsn(idjd,k),k=1,3)
+    write (6,"('wb(1-6)    ',9f8.3)") (wb(idjd,k),k=1,6)
+    write (6,"('wbice(1-6) ',9f8.3)") (wbice(idjd,k),k=1,6)
+    write (6,"('smass(1-3) ',9f8.2)") (smass(idjd,k),k=1,3) ! as mm of water
+    write (6,"('ssdn(1-3)  ',9f8.2)") (ssdn(idjd,k),k=1,3)
+    iq = idjd
+    pwater = 0.   ! in mm
+    do k = 1,kl
+      qtot   = qg(iq,k)+qlg(iq,k)+qfg(iq,k)
+      pwater = pwater-dsig(k)*qtot*ps(iq)/grav
+    enddo
+    write (6,"('pwater,condc,condx,rndmax,rmc',9f8.3)") pwater,condc(idjd),condx(idjd),rndmax(idjd),cansto(idjd)
+    write (6,"('wetfac,sno,evap,precc,precip',6f8.2)") wetfac(idjd),sno(idjd),evap(idjd),precc(idjd),precip(idjd)
+    write (6,"('tmin,tmax,tscr,tss,tpan',9f8.2)") tminscr(idjd),tmaxscr(idjd),tscrn(idjd),tss(idjd),tpan(idjd)
+    write (6,"('u10,ustar,pblh',9f8.2)") u10(idjd),ustar(idjd),pblh(idjd)
+    write (6,"('ps,qgscrn',5f8.2,f8.3)") .01*ps(idjd),1000.*qgscrn(idjd)
+    write (6,"('dew_,eg_,epot,epan,eg,fg,ga',9f8.2)") dew_ave(idjd),eg_ave(idjd),epot(idjd),epan(idjd),eg(idjd),fg(idjd),ga(idjd)
+    write (6,"('zo,cduv',2f8.5)") zo(idjd),cduv(idjd)/vmod(idjd)
+    write (6,"('slwa,sint,sg,rt,rg    ',9f8.2)") slwa(idjd),sintsave(idjd),sgsave(idjd),rtsave(idjd),rgsave(idjd)
+    write (6,"('cll,clm,clh,clt ',9f8.2)") cloudlo(idjd),cloudmi(idjd),cloudhi(idjd),cloudtot(idjd)
+    write (6,"('u10max,v10max,rhmin,rhmax   ',9f8.2)") u10max(iq),v10max(iq),rhminscr(iq),rhmaxscr(iq)
+    write (6,"('kbsav,ktsav,convpsav ',2i3,f8.4,9f8.2)") kbsav(idjd),ktsav(idjd),convpsav(idjd)
+    write (6,"('t   ',9f8.3/4x,9f8.3)") t(idjd,:)
+    write (6,"('u   ',9f8.3/4x,9f8.3)") u(idjd,:)
+    write (6,"('v   ',9f8.3/4x,9f8.3)") v(idjd,:)
+    write (6,"('qg  ',9f8.3/4x,9f8.3)") qg(idjd,:)
+    write (6,"('qf  ',9f8.3/4x,9f8.3)") qfg(idjd,:)
+    write (6,"('ql  ',9f8.3/4x,9f8.3)") qlg(idjd,:)
+    write (6,"('cfrac',9f8.3/5x,9f8.3)") cfrac(idjd,:)
+    do k = 1,kl
+      es        = establ(t(idjd,k))
+      spmean(k) = 100.*qg(idjd,k)*max(ps(idjd)*sig(k)-es,1.)/(.622*es) ! max as for convjlm
+    enddo
+    write (6,"('rh  ',9f8.3/4x,9f8.3)") spmean(:)
+    write (6,"('omgf ',9f8.3/5x,9f8.3)") ps(idjd)*dpsldt(idjd,:) ! in Pa/s
+    write (6,"('sdot ',9f8.3/5x,9f8.3)") sdot(idjd,1:kl)
+    if ( nextout>=4 ) then
+      write (6,"('xlat,long,pres ',3f8.2)") tr(idjd,nlv,ngas+1),tr(idjd,nlv,ngas+2),tr(idjd,nlv,ngas+3)
+    end if
+  endif  ! (mod(ktau,nmaxpr)==0.and.mydiag)
+  
   if ( ndi==-ktau ) then
     nmaxpr = 1         ! diagnostic prints; reset 6 lines on
     if ( ndi2==0 ) ndi2 = ktau+40
