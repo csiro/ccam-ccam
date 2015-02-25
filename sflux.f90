@@ -842,7 +842,6 @@ evap(:)=evap(:)+dt*eg(:)/hl !time integ value in mm (wrong for snow)
 ! Update runoff for river routing
 if (abs(nmlo)>=2) then
   newrunoff=runoff-oldrunoff
-  salbdy(1:ifull)=salbdy(1:ifull)*watbdy(1:ifull)/max(watbdy(1:ifull)+newrunoff,1.E-10)
   watbdy(1:ifull)=watbdy(1:ifull)+newrunoff ! runoff in mm
 end if
 

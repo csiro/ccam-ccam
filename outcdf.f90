@@ -457,6 +457,8 @@ lday=mod(ktau,nperday)==0.or.ktau==ntau
 lday=lday.and.ktau>0
 l3hr=(real(nwt)*dt>10800.)
 
+! idim is for 4-D (3 dimensions+time)
+! jdim is for 3-D (2 dimensions+time)
 jdim(1:2)=idim(1:2)
 jdim(3)=idim(4)
 
@@ -518,8 +520,9 @@ if( myid==0 .or. local ) then
     call ccnf_def_var(idnc,'ktau','int',1,idim(4:4),idktau)
     call ccnf_put_att(idnc,idktau,'long_name',len_trim(lname),lname)
 
+    lname = 'down'
     call ccnf_def_var(idnc,'sigma','float',1,idim(3:3),idv)
-    call ccnf_put_att(idnc,idv,'positive',len_trim('down'),'down')
+    call ccnf_put_att(idnc,idv,'positive',len_trim(lname),lname)
 
     lname = 'atm stag direction'
     call ccnf_def_var(idnc,'nstag','int',1,idim(4:4),idv)
@@ -652,8 +655,6 @@ if( myid==0 .or. local ) then
       if (abs(nmlo)>=2) then
         lname = 'Surface water depth'
         call attrib(idnc,jdim(1:3),3,'swater',lname,'mm',0.,6.5E3,0,-1) ! -1 = long
-        lname = 'Surface water salinity'
-        call attrib(idnc,jdim(1:3),3,'ssalin',lname,'PSU',0.,130.,0,itype)
       end if
     end if
 
@@ -1173,17 +1174,25 @@ if( myid==0 .or. local ) then
     end if
 
     ! TRACER --------------------------------------------------------
-    if ( ngas>0 ) then 
-      do igas=1,ngas
-        write(trnum,'(i3.3)') igas
-!       rml 19/09/07 use tracname as part of tracer long name
-        !lname = 'Tracer (inst.) '//trim(tracname(igas))
-        !call attrib(idnc,idim(1:4),4,'tr'//trnum,lname,'ppm',0.,6.5E6,0,-1) ! -1 = long
-        lname = 'Tracer (average) '//trim(tracname(igas))
-        call attrib(idnc,idim(1:4),4,'trav'//trnum,lname,'ppm',0.,6.5E6,0,-1) ! -1 = long
-!       rml 14/5/10 option to write out local time afternoon averages
-        if (writetrpm) call attrib(idnc,idim(1:4),4,'trpm'//trnum,lname,'ppm',0.,6.5E6,0,-1) ! -1 = long
-      enddo ! igas loop
+    if ( ngas>0 ) then
+      if ( itype==-1 ) then ! restart
+        do igas=1,ngas
+          write(trnum,'(i3.3)') igas
+          lname = 'Tracer (inst.) '//trim(tracname(igas))
+          call attrib(idnc,idim(1:4),4,'tr'//trnum,lname,'ppm',0.,6.5E6,0,-1) ! -1 = long
+        enddo ! igas loop
+      else                  ! history
+        do igas=1,ngas
+          write(trnum,'(i3.3)') igas
+!         rml 19/09/07 use tracname as part of tracer long name
+          !lname = 'Tracer (inst.) '//trim(tracname(igas))
+          !call attrib(idnc,idim(1:4),4,'tr'//trnum,lname,'ppm',0.,6.5E6,0,-1) ! -1 = long
+          lname = 'Tracer (average) '//trim(tracname(igas))
+          call attrib(idnc,idim(1:4),4,'trav'//trnum,lname,'ppm',0.,6.5E6,0,-1) ! -1 = long
+!         rml 14/5/10 option to write out local time afternoon averages
+          if (writetrpm) call attrib(idnc,idim(1:4),4,'trpm'//trnum,lname,'ppm',0.,6.5E6,0,-1) ! -1 = long
+        enddo ! igas loop
+      end if
     endif   ! (ngas>0)
 
     ! AEROSOL ---------------------------------------------------
@@ -1339,12 +1348,12 @@ if( myid==0 .or. local ) then
     iduma(2)=kl
     call ccnf_put_vara(idnc,idv,iduma(1:1),iduma(2:2),sig)
 
-    zsoil(1)=.5*zse(1)
-    zsoil(2)=zse(1)+zse(2)*.5
-    zsoil(3)=zse(1)+zse(2)+zse(3)*.5
-    zsoil(4)=zse(1)+zse(2)+zse(3)+zse(4)*.5
-    zsoil(5)=zse(1)+zse(2)+zse(3)+zse(4)+zse(5)*.5
-    zsoil(6)=zse(1)+zse(2)+zse(3)+zse(4)+zse(5)+zse(6)*.5
+    zsoil(1)=0.5*zse(1)
+    zsoil(2)=zse(1)+zse(2)*0.5
+    zsoil(3)=zse(1)+zse(2)+zse(3)*0.5
+    zsoil(4)=zse(1)+zse(2)+zse(3)+zse(4)*0.5
+    zsoil(5)=zse(1)+zse(2)+zse(3)+zse(4)+zse(5)*0.5
+    zsoil(6)=zse(1)+zse(2)+zse(3)+zse(4)+zse(5)+zse(6)*0.5
     iduma(1)=1
     iduma(2)=ms
     call ccnf_put_vara(idnc,idms,iduma(1:1),iduma(2:2),zsoil)
@@ -1523,7 +1532,6 @@ if ( abs(nmlo)<=9 ) then
     call histwrt3(micdwn(:,11),'icesal',idnc,iarch,local,.true.)
     if ( abs(nmlo)>=2 ) then
       call histwrt3(watbdy(1:ifull),'swater',idnc,iarch,local,.true.)
-      call histwrt3(salbdy(1:ifull),'ssalin',idnc,iarch,local,.true.)
     end if
   end if
 end if
@@ -1904,25 +1912,32 @@ if ( nvmix==6 .and. (nextout>=1.or.itype==-1) ) then
 end if
 
 ! TRACERS -----------------------------------------------------
-if ( ngas>0 ) then 
-  do igas = 1,ngas
-    write(trnum,'(i3.3)') igas
-    !call histwrt4(tr(:,:,igas),    'tr'//trnum,  idnc,iarch,local,.true.)
-    call histwrt4(traver(:,:,igas),'trav'//trnum,idnc,iarch,local,lave)
-    ! rml 14/5/10 option to write out local time afternoon average
+if ( ngas>0 ) then
+  if ( itype==-1 ) then ! restart
+    do igas = 1,ngas
+      write(trnum,'(i3.3)') igas
+      call histwrt4(tr(:,:,igas),    'tr'//trnum,  idnc,iarch,local,.true.)
+    enddo ! igas loop
+  else                  ! history
+    do igas = 1,ngas
+      write(trnum,'(i3.3)') igas
+      !call histwrt4(tr(:,:,igas),    'tr'//trnum,  idnc,iarch,local,.true.)
+      call histwrt4(traver(:,:,igas),'trav'//trnum,idnc,iarch,local,lave)
+      ! rml 14/5/10 option to write out local time afternoon average
+      if ( writetrpm ) then
+        ! first divide by number of contributions to average
+        do k = 1,klt
+          trpm(1:ifull,k,igas) = trpm(1:ifull,k,igas)/float(npm)
+        enddo
+        call histwrt4(trpm(:,:,igas),'trpm'//trnum,idnc,iarch,local,.true.)
+      endif
+    enddo ! igas loop
+    ! reset arrays
     if ( writetrpm ) then
-      ! first divide by number of contributions to average
-      do k = 1,klt
-        trpm(1:ifull,k,igas) = trpm(1:ifull,k,igas)/float(npm)
-      enddo
-      call histwrt4(trpm(:,:,igas),'trpm'//trnum,idnc,iarch,local,.true.)
+      trpm = 0.
+      npm  = 0.
     endif
-  enddo ! igas loop
-  ! reset arrays
-  if ( writetrpm ) then
-    trpm = 0.
-    npm  = 0.
-  endif
+  end if
 endif  ! (ngasc>0)
 
 ! AEROSOLS ----------------------------------------------------

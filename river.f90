@@ -1,31 +1,25 @@
-! These subroutines handle dynamics for the Mixed-Layer-Ocean model
+! This is the river routing which links to mlo.f90 and mlodynamics.f90
+! ocean/lake model
 
-! - Horizontal diffusion
-! - River routing
-! - Ocean dynamics
-! - Ice dynamics
-
-! This module also links to mlo.f90 which solves for 1D physics of
-! ocean and ice processes.  Currently the code assumes the hydrostatic
-! approximation which is reasonably valid to 1km resolution.
-
-! Ocean and sea-ice dynamics are based on the R-grid used by CCAM
-
+! This version currently assumes that the orography is sufficently resolved
+! to determine the river flow.  Plan to read in effective gradients between
+! grid boxes from high resolution river flow datasets.    
+    
 module river
 
 implicit none
 
 private
-public rvrinit,rvrrouter,watbdy,salbdy
+public rvrinit,rvrrouter,watbdy
 
-real, dimension(:), allocatable, save :: watbdy,salbdy,ee
-real, parameter :: inflowbias = 10.       ! Bias height for inflow into ocean.  Levels above this will flow back onto land.
+real, dimension(:), allocatable, save :: watbdy,ee
+real, parameter :: leakrate   = 192.      ! E-folding time for leaking water into soil (hrs)
 integer, parameter :: basinmd = 3         ! basin mode (0=soil, 1=redistribute, 2=pile-up, 3=leak)
 
 contains
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! This subroutine initialises mlo dynamical arrays
+! This subroutine initialises river arrays
 !
 subroutine rvrinit
 
@@ -37,9 +31,8 @@ implicit none
 include 'newmpar.h'
 
 ! river water height
-allocate(watbdy(ifull+iextra),salbdy(ifull+iextra))
+allocate(watbdy(ifull+iextra))
 watbdy=0.
-salbdy=0.
 
 ! prep land-sea mask
 allocate(ee(ifull+iextra))
@@ -54,9 +47,7 @@ end subroutine rvrinit
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine calculates the river routing.
-! This version currently assumes that the orography is sufficently resolved
-! to determine the river flow.  Plan to read in effective gradients between
-! grid boxes from high resolution river flow datasets.
+!
 subroutine rvrrouter
 
 use arrays_m
@@ -80,12 +71,9 @@ include 'soilv.h'
 integer i,ii,iq,ierr,k
 integer nit
 integer, dimension(ifull,4) :: xp
-real, dimension(ifull,wlev) :: sallvl
-real, dimension(ifull+iextra) :: neta,netflx,cc
+real, dimension(ifull+iextra) :: netflx
 real, dimension(ifull+iextra) :: newwat
-real, dimension(ifull+iextra,2) :: dum
-real, dimension(ifull) :: newsal,cover,vel
-real, dimension(ifull) :: deta,sal,salin,depdum
+real, dimension(ifull) :: cover,vel
 real, dimension(ifull) :: tmpry,ll
 real, dimension(ifull,4) :: idp,slope,flow
 real, dimension(ifull,4) :: fta,ftb,ftx,fty
@@ -99,8 +87,6 @@ real rate
 ! on average water leaves the grid box, whereas if the slope of the grid box is convergent, then
 ! on average water enters the grid box.
 
-! This version supports salinity in rivers and overflow from lakes
-
 ! setup indices and grid spacing
 xp(:,1)=in
 xp(:,2)=ie
@@ -112,45 +98,9 @@ idp(:,3)=emv(isv)/ds
 idp(:,4)=emu(iwu)/ds
 
 !--------------------------------------------------------------------
-! extract data from ocean model if required
-if (abs(nmlo)<=9) then
-  neta=0.
-  salin=0.
-  sallvl=0.
-  call mloexport(4,neta(1:ifull),0,0)
-  neta(1:ifull)=neta(1:ifull)-inflowbias*ee(1:ifull)
-  call mloexport3d(1,sallvl,0)
-  do ii=1,wlev
-    ! could modify the following to only operate above neta=0
-    salin=salin+godsig(ii)*sallvl(:,ii)
-  end do
-  where (ee(1:ifull)>0.5)
-    depdum=max(neta(1:ifull)+dd(1:ifull),minwater)
-    ! collect any left over water over ocean
-    salin=(salin*depdum+salbdy(1:ifull)*watbdy(1:ifull)*0.001)/(depdum+watbdy(1:ifull)*0.001)
-    neta(1:ifull)=neta(1:ifull)+0.001*watbdy(1:ifull)
-    ! move water from neta to watbdy for transport
-    deta=1000.*max(neta(1:ifull),0.)
-    salbdy(1:ifull)=salin
-    watbdy(1:ifull)=deta
-    neta(1:ifull)=min(neta(1:ifull),0.)
-  elsewhere
-    deta=0.
-    depdum=0.
-  end where
-  salbdy(1:ifull)=salbdy(1:ifull)*watbdy(1:ifull) ! rescale salinity to PSU*mm for advection
-end if
-
-!--------------------------------------------------------------------
 ! update processor boundaries
-dum(1:ifull,1)=watbdy(1:ifull)
-dum(1:ifull,2)=salbdy(1:ifull)
-call bounds(dum(:,1:2))
-watbdy(ifull+1:ifull+iextra)=dum(ifull+1:ifull+iextra,1)
-salbdy(ifull+1:ifull+iextra)=dum(ifull+1:ifull+iextra,2)
-
+call bounds(watbdy)
 newwat(1:ifull+iextra)=watbdy(1:ifull+iextra)
-newsal=salbdy(1:ifull)
 
 !--------------------------------------------------------------------
 ! predictor-corrector for water level and salinity
@@ -214,28 +164,7 @@ do nit=1,2
 
 end do
 
-! salinity outflow
-do i=1,4
-  where (netflx(1:ifull)>1.E-10)
-    flow(:,i)=salbdy(1:ifull)*min(fta(:,i),ftx(:,i))
-  elsewhere
-    flow(:,i)=0.
-  end where
-end do
-newsal=newsal+sum(flow,2)
-! salinity inflow
-do i=1,4
-  where (netflx(xp(:,i))>1.E-10)
-    flow(:,i)=salbdy(xp(:,i))*min(ftb(:,i),fty(:,i))
-    flow(:,i)=flow(:,i)*em(1:ifull)*em(1:ifull)/(em(xp(:,i))*em(xp(:,i))) ! change in gridbox area
-  elsewhere
-    flow(:,i)=0.
-  end where
-end do
-newsal=newsal+sum(flow,2)
-
 watbdy(1:ifull)=max(newwat,0.)
-salbdy(1:ifull)=max(newsal,0.)
 
 !--------------------------------------------------------------------
 ! Water losses over land basins
@@ -243,7 +172,7 @@ salbdy(1:ifull)=max(newsal,0.)
 ! estimate grid box area covered by water
 cover=min(0.001*watbdy(1:ifull)/minwater,1.)
 ! estimate rate that water leaves river into soil
-rate=dt/(8.*24.*3600.) ! MJT suggestion
+rate=dt/(leakrate*3600.) ! MJT suggestion
   
 ! Method for land basins
 select case(basinmd)
@@ -303,46 +232,6 @@ select case(basinmd)
 end select
 
 watbdy(1:ifull)=max(newwat(1:ifull),0.)
-salbdy(1:ifull)=max(newsal(1:ifull),0.)
-
-! case when water is absorbed by land-surface, but there is
-! non-zero salinity left behind.
-if (any(salbdy(1:ifull)>0..and.watbdy(1:ifull)==0.)) then
-  write(6,*) "WARN: Patch river salinity"
-end if
-
-!--------------------------------------------------------------------
-! update ocean
-if (abs(nmlo)<=9) then
-  where (ee(1:ifull)>0.5)
-    depdum=max(dd(1:ifull)+neta(1:ifull),minwater)
-    ! salbdy is already multiplied by watbdy
-    sal=(salin*depdum+0.001*salbdy(1:ifull))/(depdum+0.001*watbdy(1:ifull))
-    neta(1:ifull)=neta(1:ifull)+0.001*watbdy(1:ifull)
-    watbdy(1:ifull)=0.
-    salbdy(1:ifull)=sal   ! ocean default
-  elsewhere (watbdy(1:ifull)>1.E-10)
-    salbdy(1:ifull)=salbdy(1:ifull)/watbdy(1:ifull) ! rescale salinity back to PSU
-    sal=0.
-  elsewhere
-    salbdy(1:ifull)=0.    ! land default
-    sal=0.
-  end where
-
-  ! import ocean data
-  neta(1:ifull)=neta(1:ifull)+inflowbias*ee(1:ifull)
-  call mloimport(4,neta(1:ifull),0,0)
-  do ii=1,wlev
-    where (ee(1:ifull)>0.5.and.salin>0.)
-      ! rescale salinity profile
-      sallvl(:,ii)=sallvl(:,ii)*sal/salin
-    elsewhere (ee(1:ifull)>0.5)
-      ! set new uniform salinity profile
-      sallvl(:,ii)=sal
-    end where
-  end do
-  call mloimport3d(1,sallvl,0)
-end if
 
 return
 end subroutine rvrrouter

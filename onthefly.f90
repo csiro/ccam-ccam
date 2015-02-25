@@ -200,6 +200,7 @@ else
   newfile =(ncid/=ncidold)
 end if
 
+! mark current file as read for metadata
 if ( newfile ) ncidold = ncid
 
 ! trap error if correct date/time is not located --------------------
@@ -226,9 +227,9 @@ end if
 ! zero in the output array
       
 if ( myid==0 ) then
-  dk=ik
+  dk=ik ! non-zero automatic array size in onthefly_work
 else
-  dk=0
+  dk=0  ! zero automatic array size in onthefly_work
 end if
 call onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice, &
                    snowd,qfg,qlg,qrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,ocndwn,      &
@@ -238,7 +239,7 @@ if ( myid==0 ) write(6,*) "Leaving onthefly"
 call END_LOG(onthefly_end)
 
 return
-end subroutine onthefly
+                    end subroutine onthefly
 
 
 ! *****************************************************************************
@@ -246,9 +247,11 @@ end subroutine onthefly
       
 ! arrays are typically read as global and then distributed to
 ! processor local arrays.  This allows for more flexibility
-! with diagnosed fields.  Data is usually read in as 2D
-! fields which avoids memory problems when the host grid
-! size is significantly larger than the regional grid size.
+! with diagnosed fields.  However if there is one file per process
+! (e.g., for restart files), then there is no need for message
+! passing.  Data is usually read in as 2D fields which avoids
+! memory problems when the host grid size is significantly
+! larger than the regional grid size.
 subroutine onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice, &
                          snowd,qfg,qlg,qrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,ocndwn,      &
                          xtgdwn)
@@ -335,22 +338,22 @@ logical tsstest, tst
 logical, dimension(:), allocatable, save :: land_a, sea_a
 
 ! land-sea mask method (nemi=3 use soilt, nemi=2 use tgg, nemi=1 use zs)
-nemi=3
+nemi = 3
       
 ! test if retopo fields are required
 if ( nud_p==0 .and. nud_t==0 .and. nud_q==0 ) then
-  nud_test=0
+  nud_test = 0
 else
-  nud_test=1
+  nud_test = 1
 end if
       
 ! Determine if interpolation is required
 iotest=6*ik*ik==ifull_g .and. abs(rlong0x-rlong0)<iotol .and. abs(rlat0x-rlat0)<iotol .and. &
        abs(schmidtx-schmidt)<iotol .and. nsib==nsibx
 if ( iotest ) then
-  io_in=1   ! no interpolation
+  io_in = 1   ! no interpolation
 else
-  io_in=-1  ! interpolation
+  io_in = -1  ! interpolation
 end if
 if ( myid==0 ) write(6,*) "Interpolation iotest,io_in =",iotest,io_in
 
@@ -378,17 +381,17 @@ if ( newfile .and. .not.iotest ) then
   allocate(xx4(1+4*ik,1+4*ik),yy4(1+4*ik,1+4*ik))
 
   if ( m_fly==1 ) then
-    rlong4_l(:,1)=rlongg(:)*180./pi
-    rlat4_l(:,1)=rlatt(:)*180./pi
+    rlong4_l(:,1) = rlongg(:)*180./pi
+    rlat4_l(:,1)  = rlatt(:)*180./pi
   end if
           
   if ( myid==0 ) then
     write(6,*) "Defining input file grid"
 !   following setxyz call is for source data geom    ****   
-    do iq=1,dk*dk*6
-      axs_a(iq)=iq
-      ays_a(iq)=iq
-      azs_a(iq)=iq
+    do iq = 1,dk*dk*6
+      axs_a(iq) = iq
+      ays_a(iq) = iq
+      azs_a(iq) = iq
     enddo      
     call setxyz(ik,rlong0x,rlat0x,-schmidtx,x_a,y_a,z_a,wts_a,axs_a,ays_a,azs_a,bxs_a,bys_a,bzs_a,xx4,yy4)
   end if ! (myid==0)
@@ -398,7 +401,7 @@ if ( newfile .and. .not.iotest ) then
   
   ! calculate the rotated coords for host and model grid
   rotpoles = calc_rotpole(rlong0x,rlat0x)
-  rotpole = calc_rotpole(rlong0,rlat0)
+  rotpole  = calc_rotpole(rlong0,rlat0)
   if ( ktau<3 .and. myid==0 ) then
     write(6,*)'m_fly,nord ',m_fly,nord
     write(6,*)'kdate_r,ktime_r,ktau,ds',kdate_r,ktime_r,ktau,ds
@@ -1058,7 +1061,6 @@ if ( nested/=1 ) then
     call fillhist1('icesal',micdwn(:,11),land_a)
     if ( abs(nmlo)>=2 ) then
       call gethist1('swater',watbdy)
-      call gethist1('ssalin',salbdy)
     end if
   end if
 
