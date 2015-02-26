@@ -1359,6 +1359,7 @@ if (nud_sfh==0) then
     neta(1:ifull)=w_e+max(0.,odum)*alph_p+min(0.,odum)/alph_p
   else
     odum=neta(1:ifull)*ee(1:ifull)
+    odum=min(max(odum,-130.),130.) ! MJT suggested limit
     call ccglobal_posneg(odum,delpos,delneg)
     alph_p = -delneg/max(delpos,1.E-20)
     alph_p = min(max(sqrt(alph_p),1.E-20),1.E20)

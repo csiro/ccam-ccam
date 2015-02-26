@@ -411,7 +411,7 @@ nud_hrs = abs(nud_hrs)  ! just for people with old -ves in namelist
 if ( nudu_hrs==0 ) nudu_hrs=nud_hrs
 ! for 6-hourly output of sint_ave etc, want 6*60 = N*mins_rad      
 if ( (nrad==4.or.nrad==5) .and. mod(6*60,mins_rad)/=0 ) then
-  write(6,*) 'prefer 6*60 = N*mins_rad '
+  write(6,*) 'prefer 6*60 = N*mins_rad ',mins_rad
   call ccmpi_abort(-1)
 end if
 
