@@ -295,7 +295,8 @@ if ( myid==0 .and. io_in<=4 ) then
     read(66,*) ilx,jlx,rlong0,rlat0,schmidt,dsx,header
   end if ! (ierr==0) ..else..
   il_g = ilx        
-  write(6,*) 'ilx,jlx,rlong0,rlat0,schmidt ',ilx,jlx,rlong0,rlat0,schmidt
+  write(6,*) 'ilx,jlx              ',ilx,jlx
+  write(6,*) 'rlong0,rlat0,schmidt ',rlong0,rlat0,schmidt
 end if      ! (myid==0.and.io_in<=4)
 ! store grid dimensions for broadcast below
 temparray(1) = rlong0
@@ -311,7 +312,8 @@ if ( myid==0 ) then
   open(28,file=eigenv,status='old',form='formatted')
   read(28,*)kmax,lapsbot,isoth,nsig
   kl=kmax
-  write(6,*)'kl,ol,lapsbot,isoth,nsig: ',kl,ol,lapsbot,isoth,nsig
+  write(6,*)'kl,ol:              ',kl,ol
+  write(6,*)'lapsbot,isoth,nsig: ',lapsbot,isoth,nsig
   temparray(5) = real(kl)
   temparray(6) = real(lapsbot)
   temparray(7) = real(isoth)
@@ -424,7 +426,7 @@ end if
 if ( myid==0 ) then   
   write(6,*)'Dynamics options A:'
   write(6,*)'   mex   mfix  mfix_qg   mup    nh    precon' 
-  write(6,'(i4,2i7)')mex,mfix,mfix_qg,mup,nh,precon
+  write(6,'(i4,5i7)')mex,mfix,mfix_qg,mup,nh,precon
   write(6,*)'Dynamics options B:'
   write(6,*)'nritch_t ntbar  epsp    epsu   epsf   restol'
   write(6,'(i5,i7,1x,3f8.3,g9.2)')nritch_t,ntbar,epsp,epsu,epsf,restol

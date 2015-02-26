@@ -264,6 +264,7 @@ enddo
 ! MJT notes - This is the first bounds call after
 ! the physics routines, so load balance is a
 ! significant issue.
+duma(ifull+1:ifull+iextra,:)=0. ! avoids float invalid errors
 duma(1:ifull,1:kl)     =p(1:ifull,:)
 duma(1:ifull,kl+1:2*kl)=tv(1:ifull,:)
 call bounds(duma(:,1:2*kl),nehalf=.true.)

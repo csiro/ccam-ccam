@@ -536,7 +536,7 @@ do k=1,kl
 end do
 
 ! estimate convective cloud fraction from leoncld.f
-call convectivecloudfrac(clcon)
+call convectivecloudfrac(clcon,cldcon=cldcon)
 if (nmr>=1) then
   do iq=1,ifull
     do k=1,kbsav(iq)

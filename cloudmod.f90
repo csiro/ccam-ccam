@@ -1,13 +1,16 @@
 module cloudmod
 
-! prognostic cloud scheme based on Tiedtke from GFDL-CM3.
+! prognostic cloud fraction scheme based on Tiedtke from GFDL-CM3.
+
+! This module works with the LDR cloud microphysics scheme with
+! prognostic cloud liquid, frozen/snow and rain condensate.
     
 implicit none
     
 private
 public progcloud, cloudmod_init, combinecloudfrac, u00crit
 public stratcloud, nettend
-public convectivecloudfrac
+public convectivecloudfrac, convectivecloudarea
 
 real, dimension(:,:), allocatable, save :: stratcloud  ! prognostic cloud fraction
 real, dimension(:,:), allocatable, save :: nettend     ! change in temperature from radiation and vertical mixing
@@ -200,10 +203,9 @@ end if
 return
 end subroutine combinecloudfrac
 
-subroutine convectivecloudfrac(clcon)
+subroutine convectivecloudfrac(clcon,cldcon)
 
 use kuocomb_m        ! JLM convection
-use morepbl_m        ! Additional boundary layer diagnostics
 
 implicit none
 
@@ -212,8 +214,9 @@ include 'kuocom.h'   ! Convection parameters
 include 'parm.h'     ! Model configuration
 
 integer k
-real, dimension(ifull) :: cldcon
 real, dimension(ifull,kl), intent(out) :: clcon
+real, dimension(ifull), intent(out), optional :: cldcon
+real, dimension(ifull) :: cldcon_temp
 real, dimension(ifull) :: n, crand
 
 ! MJT notes - This is an old parameterisation from NCAR.  acon and
@@ -224,11 +227,10 @@ real, dimension(ifull) :: n, crand
 ! should be noted that acon and bcon are likely to depend on the
 ! spatial resolution.
 
-where ( ktsav<kl-1 )
-  cldcon = min(acon+bcon*log(1.+condc*86400./dt),0.8) !NCAR
-elsewhere
-  cldcon = 0.
-end where
+call convectivecloudarea(cldcon_temp)
+if (present(cldcon)) then
+  cldcon=cldcon_temp
+end if
 
 ! Impose cloud overlap assumption
 if ( nmr>=1 ) then
@@ -236,12 +238,12 @@ if ( nmr>=1 ) then
     where( k<kbsav+1 .or. k>ktsav )
       clcon(:,k) = 0.
     elsewhere
-      clcon(:,k) = cldcon ! maximum overlap
+      clcon(:,k) = cldcon_temp ! maximum overlap
     end where
   end do
 else
   n = 1./real(ktsav-kbsav)
-  crand = 1.-(1.-cldcon)**n
+  crand = 1.-(1.-cldcon_temp)**n
   do k=1,kl
     where( k<kbsav+1 .or. k>ktsav )
       clcon(:,k) = 0.
@@ -253,5 +255,27 @@ end if
 
 return
 end subroutine convectivecloudfrac
+
+subroutine convectivecloudarea(cldcon)
+
+use kuocomb_m        ! JLM convection
+use morepbl_m        ! Additional boundary layer diagnostics
+
+implicit none
+
+include 'newmpar.h'  ! Grid parameters
+include 'kuocom.h'   ! Convection parameters
+include 'parm.h'     ! Model configuration
+
+real, dimension(ifull), intent(out) :: cldcon
+
+where ( ktsav<kl-1 )
+  cldcon = min(acon+bcon*log(1.+condc*86400./dt),0.8) !NCAR
+elsewhere
+  cldcon = 0.
+end where
+
+return
+end subroutine convectivecloudarea
 
 end module cloudmod
