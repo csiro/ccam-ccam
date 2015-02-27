@@ -426,7 +426,7 @@ end if
 if ( myid==0 ) then   
   write(6,*)'Dynamics options A:'
   write(6,*)'   mex   mfix  mfix_qg   mup    nh    precon' 
-  write(6,'(i4,5i7)')mex,mfix,mfix_qg,mup,nh,precon
+  write(6,'(i4,i6,i10,3i7)')mex,mfix,mfix_qg,mup,nh,precon
   write(6,*)'Dynamics options B:'
   write(6,*)'nritch_t ntbar  epsp    epsu   epsf   restol'
   write(6,'(i5,i7,1x,3f8.3,g9.2)')nritch_t,ntbar,epsp,epsu,epsf,restol

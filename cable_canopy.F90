@@ -121,11 +121,7 @@ SUBROUTINE define_canopy(bal,rad,rough,air,met,dels,ssnow,soil,veg, canopy)
 
    INTEGER :: j
    
-   INTEGER, SAVE :: call_number =0
-   
    ! END header
-   
-   call_number = call_number + 1
            
    ! assign local ptrs to constants defined in cable_data_module
    CALL point2constants(C)    
@@ -1376,6 +1372,9 @@ SUBROUTINE dryLeaf( dels, rad, rough, air, met,                                &
    sum_rad_rniso = SUM(rad%rniso,2)
    sum_rad_gradis = SUM(rad%gradis,2)
 
+   cx1 = 0. ! MJT avoids fload invalid
+   cx2 = 0. ! MJT avoids fload invalid
+   
    DO kk=1,mp
 
       IF(canopy%vlaiw(kk) <= C%LAI_THRESH) THEN
