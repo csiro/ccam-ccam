@@ -99,7 +99,7 @@ do k = 1,kl
   tv(:,k)     = t(1:ifull,k)*(1.+0.61*qg(1:ifull,k)-qlg(1:ifull,k)-qfg(1:ifull,k))          ! virtual temperature
   rhoa(:,k)   = prf_temp(1:ifull)/(rdry*tv(1:ifull,k))                                      ! air density
   qsg(:,k)    = qsat(prf_temp(1:ifull),t(1:ifull,k))                                        ! saturated mixing ratio
-  dz(:,k)     = prf_temp(1:ifull)/(rhoa(1:ifull,k)*grav)*(1.+tnhs(1:ifull,k)/tv(1:ifull,k)) ! level thickness in metres
+  dz(:,k)     = 100.*dprf(1:ifull,k)/(rhoa(1:ifull,k)*grav)*(1.+tnhs(1:ifull,k)/tv(1:ifull,k)) ! level thickness in metres
 enddo
       
 ! Calculate droplet concentration from aerosols (for non-convective faction of grid-box)
