@@ -3608,7 +3608,6 @@ mg_maxlevel_local=mg_maxlevel
 
 if (myid==0) then
   write(6,*) "Initialising multi-grid arrays"
-  write(6,*) "il_g,mg_maxlevel ",il_g,mg_maxlevel
 end if
 
 allocate(mg(mg_maxlevel))
