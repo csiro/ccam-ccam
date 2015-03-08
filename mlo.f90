@@ -1159,6 +1159,7 @@ if (calcprog) then
   ice%thick=d_ndic
   ice%snowd=d_ndsn
   ice%store=d_nsto
+  
   call mloice(dt,atm_ps,d_alpha,d_beta,d_b0,d_wu0,d_wv0,d_wt0,d_ws0,d_ftop,d_tb,d_fb,d_timelt,      &
               d_ustar,d_nk,d_neta,d_zcr,diag)
 
@@ -2301,8 +2302,8 @@ real aa, bb, dsf, deldz, avet, aves, aveto, aveso, delt, dels
 real, dimension(wfull,wlev) :: sdic
 real, dimension(wfull) :: newdic, newsal, newtn, newsl, cdic
 real, dimension(wfull), intent(inout) :: d_timelt, d_zcr
-real, dimension(wfull) :: worka, maxnewice, d_wavail, old_zcr
-real, dimension(wfull) :: newfracice, newthick, newsnowd
+real, dimension(wfull) :: maxnewice, d_wavail, old_zcr
+!real, dimension(wfull) :: newfracice, newthick, newsnowd, worka
 logical, dimension(wfull) :: lnewice
 logical lflag
 
@@ -2358,40 +2359,40 @@ where ( lnewice ) ! form new sea-ice
 endwhere
 
 ! 1D model of ice break-up
-newthick  =icebreak ! MJT notes - ice%thick=icebreak implies zero energy stored in t1 and t2
-newfracice=ice%fracice*ice%thick/newthick
-newsnowd  =ice%snowd*ice%fracice/newfracice
-where ( ice%thick<icebreak .and. ice%fracice>fracbreak .and. newfracice>0. .and. newsnowd>0. )
-  ice%tsurf    =ice%tsurf*ice%fracice/newfracice
-  ice%temp(:,0)=ice%temp(:,0)*ice%snowd*ice%fracice/(newsnowd*newfracice)
-  ice%temp(:,1)=ice%tsurf
-  ice%temp(:,2)=ice%tsurf
-  ice%snowd    =newsnowd
-  ice%thick    =newthick
-  ice%fracice  =newfracice
-elsewhere ( ice%thick<icebreak .and. ice%fracice>fracbreak .and. newfracice>0. )
-  ice%tsurf    =ice%tsurf*ice%fracice/newfracice
-  ice%temp(:,0)=ice%tsurf
-  ice%temp(:,1)=ice%tsurf
-  ice%temp(:,2)=ice%tsurf
-  ice%snowd    =newsnowd
-  ice%thick    =newthick
-  ice%fracice  =newfracice    
-end where
-if ( onedice==1 ) then
-  where ( ice%fracice<1. .and. ice%thick>icebreak )
-     worka=min(ice%thick/(1.01*icebreak),1./max(ice%fracice,fracbreak))
-     worka=max(worka,1.)
-     newfracice=ice%fracice*worka
-     newthick=ice%thick/worka
-     ice%tsurf=ice%tsurf*ice%fracice/newfracice
-     ice%temp(:,0)=ice%temp(:,0)*ice%fracice/newfracice
-     ice%temp(:,1)=ice%temp(:,1)*(cpi*ice%thick-gammi)*ice%fracice/((cpi*newthick-gammi)*newfracice)
-     ice%temp(:,2)=ice%temp(:,2)*(cpi*ice%thick-gammi)*ice%fracice/((cpi*newthick-gammi)*newfracice)
-     ice%fracice=newfracice
-     ice%thick=newthick
-  end where
-end if
+!newthick  =icebreak ! MJT notes - ice%thick=icebreak implies zero energy stored in t1 and t2
+!newfracice=ice%fracice*ice%thick/newthick
+!newsnowd  =ice%snowd*ice%fracice/newfracice
+!where ( ice%thick<icebreak .and. ice%fracice>fracbreak .and. newfracice>1.e-4 .and. newsnowd>1.e-4 )
+!  ice%tsurf    =ice%tsurf*ice%fracice/newfracice
+!  ice%temp(:,0)=ice%temp(:,0)*ice%snowd*ice%fracice/(newsnowd*newfracice)
+!  ice%temp(:,1)=ice%tsurf
+!  ice%temp(:,2)=ice%tsurf
+!  ice%snowd    =newsnowd
+!  ice%thick    =newthick
+!  ice%fracice  =newfracice
+!elsewhere ( ice%thick<icebreak .and. ice%fracice>fracbreak .and. newfracice>1.e-4 )
+!  ice%tsurf    =ice%tsurf*ice%fracice/newfracice
+!  ice%temp(:,0)=ice%tsurf
+!  ice%temp(:,1)=ice%tsurf
+!  ice%temp(:,2)=ice%tsurf
+!  ice%snowd    =newsnowd
+!  ice%thick    =newthick
+!  ice%fracice  =newfracice    
+!end where
+!if ( onedice==1 ) then
+!  where ( ice%fracice<1. .and. ice%thick>icebreak )
+!     worka=min(ice%thick/(1.01*icebreak),1./max(ice%fracice,fracbreak))
+!     worka=max(worka,1.)
+!     newfracice=ice%fracice*worka
+!     newthick=ice%thick/worka
+!     ice%tsurf=ice%tsurf*ice%fracice/newfracice
+!     ice%temp(:,0)=ice%temp(:,0)*ice%fracice/newfracice
+!     ice%temp(:,1)=ice%temp(:,1)*(cpi*ice%thick-gammi)*ice%fracice/((cpi*newthick-gammi)*newfracice)
+!     ice%temp(:,2)=ice%temp(:,2)*(cpi*ice%thick-gammi)*ice%fracice/((cpi*newthick-gammi)*newfracice)
+!     ice%fracice=newfracice
+!     ice%thick=newthick
+!  end where
+!end if
 
 ! removal
 do iqw=1,wfull
