@@ -1271,6 +1271,7 @@ if (myid==0.and.nmaxpr==1) then
 end if
 #endif
 
+! populate grid points that have no sea ice
 where ( fracice(1:ifull)<1.E-4 .or. sicedep(1:ifull)<1.E-4 )
   fracice(1:ifull)=0.
   sicedep(1:ifull)=0.
@@ -1453,7 +1454,7 @@ if (nud_sss==0) then
   else
     do ii=1,wlev
       where(wtr(1:ifull).and.ndum>0.)
-        dum(:,ii)=(ns(1:ifull,ii)-34.72)*max(dd(1:ifull)+neta(1:ifull),minwater)
+        dum(:,ii)=ns(1:ifull,ii)-34.72
       elsewhere
         dum(:,ii)=0.
       end where
@@ -1463,7 +1464,7 @@ if (nud_sss==0) then
     alph_p = min(sqrt(alph_p),alph_p)
     do ii=1,wlev
       where(wtr(1:ifull).and.ndum>0.)
-        ns(1:ifull,ii)=34.72+max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)/max(dd(1:ifull)+neta(1:ifull),minwater)
+        ns(1:ifull,ii)=34.72+max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)
       end where
     end do
   end if
