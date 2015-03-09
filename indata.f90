@@ -539,7 +539,7 @@ if (nmlo/=0.and.abs(nmlo)<=9) then
   where (land)
     dep=0.
   elsewhere
-    dep=max(dep,4.*minwater)
+    dep=max(dep,2.*minwater)
   end where
   call mloinit(ifull,dep,0)
   call mlodyninit
@@ -1795,6 +1795,7 @@ if (nmlo/=0.and.abs(nmlo)<=9) then
   end if
   mlodwn(1:ifull,1:wlev,1)=max(mlodwn(1:ifull,1:wlev,1),271.)
   mlodwn(1:ifull,1:wlev,2)=max(mlodwn(1:ifull,1:wlev,2),0.)
+  micdwn(1:ifull,1:4)=min(max(micdwn(1:ifull,1:4),0.),300.)
   micdwn(1:ifull,11)=max(micdwn(1:ifull,11),0.)
   call mloload(mlodwn,ocndwn(:,2),micdwn,0)
   deallocate(micdwn)
@@ -2146,34 +2147,34 @@ end if
 !--------------------------------------------------------------
 ! CHECK FOR LAND SEA MISMATCHES      
 mismatch = .false.
-if( datacheck(land,albvisnir(:,1),'albv',idatafix,falbdflt)) mismatch = .true.
-if( datacheck(land,albvisnir(:,2),'albn',idatafix,falbdflt)) mismatch = .true.
-if (nsib<6) then
-  if( datacheck(land,rsmin,'rsmin',idatafix,frsdflt)) mismatch = .true.
+if ( datacheck(land,albvisnir(:,1),'albv',idatafix,falbdflt) ) mismatch = .true.
+if ( datacheck(land,albvisnir(:,2),'albn',idatafix,falbdflt) ) mismatch = .true.
+if ( nsib<6 ) then
+  if ( datacheck(land,rsmin,'rsmin',idatafix,frsdflt) ) mismatch = .true.
 end if
-ivegmin=minval(ivegt,land(1:ifull))
-ivegmax=maxval(ivegt,land(1:ifull))
-if(ivegmin<1.or.ivegmax>44)then
+ivegmin = minval(ivegt,land(1:ifull))
+ivegmax = maxval(ivegt,land(1:ifull))
+if ( ivegmin<1 .or. ivegmax>44 ) then
   write(6,*) 'stopping in indata, as ivegt out of range'
   write(6,*) 'ivegmin,ivegmax ',ivegmin,ivegmax
   call ccmpi_abort(-1)
 endif
-if( datacheck(land,isoilm,'isoilm',idatafix,isoildflt)) mismatch = .true.
+if ( datacheck(land,isoilm,'isoilm',idatafix,isoildflt) ) mismatch = .true.
 
 ! --- rescale and patch up vegie data if necessary
-if (nsib/=6.and.nsib/=7) then
-  dumc(1)=ivegmax
+if ( nsib/=6 .and. nsib/=7 ) then
+  dumc(1)   = ivegmax
   call ccmpi_allreduce(dumc(1:1),dumc(2:2),"max",comm_world)
-  ivegmax_g=dumc(2)
-  if(ivegmax_g<14) then
+  ivegmax_g = dumc(2)
+  if ( ivegmax_g<14 ) then
     if ( mydiag ) write(6,*) '**** in this run veg types increased from 1-13 to 32-44'
-    do iq=1,ifull            ! add offset to sib values so 1-13 becomes 32-44
-      if(ivegt(iq)>0)ivegt(iq)=ivegt(iq)+31
-    enddo
+    do iq = 1,ifull            ! add offset to sib values so 1-13 becomes 32-44
+      if ( ivegt(iq)>0 ) ivegt(iq) = ivegt(iq)+31
+    end do
   end if
-endif
+end if
  
-zolnd(:)=max(zolnd(:) , zobgin)
+zolnd(:) = max(zolnd(:) , zobgin)
 
 return
 end subroutine rdnsib
@@ -2198,6 +2199,7 @@ rdatacheck=xrdatacheck(mask,fld,lbl,idfix,0.,val)
 return
 end function rdatacheck
 
+    
 logical function xrdatacheck(mask,fld,lbl,idfix,to,from)
       
 use cc_mpi, only : myid ! CC MPI routines
@@ -2236,7 +2238,8 @@ xrdatacheck=err
 
 return
 end function xrdatacheck
-      
+
+    
 logical function idatacheck( mask,ifld,lbl,idfix,ival )
 
 implicit  none
@@ -2253,6 +2256,7 @@ idatacheck=xidatacheck(mask,ifld,lbl,idfix,0,ival)
 return
 end function idatacheck
 
+    
 logical function xidatacheck(mask,ifld,lbl,idfix,ifrom,ito)
 
 use cc_mpi, only : myid ! CC MPI routines
@@ -2411,7 +2415,6 @@ end subroutine readreal
 
 !--------------------------------------------------------------
 ! INITALISE SOIL PARAMETERS
-! n.b. presets for soilv.h moved to blockdata
 subroutine insoil
       
 use cc_mpi, only : myid ! CC MPI routines
@@ -2422,12 +2425,12 @@ include 'newmpar.h'     ! Grid parameters
 include 'soilv.h'       ! Soil parameters
       
 ! The following common block is for soilsnow.f
-real zshh,ww
+real zshh, ww
 common/soilzs/zshh(ms+1),ww(ms)
 
-integer isoil,k
+integer isoil, k
 
-do isoil=1,mxst
+do isoil = 1,mxst
   cnsd(isoil)  = sand(isoil)*0.3+clay(isoil)*0.25+silt(isoil)*0.265
   hsbh(isoil)  = hyds(isoil)*abs(sucs(isoil))*bch(isoil) !difsat*etasat
   ibp2(isoil)  = nint(bch(isoil))+2
@@ -2435,16 +2438,16 @@ do isoil=1,mxst
   if ( myid == 0 ) then
     write(6,"('isoil,ssat,sfc,swilt,hsbh ',i2,3f7.3,e11.4)") isoil,ssat(isoil),sfc(isoil),swilt(isoil),hsbh(isoil)
   end if
-enddo
-cnsd(9)=2.51
+end do
+cnsd(9) = 2.51
 
-zshh(1) = .5*zse(1)           ! not used (jlm)
+zshh(1)    = .5*zse(1)        ! not used (jlm)
 zshh(ms+1) = .5*zse(ms)       ! not used (jlm)
 ww(1) = 1.
-do k=2,ms
-  zshh(k)= .5*(zse(k-1)+zse(k))  ! z(k)-z(k-1) (jlm)
+do k = 2,ms
+  zshh(k) = .5*(zse(k-1)+zse(k))  ! z(k)-z(k-1) (jlm)
   ww(k)   = zse(k)/(zse(k)+zse(k-1))
-enddo
+end do
 
 return
 end subroutine insoil

@@ -1259,7 +1259,7 @@ niv(1:ifull)=niv(1:ifull)*eev(1:ifull)
 call boundsuv(niu,niv,stag=-9)
 
 ! Normalisation factor for conserving ice flow in and out of gridbox
-spnet(1:ifull)=(-min(niu(iwu)*emu(iwu),0.)+max(niu(1:ifull)*emu(1:ifull),0.) &
+spnet(1:ifull)=(-min(niu(iwu)*emu(iwu),0.)+max(niu(1:ifull)*emu(1:ifull),0.)     &
                 -min(niv(isv)*emv(isv),0.)+max(niv(1:ifull)*emv(1:ifull),0.))/ds
 
 ! ADVECT ICE ------------------------------------------------------
@@ -1271,26 +1271,40 @@ if (myid==0.and.nmaxpr==1) then
 end if
 #endif
 
+where ( fracice(1:ifull)<1.E-4 .or. snowd(1:ifull)*0.001<1.E-4 )
+  fracice(1:ifull)=0.
+  sicedep(1:ifull)=0.
+  snowd(1:ifull)=0.
+  i_sto(1:ifull)=0.
+  i_sal(1:ifull)=0.
+  i_it(1:ifull,1)=273.16
+  i_it(1:ifull,2)=273.16
+  i_it(1:ifull,3)=273.16
+  i_it(1:ifull,4)=273.16
+elsewhere ( snowd(1:ifull)*0.001<1.E-4 )
+  snowd(1:ifull)=0.
+  i_it(1:ifull,2)=273.16
+end where
+
 ! Horizontal advection for ice area
-dumc(1:ifull,1)=fracice/(em(1:ifull)*em(1:ifull)) ! dumc is an area
+dumc(1:ifull,1)=fracice/(em(1:ifull)*em(1:ifull)) ! dumc(:,1) is an area
 ! Horizontal advection for ice volume
-dumc(1:ifull,2)=sicedep*fracice/(em(1:ifull)*em(1:ifull)) ! dumc is a volume
+dumc(1:ifull,2)=sicedep*fracice/(em(1:ifull)*em(1:ifull)) ! dumc(:,1) is a volume
 ! Horizontal advection for snow volume
-dumc(1:ifull,3)=snowd*0.001*fracice/(em(1:ifull)*em(1:ifull)) ! dumc is a volume
+dumd(1:ifull,1)=snowd*0.001
+dumc(1:ifull,3)=dumd(1:ifull,1)*fracice/(em(1:ifull)*em(1:ifull)) ! dumc(:,1) is a volume
 ! Horizontal advection for ice energy store
 dumc(1:ifull,4)=i_sto*fracice/(em(1:ifull)*em(1:ifull))
 ! Horizontal advection for ice salinity
 dumc(1:ifull,5)=i_sal*fracice*sicedep/(em(1:ifull)*em(1:ifull))
+call mloexpgamm(gamm,sicedep,dumd(1:ifull,1),0)
 ! Horizontal advection for surface temperature
-dumd(1:ifull,1)=snowd*0.001
-call mloexpgamm(gamm,sicedep,dumd(:,1),0)
 dumc(1:ifull,6)=i_it(1:ifull,1)*fracice*gamm(:,1)/(em(1:ifull)*em(1:ifull))
 ! Horizontal advection of snow temperature
 dumc(1:ifull,7)=i_it(1:ifull,2)*fracice*gamm(:,2)/(em(1:ifull)*em(1:ifull))
 ! Horizontal advection of ice temperature
-do ii=3,4
-  dumc(1:ifull,5+ii)=i_it(1:ifull,ii)*fracice*gamm(:,3)/(em(1:ifull)*em(1:ifull))
-end do
+dumc(1:ifull,8)=i_it(1:ifull,3)*fracice*gamm(:,3)/(em(1:ifull)*em(1:ifull))
+dumc(1:ifull,9)=i_it(1:ifull,4)*fracice*gamm(:,3)/(em(1:ifull)*em(1:ifull)) 
 ! Conservation
 dumc(1:ifull,10)=spnet(1:ifull)
 call bounds(dumc(:,1:10))
@@ -1300,19 +1314,36 @@ do ii=1,9
 end do  
 nfracice(1:ifull)=dumc(1:ifull,1)*em(1:ifull)*em(1:ifull)
 nfracice(1:ifull)=min(max(nfracice(1:ifull),0.),maxicefrac)
-ndic(1:ifull)=dumc(1:ifull,2)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-10)
-ndsn(1:ifull)=dumc(1:ifull,3)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-10)
-nsto(1:ifull)=dumc(1:ifull,4)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-10)
-nis(1:ifull)=dumc(1:ifull,5)*em(1:ifull)*em(1:ifull)/max(ndic(1:ifull)*nfracice(1:ifull),1.E-10)
+ndic(1:ifull)=max(dumc(1:ifull,2)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-10),0.)
+ndsn(1:ifull)=max(dumc(1:ifull,3)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-10),0.)
+nsto(1:ifull)=max(dumc(1:ifull,4)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-10),0.)
+nis(1:ifull)=max(dumc(1:ifull,5)*em(1:ifull)*em(1:ifull)/max(ndic(1:ifull)*nfracice(1:ifull),1.E-10),0.)
 call mloexpgamm(gamm,ndic,ndsn,0)
-nit(1:ifull,1)=dumc(1:ifull,6)*em(1:ifull)*em(1:ifull)/max(gamm(:,1)*nfracice(1:ifull),1.E-10)
-nit(1:ifull,2)=dumc(1:ifull,7)*em(1:ifull)*em(1:ifull)/max(gamm(:,2)*nfracice(1:ifull),1.E-10)
-do ii=3,4
-  nit(1:ifull,ii)=dumc(1:ifull,5+ii)*em(1:ifull)*em(1:ifull)/max(gamm(:,3)*nfracice(1:ifull),1.E-10)
-end do
-
-! populate grid points that have no sea ice
-where (nfracice(1:ifull)<1.E-4.or.ndic(1:ifull)<1.E-4)
+where ( gamm(:,3)*nfracice(1:ifull)>1.e-10 .and. gamm(:,2)*nfracice(1:ifull)>1.e-10 .and. gamm(:,1)*nfracice(1:ifull)>1.e-10 )
+  nit(1:ifull,1)=dumc(1:ifull,6)*em(1:ifull)*em(1:ifull)/(gamm(:,1)*nfracice(1:ifull))
+  nit(1:ifull,2)=dumc(1:ifull,7)*em(1:ifull)*em(1:ifull)/(gamm(:,2)*nfracice(1:ifull))
+  nit(1:ifull,3)=dumc(1:ifull,8)*em(1:ifull)*em(1:ifull)/(gamm(:,3)*nfracice(1:ifull))
+  nit(1:ifull,4)=dumc(1:ifull,9)*em(1:ifull)*em(1:ifull)/(gamm(:,3)*nfracice(1:ifull))
+elsewhere ( gamm(:,3)*nfracice(1:ifull)>1.e-10 .and. gamm(:,1)*nfracice(1:ifull)>1.e-10 )
+  nit(1:ifull,1)=(dumc(1:ifull,6)+dumc(1:ifull,7))*em(1:ifull)*em(1:ifull)/(gamm(:,1)*nfracice(1:ifull))
+  nit(1:ifull,2)=273.16
+  ndsn(1:ifull)=0.
+  nit(1:ifull,3)=dumc(1:ifull,8)*em(1:ifull)*em(1:ifull)/(gamm(:,3)*nfracice(1:ifull))
+  nit(1:ifull,4)=dumc(1:ifull,9)*em(1:ifull)*em(1:ifull)/(gamm(:,3)*nfracice(1:ifull))
+elsewhere ( gamm(:,2)*nfracice(1:ifull)>1.e-10 .and. gamm(:,1)*nfracice(1:ifull)>1.e-10 )
+  nit(1:ifull,1)=(dumc(1:ifull,6)+dumc(1:ifull,8)+dumc(1:ifull,9))*em(1:ifull)*em(1:ifull)/(gamm(:,1)*nfracice(1:ifull))
+  nit(1:ifull,2)=dumc(1:ifull,7)*em(1:ifull)*em(1:ifull)/(gamm(:,2)*nfracice(1:ifull))
+  nit(1:ifull,3)=nit(1:ifull,1)
+  nit(1:ifull,4)=nit(1:ifull,1)
+elsewhere ( gamm(:,1)*nfracice(1:ifull)>1.e-10 )
+  nit(1:ifull,1)=(dumc(1:ifull,6)+dumc(1:ifull,7)+dumc(1:ifull,8)+dumc(1:ifull,9))*em(1:ifull)*em(1:ifull) &
+                /(gamm(:,1)*nfracice(1:ifull))
+  nit(1:ifull,2)=273.16
+  ndsn(1:ifull)=0.
+  nit(1:ifull,3)=nit(1:ifull,1)
+  nit(1:ifull,4)=nit(1:ifull,1)
+elsewhere
+  nfracice(1:ifull)=0.
   ndic(1:ifull)=0.
   ndsn(1:ifull)=0.
   nsto(1:ifull)=0.
@@ -1321,7 +1352,21 @@ where (nfracice(1:ifull)<1.E-4.or.ndic(1:ifull)<1.E-4)
   nit(1:ifull,2)=273.16
   nit(1:ifull,3)=273.16
   nit(1:ifull,4)=273.16
-elsewhere (ndsn(1:ifull)<1.E-4)
+end where
+
+! populate grid points that have no sea ice
+where ( nfracice(1:ifull)<1.E-4 .or. ndic(1:ifull)<1.E-4 )
+  nfracice(1:ifull)=0.
+  ndic(1:ifull)=0.
+  ndsn(1:ifull)=0.
+  nsto(1:ifull)=0.
+  nis(1:ifull)=0.
+  nit(1:ifull,1)=273.16
+  nit(1:ifull,2)=273.16
+  nit(1:ifull,3)=273.16
+  nit(1:ifull,4)=273.16
+elsewhere ( ndsn(1:ifull)<1.E-4 )
+  ndsn(1:ifull)=0.
   nit(1:ifull,2)=273.16
 end where
 
@@ -1369,15 +1414,15 @@ if (nud_sfh==0) then
   end if
 end if
 
-newzcr=max(1.+neta(1:ifull)/dd(1:ifull),minwater/dd(1:ifull))
-oldzcr=max(1.+w_e(1:ifull)/dd(1:ifull),minwater/dd(1:ifull))
-do ii=1,wlev
-  ! volume conservation
-  nt(1:ifull,ii)=nt(1:ifull,ii)*oldzcr/newzcr
-  ns(1:ifull,ii)=ns(1:ifull,ii)*oldzcr/newzcr
-  nu(1:ifull,ii)=nu(1:ifull,ii)*oldzcr/newzcr
-  nv(1:ifull,ii)=nv(1:ifull,ii)*oldzcr/newzcr
-end do
+! conservation of energy, salinity and momentum with respect to volume*rhowt
+!newzcr=max(dd(1:ifull)+neta(1:ifull),minwater)
+!oldzcr=max(dd(1:ifull)+w_e(1:ifull), minwater)
+!do ii=1,wlev
+!  nt(1:ifull,ii)=nt(1:ifull,ii)*oldzcr/newzcr
+!  ns(1:ifull,ii)=ns(1:ifull,ii)*oldzcr/newzcr
+!  nu(1:ifull,ii)=nu(1:ifull,ii)*oldzcr/newzcr
+!  nv(1:ifull,ii)=nv(1:ifull,ii)*oldzcr/newzcr
+!end do
 
 ! salinity conservation
 if (nud_sss==0) then
@@ -1390,7 +1435,7 @@ if (nud_sss==0) then
   if (fixsal==0) then
     do ii=1,wlev
       where(wtr(1:ifull).and.ndum>0.)
-        dum(:,ii)=(ns(1:ifull,ii)-w_s(:,ii))*max(dd(1:ifull)+neta(1:ifull),minwater)
+        dum(:,ii)=ns(1:ifull,ii)*max(dd(1:ifull)+neta(1:ifull),minwater)-w_s(:,ii)*max(dd(1:ifull)+w_e(1:ifull),minwater)
       elsewhere
         dum(:,ii)=0.
       end where
@@ -1399,9 +1444,10 @@ if (nud_sss==0) then
     alph_p = -delneg/max(delpos,1.E-20)
     alph_p = min(sqrt(alph_p),alph_p)
     do ii=1,wlev
-      dum(:,ii)=dum(:,ii)/max(dd(1:ifull)+neta(1:ifull),minwater)
       where(wtr(1:ifull).and.ndum>0.)
-        ns(1:ifull,ii)=w_s(:,ii)+max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)
+        ns(1:ifull,ii)=(w_s(:,ii)*max(dd(1:ifull)+w_e(1:ifull),minwater)           &
+                       +max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)) &
+                       /max(dd(1:ifull)+neta(1:ifull),minwater)
       end where
     end do
   else
@@ -1416,9 +1462,8 @@ if (nud_sss==0) then
     alph_p = -delneg/max(delpos,1.E-20)
     alph_p = min(sqrt(alph_p),alph_p)
     do ii=1,wlev
-      dum(:,ii)=dum(:,ii)/max(dd(1:ifull)+neta(1:ifull),minwater)
       where(wtr(1:ifull).and.ndum>0.)
-        ns(1:ifull,ii)=34.72+max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)
+        ns(1:ifull,ii)=34.72+max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)/max(dd(1:ifull)+neta(1:ifull),minwater)
       end where
     end do
   end if
@@ -1429,7 +1474,6 @@ if (myid==0.and.(ktau<=5.or.maxglobseta>tol.or.maxglobip>itol)) then
 end if
 
 call END_LOG(watermisc_end)
-
 
 ! DIFFUSION -------------------------------------------------------------------
 #ifdef debug
@@ -1442,7 +1486,6 @@ uau=av_vmod*nu(1:ifull,:)+(1.-av_vmod)*oldu1
 uav=av_vmod*nv(1:ifull,:)+(1.-av_vmod)*oldv1
 call mlodiffusion_main(uau,uav,nu,nv,neta,nt,ns)
 call mloimport(4,neta(1:ifull),0,0) ! neta
-
 
 ! EXPORT ----------------------------------------------------------------------
 ! Water data is exported in mlodiffusion
@@ -4312,43 +4355,52 @@ include 'parm.h'
 
 real, dimension(ifull+iextra), intent(inout) :: dumc
 real, dimension(ifull+iextra), intent(in) :: niu,niv,spnet
-real, dimension(ifull) :: odum,dumd 
+real(kind=8), dimension(ifull) :: odum,dumd,tdum
 
 dumd=dumc(1:ifull)
+
 odum=0.5*dt*(niu(iwu)*(dumc(1:ifull)+dumc(iw))    -abs(niu(iwu))*(dumc(1:ifull)-dumc(iw))    )*emu(iwu)/ds
-where (spnet(iw)>0.)
-  odum=min(odum,dumc(iw)*max(niu(iwu)*emu(iwu),0.)/(ds*spnet(iw)))
+tdum=dumc(iw)*max(niu(iwu)*emu(iwu),0.)/(ds*spnet(iw))
+where ( spnet(iw)>1.e-10 )
+  odum=min(odum,tdum)
 end where
-where (spnet(1:ifull)>0.)
-  odum=max(odum,dumc(1:ifull)*min(niu(iwu)*emu(iwu),0.)/(ds*spnet(1:ifull)))
+tdum=dumc(1:ifull)*min(niu(iwu)*emu(iwu),0.)/(ds*spnet(1:ifull))
+where ( spnet(1:ifull)>1.e-10 )
+  odum=max(odum,tdum)
 end where
 dumd=dumd+odum
 odum=-0.5*dt*(niu(1:ifull)*(dumc(1:ifull)+dumc(ie))+abs(niu(1:ifull))*(dumc(1:ifull)-dumc(ie)))*emu(1:ifull)/ds
-where (spnet(ie)>0.)
-  odum=min(odum,-dumc(ie)*min(niu(1:ifull)*emu(1:ifull),0.)/(ds*spnet(ie)))
+tdum=-dumc(ie)*min(niu(1:ifull)*emu(1:ifull),0.)/(ds*spnet(ie))
+where ( spnet(ie)>1.e-10 )
+  odum=min(odum,tdum)
 end where
-where (spnet(1:ifull)>0.)
-  odum=max(odum,-dumc(1:ifull)*max(niu(1:ifull)*emu(1:ifull),0.)/(ds*spnet(1:ifull)))
+tdum=-dumc(1:ifull)*max(niu(1:ifull)*emu(1:ifull),0.)/(ds*spnet(1:ifull))
+where ( spnet(1:ifull)>1.e-10 )
+  odum=max(odum,tdum)
 end where
 dumd=dumd+odum  
 odum=0.5*dt*(niv(isv)*(dumc(1:ifull)+dumc(is))    -abs(niv(isv))*(dumc(1:ifull)-dumc(is))    )*emv(isv)/ds
-where (spnet(is)>0.)
-  odum=min(odum,dumc(is)*max(niv(isv)*emv(isv),0.)/(ds*spnet(is)))
+tdum=dumc(is)*max(niv(isv)*emv(isv),0.)/(ds*spnet(is))
+where ( spnet(is)>1.e-10 )
+  odum=min(odum,tdum)
 end where
-where (spnet(1:ifull)>0.)
-  odum=max(odum,dumc(1:ifull)*min(niv(isv)*emv(isv),0.)/(ds*spnet(1:ifull)))
+tdum=dumc(1:ifull)*min(niv(isv)*emv(isv),0.)/(ds*spnet(1:ifull))
+where ( spnet(1:ifull)>1.e-10 )
+  odum=max(odum,tdum)
 end where
 dumd=dumd+odum
 odum=-0.5*dt*(niv(1:ifull)*(dumc(1:ifull)+dumc(in))+abs(niv(1:ifull))*(dumc(1:ifull)-dumc(in)))*emv(1:ifull)/ds
-where (spnet(in)>0.)
-  odum=min(odum,-dumc(in)*min(niv(1:ifull)*emv(1:ifull),0.)/(ds*spnet(in)))
+tdum=-dumc(in)*min(niv(1:ifull)*emv(1:ifull),0.)/(ds*spnet(in))
+where ( spnet(in)>1.e-10 )
+  odum=min(odum,tdum)
 end where
-where (spnet(1:ifull)>0.)
-  odum=max(odum,-dumc(1:ifull)*max(niv(1:ifull)*emv(1:ifull),0.)/(ds*spnet(1:ifull)))
+tdum=-dumc(1:ifull)*max(niv(1:ifull)*emv(1:ifull),0.)/(ds*spnet(1:ifull))
+where ( spnet(1:ifull)>1.e-10 )
+  odum=max(odum,tdum)
 end where
 dumd=dumd+odum
-dumc(1:ifull)=dumd
-dumc(1:ifull)=max(dumc(1:ifull),0.)
+
+dumc(1:ifull)=max(dumd,0._8)
   
 return
 end subroutine upwindadv
