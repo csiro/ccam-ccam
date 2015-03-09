@@ -1271,7 +1271,7 @@ if (myid==0.and.nmaxpr==1) then
 end if
 #endif
 
-where ( fracice(1:ifull)<1.E-4 .or. snowd(1:ifull)*0.001<1.E-4 )
+where ( fracice(1:ifull)<1.E-4 .or. sicedep(1:ifull)<1.E-4 )
   fracice(1:ifull)=0.
   sicedep(1:ifull)=0.
   snowd(1:ifull)=0.
