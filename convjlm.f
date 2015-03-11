@@ -340,7 +340,7 @@
             summ=ds/(em(iq)*208498.)
             alfin(iq)=1.+(alfin(iq)-1.) *
      &      (1.+tied_a)*summ/(1.+tied_a*summ)
-            if(iq<200)print *,'iq,alfin',iq,alfin(iq)
+            !if(iq<200)print *,'iq,alfin',iq,alfin(iq)
 !           tied_over=26 gives factor [1, .964, .900, .794, .529] for ds = [200, 100, 50, 25, 8} km     
 !           tied_over=10 gives factor [1, .917, .786, .611, .306] for ds = [200, 100, 50, 25, 8} km     
           enddo

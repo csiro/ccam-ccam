@@ -470,7 +470,7 @@ real, dimension(ifull) :: dumf,dumg
 real, dimension(ifull) :: newzcr,oldzcr
 real, dimension(ifull+iextra,wlev,6) :: cou
 real, dimension(ifull+iextra,wlev+1) :: eou,eov
-real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns,mps,xdzdum
+real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns,mps,dzdum_rho
 real, dimension(ifull+iextra,wlev) :: rhobar,rho,dalpha,dbeta
 real, dimension(ifull+iextra,wlev) :: ccu,ccv
 real, dimension(ifull+iextra,3*wlev) :: dume
@@ -697,8 +697,8 @@ end if
 xodum=max(dd(:)+neta(:),minwater)
 do ii=1,wlev
   depdum(:,ii)=gosig(ii)*xodum(1:ifull)
-  xdzdum(:,ii)=godsig(ii)*dd(:) ! MJT suggestion to avoid density oscillations
   dzdum(:,ii) =godsig(ii)*xodum(1:ifull)
+  dzdum_rho(:,ii)=godsig(ii)*dd(:) ! MJT suggestion to avoid density oscillations
 end do
 
 ! Calculate normalised density rhobar (unstaggered at time t)
@@ -710,7 +710,7 @@ cou(1:ifull,:,2)=ns(1:ifull,:)
 call bounds(cou(:,:,1:2),corner=.true.)
 nt(ifull+1:ifull+iextra,:)=cou(ifull+1:ifull+iextra,:,1)
 ns(ifull+1:ifull+iextra,:)=cou(ifull+1:ifull+iextra,:,2)
-call mloexpdensity(rho,dalpha,dbeta,nt,ns,xdzdum,pice,0)
+call mloexpdensity(rho,dalpha,dbeta,nt,ns,dzdum_rho,pice,0)
 rhobar(:,1)=(rho(:,1)-1030.)*godsig(1)
 do ii=2,wlev
   rhobar(:,ii)=rhobar(:,ii-1)+(rho(:,ii)-1030.)*godsig(ii)
@@ -950,7 +950,7 @@ if (nxtrrho==1) then
   call bounds(cou(:,:,1:2),corner=.true.)
   nt(ifull+1:ifull+iextra,:)=cou(ifull+1:ifull+iextra,:,1)
   ns(ifull+1:ifull+iextra,:)=cou(ifull+1:ifull+iextra,:,2)
-  call mloexpdensity(rho,dalpha,dbeta,nt,ns,xdzdum,pice,0)
+  call mloexpdensity(rho,dalpha,dbeta,nt,ns,dzdum_rho,pice,0)
   rhobar(:,1)=(rho(:,1)-1030.)*godsig(1)
   do ii=2,wlev
     rhobar(:,ii)=rhobar(:,ii-1)+(rho(:,ii)-1030.)*godsig(ii)
@@ -1271,22 +1271,6 @@ if (myid==0.and.nmaxpr==1) then
 end if
 #endif
 
-! populate grid points that have no sea ice
-where ( fracice(1:ifull)<1.E-4 .or. sicedep(1:ifull)<1.E-4 )
-  fracice(1:ifull)=0.
-  sicedep(1:ifull)=0.
-  snowd(1:ifull)=0.
-  i_sto(1:ifull)=0.
-  i_sal(1:ifull)=0.
-  i_it(1:ifull,1)=273.16
-  i_it(1:ifull,2)=273.16
-  i_it(1:ifull,3)=273.16
-  i_it(1:ifull,4)=273.16
-elsewhere ( snowd(1:ifull)*0.001<1.E-4 )
-  snowd(1:ifull)=0.
-  i_it(1:ifull,2)=273.16
-end where
-
 ! Horizontal advection for ice area
 dumc(1:ifull,1)=fracice/(em(1:ifull)*em(1:ifull)) ! dumc(:,1) is an area
 ! Horizontal advection for ice volume
@@ -1415,16 +1399,6 @@ if (nud_sfh==0) then
   end if
 end if
 
-! conservation of energy, salinity and momentum with respect to volume*rhowt
-!newzcr=max(dd(1:ifull)+neta(1:ifull),minwater)
-!oldzcr=max(dd(1:ifull)+w_e(1:ifull), minwater)
-!do ii=1,wlev
-!  nt(1:ifull,ii)=nt(1:ifull,ii)*oldzcr/newzcr
-!  ns(1:ifull,ii)=ns(1:ifull,ii)*oldzcr/newzcr
-!  nu(1:ifull,ii)=nu(1:ifull,ii)*oldzcr/newzcr
-!  nv(1:ifull,ii)=nv(1:ifull,ii)*oldzcr/newzcr
-!end do
-
 ! salinity conservation
 if (nud_sss==0) then
   delpos=0.
@@ -1454,7 +1428,7 @@ if (nud_sss==0) then
   else
     do ii=1,wlev
       where(wtr(1:ifull).and.ndum>0.)
-        dum(:,ii)=ns(1:ifull,ii)-34.72
+        dum(:,ii)=ns(1:ifull,ii)*max(dd(1:ifull)+neta(1:ifull),minwater)-34.72*dd(1:ifull)
       elsewhere
         dum(:,ii)=0.
       end where
@@ -1464,7 +1438,7 @@ if (nud_sss==0) then
     alph_p = min(sqrt(alph_p),alph_p)
     do ii=1,wlev
       where(wtr(1:ifull).and.ndum>0.)
-        ns(1:ifull,ii)=34.72+max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)
+        ns(1:ifull,ii)=(34.72*dd(1:ifull)+max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p))/max(dd(1:ifull)+neta(1:ifull),minwater)
       end where
     end do
   end if

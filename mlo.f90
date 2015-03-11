@@ -1156,14 +1156,14 @@ if (calcprog) then
   call mlocalc(dt,atm_f,d_rho,d_nsq,d_rad,d_alpha,d_beta,d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,      &
                d_zcr,d_neta,diag)
   ! correct state variables for change in surface height
-  !old_zcr=d_zcr
-  !d_zcr=max(1.+water%eta/depth_hl(:,wlev+1),minwater/depth_hl(:,wlev+1))
-  !do ii=1,wlev
-  !  water%temp(:,ii)=water%temp(:,ii)*old_zcr/d_zcr
-  !  water%sal(:,ii) =water%sal(:,ii)*old_zcr/d_zcr
-  !  water%u(:,ii)   =water%u(:,ii)*old_zcr/d_zcr
-  !  water%v(:,ii)   =water%v(:,ii)*old_zcr/d_zcr
-  !end do
+  old_zcr=d_zcr
+  d_zcr=max(1.+water%eta/depth_hl(:,wlev+1),minwater/depth_hl(:,wlev+1))
+  do ii=1,wlev
+    water%temp(:,ii)=water%temp(:,ii)*old_zcr/d_zcr
+    water%sal(:,ii) =water%sal(:,ii)*old_zcr/d_zcr
+    water%u(:,ii)   =water%u(:,ii)*old_zcr/d_zcr
+    water%v(:,ii)   =water%v(:,ii)*old_zcr/d_zcr
+  end do
 end if
 ! screen diagnostics
 call scrncalc(atm_u,atm_v,atm_temp,atm_qg,atm_ps,atm_zmin,atm_zmins,diag)
