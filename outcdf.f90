@@ -645,7 +645,7 @@ if( myid==0 .or. local ) then
       lname = 'Ice temperature lev 4'
       call attrib(idnc,jdim(1:3),3,'tggsn4',lname,'K',100.,425.,0,itype)
       lname = 'Ice heat store'
-      call attrib(idnc,jdim(1:3),3,'sto',lname,'J/m2',0.,1300.,0,itype)
+      call attrib(idnc,jdim(1:3),3,'sto',lname,'J/m2',0.,1.3e10,0,itype)
       lname = 'x-component ice velocity'
       call attrib(idnc,jdim(1:3),3,'uic',lname,'m/s',-65.,65.,0,itype)
       lname = 'y-component ice velocity'
