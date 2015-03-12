@@ -1340,19 +1340,19 @@ elsewhere
 end where
 
 qmax=max(nit(1:ifull,1)-273.16,0.)*gamm(:,1)
-nit(1:ifull,1)=nit(1:ifull,1)-qmax/gamm(:,1)
+nit(1:ifull,1)=min(nit(1:ifull,1),273.16)
 nsto(1:ifull)=nsto(1:ifull)+qmax
 
 qmax=max(nit(1:ifull,2)-273.16,0.)*gamm(:,2)
-nit(1:ifull,2)=nit(1:ifull,2)-qmax/gamm(:,2)
+nit(1:ifull,2)=min(nit(1:ifull,2),273.16)
 nsto(1:ifull)=nsto(1:ifull)+qmax
 
 qmax=max(nit(1:ifull,3)-273.16,0.)*gamm(:,3)
-nit(1:ifull,3)=nit(1:ifull,3)-qmax/gamm(:,3)
+nit(1:ifull,3)=min(nit(1:ifull,3),273.16)
 nsto(1:ifull)=nsto(1:ifull)+qmax
 
 qmax=max(nit(1:ifull,4)-273.16,0.)*gamm(:,3)
-nit(1:ifull,4)=nit(1:ifull,4)-qmax/gamm(:,3)
+nit(1:ifull,4)=min(nit(1:ifull,4),273.16)
 nsto(1:ifull)=nsto(1:ifull)+qmax
 
 ! populate grid points that have no sea ice
