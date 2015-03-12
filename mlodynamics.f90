@@ -467,7 +467,7 @@ real, dimension(ifull) :: pue,puw,pvn,pvs
 real, dimension(ifull) :: que,quw,qvn,qvs
 real, dimension(ifull) :: piceu,picev,tideu,tidev,ipiceu,ipicev
 real, dimension(ifull) :: dumf,dumg
-real, dimension(ifull) :: newzcr,oldzcr
+real, dimension(ifull) :: newzcr,oldzcr,qmax
 real, dimension(ifull+iextra,wlev,6) :: cou
 real, dimension(ifull+iextra,wlev+1) :: eou,eov
 real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns,mps,dzdum_rho
@@ -698,7 +698,7 @@ xodum=max(dd(:)+neta(:),minwater)
 do ii=1,wlev
   depdum(:,ii)=gosig(ii)*xodum(1:ifull)
   dzdum(:,ii) =godsig(ii)*xodum(1:ifull)
-  dzdum_rho(:,ii)=godsig(ii)*dd(:) ! MJT suggestion to avoid density oscillations
+  dzdum_rho(:,ii)=godsig(ii)*dd(:) ! MJT suggestion to avoid density oscillations  
 end do
 
 ! Calculate normalised density rhobar (unstaggered at time t)
@@ -1339,6 +1339,22 @@ elsewhere
   nit(1:ifull,4)=273.16
 end where
 
+qmax=max(nit(1:ifull,1)-273.16,0.)*gamm(:,1)
+nit(1:ifull,1)=nit(1:ifull,1)-qmax/gamm(:,1)
+nsto(1:ifull)=nsto(1:ifull)+qmax
+
+qmax=max(nit(1:ifull,2)-273.16,0.)*gamm(:,2)
+nit(1:ifull,2)=nit(1:ifull,2)-qmax/gamm(:,2)
+nsto(1:ifull)=nsto(1:ifull)+qmax
+
+qmax=max(nit(1:ifull,3)-273.16,0.)*gamm(:,3)
+nit(1:ifull,3)=nit(1:ifull,3)-qmax/gamm(:,3)
+nsto(1:ifull)=nsto(1:ifull)+qmax
+
+qmax=max(nit(1:ifull,4)-273.16,0.)*gamm(:,3)
+nit(1:ifull,4)=nit(1:ifull,4)-qmax/gamm(:,3)
+nsto(1:ifull)=nsto(1:ifull)+qmax
+
 ! populate grid points that have no sea ice
 where ( nfracice(1:ifull)<1.E-4 .or. ndic(1:ifull)<1.E-4 )
   nfracice(1:ifull)=0.
@@ -1438,13 +1454,14 @@ if (nud_sss==0) then
     alph_p = min(sqrt(alph_p),alph_p)
     do ii=1,wlev
       where(wtr(1:ifull).and.ndum>0.)
-        ns(1:ifull,ii)=(34.72*dd(1:ifull)+max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p))/max(dd(1:ifull)+neta(1:ifull),minwater)
+        ns(1:ifull,ii)=(34.72*dd(1:ifull)+max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)) &
+                      /max(dd(1:ifull)+neta(1:ifull),minwater)
       end where
     end do
   end if
 end if
-  
-if (myid==0.and.(ktau<=5.or.maxglobseta>tol.or.maxglobip>itol)) then
+
+if ( myid==0 .and. (ktau<=5.or.maxglobseta>tol.or.maxglobip>itol) ) then
   write(6,*) "MLODYNAMICS ",totits,itc,maxglobseta,maxglobip
 end if
 
