@@ -4352,43 +4352,62 @@ real(kind=8), dimension(ifull) :: odum,dumd,tdum
 dumd=dumc(1:ifull)
 
 odum=0.5*dt*(niu(iwu)*(dumc(1:ifull)+dumc(iw))    -abs(niu(iwu))*(dumc(1:ifull)-dumc(iw))    )*emu(iwu)/ds
-tdum=dumc(iw)*max(niu(iwu)*emu(iwu),0.)/(ds*spnet(iw))
 where ( spnet(iw)>1.e-10 )
+  tdum=dumc(iw)*max(niu(iwu)*emu(iwu),0.)/(ds*spnet(iw))    
   odum=min(odum,tdum)
+elsewhere
+  odum=min(odum,0._8)
 end where
-tdum=dumc(1:ifull)*min(niu(iwu)*emu(iwu),0.)/(ds*spnet(1:ifull))
 where ( spnet(1:ifull)>1.e-10 )
+  tdum=dumc(1:ifull)*min(niu(iwu)*emu(iwu),0.)/(ds*spnet(1:ifull))
   odum=max(odum,tdum)
+elsewhere
+  odum=max(odum,0._8)
 end where
 dumd=dumd+odum
+
 odum=-0.5*dt*(niu(1:ifull)*(dumc(1:ifull)+dumc(ie))+abs(niu(1:ifull))*(dumc(1:ifull)-dumc(ie)))*emu(1:ifull)/ds
-tdum=-dumc(ie)*min(niu(1:ifull)*emu(1:ifull),0.)/(ds*spnet(ie))
 where ( spnet(ie)>1.e-10 )
+  tdum=-dumc(ie)*min(niu(1:ifull)*emu(1:ifull),0.)/(ds*spnet(ie))
   odum=min(odum,tdum)
+elsewhere
+  odum=min(odum,0._8)
 end where
-tdum=-dumc(1:ifull)*max(niu(1:ifull)*emu(1:ifull),0.)/(ds*spnet(1:ifull))
 where ( spnet(1:ifull)>1.e-10 )
+  tdum=-dumc(1:ifull)*max(niu(1:ifull)*emu(1:ifull),0.)/(ds*spnet(1:ifull))
   odum=max(odum,tdum)
+elsewhere
+  odum=max(odum,0._8)
 end where
 dumd=dumd+odum  
+
 odum=0.5*dt*(niv(isv)*(dumc(1:ifull)+dumc(is))    -abs(niv(isv))*(dumc(1:ifull)-dumc(is))    )*emv(isv)/ds
-tdum=dumc(is)*max(niv(isv)*emv(isv),0.)/(ds*spnet(is))
 where ( spnet(is)>1.e-10 )
+  tdum=dumc(is)*max(niv(isv)*emv(isv),0.)/(ds*spnet(is))
   odum=min(odum,tdum)
+elsewhere
+  odum=min(odum,0._8)
 end where
-tdum=dumc(1:ifull)*min(niv(isv)*emv(isv),0.)/(ds*spnet(1:ifull))
 where ( spnet(1:ifull)>1.e-10 )
+  tdum=dumc(1:ifull)*min(niv(isv)*emv(isv),0.)/(ds*spnet(1:ifull))
   odum=max(odum,tdum)
+elsewhere
+  odum=max(odum,0._8)
 end where
 dumd=dumd+odum
+
 odum=-0.5*dt*(niv(1:ifull)*(dumc(1:ifull)+dumc(in))+abs(niv(1:ifull))*(dumc(1:ifull)-dumc(in)))*emv(1:ifull)/ds
-tdum=-dumc(in)*min(niv(1:ifull)*emv(1:ifull),0.)/(ds*spnet(in))
 where ( spnet(in)>1.e-10 )
+  tdum=-dumc(in)*min(niv(1:ifull)*emv(1:ifull),0.)/(ds*spnet(in))    
   odum=min(odum,tdum)
+elsewhere
+  odum=min(odum,0._8)
 end where
-tdum=-dumc(1:ifull)*max(niv(1:ifull)*emv(1:ifull),0.)/(ds*spnet(1:ifull))
 where ( spnet(1:ifull)>1.e-10 )
+  tdum=-dumc(1:ifull)*max(niv(1:ifull)*emv(1:ifull),0.)/(ds*spnet(1:ifull))
   odum=max(odum,tdum)
+elsewhere
+  odum=max(odum,0._8)
 end where
 dumd=dumd+odum
 
