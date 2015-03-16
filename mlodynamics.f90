@@ -4094,7 +4094,7 @@ do ii = 2,wlev-1
   end where
 end do
 
-h = ddin(sindx)-ddin(sindx-1)
+h = max(ddin(sindx)-ddin(sindx-1),1.e-8)
 a = (ddin(sindx)-ddseek)/h
 b = (ddseek-ddin(sindx-1))/h
 
