@@ -1793,7 +1793,7 @@ if (nmlo/=0.and.abs(nmlo)<=9) then
       snowd=micdwn(:,7)*1000.
     end where          
   end if
-  mlodwn(1:ifull,1:wlev,1)=max(mlodwn(1:ifull,1:wlev,1),271.)
+  !mlodwn(1:ifull,1:wlev,1)=max(mlodwn(1:ifull,1:wlev,1),271.)
   mlodwn(1:ifull,1:wlev,2)=max(mlodwn(1:ifull,1:wlev,2),0.)
   micdwn(1:ifull,1:4)=min(max(micdwn(1:ifull,1:4),0.),300.)
   micdwn(1:ifull,11)=max(micdwn(1:ifull,11),0.)
