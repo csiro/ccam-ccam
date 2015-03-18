@@ -2324,7 +2324,7 @@ end do
 newdic=sum(sdic,2)
 newdic=min(maxnewice,newdic)
 newsal=min(water%sal(:,1),maxicesal) ! assume salinity increases with depth 
-lnewice=newdic>1.1*icemin !*fracbreak
+lnewice=newdic>1.1*icemin*(1.-ice%fracice) !*fracbreak
 cdic=0.
 do ii=1,wlev
   sdic(:,ii)=max(min(sdic(:,ii),newdic-cdic),0.)
