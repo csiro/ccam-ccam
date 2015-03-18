@@ -150,7 +150,6 @@ real, parameter :: rdry=287.04            ! Specific gas const for dry air
 real, parameter :: rvap=461.5             ! Gas constant for water vapor
 ! ice parameters
 real, parameter :: himin=0.1              ! minimum ice thickness for multiple layers (m)
-real, parameter :: fracbreak=0.05         ! minimum ice fraction (1D model)
 real, parameter :: icemin=0.01            ! minimum ice thickness (m)
 real, parameter :: icemax=6.              ! maximum ice thickness (m)
 real, parameter :: rhoic=900.             ! ice density (kg/m3)
@@ -344,6 +343,11 @@ end do
 do ii=2,wlev
   dz_hl(:,ii)=depth(:,ii)-depth(:,ii-1)
 end do
+
+if ( minsfc>minwater ) then
+  write(6,*) "ERROR: MLO parameters are invalid.  minsfc>minwater"
+  stop
+end if
 
 return
 end subroutine mloinit
@@ -1149,10 +1153,11 @@ if (calcprog) then
   ice%thick=d_ndic
   ice%snowd=d_ndsn
   ice%store=d_nsto
+
   call mloice(dt,atm_ps,d_alpha,d_beta,d_b0,d_wu0,d_wv0,d_wt0,d_ws0,d_ftop,d_tb,d_fb,d_timelt,       &
               d_ustar,d_nk,d_neta,d_zcr,diag)
   call mlonewice(dt,d_timelt,d_zcr,diag)
-
+  
   ! update water
   call mlocalc(dt,atm_f,d_rho,d_nsq,d_rad,d_alpha,d_beta,d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,      &
                d_zcr,d_neta,diag)
@@ -2230,13 +2235,12 @@ real, dimension(wfull,wlev), intent(in) :: d_alpha, d_beta
 real, dimension(wfull), intent(inout) :: d_b0, d_wu0, d_wv0, d_wt0, d_ws0, d_ftop, d_tb, d_fb, d_timelt
 real, dimension(wfull), intent(inout) :: d_ustar, d_neta, d_zcr
 real, dimension(wfull) :: d_salflxf, d_salflxs, d_wavail
-real, dimension(wfull) :: imass, ofracice, deld, xxx, newthick
+real, dimension(wfull) :: imass, deld, xxx, newthick
 
 d_salflxf=0.                                        ! fresh water flux
 d_salflxs=0.                                        ! salt water flux
 d_wavail=max(depth_hl(:,wlev+1)+d_neta-minwater,0.) ! water avaliable for freezing
 imass=max(rhoic*ice%thick+rhosn*ice%snowd,10.)      ! ice mass per unit area
-ofracice=ice%fracice                                ! save old ice fraction
 
 ! update ice prognostic variables
 call seaicecalc(dt,d_ftop,d_tb,d_fb,d_timelt,d_salflxf,d_salflxs,d_nk,d_wavail,diag)
@@ -2266,15 +2270,15 @@ d_salflxs=d_salflxs-deld*rhoic/dt ! saltwater leaving ocean to ice
 
 ! update water boundary conditions
 ! MJT notes - use rhowt reference density for Boussinesq fluid approximation
-d_wu0=d_wu0-ofracice*dgice%tauxicw/rhowt
-d_wv0=d_wv0-ofracice*dgice%tauyicw/rhowt
-d_wt0=d_wt0+ofracice*d_fb/(rhowt*cp0)
-d_ws0=d_ws0-ofracice*(d_salflxf*water%sal(:,1)/rhows0+d_salflxs*(water%sal(:,1)-ice%sal)/rhowt)
+d_wu0=d_wu0-ice%fracice*dgice%tauxicw/rhowt
+d_wv0=d_wv0-ice%fracice*dgice%tauyicw/rhowt
+d_wt0=d_wt0+ice%fracice*d_fb/(rhowt*cp0)
+d_ws0=d_ws0-ice%fracice*(d_salflxf*water%sal(:,1)/rhows0+d_salflxs*(water%sal(:,1)-ice%sal)/rhowt)
 d_ustar=sqrt(sqrt(max(d_wu0*d_wu0+d_wv0*d_wv0,1.E-24)))
 d_b0=-grav*(d_alpha(:,1)*d_wt0-d_beta(:,1)*d_ws0) ! -ve sign is to account for sign of wt0 and ws0
 
 ! update free surface height with water flux from ice
-d_neta=d_neta-dt*ofracice*(d_salflxf+d_salflxs)/rhowt
+d_neta=d_neta-dt*ice%fracice*(d_salflxf+d_salflxs)/rhowt
 
 return
 end subroutine mloice
@@ -2287,67 +2291,89 @@ subroutine mlonewice(dt,d_timelt,d_zcr,diag)
 implicit none
 
 integer, intent(in) :: diag
-integer iqw, ii
+integer iqw, ii, maxlevel
 real, intent(in) :: dt
 real aa, bb, dsf, deldz, avet, aves, aveto, aveso, delt, dels
+real newcap
 real, dimension(wfull,wlev) :: sdic
 real, dimension(wfull) :: newdic, newsal, newtn, newsl, cdic
 real, dimension(wfull), intent(inout) :: d_timelt, d_zcr
 real, dimension(wfull) :: maxnewice, d_wavail, old_zcr
 real, dimension(wfull) :: newfracice, worka, newthick
+real, dimension(wfull) :: minwatersal
 logical, dimension(wfull) :: lnewice
 logical lflag
 
 ! limits on ice formation
 d_wavail=max(depth_hl(:,wlev+1)+water%eta-minwater,0.)
-where ( ice%fracice<1. )
+where ( ice%fracice<0.999999 )
   maxnewice=d_wavail*rhowt/rhoic/(1.-ice%fracice)
 elsewhere
   maxnewice=0.
 end where
-maxnewice=max(min(maxnewice,0.15),0.)
+maxnewice=max(min(maxnewice,.99*himin),0.)
 
 ! formation
-! Search over all levels to avoid problems with thin surface layers
+
+! search for water temperatures that are below freezing
 sdic=0.
+minwatersal=maxicesal
+maxlevel=1
 do iqw=1,wfull
   dsf=0.
-  do ii=1,wlev-1
-    aa=dz(iqw,ii)*d_zcr(iqw)
-    bb=max(minsfc-dsf,0.)
-    deldz=min(aa,bb)
-    sdic(iqw,ii)=max(d_timelt(iqw)-water%temp(iqw,ii),0.)*cp0*rhowt*deldz/qice
-    dsf=dsf+deldz
-    if (bb<=0.) exit
-  end do
+  if ( ice%fracice(iqw)<0.999999 ) then
+    do ii=1,wlev-1
+      aa=dz(iqw,ii)*d_zcr(iqw)
+      bb=max(minsfc-dsf,0.)
+      deldz=min(aa,bb)
+      sdic(iqw,ii)=max(d_timelt(iqw)-water%temp(iqw,ii),0.)*cp0*rhowt*deldz/qice/(1.-ice%fracice(iqw))
+      dsf=dsf+deldz
+      minwatersal=min(minwatersal,water%sal(:,ii)) ! find minimum salinity
+      maxlevel=max(maxlevel,ii)
+      if (bb<=0.) exit
+    end do
+  end if
 end do
 newdic=sum(sdic,2)
 newdic=min(maxnewice,newdic)
-newsal=min(water%sal(:,1),maxicesal) ! assume salinity increases with depth 
-lnewice=newdic>1.1*icemin*(1.-ice%fracice) !*fracbreak
+newsal=min(minwatersal,maxicesal)
+lnewice=newdic>1.01*icemin
+
+! Adjust temperature and salinity in water column to balance ice formation
 cdic=0.
-do ii=1,wlev
+do ii=1,maxlevel
   sdic(:,ii)=max(min(sdic(:,ii),newdic-cdic),0.)
   cdic=cdic+sdic(:,ii)  
-  newtn=water%temp(:,ii)+(qice/(cp0*rhowt))*sdic(:,ii)/(dz(:,ii)*d_zcr)
-  newsl=water%sal(:,ii)+(water%sal(:,ii)-newsal)*sdic(:,ii)/(dz(:,ii)*d_zcr) ! use rhowt for both water and ice with salinity
-  where (lnewice)
+  where ( lnewice )
+    newtn=water%temp(:,ii)+(qice*sdic(:,ii)-273.05*gammi*(sdic(:,ii)/newdic))/(cp0*rhowt*dz(:,ii)*d_zcr)
+    newsl=water%sal(:,ii)+(water%sal(:,ii)-newsal)*sdic(:,ii)/(dz(:,ii)*d_zcr) ! use rhowt for both water and ice with salinity
     water%temp(:,ii)=water%temp(:,ii)*ice%fracice+newtn*(1.-ice%fracice)
     water%sal(:,ii)=water%sal(:,ii)*ice%fracice+newsl*(1.-ice%fracice)
   end where
 end do
-where ( lnewice ) ! form new sea-ice
-  ice%thick=ice%thick*ice%fracice+newdic*(1.-ice%fracice)
-  ice%snowd=ice%snowd*ice%fracice
-  ice%tsurf=ice%tsurf*ice%fracice+water%temp(:,1)*(1.-ice%fracice)
-  ice%temp(:,0)=ice%temp(:,0)*ice%fracice+water%temp(:,1)*(1.-ice%fracice)
-  ice%temp(:,1)=ice%temp(:,1)*ice%fracice+water%temp(:,1)*(1.-ice%fracice)
-  ice%temp(:,2)=ice%temp(:,2)*ice%fracice+water%temp(:,1)*(1.-ice%fracice)
-  ice%store=ice%store*ice%fracice
-  ice%sal=ice%sal*ice%fracice+newsal*(1.-ice%fracice)
-  water%eta=water%eta-newdic*(1.-ice%fracice)*rhoic/rhowt
-  ice%fracice=1. ! this will be adjusted for fracbreak below  
-endwhere
+
+! form new sea-ice
+do iqw=1,wfull
+  if ( lnewice(iqw) ) then 
+    newthick(iqw)=ice%thick(iqw)*ice%fracice(iqw)+newdic(iqw)*(1.-ice%fracice(iqw))
+    ice%tsurf(iqw)=ice%tsurf(iqw)*ice%fracice(iqw)+273.05*(1.-ice%fracice(iqw))
+    !ice%temp(iqw,0)*newsnowd=ice%temp(iqw,0)*ice%fracice(iqw)*ice%snowd(iqw)
+    newcap=max(cpi*newthick(iqw)-gammi,0.)
+    if ( newcap>1.e-8 ) then
+      ice%temp(iqw,1)=ice%temp(iqw,1)*ice%fracice(iqw)*max(cpi*ice%thick(iqw)-gammi,0.)/newcap
+      ice%temp(iqw,2)=ice%temp(iqw,2)*ice%fracice(iqw)*max(cpi*ice%thick(iqw)-gammi,0.)/newcap
+    else
+      ice%temp(iqw,1)=ice%tsurf(iqw)
+      ice%temp(iqw,2)=ice%tsurf(iqw)
+    end if
+    ice%store(iqw)=ice%store(iqw)*ice%fracice(iqw)
+    ice%sal(iqw)=ice%sal(iqw)*ice%fracice(iqw)+newsal(iqw)*(1.-ice%fracice(iqw))
+    water%eta(iqw)=water%eta(iqw)-newdic(iqw)*(1.-ice%fracice(iqw))*rhoic/rhowt
+    ice%thick(iqw)=newthick(iqw)
+    ice%snowd(iqw)=ice%snowd(iqw)*ice%fracice(iqw)
+    ice%fracice(iqw)=1. ! this will be adjusted for fracbreak below  
+  end if
+end do
 
 ! 1D model of ice break-up
 ! MJT notes - ice%thick=icemin implies zero energy stored in t1 and t2
@@ -2402,12 +2428,12 @@ do iqw=1,wfull
     water%eta(iqw)=water%eta(iqw)+(ice%thick(iqw)*rhoic+ice%snowd(iqw)*rhosn)*ice%fracice(iqw)/rhowt
     aves=aves/(1.+ice%snowd(iqw)*rhows0/(rhowt*dsf))
     aves=(aves+ice%thick(iqw)*ice%sal(iqw)/dsf)/(1.+ice%thick(iqw)/dsf)
-    avet=avet-ice%fracice(iqw)*gammi*(aveto-ice%tsurf(iqw))/(cp0*rhowt*dsf)
-    avet=avet-ice%fracice(iqw)*cps*ice%snowd(iqw)*(aveto-ice%temp(iqw,0))/(cp0*rhowt*dsf)
-    avet=avet-ice%fracice(iqw)*0.5*max(cpi*ice%thick(iqw)-gammi,0.)*(aveto-ice%temp(iqw,1))/(cp0*rhowt*dsf)
-    avet=avet-ice%fracice(iqw)*0.5*max(cpi*ice%thick(iqw)-gammi,0.)*(aveto-ice%temp(iqw,1))/(cp0*rhowt*dsf)
-    avet=avet-ice%fracice(iqw)*ice%thick(iqw)*qice/(cp0*rhowt*dsf)
-    avet=avet-ice%fracice(iqw)*ice%snowd(iqw)*qsnow/(cp0*rhowt*dsf)
+    avet=avet+ice%fracice(iqw)*gammi*ice%tsurf(iqw)/(cp0*rhowt*dsf)
+    avet=avet+ice%fracice(iqw)*cps*ice%snowd(iqw)*ice%temp(iqw,0)/(cp0*rhowt*dsf)
+    avet=avet+ice%fracice(iqw)*0.5*max(cpi*ice%thick(iqw)-gammi,0.)*ice%temp(iqw,1)/(cp0*rhowt*dsf)
+    avet=avet+ice%fracice(iqw)*0.5*max(cpi*ice%thick(iqw)-gammi,0.)*ice%temp(iqw,2)/(cp0*rhowt*dsf)
+    avet=avet+ice%fracice(iqw)*ice%thick(iqw)*qice/(cp0*rhowt*dsf)
+    avet=avet+ice%fracice(iqw)*ice%snowd(iqw)*qsnow/(cp0*rhowt*dsf)
     avet=avet+ice%fracice(iqw)*ice%store(iqw)/(cp0*rhowt*dsf)
     
     ! adjust temperature and salinity in water column

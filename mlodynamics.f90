@@ -1271,6 +1271,7 @@ if (myid==0.and.nmaxpr==1) then
 end if
 #endif
 
+
 ! Horizontal advection for ice area
 dumc(1:ifull,1)=fracice/(em(1:ifull)*em(1:ifull)) ! dumc(:,1) is an area
 ! Horizontal advection for ice volume
@@ -1295,7 +1296,7 @@ dumc(1:ifull,10)=spnet(1:ifull)
 call bounds(dumc(:,1:10))
 spnet(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,10)
 do ii=1,9
-  call upwindadv(dumc(:,ii),niu,niv,spnet)
+  call upwind_iceadv(dumc(:,ii),niu,niv,spnet)
 end do  
 nfracice(1:ifull)=dumc(1:ifull,1)*em(1:ifull)*em(1:ifull)
 nfracice(1:ifull)=min(max(nfracice(1:ifull),0.),maxicefrac)
@@ -1370,6 +1371,7 @@ elsewhere ( ndsn(1:ifull)<1.E-4 )
   ndsn(1:ifull)=0.
   nit(1:ifull,2)=273.16
 end where
+
 
 ! ocean
 ! use nu and nv for unstagged currents
@@ -4335,7 +4337,7 @@ end subroutine mloleap
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Advect ice using upwind scheme
 
-subroutine upwindadv(dumc,niu,niv,spnet)
+subroutine upwind_iceadv(dumc,niu,niv,spnet)
 
 use indices_m
 use map_m
@@ -4414,7 +4416,7 @@ dumd=dumd+odum
 dumc(1:ifull)=max(dumd,0._8)
   
 return
-end subroutine upwindadv
+end subroutine upwind_iceadv
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Use SOR to solve for free surface and ice pressure
