@@ -1161,35 +1161,36 @@ if (calcprog) then
   call mlocalc(dt,atm_f,d_rho,d_nsq,d_rad,d_alpha,d_beta,d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_zcr, &
                d_neta,diag)
   ! correct state variables for change in surface height
-  old_zcr=d_zcr
-  d_zcr=max(1.+water%eta/depth_hl(:,wlev+1),minwater/depth_hl(:,wlev+1))
-  do ii=1,wlev
-    water%temp(:,ii)=water%temp(:,ii)*old_zcr/d_zcr
-    water%sal(:,ii) =water%sal(:,ii)*old_zcr/d_zcr
-    water%u(:,ii)   =water%u(:,ii)*old_zcr/d_zcr
-    water%v(:,ii)   =water%v(:,ii)*old_zcr/d_zcr
-  end do
+  ! or assume water inflow is at the same temperature
+  !old_zcr=d_zcr
+  !d_zcr=max(1.+water%eta/depth_hl(:,wlev+1),minwater/depth_hl(:,wlev+1))
+  !do ii=1,wlev
+  !  water%temp(:,ii)=water%temp(:,ii)*old_zcr/d_zcr
+  !  water%sal(:,ii) =water%sal(:,ii)*old_zcr/d_zcr
+  !  water%u(:,ii)   =water%u(:,ii)*old_zcr/d_zcr
+  !  water%v(:,ii)   =water%v(:,ii)*old_zcr/d_zcr
+  !end do
 
 end if
 ! screen diagnostics
 call scrncalc(atm_u,atm_v,atm_temp,atm_qg,atm_ps,atm_zmin,atm_zmins,diag)
 
 workb=emisice**0.25*ice%tsurf
-sst    =unpack((1.-ice%fracice)*water%temp(:,1)+ice%fracice*workb,             wpack,sst)
+sst    =unpack((1.-ice%fracice)*water%temp(:,1)+ice%fracice*workb,wpack,sst)
 workc=(1.-ice%fracice)/log(atm_zmin/dgwater%zo)**2+ice%fracice/log(atm_zmin/dgice%zo)**2
-zo     =unpack(atm_zmin*exp(-1./sqrt(workc)),                                  wpack,zo)
-cd     =unpack((1.-ice%fracice)*dgwater%cd +ice%fracice*dgice%cd,              wpack,cd)
-cds    =unpack((1.-ice%fracice)*dgwater%cdh+ice%fracice*dgice%cdh,             wpack,cds)
-fg     =unpack((1.-ice%fracice)*dgwater%fg +ice%fracice*dgice%fg,              wpack,fg)
-eg     =unpack((1.-ice%fracice)*dgwater%eg +ice%fracice*dgice%eg,              wpack,eg)
-wetfac =unpack((1.-ice%fracice)            +ice%fracice*dgice%wetfrac,         wpack,wetfac)
-epan   =unpack(dgwater%eg,                                                     wpack,epan)
+zo     =unpack(atm_zmin*exp(-1./sqrt(workc)),wpack,zo)
+cd     =unpack((1.-ice%fracice)*dgwater%cd +ice%fracice*dgice%cd,wpack,cd)
+cds    =unpack((1.-ice%fracice)*dgwater%cdh+ice%fracice*dgice%cdh,wpack,cds)
+fg     =unpack((1.-ice%fracice)*dgwater%fg +ice%fracice*dgice%fg,wpack,fg)
+eg     =unpack((1.-ice%fracice)*dgwater%eg +ice%fracice*dgice%eg,wpack,eg)
+wetfac =unpack((1.-ice%fracice)            +ice%fracice*dgice%wetfrac,wpack,wetfac)
+epan   =unpack(dgwater%eg,wpack,epan)
 epot   =unpack((1.-ice%fracice)*dgwater%eg +ice%fracice*dgice%eg/max(dgice%wetfrac,1.e-20),wpack,epot)
 fracice=0.
-fracice=unpack(ice%fracice,                                                    wpack,fracice)
+fracice=unpack(ice%fracice,wpack,fracice)
 siced=0.
-siced  =unpack(ice%thick,                                                      wpack,siced)
-snowd  =unpack(ice%snowd,                                                      wpack,snowd)
+siced  =unpack(ice%thick,wpack,siced)
+snowd  =unpack(ice%snowd,wpack,snowd)
 
 return
 end subroutine mloeval
@@ -2011,7 +2012,7 @@ real, dimension(wfull) :: qsat,dqdt,ri,rho,srcp
 real, dimension(wfull) :: fm,fh,fq,con,consea,afroot,af,daf
 real, dimension(wfull) :: den,dfm,dden,dcon,sig,factch,root
 real, dimension(wfull) :: aft,afq,atu,atv,dcs,facqch
-real, dimension(wfull) :: vmagn,egmax,d_wavail
+real, dimension(wfull) :: vmagn,egmax,d_wavail,dumwatertemp
 real ztv
 ! momentum flux parameters
 real, parameter :: charnck=0.018
@@ -2026,15 +2027,16 @@ real, parameter :: zcom2 = 0.11
 real, parameter :: zcoh2 = 0.40
 real, parameter :: zcoq2 = 0.62
 
+dumwatertemp=max(water%temp(:,1),271.)
 sig=exp(-grav*atm_zmins/(rdry*atm_temp))
 srcp=sig**(rdry/cp)
 atu=atm_u-fluxwgt*water%u(:,1)-(1.-fluxwgt)*atm_oldu
 atv=atm_v-fluxwgt*water%v(:,1)-(1.-fluxwgt)*atm_oldv
 vmagn=sqrt(max(atu*atu+atv*atv,1.e-4))
-rho=atm_ps/(rdry*water%temp(:,1))
-ri=min(grav*(atm_zmin*atm_zmin/atm_zmins)*(1.-water%temp(:,1)*srcp/atm_temp)/vmagn**2,rimax)
+rho=atm_ps/(rdry*dumwatertemp)
+ri=min(grav*(atm_zmin*atm_zmin/atm_zmins)*(1.-dumwatertemp*srcp/atm_temp)/vmagn**2,rimax)
 
-call getqsat(qsat,dqdt,water%temp(:,1),atm_ps)
+call getqsat(qsat,dqdt,dumwatertemp,atm_ps)
 if (zomode==0) then ! CSIRO9
   qsat=0.98*qsat ! with Zeng 1998 for sea water
 end if
@@ -2140,8 +2142,10 @@ egmax=1000.*lv*d_wavail/(dt*max(1.-ice%fracice,0.01))
 
 ! explicit estimate of fluxes
 ! (replace with implicit scheme if water becomes too shallow)
-dgwater%fg=rho*dgwater%cdh*cp*vmagn*(water%temp(:,1)-atm_temp/srcp)
+dgwater%fg=rho*dgwater%cdh*cp*vmagn*(dumwatertemp-atm_temp/srcp)
+dgwater%fg=min(max(dgwater%fg,-3000.),3000.)
 dgwater%eg=min(rho*dgwater%cdq*lv*vmagn*(qsat-atm_qg),egmax)
+dgwater%eg=min(max(dgwater%eg,-3000.),3000.)
 dgwater%taux=rho*dgwater%cd*vmagn*atu
 dgwater%tauy=rho*dgwater%cd*vmagn*atv
 
@@ -2633,7 +2637,7 @@ it_tn0(:)  =ans(:,2)
 it_tn1(:)  =ans(:,3)
 it_tn2(:)  =ans(:,4)
 fl=2.*conc*(dt_tb-it_tn2)
-fl=max(-1000.,min(fl,1000.))
+fl=max(-3000.,min(fl,3000.))
 dhb=dt*(fl-dt_fb)/qice                    ! Excess flux between water and ice layer
 dhb=max(dhb,-it_dic)
 dhb=min(dhb,dt_wavail*rhowt/rhoic)
@@ -2803,7 +2807,7 @@ it_tsurf(:)=ans(:,1)
 it_tn0(:)  =ans(:,2)
 it_tn1(:)  =ans(:,3)
 fl=2.*condice*(dt_tb-it_tn1)
-fl=max(-1000.,min(fl,1000.))
+fl=max(-3000.,min(fl,3000.))
 dhb=dt*(fl-dt_fb)/qice              ! Excess flux between water and ice layer
 dhb=max(dhb,-it_dic)
 dhb=min(dhb,dt_wavail*rhowt/rhoic)
@@ -2975,7 +2979,7 @@ it_tsurf(:)=ans(:,1)
 it_tn1(:)  =ans(:,2)
 it_tn2(:)  =ans(:,3)
 fl=2.*conb*(dt_tb-it_tn2)
-fl=max(-1000.,min(fl,1000.))
+fl=max(-3000.,min(fl,3000.))
 dhb=dt*(fl-dt_fb)/qice                    ! first guess of excess flux between water and ice layer
 dhb=max(dhb,-it_dic)
 dhb=min(dhb,dt_wavail*rhowt/rhoic)
@@ -3125,7 +3129,7 @@ call thomas(ans,aa,bb,cc,dd)
 it_tsurf(:)=ans(:,1)
 it_tn1(:)  =ans(:,2)
 fl=2.*conb*(dt_tb-it_tn1)            ! flux between t1 and bottom
-fl=max(-1000.,min(fl,1000.))
+fl=max(-3000.,min(fl,3000.))
 dhb=dt*(fl-dt_fb)/qice               ! first guess of excess flux between water and ice layer
 dhb=max(dhb,-it_dic)
 dhb=min(dhb,dt_wavail*rhowt/rhoic)
@@ -3259,7 +3263,7 @@ it_tsurf=(gammi*it_tsurf+cps*it_dsn*it_tn0+0.5*max(cpi*it_dic-gammi,0.)*(it_tn1+
 ! Update tsurf based on fluxes from above and below
 tnew=(it_tsurf*gamm/dt+dt_ftop-pt_egice*lf/lv+con*dt_tb)/(gamm/dt+con)    ! predictor temperature for flux calculation
 f0=con*(dt_tb-tnew)                                                       ! first guess of flux from below
-f0=max(-1000.,min(f0,1000.))
+f0=max(-3000.,min(f0,3000.))
 dhb=dt*(f0-dt_fb)/qice                                                    ! excess flux converted to change in ice thickness
 dhb=max(dhb,-it_dic)
 dhb=min(dhb,dt_wavail*rhowt/rhoic)
@@ -3464,8 +3468,10 @@ dgice%cd =af*fm
 dgice%cdh=aft*fh
 dgice%cdq=afq*fq
 dgice%fg=rho*dgice%cdh*cp*vmagn*(dtsurf-atm_temp/srcp)
+dgice%fg=min(max(dgice%fg,-3000.),3000.)
 dgice%eg=dgice%wetfrac*rho*dgice%cdq*lv*vmagn*(qsat-atm_qg)
 dgice%eg=min(dgice%eg,d_ndic*qice/(lf*dt))
+dgice%eg=min(max(dgice%eg,-3000.),3000.)
 
 ! MJT notes - use ice%tsurf for outgoing longwave for consistency with radiation code
 d_ftop=-dgice%fg-dgice%eg+atm_rg-emisice*sbconst*ice%tsurf**4+atm_sg*(1.-alb)*(1.-eye) ! first guess
@@ -3513,7 +3519,7 @@ dgice%tauyicw=-rhowt*0.00536*icemagn*dv
 ustar=sqrt(sqrt(max(dgice%tauxicw*dgice%tauxicw+dgice%tauyicw*dgice%tauyicw,0.))/rhowt)
 ustar=max(ustar,5.E-4)
 d_fb=cp0*rhowt*0.006*ustar*(d_tb-d_timelt)
-d_fb=min(max(d_fb,-1000.),1000.)  
+d_fb=min(max(d_fb,-3000.),3000.)  
 
 ! Re-calculate fluxes to prevent overshoot (predictor-corrector)
 ! MJT notes - use ice%tsurf for outgoing longwave for consistency with radiation code
@@ -3521,8 +3527,10 @@ tnew=min(dtsurf+d_ftop/(gamm/dt+bot),273.2)
 tnew=0.5*(tnew+dtsurf)
 call getqsat(qsatnew,dqdt,tnew,atm_ps)
 dgice%fg=rho*dgice%cdh*cp*vmagn*(tnew-atm_temp/srcp)
+dgice%fg=min(max(dgice%fg,-3000.),3000.)
 dgice%eg=dgice%wetfrac*rho*dgice%cdq*lv*vmagn*(qsatnew-atm_qg)
 dgice%eg=min(dgice%eg,d_ndic*qice*lv/(lf*dt))
+dgice%eg=min(max(dgice%eg,-3000.),3000.)
 d_ftop=-dgice%fg-dgice%eg+atm_rg-emisice*sbconst*ice%tsurf**4+atm_sg*(1.-alb)*(1.-eye)
 ! Add flux of heat due to converting any rain to snowfall over ice
 d_ftop=d_ftop+lf*atm_rnd ! rain (mm/sec) to W/m**2

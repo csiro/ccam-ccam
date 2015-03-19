@@ -1417,6 +1417,29 @@ if (nud_sfh==0) then
   end if
 end if
 
+! temperature conservation
+!if (nud_sst==0) then
+!  delpos=0.
+!  delneg=0.
+!  do ii=1,wlev
+!    where(wtr(1:ifull))
+!      dum(:,ii)=nt(1:ifull,ii)*max(dd(1:ifull)+neta(1:ifull),minwater)-w_t(:,ii)*max(dd(1:ifull)+w_e(1:ifull),minwater)
+!    elsewhere
+!      dum(:,ii)=0.
+!    end where
+!  end do
+!  call ccglobal_posneg(dum,delpos,delneg,dsigin=godsig)
+!  alph_p = -delneg/max(delpos,1.E-20)
+!  alph_p = min(sqrt(alph_p),alph_p)
+!  do ii=1,wlev
+!    where(wtr(1:ifull))
+!      nt(1:ifull,ii)=(w_t(:,ii)*max(dd(1:ifull)+w_e(1:ifull),minwater)           &
+!                     +max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)) &
+!                     /max(dd(1:ifull)+neta(1:ifull),minwater)
+!    end where
+!  end do
+!end if
+
 ! salinity conservation
 if (nud_sss==0) then
   delpos=0.
@@ -1475,6 +1498,8 @@ if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: diffusion"
 end if
 #endif
+
+print *,"tgg19 ",minval(nt(1:ifull,1)),maxval(nt(1:ifull,1))
 
 uau=av_vmod*nu(1:ifull,:)+(1.-av_vmod)*oldu1
 uav=av_vmod*nv(1:ifull,:)+(1.-av_vmod)*oldv1
@@ -3865,8 +3890,9 @@ do ii=1,wlev-1
     fl(iq)=ww(iq,ii)*uu(iq,kx(iq,ii))
   end do
   cc=max(0.,min(1.,2.*rr),min(2.,rr)) ! superbee
-  fh=ww(:,ii)*0.5*(uu(:,ii)+uu(:,ii+1)) &
-   -0.5*(uu(:,ii+1)-uu(:,ii))*ww(:,ii)**2*dtnew(:)/max(depadj(:,ii+1)-depadj(:,ii),1.E-10)
+  fh=ww(:,ii)*0.5*(uu(:,ii)+uu(:,ii+1))             &
+   -0.5*(uu(:,ii+1)-uu(:,ii))*ww(:,ii)**2*dtnew(:)  &
+   /max(depadj(:,ii+1)-depadj(:,ii),1.E-10)
   ff(:,ii)=fl+cc*(fh-fl)
   !ff(:,ii)=ww(:,ii)*0.5*(uu(1:ifull,ii)+uu(1:ifull,ii+1)) ! explicit
 end do
@@ -3889,8 +3915,9 @@ do iq=1,ifull
       rr(iq)=delu(iq,ii-kp(iq,ii))/(delu(iq,ii)+sign(1.E-20,delu(iq,ii)))
       fl(iq)=ww(iq,ii)*uu(iq,kx(iq,ii))
       cc(iq)=max(0.,min(1.,2.*rr(iq)),min(2.,rr(iq))) ! superbee
-      fh(iq)=ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1)) &
-        -0.5*(uu(iq,ii+1)-uu(iq,ii))*ww(iq,ii)**2*dtnew(iq)/max(depadj(iq,ii+1)-depadj(iq,ii),1.E-10)
+      fh(iq)=ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1))          &
+        -0.5*(uu(iq,ii+1)-uu(iq,ii))*ww(iq,ii)**2*dtnew(iq) &
+        /max(depadj(iq,ii+1)-depadj(iq,ii),1.E-10)
       ff(iq,ii)=fl(iq)+cc(iq)*(fh(iq)-fl(iq))
     end do
   
