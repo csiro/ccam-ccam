@@ -2678,12 +2678,12 @@ smax=min(smax,it_dic-icemin)
 it_sto=it_sto-smax*qice
 dt_salflxs=dt_salflxs-smax*rhoic/dt
 newdic=it_dic-smax
-newcap=cpi*newdic-gammi
+newcap=max(cpi*newdic-gammi,0.)
 where ( newdic>it_dic )
   it_tn1=it_tn1*(cpi*it_dic-gammi)/newcap
   it_tn2=it_tn2*(cpi*it_dic-gammi)/newcap
 elsewhere
-  it_sto=it_sto+0.5*(it_tn1+it_tn2)*(cpi*it_dic-gammi-newcap)
+  it_sto=it_sto+0.5*(it_tn1+it_tn2)*(max(cpi*it_dic-gammi,0.)-newcap)
 end where
 it_dic=newdic
 
@@ -2697,10 +2697,12 @@ it_sto=it_sto+it_tn0*cps*(it_dsn-newdsn)
 it_dsn=newdsn
 
 ! use stored heat in brine pockets to keep temperature at -0.1 until heat is used up
-qneed=(dt_timelt-it_tn1)*0.5*(cpi*it_dic-gammi) ! J/m**2
+qneed=(dt_timelt-it_tn1)*0.5*max(cpi*it_dic-gammi,0.) ! J/m**2
 qneed=max(min(qneed,it_sto),0.)
-it_tn1=it_tn1+qneed/(0.5*(cpi*it_dic-gammi))
-it_sto=it_sto-qneed
+where ( cpi*it_dic-gammi>1.e-8 )
+  it_tn1=it_tn1+2.*qneed/(cpi*it_dic-gammi)
+  it_sto=it_sto-qneed
+end where
 
 ! the following are snow to ice processes
 xxx=it_dic+it_dsn-(rhosn*it_dsn+rhoic*it_dic)/rhowt ! white ice formation
@@ -2708,10 +2710,16 @@ excess=max(it_dsn-xxx,0.)*rhosn/rhowt               ! white ice formation
 excess=excess+max(it_dsn-excess*rhowt/rhosn-0.2,0.)*rhosn/rhowt  ! Snow depth limitation and conversion to ice
 newdsn=it_dsn-excess*rhowt/rhosn
 newdic=it_dic+excess*rhowt/rhoic
-newcap=cpi*newdic-gammi
+newcap=max(cpi*newdic-gammi,0.)
 it_tn0=it_tn0*it_dsn/newdsn
-it_tn1=it_tn1*(cpi*it_dic-gammi)/newcap
-it_tn2=it_tn2*(cpi*it_dic-gammi)/newcap
+where ( newcap>1.e-8 )
+  it_tn1=it_tn1*(cpi*it_dic-gammi)/newcap
+  it_tn2=it_tn2*(cpi*it_dic-gammi)/newcap
+elsewhere
+  it_tsurf=it_tsurf+0.5*(it_tn1+it_tn2)*max(cpi*it_dic-gammi,0.)/gammi
+  it_tn1=it_tsurf
+  it_tn2=it_tsurf
+end where
 it_dsn=newdsn
 it_dic=newdic
 dt_salflxf=dt_salflxf-excess*rhowt/dt
@@ -2846,11 +2854,11 @@ smax=min(smax,it_dic-icemin)
 it_sto=it_sto-smax*qice
 dt_salflxs=dt_salflxs-smax*rhoic/dt
 newdic=it_dic-smax
-newcap=cpi*newdic-gammi
+newcap=max(cpi*newdic-gammi,0.)
 where ( newdic>it_dic )
   it_tn1=it_tn1*(cpi*it_dic-gammi)/newcap
 elsewhere
-  it_sto=it_sto+it_tn1*(cpi*it_dic-gammi-newcap)
+  it_sto=it_sto+it_tn1*(max(cpi*it_dic-gammi,0.)-newcap)
 end where
 it_dic=newdic
 
@@ -2868,8 +2876,13 @@ sbrine=min(it_sto/qice,max(it_dic-icemin,0.))
 it_sto=it_sto-sbrine*qice
 dt_salflxs=dt_salflxs-sbrine*rhoic/dt
 newdic=it_dic-sbrine
-newcap=cpi*newdic-gammi
-it_tn1=it_tn1*(cpi*it_dic-gammi)/newcap
+newcap=max(cpi*newdic-gammi,0.)
+where ( newcap>1.e-8 )
+  it_tn1=it_tn1*max(cpi*it_dic-gammi,0.)/newcap
+elsewhere
+  it_tsurf=it_tsurf+it_tn1*max(cpi*it_dic-gammi,0.)/gammi
+  it_tn1=it_tsurf
+end where
 it_dic=newdic
 
 ! the following are snow to ice processes
@@ -2878,9 +2891,14 @@ excess=max(it_dsn-xxx,0.)*rhosn/rhowt               ! white ice formation
 excess=excess+max(it_dsn-excess*rhowt/rhosn-0.2,0.)*rhosn/rhowt  ! Snow depth limitation and conversion to ice
 newdsn=it_dsn-excess*rhowt/rhosn
 newdic=it_dic+excess*rhowt/rhoic
-newcap=cpi*newdic-gammi
+newcap=max(cpi*newdic-gammi,0.)
 it_tn0=it_tn0*it_dsn/newdsn
-it_tn1=it_tn1*(cpi*it_dic-gammi)/newcap
+where ( newcap>1.e-8 )
+  it_tn1=it_tn1*max(cpi*it_dic-gammi,0.)/newcap
+elsewhere
+  it_tsurf=it_tsurf+it_tn1*max(cpi*it_dic-gammi,0.)/gammi
+  it_tn1=it_tsurf
+end where
 it_dsn=newdsn
 it_dic=newdic
 dt_salflxf=dt_salflxf-excess*rhowt/dt
@@ -3020,12 +3038,12 @@ smax=min(smax,it_dic-icemin)
 it_sto=it_sto-smax*qice
 dt_salflxs=dt_salflxs-smax*rhoic/dt
 newdic=it_dic-smax
-newcap=cpi*newdic-gammi
+newcap=max(cpi*newdic-gammi,0.)
 where ( newdic>it_dic )
   it_tn1=it_tn1*(cpi*it_dic-gammi)/newcap
   it_tn2=it_tn2*(cpi*it_dic-gammi)/newcap
 elsewhere
-  it_sto=it_sto+0.5*(it_tn1+it_tn2)*(cpi*it_dic-gammi-newcap)
+  it_sto=it_sto+0.5*(it_tn1+it_tn2)*(max(cpi*it_dic-gammi,0.)-newcap)
 end where
 it_dic=newdic
 
@@ -3046,15 +3064,17 @@ simelt=min(simelt,max(it_dic-icemin,0.))
 it_tsurf=it_tsurf-simelt*qice/gammi
 dt_salflxs=dt_salflxs-simelt*rhoic/dt
 newdic=it_dic-simelt
-newcap=cpi*newdic-gammi
-it_sto=it_sto+0.5*(it_tn1+it_tn2)*(cpi*it_dic-gammi-newcap)
+newcap=max(cpi*newdic-gammi,0.)
+it_sto=it_sto+0.5*(it_tn1+it_tn2)*(max(cpi*it_dic-gammi,0.)-newcap)
 it_dic=newdic
 
 ! update brine store for middle layer
-qneed=(dt_timelt-it_tn1)*0.5*(cpi*it_dic-gammi) ! J/m**2
+qneed=(dt_timelt-it_tn1)*0.5*max(cpi*it_dic-gammi,0.) ! J/m**2
 qneed=max(min(qneed,it_sto),0.)
-it_tn1=it_tn1+qneed/(0.5*(cpi*it_dic-gammi))
-it_sto=it_sto-qneed
+where ( cpi*it_dic-gammi>1.e-8 )
+  it_tn1=it_tn1+2.*qneed/(cpi*it_dic-gammi)
+  it_sto=it_sto-qneed
+end where
 
 ! test whether to change number of layers
 htdown=2.*himin
@@ -3173,11 +3193,11 @@ smax=min(smax,max(it_dic-icemin,0.))
 it_sto=it_sto-smax*qice
 dt_salflxs=dt_salflxs-smax*rhoic/dt
 newdic=it_dic-smax
-newcap =cpi*newdic-gammi
+newcap=max(cpi*newdic-gammi,0.)
 where ( newdic>it_dic )
   it_tn1=it_tn1*(cpi*it_dic-gammi)/newcap
 elsewhere
-  it_sto=it_sto+it_tn1*(cpi*it_dic-gammi-newcap)
+  it_sto=it_sto+it_tn1*(max(cpi*it_dic-gammi,0.)-newcap)
 end where
 it_dic=newdic
 
@@ -3207,8 +3227,13 @@ sbrine=min(it_sto/qice,max(it_dic-icemin,0.))
 it_sto=it_sto-sbrine*qice
 dt_salflxs=dt_salflxs-sbrine*rhoic/dt
 newdic=it_dic-sbrine
-newcap=cpi*newdic-gammi
-it_tn1=it_tn1*(cpi*it_dic-gammi)/newcap
+newcap=max(cpi*newdic-gammi,0.)
+where ( newcap>1.e-8 )
+  it_tn1=it_tn1*max(cpi*it_dic-gammi,0.)/newcap
+elsewhere
+  it_tsurf=it_tsurf+it_tn1*max(cpi*it_dic-gammi,0.)/gamm
+  it_tn1=it_tsurf
+end where
 it_dic=newdic
 
 ! test whether to change number of layers
