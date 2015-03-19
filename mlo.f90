@@ -2310,7 +2310,7 @@ where ( ice%fracice<0.999999 )
 elsewhere
   maxnewice=0.
 end where
-maxnewice=max(min(maxnewice,.9*himin),0.)
+maxnewice=max(min(maxnewice,.99*himin),0.)
 
 ! formation
 
