@@ -2344,7 +2344,7 @@ do ii=1,maxlevel
   sdic(:,ii)=max(min(sdic(:,ii),newdic-cdic),0.)
   cdic=cdic+sdic(:,ii)  
   where ( lnewice )
-    newtn=water%temp(:,ii)+(qice*sdic(:,ii)-273.05*gammi*(sdic(:,ii)/newdic))/(cp0*rhowt*dz(:,ii)*d_zcr)
+    newtn=water%temp(:,ii)+(qice*sdic(:,ii)-271.*gammi*(sdic(:,ii)/newdic))/(cp0*rhowt*dz(:,ii)*d_zcr)
     newsl=water%sal(:,ii)+(water%sal(:,ii)-newsal)*sdic(:,ii)/(dz(:,ii)*d_zcr) ! use rhowt for both water and ice with salinity
     water%temp(:,ii)=water%temp(:,ii)*ice%fracice+newtn*(1.-ice%fracice)
     water%sal(:,ii)=water%sal(:,ii)*ice%fracice+newsl*(1.-ice%fracice)
@@ -2355,7 +2355,7 @@ end do
 do iqw=1,wfull
   if ( lnewice(iqw) ) then 
     newthick(iqw)=ice%thick(iqw)*ice%fracice(iqw)+newdic(iqw)*(1.-ice%fracice(iqw))
-    ice%tsurf(iqw)=ice%tsurf(iqw)*ice%fracice(iqw)+273.05*(1.-ice%fracice(iqw))
+    ice%tsurf(iqw)=ice%tsurf(iqw)*ice%fracice(iqw)+271.*(1.-ice%fracice(iqw))
     !ice%temp(iqw,0)*newsnowd=ice%temp(iqw,0)*ice%fracice(iqw)*ice%snowd(iqw)
     newcap=max(cpi*newthick(iqw)-gammi,0.)
     ice%tsurf(iqw)=ice%tsurf(iqw)+0.5*(ice%temp(iqw,1)+ice%temp(iqw,2))              &
@@ -2387,11 +2387,11 @@ end do
 !     newfracice   =ice%fracice*worka
 !     newthick     =ice%thick/worka
 !     ice%tsurf    =ice%tsurf*ice%fracice/newfracice
-!     ice%temp(:,0)=ice%temp(:,0)*ice%fracice/newfracice
-!     ice%temp(:,1)=ice%temp(:,1)*(cpi*ice%thick-gammi)*ice%fracice/((cpi*newthick-gammi)*newfracice)
-!     ice%temp(:,2)=ice%temp(:,2)*(cpi*ice%thick-gammi)*ice%fracice/((cpi*newthick-gammi)*newfracice)
+!     ice%tsurf    =ice%tsurf+0.5*(ice%temp(:,1)+ice%temp(:2))*(ice%fracice*max(cpi*ice%thick-gammi,0.) &
+!                  -newfracice*max(cpi*newthick-gammi,0.))/gammi
 !     ice%fracice  =newfracice
 !     ice%thick    =newthick
+!     ice%snowd    =ice%snowd*ice%fracice/newfracice
 !  end where
 !end if
 
