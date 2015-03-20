@@ -2359,10 +2359,10 @@ end do
 do iqw=1,wfull
   if ( lnewice(iqw) ) then 
     newthick(iqw)=ice%thick(iqw)*ice%fracice(iqw)+newdic(iqw)*(1.-ice%fracice(iqw))
-    ice%tsurf(iqw)=ice%tsurf(iqw)*ice%fracice(iqw)+water%temp(iwq,1)*(1.-ice%fracice(iqw))
+    ice%tsurf(iqw)=ice%tsurf(iqw)*ice%fracice(iqw)+water%temp(iqw,1)*(1.-ice%fracice(iqw))
     !ice%temp(iqw,0)*newsnowd=ice%temp(iqw,0)*ice%fracice(iqw)*ice%snowd(iqw)
-    ice%temp(iwq,1)=ice%temp(iqw,1)*ice%fracice(iqw)+water%temp(iqw,1)*(1.-ice%fracice(iqw))
-    ice%temp(iwq,2)=ice%temp(iqw,2)*ice%fracice(iqw)+water%temp(iqw,1)*(1.-ice%fracice(iqw))
+    ice%temp(iqw,1)=ice%temp(iqw,1)*ice%fracice(iqw)+water%temp(iqw,1)*(1.-ice%fracice(iqw))
+    ice%temp(iqw,2)=ice%temp(iqw,2)*ice%fracice(iqw)+water%temp(iqw,1)*(1.-ice%fracice(iqw))
     ice%store(iqw)=ice%store(iqw)*ice%fracice(iqw)
     ice%sal(iqw)=ice%sal(iqw)*ice%fracice(iqw)+newsal(iqw)*(1.-ice%fracice(iqw))
     water%eta(iqw)=water%eta(iqw)-newdic(iqw)*(1.-ice%fracice(iqw))*rhoic/rhowt
