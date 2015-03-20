@@ -1156,7 +1156,7 @@ if (calcprog) then
   
   call mloice(dt,atm_ps,d_alpha,d_beta,d_b0,d_wu0,d_wv0,d_wt0,d_ws0,d_ftop,d_tb,d_fb,d_timelt,       &
               d_ustar,d_nk,d_neta,d_zcr,diag)
-  call mlonewice(dt,d_timelt,d_zcr,diag)
+  !call mlonewice(dt,d_timelt,d_zcr,diag)
   
   ! update water
   call mlocalc(dt,atm_f,d_rho,d_nsq,d_rad,d_alpha,d_beta,d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_zcr, &
