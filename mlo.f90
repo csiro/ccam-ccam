@@ -2303,7 +2303,7 @@ real, dimension(wfull) :: newdic, newsal, newtn, newsl, cdic
 real, dimension(wfull), intent(inout) :: d_timelt, d_zcr
 real, dimension(wfull) :: maxnewice, d_wavail, old_zcr
 real, dimension(wfull) :: newfracice, worka, newthick
-real, dimension(wfull) :: minwatersal
+real, dimension(wfull) :: minwatersal, avetemp, newicetemp
 logical, dimension(wfull) :: lnewice
 logical lflag
 
@@ -2355,14 +2355,29 @@ do ii=1,maxlevel
   end where
 end do
 
+! calculate temperature of water to be converted to ice
+! MJT notes - should also calculate this for salinity conservation
+!avetemp=0.
+!do ii=1,wlev
+!  avetemp=avetemp+water%temp(:,ii)*dz(:,ii)
+!end do
+!avetemp=avetemp/depth_hl(:,wlev+1)
+!newicetemp=avetemp*cp0*rhowt*newdic/gammi
+
 ! form new sea-ice
 do iqw=1,wfull
-  if ( lnewice(iqw) ) then 
+  if ( lnewice(iqw) ) then
     newthick(iqw)=ice%thick(iqw)*ice%fracice(iqw)+newdic(iqw)*(1.-ice%fracice(iqw))
+    !ice%tsurf(iqw)=ice%tsurf(iqw)*ice%fracice(iqw)+newicetemp(iqw)*(1.-ice%fracice(iqw))
     ice%tsurf(iqw)=ice%tsurf(iqw)*ice%fracice(iqw)+water%temp(iqw,1)*(1.-ice%fracice(iqw))
-    !ice%temp(iqw,0)*newsnowd=ice%temp(iqw,0)*ice%fracice(iqw)*ice%snowd(iqw)
-    ice%temp(iqw,1)=ice%temp(iqw,1)*ice%fracice(iqw)+water%temp(iqw,1)*(1.-ice%fracice(iqw))
-    ice%temp(iqw,2)=ice%temp(iqw,2)*ice%fracice(iqw)+water%temp(iqw,1)*(1.-ice%fracice(iqw))
+    !ice%temp(iqw,0)*newsnowd(iqw)=ice%temp(iqw,0)*ice%fracice(iqw)*ice%snowd(iqw)
+    if ( newthick(iqw)>himin ) then
+      ice%temp(iqw,1)=ice%temp(iqw,1)*max(cpi*ice%thick(iqw)-gammi,0.)/(cpi*newthick(iqw)-gammi)
+      ice%temp(iqw,2)=ice%temp(iqw,2)*max(cpi*ice%thick(iqw)-gammi,0.)/(cpi*newthick(iqw)-gammi)
+    else
+      ice%temp(iqw,1)=ice%tsurf(iqw)
+      ice%temp(iqw,2)=ice%tsurf(iqw)
+    end if
     ice%store(iqw)=ice%store(iqw)*ice%fracice(iqw)
     ice%sal(iqw)=ice%sal(iqw)*ice%fracice(iqw)+newsal(iqw)*(1.-ice%fracice(iqw))
     water%eta(iqw)=water%eta(iqw)-newdic(iqw)*(1.-ice%fracice(iqw))*rhoic/rhowt
@@ -2374,33 +2389,44 @@ end do
 
 ! 1D model of ice break-up
 ! MJT notes - ice%thick=icemin implies zero energy stored in t1 and t2
-newthick=1.01*icemin
-newfracice=ice%fracice*ice%thick/newthick
-where ( ice%thick<newthick .and. newfracice>fracbreak )
-  ice%tsurf    =ice%tsurf*ice%fracice/newfracice
-  !ice%temp(iqw,0)*newsnowd=ice%temp(iqw,0)*ice%fracice(iqw)*ice%snowd(iqw)
-  ice%temp(:,1)=ice%tsurf
-  ice%temp(:,2)=ice%tsurf
-  ice%snowd    =ice%snowd*ice%fracice/newfracice
-  ice%thick    =newthick
-  ice%fracice  =newfracice
-end where
-if ( onedice==1 ) then
-  where ( ice%fracice<1. .and. ice%thick>icemin )
-     worka=min(ice%thick/(1.01*icemin),1./max(ice%fracice,fracbreak))
-     worka=max(worka,1.)
-     newfracice   =ice%fracice*worka
-     newthick     =ice%thick/worka
-     ice%tsurf    =ice%tsurf*ice%fracice/newfracice
-     !ice%tsurf    =ice%tsurf+0.5*(ice%temp(:,1)+ice%temp(:,2))*(ice%fracice*max(cpi*ice%thick-gammi,0.) &
-     !             -newfracice*max(cpi*newthick-gammi,0.))/gammi
-     ice%fracice  =newfracice
-     ice%thick    =newthick
-     ice%snowd    =ice%snowd*ice%fracice/newfracice
-  end where
-end if
+!newthick=1.01*icemin
+!newfracice=ice%fracice*ice%thick/newthick
+!where ( ice%thick<newthick .and. newfracice>fracbreak )
+!  ice%tsurf    =ice%tsurf*ice%fracice/newfracice
+!  !ice%temp(:,0)*newsnowd=ice%temp(:,0)*ice%fracice*ice%snowd
+!  ice%temp(:,1)=ice%tsurf
+!  ice%temp(:,2)=ice%tsurf
+!  ice%snowd    =ice%snowd*ice%fracice/newfracice
+!  ice%thick    =newthick
+!  ice%fracice  =newfracice
+!end where
+!if ( onedice==1 ) then
+!  where ( ice%fracice<1. .and. ice%thick>1.01*icemin )
+!     worka=min(ice%thick/(1.01*icemin),1./max(ice%fracice,fracbreak))
+!     worka=max(worka,1.)
+!     newfracice   =ice%fracice*worka
+!     newthick     =ice%thick/worka
+!     ice%tsurf    =ice%tsurf*ice%fracice/newfracice
+!     !ice%temp(:,0)*newsnowd=ice%temp(:,0)*ice%fracice*ice%snowd
+!     ! assume that ice%thick is < 0.5*himin so that the following terms are zero
+!     !ice%temp(:,1)*max(cpi*newthick-gammi,0.)=ice%temp(:,1)*max(cpi*ice%thick-gammi,0.)
+!     !ice%temp(:,2)*max(cpi*newthick-gammi,0.)=ice%temp(:,2)*max(cpi*ice%thick-gammi,0.)
+!     ice%fracice  =newfracice
+!     ice%thick    =newthick
+!     ice%snowd    =ice%snowd*ice%fracice/newfracice
+!  end where
+!end if
+
+! calculate temperature of water to be converted to ice
+! MJT notes - should also calculate this for salinity conservation
+!avetemp=0.
+!do ii=1,wlev
+!  avetemp=avetemp+water%temp(:,ii)*dz(:,ii)
+!end do
+!avetemp=avetemp/depth_hl(:,wlev+1)
 
 ! removal
+newdic=(ice%thick*rhoic+ice%snowd*rhosn)*ice%fracice/rhowt
 do iqw=1,wfull
   if ( ice%thick(iqw)<=icemin .and. ice%fracice(iqw)>0. ) then
 
@@ -2424,13 +2450,14 @@ do iqw=1,wfull
   
     ! update average temperature and salinity
     ! use rhowt as a reference density
-    water%eta(iqw)=water%eta(iqw)+(ice%thick(iqw)*rhoic+ice%snowd(iqw)*rhosn)*ice%fracice(iqw)/rhowt
+    water%eta(iqw)=water%eta(iqw)+newdic(iqw)
     aves=aves/(1.+ice%snowd(iqw)*rhows0/(rhowt*dsf))
     aves=(aves+ice%thick(iqw)*ice%sal(iqw)/dsf)/(1.+ice%thick(iqw)/dsf)
+    !avet=avet+(ice%fracice(iqw)*gammi*ice%tsurf(iqw)-avetemp(iqw)*cp0*rhowt*newdic(iqw))/(cp0*rhowt*dsf)
     avet=avet+ice%fracice(iqw)*gammi*(ice%tsurf(iqw)-water%temp(iqw,1))/(cp0*rhowt*dsf)
-    avet=avet+ice%fracice(iqw)*cps*ice%snowd(iqw)*(ice%temp(iqw,0)-water%temp(iqw,1))/(cp0*rhowt*dsf)
-    avet=avet+ice%fracice(iqw)*0.5*max(cpi*ice%thick(iqw)-gammi,0.)*(ice%temp(iqw,1)-water%temp(iqw,1))/(cp0*rhowt*dsf)
-    avet=avet+ice%fracice(iqw)*0.5*max(cpi*ice%thick(iqw)-gammi,0.)*(ice%temp(iqw,2)-water%temp(iqw,1))/(cp0*rhowt*dsf)
+    avet=avet+ice%fracice(iqw)*cps*ice%snowd(iqw)*ice%temp(iqw,0)/(cp0*rhowt*dsf)
+    avet=avet+ice%fracice(iqw)*0.5*max(cpi*ice%thick(iqw)-gammi,0.)*ice%temp(iqw,1)/(cp0*rhowt*dsf)
+    avet=avet+ice%fracice(iqw)*0.5*max(cpi*ice%thick(iqw)-gammi,0.)*ice%temp(iqw,2)/(cp0*rhowt*dsf)
     avet=avet+ice%fracice(iqw)*ice%thick(iqw)*qice/(cp0*rhowt*dsf)
     avet=avet+ice%fracice(iqw)*ice%snowd(iqw)*qsnow/(cp0*rhowt*dsf)
     avet=avet+ice%fracice(iqw)*ice%store(iqw)/(cp0*rhowt*dsf)
