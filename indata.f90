@@ -1778,10 +1778,10 @@ if (nmlo/=0.and.abs(nmlo)<=9) then
     micdwn(:,4)=tss
     micdwn(:,5:6)=0.
     where (fracice>0.)
-      micdwn(:,1)=min(tss,273.16)
-      micdwn(:,2)=min(tss,273.16)
-      micdwn(:,3)=min(tss,273.16)
-      micdwn(:,4)=min(tss,273.16)
+      micdwn(:,1)=min(tss,271.)
+      micdwn(:,2)=min(tss,271.)
+      micdwn(:,3)=min(tss,271.)
+      micdwn(:,4)=min(tss,271.)
       micdwn(:,5)=1.
       micdwn(:,6)=1.
     end where
