@@ -2459,16 +2459,6 @@ do iqw=1,wfull
   end if
 end do
 
-! correct state variables for change in surface height
-old_zcr=d_zcr
-d_zcr=max(1.+water%eta/depth_hl(:,wlev+1),minwater/depth_hl(:,wlev+1))
-do ii=1,wlev
-  water%temp(:,ii)=water%temp(:,ii)*old_zcr/d_zcr
-  water%sal(:,ii) =water%sal(:,ii)*old_zcr/d_zcr
-  water%u(:,ii)   =water%u(:,ii)*old_zcr/d_zcr
-  water%v(:,ii)   =water%v(:,ii)*old_zcr/d_zcr
-end do
-
 return
 end subroutine mlonewice
 

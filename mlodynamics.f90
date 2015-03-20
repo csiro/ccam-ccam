@@ -1499,8 +1499,6 @@ if (myid==0.and.nmaxpr==1) then
 end if
 #endif
 
-print *,"tgg19 ",minval(nt(1:ifull,1)),maxval(nt(1:ifull,1))
-
 uau=av_vmod*nu(1:ifull,:)+(1.-av_vmod)*oldu1
 uav=av_vmod*nv(1:ifull,:)+(1.-av_vmod)*oldv1
 call mlodiffusion_main(uau,uav,nu,nv,neta,nt,ns)
