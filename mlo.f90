@@ -3071,7 +3071,8 @@ end where
 
 ! Snow melt
 do while (any(it_tsurf>273.16+0.1.and.it_dsn>icemin))
-  snmelt=max(it_tsurf-273.16,0.)*gamm/qsnow
+  snmelt=max(it_tsurf-273.16,0.)*gamm/(qsnow+cp0*rhosn*dt_avewtemp-cps*273.16)
+  !snmelt=max(it_tsurf-273.16,0.)*gamm/qsnow
   snmelt=min(snmelt,it_dsn)
   it_tsurf=it_tsurf-snmelt*qsnow/gamm
   dt_salflxf=dt_salflxf-snmelt*rhosn/dt ! melt fresh water snow (no salt when melting snow)
@@ -3233,7 +3234,8 @@ end where
 
 ! Snow melt
 do while (any(it_tsurf>273.16+0.1.and.it_dsn>icemin))
-  snmelt=max(it_tsurf-273.16,0.)*gamm/qsnow
+  snmelt=max(it_tsurf-273.16,0.)*gamm/(qsnow+cp0*rhosn*dt_avewtemp-cps*273.16)
+  !snmelt=max(it_tsurf-273.16,0.)*gamm/qsnow
   snmelt=min(snmelt,it_dsn)
   it_tsurf=it_tsurf-snmelt*qsnow/gamm
   dt_salflxf=dt_salflxf-snmelt*rhosn/dt ! melt fresh water snow (no salt when melting snow)
