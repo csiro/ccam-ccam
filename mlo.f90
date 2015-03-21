@@ -3299,6 +3299,7 @@ integer, intent(in) :: nc,diag
 real, intent(in) :: dt
 real, dimension(nc) :: con,f0,tnew,excess
 real, dimension(nc) :: subl,snmelt,smax,dhb,isubl,ssubl,ssnmelt,gamm,simelt
+real, dimension(nc) :: aa,bb,cc
 real, dimension(nc), intent(inout) :: it_tn0,it_tn1,it_tn2
 real, dimension(nc), intent(inout) :: it_dic,it_dsn,it_tsurf,it_sto
 real, dimension(nc), intent(inout) :: dt_ftop,dt_tb,dt_fb,dt_timelt,dt_salflxf,dt_salflxs,dt_wavail
@@ -3313,7 +3314,18 @@ gamm=cps*it_dsn+gammi+max(cpi*it_dic-gammi,0.)             ! heat capacity
 it_tsurf=(gammi*it_tsurf+cps*it_dsn*it_tn0+0.5*max(cpi*it_dic-gammi,0.)*(it_tn1+it_tn2))/gamm
 
 ! Update tsurf based on fluxes from above and below
-tnew=(it_tsurf*gamm/dt+dt_ftop-pt_egice*lf/lv+con*dt_tb)/(gamm/dt+con)    ! predictor temperature for flux calculation
+! MJT notes - we need an implicit form of temperature (tnew) to account for
+! fluxes and changes in ice thickness
+!tnew=(it_tsurf*gamm/dt+dt_ftop-pt_egice*lf/lv+con*dt_tb)/(gamm/dt+con)    ! predictor temperature for flux calculation
+where ( cpi*it_dic>gammi )
+  aa=-cpi*con/qice
+  bb=gamm/dt+con*(1.+cp0*rhoic*dt_avewtemp/qice)+cpi*(con*dt_tb-dt_fb)/qice
+  cc=-it_tsurf*gamm/dt-dt_ftop+pt_egice*lf/lv-con*dt_tb-cp0*rhoic*dt_avewtemp*(con*dt_tb-dt_fb)/qice
+  tnew=-2.*cc/(bb+sqrt(bb*bb-4.*aa*cc))
+elsewhere
+  tnew=(it_tsurf*gamm/dt+dt_ftop-pt_egice*lf/lv+con*dt_tb+cp0*rhoic*dt_avewtemp*(con*dt_tb-dt_fb)/qice) &
+      /(gamm/dt+con*(1.+cp0*rhoic*dt_avewtemp/qice))
+end where
 f0=con*(dt_tb-tnew)                                                       ! first guess of flux from below
 f0=max(-1000.,min(f0,1000.))
 dhb=dt*(f0-dt_fb)/qice                                                    ! excess flux converted to change in ice thickness
