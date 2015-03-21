@@ -2745,7 +2745,7 @@ elsewhere
   it_tsurf=(it_tsurf*gammi+0.5*(it_tn1+it_tn2)*max(cpi*(it_dic+simelt)-gammi,0.)-cp0*rhoic*dt_avewtemp*simelt) &
           /(gammi+max(cpi*it_dic-gammi,0.))
   it_tn1=it_tsurf
- it_tn2=it_tsurf
+  it_tn2=it_tsurf
 end where
 
 ! test whether to change number of layers
@@ -3082,22 +3082,20 @@ do while (any(it_tsurf>273.16+0.1.and.it_dsn>icemin))
 end do
 
 ! Ice melt
-do while (any(it_tsurf>dt_timelt+0.1.and.it_dic>icemin))
-  simelt=max(it_tsurf-dt_timelt,0.)*gamm/qice
-  simelt=min(simelt,it_dic)
-  it_tsurf=it_tsurf-simelt*qice/gamm
-  dt_salflxs=dt_salflxs-simelt*rhoic/dt
-  it_dic=it_dic-simelt
-  where ( it_dic>himin )
-    it_tn1=(it_tn1*max(cpi*(it_dic+simelt)-gammi,0.)-cp0*rhoic*dt_avewtemp*simelt)/(cpi*it_dic-gammi)
-    it_tn2=(it_tn2*max(cpi*(it_dic+simelt)-gammi,0.)-cp0*rhoic*dt_avewtemp*simelt)/(cpi*it_dic-gammi)
-  elsewhere
-    it_tsurf=(it_tsurf*gamm+0.5*(it_tn1+it_tn2)*max(cpi*(it_dic+simelt)-gammi,0.)-cp0*rhoic*dt_avewtemp*simelt) &
-            /(gamm+max(cpi*it_dic-gammi,0.))
-    it_tn1=it_tsurf
-    it_tn2=it_tsurf
-  end where
-end do
+simelt=max(it_tsurf-dt_timelt,0.)*gamm/qice
+simelt=min(simelt,it_dic)
+it_tsurf=it_tsurf-simelt*qice/gamm
+dt_salflxs=dt_salflxs-simelt*rhoic/dt
+it_dic=it_dic-simelt
+where ( it_dic>himin )
+  it_tn1=(it_tn1*max(cpi*(it_dic+simelt)-gammi,0.)-cp0*rhoic*dt_avewtemp*simelt)/(cpi*it_dic-gammi)
+  it_tn2=(it_tn2*max(cpi*(it_dic+simelt)-gammi,0.)-cp0*rhoic*dt_avewtemp*simelt)/(cpi*it_dic-gammi)
+elsewhere
+  it_tsurf=(it_tsurf*gamm+0.5*(it_tn1+it_tn2)*max(cpi*(it_dic+simelt)-gammi,0.)-cp0*rhoic*dt_avewtemp*simelt) &
+          /(gamm+max(cpi*it_dic-gammi,0.))
+  it_tn1=it_tsurf
+  it_tn2=it_tsurf
+end where
 
 ! test whether to change number of layers
 htdown=2.*himin
@@ -3245,20 +3243,18 @@ do while (any(it_tsurf>273.16+0.1.and.it_dsn>icemin))
 end do
 
 ! Ice melt
-do while (any(it_tsurf>dt_timelt+0.1.and.it_dic>icemin))
-  simelt=max(it_tsurf-dt_timelt,0.)*gamm/qice
-  simelt=min(simelt,it_dic)
-  it_tsurf=it_tsurf-simelt*qice/gamm
-  dt_salflxs=dt_salflxs-simelt*rhoic/dt
-  it_dic=it_dic-simelt
-  where ( it_dic>himin )
-    it_tn1=(it_tn1*max(cpi*(it_dic+simelt)-gammi,0.)-cp0*rhoic*dt_avewtemp*simelt)/(cpi*it_dic-gammi)
-  elsewhere
-    it_tsurf=(it_tsurf*gamm+it_tn1*max(cpi*(it_dic+simelt)-gammi,0.)-cp0*rhoic*dt_avewtemp*simelt) &
-            /(gamm+max(cpi*it_dic-gammi,0.))
-    it_tn1=it_tsurf
-  end where
-end do
+simelt=max(it_tsurf-dt_timelt,0.)*gamm/qice
+simelt=min(simelt,it_dic)
+it_tsurf=it_tsurf-simelt*qice/gamm
+dt_salflxs=dt_salflxs-simelt*rhoic/dt
+it_dic=it_dic-simelt
+where ( it_dic>himin )
+  it_tn1=(it_tn1*max(cpi*(it_dic+simelt)-gammi,0.)-cp0*rhoic*dt_avewtemp*simelt)/(cpi*it_dic-gammi)
+elsewhere
+  it_tsurf=(it_tsurf*gamm+it_tn1*max(cpi*(it_dic+simelt)-gammi,0.)-cp0*rhoic*dt_avewtemp*simelt) &
+          /(gamm+max(cpi*it_dic-gammi,0.))
+  it_tn1=it_tsurf
+end where
   
 ! test whether to change number of layers
 htup=2.*himin
