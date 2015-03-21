@@ -3350,7 +3350,8 @@ it_tsurf=(it_tsurf*(gammi+cps*it_dsn+max(cpi*it_dic+smax-gammi,0.))-cp0*rhoic*dt
 ! Snow melt
 do while (any(it_tsurf>273.16+0.01.and.it_dsn>icemin))
   gamm=gammi+cps*it_dsn+max(cpi*it_dic-gammi,0.)
-  snmelt=max(it_tsurf-273.16,0.)*gamm/qsnow
+  snmelt=max(it_tsurf-273.16,0.)*gamm/(qsnow+cp0*rhosn*dt_avewtemp-cps*273.16)
+  !snmelt=max(it_tsurf-273.16,0.)*gamm/qsnow
   snmelt=min(snmelt,it_dsn)
   it_tsurf=it_tsurf-snmelt*qsnow/gamm
   dt_salflxf=dt_salflxf-snmelt*rhosn/dt ! melt fresh water snow (no salt when melting snow)
@@ -3362,7 +3363,11 @@ end do
 ! Ice melt
 gamm=gammi+cps*it_dsn+max(cpi*it_dic-gammi,0.)
 do while (any(it_tsurf>dt_timelt+0.1.and.it_dic>icemin))
-  simelt=max(it_tsurf-dt_timelt,0.)*gamm/qice
+  ! MJT notes - assume cpi*it_dic-gammi<0. as this makes a smaller prediction of simelt
+  ! that can be corrected later
+  simelt=max(it_tsurf-dt_timelt,0.)*gamm/(qice+cp0*rhoic*dt_avewtemp)
+  !simelt=max(it_tsurf-dt_timelt,0.)*gamm/(qice+cp0*rhoic*dt_avewtemp-cpi*dt_timelt)
+  !simelt=max(it_tsurf-dt_timelt,0.)*gamm/qice
   simelt=min(simelt,it_dic)
   it_tsurf=it_tsurf-simelt*qice/gamm
   dt_salflxs=dt_salflxs-simelt*rhoic/dt
