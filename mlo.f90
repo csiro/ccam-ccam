@@ -167,7 +167,7 @@ real, parameter :: gammi=0.5*cpi*himin    ! specific heat*depth (for ice/snow) (
 real, parameter :: emisice=1.             ! emissivity of ice
 real, parameter :: maxicesal=10.          ! Maximum salinity for sea-ice (PSU)
 ! 1-D ice model
-real, parameter :: fracbreak=0.05         ! Minimum ice fraction
+!real, parameter :: fracbreak=0.05         ! Minimum ice fraction
 ! stability function parameters
 real, parameter :: bprm=5.                ! 4.7 in rams
 real, parameter :: chs=2.6                ! 5.3 in rams
@@ -1115,10 +1115,6 @@ call calcmelt(d_timelt,d_zcr)
 ! equation of state
 call getrho(atm_ps,d_rho,d_alpha,d_beta,d_zcr)
 
-! create new ice
-! ice formation is called for both calcprog=.true. and .false.
-call mlonewice(dt,d_timelt,d_zcr,diag)
-
 ! split adjustment of free surface and ice thickness to ensure conservation
 d_ndsn=ice%snowd
 d_ndic=ice%thick
@@ -1153,24 +1149,16 @@ if (calcprog) then
   ice%thick=d_ndic
   ice%snowd=d_ndsn
   ice%store=d_nsto
-  
   call mloice(dt,atm_ps,d_alpha,d_beta,d_b0,d_wu0,d_wv0,d_wt0,d_ws0,d_ftop,d_tb,d_fb,d_timelt,       &
               d_ustar,d_nk,d_neta,d_zcr,diag)
-  !call mlonewice(dt,d_timelt,d_zcr,diag)
+  
+  ! create or destroy ice
+  ! MJT notes - this is done after the flux calculations to agree with the albedo passed to the radiation
+  call mlonewice(dt,d_timelt,d_zcr,diag)
   
   ! update water
   call mlocalc(dt,atm_f,d_rho,d_nsq,d_rad,d_alpha,d_beta,d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_zcr, &
                d_neta,diag)
-  ! correct state variables for change in surface height
-  ! or assume water inflow is at the same temperature
-  !old_zcr=d_zcr
-  !d_zcr=max(1.+water%eta/depth_hl(:,wlev+1),minwater/depth_hl(:,wlev+1))
-  !do ii=1,wlev
-  !  water%temp(:,ii)=water%temp(:,ii)*old_zcr/d_zcr
-  !  water%sal(:,ii) =water%sal(:,ii)*old_zcr/d_zcr
-  !  water%u(:,ii)   =water%u(:,ii)*old_zcr/d_zcr
-  !  water%v(:,ii)   =water%v(:,ii)*old_zcr/d_zcr
-  !end do
 
 end if
 ! screen diagnostics
@@ -2314,9 +2302,8 @@ where ( ice%fracice<0.999999 )
 elsewhere
   maxnewice=0.
 end where
-maxnewice=max(min(maxnewice,.99*himin),0.)
-
-! formation
+! MJT notes - forming ice with icmin to 0.3*himin thickness results in plausible newicetemp below
+maxnewice=max(min(maxnewice,0.3*himin),0.)
 
 ! search for water temperatures that are below freezing
 sdic=0.
@@ -2341,6 +2328,9 @@ newdic=sum(sdic,2)
 newdic=min(maxnewice,newdic)
 newsal=min(minwatersal,maxicesal)
 lnewice=newdic>1.01*icemin
+where ( .not.lnewice )
+  newdic=0.
+end where
 
 ! Adjust temperature and salinity in water column to balance ice formation
 cdic=0.
@@ -2356,24 +2346,24 @@ do ii=1,maxlevel
 end do
 
 ! calculate temperature of water to be converted to ice
-! MJT notes - should also calculate this for salinity conservation
-!avetemp=0.
-!do ii=1,wlev
-!  avetemp=avetemp+water%temp(:,ii)*dz(:,ii)
-!end do
-!avetemp=avetemp/depth_hl(:,wlev+1)
-!newicetemp=avetemp*cp0*rhowt*newdic/gammi
+avetemp=0.
+do ii=1,wlev
+  avetemp=avetemp+water%temp(:,ii)*dz(:,ii)
+end do
+avetemp=avetemp/depth_hl(:,wlev+1)
+! balance the energy leaving the water column with that in surface ice layer
+newicetemp=avetemp*cp0*rhoic*newdic/gammi
 
 ! form new sea-ice
 do iqw=1,wfull
   if ( lnewice(iqw) ) then
     newthick(iqw)=ice%thick(iqw)*ice%fracice(iqw)+newdic(iqw)*(1.-ice%fracice(iqw))
-    !ice%tsurf(iqw)=ice%tsurf(iqw)*ice%fracice(iqw)+newicetemp(iqw)*(1.-ice%fracice(iqw))
-    ice%tsurf(iqw)=ice%tsurf(iqw)*ice%fracice(iqw)+water%temp(iqw,1)*(1.-ice%fracice(iqw))
+    ice%tsurf(iqw)=ice%tsurf(iqw)*ice%fracice(iqw)+newicetemp(iqw)*(1.-ice%fracice(iqw))
     !ice%temp(iqw,0)*newsnowd(iqw)=ice%temp(iqw,0)*ice%fracice(iqw)*ice%snowd(iqw)
     if ( newthick(iqw)>himin ) then
-      ice%temp(iqw,1)=ice%temp(iqw,1)*max(cpi*ice%thick(iqw)-gammi,0.)/(cpi*newthick(iqw)-gammi)
-      ice%temp(iqw,2)=ice%temp(iqw,2)*max(cpi*ice%thick(iqw)-gammi,0.)/(cpi*newthick(iqw)-gammi)
+      ! ice thickness is decreasing after combining with new thin ice
+      ice%temp(iqw,1)=ice%temp(iqw,1)*max(cpi*ice%thick(iqw)-gammi,0.)*ice%fracice(iqw)/(cpi*newthick(iqw)-gammi)
+      ice%temp(iqw,2)=ice%temp(iqw,2)*max(cpi*ice%thick(iqw)-gammi,0.)*ice%fracice(iqw)/(cpi*newthick(iqw)-gammi)
     else
       ice%temp(iqw,1)=ice%tsurf(iqw)
       ice%temp(iqw,2)=ice%tsurf(iqw)
@@ -2418,12 +2408,11 @@ end do
 !end if
 
 ! calculate temperature of water to be converted to ice
-! MJT notes - should also calculate this for salinity conservation
-!avetemp=0.
-!do ii=1,wlev
-!  avetemp=avetemp+water%temp(:,ii)*dz(:,ii)
-!end do
-!avetemp=avetemp/depth_hl(:,wlev+1)
+avetemp=0.
+do ii=1,wlev
+  avetemp=avetemp+water%temp(:,ii)*dz(:,ii)
+end do
+avetemp=avetemp/depth_hl(:,wlev+1)
 
 ! removal
 newdic=(ice%thick*rhoic+ice%snowd*rhosn)*ice%fracice/rhowt
@@ -2453,8 +2442,7 @@ do iqw=1,wfull
     water%eta(iqw)=water%eta(iqw)+newdic(iqw)
     aves=aves/(1.+ice%snowd(iqw)*rhows0/(rhowt*dsf))
     aves=(aves+ice%thick(iqw)*ice%sal(iqw)/dsf)/(1.+ice%thick(iqw)/dsf)
-    !avet=avet+(ice%fracice(iqw)*gammi*ice%tsurf(iqw)-avetemp(iqw)*cp0*rhowt*newdic(iqw))/(cp0*rhowt*dsf)
-    avet=avet+ice%fracice(iqw)*gammi*(ice%tsurf(iqw)-water%temp(iqw,1))/(cp0*rhowt*dsf)
+    avet=avet+(ice%fracice(iqw)*gammi*ice%tsurf(iqw)-cp0*rhowt*avetemp(iqw)*newdic(iqw))/(cp0*rhowt*dsf)
     avet=avet+ice%fracice(iqw)*cps*ice%snowd(iqw)*ice%temp(iqw,0)/(cp0*rhowt*dsf)
     avet=avet+ice%fracice(iqw)*0.5*max(cpi*ice%thick(iqw)-gammi,0.)*ice%temp(iqw,1)/(cp0*rhowt*dsf)
     avet=avet+ice%fracice(iqw)*0.5*max(cpi*ice%thick(iqw)-gammi,0.)*ice%temp(iqw,2)/(cp0*rhowt*dsf)
@@ -2499,18 +2487,27 @@ subroutine seaicecalc(dt,d_ftop,d_tb,d_fb,d_timelt,d_salflxf,d_salflxs,d_nk,    
 implicit none
 
 integer, intent(in) :: diag
-integer pc
+integer pc, ii
 integer, dimension(5) :: nc
 integer, dimension(wfull), intent(inout) :: d_nk
 integer, dimension(wfull) :: dt_nk
 real, intent(in) :: dt
 real, dimension(wfull), intent(inout) :: d_ftop,d_tb,d_fb,d_timelt,d_salflxf,d_salflxs
 real, dimension(wfull), intent(inout) :: d_wavail
+real, dimension(wfull) :: d_avewtemp
 real, dimension(wfull) :: it_tn0,it_tn1,it_tn2
 real, dimension(wfull) :: it_dic,it_dsn,it_tsurf,it_sto
 real, dimension(wfull) :: dt_ftop,dt_tb,dt_fb,dt_timelt,dt_salflxf,dt_salflxs,dt_wavail
+real, dimension(wfull) :: dt_avewtemp
 real, dimension(wfull) :: pt_egice
 logical, dimension(wfull,5) :: pqpack
+
+! Calculate average temperature of water column for energy conservation
+d_avewtemp=0.
+do ii=1,wlev
+  d_avewtemp=d_avewtemp+water%temp(:,ii)*dz(:,ii)
+end do
+d_avewtemp=d_avewtemp/depth_hl(:,wlev+1)
 
 ! Pack different ice configurations
 pqpack(:,1)=( d_nk==2 .and. ice%snowd>0.05 .and. ice%thick>icemin )   ! thick snow + 2 ice layers
@@ -2543,27 +2540,28 @@ do pc=1,5
     dt_salflxs(1:nc(pc))=pack(d_salflxs,pqpack(:,pc))
     dt_wavail(1:nc(pc)) =pack(d_wavail,pqpack(:,pc))
     dt_nk(1:nc(pc))     =pack(d_nk,pqpack(:,pc))
+    dt_avewtemp(1:nc(pc))=pack(d_avewtemp,pqpack(:,pc))
     select case(pc)
       case(1)
         call icetemps1s2i(nc(pc),dt,it_tn0,it_tn1,it_tn2,it_dic,it_dsn,            &
                  it_tsurf,it_sto,dt_ftop,dt_tb,dt_fb,dt_timelt,dt_salflxf,         &
-                 dt_salflxs,dt_nk,dt_wavail,pt_egice,diag)
+                 dt_salflxs,dt_nk,dt_wavail,dt_avewtemp,pt_egice,diag)
       case(2)
         call icetemps1s1i(nc(pc),dt,it_tn0,it_tn1,it_tn2,it_dic,it_dsn,            &
                  it_tsurf,it_sto,dt_ftop,dt_tb,dt_fb,dt_timelt,dt_salflxf,         &
-                 dt_salflxs,dt_nk,dt_wavail,pt_egice,diag)
+                 dt_salflxs,dt_nk,dt_wavail,dt_avewtemp,pt_egice,diag)
       case(3)
         call icetempi2i(nc(pc),dt,it_tn0,it_tn1,it_tn2,it_dic,it_dsn,              &
                  it_tsurf,it_sto,dt_ftop,dt_tb,dt_fb,dt_timelt,dt_salflxf,         &
-                 dt_salflxs,dt_nk,dt_wavail,pt_egice,diag)
+                 dt_salflxs,dt_nk,dt_wavail,dt_avewtemp,pt_egice,diag)
       case(4)
         call icetempi1i(nc(pc),dt,it_tn0,it_tn1,it_tn2,it_dic,it_dsn,              &
                  it_tsurf,it_sto,dt_ftop,dt_tb,dt_fb,dt_timelt,dt_salflxf,         &
-                 dt_salflxs,dt_nk,dt_wavail,pt_egice,diag)
+                 dt_salflxs,dt_nk,dt_wavail,dt_avewtemp,pt_egice,diag)
       case(5)
         call icetemps(nc(pc),dt,it_tn0,it_tn1,it_tn2,it_dic,it_dsn,                &
                  it_tsurf,it_sto,dt_ftop,dt_tb,dt_fb,dt_timelt,dt_salflxf,         &
-                 dt_salflxs,dt_nk,dt_wavail,pt_egice,diag)
+                 dt_salflxs,dt_nk,dt_wavail,dt_avewtemp,pt_egice,diag)
     end select
     ice%tsurf    =unpack(it_tsurf(1:nc(pc)),pqpack(:,pc),ice%tsurf)
     ice%temp(:,0)=unpack(it_tn0(1:nc(pc)),pqpack(:,pc),ice%temp(:,0))
@@ -2605,7 +2603,7 @@ end subroutine seaicecalc
 ! ################################################################
 
 subroutine icetemps1s2i(nc,dt,it_tn0,it_tn1,it_tn2,it_dic,it_dsn,it_tsurf,it_sto,dt_ftop,dt_tb,dt_fb, &
-                     dt_timelt,dt_salflxf,dt_salflxs,dt_nk,dt_wavail,pt_egice,diag)
+                     dt_timelt,dt_salflxf,dt_salflxs,dt_nk,dt_wavail,dt_avewtemp,pt_egice,diag)
 
 implicit none
 
@@ -2618,6 +2616,7 @@ real, dimension(nc) :: simelt
 real, dimension(nc), intent(inout) :: it_tn0,it_tn1,it_tn2
 real, dimension(nc), intent(inout) :: it_dic,it_dsn,it_tsurf,it_sto
 real, dimension(nc), intent(inout) :: dt_ftop,dt_tb,dt_fb,dt_timelt,dt_salflxf,dt_salflxs,dt_wavail
+real, dimension(nc), intent(inout) :: dt_avewtemp
 integer, dimension(nc), intent(inout) :: dt_nk
 real, dimension(nc), intent(in) :: pt_egice
 real(kind=8), dimension(nc,2:4) :: aa
@@ -2665,8 +2664,15 @@ it_tn2=dt_tb-fl/(2.*conc)
 ! Bottom ablation or accretion
 it_dic=it_dic+dhb
 dt_salflxs=dt_salflxs+dhb*rhoic/dt
-!it_tn1*(cpi*newdic-gammi)=it_tn1*(cpi*it_dic-gammi)+cp0*twater_ave*dhb
-!it_tn2*(cpi*newdic-gammi)=it_tn2*(cpi*it_dic-gammi)+cp0*twater_ave*dhb
+where ( it_dic>himin )
+  it_tn1=(it_tn1*(cpi*(it_dic-dhb)-gammi)+cp0*rhoic*dt_avewtemp*dhb)/(cpi*it_dic-gammi)
+  it_tn2=(it_tn2*(cpi*(it_dic-dhb)-gammi)+cp0*rhoic*dt_avewtemp*dhb)/(cpi*it_dic-gammi)
+elsewhere
+  it_tsurf=(it_tsurf*gammi+0.5*(it_tn1+it_tn2)*max(cpi*(it_dic-dhb)-gammi,0.)+cp0*rhoic*dt_avewtemp*dhb) &
+          /(gammi+max(cpi*it_dic-gammi,0.))
+  it_tn1=it_tsurf
+  it_tn2=it_tsurf
+end where
 
 ! Surface evap/sublimation (can be >0 or <0)
 ! Note : dt*eg/hl in Kgm/m**2 => mms of water
@@ -2685,6 +2691,15 @@ smax=min(smax,it_dic)
 it_sto=it_sto-smax*qice
 dt_salflxs=dt_salflxs-smax*rhoic/dt
 it_dic=it_dic-smax
+where ( it_dic>himin )
+  it_tn1=(it_tn1*(cpi*(it_dic+smax)-gammi)-cp0*rhoic*dt_avewtemp*smax)/(cpi*it_dic-gammi)
+  it_tn2=(it_tn2*(cpi*(it_dic+smax)-gammi)-cp0*rhoic*dt_avewtemp*smax)/(cpi*it_dic-gammi)
+elsewhere
+  it_tsurf=(it_tsurf*gammi+0.5*(it_tn1+it_tn2)*max(cpi*(it_dic+smax)-gammi,0.)-cp0*rhoic*dt_avewtemp*smax) &
+          /(gammi+max(cpi*it_dic-gammi,0.))
+  it_tn1=it_tsurf
+  it_tn2=it_tsurf
+end where
 
 ! use stored heat in brine pockets to keep temperature at -0.1 until heat is used up
 qneed=(dt_timelt-it_tn1)*0.5*max(cpi*it_dic-gammi,0.) ! J/m**2
@@ -2709,6 +2724,13 @@ snmelt=min(snmelt,it_dsn)
 it_tsurf=it_tsurf-snmelt*qsnow/gammi
 dt_salflxf=dt_salflxf-snmelt*rhosn/dt        ! melt fresh water snow (no salt when melting snow)
 it_dsn=it_dsn-snmelt
+where ( it_dsn>0.05 )
+  it_tn0=(it_tn0*cps*(it_dsn+snmelt)-cp0*rhosn*dt_avewtemp*snmelt)/(cps*it_dsn)
+elsewhere
+  it_tsurf=(it_tsurf*gammi+it_tn0*cps*(it_dsn+snmelt)-cp0*rhosn*dt_avewtemp*snmelt) &
+          /(gammi+cps*it_dsn)
+  it_tn0=it_tsurf
+end where
 
 ! Ice melt
 simelt=max(it_tsurf-dt_timelt,0.)*gammi/qice
@@ -2716,10 +2738,19 @@ simelt=min(simelt,it_dic)
 it_tsurf=it_tsurf-simelt*qice/gammi
 dt_salflxs=dt_salflxs-simelt*rhoic/dt
 it_dic=it_dic-simelt
+where ( it_dic>himin )
+  it_tn1=(it_tn1*(cpi*(it_dic+simelt)-gammi)-cp0*rhoic*dt_avewtemp*simelt)/(cpi*it_dic-gammi)
+  it_tn2=(it_tn2*(cpi*(it_dic+simelt)-gammi)-cp0*rhoic*dt_avewtemp*simelt)/(cpi*it_dic-gammi)
+elsewhere
+  it_tsurf=(it_tsurf*gammi+0.5*(it_tn1+it_tn2)*max(cpi*(it_dic+simelt)-gammi,0.)-cp0*rhoic*dt_avewtemp*simelt) &
+          /(gammi+max(cpi*it_dic-gammi,0.))
+  it_tn1=it_tsurf
+ it_tn2=it_tsurf
+end where
 
 ! test whether to change number of layers
 htdown=2.*himin
-where (it_dic<=htdown)
+where ( it_dic<=htdown )
   ! code to decrease number of layers
   dt_nk=1
   ! merge ice layers into one
@@ -2754,7 +2785,7 @@ end subroutine icetemps1s2i
 ! ################################################################
 
 subroutine icetemps1s1i(nc,dt,it_tn0,it_tn1,it_tn2,it_dic,it_dsn,it_tsurf,it_sto,dt_ftop,dt_tb,dt_fb, &
-                     dt_timelt,dt_salflxf,dt_salflxs,dt_nk,dt_wavail,pt_egice,diag)
+                     dt_timelt,dt_salflxf,dt_salflxs,dt_nk,dt_wavail,dt_avewtemp,pt_egice,diag)
 
 implicit none
 
@@ -2767,6 +2798,7 @@ real, dimension(nc) :: simelt
 real, dimension(nc), intent(inout) :: it_tn0,it_tn1,it_tn2
 real, dimension(nc), intent(inout) :: it_dic,it_dsn,it_tsurf,it_sto
 real, dimension(nc), intent(inout) :: dt_ftop,dt_tb,dt_fb,dt_timelt,dt_salflxf,dt_salflxs,dt_wavail
+real, dimension(nc), intent(inout) :: dt_avewtemp
 integer, dimension(nc), intent(inout) :: dt_nk
 real, dimension(nc), intent(in) :: pt_egice
 real(kind=8), dimension(nc,2:3) :: aa
@@ -2812,7 +2844,13 @@ it_tn1=dt_tb-fl/(2.*condice)
 ! Bottom ablation or accretion
 it_dic=it_dic+dhb
 dt_salflxs=dt_salflxs+dhb*rhoic/dt
-!it_tn1*(cpi*newdic-gammi)=it_tn1*(cpi*it_dic-gammi)+cp0*twater_ave*dhb
+where ( it_dic>himin )
+  it_tn1=(it_tn1*(cpi*(it_dic-dhb)-gammi)+cp0*rhoic*dt_avewtemp*dhb)/(cpi*it_dic-gammi)
+elsewhere
+  it_tsurf=(it_tsurf*gammi+it_tn1*max(cpi*(it_dic-dhb)-gammi,0.)+cp0*rhoic*dt_avewtemp*dhb) &
+          /(gammi+max(cpi*it_dic-gammi,0.))
+  it_tn1=it_tsurf
+end where
 
 ! Surface evap/sublimation (can be >0 or <0)
 ! Note : dt*eg/hl in Kgm/m**2 => mms of water
@@ -2831,12 +2869,26 @@ smax=min(smax,it_dic)
 it_sto=it_sto-smax*qice
 dt_salflxs=dt_salflxs-smax*rhoic/dt
 it_dic=it_dic-smax
+where ( it_dic>himin )
+  it_tn1=(it_tn1*(cpi*(it_dic+smax)-gammi)-cp0*rhoic*dt_avewtemp*smax)/(cpi*it_dic-gammi)
+elsewhere
+  it_tsurf=(it_tsurf*gammi+it_tn1*max(cpi*(it_dic+smax)-gammi,0.)-cp0*rhoic*dt_avewtemp*smax) &
+          /(gammi+max(cpi*it_dic-gammi,0.))
+  it_tn1=it_tsurf
+end where
 
 ! remove brine store for single layer
 sbrine=min(it_sto/qice,it_dic)
 it_sto=it_sto-sbrine*qice
 dt_salflxs=dt_salflxs-sbrine*rhoic/dt
 it_dic=it_dic-sbrine
+where ( it_dic>himin )
+  it_tn1=(it_tn1*(cpi*(it_dic+sbrine)-gammi)-cp0*rhoic*dt_avewtemp*sbrine)/(cpi*it_dic-gammi)
+elsewhere
+  it_tsurf=(it_tsurf*gammi+it_tn1*max(cpi*(it_dic+sbrine)-gammi,0.)-cp0*rhoic*dt_avewtemp*sbrine) &
+          /(gammi+max(cpi*it_dic-gammi,0.))
+  it_tn1=it_tsurf
+end where
 
 ! the following are snow to ice processes
 xxx=it_dic+it_dsn-(rhosn*it_dsn+rhoic*it_dic)/rhowt ! white ice formation
@@ -2853,6 +2905,13 @@ snmelt=min(snmelt,it_dsn)
 it_tsurf=it_tsurf-snmelt*qsnow/gammi
 dt_salflxf=dt_salflxf-snmelt*rhosn/dt        ! melt fresh water snow (no salt when melting snow)
 it_dsn=it_dsn-snmelt
+where ( it_dsn>0.05 )
+  it_tn0=(it_tn0*cps*(it_dsn+snmelt)-cp0*rhosn*dt_avewtemp*snmelt)/(cps*it_dsn)
+elsewhere
+  it_tsurf=(it_tsurf*gammi+it_tn0*cps*(it_dsn+snmelt)-cp0*rhosn*dt_avewtemp*snmelt) &
+          /(gammi+cps*it_dsn)
+  it_tn0=it_tsurf
+end where
 
 ! Ice melt
 simelt=max(it_tsurf-dt_timelt,0.)*gammi/qice
@@ -2860,16 +2919,23 @@ simelt=min(simelt,it_dic)
 it_tsurf=it_tsurf-simelt*qice/gammi
 dt_salflxs=dt_salflxs-simelt*rhoic/dt
 it_dic=it_dic-simelt
+where ( it_dic>himin )
+  it_tn1=(it_tn1*(cpi*(it_dic+simelt)-gammi)-cp0*rhoic*dt_avewtemp*simelt)/(cpi*it_dic-gammi)
+elsewhere
+  it_tsurf=(it_tsurf*gammi+it_tn1*max(cpi*(it_dic+simelt)-gammi,0.)-cp0*rhoic*dt_avewtemp*simelt) &
+          /(gammi+max(cpi*it_dic-gammi,0.))
+  it_tn1=it_tsurf
+end where
 
 ! test whether to change number of layers
 htup=2.*himin
 htdown=himin
-where (it_dic>htup)
+where ( it_dic>htup )
   ! code to increase number of layers
   dt_nk=2
   !it_tn2=it_tn1
   ! snow depth has not changed, so split ice layer into two
-elsewhere (it_dic<htdown)
+elsewhere ( it_dic<htdown )
   ! code to decrease number of layers
   dt_nk=0
   it_tsurf=(it_tsurf*gammi+it_tn0*cps*it_dsn+it_tn1*max(cpi*it_dic-gammi,0.))/(gammi+cps*it_dsn+max(cpi*it_dic-gammi,0.))
@@ -2900,7 +2966,7 @@ end subroutine icetemps1s1i
 ! ################################################################
 
 subroutine icetempi2i(nc,dt,it_tn0,it_tn1,it_tn2,it_dic,it_dsn,it_tsurf,it_sto,dt_ftop,dt_tb,dt_fb, &
-                     dt_timelt,dt_salflxf,dt_salflxs,dt_nk,dt_wavail,pt_egice,diag)
+                     dt_timelt,dt_salflxf,dt_salflxs,dt_nk,dt_wavail,dt_avewtemp,pt_egice,diag)
 
 implicit none
 
@@ -2913,6 +2979,7 @@ real, dimension(nc) :: subl,simelt,smax,dhb,snmelt
 real, dimension(nc), intent(inout) :: it_tn0,it_tn1,it_tn2
 real, dimension(nc), intent(inout) :: it_dic,it_dsn,it_tsurf,it_sto
 real, dimension(nc), intent(inout) :: dt_ftop,dt_tb,dt_fb,dt_timelt,dt_salflxf,dt_salflxs,dt_wavail
+real, dimension(nc), intent(inout) :: dt_avewtemp
 real, dimension(nc), intent(in) :: pt_egice
 real(kind=8), dimension(nc,2:3) :: aa
 real(kind=8), dimension(nc,1:3) :: bb,dd
@@ -2957,8 +3024,15 @@ it_tn2=dt_tb-fl/(2.*conb)
 ! Bottom ablation or accretion
 it_dic=it_dic+dhb
 dt_salflxs=dt_salflxs+dhb*rhoic/dt
-!it_tn1*(cpi*newdic-gammi)=it_tn1*(cpi*it_dic-gammi)+cp0*twater_ave*dhb
-!it_tn2*(cpi*newdic-gammi)=it_tn2*(cpi*it_dic-gammi)+cp0*twater_ave*dhb
+where ( it_dic>himin )
+  it_tn1=(it_tn1*max(cpi*(it_dic-dhb)-gammi,0.)+cp0*rhoic*dt_avewtemp*dhb)/(cpi*it_dic-gammi)
+  it_tn2=(it_tn2*max(cpi*(it_dic-dhb)-gammi,0.)+cp0*rhoic*dt_avewtemp*dhb)/(cpi*it_dic-gammi)
+elsewhere
+  it_tsurf=(it_tsurf*gamm+0.5*(it_tn1+it_tn2)*max(cpi*(it_dic-dhb)-gammi,0.)+cp0*rhoic*dt_avewtemp*dhb) &
+          /(gamm+max(cpi*it_dic-gammi,0.))
+  it_tn1=it_tsurf
+  it_tn2=it_tsurf
+end where
 
 ! Surface evap/sublimation (can be >0 or <0)
 subl=dt*pt_egice*lf/(lv*qsnow)
@@ -2968,6 +3042,7 @@ dt_salflxf=dt_salflxf+isubl*rhoic/dt
 dt_salflxs=dt_salflxs-isubl*rhoic/dt
 it_dsn=it_dsn-ssubl
 it_dic=it_dic-isubl
+gamm=gammi+cps*it_dsn
 
 ! Limit maximum energy stored in brine pockets
 qmax=qice*0.5*max(it_dic-himin,0.)
@@ -2976,6 +3051,15 @@ smax=min(smax,it_dic)
 it_sto=it_sto-smax*qice
 dt_salflxs=dt_salflxs-smax*rhoic/dt
 it_dic=it_dic-smax
+where ( it_dic>himin )
+  it_tn1=(it_tn1*max(cpi*(it_dic+smax)-gammi,0.)-cp0*rhoic*dt_avewtemp*smax)/(cpi*it_dic-gammi)
+  it_tn2=(it_tn2*max(cpi*(it_dic+smax)-gammi,0.)-cp0*rhoic*dt_avewtemp*smax)/(cpi*it_dic-gammi)
+elsewhere
+  it_tsurf=(it_tsurf*gamm+0.5*(it_tn1+it_tn2)*max(cpi*(it_dic+smax)-gammi,0.)-cp0*rhoic*dt_avewtemp*smax) &
+          /(gamm+max(cpi*it_dic-gammi,0.))
+  it_tn1=it_tsurf
+  it_tn2=it_tsurf
+end where
 
 ! update brine store for middle layer
 qneed=(dt_timelt-it_tn1)*0.5*max(cpi*it_dic-gammi,0.) ! J/m**2
@@ -2986,24 +3070,37 @@ where ( it_dic>himin )
 end where
 
 ! Snow melt
-gamm=gammi+cps*it_dsn
-snmelt=max(it_tsurf-273.16,0.)*gamm/qsnow
-snmelt=min(snmelt,it_dsn)
-it_tsurf=it_tsurf-snmelt*qsnow/gamm
-it_dsn=it_dsn-snmelt
-dt_salflxf=dt_salflxf-snmelt*rhosn/dt ! melt fresh water snow (no salt when melting snow)
+do while (any(it_tsurf>273.16+0.1.and.it_dsn>icemin))
+  snmelt=max(it_tsurf-273.16,0.)*gamm/qsnow
+  snmelt=min(snmelt,it_dsn)
+  it_tsurf=it_tsurf-snmelt*qsnow/gamm
+  dt_salflxf=dt_salflxf-snmelt*rhosn/dt ! melt fresh water snow (no salt when melting snow)
+  it_dsn=it_dsn-snmelt
+  gamm=gammi+cps*it_dsn
+  it_tsurf=(it_tsurf*(gammi+cps*(it_dsn+snmelt))-cp0*rhosn*dt_avewtemp*snmelt)/(gammi+cps*it_dsn)
+end do
 
 ! Ice melt
-gamm=gammi+cps*it_dsn
-simelt=max(it_tsurf-dt_timelt,0.)*gamm/qice
-simelt=min(simelt,it_dic)
-it_tsurf=it_tsurf-simelt*qice/gamm
-dt_salflxs=dt_salflxs-simelt*rhoic/dt
-it_dic=it_dic-simelt
+do while (any(it_tsurf>dt_timelt+0.1.and.it_dic>icemin))
+  simelt=max(it_tsurf-dt_timelt,0.)*gamm/qice
+  simelt=min(simelt,it_dic)
+  it_tsurf=it_tsurf-simelt*qice/gamm
+  dt_salflxs=dt_salflxs-simelt*rhoic/dt
+  it_dic=it_dic-simelt
+  where ( it_dic>himin )
+    it_tn1=(it_tn1*max(cpi*(it_dic+simelt)-gammi,0.)-cp0*rhoic*dt_avewtemp*simelt)/(cpi*it_dic-gammi)
+    it_tn2=(it_tn2*max(cpi*(it_dic+simelt)-gammi,0.)-cp0*rhoic*dt_avewtemp*simelt)/(cpi*it_dic-gammi)
+  elsewhere
+    it_tsurf=(it_tsurf*gamm+0.5*(it_tn1+it_tn2)*max(cpi*(it_dic+simelt)-gammi,0.)-cp0*rhoic*dt_avewtemp*simelt) &
+            /(gamm+max(cpi*it_dic-gammi,0.))
+    it_tn1=it_tsurf
+    it_tn2=it_tsurf
+  end where
+end do
 
 ! test whether to change number of layers
 htdown=2.*himin
-where (it_dic<htdown)
+where ( it_dic<htdown )
   ! code to decrease number of layers
   dt_nk=1
   ! merge ice layers into one
@@ -3034,7 +3131,7 @@ end subroutine icetempi2i
 ! ################################################################
 
 subroutine icetempi1i(nc,dt,it_tn0,it_tn1,it_tn2,it_dic,it_dsn,it_tsurf,it_sto,dt_ftop,dt_tb,dt_fb, &
-                     dt_timelt,dt_salflxf,dt_salflxs,dt_nk,dt_wavail,pt_egice,diag)
+                     dt_timelt,dt_salflxf,dt_salflxs,dt_nk,dt_wavail,dt_avewtemp,pt_egice,diag)
 
 implicit none
 
@@ -3047,6 +3144,7 @@ real, dimension(nc) :: subl,simelt,smax,dhb,snmelt
 real, dimension(nc), intent(inout) :: it_tn0,it_tn1,it_tn2
 real, dimension(nc), intent(inout) :: it_dic,it_dsn,it_tsurf,it_sto
 real, dimension(nc), intent(inout) :: dt_ftop,dt_tb,dt_fb,dt_timelt,dt_salflxf,dt_salflxs,dt_wavail
+real, dimension(nc), intent(inout) :: dt_avewtemp
 real, dimension(nc), intent(in) :: pt_egice
 real(kind=8), dimension(nc,2:2) :: aa
 real(kind=8), dimension(nc,1:2) :: bb,dd
@@ -3087,7 +3185,13 @@ it_tn1=dt_tb-fl/(2.*conb)            ! does nothing unless a limit is reached
 ! Bottom ablation or accretion
 it_dic=it_dic+dhb
 dt_salflxs=dt_salflxs+dhb*rhoic/dt
-!it_tn1*(cpi*newdic-gammi)=it_tn1*(cpi*it_dic-gammi)+cp0*twater_ave*dhb
+where ( it_dic>himin )
+  it_tn1=(it_tn1*max(cpi*(it_dic-dhb)-gammi,0.)+cp0*rhoic*dt_avewtemp*dhb)/(cpi*it_dic-gammi)
+elsewhere
+  it_tsurf=(it_tsurf*gamm+it_tn1*max(cpi*(it_dic-dhb)-gammi,0.)+cp0*rhoic*dt_avewtemp*dhb) &
+          /(gamm+max(cpi*it_dic-gammi,0.))
+  it_tn1=it_tsurf
+end where
 
 ! Surface evap/sublimation (can be >0 or <0)
 subl=dt*pt_egice*lf/(lv*qsnow)
@@ -3097,6 +3201,7 @@ dt_salflxf=dt_salflxf+isubl*rhoic/dt
 dt_salflxs=dt_salflxs-isubl*rhoic/dt
 it_dsn=it_dsn-ssubl
 it_dic=it_dic-isubl
+gamm=gammi+cps*it_dsn
 
 ! Limit maximum energy stored in brine pockets
 qmax=qice*0.5*max(it_dic-himin,0.)
@@ -3105,36 +3210,61 @@ smax=min(smax,it_dic)
 it_sto=it_sto-smax*qice
 dt_salflxs=dt_salflxs-smax*rhoic/dt
 it_dic=it_dic-smax
+where ( it_dic>himin )
+  it_tn1=(it_tn1*max(cpi*(it_dic+smax)-gammi,0.)-cp0*rhoic*dt_avewtemp*smax)/(cpi*it_dic-gammi)
+elsewhere
+  it_tsurf=(it_tsurf*gamm+it_tn1*max(cpi*(it_dic+smax)-gammi,0.)-cp0*rhoic*dt_avewtemp*smax) &
+          /(gamm+max(cpi*it_dic-gammi,0.))
+  it_tn1=it_tsurf
+end where
 
 ! remove brine store for single layer
 sbrine=min(it_sto/qice,it_dic)
 it_sto=it_sto-sbrine*qice
 dt_salflxs=dt_salflxs-sbrine*rhoic/dt
 it_dic=it_dic-sbrine
+where ( it_dic>himin )
+  it_tn1=(it_tn1*max(cpi*(it_dic+sbrine)-gammi,0.)-cp0*rhoic*dt_avewtemp*sbrine)/(cpi*it_dic-gammi)
+elsewhere
+  it_tsurf=(it_tsurf*gamm+it_tn1*max(cpi*(it_dic+sbrine)-gammi,0.)-cp0*rhoic*dt_avewtemp*sbrine) &
+          /(gamm+max(cpi*it_dic-gammi,0.))
+  it_tn1=it_tsurf
+end where
 
 ! Snow melt
-gamm=gammi+cps*it_dsn
-snmelt=max(it_tsurf-273.16,0.)*gamm/qsnow
-snmelt=min(snmelt,it_dsn)
-it_tsurf=it_tsurf-snmelt*qsnow/gamm
-it_dsn=it_dsn-snmelt
-dt_salflxf=dt_salflxf-snmelt*rhosn/dt ! melt fresh water snow (no salt when melting snow)
+do while (any(it_tsurf>273.16+0.1.and.it_dsn>icemin))
+  snmelt=max(it_tsurf-273.16,0.)*gamm/qsnow
+  snmelt=min(snmelt,it_dsn)
+  it_tsurf=it_tsurf-snmelt*qsnow/gamm
+  dt_salflxf=dt_salflxf-snmelt*rhosn/dt ! melt fresh water snow (no salt when melting snow)
+  it_dsn=it_dsn-snmelt
+  gamm=gammi+cps*it_dsn
+  it_tsurf=(it_tsurf*(gammi+cps*(it_dsn+snmelt))-cp0*rhosn*dt_avewtemp*snmelt)/(gammi+cps*it_dsn)
+end do
 
 ! Ice melt
-gamm=gammi+cps*it_dsn
-simelt=max(it_tsurf-dt_timelt,0.)*gamm/qice
-simelt=min(simelt,it_dic)
-it_tsurf=it_tsurf-simelt*qice/gamm
-dt_salflxs=dt_salflxs-simelt*rhoic/dt
-it_dic=it_dic-simelt
+do while (any(it_tsurf>dt_timelt+0.1.and.it_dic>icemin))
+  simelt=max(it_tsurf-dt_timelt,0.)*gamm/qice
+  simelt=min(simelt,it_dic)
+  it_tsurf=it_tsurf-simelt*qice/gamm
+  dt_salflxs=dt_salflxs-simelt*rhoic/dt
+  it_dic=it_dic-simelt
+  where ( it_dic>himin )
+    it_tn1=(it_tn1*max(cpi*(it_dic+simelt)-gammi,0.)-cp0*rhoic*dt_avewtemp*simelt)/(cpi*it_dic-gammi)
+  elsewhere
+    it_tsurf=(it_tsurf*gamm+it_tn1*max(cpi*(it_dic+simelt)-gammi,0.)-cp0*rhoic*dt_avewtemp*simelt) &
+            /(gamm+max(cpi*it_dic-gammi,0.))
+    it_tn1=it_tsurf
+  end where
+end do
   
 ! test whether to change number of layers
 htup=2.*himin
 htdown=himin
-where (it_dic>htup)
+where ( it_dic>htup )
   dt_nk=2
   !it_tn2=it_tn1
-elsewhere (it_dic<htdown)
+elsewhere ( it_dic<htdown )
   ! code to decrease number of layers
   dt_nk=0
   it_tsurf=(it_tsurf*(cps*it_dsn+gammi)+it_tn1*max(cpi*it_dic-gammi,0.))/(gammi+cps*it_dsn+max(cpi*it_dic-gammi,0.))
@@ -3163,7 +3293,7 @@ end subroutine icetempi1i
 ! ## tb ##########################################################
 
 subroutine icetemps(nc,dt,it_tn0,it_tn1,it_tn2,it_dic,it_dsn,it_tsurf,it_sto,dt_ftop,dt_tb,dt_fb, &
-                     dt_timelt,dt_salflxf,dt_salflxs,dt_nk,dt_wavail,pt_egice,diag)
+                     dt_timelt,dt_salflxf,dt_salflxs,dt_nk,dt_wavail,dt_avewtemp,pt_egice,diag)
 
 implicit none
 
@@ -3174,6 +3304,7 @@ real, dimension(nc) :: subl,snmelt,smax,dhb,isubl,ssubl,ssnmelt,gamm,simelt
 real, dimension(nc), intent(inout) :: it_tn0,it_tn1,it_tn2
 real, dimension(nc), intent(inout) :: it_dic,it_dsn,it_tsurf,it_sto
 real, dimension(nc), intent(inout) :: dt_ftop,dt_tb,dt_fb,dt_timelt,dt_salflxf,dt_salflxs,dt_wavail
+real, dimension(nc), intent(inout) :: dt_avewtemp
 integer, dimension(nc), intent(inout) :: dt_nk
 real, dimension(nc), intent(in) :: pt_egice
 
@@ -3196,6 +3327,8 @@ it_tsurf=it_tsurf+dt*(dt_ftop-pt_egice*lf/lv+f0)/gamm                     ! upda
 ! Bottom ablation or accretion to balance energy budget
 dt_salflxs=dt_salflxs+dhb*rhoic/dt
 it_dic=it_dic+dhb
+it_tsurf=(it_tsurf*(gammi+cps*it_dsn+max(cpi*it_dic-dhb-gammi,0.))+cp0*rhoic*dt_avewtemp*dhb)  &
+        /(gammi+cps*it_dsn+max(cpi*it_dic-gammi,0.))
 
 ! Surface evap/sublimation (can be >0 or <0)
 subl=dt*pt_egice*lf/(lv*qsnow)
@@ -3211,28 +3344,35 @@ smax=min(it_sto/qice,it_dic)
 it_sto=it_sto-smax*qice
 dt_salflxs=dt_salflxs-smax*rhoic/dt
 it_dic=it_dic-smax
+it_tsurf=(it_tsurf*(gammi+cps*it_dsn+max(cpi*it_dic+smax-gammi,0.))-cp0*rhoic*dt_avewtemp*smax)       &
+        /(gammi+cps*it_dsn+max(cpi*it_dic-gammi,0.))
 
 ! Snow melt
-gamm=cps*it_dsn+gammi+max(cpi*it_dic-gammi,0.)
-snmelt=max(it_tsurf-273.16,0.)*gamm/qsnow
-snmelt=min(snmelt,it_dsn)
-it_tsurf=it_tsurf-snmelt*qsnow/gamm
-it_dsn=it_dsn-snmelt
-dt_salflxf=dt_salflxf-snmelt*rhosn/dt ! melt fresh water snow (no salt when melting snow)
-!it_tsurf*(gammi+cps*newdsn+max(cpi*it_dic-gammi,0.)=it_tsurf*(gammi+cps*it_dsn+max(cpi*it_dic-gammi,0.)-cp0*twater_ave*snmelt
+do while (any(it_tsurf>273.16+0.01.and.it_dsn>icemin))
+  gamm=gammi+cps*it_dsn+max(cpi*it_dic-gammi,0.)
+  snmelt=max(it_tsurf-273.16,0.)*gamm/qsnow
+  snmelt=min(snmelt,it_dsn)
+  it_tsurf=it_tsurf-snmelt*qsnow/gamm
+  dt_salflxf=dt_salflxf-snmelt*rhosn/dt ! melt fresh water snow (no salt when melting snow)
+  it_dsn=it_dsn-snmelt
+  it_tsurf=(it_tsurf*(gammi+cps*(it_dsn+snmelt)+max(cpi*it_dic-gammi,0.))-cp0*rhosn*dt_avewtemp*snmelt) &
+          /(gammi+cps*it_dsn+max(cpi*it_dic-gammi,0.))
+end do
 
 ! Ice melt
-gamm=cps*it_dsn+gammi+max(cpi*it_dic-gammi,0.)
-simelt=max(it_tsurf-dt_timelt,0.)*gamm/qice
-simelt=min(simelt,it_dic)
-it_tsurf=it_tsurf-simelt*qice/gamm
-dt_salflxs=dt_salflxs-simelt*rhoic/dt
-it_dic=it_dic-simelt
-!it_tsurf*(gammi+cps*it_dsn+max(cpi*newdic-gammi,0.)=it_tsurf*(gammi+cps*it_dsn+max(cpi*it_dic-gammi,0.)-cp0*twater_ave*simelt
-!missflux=missflux+it_tsurf*(max(cpi*it_dic-gammi,0.)-max(cpi*(it_dic+simelt)-gammi,0.))
+gamm=gammi+cps*it_dsn+max(cpi*it_dic-gammi,0.)
+do while (any(it_tsurf>dt_timelt+0.1.and.it_dic>icemin))
+  simelt=max(it_tsurf-dt_timelt,0.)*gamm/qice
+  simelt=min(simelt,it_dic)
+  it_tsurf=it_tsurf-simelt*qice/gamm
+  dt_salflxs=dt_salflxs-simelt*rhoic/dt
+  it_dic=it_dic-simelt
+  it_tsurf=(it_tsurf*(gammi+cps*it_dsn+max(cpi*it_dic+simelt-gammi,0.))-cp0*rhoic*dt_avewtemp*simelt)   &
+          /(gammi+cps*it_dsn+max(cpi*it_dic-gammi,0.))
+end do
 
 ! Recalculate thickness index
-where (it_dic>=himin)
+where ( it_dic>=himin )
   dt_nk=1
 end where
 
