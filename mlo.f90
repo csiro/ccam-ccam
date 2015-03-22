@@ -2355,6 +2355,7 @@ do ii=1,maxlevel
     newsl=water%sal(:,ii)+(avesal-newicesal)*sdic(:,ii)*rhoic/rhowt/(dz(:,ii)*d_zcr)
     water%temp(:,ii)=water%temp(:,ii)*ice%fracice+newtn*(1.-ice%fracice)
     water%sal(:,ii)=water%sal(:,ii)*ice%fracice+newsl*(1.-ice%fracice)
+    water%sal(:,ii)=max(water%sal(:,ii),0.)
   end where
 end do
 
@@ -2369,8 +2370,8 @@ do iqw=1,wfull
       ice%temp(iqw,1)=ice%temp(iqw,1)*max(cpi*ice%thick(iqw)-gammi,0.)*ice%fracice(iqw)/(cpi*newthick(iqw)-gammi)
       ice%temp(iqw,2)=ice%temp(iqw,2)*max(cpi*ice%thick(iqw)-gammi,0.)*ice%fracice(iqw)/(cpi*newthick(iqw)-gammi)
     else
-      ice%tsurf(iqw)=ice%tsurf(iqw)+(0.5*(ice%temp(iqw,1)+ice%temp(iqw,2))*max(cpi*ice%thick(iqw)-gammi,0.)*ice%fracice(iqw)) &
-                    /gammi
+      ice%tsurf(iqw)=(ice%tsurf(iqw)*gammi+0.5*(ice%temp(iqw,1)+ice%temp(iqw,2))*max(cpi*ice%thick(iqw)-gammi,0.) &
+                    *ice%fracice(iqw))/(gammi+max(cpi*newthick(iqw)-gammi,0.))
       ice%temp(iqw,1)=ice%tsurf(iqw)
       ice%temp(iqw,2)=ice%tsurf(iqw)
     end if
@@ -2454,6 +2455,7 @@ do iqw=1,wfull
       deldz=min(aa,bb)
       water%temp(iqw,ii)=water%temp(iqw,ii)+delt*deldz/aa
       water%sal(iqw,ii) =water%sal(iqw,ii) +dels*deldz/aa
+      water%sal(iqw,ii)=max(water%sal(iqw,ii),0.)
       dsf=dsf+deldz
       if ( bb<=0. ) exit
     end do
