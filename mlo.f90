@@ -2285,14 +2285,14 @@ implicit none
 integer, intent(in) :: diag
 integer iqw, ii, maxlevel
 real, intent(in) :: dt
-real aa, bb, dsf, deldz, avet, aves, aveto, aveso, delt, dels
+real aa, bb, dsf, deldz, delt, dels
 real, dimension(wfull,wlev) :: sdic
-real, dimension(wfull) :: newdic, newsal, newtn, newsl, cdic
+real, dimension(wfull) :: newdic, newicesal, newtn, newsl, cdic
 real, dimension(wfull), intent(inout) :: d_timelt, d_zcr
 real, dimension(wfull) :: maxnewice, d_wavail, old_zcr
 real, dimension(wfull) :: newfracice, worka, newthick
-real, dimension(wfull) :: minwatersal, avetemp, newicetemp
-logical, dimension(wfull) :: lnewice
+real, dimension(wfull) :: avesal, avetemp, newicetemp
+logical, dimension(wfull) :: lnewice, lremove
 logical lflag
 
 ! limits on ice formation
@@ -2307,7 +2307,6 @@ maxnewice=max(min(maxnewice,0.3*himin),0.)
 
 ! search for water temperatures that are below freezing
 sdic=0.
-minwatersal=maxicesal
 maxlevel=1
 do iqw=1,wfull
   dsf=0.
@@ -2318,7 +2317,6 @@ do iqw=1,wfull
       deldz=min(aa,bb)
       sdic(iqw,ii)=max(d_timelt(iqw)-water%temp(iqw,ii),0.)*cp0*rhowt*deldz/qice/(1.-ice%fracice(iqw))
       dsf=dsf+deldz
-      minwatersal=min(minwatersal,water%sal(:,ii)) ! find minimum salinity
       maxlevel=max(maxlevel,ii)
       if (bb<=0.) exit
     end do
@@ -2326,11 +2324,26 @@ do iqw=1,wfull
 end do
 newdic=sum(sdic,2)
 newdic=min(maxnewice,newdic)
-newsal=min(minwatersal,maxicesal)
 lnewice=newdic>1.01*icemin
 where ( .not.lnewice )
   newdic=0.
 end where
+
+! calculate temperature of water to be converted to ice
+avetemp=0.
+avesal=0.
+do ii=1,wlev
+  avetemp=avetemp+water%temp(:,ii)*dz(:,ii)
+  avesal=avesal+water%sal(:,ii)*dz(:,ii)
+end do
+avetemp=avetemp/depth_hl(:,wlev+1)
+avesal=avesal/depth_hl(:,wlev+1)
+! balance the energy leaving the water column with that in surface ice layer
+newicetemp=avetemp*cp0*rhoic*newdic/gammi
+newicesal=min(maxicesal,avesal)
+
+water%eta=water%eta-newdic*(1.-ice%fracice)*rhoic/rhowt
+d_zcr=max(1.+water%eta/depth_hl(:,wlev+1),minwater/depth_hl(:,wlev+1))
 
 ! Adjust temperature and salinity in water column to balance ice formation
 cdic=0.
@@ -2339,20 +2352,11 @@ do ii=1,maxlevel
   cdic=cdic+sdic(:,ii)  
   where ( lnewice )
     newtn=water%temp(:,ii)+qice*sdic(:,ii)/(cp0*rhowt*dz(:,ii)*d_zcr)
-    newsl=water%sal(:,ii)+(water%sal(:,ii)-newsal)*sdic(:,ii)/(dz(:,ii)*d_zcr) ! use rhowt for both water and ice with salinity
+    newsl=water%sal(:,ii)+(avesal-newicesal)*sdic(:,ii)*rhoic/rhowt/(dz(:,ii)*d_zcr)
     water%temp(:,ii)=water%temp(:,ii)*ice%fracice+newtn*(1.-ice%fracice)
     water%sal(:,ii)=water%sal(:,ii)*ice%fracice+newsl*(1.-ice%fracice)
   end where
 end do
-
-! calculate temperature of water to be converted to ice
-avetemp=0.
-do ii=1,wlev
-  avetemp=avetemp+water%temp(:,ii)*dz(:,ii)
-end do
-avetemp=avetemp/depth_hl(:,wlev+1)
-! balance the energy leaving the water column with that in surface ice layer
-newicetemp=avetemp*cp0*rhoic*newdic/gammi
 
 ! form new sea-ice
 do iqw=1,wfull
@@ -2365,12 +2369,13 @@ do iqw=1,wfull
       ice%temp(iqw,1)=ice%temp(iqw,1)*max(cpi*ice%thick(iqw)-gammi,0.)*ice%fracice(iqw)/(cpi*newthick(iqw)-gammi)
       ice%temp(iqw,2)=ice%temp(iqw,2)*max(cpi*ice%thick(iqw)-gammi,0.)*ice%fracice(iqw)/(cpi*newthick(iqw)-gammi)
     else
+      ice%tsurf(iqw)=ice%tsurf(iqw)+(0.5*(ice%temp(iqw,1)+ice%temp(iqw,2))*max(cpi*ice%thick(iqw)-gammi,0.)*ice%fracice(iqw)) &
+                    /gammi
       ice%temp(iqw,1)=ice%tsurf(iqw)
       ice%temp(iqw,2)=ice%tsurf(iqw)
     end if
     ice%store(iqw)=ice%store(iqw)*ice%fracice(iqw)
-    ice%sal(iqw)=ice%sal(iqw)*ice%fracice(iqw)+newsal(iqw)*(1.-ice%fracice(iqw))
-    water%eta(iqw)=water%eta(iqw)-newdic(iqw)*(1.-ice%fracice(iqw))*rhoic/rhowt
+    ice%sal(iqw)=ice%sal(iqw)*ice%fracice(iqw)+newicesal(iqw)*(1.-ice%fracice(iqw))
     ice%thick(iqw)=newthick(iqw)
     ice%snowd(iqw)=ice%snowd(iqw)*ice%fracice(iqw)
     ice%fracice(iqw)=1. ! this will be adjusted for fracbreak below  
@@ -2409,50 +2414,39 @@ end do
 
 ! calculate temperature of water to be converted to ice
 avetemp=0.
+avesal=0.
 do ii=1,wlev
   avetemp=avetemp+water%temp(:,ii)*dz(:,ii)
+  avesal=avesal+water%sal(:,ii)*dz(:,ii)
 end do
 avetemp=avetemp/depth_hl(:,wlev+1)
+avesal=avesal/depth_hl(:,wlev+1)
 
 ! removal
-newdic=(ice%thick*rhoic+ice%snowd*rhosn)*ice%fracice/rhowt
-do iqw=1,wfull
-  if ( ice%thick(iqw)<=icemin .and. ice%fracice(iqw)>0. ) then
+lremove=ice%thick<=icemin .and. ice%fracice>0.
+where ( lremove )
+  newdic=(ice%thick*rhoic+ice%snowd*rhosn)*ice%fracice/rhowt
+elsewhere
+  newdic=0.
+end where
+water%eta=water%eta+newdic
+d_zcr=max(1.+water%eta/depth_hl(:,wlev+1),minwater/depth_hl(:,wlev+1))
 
-    ! average temperature and salinity of upper layers in water column
-    avet=0.
-    aves=0.
-    dsf=0.
-    do ii=1,wlev
-      aa=dz(iqw,ii)*d_zcr(iqw)
-      bb=max(minsfc-dsf,0.)
-      deldz=min(aa,bb)
-      avet=avet+water%temp(iqw,ii)*deldz
-      aves=aves+water%sal(iqw,ii)*deldz
-      dsf=dsf+deldz
-      if ( bb<=0. ) exit
-    end do
-    avet=avet/dsf
-    aves=aves/dsf
-    aveto=avet
-    aveso=aves
-  
+do iqw=1,wfull
+  if ( lremove(iqw) ) then
+
     ! update average temperature and salinity
-    ! use rhowt as a reference density
-    water%eta(iqw)=water%eta(iqw)+newdic(iqw)
-    aves=aves/(1.+ice%snowd(iqw)*rhows0/(rhowt*dsf))
-    aves=(aves+ice%thick(iqw)*ice%sal(iqw)/dsf)/(1.+ice%thick(iqw)/dsf)
-    avet=avet+(ice%fracice(iqw)*gammi*ice%tsurf(iqw)-cp0*rhowt*avetemp(iqw)*newdic(iqw))/(cp0*rhowt*dsf)
-    avet=avet+ice%fracice(iqw)*cps*ice%snowd(iqw)*ice%temp(iqw,0)/(cp0*rhowt*dsf)
-    avet=avet+ice%fracice(iqw)*0.5*max(cpi*ice%thick(iqw)-gammi,0.)*ice%temp(iqw,1)/(cp0*rhowt*dsf)
-    avet=avet+ice%fracice(iqw)*0.5*max(cpi*ice%thick(iqw)-gammi,0.)*ice%temp(iqw,2)/(cp0*rhowt*dsf)
-    avet=avet+ice%fracice(iqw)*ice%thick(iqw)*qice/(cp0*rhowt*dsf)
-    avet=avet+ice%fracice(iqw)*ice%snowd(iqw)*qsnow/(cp0*rhowt*dsf)
-    avet=avet+ice%fracice(iqw)*ice%store(iqw)/(cp0*rhowt*dsf)
+    dsf=minsfc
+    dels=(ice%sal(iqw)*ice%thick(iqw)*rhoic/rhowt*ice%fracice(iqw)-avesal(iqw)*newdic(iqw))/dsf
+    delt=(ice%fracice(iqw)*gammi*ice%tsurf(iqw)-cp0*rhowt*avetemp(iqw)*newdic(iqw))/(cp0*rhowt*dsf)
+    delt=delt+ice%fracice(iqw)*cps*ice%snowd(iqw)*ice%temp(iqw,0)/(cp0*rhowt*dsf)
+    delt=delt+ice%fracice(iqw)*0.5*max(cpi*ice%thick(iqw)-gammi,0.)*ice%temp(iqw,1)/(cp0*rhowt*dsf)
+    delt=delt+ice%fracice(iqw)*0.5*max(cpi*ice%thick(iqw)-gammi,0.)*ice%temp(iqw,2)/(cp0*rhowt*dsf)
+    delt=delt+ice%fracice(iqw)*ice%thick(iqw)*qice/(cp0*rhowt*dsf)
+    delt=delt+ice%fracice(iqw)*ice%snowd(iqw)*qsnow/(cp0*rhowt*dsf)
+    delt=delt+ice%fracice(iqw)*ice%store(iqw)/(cp0*rhowt*dsf)
     
     ! adjust temperature and salinity in water column
-    delt=avet-aveto
-    dels=aves-aveso
     dsf=0.
     do ii=1,wlev
       aa=dz(iqw,ii)*d_zcr(iqw)
