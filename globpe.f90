@@ -251,12 +251,12 @@ if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
 else
   ol = 0
 end if
-wlev = ol
-mindep = max(0.,mindep)
+wlev     = ol
+mindep   = max(0.,mindep)
 minwater = max(0.,minwater)
 read(99, skyin)
-kountr = nint(mins_rad*60./dt)  ! set default radiation to ~mins_rad m
-mins_rad = nint(kountr*dt/60.)  ! redefine to actual value
+kountr   = nint(mins_rad*60./dt)  ! set default radiation to ~mins_rad m
+mins_rad = nint(kountr*dt/60.)    ! redefine to actual value
 read(99, datafile)
 read(99, kuonml)
 ! try reading tracer namelist.  If no namelist is found, then disable
@@ -666,7 +666,7 @@ if ( nbd/=0 .and. nud_hrs/=0 ) then
     call dav_init(ifull,iextra,kl,0)
   end if
 end if
-! Remaining arrays are allocated in indata.f, since their
+! Remaining arrays are allocated in indata.f90, since their
 ! definition requires additional input data (e.g, land-surface)
 
       
@@ -1965,6 +1965,7 @@ do kktau = 1,ntau   ! ****** start of main time loop
     sno(:)         = 0.  ! converted to mm/day in outcdf
     runoff(:)      = 0.  ! converted to mm/day in outcdf
     u10mx(:)       = 0.
+    capemax(:)     = 0.    
     if ( ngas>0 ) then
       traver = 0.
     end if
@@ -2024,7 +2025,6 @@ do kktau = 1,ntau   ! ****** start of main time loop
     v1max(:)    = 0.
     u2max(:)    = 0.
     v2max(:)    = 0.
-    capemax(:)  = 0.
     rnd_3hr(:,8)= 0.       ! i.e. rnd24(:)=0.
     if ( nextout>=4 ) then
       call setllp ! from Nov 11, reset once per day
