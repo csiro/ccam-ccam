@@ -4446,7 +4446,7 @@ include 'parm.h'
 integer, intent(out) :: totits,itc
 !integer itstest,itsave1,itsave2
 integer nx,ll,ierr
-integer iq
+integer iq,isc,iec
 real, intent(out) :: maxglobseta,maxglobip
 real maxloclseta,maxloclip
 !real gd,ci,itserr1,itserr2
@@ -4537,52 +4537,106 @@ do ll=1,llmax
 
   do nx=1,maxcolour
 
+    isc = 1
+    iec = ifullcol_border(nx)
+      
     ! ocean
     ! 5-point version -----------------------------------------------
 
     ! For now, assume Boussinesq fluid and treat density in continuity equation as constant
-    au(1:ifullcol(nx))=yyc(1:ifullcol(nx),nx)
-    bu(1:ifullcol(nx))=zzc(1:ifullcol(nx),nx,1)+hhc(1:ifullcol(nx),nx)+yync(1:ifullcol(nx),nx)*neta(iqn(1:ifullcol(nx),nx)) &
-                                                                      +yysc(1:ifullcol(nx),nx)*neta(iqs(1:ifullcol(nx),nx)) &
-                                                                      +yyec(1:ifullcol(nx),nx)*neta(iqe(1:ifullcol(nx),nx)) &
-                                                                      +yywc(1:ifullcol(nx),nx)*neta(iqw(1:ifullcol(nx),nx))
-    cu(1:ifullcol(nx))=-rhsc(1:ifullcol(nx),nx,1)+zznc(1:ifullcol(nx),nx,1)*neta(iqn(1:ifullcol(nx),nx)) &
-                                                 +zzsc(1:ifullcol(nx),nx,1)*neta(iqs(1:ifullcol(nx),nx)) &
-                                                 +zzec(1:ifullcol(nx),nx,1)*neta(iqe(1:ifullcol(nx),nx)) &
-                                                 +zzwc(1:ifullcol(nx),nx,1)*neta(iqw(1:ifullcol(nx),nx))
+    au(isc:iec)=yyc(isc:iec,nx)
+    bu(isc:iec)=zzc(isc:iec,nx,1)+hhc(isc:iec,nx)+yync(isc:iec,nx)*neta(iqn(isc:iec,nx)) &
+                                                 +yysc(isc:iec,nx)*neta(iqs(isc:iec,nx)) &
+                                                 +yyec(isc:iec,nx)*neta(iqe(isc:iec,nx)) &
+                                                 +yywc(isc:iec,nx)*neta(iqw(isc:iec,nx))
+    cu(isc:iec)=-rhsc(isc:iec,nx,1)+zznc(isc:iec,nx,1)*neta(iqn(isc:iec,nx)) &
+                                   +zzsc(isc:iec,nx,1)*neta(iqs(isc:iec,nx)) &
+                                   +zzec(isc:iec,nx,1)*neta(iqe(isc:iec,nx)) &
+                                   +zzwc(isc:iec,nx,1)*neta(iqw(isc:iec,nx))
     
     ! alternative form
-    setac(1:ifullcol(nx))=-neta(iqx(1:ifullcol(nx),nx))-2.*cu(1:ifullcol(nx))/(bu(1:ifullcol(nx)) &
-           +sqrt(bu(1:ifullcol(nx))*bu(1:ifullcol(nx))-4.*au(1:ifullcol(nx))*cu(1:ifullcol(nx))))
+    setac(isc:iec)=-neta(iqx(isc:iec,nx))-2.*cu(isc:iec)/(bu(isc:iec) &
+           +sqrt(bu(isc:iec)*bu(isc:iec)-4.*au(isc:iec)*cu(isc:iec)))
     
     ! The following expression limits the minimum depth
     ! (should not occur for typical eta values)
-    seta(iqx(1:ifullcol(nx),nx))=max(setac(1:ifullcol(nx)),-(neta(iqx(1:ifullcol(nx),nx))+dd(iqx(1:ifullcol(nx),nx)))) 
-    seta(iqx(1:ifullcol(nx),nx))=seta(iqx(1:ifullcol(nx),nx))*ee(iqx(1:ifullcol(nx),nx))
-    neta(iqx(1:ifullcol(nx),nx))=neta(iqx(1:ifullcol(nx),nx))+seta(iqx(1:ifullcol(nx),nx))
+    seta(iqx(isc:iec,nx))=max(setac(isc:iec),-(neta(iqx(isc:iec,nx))+dd(iqx(isc:iec,nx)))) 
+    seta(iqx(isc:iec,nx))=seta(iqx(isc:iec,nx))*ee(iqx(isc:iec,nx))
+    dumc(iqx(isc:iec,nx),1)=neta(iqx(isc:iec,nx))+seta(iqx(isc:iec,nx))
 
     ! ice
     ! 5-point version -------------------------------------------------
  
-    bu(1:ifullcol(nx))=zzc(1:ifullcol(nx),nx,2)
-    cu(1:ifullcol(nx))=-rhsc(1:ifullcol(nx),nx,2)+zznc(1:ifullcol(nx),nx,2)*ipice(iqn(1:ifullcol(nx),nx)) &
-                                                 +zzsc(1:ifullcol(nx),nx,2)*ipice(iqs(1:ifullcol(nx),nx)) &
-                                                 +zzec(1:ifullcol(nx),nx,2)*ipice(iqe(1:ifullcol(nx),nx)) &
-                                                 +zzwc(1:ifullcol(nx),nx,2)*ipice(iqw(1:ifullcol(nx),nx))
-    nip(1:ifullcol(nx))=0.
-    where (bu(1:ifullcol(nx))/=0.)
-      nip(1:ifullcol(nx))=-cu(1:ifullcol(nx))/bu(1:ifullcol(nx))
+    bu(isc:iec)=zzc(isc:iec,nx,2)
+    cu(isc:iec)=-rhsc(isc:iec,nx,2)+zznc(isc:iec,nx,2)*ipice(iqn(isc:iec,nx)) &
+                                   +zzsc(isc:iec,nx,2)*ipice(iqs(isc:iec,nx)) &
+                                   +zzec(isc:iec,nx,2)*ipice(iqe(isc:iec,nx)) &
+                                   +zzwc(isc:iec,nx,2)*ipice(iqw(isc:iec,nx))
+    nip(isc:iec)=0.
+    where (bu(isc:iec)/=0.)
+      nip(isc:iec)=-cu(isc:iec)/bu(isc:iec)
     end where
  
     ! cavitating fluid
-    nip(1:ifullcol(nx))=max(min(nip(1:ifullcol(nx)),ipmax(iqx(1:ifullcol(nx),nx))),0.)
+    nip(isc:iec)=max(min(nip(isc:iec),ipmax(iqx(isc:iec,nx))),0.)
 
-    setab(iqx(1:ifullcol(nx),nx))=nip(1:ifullcol(nx))-ipice(iqx(1:ifullcol(nx),nx))
-    ipice(iqx(1:ifullcol(nx),nx))=ipice(iqx(1:ifullcol(nx),nx))+setab(iqx(1:ifullcol(nx),nx))
+    setab(iqx(isc:iec,nx))=nip(isc:iec)-ipice(iqx(isc:iec,nx))
+    dumc(iqx(isc:iec,nx),2)=ipice(iqx(isc:iec,nx))+setab(iqx(isc:iec,nx))
 
-    dumc(iqx(1:ifullcol(nx),nx),1)=neta(iqx(1:ifullcol(nx),nx))
-    dumc(iqx(1:ifullcol(nx),nx),2)=ipice(iqx(1:ifullcol(nx),nx))
-    call bounds_colour(dumc(:,1:2),nx)
+    call bounds_colour_send(dumc(:,1:2),nx)
+    
+    isc = ifullcol_border(nx) + 1
+    iec = ifullcol(nx)
+      
+    ! ocean
+    ! 5-point version -----------------------------------------------
+
+    ! For now, assume Boussinesq fluid and treat density in continuity equation as constant
+    au(isc:iec)=yyc(isc:iec,nx)
+    bu(isc:iec)=zzc(isc:iec,nx,1)+hhc(isc:iec,nx)+yync(isc:iec,nx)*neta(iqn(isc:iec,nx)) &
+                                                 +yysc(isc:iec,nx)*neta(iqs(isc:iec,nx)) &
+                                                 +yyec(isc:iec,nx)*neta(iqe(isc:iec,nx)) &
+                                                 +yywc(isc:iec,nx)*neta(iqw(isc:iec,nx))
+    cu(isc:iec)=-rhsc(isc:iec,nx,1)+zznc(isc:iec,nx,1)*neta(iqn(isc:iec,nx)) &
+                                   +zzsc(isc:iec,nx,1)*neta(iqs(isc:iec,nx)) &
+                                   +zzec(isc:iec,nx,1)*neta(iqe(isc:iec,nx)) &
+                                   +zzwc(isc:iec,nx,1)*neta(iqw(isc:iec,nx))
+    
+    ! alternative form
+    setac(isc:iec)=-neta(iqx(isc:iec,nx))-2.*cu(isc:iec)/(bu(isc:iec) &
+           +sqrt(bu(isc:iec)*bu(isc:iec)-4.*au(isc:iec)*cu(isc:iec)))
+    
+    ! The following expression limits the minimum depth
+    ! (should not occur for typical eta values)
+    seta(iqx(isc:iec,nx))=max(setac(isc:iec),-(neta(iqx(isc:iec,nx))+dd(iqx(isc:iec,nx)))) 
+    seta(iqx(isc:iec,nx))=seta(iqx(isc:iec,nx))*ee(iqx(isc:iec,nx))
+    neta(iqx(isc:iec,nx))=neta(iqx(isc:iec,nx))+seta(iqx(isc:iec,nx))
+
+    ! ice
+    ! 5-point version -------------------------------------------------
+ 
+    bu(isc:iec)=zzc(isc:iec,nx,2)
+    cu(isc:iec)=-rhsc(isc:iec,nx,2)+zznc(isc:iec,nx,2)*ipice(iqn(isc:iec,nx)) &
+                                   +zzsc(isc:iec,nx,2)*ipice(iqs(isc:iec,nx)) &
+                                   +zzec(isc:iec,nx,2)*ipice(iqe(isc:iec,nx)) &
+                                   +zzwc(isc:iec,nx,2)*ipice(iqw(isc:iec,nx))
+    nip(isc:iec)=0.
+    where (bu(isc:iec)/=0.)
+      nip(isc:iec)=-cu(isc:iec)/bu(isc:iec)
+    end where
+ 
+    ! cavitating fluid
+    nip(isc:iec)=max(min(nip(isc:iec),ipmax(iqx(isc:iec,nx))),0.)
+
+    setab(iqx(isc:iec,nx))=nip(isc:iec)-ipice(iqx(isc:iec,nx))
+    ipice(iqx(isc:iec,nx))=ipice(iqx(isc:iec,nx))+setab(iqx(isc:iec,nx))
+
+    dumc(iqx(isc:iec,nx),1)=neta(iqx(isc:iec,nx))
+    dumc(iqx(isc:iec,nx),2)=ipice(iqx(isc:iec,nx))
+    iec = ifullcol_border(nx)
+    neta(iqx(1:iec,nx)) =dumc(iqx(1:iec,nx),1)
+    ipice(iqx(1:iec,nx))=dumc(iqx(1:iec,nx),2)
+    call bounds_colour_recv(dumc(:,1:2),nx)    
     neta(ifull+1:ifull+iextra) =dumc(ifull+1:ifull+iextra,1)
     ipice(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,2)
   

@@ -54,7 +54,7 @@ module cc_mpi
              ccmpi_barrier, ccmpi_gatherx, ccmpi_scatterx,                  &
              ccmpi_allgatherx, ccmpi_recv, ccmpi_ssend, ccmpi_init,         &
              ccmpi_finalize, ccmpi_commsplit, ccmpi_commfree,               &
-             bounds_colour, boundsuv_allvec
+             bounds_colour_send, bounds_colour_recv, boundsuv_allvec
    public :: mgbounds, mgcollect, mgcollect_mlo, mgbcast, mgbcastxn,        &
              mg_index, mgbounds_mlo, mgbcast_mlo, mgbcasta_mlo
    public :: ind, indx, indp, indg, iq2iqg, indv_mpi, indglobal, fproc,     &
@@ -205,7 +205,7 @@ module cc_mpi
 #else
    integer, parameter, public :: maxcolour = 2
 #endif
-   integer, public, save, dimension(maxcolour) :: ifullcol
+   integer, public, save, dimension(maxcolour) :: ifullcol, ifullcol_border
 
    integer, public, save :: maxbuflen
 
@@ -465,7 +465,7 @@ contains
       do n = 1,npan
          do j = 1,jpan
             do i = 1,ipan
-               iq = indp(i,j,n)   ! Local
+               iq  = indp(i,j,n)  ! Local
                iqg = indg(i,j,n)  ! Global
                colourmask(iq) = findcolour(iqg)
             end do
@@ -480,13 +480,61 @@ contains
       allocate ( iqn(ifullmaxcol,maxcolour), iqe(ifullmaxcol,maxcolour) )
       allocate ( iqw(ifullmaxcol,maxcolour), iqs(ifullmaxcol,maxcolour) )
       ifullcol = 0
-      do iq = 1,ifull
-         ifullcol(colourmask(iq)) = ifullcol(colourmask(iq)) + 1
-         iqx(ifullcol(colourmask(iq)),colourmask(iq)) = iq
-         iqn(ifullcol(colourmask(iq)),colourmask(iq)) = in(iq)
-         iqe(ifullcol(colourmask(iq)),colourmask(iq)) = ie(iq)
-         iqw(ifullcol(colourmask(iq)),colourmask(iq)) = iw(iq)
-         iqs(ifullcol(colourmask(iq)),colourmask(iq)) = is(iq)
+      do n = 1,npan
+        j = 1
+        do i = 1,ipan
+          iq = indp(i,j,n)
+          ifullcol(colourmask(iq)) = ifullcol(colourmask(iq)) + 1
+          iqx(ifullcol(colourmask(iq)),colourmask(iq)) = iq
+          iqn(ifullcol(colourmask(iq)),colourmask(iq)) = in(iq)
+          iqe(ifullcol(colourmask(iq)),colourmask(iq)) = ie(iq)
+          iqw(ifullcol(colourmask(iq)),colourmask(iq)) = iw(iq)
+          iqs(ifullcol(colourmask(iq)),colourmask(iq)) = is(iq)
+        end do
+        j = jpan
+        do i = 1,ipan
+          iq = indp(i,j,n)
+          ifullcol(colourmask(iq)) = ifullcol(colourmask(iq)) + 1
+          iqx(ifullcol(colourmask(iq)),colourmask(iq)) = iq
+          iqn(ifullcol(colourmask(iq)),colourmask(iq)) = in(iq)
+          iqe(ifullcol(colourmask(iq)),colourmask(iq)) = ie(iq)
+          iqw(ifullcol(colourmask(iq)),colourmask(iq)) = iw(iq)
+          iqs(ifullcol(colourmask(iq)),colourmask(iq)) = is(iq)
+        end do
+        i = 1
+        do j = 2,jpan-1
+          iq = indp(i,j,n)
+          ifullcol(colourmask(iq)) = ifullcol(colourmask(iq)) + 1
+          iqx(ifullcol(colourmask(iq)),colourmask(iq)) = iq
+          iqn(ifullcol(colourmask(iq)),colourmask(iq)) = in(iq)
+          iqe(ifullcol(colourmask(iq)),colourmask(iq)) = ie(iq)
+          iqw(ifullcol(colourmask(iq)),colourmask(iq)) = iw(iq)
+          iqs(ifullcol(colourmask(iq)),colourmask(iq)) = is(iq)
+        end do
+        i = ipan
+        do j = 2,jpan-1
+          iq = indp(i,j,n)
+          ifullcol(colourmask(iq)) = ifullcol(colourmask(iq)) + 1
+          iqx(ifullcol(colourmask(iq)),colourmask(iq)) = iq
+          iqn(ifullcol(colourmask(iq)),colourmask(iq)) = in(iq)
+          iqe(ifullcol(colourmask(iq)),colourmask(iq)) = ie(iq)
+          iqw(ifullcol(colourmask(iq)),colourmask(iq)) = iw(iq)
+          iqs(ifullcol(colourmask(iq)),colourmask(iq)) = is(iq)
+        end do
+      end do
+      ifullcol_border = ifullcol
+      do n = 1,npan
+        do j = 2,jpan-1
+          do i = 2,ipan-1
+            iq = indp(i,j,n)
+            ifullcol(colourmask(iq)) = ifullcol(colourmask(iq)) + 1
+            iqx(ifullcol(colourmask(iq)),colourmask(iq)) = iq
+            iqn(ifullcol(colourmask(iq)),colourmask(iq)) = in(iq)
+            iqe(ifullcol(colourmask(iq)),colourmask(iq)) = ie(iq)
+            iqw(ifullcol(colourmask(iq)),colourmask(iq)) = iw(iq)
+            iqs(ifullcol(colourmask(iq)),colourmask(iq)) = is(iq)
+          end do
+        end do
       end do
 
       ltrue = .true. 
@@ -3394,17 +3442,14 @@ contains
 
    end subroutine bounds4
 
-   subroutine bounds_colour(t, lcolour, klim)
+   subroutine bounds_colour_send(t, lcolour, klim)
       ! Copy the boundary regions. This version allows supports updating
       ! different gridpoint colours
       real, dimension(:,:), intent(inout) :: t
       integer, intent(in) :: lcolour
       integer, intent(in), optional :: klim
-      integer :: iq, iproc, kx, send_len, recv_len, iqq
-      integer :: rcount, myrlen, jproc
-      integer(kind=4) :: ierr, itag = 3, llen, sreq, lproc, ldone
-      integer(kind=4), dimension(MPI_STATUS_SIZE,size(ireq)) :: status
-      integer(kind=4), dimension(neighnum) :: donelist
+      integer :: iq, iproc, kx, recv_len, iqq
+      integer(kind=4) :: ierr, itag = 3, llen, lproc
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -3416,7 +3461,6 @@ contains
       else
          kx = size(t,2)
       end if
-      myrlen = bnds(myid)%rlen
 
       call START_LOG(bounds_begin)
 
@@ -3456,6 +3500,36 @@ contains
          end if
       end do
 
+      call END_LOG(bounds_end)
+
+   end subroutine bounds_colour_send
+   
+   subroutine bounds_colour_recv(t, lcolour, klim)
+      ! Copy the boundary regions. This version allows supports updating
+      ! different gridpoint colours
+      real, dimension(:,:), intent(inout) :: t
+      integer, intent(in) :: lcolour
+      integer, intent(in), optional :: klim
+      integer :: iq, iproc, kx, send_len, iqq
+      integer :: rcount, jproc, myrlen
+      integer(kind=4) :: ierr, sreq, lproc, ldone
+      integer(kind=4), dimension(MPI_STATUS_SIZE,size(ireq)) :: status
+      integer(kind=4), dimension(neighnum) :: donelist
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif 
+
+      if ( present(klim) ) then
+         kx = klim
+      else
+         kx = size(t,2)
+      end if
+      myrlen = bnds(myid)%rlen
+      
+      call START_LOG(bounds_begin)
+
       ! Finally see if there are any points on my own processor that need
       ! to be fixed up. This will only be in the case when nproc < npanels.
 !cdir nodep
@@ -3463,7 +3537,7 @@ contains
          ! request_list is same as send_list in this case
          t(ifull+bnds(myid)%unpack_list(iq),1:kx) = t(bnds(myid)%request_list(iq),1:kx)
       end do
-
+      
       ! Unpack incomming messages
       rcount = rreq
       do while ( rcount > 0 )
@@ -3500,8 +3574,8 @@ contains
 
       call END_LOG(bounds_end)
 
-   end subroutine bounds_colour
-
+   end subroutine bounds_colour_recv
+   
    subroutine boundsuv2(u, v, nrows, stag)
       ! Copy the boundary regions of u and v. This doesn't require the
       ! diagonal points like (0,0), but does have to take care of the
