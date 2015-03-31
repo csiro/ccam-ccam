@@ -3445,7 +3445,7 @@ contains
    subroutine bounds_colour_send(t, lcolour, klim)
       ! Copy the boundary regions. This version allows supports updating
       ! different gridpoint colours
-      real, dimension(:,:), intent(inout) :: t
+      real, dimension(:,:), intent(in) :: t
       integer, intent(in) :: lcolour
       integer, intent(in), optional :: klim
       integer :: iq, iproc, kx, recv_len, iqq

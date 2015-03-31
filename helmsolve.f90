@@ -1833,7 +1833,7 @@ do g=2,gmax
                  +mg(g)%zzn(iq)*v(1:kl,mg(g)%in(iq),g)+mg(g)%zzs(iq)*v(1:kl,mg(g)%is(iq),g) &
                  -rhs(1:kl,iq,g))/(helm(1:kl,iq,g)-mg(g)%zz(iq))
     end do
-    call mgbounds(g,w)
+    call mgbounds(g,w,klim=kl)
     v(1:kl,1:mg(g)%ifull+mg(g)%iextra,g)=w(1:kl,1:mg(g)%ifull+mg(g)%iextra)
   end do
   
