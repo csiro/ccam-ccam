@@ -3970,13 +3970,15 @@ implicit none
 include 'newmpar.h'
 include 'parm.h'
 
-integer iqq,jj
-real, dimension(wlev) :: ddux,ddvy
-real, dimension(wlev) :: ddi,dde,ddw,ddn,dds,dden,ddse,ddne,ddwn
-real, dimension(wlev) :: ramp_a,ramp_b,ramp_c,ramp_d,ramp_e,ramp_f
-real, dimension(wlev,2) :: ri,re,rw,rn,rs,ren,rse,rne,rwn
-real, dimension(wlev,2) :: ssi,sse,ssw,ssn,sss,ssen,ssse,ssne,sswn
-real, dimension(wlev,2) :: y2i,y2e,y2w,y2n,y2s,y2en,y2se,y2ne,y2wn
+integer ii, jj
+real, dimension(ifull,wlev) :: ddux,ddvy
+real, dimension(ifull,wlev) :: ddi,dde,ddw,ddn,dds,dden,ddse,ddne,ddwn
+real, dimension(ifull,wlev) :: ramp_a,ramp_c,ramp_e
+real, dimension(ifull+iextra,wlev) :: dd_i
+real, dimension(ifull,wlev,2) :: ri,re,rw,rn,rs,ren,rse,rne,rwn
+real, dimension(ifull,wlev,2) :: ssi,sse,ssw,ssn,sss,ssen,ssse,ssne,sswn
+real, dimension(ifull,wlev,2) :: y2i,y2e,y2w,y2n,y2s,y2en,y2se,y2ne,y2wn
+real, dimension(ifull+iextra,wlev,2) :: ss_i, y2_i
 real, dimension(ifull+iextra,wlev,2), intent (in) :: rhobar
 real, dimension(ifull,wlev,2), intent(out) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
 
@@ -3996,84 +3998,94 @@ real, dimension(ifull,wlev,2), intent(out) :: drhobardxu,drhobardyu,drhobardxv,d
 !
 ! dP/dx = g ( rhobar + (1-sigma) rho ) dneta/dx + g sigma (D+neta) drhobar/dx|neta=0
 
-do iqq=1,ifull
+ss_i=rhobar(:,:,:)
+do ii=1,wlev
+  dd_i(:,ii)=gosig(ii)*dd(:)
+  ddux(:,ii)=gosig(ii)*ddu(1:ifull)
+  ddvy(:,ii)=gosig(ii)*ddv(1:ifull)
+end do
+call mlospline(dd_i,ss_i,y2_i) ! cubic spline
 
-  ssi=rhobar(iqq,:,:)
-  sse=rhobar(ie(iqq),:,:)
-  ssn=rhobar(in(iqq),:,:)
-  ddi=gosig(:)*dd(iqq)
-  dde=gosig(:)*dd(ie(iqq))
-  ddn=gosig(:)*dd(in(iqq))
-  call mlospline(ddi,ssi,y2i) ! cubic spline
-  call mlospline(dde,sse,y2e)
-  call mlospline(ddn,ssn,y2n)
+ssi(:,:,:)=rhobar(1:ifull,:,:)
+sse(:,:,:)=rhobar(ie,:,:)
+ssn(:,:,:)=rhobar(in,:,:)
+ddi(:,:)  =dd_i(1:ifull,:)
+dde(:,:)  =dd_i(ie,:)
+ddn(:,:)  =dd_i(in,:)
+y2i(:,:,:)=y2_i(1:ifull,:,:)
+y2e(:,:,:)=y2_i(ie,:,:)
+y2n(:,:,:)=y2_i(in,:,:)
 
-  sss=rhobar(is(iqq),:,:)
-  ssne=rhobar(ine(iqq),:,:)
-  ssse=rhobar(ise(iqq),:,:)
-  dds =gosig(:)*dd(is(iqq))
-  ddne=gosig(:)*dd(ine(iqq))
-  ddse=gosig(:)*dd(ise(iqq))
-  call mlospline(dds,sss,y2s) ! cubic spline
-  call mlospline(ddne,ssne,y2ne)
-  call mlospline(ddse,ssse,y2se)
+sss(:,:,:) =rhobar(is,:,:)
+ssne(:,:,:)=rhobar(ine,:,:)
+ssse(:,:,:)=rhobar(ise,:,:)
+dds(:,:)   =dd_i(is,:)
+ddne(:,:)  =dd_i(ine,:)
+ddse(:,:)  =dd_i(ise,:)
+y2s(:,:,:) =y2i(is,:,:)
+y2ne(:,:,:)=y2i(ine,:,:)
+y2se(:,:,:)=y2i(ise,:,:)
   
-  ! process staggered u locations
-  ddux(:)=gosig(:)*ddu(iqq)
-  call seekval(ri(:,:),ssi(:,:),ddi(:),ddux(:),y2i(:,:),ramp_a(:))
-  call seekval(re(:,:),sse(:,:),dde(:),ddux(:),y2e(:,:),ramp_b(:))
-  ramp_a=ramp_a*ramp_b
-  do jj=1,2
-    drhobardxu(iqq,:,jj)=ramp_a*eeu(iqq)*(re(:,jj)-ri(:,jj))*emu(iqq)/ds
+! process staggered u locations
+ramp_a(:,:)=1.
+call seekval(ri,ssi,ddi,ddux,y2i,ramp_a)
+call seekval(re,sse,dde,ddux,y2e,ramp_a)
+do jj=1,2
+  do ii=1,wlev
+    drhobardxu(:,ii,jj)=ramp_a(:,ii)*(re(:,ii,jj)-ri(:,ii,jj))*eeu(1:ifull)*emu(1:ifull)/ds
   end do
-  call seekval(rn(:,:), ssn(:,:), ddn(:), ddux(:),y2n(:,:), ramp_c(:))
-  call seekval(rne(:,:),ssne(:,:),ddne(:),ddux(:),y2ne(:,:),ramp_d(:))
-  call seekval(rs(:,:), sss(:,:), dds(:), ddux(:),y2s(:,:), ramp_e(:))
-  call seekval(rse(:,:),ssse(:,:),ddse(:),ddux(:),y2se(:,:),ramp_f(:))
-  ramp_c=ramp_c*ramp_d
-  ramp_e=ramp_e*ramp_f
-  do jj=1,2
-    drhobardyu(iqq,:,jj)=ramp_a*ramp_c*(0.25*stwgt(iqq,1)*(rn(:,jj)*f(in(iqq))+rne(:,jj)*f(ine(iqq))                         &
-                                                          -ri(:,jj)*f(iqq)-re(:,jj)*f(ie(iqq)))*emu(iqq)/ds                  &
-                         -0.125*stwgt(iqq,1)*(ri(:,jj)+re(:,jj))*(f(in(iqq))+f(ine(iqq))-f(iqq)-f(ie(iqq)))*emu(iqq)/ds)     &
-                        +ramp_a*ramp_e*(0.25*stwgt(iqq,2)*(ri(:,jj)*f(iqq)+re(:,jj)*f(ie(iqq))                               &
-                                                          -rs(:,jj)*f(is(iqq))-rse(:,jj)*f(ise(iqq)))*emu(iqq)/ds            &
-                         -0.125*stwgt(iqq,2)*(ri(:,jj)+re(:,jj))*(f(iqq)+f(ie(iqq))-f(is(iqq))-f(ise(iqq)))*emu(iqq)/ds)
+end do
+ramp_c(:,:)=1.
+ramp_e(:,:)=1.
+call seekval(rn, ssn, ddn, ddux,y2n, ramp_c)
+call seekval(rne,ssne,ddne,ddux,y2ne,ramp_c)
+call seekval(rs, sss, dds, ddux,y2s, ramp_e)
+call seekval(rse,ssse,ddse,ddux,y2se,ramp_e)
+do jj=1,2
+  do ii=1,wlev
+    drhobardyu(:,ii,jj)=ramp_a(:,ii)*ramp_c(:,ii)*(0.25*stwgt(1:ifull,1)*(rn(:,ii,jj)*f(in)+rne(:,ii,jj)*f(ine)             &
+                                                         -ri(:,ii,jj)*f(1:ifull)-re(:,ii,jj)*f(ie))*emu(1:ifull)/ds         &
+                        -0.125*stwgt(1:ifull,1)*(ri(:,ii,jj)+re(:,ii,jj))*(f(in)+f(ine)-f(1:ifull)-f(ie))*emu(1:ifull)/ds)  &
+                       +ramp_a(:,ii)*ramp_e(:,ii)*(0.25*stwgt(1:ifull,2)*(ri(:,ii,jj)*f(1:ifull)+re(:,ii,jj)*f(ie)          &
+                                                         -rs(:,ii,jj)*f(is)-rse(:,ii,jj)*f(ise))*emu(1:ifull)/ds            &
+                        -0.125*stwgt(1:ifull,2)*(ri(:,ii,jj)+re(:,ii,jj))*(f(1:ifull)+f(ie)-f(is)-f(ise))*emu(1:ifull)/ds)
   end do
+end do
 
-  ssw=rhobar(iw(iqq),:,:)
-  ssen=rhobar(ien(iqq),:,:)
-  sswn=rhobar(iwn(iqq),:,:)
-  ddw =gosig(:)*dd(iw(iqq))
-  dden=gosig(:)*dd(ien(iqq))
-  ddwn=gosig(:)*dd(iwn(iqq))
-  call mlospline(ddw,ssw,y2w) ! cubic spline
-  call mlospline(dden,ssen,y2en)
-  call mlospline(ddwn,sswn,y2wn)
+ssw(:,:,:) =rhobar(iw,:,:)
+ssen(:,:,:)=rhobar(ien,:,:)
+sswn(:,:,:)=rhobar(iwn,:,:)
+ddw(:,:)   =dd_i(iw,:)
+dden(:,:)  =dd_i(ien,:)
+ddwn(:,:)  =dd_i(iwn,:)
+y2w(:,:,:) =y2_i(iw,:,:)
+y2en(:,:,:)=y2_i(ien,:,:)
+y2wn(:,:,:)=y2_i(iwn,:,:)
 
-  ! now process staggered v locations
-  ddvy(:)=gosig(:)*ddv(iqq)
-  call seekval(ri(:,:),ssi(:,:),ddi(:),ddvy(:),y2i(:,:),ramp_a(:))
-  call seekval(rn(:,:),ssn(:,:),ddn(:),ddvy(:),y2n(:,:),ramp_b(:))
-  ramp_a=ramp_a*ramp_b
-  do jj=1,2
-    drhobardyv(iqq,:,jj)=ramp_a*eev(iqq)*(rn(:,jj)-ri(:,jj))*emv(iqq)/ds
+! now process staggered v locations
+ramp_a(:,:)=1.
+call seekval(ri,ssi,ddi,ddvy,y2i,ramp_a)
+call seekval(rn,ssn,ddn,ddvy,y2n,ramp_a)
+do jj=1,2
+  do ii=1,wlev
+    drhobardyv(:,ii,jj)=ramp_a(:,ii)*(rn(:,ii,jj)-ri(:,ii,jj))*eev(1:ifull)*emv(1:ifull)/ds
   end do
-  call seekval(re(:,:), sse(:,:), dde(:), ddvy(:),y2e(:,:), ramp_c(:))
-  call seekval(ren(:,:),ssen(:,:),dden(:),ddvy(:),y2en(:,:),ramp_d(:))
-  call seekval(rw(:,:), ssw(:,:), ddw(:), ddvy(:),y2W(:,:), ramp_e(:))
-  call seekval(rwn(:,:),sswn(:,:),ddwn(:),ddvy(:),y2wn(:,:),ramp_f(:))
-  ramp_c=ramp_c*ramp_d
-  ramp_e=ramp_e*ramp_f
-  do jj=1,2
-    drhobardxv(iqq,:,jj)=ramp_a*ramp_c*(0.25*stwgt(iqq,3)*(re(:,jj)*f(ie(iqq))+ren(:,jj)*f(ien(iqq))                         &
-                                                          -ri(:,jj)*f(iqq)-rn(:,jj)*f(in(iqq)))*emv(iqq)/ds                  &
-                         -0.125*stwgt(iqq,3)*(ri(:,jj)+rn(:,jj))*(f(ie(iqq))+f(ien(iqq))-f(iqq)-f(in(iqq)))*emv(iqq)/ds)     &
-                        +ramp_a*ramp_e*(0.25*stwgt(iqq,4)*(ri(:,jj)*f(iqq)+rn(:,jj)*f(in(iqq))                               &
-                                                          -rw(:,jj)*f(iw(iqq))-rwn(:,jj)*f(iwn(iqq)))*emv(iqq)/ds            &
-                         -0.125*stwgt(iqq,4)*(ri(:,jj)+rn(:,jj))*(f(iqq)+f(in(iqq))-f(iw(iqq))-f(iwn(iqq)))*emv(iqq)/ds)
+end do
+ramp_c(:,:)=1.
+ramp_e(:,:)=1.
+call seekval(re, sse, dde, ddvy,y2e, ramp_c)
+call seekval(ren,ssen,dden,ddvy,y2en,ramp_c)
+call seekval(rw, ssw, ddw, ddvy,y2W, ramp_e)
+call seekval(rwn,sswn,ddwn,ddvy,y2wn,ramp_e)
+do jj=1,2
+  do ii=1,wlev
+    drhobardxv(:,ii,jj)=ramp_a(:,ii)*ramp_c(:,ii)*(0.25*stwgt(1:ifull,3)*(re(:,ii,jj)*f(ie)+ren(:,ii,jj)*f(ien)             &
+                                                         -ri(:,ii,jj)*f(1:ifull)-rn(:,ii,jj)*f(in))*emv(1:ifull)/ds         &
+                        -0.125*stwgt(1:ifull,3)*(ri(:,ii,jj)+rn(:,ii,jj))*(f(ie)+f(ien)-f(1:ifull)-f(in))*emv(1:ifull)/ds)  &
+                       +ramp_a(:,ii)*ramp_e(:,ii)*(0.25*stwgt(1:ifull,4)*(ri(:,ii,jj)*f(1:ifull)+rn(:,ii,jj)*f(in)          &
+                                                         -rw(:,ii,jj)*f(iw)-rwn(:,ii,jj)*f(iwn))*emv(1:ifull)/ds            &
+                        -0.125*stwgt(1:ifull,4)*(ri(:,ii,jj)+rn(:,ii,jj))*(f(1:ifull)+f(in)-f(iw)-f(iwn))*emv(1:ifull)/ds)
   end do
-
 end do
 
 return
@@ -4088,33 +4100,44 @@ use mlo, only : wlev
 
 implicit none
 
-integer ii
+include 'newmpar.h'
+
+integer iq, ii, jj, kk
 integer, dimension(wlev) :: sindx
-real, dimension(wlev), intent(in) :: ddseek
-real, dimension(wlev), intent(in) :: ddin
-real, dimension(wlev), intent(out) :: ramp
-real, dimension(wlev,2), intent(in) :: ssin, y2
-real, dimension(wlev,2), intent(out) :: rout
+real, dimension(ifull,wlev), intent(in) :: ddseek
+real, dimension(ifull,wlev), intent(in) :: ddin
+real, dimension(ifull,wlev), intent(inout) :: ramp
+real, dimension(ifull,wlev,2), intent(in) :: ssin, y2
+real, dimension(ifull,wlev,2), intent(out) :: rout
 real, dimension(wlev) :: h, a, b
 real, parameter :: dzramp = 0.1 ! extrapolation limit
 
-sindx = 2
-do ii = 2,wlev-1
-  where ( ddseek>ddin(ii) )
-    sindx = ii+1
-  end where
+do iq = 1,ifull
+  sindx(:) = wlev    
+  ii = 2
+  do jj = 1,wlev
+    do kk = ii,wlev-1
+      if ( ddseek(iq,jj)<=ddin(iq,kk) ) then
+        sindx(jj) = kk
+        exit
+      end if
+    end do
+    ii = sindx(jj)
+  end do
+
+  h = max(ddin(iq,sindx(:))-ddin(iq,sindx(:)-1),1.e-8)
+  a = (ddin(iq,sindx(:))-ddseek(iq,:))/h(:)
+  b = (ddseek(iq,:)-ddin(iq,sindx(:)-1))/h(:)
+
+  ! linear interpolation                             ! cubic spline terms
+  rout(iq,:,1) = a*ssin(iq,sindx(:)-1,1)+(1.-a)*ssin(iq,sindx(:),1)                 &
+                +((a*a*a-a)*y2(iq,sindx(:)-1,1)+(b*b*b-b)*y2(iq,sindx(:),1))*h*h/6.
+  rout(iq,:,2) = a*ssin(iq,sindx(:)-1,2)+(1.-a)*ssin(iq,sindx(:),2)                 &
+                +((a*a*a-a)*y2(iq,sindx(:)-1,2)+(b*b*b-b)*y2(iq,sindx(:),2))*h*h/6.
+
+  ! fade out extrapolation
+  ramp(iq,:) = ramp(iq,:)*min(max((a+dzramp)/dzramp,0.),1.)*min(max((1.-a+dzramp)/dzramp,0.),1.)
 end do
-
-h = max(ddin(sindx)-ddin(sindx-1),1.e-8)
-a = (ddin(sindx)-ddseek)/h
-b = (ddseek-ddin(sindx-1))/h
-
-! linear interpolation                             ! cubic spline terms
-rout(:,1) = a*ssin(sindx-1,1)+(1.-a)*ssin(sindx,1)+((a*a*a-a)*y2(sindx-1,1)+(b*b*b-b)*y2(sindx,1))*h*h/6.
-rout(:,2) = a*ssin(sindx-1,2)+(1.-a)*ssin(sindx,2)+((a*a*a-a)*y2(sindx-1,2)+(b*b*b-b)*y2(sindx,2))*h*h/6.
-
-! fade out extrapolation
-ramp = min(max((a+dzramp)/dzramp,0.),1.)*min(max((1.-a+dzramp)/dzramp,0.),1.)
 
 return
 end subroutine seekval
@@ -4128,26 +4151,33 @@ use mlo, only : wlev
 
 implicit none
 
-integer ii
-real, dimension(wlev), intent(in) :: x
-real, dimension(wlev,2), intent(in) :: y
-real, dimension(wlev,2), intent(out) :: y2
-real, dimension(wlev,2) :: u
-real, dimension(2) :: p
-real sig
+include 'newmpar.h'
 
-y2(1,:)=0.
-u(1,:)=0.
+integer ii, jj
+real, dimension(ifull+iextra,wlev), intent(in) :: x
+real, dimension(ifull+iextra,wlev,2), intent(in) :: y
+real, dimension(ifull+iextra,wlev,2), intent(out) :: y2
+real, dimension(ifull+iextra,wlev) :: u
+real, dimension(ifull+iextra,wlev) :: sig
+real, dimension(ifull+iextra) :: p
+
 do ii=2,wlev-1
-  sig=(x(ii)-x(ii-1))/(x(ii+1)-x(ii-1))
-  p=sig*y2(ii-1,:)+2.
-  y2(ii,:)=(sig-1.)/p
-  u(ii,:)=(6.*((y(ii+1,:)-y(ii,:))/(x(ii+1)-x(ii))-(y(ii,:)-y(ii-1,:)) &
-          /(x(ii)-x(ii-1)))/(x(ii+1)-x(ii-1))-sig*u(ii-1,:))/p
+  sig(:,ii)=(x(:,ii)-x(:,ii-1))/(x(:,ii+1)-x(:,ii-1))
 end do
-y2(wlev,:)=0.
-do ii=wlev-1,1,-1
-  y2(ii,:)=y2(ii,:)*y2(ii+1,:)+u(ii,:)
+
+do jj=1,2
+  y2(:,1,jj)=0.
+  u(:,1)=0.
+  do ii=2,wlev-1
+    p(:)=sig(:,ii)*y2(:,ii-1,jj)+2.
+    y2(:,ii,jj)=(sig(:,ii)-1.)/p(:)
+    u(:,ii)=(6.*((y(:,ii+1,jj)-y(:,ii,jj))/(x(:,ii+1)-x(:,ii))-(y(:,ii,jj)-y(:,ii-1,jj)) &
+           /(x(:,ii)-x(:,ii-1)))/(x(:,ii+1)-x(:,ii-1))-sig(:,ii)*u(:,ii-1))/p(:)
+  end do
+  y2(:,wlev,jj)=0.    
+  do ii=wlev-1,1,-1
+    y2(:,ii,jj)=y2(:,ii,jj)*y2(:,ii+1,jj)+u(:,ii)
+  end do
 end do
 
 return
