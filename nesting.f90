@@ -637,7 +637,7 @@ if (ldr/=0.and.nud_p>0.and.mfix_qg/=0) then
   end do
 end if
 if (abs(iaero)>=2.and.nud_aero>0) then
-  xtg(1:ifull,kbotdav:ktopdav,:)=xtg(1:ifull,kbotdav:ktopdav,:)+xtgb(:,kbotdav:ktopdav,:)
+  xtg(1:ifull,kbotdav:ktopdav,:)=max(xtg(1:ifull,kbotdav:ktopdav,:)+xtgb(:,kbotdav:ktopdav,:),0.)
 else if (abs(iaero)>=2.and.nud_p>0.and.mfix_aero/=0) then
   do ntr=1,naero
     do k=1,kl
