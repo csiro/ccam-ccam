@@ -2291,7 +2291,7 @@ real, dimension(wfull) :: newdic, newicesal, newtn, newsl, cdic
 real, dimension(wfull), intent(inout) :: d_timelt, d_zcr
 real, dimension(wfull) :: maxnewice, d_wavail, old_zcr
 real, dimension(wfull) :: newfracice, worka, newthick
-real, dimension(wfull) :: avesal, avetemp, newicetemp
+real, dimension(wfull) :: avesal, avetemp, newicetemp, neutralthick
 logical, dimension(wfull) :: lnewice, lremove
 logical lflag
 
