@@ -2302,8 +2302,6 @@ where ( ice%fracice<0.999999 )
 elsewhere
   maxnewice=0.
 end where
-! MJT notes - forming ice with icmin to 0.3*himin thickness results in plausible newicetemp below
-maxnewice=max(min(maxnewice,0.3*himin),0.)
 
 ! search for water temperatures that are below freezing
 sdic=0.
@@ -2323,8 +2321,10 @@ do iqw=1,wfull
   end if
 end do
 newdic=sum(sdic,2)
-newdic=min(maxnewice,newdic)
-lnewice=newdic>1.01*icemin
+newdic=min(newdic,maxnewice)
+neutralthick=gammi/(cp0*rhoic)
+newdic=min(newdic,1.01*neutralthick)
+lnewice=newdic>0.99*neutralthick
 where ( .not.lnewice )
   newdic=0.
 end where
@@ -2362,7 +2362,7 @@ end do
 ! form new sea-ice
 do iqw=1,wfull
   if ( lnewice(iqw) ) then
-    newthick(iqw)=ice%thick(iqw)*ice%fracice(iqw)+newdic(iqw)*(1.-ice%fracice(iqw))
+    newthick(iqw) =ice%thick(iqw)*ice%fracice(iqw)+newdic(iqw)*(1.-ice%fracice(iqw))
     ice%tsurf(iqw)=ice%tsurf(iqw)*ice%fracice(iqw)+newicetemp(iqw)*(1.-ice%fracice(iqw))
     !ice%temp(iqw,0)*newsnowd(iqw)=ice%temp(iqw,0)*ice%fracice(iqw)*ice%snowd(iqw)
     if ( newthick(iqw)>himin ) then
