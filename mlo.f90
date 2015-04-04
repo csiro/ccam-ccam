@@ -2285,13 +2285,13 @@ implicit none
 integer, intent(in) :: diag
 integer iqw, ii, maxlevel
 real, intent(in) :: dt
-real aa, bb, dsf, deldz, delt, dels
+real aa, bb, dsf, deldz, delt, dels, neutralthick
 real, dimension(wfull,wlev) :: sdic
 real, dimension(wfull) :: newdic, newicesal, newtn, newsl, cdic
 real, dimension(wfull), intent(inout) :: d_timelt, d_zcr
 real, dimension(wfull) :: maxnewice, d_wavail, old_zcr
 real, dimension(wfull) :: newfracice, worka, newthick
-real, dimension(wfull) :: avesal, avetemp, newicetemp, neutralthick
+real, dimension(wfull) :: avesal, avetemp, newicetemp
 logical, dimension(wfull) :: lnewice, lremove
 
 ! limits on ice formation
