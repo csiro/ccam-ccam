@@ -2293,7 +2293,6 @@ real, dimension(wfull) :: maxnewice, d_wavail, old_zcr
 real, dimension(wfull) :: newfracice, worka, newthick
 real, dimension(wfull) :: avesal, avetemp, newicetemp, neutralthick
 logical, dimension(wfull) :: lnewice, lremove
-logical lflag
 
 ! limits on ice formation
 d_wavail=max(depth_hl(:,wlev+1)+water%eta-minwater,0.)
@@ -2308,7 +2307,7 @@ sdic=0.
 maxlevel=1
 do iqw=1,wfull
   dsf=0.
-  if ( ice%fracice(iqw)<0.999999 ) then
+  if ( ice%fracice(iqw)<0.999 ) then
     do ii=1,wlev-1
       aa=dz(iqw,ii)*d_zcr(iqw)
       bb=max(minsfc-dsf,0.)
