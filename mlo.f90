@@ -2296,7 +2296,7 @@ logical, dimension(wfull) :: lnewice, lremove
 
 ! limits on ice formation
 d_wavail=max(depth_hl(:,wlev+1)+water%eta-minwater,0.)
-where ( ice%fracice<0.999999 )
+where ( ice%fracice<0.999 )
   maxnewice=d_wavail*rhowt/rhoic/(1.-ice%fracice)
 elsewhere
   maxnewice=0.
