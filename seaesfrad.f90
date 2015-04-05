@@ -149,7 +149,7 @@ call solargh(fjd,bpyear,r1,dlt,alp,slag)
 
 ! Prepare SEA-ESF arrays --------------------------------------------
 Rad_time%days   =int(fjd)
-Rad_time%seconds=mod(mins,1440)
+Rad_time%seconds=mod(mins,1440)*60
 Rad_time%ticks  =0
 
 ! Initialisation ----------------------------------------------------

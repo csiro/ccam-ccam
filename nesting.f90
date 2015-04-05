@@ -74,7 +74,7 @@ real, dimension(:), allocatable, save :: psla,pslb,tssa,tssb
 real, dimension(:), allocatable, save :: sicedepb,fraciceb
 real, dimension(:,:,:), allocatable, save :: sssa,sssb
 real, dimension(:,:,:), allocatable, save :: xtghosta,xtghostb
-real, dimension(ifull) :: zsb,duma
+real, dimension(ifull) :: zsb,duma,timelt
 real, dimension(ifull,wlev,4) :: dumaa
 real, dimension(ifull,ms) :: dumg
 real, dimension(ifull,kl) :: dumv
@@ -307,10 +307,10 @@ if(namip==0)then     ! namip SSTs/sea-ice take precedence
         end if
       end if
       if (wl==1) then ! switch to 2D if 3D data is missing
-        !call mloexport(0,timelt,1,0)
+        call mloexport(0,timelt,1,0)
         dumaa(:,1,1)=cona*tssa+conb*tssb
         where (fraciceb>0.) ! no relaxation under ice for SST nudging
-          dumaa(:,1,1)=tgg(:,1)
+          dumaa(:,1,1)=min(tgg(:,1),timelt)
         end where
       end if
       call mlonudge(dumaa(:,:,1),dumaa(:,:,2),dumaa(:,:,3:4),ocndep(:,2),wl)
@@ -362,7 +362,7 @@ real, dimension(:), allocatable, save :: pslb,tssb,fraciceb
 real, dimension(:), allocatable, save :: sicedepb
 real, dimension(:,:,:), allocatable, save :: sssb
 real, dimension(:,:,:), allocatable, save :: xtghostb
-real, dimension(ifull) :: zsb,duma
+real, dimension(ifull) :: zsb,duma,timelt
 real, dimension(ifull,ms) :: dumg
 real, dimension(ifull,kl) :: dumv
 real, dimension(ifull,3) :: dums
@@ -479,10 +479,10 @@ if ((mtimer==mtimeb).and.(mod(nint(ktau*dt),60)==0)) then
           end if
         end if
         if (wl==1) then ! switch to 2D data if 3D is missing
-          !call mloexport(0,timelt,1,0)
+          call mloexport(0,timelt,1,0)
           sssb(:,1,1)=tssb
           where (fraciceb>0.) ! no nudging under ice for 2D data
-            sssb(:,1,1)=tgg(:,1)
+            sssb(:,1,1)=min(tgg(:,1),timelt)
           end where
         end if
         call mlofilterhub(sssb(:,:,1),sssb(:,:,2), sssb(:,:,3:4),ocndep(:,2),wl)
