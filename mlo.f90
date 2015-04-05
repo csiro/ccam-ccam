@@ -2607,7 +2607,7 @@ real, intent(in) :: dt
 real htdown
 real, dimension(nc) :: con,rhin,rhsn,conb,qmax,fl,qneed,xxx,excess,conc
 real, dimension(nc) :: subl,snmelt,dhb,isubl,ssubl,smax
-real, dimension(nc) :: simelt
+real, dimension(nc) :: simelt,flnew
 real, dimension(nc), intent(inout) :: it_tn0,it_tn1,it_tn2
 real, dimension(nc), intent(inout) :: it_dic,it_dsn,it_tsurf,it_sto
 real, dimension(nc), intent(inout) :: dt_ftop,dt_tb,dt_fb,dt_timelt,dt_salflxf,dt_salflxs,dt_wavail
@@ -2649,12 +2649,12 @@ it_tn0(:)  =ans(:,2)
 it_tn1(:)  =ans(:,3)
 it_tn2(:)  =ans(:,4)
 fl=2.*conc*(dt_tb-it_tn2)
-fl=max(-1000.,min(fl,1000.))
-dhb=dt*(fl-dt_fb)/qice                    ! Excess flux between water and ice layer
+dhb=dt*(fl-dt_fb)/qice                      ! Excess flux between water and ice layer
 dhb=max(dhb,-it_dic)
 dhb=min(dhb,dt_wavail*rhowt/rhoic)
-fl=dt_fb+dhb*qice/dt
-it_tn2=dt_tb-fl/(2.*conc)
+flnew=dt_fb+dhb*qice/dt
+it_tn1=it_tn1+(flnew-fl)/(cpi*it_dic-gammi) ! Modify temperature if limit is reached
+it_tn2=it_tn2+(flnew-fl)/(cpi*it_dic-gammi) ! Modify temperature if limit is reached
 
 ! Bottom ablation or accretion
 it_dic=it_dic+dhb
@@ -2789,7 +2789,7 @@ real, intent(in) :: dt
 real htup,htdown
 real, dimension(nc) :: con,rhin,rhsn,conb,qmax,sbrine,fl,xxx,excess,conc
 real, dimension(nc) :: subl,snmelt,dhb,isubl,ssubl,smax
-real, dimension(nc) :: simelt
+real, dimension(nc) :: simelt,flnew
 real, dimension(nc), intent(inout) :: it_tn0,it_tn1,it_tn2
 real, dimension(nc), intent(inout) :: it_dic,it_dsn,it_tsurf,it_sto
 real, dimension(nc), intent(inout) :: dt_ftop,dt_tb,dt_fb,dt_timelt,dt_salflxf,dt_salflxs,dt_wavail
@@ -2829,12 +2829,11 @@ it_tsurf(:)=ans(:,1)
 it_tn0(:)  =ans(:,2)
 it_tn1(:)  =ans(:,3)
 fl=2.*condice*(dt_tb-it_tn1)
-fl=max(-1000.,min(fl,1000.))
-dhb=dt*(fl-dt_fb)/qice              ! Excess flux between water and ice layer
+dhb=dt*(fl-dt_fb)/qice                      ! Excess flux between water and ice layer
 dhb=max(dhb,-it_dic)
 dhb=min(dhb,dt_wavail*rhowt/rhoic)
-fl=dt_fb+dhb*qice/dt
-it_tn1=dt_tb-fl/(2.*condice)
+flnew=dt_fb+dhb*qice/dt
+it_tn1=it_tn1+(flnew-fl)/(cpi*it_dic-gammi) ! modify temperature if limit is reached
 
 ! Bottom ablation or accretion
 it_dic=it_dic+dhb
@@ -2970,7 +2969,7 @@ integer, dimension(nc), intent(inout) :: dt_nk
 real, intent(in) :: dt
 real htdown
 real, dimension(nc) :: rhin,qmax,qneed,fl,con,gamm,ssubl,isubl,excess,conb
-real, dimension(nc) :: subl,simelt,smax,dhb,snmelt
+real, dimension(nc) :: subl,simelt,smax,dhb,snmelt,flnew
 real, dimension(nc), intent(inout) :: it_tn0,it_tn1,it_tn2
 real, dimension(nc), intent(inout) :: it_dic,it_dsn,it_tsurf,it_sto
 real, dimension(nc), intent(inout) :: dt_ftop,dt_tb,dt_fb,dt_timelt,dt_salflxf,dt_salflxs,dt_wavail
@@ -3009,12 +3008,12 @@ it_tsurf(:)=ans(:,1)
 it_tn1(:)  =ans(:,2)
 it_tn2(:)  =ans(:,3)
 fl=2.*conb*(dt_tb-it_tn2)
-fl=max(-1000.,min(fl,1000.))
-dhb=dt*(fl-dt_fb)/qice                    ! first guess of excess flux between water and ice layer
+dhb=dt*(fl-dt_fb)/qice                         ! first guess of excess flux between water and ice layer
 dhb=max(dhb,-it_dic)
 dhb=min(dhb,dt_wavail*rhowt/rhoic)
-fl=dt_fb+dhb*qice/dt
-it_tn2=dt_tb-fl/(2.*conb)
+flnew=dt_fb+dhb*qice/dt
+it_tn1=it_tn1+2.*(flnew-fl)/(cpi*it_dic-gammi) ! modify temperature if limit is reached
+it_tn2=it_tn2+2.*(flnew-fl)/(cpi*it_dic-gammi) ! modify temperature if limit is reached
 
 ! Bottom ablation or accretion
 it_dic=it_dic+dhb
@@ -3134,7 +3133,7 @@ integer, dimension(nc), intent(inout) :: dt_nk
 real, intent(in) :: dt
 real htup,htdown
 real, dimension(nc) :: rhin,qmax,sbrine,fl,con,gamm,ssubl,isubl,excess,conb
-real, dimension(nc) :: subl,simelt,smax,dhb,snmelt
+real, dimension(nc) :: subl,simelt,smax,dhb,snmelt,flnew
 real, dimension(nc), intent(inout) :: it_tn0,it_tn1,it_tn2
 real, dimension(nc), intent(inout) :: it_dic,it_dsn,it_tsurf,it_sto
 real, dimension(nc), intent(inout) :: dt_ftop,dt_tb,dt_fb,dt_timelt,dt_salflxf,dt_salflxs,dt_wavail
@@ -3168,13 +3167,12 @@ dd(:,2)=it_tn1+dt*2.*conb*dt_tb*rhin/cpi
 call thomas(ans,aa,bb,cc,dd)
 it_tsurf(:)=ans(:,1)
 it_tn1(:)  =ans(:,2)
-fl=2.*conb*(dt_tb-it_tn1)            ! flux between t1 and bottom
-fl=max(-1000.,min(fl,1000.))
-dhb=dt*(fl-dt_fb)/qice               ! first guess of excess flux between water and ice layer
+fl=2.*conb*(dt_tb-it_tn1)                   ! flux between t1 and bottom
+dhb=dt*(fl-dt_fb)/qice                      ! first guess of excess flux between water and ice layer
 dhb=max(dhb,-it_dic)
 dhb=min(dhb,dt_wavail*rhowt/rhoic)
-fl=dt_fb+dhb*qice/dt                 ! final excess flux from below
-it_tn1=dt_tb-fl/(2.*conb)            ! does nothing unless a limit is reached
+flnew=dt_fb+dhb*qice/dt                     ! final excess flux from below
+it_tn1=it_tn1+(flnew-fl)/(cpi*it_dic-gammi) ! does nothing unless a limit is reached
 
 ! Bottom ablation or accretion
 it_dic=it_dic+dhb
@@ -3322,7 +3320,6 @@ elsewhere
       /(gamm/dt+con*(1.+cp0*rhoic*dt_avewtemp/qice))
 end where
 f0=con*(dt_tb-tnew)                                                       ! first guess of flux from below
-f0=max(-1000.,min(f0,1000.))
 dhb=dt*(f0-dt_fb)/qice                                                    ! excess flux converted to change in ice thickness
 dhb=max(dhb,-it_dic)
 dhb=min(dhb,dt_wavail*rhowt/rhoic)
