@@ -12,20 +12,20 @@
       use indices_m
       use kuocomb_m
       use latlong_m
-      use liqwpar_m  ! ifullw
+      use liqwpar_m   ! ifullw
       use map_m
       use morepbl_m
       use nharrs_m, only : phi_nh
-      use pbl_m  ! tss
+      use pbl_m       ! tss
       use prec_m
-      use screen_m  ! u10
+      use screen_m    ! u10
       use sigs_m
       use soil_m
       use soilsnow_m  ! for fracice
       use tkeeps, only : tke,eps,zidry
-      use tracers_m  ! ngas, nllp, ntrac
+      use tracers_m   ! ngas, nllp, ntrac
       use vvel_m
-      use work2_m   ! for wetfa!    JLM
+      use work2_m     ! for wetfa!    JLM
       implicit none
       include 'newmpar.h'
       include 'const_phys.h'
@@ -115,15 +115,18 @@
           k500=k500+1
         enddo
         k500=k500-1    ! level just below .5
-        if(myid==0)then
-          write(6,*) 'k900,k700,k600,k500',
-     &      k900,k700,k600,k500,sig(k900),sig(k700),sig(k600),sig(k500)
+        if (myid==0) then
+          write(6,*) 'k980 ',k980,sig(k980)
+          write(6,*) 'k900 ',k900,sig(k900)
+          write(6,*) 'k700 ',k700,sig(k700)
+          write(6,*) 'k600 ',k600,sig(k600)
+          write(6,*) 'k500 ',k500,sig(k500)
         end if
         allocate(timeconv(ifull))  ! init for ktau=1 (allocate needed for mdelay>0)
-        allocate(entrainn(ifull))    ! init for ktau=1 (allocate needed for nevapcc.ne.0)
-        allocate(alfin(ifull))          ! init for ktau=1
+        allocate(entrainn(ifull))  ! init for ktau=1 (allocate needed for nevapcc.ne.0)
+        allocate(alfin(ifull))     ! init for ktau=1
         allocate(kb_saved(ifull))  ! init for ktau=1 (allocate needed for nevapcc.ne.0)
-        allocate(kt_saved(ifull))   ! init for ktau=1 (allocate needed for nevapcc.ne.0)
+        allocate(kt_saved(ifull))  ! init for ktau=1 (allocate needed for nevapcc.ne.0)
         allocate(upin(kl,kl))
         allocate(upin4(kl,kl))
         allocate(downex(kl,kl))
@@ -144,7 +147,7 @@
         entrainn(:)=entrain  ! N.B. for nevapcc.ne.0, entrain handles type of scheme
      
         if (alflnd<0.or.alfsea<0.or.
-     &  (mbase<0.and.mbase.ne.-10).or.mbase>4)  then
+     &  (mbase<0.and.mbase.ne.-10).or.mbase>4) then
           write(6,*) "ERROR: negative alflnd and alfsea or"
           write(6,*) "unsupported mbase convjlm"
           call ccmpi_abort(-1)
@@ -324,6 +327,7 @@
         elsewhere
           alfin(:)=alfsea
         end where
+        
         if(tied_over>0.)then   ! e.g. 2626.   b then a.  2600 to get old -26
           tied_b=int(tied_over/100.)
           tied_a=tied_over-100.*tied_b

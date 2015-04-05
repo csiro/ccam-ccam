@@ -141,7 +141,7 @@ if ( ncloud<=3 ) then
   if ( nmr>0 ) then
     ! Max/Rnd cloud overlap
     do k = 1,kl
-      where ( clcon(:,k)>0. )
+      where ( clcon(:,k)>1.e-8 )
         !ccw=wcon(:)/rhoa(:,k)  !In-cloud l.w. mixing ratio
         qccon(:,k)      = clcon(:,k)*wcon(:)/rhoa(:,k)
         qcl(:,k)        = max(qsg(:,k),qg(1:ifull,k))  ! jlm
@@ -159,7 +159,7 @@ if ( ncloud<=3 ) then
   else
     ! usual random cloud overlap
     do k = 1,kl
-      where ( clcon(1:ifull,k)>0. )
+      where ( clcon(1:ifull,k)>1.e-8 )
         !ccw=wcon(iq)/rhoa(iq,k)  !In-cloud l.w. mixing ratio
         qccon(1:ifull,k) = clcon(1:ifull,k)*wcon(1:ifull)/rhoa(1:ifull,k)
         qcl(1:ifull,k)   = max(qsg(1:ifull,k),qg(1:ifull,k))  ! jlm
@@ -376,10 +376,9 @@ cfrac(:,1:kl) = min(1.,ccov(:,1:kl)+clcon(:,1:kl))
 !endif    ! ncfrp.eq.1
 !========================= end of Jack's diag stuff ======================
 
-!     factor of 2 is because used .5 in newrain.f (24-mar-2000, jjk)
-condx(1:ifull)  = condx(1:ifull)+precs(1:ifull)*2.
-conds(1:ifull)  = conds(1:ifull)+preci(1:ifull)*2.
-precip(1:ifull) = precip(1:ifull)+precs(1:ifull)*2.
+condx(1:ifull)  = condx(1:ifull)+precs(1:ifull)
+conds(1:ifull)  = conds(1:ifull)+preci(1:ifull)
+precip(1:ifull) = precip(1:ifull)+precs(1:ifull)
 
 return
 end subroutine leoncld
@@ -586,8 +585,8 @@ if (ncloud<3) then
     enddo
   endif  ! (nclddia<0)  .. else ..
 
-! Calculate cloudy fraction of grid box (cfrac) and gridbox-mean cloud water
-! using the triangular PDF of Smith (1990)
+  ! Calculate cloudy fraction of grid box (cfrac) and gridbox-mean cloud water
+  ! using the triangular PDF of Smith (1990)
 
   do k=1,kl
     do mg=1,ifull
@@ -595,15 +594,15 @@ if (ncloud<3) then
       qtot(mg,k)=qtg(mg,k)+qcg(mg,k)
       tliq(mg,k)=ttg(mg,k)-hlcp*qcg(mg,k)-hlfcp*qfg(mg,k)
 
-! Calculate qs and gam=(L/cp)*dqsdt,  at temperature tliq
+      ! Calculate qs and gam=(L/cp)*dqsdt,  at temperature tliq
       pk=100.0*prf(mg,k)
       qsi(mg,k)=qsati(pk,tliq(mg,k))           !Ice value
-      deles=esdiffx(tliq(mg,k))                              ! MJT suggestion
+      deles=esdiffx(tliq(mg,k))                ! MJT suggestion
       qsl(mg,k)=qsi(mg,k)+epsil*deles/pk       !qs over liquid
       qsw(mg,k)=fice(mg,k)*qsi(mg,k)+(1.-fice(mg,k))*qsl(mg,k) !Weighted qs at temperature Tliq
       qs=qsw(mg,k)
       dqsdt=qs*hlrvap/tliq(mg,k)**2
-!     qvc(mg,k)=qs !Vapour mixing ratio in cloud
+      !qvc(mg,k)=qs !Vapour mixing ratio in cloud
 
       al=1./(1.+(hlcp+fice(mg,k)*hlfcp)*dqsdt)    !Smith's notation
       qc=qtot(mg,k)-qs
@@ -624,17 +623,17 @@ if (ncloud<3) then
         qcg(mg,k)=0.
       endif
 
-! Calculate the cloud fraction (cfa) in which ql exceeds qcrit, and
-! the corresponding gridbox-mean cloud water mixing ratio qca. 
-! This (qca) is the cloud-water mixing ratio inside cfa times cfa.
-! The new variable qc2 is like qc above, but is used for integration limits
-! only, not the integrand
+      ! Calculate the cloud fraction (cfa) in which ql exceeds qcrit, and
+      ! the corresponding gridbox-mean cloud water mixing ratio qca. 
+      ! This (qca) is the cloud-water mixing ratio inside cfa times cfa.
+      ! The new variable qc2 is like qc above, but is used for integration limits
+      ! only, not the integrand
 
       if(cfrac(mg,k)>0.)then
         qcic=qcg(mg,k)/cfrac(mg,k) !Mean in cloud value
 
-! Following few lines are for Yangang Liu's new scheme (2004: JAS, GRL)
-! Need to do first-order estimate of qcrit using mean in-cloud qc (qcic)
+        ! Following few lines are for Yangang Liu's new scheme (2004: JAS, GRL)
+        ! Need to do first-order estimate of qcrit using mean in-cloud qc (qcic)
 
         Wliq = max( 1.e-10, 1000. * qcic * rhoa(mg,k)) !g/m3
         R6c = 4.09e-4 * ( 1.15e23*1.e-6*cdrop(mg,k) / Wliq**2 ) ** (1./6.)
@@ -1229,8 +1228,8 @@ qrg(1:ifull,1:kl-1)=rhor(1:ifull,1:kl-1)/rhoa(1:ifull,1:kl-1)
 
 ! Factor 0.5 here accounts for leapfrog scheme
 
-precs(1:ifull)=precs(1:ifull)+0.5*(fluxr(1:ifull,1)+fluxi(1:ifull,1))
-preci(1:ifull)=preci(1:ifull)+0.5*fluxi(1:ifull,1)
+precs(1:ifull)=precs(1:ifull)+fluxr(1:ifull,1)+fluxi(1:ifull,1)
+preci(1:ifull)=preci(1:ifull)+fluxi(1:ifull,1)
 
 ! Remove small amounts of cloud
 
