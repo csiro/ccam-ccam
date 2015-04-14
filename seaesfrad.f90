@@ -359,10 +359,10 @@ if ( first ) then
     end if
     Aerosol_props%optical_index(4)=720                            ! organic carbon (hydrophobic)
     Aerosol_props%optical_index(5)=Aerosol_props%omphilic_flag    ! organic carbon (hydrophillic)
-    Aerosol_props%optical_index(6)=772                            ! dust_0.7  (using 0.73)
-    Aerosol_props%optical_index(7)=773                            ! dust_1.4  (using 1.4)
-    Aerosol_props%optical_index(8)=774                            ! dust_2.4  (using 2.4)
-    Aerosol_props%optical_index(9)=775                            ! dust_4.5  (using 4.5)
+    Aerosol_props%optical_index(6)=naermodels-3                   ! dust_0.7  (using 0.73)
+    Aerosol_props%optical_index(7)=naermodels-2                   ! dust_1.4  (using 1.4)
+    Aerosol_props%optical_index(8)=naermodels-1                   ! dust_2.4  (using 2.4)
+    Aerosol_props%optical_index(9)=naermodels                     ! dust_4.5  (using 4.5)
     Aerosol_props%optical_index(10)=705                           ! sea_salt (film drop + jet drop)
     ! GFDL bins dust1=0.1-0.5, dust2=0.5-1, dust3=1-2.5, dust4=2.5-5, dust5=5-10
     ! GFDL bins salt1=0.1-0.5, salt2=0.5-1, salt3=1-2.5, salt4=2.5-5, dust5=5-10
@@ -580,18 +580,17 @@ do j = 1,jl,imax/il
       write(6,*) "seaesfrad: Update radiation"
     end if
 
-
     ! Average the zenith angle over the time (hours) between radiation
     ! calculations
-    dhr = kountr*dt/3600.0
+    dhr = kountr*dt/3600.
     call zenith(fjd,r1,dlt,slag,rlatt(istart:iend),rlongg(istart:iend),dhr,imax,coszro,taudar)
     
     ! Set up ozone for this time and row
     if (amipo3) then
-      call o3set_amip( rlatt(istart:iend), imax, mins,sigh, ps(istart:iend), duo3n )
+      call o3set_amip(rlatt(istart:iend),imax,mins,sigh,ps(istart:iend),duo3n)
     else
       ! note levels are inverted
-      call o3set( imax, istart, mins, duo3n, sig, ps(istart:iend) )
+      call o3set(imax,istart,mins,duo3n,sig,ps(istart:iend))
     end if
     Rad_gases%qo3(:,1,:)=max(1.e-10_8,real(duo3n,8))
 
@@ -812,7 +811,7 @@ do j = 1,jl,imax/il
       dumt(:,k)=t(istart:iend,k)
       tv=dumt(:,k)*(1.+0.61*qg(istart:iend,k)-qlrad(istart:iend,k)-qfrad(istart:iend,k))
       p2(:,k)=ps(istart:iend)*sig(k)
-      call getqsat(imax,qsat,dumt(:,k),p2(:,k))
+      call getqsat(qsat,dumt(:,k),p2(:,k))
       Atmos_input%deltaz(:,1,kr)  = real(dz(:,k),8)
       Atmos_input%rh2o(:,1,kr)    = max(real(qg(istart:iend,k),8),2.E-7_8)
       Atmos_input%temp(:,1,kr)    = min(max(real(dumt(:,k),8),100._8),370._8)    
@@ -1353,7 +1352,7 @@ real(kind=8), dimension(:,:,:,:),        intent(inout) :: r
 !    standard call, where radiation output feeds back into the model.
 !----------------------------------------------------------------------
           if (do_aerosol_forcing) then
-            naerosol_optical = size (Aerosol_props%aerextband,2)
+            naerosol_optical = size(Aerosol_props%aerextband,2)
           else
             naerosol_optical = 0  
           endif 
@@ -1366,22 +1365,16 @@ real(kind=8), dimension(:,:,:,:),        intent(inout) :: r
 
 end subroutine shortwave_driver
 
-subroutine getqsat(ilen,qsatout,temp,psin)
+subroutine getqsat(qsatout,temp,psin)
 
 use estab
 
 implicit none
 
-integer, intent(in) :: ilen
-integer iq
-real, dimension(ilen), intent(in) :: temp,psin
-real, dimension(ilen), intent(out) :: qsatout
-real, dimension(ilen) :: esatf
+real, dimension(:), intent(in) :: temp,psin
+real, dimension(size(psin)), intent(out) :: qsatout
 
-do iq=1,ilen
-  esatf(iq)=establ(temp(iq))
-end do
-qsatout=0.622*esatf/max(psin-esatf,0.1)
+qsatout=qsat(psin,temp)
 
 return
 end subroutine getqsat
@@ -1400,8 +1393,8 @@ real, dimension(imax,kl), intent(in) :: cdrop
 real(kind=8), dimension(imax,kl), intent(out) :: Rdrop,Rice,conl,coni
 real, dimension(imax,kl) :: reffl,reffi,Wliq,rhoa,cfl,cfi
 real, dimension(imax,kl) :: eps,rk,Wice
-real, parameter :: scale_factor = 1. ! account for the plane-parallel homo-
-                                     ! genous cloud bias  (e.g. Cahalan effect)
+real, parameter :: scale_factor = 1.         ! account for the plane-parallel homogenous
+                                             ! cloud bias  (e.g. Cahalan effect)
 logical, parameter :: do_brenguier = .false. ! Adjust effective radius for vertically
                                              ! stratified cloud
 
@@ -1411,7 +1404,7 @@ cfi=max(cfrac-cfl,0.)
 
 ! Reffl is the effective radius calculated following
 ! Martin etal 1994, JAS 51, 1823-1842
-where ( qlg>1.E-10 .and. cfl>0. .and. cfrac>0. )
+where ( qlg>1.E-10 .and. cfl>1.E-10 .and. cfrac>1.E-10 )
   Wliq=rhoa*qlg/cfrac !kg/m^3
   ! This is the Liu and Daum scheme for relative dispersion (Nature, 419, 580-581 and pers. comm.)
   !eps = 1.-0.7*exp(-0.008e-6*cdrop)  !upper bound
@@ -1477,7 +1470,7 @@ end if
 !Donner et al (1997)
 do k=1,kl
   do iq=1,imax
-    if (qfg(iq,k)>1.E-10.and.cfi(iq,k)>0..and.cfrac(iq,k)>0.) then
+    if (qfg(iq,k)>1.E-10.and.cfi(iq,k)>1.E-10.and.cfrac(iq,k)>1.E-10) then
       Wice(iq,k)=rhoa(iq,k)*qfg(iq,k)/cfrac(iq,k) ! kg/m**3
       if (ttg(iq,k)>248.16) then
         reffi(iq,k)=5.E-7*100.6
@@ -1814,10 +1807,10 @@ aerosol_optical_names(771)=       "omphilic_99%"
 !aerosol_optical_names(888:891)=(/ "seasalt5_91%", "seasalt5_92%", "seasalt5_93%", "seasalt5_94%" /)
 !aerosol_optical_names(892:895)=(/ "seasalt5_95%", "seasalt5_96%", "seasalt5_97%", "seasalt5_98%" /)
 !aerosol_optical_names(896)=       "seasalt5_99%"
-aerosol_optical_names(772)=       "dust_0.73"
-aerosol_optical_names(773)=       "dust_1.4"
-aerosol_optical_names(774)=       "dust_2.4"
-aerosol_optical_names(775)=       "dust_4.5"
+aerosol_optical_names(naermodels-3)="dust_0.73"
+aerosol_optical_names(naermodels-2)="dust_1.4"
+aerosol_optical_names(naermodels-1)="dust_2.4"
+aerosol_optical_names(naermodels)  ="dust_4.5"
 
 ! shortwave optical models
 

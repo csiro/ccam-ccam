@@ -3456,13 +3456,13 @@ contains
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif 
 
+      call START_LOG(bounds_begin)
+
       if ( present(klim) ) then
          kx = klim
       else
          kx = size(t,2)
       end if
-
-      call START_LOG(bounds_begin)
 
 !     Set up the buffers to send and recv
       nreq = 0
@@ -3475,7 +3475,7 @@ contains
             rlist(nreq) = iproc
             llen = recv_len*kx
             call MPI_IRecv( bnds(lproc)%rbuf(1), llen, ltype, lproc, &
-                 itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+                            itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end if
       end do
       rreq = nreq
@@ -3496,7 +3496,7 @@ contains
             nreq = nreq + 1
             llen = iqq*kx
             call MPI_ISend( bnds(lproc)%sbuf(1), llen, ltype, lproc, &
-                 itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+                            itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end if
       end do
 
@@ -3521,6 +3521,8 @@ contains
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif 
 
+      call START_LOG(bounds_begin)
+
       if ( present(klim) ) then
          kx = klim
       else
@@ -3528,8 +3530,6 @@ contains
       end if
       myrlen = bnds(myid)%rlen
       
-      call START_LOG(bounds_begin)
-
       ! Finally see if there are any points on my own processor that need
       ! to be fixed up. This will only be in the case when nproc < npanels.
 !cdir nodep
@@ -5643,43 +5643,39 @@ contains
        real, intent(out) :: result
        real :: result_l
        integer :: iq
-       integer(kind=4) :: ierr, ltype
+       integer(kind=4) :: ierr
 #ifdef sumdd
+#ifdef i8r8
+       integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
+#else
+       integer(kind=4), parameter :: ltype = MPI_COMPLEX
+#endif   
+#else
+#ifdef i8r8
+       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+       integer(kind=4), parameter :: ltype = MPI_REAL
+#endif   
+#endif
        complex :: local_sum, global_sum
 !      Temporary array for the drpdr_local function
        real, dimension(ifull) :: tmparr
-#endif
 
        call START_LOG(globsum_begin)
 
-#ifdef sumdd
-#ifdef i8r8
-       ltype = MPI_DOUBLE_COMPLEX
-#else
-       ltype = MPI_COMPLEX
-#endif
-#else
-#ifdef i8r8
-       ltype = MPI_DOUBLE_PRECISION
-#else
-       ltype = MPI_REAL
-#endif
-#endif
-
        result_l = 0.
-       do iq = 1,ifull
 #ifdef sumdd         
+       do iq = 1,ifull
           tmparr(iq)  = array(iq)*wts(iq)
-#else
-          result_l = result_l + array(iq)*wts(iq)
-#endif
        enddo
-#ifdef sumdd
-       local_sum = (0.,0.)
+       local_sum = cmplx(0.,0.)
        call drpdr_local(tmparr, local_sum)
        call MPI_Allreduce ( local_sum, global_sum, 1_4, ltype, MPI_SUMDR, MPI_COMM_WORLD, ierr )
        result = real(global_sum)
 #else
+       do iq = 1,ifull
+          result_l = result_l + array(iq)*wts(iq)
+       enddo
        call MPI_Allreduce ( result_l, result, 1_4, ltype, MPI_SUM, MPI_COMM_WORLD, ierr )
 #endif
 
@@ -5687,59 +5683,61 @@ contains
 
     end subroutine ccglobal_sum2
 
-    subroutine ccglobal_sum3 (array, result)
+    subroutine ccglobal_sum3 (array, result, dsigin)
        ! Calculate global sum of 3D array, appyling vertical weighting
        use sigs_m
        use sumdd_m
        use xyzinfo_m
-       real, intent(in), dimension(ifull,kl) :: array
+       real, intent(in), dimension(:,:) :: array
+       real, intent(in), dimension(:), optional :: dsigin
        real, intent(out) :: result
+       real, dimension(size(array,2)) :: dsigx
        real :: result_l
-       integer :: k, iq
-       integer(kind=4) ierr, ltype
+       integer :: k, iq, kx
+       integer(kind=4) ierr
 #ifdef sumdd
+#ifdef i8r8
+       integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
+#else
+       integer(kind=4), parameter :: ltype = MPI_COMPLEX
+#endif   
+#else
+#ifdef i8r8
+       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+       integer(kind=4), parameter :: ltype = MPI_REAL
+#endif   
+#endif
        complex :: local_sum, global_sum
 !      Temporary array for the drpdr_local function
        real, dimension(ifull) :: tmparr
-#endif
 
        call START_LOG(globsum_begin)
 
-#ifdef sumdd
-#ifdef i8r8
-       ltype = MPI_DOUBLE_COMPLEX
-#else
-       ltype = MPI_COMPLEX
-#endif
-#else
-#ifdef i8r8
-       ltype = MPI_DOUBLE_PRECISION
-#else
-       ltype = MPI_REAL
-#endif
-#endif
-
+       kx = size(array,2)
+       if (present(dsigin)) then
+         dsigx(1:kx) = -dsigin(1:kx)
+       else
+         dsigx(1:kx) = dsig(1:kx)
+       end if
+       
        result_l = 0.
 #ifdef sumdd
-       local_sum = (0.,0.)
-#endif
-       do k = 1,kl
+       local_sum = cmplx(0.,0.)
+       do k = 1,kx
           do iq = 1,ifull
-#ifdef sumdd         
-             tmparr(iq)  = -dsig(k)*array(iq,k)*wts(iq)
-#else
-             result_l = result_l - dsig(k)*array(iq,k)*wts(iq)
-#endif
+             tmparr(iq)  = -dsigx(k)*array(iq,k)*wts(iq)
           enddo
-#ifdef sumdd
           call drpdr_local(tmparr, local_sum)
-#endif
        end do ! k
-
-#ifdef sumdd
        call MPI_Allreduce ( local_sum, global_sum, 1_4, ltype, MPI_SUMDR, MPI_COMM_WORLD, ierr )
        result = real(global_sum)
 #else
+       do k = 1,kx
+          do iq = 1,ifull
+             result_l = result_l - dsigx(k)*array(iq,k)*wts(iq)
+          enddo
+       end do ! k
        call MPI_Allreduce ( result_l, result, 1_4, ltype, MPI_SUM, MPI_COMM_WORLD, ierr )
 #endif
 

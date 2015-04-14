@@ -141,7 +141,7 @@ if ( ncloud<=3 ) then
   if ( nmr>0 ) then
     ! Max/Rnd cloud overlap
     do k = 1,kl
-      where ( clcon(:,k)>1.e-8 )
+      where ( clcon(:,k)>1.e-4)
         !ccw=wcon(:)/rhoa(:,k)  !In-cloud l.w. mixing ratio
         qccon(:,k)      = clcon(:,k)*wcon(:)/rhoa(:,k)
         qcl(:,k)        = max(qsg(:,k),qg(1:ifull,k))  ! jlm
@@ -152,14 +152,14 @@ if ( ncloud<=3 ) then
       elsewhere
         clcon(:,k)      = 0.
         qccon(:,k)      = 0.
-        qcl(1:ifull,k)  = 0.
+        qcl(1:ifull,k)  = qg(1:ifull,k)
         qenv(1:ifull,k) = qg(1:ifull,k)
       end where
     end do
   else
     ! usual random cloud overlap
     do k = 1,kl
-      where ( clcon(1:ifull,k)>1.e-8 )
+      where ( clcon(1:ifull,k)>1.e-4 )
         !ccw=wcon(iq)/rhoa(iq,k)  !In-cloud l.w. mixing ratio
         qccon(1:ifull,k) = clcon(1:ifull,k)*wcon(1:ifull)/rhoa(1:ifull,k)
         qcl(1:ifull,k)   = max(qsg(1:ifull,k),qg(1:ifull,k))  ! jlm
@@ -170,7 +170,7 @@ if ( ncloud<=3 ) then
       elsewhere
         clcon(1:ifull,k) = 0.
         qccon(1:ifull,k) = 0.
-        qcl(1:ifull,k)   = 0.
+        qcl(1:ifull,k)   = qg(1:ifull,k)
         qenv(1:ifull,k)  = qg(1:ifull,k)
       end where
     enddo
@@ -182,7 +182,7 @@ else
   ! also accounts for convection when ncloud=4
   clcon(:,:)      = 0.
   qccon(:,:)      = 0.
-  qcl(1:ifull,:)  = 0.
+  qcl(1:ifull,:)  = qg(1:ifull,:)
   qenv(1:ifull,:) = qg(1:ifull,:)
 end if
       
