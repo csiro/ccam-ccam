@@ -102,19 +102,36 @@
       integer kpos(1)
       
       if (.not.allocated(upin)) then
-        kpos=minloc(abs(sig-.98)) ! finds k value closest to sig=.98  level 2 for L18 & L27
-        k980=kpos(1)
-        kpos=minloc(abs(sig-.9)) ! finds k value closest to sig=.9
-        k900=kpos(1)
-        kpos=minloc(abs(sig-.7)) ! finds k value closest to sig=.7
-        k700=kpos(1)
-        kpos=minloc(abs(sig-.6)) ! finds k value closest to sig=.6
-        k600=kpos(1)
-        k500=1
-        do while(sig(k500)>0.5)
-          k500=k500+1
-        enddo
-        k500=k500-1    ! level just below .5
+        select case(nlvlmeth)
+         case (0) ! default      
+          kpos=minloc(abs(sig-.98)) ! finds k value closest to sig=.98  level 2 for L18 & L27
+          k980=kpos(1)
+          kpos=minloc(abs(sig-.9)) ! finds k value closest to sig=.9
+          k900=kpos(1)
+          kpos=minloc(abs(sig-.7)) ! finds k value closest to sig=.7
+          k700=kpos(1)
+          kpos=minloc(abs(sig-.6)) ! finds k value closest to sig=.6
+          k600=kpos(1)
+          k500=1
+          do while(sig(k500)>0.5)
+            k500=k500+1
+          enddo
+          k500=k500-1    ! level just below .5
+         case (1) ! Older Dec-2014
+          kpos=maxloc(sig,sig<0.98)
+          k980=kpos(1)
+          kpos=maxloc(sig,sig<=0.9)
+          k900=kpos(1)
+          kpos=minloc(abs(sig-0.7))
+          k700=kpos(1)
+          kpos=minloc(abs(sig-0.6))
+          k600=kpos(1)
+          kpos=maxloc(sig,sig<0.6)
+          k500=kpos(1)
+         case default
+           write(6,*) "ERROR: Invalid nlvlmeth ",nlvlmeth
+           call ccmpi_abort(-1)
+        end select
         if (myid==0) then
           write(6,*) 'k980 ',k980,sig(k980)
           write(6,*) 'k900 ',k900,sig(k900)
@@ -374,7 +391,6 @@
 
 !      following defines kb_sav (as kkbb) for set by nbase
        kkbb(:)=1   ! kkbb is defined as top level within PBL 
-c      s(1:ifull,1)=cp*tt(1:ifull,1)+phi(1:ifull,1)  ! dry static energy
        s(1:ifull,:)=cp*tt(1:ifull,:)+phi(1:ifull,:)  ! dry static energy
        do k=2,k500   
         do iq=1,ifull

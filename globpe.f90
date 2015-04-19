@@ -174,7 +174,7 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         &
     nclddia,ncvcloud,ncvmix,nevapcc,nevapls,nkuo,nrhcrit,         &
     nstab_cld,nuvconv,rhcv,rhmois,rhsat,sigcb,sigcll,sig_ct,      &
     sigkscb,sigksct,tied_con,tied_over,tied_rh,comm,acon,bcon,    &
-    rcm,rcrit_l,rcrit_s,ncloud,u00crit
+    rcm,rcrit_l,rcrit_s,ncloud,u00crit,nlvlmeth
 
 data nversion/0/
 data comment/' '/,comm/' '/,irest/1/,jalbfix/1/,nalpha/1/
@@ -477,8 +477,8 @@ if ( myid==0 ) then
   write(6,*)'  ldr nclddia nstab_cld nrhcrit sigcll '
   write(6,'(i5,i6,2i9,1x,f8.2)') ldr,nclddia,nstab_cld,nrhcrit,sigcll
   write(6,*)'Cloud options B:'
-  write(6,*)'  ncloud '
-  write(6,'(i5)') ncloud
+  write(6,*)'  ncloud nlvlmeth'
+  write(6,'(2i5)') ncloud,nlvlmeth
   write(6,*)'Soil, canopy and PBL options A:'
   write(6,*)' jalbfix nalpha nbarewet newrough nglacier nrungcm nsib  nsigmf'
   write(6,'(i5,9i8)') jalbfix,nalpha,nbarewet,newrough,nglacier,nrungcm,nsib,nsigmf
@@ -2190,7 +2190,7 @@ data nmr/0/,bpyear/0./
 data ldr/1/,nclddia/1/,nstab_cld/0/,nrhcrit/10/,sigcll/.95/ 
 data cldh_lnd/95./,cldm_lnd/85./,cldl_lnd/75./
 data cldh_sea/95./,cldm_sea/90./,cldl_sea/80./
-data ncloud/0/
+data ncloud/0/,nlvlmeth/0/
 ! Soil, canopy, PBL options
 data nbarewet/0/,newrough/0/,nglacier/1/
 data nrungcm/-1/,nsib/3/,nsigmf/1/
