@@ -4022,9 +4022,9 @@ ssse(:,:,:)=rhobar(ise,:,:)
 dds(:,:)   =dd_i(is,:)
 ddne(:,:)  =dd_i(ine,:)
 ddse(:,:)  =dd_i(ise,:)
-y2s(:,:,:) =y2i(is,:,:)
-y2ne(:,:,:)=y2i(ine,:,:)
-y2se(:,:,:)=y2i(ise,:,:)
+y2s(:,:,:) =y2_i(is,:,:)
+y2ne(:,:,:)=y2_i(ine,:,:)
+y2se(:,:,:)=y2_i(ise,:,:)
   
 ! process staggered u locations
 ramp_a(:,:)=1.
