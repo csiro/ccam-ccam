@@ -273,7 +273,7 @@ do k=1,kl
   denb(1:ifull) = vec1x(1:ifull)**2 + vec1y(1:ifull)**2 + vec1z(1:ifull)**2
   ! N.B. rotation formula is singular for small denb,
   ! but the rotation is unnecessary in this case
-  where (denb<1.e-4)
+  where (denb>1.e-4)
     vecdot(1:ifull) = x3d(1:ifull,k)*x(1:ifull) + y3d(1:ifull,k)*y(1:ifull) + z3d(1:ifull,k)*z(1:ifull)
     vec2x(1:ifull) = x3d(1:ifull,k)*vecdot(1:ifull) - x(1:ifull)
     vec2y(1:ifull) = y3d(1:ifull,k)*vecdot(1:ifull) - y(1:ifull)
