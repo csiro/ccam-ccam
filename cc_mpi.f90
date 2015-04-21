@@ -4385,6 +4385,7 @@ contains
          jp = min(il_g,max(1,nint(dbuf(dproc)%a(3,1))))
          iproc = fproc(ip,jp,gf)
          write(6,*) "Example error iq,k,iproc ",dindex(0)%a(:,1),iproc
+         write(6,*) "global index is",iq2iqg(dindex(0)%a(1,1))  ! JLM
          write(6,*) "dbuf ", dbuf(0)%a(:,1)
          write(6,*) "neighlist ",neighlist
          call checksize(dslen(0),0,"Deptsync")
@@ -4394,6 +4395,7 @@ contains
          if ( dslen(dproc) > bnds(iproc)%len/nagg ) then
             write(6,*) "myid,iproc,dslen,len ",myid,iproc,dslen(dproc),bnds(iproc)%len/nagg
             write(6,*) "Example error iq,k, ",dindex(dproc)%a(:,1)
+            write(6,*) "global index is",iq2iqg(dindex(dproc)%a(1,1))  ! JLM
             write(6,*) "dbuf ",dbuf(dproc)%a(:,1)
             write(6,*) "neighlist ",neighlist
             call checksize(dslen(dproc),bnds(iproc)%len/nagg,"Deptsync")

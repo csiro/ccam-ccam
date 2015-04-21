@@ -4162,7 +4162,7 @@ real, dimension(ifull+iextra,wlev) :: sig
 real, dimension(ifull+iextra) :: p
 
 do ii=2,wlev-1
-  sig(:,ii)=(x(:,ii)-x(:,ii-1))/(x(:,ii+1)-x(:,ii-1))
+  sig(:,ii)=(x(:,ii)-x(:,ii-1))/max(x(:,ii+1)-x(:,ii-1),1.e-8)
 end do
 
 do jj=1,2
@@ -4171,8 +4171,8 @@ do jj=1,2
   do ii=2,wlev-1
     p(:)=sig(:,ii)*y2(:,ii-1,jj)+2.
     y2(:,ii,jj)=(sig(:,ii)-1.)/p(:)
-    u(:,ii)=(6.*((y(:,ii+1,jj)-y(:,ii,jj))/(x(:,ii+1)-x(:,ii))-(y(:,ii,jj)-y(:,ii-1,jj)) &
-           /(x(:,ii)-x(:,ii-1)))/(x(:,ii+1)-x(:,ii-1))-sig(:,ii)*u(:,ii-1))/p(:)
+    u(:,ii)=(6.*((y(:,ii+1,jj)-y(:,ii,jj))/max(x(:,ii+1)-x(:,ii),1.e-8)-(y(:,ii,jj)-y(:,ii-1,jj)) &
+           /max(x(:,ii)-x(:,ii-1),1.e-8))/max(x(:,ii+1)-x(:,ii-1),1.e-8)-sig(:,ii)*u(:,ii-1))/p(:)
   end do
   y2(:,wlev,jj)=0.    
   do ii=wlev-1,1,-1
