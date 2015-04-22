@@ -124,7 +124,7 @@ implicit none
 real, intent(in) :: t_
 real ans
 ! TDIFF is difference between T and 123.16, subject to 0 <= TDIFF <= 220
-ans=min(max( t_-123.16, 0.01), 218.99)
+ans=min(max( t_-123.16, 0.), 219.)
 end function tdiff_s
 
 function tdiff_v(t_) result(ans)
@@ -132,7 +132,7 @@ implicit none
 real, dimension(:), intent(in) :: t_
 real, dimension(size(t_)) :: ans
 ! TDIFF is difference between T and 123.16, subject to 0 <= TDIFF <= 220
-ans=min(max( t_-123.16, 0.01), 218.99)
+ans=min(max( t_-123.16, 0.), 219.)
 end function tdiff_v
 
 function tdiffx_s(tx_) result(ans)
@@ -140,7 +140,7 @@ implicit none
 include 'const_phys.h'
 real, intent(in) :: tx_
 real ans
-ans=min(max( tx_-tfrz, -39.99), 0.99)
+ans=min(max( tx_-tfrz, -40.), 1.)
 end function tdiffx_s
 
 function tdiffx_v(tx_) result(ans)
@@ -148,7 +148,7 @@ implicit none
 include 'const_phys.h'
 real, dimension(:), intent(in) :: tx_
 real, dimension(size(tx_)) :: ans
-ans=min(max( tx_-tfrz, -39.99), 0.99)
+ans=min(max( tx_-tfrz, -40.), 1.)
 end function tdiffx_v
 
 function establ_s(t_) result(ans)
