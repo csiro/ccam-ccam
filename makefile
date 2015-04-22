@@ -34,7 +34,7 @@ LDFLAGS =
 
 OBJS = adjust5.o amipsst.o convjlm.o depts.o estab.o gettin.o \
 globpe.o gwdrag.o hordifg.o hs_phys.o indata.o infile.o ints.o \
-helmsolve.o jimcc.o nesting.o nonlin.o \
+helmsolve.o jimcc.o nesting.o nonlin.o oldconvjlm.o \
 outcdf.o pbldif.o radriv90.o scrnout.o setxyz.o sflux.o \
 soilsnow.o staguv.o upglobal.o eig.o updps.o vadvtvd.o \
 vertmix.o leoncld.o cloudmod.o latltoij.o \

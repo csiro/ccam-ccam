@@ -1388,6 +1388,8 @@ do kktau = 1,ntau   ! ****** start of main time loop
   select case(nkuo)
     case(5)
       call betts(t,qg,tn,land,ps) ! not called these days
+    case(20)
+      call oldconvjlm
     case(23,24)
       call convjlm                ! split convjlm 
     case(46)

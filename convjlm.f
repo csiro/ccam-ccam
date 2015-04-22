@@ -361,7 +361,7 @@
           tied_a=0.
         endif
         if (myid==0) then
-          write(6,*),'tied_over,tied_a,tied_b',tied_over,tied_a,tied_b
+          write(6,*) 'tied_over,tied_a,tied_b',tied_over,tied_a,tied_b
         end if
        if(tied_a>1.)then  ! e.g. 20 or 26  
 !         alfin may be reduced over land and sea for finer resolution than 200 km grid            
