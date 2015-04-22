@@ -2,8 +2,11 @@
       
 subroutine hordifgt   !  globpea version    N.B. k loop in here
 
+use aerosolldr
 use arrays_m
 use cc_mpi
+use cfrac_m
+use cloudmod
 use indices_m
 use liqwpar_m
 use map_m
