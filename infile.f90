@@ -926,7 +926,7 @@ if ( n==1 .and. klapse/=0 ) then  ! for T lapse correction
     t(1:ifull,k)=t(1:ifull,k)+(sig(k)-sigin(1))*6.5/.1
   enddo    ! k loop
 else if ( n==2 ) then  ! for qg do a -ve fix
-  t(1:ifull,:)=max(t(1:ifull,:),1.e-6)
+  t(1:ifull,:)=max(t(1:ifull,:),qgmin)
 else if ( n==5 ) then  ! for qfg, qlg do a -ve fix
   t(1:ifull,:)=max(t(1:ifull,:),0.)
 endif

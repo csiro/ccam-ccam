@@ -678,7 +678,7 @@ c     &          (splume(iq,k-1)+hl*qplume(iq,k-1))/cp,hs(iq,k)/cp,
 c     & qplume(iq,k-1),max(qs(iq,k),qq(iq,k)),qbass(iq,k-1)
         enddo    ! iq loop             
        enddo     ! ******************** k loop ****************************
-      else  ! for all -ve values of nbase except -1,-2,-4,-11, -12
+      else  ! for all -ve values of nbase except -1,-2,-3,-4, -12
        kdown(:)=1     ! set tentatively as valid cloud bottom (not needed beyond this k loop)
        do k=2,k700+1  ! UPwards to find first suitable cloud base 
          do iq=1,ifull
@@ -714,64 +714,41 @@ c     & qplume(iq,k-1),max(qs(iq,k),qq(iq,k)),qbass(iq,k-1)
       do iq=1,ifull
         fluxv(iq,kb_sav(iq))=1.  ! unit reference base mass flux (at level k+.5)
       enddo
-!     set up entrainn() which may vary vertically and with time (for non-zero nevapcc)
-      if(itn==1.and.nevapcc.ne.0)then !  not usual
-         entr(:)=sig(kb_saved(:)) -sig(kt_saved(:))
-         if(entrain<1.1)then  ! handles older -ve nevapcc too
-           do iq=1,ifull
-             entrainn(iq)=.1*real(abs(nevapcc))*  .1/max(.1,entr(iq))  
-!            for dsig=(.1,.2,.3,.4,.5,.6) 2nd term is (1, .5, .33, .25,  .2,  .17) for entrain=.1
-          enddo
-         elseif(nint(entrain)==2)then  ! common option during 2013-2014
-           do iq=1,ifull
-             entrainn(iq)=.1*real(nevapcc)*(1.-entr(iq))**2
-!            for dsig (.1,.2,.3,.4,.5,.6) 2nd term is (.81, .64, .49, .36, .25, .16)
-          enddo
-        elseif(nint(entrain)==3)then   ! with 90 should be similar to following with 60
-           do iq=1,ifull
-             entrainn(iq)=.1*real(nevapcc)*(1.-entr(iq))**3
-!           for dsig (.1,.2,.3,.4,.5,.6) 2nd term is (.73, .51, .34, .22 .13,  .06)
-           enddo
-        else ! e.g. entrain=4, similar to -ve nevapcc (.1/entr)  but using rational fraction
-          do iq=1,ifull
-             entrainn(iq)=.1*nevapcc*(4.-3.*entr(iq))/(1.+24.*entr(iq))
-!            for dsig (.1,.2,.3,.4,.5,.6) 2nd term is (1.09,.59, .38, .26 .19,  .14)
-         enddo
-        endif  ! (nint(entrain)==2)...else...
-      endif    ! (itn==1.and.nevapcc.ne.0)
       if(nmaxpr==1.and.mydiag)write(6,*) 
      &       'kb_saved,kt_saved,entr,timeconva',
      &       kb_saved(idjd), kt_saved(idjd),entr(idjd),timeconv(idjd)
      
+      kdown(:)=1    ! set to show allowed to check for cloud top; removed mdelay stuff
       do k=2,kl-2   ! upwards to find cloud top  
-c        for mdelay=60, delays conv by 60m for del-sig=.6, 45m for del_sig=.5, 0 for del_sig=.2     
-         aa(:)=max(0.,min(sig(kb_sav(:))-sig(k)-.2,.4)*mdelay/.4)
-c        prev line (instead of inline)may avoid compiler optimiser errors
          do iq=1,ifull
-          if((kt_sav(iq)==k.or.kt_sav(iq)==k-1)  ! from nbase calc, or prev k value in this loop
-     &    .and.timeconv(iq)>=aa(iq))then 
-            hbase=splume(iq,k-1)+hl*qplume(iq,k-1)
-            if(hbase>hs(iq,k))then
-             kt_sav(iq)=k
-             entrsav(iq,k)=-entrainn(iq)*dsig(k) ! (linear) entrained mass into plume_k
-             if(entrain<0.)entrsav(iq,k)=entrain*fluxv(iq,k-1)*dsig(k) ! (non-linear) entrained mass into plume_k
-!            fluxv is net mass into plume_k (assumed well mixed), and
-!            subsequently is mass out top of layer for plume_k
-!            N.B. qplume is usually > qs at each level
-             fluxv(iq,k)=fluxv(iq,k-1)+entrsav(iq,k) ! plume reference mass flux
-             qplume(iq,k)=(qplume(iq,k-1)*fluxv(iq,k-1)
+          if(k>kb_sav(iq).and.kdown(iq)==1)then 
+            entrsav(iq,k)=-entrainn(iq)*dsig(k) ! (linear) entrained mass into plume_k
+            if(entrain<0.)entrsav(iq,k)=entrain*fluxv(iq,k-1)*dsig(k) ! (non-linear) entrained mass into plume_k
+!           fluxv is net mass into plume_k (assumed well mixed), and
+!           subsequently is mass out top of layer for plume_k
+!           N.B. qplume is usually > qs at each level
+            fluxv(iq,k)=fluxv(iq,k-1)+entrsav(iq,k) ! plume reference mass flux
+            qplume(iq,k)=(qplume(iq,k-1)*fluxv(iq,k-1)
      &          +entrsav(iq,k)*qq(iq,k))/fluxv(iq,k) 
-c     &          +entrsav(iq,k)*min(qq(iq,k),qplume(iq,k-1)))/fluxv(iq,k)  ! JLM   maybe min 21/4/15
+            hbase=splume(iq,k-1)+hl*qplume(iq,k-1)
+            if(hbase>hs(iq,k).and.   ! added for safety 22/4/15
+     &       qplume(iq,k)>max(qq(iq,k),qs(iq,k)))then
+             kt_sav(iq)=k
              splume(iq,k)=(splume(iq,k-1)*fluxv(iq,k-1)
      &                      +entrsav(iq,k)*s(iq,k))/fluxv(iq,k)
+            else
+	      kdown(iq)=0
+              entrsav(iq,k)=0.  ! not to mess up dels above cloud top
+              fluxv(iq,k)=0.    ! not to mess up dels above cloud top
+              if(kt_sav(iq)==kl-1)kb_sav(iq)=kl-1
             endif  ! (hbase>hs(iq,k))
             if(ntest>0.and.entrain<0.and.iq==idjd.and.mydiag)then
               write(6,*) 'k,kb_sav,kt_sav,hbase/cp,hs/cp ',
      &                 k,kb_sav(iq),kt_sav(iq),hbase/cp,hs(iq,k)/cp
             endif
-          endif   ! (kt_sav(iq)==k-1.and...
+          endif   ! (k>kb_sav(iq))
          enddo    ! iq loop
-         enddo     ! k loop
+      enddo     ! k loop
          
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -796,8 +773,8 @@ c      detxsav(iq,kt_sav(iq))=0.
        aa(:)=0.  ! this aa is for detxsum
        do k=2,kl-2  
         do iq=1,ifull
-          if(k>kb_sav(iq).and.qplume(iq,k)>max(qs(iq,k),qq(iq,k)))then  ! JLM max added for safety 21/4/15
-!            may need to ponder if could possibly be failed for top level          
+!          if(k>kb_sav(iq).and.qplume(iq,k)>max(qs(iq,k),qq(iq,k)))then  ! JLM max added for safety 21/4/15
+          if(k>kb_sav(iq))then  
             if(k<=kt_sav(iq))
      &     detxsav(iq,k)=-dsig(k)*(sigmh(kb_sav(iq)+1)-sig(k))**  ! (+ve) value at each level k 
      &     abs(methdetr)                                     ! use methdetr=-1, -2 or -3
@@ -886,7 +863,7 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
             
 !     downdraft calculations
       do iq=1,ifull
-       kdown(iq)=min(kl,kb_sav(iq)+nint(.6+.75*(kt_sav(iq)-kb_sav(iq))))
+       kdown(iq)=min(kl,kb_sav(iq)+nint(.6+.75*(kt_sav(iq)-kb_sav(iq)))) ! for downdraft
 !      following line may give kb_sav=kt_sav=kl, and smaller kdown, but does not matter       
        if(fldown<0.)kdown(iq)=min(kdown(iq),k600) ! makes downdraft below sig=.6
 !      qsk is value entering downdraft, qdown is value leaving downdraft
@@ -1020,9 +997,9 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
       if(ntest>0.and.mydiag)then
         iq=idjd
         write (6,"('delsb',9f8.0/(5x,9f8.0))")
-     &              dels(iq,1:kt_sav(iq))
+     &              dels(iq,:)
         write (6,"('delqb',3p9f8.3/(5x,9f8.3))")
-     &              delq(iq,1:kt_sav(iq))
+     &              delq(iq,:)
         write(6,*) "before diag print of dels,delh "
         iq=idjd
         nlayersp=max(1,nint((kt_sav(iq)-kb_sav(iq)-.1)/methprec)) ! round down
@@ -1031,9 +1008,9 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
      .           kb_sav(iq),kt_sav(iq)
         write(6,*) 'khalfp,nlayersp ',khalfp,nlayersp 
         write (6,"('delsd',9f8.0/(5x,9f8.0))")
-     &              dels(iq,1:kt_sav(iq))
+     &              dels(iq,:)
         write (6,"('delq*hl',9f8.0/(5x,9f8.0))")
-     &              delq(iq,1:kt_sav(iq))*2.5e6
+     &              delq(iq,:)*2.5e6
         write (6,"('delh ',9f8.0/(5x,9f8.0))")
      &             (dels(iq,k)+hl*delq(iq,k),k=1,kl)
         write (6,"('delhb',9f8.0/(5x,9f8.0))")
@@ -1057,9 +1034,9 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
         iq=idjd
         write(6,*) "before convpsav calc, after division by dsk"
         write (6,"('dels ',9f8.0/(5x,9f8.0))")
-     &              dels(iq,1:kt_sav(iq))
+     &              dels(iq,:)
         write (6,"('delq3p',3p9f8.3/(7x,9f8.3))")
-     &              delq(iq,1:kt_sav(iq))
+     &              delq(iq,:)
       endif  ! (ntest>0.and.mydiag)
 
 !----------------------------------------------------------------
