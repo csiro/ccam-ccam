@@ -20,9 +20,10 @@ implicit none
 !     for +ve nhor see hordifg 
 !     It has -ve nhorps option:
 !        nhorps=0  does everything
-!        nhorps=-1 does only T & qg horiz diff.
-!        nhorps=-2 does only u &  v horiz diff.
-!        nhorps=-3 does only qg     horiz diff.
+!        nhorps=-1 does only T & qg        horiz diff.
+!        nhorps=-2 does only u &  v        horiz diff.
+!        nhorps=-3 does only qg            horiz diff.
+!        nhorps=-4 does only T, qg & cloud horiz diff.
 !     and u,v have same options as T (e.g.nhor=-157)
 !     this one has got map factors
 !     has jlm nhorx option as last digit of nhor, e.g. -157
@@ -32,7 +33,7 @@ include 'kuocom.h'
 include 'parm.h'
 include 'parmdyn.h'
 
-real, dimension(ifull+iextra,kl,3) :: ff
+real, dimension(ifull+iextra,kl,nagg) :: ff
 real, dimension(ifull+iextra,kl) :: uc, vc, wc
 real, dimension(ifull+iextra,kl) :: ww, uav, vav
 real, dimension(ifull+iextra,kl) :: xfact, yfact, t_kh
@@ -391,7 +392,91 @@ if ( nhorps/=-2 ) then   ! for nhorps=-2 don't diffuse T, qg
                    yfact_isv(1:ifull,:)*ff(is,:,1) ) /  &
                  base(1:ifull,:)
   endif  ! (nhorps/=-3) ..else..
+  
+  ! cloud microphysics
+  if ( ldr/=0 .and. ncloud/=0 .and. nhorps==-4 ) then
+    ff(1:ifull,:,1)=qlg(1:ifull,:)
+    ff(1:ifull,:,2)=qfg(1:ifull,:)
+    ff(1:ifull,:,3)=qrg(1:ifull,:)
+    ff(1:ifull,:,4)=rfrac(1:ifull,:)
+    if (ncloud>=3) then
+      ff(1:ifull,:,5)=stratcloud(1:ifull,:)
+      call bounds(ff(:,:,1:5))
+      stratcloud(1:ifull,:) = ( ff(1:ifull,:,5)*emi(1:ifull,:) +  &
+               xfact(1:ifull,:)*ff(ie,:,5) +                      &
+               xfact_iwu(1:ifull,:)*ff(iw,:,5) +                  &
+               yfact(1:ifull,:)*ff(in,:,5) +                      &
+               yfact_isv(1:ifull,:)*ff(is,:,5) ) /                &
+              base(1:ifull,:)
+    else
+      call bounds(ff(:,:,1:4))
+    end if
+    qlg(1:ifull,:) = ( ff(1:ifull,:,1)*emi(1:ifull,:) +    &
+           xfact(1:ifull,:)*ff(ie,:,1) +                   &
+           xfact_iwu(1:ifull,:)*ff(iw,:,1) +               &
+           yfact(1:ifull,:)*ff(in,:,1) +                   &
+           yfact_isv(1:ifull,:)*ff(is,:,1) ) /             &
+           base(1:ifull,:)
+    qfg(1:ifull,:) = ( ff(1:ifull,:,2)*emi(1:ifull,:) +    &
+           xfact(1:ifull,:)*ff(ie,:,2) +                   &
+           xfact_iwu(1:ifull,:)*ff(iw,:,2) +               &
+           yfact(1:ifull,:)*ff(in,:,2) +                   &
+           yfact_isv(1:ifull,:)*ff(is,:,2) ) /             &
+           base(1:ifull,:)
+    qrg(1:ifull,:) = ( ff(1:ifull,:,3)*emi(1:ifull,:) +    &
+           xfact(1:ifull,:)*ff(ie,:,3) +                   &
+           xfact_iwu(1:ifull,:)*ff(iw,:,3) +               &
+           yfact(1:ifull,:)*ff(in,:,3) +                   &
+           yfact_isv(1:ifull,:)*ff(is,:,3) ) /             &
+           base(1:ifull,:)
+    rfrac(1:ifull,:) = ( ff(1:ifull,:,4)*emi(1:ifull,:) +  &
+           xfact(1:ifull,:)*ff(ie,:,4) +                   &
+           xfact_iwu(1:ifull,:)*ff(iw,:,4) +               &
+           yfact(1:ifull,:)*ff(in,:,4) +                   &
+           yfact_isv(1:ifull,:)*ff(is,:,4) ) /             &
+           base(1:ifull,:)
+  end if                 ! (ldr/=0)
+ 
 endif    ! (nhorps/=-2)
+
+if (nhorps==-4) then
+
+  ! apply horizontal diffusion to TKE and EPS terms
+  if (nvmix==6) then
+    ff(1:ifull,:,1)=tke(1:ifull,:)
+    ff(1:ifull,:,2)=eps(1:ifull,:)
+    call bounds(ff(:,:,1:2))
+    tke(1:ifull,:) = ( ff(1:ifull,:,1)*emi(1:ifull,:) +   &
+                    xfact(1:ifull,:)*ff(ie,:,1) +         &
+                    xfact_iwu(1:ifull,:)*ff(iw,:,1) +     &
+                    yfact(1:ifull,:)*ff(in,:,1) +         &
+                    yfact_isv(1:ifull,:)*ff(is,:,1) ) /   &
+                  base(1:ifull,:)
+    eps(1:ifull,:) = ( ff(1:ifull,:,2)*emi(1:ifull,:) +   &
+                    xfact(1:ifull,:)*ff(ie,:,2) +         &
+                    xfact_iwu(1:ifull,:)*ff(iw,:,2) +     &
+                    yfact(1:ifull,:)*ff(in,:,2) +         &
+                    yfact_isv(1:ifull,:)*ff(is,:,2) ) /   &
+                  base(1:ifull,:)
+  end if
+       
+  ! prgnostic aerosols
+  if (abs(iaero)==2) then
+    ff(1:ifull,:,1:naero)=xtg(1:ifull,:,:)
+    call bounds(ff(:,:,1:naero))
+    do ntr=1,naero
+      xtg(1:ifull,:,ntr) =                       &
+        ( ff(1:ifull,:,ntr)*emi(1:ifull,:) +     &
+        xfact(1:ifull,:)*ff(ie,:,ntr) +          &
+        xfact_iwu(1:ifull,:)*ff(iw,:,ntr) +      &
+        yfact(1:ifull,:)*ff(in,:,ntr) +          &
+        yfact_isv(1:ifull,:)*ff(is,:,ntr) ) /    &
+        base(1:ifull,:)
+    end do
+  end if
+  
+end if
+
 
 return
 end
