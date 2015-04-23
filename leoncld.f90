@@ -1234,19 +1234,19 @@ preci(1:ifull)=preci(1:ifull)+fluxi(1:ifull,1)
 ! Remove small amounts of cloud
 
 do k=1,kl
-  where (qlg(1:ifull,k)<1e-10.or.clfr(1:ifull,k)<1e-5)
+  where (qlg(1:ifull,k)<1.e-10.or.clfr(1:ifull,k)<1.e-5)
     qtg(1:ifull,k)=qtg(1:ifull,k)+qlg(1:ifull,k)
     ttg(1:ifull,k)=ttg(1:ifull,k)-hlcp*qlg(1:ifull,k)
     qlg(1:ifull,k)=0.
     clfr(1:ifull,k)=0.
   end where
-  where (qfg(1:ifull,k)<1e-10.or.cifr(1:ifull,k)<1e-5)
+  where (qfg(1:ifull,k)<1.e-10.or.cifr(1:ifull,k)<1.e-5)
     qtg(1:ifull,k)=qtg(1:ifull,k)+qfg(1:ifull,k)
     ttg(1:ifull,k)=ttg(1:ifull,k)-hlscp*qfg(1:ifull,k)
     qfg(1:ifull,k)=0.
     cifr(1:ifull,k)=0.
   end where
-  where (qrg(1:ifull,k)<1e-10.or.cffall(1:ifull,k)<1e-5)
+  where (qrg(1:ifull,k)<1.e-10.or.cffall(1:ifull,k)<1.e-5)
     qtg(1:ifull,k)=qtg(1:ifull,k)+qrg(1:ifull,k)
     ttg(1:ifull,k)=ttg(1:ifull,k)-hlcp*qrg(1:ifull,k)
     qrg(1:ifull,k)=0.
