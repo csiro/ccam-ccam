@@ -208,7 +208,7 @@ do k=1,kl
   sigkap(k)=sig(k)**(-rd/cp)
   pres(:,k)=ps(:)*sig(k) ! pressure
   ! Density must be updated when dz is updated so that rho*dz is conserved
-  thetav(:,k)=theta(1:ifull,k)*(1.+0.61*qvg(1:ifull,k)-qlg(1:ifull,k)-qfg(1:ifull,k))
+  thetav(:,k)=theta(1:ifull,k)*(1.+0.61*qvg(1:ifull,k)-qlg(1:ifull,k)-qfg(1:ifull,k)-qrg(1:ifull,k))
   rhoa(:,k)=sigkap(k)*pres(:,k)/(rd*thetav(:,k))
 
   ! Transform to thetal as it is the conserved variable
