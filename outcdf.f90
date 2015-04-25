@@ -14,7 +14,7 @@ character(len=3), dimension(12), parameter :: month = (/'jan','feb','mar','apr',
 
 contains
 
-subroutine outfile(iout,rundate,nwrite,nstagin)
+subroutine outfile(iout,rundate,nwrite,nstagin,jalbfix,nalpha,mins_rad)
       
 use arrays_m
 use cc_mpi
@@ -30,6 +30,7 @@ include 'filnames.h' ! list of files, read in once only
 include 'parm.h'
 
 integer iout,nwrite,nstagin
+integer, intent(in) :: jalbfix,nalpha,mins_rad
 character(len=80) :: co2out,radonout,surfout
 character(len=20) :: qgout
 character(len=8) :: rundate
@@ -95,7 +96,7 @@ if ( iout==19 ) then
   select case(io_rest)  
     case(1)  ! for netCDF 
       if ( myid==0 ) write(6,*) "restart write of data to netCDF"
-      call cdfout(rundate,-1,nstagin)
+      call cdfout(rundate,-1,nstagin,jalbfix,nalpha,mins_rad)
     case(3)
       write(6,*) "Error, restart binary output not supported"
       call ccmpi_abort(-1)
@@ -103,7 +104,7 @@ if ( iout==19 ) then
 else
   select case(io_out)
     case(1)
-      call cdfout(rundate,1,nstagin)
+      call cdfout(rundate,1,nstagin,jalbfix,nalpha,mins_rad)
     case(3)
       write(6,*) "Error, history binary output not supported"
       call ccmpi_abort(-1)
@@ -118,13 +119,19 @@ end subroutine outfile
     
 !--------------------------------------------------------------
 ! CONFIGURE DIMENSIONS FOR OUTPUT NETCDF FILES
-subroutine cdfout(rundate,itype,nstagin)
+subroutine cdfout(rundate,itype,nstagin,jalbfix,nalpha,mins_rad)
 
+use aerosolldr                        ! LDR prognostic aerosols
+use cable_ccam, only : proglai        ! CABLE
 use cc_mpi                            ! CC MPI routines
+use cloudmod                          ! Prognostic cloud fraction
 use infile                            ! Input file routines
 use liqwpar_m                         ! Cloud water mixing ratios
-use mlo, only : wlev                  ! Ocean physics and prognostic arrays
+use mlo, only : wlev,mindep         & ! Ocean physics and prognostic arrays
+    ,minwater,mxd
+use mlodynamics                       ! Ocean dynamics
 use parmhdff_m                        ! Horizontal diffusion parameters
+use seaesfrad_m                       ! SEA-ESF radiation
 use tracers_m                         ! Tracer data
 
 implicit none
@@ -137,18 +144,23 @@ include 'parm.h'                      ! Model configuration
 include 'parmdyn.h'                   ! Dynamics parameters
 include 'parmgeom.h'                  ! Coordinate data
 include 'parmhor.h'                   ! Horizontal advection parameters
+include 'parmsurf.h'                  ! Surface parameters
 
 integer ixp,iyp,idlev,idnt,idms,idoc
 integer leap
 common/leap_yr/leap                   ! Leap year (1 to allow leap years)
+integer nbarewet,nsigmf
+common/nsib/nbarewet,nsigmf
 
 integer, parameter :: nihead=54
 integer, parameter :: nrhead=14
 integer, dimension(nihead) :: nahead
 integer, dimension(4), save :: dima,dims,dimo
+integer, intent(in) :: jalbfix,nalpha,mins_rad
 integer itype, nstagin
 integer xdim,ydim,zdim,tdim,msdim,ocdim
 integer icy, icm, icd, ich, icmi, ics, idv, imode
+integer namipo3
 integer, save :: idnc=0, iarch=0, idnc0=0
 real, dimension(nrhead) :: ahead
 character(len=180) cdffile
@@ -280,7 +292,7 @@ if ( myid==0 .or. localhist ) then
     nahead(8)=0          ! not needed now  
     nahead(9)=mex
     nahead(10)=mup
-    nahead(11)=nem
+    nahead(11)=2 ! nem
     nahead(12)=mtimer
     nahead(13)=0         ! nmi
     nahead(14)=nint(dt)  ! needed by cc2hist
@@ -299,7 +311,7 @@ if ( myid==0 .or. localhist ) then
     nahead(27)=khor
     nahead(28)=ksc
     nahead(29)=kountr
-    nahead(30)=ndiur
+    nahead(30)=1 ! ndiur
     nahead(31)=0  ! spare
     nahead(32)=nhorps
     nahead(33)=nsoil
@@ -347,6 +359,148 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'date_header',rundate)
     call ccnf_def_var0(idnc,'ds','float',idv)
     call ccnf_def_var0(idnc,'dt','float',idv)
+
+    call ccnf_put_attg(idnc,'aeroindir',aeroindir)
+    call ccnf_put_attg(idnc,'alphaj',alphaj)
+    if (amipo3) then
+      namipo3=1
+    else
+      namipo3=0
+    end if
+    call ccnf_put_attg(idnc,'amipo3',namipo3)
+    call ccnf_put_attg(idnc,'av_vmod',av_vmod)
+    call ccnf_put_attg(idnc,'bpyear',bpyear)
+    call ccnf_put_attg(idnc,'ccycle',ccycle)
+    call ccnf_put_attg(idnc,'ch_dust',ch_dust)
+    call ccnf_put_attg(idnc,'charnock',charnock)
+    call ccnf_put_attg(idnc,'chn10',chn10)
+    call ccnf_put_attg(idnc,'epsf',epsf)
+    call ccnf_put_attg(idnc,'epsp',epsp)
+    call ccnf_put_attg(idnc,'epsu',epsu)
+    call ccnf_put_attg(idnc,'fc2',fc2)
+    call ccnf_put_attg(idnc,'fixheight',fixheight)
+    call ccnf_put_attg(idnc,'fixsal',fixsal)
+    call ccnf_put_attg(idnc,'helim',helim)
+    call ccnf_put_attg(idnc,'helmmeth',helmmeth)
+    call ccnf_put_attg(idnc,'iaero',iaero)    
+    call ccnf_put_attg(idnc,'jalbfix',jalbfix)
+    call ccnf_put_attg(idnc,'kblock',kblock)
+    call ccnf_put_attg(idnc,'kbotdav',kbotdav)
+    call ccnf_put_attg(idnc,'kbotmlo',kbotmlo)
+    call ccnf_put_attg(idnc,'khdif',khdif)
+    call ccnf_put_attg(idnc,'khor',khor)
+    call ccnf_put_attg(idnc,'knh',knh)
+    call ccnf_put_attg(idnc,'ktopdav',ktopdav)
+    call ccnf_put_attg(idnc,'ktopmlo',ktopmlo)
+    call ccnf_put_attg(idnc,'lgwd',lgwd)
+    call ccnf_put_attg(idnc,'m_fly',m_fly)
+    call ccnf_put_attg(idnc,'mbd',mbd)
+    call ccnf_put_attg(idnc,'mex',mex)
+    call ccnf_put_attg(idnc,'mfix',mfix)
+    call ccnf_put_attg(idnc,'mfix_aero',mfix_aero)
+    call ccnf_put_attg(idnc,'mfix_qg',mfix_qg)
+    call ccnf_put_attg(idnc,'mfix_tr',mfix_tr)
+    call ccnf_put_attg(idnc,'mh_bs',mh_bs)
+    call ccnf_put_attg(idnc,'mindep',mindep)
+    call ccnf_put_attg(idnc,'minwater',minwater)
+    call ccnf_put_attg(idnc,'mloalpha',mloalpha)
+    call ccnf_put_attg(idnc,'mup',mup)
+    call ccnf_put_attg(idnc,'mxd',mxd)
+    call ccnf_put_attg(idnc,'nalpha',nalpha)
+    call ccnf_put_attg(idnc,'namip',namip)
+    call ccnf_put_attg(idnc,'nbarewet',nbarewet)
+    call ccnf_put_attg(idnc,'nbd',nbd)
+    call ccnf_put_attg(idnc,'newrough',newrough)
+    call ccnf_put_attg(idnc,'newtop',newtop)
+    call ccnf_put_attg(idnc,'newztsea',newztsea)
+    call ccnf_put_attg(idnc,'nglacier',nglacier)
+    call ccnf_put_attg(idnc,'ngwd',ngwd)
+    call ccnf_put_attg(idnc,'nh',nh)
+    call ccnf_put_attg(idnc,'nhor',nhor)
+    call ccnf_put_attg(idnc,'nhorjlm',nhorjlm)
+    call ccnf_put_attg(idnc,'nhorps',nhorps)
+    call ccnf_put_attg(idnc,'nhstest',nhstest)
+    call ccnf_put_attg(idnc,'nlocal',nlocal)
+    call ccnf_put_attg(idnc,'nmlo',nmlo)
+    call ccnf_put_attg(idnc,'nmr',nmr)
+    call ccnf_put_attg(idnc,'nplens',nplens)
+    call ccnf_put_attg(idnc,'nrad',nrad)
+    call ccnf_put_attg(idnc,'nritch_t',nritch_t)
+    call ccnf_put_attg(idnc,'nsemble',nsemble)
+    call ccnf_put_attg(idnc,'nsib',nsib)
+    call ccnf_put_attg(idnc,'nsigmf',nsigmf)
+    call ccnf_put_attg(idnc,'nspecial',nspecial)
+    call ccnf_put_attg(idnc,'nstagu',nstagu)
+    call ccnf_put_attg(idnc,'nt_adv',nt_adv)
+    call ccnf_put_attg(idnc,'ntaft',ntaft)
+    call ccnf_put_attg(idnc,'ntbar',ntbar)
+    call ccnf_put_attg(idnc,'ntsea',ntsea)
+    call ccnf_put_attg(idnc,'ntsur',ntsur)
+    call ccnf_put_attg(idnc,'nud_hrs',nud_hrs)
+    call ccnf_put_attg(idnc,'nud_ouv',nud_ouv)
+    call ccnf_put_attg(idnc,'nud_p',nud_p)
+    call ccnf_put_attg(idnc,'nud_q',nud_q)
+    call ccnf_put_attg(idnc,'nud_sfh',nud_sfh)
+    call ccnf_put_attg(idnc,'nud_sss',nud_sss)    
+    call ccnf_put_attg(idnc,'nud_sst',nud_sst)
+    call ccnf_put_attg(idnc,'nud_t',nud_t)
+    call ccnf_put_attg(idnc,'nud_uv',nud_uv)
+    call ccnf_put_attg(idnc,'nudu_hrs',nudu_hrs)
+    call ccnf_put_attg(idnc,'nurban',nurban)
+    call ccnf_put_attg(idnc,'nvmix',nvmix)
+    call ccnf_put_attg(idnc,'ocneps',ocneps)
+    call ccnf_put_attg(idnc,'ocnsmag',ocnsmag)
+    call ccnf_put_attg(idnc,'ol',ol)
+    call ccnf_put_attg(idnc,'panfg',panfg)
+    call ccnf_put_attg(idnc,'panzo',panzo)
+    call ccnf_put_attg(idnc,'precon',precon)
+    call ccnf_put_attg(idnc,'proglai',proglai)
+    call ccnf_put_attg(idnc,'qgmin',qgmin)
+    call ccnf_put_attg(idnc,'rescrn',rescrn)
+    call ccnf_put_attg(idnc,'restol',restol)
+    call ccnf_put_attg(idnc,'rhsat',rhsat)
+    call ccnf_put_attg(idnc,'snmin',snmin)
+    call ccnf_put_attg(idnc,'tss_sh',tss_sh)
+    call ccnf_put_attg(idnc,'vmodmin',vmodmin)
+    call ccnf_put_attg(idnc,'zobgin',zobgin)
+    call ccnf_put_attg(idnc,'zvolcemi',zvolcemi)
+
+    call ccnf_put_attg(idnc,'mins_rad',mins_rad)
+    call ccnf_put_attg(idnc,'sw_diff_streams',sw_diff_streams)
+    call ccnf_put_attg(idnc,'sw_resolution',sw_resolution)
+    
+    call ccnf_put_attg(idnc,'acon',acon)
+    call ccnf_put_attg(idnc,'alflnd',alflnd)
+    call ccnf_put_attg(idnc,'alfsea',alfsea)
+    call ccnf_put_attg(idnc,'bcon',bcon)
+    call ccnf_put_attg(idnc,'convfact',convfact)
+    call ccnf_put_attg(idnc,'convtime',convtime)
+    call ccnf_put_attg(idnc,'detrain',detrain)
+    call ccnf_put_attg(idnc,'dsig2',dsig2)
+    call ccnf_put_attg(idnc,'entrain',entrain)
+    call ccnf_put_attg(idnc,'fldown',fldown)
+    call ccnf_put_attg(idnc,'iterconv',iterconv)
+    call ccnf_put_attg(idnc,'ksc',ksc)
+    call ccnf_put_attg(idnc,'kscmom',kscmom)
+    call ccnf_put_attg(idnc,'kscsea',kscsea)
+    call ccnf_put_attg(idnc,'ldr',ldr)
+    call ccnf_put_attg(idnc,'mbase',mbase)
+    call ccnf_put_attg(idnc,'mdelay',mdelay)
+    call ccnf_put_attg(idnc,'methdetr',methdetr)
+    call ccnf_put_attg(idnc,'methprec',methprec)
+    call ccnf_put_attg(idnc,'nbase',nbase)
+    call ccnf_put_attg(idnc,'ncldia',nclddia)
+    call ccnf_put_attg(idnc,'ncloud',ncloud)
+    call ccnf_put_attg(idnc,'ncvcloud',ncvcloud)
+    call ccnf_put_attg(idnc,'nevapcc',nevapcc)
+    call ccnf_put_attg(idnc,'nevapls',nevapls)
+    call ccnf_put_attg(idnc,'nkuo',nkuo)
+    call ccnf_put_attg(idnc,'nuvconv',nuvconv)
+    call ccnf_put_attg(idnc,'rhcv',rhcv)
+    call ccnf_put_attg(idnc,'tied_con',tied_con)
+    call ccnf_put_attg(idnc,'tied_over',tied_over)
+    call ccnf_put_attg(idnc,'u00crit',u00crit)
+   
   else
     if ( myid==0 ) write(6,'("outcdf itype,idnc,iarch,cdffile=",i5,i8,i5," ",a80)') itype,idnc,iarch,cdffile
   endif ! ( iarch=1 ) ..else..
@@ -2163,9 +2317,9 @@ if ( first ) then
     nahead(8)=0          ! not needed now  
     nahead(9)=mex
     nahead(10)=mup
-    nahead(11)=nem
+    nahead(11)=2 ! nem
     nahead(12)=mtimer
-    nahead(13)=0.
+    nahead(13)=0.        ! nmi
     nahead(14)=nint(dt)  ! needed by cc2hist
     nahead(15)=0         ! not needed now 
     nahead(16)=nhor
@@ -2182,7 +2336,7 @@ if ( first ) then
     nahead(27)=khor
     nahead(28)=ksc
     nahead(29)=kountr
-    nahead(30)=ndiur
+    nahead(30)=1 ! ndiur
     nahead(31)=0  ! spare
     nahead(32)=nhorps
     nahead(33)=nsoil

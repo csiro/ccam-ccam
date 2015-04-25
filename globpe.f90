@@ -143,23 +143,23 @@ logical odcalc
 namelist/defaults/nversion
 namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     ja,jb,id,jd,iaero,khdif,khor,nhorjlm,mex,mbd,nbd,ndi,ndi2,    &
-    nem,nhor,nlv,nmaxpr,nrad,ntaft,ntsea,ntsur,nvmix,restol,      &
+    nhor,nlv,nmaxpr,nrad,ntaft,ntsea,ntsur,nvmix,restol,          &
     precon,kdate_s,ktime_s,leap,newtop,mup,lgwd,ngwd,rhsat,       &
-    nextout,hdifmax,jalbfix,nalpha,nstag,nstagu,ntbar,nwrite,     &
+    nextout,jalbfix,nalpha,nstag,nstagu,ntbar,nwrite,             &
     irest,nrun,nstn,rel_lat,rel_long,nrungcm,nsib,istn,jstn,iunp, &
     slat,slon,zstn,name_stn,mh_bs,nritch_t,nt_adv,mfix,mfix_qg,   &
     namip,amipo3,nh,nhstest,nsemble,nspecial,panfg,panzo,nplens,  &
-    rlatdn,rlatdx,rlongdn,rlongdx,newrough,newsoilm,nglacier,     &
+    rlatdn,rlatdx,rlongdn,rlongdx,newrough,nglacier,              &
     newztsea,epsp,epsu,epsf,av_vmod,charnock,chn10,snmin,tss_sh,  &
     vmodmin,zobgin,rlong0,rlat0,schmidt,kbotdav,kbotu,nbox,nud_p, &
     nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs,nlocal,nbarewet,nsigmf,   &
-    qgmin,io_clim ,io_in,io_nest,io_out,io_rest,io_spec,          &
+    qgmin,io_in,io_nest,io_out,io_rest,                           &
     localhist,m_fly,mstn,nqg,nurban,nmr,ktopdav,nud_sst,nud_sss,  &
     mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,nud_sfh,   &
     bpyear,rescrn,helmmeth,nmlo,ol,mxd,mindep,minwater,ocnsmag,   &
     ocneps,fixsal,fixheight,knh,ccycle,kblock,nud_aero,ch_dust,   &
     zvolcemi,aeroindir,helim,fc2,alphaj,proglai
-namelist/skyin/mins_rad,ndiur,sw_resolution,sw_diff_streams
+namelist/skyin/mins_rad,sw_resolution,sw_diff_streams
 namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,hfile,     &
     icefile,mesonest,nmifile,o3file,radfile,restfile,rsmfile,     &
     scamfile,scrnfile,snowfile,so4tfile,soilfile,sstfile,surfile, &
@@ -225,7 +225,6 @@ nhorps   = -1
 khor     = -8
 khdif    = 2
 nhorjlm  = 1
-hdifmax  = 0.
 
 ! All processors read the namelist, so no MPI comms are needed
 open(99,file="input",form="formatted",status="old")
@@ -463,8 +462,8 @@ if ( myid==0 ) then
   write(6,*)'  acon   bcon   qgmin      rcm    rcrit_l rcrit_s'
   write(6,'(2f7.2,2e10.2,2f7.2)') acon,bcon,qgmin,rcm,rcrit_l,rcrit_s
   write(6,*)'Radiation options A:'
-  write(6,*)' nrad  ndiur mins_rad kountr iaero  dt'
-  write(6,'(i5,3i7,f10.2)') nrad,ndiur,mins_rad,kountr,dt
+  write(6,*)' nrad  mins_rad kountr iaero  dt'
+  write(6,'(i5,2i7,f10.2)') nrad,mins_rad,kountr,dt
   write(6,*)'Radiation options B:'
   write(6,*)' nmr bpyear sw_diff_streams sw_resolution'
   write(6,'(i4,f9.2,i4,a5)') nmr,bpyear,sw_diff_streams,sw_resolution
@@ -955,7 +954,7 @@ end if
 if ( nwt>0 ) then
   ! write out the first ofile data set
   if ( myid==0 ) write(6,*)'calling outfile'
-  call outfile(20,rundate,nwrite,nstagin)  ! which calls outcdf
+  call outfile(20,rundate,nwrite,nstagin,jalbfix,nalpha,mins_rad)  ! which calls outcdf
   if ( newtop<0 ) then
     if ( myid==0 ) write(6,*) "newtop<0 requires a stop here"
     ! just for outcdf to plot zs  & write fort.22
@@ -1389,7 +1388,7 @@ do kktau = 1,ntau   ! ****** start of main time loop
     case(5)
       call betts(t,qg,tn,land,ps) ! not called these days
     case(20)
-      call oldconvjlm
+       call oldconvjlm
     case(23,24)
       call convjlm                ! split convjlm 
     case(46)
@@ -1884,13 +1883,13 @@ do kktau = 1,ntau   ! ****** start of main time loop
 
   call log_off()
   if ( ktau==ntau .or. mod(ktau,nwt)==0 ) then
-    call outfile(20,rundate,nwrite,nstagin)  ! which calls outcdf
+    call outfile(20,rundate,nwrite,nstagin,jalbfix,nalpha,mins_rad)  ! which calls outcdf
 
     if ( ktau==ntau .and. irest==1 ) then
       ! Don't include the time for writing the restart file
       call END_LOG(maincalc_end)
       ! write restart file
-      call outfile(19,rundate,nwrite,nstagin)
+      call outfile(19,rundate,nwrite,nstagin,jalbfix,nalpha,mins_rad)
       if ( myid==0 ) then
         write(6,*)'finished writing restart file in outfile'
       end if
@@ -2186,7 +2185,7 @@ data tied_con/2./,tied_over/0./,tied_rh/.75/
 data acon/.2/,bcon/.07/,qgmin/1.e-6/,rcm/.92e-5/
 data rcrit_l/.75/,rcrit_s/.85/ 
 ! Radiation options
-data nrad/4/,ndiur/1/
+data nrad/4/
 data nmr/0/,bpyear/0./
 ! Cloud options
 data ldr/1/,nclddia/1/,nstab_cld/0/,nrhcrit/10/,sigcll/.95/ 
@@ -2198,7 +2197,7 @@ data nbarewet/0/,newrough/0/,nglacier/1/
 data nrungcm/-1/,nsib/3/,nsigmf/1/
 data ntaft/2/,ntsea/6/,ntsur/6/,av_vmod/.7/,tss_sh/1./
 data vmodmin/.2/,zobgin/.02/,charnock/.018/,chn10/.00125/
-data newsoilm/0/,newztsea/1/,newtop/1/,nem/2/                    
+data newztsea/1/,newtop/1/                
 data snmin/.11/  ! 1000. for 1-layer; ~.11 to turn on 3-layer snow
 data nurban/0/,ccycle/0/
 ! Special and test options
@@ -2209,7 +2208,7 @@ data rescrn/0/,knh/-1/
 ! I/O options
 data m_fly/4/,io_in/1/,io_out/1/,io_rest/1/
 data nperavg/-99/,nwt/-99/
-data io_clim/1/,io_spec/0/,nextout/3/,localhist/.false./
+data nextout/3/,localhist/.false./
 data nstn/0/  
 data slat/nstnmax*-89./,slon/nstnmax*0./,iunp/nstnmax*6/
 data zstn/nstnmax*0./,name_stn/nstnmax*'   '/ 

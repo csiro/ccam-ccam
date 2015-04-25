@@ -4,12 +4,10 @@ implicit none
 
 private
 public nhor,nhorps,khor,khdif,nhorjlm
-public hdifmax
 public hdiff
 public parmhdff_init,parmhdff_end
 
 integer, save :: nhor,nhorps,khor,khdif,nhorjlm
-real, save :: hdifmax
 real, dimension(:), allocatable, save :: hdiff
 
 contains

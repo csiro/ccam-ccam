@@ -1,5 +1,5 @@
-      integer meso,nem,ngwd,nrungcm,newtop,                              &
-     &        kountr,ndiur,nrad,nvmix,nlocal,                            &
+      integer meso,ngwd,nrungcm,newtop,                                  &
+     &        kountr,nrad,nvmix,nlocal,                                  &
      &        nhstest,namip,nspecial,newrough,newsoilm,nsib,nsoil,       &
      &        ntaft,ntsea,ntsur,ntsur2,lgwd,newztsea,nglacier,mbd,       &
      &        nbd,kbotdav,kbotu,nbox,nud_p,nud_q,nud_t,nud_uv,nud_hrs,   &
@@ -15,10 +15,10 @@
      &     rlongdn,rlongdx,rlatdn,rlatdx,ds,dt,dtin,timea,panfg,panzo,   &
      &     bpyear,helim,fc2,alphaj
       logical diag, localhist,amipo3
-      common/parm1/meso,nem,ngwd,nrungcm,newtop,bpyear,iaero,helim,fc2,  &
+      common/parm1/meso,ngwd,nrungcm,newtop,bpyear,iaero,helim,fc2,      &
      &  alphaj,qgmin     ! min value, esp. for stratosphere      [1.e-6]
 
-      common/parmradn/kountr,ndiur,nrad,amipo3   
+      common/parmradn/kountr,nrad,amipo3   
 
       common/parmvmix/nvmix,nlocal
 
