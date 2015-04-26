@@ -157,8 +157,8 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     localhist,m_fly,mstn,nqg,nurban,nmr,ktopdav,nud_sst,nud_sss,  &
     mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,nud_sfh,   &
     bpyear,rescrn,helmmeth,nmlo,ol,mxd,mindep,minwater,ocnsmag,   &
-    ocneps,fixsal,fixheight,knh,ccycle,kblock,nud_aero,ch_dust,   &
-    zvolcemi,aeroindir,helim,fc2,alphaj,proglai
+    ocneps,fixsal,fixheight,mlodiff,knh,ccycle,kblock,nud_aero,   &
+    ch_dust,zvolcemi,aeroindir,helim,fc2,alphaj,proglai
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams
 namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,hfile,     &
     icefile,mesonest,nmifile,o3file,radfile,restfile,rsmfile,     &

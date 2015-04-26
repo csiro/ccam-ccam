@@ -18,6 +18,7 @@ implicit none
 private
 public mlodiffusion,mlohadv,mlodyninit,ipice
 public oldu1,oldv1,oldu2,oldv2,gosig,gosigh,godsig,ocnsmag,ocneps,fixsal,fixheight
+public mlodiff
 public dd
 public nstagoffmlo,mstagf
 
