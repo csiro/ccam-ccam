@@ -437,28 +437,29 @@ end subroutine load_aerosolldr
 ! Update prognostic aerosols
 subroutine aerocalc
 
-use aerosolldr          ! LDR prognostic aerosols
-use arrays_m            ! Atmosphere dyamics prognostic arrays
-use cc_mpi              ! CC MPI routines
-use cfrac_m             ! Cloud fraction
-use cloudmod            ! Prognostic strat cloud
-use extraout_m          ! Additional diagnostics
-use infile              ! Input file routines
-use kuocomb_m           ! JLM convection
-use latlong_m           ! Lat/lon coordinates
-use liqwpar_m           ! Cloud water mixing ratios
-use morepbl_m           ! Additional boundary layer diagnostics
-use nharrs_m            ! Non-hydrostatic atmosphere arrays
-use nsibd_m             ! Land-surface arrays
-use ozoneread           ! Ozone input routines
-use pbl_m               ! Boundary layer arrays
-use screen_m            ! Screen level diagnostics
-use sigs_m              ! Atmosphere sigma levels
-use soil_m              ! Soil and surface data
-use soilsnow_m          ! Soil, snow and surface data
-use vegpar_m            ! Vegetation arrays
-use work2_m             ! Diagnostic arrays
-use zenith_m            ! Astronomy routines
+use aerosolldr           ! LDR prognostic aerosols
+use arrays_m             ! Atmosphere dyamics prognostic arrays
+use cc_mpi               ! CC MPI routines
+use cfrac_m              ! Cloud fraction
+use cloudmod             ! Prognostic strat cloud
+use extraout_m           ! Additional diagnostics
+use infile               ! Input file routines
+use kuocomb_m            ! JLM convection
+use latlong_m            ! Lat/lon coordinates
+use liqwpar_m            ! Cloud water mixing ratios
+use morepbl_m            ! Additional boundary layer diagnostics
+use nharrs_m             ! Non-hydrostatic atmosphere arrays
+use nsibd_m              ! Land-surface arrays
+use ozoneread            ! Ozone input routines
+use pbl_m                ! Boundary layer arrays
+use screen_m             ! Screen level diagnostics
+use sigs_m               ! Atmosphere sigma levels
+use soil_m               ! Soil and surface data
+use soilsnow_m           ! Soil, snow and surface data
+use tkeeps, only : zidry ! TKE-EPS boundary layer
+use vegpar_m             ! Vegetation arrays
+use work2_m              ! Diagnostic arrays
+use zenith_m             ! Astronomy routines
 
 implicit none
 
@@ -477,7 +478,7 @@ real, dimension(ifull,kl,naero) :: xtusav
 real, dimension(ifull,kl) :: oxout,zg,clcon,pccw,rhoa
 real, dimension(ifull,kl) :: tnhs,dz,tv
 real, dimension(ifull) :: coszro,taudar
-real, dimension(ifull) :: cldcon,wg
+real, dimension(ifull) :: cldcon,wg,pblx
 real, dimension(kl+1) :: sigh
 
 ! timer calculations
@@ -537,44 +538,28 @@ end do
 
 ! estimate convective cloud fraction from leoncld.f
 call convectivecloudfrac(clcon,cldcon=cldcon)
-if (nmr>=1) then
-  do iq=1,ifull
-    do k=1,kbsav(iq)
-      pccw(iq,kl+1-k)=0.
-    end do
-    do k=kbsav(iq)+1,ktsav(iq)
-      ! maximum overlap
-      if (t(iq,k)>ticeu) then
-        pccw(iq,kl+1-k)=wlc/rhoa(iq,k)
-      else
-        pccw(iq,kl+1-k)=0.
-      end if
-    end do
-    do k=ktsav(iq)+1,kl
-      pccw(iq,kl+1-k)=0.
-    end do
-  end do  
-else
-  do iq=1,ifull
-    do k=1,kbsav(iq)
-      pccw(iq,kl+1-k)=0.
-    end do
-    do k=kbsav(iq)+1,ktsav(iq)
-      ! random overlap
-      if (t(iq,k)>ticeu) then
-        pccw(iq,kl+1-k)=wlc/rhoa(iq,k)
-      else
-        pccw(iq,kl+1-k)=0.
-      end if
-    end do
-    do k=ktsav(iq)+1,kl
-      pccw(iq,kl+1-k)=0.
-    end do
-  end do  
-end if
+do k=1,kl
+  ! MJT notes - Assume rain for JLM convection
+  !where (k>kbsav.and.k<=ktsave.and.t(1:ifull,k)>ticeu)
+  !  pccw(:,kl+1-k)=0.
+  where (k>kbsav.and.k<=ktsav)
+    pccw(:,kl+1-k)=wlc/rhoa(:,k)
+  elsewhere
+    pccw(:,kl+1-k)=0.
+  end where
+end do
 
 ! Water converage at surface
 wg=min(max(wetfac,0.),1.)
+
+! MJT suggestion
+if (nvmix==6.and.nlocal==7) then
+  ! TKE
+  pblx=zidry ! Dry convective boundary layer height
+else
+  ! local Ri
+  pblx=pblh
+end if
 
 ! MJT notes - We have an option to update the aerosols before the vertical mixing
 ! or after the vertical mixing.  Updating aerosols before the vertical mixing
@@ -583,14 +568,14 @@ wg=min(max(wetfac,0.),1.)
 ! better estimate of u10 and pblh.
 
 ! update prognostic aerosols
-call aldrcalc(dt,sig,sigh,dsig,zg,dz,fwet,wg,pblh,ps,  &
-              tss,t,condc,snowd,taudar,fg,             &
-              eg,u10,ustar,zo,land,fracice,sigmf,      &
-              qg,qlg,qfg,cfrac,clcon,cldcon,           &
-              pccw,rhoa,cdtq,ppfprec,ppfmelt,ppfsnow,  &
-              ppfevap,ppfsubl,pplambs,ppmrate,ppmaccr, &
-              ppfstayice,ppfstayliq,ppqfsed,pprscav,   &
-              zdayfac,kbsav)
+call aldrcalc(dt,sig,sigh,dsig,zg,dz,fwet,wg,pblx,ps,tss,  &
+              t,condc,snowd,taudar,fg,eg,u10,ustar,zo,     &
+              land,fracice,sigmf,qg,qlg,qfg,cfrac,clcon,   &
+              cldcon,pccw,rhoa,cdtq,ppfprec,ppfmelt,       &
+              ppfsnow,ppfevap,ppfsubl,pplambs,ppmrate,     &
+              ppmaccr,ppfstayice,ppfstayliq,ppqfsed,       &
+              pprscav,zdayfac,kbsav)
+              
 
 ! store sulfate for LH+SF radiation scheme.  SEA-ESF radiation scheme imports prognostic aerosols in seaesfrad.f90.
 ! Factor 1.e3 to convert to gS/m2, x 3 to get sulfate from sulfur
