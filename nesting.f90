@@ -526,7 +526,7 @@ real, dimension(ifull), intent(inout) :: pslb
 real, dimension(ifull) :: costh,sinth
 real, dimension(ifull,kl), intent(inout) :: ub,vb,tb,qb
 real, dimension(ifull,kl,naero), intent(inout) :: xtgb
-real, dimension(ifull) :: dum,psold,psratio
+real, dimension(ifull) :: dum !,psold,psratio
 real den,polenx,poleny,polenz,zonx,zony,zonz
 logical lblock
 
@@ -593,9 +593,9 @@ end do
       
 if (nud_p>0) then
   psl(1:ifull)=psl(1:ifull)+pslb(:)
-  psold=ps(1:ifull)
+!  psold=ps(1:ifull)
   ps(1:ifull)=1.e5*exp(psl(1:ifull))
-  psratio=psold/ps(1:ifull)
+!  psratio=psold/ps(1:ifull)
 end if
 if (nud_uv/=0) then
   if (nud_uv==3) then
@@ -624,34 +624,34 @@ if (nud_t>0) then
 end if
 if (nud_q>0) then
   qg(1:ifull,kbotdav:ktopdav)=max(qg(1:ifull,kbotdav:ktopdav)+qb(:,kbotdav:ktopdav),0.)
-else if (nud_p>0.and.mfix_qg/=0) then
-  do k=1,kl
-    qg(1:ifull,k)=qg(1:ifull,k)*psratio
-  end do
+!else if (nud_p>0.and.mfix_qg/=0) then
+!  do k=1,kl
+!    qg(1:ifull,k)=qg(1:ifull,k)*psratio
+!  end do
 end if
-if (ldr/=0.and.nud_p>0.and.mfix_qg/=0) then
-  do k=1,kl
-    qlg(1:ifull,k)=qlg(1:ifull,k)*psratio
-    qfg(1:ifull,k)=qfg(1:ifull,k)*psratio
-    qrg(1:ifull,k)=qrg(1:ifull,k)*psratio
-  end do
-end if
+!if (ldr/=0.and.nud_p>0.and.mfix_qg/=0) then
+!  do k=1,kl
+!    qlg(1:ifull,k)=qlg(1:ifull,k)*psratio
+!    qfg(1:ifull,k)=qfg(1:ifull,k)*psratio
+!    qrg(1:ifull,k)=qrg(1:ifull,k)*psratio
+!  end do
+!end if
 if (abs(iaero)>=2.and.nud_aero>0) then
   xtg(1:ifull,kbotdav:ktopdav,:)=max(xtg(1:ifull,kbotdav:ktopdav,:)+xtgb(:,kbotdav:ktopdav,:),0.)
-else if (abs(iaero)>=2.and.nud_p>0.and.mfix_aero/=0) then
-  do ntr=1,naero
-    do k=1,kl
-      xtg(1:ifull,k,ntr)=xtg(1:ifull,k,ntr)*psratio
-    end do
-  end do
+!else if (abs(iaero)>=2.and.nud_p>0.and.mfix_aero/=0) then
+!  do ntr=1,naero
+!    do k=1,kl
+!      xtg(1:ifull,k,ntr)=xtg(1:ifull,k,ntr)*psratio
+!    end do
+!  end do
 end if
-if (ngas>0.and.nud_p>0.and.mfix_tr/=0) then
-  do ntr=1,ngas
-    do k=1,kl
-      tr(1:ifull,k,ntr)=tr(1:ifull,k,ntr)*psratio
-    end do
-  end do
-end if
+!if (ngas>0.and.nud_p>0.and.mfix_tr/=0) then
+!  do ntr=1,ngas
+!    do k=1,kl
+!      tr(1:ifull,k,ntr)=tr(1:ifull,k,ntr)*psratio
+!    end do
+!  end do
+!end if
 
 return
 end subroutine getspecdata

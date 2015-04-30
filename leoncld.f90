@@ -93,15 +93,15 @@ end do
 
 ! meterological fields
 do k = 1,kl
-  prf_temp(:) = ps(1:ifull)*sig(k)
-  prf(:,k)    = 0.01*prf_temp(1:ifull)     !ps is SI units
+  prf(:,k)    = 0.01*ps(1:ifull)*sig(k)    !ps is SI units
+  prf_temp(:) = 100.*prf(:,k)
   dprf(:,k)   = -0.01*ps(1:ifull)*dsig(k)  !dsig is -ve
-  tv(:,k)     = t(1:ifull,k)*(1.+0.61*qg(1:ifull,k)-qlg(1:ifull,k)-qfg(1:ifull,k))          ! virtual temperature
-  rhoa(:,k)   = prf_temp(1:ifull)/(rdry*tv(1:ifull,k))                                      ! air density
-  qsg(:,k)    = qsat(prf_temp(1:ifull),t(1:ifull,k))                                        ! saturated mixing ratio
+  tv(:,k)     = t(1:ifull,k)*(1.+0.61*qg(1:ifull,k)-qlg(1:ifull,k)-qfg(1:ifull,k))             ! virtual temperature
+  rhoa(:,k)   = prf_temp(:)/(rdry*tv(1:ifull,k))                                               ! air density
+  qsg(:,k)    = qsat(prf_temp(:),t(1:ifull,k))                                                 ! saturated mixing ratio
   dz(:,k)     = 100.*dprf(1:ifull,k)/(rhoa(1:ifull,k)*grav)*(1.+tnhs(1:ifull,k)/tv(1:ifull,k)) ! level thickness in metres
 enddo
-      
+ 
 ! Calculate droplet concentration from aerosols (for non-convective faction of grid-box)
 call aerodrop(1,ifull,kl,cdso4,rhoa,land,rlatt,outconv=.true.)
 
@@ -141,7 +141,7 @@ if ( ncloud<=3 ) then
   if ( nmr>0 ) then
     ! Max/Rnd cloud overlap
     do k = 1,kl
-      where ( clcon(:,k)>1.e-4)
+      where ( clcon(:,k)>0. )
         !ccw=wcon(:)/rhoa(:,k)  !In-cloud l.w. mixing ratio
         qccon(:,k)      = clcon(:,k)*wcon(:)/rhoa(:,k)
         qcl(:,k)        = max(qsg(:,k),qg(1:ifull,k))  ! jlm
@@ -159,7 +159,7 @@ if ( ncloud<=3 ) then
   else
     ! usual random cloud overlap
     do k = 1,kl
-      where ( clcon(1:ifull,k)>1.e-4 )
+      where ( clcon(1:ifull,k)>0. )
         !ccw=wcon(iq)/rhoa(iq,k)  !In-cloud l.w. mixing ratio
         qccon(1:ifull,k) = clcon(1:ifull,k)*wcon(1:ifull)/rhoa(1:ifull,k)
         qcl(1:ifull,k)   = max(qsg(1:ifull,k),qg(1:ifull,k))  ! jlm
@@ -376,9 +376,9 @@ cfrac(:,1:kl) = min(1.,ccov(:,1:kl)+clcon(:,1:kl))
 !endif    ! ncfrp.eq.1
 !========================= end of Jack's diag stuff ======================
 
-condx(1:ifull)  = condx(1:ifull)+precs(1:ifull)
-conds(1:ifull)  = conds(1:ifull)+preci(1:ifull)
-precip(1:ifull) = precip(1:ifull)+precs(1:ifull)
+condx(1:ifull)  = condx(1:ifull)+precs(1:ifull)*2.
+conds(1:ifull)  = conds(1:ifull)+preci(1:ifull)*2.
+precip(1:ifull) = precip(1:ifull)+precs(1:ifull)*2.
 
 return
 end subroutine leoncld
@@ -470,6 +470,8 @@ where(ttg>=tfrz)
   fice=0.
 elsewhere(ttg>=tice.and.qfg(1:ifull,:)>1.e-12)
   fice=min(qfg(1:ifull,:)/(qfg(1:ifull,:)+qlg(1:ifull,:)),1.)
+elsewhere(ttg>=tice)
+  fice=0.
 elsewhere
   fice=1.
 end where
@@ -776,7 +778,7 @@ ccov(:,:)=cfrac(:,:)      !Do this for now
 
 ! Vertically sub-grid cloud
 do k=2,kl-1
-  where (cfrac(1:ifull,k)>1.0e-2.and.cfrac(1:ifull,k+1)==0..and.cfrac(1:ifull,k-1)==0.)
+  where (cfrac(1:ifull,k)>1.e-2.and.cfrac(1:ifull,k+1)==0..and.cfrac(1:ifull,k-1)==0.)
     ccov(1:ifull,k)=sqrt(cfrac(1:ifull,k))
   end where
 enddo
@@ -1228,8 +1230,8 @@ qrg(1:ifull,1:kl-1)=rhor(1:ifull,1:kl-1)/rhoa(1:ifull,1:kl-1)
 
 ! Factor 0.5 here accounts for leapfrog scheme
 
-precs(1:ifull)=precs(1:ifull)+fluxr(1:ifull,1)+fluxi(1:ifull,1)
-preci(1:ifull)=preci(1:ifull)+fluxi(1:ifull,1)
+precs(1:ifull)=precs(1:ifull)+0.5*(fluxr(1:ifull,1)+fluxi(1:ifull,1))
+preci(1:ifull)=preci(1:ifull)+0.5*fluxi(1:ifull,1)
 
 ! Remove small amounts of cloud
 

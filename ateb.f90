@@ -152,6 +152,7 @@ real, save :: maxrdwater=1.           ! Maximum road water (kg m^-2)
 real, save :: maxrfsn=1.              ! Maximum roof snow (kg m^-2)
 real, save :: maxrdsn=1.              ! Maximum road snow (kg m^-2)
 real, save :: maxvwatf=0.1            ! Factor multiplied to LAI to predict maximum leaf water (kg m^-2)
+real, save :: r_si=0.                 ! Building interior surface resistance (W^-1 m^2 K)
 ! atmosphere stability parameters
 integer, save :: icmax=5              ! number of iterations for stability functions (default=5)
 real, save    :: a_1=1.
@@ -1276,6 +1277,7 @@ real, dimension(ufull) :: rg_roof,rg_road,rg_walle,rg_wallw,rg_vegc,rg_vegr,rg_r
 real, dimension(ufull) :: fg_roof,fg_road,fg_walle,fg_wallw,fg_vegc,fg_vegr,fg_rfsn,fg_rdsn
 real, dimension(ufull) :: eg_roof,eg_road,eg_vegc,eg_vegr,eg_rfsn,eg_rdsn
 real, dimension(ufull) :: acond_roof,acond_road,acond_walle,acond_wallw,acond_vegc,acond_vegr,acond_rfsn,acond_rdsn
+real, dimension(ufull) :: condterm_roof,condterm_wall
 real, dimension(ufull) :: p_sg_vegc,p_sg_rs
 real, dimension(ufull) :: p_rg_ro,p_rg_walle,p_rg_wallw,p_rg_vegc,p_rg_rs
 real, dimension(ufull) :: p_fg_ro,p_fg_walle,p_fg_wallw,p_fg_vegc,p_fg_rs
@@ -1329,15 +1331,17 @@ call getc1(d_c1r,roof%soilwater)
 
 ! calculate minimum heat pumped into canyon by air conditioning (COP updated in canyonflux)
 ! (use split form to estimate G_{*,4} flux into room for AC.  newtemp is an estimate of the temperature at tau+1)
-newtemp  = roof%temp(:,4)-2.*f_rooflambda(:,4)*(roof%temp(:,4)-f_bldtemp)/(f_roofcp(:,4)*f_roofdepth(:,4)*f_roofdepth(:,4)/ddt    &
-          +2.*f_rooflambda(:,4))
-gflxroof = (1.-f_sigmavegr)*2.*f_rooflambda(:,4)*(newtemp-f_bldtemp)/f_roofdepth(:,4)
-newtemp  = walle%temp(:,4)-2.*f_walllambda(:,4)*(walle%temp(:,4)-f_bldtemp)/(f_wallcp(:,4)*f_walldepth(:,4)*f_walldepth(:,4)/ddt  &
-          +2.*f_walllambda(:,4))
-gflxwalle = 2.*f_walllambda(:,4)*(newtemp-f_bldtemp)/f_walldepth(:,4)
-newtemp   = wallw%temp(:,4)-2.*f_walllambda(:,4)*(wallw%temp(:,4)-f_bldtemp)/(f_wallcp(:,4)*f_walldepth(:,4)*f_walldepth(:,4)/ddt &
-           +2.*f_walllambda(:,4))
-gflxwallw = 2.*f_walllambda(:,4)*(newtemp-f_bldtemp)/f_walldepth(:,4)
+condterm_roof = 2./(f_roofdepth(:,4)/f_rooflambda(:,4)+r_si)
+condterm_wall = 2./(f_walldepth(:,4)/f_walllambda(:,4)+r_si)
+newtemp  = roof%temp(:,4)-condterm_roof*(roof%temp(:,4)-f_bldtemp)/(f_roofcp(:,4)*f_roofdepth(:,4)/ddt    &
+          +condterm_roof)
+gflxroof = (1.-f_sigmavegr)*condterm_roof*(newtemp-f_bldtemp)
+newtemp  = walle%temp(:,4)-condterm_wall*(walle%temp(:,4)-f_bldtemp)/(f_wallcp(:,4)*f_walldepth(:,4)/ddt  &
+          +condterm_wall)
+gflxwalle = condterm_wall*(newtemp-f_bldtemp)
+newtemp   = wallw%temp(:,4)-condterm_wall*(wallw%temp(:,4)-f_bldtemp)/(f_wallcp(:,4)*f_walldepth(:,4)/ddt &
+           +condterm_wall)
+gflxwallw = condterm_wall*(newtemp-f_bldtemp)
 if (acmeth==1) then
   d_acout = max(0.,gflxroof*f_sigmabld/(1.-f_sigmabld)+f_hwratio*(gflxwalle+gflxwallw))
   !d_acout = gflxroof*f_sigmabld/(1.-f_sigmabld)+f_hwratio*(gflxwalle+gflxwallw) ! test energy conservation

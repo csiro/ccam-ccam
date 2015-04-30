@@ -141,8 +141,8 @@ if ( nvmix/=6 ) then
     delsig  =(sig(k+1)-sig(k))
     dz(:)   =-tmnht(:,k)*delons(k)*cnhs(:,k)  ! this is z(k+1)-z(k)
     dzr(:)  =1./dz(:)
-    guv(:,k)=rkm(:,k)*dt*delsig*dzr(:)*dzr(:)
-    gt(:,k) =rkh(:,k)*dt*delsig*dzr(:)*dzr(:)
+    guv(:,k)=rkm(:,k)*dt*delsig*dzr(:)**2
+    gt(:,k) =rkh(:,k)*dt*delsig*dzr(:)**2
   end do      ! k loop
   guv(:,kl)=0.
   gt(:,kl) =0.

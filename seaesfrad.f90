@@ -59,6 +59,7 @@ use ateb                                            ! Urban
 use cc_mpi                                          ! CC MPI routines
 use cfrac_m                                         ! Cloud fraction
 use extraout_m                                      ! Additional diagnostics
+use estab                                           ! Liquid saturation function
 use histave_m, only : alb_ave,fbeam_ave             ! Time average arrays
 use infile                                          ! Input file routines
 use latlong_m                                       ! Lat/lon coordinates
@@ -94,7 +95,7 @@ real, dimension(:), allocatable, save :: sgamp
 real, dimension(:,:), allocatable, save :: rtt
 real, dimension(imax,kl) :: duo3n,rhoa
 real, dimension(imax,kl) :: p2,cd2,dumcf,dumql,dumqf,dumt,dz
-real, dimension(imax) :: qsat,coszro2,taudar2,coszro,taudar,mx
+real, dimension(imax) :: coszro2,taudar2,coszro,taudar,mx
 real, dimension(imax) :: sg,sint,sout,sgdn,rg,rt,rgdn,sgdnvis,sgdnnir
 real, dimension(imax) :: soutclr,sgclr,rtclr,rgclr,sga
 real, dimension(imax) :: sgvis,sgdnvisdir,sgdnvisdif,sgdnnirdir,sgdnnirdif
@@ -811,12 +812,11 @@ do j = 1,jl,imax/il
       dumt(:,k)=t(istart:iend,k)
       tv=dumt(:,k)*(1.+0.61*qg(istart:iend,k)-qlrad(istart:iend,k)-qfrad(istart:iend,k))
       p2(:,k)=ps(istart:iend)*sig(k)
-      call getqsat(qsat,dumt(:,k),p2(:,k))
       Atmos_input%deltaz(:,1,kr)  = real(dz(:,k),8)
       Atmos_input%rh2o(:,1,kr)    = max(real(qg(istart:iend,k),8),2.E-7_8)
       Atmos_input%temp(:,1,kr)    = min(max(real(dumt(:,k),8),100._8),370._8)    
       Atmos_input%press(:,1,kr)   = real(p2(:,k),8)
-      Atmos_input%rel_hum(:,1,kr) = min(real(qg(istart:iend,k)/qsat,8),1._8)
+      Atmos_input%rel_hum(:,1,kr) = min(real(qg(istart:iend,k)/qsat(p2(:,k),dumt(:,k)),8),1._8)
     end do
     Atmos_input%temp(:,1,kl+1)  = min(max(real(tss(istart:iend),8),100._8),370._8)
     Atmos_input%press(:,1,kl+1) = real(ps(istart:iend),8)
@@ -1364,20 +1364,6 @@ real(kind=8), dimension(:,:,:,:),        intent(inout) :: r
 !--------------------------------------------------------------------
 
 end subroutine shortwave_driver
-
-subroutine getqsat(qsatout,temp,psin)
-
-use estab
-
-implicit none
-
-real, dimension(:), intent(in) :: temp,psin
-real, dimension(size(psin)), intent(out) :: qsatout
-
-qsatout=qsat(psin,temp)
-
-return
-end subroutine getqsat
 
 ! This subroutine is based on cloud2.f
 subroutine cloud3(Rdrop,Rice,conl,coni,cfrac,qlg,qfg,prf,ttg,cdrop,imax,kl)
