@@ -90,9 +90,9 @@ den = sqrt(ain(1)*ain(1)+ain(2)*ain(2)+ain(3)*ain(3))
 ain(:) = ain(:)/den
 
 alf=(1._8-schmidt**2)/(1._8+schmidt**2)
-ans(1)=ain(1)*schmidt*(1.+alf)/(1.+alf*ain(3))
-ans(2)=ain(2)*schmidt*(1.+alf)/(1.+alf*ain(3))
-ans(3)=(alf+ain(3))/(1.+alf*ain(3))
+ans(1)=ain(1)*schmidt*(1._8+alf)/(1._8+alf*ain(3))
+ans(2)=ain(2)*schmidt*(1._8+alf)/(1._8+alf*ain(3))
+ans(3)=(alf+ain(3))/(1._8+alf*ain(3))
 
 end function xyz_g
 
