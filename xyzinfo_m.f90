@@ -49,10 +49,12 @@ function xyz_g(iqg) result(ans)
 use bigxy4_m
 implicit none
 include 'newmpar.h'
+include 'parmgeom.h'
 integer, intent(in) :: iqg
 integer i,j,n,kx,ky
-real(kind=8) den
+real(kind=8) den, alf
 real(kind=8), dimension(3) :: ans
+real(kind=8), dimension(3) :: ain
 n = (iqg - 1) / (il_g*il_g)
 j = 1 + (iqg - n*il_g*il_g - 1)/il_g
 i = iqg - (j - 1)*il_g - n*il_g*il_g
@@ -60,32 +62,38 @@ kx = 4*i-1
 ky = 4*j-1
 select case(n)
   case(0)
-    ans(1) = 1._8
-    ans(2) = xx4(kx,ky)
-    ans(3) = yy4(kx,ky)
+    ain(1) = 1._8
+    ain(2) = xx4(kx,ky)
+    ain(3) = yy4(kx,ky)
   case(1)
-    ans(1) = -yy4(kx,ky)
-    ans(2) = xx4(kx,ky)
-    ans(3) = 1._8
+    ain(1) = -yy4(kx,ky)
+    ain(2) = xx4(kx,ky)
+    ain(3) = 1._8
   case(2)
-    ans(1) = -yy4(kx,ky)
-    ans(2) = 1._8
-    ans(3) = -xx4(kx,ky)
+    ain(1) = -yy4(kx,ky)
+    ain(2) = 1._8
+    ain(3) = -xx4(kx,ky)
   case(3)
-    ans(1) = -1._8
-    ans(2) = -yy4(kx,ky)
-    ans(3) = -xx4(kx,ky)
+    ain(1) = -1._8
+    ain(2) = -yy4(kx,ky)
+    ain(3) = -xx4(kx,ky)
   case(4)
-    ans(1) = xx4(kx,ky)
-    ans(2) = -yy4(kx,ky)
-    ans(3) = -1._8
+    ain(1) = xx4(kx,ky)
+    ain(2) = -yy4(kx,ky)
+    ain(3) = -1._8
   case(5)
-    ans(1) = xx4(kx,ky)
-    ans(2) = -1._8
-    ans(3) = yy4(kx,ky)
+    ain(1) = xx4(kx,ky)
+    ain(2) = -1._8
+    ain(3) = yy4(kx,ky)
 end select
-den = sqrt(ans(1)*ans(1)+ans(2)*ans(2)+ans(3)*ans(3))
-ans(:) = ans(:)/den
+den = sqrt(ain(1)*ain(1)+ain(2)*ain(2)+ain(3)*ain(3))
+ain(:) = ain(:)/den
+
+alf=(1._8-schmidt**2)/(1._8+schmidt**2)
+ans(1)=ain(1)*schmidt*(1.+alf)/(1.+alf*ain(3))
+ans(2)=ain(2)*schmidt*(1.+alf)/(1.+alf*ain(3))
+ans(3)=(alf+ain(3))/(1.+alf*ain(3))
+
 end function xyz_g
 
 end module xyzinfo_m
