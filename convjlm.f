@@ -719,6 +719,7 @@ c     & qplume(iq,k-1),max(qs(iq,k),qq(iq,k)),qbass(iq,k-1)
      &       kb_saved(idjd), kt_saved(idjd),entr(idjd),timeconv(idjd)
      
       kdown(:)=1    ! set to show allowed to check for cloud top; removed mdelay stuff
+      kt_sav(:)=kl-1  ! added 2/5/15 for safety with supersaturated layers
       do k=2,kl-2   ! upwards to find cloud top  
          do iq=1,ifull
           if(k>kb_sav(iq).and.kdown(iq)==1)then 
