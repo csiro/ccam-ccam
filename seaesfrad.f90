@@ -545,6 +545,11 @@ if ( nmaxpr==1 .and. myid==0 ) then
   write(6,*) "seaesfrad: Prepare SEA-ESF arrays"
 end if
 
+if ( diag .and. mydiag ) then
+  write(6,*) "tdiag ",t(idjd,:)
+  write(6,*) "qgdiag ",qg(idjd,:)
+end if
+
 ! error checking
 if ( ldr==0 ) then
   write(6,*) "ERROR: SEA-ESF radiation requires ldr/=0"
@@ -1152,6 +1157,11 @@ t(1:ifull,:)=t(1:ifull,:)-dt*rtt(1:ifull,:)
 
 if (nmaxpr==1.and.myid==0) then
   write(6,*) "seaesfrad: Finishing SEA-ESF radiation"
+end if
+
+if ( diag .and. mydiag ) then
+  write(6,*) "tdiag ",t(idjd,:)
+  write(6,*) "qgdiag ",qg(idjd,:)
 end if
 
 call END_LOG(radmisc_end)
