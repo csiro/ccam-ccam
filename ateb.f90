@@ -2238,13 +2238,14 @@ fg_rdsn  = sg_rdsn+rg_rdsn-eg_rdsn*ls/lv-gardsn
 ! calculate longwave radiation
 effwalle=f_wallemiss*(a_rg*d_cwa+sbconst*walle%temp(:,1)**4*(f_wallemiss*d_cwe-1.)                   & 
                   +sbconst*wallw%temp(:,1)**4*f_wallemiss*d_cww+sbconst*d_netrad*d_cwr)
-rg_walle=effwalle*effbldheight
+rg_walle=effwalle*effbldheight+sbconst*(d_netrad-f_wallemiss*walle%temp(:,1)**4)*(1.-effbldheight)
 effwallw=f_wallemiss*(a_rg*d_cwa+sbconst*wallw%temp(:,1)**4*(f_wallemiss*d_cwe-1.)                   &
                   +sbconst*walle%temp(:,1)**4*f_wallemiss*d_cww+sbconst*d_netrad*d_cwr)
-rg_wallw=effwallw*effbldheight
+rg_wallw=effwallw*effbldheight+sbconst*(d_netrad-f_wallemiss*wallw%temp(:,1)**4)*(1.-effbldheight)
 effroad=f_roademiss*(a_rg*d_cra+sbconst*(d_netrad*d_crr-road%temp(:,1)**4)                           &
                   +sbconst*f_wallemiss*(walle%temp(:,1)**4+wallw%temp(:,1)**4)*d_crw)
-rg_road=effroad
+rg_road=effroad+sbconst*(f_wallemiss*(walle%temp(:,1)**4+wallw%temp(:,1)**4)                         &
+                  -2.*f_roademiss*road%temp(:,1)**4)*f_hwratio*(1.-effbldheight)
 
 ! outgoing longwave radiation
 ! note that eff terms are used for outgoing longwave radiation, whereas rg terms are used for heat conduction
@@ -2252,7 +2253,7 @@ d_canyonrgout=a_rg-d_rdsndelta*effrdsn-(1.-d_rdsndelta)*((1.-f_sigmavegc)*effroa
                   -effhwratio*(effwalle+effwallw)
 
 ! calculate canyon road latent heat flux
-aa=lv*road%surfwater/ddt+a_rnd+rdsnmelt
+aa=lv*(road%surfwater/ddt+a_rnd+rdsnmelt)
 eg_road=min(lv*a_rho*dumroaddelta*(roadqsat-d_canyonmix)*acond_road*d_topu,aa)
 
 return
@@ -2313,10 +2314,12 @@ fg_rdsn=aircp*a_rho*(rdsntemp-d_canyontemp)*acond_rdsn*d_topu
 ! calculate longwave radiation for vegetation and snow
 effvegc=f_vegemissc*(a_rg*d_cra+sbconst*(d_netrad*d_crr-p_vegtempc**4)                                      &
                   +sbconst*f_wallemiss*(walle%temp(:,1)**4+wallw%temp(:,1)**4)*d_crw)
-rg_vegc=effvegc
+rg_vegc=effvegc+sbconst*(f_wallemiss*(walle%temp(:,1)**4+wallw%temp(:,1)**4)                                &
+                  -2.*f_vegemissc*p_vegtempc**4)*f_hwratio*(1.-effbldheight)
 effrdsn=snowemiss*(a_rg*d_cra+sbconst*(-rdsntemp**4+d_netrad*d_crr)                                         &
                   +sbconst*f_wallemiss*(walle%temp(:,1)**4+wallw%temp(:,1)**4)*d_crw)
-rg_rdsn=effrdsn
+rg_rdsn=effrdsn+sbconst*(f_wallemiss*(wallw%temp(:,1)**4+wallw%temp(:,1)**4)                                &
+                  -2.*snowemiss*rdsntemp**4)*f_hwratio*(1.-effbldheight)
 
 ! estimate snow melt
 rdsnmelt=d_rdsndelta*max(0.,rdsntemp-273.16)/(icecp*road%den*lf*ddt)
@@ -2415,7 +2418,7 @@ where (qsatr<d_mixrr)
   eg_roof=lv*a_rho*(qsatr-d_mixrr)*acond_roof
 elsewhere
   ! evaporation
-  aa=lv*roof%surfwater/ddt+a_rnd+rfsnmelt
+  aa=lv*(roof%surfwater/ddt+a_rnd+rfsnmelt)
   eg_roof=min(lv*a_rho*d_roofdelta*(qsatr-d_mixrr)*acond_roof,aa)
 end where
 
