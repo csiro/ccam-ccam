@@ -308,10 +308,7 @@ if(namip==0)then     ! namip SSTs/sea-ice take precedence
       end if
       if (wl==1) then ! switch to 2D if 3D data is missing
         call mloexport(0,timelt,1,0)
-        dumaa(:,1,1)=cona*tssa+conb*tssb
-        where (fraciceb>0.) ! no relaxation under ice for SST nudging
-          dumaa(:,1,1)=min(tgg(:,1),timelt)
-        end where
+        dumaa(:,1,1)=(cona*tssa+conb*tssb)*(1.-fraciceb)+min(tgg(:,1),timelt)*fraciceb
       end if
       call mlonudge(dumaa(:,:,1),dumaa(:,:,2),dumaa(:,:,3:4),ocndep(:,2),wl)
     end if
@@ -480,10 +477,7 @@ if ((mtimer==mtimeb).and.(mod(nint(ktau*dt),60)==0)) then
         end if
         if (wl==1) then ! switch to 2D data if 3D is missing
           call mloexport(0,timelt,1,0)
-          sssb(:,1,1)=tssb
-          where (fraciceb>0.) ! no nudging under ice for 2D data
-            sssb(:,1,1)=min(tgg(:,1),timelt)
-          end where
+          sssb(:,1,1)=tssb*(1.-fraciceb)+min(tgg(:,1),timelt)*fraciceb
         end if
         call mlofilterhub(sssb(:,:,1),sssb(:,:,2), sssb(:,:,3:4),ocndep(:,2),wl)
       end if
