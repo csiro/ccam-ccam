@@ -591,6 +591,7 @@ if ( diag .and. mydiag ) then
   write(6,*) "qfgdiag ",qfg(idjd,:)
   write(6,*) "u10diag ",u10(idjd)
   write(6,*) "pblxdiag ",pblx(idjd)
+  write(6,*) "fracicediag ",fracice(idjd)
   write(6,*) "DMSdiag ",xtg(idjd,:,1)
   write(6,*) "SO2diag ",xtg(idjd,:,2)
   write(6,*) "SO4diag ",xtg(idjd,:,3)
