@@ -548,8 +548,8 @@ end if
 if ( diag .and. mydiag ) then
   write(6,*) "tdiag ",t(idjd,:)
   write(6,*) "qgdiag ",qg(idjd,:)
-  write(6,*) "qlgraddiag ",qlrad(idjd,:)
-  write(6,*) "qfgraddiag ",qfrad(idjd,:)
+  write(6,*) "qlraddiag ",qlrad(idjd,:)
+  write(6,*) "qfraddiag ",qfrad(idjd,:)
   write(6,*) "SO4diag ",xtg(idjd,:,3)
   write(6,*) "BCphobdiag ",xtg(idjd,:,4)
   write(6,*) "BCphildiag ",xtg(idjd,:,5)
@@ -559,8 +559,8 @@ if ( diag .and. mydiag ) then
   write(6,*) "dust1.0diag ",xtg(idjd,:,9)
   write(6,*) "dust2.0diag ",xtg(idjd,:,10)
   write(6,*) "dust4.0diag ",xtg(idjd,:,11)
-  write(6,*) "Saltfilmdiag ",ssn(idjd,:,1)
-  write(6,*) "Saltjetdiag  ",ssn(idjd,:,2)
+  write(6,*) "saltfilmdiag ",ssn(idjd,:,1)
+  write(6,*) "saltjetdiag  ",ssn(idjd,:,2)
 end if
 
 ! error checking
