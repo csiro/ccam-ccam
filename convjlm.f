@@ -1031,14 +1031,14 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
        enddo     ! iq loop
       enddo      ! k loop
 
-      if(ntest>0.and.mydiag)then
+      if(diag.and.mydiag)then   ! JLM
         iq=idjd
         write(6,*) "before convpsav calc, after division by dsk"
         write (6,"('dels ',9f8.0/(5x,9f8.0))")
      &              dels(iq,:)
         write (6,"('delq3p',3p9f8.3/(7x,9f8.3))")
      &              delq(iq,:)
-      endif  ! (ntest>0.and.mydiag)
+      endif  ! (diag.and.mydiag)   JLM
 
 !----------------------------------------------------------------
 !     calculate base mass flux 
@@ -1078,7 +1078,9 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
      &             convpsav(iq)=0. 
         endif   ! (k>kb_sav(iq).and.k<kt_sav(iq))
        enddo    ! iq loop
-       if(ntest>1.and.mydiag)then
+      enddo     ! k loop      
+      if(diag.and.mydiag)then    ! JLM
+       do k=kl-1,2,-1
         iq=idjd
         if(k>kb_sav(iq).and.k<=kt_sav(iq))then
           den1=dels(iq,k)*(1.+hlcp*dqsdt(iq,k))
@@ -1086,10 +1088,11 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
           den3=alfqarr(iq)*hl*delq(iq,kb_sav(iq))
           fluxt_k(k)=(splume(iq,k-1)+hl*qplume(iq,k-1)-hs(iq,k))/
      &                max(1.e-9,den1-den2-den3) 
-         write(6,*)'k,den1,den2,den3,fluxt ',k,den1,den2,den3,fluxt_k(k)
+         write(6,*)'k,dqsdt,den1,den2,den3,fluxt ',
+     &              k,dqsdt(iq,k),den1,den2,den3,fluxt_k(k)
         endif   ! (k>kb_sav(iq).and.k<kt_sav(iq))
-       endif    ! (ntest>1.and.mydiag)
-      enddo     ! k loop      
+       enddo     ! k loop      
+      endif    ! (diag.and.mydiag)   JLM
 
       if(ntest==2.and.mydiag)then     !######################
         convmax=0.
