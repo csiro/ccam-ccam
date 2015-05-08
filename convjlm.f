@@ -940,7 +940,7 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
         endif    ! (kb_sav(iq)<kl)
        enddo     ! iq loop
 
-      if(ntest>0.and.mydiag)then
+      if(mydiag.and.mydiag)then
        iq=idjd
        write (6,"('fluxv_dn',15f6.3/(8x,15f6.3))")
      &              fluxv(iq,1:kt_sav(iq))
@@ -1076,6 +1076,7 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
           endif    ! (sig(k)<sig(kb_sav(iq)-....and.)
           if(dels(iq,kb_sav(iq))+alfqarr(iq)*hl*delq(iq,kb_sav(iq))>0.)
      &             convpsav(iq)=0. 
+          if(dels(iq,kt_sav(iq))<0.)convpsav(iq)=0.    ! JLM 1505 must stabilize
         endif   ! (k>kb_sav(iq).and.k<kt_sav(iq))
        enddo    ! iq loop
       enddo     ! k loop      
