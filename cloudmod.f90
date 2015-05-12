@@ -8,13 +8,12 @@ module cloudmod
 implicit none
     
 private
-public progcloud, cloudmod_init, combinecloudfrac, u00crit
+public progcloud, cloudmod_init, combinecloudfrac
 public stratcloud, nettend
 public convectivecloudfrac, convectivecloudarea
 
 real, dimension(:,:), allocatable, save :: stratcloud  ! prognostic cloud fraction
 real, dimension(:,:), allocatable, save :: nettend     ! change in temperature from radiation and vertical mixing
-real, save :: u00crit = 0.8                            ! critical relative humidity above which clouds can form
 real, save :: u00ramp = 0.01
 
 contains
@@ -34,7 +33,7 @@ end if
 return
 end subroutine cloudmod_init
     
-subroutine progcloud(cloudfrac,qc,qtot,ps,rho,fice,qs,t)
+subroutine progcloud(cloudfrac,qc,qtot,ps,rho,fice,qs,t,rhcrit)
 
 use kuocomb_m            ! JLM convection
 use sigs_m               ! Atmosphere sigma levels
@@ -49,7 +48,7 @@ include 'parm.h'         ! Model configuration
 
 real, dimension(ifull,kl), intent(out) :: cloudfrac
 real, dimension(ifull,kl), intent(inout) :: qc ! condensate = qf + ql
-real, dimension(ifull,kl), intent(in) :: qtot, rho, fice, qs, t
+real, dimension(ifull,kl), intent(in) :: qtot, rho, fice, qs, t, rhcrit
 real, dimension(ifull), intent(in) :: ps
 real, dimension(ifull,kl) :: erosion_scale
 real, dimension(ifull,kl) :: dqs, cfbar, qv
@@ -57,17 +56,10 @@ real, dimension(ifull,kl) :: cf1, cfeq, a_dt, b_dt
 real, dimension(ifull,kl) :: dqsdT, mflx, gamma
 real, dimension(ifull,kl) :: aa, bb, cc, omega
 real, dimension(ifull,kl) :: cmflx, hlrvap, xf, at
-real, dimension(kl) :: u00p
 integer k
 
 stratcloud(1:ifull,:) = max( min( stratcloud(1:ifull,:), 1. ), 0. )
 qv = qtot-qc
-
-! Critical relative humidity (neglected profile option)
-do k=1,kl
-  !u00p(k) = max( u00crit, sig(k) )
-  u00p(k) = u00crit
-end do
 
 ! background erosion scale in 1/secs
 erosion_scale(:,:) = 1.E-6
@@ -110,7 +102,7 @@ end if
 ! CC = ((omega + grav*mflx)/(cp*rho)+netten)*dqsdT*dt
 
 do k=1,kl
-  xf(:,k) = max(min( (qv(:,k)/qs(:,k) - u00p(k) - u00ramp ) / ( 2.*u00ramp ), 1. ), 0. ) ! MJT suggestion
+  xf(:,k) = max(min( (qv(:,k)/qs(:,k) - rhcrit(:,k) - u00ramp ) / ( 2.*u00ramp ), 1. ), 0. ) ! MJT suggestion
 end do
 cc = ((omega + grav*cmflx)/(cp*rho)+nettend)*dt*dqsdT
 at = 1.-stratcloud(1:ifull,:)

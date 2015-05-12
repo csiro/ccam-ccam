@@ -174,7 +174,7 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         &
     nclddia,ncvcloud,ncvmix,nevapcc,nevapls,nkuo,nrhcrit,         &
     nstab_cld,nuvconv,rhcv,rhmois,rhsat,sigcb,sigcll,sig_ct,      &
     sigkscb,sigksct,tied_con,tied_over,tied_rh,comm,acon,bcon,    &
-    rcm,rcrit_l,rcrit_s,ncloud,u00crit,nlvlmeth
+    rcm,rcrit_l,rcrit_s,ncloud,nlvlmeth
 
 data nversion/0/
 data comment/' '/,comm/' '/,irest/1/,jalbfix/1/,nalpha/1/
@@ -1387,8 +1387,6 @@ do kktau = 1,ntau   ! ****** start of main time loop
   select case(nkuo)
     case(5)
       call betts(t,qg,tn,land,ps) ! not called these days
-    case(20)
-       call oldconvjlm
     case(23,24)
       call convjlm                ! split convjlm 
     case(46)

@@ -500,7 +500,6 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'rhcv',rhcv)
     call ccnf_put_attg(idnc,'tied_con',tied_con)
     call ccnf_put_attg(idnc,'tied_over',tied_over)
-    call ccnf_put_attg(idnc,'u00crit',u00crit)
    
   else
     if ( myid==0 ) write(6,'("outcdf itype,idnc,iarch,cdffile=",i5,i8,i5," ",a80)') itype,idnc,iarch,cdffile

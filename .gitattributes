@@ -74,7 +74,6 @@
 /nlin_m.f90 -text
 /nonlin.f90 -text
 /nsibd_m.f90 -text
-/oldconvjlm.f -text
 /onthefly.f90 -text
 /optical_path.f90 -text
 /outcdf.f90 -text

@@ -491,102 +491,103 @@ if(diag.and.mydiag)then
   write(6,*) 'qfg ',qfg(idjd,:)
   write(6,*) 'fice ',fice(idjd,:)
 endif
-      
+
+! Precompute the array of critical relative humidities 
+if(nclddia==-3)then
+  do k=1,kl
+    where(land(1:ifull))
+      rcrit(:,k)=max( rcrit_l, (1.-16.*(1.-sig(k))**3) )
+    elsewhere
+      rcrit(:,k)=max( rcrit_s, (1.-16.*(1.-sig(k))**3) )
+    end where
+  enddo
+elseif(nclddia<0)then
+  do k=1,kl
+    where(land(1:ifull))
+      rcrit(:,k)=max( rcrit_l, (1.-4.*(1.-sig(k))**2) )
+    elsewhere
+      rcrit(:,k)=max( rcrit_s, (1.-4.*(1.-sig(k))**2) )
+    end where
+  enddo
+elseif(nclddia==1)then
+  do k=1,kl
+    where(land(1:ifull))
+      rcrit(:,k)=max( rcrit_l, sig(k)**3 )
+    elsewhere
+      rcrit(:,k)=max( rcrit_s, sig(k)**3 )
+    end where
+  enddo
+elseif(nclddia==2)then
+  do k=1,kl
+    where(land(1:ifull))
+      rcrit(:,k)=rcrit_l
+    elsewhere
+      rcrit(:,k)=rcrit_s
+    end where
+  enddo
+elseif(nclddia==3)then
+  do k=1,kl
+    where(land(1:ifull))
+      rcrit(:,k)=max( rcrit_l, sig(k)**2 )          ! .75 for R21 Mk2
+    elsewhere
+      rcrit(:,k)=max( rcrit_s, sig(k)**2 )          ! .85 for R21 Mk2
+    end where
+  enddo
+elseif(nclddia==4)then
+  do k=1,kl
+    where(land(1:ifull))
+      rcrit(:,k)=max( rcrit_l, sig(k) )             ! .75 for test Mk2/3
+    elsewhere
+      rcrit(:,k)=max( rcrit_s, sig(k) )             ! .9  for test Mk2/3
+    end where
+  enddo
+elseif(nclddia==5)then  ! default till May 08
+  do k=1,kl
+    where(land(1:ifull))
+      rcrit(:,k)=max( rcrit_l, min(.99,sig(k)) )    ! .75 for same as T63
+    elsewhere
+      rcrit(:,k)=max( rcrit_s, min(.99,sig(k)) )    ! .85 for same as T63
+    end where
+  enddo
+elseif(nclddia==6)then
+  do k=1,kl
+    where(land(1:ifull))
+      rcrit(:,k)=max(rcrit_l*(1.-.15*sig(k)),sig(k)**4)
+    elsewhere
+      rcrit(:,k)=max(rcrit_s*(1.-.15*sig(k)),sig(k)**4)
+    end where
+  enddo
+elseif(nclddia==7)then
+  do k=1,kl
+    where(land(1:ifull))
+      rcrit(:,k)=max(rcrit_l*(1.-.2*sig(k)),sig(k)**4)
+    elsewhere
+      rcrit(:,k)=max(rcrit_s*(1.-.2*sig(k)),sig(k)**4)
+    end where
+  enddo
+elseif(nclddia>7)then  ! e.g. 12    JLM
+  ! MJT notes - Lopez (2002) "Implementation and validation of a new pronostic large-scale cloud
+  ! and precipitation scheme for climate and data-assimilation purposes" Q J R Met Soc 128, 229-257,
+  ! has a useful discussion of the dependence of RHcrit on grid spacing
+  do k=1,kl  ! typically set rcrit_l=.75,  rcrit_s=.85
+    do mg=1,ifull
+      !tk=em(mg)*208498./ds
+      tk=ds/(em(mg)*208498.) ! MJT suggestion
+      fl=(1.+real(nclddia))*tk/(1.+real(nclddia)*tk)
+      ! for rcit_l=.75 & nclddia=12 get rcrit=(0.751, 0.769, .799, .901, .940, .972, .985) for (200, 100, 50, 10, 5, 2, 1) km
+      if(land(mg))then
+        rcrit(mg,k)=max(1.-fl*(1.-rcrit_l),sig(k)**3)        
+      else
+        rcrit(mg,k)=max(1.-fl*(1.-rcrit_s),sig(k)**3)         
+      endif
+    enddo
+  enddo
+endif  ! (nclddia<0)  .. else ..
+
+
 if (ncloud<3) then
   ! usual diagnostic cloud fraction
       
-  ! Precompute the array of critical relative humidities 
-  if(nclddia==-3)then
-    do k=1,kl
-      where(land(1:ifull))
-        rcrit(:,k)=max( rcrit_l, (1.-16.*(1.-sig(k))**3) )
-      elsewhere
-        rcrit(:,k)=max( rcrit_s, (1.-16.*(1.-sig(k))**3) )
-      end where
-    enddo
-  elseif(nclddia<0)then
-    do k=1,kl
-      where(land(1:ifull))
-        rcrit(:,k)=max( rcrit_l, (1.-4.*(1.-sig(k))**2) )
-      elsewhere
-        rcrit(:,k)=max( rcrit_s, (1.-4.*(1.-sig(k))**2) )
-      end where
-    enddo
-  elseif(nclddia==1)then
-    do k=1,kl
-      where(land(1:ifull))
-        rcrit(:,k)=max( rcrit_l, sig(k)**3 )
-      elsewhere
-        rcrit(:,k)=max( rcrit_s, sig(k)**3 )
-      end where
-    enddo
-  elseif(nclddia==2)then
-    do k=1,kl
-      where(land(1:ifull))
-        rcrit(:,k)=rcrit_l
-      elsewhere
-        rcrit(:,k)=rcrit_s
-      end where
-    enddo
-  elseif(nclddia==3)then
-    do k=1,kl
-      where(land(1:ifull))
-        rcrit(:,k)=max( rcrit_l, sig(k)**2 )          ! .75 for R21 Mk2
-      elsewhere
-        rcrit(:,k)=max( rcrit_s, sig(k)**2 )          ! .85 for R21 Mk2
-      end where
-    enddo
-  elseif(nclddia==4)then
-    do k=1,kl
-      where(land(1:ifull))
-        rcrit(:,k)=max( rcrit_l, sig(k) )             ! .75 for test Mk2/3
-      elsewhere
-        rcrit(:,k)=max( rcrit_s, sig(k) )             ! .9  for test Mk2/3
-      end where
-    enddo
-  elseif(nclddia==5)then  ! default till May 08
-    do k=1,kl
-      where(land(1:ifull))
-        rcrit(:,k)=max( rcrit_l, min(.99,sig(k)) )    ! .75 for same as T63
-      elsewhere
-        rcrit(:,k)=max( rcrit_s, min(.99,sig(k)) )    ! .85 for same as T63
-      end where
-    enddo
-  elseif(nclddia==6)then
-    do k=1,kl
-      where(land(1:ifull))
-        rcrit(:,k)=max(rcrit_l*(1.-.15*sig(k)),sig(k)**4)
-      elsewhere
-        rcrit(:,k)=max(rcrit_s*(1.-.15*sig(k)),sig(k)**4)
-      end where
-    enddo
-  elseif(nclddia==7)then
-    do k=1,kl
-      where(land(1:ifull))
-        rcrit(:,k)=max(rcrit_l*(1.-.2*sig(k)),sig(k)**4)
-      elsewhere
-        rcrit(:,k)=max(rcrit_s*(1.-.2*sig(k)),sig(k)**4)
-      end where
-    enddo
-  elseif(nclddia>7)then  ! e.g. 12    JLM
-    ! MJT notes - Lopez (2002) "Implementation and validation of a new pronostic large-scale cloud
-    ! and precipitation scheme for climate and data-assimilation purposes" Q J R Met Soc 128, 229-257,
-    ! has a useful discussion of the dependence of RHcrit on grid spacing
-    do k=1,kl  ! typically set rcrit_l=.75,  rcrit_s=.85
-      do mg=1,ifull
-        !tk=em(mg)*208498./ds
-        tk=ds/(em(mg)*208498.) ! MJT suggestion
-        fl=(1.+real(nclddia))*tk/(1.+real(nclddia)*tk)
-!         for rcit_l=.75 & nclddia=12 get rcrit=(0.751, 0.769, .799, .901, .940, .972, .985) for (200, 100, 50, 10, 5, 2, 1) km
-        if(land(mg))then
-          rcrit(mg,k)=max(1.-fl*(1.-rcrit_l),sig(k)**3)        
-        else
-          rcrit(mg,k)=max(1.-fl*(1.-rcrit_s),sig(k)**3)         
-        endif
-      enddo
-    enddo
-  endif  ! (nclddia<0)  .. else ..
-
   ! Calculate cloudy fraction of grid box (cfrac) and gridbox-mean cloud water
   ! using the triangular PDF of Smith (1990)
 
@@ -709,7 +710,7 @@ else
     qsl(1:ifull,k)=qsi(1:ifull,k)+epsil*deles_v/pk_v ! Liquid value
   end do
   qsw(:,:)=fice*qsi+(1.-fice)*qsl        ! Weighted qs at temperature Tliq
-  call progcloud(cfrac,qcg,qtot,prf,rhoa,fice,qsw,ttg)
+  call progcloud(cfrac,qcg,qtot,prf,rhoa,fice,qsw,ttg,rcrit)
         
   ! Use 'old' autoconversion with prognostic cloud
   cfa(:,:)=0.
