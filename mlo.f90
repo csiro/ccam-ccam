@@ -3364,7 +3364,7 @@ end do
 
 ! Ice melt
 gamm=gammi+cps*it_dsn+max(cpi*it_dic-gammi,0.)
-do while (any(it_tsurf>dt_timelt+0.1.and.it_dic>icemin))
+do while (any(it_tsurf>dt_timelt+0.01.and.it_dic>icemin))
   ! MJT notes - assume cpi*it_dic-gammi<0. as this makes a smaller prediction of simelt
   ! that can be corrected later
   simelt=max(it_tsurf-dt_timelt,0.)*gamm/(qice+cp0*rhoic*dt_avewtemp)
