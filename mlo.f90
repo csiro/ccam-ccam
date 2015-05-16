@@ -3363,8 +3363,8 @@ do while (any(it_tsurf>273.16+0.01.and.it_dsn>icemin))
 end do
 
 ! Ice melt
-gamm=gammi+cps*it_dsn+max(cpi*it_dic-gammi,0.)
 do while (any(it_tsurf>dt_timelt+0.01.and.it_dic>icemin))
+  gamm=gammi+cps*it_dsn+max(cpi*it_dic-gammi,0.)
   ! MJT notes - assume cpi*it_dic-gammi<0. as this makes a smaller prediction of simelt
   ! that can be corrected later
   simelt=max(it_tsurf-dt_timelt,0.)*gamm/(qice+cp0*rhoic*dt_avewtemp)
@@ -3374,7 +3374,7 @@ do while (any(it_tsurf>dt_timelt+0.01.and.it_dic>icemin))
   it_tsurf=it_tsurf-simelt*qice/gamm
   dt_salflxs=dt_salflxs-simelt*rhoic/dt
   it_dic=it_dic-simelt
-  it_tsurf=(it_tsurf*(gammi+cps*it_dsn+max(cpi*it_dic+simelt-gammi,0.))-cp0*rhoic*dt_avewtemp*simelt)   &
+  it_tsurf=(it_tsurf*gamm-cp0*rhoic*dt_avewtemp*simelt)   &
           /(gammi+cps*it_dsn+max(cpi*it_dic-gammi,0.))
 end do
 
