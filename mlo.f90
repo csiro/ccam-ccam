@@ -2368,11 +2368,14 @@ do iqw=1,wfull
     !ice%temp(iqw,0)*newsnowd(iqw)=ice%temp(iqw,0)*ice%fracice(iqw)*ice%snowd(iqw)
     if ( newthick(iqw)>himin ) then
       ! ice thickness is decreasing after combining with new thin ice
-      ice%temp(iqw,1)=ice%temp(iqw,1)*ice%thick(iqw)*ice%fracice(iqw)/newthick(iqw)
-      ice%temp(iqw,2)=ice%temp(iqw,2)*ice%thick(iqw)*ice%fracice(iqw)/newthick(iqw)
+      ice%temp(iqw,1)=(ice%temp(iqw,1)*ice%thick(iqw)*ice%fracice(iqw)+newicetemp(iqw)*newdic(iqw)*(1.-ice%fracice(iqw))) &
+                     /newthick(iqw)
+      ice%temp(iqw,2)=(ice%temp(iqw,2)*ice%thick(iqw)*ice%fracice(iqw)+newicetemp(iqw)*newdic(iqw)*(1.-ice%fracice(iqw))) &
+                     /newthick(iqw)
     else
       ice%tsurf(iqw)=(ice%tsurf(iqw)*gammi+0.5*(ice%temp(iqw,1)+ice%temp(iqw,2))*cpi*ice%thick(iqw) &
-                    *ice%fracice(iqw))/(gammi+cpi*newthick(iqw))
+                    *ice%fracice(iqw)+newicetemp(iqw)*newdic(iqw)*(1.-ice%fracice(iqw)))            &
+                    /(gammi+cpi*newthick(iqw))
       ice%temp(iqw,1)=ice%tsurf(iqw)
       ice%temp(iqw,2)=ice%tsurf(iqw)
     end if
