@@ -2344,22 +2344,19 @@ avetemp=avetemp/depth_hl(:,wlev+1)
 avesal=avesal/depth_hl(:,wlev+1)
 ! balance the energy leaving the water column with that in surface ice layer
 newicetemp=avetemp*cp0*rhoic*newdic/gammi
-newicesal=min(maxicesal,avesal)
+newicesal=avesal
 
 water%eta=water%eta-newdic*(1.-ice%fracice)*rhoic/rhowt
 d_zcr=max(1.+water%eta/depth_hl(:,wlev+1),minwater/depth_hl(:,wlev+1))
 
-! Adjust temperature and salinity in water column to balance ice formation
+! Adjust temperature in water column to balance ice formation
 cdic=0.
 do ii=1,maxlevel
   sdic(:,ii)=max(min(sdic(:,ii),newdic-cdic),0.)
   cdic=cdic+sdic(:,ii)  
   where ( lnewice )
     newtn=water%temp(:,ii)+qice*sdic(:,ii)/(cp0*rhowt*dz(:,ii)*d_zcr)
-    newsl=water%sal(:,ii)+(avesal-newicesal)*sdic(:,ii)*rhoic/rhowt/(dz(:,ii)*d_zcr)
     water%temp(:,ii)=water%temp(:,ii)*ice%fracice+newtn*(1.-ice%fracice)
-    water%sal(:,ii)=water%sal(:,ii)*ice%fracice+newsl*(1.-ice%fracice)
-    water%sal(:,ii)=max(water%sal(:,ii),0.)
   end where
 end do
 
