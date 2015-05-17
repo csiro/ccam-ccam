@@ -2498,6 +2498,7 @@ real, dimension(wfull), intent(inout) :: d_wavail,d_avewtemp
 real, dimension(wfull) :: it_tn0,it_tn1,it_tn2
 real, dimension(wfull) :: it_dic,it_dsn,it_tsurf,it_sto
 real, dimension(wfull) :: dt_ftop,dt_tb,dt_fb,dt_timelt,dt_salflxf,dt_salflxs,dt_wavail
+real, dimension(wfull) :: dt_avewtemp
 real, dimension(wfull) :: pt_egice
 logical, dimension(wfull,5) :: pqpack
 
