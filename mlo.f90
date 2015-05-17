@@ -2495,7 +2495,6 @@ integer, dimension(wfull) :: dt_nk
 real, intent(in) :: dt
 real, dimension(wfull), intent(inout) :: d_ftop,d_tb,d_fb,d_timelt,d_salflxf,d_salflxs
 real, dimension(wfull), intent(inout) :: d_wavail,d_avewtemp
-real, dimension(wfull) :: d_avewtemp
 real, dimension(wfull) :: it_tn0,it_tn1,it_tn2
 real, dimension(wfull) :: it_dic,it_dsn,it_tsurf,it_sto
 real, dimension(wfull) :: dt_ftop,dt_tb,dt_fb,dt_timelt,dt_salflxf,dt_salflxs,dt_wavail
