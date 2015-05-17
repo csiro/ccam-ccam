@@ -2256,7 +2256,7 @@ ice%v=ice%v+dt*(dgice%tauyica-dgice%tauyicw)/imass
 
 ! Remove excessive salinity from ice
 where ( ice%thick>=icemin )
-  deld=ice%thick*(1.-maxicesal/max(ice%sal,maxicesal))
+  deld=ice%thick*(1.-maxicesal/max(min(ice%sal,2.*maxicesal),maxicesal))
   ice%sal=ice%sal*(1.-deld/ice%thick)
 elsewhere
   deld=0.
@@ -2373,7 +2373,7 @@ do iqw=1,wfull
       ice%temp(iqw,2)=(ice%temp(iqw,2)*ice%thick(iqw)*ice%fracice(iqw)+newicetemp(iqw)*newdic(iqw)*(1.-ice%fracice(iqw))) &
                      /newthick(iqw)
     else
-      ice%tsurf(iqw)=(ice%tsurf(iqw)*gammi+0.5*(ice%temp(iqw,1)+ice%temp(iqw,2))*cpi*ice%thick(iqw) &
+      ice%tsurf(iqw)=(ice%tsurf(iqw)*gammi+0.5*(ice%temp(iqw,1)+ice%temp(iqw,2))*cpi*ice%thick(iqw)     &
                     *ice%fracice(iqw)+newicetemp(iqw)*cpi*newdic(iqw)*(1.-ice%fracice(iqw)))            &
                     /(gammi+cpi*newthick(iqw))
       ice%temp(iqw,1)=ice%tsurf(iqw)
