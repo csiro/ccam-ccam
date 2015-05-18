@@ -155,7 +155,6 @@ real, parameter :: icemax=6.              ! maximum ice thickness (m)
 real, parameter :: rhoic=900.             ! ice density (kg/m3)
 real, parameter :: rhosn=330.             ! snow density (kg/m3)
 real, parameter :: rhowt=1025.            ! reference water density (Boussinesq fluid) (kg/m3)
-real, parameter :: rhows0=1000.           ! reference water density for sal=0. (kg/m3)
 real, parameter :: qice=lf*rhoic          ! latent heat of fusion for ice (J m^-3)
 real, parameter :: qsnow=lf*rhosn         ! latent heat of fusion for snow (J m^-3)
 real, parameter :: cpi=1.8837e6           ! specific heat ice  (J/m**3/K)
@@ -1767,8 +1766,8 @@ d_wu0=-(1.-ice%fracice)*dgwater%taux/rhowt
 d_wv0=-(1.-ice%fracice)*dgwater%tauy/rhowt
 d_wt0=-(1.-ice%fracice)*(-dgwater%fg-dgwater%eg+atm_rg-sbconst*water%temp(:,1)**4)/(rhowt*cp0)
 d_wt0=d_wt0+(1.-ice%fracice)*lf*atm_snd/(rhowt*cp0) ! melting snow
-d_ws0=(1.-ice%fracice)*(atm_rnd+atm_snd-dgwater%eg/lv)*water%sal(:,1)/rhows0
-d_ws0=d_ws0+atm_inflow*water%sal(:,1)/rhows0 ! inflow under ice
+d_ws0=(1.-ice%fracice)*(atm_rnd+atm_snd-dgwater%eg/lv)*water%sal(:,1)/rhowt
+d_ws0=d_ws0+atm_inflow*water%sal(:,1)/rhowt ! inflow under ice
 
 d_ustar=max(sqrt(sqrt(d_wu0*d_wu0+d_wv0*d_wv0)),1.E-6)
 d_b0=-grav*(d_alpha(:,1)*d_wt0-d_beta(:,1)*d_ws0) ! -ve sign to compensate for sign of wt0 and ws0
@@ -2244,11 +2243,13 @@ call seaicecalc(dt,d_ftop,d_tb,d_fb,d_timelt,d_salflxf,d_salflxs,d_nk,d_wavail,d
 
 ! Ice depth limitation for poor initial conditions
 xxx=max(ice%thick-icemax,0.)
-newthick=ice%thick-xxx
-ice%temp(:,1)=(ice%temp(:,1)*cpi*ice%thick-cp0*rhoic*d_avewtemp*xxx)/(cpi*newthick)
-ice%temp(:,2)=(ice%temp(:,2)*cpi*ice%thick-cp0*rhoic*d_avewtemp*xxx)/(cpi*newthick)
-ice%thick=newthick
-d_salflxs=d_salflxs-rhoic*xxx/dt ! saltwater leaving ocean to ice
+where ( xxx>0.001 )
+  newthick=ice%thick-xxx
+  ice%temp(:,1)=(ice%temp(:,1)*cpi*ice%thick-cp0*rhoic*d_avewtemp*xxx)/(cpi*newthick)
+  ice%temp(:,2)=(ice%temp(:,2)*cpi*ice%thick-cp0*rhoic*d_avewtemp*xxx)/(cpi*newthick)
+  ice%thick=newthick
+  d_salflxs=d_salflxs-rhoic*xxx/dt ! saltwater leaving ocean to ice
+end where
 
 ! update ice velocities due to stress terms
 ice%u=ice%u+dt*(dgice%tauxica-dgice%tauxicw)/imass
@@ -2270,7 +2271,7 @@ d_salflxs=d_salflxs-deld*rhoic/dt ! saltwater leaving ocean to ice
 d_wu0=d_wu0-ice%fracice*dgice%tauxicw/rhowt
 d_wv0=d_wv0-ice%fracice*dgice%tauyicw/rhowt
 d_wt0=d_wt0+ice%fracice*d_fb/(rhowt*cp0)
-d_ws0=d_ws0-ice%fracice*(d_salflxf*water%sal(:,1)/rhows0+d_salflxs*(water%sal(:,1)-ice%sal)/rhowt)
+d_ws0=d_ws0-ice%fracice*(d_salflxf*water%sal(:,1)/rhowt+d_salflxs*(water%sal(:,1)-ice%sal)/rhowt)
 d_ustar=sqrt(sqrt(max(d_wu0*d_wu0+d_wv0*d_wv0,1.E-24)))
 d_b0=-grav*(d_alpha(:,1)*d_wt0-d_beta(:,1)*d_ws0) ! -ve sign is to account for sign of wt0 and ws0
 
