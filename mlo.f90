@@ -3455,7 +3455,7 @@ vv=atm_v-ice%v
 vmagn=sqrt(max(uu*uu+vv*vv,1.E-4))
 sig=exp(-grav*atm_zmins/(rdry*atm_temp))
 srcp=sig**(rdry/cp)
-rho=atm_ps/(rdry*ice%tsurf)
+rho=atm_ps/(rdry*dtsurf)
 
 dgice%zo=0.0005 ! Mk3.6 (0.01m), CICE (0.0005m)
 af=vkar*vkar/(log(atm_zmin/dgice%zo)*log(atm_zmin/dgice%zo))
@@ -3509,7 +3509,7 @@ elsewhere        ! ri is -ve
   fq=1.-2.*bprm*ri/den
 end where
 ! egice is for evaporating (lv).  Melting is included with lf.
-dgice%wetfrac=max(1.+.008*min(ice%tsurf-273.16,0.),0.)
+dgice%wetfrac=max(1.+.008*min(dtsurf-273.16,0.),0.)
 dgice%cd =af*fm
 dgice%cdh=aft*fh
 dgice%cdq=afq*fq
@@ -3519,8 +3519,9 @@ dgice%eg=dgice%wetfrac*rho*dgice%cdq*lv*vmagn*(qsat-atm_qg)
 dgice%eg=min(dgice%eg,d_ndic*qice/(lf*dt))
 dgice%eg=min(max(dgice%eg,-3000.),3000.)
 
-! MJT notes - use ice%tsurf for outgoing longwave for consistency with radiation code
-d_ftop=-dgice%fg-dgice%eg+atm_rg-emisice*sbconst*ice%tsurf**4+atm_sg*(1.-alb)*(1.-eye) ! first guess
+! MJT notes - use dtsurf for outgoing longwave for consistency with radiation code
+! energy conservation is violated if initial conditions are poor
+d_ftop=-dgice%fg-dgice%eg+atm_rg-emisice*sbconst*dtsurf**4+atm_sg*(1.-alb)*(1.-eye) ! first guess
 d_ftop=d_ftop+lf*atm_rnd ! converting any rain to snowfall over ice
 bot=rho*vmagn*(dgice%cdh*cp+dgice%cdq*dgice%wetfrac*dqdt*lv)
 
@@ -3568,7 +3569,6 @@ d_fb=cp0*rhowt*0.006*ustar*(d_tb-d_timelt)
 d_fb=min(max(d_fb,-1000.),1000.)  
 
 ! Re-calculate fluxes to prevent overshoot (predictor-corrector)
-! MJT notes - use ice%tsurf for outgoing longwave for consistency with radiation code
 tnew=min(dtsurf+d_ftop/(gamm/dt+bot),273.2)
 tnew=0.5*(tnew+dtsurf)
 call getqsat(qsatnew,dqdt,tnew,atm_ps)
@@ -3577,7 +3577,7 @@ dgice%fg=min(max(dgice%fg,-3000.),3000.)
 dgice%eg=dgice%wetfrac*rho*dgice%cdq*lv*vmagn*(qsatnew-atm_qg)
 dgice%eg=min(dgice%eg,d_ndic*qice*lv/(lf*dt))
 dgice%eg=min(max(dgice%eg,-3000.),3000.)
-d_ftop=-dgice%fg-dgice%eg+atm_rg-emisice*sbconst*ice%tsurf**4+atm_sg*(1.-alb)*(1.-eye)
+d_ftop=-dgice%fg-dgice%eg+atm_rg-emisice*sbconst*dtsurf**4+atm_sg*(1.-alb)*(1.-eye)
 ! Add flux of heat due to converting any rain to snowfall over ice
 d_ftop=d_ftop+lf*atm_rnd ! rain (mm/sec) to W/m**2
 

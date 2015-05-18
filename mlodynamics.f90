@@ -1306,40 +1306,10 @@ ndsn(1:ifull)=dumc(1:ifull,3)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-
 nsto(1:ifull)=dumc(1:ifull,4)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-10)
 nis(1:ifull) =dumc(1:ifull,5)*em(1:ifull)*em(1:ifull)/max(ndic(1:ifull)*nfracice(1:ifull),1.E-10)
 call mloexpgamm(gamm,ndic,ndsn,0)
-where ( gamm(:,3)*nfracice(1:ifull)>1.e-10 .and. gamm(:,2)*nfracice(1:ifull)>1.e-10 .and. gamm(:,1)*nfracice(1:ifull)>1.e-10 )
-  nit(1:ifull,1)=dumc(1:ifull,6)*em(1:ifull)*em(1:ifull)/(gamm(:,1)*nfracice(1:ifull))
-  nit(1:ifull,2)=dumc(1:ifull,7)*em(1:ifull)*em(1:ifull)/(gamm(:,2)*nfracice(1:ifull))
-  nit(1:ifull,3)=dumc(1:ifull,8)*em(1:ifull)*em(1:ifull)/(gamm(:,3)*nfracice(1:ifull))
-  nit(1:ifull,4)=dumc(1:ifull,9)*em(1:ifull)*em(1:ifull)/(gamm(:,3)*nfracice(1:ifull))
-elsewhere ( gamm(:,3)*nfracice(1:ifull)>1.e-10 .and. gamm(:,1)*nfracice(1:ifull)>1.e-10 )
-  nit(1:ifull,1)=(dumc(1:ifull,6)+dumc(1:ifull,7))*em(1:ifull)*em(1:ifull)/(gamm(:,1)*nfracice(1:ifull))
-  nit(1:ifull,2)=273.16
-  ndsn(1:ifull)=0.
-  nit(1:ifull,3)=dumc(1:ifull,8)*em(1:ifull)*em(1:ifull)/(gamm(:,3)*nfracice(1:ifull))
-  nit(1:ifull,4)=dumc(1:ifull,9)*em(1:ifull)*em(1:ifull)/(gamm(:,3)*nfracice(1:ifull))
-elsewhere ( gamm(:,2)*nfracice(1:ifull)>1.e-10 .and. gamm(:,1)*nfracice(1:ifull)>1.e-10 )
-  nit(1:ifull,1)=(dumc(1:ifull,6)+dumc(1:ifull,8)+dumc(1:ifull,9))*em(1:ifull)*em(1:ifull)/(gamm(:,1)*nfracice(1:ifull))
-  nit(1:ifull,2)=dumc(1:ifull,7)*em(1:ifull)*em(1:ifull)/(gamm(:,2)*nfracice(1:ifull))
-  nit(1:ifull,3)=nit(1:ifull,1)
-  nit(1:ifull,4)=nit(1:ifull,1)
-elsewhere ( gamm(:,1)*nfracice(1:ifull)>1.e-10 )
-  nit(1:ifull,1)=(dumc(1:ifull,6)+dumc(1:ifull,7)+dumc(1:ifull,8)+dumc(1:ifull,9))*em(1:ifull)*em(1:ifull) &
-                /(gamm(:,1)*nfracice(1:ifull))
-  nit(1:ifull,2)=273.16
-  ndsn(1:ifull)=0.
-  nit(1:ifull,3)=nit(1:ifull,1)
-  nit(1:ifull,4)=nit(1:ifull,1)
-elsewhere
-  nfracice(1:ifull)=0.
-  ndic(1:ifull)=0.
-  ndsn(1:ifull)=0.
-  nsto(1:ifull)=0.
-  nis(1:ifull)=0.
-  nit(1:ifull,1)=273.16
-  nit(1:ifull,2)=273.16
-  nit(1:ifull,3)=273.16
-  nit(1:ifull,4)=273.16
-end where
+nit(1:ifull,1)=dumc(1:ifull,6)*em(1:ifull)*em(1:ifull)/max(gamm(:,1)*nfracice(1:ifull),1.E-10)
+nit(1:ifull,2)=dumc(1:ifull,7)*em(1:ifull)*em(1:ifull)/max(gamm(:,2)*nfracice(1:ifull),1.E-10)
+nit(1:ifull,3)=dumc(1:ifull,8)*em(1:ifull)*em(1:ifull)/max(gamm(:,3)*nfracice(1:ifull),1.E-10)
+nit(1:ifull,4)=dumc(1:ifull,9)*em(1:ifull)*em(1:ifull)/max(gamm(:,3)*nfracice(1:ifull),1.E-10)
 
 ! populate grid points that have no sea ice
 where ( nfracice(1:ifull)<1.E-4 .or. ndic(1:ifull)<1.E-4 )
