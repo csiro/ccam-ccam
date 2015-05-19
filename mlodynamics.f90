@@ -17,7 +17,7 @@ implicit none
 
 private
 public mlodiffusion,mlohadv,mlodyninit,ipice
-public oldu1,oldv1,oldu2,oldv2,gosig,gosigh,godsig,ocnsmag,ocneps,fixsal,fixheight
+public oldu1,oldv1,oldu2,oldv2,gosig,gosigh,godsig,ocnsmag,ocneps,fixheight
 public mlodiff
 public dd
 public nstagoffmlo,mstagf
@@ -35,7 +35,6 @@ integer, parameter :: nf        = 2       ! power for horizontal diffusion reduc
 integer, parameter :: itnmax    = 6       ! number of interations for reversible staggering
 integer, parameter :: nxtrrho   = 1       ! Estimate rho at t+1 (0=off, 1=on)
 integer, parameter :: usepice   = 0       ! include ice in surface pressure (0=without ice, 1=with ice)
-integer, save      :: fixsal    = 1       ! conserve salinity (0=Usual, 1=Fixed average salinity at 34.72)
 integer, save      :: fixheight = 1       ! conserve free surface height (0=Usual, 1=Fixed average Height at 0)
 integer, save      :: mlodiff   = 0       ! diffusion (0=all, 1=scalars only)
 real, parameter :: rhosn      = 330.      ! density snow (kg m^-3)
@@ -1274,12 +1273,11 @@ end if
 
 
 ! Horizontal advection for ice area
-dumc(1:ifull,1)=fracice/(em(1:ifull)*em(1:ifull)) ! dumc(:,1) is an area
+dumc(1:ifull,1)=fracice/(em(1:ifull)*em(1:ifull))             ! dumc(:,1) is an area
 ! Horizontal advection for ice volume
-dumc(1:ifull,2)=sicedep*fracice/(em(1:ifull)*em(1:ifull)) ! dumc(:,1) is a volume
+dumc(1:ifull,2)=sicedep*fracice/(em(1:ifull)*em(1:ifull))     ! dumc(:,2) is a volume
 ! Horizontal advection for snow volume
-dumd(1:ifull,1)=snowd*0.001
-dumc(1:ifull,3)=dumd(1:ifull,1)*fracice/(em(1:ifull)*em(1:ifull)) ! dumc(:,1) is a volume
+dumc(1:ifull,3)=snowd*0.001*fracice/(em(1:ifull)*em(1:ifull)) ! dumc(:,3) is a volume
 ! Horizontal advection for ice energy store
 dumc(1:ifull,4)=i_sto*fracice/(em(1:ifull)*em(1:ifull))
 ! Horizontal advection for ice salinity
@@ -1299,8 +1297,7 @@ spnet(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,10)
 do ii=1,9
   call upwind_iceadv(dumc(:,ii),niu,niv,spnet)
 end do  
-nfracice(1:ifull)=dumc(1:ifull,1)*em(1:ifull)*em(1:ifull)
-nfracice(1:ifull)=min(max(nfracice(1:ifull),0.),maxicefrac)
+nfracice(1:ifull)=min(max(dumc(1:ifull,1)*em(1:ifull)*em(1:ifull),0.),maxicefrac)
 ndic(1:ifull)=dumc(1:ifull,2)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-10)
 ndsn(1:ifull)=dumc(1:ifull,3)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-10)
 nsto(1:ifull)=dumc(1:ifull,4)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-10)
@@ -1403,42 +1400,23 @@ if (nud_sss==0) then
   do ii=1,wlev
     ndum=ndum+w_s(1:ifull,ii)*godsig(ii)
   end do
-  if (fixsal==0) then
-    do ii=1,wlev
-      where(wtr(1:ifull).and.ndum>0.)
-        dum(:,ii)=ns(1:ifull,ii)*max(dd(1:ifull)+neta(1:ifull),minwater)-w_s(:,ii)*max(dd(1:ifull)+w_e(1:ifull),minwater)
-      elsewhere
-        dum(:,ii)=0.
-      end where
-    end do
-    call ccglobal_posneg(dum,delpos,delneg,dsigin=godsig)
-    alph_p = -delneg/max(delpos,1.E-20)
-    alph_p = min(sqrt(alph_p),alph_p)
-    do ii=1,wlev
-      where(wtr(1:ifull).and.ndum>0.)
-        ns(1:ifull,ii)=(w_s(:,ii)*max(dd(1:ifull)+w_e(1:ifull),minwater)           &
-                       +max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)) &
-                       /max(dd(1:ifull)+neta(1:ifull),minwater)
-      end where
-    end do
-  else
-    do ii=1,wlev
-      where(wtr(1:ifull).and.ndum>0.)
-        dum(:,ii)=ns(1:ifull,ii)*max(dd(1:ifull)+neta(1:ifull),minwater)-34.72*dd(1:ifull)
-      elsewhere
-        dum(:,ii)=0.
-      end where
-    end do
-    call ccglobal_posneg(dum,delpos,delneg,dsigin=godsig)
-    alph_p = -delneg/max(delpos,1.E-20)
-    alph_p = min(sqrt(alph_p),alph_p)
-    do ii=1,wlev
-      where(wtr(1:ifull).and.ndum>0.)
-        ns(1:ifull,ii)=(34.72*dd(1:ifull)+max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)) &
-                      /max(dd(1:ifull)+neta(1:ifull),minwater)
-      end where
-    end do
-  end if
+  do ii=1,wlev
+    where(wtr(1:ifull).and.ndum>0.)
+      dum(:,ii)=ns(1:ifull,ii)*max(dd(1:ifull)+neta(1:ifull),minwater)-w_s(:,ii)*max(dd(1:ifull)+w_e(1:ifull),minwater)
+    elsewhere
+      dum(:,ii)=0.
+    end where
+  end do
+  call ccglobal_posneg(dum,delpos,delneg,dsigin=godsig)
+  alph_p = -delneg/max(delpos,1.E-20)
+  alph_p = min(sqrt(alph_p),alph_p)
+  do ii=1,wlev
+    where(wtr(1:ifull).and.ndum>0.)
+      ns(1:ifull,ii)=(w_s(:,ii)*max(dd(1:ifull)+w_e(1:ifull),minwater)           &
+                     +max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)) &
+                     /max(dd(1:ifull)+neta(1:ifull),minwater)
+    end where
+  end do
 end if
 
 if ( myid==0 .and. (ktau<=5.or.maxglobseta>tol.or.maxglobip>itol) ) then

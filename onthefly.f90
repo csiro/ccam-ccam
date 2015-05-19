@@ -239,7 +239,7 @@ if ( myid==0 ) write(6,*) "Leaving onthefly"
 call END_LOG(onthefly_end)
 
 return
-                    end subroutine onthefly
+end subroutine onthefly
 
 
 ! *****************************************************************************
@@ -1439,25 +1439,22 @@ if ( nested/=1 ) then
   ! soil ice and snow data
   do k=1,ms
     write(vname,'("wbice",I1.1)') k
-    call fillhist1(vname,wbice(:,k),sea_a)    ! SOIL ICE
+    call gethist1(vname,wbice(:,k)) ! SOIL ICE
   end do
   if ( nmlo==0 .or. abs(nmlo)>9 ) then ! otherwise already read above
     do k=1,3
       write(vname,'("tggsn",I1.1)') k
-      call fillhist1(vname,tggsn(:,k),sea_a)
+      call gethist1(vname,tggsn(:,k))
       if ( all(tggsn(:,k)==0.) ) tggsn(:,k)=280.
-      where( .not.land )
-        tggsn(:,k)=280.
-      end where
     end do
   end if
   do k=1,3
     write(vname,'("smass",I1.1)') k
-    call fillhist1(vname,smass(:,k),sea_a)
+    call gethist1(vname,smass(:,k))
   end do
   do k=1,3
     write(vname,'("ssdn",I1.1)') k
-    call fillhist1(vname,ssdn(:,k),sea_a)
+    call gethist1(vname,ssdn(:,k))
     if ( all(ssdn(:,k)==0.) ) then
       where ( snowd>100. )
         ssdn(:,k)=240.
@@ -1467,8 +1464,8 @@ if ( nested/=1 ) then
     end if
   end do
   ssdnn=ssdn(:,1)
-  call fillhist1('snage',snage,sea_a)
-  call fillhist1('sflag',dum6,sea_a)
+  call gethist1('snage',snage)
+  call gethist1('sflag',dum6)
   isflag=nint(dum6)
 
   ! -----------------------------------------------------------------
