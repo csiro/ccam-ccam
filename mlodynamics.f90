@@ -17,7 +17,7 @@ implicit none
 
 private
 public mlodiffusion,mlohadv,mlodyninit,ipice
-public oldu1,oldv1,oldu2,oldv2,gosig,gosigh,godsig,ocnsmag,ocneps,fixheight
+public oldu1,oldv1,oldu2,oldv2,gosig,gosigh,godsig,ocnsmag,ocneps
 public mlodiff
 public dd
 public nstagoffmlo,mstagf
@@ -35,7 +35,6 @@ integer, parameter :: nf        = 2       ! power for horizontal diffusion reduc
 integer, parameter :: itnmax    = 6       ! number of interations for reversible staggering
 integer, parameter :: nxtrrho   = 1       ! Estimate rho at t+1 (0=off, 1=on)
 integer, parameter :: usepice   = 0       ! include ice in surface pressure (0=without ice, 1=with ice)
-integer, save      :: fixheight = 1       ! conserve free surface height (0=Usual, 1=Fixed average Height at 0)
 integer, save      :: mlodiff   = 0       ! diffusion (0=all, 1=scalars only)
 real, parameter :: rhosn      = 330.      ! density snow (kg m^-3)
 real, parameter :: rhoic      = 900.      ! density ice  (kg m^-3)
@@ -1353,20 +1352,11 @@ end if
 
 ! volume conservation for water
 if (nud_sfh==0) then
-  if (fixheight==0) then
-    odum=(neta(1:ifull)-w_e)*ee(1:ifull)
-    call ccglobal_posneg(odum,delpos,delneg)
-    alph_p = -delneg/max(delpos,1.E-20)
-    alph_p = min(max(sqrt(alph_p),1.E-20),1.E20)
-    neta(1:ifull)=w_e+max(0.,odum)*alph_p+min(0.,odum)/alph_p
-  else
-    odum=neta(1:ifull)*ee(1:ifull)
-    odum=min(max(odum,-120.),120.) ! MJT suggested limit
-    call ccglobal_posneg(odum,delpos,delneg)
-    alph_p = -delneg/max(delpos,1.E-20)
-    alph_p = min(max(sqrt(alph_p),1.E-20),1.E20)
-    neta(1:ifull)=max(0.,odum)*alph_p+min(0.,odum)/alph_p
-  end if
+  odum=(neta(1:ifull)-w_e)*ee(1:ifull)
+  call ccglobal_posneg(odum,delpos,delneg)
+  alph_p = -delneg/max(delpos,1.E-20)
+  alph_p = min(max(sqrt(alph_p),1.E-20),1.E20)
+  neta(1:ifull)=w_e+max(0.,odum)*alph_p+min(0.,odum)/alph_p
 end if
 
 ! temperature conservation

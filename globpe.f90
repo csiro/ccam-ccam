@@ -157,8 +157,8 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     localhist,m_fly,mstn,nqg,nurban,nmr,ktopdav,nud_sst,nud_sss,  &
     mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,nud_sfh,   &
     bpyear,rescrn,helmmeth,nmlo,ol,mxd,mindep,minwater,ocnsmag,   &
-    ocneps,fixheight,mlodiff,knh,ccycle,kblock,nud_aero,ch_dust,  &
-    zvolcemi,aeroindir,helim,fc2,alphaj,proglai
+    ocneps,mlodiff,knh,ccycle,kblock,nud_aero,ch_dust,zvolcemi,   &
+    aeroindir,helim,fc2,alphaj,proglai
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams
 namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,hfile,     &
     icefile,mesonest,nmifile,o3file,radfile,restfile,rsmfile,     &
@@ -488,8 +488,8 @@ if ( myid==0 ) then
   write(6,*)' nurban ccycle'
   write(6,'(2i7)') nurban,ccycle
   write(6,*)'Ocean/lake options:'
-  write(6,*)' nmlo  ol      mxd   mindep minwater  ocnsmag   ocneps fixheight'
-  write(6,'(i5,i4,5f9.2,i4)') nmlo,ol,mxd,mindep,minwater,ocnsmag,ocneps,fixheight
+  write(6,*)' nmlo  ol      mxd   mindep minwater  ocnsmag   ocneps'
+  write(6,'(i5,i4,5f9.2)') nmlo,ol,mxd,mindep,minwater,ocnsmag,ocneps
   if ( mbd/=0 .or. nbd/=0 ) then
     write(6,*)'Nudging options A:'
     write(6,*)' nbd    nud_p  nud_q  nud_t  nud_uv nud_hrs nudu_hrs kbotdav  kbotu'

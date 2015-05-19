@@ -378,7 +378,6 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'epsp',epsp)
     call ccnf_put_attg(idnc,'epsu',epsu)
     call ccnf_put_attg(idnc,'fc2',fc2)
-    call ccnf_put_attg(idnc,'fixheight',fixheight)
     call ccnf_put_attg(idnc,'helim',helim)
     call ccnf_put_attg(idnc,'helmmeth',helmmeth)
     call ccnf_put_attg(idnc,'iaero',iaero)    
