@@ -472,7 +472,7 @@ do ipf=0,mynproc-1
   end if ! ier
 #endif
 
-  if (qtest) then
+  if ( qtest ) then
     ! expected restart file
     var(1:pil*pjl*pnpan)=rvar
   else
@@ -848,14 +848,14 @@ include 'parm.h'
 
 integer, intent(in) :: kk, n
 integer k, kin, iq
-integer, dimension(:), allocatable, save :: ka, kb
+integer, dimension(:), allocatable, save :: ka
 integer, save :: kk_save = -1
 integer, save :: klapse = 0
 real, dimension(:,:), intent(out) :: t
 real, dimension(ifull,kk), intent(in) :: told
 real, dimension(kk), intent(in) :: sigin
 real, dimension(:), allocatable, save :: sigin_save
-real, dimension(:), allocatable, save :: wta, wtb
+real, dimension(:), allocatable, save :: wta
       
 if ( kk==kl ) then
   if ( all(abs(sig-sigin)<0.0001) ) then
@@ -872,7 +872,7 @@ if ( kk_save/=kk ) then
   sigin_save = 0.
   kk_save    = kk
   if ( .not.allocated(wta) ) then
-    allocate(wta(kl),wtb(kl),ka(kl),kb(kl))
+    allocate(wta(kl),ka(kl))
   end if
 end if
 
@@ -883,23 +883,17 @@ if ( any(abs(sigin-sigin_save)>=0.0001) ) then
   do k=1,kl
     if ( sig(k)>=sigin(1) ) then
       ka(k)=2
-      kb(k)=1
       wta(k)=0.
-      wtb(k)=1.
       klapse=k   ! i.e. T lapse correction for k<=klapse
     else if ( sig(k)<=sigin(kk) ) then   ! at top
       ka(k)=kk
-      kb(k)=kk-1
       wta(k)=1.
-      wtb(k)=0.
     else
       do while ( sig(k)<=sigin(kin) .and. kin < kk )
         kin = kin + 1
       end do
       ka(k)=kin
-      kb(k)=kin-1
       wta(k)=(sigin(kin-1)-sig(k))/(sigin(kin-1)-sigin(kin))
-      wtb(k)=(sig(k)-sigin(kin)  )/(sigin(kin-1)-sigin(kin))
     endif  !  (sig(k)>=sigin(1)) ... ...
   enddo   !  k loop
 end if
@@ -917,7 +911,7 @@ endif   !  (myid==0)
 
 do k=1,kl
   ! N.B. "a" denotes "above", "b" denotes "below"
-  t(1:ifull,k)=wta(k)*told(:,ka(k))+wtb(k)*told(:,kb(k))
+  t(1:ifull,k)=wta(k)*told(:,ka(k))+(1.-wta(k))*told(:,ka(k)-1)
 enddo    ! k loop
 
 if ( n==1 .and. klapse/=0 ) then  ! for T lapse correction
@@ -1712,7 +1706,8 @@ integer(kind=4) lncid
 character(len=*), intent(in) :: fname
 
 #ifdef usenc3
-  ncstatus = nf_create(fname,nf_clobber,lncid)
+  !ncstatus = nf_create(fname,nf_clobber,lncid)
+  ncstatus = nf_create(fname,nf_64bit_offset,lncid)
 #else
   ncstatus = nf90_create(fname,nf90_netcdf4,lncid)
 #endif

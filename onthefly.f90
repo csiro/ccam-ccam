@@ -1289,10 +1289,10 @@ if ( nested/=1 ) then
     call gethist4('qrg',qrg,5)               ! RAIN
     call gethist4('cfrac',cfrac,5)           ! CLOUD FRACTION
     call gethist4('rfrac',rfrac,5)           ! RAIN FRACTION
-    if ( ncloud>=3 ) then
+    if ( ncloud>=4 ) then
       call gethist4('stratcf',stratcloud,5)  ! STRAT CLOUD FRACTION
       call gethist4('strat_nt',nettend,5)    ! STRAT NET TENDENCY
-    end if ! (ncloud>=3)
+    end if ! (ncloud>=4)
   end if   ! (nested==0)
 
   !------------------------------------------------------------------
@@ -1439,7 +1439,7 @@ if ( nested/=1 ) then
   ! soil ice and snow data
   do k=1,ms
     write(vname,'("wbice",I1.1)') k
-    call gethist1(vname,wbice(:,k)) ! SOIL ICE
+    call gethist1(vname,wbice(:,k))    ! SOIL ICE
   end do
   if ( nmlo==0 .or. abs(nmlo)>9 ) then ! otherwise already read above
     do k=1,3

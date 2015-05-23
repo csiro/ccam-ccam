@@ -326,7 +326,7 @@ if(mspec==1.and.mup/=0)then   ! advect qg after preliminary step
     duma(1:ifull,:,3)=qfg(1:ifull,:)
     duma(1:ifull,:,4)=qrg(1:ifull,:)
     duma(1:ifull,:,5)=rfrac(1:ifull,:)
-    if (ncloud>=3) then
+    if ( ncloud>=4 ) then
       ! prognostic cloud fraction and condensate version
       duma(1:ifull,:,6)=stratcloud(1:ifull,:)
       call ints(6,duma,intsch,nface,xg,yg,4)
@@ -335,17 +335,17 @@ if(mspec==1.and.mup/=0)then   ! advect qg after preliminary step
       ! prognostic cloud condesate version
       call ints(5,duma,intsch,nface,xg,yg,4)
     end if
-    qg(1:ifull,:)    =duma(1:ifull,:,1)
-    qlg(1:ifull,:)   =duma(1:ifull,:,2)
-    qfg(1:ifull,:)   =duma(1:ifull,:,3)
-    qrg(1:ifull,:)   =duma(1:ifull,:,4)
+    qg(1:ifull,:)   =duma(1:ifull,:,1)
+    qlg(1:ifull,:)  =duma(1:ifull,:,2)
+    qfg(1:ifull,:)  =duma(1:ifull,:,3)
+    qrg(1:ifull,:)  =duma(1:ifull,:,4)
     rfrac(1:ifull,:)=min(max(duma(1:ifull,:,5),0.),1.)
   else
     call ints(1,qg,intsch,nface,xg,yg,3)
   endif                 ! ldr.ne.0
 #ifdef debug
-  if(ngas>0.or.nextout>=4)then
-    if(nmaxpr==1.and.mydiag)then
+  if ( ngas>0.or.nextout>=4 ) then
+    if ( nmaxpr==1 .and. mydiag ) then
       write (6,"('xg#',9f8.2)") diagvals(xg(:,nlv))
       write (6,"('yg#',9f8.2)") diagvals(yg(:,nlv))
       write (6,"('nface#',9i8)") diagvals(nface(:,nlv))
@@ -362,21 +362,21 @@ if(mspec==1.and.mup/=0)then   ! advect qg after preliminary step
       end do
     end if
 #ifdef debug
-    if(nmaxpr==1.and.mydiag)then
+    if ( nmaxpr==1 .and. mydiag ) then
       write (6,"('ylat#',9f8.2)") diagvals(tr(:,nlv,ngas+1))
       write (6,"('ylon#',9f8.2)") diagvals(tr(:,nlv,ngas+2))
       write (6,"('ypre#',9f8.2)") diagvals(tr(:,nlv,ngas+3))
     endif
   endif  ! (ngas>0.or.nextout>=4)
 #endif
-  if(nvmix==6)then
+  if ( nvmix==6 ) then
     duma(1:ifull,:,1)=tke(1:ifull,:)
     duma(1:ifull,:,2)=eps(1:ifull,:)
     call ints(2,duma,intsch,nface,xg,yg,3)
     tke(1:ifull,:)=duma(1:ifull,:,1)
     eps(1:ifull,:)=duma(1:ifull,:,2)
   endif                 ! nvmix==6
-  if (abs(iaero)==2) then
+  if ( abs(iaero)==2 ) then
     call ints(naero,xtg,intsch,nface,xg,yg,5)
   end if
 endif     ! mspec==1
@@ -384,30 +384,32 @@ endif     ! mspec==1
 
 sdot(:,2:kl)=sbar(:,:)
 #ifdef debug
-if(mod(ktau,nmaxpr)==0.and.mydiag) write(6,*) 'upglobal ktau,sdmx,nits,nvadh_pass ',ktau,sdmx(idjd),nits(idjd),nvadh_pass(idjd)
-if( (diag.or.nmaxpr==1) .and. mydiag )then
+if (mod(ktau,nmaxpr)==0.and.mydiag) then
+  write(6,*) 'upglobal ktau,sdmx,nits,nvadh_pass ',ktau,sdmx(idjd),nits(idjd),nvadh_pass(idjd)
+endif
+if ( (diag.or.nmaxpr==1) .and. mydiag ) then
   write(6,*) 'in upglobal before vadv2'
   write (6,"('qg  ',3p9f8.3/4x,9f8.3)")   qg(idjd,:)
 endif
 #endif
 call vadvtvd(tx,ux,vx,nvadh_pass,nits)
 #ifdef debug
-if( (diag.or.nmaxpr==1) .and. mydiag )then
+if ( (diag.or.nmaxpr==1) .and. mydiag ) then
   write(6,*) 'in upglobal after vadv2'
   write (6,"('qg  ',3p9f8.3/4x,9f8.3)")   qg(idjd,:)
 endif
 #endif
 
 ! adding later (after 2nd vadv) than for npex=1
-ux(1:ifull,:)=ux(1:ifull,:)+.5*dt*un(1:ifull,:) ! dyn contrib
-vx(1:ifull,:)=vx(1:ifull,:)+.5*dt*vn(1:ifull,:) ! dyn contrib
+ux(1:ifull,:) = ux(1:ifull,:)+0.5*dt*un(1:ifull,:) ! dyn contrib
+vx(1:ifull,:) = vx(1:ifull,:)+0.5*dt*vn(1:ifull,:) ! dyn contrib
       
 ! second part of usual m=6 coriolis treatment (after 2nd vadv)
 do k=1,kl
   ! incorporate coriolis terms (done here as for m=6 instead of in adjust5)
-  tempry(1:ifull)   = ux(1:ifull,k)+.5*dt*(1.+epsf)*f(1:ifull)*vx(1:ifull,k) ! Eq. 133
-  vx(1:ifull,k) = vx(1:ifull,k)-.5*dt*(1.+epsf)*f(1:ifull)*ux(1:ifull,k) ! Eq. 134
-  ux(1:ifull,k) = tempry(1:ifull)
+  tempry(1:ifull) = ux(1:ifull,k)+.5*dt*(1.+epsf)*f(1:ifull)*vx(1:ifull,k) ! Eq. 133
+  vx(1:ifull,k)   = vx(1:ifull,k)-.5*dt*(1.+epsf)*f(1:ifull)*ux(1:ifull,k) ! Eq. 134
+  ux(1:ifull,k)   = tempry(1:ifull)
 enddo
 
 tx(1:ifull,:)=tx(1:ifull,:)+.5*dt*tn(1:ifull,:) 

@@ -11,8 +11,9 @@
 ! ncloud = 0    Standard LDR cloud microphysics
 ! ncloud = 1    Use newer LDR autoconvection from Mk3.6
 ! ncloud = 2    Same as ncloud=1, but with prognostic rain
-! ncloud = 3    Use prognostic cloud fraction based on Tiedtke from GFDL-CM3, but autoconversion from ncloud=0
-! ncloud = 4    Same as ncloud=3, but convective sources are included in prognostic cloud fraction
+! ncloud = 3    RESERVED for grauple
+! ncloud = 4    Use prognostic cloud fraction based on Tiedtke from GFDL-CM3, but autoconversion from ncloud=0
+! ncloud = 5    Same as ncloud=4, but convective sources are included in prognostic cloud fraction
     
 module leoncld_mod
     
@@ -135,7 +136,7 @@ endif
 
 !     Calculate convective cloud fraction and adjust moisture variables 
 !     before calling newcloud
-if ( ncloud<=3 ) then
+if ( ncloud<=4 ) then
 
   ! diagnose cloud fraction
   if ( nmr>0 ) then
@@ -177,9 +178,9 @@ if ( ncloud<=3 ) then
   end if
 
 else
-  ! prognostic cloud fraction (ncloud>=4)
+  ! prognostic cloud fraction (ncloud>=5)
   ! MJT notes - no rescaling is performed because the prognostic cloud fraction scheme
-  ! also accounts for convection when ncloud=4
+  ! also accounts for convection when ncloud=5
   clcon(:,:)      = 0.
   qccon(:,:)      = 0.
   qcl(1:ifull,:)  = qg(1:ifull,:)
@@ -585,7 +586,7 @@ elseif(nclddia>7)then  ! e.g. 12    JLM
 endif  ! (nclddia<0)  .. else ..
 
 
-if (ncloud<3) then
+if ( ncloud<4 ) then
   ! usual diagnostic cloud fraction
       
   ! Calculate cloudy fraction of grid box (cfrac) and gridbox-mean cloud water
@@ -725,7 +726,7 @@ else
     qcg(1:ifull,:) = qfg(1:ifull,:)
   end where
   
-end if ! ncloud<3 ..else..
+end if ! ncloud<4 ..else..
 
 
 ! Do the vapour deposition calculation in mixed-phase clouds:
@@ -969,7 +970,7 @@ do k=1,kl
 enddo
 
 !**************** Cut here to insert new auto scheme ********************            
-if ( ncloud>0 .and. ncloud<3 ) then
+if ( ncloud>0 .and. ncloud<4 ) then
 ! Using new (subgrid) autoconv scheme... 
   do k = kl-1,1,-1
     do mg = 1,ifull
@@ -1054,7 +1055,7 @@ else
       endif
     enddo
   enddo
-endif ! (ncloud>0)
+endif ! ( ncloud>0 .and. ncloud<4 )
 
 ! Call frozen precipitation routine
 call icefall(tdt,rhoa,dz,prf,ttg,qsg,qlg,qfg,qtg,cfrac,cfmelt,fluxi,fluxm,clfr,cifr,qsubl,qaccr,pfstayice,pqfsed,slopes)
@@ -1070,7 +1071,7 @@ rhor(1:ifull,1:kl-1)=qrg(1:ifull,1:kl-1)*rhoa(1:ifull,1:kl-1)
 ! max overlap autoconversion and rain from previous time step
 cfrain(1:ifull,1:kl-1)=max(cfrain(1:ifull,1:kl-1),cffall(1:ifull,1:kl-1)) 
       
-if (ncloud<=1) then
+if ( ncloud<=1 ) then
   fout=1.
   fthru=1.
 end if
@@ -1194,7 +1195,7 @@ do k=kl-1,1,-1
     fracr(mg,k)=clfra(mg)
 
     ! Calculate rain fall speed (MJT)
-    if (ncloud>1) then
+    if ( ncloud>1 ) then
       Fr=fluxrain(mg)/tdt/clfra(mg)
       vr(mg,k)=11.3*Fr**(1./9.)/sqrt(rhoa(mg,k))  !Actual fall speed
       vr(mg,k)=max(vr(mg,k),0.1)

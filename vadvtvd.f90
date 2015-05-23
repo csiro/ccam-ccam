@@ -99,7 +99,7 @@ if(mspec==1)then   ! advect qg and gases after preliminary step
   call vadv_work(qfg,tfact,nits,kp,kx)
   call vadv_work(qrg,tfact,nits,kp,kx)
   call vadv_work(rfrac,tfact,nits,kp,kx)
-  if (ncloud>=3) then
+  if ( ncloud>=4 ) then
     call vadv_work(stratcloud,tfact,nits,kp,kx)
   end if
   if( diag .and. mydiag )then

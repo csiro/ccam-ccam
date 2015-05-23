@@ -417,7 +417,7 @@ if (nmlo==0) then                                                               
       ! no snow on the ice assumed for now                                                       ! sice
       gamm(iq) = 3.471e+05                                                                       ! sice
       cie(iq) = 2.04/sicedep(iq)                                                                 ! sice
-      rgg(iq)=5.67e-8*tggsn(iq,1)**4                                                             ! sice
+      rgg(iq) = 5.67e-8*tggsn(iq,1)**4                                                           ! sice
       ! gflux here is flux from ice to water, +ve downwards                                      ! sice
       gflux(iq)=cie(iq)*(tggsn(iq,1)-271.2)                                                      ! sice
       ga(iq)=-slwa(iq)-rgg(iq)-fev(iq)-fgf(iq)-gflux(iq)                                         ! sice
@@ -435,9 +435,9 @@ if (nmlo==0) then                                                               
                                                                                                  ! sice
       ! combine ice and leads contributions here                                                 ! sice
       eg(iq) =fracice(iq)*fev(iq) + (1.-fracice(iq))*eg(iq)                                      ! sice
-      fg(iq) = fracice(iq)*fgf(iq)+ (1.-fracice(iq))*fg(iq)                                      ! sice
-      ri(iq) =fracice(iq)*ri_ice + (1.-fracice(iq))*ri(iq)                                       ! sice
-      zo(iq) =fracice(iq)*zoice  + (1.-fracice(iq))*zo(iq)                                       ! sice
+      fg(iq) =fracice(iq)*fgf(iq) + (1.-fracice(iq))*fg(iq)                                      ! sice
+      ri(iq) =fracice(iq)*ri_ice  + (1.-fracice(iq))*ri(iq)                                      ! sice
+      zo(iq) =fracice(iq)*zoice   + (1.-fracice(iq))*zo(iq)                                      ! sice
       factch(iq)=fracice(iq)*factchice + (1.-fracice(iq))*factch(iq)                             ! sice
       zoh(iq)=zo(iq)/(factch(iq)*factch(iq))                                                     ! sice
       zoq(iq)=zoh(iq)                                                                            ! sice
@@ -493,7 +493,12 @@ elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                                     
   dumr=-rgsave                                                                                   ! MLO
   dumx=condx/dt                                                                                  ! MLO
   dums=conds/dt                                                                                  ! MLO
-  dumw=watbdy(1:ifull)/dt                                                                        ! MLO
+  where (.not.land)                                                                              ! MLO
+    dumw=min(watbdy(1:ifull)/dt,0.05)                                                            ! MLO
+  elsewhere                                                                                      ! MLO
+    dumw=0.                                                                                      ! MLO
+  end where                                                                                      ! MLO
+  watbdy(1:ifull)=max(watbdy(1:ifull)-dt*dumw,0.)                                                ! MLO
   if (abs(nmlo)>=3) then                                                                         ! MLO
     call mloeval(tss,zo,cduv,cdtq,fg,eg,wetfac,epot,epan,fracice,sicedep,snowd,dt,azmin,azmin, & ! MLO
                  dumsg,dumr,dumx,dums,uav,vav,t(1:ifull,1),qg(1:ifull,1),ps,f,swrsave,         & ! MLO
@@ -523,7 +528,6 @@ elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                                     
   end where                                                                                      ! MLO
                                                                                                  ! MLO
   where(.not.land)                                                                               ! MLO
-    watbdy(1:ifull)=0.                                                                           ! MLO
     snowd=snowd*1000.                                                                            ! MLO
     ga=0.                                                                                        ! MLO
     ustar=sqrt(sqrt(taux*taux+tauy*tauy)/rho)                                                    ! MLO

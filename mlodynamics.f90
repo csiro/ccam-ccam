@@ -1352,6 +1352,7 @@ end if
 
 ! volume conservation for water
 if (nud_sfh==0) then
+  neta(1:ifull)=max(min(neta(1:ifull),120.),-120.)
   odum=(neta(1:ifull)-w_e)*ee(1:ifull)
   call ccglobal_posneg(odum,delpos,delneg)
   alph_p = -delneg/max(delpos,1.E-20)

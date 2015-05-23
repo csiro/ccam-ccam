@@ -35,5 +35,10 @@ ___________________________________________________________________
 SEA-ESF Radiation
 Copyright Geophysical Fluid Dynamics Laboratory
 Please contact www.gfdl.noaa.gov for further information
-This software is licensed under GNU GPL.
+This software is licensed under GNU GPL
+
+Community Atmosphere Biosphere Land Exchange (CABLE)
+Copyright Commonwealth Scientific and Industrial Research Organisation
+Please contact https://trac.nci.org.au/trac/cable/wiki
+This software is licensed under BSD / MIT
 ___________________________________________________________________

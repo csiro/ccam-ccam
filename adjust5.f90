@@ -64,15 +64,14 @@ call START_LOG(adjust_begin)
 hdt   = dt/2.
 hdtds = hdt/ds
 
-if (.not.allocated(zz)) then
-  allocate( zz(ifull), zzn(ifull), zze(ifull), zzw(ifull) )
-  allocate( zzs(ifull), pfact(ifull), alff(ifull+iextra) )
-  allocate( alf(ifull+iextra), alfe(ifull+iextra) )
-  allocate( alfn(ifull+iextra), alfu(ifull), alfv(ifull) )
-end if
-
 ! time step can change during initialisation
-if (dt /= dtsave) then 
+if (dt /= dtsave) then
+  if (.not.allocated(zz)) then
+    allocate( zz(ifull), zzn(ifull), zze(ifull), zzw(ifull) )
+    allocate( zzs(ifull), pfact(ifull), alff(ifull+iextra) )
+    allocate( alf(ifull+iextra), alfe(ifull+iextra) )
+    allocate( alfn(ifull+iextra), alfu(ifull), alfv(ifull) )
+  end if    
   call adjust_init(zz,zzn,zze,zzw,zzs,pfact,alff,alf,alfe,alfn,alfu,alfv)
   precon_in=precon
   precon=min(precon,0)  ! 22/4/07
@@ -407,7 +406,7 @@ if ( nh/=0 .and. (ktau>knh.or.lrestart) ) then
 end if  ! (nh/=0.and.(ktau>knh.or.lrestart))
 
 
-if (mfix==-1) then   ! perform conservation fix on psl
+if ( mfix==-1 ) then   ! perform conservation fix on psl
   ! delpos is the sum of all positive changes over globe
   ! delneg is the sum of all negative changes over globe
   ! alph_p is chosen to satisfy alph_p*delpos + delneg/alph_p = 0
@@ -436,8 +435,10 @@ if (mfix==-1) then   ! perform conservation fix on psl
 #endif
 end if    !  (mfix==-1)
 
-if (mfix/=3) ps(1:ifull)=1.e5*exp(psl(1:ifull))     
-if (mfix==1.or.mfix==2) then   ! perform conservation fix on ps
+if ( mfix/=3 ) then
+  ps(1:ifull)=1.e5*exp(psl(1:ifull))     
+end if
+if ( mfix==1.or.mfix==2 ) then   ! perform conservation fix on ps
   ! fix is on ps (not psl) from 24/1/06      
   ! delpos is the sum of all positive changes over globe
   ! delneg is the sum of all negative changes over globe
@@ -481,7 +482,7 @@ if (mfix==1.or.mfix==2) then   ! perform conservation fix on ps
   psl(1:ifull) = psl(1:ifull)+(ps(1:ifull)/bb(1:ifull)-1.)     
 end if !  (mfix==1.or.mfix==2)
       
-if (mfix==3) then   ! perform conservation fix on ps (best for 32-bit)
+if ( mfix==3 ) then   ! perform conservation fix on ps (best for 32-bit)
   ! fix is on ps (not psl) from 24/1/06      
   ! delpos is the sum of all positive changes over globe
   ! delneg is the sum of all negative changes over globe

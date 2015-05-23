@@ -48,7 +48,7 @@ include 'kuocom.h'                  ! Convection parameters
 include 'parm.h'                    ! Model configuration
 
 integer, parameter :: ntest=0
-integer k,tnaero,kcl_top,nt
+integer k,tnaero,nt
 real rong,rlogs1,rlogs2,rlogh1,rlog12
 real delsig,conflux,condrag
 real, dimension(ifull,kl) :: tnhs,tv,zh
@@ -161,8 +161,7 @@ if ( nvmix/=6 ) then
   end if
 
   if ( ncvmix>0 ) then  ! cumulus mixing of momentum - jlm version
-    kcl_top=kl-2 ! maximum level for cloud top (conjob & vertmix)
-    do k = kuocb+1-ncvmix,kcl_top-1
+    do k = kuocb+1-ncvmix,kl-3
       ! for no-conv-points, doing k=1-ncvmix,1 with convpsav=0.
       !  1 below for ncvmix=2
       where ( kbsav>0 .and. k>=kbsav+1-ncvmix .and. k<ktsav )
@@ -242,7 +241,7 @@ if ( nvmix/=6 ) then
       rhs=rfrac(1:ifull,:)
       call trim(at,ct,rhs)      ! for rfrac
       rfrac(1:ifull,:)=min(max(rhs,0.),1.)
-      if ( ncloud>=3 ) then
+      if ( ncloud>=4 ) then
         ! now do cldfrac
         rhs=stratcloud(1:ifull,:)
         call trim(at,ct,rhs)    ! for cldfrac
@@ -350,7 +349,7 @@ else
   end if
   
   ! Special treatment for prognostic cloud fraction
-  if ( ncloud>=3 ) then
+  if ( ncloud>=4 ) then
     cldtmp=stratcloud(1:ifull,:)
   else
     cldtmp=cfrac(1:ifull,:)
@@ -385,7 +384,7 @@ else
   end select
   
   ! special treatment for prognostic cloud fraction  
-  if ( ncloud>=3 ) then
+  if ( ncloud>=4 ) then
     stratcloud(1:ifull,:)=cldtmp
     call combinecloudfrac
   else

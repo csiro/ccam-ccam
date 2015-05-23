@@ -325,7 +325,7 @@ xfact_iwu(:,:) = xfact(iwu,:)
 yfact_isv(:,:) = yfact(isv,:)
 base(:,:)=emi(:,:)+xfact(1:ifull,:)+xfact_iwu(:,:)+yfact(1:ifull,:)+yfact_isv(:,:)
 
-if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3 don't diffuse u,v
+if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
   do k=1,kl
     ucc = ( uc(1:ifull,k)*emi(1:ifull,k) +     &
             xfact(1:ifull,k)*uc(ie,k) +        &
@@ -362,9 +362,9 @@ if(diag.and.mydiag)then
 endif
 #endif
 
-if ( nhorps/=-2 ) then   ! for nhorps=-2 don't diffuse T, qg
+if ( nhorps/=-2 ) then   ! for nhorps=-2 don't diffuse T, qg or cloud
   ! do t diffusion based on potential temperature ff
-  if(nhorps/=-3)then  ! for nhorps=-3 don't diffuse T; only qg
+  if(nhorps/=-3)then  ! for nhorps=-3 don't diffuse T or cloud; only qg
     do k=1,kl
       ff(1:ifull,k,1)=t(1:ifull,k)/ptemp(1:ifull) ! watch out for Chen!
     end do
@@ -402,7 +402,7 @@ if ( nhorps/=-2 ) then   ! for nhorps=-2 don't diffuse T, qg
     ff(1:ifull,:,2)=qfg(1:ifull,:)
     ff(1:ifull,:,3)=qrg(1:ifull,:)
     ff(1:ifull,:,4)=rfrac(1:ifull,:)
-    if (ncloud>=3) then
+    if ( ncloud>=4 ) then
       ff(1:ifull,:,5)=stratcloud(1:ifull,:)
       call bounds(ff(:,:,1:5))
       stratcloud(1:ifull,:) = ( ff(1:ifull,:,5)*emi(1:ifull,:) +  &

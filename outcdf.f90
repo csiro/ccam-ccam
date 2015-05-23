@@ -1311,7 +1311,7 @@ if( myid==0 .or. local ) then
       !call attrib(idnc,idim(1:4),4,'qgrg','Grauple','kg/kg',0.,.065,0,itype)
       call attrib(idnc,idim(1:4),4,'cfrac','Cloud fraction','none',0.,1.,0,itype)
       call attrib(idnc,idim(1:4),4,'rfrac','Rain fraction','none',0.,1.,0,itype)
-      if ( ncloud>=3 ) then
+      if ( ncloud>=4 ) then
         call attrib(idnc,idim(1:4),4,'stratcf','Strat cloud fraction','none',0.,1.,0,itype)
         if ( itype==-1 ) then
           call attrib(idnc,idim(1:4),4,'strat_nt','Strat net temp tendency','K/s',0.,1.,0,itype)
@@ -2049,7 +2049,7 @@ if ( ldr/=0 ) then
   !call histwrt4(qgrg,'qgrg',idnc,iarch,local,.true.)
   call histwrt4(cfrac,'cfrac',idnc,iarch,local,.true.)
   call histwrt4(rfrac,'rfrac',idnc,iarch,local,.true.)
-  if ( ncloud>=3 ) then
+  if ( ncloud>=4 ) then
     call histwrt4(stratcloud,'stratcf',idnc,iarch,local,.true.)  
     if ( itype==-1 ) then
       call histwrt4(nettend,'strat_nt',idnc,iarch,local,.true.)
