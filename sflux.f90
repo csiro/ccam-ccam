@@ -494,7 +494,7 @@ elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                                     
   dumx=condx/dt                                                                                  ! MLO
   dums=conds/dt                                                                                  ! MLO
   where (.not.land)                                                                              ! MLO
-    dumw=min(watbdy(1:ifull)/dt,0.05)                                                            ! MLO
+    dumw=min(watbdy(1:ifull)/dt,60./dt)                                                          ! MLO
   elsewhere                                                                                      ! MLO
     dumw=0.                                                                                      ! MLO
   end where                                                                                      ! MLO
