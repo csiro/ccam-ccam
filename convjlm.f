@@ -154,7 +154,7 @@
         allocate(downex(kl,kl))
         allocate(detrarr(kl,k500,kl))
         detrarr(:,:,:)=1.e20  ! in case someone uses other than methprec=0,4,5,6,7,8
-        if(methprec.ne.0.and.(methprec<4.or.methprec>9))then
+        if(methprec.ne.0.and.(methprec<3.or.methprec>9))then  !  JLMa
           write(6,*) "unsupported methprec in convjlm"
           call ccmpi_abort(-1)
         endif
@@ -825,20 +825,38 @@ c     &          k,detxsav(iq,k),entrain*dsig(k),aa(iq)
      
 !     apply entrainment and detrainment effects to environment    
       if(methdetr<0)then
-       do k=2,kl-2  
+       if(methprec==3)then   ! JLMa start
+        do iq=1,ifull
+          dz=sig(kb_sav(iq))-sig(kt_sav(iq))
+          fluxr(iq)=dz  ! just for printout
+          aa(iq)=min(1.,max(detrain, detrainx
+     &  +max(((dz-sigkscb)*detrainx+(dsig2-dz))/(dsig2-sigkscb)
+     &       -detrainx,0.)
+     &  +min(((dz-dsig2)*detrain+(sigksct-dz)*detrainx)/(sigksct-dsig2)
+     &       -detrainx,0.)   ))
+        enddo
+        if(mydiag.and.nmaxpr==1)write(6,*) 'kb_sav,kt_sav,depth,aa',
+     &   kb_sav(idjd),kt_sav(idjd),fluxr(idjd),aa(idjd)
+       else
+        do iq=1,ifull
+          aa(iq)=min( 1., detrain+(1.-detrain)*( ! typical detrain is .15 for deep clouds
+     &   (.55-min(sig(kb_sav(iq))-sig(kt_sav(iq)), .55)) /(.6-.14))**3 )  ! as for methdetr=-3 here
+        enddo
+       endif
+       do k=2,kl-2
         do iq=1,ifull
           dels(iq,k)=-entrsav(iq,k)*s(iq,k)   ! entr into updraft
      &      +detxsav(iq,k)*splume(iq,k)
 !         following line allows for qq>qs, to avoid drying layer
-          qsk=max(qs(iq,k),qq(iq,k))  
+          qsk=max(qs(iq,k),qq(iq,k))
           delq(iq,k)=-entrsav(iq,k)*qq(iq,k)+detxsav(iq,k)*qsk  ! entr into updraft
-c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a detxmax will be 0 
-          rnrt_k=detxsav(iq,k)*(qplume(iq,k)-qsk)    
+c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a detxmax will be 0
+          rnrt_k=detxsav(iq,k)*(qplume(iq,k)-qsk)
           dels(iq,k)=dels(iq,k)+hl*rnrt_k    ! corresponding precip. heating (as not done separately in plume)
 !         part of this as detrained liquid water
-          detrainn=min( 1., detrain+(1.-detrain)*(                       ! typical detrain is .15 for deep clouds
-     &   (.55-min(sig(kb_sav(iq))-sig(kt_sav(iq)), .55)) /(.6-.14))**3 )  ! as for methdetr=-3 here
-          delqliqw(iq,k)=delqliqw(iq,k)+detrainn*rnrt_k   
+!!!       detrainn=min( 1., detrain+(1.-detrain)*(                       ! typical detrain is .15 for deep clouds
+!!!  &   (.55-min(sig(kb_sav(iq))-sig(kt_sav(iq)), .55)) /(.6-.14))**3 )  ! as for methdetr=-3 here
+          delqliqw(iq,k)=delqliqw(iq,k)+aa(iq)*rnrt_k   ! JLMa  end
           rnrt_k= rnrt_k-delqliqw(iq,k)        
           rnrtcn(iq)=rnrtcn(iq)+rnrt_k
          enddo     ! iq loop
