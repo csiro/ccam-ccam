@@ -32,6 +32,9 @@ end interface tdiffx
 interface esdiffx
   module procedure esdiffx_s, esdiffx_v
 end interface esdiffx
+interface pow75
+  module procedure pow75_s, pow75_v
+end interface
 
 contains
 
@@ -275,11 +278,18 @@ tpos = int(tstore)
 ans = (1.-tfrac)*esdiff(tpos)+tfrac*esdiff(tpos+1)
 end function esdiffx_v
 
-function pow75(x) result(ans)
+function pow75_s(x) result(ans)
 implicit none
 real, intent(in) :: x
 real ans
 ans=sqrt(x*sqrt(x))
-end function pow75
+end function pow75_s
+
+function pow75_v(x) result(ans)
+implicit none
+real, dimension(:), intent(in) :: x
+real, dimension(size(x)) :: ans
+ans=sqrt(x*sqrt(x))
+end function pow75_v
 
 end module estab
