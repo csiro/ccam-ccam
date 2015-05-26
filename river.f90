@@ -109,7 +109,7 @@ do nit=1,2
 
   ! calculate slopes
   do i=1,4
-    zsadj=max(newwat-maxwaterlvl,0.) ! increase at 1000x
+    zsadj=max(0.5*(newwat+watbdy)-maxwaterlvl,0.) ! increase at 1000x
     where ( (ee(1:ifull)*ee(xp(:,i)))>0.5 )
       slope(:,i)=0. ! no orographic slope within ocean bounds
     elsewhere
