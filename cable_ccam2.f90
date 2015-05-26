@@ -1090,11 +1090,7 @@ do iq=1,ifull
         case DEFAULT
           write(6,*) "ERROR: Land-type/lsmask mismatch at myid,iq,ivs,land=",myid,iq,ivs(iq,n),land(iq)
           call ccmpi_abort(-1)
-        end select
-        if (any(newgrid(iq,:)>1.)) then
-          write(6,*) "ERROR newgrid ",iq,newgrid(iq,:)
-          stop
-        end if
+      end select
     end do
     if (newgrid(iq,2)>0.) then
       savannafrac(iq)=savannafrac(iq)/newgrid(iq,2)
