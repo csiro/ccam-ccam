@@ -493,12 +493,12 @@ elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                                     
   dumr=-rgsave                                                                                   ! MLO
   dumx=condx/dt                                                                                  ! MLO
   dums=conds/dt                                                                                  ! MLO
-  where (.not.land)                                                                              ! MLO
-    dumw=min(watbdy(1:ifull)/dt,60./dt)                                                          ! MLO
+  where (.not.land(1:ifull))                                                                     ! MLO
+    dumw=watbdy(1:ifull)/dt                                                                      ! MLO
   elsewhere                                                                                      ! MLO
     dumw=0.                                                                                      ! MLO
   end where                                                                                      ! MLO
-  watbdy(1:ifull)=max(watbdy(1:ifull)-dt*dumw,0.)                                                ! MLO
+  watbdy(1:ifull)=watbdy(1:ifull)-dt*dumw                                                        ! MLO
   if (abs(nmlo)>=3) then                                                                         ! MLO
     call mloeval(tss,zo,cduv,cdtq,fg,eg,wetfac,epot,epan,fracice,sicedep,snowd,dt,azmin,azmin, & ! MLO
                  dumsg,dumr,dumx,dums,uav,vav,t(1:ifull,1),qg(1:ifull,1),ps,f,swrsave,         & ! MLO
@@ -527,7 +527,7 @@ elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                                     
     fhd=vmod-vmod*2.*bprm*rid/(1.+chs*2.*bprm*sqrt(panzo*ztv)*chnsea*sqrt(-rid*zmin/panzo))      ! MLO
   end where                                                                                      ! MLO
                                                                                                  ! MLO
-  where(.not.land)                                                                               ! MLO
+  where(.not.land(1:ifull))                                                                      ! MLO
     snowd=snowd*1000.                                                                            ! MLO
     ga=0.                                                                                        ! MLO
     ustar=sqrt(sqrt(taux*taux+tauy*tauy)/rho)                                                    ! MLO
@@ -791,7 +791,6 @@ if (nurban/=0) then                                                             
   ! since ateb will blend non-urban and urban runoff, it is                                      ! urban
   ! easier to remove the new runoff and add it again after the                                   ! urban
   ! urban scheme has been updated                                                                ! urban
-  runoff=oldrunoff        ! remove new runoff                                                    ! urban
   ! call aTEB                                                                                    ! urban
   dumsg=sgsave/(1.-swrsave*albvisnir(:,1)-(1.-swrsave)*albvisnir(:,2))                           ! urban
   dumr=-rgsave                                                                                   ! urban
@@ -799,7 +798,7 @@ if (nurban/=0) then                                                             
   dums=conds/dt                                                                                  ! urban
   call atebcalc(fg,eg,tss,wetfac,newrunoff,dt,azmin,dumsg,dumr,dumx,dums,rho,t(1:ifull,1), &     ! urban
                 qg(1:ifull,1),ps(1:ifull),uzon,vmer,vmodmin,0)                                   ! urban
-  runoff=runoff+newrunoff ! add new runoff after including urban                                 ! urban
+  runoff=oldrunoff+newrunoff ! add new runoff after including urban                              ! urban
   ! here we blend zo with the urban part                                                         ! urban
   call atebzo(zo,zoh,zoq,0)                                                                      ! urban
   factch=sqrt(zo/zoh)                                                                            ! urban

@@ -10,11 +10,12 @@ module river
 implicit none
 
 private
-public rvrinit,rvrrouter,watbdy
+public rvrinit, rvrrouter, watbdy
 
-real, dimension(:), allocatable, save :: watbdy,ee
-real, parameter :: leakrate   = 192.      ! E-folding time for leaking water into soil (hrs)
-integer, parameter :: basinmd = 3         ! basin mode (0=soil, 1=redistribute, 2=pile-up, 3=leak)
+real, dimension(:), allocatable, save :: watbdy, ee
+real, parameter :: leakrate    = 192.     ! E-folding time for leaking water into soil (hrs)
+real, parameter :: maxwaterlvl = 1000.    ! Target maximum water level (mm)
+integer, parameter :: basinmd = 3         ! basin mode (0=soil, 2=pile-up, 3=leak)
 
 contains
 
@@ -70,10 +71,9 @@ include 'soilv.h'
 integer i,ii,iq,ierr,k
 integer nit
 integer, dimension(ifull,4) :: xp
-real, dimension(ifull+iextra) :: netflx
-real, dimension(ifull+iextra) :: newwat
-real, dimension(ifull) :: cover,vel
-real, dimension(ifull) :: tmpry,ll
+real, dimension(ifull+iextra) :: netflx,newwat,zsadj
+real, dimension(ifull) :: vel,soilsink
+real, dimension(ifull) :: tmpry,deltmpry,ll
 real, dimension(ifull,4) :: idp,slope,flow
 real, dimension(ifull,4) :: fta,ftb,ftx,fty
 real rate
@@ -109,12 +109,11 @@ do nit=1,2
 
   ! calculate slopes
   do i=1,4
+    zsadj=max(newwat-maxwaterlvl,0.) ! increase at 1000x
     where ( (ee(1:ifull)*ee(xp(:,i)))>0.5 )
       slope(:,i)=0. ! no orographic slope within ocean bounds
     elsewhere
-      !slope(:,i)=(zs(1:ifull)-zs(xp(:,i)))/(grav*dp(:,i))         ! basic
-      slope(:,i)=(zs(1:ifull)/grav+0.001*newwat(1:ifull) &
-                 -zs(xp(:,i))/grav-0.001*newwat(xp(:,i)))*idp(:,i) ! flood
+      slope(:,i)=(zs(1:ifull)/grav+zsadj(1:ifull)-zs(xp(:,i))/grav-zsadj(xp(:,i)))*idp(:,i)
     end where
   end do
 
@@ -132,7 +131,7 @@ do nit=1,2
     vel=min(0.35*sqrt(max(slope(:,i),0.)/0.00005),5.) ! from Miller et al (1994)
     fta(:,i)=-dt*vel*idp(:,i)     ! outgoing flux
   end do
-  netflx(1:ifull)=sum(abs(fta),2)
+  netflx(1:ifull)=sum(abs(fta),2) ! MJT notes - this will never trigger for sensible values of dt
   call bounds(netflx)
   
   ! water outflow
@@ -150,11 +149,11 @@ do nit=1,2
   ! water inflow
   do i=1,4
     vel=min(0.35*sqrt(max(-slope(:,i),0.)/0.00005),5.) ! from Miller et al (1994)
-    ftb(:,i)=dt*vel*idp(:,i)     ! incomming flux
+    ftb(:,i)=dt*vel*idp(:,i)            ! incomming flux
     where (netflx(xp(:,i))>1.E-10)
       fty(:,i)=ftb(:,i)/netflx(xp(:,i)) ! max fraction of flux from outgoing cel
       flow(:,i)=watbdy(xp(:,i))*min(ftb(:,i),fty(:,i)) ! (kg/m^2)
-      flow(:,i)=flow(:,i)*em(1:ifull)*em(1:ifull)/(em(xp(:,i))*em(xp(:,i))) ! change in gridbox area
+      flow(:,i)=flow(:,i)*(em(1:ifull)/em(xp(:,i)))**2 ! change in gridbox area
     elsewhere
       flow(:,i)=0.
     end where
@@ -168,62 +167,60 @@ watbdy(1:ifull)=max(newwat,0.)
 !--------------------------------------------------------------------
 ! Water losses over land basins
 
-! estimate grid box area covered by water
-cover=min(0.001*watbdy(1:ifull)/minwater,1.)
-! estimate rate that water leaves river into soil
-rate=dt/(leakrate*3600.) ! MJT suggestion
   
 ! Method for land basins
 select case(basinmd)
-  case(0)
+case(0)
     ! add water to soil moisture 
-    where (any(slope>=-1.E-10,2).or..not.land(1:ifull))
-      cover=0.
-    end where
+    ! estimate rate that water leaves river into soil
+    rate=min(dt/(8.*3600.),1.) ! MJT suggestion
     if (nsib==6.or.nsib==7) then
       ! CABLE
       tmpry=watbdy(1:ifull)
-      call cableinflow(tmpry,cover,rate)
-      newwat(1:ifull)=newwat(1:ifull)+(tmpry-watbdy(1:ifull))*(1.-sigmu(:))
+      call cableinflow(tmpry,rate)
+      soilsink=(tmpry-watbdy(1:ifull))*(1.-sigmu(:))
+      newwat(1:ifull)=newwat(1:ifull)+soilsink
     else
       ! Standard land surface model
-      tmpry=watbdy(1:ifull)
+      deltmpry=0.
       do k=1,ms
         where (land(1:ifull))
           ll(:)=max(sfc(isoilm(:))-wb(:,k),0.)*1000.*zse(k)
-          ll(:)=ll(:)*rate*cover(:)
+          ll(:)=ll(:)*rate
           ll(:)=min(tmpry(:),ll(:))
           wb(:,k)=wb(:,k)+ll(:)/(1000.*zse(k))
-          tmpry(:)=tmpry(:)-ll(:)
+          deltmpry(:)=deltmpry(:)-ll(:)
         end where
       end do
-      newwat(1:ifull)=newwat(1:ifull)+(tmpry-watbdy(1:ifull))*(1.-sigmu(:))
+      soilsink=deltmpry*(1.-sigmu(:))
+      newwat(1:ifull)=newwat(1:ifull)+soilsink
     end if
   case(2)
     ! pile-up water
   case(3)
     ! leak
-    where (.not.land(1:ifull))
-      cover=0.
-    end where
+    ! estimate rate that water leaves river into soil
+    rate=dt/(leakrate*3600.) ! MJT suggestion
     if (nsib==6.or.nsib==7) then
       ! CABLE
       tmpry=watbdy(1:ifull)
-      call cableinflow(tmpry,cover,rate)
-      newwat(1:ifull)=newwat(1:ifull)+(tmpry-watbdy(1:ifull))*(1.-sigmu(:))
+      call cableinflow(tmpry,rate)
+      soilsink=(tmpry-watbdy(1:ifull))*(1.-sigmu(:))
+      newwat(1:ifull)=newwat(1:ifull)+soilsink
     else
       ! Standard land surface model
-      tmpry=watbdy(1:ifull)
+      deltmpry=0.
       do k=1,ms
         where (land(1:ifull))
           ll(:)=max(sfc(isoilm(:))-wb(:,k),0.)*1000.*zse(k)
-          ll(:)=ll(:)*rate*cover(:)
+          ll(:)=ll(:)*rate
           ll(:)=min(tmpry(:),ll(:))
           wb(:,k)=wb(:,k)+ll(:)/(1000.*zse(k))
-          tmpry(:)=tmpry(:)-ll(:)
+          deltmpry(:)=deltmpry(:)-ll(:)
         end where
       end do
-      newwat(1:ifull)=newwat(1:ifull)+(tmpry-watbdy(1:ifull))*(1.-sigmu(:))
+      soilsink=deltmpry*(1.-sigmu(:))
+      newwat(1:ifull)=newwat(1:ifull)+soilsink
     end if
   case default
     write(6,*) "ERROR: Unsupported basinmd ",basinmd
@@ -231,6 +228,9 @@ select case(basinmd)
 end select
 
 watbdy(1:ifull)=max(newwat(1:ifull),0.)
+
+! MLO (or other ocean model) will remove watbdy from ocean points when it updates its
+! river inflows.
 
 return
 end subroutine rvrrouter

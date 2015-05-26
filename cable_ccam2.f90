@@ -1090,7 +1090,11 @@ do iq=1,ifull
         case DEFAULT
           write(6,*) "ERROR: Land-type/lsmask mismatch at myid,iq,ivs,land=",myid,iq,ivs(iq,n),land(iq)
           call ccmpi_abort(-1)
-      end select
+        end select
+        if (any(newgrid(iq,:)>1.)) then
+          write(6,*) "ERROR newgrid ",iq,newgrid(iq,:)
+          stop
+        end if
     end do
     if (newgrid(iq,2)>0.) then
       savannafrac(iq)=savannafrac(iq)/newgrid(iq,2)
@@ -1193,6 +1197,7 @@ if (mp>0) then
   !enddo
   !froot2(:,ms)=1.-sum(froot(:,1:ms-1),2)
   
+  ! Eva's method for ACCESS1.3
   froot2(:,1)=0.05
   froot2(:,2)=0.20
   froot2(:,3)=0.20
@@ -1289,7 +1294,7 @@ if (mp>0) then
       maxnb=n
     end if
   end do
-
+  
   ! MJT special case for (woody) savannas
   do n=1,maxnb
     where (veg%iveg(pind(n,1):pind(n,2))==2)
@@ -2632,7 +2637,7 @@ end subroutine savetile
 
 ! *************************************************************************************
 ! Water inflow from river routing
-subroutine cableinflow(inflow,lmax,rate)
+subroutine cableinflow(inflow,rate)
 
 use soil_m
 
@@ -2642,29 +2647,28 @@ include 'newmpar.h'
 
 integer nb, k
 real, intent(in) :: rate
-real, dimension(ifull), intent(in) :: lmax
 real, dimension(ifull), intent(inout) :: inflow
-real, dimension(mp) :: xx, ll, mm
+real, dimension(ifull) :: delflow
+real, dimension(mp) :: xx, ll, delxx
 
 if ( mp<=0 ) return
 
 do nb=1,maxnb
-  xx(pind(nb,1):pind(nb,2))=pack(inflow,   tmap(:,nb))
-  mm(pind(nb,1):pind(nb,2))=pack(lmax*rate,tmap(:,nb))
+  xx(pind(nb,1):pind(nb,2))=pack(inflow,tmap(:,nb))
 end do
+delxx=0.
 do k=1,cbm_ms
   ll(:)=max(soil%sfc(:)-real(ssnow%wb(:,k)),0.)*1000.*soil%zse(k)
-  ll(:)=ll(:)*mm(:)
+  ll(:)=ll(:)*rate
   ll(:)=min(xx(:),ll(:))
   ssnow%wb(:,k)=ssnow%wb(:,k)+ll(:)/(1000.*soil%zse(k))
-  xx(:)=xx(:)-ll(:)
+  delxx(:)=delxx(:)-ll(:)
 end do
-where (land(1:ifull))
-  inflow=0.
-end where
+delflow=0.
 do nb=1,maxnb
-  inflow=inflow+unpack(sv(pind(nb,1):pind(nb,2))*xx(pind(nb,1):pind(nb,2)),tmap(:,nb),0.)
+  delflow=delflow+unpack(sv(pind(nb,1):pind(nb,2))*delxx(pind(nb,1):pind(nb,2)),tmap(:,nb),0.)
 end do
+inflow=inflow+delflow
 
 return
 end subroutine cableinflow

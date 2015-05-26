@@ -879,11 +879,10 @@ real, dimension(ifull,kl), intent(out) :: fluxi
 real, dimension(ifull,kl), intent(out) :: fluxm
 
 ! Local work arrays and variables
-real, dimension(ifull,kl-1) :: fthruliq,foutliq,rhor
-real, dimension(ifull,kl-1) :: gam,fthruice,foutice,Csbsav
-real, dimension(ifull,kl) :: clfr,qsg
-real, dimension(ifull,kl) :: cfrain,cfmelt,fluxa,qsl,frclr,cifr
-real, dimension(ifull,kl) :: vi2,rhoi,qfdiv,vl2,fracr
+real, dimension(ifull,kl-1) :: fthruliq,foutliq,fthruice,foutice
+real, dimension(ifull,kl-1) :: rhor,gam
+real, dimension(ifull,kl) :: clfr,cifr,qsg,cfrain,cfmelt,fluxa
+real, dimension(ifull,kl) :: rhoi,vi2,vl2
 real, dimension(ifull) :: clfra,mxclfrliq,rdclfrliq,fluxrain,ccra
 real, dimension(ifull) :: mxclfrice,rdclfrice,rica,fluxice,cifra
 real, dimension(ifull) :: sublflux,fsclr,caccr,dqf,qif,dttg,csb,bf
@@ -891,17 +890,15 @@ real, dimension(ifull) :: dqs,ql,cdt,rhoiin,cffluxin,rhoiout
 real, dimension(ifull) :: cffluxout,rhodz,evap,qpf,clrevap,fr
 real, dimension(ifull) :: mxovr,rdovr,frc,fcol,coll,alph,rhorin
 real, dimension(ifull) :: rhorout,tc,alphaf,tk,pk,es,aprpr,bprpr
-real, dimension(ifull) :: curly
+real, dimension(ifull) :: curly,frclr,Csbsav
 
 integer k,mg
 
 real apr,bpr,bl,cev,crate,dql,dqsdt,frb,qcic,qcrit,ql1,ql2,R6c,R3c,beta6,eps
-real satevap,selfcoll,Wliq,cfla,dqla,qla,viin
+real satevap,selfcoll,Wliq,cfla,dqla,qla,viin,qsl
 
 do k=1,kl
-  fracr(1:ifull,k)=0.
   fluxr(1:ifull,k)=0.
-  frclr(1:ifull,k)=0.
   fluxm(1:ifull,k)=0.
   fluxi(1:ifull,k)=0.
   fluxa(1:ifull,k)=0.
@@ -1014,7 +1011,6 @@ cifr(1:ifull,1:kl)=cfrac(1:ifull,1:kl)*qfg(1:ifull,1:kl)/max( qlg(1:ifull,1:kl)+
 clfr(1:ifull,1:kl)=max( cfrac(1:ifull,1:kl)-cifr(1:ifull,1:kl), 0. )
 qsubl(1:ifull,1:kl)=0.
 qaccr(1:ifull,1:kl)=0.
-qfdiv(1:ifull,1:kl)=0.
 cfmelt(1:ifull,1:kl)=0.
 
 if ( diag .and. mydiag ) then
@@ -1112,7 +1108,7 @@ do k=kl-1,1,-1
   end where
 
   ! Define the rate constant for sublimation of snow, omitting factor rhoi
-  Csbsav(:,k)=4.*curly(:)/(rhoa(:,k)*qsg(1:ifull,k)*(Aprpr(:)+Bprpr(:))*pi*vi2(:,k+1)*rhosno)
+  Csbsav(:)=4.*curly(:)/(rhoa(:,k)*qsg(1:ifull,k)*(Aprpr(:)+Bprpr(:))*pi*vi2(:,k+1)*rhosno)
 
   ! Set up the parameters for the flux-divergence calculation
   alph(:)=tdt*vi2(:,k)/dz(:,k)
@@ -1152,7 +1148,7 @@ do k=kl-1,1,-1
   ! Compute the sublimation of ice falling from level k+1 into level k
   fsclr(:)=(1.-cifr(:,k)-clfr(:,k))*fluxice(:)
   where ( fluxice(:)>0..and.qtg(1:ifull,k)<qsg(1:ifull,k) ) ! sublime snow
-    Csb(:)=Csbsav(:,k)*fluxice(:)/tdt !LDR
+    Csb(:)=Csbsav(:)*fluxice(:)/tdt !LDR
     bf(:)=1.+0.5*Csb(:)*tdt*(1.+gam(:,k))
     dqs(:)=max(0.,tdt*(Csb(:)/bf(:))*(qsg(1:ifull,k)-qtg(1:ifull,k)))
     dqs(:)=min(dqs(:),(qsg(1:ifull,k)-qtg(1:ifull,k))/(1.+gam(:,k))) !Don't supersat.
@@ -1245,20 +1241,20 @@ do k=kl-1,1,-1
     if ( fluxrain(mg)>0. ) then
       qsg(mg,k)=qsati(pk(mg),ttg(mg,k))
       if ( ttg(mg,k)<tfrz .and. ttg(mg,k)>=tice ) then
-        qsl(mg,k)=qsg(mg,k)+epsil*esdiffx(ttg(mg,k))/(100.*prf(mg,k))    ! MJT suggestion
+        qsl=qsg(mg,k)+epsil*esdiffx(ttg(mg,k))/(100.*prf(mg,k))    ! MJT suggestion
       else
-        qsl(mg,k)=qsg(mg,k)
+        qsl=qsg(mg,k)
       end if             !qsl is qs value over liquid surface
       Tk(mg)=ttg(mg,k)
-      es(mg)=qsl(mg,k)*pk(mg)/epsil 
+      es(mg)=qsl*pk(mg)/epsil 
       Apr=(hl/(rKa*Tk(mg)))*(hl/(rvap*Tk(mg))-1.)
       Bpr=rvap*Tk(mg)/((Dva/pk(mg))*es(mg))
       Fr(mg)=fluxrain(mg)/tdt/clfra(mg)
-      Cev=clfra(mg)*3.8e2*sqrt(Fr(mg)/rhoa(mg,k))/(qsl(mg,k)*(Apr+Bpr))
-      dqsdt=hl*qsl(mg,k)/(rvap*ttg(mg,k)**2)
+      Cev=clfra(mg)*3.8e2*sqrt(Fr(mg)/rhoa(mg,k))/(qsl*(Apr+Bpr))
+      dqsdt=hl*qsl/(rvap*ttg(mg,k)**2)
       bl=1.+0.5*Cev*tdt*(1.+hlcp*dqsdt)
-      evap(mg)=tdt*(Cev/bl)*(qsl(mg,k)-qtg(mg,k))
-      satevap=(qsl(mg,k)-qtg(mg,k))/(1.+hlcp*dqsdt) !Evap to saturate
+      evap(mg)=tdt*(Cev/bl)*(qsl-qtg(mg,k))
+      satevap=(qsl-qtg(mg,k))/(1.+hlcp*dqsdt) !Evap to saturate
 !     Vl2=11.3*Fr**(1./9.)/sqrt(rhoa(mg,k))  !Actual fall speed
 !     Vl2=5./sqrt(rhoa(mg,k))                !Nominal fall speed
 
@@ -1272,7 +1268,7 @@ do k=kl-1,1,-1
       ttg(mg,k)=ttg(mg,k)-hlcp*evap(mg)
     end if
   end do
-  frclr(:,k)=rhodz(:)*(clrevap(:)-evap(:)) !over tdt ! MJT suggestion
+  frclr(:)=rhodz(:)*(clrevap(:)-evap(:)) !over tdt ! MJT suggestion
 
   ! Now do the collection term.
   where ( fluxrain(:)>0. )
@@ -1315,14 +1311,13 @@ do k=kl-1,1,-1
   ! Calculate the raining cloud cover down to this level, for stratiform (clfra)
   ! and convective (ccra).
   cfrain(1:ifull,k)=min(1.,cfrain(1:ifull,k)+cfmelt(:,k)-cfrain(1:ifull,k)*cfmelt(:,k)) ! rnd overlap
-  where ( frclr(:,k)<1.e-15 )
+  where ( frclr(:)<1.e-15 )
     rdclfrliq(:)=0.
     mxclfrliq(:)=0.
   end where
   mxclfrliq(:)=max(mxclfrliq(:),cfrain(1:ifull,k)) !max overlap
   clfra(:)=max(1.e-15,rdclfrliq(:)+mxclfrliq(:)-rdclfrliq(:)*mxclfrliq(:)) !rnd overlap the mx and rd rain fractions
   ccra(:)=max(ccra(:),ccrain(:,k)) !always max overlap for convective rainfall - MJT
-  fracr(:,k)=clfra(:)
 
   ! Calculate rain fall speed (MJT)
   if ( ncloud>1 ) then
