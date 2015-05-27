@@ -1092,9 +1092,9 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
             convpsav(iq)=fluxt(iq,k)
             kmin(iq)=k   ! level where fluxt is a minimum (diagnostic)
           endif    ! (sig(k)<sig(kb_sav(iq)-....and.)
-          if(dels(iq,kb_sav(iq))+alfqarr(iq)*hl*delq(iq,kb_sav(iq))>0.)
+          if(dels(iq,kb_sav(iq))+alfqarr(iq)*hl*delq(iq,kb_sav(iq))>=0.)
      &             convpsav(iq)=0. 
-          if(dels(iq,kt_sav(iq))<0.)convpsav(iq)=0.    ! JLM 1505 must stabilize
+          if(dels(iq,kt_sav(iq))<=0.)convpsav(iq)=0.    ! JLM 1505 must stabilize
         endif   ! (k>kb_sav(iq).and.k<kt_sav(iq))
        enddo    ! iq loop
       enddo     ! k loop      

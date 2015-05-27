@@ -1331,8 +1331,8 @@ call getc1(d_c1r,roof%soilwater)
 
 ! calculate minimum heat pumped into canyon by air conditioning (COP updated in canyonflux)
 ! (use split form to estimate G_{*,4} flux into room for AC.  newtemp is an estimate of the temperature at tau+1)
-condterm_roof = 2./(f_roofdepth(:,4)/f_rooflambda(:,4)+r_si)
-condterm_wall = 2./(f_walldepth(:,4)/f_walllambda(:,4)+r_si)
+condterm_roof = 1./(0.5*f_roofdepth(:,4)/f_rooflambda(:,4)+r_si)
+condterm_wall = 1./(0.5*f_walldepth(:,4)/f_walllambda(:,4)+r_si)
 newtemp  = roof%temp(:,4)-condterm_roof*(roof%temp(:,4)-f_bldtemp)/(f_roofcp(:,4)*f_roofdepth(:,4)/ddt    &
           +condterm_roof)
 gflxroof = (1.-f_sigmavegr)*condterm_roof*(newtemp-f_bldtemp)
