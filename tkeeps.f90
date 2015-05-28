@@ -53,7 +53,7 @@ real, parameter :: cq      = 2.5    ! Adjustment to ED in absence of MF
 real, parameter :: ent0    = 0.25   ! Entrainment constant (Controls height of boundary layer)
 real, parameter :: dtrn0   = 0.4    ! Unsaturated detrainment constant
 real, parameter :: dtrc0   = 0.9    ! Saturated detrainment constant
-real, parameter :: m0      = 0.06   ! Mass flux amplitude constant
+real, parameter :: m0      = 0.03   ! Mass flux amplitude constant
 real, parameter :: b1      = 2.     ! Soares et al (2004) 1., Siebesma et al (2003) 2.
 real, parameter :: b2      = 1./3.  ! Soares et al (2004) 2., Siebesma et al (2003) 1./3.
 
@@ -156,13 +156,12 @@ real, dimension(ifull), intent(in) :: fg,eg,ps,zom,rhos
 real, dimension(kl), intent(in) :: sig
 real, dimension(ifull,kl,naero) :: gamar
 real, dimension(ifull,kl) :: km,thetav,thetal,temp,qsat
-real, dimension(ifull,kl) :: gamtv,gamtl,gamqv,gamql,gamqf
-real, dimension(ifull,kl) :: gamqr,gamhl,gamth,gamcf,gamcr
-real, dimension(ifull,kl) :: thetavnc,qsatc,thetac,tempc
-real, dimension(ifull,kl) :: tkenew,epsnew,bb,cc,dd,ff,rr
-real, dimension(ifull,kl) :: rhoa,rhoahl,thetavhl,thetahl
-real, dimension(ifull,kl) :: qshl,qlhl,qfhl
+real, dimension(ifull,kl) :: gamtl,gamqv,gamql,gamqf
+real, dimension(ifull,kl) :: gamqr,gamhl,gamcf,gamcr
+real, dimension(ifull,kl) :: tkenew,epsnew,bb,cc,dd,rr
+real, dimension(ifull,kl) :: rhoa,rhoahl
 real, dimension(ifull,kl) :: pres
+real, dimension(ifull,kl) :: qtot,qthl,tempry,qlhl,qfhl,thetahl
 real, dimension(ifull,2:kl) :: idzm
 real, dimension(ifull,1:kl-1) :: idzp
 real, dimension(ifull,2:kl) :: aa,qq,pps,ppt,ppb
@@ -172,8 +171,9 @@ real, dimension(ifull,kl-1) :: fzzh
 real, dimension(ifull,naero) :: arup
 real, dimension(ifull) :: wt0,wq0,wtv0
 real, dimension(ifull) :: wstar,z_on_l,phim
-real, dimension(ifull) :: tff,tbb,tcc,tgg,tqq,qgnc,dum
+real, dimension(ifull) :: tff,tgg,dum
 real, dimension(ifull) :: cdrag,umag,ustar
+real, dimension(ifull) :: tempv,rvar,bvf,dc,mc,fc
 real, dimension(kl) :: sigkap
 real, dimension(kl) :: w2up,nn,dqdash
 real, dimension(kl) :: qtup,qupsat,ttup,tvup,tlup,thup
@@ -185,7 +185,6 @@ real dzht,ziold,ent,entc,entn,dtr,dtrc,dtrn,dtrx
 real ddts,zlcl
 real lx,tempd,fice,qxup,dqsdt,al
 real sigqtup,rng
-logical, dimension(ifull,kl) :: lta
 logical scond
 
 cm12=1./sqrt(cm0)
@@ -266,13 +265,12 @@ do kcount=1,mcount
     call getqsat(qsat(:,k),temp(:,k),pres(:,k))
   end do
   thetav=theta(1:ifull,:)*(1.+0.61*qvg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:)-qrg(1:ifull,:))
+  qtot=qvg(1:ifull,:)+qlg(1:ifull,:)+qfg(1:ifull,:)+qrg(1:ifull,:)
 
   ! Calculate non-local mass-flux terms for theta_l and qtot
   ! Plume rise equations currently assume that the air density
   ! is constant in the plume (i.e., volume conserving)
   gamtl=0.
-  gamth=0.
-  gamtv=0.
   gamqv=0.
   gamql=0.
   gamqf=0.
@@ -564,8 +562,6 @@ do kcount=1,mcount
           gamql(i,k)=mflx(k)*(qlup(k)-qlg(i,k))
           gamqf(i,k)=mflx(k)*(qfup(k)-qfg(i,k))
           gamqr(i,k)=mflx(k)*(qrup(k)-qrg(i,k))
-          gamth(i,k)=gamtl(i,k)+sigkap(k)*(lv*(gamql(i,k)+gamqr(i,k))+ls*gamqf(i,k))/cp
-          gamtv(i,k)=gamth(i,k)+theta(i,k)*(0.61*gamqv(i,k)-gamql(i,k)-gamqf(i,k)-gamqr(i,k))
         end do
 
         ! update reamining scalars which are not used in the iterative loop
@@ -636,60 +632,44 @@ do kcount=1,mcount
   eps(1:ifull,1)=max(eps(1:ifull,1),tff/maxl,mineps)
 
 
-  ! Calculate sources and sinks for TKE and eps
-  ! prepare arrays for calculating buoyancy of saturated air
-  ! (i.e., related to the saturated adiabatic lapse rate)
-  qsatc=max(qsat,qvg(1:ifull,:))                                             ! assume qvg is saturated inside cloud
-  ff=qfg(1:ifull,:)/max(cfrac(1:ifull,:),1.E-8)                              ! inside cloud value
-  dd=qlg(1:ifull,:)/max(cfrac(1:ifull,:),1.E-8)                            &
-    +qrg(1:ifull,:)/max(cfrac(1:ifull,:),cfrain(1:ifull,:),1.E-8)            ! inside cloud value assuming max overlap
-  do k=1,kl
-    tbb=max(1.-cfrac(1:ifull,k),1.E-8)
-    qgnc=(qvg(1:ifull,k)-(1.-tbb)*qsatc(:,k))/tbb                            ! outside cloud value
-    qgnc=min(max(qgnc,qgmin),qsatc(:,k))
-    thetac(:,k)=thetal(:,k)+sigkap(k)*(lv*dd(:,k)+ls*ff(:,k))/cp             ! inside cloud value
-    tempc(:,k)=thetac(:,k)/sigkap(k)                                         ! inside cloud value
-    thetavnc(:,k)=thetal(:,k)*(1.+0.61*qgnc)                                 ! outside cloud value
-  end do
-  call updatekmo(thetahl,thetac,fzzh)                                        ! inside cloud value
-  call updatekmo(thetavhl,thetavnc,fzzh)                                     ! outside cloud value
-  call updatekmo(qshl,qsatc,fzzh)                                            ! inside cloud value
-  call updatekmo(qlhl,dd,fzzh)                                               ! inside cloud value
-  call updatekmo(qfhl,ff,fzzh)                                               ! inside cloud value
-  ! fixes for clear/cloudy interface
-  lta(:,2:kl)=cfrac(1:ifull,2:kl)<=1.E-6
-  do k=2,kl-1
-    where(lta(:,k).and..not.lta(:,k+1))
-      qlhl(:,k)=dd(:,k+1)
-      qfhl(:,k)=ff(:,k+1)
-    elsewhere (.not.lta(:,k).and.lta(:,k+1))
-      qlhl(:,k)=dd(:,k)
-      qfhl(:,k)=ff(:,k)
-    end where
-  end do
-
   ! Update TKE and eps terms
 
   ! top boundary condition to avoid unphysical behaviour at the top of the model
   tke(1:ifull,kl)=mintke
   eps(1:ifull,kl)=mineps
+  
+  call updatekmo(thetahl,theta,fzzh)
+  call updatekmo(qthl,qtot,fzzh)
+  tempry=qlg(1:ifull,:)+qrg(1:ifull,:)
+  call updatekmo(qlhl,tempry,fzzh)
+  call updatekmo(qfhl,qfg,fzzh)
 
   do k=2,kl-1
     ! Calculate buoyancy term
-    ! saturated from Durran and Klemp JAS 1982 (see also WRF)
-    tqq=(1.+lv*qsatc(:,k)/(rd*tempc(:,k)))/(1.+lv*lv*qsatc(:,k)/(cp*rv*tempc(:,k)*tempc(:,k)))
-    tbb=-grav*km(:,k)*(tqq*((thetahl(:,k)-thetahl(:,k-1))/thetac(:,k)                              &
-           +lv*(qshl(:,k)-qshl(:,k-1))/(cp*tempc(:,k)))-qshl(:,k)-qlhl(:,k)-qfhl(:,k)              &
-           +qshl(:,k-1)+qlhl(:,k-1)+qfhl(:,k-1))/dz_fl(:,k)
-    tbb=tbb+grav*(tqq*(gamtl(:,k)/thetac(:,k)+lv*gamqv(:,k)/(cp*tempc(:,k)))                       &
-           -gamqv(:,k)-gamql(:,k)-gamqf(:,k)-gamqr(:,k))
-    ! unsaturated
-    tcc=-grav*km(:,k)*(thetavhl(:,k)-thetavhl(:,k-1))/(thetavnc(:,k)*dz_fl(:,k))
-    tcc=tcc+grav*gamtv(:,k)/thetavnc(:,k)
-    ppb(:,k)=(1.-cfrac(1:ifull,k))*tcc+cfrac(1:ifull,k)*tbb ! cloud fraction weighted (e.g., Smith 1990)
+    ! Follow Marquet and Geleyn QJRMS (2012)
+    tempv=temp(:,k)*thetav(:,k)/theta(1:ifull,k)
+    rvar=rd*tempv/temp(:,k) ! rvar = qd*rd+qv*rv
+    fc=(1.-cfrac(1:ifull,k))+cfrac(1:ifull,k)*(lv*rvar/(cp*rv*temp(:,k)))
+    dc=(1.+0.61*qvg(1:ifull,k))*lv*qvg(1:ifull,k)/(rd*tempv)
+    mc=(1.+dc)/(1.+(lv*tempry(:,k)+ls*qfg(1:ifull,k))/(cp*temp(:,k))+dc*fc)
+    bvf=grav*mc*(thetahl(:,k)-thetahl(:,k-1))/(theta(:,k)*dz_fl(:,k))              &
+       -grav*mc*(lv/(cp*temp(:,k)))*(qlhl(:,k)-qlhl(:,k-1))/dz_fl(:,k)             &
+       -grav*mc*(ls/(cp*temp(:,k)))*(qfhl(:,k)-qfhl(:,k-1))/dz_fl(:,k)             &
+       +grav*(mc*fc*1.61-1.)*(temp(:,k)/tempv)*(qthl(:,k)-qthl(:,k-1))/dz_fl(:,k)
+    ppb(:,k)=-km(:,k)*bvf
+
+    !! saturated from Durran and Klemp JAS 1982 (see also WRF)
+    !tqq=(1.+lv*qsatc(:,k)/(rd*tempc(:,k)))/(1.+lv*lv*qsatc(:,k)/(cp*rv*tempc(:,k)*tempc(:,k)))
+    !tbb=-grav*km(:,k)*(tqq*((thetahl(:,k)-thetahl(:,k-1))/thetac(:,k)                              &
+    !       +lv*(qshl(:,k)-qshl(:,k-1))/(cp*tempc(:,k)))-qshl(:,k)-qlhl(:,k)-qfhl(:,k)              &
+    !       +qshl(:,k-1)+qlhl(:,k-1)+qfhl(:,k-1))/dz_fl(:,k)
+    !! unsaturated
+    !tcc=-grav*km(:,k)*(thetavhl(:,k)-thetavhl(:,k-1))/(thetavnc(:,k)*dz_fl(:,k))
+    !tcc=tcc+grav*gamtv(:,k)/thetavnc(:,k)
+    !ppb(:,k)=(1.-cfrac(1:ifull,k))*tcc+cfrac(1:ifull,k)*tbb ! cloud fraction weighted (e.g., Smith 1990)
 
     ! Calculate transport source term on full levels
-    ppt(:,k)= kmo(:,k)*idzp(:,k)*(tke(1:ifull,k+1)-tke(1:ifull,k))/dz_hl(:,k)                                  &
+    ppt(:,k)= kmo(:,k)*idzp(:,k)*(tke(1:ifull,k+1)-tke(1:ifull,k))/dz_hl(:,k)     &
              -kmo(:,k-1)*idzm(:,k)*(tke(1:ifull,k)-tke(1:ifull,k-1))/dz_hl(:,k-1)
   end do
   
@@ -731,6 +711,8 @@ do kcount=1,mcount
   rr(:,1:kl-1)=-ddts*kmo(:,1:kl-1)*idzp(:,1:kl-1)/dz_hl(:,1:kl-1)
 
   ! updating diffusion and non-local terms for qtot and thetal
+  ! Note that vertical interpolation is linear so that qtot can be
+  ! decomposed into qv, ql, qf and qr.
   call updatekmo(gamhl,gamtl,fzzh)
   cc(:,1)     =rr(:,1)
   bb(:,1)     =1.-rr(:,1)
@@ -830,14 +812,23 @@ do kcount=1,mcount
   ! Winds
   aa(:,2:kl)  =qq(:,2:kl)
   cc(:,1:kl-1)=rr(:,1:kl-1)
-  bb(:,1)=1.-cc(:,1)+ddts*rhos*cdrag*umag/(rhoa(:,1)*dz_fl(:,1)) 
+  bb(:,1)=1.-cc(:,1)+ddts*rhos*cdrag*umag/(rhoa(:,1)*dz_fl(:,1)) ! implicit
   bb(:,2:kl-1)=1.-aa(:,2:kl-1)-cc(:,2:kl-1)
   bb(:,kl)=1.-aa(:,kl)
   dd(:,1:kl)=uo(1:ifull,1:kl)
+  ! bb(:,1)=1.-cc(:,1)                                           ! explicit
+  ! dd(:,1:kl)=uo(1:ifull,1:kl)-ddts*taux/(rhoa(:,1)*dz_fl(:,1)) ! explicit
   call thomas(uo,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
   dd(:,1:kl)=vo(1:ifull,1:kl)
+  ! dd(:,1:kl)=vo(1:ifull,1:kl)-ddts*tauy/(rhoa(:,1)*dz_fl(:,1)) ! explicit
   call thomas(vo,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
 
+  ! umag=sqrt(max(uo(1:ifull,1)*uo(1:ifull,1)+vo(1:ifull,1)*vo(1:ifull,1),1.e-4)) ! explicit
+  ! call dyerhicks(cdrag,wtv0,zom,umag,thetav(:,1),zz(:,1))                       ! explicit
+  ! taux=rhos*cdrag*umag*uo(1:ifull,1)                                            ! explicit
+  ! tauy=rhos*cdrag*umag*vo(1:ifull,1)                                            ! explicit
+  ! ustar=sqrt(sqrt(taux*taux+tauy*tauy)/rhos)                                    ! explicit
+  
 end do
 
 return
@@ -944,11 +935,11 @@ subroutine updatekmo(kmo,km,fzhl)
 
 implicit none
 
-real, dimension(ifull,kl), intent(in) :: km
+real, dimension(:,:), intent(in) :: km
 real, dimension(ifull,kl-1), intent(in) :: fzhl
 real, dimension(ifull,kl), intent(out) :: kmo
 
-kmo(:,1:kl-1)=km(:,1:kl-1)+fzhl(:,1:kl-1)*(km(:,2:kl)-km(:,1:kl-1))
+kmo(:,1:kl-1)=km(1:ifull,1:kl-1)+fzhl(:,1:kl-1)*(km(1:ifull,2:kl)-km(1:ifull,1:kl-1))
 ! These terms are never used
 kmo(:,kl)=0.
 
