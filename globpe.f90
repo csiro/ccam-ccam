@@ -69,7 +69,7 @@ use soil_m                                 ! Soil and surface data
 use soilsnow_m                             ! Soil, snow and surface data
 use tbar2d_m, only : tbar2d_init           ! Atmosphere dynamics reference temperature
 use timeseries, only : write_ts            ! Tracer time series
-use tkeeps, only : tkeinit                 ! TKE-EPS boundary layer
+use tkeeps                                 ! TKE-EPS boundary layer
 use tracermodule, only : init_tracer     & ! Tracer routines
    ,trfiles,tracer_mass                  &
    ,interp_tracerflux,tracerlist
@@ -175,6 +175,8 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         &
     nstab_cld,nuvconv,rhcv,rhmois,rhsat,sigcb,sigcll,sig_ct,      &
     sigkscb,sigksct,tied_con,tied_over,tied_rh,comm,acon,bcon,    &
     rcm,rcrit_l,rcrit_s,ncloud,nlvlmeth
+namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,dtrn0,dtrc0,m0,   &
+    b1,b2
 
 data nversion/0/
 data comment/' '/,comm/' '/,irest/1/,jalbfix/1/,nalpha/1/
@@ -258,6 +260,9 @@ kountr   = nint(mins_rad*60./dt)  ! set default radiation to ~mins_rad m
 mins_rad = nint(kountr*dt/60.)    ! redefine to actual value
 read(99, datafile)
 read(99, kuonml)
+! try reading boundary layer turbulence namelist
+read(99, turbnml, iostat=ierr)
+if (ierr/=0) rewind(99)
 ! try reading tracer namelist.  If no namelist is found, then disable
 ! tracers and rewind namelist.
 ngas = 0
@@ -441,9 +446,16 @@ if ( myid==0 ) then
   write(6,*)'Horizontal mixing options:'
   write(6,*)' khdif  khor   nhor   nhorps nhorjlm'
   write(6,'(i5,11i7)') khdif,khor,nhor,nhorps,nhorjlm
-  write(6,*)'Vertical mixing/physics options:'
+  write(6,*)'Vertical mixing/physics options A:'
   write(6,*)' nvmix nlocal ncvmix lgwd   ngwd   '
   write(6,'(i5,6i7)') nvmix,nlocal,ncvmix,lgwd,ngwd
+  write(6,*)'Vertical mixing/physics options B:'
+  write(6,*)' be   cm0  ce0  ce1  ce2  ce3  cq'
+  write(6,'(7f5.2)') be,cm0,ce0,ce1,ce2,ce3,cq
+  write(6,*)'Vertical mixing/physics options C:'
+  write(6,*)' ent0  dtrn0 dtrc0   m0    b1    b2'
+  write(6,'(6f6.2)') ent0,dtrn0,dtrc0,m0,b1,b2
+  write(6,*)'Gravity wave drag options:'
   write(6,*)' helim fc2    alphaj'
   write(6,'(2f9.2,g9.2)') helim,fc2,alphaj
   write(6,*)'Cumulus convection options A:'

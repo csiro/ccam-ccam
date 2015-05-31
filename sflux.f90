@@ -206,7 +206,6 @@ if (nmlo==0) then                                                               
     es = establ(tpan(iq))                                                                        ! sea
     constz=ps(iq)-es                                                                             ! sea
     qsttg(iq)= .98*.622*es/constz  ! with Zeng 1998 for sea water                                ! sea
-    drst=qsttg(iq)*ps(iq)*hlars/(constz*tpan(iq)**2)                                             ! sea
     xx=grav*zmin*(1.-tpan(iq)*srcp/t(iq,1))                                                      ! sea
     ri(iq)=min(xx/vmag(iq)**2 , ri_max)                                                          ! sea
     ! this is in-line ocenzo using latest coefficient, i.e. .018                                 ! sea
@@ -487,6 +486,21 @@ elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                                     
     neta=0.                                                                                      ! MLO
     call mloimport(4,neta,0,0)                                                                   ! MLO
   end if                                                                                         ! MLO
+                                                                                                 ! MLO
+  ! pan evaporation diagnostic                                                                   ! MLO
+  qsttg=qsat(ps(1:ifull),tpan)                                                                   ! MLO
+  do ip=1,ipland                                                                                 ! MLO
+    iq=iperm(ip)                                                                                 ! MLO
+    ri(iq)=min(grav*zmin*(1.-tpan(iq)*srcp/t(iq,1))/vmag(iq)**2,ri_max)                          ! MLO
+    if(ri(iq)>0.)then                                                                            ! MLO
+      fh(iq)=vmod(iq)/(1.+bprm*ri(iq))**2                                                        ! MLO
+    else                                                                                         ! MLO
+      root=sqrt(-ri(iq)*zmin/panzo)                                                              ! MLO
+      denha=1.+chs*2.*bprm*sqrt(panzo*ztv)*chnsea*root                                           ! MLO
+      fh(iq)=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/denha                                             ! MLO
+    endif                                                                                        ! MLO
+    epan(iq)=rho(iq)*chnsea*hl*fh(iq)*(qsttg(iq)-qg(iq,1))                                       ! MLO
+  end do                                                                                         ! MLO
                                                                                                  ! MLO
   ! Ocean mixing                                                                                 ! MLO
   dumsg=sgsave(:)/(1.-swrsave*albvisnir(:,1)-(1.-swrsave)*albvisnir(:,2))                        ! MLO

@@ -25,7 +25,8 @@ implicit none
 
 private
 public tkeinit,tkemix,tkeend,tke,eps,shear,zidry
-public mintke,mineps,cm0,cq,minl,maxl
+public mintke,mineps,minl,maxl
+public be,cm0,ce0,ce1,ce2,ce3,cq,ent0,dtrn0,dtrc0,m0,b1,b2
 #ifdef offline
 public wthl,wqv,wql,wqf
 public mf,w_up,tl_up,qv_up,ql_up,qf_up,cf_up
@@ -43,19 +44,19 @@ real, dimension(:,:), allocatable, save :: u,v,ents,dtrs
 #endif
 
 ! model constants
-real, parameter :: be      = 0.1    ! Hurley (2007) 1., Soares et al (2004) 0.3
-real, parameter :: cm0     = 0.09   ! Hurley (2007) 0.09, Duynkerke 1988 0.03, Duynkerke 1987 0.09
-real, parameter :: ce0     = 0.69   ! Hurley (2007) 0.69, Duynkerke 1988 0.42, Duynkerke 1987 0.77
-real, parameter :: ce1     = 1.46
-real, parameter :: ce2     = 1.83
-real, parameter :: ce3     = 0.45   ! Hurley (2007) 0.45, Duynkerke 1987 0.35
-real, parameter :: cq      = 2.5    ! Adjustment to ED in absence of MF
-real, parameter :: ent0    = 0.25   ! Entrainment constant (Controls height of boundary layer)
-real, parameter :: dtrn0   = 0.4    ! Unsaturated detrainment constant
-real, parameter :: dtrc0   = 0.9    ! Saturated detrainment constant
-real, parameter :: m0      = 0.06   ! Mass flux amplitude constant
-real, parameter :: b1      = 2.     ! Soares et al (2004) 1., Siebesma et al (2003) 2.
-real, parameter :: b2      = 1./3.  ! Soares et al (2004) 2., Siebesma et al (2003) 1./3.
+real, save :: be      = 0.1    ! Hurley (2007) 1., Soares et al (2004) 0.3
+real, save :: cm0     = 0.09   ! Hurley (2007) 0.09, Duynkerke 1988 0.03, Duynkerke 1987 0.09
+real, save :: ce0     = 0.69   ! Hurley (2007) 0.69, Duynkerke 1988 0.42, Duynkerke 1987 0.77
+real, save :: ce1     = 1.46
+real, save :: ce2     = 1.83
+real, save :: ce3     = 0.45   ! Hurley (2007) 0.45, Duynkerke 1987 0.35
+real, save :: cq      = 2.5    ! Adjustment to ED in absence of MF
+real, save :: ent0    = 0.25   ! Entrainment constant (Controls height of boundary layer)
+real, save :: dtrn0   = 0.4    ! Unsaturated detrainment constant
+real, save :: dtrc0   = 0.9    ! Saturated detrainment constant
+real, save :: m0      = 0.06   ! Mass flux amplitude constant
+real, save :: b1      = 2.     ! Soares et al (2004) 1., Siebesma et al (2003) 2.
+real, save :: b2      = 1./3.  ! Soares et al (2004) 2., Siebesma et al (2003) 1./3.
 
 ! physical constants
 real, parameter :: grav  = 9.80616    ! (m s^-2)
