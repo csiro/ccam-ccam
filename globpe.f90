@@ -140,7 +140,9 @@ character(len=8) rundate
 character(len=2) text
 logical odcalc
 
+! version namelist
 namelist/defaults/nversion
+! main namelist
 namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     ja,jb,id,jd,iaero,khdif,khor,nhorjlm,mex,mbd,nbd,ndi,ndi2,    &
     nhor,nlv,nmaxpr,nrad,ntaft,ntsea,ntsur,nvmix,restol,          &
@@ -159,7 +161,9 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     bpyear,rescrn,helmmeth,nmlo,ol,mxd,mindep,minwater,ocnsmag,   &
     ocneps,mlodiff,knh,ccycle,kblock,nud_aero,ch_dust,zvolcemi,   &
     aeroindir,helim,fc2,alphaj,proglai
+! radiation namelist
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams
+! file namelist
 namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,hfile,     &
     icefile,mesonest,nmifile,o3file,radfile,restfile,rsmfile,     &
     scamfile,scrnfile,snowfile,so4tfile,soilfile,sstfile,surfile, &
@@ -167,6 +171,7 @@ namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,hfile,     &
     soil2file,radonemfile,co2_00,radon_00,surf_00,co2_12,         &
     radon_12,surf_12,laifile,albnirfile,urbanfile,bathfile,       &
     vegprev,vegnext,cnsdir,salfile,oxidantfile,casafile,phenfile
+! convection and cloud microphysics namelist
 namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         &
     cldh_sea,cldm_sea,cldl_sea,convfact,convtime,shaltime,        &
     detrain,detrainx,dsig2,dsig4,entrain,fldown,iterconv,ksc,     &
@@ -175,8 +180,9 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         &
     nstab_cld,nuvconv,rhcv,rhmois,rhsat,sigcb,sigcll,sig_ct,      &
     sigkscb,sigksct,tied_con,tied_over,tied_rh,comm,acon,bcon,    &
     rcm,rcrit_l,rcrit_s,ncloud,nlvlmeth
+! boundary layer turbulence namelist
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,dtrn0,dtrc0,m0,   &
-    b1,b2
+    b1,b2,buoymeth,icm1,maxdts,mintke,mineps,minl,maxl
 
 data nversion/0/
 data comment/' '/,comm/' '/,irest/1/,jalbfix/1/,nalpha/1/
@@ -455,6 +461,12 @@ if ( myid==0 ) then
   write(6,*)'Vertical mixing/physics options C:'
   write(6,*)' ent0  dtrn0 dtrc0   m0    b1    b2'
   write(6,'(6f6.2)') ent0,dtrn0,dtrc0,m0,b1,b2
+  write(6,*)'Vertical mixing/physics options D:'
+  write(6,*)' buoymeth icm1 maxdts'
+  write(6,'(i9,i5,f7.1)') buoymeth,icm1,maxdts
+  write(6,*)'Vertical mixing/physics options E:'
+  write(6,*)'   mintke   mineps     minl     maxl'
+  write(6,'(4g9.2)') mintke,mineps,minl,maxl
   write(6,*)'Gravity wave drag options:'
   write(6,*)' helim fc2    alphaj'
   write(6,'(2f9.2,g9.2)') helim,fc2,alphaj
