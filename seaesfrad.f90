@@ -91,7 +91,7 @@ integer k,ksigtop,mins
 integer i,j,iq,istart,iend,kr,nr
 integer ierr,ktop,kbot
 integer, save :: nlow,nmid
-real, dimension(:), allocatable, save :: sgamp
+real, dimension(:), allocatable, save :: sgamp,rgamp
 real, dimension(:,:), allocatable, save :: rtt
 real, dimension(imax,kl) :: duo3n,rhoa
 real, dimension(imax,kl) :: p2,cd2,dumcf,dumql,dumqf,dumt,dz
@@ -158,7 +158,7 @@ if ( first ) then
   first = .false.
 
   if ( myid==0 ) write(6,*) "Initalising SEA-ESF radiation"
-  allocate(sgamp(ifull),rtt(ifull,kl))
+  allocate(sgamp(ifull),rgamp(ifull),rtt(ifull,kl))
 
   ! initialise co2
   call co2_read(sig,jyear)
@@ -1096,11 +1096,9 @@ do j = 1,jl,imax/il
     end where
 
     ! Save things for non-radiation time steps ----------------------
-    sgsave(istart:iend)   = sg(1:imax)   ! repeated after solarfit
     sgamp(istart:iend)    = sga(1:imax)
-    ! Save the value excluding Ts^4 part.  This is allowed to change.
-    rgsave(istart:iend)   = rg(1:imax)-stefbo*tss(istart:iend)**4
     sintsave(istart:iend) = sint(1:imax) 
+    rgamp(istart:iend)    = rg(1:imax)
     rtsave(istart:iend)   = rt(1:imax) 
     rtclsave(istart:iend) = rtclr(1:imax)  
     sgclsave(istart:iend) = sgclr(1:imax)
@@ -1148,7 +1146,7 @@ do j = 1,jl,imax/il
 
   ! Calculate the solar using the saved amplitude.
   sg(1:imax) = sgamp(istart:iend)*coszro2(1:imax)*taudar2(1:imax)
-  if(ktau>0)then ! averages not added at time zero
+  if ( ktau>0 ) then ! averages not added at time zero
     sgn_ave(istart:iend)  = sgn_ave(istart:iend)  + sg(1:imax)
     where (sg(1:imax)/ ( 1. - swrsave(istart:iend)*albvisnir(istart:iend,1) &
            -(1.-swrsave(istart:iend))*albvisnir(istart:iend,2) )>120.)
@@ -1161,6 +1159,8 @@ do j = 1,jl,imax/il
   ! Note that this does not include the upward LW radiation from the surface.
   ! That is included in sflux.f
   sgsave(istart:iend) = sg(1:imax)   ! this is the repeat after solarfit
+  ! Save the value excluding Ts^4 part.  This is allowed to change.
+  rgsave(istart:iend) = rgamp(istart:iend)-stefbo*tss(istart:iend)**4  
   slwa(istart:iend) = -sgsave(istart:iend)+rgsave(istart:iend)
 
 end do  ! Row loop (j)  j=1,jl,imax/il

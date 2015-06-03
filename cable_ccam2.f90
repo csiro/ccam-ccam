@@ -206,7 +206,9 @@ call setco2for(atmco2)
 ! set meteorological forcing
 tv    = t(1:ifull,1)*(1.+0.61*qg(1:ifull,1)-qlg(1:ifull,1)-qfg(1:ifull,1))
 ! swdwn is downwelling shortwave (positive) W/m^2
-alb   = swrsave*albvisnir(:,1)-(1.-swrsave)*albvisnir(:,2)
+albvissav = fbeamvis*albvisdir + (1.-fbeamvis)*albvisdif
+albnirsav = fbeamnir*albnirdir + (1.-fbeamnir)*albnirdif
+alb   = swrsave*albvissav + (1.-swrsave)*albnirsav
 swdwn = sgsave/(1.-alb)
 do nb=1,maxnb
   is = pind(nb,1)
@@ -400,8 +402,6 @@ do k=1,3
   end where
 end do
 where ( land )
-  albvissav=0.
-  albnirsav=0.
   albvisdir=0.
   albvisdif=0.
   albnirdir=0.
@@ -433,8 +433,6 @@ do nb=1,maxnb
   is = pind(nb,1)
   ie = pind(nb,2)
   ! radiation
-  albvissav=albvissav+unpack(sv(is:ie)*rad%albedo(is:ie,1),tmap(:,nb),0.)
-  albnirsav=albnirsav+unpack(sv(is:ie)*rad%albedo(is:ie,2),tmap(:,nb),0.)
   albvisdir=albvisdir+unpack(sv(is:ie)*rad%reffbm(is:ie,1),tmap(:,nb),0.)
   albnirdir=albnirdir+unpack(sv(is:ie)*rad%reffbm(is:ie,2),tmap(:,nb),0.)
   albvisdif=albvisdif+unpack(sv(is:ie)*rad%reffdf(is:ie,1),tmap(:,nb),0.)
@@ -537,26 +535,30 @@ end if
 ! rsmin is typically used by CTM
 
 where ( land )
-  zo    =zmin*exp(-1./sqrt(zo))
-  zoh   =zo/7.4
-  zoq   =zoh
-  ustar =sqrt(cduv)*vmod  
-  cduv  =cduv*vmod           ! cduv is Cd*vmod in CCAM
-  cdtq  =cdtq*vmod
-  tss   =tss**0.25
-  rsmin =1./rsmin
-  rnet  =swdwn*(swrsave*(1.-albvissav)+(1.-swrsave)*(1.-albnirsav))-rgsave-stefbo*tss**4
-  !tscrn=tscrn+273.16       ! convert from degC to degK
+  zo        = zmin*exp(-1./sqrt(zo))
+  zoh       = zo/7.4
+  zoq       = zoh
+  ustar     = sqrt(cduv)*vmod  
+  cduv      = cduv*vmod           ! cduv is Cd*vmod in CCAM
+  cdtq      = cdtq*vmod
+  tss       = tss**0.25
+  rsmin     = 1./rsmin
+  ! update albedo and tss before calculating net radiation
+  albvissav = fbeamvis*albvisdir + (1.-fbeamvis)*albvisdif
+  albnirsav = fbeamnir*albnirdir + (1.-fbeamnir)*albnirdif  
+  alb       = swrsave*albvissav + (1.-swrsave)*albnirsav
+  rnet      = swdwn*(1.-alb)-rgsave-stefbo*tss**4
+  !tscrn    = tscrn+273.16       ! convert from degC to degK
 end where
 where ( land .and. tmps>=0.5 ) ! tmps is average isflag
-  isflag=1
+  isflag = 1
 elsewhere
-  isflag=0
+  isflag = 0
 endwhere
 do iq=1,ifull
   if ( land(iq) ) then
-    esatf=establ(tss(iq))
-    qsttg(iq)=.622*esatf/(ps(iq)-esatf)
+    esatf = establ(tss(iq))
+    qsttg(iq) = 0.622*esatf/(ps(iq)-esatf)
   end if
 end do
 
