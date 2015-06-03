@@ -157,7 +157,9 @@ real, dimension(ifull,kl), intent(in) :: zz,zzh
 real, dimension(ifull), intent(inout) :: zi
 real, dimension(ifull), intent(in) :: fg,eg,ps,zom,rhos
 real, dimension(kl), intent(in) :: sig
-real, dimension(ifull,kl,naero) :: gamar,arup
+real, dimension(ifull,kl,naero) :: arup
+real, dimension(ifull,kl) :: gamtv,gamtl,gamqv,gamql,gamqf
+real, dimension(ifull,kl) :: gamqr,gamth
 real, dimension(ifull,kl) :: km,thetav,thetal,thetalhl,temp,qsat
 real, dimension(ifull,kl) :: qsatc,ff,thetac,thetavnc,tempc
 real, dimension(ifull,kl) :: thetavhl,thetahl
@@ -284,6 +286,14 @@ do kcount=1,mcount
   if (naero>0) then
     arup=aero(1:ifull,:,:)
   end if
+
+  gamtl=0.
+  gamth=0.
+  gamtv=0.
+  gamqv=0.
+  gamql=0.
+  gamqf=0.
+  gamqr=0.
   
 #ifdef offline
   mf=0.
@@ -574,6 +584,16 @@ do kcount=1,mcount
             arup(i,k,j)=(arup(i,k-1,j)+dzht*ent*aero(i,k,j))/(1.+dzht*ent)
           end do
         end do
+        
+        do k=1,ktopmax
+          gamtl(i,k)=mflx(i,k)*(tlup(i,k)-thetal(i,k))
+          gamqv(i,k)=mflx(i,k)*(qvup(i,k)-qvg(i,k) )
+          gamql(i,k)=mflx(i,k)*(qlup(i,k)-qlg(i,k))
+          gamqf(i,k)=mflx(i,k)*(qfup(i,k)-qfg(i,k))
+          gamqr(i,k)=mflx(i,k)*(qrup(i,k)-qrg(i,k))
+          gamth(i,k)=gamtl(i,k)+sigkap(k)*(lv*(gamql(i,k)+gamqr(i,k))+ls*gamqf(i,k))/cp
+          gamtv(i,k)=gamth(i,k)+theta(i,k)*(0.61*gamqv(i,k)-gamql(i,k)-gamqf(i,k)-gamqr(i,k))
+        end do
 
       else                   ! stable
         !wpv_flux is calculated at half levels
@@ -661,11 +681,11 @@ do kcount=1,mcount
         tbb=-grav*km(:,k)*(tqq*((thetahl(:,k)-thetahl(:,k-1))/thetac(:,k)                              &
                +lv*(qshl(:,k)-qshl(:,k-1))/(cp*tempc(:,k)))-qshl(:,k)-qlhl(:,k)-qfhl(:,k)              &
                +qshl(:,k-1)+qlhl(:,k-1)+qfhl(:,k-1))/dz_fl(:,k)
-        !tbb=tbb+grav*(tqq*(gamtl(:,k)/thetac(:,k)+lv*gamqv(:,k)/(cp*tempc(:,k)))                       &
-        !       -gamqv(:,k)-gamql(:,k)-gamqf(:,k)-gamqr(:,k))
+        tbb=tbb+grav*(tqq*(gamtl(:,k)/thetac(:,k)+lv*gamqv(:,k)/(cp*tempc(:,k)))                       &
+               -gamqv(:,k)-gamql(:,k)-gamqf(:,k)-gamqr(:,k))
         ! unsaturated
         tcc=-grav*km(:,k)*(thetavhl(:,k)-thetavhl(:,k-1))/(thetavnc(:,k)*dz_fl(:,k))
-        !tcc=tcc+grav*gamtv(:,k)/thetavnc(:,k)
+        tcc=tcc+grav*gamtv(:,k)/thetavnc(:,k)
         ppb(:,k)=(1.-cfrac(1:ifull,k))*tcc+cfrac(1:ifull,k)*tbb ! cloud fraction weighted (e.g., Smith 1990)
       end do
       
@@ -677,11 +697,13 @@ do kcount=1,mcount
         rvar=rd*tempv/temp(1:ifull,k) ! rvar = qd*rd+qv*rv
         fc=(1.-cfrac(1:ifull,k))+cfrac(1:ifull,k)*(lv*rvar/(cp*rv*temp(1:ifull,k)))
         dc=(1.+0.61*qvg(1:ifull,k))*lv*qvg(1:ifull,k)/(rd*tempv)
-        mc=(1.+dc)/(1.+(lv*(qlg(1:ifull,k)+qrg(1:ifull,k))+ls*qfg(1:ifull,k))                &
-                          /(cp*temp(1:ifull,k))+dc*fc)
+        mc=(1.+dc)/(1.+(lv*(qlg(1:ifull,k)+qrg(1:ifull,k))+ls*qfg(1:ifull,k))/(cp*temp(1:ifull,k))+dc*fc)
         bvf=grav*mc*(thetalhl(:,k)-thetalhl(:,k-1))/(thetal(1:ifull,k)*dz_fl(:,k))           &
            +grav*(mc*fc*1.61-1.)*(temp(1:ifull,k)/tempv)*(qthl(:,k)-qthl(:,k-1))/dz_fl(:,k)
-        ppb(:,k)=-km(:,k)*bvf
+        tcc=-grav*mc*gamtl(:,k)/thetal(1:ifull,k)                                            &
+            -grav*(mc*fc*1.61-1.)*(temp(1:ifull,k)/tempv)                                    &
+                 *(gamqv(:,k)+gamql(:,k)+gamqf(:,k)+gamqr(:,k))
+        ppb(:,k)=-km(:,k)*bvf-tcc
       end do
    case default
      write(6,*) "ERROR: Unknown buoymeth option ",buoymeth
@@ -735,14 +757,14 @@ do kcount=1,mcount
   ! Note that vertical interpolation is linear so that qtot can be
   ! decomposed into qv, ql, qf and qr.
 
-  aa(:,2:kl-1)=qq(:,2:kl-1)+ddts*mflx(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)
-  aa(:,kl)=qq(:,kl)+ddts*mflx(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)
+  cc(:,1)=rr(:,1)-ddts*mflx(:,2)*fzzh(:,1)*idzp(:,1)
   bb(:,1)=1.-rr(:,1)-ddts*mflx(:,1)*(1.-fzzh(:,1))*idzp(:,1)
+  aa(:,2:kl-1)=qq(:,2:kl-1)+ddts*mflx(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)
+  cc(:,2:kl-1)=rr(:,2:kl-1)-ddts*mflx(:,3:kl)*fzzh(:,2:kl-1)*idzp(:,2:kl-1)
   bb(:,2:kl-1)=1.-qq(:,2:kl-1)-rr(:,2:kl-1)+ddts*(mflx(:,2:kl-1)*fzzh(:,1:kl-2)*idzm(:,2:kl-1)                   &
                                                  -mflx(:,2:kl-1)*(1.-fzzh(:,2:kl-1))*idzp(:,2:kl-1))
+  aa(:,kl)=qq(:,kl)+ddts*mflx(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)
   bb(:,kl)=1.-qq(:,kl)+ddts*mflx(:,kl)*fzzh(:,kl-1)*idzm(:,kl)
-  cc(:,1)=rr(:,1)-ddts*mflx(:,2)*fzzh(:,1)*idzp(:,1)
-  cc(:,2:kl-1)=rr(:,2:kl-1)-ddts*mflx(:,3:kl)*fzzh(:,2:kl-1)*idzp(:,2:kl-1)
   
   dd(:,1)=thetal(1:ifull,1)-ddts*(mflx(:,1)*tlup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                   &
                                  +mflx(:,2)*tlup(:,2)*fzzh(:,1)*idzp(:,1))                                       &
