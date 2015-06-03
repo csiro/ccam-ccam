@@ -169,8 +169,7 @@ include 'parm.h'
 
 real fjd,r1,dlt,slag,dhr,alp,x,esatf
 real, dimension(ifull) :: coszro2,taudar2,tmps,hruff_grmx,atmco2
-real, dimension(ifull) :: tv
-real, dimension(ifull) :: swdwn
+real, dimension(ifull) :: tv,swdwn,alb
 real(r_2), dimension(mp) :: xKNlimiting,xkleafcold,xkleafdry
 real(r_2), dimension(mp) :: xkleaf,xnplimit,xNPuptake,xklitter
 real(r_2), dimension(mp) :: xksoil
@@ -207,7 +206,8 @@ call setco2for(atmco2)
 ! set meteorological forcing
 tv    = t(1:ifull,1)*(1.+0.61*qg(1:ifull,1)-qlg(1:ifull,1)-qfg(1:ifull,1))
 ! swdwn is downwelling shortwave (positive) W/m^2
-swdwn = sgsave/(1.-swrsave*albvisnir(:,1)-(1.-swrsave)*albvisnir(:,2))
+alb   = swrsave*albvisnir(:,1)-(1.-swrsave)*albvisnir(:,2)
+swdwn = sgsave/(1.-alb)
 do nb=1,maxnb
   is = pind(nb,1)
   ie = pind(nb,2)
@@ -545,7 +545,7 @@ where ( land )
   cdtq  =cdtq*vmod
   tss   =tss**0.25
   rsmin =1./rsmin
-  rnet  =sgsave-rgsave-stefbo*tss**4
+  rnet  =swdwn*(swrsave*(1.-albvissav)+(1.-swrsave)*(1.-albnirsav))-rgsave-stefbo*tss**4
   !tscrn=tscrn+273.16       ! convert from degC to degK
 end where
 where ( land .and. tmps>=0.5 ) ! tmps is average isflag

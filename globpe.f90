@@ -903,9 +903,9 @@ epan_ave(:)    = 0.
 epot_ave(:)    = 0.
 eg_ave(:)      = 0.
 fg_ave(:)      = 0.
+ga_ave(:)      = 0.
 rnet_ave(:)    = 0.
 sunhours(:)    = 0.
-ga_ave(:)      = 0.
 riwp_ave(:)    = 0.
 rlwp_ave(:)    = 0.
 evap(:)        = 0.
@@ -1537,9 +1537,6 @@ do kktau = 1,ntau   ! ****** start of main time loop
   end if
   if ( ntsur>1 ) then  ! should be better after convjlm
     call sflux(nalpha)
-    epan_ave(1:ifull) = epan_ave(1:ifull)+epan  ! 2D 
-    epot_ave(1:ifull) = epot_ave(1:ifull)+epot  ! 2D 
-    ga_ave(1:ifull)   = ga_ave(1:ifull)+ga      ! 2D 
   endif   ! (ntsur>1)    
   if ( nmaxpr==1 ) then
     if ( myid==0 ) then
@@ -1778,8 +1775,11 @@ do kktau = 1,ntau   ! ****** start of main time loop
   capemax(1:ifull)     = max(capemax(1:ifull),cape)
   u10mx(1:ifull)       = max(u10mx(1:ifull),u10)  ! for hourly scrnfile
   dew_ave(1:ifull)     = dew_ave(1:ifull)-min(0.,eg)    
+  epan_ave(1:ifull)    = epan_ave(1:ifull)+epan
+  epot_ave(1:ifull)    = epot_ave(1:ifull)+epot 
   eg_ave(1:ifull)      = eg_ave(1:ifull)+eg    
   fg_ave(1:ifull)      = fg_ave(1:ifull)+fg
+  ga_ave(1:ifull)      = ga_ave(1:ifull)+ga
   rnet_ave(1:ifull)    = rnet_ave(1:ifull)+rnet
   tscr_ave(1:ifull)    = tscr_ave(1:ifull)+tscrn 
   qscrn_ave(1:ifull)   = qscrn_ave(1:ifull)+qgscrn 
@@ -1837,9 +1837,9 @@ do kktau = 1,ntau   ! ****** start of main time loop
     epot_ave(1:ifull)   = epot_ave(1:ifull)/min(ntau,nperavg)
     eg_ave(1:ifull)     = eg_ave(1:ifull)/min(ntau,nperavg)
     fg_ave(1:ifull)     = fg_ave(1:ifull)/min(ntau,nperavg)
+    ga_ave(1:ifull)     = ga_ave(1:ifull)/min(ntau,nperavg)    
     rnet_ave(1:ifull)   = rnet_ave(1:ifull)/min(ntau,nperavg)
     sunhours(1:ifull)   = sunhours(1:ifull)/min(ntau,nperavg)
-    ga_ave(1:ifull)     = ga_ave(1:ifull)/min(ntau,nperavg)
     riwp_ave(1:ifull)   = riwp_ave(1:ifull)/min(ntau,nperavg)
     rlwp_ave(1:ifull)   = rlwp_ave(1:ifull)/min(ntau,nperavg)
     tscr_ave(1:ifull)   = tscr_ave(1:ifull)/min(ntau,nperavg)
