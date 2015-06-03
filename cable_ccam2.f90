@@ -546,8 +546,7 @@ where ( land )
   ! update albedo and tss before calculating net radiation
   albvissav = fbeamvis*albvisdir + (1.-fbeamvis)*albvisdif
   albnirsav = fbeamnir*albnirdir + (1.-fbeamnir)*albnirdif  
-  alb       = swrsave*albvissav + (1.-swrsave)*albnirsav
-  rnet      = swdwn*(1.-alb)-rgsave-stefbo*tss**4
+  rnet      = sgsave-rgsave-stefbo*tss**4
   !tscrn    = tscrn+273.16       ! convert from degC to degK
 end where
 where ( land .and. tmps>=0.5 ) ! tmps is average isflag
