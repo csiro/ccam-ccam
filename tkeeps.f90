@@ -160,10 +160,10 @@ real, dimension(ifull), intent(in) :: fg,eg,ps,zom,rhos
 real, dimension(kl), intent(in) :: sig
 real, dimension(ifull,kl,naero) :: arup
 real, dimension(ifull,kl) :: gamtl,gamqv,gamql,gamqf,gamqr
-real, dimension(ifull,kl) :: km,thetav,thetal,thetalhl,temp,qsat
+real, dimension(ifull,kl) :: km,thetav,thetal,temp,qsat
 real, dimension(ifull,kl) :: qsatc,ff,thetac,thetavnc,tempc
-real, dimension(ifull,kl) :: thetavhl,thetahl
-real, dimension(ifull,kl) :: qshl,qlhl,qfhl
+real, dimension(ifull,kl) :: thetalhl
+real, dimension(ifull,kl) :: qvhl,qlhl,qfhl
 real, dimension(ifull,kl) :: tkenew,epsnew,bb,cc,dd,rr
 real, dimension(ifull,kl) :: rhoa,rhoahl
 real, dimension(ifull,kl) :: pres,qtot,qthl
@@ -180,7 +180,7 @@ real, dimension(ifull) :: wstar,z_on_l,phim
 real, dimension(ifull) :: tff,tgg,dum
 real, dimension(ifull) :: cdrag,umag,ustar
 real, dimension(ifull) :: tempv,rvar,bvf,dc,mc,fc
-real, dimension(ifull) :: qgnc,tbb,tcc,tqq
+real, dimension(ifull) :: tbb,tcc,tqq
 real, dimension(kl) :: sigkap,w2up,nn,dqdash,qupsat
 real, dimension(kl) :: qtup,ttup,tvup,thup
 real, dimension(1) :: templ
@@ -649,16 +649,11 @@ do kcount=1,mcount
       dd=qlg(1:ifull,:)/max(cfrac(1:ifull,:),1.E-8)                            &
         +qrg(1:ifull,:)/max(cfrac(1:ifull,:),cfrain(1:ifull,:),1.E-8)            ! inside cloud value assuming max overlap
       do k=1,kl
-        tbb=max(1.-cfrac(1:ifull,k),1.E-8)
-        qgnc=(qvg(1:ifull,k)-(1.-tbb)*qsatc(:,k))/tbb                            ! outside cloud value
-        qgnc=min(max(qgnc,qgmin),qsatc(:,k))
         thetac(:,k)=thetal(:,k)+sigkap(k)*(lv*dd(:,k)+ls*ff(:,k))/cp             ! inside cloud value
         tempc(:,k)=thetac(:,k)/sigkap(k)                                         ! inside cloud value
-        thetavnc(:,k)=thetal(:,k)*(1.+0.61*qgnc)                                 ! outside cloud value
       end do
-      call updatekmo(thetahl,thetac,fzzh)                                        ! inside cloud value
-      call updatekmo(thetavhl,thetavnc,fzzh)                                     ! outside cloud value
-      call updatekmo(qshl,qsatc,fzzh)                                            ! inside cloud value
+      call updatekmo(thetalhl,thetal,fzzh)                                       ! outside cloud value
+      call updatekmo(qvhl,qvg,fzzh)                                              ! outside cloud value
       call updatekmo(qlhl,dd,fzzh)                                               ! inside cloud value
       call updatekmo(qfhl,ff,fzzh)                                               ! inside cloud value
       ! fixes for clear/cloudy interface
@@ -675,15 +670,19 @@ do kcount=1,mcount
       do k=2,kl-1
         ! saturated
         tqq=(1.+lv*qsatc(:,k)/(rd*tempc(:,k)))/(1.+lv*lv*qsatc(:,k)/(cp*rv*tempc(:,k)*tempc(:,k)))
-        tbb=-grav*km(:,k)*(tqq*((thetahl(:,k)-thetahl(:,k-1))/thetac(:,k)                              &
-               +lv*(qshl(:,k)-qshl(:,k-1))/(cp*tempc(:,k)))-qshl(:,k)-qlhl(:,k)-qfhl(:,k)              &
-               +qshl(:,k-1)+qlhl(:,k-1)+qfhl(:,k-1))/dz_fl(:,k)
-        tbb=tbb+max(grav*(tqq*(gamtl(:,k)/thetac(:,k)+lv*gamqv(:,k)/(cp*tempc(:,k)))                       &
-               -gamqv(:,k)-(gamql(:,k)+gamqf(:,k))/max(cfrac(1:ifull,k),1.E-8)                         &
-               -gamqr(:,k)/max(cfrac(1:ifull,k),cfrain(1:ifull,k),1.E-8)),0.) ! MJT suggestion
+        tbb=-grav*km(:,k)*(tqq*((thetalhl(:,k)-thetalhl(:,k-1)+sigkap(k)/cp*(lv*(qlhl(:,k)-qlhl(:,k-1))  &
+            +ls*(qfhl(:,k)-qfhl(:,k-1))))/thetac(:,k)+lv/cp*(qvhl(:,k)-qvhl(:,k-1))/tempc(:,k))          &
+            -qvhl(:,k)-qlhl(:,k)-qfhl(:,k)+qvhl(:,k-1)+qlhl(:,k-1)+qfhl(:,k-1))/dz_fl(:,k)
+        tbb=tbb+grav*(tqq*((gamtl(:,k)                                                                   &
+            +sigkap(k)/cp*(lv*gamql(:,k)/max(cfrac(1:ifull,k),1.E-8)                                     &
+                          +lv*gamqr(:,k)/max(cfrac(1:ifull,k),cfrain(1:ifull,k),1.E-8)                   &
+                          +ls*gamqf(:,k)/max(cfrac(1:ifull,k),1.E-8)))/thetac(:,k)                       &
+            +lv/cp*gamqv(:,k)/tempc(:,k))-gamqv(:,k)-(gamql(:,k)+gamqf(:,k))/max(cfrac(1:ifull,k),1.E-8) &
+               -gamqr(:,k)/max(cfrac(1:ifull,k),cfrain(1:ifull,k),1.E-8))
         ! unsaturated
-        tcc=-grav*km(:,k)*(thetavhl(:,k)-thetavhl(:,k-1))/(thetavnc(:,k)*dz_fl(:,k))
-        tcc=tcc+max(grav*(gamtl(:,k)+thetal(1:ifull,k)*0.61*gamqv(:,k))/thetavnc(:,k),0.) ! MJT suggestion
+        tcc=-grav*km(:,k)*(thetalhl(:,k)-thetalhl(:,k-1)+thetal(1:ifull,k)*0.61*(qvhl(:,k)-qvhl(:,k-1))) &
+                         /(thetal(1:ifull,k)*dz_fl(:,k))
+        tcc=tcc+grav*(gamtl(:,k)+thetal(1:ifull,k)*0.61*gamqv(:,k))/thetal(1:ifull,k)
         ppb(:,k)=(1.-cfrac(1:ifull,k))*tcc+cfrac(1:ifull,k)*tbb ! cloud fraction weighted (e.g., Smith 1990)
       end do
       
@@ -698,9 +697,9 @@ do kcount=1,mcount
         mc=(1.+dc)/(1.+(lv*(qlg(1:ifull,k)+qrg(1:ifull,k))+ls*qfg(1:ifull,k))/(cp*temp(1:ifull,k))+dc*fc)
         bvf=grav*mc*(thetalhl(:,k)-thetalhl(:,k-1))/(thetal(1:ifull,k)*dz_fl(:,k))           &
            +grav*(mc*fc*1.61-1.)*(temp(1:ifull,k)/tempv)*(qthl(:,k)-qthl(:,k-1))/dz_fl(:,k)
-        tcc=max(-grav*mc*gamtl(:,k)/thetal(1:ifull,k)                                        &
+        tcc=-grav*mc*gamtl(:,k)/thetal(1:ifull,k)                                            &
                 -grav*(mc*fc*1.61-1.)*(temp(1:ifull,k)/tempv)                                &
-                     *(gamqv(:,k)+gamql(:,k)+gamqf(:,k)+gamqr(:,k)),0.) ! MJT suggestion
+                     *(gamqv(:,k)+gamql(:,k)+gamqf(:,k)+gamqr(:,k))
         ppb(:,k)=-km(:,k)*bvf-tcc
       end do
    case default
