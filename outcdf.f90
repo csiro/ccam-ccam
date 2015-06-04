@@ -833,8 +833,10 @@ if( myid==0 .or. local ) then
     call attrib(idnc,jdim(1:3),3,'fracice',lname,'none',0.,6.5,0,itype)
     lname = '10m wind speed'
     call attrib(idnc,jdim(1:3),3,'u10',lname,'m/s',0.,130.,0,itype)
-    lname = 'Maximum Cape'
+    lname = 'Maximum CAPE'
     call attrib(idnc,jdim(1:3),3,'cape_max',lname,'J/kg',0.,20000.,0,itype)
+    lname = 'Average CAPE'
+    call attrib(idnc,jdim(1:3),3,'cape_ave',lname,'J/kg',0.,20000.,0,itype)    
     
     lname = 'Maximum precip rate in a timestep'
     call attrib(idnc,jdim(1:3),3,'maxrnd',lname,'mm/day',0.,2600.,1,-1) ! -1=long
@@ -1712,7 +1714,8 @@ call histwrt3(fracice,'fracice',idnc,iarch,local,.true.)
 ! DIAGNOSTICS -------------------------------------------------
 lwrite=(ktau>0)
 call histwrt3(u10,'u10',idnc,iarch,local,.true.)
-call histwrt3(capemax,'cape_max',idnc,iarch,local,lwrite)
+call histwrt3(cape_max,'cape_max',idnc,iarch,local,lwrite)
+call histwrt3(cape_ave,'cape_ave',idnc,iarch,local,lwrite)
       
 if ( itype/=-1 ) then  ! these not written to restart file
   aa=rndmax(:)*86400./dt ! scale up to mm/day

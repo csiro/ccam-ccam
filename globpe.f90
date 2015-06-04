@@ -894,7 +894,8 @@ u1max(:)       = 0.
 v1max(:)       = 0.
 u2max(:)       = 0.
 v2max(:)       = 0.
-capemax(:)     = 0.
+cape_max(:)    = 0.
+cape_ave(:)    = 0.
 u10mx(:)       = 0.
 tscr_ave(:)    = 0.
 qscrn_ave(:)   = 0.
@@ -1772,7 +1773,8 @@ do kktau = 1,ntau   ! ****** start of main time loop
   rhmaxscr(1:ifull)    = max(rhmaxscr(1:ifull),rhscrn)
   rhminscr(1:ifull)    = min(rhminscr(1:ifull),rhscrn)
   rndmax(1:ifull)      = max(rndmax(1:ifull),condx)
-  capemax(1:ifull)     = max(capemax(1:ifull),cape)
+  cape_max(1:ifull)    = max(cape_max(1:ifull),cape)
+  cape_ave(1:ifull)    = cape_ave(1:ifull)+cape
   u10mx(1:ifull)       = max(u10mx(1:ifull),u10)  ! for hourly scrnfile
   dew_ave(1:ifull)     = dew_ave(1:ifull)-min(0.,eg)    
   epan_ave(1:ifull)    = epan_ave(1:ifull)+epan
@@ -1832,6 +1834,7 @@ do kktau = 1,ntau   ! ****** start of main time loop
   endif    ! (mod(ktau,nperday)==nper3hr(n3hr))
 
   if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
+    cape_ave(1:ifull)   = cape_ave(1:ifull)/min(ntau,nperavg)
     dew_ave(1:ifull)    = dew_ave(1:ifull)/min(ntau,nperavg)
     epan_ave(1:ifull)   = epan_ave(1:ifull)/min(ntau,nperavg)
     epot_ave(1:ifull)   = epot_ave(1:ifull)/min(ntau,nperavg)
@@ -1988,7 +1991,8 @@ do kktau = 1,ntau   ! ****** start of main time loop
     sno(:)         = 0.  ! converted to mm/day in outcdf
     runoff(:)      = 0.  ! converted to mm/day in outcdf
     u10mx(:)       = 0.
-    capemax(:)     = 0.    
+    cape_max(:)    = 0.
+    cape_ave(:)    = 0.
     if ( ngas>0 ) then
       traver = 0.
     end if
