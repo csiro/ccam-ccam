@@ -55,7 +55,7 @@ real, save :: be      = 0.1    ! Surface boundary condition (Hurley (2007) 1., S
 real, save :: ent0    = 0.25   ! Entrainment constant (Controls height of boundary layer)
 real, save :: dtrn0   = 0.4    ! Unsaturated detrainment constant
 real, save :: dtrc0   = 0.9    ! Saturated detrainment constant
-real, save :: m0      = 0.06   ! Mass flux amplitude constant
+real, save :: m0      = 0.1    ! Mass flux amplitude constant
 real, save :: b1      = 2.     ! Updraft entrainment coeff (Soares et al (2004) 1., Siebesma et al (2003) 2.)
 real, save :: b2      = 1./3.  ! Updraft buoyancy coeff (Soares et al (2004) 2., Siebesma et al (2003) 1./3.)
 ! numerical constants
@@ -158,8 +158,7 @@ real, dimension(ifull), intent(inout) :: zi
 real, dimension(ifull), intent(in) :: fg,eg,ps,zom,rhos
 real, dimension(kl), intent(in) :: sig
 real, dimension(ifull,kl,naero) :: arup
-real, dimension(ifull,kl) :: gamtv,gamtl,gamqv,gamql,gamqf
-real, dimension(ifull,kl) :: gamqr,gamth
+!real, dimension(ifull,kl) :: gamtl,gamqv,gamql,gamqf,gamqr
 real, dimension(ifull,kl) :: km,thetav,thetal,thetalhl,temp,qsat
 real, dimension(ifull,kl) :: qsatc,ff,thetac,thetavnc,tempc
 real, dimension(ifull,kl) :: thetavhl,thetahl
@@ -287,13 +286,11 @@ do kcount=1,mcount
     arup=aero(1:ifull,:,:)
   end if
 
-  gamtl=0.
-  gamth=0.
-  gamtv=0.
-  gamqv=0.
-  gamql=0.
-  gamqf=0.
-  gamqr=0.
+  !gamtl=0.
+  !gamqv=0.
+  !gamql=0.
+  !gamqf=0.
+  !gamqr=0.
   
 #ifdef offline
   mf=0.
@@ -585,15 +582,13 @@ do kcount=1,mcount
           end do
         end do
         
-        do k=1,ktopmax
-          gamtl(i,k)=mflx(i,k)*(tlup(i,k)-thetal(i,k))
-          gamqv(i,k)=mflx(i,k)*(qvup(i,k)-qvg(i,k) )
-          gamql(i,k)=mflx(i,k)*(qlup(i,k)-qlg(i,k))
-          gamqf(i,k)=mflx(i,k)*(qfup(i,k)-qfg(i,k))
-          gamqr(i,k)=mflx(i,k)*(qrup(i,k)-qrg(i,k))
-          gamth(i,k)=gamtl(i,k)+sigkap(k)*(lv*(gamql(i,k)+gamqr(i,k))+ls*gamqf(i,k))/cp
-          gamtv(i,k)=gamth(i,k)+theta(i,k)*(0.61*gamqv(i,k)-gamql(i,k)-gamqf(i,k)-gamqr(i,k))
-        end do
+        !do k=1,ktopmax
+        !  gamtl(i,k)=mflx(i,k)*(tlup(i,k)-thetal(i,k))
+        !  gamqv(i,k)=mflx(i,k)*(qvup(i,k)-qvg(i,k) )
+        !  gamql(i,k)=mflx(i,k)*(qlup(i,k)-qlg(i,k))
+        !  gamqf(i,k)=mflx(i,k)*(qfup(i,k)-qfg(i,k))
+        !  gamqr(i,k)=mflx(i,k)*(qrup(i,k)-qrg(i,k))
+        !end do
 
       else                   ! stable
         !wpv_flux is calculated at half levels
@@ -681,11 +676,12 @@ do kcount=1,mcount
         tbb=-grav*km(:,k)*(tqq*((thetahl(:,k)-thetahl(:,k-1))/thetac(:,k)                              &
                +lv*(qshl(:,k)-qshl(:,k-1))/(cp*tempc(:,k)))-qshl(:,k)-qlhl(:,k)-qfhl(:,k)              &
                +qshl(:,k-1)+qlhl(:,k-1)+qfhl(:,k-1))/dz_fl(:,k)
-        tbb=tbb+grav*(tqq*(gamtl(:,k)/thetac(:,k)+lv*gamqv(:,k)/(cp*tempc(:,k)))                       &
-               -gamqv(:,k)-gamql(:,k)-gamqf(:,k)-gamqr(:,k))
+        !tbb=tbb+grav*(tqq*(gamtl(:,k)/thetac(:,k)+lv*gamqv(:,k)/(cp*tempc(:,k)))                       &
+        !       -gamqv(:,k)-(gamql(:,k)+gamqf(:,k))/max(cfrac(1:ifull,k),1.E-8)                         &
+        !       -gamqr(:,k)/max(cfrac(1:ifull,k),cfrain(1:ifull,k),1.E-8))
         ! unsaturated
         tcc=-grav*km(:,k)*(thetavhl(:,k)-thetavhl(:,k-1))/(thetavnc(:,k)*dz_fl(:,k))
-        tcc=tcc+grav*gamtv(:,k)/thetavnc(:,k)
+        !tcc=tcc+grav*(gamtl(:,k)+thetal(1:ifull,k)*0.61*gamqv(:,k))/thetavnc(:,k)
         ppb(:,k)=(1.-cfrac(1:ifull,k))*tcc+cfrac(1:ifull,k)*tbb ! cloud fraction weighted (e.g., Smith 1990)
       end do
       
@@ -697,13 +693,13 @@ do kcount=1,mcount
         rvar=rd*tempv/temp(1:ifull,k) ! rvar = qd*rd+qv*rv
         fc=(1.-cfrac(1:ifull,k))+cfrac(1:ifull,k)*(lv*rvar/(cp*rv*temp(1:ifull,k)))
         dc=(1.+0.61*qvg(1:ifull,k))*lv*qvg(1:ifull,k)/(rd*tempv)
-        mc=(1.+dc)/(1.+(lv*(qlg(1:ifull,k)+qrg(1:ifull,k))+ls*qfg(1:ifull,k))/(cp*temp(1:ifull,k))+dc*fc)
+        mc=(1.+dc)/(1.+lv*(qlg(1:ifull,k)+qrg(1:ifull,k))/(cp*temp(1:ifull,k))+dc*fc)
         bvf=grav*mc*(thetalhl(:,k)-thetalhl(:,k-1))/(thetal(1:ifull,k)*dz_fl(:,k))           &
            +grav*(mc*fc*1.61-1.)*(temp(1:ifull,k)/tempv)*(qthl(:,k)-qthl(:,k-1))/dz_fl(:,k)
-        tcc=-grav*mc*gamtl(:,k)/thetal(1:ifull,k)                                            &
-            -grav*(mc*fc*1.61-1.)*(temp(1:ifull,k)/tempv)                                    &
-                 *(gamqv(:,k)+gamql(:,k)+gamqf(:,k)+gamqr(:,k))
-        ppb(:,k)=-km(:,k)*bvf-tcc
+        !tcc=-grav*mc*gamtl(:,k)/thetal(1:ifull,k)                                            &
+        !    -grav*(mc*fc*1.61-1.)*(temp(1:ifull,k)/tempv)                                    &
+        !         *(gamqv(:,k)+gamql(:,k)+gamqf(:,k)+gamqr(:,k))
+        ppb(:,k)=-km(:,k)*bvf !-tcc
       end do
    case default
      write(6,*) "ERROR: Unknown buoymeth option ",buoymeth
