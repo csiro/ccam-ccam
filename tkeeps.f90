@@ -25,7 +25,7 @@ implicit none
 
 private
 public tkeinit,tkemix,tkeend,tke,eps,shear,zidry
-public cm0,ce0,ce1,ce2,ce3,cq,be,ent0,dtrn0,dtrc0,m0,b1,b2
+public cm0,ce0,ce1,ce2,ce3,cq,be,ent0,ezmin,dtrn0,dtrc0,m0,b1,b2
 public buoymeth,icm1,maxdts,mintke,mineps,minl,maxl,zidrytol
 #ifdef offline
 public wthl,wqv,wql,wqf
@@ -53,6 +53,7 @@ real, save :: cq      = 2.5    ! Adjustment to ED in absence of MF
 ! model MF constants
 real, save :: be      = 0.1    ! Surface boundary condition (Hurley (2007) 1., Soares et al (2004) 0.3)
 real, save :: ent0    = 0.25   ! Entrainment constant (Controls height of boundary layer)
+real, save :: ezmin   = 100.   ! Limits entrainment at plume top
 real, save :: dtrn0   = 0.4    ! Unsaturated detrainment constant
 real, save :: dtrc0   = 0.9    ! Saturated detrainment constant
 real, save :: m0      = 0.1    ! Mass flux amplitude constant
@@ -60,7 +61,7 @@ real, save :: b1      = 2.     ! Updraft entrainment coeff (Soares et al (2004) 
 real, save :: b2      = 1./3.  ! Updraft buoyancy coeff (Soares et al (2004) 2., Siebesma et al (2003) 1./3.)
 ! numerical constants
 integer, save :: buoymeth = 0      ! Method for ED buoyancy calculation (0=D&K84, 1=M&G12)
-integer, save :: icm1   = 10       ! max iterations for calculating pblh
+integer, save :: icm1   = 5        ! max iterations for calculating pblh
 real, save :: maxdts    = 120.     ! max timestep for split
 real, save :: mintke    = 1.E-8    ! min value for tke (1.5e-4 in TAPM)
 real, save :: mineps    = 1.E-10   ! min value for eps (1.0e-6 in TAPM)
@@ -709,7 +710,7 @@ do kcount=1,mcount
 
   ! Calculate transport source term on full levels
   do k=2,kl-1
-    ppt(:,k)= kmo(:,k)*idzp(:,k)*(tke(1:ifull,k+1)-tke(1:ifull,k))/dz_hl(:,k)     &
+    ppt(:,k)= kmo(:,k)*idzp(:,k)*(tke(1:ifull,k+1)-tke(1:ifull,k))/dz_hl(:,k)                &
              -kmo(:,k-1)*idzm(:,k)*(tke(1:ifull,k)-tke(1:ifull,k-1))/dz_hl(:,k-1)
   end do
   
@@ -1044,7 +1045,7 @@ real, intent(in) :: zht,zi,zmin
 !entfn=2./max(100.,zi)                                     ! Angevine et al (2010)
 !entfn=1./zht                                              ! Siebesma et al (2003)
 !entfn=0.5*(1./min(zht,zi-zmin)+1./max(zi-zht,zmin))       ! Soares et al (2004)
-entfn=ent0*(1./max(zht,1.)+1./max(zi-zht,100.))
+entfn=ent0/max(zht,1.)+ent0/max(zi-zht,ezmin)
 
 return
 end function entfn
@@ -1059,7 +1060,7 @@ implicit none
 real, intent(in) :: zht,zi,zmin,rat
 
 !dtrfn=ent+0.05/max(zi-zht,zmin)   ! Angevine et al (2010)
-dtrfn=rat/max(zi-zht,10.)+ent0/max(zi-zht,100.)
+dtrfn=rat/max(zi-zht,1.)+ent0/max(zi-zht,ezmin)
 
 ! results in analytic solution
 !mflx(k)=A*(zht**ent0)*((zi-zht)**rat)
