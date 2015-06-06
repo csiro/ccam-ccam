@@ -60,14 +60,14 @@ real, save :: m0      = 0.1    ! Mass flux amplitude constant
 real, save :: b1      = 2.     ! Updraft entrainment coeff (Soares et al (2004) 1., Siebesma et al (2003) 2.)
 real, save :: b2      = 1./3.  ! Updraft buoyancy coeff (Soares et al (2004) 2., Siebesma et al (2003) 1./3.)
 ! numerical constants
-integer, save :: buoymeth = 2      ! Method for ED buoyancy calculation (0=D&K84, 1=M&G12, 2=Dry)
-integer, save :: icm1   = 5        ! max iterations for calculating pblh
-real, save :: maxdts    = 120.     ! max timestep for split
-real, save :: mintke    = 1.E-8    ! min value for tke (1.5e-4 in TAPM)
-real, save :: mineps    = 1.E-10   ! min value for eps (1.0e-6 in TAPM)
-real, save :: minl      = 1.       ! min value for L   (5. in TAPM)
-real, save :: maxl      = 1000.    ! max value for L   (500. in TAPM)
-real, save :: zidrytol  = 1.       ! tolerance for calculating pblh (m)
+integer, save :: buoymeth = 0        ! Method for ED buoyancy calculation (0=D&K84, 1=M&G12, 2=Dry)
+integer, save :: icm1     = 5        ! max iterations for calculating pblh
+real, save :: maxdts      = 120.     ! max timestep for split
+real, save :: mintke      = 1.E-8    ! min value for tke (1.5e-4 in TAPM)
+real, save :: mineps      = 1.E-10   ! min value for eps (1.0e-6 in TAPM)
+real, save :: minl        = 1.       ! min value for L   (5. in TAPM)
+real, save :: maxl        = 1000.    ! max value for L   (500. in TAPM)
+real, save :: zidrytol    = 1.       ! tolerance for calculating pblh (m)
 
 ! physical constants
 real, parameter :: grav  = 9.80616    ! (m s^-2)
