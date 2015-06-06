@@ -60,7 +60,7 @@ real, save :: m0      = 0.1    ! Mass flux amplitude constant
 real, save :: b1      = 2.     ! Updraft entrainment coeff (Soares et al (2004) 1., Siebesma et al (2003) 2.)
 real, save :: b2      = 1./3.  ! Updraft buoyancy coeff (Soares et al (2004) 2., Siebesma et al (2003) 1./3.)
 ! numerical constants
-integer, save :: buoymeth = 0      ! Method for ED buoyancy calculation (0=D&K84, 1=M&G12)
+integer, save :: buoymeth = 2      ! Method for ED buoyancy calculation (0=D&K84, 1=M&G12, 2=Dry)
 integer, save :: icm1   = 5        ! max iterations for calculating pblh
 real, save :: maxdts    = 120.     ! max timestep for split
 real, save :: mintke    = 1.E-8    ! min value for tke (1.5e-4 in TAPM)
@@ -162,9 +162,9 @@ real, dimension(kl), intent(in) :: sig
 real, dimension(ifull,kl,naero) :: arup
 real, dimension(ifull,kl) :: gamtl,gamqv,gamql,gamqf,gamqr
 real, dimension(ifull,kl) :: km,thetav,thetal,temp,qsat
-real, dimension(ifull,kl) :: qsatc,ff,thetac,thetavnc,tempc
-real, dimension(ifull,kl) :: thetalhl
-real, dimension(ifull,kl) :: qvhl,qlhl,qfhl
+real, dimension(ifull,kl) :: qsatc,qgnc,ff,thetac,tempc
+real, dimension(ifull,kl) :: thetalhl,thetavhl
+real, dimension(ifull,kl) :: quhl,qshl,qlhl,qfhl
 real, dimension(ifull,kl) :: tkenew,epsnew,bb,cc,dd,rr
 real, dimension(ifull,kl) :: rhoa,rhoahl
 real, dimension(ifull,kl) :: pres,qtot,qthl
@@ -650,11 +650,15 @@ do kcount=1,mcount
       dd=qlg(1:ifull,:)/max(cfrac(1:ifull,:),1.E-8)                            &
         +qrg(1:ifull,:)/max(cfrac(1:ifull,:),cfrain(1:ifull,:),1.E-8)            ! inside cloud value assuming max overlap
       do k=1,kl
+        tbb=max(1.-cfrac(1:ifull,k),1.E-8)
+        qgnc(:,k)=(qvg(1:ifull,k)-(1.-tbb)*qsatc(:,k))/tbb                       ! outside cloud value
+        qgnc(:,k)=min(max(qgnc(:,k),qgmin),qsatc(:,k))
         thetac(:,k)=thetal(:,k)+sigkap(k)*(lv*dd(:,k)+ls*ff(:,k))/cp             ! inside cloud value
         tempc(:,k)=thetac(:,k)/sigkap(k)                                         ! inside cloud value
       end do
       call updatekmo(thetalhl,thetal,fzzh)                                       ! outside cloud value
-      call updatekmo(qvhl,qvg,fzzh)                                              ! outside cloud value
+      call updatekmo(quhl,qgnc,fzzh)                                             ! outside cloud value
+      call updatekmo(qshl,qsatc,fzzh)                                            ! inside cloud value
       call updatekmo(qlhl,dd,fzzh)                                               ! inside cloud value
       call updatekmo(qfhl,ff,fzzh)                                               ! inside cloud value
       ! fixes for clear/cloudy interface
@@ -672,8 +676,8 @@ do kcount=1,mcount
         ! saturated
         tqq=(1.+lv*qsatc(:,k)/(rd*tempc(:,k)))/(1.+lv*lv*qsatc(:,k)/(cp*rv*tempc(:,k)*tempc(:,k)))
         tbb=-grav*km(:,k)*(tqq*((thetalhl(:,k)-thetalhl(:,k-1)+sigkap(k)/cp*(lv*(qlhl(:,k)-qlhl(:,k-1))  &
-            +ls*(qfhl(:,k)-qfhl(:,k-1))))/thetac(:,k)+lv/cp*(qvhl(:,k)-qvhl(:,k-1))/tempc(:,k))          &
-            -qvhl(:,k)-qlhl(:,k)-qfhl(:,k)+qvhl(:,k-1)+qlhl(:,k-1)+qfhl(:,k-1))/dz_fl(:,k)
+            +ls*(qfhl(:,k)-qfhl(:,k-1))))/thetac(:,k)+lv/cp*(qshl(:,k)-qshl(:,k-1))/tempc(:,k))          &
+            -qshl(:,k)-qlhl(:,k)-qfhl(:,k)+qshl(:,k-1)+qlhl(:,k-1)+qfhl(:,k-1))/dz_fl(:,k)
         tbb=tbb+grav*(tqq*((gamtl(:,k)                                                                   &
             +sigkap(k)/cp*(lv*gamql(:,k)/max(cfrac(1:ifull,k),1.E-8)                                     &
                           +lv*gamqr(:,k)/max(cfrac(1:ifull,k),cfrain(1:ifull,k),1.E-8)                   &
@@ -681,7 +685,7 @@ do kcount=1,mcount
             +lv/cp*gamqv(:,k)/tempc(:,k))-gamqv(:,k)-(gamql(:,k)+gamqf(:,k))/max(cfrac(1:ifull,k),1.E-8) &
                -gamqr(:,k)/max(cfrac(1:ifull,k),cfrain(1:ifull,k),1.E-8))
         ! unsaturated
-        tcc=-grav*km(:,k)*(thetalhl(:,k)-thetalhl(:,k-1)+thetal(1:ifull,k)*0.61*(qvhl(:,k)-qvhl(:,k-1))) &
+        tcc=-grav*km(:,k)*(thetalhl(:,k)-thetalhl(:,k-1)+thetal(1:ifull,k)*0.61*(quhl(:,k)-quhl(:,k-1))) &
                          /(thetal(1:ifull,k)*dz_fl(:,k))
         tcc=tcc+grav*(gamtl(:,k)+thetal(1:ifull,k)*0.61*gamqv(:,k))/thetal(1:ifull,k)
         ppb(:,k)=(1.-cfrac(1:ifull,k))*tcc+cfrac(1:ifull,k)*tbb ! cloud fraction weighted (e.g., Smith 1990)
@@ -703,6 +707,16 @@ do kcount=1,mcount
                      *(gamqv(:,k)+gamql(:,k)+gamqf(:,k)+gamqr(:,k))
         ppb(:,k)=-km(:,k)*bvf-tcc
       end do
+      
+    case(2) ! dry convection
+      call updatekmo(thetavhl,thetav,fzzh)
+      do k=2,kl-1
+        tcc=-grav*km(:,k)*(thetavhl(:,k)-thetavhl(:,k-1))/(thetav(:,k)*dz_fl(:,k))
+        tcc=tcc+grav*(gamtl(:,k)+sigkap(k)/cp*(lv*(gamql(:,k)+gamqr(:,k))+ls*gamqf(:,k)))/thetav(:,k)
+        tcc=tcc+grav*(theta(1:ifull,k)*(0.61*gamqv(:,k)-gamql(:,k)-gamqf(:,k)-gamqr(:,k)))/thetav(:,k)
+        ppb(:,k)=tcc
+      end do
+      
    case default
      write(6,*) "ERROR: Unknown buoymeth option ",buoymeth
      stop
