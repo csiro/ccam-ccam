@@ -34,7 +34,7 @@ implicit none
 private
 public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlodiag,mloalb2,mloalb4, &
        mloscrnout,mloextra,mloimpice,mloexpice,mloexpdep,mloexpdensity,mloexpmelt,mloexpgamm,wlev,   &
-       micdwn,mxd,mindep,minwater,onedice,mloimport3d,mloexport3d
+       micdwn,mxd,mindep,minwater,onedice,mloimport3d,mloexport3d,mloexpenergy
 
 ! parameters
 integer, save      :: wlev = 20                                        ! Number of water layers
@@ -144,17 +144,19 @@ real, parameter :: ls=lv+lf               ! Latent heat of sublimation (J kg^-1)
 real, parameter :: grav=9.80              ! graviational constant (m s^-2)
 real, parameter :: sbconst=5.67e-8        ! Stefan-Boltzmann constant
 real, parameter :: cdbot=2.4e-3           ! bottom drag coefficent
-real, parameter :: cp0=3990.              ! heat capacity of mixed layer (J kg^-1 K^-1)
 real, parameter :: cp=1004.64             ! Specific heat of dry air at const P
 real, parameter :: rdry=287.04            ! Specific gas const for dry air
 real, parameter :: rvap=461.5             ! Gas constant for water vapor
+! water parameters
+real, parameter :: cp0=3990.              ! heat capacity of mixed layer (J kg^-1 K^-1)
+real, parameter :: rhowt=1025.            ! reference water density (Boussinesq fluid) (kg/m3)
+real, parameter :: salwt=34.72            ! reference water salinity (PSU)
 ! ice parameters
 real, parameter :: himin=0.1              ! minimum ice thickness for multiple layers (m)
 real, parameter :: icemin=0.01            ! minimum ice thickness (m)
 real, parameter :: icemax=6.              ! maximum ice thickness (m)
 real, parameter :: rhoic=900.             ! ice density (kg/m3)
 real, parameter :: rhosn=330.             ! snow density (kg/m3)
-real, parameter :: rhowt=1025.            ! reference water density (Boussinesq fluid) (kg/m3)
 real, parameter :: qice=lf*rhoic          ! latent heat of fusion for ice (J m^-3)
 real, parameter :: qsnow=lf*rhosn         ! latent heat of fusion for snow (J m^-3)
 real, parameter :: cpi=1.8837e6           ! specific heat ice  (J/m**3/K)
@@ -1055,6 +1057,40 @@ return
 end subroutine mloexpgamm
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Extract energy stored in MLO
+
+subroutine mloexpenergy(engout,diag)
+
+implicit none
+
+integer, intent(in) :: diag
+integer ii
+real(kind=8), dimension(ifull), intent(out) :: engout
+real(kind=8), dimension(wfull) :: energysum
+real, dimension(wfull) :: d_zcr
+
+engout=0.
+
+if (wfull==0) return
+
+d_zcr=max(1.+water%eta/depth_hl(:,wlev+1),minwater/depth_hl(:,wlev+1))
+
+energysum=0._8
+do ii=1,wlev
+  energysum=energysum+real(water%temp(:,ii)*dz(:,ii)*d_zcr*rhowt*cp0,8)
+end do
+energysum=energysum+real(ice%fracice*ice%tsurf*gammi,8)
+energysum=energysum+real(ice%fracice*ice%temp(:,0)*cps*ice%snowd,8)
+energysum=energysum+real(ice%fracice*ice%temp(:,1)*0.5*cpi*ice%thick,8)
+energysum=energysum+real(ice%fracice*ice%temp(:,2)*0.5*cpi*ice%thick,8)
+energysum=energysum+real(ice%fracice*ice%store,8)
+
+engout=unpack(energysum,wpack,0._8)
+
+return
+end subroutine mloexpenergy
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Pack atmospheric data for MLO eval
 
 subroutine mloeval(sst,zo,cd,cds,fg,eg,wetfac,epot,epan,fracice,siced,snowd, &
@@ -1143,14 +1179,14 @@ call iceflux(dt,atm_sg,atm_rg,atm_rnd,atm_snd,atm_vnratio,atm_fbvis,atm_fbnir,at
 if (calcprog) then
 
   ! update ice
-  ice%tsurf=ice%tsurf+ice%temp(:,0)*cps*(ice%snowd-d_ndsn)/gammi
-  ice%tsurf=ice%tsurf+0.5*(ice%temp(:,1)+ice%temp(:,2))*cpi*(ice%thick-d_ndic)/gammi
+  ice%tsurf=ice%tsurf+ice%temp(:,0)*cps*(ice%snowd-d_ndsn)/gammi                     ! close energy budget
+  ice%tsurf=ice%tsurf+0.5*(ice%temp(:,1)+ice%temp(:,2))*cpi*(ice%thick-d_ndic)/gammi ! close energy budget
   ice%thick=d_ndic
   ice%snowd=d_ndsn
   ice%store=d_nsto
   call mloice(dt,atm_ps,d_alpha,d_beta,d_b0,d_wu0,d_wv0,d_wt0,d_ws0,d_ftop,d_tb,d_fb,d_timelt,       &
               d_ustar,d_nk,d_neta,d_zcr,diag)
-  
+
   ! create or destroy ice
   ! MJT notes - this is done after the flux calculations to agree with the albedo passed to the radiation
   call mlonewice(dt,d_timelt,d_zcr,diag)
@@ -2244,7 +2280,7 @@ call seaicecalc(dt,d_ftop,d_tb,d_fb,d_timelt,d_salflxf,d_salflxs,d_nk,d_wavail,d
 ! Ice depth limitation for poor initial conditions
 xxx=max(ice%thick-icemax,0.)
 where ( xxx>0.001 )
-  newthick=ice%thick-xxx
+  newthick=ice%thick-xxx    
   ice%temp(:,1)=(ice%temp(:,1)*cpi*ice%thick-cp0*rhoic*d_avewtemp*xxx)/(cpi*newthick)
   ice%temp(:,2)=(ice%temp(:,2)*cpi*ice%thick-cp0*rhoic*d_avewtemp*xxx)/(cpi*newthick)
   ice%thick=newthick
@@ -2366,7 +2402,7 @@ do iqw=1,wfull
   if ( lnewice(iqw) ) then
     newthick(iqw) =ice%thick(iqw)*ice%fracice(iqw)+newdic(iqw)*(1.-ice%fracice(iqw))
     ice%tsurf(iqw)=ice%tsurf(iqw)*ice%fracice(iqw)+newicetemp(iqw)*(1.-ice%fracice(iqw))
-    !ice%temp(iqw,0)*newsnowd(iqw)=ice%temp(iqw,0)*ice%fracice(iqw)*ice%snowd(iqw)
+    !ice%temp(iqw,0)*newsnowd(iqw)=ice%temp(iqw,0)*ice%fracice(iqw)*ice%snowd(iqw)   ! unchanged
     if ( newthick(iqw)>himin ) then
       ! ice thickness is decreasing after combining with new thin ice
       ice%temp(iqw,1)=(ice%temp(iqw,1)*ice%thick(iqw)*ice%fracice(iqw)+newicetemp(iqw)*newdic(iqw)*(1.-ice%fracice(iqw))) &
@@ -2374,14 +2410,13 @@ do iqw=1,wfull
       ice%temp(iqw,2)=(ice%temp(iqw,2)*ice%thick(iqw)*ice%fracice(iqw)+newicetemp(iqw)*newdic(iqw)*(1.-ice%fracice(iqw))) &
                      /newthick(iqw)
     else
-      ice%tsurf(iqw)=(ice%tsurf(iqw)*gammi+0.5*(ice%temp(iqw,1)+ice%temp(iqw,2))*cpi*ice%thick(iqw)     &
-                    *ice%fracice(iqw)+newicetemp(iqw)*cpi*newdic(iqw)*(1.-ice%fracice(iqw)))            &
-                    /(gammi+cpi*newthick(iqw))
+      ice%tsurf(iqw)=(ice%tsurf(iqw)*gammi+0.5*(ice%temp(iqw,1)+ice%temp(iqw,2))*cpi*ice%thick(iqw)*ice%fracice(iqw)      &
+                     +newicetemp(iqw)*cpi*newdic(iqw)*(1.-ice%fracice(iqw)))/(gammi+cpi*newthick(iqw))
       ice%temp(iqw,1)=ice%tsurf(iqw)
       ice%temp(iqw,2)=ice%tsurf(iqw)
     end if
     ice%store(iqw)=ice%store(iqw)*ice%fracice(iqw)
-    ice%sal(iqw)=(ice%sal(iqw)*ice%fracice(iqw)*ice%thick(iqw)+newicesal(iqw)*(1.-ice%fracice(iqw))*newdic(iqw)) &
+    ice%sal(iqw)=(ice%sal(iqw)*ice%fracice(iqw)*ice%thick(iqw)+newicesal(iqw)*(1.-ice%fracice(iqw))*newdic(iqw))          &
                  /newthick(iqw)
     ice%thick(iqw)=newthick(iqw)
     ice%snowd(iqw)=ice%snowd(iqw)*ice%fracice(iqw)
@@ -2430,7 +2465,7 @@ avetemp=avetemp/depth_hl(:,wlev+1)
 avesal=avesal/depth_hl(:,wlev+1)
 
 ! removal
-lremove=ice%thick<=icemin .and. ice%fracice>0.
+lremove = ice%thick<=icemin .and. ice%fracice>0.
 where ( lremove )
   newdic=(ice%thick*rhoic+ice%snowd*rhosn)*ice%fracice/rhowt
 elsewhere
@@ -2444,14 +2479,16 @@ do iqw=1,wfull
 
     ! update average temperature and salinity
     dsf=minsfc
-    dels=(ice%sal(iqw)*ice%thick(iqw)*rhoic/rhowt*ice%fracice(iqw)-avesal(iqw)*newdic(iqw))/dsf
-    delt=(ice%fracice(iqw)*gammi*ice%tsurf(iqw)-cp0*rhowt*avetemp(iqw)*newdic(iqw))/(cp0*rhowt*dsf)
+    dels=ice%sal(iqw)*ice%thick(iqw)*rhoic/rhowt*ice%fracice(iqw)/dsf
+    dels=dels-avesal(iqw)*newdic(iqw)/dsf
+    delt=ice%fracice(iqw)*gammi*ice%tsurf(iqw)/(cp0*rhowt*dsf)
     delt=delt+ice%fracice(iqw)*cps*ice%snowd(iqw)*ice%temp(iqw,0)/(cp0*rhowt*dsf)
     delt=delt+ice%fracice(iqw)*0.5*cpi*ice%thick(iqw)*ice%temp(iqw,1)/(cp0*rhowt*dsf)
     delt=delt+ice%fracice(iqw)*0.5*cpi*ice%thick(iqw)*ice%temp(iqw,2)/(cp0*rhowt*dsf)
     delt=delt+ice%fracice(iqw)*ice%thick(iqw)*qice/(cp0*rhowt*dsf)
     delt=delt+ice%fracice(iqw)*ice%snowd(iqw)*qsnow/(cp0*rhowt*dsf)
     delt=delt+ice%fracice(iqw)*ice%store(iqw)/(cp0*rhowt*dsf)
+    delt=delt-cp0*rhowt*avetemp(iqw)*newdic(iqw)/(cp0*rhowt*dsf)
     
     ! adjust temperature and salinity in water column
     dsf=0.
@@ -3007,7 +3044,7 @@ it_tsurf(:)=ans(:,1)
 it_tn1(:)  =ans(:,2)
 it_tn2(:)  =ans(:,3)
 fl=2.*conb*(dt_tb-it_tn2)
-dhb=dt*(fl-dt_fb)/qice                         ! first guess of excess flux between water and ice layer
+dhb=dt*(fl-dt_fb)/qice                   ! first guess of excess flux between water and ice layer
 dhb=max(dhb,-it_dic)
 dhb=min(dhb,dt_wavail*rhowt/rhoic)
 flnew=dt_fb+dhb*qice/dt
@@ -3063,7 +3100,7 @@ where ( it_dic>himin )
 end where
 
 ! Snow melt
-do while (any(it_tsurf>273.16+0.1.and.it_dsn>icemin))
+do while (any(it_tsurf>273.16+0.01.and.it_dsn>icemin))
   snmelt=max(it_tsurf-273.16,0.)*gamm/(qsnow+cp0*rhosn*dt_avewtemp-cps*273.16)
   !snmelt=max(it_tsurf-273.16,0.)*gamm/qsnow
   snmelt=min(snmelt,it_dsn)
@@ -3569,6 +3606,7 @@ d_fb=cp0*rhowt*0.006*ustar*(d_tb-d_timelt)
 d_fb=min(max(d_fb,-1000.),1000.)  
 
 ! Re-calculate fluxes to prevent overshoot (predictor-corrector)
+! MJT notes - use dtsurf for outgoing longwave for consistency with radiation code
 tnew=min(dtsurf+d_ftop/(gamm/dt+bot),273.2)
 tnew=0.5*(tnew+dtsurf)
 call getqsat(qsatnew,dqdt,tnew,atm_ps)

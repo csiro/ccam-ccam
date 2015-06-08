@@ -83,6 +83,7 @@ integer, parameter :: iocna  = 15     ! Natural organic
 ! options
 integer, save :: enhanceu10 = 0                 ! Modify 10m wind speed for emissions (0=none, 1=quadrature, 2=linear)
 integer, save :: aeroindir  = 0                 ! Indirect effect (0=SO4+Carbon+salt, 1=SO4, 2=None)
+real, parameter :: zmin     = 1.e-20
 
 ! physical constants
 real, parameter :: grav      = 9.80616          ! Gravitation constant
@@ -1081,8 +1082,6 @@ real zkno2no3,zeqn2o5,ztk3,ztk2,zkn2o5
 real zno3,zxtp1so2
 integer jt,jk,jl,js1,js2,js3,js4,jn
 
-real, parameter :: zmin=1.e-20
-
 !    REACTION RATE SO2-OH
 real, parameter :: ZK2I=2.0E-12
 real, parameter :: ZK2=4.0E-31
@@ -1778,7 +1777,6 @@ real zstay,xstay
 real xevap,pcevap
 
 integer, parameter :: ktop = 2    !Top level for wet deposition (counting from top)
-real, parameter :: zmin = 1.e-20
 
 ! Start code : ----------------------------------------------------------
 
