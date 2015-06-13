@@ -544,6 +544,7 @@ integer ipin, nxpr, nypr
 integer ltst, der, myrank
 integer(kind=4), dimension(nihead) :: lahead
 integer(kind=4) lncid, lidum
+integer(kind=4), dimension(1) :: ivals
 character(len=*), intent(in) :: ifile
 character(len=170) pfile
 character(len=8) fdecomp
@@ -577,8 +578,8 @@ if (myid==0) then
     else  
       write(6,*) "Found parallel input file ",trim(ifile)
       fdecomp=''
-      der=nf_get_att_int(lncid,nf_global,"nproc",lidum)
-      fnproc=lidum
+      der=nf_get_att_int(lncid,nf_global,"nproc",ivals(1))
+      fnproc=ivals(1)
       call ncmsg("nproc",der)
       der=nf_get_att_text(lncid,nf_global,"decomp",fdecomp)
       call ncmsg("decomp",der)
@@ -594,7 +595,7 @@ if (myid==0) then
       write(6,*) "Found parallel input file ",trim(ifile)
       fdecomp=''
       der=nf90_get_att(lncid,nf90_global,"nproc",lidum)
-      fnproc=lidum
+      fnproc = lidum
       call ncmsg("nproc",der)
       der=nf90_get_att(lncid,nf90_global,"decomp",fdecomp)
       call ncmsg("decomp",der)
@@ -614,8 +615,9 @@ if (myid==0) then
   else
     ! nproc should only exist in multi-file input
 #ifdef usenc3
-    der=nf_get_att_int(lncid,nf_global,"nproc",lidum)
+    der=nf_get_att_int(lncid,nf_global,"nproc",ivals(1))
     if (der==nf_noerr) then
+      lidum = ivals(1)
 #else
     der=nf90_get_att(lncid,nf90_global,"nproc",lidum)
     if (der==nf90_noerr) then
@@ -1106,8 +1108,10 @@ integer, dimension(ndim), intent(in) :: dim
 integer ier
 integer(kind=4) vtype, idv, lcdfid, lndim, lsize
 integer(kind=4), dimension(ndim) :: ldim
+integer(kind=2), dimension(1) :: ivals2
 real, intent(in) :: xmin, xmax
 real(kind=4) lscalef, laddoff
+real(kind=4), dimension(1) :: rvals
 character(len=*), intent(in) :: name
 character(len=*), intent(in) :: lname
 character(len=*), intent(in) :: units
@@ -1136,20 +1140,26 @@ if ( lsize>0 ) then
   call ncmsg("units",ier)
 endif
 if ( vtype==nf_short ) then
-  ier = nf_put_att_int2(lcdfid,idv,'valid_min',nf_short,1_4,minv)
+  ivals2 = minv
+  ier = nf_put_att_int2(lcdfid,idv,'valid_min',nf_short,1_4,ivals2)
   call ncmsg("valid_min",ier)
-  ier = nf_put_att_int2(lcdfid,idv,'valid_max',nf_short,1_4,maxv)
+  ivals2 = maxv
+  ier = nf_put_att_int2(lcdfid,idv,'valid_max',nf_short,1_4,ivals2)
   call ncmsg("valid_max",ier)
-  ier = nf_put_att_int2(lcdfid,idv,'missing_value',nf_short,1_4,missval)
+  ivals2 = missval
+  ier = nf_put_att_int2(lcdfid,idv,'missing_value',nf_short,1_4,ivals2)
   call ncmsg("missing_value",ier)
   lscalef=(xmax-xmin)/(real(maxv)-real(minv))
   laddoff=xmin-real(lscalef)*real(minv)
-  ier = nf_put_att_real(lcdfid,idv,'add_offset',nf_float,1_4,laddoff)
+  rvals=laddoff
+  ier = nf_put_att_real(lcdfid,idv,'add_offset',nf_float,1_4,rvals)
   call ncmsg("add_offset",ier)
-  ier = nf_put_att_real(lcdfid,idv,'scale_factor',nf_float,1_4,lscalef)
+  rvals=lscalef
+  ier = nf_put_att_real(lcdfid,idv,'scale_factor',nf_float,1_4,rvals)
   call ncmsg("scale_factor",ier)
 else
-  ier = nf_put_att_real(lcdfid,idv,'missing_value',nf_float,1_4,nf_fill_float)
+  rvals=nf_fill_float
+  ier = nf_put_att_real(lcdfid,idv,'missing_value',nf_float,1_4,rvals)
   call ncmsg("missing_value",ier)
 endif
 ier = nf_put_att_text(lcdfid,idv,'FORTRAN_format',5_4,'G11.4')
@@ -1991,6 +2001,7 @@ integer, intent(in) :: ncid
 integer, intent(out) :: vid
 integer ncstatus
 integer(kind=4) lncid, lvid, ltype
+integer(kind=4), dimension(1) :: dimids
 character(len=*), intent(in) :: vname
 character(len=*), intent(in) :: vtype
 
@@ -2021,7 +2032,8 @@ end select
 
 lncid=ncid
 #ifdef usenc3
-ncstatus = nf_def_var(lncid,vname,ltype,0_4,1_4,lvid)
+dimids=1
+ncstatus = nf_def_var(lncid,vname,ltype,0_4,dimids,lvid)
 #else
 ncstatus = nf90_def_var(lncid,vname,ltype,lvid)
 #endif
@@ -2139,13 +2151,16 @@ integer ncstatus
 integer, dimension(:), intent(out) :: vdat
 integer(kind=4) :: lncid, lvid
 integer(kind=4), dimension(size(vdat)) :: lvdat
+integer(kind=4), dimension(1) :: lstart, lncount
 character(len=*), intent(in) :: vname
 
 lncid=ncid
 #ifdef usenc3
 ncstatus = nf_inq_varid(lncid,vname,lvid)
 call ncmsg("get_var_varid",ncstatus)
-ncstatus = nf_get_var_int(lncid,lvid,lvdat)
+lstart = 1
+lncount = size(vdat)
+ncstatus = nf_get_vara_int(lncid,lvid,lstart,lncount,lvdat)
 vdat=lvdat
 call ncmsg("get_var",ncstatus)
 #else
@@ -2168,25 +2183,32 @@ integer, intent(in) :: ncid, vid, start
 integer ncstatus
 integer(kind=4) lncid, lvid
 #ifdef usenc3
-integer(kind=4) lstart
+integer(kind=4), dimension(1) :: lstart
 #else
 integer(kind=4), dimension(1) :: lstart, lcount
 real, dimension(1) :: ldat
 #endif
 real, intent(out) :: vdat
+#ifdef i8r8
+real(kind=8), dimension(1) :: rvals
+#else
+real(kind=4), dimension(1) :: rvals
+#endif
 
 lncid=ncid
 lvid=vid
 #ifdef usenc3
-lstart=start
+lstart = start
 #ifdef i8r8
-ncstatus = nf_get_var1_double(lncid,lvid,lstart,vdat)
+ncstatus = nf_get_var1_double(lncid,lvid,lstart(1),rvals(1))
+vdat = rvals(1)
 #else
-ncstatus = nf_get_var1_real(lncid,lvid,lstart,vdat)
+ncstatus = nf_get_var1_real(lncid,lvid,lstart(1),rvals(1))
+vdat = rvals(1)
 #endif
 #else
-lstart=start
-lcount=1
+lstart = start
+lcount = 1
 ncstatus = nf90_get_var(lncid,lvid,ldat,start=lstart,count=lcount)
 vdat=ldat(1)
 #endif
@@ -2205,7 +2227,7 @@ integer, intent(in) :: ncid, vid, start
 integer ncstatus
 integer(kind=4) :: lncid, lvid
 #ifdef usenc3
-integer(kind=4) :: lstart, ldat
+integer(kind=4), dimension(1) :: lstart, ldat
 #else
 integer(kind=4), dimension(1) :: lstart, lcount
 integer, dimension(1) :: ldat
@@ -2217,11 +2239,11 @@ lvid=vid
 #ifdef usenc3
 lstart=start
 #ifdef i8r8
-ncstatus = nf_get_var1_int(lncid,lvid,lstart,ldat)
+ncstatus = nf_get_var1_int(lncid,lvid,lstart(1),ldat(1))
 #else
-ncstatus = nf_get_var1_int(lncid,lvid,lstart,ldat)
+ncstatus = nf_get_var1_int(lncid,lvid,lstart(1),ldat(1))
 #endif
-vdat=ldat
+vdat=ldat(1)
 #else
 lstart=start
 lcount=1
@@ -2496,14 +2518,20 @@ integer ncstatus
 integer(kind=4) lncid
 character(len=*), intent(in) :: aname
 real, dimension(:), intent(out) :: vdat
+#ifdef i8r8
+real(kind=8), dimension(size(vdat)) :: rvals
+#else
+real(kind=4), dimension(size(vdat)) :: rvals
+#endif
 
 lncid=ncid
 #ifdef usenc3
 #ifdef i8r8
-ncstatus = nf_get_att_double(lncid,nf_global,aname,vdat)
+ncstatus = nf_get_att_double(lncid,nf_global,aname,rvals(1))
 #else
-ncstatus = nf_get_att_real(lncid,nf_global,aname,vdat)
+ncstatus = nf_get_att_real(lncid,nf_global,aname,rvals(1))
 #endif
+vdat = rvals
 #else
 ncstatus = nf90_get_att(lncid,nf90_global,aname,vdat)
 #endif
@@ -2522,15 +2550,17 @@ integer, intent(in) :: ncid
 integer, intent(out) :: vdat
 integer ncstatus
 integer(kind=4) :: lncid, lvdat
+integer(kind=4), dimension(1) :: ivals
 character(len=*), intent(in) :: aname
 
 lncid=ncid
 #ifdef usenc3
-ncstatus = nf_get_att_int(lncid,nf_global,aname,lvdat)
+ncstatus = nf_get_att_int(lncid,nf_global,aname,ivals)
+vdat = ivals(1)
 #else
 ncstatus = nf90_get_att(lncid,nf90_global,aname,lvdat)
-#endif
 vdat=lvdat
+#endif
 call ncmsg("get_attg",ncstatus)
 
 return
@@ -2615,14 +2645,18 @@ use cc_mpi
 implicit none
 
 integer, intent(in) :: ncid, vid
-integer ncstatus
+integer ncstatus, i
 integer(kind=4) lncid, lvid
+integer(kind=4), dimension(1) :: lstart
 character(len=*), dimension(:), intent(in) :: vtxt
 
 lncid=ncid
 lvid=vid
 #ifdef usenc3
-ncstatus = nf_put_var_text(lncid,lvid,vtxt)
+do i = 1,size(vtxt)
+  lstart = i
+  ncstatus = nf_put_var1_text(lncid,lvid,lstart,vtxt(i))
+end do
 #else
 ncstatus = nf90_put_var(lncid,lvid,vtxt)
 #endif
@@ -2642,12 +2676,15 @@ integer ncstatus
 integer, dimension(:), intent(in) :: vdat
 integer(kind=4) lncid, lvid
 integer(kind=4), dimension(size(vdat)) :: lvdat
+integer(kind=4), dimension(1) :: lstart, lncount
 
-lncid=ncid
-lvid=vid
+lncid = ncid
+lvid = vid
 #ifdef usenc3
-lvdat=vdat
-ncstatus = nf_put_var_int(lncid,lvid,lvdat)
+lvdat = vdat
+lstart = 1
+lncount = size(vdat)
+ncstatus = nf_put_vara_int(lncid,lvid,lstart,lncount,lvdat)
 #else
 ncstatus = nf90_put_var(lncid,lvid,vdat)
 #endif
@@ -2667,12 +2704,16 @@ integer ncstatus
 integer, dimension(:,:), intent(in) :: vdat
 integer(kind=4) lncid, lvid
 integer(kind=4), dimension(size(vdat,1),size(vdat,2)) :: lvdat
+integer(kind=4), dimension(2) :: lstart, lncount
 
-lncid=ncid
-lvid=vid
+lncid = ncid
+lvid = vid
 #ifdef usenc3
-lvdat=vdat
-ncstatus = nf_put_var_int(lncid,lvid,lvdat)
+lvdat = vdat
+lstart(:) = 1
+lncount(1) = size(vdat,1)
+lncount(2) = size(vdat,2)
+ncstatus = nf_put_vara_int(lncid,lvid,lstart,lncount,lvdat)
 #else
 ncstatus = nf90_put_var(lncid,lvid,vdat)
 #endif
@@ -2692,9 +2733,9 @@ integer, intent(in) :: vdat
 integer ncstatus
 integer(kind=4) lncid, lvid
 #ifdef usenc3
-integer(kind=4) lstart, ldat
+integer(kind=4), dimension(1) :: lstart, ldat
 #else
-integer(kind=4), dimension(1) :: lstart,lcount
+integer(kind=4), dimension(1) :: lstart, lncount
 integer, dimension(1) :: ldat
 #endif
 
@@ -2703,12 +2744,12 @@ lvid=vid
 #ifdef usenc3
 lstart=start
 ldat=vdat
-ncstatus=nf_put_var1_int(lncid,lvid,lstart,ldat)
+ncstatus=nf_put_var1_int(lncid,lvid,lstart,ldat(1))
 #else
 lstart=start
-lcount=1
+lncount=1
 ldat(1)=vdat
-ncstatus=nf90_put_var(lncid,lvid,ldat,start=lstart,count=lcount)
+ncstatus=nf90_put_var(lncid,lvid,ldat,start=lstart,count=lncount)
 #endif
 call ncmsg("put_var1",ncstatus)
 
@@ -2725,27 +2766,27 @@ integer, intent(in) :: ncid, vid, start
 integer ncstatus
 integer(kind=4) lncid, lvid
 #ifdef usenc3
-integer(kind=4) :: lstart
+integer(kind=4), dimension(1) :: lstart
 #else
 integer(kind=4), dimension(1) :: lstart, lcount
-real, dimension(1) :: ldat
 #endif
+real, dimension(1) :: ldat
 real, intent(in) :: vdat
 
-lncid=ncid
-lvid=vid
+lncid = ncid
+lvid = vid
+ldat = vdat
 #ifdef usenc3
-lstart=start
+lstart = start
 #ifdef i8r8
-ncstatus=nf_put_var1_double(lncid,lvid,lstart,vdat)
+ncstatus = nf_put_var1_double(lncid,lvid,lstart,ldat(1))
 #else
-ncstatus=nf_put_var1_real(lncid,lvid,lstart,vdat)
+ncstatus = nf_put_var1_real(lncid,lvid,lstart,ldat(1))
 #endif
 #else
-lstart=start
-lcount=1
-ldat(1)=vdat
-ncstatus=nf90_put_var(lncid,lvid,ldat,start=lstart,count=lcount)
+lstart = start
+lcount = 1
+ncstatus = nf90_put_var(lncid,lvid,ldat,start=lstart,count=lcount)
 #endif
 call ncmsg("put_var1",ncstatus)
 
@@ -2763,23 +2804,23 @@ integer, intent(in) :: ncid, vid, start
 integer ncstatus
 integer(kind=4) lncid, lvid
 #ifdef usenc3
-integer(kind=4) lstart
+integer(kind=4), dimension(1) :: lstart
 #else
 integer(kind=4), dimension(1) :: lstart, lcount
-real(kind=8), dimension(1) :: ldat
 #endif
+real(kind=8), dimension(1) :: ldat
 real(kind=8), intent(in) :: vdat
 
-lncid=ncid
-lvid=vid
+lncid = ncid
+lvid = vid
+ldat = vdat
 #ifdef usenc3
-lstart=start
-ncstatus=nf_put_var1_double(lncid,lvid,lstart,vdat)
+lstart = start
+ncstatus = nf_put_var1_double(lncid,lvid,lstart,ldat(1))
 #else
-lstart=start
-lcount=1
-ldat(1)=vdat
-ncstatus=nf90_put_var(lncid,lvid,ldat,start=lstart,count=lcount)
+lstart = start
+lcount = 1
+ncstatus = nf90_put_var(lncid,lvid,ldat,start=lstart,count=lcount)
 #endif
 call ncmsg("put_var1",ncstatus)
 

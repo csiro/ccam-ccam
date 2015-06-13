@@ -508,7 +508,12 @@ end do
 levkk=0
 do while( sigin(levkk+1)>0.9 ) ! host grid
   levkk=levkk+1
-end do      
+end do
+if ( levkk == 0 ) then
+  write(6,*) "ERROR: Invalid sigma levels"
+  write(6,*) "sigin = ",sigin
+  call ccmpi_abort(-1)
+end if
 
 !--------------------------------------------------------------------
 ! Read surface pressure
@@ -1520,75 +1525,77 @@ implicit none
 include 'newmpar.h'        ! Grid parameters
 include 'parm.h'           ! Model configuration
       
-integer :: iq, mm, n, i, j
-integer :: n_n, n_e, n_w, n_s
+integer :: iq, mm, n, i
+integer :: n_n, n_e, n_w, n_s, np1, nm1
+integer :: ik2
 real, dimension(6*dk*dk), intent(in) :: s
 real, dimension(ifull), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
 real, dimension(-1:ik+2,-1:ik+2,0:npanels) :: sx ! large common array
 
+call START_LOG(otf_ints_begin)
+
 if ( dk>0 ) then
+  ik2 = ik*ik
   !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
-  sx(1:ik,1:ik,0:npanels) = reshape(s(1:ik*ik*6), (/ik,ik,6/))
+  sx(1:ik,1:ik,0:npanels) = reshape(s(1:ik2*6), (/ik,ik,6/))
   do n=0,npanels,2
-    n_w=mod(n+5,6)
-    n_e=mod(n+2,6)
-    n_n=mod(n+1,6)
-    n_s=mod(n+4,6)
-    do j=1,ik
-      sx(0,j,n)   =s(indx(ik,j,n_w,ik,ik))
-      sx(-1,j,n)  =s(indx(ik-1,j,n_w,ik,ik))
-      sx(ik+1,j,n)=s(indx(ik+1-j,1,n_e,ik,ik))
-      sx(ik+2,j,n)=s(indx(ik+1-j,2,n_e,ik,ik))
-    enddo
+    n_w=mod(n+5,6)*ik2
+    n_e=mod(n+2,6)*ik2
+    n_n=mod(n+1,6)*ik2
+    n_s=mod(n+4,6)*ik2
+    np1=(n+1)*ik2
     do i=1,ik
-      sx(i,ik+1,n)=s(indx(i,1,n+1,ik,ik))
-      sx(i,ik+2,n)=s(indx(i,2,n+1,ik,ik))
-      sx(i,0,n)   =s(indx(ik,ik+1-i,n_s,ik,ik))
-      sx(i,-1,n)  =s(indx(ik-1,ik+1-i,n_s,ik,ik))
+      sx(0,i,n)   =s(i*ik+n_w)
+      sx(-1,i,n)  =s(i*ik-1+n_w)
+      sx(ik+1,i,n)=s(ik+1-i+n_e)
+      sx(ik+2,i,n)=s(2*ik+1-i+n_e)
+      sx(i,ik+1,n)=s(i+np1)
+      sx(i,ik+2,n)=s(i+ik+np1)
+      sx(i,0,n)   =s((1-i)*ik+ik2+n_s)
+      sx(i,-1,n)  =s((1-i)*ik-1+ik2+n_s)
     enddo
-    sx(-1,0,n)     =s(indx(ik,2,n_w,ik,ik))    ! wws
-    sx(0,-1,n)     =s(indx(ik,ik-1,n_s,ik,ik)) ! wss
-    sx(0,0,n)      =s(indx(ik,1,n_w,ik,ik))    ! ws
-    sx(ik+1,0,n)   =s(indx(ik,1,n_e,ik,ik))    ! es  
-    sx(ik+2,0,n)   =s(indx(ik-1,1,n_e,ik,ik))  ! ees 
-    sx(-1,ik+1,n)  =s(indx(ik,ik-1,n_w,ik,ik)) ! wwn
-    sx(0,ik+2,n)   =s(indx(ik-1,ik,n_w,ik,ik)) ! wnn
-    sx(ik+2,ik+1,n)=s(indx(2,1,n_e,ik,ik))     ! een  
-    sx(ik+1,ik+2,n)=s(indx(1,2,n_e,ik,ik))     ! enn  
-    sx(0,ik+1,n)   =s(indx(ik,ik,n_w,ik,ik))   ! wn  
-    sx(ik+1,ik+1,n)=s(indx(1,1,n_e,ik,ik))     ! en  
-    sx(ik+1,-1,n)  =s(indx(ik,2,n_e,ik,ik))    ! ess  
+    sx(-1,0,n)     =s(2*ik+n_w)         ! wws
+    sx(0,-1,n)     =s(ik2-ik+n_s)       ! wss
+    sx(0,0,n)      =s(ik+n_w)           ! ws
+    sx(ik+1,0,n)   =s(ik+n_e)           ! es  
+    sx(ik+2,0,n)   =s(ik-1+n_e)         ! ees 
+    sx(-1,ik+1,n)  =s(ik2-ik+n_w)       ! wwn
+    sx(0,ik+2,n)   =s(ik2-1+n_w)        ! wnn
+    sx(ik+2,ik+1,n)=s(2+n_e)            ! een  
+    sx(ik+1,ik+2,n)=s(1+ik+n_e)         ! enn  
+    sx(0,ik+1,n)   =s(ik2+n_w)          ! wn  
+    sx(ik+1,ik+1,n)=s(1+n_e)            ! en  
+    sx(ik+1,-1,n)  =s(2*ik+n_e)         ! ess  
   enddo  ! n loop
   do n=1,npanels,2
-    n_w=mod(n+4,6)
-    n_e=mod(n+1,6)
-    n_n=mod(n+2,6)
-    n_s=mod(n+5,6)
-    do j=1,ik
-      sx(0,j,n)   =s(indx(ik+1-j,ik,n_w,ik,ik))
-      sx(-1,j,n)  =s(indx(ik+1-j,ik-1,n_w,ik,ik))
-      sx(ik+1,j,n)=s(indx(1,j,n_e,ik,ik))
-      sx(ik+2,j,n)=s(indx(2,j,n_e,ik,ik))
-    enddo
+    n_w=mod(n+4,6)*ik2
+    n_e=mod(n+1,6)*ik2
+    n_n=mod(n+2,6)*ik2
+    n_s=mod(n+5,6)*ik2
+    nm1=(n-1)*ik2
     do i=1,ik
-      sx(i,ik+1,n)=s(indx(1,ik+1-i,n_n,ik,ik))
-      sx(i,ik+2,n)=s(indx(2,ik+1-i,n_n,ik,ik))
-      sx(i,0,n)   =s(indx(i,ik,n-1,ik,ik))
-      sx(i,-1,n)  =s(indx(i,ik-1,n-1,ik,ik))
+      sx(0,i,n)   =s(1-i+ik2+n_w)
+      sx(-1,i,n)  =s(1-i-ik+ik2+n_w)
+      sx(ik+1,i,n)=s(1+(i-1)*ik+n_e)
+      sx(ik+2,i,n)=s(2+(i-1)*ik+n_e)
+      sx(i,ik+1,n)=s(1-i*ik+ik2+n_n)
+      sx(i,ik+2,n)=s(2-i*ik+ik2+n_n)
+      sx(i,0,n)   =s(i-ik+ik2+nm1)
+      sx(i,-1,n)  =s(i-2*ik+ik2+nm1)
     enddo
-    sx(-1,0,n)     =s(indx(ik-1,ik,n_w,ik,ik)) ! wws
-    sx(0,-1,n)     =s(indx(2,ik,n_s,ik,ik))    ! wss
-    sx(0,0,n)      =s(indx(ik,ik,n_w,ik,ik))   ! ws
-    sx(ik+1,0,n)   =s(indx(1,1,n_e,ik,ik))     ! es
-    sx(ik+2,0,n)   =s(indx(1,2,n_e,ik,ik))     ! ees
-    sx(-1,ik+1,n)  =s(indx(2,ik,n_w,ik,ik))    ! wwn   
-    sx(0,ik+2,n)   =s(indx(1,ik-1,n_w,ik,ik))  ! wnn  
-    sx(ik+2,ik+1,n)=s(indx(1,ik-1,n_e,ik,ik))  ! een  
-    sx(ik+1,ik+2,n)=s(indx(2,ik,n_e,ik,ik))    ! enn  
-    sx(0,ik+1,n)   =s(indx(1,ik,n_w,ik,ik))    ! wn  
-    sx(ik+1,ik+1,n)=s(indx(1,ik,n_e,ik,ik))    ! en  
-    sx(ik+1,-1,n)  =s(indx(2,1,n_e,ik,ik))     ! ess  
+    sx(-1,0,n)     =s(ik2-1+n_w)       ! wws
+    sx(0,-1,n)     =s(2-ik+ik2+n_s)    ! wss
+    sx(0,0,n)      =s(ik2+n_w)         ! ws
+    sx(ik+1,0,n)   =s(1+n_e)           ! es
+    sx(ik+2,0,n)   =s(1+ik+n_e)        ! ees
+    sx(-1,ik+1,n)  =s(2-ik+ik2+n_w)    ! wwn   
+    sx(0,ik+2,n)   =s(1-2*ik+ik2+n_w)  ! wnn  
+    sx(ik+2,ik+1,n)=s(1-2*ik+ik2+n_e)  ! een  
+    sx(ik+1,ik+2,n)=s(2-ik+ik2+n_e)    ! enn  
+    sx(0,ik+1,n)   =s(1-ik+ik2+n_w)    ! wn  
+    sx(ik+1,ik+1,n)=s(1-ik+ik2+n_e)    ! en  
+    sx(ik+1,-1,n)  =s(2+n_e)           ! ess  
   enddo  ! n loop
   !     for ew interpolation, sometimes need (different from ns):
   !          (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
@@ -1609,6 +1616,8 @@ endif   ! (nord==1)  .. else ..
 
 sout=sum(wrk,2)/real(m_fly)
 
+call END_LOG(otf_fill_end)
+
 return
 end subroutine doints4
 
@@ -1620,8 +1629,6 @@ subroutine intsb(sx,sout,nface_l,xg_l,yg_l)   ! N.B. sout here
 !     this one does linear interp in x on outer y sides
 !     doing x-interpolation before y-interpolation
 !     This is a global routine 
-
-use cc_mpi, only : indx
 
 implicit none
       
@@ -1676,8 +1683,6 @@ end subroutine intsb
 subroutine ints_blb(sx,sout,nface_l,xg_l,yg_l) 
       
 !     this one does bi-linear interpolation only
-
-use cc_mpi, only : indx
 
 implicit none
       

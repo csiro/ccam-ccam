@@ -738,7 +738,7 @@ c     & qplume(iq,k-1),max(qs(iq,k),qq(iq,k)),qbass(iq,k-1)
              splume(iq,k)=(splume(iq,k-1)*fluxv(iq,k-1)
      &                      +entrsav(iq,k)*s(iq,k))/fluxv(iq,k)
             else
-	      kdown(iq)=0
+              kdown(iq)=0
               entrsav(iq,k)=0.  ! not to mess up dels above cloud top
               fluxv(iq,k)=0.    ! not to mess up dels above cloud top
               if(kt_sav(iq)==kl-1)kb_sav(iq)=kl-1
