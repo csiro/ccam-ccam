@@ -509,8 +509,8 @@ levkk=0
 do while( sigin(levkk+1)>0.9 ) ! host grid
   levkk=levkk+1
 end do
-if ( levkk == 0 ) then
-  write(6,*) "ERROR: Invalid sigma levels"
+if ( levkk==0 ) then
+  write(6,*) "ERROR: Invalid sigma levels in input file"
   write(6,*) "sigin = ",sigin
   call ccmpi_abort(-1)
 end if
@@ -533,7 +533,7 @@ endif
 ! read global tss to diagnose sea-ice or land-sea mask
 if ( tsstest ) then
   call histrd1(iarchi,ier,'tsu',ik,tss,ifull)
-  zss=zss_a ! used saved zss arrays
+  zss=zss_a ! use saved zss arrays
 else
   call histrd1(iarchi,ier,'tsu',ik,tss_a,6*ik*ik)
       
@@ -1554,7 +1554,7 @@ if ( dk>0 ) then
       sx(i,ik+2,n)=s(i+ik+np1)
       sx(i,0,n)   =s((1-i)*ik+ik2+n_s)
       sx(i,-1,n)  =s((1-i)*ik-1+ik2+n_s)
-    enddo
+    end do
     sx(-1,0,n)     =s(2*ik+n_w)         ! wws
     sx(0,-1,n)     =s(ik2-ik+n_s)       ! wss
     sx(0,0,n)      =s(ik+n_w)           ! ws
@@ -1567,7 +1567,7 @@ if ( dk>0 ) then
     sx(0,ik+1,n)   =s(ik2+n_w)          ! wn  
     sx(ik+1,ik+1,n)=s(1+n_e)            ! en  
     sx(ik+1,-1,n)  =s(2*ik+n_e)         ! ess  
-  enddo  ! n loop
+  end do  ! n loop
   do n=1,npanels,2
     n_w=mod(n+4,6)*ik2
     n_e=mod(n+1,6)*ik2
@@ -1583,7 +1583,7 @@ if ( dk>0 ) then
       sx(i,ik+2,n)=s(2-i*ik+ik2+n_n)
       sx(i,0,n)   =s(i-ik+ik2+nm1)
       sx(i,-1,n)  =s(i-2*ik+ik2+nm1)
-    enddo
+    end do
     sx(-1,0,n)     =s(ik2-1+n_w)       ! wws
     sx(0,-1,n)     =s(2-ik+ik2+n_s)    ! wss
     sx(0,0,n)      =s(ik2+n_w)         ! ws
@@ -1596,7 +1596,7 @@ if ( dk>0 ) then
     sx(0,ik+1,n)   =s(1-ik+ik2+n_w)    ! wn  
     sx(ik+1,ik+1,n)=s(1-ik+ik2+n_e)    ! en  
     sx(ik+1,-1,n)  =s(2+n_e)           ! ess  
-  enddo  ! n loop
+  end do  ! n loop
   !     for ew interpolation, sometimes need (different from ns):
   !          (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
   !         (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
@@ -1607,12 +1607,12 @@ call ccmpi_bcast(sx,0,comm_world)
 if ( nord==1 ) then ! bilinear
   do mm=1,m_fly     !  was 4, now may be 1
     call ints_blb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
-  enddo
+  end do
 else                ! bicubic
   do mm=1,m_fly  !  was 4, now may be 1
     call intsb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
-  enddo
-endif   ! (nord==1)  .. else ..
+  end do
+end if   ! (nord==1)  .. else ..
 
 sout=sum(wrk,2)/real(m_fly)
 
@@ -1903,7 +1903,7 @@ psl(:)=log(1.e-5*pmsl(:)) -dlnps(:)
 if ( nmaxpr==1 .and. mydiag ) then
   write(6,*)'to_psl lev,sig(lev) ',lev,sig(lev)
   write(6,*)'zs,t_lev,psl,pmsl ',zs(idjd),t(idjd),psl(idjd),pmsl(idjd)
-endif
+end if
 #endif
 
 return
@@ -1941,34 +1941,34 @@ psl(1:ifull)=psl(1:ifull)+(zsold(1:ifull)-zs(1:ifull))/(rdry*t(1:ifull,1))
 psnew(1:ifull)=1.e5*exp(psl(1:ifull))
 
 !     now alter temperatures to compensate for new topography
-if(ktau<100.and.mydiag)then
+if ( ktau<100 .and. mydiag ) then
   write(6,*) 'retopo: zsold,zs,psold,psnew ',zsold(idjd),zs(idjd),psold(idjd),psnew(idjd)
   write(6,*) 'retopo: old t ',(t(idjd,k),k=1,kl)
   write(6,*) 'retopo: old qg ',(qg(idjd,k),k=1,kl)
-endif  ! (ktau.lt.100)
-do iq=1,ifull
-  do k=1,kl
+end if  ! (ktau.lt.100)
+do iq = 1,ifull
+  do k = 1,kl
     qgold(k)=qg(iq,k)
     told(k)=t(iq,k)
   enddo  ! k loop
-  do k=1,kl-1
+  do k = 1,kl-1
     sig2=sig(k)*psnew(iq)/psold(iq)
-    if(sig2>=sig(1))then
+    if ( sig2 >= sig(1) ) then
 !     assume 6.5 deg/km, with dsig=.1 corresponding to 1 km
       t(iq,k)=told(1)+(sig2-sig(1))*6.5/.1  
     else
-      do kkk=2,kl
-        if(sig2>sig(kkk)) exit
+      do kkk = 2,kl
+        if ( sig2 > sig(kkk) ) exit
       end do
       t(iq,k)=(told(kkk)*(sig(kkk-1)-sig2)+told(kkk-1)*(sig2-sig(kkk)))/(sig(kkk-1)-sig(kkk))
       qg(iq,k)=(qgold(kkk)*(sig(kkk-1)-sig2)+qgold(kkk-1)*(sig2-sig(kkk)))/(sig(kkk-1)-sig(kkk))
-    endif
-  enddo  ! k loop
-enddo   ! iq loop
-if(ktau<100.and.mydiag)then
+    end if
+  end do  ! k loop
+end do    ! iq loop
+if ( ktau<100 .and. mydiag ) then
   write(6,*) 'retopo: new t ',(t(idjd,k),k=1,kl)
   write(6,*) 'retopo: new qg ',(qg(idjd,k),k=1,kl)
-endif  ! (ktau.lt.100)
+end if  ! (ktau.lt.100)
 
 return
 end subroutine retopo
@@ -1992,8 +1992,10 @@ real, dimension(ifull), intent(out) :: uct, vct
 real, dimension(ifull) :: wct
 real uc, vc, wc, newu, newv, neww
 
+call START_LOG(otf_wind_begin)
+
 ! dk is only non-zero on myid==0
-do iq=1,6*dk*dk
+do iq = 1,6*dk*dk
   ! first set up winds in Cartesian "source" coords            
   uc=axs_a(iq)*ucc(iq) + bxs_a(iq)*vcc(iq)
   vc=ays_a(iq)*ucc(iq) + bys_a(iq)*vcc(iq)
@@ -2008,7 +2010,7 @@ end do  ! iq loop
 call doints4(ucc, uct)
 call doints4(vcc, vct)
 call doints4(wcc, wct)
-do iq=1,ifull
+do iq = 1,ifull
   ! now convert to "target" Cartesian components (transpose used)
   newu=uct(iq)*rotpole(1,1)+vct(iq)*rotpole(2,1)+wct(iq)*rotpole(3,1)
   newv=uct(iq)*rotpole(1,2)+vct(iq)*rotpole(2,2)+wct(iq)*rotpole(3,2)
@@ -2017,7 +2019,9 @@ do iq=1,ifull
   uct(iq) = ax(iq)*newu + ay(iq)*newv + az(iq)*neww
   vct(iq) = bx(iq)*newu + by(iq)*newv + bz(iq)*neww
 end do  ! iq loop
-      
+
+call END_LOG(otf_wind_end)
+
 return
 end subroutine interpwind
 
@@ -2094,11 +2098,11 @@ real, dimension(ifull,kk) :: u_k
 character(len=*), intent(in) :: vname
       
 if ( iotest ) then
-  do k=1,kk          
+  do k = 1,kk          
     call histrd4s(iarchi,ier,vname,ik,k,u_k(:,k),ifull)
   end do
 else
-  do k=1,kk
+  do k = 1,kk
     call histrd4s(iarchi,ier,vname,ik,k,ucc,6*ik*ik)
     call doints4(ucc,u_k(:,k))
   end do

@@ -105,6 +105,8 @@ integer iarchi,ier,ik,ifull
 character(len=*) name
 real, dimension(:), intent(inout) :: var ! may be dummy argument from myid/=0
 
+call START_LOG(histrd1_begin)
+
 if ( ifull/=6*ik*ik .and. ptest ) then
   ! read local arrays without gather and distribute (e.g., restart file)
   call hr1p(iarchi,ier,name,.true.,var)
@@ -128,7 +130,9 @@ else
   call hr1p(iarchi,ier,name,.false.)
 
 end if
-      
+
+call END_LOG(histrd1_end)
+
 return
 end subroutine histrd1    
 
@@ -329,7 +333,9 @@ integer, intent(in) :: iarchi,ik,kk,ifull
 integer, intent(out) :: ier
 character(len=*), intent(in) :: name
 real, dimension(:), intent(inout) :: var ! may be dummy argument from myid/=0
-      
+
+call START_LOG(histrd4_begin)
+
 if ( ifull/=6*ik*ik .and. ptest ) then
   ! read local arrays without gather and distribute
   call hr4p(iarchi,ier,name,kk,.true.,var)
@@ -352,6 +358,8 @@ else
   call hr4p(iarchi,ier,name,kk,.false.)
 
 end if
+
+call END_LOG(histrd4_end)
 
 return
 end subroutine histrd4s      
