@@ -1616,7 +1616,7 @@ endif   ! (nord==1)  .. else ..
 
 sout=sum(wrk,2)/real(m_fly)
 
-call END_LOG(otf_fill_end)
+call END_LOG(otf_ints_end)
 
 return
 end subroutine doints4
