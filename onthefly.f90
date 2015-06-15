@@ -324,7 +324,7 @@ real, dimension(:,:), intent(out) :: t, u, v, qg, qfg, qlg, qrg
 real, dimension(ifull), intent(out) :: psl, zss, tss, fracice
 real, dimension(ifull), intent(out) :: snowd, sicedep, ssdnn, snage
 real, dimension(ifull) :: dum6, tss_l, tss_s, pmsl
-real, dimension(dk*dk*6) :: ucc, vcc
+real, dimension(dk*dk*6,kk) :: ucc, vcc
 real, dimension(dk*dk*6) :: fracice_a, sicedep_a
 real, dimension(dk*dk*6) :: tss_l_a, tss_s_a
 real, dimension(dk*dk*6) :: t_a_lev, psl_a, tss_a
@@ -479,10 +479,10 @@ if ( newfile ) then
   else
     ! load global surface temperature
     allocate(zss_a(6*dk*dk))
-    call histrd1(iarchi,ier,'zht',  ik,zss_a,6*ik*ik)
-    call histrd1(iarchi,ier,'soilt',ik,ucc,  6*ik*ik)
+    call histrd1(iarchi,ier,'zht',  ik,zss_a,   6*ik*ik)
+    call histrd1(iarchi,ier,'soilt',ik,ucc(:,1),6*ik*ik)
     if ( myid==0 ) then
-      isoilm_a=nint(ucc)
+      isoilm_a=nint(ucc(:,1))
       if ( all(isoilm_a==0) ) isoilm_a=-1 ! missing value flag
     end if
   end if
@@ -613,12 +613,12 @@ if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
     else
       do k=1,ok
         write(vname,'("uoc",I2.2)') k
-        call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik)
+        call histrd1(iarchi,ier,vname,ik,ucc(:,1),6*ik*ik)
         write(vname,'("voc",I2.2)') k
-        call histrd1(iarchi,ier,vname,ik,vcc,6*ik*ik)
-        call fill_cc(ucc,land_a)
-        call fill_cc(vcc,land_a)
-        call interpwind(mloin(:,k,1),mloin(:,k,2),ucc,vcc)
+        call histrd1(iarchi,ier,vname,ik,vcc(:,1),6*ik*ik)
+        call fill_cc(ucc(:,1),land_a)
+        call fill_cc(vcc(:,1),land_a)
+        call interpwind(mloin(:,k,1),mloin(:,k,2),ucc(:,1),vcc(:,1))
       end do
     end if ! iotest
     call mloregrid(ok,ocndwn(:,1),mloin(:,:,1),mlodwn(:,:,3),2)
@@ -758,14 +758,14 @@ end if ! (tsstest) ..else..
 ! read for nested=0 or nested=1.and.(nud_t/=0.or.nud_p/=0)
 if ( nested==0 .or. ( nested==1 .and. nud_test/=0 ) ) then
   if ( iotest ) then
-    do k=1,kk
-      call histrd4s(iarchi,ier,'temp',ik,k,u_k(:,k),ifull)        !     temperature
-    end do
+    call histrd4s(iarchi,ier,'temp',ik,kk,u_k,ifull)        !     temperature
   else
-    do k=1,kk
-      call histrd4s(iarchi,ier,'temp',ik,k,ucc,6*ik*ik)           !     temperature
-      if ( k==levkk .and. myid==0 ) t_a_lev=ucc ! store for psl calculation below
-      call doints4(ucc,u_k(:,k))                ! ints4 on source grid
+    call histrd4s(iarchi,ier,'temp',ik,kk,ucc,6*ik*ik)      !     temperature
+    if ( myid==0 ) then
+      t_a_lev=ucc(:,levkk)                           ! store for psl calculation below
+    end if
+    do k=1,kk      
+      call doints4(ucc(:,k),u_k(:,k))                ! ints4 on source grid
     end do
   end if ! iotest
   call vertint(u_k,t,1,kk,sigin)
@@ -780,15 +780,13 @@ if ( nested==0 .or. ( nested==1 .and. nud_uv/=0 ) ) then
   ! u and v.  This is a bit inefficent for disk accessing,
   ! but makes it possible to downscale large grids
   if ( iotest ) then
-    do k=1,kk            
-      call histrd4s(iarchi,ier,'u',ik,k,u_k(:,k),ifull)           !     u wind component
-      call histrd4s(iarchi,ier,'v',ik,k,v_k(:,k),ifull)           !     v wind component
-    end do
+    call histrd4s(iarchi,ier,'u',ik,kk,u_k,ifull)           !     u wind component
+    call histrd4s(iarchi,ier,'v',ik,kk,v_k,ifull)           !     v wind component
   else
+    call histrd4s(iarchi,ier,'u',ik,kk,ucc,6*ik*ik)              !     u wind component
+    call histrd4s(iarchi,ier,'v',ik,kk,vcc,6*ik*ik)              !     v wind component
     do k=1,kk
-      call histrd4s(iarchi,ier,'u',ik,k,ucc,6*ik*ik)              !     u wind component
-      call histrd4s(iarchi,ier,'v',ik,k,vcc,6*ik*ik)              !     v wind component
-      call interpwind(u_k(:,k),v_k(:,k),ucc,vcc)
+      call interpwind(u_k(:,k),v_k(:,k),ucc(:,k),vcc(:,k))
     end do
 !   interpolate all required arrays to new C-C positions
 !   don't need to do map factors and Coriolis on target grid
@@ -818,9 +816,9 @@ if ( nested==0 .or. ( nested==1 .and. nud_test/=0 ) ) then
   if ( .not.iotest ) then
     if ( myid==0 ) then
       ! ucc holds pmsl_a
-      call mslpx(ucc,psl_a,zss_a,t_a_lev,sigin(levkk))  ! needs pmsl (preferred)
+      call mslpx(ucc(:,1),psl_a,zss_a,t_a_lev,sigin(levkk))  ! needs pmsl (preferred)
     end if
-    call doints4(ucc,pmsl)
+    call doints4(ucc(:,1),pmsl)
 !   invert pmsl to get psl
     call to_pslx(pmsl,psl,zss,t(:,lev),lev)  ! on target grid
   end if ! .not.iotest
@@ -1020,12 +1018,12 @@ if ( nested/=1 ) then
       end if
     else
       if ( k==1 .and. ierc(7+1)/=0 ) then
-        ucc(1:dk*dk*6)=tss_a(1:dk*dk*6)
+        ucc(1:dk*dk*6,1)=tss_a(1:dk*dk*6)
       else
-        call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik)
+        call histrd1(iarchi,ier,vname,ik,ucc(:,1),6*ik*ik)
       end if
-      call fill_cc(ucc,sea_a)
-      call doints4(ucc,tgg(:,k))
+      call fill_cc(ucc(:,1),sea_a)
+      call doints4(ucc(:,1),tgg(:,k))
     end if
   end do
   if ( .not.iotest ) then
@@ -1057,11 +1055,11 @@ if ( nested/=1 ) then
       call histrd1(iarchi,ier,'uic',ik,micdwn(:,9),ifull)
       call histrd1(iarchi,ier,'vic',ik,micdwn(:,10),ifull)
     else
-      call histrd1(iarchi,ier,'uic',ik,ucc,6*ik*ik)
-      call histrd1(iarchi,ier,'vic',ik,vcc,6*ik*ik)
-      call fill_cc(ucc,land_a)
-      call fill_cc(vcc,land_a)
-      call interpwind(micdwn(:,9),micdwn(:,10),ucc,vcc)
+      call histrd1(iarchi,ier,'uic',ik,ucc(:,1),6*ik*ik)
+      call histrd1(iarchi,ier,'vic',ik,vcc(:,1),6*ik*ik)
+      call fill_cc(ucc(:,1),land_a)
+      call fill_cc(vcc(:,1),land_a)
+      call interpwind(micdwn(:,9),micdwn(:,10),ucc(:,1),vcc(:,1))
     end if ! iotest
     call fillhist1('icesal',micdwn(:,11),land_a)
     if ( abs(nmlo)>=2 ) then
@@ -1092,12 +1090,12 @@ if ( nested/=1 ) then
         wb(:,k)=wb(:,k)+20. ! flag for fraction of field capacity
       end if
     else
-      call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik)
+      call histrd1(iarchi,ier,vname,ik,ucc(:,1),6*ik*ik)
       if ( ierc(7+ms+k)==0 ) then
-        ucc=ucc+20.
+        ucc(:,1)=ucc(:,1)+20.
       end if
-      call fill_cc(ucc,sea_a)
-      call doints4(ucc,wb(:,k))
+      call fill_cc(ucc(:,1),sea_a)
+      call doints4(ucc(:,1),wb(:,k))
     end if ! iotest
   end do
   !unpack field capacity into volumetric soil moisture
@@ -1253,12 +1251,12 @@ if ( nested/=1 ) then
       if ( iotest ) then
         call histrd1(iarchi,ier,vname,ik,atebdwn(:,k),ifull)
       else
-        call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik)
-        where ( ucc>=399. )
-          ucc=999.
+        call histrd1(iarchi,ier,vname,ik,ucc(:,1),6*ik*ik)
+        where ( ucc(:,1)>=399. )
+          ucc(:,1)=999.
         end where
-        call fill_cc(ucc,sea_a)
-        call doints4(ucc,atebdwn(:,k))
+        call fill_cc(ucc(:,1),sea_a)
+        call doints4(ucc(:,1),atebdwn(:,k))
       end if ! iotest
       if ( all(atebdwn(:,k)==0.) ) then
         select case(k)
@@ -1279,8 +1277,8 @@ if ( nested/=1 ) then
     ! only for restart - no interpolation
     dpsldt=-999.
     if ( lrestart ) then
-      do k=1,kk 
-       call histrd4s(iarchi,ier,'omega',ik,k,dpsldt(:,k),ifull)
+      call histrd4s(iarchi,ier,'omega',ik,kk,dpsldt,ifull)
+      do k=1,kk        
        dpsldt(:,k)=dpsldt(:,k)/(1.e5*exp(psl(1:ifull)))
       enddo  ! k loop
     end if
@@ -1346,74 +1344,56 @@ if ( nested/=1 ) then
     ! GEOPOTENTIAL !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     phi_nh=0.
     if ( lrestart ) then
-      do k=1,kk 
-        call histrd4s(iarchi,ier,'zgnhs',ik,k,phi_nh(:,k),ifull)
-      enddo  ! k loop
+      call histrd4s(iarchi,ier,'zgnhs',ik,kk,phi_nh,ifull)
     end if
 
     ! SDOT !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     sdot=-999.
     if ( lrestart ) then
       sdot(:,1)=0.
-      do k=1,kk 
-        call histrd4s(iarchi,ier,'sdot',ik,k,sdot(:,k+1),ifull)
-      enddo  ! k loop
+      call histrd4s(iarchi,ier,'sdot',ik,kk,sdot(:,2:kk+1),ifull)
     end if
 
     ! PSLX !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     pslx=-999.
     if ( lrestart ) then
-      do k=1,kk 
-       call histrd4s(iarchi,ier,'pslx',ik,k,pslx(:,k),ifull)
-      enddo  ! k loop
+      call histrd4s(iarchi,ier,'pslx',ik,kk,pslx,ifull)
     end if
           
     ! SAVU !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     savu=-999.
     if ( lrestart ) then
-      do k=1,kk 
-        call histrd4s(iarchi,ier,'savu',ik,k,savu(:,k),ifull)
-      enddo  ! k loop
+      call histrd4s(iarchi,ier,'savu',ik,kk,savu,ifull)
     end if
           
     ! SAVV !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     savv=-999.
     if ( lrestart ) then
-      do k=1,kk 
-        call histrd4s(iarchi,ier,'savv',ik,k,savv(:,k),ifull)
-      enddo  ! k loop
+      call histrd4s(iarchi,ier,'savv',ik,kk,savv,ifull)
     end if
 
     ! SAVU1 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     savu1=-999.
     if ( lrestart ) then
-      do k=1,kk 
-        call histrd4s(iarchi,ier,'savu1',ik,k,savu1(:,k),ifull)
-      enddo  ! k loop
+      call histrd4s(iarchi,ier,'savu1',ik,kk,savu1,ifull)
     end if
           
     ! SAVV1 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     savv1=-999.
     if ( lrestart ) then
-      do k=1,kk 
-        call histrd4s(iarchi,ier,'savv1',ik,k,savv1(:,k),ifull)
-      enddo  ! k loop
+      call histrd4s(iarchi,ier,'savv1',ik,kk,savv1,ifull)
     end if
 
     ! SAVU2 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     savu2=-999.
     if ( lrestart ) then
-      do k=1,kk 
-        call histrd4s(iarchi,ier,'savu2',ik,k,savu2(:,k),ifull)
-      enddo  ! k loop
+      call histrd4s(iarchi,ier,'savu2',ik,kk,savu2,ifull)
     end if
           
     ! SAVV2 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     savv2=-999.
     if ( lrestart ) then
-      do k=1,kk 
-        call histrd4s(iarchi,ier,'savv2',ik,k,savv2(:,k),ifull)
-      enddo  ! k loop
+      call histrd4s(iarchi,ier,'savv2',ik,kk,savv2,ifull)
     end if
 
     ! OCEAN DATA !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -2093,18 +2073,16 @@ include 'darcdf.h'     ! Netcdf data
 integer, intent(in) :: vmode
 integer k, ier
 real, dimension(:,:), intent(out) :: varout
-real, dimension(6*dk*dk) :: ucc
+real, dimension(6*dk*dk,kk) :: ucc
 real, dimension(ifull,kk) :: u_k
 character(len=*), intent(in) :: vname
       
 if ( iotest ) then
-  do k = 1,kk          
-    call histrd4s(iarchi,ier,vname,ik,k,u_k(:,k),ifull)
-  end do
+  call histrd4s(iarchi,ier,vname,ik,kk,u_k,ifull)
 else
-  do k = 1,kk
-    call histrd4s(iarchi,ier,vname,ik,k,ucc,6*ik*ik)
-    call doints4(ucc,u_k(:,k))
+  call histrd4s(iarchi,ier,vname,ik,kk,ucc,6*ik*ik)
+  do k = 1,kk    
+    call doints4(ucc(:,k),u_k(:,k))
   end do
 end if ! iotest
 call vertint(u_k,varout,vmode,kk,sigin)

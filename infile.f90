@@ -333,16 +333,16 @@ include 'parm.h'
 integer, intent(in) :: iarchi,ik,kk,ifull
 integer, intent(out) :: ier
 character(len=*), intent(in) :: name
-real, dimension(:), intent(inout) :: var ! may be dummy argument from myid/=0
+real, dimension(:,:), intent(inout) :: var ! may be dummy argument from myid/=0
 
 call START_LOG(histrd4_begin)
 
 if ( ifull/=6*ik*ik .and. ptest ) then
   ! read local arrays without gather and distribute
   call hr4p(iarchi,ier,name,kk,.true.,var)
-  if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 .and. kk==1 ) then
+  if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then
     write(6,'("done histrd4 ",a8,i4,i3)') name,ier,iarchi
-  endif
+  end if
 
 else if ( myid==0 ) then  
   ! split up processors to save memory.  No need to allocate global
@@ -379,8 +379,8 @@ include 'parm.h'
 integer, intent(in) :: iarchi, ik, kk, ifull
 integer, intent(out) :: ier
 character(len=*), intent(in) :: name
-real, dimension(:) :: var
-real, dimension(6*ik*ik) :: globvar
+real, dimension(:,:) :: var
+real, dimension(6*ik*ik,kk) :: globvar
 real vmax, vmin
       
 call hr4p(iarchi,ier,name,kk,.false.,globvar)     
@@ -388,14 +388,14 @@ call hr4p(iarchi,ier,name,kk,.false.,globvar)
 if( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
   vmax = maxval(globvar)
   vmin = minval(globvar)
-  write(6,'("done histrd4s ",a6,i3,i4,i3,3f12.4)') name,kk,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*ik)
+  write(6,'("done histrd4s ",a6,i3,i4,i3,3f12.4)') name,kk,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*ik,nlv)
 end if
 
 ! Have to return correct value of ier on all processes because it's 
 ! used for initialisation in calling routine
 if ( ifull==6*ik*ik ) then
   ! read global arrays for myid==0
-  var(1:ifull)=globvar(:)
+  var(1:ifull,1:kk)=globvar(:,:)
 else
   ! read local arrays with gather and distribute
   call ccmpi_distribute(var,globvar)
@@ -423,15 +423,15 @@ integer, intent(out) :: ier
 integer(kind=4), dimension(4) :: start,ncount
 integer ipf, jpmax, iptst2, lcomm
 integer(kind=4) idv
-real, dimension(:), intent(inout), optional :: var
-real, dimension(pil*pjl*pnpan) :: rvar
-real, dimension(pil*pjl*pnpan*nproc) :: gvar
+real, dimension(:,:), intent(inout), optional :: var
+real, dimension(pil*pjl*pnpan,kk) :: rvar
+real, dimension(pil*pjl*pnpan*nproc,kk) :: gvar
 real(kind=4) laddoff, lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 
-start = (/ 1, 1, kk, iarchi /)
-ncount = (/ pil, pjl*pnpan, 1, 1 /)
+start = (/ 1, 1, 1, iarchi /)
+ncount = (/ pil, pjl*pnpan, kk, 1 /)
 ier=0
 
 iptst2=mod(fnproc,nproc)
@@ -443,16 +443,16 @@ do ipf=0,mynproc-1
   ! get variable idv
 #ifdef usenc3
   ier=nf_inq_varid(pncid(ipf),name,idv)
-  if(ier/=nf_noerr)then
-    if (myid==0.and.ipf==0.and.kk==1) then
+  if ( ier/=nf_noerr ) then
+    if ( myid==0 .and. ipf==0 ) then
       write(6,*) '***absent field for ncid,name,idv,ier: ',pncid(0),name,idv,ier
     end if
   else
     ! obtain scaling factors and offsets from attributes
     ier=nf_get_att_real(pncid(ipf),idv,'add_offset',laddoff)
-    if (ier/=nf_noerr) laddoff=0.
+    if ( ier/=nf_noerr ) laddoff=0.
     ier=nf_get_att_real(pncid(ipf),idv,'scale_factor',lsf)
-    if (ier/=nf_noerr) lsf=1.
+    if ( ier/=nf_noerr ) lsf=1.
 #ifdef i8r8
     ier=nf_get_vara_double(pncid(ipf),idv,start,ncount,rvar)
 #else
@@ -464,16 +464,16 @@ do ipf=0,mynproc-1
   end if ! ier
 #else
   ier=nf90_inq_varid(pncid(ipf),name,idv)
-  if(ier/=nf90_noerr)then
-    if (myid==0.and.ipf==0.and.kk==1) then
+  if ( ier/=nf90_noerr ) then
+    if ( myid==0 .and. ipf==0 ) then
       write(6,*) '***absent field for ncid,name,idv,ier: ',pncid(0),name,idv,ier
     end if
   else
     ! obtain scaling factors and offsets from attributes
     ier=nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
-    if (ier/=nf90_noerr) laddoff=0.
+    if ( ier/=nf90_noerr ) laddoff=0.
     ier=nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
-    if (ier/=nf90_noerr) lsf=1.
+    if ( ier/=nf90_noerr ) lsf=1.
     ier=nf90_get_var(pncid(ipf),idv,rvar,start=start,count=ncount)
     call ncmsg(name,ier)
     ! unpack data
@@ -483,7 +483,7 @@ do ipf=0,mynproc-1
 
   if ( qtest ) then
     ! expected restart file
-    var(1:pil*pjl*pnpan)=rvar
+    var(1:pil*pjl*pnpan,1:kk)=rvar(:,:)
   else
     ! expected mesonest file
     if ( ipf==mynproc-1 .and. myid<iptst2 ) then
@@ -494,9 +494,9 @@ do ipf=0,mynproc-1
       lcomm=comm_world
     end if
     if ( myid==0 ) then
-      call host_hr1p(lcomm,jpmax,ipf,rvar,var)
+      call host_hr4p(lcomm,jpmax,ipf,kk,rvar,var)
     else
-      call proc_hr1p(lcomm,rvar)
+      call proc_hr4p(lcomm,kk,rvar)
     end if
   end if ! qtest
 
@@ -504,6 +504,58 @@ end do ! ipf
 
 return
 end subroutine hr4p
+
+subroutine host_hr4p(lcomm,jpmax,ipf,kk,rin,var)
+
+use cc_mpi
+
+implicit none
+
+include 'newmpar.h'
+
+integer, intent(in) :: lcomm, jpmax, ipf, kk
+integer jpf, ip, n, no, ca, cb, cc, j, iq, iqi
+real, dimension(:,:), intent(out) :: var
+real, dimension(pil*pjl*pnpan,kk), intent(in) :: rin
+real, dimension(kk,pil*pjl*pnpan) :: rvar
+real, dimension(kk,pil*pjl*pnpan*nproc) :: gvar 
+
+rvar = transpose( rin )
+call ccmpi_gatherx(gvar,rvar,0,lcomm)
+do jpf = 0,jpmax-1
+  ip = ipf*nproc + jpf
+  do n = 0,pnpan-1
+    no = n - pnoff(ip) + 1
+    cb = pjoff(ip,no) + no*pil_g
+    ca = pioff(ip,no) + (cb-1)*pil_g
+    cc = n*pil*pjl + jpf*pil*pjl*pnpan - pil
+    do j = 1,pjl
+      iq = ca + j*pil_g
+      iqi = cc + j*pil
+      var(iq+1:iq+pil,1:kk) = transpose( gvar(1:kk,iqi+1:iqi+pil) )
+    end do
+  end do
+end do
+
+return
+end subroutine host_hr4p
+
+subroutine proc_hr4p(lcomm,kk,rin)
+
+use cc_mpi
+
+implicit none
+
+integer, intent(in) :: lcomm, kk
+real, dimension(pil*pjl*pnpan,kk), intent(in) :: rin
+real, dimension(kk,pil*pjl*pnpan) :: rvar
+real, dimension(0,0) :: gvar 
+
+rvar = transpose( rin )
+call ccmpi_gatherx(gvar,rvar,0,lcomm)
+
+return
+end subroutine proc_hr4p
 
 !--------------------------------------------------------------
 ! Trap netcdf error messages

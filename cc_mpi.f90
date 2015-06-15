@@ -113,7 +113,7 @@ module cc_mpi
       module procedure ccmpi_bcast2r8, ccmpi_bcast3r8, ccmpi_bcast4r8
    end interface ccmpi_bcastr8
    interface ccmpi_gatherx
-      module procedure ccmpi_gatherx2r
+      module procedure ccmpi_gatherx2r, ccmpi_gatherx3r
    end interface ccmpi_gatherx
    interface ccmpi_scatterx
       module procedure ccmpi_scatterx2r
@@ -854,6 +854,7 @@ contains
 #endif
       integer(kind=4) :: ierr, lsize
       real, dimension(ifull,size(af,2),0:nproc-1) :: sbuf
+      real, dimension(ifull,size(af,2)) :: aftemp
       integer :: npoff, ipoff, jpoff ! Offsets for target
       integer :: slen, kx
 
@@ -878,7 +879,8 @@ contains
       end do
 
       lsize = ifull*kx
-      call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,0_4,MPI_COMM_WORLD,ierr)      
+      call MPI_Scatter(sbuf,lsize,ltype,aftemp,lsize,ltype,0_4,MPI_COMM_WORLD,ierr)
+      af(1:ifull,1:kx) = aftemp(:,:)
 
    end subroutine host_distribute3
 
@@ -894,11 +896,13 @@ contains
 #endif
       integer(kind=4) :: ierr, lsize
       real, dimension(0,0,0) :: sbuf
+      real, dimension(ifull,size(af,2)) :: aftemp
       integer :: kx
 
       kx = size(af,2)
       lsize = ifull*kx
-      call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,0_4,MPI_COMM_WORLD,ierr)      
+      call MPI_Scatter(sbuf,lsize,ltype,aftemp,lsize,ltype,0_4,MPI_COMM_WORLD,ierr)
+      af(1:ifull,1:kx) = aftemp(:,:)
 
    end subroutine proc_distribute3
 
@@ -940,6 +944,7 @@ contains
       integer :: j, n, k, iq, iproc
       integer(kind=4) :: ierr, lsize
       integer, dimension(ifull,size(af,2),0:nproc-1) :: sbuf
+      integer, dimension(ifull,size(af,2)) :: aftemp
       integer :: npoff, ipoff, jpoff ! Offsets for target
       integer :: slen, kx
 
@@ -964,7 +969,8 @@ contains
       end do
 
       lsize = ifull*kx
-      call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,0_4,MPI_COMM_WORLD,ierr)      
+      call MPI_Scatter(sbuf,lsize,ltype,aftemp,lsize,ltype,0_4,MPI_COMM_WORLD,ierr)      
+      af(1:ifull,1:kx) = aftemp(:,:)
 
    end subroutine host_distribute3i
 
@@ -980,11 +986,13 @@ contains
 #endif
       integer(kind=4) :: ierr, lsize
       integer, dimension(0,0,0) :: sbuf
+      integer, dimension(ifull,size(af,2)) :: aftemp
       integer :: kx
 
       kx = size(af,2)
       lsize = ifull*kx
-      call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,0_4,MPI_COMM_WORLD,ierr)      
+      call MPI_Scatter(sbuf,lsize,ltype,aftemp,lsize,ltype,0_4,MPI_COMM_WORLD,ierr)      
+      af(1:ifull,1:kx) = aftemp(:,:)
 
    end subroutine proc_distribute3i   
 
@@ -1099,12 +1107,14 @@ contains
 #endif
       integer(kind=4) :: ierr, lsize
       real, dimension(ifull,size(a,2),0:nproc-1) :: abuf
+      real, dimension(ifull,size(a,2)) :: atemp
       integer :: ipoff, jpoff, npoff
       integer :: j, n, k, iq, iqg, kx
 
       kx = size(a,2)
       lsize = ifull*kx
-      call MPI_Gather(a,lsize,ltype,abuf,lsize,ltype,0_4,MPI_COMM_WORLD,ierr)
+      atemp(:,:) = a(1:ifull,1:kx)
+      call MPI_Gather(atemp,lsize,ltype,abuf,lsize,ltype,0_4,MPI_COMM_WORLD,ierr)
 
       ! map array in order of processor rank
       do iproc = 0,nproc-1
@@ -1136,11 +1146,13 @@ contains
 #endif
       integer(kind=4) :: ierr, lsize
       real, dimension(0,0,0) :: abuf
+      real, dimension(ifull,size(a,2)) :: atemp
       integer :: kx
 
       kx = size(a,2)
       lsize = ifull*kx
-      call MPI_Gather(a,lsize,ltype,abuf,lsize,ltype,0_4,MPI_COMM_WORLD,ierr)
+      atemp(:,:) = a(1:ifull,1:kx)
+      call MPI_Gather(atemp,lsize,ltype,abuf,lsize,ltype,0_4,MPI_COMM_WORLD,ierr)
 
    end subroutine proc_gather3
 
@@ -1199,6 +1211,7 @@ contains
 #endif
       integer(kind=4) :: ierr, lsize
       real, dimension(ifull,size(a,2),0:nproc-1) :: abuf
+      real, dimension(ifull,size(a,2)) :: atemp
       integer :: ipoff, jpoff, npoff
       integer :: j, n, k, iq, iqg, kx
 
@@ -1206,7 +1219,8 @@ contains
 
       kx = size(a,2)
       lsize = ifull*kx
-      call MPI_AllGather(a,lsize,ltype,abuf,lsize,ltype,MPI_COMM_WORLD,ierr)
+      atemp(:,:) = a(1:ifull,1:kx)
+      call MPI_AllGather(atemp,lsize,ltype,abuf,lsize,ltype,MPI_COMM_WORLD,ierr)
 
       ! map array in order of processor rank
       do iproc = 0,nproc-1
@@ -6639,6 +6653,29 @@ contains
       call END_LOG(gatherx_end)
       
    end subroutine ccmpi_gatherx2r
+   
+   subroutine ccmpi_gatherx3r(gdat,ldat,host,comm)
+
+      integer, intent(in) :: host, comm
+      integer(kind=4) :: lsize, lhost, lcomm, lerr
+#ifdef i8r8
+      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4) :: ltype = MPI_REAL
+#endif
+      real, dimension(:,:), intent(out) :: gdat
+      real, dimension(:,:), intent(in) :: ldat
+
+      call START_LOG(gatherx_begin)
+      
+      lcomm = comm
+      lhost = host
+      lsize = size(ldat)
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+   
+      call END_LOG(gatherx_end)
+      
+   end subroutine ccmpi_gatherx3r
    
    subroutine ccmpi_scatterx2r(gdat,ldat,host,comm)
    
