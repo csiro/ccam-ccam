@@ -1987,43 +1987,116 @@ include 'newmpar.h'  ! Grid parameters
       
 integer iq
 real, dimension(6*dk*dk), intent(inout) :: ucc, vcc
-real, dimension(6*dk*dk) :: wcc
 real, dimension(ifull), intent(out) :: uct, vct
-real, dimension(ifull) :: wct
-real uc, vc, wc, newu, newv, neww
+real, dimension(:), allocatable, save :: axs_l, ays_l, azs_l
+real, dimension(:), allocatable, save :: bxs_l, bys_l, bzs_l
+integer testproc, myrank, ltst
+integer, save :: oldik = -1
+integer, save :: myfull = 0
+integer, save :: comm_otf
 
 call START_LOG(otf_wind_begin)
 
+if ( oldik/=ik ) then
+  testproc = nproc
+  do while ( mod(6*ik*ik,testproc)/=0 )
+    testproc = testproc - 1
+  end do
+  if ( myid == 0 ) then
+    write(6,*) "Splitting comms for processing onthefly data ",testproc
+  end if    
+  if ( myid<testproc ) then
+    ltst   = 0
+    myrank = myid
+    myfull = 6*ik*ik/testproc
+  else
+    ltst   = -1 ! undefined
+    myrank = myid - testproc
+    myfull = 0
+  end if
+  if ( oldik/=-1 ) then
+    call ccmpi_commfree(comm_otf)
+  end if
+  call ccmpi_commsplit(comm_otf,comm_world,ltst,myrank)
+
+  if (allocated(axs_l)) then
+    deallocate(axs_l,ays_l,azs_l)
+    deallocate(bxs_l,bys_l,bzs_l)
+  end if
+  if ( myfull>0 ) then
+    allocate(axs_l(myfull),ays_l(myfull),azs_l(myfull))
+    allocate(bxs_l(myfull),bys_l(myfull),bzs_l(myfull))
+    call ccmpi_scatterx(axs_a,axs_l,0,comm_otf)
+    call ccmpi_scatterx(ays_a,ays_l,0,comm_otf)
+    call ccmpi_scatterx(azs_a,azs_l,0,comm_otf)
+    call ccmpi_scatterx(bxs_a,bxs_l,0,comm_otf)
+    call ccmpi_scatterx(bys_a,bys_l,0,comm_otf)
+    call ccmpi_scatterx(bzs_a,bzs_l,0,comm_otf)
+  end if
+  if ( myid == 0 ) then
+    write(6,*) "Ready to process onthefly wind data"
+  end if   
+  oldik = ik
+end if
+
+call interpwind_work(uct,vct,ucc,vcc,axs_l,ays_l,azs_l,bxs_l,bys_l,bzs_l,myfull,comm_otf)
+
+call END_LOG(otf_wind_end)
+
+end subroutine interpwind
+
+subroutine interpwind_work(uct,vct,ucc,vcc,axs_l,ays_l,azs_l,bxs_l,bys_l,bzs_l,myfull,comm_otf)
+      
+use cc_mpi           ! CC MPI routines
+use vecsuv_m         ! Map to cartesian coordinates
+      
+implicit none
+      
+include 'newmpar.h'  ! Grid parameters
+
+integer, intent(in) :: myfull, comm_otf
+real, dimension(6*dk*dk), intent(inout) :: ucc, vcc
+real, dimension(6*dk*dk) :: wcc
+real, dimension(myfull), intent(in) :: axs_l, ays_l, azs_l
+real, dimension(myfull), intent(in) :: bxs_l, bys_l, bzs_l
+real, dimension(myfull) :: ucc_l, vcc_l
+real, dimension(myfull) :: wcc_l, uc, vc, wc
+real, dimension(ifull), intent(out) :: uct, vct
+real, dimension(ifull) :: wct, newu, newv, neww
+
 ! dk is only non-zero on myid==0
-do iq = 1,6*dk*dk
+if ( myfull>0 ) then
+  call ccmpi_scatterx(ucc,ucc_l,0,comm_otf)
+  call ccmpi_scatterx(vcc,vcc_l,0,comm_otf)
   ! first set up winds in Cartesian "source" coords            
-  uc=axs_a(iq)*ucc(iq) + bxs_a(iq)*vcc(iq)
-  vc=ays_a(iq)*ucc(iq) + bys_a(iq)*vcc(iq)
-  wc=azs_a(iq)*ucc(iq) + bzs_a(iq)*vcc(iq)
+  uc(:) = axs_l(:)*ucc_l(:) + bxs_l(:)*vcc_l(:)
+  vc(:) = ays_l(:)*ucc_l(:) + bys_l(:)*vcc_l(:)
+  wc(:) = azs_l(:)*ucc_l(:) + bzs_l(:)*vcc_l(:)
   ! now convert to winds in "absolute" Cartesian components
-  ucc(iq)=uc*rotpoles(1,1)+vc*rotpoles(1,2)+wc*rotpoles(1,3)
-  vcc(iq)=uc*rotpoles(2,1)+vc*rotpoles(2,2)+wc*rotpoles(2,3)
-  wcc(iq)=uc*rotpoles(3,1)+vc*rotpoles(3,2)+wc*rotpoles(3,3)
-end do  ! iq loop
+  ucc_l(:) = uc(:)*rotpoles(1,1) + vc(:)*rotpoles(1,2) + wc(:)*rotpoles(1,3)
+  vcc_l(:) = uc(:)*rotpoles(2,1) + vc(:)*rotpoles(2,2) + wc(:)*rotpoles(2,3)
+  wcc_l(:) = uc(:)*rotpoles(3,1) + vc(:)*rotpoles(3,2) + wc(:)*rotpoles(3,3)
+  call ccmpi_gatherx(ucc,ucc_l,0,comm_otf)
+  call ccmpi_gatherx(vcc,vcc_l,0,comm_otf)
+  call ccmpi_gatherx(wcc,wcc_l,0,comm_otf)
+end if
+
 ! interpolate all required arrays to new C-C positions
 ! do not need to do map factors and Coriolis on target grid
 call doints4(ucc, uct)
 call doints4(vcc, vct)
 call doints4(wcc, wct)
-do iq = 1,ifull
-  ! now convert to "target" Cartesian components (transpose used)
-  newu=uct(iq)*rotpole(1,1)+vct(iq)*rotpole(2,1)+wct(iq)*rotpole(3,1)
-  newv=uct(iq)*rotpole(1,2)+vct(iq)*rotpole(2,2)+wct(iq)*rotpole(3,2)
-  neww=uct(iq)*rotpole(1,3)+vct(iq)*rotpole(2,3)+wct(iq)*rotpole(3,3)
-  ! then finally to "target" local x-y components
-  uct(iq) = ax(iq)*newu + ay(iq)*newv + az(iq)*neww
-  vct(iq) = bx(iq)*newu + by(iq)*newv + bz(iq)*neww
-end do  ! iq loop
 
-call END_LOG(otf_wind_end)
+! now convert to "target" Cartesian components (transpose used)
+newu(:) = uct(:)*rotpole(1,1) + vct(:)*rotpole(2,1) + wct(:)*rotpole(3,1)
+newv(:) = uct(:)*rotpole(1,2) + vct(:)*rotpole(2,2) + wct(:)*rotpole(3,2)
+neww(:) = uct(:)*rotpole(1,3) + vct(:)*rotpole(2,3) + wct(:)*rotpole(3,3)
+! then finally to "target" local x-y components
+uct(:) = ax(1:ifull)*newu(:) + ay(1:ifull)*newv(:) + az(1:ifull)*neww(:)
+vct(:) = bx(1:ifull)*newu(:) + by(1:ifull)*newv(:) + bz(1:ifull)*neww(:)
 
 return
-end subroutine interpwind
+end subroutine interpwind_work
 
 ! *****************************************************************************
 ! FILE IO ROUTINES

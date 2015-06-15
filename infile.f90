@@ -1332,9 +1332,9 @@ end if
 call ncmsg(sname,ier)
 if ( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
   if ( any(var==real(nf_fill_float)) ) then
-    write(6,'("histwrt3 ",a7,i4,a7)') sname,iarch,"missing"
+    write(6,'("histwrt3 ",a7,i8,a7)') sname,iarch,"missing"
   else
-    write(6,'("histwrt3 ",a7,i4)') sname,iarch
+    write(6,'("histwrt3 ",a7,i8)') sname,iarch
   end if
 end if
 #else
@@ -1356,9 +1356,9 @@ end if
 call ncmsg(sname,ier)
 if ( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
   if ( any(var==real(nf90_fill_float)) ) then
-    write(6,'("histwrt3 ",a7,i4,a7)') sname,iarch,"missing"
+    write(6,'("histwrt3 ",a7,i8,a7)') sname,iarch,"missing"
   else
-    write(6,'("histwrt3 ",a7,i4)') sname,iarch
+    write(6,'("histwrt3 ",a7,i8)') sname,iarch
   end if
 end if
 #endif
