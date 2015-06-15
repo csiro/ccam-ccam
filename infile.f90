@@ -281,22 +281,23 @@ implicit none
 include 'newmpar.h'
 
 integer, intent(in) :: lcomm, jpmax, ipf
-integer jpf, ip, n, no, ca, cb, j, iq, iqi
+integer jpf, ip, n, no, ca, cb, cc, j, iq, iqi
 real, dimension(:), intent(out) :: var
 real, dimension(pil*pjl*pnpan), intent(in) :: rvar
 real, dimension(pil*pjl*pnpan*nproc) :: gvar 
 
 call ccmpi_gatherx(gvar,rvar,0,lcomm)
-do jpf=0,jpmax-1
-  ip=ipf*nproc+jpf
-  do n=0,pnpan-1
-    no=n-pnoff(ip)+1
-    ca=pioff(ip,no)
-    cb=pjoff(ip,no)+no*pil_g
-    do j=1,pjl
-      iq=ca+(j+cb-1)*pil_g
-      iqi=(j-1)*pil+n*pil*pjl+jpf*pil*pjl*pnpan
-      var(iq+1:iq+pil)=gvar(iqi+1:iqi+pil)
+do jpf = 0,jpmax-1
+  ip = ipf*nproc + jpf
+  do n = 0,pnpan-1
+    no = n - pnoff(ip) + 1
+    cb = pjoff(ip,no) + no*pil_g
+    ca = pioff(ip,no) + (cb-1)*pil_g
+    cc = n*pil*pjl + jpf*pil*pjl*pnpan - pil
+    do j = 1,pjl
+      iq = ca + j*pil_g
+      iqi = cc + j*pil
+      var(iq+1:iq+pil) = gvar(iqi+1:iqi+pil)
     end do
   end do
 end do
@@ -791,7 +792,7 @@ if ( myid<resid ) then
   myrank = myid
 else
   ltst   = -1 ! undefined
-  myrank = myid-resid
+  myrank = myid - resid
 end if
 call ccmpi_commsplit(comm_ip,comm_world,ltst,myrank)
 
