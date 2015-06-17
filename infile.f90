@@ -21,7 +21,7 @@ implicit none
             
 private
 public vertint, datefix, getzinp, ncmsg
-public histopen, histclose, histrd1, histrd4s, pfall, ncidold
+public histopen, histclose, histrd1, histrd4, pfall, ncidold
 public attrib, histwrt3, histwrt4, freqwrite, surfread
 public ccnf_open, ccnf_create, ccnf_close, ccnf_sync, ccnf_enddef
 public ccnf_redef, ccnf_nofill, ccnf_inq_varid, ccnf_inq_dimid
@@ -322,7 +322,7 @@ end subroutine proc_hr1p
 
 !--------------------------------------------------------------   
 ! Interface for reading 3D+time fields
-subroutine histrd4s(iarchi,ier,name,ik,kk,var,ifull)
+subroutine histrd4(iarchi,ier,name,ik,kk,var,ifull)
       
 use cc_mpi
       
@@ -363,7 +363,7 @@ end if
 call END_LOG(histrd4_end)
 
 return
-end subroutine histrd4s      
+end subroutine histrd4
 
 !--------------------------------------------------------------------
 ! Gather 3D+time fields on myid==0
@@ -420,8 +420,8 @@ include 'newmpar.h'
 
 integer, intent(in) :: iarchi, kk
 integer, intent(out) :: ier
-integer(kind=4), dimension(4) :: start,ncount
-integer ipf, jpmax, iptst2, lcomm
+integer(kind=4), dimension(4) :: start, ncount
+integer ipf, jpmax, iptst2, lcomm, k
 integer(kind=4) idv
 real, dimension(:,:), intent(inout), optional :: var
 real, dimension(pil*pjl*pnpan,kk) :: rvar
@@ -429,69 +429,125 @@ real, dimension(pil*pjl*pnpan*nproc,kk) :: gvar
 real(kind=4) laddoff, lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
+character(len=80) :: newname
 
-start = (/ 1, 1, 1, iarchi /)
-ncount = (/ pil, pjl*pnpan, kk, 1 /)
-ier=0
-
-iptst2=mod(fnproc,nproc)
+ier = 0
+iptst2 = mod( fnproc, nproc )
       
-do ipf=0,mynproc-1
-
-  rvar=0. ! default value for missing field
+do ipf = 0,mynproc-1
 
   ! get variable idv
 #ifdef usenc3
-  ier=nf_inq_varid(pncid(ipf),name,idv)
-  if ( ier/=nf_noerr ) then
-    if ( myid==0 .and. ipf==0 ) then
-      write(6,*) '***absent field for ncid,name,idv,ier: ',pncid(0),name,idv,ier
-    end if
-  else
+  ier = nf_inq_varid(pncid(ipf),name,idv)
+  if ( ier==nf_noerr ) then
+    start = (/ 1, 1, 1, iarchi /)
+    ncount = (/ pil, pjl*pnpan, kk, 1 /)      
     ! obtain scaling factors and offsets from attributes
-    ier=nf_get_att_real(pncid(ipf),idv,'add_offset',laddoff)
+    ier = nf_get_att_real(pncid(ipf),idv,'add_offset',laddoff)
     if ( ier/=nf_noerr ) laddoff=0.
-    ier=nf_get_att_real(pncid(ipf),idv,'scale_factor',lsf)
+    ier = nf_get_att_real(pncid(ipf),idv,'scale_factor',lsf)
     if ( ier/=nf_noerr ) lsf=1.
 #ifdef i8r8
-    ier=nf_get_vara_double(pncid(ipf),idv,start,ncount,rvar)
+    ier = nf_get_vara_double(pncid(ipf),idv,start,ncount,rvar)
 #else
-    ier=nf_get_vara_real(pncid(ipf),idv,start,ncount,rvar)
+    ier = nf_get_vara_real(pncid(ipf),idv,start,ncount,rvar)
 #endif
     call ncmsg(name,ier)
     ! unpack data
-    rvar=rvar*real(lsf)+real(laddoff)
+    rvar = rvar*real(lsf)+real(laddoff)    
+  else
+    start(1:3) = (/ 1, 1, iarchi /)
+    ncount(1:3) = (/ pil, pjl*pnpan, 1 /)
+    do k = 1,kk        
+      write(newname,'("'//trim(name)//'",I1.1)') k
+      ier = nf_inq_varid(pncid(ipf),newname,idv)
+      if ( ier/=nf_noerr ) then
+        write(newname,'("'//trim(name)//'",I2.2)') k
+        ier = nf_inq_varid(pncid(ipf),newname,idv)
+      end if
+      if ( ier/=nf_noerr ) then
+        write(newname,'("'//trim(name)//'",I3.3)') k
+        ier = nf_inq_varid(pncid(ipf),newname,idv)          
+      end if
+      if ( ier/=nf_noerr ) exit
+      ! obtain scaling factors and offsets from attributes
+      ier = nf_get_att_real(pncid(ipf),idv,'add_offset',laddoff)
+      if ( ier/=nf_noerr ) laddoff=0.
+      ier = nf_get_att_real(pncid(ipf),idv,'scale_factor',lsf)
+      if ( ier/=nf_noerr ) lsf=1.
+#ifdef i8r8
+      ier = nf_get_vara_double(pncid(ipf),idv,start(1:3),ncount(1:3),rvar(:,k))
+#else
+      ier = nf_get_vara_real(pncid(ipf),idv,start(1:3),ncount(1:3),rvar(:,k))
+#endif
+      call ncmsg(name,ier)
+      ! unpack data
+      rvar(:,k) = rvar(:,k)*real(lsf)+real(laddoff)  
+    end do
+    if ( ier/=nf_noerr ) then
+      if ( myid==0 .and. ipf==0 ) then
+        write(6,*) '***absent field for ncid,name,idv,ier: ',pncid(0),name,idv,ier
+      end if
+      rvar = 0. ! default value for missing field
+    end if
   end if ! ier
 #else
-  ier=nf90_inq_varid(pncid(ipf),name,idv)
-  if ( ier/=nf90_noerr ) then
-    if ( myid==0 .and. ipf==0 ) then
-      write(6,*) '***absent field for ncid,name,idv,ier: ',pncid(0),name,idv,ier
-    end if
-  else
+  ier = nf90_inq_varid(pncid(ipf),name,idv)
+  if ( ier==nf90_noerr ) then
     ! obtain scaling factors and offsets from attributes
-    ier=nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
+    ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
     if ( ier/=nf90_noerr ) laddoff=0.
-    ier=nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
+    ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
     if ( ier/=nf90_noerr ) lsf=1.
-    ier=nf90_get_var(pncid(ipf),idv,rvar,start=start,count=ncount)
+    ier = nf90_get_var(pncid(ipf),idv,rvar,start=start,count=ncount)
     call ncmsg(name,ier)
     ! unpack data
-    rvar=rvar*real(lsf)+real(laddoff)
+    rvar = rvar*real(lsf)+real(laddoff)
+  else
+    start(1:3) = (/ 1, 1, iarchi /)
+    ncount(1:3) = (/ pil, pjl*pnpan, 1 /)
+    do k = 1,kk        
+      write(newname,'("'//trim(name)//'",I1.1)') k
+      ier = nf90_inq_varid(pncid(ipf),newname,idv)
+      if ( ier/=nf90_noerr ) then
+        write(newname,'("'//trim(name)//'",I2.2)') k
+        ier = nf90_inq_varid(pncid(ipf),newname,idv)          
+      end if
+      if ( ier/=nf90_noerr ) then
+        write(newname,'("'//trim(name)//'",I3.3)') k
+        ier = nf90_inq_varid(pncid(ipf),newname,idv)          
+      end if
+      if ( ier/=nf90_noerr ) exit
+      ! obtain scaling factors and offsets from attributes
+      ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
+      if ( ier/=nf90_noerr ) laddoff=0.
+      ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
+      if ( ier/=nf90_noerr ) lsf=1.
+      ier = nf90_get_var(pncid(ipf),idv,rvar(:,k),start=start(1:3),count=ncount(1:3))
+      call ncmsg(name,ier)
+      ! unpack data
+      rvar(:,k) = rvar(:,k)*real(lsf)+real(laddoff)      
+    end do
+    if ( ier/=nf90_noerr ) then
+      if ( myid==0 .and. ipf==0 ) then
+        write(6,*) '***absent field for ncid,name,idv,ier: ',pncid(0),name,idv,ier
+      end if
+      rvar = 0. ! default value for missing field
+    end if
   end if ! ier
 #endif
 
   if ( qtest ) then
     ! expected restart file
-    var(1:pil*pjl*pnpan,1:kk)=rvar(:,:)
+    var(1:pil*pjl*pnpan,1:kk) = rvar(:,:)
   else
     ! expected mesonest file
     if ( ipf==mynproc-1 .and. myid<iptst2 ) then
-      jpmax=iptst2
-      lcomm=comm_ip
+      jpmax = iptst2
+      lcomm = comm_ip
     else
-      jpmax=nproc
-      lcomm=comm_world
+      jpmax = nproc
+      lcomm = comm_world
     end if
     if ( myid==0 ) then
       call host_hr4p(lcomm,jpmax,ipf,kk,rvar,var)
@@ -520,7 +576,7 @@ real, dimension(pil*pjl*pnpan,kk), intent(in) :: rin
 real, dimension(kk,pil*pjl*pnpan) :: rvar
 real, dimension(kk,pil*pjl*pnpan*nproc) :: gvar 
 
-rvar = transpose( rin )
+rvar = transpose( rin ) ! keep vertical levels together using transpose
 call ccmpi_gatherx(gvar,rvar,0,lcomm)
 do jpf = 0,jpmax-1
   ip = ipf*nproc + jpf

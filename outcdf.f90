@@ -132,6 +132,7 @@ use mlo, only : wlev,mindep         & ! Ocean physics and prognostic arrays
 use mlodynamics                       ! Ocean dynamics
 use parmhdff_m                        ! Horizontal diffusion parameters
 use seaesfrad_m                       ! SEA-ESF radiation
+use tkeeps                            ! TKE-EPS boundary layer
 use tracers_m                         ! Tracer data
 
 implicit none
@@ -498,7 +499,28 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'rhcv',rhcv)
     call ccnf_put_attg(idnc,'tied_con',tied_con)
     call ccnf_put_attg(idnc,'tied_over',tied_over)
-   
+
+    call ccnf_put_attg(idnc,'b1',b1)
+    call ccnf_put_attg(idnc,'b2',b2)
+    call ccnf_put_attg(idnc,'be',be)
+    call ccnf_put_attg(idnc,'buoymeth',buoymeth)
+    call ccnf_put_attg(idnc,'ce0',ce0)
+    call ccnf_put_attg(idnc,'ce1',ce1)
+    call ccnf_put_attg(idnc,'ce2',ce2)
+    call ccnf_put_attg(idnc,'ce3',ce3)
+    call ccnf_put_attg(idnc,'cm0',cm0)
+    call ccnf_put_attg(idnc,'cq',cq)
+    call ccnf_put_attg(idnc,'drrc0',dtrc0)
+    call ccnf_put_attg(idnc,'dtrn0',dtrn0)
+    call ccnf_put_attg(idnc,'ent0',ent0)
+    call ccnf_put_attg(idnc,'icm1',icm1)
+    call ccnf_put_attg(idnc,'m0',m0)
+    call ccnf_put_attg(idnc,'maxdts',maxdts)
+    call ccnf_put_attg(idnc,'maxl',maxl)
+    call ccnf_put_attg(idnc,'mineps',mineps)
+    call ccnf_put_attg(idnc,'minl',minl)
+    call ccnf_put_attg(idnc,'mintke',mintke)
+
   else
     if ( myid==0 ) write(6,'("outcdf itype,idnc,iarch,cdffile=",i5,i8,i5," ",a80)') itype,idnc,iarch,cdffile
   endif ! ( iarch=1 ) ..else..
