@@ -526,7 +526,6 @@ do ipf = 0,mynproc-1
       ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
       if ( ier/=nf90_noerr ) lsf=1.
       ier = nf90_get_var(pncid(ipf),idv,rvar(:,k),start=start(1:3),count=ncount(1:3))
-      print *,"newname,start,ncount ",trim(newname),start(1:3),ncount(1:3)
       call ncmsg(name,ier)
       ! unpack data
       rvar(:,k) = rvar(:,k)*real(lsf)+real(laddoff)      
