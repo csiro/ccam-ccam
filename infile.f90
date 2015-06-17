@@ -388,7 +388,7 @@ call hr4p(iarchi,ier,name,kk,.false.,globvar)
 if( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
   vmax = maxval(globvar)
   vmin = minval(globvar)
-  write(6,'("done histrd4s ",a6,i3,i4,i3,3f12.4)') name,kk,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*ik,nlv)
+  write(6,'("done histrd4 ",a6,i3,i4,i3,3f12.4)') name,kk,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*ik,nlv)
 end if
 
 ! Have to return correct value of ier on all processes because it's 

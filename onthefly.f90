@@ -85,9 +85,9 @@ if ( myid==0 .or. pfall ) then
   ! Locate new file and read grid metadata --------------------------
   if ( ncid/=ncidold ) then
     if ( myid==0 ) write(6,*) 'Reading new file metadata'
-    iarchi=1   ! initial time index for input file
-    maxarchi=0 ! initial number of timesteps in input file
-    ok=0       ! initial number of ocean levels
+    iarchi=1   ! default time index for input file
+    maxarchi=0 ! default number of timesteps in input file
+    ok=0       ! default number of ocean levels
     call ccnf_get_attg(ncid,'int_header',nahead)
     call ccnf_get_attg(ncid,'real_header',ahead)
     ik      =nahead(1)  ! grid size
@@ -322,7 +322,7 @@ real, dimension(:,:), intent(out) :: t, u, v, qg, qfg, qlg, qrg
 real, dimension(ifull), intent(out) :: psl, zss, tss, fracice
 real, dimension(ifull), intent(out) :: snowd, sicedep, ssdnn, snage
 real, dimension(ifull) :: dum6, tss_l, tss_s, pmsl
-real, dimension(dk*dk*6) :: ucc, vcc
+real, dimension(dk*dk*6) :: ucc
 real, dimension(dk*dk*6) :: fracice_a, sicedep_a
 real, dimension(dk*dk*6) :: tss_l_a, tss_s_a
 real, dimension(dk*dk*6) :: t_a_lev, psl_a, tss_a
@@ -346,8 +346,8 @@ else
 end if
       
 ! Determine if interpolation is required
-iotest=6*ik*ik==ifull_g .and. abs(rlong0x-rlong0)<iotol .and. abs(rlat0x-rlat0)<iotol .and. &
-       abs(schmidtx-schmidt)<iotol .and. nsib==nsibx
+iotest = 6*ik*ik==ifull_g .and. abs(rlong0x-rlong0)<iotol .and. abs(rlat0x-rlat0)<iotol .and. &
+         abs(schmidtx-schmidt)<iotol .and. nsib==nsibx
 if ( iotest ) then
   io_in = 1   ! no interpolation
 else
@@ -404,13 +404,13 @@ if ( newfile .and. .not.iotest ) then
     write(6,*)'m_fly,nord ',m_fly,nord
     write(6,*)'kdate_r,ktime_r,ktau,ds',kdate_r,ktime_r,ktau,ds
     write(6,*)'rotpoles:'
-    do i=1,3
+    do i = 1,3
       write(6,'(3x,2i1,5x,2i1,5x,2i1,5x,3f8.4)') (i,j,j=1,3),(rotpoles(i,j),j=1,3)
     enddo
   endif                  ! (ktau<3.and.myid==0)
   if ( nmaxpr==1 .and. myid==0 ) then
     write(6,*)'in onthefly rotpole:'
-    do i=1,3
+    do i = 1,3
       write(6,'(3x,2i1,5x,2i1,5x,2i1,5x,3f8.4)') (i,j,j=1,3),(rotpole(i,j),j=1,3)
     enddo
     write(6,*)'xx4,yy4 ',xx4(id,jd),yy4(id,jd)
@@ -419,14 +419,14 @@ if ( newfile .and. .not.iotest ) then
   endif                  ! (nmaxpr==1.and.myid==0)
 
   ! setup interpolation arrays
-  do mm=1,m_fly  !  was 4, now may be set to 1 in namelist
-    do iq=1,ifull
+  do mm = 1,m_fly  !  was 4, now may be set to 1 in namelist
+    do iq = 1,ifull
       call latltoij(rlong4_l(iq,mm),rlat4_l(iq,mm),       & !input
                     rlong0x,rlat0x,schmidtx,              & !input
                     xg4(iq,mm),yg4(iq,mm),nface4(iq,mm),  & !output (source)
                     xx4,yy4,ik)
-    enddo
-  enddo
+    end do
+  end do
   deallocate(xx4,yy4)
        
 end if ! newfile .and. .not.iotest
@@ -443,31 +443,31 @@ if ( newfile ) then
     call ccnf_inq_varid(ncid,'lev',idv,tst)
     if ( tst ) call ccnf_inq_varid(ncid,'layer',idv,tst)
     if ( tst ) call ccnf_inq_varid(ncid,'sigma',idv,tst)
-    str(1)=1
-    cnt(1)=kk
+    str(1) = 1
+    cnt(1) = kk
     call ccnf_get_vara(ncid,idv,str(1:1),cnt(1:1),sigin)
     if ( myid==0 ) write(6,'("sigin=",(9f7.4))') (sigin(k),k=1,kk)
     ! check for missing data
-    iers(1:3)=0
+    iers(1:3) = 0
     call ccnf_inq_varid(ncid,'mixr',idv,tst)
-    if ( tst ) iers(1)=-1
+    if ( tst ) iers(1) = -1
     call ccnf_inq_varid(ncid,'siced',idv,tst)
-    if ( tst ) iers(2)=-1
+    if ( tst ) iers(2) = -1
     call ccnf_inq_varid(ncid,'fracice',idv,tst)
-    if ( tst ) iers(3)=-1
+    if ( tst ) iers(3) = -1
   end if
   
   ! bcast data to all processors unless all processes are reading input files
   if ( .not.pfall ) then
-    dumr(1:kk)     =sigin
-    dumr(kk+1:kk+3)=real(iers(1:3))
+    dumr(1:kk)      = sigin
+    dumr(kk+1:kk+3) = real(iers(1:3))
     call ccmpi_bcast(dumr(1:kk+3),0,comm_world)
-    sigin    =dumr(1:kk)
-    iers(1:3)=nint(dumr(kk+1:kk+3))
+    sigin     = dumr(1:kk)
+    iers(1:3) = nint(dumr(kk+1:kk+3))
   end if
 
   ! determine whether surface temperature needs to be interpolated (tsstest=.false.)
-  tsstest=(iers(2)==0.and.iers(3)==0.and.iotest)
+  tsstest = (iers(2)==0.and.iers(3)==0.and.iotest)
   if ( myid==0 ) write(6,*) "tsstest,iers ",tsstest,iers(1:3)
   if ( allocated(zss_a) ) deallocate(zss_a)
   if ( tsstest ) then
@@ -480,7 +480,7 @@ if ( newfile ) then
     call histrd1(iarchi,ier,'zht',  ik,zss_a,6*ik*ik)
     call histrd1(iarchi,ier,'soilt',ik,ucc  ,6*ik*ik)
     if ( myid==0 ) then
-      isoilm_a=nint(ucc)
+      isoilm_a = nint(ucc)
       if ( all(isoilm_a==0) ) isoilm_a=-1 ! missing value flag
     end if
   end if
@@ -494,7 +494,7 @@ if ( newfile ) then
   
 else
   ! use saved metadata  
-  tsstest=(iers(2)==0.and.iers(3)==0.and.iotest)        
+  tsstest = (iers(2)==0.and.iers(3)==0.and.iotest)        
 endif ! newfile ..else..
 
 ! -------------------------------------------------------------------
@@ -503,7 +503,7 @@ levk = 0
 do while( sig(levk+1)>0.9 ) ! nested grid
   levk = levk + 1
 end do
-levkin=0
+levkin = 0
 do while( sigin(levkin+1)>0.9 ) ! host grid
   levkin = levkin + 1
 end do
@@ -516,8 +516,8 @@ end if
 !--------------------------------------------------------------------
 ! Read surface pressure
 ! psf read when nested=0 or nested=1.and.nud_p/=0
-psl_a=0.
-psl=0.
+psl_a = 0.
+psl   = 0.
 if ( nested==0 .or. ( nested==1 .and. nud_test/=0 ) ) then
   if ( iotest ) then
     call histrd1(iarchi,ier,'psf',ik,psl,ifull)
@@ -531,36 +531,36 @@ endif
 ! read global tss to diagnose sea-ice or land-sea mask
 if ( tsstest ) then
   call histrd1(iarchi,ier,'tsu',ik,tss,ifull)
-  zss=zss_a ! use saved zss arrays
+  zss = zss_a ! use saved zss arrays
 else
   call histrd1(iarchi,ier,'tsu',ik,tss_a,6*ik*ik)
       
   ! set up land-sea mask from either soilt, tss or zss
   if ( newfile .and. myid==0 ) then
     if ( nemi==3 ) then 
-      land_a(:)=isoilm_a(:)>0
-      numneg=count(.not.land_a)
-      if ( any(isoilm_a(:)<0) ) nemi=2
+      land_a(:) = isoilm_a(:)>0
+      numneg = count(.not.land_a)
+      if ( any(isoilm_a(:)<0) ) nemi = 2
     end if ! (nemi==3)
     if ( nemi==2 ) then
-      numneg=0
-      do iq=1,dk*dk*6
+      numneg = 0
+      do iq = 1,dk*dk*6
         if ( tss_a(iq)>0. ) then ! over land
-          land_a(iq)=.true.
+          land_a(iq) = .true.
         else                     ! over sea
-          land_a(iq)=.false.
-          numneg=numneg+1
+          land_a(iq) = .false.
+          numneg = numneg+1
         endif               ! (tss(iq)>0) .. else ..
       enddo
-      if ( numneg==0 ) nemi=1  ! should be using zss in that case
+      if ( numneg==0 ) nemi = 1  ! should be using zss in that case
     endif !  (nemi==2)
-    tss_a=abs(tss_a)
+    tss_a = abs(tss_a)
     if ( nemi==1 ) then
-      land_a(:)=zss_a(:)>0.
-      numneg=count(.not.land_a)
+      land_a(:) = zss_a(:)>0.
+      numneg = count(.not.land_a)
     endif ! (nemi==1)
     write(6,*)'Land-sea mask using nemi = ',nemi
-    sea_a=.not.land_a
+    sea_a = .not.land_a
   end if ! (newfile.and.myid==0)
 end if ! (tsstest) ..else..
 
@@ -570,34 +570,34 @@ end if ! (tsstest) ..else..
 ! read when nested=0 or nested==1.and.nud/=0 or nested=2
 if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
   ! fixed ocean depth
-  ocndwn(:,1)=ocndep_l
+  ocndwn(:,1) = ocndep_l
   ! ocean potential temperature
   ! ocean temperature and soil temperature use the same arrays
   ! as no fractional land or sea cover is allowed in CCAM
   if ( ( nested/=1 .or. nud_sst/=0 ) .and. ok>0 ) then
     call fillhist4o('tgg',mlodwn(:,:,1),land_a,ocndwn(:,1))
-    if ( all(mlodwn(:,:,1)==0.) ) mlodwn(:,:,1)=293.
+    if ( all(mlodwn(:,:,1)==0.) ) mlodwn(:,:,1) = 293.
   else
     mlodwn(:,:,1)=293.
   end if ! (nestesd/=1.or.nud_sst/=0) ..else..
   ! ocean salinity
   if ( ( nested/=1 .or. nud_sss/=0 ) .and. ok>0 ) then
     call fillhist4o('sal',mlodwn(:,:,2),land_a,ocndwn(:,1))
-    mlodwn(:,:,2)=max(mlodwn(:,:,2),0.)
+    mlodwn(:,:,2) = max( mlodwn(:,:,2), 0. )
   else
-    mlodwn(:,:,2)=34.72   
+    mlodwn(:,:,2) = 34.72   
   end if ! (nestesd/=1.or.nud_sss/=0) ..else..
   ! ocean currents
   if ( ( nested/=1 .or. nud_ouv/=0 ) .and. ok>0 ) then
     call fillhistuv4o('uoc','voc',mlodwn(:,:,3),mlodwn(:,:,4),land_a,ocndwn(:,1))
   else
-    mlodwn(:,:,3:4)=0.               
+    mlodwn(:,:,3:4) = 0.               
   end if ! (nestesd/=1.or.nud_ouv/=0) ..else..
   ! water surface height
   if ( nested/=1 .or. nud_sfh/=0 ) then
     call fillhist1('ocheight',ocndwn(:,2),land_a)
   else
-    ocndwn(:,2)=0.
+    ocndwn(:,2) = 0.
   end if ! (nested/=1.or.nud_sfh/=0) ..else..
 end if
 !--------------------------------------------------------------
@@ -618,32 +618,32 @@ else
     if ( iers(2)==0 ) then  ! i.e. sicedep read in 
       if (iers(3)/=0 ) then ! i.e. sicedep read in; fracice not read in
         where ( sicedep_a>0. )
-          fracice_a=1.
+          fracice_a = 1.
         endwhere
       endif  ! (ierr/=0)  fracice
     else     ! sicedep not read in
       if ( iers(3)/=0 ) then  ! neither sicedep nor fracice read in
-        sicedep_a(:)=0.  ! Oct 08
-        fracice_a(:)=0.
+        sicedep_a(:) = 0.  ! Oct 08
+        fracice_a(:) = 0.
         write(6,*)'pre-setting siced in onthefly from tss'
         where ( abs(tss_a) <= 271.6 ) ! for ERA-Interim
-          sicedep_a=1.  ! Oct 08   ! previously 271.2
-          fracice_a=1.
+          sicedep_a = 1.  ! Oct 08   ! previously 271.2
+          fracice_a = 1.
         endwhere
       else  ! i.e. only fracice read in;  done in indata, nestin
             ! but needed here for onthefly (different dims) 28/8/08        
         where ( fracice_a>.01 )
-          sicedep_a=2.
+          sicedep_a = 2.
         elsewhere
-          sicedep_a=0.
-          fracice_a=0.
+          sicedep_a = 0.
+          fracice_a = 0.
         endwhere
       endif  ! (iers(3)/=0)
     endif    ! (iers(2)/=0) .. else ..    for sicedep
          
     ! fill surface temperature and sea-ice
-    tss_l_a=abs(tss_a)
-    tss_s_a=abs(tss_a)
+    tss_l_a = abs(tss_a)
+    tss_s_a = abs(tss_a)
     call fill_cc(tss_l_a,sea_a)
     call fill_cc(tss_s_a,land_a)
     call fill_cc(sicedep_a,land_a)
@@ -667,11 +667,11 @@ else
     end if
 !   incorporate other target land mask effects
     where ( land(1:ifull) )
-      sicedep=0.
-      fracice=0.
-      tss=tss_l
+      sicedep = 0.
+      fracice = 0.
+      tss = tss_l
     elsewhere
-      tss=tss_s
+      tss = tss_s
     end where
   else
 !   The routine doints4 does the gather, calls ints4 and redistributes
@@ -682,13 +682,13 @@ else
     call doints4(sicedep_a, sicedep)
 !   incorporate other target land mask effects
     where ( land(1:ifull) )
-      tss(1:ifull)=tss_l
+      tss(1:ifull) = tss_l
     elsewhere
-      tss(1:ifull)=tss_s   ! no sign switch in CCAM
+      tss(1:ifull) = tss_s   ! no sign switch in CCAM
     end where
     where ( land(1:ifull) .or. sicedep<0.05 ) ! for sflux
-      sicedep=0.
-      fracice=0.
+      sicedep = 0.
+      fracice = 0.
     end where
   end if ! iotest
 end if ! (tsstest) ..else..
@@ -726,7 +726,7 @@ end if ! (tsstest) ..else..
 if ( nested==0 .or. ( nested==1 .and. nud_test/=0 ) ) then
   call gethist4a('temp',t,2,levkin=levkin,t_a_lev=t_a_lev)
 else
-  t(1:ifull,:)=300.    
+  t(1:ifull,:) = 300.    
 end if ! (nested==0.or.(nested==1.and.(nud_t/=0.or.nud_p/=0)))
 
 ! winds
@@ -734,8 +734,8 @@ end if ! (nested==0.or.(nested==1.and.(nud_t/=0.or.nud_p/=0)))
 if ( nested==0 .or. ( nested==1 .and. nud_uv/=0 ) ) then
   call gethistuv4a('u','v',u,v,3,4)
 else
-  u(1:ifull,:)=0.
-  v(1:ifull,:)=0.
+  u(1:ifull,:) = 0.
+  v(1:ifull,:) = 0.
 end if ! (nested==0.or.(nested==1.and.nud_uv/=0))
 
 ! mixing ratio
@@ -747,7 +747,7 @@ if ( nested==0 .or. ( nested==1 .and. nud_q/=0 ) ) then
     call gethist4a('q',qg,2)         !     mixing ratio
   end if
 else
-  qg(1:ifull,:)=qgmin
+  qg(1:ifull,:) = qgmin
 end if ! (nested==0.or.(nested==1.and.nud_q/=0))
 
 ! re-grid surface pressure by mapping to MSLP, interpolating and then map to surface pressure
@@ -794,25 +794,25 @@ if ( nested/=1 ) then
   !------------------------------------------------------------------
   ! check soil variables
   if ( myid==0 .or. pfall ) then
-    ierc(7:7+3*ms)=0
+    ierc(7:7+3*ms) = 0
     if ( ccycle==0 ) then
       !call ccnf_inq_varid(ncid,'cplant1',idv,tst)
       !if ( tst ) ierc(7)=-1
-      ierc(7)=-1
+      ierc(7) = -1
     else
       call ccnf_inq_varid(ncid,'glai',idv,tst)
-      if ( tst ) ierc(7)=-1
+      if ( tst ) ierc(7) = -1
     end if
     do k=1,ms
       write(vname,'("tgg",I1.1)') k
       call ccnf_inq_varid(ncid,vname,idv,tst)
-      if ( tst ) ierc(7+k)=-1
+      if ( tst ) ierc(7+k) = -1
       write(vname,'("wetfrac",I1.1)') k
       call ccnf_inq_varid(ncid,vname,idv,tst)
-      if ( tst ) ierc(7+ms+k)=-1
+      if ( tst ) ierc(7+ms+k) = -1
       write(vname,'("wb",I1.1)') k
       call ccnf_inq_varid(ncid,vname,idv,tst)
-      if ( tst ) ierc(7+2*ms+k)=-1
+      if ( tst ) ierc(7+2*ms+k) = -1
     end do
   end if
   
@@ -821,84 +821,84 @@ if ( nested/=1 ) then
   if ( nested==0 ) then
     if ( myid==0 .or. pfall ) then
       if ( kk==kl .and. iotest ) then
-        lrestart=.true.
+        lrestart = .true.
         call ccnf_inq_varid(ncid,'omega',idv,tst)
-        if ( tst ) lrestart=.false.
+        if ( tst ) lrestart = .false.
         call ccnf_inq_varid(ncid,'zgnhs',idv,tst)
-        if ( tst ) lrestart=.false.
+        if ( tst ) lrestart = .false.
         call ccnf_inq_varid(ncid,'sdot',idv,tst)
-        if ( tst ) lrestart=.false.
+        if ( tst ) lrestart = .false.
         call ccnf_inq_varid(ncid,'pslx',idv,tst)
-        if ( tst ) lrestart=.false.
+        if ( tst ) lrestart = .false.
         call ccnf_inq_varid(ncid,'savu',idv,tst)
-        if ( tst ) lrestart=.false.
+        if ( tst ) lrestart = .false.
         call ccnf_inq_varid(ncid,'savv',idv,tst)
-        if ( tst ) lrestart=.false.
+        if ( tst ) lrestart = .false.
         call ccnf_inq_varid(ncid,'savu1',idv,tst)
-        if ( tst ) lrestart=.false.
+        if ( tst ) lrestart = .false.
         call ccnf_inq_varid(ncid,'savv1',idv,tst)
-        if ( tst ) lrestart=.false.
+        if ( tst ) lrestart = .false.
         call ccnf_inq_varid(ncid,'savu2',idv,tst)
-        if ( tst ) lrestart=.false.
+        if ( tst ) lrestart = .false.
         call ccnf_inq_varid(ncid,'savv2',idv,tst)
-        if ( tst ) lrestart=.false.
+        if ( tst ) lrestart = .false.
         call ccnf_inq_varid(ncid,'nstag',idv,tst)
         if ( tst ) then
-          lrestart=.false.
+          lrestart = .false.
         else 
           call ccnf_get_var1(ncid,idv,iarchi,ierc(3))
         end if
         call ccnf_inq_varid(ncid,'nstagu',idv,tst)
         if ( tst ) then
-          lrestart=.false.
+          lrestart = .false.
         else 
           call ccnf_get_var1(ncid,idv,iarchi,ierc(4))
         end if
         call ccnf_inq_varid(ncid,'nstagoff',idv,tst)
         if ( tst ) then
-          lrestart=.false.
+          lrestart = .false.
         else 
           call ccnf_get_var1(ncid,idv,iarchi,ierc(5))
         end if
         if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
           if ( ok==wlev ) then
             call ccnf_inq_varid(ncid,'oldu101',idv,tst)
-            if ( tst ) lrestart=.false.
+            if ( tst ) lrestart = .false.
             call ccnf_inq_varid(ncid,'oldv101',idv,tst)
-            if ( tst ) lrestart=.false.
+            if ( tst ) lrestart = .false.
             call ccnf_inq_varid(ncid,'oldu201',idv,tst)
-            if ( tst ) lrestart=.false.
+            if ( tst ) lrestart = .false.
             call ccnf_inq_varid(ncid,'oldv201',idv,tst)
-            if ( tst ) lrestart=.false.
+            if ( tst ) lrestart = .false.
             call ccnf_inq_varid(ncid,'ipice',idv,tst)
-            if ( tst ) lrestart=.false.
+            if ( tst ) lrestart = .false.
             call ccnf_inq_varid(ncid,'nstagoffmlo',idv,tst)
             if ( tst ) then
-              lrestart=.false.
+              lrestart = .false.
             else
               call ccnf_get_var1(ncid,idv,iarchi,ierc(6))
             end if
           else
-            lrestart=.false.
+            lrestart = .false.
           end if
         end if
       else
-        lrestart=.false.
+        lrestart = .false.
       end if
-      ierc(1:2)=0
+      ierc(1:2) = 0
       if ( lrestart ) ierc(1)=1
       call ccnf_inq_varid(ncid,'u10',idv,tst)
-      if ( tst ) ierc(2)=-1
+      if ( tst ) ierc(2) = -1
     end if
     if ( .not.pfall ) then
       call ccmpi_bcast(ierc(1:7+3*ms),0,comm_world)
     end if
-    lrestart=(ierc(1)==1)
+    lrestart = (ierc(1)==1)
     if ( lrestart ) then
-      nstag      =ierc(3)
-      nstagu     =ierc(4)
-      nstagoff   =ierc(5)
-      nstagoffmlo=ierc(6)
+      nstag       = ierc(3)
+      nstagu      = ierc(4)
+      nstagoff    = ierc(5)
+      nstagoffmlo = ierc(6)
       if ( myid==0 ) then
         write(6,*) "Continue stagging from"
         write(6,*) "nstag,nstagu,nstagoff ",nstag,nstagu,nstagoff
@@ -917,36 +917,40 @@ if ( nested/=1 ) then
   ! Read snow and soil tempertaure
   call gethist1('snd',snowd)
   where ( .not.land(1:ifull) .and. (sicedep==0. .or. nmlo==0) )
-    snowd=0.
+    snowd = 0.
   end where
-  do k=1,ms 
-    if ( ierc(7+k)==0 ) then
-      write(vname,'("tgg",I1.1)') k
-    else if ( k<=3 .and. ierc(7+2)==0 ) then
-      vname="tgg2"
-    else if ( k<=3 ) then
-      vname="tb3"
-    else if ( ierc(7+6)==0 ) then
-      vname="tgg6"
-    else
-      vname="tb2"
-    end if
-    if ( iotest ) then
-      if ( k==1 .and. ierc(7+1)/=0 ) then
-        tgg(:,k)=tss
+  if ( all(ierc(8:7+ms)==0) ) then
+    call fillhist4('tgg',tgg,ms,sea_a)
+  else
+    do k = 1,ms 
+      if ( ierc(7+k)==0 ) then
+        write(vname,'("tgg",I1.1)') k
+      else if ( k<=3 .and. ierc(7+2)==0 ) then
+        vname="tgg2"
+      else if ( k<=3 ) then
+        vname="tb3"
+      else if ( ierc(7+6)==0 ) then
+        vname="tgg6"
       else
-        call histrd1(iarchi,ier,vname,ik,tgg(:,k),ifull)
+        vname="tb2"
       end if
-    else
-      if ( k==1 .and. ierc(7+1)/=0 ) then
-        ucc(1:dk*dk*6)=tss_a(1:dk*dk*6)
+      if ( iotest ) then
+        if ( k==1 .and. ierc(7+1)/=0 ) then
+          tgg(:,k) = tss
+        else
+          call histrd1(iarchi,ier,vname,ik,tgg(:,k),ifull)
+        end if
       else
-        call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik)
+        if ( k==1 .and. ierc(7+1)/=0 ) then
+          ucc(1:dk*dk*6)=tss_a(1:dk*dk*6)
+        else
+          call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik)
+        end if
+        call fill_cc(ucc,sea_a)
+        call doints4(ucc,tgg(:,k))
       end if
-      call fill_cc(ucc,sea_a)
-      call doints4(ucc,tgg(:,k))
-    end if
-  end do
+    end do
+  end if
   if ( .not.iotest ) then
     where ( snowd>0. .and. land(1:ifull) )
       tgg(:,1)=min( tgg(:,1), 270.1 )
@@ -972,34 +976,39 @@ if ( nested/=1 ) then
   !------------------------------------------------------------------
   ! Read soil moisture
   wb=20.5
-  do k=1,ms
-    if ( ierc(7+ms+k)==0 ) then
-      write(vname,'("wetfrac",I1.1)') k
-    else if ( ierc(7+2*ms+k)==0 ) then
-      write(vname,'("wb",I1.1)') k
-    else if ( k<2 .and. ierc(7+2*ms+2)==0 ) then
-      vname="wb2"
-    else if ( k<2 ) then
-      vname="wfg"
-    else if ( ierc(7+2*ms+6)==0 ) then
-      vname="wb6"
-    else
-      vname="wfb"
-    end if
-    if ( iotest ) then
-      call histrd1(iarchi,ier,vname,ik,wb(:,k),ifull)
+  if ( all(ierc(8+ms:7+2*ms)==0) ) then
+    call fillhist4('wetfrac',wb,ms,sea_a)
+    wb=wb+20. ! flag for fraction of field capacity
+  else
+    do k=1,ms
       if ( ierc(7+ms+k)==0 ) then
-        wb(:,k)=wb(:,k)+20. ! flag for fraction of field capacity
+        write(vname,'("wetfrac",I1.1)') k
+      else if ( ierc(7+2*ms+k)==0 ) then
+        write(vname,'("wb",I1.1)') k
+      else if ( k<2 .and. ierc(7+2*ms+2)==0 ) then
+        vname="wb2"
+      else if ( k<2 ) then
+        vname="wfg"
+      else if ( ierc(7+2*ms+6)==0 ) then
+        vname="wb6"
+      else
+        vname="wfb"
       end if
-    else
-      call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik)
-      if ( ierc(7+ms+k)==0 ) then
-        ucc=ucc+20.
-      end if
-      call fill_cc(ucc,sea_a)
-      call doints4(ucc,wb(:,k))
-    end if ! iotest
-  end do
+      if ( iotest ) then
+        call histrd1(iarchi,ier,vname,ik,wb(:,k),ifull)
+        if ( ierc(7+ms+k)==0 ) then
+          wb(:,k)=wb(:,k)+20. ! flag for fraction of field capacity
+        end if
+      else
+        call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik)
+        if ( ierc(7+ms+k)==0 ) then
+          ucc=ucc+20.         ! flag for fraction of field capacity
+        end if
+        call fill_cc(ucc,sea_a)
+        call doints4(ucc,wb(:,k))
+      end if ! iotest
+    end do
+  end if
   !unpack field capacity into volumetric soil moisture
   if ( any(wb(:,:)>10.) ) then
     if ( mydiag ) write(6,*) "Unpacking wetfrac to wb",wb(idjd,1)
@@ -1076,86 +1085,30 @@ if ( nested/=1 ) then
   ! Read urban data
   if ( nurban/=0 ) then
     if ( .not.allocated(atebdwn) ) allocate(atebdwn(ifull,28))
-    do k=1,28
-      select case(k)
-        case(1)
-          vname='rooftgg1'
-        case(2)
-          vname='rooftgg2'
-        case(3)
-          vname='rooftgg3'
-        case(4)
-          vname='rooftgg4'
-        case(5)
-          vname='waletgg1'
-        case(6)
-          vname='waletgg2'
-        case(7)
-          vname='waletgg3'
-        case(8)
-          vname='waletgg4'
-        case(9)
-          vname='walwtgg1'
-        case(10)
-          vname='walwtgg2'
-        case(11)
-          vname='walwtgg3'
-        case(12)
-          vname='walwtgg4'
-        case(13)
-          vname='roadtgg1'
-        case(14)
-          vname='roadtgg2'
-        case(15)
-          vname='roadtgg3'
-        case(16)
-          vname='roadtgg4'
-        case(17)
-          vname='urbnsmc'
-        case(18)
-          vname='urbnsmr'
-        case(19)
-          vname='roofwtr'
-        case(20)
-          vname='roadwtr'
-        case(21)
-          vname='urbwtrc'
-        case(22)
-          vname='urbwtrr'
-        case(23)
-          vname='roofsnd'
-        case(24)
-          vname='roadsnd'
-        case(25)
-          vname='roofden'
-        case(26)
-          vname='roadden'
-        case(27)
-          vname='roofsna'
-        case(28)
-          vname='roadsna'
-      end select
-      if ( iotest ) then
-        call histrd1(iarchi,ier,vname,ik,atebdwn(:,k),ifull)
-      else
-        call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik)
-        where ( ucc>=399. )
-          ucc=999.
-        end where
-        call fill_cc(ucc,sea_a)
-        call doints4(ucc,atebdwn(:,k))
-      end if ! iotest
-      if ( all(atebdwn(:,k)==0.) ) then
-        select case(k)
-          case(1:16)
-            atebdwn(:,k)=300.
-          case(25:26)
-            atebdwn(:,k)=100.
-          case(27:28)
-            atebdwn(:,k)=0.85
-        end select
-      end if
-    end do
+    call fillhist4('rooftgg',atebdwn(:,1:4),  4,sea_a,filllimit=399.)
+    if ( all(atebdwn(:,1:4)==0.) ) atebdwn(:,1:4)=300.
+    call fillhist4('waletgg',atebdwn(:,5:8),  4,sea_a,filllimit=399.)
+    if ( all(atebdwn(:,5:8)==0.) ) atebdwn(:,5:8)=300.
+    call fillhist4('walwtgg',atebdwn(:,9:12), 4,sea_a,filllimit=399.)
+    if ( all(atebdwn(:,9:12)==0.) ) atebdwn(:,9:12)=300.
+    call fillhist4('roadtgg',atebdwn(:,13:16),4,sea_a,filllimit=399.)
+    if ( all(atebdwn(:,13:16)==0.) ) atebdwn(:,13:16)=300.
+    call fillhist1('urbnsmc',atebdwn(:,17),sea_a,filllimit=399.)
+    call fillhist1('urbnsmr',atebdwn(:,18),sea_a,filllimit=399.)
+    call fillhist1('roofwtr',atebdwn(:,19),sea_a,filllimit=399.)
+    call fillhist1('roadwtr',atebdwn(:,20),sea_a,filllimit=399.)
+    call fillhist1('urbwtrc',atebdwn(:,21),sea_a,filllimit=399.)
+    call fillhist1('urbwtrr',atebdwn(:,22),sea_a,filllimit=399.)
+    call fillhist1('roofsnd',atebdwn(:,23),sea_a,filllimit=399.)
+    call fillhist1('roadsnd',atebdwn(:,24),sea_a,filllimit=399.)
+    call fillhist1('roofden',atebdwn(:,25),sea_a,filllimit=399.)
+    if ( all(atebdwn(:,25)==0.) ) atebdwn(:,25)=100.
+    call fillhist1('roadden',atebdwn(:,26),sea_a,filllimit=399.)
+    if ( all(atebdwn(:,26)==0.) ) atebdwn(:,26)=100.
+    call fillhist1('roofsna',atebdwn(:,27),sea_a,filllimit=399.)
+    if ( all(atebdwn(:,27)==0.) ) atebdwn(:,27)=0.85
+    call fillhist1('roadsna',atebdwn(:,28),sea_a,filllimit=399.)
+    if ( all(atebdwn(:,28)==0.) ) atebdwn(:,28)=0.85
   end if
 
   ! -----------------------------------------------------------------
@@ -1895,7 +1848,7 @@ return
 end subroutine gethist1
 
 ! This version reads, fills and interpolates a surface field
-subroutine fillhist1(vname,varout,mask_a)
+subroutine fillhist1(vname,varout,mask_a,filllimit)
       
 use infile             ! Input file routines
       
@@ -1905,6 +1858,7 @@ include 'newmpar.h'    ! Grid parameters
 include 'darcdf.h'     ! Netcdf data
       
 integer ier
+real, intent(in), optional :: filllimit
 real, dimension(:), intent(out) :: varout
 real, dimension(6*dk*dk) :: ucc
 logical, dimension(6*dk*dk), intent(in) :: mask_a
@@ -1914,6 +1868,11 @@ if ( iotest ) then
   call histrd1(iarchi,ier,vname,ik,varout,ifull)
 else
   call histrd1(iarchi,ier,vname,ik,ucc,6*ik*ik)
+  if ( present(filllimit) ) then
+    where ( ucc>=filllimit )
+      ucc=999.
+    end where
+  end if  
   call fill_cc(ucc,mask_a)
   call doints4(ucc,varout)
 end if ! iotest
@@ -2053,7 +2012,7 @@ return
 end subroutine gethistuv4a  
 
 ! This version reads, fills a 3D field for the ocean
-subroutine fillhist4(vname,varout,kx,mask_a)
+subroutine fillhist4(vname,varout,kx,mask_a,filllimit)
       
 use infile             ! Input file routines
       
@@ -2064,6 +2023,7 @@ include 'darcdf.h'     ! Netcdf data
       
 integer, intent(in) :: kx
 integer ier, k
+real, intent(in), optional :: filllimit
 real, dimension(:,:), intent(out) :: varout
 real, dimension(6*dk*dk,kx) :: ucc
 logical, dimension(6*dk*dk), intent(in) :: mask_a
@@ -2073,6 +2033,11 @@ if ( iotest ) then
   call histrd4(iarchi,ier,vname,ik,kx,varout,ifull)
 else
   call histrd4(iarchi,ier,vname,ik,kx,ucc,6*ik*ik)
+  if ( present(filllimit) ) then
+    where ( ucc>=filllimit )
+      ucc=999.
+    end where
+  end if
   do k = 1,kx
     call fill_cc(ucc(:,k),mask_a)
     call doints4(ucc(:,k),varout(:,k))
