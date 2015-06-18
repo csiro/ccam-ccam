@@ -182,6 +182,7 @@ real, dimension(ifull) :: tff,tgg,dum
 real, dimension(ifull) :: cdrag,umag,ustar
 real, dimension(ifull) :: tempv,rvar,bvf,dc,mc,fc
 real, dimension(ifull) :: tbb,tcc,tqq
+real, dimension(ifull) :: avearray
 real, dimension(kl) :: sigkap,w2up,nn,dqdash,qupsat
 real, dimension(kl) :: qtup,ttup,tvup,thup
 real, dimension(1) :: templ
@@ -778,6 +779,11 @@ do kcount=1,mcount
   aa(:,kl)=qq(:,kl)+ddts*mflx(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)
   bb(:,kl)=1.-qq(:,kl)+ddts*mflx(:,kl)*fzzh(:,kl-1)*idzm(:,kl)
   
+  avearray=sum(thetal(1:ifull,:),dim=2)/real(kl)
+  do k=1,kl
+    thetal(1:ifull,k)=thetal(1:ifull,k)-avearray
+    tlup(:,k)=tlup(:,k)-avearray
+  end do
   dd(:,1)=thetal(1:ifull,1)-ddts*(mflx(:,1)*tlup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                   &
                                  +mflx(:,2)*tlup(:,2)*fzzh(:,1)*idzp(:,1))                                       &
                            +ddts*rhos*wt0/(rhoa(:,1)*dz_fl(:,1))
@@ -788,12 +794,21 @@ do kcount=1,mcount
   dd(:,kl)=thetal(1:ifull,kl)+ddts*(mflx(:,kl-1)*tlup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                       &
                                    +mflx(:,kl)*tlup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
   call thomas(thetal,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
+  do k=1,kl
+    thetal(1:ifull,k)=thetal(1:ifull,k)+avearray
+    tlup(:,k)=tlup(:,k)+avearray
+  end do
 #ifdef offline
   wthl(:,1:kl-1)=-kmo(:,1:kl-1)*(thetal(1:ifull,2:kl)-thetal(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)                    &
                  +mflx(:,1:kl-1)*(tlup(:,1:kl-1)-thetal(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                           &
                  +mflx(:,2:kl)*(tlup(:,2:kl)-thetal(:,2:kl))*fzzh(:,1:kl-1)
 #endif
 
+  avearray=sum(qvg(1:ifull,:),dim=2)/real(kl)
+  do k=1,kl
+    qvg(1:ifull,k)=qvg(1:ifull,k)-avearray
+    qvup(:,k)=qvup(:,k)-avearray
+  end do
   dd(:,1)=qvg(1:ifull,1)-ddts*(mflx(:,1)*qvup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                      &
                               +mflx(:,2)*qvup(:,2)*fzzh(:,1)*idzp(:,1))                                          &
                            +ddts*rhos*wq0/(rhoa(:,1)*dz_fl(:,1))
@@ -804,6 +819,10 @@ do kcount=1,mcount
   dd(:,kl)=qvg(1:ifull,kl)+ddts*(mflx(:,kl-1)*qvup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                          &
                                 +mflx(:,kl)*qvup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
   call thomas(qvg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
+  do k=1,kl
+    qvg(1:ifull,k)=qvg(1:ifull,k)+avearray
+    qvup(:,k)=qvup(:,k)+avearray
+  end do  
 #ifdef offline
   wqv(:,1:kl-1)=-kmo(:,1:kl-1)*(qvg(1:ifull,2:kl)-qvg(1:ifull,1:kl-1))/dz_hl(:,1:kl-1)                           &
                  +mflx(:,1:kl-1)*(qvup(:,1:kl-1)-qvg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                              &

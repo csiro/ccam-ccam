@@ -34,7 +34,7 @@ implicit none
 private
 public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlodiag,mloalb2,mloalb4, &
        mloscrnout,mloextra,mloimpice,mloexpice,mloexpdep,mloexpdensity,mloexpmelt,mloexpgamm,wlev,   &
-       micdwn,mxd,mindep,minwater,onedice,mloimport3d,mloexport3d,mloexpenergy
+       micdwn,mxd,mindep,minwater,onedice,mloimport3d,mloexport3d
 
 ! parameters
 integer, save      :: wlev = 20                                        ! Number of water layers
@@ -83,6 +83,7 @@ type dgwaterdata
   real, dimension(:), allocatable :: eg             ! water latent heat flux (W/m2)
   real, dimension(:), allocatable :: taux           ! wind/water u-component stress (N/m2)
   real, dimension(:), allocatable :: tauy           ! wind/water v-component stress (N/m2)
+  !real, dimension(:), allocatable :: deleng         ! Change in energy stored
 end type dgwaterdata
 
 type dgicedata
@@ -103,6 +104,7 @@ type dgicedata
   real, dimension(:), allocatable :: tauyica        ! water/ice v-component stress (N/m2)
   real, dimension(:), allocatable :: tauxicw        ! water/ice u-component stress (N/m2)
   real, dimension(:), allocatable :: tauyicw        ! water/ice v-component stress (N/m2)
+  !real, dimension(:), allocatable :: deleng         ! Change in energy stored
 end type dgicedata
 
 type dgscrndata
@@ -144,7 +146,7 @@ real, parameter :: ls=lv+lf               ! Latent heat of sublimation (J kg^-1)
 real, parameter :: grav=9.80              ! graviational constant (m s^-2)
 real, parameter :: sbconst=5.67e-8        ! Stefan-Boltzmann constant
 real, parameter :: cdbot=2.4e-3           ! bottom drag coefficent
-real, parameter :: cp=1004.64             ! Specific heat of dry air at const P
+real, parameter :: cpair=1004.64          ! Specific heat of dry air at const P
 real, parameter :: rdry=287.04            ! Specific gas const for dry air
 real, parameter :: rvap=461.5             ! Gas constant for water vapor
 ! water parameters
@@ -230,6 +232,7 @@ allocate(dgice%tauxicw(wfull),dgice%tauyicw(wfull))
 allocate(depth(wfull,wlev),dz(wfull,wlev))
 allocate(depth_hl(wfull,wlev+1))
 allocate(dz_hl(wfull,2:wlev))
+!allocate(dgwater%deleng(wfull),dgice%deleng(wfull))
 
 iqw=0
 iqwt=0
@@ -297,6 +300,8 @@ dgice%tauxica=0.
 dgice%tauyica=0.
 dgice%tauxicw=0.
 dgice%tauyicw=0.
+!dgwater%deleng=0.
+!dgice%deleng=0.
 
 ! MLO - 20 level
 !depth = (/   0.5,   3.4,  11.9,  29.7,  60.7, 108.5, 176.9, 269.7, 390.6, 543.3, &
@@ -423,6 +428,7 @@ deallocate(dgscrn%temp,dgscrn%u2,dgscrn%qg,dgscrn%u10)
 deallocate(dgwater%taux,dgwater%tauy,dgice%tauxica,dgice%tauyica)
 deallocate(dgice%tauxicw,dgice%tauyicw)
 deallocate(depth,dz,depth_hl,dz_hl)
+!deallocate(dgwater%deleng,dgice%deleng)
 
 return
 end subroutine mloend
@@ -1056,39 +1062,17 @@ gamm(:,3)=max(ip_dic,0.)*0.5*cpi
 return
 end subroutine mloexpgamm
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Extract energy stored in MLO
-
-subroutine mloexpenergy(engout,diag)
-
-implicit none
-
-integer, intent(in) :: diag
-integer ii
-real(kind=8), dimension(ifull), intent(out) :: engout
-real(kind=8), dimension(wfull) :: energysum
-real, dimension(wfull) :: d_zcr
-
-engout=0.
-
-if (wfull==0) return
-
-d_zcr=max(1.+water%eta/depth_hl(:,wlev+1),minwater/depth_hl(:,wlev+1))
-
-energysum=0._8
-do ii=1,wlev
-  energysum=energysum+real(water%temp(:,ii)*dz(:,ii)*d_zcr*rhowt*cp0,8)
-end do
-energysum=energysum+real(ice%fracice*ice%tsurf*gammi,8)
-energysum=energysum+real(ice%fracice*ice%temp(:,0)*cps*ice%snowd,8)
-energysum=energysum+real(ice%fracice*ice%temp(:,1)*0.5*cpi*ice%thick,8)
-energysum=energysum+real(ice%fracice*ice%temp(:,2)*0.5*cpi*ice%thick,8)
-energysum=energysum+real(ice%fracice*ice%store,8)
-
-engout=unpack(energysum,wpack,0._8)
-
-return
-end subroutine mloexpenergy
+!subroutine mloexpenergy(engout,diag)
+!
+!implicit none
+!
+!integer, intent(in) :: diag
+!real, dimension(ifull), intent(out) :: engout
+!
+!engout=unpack(dgwater%deleng+dgice%deleng,wpack,0.)
+!
+!return
+!end subroutine mloexpenergy
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Pack atmospheric data for MLO eval
@@ -1112,6 +1096,9 @@ real, dimension(wfull,wlev) :: d_rho,d_nsq,d_rad,d_alpha,d_beta
 real, dimension(wfull) :: d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_ftop,d_tb,d_zcr
 real, dimension(wfull) :: d_fb,d_timelt,d_neta,d_ndsn
 real, dimension(wfull) :: d_ndic,d_nsto,d_delstore,d_delinflow
+!real, dimension(wfull,wlev) :: oldwatertemp
+!real, dimension(wfull,0:3) :: oldicetemp
+!real, dimension(wfull) :: oldicestore,oldicesnowd,oldicethick,oldicefrac,oldzcr
 integer, dimension(wfull) :: d_nk
 logical, intent(in) :: calcprog ! flag to update prognostic variables (or just calculate fluxes)
 
@@ -1143,6 +1130,16 @@ end if
 
 ! adjust levels for free surface
 d_zcr=max(1.+water%eta/depth_hl(:,wlev+1),minwater/depth_hl(:,wlev+1))
+
+! store state variables for energy conservation check
+!oldwatertemp=water%temp
+!oldicetemp(:,0)=ice%tsurf
+!oldicetemp(:,1:3)=ice%temp(:,0:2)
+!oldicestore=ice%store
+!oldicesnowd=ice%snowd
+!oldicethick=ice%thick
+!oldicefrac=ice%fracice
+!oldzcr=d_zcr
 
 ! calculate melting temperature
 call calcmelt(d_timelt,d_zcr)
@@ -1199,6 +1196,20 @@ end if
 ! screen diagnostics
 call scrncalc(atm_u,atm_v,atm_temp,atm_qg,atm_ps,atm_zmin,atm_zmins,diag)
 
+! energy conservation check
+!d_zcr=max(1.+water%eta/depth_hl(:,wlev+1),minwater/depth_hl(:,wlev+1))
+!dgwater%deleng=0.
+!do ii=1,wlev
+!  dgwater%deleng=dgwater%deleng+(water%temp(:,ii)*d_zcr-oldwatertemp(:,ii)*oldzcr)*dz(:,ii)
+!end do
+!dgwater%deleng=dgwater%deleng*rhowt*cp0/dt
+!dgice%deleng=ice%store-oldicestore
+!dgice%deleng=dgice%deleng+(ice%fracice*ice%tsurf-oldicefrac*oldicetemp(:,0))*gammi
+!dgice%deleng=dgice%deleng+(ice%fracice*ice%temp(:,0)*ice%snowd-oldicefrac*oldicetemp(:,1)*oldicesnowd)*cps
+!dgice%deleng=dgice%deleng+(ice%fracice*ice%temp(:,1)*ice%thick-oldicefrac*oldicetemp(:,2)*oldicethick)*0.5*cpi
+!dgice%deleng=dgice%deleng+(ice%fracice*ice%temp(:,2)*ice%thick-oldicefrac*oldicetemp(:,3)*oldicethick)*0.5*cpi
+!dgice%deleng=dgice%deleng/dt
+
 workb=emisice**0.25*ice%tsurf
 sst    =unpack((1.-ice%fracice)*water%temp(:,1)+ice%fracice*workb,wpack,sst)
 workc=(1.-ice%fracice)/log(atm_zmin/dgwater%zo)**2+ice%fracice/log(atm_zmin/dgice%zo)**2
@@ -1235,7 +1246,7 @@ real(kind=8), dimension(wfull,2:wlev) :: aa
 real(kind=8), dimension(wfull,wlev) :: bb, dd
 real(kind=8), dimension(wfull,1:wlev-1) :: cc
 real, dimension(wfull,wlev), intent(in) :: d_rho, d_nsq, d_rad, d_alpha, d_beta
-real, dimension(wfull) :: dumt0, umag
+real, dimension(wfull) :: dumt0, umag, avearray
 real, dimension(wfull), intent(in) :: atm_f
 real, dimension(wfull), intent(inout) :: d_b0, d_ustar, d_wu0, d_wv0, d_wt0, d_ws0, d_zcr, d_neta
 
@@ -1256,18 +1267,18 @@ rhs(:,wlev)=-ks(:,wlev)*gammas(:,wlev)/(dz(:,wlev)*d_zcr)
 
 ! Diffusion term for scalars (aa,bb,cc)
 cc(:,1)=-dt*ks(:,2)/(dz_hl(:,2)*dz(:,1)*d_zcr*d_zcr)
-bb(:,1)=1.-cc(:,1)
+bb(:,1)=1._8-cc(:,1)
 do ii=2,wlev-1
   aa(:,ii)=-dt*ks(:,ii)/(dz_hl(:,ii)*dz(:,ii)*d_zcr*d_zcr)
   cc(:,ii)=-dt*ks(:,ii+1)/(dz_hl(:,ii+1)*dz(:,ii)*d_zcr*d_zcr)
-  bb(:,ii)=1.-aa(:,ii)-cc(:,ii)
+  bb(:,ii)=1._8-aa(:,ii)-cc(:,ii)
 end do
 aa(:,wlev)=-dt*ks(:,wlev)/(dz_hl(:,wlev)*dz(:,wlev)*d_zcr*d_zcr)
-bb(:,wlev)=1.-aa(:,wlev)
+bb(:,wlev)=1._8-aa(:,wlev)
 
 
 ! POTENTIAL TEMPERATURE
-if (incradgam>0) then
+if ( incradgam>0 ) then
   ! include radiation in counter-gradient term
   do iqw=1,wfull
     dumt0(iqw)=d_wt0(iqw)+sum(d_rad(iqw,1:dgwater%mixind(iqw)))
@@ -1275,36 +1286,50 @@ if (incradgam>0) then
 else
   dumt0=d_wt0
 end if
+avearray=sum(water%temp,dim=2)/real(wlev)
+do ii=1,wlev
+  water%temp(:,ii)=water%temp(:,ii)-avearray
+end do
 dd(:,1)=water%temp(:,1)+dt*rhs(:,1)*dumt0-dt*d_rad(:,1)/(dz(:,1)*d_zcr)-dt*d_wt0/(dz(:,1)*d_zcr)
 do ii=2,wlev-1
   dd(:,ii)=water%temp(:,ii)+dt*rhs(:,ii)*dumt0-dt*d_rad(:,ii)/(dz(:,ii)*d_zcr)
 end do
 dd(:,wlev)=water%temp(:,wlev)+dt*rhs(:,wlev)*dumt0-dt*d_rad(:,wlev)/(dz(:,wlev)*d_zcr)
 call thomas(water%temp,aa,bb,cc,dd)
+do ii=1,wlev
+  water%temp(:,ii)=water%temp(:,ii)+avearray
+end do
 
 
 ! SALINITY
+avearray=sum(water%sal,dim=2)/real(wlev)
+do ii=1,wlev
+  water%sal(:,ii)=water%sal(:,ii)-avearray
+end do
 do ii=1,wlev
   dd(:,ii)=water%sal(:,ii)+dt*rhs(:,ii)*d_ws0
 end do
 dd(:,1)=dd(:,1)-dt*d_ws0/(dz(:,1)*d_zcr)
 call thomas(water%sal,aa,bb,cc,dd)
+do ii=1,wlev
+  water%sal(:,ii)=water%sal(:,ii)+avearray
+end do
 water%sal=max(0.,water%sal)
 
 
 ! Diffusion term for momentum (aa,bb,cc)
 cc(:,1)=-dt*km(:,2)/(dz_hl(:,2)*dz(:,1)*d_zcr*d_zcr)
-bb(:,1)=1.-cc(:,1)
+bb(:,1)=1._8-cc(:,1)
 do ii=2,wlev-1
   aa(:,ii)=-dt*km(:,ii)/(dz_hl(:,ii)*dz(:,ii)*d_zcr*d_zcr)
   cc(:,ii)=-dt*km(:,ii+1)/(dz_hl(:,ii+1)*dz(:,ii)*d_zcr*d_zcr)
-  bb(:,ii)=1.-aa(:,ii)-cc(:,ii)
+  bb(:,ii)=1._8-aa(:,ii)-cc(:,ii)
 end do
 aa(:,wlev)=-dt*km(:,wlev)/(dz_hl(:,wlev)*dz(:,wlev)*d_zcr*d_zcr)
-bb(:,wlev)=1.-aa(:,wlev)
+bb(:,wlev)=1._8-aa(:,wlev)
 umag=sqrt(water%u(:,wlev)*water%u(:,wlev)+water%v(:,wlev)*water%v(:,wlev))
 ! bottom drag
-where (depth_hl(:,wlev+1)<mxd)
+where ( depth_hl(:,wlev+1)<mxd )
   bb(:,wlev)=bb(:,wlev)+dt*cdbot*umag/(dz(:,wlev)*d_zcr)
 end where
 
@@ -2051,7 +2076,7 @@ real, parameter :: zcoq2 = 0.62
 
 dumwatertemp=max(water%temp(:,1),271.)
 sig=exp(-grav*atm_zmins/(rdry*atm_temp))
-srcp=sig**(rdry/cp)
+srcp=sig**(rdry/cpair)
 atu=atm_u-fluxwgt*water%u(:,1)-(1.-fluxwgt)*atm_oldu
 atv=atm_v-fluxwgt*water%v(:,1)-(1.-fluxwgt)*atm_oldv
 vmagn=sqrt(max(atu*atu+atv*atv,1.e-4))
@@ -2164,7 +2189,7 @@ egmax=1000.*lv*d_wavail/(dt*max(1.-ice%fracice,0.01))
 
 ! explicit estimate of fluxes
 ! (replace with implicit scheme if water becomes too shallow)
-dgwater%fg=rho*dgwater%cdh*cp*vmagn*(dumwatertemp-atm_temp/srcp)
+dgwater%fg=rho*dgwater%cdh*cpair*vmagn*(dumwatertemp-atm_temp/srcp)
 dgwater%fg=min(max(dgwater%fg,-3000.),3000.)
 dgwater%eg=min(rho*dgwater%cdq*lv*vmagn*(qsat-atm_qg),egmax)
 dgwater%eg=min(max(dgwater%eg,-3000.),3000.)
@@ -3429,7 +3454,7 @@ subroutine thomas(outo,aai,bbi,cci,ddi)
 
 implicit none
 
-integer ii, nc, nlev
+integer ii, nlev
 real, dimension(:,:), intent(out) :: outo
 real(kind=8), dimension(:,2:), intent(in) :: aai
 real(kind=8), dimension(:,:), intent(in) :: bbi,ddi
@@ -3437,9 +3462,7 @@ real(kind=8), dimension(:,:), intent(in) :: cci
 real(kind=8), dimension(size(outo,1),size(outo,2)) :: cc, dd, ans
 real(kind=8), dimension(size(outo,1)) :: n
 
-nc  =size(outo,1)
 nlev=size(outo,2)
-
 cc(:,1)=cci(:,1)/bbi(:,1)
 dd(:,1)=ddi(:,1)/bbi(:,1)
 
@@ -3454,7 +3477,7 @@ ans(:,nlev)=dd(:,nlev)
 do ii=nlev-1,1,-1
   ans(:,ii)=dd(:,ii)-cc(:,ii)*ans(:,ii+1)
 end do
-outo=ans
+outo=real(ans)
 
 return
 end subroutine thomas
@@ -3491,7 +3514,7 @@ uu=atm_u-ice%u
 vv=atm_v-ice%v
 vmagn=sqrt(max(uu*uu+vv*vv,1.E-4))
 sig=exp(-grav*atm_zmins/(rdry*atm_temp))
-srcp=sig**(rdry/cp)
+srcp=sig**(rdry/cpair)
 rho=atm_ps/(rdry*dtsurf)
 
 dgice%zo=0.0005 ! Mk3.6 (0.01m), CICE (0.0005m)
@@ -3550,7 +3573,7 @@ dgice%wetfrac=max(1.+.008*min(dtsurf-273.16,0.),0.)
 dgice%cd =af*fm
 dgice%cdh=aft*fh
 dgice%cdq=afq*fq
-dgice%fg=rho*dgice%cdh*cp*vmagn*(dtsurf-atm_temp/srcp)
+dgice%fg=rho*dgice%cdh*cpair*vmagn*(dtsurf-atm_temp/srcp)
 dgice%fg=min(max(dgice%fg,-3000.),3000.)
 dgice%eg=dgice%wetfrac*rho*dgice%cdq*lv*vmagn*(qsat-atm_qg)
 dgice%eg=min(dgice%eg,d_ndic*qice/(lf*dt))
@@ -3560,7 +3583,7 @@ dgice%eg=min(max(dgice%eg,-3000.),3000.)
 ! energy conservation is violated if initial conditions are poor
 d_ftop=-dgice%fg-dgice%eg+atm_rg-emisice*sbconst*dtsurf**4+atm_sg*(1.-alb)*(1.-eye) ! first guess
 d_ftop=d_ftop+lf*atm_rnd ! converting any rain to snowfall over ice
-bot=rho*vmagn*(dgice%cdh*cp+dgice%cdq*dgice%wetfrac*dqdt*lv)
+bot=rho*vmagn*(dgice%cdh*cpair+dgice%cdq*dgice%wetfrac*dqdt*lv)
 
 ! iterative method to estimate ice velocity after stress from wind and currents are applied
 imass=max(rhoic*ice%thick+rhosn*ice%snowd,10.) ! ice mass per unit area
@@ -3610,7 +3633,7 @@ d_fb=min(max(d_fb,-1000.),1000.)
 tnew=min(dtsurf+d_ftop/(gamm/dt+bot),273.2)
 tnew=0.5*(tnew+dtsurf)
 call getqsat(qsatnew,dqdt,tnew,atm_ps)
-dgice%fg=rho*dgice%cdh*cp*vmagn*(tnew-atm_temp/srcp)
+dgice%fg=rho*dgice%cdh*cpair*vmagn*(tnew-atm_temp/srcp)
 dgice%fg=min(max(dgice%fg,-3000.),3000.)
 dgice%eg=dgice%wetfrac*rho*dgice%cdq*lv*vmagn*(qsatnew-atm_qg)
 dgice%eg=min(dgice%eg,d_ndic*qice*lv/(lf*dt))
@@ -3702,7 +3725,7 @@ real, parameter    ::  z10    = 10.
 
 umag=max(sqrt(atm_u*atm_u+atm_v*atm_v),0.01)
 sig=exp(-grav*atm_zmins/(rdry*atm_temp))
-scrp=sig**(rdry/cp)
+scrp=sig**(rdry/cpair)
 thetav=atm_temp*(1.+0.61*atm_qg)/scrp
 sthetav=stemp*(1.+0.61*smixr)
 

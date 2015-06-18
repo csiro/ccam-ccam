@@ -77,7 +77,6 @@ real, dimension(ifull) :: neta,oldrunoff,newrunoff,rid,fhd
 real, dimension(ifull) :: fgf,rgg,fev,af,dirad,dfgdt,factch
 real, dimension(ifull) :: degdt,cie,aft,fh,ri,gamm,rho
 real, dimension(ifull) :: dumsg,dumr,dumx,dums,dumw,tv
-real(kind=8), dimension(ifull) :: gastart,gaend
 
 integer, parameter :: nblend=0  ! 0 for original non-blended, 1 for blended af
 integer, parameter :: ntss_sh=0 ! 0 for original, 3 for **3, 4 for **4
@@ -504,7 +503,6 @@ elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                                     
   end do                                                                                         ! MLO
                                                                                                  ! MLO
   ! Ocean mixing                                                                                 ! MLO
-  call mloexpenergy(gastart,0)                                                                   ! MLO
   where (.not.land(1:ifull))                                                                     ! MLO
     rnet=sgsave-rgsave-stefbo*tss**4 ! should be oldtss for MLO                                  ! MLO
   end where                                                                                      ! MLO
@@ -537,7 +535,6 @@ elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                                     
   do k=1,3                                                                                       ! MLO
     call mloexpice(tggsn(:,k),k,0)                                                               ! MLO
   end do                                                                                         ! MLO
-  call mloexpenergy(gaend,0)                                                                     ! MLO
                                                                                                  ! MLO
   ! stuff to keep tpan over land working                                                         ! MLO
   rid=min(grav*zmin*(1.-tpan*srcp/t(1:ifull,1))/vmag**2,ri_max)                                  ! MLO
@@ -549,7 +546,7 @@ elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                                     
                                                                                                  ! MLO
   where ( .not.land(1:ifull) )                                                                   ! MLO
     snowd=snowd*1000.                                                                            ! MLO
-    ga=real(gaend-gastart)/dt                                                                    ! MLO
+    ga=0.                                                                                        ! MLO
     ustar=sqrt(sqrt(taux*taux+tauy*tauy)/rho)                                                    ! MLO
     tpan=tgg(:,1)                                                                                ! MLO
     factch=sqrt(zo/zoh)                                                                          ! MLO

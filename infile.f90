@@ -458,15 +458,15 @@ do ipf = 0,mynproc-1
   else
     start(1:3) = (/ 1, 1, iarchi /)
     ncount(1:3) = (/ pil, pjl*pnpan, 1 /)
-    do k = 1,kk        
-      write(newname,'("'//trim(name)//'",I1.1)') k
+    do k = 1,kk
+      write(newname,'("'//trim(name)//'",I3.3)') k
       ier = nf_inq_varid(pncid(ipf),newname,idv)
-      if ( ier/=nf_noerr ) then
+      if ( ier/=nf_noerr .and. k<100 ) then
         write(newname,'("'//trim(name)//'",I2.2)') k
         ier = nf_inq_varid(pncid(ipf),newname,idv)
       end if
-      if ( ier/=nf_noerr ) then
-        write(newname,'("'//trim(name)//'",I3.3)') k
+      if ( ier/=nf_noerr .and. k<10 ) then
+        write(newname,'("'//trim(name)//'",I1.1)') k
         ier = nf_inq_varid(pncid(ipf),newname,idv)          
       end if
       if ( ier/=nf_noerr ) exit
@@ -495,7 +495,7 @@ do ipf = 0,mynproc-1
   ier = nf90_inq_varid(pncid(ipf),name,idv)
   if ( ier==nf90_noerr ) then
     start = (/ 1, 1, 1, iarchi /)
-    ncount = (/ pil, pjl*pnpan, kk, 1 /)    
+    ncount = (/ pil, pjl*pnpan, kk, 1 /)   
     ! obtain scaling factors and offsets from attributes
     ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
     if ( ier/=nf90_noerr ) laddoff=0.
@@ -509,14 +509,14 @@ do ipf = 0,mynproc-1
     start(1:3) = (/ 1, 1, iarchi /)
     ncount(1:3) = (/ pil, pjl*pnpan, 1 /)
     do k = 1,kk        
-      write(newname,'("'//trim(name)//'",I1.1)') k
+      write(newname,'("'//trim(name)//'",I3.3)') k
       ier = nf90_inq_varid(pncid(ipf),newname,idv)
-      if ( ier/=nf90_noerr ) then
+      if ( ier/=nf90_noerr .and. k<100 ) then
         write(newname,'("'//trim(name)//'",I2.2)') k
         ier = nf90_inq_varid(pncid(ipf),newname,idv)          
       end if
-      if ( ier/=nf90_noerr ) then
-        write(newname,'("'//trim(name)//'",I3.3)') k
+      if ( ier/=nf90_noerr .and. k<10 ) then
+        write(newname,'("'//trim(name)//'",I1.1)') k
         ier = nf90_inq_varid(pncid(ipf),newname,idv)          
       end if
       if ( ier/=nf90_noerr ) exit
@@ -614,33 +614,6 @@ call ccmpi_gatherx(gvar,rvar,0,lcomm)
 
 return
 end subroutine proc_hr4p
-
-!--------------------------------------------------------------
-! Trap netcdf error messages
-subroutine ncmsg(txt,ierr)
-
-use cc_mpi
-
-implicit none
-
-integer, intent(in) :: ierr
-integer(kind=4) :: lierr
-character(len=*), intent(in) :: txt
-
-#ifdef usenc3
-if (ierr/=nf_noerr) then
-  lierr=ierr
-  write(6,*) txt," ",nf_strerror(lierr)
-#else
-if (ierr/=nf90_noerr) then
-  lierr=ierr
-  write(6,*) txt," ",nf90_strerror(lierr)
-#endif
-  call ccmpi_abort(-1)
-end if
-
-return
-end subroutine ncmsg
 
 !--------------------------------------------------------------
 ! This subroutine opens parallel input files
@@ -1409,7 +1382,7 @@ include 'parm.h'         ! Model configuration
       
 integer, intent(in) :: idnc, iarch
 integer ier, iq, i
-integer(kind=4) :: lidnc, mid, vtype
+integer(kind=4) :: lidnc, mid, vtype, lier
 integer(kind=4), dimension(3) :: start, ncount
 integer(kind=2), dimension(ifull) :: ipack
 real, dimension(ifull), intent(in) :: var
@@ -1419,27 +1392,29 @@ character(len=*), intent(in) :: sname
 start = (/ 1, 1, iarch /)
 ncount = (/ il, jl, 1 /)
 
-lidnc=idnc
+lidnc = idnc
 #ifdef usenc3
-ier=nf_inq_varid(lidnc,sname,mid)
+lier = nf_inq_varid(lidnc,sname,mid)
+ier = lier
 call ncmsg(sname,ier)
-ier=nf_inq_vartype(lidnc,mid,vtype)
-if( vtype==nf_short )then
+lier = nf_inq_vartype(lidnc,mid,vtype)
+if ( vtype==nf_short ) then
   if ( all(var>9.8E36) ) then
-    ipack=missval
+    ipack = missval
   else
-    ier=nf_get_att_real(lidnc,mid,'add_offset',laddoff)
-    ier=nf_get_att_real(lidnc,mid,'scale_factor',lscale_f)
-    ipack=nint(max(min((var-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
+    lier = nf_get_att_real(lidnc,mid,'add_offset',laddoff)
+    lier = nf_get_att_real(lidnc,mid,'scale_factor',lscale_f)
+    ipack = nint(max(min((var-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
   end if
-  ier=nf_put_vara_int2(lidnc,mid,start,ncount,ipack)
+  lier = nf_put_vara_int2(lidnc,mid,start,ncount,ipack)
 else
 #ifdef i8r8
-  ier=nf_put_vara_double(lidnc,mid,start,ncount,var)
+  lier = nf_put_vara_double(lidnc,mid,start,ncount,var)
 #else
-  ier=nf_put_vara_real(lidnc,mid,start,ncount,var)
+  lier = nf_put_vara_real(lidnc,mid,start,ncount,var)
 #endif
 end if
+ier = lier
 call ncmsg(sname,ier)
 if ( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
   if ( any(var==real(nf_fill_float)) ) then
@@ -1449,21 +1424,23 @@ if ( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
   end if
 end if
 #else
-ier=nf90_inq_varid(lidnc,sname,mid)
+lier = nf90_inq_varid(lidnc,sname,mid)
+ier = lier
 call ncmsg(sname,ier)
-ier=nf90_inquire_variable(lidnc,mid,xtype=vtype)
-if( vtype==nf90_short )then
+lier = nf90_inquire_variable(lidnc,mid,xtype=vtype)
+if ( vtype==nf90_short ) then
   if ( all(var>9.8E36) ) then
-    ipack=missval
+    ipack = missval
   else
-    ier=nf90_get_att(lidnc,mid,'add_offset',laddoff)
-    ier=nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
-    ipack=nint(max(min((var-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
+    lier = nf90_get_att(lidnc,mid,'add_offset',laddoff)
+    lier = nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
+    ipack = nint(max(min((var-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
   end if
-  ier=nf90_put_var(lidnc,mid,ipack,start=start,count=ncount)
+  lier = nf90_put_var(lidnc,mid,ipack,start=start,count=ncount)
 else
-  ier=nf90_put_var(lidnc,mid,var,start=start,count=ncount)
+  lier = nf90_put_var(lidnc,mid,var,start=start,count=ncount)
 end if
+ier = lier
 call ncmsg(sname,ier)
 if ( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
   if ( any(var==real(nf90_fill_float)) ) then
@@ -1488,7 +1465,7 @@ include 'parm.h'         ! Model configuration
 
 integer, intent(in) :: idnc, iarch
 integer ier, imn, imx, jmn, jmx, iq, i
-integer(kind=4) lidnc, mid, vtype
+integer(kind=4) lidnc, mid, vtype, lier
 integer(kind=4), dimension(3) :: start, ncount
 integer(kind=2), dimension(ifull_g) :: ipack
 real, dimension(ifull), intent(in) :: var
@@ -1503,44 +1480,48 @@ start = (/ 1, 1, iarch /)
 ncount = (/ il_g, jl_g, 1 /)
 
 !     find variable index
-lidnc=idnc
+lidnc = idnc
 #ifdef usenc3
-ier=nf_inq_varid(lidnc,sname,mid)
+lier = nf_inq_varid(lidnc,sname,mid)
+ier = lier
 call ncmsg(sname,ier)
-ier=nf_inq_vartype(lidnc,mid,vtype)
+lier = nf_inq_vartype(lidnc,mid,vtype)
 if ( vtype==nf_short ) then
-  if (all(globvar>9.8e36)) then
-    ipack=missval
+  if ( all(globvar>9.8e36) ) then
+    ipack = missval
   else
-    ier=nf_get_att_real(lidnc,mid,'add_offset',laddoff)
-    ier=nf_get_att_real(lidnc,mid,'scale_factor',lscale_f)
-    ipack=nint(max(min((globvar-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
+    lier = nf_get_att_real(lidnc,mid,'add_offset',laddoff)
+    lier = nf_get_att_real(lidnc,mid,'scale_factor',lscale_f)
+    ipack = nint(max(min((globvar-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
   endif
-  ier=nf_put_vara_int2(lidnc,mid,start,ncount,ipack)
+  lier = nf_put_vara_int2(lidnc,mid,start,ncount,ipack)
 else
 #ifdef i8r8
-  ier=nf_put_vara_double(lidnc,mid,start,ncount,globvar)
+  lier = nf_put_vara_double(lidnc,mid,start,ncount,globvar)
 #else
-  ier=nf_put_vara_real(lidnc,mid,start,ncount,globvar)
+  lier = nf_put_vara_real(lidnc,mid,start,ncount,globvar)
 #endif
 endif
+ier = lier
 call ncmsg(sname,ier)
 #else
-ier=nf90_inq_varid(lidnc,sname,mid)
+lier = nf90_inq_varid(lidnc,sname,mid)
+ier = lier
 call ncmsg(sname,ier)
-ier=nf90_inquire_variable(lidnc,mid,xtype=vtype)
+lier = nf90_inquire_variable(lidnc,mid,xtype=vtype)
 if ( vtype==nf90_short ) then
-  if (all(globvar>9.8e36)) then
-    ipack=missval
+  if ( all(globvar>9.8e36) ) then
+    ipack = missval
   else
-    ier=nf90_get_att(lidnc,mid,'add_offset',laddoff)
-    ier=nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
-    ipack=nint(max(min((globvar-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
+    lier = nf90_get_att(lidnc,mid,'add_offset',laddoff)
+    lier = nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
+    ipack = nint(max(min((globvar-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
   endif
-  ier=nf90_put_var(lidnc,mid,ipack,start=start,count=ncount)
+  lier = nf90_put_var(lidnc,mid,ipack,start=start,count=ncount)
 else
-  ier=nf90_put_var(lidnc,mid,globvar,start=start,count=ncount)
+  lier = nf90_put_var(lidnc,mid,globvar,start=start,count=ncount)
 endif
+ier = lier
 call ncmsg(sname,ier)
 #endif
 
@@ -1568,7 +1549,7 @@ if ( mod(ktau,nmaxpr)==0 ) then
                    sname,iarch,varn,imn,jmn,varx,imx,jmx,    &
                    globvar(id+(jd-1)*il_g)
   end if
-endif
+end if
 
 return
 end subroutine fw3a
@@ -1596,7 +1577,7 @@ if ( .not.lwrite ) then
   wvar=real(nf90_fill_float)
 #endif
 else
-  wvar=var(1:ifull,:)
+  wvar(:,:)=var(1:ifull,1:kl)
 endif
 
 if ( local ) then
@@ -1620,8 +1601,8 @@ include 'newmpar.h'      ! Grid parameters
 include 'parm.h'         ! Model configuration
 
 integer, intent(in) :: idnc, iarch
-integer ier, iq, k
-integer(kind=4) mid, vtype, lidnc
+integer iq, k, ier
+integer(kind=4) mid, vtype, lidnc, lier
 integer(kind=4), dimension(4) :: start, ncount
 integer(kind=2), dimension(ifull,kl) :: ipack
 real, dimension(ifull,kl), intent(in) :: var
@@ -1631,56 +1612,60 @@ character(len=*), intent(in) :: sname
 start = (/ 1, 1, 1, iarch /)
 ncount = (/ il, jl, kl, 1 /)
 
-lidnc=idnc
+lidnc = idnc
 #ifdef usenc3
-ier=nf_inq_varid(lidnc,sname,mid)
+lier = nf_inq_varid(lidnc,sname,mid)
+ier = lier
 call ncmsg(sname,ier)
-ier = nf_inq_vartype(lidnc, mid, vtype)
-if(vtype == nf_short)then
-  if(all(var>9.8e36))then
-    ipack=missval
+lier = nf_inq_vartype(lidnc,mid,vtype)
+if ( vtype==nf_short ) then
+  if ( all(var>9.8e36) ) then
+    ipack = missval
   else
-    ier=nf_get_att_real(lidnc,mid,'add_offset',laddoff)
-    ier=nf_get_att_real(lidnc,mid,'scale_factor',lscale_f)
-    do k=1,kl
-      do iq=1,ifull
-        ipack(iq,k)=nint(max(min((var(iq,k)-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
+    lier = nf_get_att_real(lidnc,mid,'add_offset',laddoff)
+    lier = nf_get_att_real(lidnc,mid,'scale_factor',lscale_f)
+    do k = 1,kl
+      do iq = 1,ifull
+        ipack(iq,k) = nint(max(min((var(iq,k)-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
       end do
     end do
-  endif
-  ier=nf_put_vara_int2(lidnc,mid,start,ncount,ipack)
+  end if
+  lier = nf_put_vara_int2(lidnc,mid,start,ncount,ipack)
 else
 #ifdef i8r8
-  ier=nf_put_vara_double(lidnc,mid,start,ncount,var)
+  lier = nf_put_vara_double(lidnc,mid,start,ncount,var)
 #else
-  ier=nf_put_vara_real(lidnc,mid,start,ncount,var)
+  lier = nf_put_vara_real(lidnc,mid,start,ncount,var)
 #endif
-endif
+end if
+ier = lier
 call ncmsg(sname,ier)
 #else
-ier=nf90_inq_varid(lidnc,sname,mid)
+lier = nf90_inq_varid(lidnc,sname,mid)
+ier = lier
 call ncmsg(sname,ier)
-ier = nf90_inquire_variable(lidnc, mid, xtype=vtype)
-if( vtype==nf90_short ) then
+lier = nf90_inquire_variable(lidnc,mid,xtype=vtype)
+if ( vtype==nf90_short ) then
   if ( all(var>9.8e36) ) then
-    ipack=missval
+    ipack = missval
   else
-    ier=nf90_get_att(lidnc,mid,'add_offset',laddoff)
-    ier=nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
-    do k=1,kl
-      do iq=1,ifull
-        ipack(iq,k)=nint(max(min((var(iq,k)-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
+    lier = nf90_get_att(lidnc,mid,'add_offset',laddoff)
+    lier = nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
+    do k = 1,kl
+      do iq = 1,ifull
+        ipack(iq,k) = nint(max(min((var(iq,k)-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
       end do
     end do
-  endif
-  ier=nf90_put_var(lidnc,mid,ipack,start=start,count=ncount)
+  end if
+  lier = nf90_put_var(lidnc,mid,ipack,start=start,count=ncount)
 else
-  ier=nf90_put_var(lidnc,mid,var,start=start,count=ncount)
+  lier = nf90_put_var(lidnc,mid,var,start=start,count=ncount)
 endif
+ier = lier
 call ncmsg(sname,ier)
 #endif
 
-if( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
+if ( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
 #ifdef usenc3
   if ( any(var==real(nf_fill_float)) ) then
 #else
@@ -1690,7 +1675,7 @@ if( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
   else
     write(6,'("histwrt4 ",a7,i4)') sname,iarch
   end if
-endif
+end if
 
 return
 end subroutine hw4l      
@@ -1706,7 +1691,7 @@ include 'parm.h'        ! Model configuration
 
 integer, intent(in) :: idnc, iarch
 integer ier, imx, jmx, kmx, iq, k
-integer(kind=4) mid, vtype, lidnc
+integer(kind=4) mid, vtype, lidnc, lier
 integer(kind=4), dimension(4) :: start, ncount
 integer, dimension(2) :: max_result
 integer(kind=2), dimension(ifull_g,kl) :: ipack
@@ -1721,60 +1706,64 @@ start = (/ 1, 1, 1, iarch /)
 ncount = (/ il_g, jl_g, kl, 1 /)
 
 !     find variable index
-lidnc=idnc
+lidnc = idnc
 #ifdef usenc3
-ier=nf_inq_varid(lidnc,sname,mid)
+lier = nf_inq_varid(lidnc,sname,mid)
+ier = lier
 call ncmsg(sname,ier)
-ier = nf_inq_vartype(lidnc, mid, vtype)
-if( vtype==nf_short ) then
+lier = nf_inq_vartype(lidnc, mid, vtype)
+if ( vtype==nf_short ) then
   if ( all(globvar>9.8e36) ) then
-    ipack=missval
+    ipack = missval
   else
-    ier=nf_get_att_real(lidnc,mid,'add_offset',laddoff)
-    ier=nf_get_att_real(lidnc,mid,'scale_factor',lscale_f)
-    do k=1,kl
-      do iq=1,ifull_g
-        ipack(iq,k)=nint(max(min((globvar(iq,k)-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
+    lier = nf_get_att_real(lidnc,mid,'add_offset',laddoff)
+    lier = nf_get_att_real(lidnc,mid,'scale_factor',lscale_f)
+    do k = 1,kl
+      do iq = 1,ifull_g
+        ipack(iq,k) = nint(max(min((globvar(iq,k)-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
       end do
     end do
   endif
-  ier=nf_put_vara_int2(lidnc,mid,start,ncount,ipack)
+  lier = nf_put_vara_int2(lidnc,mid,start,ncount,ipack)
 else
 #ifdef i8r8
-  ier=nf_put_vara_double(lidnc,mid,start,ncount,globvar)
+  lier = nf_put_vara_double(lidnc,mid,start,ncount,globvar)
 #else
-  ier=nf_put_vara_real(lidnc,mid,start,ncount,globvar)
+  lier = nf_put_vara_real(lidnc,mid,start,ncount,globvar)
 #endif
 endif
+ier = lier
 call ncmsg(sname,ier)
 #else
-ier=nf90_inq_varid(lidnc,sname,mid)
+lier = nf90_inq_varid(lidnc,sname,mid)
+ier = lier
 call ncmsg(sname,ier)
-ier = nf90_inquire_variable(lidnc, mid, xtype=vtype)
+lier = nf90_inquire_variable(lidnc, mid, xtype=vtype)
 if ( vtype==nf90_short ) then
   if ( all(globvar>9.8e36) )then
-    ipack=missval
+    ipack = missval
   else
-    ier=nf90_get_att(lidnc,mid,'add_offset',laddoff)
-    ier=nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
-    do k=1,kl
-      do iq=1,ifull_g
-        ipack(iq,k)=nint(max(min((globvar(iq,k)-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
+    lier = nf90_get_att(lidnc,mid,'add_offset',laddoff)
+    lier = nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
+    do k = 1,kl
+      do iq = 1,ifull_g
+        ipack(iq,k) = nint(max(min((globvar(iq,k)-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
       end do
     end do
-  endif
-  ier=nf90_put_var(lidnc,mid,ipack,start=start,count=ncount)
+  end if
+  lier = nf90_put_var(lidnc,mid,ipack,start=start,count=ncount)
 else
-  ier=nf90_put_var(lidnc,mid,globvar,start=start,count=ncount)
+  lier = nf90_put_var(lidnc,mid,globvar,start=start,count=ncount)
 endif
+ier = lier
 call ncmsg(sname,ier)
 #endif
 
-if(mod(ktau,nmaxpr)==0)then
+if ( mod(ktau,nmaxpr)==0 ) then
 #ifdef usenc3
-  if (any(globvar==real(nf_fill_float))) then
+  if ( any(globvar==real(nf_fill_float)) ) then
 #else
-  if (any(globvar==real(nf90_fill_float))) then
+  if ( any(globvar==real(nf90_fill_float)) ) then
 #endif
     write(6,'("histwrt4 ",a7,i4,a7)') sname,iarch,"missing"
   else
@@ -3353,5 +3342,33 @@ end if
 return
 end subroutine surfreadglob
 
+!--------------------------------------------------------------
+! Trap netcdf error messages
+subroutine ncmsg(txt,ierr)
+
+use cc_mpi
+
+implicit none
+
+integer, intent(in) :: ierr
+integer(kind=4) :: lierr
+character(len=*), intent(in) :: txt
+
+#ifdef usenc3
+if (ierr/=nf_noerr) then
+  lierr=ierr
+  write(6,*) "ERROR: Netcdf error = ",ierr
+  write(6,*) txt," ",nf_strerror(lierr)
+#else
+if (ierr/=nf90_noerr) then
+  lierr=ierr
+  write(6,*) "ERROR: Netcdf error = ",ierr
+  write(6,*) txt," ",nf90_strerror(lierr)
+#endif
+  call ccmpi_abort(-1)
+end if
+
+return
+end subroutine ncmsg
 
 end module infile

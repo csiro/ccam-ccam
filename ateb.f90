@@ -1489,7 +1489,7 @@ call solvecanyon(sg_road,rg_road,fg_road,eg_road,acond_road,                    
                  d_cwr,d_totdepth,d_c1c,ddt)
 
 ! calculate roof fluxes (fg_roof updated in solvetridiag)
-eg_roof = 0 ! For cray compiler
+eg_roof = 0. ! For cray compiler
 call solveroof(sg_rfsn,rg_rfsn,fg_rfsn,eg_rfsn,garfsn,rfsnmelt,rfsntemp,acond_rfsn,d_rfsndelta, &
                sg_vegr,rg_vegr,fg_vegr,eg_vegr,acond_vegr,d_vegdeltar,                          &
                sg_roof,rg_roof,eg_roof,acond_roof,d_roofdelta,                                  &
