@@ -1546,7 +1546,7 @@ if( myid==0 .or. local ) then
     call ccnf_put_var1(idnc,idv,1,dt)
   endif ! iarch==1
 ! -----------------------------------------------------------      
-  call ccnf_sync(idnc)
+
   ! set time to number of minutes since start 
   call ccnf_inq_varid(idnc,'time',idv,tst)
   call ccnf_put_var1(idnc,idv,iarch,real(mtimer))
@@ -2194,6 +2194,8 @@ if ( itype==-1 ) then
   end if
 endif  ! (itype==-1)
 
+call ccnf_sync(idnc)
+
 if ( myid==0 ) then
   write(6,*) "finished writing to ofile"    
 end if
@@ -2459,7 +2461,6 @@ end if
 if ( myid==0 .or. localhist ) then
   if ( mod(ktau,nwt)==0 ) then
     if ( myid==0 ) write(6,*) "Write high frequency output"
-    call ccnf_sync(fncid)
   end if
   start(1)=ktau
   ncount(1)=1
@@ -2473,7 +2474,7 @@ if ( myid==0 .or. localhist ) then
   call ccnf_put_vara(fncid,idmtimer,start,ncount,datedat)
 end if
 
-! store output
+! record output
 umag=sqrt(u(1:ifull,1)*u(1:ifull,1)+v(1:ifull,1)*v(1:ifull,1))
 freqstore=u10*u(1:ifull,1)/max(umag,1.E-6)
 call freqwrite(fncid,'uas',  ktau,localhist,freqstore)
@@ -2488,6 +2489,7 @@ call mslp(freqstore,psl,zs,t)
 freqstore=freqstore/100.
 call freqwrite(fncid,'pmsl', ktau,localhist,freqstore)
 
+if ( mod(ktau,nwt)==0 ) call ccnf_sync(fncid)  
 
 ! close file at end of run
 if ( myid==0 .or. localhist ) then
