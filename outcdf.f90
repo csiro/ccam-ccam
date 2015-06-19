@@ -793,7 +793,7 @@ if( myid==0 .or. local ) then
       do k=ms+1,wlev
         write(lname,'("soil/ocean temperature lev ",I2)') k
         write(vname,'("tgg",I2.2)') k
-        call attrib(idnc,jdim(1:3),3,vname,lname,'K',-150.,150.,0,itype)
+        call attrib(idnc,jdim(1:3),3,vname,lname,'K',-130.,130.,0,itype)
       end do
       do k=1,wlev
         write(lname,'("ocean salinity lev ",I2)') k

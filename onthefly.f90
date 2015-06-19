@@ -922,6 +922,11 @@ if ( nested/=1 ) then
   end where
   if ( all(ierc(8:7+ms)==0) ) then
     call fillhist4('tgg',tgg,ms,sea_a)
+    do k=1,ms
+      where ( land(1:ifull) .and. tgg(:,k)<100. )
+        tgg(:,k) = tgg(:,k) + 290. ! adjust range of soil temp for compressed history file
+      end where
+    end do
   else
     do k = 1,ms 
       if ( ierc(7+k)==0 ) then
