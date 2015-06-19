@@ -779,7 +779,7 @@ do kcount=1,mcount
   aa(:,kl)=qq(:,kl)+ddts*mflx(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)
   bb(:,kl)=1.-qq(:,kl)+ddts*mflx(:,kl)*fzzh(:,kl-1)*idzm(:,kl)
   
-  avearray=sum(thetal(1:ifull,:),dim=2)/real(kl)
+  avearray=0.5*(maxval(thetal(1:ifull,:),dim=2)+minval(thetal(1:ifull,:),dim=2))
   do k=1,kl
     thetal(1:ifull,k)=thetal(1:ifull,k)-avearray
     tlup(:,k)=tlup(:,k)-avearray
@@ -804,7 +804,7 @@ do kcount=1,mcount
                  +mflx(:,2:kl)*(tlup(:,2:kl)-thetal(:,2:kl))*fzzh(:,1:kl-1)
 #endif
 
-  avearray=sum(qvg(1:ifull,:),dim=2)/real(kl)
+  avearray=0.5*(maxval(qvg(1:ifull,:),dim=2)+minval(qvg(1:ifull,:),dim=2))
   do k=1,kl
     qvg(1:ifull,k)=qvg(1:ifull,k)-avearray
     qvup(:,k)=qvup(:,k)-avearray

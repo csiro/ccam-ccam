@@ -379,7 +379,7 @@ else
 end if
   
 ! Potential temperature and salinity
-duma(1:ifull,:,1)=tt(1:ifull,:)-290.
+duma(1:ifull,:,1)=tt(1:ifull,:)
 duma(1:ifull,:,2)=ss(1:ifull,:)-34.72
 call bounds(duma(:,:,1:2))
 do k=1,wlev
@@ -394,7 +394,6 @@ do k=1,wlev
               yfact(1:ifull,k)*duma(in,k,2) +              &
               yfact(isv,k)*duma(is,k,2) ) / base(:,k)
 end do
-ft=ft+290.
 fs=max(fs+34.72,0.)
 
 call mloimport3d(0,ft,0)
@@ -519,32 +518,32 @@ end if
 wtr=ee>0.5
 
 ! Default values
-w_t   = 293.16 ! potential water temperature at tau=t
-w_s   = 34.72  ! water salinity at tau=t
-w_u   = 0.     ! u component of water current at tau=t
-w_v   = 0.     ! v component of water current at tau=t
-w_e   = 0.     ! free surface height at tau=t
-i_it  = 273.16 ! ice temperature
-i_sto = 0.     ! ice brine storage
-i_u   = 0.     ! u component of ice velocity
-i_v   = 0.     ! v component of ice velocity
-i_sal = 0.     ! ice salinity
-rho   = 0.     ! water density
-nw    = 0.     ! water vertical velocity
-pice  = 0.     ! ice pressure for cavitating fluid
-imass = 0.     ! ice mass
-tide  = 0.     ! tidal forcing
-nt    = 0.     ! new water temperature
-ns    = 0.     ! new water salinity
-nu    = 0.     ! new u component of water current
-nv    = 0.     ! new v component of water current
-neta  = 0.     ! new free surface height
-cou   = 0.     ! working array
-dumc  = 0.     ! working array
-eou   = 0.     ! working array
-eov   = 0.     ! working array
-niu   = 0.     ! new u component of ice velocity
-niv   = 0.     ! new v component of ice velocity
+w_t   = 293.16-wrtemp ! potential water temperature delta at tau=t
+w_s   = 34.72         ! water salinity at tau=t
+w_u   = 0.            ! u component of water current at tau=t
+w_v   = 0.            ! v component of water current at tau=t
+w_e   = 0.            ! free surface height at tau=t
+i_it  = 273.16        ! ice temperature
+i_sto = 0.            ! ice brine storage
+i_u   = 0.            ! u component of ice velocity
+i_v   = 0.            ! v component of ice velocity
+i_sal = 0.            ! ice salinity
+rho   = 0.            ! water density
+nw    = 0.            ! water vertical velocity
+pice  = 0.            ! ice pressure for cavitating fluid
+imass = 0.            ! ice mass
+tide  = 0.            ! tidal forcing
+nt    = 0.            ! new water temperature
+ns    = 0.            ! new water salinity
+nu    = 0.            ! new u component of water current
+nv    = 0.            ! new v component of water current
+neta  = 0.            ! new free surface height
+cou   = 0.            ! working array
+dumc  = 0.            ! working array
+eou   = 0.            ! working array
+eov   = 0.            ! working array
+niu   = 0.            ! new u component of ice velocity
+niv   = 0.            ! new v component of ice velocity
 
 ! IMPORT WATER AND ICE DATA -----------------------------------------
 #ifdef debug
@@ -889,7 +888,7 @@ do ii=1,wlev
   cou(1:ifull,ii,2)=ay(1:ifull)*uau(:,ii)+by(1:ifull)*uav(:,ii)
   cou(1:ifull,ii,3)=az(1:ifull)*uau(:,ii)+bz(1:ifull)*uav(:,ii)
   cou(1:ifull,ii,4)=mps(1:ifull,ii)
-  cou(1:ifull,ii,5)=nt(1:ifull,ii)-290.0
+  cou(1:ifull,ii,5)=nt(1:ifull,ii)
   cou(1:ifull,ii,6)=ns(1:ifull,ii)-34.72
 end do
 
@@ -906,7 +905,7 @@ do ii=1,wlev
   uau(:,ii)=uau(:,ii)*ee(1:ifull)
   uav(:,ii)=uav(:,ii)*ee(1:ifull)
   mps(1:ifull,ii)=cou(1:ifull,ii,4)
-  nt(1:ifull,ii) =cou(1:ifull,ii,5)+290.0
+  nt(1:ifull,ii) =cou(1:ifull,ii,5)
   ns(1:ifull,ii) =cou(1:ifull,ii,6)+34.72
 end do
 
@@ -3763,14 +3762,12 @@ do ii=1,wlev-1
   kx(:,ii)=ii+(1-kp(:,ii))/2 !  k for ww +ve,  k+1 for ww -ve
 end do
   
-tt=tt-290.
 ss=ss-34.72
 call mlotvd(its,dtnew,ww,uu,depdum,dzdum,kp,kx)
 call mlotvd(its,dtnew,ww,vv,depdum,dzdum,kp,kx)
 call mlotvd(its,dtnew,ww,ss,depdum,dzdum,kp,kx)
 call mlotvd(its,dtnew,ww,tt,depdum,dzdum,kp,kx)
 call mlotvd(its,dtnew,ww,mm,depdum,dzdum,kp,kx)
-tt=tt+290.
 ss=ss+34.72
 ss=max(ss,0.)
 
@@ -3862,7 +3859,7 @@ end subroutine mlotvd
 subroutine tsjacobi(nti,nsi,alphabar,betabar,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
 
 use indices_m
-use mlo, only : wlev
+use mlo, only : wlev,wrtemp
 
 implicit none
 
@@ -3875,7 +3872,7 @@ real, dimension(ifull+iextra,wlev,2) :: na
 real, dimension(ifull) :: absu, bbsu, absv, bbsv
 real, dimension(ifull,wlev,2) :: dnadxu, dnadxv, dnadyu, dnadyv
 
-na(:,:,1)=min(max(271.,nti),373.)-290.
+na(:,:,1)=min(max(271.-wrtemp,nti),373.-wrtemp)
 na(:,:,2)=min(max(0.,  nsi),50. )-34.72
 
 call seekdelta(na,dnadxu,dnadyu,dnadxv,dnadyv)

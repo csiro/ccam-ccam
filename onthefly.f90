@@ -267,7 +267,7 @@ use cloudmod                                   ! Prognostic strat cloud
 use extraout_m                                 ! Additional diagnostics      
 use infile                                     ! Input file routines
 use latlong_m                                  ! Lat/lon coordinates
-use mlo, only : wlev,micdwn,mloregrid          ! Ocean physics and prognostic arrays
+use mlo, only : wlev,micdwn,mloregrid,wrtemp   ! Ocean physics and prognostic arrays
 use mlodynamics                                ! Ocean dynamics
 use morepbl_m                                  ! Additional boundary layer diagnostics
 use nharrs_m, only : phi_nh,lrestart           ! Non-hydrostatic atmosphere arrays
@@ -576,9 +576,10 @@ if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
   ! as no fractional land or sea cover is allowed in CCAM
   if ( ( nested/=1 .or. nud_sst/=0 ) .and. ok>0 ) then
     call fillhist4o('tgg',mlodwn(:,:,1),land_a,ocndwn(:,1))
-    if ( all(mlodwn(:,:,1)==0.) ) mlodwn(:,:,1) = 293.
+    if ( all(mlodwn(:,:,1)==0.) ) mlodwn(:,:,1) = 293.-wrtemp
+    if ( any(mlodwn(:,:,1)>100.) ) mlodwn(:,:,1) = mlodwn(:,:,1)-wrtemp ! backwards compatibility
   else
-    mlodwn(:,:,1)=293.
+    mlodwn(:,:,1) = 293.-wrtemp
   end if ! (nestesd/=1.or.nud_sst/=0) ..else..
   ! ocean salinity
   if ( ( nested/=1 .or. nud_sss/=0 ) .and. ok>0 ) then
@@ -949,6 +950,9 @@ if ( nested/=1 ) then
         call fill_cc(ucc,sea_a)
         call doints4(ucc,tgg(:,k))
       end if
+      where ( land(1:ifull) .and. tgg(:,k)<100. )
+        tgg(:,k) = tgg(:,k) + 290. ! adjust range of soil temp for compressed history file
+      end where
     end do
   end if
   if ( .not.iotest ) then

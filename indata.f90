@@ -1765,9 +1765,9 @@ if (nmlo/=0.and.abs(nmlo)<=9) then
           -0.833224666E-14*depth(:)**5  &
           +0.136974583E-17*depth(:)**6  &
           -0.935923382E-22*depth(:)**7
-        mlodwn(:,k,1)=mlodwn(:,k,1)*(tss-273.16)/18.4231944+273.16
+        mlodwn(:,k,1)=mlodwn(:,k,1)*(tss-273.16)/18.4231944+273.16-wrtemp
       elsewhere
-        mlodwn(:,k,1)=275.16
+        mlodwn(:,k,1)=275.16-wrtemp
       end where
       mlodwn(:,k,2)=34.72
       mlodwn(:,k,3:4)=0.
@@ -1793,7 +1793,7 @@ if (nmlo/=0.and.abs(nmlo)<=9) then
       snowd=micdwn(:,7)*1000.
     end where          
   end if
-  !mlodwn(1:ifull,1:wlev,1)=max(mlodwn(1:ifull,1:wlev,1),271.)
+  !mlodwn(1:ifull,1:wlev,1)=max(mlodwn(1:ifull,1:wlev,1),271.-wrtemp)
   mlodwn(1:ifull,1:wlev,2)=max(mlodwn(1:ifull,1:wlev,2),0.)
   micdwn(1:ifull,1:4)=min(max(micdwn(1:ifull,1:4),0.),300.)
   micdwn(1:ifull,11)=max(micdwn(1:ifull,11),0.)

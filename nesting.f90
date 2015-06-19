@@ -295,7 +295,7 @@ if(namip==0)then     ! namip SSTs/sea-ice take precedence
   else
     if (nud_sst/=0.or.nud_sss/=0.or.nud_ouv/=0.or.nud_sfh/=0) then
       ! nudge mlo
-       dumaa=cona*sssa+conb*sssb
+      dumaa=cona*sssa+conb*sssb
       if (wl<1) then
         ! determine if multiple levels of ocean data exist in host
         dumbb(1)=maxval(ocndep(:,1)) ! check if 3D data exists
@@ -309,6 +309,7 @@ if(namip==0)then     ! namip SSTs/sea-ice take precedence
       if (wl==1) then ! switch to 2D if 3D data is missing
         call mloexpmelt(timelt)
         dumaa(:,1,1)=(cona*tssa+conb*tssb)*(1.-fraciceb)+timelt*fraciceb
+        dumaa(:,1,1)=dumaa(:,1,1)-wrtemp
       end if
       call mlonudge(dumaa(:,:,1),dumaa(:,:,2),dumaa(:,:,3:4),ocndep(:,2),wl)
     end if
@@ -458,26 +459,27 @@ if ((mtimer==mtimeb).and.(mod(nint(ktau*dt),60)==0)) then
       enddo     ! iq loop
 
       ! update tss 
-      where (.not.land)
+      where ( .not.land )
         tss=tssb
         tgg(:,1)=tss
       end where  ! (.not.land(iq))
     else
       ! nudge Mixed-Layer-Ocean
-      if (nud_sst/=0.or.nud_sss/=0.or.nud_ouv/=0.or.nud_sfh/=0) then
+      if ( nud_sst/=0 .or. nud_sss/=0 .or. nud_ouv/=0 .or. nud_sfh/=0 ) then
         ! check host for 2D or 3D data
-        if (wl<1) then
+        if ( wl < 1 ) then
           dumbb(1)=maxval(ocndep(:,1)) ! check for 3D data
           call ccmpi_allreduce(dumbb(1:1),dumbb(2:2),"max",comm_world)
-          if (dumbb(2)<0.5) then
+          if ( dumbb(2) < 0.5 ) then
             wl=1
           else
             wl=wlev
           end if
         end if
-        if (wl==1) then ! switch to 2D data if 3D is missing
+        if ( wl == 1 ) then ! switch to 2D data if 3D is missing
           call mloexpmelt(timelt)
           sssb(:,1,1)=tssb*(1.-fraciceb)+timelt*fraciceb
+          sssb(:,1,1)=sssb(:,1,1)-wrtemp
         end if
         call mlofilterhub(sssb(:,:,1),sssb(:,:,2),sssb(:,:,3:4),ocndep(:,2),wl)
       end if
@@ -1641,7 +1643,8 @@ end subroutine getiqa
 subroutine mlofilterhub(sstb,sssb,suvb,sfh,wl)
 
 use cc_mpi                                          ! CC MPI routines
-use mlo, only : mloimport,mloexport,mloexpdep,wlev  ! Ocean physics and prognostic arrays
+use mlo, only : mloimport,mloexport,mloexpdep, &    ! Ocean physics and prognostic arrays
+                wlev,wrtemp
 use mlodynamics                                     ! Ocean dynamics routines
 use soil_m                                          ! Soil and surface data
 use vecsuv_m                                        ! Map to cartesian coordinates
@@ -1750,7 +1753,7 @@ do kbb=ktopmlo,kc,kblock
       old=sstb(:,ka)
       call mloexport(0,old,k,0)
       old=old+diff_l(:,kb)*10./real(mloalpha)
-      old=max(old,271.)
+      old=max(old,271.-wrtemp)
       call mloimport(0,old,k,0)
     end do
     if (klx==kc) then
@@ -1758,7 +1761,7 @@ do kbb=ktopmlo,kc,kblock
         old=sstb(:,ka)
         call mloexport(0,old,k,0)
         old=old+diff_l(:,kb)*10./real(mloalpha) ! kb saved from above loop
-        old=max(old,271.)
+        old=max(old,271.-wrtemp)
         call mloimport(0,old,k,0)
       end do
     end if

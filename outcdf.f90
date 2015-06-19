@@ -777,23 +777,23 @@ if( myid==0 .or. local ) then
     lname = 'Snow depth (liquid water)'
     call attrib(idnc,jdim(1:3),3,'snd',lname,'mm',0.,6500.,0,-1)  ! -1=long
     lname = 'Soil temperature lev 1'
-    call attrib(idnc,jdim(1:3),3,'tgg1',lname,'K',100.,425.,0,itype)
+    call attrib(idnc,jdim(1:3),3,'tgg1',lname,'K',-130.,130.,0,itype)
     lname = 'Soil temperature lev 2'
-    call attrib(idnc,jdim(1:3),3,'tgg2',lname,'K',100.,425.,0,itype)
+    call attrib(idnc,jdim(1:3),3,'tgg2',lname,'K',-130.,130.,0,itype)
     lname = 'Soil temperature lev 3'
-    call attrib(idnc,jdim(1:3),3,'tgg3',lname,'K',100.,425.,0,itype)
+    call attrib(idnc,jdim(1:3),3,'tgg3',lname,'K',-130.,130.,0,itype)
     lname = 'Soil temperature lev 4'
-    call attrib(idnc,jdim(1:3),3,'tgg4',lname,'K',100.,425.,0,itype)
+    call attrib(idnc,jdim(1:3),3,'tgg4',lname,'K',-130.,130.,0,itype)
     lname = 'Soil temperature lev 5'
-    call attrib(idnc,jdim(1:3),3,'tgg5',lname,'K',100.,425.,0,itype)
+    call attrib(idnc,jdim(1:3),3,'tgg5',lname,'K',-130.,130.,0,itype)
     lname = 'Soil temperature lev 6'
-    call attrib(idnc,jdim(1:3),3,'tgg6',lname,'K',100.,425.,0,itype)
+    call attrib(idnc,jdim(1:3),3,'tgg6',lname,'K',-130.,130.,0,itype)
  
     if ( (nmlo<0.and.nmlo>=-9) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
       do k=ms+1,wlev
         write(lname,'("soil/ocean temperature lev ",I2)') k
         write(vname,'("tgg",I2.2)') k
-        call attrib(idnc,jdim(1:3),3,vname,lname,'K',100.,425.,0,itype)
+        call attrib(idnc,jdim(1:3),3,vname,lname,'K',-150.,150.,0,itype)
       end do
       do k=1,wlev
         write(lname,'("ocean salinity lev ",I2)') k
@@ -1657,16 +1657,16 @@ call histwrt3(fwet,'fwet',idnc,iarch,local,lwrite)
 if ( nmlo/=0 ) then
   ocnheight = min(max(ocnheight,-130.),130.)
   do k=1,ms
-    where (.not.land)
+    where (.not.land(1:ifull))
       tgg(:,k) = mlodwn(:,k,1)
     end where
   end do
   do k=1,3
-    where (.not.land)
+    where (.not.land(1:ifull))
       tggsn(:,k) = micdwn(:,k)
     end where
   end do
-  where (.not.land)
+  where (.not.land(1:ifull))
     fracice = micdwn(:,5)
     sicedep = micdwn(:,6)
     snowd   = micdwn(:,7)*1000.
@@ -1674,13 +1674,16 @@ if ( nmlo/=0 ) then
 end if
 
 call histwrt3(snowd,   'snd', idnc,iarch,local,.true.)  ! long write
-call histwrt3(tgg(1,1),'tgg1',idnc,iarch,local,.true.)
-call histwrt3(tgg(1,2),'tgg2',idnc,iarch,local,.true.)
-call histwrt3(tgg(1,3),'tgg3',idnc,iarch,local,.true.)
-call histwrt3(tgg(1,4),'tgg4',idnc,iarch,local,.true.)
-call histwrt3(tgg(1,5),'tgg5',idnc,iarch,local,.true.)
-call histwrt3(tgg(1,6),'tgg6',idnc,iarch,local,.true.)
-      
+do k=1,ms
+  where ( land(1:ifull) .and. itype==1 )
+    aa(:)=tgg(:,k)-290. ! Adjust range of soil temp for compressed history output
+  elsewhere
+    aa(:)=tgg(:,k)
+  end where
+  write(vname,'("tgg",I1.1)') k
+  call histwrt3(aa,vname,idnc,iarch,local,.true.)
+end do
+
 if ( abs(nmlo)<=9 ) then
   if ( nmlo<0 .or. (nmlo>0.and.itype==-1) ) then
     do k=ms+1,wlev

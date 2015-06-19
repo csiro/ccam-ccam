@@ -34,7 +34,7 @@ implicit none
 private
 public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlodiag,mloalb2,mloalb4, &
        mloscrnout,mloextra,mloimpice,mloexpice,mloexpdep,mloexpdensity,mloexpmelt,mloexpgamm,wlev,   &
-       micdwn,mxd,mindep,minwater,onedice,mloimport3d,mloexport3d
+       micdwn,mxd,mindep,minwater,onedice,mloimport3d,mloexport3d,wrtemp
 
 ! parameters
 integer, save      :: wlev = 20                                        ! Number of water layers
@@ -46,7 +46,7 @@ real, dimension(:,:), allocatable, save :: depth, dz, depth_hl, dz_hl  ! Column 
 real, dimension(:,:), allocatable, save :: micdwn                      ! This variable is for CCAM onthefly.f
 
 type waterdata
-  real, dimension(:,:), allocatable :: temp         ! water layer temperature
+  real, dimension(:,:), allocatable :: temp         ! water layer temperature delta
   real, dimension(:,:), allocatable :: sal          ! water layer salinity (PSU)
   real, dimension(:,:), allocatable :: u            ! water u-current (m/s)
   real, dimension(:,:), allocatable :: v            ! water v-current (m/s)
@@ -83,7 +83,7 @@ type dgwaterdata
   real, dimension(:), allocatable :: eg             ! water latent heat flux (W/m2)
   real, dimension(:), allocatable :: taux           ! wind/water u-component stress (N/m2)
   real, dimension(:), allocatable :: tauy           ! wind/water v-component stress (N/m2)
-  !real, dimension(:), allocatable :: deleng         ! Change in energy stored
+  !real(kind=8), dimension(:), allocatable :: deleng         ! Change in energy stored
 end type dgwaterdata
 
 type dgicedata
@@ -104,7 +104,7 @@ type dgicedata
   real, dimension(:), allocatable :: tauyica        ! water/ice v-component stress (N/m2)
   real, dimension(:), allocatable :: tauxicw        ! water/ice u-component stress (N/m2)
   real, dimension(:), allocatable :: tauyicw        ! water/ice v-component stress (N/m2)
-  !real, dimension(:), allocatable :: deleng         ! Change in energy stored
+  !real(kind=8), dimension(:), allocatable :: deleng         ! Change in energy stored
 end type dgicedata
 
 type dgscrndata
@@ -138,6 +138,7 @@ real, parameter :: maxsal  = 50.          ! Maximum salinity used in density and
 real, parameter :: mu_1    = 23.          ! VIS depth (m) - Type I
 real, parameter :: mu_2    = 0.35         ! NIR depth (m) - Type I
 real, parameter :: fluxwgt = 0.7          ! Time filter for flux calculations
+real, parameter :: wrtemp  = 290.         ! Water reference temperature (K)
 ! physical parameters
 real, parameter :: vkar=0.4               ! von Karman constant
 real, parameter :: lv=2.501e6             ! Latent heat of vaporisation (J kg^-1)
@@ -246,7 +247,7 @@ do iq=1,ifull
   end if
 end do
 
-water%temp=288.           ! K
+water%temp=288.-wrtemp    ! K
 water%sal=35.             ! PSU
 water%u=0.                ! m/s
 water%v=0.                ! m/s
@@ -300,8 +301,8 @@ dgice%tauxica=0.
 dgice%tauyica=0.
 dgice%tauxicw=0.
 dgice%tauyicw=0.
-!dgwater%deleng=0.
-!dgice%deleng=0.
+!dgwater%deleng=0._8
+!dgice%deleng=0._8
 
 ! MLO - 20 level
 !depth = (/   0.5,   3.4,  11.9,  29.7,  60.7, 108.5, 176.9, 269.7, 390.6, 543.3, &
@@ -1069,7 +1070,7 @@ end subroutine mloexpgamm
 !integer, intent(in) :: diag
 !real, dimension(ifull), intent(out) :: engout
 !
-!engout=unpack(dgwater%deleng+dgice%deleng,wpack,0.)
+!engout=unpack(real(dgwater%deleng+dgice%deleng),wpack,0.)
 !
 !return
 !end subroutine mloexpenergy
@@ -1198,20 +1199,20 @@ call scrncalc(atm_u,atm_v,atm_temp,atm_qg,atm_ps,atm_zmin,atm_zmins,diag)
 
 ! energy conservation check
 !d_zcr=max(1.+water%eta/depth_hl(:,wlev+1),minwater/depth_hl(:,wlev+1))
-!dgwater%deleng=0.
+!dgwater%deleng=0._8
 !do ii=1,wlev
-!  dgwater%deleng=dgwater%deleng+(water%temp(:,ii)*d_zcr-oldwatertemp(:,ii)*oldzcr)*dz(:,ii)
+!  dgwater%deleng=dgwater%deleng+real((water%temp(:,ii)*d_zcr-oldwatertemp(:,ii)*oldzcr)*dz(:,ii),8)
 !end do
-!dgwater%deleng=dgwater%deleng*rhowt*cp0/dt
-!dgice%deleng=ice%store-oldicestore
-!dgice%deleng=dgice%deleng+(ice%fracice*ice%tsurf-oldicefrac*oldicetemp(:,0))*gammi
-!dgice%deleng=dgice%deleng+(ice%fracice*ice%temp(:,0)*ice%snowd-oldicefrac*oldicetemp(:,1)*oldicesnowd)*cps
-!dgice%deleng=dgice%deleng+(ice%fracice*ice%temp(:,1)*ice%thick-oldicefrac*oldicetemp(:,2)*oldicethick)*0.5*cpi
-!dgice%deleng=dgice%deleng+(ice%fracice*ice%temp(:,2)*ice%thick-oldicefrac*oldicetemp(:,3)*oldicethick)*0.5*cpi
-!dgice%deleng=dgice%deleng/dt
+!dgwater%deleng=dgwater%deleng*real(rhowt*cp0/dt,8)
+!dgice%deleng=real(ice%store-oldicestore,8)
+!dgice%deleng=dgice%deleng+real((ice%fracice*ice%tsurf-oldicefrac*oldicetemp(:,0))*gammi,8)
+!dgice%deleng=dgice%deleng+real((ice%fracice*ice%temp(:,0)*ice%snowd-oldicefrac*oldicetemp(:,1)*oldicesnowd)*cps,8)
+!dgice%deleng=dgice%deleng+real((ice%fracice*ice%temp(:,1)*ice%thick-oldicefrac*oldicetemp(:,2)*oldicethick)*0.5*cpi,8)
+!dgice%deleng=dgice%deleng+real((ice%fracice*ice%temp(:,2)*ice%thick-oldicefrac*oldicetemp(:,3)*oldicethick)*0.5*cpi,8)
+!dgice%deleng=dgice%deleng/real(dt,8)
 
 workb=emisice**0.25*ice%tsurf
-sst    =unpack((1.-ice%fracice)*water%temp(:,1)+ice%fracice*workb,wpack,sst)
+sst    =unpack((1.-ice%fracice)*(water%temp(:,1)+wrtemp)+ice%fracice*workb,wpack,sst)
 workc=(1.-ice%fracice)/log(atm_zmin/dgwater%zo)**2+ice%fracice/log(atm_zmin/dgice%zo)**2
 zo     =unpack(atm_zmin*exp(-1./sqrt(workc)),wpack,zo)
 cd     =unpack((1.-ice%fracice)*dgwater%cd +ice%fracice*dgice%cd,wpack,cd)
@@ -1286,7 +1287,7 @@ if ( incradgam>0 ) then
 else
   dumt0=d_wt0
 end if
-avearray=sum(water%temp,dim=2)/real(wlev)
+avearray=0.5*(minval(water%temp,dim=2)+maxval(water%temp,dim=2))
 do ii=1,wlev
   water%temp(:,ii)=water%temp(:,ii)-avearray
 end do
@@ -1302,7 +1303,7 @@ end do
 
 
 ! SALINITY
-avearray=sum(water%sal,dim=2)/real(wlev)
+avearray=0.5*(maxval(water%sal,dim=2)+minval(water%sal,dim=2))
 do ii=1,wlev
   water%sal(:,ii)=water%sal(:,ii)-avearray
 end do
@@ -1825,7 +1826,7 @@ end do
 ! MJT notes - use rhowt reference density for Boussinesq fluid approximation
 d_wu0=-(1.-ice%fracice)*dgwater%taux/rhowt
 d_wv0=-(1.-ice%fracice)*dgwater%tauy/rhowt
-d_wt0=-(1.-ice%fracice)*(-dgwater%fg-dgwater%eg+atm_rg-sbconst*water%temp(:,1)**4)/(rhowt*cp0)
+d_wt0=-(1.-ice%fracice)*(-dgwater%fg-dgwater%eg+atm_rg-sbconst*(water%temp(:,1)+wrtemp)**4)/(rhowt*cp0)
 d_wt0=d_wt0+(1.-ice%fracice)*lf*atm_snd/(rhowt*cp0) ! melting snow
 d_ws0=(1.-ice%fracice)*(atm_rnd+atm_snd-dgwater%eg/lv)*water%sal(:,1)/rhowt
 d_ws0=d_ws0+atm_inflow*water%sal(:,1)/rhowt ! inflow under ice
@@ -1860,7 +1861,7 @@ real, parameter :: density = 1035.
 wlx =size(tt,2)
 d_rho=density
 
-t = min(max(tt(:,1)-273.16,-2.2),100.)
+t = min(max(tt(:,1)-273.16+wrtemp,-2.2),100.)
 s = min(max(ss(:,1),0.),maxsal) ! limit max salinity for equation of state
 t2 = t*t
 t3 = t2*t
@@ -2074,7 +2075,7 @@ real, parameter :: zcom2 = 0.11
 real, parameter :: zcoh2 = 0.40
 real, parameter :: zcoq2 = 0.62
 
-dumwatertemp=max(water%temp(:,1),271.)
+dumwatertemp=max(water%temp(:,1)+wrtemp,271.)
 sig=exp(-grav*atm_zmins/(rdry*atm_temp))
 srcp=sig**(rdry/cpair)
 atu=atm_u-fluxwgt*water%u(:,1)-(1.-fluxwgt)*atm_oldu
@@ -2298,6 +2299,7 @@ do ii=1,wlev
   d_avewtemp=d_avewtemp+water%temp(:,ii)*dz(:,ii)
 end do
 d_avewtemp=d_avewtemp/depth_hl(:,wlev+1)
+d_avewtemp=d_avewtemp+wrtemp
 
 ! update ice prognostic variables
 call seaicecalc(dt,d_ftop,d_tb,d_fb,d_timelt,d_salflxf,d_salflxs,d_nk,d_wavail,d_avewtemp,diag)
@@ -2379,7 +2381,7 @@ do iqw=1,wfull
       aa=dz(iqw,ii)*d_zcr(iqw)
       bb=max(minsfc-dsf,0.)
       deldz=min(aa,bb)
-      sdic(iqw,ii)=max(d_timelt(iqw)-water%temp(iqw,ii),0.)*cp0*rhowt*deldz/qice/(1.-ice%fracice(iqw))
+      sdic(iqw,ii)=max(d_timelt(iqw)-water%temp(iqw,ii)-wrtemp,0.)*cp0*rhowt*deldz/qice/(1.-ice%fracice(iqw))
       dsf=dsf+deldz
       maxlevel=max(maxlevel,ii)
       if (bb<=0.) exit
@@ -2403,6 +2405,7 @@ do ii=1,wlev
   avesal=avesal+water%sal(:,ii)*dz(:,ii)
 end do
 avetemp=avetemp/depth_hl(:,wlev+1)
+avetemp=avetemp+wrtemp
 avesal=avesal/depth_hl(:,wlev+1)
 ! balance the energy leaving the water column with that in surface ice layer
 newicetemp=avetemp*cp0*rhoic*newdic/gammi
@@ -2487,6 +2490,7 @@ do ii=1,wlev
   avesal=avesal+water%sal(:,ii)*dz(:,ii)
 end do
 avetemp=avetemp/depth_hl(:,wlev+1)
+avetemp=avetemp+wrtemp
 avesal=avesal/depth_hl(:,wlev+1)
 
 ! removal
@@ -3549,7 +3553,7 @@ elsewhere
 end where
 
 ! water temperature at bottom of ice
-d_tb=water%temp(:,1)
+d_tb=water%temp(:,1)+wrtemp
 
 ! Explicit estimate of fluxes
 call getqsat(qsat,dqdt,dtsurf,atm_ps)
@@ -3654,11 +3658,12 @@ implicit none
 
 integer, intent(in) :: diag
 real, dimension(wfull), intent(in) :: atm_u,atm_v,atm_temp,atm_qg,atm_ps,atm_zmin,atm_zmins
-real, dimension(wfull) :: tscrn,qgscrn,uscrn,u10
+real, dimension(wfull) :: tscrn,qgscrn,uscrn,u10,dumtemp
 real, dimension(wfull) :: smixr,qsat,dqdt,atu,atv,dmag
 
 ! water
-call getqsat(qsat,dqdt,water%temp(:,1),atm_ps)
+dumtemp=water%temp(:,1)+wrtemp
+call getqsat(qsat,dqdt,dumtemp,atm_ps)
 if (zomode==0) then
   smixr=0.98*qsat
 else
@@ -3666,7 +3671,7 @@ else
 end if
 atu=atm_u-water%u(:,1)
 atv=atm_v-water%v(:,1)
-call scrntile(dgscrn%temp,dgscrn%qg,uscrn,u10,dgwater%zo,dgwater%zoh,dgwater%zoq,water%temp(:,1), &
+call scrntile(dgscrn%temp,dgscrn%qg,uscrn,u10,dgwater%zo,dgwater%zoh,dgwater%zoq,dumtemp, &
     smixr,atu,atv,atm_temp,atm_qg,atm_zmin,atm_zmins,diag)
 dmag=sqrt(max(atu*atu+atv*atv,1.E-4))
 atu=(atm_u-water%u(:,1))*uscrn/dmag+water%u(:,1)
