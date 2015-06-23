@@ -1737,7 +1737,7 @@ integer, dimension(ifull,5), intent(out) :: ivs
 integer, dimension(ifull_g,5) :: ivsg  
 integer, dimension(3) :: spos,npos
 integer n,iq,ilx,jlx,iad 
-integer ncidx,iernc,varid
+integer ncidx,iernc,varid,ndims
 real, dimension(ifull,5), intent(out) :: svs,vlinprev,vlin,vlinnext
 real, dimension(ifull_g,5) :: svsg,vling
 real rlong0x,rlat0x,schmidtx,dsx,ra,rb,cablever
@@ -1767,14 +1767,17 @@ if (lncveg == 1) then
   do n=1,5
     write(vname,"(A,I1.1)") "lai",n
     call ccnf_inq_varid(ncidveg,vname,varid)
-    call ccnf_get_vara(ncidveg,varid,spos,npos,vling(:,n)) 
+    call ccnf_inq_varndims(ncidveg,varid,ndims)
+    call ccnf_get_vara(ncidveg,varid,spos(1:ndims),npos(1:ndims),vling(:,n)) 
     write(vname,"(A,I1.1)") "vegt",n
     call ccnf_inq_varid(ncidveg,vname,varid)
-    call ccnf_get_vara(ncidveg,varid,spos,npos,svsg(:,n)) 
+    call ccnf_inq_varndims(ncidveg,varid,ndims)
+    call ccnf_get_vara(ncidveg,varid,spos(1:ndims),npos(1:ndims),svsg(:,n)) 
     ivsg(:,n)=nint(svsg(:,n))
     write(vname,"(A,I1.1)") "vfrac",n
     call ccnf_inq_varid(ncidveg,vname,varid)
-    call ccnf_get_vara(ncidveg,varid,spos,npos,svsg(:,n))
+    call ccnf_inq_varndims(ncidveg,varid,ndims)
+    call ccnf_get_vara(ncidveg,varid,spos(1:ndims),npos(1:ndims),svsg(:,n))
   end do
   call ccmpi_distribute(ivs,ivsg)
   call ccmpi_distribute(svs,svsg)
@@ -1797,7 +1800,8 @@ if (lncveg == 1) then
     do n=1,5
       write(vname,"(A,I1.1)") "lai",n
       call ccnf_inq_varid(ncidveg,vname,varid)
-      call ccnf_get_vara(ncidveg,varid,spos,npos,vling(:,n)) 
+      call ccnf_inq_varndims(ncidveg,varid,ndims)
+      call ccnf_get_vara(ncidveg,varid,spos(1:ndims),npos(1:ndims),vling(:,n)) 
     end do
     call ccnf_close(ncidx)
     call ccmpi_distribute(vlinprev,vling)
@@ -1818,7 +1822,8 @@ if (lncveg == 1) then
     do n=1,5
       write(vname,"(A,I1.1)") "lai",n
       call ccnf_inq_varid(ncidveg,vname,varid)
-      call ccnf_get_vara(ncidveg,varid,spos,npos,vling(:,n)) 
+      call ccnf_inq_varndims(ncidveg,varid,ndims)
+      call ccnf_get_vara(ncidveg,varid,spos(1:ndims),npos(1:ndims),vling(:,n)) 
     end do
     call ccnf_close(ncidx)
     call ccmpi_distribute(vlinnext,vling)
