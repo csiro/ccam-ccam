@@ -243,7 +243,7 @@ do ipf=0,mynproc-1
     if (ier/=nf90_noerr) laddoff=0.
     ier=nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
     if (ier/=nf90_noerr) lsf=1.
-    ier=nf90_inq_varndims(pncid(ipf),idv,ndims)
+    ier=nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
     ier=nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
     call ncmsg(name,ier)
     ! unpack compressed data
@@ -505,7 +505,7 @@ do ipf = 0,mynproc-1
     if ( ier/=nf90_noerr ) laddoff=0.
     ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
     if ( ier/=nf90_noerr ) lsf=1.
-    ier = nf90_inq_varndims(pncid(ipf),idv,ndims)
+    ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
     ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
     call ncmsg(name,ier)
     ! unpack data
@@ -530,7 +530,7 @@ do ipf = 0,mynproc-1
       if ( ier/=nf90_noerr ) laddoff=0.
       ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
       if ( ier/=nf90_noerr ) lsf=1.
-      ier = nf90_inq_varndims(pncid(ipf),idv,ndims)
+      ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
       ier = nf90_get_var(pncid(ipf),idv,rvar(:,k),start=start(1:ndims),count=ncount(1:ndims))
       call ncmsg(name,ier)
       ! unpack data
@@ -2004,7 +2004,7 @@ lvid=vid
 #ifdef usenc3
 ncstatus = nf_inq_varndims(lncid,lvid,lndims)
 #else
-ncstatus = nf90_inq_varid(lncid,lvid,lndims)
+ncstatus = nf90_inquire_variable(lncid,lvid,ndims=lndims)
 #endif
 call ncmsg('ccnf_inq_varndims',ncstatus)
 ndims = lndims
