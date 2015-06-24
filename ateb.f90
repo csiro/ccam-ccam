@@ -1892,11 +1892,11 @@ real, parameter :: aa1 = 3.8
 real, parameter :: bb1 = 0.5
 real, parameter :: cc1 = 0.3
 
-cd=(vkar/ilzom)**2                         ! first guess
+cd=(vkar/ilzom)**2                              ! first guess
 call getlna(lna,cd,umag,zmin,ilzom,mode)
 olzoh=ilzom+lna
-integralh=sqrt(cd)*ilzom*olzoh/vkar        ! first guess
-thetavstar=vkar*(thetav-sthetav)/integralh ! first guess
+integralh=max(sqrt(cd)*ilzom*olzoh/vkar,1.e-10) ! first guess
+thetavstar=vkar*(thetav-sthetav)/integralh      ! first guess
 
 do ic=1,icmax
   z_on_l=vkar*zmin*grav*thetavstar/(thetav*cd*umag**2)
@@ -1920,6 +1920,8 @@ do ic=1,icmax
     integralm = ilzom-(pm1-pm0)    
     integralh = olzoh-(ph1-ph0)         
   endwhere
+  integralm = max(integralm,1.e-10)
+  integralh = max(integralh,1.e-10)
   !where (z_on_l<=0.4)
     cd = (max(0.01,min(vkar*umag/integralm,2.))/umag)**2
   !elsewhere
