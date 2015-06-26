@@ -1403,7 +1403,7 @@ select case(nsib)
   case(5)
     ! MODIS input with standard surface scheme
     osnowd = snowd
-    zolog=log(zmin/zolnd)   ! for land use in sflux
+
     sigmf=0.
     where (land)
       sigmf(:)=max(0.01,min(0.98,1.-exp(-0.4*vlai(:))))
@@ -1413,7 +1413,6 @@ select case(nsib)
   case(3)
     ! usual input with standard surface scheme
     osnowd = snowd
-    zolog=log(zmin/zolnd)   ! for land use in sflux
     sigmf=0.
     do iq=1,ifull
       if(land(iq))then
@@ -1463,6 +1462,10 @@ select case(nsib)
         write(6,"('zo#    ',9f8.2)") diagvals(zolnd)
       end if
     endif ! (newrough>0)
+    zolog=log(zmin/zolnd)   ! for land use in sflux    
+  case default
+    write(6,*) "ERROR: Unknown nsib option ",nsib
+    call ccmpi_abort(-1)
 end select
 
 if ( mydiag ) then
