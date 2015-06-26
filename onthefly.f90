@@ -922,11 +922,6 @@ if ( nested/=1 ) then
   end where
   if ( all(ierc(8:7+ms)==0) ) then
     call fillhist4('tgg',tgg,ms,sea_a)
-    do k=1,ms
-      where ( land(1:ifull) .and. tgg(:,k)<100. )
-        tgg(:,k) = tgg(:,k) + 290. ! adjust range of soil temp for compressed history file
-      end where
-    end do
   else
     do k = 1,ms 
       if ( ierc(7+k)==0 ) then
@@ -955,11 +950,13 @@ if ( nested/=1 ) then
         call fill_cc(ucc,sea_a)
         call doints4(ucc,tgg(:,k))
       end if
-      where ( land(1:ifull) .and. tgg(:,k)<100. )
-        tgg(:,k) = tgg(:,k) + 290. ! adjust range of soil temp for compressed history file
-      end where
     end do
   end if
+  do k=1,ms
+    where ( tgg(:,k)<100. )
+      tgg(:,k) = tgg(:,k) + 290. ! adjust range of soil temp for compressed history file
+    end where
+  end do  
   if ( .not.iotest ) then
     where ( snowd>0. .and. land(1:ifull) )
       tgg(:,1)=min( tgg(:,1), 270.1 )

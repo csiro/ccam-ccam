@@ -1654,7 +1654,7 @@ call histwrt3(aa,'alb',idnc,iarch,local,.true.)
 call histwrt3(fwet,'fwet',idnc,iarch,local,lwrite)
 
 ! MLO ---------------------------------------------------------      
-if ( nmlo/=0 ) then
+if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
   ocnheight = min(max(ocnheight,-130.),130.)
   do k=1,ms
     where (.not.land(1:ifull))
@@ -1673,9 +1673,9 @@ if ( nmlo/=0 ) then
   end where
 end if
 
-call histwrt3(snowd,   'snd', idnc,iarch,local,.true.)  ! long write
+call histwrt3(snowd,'snd', idnc,iarch,local,.true.)  ! long write
 do k=1,ms
-  where ( land(1:ifull) .and. itype==1 )
+  where ( tgg(:,k)>100. .and. itype==1 )
     aa(:)=tgg(:,k)-290. ! Adjust range of soil temp for compressed history output
   elsewhere
     aa(:)=tgg(:,k)

@@ -531,6 +531,9 @@ elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                                     
   call mloextra(2,tauy,azmin,0)                                                                  ! MLO
   do k=1,ms                                                                                      ! MLO
     call mloexport(0,tgg(:,k),k,0)                                                               ! MLO
+    where ( tgg(:,k)<100. )                                                                      ! MLO
+      tgg(:,k) = tgg(:,k) + 290.                                                                 ! MLO
+    end where                                                                                    ! MLO
   end do                                                                                         ! MLO
   do k=1,3                                                                                       ! MLO
     call mloexpice(tggsn(:,k),k,0)                                                               ! MLO

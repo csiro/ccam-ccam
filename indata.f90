@@ -1403,7 +1403,7 @@ select case(nsib)
   case(5)
     ! MODIS input with standard surface scheme
     osnowd = snowd
-
+    zolog=log(zmin/zolnd)   ! for land use in sflux
     sigmf=0.
     where (land)
       sigmf(:)=max(0.01,min(0.98,1.-exp(-0.4*vlai(:))))
@@ -1462,7 +1462,7 @@ select case(nsib)
         write(6,"('zo#    ',9f8.2)") diagvals(zolnd)
       end if
     endif ! (newrough>0)
-    zolog=log(zmin/zolnd)   ! for land use in sflux    
+    zolog=log(zmin/zolnd)   ! for land use in sflux 
   case default
     write(6,*) "ERROR: Unknown nsib option ",nsib
     call ccmpi_abort(-1)
@@ -1494,7 +1494,7 @@ do k=1,ms
     isoil=isoilm(iq)
     wb(iq,k)=min(ssat(isoil),wb(iq,k))
     wbice(iq,k)=min(.99*wb(iq,k),wbice(iq,k)) 
-    if(isoil.ne.9.and.wbice(iq,k)<=0.)wbice(iq,k)=min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
+    if(isoil/=9.and.wbice(iq,k)<=0.)wbice(iq,k)=min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
   enddo  ! iq loop
 enddo   ! ms
 
@@ -1804,6 +1804,9 @@ if (nmlo/=0.and.abs(nmlo)<=9) then
   deallocate(micdwn)
   do k=1,ms
     call mloexport(0,tgg(:,k),k,0)
+    where ( tgg(:,k)<100. )
+      tgg(:,k) = tgg(:,k) + 290.
+    end where    
   end do
   do k=1,3
     call mloexpice(tggsn(:,k),k,0)
