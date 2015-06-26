@@ -954,7 +954,7 @@ if ( nested/=1 ) then
   end if
   do k=1,ms
     where ( tgg(:,k)<100. )
-      tgg(:,k) = tgg(:,k) + 290. ! adjust range of soil temp for compressed history file
+      tgg(:,k) = tgg(:,k) + wrtemp ! adjust range of soil temp for compressed history file
     end where
   end do  
   if ( .not.iotest ) then

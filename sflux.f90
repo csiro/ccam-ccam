@@ -532,7 +532,7 @@ elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                                     
   do k=1,ms                                                                                      ! MLO
     call mloexport(0,tgg(:,k),k,0)                                                               ! MLO
     where ( tgg(:,k)<100. )                                                                      ! MLO
-      tgg(:,k) = tgg(:,k) + 290.                                                                 ! MLO
+      tgg(:,k) = tgg(:,k) + wrtemp                                                               ! MLO
     end where                                                                                    ! MLO
   end do                                                                                         ! MLO
   do k=1,3                                                                                       ! MLO

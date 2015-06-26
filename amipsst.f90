@@ -3,7 +3,7 @@ subroutine amipsst
 use arrays_m    ! ts, t, u, v, psl, ps, zs
 use cc_mpi
 use latlong_m
-use mlo, only : mloexport,mloexpmelt,wlev
+use mlo, only : mloexport,mloexpmelt,wlev,wrtemp
 use nesting
 use pbl_m       ! tss
 use permsurf_m  ! iperm etc
@@ -252,10 +252,12 @@ elseif (ktau>0) then
   end if
   timelt=273.16
   call mloexport(0,timelt,1,0)
+  timelt=min(timelt,271.3)
   dumb(:,1)=tgg(:,1)
   where(fraciceb>0.)
     dumb(:,1)=timelt
   end where
+  dumb(:,1)=dumb(:,1)-wrtemp
   dumd(:,1)=sssb
   select case(mlomode)
     case(0) ! relax
@@ -270,6 +272,9 @@ elseif (ktau>0) then
   end select
   do k=1,ms
     call mloexport(0,tgg(:,k),k,0)
+    where ( tgg(:,k)<100. )
+      tgg(:,k)=tgg(:,k)+wrtemp
+    end where    
   end do
 end if
 

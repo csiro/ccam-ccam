@@ -1802,7 +1802,7 @@ if (nmlo/=0.and.abs(nmlo)<=9) then
   do k=1,ms
     call mloexport(0,tgg(:,k),k,0)
     where ( tgg(:,k)<100. )
-      tgg(:,k) = tgg(:,k) + 290.
+      tgg(:,k) = tgg(:,k) + wrtemp
     end where    
   end do
   do k=1,3

@@ -562,7 +562,8 @@ use infile                                       ! Input file routines
 use latlong_m                                    ! Lat/lon coordinates
 use liqwpar_m                                    ! Cloud water mixing ratios
 use map_m                                        ! Grid map arrays
-use mlo, only : wlev,mlosave,mlodiag,mloexpdep   ! Ocean physics and prognostic arrays
+use mlo, only : wlev,mlosave,mlodiag, &          ! Ocean physics and prognostic arrays
+                mloexpdep,wrtemp
 use mlodynamics                                  ! Ocean dynamics
 use morepbl_m                                    ! Additional boundary layer diagnostics
 use nharrs_m                                     ! Non-hydrostatic atmosphere arrays
@@ -1676,14 +1677,14 @@ end if
 call histwrt3(snowd,'snd', idnc,iarch,local,.true.)  ! long write
 do k=1,ms
   where ( tgg(:,k)<100. .and. itype==1 )
-    aa(:)=tgg(:,k)+290.
+    aa(:)=tgg(:,k)+wrtemp
   elsewhere
     aa(:)=tgg(:,k)      ! Allows ocean temperatures to use a 290K offset
   end where
   write(vname,'("tgg",I1.1)') k
   call histwrt3(aa,vname,idnc,iarch,local,.true.)
   where ( tgg(:,k)<100. )
-    tgg(:,k)=tgg(:,k)+290.
+    tgg(:,k)=tgg(:,k)+wrtemp
   end where
 end do
 
@@ -1692,7 +1693,7 @@ if ( abs(nmlo)<=9 ) then
     if ( itype==1 ) then
       do k=ms+1,wlev
         write(vname,'("tgg",I2.2)') k        
-        aa(:)=mlodwn(:,k,1)+290.
+        aa(:)=mlodwn(:,k,1)+wrtemp
         call histwrt3(aa,vname,idnc,iarch,local,.true.)
       end do
     else
