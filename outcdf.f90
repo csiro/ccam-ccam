@@ -777,23 +777,23 @@ if( myid==0 .or. local ) then
     lname = 'Snow depth (liquid water)'
     call attrib(idnc,jdim(1:3),3,'snd',lname,'mm',0.,6500.,0,-1)  ! -1=long
     lname = 'Soil temperature lev 1'
-    call attrib(idnc,jdim(1:3),3,'tgg1',lname,'K',-130.,130.,0,itype)
+    call attrib(idnc,jdim(1:3),3,'tgg1',lname,'K',100.,425.,0,itype)
     lname = 'Soil temperature lev 2'
-    call attrib(idnc,jdim(1:3),3,'tgg2',lname,'K',-130.,130.,0,itype)
+    call attrib(idnc,jdim(1:3),3,'tgg2',lname,'K',100.,425.,0,itype)
     lname = 'Soil temperature lev 3'
-    call attrib(idnc,jdim(1:3),3,'tgg3',lname,'K',-130.,130.,0,itype)
+    call attrib(idnc,jdim(1:3),3,'tgg3',lname,'K',100.,425.,0,itype)
     lname = 'Soil temperature lev 4'
-    call attrib(idnc,jdim(1:3),3,'tgg4',lname,'K',-130.,130.,0,itype)
+    call attrib(idnc,jdim(1:3),3,'tgg4',lname,'K',100.,425.,0,itype)
     lname = 'Soil temperature lev 5'
-    call attrib(idnc,jdim(1:3),3,'tgg5',lname,'K',-130.,130.,0,itype)
+    call attrib(idnc,jdim(1:3),3,'tgg5',lname,'K',100.,425.,0,itype)
     lname = 'Soil temperature lev 6'
-    call attrib(idnc,jdim(1:3),3,'tgg6',lname,'K',-130.,130.,0,itype)
+    call attrib(idnc,jdim(1:3),3,'tgg6',lname,'K',100.,425.,0,itype)
  
     if ( (nmlo<0.and.nmlo>=-9) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
       do k=ms+1,wlev
         write(lname,'("soil/ocean temperature lev ",I2)') k
         write(vname,'("tgg",I2.2)') k
-        call attrib(idnc,jdim(1:3),3,vname,lname,'K',-130.,130.,0,itype)
+        call attrib(idnc,jdim(1:3),3,vname,lname,'K',100.,425.,0,itype)
       end do
       do k=1,wlev
         write(lname,'("ocean salinity lev ",I2)') k
@@ -1675,21 +1675,32 @@ end if
 
 call histwrt3(snowd,'snd', idnc,iarch,local,.true.)  ! long write
 do k=1,ms
-  where ( tgg(:,k)>100. .and. itype==1 )
-    aa(:)=tgg(:,k)-290. ! Adjust range of soil temp for compressed history output
+  where ( tgg(:,k)<100. .and. itype==1 )
+    aa(:)=tgg(:,k)+290.
   elsewhere
-    aa(:)=tgg(:,k)
+    aa(:)=tgg(:,k)      ! Allows ocean temperatures to use a 290K offset
   end where
   write(vname,'("tgg",I1.1)') k
   call histwrt3(aa,vname,idnc,iarch,local,.true.)
+  where ( tgg(:,k)<100. )
+    tgg(:,k)=tgg(:,k)+290.
+  end where
 end do
 
 if ( abs(nmlo)<=9 ) then
   if ( nmlo<0 .or. (nmlo>0.and.itype==-1) ) then
-    do k=ms+1,wlev
-      write(vname,'("tgg",I2.2)') k
-      call histwrt3(mlodwn(:,k,1),vname,idnc,iarch,local,.true.)
-    end do
+    if ( itype==1 ) then
+      do k=ms+1,wlev
+        write(vname,'("tgg",I2.2)') k        
+        aa(:)=mlodwn(:,k,1)+290.
+        call histwrt3(aa,vname,idnc,iarch,local,.true.)
+      end do
+    else
+      do k=ms+1,wlev
+        write(vname,'("tgg",I2.2)') k        
+        call histwrt3(mlodwn(:,k,1),vname,idnc,iarch,local,.true.)
+      end do
+    end if 
     do k=1,wlev
       write(vname,'("sal",I2.2)') k
       call histwrt3(mlodwn(:,k,2),vname,idnc,iarch,local,.true.)
