@@ -1463,9 +1463,6 @@ select case(nsib)
       end if
     endif ! (newrough>0)
     zolog=log(zmin/zolnd)   ! for land use in sflux 
-  case default
-    write(6,*) "ERROR: Unknown nsib option ",nsib
-    call ccmpi_abort(-1)
 end select
 
 if ( mydiag ) then
