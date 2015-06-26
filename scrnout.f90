@@ -361,6 +361,9 @@ do ic=1,nc
     integralh = lzoh-(ph1-ph0)
     integralq = lzoq-(pq1-pq0)
   endwhere
+  integralm  = max(integralm,1.e-10)
+  integralh  = max(integralh,1.e-10)  
+  integralq  = max(integralq,1.e-10)  
   thetavstar = vkar*(thetav-sthetav)/integralh
   ustar      = vkar*umagn/integralm
 end do
@@ -402,7 +405,11 @@ elsewhere
   integralm   = neutral-(pm1-pm0)
   integralm10 = neutral10-(pm1-pm10)
 endwhere
-
+integralh   = max(integralh,1.e-10)  
+integralq   = max(integralq,1.e-10)  
+integralm   = max(integralm,1.e-10)
+integralm10 = max(integralm10,1.e-10)
+  
 tscrn  = temp-tstar*integralh/vkar
 do iq=1,pfull
   esatb(iq) = establ(tscrn(iq))
