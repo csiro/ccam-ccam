@@ -191,8 +191,6 @@ vlai=0.
 ! abort calculation if no land points on this processor  
 if (mp<=0) return
 
-call START_LOG(cabpack_begin)
-
 ! calculate zenith angle
 dhr = dt/3600.
 call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
@@ -245,11 +243,8 @@ rad%fbeam(:,3)  =0.            ! dummy for now
 ! Interpolate LAI.  Also need sigmf for LDR prognostic aerosols.
 call setlai(sigmf,jyear,jmonth,jday,jhour,jmin)
 
-call END_LOG(cabpack_end)
-
 !--------------------------------------------------------------
 ! CABLE
-call START_LOG(cabmisc_begin)
 ktau_gl          = 900
 kend_gl          = 999
 ssnow%owetfac    = ssnow%wetfac
@@ -260,17 +255,11 @@ call ruff_resist(veg,rough,ssnow,canopy)
 call define_air(met,air)
 call init_radiation(met,rad,veg,canopy)
 call surface_albedo(ssnow,veg,met,rad,soil,canopy)
-call END_LOG(cabmisc_end)
-call START_LOG(cabcanopy_begin)
 call define_canopy(bal,rad,rough,air,met,dt,ssnow,soil,veg,canopy)
-call END_LOG(cabcanopy_end)
-call START_LOG(cabsoil_begin)
 ssnow%otss_0     = ssnow%otss
 ssnow%otss       = ssnow%tss
 ssnow%owetfac    = ssnow%wetfac
 call soil_snow(dt,soil,ssnow,canopy,met,bal,veg)
-call END_LOG(cabsoil_end)
-call START_LOG(cabmisc_begin)
 ! adjust for new soil temperature
 ssnow%deltss     = ssnow%tss - ssnow%otss
 canopy%fhs       = canopy%fhs + ssnow%deltss*ssnow%dfh_dtg
@@ -286,11 +275,9 @@ rad%trad         = ( (1.-rad%transd)*canopy%tv**4 + rad%transd*ssnow%tss**4 )**0
 !canopy%cdtq =  max( 0.1*canopy%cduv, canopy%cdtq )
 ! MJT suggestion
 canopy%cdtq =  max( 0., canopy%cdtq )
-call END_LOG(cabmisc_end)
 
 !--------------------------------------------------------------
 ! CASA CNP
-call START_LOG(cabcasa_begin)
 select case (icycle)
   case(0) ! off
     call plantcarb(veg,bgc,met,canopy)
@@ -378,7 +365,6 @@ sum_flux%sumrpr = sum_flux%sumrpr + canopy%frpr*dt
 sum_flux%sumrp  = sum_flux%sumrp  + canopy%frp*dt
 sum_flux%dsumrp = sum_flux%dsumrp + canopy%frp*dt
 sum_flux%sumrs  = sum_flux%sumrs  + canopy%frs*dt
-call END_LOG(cabcasa_end)
 !--------------------------------------------------------------
       
 ! Unpack tiles into grid point averages.
@@ -386,7 +372,6 @@ call END_LOG(cabcasa_end)
 ! be used by the radiadiation scheme at the next time step.  albvisnir(:,1) and
 ! albvisnir(:,2) are the VIS and NIR albedo used by the radiation scheme for the
 ! current time step.
-call START_LOG(cabunpack_begin)
 do k=1,ms
   where ( land )
     tgg(:,k)=0.
@@ -560,8 +545,6 @@ do iq=1,ifull
     qsttg(iq) = 0.622*esatf/(ps(iq)-esatf)
   end if
 end do
-
-call END_LOG(cabunpack_end)
 
 return
 end subroutine sib4

@@ -2209,7 +2209,9 @@ if ( itype==-1 ) then
   end if
 endif  ! (itype==-1)
 
-call ccnf_sync(idnc)
+if ( myid==0 .or. local ) then
+  call ccnf_sync(idnc)
+end if
 
 if ( myid==0 ) then
   write(6,*) "finished writing to ofile"    
@@ -2504,12 +2506,12 @@ call mslp(freqstore,psl,zs,t)
 freqstore=freqstore/100.
 call freqwrite(fncid,'pmsl', ktau,localhist,freqstore)
 
-if ( mod(ktau,nwt)==0 ) call ccnf_sync(fncid)  
-
-! close file at end of run
 if ( myid==0 .or. localhist ) then
+  ! close file at end of run
   if ( ktau==ntau ) then
     call ccnf_close(fncid)
+  elseif ( mod(ktau,nwt)==0 ) then
+    call ccnf_sync(fncid)  
   end if
 end if
       
