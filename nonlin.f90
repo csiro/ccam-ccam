@@ -1,3 +1,24 @@
+! Conformal Cubic Atmospheric Model
+    
+! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+    
+! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
+!
+! CCAM is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by
+! the Free Software Foundation, either version 3 of the License, or
+! (at your option) any later version.
+!
+! CCAM is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+!
+! You should have received a copy of the GNU General Public License
+! along with CCAM.  If not, see <http://www.gnu.org/licenses/>.
+
+!------------------------------------------------------------------------------
+
 subroutine nonlin
 
 use aerosolldr      
@@ -65,7 +86,7 @@ endif  ! (epsp<-2.)
 
 ! *** following qgsav should be before first vadv call
 qgsav(:,:)=qg(1:ifull,:)      ! for qg  conservation in adjust5
-if(ldr/=0)then
+if ( ldr/=0 ) then
   qfgsav(:,:)=qfg(1:ifull,:)
   qlgsav(:,:)=qlg(1:ifull,:)
   qrgsav(:,:)=qrg(1:ifull,:)
@@ -75,7 +96,7 @@ if (abs(iaero)==2) then
   xtgsav(:,:,:)=xtg(1:ifull,:,:)
 end if
 
-if(ngas>=1)then
+if ( ngas>0 ) then
   trsav(:,:,:)=tr(1:ifull,:,:) ! for tr conservation in adjust5
 endif       ! (ngas>=1)
  

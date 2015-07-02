@@ -1,4 +1,24 @@
+! Conformal Cubic Atmospheric Model
+    
+! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+    
+! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
+!
+! CCAM is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by
+! the Free Software Foundation, either version 3 of the License, or
+! (at your option) any later version.
+!
+! CCAM is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+!
+! You should have received a copy of the GNU General Public License
+! along with CCAM.  If not, see <http://www.gnu.org/licenses/>.
 
+!------------------------------------------------------------------------------
+    
 ! This is a 1D, mixed layer ocean model based on Large, et al (1994), for ensemble regional climate simulations.
 ! This code is also used for modelling lakes in ACCESS and CCAM.  In CCAM this module interfaces with
 ! mlodynamics.f90 for river routing, diffusion and advection routines.
@@ -3780,8 +3800,8 @@ do ic=1,nc
     integralq = lzoq-(ph1-pq0)
   endwhere
   integralm = max(integralm,1.e-10)
-  integralh = max(integralh,1.e-10)  
-  integralq = max(integralq,1.e-10)  
+  integralh = max(integralh,1.e-10)
+  integralq = max(integralq,1.e-10)
   thetavstar = vkar*(thetav-sthetav)/integralh
   ustar      = vkar*umag/integralm
 end do
@@ -3830,8 +3850,8 @@ elsewhere
   integralm10 = neutral10-(pm1-pm10)
 endwhere
 integralh = max(integralh,1.e-10)
-integralm = max(integralm,1.e-10)  
-integralm10 = max(integralm10,1.e-10)  
+integralm = max(integralm,1.e-10)
+integralm10 = max(integralm10,1.e-10)
 tscrn  = atm_temp-tstar*integralh/vkar
 qgscrn = atm_qg-qstar*integralh/vkar
 qgscrn = max(qgscrn,1.E-4)

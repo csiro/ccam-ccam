@@ -1,3 +1,33 @@
+! Conformal Cubic Atmospheric Model
+    
+! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+    
+! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
+!
+! CCAM is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by
+! the Free Software Foundation, either version 3 of the License, or
+! (at your option) any later version.
+!
+! CCAM is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+!
+! You should have received a copy of the GNU General Public License
+! along with CCAM.  If not, see <http://www.gnu.org/licenses/>.
+
+!------------------------------------------------------------------------------
+
+!     this one primarily does namip>=2      
+!     but persisted SST anomalies for namip=-1
+!     A routine for the con-cubic model which will interpolate
+!     linearly in time between two sst data sets.
+!     iday is a variable which is equal to the number of
+!     day of the month.(Thus iday = 1 at the
+!     start of a month, is updated to 2 at end of first day etc.)
+!     imo is the number of the month we are in (1<=imo<=12)
+
 subroutine amipsst
 
 use arrays_m    ! ts, t, u, v, psl, ps, zs
@@ -11,15 +41,6 @@ use soil_m      ! ,tice, alb
 use soilsnow_m  ! fracice,sicedep
 
 implicit none
-
-!     this one primarily does namip>=2      
-!     but persisted SST anomalies for namip=-1
-!     A routine for the con-cubic model which will interpolate
-!     linearly in time between two sst data sets.
-!     iday is a variable which is equal to the number of
-!     day of the month.(Thus iday = 1 at the
-!     start of a month, is updated to 2 at end of first day etc.)
-!     imo is the number of the month we are in (1<=imo<=12)
 
 include 'newmpar.h'
 include 'dates.h'     !  kdate,ktime,timer,mtimer

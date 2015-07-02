@@ -1,5 +1,24 @@
-subroutine sflux(nalpha)
-      
+! Conformal Cubic Atmospheric Model
+    
+! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+    
+! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
+!
+! CCAM is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by
+! the Free Software Foundation, either version 3 of the License, or
+! (at your option) any later version.
+!
+! CCAM is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+!
+! You should have received a copy of the GNU General Public License
+! along with CCAM.  If not, see <http://www.gnu.org/licenses/>.
+
+!------------------------------------------------------------------------------
+
 ! CCAM interface for surface flux routines
 ! Includes standard land-surface scheme,
 ! prescribed SSTs and sea-ice, CABLE
@@ -14,6 +33,8 @@ subroutine sflux(nalpha)
 ! nmlo>0 and mlo<=9   KPP ocean mixing
 ! nmlo>9              Use external PCOM ocean model
 ! nurban>0            Use urban scheme
+    
+subroutine sflux(nalpha)
       
 use arrays_m                       ! Atmosphere dyamics prognostic arrays
 use ateb                           ! Urban

@@ -1,5 +1,24 @@
-module onthefly_m
+! Conformal Cubic Atmospheric Model
     
+! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+    
+! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
+!
+! CCAM is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by
+! the Free Software Foundation, either version 3 of the License, or
+! (at your option) any later version.
+!
+! CCAM is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+!
+! You should have received a copy of the GNU General Public License
+! along with CCAM.  If not, see <http://www.gnu.org/licenses/>.
+
+!------------------------------------------------------------------------------
+
 ! Main netcdf input routines.  Host grid is automatically
 ! interpolated to nested model grid.  Three options are
 !   nested=0  Initial conditions
@@ -13,7 +32,9 @@ module onthefly_m
 ! In the case where the grid needs to be interpolated, a copy
 ! of the input data is sent to all processors and each
 ! processor performs its own interpolation.
-
+    
+module onthefly_m
+    
 implicit none
     
 private
@@ -577,7 +598,16 @@ if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
   if ( ( nested/=1 .or. nud_sst/=0 ) .and. ok>0 ) then
     call fillhist4o('tgg',mlodwn(:,:,1),land_a,ocndwn(:,1))
     if ( all(mlodwn(:,:,1)==0.) ) mlodwn(:,:,1) = 293.-wrtemp
-    if ( any(mlodwn(:,:,1)>100.) ) mlodwn(:,:,1) = mlodwn(:,:,1)-wrtemp ! backwards compatibility
+    if ( any(mlodwn(:,:,1)>100.) ) then
+      if (myid==0) then
+        write(6,*) "Adjust input ocean data for high precision"
+      end if
+      mlodwn(:,:,1) = mlodwn(:,:,1)-wrtemp ! backwards compatibility
+    else
+      if (myid==0) then
+        write(6,*) "High precision ocean data detected"
+      end if
+    end if
   else
     mlodwn(:,:,1) = 293.-wrtemp
   end if ! (nestesd/=1.or.nud_sst/=0) ..else..

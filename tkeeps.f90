@@ -1,3 +1,23 @@
+! Conformal Cubic Atmospheric Model
+    
+! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+    
+! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
+!
+! CCAM is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by
+! the Free Software Foundation, either version 3 of the License, or
+! (at your option) any later version.
+!
+! CCAM is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+!
+! You should have received a copy of the GNU General Public License
+! along with CCAM.  If not, see <http://www.gnu.org/licenses/>.
+
+!------------------------------------------------------------------------------
 
 ! This module calculates the turblent kinetic energy and mixing for the boundary layer based on Hurley 2007
 ! (eddy dissipation) and Angevine et al 2010 (mass flux).  Specifically, this version is modified for
@@ -289,12 +309,6 @@ do kcount=1,mcount
     arup=aero(1:ifull,:,:)
   end if
 
-  gamtl=0.
-  gamqv=0.
-  gamql=0.
-  gamqf=0.
-  gamqr=0.
-  
 #ifdef offline
   mf=0.
   w_up=0.
@@ -568,7 +582,6 @@ do kcount=1,mcount
         end do
 #endif
 
-
         ! update reamining scalars which are not used in the iterative loop
         crup(i,1)=cfrain(i,1)
         do k=2,ktopmax
@@ -585,14 +598,6 @@ do kcount=1,mcount
           end do
         end do
         
-        do k=1,ktopmax
-          gamtl(i,k)=mflx(i,k)*(tlup(i,k)-thetal(i,k))
-          gamqv(i,k)=mflx(i,k)*(qvup(i,k)-qvg(i,k) )
-          gamql(i,k)=mflx(i,k)*(qlup(i,k)-qlg(i,k))
-          gamqf(i,k)=mflx(i,k)*(qfup(i,k)-qfg(i,k))
-          gamqr(i,k)=mflx(i,k)*(qrup(i,k)-qrg(i,k))
-        end do
-
       else                   ! stable
         !wpv_flux is calculated at half levels
         !wpv_flux(1)=-kmo(i,1)*(thetav(i,2)-thetav(i,1))/dz_hl(i,1) !+gamt_hl(i,k)
@@ -621,6 +626,15 @@ do kcount=1,mcount
     wstar=(grav*zidry*max(wtv0,0.)/thetav(:,1))**(1./3.)   
   end if
 
+  
+  ! explicit version of counter gradient terms
+  gamtl(:,:)=mflx(:,:)*(tlup(:,:)-thetal(1:ifull,:))
+  gamqv(:,:)=mflx(:,:)*(qvup(:,:)-qvg(1:ifull,:))
+  gamql(:,:)=mflx(:,:)*(qlup(:,:)-qlg(1:ifull,:))
+  gamqf(:,:)=mflx(:,:)*(qfup(:,:)-qfg(1:ifull,:))
+  gamqr(:,:)=mflx(:,:)*(qrup(:,:)-qrg(1:ifull,:))
+
+  
   ! calculate tke and eps at 1st level
   z_on_l=-vkar*zz(:,1)*grav*wtv0/(thetav(:,1)*max(ustar*ustar*ustar,1.E-10))
   z_on_l=min(z_on_l,10.) ! See fig 10 in Beljarrs and Holtslag (1991)

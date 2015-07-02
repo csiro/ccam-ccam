@@ -401,7 +401,8 @@ SUBROUTINE report_version_no( logn )
    
    INTEGER :: icable_rev, ioerror
     
-   CALL getenv("HOME", myhome) 
+   !CALL getenv("HOME", myhome) ! MJT notes - bad for windows versions
+   myhome=''
    fcablerev = TRIM(myhome)//TRIM("/.cable_rev")
    
    OPEN(440,FILE=TRIM(fcablerev),STATUS='old',ACTION='READ',IOSTAT=ioerror)

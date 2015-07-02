@@ -1,3 +1,24 @@
+! Conformal Cubic Atmospheric Model
+    
+! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+    
+! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
+!
+! CCAM is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by
+! the Free Software Foundation, either version 3 of the License, or
+! (at your option) any later version.
+!
+! CCAM is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+!
+! You should have received a copy of the GNU General Public License
+! along with CCAM.  If not, see <http://www.gnu.org/licenses/>.
+
+!------------------------------------------------------------------------------
+
 c This is the interface between the Fels-Schwarzkopf radiation scheme and
 c LDR's prognostic cloud water scheme. It is called by radrive.
 c
@@ -100,7 +121,7 @@ C Local work arrays and variables
       integer mg
       integer nc
 
-      integer kb,km,kk,kt,kp,pos(1) ! MJT CHANGE - mr
+      integer kb,km,kk,kt,kp,pos(1)
       integer, dimension(imax,l) :: cldtop,cldbtm
 
       real ab, cfl, cldht, deltai, diffk, dz, em, eps, f1, f2, fcon
@@ -109,9 +130,9 @@ C Local work arrays and variables
       real sigmai, tciwc, tclwc, temp_correction, tmid
       real trani, tranw, wice, wliq
 
-      real csum,ctemp,ttgsum,qlsum,qfsum,qconsum ! MJT CHANGE - mr
-      real refflsum,reffisum,dzsum,qlpathsum,qipathsum ! MJT CHANGE - mr
-      real refflhold,reffihold,ficehold ! MJT CHANGE - mr
+      real csum,ctemp,ttgsum,qlsum,qfsum,qconsum
+      real refflsum,reffisum,dzsum,qlpathsum,qipathsum
+      real refflhold,reffihold,ficehold
 
       integer, save :: istart
       data istart/0/

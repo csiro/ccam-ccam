@@ -1,3 +1,24 @@
+! Conformal Cubic Atmospheric Model
+    
+! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+    
+! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
+!
+! CCAM is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by
+! the Free Software Foundation, either version 3 of the License, or
+! (at your option) any later version.
+!
+! CCAM is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+!
+! You should have received a copy of the GNU General Public License
+! along with CCAM.  If not, see <http://www.gnu.org/licenses/>.
+
+!------------------------------------------------------------------------------
+    
 subroutine scrnout(zo,ustar,factch,wetfac,qsttg,qgscrn,tscrn,uscrn,u10,rhscrn,af,aft,ri,vmod, &
                    bprm,cms,chs,chnsea,nalpha)
 
@@ -362,8 +383,8 @@ do ic=1,nc
     integralq = lzoq-(pq1-pq0)
   endwhere
   integralm  = max(integralm,1.e-10)
-  integralh  = max(integralh,1.e-10)  
-  integralq  = max(integralq,1.e-10)  
+  integralh  = max(integralh,1.e-10)
+  integralq  = max(integralq,1.e-10)
   thetavstar = vkar*(thetav-sthetav)/integralh
   ustar      = vkar*umagn/integralm
 end do
@@ -405,11 +426,11 @@ elsewhere
   integralm   = neutral-(pm1-pm0)
   integralm10 = neutral10-(pm1-pm10)
 endwhere
-integralh   = max(integralh,1.e-10)  
-integralq   = max(integralq,1.e-10)  
-integralm   = max(integralm,1.e-10)
-integralm10 = max(integralm10,1.e-10)
-  
+integralh  = max(integralh,1.e-10)
+integralq  = max(integralq,1.e-10)
+integralm  = max(integralm,1.e-10)
+integralm10  = max(integralm10,1.e-10)
+
 tscrn  = temp-tstar*integralh/vkar
 do iq=1,pfull
   esatb(iq) = establ(tscrn(iq))

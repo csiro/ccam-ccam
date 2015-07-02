@@ -1,4 +1,23 @@
-module cable_ccam
+! Conformal Cubic Atmospheric Model
+    
+! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+    
+! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
+!
+! CCAM is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by
+! the Free Software Foundation, either version 3 of the License, or
+! (at your option) any later version.
+!
+! CCAM is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+!
+! You should have received a copy of the GNU General Public License
+! along with CCAM.  If not, see <http://www.gnu.org/licenses/>.
+
+!------------------------------------------------------------------------------
 
 ! CABLE interface originally developed by the CABLE group
 ! Subsequently modified by MJT for 5 tile mosaic and SEAESF radiation scheme
@@ -81,6 +100,8 @@ module cable_ccam
 ! 7       coarse-medium-fine   sandy-clay-loam
 ! 8       organi!              peat
 ! 9       land ice
+
+module cable_ccam
 
 use cable_air_module
 use cable_albedo_module

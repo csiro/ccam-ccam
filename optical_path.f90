@@ -900,7 +900,7 @@ logical,                   intent(in)            :: including_aerosols
         allocate (Optical%aerooptdep_KE_15 (ix, jx ) )
         end if
         Optical%totaerooptdep = 0.                              
-        Optical%aerooptdep_KE_15 = 0.           
+        Optical%aerooptdep_KE_15 = 0.  
       else
         n_aerosol_bands = 0 ! MJT bug fix
       endif

@@ -1,4 +1,24 @@
-      subroutine radrive (ixin,odcalc)
+! Conformal Cubic Atmospheric Model
+    
+! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+    
+! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
+!
+! CCAM is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by
+! the Free Software Foundation, either version 3 of the License, or
+! (at your option) any later version.
+!
+! CCAM is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+!
+! You should have received a copy of the GNU General Public License
+! along with CCAM.  If not, see <http://www.gnu.org/licenses/>.
+
+!------------------------------------------------------------------------------
+
 ! Radiation driver routine for the conformal cubic model.
 ! This calls the GFDL radiation routines for each row of each face.
 ! At the moment it does not support the new liquid water cloud scheme
@@ -10,6 +30,8 @@
 ! In rdparm.h, set imax=2*il. For the conformal cube can also use imax=6*il
 ! N.B. (iq) indexing is still OK whether arrays have i dimension
 !       of il or imax, because j advances sensibly
+      
+      subroutine radrive (ixin,odcalc)
 
       use aerointerface
       use arrays_m
@@ -322,9 +344,9 @@ c	     accumulation of dirt and amount of new snow.
             endif
 
 c	     Snow albedo is dependent on zenith angle and  snow age.
-            alvo = 0.95	        !alb. for vis. on a new snow
+            alvo = 0.95         !alb. for vis. on a new snow
             aliro = 0.65        !alb. for near-infr. on a new snow
-            fage = 1.-1./(1.+snage(iq))	 !age factor
+            fage = 1.-1./(1.+snage(iq))  !age factor
 
             if(ntest==1.and.iq==idjd.and.mydiag)then
               write(6,*)'ar1,ar2,snowd,ssdnn ',
@@ -405,7 +427,7 @@ c	     cc=min(1.,snr/max(snr+2.*z0m(iq),0.02))
           iq=i+(j-1)*il
            cosz = max ( coszro(i), 1.e-4)
            delta =  coszro(i)*beta_ave*alpha*so4t(iq)* ! still broadband
-     &	            ((1.-0.5*(cuvrf(i,1)+cirrf(i,1)))/cosz)**2
+     &                ((1.-0.5*(cuvrf(i,1)+cirrf(i,1)))/cosz)**2
            cuvrf(i,1)=min(0.99, delta+cuvrf(i,1)) ! surface albedo
            cirrf(i,1)=min(0.99, delta+cirrf(i,1)) ! still broadband
         end do ! i=1,imax
@@ -757,8 +779,8 @@ c       endif
       integer, intent(in) :: mp
       REAL, INTENT(IN) :: doy ! day of year
       REAL, DIMENSION(mp), INTENT(IN) :: coszen ! cos(zenith angle of sun)
-      REAL, DIMENSION(mp), INTENT(IN) :: fsd	! short wave down (positive) w/m^2
-      REAL, DIMENSION(mp), intent(out) :: fbeam	! beam fraction (result)
+      REAL, DIMENSION(mp), INTENT(IN) :: fsd ! short wave down (positive) w/m^2
+      REAL, DIMENSION(mp), intent(out) :: fbeam ! beam fraction (result)
       REAL, PARAMETER :: solcon = 1370.0
       REAL, DIMENSION(mp) :: tmpr !
       REAL, DIMENSION(mp) :: tmpk !

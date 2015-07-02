@@ -1,3 +1,24 @@
+! Conformal Cubic Atmospheric Model
+    
+! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+    
+! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
+!
+! CCAM is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by
+! the Free Software Foundation, either version 3 of the License, or
+! (at your option) any later version.
+!
+! CCAM is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+!
+! You should have received a copy of the GNU General Public License
+! along with CCAM.  If not, see <http://www.gnu.org/licenses/>.
+
+!------------------------------------------------------------------------------
+    
 ! Dummy MPI routines for running a single processor version on a machine
 ! without MPI.
 
@@ -175,7 +196,7 @@ subroutine MPI_TYPE_SIZE(a,b,c)
 end subroutine MPI_TYPE_SIZE
 
 subroutine MPI_WIN_CREATE(a,b,c,d,e,f,g)
-   include 'mpif.h'
+   include 'mpif.h' 
    integer :: c,d,e,f,g
    integer(kind=MPI_ADDRESS_KIND) :: b
    real, dimension(*) :: a
@@ -195,3 +216,18 @@ end subroutine MPI_GET
 subroutine MPI_WIN_FREE(a,b)
    integer :: a,b
 end subroutine MPI_WIN_FREE
+
+subroutine MPI_PACK( a, b, c, d, e, f, g, h )
+   print*, "Error, dummy MPI_PACK called"
+   stop
+end subroutine MPI_PACK
+
+subroutine MPI_UNPACK( a, b, c, d, e, f, g, h )
+   print*, "Error, dummy MPI_UNPACK called"
+   stop
+end subroutine MPI_UNPACK
+
+subroutine MPI_PACK_SIZE( a, b, c, d, e )
+   print*, "Error, dummy MPI_PACK_SIZE called"
+   stop
+end subroutine MPI_PACK_SIZE
