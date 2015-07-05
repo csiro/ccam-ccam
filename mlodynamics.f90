@@ -1505,7 +1505,7 @@ include 'const_phys.h'
 include 'parm.h'
 include 'parmhor.h'
 
-integer iq,i,j,k,n,nn,idel,jdel,ip,jp,ierr,intsch,ncount,ii
+integer iq,i,j,k,n,nn,idel,jdel,ierr,intsch,ncount,ii
 integer, dimension(ifull,wlev), intent(out) :: nface
 real, intent(in) :: dt_in
 real, dimension(ifull,wlev), intent(in) :: ubar,vbar
@@ -1592,9 +1592,6 @@ if(intsch==1)then
 ! Loop over points that need to be calculated for other processes
   do ii=neighnum,1,-1
     do iq=1,drlen(ii)
-      !  Convert face index from 0:npanels to array indices
-      ip = min(il_g,max(1,nint(dpoints(ii)%a(2,iq))))
-      jp = min(il_g,max(1,nint(dpoints(ii)%a(3,iq))))
       n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
       !  Need global face index in fproc call
       idel = int(dpoints(ii)%a(2,iq))
@@ -1736,9 +1733,6 @@ else     ! if(intsch==1)then
 ! For other processes
   do ii=neighnum,1,-1
     do iq=1,drlen(ii)
-      !  Convert face index from 0:npanels to array indices
-      ip = min(il_g,max(1,nint(dpoints(ii)%a(2,iq))))
-      jp = min(il_g,max(1,nint(dpoints(ii)%a(3,iq))))
       n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
       !  Need global face index in fproc call
       idel = int(dpoints(ii)%a(2,iq))
@@ -1870,9 +1864,6 @@ if (intsch==1) then
 ! Loop over points that need to be calculated for other processes
   do ii=neighnum,1,-1
     do iq=1,drlen(ii)
-      !  Convert face index from 0:npanels to array indices
-      ip = min(il_g,max(1,nint(dpoints(ii)%a(2,iq))))
-      jp = min(il_g,max(1,nint(dpoints(ii)%a(3,iq))))
       n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
       !  Need global face index in fproc call
       idel = int(dpoints(ii)%a(2,iq))
@@ -1982,9 +1973,6 @@ else     ! if(intsch==1)then
 ! For other processes
   do ii=neighnum,1,-1
     do iq=1,drlen(ii)
-      !  Convert face index from 0:npanels to array indices
-      ip = min(il_g,max(1,nint(dpoints(ii)%a(2,iq))))
-      jp = min(il_g,max(1,nint(dpoints(ii)%a(3,iq))))
       n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
       !  Need global face index in fproc call
       idel = int(dpoints(ii)%a(2,iq))
@@ -2242,7 +2230,7 @@ include 'parm.h'
 include 'parmhor.h'
 
 integer idel,iq,jdel
-integer i,j,k,n,ip,jp,ierr,intsch,ncount
+integer i,j,k,n,ierr,intsch,ncount
 integer ii,ntr,nn
 integer, dimension(ifull,wlev), intent(in) :: nface
 real, dimension(ifull,wlev), intent(in) :: xg,yg
@@ -2314,9 +2302,6 @@ if (intsch==1) then
 ! Loop over points that need to be calculated for other processes
   do ii=neighnum,1,-1
     do iq=1,drlen(ii)
-      !  Convert face index from 0:npanels to array indices
-      ip = min(il_g,max(1,nint(dpoints(ii)%a(2,iq))))
-      jp = min(il_g,max(1,nint(dpoints(ii)%a(3,iq))))
       n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
       !  Need global face index in fproc call
       idel = int(dpoints(ii)%a(2,iq))
@@ -2476,9 +2461,6 @@ else     ! if(intsch==1)then
 ! For other processes
   do ii=neighnum,1,-1
     do iq=1,drlen(ii)
-      !  Convert face index from 0:npanels to array indices
-      ip = min(il_g,max(1,nint(dpoints(ii)%a(2,iq))))
-      jp = min(il_g,max(1,nint(dpoints(ii)%a(3,iq))))
       n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
       !  Need global face index in fproc call
       idel = int(dpoints(ii)%a(2,iq))

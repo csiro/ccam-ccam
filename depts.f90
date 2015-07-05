@@ -39,7 +39,7 @@ include 'parmhor.h'    ! has mh_bs
 
 integer, parameter :: ntest=0
 integer iq, k, intsch, idel, jdel, nn
-integer i, j, n, ip, jp, ii
+integer i, j, n, ii
 real xxg, yyg
 real, dimension(ifull,kl) :: uc,vc,wc
 real, dimension(ifull+iextra,kl,3) :: s
@@ -125,9 +125,6 @@ if(intsch==1)then
   ! Loop over points that need to be calculated for other processes
   do ii=neighnum,1,-1
     do iq=1,drlen(ii)
-      !  Convert face index from 0:npanels to array indices
-      ip = min(il_g,max(1,nint(dpoints(ii)%a(2,iq))))
-      jp = min(il_g,max(1,nint(dpoints(ii)%a(3,iq))))
       n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
       !  Need global face index in fproc call
       idel = int(dpoints(ii)%a(2,iq))
@@ -245,9 +242,6 @@ else     ! if(intsch==1)then
   ! For other processes
   do ii=neighnum,1,-1
     do iq=1,drlen(ii)
-      !  Convert face index from 0:npanels to array indices
-      ip = min(il_g,max(1,nint(dpoints(ii)%a(2,iq))))
-      jp = min(il_g,max(1,nint(dpoints(ii)%a(3,iq))))
       n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
       !  Need global face index in fproc call
       idel = int(dpoints(ii)%a(2,iq))
@@ -355,9 +349,6 @@ if(intsch==1)then
   ! Loop over points that need to be calculated for other processes
   do ii=neighnum,1,-1
     do iq=1,drlen(ii)
-      !  Convert face index from 0:npanels to array indices
-      ip = min(il_g,max(1,nint(dpoints(ii)%a(2,iq))))
-      jp = min(il_g,max(1,nint(dpoints(ii)%a(3,iq))))
       n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
       !  Need global face index in fproc call
       idel = int(dpoints(ii)%a(2,iq))
@@ -443,9 +434,6 @@ else     ! if(intsch==1)then
   ! For other processes
   do ii=neighnum,1,-1
     do iq=1,drlen(ii)
-      !  Convert face index from 0:npanels to array indices
-      ip = min(il_g,max(1,nint(dpoints(ii)%a(2,iq))))
-      jp = min(il_g,max(1,nint(dpoints(ii)%a(3,iq))))
       n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
       !  Need global face index in fproc call
       idel = int(dpoints(ii)%a(2,iq))

@@ -44,7 +44,7 @@ integer, parameter :: ntest=0
 integer, intent(in) :: ntr
 integer, intent(in) :: intsch, nfield
 integer idel, iq, jdel, nn
-integer i, j, k, n, ip, jp
+integer i, j, k, n
 integer ii
 integer, dimension(ifull,kl), intent(in) :: nface
 real xxg, yyg
@@ -106,9 +106,6 @@ if(intsch==1)then
   if(nfield<mh_bs)then
     do ii=neighnum,1,-1
       do iq=1,drlen(ii)
-        !  Convert face index from 0:npanels to array indices
-        ip = min(il_g,max(1,nint(dpoints(ii)%a(2,iq))))
-        jp = min(il_g,max(1,nint(dpoints(ii)%a(3,iq))))
         n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
         !  Need global face index in fproc call
         idel = int(dpoints(ii)%a(2,iq))
@@ -147,9 +144,6 @@ if(intsch==1)then
   else                ! (nfield<mh_bs)
     do ii=neighnum,1,-1
       do iq=1,drlen(ii)
-        !  Convert face index from 0:npanels to array indices
-        ip = min(il_g,max(1,nint(dpoints(ii)%a(2,iq))))
-        jp = min(il_g,max(1,nint(dpoints(ii)%a(3,iq))))
         n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
         !  Need global face index in fproc call
         idel = int(dpoints(ii)%a(2,iq))
@@ -322,9 +316,6 @@ else     ! if(intsch==1)then
   if(nfield<mh_bs)then
     do ii=neighnum,1,-1
       do iq=1,drlen(ii)
-        !  Convert face index from 0:npanels to array indices
-        ip = min(il_g,max(1,nint(dpoints(ii)%a(2,iq))))
-        jp = min(il_g,max(1,nint(dpoints(ii)%a(3,iq))))
         n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
         !  Need global face index in fproc call
         idel = int(dpoints(ii)%a(2,iq))
@@ -366,9 +357,6 @@ else     ! if(intsch==1)then
   else                   ! (nfield<mh_bs)
     do ii=neighnum,1,-1
       do iq=1,drlen(ii)
-        !  Convert face index from 0:npanels to array indices
-        ip = min(il_g,max(1,nint(dpoints(ii)%a(2,iq))))
-        jp = min(il_g,max(1,nint(dpoints(ii)%a(3,iq))))
         n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
         !  Need global face index in fproc call
         idel = int(dpoints(ii)%a(2,iq))
@@ -530,7 +518,7 @@ include 'parmhor.h'    ! has mh_bs
 
 integer, parameter :: ntest=0
 integer idel, iq, jdel, nn
-integer i, j, k, n, ip, jp
+integer i, j, k, n
 integer ii
 integer, intent(in) :: intsch
 integer, dimension(ifull,kl), intent(in) :: nface
@@ -567,9 +555,6 @@ enddo                     ! k loop
 ! Loop over points that need to be calculated for other processes
 do ii=neighnum,1,-1
   do iq=1,drlen(ii)
-    !  Convert face index from 0:npanels to array indices
-    ip = min(il_g,max(1,nint(dpoints(ii)%a(2,iq))))
-    jp = min(il_g,max(1,nint(dpoints(ii)%a(3,iq))))
     n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
     !  Need global face index in fproc call
     idel = int(dpoints(ii)%a(2,iq))
