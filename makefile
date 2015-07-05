@@ -101,8 +101,10 @@ sumdd_m.o: sumdd_m.f90
 stacklimit.o: stacklimit.c
 	cc -c stacklimit.c
 version.h: FORCE
+	rm -f brokenver tmpver
+	echo "      character(len=*), parameter :: version ='CCAM r'" > brokenver
 	echo "      character(len=*), parameter :: version ='CCAM r`svnversion .`'" > tmpver
-	grep exported tmpver || grep Unversioned tmpver || cmp tmpver version.h || mv tmpver version.h
+	grep exported tmpver || grep Unversioned tmpver || cmp tmpver brokenver || cmp tmpver version.h || mv tmpver version.h
 FORCE:
 
 

@@ -1855,6 +1855,59 @@ call END_LOG(otf_wind_end)
 return
 end subroutine interpwind
 
+subroutine interpcurrent(uct,vct,ucc,vcc,mask_a)
+      
+use cc_mpi           ! CC MPI routines
+use vecsuv_m         ! Map to cartesian coordinates
+      
+implicit none
+      
+include 'newmpar.h'  ! Grid parameters
+      
+integer iq
+real, dimension(6*dk*dk), intent(inout) :: ucc, vcc
+real, dimension(6*dk*dk) :: wcc
+real, dimension(ifull), intent(out) :: uct, vct
+real, dimension(ifull) :: wct
+real uc, vc, wc, newu, newv, neww
+logical, dimension(6*dk*dk), intent(in) :: mask_a
+
+call START_LOG(otf_wind_begin)
+
+! dk is only non-zero on myid==0
+do iq = 1,6*dk*dk
+  ! first set up currents in Cartesian "source" coords            
+  uc=axs_a(iq)*ucc(iq) + bxs_a(iq)*vcc(iq)
+  vc=ays_a(iq)*ucc(iq) + bys_a(iq)*vcc(iq)
+  wc=azs_a(iq)*ucc(iq) + bzs_a(iq)*vcc(iq)
+  ! now convert to winds in "absolute" Cartesian components
+  ucc(iq)=uc*rotpoles(1,1)+vc*rotpoles(1,2)+wc*rotpoles(1,3)
+  vcc(iq)=uc*rotpoles(2,1)+vc*rotpoles(2,2)+wc*rotpoles(2,3)
+  wcc(iq)=uc*rotpoles(3,1)+vc*rotpoles(3,2)+wc*rotpoles(3,3)
+end do  ! iq loop
+! interpolate all required arrays to new C-C positions
+! do not need to do map factors and Coriolis on target grid
+call fill_cc(ucc,mask_a)
+call fill_cc(vcc,mask_a)
+call fill_cc(wcc,mask_a)
+call doints4(ucc, uct)
+call doints4(vcc, vct)
+call doints4(wcc, wct)
+do iq = 1,ifull
+  ! now convert to "target" Cartesian components (transpose used)
+  newu=uct(iq)*rotpole(1,1)+vct(iq)*rotpole(2,1)+wct(iq)*rotpole(3,1)
+  newv=uct(iq)*rotpole(1,2)+vct(iq)*rotpole(2,2)+wct(iq)*rotpole(3,2)
+  neww=uct(iq)*rotpole(1,3)+vct(iq)*rotpole(2,3)+wct(iq)*rotpole(3,3)
+  ! then finally to "target" local x-y components
+  uct(iq) = ax(iq)*newu + ay(iq)*newv + az(iq)*neww
+  vct(iq) = bx(iq)*newu + by(iq)*newv + bz(iq)*neww
+end do  ! iq loop
+
+call END_LOG(otf_wind_end)
+
+return
+end subroutine interpcurrent
+
 ! *****************************************************************************
 ! FILE IO ROUTINES
 
@@ -2143,9 +2196,7 @@ else
   call histrd4(iarchi,ier,uname,ik,ok,ucc,6*ik*ik)
   call histrd4(iarchi,ier,vname,ik,ok,vcc,6*ik*ik)
   do k = 1,ok
-    call fill_cc(ucc(:,k),mask_a)
-    call fill_cc(vcc(:,k),mask_a)
-    call interpwind(u_k(:,k),v_k(:,k),ucc(:,k),vcc(:,k))
+    call interpcurrent(u_k(:,k),v_k(:,k),ucc(:,k),vcc(:,k),mask_a)
   end do
 end if ! iotest
 

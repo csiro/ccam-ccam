@@ -22,7 +22,7 @@
 module cc_mpi
 
 ! This module manages all MPI communications between processors.  The system was originally developed
-! by Martin Dix and subsequently modified my Marcus Thatcher.  Thanks to Aaron McDonough for developing
+! by Martin Dix and subsequently modified by Marcus Thatcher.  Thanks to Aaron McDonough for developing
 ! the Vampir trace routines and upgrading the timer calls.
 
 ! TO DO:

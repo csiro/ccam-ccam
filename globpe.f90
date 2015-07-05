@@ -1776,7 +1776,7 @@ do kktau = 1,ntau   ! ****** start of main time loop
     end if
     if ( mydiag ) then
       write(6,98) ktau,diagvals(ps)
-98    format(i7,' ps diag:',9f7.1)
+98    format(i7,' ps diag:',9f9.1)
       if ( t(idjd,kl)>258. ) then
         write(6,*) 't(idjd,kl) > 258. for idjd = ',idjd
         write(6,91) ktau,(t(idjd,k),k=kl-8,kl)
