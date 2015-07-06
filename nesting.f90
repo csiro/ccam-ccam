@@ -1776,7 +1776,6 @@ do kbb=ktopmlo,kc,kblock
       old=sstb(:,ka)
       call mloexport(0,old,k,0)
       old=old+diff_l(:,kb)*10./real(mloalpha)
-      old=max(old,271.-wrtemp)
       call mloimport(0,old,k,0)
     end do
     if (klx==kc) then
@@ -1784,7 +1783,6 @@ do kbb=ktopmlo,kc,kblock
         old=sstb(:,ka)
         call mloexport(0,old,k,0)
         old=old+diff_l(:,kb)*10./real(mloalpha) ! kb saved from above loop
-        old=max(old,271.-wrtemp)
         call mloimport(0,old,k,0)
       end do
     end if
@@ -2670,7 +2668,6 @@ if (nud_sst/=0) then
     old=new(:,ka)
     call mloexport(0,old,k,0)
     old=old*(1.-wgt)+new(:,ka)*wgt
-    old=max(old,271.)
     call mloimport(0,old,k,0)
   end do
 end if
