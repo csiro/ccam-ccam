@@ -4049,7 +4049,9 @@ real, dimension(ifull,wlev), intent(in) :: ddin
 real, dimension(ifull,wlev), intent(inout) :: ramp
 real, dimension(ifull,wlev,2), intent(in) :: ssin, y2
 real, dimension(ifull,wlev,2), intent(out) :: rout
-real, dimension(wlev) :: h, a, b
+real, dimension(ifull,wlev,2) :: ssunpack1, ssunpack0, y2unpack1, y2unpack0
+real, dimension(ifull,wlev) :: h, a
+real, dimension(ifull) :: b, tempa, tempb, temph
 real, parameter :: dzramp = 0.1 ! extrapolation limit
 
 do iq = 1,ifull
@@ -4064,19 +4066,30 @@ do iq = 1,ifull
     end do
     ii = sindx(jj)
   end do
+  
+  h(iq,:) = max(ddin(iq,sindx(:))-ddin(iq,sindx(:)-1),1.e-8)
+  a(iq,:) = (ddin(iq,sindx(:))-ddseek(iq,:))/h(iq,:)
+  !b(iq,:) = (ddseek(iq,:)-ddin(iq,sindx(:)-1))/h(iq,:)
+    
+  ssunpack1(iq,:,:)=ssin(iq,sindx(:),:)
+  ssunpack0(iq,:,:)=ssin(iq,sindx(:)-1,:)
+  y2unpack1(iq,:,:)=y2(iq,sindx(:),:)
+  y2unpack0(iq,:,:)=y2(iq,sindx(:)-1,:)    
+end do
 
-  h = max(ddin(iq,sindx(:))-ddin(iq,sindx(:)-1),1.e-8)
-  a = (ddin(iq,sindx(:))-ddseek(iq,:))/h(:)
-  b = (ddseek(iq,:)-ddin(iq,sindx(:)-1))/h(:)
-
-  ! linear interpolation                             ! cubic spline terms
-  rout(iq,:,1) = a*ssin(iq,sindx(:)-1,1)+(1.-a)*ssin(iq,sindx(:),1)                 &
-                +((a*a*a-a)*y2(iq,sindx(:)-1,1)+(b*b*b-b)*y2(iq,sindx(:),1))*h*h/6.
-  rout(iq,:,2) = a*ssin(iq,sindx(:)-1,2)+(1.-a)*ssin(iq,sindx(:),2)                 &
-                +((a*a*a-a)*y2(iq,sindx(:)-1,2)+(b*b*b-b)*y2(iq,sindx(:),2))*h*h/6.
+do jj=1,wlev
+  b = 1.-a(:,jj)
+  temph = h(:,jj)*h(:,jj)/6.
+  tempa = (a(:,jj)**3-a(:,jj))*temph
+  tempb = (b(:)**3-b(:))*temph
+  
+  do ii=1,2
+    rout(:,jj,ii) = a(:,jj)*ssunpack0(:,jj,ii)+b(:)*ssunpack1(:,jj,ii)        & ! linear interpolation
+                   +tempa*y2unpack0(:,jj,ii)+tempb*y2unpack1(:,jj,ii)           ! cubic spline terms
+  end do
 
   ! fade out extrapolation
-  ramp(iq,:) = ramp(iq,:)*min(max((a+dzramp)/dzramp,0.),1.)*min(max((1.-a+dzramp)/dzramp,0.),1.)
+  ramp(:,jj) = ramp(:,jj)*min(max((a(:,jj)+dzramp)/dzramp,0.),1.)*min(max((b(:)+dzramp)/dzramp,0.),1.)
 end do
 
 return
