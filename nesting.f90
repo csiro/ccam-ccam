@@ -329,7 +329,7 @@ if(namip==0)then     ! namip SSTs/sea-ice take precedence
       end if
       if (wl==1) then ! switch to 2D if 3D data is missing
         call mloexpmelt(timelt)
-        timelt=min(timelt,271.3)
+        timelt=min(timelt,271.2)
         dumaa(:,1,1)=(cona*tssa+conb*tssb)*(1.-fraciceb)+timelt*fraciceb
         dumaa(:,1,1)=dumaa(:,1,1)-wrtemp
       end if
@@ -500,7 +500,7 @@ if ((mtimer==mtimeb).and.(mod(nint(ktau*dt),60)==0)) then
         end if
         if ( wl == 1 ) then ! switch to 2D data if 3D is missing
           call mloexpmelt(timelt)
-          timelt=min(timelt,271.3)
+          timelt=min(timelt,271.2)
           sssb(:,1,1)=tssb*(1.-fraciceb)+timelt*fraciceb
           sssb(:,1,1)=sssb(:,1,1)-wrtemp
         end if
