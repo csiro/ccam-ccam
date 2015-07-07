@@ -53,8 +53,10 @@ implicit none
 
 private
 public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlodiag,mloalb2,mloalb4, &
-       mloscrnout,mloextra,mloimpice,mloexpice,mloexpdep,mloexpdensity,mloexpmelt,mloexpgamm,wlev,   &
-       micdwn,mxd,mindep,minwater,onedice,mloimport3d,mloexport3d,wrtemp
+       mloscrnout,mloextra,mloimpice,mloexpice,mloexpdep,mloexpdensity,mloexpmelt,mloexpgamm,        &
+       mloimport3d,mloexport3d
+public micdwn
+public wlev,zomode,wrtemp,onedice,mxd,mindep,minwater,zoseaice,factchseaice
 
 ! parameters
 integer, save      :: wlev = 20                                        ! Number of water layers
@@ -143,7 +145,7 @@ type(dgscrndata), save :: dgscrn
 ! mode
 integer, parameter :: incradbf  = 1       ! include shortwave in buoyancy forcing
 integer, parameter :: incradgam = 1       ! include shortwave in non-local term
-integer, parameter :: zomode    = 2       ! roughness calculation (0=Charnock (CSIRO9), 1=Charnock (zot=zom), 2=Beljaars)
+integer, save      :: zomode    = 2       ! roughness calculation (0=Charnock (CSIRO9), 1=Charnock (zot=zom), 2=Beljaars)
 integer, parameter :: mixmeth   = 1       ! Refine mixed layer depth calculation (0=None, 1=Iterative)
 integer, parameter :: deprelax  = 0       ! surface height (0=vary, 1=relax, 2=set to zero)
 integer, save      :: onedice   = 1       ! use 1D ice model (0=Off, 1=On)
@@ -175,6 +177,8 @@ real, parameter :: cp0=3990.              ! heat capacity of mixed layer (J kg^-
 real, parameter :: rhowt=1025.            ! reference water density (Boussinesq fluid) (kg/m3)
 real, parameter :: salwt=34.72            ! reference water salinity (PSU)
 ! ice parameters
+real, save      :: zoseaice=0.0005        ! roughnes length for sea-ice (m)
+real, save      :: factchseaice=1.        ! =sqrt(zo/zoh) for sea-ice
 real, parameter :: himin=0.1              ! minimum ice thickness for multiple layers (m)
 real, parameter :: icemin=0.01            ! minimum ice thickness (m)
 real, parameter :: icemax=6.              ! maximum ice thickness (m)
@@ -3541,15 +3545,13 @@ sig=exp(-grav*atm_zmins/(rdry*atm_temp))
 srcp=sig**(rdry/cpair)
 rho=atm_ps/(rdry*dtsurf)
 
-dgice%zo=0.0005 ! Mk3.6 (0.01m), CICE (0.0005m)
-af=vkar*vkar/(log(atm_zmin/dgice%zo)*log(atm_zmin/dgice%zo))
-!factch=sqrt(z0m/z0t)
-factch=1.         ! following CSIRO9, CICE
-!factch=sqrt(7.4) ! following CCAM sflux
+dgice%zo=zoseaice ! Mk3.6 (0.01m), CCAM sflux (0.001m), CICE (0.0005m)
+factch=factchseaice ! following CSIRO9, CICE (1.) or CCAM sflux (2.72)
 dgice%zoh=dgice%zo/(factch*factch)
 dgice%zoq=dgice%zoh
+af=vkar*vkar/(log(atm_zmin/dgice%zo)*log(atm_zmin/dgice%zo))
 aft=vkar*vkar/(log(atm_zmin/dgice%zo)*log(atm_zmin/dgice%zoh))
-afq=vkar*vkar/(log(atm_zmin/dgice%zo)*log(atm_zmin/dgice%zoq))
+afq=aft
 
 ! number of (thick) ice layers
 d_nk=min(int(d_ndic/himin),2)

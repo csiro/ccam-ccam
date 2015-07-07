@@ -149,7 +149,8 @@ use cloudmod                          ! Prognostic cloud fraction
 use infile                            ! Input file routines
 use liqwpar_m                         ! Cloud water mixing ratios
 use mlo, only : wlev,mindep         & ! Ocean physics and prognostic arrays
-    ,minwater,mxd
+    ,minwater,mxd,zomode,zoseaice   &
+    ,factchseaice
 use mlodynamics                       ! Ocean dynamics
 use parmhdff_m                        ! Horizontal diffusion parameters
 use seaesfrad_m                       ! SEA-ESF radiation
@@ -399,6 +400,7 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'epsf',epsf)
     call ccnf_put_attg(idnc,'epsp',epsp)
     call ccnf_put_attg(idnc,'epsu',epsu)
+    call ccnf_put_attg(idnc,'factchseaice',factchseaice)
     call ccnf_put_attg(idnc,'fc2',fc2)
     call ccnf_put_attg(idnc,'helim',helim)
     call ccnf_put_attg(idnc,'helmmeth',helmmeth)
@@ -484,6 +486,8 @@ if ( myid==0 .or. localhist ) then
     call ccnf_put_attg(idnc,'tss_sh',tss_sh)
     call ccnf_put_attg(idnc,'vmodmin',vmodmin)
     call ccnf_put_attg(idnc,'zobgin',zobgin)
+    call ccnf_put_attg(idnc,'zomode',zomode)
+    call ccnf_put_attg(idnc,'zoseaice',zoseaice)
     call ccnf_put_attg(idnc,'zvolcemi',zvolcemi)
 
     call ccnf_put_attg(idnc,'mins_rad',mins_rad)
