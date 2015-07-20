@@ -118,7 +118,7 @@ real, dimension(ifull,5) :: duma
 real, dimension(ifull,2) :: ocndwn
 real, dimension(ifull,wlev,4) :: mlodwn
 real, dimension(ifull,kl,naero) :: xtgdwn
-real, dimension(ifull,kl,7) :: dumb
+real, dimension(ifull,kl,9) :: dumb
 real, dimension(:,:), allocatable :: glob2d
 real, dimension(:), allocatable :: davt_g
 real, dimension(3*kl+1) :: dumc
@@ -662,8 +662,9 @@ if ( io_in<4 ) then
   zss=zs(1:ifull)
   if (abs(io_in)==1) then
     call onthefly(0,kdate,ktime,psl,zss,tss,sicedep,fracice,t,u,v, &
-                  qg,tgg,wb,wbice,snowd,qfg,qlg,qrg,tggsn,smass,   &
-                  ssdn,ssdnn,snage,isflag,mlodwn,ocndwn,xtgdwn)
+                  qg,tgg,wb,wbice,snowd,qfg,qlg,qrg,qsg,qgrg,      &
+                  tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,      &
+                  ocndwn,xtgdwn)
   endif   ! (abs(io_in)==1)
   call histclose
   if(mydiag)then
@@ -1139,11 +1140,11 @@ if( nrungcm<=-3 .and. nrungcm>=-5 ) then
     if ( myid==0 ) then
       write(6,*) 'Replacing surface data with input from ',trim(surf_00)
     end if
-    call onthefly(2,kdate,ktime,duma(:,1),duma(:,2),duma(:,3),              &
-                  duma(:,4),duma(:,5),dumb(:,:,1),dumb(:,:,2),dumb(:,:,3),  &
-                  dumb(:,:,4),tgg,wb,wbice,snowd,dumb(:,:,5),               &
-                  dumb(:,:,6),dumb(:,:,7),tggsn,smass,ssdn,ssdnn,snage,     &
-                  isflag,mlodwn,ocndwn,xtgdwn)
+    call onthefly(2,kdate,ktime,duma(:,1),duma(:,2),duma(:,3),duma(:,4),    &
+                  duma(:,5),dumb(:,:,1),dumb(:,:,2),dumb(:,:,3),            &
+                  dumb(:,:,4),tgg,wb,wbice,snowd,dumb(:,:,5),dumb(:,:,6),   &
+                  dumb(:,:,7),dumb(:,:,8),dumb(:,:,9),tggsn,smass,ssdn,     &
+                  ssdnn,snage,isflag,mlodwn,ocndwn,xtgdwn)
     call histclose
     if ( kdate/=kdate_sav .or. ktime/=ktime_sav ) then
       if ( myid==0 ) then

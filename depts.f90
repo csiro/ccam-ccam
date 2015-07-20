@@ -37,16 +37,14 @@ include 'const_phys.h'   ! rearth
 include 'parm.h'
 include 'parmhor.h'    ! has mh_bs
 
-integer, parameter :: ntest=0
 integer iq, k, intsch, idel, jdel, nn
 integer i, j, n, ii
 real xxg, yyg
 real, dimension(ifull,kl) :: uc,vc,wc
 real, dimension(ifull+iextra,kl,3) :: s
-real, dimension(3,-1:ipan+2,-1:jpan+2,1:npan,kl) :: sx
-real, dimension(3) :: c1, c2, c3, c4
-real, dimension(3) :: a3, a4, sss
-real, dimension(3,4) :: r
+real, dimension(-1:ipan+2,-1:jpan+2,1:npan,kl,3) :: sx
+real, dimension(4) :: cmul, emul, rmul
+real, dimension(2:3) :: dmul
 real(kind=8), dimension(ifull,kl) :: x3d,y3d,z3d   ! upglobal depts 
       
 call START_LOG(depts_begin)
@@ -89,38 +87,33 @@ call bounds(s,nrows=2)
 
 !======================== start of intsch=1 section ====================
 if(intsch==1)then
-
-  do nn=1,3
-    sx(nn,1:ipan,1:jpan,1:npan,1:kl) = reshape(s(1:ipan*jpan*npan,1:kl,nn), (/ipan,jpan,npan,kl/))
-    do k=1,kl
-      do n=1,npan
-        do j=1,jpan
-          sx(nn,0,j,n,k)      = s(iw(1+(j-1)*ipan+(n-1)*ipan*jpan),k,nn)
-          sx(nn,-1,j,n,k)     = s(iww(1+(j-1)*ipan+(n-1)*ipan*jpan),k,nn)
-          sx(nn,ipan+1,j,n,k) = s(ie(j*ipan+(n-1)*ipan*jpan),k,nn)
-          sx(nn,ipan+2,j,n,k) = s(iee(j*ipan+(n-1)*ipan*jpan),k,nn)
-        enddo            ! j loop
-        do i=1,ipan
-          sx(nn,i,0,n,k)      = s(is(i+(n-1)*ipan*jpan),k,nn)
-          sx(nn,i,-1,n,k)     = s(iss(i+(n-1)*ipan*jpan),k,nn)
-          sx(nn,i,jpan+1,n,k) = s(in(i-ipan+n*ipan*jpan),k,nn)
-          sx(nn,i,jpan+2,n,k) = s(inn(i-ipan+n*ipan*jpan),k,nn)
-        enddo            ! i loop
-        sx(nn,-1,0,n,k)          = s(lwws(n),k,nn)
-        sx(nn,0,0,n,k)           = s(iws(1+(n-1)*ipan*jpan),k,nn)
-        sx(nn,0,-1,n,k)          = s(lwss(n),k,nn)
-        sx(nn,ipan+1,0,n,k)      = s(ies(ipan+(n-1)*ipan*jpan),k,nn)
-        sx(nn,ipan+2,0,n,k)      = s(lees(n),k,nn)
-        sx(nn,ipan+1,-1,n,k)     = s(less(n),k,nn)
-        sx(nn,-1,jpan+1,n,k)     = s(lwwn(n),k,nn)
-        sx(nn,0,jpan+2,n,k)      = s(lwnn(n),k,nn)
-        sx(nn,ipan+2,jpan+1,n,k) = s(leen(n),k,nn)
-        sx(nn,ipan+1,jpan+2,n,k) = s(lenn(n),k,nn)
-        sx(nn,0,jpan+1,n,k)      = s(iwn(1-ipan+n*ipan*jpan),k,nn)
-        sx(nn,ipan+1,jpan+1,n,k) = s(ien(n*ipan*jpan),k,nn)
-      end do              ! n loop
-    end do                ! k loop
-  end do                  ! nn loop
+  sx(1:ipan,1:jpan,1:npan,1:kl,1:3) = reshape(s(1:ipan*jpan*npan,1:kl,1:3), (/ipan,jpan,npan,kl,3/))
+  do n=1,npan
+    do j=1,jpan
+      sx(0,j,n,:,:)      = s(iw(1+(j-1)*ipan+(n-1)*ipan*jpan),:,:)
+      sx(-1,j,n,:,:)     = s(iww(1+(j-1)*ipan+(n-1)*ipan*jpan),:,:)
+      sx(ipan+1,j,n,:,:) = s(ie(j*ipan+(n-1)*ipan*jpan),:,:)
+      sx(ipan+2,j,n,:,:) = s(iee(j*ipan+(n-1)*ipan*jpan),:,:)
+    end do            ! j loop
+    do i=1,ipan
+      sx(i,0,n,:,:)      = s(is(i+(n-1)*ipan*jpan),:,:)
+      sx(i,-1,n,:,:)     = s(iss(i+(n-1)*ipan*jpan),:,:)
+      sx(i,jpan+1,n,:,:) = s(in(i-ipan+n*ipan*jpan),:,:)
+      sx(i,jpan+2,n,:,:) = s(inn(i-ipan+n*ipan*jpan),:,:)
+    end do            ! i loop
+    sx(-1,0,n,:,:)          = s(lwws(n),:,:)
+    sx(0,0,n,:,:)           = s(iws(1+(n-1)*ipan*jpan),:,:)
+    sx(0,-1,n,:,:)          = s(lwss(n),:,:)
+    sx(ipan+1,0,n,:,:)      = s(ies(ipan+(n-1)*ipan*jpan),:,:)
+    sx(ipan+2,0,n,:,:)      = s(lees(n),:,:)
+    sx(ipan+1,-1,n,:,:)     = s(less(n),:,:)
+    sx(-1,jpan+1,n,:,:)     = s(lwwn(n),:,:)
+    sx(0,jpan+2,n,:,:)      = s(lwnn(n),:,:)
+    sx(ipan+2,jpan+1,n,:,:) = s(leen(n),:,:)
+    sx(ipan+1,jpan+2,n,:,:) = s(lenn(n),:,:)
+    sx(0,jpan+1,n,:,:)      = s(iwn(1-ipan+n*ipan*jpan),:,:)
+    sx(ipan+1,jpan+1,n,:,:) = s(ien(n*ipan*jpan),:,:)
+  end do              ! n loop
 
   ! Loop over points that need to be calculated for other processes
   do ii=neighnum,1,-1
@@ -134,32 +127,27 @@ if(intsch==1)then
       k = nint(dpoints(ii)%a(4,iq))
       idel = idel - ioff
       jdel = jdel - joff
-              
-      c1 = sx(:,idel-1,jdel,n,k) ! manually unrolled loop
-      c2 = sx(:,idel  ,jdel,n,k)
-      c3 = sx(:,idel+1,jdel,n,k)
-      c4 = sx(:,idel+2,jdel,n,k)                  
-                  
-      r(:,2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.)-xxg*(1.+xxg)*c4/3.)+xxg*(1.+xxg)*(2.-xxg)*c3)/2.
-              
-      c1 = sx(:,idel-1,jdel+1,n,k)
-      c2 = sx(:,idel  ,jdel+1,n,k)
-      c3 = sx(:,idel+1,jdel+1,n,k)
-      c4 = sx(:,idel+2,jdel+1,n,k)
 
-      r(:,3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.)-xxg*(1.+xxg)*c4/3.)+xxg*(1.+xxg)*(2.-xxg)*c3)/2.
-
-      do nn=1,4,3   ! N.B.
-        c2 = sx(:,idel  ,jdel+nn-2,n,k)
-        c3 = sx(:,idel+1,jdel+nn-2,n,k)
-        r(:,nn) = (1.-xxg)*c2 +xxg*c3
-      enddo         ! nn loop
-
-      do nn=1,3
-        sextra(ii)%a(nn+(iq-1)*3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*r(nn,2)-yyg*r(nn,1)/3.) &
-                                   -yyg*(1.+yyg)*r(nn,4)/3.)+yyg*(1.+yyg)*(2.-yyg)*r(nn,3))/2.
+      ! bi-cubic
+      cmul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+      cmul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+      cmul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
+      cmul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+      dmul(2) = (1.-xxg)
+      dmul(3) = xxg
+      emul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+      emul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+      emul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
+      emul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+      do nn = 1,3
+        rmul(1) = sum(sx(idel:idel+1,jdel-1,n,k,nn)*dmul(:))
+        rmul(2) = sum(sx(idel-1:idel+2,jdel,n,k,nn)*cmul(:))
+        rmul(3) = sum(sx(idel-1:idel+2,jdel+1,n,k,nn)*cmul(:))
+        rmul(4) = sum(sx(idel:idel+1,jdel+2,n,k,nn)*dmul(:))
+        sextra(ii)%a(nn+(iq-1)*3) = sum(rmul(:)*emul(:))
       end do
-    enddo           ! iq loop
+      
+    end do          ! iq loop
   end do            ! ii loop
 
   call intssync_send(3)
@@ -178,66 +166,58 @@ if(intsch==1)then
       if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. jdel > jpan .or. n < 1 .or. n > npan ) then
          cycle      ! Will be calculated on another processor
       end if
-      c1 = sx(:,idel-1,jdel,n,k) ! manually unrolled loop
-      c2 = sx(:,idel  ,jdel,n,k)
-      c3 = sx(:,idel+1,jdel,n,k)
-      c4 = sx(:,idel+2,jdel,n,k)
-
-      r(:,2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.)-xxg*(1.+xxg)*c4/3.)+xxg*(1.+xxg)*(2.-xxg)*c3)/2.
-
-      c1 = sx(:,idel-1,jdel+1,n,k)
-      c2 = sx(:,idel  ,jdel+1,n,k)
-      c3 = sx(:,idel+1,jdel+1,n,k)
-      c4 = sx(:,idel+2,jdel+1,n,k)
-
-      r(:,3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.)-xxg*(1.+xxg)*c4/3.)+xxg*(1.+xxg)*(2.-xxg)*c3)/2.
-
-      do nn=1,4,3   ! N.B.
-        c2 = sx(:,idel  ,jdel+nn-2,n,k)
-        c3 = sx(:,idel+1,jdel+nn-2,n,k)
-        r(:,nn) = (1.-xxg)*c2 +xxg*c3
-      enddo         ! nn loop
-            
-      s(iq,k,:) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*r(:,2)-yyg*r(:,1)/3.)            &
-                 -yyg*(1.+yyg)*r(:,4)/3.)+yyg*(1.+yyg)*(2.-yyg)*r(:,3))/2.
-    enddo     ! iq loop
-  enddo       ! k loop
+      ! bi-cubic
+      cmul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+      cmul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+      cmul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
+      cmul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+      dmul(2) = (1.-xxg)
+      dmul(3) = xxg
+      emul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+      emul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+      emul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
+      emul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+      do nn = 1,3
+        rmul(1) = sum(sx(idel:idel+1,jdel-1,n,k,nn)*dmul(:))
+        rmul(2) = sum(sx(idel-1:idel+2,jdel,n,k,nn)*cmul(:))
+        rmul(3) = sum(sx(idel-1:idel+2,jdel+1,n,k,nn)*cmul(:))
+        rmul(4) = sum(sx(idel:idel+1,jdel+2,n,k,nn)*dmul(:))
+        s(iq,k,nn) = sum(rmul(:)*emul(:))
+      end do      
+    end do     ! iq loop
+  end do       ! k loop
             
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
 !======================== start of intsch=2 section ====================
 
-  do nn=1,3
-    sx(nn,1:ipan,1:jpan,1:npan,1:kl) = reshape(s(1:ipan*jpan*npan,1:kl,nn), (/ipan,jpan,npan,kl/))
-    do k=1,kl
-      do n=1,npan
-        do j=1,jpan
-          sx(nn,0,j,n,k)      = s(iw(1+(j-1)*ipan+(n-1)*ipan*jpan),k,nn)
-          sx(nn,-1,j,n,k)     = s(iww(1+(j-1)*ipan+(n-1)*ipan*jpan),k,nn)
-          sx(nn,ipan+1,j,n,k) = s(ie(j*ipan+(n-1)*ipan*jpan),k,nn)
-          sx(nn,ipan+2,j,n,k) = s(iee(j*ipan+(n-1)*ipan*jpan),k,nn)
-        enddo            ! j loop
-        do i=1,ipan
-          sx(nn,i,0,n,k)      = s(is(i+(n-1)*ipan*jpan),k,nn)
-          sx(nn,i,-1,n,k)     = s(iss(i+(n-1)*ipan*jpan),k,nn)
-          sx(nn,i,jpan+1,n,k) = s(in(i-ipan+n*ipan*jpan),k,nn)
-          sx(nn,i,jpan+2,n,k) = s(inn(i-ipan+n*ipan*jpan),k,nn)
-        enddo            ! i loop
-        sx(nn,-1,0,n,k)          = s(lsww(n),k,nn)
-        sx(nn,0,0,n,k)           = s(isw(1+(n-1)*ipan*jpan),k,nn)
-        sx(nn,0,-1,n,k)          = s(lssw(n),k,nn)
-        sx(nn,ipan+2,0,n,k)      = s(lsee(n),k,nn)
-        sx(nn,ipan+1,-1,n,k)     = s(lsse(n),k,nn)
-        sx(nn,-1,jpan+1,n,k)     = s(lnww(n),k,nn)
-        sx(nn,0,jpan+1,n,k)      = s(inw(1-ipan+n*ipan*jpan),k,nn)
-        sx(nn,0,jpan+2,n,k)      = s(lnnw(n),k,nn)
-        sx(nn,ipan+2,jpan+1,n,k) = s(lnee(n),k,nn)
-        sx(nn,ipan+1,jpan+2,n,k) = s(lnne(n),k,nn)
-        sx(nn,ipan+1,0,n,k)      = s(ise(ipan+(n-1)*ipan*jpan),k,nn)
-        sx(nn,ipan+1,jpan+1,n,k) = s(ine(n*ipan*jpan),k,nn)
-      end do              ! n loop
-    end do                ! k loop
-  end do                  ! nn loop
+  sx(1:ipan,1:jpan,1:npan,1:kl,1:3) = reshape(s(1:ipan*jpan*npan,1:kl,1:3), (/ipan,jpan,npan,kl,3/))
+  do n=1,npan
+    do j=1,jpan
+      sx(0,j,n,:,:)      = s(iw(1+(j-1)*ipan+(n-1)*ipan*jpan),:,:)
+      sx(-1,j,n,:,:)     = s(iww(1+(j-1)*ipan+(n-1)*ipan*jpan),:,:)
+      sx(ipan+1,j,n,:,:) = s(ie(j*ipan+(n-1)*ipan*jpan),:,:)
+      sx(ipan+2,j,n,:,:) = s(iee(j*ipan+(n-1)*ipan*jpan),:,:)
+    end do            ! j loop
+    do i=1,ipan
+      sx(i,0,n,:,:)      = s(is(i+(n-1)*ipan*jpan),:,:)
+      sx(i,-1,n,:,:)     = s(iss(i+(n-1)*ipan*jpan),:,:)
+      sx(i,jpan+1,n,:,:) = s(in(i-ipan+n*ipan*jpan),:,:)
+      sx(i,jpan+2,n,:,:) = s(inn(i-ipan+n*ipan*jpan),:,:)
+    end do            ! i loop
+    sx(-1,0,n,:,:)          = s(lsww(n),:,:)
+    sx(0,0,n,:,:)           = s(isw(1+(n-1)*ipan*jpan),:,:)
+    sx(0,-1,n,:,:)          = s(lssw(n),:,:)
+    sx(ipan+2,0,n,:,:)      = s(lsee(n),:,:)
+    sx(ipan+1,-1,n,:,:)     = s(lsse(n),:,:)
+    sx(-1,jpan+1,n,:,:)     = s(lnww(n),:,:)
+    sx(0,jpan+1,n,:,:)      = s(inw(1-ipan+n*ipan*jpan),:,:)
+    sx(0,jpan+2,n,:,:)      = s(lnnw(n),:,:)
+    sx(ipan+2,jpan+1,n,:,:) = s(lnee(n),:,:)
+    sx(ipan+1,jpan+2,n,:,:) = s(lnne(n),:,:)
+    sx(ipan+1,0,n,:,:)      = s(ise(ipan+(n-1)*ipan*jpan),:,:)
+    sx(ipan+1,jpan+1,n,:,:) = s(ine(n*ipan*jpan),:,:)
+  end do              ! n loop
 
   ! For other processes
   do ii=neighnum,1,-1
@@ -251,32 +231,26 @@ else     ! if(intsch==1)then
       k = nint(dpoints(ii)%a(4,iq))
       idel = idel - ioff
       jdel = jdel - joff
-      c1 = sx(:,idel,jdel-1,n,k) ! manually unrolled loop
-      c2 = sx(:,idel,jdel  ,n,k)
-      c3 = sx(:,idel,jdel+1,n,k)
-      c4 = sx(:,idel,jdel+2,n,k)
-              
-      r(:,2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.)-yyg*(1.+yyg)*c4/3.)+yyg*(1.+yyg)*(2.-yyg)*c3)/2.
-
-      c1 = sx(:,idel+1,jdel-1,n,k)
-      c2 = sx(:,idel+1,jdel  ,n,k)
-      c3 = sx(:,idel+1,jdel+1,n,k)
-      c4 = sx(:,idel+1,jdel+2,n,k)
-              
-      r(:,3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.)-yyg*(1.+yyg)*c4/3.)+yyg*(1.+yyg)*(2.-yyg)*c3)/2.
-
-      do nn=1,4,3   ! N.B.
-        c2 = sx(:,idel+nn-2,jdel  ,n,k)
-        c3 = sx(:,idel+nn-2,jdel+1,n,k)
-        r(:,nn) = (1.-yyg)*c2 +yyg*c3
-      enddo         ! nn loop
-
-      do nn=1,3
-        sextra(ii)%a(nn+(iq-1)*3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*r(nn,2)-xxg*r(nn,1)/3.)      &
-                                   -xxg*(1.+xxg)*r(nn,4)/3.)+xxg*(1.+xxg)*(2.-xxg)*r(nn,3))/2.
+      ! bi-cubic
+      cmul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+      cmul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+      cmul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
+      cmul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+      dmul(2) = (1.-yyg)
+      dmul(3) = yyg
+      emul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+      emul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+      emul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
+      emul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+      do nn = 1,3
+        rmul(1) = sum(sx(idel-1,jdel:jdel+1,n,k,nn)*dmul(:))
+        rmul(2) = sum(sx(idel,jdel-1:jdel+2,n,k,nn)*cmul(:))
+        rmul(3) = sum(sx(idel+1,jdel-1:jdel+2,n,k,nn)*cmul(:))
+        rmul(4) = sum(sx(idel+2,jdel:jdel+1,n,k,nn)*dmul(:))
+        sextra(ii)%a(nn+(iq-1)*3) = sum(rmul(:)*emul(:))
       end do
-    enddo            ! iq loop
-  end do             ! ii
+    end do            ! iq loop
+  end do              ! ii
 
   call intssync_send(3)
 
@@ -294,27 +268,24 @@ else     ! if(intsch==1)then
       if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. jdel > jpan .or. n < 1 .or. n > npan ) then
         cycle      ! Will be calculated on another processor
       end if
-      c1 = sx(:,idel,jdel-1,n,k) ! manually unrolled loop
-      c2 = sx(:,idel,jdel  ,n,k)
-      c3 = sx(:,idel,jdel+1,n,k)
-      c4 = sx(:,idel,jdel+2,n,k)
-
-      r(:,2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.)-yyg*(1.+yyg)*c4/3.)+yyg*(1.+yyg)*(2.-yyg)*c3)/2.
-
-      c1 = sx(:,idel+1,jdel-1,n,k)
-      c2 = sx(:,idel+1,jdel  ,n,k)
-      c3 = sx(:,idel+1,jdel+1,n,k)
-      c4 = sx(:,idel+1,jdel+2,n,k)
-
-      r(:,3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.)-yyg*(1.+yyg)*c4/3.)+yyg*(1.+yyg)*(2.-yyg)*c3)/2.
-
-      do nn=1,4,3   ! N.B.
-        c2 = sx(:,idel+nn-2,jdel  ,n,k)
-        c3 = sx(:,idel+nn-2,jdel+1,n,k)
-        r(:,nn) = (1.-yyg)*c2 +yyg*c3
-      enddo         ! nn loop
-              
-      s(iq,k,:) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*r(:,2)-xxg*r(:,1)/3.)-xxg*(1.+xxg)*r(:,4)/3.)+xxg*(1.+xxg)*(2.-xxg)*r(:,3))/2.
+      ! bi-cubic
+      cmul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+      cmul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+      cmul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
+      cmul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+      dmul(2) = (1.-yyg)
+      dmul(3) = yyg
+      emul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+      emul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+      emul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
+      emul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+      do nn = 1,3
+        rmul(1) = sum(sx(idel-1,jdel:jdel+1,n,k,nn)*dmul(:))
+        rmul(2) = sum(sx(idel,jdel-1:jdel+2,n,k,nn)*cmul(:))
+        rmul(3) = sum(sx(idel+1,jdel-1:jdel+2,n,k,nn)*cmul(:))
+        rmul(4) = sum(sx(idel+2,jdel:jdel+1,n,k,nn)*dmul(:))
+        s(iq,k,nn) = sum(rmul(:)*emul(:))
+      end do
     enddo            ! iq loop
   enddo              ! k loop
 
@@ -345,6 +316,33 @@ endif
 
 !======================== start of intsch=1 section ====================
 if(intsch==1)then
+  sx(1:ipan,1:jpan,1:npan,1:kl,1:3) = reshape(s(1:ipan*jpan*npan,1:kl,1:3), (/ipan,jpan,npan,kl,3/))
+  do n=1,npan
+    do j=1,jpan
+      sx(0,j,n,:,:)      = s(iw(1+(j-1)*ipan+(n-1)*ipan*jpan),:,:)
+      sx(-1,j,n,:,:)     = s(iww(1+(j-1)*ipan+(n-1)*ipan*jpan),:,:)
+      sx(ipan+1,j,n,:,:) = s(ie(j*ipan+(n-1)*ipan*jpan),:,:)
+      sx(ipan+2,j,n,:,:) = s(iee(j*ipan+(n-1)*ipan*jpan),:,:)
+    end do            ! j loop
+    do i=1,ipan
+      sx(i,0,n,:,:)      = s(is(i+(n-1)*ipan*jpan),:,:)
+      sx(i,-1,n,:,:)     = s(iss(i+(n-1)*ipan*jpan),:,:)
+      sx(i,jpan+1,n,:,:) = s(in(i-ipan+n*ipan*jpan),:,:)
+      sx(i,jpan+2,n,:,:) = s(inn(i-ipan+n*ipan*jpan),:,:)
+    end do            ! i loop
+    sx(-1,0,n,:,:)          = s(lwws(n),:,:)
+    sx(0,0,n,:,:)           = s(iws(1+(n-1)*ipan*jpan),:,:)
+    sx(0,-1,n,:,:)          = s(lwss(n),:,:)
+    sx(ipan+1,0,n,:,:)      = s(ies(ipan+(n-1)*ipan*jpan),:,:)
+    sx(ipan+2,0,n,:,:)      = s(lees(n),:,:)
+    sx(ipan+1,-1,n,:,:)     = s(less(n),:,:)
+    sx(-1,jpan+1,n,:,:)     = s(lwwn(n),:,:)
+    sx(0,jpan+2,n,:,:)      = s(lwnn(n),:,:)
+    sx(ipan+2,jpan+1,n,:,:) = s(leen(n),:,:)
+    sx(ipan+1,jpan+2,n,:,:) = s(lenn(n),:,:)
+    sx(0,jpan+1,n,:,:)      = s(iwn(1-ipan+n*ipan*jpan),:,:)
+    sx(ipan+1,jpan+1,n,:,:) = s(ien(n*ipan*jpan),:,:)
+  end do              ! n loop
 
   ! Loop over points that need to be calculated for other processes
   do ii=neighnum,1,-1
@@ -358,32 +356,27 @@ if(intsch==1)then
       k = nint(dpoints(ii)%a(4,iq))
       idel = idel - ioff
       jdel = jdel - joff
-              
-      c1 = sx(:,idel-1,jdel,n,k) ! manually unrolled loop
-      c2 = sx(:,idel  ,jdel,n,k)
-      c3 = sx(:,idel+1,jdel,n,k)
-      c4 = sx(:,idel+2,jdel,n,k)                  
-                  
-      r(:,2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.)-xxg*(1.+xxg)*c4/3.)+xxg*(1.+xxg)*(2.-xxg)*c3)/2.
-              
-      c1 = sx(:,idel-1,jdel+1,n,k)
-      c2 = sx(:,idel  ,jdel+1,n,k)
-      c3 = sx(:,idel+1,jdel+1,n,k)
-      c4 = sx(:,idel+2,jdel+1,n,k)
 
-      r(:,3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.)-xxg*(1.+xxg)*c4/3.)+xxg*(1.+xxg)*(2.-xxg)*c3)/2.
-
-      do nn=1,4,3   ! N.B.
-        c2 = sx(:,idel  ,jdel+nn-2,n,k)
-        c3 = sx(:,idel+1,jdel+nn-2,n,k)
-        r(:,nn) = (1.-xxg)*c2 +xxg*c3
-      enddo         ! nn loop
-
-      do nn=1,3
-        sextra(ii)%a(nn+(iq-1)*3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*r(nn,2)-yyg*r(nn,1)/3.) &
-                                   -yyg*(1.+yyg)*r(nn,4)/3.)+yyg*(1.+yyg)*(2.-yyg)*r(nn,3))/2.
+      ! bi-cubic
+      cmul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+      cmul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+      cmul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
+      cmul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+      dmul(2) = (1.-xxg)
+      dmul(3) = xxg
+      emul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+      emul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+      emul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
+      emul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+      do nn = 1,3
+        rmul(1) = sum(sx(idel:idel+1,jdel-1,n,k,nn)*dmul(:))
+        rmul(2) = sum(sx(idel-1:idel+2,jdel,n,k,nn)*cmul(:))
+        rmul(3) = sum(sx(idel-1:idel+2,jdel+1,n,k,nn)*cmul(:))
+        rmul(4) = sum(sx(idel:idel+1,jdel+2,n,k,nn)*dmul(:))
+        sextra(ii)%a(nn+(iq-1)*3) = sum(rmul(:)*emul(:))
       end do
-    enddo           ! iq loop
+      
+    end do          ! iq loop
   end do            ! ii loop
 
   call intssync_send(3)
@@ -402,34 +395,58 @@ if(intsch==1)then
       if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. jdel > jpan .or. n < 1 .or. n > npan ) then
          cycle      ! Will be calculated on another processor
       end if
-      c1 = sx(:,idel-1,jdel,n,k) ! manually unrolled loop
-      c2 = sx(:,idel  ,jdel,n,k)
-      c3 = sx(:,idel+1,jdel,n,k)
-      c4 = sx(:,idel+2,jdel,n,k)
-
-      r(:,2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.)-xxg*(1.+xxg)*c4/3.)+xxg*(1.+xxg)*(2.-xxg)*c3)/2.
-
-      c1 = sx(:,idel-1,jdel+1,n,k)
-      c2 = sx(:,idel  ,jdel+1,n,k)
-      c3 = sx(:,idel+1,jdel+1,n,k)
-      c4 = sx(:,idel+2,jdel+1,n,k)
-
-      r(:,3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.)-xxg*(1.+xxg)*c4/3.)+xxg*(1.+xxg)*(2.-xxg)*c3)/2.
-
-      do nn=1,4,3   ! N.B.
-        c2 = sx(:,idel  ,jdel+nn-2,n,k)
-        c3 = sx(:,idel+1,jdel+nn-2,n,k)
-        r(:,nn) = (1.-xxg)*c2 +xxg*c3
-      enddo         ! nn loop
-            
-      s(iq,k,:) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*r(:,2)-yyg*r(:,1)/3.)            &
-                 -yyg*(1.+yyg)*r(:,4)/3.)+yyg*(1.+yyg)*(2.-yyg)*r(:,3))/2.
-    enddo     ! iq loop
-  enddo       ! k loop
+      ! bi-cubic
+      cmul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+      cmul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+      cmul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
+      cmul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+      dmul(2) = (1.-xxg)
+      dmul(3) = xxg
+      emul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+      emul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+      emul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
+      emul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+      do nn = 1,3
+        rmul(1) = sum(sx(idel:idel+1,jdel-1,n,k,nn)*dmul(:))
+        rmul(2) = sum(sx(idel-1:idel+2,jdel,n,k,nn)*cmul(:))
+        rmul(3) = sum(sx(idel-1:idel+2,jdel+1,n,k,nn)*cmul(:))
+        rmul(4) = sum(sx(idel:idel+1,jdel+2,n,k,nn)*dmul(:))
+        s(iq,k,nn) = sum(rmul(:)*emul(:))
+      end do      
+    end do     ! iq loop
+  end do       ! k loop
             
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
 !======================== start of intsch=2 section ====================
+
+  sx(1:ipan,1:jpan,1:npan,1:kl,1:3) = reshape(s(1:ipan*jpan*npan,1:kl,1:3), (/ipan,jpan,npan,kl,3/))
+  do n=1,npan
+    do j=1,jpan
+      sx(0,j,n,:,:)      = s(iw(1+(j-1)*ipan+(n-1)*ipan*jpan),:,:)
+      sx(-1,j,n,:,:)     = s(iww(1+(j-1)*ipan+(n-1)*ipan*jpan),:,:)
+      sx(ipan+1,j,n,:,:) = s(ie(j*ipan+(n-1)*ipan*jpan),:,:)
+      sx(ipan+2,j,n,:,:) = s(iee(j*ipan+(n-1)*ipan*jpan),:,:)
+    end do            ! j loop
+    do i=1,ipan
+      sx(i,0,n,:,:)      = s(is(i+(n-1)*ipan*jpan),:,:)
+      sx(i,-1,n,:,:)     = s(iss(i+(n-1)*ipan*jpan),:,:)
+      sx(i,jpan+1,n,:,:) = s(in(i-ipan+n*ipan*jpan),:,:)
+      sx(i,jpan+2,n,:,:) = s(inn(i-ipan+n*ipan*jpan),:,:)
+    end do            ! i loop
+    sx(-1,0,n,:,:)          = s(lsww(n),:,:)
+    sx(0,0,n,:,:)           = s(isw(1+(n-1)*ipan*jpan),:,:)
+    sx(0,-1,n,:,:)          = s(lssw(n),:,:)
+    sx(ipan+2,0,n,:,:)      = s(lsee(n),:,:)
+    sx(ipan+1,-1,n,:,:)     = s(lsse(n),:,:)
+    sx(-1,jpan+1,n,:,:)     = s(lnww(n),:,:)
+    sx(0,jpan+1,n,:,:)      = s(inw(1-ipan+n*ipan*jpan),:,:)
+    sx(0,jpan+2,n,:,:)      = s(lnnw(n),:,:)
+    sx(ipan+2,jpan+1,n,:,:) = s(lnee(n),:,:)
+    sx(ipan+1,jpan+2,n,:,:) = s(lnne(n),:,:)
+    sx(ipan+1,0,n,:,:)      = s(ise(ipan+(n-1)*ipan*jpan),:,:)
+    sx(ipan+1,jpan+1,n,:,:) = s(ine(n*ipan*jpan),:,:)
+  end do              ! n loop
 
   ! For other processes
   do ii=neighnum,1,-1
@@ -443,32 +460,26 @@ else     ! if(intsch==1)then
       k = nint(dpoints(ii)%a(4,iq))
       idel = idel - ioff
       jdel = jdel - joff
-      c1 = sx(:,idel,jdel-1,n,k) ! manually unrolled loop
-      c2 = sx(:,idel,jdel  ,n,k)
-      c3 = sx(:,idel,jdel+1,n,k)
-      c4 = sx(:,idel,jdel+2,n,k)
-              
-      r(:,2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.)-yyg*(1.+yyg)*c4/3.)+yyg*(1.+yyg)*(2.-yyg)*c3)/2.
-
-      c1 = sx(:,idel+1,jdel-1,n,k)
-      c2 = sx(:,idel+1,jdel  ,n,k)
-      c3 = sx(:,idel+1,jdel+1,n,k)
-      c4 = sx(:,idel+1,jdel+2,n,k)
-              
-      r(:,3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.)-yyg*(1.+yyg)*c4/3.)+yyg*(1.+yyg)*(2.-yyg)*c3)/2.
-
-      do nn=1,4,3   ! N.B.
-        c2 = sx(:,idel+nn-2,jdel  ,n,k)
-        c3 = sx(:,idel+nn-2,jdel+1,n,k)
-        r(:,nn) = (1.-yyg)*c2 +yyg*c3
-      enddo         ! nn loop
-
-      do nn=1,3
-        sextra(ii)%a(nn+(iq-1)*3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*r(nn,2)-xxg*r(nn,1)/3.)      &
-                                   -xxg*(1.+xxg)*r(nn,4)/3.)+xxg*(1.+xxg)*(2.-xxg)*r(nn,3))/2.
+      ! bi-cubic
+      cmul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+      cmul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+      cmul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
+      cmul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+      dmul(2) = (1.-yyg)
+      dmul(3) = yyg
+      emul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+      emul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+      emul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
+      emul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+      do nn = 1,3
+        rmul(1) = sum(sx(idel-1,jdel:jdel+1,n,k,nn)*dmul(:))
+        rmul(2) = sum(sx(idel,jdel-1:jdel+2,n,k,nn)*cmul(:))
+        rmul(3) = sum(sx(idel+1,jdel-1:jdel+2,n,k,nn)*cmul(:))
+        rmul(4) = sum(sx(idel+2,jdel:jdel+1,n,k,nn)*dmul(:))
+        sextra(ii)%a(nn+(iq-1)*3) = sum(rmul(:)*emul(:))
       end do
-    enddo            ! iq loop
-  end do             ! ii
+    end do            ! iq loop
+  end do              ! ii
 
   call intssync_send(3)
 
@@ -486,27 +497,24 @@ else     ! if(intsch==1)then
       if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. jdel > jpan .or. n < 1 .or. n > npan ) then
         cycle      ! Will be calculated on another processor
       end if
-      c1 = sx(:,idel,jdel-1,n,k) ! manually unrolled loop
-      c2 = sx(:,idel,jdel  ,n,k)
-      c3 = sx(:,idel,jdel+1,n,k)
-      c4 = sx(:,idel,jdel+2,n,k)
-
-      r(:,2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.)-yyg*(1.+yyg)*c4/3.)+yyg*(1.+yyg)*(2.-yyg)*c3)/2.
-
-      c1 = sx(:,idel+1,jdel-1,n,k)
-      c2 = sx(:,idel+1,jdel  ,n,k)
-      c3 = sx(:,idel+1,jdel+1,n,k)
-      c4 = sx(:,idel+1,jdel+2,n,k)
-
-      r(:,3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.)-yyg*(1.+yyg)*c4/3.)+yyg*(1.+yyg)*(2.-yyg)*c3)/2.
-
-      do nn=1,4,3   ! N.B.
-        c2 = sx(:,idel+nn-2,jdel  ,n,k)
-        c3 = sx(:,idel+nn-2,jdel+1,n,k)
-        r(:,nn) = (1.-yyg)*c2 +yyg*c3
-      enddo         ! nn loop
-              
-      s(iq,k,:) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*r(:,2)-xxg*r(:,1)/3.)-xxg*(1.+xxg)*r(:,4)/3.)+xxg*(1.+xxg)*(2.-xxg)*r(:,3))/2.
+      ! bi-cubic
+      cmul(1) = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+      cmul(2) = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+      cmul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
+      cmul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+      dmul(2) = (1.-yyg)
+      dmul(3) = yyg
+      emul(1) = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+      emul(2) = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+      emul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
+      emul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+      do nn = 1,3
+        rmul(1) = sum(sx(idel-1,jdel:jdel+1,n,k,nn)*dmul(:))
+        rmul(2) = sum(sx(idel,jdel-1:jdel+2,n,k,nn)*cmul(:))
+        rmul(3) = sum(sx(idel+1,jdel-1:jdel+2,n,k,nn)*cmul(:))
+        rmul(4) = sum(sx(idel+2,jdel:jdel+1,n,k,nn)*dmul(:))
+        s(iq,k,nn) = sum(rmul(:)*emul(:))
+      end do
     enddo            ! iq loop
   enddo              ! k loop
 
@@ -579,8 +587,8 @@ real(kind=8), dimension(ifull) :: den
 
 call START_LOG(toij_begin)
 
-If (ncray==0) then  ! check if divide by itself is working
-  if(num==0)then
+if ( ncray==0 ) then  ! check if divide by itself is working
+  if ( num==0 ) then
     if (myid==0) write(6,*)'checking for ncray = ',ncray
     call checkdiv(xstr,ystr,zstr)
   end if
@@ -606,7 +614,7 @@ xd(1:ifull)=xstr(1:ifull)/denxyz(1:ifull)
 yd(1:ifull)=ystr(1:ifull)/denxyz(1:ifull)
 zd(1:ifull)=zstr(1:ifull)/denxyz(1:ifull)
 
-if(ncray==1)then
+if ( ncray==1 ) then
   ! all these if statements are replaced by the subsequent cunning code
   where (xstr(1:ifull)==denxyz(1:ifull))        ! Cray
     nface(1:ifull,k)    =0                      ! Cray

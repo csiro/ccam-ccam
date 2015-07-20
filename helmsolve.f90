@@ -40,11 +40,6 @@
 ! C48, C96, C192, C384, C768 and C1536.  An alternate family of grids includes
 ! C32, C64, C128, C256, C512 and C1024.
 
-! Using the idleproc preprocessor directive (e.g., -Didleproc) removes redundant
-! work, but leaves processors idle.  However, the option is faster because it
-! avoids redundant messages and helps reduce the amount of bandwidth required
-! by the scheme.
-
 ! Note that k is the innermost array index to improve vectorization of the code
     
 module helmsolve
@@ -1310,17 +1305,9 @@ do k=1,klim
    sigma(k)=real(local_sum(k))
    gamma_1(k)=real(local_sum(klim+k))
 end do
-#ifdef sumdd
 call ccmpi_allreduce(local_sum(1:2*klim),global_sum(1:2*klim),"sumdr",comm_world)
 gsigma(1:klim) = real(global_sum(1:klim))
 ggamma_1(1:klim) = real(global_sum(klim+1:2*klim))
-#else
-arr(1:klim) = sigma(1:klim)
-arr(klim+1:2*klim) = gamma_1(1:klim)
-call ccmpi_allreduce(arr(1:2*klim),garr(1:2*klim),"sum",comm_world)
-gsigma(1:klim) = garr(1:klim)
-ggamma_1(1:klim) = garr(klim+1:2*klim)
-#endif
 local_sum(1:2*klim) = (0.,0.) ! Still need the later part.
 alpha(1:klim) = ggamma_1(1:klim) / gsigma(1:klim)
 do k=1,klim
@@ -1367,20 +1354,10 @@ select case (helmmeth)
             delta(k)=real(local_sum(klim+k))
          end do
             
-#ifdef sumdd
          call ccmpi_allreduce(local_sum(1:3*klim),global_sum(1:3*klim),"sumdr",comm_world)
          ggamma_1(1:klim) = real(global_sum(1:klim))
          gdelta(1:klim) = real(global_sum(klim+1:2*klim))
          gsmag(1:klim) = real(global_sum(2*klim+1:3*klim))
-#else
-         arr(1:klim) = gamma_1(1:klim)
-         arr(klim+1:2*klim) = delta(1:klim)
-         arr(2*klim+1:3*klim) = smag(1:klim)
-         call ccmpi_allreduce(arr(1:3*klim),garr(1:3*klim),"sum",comm_world)
-         ggamma_1(1:klim) = garr(1:klim)
-         gdelta(1:klim) = garr(klim+1:2*klim)
-         gsmag(1:klim) = garr(2*klim+1:3*klim)
-#endif
          local_sum = (0.,0.)
          if ( (diag .or. ktau<6 .or. itmax-iter.lt.50) .and. myid == 0 ) then
             write(6,'("Iterations",i4,i3,6g13.6/(10x,6g13.6))')   &
@@ -1446,17 +1423,9 @@ select case (helmmeth)
             gamma_1(k)=real(local_sum(k))
          end do
             
-#ifdef sumdd
          call ccmpi_allreduce(local_sum(1:2*klim),global_sum(1:2*klim),"sumdr",comm_world) 
          ggamma_1(1:klim) = real(global_sum(1:klim))
          gsmag(1:klim) = real(global_sum(klim+1:2*klim))
-#else
-         arr(1:klim) = gamma_1(1:klim)
-         arr(klim+1:2*klim) = smag(1:klim)
-         call ccmpi_allreduce(arr(1:2*klim),garr(1:2*klim),"sum",comm_world)
-         ggamma_1(1:klim) = garr(1:klim)
-         gsmag(1:klim) = garr(klim+1:2*klim)
-#endif
          local_sum = (0.,0.)
          if ( (diag .or. ktau<6 .or. itmax-iter<50) .and. myid == 0 ) then
             write(6,'("Iterations",i4,i3,6g13.6/(10x,6g13.6))')   &
@@ -1507,14 +1476,8 @@ select case (helmmeth)
             sigma(k)=real(local_sum(k))
          end do     
 
-#ifdef sumdd
          call ccmpi_allreduce(local_sum(1:klim),global_sum(1:klim),"sumdr",comm_world)
          gsigma(1:klim) = real(global_sum(1:klim))
-#else
-         arr(1:klim) = sigma(1:klim)
-         call ccmpi_allreduce(arr(1:klim),garr(1:klim),"sum",comm_world)
-         gsigma(1:klim) = garr(1:klim)
-#endif
          local_sum(1:klim) = (0.,0.) ! Still need the later part.
          
          alpha(1:klim) = ggamma_1(1:klim) / gsigma(1:klim)
@@ -3970,12 +3933,10 @@ if (mod(mipan,2)/=0.or.mod(mjpan,2)/=0.or.g==mg_maxlevel) then
     colour=mg(1)%merge_list(1)
     rank=mg(1)%merge_pos-1
     call ccmpi_commsplit(mg(1)%comm_merge,comm_world,colour,rank)
-#ifdef idleproc
     if (rank/=0) then
       mg_maxlevel_local=0
       mg(1)%nmax=0
     end if
-#endif
 
     deallocate(mg(1)%merge_list)
 
@@ -4254,12 +4215,10 @@ do g=2,mg_maxlevel
       colour=mg(g)%merge_list(1)
       rank=mg(g)%merge_pos-1
       call ccmpi_commsplit(mg(g)%comm_merge,comm_world,colour,rank)
-#ifdef idleproc
       if (rank/=0) then
         mg_maxlevel_local=min(g-1,mg_maxlevel_local)
         mg(g)%nmax=0
       end if
-#endif
       deallocate(mg(g)%merge_list)
     end if
   

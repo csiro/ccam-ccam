@@ -76,6 +76,7 @@ module cc_mpi
              ccmpi_allgatherx, ccmpi_recv, ccmpi_ssend, ccmpi_init,         &
              ccmpi_finalize, ccmpi_commsplit, ccmpi_commfree,               &
              bounds_colour_send, bounds_colour_recv, boundsuv_allvec
+!   public :: ccmpi_ibcast, ccmpi_waitall
    public :: mgbounds, mgcollect, mgcollect_mlo, mgbcast, mgbcastxn,        &
              mg_index, mgbounds_mlo, mgbcast_mlo, mgbcasta_mlo
    public :: ind, indx, indp, indg, iq2iqg, indv_mpi, indglobal, fproc,     &
@@ -133,6 +134,9 @@ module cc_mpi
    interface ccmpi_bcastr8
       module procedure ccmpi_bcast2r8, ccmpi_bcast3r8, ccmpi_bcast4r8
    end interface ccmpi_bcastr8
+!   interface ccmpi_ibcast
+!      module procedure ccmpi_ibcast3r
+!   end interface ccmpi_ibcast
    interface ccmpi_gatherx
       module procedure ccmpi_gatherx2r, ccmpi_gatherx3r
    end interface ccmpi_gatherx
@@ -556,10 +560,8 @@ contains
       end do
 
       ltrue = .true. 
-#ifdef sumdd
 !     operator MPI_SUMDR is created based on an external function DRPDR.
       call MPI_OP_CREATE (DRPDR,  ltrue, MPI_SUMDR,  ierr)
-#endif
 
       ! prepare comm groups - used by scale-selective filter
 #ifdef uniform_decomp
@@ -576,7 +578,7 @@ contains
       hproc = pprocn*mproc/npta           ! host processor for panel
 #endif
 
-     ! comm between work groups with captain hproc
+      ! comm between work groups with captain hproc
       colour = hproc
       rank = myid-hproc
       call MPI_Comm_Split(MPI_COMM_WORLD,colour,rank,lcommout,ierr)
@@ -5485,19 +5487,11 @@ contains
        real, dimension(2) :: delarr, delarr_l
        integer :: iq
        integer(kind=4) :: ierr
-#ifdef sumdd
 #ifdef i8r8
        integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
 #else
        integer(kind=4), parameter :: ltype = MPI_COMPLEX
 #endif   
-#else
-#ifdef i8r8
-       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
-#else
-       integer(kind=4), parameter :: ltype = MPI_REAL
-#endif   
-#endif
        complex, dimension(2) :: local_sum, global_sum
 !      Temporary array for the drpdr_local function
        real, dimension(ifull) :: tmparr 
@@ -5509,17 +5503,10 @@ contains
        call drpdr_local(tmparr, local_sum(1))
        tmparr(1:ifull)  = min(0.,array(1:ifull)*wts(1:ifull))
        call drpdr_local(tmparr, local_sum(2))
-#ifdef sumdd
        global_sum(1:2) = cmplx(0.,0.)
        call MPI_Allreduce ( local_sum, global_sum, 2_4, ltype, MPI_SUMDR, MPI_COMM_WORLD, ierr )
        delpos = real(global_sum(1))
        delneg = real(global_sum(2))
-#else
-       delarr_l(1:2) = real(local_sum(1:2))
-       call MPI_Allreduce ( delarr_l, delarr, 2_4, ltype, MPI_SUM, MPI_COMM_WORLD, ierr )
-       delpos = delarr(1)
-       delneg = delarr(2)
-#endif
 
        call END_LOG(posneg_end)
 
@@ -5538,19 +5525,11 @@ contains
        real, dimension(2) :: delarr, delarr_l
        integer :: k, iq, kx
        integer(kind=4) :: ierr
-#ifdef sumdd
 #ifdef i8r8
        integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
 #else
        integer(kind=4), parameter :: ltype = MPI_COMPLEX
 #endif   
-#else
-#ifdef i8r8
-       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
-#else
-       integer(kind=4), parameter :: ltype = MPI_REAL
-#endif   
-#endif
        complex, dimension(2) :: local_sum, global_sum
 !      Temporary array for the drpdr_local function
        real, dimension(ifull) :: tmparr
@@ -5571,17 +5550,10 @@ contains
           tmparr(1:ifull) = min(0.,-dsigx(k)*array(1:ifull,k)*wts(1:ifull))
           call drpdr_local(tmparr, local_sum(2))
        end do ! k loop
-#ifdef sumdd
        global_sum(1:2) = cmplx(0.,0.)
        call MPI_Allreduce ( local_sum, global_sum, 2_4, ltype, MPI_SUMDR, MPI_COMM_WORLD, ierr )
        delpos = real(global_sum(1))
        delneg = real(global_sum(2))
-#else
-       delarr_l(1:2) = real(local_sum(1:2))
-       call MPI_Allreduce ( delarr_l, delarr, 2_4, ltype, MPI_SUM, MPI_COMM_WORLD, ierr )
-       delpos = delarr(1)
-       delneg = delarr(2)
-#endif
 
        call END_LOG(posneg_end)
 
@@ -5600,19 +5572,11 @@ contains
        real, dimension(2*size(array,3)) :: delarr, delarr_l
        integer :: i, k, iq, kx, ntr
        integer(kind=4) :: ierr, mnum
-#ifdef sumdd
 #ifdef i8r8
        integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
 #else
        integer(kind=4), parameter :: ltype = MPI_COMPLEX
 #endif   
-#else
-#ifdef i8r8
-       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
-#else
-       integer(kind=4), parameter :: ltype = MPI_REAL
-#endif   
-#endif
        complex, dimension(2*size(array,3)) :: local_sum, global_sum
 !      Temporary array for the drpdr_local function
        real, dimension(ifull) :: tmparr
@@ -5636,19 +5600,11 @@ contains
              call drpdr_local(tmparr, local_sum(i+ntr))
           end do ! k loop
        end do
-#ifdef sumdd
        mnum = 2*ntr
        global_sum(1:2*ntr) = cmplx(0.,0.)
        call MPI_Allreduce ( local_sum, global_sum, mnum, ltype, MPI_SUMDR, MPI_COMM_WORLD, ierr )
        delpos(1:ntr) = real(global_sum(1:ntr))
        delneg(1:ntr) = real(global_sum(ntr+1:2*ntr))
-#else
-       mnum = 2*ntr
-       delarr_l(1:2*ntr) = real(local_sum(1:2*ntr))
-       call MPI_Allreduce ( delarr_l, delarr, mnum, ltype, MPI_SUM, MPI_COMM_WORLD, ierr )
-       delpos(1:ntr) = delarr(1:ntr)
-       delneg(1:ntr) = delarr(ntr+1:2*ntr)
-#endif
 
        call END_LOG(posneg_end)
 
@@ -5663,19 +5619,11 @@ contains
        real :: result_l
        integer :: iq
        integer(kind=4) :: ierr
-#ifdef sumdd
 #ifdef i8r8
        integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
 #else
        integer(kind=4), parameter :: ltype = MPI_COMPLEX
 #endif   
-#else
-#ifdef i8r8
-       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
-#else
-       integer(kind=4), parameter :: ltype = MPI_REAL
-#endif   
-#endif
        complex :: local_sum, global_sum
 !      Temporary array for the drpdr_local function
        real, dimension(ifull) :: tmparr
@@ -5683,7 +5631,6 @@ contains
        call START_LOG(globsum_begin)
 
        result_l = 0.
-#ifdef sumdd         
        do iq = 1,ifull
           tmparr(iq)  = array(iq)*wts(iq)
        enddo
@@ -5691,12 +5638,6 @@ contains
        call drpdr_local(tmparr, local_sum)
        call MPI_Allreduce ( local_sum, global_sum, 1_4, ltype, MPI_SUMDR, MPI_COMM_WORLD, ierr )
        result = real(global_sum)
-#else
-       do iq = 1,ifull
-          result_l = result_l + array(iq)*wts(iq)
-       enddo
-       call MPI_Allreduce ( result_l, result, 1_4, ltype, MPI_SUM, MPI_COMM_WORLD, ierr )
-#endif
 
        call END_LOG(globsum_end)
 
@@ -5714,19 +5655,11 @@ contains
        real :: result_l
        integer :: k, iq, kx
        integer(kind=4) ierr
-#ifdef sumdd
 #ifdef i8r8
        integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
 #else
        integer(kind=4), parameter :: ltype = MPI_COMPLEX
 #endif   
-#else
-#ifdef i8r8
-       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
-#else
-       integer(kind=4), parameter :: ltype = MPI_REAL
-#endif   
-#endif
        complex :: local_sum, global_sum
 !      Temporary array for the drpdr_local function
        real, dimension(ifull) :: tmparr
@@ -5741,7 +5674,6 @@ contains
        end if
        
        result_l = 0.
-#ifdef sumdd
        local_sum = cmplx(0.,0.)
        do k = 1,kx
           do iq = 1,ifull
@@ -5751,14 +5683,6 @@ contains
        end do ! k
        call MPI_Allreduce ( local_sum, global_sum, 1_4, ltype, MPI_SUMDR, MPI_COMM_WORLD, ierr )
        result = real(global_sum)
-#else
-       do k = 1,kx
-          do iq = 1,ifull
-             result_l = result_l - dsigx(k)*array(iq,k)*wts(iq)
-          enddo
-       end do ! k
-       call MPI_Allreduce ( result_l, result, 1_4, ltype, MPI_SUM, MPI_COMM_WORLD, ierr )
-#endif
 
        call END_LOG(globsum_end)
 
@@ -6601,6 +6525,47 @@ contains
    
    end subroutine ccmpi_bcast4r8
 
+!   subroutine ccmpi_ibcast3r(ldat,host,comm,req)
+!   
+!      integer, intent(in) :: host, comm
+!      integer, intent(out) :: req
+!      integer(kind=4) :: lcomm, lhost, lsize, lerr, lreq
+!#ifdef i8r8
+!      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
+!#else
+!      integer(kind=4) :: ltype = MPI_REAL
+!#endif
+!      real, dimension(:,:), intent(inout) :: ldat
+!
+!      call START_LOG(bcast_begin)
+!
+!      lhost = host
+!      lcomm = comm
+!      lsize = size(ldat)
+!      call MPI_IBcast(ldat,lsize,ltype,lhost,lcomm,lreq,lerr)
+!      req = lreq
+!   
+!      call END_LOG(bcast_end)
+!   
+!   end subroutine ccmpi_ibcast3r
+  
+!   subroutine ccmpi_waitall(reqcount,reqlist)
+!   
+!      integer, intent(in) :: reqcount
+!      integer, dimension(reqcount), intent(in) :: reqlist
+!      integer(kind=4) :: lreqcount, lerr
+!      integer(kind=4), dimension(reqcount) :: lreqlist
+!      
+!      call START_LOG(mpiwait_begin)
+!      
+!      lreqcount = reqcount
+!      lreqlist(:) = reqlist(:)
+!      call MPI_Waitall(lreqcount,lreqlist,MPI_STATUSES_IGNORE,lerr)
+!      
+!      call END_LOG(mpiwait_end)
+!   
+!   end subroutine ccmpi_waitall
+   
    subroutine ccmpi_barrier(comm)
    
       integer, intent(in) :: comm
@@ -7085,11 +7050,7 @@ contains
 
       ilen = (msg_len*npanx+1)*kx
       lcomm = mg(g)%comm_merge
-#ifdef idleproc
       call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0_4, lcomm, ierr )      
-#else
-      call MPI_AllGather( tdat, ilen, ltype, tdat_g, ilen, ltype, lcomm, ierr )      
-#endif
 
       ! unpack buffers (nmax is zero unless this is the host processor)
       do yproc = 1,nmax
@@ -7163,11 +7124,7 @@ contains
 
       ilen = (msg_len*npanx+1)*kx
       lcomm = mg(g)%comm_merge
-#ifdef idleproc
       call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0_4, lcomm, ierr )      
-#else
-      call MPI_AllGather( tdat, ilen, ltype, tdat_g, ilen, ltype, lcomm, ierr )      
-#endif
 
       ! unpack buffers (nmax is zero unless this is the host processor)
       do yproc = 1,nmax
@@ -7245,11 +7202,7 @@ contains
 
       ilen = msg_len*npanx*kx
       lcomm = mg(g)%comm_merge
-#ifdef idleproc
       call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0_4, lcomm, ierr )
-#else
-      call MPI_AllGather( tdat, ilen, ltype, tdat_g, ilen, ltype, lcomm, ierr )
-#endif
 
       ! unpack buffers (nmax is zero unless this is the host processor)
       do yproc = 1,nmax
@@ -7320,11 +7273,7 @@ contains
 
       ilen = msg_len*npanx*kx
       lcomm = mg(g)%comm_merge
-#ifdef idleproc
       call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0_4, lcomm, ierr )
-#else
-      call MPI_AllGather( tdat, ilen, ltype, tdat_g, ilen, ltype, lcomm, ierr )      
-#endif
 
       ! unpack buffers (nmax is zero unless this is the host processor)
       do yproc = 1,nmax
@@ -7405,11 +7354,7 @@ contains
 
       ilen = (msg_len*npanx+2)*kx
       lcomm = mg(g)%comm_merge
-#ifdef idleproc
       call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0_4, lcomm, ierr )
-#else
-      call MPI_AllGather( tdat, ilen, ltype, tdat_g, ilen, ltype, lcomm, ierr )
-#endif
 
       ! unpack buffers (nmax is zero unless this is the host processor)
       do yproc = 1,nmax
@@ -7445,7 +7390,6 @@ contains
       real, dimension(:,:), intent(inout) :: vdat
       real, dimension(:), intent(inout) :: dsolmax
 
-#ifdef idleproc
       ! merge length
       if ( mg(g)%merge_len <= 1 ) return
    
@@ -7461,7 +7405,6 @@ contains
       call mgbcast_work( g, vdat, dsolmax, kx, out_len )
    
       call END_LOG(mgbcast_end)
-#endif
    
    return
    end subroutine mgbcast
@@ -7500,7 +7443,6 @@ contains
       real, dimension(:,:), intent(inout) :: vdat
       real, dimension(:), intent(inout) :: dsolmax
 
-#ifdef idleproc
       ! merge length
       if ( mg(g)%merge_len <= 1 ) return
 
@@ -7511,7 +7453,6 @@ contains
       call mgbcast_mlo_work( g, vdat, dsolmax, kx, out_len )
    
       call END_LOG(mgbcast_end)
-#endif
    
    return
    end subroutine mgbcast_mlo
@@ -7549,7 +7490,6 @@ contains
       integer :: kx, out_len
       real, dimension(:,:), intent(inout) :: vdat
 
-#ifdef idleproc
       ! merge length
       if ( mg(g)%merge_len <= 1 ) return
    
@@ -7560,7 +7500,6 @@ contains
       call mgbcasta_mlo_work( g, vdat, kx, out_len )
    
       call END_LOG(mgbcast_end)
-#endif
    
    return
    end subroutine mgbcasta_mlo
@@ -7597,7 +7536,6 @@ contains
       real, dimension(:,:), intent(inout) :: vdat
       real, dimension(:,:), intent(inout) :: smaxmin
 
-#ifdef idleproc
       ! merge length
       if ( mg(g)%merge_len <= 1 ) return
    
@@ -7613,7 +7551,6 @@ contains
       call mgbcastxn_work( g, vdat, smaxmin, kx, out_len )
    
       call END_LOG(mgbcast_end)
-#endif
    
    return
    end subroutine mgbcastxn

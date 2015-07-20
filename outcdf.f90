@@ -788,11 +788,13 @@ if( myid==0 .or. local ) then
     lname = 'Pan temperature'
     call attrib(idnc,jdim(1:3),3,'tpan',lname,'K',100.,425.,0,itype)
     lname = 'Precipitation'
-    call attrib(idnc,jdim(1:3),3,'rnd',lname,'mm/day',0.,1300.,0,-1) ! -1=long
+    call attrib(idnc,jdim(1:3),3,'rnd',lname,'mm/day',0.,1300.,0,-1)  ! -1=long
     lname = 'Convective precipitation'
-    call attrib(idnc,jdim(1:3),3,'rnc',lname,'mm/day',0.,1300.,0,-1) ! -1=long
+    call attrib(idnc,jdim(1:3),3,'rnc',lname,'mm/day',0.,1300.,0,-1)  ! -1=long
     lname = 'Snowfall'
-    call attrib(idnc,jdim(1:3),3,'sno',lname,'mm/day',0.,1300.,0,-1) ! -1=long
+    call attrib(idnc,jdim(1:3),3,'sno',lname,'mm/day',0.,1300.,0,-1)  ! -1=long
+    lname = 'Hail'
+    call attrib(idnc,jdim(1:3),3,'hail',lname,'mm/day',0.,1300.,0,-1) ! -1=long    
     lname = 'Runoff'
     call attrib(idnc,jdim(1:3),3,'runoff',lname,'mm/day',0.,1300.,0,-1) ! -1=long
     lname = 'Surface albedo'
@@ -1353,24 +1355,26 @@ if( myid==0 .or. local ) then
     call attrib(idnc,idim(1:4),4,'convh_ave',lname,'K/day',-10.,20.,0,itype)
         
     ! CLOUD MICROPHYSICS --------------------------------------------
-    if( ldr/=0 ) then
+    if ( ldr/=0 ) then
       call attrib(idnc,idim(1:4),4,'qfg','Frozen water','kg/kg',0.,.065,0,itype)
       call attrib(idnc,idim(1:4),4,'qlg','Liquid water','kg/kg',0.,.065,0,itype)
-      call attrib(idnc,idim(1:4),4,'qrg','Rain','kg/kg',0.,.065,0,itype)
-      !call attrib(idnc,idim(1:4),4,'qsg','Snow','kg/kg',0.,.065,0,itype)
-      !call attrib(idnc,idim(1:4),4,'qgrg','Grauple','kg/kg',0.,.065,0,itype)
-      call attrib(idnc,idim(1:4),4,'cfrac','Cloud fraction','none',0.,1.,0,itype)
-      call attrib(idnc,idim(1:4),4,'rfrac','Rain fraction','none',0.,1.,0,itype)
+      call attrib(idnc,idim(1:4),4,'qrg','Rain',        'kg/kg',0.,.065,0,itype)
+      call attrib(idnc,idim(1:4),4,'qsg','Snow',        'kg/kg',0.,.065,0,itype)
+      call attrib(idnc,idim(1:4),4,'qgrg','Grauple',    'kg/kg',0.,.065,0,itype)
+      call attrib(idnc,idim(1:4),4,'cfrac','Cloud fraction',  'none',0.,1.,0,itype)
+      call attrib(idnc,idim(1:4),4,'rfrac','Rain fraction',   'none',0.,1.,0,itype)
+      call attrib(idnc,idim(1:4),4,'sfrac','Snow fraction',   'none',0.,1.,0,itype)
+      call attrib(idnc,idim(1:4),4,'gfrac','Grauple fraction','none',0.,1.,0,itype)
       if ( ncloud>=4 ) then
         call attrib(idnc,idim(1:4),4,'stratcf','Strat cloud fraction','none',0.,1.,0,itype)
         if ( itype==-1 ) then
           call attrib(idnc,idim(1:4),4,'strat_nt','Strat net temp tendency','K/s',0.,1.,0,itype)
         end if
       end if
-    endif
+    end if
         
     ! TURBULENT MIXING ----------------------------------------------
-    if ( nvmix==6 .and. (nextout>=1.or.itype==-1) )then
+    if ( nvmix==6 .and. (nextout>=1.or.itype==-1) ) then
       call attrib(idnc,idim(1:4),4,'tke','Turbulent Kinetic Energy','m2/s2',0.,65.,0,itype)
       call attrib(idnc,idim(1:4),4,'eps','Eddy dissipation rate','m2/s3',0.,6.5,0,itype)
     end if
@@ -1673,6 +1677,8 @@ aa(:) = precc(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))
 call histwrt3(aa,'rnc',idnc,iarch,local,lwrite)
 aa(:) = sno(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))
 call histwrt3(aa,'sno',idnc,iarch,local,lwrite)
+aa(:) = hail(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))
+call histwrt3(aa,'hail',idnc,iarch,local,lwrite)
 aa(:) = runoff(1:ifull)*real(nperday)/real(min(nwt,max(ktau,1)))
 call histwrt3(aa,'runoff',idnc,iarch,local,lwrite)
 aa(:) = swrsave*albvisnir(:,1)+(1.-swrsave)*albvisnir(:,2)
@@ -2110,10 +2116,12 @@ if ( ldr/=0 ) then
   call histwrt4(qfg,'qfg',idnc,iarch,local,.true.)
   call histwrt4(qlg,'qlg',idnc,iarch,local,.true.)
   call histwrt4(qrg,'qrg',idnc,iarch,local,.true.)
-  !call histwrt4(qsg,'qsg',idnc,iarch,local,.true.)
-  !call histwrt4(qgrg,'qgrg',idnc,iarch,local,.true.)
+  call histwrt4(qsg,'qsg',idnc,iarch,local,.true.)
+  call histwrt4(qgrg,'qgrg',idnc,iarch,local,.true.)
   call histwrt4(cfrac,'cfrac',idnc,iarch,local,.true.)
   call histwrt4(rfrac,'rfrac',idnc,iarch,local,.true.)
+  call histwrt4(sfrac,'sfrac',idnc,iarch,local,.true.)
+  call histwrt4(gfrac,'gfrac',idnc,iarch,local,.true.)
   if ( ncloud>=4 ) then
     call histwrt4(stratcloud,'stratcf',idnc,iarch,local,.true.)  
     if ( itype==-1 ) then
@@ -2449,9 +2457,11 @@ if ( first ) then
     lname='Screen temperature'     
     call attrib(fncid,sdim,3,'tscrn',lname,'K',100.,425.,0,1)
     lname='Precipitation'
-    call attrib(fncid,sdim,3,'rnd',lname,'mm/day',0.,1300.,0,-1) ! -1=long
+    call attrib(fncid,sdim,3,'rnd',lname,'mm/day',0.,1300.,0,-1)  ! -1=long
     lname='Snowfall'
-    call attrib(fncid,sdim,3,'sno',lname,'mm/day',0.,1300.,0,-1) ! -1=long
+    call attrib(fncid,sdim,3,'sno',lname,'mm/day',0.,1300.,0,-1)  ! -1=long
+    lname='Hail'
+    call attrib(fncid,sdim,3,'hail',lname,'mm/day',0.,1300.,0,-1) ! -1=long
     lname ='Mean sea level pressure'
     call attrib(fncid,sdim,3,'pmsl',lname,'hPa',800.,1200.,0,1)    
 
@@ -2527,6 +2537,8 @@ freqstore=condx*86400./dt
 call freqwrite(fncid,'rnd',  ktau,localhist,freqstore)
 freqstore=conds*86400./dt
 call freqwrite(fncid,'sno',  ktau,localhist,freqstore)
+freqstore=condg*86400./dt
+call freqwrite(fncid,'hail', ktau,localhist,freqstore)
 call mslp(freqstore,psl,zs,t)
 freqstore=freqstore/100.
 call freqwrite(fncid,'pmsl', ktau,localhist,freqstore)

@@ -25,11 +25,11 @@ implicit none
 
 private
 public condx,fg,eg,epot,condc,rnet,pblh,epan,tpan
-public conds
+public conds,condg
 public morepbl_init,morepbl_end
 
 real, dimension(:), allocatable, save :: condx,fg,eg,epot,condc,rnet,pblh,epan,tpan
-real, dimension(:), allocatable, save :: conds
+real, dimension(:), allocatable, save :: conds,condg
 
 contains
 
@@ -41,7 +41,7 @@ integer, intent(in) :: ifull,iextra,kl
 
 allocate(condx(ifull),fg(ifull),eg(ifull),epot(ifull))
 allocate(condc(ifull),rnet(ifull),pblh(ifull),epan(ifull))
-allocate(tpan(ifull),conds(ifull))
+allocate(tpan(ifull),conds(ifull),condg(ifull))
 fg=0.
 eg=0.
 epot=0.
@@ -52,6 +52,7 @@ pblh=1000.
 condx=0.
 condc=0.
 conds=0.
+condg=0.
 
 return
 end subroutine morepbl_init
@@ -61,7 +62,7 @@ subroutine morepbl_end
 implicit none
 
 deallocate(condx,fg,eg,epot,condc,rnet,pblh,epan,tpan)
-deallocate(conds)
+deallocate(conds,condg)
 
 return
 end subroutine morepbl_end

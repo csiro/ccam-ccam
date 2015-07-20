@@ -239,7 +239,7 @@ do nb=1,maxnb
   met%qv(is:ie)          =pack(qg(1:ifull,1),tmap(:,nb))       ! specific humidity in kg/kg
   met%pmb(is:ie)         =pack(ps(1:ifull),  tmap(:,nb))*0.01  ! pressure in mb at ref height
   met%precip(is:ie)      =pack(condx,  tmap(:,nb))             ! in mm not mm/sec
-  met%precip_sn(is:ie)   =pack(conds,  tmap(:,nb))             ! in mm not mm/sec
+  met%precip_sn(is:ie)   =pack(conds+condg,  tmap(:,nb))       ! in mm not mm/sec
   met%hod(is:ie)         =pack(rlongg, tmap(:,nb))*12./pi+real(mtimer+jhour*60+jmin)/60.
   ! swrsave indicates the fraction of net VIS radiation (compared to NIR)
   ! fbeamvis indicates the beam fraction of downwelling direct radiation (compared to diffuse) for VIS

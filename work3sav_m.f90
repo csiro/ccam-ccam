@@ -25,11 +25,11 @@ implicit none
 
 private
 public qgsav,qfgsav,qlgsav,trsav
-public qrgsav
+public qrgsav,qsgsav,qgrgsav
 public work3sav_init,work3sav_end
 
 real, dimension(:,:), allocatable, save :: qgsav,qfgsav,qlgsav
-real, dimension(:,:), allocatable, save :: qrgsav
+real, dimension(:,:), allocatable, save :: qrgsav,qsgsav,qgrgsav
 real, dimension(:,:,:), allocatable, save :: trsav
 
 contains
@@ -42,6 +42,7 @@ integer, intent(in) :: ifull,iextra,kl,ilt,jlt,klt,ngasmax
 
 allocate(qgsav(ifull,kl),qfgsav(ifull,kl),qlgsav(ifull,kl))
 allocate(qrgsav(ifull,kl))
+allocate(qsgsav(ifull,kl),qgrgsav(ifull,kl))
 if (ilt>0) allocate(trsav(ilt*jlt,klt,ngasmax))
 
 return
@@ -53,6 +54,7 @@ implicit none
 
 deallocate(qgsav,qfgsav,qlgsav)
 deallocate(qrgsav)
+deallocate(qsgsav,qgrgsav)
 if (allocated(trsav)) deallocate(trsav)
 
 return

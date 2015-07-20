@@ -162,8 +162,8 @@ end subroutine tkeinit
 ! mode=0 mass flux with moist convection
 ! mode=1 no mass flux
 
-subroutine tkemix(kmo,theta,qvg,qlg,qfg,qrg,cfrac,cfrain,uo,vo,zi,fg,eg,ps, &
-                  zom,zz,zzh,sig,rhos,dt,qgmin,mode,diag,naero,aero)
+subroutine tkemix(kmo,theta,qvg,qlg,qfg,qrg,qsg,qgrg,cfrac,cfrain,cfsnow,cfgrap,uo,vo, &
+                  zi,fg,eg,ps,zom,zz,zzh,sig,rhos,dt,qgmin,mode,diag,naero,aero)
 
 implicit none
 
@@ -172,15 +172,15 @@ integer k,i,j,ktopmax,klcl
 integer kcount,mcount,icount
 real, intent(in) :: dt,qgmin
 real, dimension(:,:,:), intent(inout) :: aero
-real, dimension(:,:), intent(inout) :: theta,cfrac,cfrain,uo,vo
-real, dimension(:,:), intent(inout) :: qvg,qlg,qfg,qrg
+real, dimension(:,:), intent(inout) :: theta,cfrac,cfrain,cfsnow,cfgrap,uo,vo
+real, dimension(:,:), intent(inout) :: qvg,qlg,qfg,qrg,qsg,qgrg
 real, dimension(ifull,kl), intent(out) :: kmo
 real, dimension(ifull,kl), intent(in) :: zz,zzh
 real, dimension(ifull), intent(inout) :: zi
 real, dimension(ifull), intent(in) :: fg,eg,ps,zom,rhos
 real, dimension(kl), intent(in) :: sig
 real, dimension(ifull,kl,naero) :: arup
-real, dimension(ifull,kl) :: gamtl,gamqv,gamql,gamqf,gamqr
+real, dimension(ifull,kl) :: gamtl,gamqv,gamql,gamqf,gamqr,gamqs,gamqgr
 real, dimension(ifull,kl) :: km,thetav,thetal,temp,qsat
 real, dimension(ifull,kl) :: qsatc,qgnc,ff,thetac,tempc
 real, dimension(ifull,kl) :: thetalhl,thetavhl
@@ -188,8 +188,8 @@ real, dimension(ifull,kl) :: quhl,qshl,qlhl,qfhl
 real, dimension(ifull,kl) :: tkenew,epsnew,bb,cc,dd,rr
 real, dimension(ifull,kl) :: rhoa,rhoahl
 real, dimension(ifull,kl) :: pres,qtot,qthl
-real, dimension(ifull,kl) :: tlup,qvup,qlup,qfup,qrup
-real, dimension(ifull,kl) :: cfup,crup,mflx
+real, dimension(ifull,kl) :: tlup,qvup,qlup,qfup
+real, dimension(ifull,kl) :: cfup,mflx
 real, dimension(ifull,2:kl) :: idzm
 real, dimension(ifull,1:kl-1) :: idzp
 real, dimension(ifull,2:kl) :: aa,qq,pps,ppt,ppb
@@ -206,6 +206,7 @@ real, dimension(ifull) :: avearray
 real, dimension(kl) :: sigkap,w2up,nn,dqdash,qupsat
 real, dimension(kl) :: qtup,ttup,tvup,thup
 real, dimension(1) :: templ
+real qrup,qsup,qgup
 real xp,as,bs,cs,cm12,cm34,qcup
 real dzht,ziold,ent,entc,entn,dtr,dtrc,dtrn,dtrx
 real ddts,zlcl
@@ -234,11 +235,13 @@ do k=1,kl
   sigkap(k)=sig(k)**(-rd/cp)
   pres(:,k)=ps(:)*sig(k) ! pressure
   ! Density must be updated when dz is updated so that rho*dz is conserved
-  thetav(:,k)=theta(1:ifull,k)*(1.+0.61*qvg(1:ifull,k)-qlg(1:ifull,k)-qfg(1:ifull,k)-qrg(1:ifull,k))
+  thetav(:,k)=theta(1:ifull,k)*(1.+0.61*qvg(1:ifull,k)-qlg(1:ifull,k)-qfg(1:ifull,k)-qrg(1:ifull,k) &
+                                -qsg(1:ifull,k)-qgrg(1:ifull,k))
   rhoa(:,k)=sigkap(k)*pres(:,k)/(rd*thetav(:,k))
 
   ! Transform to thetal as it is the conserved variable
-  thetal(:,k)=theta(1:ifull,k)-sigkap(k)*(lv*(qlg(1:ifull,k)+qrg(1:ifull,k))+ls*qfg(1:ifull,k))/cp
+  thetal(:,k)=theta(1:ifull,k)-sigkap(k)*(lv*(qlg(1:ifull,k)+qrg(1:ifull,k)) &
+              +ls*(qfg(1:ifull,k)+qsg(1:ifull,k)+qgrg(1:ifull,k)))/cp
   
   ! Calculate first approximation to diffusion coeffs
   km(:,k)=cm0*tke(1:ifull,k)*tke(1:ifull,k)/eps(1:ifull,k)
@@ -291,8 +294,9 @@ do kcount=1,mcount
     ! calculate saturated air mixing ratio
     call getqsat(qsat(:,k),temp(:,k),pres(:,k))
   end do
-  thetav=theta(1:ifull,:)*(1.+0.61*qvg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:)-qrg(1:ifull,:))
-  qtot=qvg(1:ifull,:)+qlg(1:ifull,:)+qfg(1:ifull,:)+qrg(1:ifull,:)
+  thetav=theta(1:ifull,:)*(1.+0.61*qvg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:)-qrg(1:ifull,:) &
+         -qsg(1:ifull,:)-qgrg(1:ifull,:))
+  qtot=qvg(1:ifull,:)+qlg(1:ifull,:)+qfg(1:ifull,:)+qrg(1:ifull,:)+qsg(1:ifull,:)+qgrg(1:ifull,:)
 
   ! Calculate non-local mass-flux terms for theta_l and qtot
   ! Plume rise equations currently assume that the air density
@@ -302,9 +306,7 @@ do kcount=1,mcount
   qvup=qvg(1:ifull,:)
   qlup=qlg(1:ifull,:)
   qfup=qfg(1:ifull,:)
-  qrup=qrg(1:ifull,:)
   cfup=cfrac(1:ifull,:)
-  crup=cfrain(1:ifull,:)
   if (naero>0) then
     arup=aero(1:ifull,:,:)
   end if
@@ -346,25 +348,29 @@ do kcount=1,mcount
           ! first level -----------------
           ! initial thermodynamic state
           ! split qtot into components (conservation of thetal and qtot is maintained)
-          tlup(i,1)=thetal(i,1)+be*wt0(i)/sqrt(tke(i,1))   ! Hurley 2007
-          qvup(i,1)=qvg(i,1)   +be*wq0(i)/sqrt(tke(i,1))   ! Hurley 2007
+          tlup(i,1)=thetal(i,1)+be*wt0(i)/sqrt(tke(i,1))       ! Hurley 2007
+          qvup(i,1)=qvg(i,1)   +be*wq0(i)/sqrt(tke(i,1))       ! Hurley 2007
           qlup(i,1)=qlg(i,1)
           qfup(i,1)=qfg(i,1)
-          qrup(i,1)=qrg(i,1)
+          qrup=qrg(i,1)
+          qsup=qsg(i,1)
+          qgup=qgrg(i,1)
           ! diagnose thermodynamic variables assuming no condensation
-          qtup(1)=qvup(i,1)+qlup(i,1)+qfup(i,1)+qrup(i,1)                    ! qtot,up
+          qtup(1)=qvup(i,1)+qlup(i,1)+qfup(i,1)+qrup+qsup+qgup     ! qtot,up
           ! state of plume after evaporation
           qvup(i,1)=qtup(1)
           qlup(i,1)=0.
           qfup(i,1)=0.
-          qrup(i,1)=0.
-          thup(1)=tlup(i,1) !+sigkap(1)*(lv*(qlup(1)+qrup(1))+ls*qfup(1))/cp ! theta,up
-          tvup(1)=thup(1)+theta(i,1)*0.61*qtup(1) ! +...                     ! thetav,up
-          ttup(1)=thup(1)/sigkap(1)                                          ! temp,up
-          templ(1)=tlup(i,1)/sigkap(1)                                       ! templ,up
+          qrup=0.
+          qsup=0.
+          qgup=0.
+          thup(1)=tlup(i,1) !+sigkap(1)*(lv*qlup(1)+ls*qfup(1))/cp ! theta,up
+          tvup(1)=thup(1)+theta(i,1)*0.61*qtup(1)                  ! thetav,up
+          ttup(1)=thup(1)/sigkap(1)                                ! temp,up
+          templ(1)=tlup(i,1)/sigkap(1)                             ! templ,up
           ! update updraft velocity and mass flux
-          nn(1)  =grav*be*wtv0(i)/(thetav(i,1)*sqrt(tke(i,1)))               ! Hurley 2007
-          w2up(1)=2.*dzht*b2*nn(1)/(1.+2.*dzht*b1*ent)                       ! Hurley 2007
+          nn(1)  =grav*be*wtv0(i)/(thetav(i,1)*sqrt(tke(i,1))) ! Hurley 2007
+          w2up(1)=2.*dzht*b2*nn(1)/(1.+2.*dzht*b1*ent)         ! Hurley 2007
           ! estimate variance of qtup in updraft
           call getqsat(qupsat(1:1),templ(1:1),pres(i:i,1))
           sigqtup=1.E-5
@@ -383,11 +389,13 @@ do kcount=1,mcount
             qvup(i,k)=(qvup(i,k-1)+dzht*ent*qvg(i,k)   )/(1.+dzht*ent)
             qlup(i,k)=(qlup(i,k-1)+dzht*ent*qlg(i,k)   )/(1.+dzht*ent)
             qfup(i,k)=(qfup(i,k-1)+dzht*ent*qfg(i,k)   )/(1.+dzht*ent)
-            qrup(i,k)=(qrup(i,k-1)+dzht*ent*qrg(i,k)   )/(1.+dzht*ent)
+            qrup     =(            dzht*ent*qrg(i,k)   )/(1.+dzht*ent)
+            qsup     =(            dzht*ent*qsg(i,k)   )/(1.+dzht*ent)
+            qgup     =(            dzht*ent*qgrg(i,k)  )/(1.+dzht*ent)
             ! calculate conserved variables
-            qtup(k)=qvup(i,k)+qlup(i,k)+qfup(i,k)+qrup(i,k)                   ! qtot,up
+            qtup(k)=qvup(i,k)+qlup(i,k)+qfup(i,k)+qrup+qsup+qgup ! qtot,up
             ! estimate air temperature
-            templ(1)=tlup(i,k)/sigkap(k)                                      ! templ,up
+            templ(1)=tlup(i,k)/sigkap(k)                         ! templ,up
             if (.not.scond) then
               ! MJT notes - here we determine a fraction of the updraft that has undergone condensation
               ! More correctly, we estimate a fraction of the number of updrafts at different locations
@@ -412,10 +420,12 @@ do kcount=1,mcount
             qvup(i,k)=qtup(k)
             qlup(i,k)=0.
             qfup(i,k)=0.
-            qrup(i,k)=0.
-            thup(k)=tlup(i,k) !+sigkap(k)*(lv*(qlup(k)+qrup(k))+ls*qfup(k))/cp ! theta,up
-            tvup(k)=tlup(i,k)+theta(i,k)*0.61*qtup(k) ! +...                   ! thetav,up after redistribution
-            ttup(k)=thup(k)/sigkap(k)                                        ! temp,up
+            qrup=0.
+            qsup=0.
+            qgup=0.
+            thup(k)=tlup(i,k) !+sigkap(k)*(lv*qlup(k)+ls*qfup(k))/cp ! theta,up
+            tvup(k)=tlup(i,k)+theta(i,k)*0.61*qtup(k)                ! thetav,up after redistribution
+            ttup(k)=thup(k)/sigkap(k)                                ! temp,up
             ! calculate buoyancy
             nn(k)  =grav*(tvup(k)-thetav(i,k))/thetav(i,k)
             ! update updraft velocity
@@ -451,11 +461,13 @@ do kcount=1,mcount
               qvup(i,k)=(qvup(i,k-1)+dzht*ent*qvg(i,k)   )/(1.+dzht*ent)
               qlup(i,k)=(qlup(i,k-1)+dzht*ent*qlg(i,k)   )/(1.+dzht*ent)
               qfup(i,k)=(qfup(i,k-1)+dzht*ent*qfg(i,k)   )/(1.+dzht*ent)
-              qrup(i,k)=(qrup(i,k-1)+dzht*ent*qrg(i,k)   )/(1.+dzht*ent)
+              qrup     =(            dzht*ent*qrg(i,k)   )/(1.+dzht*ent)
+              qsup     =(            dzht*ent*qsg(i,k)   )/(1.+dzht*ent)
+              qgup     =(            dzht*ent*qgrg(i,k)  )/(1.+dzht*ent)
               ! calculate conserved variables
-              qtup(k)=qvup(i,k)+qlup(i,k)+qfup(i,k)+qrup(i,k)                   ! qtot,up
+              qtup(k)=qvup(i,k)+qlup(i,k)+qfup(i,k)+qrup+qsup+qgup ! qtot,up
               ! estimate air temperature
-              templ(1)=tlup(i,k)/sigkap(k)                                      ! templ,up
+              templ(1)=tlup(i,k)/sigkap(k)                         ! templ,up
               call getqsat(qupsat(k:k),templ(1:1),pres(i:i,k))
               ! estimate variance of qtup in updraft (following Hurley and TAPM)
               sigqtup=sqrt(max(1.E-10,1.6*tke(i,k)/eps(i,k)*cq*km(i,k)*((qtup(k)-qtup(k-1))/dzht)**2))
@@ -481,8 +493,8 @@ do kcount=1,mcount
                 qxup=qupsat(k)
                 cfup(i,k)=1.
               end if
-              thup(k)=tlup(i,k)+sigkap(k)*(lv*(qlup(i,k)+qrup(i,k))+ls*qfup(i,k))/cp  ! theta,up before redistribution
-              tempd  =thup(k)/sigkap(k)                                               ! temp,up before redistribution
+              thup(k)=tlup(i,k)+sigkap(k)*(lv*(qlup(i,k)+qrup)+ls*(qfup(i,k)+qsup+qgup))/cp ! theta,up before redistribution
+              tempd  =thup(k)/sigkap(k)                                                     ! temp,up before redistribution
               fice=min(max(273.16-tempd,0.),40.)/40. ! approximate ice fraction based on temperature (not templ)
               lx=lv+lf*fice
               ! MJT notes - PC2 from UKMO advises that the following expression could be based on tempd instead of templ
@@ -498,7 +510,9 @@ do kcount=1,mcount
               qvup(i,k)=qxup                                         ! qv,up after redistribution
               qlup(i,k)=qcup*(1.-fice)                               ! ql,up after redistribution
               qfup(i,k)=qcup*fice                                    ! qf,up after redistribution
-              qrup(i,k)=0.                                           ! qr,up after redistribution
+              qrup=0.                                                ! qr,up after redistribution
+              qsup=0.                                                ! qs,up after redistribution
+              qgup=0.                                                ! qg,up after redistribution
               ! calculate buoyancy
               nn(k)  =grav*(tvup(k)-thetav(i,k))/thetav(i,k)
               ! update updraft velocity
@@ -583,12 +597,6 @@ do kcount=1,mcount
 #endif
 
         ! update reamining scalars which are not used in the iterative loop
-        crup(i,1)=cfrain(i,1)
-        do k=2,ktopmax
-          dzht=dz_hl(i,k-1)
-          ent=entfn(zz(i,k),zi(i),zz(i,1))
-          crup(i,k)=(crup(i,k-1)+dzht*ent*cfrain(i,k))/(1.+dzht*ent)
-        end do
         do j=1,naero
           arup(i,1,j)=aero(i,1,j)
           do k=2,ktopmax
@@ -628,12 +636,14 @@ do kcount=1,mcount
 
   
   ! explicit version of counter gradient terms
-  gamtl(:,:)=mflx(:,:)*(tlup(:,:)-thetal(1:ifull,:))
-  gamqv(:,:)=mflx(:,:)*(qvup(:,:)-qvg(1:ifull,:))
-  gamql(:,:)=mflx(:,:)*(qlup(:,:)-qlg(1:ifull,:))
-  gamqf(:,:)=mflx(:,:)*(qfup(:,:)-qfg(1:ifull,:))
-  gamqr(:,:)=mflx(:,:)*(qrup(:,:)-qrg(1:ifull,:))
-
+  gamtl(:,:) =mflx(:,:)*(tlup(:,:)-thetal(1:ifull,:))
+  gamqv(:,:) =mflx(:,:)*(qvup(:,:)-qvg(1:ifull,:))
+  gamql(:,:) =mflx(:,:)*(qlup(:,:)-qlg(1:ifull,:))
+  gamqf(:,:) =mflx(:,:)*(qfup(:,:)-qfg(1:ifull,:))
+  gamqr(:,:) =mflx(:,:)*(         -qrg(1:ifull,:))
+  gamqs(:,:) =mflx(:,:)*(         -qsg(1:ifull,:))
+  gamqgr(:,:)=mflx(:,:)*(         -qgrg(1:ifull,:))
+  
   
   ! calculate tke and eps at 1st level
   z_on_l=-vkar*zz(:,1)*grav*wtv0/(thetav(:,1)*max(ustar*ustar*ustar,1.E-10))
@@ -661,7 +671,9 @@ do kcount=1,mcount
   select case(buoymeth)
     case(0) ! saturated from Durran and Klemp JAS 1982 (see also WRF)
       qsatc=max(qsat,qvg(1:ifull,:))                                             ! assume qvg is saturated inside cloud
-      ff=qfg(1:ifull,:)/max(cfrac(1:ifull,:),1.E-8)                              ! inside cloud value
+      ff=qfg(1:ifull,:)/max(cfrac(1:ifull,:),1.E-8)                            &
+        +qsg(1:ifull,:)/max(cfrac(1:ifull,:),cfsnow(1:ifull,:),1.E-8)          &
+        +qgrg(1:ifull,:)/max(cfrac(1:ifull,:),cfgrap(1:ifull,:),1.E-8)           ! inside cloud value  assuming max overlap
       dd=qlg(1:ifull,:)/max(cfrac(1:ifull,:),1.E-8)                            &
         +qrg(1:ifull,:)/max(cfrac(1:ifull,:),cfrain(1:ifull,:),1.E-8)            ! inside cloud value assuming max overlap
       do k=1,kl
@@ -696,9 +708,14 @@ do kcount=1,mcount
         tbb=tbb+grav*(tqq*((gamtl(:,k)                                                                   &
             +sigkap(k)/cp*(lv*gamql(:,k)/max(cfrac(1:ifull,k),1.E-8)                                     &
                           +lv*gamqr(:,k)/max(cfrac(1:ifull,k),cfrain(1:ifull,k),1.E-8)                   &
-                          +ls*gamqf(:,k)/max(cfrac(1:ifull,k),1.E-8)))/thetac(:,k)                       &
-            +lv/cp*gamqv(:,k)/tempc(:,k))-gamqv(:,k)-(gamql(:,k)+gamqf(:,k))/max(cfrac(1:ifull,k),1.E-8) &
-               -gamqr(:,k)/max(cfrac(1:ifull,k),cfrain(1:ifull,k),1.E-8))
+                          +ls*gamqf(:,k)/max(cfrac(1:ifull,k),1.E-8)                                     &
+                          +ls*gamqs(:,k)/max(cfrac(1:ifull,k),cfsnow(1:ifull,k),1.E-8)                   &
+                          +ls*gamqgr(:,k)/max(cfrac(1:ifull,k),cfgrap(1:ifull,k),1.E-8)))/thetac(:,k)    &
+            +lv/cp*gamqv(:,k)/tempc(:,k))                                                                &
+            -gamqv(:,k)-(gamql(:,k)+gamqf(:,k))/max(cfrac(1:ifull,k),1.E-8)                              &
+            -gamqr(:,k)/max(cfrac(1:ifull,k),cfrain(1:ifull,k),1.E-8)                                    &
+            -gamqs(:,k)/max(cfrac(1:ifull,k),cfsnow(1:ifull,k),1.E-8)                                    &
+            -gamqgr(:,k)/max(cfrac(1:ifull,k),cfrain(1:ifull,k),1.E-8))
         ! unsaturated
         tcc=-grav*km(:,k)*(thetalhl(:,k)-thetalhl(:,k-1)+thetal(1:ifull,k)*0.61*(quhl(:,k)-quhl(:,k-1))) &
                          /(thetal(1:ifull,k)*dz_fl(:,k))
@@ -714,12 +731,13 @@ do kcount=1,mcount
         rvar=rd*tempv/temp(1:ifull,k) ! rvar = qd*rd+qv*rv
         fc=(1.-cfrac(1:ifull,k))+cfrac(1:ifull,k)*(lv*rvar/(cp*rv*temp(1:ifull,k)))
         dc=(1.+0.61*qvg(1:ifull,k))*lv*qvg(1:ifull,k)/(rd*tempv)
-        mc=(1.+dc)/(1.+(lv*(qlg(1:ifull,k)+qrg(1:ifull,k))+ls*qfg(1:ifull,k))/(cp*temp(1:ifull,k))+dc*fc)
+        mc=(1.+dc)/(1.+(lv*(qlg(1:ifull,k)+qrg(1:ifull,k))+ls*(qfg(1:ifull,k)                &
+           +qsg(1:ifull,k)+qgrg(1:ifull,k)))/(cp*temp(1:ifull,k))+dc*fc)
         bvf=grav*mc*(thetalhl(:,k)-thetalhl(:,k-1))/(thetal(1:ifull,k)*dz_fl(:,k))           &
            +grav*(mc*fc*1.61-1.)*(temp(1:ifull,k)/tempv)*(qthl(:,k)-qthl(:,k-1))/dz_fl(:,k)
         tcc=-grav*mc*gamtl(:,k)/thetal(1:ifull,k)                                            &
-                -grav*(mc*fc*1.61-1.)*(temp(1:ifull,k)/tempv)                                &
-                     *(gamqv(:,k)+gamql(:,k)+gamqf(:,k)+gamqr(:,k))
+            -grav*(mc*fc*1.61-1.)*(temp(1:ifull,k)/tempv)                                    &
+                 *(gamqv(:,k)+gamql(:,k)+gamqf(:,k)+gamqr(:,k)+gamqs(:,k)+gamqgr(:,k))
         ppb(:,k)=-km(:,k)*bvf-tcc
       end do
       
@@ -727,8 +745,10 @@ do kcount=1,mcount
       call updatekmo(thetavhl,thetav,fzzh)
       do k=2,kl-1
         tcc=-grav*km(:,k)*(thetavhl(:,k)-thetavhl(:,k-1))/(thetav(:,k)*dz_fl(:,k))
-        tcc=tcc+grav*(gamtl(:,k)+sigkap(k)/cp*(lv*(gamql(:,k)+gamqr(:,k))+ls*gamqf(:,k)))/thetav(:,k)
-        tcc=tcc+grav*(theta(1:ifull,k)*(0.61*gamqv(:,k)-gamql(:,k)-gamqf(:,k)-gamqr(:,k)))/thetav(:,k)
+        tcc=tcc+grav*(gamtl(:,k)+sigkap(k)/cp*(lv*(gamql(:,k)+gamqr(:,k))                &
+            +ls*(gamqf(:,k)+gamqs(:,k)+gamqgr(:,k))))/thetav(:,k)
+        tcc=tcc+grav*(theta(1:ifull,k)*(0.61*gamqv(:,k)-gamql(:,k)-gamqf(:,k)-gamqr(:,k) &
+            -gamqs(:,k)-gamqgr(:,k)))/thetav(:,k)
         ppb(:,k)=tcc
       end do
       
@@ -873,31 +893,37 @@ do kcount=1,mcount
                  +mflx(:,2:kl)*(qfup(:,2:kl)-qfg(:,2:kl))*fzzh(:,1:kl-1)
 #endif
 
-  dd(:,1)=qrg(1:ifull,1)-ddts*(mflx(:,1)*qrup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                      &
-                              +mflx(:,2)*qrup(:,2)*fzzh(:,1)*idzp(:,1))
-  dd(:,2:kl-1)=qrg(1:ifull,2:kl-1)+ddts*(mflx(:,1:kl-2)*qrup(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)        &
-                                        +mflx(:,2:kl-1)*qrup(:,2:kl-1)*fzzh(:,1:kl-2)*idzm(:,2:kl-1)             &
-                                        -mflx(:,2:kl-1)*qrup(:,2:kl-1)*(1.-fzzh(:,2:kl-1))*idzp(:,2:kl-1)        &
-                                        -mflx(:,3:kl)*qrup(:,3:kl)*fzzh(:,2:kl-1)*idzp(:,2:kl-1))
-  dd(:,kl)=qrg(1:ifull,kl)+ddts*(mflx(:,kl-1)*qrup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                          &
-                                +mflx(:,kl)*qrup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
+  dd(:,1:kl)=qrg(1:ifull,1:kl)
   call thomas(qrg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
+
+  dd(:,1:kl)=qsg(1:ifull,1:kl)
+  call thomas(qsg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
+
+  dd(:,1:kl)=qgrg(1:ifull,1:kl)
+  call thomas(qgrg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))  
   
   ! account for phase transitions
   do k=1,kl
-    tgg=max(qvg(1:ifull,k)+qlg(1:ifull,k)+qfg(1:ifull,k)+qrg(1:ifull,k),qgmin) ! qtot before phase transition
+    tgg=max(qvg(1:ifull,k)+qlg(1:ifull,k)+qfg(1:ifull,k)+qrg(1:ifull,k) &
+        +qsg(1:ifull,k)+qgrg(1:ifull,k),qgmin)                            ! qtot before phase transition
     qvg(1:ifull,k)=max(qvg(1:ifull,k),0.)    
     qlg(1:ifull,k)=max(qlg(1:ifull,k),0.)
     qfg(1:ifull,k)=max(qfg(1:ifull,k),0.)
     qrg(1:ifull,k)=max(qrg(1:ifull,k),0.)
-    tff=max(qvg(1:ifull,k)+qlg(1:ifull,k)+qfg(1:ifull,k)+qrg(1:ifull,k),qgmin)
+    qsg(1:ifull,k)=max(qsg(1:ifull,k),0.)
+    qgrg(1:ifull,k)=max(qgrg(1:ifull,k),0.)
+    tff=max(qvg(1:ifull,k)+qlg(1:ifull,k)+qfg(1:ifull,k)+qrg(1:ifull,k) &
+        +qsg(1:ifull,k)+qgrg(1:ifull,k),qgmin)
     tgg=tgg/tff ! scale factor for conservation
     qvg(1:ifull,k)=qvg(1:ifull,k)*tgg
     qlg(1:ifull,k)=qlg(1:ifull,k)*tgg
     qfg(1:ifull,k)=qfg(1:ifull,k)*tgg
     qrg(1:ifull,k)=qrg(1:ifull,k)*tgg
+    qsg(1:ifull,k)=qsg(1:ifull,k)*tgg
+    qgrg(1:ifull,k)=qgrg(1:ifull,k)*tgg
     ! update theta for output or next time step
-    theta(1:ifull,k)=thetal(:,k)+sigkap(k)*(lv*(qlg(1:ifull,k)+qrg(1:ifull,k))+ls*qfg(1:ifull,k))/cp
+    theta(1:ifull,k)=thetal(:,k)+sigkap(k)*(lv*(qlg(1:ifull,k)+qrg(1:ifull,k)) &
+                    +ls*(qfg(1:ifull,k)+qsg(1:ifull,k)+qgrg(1:ifull,k)))/cp
   end do
 
   ! update cloud fraction terms
@@ -915,19 +941,26 @@ do kcount=1,mcount
     cfrac(1:ifull,:)=max(cfrac(1:ifull,:),1.E-8)
   end where
 
-  dd(:,1)=cfrain(1:ifull,1)-ddts*(mflx(:,1)*crup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                   &
-                                 +mflx(:,2)*crup(:,2)*fzzh(:,1)*idzp(:,1))
-  dd(:,2:kl-1)=cfrain(1:ifull,2:kl-1)+ddts*(mflx(:,1:kl-2)*crup(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)     &
-                                           +mflx(:,2:kl-1)*crup(:,2:kl-1)*fzzh(:,1:kl-2)*idzm(:,2:kl-1)          &
-                                           -mflx(:,2:kl-1)*crup(:,2:kl-1)*(1.-fzzh(:,2:kl-1))*idzp(:,2:kl-1)     &
-                                           -mflx(:,3:kl)*crup(:,3:kl)*fzzh(:,2:kl-1)*idzp(:,2:kl-1))
-  dd(:,kl)=cfrain(1:ifull,kl)+ddts*(mflx(:,kl-1)*crup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                       &
-                                   +mflx(:,kl)*crup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
+  dd(:,1:kl)=cfrain(1:ifull,1:kl)
   call thomas(cfrain,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
   cfrain(1:ifull,:)=min(max(cfrain(1:ifull,:),0.),1.)
   where (qrg(1:ifull,:)>1.E-12)
     cfrain(1:ifull,:)=max(cfrain(1:ifull,:),1.E-8)
   end where
+
+  dd(:,1:kl)=cfsnow(1:ifull,1:kl)
+  call thomas(cfsnow,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
+  cfsnow(1:ifull,:)=min(max(cfsnow(1:ifull,:),0.),1.)
+  where (qsg(1:ifull,:)>1.E-12)
+    cfsnow(1:ifull,:)=max(cfsnow(1:ifull,:),1.E-8)
+  end where  
+
+  dd(:,1:kl)=cfgrap(1:ifull,1:kl)
+  call thomas(cfgrap,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl))
+  cfgrap(1:ifull,:)=min(max(cfgrap(1:ifull,:),0.),1.)
+  where (qgrg(1:ifull,:)>1.E-12)
+    cfgrap(1:ifull,:)=max(cfgrap(1:ifull,:),1.E-8)
+  end where    
   
   ! Aerosols
   do j=1,naero

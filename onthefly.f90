@@ -36,7 +36,7 @@
 module onthefly_m
     
 implicit none
-    
+
 private
 public onthefly, retopo
     
@@ -44,6 +44,7 @@ integer, parameter :: nord = 3        ! 1 for bilinear, 3 for bicubic interpolat
 integer, save :: ik, jk, kk, ok, nsibx
 integer dk
 integer, dimension(:,:), allocatable, save :: nface4
+integer, dimension(0:5), save :: comm_face
 real, save :: rlong0x, rlat0x, schmidtx
 real, dimension(3,3), save :: rotpoles, rotpole
 real, dimension(:,:), allocatable, save :: xg4, yg4
@@ -51,6 +52,7 @@ real, dimension(:), allocatable, save :: axs_a, ays_a, azs_a
 real, dimension(:), allocatable, save :: bxs_a, bys_a, bzs_a
 real, dimension(:), allocatable, save :: sigin
 logical iotest, newfile
+logical, dimension(0:5), save :: nfacereq = .false.
     
 contains
 
@@ -58,7 +60,7 @@ contains
 ! Main interface for input data that reads grid metadata
     
 subroutine onthefly(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice,snowd,qfg, &
-                    qlg,qrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,ocndwn,xtgdwn)
+                    qlg,qrg,qsg,qgrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,ocndwn,xtgdwn)
 
 use aerosolldr       ! LDR prognostic aerosols
 use cc_mpi           ! CC MPI routines
@@ -88,7 +90,7 @@ real, dimension(ifull,kl,naero), intent(out) :: xtgdwn
 real, dimension(ifull,ms), intent(out) :: wb, wbice, tgg
 real, dimension(ifull,3), intent(out) :: tggsn, smass, ssdn
 real, dimension(ifull,2), intent(out) :: ocndwn
-real, dimension(:,:), intent(out) :: t, u, v, qg, qfg, qlg, qrg
+real, dimension(:,:), intent(out) :: t, u, v, qg, qfg, qlg, qrg, qsg, qgrg
 real, dimension(ifull), intent(out) :: psl, zss, tss, fracice, snowd
 real, dimension(ifull), intent(out) :: sicedep, ssdnn, snage
 real, dimension(nrhead) :: ahead
@@ -253,8 +255,8 @@ else
   dk=0  ! zero automatic array size in onthefly_work
 end if
 call onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice, &
-                   snowd,qfg,qlg,qrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,ocndwn,      &
-                   xtgdwn)
+                   snowd,qfg,qlg,qrg,qsg,qgrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,    &
+                   ocndwn,xtgdwn)
 if ( myid==0 ) write(6,*) "Leaving onthefly"
 
 call END_LOG(onthefly_end)
@@ -274,8 +276,8 @@ end subroutine onthefly
 ! memory problems when the host grid size is significantly
 ! larger than the regional grid size.
 subroutine onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice, &
-                         snowd,qfg,qlg,qrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,ocndwn,      &
-                         xtgdwn)
+                         snowd,qfg,qlg,qrg,qsg,qgrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,    &
+                         ocndwn,xtgdwn)
       
 use aerosolldr, only : ssn,naero               ! LDR aerosol scheme
 use ateb, only : atebdwn                       ! Urban
@@ -326,7 +328,7 @@ integer, intent(in) :: nested, kdate_r, ktime_r
 integer idv, isoil, nud_test
 integer levk, levkin, ier, ierr, igas
 integer nemi, id2, jd2, idjd2
-integer i, j, k, mm, iq, ii, jj, np, numneg
+integer i, j, k, mm, iq, ii, jj, np, numneg, colour
 integer, dimension(dk*dk*6) :: isoilm_a
 integer, dimension(ifull), intent(out) :: isflag
 integer, dimension(7+3*ms) :: ierc
@@ -339,7 +341,7 @@ real, dimension(ifull,kl,naero), intent(out) :: xtgdwn
 real, dimension(ifull,2), intent(out) :: ocndwn
 real, dimension(ifull,ms), intent(out) :: wb, wbice, tgg
 real, dimension(ifull,3), intent(out) :: tggsn, smass, ssdn
-real, dimension(:,:), intent(out) :: t, u, v, qg, qfg, qlg, qrg
+real, dimension(:,:), intent(out) :: t, u, v, qg, qfg, qlg, qrg, qsg, qgrg
 real, dimension(ifull), intent(out) :: psl, zss, tss, fracice
 real, dimension(ifull), intent(out) :: snowd, sicedep, ssdnn, snage
 real, dimension(ifull) :: dum6, tss_l, tss_s, pmsl
@@ -448,7 +450,30 @@ if ( newfile .and. .not.iotest ) then
                     xx4,yy4,ik)
     end do
   end do
-  deallocate(xx4,yy4)
+  deallocate(xx4,yy4)  
+  if ( any(nfacereq) ) then
+    do mm = 0,npanels
+      call ccmpi_commfree(comm_face(mm))
+    end do
+  end if
+  if ( myid==0 ) then
+    nfacereq(:) = .true. ! this is the host processor for bcast
+  else
+    nfacereq(:) = .false.
+    do mm = 0,npanels
+      if ( any(nface4(:,:)==mm) ) then
+        nfacereq(mm) = .true.
+      end if
+    end do
+  end if
+  do mm = 0,npanels
+    if ( nfacereq(mm) ) then
+      colour = 1
+    else
+      colour = -1 ! undefined
+    end if
+    call ccmpi_commsplit(comm_face(mm),comm_world,colour,myid)
+  end do
        
 end if ! newfile .and. .not.iotest
       
@@ -599,12 +624,14 @@ if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
     call fillhist4o('tgg',mlodwn(:,:,1),land_a,ocndwn(:,1))
     if ( all(mlodwn(:,:,1)==0.) ) mlodwn(:,:,1) = 293.-wrtemp
     if ( any(mlodwn(:,:,1)>100.) ) then
-      if (myid==0) then
+      if ( myid==0 ) then
         write(6,*) "Adjust input ocean data for high precision"
       end if
-      mlodwn(:,:,1) = mlodwn(:,:,1)-wrtemp ! backwards compatibility
+      where (mlodwn(:,:,1)>100.)
+        mlodwn(:,:,1) = mlodwn(:,:,1)-wrtemp ! backwards compatibility
+      end where
     else
-      if (myid==0) then
+      if ( myid==0 ) then
         write(6,*) "High precision ocean data detected"
       end if
     end if
@@ -671,7 +698,7 @@ else
         endwhere
       endif  ! (iers(3)/=0)
     endif    ! (iers(2)/=0) .. else ..    for sicedep
-         
+
     ! fill surface temperature and sea-ice
     tss_l_a = abs(tss_a)
     tss_s_a = abs(tss_a)
@@ -713,13 +740,13 @@ else
     call doints4(sicedep_a, sicedep)
 !   incorporate other target land mask effects
     where ( land(1:ifull) )
-      tss(1:ifull) = tss_l
+      tss(1:ifull) = tss_l(1:ifull)
     elsewhere
-      tss(1:ifull) = tss_s   ! no sign switch in CCAM
+      tss(1:ifull) = tss_s(1:ifull)   ! no sign switch in CCAM
     end where
-    where ( land(1:ifull) .or. sicedep<0.05 ) ! for sflux
-      sicedep = 0.
-      fracice = 0.
+    where ( land(1:ifull) .or. sicedep(1:ifull)<0.05 ) ! for sflux
+      sicedep(1:ifull) = 0.
+      fracice(1:ifull) = 0.
     end where
   end if ! iotest
 end if ! (tsstest) ..else..
@@ -1166,8 +1193,12 @@ if ( nested/=1 ) then
     call gethist4a('qfg',qfg,5)               ! CLOUD FROZEN WATER
     call gethist4a('qlg',qlg,5)               ! CLOUD LIQUID WATER
     call gethist4a('qrg',qrg,5)               ! RAIN
+    call gethist4a('qsg',qsg,5)              ! SNOW
+    call gethist4a('qgrg',qgrg,5)            ! GRAUPLE
     call gethist4a('cfrac',cfrac,5)           ! CLOUD FRACTION
     call gethist4a('rfrac',rfrac,5)           ! RAIN FRACTION
+    call gethist4a('sfrac',sfrac,5)          ! SNOW FRACTION
+    call gethist4a('gfrac',gfrac,5)          ! GRAUPLE FRACTION
     if ( ncloud>=4 ) then
       call gethist4a('stratcf',stratcloud,5)  ! STRAT CLOUD FRACTION
       call gethist4a('strat_nt',nettend,5)    ! STRAT NET TENDENCY
@@ -1333,7 +1364,7 @@ if ( myid==0 .and. nested==0 ) then
 end if
 
 return
-end subroutine onthefly_work
+                         end subroutine onthefly_work
 
 
 ! *****************************************************************************
@@ -1342,10 +1373,6 @@ end subroutine onthefly_work
 ! Main interface
 ! Note that sx is a global array for all processors
 
-! MJT notes - We only need to send sx data for panels contained in
-! nface.  Hence we could use RMA to only send the faces that are
-! needed for the interpolation.
-                         
 subroutine doints4(s,sout)
       
 use cc_mpi                 ! CC MPI routines
@@ -1355,9 +1382,10 @@ implicit none
 include 'newmpar.h'        ! Grid parameters
 include 'parm.h'           ! Model configuration
       
-integer :: iq, mm, n, i
-integer :: n_n, n_e, n_w, n_s, np1, nm1
-integer :: ik2
+integer iq, mm, n, i
+integer n_n, n_e, n_w, n_s, np1, nm1, ik2
+!integer nreq
+!integer, dimension(6) :: breq
 real, dimension(6*dk*dk), intent(in) :: s
 real, dimension(ifull), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
@@ -1432,14 +1460,23 @@ if ( dk>0 ) then
   !         (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
 end if
 
-call ccmpi_bcast(sx,0,comm_world)
-  
-if ( nord==1 ) then ! bilinear
-  do mm=1,m_fly     !  was 4, now may be 1
+! send each face of the host dataset to processors that require it
+!nreq = 0
+do mm = 0,npanels
+  if ( nfacereq(mm) ) then
+    !nreq = nreq + 1
+    !call ccmpi_ibcast(sx(:,:,mm),0,comm_face(mm),breq(nreq))
+    call ccmpi_bcast(sx(:,:,mm),0,comm_face(mm))
+  end if
+end do
+!call ccmpi_waitall(nreq,breq(1:nreq))
+
+if ( nord==1 ) then   ! bilinear
+  do mm = 1,m_fly     !  was 4, now may be 1
     call ints_blb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
   end do
-else                ! bicubic
-  do mm=1,m_fly  !  was 4, now may be 1
+else                  ! bicubic
+  do mm = 1,m_fly     !  was 4, now may be 1
     call intsb(sx,wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
   end do
 end if   ! (nord==1)  .. else ..

@@ -68,11 +68,10 @@ real, dimension(:), allocatable, save :: alfn,alfu,alfv
 real, dimension(ifull+iextra,kl) :: p,cc,dd,pe
 real, dimension(ifull,kl) :: omgfnl,wrk1,wrk2,wrk3,wrk4
 real, dimension(ifull,kl) :: helm,rhsl,omgf,d,e
-real, dimension(ifull+iextra,kl,4) :: dums
-real, dimension(ifull,kl,4) :: dumssav
+real, dimension(ifull+iextra,kl,6) :: dums
+real, dimension(ifull,kl,6) :: dumssav
 real, dimension(ifull) :: ps_sav,pslxint,pslsav
 real, dimension(ifull) :: sdmx,delps,bb
-real, dimension(3) :: delarr, delarr_l
 real hdt, hdtds, sumx, qgminm, ratio, sumdiffb, alph_g
 real alph_p, alph_pm, delneg, delpos, delnegk, delposk, alph_q
 real sumdiffb_l  ! Local versions
@@ -552,21 +551,36 @@ if (nmaxpr==1) call maxmin(dpsdt,'dp',ktau,.01,1)
 if ( mfix_qg/=0 .and. mspec==1 .and. ldr/=0) then
   cfrac=min(max(cfrac,0.),1.)
   rfrac=min(max(rfrac,0.),1.)
+  sfrac=min(max(sfrac,0.),1.)
+  gfrac=min(max(gfrac,0.),1.)
         
   dums(1:ifull,:,1)=max(qg(1:ifull,:),qgmin-qfg(1:ifull,:)-qlg(1:ifull,:),0.)
   dums(1:ifull,:,2)=max(qfg(1:ifull,:),0.)
   dums(1:ifull,:,3)=max(qlg(1:ifull,:),0.)
   dums(1:ifull,:,4)=max(qrg(1:ifull,:),0.)
-  dumssav(:,:,1)=qgsav
-  dumssav(:,:,2)=qfgsav
-  dumssav(:,:,3)=qlgsav
-  dumssav(:,:,4)=qrgsav
-  llim(1:4)=(/ .false., .true., .true., .true. /)
-  call massfix(mfix_qg,4,dums,dumssav,ps,ps_sav,llim)
-  qg(1:ifull,:) =dums(1:ifull,:,1)
-  qfg(1:ifull,:)=dums(1:ifull,:,2)
-  qlg(1:ifull,:)=dums(1:ifull,:,3)
-  qrg(1:ifull,:)=dums(1:ifull,:,4)
+  dums(1:ifull,:,5)=max(qsg(1:ifull,:),0.)
+  dums(1:ifull,:,6)=max(qgrg(1:ifull,:),0.)
+  dumssav(:,:,1)=qgsav(:,:)
+  dumssav(:,:,2)=qfgsav(:,:)
+  dumssav(:,:,3)=qlgsav(:,:)
+  dumssav(:,:,4)=qrgsav(:,:)
+  dumssav(:,:,5)=qsgsav(:,:)
+  dumssav(:,:,6)=qgrgsav(:,:)
+  llim(1:6)=(/ .false., .true., .true., .true., .true., .true. /)
+  if ( ncloud>=3 ) then
+    ntot=6
+  else if ( ncloud>=2 ) then
+    ntot=4
+  else
+    ntot=3  
+  end if
+  call massfix(mfix_qg,ntot,dums(:,:,1:ntot),dumssav(:,:,1:ntot),ps,ps_sav,llim(1:ntot))
+  qg(1:ifull,:)  =dums(1:ifull,:,1)
+  qfg(1:ifull,:) =dums(1:ifull,:,2)
+  qlg(1:ifull,:) =dums(1:ifull,:,3)
+  qrg(1:ifull,:) =dums(1:ifull,:,4)
+  qsg(1:ifull,:) =dums(1:ifull,:,5)
+  qgrg(1:ifull,:)=dums(1:ifull,:,6)
 
 else if ( mfix_qg/=0 .and. mspec==1 ) then
   dums(1:ifull,:,1)=max(qg(1:ifull,:),qgmin-qfg(1:ifull,:)-qlg(1:ifull,:),0.)

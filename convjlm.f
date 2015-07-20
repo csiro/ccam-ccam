@@ -1742,7 +1742,7 @@ c         if(fluxv(iq,k)>1.)fluxtot(iq,k)=fluxtot(iq,k)+
           end do
         else
           do k=1,kl              
-           do iq=1,ifullw
+           do iq=1,ifull
             if(tt(iq,k)<253.16)then   ! i.e. -20C
               qfg(iq,k)=qfg(iq,k)+qliqw(iq,k)
               tt(iq,k)=tt(iq,k)+3.35e5*qliqw(iq,k)/cp   ! fusion heating
@@ -1800,6 +1800,7 @@ c         if(fluxv(iq,k)>1.)fluxtot(iq,k)=fluxtot(iq,k)+
 !    N.B. condx used to update rnd03,...,rnd24. LS added in leoncld.f       
       condx(1:ifull)=condc(1:ifull)+.001*dt*rnrt(1:ifull) ! total precip for this timestep
       conds(:)=0.   ! (:) here for easy use in VCAM
+      condg(:)=0.   ! (:) here for easy use in VCAM
       precip(1:ifull)=precip(1:ifull)+condx(1:ifull)
       t(1:ifull,:)=tt(1:ifull,:)             
 

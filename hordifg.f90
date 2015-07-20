@@ -418,22 +418,71 @@ if ( nhorps/=-2 ) then   ! for nhorps=-2 don't diffuse T, qg or cloud
   endif  ! (nhorps/=-3) ..else..
   
   ! cloud microphysics
-  if ( ldr/=0 .and. ncloud/=0 .and. nhorps==-4 ) then
+  if ( ldr/=0 .and. nhorps==-4 ) then
     ff(1:ifull,:,1)=qlg(1:ifull,:)
     ff(1:ifull,:,2)=qfg(1:ifull,:)
-    ff(1:ifull,:,3)=qrg(1:ifull,:)
-    ff(1:ifull,:,4)=rfrac(1:ifull,:)
-    if ( ncloud>=4 ) then
-      ff(1:ifull,:,5)=stratcloud(1:ifull,:)
-      call bounds(ff(:,:,1:5))
-      stratcloud(1:ifull,:) = ( ff(1:ifull,:,5)*emi(1:ifull,:) +  &
-               xfact(1:ifull,:)*ff(ie,:,5) +                      &
-               xfact_iwu(1:ifull,:)*ff(iw,:,5) +                  &
-               yfact(1:ifull,:)*ff(in,:,5) +                      &
-               yfact_isv(1:ifull,:)*ff(is,:,5) ) /                &
-              base(1:ifull,:)
+    if ( ncloud>=2 ) then
+      ff(1:ifull,:,3)=qrg(1:ifull,:)
+      ff(1:ifull,:,4)=rfrac(1:ifull,:)    
+      if ( ncloud>=3 ) then
+        ff(1:ifull,:,5)=qsg(1:ifull,:)
+        ff(1:ifull,:,6)=qgrg(1:ifull,:)
+        ff(1:ifull,:,7)=sfrac(1:ifull,:)
+        ff(1:ifull,:,8)=gfrac(1:ifull,:)
+        if ( ncloud>=4 ) then
+          ff(1:ifull,:,9)=stratcloud(1:ifull,:)
+          call bounds(ff(:,:,1:9))
+          stratcloud(1:ifull,:) = ( ff(1:ifull,:,9)*emi(1:ifull,:) +  &
+                   xfact(1:ifull,:)*ff(ie,:,9) +                      &
+                   xfact_iwu(1:ifull,:)*ff(iw,:,9) +                  &
+                   yfact(1:ifull,:)*ff(in,:,9) +                      &
+                   yfact_isv(1:ifull,:)*ff(is,:,9) ) /                &
+                  base(1:ifull,:)
+        else
+          ! MJT notes - cfrac is not advected as it will be diagnosed later in leoncld.f90
+          call bounds(ff(:,:,1:8))
+        end if
+        qsg(1:ifull,:) = ( ff(1:ifull,:,5)*emi(1:ifull,:) +    &
+               xfact(1:ifull,:)*ff(ie,:,5) +                   &
+               xfact_iwu(1:ifull,:)*ff(iw,:,5) +               &
+               yfact(1:ifull,:)*ff(in,:,5) +                   &
+               yfact_isv(1:ifull,:)*ff(is,:,5) ) /             &
+               base(1:ifull,:)
+        qgrg(1:ifull,:) = ( ff(1:ifull,:,6)*emi(1:ifull,:) +   &
+               xfact(1:ifull,:)*ff(ie,:,6) +                   &
+               xfact_iwu(1:ifull,:)*ff(iw,:,6) +               &
+               yfact(1:ifull,:)*ff(in,:,6) +                   &
+               yfact_isv(1:ifull,:)*ff(is,:,6) ) /             &
+               base(1:ifull,:)
+        sfrac(1:ifull,:) = ( ff(1:ifull,:,7)*emi(1:ifull,:) +  &
+               xfact(1:ifull,:)*ff(ie,:,7) +                   &
+               xfact_iwu(1:ifull,:)*ff(iw,:,7) +               &
+               yfact(1:ifull,:)*ff(in,:,7) +                   &
+               yfact_isv(1:ifull,:)*ff(is,:,7) ) /             &
+               base(1:ifull,:)
+        gfrac(1:ifull,:) = ( ff(1:ifull,:,8)*emi(1:ifull,:) +  &
+               xfact(1:ifull,:)*ff(ie,:,8) +                   &
+               xfact_iwu(1:ifull,:)*ff(iw,:,8) +               &
+               yfact(1:ifull,:)*ff(in,:,8) +                   &
+               yfact_isv(1:ifull,:)*ff(is,:,8) ) /             &
+               base(1:ifull,:)          
+      else
+        call bounds(ff(:,:,1:4))          
+      end if
+      qrg(1:ifull,:) = ( ff(1:ifull,:,3)*emi(1:ifull,:) +    &
+             xfact(1:ifull,:)*ff(ie,:,3) +                   &
+             xfact_iwu(1:ifull,:)*ff(iw,:,3) +               &
+             yfact(1:ifull,:)*ff(in,:,3) +                   &
+             yfact_isv(1:ifull,:)*ff(is,:,3) ) /             &
+             base(1:ifull,:)
+      rfrac(1:ifull,:) = ( ff(1:ifull,:,4)*emi(1:ifull,:) +  &
+             xfact(1:ifull,:)*ff(ie,:,4) +                   &
+             xfact_iwu(1:ifull,:)*ff(iw,:,4) +               &
+             yfact(1:ifull,:)*ff(in,:,4) +                   &
+             yfact_isv(1:ifull,:)*ff(is,:,4) ) /             &
+             base(1:ifull,:)
     else
-      call bounds(ff(:,:,1:4))
+      call bounds(ff(:,:,1:2))    
     end if
     qlg(1:ifull,:) = ( ff(1:ifull,:,1)*emi(1:ifull,:) +    &
            xfact(1:ifull,:)*ff(ie,:,1) +                   &
@@ -447,26 +496,12 @@ if ( nhorps/=-2 ) then   ! for nhorps=-2 don't diffuse T, qg or cloud
            yfact(1:ifull,:)*ff(in,:,2) +                   &
            yfact_isv(1:ifull,:)*ff(is,:,2) ) /             &
            base(1:ifull,:)
-    qrg(1:ifull,:) = ( ff(1:ifull,:,3)*emi(1:ifull,:) +    &
-           xfact(1:ifull,:)*ff(ie,:,3) +                   &
-           xfact_iwu(1:ifull,:)*ff(iw,:,3) +               &
-           yfact(1:ifull,:)*ff(in,:,3) +                   &
-           yfact_isv(1:ifull,:)*ff(is,:,3) ) /             &
-           base(1:ifull,:)
-    rfrac(1:ifull,:) = ( ff(1:ifull,:,4)*emi(1:ifull,:) +  &
-           xfact(1:ifull,:)*ff(ie,:,4) +                   &
-           xfact_iwu(1:ifull,:)*ff(iw,:,4) +               &
-           yfact(1:ifull,:)*ff(in,:,4) +                   &
-           yfact_isv(1:ifull,:)*ff(is,:,4) ) /             &
-           base(1:ifull,:)
-  end if                 ! (ldr/=0)
- 
-endif    ! (nhorps/=-2)
+  end if       ! (ldr/=0.and.nhorps==-4)
+end if         ! (nhorps/=-2)
 
-if (nhorps==-4) then
-
+if ( nhorps==-4 ) then
   ! apply horizontal diffusion to TKE and EPS terms
-  if (nvmix==6) then
+  if ( nvmix==6 ) then
     ff(1:ifull,:,1)=tke(1:ifull,:)
     ff(1:ifull,:,2)=eps(1:ifull,:)
     call bounds(ff(:,:,1:2))
@@ -482,10 +517,10 @@ if (nhorps==-4) then
                     yfact(1:ifull,:)*ff(in,:,2) +         &
                     yfact_isv(1:ifull,:)*ff(is,:,2) ) /   &
                   base(1:ifull,:)
-  end if
+  end if   ! (nvmix==6)
        
   ! prgnostic aerosols
-  if (abs(iaero)==2) then
+  if ( abs(iaero)==2 ) then
     ff(1:ifull,:,1:naero)=xtg(1:ifull,:,:)
     call bounds(ff(:,:,1:naero))
     do ntr=1,naero
@@ -497,10 +532,8 @@ if (nhorps==-4) then
         yfact_isv(1:ifull,:)*ff(is,:,ntr) ) /    &
         base(1:ifull,:)
     end do
-  end if
-  
-end if
-
+  end if  ! (abs(iaero)==2)  
+end if    ! (nhorps==-4)
 
 return
 end

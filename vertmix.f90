@@ -253,29 +253,47 @@ if ( nvmix/=6 ) then
     rhs=qlg(1:ifull,:)
     call trim(at,ct,rhs)       ! for qlg
     qlg(1:ifull,:)=rhs
-    if ( ncloud>0 ) then
+    if ( ncloud>=2 ) then
       ! now do qrg
       rhs=qrg(1:ifull,:)
       call trim(at,ct,rhs)      ! for qrg
       qrg(1:ifull,:)=rhs
-      ! now do rfrac
-      rhs=rfrac(1:ifull,:)
-      call trim(at,ct,rhs)      ! for rfrac
-      rfrac(1:ifull,:)=min(max(rhs,0.),1.)
-      if ( ncloud>=4 ) then
-        ! now do cldfrac
-        rhs=stratcloud(1:ifull,:)
-        call trim(at,ct,rhs)    ! for cldfrac
-        stratcloud(1:ifull,:)=rhs
-        call combinecloudfrac
-      else
-        ! now do cfrac
-        rhs=cfrac(1:ifull,:)
-        call trim(at,ct,rhs)    ! for cfrac
-        cfrac(1:ifull,:)=rhs
-      end if
-    end if
-  end if    ! (ldr/=0)
+      if ( ncloud>=3 ) then
+        ! now do qsg
+        rhs=qsg(1:ifull,:)
+        call trim(at,ct,rhs)      ! for qsg
+        qsg(1:ifull,:)=rhs
+        ! now do qgrg
+        rhs=qgrg(1:ifull,:)
+        call trim(at,ct,rhs)      ! for qgrg
+        qgrg(1:ifull,:)=rhs
+        ! now do rfrac
+        rhs=rfrac(1:ifull,:)
+        call trim(at,ct,rhs)      ! for rfrac
+        rfrac(1:ifull,:)=min(max(rhs,0.),1.)
+        ! now do sfrac
+        rhs=sfrac(1:ifull,:)
+        call trim(at,ct,rhs)      ! for sfrac
+        sfrac(1:ifull,:)=min(max(rhs,0.),1.)
+        ! now do gfrac
+        rhs=gfrac(1:ifull,:)
+        call trim(at,ct,rhs)      ! for gfrac
+        gfrac(1:ifull,:)=min(max(rhs,0.),1.)
+        if ( ncloud>=4 ) then
+          ! now do cldfrac
+          rhs=stratcloud(1:ifull,:)
+          call trim(at,ct,rhs)    ! for cldfrac
+          stratcloud(1:ifull,:)=rhs
+          call combinecloudfrac
+        else
+          ! now do cfrac
+          rhs=cfrac(1:ifull,:)
+          call trim(at,ct,rhs)    ! for cfrac
+          cfrac(1:ifull,:)=rhs
+        end if  ! (ncloud>=4)
+      end if    ! (ncloud>=3)
+    end if      ! (ncloud>=2)
+  end if        ! (ldr/=0)
       
   !--------------------------------------------------------------
   ! Aerosols
@@ -386,10 +404,12 @@ else
   ! Evaluate EDMF scheme
   select case(nlocal)
     case(0) ! no counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,qrg,cldtmp,rfrac,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg)
+      call tkemix(rkm,rhs,qg,qlg,qfg,qrg,qsg,qgrg,cldtmp,rfrac,sfrac,gfrac,u,v, &
+                  pblh,fg,eg,ps,zo,zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg)
       rkh=rkm
     case(1,2,3,4,5,6) ! KCN counter gradient method
-      call tkemix(rkm,rhs,qg,qlg,qfg,qrg,cldtmp,rfrac,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg)
+      call tkemix(rkm,rhs,qg,qlg,qfg,qrg,qsg,qgrg,cldtmp,rfrac,sfrac,gfrac,u,v, &
+                  pblh,fg,eg,ps,zo,zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg)
       rkh=rkm
       do k=1,kl
         uav(1:ifull,k)=av_vmod*u(1:ifull,k)+(1.-av_vmod)*(savu(1:ifull,k)-ou)
@@ -397,7 +417,8 @@ else
       end do
       call pbldif(rhs,rkh,rkm,uav,vav)
     case(7) ! mass-flux counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,qrg,cldtmp,rfrac,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,dt,qgmin,0,0,tnaero,xtg)
+      call tkemix(rkm,rhs,qg,qlg,qfg,qrg,qsg,qgrg,cldtmp,rfrac,sfrac,gfrac,u,v, &
+                  pblh,fg,eg,ps,zo,zg,zh,sig,rhos,dt,qgmin,0,0,tnaero,xtg)
       rkh=rkm
     case DEFAULT
       write(6,*) "ERROR: Unknown nlocal option for nvmix=6"

@@ -95,11 +95,12 @@ real, dimension(:), allocatable, save :: psla,pslb,tssa,tssb
 real, dimension(:), allocatable, save :: sicedepb,fraciceb
 real, dimension(:,:,:), allocatable, save :: sssa,sssb
 real, dimension(:,:,:), allocatable, save :: xtghosta,xtghostb
-real, dimension(ifull) :: zsb,duma,timelt
+real, dimension(ifull) :: zsb,timelt
+real, dimension(ifull,3) :: duma
 real, dimension(ifull,wlev,4) :: dumaa
-real, dimension(ifull,ms) :: dumg
-real, dimension(ifull,kl) :: dumv
-real, dimension(ifull,3) :: dums
+real, dimension(ifull,ms,3) :: dumg
+real, dimension(ifull,kl,5) :: dumv
+real, dimension(ifull,3,3) :: dums
 character(len=12) dimnam
       
 !     mtimer, mtimeb are in minutes
@@ -206,8 +207,11 @@ if(mtimer>mtimeb) then  ! allows for dt<1 minute
   if(abs(io_in)==1)then
     call onthefly(1,kdate_r,ktime_r,                            &
                   pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,  &
-                  dumg,dumg,dumg,duma,dumv,dumv,dumv,dums,dums, &
-                  dums,duma,duma,dumm,sssb,ocndep,xtghostb)
+                  dumg(:,:,1),dumg(:,:,2),dumg(:,:,3),          &
+                  duma(:,1),dumv(:,:,1),dumv(:,:,2),            &
+                  dumv(:,:,3),dumv(:,:,4),dumv(:,:,5),          &
+                  dums(:,:,1),dums(:,:,2),dums(:,:,3),          &
+                  duma(:,2),duma(:,3),dumm,sssb,ocndep,xtghostb)
   else
     write(6,*) 'ERROR: Nudging requires abs(io_in)=1'
     call ccmpi_abort(-1)
@@ -259,25 +263,25 @@ if(mtimer>mtimeb) then  ! allows for dt<1 minute
 ! in these cases redefine pslb, tb and (effectively) zsb using zs
 ! this keeps fine-mesh land mask & zs
 ! presently simplest to do whole pslb, tb (& qb) arrays
-  if(nmaxpr==1.and.mydiag)then
+  if ( nmaxpr==1 .and. mydiag ) then
     write(6,*) 'zs (idjd) :',zs(idjd)
     write(6,*) 'zsb (idjd) :',zsb(idjd)
     write (6,"('100*psl.wesn ',2p5f8.3)") psl(idjd),psl(iw(idjd)),psl(ie(idjd)),psl(is(idjd)),psl(in(idjd))
     write (6,"('ps.wesn ',-2p5f9.3)") ps(idjd),ps(iw(idjd)),ps(ie(idjd)),ps(is(idjd)),ps(in(idjd))
     write(6,*) 'pslb in(idjd) :',pslb(idjd)
     write(6,*) 'now call retopo from nestin'
-  endif
+  end if
 #endif
   call retopo(pslb,zsb,zs(1:ifull),tb,qb)
 #ifdef debug
-  if(nmaxpr==1.and.mydiag)then
+  if ( nmaxpr==1. and. mydiag ) then
     write (6,"('100*pslb.wesn ',2p5f8.3)") pslb(idjd),pslb(iw(idjd)),pslb(ie(idjd)),pslb(is(idjd)),pslb(in(idjd))
     write(6,*) 'pslb out(idjd) :',pslb(idjd)
     write(6,*) 'after pslb print; num= ',num
-  endif
+  end if
 
   ! display diagnostics      
-  if(num==0)then
+  if ( num==0 ) then
     num=1
     call printa('zs  ',zs        ,ktau,0  ,ia,ib,ja,jb,0.,.01)
     call printa('zsb ',zsb       ,ktau,0  ,ia,ib,ja,jb,0.,.01)
@@ -290,7 +294,7 @@ if(mtimer>mtimeb) then  ! allows for dt<1 minute
     call printa('v   ',v,ktau,nlv,ia,ib,ja,jb,0.,1.)
     call printa('vb  ',vb,ktau,nlv,ia,ib,ja,jb,0.,1.)
     return
-  endif   !  num==0
+  end if   !  num==0
 #endif
       
 end if ! (mtimer>mtimeb)
@@ -306,28 +310,28 @@ uu (:,:)=cona*ua(:,:)+conb*ub(:,:)
 vv (:,:)=cona*va(:,:)+conb*vb(:,:)
 
 ! calculate time interpolated tss 
-if(namip==0)then     ! namip SSTs/sea-ice take precedence
-  if (nmlo==0) then
+if ( namip==0 ) then     ! namip SSTs/sea-ice take precedence
+  if ( nmlo==0 ) then
     ! SSTs read from host model
-    where (.not.land)
+    where ( .not.land )
       tss=cona*tssa+conb*tssb
       tgg(:,1)=tss
     end where  ! (.not.land)
   else
-    if (nud_sst/=0.or.nud_sss/=0.or.nud_ouv/=0.or.nud_sfh/=0) then
+    if ( nud_sst/=0.or.nud_sss/=0.or.nud_ouv/=0.or.nud_sfh/=0 ) then
       ! nudge mlo
       dumaa=cona*sssa+conb*sssb
-      if (wl<1) then
+      if ( wl<1 ) then
         ! determine if multiple levels of ocean data exist in host
         dumbb(1)=maxval(ocndep(:,1)) ! check if 3D data exists
         call ccmpi_allreduce(dumbb(1:1),dumbb(2:2),"max",comm_world)
-        if (dumbb(2)<0.5) then
+        if ( dumbb(2)<0.5 ) then
           wl=1
         else
           wl=wlev
         end if
       end if
-      if (wl==1) then ! switch to 2D if 3D data is missing
+      if ( wl==1 ) then ! switch to 2D if 3D data is missing
         call mloexpmelt(timelt)
         timelt=min(timelt,271.2)
         dumaa(:,1,1)=(cona*tssa+conb*tssb)*(1.-fraciceb)+timelt*fraciceb
@@ -338,7 +342,7 @@ if(namip==0)then     ! namip SSTs/sea-ice take precedence
   endif ! nmlo==0 ..else..
 endif   ! namip==0
      
-if (abs(iaero)>=2.and.nud_aero/=0) then
+if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
   xtgdav(:,:,:)=cona*xtghosta(:,:,:)+conb*xtghostb(:,:,:)
 end if
      
@@ -382,28 +386,29 @@ real, dimension(:), allocatable, save :: pslb,tssb,fraciceb
 real, dimension(:), allocatable, save :: sicedepb
 real, dimension(:,:,:), allocatable, save :: sssb
 real, dimension(:,:,:), allocatable, save :: xtghostb
-real, dimension(ifull) :: zsb,duma,timelt
-real, dimension(ifull,ms) :: dumg
-real, dimension(ifull,kl) :: dumv
-real, dimension(ifull,3) :: dums
+real, dimension(ifull) :: zsb,timelt
+real, dimension(ifull,3) :: duma
+real, dimension(ifull,ms,3) :: dumg
+real, dimension(ifull,kl,5) :: dumv
+real, dimension(ifull,3,3) :: dums
  
 ! mtimer, mtimeb are in minutes
-if(ktau<100.and.myid==0)then
+if ( ktau<100 .and. myid==0 ) then
   write(6,*) 'in nestinb ktau,mtimer,mtimeb,io_in ',ktau,mtimer,mtimeb,io_in
   write(6,*) 'with kdate_s,ktime_s >= ',kdate_s,ktime_s
 end if
 
 ! Load new host data to be ready for next call to filter
-if (mtimer>mtimeb) then
+if ( mtimer>mtimeb ) then
 
   ! allocate arrays on first call     
-  if (.not.allocated(tb)) then
+  if ( .not.allocated(tb) ) then
     allocate(tb(ifull,kl),ub(ifull,kl),vb(ifull,kl),qb(ifull,kl))
     allocate(pslb(ifull),tssb(ifull),fraciceb(ifull))
     allocate(sicedepb(ifull),ocndep(ifull,2))
     allocate(sssb(ifull,wlev,4))
     allocate(xtghostb(ifull,kl,naero))
-    if (nud_uv/=9) then
+    if ( nud_uv/=9 ) then
       ! initialise arrays for 1D filter
       call specinit
     end if
@@ -411,11 +416,14 @@ if (mtimer>mtimeb) then
           
 ! following (till end of subr) reads in next bunch of data in readiness
 ! read tb etc  - for globpea, straight into tb etc
-  if (abs(io_in)==1) then
+  if ( abs(io_in)==1 ) then
     call onthefly(1,kdate_r,ktime_r,                            &
                   pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,  &
-                  dumg,dumg,dumg,duma,dumv,dumv,dumv,dums,dums, &
-                  dums,duma,duma,dumm,sssb,ocndep,xtghostb)
+                  dumg(:,:,1),dumg(:,:,2),dumg(:,:,3),          &
+                  duma(:,1),dumv(:,:,1),dumv(:,:,2),            &
+                  dumv(:,:,3),dumv(:,:,4),dumv(:,:,5),          &
+                  dums(:,:,1),dums(:,:,2),dums(:,:,3),          &
+                  duma(:,2),duma(:,3),dumm,sssb,ocndep,xtghostb)
   else
     write(6,*) 'ERROR: Scale-selective filter requires abs(io_in)=1'
     call ccmpi_abort(-1)
@@ -431,54 +439,54 @@ if (mtimer>mtimeb) then
 end if ! ((mtimer>mtimeb).or.firstcall)
 
 ! Apply filter to model data using previously loaded host data
-if ((mtimer==mtimeb).and.(mod(nint(ktau*dt),60)==0)) then
+if ( mtimer==mtimeb .and. mod(nint(ktau*dt),60)==0 ) then
 
   ! atmospheric nudging if required
-  if (nud_p/=0.or.nud_t/=0.or.nud_uv/=0.or.nud_q/=0.or.nud_aero/=0) then
+  if ( nud_p/=0.or.nud_t/=0.or.nud_uv/=0.or.nud_q/=0.or.nud_aero/=0 ) then
     pslb(:)=pslb(:)-psl(1:ifull)
     ub(:,:)=ub(:,:)-u(1:ifull,:)
     vb(:,:)=vb(:,:)-v(1:ifull,:)
     tb(:,:)=tb(:,:)-t(1:ifull,:)
     qb(:,:)=qb(:,:)-qg(1:ifull,:)
-    if (abs(iaero)>=2.and.nud_aero/=0) then
+    if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
       xtghostb(:,:,:)=xtghostb(:,:,:)-xtg(1:ifull,:,:)
     end if
     call getspecdata(pslb,ub,vb,tb,qb,xtghostb)
   end if
 
   ! specify sea-ice if not AMIP or Mixed-Layer-Ocean
-  if (namip==0) then  ! namip SSTs/sea-ice take precedence
-    if (nmlo==0) then
+  if ( namip==0 ) then  ! namip SSTs/sea-ice take precedence
+    if ( nmlo==0 ) then
       ! following sice updating code copied from nestin June '08      
       ! check whether present ice points should change to/from sice points
       sicedep(:)=sicedepb(:)  ! from Jan 06
       fracice(:)=fraciceb(:)
       ! because of new zs etc, ensure that sice is only over sea
       do iq=1,ifull
-        if(fraciceb(iq)>0.)then
+        if ( fraciceb(iq)>0. ) then
           ! N.B. if already a sice point, keep present tice (in tggsn)
-          if(fracice(iq)==0.)then
+          if ( fracice(iq)==0. ) then
             tggsn(iq,1)=min(271.2,tssb(iq),tb(iq,1)+.04*6.5) ! for 40 m lev1
-          endif  ! (fracice(iq)==0.)
-        endif  ! (fraciceb(iq)==0.)
-        if(fracice(iq)<.02)fracice(iq)=0.
-        if(land(iq))then
+          end if  ! (fracice(iq)==0.)
+        end if    ! (fraciceb(iq)==0.)
+        if ( fracice(iq)<.02 ) fracice(iq)=0.
+        if ( land(iq) ) then
           sicedep(iq)=0.
           fracice(iq)=0.
         else
-          if(fracice(iq)>0..and.sicedep(iq)==0.)then
+          if ( fracice(iq)>0. .and. sicedep(iq)==0. ) then
             ! assign to 2m in NH and 1m in SH (according to spo)
             ! do this in indata, amipdata and nestin because of onthefly
-            if(rlatt(iq)>0.)then
+            if ( rlatt(iq)>0. ) then
               sicedep(iq)=2.
             else
               sicedep(iq)=1.
-            endif ! (rlatt(iq)>0.)
-          elseif(fracice(iq)==0..and.sicedep(iq)>0.)then  ! e.g. from Mk3  
+            end if ! (rlatt(iq)>0.)
+          else if ( fracice(iq)==0. .and. sicedep(iq)>0. ) then  ! e.g. from Mk3  
             fracice(iq)=1.
-          endif  ! (fracice(iq)>0..and.sicedep(iq)==0.) .. elseif ..
-        endif    ! (land(iq))
-      enddo     ! iq loop
+          end if  ! (fracice(iq)>0..and.sicedep(iq)==0.) .. elseif ..
+        end if    ! (land(iq))
+      end do      ! iq loop
 
       ! update tss 
       where ( .not.land )

@@ -106,49 +106,57 @@ endif
 !     pslx
 call vadv_work(pslx,tfact,nits,kp,kx)
 
-if(mspec==1)then   ! advect qg and gases after preliminary step
+if ( mspec==1 ) then   ! advect qg and gases after preliminary step
 
-!      qg
- call vadv_work(qg,tfact,nits,kp,kx)
- if( diag .and. mydiag )then
-  write (6,"('qout',9f8.2/4x,9f8.2)") (1000.*qg(idjd,k),k=1,kl)
-  write (6,"('qg# ',9f8.2)") diagvals(qg(:,nlv)) 
- endif
-
- if(ldr/=0)then
-  call vadv_work(qlg,tfact,nits,kp,kx)
-  call vadv_work(qfg,tfact,nits,kp,kx)
-  call vadv_work(qrg,tfact,nits,kp,kx)
-  call vadv_work(rfrac,tfact,nits,kp,kx)
-  if ( ncloud>=4 ) then
-    call vadv_work(stratcloud,tfact,nits,kp,kx)
+  !      qg
+  call vadv_work(qg,tfact,nits,kp,kx)
+  if ( diag .and. mydiag ) then
+    write (6,"('qout',9f8.2/4x,9f8.2)") (1000.*qg(idjd,k),k=1,kl)
+    write (6,"('qg# ',9f8.2)") diagvals(qg(:,nlv)) 
   end if
-  if( diag .and. mydiag )then
-   write (6,"('lout',9f8.2/4x,9f8.2)") (1000.*qlg(idjd,k),k=1,kl)
-   write (6,"('qlg#',9f8.2)") diagvals(qlg(:,nlv)) 
-   write (6,"('fout',9f8.2/4x,9f8.2)") (1000.*qfg(idjd,k),k=1,kl)
-   write (6,"('qfg#',9f8.2)") diagvals(qfg(:,nlv)) 
-  endif
- endif      ! if(ldr.ne.0)
 
- if(nvmix==6)then
-  call vadv_work(eps,tfact,nits,kp,kx)
-  call vadv_work(tke,tfact,nits,kp,kx)
- endif      ! if(nvmix.eq.6)
+  if ( ldr/=0 ) then
+    call vadv_work(qlg,tfact,nits,kp,kx)
+    call vadv_work(qfg,tfact,nits,kp,kx)
+    if ( ncloud>=2 ) then
+      call vadv_work(qrg,tfact,nits,kp,kx)
+      call vadv_work(rfrac,tfact,nits,kp,kx)
+      if ( ncloud>=3 ) then
+        call vadv_work(qsg,tfact,nits,kp,kx)
+        call vadv_work(qgrg,tfact,nits,kp,kx)
+        call vadv_work(sfrac,tfact,nits,kp,kx)
+        call vadv_work(gfrac,tfact,nits,kp,kx)
+        if ( ncloud>=4 ) then
+          call vadv_work(stratcloud,tfact,nits,kp,kx)
+        end if
+      end if
+    end if
+    if ( diag .and. mydiag ) then
+      write (6,"('lout',9f8.2/4x,9f8.2)") (1000.*qlg(idjd,k),k=1,kl)
+      write (6,"('qlg#',9f8.2)") diagvals(qlg(:,nlv)) 
+      write (6,"('fout',9f8.2/4x,9f8.2)") (1000.*qfg(idjd,k),k=1,kl)
+      write (6,"('qfg#',9f8.2)") diagvals(qfg(:,nlv)) 
+    end if
+  end if      ! if(ldr.ne.0)
 
- if (abs(iaero)==2) then
-  do ntr=1,naero
-   call vadv_work(xtg(:,:,ntr),tfact,nits,kp,kx)
-  end do
- end if
+  if ( nvmix==6 ) then
+    call vadv_work(eps,tfact,nits,kp,kx)
+    call vadv_work(tke,tfact,nits,kp,kx)
+  end if      ! if(nvmix.eq.6)
 
- if(ngas>0.or.nextout>=4)then
-  do ntr=1,ntrac
-   call vadv_work(tr(:,:,ntr),tfact,nits,kp,kx)
-  enddo      ! ntr loop
- endif      ! (nextout>=4)
+  if (abs(iaero)==2) then
+    do ntr=1,naero
+      call vadv_work(xtg(:,:,ntr),tfact,nits,kp,kx)
+    end do
+  end if
+
+  if ( ngas>0 .or. nextout>=4 ) then
+    do ntr=1,ntrac
+      call vadv_work(tr(:,:,ntr),tfact,nits,kp,kx)
+    end do      ! ntr loop
+  end if        ! (nextout>=4)
  
-endif       ! if(mspec==1)
+end if          ! if(mspec==1)
 
 call END_LOG(vadv_end)
  

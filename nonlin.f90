@@ -90,6 +90,8 @@ if ( ldr/=0 ) then
   qfgsav(:,:)=qfg(1:ifull,:)
   qlgsav(:,:)=qlg(1:ifull,:)
   qrgsav(:,:)=qrg(1:ifull,:)
+  qsgsav(:,:)=qsg(1:ifull,:)
+  qgrgsav(:,:)=qgrg(1:ifull,:)
 endif   ! (ldr.ne.0)
       
 if (abs(iaero)==2) then

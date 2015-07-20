@@ -235,7 +235,7 @@ case(0)
         where (land(1:ifull))
           ll(:)=max(sfc(isoilm(:))-wb(:,k),0.)*1000.*zse(k)
           ll(:)=ll(:)*rate
-          ll(:)=min(tmpry(:),ll(:))
+          ll(:)=min(watbdy(1:ifull),ll(:))
           wb(:,k)=wb(:,k)+ll(:)/(1000.*zse(k))
           deltmpry(:)=deltmpry(:)-ll(:)
         end where

@@ -280,15 +280,9 @@ contains
          tmpb=speed(1:ifull,k)*wts(1:ifull)
          call drpdr_local(tmpb,tmpc(k))
       end do
-#ifdef sumdd
       tmpc_g=(0.,0.)
       call ccmpi_reduce(tmpc,tmpc_g,"sumdr",0,comm_world)
       spmean_g=real(tmpc_g)
-#else
-      spmean(1:kl)=real(tmpc(1:kl))
-      spmean_g=0.
-      call ccmpi_reduce(spmean,spmean_g,"sum",0,comm_world)
-#endif      
       spavge_g = 0.0
       do k=1,kl
          spavge_g = spavge_g-dsig(k)*spmean_g(k) ! dsig is -ve

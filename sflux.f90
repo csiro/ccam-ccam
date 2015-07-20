@@ -341,6 +341,7 @@ if (nmlo==0) then                                                               
       tpan(iq)=tpan(iq)+ga(iq)*dt/(4186.*.254*1000.)                                             ! sea
     else                                                                                         ! sea
       sno(iq)=sno(iq)+conds(iq)                                                                  ! sea
+      hail(iq)=hail(iq)+condg(iq)                                                                ! sea
     endif  ! (land(iq))                                                                          ! sea
   enddo   ! iq loop                                                                              ! sea
                                                                                                  ! sea
@@ -530,7 +531,7 @@ elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                                     
   dumsg=sgsave(:)/(1.-swrsave*albvisnir(:,1)-(1.-swrsave)*albvisnir(:,2))                        ! MLO
   dumr=-rgsave                                                                                   ! MLO
   dumx=condx/dt                                                                                  ! MLO
-  dums=conds/dt                                                                                  ! MLO
+  dums=(conds+condg)/dt                                                                          ! MLO
   where (.not.land(1:ifull))                                                                     ! MLO
     dumw=watbdy(1:ifull)/dt                                                                      ! MLO
   elsewhere                                                                                      ! MLO
@@ -575,6 +576,7 @@ elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                                     
     tpan=tgg(:,1)                                                                                ! MLO
     factch=sqrt(zo/zoh)                                                                          ! MLO
     sno=sno+conds                                                                                ! MLO
+    hail=hail+condg                                                                              ! MLO
     ! This cduv accounts for a moving surface                                                    ! MLO
     cduv=sqrt(ustar*ustar*cduv) ! cduv=cd*vmod                                                   ! MLO
     cdtq=cdtq*vmod                                                                               ! MLO
@@ -794,6 +796,7 @@ select case(nsib)                                                               
       taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                                                          ! cable
       tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                                                          ! cable
       sno(iq)=sno(iq)+conds(iq)                                                                  ! cable
+      hail(iq)=hail(iq)+condg(iq)                                                                ! cable
     enddo   ! ip=1,ipland                                                                        ! cable
     if (nmaxpr==1) then                                                                          ! cable
       if (myid==0) then                                                                          ! cable
@@ -835,7 +838,7 @@ if (nurban/=0) then                                                             
   dumsg=sgsave/(1.-swrsave*albvisnir(:,1)-(1.-swrsave)*albvisnir(:,2))                           ! urban
   dumr=-rgsave                                                                                   ! urban
   dumx=condx/dt                                                                                  ! urban
-  dums=conds/dt                                                                                  ! urban
+  dums=(conds+condg)/dt                                                                          ! urban
   call atebcalc(fg,eg,tss,wetfac,newrunoff,dt,azmin,dumsg,dumr,dumx,dums,rho,t(1:ifull,1), &     ! urban
                 qg(1:ifull,1),ps(1:ifull),uzon,vmer,vmodmin,0)                                   ! urban
   runoff=oldrunoff+newrunoff ! add new runoff after including urban                              ! urban
@@ -1268,8 +1271,8 @@ do ip=1,ipland  ! all land points in this nsib=3 loop
   f2=max(1. , .5/ max( wbav,1.e-7)) ! N.B. this is equiv to next 2 (jlm)
   f4=max(1.-.0016*(tstom(iq)-t(iq,1))**2 , .05) ! zero for delta_t=25
   airr(iq) = 1./taftfh(iq)
-  cc(iq) =min(condx(iq) , 4./(1440. *60./dt))  ! jlm speedup for 4 mm/day
-  ccs(iq)=min(conds(iq) , 4./(1440. *60./dt))
+  cc(iq) =min(condx(iq),           4./(1440. *60./dt))  ! jlm speedup for 4 mm/day
+  ccs(iq)=min(conds(iq)+condg(iq), 4./(1440. *60./dt))
   ! depth of the reservoir of water on the canopy
   rmcmax(iq) = max(0.5,srlai(iq)) * .1
   omc(iq) = cansto(iq)  ! value from previous timestep as starting guess
@@ -1310,8 +1313,8 @@ do icount=1,itnmeth     ! jlm new iteration
 
     ! precipitation reaching the ground under the canopy
     ! water interception by the canopy
-    condxg(iq)=max(condx(iq)-cc(iq) +max(0.,cansto(iq)-rmcmax(iq)),0.) ! keep
-    condsg(iq)=max(conds(iq)-ccs(iq)+max(0.,cansto(iq)-rmcmax(iq)),0.)
+    condxg(iq)=max(condx(iq)          -cc(iq) +max(0.,cansto(iq)-rmcmax(iq)),0.) ! keep
+    condsg(iq)=max(conds(iq)+condg(iq)-ccs(iq)+max(0.,cansto(iq)-rmcmax(iq)),0.)
     cansto(iq) = min( max(0.,cansto(iq)), rmcmax(iq))
     beta =      cansto(iq)/rmcmax(iq)
     Etr=rho(iq)*max(0.,qsatgf-qg(iq,1))/(airr(iq) +res(iq))  ! jlm
@@ -1371,7 +1374,7 @@ do ip=1,ipland  ! all land points in this nsib=3 loop
   if(cansto(iq)<1.e-10)cansto(iq)=0.  ! to avoid underflow 24/1/06
   if(tsigmf(iq) <= .0101) then
     condxpr(iq)=condx(iq)
-    condspr(iq)=conds(iq)
+    condspr(iq)=conds(iq)+condg(iq)
     evapfb(iq) = 0.
     evapxf(iq) = egg(iq)
     fgf(iq)  = fgg(iq)
@@ -1385,7 +1388,7 @@ do ip=1,ipland  ! all land points in this nsib=3 loop
     wb(iq,4)=wb(iq,4)-evapfb4(iq)/(zse(4)*1000.)
     wb(iq,5)=wb(iq,5)-evapfb5(iq)/(zse(5)*1000.)
     condxpr(iq)=(1.-tsigmf(iq))*condx(iq)+tsigmf(iq)*condxg(iq)
-    condspr(iq)=(1.-tsigmf(iq))*conds(iq)+tsigmf(iq)*condsg(iq)
+    condspr(iq)=(1.-tsigmf(iq))*(conds(iq)+condg(iq))+tsigmf(iq)*condsg(iq)
     if(ntest==1.and.abs(residf(iq))>10.) then
       write(6,*) 'iq,otgf(iq),tgf,delta_tx,residf ',iq,otgf(iq),tgf(iq),delta_tx(iq),residf(iq)
     end if
