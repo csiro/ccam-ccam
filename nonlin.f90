@@ -157,7 +157,10 @@ endif   ! (diag)
 ! extra qfg & qlg terms included in tv from April 04
 tv(1:ifull,:) = (.61*qg(1:ifull,:)-qfg(1:ifull,:)-qlg(1:ifull,:))*t(1:ifull,:)         ! just add-on at this stage 
 contv=(1.61-cpv/cp)/.61      ! about -.26/.61
-if(ntbar==-2.and.num==0)then
+if ( ktau==1 .and. myid==0 ) then
+  write(6,*)'in nonlin ntbar =',ntbar 
+end if
+if(ntbar==-1.or.(ntbar==-2.and.num==0))then
   tbar2d(1:ifull)=t(1:ifull,1)+contv*tv(1:ifull,1)
 else if (ntbar==0)then
   tbar2d(1:ifull)=tbar(1)

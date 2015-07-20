@@ -181,8 +181,8 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,nud_sfh,   &
     bpyear,rescrn,helmmeth,nmlo,ol,mxd,mindep,minwater,ocnsmag,   &
     ocneps,mlodiff,zomode,zoseaice,factchseaice,knh,ccycle,       &
-    kblock,nud_aero,ch_dust,zvolcemi,aeroindir,helim,fc2,alphaj,  &
-    proglai
+    kblock,nud_aero,ch_dust,zvolcemi,aeroindir,helim,fc2,         &
+    sigbot_gwd,alphaj,proglai
 ! radiation namelist
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams
 ! file namelist
@@ -201,7 +201,7 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         &
     nclddia,ncvcloud,ncvmix,nevapcc,nevapls,nkuo,nrhcrit,         &
     nstab_cld,nuvconv,rhcv,rhmois,rhsat,sigcb,sigcll,sig_ct,      &
     sigkscb,sigksct,tied_con,tied_over,tied_rh,comm,acon,bcon,    &
-    rcm,rcrit_l,rcrit_s,ncloud,nlvlmeth
+    rcm,rcrit_l,rcrit_s,ncloud
 ! boundary layer turbulence namelist
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,dtrn0,dtrc0,m0,   &
     b1,b2,buoymeth,icm1,maxdts,mintke,mineps,minl,maxl
@@ -475,8 +475,8 @@ if ( myid==0 ) then
   write(6,*)' khdif  khor   nhor   nhorps nhorjlm'
   write(6,'(i5,11i7)') khdif,khor,nhor,nhorps,nhorjlm
   write(6,*)'Vertical mixing/physics options A:'
-  write(6,*)' nvmix nlocal ncvmix lgwd   ngwd   '
-  write(6,'(i5,6i7)') nvmix,nlocal,ncvmix,lgwd,ngwd
+  write(6,*)' nvmix nlocal ncvmix  lgwd' 
+  write(6,'(i5,6i7)') nvmix,nlocal,ncvmix,lgwd
   write(6,*)'Vertical mixing/physics options B:'
   write(6,*)' be   cm0  ce0  ce1  ce2  ce3  cq'
   write(6,'(7f5.2)') be,cm0,ce0,ce1,ce2,ce3,cq
@@ -490,11 +490,11 @@ if ( myid==0 ) then
   write(6,*)'   mintke   mineps     minl     maxl'
   write(6,'(4g9.2)') mintke,mineps,minl,maxl
   write(6,*)'Gravity wave drag options:'
-  write(6,*)' helim fc2    alphaj'
-  write(6,'(2f9.2,g9.2)') helim,fc2,alphaj
+  write(6,*)' ngwd   helim     fc2  sigbot_gwd  alphaj'
+  write(6,'(i5,2x,3f8.2,f12.6)') ngwd,helim,fc2,sigbot_gwd,alphaj
   write(6,*)'Cumulus convection options A:'
   write(6,*)' nkuo  sigcb sig_ct  rhcv  rhmois rhsat convfact convtime shaltime'
-  write(6,'(i5,6f7.2,9f8.2)') nkuo,sigcb,sig_ct,rhcv,rhmois,rhsat,convfact,convtime,shaltime
+  write(6,'(i5,6f7.2,3x,9f8.2)') nkuo,sigcb,sig_ct,rhcv,rhmois,rhsat,convfact,convtime,shaltime
   write(6,*)'Cumulus convection options B:'
   write(6,*)' alflnd alfsea fldown iterconv ncvcloud nevapcc nevapls nuvconv'
   write(6,'(3f7.2,i6,i10,4i8)') alflnd,alfsea,fldown,iterconv,ncvcloud,nevapcc,nevapls,nuvconv
@@ -522,8 +522,8 @@ if ( myid==0 ) then
   write(6,*)'  ldr nclddia nstab_cld nrhcrit sigcll '
   write(6,'(i5,i6,2i9,1x,f8.2)') ldr,nclddia,nstab_cld,nrhcrit,sigcll
   write(6,*)'Cloud options B:'
-  write(6,*)'  ncloud nlvlmeth'
-  write(6,'(2i5)') ncloud,nlvlmeth
+  write(6,*)'  ncloud'
+  write(6,'(1i5)') ncloud
   write(6,*)'Soil, canopy and PBL options A:'
   write(6,*)' jalbfix nalpha nbarewet newrough nglacier nrungcm nsib  nsigmf'
   write(6,'(i5,9i8)') jalbfix,nalpha,nbarewet,newrough,nglacier,nrungcm,nsib,nsigmf
@@ -788,7 +788,7 @@ if ( kbotdav<1 .or. ktopdav>kl .or. kbotdav>ktopdav ) then
 end if
 if ( kbotu==0 ) kbotu = kbotdav
 ! identify reference level ntbar for temperature
-if ( ntbar<0 ) then
+if ( ntbar==-1 ) then
   ntbar = 1
   do while( sig(ntbar)>0.8 .and. ntbar<kl )
     ntbar = ntbar+1
@@ -850,11 +850,11 @@ if ( khor>0 ) then
   do k = kl+1-khor,kl
     hdiff(k) = 2.*hdiff(k-1)
   end do
-elseif ( khor<0 ) then
+elseif ( khor<0 ) then ! following needed +hdiff() (JLM 29/6/15)
   do k = 1,kl                    ! N.B. usually hdiff(k)=khdif*.1 
     ! increase hdiff between sigma=.15  and sigma=0., 0 to khor
     if ( sig(k)<0.15 ) then
-      hdiff(k) = .1*max(1.,(1.-sig(k)/.15)*abs(khor))
+      hdiff(k) = .1*max(1.,(1.-sig(k)/.15)*abs(khor)) +hdiff(k)
     end if
   enddo
   if ( myid==0 ) write(6,*)'khor,hdiff: ',khor,hdiff
@@ -2223,7 +2223,7 @@ data nstag/-10/,nstagu/-1/,nstagoff/0/
 ! data khdif/2/,khor/-8/,nhor/-157/,nhorps/-1/,nhorjlm/1/
 ! Vertical mixing options
 data nvmix/3/,nlocal/6/,ncvmix/0/,lgwd/0/,ngwd/-5/
-data helim/800./,fc2/1./,alphaj/1.e-6/
+data helim/800./,fc2/1./,sigbot_gwd/0./,alphaj/1.e-6/
 ! Cumulus convection options
 data nkuo/23/,sigcb/1./,sig_ct/1./,rhcv/0./,rhmois/.1/,rhsat/1./
 data convfact/1.02/,convtime/.33/,shaltime/0./
@@ -2244,7 +2244,7 @@ data nmr/0/,bpyear/0./
 data ldr/1/,nclddia/1/,nstab_cld/0/,nrhcrit/10/,sigcll/.95/ 
 data cldh_lnd/95./,cldm_lnd/85./,cldl_lnd/75./
 data cldh_sea/95./,cldm_sea/90./,cldl_sea/80./
-data ncloud/0/,nlvlmeth/0/
+data ncloud/0/
 ! Soil, canopy, PBL options
 data nbarewet/0/,newrough/0/,nglacier/1/
 data nrungcm/-1/,nsib/3/,nsigmf/1/

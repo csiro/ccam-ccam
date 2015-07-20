@@ -25,9 +25,10 @@
 !     version 1503c changes fluxv(k) to fluxv(k-1)
 !     version 1503 replace 1+entracc by fluxv()      
 !     version 1502 with preferred mbase = 4, nbase=-2
-!     unused switches: detrainx, dsig2, dsig4, rhsat, shaltime 
-!     unused switches if ksc=0:  kscmom, sigkscb, sigksct, tied_rh
-!     unused switches if nkuo=23:  rhcv, rhsat
+!     unused switches: detrainx, rhsat, shaltime 
+!     unused switches if ksc=0:  kscmom, 
+!     unused switches if nkuo=23:  rhsat
+!     following will be unused when we remove methprec=3 option: dsig2, sigkscb, sigksct, tied_rh
 !     has +ve fldownn depending on delta sigma; (-ve fldown descends from sig=.6))   
 !     nevapcc option now affects entrainment
       use aerosolldr
@@ -94,7 +95,7 @@
 !     nevapls:  turn off/on ls evap - through parm.h; 0 off, 5 newer UK
       integer kbsav_ls(ifull),kb_sav(ifull),kt_sav(ifull)
       integer kkbb(ifull),kmin(ifull)
-      integer, save :: k500,k600,k700,k900,k980,klon2
+      integer, save :: k500,k600,k700,k900,k980,klon2,komega
       integer, save :: mcontlnd,mcontsea           
       real,save :: convt_frac,tied_a,tied_b
       real, dimension(:), allocatable, save ::  timeconv,entrainn,alfin
@@ -105,7 +106,7 @@
       real, dimension(kl) :: fscav,xtgtmp
       real, dimension(kl) :: rho,ttsto,qqsto,qqold,qlsto,qlold
       real, dimension(ifull) :: conrev,alfqarr,omega,omgtst
-      real, dimension(ifull) :: convtim_deep,aa
+      real, dimension(ifull) :: convtim_deep,aa,bb
       real delq(ifull,kl),dels(ifull,kl),delu(ifull,kl)
       real delv(ifull,kl),dqsdt(ifull,kl),es(ifull,kl) 
       real fldow(ifull),fluxq(ifull)
@@ -127,43 +128,32 @@
       integer kpos(1)
       
       if (.not.allocated(upin)) then
-        select case(nlvlmeth)
-         case (0) ! default      
-          kpos=minloc(abs(sig-.98)) ! finds k value closest to sig=.98  level 2 for L18 & L27
-!          kpos=maxloc(sig,sig<.98)   Marcus suggestion
-          k980=kpos(1)
-          kpos=minloc(abs(sig-.9)) ! finds k value closest to sig=.9
-          k900=kpos(1)
-          kpos=minloc(abs(sig-.7)) ! finds k value closest to sig=.7
-          k700=kpos(1)
-          kpos=minloc(abs(sig-.6)) ! finds k value closest to sig=.6
-          k600=kpos(1)
-          k500=1
-          do while(sig(k500)>0.5)
-            k500=k500+1
-          enddo
-          k500=k500-1    ! level just below .5
-         case (1) ! Older Dec-2014
-          kpos=maxloc(sig,sig<0.98)
-          k980=kpos(1)
-          kpos=maxloc(sig,sig<=0.9)
-          k900=kpos(1)
-          kpos=minloc(abs(sig-0.7))
-          k700=kpos(1)
-          kpos=minloc(abs(sig-0.6))
-          k600=kpos(1)
-          kpos=maxloc(sig,sig<0.6)
-          k500=kpos(1)
-         case default
-           write(6,*) "ERROR: Invalid nlvlmeth ",nlvlmeth
-           call ccmpi_abort(-1)
-        end select
+        kpos=minloc(abs(sig-.98)) ! finds k value closest to sig=.98  level 2 for L18 & L27
+!        kpos=maxloc(sig,sig<.98)   Marcus suggestion
+        k980=kpos(1)
+        kpos=minloc(abs(sig-.9)) ! finds k value closest to sig=.9
+        k900=kpos(1)
+        kpos=minloc(abs(sig-.7)) ! finds k value closest to sig=.7
+        k700=kpos(1)
+        kpos=minloc(abs(sig-.6)) ! finds k value closest to sig=.6
+        k600=kpos(1)
+        komega=1
+        if(dsig4>.4)then
+          kpos=minloc(abs(sig-dsig4)) ! finds k value closest to dsig4
+          komega=kpos(1)
+        endif
+        k500=1
+        do while(sig(k500)>0.5)
+          k500=k500+1
+        enddo
+        k500=k500-1    ! level just below .5
         if (myid==0) then
           write(6,*) 'k980 ',k980,sig(k980)
           write(6,*) 'k900 ',k900,sig(k900)
           write(6,*) 'k700 ',k700,sig(k700)
           write(6,*) 'k600 ',k600,sig(k600)
           write(6,*) 'k500 ',k500,sig(k500)
+          write(6,*) 'komega',komega,sig(komega)	  
         end if
         allocate(timeconv(ifull))  ! init for ktau=1 (allocate needed for mdelay>0)
         allocate(entrainn(ifull))    ! init for ktau=1 (allocate needed for nevapcc.ne.0)
@@ -175,7 +165,7 @@
         allocate(downex(kl,kl))
         allocate(detrarr(kl,k500,kl))
         detrarr(:,:,:)=1.e20  ! in case someone uses other than methprec=0,4,5,6,7,8
-        if(methprec.ne.0.and.(methprec<3.or.methprec>9))then  !  JLMa
+        if(methprec.ne.0.and.(methprec<3.or.methprec>9))then
           write(6,*) "unsupported methprec in convjlm"
           call ccmpi_abort(-1)
         endif
@@ -398,7 +388,7 @@
       endif    ! (ktau==1)   !----------------------------------------------------------------
       
       alfqarr(:)=alfin(:)
-      omega(1:ifull)=dpsldt(1:ifull,1)
+      omega(1:ifull)=dpsldt(1:ifull,komega)
        
       ! use boundary layer height for dry convection if EDMF is selected
       if (nvmix==6.and.nlocal==7) then
@@ -589,13 +579,21 @@ c***    by defining qbass just for itn=1, convpsav does not converge as quickly 
 c***    as qbass may not be reduced by convpsav if already qs-limited    
 c***    Also entrain may slow convergence   N.B. qbass only used in next few lines
       endif  ! (itn==1)  !--------------------------------------
-      qplume(:,kl)=0. ! just for diag prints  ! JLM
-      splume(:,kl)=0. ! just for diag prints  ! JLM
+      qplume(:,kl)=0. ! just for diag prints
+      splume(:,kl)=0. ! just for diag prints
       do k=1,kl-1
        qplume(:,k)=min(alfqarr(:)*qq(:,k),qbass(:,k),   ! from Jan 08
      &         max(qs(:,k),qq(:,k)))   ! to avoid qb increasing with itn
        splume(:,k)=s(:,k)  
       enddo
+      if(nbase<=-7)then
+       do k=1,kl-1
+       do iq=1,ifull
+        if(k>kkbb(iq))qplume(iq,k)=min(alfsea*qq(iq,k), 
+     &         max(qs(iq,k),qq(iq,k)))   ! to avoid qb increasing with itn
+        enddo
+       enddo
+      endif  ! (nbase<=-7)      
       if(ktau==1.and.mydiag)then
       write(6,*) 'itn,iterconv,nuv,nuvconv ',itn,iterconv,nuv,nuvconv
       write(6,*) 'ntest,methdetr,methprec,detrain',
@@ -699,6 +697,97 @@ c     &          (splume(iq,k-1)+hl*qplume(iq,k-1))/cp,hs(iq,k)/cp,
 c     & qplume(iq,k-1),max(qs(iq,k),qq(iq,k)),qbass(iq,k-1)
         enddo    ! iq loop             
        enddo     ! ******************** k loop ****************************
+       elseif(nbase==-5)then   ! new JLMn
+         aa(:)=splume(:,1)+hl*qplume(:,1)
+         do k=2,k700+1  
+          do iq=1,ifull
+!          find tentative cloud base as peak of hplume if above PBL
+           bb(:)=splume(:,k)+hl*qplume(:,k)
+           if(bb(iq)>aa(iq))then
+              if(k>kkbb(iq))kkbb(iq)=k
+              aa(iq)=bb(iq)
+           endif
+          enddo    ! iq loop
+         enddo     ! k loop
+         do iq=1,ifull
+          k=kkbb(iq)
+          if(splume(iq,k)+hl*qplume(iq,k)>hs(iq,k+1)
+     &       .and.qplume(iq,k)>max(qs(iq,k+1),qq(iq,k+1)))then     
+             kb_sav(iq)=k
+             kt_sav(iq)=k+1
+          endif  
+        enddo    ! iq loop             
+       elseif(nbase==-6)then   ! new JLMn
+         kdown(:)=1     ! set tentatively as valid cloud bottom (not needed beyond this k loop)
+         do k=2,k700+1  
+         do iq=1,ifull
+          if(k>=kkbb(iq).and.splume(iq,k)+hl*qplume(iq,k)>hs(iq,k+1).and
+     &  .qplume(iq,k)>max(qs(iq,k+1),qq(iq,k+1)).and.kdown(iq)==1)then     
+             kb_sav(iq)=k
+             kt_sav(iq)=k+1
+             kdown(iq)=0
+          endif  
+        enddo    ! iq loop             
+       enddo     ! k loop
+      elseif(nbase==-7)then   ! new JLMn   like -6, but with omg & alf
+         kdown(:)=1     ! set tentatively as first valid cloud bottom (not needed beyond this k loop)
+         do k=2,k700+1  
+         do iq=1,ifull
+          if(k>=kkbb(iq).and.splume(iq,k)+hl*qplume(iq,k)>hs(iq,k+1).and
+     &  .qplume(iq,k)>max(qs(iq,k+1),qq(iq,k+1)).and.kdown(iq)==1
+     &  .and.dpsldt(iq,k)<0.)then     
+             kb_sav(iq)=k
+             kt_sav(iq)=k+1
+             kdown(iq)=0
+          endif  
+        enddo    ! iq loop             
+       enddo     ! k loop
+      elseif(nbase==-8)then   ! new JLMn   like -6 but with alf
+         kdown(:)=1     ! set tentatively as first valid cloud bottom (not needed beyond this k loop)
+         do k=2,k700+1  
+         do iq=1,ifull
+          if(k>=kkbb(iq).and.splume(iq,k)+hl*qplume(iq,k)>hs(iq,k+1).and
+     &  .qplume(iq,k)>max(qs(iq,k+1),qq(iq,k+1)).and.kdown(iq)==1)then
+             kb_sav(iq)=k
+             kt_sav(iq)=k+1
+             kdown(iq)=0
+          endif  
+        enddo    ! iq loop             
+       enddo     ! k loop
+       elseif(nbase==-9)then   ! new JLMn  like -5 but with alf
+         aa(:)=splume(:,1)+hl*qplume(:,1)
+         do k=2,k700+1  
+          do iq=1,ifull
+!          find tentative cloud base as peak of hplume if above PBL
+           bb(:)=splume(:,k)+hl*qplume(:,k)
+           if(bb(iq)>aa(iq))then
+              if(k>kkbb(iq))kkbb(iq)=k
+              aa(iq)=bb(iq)
+           endif
+          enddo    ! iq loop
+         enddo     ! k loop
+         do iq=1,ifull
+          k=kkbb(iq)
+          if(splume(iq,k)+hl*qplume(iq,k)>hs(iq,k+1)
+     &       .and.qplume(iq,k)>max(qs(iq,k+1),qq(iq,k+1)))then     
+             kb_sav(iq)=k
+             kt_sav(iq)=k+1
+          endif  
+        enddo    ! iq loop             
+      elseif(nbase==-10)then   ! new JLMn   like -6 but with alf (and no q>qs test)
+         kdown(:)=1     ! set tentatively as first valid cloud bottom (not needed beyond this k loop)
+         do k=2,k700+1  
+         do iq=1,ifull
+          if(k>=kkbb(iq).and.splume(iq,k)+hl*qplume(iq,k)>hs(iq,k+1).
+     &          and.kdown(iq)==1)then
+            kdown(iq)=0
+            if(qplume(iq,k)>max(qs(iq,k+1),qq(iq,k+1)))then
+             kb_sav(iq)=k
+             kt_sav(iq)=k+1
+            endif  
+         endif  
+        enddo    ! iq loop             
+       enddo     ! k loop
       else  ! for all -ve values of nbase except -1,-2,-3,-4, -12
        kdown(:)=1     ! set tentatively as valid cloud bottom (not needed beyond this k loop)
        do k=2,k700+1  ! UPwards to find first suitable cloud base 
@@ -783,30 +872,47 @@ c      detxsav(iq,kt_sav(iq))=0.
        qplume(iq,kt_sav(iq))=qplume(iq,kt_sav(iq)-1)
       enddo    ! iq loop
       
-       if(ntest>0.and.mydiag)then
+      if(ntest>0.and.mydiag)then
          print *,'before methdetr<0 part, kb_sav,kt_sav',
      &       kb_sav(idjd),kt_sav(idjd)
          write (6,"('fluxv_UP',15f6.3/(8x,15f6.3))")
      &             fluxv(idjd,1:kt_sav(idjd))
-       endif
+      endif
       if(methdetr<0)then  
 !      calculate new detrainments and modify fluxq and entrsav      
        detxsav(:,:)=0.
        aa(:)=0.  ! this aa is for detxsum
-       do k=2,kl-2  
-        do iq=1,ifull
-!          if(k>kb_sav(iq).and.qplume(iq,k)>max(qs(iq,k),qq(iq,k)))then  ! JLM max added for safety 21/4/15
+       if(methdetr==-1)then
+        do k=2,kl-2  
+         do iq=1,ifull
+!         if(k>kb_sav(iq).and.qplume(iq,k)>max(qs(iq,k),qq(iq,k)))then  ! JLM max added for safety 21/4/15
           if(k>kb_sav(iq))then  
-            if(k<=kt_sav(iq))
-     &     detxsav(iq,k)=-dsig(k)*(sigmh(kb_sav(iq)+1)-sig(k))**  ! (+ve) value at each level k 
-     &     abs(methdetr)                                     ! use methdetr=-1, -2 or -3
-            if(k<kt_sav(iq))aa(iq)=aa(iq)*(1.+entrain*dsig(k))- ! aa & entrain are -ve
+           if(k<=kt_sav(iq))
+     &     detxsav(iq,k)=-dsig(k)*(sigmh(kb_sav(iq)+1)-sig(k))  ! (+ve) value at each level k 
+           if(k<kt_sav(iq))aa(iq)=aa(iq)*(1.+entrain*dsig(k))- ! aa & entrain are -ve
      &              detxsav(iq,k)  ! flux changes at k+.5 due to modified entrainment & detrainment
 c          if(iq==idjd)print *,'k,detxsav,entrdsig,aa',
 c     &          k,detxsav(iq,k),entrain*dsig(k),aa(iq)
-         endif
-        enddo    ! iq loop
-       enddo     ! k loop
+          endif
+         enddo    ! iq loop
+        enddo     ! k loop
+       else  ! i.e. methdetr=-2 or -3                
+        do k=2,kl-2  
+         do iq=1,ifull
+!         if(k>kb_sav(iq).and.qplume(iq,k)>max(qs(iq,k),qq(iq,k)))then  ! JLM max added for safety 21/4/15
+          if(k>kb_sav(iq))then  
+           if(k<=kt_sav(iq))
+     &     detxsav(iq,k)=-dsig(k)*(sigmh(kb_sav(iq)+1)-sig(k))**  ! (+ve) value at each level k 
+     &     abs(methdetr)                ! **** use methdetr=-1, -2 or -3
+           if(k<kt_sav(iq))aa(iq)=aa(iq)*(1.+entrain*dsig(k))- ! aa & entrain are -ve
+     &              detxsav(iq,k)  ! flux changes at k+.5 due to modified entrainment & detrainment
+c          if(iq==idjd)print *,'k,detxsav,entrdsig,aa',
+c     &          k,detxsav(iq,k),entrain*dsig(k),aa(iq)
+          endif
+         enddo    ! iq loop
+        enddo     ! k loop
+       endif   !  (methdetr==-1) .. else ..
+       
        if(ntest>0.and.mydiag)then
          print *,'detxsav',detxsav(idjd,1:kt_sav(idjd))
          print *,'entrsav',entrsav(idjd,1:kt_sav(idjd))
@@ -860,7 +966,7 @@ c     &          k,detxsav(iq,k),entrain*dsig(k),aa(iq)
      &   kb_sav(idjd),kt_sav(idjd),fluxr(idjd),aa(idjd)
        else
         do iq=1,ifull
-          aa(iq)=min( 1., detrain+(1.-detrain)*( ! typical detrain is .15 for deep clouds
+          aa(iq)=min( 1., detrain+(1.-detrain)*( ! typical detrain is .1 for deep clouds
      &   (.55-min(sig(kb_sav(iq))-sig(kt_sav(iq)), .55)) /(.6-.14))**3 )  ! as for methdetr=-3 here
         enddo
        endif
@@ -882,7 +988,7 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
           rnrtcn(iq)=rnrtcn(iq)+rnrt_k
          enddo     ! iq loop
         enddo  ! k loop                        
-       else   ! standard methdetr>0 method
+       else   ! older methdetr>0 method
         do iq=1,ifull
          detxsav(iq,kt_sav(iq))=fluxv(iq,kt_sav(iq)-1)  ! also true for methdetr<0 
         enddo
