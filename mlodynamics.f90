@@ -1884,40 +1884,11 @@ call deptsync(nface,xg,yg)
 
 !======================== start of intsch=1 section ====================
 if(intsch==1)then
-
-  sx(1:ipan,1:jpan,1:npan,1:wlev,1:3) = reshape( s(1:ipan*jpan*npan,1:wlev,1:3), (/ ipan, jpan, npan, wlev, 3 /) )
-  do n=1,npan
-    do j=1,jpan
-      sx(0,j,n,:,:)      = s( iw(1+(j-1)*ipan+(n-1)*ipan*jpan),:,:)
-      sx(-1,j,n,:,:)     = s(iww(1+(j-1)*ipan+(n-1)*ipan*jpan),:,:)
-      sx(ipan+1,j,n,:,:) = s( ie(j*ipan+(n-1)*ipan*jpan),      :,:)
-      sx(ipan+2,j,n,:,:) = s(iee(j*ipan+(n-1)*ipan*jpan),      :,:)
-    end do
-    do i=1,ipan
-      sx(i,0,n,:,:)      = s( is(i+(n-1)*ipan*jpan), :,:)
-      sx(i,-1,n,:,:)     = s(iss(i+(n-1)*ipan*jpan), :,:)
-      sx(i,jpan+1,n,:,:) = s( in(i-ipan+n*ipan*jpan),:,:)
-      sx(i,jpan+2,n,:,:) = s(inn(i-ipan+n*ipan*jpan),:,:)
-    end do
-    sx(-1,0,n,:,:)          = s(lwws(n),:,:)
-    sx(0,0,n,:,:)           = s(iws(1+(n-1)*ipan*jpan),   :,:)
-    sx(0,-1,n,:,:)          = s(lwss(n),:,:)
-    sx(ipan+1,0,n,:,:)      = s(ies(ipan+(n-1)*ipan*jpan),:,:)
-    sx(ipan+2,0,n,:,:)      = s(lees(n),:,:)
-    sx(ipan+1,-1,n,:,:)     = s(less(n),:,:)
-    sx(-1,jpan+1,n,:,:)     = s(lwwn(n),:,:)
-    sx(0,jpan+2,n,:,:)      = s(lwnn(n),:,:)
-    sx(ipan+2,jpan+1,n,:,:) = s(leen(n),:,:)
-    sx(ipan+1,jpan+2,n,:,:) = s(lenn(n),:,:)
-    sx(0,jpan+1,n,:,:)      = s(iwn(1-ipan+n*ipan*jpan),  :,:)
-    sx(ipan+1,jpan+1,n,:,:) = s(ien(n*ipan*jpan),         :,:)
-  end do               ! n loop
  
-! Loop over points that need to be calculated for other processes
+  ! Loop over points that need to be calculated for other processes
   do ii=neighnum,1,-1
     do iq=1,drlen(ii)
       n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
-      !  Need global face index in fproc call
       idel = int(dpoints(ii)%a(2,iq))
       xxg = dpoints(ii)%a(2,iq) - idel
       jdel = int(dpoints(ii)%a(3,iq))
@@ -1972,12 +1943,10 @@ if(intsch==1)then
 
   do k=1,wlev
     do iq=1,ifull
-!     Convert face index from 0:npanels to array indices
       idel = int(xg(iq,k))
       xxg  = xg(iq,k) - idel
       jdel = int(yg(iq,k))
       yyg  = yg(iq,k) - jdel
-      ! Now make them proper indices in this processor's region
       idel = idel - ioff
       jdel = jdel - joff
       n = nface(iq,k) + noff ! Make this a local index
@@ -2032,39 +2001,10 @@ if(intsch==1)then
 else     ! if(intsch==1)then
 !======================== start of intsch=2 section ====================
 
-  sx(1:ipan,1:jpan,1:npan,1:wlev,1:3) = reshape( s(1:ipan*jpan*npan,1:wlev,1:3), (/ ipan, jpan, npan, wlev, 3 /) )
-  do n=1,npan
-    do j=1,jpan
-      sx(0,j,n,:,:)      = s( iw(1+(j-1)*ipan+(n-1)*ipan*jpan),:,:)
-      sx(-1,j,n,:,:)     = s(iww(1+(j-1)*ipan+(n-1)*ipan*jpan),:,:)
-      sx(ipan+1,j,n,:,:) = s( ie(j*ipan+(n-1)*ipan*jpan),      :,:)
-      sx(ipan+2,j,n,:,:) = s(iee(j*ipan+(n-1)*ipan*jpan),      :,:)
-    end do            ! j loop
-    do i=1,ipan
-      sx(i,0,n,:,:)      = s( is(i+(n-1)*ipan*jpan), :,:)
-      sx(i,-1,n,:,:)     = s(iss(i+(n-1)*ipan*jpan), :,:)
-      sx(i,jpan+1,n,:,:) = s( in(i-ipan+n*ipan*jpan),:,:)
-      sx(i,jpan+2,n,:,:) = s(inn(i-ipan+n*ipan*jpan),:,:)
-    end do            ! i loop
-    sx(-1,0,n,:,:)          = s(lsww(n),:,:)
-    sx(0,0,n,:,:)           = s(isw(1+(n-1)*ipan*jpan),   :,:)
-    sx(0,-1,n,:,:)          = s(lssw(n),:,:)
-    sx(ipan+2,0,n,:,:)      = s(lsee(n),:,:)
-    sx(ipan+1,-1,n,:,:)     = s(lsse(n),:,:)
-    sx(-1,jpan+1,n,:,:)     = s(lnww(n),:,:)
-    sx(0,jpan+1,n,:,:)      = s(inw(1-ipan+n*ipan*jpan),  :,:)
-    sx(0,jpan+2,n,:,:)      = s(lnnw(n),:,:)
-    sx(ipan+2,jpan+1,n,:,:) = s(lnee(n),:,:)
-    sx(ipan+1,jpan+2,n,:,:) = s(lnne(n),:,:)
-    sx(ipan+1,0,n,:,:)      = s(ise(ipan+(n-1)*ipan*jpan),:,:)
-    sx(ipan+1,jpan+1,n,:,:) = s(ine(n*ipan*jpan),         :,:)
- end do               ! n loop
-
-! For other processes
+  ! For other processes
   do ii=neighnum,1,-1
     do iq=1,drlen(ii)
       n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
-      !  Need global face index in fproc call
       idel = int(dpoints(ii)%a(2,iq))
       xxg = dpoints(ii)%a(2,iq) - idel
       jdel = int(dpoints(ii)%a(3,iq))
@@ -2119,7 +2059,6 @@ else     ! if(intsch==1)then
 
   do k=1,wlev
     do iq=1,ifull
-!     Convert face index from 0:npanels to array indices
       idel=int(xg(iq,k))
       xxg=xg(iq,k)-idel
       jdel=int(yg(iq,k))
@@ -4894,7 +4833,7 @@ do  jj = 1,wlev
   tempa(:) = (a(:)**3-a(:))*temph(:)
   tempb(:) = (b(:)**3-b(:))*temph(:)
   
-  do ii=1,2
+  do ii = 1,2
     rout(:,jj,ii) = a(:)*ssunpack0(:,ii)+b(:)*ssunpack1(:,ii)           & ! linear interpolation
                    +tempa(:)*y2unpack0(:,ii)+tempb(:)*y2unpack1(:,ii)     ! cubic spline terms
   end do

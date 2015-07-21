@@ -308,7 +308,7 @@ if(diag)then
     vec1y(iq) = z3d(iq,k)*x(iq) - z(iq)*x3d(iq,k)
     vec1z(iq) = x3d(iq,k)*y(iq) - x(iq)*y3d(iq,k)
     denb(iq) = vec1x(iq)**2 + vec1y(iq)**2 + vec1z(iq)**2
-    write(6,*) 'uc,vc,wc after nrot; denb = ',denb
+    write(6,*) 'uc,vc,wc after nrot; denb = ',denb(iq)
   endif
   call printa('uc  ',uc,ktau,nlv,ia,ib,ja,jb,0.,1.)
   call printa('vc  ',vc,ktau,nlv,ia,ib,ja,jb,0.,1.)

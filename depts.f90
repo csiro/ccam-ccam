@@ -292,57 +292,30 @@ endif                     ! (intsch==1) .. else ..
 
 call intssync_recv(s)
 
-do k=1,kl
+do k = 1,kl
   x3d(1:ifull,k) = x(1:ifull) - 0.5*(uc(1:ifull,k)+s(1:ifull,k,1)) ! 2nd guess
   y3d(1:ifull,k) = y(1:ifull) - 0.5*(vc(1:ifull,k)+s(1:ifull,k,2)) ! 2nd guess
   z3d(1:ifull,k) = z(1:ifull) - 0.5*(wc(1:ifull,k)+s(1:ifull,k,3)) ! 2nd guess
 end do
 
-do k=1,kl
-  call toij5 (k,x3d(:,k),y3d(:,k),z3d(:,k)) ! maybe remove k dependency
+do k = 1,kl
+  call toij5(k,x3d(:,k),y3d(:,k),z3d(:,k)) ! maybe remove k dependency
 end do
 !     Share off processor departure points.
 call deptsync(nface,xg,yg)
 
-if(diag.and.mydiag)then
+if ( diag .and. mydiag ) then
   write(6,*) '2nd guess for k = ',nlv
   write(6,*) 'x3d,y3d,z3d ',x3d(idjd,nlv),y3d(idjd,nlv),z3d(idjd,nlv)
   write(6,*) 'xg,yg,nface ',xg(idjd,nlv),yg(idjd,nlv),nface(idjd,nlv)
-endif
+end if
 
 !======================== start of intsch=1 section ====================
-if(intsch==1)then
-  sx(1:ipan,1:jpan,1:npan,1:kl,1:3) = reshape(s(1:ipan*jpan*npan,1:kl,1:3), (/ipan,jpan,npan,kl,3/))
-  do n=1,npan
-    do j=1,jpan
-      sx(0,j,n,:,:)      = s(iw(1+(j-1)*ipan+(n-1)*ipan*jpan),:,:)
-      sx(-1,j,n,:,:)     = s(iww(1+(j-1)*ipan+(n-1)*ipan*jpan),:,:)
-      sx(ipan+1,j,n,:,:) = s(ie(j*ipan+(n-1)*ipan*jpan),:,:)
-      sx(ipan+2,j,n,:,:) = s(iee(j*ipan+(n-1)*ipan*jpan),:,:)
-    end do            ! j loop
-    do i=1,ipan
-      sx(i,0,n,:,:)      = s(is(i+(n-1)*ipan*jpan),:,:)
-      sx(i,-1,n,:,:)     = s(iss(i+(n-1)*ipan*jpan),:,:)
-      sx(i,jpan+1,n,:,:) = s(in(i-ipan+n*ipan*jpan),:,:)
-      sx(i,jpan+2,n,:,:) = s(inn(i-ipan+n*ipan*jpan),:,:)
-    end do            ! i loop
-    sx(-1,0,n,:,:)          = s(lwws(n),:,:)
-    sx(0,0,n,:,:)           = s(iws(1+(n-1)*ipan*jpan),:,:)
-    sx(0,-1,n,:,:)          = s(lwss(n),:,:)
-    sx(ipan+1,0,n,:,:)      = s(ies(ipan+(n-1)*ipan*jpan),:,:)
-    sx(ipan+2,0,n,:,:)      = s(lees(n),:,:)
-    sx(ipan+1,-1,n,:,:)     = s(less(n),:,:)
-    sx(-1,jpan+1,n,:,:)     = s(lwwn(n),:,:)
-    sx(0,jpan+2,n,:,:)      = s(lwnn(n),:,:)
-    sx(ipan+2,jpan+1,n,:,:) = s(leen(n),:,:)
-    sx(ipan+1,jpan+2,n,:,:) = s(lenn(n),:,:)
-    sx(0,jpan+1,n,:,:)      = s(iwn(1-ipan+n*ipan*jpan),:,:)
-    sx(ipan+1,jpan+1,n,:,:) = s(ien(n*ipan*jpan),:,:)
-  end do              ! n loop
+if ( intsch==1 ) then
 
   ! Loop over points that need to be calculated for other processes
-  do ii=neighnum,1,-1
-    do iq=1,drlen(ii)
+  do ii = neighnum,1,-1
+    do iq = 1,drlen(ii)
       n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
       !  Need global face index in fproc call
       idel = int(dpoints(ii)%a(2,iq))
@@ -416,37 +389,9 @@ if(intsch==1)then
 else     ! if(intsch==1)then
 !======================== start of intsch=2 section ====================
 
-  sx(1:ipan,1:jpan,1:npan,1:kl,1:3) = reshape(s(1:ipan*jpan*npan,1:kl,1:3), (/ipan,jpan,npan,kl,3/))
-  do n=1,npan
-    do j=1,jpan
-      sx(0,j,n,:,:)      = s(iw(1+(j-1)*ipan+(n-1)*ipan*jpan),:,:)
-      sx(-1,j,n,:,:)     = s(iww(1+(j-1)*ipan+(n-1)*ipan*jpan),:,:)
-      sx(ipan+1,j,n,:,:) = s(ie(j*ipan+(n-1)*ipan*jpan),:,:)
-      sx(ipan+2,j,n,:,:) = s(iee(j*ipan+(n-1)*ipan*jpan),:,:)
-    end do            ! j loop
-    do i=1,ipan
-      sx(i,0,n,:,:)      = s(is(i+(n-1)*ipan*jpan),:,:)
-      sx(i,-1,n,:,:)     = s(iss(i+(n-1)*ipan*jpan),:,:)
-      sx(i,jpan+1,n,:,:) = s(in(i-ipan+n*ipan*jpan),:,:)
-      sx(i,jpan+2,n,:,:) = s(inn(i-ipan+n*ipan*jpan),:,:)
-    end do            ! i loop
-    sx(-1,0,n,:,:)          = s(lsww(n),:,:)
-    sx(0,0,n,:,:)           = s(isw(1+(n-1)*ipan*jpan),:,:)
-    sx(0,-1,n,:,:)          = s(lssw(n),:,:)
-    sx(ipan+2,0,n,:,:)      = s(lsee(n),:,:)
-    sx(ipan+1,-1,n,:,:)     = s(lsse(n),:,:)
-    sx(-1,jpan+1,n,:,:)     = s(lnww(n),:,:)
-    sx(0,jpan+1,n,:,:)      = s(inw(1-ipan+n*ipan*jpan),:,:)
-    sx(0,jpan+2,n,:,:)      = s(lnnw(n),:,:)
-    sx(ipan+2,jpan+1,n,:,:) = s(lnee(n),:,:)
-    sx(ipan+1,jpan+2,n,:,:) = s(lnne(n),:,:)
-    sx(ipan+1,0,n,:,:)      = s(ise(ipan+(n-1)*ipan*jpan),:,:)
-    sx(ipan+1,jpan+1,n,:,:) = s(ine(n*ipan*jpan),:,:)
-  end do              ! n loop
-
   ! For other processes
-  do ii=neighnum,1,-1
-    do iq=1,drlen(ii)
+  do ii = neighnum,1,-1
+    do iq = 1,drlen(ii)
       n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
       !  Need global face index in fproc call
       idel = int(dpoints(ii)%a(2,iq))
@@ -519,21 +464,21 @@ endif                     ! (intsch==1) .. else ..
 
 call intssync_recv(s)
 
-do k=1,kl
+do k = 1,kl
   x3d(1:ifull,k) = x(1:ifull) - 0.5*(uc(1:ifull,k)+s(1:ifull,k,1)) ! 3rd guess
   y3d(1:ifull,k) = y(1:ifull) - 0.5*(vc(1:ifull,k)+s(1:ifull,k,2)) ! 3rd guess
   z3d(1:ifull,k) = z(1:ifull) - 0.5*(wc(1:ifull,k)+s(1:ifull,k,3)) ! 3rd guess
 end do
 
-do k=1,kl
-  call toij5 (k,x3d(:,k),y3d(:,k),z3d(:,k)) ! maybe remove k dependency
+do k = 1,kl
+  call toij5(k,x3d(:,k),y3d(:,k),z3d(:,k)) ! maybe remove k dependency
 end do
 
-if(diag.and.mydiag)then
+if ( diag .and. mydiag ) then
   write(6,*) '3rd guess for k = ',nlv
   write(6,*) 'x3d,y3d,z3d ',x3d(idjd,nlv),y3d(idjd,nlv),z3d(idjd,nlv)
   write(6,*) 'xg,yg,nface ',xg(idjd,nlv),yg(idjd,nlv),nface(idjd,nlv)
-endif
+end if
 
 ! Share off processor departure points.
 call deptsync(nface,xg,yg)
