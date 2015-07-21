@@ -67,7 +67,6 @@ end do
 ! Share off processor departure points.
 call deptsync(nface,xg,yg)
 
-#ifdef debug
 if(diag.and.mydiag)then
   write(6,*) 'ubar,vbar ',ubar(idjd,nlv),vbar(idjd,nlv)
   write(6,*) 'uc,vc,wc ',uc(idjd,nlv),vc(idjd,nlv),wc(idjd,nlv)
@@ -77,7 +76,6 @@ if(diag.and.mydiag)then
   write(6,*) 'x3d,y3d,z3d ',x3d(idjd,nlv),y3d(idjd,nlv),z3d(idjd,nlv)
   write(6,*) 'xg,yg,nface ',xg(idjd,nlv),yg(idjd,nlv),nface(idjd,nlv)
 endif
-#endif
 
 intsch=mod(ktau,2)
 s(1:ifull,:,1) = uc(1:ifull,:)
