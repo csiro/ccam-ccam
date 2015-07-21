@@ -158,7 +158,10 @@ nvadh_pass(:)=2*nits(:) ! use - for nvadu
 call vadvtvd(tx,ux,vx,nvadh_pass,nits)
 if( (diag.or.nmaxpr==1) .and. mydiag )then
   write(6,*) 'in upglobal after vadv1'
-  write (6,"('qg  ',3p9f8.3/4x,9f8.3)")   qg(idjd,:)
+  write (6,"('tx_a',9f8.2)")   tx(idjd,:)
+  write (6,"('ux_a',9f8.3)")   ux(idjd,:)
+  write (6,"('vx_a',9f8.3)")   vx(idjd,:)
+  write (6,"('qg_a',3p9f8.3)") qg(idjd,:)
 endif
 !------------------------------------------------------------------
 
@@ -404,12 +407,18 @@ if (mod(ktau,nmaxpr)==0.and.mydiag) then
 endif
 if ( (diag.or.nmaxpr==1) .and. mydiag ) then
   write(6,*) 'in upglobal before vadv2'
-  write (6,"('qg  ',3p9f8.3/4x,9f8.3)")   qg(idjd,:)
+  write (6,"('tx_b',9f8.2)")   tx(idjd,:)
+  write (6,"('ux_b',9f8.3)")   ux(idjd,:)
+  write (6,"('vx_b',9f8.3)")   vx(idjd,:)
+  write (6,"('qg_b',3p9f8.3)") qg(idjd,:)
 endif
 call vadvtvd(tx,ux,vx,nvadh_pass,nits)
 if ( (diag.or.nmaxpr==1) .and. mydiag ) then
   write(6,*) 'in upglobal after vadv2'
-  write (6,"('qg  ',3p9f8.3/4x,9f8.3)")   qg(idjd,:)
+  write (6,"('tx_c',9f8.2)")   tx(idjd,:)
+  write (6,"('ux_c',9f8.3)")   ux(idjd,:)
+  write (6,"('vx_c',9f8.3)")   vx(idjd,:)
+  write (6,"('qg_c',3p9f8.3)") qg(idjd,:)
 endif
 
 ! adding later (after 2nd vadv) than for npex=1
