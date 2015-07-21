@@ -207,8 +207,8 @@ include 'newmpar.h'
 integer, intent(in) :: iarchi
 integer, intent(out) :: ier
 integer(kind=4), dimension(3) :: start, ncount
-integer ipf, jpmax, iptst2, lcomm, ndims
-integer(kind=4) idv
+integer ipf, jpmax, iptst2, lcomm
+integer(kind=4) idv, ndims
 real, dimension(:), intent(inout), optional :: var
 real, dimension(pil*pjl*pnpan) :: rvar
 real(kind=4) laddoff, lsf
@@ -437,8 +437,8 @@ include 'newmpar.h'
 integer, intent(in) :: iarchi, kk
 integer, intent(out) :: ier
 integer(kind=4), dimension(4) :: start, ncount
-integer ipf, jpmax, iptst2, lcomm, k, ndims
-integer(kind=4) idv
+integer ipf, jpmax, iptst2, lcomm, k
+integer(kind=4) idv, ndims
 real, dimension(:,:), intent(inout), optional :: var
 real, dimension(pil*pjl*pnpan,kk) :: rvar
 real(kind=4) laddoff, lsf
@@ -688,7 +688,8 @@ if (myid==0) then
     else  
       write(6,*) "Found parallel input file ",trim(ifile)
       fdecomp=''
-      der=nf_get_att_int(lncid,nf_global,"nproc",fnproc)
+      der=nf_get_att_int(lncid,nf_global,"nproc",lidum)
+      fnproc=lidum
       call ncmsg("nproc",der)
       der=nf_get_att_text(lncid,nf_global,"decomp",fdecomp)
       call ncmsg("decomp",der)
@@ -704,7 +705,7 @@ if (myid==0) then
       write(6,*) "Found parallel input file ",trim(ifile)
       fdecomp=''
       der=nf90_get_att(lncid,nf90_global,"nproc",lidum)
-      fnproc = lidum
+      fnproc=lidum
       call ncmsg("nproc",der)
       der=nf90_get_att(lncid,nf90_global,"decomp",fdecomp)
       call ncmsg("decomp",der)

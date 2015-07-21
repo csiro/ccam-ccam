@@ -102,13 +102,12 @@ if ( ngas>0 ) then
   trsav(:,:,:)=tr(1:ifull,:,:) ! for tr conservation in adjust5
 endif       ! (ngas>=1)
  
-#ifdef debug
 if ( diag.or.nmaxpr==1 ) then
   call bounds(ps)
   if ( mydiag ) then
     write(6,*) "qgsav ",qgsav(idjd,nlv)
     write(6,*) 'at beginning of nonlin'
-    write(6,*) 'npex,roncp ',npex,roncp
+    write(6,*) 'roncp ',roncp
     write (6,"('tn0*dt',9f8.3/6x,9f8.3)") tn(idjd,:)*dt
     write (6,"('un0*dt',9f8.3/6x,9f8.3)") un(idjd,:)*dt
     write (6,"('vn0*dt',9f8.3/6x,9f8.3)") vn(idjd,:)*dt
@@ -138,13 +137,11 @@ if ( diag.or.nmaxpr==1 ) then
     write (6,"('qg  ',3p9f8.3/4x,9f8.3)")   qg(idjd,:)
   end if
 endif
-#endif
 
 if(nhstest==1) then ! Held and Suarez test case
   call hs_phys
 endif
 
-#ifdef debug
 if (diag)then
   call printa('sdot',sdot,ktau,nlv+1,ia,ib,ja,jb,0.,10.)
   call printa('omgf',dpsldt,ktau,nlv,ia,ib,ja,jb,0.,1.e5)
@@ -152,7 +149,6 @@ if (diag)then
   if ( mydiag ) write(6,*) 'k,aa,emu,emv',nlv,aa(idjd,1),emu(idjd),emv(idjd)
   call printa('sgdf',aa(:,1),ktau,nlv,ia,ib,ja,jb,0.,10.)
 endif   ! (diag)
-#endif
 
 ! extra qfg & qlg terms included in tv from April 04
 tv(1:ifull,:) = (.61*qg(1:ifull,:)-qfg(1:ifull,:)-qlg(1:ifull,:))*t(1:ifull,:)         ! just add-on at this stage 
@@ -190,11 +186,9 @@ if (nh/=0) then
   do k=1,kl
     h_nh(1:ifull,k)=(1.+epst(:))*tbar(1)*dpsldt(:,k)/sig(k)
   enddo
-#ifdef debug
   if (nmaxpr==1) then
     if(mydiag) write(6,*) 'h_nh.a ',(h_nh(idjd,k),k=1,kl)
   end if
-#endif
   select case(nh)
     case(2) ! was -2 add in other term explicitly, more consistently
       ! N.B. nh=2 needs lapsbot=3        
@@ -238,7 +232,6 @@ if (nh/=0) then
         h_nh(1:ifull,k)=h_nh(1:ifull,k)-ddpds/(const_nh*tbar2d(:))
       end do
   end select
-#ifdef debug
   if (nmaxpr==1) then
     if (mydiag)then
       write(6,*) 'h_nh.b ',(h_nh(idjd,k),k=1,kl)
@@ -247,7 +240,6 @@ if (nh/=0) then
     endif
     call maxmin(h_nh,'h_',ktau,1.,kl)
   endif
-#endif
 else
   phi_nh=0. ! set to hydrostatic approximation
   h_nh=0.
@@ -260,7 +252,6 @@ do k=1,kl
   tx(1:ifull,k)=t(1:ifull,k) +.5*dt*(1.-epst(1:ifull))*termlin  
 enddo      ! k  loop
 
-#ifdef debug      
 if( (diag.or.nmaxpr==1) .and. mydiag )then
   iq=idjd
   k=nlv
@@ -268,7 +259,6 @@ if( (diag.or.nmaxpr==1) .and. mydiag )then
   write(6,*) 'contv,tbar2d,termlin_nlv ',contv,tbar2d(iq),tbar2d(iq)*dpsldt(iq,k)*roncp/sig(k)
   write(6,*) 'tv,tn ',tv(iq,k),tn(iq,k)
 endif
-#endif
                
 ! calculate (linearized) augmented geopotential height terms and save in p
 do k=1,kl
@@ -316,7 +306,6 @@ do k=1,kl
 enddo    ! k loop
 aa(1:ifull,:)=aa(1:ifull,:)+.5*dt*un(1:ifull,:) ! still staggered
 bb(1:ifull,:)=bb(1:ifull,:)+.5*dt*vn(1:ifull,:) ! still staggered
-#ifdef debug
 if(diag)then
   if(mydiag)then
     write(6,*) 'tv ',tv(idjd,:)
@@ -325,16 +314,13 @@ if(diag)then
     write (6,"('vn1*dt',9f8.3/6x,9f8.3)") vn(idjd,:)*dt
   endif
 endif                     ! (diag)
-#endif
 
 call unstaguv(aa,bb,ux,vx) ! convert to unstaggered positions
 
-#ifdef debug
 if(diag)then
   call printa('aa  ',aa,ktau,nlv,ia,ib,ja,jb,0.,1.)
   call printa('bb  ',bb,ktau,nlv,ia,ib,ja,jb,0.,1.)
 endif                     ! (diag)
-#endif
 
 ux(1:ifull,:)=u(1:ifull,:)+ux(1:ifull,:)
 vx(1:ifull,:)=v(1:ifull,:)+vx(1:ifull,:)
@@ -343,7 +329,6 @@ call unstaguv(un,vn,un,vn)
       
 tx(1:ifull,:) = tx(1:ifull,:) + .5*dt*tn(1:ifull,:)
 
-#ifdef debug
 if (diag)then
   if(mydiag) then
     write(6,*) 'at end of nonlin; idjd = ', idjd
@@ -365,7 +350,6 @@ if (diag)then
   call printa('ux  ',ux,ktau,nlv,ia,ib,ja,jb,0.,1.)
   call printa('vx  ',vx,ktau,nlv,ia,ib,ja,jb,0.,1.)
 endif
-#endif
 
 num=1
 

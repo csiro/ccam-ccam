@@ -51,7 +51,7 @@ public nf_inq_attname, nf_inq_attid, nf_inq_att, nf_inq_var, nf_inq_attlen
 public nf_get_att_text, nf_get_att_real, nf_get_att_int, nf_get_att_int1, nf_get_att_int2
 public nf_get_att_double
 public nf_get_vara_real, nf_get_vara_int, nf_get_vara_int2, nf_get_vara_double
-public nf_get_var_real
+public nf_get_var_real, nf_get_var_double
 public nf_get_var1_real, nf_get_var1_int, nf_get_var1_int1, nf_get_var1_int2, nf_get_var1_double
 public nf_get_vars_text, nf_get_vars_int1, nf_get_vars_int2, nf_get_vars_int, nf_get_vars_real
 public nf_get_vars_double
@@ -368,6 +368,13 @@ integer (C_INT) function nc_get_var_float(ncid,varid,rp) bind(C, name='nc_get_va
   type (C_PTR), value :: rp
 end function nc_get_var_float
 
+integer (C_INT) function nc_get_var_double(ncid,varid,dp) bind(C, name='nc_get_var_double')
+  use, intrinsic :: ISO_C_BINDING
+  implicit none
+  integer (C_INT), value :: ncid, varid
+  type (C_PTR), value :: dp
+end function nc_get_var_double    
+    
 integer (C_INT) function nc_get_var1_float(ncid,varid,start,rp) bind(C, name='nc_get_var1_float')
   use, intrinsic :: ISO_C_BINDING
   implicit none
@@ -848,6 +855,11 @@ interface nf_get_var_real
                    nf_get_var_real_d5
 end interface nf_get_var_real
 
+interface nf_get_var_double
+  module procedure nf_get_var_double_d1, nf_get_var_double_d2, nf_get_var_double_d3, nf_get_var_double_d4, &
+                   nf_get_var_double_d5
+end interface nf_get_var_double    
+    
 interface nf_get_var1_real
   module procedure nf_get_var1_real_s, nf_get_var1_real_v
 end interface nf_get_var1_real
@@ -2190,6 +2202,67 @@ integer function nf_get_var_real_d5(ncid,varid,fp) result(ierr)
   ierr = nc_get_var_float(c_ncid,c_varid,C_LOC(c_fp))
   fp = c_fp
 end function nf_get_var_real_d5
+
+integer function nf_get_var_double_d1(ncid,varid,dp) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  real(kind=8), dimension(:), intent(out) :: dp
+  integer (C_INT) :: c_ncid, c_varid
+  real (C_DOUBLE), dimension(size(dp)), target :: c_dp
+  c_ncid = ncid
+  c_varid = varid - 1
+  ierr = nc_get_var_double(c_ncid,c_varid,C_LOC(c_dp))
+  dp = c_dp
+end function nf_get_var_double_d1
+
+integer function nf_get_var_double_d2(ncid,varid,dp) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  real(kind=8), dimension(:,:), intent(out) :: dp
+  integer (C_INT) :: c_ncid, c_varid
+  real (C_DOUBLE), dimension(size(dp,1),size(dp,2)), target :: c_dp
+  c_ncid = ncid
+  c_varid = varid - 1
+  ierr = nc_get_var_double(c_ncid,c_varid,C_LOC(c_dp))
+  dp = c_dp
+end function nf_get_var_double_d2
+
+integer function nf_get_var_double_d3(ncid,varid,dp) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  real(kind=8), dimension(:,:,:), intent(out) :: dp
+  integer (C_INT) :: c_ncid, c_varid
+  real (C_DOUBLE), dimension(size(dp,1),size(dp,2),size(dp,3)), target :: c_dp
+  c_ncid = ncid
+  c_varid = varid - 1
+  ierr = nc_get_var_double(c_ncid,c_varid,C_LOC(c_dp))
+  dp = c_dp
+end function nf_get_var_double_d3
+
+integer function nf_get_var_double_d4(ncid,varid,dp) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  real(kind=8), dimension(:,:,:,:), intent(out) :: dp
+  integer (C_INT) :: c_ncid, c_varid
+  real (C_DOUBLE), dimension(size(dp,1),size(dp,2),size(dp,3),size(dp,4)), target :: c_dp
+  c_ncid = ncid
+  c_varid = varid - 1
+  ierr = nc_get_var_double(c_ncid,c_varid,C_LOC(c_dp))
+  dp = c_dp
+end function nf_get_var_double_d4
+
+integer function nf_get_var_double_d5(ncid,varid,dp) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  real(kind=8), dimension(:,:,:,:,:), intent(out) :: dp
+  integer (C_INT) :: c_ncid, c_varid
+  real (C_DOUBLE), dimension(size(dp,1),size(dp,2),size(dp,3),size(dp,4),size(dp,5)), &
+      target :: c_dp
+  c_ncid = ncid
+  c_varid = varid - 1
+  ierr = nc_get_var_double(c_ncid,c_varid,C_LOC(c_dp))
+  dp = c_dp
+end function nf_get_var_double_d5
 
 integer function nf_get_var1_real_s(ncid,varid,start,fp) result(ierr)
   implicit none
