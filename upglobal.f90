@@ -128,7 +128,6 @@ select case(nt_adv)
     end do
 end select
 
-#ifdef debug
 if ( mydiag ) then
   if(tx(idjd,kl)>264.)then  !cb
     write(6,*)
@@ -145,7 +144,6 @@ if(num_hight<100)then
     endif
   enddo
 endif 
-#endif          
 
 aa(1:ifull)=zs(1:ifull)/(rdry*nritch_t)    ! save zs/(r*t) for nt_adv schemes 
 do k=1,kl   
@@ -158,12 +156,10 @@ sdmx(:) = maxval(abs(sdot),2)
 nits(:)=1+sdmx(:)/2
 nvadh_pass(:)=2*nits(:) ! use - for nvadu
 call vadvtvd(tx,ux,vx,nvadh_pass,nits)
-#ifdef debug
 if( (diag.or.nmaxpr==1) .and. mydiag )then
   write(6,*) 'in upglobal after vadv1'
   write (6,"('qg  ',3p9f8.3/4x,9f8.3)")   qg(idjd,:)
 endif
-#endif
 !------------------------------------------------------------------
 
 do k=1,kl   
@@ -173,14 +169,12 @@ do k=1,kl
   tx(1:ifull,k)=tx(1:ifull,k)+aa(1:ifull)*factr(k)   !cy  
 end do   ! k
 
-#ifdef debug
 if(nmaxpr==1.and.nproc==1)then
   write(6,*) 'pslx_3p before advection'
   write (6,"('pslx_b',3p9f8.4)") pslx(idjd,:)
   write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
   write (6,"(3p9f8.4)") ((pslx(max(min(ii+jj*il,ifull),1),nlv),ii=idjd-4,idjd+4),jj=2,-2,-1)
 endif
-#endif
 
 if ( mup/=0 ) then
   call ints_bl(dd,intsch,nface,xg,yg)  ! advection on all levels
@@ -203,7 +197,6 @@ do k=1,kl
   tx(1:ifull,k) = tx(1:ifull,k)  -dd(1:ifull,k)*factr(k)
 end do
 !------------------------------------------------------------------
-#ifdef debug
 if(nmaxpr==1.and.nproc==1)then
   write(6,*) 'pslx_3p & dd after advection'
   write (6,"('pslx_a',3p9f8.4)") pslx(idjd,:)
@@ -240,7 +233,6 @@ if(diag)then
   call printa('uav ',u,ktau,nlv,ia,ib,ja,jb,0.,1.)
   call printa('vav ',v,ktau,nlv,ia,ib,ja,jb,0.,1.)
 endif
-#endif
 
 !      convert uavx, vavx to cartesian velocity components
 do k=1,kl
@@ -248,7 +240,6 @@ do k=1,kl
   vc(1:ifull,k)=ay(1:ifull)*ux(1:ifull,k) + by(1:ifull)*vx(1:ifull,k)
   wc(1:ifull,k)=az(1:ifull)*ux(1:ifull,k) + bz(1:ifull)*vx(1:ifull,k)
 enddo
-#ifdef debug
 if(diag)then
   if ( mydiag ) then
     write(6,*) 'uc,vc,wc before advection'
@@ -261,7 +252,6 @@ if(diag)then
   call printa('yg  ',yg,ktau,nlv,ia,ib,ja,jb,0.,1.)
   if ( mydiag ) write(6,*) 'nface ',nface(idjd,:)
 endif
-#endif
 if(mup/=0)then
   duma(1:ifull,:,1)=uc(1:ifull,:)
   duma(1:ifull,:,2)=vc(1:ifull,:)
@@ -271,14 +261,12 @@ if(mup/=0)then
   vc(1:ifull,:)=duma(1:ifull,:,2)
   wc(1:ifull,:)=duma(1:ifull,:,3)
 endif
-#ifdef debug
 if(diag)then
   if ( mydiag ) write(6,*) 'uc,vc,wc after advection'
   call printa('uc  ',uc,ktau,nlv,ia,ib,ja,jb,0.,1.)
   call printa('vc  ',vc,ktau,nlv,ia,ib,ja,jb,0.,1.)
   call printa('wc  ',wc,ktau,nlv,ia,ib,ja,jb,0.,1.)
 endif
-#endif
 
 ! rotate wind vector to arrival point
 do k=1,kl
@@ -309,7 +297,6 @@ do k=1,kl
     wc(1:ifull,k) = vdot1(1:ifull)*vec1z(1:ifull) + vdot2(1:ifull)*vec3z(1:ifull)
   end where ! (denb>1.e-4)
 end do ! k
-#ifdef debug
 if(diag)then
   if ( mydiag )then
     iq=idjd
@@ -324,7 +311,6 @@ if(diag)then
   call printa('vc  ',vc,ktau,nlv,ia,ib,ja,jb,0.,1.)
   call printa('wc  ',wc,ktau,nlv,ia,ib,ja,jb,0.,1.)
 endif
-#endif
 
 ! convert back to conformal-cubic velocity components (unstaggered)
 ! globpea: this can be sped up later
@@ -332,13 +318,11 @@ do k=1,kl
   ux(1:ifull,k) = ax(1:ifull)*uc(1:ifull,k) + ay(1:ifull)*vc(1:ifull,k) + az(1:ifull)*wc(1:ifull,k)
   vx(1:ifull,k) = bx(1:ifull)*uc(1:ifull,k) + by(1:ifull)*vc(1:ifull,k) + bz(1:ifull)*wc(1:ifull,k)
 end do   ! k loop
-#ifdef debug
 if(diag.and.k==nlv)then
   if ( mydiag ) write(6,*) 'after advection in upglobal; unstaggered ux and vx:'
   call printa('ux  ',ux,ktau,nlv,ia,ib,ja,jb,0.,1.)
   call printa('vx  ',vx,ktau,nlv,ia,ib,ja,jb,0.,1.)
 endif
-#endif
 
 if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
   if ( ldr/=0 ) then
@@ -379,7 +363,6 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
   else
     call ints(1,qg,intsch,nface,xg,yg,3)
   end if    ! ldr/=0
-#ifdef debug
   if ( ngas>0.or.nextout>=4 ) then
     if ( nmaxpr==1 .and. mydiag ) then
       write (6,"('xg#',9f8.2)") diagvals(xg(:,nlv))
@@ -389,7 +372,6 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
       write (6,"('xlon#',9f8.2)") diagvals(tr(:,nlv,ngas+2))
       write (6,"('xpre#',9f8.2)") diagvals(tr(:,nlv,ngas+3))
     endif
-#endif
     if ( ngas>0 ) then
       do nstart = 1, ngas, nagg
         nend = min(nstart+nagg-1,ngas)
@@ -397,14 +379,12 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
         call ints(ntot,tr(:,:,nstart:nend),intsch,nface,xg,yg,5)
       end do
     end if
-#ifdef debug
     if ( nmaxpr==1 .and. mydiag ) then
       write (6,"('ylat#',9f8.2)") diagvals(tr(:,nlv,ngas+1))
       write (6,"('ylon#',9f8.2)") diagvals(tr(:,nlv,ngas+2))
       write (6,"('ypre#',9f8.2)") diagvals(tr(:,nlv,ngas+3))
     endif
   endif  ! (ngas>0.or.nextout>=4)
-#endif
   if ( nvmix==6 ) then
     duma(1:ifull,:,1)=tke(1:ifull,:)
     duma(1:ifull,:,2)=eps(1:ifull,:)
@@ -419,7 +399,6 @@ end if     ! mspec==1
 
 
 sdot(:,2:kl)=sbar(:,:)
-#ifdef debug
 if (mod(ktau,nmaxpr)==0.and.mydiag) then
   write(6,*) 'upglobal ktau,sdmx,nits,nvadh_pass ',ktau,sdmx(idjd),nits(idjd),nvadh_pass(idjd)
 endif
@@ -427,14 +406,11 @@ if ( (diag.or.nmaxpr==1) .and. mydiag ) then
   write(6,*) 'in upglobal before vadv2'
   write (6,"('qg  ',3p9f8.3/4x,9f8.3)")   qg(idjd,:)
 endif
-#endif
 call vadvtvd(tx,ux,vx,nvadh_pass,nits)
-#ifdef debug
 if ( (diag.or.nmaxpr==1) .and. mydiag ) then
   write(6,*) 'in upglobal after vadv2'
   write (6,"('qg  ',3p9f8.3/4x,9f8.3)")   qg(idjd,:)
 endif
-#endif
 
 ! adding later (after 2nd vadv) than for npex=1
 ux(1:ifull,:) = ux(1:ifull,:)+0.5*dt*un(1:ifull,:) ! dyn contrib
@@ -453,7 +429,6 @@ tx(1:ifull,:)=tx(1:ifull,:)+.5*dt*tn(1:ifull,:)
 !     now interpolate ux,vx to the staggered grid
 call staguv(ux,vx,ux,vx)
 
-#ifdef debug
 if( diag) then
   if(mydiag)then
     write(6,*) 'near end of upglobal staggered ux and vx:'
@@ -490,7 +465,6 @@ if( ( diag.or.nmaxpr==1) .and. mydiag ) then
   write (6,"('ql_u',3p9f8.3/4x,9f8.3)") qlg(idjd,:)
   write (6,"('qf_u',3p9f8.3/4x,9f8.3)") qfg(idjd,:)
 endif 
-#endif    
 
 call END_LOG(upglobal_end)
       

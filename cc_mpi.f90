@@ -353,11 +353,11 @@ module cc_mpi
    integer, public, save :: mgmloup_begin, mgmloup_end
    integer, public, save :: mgmlocoarse_begin, mgmlocoarse_end
    integer, public, save :: mgmlodown_begin, mgmlodown_end
+   integer, parameter :: nevents = 76
 #ifdef simple_timer
    public :: simple_timer_finalize
-#endif
-   integer, parameter :: nevents = 76
    real(kind=8), dimension(nevents), save :: tot_time = 0., start_time
+#endif
    character(len=15), dimension(nevents), save :: event_name
 
 #ifdef vampir
@@ -374,7 +374,7 @@ contains
       use sumdd_m
       use vecsuv_m
       use xyzinfo_m
-      integer iproc, dproc, iq, iqg, i, j, n, mcc
+      integer iproc, dproc, iq, iqg, i, j, n
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -396,7 +396,7 @@ contains
 #ifdef uniform_decomp
       call proc_setup_uniform
       ! Faces may not line up properly so need extra factor here
-      maxbuflen = (max(ipan,jpan)+4)*3*max(nagg*kl,3*ol) * 8 * 2  !*3 for extra vector row (e.g., inu,isu,iev,iwv)
+      maxbuflen = (max(ipan,jpan)+4)*3*max(nagg*kl,3*ol)*8*2  !*3 for extra vector row (e.g., inu,isu,iev,iwv)
 #else
       call proc_setup
       if ( nproc < npanels+1 ) then
@@ -574,13 +574,13 @@ contains
       npta = max(6/nproc,1)               ! number of panels per processor
       mproc = max(nproc/6,1)              ! number of processors per panel
       pprocn = myid*npta/mproc            ! start panel
-      pprocx = pprocn+npta-1              ! end panel
+      pprocx = pprocn + npta - 1          ! end panel
       hproc = pprocn*mproc/npta           ! host processor for panel
 #endif
 
       ! comm between work groups with captain hproc
       colour = hproc
-      rank = myid-hproc
+      rank = myid - hproc
       call MPI_Comm_Split(MPI_COMM_WORLD,colour,rank,lcommout,ierr)
       comm_proc = lcommout
       

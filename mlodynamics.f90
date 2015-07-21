@@ -4698,6 +4698,7 @@ end subroutine tsjacobi
 
 subroutine seekdelta(rhobar,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
 
+use cc_mpi
 use indices_m
 use map_m
 use mlo, only : wlev,minwater
@@ -4718,6 +4719,7 @@ real, dimension(ifull,wlev,2) :: y2i,y2e,y2w,y2n,y2s,y2en,y2se,y2ne,y2wn
 real, dimension(ifull+iextra,wlev,2) :: ss_i, y2_i
 real, dimension(ifull+iextra,wlev,2), intent (in) :: rhobar
 real, dimension(ifull,wlev,2), intent(out) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
+real, dimension(ifull) :: f_in,f_ine,f_ie,f_is,f_ise,f_ien,f_iw,f_iwn
 
 ! Here we calculate the slow contribution of the pressure gradient
 
@@ -4762,6 +4764,15 @@ ddse(:,:)  =dd_i(ise,:)
 y2s(:,:,:) =y2_i(is,:,:)
 y2ne(:,:,:)=y2_i(ine,:,:)
 y2se(:,:,:)=y2_i(ise,:,:)
+
+f_in(:) =f(in)
+f_ine(:)=f(ine)
+f_ie(:) =f(ie)
+f_is(:) =f(is)
+f_ise(:)=f(ise)
+f_ien(:)=f(ien)
+f_iw(:) =f(iw)
+f_iwn(:)=f(iwn)
   
 ! process staggered u locations
 ramp_a(:,:)=1.
@@ -4780,12 +4791,12 @@ call seekval(rs, sss, dds, ddux,y2s, ramp_e)
 call seekval(rse,ssse,ddse,ddux,y2se,ramp_e)
 do jj=1,2
   do ii=1,wlev
-    drhobardyu(:,ii,jj)=ramp_a(:,ii)*ramp_c(:,ii)*(0.25*stwgt(1:ifull,1)*(rn(:,ii,jj)*f(in)+rne(:,ii,jj)*f(ine)             &
-                                                         -ri(:,ii,jj)*f(1:ifull)-re(:,ii,jj)*f(ie))*emu(1:ifull)/ds         &
-                        -0.125*stwgt(1:ifull,1)*(ri(:,ii,jj)+re(:,ii,jj))*(f(in)+f(ine)-f(1:ifull)-f(ie))*emu(1:ifull)/ds)  &
-                       +ramp_a(:,ii)*ramp_e(:,ii)*(0.25*stwgt(1:ifull,2)*(ri(:,ii,jj)*f(1:ifull)+re(:,ii,jj)*f(ie)          &
-                                                         -rs(:,ii,jj)*f(is)-rse(:,ii,jj)*f(ise))*emu(1:ifull)/ds            &
-                        -0.125*stwgt(1:ifull,2)*(ri(:,ii,jj)+re(:,ii,jj))*(f(1:ifull)+f(ie)-f(is)-f(ise))*emu(1:ifull)/ds)
+    drhobardyu(:,ii,jj)=ramp_a(:,ii)*ramp_c(:,ii)*(0.25*stwgt(1:ifull,1)*(rn(:,ii,jj)*f_in+rne(:,ii,jj)*f_ine               &
+                                                         -ri(:,ii,jj)*f(1:ifull)-re(:,ii,jj)*f_ie)*emu(1:ifull)/ds          &
+                        -0.125*stwgt(1:ifull,1)*(ri(:,ii,jj)+re(:,ii,jj))*(f_in+f_ine-f(1:ifull)-f_ie)*emu(1:ifull)/ds)     &
+                       +ramp_a(:,ii)*ramp_e(:,ii)*(0.25*stwgt(1:ifull,2)*(ri(:,ii,jj)*f(1:ifull)+re(:,ii,jj)*f_ie           &
+                                                         -rs(:,ii,jj)*f_is-rse(:,ii,jj)*f_ise)*emu(1:ifull)/ds              &
+                        -0.125*stwgt(1:ifull,2)*(ri(:,ii,jj)+re(:,ii,jj))*(f(1:ifull)+f_ie-f_is-f_ise)*emu(1:ifull)/ds)
   end do
 end do
 
@@ -4816,12 +4827,12 @@ call seekval(rw, ssw, ddw, ddvy,y2W, ramp_e)
 call seekval(rwn,sswn,ddwn,ddvy,y2wn,ramp_e)
 do jj=1,2
   do ii=1,wlev
-    drhobardxv(:,ii,jj)=ramp_a(:,ii)*ramp_c(:,ii)*(0.25*stwgt(1:ifull,3)*(re(:,ii,jj)*f(ie)+ren(:,ii,jj)*f(ien)             &
-                                                         -ri(:,ii,jj)*f(1:ifull)-rn(:,ii,jj)*f(in))*emv(1:ifull)/ds         &
-                        -0.125*stwgt(1:ifull,3)*(ri(:,ii,jj)+rn(:,ii,jj))*(f(ie)+f(ien)-f(1:ifull)-f(in))*emv(1:ifull)/ds)  &
-                       +ramp_a(:,ii)*ramp_e(:,ii)*(0.25*stwgt(1:ifull,4)*(ri(:,ii,jj)*f(1:ifull)+rn(:,ii,jj)*f(in)          &
-                                                         -rw(:,ii,jj)*f(iw)-rwn(:,ii,jj)*f(iwn))*emv(1:ifull)/ds            &
-                        -0.125*stwgt(1:ifull,4)*(ri(:,ii,jj)+rn(:,ii,jj))*(f(1:ifull)+f(in)-f(iw)-f(iwn))*emv(1:ifull)/ds)
+    drhobardxv(:,ii,jj)=ramp_a(:,ii)*ramp_c(:,ii)*(0.25*stwgt(1:ifull,3)*(re(:,ii,jj)*f_ie+ren(:,ii,jj)*f_ien               &
+                                                         -ri(:,ii,jj)*f(1:ifull)-rn(:,ii,jj)*f_in)*emv(1:ifull)/ds          &
+                        -0.125*stwgt(1:ifull,3)*(ri(:,ii,jj)+rn(:,ii,jj))*(f_ie+f_ien-f(1:ifull)-f_in)*emv(1:ifull)/ds)     &
+                       +ramp_a(:,ii)*ramp_e(:,ii)*(0.25*stwgt(1:ifull,4)*(ri(:,ii,jj)*f(1:ifull)+rn(:,ii,jj)*f_in           &
+                                                         -rw(:,ii,jj)*f_iw-rwn(:,ii,jj)*f_iwn)*emv(1:ifull)/ds              &
+                        -0.125*stwgt(1:ifull,4)*(ri(:,ii,jj)+rn(:,ii,jj))*(f(1:ifull)+f_in-f_iw-f_iwn)*emv(1:ifull)/ds)
   end do
 end do
 
@@ -4833,6 +4844,7 @@ end subroutine seekdelta
 
 subroutine seekval(rout,ssin,ddin,ddseek,y2,ramp)
 
+use cc_mpi
 use mlo, only : wlev
 
 implicit none
