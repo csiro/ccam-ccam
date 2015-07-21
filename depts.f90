@@ -140,11 +140,11 @@ if(intsch==1)then
       emul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
       emul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
       do nn = 1,3
-        rmul(1) = sum(sx(idel:idel+1,jdel-1,n,k,nn)*dmul(:))
-        rmul(2) = sum(sx(idel-1:idel+2,jdel,n,k,nn)*cmul(:))
-        rmul(3) = sum(sx(idel-1:idel+2,jdel+1,n,k,nn)*cmul(:))
-        rmul(4) = sum(sx(idel:idel+1,jdel+2,n,k,nn)*dmul(:))
-        sextra(ii)%a(nn+(iq-1)*3) = sum(rmul(:)*emul(:))
+        rmul(1) = sum(sx(idel:idel+1,  jdel-1,n,k,nn)*dmul(2:3))
+        rmul(2) = sum(sx(idel-1:idel+2,jdel,  n,k,nn)*cmul(1:4))
+        rmul(3) = sum(sx(idel-1:idel+2,jdel+1,n,k,nn)*cmul(1:4))
+        rmul(4) = sum(sx(idel:idel+1,  jdel+2,n,k,nn)*dmul(2:3))
+        sextra(ii)%a(nn+(iq-1)*3) = sum(rmul(1:4)*emul(1:4))
       end do
       
     end do          ! iq loop
@@ -178,11 +178,11 @@ if(intsch==1)then
       emul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
       emul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
       do nn = 1,3
-        rmul(1) = sum(sx(idel:idel+1,jdel-1,n,k,nn)*dmul(:))
-        rmul(2) = sum(sx(idel-1:idel+2,jdel,n,k,nn)*cmul(:))
-        rmul(3) = sum(sx(idel-1:idel+2,jdel+1,n,k,nn)*cmul(:))
-        rmul(4) = sum(sx(idel:idel+1,jdel+2,n,k,nn)*dmul(:))
-        s(iq,k,nn) = sum(rmul(:)*emul(:))
+        rmul(1) = sum(sx(idel:idel+1,  jdel-1,n,k,nn)*dmul(2:3))
+        rmul(2) = sum(sx(idel-1:idel+2,jdel,  n,k,nn)*cmul(1:4))
+        rmul(3) = sum(sx(idel-1:idel+2,jdel+1,n,k,nn)*cmul(1:4))
+        rmul(4) = sum(sx(idel:idel+1,  jdel+2,n,k,nn)*dmul(2:3))
+        s(iq,k,nn) = sum(rmul(1:4)*emul(1:4))
       end do      
     end do     ! iq loop
   end do       ! k loop
@@ -243,11 +243,11 @@ else     ! if(intsch==1)then
       emul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
       emul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
       do nn = 1,3
-        rmul(1) = sum(sx(idel-1,jdel:jdel+1,n,k,nn)*dmul(:))
-        rmul(2) = sum(sx(idel,jdel-1:jdel+2,n,k,nn)*cmul(:))
-        rmul(3) = sum(sx(idel+1,jdel-1:jdel+2,n,k,nn)*cmul(:))
-        rmul(4) = sum(sx(idel+2,jdel:jdel+1,n,k,nn)*dmul(:))
-        sextra(ii)%a(nn+(iq-1)*3) = sum(rmul(:)*emul(:))
+        rmul(1) = sum(sx(idel-1,jdel:jdel+1,  n,k,nn)*dmul(2:3))
+        rmul(2) = sum(sx(idel,  jdel-1:jdel+2,n,k,nn)*cmul(1:4))
+        rmul(3) = sum(sx(idel+1,jdel-1:jdel+2,n,k,nn)*cmul(1:4))
+        rmul(4) = sum(sx(idel+2,jdel:jdel+1,  n,k,nn)*dmul(2:3))
+        sextra(ii)%a(nn+(iq-1)*3) = sum(rmul(1:4)*emul(1:4))
       end do
     end do            ! iq loop
   end do              ! ii
@@ -280,11 +280,11 @@ else     ! if(intsch==1)then
       emul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
       emul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
       do nn = 1,3
-        rmul(1) = sum(sx(idel-1,jdel:jdel+1,n,k,nn)*dmul(:))
-        rmul(2) = sum(sx(idel,jdel-1:jdel+2,n,k,nn)*cmul(:))
-        rmul(3) = sum(sx(idel+1,jdel-1:jdel+2,n,k,nn)*cmul(:))
-        rmul(4) = sum(sx(idel+2,jdel:jdel+1,n,k,nn)*dmul(:))
-        s(iq,k,nn) = sum(rmul(:)*emul(:))
+        rmul(1) = sum(sx(idel-1,jdel:jdel+1,  n,k,nn)*dmul(2:3))
+        rmul(2) = sum(sx(idel,  jdel-1:jdel+2,n,k,nn)*cmul(1:4))
+        rmul(3) = sum(sx(idel+1,jdel-1:jdel+2,n,k,nn)*cmul(1:4))
+        rmul(4) = sum(sx(idel+2,jdel:jdel+1,  n,k,nn)*dmul(2:3))
+        s(iq,k,nn) = sum(rmul(1:4)*emul(1:4))
       end do
     enddo            ! iq loop
   enddo              ! k loop
@@ -369,11 +369,11 @@ if(intsch==1)then
       emul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
       emul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
       do nn = 1,3
-        rmul(1) = sum(sx(idel:idel+1,jdel-1,n,k,nn)*dmul(:))
-        rmul(2) = sum(sx(idel-1:idel+2,jdel,n,k,nn)*cmul(:))
-        rmul(3) = sum(sx(idel-1:idel+2,jdel+1,n,k,nn)*cmul(:))
-        rmul(4) = sum(sx(idel:idel+1,jdel+2,n,k,nn)*dmul(:))
-        sextra(ii)%a(nn+(iq-1)*3) = sum(rmul(:)*emul(:))
+        rmul(1) = sum(sx(idel:idel+1,  jdel-1,n,k,nn)*dmul(2:3))
+        rmul(2) = sum(sx(idel-1:idel+2,jdel,  n,k,nn)*cmul(1:4))
+        rmul(3) = sum(sx(idel-1:idel+2,jdel+1,n,k,nn)*cmul(1:4))
+        rmul(4) = sum(sx(idel:idel+1,  jdel+2,n,k,nn)*dmul(2:3))
+        sextra(ii)%a(nn+(iq-1)*3) = sum(rmul(1:4)*emul(1:4))
       end do
       
     end do          ! iq loop
@@ -407,11 +407,11 @@ if(intsch==1)then
       emul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
       emul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
       do nn = 1,3
-        rmul(1) = sum(sx(idel:idel+1,jdel-1,n,k,nn)*dmul(:))
-        rmul(2) = sum(sx(idel-1:idel+2,jdel,n,k,nn)*cmul(:))
-        rmul(3) = sum(sx(idel-1:idel+2,jdel+1,n,k,nn)*cmul(:))
-        rmul(4) = sum(sx(idel:idel+1,jdel+2,n,k,nn)*dmul(:))
-        s(iq,k,nn) = sum(rmul(:)*emul(:))
+        rmul(1) = sum(sx(idel:idel+1,  jdel-1,n,k,nn)*dmul(2:3))
+        rmul(2) = sum(sx(idel-1:idel+2,jdel,  n,k,nn)*cmul(1:4))
+        rmul(3) = sum(sx(idel-1:idel+2,jdel+1,n,k,nn)*cmul(1:4))
+        rmul(4) = sum(sx(idel:idel+1,  jdel+2,n,k,nn)*dmul(2:3))
+        s(iq,k,nn) = sum(rmul(1:4)*emul(1:4))
       end do      
     end do     ! iq loop
   end do       ! k loop
@@ -472,10 +472,10 @@ else     ! if(intsch==1)then
       emul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
       emul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
       do nn = 1,3
-        rmul(1) = sum(sx(idel-1,jdel:jdel+1,n,k,nn)*dmul(:))
-        rmul(2) = sum(sx(idel,jdel-1:jdel+2,n,k,nn)*cmul(:))
-        rmul(3) = sum(sx(idel+1,jdel-1:jdel+2,n,k,nn)*cmul(:))
-        rmul(4) = sum(sx(idel+2,jdel:jdel+1,n,k,nn)*dmul(:))
+        rmul(1) = sum(sx(idel-1,jdel:jdel+1,  n,k,nn)*dmul(2:3))
+        rmul(2) = sum(sx(idel,  jdel-1:jdel+2,n,k,nn)*cmul(1:4))
+        rmul(3) = sum(sx(idel+1,jdel-1:jdel+2,n,k,nn)*cmul(1:4))
+        rmul(4) = sum(sx(idel+2,jdel:jdel+1,  n,k,nn)*dmul(2:3))
         sextra(ii)%a(nn+(iq-1)*3) = sum(rmul(:)*emul(:))
       end do
     end do            ! iq loop
@@ -509,11 +509,11 @@ else     ! if(intsch==1)then
       emul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
       emul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
       do nn = 1,3
-        rmul(1) = sum(sx(idel-1,jdel:jdel+1,n,k,nn)*dmul(:))
-        rmul(2) = sum(sx(idel,jdel-1:jdel+2,n,k,nn)*cmul(:))
-        rmul(3) = sum(sx(idel+1,jdel-1:jdel+2,n,k,nn)*cmul(:))
-        rmul(4) = sum(sx(idel+2,jdel:jdel+1,n,k,nn)*dmul(:))
-        s(iq,k,nn) = sum(rmul(:)*emul(:))
+        rmul(1) = sum(sx(idel-1,jdel:jdel+1,  n,k,nn)*dmul(2:3))
+        rmul(2) = sum(sx(idel,  jdel-1:jdel+2,n,k,nn)*cmul(1:4))
+        rmul(3) = sum(sx(idel+1,jdel-1:jdel+2,n,k,nn)*cmul(1:4))
+        rmul(4) = sum(sx(idel+2,jdel:jdel+1,  n,k,nn)*dmul(2:3))
+        s(iq,k,nn) = sum(rmul(1:4)*emul(1:4))
       end do
     enddo            ! iq loop
   enddo              ! k loop

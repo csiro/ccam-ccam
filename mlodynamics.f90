@@ -4858,9 +4858,8 @@ real, dimension(ifull,wlev), intent(in) :: ddin
 real, dimension(ifull,wlev), intent(inout) :: ramp
 real, dimension(ifull,wlev,2), intent(in) :: ssin, y2
 real, dimension(ifull,wlev,2), intent(out) :: rout
-real, dimension(ifull,wlev,2) :: ssunpack1, ssunpack0, y2unpack1, y2unpack0
-real, dimension(ifull,wlev) :: h, a
-real, dimension(ifull) :: b, tempa, tempb, temph
+real, dimension(ifull,2) :: ssunpack1, ssunpack0, y2unpack1, y2unpack0
+real, dimension(ifull) :: h, a, b, tempa, tempb, temph
 real, parameter :: dzramp = 0.1 ! extrapolation limit
 
 sindx(:,:)=wlev
@@ -4878,33 +4877,30 @@ do iq = 1,ifull
 end do
   
 ! MJT notes - This calculation is slow
-do  jj=1,wlev
-  do iq=1,ifull
-    ii=sindx(iq,jj)
-    h(iq,jj) = max(ddin(iq,ii)-ddin(iq,ii-1),1.e-8)
-    a(iq,jj) = (ddin(iq,ii)-ddseek(iq,jj))/h(iq,jj)
-    !b(iq,jj) = (ddseek(iq,jj)-ddin(iq,sindx(iq,jj)-1))/h(iq,jj)
-    
-    ssunpack1(iq,jj,:)=ssin(iq,ii,:)
-    ssunpack0(iq,jj,:)=ssin(iq,ii-1,:)
-    y2unpack1(iq,jj,:)=y2(iq,ii,:)
-    y2unpack0(iq,jj,:)=y2(iq,ii-1,:)    
+do  jj = 1,wlev
+  do iq = 1,ifull
+    ii = sindx(iq,jj)
+    h(iq) = max(ddin(iq,ii)-ddin(iq,ii-1),1.e-8)
+    a(iq) = (ddin(iq,ii)-ddseek(iq,jj))/h(iq)
+    !b(iq) = (ddseek(iq,jj)-ddin(iq,ii-1))/h(iq,jj)
+    ssunpack1(iq,:) = ssin(iq,ii,:)
+    ssunpack0(iq,:) = ssin(iq,ii-1,:)
+    y2unpack1(iq,:) = y2(iq,ii,:)
+    y2unpack0(iq,:) = y2(iq,ii-1,:)    
   end do
-end do
 
-do jj=1,wlev
-  b = 1.-a(:,jj)
-  temph = h(:,jj)*h(:,jj)/6.
-  tempa = (a(:,jj)**3-a(:,jj))*temph
-  tempb = (b(:)**3-b(:))*temph
+  b(:) = 1.-a(:)
+  temph(:) = h(:)*h(:)/6.
+  tempa(:) = (a(:)**3-a(:))*temph(:)
+  tempb(:) = (b(:)**3-b(:))*temph(:)
   
   do ii=1,2
-    rout(:,jj,ii) = a(:,jj)*ssunpack0(:,jj,ii)+b(:)*ssunpack1(:,jj,ii)        & ! linear interpolation
-                   +tempa*y2unpack0(:,jj,ii)+tempb*y2unpack1(:,jj,ii)           ! cubic spline terms
+    rout(:,jj,ii) = a(:)*ssunpack0(:,ii)+b(:)*ssunpack1(:,ii)           & ! linear interpolation
+                   +tempa(:)*y2unpack0(:,ii)+tempb(:)*y2unpack1(:,ii)     ! cubic spline terms
   end do
 
   ! fade out extrapolation
-  ramp(:,jj) = ramp(:,jj)*min(max((a(:,jj)+dzramp)/dzramp,0.),1.)*min(max((b(:)+dzramp)/dzramp,0.),1.)
+  ramp(:,jj) = ramp(:,jj)*min(max((a(:)+dzramp)/dzramp,0.),1.)*min(max((b(:)+dzramp)/dzramp,0.),1.)
 end do
 
 return

@@ -128,11 +128,11 @@ if ( intsch==1 ) then
         emul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
         emul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
         do nn = 1,ntr
-          rmul(1) = sum(sx(idel:idel+1,jdel-1,n,k,nn)*dmul(:))
-          rmul(2) = sum(sx(idel-1:idel+2,jdel,n,k,nn)*cmul(:))
-          rmul(3) = sum(sx(idel-1:idel+2,jdel+1,n,k,nn)*cmul(:))
-          rmul(4) = sum(sx(idel:idel+1,jdel+2,n,k,nn)*dmul(:))
-          sextra(ii)%a(nn+(iq-1)*ntr) = sum(rmul(:)*emul(:))
+          rmul(1) = sum(sx(idel:idel+1,  jdel-1,n,k,nn)*dmul(2:3))
+          rmul(2) = sum(sx(idel-1:idel+2,jdel,  n,k,nn)*cmul(1:4))
+          rmul(3) = sum(sx(idel-1:idel+2,jdel+1,n,k,nn)*cmul(1:4))
+          rmul(4) = sum(sx(idel:idel+1,  jdel+2,n,k,nn)*dmul(2:3))
+          sextra(ii)%a(nn+(iq-1)*ntr) = sum(rmul(1:4)*emul(1:4))
         end do
         
       end do        ! iq loop
@@ -163,11 +163,11 @@ if ( intsch==1 ) then
         do nn = 1,ntr
           cmin = minval(sx(idel:idel+1,jdel:jdel+1,n,k,nn))
           cmax = maxval(sx(idel:idel+1,jdel:jdel+1,n,k,nn))
-          rmul(1) = sum(sx(idel:idel+1,jdel-1,n,k,nn)*dmul(:))
-          rmul(2) = sum(sx(idel-1:idel+2,jdel,n,k,nn)*cmul(:))
-          rmul(3) = sum(sx(idel-1:idel+2,jdel+1,n,k,nn)*cmul(:))
-          rmul(4) = sum(sx(idel:idel+1,jdel+2,n,k,nn)*dmul(:))
-          sextra(ii)%a(nn+(iq-1)*ntr) = min(max(cmin,sum(rmul(:)*emul(:))),cmax) ! Bermejo & Staniforth
+          rmul(1) = sum(sx(idel:idel+1,  jdel-1,n,k,nn)*dmul(2:3))
+          rmul(2) = sum(sx(idel-1:idel+2,jdel,  n,k,nn)*cmul(1:4))
+          rmul(3) = sum(sx(idel-1:idel+2,jdel+1,n,k,nn)*cmul(1:4))
+          rmul(4) = sum(sx(idel:idel+1,  jdel+2,n,k,nn)*dmul(2:3))
+          sextra(ii)%a(nn+(iq-1)*ntr) = min(max(cmin,sum(rmul(1:4)*emul(1:4))),cmax) ! Bermejo & Staniforth
         end do
        
       end do        ! iq loop
@@ -205,11 +205,11 @@ if ( intsch==1 ) then
         emul(3) = yyg*(1.+yyg)*(2.-yyg)/2.
         emul(4) = (1.-yyg)*(-yyg)*(1.+yyg)/6.
         do nn = 1,ntr
-          rmul(1) = sum(sx(idel:idel+1,jdel-1,n,k,nn)*dmul(:))
-          rmul(2) = sum(sx(idel-1:idel+2,jdel,n,k,nn)*cmul(:))
-          rmul(3) = sum(sx(idel-1:idel+2,jdel+1,n,k,nn)*cmul(:))
-          rmul(4) = sum(sx(idel:idel+1,jdel+2,n,k,nn)*dmul(:))
-          s(iq,k,nn) = sum(rmul(:)*emul(:))
+          rmul(1) = sum(sx(idel:idel+1,  jdel-1,n,k,nn)*dmul(2:3))
+          rmul(2) = sum(sx(idel-1:idel+2,jdel,  n,k,nn)*cmul(1:4))
+          rmul(3) = sum(sx(idel-1:idel+2,jdel+1,n,k,nn)*cmul(1:4))
+          rmul(4) = sum(sx(idel:idel+1,  jdel+2,n,k,nn)*dmul(2:3))
+          s(iq,k,nn) = sum(rmul(1:4)*emul(1:4))
         end do
       end do         ! iq loop
     end do           ! k loop
@@ -243,11 +243,11 @@ if ( intsch==1 ) then
         do nn = 1,ntr
           cmin = minval(sx(idel:idel+1,jdel:jdel+1,n,k,nn))
           cmax = maxval(sx(idel:idel+1,jdel:jdel+1,n,k,nn))
-          rmul(1) = sum(sx(idel:idel+1,jdel-1,n,k,nn)*dmul(:))
-          rmul(2) = sum(sx(idel-1:idel+2,jdel,n,k,nn)*cmul(:))
-          rmul(3) = sum(sx(idel-1:idel+2,jdel+1,n,k,nn)*cmul(:))
-          rmul(4) = sum(sx(idel:idel+1,jdel+2,n,k,nn)*dmul(:))
-          s(iq,k,nn) = min(max(cmin,sum(rmul(:)*emul(:))),cmax) ! Bermejo & Staniforth
+          rmul(1) = sum(sx(idel:idel+1,  jdel-1,n,k,nn)*dmul(2:3))
+          rmul(2) = sum(sx(idel-1:idel+2,jdel,  n,k,nn)*cmul(1:4))
+          rmul(3) = sum(sx(idel-1:idel+2,jdel+1,n,k,nn)*cmul(1:4))
+          rmul(4) = sum(sx(idel:idel+1,  jdel+2,n,k,nn)*dmul(2:3))
+          s(iq,k,nn) = min(max(cmin,sum(rmul(1:4)*emul(1:4))),cmax) ! Bermejo & Staniforth
         end do
       end do        ! iq loop
     end do          ! k loop
@@ -316,11 +316,11 @@ else     ! if(intsch==1)then
         emul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
         emul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
         do nn = 1,ntr
-          rmul(1) = sum(sx(idel-1,jdel:jdel+1,n,k,nn)*dmul(:))
-          rmul(2) = sum(sx(idel,jdel-1:jdel+2,n,k,nn)*cmul(:))
-          rmul(3) = sum(sx(idel+1,jdel-1:jdel+2,n,k,nn)*cmul(:))
-          rmul(4) = sum(sx(idel+2,jdel:jdel+1,n,k,nn)*dmul(:))
-          sextra(ii)%a(nn+(iq-1)*ntr) = sum(rmul(:)*emul(:))
+          rmul(1) = sum(sx(idel-1,jdel:jdel+1,  n,k,nn)*dmul(2:3))
+          rmul(2) = sum(sx(idel,  jdel-1:jdel+2,n,k,nn)*cmul(1:4))
+          rmul(3) = sum(sx(idel+1,jdel-1:jdel+2,n,k,nn)*cmul(1:4))
+          rmul(4) = sum(sx(idel+2,jdel:jdel+1,  n,k,nn)*dmul(2:3))
+          sextra(ii)%a(nn+(iq-1)*ntr) = sum(rmul(1:4)*emul(1:4))
         end do
         
       end do           ! iq loop
@@ -352,11 +352,11 @@ else     ! if(intsch==1)then
         do nn = 1,ntr
           cmin = minval(sx(idel:idel+1,jdel:jdel+1,n,k,nn))
           cmax = maxval(sx(idel:idel+1,jdel:jdel+1,n,k,nn))
-          rmul(1) = sum(sx(idel-1,jdel:jdel+1,n,k,nn)*dmul(:))
-          rmul(2) = sum(sx(idel,jdel-1:jdel+2,n,k,nn)*cmul(:))
-          rmul(3) = sum(sx(idel+1,jdel-1:jdel+2,n,k,nn)*cmul(:))
-          rmul(4) = sum(sx(idel+2,jdel:jdel+1,n,k,nn)*dmul(:))
-          sextra(ii)%a(nn+(iq-1)*ntr) = min(max(cmin,sum(rmul(:)*emul(:))),cmax) ! Bermejo & Staniforth
+          rmul(1) = sum(sx(idel-1,jdel:jdel+1,  n,k,nn)*dmul(2:3))
+          rmul(2) = sum(sx(idel,  jdel-1:jdel+2,n,k,nn)*cmul(1:4))
+          rmul(3) = sum(sx(idel+1,jdel-1:jdel+2,n,k,nn)*cmul(1:4))
+          rmul(4) = sum(sx(idel+2,jdel:jdel+1,  n,k,nn)*dmul(2:3))
+          sextra(ii)%a(nn+(iq-1)*ntr) = min(max(cmin,sum(rmul(1:4)*emul(1:4))),cmax) ! Bermejo & Staniforth
         end do
 
       end do        ! iq loop
@@ -394,11 +394,11 @@ else     ! if(intsch==1)then
         emul(3) = xxg*(1.+xxg)*(2.-xxg)/2.
         emul(4) = (1.-xxg)*(-xxg)*(1.+xxg)/6.
         do nn = 1,ntr
-          rmul(1) = sum(sx(idel-1,jdel:jdel+1,n,k,nn)*dmul(:))
-          rmul(2) = sum(sx(idel,jdel-1:jdel+2,n,k,nn)*cmul(:))
-          rmul(3) = sum(sx(idel+1,jdel-1:jdel+2,n,k,nn)*cmul(:))
-          rmul(4) = sum(sx(idel+2,jdel:jdel+1,n,k,nn)*dmul(:))
-          s(iq,k,nn) = sum(rmul(:)*emul(:))
+          rmul(1) = sum(sx(idel-1,jdel:jdel+1,  n,k,nn)*dmul(2:3))
+          rmul(2) = sum(sx(idel,  jdel-1:jdel+2,n,k,nn)*cmul(1:4))
+          rmul(3) = sum(sx(idel+1,jdel-1:jdel+2,n,k,nn)*cmul(1:4))
+          rmul(4) = sum(sx(idel+2,jdel:jdel+1,  n,k,nn)*dmul(2:3))
+          s(iq,k,nn) = sum(rmul(1:4)*emul(1:4))
         end do
       end do         ! iq loop
     end do           ! k loop
@@ -432,11 +432,11 @@ else     ! if(intsch==1)then
         do nn = 1,ntr
           cmin = minval(sx(idel:idel+1,jdel:jdel+1,n,k,nn))
           cmax = maxval(sx(idel:idel+1,jdel:jdel+1,n,k,nn))
-          rmul(1) = sum(sx(idel-1,jdel:jdel+1,n,k,nn)*dmul(:))
-          rmul(2) = sum(sx(idel,jdel-1:jdel+2,n,k,nn)*cmul(:))
-          rmul(3) = sum(sx(idel+1,jdel-1:jdel+2,n,k,nn)*cmul(:))
-          rmul(4) = sum(sx(idel+2,jdel:jdel+1,n,k,nn)*dmul(:))
-          s(iq,k,nn) = min(max(cmin,sum(rmul(:)*emul(:))),cmax) ! Bermejo & Staniforth
+          rmul(1) = sum(sx(idel-1,jdel:jdel+1,  n,k,nn)*dmul(2:3))
+          rmul(2) = sum(sx(idel,  jdel-1:jdel+2,n,k,nn)*cmul(1:4))
+          rmul(3) = sum(sx(idel+1,jdel-1:jdel+2,n,k,nn)*cmul(1:4))
+          rmul(4) = sum(sx(idel+2,jdel:jdel+1,  n,k,nn)*dmul(2:3))
+          s(iq,k,nn) = min(max(cmin,sum(rmul(1:4)*emul(1:4))),cmax) ! Bermejo & Staniforth
         end do
         
       end do         ! iq loop
@@ -507,8 +507,8 @@ do ii = neighnum,1,-1
     k = nint(dpoints(ii)%a(4,iq))
     idel = idel - ioff
     jdel = jdel - joff
-    sextra(ii)%a(iq) = yyg*( xxg*sx(idel+1,jdel+1,n,k)+(1.-xxg)*sx(  idel,jdel+1,n,k))         &
-                      +(1.-yyg)*(   xxg*sx(idel+1,  jdel,n,k)+(1.-xxg)*sx(  idel,  jdel,n,k))
+    sextra(ii)%a(iq) =      yyg*(xxg*sx(idel+1,jdel+1,n,k)+(1.-xxg)*sx(idel,jdel+1,n,k)) &
+                      +(1.-yyg)*(xxg*sx(idel+1,  jdel,n,k)+(1.-xxg)*sx(idel,  jdel,n,k))
   end do
 end do
 
@@ -530,8 +530,8 @@ do k = 1,kl
       cycle            ! Will be calculated on another processor
     end if
 
-    s(iq,k,1) =      yyg*(      xxg*sx(idel+1,jdel+1,n,k)+(1.-xxg)*sx(idel,jdel+1,n,k))   &
-                    +(1.-yyg)*(      xxg*sx(idel+1,jdel,n,k)+(1.-xxg)*sx(idel,jdel,n,k))
+    s(iq,k,1) =      yyg*(xxg*sx(idel+1,jdel+1,n,k)+(1.-xxg)*sx(idel,jdel+1,n,k)) &
+               +(1.-yyg)*(xxg*sx(idel+1,  jdel,n,k)+(1.-xxg)*sx(idel,  jdel,n,k))
   end do                  ! iq loop
 end do                    ! k
 
