@@ -4852,7 +4852,7 @@ implicit none
 include 'newmpar.h'
 
 integer iq, ii, jj, kk
-integer, dimension(wlev) :: sindx
+integer, dimension(ifull,wlev) :: sindx
 real, dimension(ifull,wlev), intent(in) :: ddseek
 real, dimension(ifull,wlev), intent(in) :: ddin
 real, dimension(ifull,wlev), intent(inout) :: ramp
@@ -4863,27 +4863,33 @@ real, dimension(ifull,wlev) :: h, a
 real, dimension(ifull) :: b, tempa, tempb, temph
 real, parameter :: dzramp = 0.1 ! extrapolation limit
 
+sindx(:,:)=wlev
 do iq = 1,ifull
-  sindx(:) = wlev    
   ii = 2
   do jj = 1,wlev
     do kk = ii,wlev-1
       if ( ddseek(iq,jj)<=ddin(iq,kk) ) then
-        sindx(jj) = kk
+        sindx(iq,jj) = kk
         exit
       end if
     end do
-    ii = sindx(jj)
+    ii = sindx(iq,jj)
   end do
+end do
   
-  h(iq,:) = max(ddin(iq,sindx(:))-ddin(iq,sindx(:)-1),1.e-8)
-  a(iq,:) = (ddin(iq,sindx(:))-ddseek(iq,:))/h(iq,:)
-  !b(iq,:) = (ddseek(iq,:)-ddin(iq,sindx(:)-1))/h(iq,:)
+! MJT notes - This calculation is slow
+do  jj=1,wlev
+  do iq=1,ifull
+    ii=sindx(iq,jj)
+    h(iq,jj) = max(ddin(iq,ii)-ddin(iq,ii-1),1.e-8)
+    a(iq,jj) = (ddin(iq,ii)-ddseek(iq,jj))/h(iq,jj)
+    !b(iq,jj) = (ddseek(iq,jj)-ddin(iq,sindx(iq,jj)-1))/h(iq,jj)
     
-  ssunpack1(iq,:,:)=ssin(iq,sindx(:),:)
-  ssunpack0(iq,:,:)=ssin(iq,sindx(:)-1,:)
-  y2unpack1(iq,:,:)=y2(iq,sindx(:),:)
-  y2unpack0(iq,:,:)=y2(iq,sindx(:)-1,:)    
+    ssunpack1(iq,jj,:)=ssin(iq,ii,:)
+    ssunpack0(iq,jj,:)=ssin(iq,ii-1,:)
+    y2unpack1(iq,jj,:)=y2(iq,ii,:)
+    y2unpack0(iq,jj,:)=y2(iq,ii-1,:)    
+  end do
 end do
 
 do jj=1,wlev
