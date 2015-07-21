@@ -304,13 +304,11 @@ end do
 !     Share off processor departure points.
 call deptsync(nface,xg,yg)
 
-#ifdef debug
 if(diag.and.mydiag)then
   write(6,*) '2nd guess for k = ',nlv
   write(6,*) 'x3d,y3d,z3d ',x3d(idjd,nlv),y3d(idjd,nlv),z3d(idjd,nlv)
   write(6,*) 'xg,yg,nface ',xg(idjd,nlv),yg(idjd,nlv),nface(idjd,nlv)
 endif
-#endif
 
 !======================== start of intsch=1 section ====================
 if(intsch==1)then
@@ -531,13 +529,11 @@ do k=1,kl
   call toij5 (k,x3d(:,k),y3d(:,k),z3d(:,k)) ! maybe remove k dependency
 end do
 
-#ifdef debug
 if(diag.and.mydiag)then
   write(6,*) '3rd guess for k = ',nlv
   write(6,*) 'x3d,y3d,z3d ',x3d(idjd,nlv),y3d(idjd,nlv),z3d(idjd,nlv)
   write(6,*) 'xg,yg,nface ',xg(idjd,nlv),yg(idjd,nlv),nface(idjd,nlv)
 endif
-#endif
 
 ! Share off processor departure points.
 call deptsync(nface,xg,yg)
