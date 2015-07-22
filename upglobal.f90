@@ -128,6 +128,7 @@ select case(nt_adv)
     end do
 end select
 
+#ifdef debug
 if ( mydiag ) then
   if(tx(idjd,kl)>264.)then  !cb
     write(6,*)
@@ -144,6 +145,7 @@ if(num_hight<100)then
     endif
   enddo
 endif 
+#endif
 
 aa(1:ifull)=zs(1:ifull)/(rdry*nritch_t)    ! save zs/(r*t) for nt_adv schemes 
 do k=1,kl   
