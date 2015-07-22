@@ -138,17 +138,17 @@ if ( diag.or.nmaxpr==1 ) then
   end if
 endif
 
-if(nhstest==1) then ! Held and Suarez test case
+if ( nhstest==1 ) then ! Held and Suarez test case
   call hs_phys
 endif
 
-if (diag)then
+if ( diag ) then
   call printa('sdot',sdot,ktau,nlv+1,ia,ib,ja,jb,0.,10.)
   call printa('omgf',dpsldt,ktau,nlv,ia,ib,ja,jb,0.,1.e5)
   aa(1:ifull,1)=rata(nlv)*sdot(1:ifull,nlv+1)+ratb(nlv)*sdot(1:ifull,nlv)
   if ( mydiag ) write(6,*) 'k,aa,emu,emv',nlv,aa(idjd,1),emu(idjd),emv(idjd)
   call printa('sgdf',aa(:,1),ktau,nlv,ia,ib,ja,jb,0.,10.)
-endif   ! (diag)
+end if   ! (diag)
 
 ! extra qfg & qlg terms included in tv from April 04
 tv(1:ifull,:) = (.61*qg(1:ifull,:)-qfg(1:ifull,:)-qlg(1:ifull,:))*t(1:ifull,:)         ! just add-on at this stage 
@@ -156,23 +156,24 @@ contv=(1.61-cpv/cp)/.61      ! about -.26/.61
 if ( ktau==1 .and. myid==0 ) then
   write(6,*)'in nonlin ntbar =',ntbar 
 end if
-if(ntbar==-1.or.(ntbar==-2.and.num==0))then
+! Note that ntbar=-1 is altered in globpe to a +ve value
+if ( ntbar==-2 .and. num==0 ) then
   tbar2d(1:ifull)=t(1:ifull,1)+contv*tv(1:ifull,1)
-else if (ntbar==0)then
+else if ( ntbar==0 ) then
   tbar2d(1:ifull)=tbar(1)
-else if (ntbar>0)then
+else if ( ntbar>0 ) then
   tbar2d(1:ifull)=t(1:ifull,ntbar)
-else if (ntbar==-3)then
+else if ( ntbar==-3 ) then
   tbar2d(1:ifull)=max(t(1:ifull,1),t(1:ifull,2),t(1:ifull,3),t(1:ifull,kl))
-else if (ntbar==-4)then
+else if ( ntbar==-4 ) then
   tbar2d(1:ifull)=max(t(1:ifull,1),t(1:ifull,2),t(1:ifull,4),t(1:ifull,kl))
-endif     ! (ntbar==-4)
+end if     ! (ntbar==-4)
       
-! update (linerized) hydrostatic geopotential phi
+! update (linearized) hydrostatic geopotential phi
 phi(:,1)=zs(1:ifull)+bet(1)*t(1:ifull,1) 
 do k=2,kl
   phi(:,k)=phi(:,k-1)+bet(k)*t(1:ifull,k)+betm(k)*t(1:ifull,k-1)
-enddo    ! k  loop
+end do    ! k  loop
       
 ! update non-hydrostatic terms from Miller-White height equation
 if (nh/=0) then
