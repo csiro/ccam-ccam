@@ -230,7 +230,7 @@ do ipf=0,mynproc-1
   ier=nf_inq_varid(pncid(ipf),name,idv)
   if(ier/=nf_noerr)then
     if (myid==0.and.ipf==0) then
-      write(6,*) '***absent field for ncid,name,idv,ier: ',pncid(0),name,idv,ier
+      write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
     end if
   else
     ! obtain scaling factors and offsets from attributes
@@ -252,7 +252,7 @@ do ipf=0,mynproc-1
   ier=nf90_inq_varid(pncid(ipf),name,idv)
   if(ier/=nf90_noerr)then
     if (myid==0.and.ipf==0) then
-      write(6,*) '***absent field for ncid,name,idv,ier: ',pncid(0),name,idv,ier
+      write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
     end if
   else
     ! obtain scaling factors and offsets from attributes
@@ -503,7 +503,7 @@ do ipf = 0,mynproc-1
     end do
     if ( ier/=nf_noerr ) then
       if ( myid==0 .and. ipf==0 ) then
-        write(6,*) '***absent field for ncid,name,idv,ier: ',pncid(0),name,idv,ier
+        write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
       end if
       rvar = 0. ! default value for missing field
     end if
@@ -551,7 +551,7 @@ do ipf = 0,mynproc-1
     end do
     if ( ier/=nf90_noerr ) then
       if ( myid==0 .and. ipf==0 ) then
-        write(6,*) '***absent field for ncid,name,idv,ier: ',pncid(0),name,idv,ier
+        write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
       end if
       rvar = 0. ! default value for missing field
     end if

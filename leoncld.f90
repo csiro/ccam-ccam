@@ -21,9 +21,8 @@
     
 ! This module is the Rotstayn 1997 cloud microphysics parameterisation
 
-! The scheme has been modifed by MJT for max/rnd cloud overlap and to
-! include prognostic rainfall.  There is also an optional prognostic
-! cloud fraction option (see cloudmod.f90).
+! The scheme has been modifed by MJT for max/rnd cloud overlap and to include prognostic rainfall.  There is
+! also an optional prognostic cloud fraction option (see cloudmod.f90).
 
 ! ldr    = 0    Diagnosed cloud scheme (depreciated)
 ! ldr   /= 0    Prognostic cloud condensate (different ice fall speed options)
@@ -54,12 +53,13 @@ public leoncld
 contains
     
 ! This subroutine is the interface for the LDR cloud microphysics
-subroutine leoncld(cfrac,rfrac)
+subroutine leoncld
       
 use aerointerface                 ! Aerosol interface
 use arrays_m                      ! Atmosphere dyamics prognostic arrays
 use cc_mpi, only : mydiag, myid   ! CC MPI routines
-use cloudmod                      ! Cloud fraction
+use cfrac_m                       ! Cloud fraction
+use cloudmod                      ! Prognostic cloud fraction
 use diag_m                        ! Diagnostic routines
 use estab                         ! Liquid saturation function
 use kuocomb_m                     ! JLM convection
@@ -84,8 +84,6 @@ include 'parm.h'                  ! Model configuration
 integer iq,k,ncl
 integer, dimension(ifull) :: kbase,ktop                   !Bottom and top of convective cloud 
 
-real, dimension(ifull,kl), intent(inout) :: cfrac         !Cloud fraction (passed back to globpe)
-real, dimension(ifull+iextra,kl), intent(inout) :: rfrac  !Rain fraction (passed back to globpe)
 real, dimension(ifull,kl) :: prf                          !Pressure on full levels (hPa)
 real, dimension(ifull,kl) :: dprf                         !Pressure thickness (hPa)
 real, dimension(ifull,kl) :: rhoa                         !Air density (kg/m3)
@@ -94,8 +92,6 @@ real, dimension(ifull,kl) :: cdso4                        !Cloud droplet conc (#
 real, dimension(ifull,kl) :: ccov                         !Cloud cover (may differ from cloud frac if vertically subgrid)
 real, dimension(ifull,kl) :: cfa                          !Cloud fraction in which autoconv occurs (option in newrain.f)
 real, dimension(ifull,kl) :: qca                          !Cloud water mixing ratio in cfa(:,:)    (  "    "     "     )
-real, dimension(ifull,kl) :: fluxc                        !Flux of convective rainfall in timestep (kg/m**2)
-real, dimension(ifull,kl) :: ccrain                       !Convective raining cloud cover
 real, dimension(ifull,kl) :: clcon                        !Convective cloud fraction in layer 
 real, dimension(ifull,kl) :: qsatg                        !Saturation mixing ratio
 real, dimension(ifull,kl) :: qcl                          !Vapour mixing ratio inside convective cloud
@@ -108,13 +104,10 @@ real, dimension(ifull) :: preci                           !Amount of stratiform 
 real, dimension(ifull) :: precg                           !Amount of stratiform grauple in timestep (mm)
 real, dimension(ifull) :: wcon                            !Convective cloud water content (in-cloud, prescribed)
 
-real, dimension(ifull) :: fl
-
-! These outputs are not used in this model at present
 real, dimension(ifull,kl) :: qevap, qsubl, qauto, qcoll, qaccr
 real, dimension(ifull,kl) :: fluxr, fluxi, fluxs, fluxg, fluxmelt, pqfsed
 real, dimension(ifull,kl) :: pfstayice, pfstayliq, slopes, prscav
-real, dimension(ifull) :: prf_temp
+real, dimension(ifull) :: prf_temp, fl, qtot
 
 
 ! Non-hydrostatic terms
@@ -129,23 +122,22 @@ do k = 1,kl
   prf(:,k)    = 0.01*ps(1:ifull)*sig(k)    !ps is SI units
   prf_temp(:) = 100.*prf(:,k)
   dprf(:,k)   = -0.01*ps(1:ifull)*dsig(k)  !dsig is -ve
-  tv(:,k)     = t(1:ifull,k)*(1.+0.61*qg(1:ifull,k)-qlg(1:ifull,k)-qfg(1:ifull,k))             ! virtual temperature
+  qtot(:)     = qg(1:ifull,k)+qlg(1:ifull,k)+qrg(1:ifull,k)+qfg(1:ifull,k)+qsg(1:ifull,k)+qgrg(1:ifull,k)
+  tv(:,k)     = t(1:ifull,k)*(1.+1.61*qg(1:ifull,k)-qtot(:))                                   ! virtual temperature
   rhoa(:,k)   = prf_temp(:)/(rdry*tv(1:ifull,k))                                               ! air density
   qsatg(:,k)  = qsat(prf_temp(:),t(1:ifull,k))                                                 ! saturated mixing ratio
   dz(:,k)     = 100.*dprf(1:ifull,k)/(rhoa(1:ifull,k)*grav)*(1.+tnhs(1:ifull,k)/tv(1:ifull,k)) ! level thickness in metres
 enddo
  
 ! Calculate droplet concentration from aerosols (for non-convective faction of grid-box)
-call aerodrop(1,ifull,kl,cdso4,rhoa,land,rlatt,outconv=.true.)
+call aerodrop(1,ifull,cdso4,rhoa,outconv=.true.)
 
 ! default values
 kbase(:)    = 0  ! default
 ktop(:)     = 0  ! default
-fluxc(:,:)  = 0.
-ccrain(:,:) = 0.1  !Assume this for now
-precs(:)    = 0.
-preci(:)    = 0.
-precg(:)    = 0.
+precs(:)    = 0. ! rain
+preci(:)    = 0. ! snow
+precg(:)    = 0. ! hail
 
 !     Set up convective cloud column
 call convectivecloudfrac(clcon)
@@ -162,32 +154,40 @@ if ( nmaxpr==1 .and. mydiag ) then
     write(6,*)'in leoncloud acon,bcon,Rcm ',acon,bcon,Rcm
   end if
   write(6,*) 'entering leoncld'
-  write(6,"('qg  ',9f8.3/4x,9f8.3)") qg(idjd,:)
+  write(6,"('qv  ',9f8.3/4x,9f8.3)") qg(idjd,:)
   write(6,"('qf  ',9f8.3/4x,9f8.3)") qfg(idjd,:)
   write(6,"('ql  ',9f8.3/4x,9f8.3)") qlg(idjd,:)
+  write(6,"('qr  ',9f8.3/4x,9f8.3)") qrg(idjd,:)
+  write(6,"('qs  ',9f8.3/4x,9f8.3)") qsg(idjd,:)
+  write(6,"('qg  ',9f8.3/4x,9f8.3)") qgrg(idjd,:)
 endif
 
-!     Calculate convective cloud fraction and adjust moisture variables 
-!     before calling newcloud
+! Calculate convective cloud fraction and adjust moisture variables before calling newcloud
 if ( ncloud<=4 ) then
 
-  ! diagnose cloud fraction
+  ! diagnose cloud fraction (ncloud<=3) or prognostic strat. cloud but diagnostic conv. cloud (ncloud==4)
   if ( nmr>0 ) then
     ! Max/Rnd cloud overlap
     do k = 1,kl
       where ( clcon(:,k)>0. )
         !ccw=wcon(:)/rhoa(:,k)  !In-cloud l.w. mixing ratio
-        qccon(:,k)      = clcon(:,k)*wcon(:)/rhoa(:,k)
-        qcl(:,k)        = max(qsatg(:,k),qg(1:ifull,k))  ! jlm
-        qenv(1:ifull,k) = max(1.e-8,qg(1:ifull,k)-clcon(:,k)*qcl(:,k))/(1.-clcon(:,k))
-        qcl(:,k)        = (qg(1:ifull,k)-(1.-clcon(:,k))*qenv(1:ifull,k))/clcon(:,k)
-        qlg(1:ifull,k)  = qlg(1:ifull,k)/(1.-clcon(:,k))
-        qfg(1:ifull,k)  = qfg(1:ifull,k)/(1.-clcon(:,k))
+        qccon(:,k)       = clcon(:,k)*wcon(:)/rhoa(:,k)
+        qcl(:,k)         = max(qsatg(:,k),qg(1:ifull,k))  ! jlm
+        qenv(1:ifull,k)  = max(1.e-8,qg(1:ifull,k)-clcon(:,k)*qcl(:,k))/(1.-clcon(:,k))
+        qcl(:,k)         = (qg(1:ifull,k)-(1.-clcon(:,k))*qenv(1:ifull,k))/clcon(:,k)
+        qlg(1:ifull,k)   = qlg(1:ifull,k)/(1.-clcon(:,k))
+        qfg(1:ifull,k)   = qfg(1:ifull,k)/(1.-clcon(:,k))
+        qrg(1:ifull,k)   = qrg(1:ifull,k)/(1.-clcon(:,k))
+        qsg(1:ifull,k)   = qsg(1:ifull,k)/(1.-clcon(:,k))
+        qgrg(1:ifull,k)  = qgrg(1:ifull,k)/(1.-clcon(:,k))
+        rfrac(1:ifull,k) = rfrac(1:ifull,k)/(1.-clcon(:,k))
+        sfrac(1:ifull,k) = sfrac(1:ifull,k)/(1.-clcon(:,k))
+        gfrac(1:ifull,k) = gfrac(1:ifull,k)/(1.-clcon(:,k))
       elsewhere
-        clcon(:,k)      = 0.
-        qccon(:,k)      = 0.
-        qcl(1:ifull,k)  = qg(1:ifull,k)
-        qenv(1:ifull,k) = qg(1:ifull,k)
+        clcon(1:ifull,k) = 0.
+        qccon(1:ifull,k) = 0.
+        qcl(1:ifull,k)   = qg(1:ifull,k)
+        qenv(1:ifull,k)  = qg(1:ifull,k)
       end where
     end do
   else
@@ -201,6 +201,12 @@ if ( ncloud<=4 ) then
         qcl(1:ifull,k)   = (qg(1:ifull,k)-(1.-clcon(1:ifull,k))*qenv(1:ifull,k))/clcon(1:ifull,k)
         qlg(1:ifull,k)   = qlg(1:ifull,k)/(1.-clcon(1:ifull,k))
         qfg(1:ifull,k)   = qfg(1:ifull,k)/(1.-clcon(1:ifull,k))
+        qrg(1:ifull,k)   = qrg(1:ifull,k)/(1.-clcon(1:ifull,k))
+        qsg(1:ifull,k)   = qsg(1:ifull,k)/(1.-clcon(1:ifull,k))
+        qgrg(1:ifull,k)  = qgrg(1:ifull,k)/(1.-clcon(1:ifull,k))
+        rfrac(1:ifull,k) = rfrac(1:ifull,k)/(1.-clcon(:,k))
+        sfrac(1:ifull,k) = sfrac(1:ifull,k)/(1.-clcon(:,k))
+        gfrac(1:ifull,k) = gfrac(1:ifull,k)/(1.-clcon(:,k))        
       elsewhere
         clcon(1:ifull,k) = 0.
         qccon(1:ifull,k) = 0.
@@ -211,7 +217,7 @@ if ( ncloud<=4 ) then
   end if
 
 else
-  ! prognostic cloud fraction (ncloud>=5)
+  ! prognostic strat. and conv. cloud fraction (ncloud>=5)
   ! MJT notes - no rescaling is performed because the prognostic cloud fraction scheme
   ! also accounts for convection when ncloud=5
   clcon(:,:)      = 0.
@@ -225,11 +231,14 @@ tenv(:,:) = t(1:ifull,:) !Assume T is the same in and out of convective cloud
 if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'before newcloud',ktau
   write(6,"('t   ',9f8.2/4x,9f8.2)") t(idjd,:)
-  write(6,"('qg  ',9f8.3/4x,9f8.3)") qg(idjd,:)
+  write(6,"('qv  ',9f8.3/4x,9f8.3)") qg(idjd,:)
   write(6,"('qf  ',9f8.3/4x,9f8.3)") qfg(idjd,:)
   write(6,"('ql  ',9f8.3/4x,9f8.3)") qlg(idjd,:)
+  write(6,"('qr  ',9f8.3/4x,9f8.3)") qrg(idjd,:)
+  write(6,"('qs  ',9f8.3/4x,9f8.3)") qsg(idjd,:)
+  write(6,"('qg  ',9f8.3/4x,9f8.3)") qgrg(idjd,:)
   write(6,"('qnv ',9f8.3/4x,9f8.3)") qenv(idjd,:)
-  write(6,"('qsg ',9f8.3/4x,9f8.3)") qsatg(idjd,:)
+  write(6,"('qsat',9f8.3/4x,9f8.3)") qsatg(idjd,:)
   write(6,"('qcl ',9f8.3/4x,9f8.3)") qcl(idjd,:)
   write(6,"('clc ',9f8.3/4x,9f8.3)") clcon(idjd,:)
   write(6,*) 'kbase,ktop ',kbase(idjd),ktop(idjd)
@@ -241,9 +250,12 @@ call newcloud(dt,land,prf,kbase,ktop,rhoa,cdso4,tenv,qenv,qlg,qfg,cfrac,ccov,cfa
 if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'after newcloud',ktau
   write (6,"('tnv ',9f8.2/4x,9f8.2)") tenv(idjd,:)
-  write (6,"('qg0 ',9f8.3/4x,9f8.3)") qg(idjd,:)
+  write (6,"('qv0 ',9f8.3/4x,9f8.3)") qg(idjd,:)
   write (6,"('qf  ',9f8.3/4x,9f8.3)") qfg(idjd,:)
   write (6,"('ql  ',9f8.3/4x,9f8.3)") qlg(idjd,:)
+  write (6,"('qr  ',9f8.3/4x,9f8.3)") qrg(idjd,:)
+  write (6,"('qs  ',9f8.3/4x,9f8.3)") qsg(idjd,:)
+  write (6,"('qg  ',9f8.3/4x,9f8.3)") qgrg(idjd,:)
   write (6,"('qnv ',9f8.3/4x,9f8.3)") qenv(idjd,:) ! really new qg
 endif
 
@@ -252,27 +264,39 @@ do k = 1,kl
   t(1:ifull,k)  = clcon(:,k)*t(1:ifull,k)+(1.-clcon(:,k))*tenv(:,k)
   qg(1:ifull,k) = clcon(:,k)*qcl(:,k)+(1.-clcon(:,k))*qenv(:,k)
   where ( k>=kbase .and. k<=ktop )
-    cfrac(:,k)     = cfrac(:,k)*(1.-clcon(:,k))
-    ccov(:,k)      = ccov(:,k)*(1.-clcon(:,k))              
-    qlg(1:ifull,k) = qlg(1:ifull,k)*(1.-clcon(:,k))
-    qfg(1:ifull,k) = qfg(1:ifull,k)*(1.-clcon(:,k))
-    cfa(:,k)       = cfa(:,k)*(1.-clcon(:,k))
-    qca(:,k)       = qca(:,k)*(1.-clcon(:,k))              
+    cfrac(:,k)      = cfrac(:,k)*(1.-clcon(:,k))
+    rfrac(1:ifull,k) = rfrac(1:ifull,k)*(1.-clcon(:,k))
+    sfrac(1:ifull,k) = sfrac(1:ifull,k)*(1.-clcon(:,k))
+    gfrac(1:ifull,k) = gfrac(1:ifull,k)*(1.-clcon(:,k))
+    ccov(:,k)       = ccov(:,k)*(1.-clcon(:,k))              
+    qlg(1:ifull,k)  = qlg(1:ifull,k)*(1.-clcon(:,k))
+    qfg(1:ifull,k)  = qfg(1:ifull,k)*(1.-clcon(:,k))
+    qrg(1:ifull,k)  = qrg(1:ifull,k)*(1.-clcon(:,k))
+    qsg(1:ifull,k)  = qsg(1:ifull,k)*(1.-clcon(:,k))
+    qgrg(1:ifull,k) = qgrg(1:ifull,k)*(1.-clcon(:,k))
+    cfa(:,k)        = cfa(:,k)*(1.-clcon(:,k))
+    qca(:,k)        = qca(:,k)*(1.-clcon(:,k))              
   end where
 enddo
 
 if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'before newrain',ktau
   write (6,"('t   ',9f8.2/4x,9f8.2)") t(idjd,:)
-  write (6,"('qg  ',9f8.3/4x,9f8.3)") qg(idjd,:)
+  write (6,"('qv  ',9f8.3/4x,9f8.3)") qg(idjd,:)
   write (6,"('qf  ',9f8.3/4x,9f8.3)") qfg(idjd,:)
   write (6,"('ql  ',9f8.3/4x,9f8.3)") qlg(idjd,:)
+  write (6,"('qr  ',9f8.3/4x,9f8.3)") qrg(idjd,:)
+  write (6,"('qs  ',9f8.3/4x,9f8.3)") qsg(idjd,:)
+  write (6,"('qg  ',9f8.3/4x,9f8.3)") qgrg(idjd,:)
 endif
 if ( diag ) then
   call maxmin(t,' t',ktau,1.,kl)
-  call maxmin(qg,'qg',ktau,1.e3,kl)
+  call maxmin(qg,'qv',ktau,1.e3,kl)
   call maxmin(qfg,'qf',ktau,1.e3,kl)
   call maxmin(qlg,'ql',ktau,1.e3,kl)
+  call maxmin(qrg,'qr',ktau,1.e3,kl)
+  call maxmin(qsg,'qs',ktau,1.e3,kl)
+  call maxmin(qgrg,'qg',ktau,1.e3,kl)
 endif
 
 ! Add convective cloud water into fields for radiation
@@ -281,13 +305,13 @@ endif
 ! done because sometimes newrain drops out all qlg, ending up with 
 ! zero cloud (although it will be rediagnosed as 1 next timestep)
 do k = 1,kl
-  fl         = max(0.,min(1.,(t(1:ifull,k)-ticon)/(273.15-ticon)))
-  qlrad(:,k) = qlg(1:ifull,k)+fl*qccon(:,k)
+  fl         = max(0., min(1., (t(1:ifull,k)-ticon)/(273.15-ticon) ) )
+  qlrad(:,k) = qlg(1:ifull,k)+qrg(1:ifull,k)+fl*qccon(:,k)
   qfrad(:,k) = qfg(1:ifull,k)+qsg(1:ifull,k)+qgrg(1:ifull,k)+(1.-fl)*qccon(:,k)
 enddo
 
 !     Calculate precipitation and related processes
-call newicerain(land,dt,fluxc,rhoa,dz,ccrain,prf,cdso4,cfa,qca,t,qlg,qfg,qrg,    &
+call newicerain(land,dt,rhoa,dz,prf,cdso4,cfa,qca,t,qlg,qfg,qrg,                 &
                 precs,qg,cfrac,rfrac,ccov,preci,precg,qevap,qsubl,qauto,qcoll,   &
                 qaccr,fluxr,fluxi,fluxs,fluxg,fluxmelt,pfstayice,pfstayliq,      &
                 pqfsed,slopes,prscav)
@@ -295,19 +319,26 @@ call newicerain(land,dt,fluxc,rhoa,dz,ccrain,prf,cdso4,cfa,qca,t,qlg,qfg,qrg,   
 if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'after newrain',ktau
   write (6,"('t   ',9f8.2/4x,9f8.2)") t(idjd,:)
-  write (6,"('qg  ',9f8.3/4x,9f8.3)") qg(idjd,:)
+  write (6,"('qv  ',9f8.3/4x,9f8.3)") qg(idjd,:)
   write (6,"('qf  ',9f8.3/4x,9f8.3)") qfg(idjd,:)
   write (6,"('ql  ',9f8.3/4x,9f8.3)") qlg(idjd,:)
+  write (6,"('qr  ',9f8.3/4x,9f8.3)") qrg(idjd,:)
+  write (6,"('qs  ',9f8.3/4x,9f8.3)") qsg(idjd,:)
+  write (6,"('qg  ',9f8.3/4x,9f8.3)") qgrg(idjd,:)
 end if
 if ( diag ) then
   call maxmin(t,' t',ktau,1.,kl)
-  call maxmin(qg,'qg',ktau,1.e3,kl)
+  call maxmin(qg,'qv',ktau,1.e3,kl)
   call maxmin(qfg,'qf',ktau,1.e3,kl)
   call maxmin(qlg,'ql',ktau,1.e3,kl)
+  call maxmin(qrg,'qr',ktau,1.e3,kl)
+  call maxmin(qsg,'qs',ktau,1.e3,kl)
+  call maxmin(qgrg,'qg',ktau,1.e3,kl)
 endif
 
 !--------------------------------------------------------------
 ! Store data needed by prognostic aerosol scheme
+! MJT notes - invert levels for aerosol code
 if ( abs(iaero)>=2 ) then
   ppfprec(:,1) = 0. !At TOA
   ppfmelt(:,1) = 0. !At TOA
@@ -316,7 +347,7 @@ if ( abs(iaero)>=2 ) then
     ppfprec(:,kl+1-k) = (fluxr(:,k+1)+fluxmelt(:,k))/dt                           !flux *entering* layer k
     ppfmelt(:,kl+1-k) = fluxmelt(:,k)/dt                                          !flux melting in layer k
     ppfsnow(:,kl+1-k) = (fluxi(:,k+1)+fluxs(:,k+1)+fluxg(:,k+1)-fluxmelt(:,k))/dt !flux *entering* layer k
-  enddo
+  end do
   do k = 1,kl
     ppfevap(:,kl+1-k)    = qevap(:,k)*rhoa(:,k)*dz(:,k)/dt
     ppfsubl(:,kl+1-k)    = qsubl(:,k)*rhoa(:,k)*dz(:,k)/dt !flux sublimating or staying in k
@@ -327,15 +358,15 @@ if ( abs(iaero)>=2 ) then
     ppfstayliq(:,kl+1-k) = pfstayliq(:,k)
     ppqfsed(:,kl+1-k)    = pqfsed(:,k)
     pprscav(:,kl+1-k)    = prscav(:,k)
-  enddo
+  end do
 end if
 !--------------------------------------------------------------
 
-!     Add convective cloud water into fields for radiation
-!     cfrad replaced by updating cfrac Oct 2005
-!     Moved up 16/1/06 (and ccov,cfrac NOT UPDATED in newrain)
-!     done because sometimes newrain drops out all qlg, ending up with 
-!     zero cloud (although it will be rediagnosed as 1 next timestep)
+! Add convective cloud water into fields for radiation
+! cfrad replaced by updating cfrac Oct 2005
+! Moved up 16/1/06 (and ccov,cfrac NOT UPDATED in newrain)
+! done because sometimes newrain drops out all qlg, ending up with 
+! zero cloud (although it will be rediagnosed as 1 next timestep)
 cfrac(:,1:kl) = min(1.,ccov(:,1:kl)+clcon(:,1:kl))
 
 !========================= Jack's diag stuff =========================
@@ -411,10 +442,10 @@ cfrac(:,1:kl) = min(1.,ccov(:,1:kl)+clcon(:,1:kl))
 !endif    ! ncfrp.eq.1
 !========================= end of Jack's diag stuff ======================
 
-condx(1:ifull)  = condx(1:ifull)+precs(1:ifull)*2.
-conds(1:ifull)  = conds(1:ifull)+preci(1:ifull)*2.
-condg(1:ifull)  = condg(1:ifull)+precg(1:ifull)*2.
-precip(1:ifull) = precip(1:ifull)+precs(1:ifull)*2.
+condx(1:ifull)  = condx(1:ifull)+precs(1:ifull)
+conds(1:ifull)  = conds(1:ifull)+preci(1:ifull)
+condg(1:ifull)  = condg(1:ifull)+precg(1:ifull)
+precip(1:ifull) = precip(1:ifull)+precs(1:ifull)
 
 return
 end subroutine leoncld
@@ -616,7 +647,7 @@ else if ( nclddia>7 ) then  ! e.g. 12    JLM
 end if  ! (nclddia<0)  .. else ..
 
 
-if ( ncloud<4 ) then
+if ( ncloud<=3 ) then
   ! usual diagnostic cloud fraction
       
   ! Calculate cloudy fraction of grid box (cfrac) and gridbox-mean cloud water
@@ -816,7 +847,7 @@ if(diag.and.mydiag)then
 end if
 
 return
- end subroutine newcloud
+end subroutine newcloud
 
 ! This routine is part of the prognostic cloud scheme. It calculates rainfall
 ! and the evaporation of rain, and also does the frozen precipitation. It is
@@ -832,10 +863,8 @@ return
 ! from arguments
 !      land - logical variable for surface type ( = T for land points)
 !      tdt - leapfrog timestep (seconds)
-!      fluxc - flux of convective rain in timestep (kg/m**2)
 !      rhoa - air density (kg/m**3)
 !      dz - layer thicknes (m)
-!      ccrain - raining convective cloud fraction at level k
 !      prf - pressure at full levels (in hPa. NB: not SI units)
 !
 ! In/Out:
@@ -862,7 +891,7 @@ return
 !
 !**************************************************************************
 
-subroutine newicerain(land,tdt,fluxc,rhoa,dz,ccrain,prf,cdrop,cfa,qca,ttg,qlg,qfg,qrg,precs,qtg,cfrac,cffall,ccov, &
+subroutine newicerain(land,tdt,rhoa,dz,prf,cdrop,cfa,qca,ttg,qlg,qfg,qrg,precs,qtg,cfrac,cffall,ccov,              &
                       preci,precg,qevap,qsubl,qauto,qcoll,qaccr,fluxr,fluxi,fluxs,fluxg,fluxmelt,pfstayice,        &
                       pfstayliq,pqfsed,slopes,prscav)
 
@@ -883,10 +912,8 @@ include 'parm.h'
 ! Argument list
 logical, dimension(ifull), intent(in) :: land
 real, intent(in) :: tdt
-real, dimension(ifull,kl), intent(in) :: fluxc
 real, dimension(ifull,kl), intent(in) :: rhoa
 real, dimension(ifull,kl), intent(in) :: dz
-real, dimension(ifull,kl), intent(in) :: ccrain
 real, dimension(ifull,kl), intent(in) :: prf
 real, dimension(ifull,kl), intent(in) :: cdrop
 real, dimension(ifull+iextra,kl), intent(inout) :: ttg
@@ -923,12 +950,12 @@ real, dimension(ifull,kl-1) :: fthruliq,foutliq,fthruice,foutice
 real, dimension(ifull,kl-1) :: rhor,gam
 real, dimension(ifull,kl) :: clfr,cifr,qsatg,cfrain,cfmelt,fluxauto
 real, dimension(ifull,kl) :: rhoi,vi2,vl2
-real, dimension(ifull) :: clfra,mxclfrliq,rdclfrliq,fluxrain,ccra
+real, dimension(ifull) :: clfra,mxclfrliq,rdclfrliq,fluxrain
 real, dimension(ifull) :: mxclfrice,rdclfrice,rica,fluxice,cifra
 real, dimension(ifull) :: sublflux,fsclr,caccr,dqf,qif,dttg,csb,bf
 real, dimension(ifull) :: dqs,ql,cdt,rhoiin,cffluxin,rhoiout
 real, dimension(ifull) :: cffluxout,rhodz,evap,qpf,clrevap,fr
-real, dimension(ifull) :: mxovr,rdovr,frc,fcol,coll,alph,rhorin
+real, dimension(ifull) :: mxovr,rdovr,fcol,coll,alph,rhorin
 real, dimension(ifull) :: rhorout,tc,alphaf,tk,pk,es,aprpr,bprpr
 real, dimension(ifull) :: curly,frclr,Csbsav
 
@@ -1076,7 +1103,6 @@ vl2(1:ifull,kl)=0.
 prscav(1:ifull,kl)=0.
 pfstayliq(1:ifull,kl)=0.
 clfra(1:ifull)=1.e-6
-ccra(1:ifull)=0.
 fluxrain(1:ifull)=0.
 mxclfrliq(1:ifull)=0. ! max overlap rain fraction
 rdclfrliq(1:ifull)=0. ! rnd overlap rain fraction
@@ -1211,13 +1237,13 @@ do k=kl-1,1,-1
       where ( cifr(1:ifull,k)>=1.e-10 )
         vi2(1:ifull,k)=1.4*3.23*(rhoi(1:ifull,k)/cifr(1:ifull,k))**0.17
       end where
-    ! following are alternative slightly-different versions of above
-    ! used for I runs from 29/4/05 till 30/8/05
-    ! for given qfg, large cifr implies small ice crystals, 
-    ! with a small fall speed. 
-    ! Note that for very small qfg, cifr is small.
-    ! But rhoi is like qfg, so ratio should also be small and OK.
     case(11) ! 1 for R21 runs, like prev lw=22
+      ! following are alternative slightly-different versions of above
+      ! used for I runs from 29/4/05 till 30/8/05
+      ! for given qfg, large cifr implies small ice crystals, 
+      ! with a small fall speed. 
+      ! Note that for very small qfg, cifr is small.
+      ! But rhoi is like qfg, so ratio should also be small and OK.         
       vi2(1:ifull,k)=max( vi2(1:ifull,k+1),3.23*(rhoi(1:ifull,k)/max(cifr(1:ifull,k),1.e-30))**0.17 )
     case(22)
       vi2(1:ifull,k)=max( vi2(1:ifull,k+1),.9*3.23*(rhoi(1:ifull,k)/max(cifr(1:ifull,k),1.e-30))**0.17 )
@@ -1334,22 +1360,12 @@ do k=kl-1,1,-1
     Fr(:)=0.
   end where
 
-  where ( fluxc(:,k+1)>0. )
-    Frc(:)=max(0.,fluxc(:,k+1)/max(ccra(:),0.01)/tdt)                ! over tdt
-    rdovr(:)=clfr(:,k)*ccra(:)                                       ! rnd overlap
-    cfrain(1:ifull,k)=cfrain(1:ifull,k)+rdovr(:)-cfrain(1:ifull,k)*rdovr(:)
-    !cfrain(1:ifull,k)=max(cfrain(1:ifull,k),min(clfr(:,k),ccra(:))) ! max overlap
-  elsewhere
-    Frc(:)=0.
-  end where
-
   ! The collection term comprises collection by stratiform rain falling from
-  ! above (Fr), stratiform rain released in this grid box (Frb), and
-  ! convective rain (Frc).
+  ! above (Fr), stratiform rain released in this grid box (Frb).
   ! Frb term now done above.
   fcol(:)=min(1.,mxclfrliq(:)/(1.e-20+clfr(:,k)))          !max overlap
   fcol(:)=fcol(:)+rdclfrliq(:)-fcol(:)*rdclfrliq(:)        !rnd overlap
-  cdt(:)=tdt*Ecol*0.24*(fcol(:)*pow75(Fr(:))+ccra(:)*pow75(Frc(:)))
+  cdt(:)=tdt*Ecol*0.24*fcol(:)*pow75(Fr(:))
   prscav(:,k)=tdt*0.24*fcol(:)*pow75(Fr(:))                !Strat only
 
   coll(:)=min(qlg(1:ifull,k),qlg(1:ifull,k)*cdt(:)/(1.+0.5*cdt(:)))
@@ -1361,8 +1377,7 @@ do k=kl-1,1,-1
   fluxrain(:)=fluxrain(:)-rhodz(:)*evap(:)
   fluxrain(:)=max(fluxrain(:),0.) !To avoid roundoff -ve's
 
-  ! Calculate the raining cloud cover down to this level, for stratiform (clfra)
-  ! and convective (ccra).
+  ! Calculate the raining cloud cover down to this level, for stratiform (clfra).
   cfrain(1:ifull,k)=min(1.,cfrain(1:ifull,k)+cfmelt(:,k)-cfrain(1:ifull,k)*cfmelt(:,k)) ! rnd overlap
   where ( frclr(:)<1.e-15 )
     rdclfrliq(:)=0.
@@ -1370,7 +1385,6 @@ do k=kl-1,1,-1
   end where
   mxclfrliq(:)=max(mxclfrliq(:),cfrain(1:ifull,k)) !max overlap
   clfra(:)=max(1.e-15,rdclfrliq(:)+mxclfrliq(:)-rdclfrliq(:)*mxclfrliq(:)) !rnd overlap the mx and rd rain fractions
-  ccra(:)=max(ccra(:),ccrain(:,k)) !always max overlap for convective rainfall - MJT
 
   ! Calculate rain fall speed (MJT)
   if ( ncloud>1 ) then
@@ -1413,9 +1427,9 @@ qrg(1:ifull,1:kl-1)=rhor(1:ifull,1:kl-1)/rhoa(1:ifull,1:kl-1)
 qfg(1:ifull,1:kl)=rhoi(1:ifull,1:kl)/rhoa(1:ifull,1:kl)
 
 ! Factor 0.5 here accounts for leapfrog scheme
-precs(1:ifull)=precs(1:ifull)+0.5*(fluxr(1:ifull,1)+fluxi(1:ifull,1)+fluxs(1:ifull,1)+fluxg(1:ifull,1))
-preci(1:ifull)=preci(1:ifull)+0.5*(fluxi(1:ifull,1)+fluxs(1:ifull,1))
-precg(1:ifull)=precg(1:ifull)+0.5*fluxg(1:ifull,1)
+precs(1:ifull)=precs(1:ifull)+fluxr(1:ifull,1)+fluxi(1:ifull,1)+fluxs(1:ifull,1)+fluxg(1:ifull,1)
+preci(1:ifull)=preci(1:ifull)+fluxi(1:ifull,1)+fluxs(1:ifull,1)
+precg(1:ifull)=precg(1:ifull)+fluxg(1:ifull,1)
 
 ! Remove small amounts of cloud
 where ( qlg(1:ifull,1:kl)<1.e-10.or.clfr(1:ifull,1:kl)<1.e-5 )

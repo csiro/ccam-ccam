@@ -124,6 +124,7 @@ c     Stuff from cldset
       real duo3n(ixin,kl)
       
       real rhoa(ixin,kl)
+      real tv(ixin)
 
       logical clforflag, solarfit
       parameter (clforflag = .true., solarfit=.true.)
@@ -492,10 +493,11 @@ c       Stuff needed for cloud2 routine...
           enddo
         enddo
         do k=1,kl
-          rhoa(:,k)=ps(istart:iend)*sig(k)/(rdry*t(istart:iend,k)) !density of air
+          tv=t(istart:iend,k)*(1.+0.61*qg(istart:iend,k)
+     &        -qlrad(istart:iend,k)-qfrad(istart:iend,k))
+          rhoa(:,k)=ps(istart:iend)*sig(k)/(rdry*tv) !density of air
         end do
-        call aerodrop(istart,imax,kl,cd2,rhoa,
-     &                land(istart:iend),rlatt(istart:iend))
+        call aerodrop(istart,imax,cd2,rhoa)
       endif  ! (ldr.ne.0)
       
 c  Clear sky calculation

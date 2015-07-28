@@ -1427,9 +1427,9 @@ do kktau = 1,ntau   ! ****** start of main time loop
   end if
   convh_ave = convh_ave-t(1:ifull,:)*real(nperday)/real(nperavg)
   condc     = 0. ! default convective rainfall (assumed to be rain)
-  condx     = 0. ! default total precip = rain + snow (convection and large scale)
-  conds     = 0. ! default total snow  (convection and large scale)
-  condg     = 0. ! default total grauple (convection and large scale)
+  condx     = 0. ! default total precip = rain + ice + snow + graupel (convection and large scale)
+  conds     = 0. ! default total ice + snow (convection and large scale)
+  condg     = 0. ! default total graupel (convection and large scale)
   ! Save aerosol concentrations for outside convective fraction of grid box
   if ( abs(iaero)>=2 ) then
     xtosav(:,:,:) = xtg(1:ifull,:,:) ! Aerosol mixing ratio outside convective cloud
@@ -1466,7 +1466,7 @@ do kktau = 1,ntau   ! ****** start of main time loop
   end if
   if ( ldr/=0 ) then
     ! LDR microphysics scheme
-    call leoncld(cfrac,rfrac)
+    call leoncld
   end if
   do k = 1,kl
     riwp_ave(1:ifull) = riwp_ave(1:ifull)-qfrad(:,k)*dsig(k)*ps(1:ifull)/grav ! ice water path

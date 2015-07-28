@@ -1193,12 +1193,12 @@ if ( nested/=1 ) then
     call gethist4a('qfg',qfg,5)               ! CLOUD FROZEN WATER
     call gethist4a('qlg',qlg,5)               ! CLOUD LIQUID WATER
     call gethist4a('qrg',qrg,5)               ! RAIN
-    call gethist4a('qsg',qsg,5)              ! SNOW
-    call gethist4a('qgrg',qgrg,5)            ! GRAUPLE
+    call gethist4a('qsg',qsg,5)               ! SNOW
+    call gethist4a('qgrg',qgrg,5)             ! GRAUPEL
     call gethist4a('cfrac',cfrac,5)           ! CLOUD FRACTION
     call gethist4a('rfrac',rfrac,5)           ! RAIN FRACTION
-    call gethist4a('sfrac',sfrac,5)          ! SNOW FRACTION
-    call gethist4a('gfrac',gfrac,5)          ! GRAUPLE FRACTION
+    call gethist4a('sfrac',sfrac,5)           ! SNOW FRACTION
+    call gethist4a('gfrac',gfrac,5)           ! GRAUPEL FRACTION
     if ( ncloud>=4 ) then
       call gethist4a('stratcf',stratcloud,5)  ! STRAT CLOUD FRACTION
       call gethist4a('strat_nt',nettend,5)    ! STRAT NET TENDENCY

@@ -24,7 +24,7 @@ module cfrac_m
 ! cfrac is total cloud fraction (including convection)
 ! rfrac is the total rain fraction (not including convection)
 ! sfrac is the total snow fraction
-! gfrac is the total grauple fraction
+! gfrac is the total graupel fraction
 ! see cloudmod for large scale cloud fraction with ncloud>3
     
 implicit none

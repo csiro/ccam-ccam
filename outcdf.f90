@@ -636,6 +636,7 @@ real, dimension(il_g) :: xpnt
 real, dimension(jl_g) :: ypnt
 real, dimension(ifull) :: aa,bb,cc
 real, dimension(ifull) :: ocndep,ocnheight
+real, dimension(ifull) :: qtot, tv
 real, dimension(ifull,kl) :: tmpry,rhoa
 real, dimension(ifull,wlev,4) :: mlodwn
 real, dimension(ifull,11) :: micdwn
@@ -1361,11 +1362,11 @@ if( myid==0 .or. local ) then
       call attrib(idnc,idim(1:4),4,'qlg','Liquid water','kg/kg',0.,.065,0,itype)
       call attrib(idnc,idim(1:4),4,'qrg','Rain',        'kg/kg',0.,.065,0,itype)
       call attrib(idnc,idim(1:4),4,'qsg','Snow',        'kg/kg',0.,.065,0,itype)
-      call attrib(idnc,idim(1:4),4,'qgrg','Grauple',    'kg/kg',0.,.065,0,itype)
+      call attrib(idnc,idim(1:4),4,'qgrg','Graupel',    'kg/kg',0.,.065,0,itype)
       call attrib(idnc,idim(1:4),4,'cfrac','Cloud fraction',  'none',0.,1.,0,itype)
       call attrib(idnc,idim(1:4),4,'rfrac','Rain fraction',   'none',0.,1.,0,itype)
       call attrib(idnc,idim(1:4),4,'sfrac','Snow fraction',   'none',0.,1.,0,itype)
-      call attrib(idnc,idim(1:4),4,'gfrac','Grauple fraction','none',0.,1.,0,itype)
+      call attrib(idnc,idim(1:4),4,'gfrac','Graupel fraction','none',0.,1.,0,itype)
       if ( ncloud>=4 ) then
         call attrib(idnc,idim(1:4),4,'stratcf','Strat cloud fraction','none',0.,1.,0,itype)
         if ( itype==-1 ) then
@@ -2183,9 +2184,11 @@ if ( abs(iaero)>=2 ) then
   call histwrt4(ssn(:,:,2), 'seasalt2',idnc,iarch,local,.true.)
   if ( iaero<=-2 ) then
     do k = 1,kl
-      rhoa(:,k)=ps(1:ifull)*sig(k)/(rdry*t(1:ifull,k)) !density of air
+      qtot(:)   = qg(1:ifull,k)+qlg(1:ifull,k)+qrg(1:ifull,k)+qfg(1:ifull,k)+qsg(1:ifull,k)+qgrg(1:ifull,k)
+      tv(:)     = t(1:ifull,k)*(1.+1.61*qg(1:ifull,k)-qtot(:))   ! virtual temperature
+      rhoa(:,k) = ps(1:ifull)*sig(k)/(rdry*tv(:))                !density of air
     end do
-    call aerodrop(1,ifull,kl,tmpry,rhoa,land,rlatt)
+    call aerodrop(1,ifull,tmpry,rhoa)
     call histwrt4(tmpry,'cdn',idnc,iarch,local,.true.)
   end if
 end if

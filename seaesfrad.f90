@@ -150,9 +150,12 @@ real(kind=8), dimension(:,:,:,:), allocatable, save :: r
 
 call START_LOG(radmisc_begin)
 
-if ( nmaxpr==1 .and. myid==0 ) then
-  write(6,*) "seaesfrad: Starting SEA-ESF radiation"
-end if
+if ( nmaxpr==1 ) then
+  if ( myid==0 ) then
+    write(6,*) "seaesfrad: Starting SEA-ESF radiation"
+  end if
+  call ccmpi_barrier(comm_world)
+end if 
 
 ! Aerosol flag
 do_aerosol_forcing = abs(iaero)>=2
@@ -562,8 +565,11 @@ if ( first ) then
   
 end if  ! (first)
 
-if ( nmaxpr==1 .and. myid==0 ) then
-  write(6,*) "seaesfrad: Prepare SEA-ESF arrays"
+if ( nmaxpr==1 ) then
+  if ( myid==0 ) then
+    write(6,*) "seaesfrad: Prepare SEA-ESF arrays"
+  end if
+  call ccmpi_barrier(comm_world)
 end if
 
 if ( diag .and. mydiag ) then
@@ -571,17 +577,19 @@ if ( diag .and. mydiag ) then
   write(6,*) "qgdiag ",qg(idjd,:)
   write(6,*) "qlraddiag ",qlrad(idjd,:)
   write(6,*) "qfraddiag ",qfrad(idjd,:)
-  write(6,*) "SO4diag ",xtg(idjd,:,3)
-  write(6,*) "BCphobdiag ",xtg(idjd,:,4)
-  write(6,*) "BCphildiag ",xtg(idjd,:,5)
-  write(6,*) "OCphobdiag ",xtg(idjd,:,6)
-  write(6,*) "OCphildiag ",xtg(idjd,:,7)
-  write(6,*) "dust0.8diag ",xtg(idjd,:,8)
-  write(6,*) "dust1.0diag ",xtg(idjd,:,9)
-  write(6,*) "dust2.0diag ",xtg(idjd,:,10)
-  write(6,*) "dust4.0diag ",xtg(idjd,:,11)
-  write(6,*) "saltfilmdiag ",ssn(idjd,:,1)
-  write(6,*) "saltjetdiag  ",ssn(idjd,:,2)
+  if ( abs(iaero)>=2 ) then
+    write(6,*) "SO4diag ",xtg(idjd,:,3)
+    write(6,*) "BCphobdiag ",xtg(idjd,:,4)
+    write(6,*) "BCphildiag ",xtg(idjd,:,5)
+    write(6,*) "OCphobdiag ",xtg(idjd,:,6)
+    write(6,*) "OCphildiag ",xtg(idjd,:,7)
+    write(6,*) "dust0.8diag ",xtg(idjd,:,8)
+    write(6,*) "dust1.0diag ",xtg(idjd,:,9)
+    write(6,*) "dust2.0diag ",xtg(idjd,:,10)
+    write(6,*) "dust4.0diag ",xtg(idjd,:,11)
+    write(6,*) "saltfilmdiag ",ssn(idjd,:,1)
+    write(6,*) "saltjetdiag  ",ssn(idjd,:,2)
+  end if
 end if
 
 ! error checking
@@ -603,8 +611,11 @@ do j = 1,jl,imax/il
   istart = 1+(j-1)*il
   iend   = istart+imax-1
   
-  if ( nmaxpr==1 .and. myid==0 ) then
-    write(6,*) "seaesfrad: Main SEA-ESF loop for istart,iend ",istart,iend
+  if ( nmaxpr==1 ) then
+    if ( myid==0 ) then
+      write(6,*) "seaesfrad: Main SEA-ESF loop for istart,iend ",istart,iend
+    end if
+    call ccmpi_barrier(comm_world)
   end if
 
   ! Calculate zenith angle for the solarfit calculation.
@@ -616,8 +627,11 @@ do j = 1,jl,imax/il
   ! Call radiation --------------------------------------------------
   if ( odcalc ) then     ! Do the calculation
   
-    if (nmaxpr==1.and.myid==0) then
-      write(6,*) "seaesfrad: Update radiation"
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
+        write(6,*) "seaesfrad: Update radiation"
+      end if
+      call ccmpi_barrier(comm_world)
     end if
 
     ! Average the zenith angle over the time (hours) between radiation
@@ -796,7 +810,7 @@ do j = 1,jl,imax/il
     end select
 
     ! define droplet size distribution ------------------------------
-    call aerodrop(istart,imax,kl,cd2,rhoa,land(istart:iend),rlatt(istart:iend))
+    call aerodrop(istart,imax,cd2,rhoa)
     
     ! Cloud fraction diagnostics ------------------------------------
     cloudlo(istart:iend)=0.
@@ -920,8 +934,11 @@ do j = 1,jl,imax/il
       end do
     end if
 
-    if (nmaxpr==1.and.myid==0) then
-      write(6,*) "seaesfrad: Calculate microphysics properties"
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
+        write(6,*) "seaesfrad: Calculate microphysics properties"
+      end if
+      call ccmpi_barrier(comm_world)
     end if
 
     ! cloud microphysics for radiation
@@ -965,9 +982,12 @@ do j = 1,jl,imax/il
     call END_LOG(radmisc_end)
 
     call START_LOG(radlw_begin)
-    if (nmaxpr==1.and.myid==0) then
-      write(6,*) "seaesfrad: Longwave radiation"
-    end if
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
+        write(6,*) "seaesfrad: Longwave radiation"
+      end if
+      call ccmpi_barrier(comm_world)
+    end if    
     call longwave_driver (1, imax, 1, 1, Rad_time, Atmos_input,  &
                           Rad_gases, Aerosol, Aerosol_props,     &
                           Cldrad_props, Cld_spec, Aerosol_diags, &
@@ -975,9 +995,12 @@ do j = 1,jl,imax/il
     call END_LOG(radlw_end)
 
     call START_LOG(radsw_begin)
-    if (nmaxpr==1.and.myid==0) then
-      write(6,*) "seaesfrad: Shortwave radiation"
-    end if
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
+        write(6,*) "seaesfrad: Shortwave radiation"
+      end if
+      call ccmpi_barrier(comm_world)
+    end if       
     call shortwave_driver (1, imax, 1, 1, Atmos_input, Surface,      &
                            Astro, Aerosol, Aerosol_props, Rad_gases, &
                            Cldrad_props, Cld_spec, Sw_output,        &
@@ -986,9 +1009,12 @@ do j = 1,jl,imax/il
     
     call START_LOG(radmisc_begin)
 
-    if (nmaxpr==1.and.myid==0) then
-      write(6,*) "seaesfrad: Process SEA-ESF output"
-    end if
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
+        write(6,*) "seaesfrad: Process SEA-ESF output"
+      end if
+      call ccmpi_barrier(comm_world)
+    end if       
 
     ! store shortwave and fbeam data --------------------------------
     sgdn    = real(Sw_output(1)%dfsw(:,1,kl+1,1))
@@ -1129,9 +1155,12 @@ do j = 1,jl,imax/il
     ! cloud amounts for saving --------------------------------------
     cloudtot(istart:iend)=1.-(1.-cloudlo(istart:iend))*(1.-cloudmi(istart:iend))*(1.-cloudhi(istart:iend))
 
-    if (nmaxpr==1.and.myid==0) then
-      write(6,*) "seaesfrad: Calculate averages"
-    end if
+    if ( nmaxpr==1 ) then
+      if ( myid==0 ) then
+        write(6,*) "seaesfrad: Calculate averages"
+      end if
+      call ccmpi_barrier(comm_world)
+    end if      
 
     ! Use explicit indexing rather than array notation so that we can run
     ! over the end of the first index
@@ -1163,9 +1192,12 @@ do j = 1,jl,imax/il
 
   end if  ! odcalc
 
-  if (nmaxpr==1.and.myid==0) then
-    write(6,*) "seaesfrad: Solarfit"
-  end if
+  if ( nmaxpr==1 ) then
+    if ( myid==0 ) then
+      write(6,*) "seaesfrad: Solarfit"
+    end if
+    call ccmpi_barrier(comm_world)
+  end if   
 
   ! Calculate the solar using the saved amplitude.
   sg(1:imax) = sgamp(istart:iend)*coszro2(1:imax)*taudar2(1:imax)
@@ -1189,9 +1221,12 @@ end do  ! Row loop (j)  j=1,jl,imax/il
 ! Calculate net radiational cooling of atmosphere (K/s)
 t(1:ifull,:)=t(1:ifull,:)-dt*rtt(1:ifull,:)
 
-if (nmaxpr==1.and.myid==0) then
-  write(6,*) "seaesfrad: Finishing SEA-ESF radiation"
-end if
+if ( nmaxpr==1 ) then
+  if ( myid==0 ) then
+    write(6,*) "seaesfrad: Finishing SEA-ESF radiation"
+  end if
+  call ccmpi_barrier(comm_world)
+end if   
 
 if ( diag .and. mydiag ) then
   write(6,*) "tdiag ",t(idjd,:)

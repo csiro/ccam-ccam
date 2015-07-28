@@ -632,22 +632,23 @@ end subroutine aerocalc
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Estimate cloud droplet size
-subroutine aerodrop(istart,imax,kl,cdn,rhoa,land,rlatt,outconv)
+subroutine aerodrop(istart,imax,cdn,rhoa,outconv)
 
-use aerosolldr          ! LDR prognostic aerosols
+use aerosolldr              ! LDR prognostic aerosols
+use latlong_m, only : rlatt ! Lat/lon coordinates
+use soil_m, only : land     ! Soil and surface data
 
 implicit none
 
-include 'const_phys.h'  ! Physical constants
-include 'cparams.h'     ! Input cloud scheme parameters
-include 'parm.h'        ! Model configuration
+include 'newmpar.h'         ! Grid parameters
+include 'const_phys.h'      ! Physical constants
+include 'cparams.h'         ! Input cloud scheme parameters
+include 'parm.h'            ! Model configuration
 
-integer, intent(in) :: istart,imax,kl
-integer k,indirmode
+integer, intent(in) :: istart,imax
+integer k,indirmode,iend
 real, dimension(imax,kl), intent(out) :: cdn
 real, dimension(imax,kl), intent(in) :: rhoa
-real, dimension(imax), intent(in) :: rlatt
-logical, dimension(imax), intent(in) :: land
 logical, intent(in), optional :: outconv
 logical convmode
 
@@ -657,17 +658,22 @@ if (present(outconv)) then
 end if
 
 indirmode=abs(iaero)
-if (aeroindir==2) indirmode=0 ! option for no indirect effects
+if (aeroindir==2) then
+  indirmode=0 ! option for no indirect effects
+end if
 
 select case(indirmode)
   case(2)
+    ! prognostic aerosols for indirect effects
     call cldrop(istart,imax,cdn,rhoa,convmode)
   case default
-    where (land(:).and.rlatt(:)>0.)
+    ! diagnosed for prescribed aerosol indirect effects
+    iend = istart + imax - 1
+    where (land(istart:iend).and.rlatt(istart:iend)>0.)
       cdn(:,1)=cdropl_nh
-    elsewhere (land(:))
+    elsewhere (land(istart:iend))
       cdn(:,1)=cdropl_sh
-    elsewhere (rlatt(:)>0.)
+    elsewhere (rlatt(istart:iend)>0.)
       cdn(:,1)=cdrops_nh
     elsewhere
       cdn(:,1)=cdrops_sh
