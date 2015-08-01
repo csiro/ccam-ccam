@@ -1340,7 +1340,7 @@ do k=kl-1,1,-1
       evap(mg)=max(0., min(evap(mg),satevap,qpf(mg),clrevap(mg)))
       if(nevapls==-1)evap(mg)=0.
       if(nevapls==-2.and.k<=ktsav(mg).and.condx(mg)>0.)evap(mg)=0.
-      if(nevapls==-3)evap=.5*evap
+      if(nevapls==-3)evap(mg)=.5*evap(mg)
       if(nevapls==-4.and.k<=ktsav(mg).and.condx(mg)>0.)evap(mg)=.5*evap(mg) ! usual
       qevap(mg,k)=qevap(mg,k)+evap(mg)
       qtg(mg,k)=qtg(mg,k)+evap(mg)

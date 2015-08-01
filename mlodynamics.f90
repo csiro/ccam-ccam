@@ -1393,27 +1393,27 @@ if (nud_sfh==0) then
 end if
 
 ! temperature conservation
-!if (nud_sst==0) then
-!  delpos=0.
-!  delneg=0.
-!  do ii=1,wlev
-!    where(wtr(1:ifull))
-!      dum(:,ii)=nt(1:ifull,ii)*max(dd(1:ifull)+neta(1:ifull),minwater)-w_t(:,ii)*max(dd(1:ifull)+w_e(1:ifull),minwater)
-!    elsewhere
-!      dum(:,ii)=0.
-!    end where
-!  end do
-!  call ccglobal_posneg(dum,delpos,delneg,dsigin=godsig)
-!  alph_p = -delneg/max(delpos,1.E-20)
-!  alph_p = min(sqrt(alph_p),alph_p)
-!  do ii=1,wlev
-!    where(wtr(1:ifull))
-!      nt(1:ifull,ii)=(w_t(:,ii)*max(dd(1:ifull)+w_e(1:ifull),minwater)           &
-!                     +max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)) &
-!                     /max(dd(1:ifull)+neta(1:ifull),minwater)
-!    end where
-!  end do
-!end if
+if (nud_sst==0) then
+  delpos=0.
+  delneg=0.
+  do ii=1,wlev
+    where(wtr(1:ifull))
+      dum(:,ii)=nt(1:ifull,ii)*max(dd(1:ifull)+neta(1:ifull),minwater)-w_t(:,ii)*max(dd(1:ifull)+w_e(1:ifull),minwater)
+    elsewhere
+      dum(:,ii)=0.
+    end where
+  end do
+  call ccglobal_posneg(dum,delpos,delneg,dsigin=godsig)
+  alph_p = -delneg/max(delpos,1.E-20)
+  alph_p = min(sqrt(alph_p),alph_p)
+  do ii=1,wlev
+    where(wtr(1:ifull))
+      nt(1:ifull,ii)=(w_t(:,ii)*max(dd(1:ifull)+w_e(1:ifull),minwater)           &
+                     +max(0.,dum(:,ii))*alph_p+min(0.,dum(:,ii))/max(1.,alph_p)) &
+                     /max(dd(1:ifull)+neta(1:ifull),minwater)
+    end where
+  end do
+end if
 
 ! salinity conservation
 if (nud_sss==0) then
@@ -4468,7 +4468,6 @@ include 'newmpar.h'
 integer, intent(in) :: cnum
 integer ii,l,iq,ierr,its_g
 integer, dimension(ifull) :: its
-integer, dimension(ifull,wlev-1) :: kp,kx
 real, intent(in) :: dtin
 real, dimension(ifull) :: dtnew
 real, dimension(ifull,0:wlev), intent(in) :: ww
@@ -4496,24 +4495,19 @@ if (its_g>500) then
 end if
 dtnew(:)=dtin/real(its(:))
 
-do ii=1,wlev-1
-  kp(:,ii)=sign(1.,ww(:,ii))
-  kx(:,ii)=ii+(1-kp(:,ii))/2 !  k for ww +ve,  k+1 for ww -ve
-end do
-  
 ss=ss-34.72
-call mlotvd(its,dtnew,ww,uu,depdum,dzdum,kp,kx)
-call mlotvd(its,dtnew,ww,vv,depdum,dzdum,kp,kx)
-call mlotvd(its,dtnew,ww,ss,depdum,dzdum,kp,kx)
-call mlotvd(its,dtnew,ww,tt,depdum,dzdum,kp,kx)
-call mlotvd(its,dtnew,ww,mm,depdum,dzdum,kp,kx)
+call mlotvd(its,dtnew,ww,uu,depdum,dzdum)
+call mlotvd(its,dtnew,ww,vv,depdum,dzdum)
+call mlotvd(its,dtnew,ww,ss,depdum,dzdum)
+call mlotvd(its,dtnew,ww,tt,depdum,dzdum)
+call mlotvd(its,dtnew,ww,mm,depdum,dzdum)
 ss=ss+34.72
 ss=max(ss,0.)
 
 return
 end subroutine mlovadv
 
-subroutine mlotvd(its,dtnew,ww,uu,depadj,dzadj,kp,kx)
+subroutine mlotvd(its,dtnew,ww,uu,depadj,dzadj)
 
 use mlo
 
@@ -4521,9 +4515,8 @@ implicit none
 
 include 'newmpar.h'
 
-integer ii,i,iq
+integer ii,i,iq,kp,kx
 integer, dimension(ifull), intent(in) :: its
-integer, dimension(ifull,wlev-1), intent(in) :: kp,kx
 real, dimension(ifull), intent(in) :: dtnew
 real, dimension(ifull,0:wlev), intent(in) :: ww
 real, dimension(ifull,wlev), intent(in) :: depadj,dzadj
@@ -4543,13 +4536,16 @@ delu(:,wlev)=0.
 
 ! TVD part
 do ii=1,wlev-1
-  do iq=1,ifull
-    rr(iq)=delu(iq,ii-kp(iq,ii))/(delu(iq,ii)+sign(1.E-20,delu(iq,ii)))
-    fl(iq)=ww(iq,ii)*uu(iq,kx(iq,ii))
-  end do
-  cc=max(0.,min(1.,2.*rr),min(2.,rr)) ! superbee
-  fh=ww(:,ii)*0.5*(uu(:,ii)+uu(:,ii+1))             &
-   -0.5*(uu(:,ii+1)-uu(:,ii))*ww(:,ii)**2*dtnew(:)  &
+  where ( ww(:,ii)>0.)
+    rr(:)=delu(:,ii-1)/(delu(:,ii)+sign(1.e-20,delu(:,ii)))
+    fl(:)=ww(:,ii)*uu(:,ii)
+  elsewhere
+    rr(:)=delu(:,ii+1)/(delu(:,ii)+sign(1.e-20,delu(:,ii)))  
+    fl(:)=ww(:,ii)*uu(:,ii+1)
+  end where
+  cc(:)=max(0.,min(1.,2.*rr(:)),min(2.,rr(:))) ! superbee
+  fh(:)=ww(:,ii)*0.5*(uu(:,ii)+uu(:,ii+1))             &
+   -0.5*(uu(:,ii+1)-uu(:,ii))*ww(:,ii)**2*dtnew(:)     &
    /max(depadj(:,ii+1)-depadj(:,ii),1.E-10)
   ff(:,ii)=fl+cc*(fh-fl)
   !ff(:,ii)=ww(:,ii)*0.5*(uu(1:ifull,ii)+uu(1:ifull,ii+1)) ! explicit
@@ -4570,15 +4566,16 @@ do iq=1,ifull
 
     ! TVD part
     do ii=1,wlev-1
-      rr(iq)=delu(iq,ii-kp(iq,ii))/(delu(iq,ii)+sign(1.E-20,delu(iq,ii)))
-      fl(iq)=ww(iq,ii)*uu(iq,kx(iq,ii))
+      kp = sign(1.,ww(iq,ii))
+      kx = ii+(1-kp)/2 !  k for ww +ve,  k+1 for ww -ve
+      rr(iq)=delu(iq,ii-kp)/(delu(iq,ii)+sign(1.E-20,delu(iq,ii)))
+      fl(iq)=ww(iq,ii)*uu(iq,kx)
       cc(iq)=max(0.,min(1.,2.*rr(iq)),min(2.,rr(iq))) ! superbee
       fh(iq)=ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1))          &
         -0.5*(uu(iq,ii+1)-uu(iq,ii))*ww(iq,ii)**2*dtnew(iq) &
         /max(depadj(iq,ii+1)-depadj(iq,ii),1.E-10)
       ff(iq,ii)=fl(iq)+cc(iq)*(fh(iq)-fl(iq))
     end do
-  
     uu(iq,1)=uu(iq,1)+dtnew(iq)*(uu(iq,1)*ww(iq,1)-ff(iq,1))/dzadj(iq,1)
     do ii=2,wlev-1
       uu(iq,ii)=uu(iq,ii)+dtnew(iq)*(uu(iq,ii)*(ww(iq,ii)-ww(iq,ii-1))-ff(iq,ii)+ff(iq,ii-1))/dzadj(iq,ii)
