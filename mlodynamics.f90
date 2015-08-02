@@ -808,7 +808,7 @@ end if
 ! Advect continuity equation to tstar
 ! Calculate velocity on C-grid for consistancy with iterative free surface calculation
 ! nw is at half levels with nw(:,1) at the bottom of level 1
-! positive nw is moving downwards to the ocean bottom
+! positive nw is moving downwards to the ocean floor
 ! For now, assume Boussinesq fluid and treat density in continuity equation as constant
 ! true vertical velocity = nw-u*((1-sig)*deta/dx-sig*d(dd)/dx)-v*((1-sig)*deta/dy-sig*d(dd)/dy)-(1-sig)*deta/dt
 call mlostaguv(nu,nv,eou,eov)
@@ -4536,6 +4536,7 @@ delu(:,wlev)=0.
 
 ! TVD part
 do ii=1,wlev-1
+  ! +ve ww is downwards to the ocean floor
   where ( ww(:,ii)>0.)
     rr(:)=delu(:,ii-1)/(delu(:,ii)+sign(1.e-20,delu(:,ii)))
     fl(:)=ww(:,ii)*uu(:,ii)
@@ -4566,6 +4567,7 @@ do iq=1,ifull
 
     ! TVD part
     do ii=1,wlev-1
+      ! +ve ww is downwards to the ocean floor
       kp = sign(1.,ww(iq,ii))
       kx = ii+(1-kp)/2 !  k for ww +ve,  k+1 for ww -ve
       rr(iq)=delu(iq,ii-kp)/(delu(iq,ii)+sign(1.E-20,delu(iq,ii)))
