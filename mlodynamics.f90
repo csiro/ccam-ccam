@@ -1392,7 +1392,7 @@ if (nud_sfh==0) then
   neta(1:ifull)=w_e+max(0.,odum)*alph_p+min(0.,odum)/alph_p
 end if
 
-! temperature conservation
+! temperature conservation (usually off when nudging SSTs)
 if (nud_sst==0) then
   delpos=0.
   delneg=0.
@@ -4466,7 +4466,7 @@ implicit none
 include 'newmpar.h'
 
 integer, intent(in) :: cnum
-integer ii,l,iq,ierr,its_g
+integer ii,iq,its_g
 integer, dimension(ifull) :: its
 real, intent(in) :: dtin
 real, dimension(ifull) :: dtnew
@@ -4548,7 +4548,7 @@ do ii=1,wlev-1
   fh(:)=ww(:,ii)*0.5*(uu(:,ii)+uu(:,ii+1))             &
    -0.5*(uu(:,ii+1)-uu(:,ii))*ww(:,ii)**2*dtnew(:)     &
    /max(depadj(:,ii+1)-depadj(:,ii),1.E-10)
-  ff(:,ii)=fl+cc*(fh-fl)
+  ff(:,ii)=fl(:)+cc(:)*(fh(:)-fl(:))
   !ff(:,ii)=ww(:,ii)*0.5*(uu(1:ifull,ii)+uu(1:ifull,ii+1)) ! explicit
 end do
 uu(1:ifull,1)=uu(1:ifull,1)+dtnew*(uu(1:ifull,1)*ww(:,1)-ff(:,1))/dzadj(:,1)
@@ -4568,7 +4568,7 @@ do iq=1,ifull
     ! TVD part
     do ii=1,wlev-1
       ! +ve ww is downwards to the ocean floor
-      kp = sign(1.,ww(iq,ii))
+      kp = nint(sign(1.,ww(iq,ii)))
       kx = ii+(1-kp)/2 !  k for ww +ve,  k+1 for ww -ve
       rr(iq)=delu(iq,ii-kp)/(delu(iq,ii)+sign(1.E-20,delu(iq,ii)))
       fl(iq)=ww(iq,ii)*uu(iq,kx)

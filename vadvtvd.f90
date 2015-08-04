@@ -169,11 +169,9 @@ include 'newmpar.h'
 integer, dimension(ifull), intent(in) :: nits
 integer i,k,iq,kp,kx
 real, dimension(ifull), intent(in) :: tfact
-real, dimension(ifull) :: hdsdot
 real, dimension(ifull) :: rat,phitvd,fluxhi,fluxlo
 real, dimension(:,:), intent(inout) :: tarr
 real, dimension(ifull,0:kl) :: delt,fluxh
-real, dimension(ifull,kl) :: xin
 
 ! The first sub-step is vectorised for all points - MJT
 
@@ -196,8 +194,10 @@ do k=1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
   ! higher order scheme
   fluxhi(:)=rathb(k)*tarr(1:ifull,k)+ratha(k)*tarr(1:ifull,k+1)-.5*delt(:,k)*tfact(:)*sdot(:,k+1)
   fluxh(:,k)=sdot(:,k+1)*(fluxlo(:)+phitvd(:)*(fluxhi(:)-fluxlo(:)))
-  tarr(1:ifull,k)=tarr(1:ifull,k)+tfact(:)*(fluxh(:,k-1)-fluxh(:,k)+tarr(1:ifull,k)*(sdot(:,k+1)-sdot(:,k)))
 enddo      ! k loop
+do k=1,kl
+  tarr(1:ifull,k)=tarr(1:ifull,k)+tfact(:)*(fluxh(:,k-1)-fluxh(:,k)+tarr(1:ifull,k)*(sdot(:,k+1)-sdot(:,k)))
+end do
 
 ! Subsequent substeps if needed.  This is fairly rare so we perform this calculation on
 ! a point-by-point basis - MJT
@@ -217,8 +217,10 @@ do iq=1,ifull
       ! higher order scheme
       fluxhi(iq)=rathb(k)*tarr(iq,k)+ratha(k)*tarr(iq,k+1)-.5*delt(iq,k)*tfact(iq)*sdot(iq,k+1)
       fluxh(iq,k)=sdot(iq,k+1)*(fluxlo(iq)+phitvd(iq)*(fluxhi(iq)-fluxlo(iq)))
-      tarr(iq,k)=tarr(iq,k)+tfact(iq)*(fluxh(iq,k-1)-fluxh(iq,k)+tarr(iq,k)*(sdot(iq,k+1)-sdot(iq,k)))
     end do ! k
+    do k=1,kl
+      tarr(iq,k)=tarr(iq,k)+tfact(iq)*(fluxh(iq,k-1)-fluxh(iq,k)+tarr(iq,k)*(sdot(iq,k+1)-sdot(iq,k)))
+    end do      
   end do   ! i
 end do     ! iq
 

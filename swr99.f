@@ -126,18 +126,18 @@ c
 !     immediately
       if ( ipts == 0 ) then
        if (cldoff) then ! MJT rad
-	  grdflx_out = zero
-	  ufsw_out   = zero
-	  dfsw_out   = zero
-	  fsw_out    = zero
-	  hsw_out    = zero
-	  grdflx_sav = zero ! MJT rad
-	  ufsw_sav   = zero ! MJT rad
-	  dfsw_sav   = zero ! MJT rad
-	  fsw_sav    = zero ! MJT rad
-	  hsw_sav    = zero ! MJT rad
-	 end if ! MJT rad
-	 return
+        grdflx_out = zero
+        ufsw_out   = zero
+        dfsw_out   = zero
+        fsw_out    = zero
+        hsw_out    = zero
+        grdflx_sav = zero ! MJT rad
+        ufsw_sav   = zero ! MJT rad
+        dfsw_sav   = zero ! MJT rad
+        fsw_sav    = zero ! MJT rad
+        hsw_sav    = zero ! MJT rad
+       end if ! MJT rad
+       return
       endif
 
       call pack_index ( lcoszn, pindex )
@@ -147,18 +147,18 @@ c
       taudar = taudar_in(pindex)
       nclds  = nclds_in(pindex)
       do k=1,l
-	 rh2o(:,k) = rh2o_in(pindex,k)
-	 qo3(:,k)  = qo3_in(pindex,k)
+       rh2o(:,k) = rh2o_in(pindex,k)
+       qo3(:,k)  = qo3_in(pindex,k)
       end do
       do k=1,lp1
-	 press(:,k)  = press_in(pindex,k)
-	 press2(:,k) = press2_in(pindex,k)
-	 ktopsw(:,k) = ktopsw_in(pindex,k)
-	 kbtmsw(:,k) = kbtmsw_in(pindex,k)
-	 cirab(:,k)  = cirab_in(pindex,k)
-	 cirrf(:,k)  = cirrf_in(pindex,k)
-	 cuvrf(:,k)  = cuvrf_in(pindex,k)
-	 camt(:,k)   = camt_in(pindex,k)
+       press(:,k)  = press_in(pindex,k)
+       press2(:,k) = press2_in(pindex,k)
+       ktopsw(:,k) = ktopsw_in(pindex,k)
+       kbtmsw(:,k) = kbtmsw_in(pindex,k)
+       cirab(:,k)  = cirab_in(pindex,k)
+       cirrf(:,k)  = cirrf_in(pindex,k)
+       cuvrf(:,k)  = cuvrf_in(pindex,k)
+       camt(:,k)   = camt_in(pindex,k)
       end do
 
       call swr99_work (  fsw, hsw, grdflx, ufsw, dfsw, press, press2,
@@ -179,12 +179,12 @@ c
       grdflx_out(pindex) = grdflx
       swr_out(pindex) = swr ! MJT cable
       do k=1,l
-	 hsw_out(pindex,k)  = hsw(:,k)
+       hsw_out(pindex,k)  = hsw(:,k)
       end do
       do k=1,lp1
-	 fsw_out(pindex,k)  = fsw(:,k)
-	 ufsw_out(pindex,k) = ufsw(:,k)
-	 dfsw_out(pindex,k) = dfsw(:,k)
+       fsw_out(pindex,k)  = fsw(:,k)
+       ufsw_out(pindex,k) = ufsw(:,k)
+       dfsw_out(pindex,k) = dfsw(:,k)
       end do
       
       if (cldoff) then             ! MJT rad
@@ -199,19 +199,19 @@ c
 
 !-------------------------------------------
       subroutine pack_index ( mask, pindex ) 
-	 logical, dimension(:), intent(in)  :: mask
-	 integer, dimension(:), intent(out) :: pindex
-	 integer :: i, j
-!	 integer, dimension(size(mask)) :: ival
+       logical, dimension(:), intent(in)  :: mask
+       integer, dimension(:), intent(out) :: pindex
+       integer :: i, j
+!      integer, dimension(size(mask)) :: ival
 
-	 if ( count(mask) /= size(pindex) ) then
-	    print*, " Size error in unpack_index ", 
+       if ( count(mask) /= size(pindex) ) then
+           print*, " Size error in unpack_index ", 
      &              count(mask), size(pindex)
             stop
          end if
 
-!	 ival = (/ (i,i=1,size(mask)) /)
-!	 pindex = pack ( ival, mask )
+!      ival = (/ (i,i=1,size(mask)) /)
+!      pindex = pack ( ival, mask )
 
 !        Do this explicitly for better vectorisation on bragg.
          j = 0
@@ -316,15 +316,15 @@ c
       temp1 = 1.0/press(:,lp1)
 
       do k=1,lp1
-	 pp(:,k) = press2(:,k)
+       pp(:,k) = press2(:,k)
       end do
 
       do k=1,l
-	 dp(:,k) = press2(:,k+1) - press2(:,k)
-	 pr2(:,k) = haf * ( press2(:,k) + press2(:,k+1) )
+       dp(:,k) = press2(:,k+1) - press2(:,k)
+       pr2(:,k) = haf * ( press2(:,k) + press2(:,k+1) )
       end do
       do k=1,l
-	 pr2(:,k) = pr2(:,k)*temp1
+       pr2(:,k) = pr2(:,k)*temp1
       end do
 
 !---set up angular factor to be multiplied to the optical factor.
@@ -340,12 +340,12 @@ c
       ffo3  = o3difctr
 
       do ip=1,ipts
-	 jtop = ktopsw(ip,nclds(ip)+1)
-	 do k=1,jtop
-	    ffo3 (k,ip) = secz(ip)
-	    ffco2(k,ip) = secz(ip)
-	    ff   (k,ip) = secz(ip)
-	 end do
+       jtop = ktopsw(ip,nclds(ip)+1)
+       do k=1,jtop
+          ffo3 (k,ip) = secz(ip)
+          ffco2(k,ip) = secz(ip)
+          ff   (k,ip) = secz(ip)
+       end do
       end do
 
 !     calculate pressure-weighted optical paths for each layer
@@ -366,18 +366,18 @@ c
       uo3(:,1)  = zero
 
       do k=2,lp1
-	 ud(:,k)   = ud(:,k-1)   + du(:,k-1)*ff(k,:)
-	 uco2(:,k) = uco2(:,k-1) + duco2(:,k-1)*ffco2(k,:)
-	 uo3(:,k)  = uo3(:,k-1)  + duo3(:,k-1)*ffo3(k,:)
+       ud(:,k)   = ud(:,k-1)   + du(:,k-1)*ff(k,:)
+       uco2(:,k) = uco2(:,k-1) + duco2(:,k-1)*ffco2(k,:)
+       uo3(:,k)  = uo3(:,k-1)  + duo3(:,k-1)*ffo3(k,:)
       end do
       ur(:,lp1)    = ud(:,lp1)
       uco2(:,llp2) = uco2(:,lp1)
       uo3(:,llp2)  = uo3(:,lp1)
 
       do k=l,1,-1
-	 ur(:,k) = ur(:,k+1) + du(:,k)*diffctr
-	 uco2(:,lp1+k) = uco2(:,lp1+k+1) + duco2(:,k)*diffctr
-	 uo3(:,lp1+k) = uo3(:,lp1+k+1) + duo3(:,k)*reflo3
+       ur(:,k) = ur(:,k+1) + du(:,k)*diffctr
+       uco2(:,lp1+k) = uco2(:,lp1+k+1) + duco2(:,k)*diffctr
+       uo3(:,lp1+k) = uo3(:,lp1+k+1) + duo3(:,k)*reflo3
       end do
 
 !---for the skyhi model only, obtain the oxygen optical path,using
@@ -447,12 +447,12 @@ c
 !   later is obtaining fluxes inside the thick clouds, for all
 !   frequency bands.
       do kk=1,kclds
-	 do i=1,ipts
-	    if ( (kbtmsw(i,kk+1)-1) > ktopsw(i,kk+1) ) then
-	       pptop(i,kk) = pp(i,ktopsw(i,kk+1))
-	       dpcld(i,kk) = one/(pptop(i,kk)-pp(i,kbtmsw(i,kk+1)))
-	    endif
-	 end do
+        do i=1,ipts
+          if ( (kbtmsw(i,kk+1)-1) > ktopsw(i,kk+1) ) then
+             pptop(i,kk) = pp(i,ktopsw(i,kk+1))
+             dpcld(i,kk) = one/(pptop(i,kk)-pp(i,kbtmsw(i,kk+1)))
+          endif
+        end do
       end do
 !
       dfsw = 0.0
@@ -466,25 +466,25 @@ c
 !
       if ( nx == 1 ) then
 !        Band 1 (visible) includes O3, O2 and (negligible) H2O absorption
-	 do k=1,l
-	    ttdb1(:,k+1) = exp(hm1ez*min(fifty,abcff(1)*ud(:,k+1)))
-	    ttub1(:,k) = exp(hm1ez*min(fifty,abcff(1)*ur(:,k)))
-	    ttd(:,k+1) = ttdb1(:,k+1)*(1.-ao3(:,k+1))
-	    ttu(:,k) = ttub1(:,k)*(1.-ao3(:,lp1+k))
-	 end do
+        do k=1,l
+          ttdb1(:,k+1) = exp(hm1ez*min(fifty,abcff(1)*ud(:,k+1)))
+          ttub1(:,k) = exp(hm1ez*min(fifty,abcff(1)*ur(:,k)))
+          ttd(:,k+1) = ttdb1(:,k+1)*(1.-ao3(:,k+1))
+          ttu(:,k) = ttub1(:,k)*(1.-ao3(:,lp1+k))
+        end do
       else if ( nx == 2 ) then
 !       The water vapor transmission function for band 2 is equal to
 !       that of band 1 (saved as ttdb1,ttub1)
-	 do k=1,l
-	    ttd(:,k+1) = ttdb1(:,k+1)*tco2(:,k+1)
-	    ttu(:,k)   = ttub1(:,k)*tco2(:,lp1+k)
-	 end do
+       do k=1,l
+          ttd(:,k+1) = ttdb1(:,k+1)*tco2(:,k+1)
+          ttu(:,k)   = ttub1(:,k)*tco2(:,lp1+k)
+       end do
       else
 !       Calculate water vapor transmission functions for near infrared
 !       bands. Include CO2 transmission (tdco2/tuco2), which
 !       is the same for all infrared bands.
-	 do k=1,l
-	    ttd(:,k+1) = exp(hm1ez*min(fifty,abcff(nx)*ud(:,k+1)))*
+       do k=1,l
+          ttd(:,k+1) = exp(hm1ez*min(fifty,abcff(nx)*ud(:,k+1)))*
      &                   tco2(:,k+1)
             ttu(:,k)   = exp(hm1ez*min(fifty,abcff(nx)*ur(:,k)))*
      &                   tco2(:,lp1+k)
@@ -501,15 +501,15 @@ c
 !***if no clouds at all exist in the row, the calculations are
 !   drastically simplified.
       if ( kclds == 0 ) then
-	 dfn = ttd
-	 if ( nx == 1 ) then  ! Visible
-	    temp1 = refl*dfn(:,lp1)/ttu(:,lp1)
-	 else  ! IR
-	    temp1 = cirrf(:,1)*dfn(:,lp1)/ttu(:,lp1)
-	 end if
-	 do k=1,lp1
-	    ufn(:,k) = temp1*ttu(:,k)
-	 end do
+       dfn = ttd
+       if ( nx == 1 ) then  ! Visible
+          temp1 = refl*dfn(:,lp1)/ttu(:,lp1)
+       else  ! IR
+          temp1 = cirrf(:,1)*dfn(:,lp1)/ttu(:,lp1)
+       end if
+       do k=1,lp1
+          ufn(:,k) = temp1*ttu(:,k)
+       end do
       endif
 !
 !***compute normal case: at least 1 pt has a cloud.
@@ -524,12 +524,12 @@ c
 !   later is obtaining fluxes inside the thick clouds, for all
 !   frequency bands.
 !      do kk=1,kclds
-!	 do i=1,ipts
-!	    if ( (kbtmsw(i,kk+1)-1) > ktopsw(i,kk+1) ) then
-!	       pptop(i,kk) = pp(i,ktopsw(i,kk+1))
-!	       dpcld(i,kk) = one/(pptop(i,kk)-pp(i,kbtmsw(i,kk+1)))
-!	    endif
-!	 end do
+!      do i=1,ipts
+!         if ( (kbtmsw(i,kk+1)-1) > ktopsw(i,kk+1) ) then
+!            pptop(i,kk) = pp(i,ktopsw(i,kk+1))
+!            dpcld(i,kk) = one/(pptop(i,kk)-pp(i,kbtmsw(i,kk+1)))
+!         endif
+!      end do
 !      end do
 !
 !***for execution of the cloud loop, it is necessary to separate out
@@ -551,11 +551,11 @@ c
 
 !---for remaining ones,use gathers:
       do kk=2,kclds+1
-	 do i=1,ipts
-	    tdcl1(i,kk) = ttd(i,ktopsw(i,kk))
-	    tucl1(i,kk) = ttu(i,ktopsw(i,kk))
-	    tdcl2(i,kk) = ttd(i,kbtmsw(i,kk))
-	 end do
+       do i=1,ipts
+          tdcl1(i,kk) = ttd(i,ktopsw(i,kk))
+          tucl1(i,kk) = ttu(i,ktopsw(i,kk))
+          tdcl2(i,kk) = ttd(i,kbtmsw(i,kk))
+       end do
       end do
 !---compute inverses
       do k=2,kclds+1
@@ -572,7 +572,7 @@ c
       if ( nx == 1 ) then
 !---the first cloud is the ground; its properties are given
 !   by refl (the transmission (0) is irrelevant for now!).
-	 cr(:,1) = refl
+       cr(:,1) = refl
 
 !***obtain cloud reflection and transmission coefficients for
 !   remaining clouds (if any) in the visible band
@@ -586,8 +586,8 @@ c
       else  !  IR, no Rayleigh scattering
 
 !   note 100% cloud cover (removed camt term)
-	 cr(:,1:kclds+1)=cirrf(:,1:kclds+1)
-	 ct(:,1:kclds+1)=one-(cirrf(:,1:kclds+1)+cirab(:,1:kclds+1))
+       cr(:,1:kclds+1)=cirrf(:,1:kclds+1)
+       ct(:,1:kclds+1)=one-(cirrf(:,1:kclds+1)+cirab(:,1:kclds+1))
 
       end if
 
@@ -627,7 +627,7 @@ c
                 tcld(i,k2-1)=ltdc/tdcl2(i,k2)
                 ! recursion relation for reflection of the current cloud layer
                 ! and all clouds below
-	          alfa1(k2)=tclu(i,k2-1)*tclu(i,k2-1)*lrd
+                alfa1(k2)=tclu(i,k2-1)*tclu(i,k2-1)*lrd
      &            /(1.-tcld(i,k2-1)*tcld(i,k2-1)*lrd*cr(i,k2))
      &            +cr(i,k2)
                 ! ratio of downwards flux between level k2 and k2-1 (for calculating dfncld)
@@ -671,7 +671,7 @@ c
 !---this calculation is the reverse of the recursion relation used
 !  above
       do kk=kclds,1,-1
-	 dfnclu(:,kk) = dfnclu(:,kk+1)*alfau(:,kk+1)
+       dfnclu(:,kk) = dfnclu(:,kk+1)*alfau(:,kk+1)
        ufnclu(:,kk) = dfnclu(:,kk)*alfa(:,kk)
       end do
       
@@ -680,7 +680,7 @@ c
       if ( nx == 1 ) then
 !---the first cloud is the ground; its properties are given
 !   by refl (the transmission (0) is irrelevant for now!).
-	 cr(:,1) = refl
+       cr(:,1) = refl
 
 !***obtain cloud reflection and transmission coefficients for
 !   remaining clouds (if any) in the visible band
@@ -694,9 +694,9 @@ c
       else  !  IR, no Rayleigh scattering
 
        do k=1,kclds+1
-	  cr(:,k) = cirrf(:,k)*camt(:,k)
-	  ct(:,k) = one-camt(:,k)*(cirrf(:,k)+cirab(:,k))
-	 end do
+        cr(:,k) = cirrf(:,k)*camt(:,k)
+        ct(:,k) = one-camt(:,k)*(cirrf(:,k)+cirab(:,k))
+       end do
 
       end if
 
@@ -719,7 +719,7 @@ c
       alfau(:,1) = zero
       do kk=2,kclds+1
 !---again,excessive calculations-may be changed later!
-	 alfau(:,kk) = tclu(:,kk-1)*tclu(:,kk-1)*alfa(:,kk-1) / 
+       alfau(:,kk) = tclu(:,kk-1)*tclu(:,kk-1)*alfa(:,kk-1) / 
      &            (1.-tcld(:,kk-1)*tcld(:,kk-1)*alfa(:,kk-1)*cr(:,kk))
          alfa(:,kk) = alfau(:,kk) + cr(:,kk)
       end do
@@ -737,7 +737,7 @@ c
 !---this calculation is the reverse of the recursion relation used
 !  above
       do kk=kclds,1,-1
-	 ufnclu(:,kk) = ufnclu(:,kk+1)*alfau(:,kk+1)/
+       ufnclu(:,kk) = ufnclu(:,kk+1)*alfau(:,kk+1)/
      &                  (alfa(:,kk+1)*tclu(:,kk))
          dfnclu(:,kk) = ufnclu(:,kk)/alfa(:,kk)
       end do
@@ -746,27 +746,27 @@ c
       
 !     now obtain dfn and ufn for levels between the clouds
       do k=1,kclds+1
-	 ufntrn(:,k) = ufnclu(:,k)*tucl1i(:,k)
-	 dfntrn(:,k) = dfnclu(:,k)*tdcl1i(:,k)
+       ufntrn(:,k) = ufnclu(:,k)*tucl1i(:,k)
+       dfntrn(:,k) = dfnclu(:,k)*tdcl1i(:,k)
       end do
 !---case of kk=1 (from the ground to the bottom of the lowest cloud)
       j2min = minval(kbtmsw(:,2))
       do k=j2min,lp1
-	 where ( k >= kbtmsw(:,2) )
-	    ufn(:,k) = ufntrn(:,1)*ttu(:,k)
-	    dfn(:,k) = dfntrn(:,1)*ttd(:,k)
-	 end where
+        where ( k >= kbtmsw(:,2) )
+          ufn(:,k) = ufntrn(:,1)*ttu(:,k)
+          dfn(:,k) = dfntrn(:,1)*ttd(:,k)
+        end where
       end do
       do kk=2,kclds+1
-	 j1max = maxval(ktopsw(:,kk))
-	 j2min = minval(kbtmsw(:,kk+1))
-	 do k=j2min,j1max
-	    where ( k >= kbtmsw(:,kk+1) .and. k <= ktopsw(:,kk) .and. 
+       j1max = maxval(ktopsw(:,kk))
+       j2min = minval(kbtmsw(:,kk+1))
+       do k=j2min,j1max
+          where ( k >= kbtmsw(:,kk+1) .and. k <= ktopsw(:,kk) .and. 
      &              ktopsw(:,kk) > 1 )
-	       ufn(:,k) = ufntrn(:,kk)*ttu(:,k)
-	       dfn(:,k) = dfntrn(:,kk)*ttd(:,k)
-	    endwhere
-	 end do
+             ufn(:,k) = ufntrn(:,kk)*ttu(:,k)
+             dfn(:,k) = dfntrn(:,kk)*ttd(:,k)
+          endwhere
+       end do
          j3max = maxval(kbtmsw(:,kk))
          j1min = minval(ktopsw(:,kk))
          if ( j3max - j1min > 1 ) then
@@ -793,8 +793,8 @@ c
 !     atmosphere (dfntop(i))
 !     dfsw/ufsw will be the fluxes, summed over all bands
       do k=1,lp1
-	 dfsw(:,k) = dfsw(:,k) + dfn(:,k)*dfntop
-	 ufsw(:,k) = ufsw(:,k) + ufn(:,k)*dfntop
+       dfsw(:,k) = dfsw(:,k) + dfn(:,k)*dfntop
+       ufsw(:,k) = ufsw(:,k) + ufn(:,k)*dfntop
       end do
 
       !--------------------------------------------------------------

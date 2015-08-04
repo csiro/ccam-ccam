@@ -6893,8 +6893,8 @@ contains
       ncol  = msg_len/nrow                ! number of points along a col per processor
       nrm1  = nrow - 1
 
-      tdat(:,1:msg_len*npanx) = transpose(vdat(1:msg_len*npanx,1:kx))
-      tdat(:,msg_len*npanx+1) = dsolmax(1:kx)
+      tdat(1:kx,1:msg_len*npanx) = transpose(vdat(1:msg_len*npanx,1:kx))
+      tdat(1:kx,msg_len*npanx+1) = dsolmax(1:kx)
 
       ilen = (msg_len*npanx+1)*kx
       lcomm = mg(g)%comm_merge
@@ -6913,11 +6913,11 @@ contains
             do jj = js,je
                iq_a = na + (jj-1)*mg(g)%ipan
                iq_c = nb + (jj-js)*nrow
-               vdat(iq_a:iq_a+nrm1,1:kx) = transpose(tdat_g(:,iq_c:iq_c+nrm1,yproc))
+               vdat(iq_a:iq_a+nrm1,1:kx) = transpose(tdat_g(1:kx,iq_c:iq_c+nrm1,yproc))
             end do
          end do
       end do
-      dsolmax(1:kx) = maxval( tdat_g(:,msg_len*npanx+1,:), dim=2 )
+      dsolmax(1:kx) = maxval( tdat_g(1:kx,msg_len*npanx+1,:), dim=2 )
   
    return
    end subroutine mgcollectreduce_work
@@ -6971,7 +6971,7 @@ contains
       ncol  = msg_len/nrow                     ! number of points along a col per processor
       nrm1  = nrow - 1
 
-      tdat(:,1:msg_len*npanx) = transpose(vdat(1:msg_len*npanx,1:kx))
+      tdat(1:kx,1:msg_len*npanx) = transpose(vdat(1:msg_len*npanx,1:kx))
 
       ilen = msg_len*npanx*kx
       lcomm = mg(g)%comm_merge
@@ -6991,7 +6991,7 @@ contains
             do jj = js,je
                iq_a = na + (jj-1)*mg(g)%ipan
                iq_c = nb + (jj-js)*nrow
-               vdat(iq_a:iq_a+nrm1,1:kx) = transpose(tdat_g(:,iq_c:iq_c+nrm1,yproc))
+               vdat(iq_a:iq_a+nrm1,1:kx) = transpose(tdat_g(1:kx,iq_c:iq_c+nrm1,yproc))
             end do
          end do
       end do
@@ -7050,9 +7050,9 @@ contains
       ncol  = msg_len/nrow                ! number of points along a col per processor
       nrm1  = nrow - 1
 
-      tdat(:,1:msg_len*npanx) = transpose(vdat(1:msg_len*npanx,1:kx))
-      tdat(:,msg_len*npanx+1) = smaxmin(1:kx,1)
-      tdat(:,msg_len*npanx+2) = smaxmin(1:kx,2)
+      tdat(1:kx,1:msg_len*npanx) = transpose(vdat(1:msg_len*npanx,1:kx))
+      tdat(1:kx,msg_len*npanx+1) = smaxmin(1:kx,1)
+      tdat(1:kx,msg_len*npanx+2) = smaxmin(1:kx,2)
 
       ilen = (msg_len*npanx+2)*kx
       lcomm = mg(g)%comm_merge
@@ -7072,12 +7072,12 @@ contains
             do jj = js,je
                iq_a = na + (jj-1)*mg(g)%ipan
                iq_c = nb + (jj-js)*nrow
-               vdat(iq_a:iq_a+nrm1,1:kx) = transpose(tdat_g(:,iq_c:iq_c+nrm1,yproc))
+               vdat(iq_a:iq_a+nrm1,1:kx) = transpose(tdat_g(1:kx,iq_c:iq_c+nrm1,yproc))
             end do
          end do
       end do
-      smaxmin(1:kx,1) = maxval( tdat_g(:,msg_len*npanx+1,:), dim=2 )
-      smaxmin(1:kx,2) = minval( tdat_g(:,msg_len*npanx+2,:), dim=2 )
+      smaxmin(1:kx,1) = maxval( tdat_g(1:kx,msg_len*npanx+1,:), dim=2 )
+      smaxmin(1:kx,2) = minval( tdat_g(1:kx,msg_len*npanx+2,:), dim=2 )
   
    return
    end subroutine mgcollectxn_work
@@ -7170,14 +7170,13 @@ contains
       real, dimension(:,:), intent(inout) :: vdat
       real, dimension(out_len,kx) :: tdat
 
-      tdat(1:out_len,:) = vdat(1:out_len,1:kx)
+      tdat(1:out_len,1:kx) = vdat(1:out_len,1:kx)
       
       ilen = out_len*kx
       lcomm = mg(g)%comm_merge
       call MPI_Bcast( tdat, ilen, ltype, 0_4, lcomm, ierr )      
 
-      ! extract data from distribute      
-      vdat(1:out_len,1:kx) = tdat(1:out_len,:)
+      vdat(1:out_len,1:kx) = tdat(1:out_len,1:kx)
    
    return
    end subroutine mgbcasta_work
@@ -7223,7 +7222,8 @@ contains
       real, dimension(out_len+2,1:kx) :: tdat
 
       tdat(1:out_len,1:kx) = vdat(1:out_len,1:kx)
-      tdat(out_len+1:out_len+2,1:kx) = transpose(smaxmin(1:kx,1:2))
+      tdat(out_len+1,1:kx) = smaxmin(1:kx,1)
+      tdat(out_len+2,1:kx) = smaxmin(1:kx,2)
       
       ilen = (out_len+2)*kx
       lcomm = mg(g)%comm_merge
@@ -7231,7 +7231,8 @@ contains
 
       ! extract data from distribute      
       vdat(1:out_len,1:kx) = tdat(1:out_len,1:kx)
-      smaxmin(1:kx,1:2) = transpose(tdat(out_len+1:out_len+2,1:kx))
+      smaxmin(1:kx,1) = tdat(out_len+1,1:kx)
+      smaxmin(1:kx,2) = tdat(out_len+2,1:kx)
    
    return
    end subroutine mgbcastxn_work
