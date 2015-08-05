@@ -259,10 +259,10 @@ if ( nvmix/=6 ) then
       call trim(at,ct,rhs)      ! for qrg
       qrg(1:ifull,:)=rhs
       if ( ncloud>=3 ) then
-        ! now do qsg
-        rhs=qsg(1:ifull,:)
-        call trim(at,ct,rhs)      ! for qsg
-        qsg(1:ifull,:)=rhs
+        ! now do qsng
+        rhs=qsng(1:ifull,:)
+        call trim(at,ct,rhs)      ! for qsng
+        qsng(1:ifull,:)=rhs
         ! now do qgrg
         rhs=qgrg(1:ifull,:)
         call trim(at,ct,rhs)      ! for qgrg
@@ -404,11 +404,11 @@ else
   ! Evaluate EDMF scheme
   select case(nlocal)
     case(0) ! no counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,qrg,qsg,qgrg,cldtmp,rfrac,sfrac,gfrac,u,v, &
+      call tkemix(rkm,rhs,qg,qlg,qfg,qrg,qsng,qgrg,cldtmp,rfrac,sfrac,gfrac,u,v, &
                   pblh,fg,eg,ps,zo,zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg)
       rkh=rkm
     case(1,2,3,4,5,6) ! KCN counter gradient method
-      call tkemix(rkm,rhs,qg,qlg,qfg,qrg,qsg,qgrg,cldtmp,rfrac,sfrac,gfrac,u,v, &
+      call tkemix(rkm,rhs,qg,qlg,qfg,qrg,qsng,qgrg,cldtmp,rfrac,sfrac,gfrac,u,v, &
                   pblh,fg,eg,ps,zo,zg,zh,sig,rhos,dt,qgmin,1,0,tnaero,xtg)
       rkh=rkm
       do k=1,kl
@@ -417,7 +417,7 @@ else
       end do
       call pbldif(rhs,rkh,rkm,uav,vav)
     case(7) ! mass-flux counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,qrg,qsg,qgrg,cldtmp,rfrac,sfrac,gfrac,u,v, &
+      call tkemix(rkm,rhs,qg,qlg,qfg,qrg,qsng,qgrg,cldtmp,rfrac,sfrac,gfrac,u,v, &
                   pblh,fg,eg,ps,zo,zg,zh,sig,rhos,dt,qgmin,0,0,tnaero,xtg)
       rkh=rkm
     case DEFAULT

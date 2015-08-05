@@ -425,7 +425,7 @@ if ( nhorps/=-2 ) then   ! for nhorps=-2 don't diffuse T, qg or cloud
       ff(1:ifull,:,3)=qrg(1:ifull,:)
       ff(1:ifull,:,4)=rfrac(1:ifull,:)    
       if ( ncloud>=3 ) then
-        ff(1:ifull,:,5)=qsg(1:ifull,:)
+        ff(1:ifull,:,5)=qsng(1:ifull,:)
         ff(1:ifull,:,6)=qgrg(1:ifull,:)
         ff(1:ifull,:,7)=sfrac(1:ifull,:)
         ff(1:ifull,:,8)=gfrac(1:ifull,:)
@@ -442,7 +442,7 @@ if ( nhorps/=-2 ) then   ! for nhorps=-2 don't diffuse T, qg or cloud
           ! MJT notes - cfrac is not advected as it will be diagnosed later in leoncld.f90
           call bounds(ff(:,:,1:8))
         end if
-        qsg(1:ifull,:) = ( ff(1:ifull,:,5)*emi(1:ifull,:) +    &
+        qsng(1:ifull,:) = ( ff(1:ifull,:,5)*emi(1:ifull,:) +   &
                xfact(1:ifull,:)*ff(ie,:,5) +                   &
                xfact_iwu(1:ifull,:)*ff(iw,:,5) +               &
                yfact(1:ifull,:)*ff(in,:,5) +                   &

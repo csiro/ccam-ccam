@@ -1361,7 +1361,7 @@ if( myid==0 .or. local ) then
       call attrib(idnc,idim(1:4),4,'qfg','Frozen water','kg/kg',0.,.065,0,itype)
       call attrib(idnc,idim(1:4),4,'qlg','Liquid water','kg/kg',0.,.065,0,itype)
       call attrib(idnc,idim(1:4),4,'qrg','Rain',        'kg/kg',0.,.065,0,itype)
-      call attrib(idnc,idim(1:4),4,'qsg','Snow',        'kg/kg',0.,.065,0,itype)
+      call attrib(idnc,idim(1:4),4,'qsng','Snow',       'kg/kg',0.,.065,0,itype)
       call attrib(idnc,idim(1:4),4,'qgrg','Graupel',    'kg/kg',0.,.065,0,itype)
       call attrib(idnc,idim(1:4),4,'cfrac','Cloud fraction',  'none',0.,1.,0,itype)
       call attrib(idnc,idim(1:4),4,'rfrac','Rain fraction',   'none',0.,1.,0,itype)
@@ -2118,7 +2118,7 @@ if ( ldr/=0 ) then
   call histwrt4(qfg,'qfg',idnc,iarch,local,.true.)
   call histwrt4(qlg,'qlg',idnc,iarch,local,.true.)
   call histwrt4(qrg,'qrg',idnc,iarch,local,.true.)
-  call histwrt4(qsg,'qsg',idnc,iarch,local,.true.)
+  call histwrt4(qsng,'qsng',idnc,iarch,local,.true.)
   call histwrt4(qgrg,'qgrg',idnc,iarch,local,.true.)
   call histwrt4(cfrac,'cfrac',idnc,iarch,local,.true.)
   call histwrt4(rfrac,'rfrac',idnc,iarch,local,.true.)
@@ -2184,7 +2184,7 @@ if ( abs(iaero)>=2 ) then
   call histwrt4(ssn(:,:,2), 'seasalt2',idnc,iarch,local,.true.)
   if ( iaero<=-2 ) then
     do k = 1,kl
-      qtot(:)   = qg(1:ifull,k)+qlg(1:ifull,k)+qrg(1:ifull,k)+qfg(1:ifull,k)+qsg(1:ifull,k)+qgrg(1:ifull,k)
+      qtot(:)   = qg(1:ifull,k)+qlg(1:ifull,k)+qrg(1:ifull,k)+qfg(1:ifull,k)+qsng(1:ifull,k)+qgrg(1:ifull,k)
       tv(:)     = t(1:ifull,k)*(1.+1.61*qg(1:ifull,k)-qtot(:))   ! virtual temperature
       rhoa(:,k) = ps(1:ifull)*sig(k)/(rdry*tv(:))                !density of air
     end do

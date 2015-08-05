@@ -558,13 +558,13 @@ if ( mfix_qg/=0 .and. mspec==1 .and. ldr/=0) then
   dums(1:ifull,:,2)=max(qfg(1:ifull,:),0.)
   dums(1:ifull,:,3)=max(qlg(1:ifull,:),0.)
   dums(1:ifull,:,4)=max(qrg(1:ifull,:),0.)
-  dums(1:ifull,:,5)=max(qsg(1:ifull,:),0.)
+  dums(1:ifull,:,5)=max(qsng(1:ifull,:),0.)
   dums(1:ifull,:,6)=max(qgrg(1:ifull,:),0.)
   dumssav(:,:,1)=qgsav(:,:)
   dumssav(:,:,2)=qfgsav(:,:)
   dumssav(:,:,3)=qlgsav(:,:)
   dumssav(:,:,4)=qrgsav(:,:)
-  dumssav(:,:,5)=qsgsav(:,:)
+  dumssav(:,:,5)=qsngsav(:,:)
   dumssav(:,:,6)=qgrgsav(:,:)
   llim(1:6)=(/ .false., .true., .true., .true., .true., .true. /)
   if ( ncloud>=3 ) then
@@ -579,7 +579,7 @@ if ( mfix_qg/=0 .and. mspec==1 .and. ldr/=0) then
   qfg(1:ifull,:) =dums(1:ifull,:,2)
   qlg(1:ifull,:) =dums(1:ifull,:,3)
   qrg(1:ifull,:) =dums(1:ifull,:,4)
-  qsg(1:ifull,:) =dums(1:ifull,:,5)
+  qsng(1:ifull,:)=dums(1:ifull,:,5)
   qgrg(1:ifull,:)=dums(1:ifull,:,6)
 
 else if ( mfix_qg/=0 .and. mspec==1 ) then

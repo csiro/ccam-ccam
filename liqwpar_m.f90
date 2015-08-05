@@ -25,11 +25,11 @@ implicit none
 
 private
 public qlg,qfg ! cloud liquid water, cloud frozen water
-public qrg,qsg,qgrg ! rain, snow, graupel
+public qrg,qsng,qgrg ! rain, snow, graupel
 public liqwpar_init,liqwpar_end
 
 real, dimension(:,:), allocatable, save :: qlg,qfg
-real, dimension(:,:), allocatable, save :: qrg,qsg
+real, dimension(:,:), allocatable, save :: qrg,qsng
 real, dimension(:,:), allocatable, save :: qgrg
 
 contains
@@ -41,12 +41,12 @@ implicit none
 integer, intent(in) :: ifull,iextra,kl
 
 allocate(qlg(ifull+iextra,kl),qfg(ifull+iextra,kl))
-allocate(qrg(ifull+iextra,kl),qsg(ifull+iextra,kl))
+allocate(qrg(ifull+iextra,kl),qsng(ifull+iextra,kl))
 allocate(qgrg(ifull+iextra,kl))
 qlg=0.
 qfg=0.
 qrg=0.
-qsg=0.
+qsng=0.
 qgrg=0.
 
 return
@@ -57,7 +57,7 @@ subroutine liqwpar_end
 implicit none
 
 deallocate(qlg,qfg)
-deallocate(qrg,qsg)
+deallocate(qrg,qsng)
 deallocate(qgrg)
 
 return

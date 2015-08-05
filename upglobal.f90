@@ -128,7 +128,7 @@ select case(nt_adv)
     end do
 end select
 
-#ifdef debug
+#ifdef debug  
 if ( mydiag ) then
   if(tx(idjd,kl)>264.)then  !cb
     write(6,*)
@@ -336,7 +336,7 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
     duma(1:ifull,:,3)=qfg(1:ifull,:)
     duma(1:ifull,:,4)=qrg(1:ifull,:)
     duma(1:ifull,:,5)=rfrac(1:ifull,:)
-    duma(1:ifull,:,6)=qsg(1:ifull,:)
+    duma(1:ifull,:,6)=qsng(1:ifull,:)
     duma(1:ifull,:,7)=qgrg(1:ifull,:)
     duma(1:ifull,:,8)=sfrac(1:ifull,:)
     duma(1:ifull,:,9)=gfrac(1:ifull,:)
@@ -361,7 +361,7 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
     qfg(1:ifull,:)  =duma(1:ifull,:,3)
     qrg(1:ifull,:)  =duma(1:ifull,:,4)
     rfrac(1:ifull,:)=min(max(duma(1:ifull,:,5),0.),1.)       
-    qsg(1:ifull,:)  =duma(1:ifull,:,6)
+    qsng(1:ifull,:) =duma(1:ifull,:,6)
     qgrg(1:ifull,:) =duma(1:ifull,:,7)
     sfrac(1:ifull,:)=min(max(duma(1:ifull,:,8),0.),1.)
     gfrac(1:ifull,:)=min(max(duma(1:ifull,:,9),0.),1.)        

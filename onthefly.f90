@@ -60,7 +60,7 @@ contains
 ! Main interface for input data that reads grid metadata
     
 subroutine onthefly(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice,snowd,qfg, &
-                    qlg,qrg,qsg,qgrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,ocndwn,xtgdwn)
+                    qlg,qrg,qsng,qgrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,ocndwn,xtgdwn)
 
 use aerosolldr       ! LDR prognostic aerosols
 use cc_mpi           ! CC MPI routines
@@ -90,7 +90,7 @@ real, dimension(ifull,kl,naero), intent(out) :: xtgdwn
 real, dimension(ifull,ms), intent(out) :: wb, wbice, tgg
 real, dimension(ifull,3), intent(out) :: tggsn, smass, ssdn
 real, dimension(ifull,2), intent(out) :: ocndwn
-real, dimension(:,:), intent(out) :: t, u, v, qg, qfg, qlg, qrg, qsg, qgrg
+real, dimension(:,:), intent(out) :: t, u, v, qg, qfg, qlg, qrg, qsng, qgrg
 real, dimension(ifull), intent(out) :: psl, zss, tss, fracice, snowd
 real, dimension(ifull), intent(out) :: sicedep, ssdnn, snage
 real, dimension(nrhead) :: ahead
@@ -255,7 +255,7 @@ else
   dk=0  ! zero automatic array size in onthefly_work
 end if
 call onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice, &
-                   snowd,qfg,qlg,qrg,qsg,qgrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,    &
+                   snowd,qfg,qlg,qrg,qsng,qgrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,   &
                    ocndwn,xtgdwn)
 if ( myid==0 ) write(6,*) "Leaving onthefly"
 
@@ -276,7 +276,7 @@ end subroutine onthefly
 ! memory problems when the host grid size is significantly
 ! larger than the regional grid size.
 subroutine onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice, &
-                         snowd,qfg,qlg,qrg,qsg,qgrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,    &
+                         snowd,qfg,qlg,qrg,qsng,qgrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,   &
                          ocndwn,xtgdwn)
       
 use aerosolldr, only : ssn,naero               ! LDR aerosol scheme
@@ -341,7 +341,7 @@ real, dimension(ifull,kl,naero), intent(out) :: xtgdwn
 real, dimension(ifull,2), intent(out) :: ocndwn
 real, dimension(ifull,ms), intent(out) :: wb, wbice, tgg
 real, dimension(ifull,3), intent(out) :: tggsn, smass, ssdn
-real, dimension(:,:), intent(out) :: t, u, v, qg, qfg, qlg, qrg, qsg, qgrg
+real, dimension(:,:), intent(out) :: t, u, v, qg, qfg, qlg, qrg, qsng, qgrg
 real, dimension(ifull), intent(out) :: psl, zss, tss, fracice
 real, dimension(ifull), intent(out) :: snowd, sicedep, ssdnn, snage
 real, dimension(ifull) :: dum6, tss_l, tss_s, pmsl
@@ -1193,7 +1193,7 @@ if ( nested/=1 ) then
     call gethist4a('qfg',qfg,5)               ! CLOUD FROZEN WATER
     call gethist4a('qlg',qlg,5)               ! CLOUD LIQUID WATER
     call gethist4a('qrg',qrg,5)               ! RAIN
-    call gethist4a('qsg',qsg,5)               ! SNOW
+    call gethist4a('qsng',qsng,5)             ! SNOW
     call gethist4a('qgrg',qgrg,5)             ! GRAUPEL
     call gethist4a('cfrac',cfrac,5)           ! CLOUD FRACTION
     call gethist4a('rfrac',rfrac,5)           ! RAIN FRACTION

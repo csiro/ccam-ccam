@@ -106,7 +106,7 @@ if ( nstag==3 ) then
       enddo
     enddo
   endif  ! (ntest==1)
-#endif debug
+#endif
          
   ! precalculate rhs terms with iwwu2 & issv2
   ud(1:ifull,1:kl)=uin(1:ifull,1:kl)/2.+uin(ieu,1:kl)+uin(ieeu,1:kl)/10.

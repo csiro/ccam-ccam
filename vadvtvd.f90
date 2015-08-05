@@ -115,7 +115,7 @@ if ( mspec==1 ) then   ! advect qg and gases after preliminary step
       call vadv_work(qrg,tfact,nits)
       call vadv_work(rfrac,tfact,nits)
       if ( ncloud>=3 ) then
-        call vadv_work(qsg,tfact,nits)
+        call vadv_work(qsng,tfact,nits)
         call vadv_work(qgrg,tfact,nits)
         call vadv_work(sfrac,tfact,nits)
         call vadv_work(gfrac,tfact,nits)
@@ -220,7 +220,7 @@ do iq=1,ifull
     end do ! k
     do k=1,kl
       tarr(iq,k)=tarr(iq,k)+tfact(iq)*(fluxh(iq,k-1)-fluxh(iq,k)+tarr(iq,k)*(sdot(iq,k+1)-sdot(iq,k)))
-    end do      
+    end do
   end do   ! i
 end do     ! iq
 

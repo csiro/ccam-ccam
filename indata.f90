@@ -662,7 +662,7 @@ if ( io_in<4 ) then
   zss=zs(1:ifull)
   if (abs(io_in)==1) then
     call onthefly(0,kdate,ktime,psl,zss,tss,sicedep,fracice,t,u,v, &
-                  qg,tgg,wb,wbice,snowd,qfg,qlg,qrg,qsg,qgrg,      &
+                  qg,tgg,wb,wbice,snowd,qfg,qlg,qrg,qsng,qgrg,     &
                   tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,      &
                   ocndwn,xtgdwn)
   endif   ! (abs(io_in)==1)
