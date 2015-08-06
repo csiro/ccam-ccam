@@ -81,7 +81,7 @@ integer, parameter :: nrhead = 14
 integer, intent(in) :: nested
 integer, intent(out) :: kdate_r, ktime_r
 integer, save :: maxarchi
-integer ier, mtimer, k, ierx, idvkd, idvkt, idvmt
+integer mtimer, ierx, idvkd, idvkt, idvmt
 integer, dimension(nihead) :: nahead
 integer, dimension(ifull), intent(out) :: isflag
 real timer
@@ -326,9 +326,9 @@ real, parameter :: iotol=1.E-5      ! tolarance for iotest grid matching
       
 integer, intent(in) :: nested, kdate_r, ktime_r
 integer idv, isoil, nud_test
-integer levk, levkin, ier, ierr, igas
-integer nemi, id2, jd2, idjd2
-integer i, j, k, mm, iq, ii, jj, np, numneg, colour
+integer levk, levkin, ier, igas
+integer nemi
+integer i, j, k, mm, iq, numneg, colour
 integer, dimension(dk*dk*6) :: isoilm_a
 integer, dimension(ifull), intent(out) :: isflag
 integer, dimension(7+3*ms) :: ierc
@@ -352,7 +352,6 @@ real, dimension(dk*dk*6) :: t_a_lev, psl_a, tss_a
 real, dimension(dk*dk*6) :: wts_a  ! not used here or defined in call setxyz
 real, dimension(:), allocatable, save :: zss_a, ocndep_l
 real, dimension(kk+3) :: dumr
-real rlongd, rlatd
 character(len=8) vname
 character(len=3) trnum
 logical tsstest, tst
@@ -1382,7 +1381,7 @@ implicit none
 include 'newmpar.h'        ! Grid parameters
 include 'parm.h'           ! Model configuration
       
-integer iq, mm, n, i
+integer mm, n, i
 integer n_n, n_e, n_w, n_s, np1, nm1, ik2
 !integer nreq
 !integer, dimension(6) :: breq
@@ -1586,7 +1585,7 @@ use cc_mpi          ! CC MPI routines
 
 implicit none
 
-integer :: nrem, i, ii, iq, j, n, neighb
+integer :: nrem, i, iq, j, n, neighb
 integer :: iminb, imaxb, jminb, jmaxb
 integer, dimension(0:5) :: imin,imax,jmin,jmax
 real, parameter :: value=999.       ! missing value flag
@@ -1718,7 +1717,6 @@ end function ic
 
 subroutine mslpx(pmsl,psl,zs,t,siglev)
       
-use cc_mpi, only : mydiag ! CC MPI routines
 use sigs_m                ! Atmosphere sigma levels
       
 !     this one will ignore negative zs (i.e. over the ocean)
@@ -1728,7 +1726,6 @@ include 'newmpar.h'       ! Grid parameters
 include 'const_phys.h'    ! Physical constants
 include 'parm.h'          ! Model configuration
 
-integer iq
 real siglev, c, con, conr
 real, dimension(6*dk*dk) :: pmsl, psl, zs, t
 real, dimension(6*dk*dk) :: dlnps, phi1, tav, tsurf
@@ -1747,7 +1744,6 @@ end subroutine mslpx
       
 subroutine to_pslx(pmsl,psl,zs,t,levk)
 
-use cc_mpi, only : mydiag  ! CC MPI routines
 use sigs_m                 ! Atmosphere sigma levels
       
 implicit none
@@ -1756,7 +1752,7 @@ include 'newmpar.h'        ! Grid parameters
 include 'const_phys.h'     ! Physical constants
 include 'parm.h'           ! Model configuration
       
-integer iq, levk
+integer levk
 real, dimension(ifull) :: pmsl, psl, zs, t
 real, dimension(ifull) :: dlnps, phi1, tav, tsurf
 

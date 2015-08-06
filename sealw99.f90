@@ -369,8 +369,8 @@ type(lw_table_type), intent(inout) :: Lw_tables
        data band_no_start_rsb / 1, 5, 9, 10, 11, 12, 14, 15 /
        data band_no_end_rsb   / 4, 8, 9, 10, 11, 13, 14, 15 /
 
-       real, dimension (NBLY_CKD-1) :: cld_indx_table_lwclde, &
-                                      cld_indx_table_rsb
+       integer, dimension (NBLY_CKD-1) :: cld_indx_table_lwclde, &
+                                          cld_indx_table_rsb
 
        data cld_indx_table_lwclde /40*1, 2, 2, 2, 3, 4, 5, 6 /
 
@@ -384,12 +384,10 @@ type(lw_table_type), intent(inout) :: Lw_tables
        real, dimension(size(pref,1) ) :: plm
        real, dimension (NBCO215) :: cent, del
 
-       integer         :: unit, ierr, io, k, n,  nn
+       integer         :: k, n,  nn
        integer         :: ioffset
        real            :: prnlte
        integer         :: kmax, kmin
-       integer         :: inrad
-       real            :: dum
        character(len=4)  :: gas_name
 
 !---------------------------------------------------------------------
@@ -992,8 +990,6 @@ type(radiative_gases_type),    intent(inout)    ::  Rad_gases
          logical                    :: calc_co2, calc_n2o, calc_ch4
 
          character(len=4)           :: gas_name
-      integer                    :: year, month, day, hour, minute, &
-                                    second
 !---------------------------------------------------------------------------
 
       call get_control_gas_tf (calc_co2, calc_ch4, calc_n2o)
@@ -1363,10 +1359,10 @@ logical,                        intent(in)    :: including_aerosols
       real, dimension (size(Atmos_input%press,1),    &
                        size(Atmos_input%press,2),    &
                        size(Atmos_input%press,3)) ::    &
-           cnttaub1, cnttaub2, cnttaub3, co21c, co21diag, &
-           co21r, dsorc15, dsorc93, dsorcb1, dsorcb2, dsorcb3, &
-           dt4, emiss, heatem, overod, sorc15, t4, tmp1, tmp2, &
-           to3cnt, ch41c, n2o1c, n2o17c
+           cnttaub1, cnttaub2, cnttaub3, co21c,         &
+           co21r,                                       &
+           heatem, overod, tmp1,                        &
+           to3cnt
 
       real, dimension (size(Atmos_input%press,1),    &
                        size(Atmos_input%press,2), 2)  ::    &
@@ -1374,7 +1370,7 @@ logical,                        intent(in)    :: including_aerosols
 
       real, dimension (size(Atmos_input%press,1),    &
                        size(Atmos_input%press,2))   ::  &
-           s1a, flxge1, co21c_KEp1, co21r_KEp1   
+           co21c_KEp1, co21r_KEp1   
 
       real, dimension (size(Atmos_input%press,1),    &
                        size(Atmos_input%press,2),    &
@@ -1384,19 +1380,19 @@ logical,                        intent(in)    :: including_aerosols
       real, dimension (size(Atmos_input%press,1),    &
                        size(Atmos_input%press,2),    &
                        size(Atmos_input%press,3) -1) ::    &
-           cfc_tf, pdflux
+           pdflux
 
       real, dimension (size(Atmos_input%press,1),    &
                        size(Atmos_input%press,2))   ::  &
-           flx1e1cf, flxge1cf, gxctscf
+           flx1e1cf, gxctscf
 
       real, dimension (size(Atmos_input%press,1),    &
                        size(Atmos_input%press,2),    &
                        size(Atmos_input%press,3)) ::    &
-           emissb, e1cts1, e1cts2, e1ctw1, e1ctw2,        &
-           soe2, soe3, soe4, soe5, emisdg, flxcf, &
-           heatemcf, flx, to3dg, taero8, taero8kp,   &
-           totaer_tmp, tcfc8
+           e1ctw1, e1ctw2,                              &
+           emisdg, flxcf,                               &
+           heatemcf, flx, to3dg,                        &
+           tcfc8
                        
       real, dimension (size(Atmos_input%press,1),    &
                        size(Atmos_input%press,2),    &
@@ -1406,11 +1402,7 @@ logical,                        intent(in)    :: including_aerosols
       real, dimension (size(Atmos_input%press,1),    &
                        size(Atmos_input%press,2),    &
                        size(Atmos_input%press,3), NBTRGE) ::    &
-           emissbf, e1cts1f, e1cts2f, emisdgf, emissf, tch4n2oe
-
-      real, dimension (size(Atmos_input%press,1),    &
-                       size(Atmos_input%press,2), NBTRGE) ::    &
-           flx1e1fcf,  flxge1f, flxge1fcf        
+           emisdgf, tch4n2oe
 
       real, dimension (size(Atmos_input%press,1),    &
                        size(Atmos_input%press,2), &
@@ -1450,15 +1442,11 @@ logical,                        intent(in)    :: including_aerosols
       type(lw_clouds_type), save    :: Lw_clouds
       type(optical_path_type), save :: Optical
       type(gas_tf_type), save       :: Gas_tf   
-      logical                       :: calc_co2, calc_n2o, calc_ch4
 
       integer                       :: ix, jx, kx
       integer                       :: k, kp, m, j
       integer                       :: kk, i, l
       integer                       :: nprofiles, nnn
-      character(len=4)              :: gas_name
-      integer                       :: year, month, day, hour, minute, &
-                                       second
 
 !---------------------------------------------------------------------
 !  local variables:
@@ -2781,17 +2769,6 @@ real,                   intent(inout) :: gas_for_next_tf_calc, &
                                          gas_for_last_tf_calc
 logical,                intent(inout) :: do_gas_tf_calc,&
                                          do_gas_tf_calc_init
-                       
-!---------------------------------------------------------------------
-!  local variables:
-
-      type(time_type)      :: Time_since_gas_start
-      integer              :: seconds, days, minutes_from_start, alarm
-      integer              :: year, month, day, hour, minute, second
-      character(len=4)     :: chvers, chvers2, chvers3, chvers4, &
-                              chvers5, chvers6
-      character(len=12)    :: chvers10
-      character(len=16)    :: chvers7
 
 !---------------------------------------------------------------------
 !  local variables:
@@ -5378,6 +5355,9 @@ logical,                   intent(in)            :: including_aerosols
       real,    dimension (size(trans_band2,1), &
                           size(trans_band2,2), &
                           size(trans_band2,3)) ::ttmp
+      integer,    dimension (size(trans_band2,1), &
+                          size(trans_band2,2), &
+                          size(trans_band2,3)) ::ittmp      
 
       real,    dimension (size(trans_band1,1), &
                           size(trans_band1,2), &
@@ -5428,11 +5408,11 @@ logical,                   intent(in)            :: including_aerosols
   call locate_in_table(temp_1, temp, dte1, ixoe1, KS, KE+1)
   call locate_in_table(temp_1, tflux, dte2, ixoe2, KS, KE+1)
 
-  ttmp(:,:,:) = ixoe2(:,:,:)
+  ittmp(:,:,:) = ixoe2(:,:,:)
   do kk = KS,KE
      do j = 1,size(ixoe2(:,:,:),2)
         do i = 1,size(ixoe2(:,:,:),1)
-           ixoe2(i,j,kk) = ttmp(i,j,kk+KS+1-(KS))
+           ixoe2(i,j,kk) = ittmp(i,j,kk+KS+1-(KS))
         end do
      end do
   end do
@@ -5766,7 +5746,10 @@ real, dimension (:,:,:),   intent(inout) :: tcfc8
       real, dimension (size(Atmos_input%temp,1),   &
                        size(Atmos_input%temp,2),   &
                        size(Atmos_input%temp,3)) :: ttmp
-
+      integer, dimension (size(Atmos_input%temp,1),   &
+                       size(Atmos_input%temp,2),   &
+                       size(Atmos_input%temp,3)) :: ittmp
+      
       real, dimension (size(Atmos_input%temp,1),   &
                        size(Atmos_input%temp,2), &
                        size(Atmos_input%temp,3), NBTRGE) ::    &
@@ -5860,11 +5843,11 @@ real, dimension (:,:,:),   intent(inout) :: tcfc8
   call locate_in_table(temp_1, temp, dte1, ixoe1, KS, KE+1)
   call locate_in_table(temp_1, tflux, dte2, ixoe2, KS, KE+1)
 
-  ttmp(:,:,:)=ixoe2(:,:,:)
+  ittmp(:,:,:)=ixoe2(:,:,:)
   do kk = KS,KE
      do j = 1,size(ixoe2(:,:,:),2)
         do i = 1,size(ixoe2(:,:,:),1)
-           ixoe2(i,j,kk) = ttmp(i,j,kk+KS+1-(KS))
+           ixoe2(i,j,kk) = ittmp(i,j,kk+KS+1-(KS))
         end do
      end do
   end do
@@ -6266,11 +6249,15 @@ real, dimension (:,:,:),   intent(inout) ::  tcfc8
                        size(emisdg,2), &
                        size(emisdg,3)) :: ttmp 
 
+      integer, dimension (size(emisdg,1), &
+                       size(emisdg,2), &
+                       size(emisdg,3)) :: ittmp 
+      
       real, dimension (size(Atmos_input%temp,1),   &
                        size(Atmos_input%temp,2), &
                        size(Atmos_input%temp,3)) :: &
                              temp, tflux, tpl1, tpl2, &
-                             dxsp, ylog, dysp, dysp1, emiss, emd1, emd2
+                             dxsp, ylog, dysp, dysp1, emd1, emd2
 
       integer, dimension (size(Atmos_input%temp,1),   &
                           size(Atmos_input%temp,2), &
@@ -6280,7 +6267,7 @@ real, dimension (:,:,:),   intent(inout) ::  tcfc8
       real, dimension (size(Atmos_input%temp,1),   &
                        size(Atmos_input%temp,2), &
                          size(Atmos_input%temp,3), NBTRGE) ::    &
-                            emissf, emd2f,  emd1f
+                            emd2f,  emd1f
 
 !--------------------------------------------------------------------
 !   local variables:
@@ -6368,11 +6355,11 @@ real, dimension (:,:,:),   intent(inout) ::  tcfc8
   call locate_in_table(temp_1, temp, dte1, ixoe1, KS, KE+1)
   call locate_in_table(temp_1, tflux, dte2, ixoe2, KS, KE+1)
 
-  ttmp(:,:,:)=ixoe2(:,:,:)
+  ittmp(:,:,:)=ixoe2(:,:,:)
   do kk = KS,KE
      do j = 1,size(ixoe2(:,:,:),2)
         do i = 1,size(ixoe2(:,:,:),1)
-           ixoe2(i,j,kk) = ttmp(i,j,kk+KS+1-(KS))
+           ixoe2(i,j,kk) = ittmp(i,j,kk+KS+1-(KS))
         end do
      end do
   end do

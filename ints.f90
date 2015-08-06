@@ -463,7 +463,7 @@ include 'newmpar.h'    ! Grid parameters
 include 'parm.h'       ! Model configuration
 include 'parmhor.h'    ! Horizontal advection parameters
 
-integer idel, iq, jdel, nn
+integer idel, iq, jdel
 integer i, j, k, n
 integer ii
 integer, intent(in) :: intsch
@@ -472,7 +472,6 @@ real xxg, yyg
 real, dimension(ifull,kl), intent(in) :: xg,yg      ! now passed through call
 real, dimension(0:ipan+1,0:jpan+1,1:npan,kl) :: sx
 real, dimension(ifull+iextra,kl,1), intent(inout) :: s
-real, dimension(ifull+iextra,kl) :: duma
 
 !     this one does bi-linear interpolation only
 !     first extend s arrays into sx - this one -1:il+2 & -1:il+2

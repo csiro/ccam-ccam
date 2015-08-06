@@ -59,8 +59,7 @@ include 'parmdyn.h'
 
 integer, parameter :: ntest=0
 
-integer, dimension(ifull) :: nits, nvadh_pass
-integer its, k, l, iq, ierr, nstart, nend, ntot
+integer k, l, nstart, nend, ntot
 integer, save :: precon_in = -99999
 real, dimension(:), allocatable, save :: zz,zzn,zze,zzw,zzs
 real, dimension(:), allocatable, save :: pfact,alff,alf,alfe
@@ -71,12 +70,11 @@ real, dimension(ifull,kl) :: helm,rhsl,omgf,d,e
 real, dimension(ifull+iextra,kl,6) :: dums
 real, dimension(ifull,kl,6) :: dumssav
 real, dimension(ifull) :: ps_sav,pslxint,pslsav
-real, dimension(ifull) :: sdmx,delps,bb
-real hdt, hdtds, sumx, qgminm, ratio, sumdiffb, alph_g
-real alph_p, alph_pm, delneg, delpos, delnegk, delposk, alph_q
-real sumdiffb_l  ! Local versions
-real sumin, sumout, sumsav, dum
-real delpos_l, delneg_l, const_nh
+real, dimension(ifull) :: delps,bb
+real hdt, hdtds
+real alph_p, alph_pm, delneg, delpos
+real dum
+real const_nh
 real, save :: dtsave = 0.
 logical, dimension(nagg) :: llim
 
@@ -84,6 +82,8 @@ call START_LOG(adjust_begin)
 
 hdt   = dt/2.
 hdtds = hdt/ds
+alph_p  = 0.
+alph_pm = 0.
 
 ! time step can change during initialisation
 if (dt /= dtsave) then

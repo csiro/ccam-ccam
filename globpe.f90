@@ -137,12 +137,12 @@ integer nbarewet,nsigmf
 common/nsib/nbarewet,nsigmf                ! Land-surface options
 
 integer, dimension(8) :: tvals1, tvals2, nper3hr
-integer ier, ilx, io_nest, iq, irest, isoil
-integer jalbfix, jlx, k, k2, kktau
+integer ilx, io_nest, iq, irest, isoil
+integer jalbfix, jlx, k, kktau
 integer mins_dt, mins_gmt, mspeca, mtimer_in, nalpha
-integer ng, nlx, nmaxprsav, npa, npb, n3hr
+integer nlx, nmaxprsav, npa, npb, n3hr
 integer nstagin, nstaguin, nwrite, nwtsav, mins_rad, mtimer_sav
-integer nn, i, j, mstn, nproc_in, ierr, nperhr, nversion
+integer nn, i, j, mstn, ierr, nperhr, nversion
 integer ierr2, kmax, isoth, nsig, lapsbot
 real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: spare1, spare2
@@ -150,15 +150,14 @@ real, dimension(:), allocatable, save :: spmean
 real, dimension(9) :: temparray, gtemparray
 real clhav, cllav, clmav, cltav, dsx, dtds, es
 real gke, hourst, hrs_dt, evapavge, precavge, preccavge, psavge
-real pslavge, pwater, rel_lat, rel_long, rlwup, spavge, pwatr
-real pwatr_l, qtot, aa, bb, cc, bb_2, cc_2, rat
+real pslavge, pwater, rel_lat, rel_long, spavge, pwatr
+real qtot, aa, bb, cc, bb_2, cc_2, rat
 real targetlev
 real, parameter :: con = 180./pi
 character(len=60) comm, comment
 character(len=47) header
 character(len=10) timeval
 character(len=8) rundate
-character(len=2) text
 logical odcalc
 
 ! version namelist
@@ -243,18 +242,18 @@ call START_LOG(model_begin)
 
 !--------------------------------------------------------------
 ! READ NAMELISTS AND SET PARAMETER DEFAULTS
-ia       = -1   ! diagnostic index
-ib       = -1   ! diagnostic index
-ntbar    = -1
-rel_lat  = 0.
-rel_long = 0.
-ktau     = 0
-ol       = 20   ! default ocean levels
-nhor     = -157
-nhorps   = -1
-khor     = -8
-khdif    = 2
-nhorjlm  = 1
+ia         = -1   ! diagnostic index
+ib         = -1   ! diagnostic index
+ntbar      = -1
+rel_lat    = 0.
+rel_long   = 0.
+ktau       = 0
+ol         = 20   ! default ocean levels
+nhor       = -157
+nhorps     = -1
+khor       = -8
+khdif      = 2
+nhorjlm    = 1
 
 ! All processors read the namelist, so no MPI comms are needed
 open(99,file="input",form="formatted",status="old")
@@ -297,6 +296,8 @@ ngas = 0
 read(99, trfiles, iostat=ierr)        
 if (ierr/=0) rewind(99)
 nagg = max(10,naero)             ! maximum size of aggregation
+nlx        = 0
+mtimer_sav = 0
 
 
 !--------------------------------------------------------------
@@ -487,7 +488,7 @@ if ( myid==0 ) then
   write(6,*)' buoymeth icm1 maxdts'
   write(6,'(i9,i5,f7.1)') buoymeth,icm1,maxdts
   write(6,*)'Vertical mixing/physics options E:'
-  write(6,*)'   mintke   mineps     minl     maxl'
+  write(6,*)'  mintke   mineps     minl     maxl'
   write(6,'(4g9.2)') mintke,mineps,minl,maxl
   write(6,*)'Gravity wave drag options:'
   write(6,*)' ngwd   helim     fc2  sigbot_gwd  alphaj'
@@ -1646,7 +1647,7 @@ do kktau = 1,ntau   ! ****** start of main time loop
   ! ***********************************************************************
   ! rml 16/02/06 call tracer_mass, write_ts
   if ( ngas>0 ) then
-    call tracer_mass(ktau,ntau) !also updates average tracer array
+    call tracer_mass !also updates average tracer array
     call write_ts(ktau,ntau,dt)
   endif
 
@@ -2388,9 +2389,9 @@ do nn = 1,nstn
   i = istn(nn)
   j = jstn(nn)
   iq = i+(j-1)*il
-  zonx  =             -polenz*y(iq)
-  zony  = polenz*x(iq)-polenx*z(iq)
-  zonz  = polenx*y(iq)
+  zonx  = real(            -polenz*y(iq))
+  zony  = real(polenz*x(iq)-polenx*z(iq))
+  zonz  = real(polenx*y(iq)             )
   den   = sqrt( max(zonx**2+zony**2+zonz**2,1.e-7) ) 
   costh =  (zonx*ax(iq)+zony*ay(iq)+zonz*az(iq))/den
   sinth = -(zonx*bx(iq)+zony*by(iq)+zonz*bz(iq))/den

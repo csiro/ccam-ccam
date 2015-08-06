@@ -43,7 +43,7 @@ integer, parameter :: ntest = 0 ! ntest= 0 for diags off; ntest= 1 for diags on
 include 'newmpar.h'
 include 'const_phys.h'
 include 'parm.h'
-integer iq,i,j,k
+integer iq,k
 integer, save :: kbot
 integer, dimension(1) :: kpos
 real dzx
@@ -54,7 +54,7 @@ real, dimension(ifull,kl) :: tnhs,tv
 real, dimension(ifull,kl) :: dtheta_dz_kmh
 real, dimension(ifull) :: temp,fnii
 real, dimension(ifull) :: bvng ! to be depreciated
-real, dimension(ifull) :: apuw,apvw,alambda,wmag,frsav
+real, dimension(ifull) :: apuw,apvw,alambda,wmag
 real, dimension(kl) :: dsk,sigk
 
 ! older values:  
@@ -102,7 +102,7 @@ do k=2,kl
 end do    ! k loop          
 
 !     form wmag at surface
-wmag(:)=sqrt(max(u(:,1)**2+v(:,1)**2,vmodmin**2)) ! MJT suggestion
+wmag(1:ifull)=sqrt(max(u(1:ifull,1)**2+v(1:ifull,1)**2,vmodmin**2)) ! MJT suggestion
 
 
 !**** calculate Brunt-Vaisala frequency at full levels (bvnf)
@@ -113,23 +113,23 @@ do k = 1,kl-1
 end do    ! k loop
 bvnf(:,kl)=sqrt(max(1.e-20,grav*dtheta_dz_kmh(:,kl)/theta_full(:,kl)))    ! jlm fixup
 !**    calc (t*/n*/wmag)/he**2
-temp(:)=theta_full(:,1)/max(bvnf(:,1)*wmag(:)*he(:)**2,1.e-10)  
+temp(1:ifull)=theta_full(1:ifull,1)/max(bvnf(1:ifull,1)*wmag(1:ifull)*he(1:ifull)**2,1.e-10)  
 if(sigbot_gwd<.5)then !  to be depreciated
-  bvng(:)=sqrt( max(1.e-20,grav*dtheta_dz_kmh(:,1)/tss(:))) ! tries to use a sfce value rather than level 1 
-  temp(:)=tss(:)/max( bvng(:)*wmag(:)*he(:)**2,1.e-10)  
+  bvng(1:ifull)=sqrt( max(1.e-20,grav*dtheta_dz_kmh(1:ifull,1)/tss(1:ifull))) ! tries to use a sfce value rather than level 1 
+  temp(1:ifull)=tss(1:ifull)/max( bvng(1:ifull)*wmag(1:ifull)*he(1:ifull)**2,1.e-10)  
 endif
 
 do k =1,2 ! uu is +ve wind compt in dirn of (u_1,v_1)
-  uu(:,k)=max(0. , u(:,k)*u(:,1)+v(:,k)*v(:,1))/wmag(:)
+  uu(1:ifull,k)=max(0. , u(1:ifull,k)*u(1:ifull,1)+v(1:ifull,k)*v(1:ifull,1))/wmag(1:ifull)
 end do    ! k loop
 
 !**** set uu() to zero above if uu() zero below
 !**** uu>0 at k=1, uu>=0 at k=1+1 - only set for k=1+2 to kl  
 do k = 3,kl
-  where ( uu(:,k-1)==0. )
-    uu(:,k) = 0.
+  where ( uu(1:ifull,k-1)==0. )
+    uu(1:ifull,k) = 0.
   elsewhere
-    uu(:,k) = max(0. , u(:,k)*u(:,1)+v(:,k)*v(:,1))/wmag(:)
+    uu(1:ifull,k) = max(0. , u(1:ifull,k)*u(1:ifull,1)+v(1:ifull,k)*v(1:ifull,1))/wmag(1:ifull)
   end where
 end do    ! k loop
 
@@ -151,13 +151,13 @@ end do    ! k loop
 !      if integral=0., reset to some +ve value
 !      form alambda=(g/p*).alpha.rhos.he.N*.wmag/integral(above)
 if(alphaj<1.e-5)then  ! for backward compatibility - will depreciate
-  alambda(:) = alphaj*he(:)*bvnf(:,kbot)*wmag(:)/max(fnii(:),1.e-9)
+  alambda(1:ifull) = alphaj*he(1:ifull)*bvnf(1:ifull,kbot)*wmag(1:ifull)/max(fnii(1:ifull),1.e-9)
 else  ! newer usage with alphaj around 0.0075 (similar to resemble Hal's value)
-  alambda(:) = alphaj*he(:)*bvnf(:,kbot)*wmag(:)*grav/(rdry*tss(:)*max(fnii(:),1.e-9))
+  alambda(1:ifull) = alphaj*he(1:ifull)*bvnf(1:ifull,kbot)*wmag(1:ifull)*grav/(rdry*tss(1:ifull)*max(fnii(1:ifull),1.e-9))
 endif  
 !      define apuw=alambda.u1/wmag , apvw=alambda.v1/wmag
-apuw(:) = alambda(:)*u(:,1)/wmag(:)
-apvw(:) = alambda(:)*v(:,1)/wmag(:)
+apuw(1:ifull) = alambda(1:ifull)*u(1:ifull,1)/wmag(1:ifull)
+apvw(1:ifull) = alambda(1:ifull)*v(1:ifull,1)/wmag(1:ifull)
 
 !**** form fni=alambda*max(--,0) and
 !**** solve for uu at t+1 (implicit solution)

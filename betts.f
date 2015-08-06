@@ -32,7 +32,6 @@ c     ******************************************************************
       use sigs_m
       include 'newmpar.h'
       include 'parm.h'
-      real tnew(ifull,kl)
 
       dimension tin(ifull,kl), qg(ifull,kl), tn(ifull,kl)
       dimension land(ifull), ps(ifull)

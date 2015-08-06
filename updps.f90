@@ -47,9 +47,7 @@ include 'parmhor.h'
 integer, save :: num = 0
 integer iq, k, ind, iadj
 real, dimension(ifull+iextra,kl) :: cc, dd
-real, dimension(ifull+iextra,kl) :: uc, vc, wc
-real, dimension(ifull,kl) :: d, e, sdotin, pslxin, omgfin
-real, dimension(ifull+iextra) :: pse, psn, psz
+real, dimension(ifull,kl) :: d, sdotin, pslxin, omgfin
 real, dimension(ifull) :: derpsl
 real, dimension(kl) :: pslx_k
 

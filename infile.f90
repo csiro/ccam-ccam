@@ -658,7 +658,6 @@ integer(kind=4) lncid, lidum
 character(len=*), intent(in) :: ifile
 character(len=170) pfile
 character(len=8) fdecomp
-logical omode
 
 if (myid==0) then
   ! attempt to open single file with myid==0
@@ -918,7 +917,7 @@ use cc_mpi
       
 implicit none
 
-integer ipf, ipin, plen
+integer ipf, plen
 integer(kind=4) ierr
 
 if ( myid==0 ) then
@@ -949,7 +948,6 @@ end subroutine histclose
 ! a greater number of vertical levels than the nested model.
 subroutine vertint(told,t,n,kk,sigin)
 
-use cc_mpi, only : myid
 use sigs_m
 
 implicit none
@@ -958,7 +956,7 @@ include 'newmpar.h'
 include 'parm.h'
 
 integer, intent(in) :: kk, n
-integer k, kin, iq
+integer k, kin
 integer, dimension(:), allocatable, save :: ka
 integer, save :: kk_save = -1
 integer, save :: klapse = 0
@@ -1157,7 +1155,7 @@ common/leap_yr/leap  ! 1 to allow leap years
 
 integer, intent(out) :: jyear,jmonth,jday,jhour,jmin ! start date of run
 integer, intent(out) :: mins                         ! elapsed time from start of year
-integer mstart, elp
+integer mstart
 integer, dimension(12) :: ndoy
 ! days from beginning of year (1st Jan is 0)
 integer, dimension(12), parameter :: odoy=(/ 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 /) 
@@ -1398,7 +1396,7 @@ include 'newmpar.h'      ! Grid parameters
 include 'parm.h'         ! Model configuration
       
 integer, intent(in) :: idnc, iarch
-integer ier, iq, i
+integer ier
 integer(kind=4) :: lidnc, mid, vtype, ndims
 integer(kind=4), dimension(3) :: start, ncount
 integer(kind=2), dimension(ifull) :: ipack
@@ -1478,7 +1476,7 @@ include 'newmpar.h'      ! Grid parameters
 include 'parm.h'         ! Model configuration
 
 integer, intent(in) :: idnc, iarch
-integer ier, imn, imx, jmn, jmx, iq, i
+integer ier, imn, imx, jmn, jmx, iq
 integer(kind=4) lidnc, mid, vtype, ndims
 integer(kind=4), dimension(3) :: start, ncount
 integer(kind=2), dimension(ifull_g) :: ipack
@@ -2230,10 +2228,10 @@ use cc_mpi
 implicit none
 
 integer, intent(in) :: ncid
+#ifdef outsync
 integer ncstatus
 integer(kind=4) lncid
 
-#ifdef outsync
 lncid=ncid
 #ifdef usenc3
 ncstatus = nf_sync(lncid)
@@ -2687,8 +2685,12 @@ implicit none
 integer, intent(in) :: ncid
 integer, intent(out) :: vdat
 integer ncstatus
-integer(kind=4) :: lncid, lvdat
+integer(kind=4) :: lncid
+#ifdef usenc3
 integer(kind=4), dimension(1) :: ivals
+#else
+integer(kind=4) :: lvdat
+#endif
 character(len=*), intent(in) :: aname
 
 lncid=ncid

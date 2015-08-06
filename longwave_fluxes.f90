@@ -93,9 +93,6 @@ subroutine longwave_fluxes_init
 !---------------------------------------------------------------------
 
 !---------------------------------------------------------------------
-     integer    ::  unit, ierr, io
-
-!---------------------------------------------------------------------
 !  local variables:
 !
 !        unit            io unit number used for namelist file
@@ -385,7 +382,7 @@ integer, dimension(:),        intent(in)     ::  cld_ind
       real, dimension (size(source,1), size(source,2)) :: flux4, flux4a
 
       real    ::  flux_tmp, flux_tmp2
-      integer ::  kp, p, i, j, k,   israd, ierad, jsrad, jerad
+      integer ::  kp, i, j,   israd, ierad, jsrad, jerad
       integer :: ke
       integer :: m, nbands
 

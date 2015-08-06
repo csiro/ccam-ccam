@@ -201,7 +201,7 @@ implicit none
 
 integer, intent(in) :: ifin,diag
 integer, dimension(ifin) :: utype
-integer iqu,iq,ii
+integer iqu,iq
 real, dimension(ifin), intent(in) :: sigu
 
 if (diag>=1) write(6,*) "Initialising aTEB"
@@ -944,7 +944,7 @@ subroutine atebalb1(is,ifin,alb,diag,raw,split)
 implicit none
 
 integer, intent(in) :: is,ifin,diag
-integer i,ucount,ib,ie,ifinish,albmode
+integer ucount,ib,ie,ifinish,albmode
 integer, intent(in), optional :: split
 real, dimension(ifin), intent(inout) :: alb
 real, dimension(ufull) :: ualb,utmp
@@ -1293,11 +1293,10 @@ real, dimension(ufull) :: garfsn,gardsn,acflx_roof,acflx_walle,acflx_wallw
 real, dimension(ufull) :: rdsntemp,rfsntemp,rdsnmelt,rfsnmelt
 real, dimension(ufull) :: wallpsi,roadpsi,fgtop,egtop,qsatr,qsata
 real, dimension(ufull) :: cu
-real, dimension(ufull) :: ln,rn,we,ww,wr,zolog,a,xe,xw,cuven,n,zom,zonet,dis
+real, dimension(ufull) :: we,ww,wr,zolog,a,n,zom,zonet,dis
 real, dimension(ufull) :: width,newtemp,roofvegwetfac,roadvegwetfac
 real, dimension(ufull) :: z_on_l,pa,dts,dtt,effbldheight,effhwratio
 real, dimension(ufull), intent(in) :: a_sg,a_rg,a_rho,a_temp,a_mixr,a_ps,a_umag,a_udir,a_rnd,a_snd,a_zmin
-real, dimension(ufull) :: p_a_umag,p_a_rho,p_a_rg,p_a_rnd,p_a_snd
 real, dimension(ufull), intent(out) :: u_fg,u_eg,u_ts,u_wf,u_rn
 real, dimension(ufull) :: sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn
 real, dimension(ufull) :: rg_roof,rg_road,rg_walle,rg_wallw,rg_vegc,rg_vegr,rg_rfsn,rg_rdsn
@@ -1305,11 +1304,6 @@ real, dimension(ufull) :: fg_roof,fg_road,fg_walle,fg_wallw,fg_vegc,fg_vegr,fg_r
 real, dimension(ufull) :: eg_roof,eg_road,eg_vegc,eg_vegr,eg_rfsn,eg_rdsn
 real, dimension(ufull) :: acond_roof,acond_road,acond_walle,acond_wallw,acond_vegc,acond_vegr,acond_rfsn,acond_rdsn
 real, dimension(ufull) :: condterm_roof,condterm_wall
-real, dimension(ufull) :: p_sg_vegc,p_sg_rs
-real, dimension(ufull) :: p_rg_ro,p_rg_walle,p_rg_wallw,p_rg_vegc,p_rg_rs
-real, dimension(ufull) :: p_fg_ro,p_fg_walle,p_fg_wallw,p_fg_vegc,p_fg_rs
-real, dimension(ufull) :: p_eg_ro,p_eg_vegc,p_eg_rs
-real, dimension(ufull) :: p_acond_ro,p_acond_walle,p_acond_wallw,p_acond_vegc,p_acond_rs
 real, dimension(ufull) :: d_roofdelta,d_roaddelta,d_vegdeltac,d_vegdeltar,d_rfsndelta,d_rdsndelta
 real, dimension(ufull) :: d_tempc,d_mixrc,d_tempr,d_mixrr,d_sigd,d_sigr,d_rfdzmin
 real, dimension(ufull) :: d_accool,d_canyonrgout,d_roofrgout,d_tranc,d_evapc,d_tranr,d_evapr,d_c1c,d_c1r
@@ -1596,7 +1590,7 @@ select case(zohmeth)
 end select
 
 ! calculate screen level diagnostics
-call scrncalc(a_mixr,a_umag,a_temp,u_ts,d_tempc,d_mixrc,d_rdsndelta,d_roaddelta,d_vegdeltac,d_sigd,a,rdsntemp,zonet)
+call scrncalc(a_mixr,a_umag,a_temp,u_ts,d_tempc,d_rdsndelta,d_roaddelta,d_vegdeltac,d_sigd,a,rdsntemp,zonet)
 
 return
 end subroutine atebeval
@@ -2148,7 +2142,7 @@ real, dimension(ufull), intent(inout) :: d_totdepth,d_c1c
 real, dimension(ufull) :: newval,effbldheight,effhwratio,sndepth,snlambda,ldratio,roadqsat,vegqsat,rdsnqsat
 real, dimension(ufull) :: cu,topinvres,dts,dtt,cduv,z_on_l,dumroaddelta,dumvegdelta,res
 real, dimension(ufull) :: effwalle,effwallw,effroad,effrdsn,effvegc
-real, dimension(ufull) :: aa,bb,cc,dd,ee,ff,newtemp
+real, dimension(ufull) :: aa,bb,cc,dd,ee,ff
 real, dimension(ufull,2) :: evct,evctx,oldval
 
 ! modify canyon geometry for vegetation shadow
@@ -2351,7 +2345,6 @@ subroutine canyonflux(evct,sg_vegc,rg_vegc,fg_vegc,eg_vegc,acond_vegc,vegqsat,re
 
 implicit none
 
-integer k
 real, intent(in) :: ddt
 real, dimension(ufull,2), intent(out) :: evct
 real, dimension(ufull), intent(inout) :: rg_vegc,fg_vegc,eg_vegc,acond_vegc,vegqsat,res,dumvegdelta
@@ -2729,7 +2722,7 @@ implicit none
 
 real, dimension(ufull), intent(out) :: ueast,uwest,ufloor
 real, dimension(ufull), intent(in) :: z0
-real, dimension(ufull) :: a,b,wsuma,wsumb,fsum
+real, dimension(ufull) :: wsuma,wsumb,fsum
 real, dimension(ufull) :: theta1,wdir,h,w
 real, dimension(ufull) :: dufa,dura,duva,ntheta
 real, dimension(ufull) :: dufb,durb,duvb,effbldheight
@@ -2937,7 +2930,7 @@ implicit none
 
 real, dimension(ufull), intent(out) :: dc1
 real, dimension(ufull), intent(in) :: moist
-real, dimension(ufull) :: n
+!real, dimension(ufull) :: n
 
 !n=min(max(moist/f_ssat,0.218),1.)
 !dc1=(1.78*n+0.253)/(2.96*n-0.581)
@@ -2950,11 +2943,10 @@ end subroutine getc1
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate screen diagnostics
 
-subroutine scrncalc(a_mixr,a_umag,a_temp,u_ts,d_tempc,d_mixrc,d_rdsndelta,d_roaddelta,d_vegdeltac,d_sigd,smixr,rdsntemp,zonet)
+subroutine scrncalc(a_mixr,a_umag,a_temp,u_ts,d_tempc,d_rdsndelta,d_roaddelta,d_vegdeltac,d_sigd,smixr,rdsntemp,zonet)
       
 implicit none
 
-integer ic
 real, dimension(ufull), intent(in) :: smixr,rdsntemp,zonet
 real, dimension(ufull) :: cd,thetav,sthetav
 real, dimension(ufull) :: thetavstar,z_on_l,z0_on_l
@@ -2966,7 +2958,7 @@ real, dimension(ufull) :: tstar,lna
 real, dimension(ufull) :: utop,ttop,qtop,wf,tsurf,qsurf,n
 real, dimension(ufull), intent(in) :: a_mixr,a_umag,a_temp
 real, dimension(ufull), intent(in) :: u_ts
-real, dimension(ufull), intent(in) :: d_tempc,d_mixrc,d_rdsndelta,d_roaddelta,d_vegdeltac,d_sigd
+real, dimension(ufull), intent(in) :: d_tempc,d_rdsndelta,d_roaddelta,d_vegdeltac,d_sigd
 real, parameter :: z0  = 1.5
 real, parameter :: z10 = 10.
 

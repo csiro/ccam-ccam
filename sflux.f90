@@ -75,19 +75,18 @@ include 'parmgeom.h'               ! Coordinate data
 include 'parmsurf.h'               ! Surface parameters
 include 'soilv.h'                  ! Soil parameters
 
-integer iq,k,it,ip,iqmin1,iqmax1,iqmin2,iqmax2
+integer iq,k,it,ip
 integer, intent(in) :: nalpha
 real ri_max,zologbgin,ztv,z1onzt,chnsea
-real srcp,dtsoil,afrootpan,es,constz,drst
+real srcp,afrootpan,es,constz,drst
 real xx,consea,afroot,fm,con,dtsol,daf
 real con1,den,dden,dfm,root,denma,denha
 real conh,conw,zminlog,ri_ice,zoice,zologice
-real epotice,qtgnet,qtair,eg1,eg2,deg,b1
+real epotice,qtgnet,eg1,eg2,deg,b1
 real gbot,deltat,esatf,zobg,zologbg,zologx
 real afland,aftlandg,fhbg,rootbg,denhabg
 real thnew,thgnew,thnewa,qtgair,aftland
-real thgnewa,ri_tmp,fh_tmp,taftfhmin
-real taftfhmax,taftfhgmin,taftfhgmax,factchice
+real thgnewa,ri_tmp,fh_tmp,factchice
 real, dimension(:), allocatable, save :: taftfh,taftfhg
 real, dimension(:), allocatable, save :: plens
 real, dimension(ifull) :: vmag,charnck,taftfhg_temp
@@ -821,9 +820,9 @@ if (nmaxpr==1) then                                                             
 end if                                                                                           ! urban
 if (nurban/=0) then                                                                              ! urban
   ! calculate zonal and meridonal winds                                                          ! urban
-  zonx=                       -sin(rlat0*pi/180.)*y(:)                                           ! urban
-  zony=sin(rlat0*pi/180.)*x(:)+cos(rlat0*pi/180.)*z(:)                                           ! urban
-  zonz=-cos(rlat0*pi/180.)*y(:)                                                                  ! urban
+  zonx=real(                       -sin(rlat0*pi/180.)*y(:))                                     ! urban
+  zony=real(sin(rlat0*pi/180.)*x(:)+cos(rlat0*pi/180.)*z(:))                                     ! urban
+  zonz=real(-cos(rlat0*pi/180.)*y(:)                       )                                     ! urban
   costh= (zonx*ax(1:ifull)+zony*ay(1:ifull)+zonz*az(1:ifull)) &                                  ! urban
         /sqrt( max(zonx**2+zony**2+zonz**2,1.e-7) )                                              ! urban
   sinth=-(zonx*bx(1:ifull)+zony*by(1:ifull)+zonz*bz(1:ifull)) &                                  ! urban
@@ -958,7 +957,7 @@ integer, intent(in) :: nalpha
 real xxx,tgss,esattg,tgss2,fle,frac,conw_fh,qtgnet
 real qtgair,eg1,eg2,deg,egg_alph1,sstar,ff,rsi,den
 real wbav,f1,f2,f3,f4,esatf,qsatgf,beta,etr,betetrdt
-real prz,dirad1,dqg,devf,residp,sstgf,ewwwa,delta_t0
+real prz,dirad1,devf,ewwwa,delta_t0
 real delta_t,deltat,es,tsoil
 real, dimension(ifull), intent(in) :: taftfh,taftfhg,rho
 real, dimension(ifull), intent(inout) :: aft

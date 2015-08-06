@@ -51,7 +51,6 @@ include 'kuocom.h'     ! also with kbsav,ktsav
 include 'parm.h'
 include 'parmdyn.h'
 real, dimension(:,:), intent(inout) :: tarr,uarr,varr
-real, dimension(ifull,kl) :: dum
 real, dimension(ifull) :: tfact
 integer ntr,k
 integer, dimension(ifull) :: nvadh_pass, nits
@@ -184,11 +183,11 @@ delt(:,1:kl-1)=tarr(1:ifull,2:kl)-tarr(1:ifull,1:kl-1)
 delt(:,0)=min(delt(:,1),tarr(1:ifull,1))       ! for non-negative tt
 do k=1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
   where ( sdot(:,k+1)>0. )
-    rat(:)=delt(:,k-1)/(delt(:,k)+sign(1.e-20,delt(:,k)))
-    fluxlo(:) = tarr(:,k)
+    rat(1:ifull) = delt(:,k-1)/(delt(:,k)+sign(1.e-20,delt(:,k)))
+    fluxlo(1:ifull) = tarr(1:ifull,k)
   elsewhere
-    rat(:)=delt(:,k+1)/(delt(:,k)+sign(1.e-20,delt(:,k)))
-    fluxlo(:) = tarr(:,k+1)
+    rat(1:ifull) = delt(:,k+1)/(delt(:,k)+sign(1.e-20,delt(:,k)))
+    fluxlo(1:ifull) = tarr(1:ifull,k+1)
   end where
   phitvd(:)=max(0.,min(2.*rat(:),.5+.5*rat(:),2.))    ! 0 for -ve rat
   ! higher order scheme
@@ -209,7 +208,7 @@ do iq=1,ifull
     enddo     ! k loop
     delt(iq,0)=min(delt(iq,1),tarr(iq,1))       ! for non-negative tt
     do k=1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
-      kp = sign(1.,sdot(iq,k+1))
+      kp = nint(sign(1.,sdot(iq,k+1)))
       kx = k+(1-kp)/2 !  k for sdot +ve,  k+1 for sdot -ve
       rat(iq)=delt(iq,k-kp)/(delt(iq,k)+sign(1.e-20,delt(iq,k)))
       fluxlo(iq)=tarr(iq,kx)

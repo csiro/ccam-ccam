@@ -95,7 +95,6 @@ real, dimension(ifull,kl) :: cgh           ! counter-gradient term for heat [K/m
 real, dimension(ifull,kl) :: cgq           ! counter-gradient term for constituents
 real, dimension(ifull,kl) :: zg
 real ztodtgor,delsig,tmp1,sigotbk,sigotbkm1
-real dum3
 real cgs                     ! counter-gradient star (cg/flux)
 !
 !---------------------------Local parameters----------------------------

@@ -82,7 +82,6 @@
       include 'rdparm.h'   ! imax
       include 'hcon.h'
       real rhg(ifull,kl) ! shared between cloud &radriv90
-      real rtt(ifull,kl)
 
       parameter(cong = cp/grav)
       parameter(csolar=1.96)
@@ -140,6 +139,7 @@ c     Stuff from cldset
 
       kcl_top=kl-2
       imax=ixin
+      ksigtop=0
 
       do k=kl,1,-1
          if(sig(k).le. .15)ksigtop=k  ! top level for RH calc for clouds

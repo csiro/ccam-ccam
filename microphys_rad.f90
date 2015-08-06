@@ -58,7 +58,8 @@ private         &
 !    called from microphys_lw_driver:
            cloud_lwpar, cloud_lwem_oneband,    &
 !    caled from cloud_lwpar:
-           el, el_dge, cliqlw, furainlw, fusnowlw
+           el, cliqlw, furainlw, fusnowlw
+!private el_dge
 
 
 !---------------------------------------------------------------------
@@ -332,20 +333,6 @@ real, dimension(:,:), allocatable, save  :: solivlicecld,    &
                                             solivlraincld,  &
                                             solivlsnowcld
 
-!----------------------------------------------------------------------
-!   variables needed for random number seed:
-!----------------------------------------------------------------------
-real, dimension(:), allocatable, save  :: lats, lons ! lat and lon of columns
-                                               ! in this processor's
-                                               ! domain [ degrees ]
-
-!----------------------------------------------------------------------
-!    diagnostics variables
-!----------------------------------------------------------------------
-character(len=16), save :: mod_name = 'microphys_rad'
-real, save              :: missing_value = -999.
-
-
 !-------------------------------------------------------------------
 !    logical variables:
 !-------------------------------------------------------------------
@@ -412,7 +399,6 @@ subroutine microphys_rad_init
                                    sumsol5
       real                      :: sumplanck 
       real                      :: xtemv = 233.15
-      integer                   :: unit, ierr, io, logunit
       integer                   :: nivl, nband
       integer                   :: nivl1, nivl2, nivl3, nivl4, nivl5
       integer                   :: n, ib, nw, ni
@@ -1007,7 +993,6 @@ type(cldrad_properties_type), intent(inout), optional   :: Cloud_rad_props
 
       logical       :: isccp_call
       integer       :: nbmax
-      integer       :: n
       integer       :: nnn, nbprofiles, nonly
 
 !-------------------------------------------------------------------
@@ -1022,6 +1007,7 @@ type(cldrad_properties_type), intent(inout), optional   :: Cloud_rad_props
       endif
 
      isccp_call = .false.
+     nbprofiles = 0
      
 !---------------------------------------------------------------------
 !    if large-scale clouds are being processed and stochastic sw
@@ -1195,6 +1181,7 @@ type(microrad_properties_type), intent(inout),optional   :: Micro_rad_props
       endif
 
        isccp_call = .false.
+       nbprofiles = 0
        
 !---------------------------------------------------------------------
 !    if large-scale clouds are being processed and stochastic lw
@@ -1371,7 +1358,6 @@ real, intent(out), dimension(:,:,:,:)           :: cldext
       
       logical       :: isccp_call
       integer       :: nbmax
-      integer       :: i,j,k
       integer       :: nnn, nbprofiles, nonly
 
 !-------------------------------------------------------------------
@@ -1515,7 +1501,6 @@ real, intent(out), dimension(:,:,:,:)           :: abscoeff
                         tmpabscoeff
       logical       :: isccp_call
       integer :: nbmax, nbprofiles, nnn, nonly
-      integer   :: i, j, k
 
 !-------------------------------------------------------------------
 !    be sure module has been initialized.
@@ -1831,9 +1816,7 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
       real, dimension (size(cldext,1), size(cldext,2))    :: cldsum
       real, dimension (size(cldext,1), size(cldext,2))    :: cldextdu
       real, dimension (size(cldext,1), size(cldext,2))    :: cltau
-      integer :: i, j, k, n
-     
-      integer :: nn
+      integer :: k, n
      
 !------------------------------------------------------------------
 !    diagnostics
@@ -2598,7 +2581,7 @@ real, dimension (:,:,:,:), intent(inout)  ::  cldext, cldsct, cldasymm
                                              tempasy, tempasy2
 
       integer  :: nb
-      integer  :: i,j,k
+      integer  :: k
       real, dimension (size(conc_drop,1), size(conc_drop,2))  :: sum, sum2, sum3
 
 !----------------------------------------------------------------------
@@ -4400,7 +4383,7 @@ real, dimension (:,:,:,:), intent(out)  ::   abscoeff
              cldextbndicelw,  cldssalbbndicelw,  cldextbnddroplw
       real, dimension (size(conc_drop,1), size(conc_drop,2), &
                        size(conc_drop,3)             )  ::    &
-             cldext, cldssa, cldext2, cldssa2
+             cldext2, cldssa2
       logical, dimension (size(conc_drop,1), size(conc_drop,2), &
                        size(conc_drop,3)             )  ::    &
                  maski
@@ -5012,383 +4995,383 @@ end subroutine el
 ! </SUBROUTINE>
 !  
  
-subroutine el_dge (nb, conc_ice, size_ice, mask, &
-                   cldextbndicelw, cldssalbbndicelw)
- 
-!-----------------------------------------------------------------------
-!    subroutine el_dge calculates the total optical depth and scattering
-!    optical depth for infrared radiation using Fu et al (J. Clim., 11,
-!    2223 (1998)). this parameterization will be used for crystal 
-!    generalized effective diameters from 18.6 to 130.2 um to match 
-!    shortwave limits.
-!    Leo Donner, GFDL, 29 Aug 98
-!    Dan Schwarzkopf, GFDL 31 July 2001
-!-----------------------------------------------------------------------
-
-integer,                   intent(in)    ::  nb
-real, dimension (:,:,:),   intent(in)    ::  conc_ice, size_ice
-logical, dimension (:,:,:),   intent(out)    ::  mask       
-real, dimension (:,:,:  ), intent(out)   ::  cldextbndicelw,   &
-                                             cldssalbbndicelw
-
-!----------------------------------------------------------------------
-!   intent(in) variables:                                            
-!                                                                  
-!       conc_ice           ice crystal concentation [ grams / meter**3 ]
-!       size_ice           ice crystal effective size [ microns ]      
-!                                                                  
-!  intent(out) variables:                                           
-!                                                                  
-!       cldextbndicelw     values of the extinction coefficient for 
-!                          ice crystals over the wavenumber bands used 
-!                          by the radiation code [ km**(-1) ]
-!       cldssalbbndicelw   values of the single-scattering albedo for 
-!                          ice crystals over the wavenumber bands used 
-!                          by the radiation code  [ dimensionless ] 
-!       cldasymmbndicelw   values of the asymmetry factor for ice 
-!                          crystals over the wavenumber bands used by 
-!                          the radiation code  
-!
-!--------------------------------------------------------------------- 
- 
-!---------------------------------------------------------------------
-!  local variables:                                                   
-      integer     :: n, m
-      integer     :: i,j,k
- 
-      real                        ::    cldextivlice, cldabsivlice, &
-                                        cldssalbivlice 
-!     real                        ::    cldasymmivlice 
-
-      real    ::        sumext, sumssalb
-!     real    ::        sumasymm
-      real    ::        fw1,fw2,fw3,fw4
-
-      real, dimension (NBFL)  ::   a0, a1, a2
- 
-      data a0 /                                                       &
-           4.919685E-03,  3.325756E-03, -1.334860E-02, -9.524174E-03, &
-          -4.159424E-03, -1.691632E-03, -8.372696E-03, -8.178608E-03, &
-          -4.936610E-03, -3.034573E-03, -2.465236E-03, -2.308881E-03/
-      data a1 /                                                     &
-           2.327741, 2.601360, 4.043808, 3.587742, 3.047325, 2.765756, &
-           3.455018, 3.401245, 3.087764, 2.900043, 2.833187, 2.814002  /
-      data a2 /                                                    &
-          -1.390858E+01, -1.909602E+01, -2.171029E+01, -1.068895E+01, &
-          -5.061568E+00, -8.331033E+00, -1.516692E+01, -8.812820E+00, &
-          -3.884262E+00, -1.849911E+00, -4.227573E-01,  1.072211E+00/
-
-      real, dimension (1:NBFL,0:NBB)     ::   b
-      data (b(n,0),n=1,NBFL) /                                     &
-          8.869787E-01,  2.005578E-01,  3.003701E-01,  9.551440E-01, &
-          1.466481E+00,  1.195515E+00,  5.409536E-01,  5.874323E-01, &
-          7.152274E-01,  8.862434E-01,  7.428957E-01,  4.346482E-01/
-      data (b(n,1),n=1,NBFL) /                                     &
-          2.118409E-02,  2.132614E-02,  2.051529E-02,  1.309792E-02, &
-         -2.129226E-03,  3.350616E-03,  1.949649E-02,  1.876628E-02, &
-          1.621734E-02,  1.226538E-02,  1.279601E-02,  1.721457E-02/
-      data (b(n,2),n=1,NBFL) /                                     &
-         -2.781429E-04, -1.751052E-04, -1.931684E-04, -1.793694E-04, &
-         -1.361630E-05, -5.266996E-05, -2.050908E-04, -2.045834E-04, &
-         -1.868544E-04, -1.523076E-04, -1.391803E-04, -1.623227E-04/
-      data (b(n,3),n=1,NBFL) /                                     &
-          1.094562E-06,  5.355885E-07,  6.583031E-07,  7.313392E-07, &
-          1.193649E-07,  2.233377E-07,  7.364680E-07,  7.510080E-07, &
-          7.078738E-07,  6.000892E-07,  5.180104E-07,  5.561523E-07/
-
-!     real, dimension (1:NBFL,0:NBC)     ::   cpr
-!     data (cpr(n,0),n=1,NBFL) /                                   &
-!         4.949276E-01,  6.891414E-01,  7.260484E-01,  7.363466E-01, &
-!         7.984021E-01,  8.663385E-01,  8.906280E-01,  8.609604E-01, &
-!         8.522816E-01,  8.714665E-01,  8.472918E-01,  7.962716E-01/
-!     data (cpr(n,1),n=1,NBFL) /                                   &
-!         1.186174E-02,  6.192281E-03,  2.664334E-03,  4.798266E-03, &
-!         3.977117E-03,  2.797934E-03,  1.903269E-03,  2.200445E-03, &
-!         2.523627E-03,  2.455409E-03,  2.559953E-03,  3.003488E-03/
-!     data (cpr(n,2),n=1,NBFL) /                                   &
-!        -1.267629E-04, -6.459514E-05, -1.251136E-05, -4.513292E-05, &
-!        -4.471984E-05, -3.187011E-05, -1.733552E-05, -1.748105E-05, &
-!        -2.149196E-05, -2.456935E-05, -2.182660E-05, -2.082376E-05/
-!     data (cpr(n,3),n=1,NBFL) /                                   &
-!         4.603574E-07,  2.436963E-07,  2.243377E-08,  1.525774E-07, &
-!         1.694919E-07,  1.217209E-07,  5.855071E-08,  5.176616E-08, &
-!         6.685067E-08,  8.641223E-08,  6.879977E-08,  5.366545E-08/
-
-!+yim small dge
-      real, dimension (NBA2,NBFL)     ::   aa
-      real, dimension (NBB2,NBFL)     ::   bb
-!     real, dimension (NBC2,NBFL)     ::   cc
- 
-        data aa / &
-      -2.005187e+00, 1.887870e+00, -2.394987e-01, 1.226004e-02, &
-      -2.176747e-04, &
-      -1.221428e+00, 1.190519e+00, -1.081918e-01, 3.207774e-03, &
-      -7.790185e-06, &
-      -5.522210e-01, 5.556264e-01, 1.350808e-02, -5.182503e-03, &
-       1.854760e-04, &
-      -2.411192e-01, 2.109769e-01, 7.588264e-02, -9.103300e-03, &
-       2.678349e-04, &
-      -1.485194e-02, 4.630892e-03, 8.989527e-02, -8.569112e-03, &
-       2.290338e-04, &
-       4.292661e-02, -7.619363e-04, 5.089112e-02, -4.101744e-03, &
-       9.917537e-05, &
-      -1.257657e-03, 3.840350e-01, -2.336758e-02, 5.263245e-04, &
-       9.536367e-07, &
-      -2.482977e-01, 5.149985e-01, -1.086854e-02, -1.909389e-03, &
-       8.220600e-05, &
-       1.130811e-01, -7.663294e-02, 9.961269e-02, -8.920452e-03, &
-       2.325299e-04, &
-       1.477471e-01, -1.276555e-01, 5.889066e-02, -3.637540e-03, &
-       7.242738e-05, &
-       2.778228e-02, 9.410452e-03, 7.771632e-03, -1.847559e-05, &
-      -7.178001e-06, &
-       2.954018e-03, 1.254725e-01, -3.265442e-03, 2.270727e-04, &
-      -6.365789e-06 /
-        data bb / &
-      -8.768658e-03, 8.493330e-02, -3.632126e-03, 6.987413e-05, &
-       2.703965e-07, &
-      -7.762272e-03, 1.653825e-01, -1.242696e-02, 4.813596e-04, &
-      -6.987702e-06, &
-      -1.103846e-02, 1.880946e-01, -1.320780e-02, 4.530029e-04, &
-      -5.384886e-06, &
-      -1.240034e-02, 1.353184e-01, -6.773254e-03, 1.353446e-04, &
-       4.783046e-07, &
-      -9.834148e-03, 1.045283e-01, -3.714625e-03, 9.185834e-06, &
-       2.434297e-06, &
-      -4.989783e-03, 9.761852e-02, -3.464011e-03, 1.681863e-05, &
-       1.990612e-06, &
-       5.524896e-02, 3.828618e-01, -4.868927e-02, 2.788080e-03, &
-      -5.893696e-05, &
-      -1.102297e-01, 4.983548e-01, -5.947312e-02, 3.147713e-03, &
-      -6.196981e-05, &
-      -3.705134e-02, 1.612865e-01, -4.132244e-03, -2.863781e-04, &
-       1.374847e-05, &
-       5.730367e-03, 3.433887e-02, 3.147511e-03, -3.044807e-04, &
-       7.929481e-06, &
-       3.126666e-03, 3.533685e-02, 5.299923e-04, -6.735890e-05, &
-       1.687872e-06, &
-       9.549627e-03, 1.140347e-01, 1.223725e-03, -4.282989e-04, &
-       1.343652e-05 /
-!       data cc / &
-!     -1.592086e-01, 5.165795e-01, -8.889665e-02, 6.133364e-03, &
-!     -1.466832e-04, &
-!     -2.780309e-01, 5.589181e-01, -9.294043e-02, 6.316572e-03, &
-!     -1.501642e-04, &
-!     -4.146218e-01, 6.015844e-01, -9.714942e-02, 6.513667e-03, &
-!     -1.539503e-04, &
-!     -4.644106e-01, 5.861063e-01, -9.087172e-02, 5.917403e-03, &
-!     -1.371181e-04, &
-!     -4.848736e-01, 5.552414e-01, -8.183047e-02, 5.147920e-03, &
-!     -1.164374e-04, &
-!     -5.056360e-01, 5.240870e-01, -7.278649e-02, 4.395703e-03, &
-!     -9.639759e-05, &
-!     -4.991806e-01, 4.601579e-01, -5.805338e-02, 3.236112e-03, &
-!     -6.615910e-05, &
-!     -4.382576e-01, 3.812485e-01, -4.268756e-02, 2.088357e-03, &
-!     -3.689533e-05, &
-!     -3.094784e-01, 2.406058e-01, -1.477957e-02, 2.970087e-05, &
-!      1.421683e-05, &
-!     -9.731071e-02, 4.088258e-02, 2.106015e-02, -2.364895e-03, &
-!      6.892137e-05, &
-!      7.192725e-02, -8.649291e-02, 3.621089e-02, -2.888238e-03, &
-!      7.087982e-05, &
-!      6.792641e-02, -5.575384e-02, 1.319878e-02, -4.919461e-04, &
-!      8.543384e-07 /
-
-!---------------------------------------------------------------------
-!   local variables:
-!
-!      cldextivlice     cloud extinction coefficient over the spectral
-!                       intervals relevant to fu and liou (1998) ice 
-!                       crystals. 
-!                       [ km**(-1)]
-!      cldabsivlice     absorption coefficient over the spectral
-!                       intervals relevant to fu and liou (1998) ice 
-!                       crystals. 
-!                       [ km**(-1)]
-!      cldssalbivlice   cloud single scattering albedo over the spectral
-!                       intervals relevant to fu and liou (1998) ice 
-!                       crystals. 
-!                       [ non-dimensional ]
-!      cldasymmivlice   cloud asymmetry factor over the spectral
-!                       intervals relevant to fu and liou (1998) ice 
-!                       crystals. not currently used.
-!                       [ non-dimensional ]
-!      sumext           weighted sum of extinction coefficient over fu 
-!                       bands to produce value for lw radiation bands
-!                       [ kilometers**(-1) ]
-!      sumssalb         sum of single scattering albedo over fu bands 
-!                       to produce value for lw radiation bands 
-!                       [ dimensionless ]
-!      sumasymm         sum of asymmetry factor over fu bands 
-!                       to produce value for lw radiation bands 
-!                       [ dimensionless ]
-!      a0,a1,a2         empirical coefficients for extinction coef-
-!                       ficient parameterization
-!      b                empirical coefficients for single scattering 
-!                       albedo parameterization
-!      cpr              empirical coefficients for asymmetry parameter
-!                       parameterization
-!      n,ni             do-loop indices
+!subroutine el_dge (nb, conc_ice, size_ice, mask, &
+!                   cldextbndicelw, cldssalbbndicelw)
 ! 
-!----------------------------------------------------------------------
-
-      do k=1, size(conc_ice,3)
-        do j=1, size(conc_ice,2)
-          do i=1, size(conc_ice,1)
-              sumext = 0.
-              sumssalb = 0.
-              if (conc_ice(i,j,k) /= 0.0) then
-                mask (i,j,k)= .true.
-
-                if ((Cldrad_control%using_fu2007 .and.    &
-                    size_ice(i,j,k) > 15.0) .or. &
-                    .not. Cldrad_control%using_fu2007) then
-
-!-----------------------------------------------------------------------
-!    calculate extinction coefficient [km**(-1)] for each wavenumber
-!    band of the Fu-Liou parameterization (not the radiation
-!    code wavenumber bands).
-!-----------------------------------------------------------------------
-                  do n=1,NBFL                                   
-                    cldextivlice          = 1.0E+03*conc_ice(i,j,k)*  &
-                                  (a0(n) +                           &
-                                   a1(n)*(1.0/size_ice(i,j,k)) +     &
-                                   a2(n)*(1.0/size_ice(i,j,k)**2))
-
-!-----------------------------------------------------------------------
-!    calculate the absorption coefficient. convert to units of 
-!    [ km**(-1) ].
-!-----------------------------------------------------------------------
-!-----------------------------------------------------------------------
-                    cldabsivlice          = 1.0E+03*conc_ice(i,j,k)*   &
-                                  (1.0/size_ice(i,j,k))*        &       
-                                   (b(n,0) +                    &
-                                    b(n,1)*size_ice(i,j,k) +    &
-                                    b(n,2)*size_ice(i,j,k)**2 + &
-                                    b(n,3)*size_ice(i,j,k)**3)
-
-!---------------------------------------------------------------------
-!    compute the single-scattering albedo. the asymmetry parameter is
-!    not currently used in the infrared code, so its calculation is
-!    commented out.
-!-----------------------------------------------------------------------
-                    if (cldextivlice /= 0.0) then
-                      cldssalbivlice = 1.0E+00 -    &
-                                             cldabsivlice/cldextivlice
-                    else
-                      cldssalbivlice = 0.0
-                    endif 
- 
-!                   do n=1,NBFL                                        
-!                     cldasymmivlice(:,:,:,n) = cpr(n,0) +        &
-!                                 cpr(n,1)*size_ice(:,:,:) +        &
-!                                 cpr(n,2)*size_ice(:,:,:)**2 +     &
-!                                 cpr(n,3)*size_ice(:,:,:)**3
-!                   end do
- 
-!-----------------------------------------------------------------------
-!    use the band weighting factors computed in microphys_rad_init
-!    to define the values of these parameters for each lw radiation
-!    band.
-!-----------------------------------------------------------------------
-!!                  sumasymm(:,:,:) = 0.
-                    sumext        = sumext +         &
-                          cldextivlice*fulwwts(nb,n)
-                    sumssalb = sumssalb +     &
-                            cldssalbivlice*fulwwts(nb,n)
-!!                  sumasymm(:,:,:) = sumasymm(:,:,:) +     &
-!!                          cldasymmivlice(:,:,:,ni)*fulwwts(n,ni)
-                  end do
-                else ! ( using_fu2007 .and. size_i > 15.0 .or. not
-                     !   using_fu2007)
-
- !+yim small dge
-!-----------------------------------------------------------------------
-!    calculate extinction coefficient [km**(-1)] for each wavenumber
-!    band of the Fu-Liou parameterization (not the radiation
-!    code wavenumber bands).
-!-----------------------------------------------------------------------
-                  do n=1,NBFL                          
-                    m = NBFL - n + 1
-                    fw1 = size_ice(i,j,k)
-                    fw2 = fw1*size_ice(i,j,k)
-                    fw3 = fw2*size_ice(i,j,k)
-                    fw4 = fw3*size_ice(i,j,k)
-       
-                    cldextivlice   = 1.0E+03*conc_ice(i,j,k)/fw1*  &
-                                 (aa(1,m) +       &
-                                  aa(2,m)*fw1 +   &
-                                  aa(3,m)*fw2 +   &
-                                  aa(4,m)*fw3 +   &
-                                  aa(5,m)*fw4 )
-
-!-----------------------------------------------------------------------
-!    calculate the absorption coefficient. convert to units of 
-!    [ km**(-1) ].
-!-----------------------------------------------------------------------
-                    cldabsivlice    = 1.0E+03*conc_ice(i,j,k)*      &
-                                 (1.0/fw1)*        &
-                                  (bb(1,m) +                    &
-                                   bb(2,m)*fw1 +  &
-                                   bb(3,m)*fw2 +  &
-                                   bb(4,m)*fw3 +  &
-                                   bb(5,m)*fw4 )
-
-!---------------------------------------------------------------------
-!    compute the single-scattering albedo. the asymmetry parameter is
-!    not currently used in the infrared code, so its calculation is
-!    commented out.
-!-----------------------------------------------------------------------
-                    if (cldextivlice /= 0.0) then
-                      cldssalbivlice = 1.0E+00 -    &
-                                            cldabsivlice/cldextivlice
-                    else
-                      cldssalbivlice = 0.0
-                    endif
-
-!                   do n=1,NBFL                           
-!                     m = NBFL - n + 1
-!                     cldasymmivlice(:,:,:,n) = cc(1,m) +        &
-!                                 cc(2,m)*fw1 +     &
-!                                 cc(3,m)*fw2 +     &
-!                                 cc(4,m)*fw3 +     &
-!                                 cc(5,m)*fw4
-!                   end do
- 
-!-----------------------------------------------------------------------
-!    use the band weighting factors computed in microphys_rad_init
-!    to define the values of these parameters for each lw radiation
-!    band.
-!-----------------------------------------------------------------------
-!!                  sumasymm(:,:,:) = 0.
-                    sumext  = sumext + cldextivlice*fulwwts(nb,n)
-                    sumssalb = sumssalb + cldssalbivlice*fulwwts(nb,n)
-!!                  sumasymm(:,:,:) = sumasymm(:,:,:) +     &
-!!                               cldasymmivlice(:,:,:,ni)*fulwwts(n,ni)
-                  end do
-                endif ! (size > 15)    
-                cldextbndicelw(i,j,k) = sumext
-                cldssalbbndicelw(i,j,k) = sumssalb
-!               cldasymmbndicelw(:,:,:,n) = sumasymm(:,:,:)
-              else  ! (conc_ice > 0)
-                mask(i,j,k) = .false.
-                cldextbndicelw(i,j,k) = 0.0        
-                cldssalbbndicelw(i,j,k) = 0.0          
-!               cldasymmbndicelw(:,:,:,n) = sumasymm(:,:,:)
-              endif ! (convc_ice > 0)
-              cldextbndicelw(i,j,k) = sumext
-              cldssalbbndicelw(i,j,k) = sumssalb
-!             cldasymmbndicelw(:,:,:,n) = sumasymm(:,:,:)
-          end do
-        end do
-      end do
-
-
-!---------------------------------------------------------------------
-
-
-end subroutine el_dge
+!!-----------------------------------------------------------------------
+!!    subroutine el_dge calculates the total optical depth and scattering
+!!    optical depth for infrared radiation using Fu et al (J. Clim., 11,
+!!    2223 (1998)). this parameterization will be used for crystal 
+!!    generalized effective diameters from 18.6 to 130.2 um to match 
+!!    shortwave limits.
+!!    Leo Donner, GFDL, 29 Aug 98
+!!    Dan Schwarzkopf, GFDL 31 July 2001
+!!-----------------------------------------------------------------------
+!
+!integer,                   intent(in)    ::  nb
+!real, dimension (:,:,:),   intent(in)    ::  conc_ice, size_ice
+!logical, dimension (:,:,:),   intent(out)    ::  mask       
+!real, dimension (:,:,:  ), intent(out)   ::  cldextbndicelw,   &
+!                                             cldssalbbndicelw
+!
+!!----------------------------------------------------------------------
+!!   intent(in) variables:                                            
+!!                                                                  
+!!       conc_ice           ice crystal concentation [ grams / meter**3 ]
+!!       size_ice           ice crystal effective size [ microns ]      
+!!                                                                  
+!!  intent(out) variables:                                           
+!!                                                                  
+!!       cldextbndicelw     values of the extinction coefficient for 
+!!                          ice crystals over the wavenumber bands used 
+!!                          by the radiation code [ km**(-1) ]
+!!       cldssalbbndicelw   values of the single-scattering albedo for 
+!!                          ice crystals over the wavenumber bands used 
+!!                          by the radiation code  [ dimensionless ] 
+!!       cldasymmbndicelw   values of the asymmetry factor for ice 
+!!                          crystals over the wavenumber bands used by 
+!!                          the radiation code  
+!!
+!!--------------------------------------------------------------------- 
+! 
+!!---------------------------------------------------------------------
+!!  local variables:                                                   
+!      integer     :: n, m
+!      integer     :: i,j,k
+! 
+!      real                        ::    cldextivlice, cldabsivlice, &
+!                                        cldssalbivlice 
+!!     real                        ::    cldasymmivlice 
+!
+!      real    ::        sumext, sumssalb
+!!     real    ::        sumasymm
+!      real    ::        fw1,fw2,fw3,fw4
+!
+!      real, dimension (NBFL)  ::   a0, a1, a2
+! 
+!      data a0 /                                                       &
+!           4.919685E-03,  3.325756E-03, -1.334860E-02, -9.524174E-03, &
+!          -4.159424E-03, -1.691632E-03, -8.372696E-03, -8.178608E-03, &
+!          -4.936610E-03, -3.034573E-03, -2.465236E-03, -2.308881E-03/
+!      data a1 /                                                     &
+!           2.327741, 2.601360, 4.043808, 3.587742, 3.047325, 2.765756, &
+!           3.455018, 3.401245, 3.087764, 2.900043, 2.833187, 2.814002  /
+!      data a2 /                                                    &
+!          -1.390858E+01, -1.909602E+01, -2.171029E+01, -1.068895E+01, &
+!          -5.061568E+00, -8.331033E+00, -1.516692E+01, -8.812820E+00, &
+!          -3.884262E+00, -1.849911E+00, -4.227573E-01,  1.072211E+00/
+!
+!      real, dimension (1:NBFL,0:NBB)     ::   b
+!      data (b(n,0),n=1,NBFL) /                                     &
+!          8.869787E-01,  2.005578E-01,  3.003701E-01,  9.551440E-01, &
+!          1.466481E+00,  1.195515E+00,  5.409536E-01,  5.874323E-01, &
+!          7.152274E-01,  8.862434E-01,  7.428957E-01,  4.346482E-01/
+!      data (b(n,1),n=1,NBFL) /                                     &
+!          2.118409E-02,  2.132614E-02,  2.051529E-02,  1.309792E-02, &
+!         -2.129226E-03,  3.350616E-03,  1.949649E-02,  1.876628E-02, &
+!          1.621734E-02,  1.226538E-02,  1.279601E-02,  1.721457E-02/
+!      data (b(n,2),n=1,NBFL) /                                     &
+!         -2.781429E-04, -1.751052E-04, -1.931684E-04, -1.793694E-04, &
+!         -1.361630E-05, -5.266996E-05, -2.050908E-04, -2.045834E-04, &
+!         -1.868544E-04, -1.523076E-04, -1.391803E-04, -1.623227E-04/
+!      data (b(n,3),n=1,NBFL) /                                     &
+!          1.094562E-06,  5.355885E-07,  6.583031E-07,  7.313392E-07, &
+!          1.193649E-07,  2.233377E-07,  7.364680E-07,  7.510080E-07, &
+!          7.078738E-07,  6.000892E-07,  5.180104E-07,  5.561523E-07/
+!
+!!     real, dimension (1:NBFL,0:NBC)     ::   cpr
+!!     data (cpr(n,0),n=1,NBFL) /                                   &
+!!         4.949276E-01,  6.891414E-01,  7.260484E-01,  7.363466E-01, &
+!!         7.984021E-01,  8.663385E-01,  8.906280E-01,  8.609604E-01, &
+!!         8.522816E-01,  8.714665E-01,  8.472918E-01,  7.962716E-01/
+!!     data (cpr(n,1),n=1,NBFL) /                                   &
+!!         1.186174E-02,  6.192281E-03,  2.664334E-03,  4.798266E-03, &
+!!         3.977117E-03,  2.797934E-03,  1.903269E-03,  2.200445E-03, &
+!!         2.523627E-03,  2.455409E-03,  2.559953E-03,  3.003488E-03/
+!!     data (cpr(n,2),n=1,NBFL) /                                   &
+!!        -1.267629E-04, -6.459514E-05, -1.251136E-05, -4.513292E-05, &
+!!        -4.471984E-05, -3.187011E-05, -1.733552E-05, -1.748105E-05, &
+!!        -2.149196E-05, -2.456935E-05, -2.182660E-05, -2.082376E-05/
+!!     data (cpr(n,3),n=1,NBFL) /                                   &
+!!         4.603574E-07,  2.436963E-07,  2.243377E-08,  1.525774E-07, &
+!!         1.694919E-07,  1.217209E-07,  5.855071E-08,  5.176616E-08, &
+!!         6.685067E-08,  8.641223E-08,  6.879977E-08,  5.366545E-08/
+!
+!!+yim small dge
+!      real, dimension (NBA2,NBFL)     ::   aa
+!      real, dimension (NBB2,NBFL)     ::   bb
+!!     real, dimension (NBC2,NBFL)     ::   cc
+! 
+!        data aa / &
+!      -2.005187e+00, 1.887870e+00, -2.394987e-01, 1.226004e-02, &
+!      -2.176747e-04, &
+!      -1.221428e+00, 1.190519e+00, -1.081918e-01, 3.207774e-03, &
+!      -7.790185e-06, &
+!      -5.522210e-01, 5.556264e-01, 1.350808e-02, -5.182503e-03, &
+!       1.854760e-04, &
+!      -2.411192e-01, 2.109769e-01, 7.588264e-02, -9.103300e-03, &
+!       2.678349e-04, &
+!      -1.485194e-02, 4.630892e-03, 8.989527e-02, -8.569112e-03, &
+!       2.290338e-04, &
+!       4.292661e-02, -7.619363e-04, 5.089112e-02, -4.101744e-03, &
+!       9.917537e-05, &
+!      -1.257657e-03, 3.840350e-01, -2.336758e-02, 5.263245e-04, &
+!       9.536367e-07, &
+!      -2.482977e-01, 5.149985e-01, -1.086854e-02, -1.909389e-03, &
+!       8.220600e-05, &
+!       1.130811e-01, -7.663294e-02, 9.961269e-02, -8.920452e-03, &
+!       2.325299e-04, &
+!       1.477471e-01, -1.276555e-01, 5.889066e-02, -3.637540e-03, &
+!       7.242738e-05, &
+!       2.778228e-02, 9.410452e-03, 7.771632e-03, -1.847559e-05, &
+!      -7.178001e-06, &
+!       2.954018e-03, 1.254725e-01, -3.265442e-03, 2.270727e-04, &
+!      -6.365789e-06 /
+!        data bb / &
+!      -8.768658e-03, 8.493330e-02, -3.632126e-03, 6.987413e-05, &
+!       2.703965e-07, &
+!      -7.762272e-03, 1.653825e-01, -1.242696e-02, 4.813596e-04, &
+!      -6.987702e-06, &
+!      -1.103846e-02, 1.880946e-01, -1.320780e-02, 4.530029e-04, &
+!      -5.384886e-06, &
+!      -1.240034e-02, 1.353184e-01, -6.773254e-03, 1.353446e-04, &
+!       4.783046e-07, &
+!      -9.834148e-03, 1.045283e-01, -3.714625e-03, 9.185834e-06, &
+!       2.434297e-06, &
+!      -4.989783e-03, 9.761852e-02, -3.464011e-03, 1.681863e-05, &
+!       1.990612e-06, &
+!       5.524896e-02, 3.828618e-01, -4.868927e-02, 2.788080e-03, &
+!      -5.893696e-05, &
+!      -1.102297e-01, 4.983548e-01, -5.947312e-02, 3.147713e-03, &
+!      -6.196981e-05, &
+!      -3.705134e-02, 1.612865e-01, -4.132244e-03, -2.863781e-04, &
+!       1.374847e-05, &
+!       5.730367e-03, 3.433887e-02, 3.147511e-03, -3.044807e-04, &
+!       7.929481e-06, &
+!       3.126666e-03, 3.533685e-02, 5.299923e-04, -6.735890e-05, &
+!       1.687872e-06, &
+!       9.549627e-03, 1.140347e-01, 1.223725e-03, -4.282989e-04, &
+!       1.343652e-05 /
+!!       data cc / &
+!!     -1.592086e-01, 5.165795e-01, -8.889665e-02, 6.133364e-03, &
+!!     -1.466832e-04, &
+!!     -2.780309e-01, 5.589181e-01, -9.294043e-02, 6.316572e-03, &
+!!     -1.501642e-04, &
+!!     -4.146218e-01, 6.015844e-01, -9.714942e-02, 6.513667e-03, &
+!!     -1.539503e-04, &
+!!     -4.644106e-01, 5.861063e-01, -9.087172e-02, 5.917403e-03, &
+!!     -1.371181e-04, &
+!!     -4.848736e-01, 5.552414e-01, -8.183047e-02, 5.147920e-03, &
+!!     -1.164374e-04, &
+!!     -5.056360e-01, 5.240870e-01, -7.278649e-02, 4.395703e-03, &
+!!     -9.639759e-05, &
+!!     -4.991806e-01, 4.601579e-01, -5.805338e-02, 3.236112e-03, &
+!!     -6.615910e-05, &
+!!     -4.382576e-01, 3.812485e-01, -4.268756e-02, 2.088357e-03, &
+!!     -3.689533e-05, &
+!!     -3.094784e-01, 2.406058e-01, -1.477957e-02, 2.970087e-05, &
+!!      1.421683e-05, &
+!!     -9.731071e-02, 4.088258e-02, 2.106015e-02, -2.364895e-03, &
+!!      6.892137e-05, &
+!!      7.192725e-02, -8.649291e-02, 3.621089e-02, -2.888238e-03, &
+!!      7.087982e-05, &
+!!      6.792641e-02, -5.575384e-02, 1.319878e-02, -4.919461e-04, &
+!!      8.543384e-07 /
+!
+!!---------------------------------------------------------------------
+!!   local variables:
+!!
+!!      cldextivlice     cloud extinction coefficient over the spectral
+!!                       intervals relevant to fu and liou (1998) ice 
+!!                       crystals. 
+!!                       [ km**(-1)]
+!!      cldabsivlice     absorption coefficient over the spectral
+!!                       intervals relevant to fu and liou (1998) ice 
+!!                       crystals. 
+!!                       [ km**(-1)]
+!!      cldssalbivlice   cloud single scattering albedo over the spectral
+!!                       intervals relevant to fu and liou (1998) ice 
+!!                       crystals. 
+!!                       [ non-dimensional ]
+!!      cldasymmivlice   cloud asymmetry factor over the spectral
+!!                       intervals relevant to fu and liou (1998) ice 
+!!                       crystals. not currently used.
+!!                       [ non-dimensional ]
+!!      sumext           weighted sum of extinction coefficient over fu 
+!!                       bands to produce value for lw radiation bands
+!!                       [ kilometers**(-1) ]
+!!      sumssalb         sum of single scattering albedo over fu bands 
+!!                       to produce value for lw radiation bands 
+!!                       [ dimensionless ]
+!!      sumasymm         sum of asymmetry factor over fu bands 
+!!                       to produce value for lw radiation bands 
+!!                       [ dimensionless ]
+!!      a0,a1,a2         empirical coefficients for extinction coef-
+!!                       ficient parameterization
+!!      b                empirical coefficients for single scattering 
+!!                       albedo parameterization
+!!      cpr              empirical coefficients for asymmetry parameter
+!!                       parameterization
+!!      n,ni             do-loop indices
+!! 
+!!----------------------------------------------------------------------
+!
+!      do k=1, size(conc_ice,3)
+!        do j=1, size(conc_ice,2)
+!          do i=1, size(conc_ice,1)
+!              sumext = 0.
+!              sumssalb = 0.
+!              if (conc_ice(i,j,k) /= 0.0) then
+!                mask (i,j,k)= .true.
+!
+!                if ((Cldrad_control%using_fu2007 .and.    &
+!                    size_ice(i,j,k) > 15.0) .or. &
+!                    .not. Cldrad_control%using_fu2007) then
+!
+!!-----------------------------------------------------------------------
+!!    calculate extinction coefficient [km**(-1)] for each wavenumber
+!!    band of the Fu-Liou parameterization (not the radiation
+!!    code wavenumber bands).
+!!-----------------------------------------------------------------------
+!                  do n=1,NBFL                                   
+!                    cldextivlice          = 1.0E+03*conc_ice(i,j,k)*  &
+!                                  (a0(n) +                           &
+!                                   a1(n)*(1.0/size_ice(i,j,k)) +     &
+!                                   a2(n)*(1.0/size_ice(i,j,k)**2))
+!
+!!-----------------------------------------------------------------------
+!!    calculate the absorption coefficient. convert to units of 
+!!    [ km**(-1) ].
+!!-----------------------------------------------------------------------
+!!-----------------------------------------------------------------------
+!                    cldabsivlice          = 1.0E+03*conc_ice(i,j,k)*   &
+!                                  (1.0/size_ice(i,j,k))*        &       
+!                                   (b(n,0) +                    &
+!                                    b(n,1)*size_ice(i,j,k) +    &
+!                                    b(n,2)*size_ice(i,j,k)**2 + &
+!                                    b(n,3)*size_ice(i,j,k)**3)
+!
+!!---------------------------------------------------------------------
+!!    compute the single-scattering albedo. the asymmetry parameter is
+!!    not currently used in the infrared code, so its calculation is
+!!    commented out.
+!!-----------------------------------------------------------------------
+!                    if (cldextivlice /= 0.0) then
+!                      cldssalbivlice = 1.0E+00 -    &
+!                                             cldabsivlice/cldextivlice
+!                    else
+!                      cldssalbivlice = 0.0
+!                    endif 
+! 
+!!                   do n=1,NBFL                                        
+!!                     cldasymmivlice(:,:,:,n) = cpr(n,0) +        &
+!!                                 cpr(n,1)*size_ice(:,:,:) +        &
+!!                                 cpr(n,2)*size_ice(:,:,:)**2 +     &
+!!                                 cpr(n,3)*size_ice(:,:,:)**3
+!!                   end do
+! 
+!!-----------------------------------------------------------------------
+!!    use the band weighting factors computed in microphys_rad_init
+!!    to define the values of these parameters for each lw radiation
+!!    band.
+!!-----------------------------------------------------------------------
+!!!                  sumasymm(:,:,:) = 0.
+!                    sumext        = sumext +         &
+!                          cldextivlice*fulwwts(nb,n)
+!                    sumssalb = sumssalb +     &
+!                            cldssalbivlice*fulwwts(nb,n)
+!!!                  sumasymm(:,:,:) = sumasymm(:,:,:) +     &
+!!!                          cldasymmivlice(:,:,:,ni)*fulwwts(n,ni)
+!                  end do
+!                else ! ( using_fu2007 .and. size_i > 15.0 .or. not
+!                     !   using_fu2007)
+!
+! !+yim small dge
+!!-----------------------------------------------------------------------
+!!    calculate extinction coefficient [km**(-1)] for each wavenumber
+!!    band of the Fu-Liou parameterization (not the radiation
+!!    code wavenumber bands).
+!!-----------------------------------------------------------------------
+!                  do n=1,NBFL                          
+!                    m = NBFL - n + 1
+!                    fw1 = size_ice(i,j,k)
+!                    fw2 = fw1*size_ice(i,j,k)
+!                    fw3 = fw2*size_ice(i,j,k)
+!                    fw4 = fw3*size_ice(i,j,k)
+!       
+!                    cldextivlice   = 1.0E+03*conc_ice(i,j,k)/fw1*  &
+!                                 (aa(1,m) +       &
+!                                  aa(2,m)*fw1 +   &
+!                                  aa(3,m)*fw2 +   &
+!                                  aa(4,m)*fw3 +   &
+!                                  aa(5,m)*fw4 )
+!
+!!-----------------------------------------------------------------------
+!!    calculate the absorption coefficient. convert to units of 
+!!    [ km**(-1) ].
+!!-----------------------------------------------------------------------
+!                    cldabsivlice    = 1.0E+03*conc_ice(i,j,k)*      &
+!                                 (1.0/fw1)*        &
+!                                  (bb(1,m) +                    &
+!                                   bb(2,m)*fw1 +  &
+!                                   bb(3,m)*fw2 +  &
+!                                   bb(4,m)*fw3 +  &
+!                                   bb(5,m)*fw4 )
+!
+!!---------------------------------------------------------------------
+!!    compute the single-scattering albedo. the asymmetry parameter is
+!!    not currently used in the infrared code, so its calculation is
+!!    commented out.
+!!-----------------------------------------------------------------------
+!                    if (cldextivlice /= 0.0) then
+!                      cldssalbivlice = 1.0E+00 -    &
+!                                            cldabsivlice/cldextivlice
+!                    else
+!                      cldssalbivlice = 0.0
+!                    endif
+!
+!!                   do n=1,NBFL                           
+!!                     m = NBFL - n + 1
+!!                     cldasymmivlice(:,:,:,n) = cc(1,m) +        &
+!!                                 cc(2,m)*fw1 +     &
+!!                                 cc(3,m)*fw2 +     &
+!!                                 cc(4,m)*fw3 +     &
+!!                                 cc(5,m)*fw4
+!!                   end do
+! 
+!!-----------------------------------------------------------------------
+!!    use the band weighting factors computed in microphys_rad_init
+!!    to define the values of these parameters for each lw radiation
+!!    band.
+!!-----------------------------------------------------------------------
+!!!                  sumasymm(:,:,:) = 0.
+!                    sumext  = sumext + cldextivlice*fulwwts(nb,n)
+!                    sumssalb = sumssalb + cldssalbivlice*fulwwts(nb,n)
+!!!                  sumasymm(:,:,:) = sumasymm(:,:,:) +     &
+!!!                               cldasymmivlice(:,:,:,ni)*fulwwts(n,ni)
+!                  end do
+!                endif ! (size > 15)    
+!                cldextbndicelw(i,j,k) = sumext
+!                cldssalbbndicelw(i,j,k) = sumssalb
+!!               cldasymmbndicelw(:,:,:,n) = sumasymm(:,:,:)
+!              else  ! (conc_ice > 0)
+!                mask(i,j,k) = .false.
+!                cldextbndicelw(i,j,k) = 0.0        
+!                cldssalbbndicelw(i,j,k) = 0.0          
+!!               cldasymmbndicelw(:,:,:,n) = sumasymm(:,:,:)
+!              endif ! (convc_ice > 0)
+!              cldextbndicelw(i,j,k) = sumext
+!              cldssalbbndicelw(i,j,k) = sumssalb
+!!             cldasymmbndicelw(:,:,:,n) = sumasymm(:,:,:)
+!          end do
+!        end do
+!      end do
+!
+!
+!!---------------------------------------------------------------------
+!
+!
+!end subroutine el_dge
 
 
 
@@ -5720,7 +5703,7 @@ real, dimension (:,:,:  ), intent(out)    ::   cldextbndsnowlw,    &
 !----------------------------------------------------------------------
 !  local variables:                                                  
 
-     real  ::          cldextivlsnow, cldssalbivlsnow, cldasymmivlsnow
+     real  ::          cldextivlsnow, cldssalbivlsnow
 
       real ::          sumext, sumssalb, sumasymm
 

@@ -75,7 +75,7 @@ integer, intent(in) :: iqg
 integer i,j,n,kx,ky
 real(kind=8) den, alf
 real(kind=8), dimension(3) :: ans
-real(kind=8), dimension(3) :: ain
+real(kind=8), dimension(3) :: ain=0.
 n = (iqg - 1) / (il_g*il_g)
 j = 1 + (iqg - n*il_g*il_g - 1)/il_g
 i = iqg - (j - 1)*il_g - n*il_g*il_g

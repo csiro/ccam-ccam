@@ -121,6 +121,8 @@ real coslong,sinlong,coslat,sinlat,polenx,poleny,polenz
 real zonx,zony,zonz,den
 integer iq
 
+windconv = .false.
+
 !     read file of site locations for timeseries output
 open(88,file=sitefile,form='formatted', status='unknown')
 read(88,*) head
@@ -198,9 +200,9 @@ if (windconv) then
   polenz=sinlat
   do iq=1,ifull
 !         Set up unit zonal vector components
-    zonx = poleny*z(iq)-polenz*y(iq)
-    zony = polenz*x(iq)-polenx*z(iq)
-    zonz = polenx*y(iq)-poleny*x(iq)
+    zonx = real(poleny*z(iq)-polenz*y(iq))
+    zony = real(polenz*x(iq)-polenx*z(iq))
+    zonz = real(polenx*y(iq)-poleny*x(iq))
 !         Allow for poles by taking max
     den = sqrt( max(zonx**2 + zony**2 + zonz**2,1.e-7) )
     costh(iq) =  (zonx*ax(iq)+zony*ay(iq)+zonz*az(iq))/den
@@ -355,7 +357,7 @@ use vvel_m      ! vertical velocity
 implicit none
 real, dimension(:,:), allocatable, save :: cts
 real, dimension(:), allocatable, save :: vts
-integer ierr,start(3),ncount(3),n,iq,kount,m,jyear,mins
+integer start(3),ncount(3),n,iq,kount,m,jyear,mins
 integer ktau,ntau,k
 logical surfflux
 include 'newmpar.h'    ! dimensions for tr array
@@ -505,7 +507,7 @@ use cc_mpi
 use infile
 use tracermodule, only : shipfile
 implicit none
-integer nptsdim,dateid,timeid,ntrac,i,i2,ierr
+integer ntrac,i,i2,ierr
 integer dtlsdim,nvaldim,outshipid(3),dims(2),tracdim
 real dt
 character(len=80) outfile2
@@ -581,7 +583,7 @@ subroutine writeshipts(ktau,ntau,dt)
 use infile
 use tracers_m
 implicit none
-integer ktau,ntau,ok,iloc,ilev,iship,ierr
+integer ktau,ntau,iloc,ilev,iship
 integer jdate1,jdate2,jtime1,jtime2,mon
 real dt
 integer start(2),kount(2),info(5)

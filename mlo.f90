@@ -219,7 +219,6 @@ real, dimension(ifin), intent(in) :: depin
 real, dimension(ifin) :: deptmp
 real, dimension(wlev) :: dumdf
 real, dimension(wlev+1) :: dumdh
-real smxd,smnd
 
 if (diag>=1) write(6,*) "Initialising MLO"
 
@@ -937,7 +936,7 @@ subroutine mloregrid(wlin,depin,mloin,mlodat,mode)
 implicit none
 
 integer, intent(in) :: wlin,mode
-integer iqw,ii,pos(1),nn
+integer iqw,ii,pos(1)
 real, dimension(ifull), intent(in) :: depin
 real, dimension(ifull,wlin), intent(in) :: mloin
 real, dimension(ifull,wlev), intent(inout) :: mlodat
@@ -1109,7 +1108,6 @@ subroutine mloeval(sst,zo,cd,cds,fg,eg,wetfac,epot,epan,fracice,siced,snowd, &
 implicit none
 
 integer, intent(in) :: diag
-integer iq, iqw, ii
 real, intent(in) :: dt
 real, dimension(ifull), intent(in) :: sg,rg,precp,precs,f,uatm,vatm,temp,qg,ps,visnirratio,fbvis,fbnir,inflow,zmin,zmins
 real, dimension(ifull), intent(inout) :: sst,zo,cd,cds,fg,eg,wetfac,fracice,siced,epot,epan,snowd
@@ -1186,17 +1184,17 @@ elsewhere
 end where
 
 ! water fluxes
-call fluxcalc(dt,atm_u,atm_v,atm_temp,atm_qg,atm_ps,atm_zmin,atm_zmins,d_zcr,d_neta,atm_oldu,        &
-              atm_oldv,diag)
+call fluxcalc(dt,atm_u,atm_v,atm_temp,atm_qg,atm_ps,atm_zmin,atm_zmins,d_neta,atm_oldu,atm_oldv,     &
+              diag)
 
 ! boundary conditions
 call getwflux(atm_sg,atm_rg,atm_rnd,atm_snd,atm_vnratio,atm_fbvis,atm_fbnir,atm_inflow,d_rho,d_nsq,  &
               d_rad,d_alpha,d_beta,d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_zcr)
 
 ! ice fluxes
-call iceflux(dt,atm_sg,atm_rg,atm_rnd,atm_snd,atm_vnratio,atm_fbvis,atm_fbnir,atm_u,atm_v,atm_temp,  &
-             atm_qg,atm_ps,atm_zmin,atm_zmins,d_ftop,d_tb,d_fb,d_timelt,d_nk,d_zcr,d_ndsn,d_ndic,    &
-             d_nsto,d_delstore,atm_oldu,atm_oldv,diag)
+call iceflux(dt,atm_sg,atm_rg,atm_rnd,atm_vnratio,atm_fbvis,atm_fbnir,atm_u,atm_v,atm_temp,atm_qg,   &
+             atm_ps,atm_zmin,atm_zmins,d_ftop,d_tb,d_fb,d_timelt,d_nk,d_ndsn,d_ndic,d_nsto,          &
+             d_delstore,atm_oldu,atm_oldv,diag)
 
 if (calcprog) then
 
@@ -1206,15 +1204,15 @@ if (calcprog) then
   ice%thick=d_ndic
   ice%snowd=d_ndsn
   ice%store=d_nsto
-  call mloice(dt,atm_ps,d_alpha,d_beta,d_b0,d_wu0,d_wv0,d_wt0,d_ws0,d_ftop,d_tb,d_fb,d_timelt,       &
-              d_ustar,d_nk,d_neta,d_zcr,diag)
+  call mloice(dt,d_alpha,d_beta,d_b0,d_wu0,d_wv0,d_wt0,d_ws0,d_ftop,d_tb,d_fb,d_timelt,       &
+              d_ustar,d_nk,d_neta,diag)
 
   ! create or destroy ice
   ! MJT notes - this is done after the flux calculations to agree with the albedo passed to the radiation
-  call mlonewice(dt,d_timelt,d_zcr,diag)
+  call mlonewice(d_timelt,d_zcr,diag)
   
   ! update water
-  call mlocalc(dt,atm_f,d_rho,d_nsq,d_rad,d_alpha,d_beta,d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_zcr, &
+  call mlocalc(dt,atm_f,d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_zcr, &
                d_neta,diag)
 
 end if
@@ -1258,7 +1256,7 @@ end subroutine mloeval
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! MLO calcs for water (no ice)
 
-subroutine mlocalc(dt,atm_f,d_rho,d_nsq,d_rad,d_alpha,d_beta,d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_zcr, &
+subroutine mlocalc(dt,atm_f,d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_zcr, &
                    d_neta,diag)
 
 implicit none
@@ -1270,13 +1268,13 @@ real, dimension(wfull,wlev) :: km, ks, gammas, rhs
 real(kind=8), dimension(wfull,2:wlev) :: aa
 real(kind=8), dimension(wfull,wlev) :: bb, dd
 real(kind=8), dimension(wfull,1:wlev-1) :: cc
-real, dimension(wfull,wlev), intent(in) :: d_rho, d_nsq, d_rad, d_alpha, d_beta
+real, dimension(wfull,wlev), intent(in) :: d_rho, d_nsq, d_rad, d_alpha
 real, dimension(wfull) :: dumt0, umag, avearray
 real, dimension(wfull), intent(in) :: atm_f
 real, dimension(wfull), intent(inout) :: d_b0, d_ustar, d_wu0, d_wv0, d_wt0, d_ws0, d_zcr, d_neta
 
 ! solve for mixed layer depth (calculated at full levels)
-call getmixdepth(d_rho,d_nsq,d_rad,d_alpha,d_beta,d_b0,d_ustar,atm_f,d_zcr) 
+call getmixdepth(d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar,atm_f,d_zcr) 
 ! solve for stability functions and non-local term (calculated at half levels)
 call getstab(km,ks,gammas,d_nsq,d_ustar,d_zcr) 
 
@@ -1533,7 +1531,7 @@ end subroutine getstab
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! calculate mixed layer depth
 
-subroutine getmixdepth(d_rho,d_nsq,d_rad,d_alpha,d_beta,d_b0,d_ustar,atm_f,d_zcr)
+subroutine getmixdepth(d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar,atm_f,d_zcr)
 
 implicit none
 
@@ -1544,7 +1542,7 @@ real tnsq,tws,twu,twv,tdepth,tbuoy,trho
 real oldxp,oldtrib,trib,newxp,deldz,aa,bb,dsf
 real, dimension(wfull,wlev) :: ws,wm,dumbuoy,rib
 real, dimension(wfull) :: dumbf,l,d_depth,usf,vsf,rsf
-real, dimension(wfull,wlev), intent(in) :: d_rho,d_nsq,d_rad,d_alpha,d_beta
+real, dimension(wfull,wlev), intent(in) :: d_rho,d_nsq,d_rad,d_alpha
 real, dimension(wfull), intent(in) :: d_b0,d_ustar,d_zcr
 real, dimension(wfull), intent(in) :: atm_f
 integer, parameter :: maxits = 3
@@ -1787,24 +1785,24 @@ end subroutine getrho
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate surface density (used for sea-ice melting)
 
-subroutine getrho1(salin,atm_ps,d_rho,d_zcr)
-
-implicit none
-
-integer ii
-real, dimension(wfull) :: rho0,pxtr
-real, dimension(wfull,1) :: d_dz,d_alpha,d_beta,d_isal
-real, dimension(wfull,1), intent(inout) :: d_rho
-real, dimension(wfull), intent(in) :: atm_ps,salin
-real, dimension(wfull), intent(inout) :: d_zcr
-
-pxtr=atm_ps+grav*ice%fracice*(ice%thick*rhoic+ice%snowd*rhosn)
-d_dz(:,1)=dz(:,1)*d_zcr
-d_isal(:,1)=salin
-call calcdensity(d_rho(:,1:1),d_alpha(:,1:1),d_beta(:,1:1),rho0,water%temp(:,1:1),d_isal(:,1:1),d_dz(:,1:1),pxtr)
-
-return
-end subroutine getrho1
+!subroutine getrho1(salin,atm_ps,d_rho,d_zcr)
+!
+!implicit none
+!
+!integer ii
+!real, dimension(wfull) :: rho0,pxtr
+!real, dimension(wfull,1) :: d_dz,d_alpha,d_beta,d_isal
+!real, dimension(wfull,1), intent(inout) :: d_rho
+!real, dimension(wfull), intent(in) :: atm_ps,salin
+!real, dimension(wfull), intent(inout) :: d_zcr
+!
+!pxtr=atm_ps+grav*ice%fracice*(ice%thick*rhoic+ice%snowd*rhosn)
+!d_dz(:,1)=dz(:,1)*d_zcr
+!d_isal(:,1)=salin
+!call calcdensity(d_rho(:,1:1),d_alpha(:,1:1),d_beta(:,1:1),rho0,water%temp(:,1:1),d_isal(:,1:1),d_dz(:,1:1),pxtr)
+!
+!return
+!end subroutine getrho1
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate water boundary conditions
@@ -2023,55 +2021,55 @@ end subroutine calcmelt
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Convert temp to theta based on MOM3 routine
-subroutine gettheta(theta,tt,ss,pxtr,ddz)
-
-implicit none
-
-integer ii
-real, dimension(wfull,wlev), intent(out) :: theta
-real, dimension(wfull,wlev), intent(in) :: tt,ss,ddz
-real, dimension(wfull), intent(in) :: pxtr
-real, dimension(wfull) :: b1,b2,b3,b4,b5,b6,b7,b8,b9,b10,b11
-real, dimension(wfull) :: t,t2,t3,s,s2,p,p2,potmp,ptot
-real, dimension(wfull,wlev) :: d_rho
-real, parameter :: density = 1035.
-
-d_rho=density
-
-ptot=pxtr*1.E-5
-do ii=1,wlev
-  t = max(tt(:,ii)-273.16,-2.)
-  s = max(ss(:,ii),0.)
-  p   = ptot+grav*d_rho(:,ii)*0.5*ddz(:,ii)*1.E-5 ! hydrostatic approximation
-  ptot = ptot+grav*d_rho(:,ii)*ddz(:,ii)*1.E-5
-    
-  b1    = -1.60e-5*p
-  b2    = 1.014e-5*p*t
-  t2    = t*t
-  t3    = t2*t
-  b3    = -1.27e-7*p*t2
-  b4    = 2.7e-9*p*t3
-  b5    = 1.322e-6*p*s
-  b6    = -2.62e-8*p*s*t
-  s2    = s*s
-  p2    = p*p
-  b7    = 4.1e-9*p*s2
-  b8    = 9.14e-9*p2
-  b9    = -2.77e-10*p2*t
-  b10   = 9.5e-13*p2*t2
-  b11   = -1.557e-13*p2*p
-  potmp = b1+b2+b3+b4+b5+b6+b7+b8+b9+b10+b11
-  theta(:,ii) = t-potmp+273.16
-end do
-
-return
-end subroutine gettheta
+!subroutine gettheta(theta,tt,ss,pxtr,ddz)
+!
+!implicit none
+!
+!integer ii
+!real, dimension(wfull,wlev), intent(out) :: theta
+!real, dimension(wfull,wlev), intent(in) :: tt,ss,ddz
+!real, dimension(wfull), intent(in) :: pxtr
+!real, dimension(wfull) :: b1,b2,b3,b4,b5,b6,b7,b8,b9,b10,b11
+!real, dimension(wfull) :: t,t2,t3,s,s2,p,p2,potmp,ptot
+!real, dimension(wfull,wlev) :: d_rho
+!real, parameter :: density = 1035.
+!
+!d_rho=density
+!
+!ptot=pxtr*1.E-5
+!do ii=1,wlev
+!  t = max(tt(:,ii)-273.16,-2.)
+!  s = max(ss(:,ii),0.)
+!  p   = ptot+grav*d_rho(:,ii)*0.5*ddz(:,ii)*1.E-5 ! hydrostatic approximation
+!  ptot = ptot+grav*d_rho(:,ii)*ddz(:,ii)*1.E-5
+!    
+!  b1    = -1.60e-5*p
+!  b2    = 1.014e-5*p*t
+!  t2    = t*t
+!  t3    = t2*t
+!  b3    = -1.27e-7*p*t2
+!  b4    = 2.7e-9*p*t3
+!  b5    = 1.322e-6*p*s
+!  b6    = -2.62e-8*p*s*t
+!  s2    = s*s
+!  p2    = p*p
+!  b7    = 4.1e-9*p*s2
+!  b8    = 9.14e-9*p2
+!  b9    = -2.77e-10*p2*t
+!  b10   = 9.5e-13*p2*t2
+!  b11   = -1.557e-13*p2*p
+!  potmp = b1+b2+b3+b4+b5+b6+b7+b8+b9+b10+b11
+!  theta(:,ii) = t-potmp+273.16
+!end do
+!
+!return
+!end subroutine gettheta
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate fluxes between MLO and atmosphere
 
 subroutine fluxcalc(dt,atm_u,atm_v,atm_temp,atm_qg,atm_ps,atm_zmin,atm_zmins, &
-                    d_zcr,d_neta,atm_oldu,atm_oldv,diag)
+                    d_neta,atm_oldu,atm_oldv,diag)
 
 implicit none
 
@@ -2079,7 +2077,7 @@ integer, intent(in) :: diag
 integer it
 real, intent(in) :: dt
 real, dimension(wfull), intent(in) :: atm_u,atm_v,atm_temp,atm_qg,atm_ps,atm_zmin,atm_zmins
-real, dimension(wfull), intent(inout) :: d_zcr,d_neta,atm_oldu,atm_oldv
+real, dimension(wfull), intent(inout) :: d_neta,atm_oldu,atm_oldv
 real, dimension(wfull) :: qsat,dqdt,ri,rho,srcp
 real, dimension(wfull) :: fm,fh,fq,con,consea,afroot,af,daf
 real, dimension(wfull) :: den,dfm,dden,dcon,sig,factch,root
@@ -2295,20 +2293,18 @@ end subroutine getqsat
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !Pack sea ice for calcuation
 
-subroutine mloice(dt,atm_ps,d_alpha,d_beta,d_b0,d_wu0,d_wv0,d_wt0,d_ws0,d_ftop,d_tb,d_fb,d_timelt, &
-                  d_ustar,d_nk,d_neta,d_zcr,diag)
+subroutine mloice(dt,d_alpha,d_beta,d_b0,d_wu0,d_wv0,d_wt0,d_ws0,d_ftop,d_tb,d_fb,d_timelt, &
+                  d_ustar,d_nk,d_neta,diag)
 
 implicit none
 
 integer, intent(in) :: diag
-integer ii, iqw
+integer ii
 integer, dimension(wfull), intent(inout) :: d_nk
-integer, dimension(wfull) :: dp_nk
 real, intent(in) :: dt
-real, dimension(wfull), intent(in) :: atm_ps
 real, dimension(wfull,wlev), intent(in) :: d_alpha, d_beta
 real, dimension(wfull), intent(inout) :: d_b0, d_wu0, d_wv0, d_wt0, d_ws0, d_ftop, d_tb, d_fb, d_timelt
-real, dimension(wfull), intent(inout) :: d_ustar, d_neta, d_zcr
+real, dimension(wfull), intent(inout) :: d_ustar, d_neta
 real, dimension(wfull) :: d_salflxf, d_salflxs, d_wavail, d_avewtemp
 real, dimension(wfull) :: imass, deld, xxx, newthick
 
@@ -2371,19 +2367,18 @@ end subroutine mloice
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Form seaice before flux calculations
 
-subroutine mlonewice(dt,d_timelt,d_zcr,diag)
+subroutine mlonewice(d_timelt,d_zcr,diag)
 
 implicit none
 
 integer, intent(in) :: diag
 integer iqw, ii, maxlevel
-real, intent(in) :: dt
 real aa, bb, dsf, deldz, delt, dels, neutralthick
 real, dimension(wfull,wlev) :: sdic
-real, dimension(wfull) :: newdic, newicesal, newtn, newsl, cdic
+real, dimension(wfull) :: newdic, newicesal, newtn, cdic
 real, dimension(wfull), intent(inout) :: d_timelt, d_zcr
-real, dimension(wfull) :: maxnewice, d_wavail, old_zcr
-real, dimension(wfull) :: newfracice, worka, newthick
+real, dimension(wfull) :: maxnewice, d_wavail
+real, dimension(wfull) :: newthick
 real, dimension(wfull) :: avesal, avetemp, newicetemp
 logical, dimension(wfull) :: lnewice, lremove
 
@@ -2579,7 +2574,7 @@ subroutine seaicecalc(dt,d_ftop,d_tb,d_fb,d_timelt,d_salflxf,d_salflxs,d_nk,    
 implicit none
 
 integer, intent(in) :: diag
-integer pc, ii
+integer pc
 integer, dimension(5) :: nc
 integer, dimension(wfull), intent(inout) :: d_nk
 integer, dimension(wfull) :: dt_nk
@@ -3057,7 +3052,7 @@ integer, intent(in) :: nc,diag
 integer, dimension(nc), intent(inout) :: dt_nk
 real, intent(in) :: dt
 real htdown
-real, dimension(nc) :: rhin,qmax,qneed,fl,con,gamm,ssubl,isubl,excess,conb
+real, dimension(nc) :: rhin,qmax,qneed,fl,con,gamm,ssubl,isubl,conb
 real, dimension(nc) :: subl,simelt,smax,dhb,snmelt,flnew
 real, dimension(nc), intent(inout) :: it_tn0,it_tn1,it_tn2
 real, dimension(nc), intent(inout) :: it_dic,it_dsn,it_tsurf,it_sto
@@ -3221,7 +3216,7 @@ integer, intent(in) :: nc,diag
 integer, dimension(nc), intent(inout) :: dt_nk
 real, intent(in) :: dt
 real htup,htdown
-real, dimension(nc) :: rhin,qmax,sbrine,fl,con,gamm,ssubl,isubl,excess,conb
+real, dimension(nc) :: rhin,qmax,sbrine,fl,con,gamm,ssubl,isubl,conb
 real, dimension(nc) :: subl,simelt,smax,dhb,snmelt,flnew
 real, dimension(nc), intent(inout) :: it_tn0,it_tn1,it_tn2
 real, dimension(nc), intent(inout) :: it_dic,it_dsn,it_tsurf,it_sto
@@ -3379,8 +3374,8 @@ implicit none
 
 integer, intent(in) :: nc,diag
 real, intent(in) :: dt
-real, dimension(nc) :: con,f0,tnew,excess
-real, dimension(nc) :: subl,snmelt,smax,dhb,isubl,ssubl,ssnmelt,gamm,simelt
+real, dimension(nc) :: con,f0,tnew
+real, dimension(nc) :: subl,snmelt,smax,dhb,isubl,ssubl,gamm,simelt
 real, dimension(nc) :: aa,bb,cc
 real, dimension(nc), intent(inout) :: it_tn0,it_tn1,it_tn2
 real, dimension(nc), intent(inout) :: it_dic,it_dsn,it_tsurf,it_sto
@@ -3513,17 +3508,17 @@ end subroutine thomas
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Determine ice fluxes
 
-subroutine iceflux(dt,atm_sg,atm_rg,atm_rnd,atm_snd,atm_vnratio,atm_fbvis,atm_fbnir,atm_u,atm_v,atm_temp,atm_qg, &
-                   atm_ps,atm_zmin,atm_zmins,d_ftop,d_tb,d_fb,d_timelt,d_nk,d_zcr,                               &
+subroutine iceflux(dt,atm_sg,atm_rg,atm_rnd,atm_vnratio,atm_fbvis,atm_fbnir,atm_u,atm_v,atm_temp,atm_qg, &
+                   atm_ps,atm_zmin,atm_zmins,d_ftop,d_tb,d_fb,d_timelt,d_nk,                             &
                    d_ndsn,d_ndic,d_nsto,d_delstore,atm_oldu,atm_oldv,diag)
 
 implicit none
 
 integer, intent(in) :: diag
-integer ll,iqw
-real, dimension(wfull), intent(in) :: atm_sg,atm_rg,atm_rnd,atm_snd,atm_vnratio,atm_fbvis,atm_fbnir,atm_u,atm_v
+integer ll
+real, dimension(wfull), intent(in) :: atm_sg,atm_rg,atm_rnd,atm_vnratio,atm_fbvis,atm_fbnir,atm_u,atm_v
 real, dimension(wfull), intent(in) :: atm_temp,atm_qg,atm_ps,atm_zmin,atm_zmins
-real, dimension(wfull), intent(inout) :: d_ftop,d_tb,d_fb,d_timelt,d_zcr,d_ndsn,d_ndic
+real, dimension(wfull), intent(inout) :: d_ftop,d_tb,d_fb,d_timelt,d_ndsn,d_ndic
 real, dimension(wfull), intent(inout) :: d_nsto,d_delstore,atm_oldu,atm_oldv
 integer, dimension(wfull), intent(inout) :: d_nk
 real, intent(in) :: dt
@@ -3532,7 +3527,7 @@ real, dimension(wfull) :: fm,fh,fq,af,aft,afq
 real, dimension(wfull) :: den,sig,root
 real, dimension(wfull) :: alb,qmax,eye
 real, dimension(wfull) :: uu,vv,du,dv,vmagn,icemagn
-real, dimension(wfull) :: x,ustar,icemag,g,h,dgu,dgv,dhu,dhv,det
+real, dimension(wfull) :: ustar,g,h,dgu,dgv,dhu,dhv,det
 real, dimension(wfull) :: newiu,newiv,imass,dtsurf
 real factch
 
@@ -3558,7 +3553,7 @@ d_nk=min(int(d_ndic/himin),2)
 
 ! radiation
 alb=     atm_vnratio*(dgice%visdiralb*atm_fbvis+dgice%visdifalb*(1.-atm_fbvis))+ &
-    (1.-atm_vnratio)*(dgice%visdifalb*atm_fbvis+dgice%visdifalb*(1.-atm_fbvis))
+    (1.-atm_vnratio)*(dgice%visdifalb*atm_fbnir+dgice%visdifalb*(1.-atm_fbnir))
 qmax=max(qice*0.5*(d_ndic-himin),1.E-10)
 eye=0.35*max(1.-d_ndsn/icemin,0.)*max(1.-d_nsto/qmax,0.)*max(min(d_ndic/himin-1.,1.),0.)
 where ( d_ndic>icemin )

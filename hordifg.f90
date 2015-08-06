@@ -95,6 +95,8 @@ integer, parameter :: nf=2
 !     in namelist khdif is fujio's a**2, e.g. 4.
 !     if(nhorps.gt.1)stop 'nhorps > 1 not permitted in hordifgt'
 
+nhorx=0
+
 if (kmax<0) then
   kmax=1
   do while (sig(kmax)>=0.25.and.kmax<kl)

@@ -45,9 +45,8 @@ include 'const_phys.h'   ! rearth
 include 'parm.h'
 integer, intent(in) :: ik  ! passed as argument. Actual i dimension.
                            ! if negative, suppress calc of rlat4, rlong4, indices,em_g                             
-integer i,j,n,ikk,idjd_g,iq,ii,i0,j0,n0,in0,jn0,nn0
-integer is0,js0,ns0,ie0,je0,ne0,iw0,jw0,nw0,inn0,jnn0
-integer iss0,jss0,nss0,nnn0,iee0,jee0,nee0,iww0,jww0,nww0,m
+integer i,j,n,ikk,idjd_g,iq
+integer m
 integer iq11,iq12,iq13,iq22,iq32,iqcc,iqnn
 integer imin,imax,jmin,jmax,numpts
 integer iqm,iqp, n_n, n_e, n_w, n_s
@@ -56,6 +55,7 @@ integer, save :: num = 0
 real(kind=8), dimension(ik*ik*6) :: x,y,z
 real(kind=8), dimension(1+4*ik,1+4*ik) :: xx4,yy4
 real(kind=8) alf,den1,xx,yy,zz,x4_iq_m,y4_iq_m,z4_iq_m
+real(kind=8) xin,yin,zin
 real(kind=8), parameter :: one = 1._8
 real, dimension(ik*ik*6) :: ax,ay,az,wts
 real, dimension(ik*ik*6) :: bx,by,bz
@@ -63,9 +63,11 @@ real, dimension(ik*ik*6) :: axx,ayy,azz,bxx,byy,bzz
 real, dimension(1+4*ik,1+4*ik) :: em4,ax4,ay4,az4
 real, dimension(3,3) :: rotpole
 real rlong0,rlat0,schmidt,schmidtin
-real dsfact,xin,yin,zin
-real den, dot,eps,dx2,dy2,sumwts,rlat,rlong,ratmin,ratmax,rat
+real dsfact
+real den, dot,eps,dx2,dy2,sumwts,ratmin,ratmax,rat
 real rlatdeg,rlondeg
+
+dsfact=0.
 
 num=num+1
 !     When using the ifull_g notation: in_g, ie_g, iw_g and is_g give the
@@ -159,9 +161,9 @@ if ( schmidtin>=0. ) then
         yy=rotpole(2,1)*x4_iq_m+rotpole(2,2)*y4_iq_m+rotpole(2,3)*z4_iq_m
         zz=rotpole(3,1)*x4_iq_m+rotpole(3,2)*y4_iq_m+rotpole(3,3)*z4_iq_m
       endif
-      rlat4(iq,m)=asin(zz)
+      rlat4(iq,m)=real(asin(zz))
       if(yy/=0..or.xx/=0.)then
-        rlong4(iq,m)=atan2(yy,xx)                       ! N.B. -pi to pi
+        rlong4(iq,m)=real(atan2(yy,xx))                       ! N.B. -pi to pi
         if(rlong4(iq,m)<0.)  then
           rlong4(iq,m)=rlong4(iq,m)+2.*pi ! 0 to 2*pi  09-25-1997
         end if
@@ -246,7 +248,7 @@ if (schmidt/=1.) then
       x(iq)=xin*schmidt*(1.+alf)/(1.+alf*zin)
       y(iq)=yin*schmidt*(1.+alf)/(1.+alf*zin)
       z(iq)=(alf+zin)/(1.+alf*zin)
-      em_g(iq)=em_g(iq)*schmidt*(1.+alf*zin)/(1.-alf)
+      em_g(iq)=real(real(em_g(iq),8)*real(schmidt,8)*(1.+alf*zin)/(1.-alf))
     enddo   ! iq loop
     do iq=1,ifull_g
       ! with schmidt, for ntang=1 or 2 must average em_g to get emu_g & emv_g
@@ -317,16 +319,16 @@ if(schmidtin<0.)then
         iqm=iq-1
         if(i==1)iqm=indx(ikk,j,n_w,ikk,ikk)
         if(i==ikk)iqp=indx(ikk+1-j,1,n_e,ikk,ikk)
-        ax(iq)=x(iqp)-x(iqm)
-        az(iq)=z(iqp)-z(iqm)
-        ay(iq)=y(iqp)-y(iqm)
+        ax(iq)=real(x(iqp)-x(iqm))
+        az(iq)=real(z(iqp)-z(iqm))
+        ay(iq)=real(y(iqp)-y(iqm))
         iqp=iq+ikk
         iqm=iq-ikk
         if(j==1)iqm=indx(ikk,ikk+1-i,n_s,ikk,ikk)
         if(j==ikk)iqp=indx(i,1,n_n,ikk,ikk)
-        bx(iq)=x(iqp)-x(iqm)
-        by(iq)=y(iqp)-y(iqm)
-        bz(iq)=z(iqp)-z(iqm)
+        bx(iq)=real(x(iqp)-x(iqm))
+        by(iq)=real(y(iqp)-y(iqm))
+        bz(iq)=real(z(iqp)-z(iqm))
       enddo
     enddo
   enddo
@@ -342,28 +344,28 @@ if(schmidtin<0.)then
         iqm=iq-1
         if(i==1)iqm=indx(ikk+1-j,ikk,n_w,ikk,ikk)
         if(i==ikk)iqp=indx(1,j,n_e,ikk,ikk)
-        ax(iq)=x(iqp)-x(iqm)
-        ay(iq)=y(iqp)-y(iqm)
-        az(iq)=z(iqp)-z(iqm)
+        ax(iq)=real(x(iqp)-x(iqm))
+        ay(iq)=real(y(iqp)-y(iqm))
+        az(iq)=real(z(iqp)-z(iqm))
         iqp=iq+ikk
         iqm=iq-ikk
         if(j==1)iqm=indx(i,ikk,n_s,ikk,ikk)
         if(j==ikk)iqp=indx(1,ikk+1-i,n_n,ikk,ikk)
-        bx(iq)=x(iqp)-x(iqm)
-        by(iq)=y(iqp)-y(iqm)
-        bz(iq)=z(iqp)-z(iqm)
+        bx(iq)=real(x(iqp)-x(iqm))
+        by(iq)=real(y(iqp)-y(iqm))
+        bz(iq)=real(z(iqp)-z(iqm))
       enddo
     enddo
   enddo
 else  !  usual with (schmidtin>0. (but equiv. to above)
   do iq=1,ifull_g
     ! first guess tang vectors by finite differences
-    ax(iq)=x(ie_g(iq))-x(iw_g(iq))
-    ay(iq)=y(ie_g(iq))-y(iw_g(iq))
-    az(iq)=z(ie_g(iq))-z(iw_g(iq))
-    bx(iq)=x(in_g(iq))-x(is_g(iq))
-    by(iq)=y(in_g(iq))-y(is_g(iq))
-    bz(iq)=z(in_g(iq))-z(is_g(iq))
+    ax(iq)=real(x(ie_g(iq))-x(iw_g(iq)))
+    ay(iq)=real(y(ie_g(iq))-y(iw_g(iq)))
+    az(iq)=real(z(ie_g(iq))-z(iw_g(iq)))
+    bx(iq)=real(x(in_g(iq))-x(is_g(iq)))
+    by(iq)=real(y(in_g(iq))-y(is_g(iq)))
+    bz(iq)=real(z(in_g(iq))-z(is_g(iq)))
   enddo   ! iq loop
 endif   ! (schmidtin<0.  ... else)
 ! form axx and bxx tangential to the sphere
@@ -388,10 +390,10 @@ if(schmidtin<0.)return  ! finish of stuff needed for onthefly
         
 do iq=1,ifull_g
   ! calculate inverse of emu_g & emv_g first
-  dx2=(x(ie_g(iq))-x(iq))**2+(y(ie_g(iq))-y(iq))**2+(z(ie_g(iq))-z(iq))**2
+  dx2=real((x(ie_g(iq))-x(iq))**2+(y(ie_g(iq))-y(iq))**2+(z(ie_g(iq))-z(iq))**2)
   ! include arc-length corrn using 2*arcsin(theta/2)
   emu_g(iq)=sqrt(dx2)*(1.+dx2/24.) *dsfact
-  dy2=(x(in_g(iq))-x(iq))**2+(y(in_g(iq))-y(iq))**2+(z(in_g(iq))-z(iq))**2
+  dy2=real((x(in_g(iq))-x(iq))**2+(y(in_g(iq))-y(iq))**2+(z(in_g(iq))-z(iq))**2)
   emv_g(iq)=sqrt(dy2)*(1.+dy2/24.) *dsfact
 enddo   ! iq loop
 do iq=1,ifull_g   ! based on inverse values of emu_g & emv_g
@@ -473,10 +475,10 @@ do iq=1,ifull_g
     zz=rotpole(3,1)*x(iq)+rotpole(3,2)*y(iq)+rotpole(3,3)*z(iq)
   endif
   ! f_g(iq)=2. *2.*pi *(z(iq)/rdiv) /86400.
-  rlatt_g(iq)=asin(zz)
-  f_g(iq)=2. *2.*pi *zz /86400.  !  zz along "true" N-S axis
+  rlatt_g(iq)=real(asin(zz))
+  f_g(iq)=real(2._8*2._8*real(pi,8)*zz/86400._8)  !  zz along "true" N-S axis
   if(yy/=0..or.xx/=0.)then
-    rlongg_g(iq)=atan2(yy,xx)                       ! N.B. -pi to pi
+    rlongg_g(iq)=real(atan2(yy,xx))               ! N.B. -pi to pi
     if(rlongg_g(iq)<0.) then
       rlongg_g(iq)=rlongg_g(iq)+2.*pi ! 0 to 2*pi  09-25-1997
     end if
@@ -671,9 +673,9 @@ real(kind=8), dimension(ifull_g) :: a1,a2,a3
 real, dimension(ifull_g) :: b1,b2,b3
 real, dimension(ifull_g) :: c1,c2,c3
 
-c1=a2*b3-b2*a3
-c2=a3*b1-b3*a1
-c3=a1*b2-b1*a2
+c1=real(a2*real(b3,8)-real(b2,8)*a3)
+c2=real(a3*real(b1,8)-real(b3,8)*a1)
+c3=real(a1*real(b2,8)-real(b1,8)*a2)
 
 return
 end subroutine cross3
@@ -690,9 +692,9 @@ real(kind=8), dimension(ifull_g), intent(in) :: b1,b2,b3
 real, dimension(ifull_g), intent(in) :: a1,a2,a3
 real, dimension(ifull_g), intent(out) :: c1,c2,c3      
 
-c1=a2*b3-b2*a3
-c2=a3*b1-b3*a1
-c3=a1*b2-b1*a2
+c1=real(real(a2,8)*b3-b2*real(a3,8))
+c2=real(real(a3,8)*b1-b3*real(a1,8))
+c3=real(real(a1,8)*b2-b1*real(a2,8))
 
 return
 end subroutine cross3b

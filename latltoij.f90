@@ -73,8 +73,8 @@ if (num<numtst) write(6,*) 'c x,y,z ',x,y,z
 
 !     if necessary, transform physical (x, y, z) to equivalent coordinates
 !     on regular gnomonic panels
-x1=x
-z1=z
+x1=real(x)
+z1=real(z)
 x=x*(1.-alf)/(schmidt*(1.-alf*z))
 y=y*(1.-alf)/(schmidt*(1.-alf*z))
 z=(z-alf)/(1.-alf*z)
@@ -88,9 +88,9 @@ endif
 #endif
 
 denxyz=max( abs(x),abs(y),abs(z) )
-xx=x/denxyz
-yy=y/denxyz
-zz=z/denxyz
+xx=real(x/denxyz)
+yy=real(y/denxyz)
+zz=real(z/denxyz)
 !       deduce corresponding face
 !        if(ncray.eq.1)then
 !         all these if statements are replaced by the subsequent cunning code
@@ -145,16 +145,16 @@ rj=1.+(1.+ygrid)*real(2*ik)
 do loop=1,nmaploop
   ig=nint(ri)
   jg=nint(rj)
-  is=sign(1.,ri-ig)
-  js=sign(1.,rj-jg)
+  is=nint(sign(1.,ri-ig))
+  js=nint(sign(1.,rj-jg))
   ! predict new value for ri, rj
   dxx=xx4(ig+is,jg)-xx4(ig,jg)
   dyx=xx4(ig,jg+js)-xx4(ig,jg)
   dxy=yy4(ig+is,jg)-yy4(ig,jg)
   dyy=yy4(ig,jg+js)-yy4(ig,jg)
-  den=dxx*dyy-dyx*dxy
-  ri=ig+is*((xgrid-xx4(ig,jg))*dyy-(ygrid-yy4(ig,jg))*dyx)/den
-  rj=jg+js*((ygrid-yy4(ig,jg))*dxx-(xgrid-xx4(ig,jg))*dxy)/den
+  den=real(dxx*dyy-dyx*dxy)
+  ri=real(ig)+real(is)*real(((xgrid-xx4(ig,jg))*dyy-(ygrid-yy4(ig,jg))*dyx)/real(den,8))
+  rj=real(jg)+real(js)*real(((ygrid-yy4(ig,jg))*dxx-(xgrid-xx4(ig,jg))*dxy)/real(den,8))
          
   ri=min(ri,1.0+1.99999*2*ik)
   ri=max(ri,1.0+0.00001*2*ik)

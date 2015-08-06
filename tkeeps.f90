@@ -198,7 +198,7 @@ real, dimension(ifull,kl-1) :: dz_hl   ! dz_hl(k)=zz(k+1)-zz(k)
 real, dimension(ifull,kl-1) :: fzzh
 real, dimension(ifull) :: wt0,wq0,wtv0
 real, dimension(ifull) :: wstar,z_on_l,phim
-real, dimension(ifull) :: tff,tgg,dum
+real, dimension(ifull) :: tff,tgg
 real, dimension(ifull) :: cdrag,umag,ustar
 real, dimension(ifull) :: tempv,rvar,bvf,dc,mc,fc
 real, dimension(ifull) :: tbb,tcc,tqq
@@ -208,7 +208,7 @@ real, dimension(kl) :: qtup,ttup,tvup,thup
 real, dimension(1) :: templ
 real qrup,qsup,qgup
 real xp,as,bs,cs,cm12,cm34,qcup
-real dzht,ziold,ent,entc,entn,dtr,dtrc,dtrn,dtrx
+real dzht,ziold,ent,dtr,dtrc,dtrn,dtrx
 real ddts,zlcl
 real lx,tempd,fice,qxup,dqsdt,al
 real sigqtup,rng
@@ -217,6 +217,8 @@ logical scond
 
 cm12=1./sqrt(cm0)
 cm34=sqrt(sqrt(cm0**3))
+zlcl=0.
+ktopmax=0
 
 if (diag>0) write(6,*) "Update PBL mixing with TKE-eps + MF turbulence closure"
 
@@ -343,7 +345,7 @@ do kcount=1,mcount
           scond=.false.
           dzht=zz(i,1)
           ! Entrainment and detrainment rates
-          ent=entfn(zz(i,1),zi(i),zz(i,1))
+          ent=entfn(zz(i,1),zi(i))
           
           ! first level -----------------
           ! initial thermodynamic state
@@ -382,7 +384,7 @@ do kcount=1,mcount
           do k=2,kl
             dzht=dz_hl(i,k-1)
             ! Entrainment and detrainment rates
-            ent=entfn(zz(i,k),zi(i),zz(i,1))
+            ent=entfn(zz(i,k),zi(i))
             ! update thermodynamics of plume
             ! split qtot into components (conservation is maintained)
             tlup(i,k)=(tlup(i,k-1)+dzht*ent*thetal(i,k))/(1.+dzht*ent)
@@ -454,7 +456,7 @@ do kcount=1,mcount
             do k=klcl,kl
               dzht=dz_hl(i,k-1)
               ! Entrainment and detrainment rates
-              ent=entfn(zz(i,k),zi(i),zz(i,1))
+              ent=entfn(zz(i,k),zi(i))
               ! update thermodynamics of plume
               ! split qtot into components (conservation is maintained)
               tlup(i,k)=(tlup(i,k-1)+dzht*ent*thetal(i,k))/(1.+dzht*ent)
@@ -548,11 +550,11 @@ do kcount=1,mcount
           ! Entrainment and detrainment rates
           xp  =(zz(i,k)-zlcl)/max(zidry(i)-zlcl,0.1)
           xp  =min(max(xp,0.),1.)
-          ent =entfn(zz(i,k),zi(i),   zz(i,1))
-          dtrn=dtrfn(zz(i,k),zidry(i),zz(i,1),dtrn0)
-          dtrc=dtrfn(zz(i,k),zi(i),   zz(i,1),dtrn0)
+          ent =entfn(zz(i,k),zi(i))
+          dtrn=dtrfn(zz(i,k),zidry(i),dtrn0)
+          dtrc=dtrfn(zz(i,k),zi(i),   dtrn0)
           dtrx=(1.-xp)*dtrn+xp*dtrc
-          dtrc=dtrfn(zz(i,k),zi(i),   zz(i,1),dtrc0)
+          dtrc=dtrfn(zz(i,k),zi(i),   dtrc0)
           dtr =(1.-cfup(i,k))*dtrx+cfup(i,k)*dtrc
           mflx(i,k)=mflx(i,k-1)/(1.+dzht*(dtr-ent))
         end do
@@ -572,11 +574,11 @@ do kcount=1,mcount
         ! Entrainment and detrainment rates
         xp  =(zz(i,1)-zlcl)/max(zidry(i)-zlcl,0.1)
         xp  =min(max(xp,0.),1.)
-        ent =entfn(zz(i,1),zi(i),   zz(i,1))
-        dtrn=dtrfn(zz(i,1),zidry(i),zz(i,1),dtrn0)
-        dtrc=dtrfn(zz(i,1),zi(i),   zz(i,1),dtrn0)
+        ent =entfn(zz(i,1),zi(i))
+        dtrn=dtrfn(zz(i,1),zidry(i),dtrn0)
+        dtrc=dtrfn(zz(i,1),zi(i),   dtrn0)
         dtrx=(1.-xp)*dtrn+xp*dtrc
-        dtrc=dtrfn(zz(i,1),zi(i),   zz(i,1),dtrc0)
+        dtrc=dtrfn(zz(i,1),zi(i),   dtrc0)
         dtr =(1.-cfup(i,1))*dtrx+cfup(i,1)*dtrc
         ents(i,1)=ent
         dtrs(i,1)=dtr
@@ -585,11 +587,11 @@ do kcount=1,mcount
           ! Entrainment and detrainment rates
           xp  =(zz(i,k)-zlcl)/max(zidry(i)-zlcl,0.1)
           xp  =min(max(xp,0.),1.)
-          ent =entfn(zz(i,k),zi(i),   zz(i,1))
-          dtrn=dtrfn(zz(i,k),zidry(i),zz(i,1),dtrn0)
-          dtrc=dtrfn(zz(i,k),zi(i),   zz(i,1),dtrn0)
+          ent =entfn(zz(i,k),zi(i))
+          dtrn=dtrfn(zz(i,k),zidry(i),dtrn0)
+          dtrc=dtrfn(zz(i,k),zi(i),   dtrn0)
           dtrx=(1.-xp)*dtrn+xp*dtrc          
-          dtrc=dtrfn(zz(i,k),zi(i),   zz(i,1),dtrc0)
+          dtrc=dtrfn(zz(i,k),zi(i),   dtrc0)
           dtr =(1.-cfup(i,k))*dtrx+cfup(i,k)*dtrc
           ents(i,k)=ent
           dtrs(i,k)=dtr
@@ -601,7 +603,7 @@ do kcount=1,mcount
           arup(i,1,j)=aero(i,1,j)
           do k=2,ktopmax
             dzht=dz_hl(i,k-1)
-            ent=entfn(zz(i,k),zi(i),zz(i,1))
+            ent=entfn(zz(i,k),zi(i))
             arup(i,k,j)=(arup(i,k-1,j)+dzht*ent*aero(i,k,j))/(1.+dzht*ent)
           end do
         end do
@@ -1115,11 +1117,11 @@ end subroutine updatekmo
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate lateral entrainment
 
-real function entfn(zht,zi,zmin)
+real function entfn(zht,zi)
 
 implicit none
 
-real, intent(in) :: zht,zi,zmin
+real, intent(in) :: zht,zi
 
 !entfn=0.002                                               ! Angevine (2005)
 !entfn=2./max(100.,zi)                                     ! Angevine et al (2010)
@@ -1133,11 +1135,11 @@ end function entfn
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate lateral detrainment
 
-real function dtrfn(zht,zi,zmin,rat)
+real function dtrfn(zht,zi,rat)
 
 implicit none
 
-real, intent(in) :: zht,zi,zmin,rat
+real, intent(in) :: zht,zi,rat
 
 !dtrfn=ent+0.05/max(zi-zht,zmin)   ! Angevine et al (2010)
 dtrfn=rat/max(zi-zht,1.)+ent0/max(zi-zht,ezmin)

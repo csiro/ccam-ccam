@@ -276,6 +276,9 @@ if (mcf) then
  character(len=13) fluxtype,fluxname,fluxunit
 logical gridpts,tst
 
+n1=0
+n2=0
+
 fluxtype=tractype(igas)
 fluxname=tracname(igas)
 filename=tracfile(igas)
@@ -662,6 +665,10 @@ real a1,a2,a3,ratlm,ratlm2,hrmodel,hrs_dt
 real, dimension(ifull) :: c2,c3,c4
 logical found
    
+ratlm=0.
+m1=0
+m2=0
+
 !     this could go in the case section but then we'd do it for
 !     every monthly tracer.  This way we do it once but may not
 !     need it.
@@ -757,7 +764,7 @@ return
 end subroutine interp_tracerflux
 
 ! ***************************************************************************
-subroutine tracer_mass(ktau,ntau)
+subroutine tracer_mass
 !     rml 16/10/03 check tracer mass - just write out for <= 6 tracers
 use arrays_m   ! ps
 use cc_mpi
@@ -770,7 +777,7 @@ implicit none
 include 'newmpar.h'
 include 'const_phys.h' ! rearth,fc_molm,fair_molm
 include 'dates.h'    !timeg
-integer iq,ktau,ntau
+integer iq
 real ltime
 
 !     rml 14/5/10 code to create daily averages of afternoon concentrations

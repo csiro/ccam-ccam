@@ -230,11 +230,6 @@ real, save ::  wtmf113 = 187.3765
 real, save ::  wtmf22  =  86.46892
 
 !---------------------------------------------------------------------
-real, dimension(2,10), save  :: cpf10h2o, csf10h2o
-real, dimension(2, 4), save  :: cpf4h2o, csf4h2o
-real, dimension(2, 2), save  :: cpf2h2o, csf2h2o
-real, dimension(2   ), save  :: cpf1h2o, csf1h2o
-
 
 real, save    :: d622 = RDGAS/RVGAS
 integer, save :: NBTRG, NBTRGE
@@ -286,20 +281,15 @@ subroutine optical_path_init(pref)
 !--------------------------------------------------------------------
 !  local variables:
 
-      real                    :: dum
-      real, dimension (NBLY_RSB)  :: dummy_n
-      real, dimension (Lw_parameters%NBTRGE) :: dummy_ch4n2o
       real                    :: awide_c, bwide_c, awide_n, bwide_n, &
                                  awide, bwide
-      integer, dimension(5)   :: no_h2o12001400bands = &
-                                  (/ 1, 2, 4, 10, 20 /)
+!      integer, dimension(5)   :: no_h2o12001400bands = &
+!                                  (/ 1, 2, 4, 10, 20 /)
       real, dimension(20)     :: arndm_12001400, brndm_12001400,    &
                                  ap_12001400, bp_12001400,          &
                                  atp_12001400, btp_12001400,        &
                                  fbdlo_12001400, fbdhi_12001400
-      integer                 ::  unit, ierr, io
-      integer                 :: inrad, k, m
-      integer                 :: subb
+      integer                 :: m
 
 !---------------------------------------------------------------------
 !  local variables:
@@ -343,7 +333,14 @@ subroutine optical_path_init(pref)
 !    if routine has already been executed, exit.
 !---------------------------------------------------------------------
       if (module_is_initialized) return
- 
+
+      awide=0.
+      bwide=0.
+      awide_c=0.
+      bwide_c=0.
+      awide_n=0.
+      bwide_n=0.
+      
 !---------------------------------------------------------------------
 !    verify that modules used by this module that are not called later
 !    have already been initialized.
@@ -1631,7 +1628,7 @@ logical,                   intent(in)            :: including_aerosols
 
       real, dimension (size(to3cnt,1), size(to3cnt,2), &
                        size(to3cnt,3)-1) ::    &
-                                             cfc_tf, aer_tmp
+                                             cfc_tf
 
       real, dimension (size(to3cnt,1), size(to3cnt,2)) :: &
                                              aerooptdep_KE_15
@@ -2476,7 +2473,7 @@ subroutine optical_ckd_init
       real   ::   tktab(40),  vjtab(300)
 
 !---------------------------------------------------------------------
-      integer  :: inrad, k, j, ihih2o
+      integer  :: k, j, ihih2o
 
 !--------------------------------------------------------------------
 !   local variables:

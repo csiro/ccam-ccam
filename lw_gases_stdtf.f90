@@ -285,22 +285,22 @@ real, save  :: sf2215=0.176035E+03
 !--------------------------------------------------------------------
 !   data for averaged f11 800-990, 1070-1200 cm-1 band strength
 !--------------------------------------------------------------------
-real, save  :: sf11ct=0.125631E+04
+!real, save  :: sf11ct=0.125631E+04
 
 !--------------------------------------------------------------------
 !   data for averaged f12 800-990, 1070-1200 cm-1 band strength
 !--------------------------------------------------------------------
-real, save  :: sf12ct=0.201821E+04
+!real, save  :: sf12ct=0.201821E+04
 
 !--------------------------------------------------------------------
 !   data for averaged f113 800-990, 1070-1200 cm-1 band strength
 !--------------------------------------------------------------------
-real, save  :: sf113ct=0.105362E+04
+!real, save  :: sf113ct=0.105362E+04
 
 !--------------------------------------------------------------------
 !   data for averaged f22 800-990, 1070-1200 cm-1 band strength
 !--------------------------------------------------------------------
-real, save  :: sf22ct=0.188775E+04
+!real, save  :: sf22ct=0.188775E+04
 
 integer, save :: ksrad, kerad
 logical, save   :: module_is_initialized = .false.
@@ -357,7 +357,6 @@ real,  dimension(:,:), intent(in) :: pref
 !---------------------------------------------------------------------
 !  local variables:
 
-      integer :: unit, ierr, io
       integer :: kmin, kmax, k
 
 !---------------------------------------------------------------------
@@ -1988,8 +1987,7 @@ subroutine std_lblpressures
 
 !---------------------------------------------------------------------
 !  local variables
-      real      ::  fact15, fact30, dummy
-      integer   ::  unit
+      real      ::  fact15, fact30
 
 !---------------------------------------------------------------------
 !  local variables
@@ -5605,10 +5603,10 @@ real,    dimension(:,:,:),  intent(out)  :: trns_std_hi_nf,   &
       character(len=24) name_hi
       character(len=110) filename, ncname ! MJT
 
-      integer        :: n, nt, nrec_inhi, inrad, nrec_inlo
+      integer        :: n
       
       integer, dimension(3) :: startpos,npos ! MJT
-      integer ncid,ncstatus,varid,ierr       ! MJT
+      integer ncid,ncstatus,varid            ! MJT
       logical tst                            ! MJT
  
       data (input_lblco2name(n,1),n=1,nfreq_bands_sea_co2)/            &

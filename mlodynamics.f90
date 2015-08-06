@@ -87,9 +87,7 @@ include 'newmpar.h'
 include 'parm.h'
 include 'parmdyn.h'
 
-integer ii,iq,ierr,lrank
-integer, dimension(1) :: stst
-integer, dimension(0:nproc-1) :: ltst
+integer ii,iq
 real, dimension(ifull,0:wlev) :: dephl
 real, dimension(ifull,wlev) :: dep,dz
 real, dimension(ifull) :: tnu,tsu,tev,twv,tee,tnn
@@ -248,7 +246,6 @@ implicit none
 
 include 'newmpar.h'
 
-integer k
 real, dimension(ifull,wlev) :: u,v,tt,ss
 real, dimension(ifull) :: eta
 
@@ -287,8 +284,8 @@ include 'newmpar.h'
 include 'const_phys.h'
 include 'parm.h'
 
-integer k,i
-real hdif,xp
+integer k
+real hdif
 real, dimension(ifull,wlev), intent(in) :: uauin,uavin
 real, dimension(:,:), intent(in) :: u,v,tt,ss
 real, dimension(:), intent(in) :: etain
@@ -458,9 +455,9 @@ include 'parmdyn.h'
 integer leap
 common/leap_yr/leap  ! 1 to allow leap years
 
-integer iq,ll,ii,ierr,totits
+integer ii,totits
 integer jyear,jmonth,jday,jhour,jmin,mins
-integer tyear,jstart,iip,iim
+integer tyear,jstart
 integer itc
 integer, dimension(ifull,wlev) :: nface
 real maxglobseta,maxglobip
@@ -480,18 +477,16 @@ real, dimension(ifull) :: detadxu,detadyu,detadxv,detadyv
 real, dimension(ifull) :: dipdxu,dipdyu,dipdxv,dipdyv
 real, dimension(ifull) :: au,bu,cu,av,bv,cv,odum
 real, dimension(ifull) :: imu,imv
-real, dimension(ifull) :: sue,suw,svn,svs,snuw,snvs
+real, dimension(ifull) :: sue,suw,svn,svs
 real, dimension(ifull) :: pue,puw,pvn,pvs
 real, dimension(ifull) :: que,quw,qvn,qvs
 real, dimension(ifull) :: piceu,picev,tideu,tidev,ipiceu,ipicev
 real, dimension(ifull) :: dumf,dumg
-real, dimension(ifull) :: newzcr,oldzcr,qmax
 real, dimension(ifull+iextra,wlev,3) :: cou
 real, dimension(ifull+iextra,wlev+1) :: eou,eov
 real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns,mps,dzdum_rho
 real, dimension(ifull+iextra,wlev) :: rhobar,rho,dalpha,dbeta
 real, dimension(ifull+iextra,wlev) :: ccu,ccv
-real, dimension(ifull+iextra,3*wlev) :: dume
 real, dimension(ifull+iextra,10) :: dumc,dumd
 real, dimension(ifull+iextra,4) :: nit
 real, dimension(ifull,wlev+1) :: tau,tav,ttau,ttav
@@ -501,7 +496,6 @@ real, dimension(ifull,wlev) :: kku,llu,mmu,nnu,oou,ppu
 real, dimension(ifull,wlev) :: kkv,llv,mmv,nnv,oov,ppv
 real, dimension(ifull,wlev) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
 real, dimension(ifull,wlev) :: depdum,dzdum
-real, dimension(ifull,wlev) :: dumq,dumt,dums,dumr,duma,dumb
 real, dimension(ifull,0:wlev) :: nw
 real, dimension(ifull,4) :: i_it
 real, dimension(ifull,3) :: gamm
@@ -1226,12 +1220,12 @@ if (precon<-9999) then
   ! Multi-grid
   call mlomg(neta,sue,svn,suw,svs,pue,pvn,puw,pvs,que,qvn,quw,qvs,                               &
              pdiv,pdivb,sdiv,sdivb,odiv,odivb,qdiv,qdivb,xps,                                    &
-             ipice,ibu,ibv,idu,idv,niu,niv,sicedep,ipmax,totits,itc,maxglobseta,maxglobip)
+             ipice,ibu,ibv,idu,idv,niu,niv,ipmax,totits,itc,maxglobseta,maxglobip)
 else
   ! Usual SOR
   call mlosor(neta,sue,svn,suw,svs,pue,pvn,puw,pvs,que,qvn,quw,qvs,                              &
               pdiv,pdivb,sdiv,sdivb,odiv,odivb,qdiv,qdivb,xps,                                   &
-              ipice,ibu,ibv,idu,idv,niu,niv,sicedep,ipmax,totits,itc,maxglobseta,maxglobip)
+              ipice,ibu,ibv,idu,idv,niu,niv,ipmax,totits,itc,maxglobseta,maxglobip)
 end if
 
 #ifdef debug
@@ -1262,8 +1256,10 @@ oev(1:ifull)=0.5*(neta(1:ifull)+neta(in))
 ! Update currents once neta is calculated
 do ii=1,wlev
   ! update currents (staggered)
-  nu(1:ifull,ii)=kku(:,ii)+ppu(:,ii)+oou(:,ii)*oeu+llu(:,ii)*max(oeu(1:ifull)+ddu(1:ifull),0.)+mmu(:,ii)*detadxu+nnu(:,ii)*detadyu
-  nv(1:ifull,ii)=kkv(:,ii)+ppv(:,ii)+oov(:,ii)*oev+llv(:,ii)*max(oev(1:ifull)+ddv(1:ifull),0.)+mmv(:,ii)*detadyv+nnv(:,ii)*detadxv
+  nu(1:ifull,ii)=kku(:,ii)+ppu(:,ii)+oou(:,ii)*oeu(1:ifull)+llu(:,ii)*max(oeu(1:ifull)+ddu(1:ifull),0.) &
+                 +mmu(:,ii)*detadxu+nnu(:,ii)*detadyu
+  nv(1:ifull,ii)=kkv(:,ii)+ppv(:,ii)+oov(:,ii)*oev(1:ifull)+llv(:,ii)*max(oev(1:ifull)+ddv(1:ifull),0.) &
+                 +mmv(:,ii)*detadyv+nnv(:,ii)*detadxv
 end do
 
 call END_LOG(waterhelm_end)
@@ -1517,7 +1513,7 @@ include 'const_phys.h'
 include 'parm.h'
 include 'parmhor.h'
 
-integer iq,i,j,k,n,nn,idel,jdel,ierr,intsch,ncount,ii
+integer iq,i,j,k,n,nn,idel,jdel,intsch,ncount,ii
 integer, dimension(ifull,wlev), intent(out) :: nface
 real, intent(in) :: dt_in
 real, dimension(ifull,wlev), intent(in) :: ubar,vbar
@@ -2176,9 +2172,9 @@ do ii=1,wlev
   !     if necessary, transform (x3d, y3d, z3d) to equivalent
   !     coordinates (xstr, ystr, zstr) on regular gnomonic panels
   den=1._8-alf*z3d(:,ii) ! to force real*8
-  xstr=x3d(:,ii)*(alfonsch/den)
-  ystr=y3d(:,ii)*(alfonsch/den)
-  zstr=    (z3d(:,ii)-alf)/den
+  xstr=real(x3d(:,ii)*(alfonsch/den))
+  ystr=real(y3d(:,ii)*(alfonsch/den))
+  zstr=real((z3d(:,ii)-alf)/den)
 
 !      first deduce departure faces
 !      instead calculate cubic coordinates
@@ -2233,8 +2229,8 @@ do ii=1,wlev
       dxy=yy4(i+is,j)-yy4(i,j)
       dyy=yy4(i,j+js)-yy4(i,j)       
       den(iq)=dxx*dyy-dyx*dxy
-      ri(iq)=real(i)+real(is)*((xg(iq,ii)-xx4(i,j))*dyy-(yg(iq,ii)-yy4(i,j))*dyx)/den(iq)
-      rj(iq)=real(j)+real(js)*((yg(iq,ii)-yy4(i,j))*dxx-(xg(iq,ii)-xx4(i,j))*dxy)/den(iq)
+      ri(iq)=real(real(i)+real(is)*((xg(iq,ii)-xx4(i,j))*dyy-(yg(iq,ii)-yy4(i,j))*dyx)/den(iq))
+      rj(iq)=real(real(j)+real(js)*((yg(iq,ii)-yy4(i,j))*dxx-(xg(iq,ii)-xx4(i,j))*dxy)/den(iq))
       
       ri(iq) = min(ri(iq),1.0+1.999999*real(2*il_g))
       ri(iq) = max(ri(iq),1.0+0.000001*real(2*il_g))
@@ -2269,7 +2265,7 @@ include 'parm.h'
 include 'parmhor.h'
 
 integer idel,iq,jdel
-integer i,j,k,n,ierr,intsch,ncount
+integer i,j,k,n,intsch,ncount
 integer ii,ntr,nn
 integer, dimension(ifull,wlev), intent(in) :: nface
 real, dimension(ifull,wlev), intent(in) :: xg,yg
@@ -2629,7 +2625,7 @@ include 'parm.h'
 include 'parmhor.h'
 
 integer idel,iq,jdel
-integer i,j,k,n,ierr,intsch,ncount
+integer i,j,k,n,intsch,ncount
 integer ii,ntr,nn
 integer, dimension(ifull,wlev), intent(in) :: nface
 real, dimension(ifull,wlev), intent(in) :: xg,yg
@@ -2638,7 +2634,6 @@ real, dimension(-1:ipan+2,-1:jpan+2,1:npan,wlev,size(s,3)) :: sx
 real, dimension(-1:2,-1:2,size(s,3)) :: sc
 real, dimension(4) :: cmul, emul, rmul
 real, dimension(2:3) :: dmul
-real, dimension(size(s,3)) :: cmax, cmin
 real xxg,yyg
 real, parameter :: cxx = -9999. ! missing value flag
 logical, dimension(ifull+iextra), intent(in) :: wtr
@@ -2981,7 +2976,7 @@ include 'parm.h'
 include 'parmhor.h'
 
 integer idel,iq,jdel
-integer i,j,k,n,ierr,intsch,ncount
+integer i,j,k,n,intsch,ncount
 integer ii,ntr,nn
 integer, dimension(ifull,wlev), intent(in) :: nface
 real, dimension(ifull,wlev), intent(in) :: xg,yg
@@ -3355,20 +3350,20 @@ real(kind=8), dimension(ifull,size(cou,2)), intent(in) :: x3d,y3d,z3d
 
 do k=1,wlev
 !         cross product n1xn2 into vec1
-  vec1x = y3d(:,k)*z - y*z3d(:,k)
-  vec1y = z3d(:,k)*x - z*x3d(:,k)
-  vec1z = x3d(:,k)*y - x*y3d(:,k)
+  vec1x = real(y3d(:,k)*z - y*z3d(:,k))
+  vec1y = real(z3d(:,k)*x - z*x3d(:,k))
+  vec1z = real(x3d(:,k)*y - x*y3d(:,k))
   denb = vec1x**2 + vec1y**2 + vec1z**2
 !         N.B. rotation formula is singular for small denb,
 !         but the rotation is unnecessary in this case
   where (denb>1.e-4)
-    vecdot = x3d(:,k)*x + y3d(:,k)*y + z3d(:,k)*z
-    vec2x = x3d(:,k)*vecdot - x
-    vec2y = y3d(:,k)*vecdot - y
-    vec2z = z3d(:,k)*vecdot - z
-    vec3x = x3d(:,k) - vecdot*x
-    vec3y = y3d(:,k) - vecdot*y
-    vec3z = z3d(:,k) - vecdot*z
+    vecdot = real(x3d(:,k)*x + y3d(:,k)*y + z3d(:,k)*z)
+    vec2x = real(x3d(:,k)*vecdot - x)
+    vec2y = real(y3d(:,k)*vecdot - y)
+    vec2z = real(z3d(:,k)*vecdot - z)
+    vec3x = real(x3d(:,k) - vecdot*x)
+    vec3y = real(y3d(:,k) - vecdot*y)
+    vec3z = real(z3d(:,k) - vecdot*z)
     vdot1 = (vec1x*cou(1:ifull,k) + vec1y*cov(1:ifull,k) + vec1z*cow(1:ifull,k))/denb
     vdot2 = (vec2x*cou(1:ifull,k) + vec2y*cov(1:ifull,k) + vec2z*cow(1:ifull,k))/denb
     cou(1:ifull,k) = vdot1*vec1x + vdot2*vec3x
@@ -3441,9 +3436,9 @@ if (.not.allocated(wtul)) then
     wtul(1:ifull,1)=-0.5
     wtul(1:ifull,2)=-0.1
     wtul(1:ifull,3)=0.
-    dtul(:,1)=0.1
-    dtul(:,2)=1.
-    dtul(:,3)=0.5
+    dtul(1:ifull,1)=0.1
+    dtul(1:ifull,2)=1.
+    dtul(1:ifull,3)=0.5
     !ud(1:ifull,k)=uin(ieeu,k)*0.1+uin(ieu,k)+uin(1:ifull,k)*0.5
     !uin(1:ifull,k)=ud(:,k)-ua(ieu,k)*0.5-ua(iwu,k)*0.1
 
@@ -3454,9 +3449,9 @@ if (.not.allocated(wtul)) then
     wtul(1:ifull,1)=-0.5
     wtul(1:ifull,2)=0.
     wtul(1:ifull,3)=0.
-    dtul(:,1)=0.1
-    dtul(:,2)=1.
-    dtul(:,3)=0.5
+    dtul(1:ifull,1)=0.1
+    dtul(1:ifull,2)=1.
+    dtul(1:ifull,3)=0.5
 
 ! |   *   | X E   #  ##  #     unstaggered
 !         * X     0  ##  #     staggered
@@ -3465,9 +3460,9 @@ if (.not.allocated(wtul)) then
     wtul(1:ifull,1)=0.
     wtul(1:ifull,2)=0.
     wtul(1:ifull,3)=0.
-    dtul(:,1)=0.
-    dtul(:,2)=1.
-    dtul(:,3)=1./3.
+    dtul(1:ifull,1)=0.
+    dtul(1:ifull,2)=1.
+    dtul(1:ifull,3)=1./3.
 
 ! #   *   |   E   #  ##  #     unstaggered
 ! #       *       #  ##  #     staggered
@@ -3476,18 +3471,18 @@ if (.not.allocated(wtul)) then
     wtul(1:ifull,1)=0.
     wtul(1:ifull,2)=0.
     wtul(1:ifull,3)=0.
-    dtul(:,1)=0.
-    dtul(:,2)=0.5
-    dtul(:,3)=0.5
+    dtul(1:ifull,1)=0.
+    dtul(1:ifull,2)=0.5
+    dtul(1:ifull,3)=0.5
 
   elsewhere
     wtul(1:ifull,0)=0.
     wtul(1:ifull,1)=0.
     wtul(1:ifull,2)=0.
     wtul(1:ifull,3)=0.
-    dtul(:,1)=0.
-    dtul(:,2)=0.
-    dtul(:,3)=0.
+    dtul(1:ifull,1)=0.
+    dtul(1:ifull,2)=0.
+    dtul(1:ifull,3)=0.
             
   end where
   where (evnstest)
@@ -3495,67 +3490,66 @@ if (.not.allocated(wtul)) then
     wtvl(1:ifull,1)=-0.5
     wtvl(1:ifull,2)=-0.1
     wtvl(1:ifull,3)=0.
-    dtvl(:,1)=0.1
-    dtvl(:,2)=1.
-    dtvl(:,3)=0.5
-    !vin(1:ifull,k)=vd(:,k)-va(inv,k)*0.5-va(isv,k)*0.1
+    dtvl(1:ifull,1)=0.1
+    dtvl(1:ifull,2)=1.
+    dtvl(1:ifull,3)=0.5
   elsewhere (evntest)
     wtvl(1:ifull,0)=1.
     wtvl(1:ifull,1)=-0.5
     wtvl(1:ifull,2)=0.
     wtvl(1:ifull,3)=0.
-    dtvl(:,1)=0.1
-    dtvl(:,2)=1.
-    dtvl(:,3)=0.5
+    dtvl(1:ifull,1)=0.1
+    dtvl(1:ifull,2)=1.
+    dtvl(1:ifull,3)=0.5
   elsewhere (evstest)
     wtvl(1:ifull,0)=1.
     wtvl(1:ifull,1)=0.
     wtvl(1:ifull,2)=0.
     wtvl(1:ifull,3)=0.
-    dtvl(:,1)=0. 
-    dtvl(:,2)=1.
-    dtvl(:,3)=1./3.
+    dtvl(1:ifull,1)=0. 
+    dtvl(1:ifull,2)=1.
+    dtvl(1:ifull,3)=1./3.
   elsewhere (evtest)
     wtvl(1:ifull,0)=1.
     wtvl(1:ifull,1)=0.
     wtvl(1:ifull,2)=0.
     wtvl(1:ifull,3)=0.
-    dtvl(:,1)=0.
-    dtvl(:,2)=0.5
-    dtvl(:,3)=0.5
+    dtvl(1:ifull,1)=0.
+    dtvl(1:ifull,2)=0.5
+    dtvl(1:ifull,3)=0.5
   elsewhere
     wtvl(1:ifull,0)=0.
     wtvl(1:ifull,1)=0.
     wtvl(1:ifull,2)=0.
     wtvl(1:ifull,3)=0.
-    dtvl(:,1)=0.
-    dtvl(:,2)=0.
-    dtvl(:,3)=0.
+    dtvl(1:ifull,1)=0.
+    dtvl(1:ifull,2)=0.
+    dtvl(1:ifull,3)=0.
   end where
 
   ! Apply JLM's preconditioner
   call boundsuv(wtul,wtvl,stag=-10)
   where (abs(wtul(ieu,0))>1.E-4.and.abs(wtul(1:ifull,1))>1.E-4)
-    stul=-wtul(1:ifull,1)/wtul(ieu,0)
+    stul(1:ifull)=-wtul(1:ifull,1)/wtul(ieu,0)
     nwtu(1:ifull,0)=wtul(1:ifull,0)+stul*wtul(ieu,2)
     nwtu(1:ifull,1)=wtul(1:ifull,1)+stul*wtul(ieu,0)
     nwtu(1:ifull,2)=wtul(1:ifull,2)
     nwtu(1:ifull,3)=wtul(1:ifull,3)-stul*wtul(ieu,1)
   elsewhere
-    stul=0.
+    stul(1:ifull)=0.
     nwtu(1:ifull,0)=wtul(1:ifull,0)
     nwtu(1:ifull,1)=wtul(1:ifull,1)
     nwtu(1:ifull,2)=wtul(1:ifull,2)
     nwtu(1:ifull,3)=wtul(1:ifull,3)
   end where
   where (abs(wtvl(inv,0))>1.E-4.and.abs(wtvl(1:ifull,1))>1.E-4)
-    stvl=-wtvl(1:ifull,1)/wtvl(inv,0)
+    stvl(1:ifull)=-wtvl(1:ifull,1)/wtvl(inv,0)
     nwtv(1:ifull,0)=wtvl(1:ifull,0)+stvl*wtvl(inv,2)
     nwtv(1:ifull,1)=wtvl(1:ifull,1)+stvl*wtvl(inv,0)
     nwtv(1:ifull,2)=wtvl(1:ifull,2)
     nwtv(1:ifull,3)=wtvl(1:ifull,3)-stvl*wtvl(inv,1)
   elsewhere
-    stvl=0.
+    stvl(1:ifull)=0.
     nwtv(1:ifull,0)=wtvl(1:ifull,0)
     nwtv(1:ifull,1)=wtvl(1:ifull,1)
     nwtv(1:ifull,2)=wtvl(1:ifull,2)
@@ -3587,13 +3581,13 @@ if (.not.allocated(wtul)) then
   ! normalise
   call boundsuv(wtul,wtvl,stag=-10)
   do k=1,3
-    dtul(:,k)=dtul(:,k)/wtul(1:ifull,0)
-    dtvl(:,k)=dtvl(:,k)/wtvl(1:ifull,0)
+    dtul(1:ifull,k)=dtul(1:ifull,k)/wtul(1:ifull,0)
+    dtvl(1:ifull,k)=dtvl(1:ifull,k)/wtvl(1:ifull,0)
     wtul(1:ifull,k)=wtul(1:ifull,k)/wtul(1:ifull,0)
     wtvl(1:ifull,k)=wtvl(1:ifull,k)/wtvl(1:ifull,0)
   end do
-  stul=stul*wtul(ieu,0)/wtul(1:ifull,0)
-  stvl=stvl*wtvl(inv,0)/wtvl(1:ifull,0)
+  stul(1:ifull)=stul(1:ifull)*wtul(ieu,0)/wtul(1:ifull,0)
+  stvl(1:ifull)=stvl(1:ifull)*wtvl(inv,0)/wtvl(1:ifull,0)
   wtul(1:ifull,0)=1.
   wtvl(1:ifull,0)=1.
 
@@ -3606,11 +3600,9 @@ if (.not.allocated(wtul)) then
     wtur(1:ifull,1)=-0.1
     wtur(1:ifull,2)=-0.5
     wtur(1:ifull,3)=0.
-    dtur(:,1)=0.1
-    dtur(:,2)=1.
-    dtur(:,3)=0.5
-    !ud(1:ifull,k)=uin(iwu,k)*0.1+uin(1:ifull,k)+uin(ieu,k)*0.5
-    !uin(1:ifull,k)=ud(:,k)-ua(iwu,k)*0.5-ua(ieu,k)*0.1
+    dtur(1:ifull,1)=0.1
+    dtur(1:ifull,2)=1.
+    dtur(1:ifull,3)=0.5
 
 ! |   W   |   * X |  E   #     unstaggered
 !         W     X *      0     staggered
@@ -3619,9 +3611,9 @@ if (.not.allocated(wtul)) then
     wtur(1:ifull,1)=0.
     wtur(1:ifull,2)=-0.5
     wtur(1:ifull,3)=0.
-    dtur(:,1)=0.1
-    dtur(:,2)=1.
-    dtur(:,3)=0.5
+    dtur(1:ifull,1)=0.1
+    dtur(1:ifull,2)=1.
+    dtur(1:ifull,3)=0.5
 
 ! #  ##   #   * X |   E   |     unstaggered
 ! #  ##   0     X *             staggered
@@ -3630,9 +3622,9 @@ if (.not.allocated(wtul)) then
     wtur(1:ifull,1)=0.
     wtur(1:ifull,2)=0.
     wtur(1:ifull,3)=0.
-    dtur(:,1)=0.
-    dtur(:,2)=1.
-    dtur(:,3)=1./3.
+    dtur(1:ifull,1)=0.
+    dtur(1:ifull,2)=1.
+    dtur(1:ifull,3)=1./3.
 
 ! #  ##   #   *   |  E   #     unstaggered
 ! #  ##   #       *      #     staggered
@@ -3641,17 +3633,17 @@ if (.not.allocated(wtul)) then
     wtur(1:ifull,1)=0.
     wtur(1:ifull,2)=0.
     wtur(1:ifull,3)=0.
-    dtur(:,1)=0.
-    dtur(:,2)=0.5
-    dtur(:,3)=0.5
+    dtur(1:ifull,1)=0.
+    dtur(1:ifull,2)=0.5
+    dtur(1:ifull,3)=0.5
   elsewhere
     wtur(1:ifull,0)=0.
     wtur(1:ifull,1)=0.
     wtur(1:ifull,2)=0.
     wtur(1:ifull,3)=0.
-    dtur(:,1)=0.
-    dtur(:,2)=0.
-    dtur(:,3)=0.
+    dtur(1:ifull,1)=0.
+    dtur(1:ifull,2)=0.
+    dtur(1:ifull,3)=0.
       
   end where
   where (evnstest)
@@ -3659,66 +3651,66 @@ if (.not.allocated(wtul)) then
     wtvr(1:ifull,1)=-0.1
     wtvr(1:ifull,2)=-0.5
     wtvr(1:ifull,3)=0.
-    dtvr(:,1)=0.1
-    dtvr(:,2)=1.
-    dtvr(:,3)=0.5
+    dtvr(1:ifull,1)=0.1
+    dtvr(1:ifull,2)=1.
+    dtvr(1:ifull,3)=0.5
   elsewhere (evstest)
     wtvr(1:ifull,0)=1.
     wtvr(1:ifull,1)=0.
     wtvr(1:ifull,2)=-0.5
     wtvr(1:ifull,3)=0.
-    dtvr(:,1)=0.1
-    dtvr(:,2)=1.
-    dtvr(:,3)=0.5
+    dtvr(1:ifull,1)=0.1
+    dtvr(1:ifull,2)=1.
+    dtvr(1:ifull,3)=0.5
   elsewhere (evntest)
     wtvr(1:ifull,0)=1.
     wtvr(1:ifull,1)=0.
     wtvr(1:ifull,2)=0.
     wtvr(1:ifull,3)=0.
-    dtvr(:,1)=0.
-    dtvr(:,2)=1.
-    dtvr(:,3)=1./3.
+    dtvr(1:ifull,1)=0.
+    dtvr(1:ifull,2)=1.
+    dtvr(1:ifull,3)=1./3.
   elsewhere (evtest)
     wtvr(1:ifull,0)=1.
     wtvr(1:ifull,1)=0.
     wtvr(1:ifull,2)=0.
     wtvr(1:ifull,3)=0.
-    dtvr(:,1)=0.
-    dtvr(:,2)=0.5
-    dtvr(:,3)=0.5
+    dtvr(1:ifull,1)=0.
+    dtvr(1:ifull,2)=0.5
+    dtvr(1:ifull,3)=0.5
   elsewhere
     wtvr(1:ifull,0)=0.
     wtvr(1:ifull,1)=0.
     wtvr(1:ifull,2)=0.
     wtvr(1:ifull,3)=0.
-    dtvr(:,1)=0.
-    dtvr(:,2)=0.
-    dtvr(:,3)=0.
+    dtvr(1:ifull,1)=0.
+    dtvr(1:ifull,2)=0.
+    dtvr(1:ifull,3)=0.
   end where
 
   ! Apply JLM's preconditioner
   call boundsuv(wtur,wtvr,stag=-9)
   where (abs(wtur(iwu,0))>1.E-4.and.abs(wtur(1:ifull,2))>1.E-4)
-    stur=-wtur(1:ifull,2)/wtur(iwu,0)
+    stur(1:ifull)=-wtur(1:ifull,2)/wtur(iwu,0)
     nwtu(1:ifull,0)=wtur(1:ifull,0)+stur*wtur(iwu,1)
     nwtu(1:ifull,1)=wtur(1:ifull,1)
     nwtu(1:ifull,2)=wtur(1:ifull,2)+stur*wtur(iwu,0)
     nwtu(1:ifull,3)=wtur(1:ifull,3)-stur*wtur(iwu,2)
   elsewhere
-    stur=0.
+    stur(1:ifull)=0.
     nwtu(1:ifull,0)=wtur(1:ifull,0)
     nwtu(1:ifull,1)=wtur(1:ifull,1)
     nwtu(1:ifull,2)=wtur(1:ifull,2)
     nwtu(1:ifull,3)=wtur(1:ifull,3)
   end where
   where (abs(wtvr(isv,0))>1.E-4.and.abs(wtvr(1:ifull,2))>1.E-4)
-    stvr=-wtvr(1:ifull,2)/wtvr(isv,0)
+    stvr(1:ifull)=-wtvr(1:ifull,2)/wtvr(isv,0)
     nwtv(1:ifull,0)=wtvr(1:ifull,0)+stvr*wtvr(isv,1)
     nwtv(1:ifull,1)=wtvr(1:ifull,1)
     nwtv(1:ifull,2)=wtvr(1:ifull,2)+stvr*wtvr(isv,0)
     nwtv(1:ifull,3)=wtvr(1:ifull,3)-stvr*wtvr(isv,2)
   elsewhere
-    stvr=0.
+    stvr(1:ifull)=0.
     nwtv(1:ifull,0)=wtvr(1:ifull,0)
     nwtv(1:ifull,1)=wtvr(1:ifull,1)
     nwtv(1:ifull,2)=wtvr(1:ifull,2)
@@ -3750,13 +3742,13 @@ if (.not.allocated(wtul)) then
   ! normalise
   call boundsuv(wtur,wtvr,stag=-9)
   do k=1,3
-    dtur(:,k)=dtur(:,k)/wtur(1:ifull,0)
-    dtvr(:,k)=dtvr(:,k)/wtvr(1:ifull,0)
+    dtur(1:ifull,k)=dtur(1:ifull,k)/wtur(1:ifull,0)
+    dtvr(1:ifull,k)=dtvr(1:ifull,k)/wtvr(1:ifull,0)
     wtur(1:ifull,k)=wtur(1:ifull,k)/wtur(1:ifull,0)
     wtvr(1:ifull,k)=wtvr(1:ifull,k)/wtvr(1:ifull,0)
   end do
-  stur=stur*wtur(iwu,0)/wtur(1:ifull,0)
-  stvr=stvr*wtvr(isv,0)/wtvr(1:ifull,0)
+  stur(1:ifull)=stur(1:ifull)*wtur(iwu,0)/wtur(1:ifull,0)
+  stvr(1:ifull)=stvr(1:ifull)*wtvr(isv,0)/wtvr(1:ifull,0)
   wtur(1:ifull,0)=1.
   wtvr(1:ifull,0)=1.
   
@@ -3810,13 +3802,13 @@ if (ltest) then
   do itn=1,itnmax        ! each loop is a double iteration
     call boundsuv(ua,va,stag=2)
     do k=1,kx
-      uin(1:ifull,k)=ud(1:ifull,k)+wtul(:,1)*ua(ieu,k)+wtul(:,2)*ua(iwu,k)+wtul(:,3)*ua(ieeu,k)
-      vin(1:ifull,k)=vd(1:ifull,k)+wtvl(:,1)*va(inv,k)+wtvl(:,2)*va(isv,k)+wtvl(:,3)*va(innv,k)
+      uin(1:ifull,k)=ud(1:ifull,k)+wtul(1:ifull,1)*ua(ieu,k)+wtul(1:ifull,2)*ua(iwu,k)+wtul(1:ifull,3)*ua(ieeu,k)
+      vin(1:ifull,k)=vd(1:ifull,k)+wtvl(1:ifull,1)*va(inv,k)+wtvl(1:ifull,2)*va(isv,k)+wtvl(1:ifull,3)*va(innv,k)
     end do
     call boundsuv(uin,vin,stag=2)
     do k=1,kx
-      ua(1:ifull,k)=ud(1:ifull,k)+wtul(:,1)*uin(ieu,k)+wtul(:,2)*uin(iwu,k)+wtul(:,3)*uin(ieeu,k)
-      va(1:ifull,k)=vd(1:ifull,k)+wtvl(:,1)*vin(inv,k)+wtvl(:,2)*vin(isv,k)+wtvl(:,3)*vin(innv,k)
+      ua(1:ifull,k)=ud(1:ifull,k)+wtul(1:ifull,1)*uin(ieu,k)+wtul(1:ifull,2)*uin(iwu,k)+wtul(1:ifull,3)*uin(ieeu,k)
+      va(1:ifull,k)=vd(1:ifull,k)+wtvl(1:ifull,1)*vin(inv,k)+wtvl(1:ifull,2)*vin(isv,k)+wtvl(1:ifull,3)*vin(innv,k)
     end do
   end do                 ! itn=1,itnmax
 
@@ -3824,35 +3816,35 @@ else
 
   call boundsuv(uin,vin)
   do k=1,kx
-    ud(1:ifull,k)=dtur(:,1)*uin(iwu,k)+dtur(:,2)*uin(1:ifull,k)+dtur(:,3)*uin(ieu,k)
-    vd(1:ifull,k)=dtvr(:,1)*vin(isv,k)+dtvr(:,2)*vin(1:ifull,k)+dtvr(:,3)*vin(inv,k)
+    ud(1:ifull,k)=dtur(1:ifull,1)*uin(iwu,k)+dtur(1:ifull,2)*uin(1:ifull,k)+dtur(1:ifull,3)*uin(ieu,k)
+    vd(1:ifull,k)=dtvr(1:ifull,1)*vin(isv,k)+dtvr(1:ifull,2)*vin(1:ifull,k)+dtvr(1:ifull,3)*vin(inv,k)
   end do
 
   call boundsuv(ud,vd,stag=-9)
   do k=1,kx
     ! Apply JLM's preconditioner
-    nud=ud(1:ifull,k)-stur*ud(iwu,k)
-    nvd=vd(1:ifull,k)-stvr*vd(isv,k)
-    ud(1:ifull,k)=nud
-    vd(1:ifull,k)=nvd
+    nud(1:ifull)=ud(1:ifull,k)-stur*ud(iwu,k)
+    nvd(1:ifull)=vd(1:ifull,k)-stvr*vd(isv,k)
+    ud(1:ifull,k)=nud(1:ifull)
+    vd(1:ifull,k)=nvd(1:ifull)
 
     ! 1st guess
     !ua(1:ifull,k)=(uin(1:ifull,k)+uin(ieu,k))*0.5*eeu(1:ifull)
     !va(1:ifull,k)=(vin(1:ifull,k)+vin(inv,k))*0.5*eev(1:ifull)
-    ua(1:ifull,k)=nud
-    va(1:ifull,k)=nvd
+    ua(1:ifull,k)=nud(1:ifull)
+    va(1:ifull,k)=nvd(1:ifull)
   end do
 
   do itn=1,itnmax        ! each loop is a double iteration
     call boundsuv(ua,va,stag=3)
     do k=1,kx
-      uin(1:ifull,k)=ud(1:ifull,k)+wtur(:,1)*ua(ieu,k)+wtur(:,2)*ua(iwu,k)+wtur(:,3)*ua(iwwu,k)
-      vin(1:ifull,k)=vd(1:ifull,k)+wtvr(:,1)*va(inv,k)+wtvr(:,2)*va(isv,k)+wtvr(:,3)*va(issv,k)
+      uin(1:ifull,k)=ud(1:ifull,k)+wtur(1:ifull,1)*ua(ieu,k)+wtur(1:ifull,2)*ua(iwu,k)+wtur(1:ifull,3)*ua(iwwu,k)
+      vin(1:ifull,k)=vd(1:ifull,k)+wtvr(1:ifull,1)*va(inv,k)+wtvr(1:ifull,2)*va(isv,k)+wtvr(1:ifull,3)*va(issv,k)
     end do
     call boundsuv(uin,vin,stag=3)
     do k=1,kx
-      ua(1:ifull,k)=ud(1:ifull,k)+wtur(:,1)*uin(ieu,k)+wtur(:,2)*uin(iwu,k)+wtur(:,3)*uin(iwwu,k)
-      va(1:ifull,k)=vd(1:ifull,k)+wtvr(:,1)*vin(inv,k)+wtvr(:,2)*vin(isv,k)+wtvr(:,3)*vin(issv,k)
+      ua(1:ifull,k)=ud(1:ifull,k)+wtur(1:ifull,1)*uin(ieu,k)+wtur(1:ifull,2)*uin(iwu,k)+wtur(1:ifull,3)*uin(iwwu,k)
+      va(1:ifull,k)=vd(1:ifull,k)+wtvr(1:ifull,1)*vin(inv,k)+wtvr(1:ifull,2)*vin(isv,k)+wtvr(1:ifull,3)*vin(issv,k)
     end do
   end do                 ! itn=1,itnmax
 
@@ -3938,9 +3930,9 @@ if (.not.allocated(wtul)) then
     wtul(1:ifull,1)=-0.1
     wtul(1:ifull,2)=-0.5
     wtul(1:ifull,3)=0.
-    dtul(:,1)=0.1
-    dtul(:,2)=1.
-    dtul(:,3)=0.5
+    dtul(1:ifull,1)=0.1
+    dtul(1:ifull,2)=1.
+    dtul(1:ifull,3)=0.5
     !ud(1:ifull,k)=uin(iwwu,k)*0.1+uin(iwu,k)+uin(1:ifull,k)*0.5
     !uin(1:ifull,k)=ud(:,k)-ua(ieu,k)*0.1-ua(iwu,k)*0.5
 
@@ -3951,9 +3943,9 @@ if (.not.allocated(wtul)) then
     wtul(1:ifull,1)=-0.1
     wtul(1:ifull,2)=-0.5
     wtul(1:ifull,3)=0.
-    dtul(:,1)=0.
-    dtul(:,2)=1.
-    dtul(:,3)=0.5
+    dtul(1:ifull,1)=0.
+    dtul(1:ifull,2)=1.
+    dtul(1:ifull,3)=0.5
       
 !  |   W   | X *   #  ##  #     unstaggered
 !          W X     0  ##  #     staggered
@@ -3962,9 +3954,9 @@ if (.not.allocated(wtul)) then
     wtul(1:ifull,1)=0.
     wtul(1:ifull,2)=-1./3.
     wtul(1:ifull,3)=0.
-    dtul(:,1)=0.
-    dtul(:,2)=1.
-    dtul(:,3)=0.
+    dtul(1:ifull,1)=0.
+    dtul(1:ifull,2)=1.
+    dtul(1:ifull,3)=0.
 
 ! ##   ##  #   * X |   E   |     unstaggered
 ! ##   ##  0     X *             staggered
@@ -3973,9 +3965,9 @@ if (.not.allocated(wtul)) then
     wtul(1:ifull,1)=-1./3.
     wtul(1:ifull,2)=0.
     wtul(1:ifull,3)=0.
-    dtul(:,1)=0.
-    dtul(:,2)=0.
-    dtul(:,3)=1.
+    dtul(1:ifull,1)=0.
+    dtul(1:ifull,2)=0.
+    dtul(1:ifull,3)=1.
 
 ! ##   ##  #   *   |   E    #     unstaggered
 ! ##   ##  #       *        #     staggered
@@ -3984,9 +3976,9 @@ if (.not.allocated(wtul)) then
     wtul(1:ifull,1)=0.
     wtul(1:ifull,2)=0.
     wtul(1:ifull,3)=0.
-    dtul(:,1)=0.
-    dtul(:,2)=0.
-    dtul(:,3)=1.
+    dtul(1:ifull,1)=0.
+    dtul(1:ifull,2)=0.
+    dtul(1:ifull,3)=1.
 
 ! ##   W   |   *   #  ##  #     unstaggered
 ! ##       W       #  ##  #     staggered
@@ -3995,18 +3987,18 @@ if (.not.allocated(wtul)) then
     wtul(1:ifull,1)=0.
     wtul(1:ifull,2)=0.
     wtul(1:ifull,3)=0.
-    dtul(:,1)=0.
-    dtul(:,2)=1.
-    dtul(:,3)=0.
+    dtul(1:ifull,1)=0.
+    dtul(1:ifull,2)=1.
+    dtul(1:ifull,3)=0.
 
   elsewhere
     wtul(1:ifull,0)=0.
     wtul(1:ifull,1)=0.
     wtul(1:ifull,2)=0.
     wtul(1:ifull,3)=0.
-    dtul(:,1)=0.
-    dtul(:,2)=0.
-    dtul(:,3)=0.
+    dtul(1:ifull,1)=0.
+    dtul(1:ifull,2)=0.
+    dtul(1:ifull,3)=0.
       
   end where
   where (evnstest)
@@ -4014,9 +4006,9 @@ if (.not.allocated(wtul)) then
     wtvl(1:ifull,1)=-0.1
     wtvl(1:ifull,2)=-0.5
     wtvl(1:ifull,3)=0.
-    dtvl(:,1)=0.1
-    dtvl(:,2)=1.
-    dtvl(:,3)=0.5
+    dtvl(1:ifull,1)=0.1
+    dtvl(1:ifull,2)=1.
+    dtvl(1:ifull,3)=0.5
     !vd(1:ifull,k)=vin(issv,k)*0.1+vin(isv,k)+vin(1:ifull,k)*0.5
     !vin(1:ifull,k)=vd(:,k)-va(inv,k)*0.1-va(isv,k)*0.5
   elsewhere (evntest)
@@ -4024,78 +4016,78 @@ if (.not.allocated(wtul)) then
     wtvl(1:ifull,1)=-0.1
     wtvl(1:ifull,2)=-0.5
     wtvl(1:ifull,3)=0.
-    dtvl(:,1)=0.
-    dtvl(:,2)=1.
-    dtvl(:,3)=0.5
+    dtvl(1:ifull,1)=0.
+    dtvl(1:ifull,2)=1.
+    dtvl(1:ifull,3)=0.5
   elsewhere (evstest)
     wtvl(1:ifull,0)=1.
     wtvl(1:ifull,1)=0.
     wtvl(1:ifull,2)=-1./3.
     wtvl(1:ifull,3)=0.
-    dtvl(:,1)=0.
-    dtvl(:,2)=1.
-    dtvl(:,3)=0.
+    dtvl(1:ifull,1)=0.
+    dtvl(1:ifull,2)=1.
+    dtvl(1:ifull,3)=0.
   elsewhere (enntest)
     wtvl(1:ifull,0)=1.
     wtvl(1:ifull,1)=-1./3.
     wtvl(1:ifull,2)=0.
     wtvl(1:ifull,3)=0.
-    dtvl(:,1)=0.
-    dtvl(:,2)=0.
-    dtvl(:,3)=1.
+    dtvl(1:ifull,1)=0.
+    dtvl(1:ifull,2)=0.
+    dtvl(1:ifull,3)=1.
   elsewhere (entest)
     wtvl(1:ifull,0)=1.
     wtvl(1:ifull,1)=0.
     wtvl(1:ifull,2)=0.
     wtvl(1:ifull,3)=0.
-    dtvl(:,1)=0.
-    dtvl(:,2)=0.
-    dtvl(:,3)=1.
+    dtvl(1:ifull,1)=0.
+    dtvl(1:ifull,2)=0.
+    dtvl(1:ifull,3)=1.
   elsewhere (evtest)
     wtvl(1:ifull,0)=1.
     wtvl(1:ifull,1)=0.
     wtvl(1:ifull,2)=0.
     wtvl(1:ifull,3)=0.
-    dtvl(:,1)=0.
-    dtvl(:,2)=1.
-    dtvl(:,3)=0.
+    dtvl(1:ifull,1)=0.
+    dtvl(1:ifull,2)=1.
+    dtvl(1:ifull,3)=0.
   elsewhere
     wtvl(1:ifull,0)=0.
     wtvl(1:ifull,1)=0.
     wtvl(1:ifull,2)=0.
     wtvl(1:ifull,3)=0.
-    dtvl(:,1)=0.
-    dtvl(:,2)=0.
-    dtvl(:,3)=0.
+    dtvl(1:ifull,1)=0.
+    dtvl(1:ifull,2)=0.
+    dtvl(1:ifull,3)=0.
   end where
     
   ! Apply JLM's preconditioner
   call boundsuv(wtul,wtvl,stag=-9)
   where (abs(wtul(iwu,0))>1.E-4.and.abs(wtul(1:ifull,2))>1.E-4)
-    stul=-wtul(1:ifull,2)/wtul(iwu,0)
-    nwtu(:,0)=wtul(1:ifull,0)+stul*wtul(iwu,1)
-    nwtu(:,1)=wtul(1:ifull,1)
-    nwtu(:,2)=wtul(1:ifull,2)+stul*wtul(iwu,0)
-    nwtu(:,3)=wtul(1:ifull,3)-stul*wtul(iwu,2)
+    stul(1:ifull)=-wtul(1:ifull,2)/wtul(iwu,0)
+    nwtu(1:ifull,0)=wtul(1:ifull,0)+stul*wtul(iwu,1)
+    nwtu(1:ifull,1)=wtul(1:ifull,1)
+    nwtu(1:ifull,2)=wtul(1:ifull,2)+stul*wtul(iwu,0)
+    nwtu(1:ifull,3)=wtul(1:ifull,3)-stul*wtul(iwu,2)
   elsewhere
-    stul=0.
-    nwtu(:,0)=wtul(1:ifull,0)
-    nwtu(:,1)=wtul(1:ifull,1)
-    nwtu(:,2)=wtul(1:ifull,2)
-    nwtu(:,3)=wtul(1:ifull,3)
+    stul(1:ifull)=0.
+    nwtu(1:ifull,0)=wtul(1:ifull,0)
+    nwtu(1:ifull,1)=wtul(1:ifull,1)
+    nwtu(1:ifull,2)=wtul(1:ifull,2)
+    nwtu(1:ifull,3)=wtul(1:ifull,3)
   end where
   where (abs(wtvl(isv,0))>1.E-4.and.abs(wtvl(1:ifull,2))>1.E-4)
-    stvl=-wtvl(1:ifull,2)/wtvl(isv,0)
-    nwtv(:,0)=wtvl(1:ifull,0)+stvl*wtvl(isv,1)
-    nwtv(:,1)=wtvl(1:ifull,1)
-    nwtv(:,2)=wtvl(1:ifull,2)+stvl*wtvl(isv,0)
-    nwtv(:,3)=wtvl(1:ifull,3)-stvl*wtvl(isv,2)
+    stvl(1:ifull)=-wtvl(1:ifull,2)/wtvl(isv,0)
+    nwtv(1:ifull,0)=wtvl(1:ifull,0)+stvl*wtvl(isv,1)
+    nwtv(1:ifull,1)=wtvl(1:ifull,1)
+    nwtv(1:ifull,2)=wtvl(1:ifull,2)+stvl*wtvl(isv,0)
+    nwtv(1:ifull,3)=wtvl(1:ifull,3)-stvl*wtvl(isv,2)
   elsewhere
-    stvl=0.
-    nwtv(:,0)=wtvl(1:ifull,0)
-    nwtv(:,1)=wtvl(1:ifull,1)
-    nwtv(:,2)=wtvl(1:ifull,2)
-    nwtv(:,3)=wtvl(1:ifull,3)
+    stvl(1:ifull)=0.
+    nwtv(1:ifull,0)=wtvl(1:ifull,0)
+    nwtv(1:ifull,1)=wtvl(1:ifull,1)
+    nwtv(1:ifull,2)=wtvl(1:ifull,2)
+    nwtv(1:ifull,3)=wtvl(1:ifull,3)
   end where
   where (abs(wtul(1:ifull,0))<1.E-4)
     wtul(1:ifull,0)=1.
@@ -4125,11 +4117,11 @@ if (.not.allocated(wtul)) then
   do k=1,3
     wtul(1:ifull,k)=wtul(1:ifull,k)/wtul(1:ifull,0)
     wtvl(1:ifull,k)=wtvl(1:ifull,k)/wtvl(1:ifull,0)
-    dtul(:,k)=dtul(:,k)/wtul(1:ifull,0)
-    dtvl(:,k)=dtvl(:,k)/wtvl(1:ifull,0)
+    dtul(1:ifull,k)=dtul(1:ifull,k)/wtul(1:ifull,0)
+    dtvl(1:ifull,k)=dtvl(1:ifull,k)/wtvl(1:ifull,0)
   end do
-  stul=stul*wtul(iwu,0)/wtul(1:ifull,0)
-  stvl=stvl*wtvl(isv,0)/wtvl(1:ifull,0)
+  stul(1:ifull)=stul(1:ifull)*wtul(iwu,0)/wtul(1:ifull,0)
+  stvl(1:ifull)=stvl(1:ifull)*wtvl(isv,0)/wtvl(1:ifull,0)
   wtul(1:ifull,0)=1.
   wtvl(1:ifull,0)=1.
 
@@ -4154,9 +4146,9 @@ if (.not.allocated(wtul)) then
     wtur(1:ifull,1)=-0.5
     wtur(1:ifull,2)=-0.1
     wtur(1:ifull,3)=0.
-    dtur(:,1)=0.1
-    dtur(:,2)=1.
-    dtur(:,3)=0.5
+    dtur(1:ifull,1)=0.1
+    dtur(1:ifull,2)=1.
+    dtur(1:ifull,3)=0.5
     !ud(1:ifull,k)=uin(ieu,k)*0.1+uin(1:ifull,k)+uin(iwu,k)*0.5
     !uin(1:ifull,k)=ud(:,k)-ua(iwu,k)*0.1-ua(ieu,k)*0.5
         
@@ -4167,9 +4159,9 @@ if (.not.allocated(wtul)) then
     wtur(1:ifull,1)=-0.5
     wtur(1:ifull,2)=-0.1
     wtur(1:ifull,3)=0.
-    dtur(:,1)=0.
-    dtur(:,2)=1.
-    dtur(:,3)=0.5
+    dtur(1:ifull,1)=0.
+    dtur(1:ifull,2)=1.
+    dtur(1:ifull,3)=0.5
       
 !  #   ##  #   * X |   E   |     unstaggered
 !  #   ##  0     X *             staggered
@@ -4178,9 +4170,9 @@ if (.not.allocated(wtul)) then
     wtur(1:ifull,1)=-1./3.
     wtur(1:ifull,2)=0.
     wtur(1:ifull,3)=0.
-    dtur(:,1)=0.
-    dtur(:,2)=1.
-    dtur(:,3)=0.
+    dtur(1:ifull,1)=0.
+    dtur(1:ifull,2)=1.
+    dtur(1:ifull,3)=0.
 
 !  |   W   | X *   #  ##  #     unstaggered
 !          W X     0  ##  #     staggered
@@ -4189,9 +4181,9 @@ if (.not.allocated(wtul)) then
     wtur(1:ifull,1)=0.
     wtur(1:ifull,2)=-1./3.
     wtur(1:ifull,3)=0.
-    dtur(:,1)=0.
-    dtur(:,2)=0.
-    dtur(:,3)=1.
+    dtur(1:ifull,1)=0.
+    dtur(1:ifull,2)=0.
+    dtur(1:ifull,3)=1.
 
 !  #   W   |   *   #  ##  #     unstaggered
 !  #       W       #  ##  #     staggered
@@ -4200,9 +4192,9 @@ if (.not.allocated(wtul)) then
     wtur(1:ifull,1)=0.
     wtur(1:ifull,2)=0.
     wtur(1:ifull,3)=0.
-    dtur(:,1)=0.
-    dtur(:,2)=0.
-    dtur(:,3)=1.
+    dtur(1:ifull,1)=0.
+    dtur(1:ifull,2)=0.
+    dtur(1:ifull,3)=1.
 
 !  #   ##  #   *   |  E   #     unstaggered
 !  #   ##  #       *      #     staggered
@@ -4211,17 +4203,17 @@ if (.not.allocated(wtul)) then
     wtur(1:ifull,1)=0.
     wtur(1:ifull,2)=0.
     wtur(1:ifull,3)=0.
-    dtur(:,1)=0.
-    dtur(:,2)=1.
-    dtur(:,3)=0.
+    dtur(1:ifull,1)=0.
+    dtur(1:ifull,2)=1.
+    dtur(1:ifull,3)=0.
   elsewhere
     wtur(1:ifull,0)=0.
     wtur(1:ifull,1)=0.
     wtur(1:ifull,2)=0.
     wtur(1:ifull,3)=0.
-    dtur(:,1)=0.
-    dtur(:,2)=0.
-    dtur(:,3)=0.
+    dtur(1:ifull,1)=0.
+    dtur(1:ifull,2)=0.
+    dtur(1:ifull,3)=0.
 
   end where
   where (evnstest)
@@ -4229,9 +4221,9 @@ if (.not.allocated(wtul)) then
     wtvr(1:ifull,1)=-0.5
     wtvr(1:ifull,2)=-0.1
     wtvr(1:ifull,3)=0.
-    dtvr(:,1)=0.1
-    dtvr(:,2)=1.
-    dtvr(:,3)=0.5
+    dtvr(1:ifull,1)=0.1
+    dtvr(1:ifull,2)=1.
+    dtvr(1:ifull,3)=0.5
     !vd(1:ifull,k)=vin(inv,k)*0.1+vin(1:ifull,k)+vin(isv,k)*0.5
     !vin(1:ifull,k)=vd(:,k)-va(isv,k)*0.1-va(inv,k)*0.5
   elsewhere (evstest)
@@ -4239,74 +4231,74 @@ if (.not.allocated(wtul)) then
     wtvr(1:ifull,1)=-0.5
     wtvr(1:ifull,2)=-0.1
     wtvr(1:ifull,3)=0.
-    dtvr(:,1)=0.
-    dtvr(:,2)=1.
-    dtvr(:,3)=0.5
+    dtvr(1:ifull,1)=0.
+    dtvr(1:ifull,2)=1.
+    dtvr(1:ifull,3)=0.5
   elsewhere (evntest)
     wtvr(1:ifull,0)=1.
     wtvr(1:ifull,1)=-1./3.
     wtvr(1:ifull,2)=0.
     wtvr(1:ifull,3)=0.
-    dtvr(:,1)=0.
-    dtvr(:,2)=1.
-    dtvr(:,3)=0.
+    dtvr(1:ifull,1)=0.
+    dtvr(1:ifull,2)=1.
+    dtvr(1:ifull,3)=0.
   elsewhere (esstest)
     wtvr(1:ifull,0)=1.
     wtvr(1:ifull,1)=0.
     wtvr(1:ifull,2)=-1./3.
     wtvr(1:ifull,3)=0.
-    dtvr(:,1)=0.
-    dtvr(:,2)=0.
-    dtvr(:,3)=1.
+    dtvr(1:ifull,1)=0.
+    dtvr(1:ifull,2)=0.
+    dtvr(1:ifull,3)=1.
   elsewhere (estest)
     wtvr(1:ifull,0)=1.
     wtvr(1:ifull,1)=0.
     wtvr(1:ifull,2)=0.
     wtvr(1:ifull,3)=0.
-    dtvr(:,1)=0.
-    dtvr(:,2)=0.
-    dtvr(:,3)=1.
+    dtvr(1:ifull,1)=0.
+    dtvr(1:ifull,2)=0.
+    dtvr(1:ifull,3)=1.
   elsewhere (evtest)
     wtvr(1:ifull,0)=1.
     wtvr(1:ifull,1)=0.
     wtvr(1:ifull,2)=0.
     wtvr(1:ifull,3)=0.
-    dtvr(:,1)=0.
-    dtvr(:,2)=1.
-    dtvr(:,3)=0.
+    dtvr(1:ifull,1)=0.
+    dtvr(1:ifull,2)=1.
+    dtvr(1:ifull,3)=0.
   elsewhere
     wtvr(1:ifull,0)=0.
     wtvr(1:ifull,1)=0.
     wtvr(1:ifull,2)=0.
     wtvr(1:ifull,3)=0.
-    dtvr(:,1)=0.
-    dtvr(:,2)=0.
-    dtvr(:,3)=0.
+    dtvr(1:ifull,1)=0.
+    dtvr(1:ifull,2)=0.
+    dtvr(1:ifull,3)=0.
   end where
 
   ! Apply JLM's preconditioner
   call boundsuv(wtur,wtvr,stag=-10)
   where (abs(wtur(ieu,0))>1.E-4.and.abs(wtur(1:ifull,1))>1.E-4)
-    stur=-wtur(1:ifull,1)/wtur(ieu,0)
+    stur(1:ifull)=-wtur(1:ifull,1)/wtur(ieu,0)
     nwtu(1:ifull,0)=wtur(1:ifull,0)+stur*wtur(ieu,2)
     nwtu(1:ifull,1)=wtur(1:ifull,1)+stur*wtur(ieu,0)
     nwtu(1:ifull,2)=wtur(1:ifull,2)
     nwtu(1:ifull,3)=wtur(1:ifull,3)-stur*wtur(ieu,1)
   elsewhere
-    stur=0.
+    stur(1:ifull)=0.
     nwtu(1:ifull,0)=wtur(1:ifull,0)
     nwtu(1:ifull,1)=wtur(1:ifull,1)
     nwtu(1:ifull,2)=wtur(1:ifull,2)
     nwtu(1:ifull,3)=wtur(1:ifull,3)
   end where
   where (abs(wtvr(inv,0))>1.E-4.and.abs(wtvr(1:ifull,1))>1.E-4)
-    stvr=-wtvr(1:ifull,1)/wtvr(inv,0)
+    stvr(1:ifull)=-wtvr(1:ifull,1)/wtvr(inv,0)
     nwtv(1:ifull,0)=wtvr(1:ifull,0)+stvr*wtvr(inv,2)
     nwtv(1:ifull,1)=wtvr(1:ifull,1)+stvr*wtvr(inv,0)
     nwtv(1:ifull,2)=wtvr(1:ifull,2)
     nwtv(1:ifull,3)=wtvr(1:ifull,3)-stvr*wtvr(inv,1)
   elsewhere
-    stvr=0.
+    stvr(1:ifull)=0.
     nwtv(1:ifull,0)=wtvr(1:ifull,0)
     nwtv(1:ifull,1)=wtvr(1:ifull,1)
     nwtv(1:ifull,2)=wtvr(1:ifull,2)
@@ -4340,11 +4332,11 @@ if (.not.allocated(wtul)) then
   do k=1,3
     wtur(1:ifull,k)=wtur(1:ifull,k)/wtur(1:ifull,0)
     wtvr(1:ifull,k)=wtvr(1:ifull,k)/wtvr(1:ifull,0)
-    dtur(:,k)=dtur(:,k)/wtur(1:ifull,0)
-    dtvr(:,k)=dtvr(:,k)/wtvr(1:ifull,0)
+    dtur(1:ifull,k)=dtur(1:ifull,k)/wtur(1:ifull,0)
+    dtvr(1:ifull,k)=dtvr(1:ifull,k)/wtvr(1:ifull,0)
   end do
-  stur=stur*wtur(ieu,0)/wtur(1:ifull,0)
-  stvr=stvr*wtvr(inv,0)/wtvr(1:ifull,0)
+  stur(1:ifull)=stur(1:ifull)*wtur(ieu,0)/wtur(1:ifull,0)
+  stvr(1:ifull)=stvr(1:ifull)*wtvr(inv,0)/wtvr(1:ifull,0)
   wtur(1:ifull,0)=1.
   wtvr(1:ifull,0)=1.
  
@@ -4374,35 +4366,35 @@ if (ltest) then
   
   call boundsuv(uin,vin,stag=5)
   do k=1,kx
-    ud(1:ifull,k)=dtul(:,1)*uin(iwwu,k)+dtul(:,2)*uin(iwu,k)+dtul(:,3)*uin(1:ifull,k)
-    vd(1:ifull,k)=dtvl(:,1)*vin(issv,k)+dtvl(:,2)*vin(isv,k)+dtvl(:,3)*vin(1:ifull,k)
+    ud(1:ifull,k)=dtul(1:ifull,1)*uin(iwwu,k)+dtul(1:ifull,2)*uin(iwu,k)+dtul(1:ifull,3)*uin(1:ifull,k)
+    vd(1:ifull,k)=dtvl(1:ifull,1)*vin(issv,k)+dtvl(1:ifull,2)*vin(isv,k)+dtvl(1:ifull,3)*vin(1:ifull,k)
   end do
   
   call boundsuv(ud,vd,stag=-9)
   do k=1,kx
     ! Apply JLM's preconditioner
-    nud=ud(1:ifull,k)-stul*ud(iwu,k)
-    nvd=vd(1:ifull,k)-stvl*vd(isv,k)
-    ud(1:ifull,k)=nud
-    vd(1:ifull,k)=nvd
+    nud(1:ifull)=ud(1:ifull,k)-stul*ud(iwu,k)
+    nvd(1:ifull)=vd(1:ifull,k)-stvl*vd(isv,k)
+    ud(1:ifull,k)=nud(1:ifull)
+    vd(1:ifull,k)=nvd(1:ifull)
 
     ! 1st guess
     !ua(1:ifull,k)=(uin(1:ifull,k)+uin(iwu,k))*0.5*ee(1:ifull)
     !va(1:ifull,k)=(vin(1:ifull,k)+vin(isv,k))*0.5*ee(1:ifull)
-    ua(1:ifull,k)=nud
-    va(1:ifull,k)=nvd
+    ua(1:ifull,k)=nud(1:ifull)
+    va(1:ifull,k)=nvd(1:ifull)
   end do
 
   do itn=1,itnmax        ! each loop is a double iteration
     call boundsuv(ua,va,stag=3)
     do k=1,kx
-      uin(1:ifull,k)=ud(1:ifull,k)+wtul(:,1)*ua(ieu,k)+wtul(:,2)*ua(iwu,k)+wtul(:,3)*ua(iwwu,k)
-      vin(1:ifull,k)=vd(1:ifull,k)+wtvl(:,1)*va(inv,k)+wtvl(:,2)*va(isv,k)+wtvl(:,3)*va(issv,k)
+      uin(1:ifull,k)=ud(1:ifull,k)+wtul(1:ifull,1)*ua(ieu,k)+wtul(1:ifull,2)*ua(iwu,k)+wtul(1:ifull,3)*ua(iwwu,k)
+      vin(1:ifull,k)=vd(1:ifull,k)+wtvl(1:ifull,1)*va(inv,k)+wtvl(1:ifull,2)*va(isv,k)+wtvl(1:ifull,3)*va(issv,k)
     end do
     call boundsuv(uin,vin,stag=3)
     do k=1,kx
-      ua(1:ifull,k)=ud(1:ifull,k)+wtul(:,1)*uin(ieu,k)+wtul(:,2)*uin(iwu,k)+wtul(:,3)*uin(iwwu,k)
-      va(1:ifull,k)=vd(1:ifull,k)+wtvl(:,1)*vin(inv,k)+wtvl(:,2)*vin(isv,k)+wtvl(:,3)*vin(issv,k)
+      ua(1:ifull,k)=ud(1:ifull,k)+wtul(1:ifull,1)*uin(ieu,k)+wtul(1:ifull,2)*uin(iwu,k)+wtul(1:ifull,3)*uin(iwwu,k)
+      va(1:ifull,k)=vd(1:ifull,k)+wtvl(1:ifull,1)*vin(inv,k)+wtvl(1:ifull,2)*vin(isv,k)+wtvl(1:ifull,3)*vin(issv,k)
     end do
 
   end do                  ! itn=1,itnmax
@@ -4411,35 +4403,35 @@ else
 
   call boundsuv(uin,vin)
   do k=1,kx
-    ud(1:ifull,k)=dtur(:,1)*uin(ieu,k)+dtur(:,2)*uin(1:ifull,k)+dtur(:,3)*uin(iwu,k)
-    vd(1:ifull,k)=dtvr(:,1)*vin(inv,k)+dtvr(:,2)*vin(1:ifull,k)+dtvr(:,3)*vin(isv,k)
+    ud(1:ifull,k)=dtur(1:ifull,1)*uin(ieu,k)+dtur(1:ifull,2)*uin(1:ifull,k)+dtur(1:ifull,3)*uin(iwu,k)
+    vd(1:ifull,k)=dtvr(1:ifull,1)*vin(inv,k)+dtvr(1:ifull,2)*vin(1:ifull,k)+dtvr(1:ifull,3)*vin(isv,k)
   end do
 
   call boundsuv(ud,vd,stag=-10)
   do k=1,kx
     ! Apply JLM's preconditioner
-    nud=ud(1:ifull,k)-stur*ud(ieu,k)
-    nvd=vd(1:ifull,k)-stvr*vd(inv,k)
-    ud(1:ifull,k)=nud
-    vd(1:ifull,k)=nvd
+    nud(1:ifull)=ud(1:ifull,k)-stur*ud(ieu,k)
+    nvd(1:ifull)=vd(1:ifull,k)-stvr*vd(inv,k)
+    ud(1:ifull,k)=nud(1:ifull)
+    vd(1:ifull,k)=nvd(1:ifull)
 
     ! 1st guess
     !ua(1:ifull,k)=(uin(1:ifull,k)+uin(iwu,k))*0.5*ee(1:ifull)
     !va(1:ifull,k)=(vin(1:ifull,k)+vin(isv,k))*0.5*ee(1:ifull)
-    ua(1:ifull,k)=nud
-    va(1:ifull,k)=nvd
+    ua(1:ifull,k)=nud(1:ifull)
+    va(1:ifull,k)=nvd(1:ifull)
   end do
 
   do itn=1,itnmax        ! each loop is a double iteration
     call boundsuv(ua,va,stag=2)
     do k=1,kx
-      uin(1:ifull,k)=ud(1:ifull,k)+wtur(:,1)*ua(ieu,k)+wtur(:,2)*ua(iwu,k)+wtur(:,3)*ua(ieeu,k)
-      vin(1:ifull,k)=vd(1:ifull,k)+wtvr(:,1)*va(inv,k)+wtvr(:,2)*va(isv,k)+wtvr(:,3)*va(innv,k)
+      uin(1:ifull,k)=ud(1:ifull,k)+wtur(1:ifull,1)*ua(ieu,k)+wtur(1:ifull,2)*ua(iwu,k)+wtur(1:ifull,3)*ua(ieeu,k)
+      vin(1:ifull,k)=vd(1:ifull,k)+wtvr(1:ifull,1)*va(inv,k)+wtvr(1:ifull,2)*va(isv,k)+wtvr(1:ifull,3)*va(innv,k)
     end do
     call boundsuv(uin,vin,stag=2)
     do k=1,kx
-      ua(1:ifull,k)=ud(1:ifull,k)+wtur(:,1)*uin(ieu,k)+wtur(:,2)*uin(iwu,k)+wtur(:,3)*uin(ieeu,k)
-      va(1:ifull,k)=vd(1:ifull,k)+wtvr(:,1)*vin(inv,k)+wtvr(:,2)*vin(isv,k)+wtvr(:,3)*vin(innv,k)
+      ua(1:ifull,k)=ud(1:ifull,k)+wtur(1:ifull,1)*uin(ieu,k)+wtur(1:ifull,2)*uin(iwu,k)+wtur(1:ifull,3)*uin(ieeu,k)
+      va(1:ifull,k)=vd(1:ifull,k)+wtvr(1:ifull,1)*vin(inv,k)+wtvr(1:ifull,2)*vin(isv,k)+wtvr(1:ifull,3)*vin(innv,k)
     end do
   end do                  ! itn=1,itnmax
 
@@ -4528,34 +4520,35 @@ real, dimension(ifull) :: fl,fh,cc,rr
 ! f=(w*u) at half levels
 ! du/dt = u*dw/dz-df/dz = -w*du/dz
 
-delu(:,0)=0.
+delu(1:ifull,0)=0.
 do ii=1,wlev-1
-  delu(:,ii)=uu(1:ifull,ii+1)-uu(1:ifull,ii)
+  delu(1:ifull,ii)=uu(1:ifull,ii+1)-uu(1:ifull,ii)
 end do
-delu(:,wlev)=0.
+delu(1:ifull,wlev)=0.
 
 ! TVD part
 do ii=1,wlev-1
   ! +ve ww is downwards to the ocean floor
-  where ( ww(:,ii)>0.)
-    rr(:)=delu(:,ii-1)/(delu(:,ii)+sign(1.e-20,delu(:,ii)))
-    fl(:)=ww(:,ii)*uu(:,ii)
+  where ( ww(1:ifull,ii)>0.)
+    rr(1:ifull)=delu(1:ifull,ii-1)/(delu(1:ifull,ii)+sign(1.e-20,delu(1:ifull,ii)))
+    fl(1:ifull)=ww(1:ifull,ii)*uu(1:ifull,ii)
   elsewhere
-    rr(:)=delu(:,ii+1)/(delu(:,ii)+sign(1.e-20,delu(:,ii)))  
-    fl(:)=ww(:,ii)*uu(:,ii+1)
+    rr(1:ifull)=delu(1:ifull,ii+1)/(delu(1:ifull,ii)+sign(1.e-20,delu(1:ifull,ii)))  
+    fl(1:ifull)=ww(1:ifull,ii)*uu(1:ifull,ii+1)
   end where
-  cc(:)=max(0.,min(1.,2.*rr(:)),min(2.,rr(:))) ! superbee
-  fh(:)=ww(:,ii)*0.5*(uu(:,ii)+uu(:,ii+1))             &
-   -0.5*(uu(:,ii+1)-uu(:,ii))*ww(:,ii)**2*dtnew(:)     &
-   /max(depadj(:,ii+1)-depadj(:,ii),1.E-10)
-  ff(:,ii)=fl(:)+cc(:)*(fh(:)-fl(:))
+  cc(1:ifull)=max(0.,min(1.,2.*rr(1:ifull)),min(2.,rr(1:ifull))) ! superbee
+  fh(1:ifull)=ww(1:ifull,ii)*0.5*(uu(1:ifull,ii)+uu(1:ifull,ii+1))         &
+   -0.5*(uu(1:ifull,ii+1)-uu(1:ifull,ii))*ww(1:ifull,ii)**2*dtnew(1:ifull) &
+   /max(depadj(1:ifull,ii+1)-depadj(1:ifull,ii),1.E-10)
+  ff(1:ifull,ii)=fl(1:ifull)+cc(1:ifull)*(fh(1:ifull)-fl(1:ifull))
   !ff(:,ii)=ww(:,ii)*0.5*(uu(1:ifull,ii)+uu(1:ifull,ii+1)) ! explicit
 end do
-uu(1:ifull,1)=uu(1:ifull,1)+dtnew*(uu(1:ifull,1)*ww(:,1)-ff(:,1))/dzadj(:,1)
+uu(1:ifull,1)=uu(1:ifull,1)+dtnew*(uu(1:ifull,1)*ww(1:ifull,1)-ff(1:ifull,1))/dzadj(1:ifull,1)
 do ii=2,wlev-1
-  uu(1:ifull,ii)=uu(1:ifull,ii)+dtnew*(uu(1:ifull,ii)*(ww(:,ii)-ww(:,ii-1))-ff(:,ii)+ff(:,ii-1))/dzadj(:,ii)
+  uu(1:ifull,ii)=uu(1:ifull,ii)+dtnew*(uu(1:ifull,ii)*(ww(1:ifull,ii)-ww(1:ifull,ii-1))   &
+                                      -ff(1:ifull,ii)+ff(1:ifull,ii-1))/dzadj(1:ifull,ii)
 end do
-uu(1:ifull,wlev)=uu(1:ifull,wlev)+dtnew*(-uu(1:ifull,wlev)*ww(:,wlev-1)+ff(:,wlev-1))/dzadj(:,wlev)
+uu(1:ifull,wlev)=uu(1:ifull,wlev)+dtnew*(-uu(1:ifull,wlev)*ww(1:ifull,wlev-1)+ff(1:ifull,wlev-1))/dzadj(1:ifull,wlev)
 
 
 do iq=1,ifull
@@ -4639,7 +4632,7 @@ subroutine seekdelta(rhobar,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
 use cc_mpi
 use indices_m
 use map_m
-use mlo, only : wlev,minwater
+use mlo, only : wlev
 
 implicit none
 
@@ -4814,8 +4807,8 @@ do iq = 1,ifull
   end do
 end do
   
-! MJT notes - This calculation is slow
 do  jj = 1,wlev
+  ! MJT notes - This calculation is slow
   do iq = 1,ifull
     ii = sindx(iq,jj)
     h(iq) = max(ddin(iq,ii)-ddin(iq,ii-1),1.e-8)
@@ -5232,7 +5225,7 @@ elsewhere
 end where
 dumd=dumd+odum
 
-dumc(1:ifull)=max(dumd,0._8)
+dumc(1:ifull)=real(max(dumd,0._8))
   
 return
 end subroutine upwind_iceadv
@@ -5242,7 +5235,7 @@ end subroutine upwind_iceadv
 
 subroutine mlosor(neta,sue,svn,suw,svs,pue,pvn,puw,pvs,que,qvn,quw,qvs,                             &
                   pdiv,pdivb,sdiv,sdivb,odiv,odivb,qdiv,qdivb,xps,                                  &
-                  ipice,ibu,ibv,idu,idv,niu,niv,sicedep,ipmax,totits,itc,maxglobseta,maxglobip)
+                  ipice,ibu,ibv,idu,idv,niu,niv,ipmax,totits,itc,maxglobseta,maxglobip)
 
 use cc_mpi
 use indices_m
@@ -5255,8 +5248,8 @@ include 'parm.h'
 
 integer, intent(out) :: totits,itc
 !integer itstest,itsave1,itsave2
-integer nx,ll,ierr
-integer iq,isc,iec
+integer nx,ll
+integer isc,iec
 real, intent(out) :: maxglobseta,maxglobip
 real maxloclseta,maxloclip
 !real gd,ci,itserr1,itserr2
@@ -5268,7 +5261,6 @@ real, dimension(ifull), intent(in) :: pdiv,pdivb,sdiv,sdivb,odiv,odivb,qdiv,qdiv
 real, dimension(ifull+iextra), intent(inout) :: ipice
 real, dimension(ifull+iextra), intent(in) :: ibu,ibv,idu,idv
 real, dimension(ifull+iextra), intent(in) :: niu,niv
-real, dimension(ifull), intent(in) :: sicedep
 real, dimension(ifull+iextra), intent(in) :: ipmax
 real, dimension(ifull,2) :: zz,zzn,zzs,zze,zzw,rhs
 real, dimension(ifull) :: yy,yyn,yys,yye,yyw
@@ -5492,7 +5484,7 @@ end subroutine mlosor
 
 subroutine mlomg(neta,sue,svn,suw,svs,pue,pvn,puw,pvs,que,qvn,quw,qvs,                              &
                   pdiv,pdivb,sdiv,sdivb,odiv,odivb,qdiv,qdivb,xps,                                  &
-                  ipice,ibu,ibv,idu,idv,niu,niv,sicedep,ipmax,totits,itc,maxglobseta,maxglobip)
+                  ipice,ibu,ibv,idu,idv,niu,niv,ipmax,totits,itc,maxglobseta,maxglobip)
 
 use helmsolve
 use indices_m
@@ -5512,7 +5504,6 @@ real, dimension(ifull), intent(in) :: que,qvn,quw,qvs
 real, dimension(ifull), intent(in) :: pdiv,pdivb,sdiv,sdivb,odiv,odivb,qdiv,qdivb,xps
 real, dimension(ifull+iextra), intent(in) :: ibu,ibv,idu,idv
 real, dimension(ifull+iextra), intent(in) :: niu,niv
-real, dimension(ifull), intent(in) :: sicedep
 real, dimension(ifull+iextra), intent(in) :: ipmax
 real, dimension(ifull,2) :: zz,zzn,zzs,zze,zzw,rhs
 real, dimension(ifull) :: yy,yyn,yys,yye,yyw

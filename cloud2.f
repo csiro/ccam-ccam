@@ -391,7 +391,7 @@ c Liquid water clouds
 c Ice clouds : Choose scheme according to resolution
        IF(ldr.gt.0)THEN  ! 1,2,3  corresponds to previous lw=22 option
         
-	 refac1=0.85
+        refac1=0.85
         refac2=0.95
         do mg=1,imax
           do kp=1,nclds(mg)
@@ -538,8 +538,8 @@ c Ice-cloud emissivity following the Sunshine scheme
      &        *(-9.13e-05+tmid
      &        *(2.026e-04-1.056e-05*tmid))
               temp_correction=max(1.0, temp_correction)
-              trani = exp(-1.66*temp_correction * tciwc*cldht
-     &              / (0.630689d-01+0.265874*tciwc))
+              trani = real(exp(-1.66*temp_correction * tciwc*cldht
+     &              / (0.630689d-01+0.265874*tciwc)))
 c-- Limit ice cloud emissivities
 c             trani=min(0.70,trani)
               kk=(2*(kl+1)-kbtm(mg,nc)-ktop(mg,nc))/2
@@ -668,7 +668,7 @@ c Ice clouds : Choose scheme according to resolution
 !      IF(lw.eq.22)THEN
        IF(ldr.gt.0)THEN  ! 1,2,3  corresponds to previous lw=22 option
         
-	 refac1=0.85
+        refac1=0.85
         refac2=0.95
         do k=1,kl-1
           do mg=1,imax
@@ -719,8 +719,8 @@ c Ice-cloud emissivity following the Sunshine scheme
      &        *(-9.13e-05+tmid
      &        *(2.026e-04-1.056e-05*tmid))
               temp_correction=max(1.0, temp_correction)
-              trani = exp(-1.66*temp_correction * tciwc*cldht
-     &              / (0.630689d-01+0.265874*tciwc))
+              trani = real(exp(-1.66*temp_correction * tciwc*cldht
+     &              / (0.630689d-01+0.265874*tciwc)))
 c-- Limit ice cloud emissivities
 c             trani=min(0.70,trani)
               if(k.gt.nlow) trani=min(0.70,trani)
@@ -944,22 +944,22 @@ C Start code : ----------------------------------------------------------
                beta=0.5-0.75*mu0(mg)*gi/(1+gi)
                f=gi**2
                U1=7./4.
-               U2=(7./4)*(1.-(1-omega)/(7*omega*beta0))
-               alpha1=U1*(1.-omega*(1-beta0))
-               alpha2=U2*omega*beta0
-               alpha3=(1-f)*omega*beta
-               alpha4=(1-f)*omega*(1-beta)
+               U2=real((7./4)*(1.-(1-omega)/(7*omega*beta0)))
+               alpha1=real(U1*(1.-omega*(1-beta0)))
+               alpha2=real(U2*omega*beta0)
+               alpha3=real((1-f)*omega*beta)
+               alpha4=real((1-f)*omega*(1-beta))
                epsilon=sqrt(alpha1**2-alpha2**2)
-               rM=alpha2/(alpha1+epsilon)
-               E=exp(-epsilon*tau(mg,k))
+               rM=real(alpha2/(alpha1+epsilon))
+               E=real(exp(-epsilon*tau(mg,k)))
                omwf=1-omega*f
                denom=omwf**2-epsilon**2*mu0(mg)**2
-               gam1=(omwf*alpha3-mu0(mg)*(alpha1*alpha3+alpha2*alpha4))
-     &               /denom 
-               gam2=(-omwf*alpha4-mu0(mg)*(alpha1*alpha4+alpha2*alpha3))
-     &               /denom
+               gam1=real((omwf*alpha3-mu0(mg)*
+     &               (alpha1*alpha3+alpha2*alpha4))/denom) 
+               gam2=real((-omwf*alpha4-mu0(mg)*
+     &               (alpha1*alpha4+alpha2*alpha3))/denom)
                exparg=min(real(70.0,8),omwf*tau(mg,k)/mu0(mg))
-               Tdb=exp(-exparg)
+               Tdb=real(exp(-exparg))
                Rdif=rM*(1-E**2)/(1-(E*rM)**2)
                Tdif=E*(1-rM**2)/(1-(E*rM)**2)
                Rdir=-gam2*Rdif-gam1*Tdb*Tdif+gam1
@@ -1076,22 +1076,22 @@ C Start code : ----------------------------------------------------------
                beta=0.5-0.75*mu0(mg)*gi/(1+gi)
                f=gi**2
                U1=7./4.
-               U2=(7./4)*(1.-(1-omega)/(7*omega*beta0))
-               alpha1=U1*(1.-omega*(1-beta0))
-               alpha2=U2*omega*beta0
-               alpha3=(1-f)*omega*beta
-               alpha4=(1-f)*omega*(1-beta)
+               U2=real((7./4)*(1.-(1-omega)/(7*omega*beta0)))
+               alpha1=real(U1*(1.-omega*(1-beta0)))
+               alpha2=real(U2*omega*beta0)
+               alpha3=real((1-f)*omega*beta)
+               alpha4=real((1-f)*omega*(1-beta))
                epsilon=sqrt(alpha1**2-alpha2**2)
-               rM=alpha2/(alpha1+epsilon)
-               E=exp(-epsilon*tau(mg,k))
+               rM=real(alpha2/(alpha1+epsilon))
+               E=real(exp(-epsilon*tau(mg,k)))
                omwf=1-omega*f
                denom=omwf**2-epsilon**2*mu0(mg)**2
-               gam1=(omwf*alpha3-mu0(mg)*(alpha1*alpha3+alpha2*alpha4))
-     &               /denom
-               gam2=(-omwf*alpha4-mu0(mg)*(alpha1*alpha4+alpha2*alpha3))
-     &               /denom
+               gam1=real((omwf*alpha3-mu0(mg)*
+     &               (alpha1*alpha3+alpha2*alpha4))/denom)
+               gam2=real((-omwf*alpha4-mu0(mg)*
+     &               (alpha1*alpha4+alpha2*alpha3))/denom)
                exparg=min(real(70.0,8),omwf*tau(mg,k)/mu0(mg))
-               Tdb=exp(-exparg)
+               Tdb=real(exp(-exparg))
                Rdif=rM*(1-E**2)/(1-(E*rM)**2)
                Tdif=E*(1-rM**2)/(1-(E*rM)**2)
                Rdir=-gam2*Rdif-gam1*Tdb*Tdif+gam1

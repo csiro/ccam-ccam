@@ -115,8 +115,8 @@ c     real htop(ifull),hbot(ifull) not used
       logical ofirst,oshal
 
 !     following are all equivalenced to work2 arrays (see below)
-      real iptb(ifull),ql(ifull),ithtb(ifull),tl(ifull),tne(ifull),
-     . qne(ifull),p(ifull),tse(ifull),qse(ifull),botchk(ifull),
+      real iptb(ifull),ithtb(ifull),
+     . p(ifull),botchk(ifull),
      . tthbt(ifull),tpsp(ifull),apesp(ifull),tthes(ifull),tq(ifull)
       real tp(ifull),p00(ifull),bthe00(ifull),t00(ifull),p10(ifull),
      . sthe00(ifull),t10(ifull),p01(ifull),bthe10(ifull),t01(ifull),
@@ -272,7 +272,7 @@ c--------------base and scaling factor for spec. humidity---------------
 c
 !      do iq=2*il+1,ifull-2*il-2  ! DARLAM
        do iq=1,ifull
-         ittbk=ittb(iq)
+         ittbk=nint(ittb(iq))
          bqs00(iq)=qs0(ittbk)
          sqs00(iq)=sqs(ittbk)
          bqs10(iq)=qs0(ittbk+1)
@@ -311,8 +311,8 @@ c          endif
 c--------------saturation pressure at four surrounding table pts.-------
 !      do iq=2*il+1,ifull-2*il-2  ! DARLAM
        do iq=1,ifull
-        iqbetts=iqtb(iq)
-        it=ittb(iq)
+        iqbetts=nint(iqtb(iq))
+        it=nint(ittb(iq))
         p00(iq)=ptbl(iqbetts  ,it  )
         p10(iq)=ptbl(iqbetts+1,it  )
         p01(iq)=ptbl(iqbetts  ,it+1)
@@ -432,7 +432,7 @@ c
 c--------------base and scaling factor for the--------------------------
 !      do iq=2*il+1,ifull-2*il-2  ! DARLAM
        do iq=1,ifull
-        iptbk=iptb(iq)
+        iptbk=nint(iptb(iq))
         bthe00(iq)=the0(iptbk)
         sthe00(iq)=sthe(iptbk)
         bthe10(iq)=the0(iptbk+1)
@@ -471,8 +471,8 @@ c
 c--------------temperature at four surrounding tt table pts.------------
 !      do iq=2*il+1,ifull-2*il-2  ! DARLAM
        do iq=1,ifull
-        ith=ithtb(iq)
-        ip =iptb (iq)
+        ith=nint(ithtb(iq))
+        ip =nint(iptb (iq))
         t00(iq)=ttbl(ith  ,ip  )
         t10(iq)=ttbl(ith+1,ip  )
         t01(iq)=ttbl(ith  ,ip+1)
@@ -553,8 +553,8 @@ c     print*,'cucnvc:2*il+1,ifull-2*il-2= ',2*il+1,ifull-2*il-2
 c
 c************* main horizontal loop for convection *********************
 c
-      lbotk=lbot(iq)
-      ltpk =ltop(iq)
+      lbotk=nint(lbot(iq))
+      ltpk =nint(ltop(iq))
 c
 c--------------adjust for any cloud at least two layers thick-----------
 c
@@ -910,7 +910,7 @@ c--------------freezing level at or above the cloud top-----------------
 c
       l0m1=l0-1
 c     print 112,pk0,pkt
-112   format('pk0,pkt= ',2(' ',E20.14))
+c112   format('pk0,pkt= ',2(' ',E20.14))
       go to 440
 c
 c--------------temperature reference profile above freezing level-------
@@ -949,7 +949,7 @@ c     else
 c       print*,'pk0.NE.pkt,(lb-l0)=',(lb-l0)
 c     endif
 c     print 111,pk0,pkt,pkb
-111   format('before loop 450:pk0,pkt,pkb= ',3('  ',E20.14))
+c111   format('before loop 450:pk0,pkt,pkb= ',3('  ',E20.14))
 c     print*,'before loop 450,ltpk,lb= ',ltpk,lb
       do 450 l=ltpk,lb
 c        print*,'loop 450: (lb-l0),l= ',(lb-l0),l
@@ -1114,7 +1114,7 @@ c
       if ( dentpy.lt.epsntp .or. preck.le.0. ) then
          cldefi(iq)=efimn
 ccccc    ltpk=lbot(iq)
-         lbm1=lbot(iq)-1
+         lbm1=nint(lbot(iq)-1.)
 c
 c *** checking from cloudtop downward, if the static stability decreases
 c *** by more than dthvt degrees/deta, then set the cloudtop for swapped
@@ -1133,7 +1133,7 @@ ccccc      if ( d2thv.gt.dthvt ) ltpk=l
            endif
  695     continue
 c
-         if ( ltpk.lt.lbot(iq)-lsh ) ltpk=lbot(iq)-lsh
+         if ( ltpk.lt.lbot(iq)-lsh ) ltpk=nint(lbot(iq)-lsh)
          if ( ltpk.gt.lbot(iq)-2   ) go to 310
 c
          ltop(iq)=ltpk

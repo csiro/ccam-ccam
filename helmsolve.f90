@@ -68,7 +68,6 @@ integer, parameter :: itrend   =2  ! number of iterations relaxing the solution 
 real, parameter :: dfac=0.25       ! adjustment for grid spacing after MG restriction
 logical, save :: sorfirst=.true.
 logical, save :: zzfirst =.true.
-logical, save :: mlofirst=.true.
 
 
 contains
@@ -113,8 +112,8 @@ real, dimension(ifull) :: aa, bb, cc
 real, save ::  axel
 real, save :: dtsave = 0.
 integer, save :: meth, nx_max
-integer iq, iter, k, nx, j, jx, i, klim, klimnew, ierr
-integer iqg, ig, jg, ng, tg, n, isc, iec
+integer iq, iter, k, nx, klim, klimnew
+integer isc, iec
 integer, dimension(kl) :: iters
 integer, dimension(1) :: idum
 
@@ -1217,12 +1216,11 @@ real, intent(in) :: rhs(ifull,kl)              ! RHS
 real, dimension(ifull,kl) :: fac, invfac, v, sx
 real, dimension(ifull+iextra,kl) :: d, r, h
 
-real, dimension(kl) :: delta_0, delta_1, tau, alpha, beta, smag, &
+real, dimension(kl) :: alpha, beta, smag, &
                        gamma_1, sigma, delta
-real, dimension(kl) :: gdelta_0, gdelta_1, gsmag, galpha, ggamma_0, &
+real, dimension(kl) :: gsmag, ggamma_0, &
                        ggamma_1, gsigma, gdelta
-real, dimension(3*kl) :: arr, garr
-integer :: iq, iter, k, klim, ierr
+integer :: iq, iter, k, klim
 logical, save :: ilustart = .true.
 real, save :: factest
 complex, dimension(3*kl) :: local_sum, global_sum
@@ -1681,8 +1679,8 @@ include 'parmdyn.h'
 
 integer, dimension(kl) :: iters
 integer, dimension(mg_minsize,kl) :: indy
-integer itrc,itr,ng,ng4,g,gb,k,jj,i,j,iq,ng_x
-integer klimc,knew,klim,ir,ic
+integer itr,ng,ng4,g,k,jj,i,j,iq
+integer knew,klim,ir,ic
 integer nc,n,iq_a,iq_b,iq_c,iq_d
 integer isc,iec
 real, dimension(ifull+iextra,kl), intent(inout) :: iv
@@ -1698,7 +1696,7 @@ real, dimension(mg_maxsize,2*kl) :: w
 real, dimension(ifull+iextra,kl) :: vdum
 real, dimension(ifullmaxcol) :: xdum
 real, dimension(2*kl,2) :: smaxmin_g
-real, dimension(kl) :: dsolmax_g,savg,sdif,dsolmax_l
+real, dimension(kl) :: dsolmax_g,savg,sdif
 
 call START_LOG(helm_begin)
 
@@ -1765,14 +1763,15 @@ do i=1,itrbgn
     isc = ifullcol_border(nc) + 1
     iec = ifullcol(nc)
     do k=1,kl
+      ! MJT notes - for uniform decomposition (maxcolour=3) we can elimintate xdum
       xdum(isc:iec) = ( zznc(isc:iec,nc)*iv(iqn(isc:iec,nc),k)      &
                       + zzwc(isc:iec,nc)*iv(iqw(isc:iec,nc),k)      &
                       + zzec(isc:iec,nc)*iv(iqe(isc:iec,nc),k)      &
                       + zzsc(isc:iec,nc)*iv(iqs(isc:iec,nc),k)      &
                       - rhsc(isc:iec,k,nc) )*rhelmc(isc:iec,k,nc)
       iv(iqx(isc:iec,nc),k) = xdum(isc:iec)
+      iv(iqx(1:isc-1,nc),k) = iv_new(iqx(1:isc-1,nc),k)      
     end do
-    iv(iqx(1:isc-1,nc),1:kl) = iv_new(iqx(1:isc-1,nc),1:kl)
     call bounds_colour_recv(iv,nc)
   end do
 end do
@@ -1781,9 +1780,9 @@ end do
 do k=1,kl
   w(1:ifull,k)=-izzn(:)*iv(in,k)-izzw(:)*iv(iw,k)-izze(:)*iv(ie,k)-izzs(:)*iv(is,k) &
                +jrhs(:,k)+iv(1:ifull,k)*(ihelm(:,k)-izz(:))
+  ! also include ihelm weights for upscaled grid
+  w(1:ifull,k+kl)=ihelm(1:ifull,k)
 end do
-! also include ihelm weights for upscaled grid
-w(1:ifull,kl+1:2*kl)=ihelm(1:ifull,1:kl)
 
 ! For when the inital grid cannot be upscaled - note helm and smaxmin_g are also included
 call mgcollect(1,w(:,1:2*kl),smaxmin_g(1:2*kl,1:2))
@@ -1816,9 +1815,9 @@ do g=2,gmax
   end do
   call mgbounds(g,v(:,1:kl,g))
 
-  ! MJT notes - some groups use colours for the following smoothing, due to better convegence
-  ! However, there is an overhead with many small messages.  Here we only smooth once
-  ! after the first guess, so we will use a single bounds call
+  ! MJT notes - some groups use colours for the following smoothing, due to better convegence.
+  ! However, there is an overhead with many small messages.  Here we will use a single bounds call
+  ! per iteration (usually only a single iteration after the initial guess above).
   do i=2,itrbgn
     do k=1,kl
       ! post smoothing
@@ -1832,17 +1831,17 @@ do g=2,gmax
   
   do k=1,kl
     ! residual
-    w(1:ng,k)=-mg(g)%zze(1:ng)*v(mg(g)%ie(1:ng),k,g)-mg(g)%zzw(1:ng)*v(mg(g)%iw(1:ng),k,g) &
-              -mg(g)%zzn(1:ng)*v(mg(g)%in(1:ng),k,g)-mg(g)%zzs(1:ng)*v(mg(g)%is(1:ng),k,g) &
+    w(1:ng,k)=-mg(g)%zze(1:ng)*v(mg(g)%ie(1:ng),k,g)-mg(g)%zzw(1:ng)*v(mg(g)%iw(1:ng),k,g)   &
+              -mg(g)%zzn(1:ng)*v(mg(g)%in(1:ng),k,g)-mg(g)%zzs(1:ng)*v(mg(g)%is(1:ng),k,g)   &
               +rhs(1:ng,k,g)+(helm(1:ng,k,g)-mg(g)%zz(1:ng))*v(1:ng,k,g)
     ! upscale helm weights
-    w(1:ng,kl+k)=helm(1:ng,k,g)
+    w(1:ng,k+kl)=helm(1:ng,k,g)      
   end do
 
   ! restriction
   ! (calculate coarser grid before mgcollect as more work is done in parallel)
   ng=mg(g)%ifull_fine
-  rhs(1:ng,1:2*kl,g+1)=0.25*(w(mg(g)%fine(1:ng)  ,1:2*kl)+w(mg(g)%fine_n(1:ng) ,1:2*kl)  &
+  rhs(1:ng,1:2*kl,g+1)=0.25*(w(mg(g)%fine(1:ng)  ,1:2*kl)+w(mg(g)%fine_n(1:ng) ,1:2*kl)     &
                             +w(mg(g)%fine_e(1:ng),1:2*kl)+w(mg(g)%fine_ne(1:ng),1:2*kl))
 
   ! merge grids if insufficent points on this processor - note helm and smaxmin_g are also included
@@ -1903,8 +1902,8 @@ do g=gmax,2,-1
   end do
   do k=1,kl
     ! post smoothing
-    v(1:ng,k,g)=(mg(g)%zze(1:ng)*w(mg(g)%ie(1:ng),k)+mg(g)%zzw(1:ng)*w(mg(g)%iw(1:ng),k) &
-                +mg(g)%zzn(1:ng)*w(mg(g)%in(1:ng),k)+mg(g)%zzs(1:ng)*w(mg(g)%is(1:ng),k) &
+    v(1:ng,k,g)=(mg(g)%zze(1:ng)*w(mg(g)%ie(1:ng),k)+mg(g)%zzw(1:ng)*w(mg(g)%iw(1:ng),k)   &
+                +mg(g)%zzn(1:ng)*w(mg(g)%in(1:ng),k)+mg(g)%zzs(1:ng)*w(mg(g)%is(1:ng),k)   &
                 -rhs(1:ng,k,g))/(helm(1:ng,k,g)-mg(g)%zz(1:ng))
   end do    
   call mgbounds(g,v(:,1:kl,g),corner=.true.)
@@ -2017,8 +2016,8 @@ do i=1,itrend
                       + zzsc(isc:iec,nc)*iv(iqs(isc:iec,nc),k)      &
                       - rhsc(isc:iec,k,nc) )*rhelmc(isc:iec,k,nc)
       iv(iqx(isc:iec,nc),k) = xdum(isc:iec)
+      iv(iqx(1:isc-1,nc),k) = iv_new(iqx(1:isc-1,nc),k)
     end do
-    iv(iqx(1:isc-1,nc),1:kl) = iv_new(iqx(1:isc-1,nc),1:kl)    
     call bounds_colour_recv(iv,nc)
   end do
 end do
@@ -2072,8 +2071,8 @@ do itr=2,itr_mg
                         + zzsc(isc:iec,nc)*iv(iqs(isc:iec,nc),k)      &
                         - rhsc(isc:iec,k,nc) )*rhelmc(isc:iec,k,nc)
         iv(iqx(isc:iec,nc),k) = xdum(isc:iec)
+        iv(iqx(1:isc-1,nc),k) = iv_new(iqx(1:isc-1,nc),k)
       end do
-      iv(iqx(1:isc-1,nc),1:klim) = iv_new(iqx(1:isc-1,nc),1:klim)      
       call bounds_colour_recv(iv,nc,klim=klim)
     end do
   end do
@@ -2101,8 +2100,8 @@ do itr=2,itr_mg
                       + zzsc(isc:iec,nc)*iv(iqs(isc:iec,nc),k)      &
                       - rhsc(isc:iec,k,nc) )*rhelmc(isc:iec,k,nc)
       iv(iqx(isc:iec,nc),k) = xdum(isc:iec)
+      iv(iqx(1:isc-1,nc),k) = iv_new(iqx(1:isc-1,nc),k) 
     end do
-    iv(iqx(1:isc-1,nc),1:klim) = iv_new(iqx(1:isc-1,nc),1:klim)      
     call bounds_colour_recv(iv,nc,klim=klim)
   end do
   
@@ -2354,8 +2353,8 @@ do itr=2,itr_mg
                         + zzsc(isc:iec,nc)*iv(iqs(isc:iec,nc),k)      &
                         - rhsc(isc:iec,k,nc) )*rhelmc(isc:iec,k,nc)
         iv(iqx(isc:iec,nc),k) = xdum(isc:iec)
+        iv(iqx(1:isc-1,nc),k) = iv_new(iqx(1:isc-1,nc),k)
       end do
-      iv(iqx(1:isc-1,nc),1:klim) = iv_new(iqx(1:isc-1,nc),1:klim)      
       call bounds_colour_recv(iv,nc,klim=klim)
     end do
   end do
@@ -2407,7 +2406,7 @@ integer, intent(out) :: totits
 integer, dimension(mg_minsize) :: indy
 integer itr,itrc,g,ng,ng4,n,i,j,ir,ic,jj,iq,k
 integer iq_a,iq_b,iq_c,iq_d
-integer nc,gb,isc,iec
+integer nc,isc,iec
 real, intent(in) :: tol,itol
 real, intent(out) :: maxglobseta,maxglobip
 real, dimension(ifull+iextra), intent(inout) :: neta,ipice
@@ -2432,7 +2431,7 @@ real, dimension(mg_maxsize,gmax+1) :: hh
 real, dimension(mg_maxsize,gmax+1) :: rhs
 real, dimension(mg_maxsize,gmax+1) :: rhsice
 real, dimension(mg_maxsize,2) :: dsol
-real, dimension(mg_maxsize) :: ws,new
+real, dimension(mg_maxsize) :: ws
 real, dimension(ifull+iextra,2) :: dumc
 real, dimension(mg_maxsize,2) :: dumc_n,dumc_s,dumc_e,dumc_w
 real, dimension(mg_minsize,mg_minsize) :: helm_o
@@ -3135,10 +3134,10 @@ do itr=2,itr_mgice
   do i=2,itrbgn
     do nc=1,maxcolour
 
-      dumc_n(1:ifullcol(nc),:)=dumc(iqn(1:ifullcol(nc),nc),:)
-      dumc_s(1:ifullcol(nc),:)=dumc(iqs(1:ifullcol(nc),nc),:)
-      dumc_e(1:ifullcol(nc),:)=dumc(iqe(1:ifullcol(nc),nc),:)
-      dumc_w(1:ifullcol(nc),:)=dumc(iqw(1:ifullcol(nc),nc),:)
+      dumc_n(1:ifullcol(nc),1:2)=dumc(iqn(1:ifullcol(nc),nc),1:2)
+      dumc_s(1:ifullcol(nc),1:2)=dumc(iqs(1:ifullcol(nc),nc),1:2)
+      dumc_e(1:ifullcol(nc),1:2)=dumc(iqe(1:ifullcol(nc),nc),1:2)
+      dumc_w(1:ifullcol(nc),1:2)=dumc(iqw(1:ifullcol(nc),nc),1:2)
       
       isc = 1
       iec = ifullcol_border(nc)
@@ -3344,10 +3343,10 @@ do itr=2,itr_mgice
     call mgbounds(g,v(:,1:2,g))
     
     do i=2,itrbgn
-      dumc_n(1:ng,:)=v(mg(g)%in,1:2,g)
-      dumc_s(1:ng,:)=v(mg(g)%is,1:2,g)
-      dumc_e(1:ng,:)=v(mg(g)%ie,1:2,g)
-      dumc_w(1:ng,:)=v(mg(g)%iw,1:2,g)
+      dumc_n(1:ng,1:2)=v(mg(g)%in,1:2,g)
+      dumc_s(1:ng,1:2)=v(mg(g)%is,1:2,g)
+      dumc_e(1:ng,1:2)=v(mg(g)%ie,1:2,g)
+      dumc_w(1:ng,1:2)=v(mg(g)%iw,1:2,g)
 
       ! ocean
       ! post smoothing
@@ -3793,6 +3792,8 @@ real sumx
 integer, dimension(mg_minsize), intent(in) :: indy
 integer i,ii,ll
 
+ii=0
+
 do i=1,mg_minsize
   ii=i
   ll=indy(i)
@@ -3826,7 +3827,7 @@ include 'newmpar.h'
 include 'parm.h'
 include 'parmdyn.h'
 
-integer g,gp,np,iq,iqq,iql,iproc,xlen,nn,ii,jj
+integer g,gp,np,iq,iqq,iql,nn,ii,jj
 integer mipan,mjpan,hipan,hjpan,mil_g,iia,jja
 integer i,j,n,mg_npan,mxpr,mypr,sii,eii,sjj,ejj
 integer cid,ix,jx,colour,rank,ncol,nrow

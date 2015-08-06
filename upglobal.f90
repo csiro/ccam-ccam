@@ -56,11 +56,13 @@ include 'parmdyn.h'
 include 'parmhor.h'  ! mhint, m_bs, nt_adv
 
 integer, parameter :: ntest=0       ! ~8+ for diagnostic stability tests
-integer ii,intsch, iq, jj,k, kk, ntr, ierr
-integer l, idjdd, nstart, nend, ntot
-integer, save :: num_hight = 0, numunstab = 0
+integer ii, intsch, iq, jj, k, kk
+integer idjdd, nstart, nend, ntot
+integer, save :: numunstab = 0
 integer, dimension(ifull) :: nits, nvadh_pass
-real, save, allocatable, dimension(:,:):: tnsav,unsav,vnsav ! for npex=-1
+#ifdef debug
+integer, save :: num_hight = 0
+#endif
 real, dimension(ifull+iextra,kl,10) :: duma
 real, dimension(ifull+iextra,kl) :: uc, vc, wc, dd
 real, dimension(ifull+iextra) :: aa
@@ -155,7 +157,7 @@ end do     ! k loop
 !-------------------------moved up here May 06---------------------------
 ! N.B. this moved one is doing vadv on just extra pslx terms      
 sdmx(:) = maxval(abs(sdot),2)
-nits(:)=1+sdmx(:)/2
+nits(:)=nint(1.+sdmx(:)/2.)
 nvadh_pass(:)=2*nits(:) ! use - for nvadu
 call vadvtvd(tx,ux,vx,nvadh_pass,nits)
 if( (diag.or.nmaxpr==1) .and. mydiag )then
@@ -281,20 +283,20 @@ do k=1,kl
   ! y3d(iq)=y3d(iq)/dena
   ! z3d(iq)=z3d(iq)/dena
   ! cross product n1xn2 into vec1
-  vec1x(1:ifull) = y3d(1:ifull,k)*z(1:ifull) - y(1:ifull)*z3d(1:ifull,k)
-  vec1y(1:ifull) = z3d(1:ifull,k)*x(1:ifull) - z(1:ifull)*x3d(1:ifull,k)
-  vec1z(1:ifull) = x3d(1:ifull,k)*y(1:ifull) - x(1:ifull)*y3d(1:ifull,k)
+  vec1x(1:ifull) = real(y3d(1:ifull,k)*z(1:ifull) - y(1:ifull)*z3d(1:ifull,k))
+  vec1y(1:ifull) = real(z3d(1:ifull,k)*x(1:ifull) - z(1:ifull)*x3d(1:ifull,k))
+  vec1z(1:ifull) = real(x3d(1:ifull,k)*y(1:ifull) - x(1:ifull)*y3d(1:ifull,k))
   denb(1:ifull) = vec1x(1:ifull)**2 + vec1y(1:ifull)**2 + vec1z(1:ifull)**2
   ! N.B. rotation formula is singular for small denb,
   ! but the rotation is unnecessary in this case
   where (denb>1.e-4)
-    vecdot(1:ifull) = x3d(1:ifull,k)*x(1:ifull) + y3d(1:ifull,k)*y(1:ifull) + z3d(1:ifull,k)*z(1:ifull)
-    vec2x(1:ifull) = x3d(1:ifull,k)*vecdot(1:ifull) - x(1:ifull)
-    vec2y(1:ifull) = y3d(1:ifull,k)*vecdot(1:ifull) - y(1:ifull)
-    vec2z(1:ifull) = z3d(1:ifull,k)*vecdot(1:ifull) - z(1:ifull)
-    vec3x(1:ifull) = x3d(1:ifull,k) - vecdot(1:ifull)*x(1:ifull)
-    vec3y(1:ifull) = y3d(1:ifull,k) - vecdot(1:ifull)*y(1:ifull)
-    vec3z(1:ifull) = z3d(1:ifull,k) - vecdot(1:ifull)*z(1:ifull)
+    vecdot(1:ifull) = real(x3d(1:ifull,k)*x(1:ifull) + y3d(1:ifull,k)*y(1:ifull) + z3d(1:ifull,k)*z(1:ifull))
+    vec2x(1:ifull) = real(x3d(1:ifull,k)*vecdot(1:ifull) - x(1:ifull))
+    vec2y(1:ifull) = real(y3d(1:ifull,k)*vecdot(1:ifull) - y(1:ifull))
+    vec2z(1:ifull) = real(z3d(1:ifull,k)*vecdot(1:ifull) - z(1:ifull))
+    vec3x(1:ifull) = real(x3d(1:ifull,k) - vecdot(1:ifull)*x(1:ifull))
+    vec3y(1:ifull) = real(y3d(1:ifull,k) - vecdot(1:ifull)*y(1:ifull))
+    vec3z(1:ifull) = real(z3d(1:ifull,k) - vecdot(1:ifull)*z(1:ifull))
     vdot1(1:ifull) = (vec1x(1:ifull)*uc(1:ifull,k) + vec1y(1:ifull)*vc(1:ifull,k) + vec1z(1:ifull)*wc(1:ifull,k))/denb(1:ifull)
     vdot2(1:ifull) = (vec2x(1:ifull)*uc(1:ifull,k) + vec2y(1:ifull)*vc(1:ifull,k) + vec2z(1:ifull)*wc(1:ifull,k))/denb(1:ifull)
     uc(1:ifull,k) = vdot1(1:ifull)*vec1x(1:ifull) + vdot2(1:ifull)*vec3x(1:ifull)
@@ -306,9 +308,9 @@ if(diag)then
   if ( mydiag )then
     iq=idjd
     k=nlv
-    vec1x(iq) = y3d(iq,k)*z(iq) - y(iq)*z3d(iq,k)
-    vec1y(iq) = z3d(iq,k)*x(iq) - z(iq)*x3d(iq,k)
-    vec1z(iq) = x3d(iq,k)*y(iq) - x(iq)*y3d(iq,k)
+    vec1x(iq) = real(y3d(iq,k)*z(iq) - y(iq)*z3d(iq,k))
+    vec1y(iq) = real(z3d(iq,k)*x(iq) - z(iq)*x3d(iq,k))
+    vec1z(iq) = real(x3d(iq,k)*y(iq) - x(iq)*y3d(iq,k))
     denb(iq) = vec1x(iq)**2 + vec1y(iq)**2 + vec1z(iq)**2
     write(6,*) 'uc,vc,wc after nrot; denb = ',denb(iq)
   endif

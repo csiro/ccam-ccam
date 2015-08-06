@@ -62,7 +62,7 @@ include 'newmpar.h'
 include 'filnames.h'
       
 integer, intent(in) :: jyear,jmonth
-integer nlev,i,l,k,ierr
+integer nlev,i,l,k
 integer ncstatus,ncid,tt
 integer valident,yy,mm,nn
 integer, dimension(1) :: iti
@@ -324,7 +324,7 @@ common/leap_yr/leap  ! 1 to allow leap years
 integer, intent(in) :: ipts,ilev,nlev,mins
 integer, intent(in), optional :: interpmeth
 integer ozoneintp ! ozone interpolation (0=simple, 1=integrate column)
-integer date,iq,ip,m,k1,jyear,jmonth
+integer date,iq,m,k1,jyear,jmonth
 real, dimension(ipts,ilev), intent(out) :: out
 real, dimension(ipts,nlev), intent(in) :: fpre,fmth,fnxt
 real, dimension(nlev), intent(in) :: fpres
@@ -335,7 +335,7 @@ real, dimension(nlev) :: o3inp,o3sum,b,c,d
 real, dimension(nlev,3) :: o3tmp
 real, dimension(12) :: monlen
 real, dimension(12), parameter :: oldlen= (/ 0.,31.,59.,90.,120.,151.,181.,212.,243.,273.,304.,334. /)
-real rang,fp,fjd,mino3
+real rang,fp,mino3
 
 if (present(interpmeth)) then
   ozoneintp=interpmeth
@@ -353,7 +353,7 @@ if (leap==1) then
 end if
 
 !     Time interpolation factors
-date = mins/1440.
+date = nint(mins/1440.)
 if (jmonth==12) then
   rang=(date-monlen(12))/31.
 else
@@ -591,7 +591,7 @@ real, parameter :: massratio = amo / amd
 integer :: lato3d  ! = jg  number of data latitudinal grid
 integer :: layo3d  ! = kg  number of data vertical layers
 integer :: lvlo3d  ! = lg  number of data vertical layer interfaces
-integer :: j, k, month, ierr
+integer :: j, k, month
 integer, parameter :: un = 16  ! Unit number for file
 real, dimension(kg) :: galt, gprs
 real, dimension(lg) :: gali
@@ -672,7 +672,7 @@ real, dimension(kg) :: oz    ! Column for this date and lat.
 real, dimension(lg) :: ozcol ! Integrated column
 real, dimension(kl+1) :: qo3p
 integer :: k1, jyear
-integer :: j, m1, m2, j1, j2, k, kk, k1min
+integer :: j, m1, m2, j1, j2, k
 real, dimension(kl+1) :: prh ! Half level pressure
 real :: fac1, fac2, tfac1, tfac2, date, theta
 

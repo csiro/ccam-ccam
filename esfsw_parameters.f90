@@ -127,11 +127,6 @@ subroutine esfsw_parameters_init
 !    esfsw_parameters_init is the constructor for esfsw_parameters_mod.
 !------------------------------------------------------------------
 
-!------------------------------------------------------------------
-!  local variables:
-
-      integer    ::  unit, ierr, io
-
 !---------------------------------------------------------------------
 !  local variables:
 !
@@ -200,10 +195,6 @@ subroutine esfsw_parameters_init
 !    mark the module as initialized.
 !------------------------------------------------------------------
       module_is_initialized = .true.
-
-!------------------------------------------------------------------
-9000  format ( '  NBANDS=  ', i4, '  NFRQPTS=', i4, &
-               '  NSTREAMS= ', i4, '  NH2OBANDS= ', i4 )
 
 !------------------------------------------------------------------
 

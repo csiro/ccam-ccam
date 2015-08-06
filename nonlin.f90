@@ -55,17 +55,14 @@ include 'parm.h'
 include 'parmdyn.h'  
 
 integer, parameter :: ntest=0
-integer iq, k, ng, ii, jj
-integer ierr
+integer iq, k
 integer, save :: num = 0
-real const_nh, contv, delneg, delpos, ratio
-real sumdiffb
+real const_nh, contv
 real, dimension(ifull,kl) :: aa,bb
 real, dimension(ifull+iextra,kl) :: p,phiv,tv
 real, dimension(ifull+iextra,2*kl) :: duma
-real, dimension(ifull,kl) :: dumt,dumu,dumv
 real, dimension(ifull) :: ddpds
-real, dimension(ifull) :: sdmx, spmax2, termlin
+real, dimension(ifull) :: spmax2, termlin
 real, allocatable, save, dimension(:) :: epstsav
       
 call START_LOG(nonlin_begin)

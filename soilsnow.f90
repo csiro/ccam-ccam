@@ -24,7 +24,7 @@
 !************************* soilsnowv follows  ****some to be vectorized*****
 subroutine soilsnowv
 
-use cc_mpi, only : mydiag, myid
+use cc_mpi, only : mydiag
 use diag_m
 use morepbl_m  ! need runoff
 use nsibd_m    ! soilm
@@ -329,7 +329,7 @@ real zshh,ww
 common/soilzs/zshh(ms+1),ww(ms)
       
 integer k,iq,ip,isoil
-real smelt,dtemp,sgamm,segg,evapsn
+real smelt,sgamm,segg,evapsn
 real snowflx0,snowflx1,snowflxr,snowflx2
 real snowflx3,totwet,dtotw,weting
 real sinfil,dwb,rnof5,smasstot
@@ -926,7 +926,7 @@ end subroutine smoisturev
 
 subroutine stempv(gammzz)
 
-use cc_mpi, only : mydiag, myid
+use cc_mpi, only : mydiag
 use nsibd_m
 use permsurf_m
 use soil_m     ! land
@@ -962,7 +962,7 @@ real, dimension(-2:ms) :: rhs
 real, dimension(-2:ms+1) :: coeff
 real, dimension(3) :: sconds
 real csice,cswat,rhowat,cgsnow,rhosnow
-real ew,ccf,ei,scondss,xx,xg,dtg,sgamm
+real ew,ccf,ei,scondss,xx,dtg,sgamm
 real xy
       
 data csice /2.100e3/, cswat /4.218e3/, rhowat /1000./  ! for calgammv

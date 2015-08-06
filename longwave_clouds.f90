@@ -116,11 +116,6 @@ subroutine longwave_clouds_init
 !    longwave_clouds_init is the constructor for longwave_clouds_mod.
 !--------------------------------------------------------------------
 
-!--------------------------------------------------------------------
-!  local variables:
-
-      integer               :: unit, ierr, io
-
 !---------------------------------------------------------------------
 !  local variables:
 !

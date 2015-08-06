@@ -74,7 +74,7 @@ real, dimension(ifull), intent(in) :: ps
 real, dimension(ifull,kl) :: erosion_scale
 real, dimension(ifull,kl) :: dqs, cfbar, qv
 real, dimension(ifull,kl) :: cf1, cfeq, a_dt, b_dt
-real, dimension(ifull,kl) :: dqsdT, mflx, gamma
+real, dimension(ifull,kl) :: dqsdT, gamma
 real, dimension(ifull,kl) :: aa, bb, cc, omega
 real, dimension(ifull,kl) :: cmflx, hlrvap, xf, at
 integer k

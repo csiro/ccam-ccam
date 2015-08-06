@@ -148,7 +148,7 @@ c   at t=100k.
       vtmp2(i,1)=aint(temp(i,1)*hp1)
       fxo(i,1)=vtmp2(i,1)-9.
       dtemp(i,1)=temp(i,1)-ten*vtmp2(i,1)
-      ixo(i,1)=fxo(i,1)
+      ixo(i,1)=nint(fxo(i,1))
 101   continue
 c 
 c---source function for combined band 1

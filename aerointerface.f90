@@ -68,7 +68,7 @@ include 'parmgeom.h'    ! Coordinate data
       
 integer, intent(in) :: kdatein
 integer ncstatus,ncid,i,j,varid,tilg
-integer ierr,jyear,jmonth
+integer jyear,jmonth
 integer premonth,nxtmonth
 integer, dimension(2) :: spos,npos
 integer, dimension(3) :: idum
@@ -490,11 +490,10 @@ include 'parm.h'        ! Model configuration
 include 'soilv.h'       ! Soil parameters
 
 integer jyear,jmonth,jday,jhour,jmin,mins,smins
-integer j,k,tt,ttx,iq
+integer j,k,tt,ttx
 integer, save :: sday=-9999
 integer, parameter :: updateoxidant = 1440 ! update prescribed oxidant fields once per day
 real dhr,fjd,sfjd,r1,dlt,alp,slag
-real, dimension(ifull,kl,naero) :: xtusav
 real, dimension(ifull,kl) :: oxout,zg,clcon,pccw,rhoa
 real, dimension(ifull,kl) :: tnhs,dz,tv
 real, dimension(ifull) :: coszro,taudar
@@ -588,7 +587,7 @@ end if
 ! better estimate of u10 and pblh.
 
 ! update prognostic aerosols
-call aldrcalc(dt,sig,sigh,dsig,zg,dz,fwet,wg,pblx,ps,tss,  &
+call aldrcalc(dt,sig,zg,dz,wg,pblx,ps,tss,                 &
               t,condc,snowd,taudar,fg,eg,u10,ustar,zo,     &
               land,fracice,sigmf,qg,qlg,qfg,cfrac,clcon,   &
               cldcon,pccw,rhoa,cdtq,ppfprec,ppfmelt,       &
@@ -652,14 +651,14 @@ real, dimension(imax,kl), intent(in) :: rhoa
 logical, intent(in), optional :: outconv
 logical convmode
 
-convmode=.true.
-if (present(outconv)) then
-  convmode=.not.outconv
+convmode = .true.
+if ( present(outconv) ) then
+  convmode = .not.outconv
 end if
 
-indirmode=abs(iaero)
-if (aeroindir==2) then
-  indirmode=0 ! option for no indirect effects
+indirmode = abs(iaero)
+if ( aeroindir==2 ) then
+  indirmode = 0 ! option for no indirect effects
 end if
 
 select case(indirmode)
@@ -678,9 +677,9 @@ select case(indirmode)
     elsewhere
       cdn(:,1)=cdrops_sh
     end where
-    do k=2,kl
+    do k = 2,kl
       cdn(:,k)=cdn(:,1)
-    enddo
+    end do
 end select
 
 return

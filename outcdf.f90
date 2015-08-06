@@ -52,7 +52,7 @@ include 'parm.h'
 
 integer iout,nwrite,nstagin
 integer, intent(in) :: jalbfix,nalpha,mins_rad
-character(len=80) :: co2out,radonout,surfout
+character(len=160) :: co2out,radonout,surfout
 character(len=20) :: qgout
 character(len=8) :: rundate
 
@@ -148,7 +148,7 @@ use cc_mpi                            ! CC MPI routines
 use cloudmod                          ! Prognostic cloud fraction
 use infile                            ! Input file routines
 use liqwpar_m                         ! Cloud water mixing ratios
-use mlo, only : wlev,mindep         & ! Ocean physics and prognostic arrays
+use mlo, only : mindep              & ! Ocean physics and prognostic arrays
     ,minwater,mxd,zomode,zoseaice   &
     ,factchseaice
 use mlodynamics                       ! Ocean dynamics
@@ -182,9 +182,9 @@ integer, dimension(4), save :: dima,dims,dimo
 integer, intent(in) :: jalbfix,nalpha,mins_rad
 integer itype, nstagin
 integer xdim,ydim,zdim,tdim,msdim,ocdim
-integer icy, icm, icd, ich, icmi, ics, idv, imode
+integer icy, icm, icd, ich, icmi, ics, idv
 integer namipo3
-integer, save :: idnc=0, iarch=0, idnc0=0
+integer, save :: idnc=0, iarch=0
 real, dimension(nrhead) :: ahead
 character(len=180) cdffile
 character(len=33) grdtim
@@ -553,7 +553,7 @@ if ( myid==0 .or. localhist ) then
 endif ! (myid==0.or.localhist)
       
 ! openhist writes some fields so needs to be called by all processes
-call openhist(iarch,itype,dima,localhist,idnc,nstagin,ixp,iyp,idlev,idnt,idms,idoc)
+call openhist(iarch,itype,dima,localhist,idnc,nstagin,ixp,iyp,idlev,idms,idoc)
 
 if ( myid==0 .or. localhist ) then
   if ( ktau==ntau ) then
@@ -567,7 +567,7 @@ end subroutine cdfout
       
 !--------------------------------------------------------------
 ! CREATE ATTRIBUTES AND WRITE OUTPUT
-subroutine openhist(iarch,itype,idim,local,idnc,nstagin,ixp,iyp,idlev,idnt,idms,idoc)
+subroutine openhist(iarch,itype,idim,local,idnc,nstagin,ixp,iyp,idlev,idms,idoc)
 
 use aerointerface                                ! Aerosol interface
 use aerosolldr                                   ! LDR prognostic aerosols
@@ -624,9 +624,9 @@ include 'parmdyn.h'                              ! Dynamics parameters
 include 'soilv.h'                                ! Soil parameters
 include 'version.h'                              ! Model version data
 
-integer ixp,iyp,idlev,idnt,idms,idoc
+integer ixp,iyp,idlev,idms,idoc
 integer i, idkdate, idktau, idktime, idmtimer, idnteg, idnter
-integer idv, iq, isoil, j, k, n, igas, idnc
+integer idv, iq, j, k, n, igas, idnc
 integer iarch, itype, nstagin, idum
 integer, dimension(4), intent(in) :: idim
 integer, dimension(3) :: jdim
@@ -634,7 +634,7 @@ integer, dimension(2) :: iduma
 real, dimension(ms) :: zsoil
 real, dimension(il_g) :: xpnt
 real, dimension(jl_g) :: ypnt
-real, dimension(ifull) :: aa,bb,cc
+real, dimension(ifull) :: aa
 real, dimension(ifull) :: ocndep,ocnheight
 real, dimension(ifull) :: qtot, tv
 real, dimension(ifull,kl) :: tmpry,rhoa
@@ -642,7 +642,7 @@ real, dimension(ifull,wlev,4) :: mlodwn
 real, dimension(ifull,11) :: micdwn
 real, dimension(ifull,28) :: atebdwn
 character(len=50) expdesc
-character(len=40) lname
+character(len=50) lname
 character(len=21) mnam,nnam
 character(len=8) vname
 character(len=3) trnum
@@ -2162,7 +2162,7 @@ if ( ngas>0 ) then
     ! reset arrays
     if ( writetrpm ) then
       trpm = 0.
-      npm  = 0.
+      npm  = 0
     endif
   end if
 endif  ! (ngasc>0)
@@ -2294,7 +2294,7 @@ integer, dimension(4) :: adim
 integer, dimension(3) :: sdim
 integer, dimension(1) :: start,ncount
 integer, dimension(2) :: iduma
-integer ierr,ixp,iyp,izp,old_mode
+integer ixp,iyp,izp
 integer icy,icm,icd,ich,icmi,ics
 integer i,j,n
 integer, save :: fncid = -1
@@ -2398,7 +2398,7 @@ if ( first ) then
     nahead(10)=mup
     nahead(11)=2 ! nem
     nahead(12)=mtimer
-    nahead(13)=0.        ! nmi
+    nahead(13)=0         ! nmi
     nahead(14)=nint(dt)  ! needed by cc2hist
     nahead(15)=0         ! not needed now 
     nahead(16)=nhor

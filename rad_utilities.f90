@@ -1323,11 +1323,6 @@ subroutine rad_utilities_init
 !    rad_utilities_init is the constructor for rad_uti;lities_mod.
 !---------------------------------------------------------------------
 
-!------------------------------------------------------------------
-!  local variables:
-
-      integer    ::  unit, ierr, io
-
 !---------------------------------------------------------------------
 !  local variables:
 !
@@ -1632,8 +1627,7 @@ integer, dimension(:,:,:), intent(out) :: ix
 !  local variables:
 
       real, dimension (size(x,1), size(x,2), size(x,3))  ::  fx
-      real        ::  table_min,  table_inc
-      integer     ::  k, table_col
+      integer     ::  k
 
 !---------------------------------------------------------------------
 !  local variables:
@@ -3141,7 +3135,6 @@ subroutine get_radiative_param(text_in_scheme,text_in_param, &
 character(len=*), intent(in)    :: text_in_scheme, text_in_param
 logical, intent(out)            :: rad_forc_online
 character(len=*), intent(out)   :: tr_rad_name,tr_clim_name
-integer                         :: flag
 
 
 !if(lowercase(trim(text_in_scheme(1:6))) == 'online') then
@@ -3198,86 +3191,84 @@ subroutine rad_utilities_end
 end subroutine rad_utilities_end
 
 
-subroutine aerosol_props_type_eq(aerosol_props_out,aerosol_props_in)
-
-   type(aerosol_properties_type), intent(inout) :: aerosol_props_out
-   type(aerosol_properties_type), intent(in)    :: aerosol_props_in
-
-!  Need to add error trap to catch unallocated aerosol_props_in
-   if (Allocated(aerosol_props_in%aerextband)) then
-     aerosol_props_out%aerextband    = aerosol_props_in%aerextband
-     aerosol_props_out%aerssalbband    = aerosol_props_in%aerssalbband
-     aerosol_props_out%aerasymmband    = aerosol_props_in%aerasymmband
-   else
-      !call error_mesg ('=', 'extband', FATAL)
-      stop
-   endif
-   if (Allocated(aerosol_props_in%aerextbandlw)) then
-     aerosol_props_out%aerextbandlw    = aerosol_props_in%aerextbandlw
-     aerosol_props_out%aerssalbbandlw  = aerosol_props_in%aerssalbbandlw
-     aerosol_props_out%aerextbandlw_cn =    &
-                                       aerosol_props_in%aerextbandlw_cn
-     aerosol_props_out%aerssalbbandlw_cn  =    &
-                                     aerosol_props_in%aerssalbbandlw_cn
-   else
-      !call error_mesg ('=', 'extbandlw', FATAL)
-       stop
-   endif
-  if (Rad_control%volcanic_sw_aerosols) then
-   if (Allocated(aerosol_props_in%sw_ext)) then
-     aerosol_props_out%sw_ext        = aerosol_props_in%sw_ext     
-     aerosol_props_out%sw_ssa          = aerosol_props_in%sw_ssa       
-     aerosol_props_out%sw_asy          = aerosol_props_in%sw_asy
-   else
-      !call error_mesg ('=', 'sw volc', FATAL)
-      stop
-   endif
-  endif
-  if (Rad_control%volcanic_lw_aerosols) then
-   if (Allocated(aerosol_props_in%lw_ext)) then
-     aerosol_props_out%lw_ext        = aerosol_props_in%lw_ext     
-     aerosol_props_out%lw_ssa          = aerosol_props_in%lw_ssa       
-     aerosol_props_out%lw_asy          = aerosol_props_in%lw_asy
-   else
-      !call error_mesg ('=', 'lw volc', FATAL)
-      stop
-   endif
-  endif
-   if (allocated(aerosol_props_in%sulfate_index)) then
-     aerosol_props_out%sulfate_index = aerosol_props_in%sulfate_index
-     aerosol_props_out%optical_index = aerosol_props_in%optical_index
-     aerosol_props_out%omphilic_index = aerosol_props_in%omphilic_index
-     aerosol_props_out%bcphilic_index = aerosol_props_in%bcphilic_index
-     aerosol_props_out%seasalt1_index = aerosol_props_in%seasalt1_index
-     aerosol_props_out%seasalt2_index = aerosol_props_in%seasalt2_index
-     aerosol_props_out%seasalt3_index = aerosol_props_in%seasalt3_index
-     aerosol_props_out%seasalt4_index = aerosol_props_in%seasalt4_index
-     aerosol_props_out%seasalt5_index = aerosol_props_in%seasalt5_index
-   else
-      !call error_mesg ('=', 'index  ', FATAL)
-       stop
-   endif
-
-   if (Allocated(aerosol_props_in%ivol)) then
-     aerosol_props_out%ivol = aerosol_props_in%ivol
-   else
-      !call error_mesg ('=', 'ivol   ', FATAL)
-      stop
-   endif
-   
-     aerosol_props_out%sulfate_flag = aerosol_props_in%sulfate_flag
-     aerosol_props_out%omphilic_flag = aerosol_props_in%omphilic_flag
-     aerosol_props_out%bcphilic_flag = aerosol_props_in%bcphilic_flag
-     aerosol_props_out%seasalt1_flag = aerosol_props_in%seasalt1_flag
-     aerosol_props_out%seasalt2_flag = aerosol_props_in%seasalt2_flag
-     aerosol_props_out%seasalt3_flag = aerosol_props_in%seasalt3_flag
-     aerosol_props_out%seasalt4_flag = aerosol_props_in%seasalt4_flag
-     aerosol_props_out%seasalt5_flag = aerosol_props_in%seasalt5_flag
-     aerosol_props_out%bc_flag = aerosol_props_in%bc_flag
-
-
-
-end subroutine aerosol_props_type_eq
+!subroutine aerosol_props_type_eq(aerosol_props_out,aerosol_props_in)
+!
+!   type(aerosol_properties_type), intent(inout) :: aerosol_props_out
+!   type(aerosol_properties_type), intent(in)    :: aerosol_props_in
+!
+!!  Need to add error trap to catch unallocated aerosol_props_in
+!   if (Allocated(aerosol_props_in%aerextband)) then
+!     aerosol_props_out%aerextband    = aerosol_props_in%aerextband
+!     aerosol_props_out%aerssalbband    = aerosol_props_in%aerssalbband
+!     aerosol_props_out%aerasymmband    = aerosol_props_in%aerasymmband
+!   else
+!      !call error_mesg ('=', 'extband', FATAL)
+!      stop
+!   endif
+!   if (Allocated(aerosol_props_in%aerextbandlw)) then
+!     aerosol_props_out%aerextbandlw    = aerosol_props_in%aerextbandlw
+!     aerosol_props_out%aerssalbbandlw  = aerosol_props_in%aerssalbbandlw
+!     aerosol_props_out%aerextbandlw_cn =    &
+!                                       aerosol_props_in%aerextbandlw_cn
+!     aerosol_props_out%aerssalbbandlw_cn  =    &
+!                                     aerosol_props_in%aerssalbbandlw_cn
+!   else
+!      !call error_mesg ('=', 'extbandlw', FATAL)
+!       stop
+!   endif
+!  if (Rad_control%volcanic_sw_aerosols) then
+!   if (Allocated(aerosol_props_in%sw_ext)) then
+!     aerosol_props_out%sw_ext        = aerosol_props_in%sw_ext     
+!     aerosol_props_out%sw_ssa          = aerosol_props_in%sw_ssa       
+!     aerosol_props_out%sw_asy          = aerosol_props_in%sw_asy
+!   else
+!      !call error_mesg ('=', 'sw volc', FATAL)
+!      stop
+!   endif
+!  endif
+!  if (Rad_control%volcanic_lw_aerosols) then
+!   if (Allocated(aerosol_props_in%lw_ext)) then
+!     aerosol_props_out%lw_ext        = aerosol_props_in%lw_ext     
+!     aerosol_props_out%lw_ssa          = aerosol_props_in%lw_ssa       
+!     aerosol_props_out%lw_asy          = aerosol_props_in%lw_asy
+!   else
+!      !call error_mesg ('=', 'lw volc', FATAL)
+!      stop
+!   endif
+!  endif
+!   if (allocated(aerosol_props_in%sulfate_index)) then
+!     aerosol_props_out%sulfate_index = aerosol_props_in%sulfate_index
+!     aerosol_props_out%optical_index = aerosol_props_in%optical_index
+!     aerosol_props_out%omphilic_index = aerosol_props_in%omphilic_index
+!     aerosol_props_out%bcphilic_index = aerosol_props_in%bcphilic_index
+!     aerosol_props_out%seasalt1_index = aerosol_props_in%seasalt1_index
+!     aerosol_props_out%seasalt2_index = aerosol_props_in%seasalt2_index
+!     aerosol_props_out%seasalt3_index = aerosol_props_in%seasalt3_index
+!     aerosol_props_out%seasalt4_index = aerosol_props_in%seasalt4_index
+!     aerosol_props_out%seasalt5_index = aerosol_props_in%seasalt5_index
+!   else
+!      !call error_mesg ('=', 'index  ', FATAL)
+!       stop
+!   endif
+!
+!   if (Allocated(aerosol_props_in%ivol)) then
+!     aerosol_props_out%ivol = aerosol_props_in%ivol
+!   else
+!      !call error_mesg ('=', 'ivol   ', FATAL)
+!      stop
+!   endif
+!   
+!     aerosol_props_out%sulfate_flag = aerosol_props_in%sulfate_flag
+!     aerosol_props_out%omphilic_flag = aerosol_props_in%omphilic_flag
+!     aerosol_props_out%bcphilic_flag = aerosol_props_in%bcphilic_flag
+!     aerosol_props_out%seasalt1_flag = aerosol_props_in%seasalt1_flag
+!     aerosol_props_out%seasalt2_flag = aerosol_props_in%seasalt2_flag
+!     aerosol_props_out%seasalt3_flag = aerosol_props_in%seasalt3_flag
+!     aerosol_props_out%seasalt4_flag = aerosol_props_in%seasalt4_flag
+!     aerosol_props_out%seasalt5_flag = aerosol_props_in%seasalt5_flag
+!     aerosol_props_out%bc_flag = aerosol_props_in%bc_flag
+!
+!end subroutine aerosol_props_type_eq
 
 
 

@@ -54,12 +54,12 @@ include 'newmpar.h'
 
 ! river water height
 allocate(watbdy(ifull+iextra))
-watbdy=0.
+watbdy(1:ifull+iextra)=0.
 
 ! prep land-sea mask
 allocate(ee(ifull+iextra))
-ee=0.
-where(.not.land)
+ee(1:ifull+iextra)=0.
+where(.not.land(1:ifull))
   ee(1:ifull)=1.
 end where
 call bounds(ee,nrows=2)
@@ -89,7 +89,7 @@ include 'const_phys.h'
 include 'parm.h'
 include 'soilv.h'
 
-integer i,ii,iq,ierr,k
+integer i,k
 integer nit
 integer, dimension(ifull,4) :: xp
 real, dimension(ifull+iextra) :: netflx,newwat,zsadj
@@ -130,7 +130,7 @@ do nit=1,2
 
   ! calculate slopes
   do i=1,4
-    zsadj=0.1*max(0.5*(newwat+watbdy)-maxwaterlvl,0.) ! increase at 100x
+    zsadj(1:ifull+iextra)=0.1*max(0.5*(newwat(1:ifull+iextra)+watbdy(1:ifull+iextra))-maxwaterlvl,0.) ! increase at 100x
     where ( (ee(1:ifull)*ee(xp(:,i)))>0.5 )
       slope(:,i)=0. ! no orographic slope within ocean bounds
     elsewhere
@@ -158,32 +158,32 @@ do nit=1,2
   ! water outflow
   do i=1,4
     where (netflx(1:ifull)>1.E-10)
-      ftx(:,i)=-fta(:,i)/netflx(1:ifull) ! max fraction of total outgoing flux
-      flow(:,i)=watbdy(1:ifull)*min(fta(:,i),ftx(:,i)) ! (kg/m^2)
+      ftx(1:ifull,i)=-fta(1:ifull,i)/netflx(1:ifull) ! max fraction of total outgoing flux
+      flow(1:ifull,i)=watbdy(1:ifull)*min(fta(1:ifull,i),ftx(1:ifull,i)) ! (kg/m^2)
     elsewhere
-      flow(:,i)=0.
+      flow(1:ifull,i)=0.
     end where
   end do
-  newwat(1:ifull)=newwat(1:ifull)+sum(flow,2)
+  newwat(1:ifull)=newwat(1:ifull)+sum(flow(1:ifull,1:4),2)
 
   ! inflow
   ! water inflow
   do i=1,4
     vel=min(0.35*sqrt(max(-slope(:,i),0.)/0.00005),5.) ! from Miller et al (1994)
     ftb(:,i)=dt*vel*idp(:,i)            ! incomming flux
-    where (netflx(xp(:,i))>1.E-10)
-      fty(:,i)=ftb(:,i)/netflx(xp(:,i)) ! max fraction of flux from outgoing cel
-      flow(:,i)=watbdy(xp(:,i))*min(ftb(:,i),fty(:,i)) ! (kg/m^2)
-      flow(:,i)=flow(:,i)*(em(1:ifull)/em(xp(:,i)))**2 ! change in gridbox area
+    where (netflx(xp(1:ifull,i))>1.E-10)
+      fty(1:ifull,i)=ftb(1:ifull,i)/netflx(xp(1:ifull,i)) ! max fraction of flux from outgoing cel
+      flow(1:ifull,i)=watbdy(xp(1:ifull,i))*min(ftb(1:ifull,i),fty(1:ifull,i)) ! (kg/m^2)
+      flow(1:ifull,i)=flow(1:ifull,i)*(em(1:ifull)/em(xp(1:ifull,i)))**2 ! change in gridbox area
     elsewhere
-      flow(:,i)=0.
+      flow(1:ifull,i)=0.
     end where
   end do
-  newwat(1:ifull)=newwat(1:ifull)+sum(flow,2)
+  newwat(1:ifull)=newwat(1:ifull)+sum(flow(1:ifull,1:4),2)
 
 end do
 
-watbdy(1:ifull)=max(newwat,0.)
+watbdy(1:ifull)=max(newwat(1:ifull),0.)
 
 !--------------------------------------------------------------------
 ! Water losses over land basins
@@ -197,10 +197,10 @@ case(0)
     rate=min(dt/(8.*3600.),1.) ! MJT suggestion
     if (nsib==6.or.nsib==7) then
       ! CABLE
-      tmpry=watbdy(1:ifull)
+      tmpry(1:ifull)=watbdy(1:ifull)
       call cableinflow(tmpry,rate)
-      soilsink=(tmpry-watbdy(1:ifull))*(1.-sigmu(:))
-      newwat(1:ifull)=newwat(1:ifull)+soilsink
+      soilsink(1:ifull)=(tmpry(1:ifull)-watbdy(1:ifull))*(1.-sigmu(1:ifull))
+      newwat(1:ifull)=newwat(1:ifull)+soilsink(1:ifull)
     else
       ! Standard land surface model
       deltmpry=0.
@@ -224,24 +224,24 @@ case(0)
     rate=dt/(leakrate*3600.) ! MJT suggestion
     if (nsib==6.or.nsib==7) then
       ! CABLE
-      tmpry=watbdy(1:ifull)
+      tmpry(1:ifull)=watbdy(1:ifull)
       call cableinflow(tmpry,rate)
-      soilsink=(tmpry-watbdy(1:ifull))*(1.-sigmu(:))
-      newwat(1:ifull)=newwat(1:ifull)+soilsink
+      soilsink(1:ifull)=(tmpry(1:ifull)-watbdy(1:ifull))*(1.-sigmu(1:ifull))
+      newwat(1:ifull)=newwat(1:ifull)+soilsink(1:ifull)
     else
       ! Standard land surface model
       deltmpry=0.
       do k=1,ms
         where (land(1:ifull))
-          ll(:)=max(sfc(isoilm(:))-wb(:,k),0.)*1000.*zse(k)
-          ll(:)=ll(:)*rate
-          ll(:)=min(watbdy(1:ifull),ll(:))
-          wb(:,k)=wb(:,k)+ll(:)/(1000.*zse(k))
-          deltmpry(:)=deltmpry(:)-ll(:)
+          ll(1:ifull)=max(sfc(isoilm(1:ifull))-wb(1:ifull,k),0.)*1000.*zse(k)
+          ll(1:ifull)=ll(1:ifull)*rate
+          ll(1:ifull)=min(watbdy(1:ifull),ll(1:ifull))
+          wb(1:ifull,k)=wb(1:ifull,k)+ll(1:ifull)/(1000.*zse(k))
+          deltmpry(1:ifull)=deltmpry(1:ifull)-ll(1:ifull)
         end where
       end do
-      soilsink=deltmpry*(1.-sigmu(:))
-      newwat(1:ifull)=newwat(1:ifull)+soilsink
+      soilsink(1:ifull)=deltmpry(1:ifull)*(1.-sigmu(1:ifull))
+      newwat(1:ifull)=newwat(1:ifull)+soilsink(1:ifull)
     end if
   case default
     write(6,*) "ERROR: Unsupported basinmd ",basinmd

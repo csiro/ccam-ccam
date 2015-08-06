@@ -116,8 +116,8 @@ contains
       real, dimension(2,kup) :: umin, umax
       integer, dimension(2,kup) :: ijumax,ijumin
       integer, dimension(1) :: imax,imin
-      integer :: iqg
-      integer :: i, j, k, ierr
+      integer iqg
+      integer i, j, k
       ! gumax(1,:) is true maximum, gumax(2,:) used for the location
       real, dimension(2,kl) :: gumax, gumin
       real gmax, gmin
@@ -142,12 +142,12 @@ contains
       if ( myid == 0 ) then
           
          do k=1,kup
-            iqg = gumax(2,k)
+            iqg = nint(gumax(2,k))
             ! Convert to global i, j indices
             j = 1 + (iqg-1)/il_g
             i = iqg - (j-1)*il_g
             ijumax(:,k) = (/ i, j /)
-            iqg = gumin(2,k)
+            iqg = nint(gumin(2,k))
             j = 1 + (iqg-1)/il_g
             i = iqg - (j-1)*il_g
             ijumin(:,k) = (/ i, j /)
@@ -225,8 +225,8 @@ contains
       real, dimension(2) :: umin, umax
       integer, dimension(2) :: ijumax,ijumin
       integer, dimension(1) :: imax,imin
-      integer ierr, i, j
-      integer :: iqg
+      integer i, j
+      integer iqg
       real, dimension(2) :: gumax, gumin
 
 
@@ -243,12 +243,12 @@ contains
       call ccmpi_reduce(umin,gumin,"minloc",0,comm_world)
 
       if ( myid == 0 ) then
-        iqg = gumax(2)
+        iqg = nint(gumax(2))
         ! Convert to global i, j indices
         j = 1 + (iqg-1)/il_g
         i = iqg - (j-1)*il_g
         ijumax(:) = (/ i, j /)
-        iqg = gumin(2)
+        iqg = nint(gumin(2))
         j = 1 + (iqg-1)/il_g
         i = iqg - (j-1)*il_g
         ijumin(:) = (/ i, j /)
@@ -270,10 +270,9 @@ contains
       real, dimension(:,:), intent(in) :: speed
       real, dimension(:), intent(out) :: spmean_g
       real, intent(out) :: spavge_g
-      real, dimension(kl) :: spmean
       real, dimension(ifull) :: tmpb
       complex, dimension(kl) :: tmpc,tmpc_g
-      integer k, iq, ierr
+      integer k
       
       tmpc=(0.,0.)
       do k=1,kl

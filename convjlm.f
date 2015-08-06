@@ -51,7 +51,7 @@
       use sigs_m
       use soil_m
       use soilsnow_m  ! for fracice
-      use tkeeps, only : tke,eps,zidry
+      use tkeeps, only : zidry
       use tracers_m  ! ngas, nllp, ntrac
       use vvel_m
       use work2_m   ! for wetfa!    JLM
@@ -62,21 +62,20 @@
       include 'parm.h'
       include 'parmdyn.h'
 
-      integer itn,iq,k,k13,k23
-     .       ,khalf,khalfp,kt
+      integer itn,iq,k
+     .       ,khalfp,kt
      .       ,nlayers,nlayersp
      .       ,ntest,ntr,nums,nuv
-     .       ,ka,kb,kc
-      real convmax,delqq,delss,deltaq,delq_av,delt_av
-     .    ,den1,den2,den3,detr,dprec,dqrx,entrainp
-     .    ,facuv,fldownn,fluxb,fluxd,fluxup
-     .    ,frac,fraca,fracb,gam,hbas,hbase,heatlev
-     .    ,pwater,pwater0,qavg,qentrr,qsk,rkmid,rnrt_k
-     .    ,savg,savgb,sentrr,summ,totprec,veldt
-     .    ,rKa,Dva,cfls,cflscon,rhodz,qpf,pk,Apr,Bpr,Fr,rhoa,dz,Vr
-     .    ,dtev,qr,qgdiff,Cev2,qr2,Cevx,alphal,blx,evapls,revq
-     .    ,deluu,delvv,pb,sumb
-      real delthet,tmnht1,delons,rino,dtsol,detrainn
+     .       ,ka,kb
+      real convmax,deltaq,delq_av,delt_av
+     .    ,den1,den2,den3,dprec
+     .    ,facuv,fldownn,fluxup
+     .    ,frac,hbase,heatlev
+     .    ,pwater,pwater0,qsk,rnrt_k
+     .    ,summ,totprec,veldt
+     .    ,pk,dz
+     .    ,sumb
+      real dtsol,detrainn
       parameter (ntest=0)      ! 1 or 2 to turn on; -1 for ldr writes
 !                               -2,-3 for other detrainn test      
 !     parameter (iterconv=3)  ! to kuocom.h
@@ -91,7 +90,6 @@
 !     parameter (methprec=5) !  gives the vertical distribution of the detrainment
 !     parameter (nuvconv=0)    ! usually 0, >0 or <0 to turn on momentum mixing
 !     parameter (nuv=0)        ! usually 0, >0 to turn on new momentum mixing (base layers too)
-      integer kcl_top          ! max level for cloud top (convjlm,radrive,vertmix)
 !     nevapls:  turn off/on ls evap - through parm.h; 0 off, 5 newer UK
       integer kbsav_ls(ifull),kb_sav(ifull),kt_sav(ifull)
       integer kkbb(ifull),kmin(ifull)
@@ -110,7 +108,7 @@
       real delq(ifull,kl),dels(ifull,kl),delu(ifull,kl)
       real delv(ifull,kl),dqsdt(ifull,kl),es(ifull,kl) 
       real fldow(ifull),fluxq(ifull)
-      real fluxr(ifull),flux_dsk(ifull),fluxt(ifull,kl),hs(ifull,kl)  
+      real fluxr(ifull),fluxt(ifull,kl),hs(ifull,kl)  
       real phi(ifull,kl),qdown(ifull),qliqw(ifull,kl),delqliqw(ifull,kl)
       real entrsav(ifull,kl),detxsav(ifull,kl)
       real fluxh(ifull,kl),fluxv(ifull,0:kl-1),revc(ifull,kl)
@@ -121,11 +119,12 @@
       real dsk(kl),h0(kl),q0(kl),t0(kl)  
       real qplume(ifull,kl),splume(ifull,kl)
       integer kdown(ifull)
-      real entr(ifull),detrfactr(ifull),factr(ifull)
+      real entr(ifull),factr(ifull)
       real fluxqs,fluxt_k(kl)
       real pblx(ifull)
-      real ff(ifull,kl)
       integer kpos(1)
+      
+      facuv=0.
       
       if (.not.allocated(upin)) then
         kpos=minloc(abs(sig-.98)) ! finds k value closest to sig=.98  level 2 for L18 & L27
@@ -153,7 +152,7 @@
           write(6,*) 'k700 ',k700,sig(k700)
           write(6,*) 'k600 ',k600,sig(k600)
           write(6,*) 'k500 ',k500,sig(k500)
-          write(6,*) 'komega',komega,sig(komega)	  
+          write(6,*) 'komega',komega,sig(komega)
         end if
         allocate(timeconv(ifull))  ! init for ktau=1 (allocate needed for mdelay>0)
         allocate(entrainn(ifull))    ! init for ktau=1 (allocate needed for nevapcc.ne.0)
@@ -332,8 +331,8 @@
        if(nint(convtime)==-24)convtime=4040.6
         if(convtime>100.)then   ! new general style  May 2014
 !         1836.45 is old 36;  4040.6 is old -24; 2020.001 is old .33
-          mcontlnd=.01*convtime         ! in minutes
-          mcontsea=convtime-100*mcontlnd ! in minutes
+          mcontlnd=nint(.01*convtime)                 ! in minutes
+          mcontsea=nint(convtime-100.*real(mcontlnd)) ! in minutes
           convt_frac=convtime-100*mcontlnd-mcontsea  ! changeover sigma value of cloud thickness
           convt_frac=max(convt_frac,1.e-7)  ! allows for zero entry
          elseif(convtime<-100.)then
@@ -341,8 +340,8 @@
 !          mcontlnd=-convtime-100*mcontsea ! fg value in W/m2
 !          convt_frac=-convtime-100*mcontsea-mcontlnd  ! changeover sigma value of cloud thickness
 !          convt_frac=max(convt_frac,1.e-7)  ! allows for zero entry
-          mcontlnd=-.01*convtime         ! in minutes
-          mcontsea=-convtime-100*mcontlnd ! in minutes
+          mcontlnd=nint(-.01*convtime)                 ! in minutes
+          mcontsea=nint(-convtime-100.*real(mcontlnd)) ! in minutes
 !         convt_frac=100.*(-convtime-100*mcontlnd-mcontsea)  ! fg value in W/m2
           convt_frac=-convtime-100*mcontlnd-mcontsea  ! changeover sigma value of cloud thickness
           convt_frac=max(convt_frac,1.e-7)  ! allows for zero entry
@@ -1654,7 +1653,7 @@ c           print *,'has tied_con=0'
       endif   ! (ntest>0)
       
 !     update u & v using actual delu and delv (i.e. divided by dsk)
-7     if(nuvconv.ne.0.or.nuv>0)then
+      if(nuvconv.ne.0.or.nuv>0)then
         if(ntest>0.and.mydiag)then
           write(6,*) 'u,v before convection'
           write (6,"('u  ',12f7.2/(3x,12f7.2))") u(idjd,:)

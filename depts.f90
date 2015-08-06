@@ -539,9 +539,9 @@ end if
 alf=(1._8-schmidt*schmidt)/(1._8+schmidt*schmidt)
 alfonsch=2._8*schmidt/(1._8+schmidt*schmidt)  ! same but bit more accurate
 den(1:ifull)=1._8-alf*z3d(1:ifull)
-xstr(1:ifull)=x3d(1:ifull)*(alfonsch/den(1:ifull))
-ystr(1:ifull)=y3d(1:ifull)*(alfonsch/den(1:ifull))
-zstr(1:ifull)=   (z3d(1:ifull)-alf)/den(1:ifull)
+xstr(1:ifull)=real(x3d(1:ifull)*(alfonsch/den(1:ifull)))
+ystr(1:ifull)=real(y3d(1:ifull)*(alfonsch/den(1:ifull)))
+zstr(1:ifull)=real(   (z3d(1:ifull)-alf)/den(1:ifull))
 
 !      first deduce departure faces
 !      instead calculate cubic coordinates
@@ -626,16 +626,16 @@ do loop=1,nmaploop
   do iq=1,ifull
     i=nint(ri(iq))
     j=nint(rj(iq))
-    is=sign(1.,ri(iq)-real(i))
-    js=sign(1.,rj(iq)-real(j))
+    is=nint(sign(1.,ri(iq)-real(i)))
+    js=nint(sign(1.,rj(iq)-real(j)))
     ! predict new value for ri, rj
     dxx=xx4(i+is,j)-xx4(i,j)
     dyx=xx4(i,j+js)-xx4(i,j)
     dxy=yy4(i+is,j)-yy4(i,j)
     dyy=yy4(i,j+js)-yy4(i,j)       
     den(iq)=dxx*dyy-dyx*dxy
-    ri(iq)=real(i)+real(is)*((xg(iq,k)-xx4(i,j))*dyy-(yg(iq,k)-yy4(i,j))*dyx)/den(iq)
-    rj(iq)=real(j)+real(js)*((yg(iq,k)-yy4(i,j))*dxx-(xg(iq,k)-xx4(i,j))*dxy)/den(iq)
+    ri(iq)=real(i)+real(is)*real(((xg(iq,k)-xx4(i,j))*dyy-(yg(iq,k)-yy4(i,j))*dyx)/real(den(iq),8))
+    rj(iq)=real(j)+real(js)*real(((yg(iq,k)-yy4(i,j))*dxx-(xg(iq,k)-xx4(i,j))*dxy)/real(den(iq),8))
         
     ri(iq) = min(ri(iq),1.0+1.99999*real(2*il_g))
     ri(iq) = max(ri(iq),1.0+0.00001*real(2*il_g))

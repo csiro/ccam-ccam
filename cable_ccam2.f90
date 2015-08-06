@@ -188,8 +188,8 @@ include 'const_phys.h'
 include 'dates.h'
 include 'parm.h'
 
-real fjd,r1,dlt,slag,dhr,alp,x,esatf
-real, dimension(ifull) :: coszro2,taudar2,tmps,hruff_grmx,atmco2
+real fjd,r1,dlt,slag,dhr,alp,esatf
+real, dimension(ifull) :: coszro2,taudar2,tmps,atmco2
 real, dimension(ifull) :: tv,swdwn,alb
 real(r_2), dimension(mp) :: xKNlimiting,xkleafcold,xkleafdry
 real(r_2), dimension(mp) :: xkleaf,xnplimit,xNPuptake,xklitter
@@ -287,8 +287,8 @@ canopy%fhs       = canopy%fhs + ssnow%deltss*ssnow%dfh_dtg
 !canopy%fhs_cor   = canopy%fhs_cor + ssnow%deltss*ssnow%dfh_dtg
 !canopy%fes_cor   = canopy%fes_cor + ssnow%deltss*ssnow%cls*ssnow%dfe_ddq*ssnow%ddq_dtg
 canopy%fh        = canopy%fhv + canopy%fhs
-canopy%fev       = canopy%fevc + canopy%fevw
-canopy%fe        = canopy%fev + canopy%fes
+canopy%fev       = real(canopy%fevc + canopy%fevw)
+canopy%fe        = real(canopy%fev + canopy%fes)
 canopy%rnet      = canopy%fns + canopy%fnv
 rad%trad         = ( (1.-rad%transd)*canopy%tv**4 + rad%transd*ssnow%tss**4 )**0.25
 
@@ -366,12 +366,12 @@ select case (icycle)
       casaflux%cgpp = 0.
       casaflux%crmplant(:,leaf) = 0.
     end if
-    canopy%frp  = (casaflux%crmplant(:,wood)+casaflux%crmplant(:,xroot)+casaflux%crgplant(:))/86400.
-    canopy%frs  = casaflux%Crsoil(:)/86400.
-    canopy%frpw = casaflux%crmplant(:,wood)/86400.
-    canopy%frpr = casaflux%crmplant(:,xroot)/86400.
+    canopy%frp  = real((casaflux%crmplant(:,wood)+casaflux%crmplant(:,xroot)+casaflux%crgplant(:))/86400._8)
+    canopy%frs  = real(casaflux%Crsoil(:)/86400._8)
+    canopy%frpw = real(casaflux%crmplant(:,wood)/86400._8)
+    canopy%frpr = real(casaflux%crmplant(:,xroot)/86400._8)
     ! Set net ecosystem exchange after adjustments to frs:
-    canopy%fnee = (casaflux%Crsoil-casaflux%cnpp+casaflux%clabloss)/86400.
+    canopy%fnee = real((casaflux%Crsoil-casaflux%cnpp+casaflux%clabloss)/86400._8)
   case default
     write(6,*) "ERROR: Unknown icycle ",icycle
     stop
@@ -703,7 +703,7 @@ select case( proglai )
       write(6,*) "ERROR: CASA CNP LAI is not operational"
       call ccmpi_abort(-1)
     end if
-    veg%vlai(:)=casamet%glai(:)
+    veg%vlai(:)=real(casamet%glai(:))
 
   case default
     write(6,*) "ERROR: Unknown proglai option ",proglai
@@ -742,11 +742,11 @@ include 'parm.h'
 include 'soilv.h'
 
 integer, dimension(ifull,5) :: ivs
-integer iq,n,k,ipos,isoil,iv,ncount
+integer iq,n,k,ipos,iv,ncount
 integer, dimension(1) :: pos
 integer jyear,jmonth,jday,jhour,jmin,mins
 integer, dimension(1) :: lndtst,lndtst_g
-real totdepth,fc3,fc4,ftu,fg3,fg4,clat,nsum
+real fc3,fc4,ftu,fg3,fg4,clat,nsum
 real fjd,xp
 real, dimension(ifull,mxvt,0:2) :: newlai
 real, dimension(mxvt,ms) :: froot2
@@ -761,7 +761,7 @@ real, dimension(ifull,2) :: albsoilsn
 real, dimension(12,msoil) :: rationpsoil
 real, dimension(ncp) :: ratecp
 real, dimension(ncs) :: ratecs
-real, dimension(mxvt) :: canst1,leaf_w,leaf_l,ejmax,frac4,hc,rp20
+real, dimension(mxvt) :: canst1,leaf_w,leaf_l,ejmax,hc,rp20
 real, dimension(mxvt) :: rpcoef,shelrb,vcmax,xfang
 real, dimension(mxvt) :: tminvj,tmaxvj,vbeta
 real, dimension(mxvt) :: extkn,rootbeta,vegcf,c4frac
@@ -1895,7 +1895,6 @@ include 'newmpar.h'
 
 character(len=*), intent(in) :: fveg,fvegprev,fvegnext
 integer, dimension(ifull,5), intent(out) :: ivs
-integer n,iq
 real, dimension(ifull,5), intent(out) :: svs, vlinprev, vlin, vlinnext
 
 call ccmpi_distribute(ivs)
@@ -2121,7 +2120,7 @@ else
       if (n<=maxnb) casamet%glai(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
       write(vname,'("phenphase_",I1.1)') n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if (n<=maxnb) phen%phase(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
+      if (n<=maxnb) phen%phase(pind(n,1):pind(n,2))=nint(pack(dat,tmap(:,n)))
       write(vname,'("clabile_",I1.1)') n
       call histrd1(iarchi-1,ierr,vname,il_g,dat,ifull)
       if (n<=maxnb) casapool%clabile(pind(n,1):pind(n,2))=pack(dat,tmap(:,n))
@@ -2262,7 +2261,7 @@ implicit none
 include 'newmpar.h'
   
 integer, intent(in) :: idnc
-integer k,n,ierr
+integer k,n
 integer, dimension(3), intent(in) :: idim  
 character(len=11) vname
 character(len=40) lname
@@ -2438,7 +2437,6 @@ end subroutine savetiledef
 subroutine savetile(idnc,local,iarch)
 
 use carbpools_m
-use cc_mpi, only : myid
 use infile
 use soil_m
 use soilsnow_m
@@ -2449,7 +2447,7 @@ implicit none
 include 'newmpar.h'
   
 integer, intent(in) :: idnc,iarch
-integer k,n,ierr
+integer k,n
 real, dimension(ifull) :: dat
 character(len=11) vname
 logical, intent(in) :: local
@@ -2692,7 +2690,7 @@ implicit none
 include 'newmpar.h'
 include 'parmgeom.h'
 
-integer ncstatus,ncid,varid,tilg,iq
+integer ncstatus,ncid,varid,tilg
 integer n
 integer, dimension(2) :: spos,npos
 real tlat,tlon,tschmidt
@@ -2780,7 +2778,7 @@ implicit none
 include 'newmpar.h'
 
 integer, parameter :: nphen=8 ! was 10(IGBP). changed by Q.Zhang @01/12/2011
-integer np,nx,ilat,ierr,ivp
+integer np,ilat,ivp
 integer, dimension(271,mxvt) :: greenup,fall,phendoy1
 integer, dimension(nphen) :: greenupx,fallx,xphendoy1
 integer, dimension(nphen) :: ivtx

@@ -108,9 +108,9 @@ include 'kuocom.h'
 logical, intent(in) :: odcalc  ! True for full radiation calculation
 integer, intent(in) :: imax
 integer jyear,jmonth,jday,jhour,jmin
-integer k,ksigtop,mins
+integer k,mins
 integer i,j,iq,istart,iend,kr,nr
-integer ierr,ktop,kbot
+integer ktop,kbot
 integer, save :: nlow,nmid
 real, dimension(:), allocatable, save :: sgamp
 real, dimension(:,:), allocatable, save :: rtt
@@ -230,7 +230,7 @@ if ( first ) then
   Lw_control%do_cfc                      =rrvch4>0.
   Rad_control%using_solar_timeseries_data=.false.
   Rad_control%do_totcld_forcing          =do_totcld_forcing
-  Rad_control%rad_time_step              =kountr*dt
+  Rad_control%rad_time_step              =nint(real(kountr)*dt)
   Rad_control%rad_time_step_iz           =.true.
   Rad_control%do_aerosol                 =do_aerosol_forcing
   Rad_control%do_swaerosol_forcing       =do_aerosol_forcing
@@ -1378,10 +1378,7 @@ real(kind=8), dimension(:,:,:,:),        intent(inout) :: r
 !----------------------------------------------------------------------
 !  local variables:
 
-      type(sw_output_type) :: Sw_output_ad, Sw_output_std
       integer  :: naerosol_optical
-      integer  :: i, j       
-      logical  :: skipswrad
 
 !---------------------------------------------------------------------
 !   local variables:
@@ -2156,11 +2153,11 @@ real(kind=8), dimension(N_AEROSOL_BANDS_CN, num_wavenumbers), intent(out) :: sfl
 
       integer, dimension (N_AEROSOL_BANDS_CO)  :: iendaerband_co =  &
       (/ 80  /)
-      real(kind=8), dimension (N_AEROSOL_BANDS_CN)     :: aerbandlo_cn =  &
-      (/ 800.0_8 /)
-
-      real(kind=8), dimension (N_AEROSOL_BANDS_CN)     :: aerbandhi_cn =  &
-      (/ 1200.0_8 /)
+!      real(kind=8), dimension (N_AEROSOL_BANDS_CN)     :: aerbandlo_cn =  &
+!      (/ 800.0_8 /)
+!
+!      real(kind=8), dimension (N_AEROSOL_BANDS_CN)     :: aerbandhi_cn =  &
+!      (/ 1200.0_8 /)
 
       integer, dimension (N_AEROSOL_BANDS_CN)  :: istartaerband_cn =  &
       (/ 81  /)
@@ -2188,12 +2185,6 @@ real(kind=8), dimension(N_AEROSOL_BANDS_CN, num_wavenumbers), intent(out) :: sfl
 !      nivl2aer_co(n)    aerosol parameterization band index corres-
 !                        ponding to the highest wavenumber of the 
 !                        continuum ir aerosol emissivity band n
-!      nivl1aer(n)       aerosol parameterization band index corres-
-!                        ponding to the lowest wavenumber for the 
-!                        ir aerosol emissivity band n
-!      nivl2aer(n)       aerosol parameterization band index corres-
-!                        ponding to the highest wavenumber for the 
-!                        ir aerosol emissivity band n
 !      planckaerband(n)  planck function summed over each lw param-
 !                        eterization band that is contained in the 
 !                        ir aerosol emissivity band n
@@ -2205,7 +2196,6 @@ real(kind=8), dimension(N_AEROSOL_BANDS_CN, num_wavenumbers), intent(out) :: sfl
                                                   nivl2aer_co
       integer, dimension (N_AEROSOL_BANDS_CN)  :: nivl1aer_cn,   &
                                                   nivl2aer_cn
-      integer, dimension (N_AEROSOL_BANDS)     :: nivl1aer, nivl2aer
       real(kind=8),    dimension (N_AEROSOL_BANDS)     :: planckaerband
       real(kind=8),    dimension (N_AEROSOL_BANDS_CN)  :: planckaerband_cn
 
@@ -2213,22 +2203,6 @@ real(kind=8), dimension(N_AEROSOL_BANDS_CN, num_wavenumbers), intent(out) :: sfl
 !    the following arrays relate the ir aerosol emissivity band n to
 !    either the aerosol optical properties type na or to the aerosol 
 !    parameterization band ni.
-!        aerextbandlw_fr(n,na)  band averaged extinction coefficient
-!                               for non-continuum aerosol emissivity 
-!                               band n and aerosol properties type na
-!        aerssalbbandlw_fr(n,na)
-!                               band averaged single-scattering
-!                               coefficient for non-continuum aerosol
-!                               emissivity band n and aerosol properties
-!                               type na
-!        aerextbandlw_co(n,na)  band averaged extinction coefficient
-!                               for the continuum aerosol emissivity
-!                               band n and aerosol properties type na
-!        aerssalbbandlw_co(n,na)
-!                               band averaged single-scattering
-!                               coefficient for continuum aerosol
-!                               emissivity band n and aerosol properties
-!                               type na
 !        planckivlaer_fr(n,ni)  planck function over the spectral range
 !                               common to aerosol emissivity non-
 !                               continuum band n and aerosol parameter-
@@ -2243,19 +2217,10 @@ real(kind=8), dimension(N_AEROSOL_BANDS_CN, num_wavenumbers), intent(out) :: sfl
 !        sflwwts_co(n,ni)       band weights for the aerosol emissivity
 !                               continuum band n and the aerosol 
 !                               parameterization band ni 
-!        planckivlaer(n,ni)     planck function over the spectral range
-!                               common to aerosol emissivity band n and
-!                               aerosol parameterization band ni
 !        iendsfbands(ni)        ending wavenumber index for aerosol 
 !                               parameterization band ni
 !
 !----------------------------------------------------------------------
-      real(kind=8),    dimension (N_AEROSOL_BANDS_FR, naermodels) ::   &
-                                                  aerextbandlw_fr, &
-                                                  aerssalbbandlw_fr
-      real(kind=8),    dimension (N_AEROSOL_BANDS_CO, naermodels) ::   &
-                                                  aerextbandlw_co, &
-                                                  aerssalbbandlw_co
       real(kind=8),    dimension (N_AEROSOL_BANDS_FR, num_wavenumbers) :: &
                                                   planckivlaer_fr, &
                                                   sflwwts_fr
@@ -2264,8 +2229,6 @@ real(kind=8), dimension(N_AEROSOL_BANDS_CN, num_wavenumbers), intent(out) :: sfl
                                                   sflwwts_co
       real(kind=8),    dimension (N_AEROSOL_BANDS_CN, num_wavenumbers) :: &
                                                   planckivlaer_cn   
-      real(kind=8),    dimension (N_AEROSOL_BANDS, num_wavenumbers)  ::    &
-                                                  planckivlaer
       integer, dimension (num_wavenumbers)    ::  iendsfbands
 
 !---------------------------------------------------------------------
@@ -2284,6 +2247,9 @@ real(kind=8), dimension(N_AEROSOL_BANDS_CN, num_wavenumbers), intent(out) :: sfl
      integer         :: ib, nw, nivl, nband, n, ni 
                                    !  do-loop indices and counters
 
+     nivl2aer_cn=0
+     nivl2aer_co=0
+     
 !--------------------------------------------------------------------
 !    define arrays containing the characteristics of all the ir aerosol
 !    emissivity bands, both continuum and non-continuum.

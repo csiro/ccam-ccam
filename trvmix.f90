@@ -31,7 +31,6 @@ public tracervmix
 subroutine tracervmix(at,ct)
 
 use arrays_m
-use cc_mpi, only : mydiag
 use diag_m
 use liqwpar_m
 use nharrs_m
@@ -205,7 +204,7 @@ include 'const_phys.h'
 include 'parm.h' 
 
 integer, intent(in) :: igas
-integer ierr, k, iq
+integer k, iq
 real, dimension(ifull,kl), intent(out) :: temptr
 real, dimension(ifull,kl) :: loss
 real, dimension(ifull,kl), intent(in) :: trsrc

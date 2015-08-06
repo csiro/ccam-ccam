@@ -66,7 +66,7 @@ if (myid==0) then
   write(6,*) 'final sigmh values: ',sigmh
   open(28,file='eigenv.out')
 end if
-call eigs(lapsbot,isoth,tbar,dt,eps,nh,sig,sigmh,bet,betm,lbam,lemat,leinv)
+call eigs(isoth,tbar,dt,eps,nh,sig,sigmh,bet,betm,lbam,lemat,leinv)
 if (myid==0) then
   write(6,*) 'about to write to 28 '
   write(28,*)kl,lapsbot,isoth,nsig,'   kl,lapsbot,isoth,nsig'
@@ -104,17 +104,17 @@ if(neig==1)then
     call flip3(leinv,1,kl,kl, 1)
   endif
 endif
-emat=lemat
-einv=leinv
-bam=lbam
+emat=real(lemat)
+einv=real(leinv)
+bam=real(lbam)
 end subroutine eig
 
-subroutine eigs(lapsbot,isoth,tbar,dt,eps,nh,sig,sigmh,bet,betm,bam,emat,einv)
+subroutine eigs(isoth,tbar,dt,eps,nh,sig,sigmh,bet,betm,bam,emat,einv)
 use cc_mpi, only : myid
 implicit none
 include 'newmpar.h'
 include 'const_phys.h'
-integer lapsbot,isoth,nh
+integer isoth,nh
 integer k,l,irror
 integer, dimension(kl) :: indic
 real(kind=8) dt,eps
@@ -791,6 +791,8 @@ real(kind=8) :: d,amax
 !     d contains the determinant of the a matrix on exit
 !     a is replaced by the inverse ,b by the solutions.
 !     method of gauss-jordon pivotal elimination
+irow=0
+icol=0
 m=iabs(l)
 d=1.0
 do i=1,kl
@@ -935,6 +937,8 @@ real(kind=8) s,sr,bound
 ! zero in the program. eps = (euclidian norm of a)*ex,where
 ! ex = 2**(-t). t is the number of binary digits in the
 ! mantissa of a floating point number.
+
+previs=0._8
 
 vecr(1,ivec) = 1.0
 ! small perturbation of equal eigenvalues to obtain a full

@@ -53,12 +53,12 @@ include 'newmpar.h'
 include 'parm.h'
 include 'parmdyn.h'
 
-real, dimension(:,:), intent(in)  :: u, v
+real, dimension(:,:), intent(inout)  :: u, v ! in case u=uout and v=vout
 real, dimension(:,:), intent(out) :: uout, vout
 real, dimension(ifull+iextra,kl) :: ua, va, ud, vd, uin, vin
 real, dimension(ifull,kl) :: ug, vg
 integer, parameter :: ntest=0    ! usually 0, 1 for test prints
-integer :: iq, itn, k, i, j
+integer :: itn
 
 call START_LOG(stag_begin)
 
@@ -180,11 +180,11 @@ include 'newmpar.h'
 include 'parm.h'
 include 'parmdyn.h'
 
-real, dimension(:,:), intent(in)  :: u, v
+real, dimension(:,:), intent(inout)  :: u, v ! in case u=uout and v=vout
 real, dimension(:,:), intent(out) :: uout, vout
 real, dimension(ifull+iextra,kl) :: ua, va, ud, vd, uin, vin
 real, dimension(ifull,kl) :: ug, vg
-integer :: iq, itn, k
+integer :: itn
 
 call START_LOG(stag_begin)
 

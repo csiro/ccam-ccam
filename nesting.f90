@@ -81,11 +81,10 @@ include 'parm.h'                 ! Model configuration
 include 'stime.h'                ! File date data
 
 integer, dimension(ifull) :: dumm
-integer, save :: num = 0
 integer, save :: mtimea = 0
 integer, save :: mtimeb = 0
 integer, save :: wl = -1
-integer iq,k,i,ierr
+integer iq,i
 integer kdate_r,ktime_r,kdhour,kdmin
 real timerm,cona,conb
 real, dimension(2) :: dumbb
@@ -101,7 +100,6 @@ real, dimension(ifull,wlev,4) :: dumaa
 real, dimension(ifull,ms,3) :: dumg
 real, dimension(ifull,kl,5) :: dumv
 real, dimension(ifull,3,3) :: dums
-character(len=12) dimnam
       
 !     mtimer, mtimeb are in minutes
 if(ktau<100.and.myid==0)then
@@ -377,9 +375,8 @@ include 'stime.h'                ! File date data
 integer, dimension(ifull) :: dumm
 integer, save :: mtimeb = -1
 integer, save :: wl = -1
-integer kdate_r,ktime_r,ierr
-integer iq,k,kdhour,kdmin
-real ds_r,timeg_b
+integer kdate_r,ktime_r
+integer iq,kdhour,kdmin
 real, dimension(2) :: dumbb
 real, dimension(:,:), allocatable, save :: tb,ub,vb,qb,ocndep
 real, dimension(:), allocatable, save :: pslb,tssb,fraciceb
@@ -534,10 +531,9 @@ use nharrs_m                     ! Non-hydrostatic atmosphere arrays
 use savuvt_m                     ! Saved dynamic arrays
 use savuv1_m                     ! Saved dynamic arrays
 use sigs_m                       ! Atmosphere sigma levels
-use tracers_m, only : ngas,tr    ! Tracer data
 use vecsuv_m                     ! Map to cartesian coordinates
 use work3sav_m                   ! Water and tracer saved arrays
-use xyzinfo_m, only : x,y,z,wts  ! Grid coordinate arrays
+use xyzinfo_m, only : x,y,z      ! Grid coordinate arrays
       
 implicit none
 
@@ -548,7 +544,7 @@ include 'parm.h'                 ! Model configuration
 include 'parmdyn.h'              ! Dynamics parameters
 include 'parmgeom.h'             ! Coordinate data
 
-integer iq,k,ierr,kb,kln,klx,klt,klc,ntr
+integer iq,k,kb,kln,klx,klt
 real, dimension(ifull), intent(inout) :: pslb
 real, dimension(ifull) :: costh,sinth
 real, dimension(ifull,kl), intent(inout) :: ub,vb,tb,qb
@@ -568,9 +564,9 @@ if (nud_uv==3) then
   poleny=0.
   polenz=sin(rlat0*pi/180.)
   do iq=1,ifull
-   zonx=            -polenz*y(iq)
-   zony=polenz*x(iq)-polenx*z(iq)
-   zonz=polenx*y(iq)
+   zonx=real(            -polenz*y(iq))
+   zony=real(polenz*x(iq)-polenx*z(iq))
+   zonz=real(polenx*y(iq)             )
    den=sqrt( max(zonx**2 + zony**2 + zonz**2,1.e-7) ) 
    costh(iq)= (zonx*ax(iq)+zony*ay(iq)+zonz*az(iq))/den
    sinth(iq)=-(zonx*bx(iq)+zony*by(iq)+zonz*bz(iq))/den
@@ -707,7 +703,6 @@ real, dimension(ifull,kl,naero), intent(inout) :: xtgb
 real, dimension(ifull,kln:klx) :: wb
 real, dimension(ifull_g,klt) :: tt
 real, dimension(ifull) :: da,db
-real, dimension(klt) :: ud,vd,wd
 real cq
 logical, intent(in) :: lblock
 
@@ -795,7 +790,7 @@ do n=1,npan
       iqg=i+ioff+(j+joff-1)*il_g+(n-noff)*il_g*il_g
       iq =i+(j-1)*ipan+(n-1)*ipan*jpan
       ! calculate distance between targer grid point and all other grid points
-      r(:)=x_g(iqg)*x_g(:)+y_g(iqg)*y_g(:)+z_g(iqg)*z_g(:)
+      r(:)=real(x_g(iqg)*x_g(:)+y_g(iqg)*y_g(:)+z_g(iqg)*z_g(:))
       r(:)=acos(max(min(r(:),1.),-1.))
       ! evaluate Gaussian weights as a function of distance
       r(:)=exp(-(cq*r(:))**2)/(em_g(:)*em_g(:))
@@ -1111,9 +1106,9 @@ include 'newmpar.h'   ! Grid parameters
 include 'parm.h'      ! Model configuration
       
 integer, intent(in) :: ppass,klt,xpan
-integer j,k,n,ipass,iproc
-integer ipoff,jpoff,npoff
-integer nne,nns,ooe,oos,me,ns,ne,os,oe
+integer j,k,n,ipass
+integer jpoff
+integer nne,nns,me,ns,ne,os,oe
 integer til,a,b,c,sn,sy,jj,nn
 integer, dimension(0:3) :: astr,bstr,cstr
 integer, dimension(0:3) :: maps
@@ -1122,7 +1117,7 @@ real, dimension(ipan*jpan,klt), intent(out) :: qt
 real, dimension(4*il_g,klt) :: at
 real, dimension(4*il_g) :: asum,ra,xa,ya,za
 real, dimension(xpan,xpan,klt) :: pt
-real, dimension(xpan,xpan) :: psum,stsum
+real, dimension(xpan,xpan) :: psum
 real, dimension(il_g*xpan*(klt+1)) :: dd
 real, dimension(xpan*xpan*(klt+1)) :: ff
 real(kind=8), dimension(3) :: ans
@@ -1163,9 +1158,9 @@ do ipass=0,2
           at(n,k)=at(n,k)*asum(n)
         end do
         ans(:)=xyz_g(a*n+b*jj+c)
-        xa(n)=ans(1)
-        ya(n)=ans(2)
-        za(n)=ans(3)
+        xa(n)=real(ans(1))
+        ya(n)=real(ans(2))
+        za(n)=real(ans(3))
       end do
     end do
     ! start convolution
@@ -1248,9 +1243,9 @@ do j=1,ipan
         call getglobalpack(at(n,k),a*n+b*jj+c,k)
       end do
       ans(:)=xyz_g(a*n+b*jj+c)
-      xa(n)=ans(1)
-      ya(n)=ans(2)
-      za(n)=ans(3)
+      xa(n)=real(ans(1))
+      ya(n)=real(ans(2))
+      za(n)=real(ans(3))
     end do
   end do
   ! start convolution
@@ -1302,9 +1297,9 @@ include 'newmpar.h'   ! Grid parameters
 include 'parm.h'      ! Model configuration
       
 integer, intent(in) :: ppass,klt,xpan
-integer j,k,n,ipass,iproc
-integer ipoff,jpoff,npoff
-integer nne,nns,ooe,oos,me,ns,ne,os,oe
+integer j,k,n,ipass
+integer jpoff
+integer nne,nns,me,ns,ne,os,oe
 integer til,a,b,c,sn,sy,jj,nn
 integer, dimension(0:3) :: astr,bstr,cstr
 integer, dimension(0:3) :: maps
@@ -1354,9 +1349,9 @@ do ipass=0,2
           at(n,k)=at(n,k)*asum(n)
         end do
         ans(:)=xyz_g(a*n+b*jj+c)
-        xa(n)=ans(1)
-        ya(n)=ans(2)
-        za(n)=ans(3)
+        xa(n)=real(ans(1))
+        ya(n)=real(ans(2))
+        za(n)=real(ans(3))
       end do
     end do
     ! start convolution
@@ -1438,9 +1433,9 @@ do j=1,jpan
         call getglobalpack(at(n,k),a*n+b*jj+c,k)
       end do
       ans(:)=xyz_g(a*n+b*jj+c)
-      xa(n)=ans(1)
-      ya(n)=ans(2)
-      za(n)=ans(3)
+      xa(n)=real(ans(1))
+      ya(n)=real(ans(2))
+      za(n)=real(ans(3))
     end do
   end do
   ! start convolution
@@ -1686,18 +1681,19 @@ include 'newmpar.h'                                 ! Grid parameters
 include 'parm.h'                                    ! Model configuration
 
 integer, intent(in) :: wl
-integer k,ka,kb,kc,ke,kln,klx,klt,kbb
+integer k,ka,kb,kc,kln,klx,klt,kbb
 real, dimension(ifull), intent(in) :: sfh
 real, dimension(ifull,wlev), intent(in) :: sstb,sssb
 real, dimension(ifull,wlev,2), intent(in) :: suvb
 real, dimension(ifull,1) :: diffh_l
 real, dimension(ifull,kblock) :: diff_l,diffs_l
 real, dimension(ifull,kblock) :: diffu_l,diffv_l
-real, dimension(ifull) :: old,oldt,olds,new
-real, dimension(ifull,ktopmlo:kbotmlo) :: rho,nsq
+real, dimension(ifull) :: old
 logical lblock
 real, parameter :: miss = 999999.
-      
+ 
+ka=0
+kb=0
 kc=min(kbotmlo,ktopmlo+wl-1)
 
 if (nud_sfh/=0) then
@@ -1893,7 +1889,7 @@ include 'newmpar.h'         ! Grid parameters
 include 'parm.h'            ! Model configuration
 
 integer, intent(in) :: kd
-integer k,ierr
+integer k
 real, intent(in) :: miss
 real, dimension(ifull,1), intent(inout) :: diffh_l
 real, dimension(ifull,kd), intent(inout) :: diff_l,diffs_l
@@ -1916,12 +1912,12 @@ end if
 if (nud_sst/=0) then
   call ccmpi_gatherall(diff_l(:,1:kd),diff_g(:,1:kd))
   landg=abs(diff_g(:,1)-miss)<0.1
-  call mlofilterhost(diff_g,diff_l,kd,miss,landg)
+  call mlofilterhost(diff_g,diff_l,kd,landg)
 end if
 if (nud_sss/=0) then
   call ccmpi_gatherall(diffs_l(:,1:kd),diff_g(:,1:kd))
   landg=abs(diff_g(:,1)-miss)<0.1
-  call mlofilterhost(diff_g,diffs_l,kd,miss,landg)
+  call mlofilterhost(diff_g,diffs_l,kd,landg)
 end if
 if (nud_ouv/=0) then
   do k=1,kd
@@ -1938,16 +1934,16 @@ if (nud_ouv/=0) then
   end do        
   call ccmpi_gatherall(diffu_l(:,1:kd),diff_g(:,1:kd))
   landg=abs(diff_g(:,1)-miss)<0.1
-  call mlofilterhost(diff_g,diffu_l,kd,miss,landg)
+  call mlofilterhost(diff_g,diffu_l,kd,landg)
   call ccmpi_gatherall(diffv_l(:,1:kd),diff_g(:,1:kd))
-  call mlofilterhost(diff_g,diffv_l,kd,miss,landg)
+  call mlofilterhost(diff_g,diffv_l,kd,landg)
   call ccmpi_gatherall(diffw_l(:,1:kd),diff_g(:,1:kd))
-  call mlofilterhost(diff_g,diffw_l,kd,miss,landg)
+  call mlofilterhost(diff_g,diffw_l,kd,landg)
 end if
 if (nud_sfh/=0.and.lblock) then
   call ccmpi_gatherall(diffh_l(:,1),diff_g(:,1))
   landg=abs(diff_g(:,1)-miss)<0.1
-  call mlofilterhost(diff_g,diffh_l,1,miss,landg)
+  call mlofilterhost(diff_g,diffh_l,1,landg)
 end if
 
 #ifdef debug
@@ -1959,7 +1955,7 @@ end if
 return
 end subroutine mlofilter
 
-subroutine mlofilterhost(diff_g,dd,kd,miss,landg)
+subroutine mlofilterhost(diff_g,dd,kd,landg)
 
 use cc_mpi             ! CC MPI routines
 use map_m              ! Grid map arrays
@@ -1975,11 +1971,9 @@ include 'parmgeom.h'   ! Coordinate data
 
 integer, intent(in) :: kd
 integer i,j,n,iqq,iqqg,k
-real, intent(in) :: miss
 real nsum,cq
 real, dimension(ifull_g,kd), intent(inout) :: diff_g
 real, dimension(ifull_g) :: rr,mm,nn
-real, dimension(ifull) :: ddh
 real, dimension(ifull,kd), intent(out) :: dd
 logical, dimension(ifull_g), intent(in) :: landg
 
@@ -2003,7 +1997,7 @@ do n=1,npan
       iqqg=i+ioff+(j+joff-1)*il_g+(n-noff)*il_g*il_g
       iqq=i+(j-1)*ipan+(n-1)*ipan*jpan
       if (.not.landg(iqqg)) then
-        rr(:)=x_g(iqqg)*x_g(:)+y_g(iqqg)*y_g(:)+z_g(iqqg)*z_g(:)
+        rr(:)=real(x_g(iqqg)*x_g(:)+y_g(iqqg)*y_g(:)+z_g(iqqg)*z_g(:))
         rr(:)=acos(max(min(rr(:),1.),-1.))
         rr(:)=exp(-(cq*rr(:))**2)
         nsum=sum(rr(:)*mm(:))
@@ -2087,7 +2081,7 @@ include 'newmpar.h'    ! Grid parameters
 include 'parm.h'       ! Model configuration
       
 integer, intent(in) :: kd
-integer n,j,k,ppass
+integer n,k,ppass
 real, intent(in) :: cq,miss
 real, dimension(ifull,1), intent(inout) :: diffh_l
 real, dimension(ifull,kd), intent(inout) :: diff_l,diffs_l
@@ -2289,9 +2283,8 @@ include 'parm.h'       ! Model configuration
       
 integer, intent(in) :: ppass,kd,xpan
 integer j,n,ipass,ns,ne,os,oe
-integer iproc,istep
-integer ipoff,jpoff,npoff
-integer nne,nns,me,ooe,oos
+integer jpoff
+integer nne,nns,me
 integer k,til,sn,sy,a,b,c,jj,nn
 integer, dimension(0:3) :: astr,bstr,cstr
 integer, dimension(0:3) :: maps
@@ -2344,9 +2337,9 @@ do ipass=0,2
           ap(n,1:kd)=ap(n,1:kd)*asum(n)
         end if
         ans(:)=xyz_g(a*n+b*jj+c)
-        xa(n)=ans(1)
-        ya(n)=ans(2)
-        za(n)=ans(3)
+        xa(n)=real(ans(1))
+        ya(n)=real(ans(2))
+        za(n)=real(ans(3))
       end do
     end do
     ! start convolution
@@ -2424,9 +2417,9 @@ do j=1,ipan
         call getglobalpack(ap(n,k),a*n+b*jj+c,k)
       end do
       ans(:)=xyz_g(a*n+b*jj+c)
-      xa(n)=ans(1)
-      ya(n)=ans(2)
-      za(n)=ans(3)
+      xa(n)=real(ans(1))
+      ya(n)=real(ans(2))
+      za(n)=real(ans(3))
     end do
   end do
   ! start convolution
@@ -2476,9 +2469,8 @@ include 'parm.h'       ! Model configuration
       
 integer, intent(in) :: ppass,kd,xpan
 integer j,n,ipass,ns,ne,os,oe
-integer iproc,istep
-integer ipoff,jpoff,npoff
-integer nne,nns,me,ooe,oos
+integer jpoff
+integer nne,nns,me
 integer k,til,sn,sy,a,b,c,jj,nn
 integer, dimension(0:3) :: astr,bstr,cstr
 integer, dimension(0:3) :: maps
@@ -2531,9 +2523,9 @@ do ipass=0,2
           ap(n,1:kd)=ap(n,1:kd)*asum(n)
         end if
         ans(:)=xyz_g(a*n+b*jj+c)
-        xa(n)=ans(1)
-        ya(n)=ans(2)
-        za(n)=ans(3)
+        xa(n)=real(ans(1))
+        ya(n)=real(ans(2))
+        za(n)=real(ans(3))
       end do
     end do
     ! start convolution
@@ -2611,9 +2603,9 @@ do j=1,jpan
         call getglobalpack(ap(n,k),a*n+b*jj+c,k)
       end do
       ans(:)=xyz_g(a*n+b*jj+c)
-      xa(n)=ans(1)
-      ya(n)=ans(2)
-      za(n)=ans(3)
+      xa(n)=real(ans(1))
+      ya(n)=real(ans(2))
+      za(n)=real(ans(3))
     end do
   end do
   ! start convolution

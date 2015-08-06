@@ -97,8 +97,8 @@ logical, save ::  do_ch4_sw_effects = .true.      ! the shortwave effects
                                                   ! of ch4 are included ?
 logical, save ::  do_n2o_sw_effects = .true.      ! the shortwave effects
                                                   ! of n2o are included ?
-logical, save ::  do_coupled_stratozone = .false. ! include the coupled
-                                                  ! stratospheric ozone effects?
+!logical, save ::  do_coupled_stratozone = .false. ! include the coupled
+!                                                  ! stratospheric ozone effects?
 !---------------------------------------------------------------------
 !------- public data ------
 
@@ -247,7 +247,7 @@ integer, parameter :: NSOLWG = 1
 real, dimension(NSOLWG), save :: gausswt
 logical, save      :: module_is_initialized = .false.
 logical, save      :: do_esfsw_band_diagnostics = .false.
-integer, save      :: naerosol_optical, naerosoltypes_used
+integer, save      :: naerosoltypes_used
 
 !---------------------------------------------------------------------
 !---------------------------------------------------------------------
@@ -301,7 +301,6 @@ subroutine esfsw_driver_init
       integer, dimension(:), allocatable, save  :: nwvnsolar
       real   , dimension(:), allocatable, save  :: solint   
 
-      character(len=64)    :: file_name
       real, dimension(4), parameter :: ptstr_4 = (/-0.861136312,  &
                                                    -0.339981044,  &
                                                     0.861136312,  &
@@ -314,8 +313,7 @@ subroutine esfsw_driver_init
       real            :: corrfac, gamma, f1, f2, f3, pinteg, &
                          twopiesq, densmolrefsqt3, wavelength,  &
                          freqsq, ristdm1, ri
-      integer         :: iounit, nband, nf, ni, nw, nw1, nw2, nintsolar
-      integer         :: unit, io, ierr
+      integer         :: nband, ni, nw, nw1, nw2, nintsolar
       integer         :: i
       integer         :: n
       real, parameter :: input_flag = 1.0e-99
@@ -454,7 +452,7 @@ subroutine esfsw_driver_init
       c3co2    = 0.0 ; c3co2str = 0.0 ; c3o2     = 0.0
       c3o2str  = 0.0 ; c4co2    = 0.0 ; c4co2str = 0.0
       c4o2     = 0.0 ; c4o2str  = 0.0 ; powph2o  = 0.0
-      p0h2o    = 0.0 ; nfreqpts        = 0.0 ; solflxband      = 0.0
+      p0h2o    = 0.0 ; nfreqpts        = 0 ; solflxband      = 0.0
       solflxbandref   = 0.0 ; kh2o            = 0.0 ; ko3             = 0.0
       wtfreq          = 0.0 ; strterm     = .FALSE. ; wtstr           = 0.0
       cosangstr       = 0.0 ; totco2max     = 0.0 ; totco2strmax  = 0.0
@@ -3551,7 +3549,6 @@ real, dimension(:,:,:,:),      intent(out)   :: aeroextopdep, &
       real        :: aerext_i, aerssalb_i, aerasymm_i
       integer     :: j, i, k, nband, nsc
       integer     :: israd, jsrad, ierad, jerad, ksrad, kerad
-      integer     :: nextinct  !variable to pass extinction to chemistry
 
 !-----------------------------------------------------------------------
 !     local variables:
@@ -4518,7 +4515,7 @@ real, dimension(:,:,:),   intent(out)  :: reflectance, transmittance, &
 !   local variables:
  
       real, dimension (lbound(rlayerdir,3):ubound(rlayerdir,3)+1) ::  &
-                            raddupdif2, raddupdir2,  tlevel2
+                            raddupdif2, raddupdir2
 
       real, dimension (lbound(rlayerdir,3):ubound(rlayerdir,3)  ) ::  &
                                       radddowndif2,  tadddowndir2
@@ -4788,10 +4785,10 @@ logical, dimension(:,:,:), intent(in), optional    :: cloud
 !  local variables:
 
       real        :: qq(7), rr(5), ss(8), tt(8), ww(4)
-      real        :: rsum, tsum, alpha
+      real        :: rsum, tsum
       real        :: onedi3 = 1.0/3.0           
       real        :: twodi3 = 2.0/3.0             
-      integer     :: k, i, ns, j, nn, ntot
+      integer     :: k, ns, j, nn, ntot
 
       real,    dimension(ix)                  ::   &
                                           gstr2, taustr2, omegastr2, &

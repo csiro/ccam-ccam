@@ -87,7 +87,6 @@ real, dimension(:), allocatable, save :: bdlahcn, bdhahcn
 real, dimension(:), allocatable, save :: bfach4, bfan2o             
 
 real, dimension(:), allocatable, save :: dch4, dn2o, ech4, en2o
-real                            :: d171n2o, e171n2o
 
 real, dimension(:), allocatable, save :: acomb, bcomb, apcm, bpcm, atpcm,  &
                                    btpcm, bdlocm, bdhicm
@@ -97,8 +96,6 @@ integer, parameter              :: NUTABH2O   = 181
 
 real, dimension (NBLW), save    :: bandlo, bandhi, arndm, brndm, betad
 integer, dimension(40), save    :: iband
-real, dimension(3), save        :: ao3cm, bo3cm
-real, dimension(2), save        :: ab15cm
 
 integer, save                   :: NBTRG, NBTRGE, NBLY
 real, save                      :: apwd, bpwd, atpwd, btpwd, bdlowd, &
@@ -205,10 +202,8 @@ type (longwave_tables2_type), intent(inout) :: tab1a, tab2a, tab3a
       real, dimension (NBLY_CKD)    :: acomb_c, bcomb_c, apcm_c,  &
                                        bpcm_c, atpcm_c,   &
                                        btpcm_c, bdlocm_c,  bdhicm_c
-      integer                       :: inrad, k
-      integer                       :: subb
-      integer, dimension(5)         :: no_h2o12001400bands = &
-                                        (/ 1, 2, 4, 10, 20 /)
+!      integer, dimension(5)         :: no_h2o12001400bands = &
+!                                        (/ 1, 2, 4, 10, 20 /)
  
 !---------------------------------------------------------------------
 !    2) 160-560 (as 40 bands). program gasbnd is used with 10 cm-1
@@ -233,9 +228,7 @@ type (longwave_tables2_type), intent(inout) :: tab1a, tab2a, tab3a
       real, dimension (NBLY_RSB)  ::   acomb_n, bcomb_n, apcm_n,  &
                                        bpcm_n, atpcm_n, btpcm_n,  &
                                        bdlocm_n,  bdhicm_n
-      real, dimension(NBLY_RSB)   ::   dummy_n
-      real                        ::   dum
- 
+
       integer, dimension(40)      ::   iband_n
       data iband_n /   &
           2,   1,   2,   2,   1,   2,   1,   3,   2,   2,   &
@@ -243,17 +236,6 @@ type (longwave_tables2_type), intent(inout) :: tab1a, tab2a, tab3a
           4,   3,   4,   3,   7,   5,   6,   7,   6,   5,  &
           7,   6,   7,   8,   6,   6,   8,   8,   8,   8/
  
-!---------------------------------------------------------------------
-!    miscellaneous variables:
-!    unit            io unit number used for namelist file
-!    ierr            error code
-!    io              error status returned from io operation
-!    k4
-!    n4
-!---------------------------------------------------------------------
-      integer    :: unit, ierr, io
-
-
 !---------------------------------------------------------------------
 !    if routine has already been executed, exit.
 !---------------------------------------------------------------------
@@ -1739,10 +1721,6 @@ type (longwave_tables2_type), intent(inout) :: tab1a, tab2a, tab3a
 !---------------------------------------------------------------------
       module_is_initialized = .true.
 
-!---------------------------------------------------------------------
-2001  format (5e14.6)
-9000  format (5e14.6)
-
 !----------------------------------------------------------------------
 
 
@@ -1827,12 +1805,6 @@ subroutine idrbtsh2o
 !    certified:  radiation version 1.0
 !----------------------------------------------------------------------
 
-!------------------------------------------------------------------
-!  local variables:
-
-      integer   :: inrad  !  unit number for i/o
-      integer   :: k      !  do-loop index
-
 !-----------------------------------------------------------------------
 !    the following roberts continuum coefficients are computed using the
 !    program (gasbnd) over the 0-3000 cm-1 range with 10 cm-1 bandwidth.
@@ -1875,14 +1847,6 @@ character(len=*), intent(in)   :: filename
 !    filename
 !
 !---------------------------------------------------------------------
-
-!------------------------------------------------------------------
-!  local variables:
-
-      real, dimension (NBLW) :: dummy   ! dummy array
-
-      integer   :: inrad  !  unit number for i/o
-      integer   :: k      !  do-loop index
 
 !-----------------------------------------------------------------------
 !    the following h2o random band parameters are obtained from the
@@ -2158,7 +2122,7 @@ type(longwave_tables2_type), intent(inout)   :: tab1a, tab2a, tab3a
 !    are made on 10 cm-1 intervals, then summed into the NBLX wide 
 !    bands.  the last subband may be narrower than 10 cm-1.
 !---------------------------------------------------------------------
-        nsubds = (del - 1.0E-03)/10 + 1
+        nsubds = nint(del - 1.0E-03)/10 + 1
         do nsb=1,nsubds 
           if(nsb .NE. nsubds) then 
             cnusb(nsb) = 10.0E+00*(nsb - 1) + bdlo + 5.0E+00

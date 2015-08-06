@@ -370,7 +370,6 @@ real, dimension(:,:), intent(in) :: pref
       real     ::  prkminh2o = 28.0
       integer  ::  kmin, kmax
       integer  ::  ks = 1
-      integer  ::  unit, ierr, io
       integer  ::  k
 
 !--------------------------------------------------------------------
@@ -1075,8 +1074,7 @@ real, dimension (:,:,:,:), intent(inout) :: tch4n2oe
       real, dimension (size(Gas_tf%tdav,1),  &
                        size(Gas_tf%tdav,2), &
                        size(Gas_tf%tdav,3)  ) ::   &  
-                                           ch41r, n2o1r, n2o17r,   &
-                                           n2o9r, ch41c, n2o1c, n2o17c,&
+                                           ch41c, n2o1c, n2o17c,&
                                            co2p, dift, d2cdt2, dco2dt,&
                                            ch4p, d2ch4dt2, dch4dt, &
                                            d2n2odt2, dn2odt,    &
@@ -2700,7 +2698,7 @@ real, dimension(:), intent(in)    :: plm, pd
       real       ::  delzap = 0.5
       real       ::  dlogp, znint, dz, ht, rk1,  &
                      rk2, rk3, rk4
-      integer    ::  k, nlay, nint, m
+      integer    ::  k, nlay, inint, m
 
 !--------------------------------------------------------------------
 !   local variables:
@@ -2782,9 +2780,9 @@ real, dimension(:), intent(in)    :: plm, pd
 !    (special definition not needed; top pressure is nonzero)
 !------------------------------------------------------------------
         dlogp=7.0*ALOG(press(k)/press(k+1))
-        nint=dlogp/delzap
-        nint=nint+1
-        znint=nint
+        inint=nint(dlogp/delzap)
+        inint=inint+1
+        znint=inint
 
 !------------------------------------------------------------------
 !    the conversion factor is used to convert dz from cm (using the
@@ -2797,7 +2795,7 @@ real, dimension(:), intent(in)    :: plm, pd
 !    calculate height at next user level by means of       
 !    runge-kutta integration.                   
 !-------------------------------------------------------------------
-        do m=1,nint
+        do m=1,inint
           rk1=antemp(ht)*dz
           rk2=antemp(ht+0.5*rk1)*dz
           rk3=antemp(ht+0.5*rk2)*dz

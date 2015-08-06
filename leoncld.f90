@@ -57,7 +57,7 @@ subroutine leoncld
       
 use aerointerface                 ! Aerosol interface
 use arrays_m                      ! Atmosphere dyamics prognostic arrays
-use cc_mpi, only : mydiag, myid   ! CC MPI routines
+use cc_mpi, only : mydiag         ! CC MPI routines
 use cfrac_m                       ! Cloud fraction
 use cloudmod                      ! Prognostic cloud fraction
 use diag_m                        ! Diagnostic routines
@@ -81,7 +81,7 @@ include 'kuocom.h'                ! Convection parameters
 include 'parm.h'                  ! Model configuration
       
 ! Local variables
-integer iq,k,ncl
+integer k
 integer, dimension(ifull) :: kbase,ktop                   !Bottom and top of convective cloud 
 
 real, dimension(ifull,kl) :: prf                          !Pressure on full levels (hPa)
@@ -245,7 +245,7 @@ if ( nmaxpr==1 .and. mydiag ) then
 endif
 
 !     Calculate cloud fraction and cloud water mixing ratios
-call newcloud(dt,land,prf,kbase,ktop,rhoa,cdso4,tenv,qenv,qlg,qfg,cfrac,ccov,cfa,qca)
+call newcloud(dt,land,prf,rhoa,cdso4,tenv,qenv,qlg,qfg,cfrac,ccov,cfa,qca)
 
 if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'after newcloud',ktau
@@ -311,7 +311,7 @@ do k = 1,kl
 enddo
 
 !     Calculate precipitation and related processes
-call newsnowrain(land,dt,rhoa,dz,prf,cdso4,cfa,qca,t,qlg,qfg,qrg,qsng,qgrg,       &
+call newsnowrain(dt,rhoa,dz,prf,cdso4,cfa,qca,t,qlg,qfg,qrg,qsng,qgrg,            &
                  precs,qg,cfrac,rfrac,sfrac,gfrac,ccov,preci,precg,qevap,qsubl,   &
                  qauto,qcoll,qaccr,qaccf,fluxr,fluxi,fluxs,fluxg,fluxmelt,        &
                  pfstayice,pfstayliq,pqfsed,slopes,prscav)
@@ -465,7 +465,7 @@ end subroutine leoncld
 ! 
 !******************************************************************************
 
- subroutine newcloud(tdt,land,prf,kbase,ktop,rhoa,cdrop,ttg,qtg,qlg,qfg,cfrac,ccov,cfa,qca)
+ subroutine newcloud(tdt,land,prf,rhoa,cdrop,ttg,qtg,qlg,qfg,cfrac,ccov,cfa,qca)
 
 ! This routine is part of the prognostic cloud water scheme
 
@@ -499,7 +499,6 @@ real, dimension(ifull,kl), intent(inout) :: ccov
 real, dimension(ifull,kl), intent(inout) :: cfa
 real, dimension(ifull,kl), intent(inout) :: qca
 logical, dimension(ifull), intent(in) :: land
-integer, dimension(ifull), intent(in) :: kbase, ktop
 
 ! Local work arrays and variables
 real, dimension(ifull,kl) :: qsl, qsw
@@ -635,13 +634,13 @@ else if ( nclddia>7 ) then  ! e.g. 12    JLM
   ! and precipitation scheme for climate and data-assimilation purposes" Q J R Met Soc 128, 229-257,
   ! has a useful discussion of the dependence of RHcrit on grid spacing
   do k=1,kl  ! typically set rcrit_l=.75,  rcrit_s=.85
-    tk(:)=ds/(em(1:ifull)*208498.) ! MJT suggestion
-    fl(:)=(1.+real(nclddia))*tk(:)/(1.+real(nclddia)*tk(:))
+    tk(1:ifull)=ds/(em(1:ifull)*208498.) ! MJT suggestion
+    fl(1:ifull)=(1.+real(nclddia))*tk(1:ifull)/(1.+real(nclddia)*tk(1:ifull))
     ! for rcit_l=.75 & nclddia=12 get rcrit=(0.751, 0.769, .799, .901, .940, .972, .985) for (200, 100, 50, 10, 5, 2, 1) km
     where ( land(1:ifull) )
-      rcrit(:,k)=max(1.-fl*(1.-rcrit_l),sig(k)**3)        
+      rcrit(1:ifull,k)=max(1.-fl(1:ifull)*(1.-rcrit_l),sig(k)**3)        
     elsewhere
-      rcrit(:,k)=max(1.-fl*(1.-rcrit_s),sig(k)**3)         
+      rcrit(1:ifull,k)=max(1.-fl(1:ifull)*(1.-rcrit_s),sig(k)**3)         
     end where
   end do
 end if  ! (nclddia<0)  .. else ..
@@ -734,7 +733,7 @@ if ( ncloud<=3 ) then
   if ( diag .and. mydiag ) then
     write(6,*) 'rcrit ',rcrit(idjd,:)
     write(6,*) 'qtot ',qtot(idjd,:)
-    write(6,*) 'qsi',qsi(mg,k)
+    write(6,*) 'qsi',qsi(idjd,:)
     write(6,*) 'tliq',tliq(idjd,:)
     write(6,*) 'qsl ',qsl(idjd,:)
     write(6,*) 'qsw ',qsw(idjd,:)
@@ -763,8 +762,8 @@ else
   
   ! Tiedtke prognostic cloud fraction model
   ! MJT notes - we use ttg instead of tliq
-  qtot(:,:)=qtg(:,:)+qcg(:,:)
-  tliq(:,:)=ttg(:,:)-hlcp*qcg(:,:)-hlfcp*qfg(1:ifull,:)
+  qtot(1:ifull,1:kl)=qtg(1:ifull,1:kl)+qcg(1:ifull,1:kl)
+  tliq(1:ifull,1:kl)=ttg(1:ifull,1:kl)-hlcp*qcg(1:ifull,1:kl)-hlfcp*qfg(1:ifull,1:kl)
   do k=1,kl
     pk_v=100.*prf(1:ifull,k)
     qsi(1:ifull,k)=qsati(pk_v(1:ifull),ttg(1:ifull,k))      ! Ice value
@@ -778,11 +777,11 @@ else
   cfa(:,:)=0.
   qca(:,:)=0.
 
-  where(ttg>=Tice)
-    qfg(1:ifull,:) = fice*qcg
-    qlg(1:ifull,:) = qcg - qfg(1:ifull,:)
+  where(ttg(1:ifull,:)>=Tice)
+    qfg(1:ifull,:) = fice(:,:)*qcg(:,:)
+    qlg(1:ifull,:) = qcg(:,:) - qfg(1:ifull,:)
   elsewhere
-    qfg(1:ifull,:) = qcg
+    qfg(1:ifull,:) = qcg(:,:)
     qlg(1:ifull,:) = 0.
     qcg(1:ifull,:) = qfg(1:ifull,:)
   end where
@@ -861,7 +860,6 @@ return
 !                        cparams.h    (cloud scheme parameters)
 !
 ! from arguments
-!      land - logical variable for surface type ( = T for land points)
 !      tdt - leapfrog timestep (seconds)
 !      rhoa - air density (kg/m**3)
 !      dz - layer thicknes (m)
@@ -897,7 +895,7 @@ return
 !
 !**************************************************************************
 
-subroutine newsnowrain(land,tdt,rhoa,dz,prf,cdrop,cfa,qca,ttg,qlg,qfg,qrg,qsng,qgrg,precs,qtg,cfrac,cfrainfall,  &
+subroutine newsnowrain(tdt,rhoa,dz,prf,cdrop,cfa,qca,ttg,qlg,qfg,qrg,qsng,qgrg,precs,qtg,cfrac,cfrainfall,       &
                        cfsnowfall,cfgraupelfall,ccov,preci,precg,qevap,qsubl,qauto,qcoll,qaccr,qaccf,fluxr,      &
                        fluxi,fluxs,fluxg,fluxmelt,pfstayice,pfstayliq,pqfsed,slopes,prscav)
 
@@ -916,7 +914,6 @@ include 'kuocom.h'     !acon,bcon,Rcm,ktsav,nevapls
 include 'parm.h'
 
 ! Argument list
-logical, dimension(ifull), intent(in) :: land
 real, intent(in) :: tdt
 real, dimension(ifull,kl), intent(in) :: rhoa
 real, dimension(ifull,kl), intent(in) :: dz
@@ -986,7 +983,7 @@ real, dimension(ifull) :: csacw,n0s,lambdadum,rica
 integer k,mg
 
 real apr,bpr,bl,cev,crate,dqsdt,frb,qcic,qcrit,ql1,ql2,R6c,R3c,beta6,eps
-real satevap,selfcoll,Wliq,cfla,dqla,qla,viin,qsl
+real satevap,selfcoll,Wliq,cfla,dqla,qla,qsl
 real cgacw
 
 cgacw = pi*4.0e6*3.323363*40.74/(4.*(pi*4.0e6*0.4e3)**0.875)
@@ -1339,10 +1336,10 @@ do k = kl-1,1,-1
 
     ! Set up the Rate constant for snow sublimation
     ! MJT notes - curly and Csbsav depend on vs2(:,k+1), so vs2(:,k) can be updated below
-    Tk(1:ifull)    = ttg(:,k)
+    Tk(1:ifull)    = ttg(1:ifull,k)
     es(1:ifull)    = qsatg(1:ifull,k)*pk(:)/epsil
-    Aprpr(1:ifull) = (hls/(rKa*Tk(:)))*(hls/(rvap*Tk(:))-1.)
-    Bprpr(1:ifull) = rvap*Tk(:)/((Dva/pk(:))*es(:))
+    Aprpr(1:ifull) = (hls/(rKa*Tk(1:ifull)))*(hls/(rvap*Tk(1:ifull))-1.)
+    Bprpr(1:ifull) = rvap*Tk(1:ifull)/((Dva/pk(1:ifull))*es(1:ifull))
     where ( nevapls==-1 .or. (nevapls==-2.and.condx(:)>0..and.k<=ktsav(:)) )
       curly(1:ifull) = 0.
     elsewhere
@@ -1480,10 +1477,10 @@ do k = kl-1,1,-1
 
   ! Set up the Rate constant for ice sublimation
   ! MJT notes - curly and Csbsav depend on vi2(:,k+1), so vi2(:,k) can be updated below
-  Tk(1:ifull)    = ttg(:,k)
+  Tk(1:ifull)    = ttg(1:ifull,k)
   es(1:ifull)    = qsatg(1:ifull,k)*pk(:)/epsil
-  Aprpr(1:ifull) = (hls/(rKa*Tk(:)))*(hls/(rvap*Tk(:))-1.)
-  Bprpr(1:ifull) = rvap*Tk(:)/((Dva/pk(:))*es(:))
+  Aprpr(1:ifull) = (hls/(rKa*Tk(1:ifull)))*(hls/(rvap*Tk(1:ifull))-1.)
+  Bprpr(1:ifull) = rvap*Tk(1:ifull)/((Dva/pk(1:ifull))*es(1:ifull))
   where ( nevapls==-1 .or. (nevapls==-2.and.condx(:)>0..and.k<=ktsav(:)) )
     curly(1:ifull) = 0.
   elsewhere

@@ -112,11 +112,6 @@ subroutine longwave_params_init
 !    longwave_params_init is the constructor for longwave_params_mod.
 !------------------------------------------------------------------
 
-!------------------------------------------------------------------
-!  local variables:
-
-      integer    ::  unit, ierr, io
-
 !---------------------------------------------------------------------
 !  local variables:
 !
@@ -163,10 +158,6 @@ subroutine longwave_params_init
 !    mark the module as initialized.
 !----------------------------------------------------------------------
      module_is_initialized = .true.
-
-!------------------------------------------------------------------
-9000 format ( 'NBCO215=', i3,'  NBLY_RSB=', i4,   &
-              '  NBLY_CKD=', i4, '  NBLW= ', i4, '  NBLX=', i4 )
 
 !-------------------------------------------------------------------
 

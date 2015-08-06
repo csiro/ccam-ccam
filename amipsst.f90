@@ -58,7 +58,7 @@ real, dimension(ifull,wlev) :: dumb,dumd
 real, dimension(ifull,wlev,2) :: dumc
 real x, c2, c3, c4, rat1, rat2
 integer, dimension(0:13) :: mdays
-integer idjd_g, iq, ierr, k
+integer idjd_g, iq, k
 integer, save :: iyr, imo, iday
 integer, parameter :: mlomode = 1 ! (0=relax, 1=scale-select)
 integer, parameter :: mlotime = 6 ! scale-select period in hours

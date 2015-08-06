@@ -349,7 +349,7 @@ end subroutine aldrloaderod
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Main routine
 
-subroutine aldrcalc(dt,sig,sigh,dsig,zz,dz,fwet,wg,pblh,prf,ts,ttg,condc,snowd,taudar,fg,eg,v10m, &
+subroutine aldrcalc(dt,sig,zz,dz,wg,pblh,prf,ts,ttg,condc,snowd,taudar,fg,eg,v10m,                &
                     ustar,zo,land,fracice,tsigmf,qvg,qlg,qfg,cfrac,clcon,cldcon,pccw,rhoa,vt,     &
                     ppfprec,ppfmelt,ppfsnow,ppfevap,ppfsubl,pplambs,ppmrate,ppmaccr,ppfstayice,   &
                     ppfstayliq,ppqfsed,pprscav,zdayfac,kbsav)
@@ -359,9 +359,6 @@ implicit none
 integer, dimension(ifull), intent(in) :: kbsav ! Bottom of convective cloud
 real, intent(in) :: dt                         ! Time step
 real, dimension(kl), intent(in) :: sig         ! Sigma levels
-real, dimension(kl), intent(in) :: dsig        ! Sigma level width
-real, dimension(kl+1), intent(in) :: sigh      ! Sigma half levels
-real, dimension(ifull), intent(in) :: fwet     ! Fraction of water on leaf
 real, dimension(ifull), intent(in) :: wg       ! Soil moisture fraction of field capacity
 real, dimension(ifull), intent(in) :: prf      ! Surface pressure
 real, dimension(ifull), intent(in) :: ts       ! Surface temperture
@@ -399,7 +396,7 @@ real, dimension(ifull,naero) :: xtem
 real, dimension(ifull,kl,naero) :: xte,xtu,xtm1
 real, dimension(ifull,kl) :: aphp1
 real, dimension(ifull,kl) :: pclcon
-real, dimension(ifull,kl) :: prhop1,ptp1,pfevap,pfsubl,plambs
+real, dimension(ifull,kl) :: prhop1,ptp1
 real, dimension(ifull,kl) :: pclcover,pcfcover,pmlwc,pmiwc,ppfconv
 real, dimension(ifull) :: bbem,fracc
 real, dimension(ifull) :: so2oh,so2h2,so2o3,dmsoh,dmsn3
@@ -448,7 +445,7 @@ end select
 
 ! Emission and dry deposition (sulfur cycle and carbonaceous aerosols)
 call xtemiss(dt, rhoa, ts, fracice, vefn,                                 & !Inputs
-             land, tsigmf, cgssnowd, fwet, wg, dz,                        & !Inputs
+             land, tsigmf, cgssnowd, wg, dz,                              & !Inputs
              xte, xtem, bbem)                                               !Outputs
 xtg(1:ifull,:,:)=max(xtg(1:ifull,:,:)+xte(:,:,:)*dt,0.)
 
@@ -467,7 +464,7 @@ end do
 ! Calculate the settling of large dust particles
 call dsettling(dt,rhoa,ttg,dz,aphp1(:,1:kl))
 ! Calculate dust emission and turbulent dry deposition at the surface
-call dustem(dt,rhoa(:,1),wg,veff,dz(:,1),vt,snowd,land)
+call dustem(dt,rhoa(:,1),wg,veff,dz(:,1),vt,snowd)
 ! Calculate integrated column dust after settling
 dcol2 = 0.
 do nt=itracdu,itracdu+ndust-1
@@ -578,7 +575,7 @@ end subroutine aldrcalc
 ! xt emiss
 
 SUBROUTINE XTEMISS(ztmst, rhoa, TSM1M, SEAICEM, ZZSPEED,                         & !Inputs
-                   LOLAND, PFOREST, PSNOW, fwet, WSM1M, dz,                      & !Inputs
+                   LOLAND, PFOREST, PSNOW, WSM1M, dz,                            & !Inputs
                    XTE, PXTEMS, bbem)                                              !Outputs
 !
 !    THIS ROUTINE CALCULATES THE LOWER BOUNDARY CONDITIONS
@@ -610,14 +607,13 @@ LOGICAL, dimension(ifull), intent(in) :: LOLAND     !Land flag
 REAL, dimension(ifull), intent(in) :: PFOREST       !Fractional vegetation cover
 REAL, dimension(ifull), intent(in) :: PSNOW         !Snow depth [m]
 ! Land-surface details needed to specify dry deposition velocity
-REAL, dimension(ifull), intent(in) :: fwet          !skin reservoir content of plant [fraction of maximum]
 real, dimension(ifull), intent(in) :: WSM1M         !surface wetness [vol fraction for CSIRO GCM, not m]
 real, dimension(ifull,kl,naero), intent(out) :: XTE !Tracer tendencies (kg/kg/s)
 REAL, dimension(ifull,naero), intent(out) :: PXTEMS !Sfc. flux of tracer passed to vertical mixing [kg/m2/s]
 ! Some diagnostics
 real, dimension(ifull), intent(out) :: bbem
 
-integer jl,jk,jt
+integer jk,jt
 
 REAL, dimension(ifull,2) :: ZVDRD
 REAL, dimension(ifull) :: gdp,zdmsemiss
@@ -1071,17 +1067,16 @@ real so2o3(ifull) !Diagnostic output
 ! Local work arrays and variables
 real so2oh3d(ifull,kl),dmsoh3d(ifull,kl),dmsn33d(ifull,kl)
 REAL ZXTP10(ifull,kl),          ZXTP1C(ifull,kl),   &
-     ZHENRY(ifull,kl),          ZKII(ifull,kl),     &
+     ZHENRY(ifull,kl),                              &
      ZSO4(ifull,kl),            ZRKH2O2(ifull,kl),  &
      ZSO4i(ifull,kl),           ZSO4C(ifull,kl),    &
      ZHENRYC(ifull,kl),         ZXTP1CON(ifull,kl), &
      zsolub(ifull,kl)
 REAL ZZOH(ifull,kl),            ZZH2O2(ifull,kl),   &
-     ZZO3(ifull,kl),            ZDUMMY(ifull,kl),   &
+     ZZO3(ifull,kl),                                &
      ZZNO2(ifull,kl),           ZDXTE(ifull,kl,naero)
 REAL ZDEP3D(ifull,kl),                              &
-     ZAMU0(ifull),zlwcic(ifull,kl),ziwcic(ifull,kl)
-real zso2ev(ifull,kl)
+     zlwcic(ifull,kl),ziwcic(ifull,kl)
 real xto(ifull,kl,naero),zx(ifull)
 integer ZRDAYL(ifull)
 real, dimension(ifull), intent(in) :: zdayfac
@@ -1096,7 +1091,7 @@ real zh_h2o2,zq,zso2mh,zdso2h,zso2l,zso4l
 real zzb,zzp,zzq,zzp2,zqhp,za2,zheneff
 real zrko3,zso2mo,zdso2o,zdso2tot,zfac
 real zxtp1dms,zso2,ztk23b
-real zhil,zexp,zm,zdms,t,ztk1,tk3,zqt,zqt3
+real zhil,zexp,zm,zdms,t,ztk1,zqt,zqt3
 real zrhoair,zkno2o3,zkn2o5aq,zrx1,zrx2
 real zkno2no3,zeqn2o5,ztk3,ztk2,zkn2o5
 real zno3,zxtp1so2
@@ -1584,12 +1579,12 @@ DO JT=ITRACSO2,naero
                  PTMST,                                      &
                  rhodz,                                      &
                  PMRATEP, PFPREC, PFEVAP,                    &
-                 PCLCOVER, PRHOP1, zsolub, pmlwc, ptp1,      &
+                 PCLCOVER, zsolub, pmlwc, ptp1,              &
                  pfsnow,pfsubl,pcfcover,pmiwc,pmaccr,pfmelt, &
                  pfstayice,pfstayice,pqfsed,plambs,prscav,   &
                  pfconv,pclcon,                              & 
                  fracc,                                      & !Inputs
-                 ZXTP10, ZXTP1C,ZDEP3D,conwd,zxtp1con)
+                 ZXTP10, ZXTP1C,ZDEP3D,conwd)
 
 !   CALCULATE NEW CHEMISTRY AND SCAVENGING TENDENCIES
   do JK=KTOP,kl
@@ -1725,11 +1720,11 @@ SUBROUTINE XTWETDEP(KTRAC,                                                      
                     PTMST,                                                           &
                     rhodz,                                                           &
                     PMRATEP, PFPREC, PFEVAP,                                         &
-                    PCLCOVER, PRHOP1, PSOLUB, pmlwc, ptp1,                           &
+                    PCLCOVER, PSOLUB, pmlwc, ptp1,                                   &
                     pfsnow,pfsubl,pcfcover,pmiwc,pmaccr,pfmelt,pfstayice,pfstayliq,  &
                     pqfsed,plambs,                                                   &
                     prscav,pfconv,pclcon,fracc,                                      & !Inputs
-                    PXTP10, PXTP1C, PDEP3D, conwd,pxtp1con)                            !In & Out
+                    PXTP10, PXTP1C, PDEP3D, conwd)                            !In & Out
 
 !
 !   *XTWETDEP* CALCULATES THE WET DEPOSITION OF TRACE GASES OR AEROSOLS
@@ -1758,14 +1753,12 @@ integer, intent(in) :: KTRAC
 real, intent(in) :: PTMST
 real, dimension(ifull,kl), intent(inout) :: PXTP10   !Tracer m.r. outside liquid-water cloud (clear air/ice cloud)
 real, dimension(ifull,kl), intent(inout) :: PXTP1C   !Tracer m.r.  inside liquid-water cloud
-real, dimension(ifull,kl), intent(inout) :: pxtp1con !Tracer m.r.  inside convective cloud
 real, dimension(ifull,kl), intent(in) :: rhodz
 real, dimension(ifull,kl), intent(in) :: PMRATEP
 real, dimension(ifull,kl), intent(in) :: PFPREC
 real, dimension(ifull,kl), intent(in) :: PFEVAP
 real, dimension(ifull,kl), intent(inout) :: PDEP3D
 real, dimension(ifull,kl), intent(in) :: PCLCOVER
-real, dimension(ifull,kl), intent(in) :: PRHOP1
 real, dimension(ifull,kl), intent(in) :: PSOLUB
 real, dimension(ifull,kl), intent(in) :: pmlwc
 real, dimension(ifull,kl), intent(in) :: ptp1  !temperature
@@ -2051,7 +2044,7 @@ end subroutine dsettling
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Dust emissions
 
-subroutine dustem(tdt,rhoa,wg,w10m,dz1,vt,snowd,land)
+subroutine dustem(tdt,rhoa,wg,w10m,dz1,vt,snowd)
 
 implicit none
 
@@ -2063,7 +2056,6 @@ real, dimension(ifull), intent(in) :: w10m      !10m windspeed (m/s)
 real, dimension(ifull), intent(in) :: dz1       !Lowest layer thickness (m)
 real, dimension(ifull), intent(in) :: vt        !Transfer velocity at surface for dry deposition (m/s)
 real, dimension(ifull), intent(in) :: snowd     !Snow depth (mm equivalent water)
-logical, dimension(ifull), intent(in) :: land
 real, dimension(ifull) :: snowa     !Estimated snow areal coverage
 real, dimension(ifull) :: u_ts0,u_ts,veff
 real, dimension(ifull) :: srce,dsrc,airmas
@@ -2326,7 +2318,7 @@ real, dimension(size(fscav)), intent(in) :: xs    ! xtg(:,k,3) = so4
 real, dimension(size(fscav)), intent(in) :: rho   ! air density
 real, dimension(size(fscav)) :: f_so2,scav_eff
 real, dimension(size(fscav)) :: zqtp1,ze2,ze3,zfac,zso4l,zso2l,zqhp
-real, dimension(size(fscav)) :: zza,zzb,zzp,zzq,zzp2,zhp,zqhr,zheneff,p_so2
+real, dimension(size(fscav)) :: zza,zzb,zzp,zzq,zzp2,zhp,zheneff,p_so2
 logical, dimension(size(fscav)) :: bwkp1 
 
 !bwkp1(:)=tt(:)>=ticeu ! condensate in parcel is liquid (true) or ice (false)

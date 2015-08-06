@@ -515,6 +515,9 @@ real, dimension(ifull) :: theeb
 real, dimension(kl), intent(in) :: sigkap,sighkap,delons
 real, dimension(:), allocatable, save :: prcpv
 
+w1=0.
+pk=0.
+
 if ( .not.allocated(prcpv) ) allocate(prcpv(kl))
 
 if ( nmaxpr==1 .and. mydiag ) write (6,"('thet_in',9f8.3/7x,9f8.3)") rhs(idjd,:)

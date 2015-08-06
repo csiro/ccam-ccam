@@ -102,14 +102,14 @@ real, parameter :: rkappa = 2./7.
 
 integer, intent(in) :: jalbfix
 integer, intent(inout) :: io_nest
-integer, dimension(3) :: spos,npos
-integer i1, ii, imo, indexi, indexl, indexs, ip, iq, isoil, isoth
-integer iveg, iyr, j1, jj, k, kdate_sav, ktime_sav, l
-integer nface, nn, npgb, nsig, i, j, n
-integer ix, jx, ixjx, ierr, ic, jc, iqg, ig, jg
+integer ii, imo, indexi, indexl, indexs, ip, iq, isoil, isoth
+integer iveg, iyr, jj, k, kdate_sav, ktime_sav, l
+integer nface, nn, nsig, i, j, n
+integer ierr, ic, jc, iqg, ig, jg
 integer isav, jsav, ier, lapsbot
 
-character(len=80) :: co2in,radonin,surfin,header
+character(len=160) :: co2in,radonin,surfin
+character(len=80) :: header
 
 real, intent(out) :: hourst
 real, dimension(ifull) :: zss, aa, zsmask
@@ -122,16 +122,15 @@ real, dimension(ifull,kl,9) :: dumb
 real, dimension(:,:), allocatable :: glob2d
 real, dimension(:), allocatable :: davt_g
 real, dimension(3*kl+1) :: dumc
-real, dimension(2) :: dumd
 real rlonx,rlatx,alf
 real c, cent
 real coslat, coslong, costh, den, diffb, diffg, dist
 real epsmax, fracs, fracwet, ftsoil, gwdfac, hefact
 real polenx, poleny, polenz, pslavge
 real rad, radu, radv, ri, rj, rlat_d, rlon_d
-real rmax, rmin, rmax_g, rmin_g, rlatd, rlongd
-real sinlat, sinlong, sinth, snalb,sumdsig, thet, timegb, tsoil
-real uzon, vmer, wet3, zonx, zony, zonz, zsdiff, zsmin, tstom
+real rlatd, rlongd
+real sinlat, sinlong, sinth, snalb,sumdsig, thet, tsoil
+real uzon, vmer, wet3, zonx, zony, zonz, zsdiff, tstom
 real xbub, ybub, xc, yc, zc, xt, yt, zt, tbubb, emcent
 real deli, delj, centi, distnew, distx, rhs, ril2
 real newzo,visalb,niralb
@@ -825,9 +824,9 @@ if(io_in==8)then
     ! costh=(-y(iq)*ax(iq) + x(iq)*ay(iq))/den
     ! sinth=az(iq)/den
     ! set up unit zonal vector components
-    zonx=            -polenz*y(iq)
-    zony=polenz*x(iq)-polenx*z(iq)
-    zonz=polenx*y(iq)
+    zonx=real(            -polenz*y(iq))
+    zony=real(polenz*x(iq)-polenx*z(iq))
+    zonz=real(polenx*y(iq)             )
     den=sqrt( max(zonx**2 + zony**2 + zonz**2,1.e-7) ) ! allow for poles
     costh= (zonx*ax(iq)+zony*ay(iq)+zonz*az(iq))/den
     sinth=-(zonx*bx(iq)+zony*by(iq)+zonz*bz(iq))/den
@@ -857,9 +856,9 @@ if (io_in==10) then
   do k=1,kl
     do iq=1,ifull
       ! set up unit zonal vector components
-      zonx=            -polenz*y(iq)
-      zony=polenz*x(iq)-polenx*z(iq)
-      zonz=polenx*y(iq)
+      zonx=real(            -polenz*y(iq))
+      zony=real(polenz*x(iq)-polenx*z(iq))
+      zonz=real(polenx*y(iq)             )
       den=sqrt( max(zonx**2 + zony**2 + zonz**2,1.e-7) ) ! allow for poles
       costh= (zonx*ax(iq)+zony*ay(iq)+zonz*az(iq))/den
       sinth=-(zonx*bx(iq)+zony*by(iq)+zonz*bz(iq))/den
@@ -889,8 +888,8 @@ if(io_in==11)then
   vmer=0.
   ! assign u and v from zonal and meridional winds
   do iq=1,ifull
-    den=sqrt( max(x(iq)**2 + y(iq)**2,1.e-7_8) ) ! allow for poles
-    costh=(-y(iq)*ax(iq) + x(iq)*ay(iq))/den
+    den=real(sqrt( max(x(iq)**2 + y(iq)**2,1.e-7_8) )) ! allow for poles
+    costh=real(-y(iq)*ax(iq) + x(iq)*ay(iq))/den
     sinth=az(iq)/den
     uzon=2.*pi*rearth/(10.*86400) * abs(cos(rlatt(iq)))
     psl(iq)=.01
@@ -1898,9 +1897,9 @@ if(nproc==1)then
   do j=1,jl
     do i=1,il
       iq=i+(j-1)*il
-      zonx=            -polenz*y(iq)
-      zony=polenz*x(iq)-polenx*z(iq)
-      zonz=polenx*y(iq)
+      zonx=real(            -polenz*y(iq))
+      zony=real(polenz*x(iq)-polenx*z(iq))
+      zonz=real(polenx*y(iq)             )
       thet=atan2(-zonx*bx(iq)-zony*by(iq)-zonz*bz(iq),zonx*ax(iq)+zony*ay(iq)+zonz*az(iq))*180./pi
       if(thet<0.)thet=thet+360.
       write(22,922) iq,i,j,rlongg(iq)*180./pi,rlatt(iq)*180./pi,  &
@@ -2039,13 +2038,12 @@ include 'parm.h'             ! Model configuration
 include 'soilv.h'            ! Soil parameters
       
 integer ivegdflt,isoildflt
-integer iq,ierr,iernc
-integer ivegmin, ivegmax, ivegmin_g, ivegmax_g
+integer iq,iernc
+integer ivegmin, ivegmax, ivegmax_g
 integer :: idatafix=0
 integer, dimension(:,:), allocatable :: iduma
 integer, dimension(ifull,2) :: idumb
 integer, dimension(2) :: dumc
-integer, dimension(3) :: spos,npos
 real falbdflt,frsdflt,fzodflt
 real sibvegver
 real, dimension(:,:), allocatable :: duma
@@ -2234,7 +2232,6 @@ implicit none
 include 'newmpar.h'      ! Grid parameters      
       
 real, intent(in) :: from,to
-real val
 real, dimension(ifull), intent(inout) :: fld
 integer, intent(in) :: idfix
 integer iq
@@ -2756,7 +2753,7 @@ include 'newmpar.h'
 include 'const_phys.h'  
       
 integer iq,ix
-integer ncid,ncs,varid,ierr
+integer ncid,ncs,varid
 integer, dimension(3) :: spos,npos
 real x,r
 real, dimension(300) :: sdata,ldata

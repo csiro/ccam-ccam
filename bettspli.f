@@ -47,6 +47,10 @@ c***********************************************************************
 c
       dimension xold(nold), yold(nold), y2(nold), p(nold), q(nold)
       dimension xnew(nnew), ynew(nnew)
+      
+      ak=0.
+      bk=0.
+      ck=0.
 c
       noldm1 = nold-1
 c

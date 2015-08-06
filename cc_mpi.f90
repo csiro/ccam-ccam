@@ -159,11 +159,11 @@ module cc_mpi
    end interface
 
    ! Define neighbouring faces
-   integer, parameter, private, dimension(0:npanels) ::    &
-           n_e = (/ 2, 2, 4, 4, 0, 0 /), &
-           n_w = (/ 5, 5, 1, 1, 3, 3 /), &
-           n_n = (/ 1, 3, 3, 5, 5, 1 /), &
-           n_s = (/ 4, 0, 0, 2, 2, 4 /)
+!   integer, parameter, private, dimension(0:npanels) ::    &
+!           n_e = (/ 2, 2, 4, 4, 0, 0 /), &
+!           n_w = (/ 5, 5, 1, 1, 3, 3 /), &
+!           n_n = (/ 1, 3, 3, 5, 5, 1 /), &
+!           n_s = (/ 4, 0, 0, 2, 2, 4 /)
    ! Do directions need to be swapped
    logical, parameter, private, dimension(0:npanels) ::    &
            swap_e = (/ .true., .false., .true., .false., .true., .false. /), &
@@ -1268,7 +1268,7 @@ contains
 #endif
       integer(kind=4) :: ierr, lsize, itest
       integer(kind=MPI_ADDRESS_KIND) :: displ
-      integer :: ncount, w, iproc, n, j, iqg, iq
+      integer :: ncount, w, iproc, n, iq
       integer :: ipoff, jpoff, npoff
       integer :: ipak, jpak
       
@@ -1330,7 +1330,7 @@ contains
 #endif
       integer(kind=4) :: ierr, lsize, itest
       integer(kind=MPI_ADDRESS_KIND) :: displ
-      integer :: ncount, w, iproc, k, n, j, iqg, iq, kx
+      integer :: ncount, w, iproc, k, n, iq, kx
       integer :: ipoff, jpoff, npoff
       integer :: ipak, jpak
       
@@ -1443,7 +1443,7 @@ contains
    
       integer, intent(in) :: krefin,krefout,kx
       integer :: w, n, ncount, iproc, ipak, jpak
-      integer :: ipoff, jpoff, npoff, iq
+      integer :: ipoff, jpoff, npoff
    
       ncount = size(specmap)
       do w = 1,ncount
@@ -3073,7 +3073,7 @@ contains
       logical, intent(in), optional :: corner
       logical, intent(in), optional :: nehalf
       logical :: extra, single, double
-      integer :: iq, iproc, rproc, sproc, send_len, recv_len
+      integer :: iq, iproc, send_len, recv_len
       integer :: rcount, myrlen, jproc, mproc
       integer, dimension(neighnum) :: rslen, sslen
       integer(kind=4) :: ierr, itag = 1, llen, sreq, lproc
@@ -3336,7 +3336,7 @@ contains
       logical, intent(in), optional :: nehalf
       logical :: extra, single, double
       integer :: iq, iproc, kx, send_len, recv_len
-      integer :: rcount, myrlen, jproc, mproc, ntr, nn
+      integer :: rcount, myrlen, jproc, mproc, ntr
       integer, dimension(neighnum) :: rslen, sslen
       integer(kind=4) :: ierr, itag = 2, llen, sreq, lproc
       integer(kind=4) :: ldone
@@ -3524,7 +3524,7 @@ contains
       real, dimension(:,:), intent(inout) :: t
       integer, intent(in) :: lcolour
       integer, intent(in), optional :: klim
-      integer :: iq, iproc, kx, send_len, iqq
+      integer :: iq, iproc, kx, iqq
       integer :: rcount, jproc, myrlen
       integer(kind=4) :: ierr, sreq, lproc, ldone
       integer(kind=4), dimension(MPI_STATUS_SIZE,size(ireq)) :: status
@@ -3598,7 +3598,7 @@ contains
       integer, intent(in), optional :: nrows, stag
       logical :: double
       logical :: fsvwu, fnveu, fssvwwu, fnnveeu
-      integer :: iq, iqz, iqt, iproc, iqq, send_len, recv_len
+      integer :: iq, iqz, iqt, iproc, iqq, recv_len
       integer :: rcount, myrlen, jproc, mproc, stagmode
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -3609,7 +3609,7 @@ contains
       integer(kind=4) :: ldone
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
       integer(kind=4), dimension(neighnum) :: donelist
-      real :: tmp, negmul
+      real :: tmp
 
       double = .false.
       stagmode = 0
@@ -3876,7 +3876,7 @@ contains
       integer, intent(in), optional :: stag
       logical :: double
       logical :: fsvwu, fnveu, fssvwwu, fnnveeu
-      integer :: iq, iqz, iq_b, iq_e, iqt, iproc, kx, rproc, sproc, iqq, send_len, recv_len
+      integer :: iq, iqz, iq_b, iq_e, iqt, iproc, kx, rproc, sproc, iqq, recv_len
       integer :: rcount, myrlen, jproc, mproc, stagmode
       integer(kind=4) :: ierr, itag = 5, llen, sreq, lproc
       integer(kind=4) :: ldone
@@ -4162,7 +4162,7 @@ contains
       ! diagonal points like (0,0), but does have to take care of the
       ! direction changes.
       real, dimension(:,:), intent(inout) :: u, v
-      integer :: iq, iqz, iq_b, iq_e, iqt, iproc, kx, rproc, sproc, iqq, send_len, recv_len
+      integer :: iq, iqz, iq_b, iq_e, iqt, iproc, kx, rproc, sproc, iqq, recv_len
       integer :: rcount, myrlen, jproc, mproc
       integer(kind=4) :: ierr, itag = 5, llen, sreq, lproc
       integer(kind=4) :: ldone
@@ -4333,6 +4333,7 @@ contains
       kx = size(nface,2)
       dslen = 0
       drlen = 0
+      dproc = 0
       
 !     In this case the length of each buffer is unknown and will not
 !     be symmetric between processors. Therefore need to get the length
@@ -4477,7 +4478,7 @@ contains
    subroutine intssync_recv(s)
       real, dimension(:,:,:), intent(inout) :: s
       integer :: iproc, iq, jproc
-      integer :: rcount, ntr, nn
+      integer :: rcount, ntr
       integer(kind=4) :: ierr, ldone, sreq
       integer(kind=4), dimension(neighnum) :: donelist
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
@@ -4658,31 +4659,31 @@ contains
       end if
    end subroutine check_bnds_alloc
 
-   subroutine fix_index(iqq, larray, n, bnds, iext)
-      integer, intent(in) :: iqq, n
-      integer, dimension(:), intent(out) :: larray
-      integer, intent(inout) :: iext
-      type(bounds_info), dimension(0:), intent(inout) :: bnds
-      integer :: rproc
-      integer :: iloc,jloc,nloc
-
-      ! This processes extra corner points, so adds to rlenx
-      ! Which processor has this point
-      rproc = qproc(iqq)
-      if ( rproc /= myid ) then ! Add to list
-         call check_bnds_alloc(rproc, iext)
-         bnds(rproc)%rlenx = bnds(rproc)%rlenx + 1
-         bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqq
-         ! Increment extended region index
-         iext = iext + 1
-         bnds(rproc)%unpack_list(bnds(rproc)%rlenx) = iext
-         larray(n) = ifull+iext
-      else
-         ! If it's on this processor, just use the local index
-         call indv_mpi(iqq,iloc,jloc,nloc)
-         larray(n) = indp(iloc,jloc,nloc)
-      end if
-   end subroutine fix_index
+   !subroutine fix_index(iqq, larray, n, bnds, iext)
+   !   integer, intent(in) :: iqq, n
+   !   integer, dimension(:), intent(out) :: larray
+   !   integer, intent(inout) :: iext
+   !   type(bounds_info), dimension(0:), intent(inout) :: bnds
+   !   integer :: rproc
+   !   integer :: iloc,jloc,nloc
+   !
+   !   ! This processes extra corner points, so adds to rlenx
+   !   ! Which processor has this point
+   !   rproc = qproc(iqq)
+   !   if ( rproc /= myid ) then ! Add to list
+   !      call check_bnds_alloc(rproc, iext)
+   !      bnds(rproc)%rlenx = bnds(rproc)%rlenx + 1
+   !      bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqq
+   !      ! Increment extended region index
+   !      iext = iext + 1
+   !      bnds(rproc)%unpack_list(bnds(rproc)%rlenx) = iext
+   !      larray(n) = ifull+iext
+   !   else
+   !      ! If it's on this processor, just use the local index
+   !      call indv_mpi(iqq,iloc,jloc,nloc)
+   !      larray(n) = indp(iloc,jloc,nloc)
+   !   end if
+   !end subroutine fix_index
 
    subroutine fix_index2(iqq,larray,n,bnds,iext)
       integer, intent(in) :: iqq, n
@@ -4738,6 +4739,7 @@ contains
 
    end subroutine proc_setup
 
+#ifdef uniform_decomp
    subroutine proc_setup_uniform
       include 'parm.h'
 !     Routine to set up offsets etc for the uniform decomposition
@@ -4777,6 +4779,7 @@ contains
       end if
 
    end subroutine proc_setup_uniform
+#endif
 
    subroutine face_set(ipan_l, jpan_l, noff_l, ioff_l, joff_l, npan_l, il_gx, myid_l, nproc_l, nxproc_l, nyproc_l)
       integer, intent(in) :: myid_l, nproc_l, npan_l, il_gx
@@ -4847,7 +4850,6 @@ contains
       integer, intent(in) :: myid_l, nproc_l, npan_l, il_gx
       integer, intent(out) :: ipan_l, jpan_l, noff_l, nxproc_l, nyproc_l
       integer, dimension(0:npanels), intent(out) :: ioff_l, joff_l 
-      integer n
       integer(kind=4) ierr
       
       if ( npan_l /= npanels+1 ) then
@@ -4947,8 +4949,6 @@ contains
       integer, intent(in) :: procid, panid, nxproc_l, nyproc_l, ipan_l, jpan_l, npan_l
       integer, intent(in) :: dmode
       integer, intent(out) :: ipoff, jpoff, npoff
-      integer :: myface, mtmp
-      integer(kind=4) :: ierr
 
       select case(dmode)
          case(0) ! Face
@@ -5050,7 +5050,6 @@ contains
 
    subroutine start_log ( event )
       integer, intent(in) :: event
-      integer :: ierr
 #ifdef vampir
       VT_USER_START(event_name(event))
 #endif
@@ -5061,7 +5060,6 @@ contains
 
    subroutine end_log ( event )
       integer, intent(in) :: event
-      integer :: ierr
 #ifdef vampir
       VT_USER_END(event_name(event))
 #endif
@@ -5442,8 +5440,6 @@ contains
 
        real, intent(in), dimension(ifull) :: array
        real, intent(out) :: delpos, delneg
-       real, dimension(2) :: delarr, delarr_l
-       integer :: iq
        integer(kind=4) :: ierr
 #ifdef i8r8
        integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
@@ -5479,8 +5475,7 @@ contains
        real, intent(in), dimension(:), optional :: dsigin
        real, intent(out) :: delpos, delneg
        real, dimension(size(array,2)) :: dsigx
-       real, dimension(2) :: delarr, delarr_l
-       integer :: k, iq, kx
+       integer :: k, kx
        integer(kind=4) :: ierr
 #ifdef i8r8
        integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
@@ -5525,8 +5520,7 @@ contains
        real, intent(in), dimension(:), optional :: dsigin
        real, intent(out), dimension(:) :: delpos, delneg
        real, dimension(size(array,2)) :: dsigx
-       real, dimension(2*size(array,3)) :: delarr, delarr_l
-       integer :: i, k, iq, kx, ntr
+       integer :: i, k, kx, ntr
        integer(kind=4) :: ierr, mnum
 #ifdef i8r8
        integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
@@ -5837,7 +5831,7 @@ contains
    subroutine ccmpi_reduce2i(ldat,gdat,op,host,comm)
    
       integer, intent(in) :: host,comm
-      integer(kind=4) :: lop, lcomm, ierr, lsize, lkind, lhost
+      integer(kind=4) :: lop, lcomm, ierr, lsize, lhost
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_INTEGER8
 #else
@@ -6416,7 +6410,7 @@ contains
         call mpi_abort(MPI_COMM_WORLD,-1_4,lerr)
       end if
       do i=1,lsize
-        dummy(i)=iachar(ldat(i:i))
+        dummy(i)=int(iachar(ldat(i:i)),1)
       end do
       call MPI_Bcast(dummy,lsize,MPI_BYTE,lhost,lcomm,lerr)
       do i=1,lsize
@@ -6663,7 +6657,6 @@ contains
 #else
       integer(kind=4) :: ltype = MPI_REAL
 #endif
-      integer(kind=4), dimension(MPI_STATUS_SIZE) :: lstatus
       real, dimension(:), intent(in) :: ldat
 
       lproc = iproc
@@ -6875,7 +6868,7 @@ contains
       integer, intent(in) :: g, kx, nmax, msg_len, npanx
       integer n, iq_a, iq_c
       integer nrow, ncol, na, nb
-      integer yproc, ir, ic, is, ie, js, je, jj
+      integer yproc, ir, ic, is, js, je, jj
       integer nrm1
       integer(kind=4) :: ierr, ilen, lcomm
 #ifdef i8r8
@@ -6954,7 +6947,7 @@ contains
       integer, intent(in) :: g, kx, nmax, msg_len, npanx
       integer n, iq_a, iq_c
       integer nrow, ncol, na, nb
-      integer yproc, ir, ic, is, ie, js, je, jj
+      integer yproc, ir, ic, is, js, je, jj
       integer nrm1
       integer(kind=4) :: ierr, ilen, lcomm
 #ifdef i8r8
@@ -7032,7 +7025,7 @@ contains
       integer, intent(in) :: g, kx, nmax, msg_len, npanx
       integer :: n, iq_a, iq_c
       integer :: nrow, ncol, na, nb
-      integer :: yproc, ir, ic, is, ie, js, je, jj
+      integer :: yproc, ir, ic, is, js, je, jj
       integer :: nrm1
       integer(kind=4) :: ierr, ilen, lcomm
 #ifdef i8r8
@@ -7251,12 +7244,12 @@ contains
       integer, dimension(2,0:nproc-1) :: sdum, rdum
       integer, dimension(3) :: mg_ifullcol
       integer mioff, mjoff
-      integer i, j, n, iq, iqq, iqg, iql, iqb, iqtmp, ii, mfull, mfull_g
+      integer i, j, n, iq, iqq, iqg, iql, iqb, iqtmp, ii, mfull_g
       integer iloc, jloc, nloc
       integer iext, iproc, xlen, jx, nc, xlev, rproc, sproc
       integer ntest, nsize
       integer ncount
-      integer(kind=4) :: itag=22, lproc, ierr, llen, sreq
+      integer(kind=4) :: itag=22, lproc, ierr, llen
       ! 13 is the maximum number of possibe neigbours (i.e., uniform decomposition).
       integer(kind=4), dimension(26) :: dreq
       integer(kind=4), dimension(MPI_STATUS_SIZE,26) :: status
@@ -7405,7 +7398,7 @@ contains
                   iq = indx(i,j,n-1,mipan,mjpan) ! Local
                   iqg = indx(i+mioff,j+mjoff,n-noff,mil_g,mil_g) ! Global
 
-                  iqq = jn_g(iqg)    ! Global neighbour index
+                  iqq = jn_g(iqg)       ! Global neighbour index
                   rproc = mg_qproc(iqq) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
@@ -7413,7 +7406,7 @@ contains
                      mg(g)%in(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
                   end if
 
-                  iqq = js_g(iqg)    ! Global neighbour index
+                  iqq = js_g(iqg)       ! Global neighbour index
                   rproc = mg_qproc(iqq) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
@@ -7421,7 +7414,7 @@ contains
                      mg(g)%is(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
                   end if
 
-                  iqq = je_g(iqg)    ! Global neighbour index
+                  iqq = je_g(iqg)       ! Global neighbour index
                   rproc = mg_qproc(iqq) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
