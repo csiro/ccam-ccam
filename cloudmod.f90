@@ -240,6 +240,7 @@ real, dimension(ifull) :: n, crand
 ! should be noted that acon and bcon are likely to depend on the
 ! spatial resolution.
 
+cldcon_temp=0. ! for cray compiler
 call convectivecloudarea(cldcon_temp)
 if (present(cldcon)) then
   cldcon=cldcon_temp

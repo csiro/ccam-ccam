@@ -324,7 +324,11 @@ if ( myid==0 .and. io_in<=4 ) then
   else
     ! ASCII format      
     lnctopo = 0 ! flag indicating ASCII file
-    open(66,file=topofile,recl=2000,status='old')
+    open(66,file=topofile,recl=2000,status='old',iostat=ierr)
+    if (ierr/=0) then
+      write(6,*) "Error opening topofile ",trim(topofile)
+      call ccmpi_abort(-1)
+    end if
     read(66,*) ilx,jlx,rlong0,rlat0,schmidt,dsx,header
   end if ! (ierr==0) ..else..
   il_g = ilx        
@@ -342,7 +346,11 @@ temparray(4) = real(il_g)
 ! READ EIGENV FILE TO DEFINE VERTICAL LEVELS
 if ( myid==0 ) then
   ! Remanded of file is read in indata.f
-  open(28,file=eigenv,status='old',form='formatted')
+  open(28,file=eigenv,status='old',form='formatted',iostat=ierr)
+  if (ierr/=0) then
+    write(6,*) "Error opening eigenv file ",trim(eigenv)
+    call ccmpi_abort(-1)
+  end if
   read(28,*)kmax,lapsbot,isoth,nsig
   kl=kmax
   write(6,*)'kl,ol:              ',kl,ol

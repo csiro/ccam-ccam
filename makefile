@@ -19,7 +19,7 @@ endif
 
 # Testing - I/O and fpmodel
 ifeq ($(TEST),yes)
-FFLAGS += -assume buffered_io -fp-model strict -Doutsync
+FFLAGS += -assume buffered_io -fp-model strict -Doutsync -check all -debug all
 endif
 
 # Build with 64 ints/reals
