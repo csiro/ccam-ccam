@@ -116,6 +116,7 @@ idp(:,1)=emv(1:ifull)/ds
 idp(:,2)=emu(1:ifull)/ds
 idp(:,3)=emv(isv)/ds
 idp(:,4)=emu(iwu)/ds
+tmpry(:)=0. ! for cray compiler
 
 !--------------------------------------------------------------------
 ! update processor boundaries

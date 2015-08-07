@@ -119,7 +119,7 @@
       real dsk(kl),h0(kl),q0(kl),t0(kl)  
       real qplume(ifull,kl),splume(ifull,kl)
       integer kdown(ifull)
-      real entr(ifull),factr(ifull)
+      real factr(ifull)
       real fluxqs,fluxt_k(kl)
       real pblx(ifull)
       integer kpos(1)
@@ -824,8 +824,8 @@ c     & qplume(iq,k-1),max(qs(iq,k),qq(iq,k)),qbass(iq,k-1)
         fluxv(iq,kb_sav(iq))=1.  ! unit reference base mass flux (at level k+.5)
       enddo
       if(nmaxpr==1.and.mydiag)write(6,*) 
-     &       'kb_saved,kt_saved,entr,timeconva',
-     &       kb_saved(idjd), kt_saved(idjd),entr(idjd),timeconv(idjd)
+     &       'kb_saved,kt_saved,timeconva',
+     &       kb_saved(idjd), kt_saved(idjd),timeconv(idjd)
      
       kdown(:)=1    ! set to show allowed to check for cloud top; removed mdelay stuff
       kt_sav(:)=kl-1  ! added 2/5/15 for safety with supersaturated layers
@@ -1547,11 +1547,11 @@ c           print *,'has tied_con=0'
 
       if(nmaxpr==1.and.nevapcc.ne.0.and.mydiag)then
        write (6,
-     & "('itn,kb_sd,kt_sd,kb,kt,delS,entr,timeconv,entrainn,factr',
+     & "('itn,kb_sd,kt_sd,kb,kt,delS,timeconv,entrainn,factr',
      &       5i3,5f7.3)")
      &   itn,kb_saved(idjd),kt_saved(idjd),
      &   kb_sav(idjd),kt_sav(idjd), sig(kb_sav(idjd))-sig(kt_sav(idjd)),
-     &   entr(idjd),timeconv(idjd),entrainn(idjd),factr(idjd) 
+     &   timeconv(idjd),entrainn(idjd),factr(idjd) 
       endif
 
 !      do iq=1,ifull
