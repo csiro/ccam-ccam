@@ -1383,8 +1383,10 @@ include 'parm.h'           ! Model configuration
       
 integer mm, n, i
 integer n_n, n_e, n_w, n_s, np1, nm1, ik2
-!integer nreq
-!integer, dimension(6) :: breq
+#ifdef usempi3
+integer nreq
+integer, dimension(6) :: breq
+#endif
 real, dimension(6*dk*dk), intent(in) :: s
 real, dimension(ifull), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
@@ -1392,11 +1394,15 @@ real, dimension(-1:ik+2,-1:ik+2,0:npanels) :: sx ! large common array
 
 call START_LOG(otf_ints_begin)
 
+#ifdef usempi3
+nreq = 0
+#endif
+
 if ( dk>0 ) then
   ik2 = ik*ik
   !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
-  sx(1:ik,1:ik,0:npanels) = reshape(s(1:ik2*6), (/ik,ik,6/))
   do n=0,npanels,2
+    sx(1:ik,1:ik,n) = reshape(s(1+n*ik2:ik2+n*ik2), (/ik,ik/))
     n_w=mod(n+5,6)*ik2
     n_e=mod(n+2,6)*ik2
     n_n=mod(n+1,6)*ik2
@@ -1424,8 +1430,18 @@ if ( dk>0 ) then
     sx(0,ik+1,n)   =s(ik2+n_w)          ! wn  
     sx(ik+1,ik+1,n)=s(1+n_e)            ! en  
     sx(ik+1,-1,n)  =s(2*ik+n_e)         ! ess  
+    ! send each face of the host dataset to processors that require it
+    if ( nfacereq(n) ) then
+#ifdef usempi3
+      nreq = nreq + 1
+      call ccmpi_ibcast(sx(:,:,n),0,comm_face(n),breq(nreq))
+#else
+      call ccmpi_bcast(sx(:,:,n),0,comm_face(n))
+#endif
+    end if
   end do  ! n loop
   do n=1,npanels,2
+    sx(1:ik,1:ik,n) = reshape(s(1+n*ik2:ik2+n*ik2), (/ik,ik/))
     n_w=mod(n+4,6)*ik2
     n_e=mod(n+1,6)*ik2
     n_n=mod(n+2,6)*ik2
@@ -1453,22 +1469,45 @@ if ( dk>0 ) then
     sx(0,ik+1,n)   =s(1-ik+ik2+n_w)    ! wn  
     sx(ik+1,ik+1,n)=s(1-ik+ik2+n_e)    ! en  
     sx(ik+1,-1,n)  =s(2+n_e)           ! ess  
+    ! send each face of the host dataset to processors that require it
+    if ( nfacereq(n) ) then
+#ifdef usempi3
+      nreq = nreq + 1
+      call ccmpi_ibcast(sx(:,:,n),0,comm_face(n),breq(nreq))
+#else
+      call ccmpi_bcast(sx(:,:,n),0,comm_face(n))
+#endif
+    end if
   end do  ! n loop
   !     for ew interpolation, sometimes need (different from ns):
   !          (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
   !         (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
+else
+  do n=0,npanels,2
+    if ( nfacereq(n) ) then
+#ifdef usempi3
+      nreq = nreq + 1
+      call ccmpi_ibcast(sx(:,:,n),0,comm_face(n),breq(nreq))
+#else
+      call ccmpi_bcast(sx(:,:,n),0,comm_face(n))
+#endif
+    end if
+  end do
+  do n=1,npanels,2
+    if ( nfacereq(n) ) then
+#ifdef usempi3
+      nreq = nreq + 1
+      call ccmpi_ibcast(sx(:,:,n),0,comm_face(n),breq(nreq))
+#else
+      call ccmpi_bcast(sx(:,:,n),0,comm_face(n))
+#endif
+    end if
+  end do  
 end if
 
-! send each face of the host dataset to processors that require it
-!nreq = 0
-do mm = 0,npanels
-  if ( nfacereq(mm) ) then
-    !nreq = nreq + 1
-    !call ccmpi_ibcast(sx(:,:,mm),0,comm_face(mm),breq(nreq))
-    call ccmpi_bcast(sx(:,:,mm),0,comm_face(mm))
-  end if
-end do
-!call ccmpi_waitall(nreq,breq(1:nreq))
+#ifdef usempi3
+call ccmpi_waitall(nreq,breq(1:nreq))
+#endif
 
 if ( nord==1 ) then   ! bilinear
   do mm = 1,m_fly     !  was 4, now may be 1
@@ -1628,8 +1667,8 @@ do while ( nrem > 0)
           ! ic(iq)[2] is is_g for host grid
           ! ic(iq)[3] is ie_g for host grid
           ! ic(iq)[4] is iw_g for host grid
-          mask=a(ic(iq))/=value
-          neighb=count(mask)
+          mask(1:4)=a(ic(iq))/=value
+          neighb=count(mask(1:4))
           if ( neighb>0 ) then
             a_io(iq)=sum(a(ic(iq)),mask)/real(neighb)
           else
